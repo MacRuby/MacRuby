@@ -1654,7 +1654,7 @@ rb_obj_methods(int argc, VALUE *argv, VALUE obj)
 	args[0] = Qtrue;
 	ary = rb_class_instance_methods(1, args, CLASS_OF(obj));
 #if WITH_OBJC
-	rb_objc_methods(ary, ((Class)RCLASS(obj)->ocklass)->isa);
+	rb_objc_methods(ary, RCLASS(CLASS_OF(obj))->ocklass);
 #endif
 	return ary;
     }
