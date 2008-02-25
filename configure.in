@@ -467,7 +467,16 @@ case "$target_os" in
 nextstep*)	;;
 openstep*)	;;
 rhapsody*)	;;
-darwin*)	LIBS="-lobjc -framework Foundation -framework BridgeSupport -lffi -lauto $LIBS"
+darwin*)	LIBS="-lobjc -framework Foundation -lffi -lauto $LIBS"
+		if test -f "/System/Library/Frameworks/BridgeSupport.framework"; then
+		    LIBS="-framework BridgeSupport $LIBS"
+		    AC_DEFINE(HAVE_BRIDGESUPPORT_FRAMEWORK, 1)
+		else
+		    LIBS="-lxml2 $LIBS"
+		    CFLAGS="-I/usr/include/libxml2 $CFLAGS"
+		    AC_DEFINE(HAVE_BRIDGESUPPORT_FRAMEWORK, 0)
+		    AC_LIBOBJ([bs])
+		fi
 		CPPFLAGS="$CPPFLAGS -D_XOPEN_SOURCE -D_DARWIN_C_SOURCE"
 		AC_CHECK_HEADERS(auto_zone.h)
 		AC_TRY_CPP([#include <AvailabilityMacros.h>

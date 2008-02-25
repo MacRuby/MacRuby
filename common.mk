@@ -680,7 +680,9 @@ unicode.$(OBJEXT): {$(VPATH)}unicode.c {$(VPATH)}regint.h \
 utf_8.$(OBJEXT): {$(VPATH)}utf_8.c {$(VPATH)}regenc.h {$(VPATH)}config.h \
   {$(VPATH)}defines.h {$(VPATH)}oniguruma.h
 
-objc.$(OBJEXT): {$(VPATH)}ruby.h {$(VPATH)}node.h {$(VPATH)}encoding.h
+objc.$(OBJEXT): {$(VPATH)}objc.m {$(VPATH)}ruby.h {$(VPATH)}node.h \
+  {$(VPATH)}encoding.h
+bs.$(OBJEXT): {$(VPATH)}bs.c {$(VPATH)}bs.h {$(VPATH)}bs_lex.h
 
 INSNS	= opt_sc.inc optinsn.inc optunifs.inc insns.inc \
 	  vmtc.inc vm.inc

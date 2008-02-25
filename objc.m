@@ -4,7 +4,11 @@
 #include <unistd.h>
 #include <dlfcn.h>
 #include <Foundation/Foundation.h>
-#include <BridgeSupport/BridgeSupport.h>
+#if HAVE_BRIDGESUPPORT_FRAMEWORK
+# include <BridgeSupport/BridgeSupport.h>
+#else
+# include "missing/bs/bs.h"
+#endif
 
 typedef struct {
     bs_element_type_t type;
