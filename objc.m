@@ -7,7 +7,7 @@
 #if HAVE_BRIDGESUPPORT_FRAMEWORK
 # include <BridgeSupport/BridgeSupport.h>
 #else
-# include "missing/bs/bs.h"
+# include "bs.h"
 #endif
 
 typedef struct {
