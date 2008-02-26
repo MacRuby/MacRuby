@@ -4197,7 +4197,7 @@ path_check_0(VALUE path, int execpath)
 	VALUE newpath;
 
 	newpath = rb_str_new2(buf);
-	free(buf);
+	xfree(buf);
 
 	rb_str_cat2(newpath, "/");
 	rb_str_cat2(newpath, p0);
