@@ -645,6 +645,7 @@ VALUE rb_mod_remove_cvar(VALUE, VALUE);
 VALUE rb_mod_objc_ancestors(VALUE);
 VALUE rb_require_framework(VALUE, VALUE);
 VALUE rb_objc_resolve_const_value(VALUE, VALUE, ID);
+ID rb_objc_missing_sel(ID mid, int arity);
 #endif
 /* version.c */
 void ruby_show_version(void);

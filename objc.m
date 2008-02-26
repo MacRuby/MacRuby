@@ -2011,6 +2011,48 @@ rb_install_objc_primitives(void)
 	(IMP)imp_rb_string_characterAtIndex);
 }
 
+ID
+rb_objc_missing_sel(ID mid, int arity)
+{
+    const char *name;
+    size_t len;
+    char buf[100];    
+
+    if (arity != 1 || mid == 0)
+	return mid;
+
+    name = rb_id2name(mid);
+    if (name == NULL)
+	return mid;
+
+    len = strlen(name);
+    if (len == 0)
+	return mid;
+    
+    if (name[len - 1] == '=') {
+	strlcpy(buf, "set", sizeof buf);
+	buf[3] = toupper(name[0]);
+	buf[4] = '\0';
+	strlcat(buf, &name[1], sizeof buf);
+	buf[len + 2] = ':';
+    }
+    else if (name[len - 1] != ':' && len < sizeof buf) {
+	strlcpy(buf, name, sizeof buf);
+	buf[len] = ':';
+	buf[len + 1] = '\0';
+    }
+    else if (name[len - 1] == ':' && len < sizeof buf) {
+	strlcpy(buf, name, sizeof buf);
+	buf[len - 1] = '\0';
+    }
+    else
+	return mid;
+
+//    printf("new sel %s for %s\n", buf, name);
+
+    return rb_intern(buf);	
+}
+
 void
 Init_ObjC(void)
 {
