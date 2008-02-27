@@ -566,6 +566,15 @@ rb_objc_rval_to_ocval(VALUE rval, const char *octype, void **ocval)
 	    ok = rb_objc_rval_to_ocsel(rval, ocval);
 	    break;
 
+	case _C_PTR:
+	    if (NIL_P(rval)) {
+		*(void **)ocval = NULL;
+	    }
+	    else {
+		ok = false;
+	    }
+	    break;
+
 	case _C_UCHR:
  	    *(unsigned char *)ocval = (unsigned char) 
 		NUM2UINT(rb_Integer(rval));
@@ -768,6 +777,12 @@ rb_objc_ocval_to_rbval(void **ocval, const char *octype, VALUE *rbval)
 
 	case _C_DBL:
 	    *rbval = rb_float_new(*(double *)ocval);
+	    break;
+
+	case _C_CHARPTR:
+	    *rbval =  *(void **)ocval == NULL
+		? Qnil
+		: rb_str_new2(*(char **)ocval);
 	    break;
 
 	default:
@@ -2051,6 +2066,56 @@ rb_objc_missing_sel(ID mid, int arity)
 //    printf("new sel %s for %s\n", buf, name);
 
     return rb_intern(buf);	
+}
+
+static const char *
+resources_path(char *path, size_t len)
+{
+    CFBundleRef bundle;
+    CFURLRef url;
+
+    bundle = CFBundleGetMainBundle();
+    assert(bundle != NULL);
+
+    url = CFBundleCopyResourcesDirectoryURL(bundle);
+    *path = '-'; 
+    *(path+1) = 'I';
+    assert(CFURLGetFileSystemRepresentation(
+	url, true, (UInt8 *)&path[2], len - 2));
+    CFRelease(url);
+
+    return path;
+}
+
+int
+macruby_main(const char *path, int argc, char **argv)
+{
+    char **newargv;
+    char *p1, *p2;
+
+    newargv = (char **)malloc((argc + 2) * sizeof(char *));
+    memcpy(newargv, argv, argc * sizeof(char *));
+    
+    p1 = (char *)malloc(PATH_MAX);
+    newargv[argc++] = (char *)resources_path(p1, PATH_MAX);
+
+    p2 = (char *)malloc(PATH_MAX);
+    snprintf(p2, PATH_MAX, "%s/%s", &p1[2], path);
+    newargv[argc++] = p2;
+
+    argv = newargv;    
+
+    ruby_sysinit(&argc, &argv);
+    {
+	void *tree;
+	RUBY_INIT_STACK;
+	ruby_init();
+	tree = ruby_options(argc, argv);
+	free(newargv);
+	free(p1);
+	free(p2);
+	return ruby_run_node(tree);
+    }
 }
 
 void

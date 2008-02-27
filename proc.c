@@ -1136,6 +1136,16 @@ rb_mod_define_method(int argc, VALUE *argv, VALUE mod)
     return body;
 }
 
+#if WITH_OBJC
+static VALUE
+rb_mod_objc_ib_action(VALUE recv, VALUE sym)
+{
+    if (rb_block_given_p())
+	return rb_mod_define_method(1, &sym, recv);	
+    return recv;
+}
+#endif
+
 static VALUE
 rb_obj_define_method(int argc, VALUE *argv, VALUE obj)
 {
@@ -1802,6 +1812,10 @@ Init_Proc(void)
     rb_define_method(rb_cModule, "instance_method", rb_mod_instance_method, 1);
     rb_define_method(rb_cModule, "public_instance_method", rb_mod_public_instance_method, 1);
     rb_define_private_method(rb_cModule, "define_method", rb_mod_define_method, -1);
+
+#if WITH_OBJC
+    rb_define_private_method(rb_cModule, "ib_action", rb_mod_objc_ib_action, 1);
+#endif
 
     /* Kernel */
     rb_define_method(rb_mKernel, "define_singleton_method", rb_obj_define_method, -1);
