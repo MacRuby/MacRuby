@@ -846,6 +846,10 @@ void ruby_init(void);
 void *ruby_options(int, char**);
 int ruby_run_node(void *);
 
+#if WITH_OBJC
+int macruby_main(const char *path, int argc, char **argv);
+#endif
+
 RUBY_EXTERN VALUE rb_mKernel;
 RUBY_EXTERN VALUE rb_mComparable;
 RUBY_EXTERN VALUE rb_mEnumerable;
