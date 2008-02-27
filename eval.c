@@ -1380,17 +1380,10 @@ rb_call0_redo:
 #if WITH_OBJC
 # define REDO_PERHAPS() \
     do { \
-	if (argc == 1) { \
-	    const char *p = rb_id2name(mid); \
-	    if (p[strlen(p) - 1] == ':') { \
-		char buf[128]; \
-		size_t s = strlcpy(buf, p, sizeof buf); \
-		if (s < sizeof buf) { \
-		    buf[s - 1] = '\0'; \
-		    id = mid = rb_intern(buf); \
-		    goto rb_call0_redo; \
-		} \
-	    } \
+	ID newid = rb_objc_missing_sel(mid, argc); \
+	if (newid != mid) { \
+	    id = mid = newid; \
+	    goto rb_call0_redo; \
 	} \
     } \
     while (0)

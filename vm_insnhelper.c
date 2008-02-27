@@ -1153,9 +1153,9 @@ vm_method_process_named_args(ID *pid, NODE **pmn, VALUE recv, rb_num_t *pnum,
 #if 1
 	    unsigned j, newnum = 1 + (count / 2);
 	    void **new_argv = alloca(sizeof(void *) * newnum);
-	    new_argv[0] = argv[0];
+	    new_argv[0] = (void *)argv[0];
 	    for (i = 0, j = 1; i < count; i += 2, j++) {
-		new_argv[j] = RARRAY_PTR(argv[1])[i + 1];
+		new_argv[j] = (void *)RARRAY_PTR(argv[1])[i + 1];
 	    }
 	    argv = cfp->sp - newnum;
 	    cfp->bp -= newnum - *pnum;
@@ -1177,11 +1177,9 @@ vm_method_process_named_args(ID *pid, NODE **pmn, VALUE recv, rb_num_t *pnum,
 	return;
     }
   
-    if (*pmn == NULL && *pnum == 1) {
-	const char *selname = rb_id2name(*pid);
-	if (selname[strlen(selname) - 1] != ':') {
-	    snprintf(buf, sizeof buf, "%s:", selname);
-	    id = rb_intern(buf);
+    if (*pmn == NULL) {
+	id = rb_objc_missing_sel(*pid, *pnum);
+	if (id != *pid) {
 	    mn = rb_objc_define_objc_mid_closure(recv, id);
 	    if (mn != NULL) {
 		*pmn = mn;
