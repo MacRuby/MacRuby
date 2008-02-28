@@ -1785,6 +1785,17 @@ bs_parse_cb(const char *path, bs_element_type_t type, void *value, void *ctx)
 	bs_element_free(type, value);
 }
 
+static VALUE
+rb_objc_load_bs(VALUE recv, VALUE path)
+{
+    char *error;
+
+    if (!bs_parse(StringValuePtr(path), 0, bs_parse_cb, NULL, &error))
+	rb_raise(rb_eRuntimeError, error);
+
+    return recv;
+}
+
 static void
 load_bridge_support(const char *framework_path)
 {
@@ -1925,7 +1936,7 @@ imp_rb_ary_objectAtIndex(void *rcv, SEL sel, NSUInteger idx)
 
     if (!rb_objc_rval_to_ocid(element, &ptr))
 	[NSException raise:@"NSException" 
-	    format:@"element (%s) at index (%d) cannott be passed to " \
+	    format:@"element (%s) at index (%d) cannot be passed to " \
 	    "Objective-C", RSTRING_PTR(rb_inspect(element)), idx];
 
     if (ptr == NULL)
@@ -2141,4 +2152,6 @@ Init_ObjC(void)
     rb_ivar_type = rb_intern("@__objc_type__");
 
     rb_install_objc_primitives();
+
+    rb_define_global_function("load_bridge_support_file", rb_objc_load_bs, 1);
 }
