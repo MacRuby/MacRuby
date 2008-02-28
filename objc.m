@@ -836,8 +836,6 @@ rb_objc_to_ruby_closure_handler(ffi_cif *cif, void *resp, void **args,
 
     selector = method_getName(method);
 
-    imp = method_getImplementation(method);
-
     ffi_argtypes = (ffi_type **)alloca(sizeof(ffi_type *) * count + 1);
     ffi_argtypes[0] = &ffi_type_pointer;
     ffi_argtypes[1] = &ffi_type_pointer;
@@ -845,6 +843,10 @@ rb_objc_to_ruby_closure_handler(ffi_cif *cif, void *resp, void **args,
     rb_objc_rval_to_ocid(rcv, (void **)&ocrcv);
     ffi_args[0] = &ocrcv;
     ffi_args[1] = &selector;
+
+    imp = method == class_getInstanceMethod(object_getClass(ocrcv), selector)
+	? method_getImplementation(method)
+	: objc_msgSend;
 
     for (i = 0; i < RARRAY_LEN(argv); i++) {
 	method_getArgumentType(method, i + 2, type, sizeof type);
