@@ -1893,6 +1893,10 @@ rb_require_framework(VALUE recv, VALUE framework)
 	snprintf(path, sizeof path, "/Library/Frameworks/%s.framework", cstr);
 	TRY_LOAD_PATH();
 
+	snprintf(path, sizeof path,
+		 "/System/Library/PrivateFrameworks/%s.framework", cstr);
+	TRY_LOAD_PATH();
+
 #undef TRY_LOAD_PATH
 
 	rb_raise(rb_eRuntimeError, "framework `%s' not found", cstr);
