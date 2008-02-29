@@ -2188,7 +2188,7 @@ rb_objc_missing_sel(ID mid, int arity)
     size_t len;
     char buf[100];    
 
-    if (arity != 1 || mid == 0)
+    if (mid == 0)
 	return mid;
 
     name = rb_id2name(mid);
@@ -2199,19 +2199,26 @@ rb_objc_missing_sel(ID mid, int arity)
     if (len == 0)
 	return mid;
     
-    if (name[len - 1] == '=') {
+    if (arity == 1 && name[len - 1] == '=') {
 	strlcpy(buf, "set", sizeof buf);
 	buf[3] = toupper(name[0]);
 	buf[4] = '\0';
 	strlcat(buf, &name[1], sizeof buf);
 	buf[len + 2] = ':';
     }
-    else if (name[len - 1] != ':' && len < sizeof buf) {
+    else if (arity == 0 && name[len - 1] == '?') {
+	strlcpy(buf, "is", sizeof buf);
+	buf[2] = toupper(name[0]);
+	buf[3] = '\0';
+	strlcat(buf, &name[1], sizeof buf);
+	buf[len + 1] = '\0';
+    }
+    else if (arity == 1 && name[len - 1] != ':' && len < sizeof buf) {
 	strlcpy(buf, name, sizeof buf);
 	buf[len] = ':';
 	buf[len + 1] = '\0';
     }
-    else if (name[len - 1] == ':' && len < sizeof buf) {
+    else if (arity == 1 && name[len - 1] == ':' && len < sizeof buf) {
 	strlcpy(buf, name, sizeof buf);
 	buf[len - 1] = '\0';
     }
