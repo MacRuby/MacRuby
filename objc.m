@@ -2181,6 +2181,34 @@ rb_install_objc_primitives(void)
 	(IMP)imp_rb_string_characterAtIndex);
 }
 
+static void *
+rb_objc_allocate(void *klass)
+{
+    return (void *)rb_obj_alloc(rb_objc_import_class(klass));
+}
+
+static void *
+imp_rb_obj_alloc(void *rcv, SEL sel)
+{
+    return rb_objc_allocate(rcv);
+}
+
+static void *
+imp_rb_obj_allocWithZone(void *rcv, SEL sel, void *zone)
+{
+    return rb_objc_allocate(rcv);
+}
+
+static void
+rb_install_alloc_methods(void)
+{
+    Class klass = RCLASS_OCID(rb_cObject)->isa;
+
+    rb_objc_install_method(klass, @selector(alloc), (IMP)imp_rb_obj_alloc);
+    rb_objc_install_method(klass, @selector(allocWithZone:), 
+	(IMP)imp_rb_obj_allocWithZone);
+}
+
 ID
 rb_objc_missing_sel(ID mid, int arity)
 {
@@ -2344,6 +2372,7 @@ Init_ObjC(void)
     rb_ivar_type = rb_intern("@__objc_type__");
 
     rb_install_objc_primitives();
+    rb_install_alloc_methods();
 
     rb_define_global_function("load_bridge_support_file", rb_objc_load_bs, 1);
 }
