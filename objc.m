@@ -746,6 +746,10 @@ rb_objc_ocval_to_rbval(void **ocval, const char *octype, VALUE *rbval)
 	    *rbval = rb_objc_import_class(*(Class *)ocval);
 	    break;
 
+	case _C_BOOL:
+	    *rbval = *(bool *)ocval ? Qtrue : Qfalse;
+	    break;
+
 	case _C_CHR:
 	    *rbval = INT2NUM(*(char *)ocval);
 	    break;
@@ -851,7 +855,7 @@ rb_objc_method_get_type(Method method, bs_element_method_t *bs_method, int n,
 	}
     }
     if (n == -1) {
-	method_getReturnType(method, type, sizeof type);
+	method_getReturnType(method, type, type_len);
     }
     else {
 	method_getArgumentType(method, n + 2, type, type_len);
