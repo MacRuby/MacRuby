@@ -2491,7 +2491,7 @@ Init_Object(void)
     rb_define_method(rb_cModule, "ancestors", rb_mod_ancestors, 0); /* in class.c */
 #if WITH_OBJC
     rb_define_method(rb_cModule, "objc_ancestors", rb_mod_objc_ancestors, 0); /* in objc.m */
-    rb_define_private_method(rb_cModule, "ib_outlet", rb_mod_attr_accessor, -1);
+    rb_define_private_method(rb_cModule, "ib_outlet", rb_mod_objc_ib_outlet, -1); /* in objc.m */
 #endif
 
     rb_define_private_method(rb_cModule, "attr", rb_mod_attr, -1);

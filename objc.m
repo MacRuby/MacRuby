@@ -61,6 +61,8 @@ static struct st_table *bs_functions;
 static struct st_table *bs_function_syms;
 static struct st_table *bs_boxeds;
 static struct st_table *bs_classes;
+static struct st_table *bs_inf_prot_cmethods;
+static struct st_table *bs_inf_prot_imethods;
 
 static char *
 rb_objc_sel_to_mid(SEL selector, char *buffer, unsigned buffer_len)
@@ -540,6 +542,9 @@ rb_objc_rval_to_ocval(VALUE rval, const char *octype, void **ocval)
 
     octype = rb_objc_skip_octype_modifiers(octype);
 
+    if (*octype == _C_VOID)
+	return;
+
     {
 	bs_element_boxed_t *bs_boxed;
 	if (st_lookup(bs_boxeds, (st_data_t)octype, 
@@ -993,25 +998,31 @@ rb_ruby_to_objc_closure_handler(ffi_cif *cif, void *resp, void **args,
     ID mid;
     VALUE rrcv, rargs, ret;
     unsigned i;
+    Method method;
+    char type[128];
 
     rcv = (*(id **)args)[0];
     sel = (*(SEL **)args)[1];
 
-    mid = rb_intern((const char *)sel);
+    method = class_getInstanceMethod(object_getClass(rcv), sel);
+    assert(method != NULL);
 
     rargs = rb_ary_new();
     for (i = 2; i < cif->nargs; i++) {
-	/* TODO: get the right type */
 	VALUE val;
-	rb_objc_ocid_to_rval(args[i], &val);
+        
+	method_getArgumentType(method, i, type, sizeof type);
+	rb_objc_ocval_to_rbval(args[i], type, &val);
 	rb_ary_push(rargs, val);
     }
 
     rb_objc_ocid_to_rval(&rcv, &rrcv);
 
+    mid = rb_intern((const char *)sel);
     ret = rb_apply(rrcv, mid, rargs);
 
-    rb_objc_rval_to_ocid(ret, resp);
+    method_getReturnType(method, type, sizeof type);
+    rb_objc_rval_to_ocval(ret, type, resp);
 }
 
 static void *
@@ -1104,12 +1115,18 @@ rb_objc_sync_ruby_method(VALUE mod, ID mid, NODE *node, unsigned override)
 	    klass == NULL || class_getInstanceMethod(klass, sel) != method;
     }
     else {
-	types = (char *)alloca((arity + 4) * sizeof(char));
-	types[0] = '@';
-	types[1] = '@';
-	types[2] = ':';
-	memset(&types[3], '@', arity);
-	types[arity + 3] = '\0';
+	struct st_table *t = class_isMetaClass(ocklass)
+	    ? bs_inf_prot_cmethods
+	    : bs_inf_prot_imethods;
+
+	if (t == NULL || !st_lookup(t, (st_data_t)sel, (st_data_t *)&types)) {
+	    types = (char *)alloca((arity + 4) * sizeof(char));
+	    types[0] = '@';
+	    types[1] = '@';
+	    types[2] = ':';
+	    memset(&types[3], '@', arity);
+	    types[arity + 3] = '\0';
+	}
     }
 
 //    printf("registering sel %s of types %s arity %d to class %s\n",
@@ -1860,7 +1877,7 @@ bs_parse_cb(const char *path, bs_element_type_t type, void *value, void *ctx)
 #define INDEX_METHODS(table, ary, len) \
     do { \
 	if (len > 0) { \
-	    table = st_init_strtable(); \
+	    table = st_init_numtable(); \
 	    rb_objc_retain(table); \
 	    for (i = 0; i < len; i++) { \
 		bs_element_method_t *method = &ary[i]; \
@@ -1883,6 +1900,20 @@ bs_parse_cb(const char *path, bs_element_type_t type, void *value, void *ctx)
 
 	    st_insert(bs_classes, (st_data_t)bs_class_new->name, 
 		(st_data_t)bs_class_new);
+
+	    break;
+	}
+
+	case BS_ELEMENT_INFORMAL_PROTOCOL_METHOD:
+	{
+	    bs_element_informal_protocol_method_t *bs_inf_prot_method = 
+		(bs_element_informal_protocol_method_t *)value;
+	    struct st_table *t = bs_inf_prot_method->class_method
+		? bs_inf_prot_cmethods
+		: bs_inf_prot_imethods;
+
+	    st_insert(t, (st_data_t)bs_inf_prot_method->name,
+		(st_data_t)bs_inf_prot_method->type);
 
 	    break;
 	}
@@ -2242,6 +2273,54 @@ macruby_main(const char *path, int argc, char **argv)
     }
 }
 
+static void
+rb_objc_ib_outlet_imp(void *recv, SEL sel, void *value)
+{
+    const char *selname;
+    char buf[128];
+    size_t s;   
+    VALUE rvalue;
+
+    selname = sel_getName(sel);
+    buf[0] = '@';
+    buf[1] = tolower(selname[3]);
+    s = strlcpy(&buf[2], &selname[4], sizeof buf - 2);
+    buf[s + 1] = '\0';
+
+    rb_objc_ocid_to_rval(&value, &rvalue);
+    rb_ivar_set((VALUE)recv, rb_intern(buf), rvalue);
+}
+
+VALUE
+rb_mod_objc_ib_outlet(int argc, VALUE *argv, VALUE recv)
+{
+    int i;
+    char buf[128];
+
+    buf[0] = 's'; buf[1] = 'e'; buf[2] = 't';
+
+    for (i = 0; i < argc; i++) {
+	VALUE sym = argv[i];
+	const char *symname;
+	
+	Check_Type(sym, T_SYMBOL);
+	symname = rb_id2name(SYM2ID(sym));
+
+	if (strlen(symname) == 0)
+	    rb_raise(rb_eArgError, "empty symbol given");
+	
+	buf[3] = toupper(symname[0]);
+	buf[4] = '\0';
+	strlcat(buf, &symname[1], sizeof buf);
+	strlcat(buf, ":", sizeof buf);
+
+	if (!class_addMethod(RCLASS_OCID(recv), sel_registerName(buf), 
+			     (IMP)rb_objc_ib_outlet_imp, "v@:@"))
+	    rb_raise(rb_eArgError, "can't register `%s' as an IB outlet",
+		     symname);
+    }
+}
+
 void
 Init_ObjC(void)
 {
@@ -2250,6 +2329,8 @@ Init_ObjC(void)
     rb_objc_retain(bs_function_syms = st_init_numtable());
     rb_objc_retain(bs_boxeds = st_init_strtable());
     rb_objc_retain(bs_classes = st_init_strtable());
+    rb_objc_retain(bs_inf_prot_cmethods = st_init_numtable());
+    rb_objc_retain(bs_inf_prot_imethods = st_init_numtable());
 
     bs_const_magic_cookie = rb_str_new2("bs_const_magic_cookie");
     rb_cBoxed = rb_define_class("Boxed", rb_cObject);
