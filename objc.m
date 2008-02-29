@@ -45,6 +45,12 @@ typedef struct {
     ffi_type *ffi_type;
 } bs_element_boxed_t;
 
+typedef struct {
+    char *name;
+    struct st_table *cmethods;
+    struct st_table *imethods;
+} bs_element_indexed_class_t;
+
 static VALUE rb_cBoxed;
 static ID rb_ivar_type;
 
@@ -54,6 +60,7 @@ static struct st_table *bs_constants;
 static struct st_table *bs_functions;
 static struct st_table *bs_function_syms;
 static struct st_table *bs_boxeds;
+static struct st_table *bs_classes;
 
 static char *
 rb_objc_sel_to_mid(SEL selector, char *buffer, unsigned buffer_len)
@@ -360,7 +367,7 @@ rb_objc_octype_to_ffitype(const char *octype)
 	    return &ffi_type_void;
     }
 
-    rb_bug("Unrecognized octype `%s'", octype);
+    rb_raise(rb_eRuntimeError, "unrecognized octype `%s'", octype);
 
     return NULL;
 }
@@ -807,6 +814,51 @@ rb_objc_exc_raise(id exception)
     rb_raise(rb_eRuntimeError, "%s: %s", name, desc);
 }
 
+static bs_element_method_t *
+rb_bs_find_method(Class klass, SEL sel)
+{
+    do {
+	bs_element_indexed_class_t *bs_class;
+	bs_element_method_t *bs_method;
+
+	if (st_lookup(bs_classes, (st_data_t)class_getName(klass),
+	              (st_data_t *)&bs_class)) {
+ 	    struct st_table *t = class_isMetaClass(klass) 
+		? bs_class->cmethods : bs_class->imethods;
+	    if (t != NULL 
+		&& st_lookup(t, (st_data_t)sel, (st_data_t *)&bs_method))
+		return bs_method;
+	}
+
+	klass = class_getSuperclass(klass);
+    }
+    while (klass != NULL);
+
+    return NULL;
+}
+
+static const char *
+rb_objc_method_get_type(Method method, bs_element_method_t *bs_method, int n,
+			char *type, size_t type_len)
+{
+    if (bs_method != NULL) {
+	unsigned i;
+	if (n == -1 && bs_method->retval != NULL)
+	    return bs_method->retval->type;	    
+	for (i = 0; i < bs_method->args_count; i++) {
+	    if (bs_method->args[i].index == i)
+		return bs_method->args[i].type; 
+	}
+    }
+    if (n == -1) {
+	method_getReturnType(method, type, sizeof type);
+    }
+    else {
+	method_getArgumentType(method, n + 2, type, type_len);
+    }
+    return type;
+}
+
 static void
 rb_objc_to_ruby_closure_handler(ffi_cif *cif, void *resp, void **args,
 				void *userdata)
@@ -816,10 +868,13 @@ rb_objc_to_ruby_closure_handler(ffi_cif *cif, void *resp, void **args,
     unsigned i, count;
     ffi_type *ffi_rettype, **ffi_argtypes;
     void *ffi_ret, **ffi_args;
+    Class klass;
     SEL selector;
-    char type[128];
+    const char *type;
+    char buf[128];
     id ocrcv;
     void *imp;
+    bs_element_method_t *bs_method;
 
     rcv = (*(VALUE **)args)[0];
     argv = (*(VALUE **)args)[1];
@@ -834,22 +889,26 @@ rb_objc_to_ruby_closure_handler(ffi_cif *cif, void *resp, void **args,
 	rb_raise(rb_eArgError, "wrong number of arguments (%d for %d)",
 		 RARRAY_LEN(argv), count - 2);
 
+    rb_objc_rval_to_ocid(rcv, (void **)&ocrcv);
+    klass = object_getClass(ocrcv);
     selector = method_getName(method);
+
+    bs_method = rb_bs_find_method(klass, selector);
 
     ffi_argtypes = (ffi_type **)alloca(sizeof(ffi_type *) * count + 1);
     ffi_argtypes[0] = &ffi_type_pointer;
     ffi_argtypes[1] = &ffi_type_pointer;
+
     ffi_args = (void **)alloca(sizeof(void *) * count + 1);
-    rb_objc_rval_to_ocid(rcv, (void **)&ocrcv);
     ffi_args[0] = &ocrcv;
     ffi_args[1] = &selector;
 
-    imp = method == class_getInstanceMethod(object_getClass(ocrcv), selector)
+    imp = method == class_getInstanceMethod(klass, selector)
 	? method_getImplementation(method)
 	: objc_msgSend;
 
     for (i = 0; i < RARRAY_LEN(argv); i++) {
-	method_getArgumentType(method, i + 2, type, sizeof type);
+	type = rb_objc_method_get_type(method, bs_method, i, buf, sizeof buf);
 	ffi_argtypes[i + 2] = rb_objc_octype_to_ffitype(type);
 	assert(ffi_argtypes[i + 2]->size > 0);
 	ffi_args[i + 2] = (void *)alloca(ffi_argtypes[i + 2]->size);
@@ -859,7 +918,7 @@ rb_objc_to_ruby_closure_handler(ffi_cif *cif, void *resp, void **args,
     ffi_argtypes[count] = NULL;
     ffi_args[count] = NULL;
 
-    method_getReturnType(method, type, sizeof type);
+    type = rb_objc_method_get_type(method, bs_method, -1, buf, sizeof buf);
     ffi_rettype = rb_objc_octype_to_ffitype(type);
 
     cif = (ffi_cif *)alloca(sizeof(ffi_cif));
@@ -1598,14 +1657,17 @@ rb_bs_struct_inspect(VALUE recv)
     str = rb_str_new2("#<");
     rb_str_cat2(str, rb_obj_classname(recv));
 
-    for (i = 0; i < bs_struct->fields_count; i++) {
-	VALUE obj;
+    if (!bs_struct->opaque) {
+	for (i = 0; i < bs_struct->fields_count; i++) {
+	    VALUE obj;
 
-	obj = rb_funcall(recv, rb_intern(bs_struct->fields[i].name), 0, NULL);
-	rb_str_cat2(str, " ");
-	rb_str_cat2(str, bs_struct->fields[i].name);
-	rb_str_cat2(str, "=");
-	rb_str_append(str, rb_inspect(obj));
+	    obj = rb_funcall(recv, rb_intern(bs_struct->fields[i].name), 
+			     0, NULL);
+	    rb_str_cat2(str, " ");
+	    rb_str_cat2(str, bs_struct->fields[i].name);
+	    rb_str_cat2(str, "=");
+	    rb_str_append(str, rb_inspect(obj));
+	}
     }
 
     rb_str_cat2(str, ">");
@@ -1777,6 +1839,47 @@ bs_parse_cb(const char *path, bs_element_type_t type, void *value, void *ctx)
 	case BS_ELEMENT_STRUCT:
 	{
 	    setup_bs_boxed_type(type, value);
+	    break;
+	}
+
+	case BS_ELEMENT_CLASS:
+	{
+	    bs_element_class_t *bs_class = (bs_element_class_t *)value;
+	    bs_element_indexed_class_t *bs_class_new;
+	    unsigned i;
+
+	    bs_class_new = (bs_element_indexed_class_t *)
+		malloc(sizeof(bs_element_indexed_class_t));
+
+	    bs_class_new->name = strdup(bs_class->name);
+
+#define INDEX_METHODS(table, ary, len) \
+    do { \
+	if (len > 0) { \
+	    table = st_init_strtable(); \
+	    rb_objc_retain(table); \
+	    for (i = 0; i < len; i++) { \
+		bs_element_method_t *method = &ary[i]; \
+		st_insert(table, (st_data_t)method->name, (st_data_t)method); \
+	    } \
+	} \
+	else { \
+	    table = NULL; \
+	} \
+    } \
+    while (0)
+
+	    INDEX_METHODS(bs_class_new->cmethods, bs_class->class_methods,
+		bs_class->class_methods_count);
+
+	    INDEX_METHODS(bs_class_new->imethods, bs_class->instance_methods,
+		bs_class->instance_methods_count);
+
+#undef INDEX_METHODS
+
+	    st_insert(bs_classes, (st_data_t)bs_class_new->name, 
+		(st_data_t)bs_class_new);
+
 	    break;
 	}
     }
@@ -2138,14 +2241,11 @@ macruby_main(const char *path, int argc, char **argv)
 void
 Init_ObjC(void)
 {
-    bs_constants = st_init_numtable();
-    GC_ROOT(&bs_constants);
-    bs_functions = st_init_numtable();
-    GC_ROOT(&bs_functions);
-    bs_function_syms = st_init_numtable();
-    GC_ROOT(&bs_function_syms);
-    bs_boxeds = st_init_strtable();
-    GC_ROOT(&bs_boxeds);
+    rb_objc_retain(bs_constants = st_init_numtable());
+    rb_objc_retain(bs_functions = st_init_numtable());
+    rb_objc_retain(bs_function_syms = st_init_numtable());
+    rb_objc_retain(bs_boxeds = st_init_strtable());
+    rb_objc_retain(bs_classes = st_init_strtable());
 
     bs_const_magic_cookie = rb_str_new2("bs_const_magic_cookie");
     rb_cBoxed = rb_define_class("Boxed", rb_cObject);
