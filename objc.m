@@ -37,6 +37,8 @@
 #else
 # include "bs.h"
 #endif
+#include "vm_core.h"
+#include "vm.h"
 
 typedef struct {
     bs_element_type_t type;
@@ -912,9 +914,21 @@ rb_objc_to_ruby_closure_handler(ffi_cif *cif, void *resp, void **args,
     ffi_args[0] = &ocrcv;
     ffi_args[1] = &selector;
 
-    imp = method == class_getInstanceMethod(klass, selector)
-	? method_getImplementation(method)
-	: objc_msgSend;
+    if ((ruby_current_thread->cfp->flag >> FRAME_MAGIC_MASK_BITS) 
+	& VM_CALL_SUPER_BIT) {
+	Class sklass;
+	Method smethod;
+	sklass = class_getSuperclass(klass);
+	assert(sklass != NULL);
+	smethod = class_getInstanceMethod(sklass, selector);
+	assert(smethod != method);
+	imp = method_getImplementation(smethod);	
+    }
+    else {
+	imp = method == class_getInstanceMethod(klass, selector)
+	    ? method_getImplementation(method)
+	    : objc_msgSend; /* alea jacta est */
+    }
 
     for (i = 0; i < RARRAY_LEN(argv); i++) {
 	type = rb_objc_method_get_type(method, bs_method, i, buf, sizeof buf);
