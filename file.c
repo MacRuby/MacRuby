@@ -2276,7 +2276,7 @@ rb_file_s_readlink(VALUE klass, VALUE path)
 	rb_sys_fail(RSTRING_PTR(path));
     }
     v = rb_tainted_str_new(buf, rv);
-    free(buf);
+    xfree(buf);
 
     return v;
 #else
