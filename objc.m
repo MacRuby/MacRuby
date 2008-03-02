@@ -518,6 +518,17 @@ bs_element_boxed_get_data(bs_element_boxed_t *bs_boxed, VALUE rval,
     return data;
 }
 
+static void
+rb_bs_boxed_assert_ffitype_ok(bs_element_boxed_t *bs_boxed)
+{
+    if (bs_boxed->ffi_type == NULL && bs_boxed->type == BS_ELEMENT_STRUCT) {
+	/* Make sure the ffi_type is set before use. */
+	rb_objc_octype_to_ffitype(
+	    ((bs_element_struct_t *)bs_boxed->value)->type);
+    }
+    assert(bs_boxed->ffi_type != NULL);
+}
+
 static VALUE
 rb_bs_boxed_new_from_ocdata(bs_element_boxed_t *bs_boxed, void *ocval)
 {
@@ -529,7 +540,7 @@ rb_bs_boxed_new_from_ocdata(bs_element_boxed_t *bs_boxed, void *ocval)
     if (bs_boxed->type == BS_ELEMENT_OPAQUE && *(void **)ocval == NULL)
 	return Qnil;
 
-    assert(bs_boxed->ffi_type != NULL);
+    rb_bs_boxed_assert_ffitype_ok(bs_boxed);
 
     data = xmalloc(bs_boxed->ffi_type->size);
     memcpy(data, ocval, bs_boxed->ffi_type->size);
@@ -1449,9 +1460,13 @@ rb_objc_resolve_const_value(VALUE v, VALUE klass, ID id)
 
     rb_objc_ocval_to_rbval(sym, bs_const->type, &v);
 
-// FIXME
-//    assert(RCLASS_IV_TBL(klass) != NULL);
-//    assert(st_delete(RCLASS_IV_TBL(klass), (st_data_t*)&id, NULL));
+    /* All BS constants are defined in Object. 
+     * To avoid a runtime warning when re-defining the constant, we remove
+     * its entry from the table before.
+     */
+    klass = rb_cObject;
+    assert(RCLASS_IV_TBL(klass) != NULL);
+    assert(st_delete(RCLASS_IV_TBL(klass), (st_data_t*)&id, NULL));
 
     rb_const_set(klass, id, v); 
 
@@ -1473,13 +1488,7 @@ rb_klass_get_bs_boxed(VALUE recv)
 
     if (st_lookup(bs_boxeds, (st_data_t)StringValuePtr(type), 
 		  (st_data_t *)&bs_boxed)) {
-	/* Make sure the ffi_type is ready for use. */
-	if (bs_boxed->type == BS_ELEMENT_STRUCT 
-	    && bs_boxed->ffi_type == NULL) {
-	    rb_objc_octype_to_ffitype(
-		((bs_element_struct_t *)bs_boxed->value)->type);
-	    assert(bs_boxed->ffi_type != NULL);
-	}
+	rb_bs_boxed_assert_ffitype_ok(bs_boxed);
 	return bs_boxed;
     }
     return NULL;
