@@ -1980,99 +1980,83 @@ load_bridge_support(const char *framework_path)
     }
 }
 
-static void
-load_framework(const char *path)
-{
-    CFStringRef string;
-    CFURLRef url;
-    CFBundleRef bundle;
-    CFErrorRef error;
-
-    string = CFStringCreateWithCStringNoCopy(
-	NULL, path, kCFStringEncodingUTF8, kCFAllocatorNull);
-    assert(string != NULL);
-
-    url = CFURLCreateWithFileSystemPath(
-	NULL, string, kCFURLPOSIXPathStyle, true);
-    assert(url != NULL);
-
-    CFRelease(string);
-
-    bundle = CFBundleCreate(NULL, url);
-
-    if (bundle == NULL) {
-	CFRelease(url);
-	rb_raise(rb_eRuntimeError, "framework at path `%s' not found", path);
-    }
-
-    CFRelease(url);
-
-    if (!CFBundleLoadExecutableAndReturnError(bundle, &error)) {
-	char error_buf[1024];
-
-	string = CFErrorCopyDescription(error);
-	CFStringGetCString(string, &error_buf[0], sizeof error_buf,
-			   kCFStringEncodingUTF8);
-	CFRelease(bundle);
-	CFRelease(string);
-	rb_raise(rb_eRuntimeError, error_buf); 
-    }
-
-    CFRelease(bundle);
-
-    load_bridge_support(path);
-}
-
 VALUE
 rb_require_framework(VALUE recv, VALUE framework)
 {
     const char *cstr;
+    NSFileManager *fileManager;
+    NSString *path;
+    NSBundle *bundle;
+    NSError *error;
 
     Check_Type(framework, T_STRING);
     cstr = RSTRING_PTR(framework);
-    if (*cstr == '\0')
-	rb_raise(rb_eArgError, "empty string given");
 
-    if (*cstr == '.' || *cstr == '/') {
-	/* framework path is given */
-	load_framework(cstr);
-    }
-    else {
+    fileManager = [NSFileManager defaultManager];
+    path = [fileManager stringWithFileSystemRepresentation:cstr
+	length:strlen(cstr)];
+
+    if (![fileManager fileExistsAtPath:path]) {
 	/* framework name is given */
-	char path[PATH_MAX];
-	static char *home = NULL;
+	NSString *frameworkName;
+	NSArray *dirs;
+	NSUInteger i, count;
 
-#define TRY_LOAD_PATH() 			\
-    do { 					\
-	if (access(path, R_OK) == 0) { 		\
-	    load_framework(path);		\
-	    return Qtrue;			\
-	} 					\
-    } 						\
+	cstr = NULL;
+
+#define FIND_LOAD_PATH_IN_LIBRARY(dir) 					  \
+    do { 								  \
+	path = [[dir stringByAppendingPathComponent:@"Frameworks"]	  \
+	   stringByAppendingPathComponent:frameworkName];		  \
+	if ([fileManager fileExistsAtPath:path])  			  \
+	    goto success; 						  \
+	path = [[dir stringByAppendingPathComponent:@"PrivateFrameworks"] \
+	   stringByAppendingPathComponent:frameworkName];		  \
+	if ([fileManager fileExistsAtPath:path]) 			  \
+	    goto success; 						  \
+    } 									  \
     while(0)
 
-	if (home == NULL)
-	    home = getenv("HOME");
-	if (home != NULL) {
-	    snprintf(path, sizeof path, "%s/%s.framework", home, cstr);
-	    TRY_LOAD_PATH(); 
+	frameworkName = [path stringByAppendingPathExtension:@"framework"];
+	dirs = NSSearchPathForDirectoriesInDomains(NSLibraryDirectory, 
+	    NSAllDomainsMask, YES);
+	for (i = 0, count = [dirs count]; i < count; i++) {
+	    NSString *dir = [dirs objectAtIndex:i];
+	    FIND_LOAD_PATH_IN_LIBRARY(dir);
+	}	
+
+	dirs = NSSearchPathForDirectoriesInDomains(NSDeveloperDirectory, 
+	    NSAllDomainsMask, YES);
+	for (i = 0, count = [dirs count]; i < count; i++) {
+	    NSString *dir = [[dirs objectAtIndex:i] 
+		stringByAppendingPathComponent:@"Library"];
+	    FIND_LOAD_PATH_IN_LIBRARY(dir); 
 	}
 
-	snprintf(path, sizeof path, 
-		 "/System/Library/Frameworks/%s.framework", cstr);
-	TRY_LOAD_PATH();
-
-	snprintf(path, sizeof path, "/Library/Frameworks/%s.framework", cstr);
-	TRY_LOAD_PATH();
-
-	snprintf(path, sizeof path,
-		 "/System/Library/PrivateFrameworks/%s.framework", cstr);
-	TRY_LOAD_PATH();
-
-#undef TRY_LOAD_PATH
+#undef FIND_LOAD_PATH_IN_LIBRARY
 
 	rb_raise(rb_eRuntimeError, "framework `%s' not found", cstr);
     }
+
+success:
+
+    if (cstr == NULL)
+	cstr = [path fileSystemRepresentation];
+
+    bundle = [NSBundle bundleWithPath:path];
+    if (bundle == nil)
+	rb_raise(rb_eRuntimeError, 
+	         "framework at path `%s' cannot be located",
+		 cstr);
+
+    if (![bundle loadAndReturnError:&error]) {
+	rb_raise(rb_eRuntimeError,
+		 "framework at path `%s' cannot be loaded: %s",
+		 cstr,
+		 [[error description] UTF8String]); 
+    }
+
+    load_bridge_support(cstr);
 
     return Qtrue;
 }
