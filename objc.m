@@ -1981,13 +1981,17 @@ load_bridge_support(const char *framework_path)
 }
 
 VALUE
-rb_require_framework(VALUE recv, VALUE framework)
+rb_require_framework(int argc, VALUE *argv, VALUE recv)
 {
+    VALUE framework;
+    VALUE search_network;
     const char *cstr;
     NSFileManager *fileManager;
     NSString *path;
     NSBundle *bundle;
     NSError *error;
+
+    rb_scan_args(argc, argv, "11", &framework, &search_network);
 
     Check_Type(framework, T_STRING);
     cstr = RSTRING_PTR(framework);
@@ -1998,6 +2002,7 @@ rb_require_framework(VALUE recv, VALUE framework)
 
     if (![fileManager fileExistsAtPath:path]) {
 	/* framework name is given */
+	NSSearchPathDomainMask pathDomainMask;
 	NSString *frameworkName;
 	NSArray *dirs;
 	NSUInteger i, count;
@@ -2017,16 +2022,21 @@ rb_require_framework(VALUE recv, VALUE framework)
     } 									  \
     while(0)
 
+	pathDomainMask = RTEST(search_network)
+	    ? NSAllDomainsMask
+	    : NSUserDomainMask | NSLocalDomainMask | NSSystemDomainMask;
+
 	frameworkName = [path stringByAppendingPathExtension:@"framework"];
+
 	dirs = NSSearchPathForDirectoriesInDomains(NSLibraryDirectory, 
-	    NSAllDomainsMask, YES);
+	    pathDomainMask, YES);
 	for (i = 0, count = [dirs count]; i < count; i++) {
 	    NSString *dir = [dirs objectAtIndex:i];
 	    FIND_LOAD_PATH_IN_LIBRARY(dir);
 	}	
 
 	dirs = NSSearchPathForDirectoriesInDomains(NSDeveloperDirectory, 
-	    NSAllDomainsMask, YES);
+	    pathDomainMask, YES);
 	for (i = 0, count = [dirs count]; i < count; i++) {
 	    NSString *dir = [[dirs objectAtIndex:i] 
 		stringByAppendingPathComponent:@"Library"];

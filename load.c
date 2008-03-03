@@ -682,7 +682,7 @@ Init_load()
     rb_define_global_function("autoload?", rb_f_autoload_p, 1);
 
 #if WITH_OBJC
-    rb_define_global_function("framework", rb_require_framework, 1);
+    rb_define_global_function("framework", rb_require_framework, -1);
 #endif
 
     ruby_dln_librefs = rb_ary_new();
