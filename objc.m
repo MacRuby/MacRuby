@@ -868,7 +868,8 @@ rb_objc_method_get_type(Method method, bs_element_method_t *bs_method, int n,
 	if (n == -1 && bs_method->retval != NULL)
 	    return bs_method->retval->type;	    
 	for (i = 0; i < bs_method->args_count; i++) {
-	    if (bs_method->args[i].index == i)
+	    if (bs_method->args[i].index == i
+		&& bs_method->args[i].type != NULL)
 		return bs_method->args[i].type; 
 	}
     }

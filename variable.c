@@ -966,6 +966,11 @@ ivar_get(VALUE obj, ID id, int warn)
     long len;
     st_data_t index;
 
+#if WITH_OBJC
+    if (rb_objc_is_non_native(obj))
+	return generic_ivar_get(obj, id, warn);
+#endif
+
     switch (TYPE(obj)) {
       case T_OBJECT:
         len = ROBJECT_LEN(obj);
@@ -1013,6 +1018,13 @@ rb_ivar_set(VALUE obj, ID id, VALUE val)
     st_data_t index;
     long i, len;
     int ivar_extended;
+
+#if WITH_OBJC
+    if (rb_objc_is_non_native(obj)) {
+	generic_ivar_set(obj, id, val);
+	return val;
+    }
+#endif
 
     if (!OBJ_TAINTED(obj) && rb_safe_level() >= 4)
 	rb_raise(rb_eSecurityError, "Insecure: can't modify instance variable");
