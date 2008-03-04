@@ -1633,7 +1633,7 @@ rb_bs_struct_to_a(VALUE recv)
 }
 
 static VALUE
-rb_bs_struct_is_equal(VALUE recv, VALUE other)
+rb_bs_boxed_is_equal(VALUE recv, VALUE other)
 {
     unsigned i;
     bs_element_boxed_t *bs_boxed;  
@@ -1719,6 +1719,52 @@ rb_bs_struct_inspect(VALUE recv)
     return str;
 }
 
+static VALUE
+rb_boxed_objc_type(VALUE recv)
+{
+    char *type;
+
+    bs_element_boxed_t *bs_boxed;
+
+    bs_boxed = rb_klass_get_bs_boxed(recv);
+    type = bs_boxed->type == BS_ELEMENT_OPAQUE
+	? ((bs_element_opaque_t *)bs_boxed->value)->type
+	: ((bs_element_struct_t *)bs_boxed->value)->type;
+
+    return rb_str_new2(type);
+}
+
+static VALUE
+rb_boxed_is_opaque(VALUE recv)
+{
+    bs_element_boxed_t *bs_boxed;
+
+    bs_boxed = rb_klass_get_bs_boxed(recv);
+    if (bs_boxed->type == BS_ELEMENT_OPAQUE)
+	return Qtrue;
+
+    return ((bs_element_struct_t *)bs_boxed->value)->opaque ? Qtrue : Qfalse;
+}
+
+static VALUE
+rb_boxed_fields(VALUE recv)
+{
+    bs_element_boxed_t *bs_boxed;
+    VALUE ary;
+    unsigned i;
+
+    bs_boxed = rb_klass_get_bs_boxed(recv);
+
+    ary = rb_ary_new();
+    if (bs_boxed->type == BS_ELEMENT_STRUCT) {
+	bs_element_struct_t *bs_struct;
+	bs_struct = (bs_element_struct_t *)bs_boxed->value;
+	for (i = 0; i < bs_struct->fields_count; i++)
+	    rb_ary_push(ary, ID2SYM(rb_intern(bs_struct->fields[i].name)));
+    }
+    return ary;
+}
+
 static void
 setup_bs_boxed_type(bs_element_type_t type, void *value)
 {
@@ -1758,14 +1804,16 @@ setup_bs_boxed_type(bs_element_type_t type, void *value)
 	}
 
 	rb_define_singleton_method(klass, "new", rb_bs_struct_new, -1);
-	rb_define_method(klass, "==", rb_bs_struct_is_equal, 1);
 	rb_define_method(klass, "dup", rb_bs_struct_dup, 0);
 	rb_define_alias(klass, "clone", "dup");	
 	rb_define_method(klass, "inspect", rb_bs_struct_inspect, 0);
     }
     else {
+	rb_undef_alloc_func(klass);
+	rb_undef_method(CLASS_OF(klass), "new");
 	bs_ffi_type = &ffi_type_pointer;
     }
+    rb_define_method(klass, "==", rb_bs_boxed_is_equal, 1);
 
     bs_boxed = (bs_element_boxed_t *)malloc(sizeof(bs_element_boxed_t));
     bs_boxed->type = type;
@@ -2058,6 +2106,9 @@ success:
 	rb_raise(rb_eRuntimeError, 
 	         "framework at path `%s' cannot be located",
 		 cstr);
+
+    if ([bundle isLoaded])
+	return Qfalse;
 
     if (![bundle loadAndReturnError:&error]) {
 	rb_raise(rb_eRuntimeError,
@@ -2386,6 +2437,10 @@ Init_ObjC(void)
 
     bs_const_magic_cookie = rb_str_new2("bs_const_magic_cookie");
     rb_cBoxed = rb_define_class("Boxed", rb_cObject);
+    rb_define_singleton_method(rb_cBoxed, "objc_type", rb_boxed_objc_type, 0);
+    rb_define_singleton_method(rb_cBoxed, "opaque?", rb_boxed_is_opaque, 0);
+    rb_define_singleton_method(rb_cBoxed, "fields", rb_boxed_fields, 0);
+
     rb_ivar_type = rb_intern("@__objc_type__");
 
     rb_install_objc_primitives();
