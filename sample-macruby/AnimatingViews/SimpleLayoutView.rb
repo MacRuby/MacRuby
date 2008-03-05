@@ -1,12 +1,3 @@
-# FIXME remove me once NSArray responds to the Array interface!!
-# <<<<<
-class NSArray
-  def each
-    count.times { |i| yield objectAtIndex(i) }
-  end
-end
-# >>>>>
-
 class SimpleLayoutView < NSView
   
   ib_outlet :boxColorField
@@ -76,7 +67,7 @@ class SimpleLayoutView < NSView
       end
     when GridLayout
       # Put the views in a roughly square grid.
-      viewsPerSide = Math.sqrt(subviews.count).ceil
+      viewsPerSide = Math.sqrt(subviews.size).ceil
       i = 0
       # Starting at the bottom left corner.
       point = NSZeroPoint.dup
