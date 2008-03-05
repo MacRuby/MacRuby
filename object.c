@@ -1418,9 +1418,16 @@ rb_class_new_instance(int argc, VALUE *argv, VALUE klass)
 #if WITH_OBJC
     if (FL_TEST(klass, RCLASS_OBJC_IMPORTED)) {
 	static SEL sel_new = 0;
+	id ocid;
 	if (sel_new == 0)
 	    sel_new = sel_registerName("new");
-	return (VALUE)objc_msgSend((id)RCLASS_OCID(klass), sel_new);
+	ocid = objc_msgSend((id)RCLASS_OCID(klass), sel_new);
+	/* FIXME this is a temporary solution until the Ruby primitive classes
+	 * are re-implemented using their CF equivalents.
+	 */
+	unsigned rb_objc_ocid_to_rval(void **ocval, VALUE *rbval);
+	rb_objc_ocid_to_rval((void **)&ocid, &obj);
+	return obj;
     }
 #endif
     obj = rb_obj_alloc(klass);

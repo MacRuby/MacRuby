@@ -750,7 +750,10 @@ rb_objc_boot_ocid(id ocid)
     return (VALUE)ocid;
 }
 
-static bool 
+static void
+rb_objc_ocval_to_rbval(void **ocval, const char *octype, VALUE *rbval);
+
+bool 
 rb_objc_ocid_to_rval(void **ocval, VALUE *rbval)
 {
     id ocid = *(id *)ocval;
@@ -759,7 +762,59 @@ rb_objc_ocid_to_rval(void **ocval, VALUE *rbval)
 	*rbval = Qnil;
     }
     else {
-	*rbval = rb_objc_boot_ocid(ocid);
+	/* FIXME this is a temporary hack, until String/Array/Hash will be
+	 * supporting their CF equivalents.
+	 */
+	static Class nscfstring = NULL;
+	static Class nscfarray = NULL;
+	static Class nscfdictionary = NULL;
+	Class klass;
+
+	if (nscfstring == NULL)
+	    nscfstring = objc_getClass("NSCFString");
+	if (nscfarray == NULL)
+	    nscfarray = objc_getClass("NSCFArray");
+	if (nscfdictionary == NULL)
+	    nscfdictionary = objc_getClass("NSCFDictionary");
+
+	klass = (Class)object_getClass(ocid);
+
+	if (klass == nscfstring) {
+	    rb_encoding *enc = rb_enc_find("UTF-8");
+	    assert(enc != NULL);
+	    *rbval = rb_enc_str_new([ocid UTF8String], [ocid length], enc);
+	}
+	else if (klass == nscfarray) {
+	    unsigned i, count;
+
+	    count = [ocid count];
+	    *rbval = rb_ary_new();
+	    for (i = 0, count = [ocid count]; i < count; i++) {
+		id ocelem = [ocid objectAtIndex:i];
+		VALUE elem;
+		rb_objc_ocval_to_rbval((void **)&ocelem, "@", &elem);
+		rb_ary_push(*rbval, elem);
+	    }
+	}
+	else if (klass == nscfdictionary) {
+	    unsigned i, count;
+	    id *keys, *values;
+
+	    count = [ocid count];
+	    keys = (id *)alloca(sizeof(id) * count);
+	    values = (id *)alloca(sizeof(id) * count);
+	    [ocid getObjects:values andKeys:keys];
+	    *rbval = rb_hash_new();
+	    for (i = 0; i < count; i++) {
+		VALUE key, value;
+		rb_objc_ocval_to_rbval((void **)&keys[i], "@", &key);
+		rb_objc_ocval_to_rbval((void **)&values[i], "@", &value);
+		rb_hash_aset(*rbval, key, value);
+	    }
+	}
+	else {
+	    *rbval = rb_objc_boot_ocid(ocid);
+	}
     }
 
     return true;
