@@ -1509,9 +1509,11 @@ rb_const_get_0(VALUE klass, ID id, int exclude, int recurse)
     }
 
 #if WITH_OBJC
-    /* FIXME clearly this should be done as part of the
-       rb_objc_resolve_const_value() logic. */
-    //if (klass == rb_cObject) {
+    /* Classes are typically pre-loaded by Kernel#framework and imported by
+     * rb_objc_resolve_const_value(), but it is still useful to keep the
+     * dynamic import facility, because someone in the Objective-C world may
+     * dynamically define classes at runtime (like ScriptingBridge.framework).
+     */
     {
 	Class k = (Class)objc_getClass(rb_id2name(id));
 	if (k != NULL) {

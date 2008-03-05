@@ -64,7 +64,9 @@ rb_objc_import_class(Class ocklass)
     RCLASS_M_TBL(rbklass) = st_init_numtable();
 
     nameid = rb_intern(class_getName(ocklass));
- 
+
+    if (rb_cObject != 0 && RCLASS_IV_TBL(rb_cObject) != NULL)
+	st_delete(RCLASS_IV_TBL(rb_cObject), (st_data_t*)&nameid, NULL);
     rb_const_set((rb_cObject != 0 ? rb_cObject : rbklass), nameid, rbklass);   
 
     /* FIXME do we need to maintain rb_class_tbl anymore? */

@@ -31,6 +31,7 @@
 #include "ruby/encoding.h"
 #include <unistd.h>
 #include <dlfcn.h>
+#include <mach-o/dyld.h>
 #include <Foundation/Foundation.h>
 #if HAVE_BRIDGESUPPORT_FRAMEWORK
 # include <BridgeSupport/BridgeSupport.h>
@@ -57,6 +58,7 @@ static VALUE rb_cBoxed;
 static ID rb_ivar_type;
 
 static VALUE bs_const_magic_cookie = Qnil;
+static VALUE rb_objc_class_magic_cookie = Qnil;
 
 static struct st_table *bs_constants;
 static struct st_table *bs_functions;
@@ -1529,29 +1531,30 @@ rb_objc_resolve_const_value(VALUE v, VALUE klass, ID id)
     void *sym;
     bs_element_constant_t *bs_const;
 
-    if (v != bs_const_magic_cookie)
-	return v;
+    if (v == rb_objc_class_magic_cookie) {
+	v = rb_objc_import_class(objc_getClass(rb_id2name(id)));
+    }
+    else if (v == bs_const_magic_cookie) { 
+	if (!st_lookup(bs_constants, (st_data_t)id, (st_data_t *)&bs_const))
+	    rb_bug("unresolved bridgesupport constant `%s' not in cache",
+		    rb_id2name(id));
 
-    if (!st_lookup(bs_constants, (st_data_t)id, (st_data_t *)&bs_const))
-	rb_bug("unresolved bridgesupport constant `%s' not in cache",
-	       rb_id2name(id));
+	sym = dlsym(RTLD_DEFAULT, bs_const->name);
+	if (sym == NULL)
+	    rb_bug("cannot locate symbol for unresolved bridgesupport " \
+		    "constant `%s'", bs_const->name);
 
-    sym = dlsym(RTLD_DEFAULT, bs_const->name);
-    if (sym == NULL)
-	rb_bug("cannot locate symbol for unresolved bridgesupport " \
-	       "constant `%s'", bs_const->name);
+	rb_objc_ocval_to_rbval(sym, bs_const->type, &v);
+    
+	/* To avoid a runtime warning when re-defining the constant, we remove
+	 * its entry from the table before.
+	 */
+	klass = rb_cObject;
+	assert(RCLASS_IV_TBL(klass) != NULL);
+	assert(st_delete(RCLASS_IV_TBL(klass), (st_data_t*)&id, NULL));
 
-    rb_objc_ocval_to_rbval(sym, bs_const->type, &v);
-
-    /* All BS constants are defined in Object. 
-     * To avoid a runtime warning when re-defining the constant, we remove
-     * its entry from the table before.
-     */
-    klass = rb_cObject;
-    assert(RCLASS_IV_TBL(klass) != NULL);
-    assert(st_delete(RCLASS_IV_TBL(klass), (st_data_t*)&id, NULL));
-
-    rb_const_set(klass, id, v); 
+	rb_const_set(klass, id, v); 
+    }
 
     return v;
 }
@@ -2111,6 +2114,33 @@ load_bridge_support(const char *framework_path)
     }
 }
 
+static void
+reload_class_constants(void)
+{
+    static int class_count = 0;
+    int i, count;
+    Class *buf;
+
+    count = objc_getClassList(NULL, 0);
+    if (count == class_count)
+	return;
+
+    buf = (Class *)alloca(sizeof(Class) * count);
+    objc_getClassList(buf, count);
+
+    for (i = 0; i < count; i++) {
+	const char *name = class_getName(buf[i]);
+	if (name[0] != '_') {
+	    ID id = rb_intern(name);
+	    if (!rb_const_defined(rb_cObject, id))
+		rb_const_set(rb_cObject, id, rb_objc_class_magic_cookie);
+	}
+    }
+
+    class_count = count;
+}
+
+static void dyld_add_image_cb(const struct mach_header* mh, intptr_t vmaddr_slide);
 VALUE
 rb_require_framework(int argc, VALUE *argv, VALUE recv)
 {
@@ -2201,6 +2231,7 @@ success:
     }
 
     load_bridge_support(cstr);
+    reload_class_constants();
 
     return Qtrue;
 }
@@ -2507,6 +2538,14 @@ rb_mod_objc_ib_outlet(int argc, VALUE *argv, VALUE recv)
     }
 }
 
+#if 0
+static void
+dyld_add_image_cb(const struct mach_header* mh, intptr_t vmaddr_slide)
+{
+    reload_class_constants();
+}
+#endif
+
 void
 Init_ObjC(void)
 {
@@ -2519,6 +2558,8 @@ Init_ObjC(void)
     rb_objc_retain(bs_inf_prot_imethods = st_init_numtable());
 
     bs_const_magic_cookie = rb_str_new2("bs_const_magic_cookie");
+    rb_objc_class_magic_cookie = rb_str_new2("rb_objc_class_magic_cookie");
+
     rb_cBoxed = rb_define_class("Boxed", rb_cObject);
     rb_define_singleton_method(rb_cBoxed, "objc_type", rb_boxed_objc_type, 0);
     rb_define_singleton_method(rb_cBoxed, "opaque?", rb_boxed_is_opaque, 0);
@@ -2528,6 +2569,10 @@ Init_ObjC(void)
 
     rb_install_objc_primitives();
     rb_install_alloc_methods();
+
+#if 0 /* FIXME this doesn't seem to work as expected */
+    _dyld_register_func_for_add_image(dyld_add_image_cb);
+#endif
 
     rb_define_global_function("load_bridge_support_file", rb_objc_load_bs, 1);
 }
