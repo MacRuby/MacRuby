@@ -433,11 +433,38 @@ rb_objc_rval_to_ocid(VALUE rval, void **ocval)
 
 	case T_TRUE:
 	case T_FALSE:
+	{
+	    char v = RTEST(rval);
+	    *(id *)ocval = (id)CFNumberCreate(NULL, kCFNumberCharType, &v);
+	    return true;
+	}
+
 	case T_FLOAT:
+	{
+	    double v = RFLOAT_VALUE(rval);
+	    *(id *)ocval = (id)CFNumberCreate(NULL, kCFNumberDoubleType, &v);
+	    return true;
+	}	
+
 	case T_FIXNUM:
 	case T_BIGNUM:
-	    /* TODO */
-	    break;
+	{
+	    if (FIXNUM_P(rval)) {
+		long v = FIX2LONG(rval);
+		*(id *)ocval = (id)CFNumberCreate(NULL, kCFNumberLongType, &v);
+	    }
+	    else {
+#if HAVE_LONG_LONG
+		long long v = NUM2LL(rval);
+		*(id *)ocval = 
+		    (id)CFNumberCreate(NULL, kCFNumberLongLongType, &v);
+#else
+		long v = NUM2LONG(rval);
+		*(id *)ocval = (id)CFNumberCreate(NULL, kCFNumberLongType, &v);
+#endif
+	    }
+	    return true;
+	}
     }
 
     return false;
@@ -574,9 +601,9 @@ rb_objc_rval_to_ocval(VALUE rval, const char *octype, void **ocval)
     }
 
     if (*octype != _C_BOOL) {
-	if (TYPE(rval) == T_TRUE)
+	if (rval == Qtrue)
 	    rval = INT2FIX(1);
-	else if (TYPE(rval) == T_FALSE)
+	else if (rval == Qfalse)
 	    rval = INT2FIX(0);
     }
 
@@ -918,11 +945,11 @@ rb_objc_to_ruby_closure_handler(ffi_cif *cif, void *resp, void **args,
 
     bs_method = rb_bs_find_method(klass, selector);
 
-    ffi_argtypes = (ffi_type **)alloca(sizeof(ffi_type *) * count + 1);
+    ffi_argtypes = (ffi_type **)alloca(sizeof(ffi_type *) * (count + 1));
     ffi_argtypes[0] = &ffi_type_pointer;
     ffi_argtypes[1] = &ffi_type_pointer;
 
-    ffi_args = (void **)alloca(sizeof(void *) * count + 1);
+    ffi_args = (void **)alloca(sizeof(void *) * (count + 1));
     ffi_args[0] = &ocrcv;
     ffi_args[1] = &selector;
 
