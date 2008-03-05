@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>IBClasses</key>
+	<array>
+		<dict>
+			<key>ACTIONS</key>
+			<dict>
+				<key>addABox:</key>
+				<string>id</string>
+				<key>changeLayout:</key>
+				<string>id</string>
+				<key>removeLastBox:</key>
+				<string>id</string>
+			</dict>
+			<key>CLASS</key>
+			<string>SimpleLayoutView</string>
+			<key>LANGUAGE</key>
+			<string>ObjC</string>
+			<key>OUTLETS</key>
+			<dict>
+				<key>boxColorField</key>
+				<string>NSColorWell</string>
+			</dict>
+			<key>SUPERCLASS</key>
+			<string>NSView</string>
+		</dict>
+		<dict>
+			<key>ACTIONS</key>
+			<dict>
+				<key>addABox:</key>
+				<string>id</string>
+				<key>alignSubviewsHorizontally:</key>
+				<string>id</string>
+				<key>alignSubviewsInAGrid:</key>
+				<string>id</string>
+				<key>alignSubviewsVertically:</key>
+				<string>id</string>
+				<key>removeLastBox:</key>
+				<string>id</string>
+			</dict>
+			<key>CLASS</key>
+			<string>OrganizingView</string>
+			<key>LANGUAGE</key>
+			<string>ObjC</string>
+			<key>SUPERCLASS</key>
+			<string>NSView</string>
+		</dict>
+	</array>
+	<key>IBVersion</key>
+	<string>1</string>
+</dict>
+</plist>
