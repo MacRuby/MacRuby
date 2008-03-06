@@ -17,6 +17,21 @@ class TestSubclass < Test::Unit::TestCase
 
   def setup
     framework 'Foundation'
+    s = <<EOS
+#import <Foundation/Foundation.h>
+@interface MyClass : NSObject
+@end
+@implementation MyClass
+- (int)test
+{
+    return 42;
+}
+@end
+EOS
+    File.open('/tmp/_test.m', 'w') { |io| io.write(s) }
+    system("gcc /tmp/_test.m -bundle -o /tmp/_test.bundle -framework Foundation -fobjc-gc-only") or exit 1
+    require 'dl'; DL.dlopen('/tmp/_test.bundle')
+    File.unlink('/tmp/_test.m')
   end
 
   def test_new
@@ -59,6 +74,12 @@ class TestSubclass < Test::Unit::TestCase
     o.instance_variable_set(:@foo, 'foo')
     GC.start
     assert_equal('foo', o.instance_variable_get(:@foo))
+  end
+
+  def test_method_dispatch_priority
+    o = MyClass.new
+    assert_kind_of(MyClass, o)
+    assert_equal(42, o.test)
   end
 
 end
