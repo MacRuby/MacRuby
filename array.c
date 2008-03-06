@@ -3218,7 +3218,7 @@ Init_Array(void)
 {
 #if WITH_OBJC
     rb_cArray  = rb_define_class("Array",
-	rb_objc_import_class((Class)objc_getClass("NSArray")));
+	rb_objc_import_class((Class)objc_getClass("NSMutableArray")));
 #else
     rb_cArray  = rb_define_class("Array", rb_cObject);
 #endif

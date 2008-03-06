@@ -2265,6 +2265,69 @@ imp_rb_ary_objectAtIndex(void *rcv, SEL sel, NSUInteger idx)
     return ptr;
 }
 
+static void
+imp_rb_ary_insertObjectAtIndex(void *rcv, SEL sel, void *obj, NSUInteger idx)
+{
+    VALUE robj;
+
+    if (obj == NULL)    
+	[NSException raise:@"NSInvalidArgumentException" 
+	    format:@"given object is nil"];
+
+    if (idx >= RARRAY_LEN(rcv))
+	[NSException raise:@"NSRangeException" 
+	    format:@"index (%d) beyond bounds (%d)", idx, RARRAY_LEN(rcv)];
+
+    rb_objc_ocid_to_rval(&obj, &robj); 
+
+    rb_ary_store((VALUE)rcv, idx, robj);
+}
+
+static void
+imp_rb_ary_removeObjectAtIndex(void *rcv, SEL sel, NSUInteger idx)
+{
+    if (idx >= RARRAY_LEN(rcv))
+	[NSException raise:@"NSRangeException" 
+	    format:@"index (%d) beyond bounds (%d)", idx, RARRAY_LEN(rcv)];
+    
+    rb_ary_delete_at((VALUE)rcv, idx); 
+}
+
+static void
+imp_rb_ary_addObject(void *rcv, SEL sel, void *obj)
+{
+    VALUE robj;
+
+    rb_objc_ocid_to_rval(&obj, &robj); 
+
+    rb_ary_push((VALUE)rcv, robj);
+}
+
+static void
+imp_rb_ary_removeLastObject(void *rcv, SEL sel)
+{
+    if (RARRAY_LEN(rcv) == 0)
+	[NSException raise:@"NSRangeException" 
+	    format:@"array doesn't contain any object"];
+
+    rb_ary_delete_at((VALUE)rcv, RARRAY_LEN(rcv) - 1);
+}
+
+static void
+imp_rb_ary_replaceObjectAtIndexWithObject(void *rcv, SEL sel, NSUInteger idx,
+    void *obj)
+{
+    VALUE robj;
+
+    if (idx >= RARRAY_LEN(rcv))
+	[NSException raise:@"NSRangeException" 
+	    format:@"index (%d) beyond bounds (%d)", idx, RARRAY_LEN(rcv)];
+    
+    rb_objc_ocid_to_rval(&obj, &robj); 
+
+    rb_ary_store((VALUE)rcv, idx, robj);
+}
+
 static NSUInteger
 imp_rb_hash_count(void *rcv, SEL sel)
 {
@@ -2304,6 +2367,27 @@ imp_rb_hash_keyEnumerator(void *rcv, SEL sel)
     return [(NSArray *)keys objectEnumerator];
 }
 
+static void
+imp_rb_hash_setObjectForKey(void *rcv, SEL sel, void *obj, void *key)
+{
+    VALUE robj, rkey;
+
+    rb_objc_ocid_to_rval(&obj, &robj); 
+    rb_objc_ocid_to_rval(&key, &rkey); 
+
+    rb_hash_aset((VALUE)rcv, rkey, robj);
+}
+
+static void
+imp_rb_hash_removeObjectForKey(void *rcv, SEL sel, void *key)
+{
+    VALUE rkey;
+
+    rb_objc_ocid_to_rval(&key, &rkey); 
+
+    rb_hash_delete((VALUE)rcv, rkey);
+}
+
 static NSUInteger
 imp_rb_string_length(void *rcv, SEL sel)
 {
@@ -2318,6 +2402,28 @@ imp_rb_string_characterAtIndex(void *rcv, SEL sel, NSUInteger idx)
 	    format:@"index (%d) beyond bounds (%d)", idx, RARRAY_LEN(rcv)];
     /* FIXME this is not quite true for multibyte strings */
     return RSTRING_PTR(rcv)[idx];
+}
+
+static void
+imp_rb_string_replaceCharactersInRangeWithString(void *rcv, SEL sel, 
+    NSRange range, void *str)
+{
+    VALUE newstr;
+    VALUE rstr;
+
+    if (RSTRING_LEN(rcv) < range.location + range.length) {
+	[NSException raise:@"NSRangeException" 
+	    format:@"range (%@) beyond bounds (%d)", 
+	    NSStringFromRange(range), RSTRING_LEN(rcv)];
+    }
+
+    newstr = rb_str_substr((VALUE)rcv, 0, range.location);
+    rb_objc_ocid_to_rval(&str, &rstr);
+    rb_str_concat(newstr, rstr);
+    rb_str_concat(newstr, rb_str_substr((VALUE)rcv, 
+	range.location + range.length, RSTRING_LEN(rcv)));
+
+    rb_funcall((VALUE)rcv, rb_intern("replace"), 1, newstr);
 }
 
 static inline void
@@ -2346,6 +2452,16 @@ rb_install_objc_primitives(void)
     rb_objc_install_method(klass, @selector(count), (IMP)imp_rb_ary_count);
     rb_objc_install_method(klass, @selector(objectAtIndex:), 
 	(IMP)imp_rb_ary_objectAtIndex);
+    rb_objc_install_method(klass, @selector(insertObject:atIndex:), 
+	(IMP)imp_rb_ary_insertObjectAtIndex);
+    rb_objc_install_method(klass, @selector(removeObjectAtIndex:), 
+	(IMP)imp_rb_ary_removeObjectAtIndex);
+    rb_objc_install_method(klass, @selector(addObject:), 
+	(IMP)imp_rb_ary_addObject);
+    rb_objc_install_method(klass, @selector(removeLastObject), 
+	(IMP)imp_rb_ary_removeLastObject);
+    rb_objc_install_method(klass, @selector(replaceObjectAtIndex:withObject:),
+	(IMP)imp_rb_ary_replaceObjectAtIndexWithObject);
 
     /* Hash */
     klass = RCLASS_OCID(rb_cHash);
@@ -2354,6 +2470,10 @@ rb_install_objc_primitives(void)
 	(IMP)imp_rb_hash_objectForKey);
     rb_objc_install_method(klass, @selector(keyEnumerator), 
 	(IMP)imp_rb_hash_keyEnumerator);
+    rb_objc_install_method(klass, @selector(setObject:forKey:),
+	(IMP)imp_rb_hash_setObjectForKey);
+    rb_objc_install_method(klass, @selector(removeObjectForKey:),
+	(IMP)imp_rb_hash_removeObjectForKey);
 
     /* String */
     klass = RCLASS_OCID(rb_cString);
@@ -2361,6 +2481,8 @@ rb_install_objc_primitives(void)
 	(IMP)imp_rb_string_length);
     rb_objc_install_method(klass, @selector(characterAtIndex:), 
 	(IMP)imp_rb_string_characterAtIndex);
+    rb_objc_install_method(klass, @selector(replaceCharactersInRange:withString:), 
+	(IMP)imp_rb_string_replaceCharactersInRangeWithString);
 }
 
 static void *
