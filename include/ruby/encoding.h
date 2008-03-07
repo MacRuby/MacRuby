@@ -154,7 +154,7 @@ int rb_enc_codelen(int code, rb_encoding *enc);
 #define rb_enc_isspace(c,enc) ONIGENC_IS_CODE_SPACE(enc,c)
 #define rb_enc_isdigit(c,enc) ONIGENC_IS_CODE_DIGIT(enc,c)
 
-#define rb_enc_asciicompat(enc) (rb_enc_mbminlen(enc)==1)
+#define rb_enc_asciicompat(enc) (!rb_enc_dummy_p(enc) && rb_enc_mbminlen(enc)==1)
 
 int rb_enc_casefold(char *to, const char *p, const char *e, rb_encoding *enc);
 int rb_enc_toupper(int c, rb_encoding *enc);
@@ -163,6 +163,7 @@ ID rb_intern3(const char*, long, rb_encoding*);
 ID rb_interned_id_p(const char *, long, rb_encoding *);
 int rb_enc_symname_p(const char*, rb_encoding*);
 int rb_enc_str_coderange(VALUE);
+long rb_str_coderange_scan_restartable(const char*, const char*, rb_encoding*, int*);
 int rb_enc_str_asciionly_p(VALUE);
 #define rb_enc_str_asciicompat_p(str) rb_enc_asciicompat(rb_enc_get(str))
 VALUE rb_enc_from_encoding(rb_encoding *enc);

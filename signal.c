@@ -2,7 +2,7 @@
 
   signal.c -
 
-  $Author: nobu $
+  $Author: usa $
   created at: Tue Dec 20 10:13:44 JST 1994
 
   Copyright (C) 1993-2007 Yukihiro Matsumoto

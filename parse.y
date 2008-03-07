@@ -3228,6 +3228,9 @@ block_param	: f_arg ',' f_rest_arg opt_f_block_arg
 
 opt_block_param	: none
 		| block_param_def
+		    {
+			command_start = Qtrue;
+		    }
 		;
 
 block_param_def	: '|' opt_bv_decl '|'
@@ -4561,7 +4564,7 @@ static int parser_here_document(struct parser_params*,NODE*);
 # define tokadd(c)                 parser_tokadd(parser, c)
 # define tok_hex(numlen)           parser_tok_hex(parser, numlen)
 # define read_escape(flags,e)      parser_read_escape(parser, flags, e)
-# define tokadd_escape(t,e)        parser_tokadd_escape(parser, t, e)
+# define tokadd_escape(e)          parser_tokadd_escape(parser, e)
 # define regx_options()            parser_regx_options(parser)
 # define tokadd_string(f,t,p,n,e)  parser_tokadd_string(parser,f,t,p,n,e)
 # define parse_string(n)           parser_parse_string(parser,n)
@@ -5244,8 +5247,7 @@ parser_tokaddmbc(struct parser_params *parser, int c, rb_encoding *enc)
 }
 
 static int
-parser_tokadd_escape(struct parser_params *parser, int term,
-		     rb_encoding **encp)
+parser_tokadd_escape(struct parser_params *parser, rb_encoding **encp)
 {
     int c;
     int flags = 0;
@@ -5318,7 +5320,6 @@ parser_tokadd_escape(struct parser_params *parser, int term,
 	return -1;
 
       default:
-	if (c != '\\' || c != term)
 	    tokadd('\\');
 	tokadd(c);
     }
@@ -5457,7 +5458,7 @@ parser_tokadd_string(struct parser_params *parser,
 	      default:
 		if (func & STR_FUNC_REGEXP) {
 		    pushback(c);
-		    if ((c = tokadd_escape(term, &enc)) < 0)
+		    if ((c = tokadd_escape(&enc)) < 0)
 			return -1;
 		    if (has_nonascii && enc != *encp) {
 			mixed_escape(beg, enc, *encp);
@@ -7945,6 +7946,14 @@ value_expr_gen(struct parser_params *parser, NODE *node)
 	    break;
 
 	  case NODE_IF:
+	    if (!node->nd_body) {
+		node = node->nd_else;
+		break;
+	    }
+	    else if (!node->nd_else) {
+		node = node->nd_body;
+		break;
+	    }
 	    if (!value_expr(node->nd_body)) return Qfalse;
 	    node = node->nd_else;
 	    break;

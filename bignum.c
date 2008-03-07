@@ -2,7 +2,7 @@
 
   bignum.c -
 
-  $Author: matz $
+  $Author: nobu $
   created at: Fri Jun 10 00:48:55 JST 1994
 
   Copyright (C) 1993-2007 Yukihiro Matsumoto
@@ -36,7 +36,19 @@ VALUE rb_cBignum;
 #define BIGLO(x) ((BDIGIT)((x) & (BIGRAD-1)))
 #define BDIGMAX ((BDIGIT)-1)
 
-#define BIGZEROP(x) (RBIGNUM_LEN(x) == 0 || (RBIGNUM_LEN(x) == 1 && BDIGITS(x)[0] == 0))
+#define BIGZEROP(x) (RBIGNUM_LEN(x) == 0 || \
+		     (BDIGITS(x)[0] == 0 && \
+		      (RBIGNUM_LEN(x) == 1 || bigzero_p(x))))
+
+static int
+bigzero_p(VALUE x)
+{
+    long i;
+    for (i = 0; i < RBIGNUM_LEN(x); ++i) {
+	if (BDIGITS(x)[i]) return 0;
+    }
+    return 1;
+}
 
 #define RBIGNUM_SET_LEN(b,l) \
   ((RBASIC(b)->flags & RBIGNUM_EMBED_FLAG) ? \
@@ -725,6 +737,7 @@ ceil_log2(register unsigned long x)
 #define MAX_BIG2STR_TABLE_ENTRIES 64
 
 static VALUE big2str_power_cache[35][MAX_BIG2STR_TABLE_ENTRIES];
+static int power_cache_initialized = 0;
 
 static void
 power_cache_init(void)
@@ -816,6 +829,9 @@ big2str_find_n1(VALUE x, int base)
     else if (BIGZEROP(x)) {
         return 0;
     }
+    else if (RBIGNUM_LEN(x) >= LONG_MAX/BITSPERDIG) {
+	rb_raise(rb_eRangeError, "bignum too big to convert into `string'");
+    }
     else {
         bits = BITSPERDIG*RBIGNUM_LEN(x);
     }
@@ -889,6 +905,10 @@ big2str_karatsuba(VALUE x, int base, char* ptr,
         return big2str_orig(x, base, ptr, len, hbase, trim);
     }
 
+    if (!power_cache_initialized) {
+	power_cache_init();
+	power_cache_initialized = 1;
+    }
     b = power_cache_get_power(base, n1, &m1);
     bigdivmod(x, b, &q, &r);
     lh = big2str_karatsuba(q, base, ptr,      (len - m1)/2,

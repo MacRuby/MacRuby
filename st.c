@@ -280,10 +280,6 @@ st_lookup(st_table *table, register st_data_t key, st_data_t *value)
     unsigned int hash_val, bin_pos;
     register st_table_entry *ptr;
 
-//if (table == 0x222be20) {
-//    void *foo = alloca(0);
-//}
-
     if (table->entries_packed) {
         int i;
         for (i = 0; i < table->num_entries; i++) {

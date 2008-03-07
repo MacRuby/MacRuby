@@ -2,7 +2,7 @@
 
   util.c -
 
-  $Author: akr $
+  $Author: nobu $
   created at: Fri Mar 10 17:22:34 JST 1995
 
   Copyright (C) 1993-2007 Yukihiro Matsumoto
@@ -346,20 +346,16 @@ valid_filename(const char *s)
     int fd;
 
     /*
-    // if the file exists, then it's a valid filename!
-    */
-
-    if (_access(s, 0) == 0) {
-	return 1;
-    }
-
-    /*
     // It doesn't exist, so see if we can open it.
     */
 
-    if ((fd = _open(s, O_CREAT, 0666)) >= 0) {
+    if ((fd = _open(s, O_CREAT|O_EXCL, 0666)) >= 0) {
 	_close(fd);
 	_unlink(s);	/* don't leave it laying around */
+	return 1;
+    }
+    else if (errno == EEXIST) {
+	/* if the file exists, then it's a valid filename! */
 	return 1;
     }
     return 0;
@@ -3940,6 +3936,24 @@ ret1:
         *rve = s;
     return s0;
 }
+
+void
+ruby_each_words(const char *str, void (*func)(const char*, int, void*), void *arg)
+{
+    const char *end;
+    int len;
+
+    if (!str) return;
+    for (; *str; str = end) {
+	while (ISSPACE(*str) || *str == ',') str++;
+	if (!*str) break;
+	end = str;
+	while (*end && !ISSPACE(*end) && *end != ',') end++;
+	len = end - str;
+	(*func)(str, len, arg);
+    }
+}
+
 #ifdef __cplusplus
 }
 #endif

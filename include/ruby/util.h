@@ -2,7 +2,7 @@
 
   util.h -
 
-  $Author: akr $
+  $Author: nobu $
   created at: Thu Mar  9 11:55:53 JST 1995
 
   Copyright (C) 1993-2007 Yukihiro Matsumoto
@@ -69,6 +69,8 @@ char *ruby_getcwd(void);
 double ruby_strtod(const char *, char **);
 #undef strtod
 #define strtod(s,e) ruby_strtod(s,e)
+
+void ruby_each_words(const char *, void (*)(const char*, int, void*), void *);
 
 #if defined(__cplusplus)
 #if 0

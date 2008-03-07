@@ -20,7 +20,7 @@ extern st_table *rb_class_tbl;
 #define VISI(x) ((x)&NOEX_MASK)
 #define VISI_CHECK(x,f) (VISI(x) == (f))
 
-static VALUE 
+static VALUE
 class_init(VALUE obj)
 {
     RCLASS(obj)->ptr = ALLOC(rb_classext_t);
@@ -585,10 +585,6 @@ include_class_new(VALUE module, VALUE super)
     RCLASS_IV_TBL(klass) = RCLASS_IV_TBL(module);
     RCLASS_M_TBL(klass) = RCLASS_M_TBL(module);
     RCLASS_SUPER(klass) = super;
-#if WITH_OBJC
-//printf("klass %p super %p\n", RCLASS(klass)->ocklass, RCLASS(super)->ocklass);
-//    class_setSuperclass(RCLASS(klass)->ocklass, RCLASS(super)->ocklass);
-#endif
     if (TYPE(module) == T_ICLASS) {
 	RBASIC(klass)->klass = RBASIC(module)->klass;
     }
@@ -643,17 +639,7 @@ rb_include_module(VALUE klass, VALUE module)
                break;
            }
        }
-#if WITH_OBJC
-       { 
-	   VALUE c2 = include_class_new(module, RCLASS_SUPER(c));
-	   //class_setSuperclass(RCLASS(c)->ocklass, RCLASS(c2)->ocklass);
-	   //class_setSuperclass(RCLASS(c2)->ocklass, RCLASS(RCLASS_SUPER(c2))->ocklass);
-	   //OCCLASS_WEAK_COPY_METHODS(RCLASS(c2)->ocklass, RCLASS(module)->ocklass);
-	   c = RCLASS_SUPER(c) = c2;
-       }
-#else
        c = RCLASS_SUPER(c) = include_class_new(module, RCLASS_SUPER(c));
-#endif
 	changed = 1;
       skip:
 	module = RCLASS_SUPER(module);
@@ -981,7 +967,7 @@ rb_class_public_instance_methods(int argc, VALUE *argv, VALUE mod)
 VALUE
 rb_obj_singleton_methods(int argc, VALUE *argv, VALUE obj)
 {
-    VALUE recur, ary, klass, klass_orig;
+    VALUE recur, ary, klass;
     st_table *list;
 
     rb_scan_args(argc, argv, "01", &recur);
@@ -989,7 +975,6 @@ rb_obj_singleton_methods(int argc, VALUE *argv, VALUE obj)
 	recur = Qtrue;
     }
     klass = CLASS_OF(obj);
-    klass_orig = rb_obj_class(obj);
     list = st_init_numtable();
     if (klass && FL_TEST(klass, FL_SINGLETON)) {
 	st_foreach(RCLASS_M_TBL(klass), method_entry, (st_data_t)list);
@@ -1004,10 +989,6 @@ rb_obj_singleton_methods(int argc, VALUE *argv, VALUE obj)
     ary = rb_ary_new();
     st_foreach(list, ins_methods_i, ary);
     st_free_table(list);
-
-#if WITH_OBJC
-    //rb_objc_methods(ary, RCLASS(obj)->ocklass);
-#endif
 
     return ary;
 }

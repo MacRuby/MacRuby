@@ -2,7 +2,7 @@
 
   encoding.c -
 
-  $Author: akr $
+  $Author: nobu $
   created at: Thu May 24 17:23:27 JST 2007
 
   Copyright (C) 2007 Yukihiro Matsumoto
@@ -360,10 +360,10 @@ rb_enc_dummy_p(rb_encoding *enc)
  * call-seq:
  *   enc.dummy? => true or false
  *
- * Returns true for dummy encoding.
- * A dummy encoding is a encoding which character handling is not properly
+ * Returns true for dummy encodings.
+ * A dummy encoding is an encoding for which character handling is not properly
  * implemented.
- * It is used for stateful encoding.
+ * It is used for stateful encodings.
  *
  *   Encoding::ISO_2022_JP.dummy?       #=> true
  *   Encoding::UTF_8.dummy?             #=> false
@@ -539,7 +539,7 @@ rb_enc_find(const char *name)
 static inline int
 enc_capable(VALUE obj)
 {
-    if (IMMEDIATE_P(obj)) return Qfalse;
+    if (SPECIAL_CONST_P(obj)) return Qfalse;
     switch (BUILTIN_TYPE(obj)) {
       case T_STRING:
       case T_REGEXP:
@@ -617,6 +617,8 @@ void
 rb_enc_associate_index(VALUE obj, int idx)
 {
     enc_check_capable(obj);
+    if (rb_enc_get_index(obj) == idx)
+    	return;
     if (!ENC_CODERANGE_ASCIIONLY(obj) ||
 	!rb_enc_asciicompat(rb_enc_from_index(idx))) {
 	ENC_CODERANGE_CLEAR(obj);
@@ -672,11 +674,11 @@ rb_enc_compatible(VALUE str1, VALUE str2)
     enc1 = rb_enc_from_index(idx1);
     enc2 = rb_enc_from_index(idx2);
 
+    if (TYPE(str2) == T_STRING && RSTRING_LEN(str2) == 0)
+	return enc1;
+    if (TYPE(str1) == T_STRING && RSTRING_LEN(str1) == 0)
+	return enc2;
     if (!rb_enc_asciicompat(enc1) || !rb_enc_asciicompat(enc2)) {
-        if (TYPE(str2) == T_STRING && RSTRING_LEN(str2) == 0)
-            return enc1;
-        if (TYPE(str1) == T_STRING && RSTRING_LEN(str1) == 0)
-            return enc2;
 	return 0;
     }
 
@@ -740,8 +742,10 @@ rb_enc_mbclen(const char *p, const char *e, rb_encoding *enc)
     int n = ONIGENC_PRECISE_MBC_ENC_LEN(enc, (UChar*)p, (UChar*)e);
     if (MBCLEN_CHARFOUND_P(n) && MBCLEN_CHARFOUND_LEN(n) <= e-p)
         return MBCLEN_CHARFOUND_LEN(n);
-    else
-        return 1;
+    else {
+        int min = rb_enc_mbminlen(enc);
+        return min <= e-p ? min : e-p;
+    }
 }
 
 int
@@ -772,7 +776,7 @@ rb_enc_ascget(const char *p, const char *e, int *len, rb_encoding *enc)
     l = rb_enc_precise_mbclen(p, e, enc);
     if (!MBCLEN_CHARFOUND_P(l))
         return -1;
-    c = rb_enc_codepoint(p, e, enc);
+    c = rb_enc_mbc_to_codepoint(p, e, enc);
     if (!rb_enc_isascii(c, enc))
         return -1;
     if (len) *len = l;
@@ -902,7 +906,7 @@ enc_find(VALUE klass, VALUE enc)
 {
     int idx;
 
-    if (SYMBOL_P(enc)) enc = rb_id2str(SYM2ID(enc));
+    StringValue(enc);
     if (!rb_enc_asciicompat(rb_enc_get(enc))) {
 	rb_raise(rb_eArgError, "invalid name encoding (non ASCII)");
     }

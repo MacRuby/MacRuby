@@ -2,7 +2,7 @@
 
   re.c -
 
-  $Author: akr $
+  $Author: matz $
   created at: Mon Aug  9 18:24:49 JST 1993
 
   Copyright (C) 1993-2007 Yukihiro Matsumoto
@@ -2971,6 +2971,7 @@ rb_reg_regsub(VALUE str, VALUE src, struct re_registers *regs, VALUE regexp)
     rb_encoding *str_enc = rb_enc_get(str);
     rb_encoding *src_enc = rb_enc_get(src);
 
+    rb_enc_check(str, src);
     p = s = RSTRING_PTR(str);
     e = s + RSTRING_LEN(str);
 

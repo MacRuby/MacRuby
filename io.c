@@ -2,7 +2,7 @@
 
   io.c -
 
-  $Author: matz $
+  $Author: nobu $
   created at: Fri Oct 15 18:08:59 JST 1993
 
   Copyright (C) 1993-2007 Yukihiro Matsumoto
@@ -125,14 +125,20 @@ static VALUE argf;
 
 static ID id_write, id_read, id_getc, id_flush, id_encode;
 
-extern char *ruby_inplace_mode;
-
 struct timeval rb_time_interval(VALUE);
 
-static VALUE filename, current_file;
-static int gets_lineno;
-static int init_p = 0, next_p = 0;
-static VALUE lineno = INT2FIX(0);
+struct argf {
+    VALUE filename, current_file;
+    int gets_lineno;
+    int init_p, next_p;
+    VALUE lineno;
+    VALUE argv;
+    char *inplace;
+    int binmode;
+    rb_encoding *enc, *enc2;
+};
+
+#define ARGF (*(struct argf *)DATA_PTR(argf))
 
 #ifdef _STDIO_USES_IOSTREAM  /* GNU libc */
 #  ifdef _IO_fpos_t
@@ -235,7 +241,7 @@ rb_io_check_closed(rb_io_t *fptr)
 
 static int io_fflush(rb_io_t *);
 
-static VALUE
+VALUE
 rb_io_get_io(VALUE io)
 {
     return rb_convert_type(io, T_FILE, "IO", "to_io");
@@ -691,9 +697,8 @@ io_fwrite(VALUE str, rb_io_t *fptr)
         fptr->wbuf_capa = 8192;
         fptr->wbuf = ALLOC_N(char, fptr->wbuf_capa);
     }
-    if ((fptr->mode & FMODE_SYNC) ||
-        (fptr->wbuf && fptr->wbuf_capa <= fptr->wbuf_len + len) ||
-        (fptr->mode & FMODE_TTY)) {
+    if ((fptr->mode & (FMODE_SYNC|FMODE_TTY)) ||
+        (fptr->wbuf && fptr->wbuf_capa <= fptr->wbuf_len + len)) {
         /* xxx: use writev to avoid double write if available */
         if (fptr->wbuf_len && fptr->wbuf_len+len <= fptr->wbuf_capa) {
             if (fptr->wbuf_capa < fptr->wbuf_off+fptr->wbuf_len+len) {
@@ -990,8 +995,8 @@ rb_io_rewind(VALUE io)
 
     GetOpenFile(io, fptr);
     if (io_seek(fptr, 0L, 0) < 0) rb_sys_fail(fptr->path);
-    if (io == current_file) {
-	gets_lineno -= fptr->lineno;
+    if (io == ARGF.current_file) {
+	ARGF.gets_lineno -= fptr->lineno;
     }
     fptr->lineno = 0;
 
@@ -1358,6 +1363,9 @@ read_all(rb_io_t *fptr, long siz, VALUE str)
 {
     long bytes = 0;
     long n;
+    long pos = 0;
+    rb_encoding *enc = io_input_encoding(fptr);
+    int cr = fptr->enc2 ? ENC_CODERANGE_BROKEN : 0;
 
     if (siz == 0) siz = BUFSIZ;
     if (NIL_P(str)) {
@@ -1373,12 +1381,18 @@ read_all(rb_io_t *fptr, long siz, VALUE str)
             break;
 	}
 	bytes += n;
+	if (cr != ENC_CODERANGE_BROKEN)
+	    pos = rb_str_coderange_scan_restartable(RSTRING_PTR(str) + pos, RSTRING_PTR(str) + bytes, enc, &cr);
 	if (bytes < siz) break;
 	siz += BUFSIZ;
 	rb_str_resize(str, siz);
     }
     if (bytes != siz) rb_str_resize(str, bytes);
-    return io_enc_str(str, fptr);
+    str = io_enc_str(str, fptr);
+    if (!fptr->enc2) {
+	ENC_CODERANGE_SET(str, cr);
+    }
+    return str;
 }
 
 void
@@ -1792,6 +1806,9 @@ rb_io_getline_fast(rb_io_t *fptr)
 {
     VALUE str = Qnil;
     int len = 0;
+    long pos = 0;
+    rb_encoding *enc = io_input_encoding(fptr);
+    int cr = fptr->enc2 ? ENC_CODERANGE_BROKEN : 0;
 
     for (;;) {
 	long pending = READ_DATA_PENDING_COUNT(fptr);
@@ -1814,6 +1831,8 @@ rb_io_getline_fast(rb_io_t *fptr)
 		read_buffered_data(RSTRING_PTR(str)+len, pending, fptr);
 	    }
 	    len += pending;
+	    if (cr != ENC_CODERANGE_BROKEN)
+		pos = rb_str_coderange_scan_restartable(RSTRING_PTR(str) + pos, RSTRING_PTR(str) + len, enc, &cr);
 	    if (e) break;
 	}
 	rb_thread_wait_fd(fptr->fd);
@@ -1825,8 +1844,9 @@ rb_io_getline_fast(rb_io_t *fptr)
     }
 
     str = io_enc_str(str, fptr);
+    if (!fptr->enc2) ENC_CODERANGE_SET(str, cr);
     fptr->lineno++;
-    lineno = INT2FIX(fptr->lineno);
+    ARGF.lineno = INT2FIX(fptr->lineno);
     return str;
 }
 
@@ -1951,13 +1971,13 @@ rb_io_getline_1(VALUE rs, long limit, VALUE io)
 		swallow(fptr, '\n');
 	    }
 	}
+	if (!NIL_P(str)) str = io_enc_str(str, fptr);
     }
 
     if (!NIL_P(str)) {
-	str = io_enc_str(str, fptr);
 	if (!nolimit) {
 	    fptr->lineno++;
-	    lineno = INT2FIX(fptr->lineno);
+	    ARGF.lineno = INT2FIX(fptr->lineno);
 	}
     }
 
@@ -2070,27 +2090,6 @@ rb_io_set_lineno(VALUE io, VALUE lineno)
     GetOpenFile(io, fptr);
     rb_io_check_readable(fptr);
     fptr->lineno = NUM2INT(lineno);
-    return lineno;
-}
-
-static void
-lineno_setter(VALUE val, ID id, VALUE *var)
-{
-    gets_lineno = NUM2INT(val);
-    *var = INT2FIX(gets_lineno);
-}
-
-static VALUE
-argf_set_lineno(VALUE argf, VALUE val)
-{
-    gets_lineno = NUM2INT(val);
-    lineno = INT2FIX(gets_lineno);
-    return Qnil;
-}
-
-static VALUE
-argf_lineno(void)
-{
     return lineno;
 }
 
@@ -4471,7 +4470,7 @@ rb_io_putc(VALUE io, VALUE ch)
 static VALUE
 rb_f_putc(VALUE recv, VALUE ch)
 {
-    return rb_io_putc(rb_stdout, ch);
+    return rb_funcall2(rb_stdout, rb_intern("putc"), 1, &ch);
 }
 
 static VALUE
@@ -4550,8 +4549,7 @@ rb_io_puts(int argc, VALUE *argv, VALUE out)
 static VALUE
 rb_f_puts(int argc, VALUE *argv)
 {
-    rb_io_puts(argc, argv, rb_stdout);
-    return Qnil;
+    return rb_funcall2(rb_stdout, rb_intern("puts"), argc, argv);
 }
 
 void
@@ -4714,7 +4712,8 @@ prep_stdio(FILE *f, int mode, VALUE klass, const char *path)
     return io;
 }
 
-FILE *rb_io_stdio_file(rb_io_t *fptr)
+FILE *
+rb_io_stdio_file(rb_io_t *fptr)
 {
     if (!fptr->stdio_file) {
         fptr->stdio_file = rb_fdopen(fptr->fd, rb_io_flags_mode(fptr->mode));
@@ -4890,18 +4889,81 @@ rb_io_s_for_fd(int argc, VALUE *argv, VALUE klass)
     return io;
 }
 
-static int argf_binmode = 0;
-static rb_encoding *argf_enc, *argf_enc2;
+static void
+argf_mark(void *ptr)
+{
+    struct argf *p = ptr;
+    rb_gc_mark(p->filename);
+    rb_gc_mark(p->current_file);
+    rb_gc_mark(p->lineno);
+    rb_gc_mark(p->argv);
+}
+
+static void
+argf_free(void *ptr)
+{
+    struct argf *p = ptr;
+    free(p->inplace);
+}
 
 static VALUE
-argf_forward(int argc, VALUE *argv)
+argf_alloc(VALUE klass)
+{
+    struct argf *p;
+    VALUE argf = Data_Make_Struct(klass, struct argf, argf_mark, argf_free, p);
+
+    p->filename = Qnil;
+    p->current_file = Qnil;
+    p->lineno = Qnil;
+    p->argv = Qnil;
+    return argf;
+}
+
+#define filename          ARGF.filename
+#define current_file      ARGF.current_file
+#define gets_lineno       ARGF.gets_lineno
+#define init_p            ARGF.init_p
+#define next_p            ARGF.next_p
+#define lineno            ARGF.lineno
+#define ruby_inplace_mode ARGF.inplace
+#define argf_binmode      ARGF.binmode
+#define argf_enc          ARGF.enc
+#define argf_enc2         ARGF.enc2
+#define rb_argv           ARGF.argv
+
+static VALUE
+argf_initialize(VALUE argf, VALUE argv)
+{
+    rb_argv = argv;
+    return argf;
+}
+
+static VALUE
+argf_set_lineno(VALUE argf, VALUE val)
+{
+    gets_lineno = NUM2INT(val);
+    lineno = INT2FIX(gets_lineno);
+    return Qnil;
+}
+
+static VALUE
+argf_lineno(VALUE argf)
+{
+    return lineno;
+}
+
+static VALUE
+argf_forward(int argc, VALUE *argv, VALUE argf)
 {
     return rb_funcall3(current_file, rb_frame_this_func(), argc, argv);
 }
 
+#define next_argv() argf_next_argv(argf)
+#define ARGF_GENERIC_INPUT_P() \
+    (current_file == rb_stdin && TYPE(current_file) != T_FILE)
 #define ARGF_FORWARD(argc, argv) do {\
-  if (current_file == rb_stdin && TYPE(current_file) != T_FILE)\
-     return argf_forward(argc, argv);\
+    if (ARGF_GENERIC_INPUT_P())\
+	return argf_forward(argc, argv, argf);\
 } while (0)
 #define NEXT_ARGF_FORWARD(argc, argv) do {\
      if (!next_argv()) return Qnil;\
@@ -4915,9 +4977,8 @@ argf_close(VALUE file)
 }
 
 static int
-next_argv(void)
+argf_next_argv(VALUE argf)
 {
-    extern VALUE rb_argv;
     char *fn;
     rb_io_t *fptr;
     int stdout_binmode = 0;
@@ -4929,7 +4990,7 @@ next_argv(void)
     }
 
     if (init_p == 0) {
-	if (RARRAY_LEN(rb_argv) > 0) {
+	if (!NIL_P(rb_argv) && RARRAY_LEN(rb_argv) > 0) {
 	    next_p = 1;
 	}
 	else {
@@ -5049,7 +5110,7 @@ argf_getline(int argc, VALUE *argv)
 
   retry:
     if (!next_argv()) return Qnil;
-    if (current_file == rb_stdin && TYPE(current_file) != T_FILE) {
+    if (ARGF_GENERIC_INPUT_P()) {
 	line = rb_funcall3(current_file, rb_intern("gets"), argc, argv);
     }
     else {
@@ -5070,6 +5131,22 @@ argf_getline(int argc, VALUE *argv)
 	lineno = INT2FIX(gets_lineno);
     }
     return line;
+}
+
+static VALUE
+argf_lineno_getter(ID id, VALUE *var)
+{
+    VALUE argf = *var;
+    return lineno;
+}
+
+static void
+argf_lineno_setter(VALUE val, ID id, VALUE *var)
+{
+    VALUE argf = *var;
+    int n = NUM2INT(val);
+    gets_lineno = n;
+    lineno = INT2FIX(n);
 }
 
 /*
@@ -5864,13 +5941,14 @@ open_key_args(int argc, VALUE *argv, struct foreach_arg *arg)
 	args[1] = v;
 	arg->io = rb_f_open(2, args);
     }
-    v = rb_hash_aref(opt, encoding);
-    if (!NIL_P(v)) {
-	rb_io_t *fptr;
 
 	if (!arg->io) {
 	    arg->io = rb_io_open(RSTRING_PTR(argv[0]), "r");
 	}
+
+    v = rb_hash_aref(opt, encoding);
+    if (!NIL_P(v)) {
+	rb_io_t *fptr;
 	GetOpenFile(arg->io, fptr);
         mode_enc(fptr, StringValueCStr(v));
     }
@@ -6087,27 +6165,30 @@ rb_io_set_encoding(int argc, VALUE *argv, VALUE io)
 }
 
 static VALUE
-argf_external_encoding(void)
+argf_external_encoding(VALUE argf)
 {
     return rb_io_external_encoding(current_file);
 }
 
 static VALUE
-argf_internal_encoding(void)
+argf_internal_encoding(VALUE argf)
 {
     return rb_io_internal_encoding(current_file);
 }
 
 static VALUE
-argf_set_encoding(int argc, VALUE *argv, VALUE io)
+argf_set_encoding(int argc, VALUE *argv, VALUE argf)
 {
     rb_io_t *fptr;
 
+    if (!next_argv()) {
+	rb_raise(rb_eArgError, "no stream to set encoding");
+    }
     rb_io_set_encoding(argc, argv, current_file);
-    GetOpenFile(io, fptr);
+    GetOpenFile(current_file, fptr);
     argf_enc = fptr->enc;
     argf_enc2 = fptr->enc2;
-    return io;
+    return argf;
 }
 
 static VALUE
@@ -6182,7 +6263,7 @@ argf_eof(void)
 }
 
 static VALUE
-argf_read(int argc, VALUE *argv)
+argf_read(int argc, VALUE *argv, VALUE argf)
 {
     VALUE tmp, str, length;
     long len = 0;
@@ -6201,8 +6282,8 @@ argf_read(int argc, VALUE *argv)
     if (!next_argv()) {
 	return str;
     }
-    if (current_file == rb_stdin && TYPE(current_file) != T_FILE) {
-	tmp = argf_forward(argc, argv);
+    if (ARGF_GENERIC_INPUT_P()) {
+	tmp = argf_forward(argc, argv, argf);
     }
     else {
 	tmp = io_read(argc, argv, current_file);
@@ -6229,18 +6310,19 @@ argf_read(int argc, VALUE *argv)
 struct argf_call_arg {
     int argc;
     VALUE *argv;
+    VALUE argf;
 };
 
 static VALUE
 argf_forward_call(VALUE arg)
 {
     struct argf_call_arg *p = (struct argf_call_arg *)arg;
-    argf_forward(p->argc, p->argv);
+    argf_forward(p->argc, p->argv, p->argf);
     return Qnil;
 }
 
 static VALUE
-argf_readpartial(int argc, VALUE *argv)
+argf_readpartial(int argc, VALUE *argv, VALUE argf)
 {
     VALUE tmp, str, length;
 
@@ -6254,10 +6336,11 @@ argf_readpartial(int argc, VALUE *argv)
         rb_str_resize(str, 0);
         rb_eof_error();
     }
-    if (current_file == rb_stdin && TYPE(current_file) != T_FILE) {
+    if (ARGF_GENERIC_INPUT_P()) {
 	struct argf_call_arg arg;
 	arg.argc = argc;
 	arg.argv = argv;
+	arg.argf = argf;
 	tmp = rb_rescue2(argf_forward_call, (VALUE)&arg,
 			 RUBY_METHOD_FUNC(0), Qnil, rb_eEOFError, (VALUE)0);
     }
@@ -6371,9 +6454,9 @@ argf_each_line(int argc, VALUE *argv, VALUE self)
 }
 
 static VALUE
-argf_each_byte(VALUE self)
+argf_each_byte(VALUE argf)
 {
-    RETURN_ENUMERATOR(self, 0, 0);
+    RETURN_ENUMERATOR(argf, 0, 0);
     for (;;) {
 	if (!next_argv()) return Qnil;
 	rb_block_call(current_file, rb_intern("each_byte"), 0, 0, rb_yield, 0);
@@ -6382,21 +6465,27 @@ argf_each_byte(VALUE self)
 }
 
 static VALUE
-argf_filename(void)
+argf_filename(VALUE argf)
 {
     next_argv();
     return filename;
 }
 
 static VALUE
-argf_file(void)
+argf_filename_getter(ID id, VALUE *var)
+{
+    return argf_filename(*var);
+}
+
+static VALUE
+argf_file(VALUE argf)
 {
     next_argv();
     return current_file;
 }
 
 static VALUE
-argf_binmode_m(void)
+argf_binmode_m(VALUE argf)
 {
     argf_binmode = 1;
     next_argv();
@@ -6406,7 +6495,7 @@ argf_binmode_m(void)
 }
 
 static VALUE
-argf_skip(void)
+argf_skip(VALUE argf)
 {
     if (next_p != -1) {
 	argf_close(current_file);
@@ -6416,7 +6505,7 @@ argf_skip(void)
 }
 
 static VALUE
-argf_close_m(void)
+argf_close_m(VALUE argf)
 {
     next_argv();
     argf_close(current_file);
@@ -6428,7 +6517,7 @@ argf_close_m(void)
 }
 
 static VALUE
-argf_closed(void)
+argf_closed(VALUE argf)
 {
     next_argv();
     ARGF_FORWARD(0, 0);
@@ -6436,31 +6525,79 @@ argf_closed(void)
 }
 
 static VALUE
-argf_to_s(void)
+argf_to_s(VALUE argf)
 {
     return rb_str_new2("ARGF");
 }
 
 static VALUE
-opt_i_get(void)
+argf_inplace_mode_get(VALUE argf)
 {
     if (!ruby_inplace_mode) return Qnil;
     return rb_str_new2(ruby_inplace_mode);
 }
 
-static void
-opt_i_set(VALUE val)
+static VALUE
+opt_i_get(ID id, VALUE *var)
+{
+    return argf_inplace_mode_get(*var);
+}
+
+static VALUE
+argf_inplace_mode_set(VALUE argf, VALUE val)
 {
     if (!RTEST(val)) {
 	if (ruby_inplace_mode) free(ruby_inplace_mode);
 	ruby_inplace_mode = 0;
-	return;
     }
+    else {
     StringValue(val);
     if (ruby_inplace_mode) free(ruby_inplace_mode);
     ruby_inplace_mode = 0;
-    ruby_inplace_mode = strdup(StringValueCStr(val));
+	ruby_inplace_mode = strdup(RSTRING_PTR(val));
+    }
+    return argf;
 }
+
+static void
+opt_i_set(VALUE val, ID id, VALUE *var)
+{
+    argf_inplace_mode_set(*var, val);
+}
+
+const char *
+ruby_get_inplace_mode(void)
+{
+    return ruby_inplace_mode;
+}
+
+void
+ruby_set_inplace_mode(const char *suffix)
+{
+    if (ruby_inplace_mode) free(ruby_inplace_mode);
+    ruby_inplace_mode = 0;
+    if (suffix) ruby_inplace_mode = strdup(suffix);
+}
+
+static VALUE
+argf_argv(VALUE argf)
+{
+    return rb_argv;
+}
+
+static VALUE
+argf_argv_getter(ID id, VALUE *var)
+{
+    return argf_argv(*var);
+}
+
+VALUE
+rb_get_argv(void)
+{
+    return rb_argv;
+}
+
+#undef rb_argv
 
 /*
  *  Class <code>IO</code> is the basis for all input and output in Ruby.
@@ -6541,6 +6678,7 @@ opt_i_set(VALUE val)
 void
 Init_IO(void)
 {
+    VALUE rb_cARGF;
 #ifdef __CYGWIN__
 #include <sys/cygwin.h>
     static struct __cygwin_perfile pf[] =
@@ -6610,7 +6748,6 @@ Init_IO(void)
     rb_define_hooked_variable("$-0", &rb_rs, 0, rb_str_setter);
     rb_define_hooked_variable("$\\", &rb_output_rs, 0, rb_str_setter);
 
-    rb_define_hooked_variable("$.", &lineno, 0, lineno_setter);
     rb_define_virtual_variable("$_", rb_lastline_get, rb_lastline_set);
 
     rb_define_method(rb_cIO, "initialize_copy", rb_io_init_copy, 1);
@@ -6696,6 +6833,7 @@ Init_IO(void)
     rb_define_hooked_variable("$stdout", &rb_stdout, 0, stdout_setter);
     rb_stderr = prep_stdio(stderr, FMODE_WRITABLE|FMODE_SYNC, rb_cIO, "<STDERR>");
     rb_define_hooked_variable("$stderr", &rb_stderr, 0, stdout_setter);
+    rb_stderr = prep_stdio(stderr, FMODE_WRITABLE|FMODE_SYNC, rb_cIO, "<STDERR>");
     rb_define_hooked_variable("$>", &rb_stdout, 0, stdout_setter);
     orig_stdout = rb_stdout;
     rb_deferr = orig_stderr = rb_stderr;
@@ -6705,58 +6843,68 @@ Init_IO(void)
     rb_define_global_const("STDOUT", rb_stdout);
     rb_define_global_const("STDERR", rb_stderr);
 
+    argf = argf_alloc(rb_cObject);
+    argf_initialize(argf, rb_ary_new());
+    rb_cARGF = rb_singleton_class(argf);
+
+    rb_include_module(rb_cARGF, rb_mEnumerable);
+
+    rb_define_method(rb_cARGF, "initialize", argf_initialize, 1);
+    rb_define_method(rb_cARGF, "to_s", argf_to_s, 0);
+    rb_define_method(rb_cARGF, "argv", argf_argv, 0);
+
+    rb_define_method(rb_cARGF, "fileno", argf_fileno, 0);
+    rb_define_method(rb_cARGF, "to_i", argf_fileno, 0);
+    rb_define_method(rb_cARGF, "to_io", argf_to_io, 0);
+    rb_define_method(rb_cARGF, "each",  argf_each_line, -1);
+    rb_define_method(rb_cARGF, "each_line",  argf_each_line, -1);
+    rb_define_method(rb_cARGF, "each_byte",  argf_each_byte, 0);
+
+    rb_define_method(rb_cARGF, "read",  argf_read, -1);
+    rb_define_method(rb_cARGF, "readpartial",  argf_readpartial, -1);
+    rb_define_method(rb_cARGF, "readlines", rb_f_readlines, -1);
+    rb_define_method(rb_cARGF, "to_a", rb_f_readlines, -1);
+    rb_define_method(rb_cARGF, "gets", rb_f_gets, -1);
+    rb_define_method(rb_cARGF, "readline", rb_f_readline, -1);
+    rb_define_method(rb_cARGF, "getc", argf_getc, 0);
+    rb_define_method(rb_cARGF, "getbyte", argf_getbyte, 0);
+    rb_define_method(rb_cARGF, "readchar", argf_readchar, 0);
+    rb_define_method(rb_cARGF, "readbyte", argf_readbyte, 0);
+    rb_define_method(rb_cARGF, "tell", argf_tell, 0);
+    rb_define_method(rb_cARGF, "seek", argf_seek_m, -1);
+    rb_define_method(rb_cARGF, "rewind", argf_rewind, 0);
+    rb_define_method(rb_cARGF, "pos", argf_tell, 0);
+    rb_define_method(rb_cARGF, "pos=", argf_set_pos, 1);
+    rb_define_method(rb_cARGF, "eof", argf_eof, 0);
+    rb_define_method(rb_cARGF, "eof?", argf_eof, 0);
+    rb_define_method(rb_cARGF, "binmode", argf_binmode_m, 0);
+
+    rb_define_method(rb_cARGF, "filename", argf_filename, 0);
+    rb_define_method(rb_cARGF, "path", argf_filename, 0);
+    rb_define_method(rb_cARGF, "file", argf_file, 0);
+    rb_define_method(rb_cARGF, "skip", argf_skip, 0);
+    rb_define_method(rb_cARGF, "close", argf_close_m, 0);
+    rb_define_method(rb_cARGF, "closed?", argf_closed, 0);
+
+    rb_define_method(rb_cARGF, "lineno",   argf_lineno, 0);
+    rb_define_method(rb_cARGF, "lineno=",  argf_set_lineno, 1);
+
+    rb_define_method(rb_cARGF, "inplace_mode", argf_inplace_mode_get, 0);
+    rb_define_method(rb_cARGF, "inplace_mode=", argf_inplace_mode_set, 1);
+
+    rb_define_method(rb_cARGF, "external_encoding", argf_external_encoding, 0);
+    rb_define_method(rb_cARGF, "internal_encoding", argf_internal_encoding, 0);
+    rb_define_method(rb_cARGF, "set_encoding", argf_set_encoding, -1);
+
     rb_define_readonly_variable("$<", &argf);
-    argf = rb_obj_alloc(rb_cObject);
-    rb_extend_object(argf, rb_mEnumerable);
     rb_define_global_const("ARGF", argf);
 
-    rb_define_singleton_method(argf, "to_s", argf_to_s, 0);
-
-    rb_define_singleton_method(argf, "fileno", argf_fileno, 0);
-    rb_define_singleton_method(argf, "to_i", argf_fileno, 0);
-    rb_define_singleton_method(argf, "to_io", argf_to_io, 0);
-    rb_define_singleton_method(argf, "each",  argf_each_line, -1);
-    rb_define_singleton_method(argf, "each_line",  argf_each_line, -1);
-    rb_define_singleton_method(argf, "each_byte",  argf_each_byte, 0);
-
-    rb_define_singleton_method(argf, "read",  argf_read, -1);
-    rb_define_singleton_method(argf, "readpartial",  argf_readpartial, -1);
-    rb_define_singleton_method(argf, "readlines", rb_f_readlines, -1);
-    rb_define_singleton_method(argf, "to_a", rb_f_readlines, -1);
-    rb_define_singleton_method(argf, "gets", rb_f_gets, -1);
-    rb_define_singleton_method(argf, "readline", rb_f_readline, -1);
-    rb_define_singleton_method(argf, "getc", argf_getc, 0);
-    rb_define_singleton_method(argf, "getbyte", argf_getbyte, 0);
-    rb_define_singleton_method(argf, "readchar", argf_readchar, 0);
-    rb_define_singleton_method(argf, "readbyte", argf_readbyte, 0);
-    rb_define_singleton_method(argf, "tell", argf_tell, 0);
-    rb_define_singleton_method(argf, "seek", argf_seek_m, -1);
-    rb_define_singleton_method(argf, "rewind", argf_rewind, 0);
-    rb_define_singleton_method(argf, "pos", argf_tell, 0);
-    rb_define_singleton_method(argf, "pos=", argf_set_pos, 1);
-    rb_define_singleton_method(argf, "eof", argf_eof, 0);
-    rb_define_singleton_method(argf, "eof?", argf_eof, 0);
-    rb_define_singleton_method(argf, "binmode", argf_binmode_m, 0);
-
-    rb_define_singleton_method(argf, "filename", argf_filename, 0);
-    rb_define_singleton_method(argf, "path", argf_filename, 0);
-    rb_define_singleton_method(argf, "file", argf_file, 0);
-    rb_define_singleton_method(argf, "skip", argf_skip, 0);
-    rb_define_singleton_method(argf, "close", argf_close_m, 0);
-    rb_define_singleton_method(argf, "closed?", argf_closed, 0);
-
-    rb_define_singleton_method(argf, "lineno",   argf_lineno, 0);
-    rb_define_singleton_method(argf, "lineno=",  argf_set_lineno, 1);
-
-    rb_define_singleton_method(argf, "external_encoding", argf_external_encoding, 0);
-    rb_define_singleton_method(argf, "internal_encoding", argf_internal_encoding, 0);
-    rb_define_singleton_method(argf, "set_encoding", argf_set_encoding, -1);
-
-    rb_global_variable(&current_file);
-    rb_define_readonly_variable("$FILENAME", &filename);
+    rb_define_hooked_variable("$.", &argf, argf_lineno_getter, argf_lineno_setter);
+    rb_define_hooked_variable("$FILENAME", &argf, argf_filename_getter, 0);
     filename = rb_str_new2("-");
 
-    rb_define_virtual_variable("$-i", opt_i_get, opt_i_set);
+    rb_define_hooked_variable("$-i", &argf, opt_i_get, opt_i_set);
+    rb_define_hooked_variable("$*", &argf, argf_argv_getter, 0);
 
 #if defined (_WIN32) || defined(DJGPP) || defined(__CYGWIN__) || defined(__human68k__)
     atexit(pipe_atexit);

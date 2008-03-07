@@ -1839,7 +1839,6 @@ Init_VM(void)
 	/* create main thread */
 	th_self = th->self = Data_Wrap_Struct(rb_cThread, rb_thread_mark,
 					      thread_free, th);
-
 	vm->main_thread = th;
 	vm->running_thread = th;
 	th->vm = vm;
