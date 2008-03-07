@@ -2547,7 +2547,7 @@ Init_Hash(void)
 
 #if WITH_OBJC
     rb_cHash = rb_define_class("Hash", 
-	rb_objc_import_class((Class)objc_getClass("NSDictionary")));
+	rb_objc_import_class((Class)objc_getClass("NSMutableDictionary")));
 #else
     rb_cHash = rb_define_class("Hash", rb_cObject);
 #endif

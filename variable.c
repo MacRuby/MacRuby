@@ -966,6 +966,11 @@ ivar_get(VALUE obj, ID id, int warn)
     long len;
     st_data_t index;
 
+#if WITH_OBJC
+    if (rb_objc_is_non_native(obj))
+	return generic_ivar_get(obj, id, warn);
+#endif
+
     switch (TYPE(obj)) {
       case T_OBJECT:
         len = ROBJECT_LEN(obj);
@@ -1013,6 +1018,13 @@ rb_ivar_set(VALUE obj, ID id, VALUE val)
     st_data_t index;
     long i, len;
     int ivar_extended;
+
+#if WITH_OBJC
+    if (rb_objc_is_non_native(obj)) {
+	generic_ivar_set(obj, id, val);
+	return val;
+    }
+#endif
 
     if (!OBJ_TAINTED(obj) && rb_safe_level() >= 4)
 	rb_raise(rb_eSecurityError, "Insecure: can't modify instance variable");
@@ -1497,9 +1509,11 @@ rb_const_get_0(VALUE klass, ID id, int exclude, int recurse)
     }
 
 #if WITH_OBJC
-    /* FIXME clearly this should be done as part of the
-       rb_objc_resolve_const_value() logic. */
-    //if (klass == rb_cObject) {
+    /* Classes are typically pre-loaded by Kernel#framework and imported by
+     * rb_objc_resolve_const_value(), but it is still useful to keep the
+     * dynamic import facility, because someone in the Objective-C world may
+     * dynamically define classes at runtime (like ScriptingBridge.framework).
+     */
     {
 	Class k = (Class)objc_getClass(rb_id2name(id));
 	if (k != NULL) {

@@ -1418,9 +1418,16 @@ rb_class_new_instance(int argc, VALUE *argv, VALUE klass)
 #if WITH_OBJC
     if (FL_TEST(klass, RCLASS_OBJC_IMPORTED)) {
 	static SEL sel_new = 0;
+	id ocid;
 	if (sel_new == 0)
 	    sel_new = sel_registerName("new");
-	return (VALUE)objc_msgSend((id)RCLASS_OCID(klass), sel_new);
+	ocid = objc_msgSend((id)RCLASS_OCID(klass), sel_new);
+	/* FIXME this is a temporary solution until the Ruby primitive classes
+	 * are re-implemented using their CF equivalents.
+	 */
+	unsigned rb_objc_ocid_to_rval(void **ocval, VALUE *rbval);
+	rb_objc_ocid_to_rval((void **)&ocid, &obj);
+	return obj;
     }
 #endif
     obj = rb_obj_alloc(klass);
@@ -2491,7 +2498,7 @@ Init_Object(void)
     rb_define_method(rb_cModule, "ancestors", rb_mod_ancestors, 0); /* in class.c */
 #if WITH_OBJC
     rb_define_method(rb_cModule, "objc_ancestors", rb_mod_objc_ancestors, 0); /* in objc.m */
-    rb_define_private_method(rb_cModule, "ib_outlet", rb_mod_attr_accessor, -1);
+    rb_define_private_method(rb_cModule, "ib_outlet", rb_mod_objc_ib_outlet, -1); /* in objc.m */
 #endif
 
     rb_define_private_method(rb_cModule, "attr", rb_mod_attr, -1);

@@ -356,9 +356,6 @@ bails:
   return false;
 }
 
-static bs_element_retval_t default_func_retval = 
-  { "v", BS_CARRAY_ARG_UNDEFINED, -1, false }; 
-
 static bool 
 _bs_parse(const char *path, char **loaded_paths, 
           bs_parse_options_t options, bs_parse_callback_t callback, 
@@ -716,7 +713,13 @@ _bs_parse(const char *path, char **loaded_paths,
           func->variadic = get_boolean_attribute(reader, "variadic", false);
           func->args_count = 0;
           func->args = NULL;
-          func->retval = &default_func_retval;
+          func->retval = NULL;
+
+          if (xmlTextReaderIsEmptyElement(reader)) {
+            bs_element = func;
+            bs_element_type = BS_ELEMENT_FUNCTION;
+            func = NULL;
+          }
           break;
         }
 
@@ -839,7 +842,7 @@ _bs_parse(const char *path, char **loaded_paths,
                 BAIL("function pointer return value defined more than once");
             }
             else if (func != NULL) {
-              if (func->retval != NULL && func->retval != &default_func_retval)
+              if (func->retval != NULL)
                 BAIL("function '%s' return value defined more than once", 
                      func->name);
             }
@@ -1006,12 +1009,6 @@ _bs_parse(const char *path, char **loaded_paths,
             func->args = (bs_element_arg_t *)malloc(len);
             ASSERT_ALLOC(func->args);
             memcpy(func->args, args, len);
-          }
-          if (func->retval == NULL || func->retval == &default_func_retval) {
-            func->retval = 
-              (bs_element_retval_t *)malloc(sizeof(bs_element_retval_t));
-            memcpy(func->retval, &default_func_retval, 
-                   sizeof(bs_element_retval_t));
           }
 
           bs_element = func;

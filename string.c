@@ -6312,7 +6312,7 @@ Init_String(void)
 {
 #if WITH_OBJC
     rb_cString  = rb_define_class("String",
-	rb_objc_import_class((Class)objc_getClass("NSString")));
+	rb_objc_import_class((Class)objc_getClass("NSMutableString")));
 #else
     rb_cString  = rb_define_class("String", rb_cObject);
 #endif

@@ -587,7 +587,7 @@ vm_call_method(rb_thread_t *th, rb_control_frame_t *cfp,
 	else {
 	    int stat = 0;
 #if WITH_OBJC
-	    mn = rb_objc_define_objc_mid_closure(recv, id);
+	    mn = rb_objc_define_objc_mid_closure(recv, id, NULL);
 	    if (mn != NULL) {
 		return vm_call_method(th, cfp, num, blockptr, flag, id,
 				      mn, recv, klass);
@@ -1149,7 +1149,7 @@ vm_method_process_named_args(ID *pid, NODE **pmn, VALUE recv, rb_num_t *pnum,
 
 	id = rb_intern(buf);
 	if ((mn = rb_method_node(CLASS_OF(recv), id)) != NULL 
-	    || (mn = rb_objc_define_objc_mid_closure(recv, id)) != NULL) {
+	    || (mn = rb_objc_define_objc_mid_closure(recv, id, NULL)) != NULL) {
 #if 1
 	    unsigned j, newnum = 1 + (count / 2);
 	    void **new_argv = alloca(sizeof(void *) * newnum);
@@ -1180,12 +1180,19 @@ vm_method_process_named_args(ID *pid, NODE **pmn, VALUE recv, rb_num_t *pnum,
     if (*pmn == NULL) {
 	id = rb_objc_missing_sel(*pid, *pnum);
 	if (id != *pid) {
-	    mn = rb_objc_define_objc_mid_closure(recv, id);
+	    mn = rb_objc_define_objc_mid_closure(recv, id, NULL);
 	    if (mn != NULL) {
 		*pmn = mn;
 		*pid = id;
 		return;
 	    }
+	}
+    }
+    else {
+	mn = rb_objc_define_objc_mid_closure(recv, *pid, *pmn);
+	if (mn != NULL) {
+	    *pmn = mn;
+	    return;
 	}
     }	
 }

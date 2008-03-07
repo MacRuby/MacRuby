@@ -1,9 +1,9 @@
 #
 # rb_main.rb
-# ÇPROJECTNAMEÈ
+# AnimatingViews
 #
-# Created by ÇFULLUSERNAMEÈ on ÇDATEÈ.
-# Copyright ÇORGANIZATIONNAMEÈ ÇYEARÈ. All rights reserved.
+# Created by Laurent Sansonetti on 3/4/08.
+# Copyright __MyCompanyName__ 2008. All rights reserved.
 #
 
 # Loading the Cocoa framework. If you need to load more frameworks, you can

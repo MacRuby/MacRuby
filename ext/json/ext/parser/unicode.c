@@ -150,7 +150,7 @@ char *JSON_convert_UTF16_to_UTF8 (
         }
         rb_str_buf_cat(buffer, p, bytesToWrite);
     }
-    free(tmp);
+    xfree(tmp);
     source += 5 + (n - 1) * 6;
     return source;
 }
