@@ -495,7 +495,7 @@ NODE *rb_compile_file(const char*, VALUE, int);
 void rb_add_method(VALUE, ID, NODE *, int);
 void rb_add_method_direct(VALUE, ID, NODE *);
 #if WITH_OBJC
-NODE *rb_objc_define_objc_mid_closure(VALUE, ID);
+NODE *rb_objc_define_objc_mid_closure(VALUE, ID, NODE *);
 #endif
 NODE *rb_node_newnode(enum node_type,VALUE,VALUE,VALUE);
 

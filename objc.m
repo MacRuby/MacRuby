@@ -944,7 +944,8 @@ rb_bs_find_method(Class klass, SEL sel)
 }
 
 static const char *
-rb_objc_method_get_type(Method method, bs_element_method_t *bs_method, int n,
+rb_objc_method_get_type(Method method, unsigned count, 
+			bs_element_method_t *bs_method, int n,
 			char *type, size_t type_len)
 {
     if (bs_method != NULL) {
@@ -961,20 +962,25 @@ rb_objc_method_get_type(Method method, bs_element_method_t *bs_method, int n,
 	method_getReturnType(method, type, type_len);
     }
     else {
-	method_getArgumentType(method, n + 2, type, type_len);
+	if (n + 2 < count) {
+	    method_getArgumentType(method, n + 2, type, type_len);
+	}
+	else {
+	    assert(bs_method->variadic);
+	    return "@"; /* FIXME: should parse the format string if any */
+	}
     }
     return type;
 }
 
-static void
-rb_objc_to_ruby_closure_handler(ffi_cif *cif, void *resp, void **args,
-				void *userdata)
+static VALUE
+rb_objc_to_ruby_closure(VALUE rcv, VALUE argv)
 {
-    Method method = (Method)userdata;
-    VALUE rcv, argv;
-    unsigned i, count;
+    Method method;
+    unsigned i, real_count, count;
     ffi_type *ffi_rettype, **ffi_argtypes;
     void *ffi_ret, **ffi_args;
+    ffi_cif *cif;
     Class klass;
     SEL selector;
     const char *type;
@@ -983,24 +989,31 @@ rb_objc_to_ruby_closure_handler(ffi_cif *cif, void *resp, void **args,
     void *imp;
     bs_element_method_t *bs_method;
 
-    rcv = (*(VALUE **)args)[0];
-    argv = (*(VALUE **)args)[1];
-
     if (TYPE(argv) != T_ARRAY)
 	rb_bug("argv isn't an array");
-	
+
+    method = class_getInstanceMethod(object_getClass((void *)rcv), 
+	sel_registerName(rb_id2name(rb_frame_this_func())));	
+    assert(method != NULL);
     count = method_getNumberOfArguments(method);
     assert(count >= 2);
-
-    if (RARRAY_LEN(argv) != count - 2)
-	rb_raise(rb_eArgError, "wrong number of arguments (%d for %d)",
-		 RARRAY_LEN(argv), count - 2);
 
     rb_objc_rval_to_ocid(rcv, (void **)&ocrcv);
     klass = object_getClass(ocrcv);
     selector = method_getName(method);
 
     bs_method = rb_bs_find_method(klass, selector);
+    real_count = count;
+    if (bs_method != NULL && bs_method->variadic) {
+	if (RARRAY_LEN(argv) < count - 2)
+	    rb_raise(rb_eArgError, "wrong number of arguments (%d for %d)",
+		RARRAY_LEN(argv), count - 2);
+	count = RARRAY_LEN(argv) + 2;
+    }
+    else if (RARRAY_LEN(argv) != count - 2) {
+	rb_raise(rb_eArgError, "wrong number of arguments (%d for %d)",
+		 RARRAY_LEN(argv), count - 2);
+    }
 
     ffi_argtypes = (ffi_type **)alloca(sizeof(ffi_type *) * (count + 1));
     ffi_argtypes[0] = &ffi_type_pointer;
@@ -1027,7 +1040,8 @@ rb_objc_to_ruby_closure_handler(ffi_cif *cif, void *resp, void **args,
     }
 
     for (i = 0; i < RARRAY_LEN(argv); i++) {
-	type = rb_objc_method_get_type(method, bs_method, i, buf, sizeof buf);
+	type = rb_objc_method_get_type(method, real_count, bs_method, i, buf, 
+	    sizeof buf);
 	ffi_argtypes[i + 2] = rb_objc_octype_to_ffitype(type);
 	assert(ffi_argtypes[i + 2]->size > 0);
 	ffi_args[i + 2] = (void *)alloca(ffi_argtypes[i + 2]->size);
@@ -1037,11 +1051,13 @@ rb_objc_to_ruby_closure_handler(ffi_cif *cif, void *resp, void **args,
     ffi_argtypes[count] = NULL;
     ffi_args[count] = NULL;
 
-    type = rb_objc_method_get_type(method, bs_method, -1, buf, sizeof buf);
+    type = rb_objc_method_get_type(method, real_count, bs_method, -1, buf, 
+	sizeof buf);
     ffi_rettype = rb_objc_octype_to_ffitype(type);
 
     cif = (ffi_cif *)alloca(sizeof(ffi_cif));
-    if (ffi_prep_cif(cif, FFI_DEFAULT_ABI, count, ffi_rettype, ffi_argtypes) 
+    if (ffi_prep_cif(cif, FFI_DEFAULT_ABI, count, ffi_rettype, 
+		     ffi_argtypes) 
 	!= FFI_OK)
 	rb_fatal("can't prepare cif for objc method type `%s'",
 		 method_getTypeEncoding(method));
@@ -1061,40 +1077,13 @@ rb_objc_to_ruby_closure_handler(ffi_cif *cif, void *resp, void **args,
     }
 
     if (ffi_rettype != &ffi_type_void) {
-	rb_objc_ocval_to_rbval(ffi_ret, type, (VALUE *)resp);
+	VALUE resp;
+	rb_objc_ocval_to_rbval(ffi_ret, type, &resp);
+	return resp;
     }
     else {
-	*(VALUE *)resp = Qnil;
+	return Qnil;
     }
-}
-
-static void *
-rb_objc_to_ruby_closure(Method method)
-{
-    static ffi_cif *cif = NULL;
-    ffi_closure *closure;
-
-    if (cif == NULL) {
-	static ffi_type *args[3];
-    
-	cif = (ffi_cif *)malloc(sizeof(ffi_cif)); /*ALLOC(ffi_cif);*/
-    
-	args[0] = &ffi_type_pointer;
-	args[1] = &ffi_type_pointer;
-	args[2] = NULL;
-    
-	if (ffi_prep_cif(cif, FFI_DEFAULT_ABI, 2, &ffi_type_pointer, args)
-	    != FFI_OK)
-	    rb_fatal("can't prepare objc to ruby cif");
-    }
-
-    closure = (ffi_closure *)malloc(sizeof(ffi_closure)); /*ALLOC(ffi_closure);*/
-
-    if (ffi_prep_closure(closure, cif, rb_objc_to_ruby_closure_handler, method)
-	!= FFI_OK)
-	rb_fatal("can't prepare ruby to objc closure");
-
-    return closure;
 }
 
 #define IGNORE_PRIVATE_OBJC_METHODS 1
@@ -1136,7 +1125,7 @@ rb_ruby_to_objc_closure_handler(ffi_cif *cif, void *resp, void **args,
 }
 
 static void *
-rb_ruby_to_objc_closure(const char *octype, const unsigned arity)
+rb_ruby_to_objc_closure(const char *octype, unsigned arity, NODE *node)
 {
     const char *p;
     char buf[128];
@@ -1150,19 +1139,19 @@ rb_ruby_to_objc_closure(const char *octype, const unsigned arity)
     assert((p = rb_objc_get_first_type(p, buf, sizeof buf)) != NULL);
     ret = rb_objc_octype_to_ffitype(buf);
 
-    args = (ffi_type **)malloc(sizeof(ffi_type *) * (arity + 2)); /*ALLOC_N(ffi_type*, arity + 2);*/
+    args = (ffi_type **)malloc(sizeof(ffi_type *) * (arity + 2)); 
     i = 0;
     while ((p = rb_objc_get_first_type(p, buf, sizeof buf)) != NULL) {
 	args[i] = rb_objc_octype_to_ffitype(buf);
 	assert(++i <= arity + 2);
     }
 
-    cif = (ffi_cif *)malloc(sizeof(ffi_cif)); /*ALLOC(ffi_cif);*/
+    cif = (ffi_cif *)malloc(sizeof(ffi_cif));
     if (ffi_prep_cif(cif, FFI_DEFAULT_ABI, arity + 2, ret, args) != FFI_OK)
 	rb_fatal("can't prepare ruby to objc cif");
     
-    closure = (ffi_closure *)malloc(sizeof(ffi_closure)); /*ALLOC(ffi_closure);*/
-    if (ffi_prep_closure(closure, cif, rb_ruby_to_objc_closure_handler, NULL)
+    closure = (ffi_closure *)malloc(sizeof(ffi_closure));
+    if (ffi_prep_closure(closure, cif, rb_ruby_to_objc_closure_handler, node)
 	!= FFI_OK)
 	rb_fatal("can't prepare ruby to objc closure");
 
@@ -1188,10 +1177,12 @@ rb_objc_sync_ruby_method(VALUE mod, ID mid, NODE *node, unsigned override)
 	return;
 
     arity = rb_node_arity(node);
-    if (arity < 0)
-	arity = 0; /* TODO: support negative arity */
- 
     mid_str = (char *)rb_id2name(mid);
+
+    if (arity < 0) {
+	//printf("mid %s has negative arity %d\n", mid_str, arity);
+	return;
+    }
 
     if (arity == 1 && mid_str[strlen(mid_str) - 1] != ':') {
 	char buf[100];
@@ -1210,7 +1201,7 @@ rb_objc_sync_ruby_method(VALUE mod, ID mid, NODE *node, unsigned override)
 	void *klass = RCLASS_OCID(rb_cBasicObject);
 	if (!override || class_getInstanceMethod(klass, sel) == method) 
 	    return;
-	if (arity + 2 != method_getNumberOfArguments(method)) {
+	if (arity >= 0 && arity + 2 != method_getNumberOfArguments(method)) {
 	    rb_warning("cannot override Objective-C method `%s' in " \
 		       "class `%s' because of an arity mismatch (%d for %d)", 
 		       (char *)sel, 
@@ -1242,7 +1233,7 @@ rb_objc_sync_ruby_method(VALUE mod, ID mid, NODE *node, unsigned override)
 //    printf("registering sel %s of types %s arity %d to class %s\n",
 //	   (char *)sel, types, arity, class_getName(ocklass));
 
-    imp = rb_ruby_to_objc_closure(types, arity);
+    imp = rb_ruby_to_objc_closure(types, arity, node);
 
     if (method != NULL && direct_override) {
 	method_setImplementation(method, imp);
@@ -1337,17 +1328,19 @@ __rb_objc_sync_methods(VALUE mod, Class ocklass)
 #endif
 
 NODE *
-rb_objc_define_objc_mid_closure(VALUE recv, ID mid)
+rb_objc_define_objc_mid_closure(VALUE recv, ID mid, NODE *node)
 {
     SEL sel;
     Class ocklass;
     Method method;
     VALUE mod;
-    NODE *node;
     NODE *data;
     Method (*getMethod)(Class, SEL);
 
     assert(mid > 1);
+
+    if (node != NULL)
+	return NULL; /* TODO: verify that there isn't a prior method */
 
     sel = sel_registerName(rb_id2name(mid));
 
@@ -1361,13 +1354,17 @@ rb_objc_define_objc_mid_closure(VALUE recv, ID mid)
     }
 
     ocklass = RCLASS_OCID(mod);
+
+    if (class_isMetaClass(ocklass))
+	return NULL;
+
     method = (*getMethod)(ocklass, sel);
     if (method == NULL || method_getImplementation(method) == NULL)
 	return NULL;	/* recv doesn't respond to this selector */
 
     do {
 	Class ocsuper = class_getSuperclass(ocklass);
-	if ((*getMethod)(ocsuper, sel) == NULL)
+	if ((*getMethod)(ocsuper, sel) == NULL) /* != method */
 	    break;
 	ocklass = ocsuper;
     }
@@ -1384,9 +1381,7 @@ rb_objc_define_objc_mid_closure(VALUE recv, ID mid)
     if (node != NULL)
 	return node;
 
-//printf("defining %s#%s\n", rb_class2name(mod), (char *)sel);
-
-    node = NEW_CFUNC(rb_objc_to_ruby_closure(method), -2); 
+    node = NEW_CFUNC(rb_objc_to_ruby_closure, -2); 
     data = NEW_FBODY(NEW_METHOD(node, mod, 
 				NOEX_WITH_SAFE(NOEX_PUBLIC)), 0);
 
@@ -2545,7 +2540,7 @@ rb_objc_missing_sel(ID mid, int arity)
 	strlcat(buf, &name[1], sizeof buf);
 	buf[len + 1] = '\0';
     }
-    else if (arity == 1 && name[len - 1] != ':' && len < sizeof buf) {
+    else if (arity >= 1 && name[len - 1] != ':' && len < sizeof buf) {
 	strlcpy(buf, name, sizeof buf);
 	buf[len] = ':';
 	buf[len + 1] = '\0';

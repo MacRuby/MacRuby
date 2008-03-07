@@ -1,22 +1,11 @@
 require 'test/unit'
 
-class MyDictionary < NSMutableDictionary
-  def foo(tc, *args)
-    tc.assert_kind_of(Array, args)
-    unless args.empty?
-      tc.assert_equal(1, args.length)
-      tc.assert_kind_of(Hash, args[0])
-    end
-  end
-  def foo2(tc, args)
-    tc.assert_kind_of(Hash, args)
-  end
-end
-
 class TestSubclass < Test::Unit::TestCase
 
   def setup
     framework 'Foundation'
+    bundle = '/tmp/_test.bundle'
+    return if File.exist?(bundle)
     s = <<EOS
 #import <Foundation/Foundation.h>
 @interface MyClass : NSObject
@@ -29,9 +18,8 @@ class TestSubclass < Test::Unit::TestCase
 @end
 EOS
     File.open('/tmp/_test.m', 'w') { |io| io.write(s) }
-    system("gcc /tmp/_test.m -bundle -o /tmp/_test.bundle -framework Foundation -fobjc-gc-only") or exit 1
-    require 'dl'; DL.dlopen('/tmp/_test.bundle')
-    File.unlink('/tmp/_test.m')
+    system("gcc /tmp/_test.m -bundle -o #{bundle} -framework Foundation -fobjc-gc-only") or exit 1
+    require 'dl'; DL.dlopen(bundle)
   end
 
   def test_new
@@ -39,6 +27,19 @@ EOS
     assert_kind_of(NSObject, o)
     o = NSObject.alloc.init
     assert_kind_of(NSObject, o)
+  end
+
+  class MyDictionary < NSMutableDictionary
+    def foo(tc, *args)
+      tc.assert_kind_of(Array, args)
+      unless args.empty?
+        tc.assert_equal(1, args.length)
+        tc.assert_kind_of(Hash, args[0])
+      end
+    end
+    def foo2(tc, args)
+      tc.assert_kind_of(Hash, args)
+    end
   end
 
   def test_keyed_syntax
@@ -80,6 +81,15 @@ EOS
     o = MyClass.new
     assert_kind_of(MyClass, o)
     assert_equal(42, o.test)
+  end
+
+  def test_method_variadic
+    p = NSPredicate.predicateWithFormat('foo == 1')
+    assert_kind_of(NSPredicate, p)
+    p = NSPredicate.predicateWithFormat('foo == %@', 'bar')
+    assert_kind_of(NSPredicate, p)
+    p = NSPredicate.predicateWithFormat('%@ == %@', 'foo', 'bar')
+    assert_kind_of(NSPredicate, p)
   end
 
 end
