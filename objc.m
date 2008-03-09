@@ -2581,18 +2581,23 @@ macruby_main(const char *path, int argc, char **argv)
 {
     char **newargv;
     char *p1, *p2;
+    int n, i;
 
-    newargv = (char **)malloc((argc + 2) * sizeof(char *));
-    memcpy(newargv, argv, argc * sizeof(char *));
+    newargv = (char **)malloc(sizeof(char *) * (argc + 2));
+    for (i = n = 0; i < argc; i++) {
+	if (!strncmp(argv[i], "-psn_", 5) == 0)
+	    newargv[n++] = argv[i];
+    }
     
     p1 = (char *)malloc(PATH_MAX);
-    newargv[argc++] = (char *)resources_path(p1, PATH_MAX);
+    newargv[n++] = (char *)resources_path(p1, PATH_MAX);
 
     p2 = (char *)malloc(PATH_MAX);
     snprintf(p2, PATH_MAX, "%s/%s", &p1[2], path);
-    newargv[argc++] = p2;
+    newargv[n++] = p2;
 
     argv = newargv;    
+    argc = n;
 
     ruby_sysinit(&argc, &argv);
     {
