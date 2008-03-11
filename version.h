@@ -56,10 +56,8 @@ RUBY_EXTERN const char ruby_copyright[];
 # define RUBY_DESCRIPTION	    \
     "MacRuby version " STRINGIZE(MACRUBY_VERSION) \
     " (ruby "RUBY_VERSION	    \
-    " "RUBY_RELEASE_DATE" "	    \
-    RUBY_RELEASE_STR" "		    \
-    STRINGIZE(RUBY_RELEASE_NUM)") " \
-    "["RUBY_PLATFORM"]"
+    " "RUBY_RELEASE_DATE")"	    \
+    " ["RUBY_PLATFORM"]"
 #else
 # define RUBY_DESCRIPTION	    \
     "ruby "RUBY_VERSION		    \
