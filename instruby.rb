@@ -228,7 +228,12 @@ if RUBY_FRAMEWORK
   install File.join('framework/Info.plist'), resources
   mkdir_p File.join(resources, 'English.lproj')
   install File.join('framework/InfoPlist.strings'), File.join(resources, 'English.lproj')
-  # TODO
+  ln_sf MACRUBY_VERSION.to_s, File.join(base, '..', 'Current')
+  ln_sf 'Versions/Current/Headers', File.join(base, '../../Headers')
+  ln_sf 'Versions/Current/MacRuby', File.join(base, '../../MacRuby')
+  ln_sf 'Versions/Current/Resources', File.join(base, '../../Resources')
+  ln_sf 'usr/lib/libruby.dylib', File.join(base, 'MacRuby')
+  ln_sf 'usr/include/ruby-1.9.0', File.join(base, 'Headers')
 end
 
 install?(:local, :arch, :bin, :'bin-arch') do
