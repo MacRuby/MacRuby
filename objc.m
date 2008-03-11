@@ -92,9 +92,21 @@ rb_objc_sel_to_mid(SEL selector, char *buffer, unsigned buffer_len)
 static inline const char *
 rb_objc_skip_octype_modifiers(const char *octype)
 {
-    if (*octype == _C_CONST)
-	octype++;
-    return octype;
+    while (true) {
+	switch (*octype) {
+	    case _C_CONST:
+	    case 'O': /* bycopy */
+	    case 'n': /* in */
+	    case 'o': /* out */
+	    case 'N': /* inout */
+	    case 'V': /* oneway */
+		octype++;
+		break;
+
+	    default:
+		return octype;
+	}
+    }
 }
 
 static inline const char *
@@ -143,6 +155,10 @@ rb_objc_get_first_type(const char *type, char *buf, size_t buf_len)
  	    break;
 	case _C_UNION_B:
 	    type = __iterate_until(type, _C_UNION_E);
+	    break;
+	case _C_PTR:
+	    if (type[1] == _C_VOID)
+		type++;
 	    break;
     }
 
@@ -898,6 +914,16 @@ rb_objc_ocval_to_rbval(void **ocval, const char *octype, VALUE *rbval)
 		: rb_str_new2(*(char **)ocval);
 	    break;
 
+	case _C_PTR:
+	    if (*(void **)ocval == NULL) {
+		*rbval = Qnil;
+	    }
+	    else {
+		/* TODO: wrap C pointers into a specific object */
+		ok = false;
+	    }
+	    break;
+
 	default:
 	    ok = false;
     }
@@ -1198,9 +1224,19 @@ rb_objc_sync_ruby_method(VALUE mod, ID mid, NODE *node, unsigned override)
     method = class_getInstanceMethod(ocklass, sel);
 
     if (method != NULL) {
-	void *klass = RCLASS_OCID(rb_cBasicObject);
-	if (!override || class_getInstanceMethod(klass, sel) == method) 
+	void *klass;
+	if (!override)
 	    return;
+
+        /* Do not override certain NSObject selectors. */
+        if (sel == @selector(superclass)
+	    || sel == @selector(hash)
+	    || sel == @selector(zone)) {
+ 	    klass = RCLASS_OCID(rb_cBasicObject);
+	    if (class_getInstanceMethod(klass, sel) == method)
+		return;
+	}
+
 	if (arity >= 0 && arity + 2 != method_getNumberOfArguments(method)) {
 	    rb_warning("cannot override Objective-C method `%s' in " \
 		       "class `%s' because of an arity mismatch (%d for %d)", 
