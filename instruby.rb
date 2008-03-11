@@ -221,21 +221,6 @@ dll = CONFIG["LIBRUBY_SO"]
 lib = CONFIG["LIBRUBY"]
 arc = CONFIG["LIBRUBY_A"]
 
-if RUBY_FRAMEWORK
-  base = File.join(CONFIG["prefix"], '..')
-  resources = File.join(base, 'Resources')
-  mkdir_p resources
-  install File.join('framework/Info.plist'), resources
-  mkdir_p File.join(resources, 'English.lproj')
-  install File.join('framework/InfoPlist.strings'), File.join(resources, 'English.lproj')
-  ln_sf MACRUBY_VERSION.to_s, File.join(base, '..', 'Current')
-  ln_sf 'Versions/Current/Headers', File.join(base, '../../Headers')
-  ln_sf 'Versions/Current/MacRuby', File.join(base, '../../MacRuby')
-  ln_sf 'Versions/Current/Resources', File.join(base, '../../Resources')
-  ln_sf 'usr/lib/libruby.dylib', File.join(base, 'MacRuby')
-  ln_sf 'usr/include/ruby-1.9.0', File.join(base, 'Headers')
-end
-
 install?(:local, :arch, :bin, :'bin-arch') do
   puts "installing binary commands"
 
@@ -422,6 +407,28 @@ $install.each do |inst|
       Dir.chdir(dir)
     end
   end
+end
+
+puts "installing Xcode templates"
+dest_templ_dir = '/Library/Application Support/Developer/3.0/Xcode'
+cp_r "misc/xcode-templates/Project Templates", dest_templ_dir
+Dir.glob(File.join(dest_templ_dir, '**', '.svn')).each { |x| rm_f(x) }
+
+if RUBY_FRAMEWORK
+  puts "creating framework"
+  base = File.join(CONFIG["prefix"], '..')
+  resources = File.join(base, 'Resources')
+  mkdir_p resources
+  install File.join('framework/Info.plist'), resources
+  mkdir_p File.join(resources, 'English.lproj')
+  install File.join('framework/InfoPlist.strings'), File.join(resources, 'English.lproj')
+  ln_sf MACRUBY_VERSION.to_s, File.join(base, '..', 'Current')
+  ln_sf 'Versions/Current/Headers', File.join(base, '../../Headers')
+  ln_sf 'Versions/Current/MacRuby', File.join(base, '../../MacRuby')
+  ln_sf 'Versions/Current/Resources', File.join(base, '../../Resources')
+  ln_sf 'usr/lib/libruby.dylib', File.join(base, 'MacRuby')
+  ln_sf 'usr/include/ruby-1.9.0', File.join(base, 'Headers')
+  ln_s '../universal-darwin9.0/ruby/config.h', File.join(base, 'usr/include/ruby-1.9.0/ruby/config.h')
 end
 
 # vi:set sw=2:

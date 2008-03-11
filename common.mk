@@ -300,9 +300,6 @@ dont-install-doc::
 post-no-install-doc::
 	@$(NULLCMD)
 
-install-xcode-templates:
-	$(MINIRUBY) $(srcdir)/misc/xcode-templates/install.rb
-
 CLEAR_INSTALLED_LIST = clear-installed-list
 
 install-prereq: $(CLEAR_INSTALLED_LIST)

@@ -26,7 +26,11 @@ extern "C" {
 #else
 # include <varargs.h>
 #endif
+#if RUBY_INCLUDED_AS_FRAMEWORK
+#include <MacRuby/ruby/st.h>
+#else
 #include <ruby/st.h>
+#endif
 
 /* 
  * Functions and variables that are used by more than one source file of
