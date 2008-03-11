@@ -414,21 +414,33 @@ dest_templ_dir = '/Library/Application Support/Developer/3.0/Xcode'
 cp_r "misc/xcode-templates/Project Templates", dest_templ_dir
 Dir.glob(File.join(dest_templ_dir, '**', '.svn')).each { |x| rm_f(x) }
 
+def ln_sfh(source, target)
+  ln_sf(source, target) unless File.symlink?(target)
+end
+
 if RUBY_FRAMEWORK
-  puts "creating framework"
+  puts "installing framework"
   base = File.join(CONFIG["prefix"], '..')
   resources = File.join(base, 'Resources')
   mkdir_p resources
   install File.join('framework/Info.plist'), resources
   mkdir_p File.join(resources, 'English.lproj')
-  install File.join('framework/InfoPlist.strings'), File.join(resources, 'English.lproj')
-  ln_sf MACRUBY_VERSION.to_s, File.join(base, '..', 'Current')
-  ln_sf 'Versions/Current/Headers', File.join(base, '../../Headers')
-  ln_sf 'Versions/Current/MacRuby', File.join(base, '../../MacRuby')
-  ln_sf 'Versions/Current/Resources', File.join(base, '../../Resources')
-  ln_sf 'usr/lib/libruby.dylib', File.join(base, 'MacRuby')
-  ln_sf "usr/include/ruby-#{RUBY_VERSION}", File.join(base, 'Headers')
-  ln_sf "../#{CONFIG['arch']}/ruby/config.h", File.join(base, "usr/include/ruby-#{RUBY_VERSION}/ruby/config.h")
+  install File.join('framework/InfoPlist.strings'), 
+    File.join(resources, 'English.lproj')
+  ln_sfh MACRUBY_VERSION.to_s, File.join(base, '..', 'Current')
+  ln_sfh 'Versions/Current/Headers', File.join(base, '../../Headers')
+  ln_sfh 'Versions/Current/MacRuby', File.join(base, '../../MacRuby')
+  ln_sfh 'Versions/Current/Resources', File.join(base, '../../Resources')
+  ln_sfh 'usr/lib/libruby.dylib', File.join(base, 'MacRuby')
+  ln_sfh "usr/include/ruby-#{RUBY_VERSION}", File.join(base, 'Headers')
+  ln_sfh "../#{CONFIG['arch']}/ruby/config.h", 
+    File.join(base, "usr/include/ruby-#{RUBY_VERSION}/ruby/config.h")
+  Dir.entries(CONFIG['bindir']).each do |bin|
+    next if bin[0] == '.'
+    link = File.join("../../../", CONFIG['bindir'], bin)
+    link.sub!(/#{MACRUBY_VERSION}/, 'Current')
+    ln_sfh link, File.join('/usr/local/bin', File.basename(bin))
+  end
 end
 
 # vi:set sw=2:
