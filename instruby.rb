@@ -411,7 +411,7 @@ end
 
 puts "installing Xcode templates"
 dest_templ_dir = '/Library/Application Support/Developer/3.0/Xcode'
-mkdir_p dest_templ_dir
+mkdir_p dest_templ_dir, :mode => 0755
 cp_r "misc/xcode-templates/Project Templates", dest_templ_dir
 Dir.glob(File.join(dest_templ_dir, '**', '.svn')).each { |x| rm_f(x) }
 
@@ -423,9 +423,9 @@ if RUBY_FRAMEWORK
   puts "installing framework"
   base = File.join(CONFIG["prefix"], '..')
   resources = File.join(base, 'Resources')
-  mkdir_p resources
+  mkdir_p resources, :mode => 0755
   install File.join('framework/Info.plist'), resources
-  mkdir_p File.join(resources, 'English.lproj')
+  mkdir_p File.join(resources, 'English.lproj'), :mode => 0755
   install File.join('framework/InfoPlist.strings'), 
     File.join(resources, 'English.lproj')
   ln_sfh MACRUBY_VERSION.to_s, File.join(base, '..', 'Current')
@@ -437,7 +437,7 @@ if RUBY_FRAMEWORK
   ln_sfh "../#{CONFIG['arch']}/ruby/config.h", 
     File.join(base, "usr/include/ruby-#{RUBY_VERSION}/ruby/config.h")
   dest_bin = '/usr/local/bin'
-  mkdir_p dest_bin
+  mkdir_p dest_bin, :mode => 0755
   Dir.entries(CONFIG['bindir']).each do |bin|
     next if bin[0] == '.'
     link = File.join("../../../", CONFIG['bindir'], bin)
