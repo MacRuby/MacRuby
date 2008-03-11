@@ -1,0 +1,17 @@
+{
+    IBClasses = (
+        {
+            ACTIONS = {setColor = id; setRadius = id; }; 
+            CLASS = DotView; 
+            LANGUAGE = ObjC; 
+            SUPERCLASS = NSView; 
+        }, 
+        {
+            ACTIONS = {showHelp = id; }; 
+            CLASS = FirstResponder; 
+            LANGUAGE = ObjC; 
+            SUPERCLASS = NSObject; 
+        }
+    ); 
+    IBVersion = 1; 
+}
