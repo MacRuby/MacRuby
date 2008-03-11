@@ -427,8 +427,8 @@ if RUBY_FRAMEWORK
   ln_sf 'Versions/Current/MacRuby', File.join(base, '../../MacRuby')
   ln_sf 'Versions/Current/Resources', File.join(base, '../../Resources')
   ln_sf 'usr/lib/libruby.dylib', File.join(base, 'MacRuby')
-  ln_sf 'usr/include/ruby-1.9.0', File.join(base, 'Headers')
-  ln_s '../universal-darwin9.0/ruby/config.h', File.join(base, 'usr/include/ruby-1.9.0/ruby/config.h')
+  ln_sf "usr/include/ruby-#{RUBY_VERSION}", File.join(base, 'Headers')
+  ln_sf "../#{CONFIG['arch']}/ruby/config.h", File.join(base, "usr/include/ruby-#{RUBY_VERSION}/ruby/config.h")
 end
 
 # vi:set sw=2:
