@@ -221,6 +221,16 @@ dll = CONFIG["LIBRUBY_SO"]
 lib = CONFIG["LIBRUBY"]
 arc = CONFIG["LIBRUBY_A"]
 
+if RUBY_FRAMEWORK
+  base = File.join(CONFIG["prefix"], '..')
+  resources = File.join(base, 'Resources')
+  mkdir_p resources
+  install File.join('framework/Info.plist'), resources
+  mkdir_p File.join(resources, 'English.lproj')
+  install File.join('framework/InfoPlist.strings'), File.join(resources, 'English.lproj')
+  # TODO
+end
+
 install?(:local, :arch, :bin, :'bin-arch') do
   puts "installing binary commands"
 

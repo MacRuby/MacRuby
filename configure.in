@@ -95,7 +95,12 @@ AC_CANONICAL_TARGET
 target_os=`echo $target_os | sed 's/linux-gnu$/linux/;s/linux-gnu/linux-/'`
 ac_install_sh='' # unusable for extension libraries.
 
-ifelse(currently,disabled, [
+case "$target_os" in
+    darwin*)
+	target_os=`echo $target_os | sed 's/\..*/.0/'`
+	;;
+esac
+
 dnl checks for fat-binary
 AC_ARG_ENABLE(fat-binary,
        [  --enable-fat-binary=ARCHS
@@ -103,7 +108,7 @@ AC_ARG_ENABLE(fat-binary,
                           ARCHS is a comma-delimited list of architectures for
                           which to build; if ARCHS is omitted, then the package
                           will be built for all architectures supported by the
-                          platform ("ppc" for MacOS/X and Darwin; "ppc,i386"
+                          platform ("ppc,i386" for MacOS/X and Darwin; "ppc,i386"
                           for Rhapsody; "m68k,i386,sparc" for OpenStep;
                           "m68k,i386,sparc,hppa" for NextStep); if this option
                           is disabled or omitted entirely, then the package
@@ -122,7 +127,7 @@ if test "$fat_binary" != no; then
 	    # Choose a default set of architectures based upon platform.
 	    case "$target_os" in
 	    darwin*)
-		TARGET_ARCHS="ppc"
+		TARGET_ARCHS="ppc i386"
 		;;
 	    rhapsody*)
 		TARGET_ARCHS="ppc i386"
@@ -142,14 +147,13 @@ if test "$fat_binary" != no; then
     AC_MSG_RESULT([$TARGET_ARCHS])
 
     # /usr/lib/arch_tool -archify_list $TARGET_ARCHS
-    ARCH_FLAG=
+    ARCH_FLAG=""
     for archs in $TARGET_ARCHS 
     do
         ARCH_FLAG="$ARCH_FLAG -arch $archs"
     done
     AC_DEFINE(NEXT_FAT_BINARY)
 fi
-], [fat_binary=no])
 
 case $target_cpu in
   i?86) frame_address=yes;;
@@ -462,6 +466,29 @@ AC_ARG_ENABLE(pthread,
        [  --enable-pthread        use pthread library.],
        [enable_pthread=$enableval], [enable_pthread=$enable_pthread_default])
 
+AC_ARG_ENABLE(framework,
+       [  --enable-framework      build as framework.],
+       [enable_framework=$enableval], [enable_framework=no])
+
+AC_ARG_WITH(framework_name,
+       [  --with-framework-name=NAME    framework name (default is Ruby)],
+       [framework_name=$withval],
+       [framework_name='MacRuby'])
+
+AC_ARG_WITH(framework_path,
+       [  --with-framework-path=DIR     framework install path (default is /Library/Frameworks)],
+       [framework_path=$withval],
+       [framework_path='/Library/Frameworks'])
+
+enable_shared_default="no"
+
+if test x"$enable_framework" = xyes; then
+	echo "*** will build as a framework, as $framework_path/$framework_name.framework"
+	macruby_version=`grep "define MACRUBY_VERSION" version.h | awk '{print $4}'`
+	prefix="$framework_path/$framework_name.framework/Versions/$macruby_version/usr"
+	enable_shared_default="yes"
+fi
+
 dnl Checks for libraries.
 case "$target_os" in
 nextstep*)	;;
@@ -473,7 +500,7 @@ darwin*)	LIBS="-lobjc -framework Foundation -lffi -lauto $LIBS"
 		    AC_DEFINE(HAVE_BRIDGESUPPORT_FRAMEWORK, 1)
 		else
 		    LIBS="-lxml2 $LIBS"
-		    CFLAGS="-I/usr/include/libxml2 $CFLAGS"
+		    CFLAGS="$CFLAGS -I/usr/include/libxml2 $CFLAGS"
 		    AC_DEFINE(HAVE_BRIDGESUPPORT_FRAMEWORK, 0)
 		    AC_LIBOBJ([bs])
 		fi
@@ -1388,9 +1415,12 @@ if test "$prefix" = NONE; then
   prefix=$ac_default_prefix
 fi
 
-#if test "$fat_binary" != no ; then
-#  CFLAGS="$CFLAGS $ARCH_FLAG"
-#fi
+if test x"$fat_binary" != xno ; then
+  echo "*** building as a fat binary, with arch flags $ARCH_FLAG"
+  CFLAGS="$CFLAGS $ARCH_FLAG"
+  LDSHARED="$LDSHARED $ARCH_FLAG"
+  LIBRUBY_LDSHARED="LIBRUBY_LDSHARED $ARCH_FLAG"
+fi
 
 if test x"$cross_compiling" = xyes; then
   test x"$MINIRUBY" = x && MINIRUBY="${RUBY-ruby} -I`pwd` -rfake"
@@ -1427,11 +1457,11 @@ LIBRUBY_LDSHARED=$LDSHARED
 LIBRUBY_DLDFLAGS=$DLDFLAGS
 LIBRUBY_SO='lib$(RUBY_SO_NAME).so.$(MAJOR).$(MINOR).$(TEENY)'
 LIBRUBY_ALIASES='lib$(RUBY_SO_NAME).so'
-ENABLE_SHARED=no
+ENABLE_SHARED=yes
 
 AC_ARG_ENABLE(shared,
        [  --enable-shared         build a shared library for Ruby. ],
-       [enable_shared=$enableval])
+       [enable_shared=$enableval], [enable_shared=$enable_shared_default])
 if test "$enable_shared" = 'yes'; then
   LIBRUBY='$(LIBRUBY_SO)'
   LIBRUBYARG_SHARED='-l$(RUBY_SO_NAME)'
@@ -1734,6 +1764,7 @@ RUBY_VENDOR_LIB_PATH2="${RUBY_VENDOR_LIB_PATH}/${MAJOR}.${MINOR}.${TEENY}"
 AC_DEFINE_UNQUOTED(RUBY_VENDOR_LIB, "${RUBY_VENDOR_LIB_PATH}")
 AC_DEFINE_UNQUOTED(RUBY_VENDOR_LIB2, "${RUBY_VENDOR_LIB_PATH2}")
 
+AC_SUBST(enable_framework)dnl
 AC_SUBST(arch)dnl
 AC_SUBST(sitearch)dnl
 AC_SUBST(sitedir)dnl
@@ -1743,16 +1774,24 @@ configure_args=$ac_configure_args
 AC_SUBST(configure_args)dnl
 
 if test "$fat_binary" != no ; then
-    arch="fat-${target_os}"
 
-    AC_DEFINE_UNQUOTED(RUBY_THIN_ARCHLIB,
-                 "${RUBY_LIB_PATH}/" __ARCHITECTURE__ "-${target_os}")
+    case "$target_os" in
+	darwin*)
+		arch="universal-${target_os}"
+		AC_DEFINE_UNQUOTED(RUBY_PLATFORM, "${arch}")
+		;;
+	*)	
+		arch="fat-${target_os}"
+		AC_DEFINE_UNQUOTED(RUBY_THIN_ARCHLIB,
+			"${RUBY_LIB_PATH}/" __ARCHITECTURE__ "-${target_os}")
 
-    AC_DEFINE_UNQUOTED(RUBY_SITE_THIN_ARCHLIB,
-                 "${RUBY_SITE_LIB_PATH}/" __ARCHITECTURE__ "-${target_os}")
-    AC_DEFINE_UNQUOTED(RUBY_VENDOR_THIN_ARCHLIB,
-                 "${RUBY_VENDOR_LIB_PATH}/" __ARCHITECTURE__ "-${target_os}")
-    AC_DEFINE_UNQUOTED(RUBY_PLATFORM, __ARCHITECTURE__ "-${target_os}")
+		AC_DEFINE_UNQUOTED(RUBY_SITE_THIN_ARCHLIB,
+			"${RUBY_SITE_LIB_PATH}/" __ARCHITECTURE__ "-${target_os}")
+		AC_DEFINE_UNQUOTED(RUBY_VENDOR_THIN_ARCHLIB,
+			"${RUBY_VENDOR_LIB_PATH}/" __ARCHITECTURE__ "-${target_os}")
+		AC_DEFINE_UNQUOTED(RUBY_PLATFORM, __ARCHITECTURE__ "-${target_os}")
+		;;
+    esac
 else
     arch="${target_cpu}-${target_os}"
     AC_DEFINE_UNQUOTED(RUBY_PLATFORM, "${arch}")
