@@ -431,7 +431,7 @@ if RUBY_FRAMEWORK
   ln_sfh 'Versions/Current/Headers', File.join(base, '../../Headers')
   ln_sfh 'Versions/Current/MacRuby', File.join(base, '../../MacRuby')
   ln_sfh 'Versions/Current/Resources', File.join(base, '../../Resources')
-  ln_sfh 'usr/lib/libruby.dylib', File.join(base, 'MacRuby')
+  ln_sfh "usr/lib/#{CONFIG['LIBRUBY_SO']}", File.join(base, 'MacRuby')
   ln_sfh "usr/include/ruby-#{RUBY_VERSION}", File.join(base, 'Headers')
   ln_sfh "../#{CONFIG['arch']}/ruby/config.h", 
     File.join(base, "usr/include/ruby-#{RUBY_VERSION}/ruby/config.h")
