@@ -149,17 +149,6 @@ classname(VALUE klass)
     VALUE path = Qnil;
 
     if (!klass) klass = rb_cObject;
-#if 0 //WITH_OBJC
-    if (FL_TEST(klass, RCLASS_ANONYMOUS))
-	return rb_str_new2("");
-    else {
-	const char *name = class_getName(RCLASS_OCID(klass));
-	if (!FL_TEST(klass, RCLASS_NAME_WITHOUT_PREFIX))
-	    name += 2;
-    	path = rb_str_new2(name);
-    }
-    return path;
-#endif
     if (RCLASS_IV_TBL(klass)) {
 	if (!st_lookup(RCLASS_IV_TBL(klass), classpath, &path)) {
 	    ID classid = rb_intern("__classid__");
@@ -284,9 +273,6 @@ rb_path2class(const char *path)
 void
 rb_name_class(VALUE klass, ID id)
 {
-#if 0//WITH_OBJC
-    rb_objc_rename_class(klass, rb_id2name(id));
-#endif
     rb_iv_set(klass, "__classid__", ID2SYM(id));
 }
 
@@ -973,8 +959,8 @@ ivar_get(VALUE obj, ID id, int warn)
 
     switch (TYPE(obj)) {
       case T_OBJECT:
-        len = ROBJECT_LEN(obj);
-        ptr = ROBJECT_PTR(obj);
+        len = ROBJECT_NUMIV(obj);
+        ptr = ROBJECT_IVPTR(obj);
         iv_index_tbl = ROBJECT_IV_INDEX_TBL(obj);
         if (!iv_index_tbl) break; 
         if (!st_lookup(iv_index_tbl, id, &index)) break;
@@ -1046,9 +1032,9 @@ rb_ivar_set(VALUE obj, ID id, VALUE val)
             st_add_direct(iv_index_tbl, id, index);
             ivar_extended = 1;
         }
-        len = ROBJECT_LEN(obj);
+        len = ROBJECT_NUMIV(obj);
         if (len <= index) {
-            VALUE *ptr = ROBJECT_PTR(obj);
+            VALUE *ptr = ROBJECT_IVPTR(obj);
             if (index < ROBJECT_EMBED_LEN_MAX) {
                 RBASIC(obj)->flags |= ROBJECT_EMBED;
                 ptr = ROBJECT(obj)->as.ary;
@@ -1067,19 +1053,19 @@ rb_ivar_set(VALUE obj, ID id, VALUE val)
                     newptr = ALLOC_N(VALUE, newsize);
                     MEMCPY(newptr, ptr, VALUE, len);
                     RBASIC(obj)->flags &= ~ROBJECT_EMBED;
-                    ROBJECT(obj)->as.heap.ptr = newptr;
+                    ROBJECT(obj)->as.heap.ivptr = newptr;
                 }
                 else {
-                    REALLOC_N(ROBJECT(obj)->as.heap.ptr, VALUE, newsize);
-                    newptr = ROBJECT(obj)->as.heap.ptr;
+                    REALLOC_N(ROBJECT(obj)->as.heap.ivptr, VALUE, newsize);
+                    newptr = ROBJECT(obj)->as.heap.ivptr;
                 }
                 for (; len < newsize; len++)
                     newptr[len] = Qundef;
-                ROBJECT(obj)->as.heap.len = newsize;
+                ROBJECT(obj)->as.heap.numiv = newsize;
                 ROBJECT(obj)->as.heap.iv_index_tbl = iv_index_tbl;
             }
         }
-        ROBJECT_PTR(obj)[index] = val;
+        ROBJECT_IVPTR(obj)[index] = val;
 	break;
       case T_CLASS:
       case T_MODULE:
@@ -1106,8 +1092,8 @@ rb_ivar_defined(VALUE obj, ID id)
         iv_index_tbl = ROBJECT_IV_INDEX_TBL(obj);
         if (!iv_index_tbl) break;
         if (!st_lookup(iv_index_tbl, id, &index)) break;
-        if (ROBJECT_LEN(obj) <= index) break;
-        val = ROBJECT_PTR(obj)[index];
+        if (ROBJECT_NUMIV(obj) <= index) break;
+        val = ROBJECT_IVPTR(obj)[index];
         if (val != Qundef)
             return Qtrue;
 	break;
@@ -1133,8 +1119,8 @@ struct obj_ivar_tag {
 static int
 obj_ivar_i(ID key, VALUE index, struct obj_ivar_tag *data)
 {
-    if (index < ROBJECT_LEN(data->obj)) {
-        VALUE val = ROBJECT_PTR(data->obj)[index];
+    if (index < ROBJECT_NUMIV(data->obj)) {
+        VALUE val = ROBJECT_IVPTR(data->obj)[index];
         if (val != Qundef) {
             return (data->func)(key, val, data->arg);
         }
@@ -1262,10 +1248,10 @@ rb_obj_remove_instance_variable(VALUE obj, VALUE name)
         iv_index_tbl = ROBJECT_IV_INDEX_TBL(obj);
         if (!iv_index_tbl) break;
         if (!st_lookup(iv_index_tbl, id, &index)) break;
-        if (ROBJECT_LEN(obj) <= index) break;
-        val = ROBJECT_PTR(obj)[index];
+        if (ROBJECT_NUMIV(obj) <= index) break;
+        val = ROBJECT_IVPTR(obj)[index];
         if (val != Qundef) {
-            ROBJECT_PTR(obj)[index] = Qundef;
+            ROBJECT_IVPTR(obj)[index] = Qundef;
             return val;
         }
 	break;

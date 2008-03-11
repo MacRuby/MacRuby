@@ -2,7 +2,7 @@
 
   array.c -
 
-  $Author: naruse $
+  $Author: nobu $
   created at: Fri Aug  6 09:46:12 JST 1993
 
   Copyright (C) 1993-2007 Yukihiro Matsumoto
@@ -604,12 +604,12 @@ rb_ary_shift_m(int argc, VALUE *argv, VALUE ary)
 static VALUE
 rb_ary_unshift_m(int argc, VALUE *argv, VALUE ary)
 {
-    long len = RARRAY(ary)->len;
+    long len;
 
     if (argc == 0) return ary;
     rb_ary_modify(ary);
-    if (RARRAY(ary)->aux.capa <= RARRAY_LEN(ary)+argc) {
-	RESIZE_CAPA(ary, RARRAY(ary)->aux.capa + ARY_DEFAULT_SIZE);
+    if (RARRAY(ary)->aux.capa <= (len = RARRAY(ary)->len) + argc) {
+	RESIZE_CAPA(ary, len + argc + ARY_DEFAULT_SIZE);
     }
 
     /* sliding items */
@@ -2349,6 +2349,19 @@ rb_ary_equal(VALUE ary1, VALUE ary2)
     return rb_exec_recursive(recursive_equal, ary1, ary2);
 }
 
+static VALUE
+recursive_eql(VALUE ary1, VALUE ary2, int recur)
+{
+    long i;
+
+    if (recur) return Qfalse;
+    for (i=0; i<RARRAY_LEN(ary1); i++) {
+	if (!rb_eql(rb_ary_elt(ary1, i), rb_ary_elt(ary2, i)))
+	    return Qfalse;
+    }
+    return Qtrue;
+}
+
 /*
  *  call-seq:
  *     array.eql?(other)  -> true or false
@@ -2431,6 +2444,26 @@ rb_ary_includes(VALUE ary, VALUE item)
 }
 
 
+static VALUE
+recursive_cmp(VALUE ary1, VALUE ary2, int recur)
+{
+    long i, len;
+
+    if (recur) return Qnil;
+    len = RARRAY_LEN(ary1);
+    if (len > RARRAY_LEN(ary2)) {
+	len = RARRAY_LEN(ary2);
+    }
+    for (i=0; i<len; i++) {
+	VALUE v = rb_funcall(rb_ary_elt(ary1, i), id_cmp, 1, rb_ary_elt(ary2, i));
+	if (v != INT2FIX(0)) {
+	    return v;
+	}
+    }
+    return Qundef;
+}
+
+
 /* 
  *  call-seq:
  *     array <=> other_array   ->  -1, 0, +1
@@ -2454,19 +2487,13 @@ rb_ary_includes(VALUE ary, VALUE item)
 VALUE
 rb_ary_cmp(VALUE ary1, VALUE ary2)
 {
-    long i, len;
+    long len;
+    VALUE v;
 
     ary2 = to_ary(ary2);
-    len = RARRAY_LEN(ary1);
-    if (len > RARRAY_LEN(ary2)) {
-	len = RARRAY_LEN(ary2);
-    }
-    for (i=0; i<len; i++) {
-	VALUE v = rb_funcall(rb_ary_elt(ary1, i), id_cmp, 1, rb_ary_elt(ary2, i));
-	if (v != INT2FIX(0)) {
-	    return v;
-	}
-    }
+    if (ary1 == ary2) return INT2FIX(0);
+    v = rb_exec_recursive(recursive_cmp, ary1, ary2);
+    if (v != Qundef) return v;
     len = RARRAY_LEN(ary1) - RARRAY_LEN(ary2);
     if (len == 0) return INT2FIX(0);
     if (len > 0) return INT2FIX(1);
@@ -3058,7 +3085,11 @@ combi_len(long n, long k)
     if (k < 0) return 0;
     val = 1;
     for (i=1; i <= k; i++,n--) {
+	long m = val;
 	val *= n;
+	if (val < m) {
+	    rb_raise(rb_eRangeError, "too big for combination");
+	}
 	val /= i;
     }
     return val;
@@ -3171,8 +3202,12 @@ rb_ary_product(int argc, VALUE *argv, VALUE ary)
 
     /* Compute the length of the result array; return [] if any is empty */
     for (i = 0; i < n; i++) {
-	resultlen *= RARRAY_LEN(arrays[i]);
-	if (resultlen == 0) return rb_ary_new2(0);
+	long k = RARRAY_LEN(arrays[i]), l = resultlen;
+	if (k == 0) return rb_ary_new2(0);
+	resultlen *= k;
+	if (resultlen < k || resultlen < l || resultlen / k != l) {
+	    rb_raise(rb_eRangeError, "too big to product");
+	}
     }
 
     /* Otherwise, allocate and fill in an array of results */

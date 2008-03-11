@@ -2,7 +2,7 @@
 
   intern.h -
 
-  $Author: matz $
+  $Author: naruse $
   created at: Thu Jun 10 14:22:17 JST 1993
 
   Copyright (C) 1993-2007 Yukihiro Matsumoto
@@ -26,7 +26,11 @@ extern "C" {
 #else
 # include <varargs.h>
 #endif
+#if RUBY_INCLUDED_AS_FRAMEWORK
+#include <MacRuby/ruby/st.h>
+#else
 #include <ruby/st.h>
+#endif
 
 /* 
  * Functions and variables that are used by more than one source file of
@@ -531,7 +535,7 @@ VALUE rb_str_unlocktmp(VALUE);
 VALUE rb_str_dup_frozen(VALUE);
 VALUE rb_str_plus(VALUE, VALUE);
 VALUE rb_str_times(VALUE, VALUE);
-int rb_str_sublen(VALUE, int);
+long rb_str_sublen(VALUE, long);
 VALUE rb_str_substr(VALUE, long, long);
 VALUE rb_str_subseq(VALUE, long, long);
 void rb_str_modify(VALUE);

@@ -34,6 +34,9 @@ Init_version(void)
     rb_define_global_const("RUBY_REVISION", INT2FIX(RUBY_REVISION));
     rb_define_global_const("RUBY_DESCRIPTION", MKSTR(description));
     rb_define_global_const("RUBY_COPYRIGHT", MKSTR(copyright));
+#if WITH_OBJC
+    rb_define_global_const("MACRUBY_VERSION", rb_float_new(MACRUBY_VERSION));
+#endif
 }
 
 void

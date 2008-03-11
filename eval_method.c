@@ -11,6 +11,7 @@ struct cache_entry {		/* method hash table. */
     ID mid;			/* method's id */
     ID mid0;			/* method's original id */
     VALUE klass;		/* receiver's class */
+    VALUE oklass;		/* original's class */
     NODE *method;
 };
 
@@ -46,7 +47,7 @@ rb_clear_cache_for_undef(VALUE klass, ID id)
     ent = cache;
     end = ent + CACHE_SIZE;
     while (ent < end) {
-	if (ent->method && ent->method->nd_clss == klass && ent->mid == id) {
+	if (ent->oklass == klass && ent->mid == id) {
 	    ent->mid = 0;
 	}
 	ent++;
@@ -84,8 +85,7 @@ rb_clear_cache_by_class(VALUE klass)
     ent = cache;
     end = ent + CACHE_SIZE;
     while (ent < end) {
-	if ((ent->klass == klass) ||
-	    (ent->method && ent->method->nd_clss == klass)) {
+	if (ent->klass == klass || ent->oklass == klass) {
 	    ent->mid = 0;
 	}
 	ent++;
@@ -229,7 +229,6 @@ static NODE *
 search_method(VALUE klass, ID id, VALUE *klassp)
 {
     st_data_t body;
-    VALUE saved_klass = klass;
 
     if (!klass) {
 	return 0;
@@ -238,19 +237,7 @@ search_method(VALUE klass, ID id, VALUE *klassp)
     while (!st_lookup(RCLASS_M_TBL(klass), id, &body)) {
 	klass = RCLASS_SUPER(klass);
 	if (!klass)
-	    break;
-    }
-
-    if (!klass) {
-#if WITH_OBJC
-	/* TODO: if saved_klass's objc class responds to id, we should define
-	   the objc closure 
-	Class ocklass = RCLASS(saved_klass)->ocklass;
-	body = rb_objc_define_objc_mid_closure( */
-	return 0;
-#else
-	return 0;
-#endif
+	    return 0;
     }
 
     if (klassp) {
@@ -281,6 +268,7 @@ rb_get_method_body(VALUE klass, ID id, ID *idp)
 	ent->klass = klass;
 	ent->mid = ent->mid0 = id;
 	ent->method = 0;
+	ent->oklass = 0;
 	return 0;
     }
 
@@ -294,6 +282,7 @@ rb_get_method_body(VALUE klass, ID id, ID *idp)
 	ent->mid = id;
 	ent->mid0 = fbody->nd_oid;
 	ent->method = body = method;
+	ent->oklass = method->nd_clss;
     }
     else {
 	body = method;

@@ -21,7 +21,11 @@ extern "C" {
 #endif
 #endif
 
+#if RUBY_INCLUDED_AS_FRAMEWORK
+#include <MacRuby/ruby/config.h>
+#else
 #include "ruby/config.h"
+#endif
 #ifdef RUBY_EXTCONF_H
 #include RUBY_EXTCONF_H
 #endif
@@ -61,7 +65,11 @@ extern "C" {
 #include <stddef.h>
 #include <stdio.h>
 
+#if RUBY_INCLUDED_AS_FRAMEWORK
+#include <MacRuby/ruby/defines.h>
+#else
 #include "defines.h"
+#endif
 
 #if defined(HAVE_ALLOCA_H)
 #include <alloca.h>
@@ -414,22 +422,22 @@ struct RObject {
     struct RBasic basic;
     union {
 	struct {
-	    long len;
-	    VALUE *ptr;
+	    long numiv;
+	    VALUE *ivptr;
             struct st_table *iv_index_tbl; /* shortcut for RCLASS_IV_INDEX_TBL(rb_obj_class(obj)) */
 	} heap;
 	VALUE ary[ROBJECT_EMBED_LEN_MAX];
     } as;
 };
 #define ROBJECT_EMBED FL_USER1
-#define ROBJECT_LEN(o) \
+#define ROBJECT_NUMIV(o) \
     ((RBASIC(o)->flags & ROBJECT_EMBED) ? \
      ROBJECT_EMBED_LEN_MAX : \
-     ROBJECT(o)->as.heap.len)
-#define ROBJECT_PTR(o) \
+     ROBJECT(o)->as.heap.numiv)
+#define ROBJECT_IVPTR(o) \
     ((RBASIC(o)->flags & ROBJECT_EMBED) ? \
      ROBJECT(o)->as.ary : \
-     ROBJECT(o)->as.heap.ptr)
+     ROBJECT(o)->as.heap.ivptr)
 #define ROBJECT_IV_INDEX_TBL(o) \
     ((RBASIC(o)->flags & ROBJECT_EMBED) ? \
      RCLASS_IV_INDEX_TBL(rb_obj_class(o)) : \
@@ -1029,8 +1037,13 @@ rb_special_const_p(VALUE obj)
     return Qfalse;
 }
 
+#if RUBY_INCLUDED_AS_FRAMEWORK
+#include <MacRuby/ruby/missing.h>
+#include <MacRuby/ruby/intern.h>
+#else
 #include "ruby/missing.h"
 #include "ruby/intern.h"
+#endif
 
 #if defined(EXTLIB) && defined(USE_DLN_A_OUT)
 /* hook for external modules */

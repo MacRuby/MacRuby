@@ -6,8 +6,7 @@
 //  Copyright __MyCompanyName__ 2008. All rights reserved.
 //
 
-#import <Cocoa/Cocoa.h>
-#import "ruby/ruby.h"
+#import <MacRuby/MacRuby.h>
 
 int main(int argc, char *argv[])
 {

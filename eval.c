@@ -232,9 +232,9 @@ ruby_exec_node(void *n, char *file)
 
     PUSH_TAG();
     if ((state = EXEC_TAG()) == 0) {
+	VALUE iseq = rb_iseq_new(n, rb_str_new2("<main>"),
+				 rb_str_new2(file), Qfalse, ISEQ_TYPE_TOP);
 	SAVE_ROOT_JMPBUF(th, {
-	    VALUE iseq = rb_iseq_new(n, rb_str_new2("<main>"),
-				     rb_str_new2(file), Qfalse, ISEQ_TYPE_TOP);
 	    th->base_block = 0;
 	    val = rb_iseq_eval(iseq);
 	});
@@ -663,7 +663,7 @@ rb_longjmp(int tag, VALUE mesg)
     const char *file;
     int line = 0;
 
-    if (thread_set_raised(th)) {
+    if (rb_thread_set_raised(th)) {
 	th->errinfo = exception_error;
 	JUMP_TAG(TAG_FATAL);
     }
@@ -710,7 +710,7 @@ rb_longjmp(int tag, VALUE mesg)
 	    th->errinfo = mesg;
 	}
 	else if (status) {
-	    thread_reset_raised(th);
+	    rb_thread_reset_raised(th);
 	    JUMP_TAG(status);
 	}
     }
@@ -722,7 +722,7 @@ rb_longjmp(int tag, VALUE mesg)
 			0 /* TODO: id */, 0 /* TODO: klass */);
     }
 
-    thread_reset_raised(th);
+    rb_thread_reset_raised(th);
     JUMP_TAG(tag);
 }
 
@@ -835,6 +835,8 @@ rb_make_exception(int argc, VALUE *argv)
 void
 rb_raise_jump(VALUE mesg)
 {
+    rb_thread_t *th = GET_THREAD();
+    th->cfp = RUBY_VM_PREVIOUS_CONTROL_FRAME(th->cfp);
     /* TODO: fix me */
     rb_longjmp(TAG_RAISE, mesg);
 }
@@ -1246,17 +1248,17 @@ rb_with_disable_interrupt(VALUE (*proc)(ANYARGS), VALUE data)
 static inline void
 stack_check(void)
 {
-    static int overflowing = 0;
+    rb_thread_t *th = GET_THREAD();
 
-    if (!overflowing && ruby_stack_check()) {
+    if (!rb_thread_stack_overflowing_p(th) && ruby_stack_check()) {
 	int state;
-	overflowing = 1;
+	rb_thread_set_stack_overflow(th);
 	PUSH_TAG();
 	if ((state = EXEC_TAG()) == 0) {
 	    rb_exc_raise(sysstack_error);
 	}
 	POP_TAG();
-	overflowing = 0;
+	rb_thread_reset_stack_overflow(th);
 	JUMP_TAG(state);
     }
 }
@@ -1450,6 +1452,8 @@ rb_call0_redo:
 	    }
 	}
     }
+
+    stack_check();
 
     {
 	VALUE val;

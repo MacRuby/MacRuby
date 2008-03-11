@@ -1997,7 +1997,7 @@ compile_array_(rb_iseq_t *iseq, LINK_ANCHOR *ret, NODE* node_root,
 		ADD_INSN1(anchor, line, newarray_named_args, INT2FIX(len));
 	    else
 #endif
-		ADD_INSN1(anchor, line, newarray, INT2FIX(len));
+	    ADD_INSN1(anchor, line, newarray, INT2FIX(len));
 	}
 	APPEND_LIST(ret, anchor);
     }

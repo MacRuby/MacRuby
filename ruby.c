@@ -2,7 +2,7 @@
 
   ruby.c -
 
-  $Author: naruse $
+  $Author: nobu $
   created at: Tue Aug 10 12:47:31 JST 1993
 
   Copyright (C) 1993-2007 Yukihiro Matsumoto
@@ -63,7 +63,17 @@ VALUE ruby_verbose = Qfalse;
 VALUE rb_parser_get_yydebug(VALUE);
 VALUE rb_parser_set_yydebug(VALUE, VALUE);
 
-char *ruby_inplace_mode = 0;
+const char *ruby_get_inplace_mode(void);
+void ruby_set_inplace_mode(const char *);
+
+extern VALUE rb_get_argv(void);
+#define rb_argv rb_get_argv()
+
+#define DISABLE_BIT(bit) (1U << disable_##bit)
+enum disable_flag_bits {
+    disable_gems,
+    disable_rubyopt,
+};
 
 struct cmdline_options {
     int sflag, xflag;
@@ -73,7 +83,7 @@ struct cmdline_options {
     int usage;
     int version;
     int copyright;
-    int disable_gems;
+    unsigned int disable;
     int verbose;
     int yydebug;
     char *script;
@@ -132,7 +142,8 @@ usage(const char *name)
 	"-w              turn warnings on for your script",
 	"-W[level]       set warning level; 0=silence, 1=medium, 2=verbose (default)",
 	"-x[directory]   strip off text before #!ruby line and perhaps cd to directory",
-	"--disable-gems  disable gem libraries",
+	"--enable/--disable-FEATURE --enable/--disable=FEATURE  enable/disable FEATUREs",
+	"                gems: gem libraries, rubyopt: RUBYOPT env, or all",
 	"--copyright     print the copyright",
 	"--version       print the version",
 	NULL
@@ -454,9 +465,10 @@ process_sflag(struct cmdline_options *opt)
     if (opt->sflag) {
 	long n;
 	VALUE *args;
+	VALUE argv = rb_argv;
 
-	n = RARRAY_LEN(rb_argv);
-	args = RARRAY_PTR(rb_argv);
+	n = RARRAY_LEN(argv);
+	args = RARRAY_PTR(argv);
 	while (n > 0) {
 	    VALUE v = *args++;
 	    char *s = StringValuePtr(v);
@@ -503,9 +515,9 @@ process_sflag(struct cmdline_options *opt)
 	    }
 	    rb_gv_set(s, v);
 	}
-	n = RARRAY_LEN(rb_argv) - n;
+	n = RARRAY_LEN(argv) - n;
 	while (n--) {
-	    rb_ary_shift(rb_argv);
+	    rb_ary_shift(argv);
 	}
     }
     opt->sflag = 0;
@@ -536,10 +548,51 @@ moreswitches(const char *s, struct cmdline_options *opt)
     return (char *)s;
 }
 
+#define NAME_MATCH_P(name, str, len) \
+    ((len) < sizeof(name) && strncmp((str), name, (len)) == 0)
+
+#define UNSET_WHEN(name, bit, str, len)	\
+    if (NAME_MATCH_P(name, str, len)) { \
+	*(unsigned int *)arg &= ~(bit); \
+	return;				\
+    }
+
+#define SET_WHEN(name, bit, str, len)	\
+    if (NAME_MATCH_P(name, str, len)) { \
+	*(unsigned int *)arg |= (bit);	\
+	return;				\
+    }
+
+static void
+enable_option(const char *str, int len, void *arg)
+{
+#define UNSET_WHEN_DISABLE(bit) UNSET_WHEN(#bit, DISABLE_BIT(bit), str, len)
+    UNSET_WHEN_DISABLE(gems);
+    UNSET_WHEN_DISABLE(rubyopt);
+    if (NAME_MATCH_P("all", str, len)) {
+	*(unsigned int *)arg = 0U;
+	return;
+    }
+    rb_warn("unknown argument for --enable: `%.*s'", len, str);
+}
+
+static void
+disable_option(const char *str, int len, void *arg)
+{
+#define SET_WHEN_DISABLE(bit) SET_WHEN(#bit, DISABLE_BIT(bit), str, len)
+    SET_WHEN_DISABLE(gems);
+    SET_WHEN_DISABLE(rubyopt);
+    if (NAME_MATCH_P("all", str, len)) {
+	*(unsigned int *)arg = ~0U;
+	return;
+    }
+    rb_warn("unknown argument for --disable: `%.*s'", len, str);
+}
+
 static int
 proc_options(int argc, char **argv, struct cmdline_options *opt)
 {
-    int argc0 = argc;
+    int n, argc0 = argc;
     const char *s;
 
     if (argc == 0)
@@ -672,9 +725,7 @@ proc_options(int argc, char **argv, struct cmdline_options *opt)
 
 	  case 'i':
 	    forbid_setid("-i");
-	    if (ruby_inplace_mode)
-		free(ruby_inplace_mode);
-	    ruby_inplace_mode = strdup(s + 1);
+	    ruby_set_inplace_mode(s + 1);
 	    break;
 
 	  case 'x':
@@ -707,10 +758,7 @@ proc_options(int argc, char **argv, struct cmdline_options *opt)
 	    break;
 
 	  case 'E':
-	    if (!*++s) {
-		s = argv[1];
-		argc--, argv++;
-	    }
+	    if (!*++s) goto next_encoding;
 	    goto encoding;
 
 	  case 'K':
@@ -795,19 +843,30 @@ proc_options(int argc, char **argv, struct cmdline_options *opt)
 		ruby_debug = Qtrue;
                 ruby_verbose = Qtrue;
             }
-            else if (strcmp("disable-gems", s) == 0)
-		opt->disable_gems = 1;
-	    else if (strcmp("encoding", s) == 0) {
+	    else if (strncmp("enable", s, n = 6) == 0 &&
+		     (!s[n] || s[n] == '-' || s[n] == '=')) {
+		if (!(s += n + 1)[-1] && (!--argc || !(s = *++argv))) {
+		    rb_raise(rb_eRuntimeError, "missing argument for --enable");
+		}
+		ruby_each_words(s, enable_option, &opt->disable);
+	    }
+	    else if (strncmp("disable", s, n = 7) == 0 &&
+		     (!s[n] || s[n] == '-' || s[n] == '=')) {
+		if (!(s += n + 1)[-1] && (!--argc || !(s = *++argv))) {
+		    rb_raise(rb_eRuntimeError, "missing argument for --disable");
+		}
+		ruby_each_words(s, disable_option, &opt->disable);
+            }
+	    else if (strncmp("encoding", s, n = 8) == 0 && (!s[n] || s[n] == '=')) {
+		s += n;
+		if (!*s++) {
+		  next_encoding:
 		if (!--argc || !(s = *++argv)) {
-		  noencoding:
 		    rb_raise(rb_eRuntimeError, "missing argument for --encoding");
+		}
 		}
 	      encoding:
 		opt->ext.enc.name = rb_str_new2(s);
-	    }
-	    else if (strncmp("encoding=", s, 9) == 0) {
-		if (!*(s += 9)) goto noencoding;
-		goto encoding;
 	    }
 	    else if (strcmp("version", s) == 0)
 		opt->version = 1;
@@ -858,11 +917,11 @@ proc_options(int argc, char **argv, struct cmdline_options *opt)
 void Init_prelude(void);
 
 static void
-ruby_init_gems(struct cmdline_options *opt)
+ruby_init_gems(int enable)
 {
     VALUE gem;
     gem = rb_define_module("Gem");
-    rb_const_set(gem, rb_intern("Enable"), opt->disable_gems ? Qfalse : Qtrue);
+    rb_const_set(gem, rb_intern("Enable"), enable ? Qtrue : Qfalse);
     Init_prelude();
 }
 
@@ -899,7 +958,8 @@ process_options(VALUE arg)
     argc -= i;
     argv += i;
 
-    if (rb_safe_level() == 0 && (s = getenv("RUBYOPT"))) {
+    if (!(opt->disable & DISABLE_BIT(rubyopt)) &&
+	rb_safe_level() == 0 && (s = getenv("RUBYOPT"))) {
 	VALUE src_enc_name = opt->src.enc.name;
 	VALUE ext_enc_name = opt->ext.enc.name;
 
@@ -994,7 +1054,7 @@ process_options(VALUE arg)
     process_sflag(opt);
 
     ruby_init_loadpath();
-    ruby_init_gems(opt);
+    ruby_init_gems(!(opt->disable && DISABLE_BIT(gems)));
     parser = rb_parser_new();
     if (opt->yydebug) rb_parser_set_yydebug(parser, Qtrue);
     if (opt->ext.enc.name != 0) {
@@ -1215,7 +1275,6 @@ rb_load_file(const char *fname)
 }
 
 VALUE rb_progname;
-VALUE rb_argv;
 VALUE rb_argv0;
 
 #if !defined(PSTAT_SETCMD) && !defined(HAVE_SETPROCTITLE)
@@ -1380,9 +1439,6 @@ ruby_prog_init(void)
     rb_define_hooked_variable("$PROGRAM_NAME", &rb_progname, 0, set_arg0);
     GC_ROOT(&rb_progname);
 
-    rb_define_readonly_variable("$*", &rb_argv);
-    rb_argv = rb_ary_new();
-    GC_ROOT(&rb_argv);
     rb_define_global_const("ARGV", rb_argv);
     rb_global_variable(&rb_argv0);
 
@@ -1400,6 +1456,7 @@ void
 ruby_set_argv(int argc, char **argv)
 {
     int i;
+    VALUE av = rb_argv;
 
 #if defined(USE_DLN_A_OUT)
     if (origarg.argv)
@@ -1407,12 +1464,12 @@ ruby_set_argv(int argc, char **argv)
     else
 	dln_argv0 = argv[0];
 #endif
-    rb_ary_clear(rb_argv);
+    rb_ary_clear(av);
     for (i = 0; i < argc; i++) {
 	VALUE arg = rb_tainted_str_new2(argv[i]);
 
 	OBJ_FREEZE(arg);
-	rb_ary_push(rb_argv, arg);
+	rb_ary_push(av, arg);
     }
 }
 

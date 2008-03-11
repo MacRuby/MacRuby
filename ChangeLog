@@ -1,3 +1,554 @@
+Sat Mar  1 17:59:01 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* io.c (struct argf): packed ARGF stuffs.
+
+	* ruby.c (proc_options): use ruby_set_inplace_mode().
+
+Sat Mar  1 17:51:34 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* lib/test/unit/collector/dir.rb (recursive_collect): do not always
+	  include all test_*.rb.
+
+Sat Mar  1 14:14:17 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* development snapshot 1.9.0-1 released.
+
+Sat Mar  1 13:46:26 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* tool/make-snapshot: make prereq uses MINIRUBY.
+
+	* tool/make-snapshot: allow packaging like 1.9.0-1 by second
+	  command-line argument.
+
+Sat Mar  1 13:11:03 2008  Tanaka Akira  <akr@fsij.org>
+
+	* test/ruby/allpairs.rb: new file for all pairs method.
+
+	* test/ruby/test_m17n_comb.rb: use allpairs.rb to reduce test cases.
+
+	* test/ruby/test_sprintf_comb.rb: ditto.
+
+Sat Mar  1 12:34:21 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* string.c (sym_inspect): use rb_str_inspect() instead of
+	  rb_str_dump().  [ruby-dev:33946]
+
+Sat Mar  1 12:15:42 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* eval_method.c (rb_get_method_body): ent->method may be freed by
+	  GC.  [ruby-dev:31819]
+
+	* thread.c (remove_event_hook): should not access freed memory.
+	  [ruby-dev:31820]
+
+Sat Mar 01 10:31:19 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* io.c (read_all, rb_io_getline_fast): encoding is io_input_encoding.
+
+Sat Mar  1 10:09:40 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* string.c (tr_setup_table, rb_str_split_m, rb_str_chomp_bang):
+	  simplified with rb_enc_ascget().  [ruby-dev:33944]
+
+Sat Mar  1 10:01:30 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* string.c (rb_str_coderange_scan_restartable): should not return
+	  offset in the middle of a character.
+
+	* string.c (rb_str_coderange_scan_restartable): should not return
+	  invalid cr value.
+
+Sat Mar  1 09:36:08 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* sprintf.c (rb_str_format): "%#.0o" should keep prefix where
+	  "%#.0x" should not.
+
+Sat Mar  1 02:35:08 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* bignum.c (big2str_find_n1): check integer overflow.
+
+Sat Mar  1 00:29:07 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* encoding.c (rb_enc_dummy_p): bootstrap encodings can not be dummy.
+
+	* encoding.c (rb_enc_ascget): no needs to call rb_enc_precise_mbclen()
+	  twice.
+
+Fri Feb 29 23:14:38 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* test/ruby/test_m17n_comb.rb (TestM17NComb::test_str_chomp): test
+	  updated. 
+
+Fri Feb 29 20:58:09 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* test/ruby/test_iterator.rb (TestIterator::test_enumerator):
+	  adjust test for zip behavior reversion.
+
+Fri Feb 29 20:25:07 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* string.c (rb_str_chomp_bang): now works on UTF-16.
+
+	* string.c (tr_setup_table): negation should work on non ASCII
+	  compatible strings as well.
+
+	* string.c (rb_str_split_m): awk split should work on non ASCII
+	  compatible strings as well.
+
+Fri Feb 29 18:08:43 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* time.c (time_strftime): format should be ascii compatible.
+
+	* parse.y (rb_intern3): non ASCII compatible symbols.
+
+	* re.c (rb_reg_regsub): add encoding check.
+
+	* string.c (rb_str_chomp_bang): ditto.
+
+	* test/ruby/test_utf16.rb (TestUTF16::test_chomp): raises exception.
+
+Fri Feb 29 15:16:31 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* string.c (rb_str_rpartition): calculation was done in byte indexing.
+
+	* test/ruby/test_m17n_comb.rb (TestM17NComb::test_str_start_with):
+	  allow start_with? matching on broken strings.
+
+Fri Feb 29 15:12:43 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* parse.y (opt_block_param): command can start just after block param
+	  definition.  [ruby-list:44479]
+
+Fri Feb 29 03:22:19 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* test/ruby/test_time.rb (test_readers): fix typo.
+	  (test_strftime): "UTC" is also ok for time.gmtime.strftime("%Z").
+
+Fri Feb 29 02:50:07 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* string.c (str_new): remove encoding assumption of empty string.
+
+	* hash.c ( rb_f_getenv, env_fetch, env_inspect): result of ENV should
+	  be always ASCII-8BIT.
+
+	* object.c (nil_to_s): nil.to_s should be US-ASCII.
+
+Fri Feb 29 02:24:22 2008  Hidetoshi NAGAI  <nagai@ai.kyutech.ac.jp>
+
+	* ext/tk/lib/tk.rb: forgot to update RELEASE_DATE
+
+	* ext/tk/lib/tk.rb, ext/tk/lib/tk/text.rb,
+	  ext/tk/lib/tkextlib/iwidgets/scrolledtext.rb: remove adhoc check 
+	  of Ruby's features (use existence of some classes instead of 
+	  comparing with RUBY_VERSION)
+
+	* ext/tk/lib/tk/root.rb, ext/tk/lib/tk/autoload.rb: make TkRoot 
+	  (Tk::Root) unswitchable
+
+	* ext/tk/lib/multi-tk.rb: partial bug fix (still not work!!)
+
+Thu Feb 28 23:37:12 2008  Tanaka Akira  <akr@fsij.org>
+
+	* lib/open-uri.rb (OpenURI::Meta#meta_setup_encoding): use ASCII-8BIT
+	  for charset unspecified non-text data.
+
+Thu Feb 28 22:19:14 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* encoding.c (enc_capable): IMMEDIATE_P doesn't include Qnil and Qfalse.
+	  use SPECIAL_CONST_P.
+
+Thu Feb 28 19:45:52 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* encoding.c (enc_find): check type of argument and convert to String
+	  if it is StringValue. [ruby-cvs:22866]
+
+Thu Feb 28 18:07:52 2008  Tanaka Akira  <akr@fsij.org>
+
+	* lib/open-uri.rb (OpenURI::Meta#meta_setup_encoding): setup encoding
+	  by charset.
+	  (OpenURI::Meta#meta_add_field): call meta_setup_encoding when
+	  content-type.
+
+Thu Feb 28 15:29:12 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* io.c (rb_io_getline_fast): scan coderange.
+
+Thu Feb 28 14:36:46 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* string.c (rb_enc_str_copy): removed.
+
+Thu Feb 28 13:51:59 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* eval.c (stack_check): made flag per threads.
+
+	* thread.c (rb_thread_set_raised, rb_thread_reset_raised): prefixed.
+
+Thu Feb 28 11:43:56 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* file.c (rb_file_flock): immediately returns on EAGAIN if
+	  non-blocking.  [ruby-core:15672]
+
+Thu Feb 28 11:23:50 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* io.c (rb_io_getline_1): get rid of segfault.  [ruby-dev:33938]
+
+Thu Feb 28 11:19:51 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* string.c (rb_str_reverse_bang): removed unsed variables.
+
+	* include/ruby/encoding.h (rb_str_coderange_scan_restartable): added
+	  prototype.
+
+	* string.c (rb_str_coderange_scan_restartable, rb_str_times): removed
+	  unsed variables.
+
+	* string.c (rb_str_reverse_bang): ditto
+
+	* string.c (rb_enc_str_copy): unused now.  may be used in future?
+
+Thu Feb 28 03:03:32 2008  Hidetoshi NAGAI  <nagai@ai.kyutech.ac.jp>
+
+	* ext/tk/lib/tk.rb, ext/tk/lib/*: make default widget set 
+	  switchable between Tk (standard Tcl/Tk widget set) and 
+	  Ttk (Tile). Initial default widget set is Tk. Now, toplevel 
+	  widget classes are removed and defined as aliases. 
+	  For example, "TkButton" is an alias of the "Tk::Button" class. 
+	  Those aliases are replaced when switching default widget set. 
+	  "Tk.default_widget_set=" is the method for switching default 
+	  widget set. "Tk.default_widget_set = :Ttk" defines Ttk (Tile) 
+	  widget set as default. It means that "TkButton" denotes 
+	  "Tk::Tile::Button" class. And then, "TkButton.new" creates 
+	  a Tk::Tile::Button widget. Of course, you can back to use 
+	  standard Tk widgets as the default widget set by calling 
+	  "Tk.default_widget_set = :Tk", whenever you want. Based on 
+	  thie feature, you can use Ttk widget styling engine on your 
+	  old Ruby/Tk application without modifying its source, if you 
+	  don'tuse widget options unsupported on Ttk widgets (At first, 
+	  call "Tk.default_widget_set = :Ttk", and next load and run 
+	  your application). 
+	  This is one step for supporting Tcl/Tk8.5 features.
+
+Wed Feb 27 22:55:42 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* string.c (rb_str_coderange_scan_restartable): coderange scaning
+	  for partial read.
+
+	* io.c (read_all): set coderange when not convert encoding.
+
+Wed Feb 27 03:55:58 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* ext/extmk.rb, enc/make_encmake.rb: load current mkmf.rb even if
+	  cross-compiling.
+
+	* ext/extmk.rb, enc/make_encmake.rb, lib/mkmf.rb: need to be 1.8
+	  compatible for cross-compiling.
+
+Tue Feb 26 16:53:13 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* misc/ruby-mode.el (ruby-calculate-indent): should distinguish
+	  comment and # in strings.  [ruby-dev:33874]
+
+Tue Feb 26 16:41:27 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* array.c (combi_len, rb_ary_product): check for overflow.
+	  [ruby-Bugs-18355]
+
+Tue Feb 26 16:38:10 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* array.c (recursive_cmp): compare minimal length parts.
+
+Tue Feb 26 16:06:00 2008  Technorama Ltd.  <oss-ruby@technorama.net>
+
+	* ext/openssl/ossl_{ec,dh,dsa,rsa}.c: Remove useless warnings.
+
+	* ext/openssl/ossl_asn1.c: Simplify code.
+
+	* ext/openssl/ossl_ssl_session.c Fix compiler warnings.
+	  Undefine #id if SSL_SESSION_get_id is not supported.
+
+Tue Feb 26 15:50:10 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* parse.y (value_expr_gen): removed inappropriate warning.
+	  [ruby-core:15660]
+
+Tue Feb 26 15:43:42 2008  Tanaka Akira  <akr@fsij.org>
+
+	* parse.y (tokadd_escape): refactored.  [ruby-core:15657]
+
+Tue Feb 26 15:30:36 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* array.c (rb_ary_eql, rb_ary_cmp): get rid of stack overflow with
+	  self-recursive constructs.  [ruby-Bugs-18356]
+
+Tue Feb 26 01:16:01 2008  Tanaka Akira  <akr@fsij.org>
+
+	* include/ruby/ruby.h (ROBJECT_NUMIV): renamed from ROBJECT_LEN.
+	  (ROBJECT_IVPTR): renamed from ROBJECT_PTR.
+
+	* variable.c: follow the above renaming.
+
+	* object.c: ditto.
+
+	* gc.c: ditto.
+
+	* marshal.c: ditto.
+
+Mon Feb 25 17:30:29 2008  Technorama Ltd.  <oss-ruby@technorama.net>
+
+	* ext/openssl/digest.c ext/openssl/lib/openssl/digest.rb:
+	  Commit patch #9280 from Akinori MUSHA.
+	  Simplify the OpenSSL::Digest class and make use of the
+	  existing Digest framework.
+	  Enhance performance.
+
+Mon Feb 25 15:33:29 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* bignum.c (big2str_karatsuba): initialize cache if not initialized.
+
+	* bignum.c (Init_Bignum): delayed initializing cache.
+	  [ruby-dev:33930]
+
+Mon Feb 25 13:40:03 2008  Tanaka Akira  <akr@fsij.org>
+
+	* process.c (Init_process): share bignum objects for RLIM_INFINITY,
+	  RLIM_SAVED_MAX and RLIM_SAVED_CUR if they are equal.
+
+Mon Feb 25 10:41:41 2008  Martin Duerst  <duerst@it.aoyama.ac.jp>
+
+	* encoding.c (Encoding#dummy): minor grammatical fixes
+	  in rdoc documentation.
+
+Mon Feb 25 00:01:03 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* cygwin/GNUmakefile.in (clean-local): should be double-colon.
+
+Sun Feb 24 23:39:59 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* common.mk, {bcc,win}32/Makefile.sub (clean-local): remove
+	  intermediate files.
+
+	* cygwin/GNUmakefile.in (clean-local): remove def file.
+
+Sun Feb 24 06:49:12 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* debug.c (ruby_set_debug_option): separated ruby_each_words().
+
+	* util.c (ruby_each_words): extracted from ruby_set_debug_option().
+
+	* ruby.c (enable_option, disable_option): allow all for all known
+	  features.
+
+	* ruby.c (proc_options): generalized enable/disable options.
+
+	* ruby.c (ruby_init_gems): take enabled flag.  [ruby-core:14840]
+
+	* ruby.c (process_options): added --disable-rubyopt flag.
+
+	* include/ruby/util.h (ruby_each_words): prototype.
+
+Sun Feb 24 05:25:26 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* ruby.c (proc_options): check if argument for -E exists.
+
+Sun Feb 24 05:09:43 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* misc/ruby-style.el (ruby-style-label-indent): fix for labels inside
+	  blocks in switch.
+
+Sun Feb 24 03:52:58 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* util.c (valid_filename): use O_EXCL to get rid of clobbering
+	  existing files in race conditions.
+
+Sat Feb 23 21:36:13 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* ext/win32ole/win32ole.c (ole_init_cp): should return value.
+
+Sat Feb 23 20:16:05 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* string.c (str_sublen): removed.
+
+	* string.c (rb_str_reverse, rb_str_reverse_bang): use 
+	  single_byte_optimizable.
+
+Sat Feb 23 19:25:18 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* string.c (rb_enc_cr_str_copy_for_substr): renamed from
+	  rb_enc_cr_str_copy.
+
+	* string.c: use rb_enc_cr_str_copy_for_substr and keep coderange.
+
+Sat Feb 23 18:50:17 2008  Masaki Suketa  <masaki.suketa@nifty.ne.jp>
+
+	* ext/win32ole/win32ole.c (ole_encoding2cp): remove US-ASCII
+	  mapping.
+
+Sat Feb 23 01:09:47 2008  Tanaka Akira  <akr@fsij.org>
+
+	* process.c (rlimit_resource_type): new function.
+	  (rlimit_resource_value): new function.
+	  (proc_getrlimit): use rlimit_resource_type to accept
+	  symbol and string as resource type.
+	  (proc_setrlimit): use rlimit_resource_type and rlimit_resource_value
+	  to accept symbol and string as resource type and values.
+
+Fri Feb 22 21:12:42 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* string.c (rb_enc_cr_str_copy): check string's coderange is 7bit or
+	  valid.
+
+Fri Feb 22 19:50:19 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* bignum.c (BIGZEROP): fix for longer Bignum zeros.  [ruby-Bugs-17454]
+
+Fri Feb 22 15:47:36 2008  Tanaka Akira  <akr@fsij.org>
+
+	* encoding.c (rb_enc_mbclen): return minlen instead of 1 when
+	  a character is not found properly.
+
+	* string.c (rb_enc_strlen): round up string length with fixed
+	  multibyte encoding such as UTF-32.
+	  (rb_enc_strlen_cr): ditto.
+	  (rb_str_substr): fix substring with fixed multibyte encoding.
+	  (rb_str_justify): check number of characters.
+
+Fri Feb 22 12:11:12 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* string.c (rb_str_inspect): string of ascii incompatible encoding
+	  should be escaped and returned as US-ASCII encoding.
+
+Fri Feb 22 11:16:55 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* string.c (rb_str_substr): copy encoding although empty string.
+
+Fri Feb 22 04:48:22 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* string.c (rb_str_times): empty string's coderange is CODERANGE_7BIT.
+
+	* string.c (rb_str_substr): ditto.
+
+	* encoding.c (rb_enc_compatible): empty string is compatible with not
+	  only nonasciicompatible strings. [ruby-dev:33895]
+
+Thu Feb 21 17:15:15 2008  Martin Duerst  <duerst@it.aoyama.ac.jp>
+
+	* transcode.c: Added basic support for passing options to String#encode
+	  via a hash. Currently only one option, with one value, is supported:
+	  invalid: :ignore (dropping invalid byte sequences instead of
+	  producing an error). Option naming is not yet stable!
+
+	* test/ruby/test_transcode.rb: Added a single test for invalid: :ignore
+	  option. Not more tests because most data does not yet distinguish
+	  between INVALID and UNKNOWN.
+
+Thu Feb 21 16:35:26 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* array.c (rb_ary_unshift_m): expands enough for argc.  [ruby-dev:33880]
+
+Thu Feb 21 14:49:40 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* io.c (argf_set_encoding): uses current_file after check if next
+	  input is available.
+
+Thu Feb 21 14:13:38 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* io.c (rb_f_putc): invoke stdout method so that redefining putc
+	  may take effect.   [ruby-talk:291844]
+
+	* io.c (rb_f_puts): ditto.
+
+Thu Feb 21 11:10:49 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* string.c: replace rb_enc_copy by rb_enc_cr_str_copy or
+	  rb_enc_cr_str_exact_copy.
+
+Thu Feb 21 10:35:04 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* include/ruby/encoding.h (rb_enc_asciicompat): dummy encoding is not
+	  ascii compatible. [ruby-dev:33878]
+
+Thu Feb 21 00:01:34 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* configure.in (RPATHFLAG): -R option of HP-UX ld is not for runtime
+	  load path.  [ruby-list:44600]
+
+Wed Feb 20 23:55:19 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* win32/win32.c (rb_w32_map_errno): exported.
+
+Wed Feb 20 23:28:43 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* ext/readline/extconf.rb (rl_event_hook): workaround for native
+	  windows.
+
+Wed Feb 20 19:42:03 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* encoding.c (rb_enc_associate_index): doesn't clear coderange
+	  when new encoding equals to old one.
+
+Wed Feb 20 19:15:38 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* string.c (rb_enc_str_copy): added for wrapper for rb_enc_copy.
+	  this also copy coderange when ptr and len is equal.
+
+	* string.c (rb_enc_cr_str_copy): added for wrapper for rb_enc_copy.
+	  this always copy coderange.
+
+	* string.c (str_replace_shared): use rb_enc_str_copy.
+
+	* string.c (str_new3): don't rb_enc_copy because encoding is copied
+	  at str_replace_shared.
+
+Wed Feb 20 13:08:52 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* instruby.rb (parse_args): added --dir-mode, --script-mode and
+	  --cmd-type options.  [ruby-dev:33816]
+
+	* instruby.rb (parse_args): added bin-arch and bin-comm to install
+	  type, for compiled files and script files.
+
+	* instruby.rb (parse_args): deal with make style command line macros,
+	  and count as long style options if prefixed with INSTALL_.
+
+	* instruby.rb (makedirs): use $dir_mode.  [ruby-dev:33805]
+
+	* instruby.rb (open_for_install): set file mode, which is now
+	  permission mode instead of access mode.
+
+	* instruby.rb (bin-comm): installs scripts with replacing shebang
+	  lines.
+
+Wed Feb 20 10:04:22 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* io.c (open_key_args): set arg->io even if no options passed.
+	  [ruby-dev:33072]
+
+Tue Feb 19 21:11:49 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* string.c (rb_enc_strlen_cr): get length with coderange scan.
+
+	* string.c (str_strlen): use rb_enc_strlen_cr. [ruby-dev:33849]
+
+Tue Feb 19 20:49:49 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* eval.c (rb_raise_jump): moved adjustment for control frame.
+
+Tue Feb 19 18:34:32 2008  Tanaka Akira  <akr@fsij.org>
+
+	* gc.c (STACK_LENGTH) [SPARC] : 0x80 offset removed.  [ruby-dev:33857]
+
+Tue Feb 19 14:27:32 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* ext/readline/readline.c (readline_event): prevent polling.  based on
+	  a patch from error errorsson in [ruby-Bugs-17675].
+
+Tue Feb 19 11:14:13 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* eval.c (ruby_exec_node): no thread starts inside iseq compilation.
+
+	* eval.c (rb_f_raise): skip current control frame.  [ruby-core:15589]
+
+	* insns.def (opt_div): raise as the ordinary method. [ruby-core:15589]
+
 Mon Feb 18 15:16:30 2008  Tanaka Akira  <akr@fsij.org>
 
 	* string.c (rb_str_each_line): fix newline size.
@@ -45,7 +596,7 @@ Sun Feb 17 15:25:08 2008  NARUSE, Yui  <naruse@ruby-lang.org>
 
 	* encoding.c (ENC_CODERANGE_AND): added.
 
-	* string.c (rb_str_plus, srb_str_times): keep coderange.
+	* string.c (rb_str_plus, rb_str_times): keep coderange.
 
 	* parse.y (STR_NEW0) use rb_usascii_str_new.
 
@@ -4757,7 +5308,7 @@ Fri Dec 21 18:40:54 2007  Koichi Sasada  <ko1@atdot.net>
 
 	* bootstraptest/test_io.rb, test_knownbug.rb: move a fixed test.
 
-Fri Dec 21 17:56:30 2007    <nagai@orca16.orcabay.ddo.jp>
+Fri Dec 21 17:56:30 2007  Hidetoshi NAGAI  <nagai@ai.kyutech.ac.jp>
 
 	* ext/tk/tcltklib.c: provisional support on Ruby-VM.
 

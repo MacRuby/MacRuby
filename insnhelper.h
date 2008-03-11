@@ -76,7 +76,6 @@
 #define SET_SP(x)  (REG_SP  = (USAGE_ANALYSIS_REGISTER_HELPER(1, 1, (x))))
 #define INC_SP(x)  (REG_SP += (USAGE_ANALYSIS_REGISTER_HELPER(1, 1, (x))))
 #define DEC_SP(x)  (REG_SP -= (USAGE_ANALYSIS_REGISTER_HELPER(1, 1, (x))))
-//#define SET_SV(x)  (GC_WB(GET_SP(), (void*)(x)), *GET_SP() = (x))
 #define SET_SV(x)  (*GET_SP() = (x))
   /* set current stack value as x */
 

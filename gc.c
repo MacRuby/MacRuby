@@ -1,4 +1,4 @@
-/**********************************************************************
+  /**********************************************************************
 
   gc.c -
 
@@ -566,7 +566,6 @@ rb_newobj_from_heap(void)
     RANY(obj)->file = rb_sourcefile();
     RANY(obj)->line = rb_sourceline();
 #endif
-
     return obj;
 }
 
@@ -857,9 +856,7 @@ rb_data_object_alloc(VALUE klass, void *datap, RUBY_DATA_FUNC dmark, RUBY_DATA_F
 #define STACK_END (th->machine_stack_end)
 #define STACK_LEVEL_MAX (th->machine_stack_maxsize/sizeof(VALUE))
 
-#if defined(sparc) || defined(__sparc__)
-# define STACK_LENGTH  (STACK_START - STACK_END + 0x80)
-#elif STACK_GROW_DIRECTION < 0
+#if STACK_GROW_DIRECTION < 0
 # define STACK_LENGTH  (STACK_START - STACK_END)
 #elif STACK_GROW_DIRECTION > 0
 # define STACK_LENGTH  (STACK_END - STACK_START + 1)
@@ -1353,8 +1350,8 @@ gc_mark_children(VALUE ptr, int lev)
 
       case T_OBJECT:
         {
-            long i, len = ROBJECT_LEN(obj);
-	    VALUE *ptr = ROBJECT_PTR(obj);
+            long i, len = ROBJECT_NUMIV(obj);
+	    VALUE *ptr = ROBJECT_IVPTR(obj);
             for (i  = 0; i < len; i++) {
 		gc_mark(*ptr++, lev);
             }
@@ -1403,6 +1400,7 @@ gc_mark_children(VALUE ptr, int lev)
       default:
 	rb_bug("rb_gc_mark(): unknown data type 0x%lx(%p) %s",
 	       obj->as.basic.flags & T_MASK, obj,
+	       is_pointer_to_heap(obj) ? "corrupted object" : "non object");
     }
 }
 
@@ -1562,8 +1560,6 @@ obj_free(VALUE obj)
 	break;
     }
 
-//printf("obj free %x\n", RANY(obj)->as.basic.flags & T_MASK);
-
     if (FL_TEST(obj, FL_EXIVAR)) {
 	rb_free_generic_ivar((VALUE)obj);
     }
@@ -1571,8 +1567,8 @@ obj_free(VALUE obj)
     switch (RANY(obj)->as.basic.flags & T_MASK) {
       case T_OBJECT:
 	if (!(RANY(obj)->as.basic.flags & ROBJECT_EMBED) &&
-            RANY(obj)->as.object.as.heap.ptr) {
-	    RUBY_CRITICAL(xfree(RANY(obj)->as.object.as.heap.ptr));
+            RANY(obj)->as.object.as.heap.ivptr) {
+	    RUBY_CRITICAL(xfree(RANY(obj)->as.object.as.heap.ivptr));
 	}
 	break;
       case T_MODULE:
@@ -1586,9 +1582,6 @@ obj_free(VALUE obj)
 	    st_free_table(RCLASS_IV_INDEX_TBL(obj));
 	}
         RUBY_CRITICAL(xfree(RANY(obj)->as.klass.ptr));
-#if WITH_OBJC
-//	objc_disposeClassPair(RCLASS_OCID(obj));
-#endif
 	break;
       case T_STRING:
 	rb_str_free(obj);

@@ -1668,7 +1668,7 @@ $proc.call(5)
 $proc2.call
 test_ok($x == 5)
 
-if false#defined? Process.kill
+if defined? Process.kill
   test_check "signal"
 
   $x = 0

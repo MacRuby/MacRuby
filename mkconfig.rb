@@ -173,6 +173,10 @@ print <<EOS
 end
 Config = RbConfig # compatibility for ruby-1.8.4 and older.
 CROSS_COMPILING = nil unless defined? CROSS_COMPILING
+RUBY_FRAMEWORK = RbConfig::CONFIG["enable_framework"] == 'yes'
+if RUBY_FRAMEWORK
+  RUBY_FRAMEWORK_VERSION = RbConfig::CONFIG['ruby_version']
+end
 EOS
 
 $stdout = STDOUT
