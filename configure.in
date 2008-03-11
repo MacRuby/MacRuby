@@ -423,7 +423,13 @@ RUBY_FUNC_ATTRIBUTE(deprecated, DEPRECATED)
 RUBY_FUNC_ATTRIBUTE(noinline, NOINLINE)
 RUBY_FUNC_ATTRIBUTE(stdcall)
 RUBY_FUNC_ATTRIBUTE(cdecl)
-RUBY_FUNC_ATTRIBUTE(fastcall)
+case "$target_os" in
+    darwin*)
+	;;
+    *)
+	RUBY_FUNC_ATTRIBUTE(fastcall)
+	;;
+esac
 
 AC_CACHE_CHECK([for RUBY_EXTERN], rb_cv_ruby_extern,
 [rb_cv_ruby_extern=no
@@ -471,7 +477,7 @@ AC_ARG_ENABLE(framework,
        [enable_framework=$enableval], [enable_framework=no])
 
 AC_ARG_WITH(framework_name,
-       [  --with-framework-name=NAME    framework name (default is Ruby)],
+       [  --with-framework-name=NAME    framework name (default is MacRuby)],
        [framework_name=$withval],
        [framework_name='MacRuby'])
 
