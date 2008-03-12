@@ -2426,14 +2426,44 @@ imp_rb_string_length(void *rcv, SEL sel)
     return RSTRING_LEN(rcv);
 }
 
-static unichar
+static long
+imp_rb_string_hash(void *rcv, SEL sel)
+{
+    /* FIXME this is a temporary hack to make sure our custom NSString
+     * subclass can be properly hashed.
+     * We won't need that once String is re-implemented on top of CFString.
+     */
+    UniChar *buf;
+    int i;
+    buf = alloca(sizeof(UniChar) * RSTRING_LEN(rcv));
+    for (i = 0; i < RSTRING_LEN(rcv); i++)
+	buf[i] = (UniChar)RSTRING_PTR(rcv)[i];
+    return CFStringHashCharacters(buf, RSTRING_LEN(rcv));
+}
+
+static UniChar
 imp_rb_string_characterAtIndex(void *rcv, SEL sel, NSUInteger idx)
 {
     if (idx >= RARRAY_LEN(rcv))
 	[NSException raise:@"NSRangeException" 
 	    format:@"index (%d) beyond bounds (%d)", idx, RARRAY_LEN(rcv)];
     /* FIXME this is not quite true for multibyte strings */
-    return RSTRING_PTR(rcv)[idx];
+    return (UniChar)RSTRING_PTR(rcv)[idx];
+}
+
+static void
+imp_rb_string_getCharactersRange(void *rcv, SEL sel, unichar *buffer, 
+    NSRange range)
+{
+    int i, length = RSTRING_LEN(rcv);
+    if (NSMaxRange(range) > RARRAY_LEN(rcv))
+	[NSException raise:@"NSRangeException" 
+	    format:@"range (%@) beyond bounds (%d)", NSStringFromRange(range), 
+		RARRAY_LEN(rcv)];
+    for (i = range.location; i < range.location + range.length; i++) {
+        *buffer = (UniChar)RSTRING_PTR(rcv)[i];
+        buffer++;
+    }
 }
 
 static void
@@ -2511,8 +2541,12 @@ rb_install_objc_primitives(void)
     klass = RCLASS_OCID(rb_cString);
     rb_objc_override_method(klass, @selector(length), 
 	(IMP)imp_rb_string_length);
+    rb_objc_override_method(klass, @selector(hash), 
+	(IMP)imp_rb_string_hash);
     rb_objc_install_method(klass, @selector(characterAtIndex:), 
 	(IMP)imp_rb_string_characterAtIndex);
+    rb_objc_install_method(klass, @selector(getCharacters:range:),
+	(IMP)imp_rb_string_getCharactersRange);
     rb_objc_install_method(klass, @selector(replaceCharactersInRange:withString:), 
 	(IMP)imp_rb_string_replaceCharactersInRangeWithString);
 }
