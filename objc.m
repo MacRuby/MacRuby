@@ -1380,7 +1380,8 @@ rb_objc_define_objc_mid_closure(VALUE recv, ID mid, NODE *node)
 
     sel = sel_registerName(rb_id2name(mid));
 
-    if (TYPE(recv) == T_CLASS) {
+    if (!rb_special_const_p(recv) && !rb_objc_is_non_native(recv) 
+	&& TYPE(recv) == T_CLASS) {
 	mod = recv;
 	getMethod = class_getClassMethod;
     }
