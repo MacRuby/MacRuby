@@ -412,7 +412,7 @@ end
 puts "installing Xcode templates"
 dest_templ_dir = '/Library/Application Support/Developer/3.0/Xcode'
 mkdir_p dest_templ_dir, :mode => 0755
-cp_r "misc/xcode-templates/Project Templates", dest_templ_dir
+install_recursive("misc/xcode-templates", dest_templ_dir, :mode => 0755)
 Dir.glob(File.join(dest_templ_dir, '**', '.svn')).each { |x| rm_rf(x) }
 
 def ln_sfh(source, target)
