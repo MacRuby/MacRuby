@@ -5,8 +5,8 @@ class TestSubclass < Test::Unit::TestCase
   def setup
     framework 'Foundation'
     bundle = '/tmp/_test.bundle'
-    return if File.exist?(bundle)
-    s = <<EOS
+    if !File.exist?(bundle) or File.mtime(bundle) < File.mtime(__FILE__)
+      s = <<EOS
 #import <Foundation/Foundation.h>
 @interface MyClass : NSObject
 @end
@@ -15,10 +15,15 @@ class TestSubclass < Test::Unit::TestCase
 {
     return 42;
 }
+- (id)test_getObject:(id)dictionary forKey:(id)key
+{
+  return [dictionary objectForKey:key];
+}
 @end
 EOS
-    File.open('/tmp/_test.m', 'w') { |io| io.write(s) }
-    system("gcc /tmp/_test.m -bundle -o #{bundle} -framework Foundation -fobjc-gc-only") or exit 1
+      File.open('/tmp/_test.m', 'w') { |io| io.write(s) }
+      system("gcc /tmp/_test.m -bundle -o #{bundle} -framework Foundation -fobjc-gc-only") or exit 1
+    end
     require 'dl'; DL.dlopen(bundle)
   end
 
@@ -90,6 +95,18 @@ EOS
     assert_kind_of(NSPredicate, p)
     p = NSPredicate.predicateWithFormat('%@ == %@', 'foo', 'bar')
     assert_kind_of(NSPredicate, p)
+  end
+
+  def test_primitive_as_dictionary_key
+    o = MyClass.new
+    assert_kind_of(MyClass, o)
+    s = String.new("foo")
+    v = Object.new
+    dict = {s => v}
+    assert_equal(v, o.test_getObject(dict, forKey:s))
+    dict = {}
+    dict.setObject v, forKey:s
+    assert_equal(v, o.test_getObject(dict, forKey:s))
   end
 
 end

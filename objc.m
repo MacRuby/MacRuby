@@ -67,6 +67,7 @@ static struct st_table *bs_boxeds;
 static struct st_table *bs_classes;
 static struct st_table *bs_inf_prot_cmethods;
 static struct st_table *bs_inf_prot_imethods;
+static struct st_table *bs_cftypes;
 
 static char *
 rb_objc_sel_to_mid(SEL selector, char *buffer, unsigned buffer_len)
@@ -157,9 +158,10 @@ rb_objc_get_first_type(const char *type, char *buf, size_t buf_len)
 	    type = __iterate_until(type, _C_UNION_E);
 	    break;
 	case _C_PTR:
-	    if (type[1] == _C_VOID)
-		type++;
-	    break;
+	    type++;
+	    buf[0] = _C_PTR;
+	    buf_len -= 1;
+	    return rb_objc_get_first_type(type, buf, buf_len);
     }
 
     type++;
@@ -230,6 +232,10 @@ static ffi_type *
 rb_objc_octype_to_ffitype(const char *octype)
 {
     octype = rb_objc_skip_octype_modifiers(octype);
+
+    if (bs_cftypes != NULL && st_lookup(bs_cftypes, (st_data_t)octype, NULL))
+	octype = "@";
+
     switch (*octype) {
 	case _C_ID:
 	case _C_CLASS:
@@ -616,6 +622,9 @@ rb_objc_rval_to_ocval(VALUE rval, const char *octype, void **ocval)
 	    }
 	    goto bails; 
 	}
+	
+	if (st_lookup(bs_cftypes, (st_data_t)octype, NULL))
+	    octype = "@";
     }
 
     if (*octype != _C_BOOL) {
@@ -640,6 +649,9 @@ rb_objc_rval_to_ocval(VALUE rval, const char *octype, void **ocval)
 	    if (NIL_P(rval)) {
 		*(void **)ocval = NULL;
 	    }
+	    else if (TYPE(rval) == T_STRING) {
+		*(char **)ocval = StringValuePtr(rval);
+	    }	
 	    else {
 		ok = false;
 	    }
@@ -798,9 +810,9 @@ rb_objc_ocid_to_rval(void **ocval, VALUE *rbval)
 	klass = (Class)object_getClass(ocid);
 
 	if (klass == nscfstring) {
-	    rb_encoding *enc = rb_enc_find("UTF-8");
-	    assert(enc != NULL);
-	    *rbval = rb_enc_str_new([ocid UTF8String], [ocid length], enc);
+	    const char *p;
+	    p = [ocid UTF8String];
+	    *rbval = rb_enc_str_new(p, strlen(p), rb_utf8_encoding());
 	}
 	else if (klass == nscfarray) {
 	    unsigned i, count;
@@ -848,11 +860,15 @@ rb_objc_ocval_to_rbval(void **ocval, const char *octype, VALUE *rbval)
     
     {
 	bs_element_boxed_t *bs_boxed;
+
 	if (st_lookup(bs_boxeds, (st_data_t)octype, 
 		      (st_data_t *)&bs_boxed)) {
 	    *rbval = rb_bs_boxed_new_from_ocdata(bs_boxed, ocval);
 	    goto bails; 
 	}
+
+	if (st_lookup(bs_cftypes, (st_data_t)octype, NULL))
+	    octype = "@";
     }
     
     switch (*octype) {
@@ -1380,7 +1396,8 @@ rb_objc_define_objc_mid_closure(VALUE recv, ID mid, NODE *node)
 
     sel = sel_registerName(rb_id2name(mid));
 
-    if (TYPE(recv) == T_CLASS) {
+    if (!rb_special_const_p(recv) && !rb_objc_is_non_native(recv) 
+	&& TYPE(recv) == T_CLASS) {
 	mod = recv;
 	getMethod = class_getClassMethod;
     }
@@ -2105,6 +2122,14 @@ bs_parse_cb(const char *path, bs_element_type_t type, void *value, void *ctx)
 
 	    break;
 	}
+
+	case BS_ELEMENT_CFTYPE:
+	{
+	    bs_element_cftype_t *bs_cftype = (bs_element_cftype_t *)value;
+	    st_insert(bs_cftypes, (st_data_t)bs_cftype->type, 
+		    (st_data_t)bs_cftype);
+	    break;
+	}
     }
 
     if (!do_not_free)
@@ -2422,17 +2447,92 @@ imp_rb_hash_removeObjectForKey(void *rcv, SEL sel, void *key)
 static NSUInteger
 imp_rb_string_length(void *rcv, SEL sel)
 {
-    return RSTRING_LEN(rcv);
+    return NUM2INT(rb_str_length((VALUE)rcv));
 }
 
-static unichar
+static long
+imp_rb_string_hash(void *rcv, SEL sel)
+{
+    /* FIXME this is a temporary hack to make sure our custom NSString
+     * subclass can be properly hashed.
+     * We won't need that once String is re-implemented on top of CFString.
+     */
+    UniChar *buf;
+    int i;
+    buf = alloca(sizeof(UniChar) * RSTRING_LEN(rcv));
+    for (i = 0; i < RSTRING_LEN(rcv); i++)
+	buf[i] = (UniChar)RSTRING_PTR(rcv)[i];
+    return CFStringHashCharacters(buf, RSTRING_LEN(rcv));
+}
+
+static UniChar
 imp_rb_string_characterAtIndex(void *rcv, SEL sel, NSUInteger idx)
 {
-    if (idx >= RARRAY_LEN(rcv))
+    VALUE rstr;
+    NSString* ocstr;
+    int length = NUM2INT(rb_str_length((VALUE)rcv));
+    UniChar c;
+    rb_encoding *enc;
+
+    if (idx >= length)
 	[NSException raise:@"NSRangeException" 
-	    format:@"index (%d) beyond bounds (%d)", idx, RARRAY_LEN(rcv)];
-    /* FIXME this is not quite true for multibyte strings */
-    return RSTRING_PTR(rcv)[idx];
+	    format:@"index (%d) beyond bounds (%d)", idx, length];
+
+    enc = rb_enc_get((VALUE)rcv);
+    if (enc == rb_usascii_encoding() || enc == rb_ascii8bit_encoding())
+	return (UniChar)RSTRING_PTR(rcv)[idx];
+
+    if (enc != rb_utf8_encoding())
+	[NSException raise:@"NSException" 
+	    format:@"encoding (%s) not supported", enc->name];
+
+    /* FIXME all of this is temporary, and will be addressed once String is
+     * reimplemented on top of CFString 
+     */
+
+    rstr = rb_str_substr((VALUE)rcv, idx, 1);
+    ocstr = [NSString stringWithCString:RSTRING_PTR(rstr) 
+	encoding:NSUTF8StringEncoding];
+    return [ocstr characterAtIndex:0];
+}
+
+static void
+imp_rb_string_getCharactersRange(void *rcv, SEL sel, unichar *buffer, 
+    NSRange range)
+{
+    VALUE rstr;
+    NSString* ocstr;
+    NSData* data;
+    int length = NUM2INT(rb_str_length((VALUE)rcv));
+    rb_encoding *enc;
+
+    if (NSMaxRange(range) > length)
+	[NSException raise:@"NSRangeException" 
+	    format:@"range (%@) beyond bounds (%d)", NSStringFromRange(range), 
+		length];
+
+    enc = rb_enc_get((VALUE)rcv);
+    if (enc == rb_usascii_encoding() || enc == rb_ascii8bit_encoding()) {
+	int i;
+	for (i = range.location; i < range.location + range.length; i++) {
+	    *buffer = (UniChar)RSTRING_PTR(rcv)[i];
+	    buffer++;
+	}
+	return;
+    }
+
+    /* FIXME all of this is temporary, and will be addressed once String is
+     * reimplemented on top of CFString 
+     */
+
+    if (enc != rb_utf8_encoding())
+	[NSException raise:@"NSException" 
+	    format:@"encoding (%s) not supported", enc->name];
+
+    rstr = rb_str_substr((VALUE)rcv, range.location, range.length);
+    ocstr = [NSString stringWithCString:RSTRING_PTR(rstr) encoding:NSUTF8StringEncoding];
+    data = [ocstr dataUsingEncoding:NSUTF16LittleEndianStringEncoding];
+    [data getBytes:buffer];
 }
 
 static void
@@ -2441,18 +2541,19 @@ imp_rb_string_replaceCharactersInRangeWithString(void *rcv, SEL sel,
 {
     VALUE newstr;
     VALUE rstr;
+    int length = NUM2INT(rb_str_length((VALUE)rcv));
 
-    if (RSTRING_LEN(rcv) < range.location + range.length) {
+    if (length < range.location + range.length) {
 	[NSException raise:@"NSRangeException" 
 	    format:@"range (%@) beyond bounds (%d)", 
-	    NSStringFromRange(range), RSTRING_LEN(rcv)];
+	    NSStringFromRange(range), length];
     }
 
     newstr = rb_str_substr((VALUE)rcv, 0, range.location);
     rb_objc_ocid_to_rval(&str, &rstr);
     rb_str_concat(newstr, rstr);
     rb_str_concat(newstr, rb_str_substr((VALUE)rcv, 
-	range.location + range.length, RSTRING_LEN(rcv)));
+	range.location + range.length, length));
 
     rb_funcall((VALUE)rcv, rb_intern("replace"), 1, newstr);
 }
@@ -2510,8 +2611,12 @@ rb_install_objc_primitives(void)
     klass = RCLASS_OCID(rb_cString);
     rb_objc_override_method(klass, @selector(length), 
 	(IMP)imp_rb_string_length);
+    rb_objc_override_method(klass, @selector(hash), 
+	(IMP)imp_rb_string_hash);
     rb_objc_install_method(klass, @selector(characterAtIndex:), 
 	(IMP)imp_rb_string_characterAtIndex);
+    rb_objc_install_method(klass, @selector(getCharacters:range:),
+	(IMP)imp_rb_string_getCharactersRange);
     rb_objc_install_method(klass, @selector(replaceCharactersInRange:withString:), 
 	(IMP)imp_rb_string_replaceCharactersInRangeWithString);
 }
@@ -2714,6 +2819,7 @@ Init_ObjC(void)
     rb_objc_retain(bs_classes = st_init_strtable());
     rb_objc_retain(bs_inf_prot_cmethods = st_init_numtable());
     rb_objc_retain(bs_inf_prot_imethods = st_init_numtable());
+    rb_objc_retain(bs_cftypes = st_init_strtable());
 
     bs_const_magic_cookie = rb_str_new2("bs_const_magic_cookie");
     rb_objc_class_magic_cookie = rb_str_new2("rb_objc_class_magic_cookie");

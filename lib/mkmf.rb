@@ -358,7 +358,7 @@ def cpp_command(outfile, opt="")
                                 'arch_hdrdir' => "#$arch_hdrdir",
                                 'top_srcdir' => $top_srcdir.quote)
   RbConfig::expand("$(CPP) #$INCFLAGS #$CPPFLAGS #$CFLAGS #{opt} #{CONFTEST_C} #{outfile}",
-		   conf)
+		   conf).gsub(/-arch\s+\w+/, '')
 end
 
 def libpathflag(libpath=$DEFLIBPATH|$LIBPATH)

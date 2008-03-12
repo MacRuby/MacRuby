@@ -409,11 +409,16 @@ $install.each do |inst|
   end
 end
 
-puts "installing Xcode templates"
-dest_templ_dir = '/Library/Application Support/Developer/3.0/Xcode'
-mkdir_p dest_templ_dir
-cp_r "misc/xcode-templates/Project Templates", dest_templ_dir
-Dir.glob(File.join(dest_templ_dir, '**', '.svn')).each { |x| rm_f(x) }
+def install_stuff(what, from, to)
+  puts "installing #{what}"
+  mkdir_p to, :mode => 0755
+  install_recursive from, to, :mode => 0755
+  Dir.glob(File.join(to, '**', '.svn')).each { |x| rm_rf(x) }
+end
+
+install_stuff('Xcode templates', 'misc/xcode-templates', 
+  '/Library/Application Support/Developer/3.0/Xcode')
+install_stuff('samples', 'sample-macruby', '/Developer/Examples/Ruby/MacRuby')
 
 def ln_sfh(source, target)
   ln_sf(source, target) unless File.symlink?(target)
@@ -423,9 +428,9 @@ if RUBY_FRAMEWORK
   puts "installing framework"
   base = File.join(CONFIG["prefix"], '..')
   resources = File.join(base, 'Resources')
-  mkdir_p resources
+  mkdir_p resources, :mode => 0755
   install File.join('framework/Info.plist'), resources
-  mkdir_p File.join(resources, 'English.lproj')
+  mkdir_p File.join(resources, 'English.lproj'), :mode => 0755
   install File.join('framework/InfoPlist.strings'), 
     File.join(resources, 'English.lproj')
   ln_sfh MACRUBY_VERSION.to_s, File.join(base, '..', 'Current')
@@ -437,7 +442,7 @@ if RUBY_FRAMEWORK
   ln_sfh "../#{CONFIG['arch']}/ruby/config.h", 
     File.join(base, "usr/include/ruby-#{RUBY_VERSION}/ruby/config.h")
   dest_bin = '/usr/local/bin'
-  mkdir_p dest_bin
+  mkdir_p dest_bin, :mode => 0755
   Dir.entries(CONFIG['bindir']).each do |bin|
     next if bin[0] == '.'
     link = File.join("../../../", CONFIG['bindir'], bin)
