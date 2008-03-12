@@ -409,11 +409,16 @@ $install.each do |inst|
   end
 end
 
-puts "installing Xcode templates"
-dest_templ_dir = '/Library/Application Support/Developer/3.0/Xcode'
-mkdir_p dest_templ_dir, :mode => 0755
-install_recursive("misc/xcode-templates", dest_templ_dir, :mode => 0755)
-Dir.glob(File.join(dest_templ_dir, '**', '.svn')).each { |x| rm_rf(x) }
+def install_stuff(what, from, to)
+  puts "installing #{what}"
+  mkdir_p to, :mode => 0755
+  install_recursive from, to, :mode => 0755
+  Dir.glob(File.join(to, '**', '.svn')).each { |x| rm_rf(x) }
+end
+
+install_stuff('Xcode templates', 'misc/xcode-templates', 
+  '/Library/Application Support/Developer/3.0/Xcode')
+install_stuff('samples', 'sample-macruby', '/Developer/Examples/Ruby/MacRuby')
 
 def ln_sfh(source, target)
   ln_sf(source, target) unless File.symlink?(target)
