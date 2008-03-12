@@ -799,8 +799,10 @@ rb_objc_ocid_to_rval(void **ocval, VALUE *rbval)
 
 	if (klass == nscfstring) {
 	    rb_encoding *enc = rb_enc_find("UTF-8");
+	    const char *p;
 	    assert(enc != NULL);
-	    *rbval = rb_enc_str_new([ocid UTF8String], [ocid length], enc);
+	    p = [ocid UTF8String];
+	    *rbval = rb_enc_str_new(p, strlen(p), enc);
 	}
 	else if (klass == nscfarray) {
 	    unsigned i, count;
@@ -2423,7 +2425,7 @@ imp_rb_hash_removeObjectForKey(void *rcv, SEL sel, void *key)
 static NSUInteger
 imp_rb_string_length(void *rcv, SEL sel)
 {
-    return RSTRING_LEN(rcv);
+    return NUM2INT(rb_str_length((VALUE)rcv));
 }
 
 static long
@@ -2444,26 +2446,71 @@ imp_rb_string_hash(void *rcv, SEL sel)
 static UniChar
 imp_rb_string_characterAtIndex(void *rcv, SEL sel, NSUInteger idx)
 {
-    if (idx >= RARRAY_LEN(rcv))
+    VALUE rstr;
+    NSString* ocstr;
+    int length = NUM2INT(rb_str_length((VALUE)rcv));
+    UniChar c;
+    rb_encoding *enc;
+
+    if (idx >= length)
 	[NSException raise:@"NSRangeException" 
-	    format:@"index (%d) beyond bounds (%d)", idx, RARRAY_LEN(rcv)];
-    /* FIXME this is not quite true for multibyte strings */
-    return (UniChar)RSTRING_PTR(rcv)[idx];
+	    format:@"index (%d) beyond bounds (%d)", idx, length];
+
+    enc = rb_enc_get((VALUE)rcv);
+    if (enc == rb_usascii_encoding() || enc == rb_ascii8bit_encoding())
+	return (UniChar)RSTRING_PTR(rcv)[idx];
+
+    if (enc != rb_utf8_encoding())
+	[NSException raise:@"NSException" 
+	    format:@"encoding (%s) not supported", enc->name];
+
+    /* FIXME all of this is temporary, and will be addressed once String is
+     * reimplemented on top of CFString 
+     */
+
+    rstr = rb_str_substr((VALUE)rcv, idx, 1);
+    ocstr = [NSString stringWithCString:RSTRING_PTR(rstr) 
+	encoding:NSUTF8StringEncoding];
+    return [ocstr characterAtIndex:0];
 }
 
 static void
 imp_rb_string_getCharactersRange(void *rcv, SEL sel, unichar *buffer, 
     NSRange range)
 {
-    int i, length = RSTRING_LEN(rcv);
-    if (NSMaxRange(range) > RARRAY_LEN(rcv))
+    VALUE rstr;
+    NSString* ocstr;
+    NSData* data;
+    int length = NUM2INT(rb_str_length((VALUE)rcv));
+    rb_encoding *enc;
+
+    if (NSMaxRange(range) > length)
 	[NSException raise:@"NSRangeException" 
 	    format:@"range (%@) beyond bounds (%d)", NSStringFromRange(range), 
-		RARRAY_LEN(rcv)];
-    for (i = range.location; i < range.location + range.length; i++) {
-        *buffer = (UniChar)RSTRING_PTR(rcv)[i];
-        buffer++;
+		length];
+
+    enc = rb_enc_get((VALUE)rcv);
+    if (enc == rb_usascii_encoding() || enc == rb_ascii8bit_encoding()) {
+	int i;
+	for (i = range.location; i < range.location + range.length; i++) {
+	    *buffer = (UniChar)RSTRING_PTR(rcv)[i];
+	    buffer++;
+	}
+	return;
     }
+
+    /* FIXME all of this is temporary, and will be addressed once String is
+     * reimplemented on top of CFString 
+     */
+
+    if (enc != rb_utf8_encoding())
+	[NSException raise:@"NSException" 
+	    format:@"encoding (%s) not supported", enc->name];
+
+    rstr = rb_str_substr((VALUE)rcv, range.location, range.length);
+    ocstr = [NSString stringWithCString:RSTRING_PTR(rstr) encoding:NSUTF8StringEncoding];
+    data = [ocstr dataUsingEncoding:NSUTF16LittleEndianStringEncoding];
+    [data getBytes:buffer];
 }
 
 static void
@@ -2472,18 +2519,19 @@ imp_rb_string_replaceCharactersInRangeWithString(void *rcv, SEL sel,
 {
     VALUE newstr;
     VALUE rstr;
+    int length = NUM2INT(rb_str_length((VALUE)rcv));
 
-    if (RSTRING_LEN(rcv) < range.location + range.length) {
+    if (length < range.location + range.length) {
 	[NSException raise:@"NSRangeException" 
 	    format:@"range (%@) beyond bounds (%d)", 
-	    NSStringFromRange(range), RSTRING_LEN(rcv)];
+	    NSStringFromRange(range), length];
     }
 
     newstr = rb_str_substr((VALUE)rcv, 0, range.location);
     rb_objc_ocid_to_rval(&str, &rstr);
     rb_str_concat(newstr, rstr);
     rb_str_concat(newstr, rb_str_substr((VALUE)rcv, 
-	range.location + range.length, RSTRING_LEN(rcv)));
+	range.location + range.length, length));
 
     rb_funcall((VALUE)rcv, rb_intern("replace"), 1, newstr);
 }
