@@ -67,6 +67,7 @@ static struct st_table *bs_boxeds;
 static struct st_table *bs_classes;
 static struct st_table *bs_inf_prot_cmethods;
 static struct st_table *bs_inf_prot_imethods;
+static struct st_table *bs_cftypes;
 
 static char *
 rb_objc_sel_to_mid(SEL selector, char *buffer, unsigned buffer_len)
@@ -231,6 +232,10 @@ static ffi_type *
 rb_objc_octype_to_ffitype(const char *octype)
 {
     octype = rb_objc_skip_octype_modifiers(octype);
+
+    if (bs_cftypes != NULL && st_lookup(bs_cftypes, (st_data_t)octype, NULL))
+	octype = "@";
+
     switch (*octype) {
 	case _C_ID:
 	case _C_CLASS:
@@ -617,6 +622,9 @@ rb_objc_rval_to_ocval(VALUE rval, const char *octype, void **ocval)
 	    }
 	    goto bails; 
 	}
+	
+	if (st_lookup(bs_cftypes, (st_data_t)octype, NULL))
+	    octype = "@";
     }
 
     if (*octype != _C_BOOL) {
@@ -641,6 +649,9 @@ rb_objc_rval_to_ocval(VALUE rval, const char *octype, void **ocval)
 	    if (NIL_P(rval)) {
 		*(void **)ocval = NULL;
 	    }
+	    else if (TYPE(rval) == T_STRING) {
+		*(char **)ocval = StringValuePtr(rval);
+	    }	
 	    else {
 		ok = false;
 	    }
@@ -799,11 +810,9 @@ rb_objc_ocid_to_rval(void **ocval, VALUE *rbval)
 	klass = (Class)object_getClass(ocid);
 
 	if (klass == nscfstring) {
-	    rb_encoding *enc = rb_enc_find("UTF-8");
 	    const char *p;
-	    assert(enc != NULL);
 	    p = [ocid UTF8String];
-	    *rbval = rb_enc_str_new(p, strlen(p), enc);
+	    *rbval = rb_enc_str_new(p, strlen(p), rb_utf8_encoding());
 	}
 	else if (klass == nscfarray) {
 	    unsigned i, count;
@@ -851,11 +860,15 @@ rb_objc_ocval_to_rbval(void **ocval, const char *octype, VALUE *rbval)
     
     {
 	bs_element_boxed_t *bs_boxed;
+
 	if (st_lookup(bs_boxeds, (st_data_t)octype, 
 		      (st_data_t *)&bs_boxed)) {
 	    *rbval = rb_bs_boxed_new_from_ocdata(bs_boxed, ocval);
 	    goto bails; 
 	}
+
+	if (st_lookup(bs_cftypes, (st_data_t)octype, NULL))
+	    octype = "@";
     }
     
     switch (*octype) {
@@ -2109,6 +2122,14 @@ bs_parse_cb(const char *path, bs_element_type_t type, void *value, void *ctx)
 
 	    break;
 	}
+
+	case BS_ELEMENT_CFTYPE:
+	{
+	    bs_element_cftype_t *bs_cftype = (bs_element_cftype_t *)value;
+	    st_insert(bs_cftypes, (st_data_t)bs_cftype->type, 
+		    (st_data_t)bs_cftype);
+	    break;
+	}
     }
 
     if (!do_not_free)
@@ -2798,6 +2819,7 @@ Init_ObjC(void)
     rb_objc_retain(bs_classes = st_init_strtable());
     rb_objc_retain(bs_inf_prot_cmethods = st_init_numtable());
     rb_objc_retain(bs_inf_prot_imethods = st_init_numtable());
+    rb_objc_retain(bs_cftypes = st_init_strtable());
 
     bs_const_magic_cookie = rb_str_new2("bs_const_magic_cookie");
     rb_objc_class_magic_cookie = rb_str_new2("rb_objc_class_magic_cookie");

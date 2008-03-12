@@ -68,7 +68,7 @@ typedef struct {
   char *name;
   char *type;
   char *tollfree;
-  CFTypeID type_id;
+  CFTypeID type_id; /* 0 if unknown */
 } bs_element_cftype_t;
 
 typedef struct {
