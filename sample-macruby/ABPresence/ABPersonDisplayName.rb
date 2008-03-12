@@ -25,8 +25,10 @@ class ABPerson
       end
     elsif hasLastName
       lastName
-    else
+    elsif hasFirstName
       firstName
+    else
+      'n/a'
     end
   end
   

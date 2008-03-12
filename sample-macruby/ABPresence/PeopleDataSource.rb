@@ -26,7 +26,7 @@ class PeopleDataSource
         snames.each do |screenName|
           dict = service.infoForScreenName screenName
           next if dict.nil?
-          status = dict.objectForKey IMPersonStatusKey
+          status = dict[IMPersonStatusKey]
           next if status.nil?
           thisStatus = status.intValue
           if thisStatus > bestStatus
