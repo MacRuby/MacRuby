@@ -2262,7 +2262,8 @@ rb_require_framework(int argc, VALUE *argv, VALUE recv)
 
 #undef FIND_LOAD_PATH_IN_LIBRARY
 
-	rb_raise(rb_eRuntimeError, "framework `%s' not found", cstr);
+	rb_raise(rb_eRuntimeError, "framework `%s' not found", 
+	    RSTRING_PTR(framework));
     }
 
 success:

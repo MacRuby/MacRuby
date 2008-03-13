@@ -409,6 +409,14 @@ $install.each do |inst|
   end
 end
 
+def ln_sfh(source, target)
+  ln_sf(source, target) unless File.symlink?(with_destdir(target))
+end
+
+def mkdir_p(target, *flags)
+  super(with_destdir(target), *flags)
+end
+
 def install_stuff(what, from, to)
   puts "installing #{what}"
   mkdir_p to, :mode => 0755
@@ -419,10 +427,6 @@ end
 install_stuff('Xcode templates', 'misc/xcode-templates', 
   '/Library/Application Support/Developer/3.0/Xcode')
 install_stuff('samples', 'sample-macruby', '/Developer/Examples/Ruby/MacRuby')
-
-def ln_sfh(source, target)
-  ln_sf(source, target) unless File.symlink?(target)
-end
 
 if RUBY_FRAMEWORK
   puts "installing framework"
