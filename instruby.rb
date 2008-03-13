@@ -417,16 +417,17 @@ def mkdir_p(target, *flags)
   super(with_destdir(target), *flags)
 end
 
-def install_stuff(what, from, to)
+def install_stuff(what, from, to, mode)
   puts "installing #{what}"
-  mkdir_p to, :mode => 0755
-  install_recursive from, to, :mode => 0755
+  mkdir_p to, :mode => mode
+  install_recursive from, to, :mode => mode
   Dir.glob(File.join(to, '**', '.svn')).each { |x| rm_rf(x) }
 end
 
 install_stuff('Xcode templates', 'misc/xcode-templates', 
-  '/Library/Application Support/Developer/3.0/Xcode')
-install_stuff('samples', 'sample-macruby', '/Developer/Examples/Ruby/MacRuby')
+  '/Library/Application Support/Developer/3.0/Xcode', 0755)
+install_stuff('samples', 'sample-macruby', 
+  '/Developer/Examples/Ruby/MacRuby', 0775)
 
 if RUBY_FRAMEWORK
   puts "installing framework"
