@@ -52,7 +52,7 @@ RUBY_EXTERN const char ruby_copyright[];
 #endif
 
 #if WITH_OBJC
-# define MACRUBY_VERSION 0.1
+# define MACRUBY_VERSION 0.2
 # define RUBY_DESCRIPTION	    \
     "MacRuby version " STRINGIZE(MACRUBY_VERSION) \
     " (ruby "RUBY_VERSION	    \
