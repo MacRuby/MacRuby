@@ -283,6 +283,7 @@ void rb_ia64_flushrs(void);
 #  define MACOSX
 # endif
 # include <ffi/ffi.h>
+# include <CoreFoundation/CoreFoundation.h>
 # define ASSERT_NO_OBJC() (assert(1 == 0))
 void rb_objc_wb(void *dst, void *newval);
 void rb_objc_root(void *addr);

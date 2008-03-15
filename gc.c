@@ -163,7 +163,9 @@ typedef struct RVALUE {
 	struct RString string;
 	struct RArray  array;
 	struct RRegexp regexp;
+#if !WITH_OBJC
 	struct RHash   hash;
+#endif
 	struct RData   data;
 	struct RStruct rstruct;
 	struct RBignum bignum;
@@ -271,11 +273,11 @@ gc_stress_get(VALUE self)
  */
 
 static VALUE
-gc_stress_set(VALUE self, VALUE bool)
+gc_stress_set(VALUE self, VALUE flag)
 {
     rb_secure(2);
-    ruby_gc_stress = RTEST(bool);
-    return bool;
+    ruby_gc_stress = RTEST(flag);
+    return flag;
 }
 
 void *
@@ -1589,11 +1591,13 @@ obj_free(VALUE obj)
       case T_ARRAY:
 	rb_ary_free(obj);
 	break;
+#if !WITH_OBJC
       case T_HASH:
 	if (RANY(obj)->as.hash.ntbl) {
 	    st_free_table(RANY(obj)->as.hash.ntbl);
 	}
 	break;
+#endif
       case T_REGEXP:
 	if (RANY(obj)->as.regexp.ptr) {
 	    onig_free(RANY(obj)->as.regexp.ptr);

@@ -2532,6 +2532,9 @@ ary_make_hash(VALUE ary1, VALUE ary2)
 static VALUE
 rb_ary_diff(VALUE ary1, VALUE ary2)
 {
+#if WITH_OBJC
+    rb_notimplement();
+#else
     VALUE ary3;
     volatile VALUE hash;
     long i;
@@ -2544,6 +2547,7 @@ rb_ary_diff(VALUE ary1, VALUE ary2)
 	rb_ary_push(ary3, rb_ary_elt(ary1, i));
     }
     return ary3;
+#endif
 }
 
 /* 
@@ -2560,6 +2564,9 @@ rb_ary_diff(VALUE ary1, VALUE ary2)
 static VALUE
 rb_ary_and(VALUE ary1, VALUE ary2)
 {
+#if WITH_OBJC
+    rb_notimplement();
+#else
     VALUE hash, ary3, v, vv;
     long i;
 
@@ -2568,8 +2575,12 @@ rb_ary_and(VALUE ary1, VALUE ary2)
 	    RARRAY_LEN(ary1) : RARRAY_LEN(ary2));
     hash = ary_make_hash(ary2, 0);
 
+#if WITH_OBJC
+    if (CFDictionaryGetCount((CFDictionaryRef)hash) == 0)
+#else
     if (RHASH_EMPTY_P(hash))
-        return ary3;
+#endif
+	return ary3;
 
     for (i=0; i<RARRAY_LEN(ary1); i++) {
 	v = vv = rb_ary_elt(ary1, i);
@@ -2579,6 +2590,7 @@ rb_ary_and(VALUE ary1, VALUE ary2)
     }
 
     return ary3;
+#endif
 }
 
 /* 
@@ -2595,6 +2607,9 @@ rb_ary_and(VALUE ary1, VALUE ary2)
 static VALUE
 rb_ary_or(VALUE ary1, VALUE ary2)
 {
+#if WITH_OBJC
+    rb_notimplement();
+#else
     VALUE hash, ary3;
     VALUE v, vv;
     long i;
@@ -2616,6 +2631,7 @@ rb_ary_or(VALUE ary1, VALUE ary2)
 	}
     }
     return ary3;
+#endif
 }
 
 /*
@@ -2635,6 +2651,9 @@ rb_ary_or(VALUE ary1, VALUE ary2)
 static VALUE
 rb_ary_uniq_bang(VALUE ary)
 {
+#if WITH_OBJC
+    rb_notimplement();
+#else
     VALUE hash, v, vv;
     long i, j;
 
@@ -2652,6 +2671,7 @@ rb_ary_uniq_bang(VALUE ary)
     RARRAY(ary)->len = j;
 
     return ary;
+#endif
 }
 
 /*

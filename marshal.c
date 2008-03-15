@@ -701,6 +701,8 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
 	    }
 	    break;
 
+#if !WITH_OBJC
+	    /* TODO */
 	  case T_HASH:
 	    w_uclass(obj, rb_cHash, arg);
 	    if (NIL_P(RHASH(obj)->ifnone)) {
@@ -719,6 +721,7 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
 		w_object(RHASH(obj)->ifnone, arg, limit);
 	    }
 	    break;
+#endif
 
 	  case T_STRUCT:
 	    w_class(TYPE_STRUCT, obj, arg, Qtrue);
@@ -1328,6 +1331,8 @@ r_object0(struct load_arg *arg, int *ivp, VALUE extmod)
 	}
 	break;
 
+#if !WITH_OBJC
+	/* TODO */
       case TYPE_HASH:
       case TYPE_HASH_DEF:
 	{
@@ -1346,6 +1351,7 @@ r_object0(struct load_arg *arg, int *ivp, VALUE extmod)
             v = r_leave(v, arg);
 	}
 	break;
+#endif
 
       case TYPE_STRUCT:
 	{

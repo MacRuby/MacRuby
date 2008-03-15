@@ -535,6 +535,7 @@ struct RRegexp {
     char *str;
 };
 
+#if !WITH_OBJC
 struct RHash {
     struct RBasic basic;
     struct st_table *ntbl;      /* possibly 0 */
@@ -542,10 +543,13 @@ struct RHash {
     VALUE ifnone;
 };
 /* RHASH_TBL allocates st_table if not available. */
-#define RHASH_TBL(h) rb_hash_tbl(h)
-#define RHASH_ITER_LEV(h) (RHASH(h)->iter_lev)
-#define RHASH_IFNONE(h) (RHASH(h)->ifnone)
-#define RHASH_SIZE(h) (RHASH(h)->ntbl ? RHASH(h)->ntbl->num_entries : 0)
+# define RHASH_TBL(h) rb_hash_tbl(h)
+# define RHASH_ITER_LEV(h) (RHASH(h)->iter_lev)
+# define RHASH_IFNONE(h) (RHASH(h)->ifnone)
+# define RHASH_SIZE(h) (RHASH(h)->ntbl ? RHASH(h)->ntbl->num_entries : 0)
+#else
+# define RHASH_SIZE(h) (CFDictionaryGetCount((CFDictionaryRef)h))
+#endif
 #define RHASH_EMPTY_P(h) (RHASH_SIZE(h) == 0)
 
 struct RFile {
@@ -648,7 +652,9 @@ struct RBignum {
 #define RSTRING(obj) (R_CAST(RString)(obj))
 #define RREGEXP(obj) (R_CAST(RRegexp)(obj))
 #define RARRAY(obj)  (R_CAST(RArray)(obj))
-#define RHASH(obj)   (R_CAST(RHash)(obj))
+#if !WITH_OBJC
+# define RHASH(obj)   (R_CAST(RHash)(obj))
+#endif
 #define RDATA(obj)   (R_CAST(RData)(obj))
 #define RSTRUCT(obj) (R_CAST(RStruct)(obj))
 #define RBIGNUM(obj) (R_CAST(RBignum)(obj))
@@ -981,7 +987,7 @@ rb_objc_is_non_native(VALUE obj)
     if (isa == NULL
 	|| (rb_cString != 0 && isa == RCLASS_OCID(rb_cString))
 	|| (rb_cArray != 0 && isa == RCLASS_OCID(rb_cArray))
-	|| (rb_cHash != 0 && isa == RCLASS_OCID(rb_cHash))
+/*	|| (rb_cHash != 0 && isa == RCLASS_OCID(rb_cHash))*/
 	|| class_isMetaClass(isa))
 	return 0;
     while (isa != NULL) {
@@ -1027,6 +1033,9 @@ rb_type(VALUE obj)
 	if (obj == Qnil) return T_NIL;
 	if (obj == Qfalse) return T_FALSE;
     }
+    else if (rb_cHash != 0 
+	     && object_getClass((void *)obj) == RCLASS_OCID(rb_cHash))
+	return T_HASH;
     return BUILTIN_TYPE(obj);
 }
 

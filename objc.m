@@ -2386,66 +2386,6 @@ imp_rb_ary_replaceObjectAtIndexWithObject(void *rcv, SEL sel, NSUInteger idx,
 }
 
 static NSUInteger
-imp_rb_hash_count(void *rcv, SEL sel)
-{
-    return RHASH_SIZE(rcv);
-}
-
-static void *
-imp_rb_hash_objectForKey(void *rcv, SEL sel, void *key)
-{
-    VALUE rkey;
-    VALUE val;
-    void *ptr;
-
-    rb_objc_ocid_to_rval(&key, &rkey); 
-
-    val = rb_hash_aref((VALUE)rcv, rkey);
-
-    if (!rb_objc_rval_to_ocid(val, &ptr))
-	[NSException raise:@"NSException" 
-	    format:@"element (%s) at key (%s) cannot be passed to Objective-C", 
-	    RSTRING_PTR(rb_inspect(val)), RSTRING_PTR(rb_inspect(rkey))];
-
-    if (ptr == NULL
-	&& RHASH(rcv)->ntbl != NULL 
-	&& st_lookup(RHASH(rcv)->ntbl, (st_data_t)rkey, 0))
-	ptr = [NSNull null];
-
-    return ptr;
-}
-
-static void *
-imp_rb_hash_keyEnumerator(void *rcv, SEL sel)
-{
-    VALUE keys;
-
-    keys = rb_funcall((VALUE)rcv, rb_intern("keys"), 0, NULL);
-    return [(NSArray *)keys objectEnumerator];
-}
-
-static void
-imp_rb_hash_setObjectForKey(void *rcv, SEL sel, void *obj, void *key)
-{
-    VALUE robj, rkey;
-
-    rb_objc_ocid_to_rval(&obj, &robj); 
-    rb_objc_ocid_to_rval(&key, &rkey); 
-
-    rb_hash_aset((VALUE)rcv, rkey, robj);
-}
-
-static void
-imp_rb_hash_removeObjectForKey(void *rcv, SEL sel, void *key)
-{
-    VALUE rkey;
-
-    rb_objc_ocid_to_rval(&key, &rkey); 
-
-    rb_hash_delete((VALUE)rcv, rkey);
-}
-
-static NSUInteger
 imp_rb_string_length(void *rcv, SEL sel)
 {
     return NUM2INT(rb_str_length((VALUE)rcv));
@@ -2595,18 +2535,6 @@ rb_install_objc_primitives(void)
 	(IMP)imp_rb_ary_removeLastObject);
     rb_objc_install_method(klass, @selector(replaceObjectAtIndex:withObject:),
 	(IMP)imp_rb_ary_replaceObjectAtIndexWithObject);
-
-    /* Hash */
-    klass = RCLASS_OCID(rb_cHash);
-    rb_objc_install_method(klass, @selector(count), (IMP)imp_rb_hash_count);
-    rb_objc_install_method(klass, @selector(objectForKey:), 
-	(IMP)imp_rb_hash_objectForKey);
-    rb_objc_install_method(klass, @selector(keyEnumerator), 
-	(IMP)imp_rb_hash_keyEnumerator);
-    rb_objc_install_method(klass, @selector(setObject:forKey:),
-	(IMP)imp_rb_hash_setObjectForKey);
-    rb_objc_install_method(klass, @selector(removeObjectForKey:),
-	(IMP)imp_rb_hash_removeObjectForKey);
 
     /* String */
     klass = RCLASS_OCID(rb_cString);

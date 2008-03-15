@@ -1330,7 +1330,13 @@ opt_case_dispatch
     }
     else {
 	VALUE val;
+#if WITH_OBJC
+	if (CFDictionaryGetValueIfPresent((CFDictionaryRef)hash,
+	    (const void *)key,
+	    (const void **)&val)) {
+#else
 	if (st_lookup(RHASH_TBL(hash), key, &val)) {
+#endif
 	    JUMP(FIX2INT(val));
 	}
 	else {
