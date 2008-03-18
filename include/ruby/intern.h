@@ -651,6 +651,7 @@ VALUE rb_mod_objc_ib_outlet(int, VALUE *, VALUE);
 VALUE rb_require_framework(int, VALUE *, VALUE);
 VALUE rb_objc_resolve_const_value(VALUE, VALUE, ID);
 ID rb_objc_missing_sel(ID mid, int arity);
+void rb_objc_install_ivar_cluster(Class);
 #endif
 /* version.c */
 void ruby_show_version(void);

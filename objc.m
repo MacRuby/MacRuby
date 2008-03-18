@@ -489,6 +489,14 @@ rb_objc_rval_to_ocid(VALUE rval, void **ocval)
 	    }
 	    return true;
 	}
+
+	case T_SYMBOL:
+	{
+	    ID name = SYM2ID(rval);
+	    *(id *)ocval = (id)CFStringCreateWithCString(NULL, rb_id2name(name),
+		kCFStringEncodingASCII); /* XXX this is temporary */
+	    return true;
+	}
     }
 
     return false;
@@ -824,22 +832,6 @@ rb_objc_ocid_to_rval(void **ocval, VALUE *rbval)
 		VALUE elem;
 		rb_objc_ocval_to_rbval((void **)&ocelem, "@", &elem);
 		rb_ary_push(*rbval, elem);
-	    }
-	}
-	else if (klass == nscfdictionary) {
-	    unsigned i, count;
-	    id *keys, *values;
-
-	    count = [ocid count];
-	    keys = (id *)alloca(sizeof(id) * count);
-	    values = (id *)alloca(sizeof(id) * count);
-	    [ocid getObjects:values andKeys:keys];
-	    *rbval = rb_hash_new();
-	    for (i = 0; i < count; i++) {
-		VALUE key, value;
-		rb_objc_ocval_to_rbval((void **)&keys[i], "@", &key);
-		rb_objc_ocval_to_rbval((void **)&values[i], "@", &value);
-		rb_hash_aset(*rbval, key, value);
 	    }
 	}
 	else {
@@ -2737,6 +2729,12 @@ dyld_add_image_cb(const struct mach_header* mh, intptr_t vmaddr_slide)
     reload_class_constants();
 }
 #endif
+
+void
+rb_objc_install_ivar_cluster(Class klass)
+{
+    /* TODO */
+}
 
 void
 Init_ObjC(void)

@@ -2532,9 +2532,6 @@ ary_make_hash(VALUE ary1, VALUE ary2)
 static VALUE
 rb_ary_diff(VALUE ary1, VALUE ary2)
 {
-#if WITH_OBJC
-    rb_notimplement();
-#else
     VALUE ary3;
     volatile VALUE hash;
     long i;
@@ -2543,11 +2540,15 @@ rb_ary_diff(VALUE ary1, VALUE ary2)
     ary3 = rb_ary_new();
 
     for (i=0; i<RARRAY_LEN(ary1); i++) {
+#if WITH_OBJC
+	if (CFDictionaryGetValueIfPresent((CFDictionaryRef)hash,
+	    (const void *)RARRAY_PTR(ary1)[i], NULL)) continue;
+#else
 	if (st_lookup(RHASH_TBL(hash), RARRAY_PTR(ary1)[i], 0)) continue;
+#endif
 	rb_ary_push(ary3, rb_ary_elt(ary1, i));
     }
     return ary3;
-#endif
 }
 
 /* 
@@ -2564,9 +2565,6 @@ rb_ary_diff(VALUE ary1, VALUE ary2)
 static VALUE
 rb_ary_and(VALUE ary1, VALUE ary2)
 {
-#if WITH_OBJC
-    rb_notimplement();
-#else
     VALUE hash, ary3, v, vv;
     long i;
 
@@ -2575,22 +2573,23 @@ rb_ary_and(VALUE ary1, VALUE ary2)
 	    RARRAY_LEN(ary1) : RARRAY_LEN(ary2));
     hash = ary_make_hash(ary2, 0);
 
-#if WITH_OBJC
-    if (CFDictionaryGetCount((CFDictionaryRef)hash) == 0)
-#else
     if (RHASH_EMPTY_P(hash))
-#endif
 	return ary3;
 
     for (i=0; i<RARRAY_LEN(ary1); i++) {
 	v = vv = rb_ary_elt(ary1, i);
+#if WITH_OBJC
+	if (CFDictionaryContainsKey((CFDictionaryRef)hash, (const void *)vv)) {
+	    CFDictionaryRemoveValue((CFMutableDictionaryRef)hash,
+		(const void *)vv);
+#else
 	if (st_delete(RHASH_TBL(hash), (st_data_t*)&vv, 0)) {
+#endif
 	    rb_ary_push(ary3, v);
 	}
     }
 
     return ary3;
-#endif
 }
 
 /* 
@@ -2607,9 +2606,6 @@ rb_ary_and(VALUE ary1, VALUE ary2)
 static VALUE
 rb_ary_or(VALUE ary1, VALUE ary2)
 {
-#if WITH_OBJC
-    rb_notimplement();
-#else
     VALUE hash, ary3;
     VALUE v, vv;
     long i;
@@ -2620,18 +2616,29 @@ rb_ary_or(VALUE ary1, VALUE ary2)
 
     for (i=0; i<RARRAY_LEN(ary1); i++) {
 	v = vv = rb_ary_elt(ary1, i);
+#if WITH_OBJC
+	if (CFDictionaryContainsKey((CFDictionaryRef)hash, (const void *)vv)) {
+	    CFDictionaryRemoveValue((CFMutableDictionaryRef)hash,
+		(const void *)vv);
+#else
 	if (st_delete(RHASH_TBL(hash), (st_data_t*)&vv, 0)) {
+#endif
 	    rb_ary_push(ary3, v);
 	}
     }
     for (i=0; i<RARRAY_LEN(ary2); i++) {
 	v = vv = rb_ary_elt(ary2, i);
+#if WITH_OBJC
+	if (CFDictionaryContainsKey((CFDictionaryRef)hash, (const void *)vv)) {
+	    CFDictionaryRemoveValue((CFMutableDictionaryRef)hash,
+		(const void *)vv);
+#else
 	if (st_delete(RHASH_TBL(hash), (st_data_t*)&vv, 0)) {
+#endif
 	    rb_ary_push(ary3, v);
 	}
     }
     return ary3;
-#endif
 }
 
 /*
@@ -2651,8 +2658,40 @@ rb_ary_or(VALUE ary1, VALUE ary2)
 static VALUE
 rb_ary_uniq_bang(VALUE ary)
 {
-#if WITH_OBJC
-    rb_notimplement();
+#if 0 // WITH_OBJC
+    // probably a better implementation, but we need Array to be a real
+    // CFArray before using it.
+    CFIndex i, j, count;
+    CFIndex *duplicates;
+
+    count = CFArrayGetCount((CFArrayRef)ary);
+    duplicates = (CFIndex *)alloca(sizeof(CFIndex) * count);
+
+    for (i = j = 0; i < count; i++) {
+	const void *val;
+
+	val = CFArrayGetValueAtIndex((CFArrayRef)ary, i);
+	do {
+	    CFIndex other;
+	    CFRange range;
+
+	    range.location = i + 1;
+	    range.length = count - range.location;
+	    other = CFArrayGetFirstIndexOfValue((CFArrayRef)ary, range, val);
+	    if (other != -1) {
+		duplicates[j++] = other;
+	    }
+	    else {
+		break;
+	    }
+	}
+	while (1);
+    }
+    if (j == 0)
+	return Qnil;
+    for (i = 0; i < j; i++)
+	CFArrayRemoveValueAtIndex((CFMutableArrayRef)ary, duplicates[i]);
+    return ary;
 #else
     VALUE hash, v, vv;
     long i, j;
@@ -2664,7 +2703,13 @@ rb_ary_uniq_bang(VALUE ary)
     }
     for (i=j=0; i<RARRAY_LEN(ary); i++) {
 	v = vv = rb_ary_elt(ary, i);
+#if WITH_OBJC
+	if (CFDictionaryContainsKey((CFDictionaryRef)hash, (const void *)vv)) {
+	    CFDictionaryRemoveValue((CFMutableDictionaryRef)hash,
+		(const void *)vv);
+#else
 	if (st_delete(RHASH_TBL(hash), (st_data_t*)&vv, 0)) {
+#endif
 	    rb_ary_store(ary, j++, v);
 	}
     }

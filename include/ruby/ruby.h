@@ -946,48 +946,13 @@ RUBY_EXTERN VALUE rb_eLoadError;
 RUBY_EXTERN VALUE rb_stdin, rb_stdout, rb_stderr;
 
 #if WITH_OBJC
-/* We need to know if a given Objective-C class is either a metaclass
- * or a Ruby class. We could use the runtime API to do that but it's
- * unfortunately too slow, because these are C function calls. Instead we
- * directly read the information in memory. 
- */
-# if __OBJC2__
-#   error ObjC 2.0 is not supported yet
-# else
-struct __FakeObjcClass {
-    Class isa;
-    Class super_class;
-    const char *name;
-    long version;
-    long info;
-    long instance_size;
-    void *ivars;
-    void *methodLists;
-    void *cache;
-    void *protocols;
-};
-# define __IS_NON_NATIVE_CLS(k) \
-    (!((((struct __FakeObjcClass *)k)->info & CLS_META) == CLS_META) \
-     && ((struct __FakeObjcClass *)k)->version != ruby_version_code)
-# endif
-# define OCCLASS_WEAK_COPY_METHODS(src, dest) \
-    do { \
-      ((struct __FakeObjcClass *)src)->methodLists = \
-        ((struct __FakeObjcClass *)dest)->methodLists; \
-    } \
-    while (0)
-extern const int ruby_version_code;
 static inline unsigned
 rb_objc_is_non_native(VALUE obj)
 {
     void *isa = RBASIC(obj)->isa;
-#if 0
-    return isa != NULL ? __IS_NON_NATIVE_CLS(isa) : 0;
-#else
     if (isa == NULL
 	|| (rb_cString != 0 && isa == RCLASS_OCID(rb_cString))
 	|| (rb_cArray != 0 && isa == RCLASS_OCID(rb_cArray))
-/*	|| (rb_cHash != 0 && isa == RCLASS_OCID(rb_cHash))*/
 	|| class_isMetaClass(isa))
 	return 0;
     while (isa != NULL) {
@@ -996,7 +961,6 @@ rb_objc_is_non_native(VALUE obj)
 	isa = (void *)class_getSuperclass(isa);
     }
     return 1;
-#endif
 }
 #endif
 
@@ -1033,9 +997,17 @@ rb_type(VALUE obj)
 	if (obj == Qnil) return T_NIL;
 	if (obj == Qfalse) return T_FALSE;
     }
-    else if (rb_cHash != 0 
-	     && object_getClass((void *)obj) == RCLASS_OCID(rb_cHash))
-	return T_HASH;
+#if WITH_OBJC
+    /* FIXME this is super slow */
+    else if (rb_cHash != 0 && !class_isMetaClass(*(Class *)obj)) {
+	Class k = *(Class *)obj;
+	while (k != NULL) {
+	    if (k == RCLASS_OCID(rb_cHash))
+		return T_HASH;
+	    k = class_getSuperclass(k);
+	}
+    }
+#endif
     return BUILTIN_TYPE(obj);
 }
 

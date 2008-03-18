@@ -37,11 +37,13 @@ rb_hash_freeze(VALUE hash)
 }
 
 VALUE rb_cHash;
+#if WITH_OBJC
+VALUE rb_cHashRuby;
+#endif
 
 static VALUE envtbl;
 static ID id_hash, id_yield, id_default;
 
-#if !WITH_OBJC
 static VALUE
 eql(VALUE *args)
 {
@@ -70,7 +72,6 @@ rb_any_cmp(VALUE a, VALUE b)
     args[1] = b;
     return !rb_with_disable_interrupt(eql, (VALUE)args);
 }
-#endif
 
 VALUE
 rb_hash(VALUE obj)
@@ -78,7 +79,6 @@ rb_hash(VALUE obj)
     return rb_funcall(obj, id_hash, 0);
 }
 
-#if !WITH_OBJC
 static int
 rb_any_hash(VALUE a)
 {
@@ -107,7 +107,6 @@ static const struct st_hash_type objhash = {
     rb_any_cmp,
     rb_any_hash,
 };
-#endif
 
 typedef int st_foreach_func(st_data_t, st_data_t, st_data_t);
 
@@ -204,8 +203,23 @@ void
 rb_hash_foreach(VALUE hash, int (*func)(ANYARGS), VALUE farg)
 {
 #if WITH_OBJC
-    CFDictionaryApplyFunction((CFDictionaryRef)hash, 
-	(CFDictionaryApplierFunction)func, (void *)farg);
+    CFIndex i, count;
+    const void **keys;
+    const void **values;
+
+    count = CFDictionaryGetCount((CFDictionaryRef)hash);
+    if (count == 0)
+	return;
+
+    keys = (const void **)alloca(sizeof(void *) * count);
+    values = (const void **)alloca(sizeof(void *) * count);
+
+    CFDictionaryGetKeysAndValues((CFDictionaryRef)hash, keys, values);
+
+    for (i = 0; i < count; i++) {
+	if ((*func)(keys[i], values[i], farg) != ST_CONTINUE)
+	    break;
+    }
 #else
     struct hash_foreach_arg arg;
 
@@ -219,12 +233,38 @@ rb_hash_foreach(VALUE hash, int (*func)(ANYARGS), VALUE farg)
 #endif
 }
 
+#if WITH_OBJC
+static Boolean 
+rb_cfdictionary_equal_cb(const void *v1, const void *v2)
+{
+    return !rb_any_cmp((VALUE)v1, (VALUE)v2);
+}
+
+static CFHashCode
+rb_cfdictionary_hash_cb(const void *v)
+{
+    return (CFHashCode)rb_any_hash((VALUE)v); 
+}
+#endif
+
 static VALUE
 hash_alloc(VALUE klass)
 {
 #if WITH_OBJC
-    /* XXX should we warn if klass isn't rb_cHash? */
-    return (VALUE)CFDictionaryCreateMutable(NULL, 0, NULL, NULL);
+    CFDictionaryKeyCallBacks keys_cb;
+    CFDictionaryValueCallBacks values_cb;
+    VALUE hash;
+
+    memset(&keys_cb, 0, sizeof(keys_cb));
+    memset(&values_cb, 0, sizeof(values_cb));
+
+    keys_cb.equal = rb_cfdictionary_equal_cb;
+    keys_cb.hash = rb_cfdictionary_hash_cb;
+    values_cb.equal = rb_cfdictionary_equal_cb;
+
+    hash = (VALUE)CFDictionaryCreateMutable(NULL, 0, &keys_cb, &values_cb);
+    *(Class *)hash = RCLASS_OCID(klass);
+    return hash;
 #else
     NEWOBJ(hash, struct RHash);
     OBJSETUP(hash, klass, T_HASH);
@@ -238,7 +278,11 @@ hash_alloc(VALUE klass)
 VALUE
 rb_hash_new(void)
 {
+#if WITH_OBJC
+    return hash_alloc(rb_cHashRuby);
+#else
     return hash_alloc(rb_cHash);
+#endif
 }
 
 static void
@@ -246,7 +290,8 @@ rb_hash_modify_check(VALUE hash)
 {
 #if WITH_OBJC
     bool _CFDictionaryIsMutable(void *);
-    if (!_CFDictionaryIsMutable((void *)hash)) rb_error_frozen("hash");
+    if (!_CFDictionaryIsMutable((void *)hash)) 
+	rb_raise(rb_eRuntimeError, "can't modify immutable hash");
 #else
     if (OBJ_FROZEN(hash)) rb_error_frozen("hash");
     if (!OBJ_TAINTED(hash) && rb_safe_level() >= 4)
@@ -366,8 +411,25 @@ rb_hash_s_create(int argc, VALUE *argv, VALUE klass)
 	tmp = rb_hash_s_try_convert(Qnil, argv[0]);
 	if (!NIL_P(tmp)) {
 #if WITH_OBJC
-	    return (VALUE)CFDictionaryCreateMutableCopy(NULL, 0, 
-		(CFDictionaryRef)tmp);
+	    CFIndex i, count;
+	    const void **keys;
+	    const void **values;
+
+	    hash = hash_alloc(klass);
+	    count = CFDictionaryGetCount((CFDictionaryRef)tmp);
+	    if (count == 0)
+		return;
+
+	    keys = (const void **)alloca(sizeof(void *) * count);
+	    values = (const void **)alloca(sizeof(void *) * count);
+
+	    CFDictionaryGetKeysAndValues((CFDictionaryRef)tmp, keys, values);
+
+	    for (i = 0; i < count; i++)
+		CFDictionarySetValue((CFMutableDictionaryRef)hash,
+			keys[i], values[i]);
+
+	    return hash;
 #else
 	    hash = hash_alloc(klass);
 	    if (RHASH(argv[0])->ntbl) {
@@ -886,23 +948,8 @@ VALUE
 rb_hash_delete_if(VALUE hash)
 {
     rb_hash_modify(hash);
-#if WITH_OBJC
-    {
-	const void **keys;
-	const void **values;
-	CFIndex i, count;
-       
-	count = CFDictionaryGetCount((CFDictionaryRef)hash);
-	keys = (const void **)alloca(sizeof(void *) * count);
-	values = (const void **)alloca(sizeof(void *) * count);
-	CFDictionaryGetKeysAndValues((CFDictionaryRef)hash, keys, values);
-	for (i = 0; i < count; i++)
-	    delete_if_i((VALUE)keys[i], (VALUE)values[i], hash);
-    }
-#else
     rb_hash_foreach(hash, delete_if_i, hash);
     return hash;
-#endif
 }
 
 /*
@@ -1027,7 +1074,7 @@ rb_hash_clear(VALUE hash)
 {
     rb_hash_modify_check(hash);
 #if WITH_OBJC
-    CFArrayRemoveAllValues((CFMutableArrayRef)hash);
+    CFDictionaryRemoveAllValues((CFMutableDictionaryRef)hash);
 #else
     if (!RHASH(hash)->ntbl)
         return hash;
@@ -1161,7 +1208,7 @@ static VALUE
 rb_hash_empty_p(VALUE hash)
 {
 #if WITH_OBJC
-    return CFDictionaryGetCount((CFDictionaryRef)hash) ? Qtrue : Qfalse;
+    return CFDictionaryGetCount((CFDictionaryRef)hash) == 0 ? Qtrue : Qfalse;
 #else
     return RHASH_EMPTY_P(hash) ? Qtrue : Qfalse;
 #endif
@@ -1536,7 +1583,8 @@ hash_equal(VALUE hash1, VALUE hash2, int eql)
 {
 #if WITH_OBJC
     /* TODO handle eql */
-    return CFEqual((CFTypeRef)hash1, (CFTypeRef)hash2) ? Qtrue : Qfalse;
+    return hash2 != Qnil 
+	&& CFEqual((CFTypeRef)hash1, (CFTypeRef)hash2) ? Qtrue : Qfalse;
 #else
     struct equal_data data;
 
@@ -1640,16 +1688,13 @@ recursive_hash(VALUE hash, VALUE dummy, int recur)
  *  will have the same hash code (and will compare using <code>eql?</code>).
  */
 
+#if !WITH_OBJC
 static VALUE
 rb_hash_hash(VALUE hash)
 {
-#if WITH_OBJC
-    /* FIXME this method should be defined in the top level class */
-    return INT2FIX(CFHash((CFTypeRef)hash));
-#else
     return rb_exec_recursive(recursive_hash, hash, 0);
-#endif
 }
+#endif
 
 static int
 rb_hash_invert_i(VALUE key, VALUE value, VALUE hash)
@@ -2722,6 +2767,122 @@ env_update(VALUE env, VALUE hash)
  *
  */
 
+#if WITH_OBJC
+static Class __nscfdictionary = NULL;
+#define PREPARE_RCV(x) \
+  Class old = *(Class *)x; \
+  if (__nscfdictionary == NULL) \
+    __nscfdictionary = (Class)objc_getClass("NSCFDictionary"); \
+  *(Class *)x = __nscfdictionary;
+
+#define RESTORE_RCV(x) \
+  *(Class *)x = old;
+
+static CFIndex
+imp_rb_hash_count(void *rcv, SEL sel) 
+{
+    CFIndex count;
+    PREPARE_RCV(rcv);
+    count = CFDictionaryGetCount((CFDictionaryRef)rcv);
+    RESTORE_RCV(rcv);
+    return count; 
+}
+
+static void *
+imp_rb_hash_keyEnumerator(void *rcv, SEL sel)
+{
+    void *keys;
+    static SEL objectEnumerator = 0;
+    PREPARE_RCV(rcv);
+    keys = (void *)rb_hash_keys((VALUE)rcv);
+    RESTORE_RCV(rcv);
+    if (objectEnumerator == 0)
+	objectEnumerator = sel_registerName("objectEnumerator");
+    return objc_msgSend(keys, objectEnumerator);
+}
+
+static void *
+imp_rb_hash_objectForKey(void *rcv, SEL sel, void *key)
+{
+    void *obj;
+    PREPARE_RCV(rcv);
+    if (!CFDictionaryGetValueIfPresent((CFDictionaryRef)rcv, (const void *)key,
+	(const void **)&obj)) {
+	obj = NULL;
+    }
+    RESTORE_RCV(rcv);
+    return obj;
+}
+
+static void 
+imp_rb_hash_setObjectForKey(void *rcv, SEL sel, void *obj, void *key) 
+{
+    PREPARE_RCV(rcv);
+    CFDictionarySetValue((CFMutableDictionaryRef)rcv, (const void *)key,
+	(const void *)obj);
+    RESTORE_RCV(rcv);
+} 
+
+static void
+imp_rb_hash_getObjectsAndKeys(void *rcv, SEL sel, void **objs, void **keys)
+{
+    PREPARE_RCV(rcv);
+    CFDictionaryGetKeysAndValues((CFDictionaryRef)rcv, (const void **)keys,
+	(const void **)objs);
+    RESTORE_RCV(rcv);
+}
+
+static void
+imp_rb_hash_removeObjectForKey(void *rcv, SEL sel, void *key)
+{
+    PREPARE_RCV(rcv);
+    CFDictionaryRemoveValue((CFMutableDictionaryRef)rcv, (const void *)key);
+    RESTORE_RCV(rcv);
+}
+
+static void
+imp_rb_hash_removeAllObjects(void *rcv, SEL sel)
+{
+    PREPARE_RCV(rcv);
+    CFDictionaryRemoveAllValues((CFMutableDictionaryRef)rcv);
+    RESTORE_RCV(rcv);
+}
+
+static void
+rb_objc_create_ruby_hash_class(void)
+{
+    Class klass;
+
+    klass = objc_allocateClassPair((Class)objc_getClass("NSMutableDictionary"),
+	"Hash", 0);
+    assert(klass != NULL);
+    rb_objc_install_ivar_cluster(klass);
+    objc_registerClassPair(klass);
+
+#define INSTALL_METHOD(selname, imp) 				\
+    do {							\
+	SEL sel = sel_registerName(selname);			\
+     	Method method = class_getInstanceMethod(klass, sel);	\
+     	assert(method != NULL);					\
+     	assert(class_addMethod(klass, sel, (IMP)imp, 		\
+	    method_getTypeEncoding(method)));			\
+    }								\
+    while(0)
+
+    INSTALL_METHOD("count", imp_rb_hash_count);
+    INSTALL_METHOD("keyEnumerator", imp_rb_hash_keyEnumerator);
+    INSTALL_METHOD("objectForKey:", imp_rb_hash_objectForKey);
+    INSTALL_METHOD("getObjects:andKeys:", imp_rb_hash_getObjectsAndKeys);
+    INSTALL_METHOD("setObject:forKey:", imp_rb_hash_setObjectForKey);
+    INSTALL_METHOD("removeObjectForKey:", imp_rb_hash_removeObjectForKey);
+    INSTALL_METHOD("removeAllObjects", imp_rb_hash_removeAllObjects);
+
+#undef INSTALL_METHOD
+
+    rb_cHashRuby = rb_objc_import_class(klass);
+}
+#endif
+
 void
 Init_Hash(void)
 {
@@ -2730,23 +2891,22 @@ Init_Hash(void)
     id_default = rb_intern("default");
 
 #if WITH_OBJC
-    rb_cHash = rb_objc_import_class((Class)objc_getClass("NSCFDictionary"));
-    rb_define_global_const("Hash", rb_cHash);
+    rb_cHash = 
+	rb_objc_import_class((Class)objc_getClass("NSDictionary"));
+    rb_objc_create_ruby_hash_class();
 #else
     rb_cHash = rb_define_class("Hash", rb_cObject);
 #endif
 
-    rb_include_module(rb_cHash, rb_mEnumerable);
-
-#if !WITH_OBJC
     rb_define_alloc_func(rb_cHash, hash_alloc);
-#endif
     rb_define_singleton_method(rb_cHash, "[]", rb_hash_s_create, -1);
     rb_define_singleton_method(rb_cHash, "try_convert", rb_hash_s_try_convert, 1);
     rb_define_method(rb_cHash,"initialize", rb_hash_initialize, -1);
     rb_define_method(rb_cHash,"initialize_copy", rb_hash_replace, 1);
-    rb_define_method(rb_cHash,"rehash", rb_hash_rehash, 0);
 
+    rb_include_module(rb_cHash, rb_mEnumerable);
+
+    rb_define_method(rb_cHash,"rehash", rb_hash_rehash, 0);
     rb_define_method(rb_cHash,"to_hash", rb_hash_to_hash, 0);
     rb_define_method(rb_cHash,"to_a", rb_hash_to_a, 0);
     rb_define_method(rb_cHash,"to_s", rb_hash_inspect, 0);
@@ -2754,7 +2914,9 @@ Init_Hash(void)
 
     rb_define_method(rb_cHash,"==", rb_hash_equal, 1);
     rb_define_method(rb_cHash,"[]", rb_hash_aref, 1);
+#if !WITH_OBJC
     rb_define_method(rb_cHash,"hash", rb_hash_hash, 0);
+#endif
     rb_define_method(rb_cHash,"eql?", rb_hash_eql, 1);
     rb_define_method(rb_cHash,"fetch", rb_hash_fetch, -1);
     rb_define_method(rb_cHash,"[]=", rb_hash_aset, 2);
