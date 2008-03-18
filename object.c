@@ -232,6 +232,13 @@ rb_obj_clone(VALUE obj)
     if (rb_special_const_p(obj)) {
         rb_raise(rb_eTypeError, "can't clone %s", rb_obj_classname(obj));
     }
+#if WITH_OBJC
+    if (rb_objc_is_non_native(obj)) {
+        clone = rb_obj_alloc(rb_obj_class(obj));
+        init_copy(clone, obj);
+	return clone;
+    }
+#endif
     clone = rb_obj_alloc(rb_obj_class(obj));
 #if WITH_OBJC
     RBASIC(clone)->isa = RBASIC(obj)->isa;
