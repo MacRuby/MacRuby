@@ -1583,7 +1583,8 @@ hash_equal(VALUE hash1, VALUE hash2, int eql)
 {
 #if WITH_OBJC
     /* TODO handle eql */
-    return hash2 != Qnil 
+    return hash1 != Qnil 
+	&& hash2 != Qnil 
 	&& CFEqual((CFTypeRef)hash1, (CFTypeRef)hash2) ? Qtrue : Qfalse;
 #else
     struct equal_data data;
@@ -2848,6 +2849,16 @@ imp_rb_hash_removeAllObjects(void *rcv, SEL sel)
     RESTORE_RCV(rcv);
 }
 
+static bool
+imp_rb_hash_isEqual(void *rcv, SEL sel, void *other)
+{
+    bool res;
+    PREPARE_RCV(rcv);
+    res = CFEqual((CFTypeRef)rcv, (CFTypeRef)other);
+    RESTORE_RCV(rcv);
+    return res;
+}
+
 static void
 rb_objc_create_ruby_hash_class(void)
 {
@@ -2876,6 +2887,7 @@ rb_objc_create_ruby_hash_class(void)
     INSTALL_METHOD("setObject:forKey:", imp_rb_hash_setObjectForKey);
     INSTALL_METHOD("removeObjectForKey:", imp_rb_hash_removeObjectForKey);
     INSTALL_METHOD("removeAllObjects", imp_rb_hash_removeAllObjects);
+    INSTALL_METHOD("isEqual:", imp_rb_hash_isEqual);
 
 #undef INSTALL_METHOD
 
