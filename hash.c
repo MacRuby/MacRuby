@@ -2892,6 +2892,7 @@ rb_objc_create_ruby_hash_class(void)
 #undef INSTALL_METHOD
 
     rb_cHashRuby = rb_objc_import_class(klass);
+    FL_UNSET(rb_cHashRuby, RCLASS_OBJC_IMPORTED);
 }
 #endif
 
