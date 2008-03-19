@@ -302,7 +302,6 @@ ruby_xmalloc(size_t size)
     if (!mem) {
 	rb_memerror();
     }
-    //auto_zone_retain(__auto_zone, mem);
 #else
     RUBY_CRITICAL(mem = malloc(size));
     if (!mem) {
@@ -735,6 +734,18 @@ rb_objc_release(void *addr)
 {
     if (addr != NULL && auto_zone_retain_count(__auto_zone, addr) > 0)
 	auto_zone_release(__auto_zone, addr);
+}
+
+void
+rb_objc_set_associative_ref(void *obj, void *key, void *val)
+{
+     auto_zone_set_associative_ref(__auto_zone, obj, key, val);
+}
+
+void *
+rb_objc_get_associative_ref(void *obj, void *key)
+{
+     auto_zone_get_associative_ref(__auto_zone, obj, key);
 }
 
 void

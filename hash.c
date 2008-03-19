@@ -56,16 +56,20 @@ rb_any_cmp(VALUE a, VALUE b)
     VALUE args[2];
 
     if (a == b) return 0;
+    if (a == Qundef || b == Qundef) return -1;
     if (FIXNUM_P(a) && FIXNUM_P(b)) {
 	return a != b;
     }
-    if (TYPE(a) == T_STRING && RBASIC(a)->klass == rb_cString &&
-	TYPE(b) == T_STRING && RBASIC(b)->klass == rb_cString) {
-	return rb_str_hash_cmp(a, b);
-    }
-    if (a == Qundef || b == Qundef) return -1;
     if (SYMBOL_P(a) && SYMBOL_P(b)) {
 	return a != b;
+    }
+#if WITH_OBJC
+    if (rb_obj_is_kind_of(a, rb_cString) && rb_obj_is_kind_of(b, rb_cString)) {
+#else
+    if (TYPE(a) == T_STRING && RBASIC(a)->klass == rb_cString &&
+	TYPE(b) == T_STRING && RBASIC(b)->klass == rb_cString) {
+#endif
+	return rb_str_hash_cmp(a, b);
     }
 
     args[0] = a;
@@ -245,6 +249,48 @@ rb_cfdictionary_hash_cb(const void *v)
 {
     return (CFHashCode)rb_any_hash((VALUE)v); 
 }
+
+static const void *
+rb_cfdictionary_retain_cb(CFAllocatorRef allocator, const void *v)
+{
+    rb_objc_retain(v);
+    return v;
+}
+
+static void
+rb_cfdictionary_release_cb(CFAllocatorRef allocator, const void *v)
+{
+    rb_objc_release(v);
+}
+
+struct rb_objc_hash_struct {
+    VALUE ifnone;
+    bool has_proc_default; 
+};
+
+/* This variable will always stay NULL, we only use its address. */
+static void *rb_objc_assoc_key = NULL;
+
+static struct rb_objc_hash_struct *
+rb_objc_hash_get_struct(VALUE hash)
+{
+    return rb_objc_get_associative_ref((void *)hash, &rb_objc_assoc_key);
+}
+
+static void
+rb_objc_hash_set_struct(VALUE hash, VALUE ifnone, bool has_proc_default)
+{
+    struct rb_objc_hash_struct *s;
+
+    s = rb_objc_hash_get_struct(hash);
+    if (s == NULL) {
+	s = xmalloc(sizeof(struct rb_objc_hash_struct));
+	rb_objc_set_associative_ref((void *)hash, &rb_objc_assoc_key, s);
+    }
+
+    GC_WB(&s->ifnone, ifnone);
+    s->has_proc_default = has_proc_default;
+}
 #endif
 
 static VALUE
@@ -256,14 +302,20 @@ hash_alloc(VALUE klass)
     VALUE hash;
 
     memset(&keys_cb, 0, sizeof(keys_cb));
-    memset(&values_cb, 0, sizeof(values_cb));
-
+    keys_cb.retain = rb_cfdictionary_retain_cb;
+    keys_cb.release = rb_cfdictionary_release_cb;
     keys_cb.equal = rb_cfdictionary_equal_cb;
     keys_cb.hash = rb_cfdictionary_hash_cb;
+
+    memset(&values_cb, 0, sizeof(values_cb));
+    values_cb.retain = rb_cfdictionary_retain_cb;
+    values_cb.release = rb_cfdictionary_release_cb;
     values_cb.equal = rb_cfdictionary_equal_cb;
 
     hash = (VALUE)CFDictionaryCreateMutable(NULL, 0, &keys_cb, &values_cb);
-    *(Class *)hash = RCLASS_OCID(klass);
+    if (klass != 0)
+	*(Class *)hash = RCLASS_OCID(klass);
+
     return hash;
 #else
     NEWOBJ(hash, struct RHash);
@@ -367,8 +419,7 @@ rb_hash_initialize(int argc, VALUE *argv, VALUE hash)
 	    rb_raise(rb_eArgError, "wrong number of arguments");
 	}
 #if WITH_OBJC
-	/* TODO we need to support ifnone */
-	rb_notimplement();
+	rb_objc_hash_set_struct(hash, rb_block_proc(), true);
 #else
 	RHASH(hash)->ifnone = rb_block_proc();
 	FL_SET(hash, HASH_PROC_DEFAULT);
@@ -377,9 +428,8 @@ rb_hash_initialize(int argc, VALUE *argv, VALUE hash)
     else {
 	rb_scan_args(argc, argv, "01", &ifnone);
 #if WITH_OBJC
-	/* TODO we need to support ifnone */
 	if (ifnone != Qnil)
-	    rb_notimplement();
+	    rb_objc_hash_set_struct(hash, ifnone, false);
 #else
 	RHASH(hash)->ifnone = ifnone;
 #endif
@@ -564,8 +614,7 @@ rb_hash_aref(VALUE hash, VALUE key)
 #if WITH_OBJC
     if (!CFDictionaryGetValueIfPresent((CFDictionaryRef)hash, (const void *)key,
 	(const void **)&val)) {
-	/* TODO support ifnone */
-	return Qnil;
+	return rb_funcall(hash, id_default, 1, key);
     }
 #else
     if (!RHASH(hash)->ntbl || !st_lookup(RHASH(hash)->ntbl, key, &val)) {
@@ -675,8 +724,18 @@ static VALUE
 rb_hash_default(int argc, VALUE *argv, VALUE hash)
 {
 #if WITH_OBJC
-    /* TODO support ifnone */
-    rb_notimplement();
+    struct rb_objc_hash_struct *s = rb_objc_hash_get_struct(hash);
+    VALUE key;
+
+    if (s == NULL || s->ifnone == Qnil)
+	return Qnil;
+
+    rb_scan_args(argc, argv, "01", &key);
+    if (s->has_proc_default) {
+	if (argc == 0) return Qnil;
+	return rb_funcall(s->ifnone, id_yield, 2, hash, key);
+    }
+    return s->ifnone;
 #else
     VALUE key;
 
@@ -714,8 +773,7 @@ rb_hash_set_default(VALUE hash, VALUE ifnone)
 {
     rb_hash_modify(hash);
 #if WITH_OBJC
-    /* TODO support ifnone */
-    rb_notimplement();
+    rb_objc_hash_set_struct(hash, ifnone, false);
 #else
     RHASH(hash)->ifnone = ifnone;
     FL_UNSET(hash, HASH_PROC_DEFAULT);
@@ -742,8 +800,10 @@ static VALUE
 rb_hash_default_proc(VALUE hash)
 {
 #if WITH_OBJC
-    /* TODO support ifnone */
-    rb_notimplement();
+    struct rb_objc_hash_struct *s = rb_objc_hash_get_struct(hash);
+    if (s != NULL && s->has_proc_default)
+	return s->ifnone;
+    return Qnil;
 #else
     if (FL_TEST(hash, HASH_PROC_DEFAULT)) {
 	return RHASH(hash)->ifnone;
@@ -1154,8 +1214,13 @@ rb_hash_replace(VALUE hash, VALUE hash2)
     if (hash == hash2) return hash;
     rb_hash_clear(hash);
     rb_hash_foreach(hash2, replace_i, hash);
-#if !WITH_OBJC
-    /* TODO support ifnone */
+#if WITH_OBJC
+    {
+	struct rb_objc_hash_struct *s = rb_objc_hash_get_struct(hash2);
+	if (s != NULL)
+	    rb_objc_hash_set_struct(hash, s->ifnone, s->has_proc_default);
+    }
+#else
     RHASH(hash)->ifnone = RHASH(hash2)->ifnone;
     if (FL_TEST(hash2, HASH_PROC_DEFAULT)) {
 	FL_SET(hash, HASH_PROC_DEFAULT);
@@ -2867,7 +2932,6 @@ rb_objc_create_ruby_hash_class(void)
     klass = objc_allocateClassPair((Class)objc_getClass("NSMutableDictionary"),
 	"Hash", 0);
     assert(klass != NULL);
-    rb_objc_install_ivar_cluster(klass);
     objc_registerClassPair(klass);
 
 #define INSTALL_METHOD(selname, imp) 				\

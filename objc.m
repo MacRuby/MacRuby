@@ -2730,10 +2730,30 @@ dyld_add_image_cb(const struct mach_header* mh, intptr_t vmaddr_slide)
 }
 #endif
 
+/* XXX the ivar cluster API is not used yet, and may not simply be used. 
+ */
+
+#define IVAR_CLUSTER_NAME "__rivars__"
+
 void
 rb_objc_install_ivar_cluster(Class klass)
 {
-    /* TODO */
+    assert(class_addIvar(klass, IVAR_CLUSTER_NAME, sizeof(void *), 
+	log2(sizeof(void *)), "^v") == YES);
+}
+
+void *
+rb_objc_get_ivar_cluster(void *obj)
+{
+    void *v = NULL;
+    assert(object_getInstanceVariable((id)obj, IVAR_CLUSTER_NAME, &v) != NULL);
+    return v;
+}
+
+void
+rb_objc_set_ivar_cluster(void *obj, void *v)
+{
+    assert(object_setInstanceVariable((id)obj, IVAR_CLUSTER_NAME, v) != NULL);
 }
 
 void

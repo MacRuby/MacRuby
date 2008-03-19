@@ -318,6 +318,8 @@ char *rb_source_filename(const char*);
 #if WITH_OBJC
 void rb_objc_gc_register_thread(void);
 void rb_objc_gc_unregister_thread(void);
+void rb_objc_set_associative_ref(void *, void *, void *);
+void *rb_objc_get_associative_ref(void *, void *);
 # define rb_gc_mark_locations(x,y)
 # define rb_mark_tbl(x)
 # define rb_mark_set(x)
@@ -652,6 +654,8 @@ VALUE rb_require_framework(int, VALUE *, VALUE);
 VALUE rb_objc_resolve_const_value(VALUE, VALUE, ID);
 ID rb_objc_missing_sel(ID mid, int arity);
 void rb_objc_install_ivar_cluster(Class);
+void *rb_objc_get_ivar_cluster(void *);
+void rb_objc_set_ivar_cluster(void *, void *);
 #endif
 /* version.c */
 void ruby_show_version(void);
