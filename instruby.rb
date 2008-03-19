@@ -456,6 +456,24 @@ if RUBY_FRAMEWORK
     link.sub!(/#{MACRUBY_VERSION}/, 'Current')
     ln_sfh link, File.join(dest_bin, File.basename(bin))
   end
+  dest_man = '/usr/local/share/man'
+  mkdir_p dest_man, :mode => 0755
+  Dir.entries(CONFIG['mandir']).each do |mandir|
+    next if mandir[0] == '.'
+    if File.stat(File.join(CONFIG['mandir'], mandir)).directory?
+      mkdir_p File.join(dest_man, File.basename(mandir)), :mode => 0755
+      Dir.entries(File.join(CONFIG['mandir'], mandir)).each do |man|
+        next if man[0] == '.'
+        link = File.join("../../../../../", CONFIG['mandir'], mandir, man)
+        link.sub!(/#{MACRUBY_VERSION}/, 'Current')
+        ln_sfh link, File.join(dest_man, File.basename(mandir), File.basename(man))
+      end
+    else
+      link = File.join("../../../../", CONFIG['mandir'], mandir)
+      link.sub!(/#{MACRUBY_VERSION}/, 'Current')
+      ln_sfh link, File.join(dest_man, File.basename(mandir))
+    end
+  end
 end
 
 # vi:set sw=2:
