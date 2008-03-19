@@ -198,6 +198,7 @@ lex.c: keywords
 
 clean-local::
 	@$(RM) ext/extinit.c ext/extinit.$(OBJEXT) ext/ripper/y.output
+	@$(RM) gc-stub.$(OBJEXT)
 
 distclean-local::
 	@$(RM) ext/config.cache $(RBCONFIG)
