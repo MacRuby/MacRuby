@@ -218,7 +218,7 @@ rb_hash_foreach(VALUE hash, int (*func)(ANYARGS), VALUE farg)
     CFDictionaryGetKeysAndValues((CFDictionaryRef)hash, keys, values);
 
     for (i = 0; i < count; i++) {
-	if ((*func)(keys[i], values[i], farg) != ST_CONTINUE)
+	if ((*func)((VALUE)keys[i], (VALUE)values[i], farg) != ST_CONTINUE)
 	    break;
     }
 #else
@@ -373,6 +373,7 @@ rb_hash_modify_check(VALUE hash)
 {
 #if WITH_OBJC
     bool _CFDictionaryIsMutable(void *);
+    if (rb_hash_frozen(hash) == Qtrue) rb_error_frozen("hash");
     if (!_CFDictionaryIsMutable((void *)hash)) 
 	rb_raise(rb_eRuntimeError, "can't modify immutable hash");
 #else
@@ -603,8 +604,27 @@ static VALUE
 rb_hash_rehash(VALUE hash)
 {
 #if WITH_OBJC
-    /* TODO verify if this needs to be implemented */
-    rb_notimplement();
+    CFIndex i, count;
+    const void **keys;
+    const void **values;
+
+    rb_hash_modify_check(hash);
+
+    count = CFDictionaryGetCount((CFDictionaryRef)hash);
+    if (count == 0)
+	return hash;
+
+    keys = (const void **)alloca(sizeof(void *) * count);
+    values = (const void **)alloca(sizeof(void *) * count);
+
+    CFDictionaryGetKeysAndValues((CFDictionaryRef)hash, keys, values);
+    CFDictionaryRemoveAllValues((CFMutableDictionaryRef)hash);
+
+    for (i = 0; i < count; i++)
+	CFDictionarySetValue((CFMutableDictionaryRef)hash,
+	    (const void *)keys[i], (const void *)values[i]);
+
+    return hash;
 #else
     st_table *tbl;
 
@@ -893,7 +913,7 @@ rb_hash_delete_key(VALUE hash, VALUE key)
     VALUE val;
     if (CFDictionaryGetValueIfPresent((CFDictionaryRef)hash,
 	(const void *)key, (const void **)&val)) {
-        CFDictionaryRemoveValue((CFMutableDictionaryRef)hash, 
+	CFDictionaryRemoveValue((CFMutableDictionaryRef)hash, 
 	    (const void *)key);
 	return val;
     }
@@ -984,12 +1004,33 @@ shift_i_safe(VALUE key, VALUE value, struct shift_var *var)
  *     h         #=> {2=>"b", 3=>"c"}
  */
 
+#if WITH_OBJC
+static VALUE rb_hash_keys(VALUE);
+#endif
+
 static VALUE
 rb_hash_shift(VALUE hash)
 {
 #if WITH_OBJC
-    /* TODO */
-    rb_notimplement();
+    VALUE keys, key, val;
+
+    keys = rb_hash_keys(hash);
+    if (RARRAY_LEN(keys) == 0) {
+	struct rb_objc_hash_struct *s = rb_objc_hash_get_struct(hash);
+
+	if (s == NULL || s->ifnone == Qnil)
+	    return Qnil;
+
+	if (s->has_proc_default)
+	    return rb_funcall(s->ifnone, id_yield, 2, hash, Qnil);
+	return s->ifnone;
+    }
+
+    key = RARRAY_PTR(keys)[0];
+    val = rb_hash_aref(hash, key);
+    rb_hash_delete(hash, key);
+
+    return rb_assoc_new(key, val);
 #else
     struct shift_var var;
 
