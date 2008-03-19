@@ -438,6 +438,8 @@ if RUBY_FRAMEWORK
   mkdir_p File.join(resources, 'English.lproj'), :mode => 0755
   install File.join('framework/InfoPlist.strings'), 
     File.join(resources, 'English.lproj')
+  rm_f File.join(base, '..', 'Current') if 
+    File.symlink?(with_destdir(File.join(base, '..', 'Current')))
   ln_sfh MACRUBY_VERSION.to_s, File.join(base, '..', 'Current')
   ln_sfh 'Versions/Current/Headers', File.join(base, '../../Headers')
   ln_sfh 'Versions/Current/MacRuby', File.join(base, '../../MacRuby')
