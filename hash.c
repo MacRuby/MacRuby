@@ -25,16 +25,13 @@ static VALUE rb_hash_s_try_convert(VALUE, VALUE);
 #define HASH_DELETED  FL_USER1
 #define HASH_PROC_DEFAULT FL_USER2
 
+#if !WITH_OBJC
 VALUE
 rb_hash_freeze(VALUE hash)
 {
-#if WITH_OBJC
-    rb_notimplement();
-    return Qnil;
-#else
     return rb_obj_freeze(hash);
-#endif
 }
+#endif
 
 VALUE rb_cHash;
 #if WITH_OBJC
@@ -266,6 +263,7 @@ rb_cfdictionary_release_cb(CFAllocatorRef allocator, const void *v)
 struct rb_objc_hash_struct {
     VALUE ifnone;
     bool has_proc_default; 
+    bool frozen;
 };
 
 /* This variable will always stay NULL, we only use its address. */
@@ -277,8 +275,8 @@ rb_objc_hash_get_struct(VALUE hash)
     return rb_objc_get_associative_ref((void *)hash, &rb_objc_assoc_key);
 }
 
-static void
-rb_objc_hash_set_struct(VALUE hash, VALUE ifnone, bool has_proc_default)
+static struct rb_objc_hash_struct *
+rb_objc_hash_get_struct2(VALUE hash)
 {
     struct rb_objc_hash_struct *s;
 
@@ -286,7 +284,40 @@ rb_objc_hash_set_struct(VALUE hash, VALUE ifnone, bool has_proc_default)
     if (s == NULL) {
 	s = xmalloc(sizeof(struct rb_objc_hash_struct));
 	rb_objc_set_associative_ref((void *)hash, &rb_objc_assoc_key, s);
+	s->ifnone = Qnil;
+	s->has_proc_default = false;
+	s->frozen = false;
     }
+    return s;
+}
+
+VALUE
+rb_hash_freeze(VALUE hash)
+{
+    struct rb_objc_hash_struct *s;
+
+    s = rb_objc_hash_get_struct2(hash);
+    s->frozen = true;
+
+    return hash;
+}
+
+VALUE
+rb_hash_frozen(VALUE hash)
+{
+    struct rb_objc_hash_struct *s;
+
+    s = rb_objc_hash_get_struct(hash);
+
+    return s != NULL && s->frozen ? Qtrue : Qfalse;
+}
+
+static void
+rb_objc_hash_set_struct(VALUE hash, VALUE ifnone, bool has_proc_default)
+{
+    struct rb_objc_hash_struct *s;
+
+    s = rb_objc_hash_get_struct2(hash);
 
     GC_WB(&s->ifnone, ifnone);
     s->has_proc_default = has_proc_default;
@@ -1646,12 +1677,6 @@ recursive_eql(VALUE hash, VALUE dt, int recur)
 static VALUE
 hash_equal(VALUE hash1, VALUE hash2, int eql)
 {
-#if WITH_OBJC
-    /* TODO handle eql */
-    return hash1 != Qnil 
-	&& hash2 != Qnil 
-	&& CFEqual((CFTypeRef)hash1, (CFTypeRef)hash2) ? Qtrue : Qfalse;
-#else
     struct equal_data data;
 
     if (hash1 == hash2) return Qtrue;
@@ -1666,6 +1691,9 @@ hash_equal(VALUE hash1, VALUE hash2, int eql)
     }
     if (RHASH_SIZE(hash1) != RHASH_SIZE(hash2))
 	return Qfalse;
+#if WITH_OBJC
+    return CFEqual((CFTypeRef)hash1, (CFTypeRef)hash2) ? Qtrue : Qfalse;
+#else
     if (!RHASH(hash1)->ntbl || !RHASH(hash2)->ntbl)
         return Qtrue;
 #if 0
@@ -2924,6 +2952,16 @@ imp_rb_hash_isEqual(void *rcv, SEL sel, void *other)
     return res;
 }
 
+static bool
+imp_rb_hash_containsObject(void *rcv, SEL sel, void *obj)
+{
+    bool res;
+    PREPARE_RCV(rcv);
+    res = CFDictionaryContainsValue((CFTypeRef)rcv, (const void *)obj);
+    RESTORE_RCV(rcv);
+    return res;
+}
+
 static void
 rb_objc_create_ruby_hash_class(void)
 {
@@ -2952,6 +2990,7 @@ rb_objc_create_ruby_hash_class(void)
     INSTALL_METHOD("removeObjectForKey:", imp_rb_hash_removeObjectForKey);
     INSTALL_METHOD("removeAllObjects", imp_rb_hash_removeAllObjects);
     INSTALL_METHOD("isEqual:", imp_rb_hash_isEqual);
+    INSTALL_METHOD("containsObject:", imp_rb_hash_containsObject);
 
 #undef INSTALL_METHOD
 
@@ -2971,6 +3010,9 @@ Init_Hash(void)
     rb_cHash = 
 	rb_objc_import_class((Class)objc_getClass("NSDictionary"));
     rb_objc_create_ruby_hash_class();
+
+    rb_define_method(rb_cHash, "freeze", rb_hash_freeze, 0);
+    rb_define_method(rb_cHash, "frozen?", rb_hash_frozen, 0);
 #else
     rb_cHash = rb_define_class("Hash", rb_cObject);
 #endif

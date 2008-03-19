@@ -673,6 +673,10 @@ VALUE
 rb_obj_taint(VALUE obj)
 {
     rb_secure(4);
+#if WITH_OBJC
+    if (rb_objc_is_non_native(obj))
+	rb_raise(rb_eRuntimeError, "can't taint pure objc objects");
+#endif
     if (!OBJ_TAINTED(obj)) {
 	if (OBJ_FROZEN(obj)) {
 	    rb_error_frozen("object");
@@ -733,6 +737,11 @@ static st_table *immediate_frozen_tbl = 0;
 VALUE
 rb_obj_freeze(VALUE obj)
 {
+#if WITH_OBJC
+    if (rb_objc_is_non_native(obj))
+	rb_raise(rb_eRuntimeError, "can't freeze pure objc object `%s'",
+	    RSTRING_PTR(rb_inspect(obj)));
+#endif
     if (!OBJ_FROZEN(obj)) {
 	if (rb_safe_level() >= 4 && !OBJ_TAINTED(obj)) {
 	    rb_raise(rb_eSecurityError, "Insecure: can't freeze object");
@@ -741,6 +750,7 @@ rb_obj_freeze(VALUE obj)
 	if (SPECIAL_CONST_P(obj)) {
 	    if (!immediate_frozen_tbl) {
 		immediate_frozen_tbl = st_init_numtable();
+		GC_ROOT(&immediate_frozen_tbl);
 	    }
 	    st_insert(immediate_frozen_tbl, obj, (st_data_t)Qtrue);
 	}
