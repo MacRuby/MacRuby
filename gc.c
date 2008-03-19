@@ -56,6 +56,9 @@ extern void *auto_zone_allocate_object(
         auto_zone_t *, size_t, auto_memory_type_t, boolean_t, boolean_t);
 extern void *auto_zone_write_barrier_memmove(
         auto_zone_t *, void *, const void *, size_t);
+extern void auto_zone_set_associative_ref(auto_zone_t *, void *, void *, 
+	void *);
+extern void *auto_zone_get_associative_ref(auto_zone_t *, void *, void *);
 extern auto_zone_t *auto_zone(void);
 typedef struct {
     uint32_t unused1;
@@ -713,13 +716,6 @@ rb_objc_root(void *addr)
 {
     if (addr != NULL)
 	auto_zone_add_root(__auto_zone, addr, *(void **)addr);
-}
-
-void
-rb_objc_weak(void *addr)
-{
-    if (addr != NULL)
-	auto_assign_weak_reference(__auto_zone, *(void **)addr, addr, NULL);
 }
 
 void
