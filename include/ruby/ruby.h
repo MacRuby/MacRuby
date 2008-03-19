@@ -950,13 +950,14 @@ static inline unsigned
 rb_objc_is_non_native(VALUE obj)
 {
     void *isa = RBASIC(obj)->isa;
-    if (isa == NULL
-	|| (rb_cString != 0 && isa == RCLASS_OCID(rb_cString))
-	|| (rb_cArray != 0 && isa == RCLASS_OCID(rb_cArray))
-	|| class_isMetaClass(isa))
+    if (isa == NULL || class_isMetaClass(isa))
 	return 0;
     while (isa != NULL) {
-	if (isa == RCLASS(rb_cObject)->ocklass)
+	if (rb_cObject != 0 && isa == RCLASS_OCID(rb_cObject))
+	    return 0;
+	if (rb_cString != 0 && isa == RCLASS_OCID(rb_cString))
+	    return 0;
+	if (rb_cArray != 0 && isa == RCLASS_OCID(rb_cArray))
 	    return 0;
 	isa = (void *)class_getSuperclass(isa);
     }
