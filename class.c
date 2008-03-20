@@ -393,18 +393,31 @@ rb_make_metaclass(VALUE obj, VALUE super)
     else {
 	VALUE metasuper;
 	VALUE klass;
-        
-	klass = rb_class_boot(super);
 
-	FL_SET(klass, FL_SINGLETON);
 #if WITH_OBJC
-	if (!rb_objc_is_non_native(obj)) {
-	    RBASIC(obj)->klass = klass;
+	if (BUILTIN_TYPE(obj) == T_CLASS) {
+	    NEWOBJ(obj2, struct RClass); 
+	    OBJSETUP(obj2, rb_cClass, T_CLASS); 
+	    klass = (VALUE)obj2; 
+	    rb_objc_retain(klass); 
+	    class_init(klass); 
+	    OBJ_INFECT(klass, super); 
+	    RCLASS_SUPER(klass) = super; 
+	    RCLASS_M_TBL(klass) = st_init_numtable(); 
+	    RCLASS(klass)->ocklass = RBASIC(super)->isa; 
 	}
-	*(Class *)obj = RCLASS_OCID(klass);
+	else {
+	    klass = rb_class_boot(super);
+	    *(Class *)obj = RCLASS_OCID(klass);
+	    if (!rb_objc_is_non_native(obj))
+		RBASIC(obj)->klass = klass;
+	}
 #else
-	RBASIC(obj)->klass = klass;
+	klass = rb_class_boot(super);
 #endif
+	FL_SET(klass, FL_SINGLETON);
+	RBASIC(obj)->klass = klass;
+
 	rb_singleton_class_attached(klass, obj);
 
 	metasuper = RBASIC(rb_class_real(super))->klass;
