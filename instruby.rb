@@ -431,6 +431,7 @@ install_stuff('samples', 'sample-macruby',
 
 if RUBY_FRAMEWORK
   puts "installing framework"
+  # Creating framework infrastructure.
   base = File.join(CONFIG["prefix"], '..')
   resources = File.join(base, 'Resources')
   mkdir_p resources, :mode => 0755
@@ -448,6 +449,7 @@ if RUBY_FRAMEWORK
   ln_sfh "usr/include/ruby-#{RUBY_VERSION}", File.join(base, 'Headers')
   ln_sfh "../#{CONFIG['arch']}/ruby/config.h", 
     File.join(base, "usr/include/ruby-#{RUBY_VERSION}/ruby/config.h")
+  # Installing executable links.
   dest_bin = '/usr/local/bin'
   mkdir_p dest_bin, :mode => 0755
   Dir.entries(CONFIG['bindir']).each do |bin|
@@ -456,6 +458,7 @@ if RUBY_FRAMEWORK
     link.sub!(/#{MACRUBY_VERSION}/, 'Current')
     ln_sfh link, File.join(dest_bin, File.basename(bin))
   end
+  # Installing man pages links.
   dest_man = '/usr/local/share/man'
   mkdir_p dest_man, :mode => 0755
   Dir.entries(CONFIG['mandir']).each do |mandir|
@@ -466,7 +469,8 @@ if RUBY_FRAMEWORK
         next if man[0] == '.'
         link = File.join("../../../../../", CONFIG['mandir'], mandir, man)
         link.sub!(/#{MACRUBY_VERSION}/, 'Current')
-        ln_sfh link, File.join(dest_man, File.basename(mandir), File.basename(man))
+        ln_sfh link, File.join(dest_man, File.basename(mandir), 
+	  File.basename(man))
       end
     else
       link = File.join("../../../../", CONFIG['mandir'], mandir)
