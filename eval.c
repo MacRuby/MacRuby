@@ -1376,19 +1376,22 @@ rb_call0(VALUE klass, VALUE recv, ID mid, int argc, const VALUE *argv, int scope
     ID id = mid;
     struct cache_entry *ent;
     rb_thread_t *th = GET_THREAD();
+#if WITH_OBJC
+    unsigned redo = 0;
+#endif
 
 rb_call0_redo:
 
 #if WITH_OBJC
 # define REDO_PERHAPS() \
-    do { \
+    if (!redo) { \
 	ID newid = rb_objc_missing_sel(mid, argc); \
 	if (newid != mid) { \
 	    id = mid = newid; \
+	    redo = 1; \
 	    goto rb_call0_redo; \
 	} \
-    } \
-    while (0)
+    } 
 #else
 # define REDO_PERHAPS()
 #endif
