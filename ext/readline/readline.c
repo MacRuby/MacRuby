@@ -27,6 +27,17 @@
 #include <unistd.h>
 #endif
 
+#if WITH_OBJC
+/* We cannot use the GC memory functions here because the underlying libedit
+ * function will call free() on the memory, resulting in a leak.
+ */
+# undef ALLOC_N
+# define ALLOC_N(type,n) ((type *)malloc(sizeof(type) * (n)))
+# undef REALLOC_N
+# define REALLOC_N(var,type,n) \
+    (var)=(type*)realloc((char*)(var),(n) * sizeof(type))
+#endif
+
 static VALUE mReadline;
 
 #define COMPLETION_PROC "completion_proc"
