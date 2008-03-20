@@ -1245,7 +1245,7 @@ rb_hash_aset(VALUE hash, VALUE key, VALUE val)
     rb_hash_modify(hash);
 #if WITH_OBJC
     if (TYPE(key) == T_STRING)
-	key = rb_str_new4(key);
+	key = rb_obj_dup(key); /* FIXME temporary fix. */
     CFDictionarySetValue((CFMutableDictionaryRef)hash, (const void *)key,
 	(const void *)val);
 #else
