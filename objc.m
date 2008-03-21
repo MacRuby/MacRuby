@@ -2775,8 +2775,10 @@ Init_ObjC(void)
     rb_objc_retain(bs_inf_prot_imethods = st_init_numtable());
     rb_objc_retain(bs_cftypes = st_init_strtable());
 
-    bs_const_magic_cookie = rb_str_new2("bs_const_magic_cookie");
-    rb_objc_class_magic_cookie = rb_str_new2("rb_objc_class_magic_cookie");
+    rb_objc_retain(
+	bs_const_magic_cookie = rb_str_new2("bs_const_magic_cookie"));
+    rb_objc_retain(
+	rb_objc_class_magic_cookie = rb_str_new2("rb_objc_class_magic_cookie"));
 
     rb_cBoxed = rb_define_class("Boxed", rb_cObject);
     rb_define_singleton_method(rb_cBoxed, "objc_type", rb_boxed_objc_type, 0);
