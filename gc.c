@@ -721,14 +721,14 @@ rb_objc_root(void *addr)
 void
 rb_objc_retain(void *addr)
 {
-    if (addr != NULL)
+    if (addr != NULL && !SPECIAL_CONST_P(addr))
 	auto_zone_retain(__auto_zone, addr);
 }
 
 void
 rb_objc_release(void *addr)
 {
-    if (addr != NULL && auto_zone_retain_count(__auto_zone, addr) > 0)
+    if (addr != NULL && !SPECIAL_CONST_P(addr))
 	auto_zone_release(__auto_zone, addr);
 }
 
