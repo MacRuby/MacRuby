@@ -916,6 +916,13 @@ rb_objc_ocval_to_rbval(void **ocval, const char *octype, VALUE *rbval)
 	    *rbval = rb_float_new(*(double *)ocval);
 	    break;
 
+	case _C_SEL:
+	    {
+		const char *selname = sel_getName(*(SEL *)ocval);
+		*rbval = rb_str_new2(selname);
+	    }
+	    break;
+
 	case _C_CHARPTR:
 	    *rbval =  *(void **)ocval == NULL
 		? Qnil
