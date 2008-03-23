@@ -109,4 +109,15 @@ EOS
     assert_equal(v, o.test_getObject(dict, forKey:s))
   end
 
+  class MethodReturningBoxed
+    def foo
+      NSPoint.new(1, 2)
+    end
+  end
+  def test_objc_call_pure_method_returning_boxed
+    o = MethodReturningBoxed.new
+    assert_equal(NSPoint.new(1, 2), o.send(:foo))
+    assert_equal(NSPoint.new(1, 2), o.performSelector(:foo))
+  end
+
 end
