@@ -2498,6 +2498,39 @@ imp_rb_string_replaceCharactersInRangeWithString(void *rcv, SEL sel,
     rb_funcall((VALUE)rcv, rb_intern("replace"), 1, newstr);
 }
 
+static const char *
+imp_rb_boxed_objCType(void *rcv, SEL sel)
+{
+    VALUE klass, type;
+
+    klass = CLASS_OF(rcv);
+    type = rb_boxed_objc_type(klass);
+    
+    return StringValuePtr(type);
+}
+
+static void
+imp_rb_boxed_getValue(void *rcv, SEL sel, void *buffer)
+{
+    bs_element_boxed_t *bs_boxed;
+    void *data;
+    bool ok;  
+
+    bs_boxed = rb_klass_get_bs_boxed(CLASS_OF(rcv));
+
+    data = bs_element_boxed_get_data(bs_boxed, (VALUE)rcv, &ok);
+    if (!ok)
+	[NSException raise:@"NSException" 
+	    format:@"can't get internal data for boxed type `%s'",
+	    RSTRING_PTR(rb_inspect((VALUE)rcv))];
+    if (data == NULL) {
+	*(void **)buffer = NULL; 
+    }
+    else {
+ 	memcpy(buffer, data, bs_boxed->ffi_type->size);
+    }
+}
+
 static inline void
 rb_objc_install_method(Class klass, SEL sel, IMP imp)
 {
@@ -2545,8 +2578,16 @@ rb_install_objc_primitives(void)
 	(IMP)imp_rb_string_characterAtIndex);
     rb_objc_install_method(klass, @selector(getCharacters:range:),
 	(IMP)imp_rb_string_getCharactersRange);
-    rb_objc_install_method(klass, @selector(replaceCharactersInRange:withString:), 
+    rb_objc_install_method(klass, 
+	@selector(replaceCharactersInRange:withString:), 
 	(IMP)imp_rb_string_replaceCharactersInRangeWithString);
+
+    /* Boxed */
+    klass = RCLASS_OCID(rb_cBoxed);
+    rb_objc_override_method(klass, @selector(objCType), 
+	(IMP)imp_rb_boxed_objCType);
+    rb_objc_override_method(klass, @selector(getValue:), 
+	(IMP)imp_rb_boxed_getValue);
 }
 
 static void *
@@ -2780,7 +2821,8 @@ Init_ObjC(void)
     rb_objc_retain(
 	rb_objc_class_magic_cookie = rb_str_new2("rb_objc_class_magic_cookie"));
 
-    rb_cBoxed = rb_define_class("Boxed", rb_cObject);
+    rb_cBoxed = rb_define_class("Boxed",
+	rb_objc_import_class(objc_getClass("NSValue")));
     rb_define_singleton_method(rb_cBoxed, "objc_type", rb_boxed_objc_type, 0);
     rb_define_singleton_method(rb_cBoxed, "opaque?", rb_boxed_is_opaque, 0);
     rb_define_singleton_method(rb_cBoxed, "fields", rb_boxed_fields, 0);
