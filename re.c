@@ -2086,14 +2086,20 @@ rb_reg_preprocess_dregexp(VALUE ary)
     int i;
     VALUE result = 0;
     int argc = RARRAY_LEN(ary);
+#if !WITH_OBJC
     VALUE *argv = RARRAY_PTR(ary);
+#endif
 
     if (argc == 0) {
         rb_raise(rb_eArgError, "no arguments given");
     }
 
     for (i = 0; i < argc; i++) {
+#if WITH_OBJC
+        VALUE str = RARRAY_AT(ary, i);
+#else
         VALUE str = argv[i];
+#endif
         VALUE buf;
         char *p, *end;
         rb_encoding *src_enc;

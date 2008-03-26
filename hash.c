@@ -47,7 +47,7 @@ eql(VALUE *args)
     return (VALUE)rb_eql(args[0], args[1]);
 }
 
-static int
+int
 rb_any_cmp(VALUE a, VALUE b)
 {
     VALUE args[2];
@@ -527,11 +527,11 @@ rb_hash_s_create(int argc, VALUE *argv, VALUE klass)
 
 	    hash = hash_alloc(klass);
 	    for (i = 0; i < RARRAY_LEN(tmp); ++i) {
-		VALUE v = rb_check_array_type(RARRAY_PTR(tmp)[i]);
-		
+		VALUE v = rb_check_array_type(RARRAY_AT(tmp, i));
+
 		if (NIL_P(v)) continue;
 		if (RARRAY_LEN(v) < 1 || 2 < RARRAY_LEN(v)) continue;
-		rb_hash_aset(hash, RARRAY_PTR(v)[0], RARRAY_PTR(v)[1]);
+		rb_hash_aset(hash, RARRAY_AT(v, 0), RARRAY_AT(v, 1));
 	    }
 	    return hash;
 	}
@@ -1026,7 +1026,7 @@ rb_hash_shift(VALUE hash)
 	return s->ifnone;
     }
 
-    key = RARRAY_PTR(keys)[0];
+    key = RARRAY_AT(keys, 0);
     val = rb_hash_aref(hash, key);
     rb_hash_delete(hash, key);
 
@@ -2430,7 +2430,7 @@ env_each_key(VALUE ehash)
     rb_secure(4);
     keys = env_keys();
     for (i=0; i<RARRAY_LEN(keys); i++) {
-	rb_yield(RARRAY_PTR(keys)[i]);
+	rb_yield(RARRAY_AT(keys, i));
     }
     return ehash;
 }
@@ -2465,7 +2465,7 @@ env_each_value(VALUE ehash)
     rb_secure(4);
     values = env_values();
     for (i=0; i<RARRAY_LEN(values); i++) {
-	rb_yield(RARRAY_PTR(values)[i]);
+	rb_yield(RARRAY_AT(values, i));
     }
     return ehash;
 }
@@ -2493,7 +2493,7 @@ env_each_pair(VALUE ehash)
     FREE_ENVIRON(environ);
 
     for (i=0; i<RARRAY_LEN(ary); i+=2) {
-	rb_yield(rb_assoc_new(RARRAY_PTR(ary)[i], RARRAY_PTR(ary)[i+1]));
+	rb_yield(rb_assoc_new(RARRAY_AT(ary, i), RARRAY_AT(ary, i+1)));
     }
     return ehash;
 }
@@ -2508,11 +2508,11 @@ env_reject_bang(void)
     rb_secure(4);
     keys = env_keys();
     for (i=0; i<RARRAY_LEN(keys); i++) {
-	VALUE val = rb_f_getenv(Qnil, RARRAY_PTR(keys)[i]);
+	VALUE val = rb_f_getenv(Qnil, RARRAY_AT(keys, i));
 	if (!NIL_P(val)) {
-	    if (RTEST(rb_yield_values(2, RARRAY_PTR(keys)[i], val))) {
-		FL_UNSET(RARRAY_PTR(keys)[i], FL_TAINT);
-		env_delete(Qnil, RARRAY_PTR(keys)[i]);
+	    if (RTEST(rb_yield_values(2, RARRAY_AT(keys, i), val))) {
+		FL_UNSET(RARRAY_AT(keys, i), FL_TAINT);
+		env_delete(Qnil, RARRAY_AT(keys, i));
 		del++;
 	    }
 	}
@@ -2577,9 +2577,9 @@ env_clear(void)
     rb_secure(4);
     keys = env_keys();
     for (i=0; i<RARRAY_LEN(keys); i++) {
-	VALUE val = rb_f_getenv(Qnil, RARRAY_PTR(keys)[i]);
+	VALUE val = rb_f_getenv(Qnil, RARRAY_AT(keys, i));
 	if (!NIL_P(val)) {
-	    env_delete(Qnil, RARRAY_PTR(keys)[i]);
+	    env_delete(Qnil, RARRAY_AT(keys, i));
 	}
     }
     return envtbl;
@@ -2864,7 +2864,7 @@ env_replace(VALUE env, VALUE hash)
     rb_hash_foreach(hash, env_replace_i, keys);
 
     for (i=0; i<RARRAY_LEN(keys); i++) {
-	env_delete(env, RARRAY_PTR(keys)[i]);
+	env_delete(env, RARRAY_AT(keys, i));
     }
     return env;
 }
@@ -3005,16 +3005,9 @@ imp_rb_hash_containsObject(void *rcv, SEL sel, void *obj)
     return res;
 }
 
-static void
-rb_objc_create_ruby_hash_class(void)
+void
+rb_objc_install_hash_primitives(Class klass)
 {
-    Class klass;
-
-    klass = objc_allocateClassPair((Class)objc_getClass("NSMutableDictionary"),
-	"Hash", 0);
-    assert(klass != NULL);
-    objc_registerClassPair(klass);
-
 #define INSTALL_METHOD(selname, imp) 				\
     do {							\
 	SEL sel = sel_registerName(selname);			\
@@ -3036,9 +3029,6 @@ rb_objc_create_ruby_hash_class(void)
     INSTALL_METHOD("containsObject:", imp_rb_hash_containsObject);
 
 #undef INSTALL_METHOD
-
-    rb_cHashRuby = rb_objc_import_class(klass);
-    FL_UNSET(rb_cHashRuby, RCLASS_OBJC_IMPORTED);
 }
 #endif
 
@@ -3050,10 +3040,9 @@ Init_Hash(void)
     id_default = rb_intern("default");
 
 #if WITH_OBJC
-    rb_cHash = 
-	rb_objc_import_class((Class)objc_getClass("NSDictionary"));
-    rb_objc_create_ruby_hash_class();
-
+    rb_cHash = rb_objc_import_class((Class)objc_getClass("NSDictionary"));
+    rb_const_set(rb_cObject, rb_intern("Hash"),
+	rb_objc_import_class((Class)objc_getClass("NSMutableDictionary")));
     rb_define_method(rb_cHash, "freeze", rb_hash_freeze, 0);
     rb_define_method(rb_cHash, "frozen?", rb_hash_frozen, 0);
 #else

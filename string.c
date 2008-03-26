@@ -4957,7 +4957,7 @@ rb_str_split_m(int argc, VALUE *argv, VALUE str)
     }
     if (NIL_P(limit) && lim == 0) {
 	while (RARRAY_LEN(result) > 0 &&
-	       RSTRING_LEN(RARRAY_PTR(result)[RARRAY_LEN(result)-1]) == 0)
+	       RSTRING_LEN(RARRAY_AT(result, RARRAY_LEN(result)-1)) == 0)
 	    rb_ary_pop(result);
     }
 

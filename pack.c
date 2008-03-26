@@ -454,8 +454,8 @@ pack_pack(VALUE ary, VALUE fmt)
     idx = 0;
 
 #define TOO_FEW (rb_raise(rb_eArgError, toofew), 0)
-#define THISFROM (items > 0 ? RARRAY_PTR(ary)[idx] : TOO_FEW)
-#define NEXTFROM (items-- > 0 ? RARRAY_PTR(ary)[idx++] : TOO_FEW)
+#define THISFROM (items > 0 ? RARRAY_AT(ary, idx) : TOO_FEW)
+#define NEXTFROM (items-- > 0 ? RARRAY_AT(ary, idx++) : TOO_FEW)
 
     while (p < pend) {
 	if (RSTRING_PTR(fmt) + RSTRING_LEN(fmt) != pend) {
@@ -947,9 +947,9 @@ pack_pack(VALUE ary, VALUE fmt)
 		    VALUE big128 = rb_uint2big(128);
 		    while (TYPE(from) == T_BIGNUM) {
 			from = rb_big_divmod(from, big128);
-			c = NUM2INT(RARRAY_PTR(from)[1]) | 0x80; /* mod */
+			c = NUM2INT(RARRAY_AT(from, 1)) | 0x80; /* mod */
 			rb_str_buf_cat(buf, &c, sizeof(char));
-			from = RARRAY_PTR(from)[0]; /* div */
+			from = RARRAY_AT(from, 0); /* div */
 		    }
 		}
 
@@ -1878,6 +1878,30 @@ pack_unpack(VALUE str, VALUE fmt)
 		s += sizeof(char *);
 
 		if (t) {
+#if WITH_OBJC
+		    VALUE a;
+		    long i, count;
+		    if (!(a = rb_str_associated(str))) {
+			rb_raise(rb_eArgError, "no associated pointer");
+		    }
+		    count = RARRAY_LEN(a);
+		    for (i = 0; i < count; i++) {
+			VALUE p = RARRAY_AT(a, i);
+			if (TYPE(p) == T_STRING && RSTRING_PTR(p) == t) {
+			    if (len < RSTRING_LEN(p)) {
+				tmp = rb_tainted_str_new(t, len);
+				rb_str_associate(tmp, a);
+			    }
+			    else {
+				tmp = p;
+			    }
+			    break;
+			}
+		    }
+		    if (i == count) {
+			rb_raise(rb_eArgError, "non associated pointer");
+		    }
+#else
 		    VALUE a, *p, *pend;
 
 		    if (!(a = rb_str_associated(str))) {
@@ -1901,6 +1925,7 @@ pack_unpack(VALUE str, VALUE fmt)
 		    if (p == pend) {
 			rb_raise(rb_eArgError, "non associated pointer");
 		    }
+#endif
 		}
 		else {
 		    tmp = Qnil;
@@ -1923,6 +1948,25 @@ pack_unpack(VALUE str, VALUE fmt)
 		    s += sizeof(char *);
 
 		    if (t) {
+#if WITH_OBJC
+			VALUE a;
+			long i, count;
+
+			if (!(a = rb_str_associated(str))) {
+			    rb_raise(rb_eArgError, "no associated pointer");
+			}
+			count = RARRAY_LEN(a);
+			for (i = 0; i < count; i++) {
+			    VALUE p = RARRAY_AT(a, i);
+			    if (TYPE(p) == T_STRING && RSTRING_PTR(p) == t) {
+				tmp = p;
+				break;
+			    }
+			}
+			if (i == count) {
+			    rb_raise(rb_eArgError, "non associated pointer");
+			}
+#else
 			VALUE a, *p, *pend;
 
 			if (!(a = rb_str_associated(str))) {
@@ -1940,6 +1984,7 @@ pack_unpack(VALUE str, VALUE fmt)
 			if (p == pend) {
 			    rb_raise(rb_eArgError, "non associated pointer");
 			}
+#endif
 		    }
 		    else {
 			tmp = Qnil;

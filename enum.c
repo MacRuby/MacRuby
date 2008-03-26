@@ -629,8 +629,13 @@ sort_by_i(VALUE i, VALUE ary, int argc, VALUE *argv)
 static int
 sort_by_cmp(const void *ap, const void *bp, void *data)
 {
+#if WITH_OBJC
+    VALUE a = ((NODE *)ap)->u1.value;
+    VALUE b = ((NODE *)bp)->u1.value;
+#else
     VALUE a = (*(NODE *const *)ap)->u1.value;
     VALUE b = (*(NODE *const *)bp)->u1.value;
+#endif
     VALUE ary = (VALUE)data;
 
     if (RBASIC(ary)->klass) {
@@ -725,14 +730,20 @@ enum_sort_by(VALUE obj)
     RBASIC(ary)->klass = 0;
     rb_block_call(obj, id_each, 0, 0, sort_by_i, ary);
     if (RARRAY_LEN(ary) > 1) {
+#if WITH_OBJC
+	CFArraySortValues((CFMutableArrayRef)ary, 
+	    CFRangeMake(0, RARRAY_LEN(ary)),
+	    (CFComparatorFunction)sort_by_cmp, (void *)ary);
+#else
 	ruby_qsort(RARRAY_PTR(ary), RARRAY_LEN(ary), sizeof(VALUE),
 		   sort_by_cmp, (void *)ary);
+#endif
     }
     if (RBASIC(ary)->klass) {
 	rb_raise(rb_eRuntimeError, "sort_by reentered");
     }
     for (i=0; i<RARRAY_LEN(ary); i++) {
-	RARRAY_PTR(ary)[i] = RNODE(RARRAY_PTR(ary)[i])->u2.value;
+	rb_ary_store(ary, i, RNODE(RARRAY_AT(ary, i))->u2.value);
     }
     RBASIC(ary)->klass = rb_cArray;
     return ary;
@@ -947,8 +958,8 @@ min_ii(VALUE i, VALUE *memo)
     }
     else {
 	VALUE ary = memo[1];
-	RARRAY_PTR(ary)[0] = i;
-	RARRAY_PTR(ary)[1] = *memo;
+	rb_ary_store(ary, 0, i);
+	rb_ary_store(ary, 1, *memo);
 	cmp = rb_yield(ary);
 	if (rb_cmpint(cmp, i, *memo) < 0) {
 	    *memo = i;
@@ -1016,8 +1027,8 @@ max_ii(VALUE i, VALUE *memo)
     }
     else {
 	VALUE ary = memo[1];
-	RARRAY_PTR(ary)[0] = i;
-	RARRAY_PTR(ary)[1] = *memo;
+	rb_ary_store(ary, 0, i);
+	rb_ary_store(ary, 1, *memo);
 	cmp = rb_yield(ary);
 	if (rb_cmpint(cmp, i, *memo) > 0) {
 	    *memo = i;
@@ -1091,14 +1102,14 @@ minmax_ii(VALUE i, VALUE *memo)
     else {
 	VALUE ary = memo[2];
 
-	RARRAY_PTR(ary)[0] = i;
-	RARRAY_PTR(ary)[1] = memo[0];
+	rb_ary_store(ary, 0, i);
+	rb_ary_store(ary, 1, memo[0]);
 	n = rb_cmpint(rb_yield(ary), i, memo[0]);
 	if (n < 0) {
 	    memo[0] = i;
 	}
-	RARRAY_PTR(ary)[0] = i;
-	RARRAY_PTR(ary)[1] = memo[1];
+	rb_ary_store(ary, 0, i);
+	rb_ary_store(ary, 1, memo[1]);
 	n = rb_cmpint(rb_yield(ary), i, memo[1]);
 	if (n > 0) {
 	    memo[1] = i;
@@ -1137,8 +1148,8 @@ enum_minmax(VALUE obj)
 	rb_block_call(obj, id_each, 0, 0, minmax_i, (VALUE)result);
     }
     if (result[0] != Qundef) {
-        RARRAY_PTR(ary)[0] = result[0];
-        RARRAY_PTR(ary)[1] = result[1];
+	rb_ary_store(ary, 0, result[0]);
+	rb_ary_store(ary, 1, result[1]);
     }
     return ary;
 }
@@ -1370,16 +1381,16 @@ zip_i(VALUE val, NODE *memo, int argc, VALUE *argv)
     tmp = rb_ary_new2(RARRAY_LEN(args) + 1);
     rb_ary_store(tmp, 0, enum_values_pack(argc, argv));
     for (i=0; i<RARRAY_LEN(args); i++) {
-	if (NIL_P(RARRAY_PTR(args)[i])) {
+	if (NIL_P(RARRAY_AT(args, i))) {
 	    rb_ary_push(tmp, Qnil);
 	}
 	else {
 	    VALUE v[2];
 
-	    v[1] = RARRAY_PTR(args)[i];
+	    v[1] = RARRAY_AT(args, i);
 	    rb_rescue2(call_next, (VALUE)v, call_stop, (VALUE)v, rb_eStopIteration, 0);
 	    if (v[0] == Qundef) {
-		RARRAY_PTR(args)[i] = Qnil;
+		rb_ary_store(args, i, Qnil);
 		v[0] = Qnil;
 	    }
 	    rb_ary_push(tmp, v[0]);
@@ -1609,7 +1620,7 @@ enum_cycle(VALUE obj)
     if (len == 0) return Qnil;
     for (;;) {
 	for (i=0; i<len; i++) {
-	    rb_yield(RARRAY_PTR(ary)[i]);
+	    rb_yield(RARRAY_AT(ary, i));
 	}
     }
     return Qnil;		/* not reached */

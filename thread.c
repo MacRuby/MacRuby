@@ -440,8 +440,8 @@ thread_initialize(VALUE thread, VALUE args)
         if (!proc || !RTEST(loc = rb_proc_location(proc))) {
             rb_raise(rb_eThreadError, "already initialized thread");
         }
-	file = RSTRING_PTR(RARRAY_PTR(loc)[0]);
-	if (NIL_P(line = RARRAY_PTR(loc)[1])) {
+	file = RSTRING_PTR(RARRAY_AT(loc, 0));
+	if (NIL_P(line = RARRAY_AT(loc, 1))) {
 	    rb_raise(rb_eThreadError, "already initialized thread - %s",
 		     file);
 	}

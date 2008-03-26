@@ -1086,7 +1086,7 @@ rb_objc_to_ruby_closure(VALUE rcv, VALUE argv)
 	ffi_argtypes[i + 2] = rb_objc_octype_to_ffitype(type);
 	assert(ffi_argtypes[i + 2]->size > 0);
 	ffi_args[i + 2] = (void *)alloca(ffi_argtypes[i + 2]->size);
-	rb_objc_rval_to_ocval(RARRAY_PTR(argv)[i], type, ffi_args[i + 2]);
+	rb_objc_rval_to_ocval(RARRAY_AT(argv, i), type, ffi_args[i + 2]);
     }
 
     ffi_argtypes[count] = NULL;
@@ -2293,98 +2293,6 @@ success:
 }
 
 static NSUInteger
-imp_rb_ary_count(void *rcv, SEL sel)
-{
-    return RARRAY_LEN(rcv);
-}
-
-static void *
-imp_rb_ary_objectAtIndex(void *rcv, SEL sel, NSUInteger idx)
-{
-    VALUE element;
-    void *ptr;
-
-    if (idx >= RARRAY_LEN(rcv))
-	[NSException raise:@"NSRangeException" 
-	    format:@"index (%d) beyond bounds (%d)", idx, RARRAY_LEN(rcv)];
-
-    element = RARRAY_PTR(rcv)[idx];
-
-    if (!rb_objc_rval_to_ocid(element, &ptr))
-	[NSException raise:@"NSException" 
-	    format:@"element (%s) at index (%d) cannot be passed to " \
-	    "Objective-C", RSTRING_PTR(rb_inspect(element)), idx];
-
-    if (ptr == NULL)
-	ptr = [NSNull null];
-
-    return ptr;
-}
-
-static void
-imp_rb_ary_insertObjectAtIndex(void *rcv, SEL sel, void *obj, NSUInteger idx)
-{
-    VALUE robj;
-
-    if (obj == NULL)    
-	[NSException raise:@"NSInvalidArgumentException" 
-	    format:@"given object is nil"];
-
-    if (idx >= RARRAY_LEN(rcv))
-	[NSException raise:@"NSRangeException" 
-	    format:@"index (%d) beyond bounds (%d)", idx, RARRAY_LEN(rcv)];
-
-    rb_objc_ocid_to_rval(&obj, &robj); 
-
-    rb_ary_store((VALUE)rcv, idx, robj);
-}
-
-static void
-imp_rb_ary_removeObjectAtIndex(void *rcv, SEL sel, NSUInteger idx)
-{
-    if (idx >= RARRAY_LEN(rcv))
-	[NSException raise:@"NSRangeException" 
-	    format:@"index (%d) beyond bounds (%d)", idx, RARRAY_LEN(rcv)];
-    
-    rb_ary_delete_at((VALUE)rcv, idx); 
-}
-
-static void
-imp_rb_ary_addObject(void *rcv, SEL sel, void *obj)
-{
-    VALUE robj;
-
-    rb_objc_ocid_to_rval(&obj, &robj); 
-
-    rb_ary_push((VALUE)rcv, robj);
-}
-
-static void
-imp_rb_ary_removeLastObject(void *rcv, SEL sel)
-{
-    if (RARRAY_LEN(rcv) == 0)
-	[NSException raise:@"NSRangeException" 
-	    format:@"array doesn't contain any object"];
-
-    rb_ary_delete_at((VALUE)rcv, RARRAY_LEN(rcv) - 1);
-}
-
-static void
-imp_rb_ary_replaceObjectAtIndexWithObject(void *rcv, SEL sel, NSUInteger idx,
-    void *obj)
-{
-    VALUE robj;
-
-    if (idx >= RARRAY_LEN(rcv))
-	[NSException raise:@"NSRangeException" 
-	    format:@"index (%d) beyond bounds (%d)", idx, RARRAY_LEN(rcv)];
-    
-    rb_objc_ocid_to_rval(&obj, &robj); 
-
-    rb_ary_store((VALUE)rcv, idx, robj);
-}
-
-static NSUInteger
 imp_rb_string_length(void *rcv, SEL sel)
 {
     return NUM2INT(rb_str_length((VALUE)rcv));
@@ -2551,22 +2459,6 @@ static void
 rb_install_objc_primitives(void)
 {
     Class klass;
-
-    /* Array */
-    klass = RCLASS_OCID(rb_cArray);
-    rb_objc_install_method(klass, @selector(count), (IMP)imp_rb_ary_count);
-    rb_objc_install_method(klass, @selector(objectAtIndex:), 
-	(IMP)imp_rb_ary_objectAtIndex);
-    rb_objc_install_method(klass, @selector(insertObject:atIndex:), 
-	(IMP)imp_rb_ary_insertObjectAtIndex);
-    rb_objc_install_method(klass, @selector(removeObjectAtIndex:), 
-	(IMP)imp_rb_ary_removeObjectAtIndex);
-    rb_objc_install_method(klass, @selector(addObject:), 
-	(IMP)imp_rb_ary_addObject);
-    rb_objc_install_method(klass, @selector(removeLastObject), 
-	(IMP)imp_rb_ary_removeLastObject);
-    rb_objc_install_method(klass, @selector(replaceObjectAtIndex:withObject:),
-	(IMP)imp_rb_ary_replaceObjectAtIndexWithObject);
 
     /* String */
     klass = RCLASS_OCID(rb_cString);

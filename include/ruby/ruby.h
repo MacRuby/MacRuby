@@ -513,6 +513,7 @@ struct RString {
      RSTRING(str)->as.heap.ptr)
 #define RSTRING_END(str) (RSTRING_PTR(str)+RSTRING_LEN(str))
 
+#if !WITH_OBJC
 struct RArray {
     struct RBasic basic;
     long len;
@@ -522,8 +523,18 @@ struct RArray {
     } aux;
     VALUE *ptr;
 };
-#define RARRAY_LEN(a) RARRAY(a)->len
-#define RARRAY_PTR(a) RARRAY(a)->ptr
+# define RARRAY_LEN(a) RARRAY(a)->len
+# define RARRAY_PTR(a) RARRAY(a)->ptr
+# define RARRAY_AT(a,i) RARRAY_PTR(a)[i]
+#else
+# define RARRAY_LEN(a) (CFArrayGetCount((CFArrayRef)a))
+/* IMPORTANT: try to avoid using RARRAY_PTR if necessary, because it's
+ * a _much_ slower operation than RARRAY_AT. RARRAY_PTR is only provided for
+ * compatibility but should _not_ be used intensively.
+ */
+# define RARRAY_PTR(a) (rb_ary_ptr(a)) 
+# define RARRAY_AT(a,i) (rb_ary_elt(a, i))
+#endif
 #if WITH_OBJC
 # define RARRAY_NAMED_ARGS FL_USER1
 #endif
@@ -651,8 +662,8 @@ struct RBignum {
 #define RFLOAT(obj)  (R_CAST(RFloat)(obj))
 #define RSTRING(obj) (R_CAST(RString)(obj))
 #define RREGEXP(obj) (R_CAST(RRegexp)(obj))
-#define RARRAY(obj)  (R_CAST(RArray)(obj))
 #if !WITH_OBJC
+# define RARRAY(obj)  (R_CAST(RArray)(obj))
 # define RHASH(obj)   (R_CAST(RHash)(obj))
 #endif
 #define RDATA(obj)   (R_CAST(RData)(obj))
@@ -957,8 +968,6 @@ rb_objc_is_non_native(VALUE obj)
 	    return 0;
 	if (rb_cString != 0 && isa == RCLASS_OCID(rb_cString))
 	    return 0;
-	if (rb_cArray != 0 && isa == RCLASS_OCID(rb_cArray))
-	    return 0;
 	isa = (void *)class_getSuperclass(isa);
     }
     return 1;
@@ -1000,11 +1009,14 @@ rb_type(VALUE obj)
     }
 #if WITH_OBJC
     /* FIXME this is super slow */
-    else if (rb_cHash != 0 && !class_isMetaClass(*(Class *)obj)) {
+    else if (rb_cHash != 0 && rb_cArray != 0 
+	     && !class_isMetaClass(*(Class *)obj)) {
 	Class k = *(Class *)obj;
 	while (k != NULL) {
 	    if (k == RCLASS_OCID(rb_cHash))
 		return T_HASH;
+	    if (k == RCLASS_OCID(rb_cArray))
+		return T_ARRAY;
 	    k = class_getSuperclass(k);
 	}
     }

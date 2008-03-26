@@ -141,7 +141,7 @@ apply2files(void (*func)(const char *, void *), VALUE vargs, void *arg)
 
     rb_secure(4);
     for (i=0; i<RARRAY_LEN(vargs); i++) {
-	path = rb_get_path(RARRAY_PTR(vargs)[i]);
+	path = rb_get_path(RARRAY_AT(vargs, i));
 	(*func)(StringValueCStr(path), arg);
     }
 
@@ -3030,8 +3030,8 @@ rb_file_join(VALUE ary, VALUE sep)
 
     len = 1;
     for (i=0; i<RARRAY_LEN(ary); i++) {
-	if (TYPE(RARRAY_PTR(ary)[i]) == T_STRING) {
-	    len += RSTRING_LEN(RARRAY_PTR(ary)[i]);
+	if (TYPE(RARRAY_AT(ary, i)) == T_STRING) {
+	    len += RSTRING_LEN(RARRAY_AT(ary, i));
 	}
 	else {
 	    len += 10;
@@ -3044,7 +3044,7 @@ rb_file_join(VALUE ary, VALUE sep)
     result = rb_str_buf_new(len);
     OBJ_INFECT(result, ary);
     for (i=0; i<RARRAY_LEN(ary); i++) {
-	tmp = RARRAY_PTR(ary)[i];
+	tmp = RARRAY_AT(ary, i);
 	switch (TYPE(tmp)) {
 	  case T_STRING:
 	    break;
@@ -4321,7 +4321,7 @@ rb_find_file_ext(VALUE *filep, const char *const *ext)
 	rb_str_cat2(fname, ext[j]);
 	OBJ_FREEZE(fname);
 	for (i=0;i<RARRAY_LEN(rb_load_path);i++) {
-	    VALUE str = RARRAY_PTR(rb_load_path)[i];
+	    VALUE str = RARRAY_AT(rb_load_path, i);
 
 	    FilePathValue(str);
 	    if (RSTRING_LEN(str) == 0) continue;
@@ -4378,7 +4378,7 @@ rb_find_file(VALUE path)
 	Check_Type(rb_load_path, T_ARRAY);
 	tmp = rb_ary_new();
 	for (i=0;i<RARRAY_LEN(rb_load_path);i++) {
-	    VALUE str = RARRAY_PTR(rb_load_path)[i];
+	    VALUE str = RARRAY_AT(rb_load_path, i);
 	    FilePathValue(str);
 	    if (RSTRING_LEN(str) > 0) {
 		rb_ary_push(tmp, str);

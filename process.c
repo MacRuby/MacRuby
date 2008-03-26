@@ -1219,8 +1219,8 @@ rb_check_argv(int argc, VALUE *argv)
 	if (RARRAY_LEN(tmp) != 2) {
 	    rb_raise(rb_eArgError, "wrong first argument");
 	}
-	prog = RARRAY_PTR(tmp)[0];
-	argv[0] = RARRAY_PTR(tmp)[1];
+	prog = RARRAY_AT(tmp, 0);
+	argv[0] = RARRAY_AT(tmp, 1);
 	SafeStringValue(prog);
 	StringValueCStr(prog);
 	prog = rb_str_new4(prog);
@@ -2992,7 +2992,7 @@ proc_setgroups(VALUE obj, VALUE ary)
     groups = ALLOCA_N(rb_gid_t, ngroups);
 
     for (i = 0; i < ngroups && i < RARRAY_LEN(ary); i++) {
-	VALUE g = RARRAY_PTR(ary)[i];
+	VALUE g = RARRAY_AT(ary, i);
 
 	if (FIXNUM_P(g)) {
 	    groups[i] = NUM2GIDT(g);

@@ -468,9 +468,15 @@ process_sflag(struct cmdline_options *opt)
 	VALUE argv = rb_argv;
 
 	n = RARRAY_LEN(argv);
+#if WITH_OBJC 
+	args = NULL;
+	while (n > 0) {
+	    VALUE v = RARRAY_AT(argv, n);
+#else
 	args = RARRAY_PTR(argv);
 	while (n > 0) {
 	    VALUE v = *args++;
+#endif
 	    char *s = StringValuePtr(v);
 	    char *p;
 	    int hyphen = Qfalse;

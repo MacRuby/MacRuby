@@ -513,7 +513,7 @@ rb_check_backtrace(VALUE bt)
 	    rb_raise(rb_eTypeError, err);
 	}
 	for (i=0;i<RARRAY_LEN(bt);i++) {
-	    if (TYPE(RARRAY_PTR(bt)[i]) != T_STRING) {
+	    if (TYPE(RARRAY_AT(bt, i)) != T_STRING) {
 		rb_raise(rb_eTypeError, err);
 	    }
 	}

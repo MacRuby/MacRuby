@@ -557,7 +557,7 @@ checkincludearray
 	/* NODE_CASE */
 	for (i = 0; i < RARRAY_LEN(ary); i++) {
 	    /* TODO: fix me (use another method dispatch) */
-	    if (RTEST(rb_funcall2(RARRAY_PTR(ary)[i], idEqq, 1, &obj))) {
+	    if (RTEST(rb_funcall2(RARRAY_AT(ary, i), idEqq, 1, &obj))) {
 		result = Qtrue;
 		break;
 	    }
@@ -567,7 +567,7 @@ checkincludearray
 	obj = Qfalse;
 	/* NODE_WHEN */
 	for (i = 0; i < RARRAY_LEN(ary); i++) {
-	    if (RTEST(RARRAY_PTR(ary)[i])) {
+	    if (RTEST(RARRAY_AT(ary, i))) {
 		obj = result = Qtrue;
 		break;
 	    }

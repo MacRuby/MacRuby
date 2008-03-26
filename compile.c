@@ -1258,6 +1258,8 @@ iseq_set_exception_table(rb_iseq_t *iseq)
     iseq->catch_table = ALLOC_N(struct iseq_catch_table_entry, tlen);
     iseq->catch_table_size = tlen;
 
+    /* FIXME this should be rewritten without using RARRAY_PTR */
+
     for (i = 0; i < tlen; i++) {
 	ptr = RARRAY_PTR(tptr[i]);
 	entry = &iseq->catch_table[i];
@@ -4781,24 +4783,23 @@ iseq_build_exception(rb_iseq_t *iseq, struct st_table *labels_table,
 	LABEL *lstart, *lend, *lcont;
 	int sp;
 
-	RB_GC_GUARD(v) = rb_convert_type(RARRAY_PTR(exception)[i], T_ARRAY,
+	RB_GC_GUARD(v) = rb_convert_type(RARRAY_AT(exception, i), T_ARRAY,
 					 "Array", "to_ary");
 	if (RARRAY_LEN(v) != 6) {
 	    rb_raise(rb_eSyntaxError, "wrong exception entry");
 	}
-	ptr  = RARRAY_PTR(v);
-	type = get_exception_sym2type(ptr[0]);
-	if (ptr[1] == Qnil) {
+	type = get_exception_sym2type(RARRAY_AT(v, 0));
+	if (RARRAY_AT(ptr, 1) == Qnil) {
 	    eiseqval = 0;
 	}
 	else {
-	    eiseqval = iseq_load(0, ptr[1], iseq->self, Qnil);
+	    eiseqval = iseq_load(0, RARRAY_AT(ptr, 1), iseq->self, Qnil);
 	}
 
-	lstart = register_label(iseq, labels_table, ptr[2]);
-	lend   = register_label(iseq, labels_table, ptr[3]);
-	lcont  = register_label(iseq, labels_table, ptr[4]);
-	sp     = NUM2INT(ptr[5]);
+	lstart = register_label(iseq, labels_table, RARRAY_AT(ptr, 2));
+	lend   = register_label(iseq, labels_table, RARRAY_AT(ptr, 3));
+	lcont  = register_label(iseq, labels_table, RARRAY_AT(ptr, 4));
+	sp     = NUM2INT(RARRAY_AT(ptr, 5));
 
 	ADD_CATCH_ENTRY(type, lstart, lend, eiseqval, lcont);
     }
@@ -4812,7 +4813,6 @@ iseq_build_body(rb_iseq_t *iseq, LINK_ANCHOR *anchor,
 		VALUE body, struct st_table *labels_table)
 {
     /* TODO: body should be freezed */
-    VALUE *ptr = RARRAY_PTR(body);
     int len = RARRAY_LEN(body);
     int i, j;
     int line_no = 0;
@@ -4827,7 +4827,7 @@ iseq_build_body(rb_iseq_t *iseq, LINK_ANCHOR *anchor,
     }
 
     for (i=0; i<len; i++) {
-	VALUE obj = ptr[i];
+	VALUE obj = RARRAY_AT(body, i);
 
 	if (SYMBOL_P(obj)) {
 	    LABEL *label = register_label(iseq, labels_table, obj);
@@ -4842,7 +4842,7 @@ iseq_build_body(rb_iseq_t *iseq, LINK_ANCHOR *anchor,
 	    VALUE insn_id;
 	    VALUE insn;
 
-	    insn = (argc < 0) ? Qnil : RARRAY_PTR(obj)[0];
+	    insn = (argc < 0) ? Qnil : RARRAY_AT(obj, 0);
 	    if (st_lookup(insn_table, insn, &insn_id) == 0) {
 		/* TODO: exception */
 		RB_GC_GUARD(insn) = rb_inspect(insn);
@@ -4964,7 +4964,7 @@ iseq_build_from_ary(rb_iseq_t *iseq, VALUE locals, VALUE args,
     iseq->local_size = opt + iseq->local_table_size;
 
     for (i=0; i<RARRAY_LEN(locals); i++) {
-	VALUE lv = RARRAY_PTR(locals)[i];
+	VALUE lv = RARRAY_AT(locals, i);
 	tbl[i] = FIXNUM_P(lv) ? FIX2INT(lv) : SYM2ID(CHECK_SYMBOL(lv));
     }
 

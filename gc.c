@@ -164,9 +164,9 @@ typedef struct RVALUE {
 	struct RClass  klass;
 	struct RFloat  flonum;
 	struct RString string;
-	struct RArray  array;
 	struct RRegexp regexp;
 #if !WITH_OBJC
+	struct RArray  array;
 	struct RHash   hash;
 #endif
 	struct RData   data;
@@ -1333,10 +1333,16 @@ gc_mark_children(VALUE ptr, int lev)
 	}
 	else {
 	    long i, len = RARRAY_LEN(obj);
+#if WITH_OBJC
+	    for (i = 0; i < len; i++) {
+		gc_mark(RARRAY_AT(obj, i), lev);
+	    }
+#else
 	    VALUE *ptr = RARRAY_PTR(obj);
 	    for (i=0; i < len; i++) {
 		gc_mark(*ptr++, lev);
 	    }
+#endif
 	}
 	break;
 
@@ -2355,7 +2361,7 @@ assert(0);
     }
     args[2] = (VALUE)rb_safe_level();
     for (i=0; i<RARRAY_LEN(finalizers); i++) {
-	args[0] = RARRAY_PTR(finalizers)[i];
+	args[0] = RARRAY_AT(finalizers, i);
 	rb_protect(run_single_final, (VALUE)args, &status);
     }
     if (finalizer_table && st_delete(finalizer_table, (st_data_t*)&obj, &table)) {
@@ -2363,9 +2369,9 @@ assert(0);
 	    args[1] = rb_obj_freeze(rb_ary_new3(1, objid));
 	}
 	for (i=0; i<RARRAY_LEN(table); i++) {
-	    VALUE final = RARRAY_PTR(table)[i];
-	    args[0] = RARRAY_PTR(final)[1];
-	    args[2] = FIX2INT(RARRAY_PTR(final)[0]);
+	    VALUE final = RARRAY_AT(table, i);
+	    args[0] = RARRAY_AT(final, 1);
+	    args[2] = FIX2INT(RARRAY_AT(final, 0));
 	    rb_protect(run_single_final, (VALUE)args, &status);
 	}
     }

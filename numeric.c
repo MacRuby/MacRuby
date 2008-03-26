@@ -156,8 +156,8 @@ do_coerce(VALUE *x, VALUE *y, int err)
 	return Qfalse;
     }
 
-    *x = RARRAY_PTR(ary)[0];
-    *y = RARRAY_PTR(ary)[1];
+    *x = RARRAY_AT(ary, 0);
+    *y = RARRAY_AT(ary, 1);
     return Qtrue;
 }
 

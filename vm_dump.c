@@ -575,7 +575,7 @@ rb_vm_bugreport(void)
 	bt = vm_backtrace(th, 0);
 	if (TYPE(bt) == T_ARRAY)
 	for (i = 0; i < RARRAY_LEN(bt); i++) {
-	    dp(RARRAY_PTR(bt)[i]);
+	    dp(RARRAY_AT(bt, i));
 	}
     }
 

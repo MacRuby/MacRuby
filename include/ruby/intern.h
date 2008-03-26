@@ -77,6 +77,9 @@ VALUE rb_ary_includes(VALUE, VALUE);
 VALUE rb_ary_cmp(VALUE, VALUE);
 VALUE rb_ary_replace(VALUE copy, VALUE orig);
 VALUE rb_get_values_at(VALUE, long, int, VALUE*, VALUE(*)(VALUE,long));
+#if WITH_OBJC
+VALUE rb_ary_elt(VALUE, long);
+#endif
 /* bignum.c */
 VALUE rb_big_clone(VALUE);
 void rb_big_2comp(VALUE);

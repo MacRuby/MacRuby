@@ -32,7 +32,7 @@ get_load_path(void)
     long i;
 
     for (i = 0; i < RARRAY_LEN(load_path); ++i) {
-	rb_ary_push(ary, rb_file_expand_path(RARRAY_PTR(load_path)[i], Qnil));
+	rb_ary_push(ary, rb_file_expand_path(RARRAY_AT(load_path, i), Qnil));
     }
     return ary;
 }
@@ -56,7 +56,7 @@ loaded_feature_path(const char *name, long vlen, const char *feature, long len,
     long i;
 
     for (i = 0; i < RARRAY_LEN(load_path); ++i) {
-	VALUE p = RARRAY_PTR(load_path)[i];
+	VALUE p = RARRAY_AT(load_path, i);
 	const char *s = StringValuePtr(p);
 	long n = RSTRING_LEN(p);
 
@@ -121,7 +121,7 @@ rb_feature_p(const char *feature, const char *ext, int rb, int expanded, const c
     }
     features = get_loaded_features();
     for (i = 0; i < RARRAY_LEN(features); ++i) {
-	v = RARRAY_PTR(features)[i];
+	v = RARRAY_AT(features, i);
 	f = StringValuePtr(v);
 	if ((n = RSTRING_LEN(v)) < len) continue;
 	if (strncmp(f, feature, len) != 0) {

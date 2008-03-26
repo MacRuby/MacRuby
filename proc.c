@@ -1623,11 +1623,15 @@ static VALUE curry(VALUE dummy, VALUE args, int argc, VALUE *argv);
 static VALUE
 make_curry_proc(VALUE proc, VALUE passed, VALUE arity)
 {
+#if WITH_OBJC
+    VALUE args = rb_ary_new3(3, proc, passed, arity);
+#else
     VALUE args = rb_ary_new2(3);
     RARRAY_PTR(args)[0] = proc;
     RARRAY_PTR(args)[1] = passed;
     RARRAY_PTR(args)[2] = arity;
     RARRAY_LEN(args) = 3;
+#endif
     rb_ary_freeze(passed);
     rb_ary_freeze(args);
     return rb_proc_new(curry, args);
@@ -1637,9 +1641,9 @@ static VALUE
 curry(VALUE dummy, VALUE args, int argc, VALUE *argv)
 {
     VALUE proc, passed, arity;
-    proc = RARRAY_PTR(args)[0];
-    passed = RARRAY_PTR(args)[1];
-    arity = RARRAY_PTR(args)[2];
+    proc = RARRAY_AT(args, 0);
+    passed = RARRAY_AT(args, 1);
+    arity = RARRAY_AT(args, 2);
 
     passed = rb_ary_plus(passed, rb_ary_new4(argc, argv));
     rb_ary_freeze(passed);

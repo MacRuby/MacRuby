@@ -1650,7 +1650,7 @@ rb_backtrace(void)
 
     ary = backtrace(-1);
     for (i = 0; i < RARRAY_LEN(ary); i++) {
-	printf("\tfrom %s\n", RSTRING_PTR(RARRAY_PTR(ary)[i]));
+	printf("\tfrom %s\n", RSTRING_PTR(RARRAY_AT(ary, i)));
     }
 }
 
@@ -1800,9 +1800,9 @@ eval(VALUE self, VALUE src, VALUE scope, const char *file, int line)
 		    (bt2 = backtrace(-2), RARRAY_LEN(bt2) > 0)) {
 		    if (!NIL_P(mesg) && TYPE(mesg) == T_STRING && !RSTRING_LEN(mesg)) {
 			rb_str_update(mesg, 0, 0, rb_str_new2(": "));
-			rb_str_update(mesg, 0, 0, RARRAY_PTR(errat)[0]);
+			rb_str_update(mesg, 0, 0, RARRAY_AT(errat, 0));
 		    }
-		    RARRAY_PTR(errat)[0] = RARRAY_PTR(bt2)[0];
+		    rb_ary_store(errat, 0, RARRAY_AT(bt2, 0));
 		}
 	    }
 	    rb_exc_raise(errinfo);

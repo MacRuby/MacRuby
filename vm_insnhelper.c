@@ -240,7 +240,6 @@ caller_setup_args(rb_thread_t *th, rb_control_frame_t *cfp, VALUE flag,
     /* expand top of stack? */
     if (flag & VM_CALL_ARGS_SPLAT_BIT) {
 	VALUE ary = *(cfp->sp - 1);
-	VALUE *ptr;
 	int i;
 	VALUE tmp = rb_check_convert_type(ary, T_ARRAY, "Array", "to_a");
 
@@ -249,13 +248,12 @@ caller_setup_args(rb_thread_t *th, rb_control_frame_t *cfp, VALUE flag,
 	}
 	else {
 	    int len = RARRAY_LEN(tmp);
-	    ptr = RARRAY_PTR(tmp);
 	    cfp->sp -= 1;
 
 	    CHECK_STACK_OVERFLOW(cfp, len);
 
 	    for (i = 0; i < len; i++) {
-		*cfp->sp++ = ptr[i];
+		*cfp->sp++ = RARRAY_AT(tmp, i);
 	    }
 	    argc += i-1;
 	}
@@ -1122,10 +1120,13 @@ vm_method_process_named_args(ID *pid, NODE **pmn, VALUE recv, rb_num_t *pnum,
     NODE *mn;
     char buf[128];
 
-    if (/* *pmn == NULL 
+    if (0) {
+#if 0 /* FIXME */
+	/* *pmn == NULL 
 	&&*/ *pnum == 2 
 	&& TYPE(argv[1]) == T_ARRAY 
 	&& FL_TEST(argv[1], RARRAY_NAMED_ARGS)) {
+#endif
 
 	unsigned i, count;
 
@@ -1138,7 +1139,7 @@ vm_method_process_named_args(ID *pid, NODE **pmn, VALUE recv, rb_num_t *pnum,
 	count = RARRAY_LEN(argv[1]);
 
 	for (i = 0; i < count; i += 2) {
-	    VALUE sym = RARRAY_PTR(argv[1])[i];
+	    VALUE sym = RARRAY_AT(argv[1], i);
 	    if (TYPE(sym) != T_SYMBOL)
 		rb_bug("expected symbol for first pair element");
 	    strncat(buf, rb_id2name(SYM2ID(sym)), sizeof buf);
@@ -1155,7 +1156,7 @@ vm_method_process_named_args(ID *pid, NODE **pmn, VALUE recv, rb_num_t *pnum,
 	    void **new_argv = alloca(sizeof(void *) * newnum);
 	    new_argv[0] = (void *)argv[0];
 	    for (i = 0, j = 1; i < count; i += 2, j++) {
-		new_argv[j] = (void *)RARRAY_PTR(argv[1])[i + 1];
+		new_argv[j] = (void *)RARRAY_AT(argv[1], i + 1);
 	    }
 	    argv = cfp->sp - newnum;
 	    cfp->bp -= newnum - *pnum;
@@ -1169,8 +1170,8 @@ vm_method_process_named_args(ID *pid, NODE **pmn, VALUE recv, rb_num_t *pnum,
 	else {
 	    VALUE h = rb_hash_new();
 	    for (i = 0; i < count; i += 2) {
-		rb_hash_aset(h, RARRAY_PTR(argv[1])[i], 
-			     RARRAY_PTR(argv[1])[i+1]);
+		rb_hash_aset(h, RARRAY_AT(argv[1], i), 
+			     RARRAY_AT(argv[1], i+1));
 	    }
 	    argv[1] = h;
 	}
@@ -1437,7 +1438,7 @@ vm_expandarray(rb_control_frame_t *cfp, VALUE ary, int num, int flag)
 {
     int is_splat = flag & 0x01;
     int space_size = num + is_splat;
-    VALUE *base = cfp->sp, *ptr;
+    VALUE *base = cfp->sp;
     volatile VALUE tmp_ary;
     int len;
 
@@ -1448,7 +1449,6 @@ vm_expandarray(rb_control_frame_t *cfp, VALUE ary, int num, int flag)
     cfp->sp += space_size;
 
     tmp_ary = ary;
-    ptr = RARRAY_PTR(ary);
     len = RARRAY_LEN(ary);
 
     if (flag & 0x02) {
@@ -1461,11 +1461,18 @@ vm_expandarray(rb_control_frame_t *cfp, VALUE ary, int num, int flag)
 	    }
 	}
 	for (j=0; i<num; i++, j++) {
-	    VALUE v = ptr[len - j - 1];
+	    VALUE v = RARRAY_AT(ary, len - j - 1);
 	    *base++ = v;
 	}
 	if (is_splat) {
+#if WITH_OBJC
+	    *base = rb_ary_new();
+	    CFArrayAppendArray((CFMutableArrayRef)*base,
+		(CFArrayRef)ary,
+		CFRangeMake(0, len - j));
+#else
 	    *base = rb_ary_new4(len - j, ptr);
+#endif
 	}
     }
     else {
@@ -1480,14 +1487,21 @@ vm_expandarray(rb_control_frame_t *cfp, VALUE ary, int num, int flag)
 		}
 		break;
 	    }
-	    *bptr-- = ptr[i];
+	    *bptr-- = RARRAY_AT(ary, i);
 	}
 	if (is_splat) {
 	    if (num > len) {
 		*bptr = rb_ary_new();
 	    }
 	    else {
+#if WITH_OBJC
+		*base = rb_ary_new();
+		CFArrayAppendArray((CFMutableArrayRef)*base,
+			(CFArrayRef)ary,
+			CFRangeMake(num, len - num));
+#else
 		*bptr = rb_ary_new4(len - num, ptr + num);
+#endif
 	    }
 	}
     }

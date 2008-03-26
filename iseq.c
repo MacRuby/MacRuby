@@ -1166,7 +1166,7 @@ iseq_data_to_ary(rb_iseq_t *iseq)
     body = rb_ary_new();
 
     for (i=0, pos=0; i<RARRAY_LEN(nbody); i++) {
-	VALUE ary = RARRAY_PTR(nbody)[i];
+	VALUE ary = RARRAY_AT(nbody, i);
 	VALUE label;
 
 	if (st_lookup(labels_table, pos, &label)) {
