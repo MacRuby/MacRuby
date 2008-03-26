@@ -772,6 +772,10 @@ rb_obj_freeze(VALUE obj)
 VALUE
 rb_obj_frozen_p(VALUE obj)
 {
+#if WITH_OBJC
+    if (rb_objc_is_non_native(obj))
+	return Qfalse;
+#endif
     if (OBJ_FROZEN(obj)) return Qtrue;
     if (SPECIAL_CONST_P(obj)) {
 	if (!immediate_frozen_tbl) return Qfalse;

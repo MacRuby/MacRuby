@@ -366,6 +366,7 @@ dln_init(const char *prog)
 	return -1;
     }
     sym_tbl = sym_hash(&hdr, syms);
+    GC_ROOT(&sym_tbl);
     if (sym_tbl == NULL) {	/* file may be start with #! */
 	char c = '\0';
 	char buf[MAXPATHLEN];
@@ -408,6 +409,7 @@ dln_init(const char *prog)
     }
     dln_init_p = 1;
     undef_tbl = st_init_strtable();
+    GC_ROOT(&undef_tbl);
     close(fd);
     return 0;
 

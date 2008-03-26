@@ -618,9 +618,11 @@ sort_by_i(VALUE i, VALUE ary, int argc, VALUE *argv)
     NODE *memo;
 
     v = enum_yield(argc, argv);
+#if !WITH_OBJC
     if (RBASIC(ary)->klass) {
 	rb_raise(rb_eRuntimeError, "sort_by reentered");
     }
+#endif
     memo = rb_node_newnode(NODE_MEMO, v, i, 0);
     rb_ary_push(ary, (VALUE)memo);
     return Qnil;
@@ -638,9 +640,11 @@ sort_by_cmp(const void *ap, const void *bp, void *data)
 #endif
     VALUE ary = (VALUE)data;
 
+#if !WITH_OBJC
     if (RBASIC(ary)->klass) {
 	rb_raise(rb_eRuntimeError, "sort_by reentered");
     }
+#endif
     return rb_cmpint(rb_funcall(a, id_cmp, 1, b), a, b);
 }
 
@@ -727,7 +731,9 @@ enum_sort_by(VALUE obj)
     else {
 	ary = rb_ary_new();
     }
+#if !WITH_OBJC
     RBASIC(ary)->klass = 0;
+#endif
     rb_block_call(obj, id_each, 0, 0, sort_by_i, ary);
     if (RARRAY_LEN(ary) > 1) {
 #if WITH_OBJC
@@ -739,13 +745,17 @@ enum_sort_by(VALUE obj)
 		   sort_by_cmp, (void *)ary);
 #endif
     }
+#if !WITH_OBJC
     if (RBASIC(ary)->klass) {
 	rb_raise(rb_eRuntimeError, "sort_by reentered");
     }
+#endif
     for (i=0; i<RARRAY_LEN(ary); i++) {
 	rb_ary_store(ary, i, RNODE(RARRAY_AT(ary, i))->u2.value);
     }
+#if !WITH_OBJC
     RBASIC(ary)->klass = rb_cArray;
+#endif
     return ary;
 }
 

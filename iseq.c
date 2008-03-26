@@ -186,7 +186,7 @@ prepare_iseq_build(rb_iseq_t *iseq,
 		sizeof(struct iseq_compile_data_storage));
     GC_WB(&iseq->compile_data->storage_head, iseq->compile_data->storage_head);
 
-    iseq->compile_data->catch_table_ary = rb_ary_new();
+    GC_WB(&iseq->compile_data->catch_table_ary, rb_ary_new());
     iseq->compile_data->storage_head->pos = 0;
     iseq->compile_data->storage_head->next = 0;
     iseq->compile_data->storage_head->size =

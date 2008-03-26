@@ -40,7 +40,36 @@ memfill(register VALUE *mem, register long size, register VALUE val)
     }
 }
 
-#if !WITH_OBJC
+#if WITH_OBJC
+struct rb_objc_ary_struct {
+    bool frozen;
+    bool named_args;
+};
+
+/* This variable will always stay NULL, we only use its address. */
+static void *rb_objc_assoc_key = NULL;
+
+static struct rb_objc_ary_struct *
+rb_objc_ary_get_struct(VALUE ary)
+{
+    return rb_objc_get_associative_ref((void *)ary, &rb_objc_assoc_key);
+}
+
+static struct rb_objc_ary_struct *
+rb_objc_ary_get_struct2(VALUE ary)
+{
+    struct rb_objc_ary_struct *s;
+
+    s = rb_objc_ary_get_struct(ary);
+    if (s == NULL) {
+        s = xmalloc(sizeof(struct rb_objc_ary_struct));
+        rb_objc_set_associative_ref((void *)ary, &rb_objc_assoc_key, s);
+        s->frozen = false;
+        s->named_args = false;
+    }
+    return s;
+}
+#else
 #define ARY_SHARED_P(a) FL_TEST(a, ELTS_SHARED)
 
 #define ARY_SET_LEN(ary, n) do { \
@@ -92,7 +121,8 @@ VALUE
 rb_ary_freeze(VALUE ary)
 {
 #if WITH_OBJC
-    rb_notimplement();
+    rb_objc_ary_get_struct2(ary)->frozen = true;
+    return ary;
 #else
     return rb_obj_freeze(ary);
 #endif
@@ -110,11 +140,12 @@ static VALUE
 rb_ary_frozen_p(VALUE ary)
 {
 #if WITH_OBJC
-    /* TODO */
+    struct rb_objc_ary_struct *s = rb_objc_ary_get_struct(ary);
+    return s != NULL && s->frozen ? Qtrue : Qfalse;
 #else
     if (OBJ_FROZEN(ary)) return Qtrue;
-#endif
     return Qfalse;
+#endif
 }
 
 #if WITH_OBJC
@@ -776,8 +807,7 @@ rb_ary_unshift_m(int argc, VALUE *argv, VALUE ary)
 #if WITH_OBJC
     {
 	long i;
-	len = RARRAY_LEN(ary);
-	for (i = len - 1; i >= 0; i++)
+	for (i = argc - 1; i >= 0; i--)
 	    CFArrayInsertValueAtIndex((CFMutableArrayRef)ary,
 		0, (const void *)argv[i]);
     }
@@ -1682,7 +1712,7 @@ rb_ary_reverse(VALUE ary)
 	long i;
 	for (i = 0; i < (n / 2); i++)
 	    CFArrayExchangeValuesAtIndices((CFMutableArrayRef)ary,
-		i, n - i);
+		i, n - i - 1);
     }
 #else
     VALUE *p1, *p2;
@@ -3828,6 +3858,7 @@ Init_Array(void)
     rb_cArray = rb_objc_import_class((Class)objc_getClass("NSArray"));
     rb_const_set(rb_cObject, rb_intern("Array"), 
 	rb_objc_import_class((Class)objc_getClass("NSMutableArray")));
+    rb_define_method(rb_cArray, "freeze", rb_ary_freeze, 0);
 #else
     rb_cArray  = rb_define_class("Array", rb_cObject);
 #endif

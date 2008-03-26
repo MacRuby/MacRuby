@@ -863,7 +863,12 @@ iseq_set_arguments(rb_iseq_t *iseq, LINK_ANCHOR *optargs, NODE *node_args)
 
 	    iseq->arg_opts = i;
 	    iseq->arg_opt_table = ALLOC_N(VALUE, i);
+#if WITH_OBJC
+	    CFArrayGetValues((CFArrayRef)labels, CFRangeMake(0, i), 
+		(const void **)iseq->arg_opt_table);
+#else
 	    MEMCPY(iseq->arg_opt_table, RARRAY_PTR(labels), VALUE, i);
+#endif
 	    for (j = 0; j < i; j++) {
 		iseq->arg_opt_table[j] &= ~1;
 	    }
@@ -1248,25 +1253,22 @@ label_get_sp(LABEL *lobj)
 static int
 iseq_set_exception_table(rb_iseq_t *iseq)
 {
-    VALUE *tptr, *ptr;
     int tlen, i;
     struct iseq_catch_table_entry *entry;
 
     tlen = RARRAY_LEN(iseq->compile_data->catch_table_ary);
-    tptr = RARRAY_PTR(iseq->compile_data->catch_table_ary);
 
-    iseq->catch_table = ALLOC_N(struct iseq_catch_table_entry, tlen);
+    GC_WB(&iseq->catch_table, ALLOC_N(struct iseq_catch_table_entry, tlen));
+
     iseq->catch_table_size = tlen;
 
-    /* FIXME this should be rewritten without using RARRAY_PTR */
-
     for (i = 0; i < tlen; i++) {
-	ptr = RARRAY_PTR(tptr[i]);
+	VALUE a = RARRAY_AT(iseq->compile_data->catch_table_ary, i);
 	entry = &iseq->catch_table[i];
-	entry->type = ptr[0] & 0xffff;
-	entry->start = label_get_position((LABEL *)(ptr[1] & ~1));
-	entry->end = label_get_position((LABEL *)(ptr[2] & ~1));
-	entry->iseq = ptr[3];
+	entry->type = RARRAY_AT(a, 0) & 0xffff;
+	entry->start = label_get_position((LABEL *)(RARRAY_AT(a, 1) & ~1));
+	entry->end = label_get_position((LABEL *)(RARRAY_AT(a, 2) & ~1));
+	GC_WB(&entry->iseq, RARRAY_AT(a, 3));
 
 	/* register iseq as mark object */
 	if (entry->iseq != 0) {
@@ -1274,15 +1276,15 @@ iseq_set_exception_table(rb_iseq_t *iseq)
 	}
 
 	/* stack depth */
-	if (ptr[4]) {
-	    LABEL *lobj = (LABEL *)(ptr[4] & ~1);
+	if (RARRAY_AT(a, 4)) {
+	    LABEL *lobj = (LABEL *)(RARRAY_AT(a, 4) & ~1);
 	    entry->cont = label_get_position(lobj);
 	    entry->sp = label_get_sp(lobj);
 
 	    /* TODO: Dirty Hack!  Fix me */
 	    if (entry->type == CATCH_TYPE_RESCUE ||
 		entry->type == CATCH_TYPE_BREAK ||
-		(((ptr[0] & 0x10000) == 0)
+		(((RARRAY_AT(a, 0) & 0x10000) == 0)
 		 && entry->type == CATCH_TYPE_NEXT)) {
 		entry->sp--;
 	    }
@@ -4779,7 +4781,7 @@ iseq_build_exception(rb_iseq_t *iseq, struct st_table *labels_table,
     int i;
 
     for (i=0; i<RARRAY_LEN(exception); i++) {
-	VALUE v, type, *ptr, eiseqval;
+	VALUE v, type, eiseqval;
 	LABEL *lstart, *lend, *lcont;
 	int sp;
 
@@ -4789,17 +4791,17 @@ iseq_build_exception(rb_iseq_t *iseq, struct st_table *labels_table,
 	    rb_raise(rb_eSyntaxError, "wrong exception entry");
 	}
 	type = get_exception_sym2type(RARRAY_AT(v, 0));
-	if (RARRAY_AT(ptr, 1) == Qnil) {
+	if (RARRAY_AT(v, 1) == Qnil) {
 	    eiseqval = 0;
 	}
 	else {
-	    eiseqval = iseq_load(0, RARRAY_AT(ptr, 1), iseq->self, Qnil);
+	    eiseqval = iseq_load(0, RARRAY_AT(v, 1), iseq->self, Qnil);
 	}
 
-	lstart = register_label(iseq, labels_table, RARRAY_AT(ptr, 2));
-	lend   = register_label(iseq, labels_table, RARRAY_AT(ptr, 3));
-	lcont  = register_label(iseq, labels_table, RARRAY_AT(ptr, 4));
-	sp     = NUM2INT(RARRAY_AT(ptr, 5));
+	lstart = register_label(iseq, labels_table, RARRAY_AT(v, 2));
+	lend   = register_label(iseq, labels_table, RARRAY_AT(v, 3));
+	lcont  = register_label(iseq, labels_table, RARRAY_AT(v, 4));
+	sp     = NUM2INT(RARRAY_AT(v, 5));
 
 	ADD_CATCH_ENTRY(type, lstart, lend, eiseqval, lcont);
     }

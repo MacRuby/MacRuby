@@ -463,20 +463,12 @@ static void
 process_sflag(struct cmdline_options *opt)
 {
     if (opt->sflag) {
-	long n;
-	VALUE *args;
+	long i, n;
 	VALUE argv = rb_argv;
 
 	n = RARRAY_LEN(argv);
-#if WITH_OBJC 
-	args = NULL;
-	while (n > 0) {
-	    VALUE v = RARRAY_AT(argv, n);
-#else
-	args = RARRAY_PTR(argv);
-	while (n > 0) {
-	    VALUE v = *args++;
-#endif
+	for (i = 0; i < n; i++) {
+	    VALUE v = RARRAY_AT(argv, i);
 	    char *s = StringValuePtr(v);
 	    char *p;
 	    int hyphen = Qfalse;
@@ -508,7 +500,7 @@ process_sflag(struct cmdline_options *opt)
 		    else {
 			rb_str_cat(name_error[0], s, p - s);
 		    }
-		    name_error[1] = args[-1];
+		    name_error[1] = RARRAY_AT(argv, -1);
 		    rb_exc_raise(rb_class_new_instance(2, name_error, rb_eNameError));
 		}
 	    }
