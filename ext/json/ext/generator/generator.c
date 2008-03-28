@@ -188,7 +188,7 @@ inline static VALUE mArray_json_transfrom(VALUE self, VALUE Vstate, VALUE Vdepth
         OBJ_INFECT(result, self);
         rb_str_buf_append(result, state->array_nl);
         for (i = 0;  i < len; i++) {
-            VALUE element = RARRAY_PTR(self)[i];
+            VALUE element = RARRAY_AT(self, i);
             if (RTEST(rb_hash_aref(state->seen, rb_obj_id(element)))) {
                 rb_raise(eCircularDatastructure,
                         "circular data structures not supported!");
@@ -215,7 +215,7 @@ inline static VALUE mArray_json_transfrom(VALUE self, VALUE Vstate, VALUE Vdepth
         rb_str_buf_cat2(result, "[");
         rb_str_buf_append(result, state->array_nl);
         for (i = 0;  i < len; i++) {
-            VALUE element = RARRAY_PTR(self)[i];
+            VALUE element = RARRAY_AT(self, i);
             OBJ_INFECT(result, element);
             if (i > 0) rb_str_buf_append(result, delim);
             rb_str_buf_append(result, shift);
@@ -251,7 +251,7 @@ static VALUE mArray_to_json(int argc, VALUE *argv, VALUE self) {
         rb_str_buf_cat2(result, "[");
         OBJ_INFECT(result, self);
         for (i = 0;  i < len; i++) {
-            VALUE element = RARRAY_PTR(self)[i];
+            VALUE element = RARRAY_AT(self, i);
             OBJ_INFECT(result, element);
             if (i > 0) rb_str_buf_cat2(result, ",");
             element = rb_funcall(element, i_to_json, 0);

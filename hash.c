@@ -344,7 +344,7 @@ hash_alloc(VALUE klass)
     values_cb.equal = rb_cfdictionary_equal_cb;
 
     hash = (VALUE)CFDictionaryCreateMutable(NULL, 0, &keys_cb, &values_cb);
-    if (klass != 0)
+    if (klass != 0 && klass != rb_cHash && klass != rb_cHashRuby)
 	*(Class *)hash = RCLASS_OCID(klass);
 
     return hash;
@@ -362,7 +362,7 @@ VALUE
 rb_hash_new(void)
 {
 #if WITH_OBJC
-    return hash_alloc(rb_cHashRuby);
+    return hash_alloc(0);
 #else
     return hash_alloc(rb_cHash);
 #endif
@@ -3041,8 +3041,9 @@ Init_Hash(void)
 
 #if WITH_OBJC
     rb_cHash = rb_objc_import_class((Class)objc_getClass("NSDictionary"));
-    rb_const_set(rb_cObject, rb_intern("Hash"),
-	rb_objc_import_class((Class)objc_getClass("NSMutableDictionary")));
+    rb_cHashRuby = rb_objc_import_class((Class)objc_getClass("NSMutableDictionary"));
+    FL_UNSET(rb_cHashRuby, RCLASS_OBJC_IMPORTED);
+    rb_const_set(rb_cObject, rb_intern("Hash"), rb_cHashRuby);
     rb_define_method(rb_cHash, "freeze", rb_hash_freeze, 0);
     rb_define_method(rb_cHash, "frozen?", rb_hash_frozen, 0);
 #else

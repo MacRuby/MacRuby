@@ -260,7 +260,7 @@ rb_dlcfunc_call(VALUE self, VALUE ary)
 	if( i >= DLSTACK_SIZE ){
 	    rb_raise(rb_eDLError, "too many arguments (stack overflow)");
 	}
-	stack[i] = NUM2LONG(RARRAY_PTR(ary)[i]);
+	stack[i] = NUM2LONG(RARRAY_AT(ary, i));
     }
     
     /* calltype == CFUNC_CDECL */

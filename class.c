@@ -405,7 +405,15 @@ rb_singleton_class_attached(VALUE klass, VALUE obj)
 VALUE
 rb_make_metaclass(VALUE obj, VALUE super)
 {
-    if (BUILTIN_TYPE(obj) == T_CLASS && FL_TEST(obj, FL_SINGLETON)) {
+    bool pure;
+
+#if WITH_OBJC
+    pure = rb_objc_is_non_native(obj);
+#else
+    pure = false;
+#endif
+
+    if (!pure && BUILTIN_TYPE(obj) == T_CLASS && FL_TEST(obj, FL_SINGLETON)) {
 	return RBASIC(obj)->klass = rb_cClass;
     }
     else {
@@ -413,7 +421,7 @@ rb_make_metaclass(VALUE obj, VALUE super)
 	VALUE klass;
 
 #if WITH_OBJC
-	if (BUILTIN_TYPE(obj) == T_CLASS) {
+	if (!pure && BUILTIN_TYPE(obj) == T_CLASS) {
 	    NEWOBJ(obj2, struct RClass); 
 	    OBJSETUP(obj2, rb_cClass, T_CLASS); 
 	    klass = (VALUE)obj2; 
@@ -423,18 +431,19 @@ rb_make_metaclass(VALUE obj, VALUE super)
 	    RCLASS_SUPER(klass) = super; 
 	    RCLASS_M_TBL(klass) = st_init_numtable(); 
 	    RCLASS(klass)->ocklass = RBASIC(super)->isa; 
+	    RBASIC(obj)->klass = klass;
 	}
 	else {
 	    klass = rb_class_boot(super);
 	    *(Class *)obj = RCLASS_OCID(klass);
-	    if (!rb_objc_is_non_native(obj))
+	    if (!pure)
 		RBASIC(obj)->klass = klass;
 	}
 #else
 	klass = rb_class_boot(super);
+	RBASIC(obj)->klass = klass;
 #endif
 	FL_SET(klass, FL_SINGLETON);
-	RBASIC(obj)->klass = klass;
 
 	rb_singleton_class_attached(klass, obj);
 
@@ -1079,8 +1088,19 @@ rb_singleton_class(VALUE obj)
 	if (class_isMetaClass(ocklass))
 	    return klass;
 
-	if (!FL_TEST(klass, FL_SINGLETON))
+	if (!FL_TEST(klass, FL_SINGLETON)) {
 	    klass = rb_make_metaclass(obj, klass);
+#if 0
+	    Class newocklass;
+
+	    newocklass = objc_allocateClassPair(ocklass, "MetaClassFoo", 0);
+	    assert(newocklass != NULL);
+	    objc_registerClassPair(newocklass);
+	    rb_objc_install_array_primitives(newocklass);
+	    *(Class *)obj = newocklass;
+	    klass = rb_objc_import_class(newocklass);
+#endif
+	}
 	return klass;
     }
 #endif

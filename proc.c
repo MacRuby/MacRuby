@@ -1504,9 +1504,15 @@ bmcall(VALUE args, VALUE method)
 {
     volatile VALUE a;
 
+#if WITH_OBJC
+    if (TYPE(args) != T_ARRAY) {
+    	return rb_method_call(1, &args, method);
+    }
+#else
     if (CLASS_OF(args) != rb_cArray) {
 	args = rb_ary_new3(1, args);
     }
+#endif
 
     a = args;
     return rb_method_call(RARRAY_LEN(a), RARRAY_PTR(a), method);

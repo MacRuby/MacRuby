@@ -345,7 +345,7 @@ fdbm_delete_if(VALUE obj)
     }
 
     for (i = 0; i < RARRAY_LEN(ary); i++) {
-	keystr = RARRAY_PTR(ary)[i];
+	keystr = RARRAY_AT(ary, i);
 	StringValue(keystr);
 	key.dptr = RSTRING_PTR(keystr);
 	key.dsize = RSTRING_LEN(keystr);
@@ -407,7 +407,7 @@ update_i(VALUE pair, VALUE dbm)
     if (RARRAY_LEN(pair) < 2) {
 	rb_raise(rb_eArgError, "pair must be [key, value]");
     }
-    fdbm_store(dbm, RARRAY_PTR(pair)[0], RARRAY_PTR(pair)[1]);
+    fdbm_store(dbm, RARRAY_AT(pair, 0), RARRAY_AT(pair, 1));
     return Qnil;
 }
 

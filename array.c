@@ -44,6 +44,7 @@ memfill(register VALUE *mem, register long size, register VALUE val)
 struct rb_objc_ary_struct {
     bool frozen;
     bool named_args;
+    void *cptr;
 };
 
 /* This variable will always stay NULL, we only use its address. */
@@ -184,9 +185,10 @@ ary_alloc(VALUE klass)
     memset(&cb, 0, sizeof(CFArrayCallBacks));
     cb.retain = rb_cfarray_retain_cb;
     cb.release = rb_cfarray_release_cb;
+    cb.equal = rb_cfarray_equal_cb;
 
     ary = (VALUE)CFArrayCreateMutable(NULL, 0, &cb);
-    if (klass != 0)
+    if (klass != 0 && klass != rb_cArray && klass != rb_cArrayRuby)
         *(Class *)ary = RCLASS_OCID(klass);
 
     return ary;
@@ -227,7 +229,7 @@ VALUE
 rb_ary_new2(long len)
 {
 #if WITH_OBJC
-    return ary_new(rb_cArrayRuby, len);
+    return ary_new(0, len);
 #else
     return ary_new(rb_cArray, len);
 #endif
@@ -871,6 +873,8 @@ rb_ary_ptr(VALUE ary)
     values = (const VALUE *)xmalloc(sizeof(VALUE) * len);
     CFArrayGetValues((CFArrayRef)ary, CFRangeMake(0, len), 
 	(const void **)values);
+    GC_WB(&rb_objc_ary_get_struct2(ary)->cptr, values);
+
     return values;
 #else
     return RARRAY_PTR(ary);
@@ -2210,16 +2214,20 @@ rb_ary_reject_bang(VALUE ary)
     n = RARRAY_LEN(ary);
     for (i1 = i2 = 0; i1 < n; i1++) {
 	VALUE v = RARRAY_AT(ary, i1);
-	if (RTEST(rb_yield(v))) continue;
 #if WITH_OBJC
+	if (!RTEST(rb_yield(v))) {
+	    i2++;
+	    continue;
+	}
 	CFArrayRemoveValueAtIndex((CFMutableArrayRef)ary, i1);
 	i1--;
 #else
+	if (RTEST(rb_yield(v))) continue;
 	if (i1 != i2) {
 	    rb_ary_store(ary, i2, v);
 	}
-#endif
 	i2++;
+#endif
     }
 
     if (n == i2) return Qnil;
@@ -3099,8 +3107,8 @@ rb_ary_uniq_bang(VALUE ary)
 	while ((idx = CFArrayGetFirstIndexOfValue((CFArrayRef)ary, 
 	    r, (const void *)e)) != -1) {
 	    CFArrayRemoveValueAtIndex((CFMutableArrayRef)ary, idx);
-	    r.location = i;
-	    r.length = --n - i;
+	    r.location = idx;
+	    r.length = --n - idx;
 	}
     }
 #else
@@ -3840,6 +3848,16 @@ rb_objc_install_array_primitives(Class klass)
 	imp_rb_array_replaceObjectAtIndexWithObject);
     INSTALL_METHOD("addObject:", imp_rb_array_addObject);
 
+    /* This is to work around a bug where CF will try to call an non-existing 
+     * method. 
+     */
+    if (true) {
+	Method m = class_getInstanceMethod(klass, 
+	    sel_registerName("_cfindexOfObject:range:"));
+	class_addMethod(klass, sel_registerName("_cfindexOfObject:inRange:"), 
+	    method_getImplementation(m), method_getTypeEncoding(m));
+    }
+
 #undef INSTALL_METHOD
 }
 #endif
@@ -3856,8 +3874,10 @@ Init_Array(void)
 {
 #if WITH_OBJC
     rb_cArray = rb_objc_import_class((Class)objc_getClass("NSArray"));
-    rb_const_set(rb_cObject, rb_intern("Array"), 
-	rb_objc_import_class((Class)objc_getClass("NSMutableArray")));
+    rb_cArrayRuby = 
+	rb_objc_import_class((Class)objc_getClass("NSMutableArray"));
+    FL_UNSET(rb_cArrayRuby, RCLASS_OBJC_IMPORTED);
+    rb_const_set(rb_cObject, rb_intern("Array"), rb_cArrayRuby);
     rb_define_method(rb_cArray, "freeze", rb_ary_freeze, 0);
 #else
     rb_cArray  = rb_define_class("Array", rb_cObject);

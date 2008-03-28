@@ -1405,9 +1405,11 @@ rb_obj_alloc(VALUE klass)
 	rb_raise(rb_eTypeError, "can't create instance of singleton class");
     }
     obj = rb_funcall(klass, ID_ALLOCATOR, 0, 0);
+#if !WITH_OBJC
     if (rb_obj_class(obj) != rb_class_real(klass)) {
 	rb_raise(rb_eTypeError, "wrong instance allocation");
     }
+#endif
     return obj;
 }
 
@@ -2321,6 +2323,15 @@ boot_defclass(const char *name, VALUE super)
     return obj;
 }
 
+#if WITH_OBJC
+static VALUE
+rb_obj_is_pure(VALUE recv)
+{
+    return rb_objc_is_non_native(recv) ? Qtrue : Qfalse;
+}
+#endif
+
+
 /*
  *  Document-class: Class
  *
@@ -2478,6 +2489,10 @@ Init_Object(void)
     rb_define_method(rb_mKernel, "kind_of?", rb_obj_is_kind_of, 1);
     rb_define_method(rb_mKernel, "is_a?", rb_obj_is_kind_of, 1);
     rb_define_method(rb_mKernel, "tap", rb_obj_tap, 0);
+
+#if WITH_OBJC
+    rb_define_method(rb_mKernel, "__pure__?", rb_obj_is_pure, 0);
+#endif
 
     rb_define_global_function("sprintf", rb_f_sprintf, -1); /* in sprintf.c */
     rb_define_global_function("format", rb_f_sprintf, -1);  /* in sprintf.c */

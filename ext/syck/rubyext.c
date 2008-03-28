@@ -25,9 +25,9 @@ typedef struct RVALUE {
     struct RClass  klass;
     /*struct RFloat  flonum;*/
     /*struct RString string;*/
-    struct RArray  array;
     /*struct RRegexp regexp;*/
 #if !WITH_OBJC
+    struct RArray  array;
     struct RHash   hash;
 #endif
     /*struct RData   data;*/

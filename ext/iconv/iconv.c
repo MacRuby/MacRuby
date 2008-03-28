@@ -144,9 +144,9 @@ map_charset(VALUE *code)
     if (RHASH_SIZE(charset_map)) {
 	VALUE key = rb_funcall2(val, rb_intern("downcase"), 0, 0);
 	StringValuePtr(key);
-	if (st_lookup(RHASH_TBL(charset_map), key, &val)) {
+	val = rb_hash_aref(charset_map, key);
+	if (val != Qnil)
 	    *code = val;
-	}
     }
     return StringValuePtr(*code);
 }
@@ -353,7 +353,7 @@ iconv_convert(iconv_t cd, VALUE str, int start, int length, int toidx, struct ic
 	    unsigned int i;
 	    rescue = iconv_fail(error, Qnil, Qnil, env, 0);
 	    if (TYPE(rescue) == T_ARRAY) {
-		str = RARRAY_LEN(rescue) > 0 ? RARRAY_PTR(rescue)[0] : Qnil;
+		str = RARRAY_LEN(rescue) > 0 ? RARRAY_AT(rescue, 0) : Qnil;
 	    }
 	    if (FIXNUM_P(str) && (i = FIX2INT(str)) <= 0xff) {
 		char c = i;
@@ -446,8 +446,8 @@ iconv_convert(iconv_t cd, VALUE str, int start, int length, int toidx, struct ic
 	    rescue = iconv_fail(error, ret, str, env, errmsg);
 	    if (TYPE(rescue) == T_ARRAY) {
 		if ((len = RARRAY_LEN(rescue)) > 0)
-		    rb_str_concat(ret, RARRAY_PTR(rescue)[0]);
-		if (len > 1 && !NIL_P(str = RARRAY_PTR(rescue)[1])) {
+		    rb_str_concat(ret, RARRAY_AT(rescue, 0));
+		if (len > 1 && !NIL_P(str = RARRAY_AT(rescue, 1))) {
 		    StringValue(str);
 		    inlen = length = RSTRING_LEN(str);
 		    instart = inptr = RSTRING_PTR(str);
@@ -760,7 +760,7 @@ iconv_s_list(void)
     if (!rb_block_given_p())
 	return ary;
     for (i = 0; i < RARRAY_LEN(ary); i++) {
-	rb_yield(RARRAY_PTR(ary)[i]);
+	rb_yield(RARRAY_AT(ary, i));
     }
 #else
     rb_notimplement();
