@@ -1989,7 +1989,7 @@ compile_array_(rb_iseq_t *iseq, LINK_ANCHOR *ret, NODE* node_root,
 	    iseq_add_mark_object_compile_time(iseq, ary);
 #if WITH_OBJC
 	    if (node_root->flags & NODE_ARRAY_NAMED_ARGS)
-		FL_SET(ary, RARRAY_NAMED_ARGS);
+		rb_ary_set_named_args(ary, true);
 #endif
 	    ADD_INSN1(ret, nd_line(node_root), duparray, ary);
 	}

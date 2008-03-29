@@ -1120,13 +1120,10 @@ vm_method_process_named_args(ID *pid, NODE **pmn, VALUE recv, rb_num_t *pnum,
     NODE *mn;
     char buf[128];
 
-    if (0) {
-#if 0 /* FIXME */
-	/* *pmn == NULL 
+    if (/* *pmn == NULL 
 	&&*/ *pnum == 2 
 	&& TYPE(argv[1]) == T_ARRAY 
-	&& FL_TEST(argv[1], RARRAY_NAMED_ARGS)) {
-#endif
+	&& rb_ary_is_named_args(argv[1])) {
 
 	unsigned i, count;
 
@@ -1146,12 +1143,9 @@ vm_method_process_named_args(ID *pid, NODE **pmn, VALUE recv, rb_num_t *pnum,
 	    strncat(buf, ":", sizeof buf);
 	}
 
-//printf("buf is %s\n", buf);
-
 	id = rb_intern(buf);
 	if ((mn = rb_method_node(CLASS_OF(recv), id)) != NULL 
 	    || (mn = rb_objc_define_objc_mid_closure(recv, id, NULL)) != NULL) {
-#if 1
 	    unsigned j, newnum = 1 + (count / 2);
 	    void **new_argv = alloca(sizeof(void *) * newnum);
 	    new_argv[0] = (void *)argv[0];
@@ -1162,7 +1156,6 @@ vm_method_process_named_args(ID *pid, NODE **pmn, VALUE recv, rb_num_t *pnum,
 	    cfp->bp -= newnum - *pnum;
 
 	    memcpy(argv, new_argv, sizeof(void *) * newnum);
-#endif
 	    *pmn = mn;
 	    *pid = id;
 	    *pnum = newnum;

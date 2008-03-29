@@ -789,6 +789,7 @@ dir_s_chdir(int argc, VALUE *argv, VALUE obj)
 	char *cwd = my_getcwd();
 
 	args.old_path = rb_tainted_str_new2(cwd); xfree(cwd);
+	rb_objc_retain(args.old_path);
 	args.new_path = path;
 	args.done = Qfalse;
 	return rb_ensure(chdir_yield, (VALUE)&args, chdir_restore, (VALUE)&args);

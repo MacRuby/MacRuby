@@ -1088,19 +1088,8 @@ rb_singleton_class(VALUE obj)
 	if (class_isMetaClass(ocklass))
 	    return klass;
 
-	if (!FL_TEST(klass, FL_SINGLETON)) {
+	if (!FL_TEST(klass, FL_SINGLETON))
 	    klass = rb_make_metaclass(obj, klass);
-#if 0
-	    Class newocklass;
-
-	    newocklass = objc_allocateClassPair(ocklass, "MetaClassFoo", 0);
-	    assert(newocklass != NULL);
-	    objc_registerClassPair(newocklass);
-	    rb_objc_install_array_primitives(newocklass);
-	    *(Class *)obj = newocklass;
-	    klass = rb_objc_import_class(newocklass);
-#endif
-	}
 	return klass;
     }
 #endif

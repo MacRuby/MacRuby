@@ -439,7 +439,7 @@ newarray_named_args
 (VALUE val) // inc += 1 - num;
 {
     val = rb_ary_new4((long)num, STACK_ADDR_FROM_TOP(num));
-    FL_SET(val, RARRAY_NAMED_ARGS);
+    rb_ary_set_named_args(val, true);
     POPN(num);
 }
 
@@ -464,7 +464,7 @@ duparray_named_args
 (VALUE val)
 {
     val = rb_ary_dup(ary);
-    FL_SET(val, RARRAY_NAMED_ARGS);
+    rb_ary_set_named_args(val, true);
 }
 
 /**

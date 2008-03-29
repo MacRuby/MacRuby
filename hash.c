@@ -267,12 +267,12 @@ struct rb_objc_hash_struct {
 };
 
 /* This variable will always stay NULL, we only use its address. */
-static void *rb_objc_assoc_key = NULL;
+static void *rb_objc_hash_assoc_key = NULL;
 
 static struct rb_objc_hash_struct *
 rb_objc_hash_get_struct(VALUE hash)
 {
-    return rb_objc_get_associative_ref((void *)hash, &rb_objc_assoc_key);
+    return rb_objc_get_associative_ref((void *)hash, &rb_objc_hash_assoc_key);
 }
 
 static struct rb_objc_hash_struct *
@@ -283,7 +283,7 @@ rb_objc_hash_get_struct2(VALUE hash)
     s = rb_objc_hash_get_struct(hash);
     if (s == NULL) {
 	s = xmalloc(sizeof(struct rb_objc_hash_struct));
-	rb_objc_set_associative_ref((void *)hash, &rb_objc_assoc_key, s);
+	rb_objc_set_associative_ref((void *)hash, &rb_objc_hash_assoc_key, s);
 	s->ifnone = Qnil;
 	s->has_proc_default = false;
 	s->frozen = false;

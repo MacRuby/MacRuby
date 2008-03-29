@@ -48,12 +48,12 @@ struct rb_objc_ary_struct {
 };
 
 /* This variable will always stay NULL, we only use its address. */
-static void *rb_objc_assoc_key = NULL;
+static void *rb_objc_ary_assoc_key = NULL;
 
 static struct rb_objc_ary_struct *
 rb_objc_ary_get_struct(VALUE ary)
 {
-    return rb_objc_get_associative_ref((void *)ary, &rb_objc_assoc_key);
+    return rb_objc_get_associative_ref((void *)ary, &rb_objc_ary_assoc_key);
 }
 
 static struct rb_objc_ary_struct *
@@ -64,7 +64,7 @@ rb_objc_ary_get_struct2(VALUE ary)
     s = rb_objc_ary_get_struct(ary);
     if (s == NULL) {
         s = xmalloc(sizeof(struct rb_objc_ary_struct));
-        rb_objc_set_associative_ref((void *)ary, &rb_objc_assoc_key, s);
+        rb_objc_set_associative_ref((void *)ary, &rb_objc_ary_assoc_key, s);
         s->frozen = false;
         s->named_args = false;
     }
@@ -1533,6 +1533,8 @@ rb_ary_dup(VALUE ary)
     if (n > 0)
 	CFArrayAppendArray((CFMutableArrayRef)dup, (CFArrayRef)ary,
 		CFRangeMake(0, n));
+    if (rb_ary_is_named_args(ary))
+	rb_ary_set_named_args(dup, true);
 #else
     VALUE dup = rb_ary_new2(RARRAY_LEN(ary));
 
@@ -3859,6 +3861,19 @@ rb_objc_install_array_primitives(Class klass)
     }
 
 #undef INSTALL_METHOD
+}
+
+void
+rb_ary_set_named_args(VALUE ary, bool flag)
+{
+    rb_objc_ary_get_struct2(ary)->named_args = flag;
+}
+
+bool
+rb_ary_is_named_args(VALUE ary)
+{
+    struct rb_objc_ary_struct *s = rb_objc_ary_get_struct(ary);
+    return s != NULL && s->named_args;
 }
 #endif
 

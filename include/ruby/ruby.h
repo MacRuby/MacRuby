@@ -535,9 +535,6 @@ struct RArray {
 # define RARRAY_PTR(a) (rb_ary_ptr(a)) 
 # define RARRAY_AT(a,i) (rb_ary_elt(a, i))
 #endif
-#if WITH_OBJC
-# define RARRAY_NAMED_ARGS FL_USER1
-#endif
 
 struct RRegexp {
     struct RBasic basic;
@@ -728,7 +725,7 @@ struct RBignum {
 #define ALLOCA_N(type,n) (type*)alloca(sizeof(type)*(n))
 
 #define MEMZERO(p,type,n) memset((p), 0, sizeof(type)*(n))
-#if WITH_OBJC
+#if 0//WITH_OBJC
 void *rb_gc_memmove(void *, const void *, size_t); 
 # define MEMCPY(p1,p2,type,n) rb_gc_memmove((p1), (p2), sizeof(type)*(n))
 # define MEMMOVE(p1,p2,type,n) rb_gc_memmove((p1), (p2), sizeof(type)*(n))

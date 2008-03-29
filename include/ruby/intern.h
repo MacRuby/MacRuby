@@ -79,6 +79,8 @@ VALUE rb_ary_replace(VALUE copy, VALUE orig);
 VALUE rb_get_values_at(VALUE, long, int, VALUE*, VALUE(*)(VALUE,long));
 #if WITH_OBJC
 VALUE rb_ary_elt(VALUE, long);
+void rb_ary_set_named_args(VALUE, bool);
+bool rb_ary_is_named_args(VALUE);
 #endif
 /* bignum.c */
 VALUE rb_big_clone(VALUE);

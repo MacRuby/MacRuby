@@ -323,7 +323,7 @@ io_ungetc(VALUE str, rb_io_t *fptr)
 	    fptr->rbuf_capa = len;
 	else
 	    fptr->rbuf_capa = 8192;
-        fptr->rbuf = ALLOC_N(char, fptr->rbuf_capa);
+        GC_WB(&fptr->rbuf, ALLOC_N(char, fptr->rbuf_capa));
     }
     if (fptr->rbuf_capa < len + fptr->rbuf_len) {
 	rb_raise(rb_eIOError, "ungetc failed");
@@ -695,7 +695,7 @@ io_fwrite(VALUE str, rb_io_t *fptr)
         fptr->wbuf_off = 0;
         fptr->wbuf_len = 0;
         fptr->wbuf_capa = 8192;
-        fptr->wbuf = ALLOC_N(char, fptr->wbuf_capa);
+        GC_WB(&fptr->wbuf, ALLOC_N(char, fptr->wbuf_capa));
     }
     if ((fptr->mode & (FMODE_SYNC|FMODE_TTY)) ||
         (fptr->wbuf && fptr->wbuf_capa <= fptr->wbuf_len + len)) {
@@ -1012,7 +1012,7 @@ io_fillbuf(rb_io_t *fptr)
         fptr->rbuf_off = 0;
         fptr->rbuf_len = 0;
         fptr->rbuf_capa = 8192;
-        fptr->rbuf = ALLOC_N(char, fptr->rbuf_capa);
+        GC_WB(&fptr->rbuf, ALLOC_N(char, fptr->rbuf_capa));
     }
     if (fptr->rbuf_len == 0) {
       retry:
@@ -3430,7 +3430,7 @@ pipe_add_fptr(rb_io_t *fptr)
     struct pipe_list *list;
 
     list = ALLOC(struct pipe_list);
-    GC_GB(&list->fptr, fptr);
+    list->fptr = fptr;
     list->next = pipe_list;
     pipe_list = list;
 }

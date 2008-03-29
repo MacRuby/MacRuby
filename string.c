@@ -359,7 +359,7 @@ str_new(VALUE klass, const char *ptr, long len)
     str = str_alloc(klass);
     if (len > RSTRING_EMBED_LEN_MAX) {
 	RSTRING(str)->as.heap.aux.capa = len;
-	RSTRING(str)->as.heap.ptr = ALLOC_N(char,len+1);
+	GC_WB(&RSTRING(str)->as.heap.ptr, ALLOC_N(char,len+1));
 	STR_SET_NOEMBED(str);
     }
     if (ptr) {
@@ -549,7 +549,7 @@ rb_str_buf_new(long capa)
     }
     FL_SET(str, STR_NOEMBED);
     RSTRING(str)->as.heap.aux.capa = capa;
-    RSTRING(str)->as.heap.ptr = ALLOC_N(char, capa+1);
+    GC_WB(&RSTRING(str)->as.heap.ptr, ALLOC_N(char, capa+1));
     RSTRING(str)->as.heap.ptr[0] = '\0';
 
     return str;
@@ -982,7 +982,7 @@ str_make_independent(VALUE str)
     }
     STR_SET_NOEMBED(str);
     ptr[len] = 0;
-    RSTRING(str)->as.heap.ptr = ptr;
+    GC_WB(&RSTRING(str)->as.heap.ptr, ptr);
     RSTRING(str)->as.heap.len = len;
     RSTRING(str)->as.heap.aux.capa = len;
     STR_UNSET_NOCAPA(str);
@@ -4325,7 +4325,7 @@ tr_trans(VALUE str, VALUE src, VALUE repl, int sflag)
 	    t += tlen;
 	}
 	*t = '\0';
-	RSTRING(str)->as.heap.ptr = buf;
+	GC_WB(&RSTRING(str)->as.heap.ptr, buf);
 	RSTRING(str)->as.heap.len = t - buf;
 	STR_SET_NOEMBED(str);
 	RSTRING(str)->as.heap.aux.capa = max;
@@ -4389,7 +4389,7 @@ tr_trans(VALUE str, VALUE src, VALUE repl, int sflag)
 	    xfree(RSTRING(str)->as.heap.ptr);
 	}
 	*t = '\0';
-	RSTRING(str)->as.heap.ptr = buf;
+	GC_WB(&RSTRING(str)->as.heap.ptr, buf);
 	RSTRING(str)->as.heap.len = t - buf;
 	STR_SET_NOEMBED(str);
 	RSTRING(str)->as.heap.aux.capa = max;
