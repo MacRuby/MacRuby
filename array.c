@@ -1268,15 +1268,18 @@ rb_ary_splice(VALUE ary, long beg, long len, VALUE rpl)
 		    CFRangeMake(0, rlen));
     }
     else {
+	const void **values;
 	if (rlen > 0) {
-	    const void **values;
 	    values = (void *)alloca(sizeof(void *) * rlen);
 	    CFArrayGetValues((CFArrayRef)rpl, CFRangeMake(0, rlen), values);
-	    CFArrayReplaceValues((CFMutableArrayRef)ary,
-		    CFRangeMake(beg, len),
-		    values,
-		    rlen);
 	}
+	else {
+	    values = NULL;
+	}
+	CFArrayReplaceValues((CFMutableArrayRef)ary,
+		CFRangeMake(beg, len),
+		values,
+		rlen);
     }
 #else
     if (beg >= RARRAY_LEN(ary)) {
@@ -1682,10 +1685,18 @@ rb_ary_to_s(VALUE ary)
  *  the receiver to an Array object.
  */
 
+#if WITH_OBJC
+static bool rb_objc_ary_is_pure(VALUE ary);
+#endif
+
 static VALUE
 rb_ary_to_a(VALUE ary)
 {
+#if WITH_OBJC
+    if (!rb_objc_ary_is_pure(ary)) {
+#else
     if (rb_obj_class(ary) != rb_cArray) {
+#endif
 	VALUE dup = rb_ary_new2(RARRAY_LEN(ary));
 	rb_ary_replace(dup, ary);
 	return dup;
@@ -2209,19 +2220,19 @@ rb_ary_slice_bang(int argc, VALUE *argv, VALUE ary)
 static VALUE
 rb_ary_reject_bang(VALUE ary)
 {
-    long n, i1, i2;
+    long orign, n, i1, i2;
 
     RETURN_ENUMERATOR(ary, 0, 0);
     rb_ary_modify(ary);
-    n = RARRAY_LEN(ary);
+    orign = n = RARRAY_LEN(ary);
     for (i1 = i2 = 0; i1 < n; i1++) {
 	VALUE v = RARRAY_AT(ary, i1);
 #if WITH_OBJC
 	if (!RTEST(rb_yield(v))) {
-	    i2++;
 	    continue;
 	}
 	CFArrayRemoveValueAtIndex((CFMutableArrayRef)ary, i1);
+	n--;
 	i1--;
 #else
 	if (RTEST(rb_yield(v))) continue;
@@ -2232,8 +2243,11 @@ rb_ary_reject_bang(VALUE ary)
 #endif
     }
 
+#if WITH_OBJC
+    if (n == orign) 
+	return Qnil;
+#else
     if (n == i2) return Qnil;
-#if !WITH_OBJC
     if (i2 < RARRAY_LEN(ary))
 	RARRAY(ary)->len = i2;
 #endif
@@ -2541,14 +2555,16 @@ rb_ary_fill(int argc, VALUE *argv, VALUE ary)
 
 	for (i=beg; i<end; i++) {
 	    v = rb_yield(LONG2NUM(i));
+#if !WITH_OBJC
 	    if (i>=RARRAY_LEN(ary)) break;
+#endif
 	    rb_ary_store(ary, i, v);
 	}
     }
     else {
 #if WITH_OBJC
 	long i;
-	for (i=beg; i<len; i++) {
+	for (i=beg; i<end; i++) {
 	    rb_ary_store(ary, i, item);
 	}
 #else
@@ -2655,7 +2671,7 @@ rb_ary_times(VALUE ary, VALUE times)
 #if WITH_OBJC
     ary2 = ary_new(rb_obj_class(ary), 0);
     for (i = 0; i < len; i++) {
-	CFArrayAppendArray((CFMutableArrayRef)ary,
+	CFArrayAppendArray((CFMutableArrayRef)ary2,
 		(CFArrayRef)ary,
 		CFRangeMake(0, n));
     }
@@ -3096,10 +3112,11 @@ rb_ary_uniq_bang(VALUE ary)
 {
 #if WITH_OBJC
     long i, n;
+    bool changed;
 
     rb_ary_modify(ary);
     n = RARRAY_LEN(ary);
-    for (i = 0; i < n; i++) {
+    for (i = 0, changed = false; i < n; i++) {
 	VALUE e;
 	long idx;
      	CFRange r;
@@ -3111,8 +3128,11 @@ rb_ary_uniq_bang(VALUE ary)
 	    CFArrayRemoveValueAtIndex((CFMutableArrayRef)ary, idx);
 	    r.location = idx;
 	    r.length = --n - idx;
+	    changed = true;
 	}
     }
+    if (!changed)
+	return Qnil;
 #else
     VALUE hash, v, vv;
     long i, j;
@@ -3262,8 +3282,9 @@ rb_ary_nitems(VALUE ary)
     }
     else {
 #if WITH_OBJC
-	n = CFArrayGetCountOfValue((CFArrayRef)ary,
-	    CFRangeMake(0, RARRAY_LEN(ary)), (const void *)Qnil);
+	long total = RARRAY_LEN(ary);
+	n = total - CFArrayGetCountOfValue((CFArrayRef)ary, 
+	    CFRangeMake(0, total), (const void *)Qnil);
 #else
 	VALUE *p = RARRAY_PTR(ary);
 	VALUE *pend = p + RARRAY_LEN(ary);
@@ -3767,14 +3788,24 @@ rb_ary_product(int argc, VALUE *argv, VALUE ary)
 
 #if WITH_OBJC
 static Class __nscfarray = NULL;
+
+#define NSCFARRAY() \
+    (__nscfarray == NULL \
+	? __nscfarray = (Class)objc_getClass("NSCFArray") \
+	: __nscfarray)
+
 #define PREPARE_RCV(x) \
     Class old = *(Class *)x; \
-    if (__nscfarray == NULL) \
-	__nscfarray = (Class)objc_getClass("NSCFArray"); \
-    *(Class *)x = __nscfarray;
+    *(Class *)x = NSCFARRAY();
 
 #define RESTORE_RCV(x) \
       *(Class *)x = old;
+
+static bool
+rb_objc_ary_is_pure(VALUE ary)
+{
+    return *(Class *)ary == NSCFARRAY();
+}
 
 static CFIndex
 imp_rb_array_count(void *rcv, SEL sel)
