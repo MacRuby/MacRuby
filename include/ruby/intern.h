@@ -81,6 +81,7 @@ VALUE rb_get_values_at(VALUE, long, int, VALUE*, VALUE(*)(VALUE,long));
 VALUE rb_ary_elt(VALUE, long);
 void rb_ary_set_named_args(VALUE, bool);
 bool rb_ary_is_named_args(VALUE);
+VALUE rb_ary_clone(VALUE);
 #endif
 /* bignum.c */
 VALUE rb_big_clone(VALUE);
@@ -361,6 +362,9 @@ VALUE rb_hash_delete(VALUE,VALUE);
 struct st_table *rb_hash_tbl(VALUE);
 int rb_path_check(const char*);
 int rb_env_path_tainted(void);
+#if WITH_OBJC
+VALUE rb_hash_clone(VALUE);
+#endif
 /* io.c */
 #define rb_defout rb_stdout
 RUBY_EXTERN VALUE rb_fs;

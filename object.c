@@ -157,6 +157,16 @@ rb_obj_class(VALUE obj)
 static void
 init_copy(VALUE dest, VALUE obj)
 {
+#if WITH_OBJC
+    if (rb_objc_is_non_native(obj)) {
+	int type = TYPE(obj);
+	if (type == T_ARRAY)
+	    if (rb_ary_tainted(obj)) rb_ary_taint(dest);
+	else if (type == T_HASH)
+	    if (rb_hash_tainted(obj)) rb_hash_taint(dest);
+	goto call_init_copy;
+    }
+#endif
     if (OBJ_FROZEN(dest)) {
         rb_raise(rb_eTypeError, "[bug] frozen object (%s) allocated", rb_obj_classname(dest));
     }
@@ -197,6 +207,7 @@ init_copy(VALUE dest, VALUE obj)
 	}
         break;
     }
+call_init_copy:
     rb_funcall(dest, id_init_copy, 1, obj);
 }
 
@@ -234,6 +245,11 @@ rb_obj_clone(VALUE obj)
     }
 #if WITH_OBJC
     if (rb_objc_is_non_native(obj)) {
+	int type = TYPE(obj);
+	if (type == T_ARRAY)
+	    return rb_ary_clone(obj);
+	if (type == T_HASH)
+	    return rb_hash_clone(obj);
         clone = rb_obj_alloc(rb_obj_class(obj));
         init_copy(clone, obj);
 	return clone;

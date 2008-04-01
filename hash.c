@@ -260,10 +260,12 @@ rb_cfdictionary_release_cb(CFAllocatorRef allocator, const void *v)
     rb_objc_release(v);
 }
 
+/* TODO optimize me */
 struct rb_objc_hash_struct {
     VALUE ifnone;
     bool has_proc_default; 
     bool frozen;
+    bool tainted;
 };
 
 /* This variable will always stay NULL, we only use its address. */
@@ -287,6 +289,7 @@ rb_objc_hash_get_struct2(VALUE hash)
 	s->ifnone = Qnil;
 	s->has_proc_default = false;
 	s->frozen = false;
+	s->tainted = false;
     }
     return s;
 }
@@ -312,6 +315,27 @@ rb_hash_frozen(VALUE hash)
     return s != NULL && s->frozen ? Qtrue : Qfalse;
 }
 
+VALUE
+rb_hash_taint(VALUE hash)
+{
+    struct rb_objc_hash_struct *s;
+
+    s = rb_objc_hash_get_struct2(hash);
+    s->tainted = true;
+
+    return hash;
+}
+
+VALUE
+rb_hash_tainted(VALUE hash)
+{
+    struct rb_objc_hash_struct *s;
+
+    s = rb_objc_hash_get_struct(hash);
+
+    return s != NULL && s->tainted ? Qtrue : Qfalse;
+}
+
 static void
 rb_objc_hash_set_struct(VALUE hash, VALUE ifnone, bool has_proc_default)
 {
@@ -321,6 +345,19 @@ rb_objc_hash_set_struct(VALUE hash, VALUE ifnone, bool has_proc_default)
 
     GC_WB(&s->ifnone, ifnone);
     s->has_proc_default = has_proc_default;
+}
+
+VALUE
+rb_hash_clone(VALUE hash)
+{
+#if 0 // TODO
+    VALUE klass, dup;
+    long n;
+
+    klass = rb_obj_class(ary);
+    dup = hash_alloc(klass);
+#endif
+    return Qnil;
 }
 #endif
 
@@ -3046,6 +3083,8 @@ Init_Hash(void)
     rb_const_set(rb_cObject, rb_intern("Hash"), rb_cHashRuby);
     rb_define_method(rb_cHash, "freeze", rb_hash_freeze, 0);
     rb_define_method(rb_cHash, "frozen?", rb_hash_frozen, 0);
+    rb_define_method(rb_cHash, "taint", rb_hash_taint, 0);
+    rb_define_method(rb_cHash, "tainted?", rb_hash_tainted, 0);
 #else
     rb_cHash = rb_define_class("Hash", rb_cObject);
 #endif

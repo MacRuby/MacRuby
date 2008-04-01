@@ -182,14 +182,14 @@ class TestArray < Test::Unit::TestCase
 
   def test_00_new
     a = @cls.new()
-    assert_instance_of(@cls, a)
+    assert_kind_of(@cls, a)
     assert_equal(0, a.length)
     assert_nil(a[0])
   end
 
   def test_01_square_brackets
     a = @cls[ 5, 4, 3, 2, 1 ]
-    assert_instance_of(@cls, a)
+    assert_kind_of(@cls, a)
     assert_equal(5, a.length)
     5.times { |i| assert_equal(5-i, a[i]) }
     assert_nil(a[6])

@@ -241,7 +241,7 @@ enumerator_init(VALUE enum_obj, VALUE obj, VALUE meth, int argc, VALUE *argv)
     else {
 	ptr->iter = enumerator_each_i;
     }
-    if (argc) ptr->args = rb_ary_new4(argc, argv);
+    if (argc) GC_WB(&ptr->args, rb_ary_new4(argc, argv));
     ptr->fib = 0;
     ptr->dst = Qnil;
     ptr->no_next = Qfalse;

@@ -41,8 +41,10 @@ memfill(register VALUE *mem, register long size, register VALUE val)
 }
 
 #if WITH_OBJC
+/* TODO optimize this */
 struct rb_objc_ary_struct {
     bool frozen;
+    bool tainted;
     bool named_args;
     void *cptr;
 };
@@ -63,12 +65,28 @@ rb_objc_ary_get_struct2(VALUE ary)
 
     s = rb_objc_ary_get_struct(ary);
     if (s == NULL) {
-        s = xmalloc(sizeof(struct rb_objc_ary_struct));
-        rb_objc_set_associative_ref((void *)ary, &rb_objc_ary_assoc_key, s);
-        s->frozen = false;
-        s->named_args = false;
+	s = xmalloc(sizeof(struct rb_objc_ary_struct));
+	rb_objc_set_associative_ref((void *)ary, &rb_objc_ary_assoc_key, s);
+	s->frozen = false;
+	s->tainted = false;
+	s->named_args = false;
+	s->cptr = NULL;
     }
     return s;
+}
+
+static void
+rb_objc_ary_copy_struct(VALUE old, VALUE new)
+{
+    struct rb_objc_ary_struct *s;
+
+    s = rb_objc_ary_get_struct(old);
+    if (s != NULL) {
+	struct rb_objc_ary_struct *n;
+
+	n = rb_objc_ary_get_struct2(new);
+	memcpy(n, s, sizeof(struct rb_objc_ary_struct));
+    }
 }
 #else
 #define ARY_SHARED_P(a) FL_TEST(a, ELTS_SHARED)
@@ -128,6 +146,22 @@ rb_ary_freeze(VALUE ary)
     return rb_obj_freeze(ary);
 #endif
 }
+
+#if WITH_OBJC
+VALUE
+rb_ary_taint(VALUE ary)
+{
+    rb_objc_ary_get_struct2(ary)->tainted = true;
+    return ary;
+}
+
+VALUE
+rb_ary_tainted(VALUE ary)
+{
+    struct rb_objc_ary_struct *s = rb_objc_ary_get_struct(ary);
+    return s != NULL && s->tainted ? Qtrue : Qfalse;
+}
+#endif
 
 /*
  *  call-seq:
@@ -273,9 +307,7 @@ rb_ary_new4(long n, const VALUE *elts)
     ary = rb_ary_new2(n);
     if (n > 0 && elts) {
 #if WITH_OBJC
-	long i;
-	for (i = 0; i < n; i++)
-	    rb_ary_insert(ary, i, elts[i]);
+	CFArrayReplaceValues((CFMutableArrayRef)ary, CFRangeMake(0, 0), (const void **)elts, n);
 #else
 	MEMCPY(RARRAY_PTR(ary), elts, VALUE, n);
 	RARRAY(ary)->len = n;
@@ -1523,10 +1555,10 @@ rb_ary_empty_p(VALUE ary)
     return Qfalse;
 }
 
-VALUE
-rb_ary_dup(VALUE ary)
-{
 #if WITH_OBJC
+static inline VALUE
+rb_ary_dup2(VALUE ary)
+{
     VALUE klass, dup;
     long n;
 
@@ -1536,6 +1568,24 @@ rb_ary_dup(VALUE ary)
     if (n > 0)
 	CFArrayAppendArray((CFMutableArrayRef)dup, (CFArrayRef)ary,
 		CFRangeMake(0, n));
+    return dup;
+}
+
+VALUE
+rb_ary_clone(VALUE ary)
+{
+    VALUE dup = rb_ary_dup2(ary);
+    rb_objc_ary_copy_struct(ary, dup);
+    return dup;
+}
+#endif
+
+VALUE
+rb_ary_dup(VALUE ary)
+{
+#if WITH_OBJC
+    VALUE dup = rb_ary_dup2(ary);
+    /* copy the named_args flag, but not other flags */
     if (rb_ary_is_named_args(ary))
 	rb_ary_set_named_args(dup, true);
 #else
@@ -3692,7 +3742,9 @@ rb_ary_combination(VALUE ary, VALUE num)
 	volatile VALUE cc = rb_ary_new2(n);
 	long lev = 0;
 
+#if !WITH_OBJC
 	RBASIC(cc)->klass = 0;
+#endif
 	MEMZERO(stack, long, n);
 	stack[0] = -1;
 	for (i = 0; i < nlen; i++) {
@@ -3700,7 +3752,11 @@ rb_ary_combination(VALUE ary, VALUE num)
 	    for (lev++; lev < n; lev++) {
 		rb_ary_store(cc, lev, RARRAY_AT(ary, stack[lev+1] = stack[lev]+1));
 	    }
+#if WITH_OBJC
+	    rb_yield(rb_ary_dup(cc));
+#else
 	    rb_yield(cc);
+#endif
 	    do {
 		stack[lev--]++;
 	    } while (lev && (stack[lev+1]+n == len+lev+1));
@@ -3925,6 +3981,8 @@ Init_Array(void)
     FL_UNSET(rb_cArrayRuby, RCLASS_OBJC_IMPORTED);
     rb_const_set(rb_cObject, rb_intern("Array"), rb_cArrayRuby);
     rb_define_method(rb_cArray, "freeze", rb_ary_freeze, 0);
+    rb_define_method(rb_cArray, "taint", rb_ary_taint, 0);
+    rb_define_method(rb_cArray, "tainted?", rb_ary_tainted, 0);
 #else
     rb_cArray  = rb_define_class("Array", rb_cObject);
 #endif
