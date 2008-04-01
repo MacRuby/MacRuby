@@ -758,9 +758,16 @@ VALUE
 rb_obj_freeze(VALUE obj)
 {
 #if WITH_OBJC
-    if (rb_objc_is_non_native(obj))
-	rb_raise(rb_eRuntimeError, "can't freeze pure objc object `%s'",
-	    RSTRING_PTR(rb_inspect(obj)));
+    if (rb_objc_is_non_native(obj)) {
+	int type = TYPE(obj);
+	if (type == T_ARRAY)
+	    rb_ary_freeze(obj);
+	else if (type == T_HASH)
+	    rb_hash_freeze(obj);
+	else
+	    rb_raise(rb_eRuntimeError, "can't freeze pure objc object `%s'",
+		    RSTRING_PTR(rb_inspect(obj)));
+    }
 #endif
     if (!OBJ_FROZEN(obj)) {
 	if (rb_safe_level() >= 4 && !OBJ_TAINTED(obj)) {
