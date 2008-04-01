@@ -160,10 +160,14 @@ init_copy(VALUE dest, VALUE obj)
 #if WITH_OBJC
     if (rb_objc_is_non_native(obj)) {
 	int type = TYPE(obj);
-	if (type == T_ARRAY)
-	    if (rb_ary_tainted(obj)) rb_ary_taint(dest);
-	else if (type == T_HASH)
-	    if (rb_hash_tainted(obj)) rb_hash_taint(dest);
+	if (type == T_ARRAY) {
+	    if (rb_ary_tainted(obj)) 
+		rb_ary_taint(dest);
+	}
+	else if (type == T_HASH) {
+	    if (rb_hash_tainted(obj)) 
+		rb_hash_taint(dest);
+	}
 	goto call_init_copy;
     }
 #endif

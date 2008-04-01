@@ -347,17 +347,18 @@ rb_objc_hash_set_struct(VALUE hash, VALUE ifnone, bool has_proc_default)
     s->has_proc_default = has_proc_default;
 }
 
-VALUE
-rb_hash_clone(VALUE hash)
+static void
+rb_objc_ary_copy_struct(VALUE old, VALUE new)
 {
-#if 0 // TODO
-    VALUE klass, dup;
-    long n;
+    struct rb_objc_hash_struct *s;
 
-    klass = rb_obj_class(ary);
-    dup = hash_alloc(klass);
-#endif
-    return Qnil;
+    s = rb_objc_hash_get_struct(old);
+    if (s != NULL) {
+	struct rb_objc_hash_struct *n;
+
+	n = rb_objc_hash_get_struct2(new);
+	memcpy(n, s, sizeof(struct rb_objc_hash_struct));
+    }
 }
 #endif
 
@@ -404,6 +405,23 @@ rb_hash_new(void)
     return hash_alloc(rb_cHash);
 #endif
 }
+
+#if WITH_OBJC
+static VALUE rb_hash_replace(VALUE, VALUE);
+
+VALUE
+rb_hash_clone(VALUE hash)
+{
+    VALUE klass, dup;
+    long n;
+
+    klass = rb_obj_class(hash);
+    dup = hash_alloc(klass);
+    rb_hash_replace(dup, hash);
+    rb_objc_ary_copy_struct(hash, dup);
+    return dup;
+}
+#endif
 
 static void
 rb_hash_modify_check(VALUE hash)
