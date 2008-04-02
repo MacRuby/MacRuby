@@ -614,32 +614,41 @@ ary_shared_array(VALUE klass, VALUE ary)
     FL_SET(val, ELTS_SHARED);
     return val;
 }
+#endif
 
 static VALUE
-ary_shared_first(int argc, VALUE *argv, VALUE ary, int last)
+ary_shared_first(int argc, VALUE *argv, VALUE ary, int last, bool remove)
 {
     VALUE nv, result;
     long n;
     long offset = 0;
+    long ary_len;
 
     rb_scan_args(argc, argv, "1", &nv);
     n = NUM2LONG(nv);
-    if (n > RARRAY_LEN(ary)) {
-	n = RARRAY_LEN(ary);
+    ary_len = RARRAY_LEN(ary);
+    if (n > ary_len) {
+	n = ary_len;
     }
     else if (n < 0) {
 	rb_raise(rb_eArgError, "negative array size");
     }
     if (last) {
-	offset = RARRAY_LEN(ary) - n;
+	offset = ary_len - n;
     }
+#if WITH_OBJC
+    result = rb_ary_new();
+    CFArrayAppendArray((CFMutableArrayRef)result, (CFArrayRef)ary, CFRangeMake(offset, n));
+    if (remove)
+	CFArrayReplaceValues((CFMutableArrayRef)ary, CFRangeMake(offset, n), NULL, 0);
+#else
     result = ary_shared_array(rb_cArray, ary);
     RARRAY(result)->ptr += offset;
     RARRAY(result)->len = n;
+#endif
 
     return result;
 }
-#endif
 
 /*
  *  call-seq:
@@ -735,10 +744,8 @@ rb_ary_pop_m(int argc, VALUE *argv, VALUE ary)
     }
 
     rb_ary_modify_check(ary);
-#if WITH_OBJC
-    rb_notimplement(); /* TODO */
-#else
-    result = ary_shared_first(argc, argv, ary, Qtrue);
+    result = ary_shared_first(argc, argv, ary, Qtrue, true);
+#if !WITH_OBJC
     RARRAY(ary)->len -= RARRAY_LEN(result);
 #endif
     return result;
@@ -801,10 +808,8 @@ rb_ary_shift_m(int argc, VALUE *argv, VALUE ary)
     }
 
     rb_ary_modify_check(ary);
-#if WITH_OBJC
-    rb_notimplement();
-#else
-    result = ary_shared_first(argc, argv, ary, Qfalse);
+    result = ary_shared_first(argc, argv, ary, Qfalse, true);
+#if !WITH_OBJC
     n = RARRAY_LEN(result);
     if (ARY_SHARED_P(ary)) {
 	RARRAY(ary)->ptr += n;
@@ -1082,11 +1087,7 @@ rb_ary_first(int argc, VALUE *argv, VALUE ary)
 	return RARRAY_AT(ary, 0);
     }
     else {
-#if WITH_OBJC
-	rb_notimplement();
-#else
-	return ary_shared_first(argc, argv, ary, Qfalse);
-#endif
+	return ary_shared_first(argc, argv, ary, Qfalse, false);
     }
 }
 
@@ -1112,11 +1113,7 @@ rb_ary_last(int argc, VALUE *argv, VALUE ary)
 	return RARRAY_AT(ary, n - 1);
     }
     else {
-#if WITH_OBJC
-	rb_notimplement();
-#else
-	return ary_shared_first(argc, argv, ary, Qtrue);
-#endif
+	return ary_shared_first(argc, argv, ary, Qtrue, false);
     }
 }
 
