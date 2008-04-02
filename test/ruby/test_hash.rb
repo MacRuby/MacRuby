@@ -105,12 +105,12 @@ class TestHash < Test::Unit::TestCase
 
   def test_s_new
     h = @cls.new
-    assert_instance_of(@cls, h)
+    assert_kind_of(@cls, h)
     assert_nil(h.default)
     assert_nil(h['spurious'])
 
     h = @cls.new('default')
-    assert_instance_of(@cls, h)
+    assert_kind_of(@cls, h)
     assert_equal('default', h.default)
     assert_equal('default', h['spurious'])
     
