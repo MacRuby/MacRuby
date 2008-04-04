@@ -1184,21 +1184,30 @@ static VALUE
 rb_ary_index(int argc, VALUE *argv, VALUE ary)
 {
     VALUE val;
-    long i;
+    long n, i;
 
+    n = RARRAY_LEN(ary);
     if (rb_scan_args(argc, argv, "01", &val) == 0) {
 	RETURN_ENUMERATOR(ary, 0, 0);
-	for (i=0; i<RARRAY_LEN(ary); i++) {
+	for (i=0; i<n; i++) {
 	    if (RTEST(rb_yield(RARRAY_AT(ary, i)))) {
 		return LONG2NUM(i);
 	    }
 	}
     }
     else {
-	for (i=0; i<RARRAY_LEN(ary); i++) {
+#if WITH_OBJC
+	CFIndex idx;
+	idx = CFArrayGetFirstIndexOfValue((CFArrayRef)ary, CFRangeMake(0, n), 
+	    (const void *)val);
+	if (idx != -1)
+	    return LONG2NUM(idx);
+#else
+	for (i=0; i<n; i++) {
 	    if (rb_equal(RARRAY_AT(ary, i), val))
 		return LONG2NUM(i);
 	}
+#endif
     }
     return Qnil;
 }
