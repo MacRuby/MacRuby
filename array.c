@@ -516,11 +516,8 @@ rb_ary_s_create(int argc, VALUE *argv, VALUE klass)
 	rb_raise(rb_eArgError, "negative array size");
     }
 #if WITH_OBJC
-    {
-	int i;
-	for (i = 0; i < argc; i++)
-	    rb_ary_insert(ary, i, argv[i]);
-    }
+    CFArrayReplaceValues((CFMutableArrayRef)ary, CFRangeMake(0, 0), 
+	(const void **)argv, argc);
 #else
     RARRAY(ary)->ptr = ALLOC_N(VALUE, argc);
     RARRAY(ary)->aux.capa = argc;
@@ -1246,6 +1243,12 @@ rb_ary_rindex(int argc, VALUE *argv, VALUE ary)
 	}
     }
     else {
+#if WITH_OBJC
+	i = CFArrayGetLastIndexOfValue((CFArrayRef)ary, CFRangeMake(0, n),
+	   (const void *)val);
+	if (i != -1)
+	    return LONG2NUM(i);
+#else
 	while (i--) {
 	    if (rb_equal(RARRAY_AT(ary, i), val))
 		return LONG2NUM(i);
@@ -1253,6 +1256,7 @@ rb_ary_rindex(int argc, VALUE *argv, VALUE ary)
 		i = n;
 	    }
 	}
+#endif
     }
     return Qnil;
 }
@@ -2623,6 +2627,12 @@ rb_ary_fill(int argc, VALUE *argv, VALUE ary)
 	for (i=beg; i<end; i++) {
 	    rb_ary_store(ary, i, item);
 	}
+# if 0
+	const void **vals = (const void **)alloca(sizeof(void *) * (end - beg));
+	for (i=beg; i<end; i++) { vals[i] = (const void *)item; }
+	CFArrayReplaceValues((CFMutableArrayRef)ary, CFRangeMake(beg, end),
+	    vals, end);
+# endif
 #else
 	p = RARRAY_PTR(ary) + beg;
 	pend = p + len;
@@ -3167,6 +3177,7 @@ static VALUE
 rb_ary_uniq_bang(VALUE ary)
 {
 #if WITH_OBJC
+# if 0 
     long i, n;
     bool changed;
 
@@ -3189,6 +3200,32 @@ rb_ary_uniq_bang(VALUE ary)
     }
     if (!changed)
 	return Qnil;
+# else
+    VALUE hash;
+    long i, n, n_orig;
+    bool changed;
+
+    rb_ary_modify(ary);
+    hash = ary_make_hash(ary, 0);
+    n_orig = n = RARRAY_LEN(ary);
+    if (RARRAY_LEN(ary) == RHASH_SIZE(hash))
+	return Qnil;
+    for (i = 0, changed = false; i < n; i++) {
+	VALUE e;
+
+        e = RARRAY_AT(ary, i);
+	if (CFDictionaryContainsKey((CFDictionaryRef)hash, (const void *)e)) {
+	    CFDictionaryRemoveValue((CFMutableDictionaryRef)hash,
+		(const void *)e);
+	}
+	else {
+	    CFArrayRemoveValueAtIndex((CFMutableArrayRef)ary, i);
+	    n--;
+	}
+    }
+    if (n != n_orig)
+	return Qnil;
+# endif
 #else
     VALUE hash, v, vv;
     long i, j;
