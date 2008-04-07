@@ -755,7 +755,6 @@ rb_ary_shift(VALUE ary)
 
     rb_ary_modify_check(ary);
     if (RARRAY_LEN(ary) == 0) return Qnil;
-    if (RARRAY_LEN(ary) == 0) return Qnil;
 #if WITH_OBJC
     top = RARRAY_AT(ary, 0);
     CFArrayRemoveValueAtIndex((CFMutableArrayRef)ary, 0);
