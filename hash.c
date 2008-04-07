@@ -235,6 +235,10 @@ rb_hash_foreach(VALUE hash, int (*func)(ANYARGS), VALUE farg)
 }
 
 #if WITH_OBJC
+
+# define HASH_KEY_CALLBACKS(h) \
+  ((CFDictionaryKeyCallBacks *)((uint8_t *)h + 52))
+
 static Boolean 
 rb_cfdictionary_equal_cb(const void *v1, const void *v2)
 {
@@ -2119,8 +2123,7 @@ rb_hash_compare_by_id(VALUE hash)
 {
     rb_hash_modify(hash);
 #if WITH_OBJC
-    /* TODO */
-    rb_notimplement();
+    HASH_KEY_CALLBACKS(hash)->equal = NULL;
 #else
     RHASH(hash)->ntbl->type = &identhash;
     rb_hash_rehash(hash);
@@ -2141,8 +2144,7 @@ static VALUE
 rb_hash_compare_by_id_p(VALUE hash)
 {
 #if WITH_OBJC
-    /* TODO */
-    rb_notimplement();
+    return HASH_KEY_CALLBACKS(hash)->equal == NULL ? Qtrue : Qfalse;
 #else
     if (!RHASH(hash)->ntbl)
         return Qfalse;
