@@ -1635,6 +1635,7 @@ rb_ary_join(VALUE ary, VALUE sep)
     if (RARRAY_LEN(ary) == 0) return rb_str_new(0, 0);
     if (OBJ_TAINTED(ary) || OBJ_TAINTED(sep)) taint = Qtrue;
 #if !WITH_OBJC
+    /* TODO should use CFStringCreateByCombiningStrings */
     for (i=0; i<RARRAY_LEN(ary); i++) {
 	tmp = rb_check_string_type(RARRAY_AT(ary, i));
 	len += NIL_P(tmp) ? 10 : RSTRING_LEN(tmp);
@@ -3176,7 +3177,7 @@ static VALUE
 rb_ary_uniq_bang(VALUE ary)
 {
 #if WITH_OBJC
-# if 0 
+# if 1
     long i, n;
     bool changed;
 
