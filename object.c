@@ -764,6 +764,8 @@ rb_obj_freeze(VALUE obj)
 	    rb_ary_freeze(obj);
 	else if (type == T_HASH)
 	    rb_hash_freeze(obj);
+	else if (type == T_STRING)
+	    rb_str_freeze(obj);
 	else
 	    rb_raise(rb_eRuntimeError, "can't freeze pure objc object `%s'",
 		    RSTRING_PTR(rb_inspect(obj)));

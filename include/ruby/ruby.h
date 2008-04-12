@@ -484,6 +484,7 @@ struct RFloat {
 
 #define ELTS_SHARED FL_USER2
 
+#if !WITH_OBJC
 #define RSTRING_EMBED_LEN_MAX ((sizeof(VALUE)*3)/sizeof(char)-1)
 struct RString {
     struct RBasic basic;
@@ -499,18 +500,35 @@ struct RString {
 	char ary[RSTRING_EMBED_LEN_MAX];
     } as;
 };
-#define RSTRING_NOEMBED FL_USER1
-#define RSTRING_EMBED_LEN_MASK (FL_USER2|FL_USER3|FL_USER4|FL_USER5|FL_USER6)
-#define RSTRING_EMBED_LEN_SHIFT (FL_USHIFT+2)
-#define RSTRING_LEN(str) \
+# define RSTRING_NOEMBED FL_USER1
+# define RSTRING_EMBED_LEN_MASK (FL_USER2|FL_USER3|FL_USER4|FL_USER5|FL_USER6)
+# define RSTRING_EMBED_LEN_SHIFT (FL_USHIFT+2)
+# define RSTRING_LEN(str) \
     (!(RBASIC(str)->flags & RSTRING_NOEMBED) ? \
      (long)((RBASIC(str)->flags >> RSTRING_EMBED_LEN_SHIFT) & \
             (RSTRING_EMBED_LEN_MASK >> RSTRING_EMBED_LEN_SHIFT)) : \
      RSTRING(str)->as.heap.len)
-#define RSTRING_PTR(str) \
+# define RSTRING_PTR(str) \
     (!(RBASIC(str)->flags & RSTRING_NOEMBED) ? \
      RSTRING(str)->as.ary : \
      RSTRING(str)->as.heap.ptr)
+#else
+/* IMPORTANT: try to avoid using RSTRING_PTR/RSTRING_LEN if necessary, 
+ * because they can be slow operations in non-8bit strings. 
+ * If you modify RSTRING_PTR, you need to call RSTRING_SYNC in order to
+ * synchronize its content with the real string storage.
+ * RSTRING_PTR/RSTRING_LEN deal with bytes. If you want to access a C string
+ * pointer, please use RSTRING_CPTR instead which is faster.
+ */
+char *rb_str_byteptr(VALUE);
+long rb_str_bytelen(VALUE);
+void rb_str_bytesync(VALUE);
+# define RSTRING_PTR(str) (rb_str_byteptr((VALUE)str))
+# define RSTRING_LEN(str) (rb_str_bytelen((VALUE)str))
+# define RSTRING_SYNC(str) (rb_str_bytesync((VALUE)str))
+# define RSTRING_CPTR(str) (CFStringGetCStringPtr((CFStringRef)str, 0))
+# define RSTRING_CLEN(str) (CFStringGetLength((CFStringRef)str))
+#endif
 #define RSTRING_END(str) (RSTRING_PTR(str)+RSTRING_LEN(str))
 
 #if !WITH_OBJC
@@ -532,8 +550,9 @@ struct RArray {
  * a _much_ slower operation than RARRAY_AT. RARRAY_PTR is only provided for
  * compatibility but should _not_ be used intensively.
  */
-# define RARRAY_PTR(a) (rb_ary_ptr(a)) 
-# define RARRAY_AT(a,i) (rb_ary_elt(a, i))
+const VALUE *rb_ary_ptr(VALUE);
+# define RARRAY_PTR(a) (rb_ary_ptr((VALUE)a)) 
+# define RARRAY_AT(a,i) (rb_ary_elt((VALUE)a, (int)i))
 #endif
 
 struct RRegexp {
@@ -963,8 +982,6 @@ rb_objc_is_non_native(VALUE obj)
     while (isa != NULL) {
 	if (rb_cObject != 0 && isa == RCLASS_OCID(rb_cObject))
 	    return 0;
-	if (rb_cString != 0 && isa == RCLASS_OCID(rb_cString))
-	    return 0;
 	isa = (void *)class_getSuperclass(isa);
     }
     return 1;
@@ -1006,7 +1023,9 @@ rb_type(VALUE obj)
     }
 #if WITH_OBJC
     /* FIXME this is super slow */
-    else if (rb_cHash != 0 && rb_cArray != 0 
+    else if (rb_cHash != 0 
+	     && rb_cArray != 0
+	     && rb_cString != 0
 	     && !class_isMetaClass(*(Class *)obj)) {
 	Class k = *(Class *)obj;
 	while (k != NULL) {
@@ -1014,6 +1033,8 @@ rb_type(VALUE obj)
 		return T_HASH;
 	    if (k == RCLASS_OCID(rb_cArray))
 		return T_ARRAY;
+	    if (k == RCLASS_OCID(rb_cString))
+		return T_STRING;
 	    k = class_getSuperclass(k);
 	}
     }

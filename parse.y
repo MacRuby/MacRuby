@@ -4791,20 +4791,49 @@ yycompile(struct parser_params *parser, const char *f, int line)
 static VALUE
 lex_get_str(struct parser_params *parser, VALUE s)
 {
-    char *beg, *end, *pend;
-
-    beg = RSTRING_PTR(s);
-    if (lex_gets_ptr) {
-	if (RSTRING_LEN(s) == lex_gets_ptr) return Qnil;
+#if WITH_OBJC
+    long beg, n;
+    CFRange search_range;  
+    VALUE v;
+ 
+    beg = 0; 
+    n = CFStringGetLength((CFStringRef)s);
+    if (lex_gets_ptr > 0) {
+	if (n == lex_gets_ptr)
+	    return Qnil;
 	beg += lex_gets_ptr;
     }
-    pend = RSTRING_PTR(s) + RSTRING_LEN(s);
+    if (CFStringFindCharacterFromSet((CFStringRef)s, 
+	CFCharacterSetGetPredefined(kCFCharacterSetNewline),
+	CFRangeMake(beg, n - beg),
+	0,
+	&search_range)) {
+	lex_gets_ptr = search_range.location;
+    }
+    else {
+        lex_gets_ptr = n;
+    }
+    v = (VALUE)CFStringCreateWithSubstring(NULL, (CFStringRef)s, 
+	CFRangeMake(beg, lex_gets_ptr - beg));
+    return v;
+#else
+    const char *cptr, *beg, *end, *pend;
+    long clen;
+
+    cptr = beg = RSTRING_CPTR(s);
+    clen = RSTRING_CLEN(s);
+    if (lex_gets_ptr) {
+	if (clen == lex_gets_ptr) return Qnil;
+	beg += lex_gets_ptr;
+    }
+    pend = cptr + clen;
     end = beg;
     while (end < pend) {
 	if (*end++ == '\n') break;
     }
-    lex_gets_ptr = end - RSTRING_PTR(s);
+    lex_gets_ptr = end - cptr;
     return rb_enc_str_new(beg, end - beg, rb_enc_get(s));
+#endif
 }
 
 static VALUE
@@ -4971,8 +5000,8 @@ parser_nextc(struct parser_params *parser)
 	    }
 	    ruby_sourceline++;
 	    parser->line_count++;
-	    lex_pbeg = lex_p = RSTRING_PTR(v);
-	    lex_pend = lex_p + RSTRING_LEN(v);
+	    lex_pbeg = lex_p = RSTRING_CPTR(v);
+	    lex_pend = lex_p + RSTRING_CLEN(v);
 #ifdef RIPPER
 	    ripper_flush(parser);
 #endif
@@ -5361,8 +5390,10 @@ static void
 dispose_string(VALUE str)
 {
     /* TODO: should use another API? */
+#if !WITH_OBJC
     if (RBASIC(str)->flags & RSTRING_NOEMBED)
 	xfree(RSTRING_PTR(str));
+#endif
     rb_gc_force_recycle(str);
 }
 
@@ -5650,8 +5681,8 @@ parser_heredoc_restore(struct parser_params *parser, NODE *here)
 #endif
     line = here->nd_orig;
     lex_lastline = line;
-    lex_pbeg = RSTRING_PTR(line);
-    lex_pend = lex_pbeg + RSTRING_LEN(line);
+    lex_pbeg = RSTRING_CPTR(line);
+    lex_pend = lex_pbeg + RSTRING_CLEN(line);
     lex_p = lex_pbeg + here->nd_nth;
     heredoc_end = ruby_sourceline;
     ruby_sourceline = nd_line(here);
@@ -5686,8 +5717,8 @@ parser_here_document(struct parser_params *parser, NODE *here)
     long len;
     VALUE str = 0;
 
-    eos = RSTRING_PTR(here->nd_lit);
-    len = RSTRING_LEN(here->nd_lit) - 1;
+    eos = RSTRING_CPTR(here->nd_lit);
+    len = RSTRING_CLEN(here->nd_lit) - 1;
     indent = (func = *eos++) & STR_FUNC_INDENT;
 
     if ((c = nextc()) == -1) {
@@ -5705,7 +5736,7 @@ parser_here_document(struct parser_params *parser, NODE *here)
 
     if (!(func & STR_FUNC_EXPAND)) {
 	do {
-	    p = RSTRING_PTR(lex_lastline);
+	    p = RSTRING_CPTR(lex_lastline);
 	    pend = lex_pend;
 	    if (pend > p) {
 		switch (pend[-1]) {
@@ -5891,10 +5922,16 @@ parser_magic_comment(struct parser_params *parser, const char *str, int len)
 {
     VALUE name = 0, val = 0;
     const char *beg, *end, *vbeg, *vend;
-#define str_copy(_s, _p, _n) ((_s) \
+#if 0// WITH_OBJC
+# define str_copy(_s, _p, _n) ((_s) \
+	? CFStringPad((CFMutableStringRef)_s, CFStringCreateWithCString(NULL, _p, kCFStringEncodingUTF8), _n, 0) \
+	: ((_s) = STR_NEW((_p), (_n)))) 
+#else
+# define str_copy(_s, _p, _n) ((_s) \
 	? (rb_str_resize((_s), (_n)), \
 	   MEMCPY(RSTRING_PTR(_s), (_p), char, (_n)), (_s)) \
 	: ((_s) = STR_NEW((_p), (_n))))
+#endif
 
     if (len <= 7) return Qfalse;
     if (!(beg = magic_comment_marker(str, len))) return Qfalse;
@@ -5955,13 +5992,13 @@ parser_magic_comment(struct parser_params *parser, const char *str, int len)
 	str_copy(name, beg, n);
 #ifndef RIPPER
 	do {
-	    if (STRNCASECMP(p->name, RSTRING_PTR(name), n) == 0) {
+	    if (STRNCASECMP(p->name, RSTRING_CPTR(name), n) == 0) {
 		n = vend - vbeg;
 		if (p->length) {
 		    n = (*p->length)(parser, vbeg, n);
 		}
 		str_copy(val, vbeg, n);
-		(*p->func)(parser, RSTRING_PTR(name), RSTRING_PTR(val));
+		(*p->func)(parser, RSTRING_CPTR(name), RSTRING_CPTR(val));
 		break;
 	    }
 	} while (++p < magic_comments + sizeof(magic_comments) / sizeof(*p));
@@ -6012,7 +6049,7 @@ set_file_encoding(struct parser_params *parser, const char *str, const char *sen
     beg = str;
     while ((*str == '-' || *str == '_' || ISALNUM(*str)) && ++str < send);
     s = rb_str_new(beg, parser_encode_length(parser, beg, str - beg));
-    parser_set_encode(parser, RSTRING_PTR(s));
+    parser_set_encode(parser, RSTRING_CPTR(s));
     rb_str_resize(s, 0);
 }
 
@@ -6039,6 +6076,8 @@ parser_prepare(struct parser_params *parser)
     }
     pushback(c);
     parser->enc = rb_enc_get(lex_lastline);
+    if (parser->enc == NULL)
+	parser->enc = rb_usascii_encoding();
 }
 
 #define IS_ARG() (lex_state == EXPR_ARG || lex_state == EXPR_CMDARG)
@@ -8624,7 +8663,7 @@ reg_fragment_check_gen(struct parser_params* parser, VALUE str, int options)
     err = rb_reg_check_preprocess(str);
     if (err != Qnil) {
         err = rb_obj_as_string(err);
-        compile_error(PARSER_ARG "%s", RSTRING_PTR(err));
+        compile_error(PARSER_ARG "%s", RSTRING_CPTR(err));
 	RB_GC_GUARD(err);
     }
 }
@@ -8725,7 +8764,7 @@ reg_compile_gen(struct parser_params* parser, VALUE str, int options)
 	    rb_str_append(rb_str_cat(rb_attr_get(err, mesg), "\n", 1), m);
 	}
 	else {
-	    compile_error(PARSER_ARG "%s", RSTRING_PTR(m));
+	    compile_error(PARSER_ARG "%s", RSTRING_CPTR(m));
 	}
 	return Qnil;
     }
@@ -8853,13 +8892,13 @@ static const struct {
 
 static struct symbols {
     ID last_id;
-    st_table *sym_id;
-    st_table *id_str;
-    st_table *ivar2_id;
-    st_table *id_ivar2;
 #if WITH_OBJC
+    CFMutableDictionaryRef sym_id;
+    CFMutableDictionaryRef id_str;
     VALUE *op_sym;
 #else
+    st_table *sym_id;
+    st_table *id_str;
     VALUE op_sym[tLAST_TOKEN];
 #endif
 } global_symbols = {tLAST_TOKEN >> ID_SCOPE_SHIFT};
@@ -8897,21 +8936,24 @@ static const struct st_hash_type ivar2_hash_type = {
 void
 Init_sym(void)
 {
-    global_symbols.sym_id = st_init_table_with_size(&symhash, 1000);
-    GC_ROOT(&global_symbols.sym_id);
-    global_symbols.id_str = st_init_numtable_with_size(1000);
-    GC_ROOT(&global_symbols.id_str);
-    global_symbols.ivar2_id = st_init_table_with_size(&ivar2_hash_type, 1000);
-    GC_ROOT(&global_symbols.ivar2_id);
-    global_symbols.id_ivar2 = st_init_numtable_with_size(1000);
-    GC_ROOT(&global_symbols.id_ivar2);
 #if WITH_OBJC
+    CFDictionaryKeyCallBacks cb;
+    global_symbols.sym_id = CFDictionaryCreateMutable(NULL,
+	0, NULL, NULL);
+    GC_ROOT(&global_symbols.sym_id);
+    global_symbols.id_str = CFDictionaryCreateMutable(NULL,
+	0, NULL, NULL);
+    GC_ROOT(&global_symbols.id_str);
     global_symbols.op_sym = xmalloc(sizeof(VALUE) * tLAST_TOKEN);
     GC_ROOT(&global_symbols.op_sym);
+#else
+    global_symbols.sym_id = st_init_table_with_size(&symhash, 1000);
+    global_symbols.id_str = st_init_numtable_with_size(1000);
 #endif
     rb_intern2("", 0);
 }
 
+#if !WITH_OBJC 
 void
 rb_gc_mark_symbols(void)
 {
@@ -8919,6 +8961,7 @@ rb_gc_mark_symbols(void)
     rb_gc_mark_locations(global_symbols.op_sym,
 			 global_symbols.op_sym + tLAST_TOKEN);
 }
+#endif
 
 static ID
 internal_id_gen(struct parser_params *parser)
@@ -9063,10 +9106,9 @@ rb_intern3(const char *name, long len, rb_encoding *enc)
     ID id;
     int last;
     int mb;
+#if !WITH_OBJC
     struct RString fake_str;
-#if WITH_OBJC
     fake_str.basic.isa = NULL;
-#endif
     fake_str.basic.flags = T_STRING|RSTRING_NOEMBED|FL_FREEZE;
     fake_str.basic.klass = rb_cString;
     fake_str.as.heap.len = len;
@@ -9077,6 +9119,13 @@ rb_intern3(const char *name, long len, rb_encoding *enc)
 
     if (st_lookup(global_symbols.sym_id, str, (st_data_t *)&id))
 	return id;
+#else
+    SEL name_hash = sel_registerName(name);
+    id = (ID)CFDictionaryGetValue((CFDictionaryRef)global_symbols.sym_id, 
+	(const void *)name_hash);
+    if (id != 0)
+	return id; 
+#endif
 
     last = len-1;
     id = 0;
@@ -9161,9 +9210,17 @@ rb_intern3(const char *name, long len, rb_encoding *enc)
     id |= ++global_symbols.last_id << ID_SCOPE_SHIFT;
   id_register:
     str = rb_enc_str_new(name, len, enc);
-    OBJ_FREEZE(str);
+// TODO
+//    OBJ_FREEZE(str);
+#if WITH_OBJC
+    CFDictionarySetValue(global_symbols.sym_id, (const void *)name_hash, 
+	(const void *)id);
+    CFDictionarySetValue(global_symbols.id_str, (const void *)id,
+	(const void *)str);
+#else
     st_add_direct(global_symbols.sym_id, (st_data_t)str, id);
     st_add_direct(global_symbols.id_str, id, (st_data_t)str);
+#endif
     return id;
 }
 
@@ -9192,7 +9249,7 @@ rb_intern_str(VALUE str)
     else {
 	enc = rb_enc_get(str);
     }
-    id = rb_intern3(RSTRING_PTR(str), RSTRING_LEN(str), enc);
+    id = rb_intern3(RSTRING_CPTR(str), RSTRING_CLEN(str), enc);
     RB_GC_GUARD(str);
     return id;
 }
@@ -9210,7 +9267,7 @@ rb_id2str(ID id)
 		VALUE str = global_symbols.op_sym[i];
 		if (!str) {
 		    str = rb_usascii_str_new2(op_tbl[i].name);
-		    OBJ_FREEZE(str);
+		    // TODO OBJ_FREEZE(str);
 		    GC_WB(&global_symbols.op_sym[i], str);
 		}
 		return str;
@@ -9218,16 +9275,21 @@ rb_id2str(ID id)
 	}
     }
 
+#if WITH_OBJC
+    data = (VALUE)CFDictionaryGetValue(
+	(CFDictionaryRef)global_symbols.id_str,
+	(const void *)id);
+    if (data != 0)
+	return data;
+#else
     if (st_lookup(global_symbols.id_str, id, &data)) {
         VALUE str = (VALUE)data;
         if (RBASIC(str)->klass == 0 && rb_cString != 0) {
             RBASIC(str)->klass = rb_cString;
-#if WITH_OBJC
-	    RBASIC(str)->isa = RCLASS(rb_cString)->ocklass;
-#endif
 	}
 	return str;
     }
+#endif
 
     if (is_attrset_id(id)) {
 	ID id2 = (id & ~ID_SCOPE_MASK) | ID_LOCAL;
@@ -9240,12 +9302,23 @@ rb_id2str(ID id)
 	str = rb_str_dup(str);
 	rb_str_cat(str, "=", 1);
 	rb_intern_str(str);
+#if WITH_OBJC
+	return str;
+# if 0
+	data = (VALUE)CFDictionaryGetValue(
+	    (CFDictionaryRef)global_symbols.id_str,
+	    (const void *)id);
+	if (data != 0)
+	    return data;
+# endif
+#else
 	if (st_lookup(global_symbols.id_str, id, &data)) {
             VALUE str = (VALUE)data;
             if (RBASIC(str)->klass == 0)
                 RBASIC(str)->klass = rb_cString;
             return str;
         }
+#endif
     }
     return 0;
 }
@@ -9256,7 +9329,7 @@ rb_id2name(ID id)
     VALUE str = rb_id2str(id);
 
     if (!str) return 0;
-    return RSTRING_PTR(str);
+    return RSTRING_CPTR(str);
 }
 
 static int
@@ -9285,9 +9358,15 @@ symbols_i(VALUE sym, ID value, VALUE ary)
 VALUE
 rb_sym_all_symbols(void)
 {
+#if WITH_OBJC
+    VALUE ary = rb_ary_new();
+    CFDictionaryApplyFunction((CFDictionaryRef)global_symbols.sym_id,
+	(CFDictionaryApplierFunction)symbols_i, (void *)ary);
+#else
     VALUE ary = rb_ary_new2(global_symbols.sym_id->num_entries);
 
     st_foreach(global_symbols.sym_id, symbols_i, ary);
+#endif
     return ary;
 }
 
@@ -9872,7 +9951,7 @@ ripper_initialize(int argc, VALUE *argv, VALUE self)
     parser_initialize(parser);
 
     parser->parser_ruby_sourcefile_string = fname2;
-    parser->parser_ruby_sourcefile = RSTRING_PTR(fname2)+1;
+    parser->parser_ruby_sourcefile = RSTRING_CPTR(fname2)+1;
     parser->parser_ruby_sourceline = NIL_P(lineno) ? 0 : NUM2INT(lineno) - 1;
 
     return Qnil;
@@ -9983,7 +10062,7 @@ ripper_assert_Qundef(VALUE self, VALUE obj, VALUE msg)
 {
     StringValue(msg);
     if (obj == Qundef) {
-        rb_raise(rb_eArgError, "%s", RSTRING_PTR(msg));
+        rb_raise(rb_eArgError, "%s", RSTRING_CPTR(msg));
     }
     return Qnil;
 }

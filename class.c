@@ -44,6 +44,7 @@ rb_objc_import_class(Class ocklass)
 
     assert(ocklass != NULL);
     assert(class_isMetaClass(ocklass) == 0);
+    assert(rb_objc_class_tbl != NULL);
 
     if (st_lookup(rb_objc_class_tbl, (st_data_t)ocklass, (st_data_t *)&rbklass))
 	return rbklass;

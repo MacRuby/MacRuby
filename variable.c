@@ -161,9 +161,11 @@ classname(VALUE klass)
 	    st_insert(RCLASS_IV_TBL(klass), classpath, path);
 	    st_delete(RCLASS_IV_TBL(klass), (st_data_t*)&classid, 0);
 	}
+#if !WITH_OBJC
 	if (TYPE(path) != T_STRING) {
 	    rb_bug("class path is not set properly");
 	}
+#endif
 	return path;
     }
     return find_class_path(klass);

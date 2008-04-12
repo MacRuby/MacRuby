@@ -163,9 +163,9 @@ typedef struct RVALUE {
 	struct RObject object;
 	struct RClass  klass;
 	struct RFloat  flonum;
-	struct RString string;
 	struct RRegexp regexp;
 #if !WITH_OBJC
+	struct RString string;
 	struct RArray  array;
 	struct RHash   hash;
 #endif

@@ -1017,7 +1017,11 @@ vm_init_redefined_flag(void)
     OP(LTLT, LTLT), (C(String), C(Array));
     OP(AREF, AREF), (C(Array), C(Hash));
     OP(ASET, ASET), (C(Array), C(Hash));
+#if WITH_OBJC
+    OP(Length, LENGTH), (C(Array), C(Hash));
+#else
     OP(Length, LENGTH), (C(Array), C(String), C(Hash));
+#endif
     OP(Succ, SUCC), (C(Fixnum), C(String), C(Time));
     OP(GT, GT), (C(Fixnum));
     OP(GE, GE), (C(Fixnum));

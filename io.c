@@ -1278,9 +1278,10 @@ io_fread(VALUE str, long offset, rb_io_t *fptr)
     long len = RSTRING_LEN(str) - offset;
     long n = len;
     int c;
+    char *ptr = RSTRING_PTR(str);
 
     while (n > 0) {
-	c = read_buffered_data(RSTRING_PTR(str)+offset, n, fptr);
+	c = read_buffered_data(ptr+offset, n, fptr);
 	if (c > 0) {
 	    offset += c;
 	    if ((n -= c) <= 0) break;
@@ -1291,6 +1292,7 @@ io_fread(VALUE str, long offset, rb_io_t *fptr)
 	    break;
 	}
     }
+    RSTRING_SYNC(str);
     return len - n;
 }
 

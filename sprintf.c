@@ -928,6 +928,12 @@ ruby__sfvwrite(register rb_printf_buffer *fp, register struct __suio *uio)
 VALUE
 rb_enc_vsprintf(rb_encoding *enc, const char *fmt, va_list ap)
 {
+#if WITH_OBJC
+    char buffer[512];
+    int n;
+    n = vsnprintf(buffer, sizeof buffer, fmt, ap);
+    return rb_enc_str_new(buffer, n, enc);
+#else
     rb_printf_buffer f;
     VALUE result;
 
@@ -945,6 +951,7 @@ rb_enc_vsprintf(rb_encoding *enc, const char *fmt, va_list ap)
     rb_str_resize(result, (char *)f._p - RSTRING_PTR(result));
 
     return result;
+#endif
 }
 
 VALUE
