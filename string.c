@@ -5110,7 +5110,7 @@ str_charset_find(CFStringRef str, VALUE *charsets, int charset_count,
 	    CFCharacterSetRef subset;
 	    subset = CFCharacterSetCreateWithCharactersInString(NULL, 
 		(CFStringRef)s);
-	    CFCharacterSetUnion((CFMutableCharacterSetRef)charset, subset);
+	    CFCharacterSetIntersect((CFMutableCharacterSetRef)charset, subset);
 	}
     }
 
@@ -5142,7 +5142,8 @@ rb_str_delete_bang_cb(CFRange *search_range, const CFRange *result_range,
     CFStringRef str, void *ctx)
 {
     CFStringDelete((CFMutableStringRef)str, *result_range);
-    search_range->length -= search_range->location;
+    search_range->length -= result_range->length 
+	+ (result_range->location - search_range->location);
     search_range->location = result_range->location;
     *(bool *)ctx = true;
 }
