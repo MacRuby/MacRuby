@@ -4820,8 +4820,8 @@ lex_get_str(struct parser_params *parser, VALUE s)
     const char *cptr, *beg, *end, *pend;
     long clen;
 
-    cptr = beg = RSTRING_CPTR(s);
-    clen = RSTRING_CLEN(s);
+    cptr = beg = RSTRING_PTR(s);
+    clen = RSTRING_LEN(s);
     if (lex_gets_ptr) {
 	if (clen == lex_gets_ptr) return Qnil;
 	beg += lex_gets_ptr;
@@ -5000,8 +5000,8 @@ parser_nextc(struct parser_params *parser)
 	    }
 	    ruby_sourceline++;
 	    parser->line_count++;
-	    lex_pbeg = lex_p = RSTRING_CPTR(v);
-	    lex_pend = lex_p + RSTRING_CLEN(v);
+	    lex_pbeg = lex_p = RSTRING_PTR(v);
+	    lex_pend = lex_p + RSTRING_LEN(v);
 #ifdef RIPPER
 	    ripper_flush(parser);
 #endif
@@ -5681,8 +5681,8 @@ parser_heredoc_restore(struct parser_params *parser, NODE *here)
 #endif
     line = here->nd_orig;
     lex_lastline = line;
-    lex_pbeg = RSTRING_CPTR(line);
-    lex_pend = lex_pbeg + RSTRING_CLEN(line);
+    lex_pbeg = RSTRING_PTR(line);
+    lex_pend = lex_pbeg + RSTRING_LEN(line);
     lex_p = lex_pbeg + here->nd_nth;
     heredoc_end = ruby_sourceline;
     ruby_sourceline = nd_line(here);
@@ -5717,8 +5717,8 @@ parser_here_document(struct parser_params *parser, NODE *here)
     long len;
     VALUE str = 0;
 
-    eos = RSTRING_CPTR(here->nd_lit);
-    len = RSTRING_CLEN(here->nd_lit) - 1;
+    eos = RSTRING_PTR(here->nd_lit);
+    len = RSTRING_LEN(here->nd_lit) - 1;
     indent = (func = *eos++) & STR_FUNC_INDENT;
 
     if ((c = nextc()) == -1) {
@@ -5736,7 +5736,7 @@ parser_here_document(struct parser_params *parser, NODE *here)
 
     if (!(func & STR_FUNC_EXPAND)) {
 	do {
-	    p = RSTRING_CPTR(lex_lastline);
+	    p = RSTRING_PTR(lex_lastline);
 	    pend = lex_pend;
 	    if (pend > p) {
 		switch (pend[-1]) {
@@ -5992,13 +5992,13 @@ parser_magic_comment(struct parser_params *parser, const char *str, int len)
 	str_copy(name, beg, n);
 #ifndef RIPPER
 	do {
-	    if (STRNCASECMP(p->name, RSTRING_CPTR(name), n) == 0) {
+	    if (STRNCASECMP(p->name, RSTRING_PTR(name), n) == 0) {
 		n = vend - vbeg;
 		if (p->length) {
 		    n = (*p->length)(parser, vbeg, n);
 		}
 		str_copy(val, vbeg, n);
-		(*p->func)(parser, RSTRING_CPTR(name), RSTRING_CPTR(val));
+		(*p->func)(parser, RSTRING_PTR(name), RSTRING_PTR(val));
 		break;
 	    }
 	} while (++p < magic_comments + sizeof(magic_comments) / sizeof(*p));
@@ -6049,7 +6049,7 @@ set_file_encoding(struct parser_params *parser, const char *str, const char *sen
     beg = str;
     while ((*str == '-' || *str == '_' || ISALNUM(*str)) && ++str < send);
     s = rb_str_new(beg, parser_encode_length(parser, beg, str - beg));
-    parser_set_encode(parser, RSTRING_CPTR(s));
+    parser_set_encode(parser, RSTRING_PTR(s));
     rb_str_resize(s, 0);
 }
 
@@ -6077,7 +6077,7 @@ parser_prepare(struct parser_params *parser)
     pushback(c);
     parser->enc = rb_enc_get(lex_lastline);
     if (parser->enc == NULL)
-	parser->enc = rb_usascii_encoding();
+	parser->enc = rb_utf8_encoding();
 }
 
 #define IS_ARG() (lex_state == EXPR_ARG || lex_state == EXPR_CMDARG)
@@ -8663,7 +8663,7 @@ reg_fragment_check_gen(struct parser_params* parser, VALUE str, int options)
     err = rb_reg_check_preprocess(str);
     if (err != Qnil) {
         err = rb_obj_as_string(err);
-        compile_error(PARSER_ARG "%s", RSTRING_CPTR(err));
+        compile_error(PARSER_ARG "%s", RSTRING_PTR(err));
 	RB_GC_GUARD(err);
     }
 }
@@ -8764,7 +8764,7 @@ reg_compile_gen(struct parser_params* parser, VALUE str, int options)
 	    rb_str_append(rb_str_cat(rb_attr_get(err, mesg), "\n", 1), m);
 	}
 	else {
-	    compile_error(PARSER_ARG "%s", RSTRING_CPTR(m));
+	    compile_error(PARSER_ARG "%s", RSTRING_PTR(m));
 	}
 	return Qnil;
     }
@@ -9249,7 +9249,7 @@ rb_intern_str(VALUE str)
     else {
 	enc = rb_enc_get(str);
     }
-    id = rb_intern3(RSTRING_CPTR(str), RSTRING_CLEN(str), enc);
+    id = rb_intern3(RSTRING_PTR(str), RSTRING_LEN(str), enc);
     RB_GC_GUARD(str);
     return id;
 }
@@ -9329,7 +9329,7 @@ rb_id2name(ID id)
     VALUE str = rb_id2str(id);
 
     if (!str) return 0;
-    return RSTRING_CPTR(str);
+    return RSTRING_PTR(str);
 }
 
 static int
@@ -9951,7 +9951,7 @@ ripper_initialize(int argc, VALUE *argv, VALUE self)
     parser_initialize(parser);
 
     parser->parser_ruby_sourcefile_string = fname2;
-    parser->parser_ruby_sourcefile = RSTRING_CPTR(fname2)+1;
+    parser->parser_ruby_sourcefile = RSTRING_PTR(fname2)+1;
     parser->parser_ruby_sourceline = NIL_P(lineno) ? 0 : NUM2INT(lineno) - 1;
 
     return Qnil;
@@ -10062,7 +10062,7 @@ ripper_assert_Qundef(VALUE self, VALUE obj, VALUE msg)
 {
     StringValue(msg);
     if (obj == Qundef) {
-        rb_raise(rb_eArgError, "%s", RSTRING_CPTR(msg));
+        rb_raise(rb_eArgError, "%s", RSTRING_PTR(msg));
     }
     return Qnil;
 }

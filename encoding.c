@@ -648,12 +648,16 @@ rb_enc_get(VALUE obj)
 rb_encoding*
 rb_enc_check(VALUE str1, VALUE str2)
 {
+#if WITH_OBJC
+    return NULL;
+#else
     rb_encoding *enc = rb_enc_compatible(str1, str2);
     if (!enc)
 	rb_raise(rb_eArgError, "character encodings differ: %s and %s",
 		 rb_enc_name(rb_enc_get(str1)),
 		 rb_enc_name(rb_enc_get(str2)));
     return enc;
+#endif
 }
 
 rb_encoding*
@@ -729,11 +733,16 @@ rb_enc_copy(VALUE obj1, VALUE obj2)
 VALUE
 rb_obj_encoding(VALUE obj)
 {
+#if WITH_OBJC
+    /* TODO */
+    return Qnil;
+#else
     rb_encoding *enc = rb_enc_get(obj);
     if (!enc) {
 	rb_raise(rb_eTypeError, "unknown encoding");
     }
     return rb_enc_from_encoding(enc);
+#endif
 }
 
 int
