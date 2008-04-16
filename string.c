@@ -2163,7 +2163,7 @@ rb_str_hash(VALUE str)
 int
 rb_str_hash_cmp(VALUE str1, VALUE str2)
 {
-    return CFEqual((CFTypeRef)str1, (CFTypeRef)str2);
+    return CFEqual((CFTypeRef)str1, (CFTypeRef)str2) ? 0 : 1;
 }
 
 #endif

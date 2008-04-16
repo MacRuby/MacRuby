@@ -61,13 +61,14 @@ rb_any_cmp(VALUE a, VALUE b)
 	return a != b;
     }
 #if WITH_OBJC
-    if (rb_obj_is_kind_of(a, rb_cString) && rb_obj_is_kind_of(b, rb_cString)) {
+    if (TYPE(a) == T_STRING && TYPE(b) == T_STRING)
+	return rb_str_hash_cmp(a, b);
 #else
     if (TYPE(a) == T_STRING && RBASIC(a)->klass == rb_cString &&
 	TYPE(b) == T_STRING && RBASIC(b)->klass == rb_cString) {
-#endif
 	return rb_str_hash_cmp(a, b);
     }
+#endif
 
     args[0] = a;
     args[1] = b;
