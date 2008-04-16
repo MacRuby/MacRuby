@@ -9129,6 +9129,12 @@ rb_intern3(const char *name, long len, rb_encoding *enc)
     if (st_lookup(global_symbols.sym_id, str, (st_data_t *)&id))
 	return id;
 #else
+    if (strlen(name) != len) {
+	char *tmp = (char *)alloca(len + 1);
+        memcpy(tmp, name, len);
+        tmp[len] = '\0';
+        name = tmp;
+    }
     SEL name_hash = sel_registerName(name);
     id = (ID)CFDictionaryGetValue((CFDictionaryRef)global_symbols.sym_id, 
 	(const void *)name_hash);
@@ -9258,7 +9264,7 @@ rb_intern_str(VALUE str)
     else {
 	enc = rb_enc_get(str);
     }
-    id = rb_intern3(RSTRING_PTR(str), RSTRING_LEN(str), enc);
+    id = rb_intern3(RSTRING_CPTR(str), RSTRING_CLEN(str), enc);
     RB_GC_GUARD(str);
     return id;
 }
@@ -9312,14 +9318,11 @@ rb_id2str(ID id)
 	rb_str_cat(str, "=", 1);
 	rb_intern_str(str);
 #if WITH_OBJC
-	return str;
-# if 0
 	data = (VALUE)CFDictionaryGetValue(
 	    (CFDictionaryRef)global_symbols.id_str,
 	    (const void *)id);
 	if (data != 0)
 	    return data;
-# endif
 #else
 	if (st_lookup(global_symbols.id_str, id, &data)) {
             VALUE str = (VALUE)data;
@@ -9338,7 +9341,7 @@ rb_id2name(ID id)
     VALUE str = rb_id2str(id);
 
     if (!str) return 0;
-    return RSTRING_PTR(str);
+    return RSTRING_CPTR(str);
 }
 
 static int
