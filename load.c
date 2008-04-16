@@ -103,7 +103,7 @@ rb_feature_p(const char *feature, const char *ext, int rb, int expanded, const c
 {
     VALUE v, features, p, load_path = 0;
     const char *f, *e;
-    long i, len, elen, n;
+    long i, count, len, elen, n;
     st_table *loading_tbl;
     st_data_t data;
     int type;
@@ -120,9 +120,9 @@ rb_feature_p(const char *feature, const char *ext, int rb, int expanded, const c
 	type = 0;
     }
     features = get_loaded_features();
-    for (i = 0; i < RARRAY_LEN(features); ++i) {
+    for (i = 0, count = RARRAY_LEN(features); i < count; ++i) {
 	v = RARRAY_AT(features, i);
-	f = StringValuePtr(v);
+	f = StringValueCStr(v);
 	if ((n = RSTRING_LEN(v)) < len) continue;
 	if (strncmp(f, feature, len) != 0) {
 	    if (expanded) continue;

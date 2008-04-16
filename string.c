@@ -184,7 +184,11 @@ rb_str_bytesync(VALUE str)
 #define is_ascii_string(str) (rb_enc_str_coderange(str) == ENC_CODERANGE_7BIT)
 #define is_broken_string(str) (rb_enc_str_coderange(str) == ENC_CODERANGE_BROKEN)
 
-#define STR_ENC_GET(str) rb_enc_from_index(ENCODING_GET(str))
+#if WITH_OBJC
+# define STR_ENC_GET(str) (rb_ascii8bit_encoding()) /* TODO */
+#else
+# define STR_ENC_GET(str) rb_enc_from_index(ENCODING_GET(str))
+#endif
 
 static int
 single_byte_optimizable(VALUE str)
@@ -395,6 +399,9 @@ rb_enc_str_coderange(VALUE str)
 int
 rb_enc_str_asciionly_p(VALUE str)
 {
+#if WITH_OBJC
+    return Qtrue;
+#else
     rb_encoding *enc = STR_ENC_GET(str);
 
     if (!rb_enc_asciicompat(enc))
@@ -402,6 +409,7 @@ rb_enc_str_asciionly_p(VALUE str)
     else if (rb_enc_str_coderange(str) == ENC_CODERANGE_7BIT)
         return Qtrue;
     return Qfalse;
+#endif
 }
 
 static inline void
@@ -1437,17 +1445,8 @@ VALUE
 rb_str_subseq(VALUE str, long beg, long len)
 {
 #if WITH_OBJC
-    CFIndex buffer_len, buffer_used;
-    UInt8 *buffer;
-
-    buffer_len = (sizeof(UInt8) * len) + 1;
-    buffer = (UInt8 *)alloca(buffer_len);
-
-    CFStringGetBytes((CFStringRef)str, CFRangeMake(beg, len), 
-	    kCFStringEncodingUTF8, 0, false, buffer, buffer_len, &buffer_used);
-    assert(buffer_used == buffer_len - 1);
-    buffer[buffer_used] = '\0';
-    return rb_str_new5(str, (const char *)buffer, len);
+    return (VALUE)CFStringCreateWithSubstring(NULL, (CFStringRef)str, 
+	CFRangeMake(beg, len));
 #else
     VALUE str2 = rb_str_new5(str, RSTRING_PTR(str)+beg, len);
 
@@ -1671,6 +1670,12 @@ VALUE
 rb_str_buf_cat(VALUE str, const char *ptr, long len)
 {
 #if WITH_OBJC
+    if (ptr[len] != '\0') {
+	char *p = alloca(len + 1);
+	memcpy(p, ptr, len);
+	p[len] = '\0';
+	ptr = p;
+    }
     CFStringAppendCString((CFMutableStringRef)str, ptr, kCFStringEncodingUTF8);
     /* FIXME ptr might be a bytestring */
 #else
@@ -4180,8 +4185,12 @@ VALUE
 rb_str_inspect(VALUE str)
 {
 #if WITH_OBJC
-    /* TODO */
-    return rb_str_dup(str);
+    VALUE result = rb_str_new(NULL, 0);
+    rb_str_cat2(result, "\"");
+    rb_str_buf_append(result, str);
+    rb_str_cat2(result, "\"");
+    /* TODO needs to escape some characters */
+    return result;
 #else
     rb_encoding *enc = STR_ENC_GET(str);
     char *p, *pend;
@@ -5462,7 +5471,7 @@ rb_str_count(int argc, VALUE *argv, VALUE str)
 static VALUE
 rb_str_split_m(int argc, VALUE *argv, VALUE str)
 {
-#if WITH_OBJC
+#if 0//WITH_OBJC
     rb_notimplement();
 #else
     rb_encoding *enc;
@@ -5484,7 +5493,11 @@ rb_str_split_m(int argc, VALUE *argv, VALUE str)
 	i = 1;
     }
 
+#if WITH_OBJC
+    enc = rb_ascii8bit_encoding();
+#else
     enc = STR_ENC_GET(str);
+#endif
     if (NIL_P(spat)) {
 	if (!NIL_P(rb_fs)) {
 	    spat = rb_fs;
@@ -5495,7 +5508,11 @@ rb_str_split_m(int argc, VALUE *argv, VALUE str)
     else {
       fs_set:
 	if (TYPE(spat) == T_STRING) {
+#if WITH_OBJC
+	    rb_encoding *enc2 = rb_ascii8bit_encoding();
+#else
 	    rb_encoding *enc2 = STR_ENC_GET(spat);
+#endif
 
 	    if (rb_enc_mbminlen(enc2) == 1) {
 		if (RSTRING_LEN(spat) == 1 && RSTRING_PTR(spat)[0] == ' '){
@@ -6200,7 +6217,7 @@ rb_str_strip_bang2(VALUE str, int direction)
 		break;
 	}
 	if (i < n - 1) {
-	    CFRange range = CFRangeMake(i, n);
+	    CFRange range = CFRangeMake(i + 1, n - i - 1);
 	    CFStringDelete((CFMutableStringRef)str, range);
 	    n -= range.length;	    
 	}
@@ -6213,7 +6230,7 @@ rb_str_strip_bang2(VALUE str, int direction)
 		break;
 	}
 	if (i > 0) {
-	    CFRange range = CFRangeMake(i, n);
+	    CFRange range = CFRangeMake(0, i);
 	    CFStringDelete((CFMutableStringRef)str, range);
 	}
     }
@@ -7236,6 +7253,18 @@ sym_to_i(VALUE sym)
 static VALUE
 sym_inspect(VALUE sym)
 {
+#if WITH_OBJC
+    ID id = SYM2ID(sym);
+    VALUE str;
+
+    sym = rb_id2str(id);
+    if (!rb_enc_symname_p(RSTRING_CPTR(sym), rb_ascii8bit_encoding())) {
+	sym = rb_str_inspect(sym);
+    }
+    str = rb_str_new(":", 1);
+    rb_str_buf_append(str, sym);
+    return str;
+#else
     VALUE str, klass = Qundef;
     ID id = SYM2ID(sym);
     rb_encoding *enc;
@@ -7246,7 +7275,7 @@ sym_inspect(VALUE sym)
     RSTRING_PTR(str)[0] = ':';
     memcpy(RSTRING_PTR(str)+1, RSTRING_PTR(sym), RSTRING_LEN(sym));
     if (RSTRING_LEN(sym) != strlen(RSTRING_PTR(sym)) ||
-	!rb_enc_symname_p(RSTRING_PTR(sym), enc)) {
+	!rb_enc_symname_p(RSTRING_PTR(sym), enc)) {	
 	str = rb_str_inspect(str);
 	strncpy(RSTRING_PTR(str), ":\"", 2);
     }
@@ -7255,6 +7284,7 @@ sym_inspect(VALUE sym)
 	rb_str_append(str, rb_inspect(klass));
     }
     return str;
+#endif
 }
 
 

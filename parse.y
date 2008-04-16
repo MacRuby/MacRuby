@@ -4945,6 +4945,13 @@ parser_str_new(const char *p, long n, rb_encoding *enc, int func, rb_encoding *e
 {
     VALUE str;
 
+#if WITH_OBJC
+    /* Let's not create unnecessary bytestrings. */
+    long slen = strlen(p);
+    if (slen < n)
+	n = slen;
+#endif
+
     str = rb_enc_str_new(p, n, enc);
     if (!(func & STR_FUNC_REGEXP) && rb_enc_asciicompat(enc)) {
 	if (rb_enc_str_coderange(str) == ENC_CODERANGE_7BIT) {
@@ -5389,12 +5396,14 @@ parser_regx_options(struct parser_params *parser)
 static void
 dispose_string(VALUE str)
 {
+#if WITH_OBJC
     /* TODO: should use another API? */
-#if !WITH_OBJC
+    CFRelease((CFTypeRef)str);
+#else
     if (RBASIC(str)->flags & RSTRING_NOEMBED)
 	xfree(RSTRING_PTR(str));
-#endif
     rb_gc_force_recycle(str);
+#endif
 }
 
 static int

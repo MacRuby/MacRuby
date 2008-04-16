@@ -2750,6 +2750,7 @@ file_expand_path(VALUE fname, VALUE dname, VALUE result)
 
     if (tainted) OBJ_TAINT(result);
     rb_str_set_len(result, p - buf);
+    RSTRING_SYNC(result);
     return result;
 }
 
@@ -4203,7 +4204,8 @@ path_check_0(VALUE path, int execpath)
 
 	rb_str_cat2(newpath, "/");
 	rb_str_cat2(newpath, p0);
-	p0 = RSTRING_PTR(path = newpath);
+	path = newpath;
+	p0 = RSTRING_PTR(path);
     }
     for (;;) {
 #ifndef S_IWOTH
@@ -4373,11 +4375,11 @@ rb_find_file(VALUE path)
     }
 
     if (rb_load_path) {
-	long i;
+	long i, count;
 
 	Check_Type(rb_load_path, T_ARRAY);
 	tmp = rb_ary_new();
-	for (i=0;i<RARRAY_LEN(rb_load_path);i++) {
+	for (i=0, count=RARRAY_LEN(rb_load_path);i < count;i++) {
 	    VALUE str = RARRAY_AT(rb_load_path, i);
 	    FilePathValue(str);
 	    if (RSTRING_LEN(str) > 0) {

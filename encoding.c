@@ -589,6 +589,9 @@ rb_id_encoding(void)
 int
 rb_enc_internal_get_index(VALUE obj)
 {
+#if WITH_OBJC
+    return 0;
+#else
     int i;
 
     i = ENCODING_GET_INLINED(obj);
@@ -599,11 +602,13 @@ rb_enc_internal_get_index(VALUE obj)
 	i = NUM2INT(iv);
     }
     return i;
+#endif
 }
 
 void
 rb_enc_internal_set_index(VALUE obj, int idx)
 {
+#if !WITH_OBJC
     if (idx < ENCODING_INLINE_MAX) {
 	ENCODING_SET_INLINED(obj, idx);
 	return;
@@ -611,6 +616,7 @@ rb_enc_internal_set_index(VALUE obj, int idx)
     ENCODING_SET_INLINED(obj, ENCODING_INLINE_MAX);
     rb_ivar_set(obj, rb_id_encoding(), INT2NUM(idx));
     return;
+#endif
 }
 
 void
@@ -642,7 +648,11 @@ rb_enc_get_index(VALUE obj)
 rb_encoding*
 rb_enc_get(VALUE obj)
 {
+#if WITH_OBJC
+    return rb_ascii8bit_encoding(); /* FIXME */
+#else
     return rb_enc_from_index(rb_enc_get_index(obj));
+#endif
 }
 
 rb_encoding*
