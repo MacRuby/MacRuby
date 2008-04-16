@@ -5631,6 +5631,11 @@ parser_heredoc_identifier(struct parser_params *parser)
 	func |= str_xquote;
       quoted:
 	newtok();
+#if WITH_OBJC
+	/* avoid null character which will force bytestring creation */
+	if (func == 0)
+	    func = '\1';
+#endif
 	tokadd(func);
 	term = c;
 	while ((c = nextc()) != -1 && c != term) {
@@ -5726,8 +5731,8 @@ parser_here_document(struct parser_params *parser, NODE *here)
     long len;
     VALUE str = 0;
 
-    eos = RSTRING_PTR(here->nd_lit);
-    len = RSTRING_LEN(here->nd_lit) - 1;
+    eos = RSTRING_CPTR(here->nd_lit);
+    len = RSTRING_CLEN(here->nd_lit) - 1;
     indent = (func = *eos++) & STR_FUNC_INDENT;
 
     if ((c = nextc()) == -1) {
@@ -5745,7 +5750,7 @@ parser_here_document(struct parser_params *parser, NODE *here)
 
     if (!(func & STR_FUNC_EXPAND)) {
 	do {
-	    p = RSTRING_PTR(lex_lastline);
+	    p = RSTRING_CPTR(lex_lastline);
 	    pend = lex_pend;
 	    if (pend > p) {
 		switch (pend[-1]) {
@@ -5761,7 +5766,11 @@ parser_here_document(struct parser_params *parser, NODE *here)
 	    if (str)
 		rb_str_cat(str, p, pend - p);
 	    else
+#if WITH_OBJC
+		str = STR_NEW(p, 0); /* avoid bytestring */
+#else
 		str = STR_NEW(p, pend - p);
+#endif
 	    if (pend < lex_pend) rb_str_cat(str, "\n", 1);
 	    lex_goto_eol(parser);
 	    if (nextc() == -1) {
