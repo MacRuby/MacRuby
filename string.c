@@ -3954,15 +3954,12 @@ rb_str_reverse_bang(VALUE str)
     if (n <= 1)
 	return rb_str_dup(str);
    
-    buffer = (UniChar *)CFStringGetCharactersPtr((CFStringRef)str);
-    if (buffer == NULL) {
-	buffer = (UniChar *)alloca(sizeof(UniChar) * n);
-    	CFStringGetCharacters((CFStringRef)buffer, CFRangeMake(0, n), buffer);
-    }
+    buffer = (UniChar *)alloca(sizeof(UniChar) * n);
+    CFStringGetCharacters((CFStringRef)str, CFRangeMake(0, n), buffer);
     for (i = 0; i < (n / 2); i++) {
 	UniChar c = buffer[i];
-	buffer[i] = buffer[n - i];
-	buffer[n - i] = c;
+	buffer[i] = buffer[n - i - 1];
+	buffer[n - i - 1] = c;
     }
     CFStringDelete((CFMutableStringRef)str, CFRangeMake(0, n));
     CFStringAppendCharacters((CFMutableStringRef)str, (const UniChar *)buffer, n);
@@ -4003,7 +4000,7 @@ rb_str_reverse(VALUE str)
 {
 #if WITH_OBJC
     VALUE obj = rb_str_dup(str);
-    rb_str_reverse_bang(rb_str_dup(str));
+    rb_str_reverse_bang(obj);
     return obj;
 #else
     rb_encoding *enc;
