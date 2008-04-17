@@ -1446,6 +1446,11 @@ VALUE
 rb_str_subseq(VALUE str, long beg, long len)
 {
 #if WITH_OBJC
+    long n = CFStringGetLength((CFStringRef)str);
+    if (beg < 0)
+	beg += n;
+    if (beg + len > n || beg < 0)
+	return Qnil;
     return (VALUE)CFStringCreateWithSubstring(NULL, (CFStringRef)str, 
 	CFRangeMake(beg, len));
 #else
@@ -2533,7 +2538,7 @@ rb_str_rindex(VALUE str, VALUE sub, long pos)
     CFRange r;
     return (CFStringFindWithOptions((CFStringRef)str, 
 		(CFStringRef)sub,
-		CFRangeMake(0, pos),
+		CFRangeMake(0, pos+1),
 		kCFCompareBackwards,
 		&r))
 	? r.location : -1;
@@ -3057,7 +3062,7 @@ rb_str_aref(VALUE str, VALUE indx)
 
       num_index:
 	str = rb_str_substr(str, idx, 1);
-	if (!NIL_P(str) && RSTRING_LEN(str) == 0) return Qnil;
+	if (!NIL_P(str) && RSTRING_CLEN(str) == 0) return Qnil;
 	return str;
 
       case T_REGEXP:
@@ -6802,10 +6807,10 @@ rb_str_justify(int argc, VALUE *argv, VALUE str, char jflag)
 	rb_str_justify0(str, pad, floor(width / 2.0), padwidth, 0);
     }
     else if (jflag == 'l') {
-	rb_str_justify0(str, pad, width, padwidth, 0);
+	rb_str_justify0(str, pad, width, padwidth, n);
     }
     else if (jflag == 'r') {
-	rb_str_justify0(str, pad, width, padwidth, n);
+	rb_str_justify0(str, pad, width, padwidth, 0);
     }
     else {
 	rb_bug("invalid jflag");
