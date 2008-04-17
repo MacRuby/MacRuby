@@ -444,6 +444,7 @@ str_alloc(VALUE klass)
     if (klass != 0 && klass != rb_cString && klass != rb_cStringRuby 
 	&& klass != rb_cSymbol)
 	*(Class *)str = RCLASS_OCID(klass);
+    CFMakeCollectable((CFTypeRef)str);
 #else
     NEWOBJ(str, struct RString);
     OBJSETUP(str, klass, T_STRING);
@@ -3805,7 +3806,7 @@ rb_str_gsub(int argc, VALUE *argv, VALUE str)
  *     s.replace "world"   #=> "world"
  */
 
-static VALUE
+VALUE
 rb_str_replace(VALUE str, VALUE str2)
 {
     long len;

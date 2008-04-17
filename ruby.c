@@ -207,10 +207,11 @@ rubylib_mangled_path(const char *s, unsigned int l)
 	return rb_str_new(s, l);
     }
     ret = rb_str_new(0, l + newl - oldl);
-    ptr = RSTRING_PTR(ret);
+    ptr = RSTRING_CPTR(ret); /* ok */
     memcpy(ptr, newp, newl);
     memcpy(ptr + newl, s + oldl, l - oldl);
     ptr[l + newl - oldl] = 0;
+    RSTRING_SYNC(ret);
     return ret;
 }
 
@@ -260,11 +261,12 @@ push_include_cygwin(const char *path, VALUE (*filter)(VALUE))
 	if (*s) {
 	    if (!buf) {
 		buf = rb_str_new(p, len);
-		p = RSTRING_PTR(buf);
+		p = RSTRING_CPTR(buf);
 	    }
 	    else {
 		rb_str_resize(buf, len);
-		p = strncpy(RSTRING_PTR(buf), p, len);
+		p = strncpy(RSTRING_PTR(buf), p, len); /* ok */
+		RSTRING_SYNC(buf);
 	    }
 	}
 	if (cygwin_conv_to_posix_path(p, rubylib) == 0)
@@ -301,7 +303,7 @@ ruby_incpush(const char *path)
 static VALUE
 expand_include_path(VALUE path)
 {
-    char *p = RSTRING_PTR(path);
+    char *p = RSTRING_CPTR(path);
     if (!p)
 	return path;
     if (*p == '.' && p[1] == '/')
@@ -927,7 +929,7 @@ ruby_init_gems(int enable)
 static int
 opt_enc_index(VALUE enc_name)
 {
-    const char *s = RSTRING_PTR(enc_name);
+    const char *s = RSTRING_CPTR(enc_name);
     int i = rb_enc_find_index(s);
 
     if (i < 0) {
@@ -1159,10 +1161,11 @@ load_file(VALUE parser, const char *fname, int script, struct cmdline_options *o
 	    opt->xflag = Qfalse;
 	    while (!NIL_P(line = rb_io_gets(f))) {
 		line_start++;
-		if (RSTRING_LEN(line) > 2
-		    && RSTRING_PTR(line)[0] == '#'
-		    && RSTRING_PTR(line)[1] == '!') {
-		    if ((p = strstr(RSTRING_PTR(line), "ruby")) != 0) {
+		const char *lineptr = RSTRING_CPTR(line);
+		if (RSTRING_CLEN(line) > 2
+		    && lineptr[0] == '#'
+		    && lineptr[1] == '!') {
+		    if ((p = strstr(lineptr, "ruby")) != 0) {
 			goto start_read;
 		    }
 		}
@@ -1178,7 +1181,7 @@ load_file(VALUE parser, const char *fname, int script, struct cmdline_options *o
 		if (NIL_P(line))
 		    return 0;
 
-		if ((p = strstr(RSTRING_PTR(line), "ruby")) == 0) {
+		if ((p = strstr(RSTRING_CPTR(line), "ruby")) == 0) {
 		    /* not ruby script, kick the program */
 		    char **argv;
 		    char *path;
@@ -1327,8 +1330,8 @@ set_arg0(VALUE val, ID id)
     if (origarg.argv == 0)
 	rb_raise(rb_eRuntimeError, "$0 not initialized");
     StringValue(val);
-    s = RSTRING_PTR(val);
-    i = RSTRING_LEN(val);
+    s = RSTRING_CPTR(val);
+    i = RSTRING_CLEN(val);
 #if defined(PSTAT_SETCMD)
     if (i > PST_CLEN) {
 	union pstun un;

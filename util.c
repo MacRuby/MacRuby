@@ -290,7 +290,7 @@ ruby_add_suffix(VALUE str, const char *suffix)
 #if defined(DJGPP)
     if (_USE_LFN) return;
 #else
-    if (valid_filename(RSTRING_PTR(str))) return;
+    if (valid_filename(RSTRING_CPTR(str))) return;
 #endif
 
     /* Fooey, style 0 failed.  Fix str before continuing. */
@@ -298,7 +298,7 @@ ruby_add_suffix(VALUE str, const char *suffix)
 #endif
 
     slen = extlen;
-    t = buf; baselen = 0; s = RSTRING_PTR(str);
+    t = buf; baselen = 0; s = RSTRING_CPTR(str);
     while ((*t = *s) && *s != '.') {
 	baselen++;
 	if (*s == '\\' || *s == '/') baselen = 0;
@@ -335,8 +335,7 @@ ruby_add_suffix(VALUE str, const char *suffix)
 fallback:
 	(void)memcpy(p, strEQ(ext, suffix1) ? suffix2 : suffix1, 5);
     }
-    rb_str_resize(str, strlen(buf));
-    memcpy(RSTRING_PTR(str), buf, RSTRING_LEN(str));
+    rb_str_replace(str, rb_str_new(buf, strlen(buf)));
 }
 
 #if defined(__CYGWIN32__) || defined(_WIN32)

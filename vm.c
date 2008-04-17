@@ -721,7 +721,7 @@ static VALUE
 vm_backtrace_each(rb_thread_t *th,
 		  rb_control_frame_t *limit_cfp,
 		  rb_control_frame_t *cfp,
-		  char *file, int line_no, VALUE ary)
+		  const char *file, int line_no, VALUE ary)
 {
     VALUE str;
 
@@ -732,9 +732,9 @@ vm_backtrace_each(rb_thread_t *th,
 		rb_iseq_t *iseq = cfp->iseq;
 
 		line_no = vm_get_sourceline(cfp);
-		file = RSTRING_PTR(iseq->filename);
+		file = RSTRING_CPTR(iseq->filename);
 		str = rb_sprintf("%s:%d:in `%s'",
-				 file, line_no, RSTRING_PTR(iseq->name));
+				 file, line_no, RSTRING_CPTR(iseq->name));
 		rb_ary_push(ary, str);
 	    }
 	}
@@ -1409,14 +1409,14 @@ rb_thread_current_status(rb_thread_t *th)
 	if (cfp->pc != 0) {
 	    rb_iseq_t *iseq = cfp->iseq;
 	    int line_no = vm_get_sourceline(cfp);
-	    char *file = RSTRING_PTR(iseq->filename);
+	    const char *file = RSTRING_CPTR(iseq->filename);
 	    str = rb_sprintf("%s:%d:in `%s'",
-			     file, line_no, RSTRING_PTR(iseq->name));
+			     file, line_no, RSTRING_CPTR(iseq->name));
 	}
     }
     else if (cfp->method_id) {
 	str = rb_sprintf("`%s#%s' (cfunc)",
-			 RSTRING_PTR(rb_class_name(cfp->method_class)),
+			 RSTRING_CPTR(rb_class_name(cfp->method_class)),
 			 rb_id2name(cfp->method_id));
     }
 

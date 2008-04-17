@@ -4815,6 +4815,7 @@ lex_get_str(struct parser_params *parser, VALUE s)
     }
     v = (VALUE)CFStringCreateWithSubstring(NULL, (CFStringRef)s, 
 	CFRangeMake(beg, lex_gets_ptr - beg));
+    CFMakeCollectable((CFTypeRef)v);
     return v;
 #else
     const char *cptr, *beg, *end, *pend;
@@ -5396,14 +5397,11 @@ parser_regx_options(struct parser_params *parser)
 static void
 dispose_string(VALUE str)
 {
-#if WITH_OBJC
-    /* TODO: should use another API? */
-    CFRelease((CFTypeRef)str);
-#else
+#if !WITH_OBJC
     if (RBASIC(str)->flags & RSTRING_NOEMBED)
 	xfree(RSTRING_PTR(str));
-    rb_gc_force_recycle(str);
 #endif
+    rb_gc_force_recycle(str);
 }
 
 static int
@@ -8681,7 +8679,7 @@ reg_fragment_check_gen(struct parser_params* parser, VALUE str, int options)
     err = rb_reg_check_preprocess(str);
     if (err != Qnil) {
         err = rb_obj_as_string(err);
-        compile_error(PARSER_ARG "%s", RSTRING_PTR(err));
+        compile_error(PARSER_ARG "%s", RSTRING_CPTR(err));
 	RB_GC_GUARD(err);
     }
 }
@@ -8782,7 +8780,7 @@ reg_compile_gen(struct parser_params* parser, VALUE str, int options)
 	    rb_str_append(rb_str_cat(rb_attr_get(err, mesg), "\n", 1), m);
 	}
 	else {
-	    compile_error(PARSER_ARG "%s", RSTRING_PTR(m));
+	    compile_error(PARSER_ARG "%s", RSTRING_CPTR(m));
 	}
 	return Qnil;
     }
@@ -9972,7 +9970,7 @@ ripper_initialize(int argc, VALUE *argv, VALUE self)
     parser_initialize(parser);
 
     parser->parser_ruby_sourcefile_string = fname2;
-    parser->parser_ruby_sourcefile = RSTRING_PTR(fname2)+1;
+    parser->parser_ruby_sourcefile = RSTRING_CPTR(fname2)+1;
     parser->parser_ruby_sourceline = NIL_P(lineno) ? 0 : NUM2INT(lineno) - 1;
 
     return Qnil;
@@ -10083,7 +10081,7 @@ ripper_assert_Qundef(VALUE self, VALUE obj, VALUE msg)
 {
     StringValue(msg);
     if (obj == Qundef) {
-        rb_raise(rb_eArgError, "%s", RSTRING_PTR(msg));
+        rb_raise(rb_eArgError, "%s", RSTRING_CPTR(msg));
     }
     return Qnil;
 }

@@ -390,6 +390,8 @@ hash_alloc(VALUE klass)
     if (klass != 0 && klass != rb_cHash && klass != rb_cHashRuby)
 	*(Class *)hash = RCLASS_OCID(klass);
 
+    CFMakeCollectable((CFTypeRef)hash);
+
     return hash;
 #else
     NEWOBJ(hash, struct RHash);

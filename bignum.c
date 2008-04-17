@@ -582,10 +582,10 @@ rb_str_to_inum(VALUE str, int base, int badcheck)
 	s = StringValueCStr(str);
     }
     else {
-	s = RSTRING_PTR(str);
+	s = RSTRING_CPTR(str);
     }
     if (s) {
-	len = RSTRING_LEN(str);
+	len = RSTRING_CLEN(str);
 	if (s[len]) {		/* no sentinel somehow */
 	    char *p = ALLOCA_N(char, len+1);
 
@@ -880,8 +880,8 @@ big2str_karatsuba(VALUE x, int base, char* ptr,
 
     if (FIXNUM_P(x)) {
         VALUE str = rb_fix2str(x, base);
-        char* str_ptr = RSTRING_PTR(str);
-        long str_len = RSTRING_LEN(str);
+        char* str_ptr = RSTRING_CPTR(str);
+        long str_len = RSTRING_CLEN(str);
         if (trim) {
             if (FIX2INT(x) == 0) return 0;
             MEMCPY(ptr, str_ptr, char, str_len);
@@ -940,7 +940,7 @@ rb_big2str0(VALUE x, int base, int trim)
     n2 = big2str_find_n1(x, base);
     n1 = (n2 + 1) / 2;
     ss = rb_usascii_str_new(0, n2 + 1); /* plus one for sign */
-    ptr = RSTRING_PTR(ss);
+    ptr = RSTRING_PTR(ss); /* ok */
     ptr[0] = RBIGNUM_SIGN(x) ? '+' : '-';
 
     hbase = base*base;
@@ -960,6 +960,7 @@ rb_big2str0(VALUE x, int base, int trim)
 
     ptr[len] = '\0';
     rb_str_resize(ss, len);
+    RSTRING_SYNC(ss);
 
     return ss;
 }

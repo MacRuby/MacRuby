@@ -418,14 +418,14 @@ time_arg(int argc, VALUE *argv, struct tm *tm, long *nsec)
 	if (!NIL_P(s)) {
 	    tm->tm_mon = -1;
 	    for (i=0; i<12; i++) {
-		if (RSTRING_LEN(s) == 3 &&
-		    STRCASECMP(months[i], RSTRING_PTR(s)) == 0) {
+		if (RSTRING_CLEN(s) == 3 &&
+		    STRCASECMP(months[i], RSTRING_CPTR(s)) == 0) {
 		    tm->tm_mon = i;
 		    break;
 		}
 	    }
 	    if (tm->tm_mon == -1) {
-		char c = RSTRING_PTR(s)[0];
+		char c = RSTRING_CPTR(s)[0];
 
 		if ('0' <= c && c <= '9') {
 		    tm->tm_mon = obj2long(s)-1;
@@ -2082,8 +2082,8 @@ time_strftime(VALUE time, VALUE format)
 	rb_raise(rb_eArgError, "format should have ASCII compatible encoding");
     }
     format = rb_str_new4(format);
-    fmt = RSTRING_PTR(format);
-    len = RSTRING_LEN(format);
+    fmt = RSTRING_CPTR(format);
+    len = RSTRING_CLEN(format);
     if (len == 0) {
 	rb_warning("strftime called with empty format string");
     }
@@ -2106,7 +2106,7 @@ time_strftime(VALUE time, VALUE format)
 	return str;
     }
     else {
-	len = rb_strftime(&buf, RSTRING_PTR(format), &tobj->tm);
+	len = rb_strftime(&buf, RSTRING_CPTR(format), &tobj->tm);
     }
     str = rb_str_new(buf, len);
     if (buf != buffer) free(buf);
@@ -2226,7 +2226,7 @@ time_mload(VALUE time, VALUE str)
     rb_copy_generic_ivar(time, str);
 
     StringValue(str);
-    buf = (unsigned char *)RSTRING_PTR(str);
+    buf = (unsigned char *)RSTRING_PTR(str); /* ok */
     if (RSTRING_LEN(str) != 8) {
 	rb_raise(rb_eTypeError, "marshaled time format differ");
     }

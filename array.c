@@ -225,6 +225,8 @@ ary_alloc(VALUE klass)
     if (klass != 0 && klass != rb_cArray && klass != rb_cArrayRuby)
         *(Class *)ary = RCLASS_OCID(klass);
 
+    CFMakeCollectable((CFTypeRef)ary);
+
     return ary;
 #else
     NEWOBJ(ary, struct RArray);

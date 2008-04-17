@@ -1045,7 +1045,7 @@ vm_get_ev_const(rb_thread_t *th, rb_iseq_t *iseq,
 	    break;
 	  default:
 	    rb_raise(rb_eTypeError, "%s is not a class/module",
-		     RSTRING_PTR(rb_obj_as_string(klass)));
+		     RSTRING_CPTR(rb_obj_as_string(klass)));
 	}
 	if (is_defined) {
 	    return rb_const_defined(klass, id);
