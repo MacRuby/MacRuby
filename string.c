@@ -4546,18 +4546,33 @@ static VALUE
 rb_str_capitalize_bang(VALUE str)
 {
 #if WITH_OBJC
-    UniChar c;
     CFStringRef tmp;
+    long i, n;
+    bool changed;
+    UniChar c;
+    UniChar *buffer;
 
     rb_str_modify(str);
-    if (CFStringGetLength((CFStringRef)str) == 0)
+    n = CFStringGetLength((CFStringRef)str);
+    if (n == 0)
 	return Qnil;
-    c = CFStringGetCharacterAtIndex((CFStringRef)str, 0);
-    if (!iswlower(c))
+    buffer = (UniChar *)alloca(sizeof(UniChar) * n);
+    CFStringGetCharacters((CFStringRef)str, CFRangeMake(0, n), buffer);
+    changed = false;
+    if (iswlower(buffer[0])) {
+	buffer[0] = towupper(buffer[0]);
+	changed = true;
+    }
+    for (i = 1; i < n; i++) {
+	if (iswupper(buffer[i])) {
+	    buffer[i] = towlower(buffer[i]);
+	    changed = true;
+	}
+    }
+    if (!changed)
 	return Qnil;
-    c = towupper(c);
-    tmp = CFStringCreateWithCharacters(NULL, &c, 1);
-    CFStringReplace((CFMutableStringRef)str, CFRangeMake(0, 1), tmp);
+    tmp = CFStringCreateWithCharacters(NULL, buffer, n);
+    CFStringReplaceAll((CFMutableStringRef)str, tmp);
     return str;
 #else
     rb_encoding *enc;
