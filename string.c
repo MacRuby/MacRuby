@@ -140,6 +140,14 @@ rb_objc_str_copy_struct(VALUE old, VALUE new)
     }
 }
 
+static inline bool
+rb_objc_str_is_bytestring(VALUE str)
+{
+    struct rb_objc_str_struct *s;
+    s = rb_objc_str_get_struct(str);
+    return s != NULL && s->cfdata != NULL;
+}
+
 static void *
 rb_str_cfdata(VALUE str)
 {
@@ -197,6 +205,49 @@ rb_str_bytesync(VALUE str)
     CFStringReplaceAll((CFMutableStringRef)str, (CFStringRef)bytestr);
 }
 
+VALUE
+rb_str_freeze(VALUE str)
+{
+    rb_objc_str_get_struct2(str)->frozen = true;
+    return str;
+}
+
+VALUE
+rb_str_frozen(VALUE str)
+{
+    struct rb_objc_str_struct *s;
+    s = rb_objc_str_get_struct(str);
+    return s != NULL && s->frozen ? Qtrue : Qfalse;
+}
+
+VALUE
+rb_str_taint(VALUE str)
+{
+    rb_objc_str_get_struct2(str)->tainted = true;
+    return str;
+}
+
+VALUE
+rb_str_tainted(VALUE str)
+{
+    struct rb_objc_str_struct *s;
+    s = rb_objc_str_get_struct(str);
+    return s != NULL && s->tainted ? Qtrue : Qfalse;
+}
+
+VALUE
+rb_str_clone(VALUE str)
+{
+    VALUE dup = rb_str_dup(str);
+    rb_objc_str_copy_struct(str, dup);
+    return dup;
+}
+
+static VALUE
+rb_str_bytestring_m(VALUE str)
+{
+    return rb_objc_str_is_bytestring(str) ? Qtrue : Qfalse;
+}
 #endif
 
 #define is_ascii_string(str) (rb_enc_str_coderange(str) == ENC_CODERANGE_7BIT)
@@ -444,12 +495,13 @@ str_mod_check(VALUE s, const char *p, long len)
 static inline void
 str_frozen_check(VALUE s)
 {
-#if !WITH_OBJC
-    /* TODO */
+#if WITH_OBJC
+    if (rb_str_frozen(s) == Qtrue) {
+#else
     if (OBJ_FROZEN(s)) {
+#endif
 	rb_raise(rb_eRuntimeError, "string frozen");
     }
-#endif
 }
 
 static VALUE
@@ -576,7 +628,9 @@ rb_tainted_str_new(const char *ptr, long len)
 {
     VALUE str = rb_str_new(ptr, len);
 
-#if !WITH_OBJC /* TODO */
+#if WITH_OBJC 
+    rb_str_taint(str);
+#else
     OBJ_TAINT(str);
 #endif
     return str;
@@ -587,7 +641,9 @@ rb_tainted_str_new2(const char *ptr)
 {
     VALUE str = rb_str_new2(ptr);
 
-#if !WITH_OBJC /* TODO */
+#if WITH_OBJC 
+    rb_str_taint(str);
+#else
     OBJ_TAINT(str);
 #endif
     return str;
@@ -730,7 +786,7 @@ rb_str_buf_new(long capa)
 {
     VALUE str = str_alloc(rb_cString);
 
-#if !WITH_OBJC // TODO should we pass capa as the CFString's maxLength?
+#if !WITH_OBJC
     if (capa < STR_BUF_MIN_SIZE) {
 	capa = STR_BUF_MIN_SIZE;
     }
@@ -1172,8 +1228,11 @@ str_modifiable(VALUE str)
 #if WITH_OBJC
     bool _CFStringIsMutable(void *);
     if (!__CFStringIsMutable(str)) 
-	rb_raise(rb_eRuntimeError, "can't modify immutable array");
-    /* TODO test for freeze/taint state */
+	rb_raise(rb_eRuntimeError, "can't modify immutable string");
+    if (rb_str_frozen(str) == Qtrue)
+	rb_error_frozen("string");
+    if (rb_str_tainted(str) == Qfalse && rb_safe_level() >= 4)
+	rb_raise(rb_eSecurityError, "Insecure: can't modify string");
 #else
     if (FL_TEST(str, STR_TMPLOCK)) {
 	rb_raise(rb_eRuntimeError, "can't modify string; temporarily locked");
@@ -1566,46 +1625,7 @@ rb_str_substr(VALUE str, long beg, long len)
 #endif
 }
 
-#if WITH_OBJC
-VALUE
-rb_str_freeze(VALUE str)
-{
-    rb_objc_str_get_struct2(str)->frozen = true;
-    return str;
-}
-
-VALUE
-rb_str_frozen(VALUE str)
-{
-    struct rb_objc_str_struct *s;
-    s = rb_objc_str_get_struct(str);
-    return s != NULL && s->frozen ? Qtrue : Qfalse;
-}
-
-VALUE
-rb_str_taint(VALUE str)
-{
-    rb_objc_str_get_struct2(str)->tainted = true;
-    return str;
-}
-
-VALUE
-rb_str_tainted(VALUE str)
-{
-    struct rb_objc_str_struct *s;
-    s = rb_objc_str_get_struct(str);
-    return s != NULL && s->tainted ? Qtrue : Qfalse;
-}
-
-VALUE
-rb_str_clone(VALUE str)
-{
-    VALUE dup = rb_str_dup(str);
-    rb_objc_str_copy_struct(str, dup);
-    return dup;
-}
-#else
-
+#if !WITH_OBJC
 VALUE
 rb_str_freeze(VALUE str)
 {
@@ -1615,7 +1635,6 @@ rb_str_freeze(VALUE str)
     }
     return rb_obj_freeze(str);
 }
-
 #endif
 
 VALUE
@@ -2222,9 +2241,13 @@ rb_str_hash_cmp(VALUE str1, VALUE str2)
 int
 rb_memhash(const void *ptr, long len)
 {
-    /* TODO is that really needed? */
-    CFDataRef data = CFDataCreate(NULL, (const UInt8 *)ptr, len);
-    return CFHash(data);
+    CFDataRef data;
+    int code;
+
+    data = CFDataCreate(NULL, (const UInt8 *)ptr, len);
+    code = CFHash(data);
+    CFRelease((CFTypeRef)data);
+    return code;
 }
 
 int
@@ -4260,22 +4283,25 @@ prefix_escape(VALUE str, int c, rb_encoding *enc)
 VALUE
 rb_str_inspect(VALUE str)
 {
-#if WITH_OBJC
-    VALUE result = rb_str_new(NULL, 0);
-    rb_str_cat2(result, "\"");
-    rb_str_buf_append(result, str);
-    rb_str_cat2(result, "\"");
-    /* TODO needs to escape some characters */
-    return result;
-#else
     rb_encoding *enc = STR_ENC_GET(str);
-    char *p, *pend;
+    const char *p, *pend;
     VALUE result = rb_str_buf_new2("");
 
     if (!rb_enc_asciicompat(enc)) enc = rb_usascii_encoding();
     rb_enc_associate(result, enc);
     str_cat_char(result, '"', enc);
+#if WITH_OBJC
+    if (rb_objc_str_is_bytestring(str)) {
+	p = (const char *)RSTRING_PTR(str); 
+	pend = (const char *)RSTRING_END(str);
+    }
+    else {
+	p = RSTRING_CPTR(str); 
+	pend = p + RSTRING_CLEN(str);
+    }
+#else
     p = RSTRING_PTR(str); pend = RSTRING_END(str);
+#endif
     while (p < pend) {
 	int c;
 	int n;
@@ -4331,7 +4357,7 @@ rb_str_inspect(VALUE str)
 	else {
 	    char buf[5];
 	    char *s;
-            char *q;
+            const char *q;
 
 	  escape_codepoint:
             for (q = p-n; q < p; q++) {
@@ -4347,7 +4373,6 @@ rb_str_inspect(VALUE str)
 
     OBJ_INFECT(result, str);
     return result;
-#endif
 }
 
 #define IS_EVSTR(p,e) ((p) < (e) && (*(p) == '$' || *(p) == '@' || *(p) == '{'))
@@ -4370,7 +4395,18 @@ rb_str_dump(VALUE str)
     VALUE result;
 
     len = 2;			/* "" */
+#if WITH_OBJC
+    if (rb_objc_str_is_bytestring(str)) {
+	p = RSTRING_PTR(str); 
+	pend = RSTRING_END(str);
+    }
+    else {
+	p = RSTRING_CPTR(str); 
+	pend = p + RSTRING_CLEN(str);
+    }
+#else
     p = RSTRING_PTR(str); pend = p + RSTRING_LEN(str);
+#endif
     while (p < pend) {
 	unsigned char c = *p++;
 	switch (c) {
@@ -7696,6 +7732,7 @@ Init_String(void)
     rb_define_method(rb_cString, "tainted?", rb_str_tainted, 0);
     rb_define_method(rb_cString, "freeze", rb_str_freeze, 0);
     rb_define_method(rb_cString, "frozen?", rb_str_frozen, 0);
+    rb_define_method(rb_cString, "__bytestring__?", rb_str_bytestring_m, 0);
 #else
     rb_cString  = rb_define_class("String", rb_cObject);
 #endif
