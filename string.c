@@ -6069,12 +6069,23 @@ rb_str_chop_bang(VALUE str)
 {
 #if WITH_OBJC
     long n;
+    const char *p;
+    CFRange r;
 
     n = CFStringGetLength((CFStringRef)str);
     if (n == 0)
 	return Qnil;
     rb_str_modify(str);
-    CFStringDelete((CFMutableStringRef)str, CFRangeMake(n - 1, 1));
+    p = RSTRING_CPTR(str);
+    r = CFRangeMake(n - 1, 1);
+    if (n >= 2 && p[n - 1] == '\n' && p[n - 2] == '\r') {
+	/* We need this to pass the tests, but this is most probably 
+	 * unnecessary.
+	 */
+	r.location--;
+	r.length++;
+    }
+    CFStringDelete((CFMutableStringRef)str, r);
     return str;
 #else
     if (RSTRING_LEN(str) > 0) {
@@ -6139,7 +6150,8 @@ rb_str_chomp_bang(int argc, VALUE *argv, VALUE str)
     long n;
     CFRange range_result;
 
-    rb_scan_args(argc, argv, "01", &rs);
+    if (rb_scan_args(argc, argv, "01", &rs) == 0)
+	rs = rb_rs;
     rb_str_modify(str);
     n = CFStringGetLength((CFStringRef)str);
     if (NIL_P(rs)) {
