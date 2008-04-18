@@ -168,6 +168,10 @@ init_copy(VALUE dest, VALUE obj)
 	    if (rb_hash_tainted(obj)) 
 		rb_hash_taint(dest);
 	}
+	else if (type == T_STRING) {
+	    if (rb_str_tainted(obj)) 
+		rb_str_taint(dest);
+	}
 	goto call_init_copy;
     }
 #endif
@@ -254,6 +258,8 @@ rb_obj_clone(VALUE obj)
 	    return rb_ary_clone(obj);
 	if (type == T_HASH)
 	    return rb_hash_clone(obj);
+	if (type == T_STRING)
+	    return rb_str_clone(obj);
         clone = rb_obj_alloc(rb_obj_class(obj));
         init_copy(clone, obj);
 	return clone;
@@ -675,6 +681,18 @@ rb_obj_dummy(void)
 VALUE
 rb_obj_tainted(VALUE obj)
 {
+#if WITH_OBJC
+    if (rb_objc_is_non_native(obj)) {
+	int type = TYPE(obj);
+	if (type == T_ARRAY)
+	    return rb_ary_tainted(obj);
+	if (type == T_HASH)
+	    return rb_hash_tainted(obj);
+	if (type == T_STRING)
+	    return rb_str_tainted(obj);
+	return Qfalse;
+    }
+#endif
     if (OBJ_TAINTED(obj))
 	return Qtrue;
     return Qfalse;
@@ -802,8 +820,16 @@ VALUE
 rb_obj_frozen_p(VALUE obj)
 {
 #if WITH_OBJC
-    if (rb_objc_is_non_native(obj))
+    if (rb_objc_is_non_native(obj)) {
+	int type = TYPE(obj);
+	if (type == T_ARRAY)
+	    return rb_ary_frozen_p(obj);
+	if (type == T_HASH)
+	    return rb_hash_frozen(obj);
+	if (type == T_STRING)
+	    return rb_str_frozen(obj);
 	return Qfalse;
+    }
 #endif
     if (OBJ_FROZEN(obj)) return Qtrue;
     if (SPECIAL_CONST_P(obj)) {

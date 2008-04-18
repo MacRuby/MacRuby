@@ -99,6 +99,8 @@ VALUE rb_cSymbol;
 
 struct rb_objc_str_struct {
     void *cfdata;
+    bool tainted;
+    bool frozen;
 };
 
 /* This variable will always stay NULL, we only use its address. */
@@ -122,6 +124,20 @@ rb_objc_str_get_struct2(VALUE str)
 	s->cfdata = NULL;
     }
     return s;
+}
+
+static void
+rb_objc_str_copy_struct(VALUE old, VALUE new)
+{
+    struct rb_objc_str_struct *s;
+
+    s = rb_objc_str_get_struct(old);
+    if (s != NULL) {
+	struct rb_objc_str_struct *n;
+
+	n = rb_objc_str_get_struct2(new);
+	memcpy(n, s, sizeof(struct rb_objc_str_struct));
+    }
 }
 
 static void *
@@ -1550,19 +1566,57 @@ rb_str_substr(VALUE str, long beg, long len)
 #endif
 }
 
+#if WITH_OBJC
 VALUE
 rb_str_freeze(VALUE str)
 {
-#if WITH_OBJC
-    /* TODO */
+    rb_objc_str_get_struct2(str)->frozen = true;
+    return str;
+}
+
+VALUE
+rb_str_frozen(VALUE str)
+{
+    struct rb_objc_str_struct *s;
+    s = rb_objc_str_get_struct(str);
+    return s != NULL && s->frozen ? Qtrue : Qfalse;
+}
+
+VALUE
+rb_str_taint(VALUE str)
+{
+    rb_objc_str_get_struct2(str)->tainted = true;
+    return str;
+}
+
+VALUE
+rb_str_tainted(VALUE str)
+{
+    struct rb_objc_str_struct *s;
+    s = rb_objc_str_get_struct(str);
+    return s != NULL && s->tainted ? Qtrue : Qfalse;
+}
+
+VALUE
+rb_str_clone(VALUE str)
+{
+    VALUE dup = rb_str_dup(str);
+    rb_objc_str_copy_struct(str, dup);
+    return dup;
+}
 #else
+
+VALUE
+rb_str_freeze(VALUE str)
+{
     if (STR_ASSOC_P(str)) {
 	VALUE ary = RSTRING(str)->as.heap.aux.shared;
 	OBJ_FREEZE(ary);
     }
     return rb_obj_freeze(str);
-#endif
 }
+
+#endif
 
 VALUE
 rb_str_dup_frozen(VALUE str)
@@ -3559,6 +3613,8 @@ rb_str_sub_bang(int argc, VALUE *argv, VALUE str)
 	rb_str_modify(str);
 #if WITH_OBJC
 	rb_str_splice(str, BEG(0), END(0) - BEG(0), repl);
+	if (rb_obj_tainted(repl))
+	    rb_str_taint(str);
 #else
 	rb_enc_associate(str, enc);
 	if (OBJ_TAINTED(repl)) tainted = 1;
@@ -3832,6 +3888,8 @@ rb_str_replace(VALUE str, VALUE str2)
 #if WITH_OBJC
     rb_str_modify(str);
     CFStringReplaceAll((CFMutableStringRef)str, (CFStringRef)str2);
+    if (rb_str_tainted(str2) == Qtrue)
+	rb_str_taint(str);
 #else
     StringValue(str2);
     len = RSTRING_LEN(str2);
@@ -4157,7 +4215,7 @@ static VALUE
 rb_str_to_s(VALUE str)
 {
 #if WITH_OBJC
-    if (rb_objc_str_is_pure(str)) {
+    if (rb_obj_is_kind_of(str, rb_cString) == Qfalse) {
 #else
     if (rb_obj_class(str) != rb_cString) {
 #endif
@@ -7632,7 +7690,10 @@ Init_String(void)
         rb_objc_import_class((Class)objc_getClass("NSMutableString"));
     FL_UNSET(rb_cStringRuby, RCLASS_OBJC_IMPORTED);
     rb_const_set(rb_cObject, rb_intern("String"), rb_cStringRuby);
-    /* TODO implement freeze/taint */
+    rb_define_method(rb_cString, "taint", rb_str_taint, 0);
+    rb_define_method(rb_cString, "tainted?", rb_str_tainted, 0);
+    rb_define_method(rb_cString, "freeze", rb_str_freeze, 0);
+    rb_define_method(rb_cString, "frozen?", rb_str_frozen, 0);
 #else
     rb_cString  = rb_define_class("String", rb_cObject);
 #endif
