@@ -138,9 +138,11 @@ rb_str_cfdata(VALUE str)
 	    return NULL;
 #if 1 
 	GC_WB(&s->cfdata, (void *)CFDataCreateCopy(NULL, data));
+	CFRelease((CFTypeRef)data);
 #else
 	GC_WB(&s->cfdata, (void *)data);
 #endif
+	CFMakeCollectable((CFTypeRef)s->cfdata);
     }
     return s->cfdata;    
 }
@@ -1447,12 +1449,23 @@ rb_str_subseq(VALUE str, long beg, long len)
 {
 #if WITH_OBJC
     long n = CFStringGetLength((CFStringRef)str);
+    CFStringRef substr;
     if (beg < 0)
 	beg += n;
-    if (beg + len > n || beg < 0)
+    if (beg > n || beg < 0)
 	return Qnil;
-    return (VALUE)CFStringCreateWithSubstring(NULL, (CFStringRef)str, 
-	CFRangeMake(beg, len));
+    if (beg + len > n)
+	return (VALUE)CFSTR("");
+    if (len == 1) {
+	UniChar c = CFStringGetCharacterAtIndex((CFStringRef)str, beg);
+	substr = CFStringCreateWithCharacters(NULL, &c, 1);
+    }
+    else {
+	substr = CFStringCreateWithSubstring(NULL, (CFStringRef)str, 
+	    CFRangeMake(beg, len));
+    }
+    CFMakeCollectable((CFTypeRef)substr);
+    return (VALUE)substr;
 #else
     VALUE str2 = rb_str_new5(str, RSTRING_PTR(str)+beg, len);
 
@@ -5121,23 +5134,77 @@ str_charset_find(CFStringRef str, VALUE *charsets, int charset_count,
     if (n == 0)
     	return;
 
-    /* TODO this doesn't actually support tokens such as '^e' or 'a-z'. */ 
     for (i = 0, charset = NULL; i < charset_count; i++) {
 	VALUE s = charsets[i];
+	bool exclude;
+	const char *sptr, *p;
 
 	StringValue(s);
 
-	if (charset == NULL) {
-	    charset = CFCharacterSetCreateMutable(NULL);
-	    CFCharacterSetAddCharactersInString(
-		(CFMutableCharacterSetRef)charset,
-		(CFStringRef)s);
+	sptr = RSTRING_CPTR(s);
+	exclude = sptr[0] == '^';
+
+	p = NULL;
+	if (exclude || (p = strchr(sptr, '-')) != NULL) {
+	    CFMutableCharacterSetRef subset;
+	    const char *b, *e;
+
+	    b = exclude ? sptr + 1 : sptr;
+	    e = sptr + strlen(sptr) - 1;
+	    subset = CFCharacterSetCreateMutable(NULL);
+	    while (p != NULL) {
+		if (p > b && *(p - 1) != '\\' && *(p + 1) != '\0') {
+		    CFCharacterSetAddCharactersInRange(subset,
+			    CFRangeMake(*(p - 1), *(p + 1) - *(p - 1) + 1));
+		}
+		if (p > b) {
+		    CFStringRef substr;
+		    substr = CFStringCreateWithBytes(NULL,
+			    (const UInt8 *)b,
+			    (CFIndex)p - (CFIndex)b,
+			    kCFStringEncodingUTF8,
+			    false);
+		    CFCharacterSetAddCharactersInString(subset, substr);
+		    CFRelease(substr);
+		}
+
+		b = p + 2;
+		p = strchr(b, '-');
+	    }
+	    if (b <= e) {
+		CFStringRef substr;
+		substr = CFStringCreateWithBytes(NULL,
+			(const UInt8 *)b,
+			(CFIndex)e - (CFIndex)b + 1,
+			kCFStringEncodingUTF8,
+			false);
+		CFCharacterSetAddCharactersInString(subset, substr);
+		CFRelease(substr);
+	    }
+
+	    if (exclude)
+		CFCharacterSetInvert(subset);
+
+	    if (charset == NULL) {
+		charset = subset;
+	    }
+	    else {
+		CFCharacterSetIntersect(charset, subset);
+		CFRelease(subset);
+	    }
 	}
 	else {
-	    CFCharacterSetRef subset;
-	    subset = CFCharacterSetCreateWithCharactersInString(NULL, 
-		(CFStringRef)s);
-	    CFCharacterSetIntersect((CFMutableCharacterSetRef)charset, subset);
+	    if (charset == NULL) {
+		charset = CFCharacterSetCreateMutable(NULL);
+		CFCharacterSetAddCharactersInString(charset, (CFStringRef)s);
+	    }
+	    else {
+		CFCharacterSetRef subset;
+		subset = CFCharacterSetCreateWithCharactersInString(NULL,
+		    (CFStringRef)s);
+		CFCharacterSetIntersect(charset, subset);
+		CFRelease(subset);	
+	    }
 	}
     }
 
@@ -5151,6 +5218,8 @@ str_charset_find(CFStringRef str, VALUE *charsets, int charset_count,
 		&result_range)) {
 	(*cb)(&search_range, (const CFRange *)&result_range, str, ctx);
     }
+
+    CFRelease(charset);	
 }
 
 #endif
@@ -5402,12 +5471,28 @@ rb_str_tr_s(VALUE str, VALUE src, VALUE repl)
  *     a.count "ej-m"          #=> 4
  */
 
+#if WITH_OBJC
+static void
+rb_str_count_cb(CFRange *search_range, const CFRange *result_range, 
+    CFStringRef str, void *ctx)
+{
+    search_range->length -= result_range->length 
+	+ (result_range->location - search_range->location);
+    search_range->location = result_range->location + result_range->length;
+    (*(int *)ctx) += result_range->length;
+}
+#endif
+
 static VALUE
 rb_str_count(int argc, VALUE *argv, VALUE str)
 {
 #if WITH_OBJC
-    /* TODO could share the same logic than #delete */
-    rb_notimplement();
+    int count;
+    if (argc < 1)
+	rb_raise(rb_eArgError, "wrong number of arguments");
+    count = 0;
+    str_charset_find((CFStringRef)str, argv, argc, rb_str_count_cb, &count); 
+    return INT2NUM(count);
 #else
     char table[256];
     rb_encoding *enc = 0;
