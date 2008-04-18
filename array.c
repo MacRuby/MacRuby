@@ -102,7 +102,7 @@ rb_objc_ary_copy_struct(VALUE old, VALUE new)
 } while (0)
 #endif
 
-static VALUE rb_ary_frozen_p(VALUE ary);
+VALUE rb_ary_frozen_p(VALUE ary);
 
 static inline void
 rb_ary_modify_check(VALUE ary)
@@ -171,7 +171,7 @@ rb_ary_tainted(VALUE ary)
  *  while being sorted).
  */
 
-static VALUE
+VALUE
 rb_ary_frozen_p(VALUE ary)
 {
 #if WITH_OBJC
@@ -1747,15 +1747,11 @@ rb_ary_to_s(VALUE ary)
  *  the receiver to an Array object.
  */
 
-#if WITH_OBJC
-static bool rb_objc_ary_is_pure(VALUE ary);
-#endif
-
 static VALUE
 rb_ary_to_a(VALUE ary)
 {
 #if WITH_OBJC
-    if (!rb_objc_ary_is_pure(ary)) {
+    if (rb_obj_is_kind_of(ary, rb_cArray) == Qfalse) {
 #else
     if (rb_obj_class(ary) != rb_cArray) {
 #endif
@@ -3795,7 +3791,8 @@ rb_ary_combination(VALUE ary, VALUE num)
 	for (i = 0; i < nlen; i++) {
 	    rb_ary_store(cc, lev, RARRAY_AT(ary, stack[lev+1]));
 	    for (lev++; lev < n; lev++) {
-		rb_ary_store(cc, lev, RARRAY_AT(ary, stack[lev+1] = stack[lev]+1));
+		stack[lev+1] = stack[lev]+1;
+		rb_ary_store(cc, lev, RARRAY_AT(ary, stack[lev+1]));
 	    }
 #if WITH_OBJC
 	    rb_yield(rb_ary_dup(cc));
