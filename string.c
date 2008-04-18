@@ -4406,6 +4406,7 @@ rb_str_dump(VALUE str)
     OBJ_INFECT(result, str);
     /* result from dump is ASCII */
     rb_enc_associate(result, enc0);
+    RSTRING_SYNC(result);
     return result;
 }
 
@@ -5800,9 +5801,10 @@ rb_str_each_line(int argc, VALUE *argv, VALUE str)
 #if WITH_OBJC
     VALUE rs;
     CFArrayRef ranges;
-    long i, count, n, l;
-    UInt8 *buffer;
-    long bufsize = 0;
+    long n;
+    CFStringRef substr;
+    CFRange sub_range, search_range, res_range;
+    bool zero_sep;
 
     if (rb_scan_args(argc, argv, "01", &rs) == 0) {
 	rs = rb_rs;
@@ -5813,33 +5815,50 @@ rb_str_each_line(int argc, VALUE *argv, VALUE str)
 	return str;
     }
     StringValue(rs);
+    zero_sep = CFStringGetLength((CFStringRef)rs) == 0;
+    if (zero_sep) {
+	rs = rb_default_rs;
+    }
     n = CFStringGetLength((CFStringRef)str);
-    ranges = CFStringCreateArrayWithFindResults(NULL, (CFStringRef)str, 
-	(CFStringRef)rs, CFRangeMake(0, n), 0);
-    if (ranges == NULL) {
-	rb_yield(str);
-	return str;
-    }
-    for (i = l = 0, count = CFArrayGetCount(ranges); i < count; i++) {
-	CFRange *rs_range;
-       	CFRange sub_range;
+    search_range = CFRangeMake(0, n);
+    sub_range = CFRangeMake(0, 0);
 
-	rs_range = (CFRange *)CFArrayGetValueAtIndex(ranges, i);
-	assert(rs_range->location > 0);
-	sub_range = CFRangeMake(l, rs_range->location - l);
-#if 1
-	rb_yield((VALUE)CFStringCreateWithSubstring(NULL, (CFStringRef)str, sub_range));
-#else
-	if (bufsize < sub_range.length) {
-	    bufsize = sub_range.length + 100;
-	    buffer = (UInt8 *)alloca(sub_range.length + 100);
+#define YIELD_SUBSTR(range) \
+    do { \
+	substr = CFStringCreateWithSubstring(NULL, (CFStringRef)str,  \
+	    range); \
+	CFMakeCollectable((CFTypeRef)substr); \
+	rb_yield((VALUE)substr); \
+    } \
+    while (0)
+
+    while (CFStringFindWithOptions((CFStringRef)str, (CFStringRef)rs,
+	search_range, 0, &res_range)) {
+	if (zero_sep
+	    && sub_range.length > 0 
+	    && sub_range.location + sub_range.length 
+	       == res_range.location) {
+	    sub_range.length += res_range.length;
+	}		
+	else {
+	    if (sub_range.length > 0)
+		YIELD_SUBSTR(sub_range);
+	    sub_range = CFRangeMake(search_range.location, 
+		res_range.location - search_range.location + res_range.length);
 	}
-	CFStringGetBytes((CFStringRef)str, sub_range,
-	    kCFStringEncodingUTF8, 0, false, buffer, sub_range.length, NULL);
-	rb_yield(rb_str_new((const char *)buffer, sub_range.length));
-#endif
-	l = rs_range->location + rs_range->length;
+	search_range.location = res_range.location + res_range.length;
+	search_range.length = n - search_range.location;
     }
+
+    if (sub_range.length != 0)
+	YIELD_SUBSTR(sub_range);
+
+    if (search_range.location < n)
+	YIELD_SUBSTR(CFRangeMake(search_range.location, 
+	    n - search_range.location));
+
+#undef YIELD_SUBSTR
+
     return str;
 #else
     rb_encoding *enc;
