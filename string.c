@@ -3707,7 +3707,7 @@ str_gsub(int argc, VALUE *argv, VALUE str, int bang)
 	if (NIL_P(hash)) {
 	    StringValue(repl);
 	}
-	if (OBJ_TAINTED(repl)) tainted = 1;
+	if (rb_obj_tainted(repl) == Qtrue) tainted = 1;
 	break;
       default:
 	rb_raise(rb_eArgError, "wrong number of arguments (%d for 2)", argc);
@@ -3761,7 +3761,7 @@ str_gsub(int argc, VALUE *argv, VALUE str, int bang)
 	    val = rb_reg_regsub(repl, str, regs, pat);
 	}
 
-	if (OBJ_TAINTED(val)) tainted = 1;
+	if (rb_obj_tainted(val) == Qtrue) tainted = 1;
 
 	len = beg - offset;	/* copy pre-match substr */
         if (len) {
@@ -3794,6 +3794,8 @@ str_gsub(int argc, VALUE *argv, VALUE str, int bang)
 	CFStringReplaceAll((CFMutableStringRef)str, (CFStringRef)dest);
     }
     else {
+    	if (!tainted && rb_str_tainted(str) == Qtrue)
+	    tainted = 1;
 	str = dest;
     }
 #else
@@ -3808,7 +3810,7 @@ str_gsub(int argc, VALUE *argv, VALUE str, int bang)
     }
 #endif
 
-    if (tainted) OBJ_TAINT(str);
+    if (tainted) rb_str_taint(str);
     return str;
 }
 
