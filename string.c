@@ -5217,7 +5217,7 @@ typedef void str_charset_find_cb
 
 static void
 str_charset_find(CFStringRef str, VALUE *charsets, int charset_count,
-		 str_charset_find_cb *cb, void *ctx)
+		 bool squeeze_mode, str_charset_find_cb *cb, void *ctx)
 {
     int i;
     long n;
@@ -5318,9 +5318,11 @@ str_charset_find(CFStringRef str, VALUE *charsets, int charset_count,
     }
 #else
     CFStringInlineBuffer buf;
+    UniChar previous_char = 0;
     CFStringInitInlineBuffer((CFStringRef)str, &buf, search_range);
     do {
         long i;
+	bool mutated = false;
 
 	if (search_range.location + search_range.length < n) {
 	    n = search_range.location + search_range.length;
@@ -5341,28 +5343,36 @@ str_charset_find(CFStringRef str, VALUE *charsets, int charset_count,
 		if (result_range.length == 0) {
 		    result_range.location = i;
 		    result_range.length = 1;
+		    previous_char = c;
 		}
 		else {
-		    if (result_range.location + result_range.length == i) {
+		    if (result_range.location + result_range.length == i
+			&& (!squeeze_mode || previous_char == c)) {
 			result_range.length++;
 		    }
 		    else {
-			(*cb)(&search_range, (const CFRange *)&result_range, str, 
-				ctx);
+			(*cb)(&search_range, (const CFRange *)&result_range, 
+			    str, ctx);
 			result_range.location = i;
 			result_range.length = 1;
+			previous_char = c;
 			if (search_range.location + search_range.length < n) {
 			    result_range.location -= n 
 				- (search_range.location + search_range.length);
+			    mutated = true;
+			    break;
 			}
-			break;
 		    }
 		}
-	    }	    
+	    }
 	}
-	if (result_range.length != 0) {
-	    (*cb)(&search_range, (const CFRange *)&result_range, str, 
-		    ctx);
+	if (!mutated) {
+	    if (result_range.length != 0) {
+		(*cb)(&search_range, (const CFRange *)&result_range, str, 
+			ctx);
+		result_range.length = 0;
+		previous_char = 0;
+	    }
 	}
     }
     while (search_range.length != 0 && result_range.length != 0); 
@@ -5403,8 +5413,8 @@ rb_str_delete_bang(int argc, VALUE *argv, VALUE str)
 	rb_raise(rb_eArgError, "wrong number of arguments");
     rb_str_modify(str);
     changed = false;
-    str_charset_find((CFStringRef)str, argv, argc, rb_str_delete_bang_cb, 
-	&changed);
+    str_charset_find((CFStringRef)str, argv, argc, false,
+	rb_str_delete_bang_cb, &changed);
     if (!changed)
     	return Qnil;
     return str;
@@ -5485,11 +5495,41 @@ rb_str_delete(int argc, VALUE *argv, VALUE str)
  *  <code>nil</code> if no changes were made.
  */
 
+#if WITH_OBJC
+static void
+rb_str_squeeze_bang_cb(CFRange *search_range, const CFRange *result_range, 
+    CFStringRef str, void *ctx)
+{
+    if (result_range->length > 1) {
+	CFRange to_delete = *result_range;
+	to_delete.length--;
+	CFStringDelete((CFMutableStringRef)str, to_delete);
+	search_range->length -= result_range->length 
+	    + (result_range->location - search_range->location);
+	search_range->location = result_range->location + 1;
+	*(bool *)ctx = true;
+    }
+}
+#endif
+
 static VALUE
 rb_str_squeeze_bang(int argc, VALUE *argv, VALUE str)
 {
 #if WITH_OBJC
-    rb_notimplement();
+    bool changed;
+    VALUE all_chars;
+    if (argc == 0) {
+	argc = 1;
+	all_chars = (VALUE)CFSTR("a-z");
+	argv = &all_chars;
+    }
+    rb_str_modify(str);
+    changed = false;
+    str_charset_find((CFStringRef)str, argv, argc, true,
+	rb_str_squeeze_bang_cb, &changed);
+    if (!changed)
+    	return Qnil;
+    return str;
 #else
     char squeez[256];
     rb_encoding *enc = 0;
@@ -5625,9 +5665,6 @@ static void
 rb_str_count_cb(CFRange *search_range, const CFRange *result_range, 
     CFStringRef str, void *ctx)
 {
-    search_range->length -= result_range->length 
-	+ (result_range->location - search_range->location);
-    search_range->location = result_range->location + result_range->length;
     (*(int *)ctx) += result_range->length;
 }
 #endif
@@ -5640,7 +5677,8 @@ rb_str_count(int argc, VALUE *argv, VALUE str)
     if (argc < 1)
 	rb_raise(rb_eArgError, "wrong number of arguments");
     count = 0;
-    str_charset_find((CFStringRef)str, argv, argc, rb_str_count_cb, &count); 
+    str_charset_find((CFStringRef)str, argv, argc, false,
+	rb_str_count_cb, &count); 
     return INT2NUM(count);
 #else
     char table[256];
