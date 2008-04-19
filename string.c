@@ -5306,6 +5306,7 @@ str_charset_find(CFStringRef str, VALUE *charsets, int charset_count,
     }
 
     search_range = CFRangeMake(0, n);
+#if 0 
     while (search_range.length != 0 
 	    && CFStringFindCharacterFromSet(
 		(CFStringRef)str,
@@ -5315,6 +5316,57 @@ str_charset_find(CFStringRef str, VALUE *charsets, int charset_count,
 		&result_range)) {
 	(*cb)(&search_range, (const CFRange *)&result_range, str, ctx);
     }
+#else
+    CFStringInlineBuffer buf;
+    CFStringInitInlineBuffer((CFStringRef)str, &buf, search_range);
+    do {
+        long i;
+
+	if (search_range.location + search_range.length < n) {
+	    n = search_range.location + search_range.length;
+	    CFStringInitInlineBuffer((CFStringRef)str, &buf, CFRangeMake(0, n));
+	}
+
+	result_range.length = 0;
+
+	for (i = search_range.location;
+	     i < search_range.location + search_range.length; 
+	     i++) {
+
+	    UniChar c;
+
+	    c = CFStringGetCharacterFromInlineBuffer(&buf, i);
+	    if (CFCharacterSetIsCharacterMember((CFCharacterSetRef)charset, 
+						c)) {
+		if (result_range.length == 0) {
+		    result_range.location = i;
+		    result_range.length = 1;
+		}
+		else {
+		    if (result_range.location + result_range.length == i) {
+			result_range.length++;
+		    }
+		    else {
+			(*cb)(&search_range, (const CFRange *)&result_range, str, 
+				ctx);
+			result_range.location = i;
+			result_range.length = 1;
+			if (search_range.location + search_range.length < n) {
+			    result_range.location -= n 
+				- (search_range.location + search_range.length);
+			}
+			break;
+		    }
+		}
+	    }	    
+	}
+	if (result_range.length != 0) {
+	    (*cb)(&search_range, (const CFRange *)&result_range, str, 
+		    ctx);
+	}
+    }
+    while (search_range.length != 0 && result_range.length != 0); 
+#endif
 
     CFRelease(charset);	
 }
