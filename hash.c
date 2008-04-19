@@ -1549,16 +1549,20 @@ inspect_i(VALUE key, VALUE value, VALUE str)
     VALUE str2;
 
     if (key == Qundef) return ST_CONTINUE;
-    if (RSTRING_LEN(str) > 1) {
+    if (RSTRING_CLEN(str) > 1) {
 	rb_str_cat2(str, ", ");
     }
     str2 = rb_inspect(key);
     rb_str_buf_append(str, str2);
+#if !WITH_OBJC
     OBJ_INFECT(str, str2);
+#endif
     rb_str_buf_cat2(str, "=>");
     str2 = rb_inspect(value);
     rb_str_buf_append(str, str2);
+#if !WITH_OBJC
     OBJ_INFECT(str, str2);
+#endif
 
     return ST_CONTINUE;
 }
