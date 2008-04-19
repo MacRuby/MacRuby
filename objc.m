@@ -2532,6 +2532,139 @@ rb_objc_set_ivar_cluster(void *obj, void *v)
     assert(object_setInstanceVariable((id)obj, IVAR_CLUSTER_NAME, v) != NULL);
 }
 
+static void
+rb_objc_get_types_for_format_str(char **octypes, const int len, 
+				 const char *format_str)
+{
+    unsigned i, j, format_str_len;
+
+    format_str_len = strlen(format_str);
+    i = j = 0;
+
+    while (i < format_str_len) {
+	if (format_str[i++] != '%')
+	    continue;
+	if (i < format_str_len && format_str[i] == '%') {
+	    i++;
+	    continue;
+	}
+	while (i < format_str_len) {
+	    char *type = NULL;
+	    switch (format_str[i++]) {
+		case 'd':
+		case 'i':
+		case 'o':
+		case 'u':
+		case 'x':
+		case 'X':
+		case 'c':
+		case 'C':
+		    type = "i"; // _C_INT;
+		    break;
+
+		case 'D':
+		case 'O':
+		case 'U':
+		    type = "l"; // _C_LNG;
+		    break;
+
+		case 'f':       
+		case 'F':
+		case 'e':       
+		case 'E':
+		case 'g':       
+		case 'G':
+		case 'a':
+		case 'A':
+		    type = "d"; // _C_DBL;
+		    break;
+
+		case 's':
+		case 'S':
+		    type = "*"; // _C_CHARPTR;
+		    break;
+
+		case 'p':
+		    type = "^"; // _C_PTR;
+		    break;
+
+		case '@':
+		    type = "@"; // _C_ID;
+		    break;
+	    }
+
+	    if (type != NULL) {
+		if (len == 0 || j >= len)
+		    rb_raise(rb_eArgError, 
+			"Too much tokens in the format string `%s' "\
+			"for the given %d argument(s)", format_str, len);
+		octypes[j++] = type;
+		break;
+	    }
+	}
+    }
+    for (; j < len; j++)
+	octypes[j] = "@"; // _C_ID;
+}
+
+VALUE
+rb_str_format(int argc, const VALUE *argv, VALUE fmt)
+{
+    char **types;
+    ffi_type *ffi_rettype, **ffi_argtypes;
+    void *ffi_ret, **ffi_args;
+    ffi_cif *cif;
+    int i;
+    void *null;
+
+    if (argc == 0)
+	return fmt;
+
+    types = (char **)alloca(sizeof(char *) * argc);
+    ffi_argtypes = (ffi_type **)alloca(sizeof(ffi_type *) * argc + 4);
+    ffi_args = (void **)alloca(sizeof(void *) * argc + 4);
+
+    null = NULL;
+
+    ffi_argtypes[0] = &ffi_type_pointer;
+    ffi_args[0] = &null;
+    ffi_argtypes[1] = &ffi_type_pointer;
+    ffi_args[1] = &null;
+    ffi_argtypes[2] = &ffi_type_pointer;
+    ffi_args[2] = &fmt;
+   
+    if (argc > 0) {
+	rb_objc_get_types_for_format_str(types, argc, RSTRING_CPTR(fmt));
+  
+	for (i = 0; i < argc; i++) {
+	    ffi_argtypes[i + 3] = rb_objc_octype_to_ffitype(types[i]);
+	    ffi_args[i + 3] = (void *)alloca(ffi_argtypes[i + 3]->size);
+	    rb_objc_rval_to_ocval(argv[i], types[i], ffi_args[i + 3]);
+	}
+    }
+
+    ffi_argtypes[argc + 4] = NULL;
+    ffi_args[argc + 4] = NULL;
+
+    ffi_rettype = &ffi_type_pointer;
+    
+    cif = (ffi_cif *)alloca(sizeof(ffi_cif));
+
+    if (ffi_prep_cif(cif, FFI_DEFAULT_ABI, argc + 3, ffi_rettype, ffi_argtypes)
+        != FFI_OK)
+        rb_fatal("can't prepare cif for CFStringCreateWithFormat");
+
+    ffi_ret = NULL;
+
+    ffi_call(cif, FFI_FN(CFStringCreateWithFormat), &ffi_ret, ffi_args);
+
+    if (ffi_ret != NULL) {
+        CFMakeCollectable((CFTypeRef)ffi_ret);
+        return (VALUE)ffi_ret;
+    }
+    return Qnil;
+}
+
 void
 Init_ObjC(void)
 {

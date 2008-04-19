@@ -243,6 +243,7 @@ rb_f_sprintf(int argc, const VALUE *argv)
     return rb_str_format(argc - 1, argv + 1, GETNTHARG(0));
 }
 
+#if !WITH_OBJC
 VALUE
 rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 {
@@ -854,6 +855,7 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
     if (tainted) OBJ_TAINT(result);
     return result;
 }
+#endif
 
 static void
 fmt_setup(char *buf, int c, int flags, int width, int prec)
