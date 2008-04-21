@@ -4884,10 +4884,344 @@ trnext(struct tr *t, rb_encoding *enc)
 }
 
 static VALUE rb_str_delete_bang(int,VALUE*,VALUE);
+#endif
+
+#if WITH_OBJC
+typedef void str_charset_find_cb
+(CFRange *, const CFRange *, CFStringRef, UniChar, void *);
+
+static void
+str_charset_find(CFStringRef str, VALUE *charsets, int charset_count,
+		 bool squeeze_mode, str_charset_find_cb *cb, void *ctx)
+{
+    int i;
+    long n;
+    bool changed;
+    CFMutableCharacterSetRef charset;
+    CFRange search_range, result_range; 
+
+    if (charset_count == 0)
+	return;
+
+    n = CFStringGetLength((CFStringRef)str);
+    if (n == 0)
+    	return;
+
+    for (i = 0, charset = NULL; i < charset_count; i++) {
+	VALUE s = charsets[i];
+	bool exclude;
+	const char *sptr, *p;
+
+	StringValue(s);
+
+	sptr = RSTRING_CPTR(s);
+	exclude = sptr[0] == '^';
+
+	p = NULL;
+	if (exclude || (p = strchr(sptr, '-')) != NULL) {
+	    CFMutableCharacterSetRef subset;
+	    const char *b, *e;
+
+	    b = exclude ? sptr + 1 : sptr;
+	    e = sptr + strlen(sptr) - 1;
+	    subset = CFCharacterSetCreateMutable(NULL);
+	    while (p != NULL) {
+		if (p > b && *(p - 1) != '\\' && *(p + 1) != '\0') {
+		    CFCharacterSetAddCharactersInRange(subset,
+			    CFRangeMake(*(p - 1), *(p + 1) - *(p - 1) + 1));
+		}
+		if (p > b) {
+		    CFStringRef substr;
+		    substr = CFStringCreateWithBytes(NULL,
+			    (const UInt8 *)b,
+			    (CFIndex)p - (CFIndex)b,
+			    kCFStringEncodingUTF8,
+			    false);
+		    CFCharacterSetAddCharactersInString(subset, substr);
+		    CFRelease(substr);
+		}
+
+		b = p + 2;
+		p = strchr(b, '-');
+	    }
+	    if (b <= e) {
+		CFStringRef substr;
+		substr = CFStringCreateWithBytes(NULL,
+			(const UInt8 *)b,
+			(CFIndex)e - (CFIndex)b + 1,
+			kCFStringEncodingUTF8,
+			false);
+		CFCharacterSetAddCharactersInString(subset, substr);
+		CFRelease(substr);
+	    }
+
+	    if (exclude)
+		CFCharacterSetInvert(subset);
+
+	    if (charset == NULL) {
+		charset = subset;
+	    }
+	    else {
+		CFCharacterSetIntersect(charset, subset);
+		CFRelease(subset);
+	    }
+	}
+	else {
+	    if (charset == NULL) {
+		charset = CFCharacterSetCreateMutable(NULL);
+		CFCharacterSetAddCharactersInString(charset, (CFStringRef)s);
+	    }
+	    else {
+		CFCharacterSetRef subset;
+		subset = CFCharacterSetCreateWithCharactersInString(NULL,
+		    (CFStringRef)s);
+		CFCharacterSetIntersect(charset, subset);
+		CFRelease(subset);	
+	    }
+	}
+    }
+
+    search_range = CFRangeMake(0, n);
+#if 0 
+    while (search_range.length != 0 
+	    && CFStringFindCharacterFromSet(
+		(CFStringRef)str,
+		(CFCharacterSetRef)charset,
+		search_range,
+		0,
+		&result_range)) {
+	(*cb)(&search_range, (const CFRange *)&result_range, str, ctx);
+    }
+#else
+    CFStringInlineBuffer buf;
+    UniChar previous_char = 0;
+    CFStringInitInlineBuffer((CFStringRef)str, &buf, search_range);
+    do {
+        long i;
+	bool mutated = false;
+
+	if (search_range.location + search_range.length < n) {
+	    n = search_range.location + search_range.length;
+	    CFStringInitInlineBuffer((CFStringRef)str, &buf, CFRangeMake(0, n));
+	}
+
+	result_range.length = 0;
+
+	for (i = search_range.location;
+	     i < search_range.location + search_range.length; 
+	     i++) {
+
+	    UniChar c;
+
+	    c = CFStringGetCharacterFromInlineBuffer(&buf, i);
+	    if (CFCharacterSetIsCharacterMember((CFCharacterSetRef)charset, 
+						c)) {
+		if (result_range.length == 0) {
+		    result_range.location = i;
+		    result_range.length = 1;
+		    previous_char = c;
+		}
+		else {
+		    if (result_range.location + result_range.length == i
+			&& (!squeeze_mode || previous_char == c)) {
+			result_range.length++;
+		    }
+		    else {
+			(*cb)(&search_range, (const CFRange *)&result_range, 
+			    str, previous_char, ctx);
+			result_range.location = i;
+			result_range.length = 1;
+			previous_char = c;
+			if (search_range.location + search_range.length < n) {
+			    result_range.location -= n 
+				- (search_range.location + search_range.length);
+			    mutated = true;
+			    break;
+			}
+		    }
+		}
+	    }
+	}
+	if (!mutated) {
+	    if (result_range.length != 0) {
+		(*cb)(&search_range, (const CFRange *)&result_range, str, 
+			previous_char, ctx);
+		result_range.length = 0;
+		previous_char = 0;
+	    }
+	}
+    }
+    while (search_range.length != 0 && result_range.length != 0); 
+#endif
+
+    CFRelease(charset);	
+}
+
+struct tr_trans_cb_ctx {
+    VALUE orepl;
+    const char *src;
+    long src_len;
+    const char *repl;
+    long repl_len;
+    int sflag;
+    bool changed;
+    CFStringRef opt;
+};
+
+static inline void
+trans_replace(CFMutableStringRef str, const CFRange *result_range, 
+	      CFStringRef substr, CFRange *search_range, int sflag)
+{
+    if (sflag == 0) {
+	long n;
+	for (n = result_range->location; 
+		n < result_range->location + result_range->length; 
+		n++)
+	    CFStringReplace(str, CFRangeMake(n, 1), substr);
+    }
+    else {
+	CFStringReplace(str, *result_range, substr);
+	search_range->length -= result_range->length 
+	    + (result_range->location - search_range->location) - 1;
+	search_range->location = result_range->location + 1;
+    }	    
+}
+
+static void
+rb_str_trans_cb(CFRange *search_range, const CFRange *result_range, 
+    CFStringRef str, UniChar character, void *ctx)
+{
+    struct tr_trans_cb_ctx *_ctx;
+
+    _ctx = (struct tr_trans_cb_ctx *)ctx;
+    if (_ctx->repl_len == 0) {
+	CFStringDelete((CFMutableStringRef)str, *result_range);
+	search_range->length -= result_range->length 
+	    + (result_range->location - search_range->location);
+	search_range->location = result_range->location;
+    }
+    else if (_ctx->repl_len == 1) {
+	trans_replace((CFMutableStringRef)str, result_range, 
+	    (CFStringRef)_ctx->orepl, search_range, _ctx->sflag);
+    }
+    else if (_ctx->repl_len > 1) {
+	if (_ctx->src_len == 1) {
+	    if (_ctx->opt == NULL) {
+		_ctx->opt = CFStringCreateWithBytes(NULL, 
+		    (const UInt8 *)_ctx->repl, 1, kCFStringEncodingUTF8,
+		    false);
+	    }
+	    trans_replace((CFMutableStringRef)str, result_range, 
+	        (CFStringRef)_ctx->opt, search_range, _ctx->sflag);
+	}
+	else {
+	    /* TODO: support all syntaxes */
+	    char sb, se, rb, re;
+	    long n;
+	    bool s_is_range, r_is_range;
+	    CFStringRef substr;
+	    bool release_substr;
+	    long delta;
+
+	    if (_ctx->src_len == 3 && _ctx->src[1] == '-') {
+		sb = _ctx->src[0];
+		se = _ctx->src[2];
+		s_is_range = true;
+	    }
+	    else {
+		s_is_range = false;
+		if (_ctx->src[0] == '^' || strchr(_ctx->src, '-') != NULL)
+		    rb_raise(rb_eRuntimeError, "src argument value (%s) not " \
+			    "supported yet", _ctx->src);
+	    }
+
+	    if (_ctx->repl_len == 3 && _ctx->repl[1] == '-') {
+		rb = _ctx->repl[0];
+		re = _ctx->repl[2];
+		r_is_range = true;
+	    }
+	    else {
+		r_is_range = false;
+		if (_ctx->repl[0] == '^' || strchr(_ctx->repl, '-') != NULL)
+		    rb_raise(rb_eRuntimeError, "repl argument value (%s) not " \
+			    "supported yet", _ctx->repl);
+	    }
+
+	    if (s_is_range) {
+		assert(sb <= character && se >= character);
+		delta = character - sb;
+	    }
+	    else {
+		char *p;
+		p = strchr(_ctx->src, character);
+		assert(p != NULL);
+		delta = (long)p - (long)_ctx->src;
+	    }
+
+	    if ((r_is_range && delta > (re - rb))
+		    || (!r_is_range && delta > _ctx->repl_len)) {
+		if (_ctx->opt == NULL) {
+		    _ctx->opt = CFStringCreateWithBytes(NULL, 
+			    (const UInt8 *)&_ctx->repl[_ctx->repl_len - 1], 
+			    1, 
+			    kCFStringEncodingUTF8,
+			    false);
+		}
+		substr = _ctx->opt;
+		release_substr = false;
+	    }
+	    else {
+		const char r = r_is_range
+		    ? rb + delta : _ctx->repl[delta];
+		substr = CFStringCreateWithBytes(NULL, (const UInt8 *)&r, 1, 
+			kCFStringEncodingUTF8, false);
+		release_substr = true;
+	    }
+
+	    trans_replace((CFMutableStringRef)str, result_range, 
+	        (CFStringRef)substr, search_range, _ctx->sflag);
+
+	    if (release_substr)
+		CFRelease(substr);
+	}
+    }
+    _ctx->changed = true;
+}
+#endif
 
 static VALUE
 tr_trans(VALUE str, VALUE src, VALUE repl, int sflag)
 {
+#if WITH_OBJC
+    struct tr_trans_cb_ctx _ctx;
+
+    StringValue(src);
+    StringValue(repl);
+    
+    if (RSTRING_CLEN(str) == 0)
+       return Qnil;
+   
+    _ctx.orepl = repl; 
+    _ctx.src = RSTRING_CPTR(src);
+    _ctx.repl = RSTRING_CPTR(repl);
+
+    /* TODO: support non-8-bit src/repl */
+    assert(_ctx.src != NULL && _ctx.repl != NULL);
+
+    _ctx.src_len = strlen(_ctx.src);
+    _ctx.repl_len = strlen(_ctx.repl);
+    _ctx.sflag = sflag;
+    _ctx.changed = false;
+    _ctx.opt = NULL;
+
+    str_charset_find((CFStringRef)str, &src, 1, _ctx.repl_len > 1,
+	rb_str_trans_cb, &_ctx); 
+
+    if (_ctx.opt != NULL)
+	CFRelease(_ctx.opt);
+
+    return _ctx.changed ? str : Qnil;
+#else
     SIGNED_VALUE trans[256];
     rb_encoding *enc, *e1, *e2;
     struct tr trsrc, trrepl;
@@ -5083,8 +5417,8 @@ tr_trans(VALUE str, VALUE src, VALUE repl, int sflag)
 	return str;
     }
     return Qnil;
-}
 #endif
+}
 
 /*
  *  call-seq:
@@ -5098,12 +5432,7 @@ tr_trans(VALUE str, VALUE src, VALUE repl, int sflag)
 static VALUE
 rb_str_tr_bang(VALUE str, VALUE src, VALUE repl)
 {
-#if WITH_OBJC
-    /* TODO */
-    rb_notimplement();
-#else
     return tr_trans(str, src, repl, 0);
-#endif
 }
 
 
@@ -5128,11 +5457,7 @@ static VALUE
 rb_str_tr(VALUE str, VALUE src, VALUE repl)
 {
     str = rb_str_dup(str);
-#if WITH_OBJC
-    rb_notimplement();
-#else
-    tr_trans(str, src, repl, 0);
-#endif
+    rb_str_tr_bang(str, src, repl);
     return str;
 }
 
@@ -5212,175 +5537,6 @@ tr_find(int c, char table[256], VALUE del, VALUE nodel)
 
 #else
 
-typedef void str_charset_find_cb
-(CFRange *, const CFRange *, CFStringRef, void *);
-
-static void
-str_charset_find(CFStringRef str, VALUE *charsets, int charset_count,
-		 bool squeeze_mode, str_charset_find_cb *cb, void *ctx)
-{
-    int i;
-    long n;
-    bool changed;
-    CFMutableCharacterSetRef charset;
-    CFRange search_range, result_range; 
-
-    if (charset_count == 0)
-	return;
-    n = CFStringGetLength((CFStringRef)str);
-    if (n == 0)
-    	return;
-
-    for (i = 0, charset = NULL; i < charset_count; i++) {
-	VALUE s = charsets[i];
-	bool exclude;
-	const char *sptr, *p;
-
-	StringValue(s);
-
-	sptr = RSTRING_CPTR(s);
-	exclude = sptr[0] == '^';
-
-	p = NULL;
-	if (exclude || (p = strchr(sptr, '-')) != NULL) {
-	    CFMutableCharacterSetRef subset;
-	    const char *b, *e;
-
-	    b = exclude ? sptr + 1 : sptr;
-	    e = sptr + strlen(sptr) - 1;
-	    subset = CFCharacterSetCreateMutable(NULL);
-	    while (p != NULL) {
-		if (p > b && *(p - 1) != '\\' && *(p + 1) != '\0') {
-		    CFCharacterSetAddCharactersInRange(subset,
-			    CFRangeMake(*(p - 1), *(p + 1) - *(p - 1) + 1));
-		}
-		if (p > b) {
-		    CFStringRef substr;
-		    substr = CFStringCreateWithBytes(NULL,
-			    (const UInt8 *)b,
-			    (CFIndex)p - (CFIndex)b,
-			    kCFStringEncodingUTF8,
-			    false);
-		    CFCharacterSetAddCharactersInString(subset, substr);
-		    CFRelease(substr);
-		}
-
-		b = p + 2;
-		p = strchr(b, '-');
-	    }
-	    if (b <= e) {
-		CFStringRef substr;
-		substr = CFStringCreateWithBytes(NULL,
-			(const UInt8 *)b,
-			(CFIndex)e - (CFIndex)b + 1,
-			kCFStringEncodingUTF8,
-			false);
-		CFCharacterSetAddCharactersInString(subset, substr);
-		CFRelease(substr);
-	    }
-
-	    if (exclude)
-		CFCharacterSetInvert(subset);
-
-	    if (charset == NULL) {
-		charset = subset;
-	    }
-	    else {
-		CFCharacterSetIntersect(charset, subset);
-		CFRelease(subset);
-	    }
-	}
-	else {
-	    if (charset == NULL) {
-		charset = CFCharacterSetCreateMutable(NULL);
-		CFCharacterSetAddCharactersInString(charset, (CFStringRef)s);
-	    }
-	    else {
-		CFCharacterSetRef subset;
-		subset = CFCharacterSetCreateWithCharactersInString(NULL,
-		    (CFStringRef)s);
-		CFCharacterSetIntersect(charset, subset);
-		CFRelease(subset);	
-	    }
-	}
-    }
-
-    search_range = CFRangeMake(0, n);
-#if 0 
-    while (search_range.length != 0 
-	    && CFStringFindCharacterFromSet(
-		(CFStringRef)str,
-		(CFCharacterSetRef)charset,
-		search_range,
-		0,
-		&result_range)) {
-	(*cb)(&search_range, (const CFRange *)&result_range, str, ctx);
-    }
-#else
-    CFStringInlineBuffer buf;
-    UniChar previous_char = 0;
-    CFStringInitInlineBuffer((CFStringRef)str, &buf, search_range);
-    do {
-        long i;
-	bool mutated = false;
-
-	if (search_range.location + search_range.length < n) {
-	    n = search_range.location + search_range.length;
-	    CFStringInitInlineBuffer((CFStringRef)str, &buf, CFRangeMake(0, n));
-	}
-
-	result_range.length = 0;
-
-	for (i = search_range.location;
-	     i < search_range.location + search_range.length; 
-	     i++) {
-
-	    UniChar c;
-
-	    c = CFStringGetCharacterFromInlineBuffer(&buf, i);
-	    if (CFCharacterSetIsCharacterMember((CFCharacterSetRef)charset, 
-						c)) {
-		if (result_range.length == 0) {
-		    result_range.location = i;
-		    result_range.length = 1;
-		    previous_char = c;
-		}
-		else {
-		    if (result_range.location + result_range.length == i
-			&& (!squeeze_mode || previous_char == c)) {
-			result_range.length++;
-		    }
-		    else {
-			(*cb)(&search_range, (const CFRange *)&result_range, 
-			    str, ctx);
-			result_range.location = i;
-			result_range.length = 1;
-			previous_char = c;
-			if (search_range.location + search_range.length < n) {
-			    result_range.location -= n 
-				- (search_range.location + search_range.length);
-			    mutated = true;
-			    break;
-			}
-		    }
-		}
-	    }
-	}
-	if (!mutated) {
-	    if (result_range.length != 0) {
-		(*cb)(&search_range, (const CFRange *)&result_range, str, 
-			ctx);
-		result_range.length = 0;
-		previous_char = 0;
-	    }
-	}
-    }
-    while (search_range.length != 0 && result_range.length != 0); 
-#endif
-
-    CFRelease(charset);	
-}
-
 #endif
 
 /*
@@ -5394,7 +5550,7 @@ str_charset_find(CFStringRef str, VALUE *charsets, int charset_count,
 #if WITH_OBJC
 static void
 rb_str_delete_bang_cb(CFRange *search_range, const CFRange *result_range, 
-    CFStringRef str, void *ctx)
+    CFStringRef str, UniChar character, void *ctx)
 {
     CFStringDelete((CFMutableStringRef)str, *result_range);
     search_range->length -= result_range->length 
@@ -5498,7 +5654,7 @@ rb_str_delete(int argc, VALUE *argv, VALUE str)
 #if WITH_OBJC
 static void
 rb_str_squeeze_bang_cb(CFRange *search_range, const CFRange *result_range, 
-    CFStringRef str, void *ctx)
+    CFStringRef str, UniChar character, void *ctx)
 {
     if (result_range->length > 1) {
 	CFRange to_delete = *result_range;
@@ -5614,11 +5770,7 @@ rb_str_squeeze(int argc, VALUE *argv, VALUE str)
 static VALUE
 rb_str_tr_s_bang(VALUE str, VALUE src, VALUE repl)
 {
-#if WITH_OBJC
-    rb_notimplement();
-#else
     return tr_trans(str, src, repl, 1);
-#endif
 }
 
 
@@ -5663,7 +5815,7 @@ rb_str_tr_s(VALUE str, VALUE src, VALUE repl)
 #if WITH_OBJC
 static void
 rb_str_count_cb(CFRange *search_range, const CFRange *result_range, 
-    CFStringRef str, void *ctx)
+    CFStringRef str, UniChar character, void *ctx)
 {
     (*(int *)ctx) += result_range->length;
 }
