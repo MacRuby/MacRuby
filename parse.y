@@ -4792,7 +4792,7 @@ static VALUE
 lex_get_str(struct parser_params *parser, VALUE s)
 {
 #if WITH_OBJC
-    long beg, n;
+    long beg, len, n;
     CFRange search_range;  
     VALUE v;
  
@@ -4808,10 +4808,12 @@ lex_get_str(struct parser_params *parser, VALUE s)
 	CFRangeMake(beg, n - beg),
 	0,
 	&search_range)) {
-	lex_gets_ptr = search_range.location;
+	lex_gets_ptr = search_range.location + 1;
+	len = search_range.location - beg;
     }
     else {
-        lex_gets_ptr = n;
+	lex_gets_ptr = n;
+	len = lex_gets_ptr - beg;	
     }
     v = (VALUE)CFStringCreateWithSubstring(NULL, (CFStringRef)s, 
 	CFRangeMake(beg, lex_gets_ptr - beg));
