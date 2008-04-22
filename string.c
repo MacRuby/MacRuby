@@ -149,6 +149,15 @@ rb_objc_str_is_bytestring(VALUE str)
 }
 
 static void *
+rb_str_cfdata2(VALUE str) 
+{
+    struct rb_objc_str_struct *s;
+
+    s = rb_objc_str_get_struct2(str);
+    return s != NULL ? s->cfdata : NULL;
+}
+
+static void *
 rb_str_cfdata(VALUE str)
 {
     struct rb_objc_str_struct *s;
@@ -192,17 +201,19 @@ void
 rb_str_bytesync(VALUE str)
 {
     CFDataRef data;
-    CFIndex datalen;
-    data = (CFDataRef)rb_str_cfdata(str);
-    datalen = CFDataGetLength(data);
-    CFStringRef bytestr = CFStringCreateWithBytesNoCopy(
-	NULL,
-	CFDataGetBytePtr((CFDataRef)data),
-	datalen,
-	kCFStringEncodingUTF8,
-	false,
-	kCFAllocatorNull);
-    CFStringReplaceAll((CFMutableStringRef)str, (CFStringRef)bytestr);
+    data = (CFDataRef)rb_str_cfdata2(str);
+    if (data != NULL) {
+	CFIndex datalen;
+	datalen = CFDataGetLength(data);
+	CFStringRef bytestr = CFStringCreateWithBytesNoCopy(
+		NULL,
+		CFDataGetBytePtr((CFDataRef)data),
+		datalen,
+		kCFStringEncodingUTF8,
+		false,
+		kCFAllocatorNull);
+	CFStringReplaceAll((CFMutableStringRef)str, (CFStringRef)bytestr);
+    }
 }
 
 VALUE
@@ -837,7 +848,8 @@ void
 rb_str_shared_replace(VALUE str, VALUE str2)
 {
 #if WITH_OBJC
-    rb_notimplement();
+    rb_str_modify(str);
+    CFStringReplaceAll((CFMutableStringRef)str, (CFStringRef)str2);
 #else
     rb_encoding *enc;
     int cr;
@@ -2984,9 +2996,6 @@ enc_succ_alnum_char(char *p, int len, rb_encoding *enc, char *carry)
 VALUE
 rb_str_succ(VALUE orig)
 {
-#if WITH_OBJC
-    rb_notimplement();
-#else
     rb_encoding *enc;
     VALUE str;
     char *sbeg, *s, *e;
@@ -2995,10 +3004,12 @@ rb_str_succ(VALUE orig)
     char carry[ONIGENC_CODE_TO_MBC_MAXLEN] = "\1";
     int carry_pos = 0, carry_len = 1;
 
-    str = rb_str_new5(orig, RSTRING_PTR(orig), RSTRING_LEN(orig));
+    str = rb_str_new5(orig, RSTRING_CPTR(orig), RSTRING_CLEN(orig));
+#if !WITH_OBJC
     rb_enc_cr_str_copy_for_substr(str, orig);
     OBJ_INFECT(str, orig);
-    if (RSTRING_LEN(str) == 0) return str;
+#endif
+    if (RSTRING_CLEN(str) == 0) return str;
 
     enc = STR_ENC_GET(orig);
     sbeg = RSTRING_PTR(str);
@@ -3010,8 +3021,10 @@ rb_str_succ(VALUE orig)
         neighbor = enc_succ_alnum_char(s, l, enc, carry);
         if (neighbor == NEIGHBOR_NOT_CHAR)
             continue;
-        if (neighbor == NEIGHBOR_FOUND)
+        if (neighbor == NEIGHBOR_FOUND) {
+	    RSTRING_SYNC(str);
             return str;
+	}
         c = 1;
         carry_pos = s - sbeg;
         carry_len = l;
@@ -3022,8 +3035,10 @@ rb_str_succ(VALUE orig)
             enum neighbor_char neighbor;
             if ((l = rb_enc_precise_mbclen(s, e, enc)) <= 0) continue;
             neighbor = enc_succ_char(s, l, enc);
-            if (neighbor == NEIGHBOR_FOUND)
-                return str;
+	    if (neighbor == NEIGHBOR_FOUND) {
+		RSTRING_SYNC(str);
+		return str;
+	    }
             if (rb_enc_precise_mbclen(s, s+l, enc) != l) {
                 /* wrapped to \0...\0.  search next valid char. */
                 enc_succ_char(s, l, enc);
@@ -3035,6 +3050,14 @@ rb_str_succ(VALUE orig)
             carry_pos = s - sbeg;
 	}
     }
+#if WITH_OBJC
+    CFMutableDataRef data = (CFMutableDataRef)rb_str_cfdata(str);
+    CFDataSetLength(data, RSTRING_LEN(str) + carry_len);
+    s = (char *)CFDataGetMutableBytePtr(data);
+    memmove(s + carry_len, s, RSTRING_LEN(str) - carry_pos);
+    memmove(s, carry, carry_len);
+    RSTRING_SYNC(str);
+#else
     RESIZE_CAPA(str, RSTRING_LEN(str) + carry_len);
     s = RSTRING_PTR(str) + carry_pos;
     memmove(s + carry_len, s, RSTRING_LEN(str) - carry_pos);
@@ -3042,8 +3065,8 @@ rb_str_succ(VALUE orig)
     STR_SET_LEN(str, RSTRING_LEN(str) + carry_len);
     RSTRING_PTR(str)[RSTRING_LEN(str)] = '\0';
     rb_enc_str_coderange(str);
-    return str;
 #endif
+    return str;
 }
 
 
@@ -3100,10 +3123,10 @@ rb_str_upto(int argc, VALUE *argv, VALUE beg)
     succ = rb_intern("succ");
     StringValue(end);
     enc = rb_enc_check(beg, end);
-    if (RSTRING_LEN(beg) == 1 && RSTRING_LEN(end) == 1 &&
+    if (RSTRING_CLEN(beg) == 1 && RSTRING_CLEN(end) == 1 &&
 	is_ascii_string(beg) && is_ascii_string(end)) {
-	char c = RSTRING_PTR(beg)[0];
-	char e = RSTRING_PTR(end)[0];
+	char c = RSTRING_CPTR(beg)[0];
+	char e = RSTRING_CPTR(end)[0];
 
 	if (c > e || (excl && c == e)) return beg;
 	for (;;) {
@@ -3125,7 +3148,7 @@ rb_str_upto(int argc, VALUE *argv, VALUE beg)
 	current = rb_funcall(current, succ, 0, 0);
 	StringValue(current);
 	if (excl && rb_str_equal(current, end)) break;
-	if (RSTRING_LEN(current) > RSTRING_LEN(end) || RSTRING_LEN(current) == 0)
+	if (RSTRING_CLEN(current) > RSTRING_CLEN(end) || RSTRING_CLEN(current) == 0)
 	    break;
     }
 
@@ -3635,7 +3658,7 @@ rb_str_sub_bang(int argc, VALUE *argv, VALUE str)
 #endif
 	rb_str_modify(str);
 #if WITH_OBJC
-	rb_str_splice(str, BEG(0), END(0) - BEG(0), repl);
+	rb_str_splice_0(str, BEG(0), END(0) - BEG(0), repl);
 	if (rb_obj_tainted(repl))
 	    rb_str_taint(str);
 #else
@@ -5913,9 +5936,6 @@ rb_str_count(int argc, VALUE *argv, VALUE str)
 static VALUE
 rb_str_split_m(int argc, VALUE *argv, VALUE str)
 {
-#if 0//WITH_OBJC
-    rb_notimplement();
-#else
     rb_encoding *enc;
     VALUE spat;
     VALUE limit;
@@ -6073,7 +6093,6 @@ rb_str_split_m(int argc, VALUE *argv, VALUE str)
     }
 
     return result;
-#endif
 }
 
 VALUE
