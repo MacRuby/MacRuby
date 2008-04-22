@@ -200,19 +200,30 @@ rb_str_bytelen(VALUE str)
 void
 rb_str_bytesync(VALUE str)
 {
-    CFDataRef data;
-    data = (CFDataRef)rb_str_cfdata2(str);
-    if (data != NULL) {
+    struct rb_objc_str_struct *s;
+
+    s = rb_objc_str_get_struct2(str);
+    if (s != NULL && s->cfdata != NULL) {
+	CFDataRef data;
 	CFIndex datalen;
+	const UInt8 *dataptr;
+	CFStringRef bytestr;
+
+	data = (CFDataRef)s->cfdata;
 	datalen = CFDataGetLength(data);
-	CFStringRef bytestr = CFStringCreateWithBytesNoCopy(
+	dataptr = CFDataGetBytePtr(data);
+	bytestr = CFStringCreateWithBytesNoCopy(
 		NULL,
-		CFDataGetBytePtr((CFDataRef)data),
+		dataptr,
 		datalen,
 		kCFStringEncodingUTF8,
 		false,
 		kCFAllocatorNull);
 	CFStringReplaceAll((CFMutableStringRef)str, (CFStringRef)bytestr);
+        if (memcmp((const char *)dataptr, (const char *)RSTRING_CPTR(str), 
+	    datalen) == 0) {
+	    s->cfdata = NULL;
+	}
     }
 }
 
@@ -1974,8 +1985,13 @@ VALUE
 rb_enc_str_buf_cat(VALUE str, const char *ptr, long len, rb_encoding *ptr_enc)
 {
 #if WITH_OBJC
-    VALUE s = rb_enc_str_new(ptr, len, ptr_enc);
-    CFStringAppend((CFMutableStringRef)str, (CFStringRef)s);
+    if (strlen(ptr) != len) {
+	char *tmp = (char *)alloca(len);
+	strncpy(tmp, ptr, len);
+	tmp[len] = '\0';
+	ptr = tmp;
+    }
+    CFStringAppendCString((CFMutableStringRef)str, ptr, kCFStringEncodingUTF8);
     return str;
 #else
     return rb_enc_cr_str_buf_cat(str, ptr, len,
@@ -3658,6 +3674,7 @@ rb_str_sub_bang(int argc, VALUE *argv, VALUE str)
 #endif
 	rb_str_modify(str);
 #if WITH_OBJC
+	RSTRING_SYNC(str);
 	rb_str_splice_0(str, BEG(0), END(0) - BEG(0), repl);
 	if (rb_obj_tainted(repl))
 	    rb_str_taint(str);
