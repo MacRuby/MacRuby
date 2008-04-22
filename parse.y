@@ -8958,7 +8958,7 @@ Init_sym(void)
 	0, NULL, NULL);
     GC_ROOT(&global_symbols.sym_id);
     global_symbols.id_str = CFDictionaryCreateMutable(NULL,
-	0, NULL, NULL);
+	0, NULL, &kCFTypeDictionaryValueCallBacks);
     GC_ROOT(&global_symbols.id_str);
     global_symbols.op_sym = xmalloc(sizeof(VALUE) * tLAST_TOKEN);
     GC_ROOT(&global_symbols.op_sym);
