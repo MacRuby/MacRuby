@@ -1089,7 +1089,7 @@ vm_define_method(rb_thread_t *th, VALUE obj,
 		     rb_id2name(id), rb_obj_classname(obj));
 	}
 
-	if (OBJ_FROZEN(obj)) {
+	if (rb_obj_frozen_p(obj)) {
 	    rb_error_frozen("object");
 	}
 

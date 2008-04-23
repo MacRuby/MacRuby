@@ -1101,6 +1101,7 @@ rb_singleton_class(VALUE obj)
     else {
 	klass = rb_make_metaclass(obj, RBASIC(obj)->klass);
     }
+#if !WITH_OBJC
     if (OBJ_TAINTED(obj)) {
 	OBJ_TAINT(klass);
     }
@@ -1108,6 +1109,7 @@ rb_singleton_class(VALUE obj)
 	FL_UNSET(klass, FL_TAINT);
     }
     if (OBJ_FROZEN(obj)) OBJ_FREEZE(klass);
+#endif
     ALLOW_INTS;
 
     return klass;

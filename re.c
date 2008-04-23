@@ -2973,18 +2973,18 @@ VALUE
 rb_reg_regsub(VALUE str, VALUE src, struct re_registers *regs, VALUE regexp)
 {
     VALUE val = 0;
-    char *p, *s, *e;
+    const char *p, *s, *e;
     int no, clen;
     rb_encoding *str_enc = rb_enc_get(str);
     rb_encoding *src_enc = rb_enc_get(src);
 
     rb_enc_check(str, src);
-    p = s = RSTRING_PTR(str);
-    e = s + RSTRING_LEN(str);
+    p = s = RSTRING_CPTR(str);
+    e = s + RSTRING_CLEN(str);
 
     while (s < e) {
         int c = rb_enc_ascget(s, e, &clen, str_enc);
-	char *ss;
+	const char *ss;
 
 	if (c == -1) {
 	    s += mbclen(s, e, str_enc);
@@ -3023,7 +3023,7 @@ rb_reg_regsub(VALUE str, VALUE src, struct re_registers *regs, VALUE regexp)
 
           case 'k':
             if (s < e && rb_enc_ascget(s, e, &clen, str_enc) == '<') {
-                char *name, *name_end;
+                const char *name, *name_end;
                
                 name_end = name = s + clen;
                 while (name_end < e) {
@@ -3050,11 +3050,11 @@ rb_reg_regsub(VALUE str, VALUE src, struct re_registers *regs, VALUE regexp)
 	    break;
 
 	  case '`':
-	    rb_enc_str_buf_cat(val, RSTRING_PTR(src), BEG(0), src_enc);
+	    rb_enc_str_buf_cat(val, RSTRING_CPTR(src), BEG(0), src_enc);
 	    continue;
 
 	  case '\'':
-	    rb_enc_str_buf_cat(val, RSTRING_PTR(src)+END(0), RSTRING_LEN(src)-END(0), src_enc);
+	    rb_enc_str_buf_cat(val, RSTRING_CPTR(src)+END(0), RSTRING_CLEN(src)-END(0), src_enc);
 	    continue;
 
 	  case '+':
@@ -3075,7 +3075,7 @@ rb_reg_regsub(VALUE str, VALUE src, struct re_registers *regs, VALUE regexp)
 	if (no >= 0) {
 	    if (no >= regs->num_regs) continue;
 	    if (BEG(no) == -1) continue;
-	    rb_enc_str_buf_cat(val, RSTRING_PTR(src)+BEG(no), END(no)-BEG(no), src_enc);
+	    rb_enc_str_buf_cat(val, RSTRING_CPTR(src)+BEG(no), END(no)-BEG(no), src_enc);
 	}
     }
 
