@@ -22,9 +22,6 @@ def (config = "").write(arg)
 end
 $stdout = config
 
-puts "hello"
-exit
-
 fast = {'prefix'=>TRUE, 'ruby_install_name'=>TRUE, 'INSTALL'=>TRUE, 'EXEEXT'=>TRUE}
 print %[
 # This file was created by #{mkconfig} when ruby was built.  Any
