@@ -2364,6 +2364,9 @@ rb_str_cmp(VALUE str1, VALUE str2)
 #endif
 }
 
+#if WITH_OBJC
+static bool rb_objc_str_is_pure(VALUE);
+#endif
 
 /*
  *  call-seq:
@@ -2387,6 +2390,14 @@ rb_str_equal(VALUE str1, VALUE str2)
 	return rb_equal(str2, str1);
     }
 #if WITH_OBJC
+    if (!rb_objc_str_is_pure(str2)) {
+	/* This is to work around a strange bug in CFEqual's objc 
+	 * dispatching.
+	 */
+	VALUE tmp = str1;
+	str1 = str2;
+	str2 = tmp;
+    }
     if (CFEqual((CFTypeRef)str1, (CFTypeRef)str2))
 	return Qtrue;
 #else
@@ -4271,10 +4282,6 @@ rb_str_to_f(VALUE str)
  *  
  *  Returns the receiver.
  */
-
-#if WITH_OBJC
-static bool rb_objc_str_is_pure(VALUE);
-#endif
 
 static VALUE
 rb_str_to_s(VALUE str)
@@ -7977,10 +7984,123 @@ static Class __nscfstring = NULL;
 	? __nscfstring = (Class)objc_getClass("NSCFString") \
 	: __nscfstring)
 
+#define PREPARE_RCV(x) \
+    Class old = *(Class *)x; \
+    *(Class *)x = NSCFSTRING();
+
+#define RESTORE_RCV(x) \
+    *(Class *)x = old;
+
 static bool
 rb_objc_str_is_pure(VALUE str)
 {
     return *(Class *)str == NSCFSTRING();
+}
+
+static CFIndex
+imp_rb_str_length(void *rcv, SEL sel)
+{
+    CFIndex length;
+    PREPARE_RCV(rcv);
+    length = CFStringGetLength((CFStringRef)rcv);
+    RESTORE_RCV(rcv);
+    return length;
+}
+
+static UniChar
+imp_rb_str_characterAtIndex(void *rcv, SEL sel, CFIndex idx)
+{
+    UniChar character;
+    PREPARE_RCV(rcv);
+    character = CFStringGetCharacterAtIndex((CFStringRef)rcv, idx);
+    RESTORE_RCV(rcv);
+    return character;
+}
+
+static void
+imp_rb_str_getCharactersRange(void *rcv, SEL sel, UniChar *buffer, 
+			      CFRange range)
+{
+    PREPARE_RCV(rcv);
+    CFStringGetCharacters((CFStringRef)rcv, range, buffer);
+    RESTORE_RCV(rcv);
+}
+
+static void
+imp_rb_str_replaceCharactersInRangeWithString(void *rcv, SEL sel, 
+					      CFRange range, void *str)
+{
+    PREPARE_RCV(rcv);
+    CFStringReplace((CFMutableStringRef)rcv, range, (CFStringRef)str);
+    RESTORE_RCV(rcv);
+}
+
+static const UniChar *
+imp_rb_str_fastCharacterContents(void *rcv, SEL sel)
+{
+    const UniChar *ptr;
+    PREPARE_RCV(rcv);
+    ptr = CFStringGetCharactersPtr((CFStringRef)rcv);
+    RESTORE_RCV(rcv);
+    return ptr;
+}
+
+static const char *
+imp_rb_str_fastCStringContents(void *rcv, SEL sel, bool nullTerminaisonRequired)
+{
+    const char *cstr;
+    PREPARE_RCV(rcv);
+    cstr = CFStringGetCStringPtr((CFStringRef)rcv, 0);
+    /* XXX nullTerminaisonRequired should perhaps be honored */
+    RESTORE_RCV(rcv);
+    return cstr;
+}
+
+static CFStringEncoding
+imp_rb_str_fastestEncodingInCFStringEncoding(void *rcv, SEL sel)
+{
+    CFStringEncoding encoding;
+    PREPARE_RCV(rcv);
+    encoding =  CFStringGetFastestEncoding((CFStringRef)rcv);
+    RESTORE_RCV(rcv);
+    return encoding;
+}
+
+static bool
+imp_rb_str_isEqual(void *rcv, SEL sel, void *other)
+{
+    bool flag;
+    PREPARE_RCV(rcv);
+    flag = CFEqual((CFTypeRef)rcv, (CFTypeRef)other);    
+    RESTORE_RCV(rcv);
+    return flag;
+}
+
+void
+rb_objc_install_string_primitives(Class klass)
+{
+#define INSTALL_METHOD(selname, imp)                            \
+    do {                                                        \
+        SEL sel = sel_registerName(selname);                    \
+        Method method = class_getInstanceMethod(klass, sel);    \
+        assert(method != NULL);                                 \
+        assert(class_addMethod(klass, sel, (IMP)imp,            \
+                    method_getTypeEncoding(method)));           \
+    }                                                           \
+    while(0)
+
+    INSTALL_METHOD("length", imp_rb_str_length);
+    INSTALL_METHOD("characterAtIndex:", imp_rb_str_characterAtIndex);
+    INSTALL_METHOD("getCharacters:range:", imp_rb_str_getCharactersRange);
+    INSTALL_METHOD("replaceCharactersInRange:withString:", 
+	imp_rb_str_replaceCharactersInRangeWithString);
+    INSTALL_METHOD("_fastCharacterContents", imp_rb_str_fastCharacterContents);
+    INSTALL_METHOD("_fastCStringContents:", imp_rb_str_fastCStringContents);
+    INSTALL_METHOD("_fastestEncodingInCFStringEncoding",
+	imp_rb_str_fastestEncodingInCFStringEncoding);
+    INSTALL_METHOD("isEqual:", imp_rb_str_isEqual);
+
+#undef INSTALL_METHOD
 }
 #endif
 

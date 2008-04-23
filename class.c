@@ -103,6 +103,7 @@ rb_objc_import_class(Class ocklass)
 
 void rb_objc_install_array_primitives(Class);
 void rb_objc_install_hash_primitives(Class);
+void rb_objc_install_string_primitives(Class);
 
 static VALUE
 rb_objc_alloc_class(const char *name, VALUE super, VALUE flags, VALUE klass)
@@ -148,7 +149,8 @@ rb_objc_alloc_class(const char *name, VALUE super, VALUE flags, VALUE klass)
     if (name == NULL)
 	FL_SET(obj, RCLASS_ANONYMOUS);
 
-    if (rb_cArray != 0 && rb_cHash != 0 && ocsuper != NULL) {
+    if (rb_cArray != 0 && rb_cHash != 0 && rb_cString != 0 
+	&& ocsuper != NULL) {
 	do {
 	    if (ocsuper == RCLASS_OCID(rb_cArray)) {
 		rb_objc_install_array_primitives(ocklass);
@@ -156,6 +158,10 @@ rb_objc_alloc_class(const char *name, VALUE super, VALUE flags, VALUE klass)
 	    }
 	    if (ocsuper == RCLASS_OCID(rb_cHash)) {
 		rb_objc_install_hash_primitives(ocklass);
+		break;
+	    }
+	    if (ocsuper == RCLASS_OCID(rb_cString)) {
+		rb_objc_install_string_primitives(ocklass);
 		break;
 	    }
 	    ocsuper = class_getSuperclass(ocsuper);

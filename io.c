@@ -798,7 +798,7 @@ io_write(VALUE io, VALUE str)
 	return rb_funcall(io, id_write, 1, str);
     }
     io = tmp;
-    if (RSTRING_LEN(str) == 0) return INT2FIX(0);
+    if (RSTRING_CLEN(str) == 0) return INT2FIX(0);
 
     GetOpenFile(io, fptr);
     rb_io_check_writable(fptr);
