@@ -2649,13 +2649,14 @@ VALUE
 rb_reg_quote(VALUE str)
 {
     rb_encoding *enc = rb_enc_get(str);
-    char *s, *send, *t;
+    const char *s, *send;
+    char *t;
     VALUE tmp;
     int c, clen;
     int ascii_only = rb_enc_str_asciionly_p(str);
 
-    s = RSTRING_PTR(str);
-    send = s + RSTRING_LEN(str);
+    s = RSTRING_CPTR(str);
+    send = s + RSTRING_CLEN(str);
     while (s < send) {
         c = rb_enc_ascget(s, send, &clen, enc);
 	if (c == -1) {
@@ -2680,7 +2681,7 @@ rb_reg_quote(VALUE str)
     return str;
 
   meta_found:
-    tmp = rb_str_new(0, RSTRING_LEN(str)*2);
+    tmp = rb_str_new(0, RSTRING_CLEN(str)*2);
     if (ascii_only) {
         rb_enc_associate(tmp, rb_usascii_encoding());
     }
@@ -2689,8 +2690,8 @@ rb_reg_quote(VALUE str)
     }
     t = RSTRING_PTR(tmp);
     /* copy upto metacharacter */
-    memcpy(t, RSTRING_PTR(str), s - RSTRING_PTR(str));
-    t += s - RSTRING_PTR(str);
+    memcpy(t, RSTRING_CPTR(str), s - RSTRING_CPTR(str));
+    t += s - RSTRING_CPTR(str);
 
     while (s < send) {
         c = rb_enc_ascget(s, send, &clen, enc);
@@ -2738,6 +2739,7 @@ rb_reg_quote(VALUE str)
 	*t++ = c;
     }
     rb_str_resize(tmp, t - RSTRING_PTR(tmp));
+    RSTRING_SYNC(tmp);
     OBJ_INFECT(tmp, str);
     return tmp;
 }
