@@ -758,7 +758,11 @@ rb_obj_encoding(VALUE obj)
 int
 rb_enc_mbclen(const char *p, const char *e, rb_encoding *enc)
 {
+#if WITH_OBJC
+    int n = 1;
+#else
     int n = ONIGENC_PRECISE_MBC_ENC_LEN(enc, (UChar*)p, (UChar*)e);
+#endif
     if (MBCLEN_CHARFOUND_P(n) && MBCLEN_CHARFOUND_LEN(n) <= e-p)
         return MBCLEN_CHARFOUND_LEN(n);
     else {

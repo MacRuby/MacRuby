@@ -6206,10 +6206,14 @@ rb_str_each_line(int argc, VALUE *argv, VALUE str)
 
 #define YIELD_SUBSTR(range) \
     do { \
+	VALUE mcopy; \
 	substr = CFStringCreateWithSubstring(NULL, (CFStringRef)str,  \
 	    range); \
-	CFMakeCollectable((CFTypeRef)substr); \
-	rb_yield((VALUE)substr); \
+	mcopy = (VALUE)CFStringCreateMutableCopy(NULL, 0, \
+	    (CFStringRef)substr); \
+	CFMakeCollectable((CFTypeRef)mcopy); \
+	rb_yield(mcopy); \
+	CFRelease(substr); \
     } \
     while (0)
 
