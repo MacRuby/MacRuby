@@ -2563,6 +2563,7 @@ file_expand_path(VALUE fname, VALUE dname, VALUE result)
 
     FilePathValue(fname);
     s = StringValuePtr(fname);
+
     BUFINIT();
     tainted = OBJ_TAINTED(fname);
 
@@ -2650,8 +2651,11 @@ file_expand_path(VALUE fname, VALUE dname, VALUE result)
 #endif
     else if (!is_absolute_path(s)) {
 	if (!NIL_P(dname)) {
+	    long n;
 	    file_expand_path(dname, Qnil, result);
 	    BUFINIT();
+	    n = RSTRING_CLEN(result);
+	    BUFCHECK(n + 2 > buflen);
 	}
 	else {
 	    char *dir = my_getcwd();
@@ -2751,6 +2755,7 @@ file_expand_path(VALUE fname, VALUE dname, VALUE result)
     if (tainted) OBJ_TAINT(result);
     rb_str_set_len(result, p - buf);
     RSTRING_SYNC(result);
+
     return result;
 }
 

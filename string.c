@@ -1547,7 +1547,7 @@ rb_str_subseq(VALUE str, long beg, long len)
 {
 #if WITH_OBJC
     long n = CFStringGetLength((CFStringRef)str);
-    CFStringRef substr;
+    CFStringRef substr, msubstr;
     if (beg < 0)
 	beg += n;
     if (beg > n || beg < 0)
@@ -1562,8 +1562,10 @@ rb_str_subseq(VALUE str, long beg, long len)
 	substr = CFStringCreateWithSubstring(NULL, (CFStringRef)str, 
 	    CFRangeMake(beg, len));
     }
-    CFMakeCollectable((CFTypeRef)substr);
-    return (VALUE)substr;
+    msubstr = (CFStringRef)CFStringCreateMutableCopy(NULL, 0, substr);
+    CFRelease(substr);
+    CFMakeCollectable(msubstr);
+    return (VALUE)msubstr;
 #else
     VALUE str2 = rb_str_new5(str, RSTRING_PTR(str)+beg, len);
 
@@ -1732,13 +1734,7 @@ rb_str_resize(VALUE str, long len)
     if (slen != len) {
 	struct rb_objc_str_struct *s;
 
-	if (len > slen) {
-	    CFStringPad((CFMutableStringRef)str, CFSTR(" "), len, 0);
-	}
-	else {
-	    CFStringDelete((CFMutableStringRef)str, 
-		CFRangeMake(len, slen - len));
-	}
+	CFStringPad((CFMutableStringRef)str, CFSTR(" "), len, 0);
 
 	s = rb_objc_str_get_struct(str);
 	if (s != NULL && s->cfdata != NULL)
@@ -3865,6 +3861,8 @@ str_gsub(int argc, VALUE *argv, VALUE str, int bang)
     rb_backref_set(match);
 #if WITH_OBJC
     if (bang) {
+	RSTRING_SYNC(str);
+	RSTRING_SYNC(dest);
 	CFStringReplaceAll((CFMutableStringRef)str, (CFStringRef)dest);
     }
     else {
@@ -5248,6 +5246,8 @@ tr_trans(VALUE str, VALUE src, VALUE repl, int sflag)
     if (RSTRING_CLEN(str) == 0)
        return Qnil;
    
+    rb_str_modify(str);
+
     _ctx.orepl = repl; 
     _ctx.src = RSTRING_CPTR(src);
     _ctx.repl = RSTRING_CPTR(repl);
