@@ -2661,6 +2661,14 @@ rb_str_rindex(VALUE str, VALUE sub, long pos)
 {
 #if WITH_OBJC
     CFRange r;
+    long sublen, strlen;
+    sublen = RSTRING_CLEN(sub);
+    strlen = RSTRING_CLEN(str);
+    if (sublen == 0 && strlen == 0)
+	return 0;
+    if (pos <= sublen) {
+	pos = strlen < sublen ? strlen : sublen;
+    }
     return (CFStringFindWithOptions((CFStringRef)str, 
 		(CFStringRef)sub,
 		CFRangeMake(0, pos+1),

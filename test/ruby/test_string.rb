@@ -764,6 +764,9 @@ class TestString < Test::Unit::TestCase
     assert_nil(S("hello").rindex(?z))
     assert_nil(S("hello").rindex(S("z")))
     assert_nil(S("hello").rindex(/z./))
+
+    assert_equal(0, S("hello").rindex(S("hello"), 0))
+    assert_equal(0, S("").rindex(S(""), 0))
   end
 
   def test_rjust
