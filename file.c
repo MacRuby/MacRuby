@@ -3028,14 +3028,28 @@ file_inspect_join(VALUE ary, VALUE argp, int recur)
 static VALUE
 rb_file_join(VALUE ary, VALUE sep)
 {
-    long len, i;
+#if WITH_OBJC
+    VALUE mstr;
+    if (RARRAY_LEN(ary) == 0) {
+	mstr = rb_str_new(0, 0);
+    }
+    else {
+	VALUE str;
+	str = (VALUE)CFStringCreateByCombiningStrings(NULL, (CFArrayRef)ary,
+		(CFStringRef)sep);
+	mstr = rb_str_dup(str);
+	CFRelease((CFTypeRef)str);
+    }
+    return mstr;
+#else
+    long len, i, count;
     VALUE result, tmp;
     char *name, *tail;
 
     if (RARRAY_LEN(ary) == 0) return rb_str_new(0, 0);
 
     len = 1;
-    for (i=0; i<RARRAY_LEN(ary); i++) {
+    for (i=0, count=RARRAY_LEN(ary); i<count; i++) {
 	if (TYPE(RARRAY_AT(ary, i)) == T_STRING) {
 	    len += RSTRING_LEN(RARRAY_AT(ary, i));
 	}
@@ -3080,6 +3094,7 @@ rb_file_join(VALUE ary, VALUE sep)
     }
 
     return result;
+#endif
 }
 
 /*
