@@ -763,7 +763,10 @@ end
 def have_header(header, &b)
   checking_for header do
     if try_cpp(cpp_include(header), &b)
-      $defs.push(format("-DHAVE_%s", header.tr("a-z./\055", "A-Z___")))
+      # FIXME: cannot use this in MacRuby yet
+      #$defs.push(format("-DHAVE_%s", header.tr("a-z./\055", "A-Z___")))
+      str = header.tr("a-z", "A-Z").tr("./\055", "_")
+      $defs.push(format("-DHAVE_%s", str))
       true
     else
       false
@@ -1071,7 +1074,9 @@ end
 
 def create_header(header = "extconf.h")
   message "creating %s\n", header
-    sym = header.tr("a-z./\055", "A-Z___")
+    # FIXME: cannot use this in MacRuby yet
+    #sym = header.tr("a-z./\055", "A-Z___")
+    sym = header.tr("a-z", "A-Z").tr("./\055", "_")
   hdr = ["#ifndef #{sym}\n#define #{sym}\n"]
       for line in $defs
 	case line
