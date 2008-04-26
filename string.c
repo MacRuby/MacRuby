@@ -169,9 +169,8 @@ rb_str_cfdata(VALUE str)
 	    (CFStringRef)str, kCFStringEncodingUTF8, 0);
 	if (data == NULL)
 	    return NULL;
-#if 0 
-	CFMutableDataRef mdata = CFDataCreateMutableCopy(NULL, 0, data); 
-	GC_WB(&s->cfdata, (void *)mdata);
+#if 1 
+	GC_WB(&s->cfdata, (void *)CFDataCreateCopy(NULL, data));
 	CFRelease((CFTypeRef)data);
 #else
 	GC_WB(&s->cfdata, (void *)data);
@@ -221,10 +220,10 @@ rb_str_bytesync(VALUE str)
 		false,
 		kCFAllocatorNull);
 	CFStringReplaceAll((CFMutableStringRef)str, (CFStringRef)bytestr);
-//        if (memcmp((const char *)dataptr, (const char *)RSTRING_CPTR(str), 
-//	    datalen) == 0) {
+        if (memcmp((const char *)dataptr, (const char *)RSTRING_CPTR(str), 
+	    datalen) == 0) {
 	    s->cfdata = NULL;
-//	}
+	}
     }
 }
 
