@@ -7571,6 +7571,7 @@ literal_concat0(struct parser_params *parser, VALUE head, VALUE tail)
 		      rb_enc_name(rb_enc_get(head)),
 		      rb_enc_name(rb_enc_get(tail)));
     }
+    RSTRING_SYNC(head);
     rb_str_buf_append(head, tail);
 }
 

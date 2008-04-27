@@ -208,6 +208,7 @@ rb_str_bytesync(VALUE str)
 	CFIndex datalen;
 	const UInt8 *dataptr;
 	CFStringRef bytestr;
+	const char *strptr;
 
 	data = (CFDataRef)s->cfdata;
 	datalen = CFDataGetLength(data);
@@ -220,8 +221,11 @@ rb_str_bytesync(VALUE str)
 		false,
 		kCFAllocatorNull);
 	CFStringReplaceAll((CFMutableStringRef)str, (CFStringRef)bytestr);
-        if (memcmp((const char *)dataptr, (const char *)RSTRING_CPTR(str), 
-	    datalen) == 0) {
+	strptr = RSTRING_CPTR(str);
+	if ((const char *)dataptr == strptr
+	    || dataptr == NULL 
+	    || strptr == NULL
+	    || memcmp((const char *)dataptr, strptr, datalen) == 0) {
 	    s->cfdata = NULL;
 	}
     }
@@ -5125,6 +5129,8 @@ static inline void
 trans_replace(CFMutableStringRef str, const CFRange *result_range, 
 	      CFStringRef substr, CFRange *search_range, int sflag)
 {
+    assert(result_range->location + result_range->length 
+	<= CFStringGetLength((CFStringRef)str));
     if (sflag == 0) {
 	long n;
 	for (n = result_range->location; 
@@ -5134,9 +5140,8 @@ trans_replace(CFMutableStringRef str, const CFRange *result_range,
     }
     else {
 	CFStringReplace(str, *result_range, substr);
-	search_range->length -= result_range->length 
-	    + (result_range->location - search_range->location) - 1;
 	search_range->location = result_range->location + 1;
+	search_range->length = RSTRING_CLEN(str) - search_range->location;
     }	    
 }
 
@@ -5253,7 +5258,7 @@ tr_trans(VALUE str, VALUE src, VALUE repl, int sflag)
     
     if (RSTRING_CLEN(str) == 0)
        return Qnil;
-   
+  
     rb_str_modify(str);
 
     _ctx.orepl = repl; 
