@@ -4982,6 +4982,8 @@ str_charset_find(CFStringRef str, VALUE *charsets, int charset_count,
 	    b = exclude ? sptr + 1 : sptr;
 	    e = sptr + strlen(sptr) - 1;
 	    subset = CFCharacterSetCreateMutable(NULL);
+	    if (p == NULL)
+		p = strchr(b, '-');
 	    while (p != NULL) {
 		if (p > b && *(p - 1) != '\\' && *(p + 1) != '\0') {
 		    CFCharacterSetAddCharactersInRange(subset,
@@ -4997,9 +4999,13 @@ str_charset_find(CFStringRef str, VALUE *charsets, int charset_count,
 		    CFCharacterSetAddCharactersInString(subset, substr);
 		    CFRelease(substr);
 		}
-
-		b = p + 2;
-		p = strchr(b, '-');
+		if (p == b) {
+		    p = NULL; 
+		}
+		else {
+		    b = p + 2;
+		    p = strchr(b, '-');
+		}
 	    }
 	    if (b <= e) {
 		CFStringRef substr;
@@ -5134,8 +5140,8 @@ trans_replace(CFMutableStringRef str, const CFRange *result_range,
     if (sflag == 0) {
 	long n;
 	for (n = result_range->location; 
-		n < result_range->location + result_range->length; 
-		n++)
+	     n < result_range->location + result_range->length; 
+	     n++)
 	    CFStringReplace(str, CFRangeMake(n, 1), substr);
     }
     else {
