@@ -2656,6 +2656,8 @@ rb_reg_quote(VALUE str)
     int ascii_only = rb_enc_str_asciionly_p(str);
 
     s = RSTRING_CPTR(str);
+    if (s == NULL)
+	return str;
     send = s + RSTRING_CLEN(str);
     while (s < send) {
         c = rb_enc_ascget(s, send, &clen, enc);

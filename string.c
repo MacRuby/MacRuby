@@ -1794,7 +1794,7 @@ rb_str_buf_cat(VALUE str, const char *ptr, long len)
 	p[len] = '\0';
 	ptr = p;
     }
-    CFStringAppendCString((CFMutableStringRef)str, ptr, kCFStringEncodingUTF8);
+    CFStringAppendCString((CFMutableStringRef)str, ptr, kCFStringEncodingASCII);
     /* FIXME ptr might be a bytestring */
 #else
     long capa, total;
@@ -2401,6 +2401,8 @@ rb_str_equal(VALUE str1, VALUE str2)
 	str1 = str2;
 	str2 = tmp;
     }
+    if (RSTRING_CLEN(str1) == 0)
+	return RSTRING_CLEN(str2) == 0 ? Qtrue : Qfalse;
     if (CFEqual((CFTypeRef)str1, (CFTypeRef)str2))
 	return Qtrue;
 #else
@@ -4345,11 +4347,8 @@ rb_str_inspect(VALUE str)
 {
     rb_encoding *enc = STR_ENC_GET(str);
     const char *p, *pend;
-    VALUE result = rb_str_buf_new2("");
+    VALUE result;
 
-    if (!rb_enc_asciicompat(enc)) enc = rb_usascii_encoding();
-    rb_enc_associate(result, enc);
-    str_cat_char(result, '"', enc);
 #if WITH_OBJC
     if (rb_objc_str_is_bytestring(str)) {
 	p = (const char *)RSTRING_PTR(str); 
@@ -4359,9 +4358,15 @@ rb_str_inspect(VALUE str)
 	p = RSTRING_CPTR(str); 
 	pend = p + RSTRING_CLEN(str);
     }
+    if (p == NULL)
+	return rb_str_new2("\"\"");
 #else
     p = RSTRING_PTR(str); pend = RSTRING_END(str);
 #endif
+    result = rb_str_buf_new2("");
+    if (!rb_enc_asciicompat(enc)) enc = rb_usascii_encoding();
+    rb_enc_associate(result, enc);
+    str_cat_char(result, '"', enc);
     while (p < pend) {
 	int c;
 	int n;
