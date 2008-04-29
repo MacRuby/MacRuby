@@ -1845,6 +1845,7 @@ rb_io_getline_fast(rb_io_t *fptr)
 	}
     }
 
+    RSTRING_SYNC(str);
     str = io_enc_str(str, fptr);
     if (!fptr->enc2) ENC_CODERANGE_SET(str, cr);
     fptr->lineno++;

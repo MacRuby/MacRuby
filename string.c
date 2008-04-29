@@ -220,13 +220,16 @@ rb_str_bytesync(VALUE str)
 		kCFStringEncodingUTF8,
 		false,
 		kCFAllocatorNull);
-	CFStringReplaceAll((CFMutableStringRef)str, (CFStringRef)bytestr);
-	strptr = RSTRING_CPTR(str);
-	if ((const char *)dataptr == strptr
-	    || dataptr == NULL 
-	    || strptr == NULL
-	    || memcmp((const char *)dataptr, strptr, datalen) == 0) {
-	    s->cfdata = NULL;
+	if (bytestr != NULL) {
+	    CFStringReplaceAll((CFMutableStringRef)str, (CFStringRef)bytestr);
+	    CFRelease(bytestr);
+	    strptr = RSTRING_CPTR(str);
+	    if ((const char *)dataptr == strptr
+		    || dataptr == NULL 
+		    || strptr == NULL
+		    || memcmp((const char *)dataptr, strptr, datalen) == 0) {
+		s->cfdata = NULL;
+	    }
 	}
     }
 }
@@ -8165,7 +8168,9 @@ Init_String(void)
     rb_define_method(rb_cString, "<=>", rb_str_cmp_m, 1);
     rb_define_method(rb_cString, "==", rb_str_equal, 1);
     rb_define_method(rb_cString, "eql?", rb_str_eql, 1);
-#if !WITH_OBJC
+#if 1 
+/* FIXME remove me once we use the objc dispatch for everything
+/*#if !WITH_OBJC*/
     rb_define_method(rb_cString, "hash", rb_str_hash_m, 0);
 #endif
     rb_define_method(rb_cString, "casecmp", rb_str_casecmp, 1);
