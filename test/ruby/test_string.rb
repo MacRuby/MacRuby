@@ -1232,6 +1232,7 @@ class TestString < Test::Unit::TestCase
     assert_equal(S("hippo"), S("hello").tr(S("el"), S("ip")))
     assert_equal(S("*e**o"), S("hello").tr(S("^aeiou"), S("*")))
     assert_equal(S("hal"),   S("ibm").tr(S("b-z"), S("a-z")))
+    assert_equal(S("-p"),    S("-p").tr(S("^-pv"), "x"))
   end
 
   def test_tr!
