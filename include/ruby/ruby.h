@@ -523,11 +523,13 @@ struct RString {
 char *rb_str_byteptr(VALUE);
 long rb_str_bytelen(VALUE);
 void rb_str_bytesync(VALUE);
+const char *rb_str_cstr(VALUE);
+long rb_str_clen(VALUE);
 # define RSTRING_PTR(str) (rb_str_byteptr((VALUE)str))
 # define RSTRING_LEN(str) (rb_str_bytelen((VALUE)str))
 # define RSTRING_SYNC(str) (rb_str_bytesync((VALUE)str))
-# define RSTRING_CPTR(str) (CFStringGetCStringPtr((CFStringRef)str, 0))
-# define RSTRING_CLEN(str) (CFStringGetLength((CFStringRef)str))
+# define RSTRING_CPTR(str) (rb_str_cstr((VALUE)str))
+# define RSTRING_CLEN(str) (rb_str_clen((VALUE)str))
 #endif
 #define RSTRING_END(str) (RSTRING_PTR(str)+RSTRING_LEN(str))
 

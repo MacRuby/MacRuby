@@ -5631,11 +5631,6 @@ parser_heredoc_identifier(struct parser_params *parser)
 	func |= str_xquote;
       quoted:
 	newtok();
-#if WITH_OBJC
-	/* avoid null character which will force bytestring creation */
-	if (func == 0)
-	    func = '\1';
-#endif
 	tokadd(func);
 	term = c;
 	while ((c = nextc()) != -1 && c != term) {
@@ -5766,11 +5761,7 @@ parser_here_document(struct parser_params *parser, NODE *here)
 	    if (str)
 		rb_str_cat(str, p, pend - p);
 	    else
-#if WITH_OBJC
-		str = STR_NEW(p, 0); /* avoid bytestring */
-#else
 		str = STR_NEW(p, pend - p);
-#endif
 	    if (pend < lex_pend) rb_str_cat(str, "\n", 1);
 	    lex_goto_eol(parser);
 	    if (nextc() == -1) {

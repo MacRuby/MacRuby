@@ -107,9 +107,9 @@ struct rb_objc_str_struct {
 static void *rb_objc_str_assoc_key = NULL;
 
 static struct rb_objc_str_struct *
-rb_objc_str_get_struct(VALUE ary)
+rb_objc_str_get_struct(VALUE str)
 {
-    return rb_objc_get_associative_ref((void *)ary, &rb_objc_str_assoc_key);
+    return rb_objc_get_associative_ref((void *)str, &rb_objc_str_assoc_key);
 }
 
 static struct rb_objc_str_struct *
@@ -140,21 +140,19 @@ rb_objc_str_copy_struct(VALUE old, VALUE new)
     }
 }
 
-static inline bool
-rb_objc_str_is_bytestring(VALUE str)
-{
-    struct rb_objc_str_struct *s;
-    s = rb_objc_str_get_struct(str);
-    return s != NULL && s->cfdata != NULL;
-}
-
-static void *
+static inline void *
 rb_str_cfdata2(VALUE str) 
 {
     struct rb_objc_str_struct *s;
 
-    s = rb_objc_str_get_struct2(str);
+    s = rb_objc_str_get_struct(str);
     return s != NULL ? s->cfdata : NULL;
+}
+
+static inline bool
+rb_objc_str_is_bytestring(VALUE str)
+{
+    return rb_str_cfdata2(str) != NULL;
 }
 
 static void *
@@ -223,11 +221,11 @@ rb_str_bytesync(VALUE str)
 	if (bytestr != NULL) {
 	    CFStringReplaceAll((CFMutableStringRef)str, (CFStringRef)bytestr);
 	    CFRelease(bytestr);
-	    strptr = RSTRING_CPTR(str);
-	    if ((const char *)dataptr == strptr
-		    || dataptr == NULL 
-		    || strptr == NULL
-		    || memcmp((const char *)dataptr, strptr, datalen) == 0) {
+	    strptr = CFStringGetCStringPtr((CFStringRef)str, 0);
+	    if (strptr != NULL
+		    && ((const char *)dataptr == strptr
+			|| dataptr == NULL
+			|| memcmp((const char *)dataptr, strptr, datalen) == 0)) {
 		s->cfdata = NULL;
 	    }
 	}
@@ -560,6 +558,41 @@ str_alloc(VALUE klass)
     return (VALUE)str;
 }
 
+#if WITH_OBJC
+static void
+rb_objc_str_set_bytestring(VALUE str, const char *dataptr, long datalen)
+{
+    struct rb_objc_str_struct *s;
+
+    assert(dataptr != NULL);
+    assert(datalen > 0);
+
+#if 1
+    CFStringRef substr = CFStringCreateWithBytes(NULL, (const UInt8 *)dataptr,
+	    datalen, kCFStringEncodingUTF8, false);
+    CFStringReplaceAll((CFMutableStringRef)str, substr);
+    CFRelease(substr);
+#else
+    s = rb_objc_str_get_struct2(str);
+    if (s->cfdata == NULL) {
+	CFMutableDataRef data;
+	data = CFDataCreateMutable(NULL, 0);
+	rb_warning("string %p becomes a bytestring (len %ld clen %ld)", 
+		str, datalen, strlen(dataptr));
+	CFDataAppendBytes(data, (const UInt8 *)dataptr, datalen);
+	GC_WB(&s->cfdata, (void *)data);
+	CFMakeCollectable(data);
+    }
+    else {
+	CFDataReplaceBytes((CFMutableDataRef)s->cfdata, 
+	    CFRangeMake(0, CFDataGetLength((CFDataRef)s->cfdata)),
+	    (const UInt8 *)dataptr, datalen);
+    }
+    rb_str_bytesync(str);
+#endif
+}
+#endif
+
 static VALUE
 str_new(VALUE klass, const char *ptr, long len)
 {
@@ -573,24 +606,29 @@ str_new(VALUE klass, const char *ptr, long len)
 #if WITH_OBJC
     bool need_padding = len > 0;
     if (ptr != NULL) {
-	long slen = strlen(ptr);
-	if (len > 0 && slen > len && ptr[len] != '\0') {
-	    char *tmp = alloca(len);
-	    memcpy(tmp, ptr, len);
-	    tmp[len] = '\0';
-	    ptr = tmp;
+	if (len == 0) {
+	    char c = 0;
+	    rb_objc_str_set_bytestring(str, &c, 1);
 	}
-	CFStringAppendCString((CFMutableStringRef)str, ptr, 
-	    kCFStringEncodingUTF8);
-	if (len > 0 && slen < len) {
-	    CFMutableDataRef data;
-	    printf("*** string %p is bytestring (given len %ld, real %ld)\n", 
-		str, len, strlen(ptr), len, slen);
-	    data = CFDataCreateMutable(NULL, 0);
-	    CFDataAppendBytes(data, (const UInt8 *)ptr, len);
-	    GC_WB(&rb_objc_str_get_struct2(str)->cfdata, (void *)data);
+	else {
+	    long slen;
+	    char sentinel_char = 0;
+	    if (ptr[len] != '\0') {
+		sentinel_char = ptr[len];
+		((char *)ptr)[len] = '\0';
+	    }
+	    slen = strlen(ptr);
+	    if (slen == len) {
+		CFStringAppendCString((CFMutableStringRef)str, ptr, 
+			kCFStringEncodingUTF8);
+		need_padding = false;
+	    }
+	    else {
+		rb_objc_str_set_bytestring(str, ptr, len);
+	    }
+	    if (sentinel_char != 0)
+		((char *)ptr)[len] = sentinel_char;
 	}
-	need_padding = len > 0 && slen != len;
     }
     if (need_padding)
 	CFStringPad((CFMutableStringRef)str, CFSTR(" "), len, 0);
@@ -780,10 +818,11 @@ rb_str_new4(VALUE orig)
     return str;
 }
 #else
+
 static VALUE
 str_new3(VALUE klass, VALUE str)
 {
-    return str_new(klass, RSTRING_PTR(str), 0);
+    return rb_str_dup(str);
 }
 
 VALUE
@@ -798,7 +837,7 @@ rb_str_new3(VALUE str)
 VALUE
 rb_str_new4(VALUE orig)
 {
-    return rb_str_dup(orig);
+    return rb_str_new3(orig);
 }
 #endif
 
@@ -930,6 +969,21 @@ VALUE
 rb_str_dup(VALUE str)
 {
     VALUE dup = str_alloc(rb_obj_class(str));
+#if WITH_OBJC
+    struct rb_objc_str_struct *s = rb_objc_str_get_struct(str);
+    if (s != NULL && s->cfdata != NULL) {
+#if 1
+	rb_str_bytesync(str);
+	if (rb_str_cfdata2(str) != NULL) {
+	    struct rb_objc_str_struct *s2 = rb_objc_str_get_struct2(dup);
+	    CFMutableDataRef data = CFDataCreateMutableCopy(NULL, 0, 
+		    (CFDataRef)s->cfdata);	
+	    GC_WB(&s2->cfdata, data);
+	    CFMakeCollectable(data);
+	}
+#endif
+    }
+#endif
     rb_str_replace(dup, str);
     return dup;
 }
@@ -1040,7 +1094,7 @@ str_strlen(VALUE str, rb_encoding *enc)
 {
 #if WITH_OBJC
     /* TODO should use CFStringGetMaximumSizeForEncoding too */
-    return CFStringGetLength((CFStringRef)str);
+    return RSTRING_CLEN(str);
 #else
     const char *p, *e;
     int n, cr;
@@ -1103,11 +1157,7 @@ rb_str_length(VALUE str)
 {
     int len;
 
-#if WITH_OBJC
-    len = CFStringGetLength((CFStringRef)str);
-#else
     len = str_strlen(str, STR_ENC_GET(str));
-#endif
     return INT2NUM(len);
 }
 
@@ -1378,12 +1428,31 @@ rb_string_value_ptr(volatile VALUE *ptr)
     return RSTRING_PTR(rb_string_value(ptr));
 }
 
+#if WITH_OBJC
+const char *
+rb_str_cstr(VALUE ptr)
+{
+    CFDataRef data = (CFDataRef)rb_str_cfdata2(ptr);
+    return data == NULL 
+	? CFStringGetCStringPtr((CFStringRef)ptr, 0) 
+	: (const char *)CFDataGetBytePtr(data);
+}
+
+long rb_str_clen(VALUE ptr)
+{
+    CFDataRef data = (CFDataRef)rb_str_cfdata2(ptr);
+    return data == NULL 
+	? CFStringGetLength((CFStringRef)ptr) 
+	: CFDataGetLength(data);
+}
+#endif
+
 char *
 rb_string_value_cstr(volatile VALUE *ptr)
 {
 #if WITH_OBJC
     VALUE str = rb_string_value(ptr);
-    return (char *)CFStringGetCStringPtr((CFStringRef)str, 0);
+    return (char *)rb_str_cstr(str);
 #else
     char *s = RSTRING_PTR(str);
 
@@ -1784,18 +1853,41 @@ rb_str_resize(VALUE str, long len)
     return str;
 }
 
-VALUE
-rb_str_buf_cat(VALUE str, const char *ptr, long len)
-{
 #if WITH_OBJC
+static void
+rb_objc_str_cat(VALUE str, const char *ptr, long len, int cfstring_encoding)
+{
+    long slen;
     if (ptr[len] != '\0') {
 	char *p = alloca(len + 1);
 	memcpy(p, ptr, len);
 	p[len] = '\0';
 	ptr = p;
     }
-    CFStringAppendCString((CFMutableStringRef)str, ptr, kCFStringEncodingASCII);
-    /* FIXME ptr might be a bytestring */
+    slen = strlen(ptr);
+    if (slen == len) {
+	CFStringAppendCString((CFMutableStringRef)str, ptr, cfstring_encoding);
+    }
+    else {
+#if 1
+	CFStringRef substr = CFStringCreateWithBytes(NULL, (const UInt8 *)ptr,
+		len, cfstring_encoding, false);
+	CFStringAppend((CFMutableStringRef)str, substr);
+	CFRelease(substr);
+#else
+	CFMutableDataRef data;
+	data = (CFMutableDataRef)rb_str_cfdata(str);
+	CFDataAppendBytes(data, (const UInt8 *)ptr, len);
+#endif
+    }
+}
+#endif
+
+VALUE
+rb_str_buf_cat(VALUE str, const char *ptr, long len)
+{
+#if WITH_OBJC
+    rb_objc_str_cat(str, ptr, len, kCFStringEncodingASCII);
 #else
     long capa, total;
 
@@ -1988,13 +2080,7 @@ VALUE
 rb_enc_str_buf_cat(VALUE str, const char *ptr, long len, rb_encoding *ptr_enc)
 {
 #if WITH_OBJC
-    if (strlen(ptr) != len) {
-	char *tmp = (char *)alloca(len);
-	strncpy(tmp, ptr, len);
-	tmp[len] = '\0';
-	ptr = tmp;
-    }
-    CFStringAppendCString((CFMutableStringRef)str, ptr, kCFStringEncodingUTF8);
+    rb_objc_str_cat(str, ptr, len, kCFStringEncodingUTF8);
     return str;
 #else
     return rb_enc_cr_str_buf_cat(str, ptr, len,
@@ -6436,6 +6522,8 @@ rb_str_each_char(VALUE str)
 #if WITH_OBJC
     CFStringInlineBuffer buf;
     long i, n;
+
+    RETURN_ENUMERATOR(str, 0, 0);
     n = CFStringGetLength((CFStringRef)str);
     CFStringInitInlineBuffer((CFStringRef)str, &buf, CFRangeMake(0, n));
     for (i = 0; i < n; i++) {
