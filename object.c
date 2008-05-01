@@ -736,6 +736,20 @@ VALUE
 rb_obj_untaint(VALUE obj)
 {
     rb_secure(3);
+#if WITH_OBJC
+    if (rb_objc_is_non_native(obj)) {
+	int type = TYPE(obj);
+	if (type == T_ARRAY)
+	    return rb_ary_untaint(obj);
+	else if (type == T_HASH)
+	    return rb_hash_untaint(obj);
+	else if (type == T_STRING)
+	    return rb_str_untaint(obj);
+	else
+	    rb_raise(rb_eRuntimeError, "can't untaint pure objc object `%s'",
+		    RSTRING_PTR(rb_inspect(obj)));
+    }
+#endif
     if (OBJ_TAINTED(obj)) {
 	if (OBJ_FROZEN(obj)) {
 	    rb_error_frozen("object");

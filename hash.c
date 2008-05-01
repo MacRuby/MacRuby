@@ -323,13 +323,20 @@ rb_hash_frozen(VALUE hash)
 VALUE
 rb_hash_taint(VALUE hash)
 {
-    struct rb_objc_hash_struct *s;
-
-    s = rb_objc_hash_get_struct2(hash);
-    s->tainted = true;
-
+    rb_objc_hash_get_struct2(hash)->tainted = true;
     return hash;
 }
+
+VALUE
+rb_hash_untaint(VALUE hash)
+{
+    struct rb_objc_hash_struct *s;
+    s = rb_objc_hash_get_struct(hash);
+    if (s != NULL)
+        s->tainted = false;
+    return hash;
+}
+
 
 VALUE
 rb_hash_tainted(VALUE hash)

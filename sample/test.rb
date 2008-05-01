@@ -1464,7 +1464,6 @@ shift_test(-0xfffffffffffffffff)
 test_check "string & char"
 
 "abcd" =~ /ab/
-=begin
 test_ok("abcd" == "abcd")
 test_ok("abcd" =~ /abcd/)
 test_ok("abcd" === "abcd")
@@ -1492,7 +1491,6 @@ test_ok(/^(?:ab+)+/ =~ "ababb" && $& == "ababb")
 
 test_ok(/(\s+\d+){2}/ =~ " 1 2" && $& == " 1 2")
 test_ok(/(?:\s+\d+){2}/ =~ " 1 2" && $& == " 1 2")
-=end
 
 $x = <<END;
 ABCD
@@ -1882,7 +1880,6 @@ rescue Exception
   false
 end
 
-=begin
 for script in Dir["#{dir}{lib,sample,ext,test}/**/*.rb"]
   unless valid_syntax? IO::read(script), script
     STDERR.puts script
@@ -1890,7 +1887,6 @@ for script in Dir["#{dir}{lib,sample,ext,test}/**/*.rb"]
   end
 end
 test_ok(!$bad)
-=end
 
 test_check "const"
 TEST1 = 1

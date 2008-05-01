@@ -9130,11 +9130,14 @@ rb_intern3(const char *name, long len, rb_encoding *enc)
     if (st_lookup(global_symbols.sym_id, str, (st_data_t *)&id))
 	return id;
 #else
-    if (strlen(name) != len) {
+    long sname = strlen(name);
+    assert(len <= sname);
+    if (sname != len) {
 	char *tmp = (char *)alloca(len + 1);
-        memcpy(tmp, name, len);
-        tmp[len] = '\0';
-        name = tmp;
+	memcpy(tmp, name, len);
+	tmp[len] = '\0';
+	m = name = tmp;
+	e = m + len;
     }
     SEL name_hash = sel_registerName(name);
     id = (ID)CFDictionaryGetValue((CFDictionaryRef)global_symbols.sym_id, 

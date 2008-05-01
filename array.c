@@ -155,6 +155,16 @@ rb_ary_taint(VALUE ary)
     return ary;
 }
 
+VALUE 
+rb_ary_untaint(VALUE ary)
+{
+    struct rb_objc_ary_struct *s;
+    s = rb_objc_ary_get_struct(ary);
+    if (s != NULL)
+        s->tainted = false;
+    return ary;
+}
+
 VALUE
 rb_ary_tainted(VALUE ary)
 {

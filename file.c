@@ -2845,7 +2845,7 @@ rb_file_s_basename(int argc, VALUE *argv)
 	StringValue(fext);
     }
     FilePathStringValue(fname);
-    if (RSTRING_LEN(fname) == 0 || !*(name = RSTRING_PTR(fname)))
+    if (RSTRING_CLEN(fname) == 0 || !*(name = RSTRING_CPTR(fname)))
 	return fname;
     name = skipprefix(name);
 #if defined DOSISH_DRIVE_LETTER || defined DOSISH_UNC
@@ -2876,7 +2876,7 @@ rb_file_s_basename(int argc, VALUE *argv)
     else if (!(p = strrdirsep(name))) {
 	if (NIL_P(fext) || !(f = rmext(name, StringValueCStr(fext)))) {
 	    f = chompdirsep(name) - name;
-	    if (f == RSTRING_LEN(fname)) return fname;
+	    if (f == RSTRING_CLEN(fname)) return fname;
 	}
 	p = name;
     }

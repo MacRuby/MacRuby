@@ -137,6 +137,10 @@ rb_objc_str_copy_struct(VALUE old, VALUE new)
 
 	n = rb_objc_str_get_struct2(new);
 	memcpy(n, s, sizeof(struct rb_objc_str_struct));
+	if (n->cfdata != NULL) {
+	    GC_WB(&n->cfdata, CFDataCreateMutableCopy(NULL, 0, (CFDataRef)n->cfdata));
+	    CFMakeCollectable(n->cfdata);
+	}
     }
 }
 
@@ -163,17 +167,26 @@ rb_str_cfdata(VALUE str)
     s = rb_objc_str_get_struct2(str);
     if (s->cfdata == NULL) {
 	CFDataRef data;
+	CFMutableDataRef mdata;
+	long len;
 	data = CFStringCreateExternalRepresentation(NULL,
 	    (CFStringRef)str, kCFStringEncodingUTF8, 0);
 	if (data == NULL)
 	    return NULL;
-#if 1 
-	GC_WB(&s->cfdata, (void *)CFDataCreateCopy(NULL, data));
+	mdata = CFDataCreateMutableCopy(NULL, 0, data);
+	//assert(mdata != NULL);
+	//assert(CFEqual(data, mdata));
+	//assert(CFDataGetLength(data) == CFStringGetLength((CFStringRef)str));
+	len = CFDataGetLength(data);
+	/* This is a hack to make sure a sentinel byte is created at the end 
+	 * of the buffer. 
+	 */
+	CFDataSetLength(mdata, len + 1); 
+	CFDataSetLength(mdata, len);
+	//assert(strcmp(CFDataGetBytePtr(mdata), CFStringGetCStringPtr((CFStringRef)str, 0))==0);
+	GC_WB(&s->cfdata, mdata);
 	CFRelease((CFTypeRef)data);
-#else
-	GC_WB(&s->cfdata, (void *)data);
-#endif
-	CFMakeCollectable((CFTypeRef)s->cfdata);
+	CFMakeCollectable(s->cfdata);
     }
     return s->cfdata;    
 }
@@ -181,12 +194,8 @@ rb_str_cfdata(VALUE str)
 char *
 rb_str_byteptr(VALUE str)
 {
-#if 1
     return (char *)CFDataGetMutableBytePtr(
 	(CFMutableDataRef)rb_str_cfdata(str));
-#else
-    return (char *)CFDataGetBytePtr((CFDataRef)rb_str_cfdata(str));
-#endif
 }
 
 long
@@ -223,9 +232,9 @@ rb_str_bytesync(VALUE str)
 	    CFRelease(bytestr);
 	    strptr = CFStringGetCStringPtr((CFStringRef)str, 0);
 	    if (strptr != NULL
-		    && ((const char *)dataptr == strptr
-			|| dataptr == NULL
-			|| memcmp((const char *)dataptr, strptr, datalen) == 0)) {
+		&& ((const char *)dataptr == strptr
+		    || dataptr == NULL
+		    || memcmp((const char *)dataptr, strptr, datalen) == 0)) {
 		s->cfdata = NULL;
 	    }
 	}
@@ -251,6 +260,16 @@ VALUE
 rb_str_taint(VALUE str)
 {
     rb_objc_str_get_struct2(str)->tainted = true;
+    return str;
+}
+
+VALUE
+rb_str_untaint(VALUE str)
+{
+    struct rb_objc_str_struct *s;
+    s = rb_objc_str_get_struct(str);
+    if (s != NULL)
+	s->tainted = false;
     return str;
 }
 
@@ -538,7 +557,9 @@ str_alloc(VALUE klass)
     VALUE str;
 
     str = (VALUE)CFStringCreateMutable(NULL, 0);
-    if (klass != 0 && klass != rb_cString && klass != rb_cStringRuby 
+    if (klass != 0 
+	&& klass != rb_cString 
+	&& klass != rb_cStringRuby 
 	&& klass != rb_cSymbol)
 	*(Class *)str = RCLASS_OCID(klass);
     CFMakeCollectable((CFTypeRef)str);
@@ -568,8 +589,13 @@ rb_objc_str_set_bytestring(VALUE str, const char *dataptr, long datalen)
     assert(datalen > 0);
 
 #if 1
-    CFStringRef substr = CFStringCreateWithBytes(NULL, (const UInt8 *)dataptr,
-	    datalen, kCFStringEncodingUTF8, false);
+    CFStringRef substr = CFStringCreateWithBytes/*NoCopy*/(
+	NULL, 
+	(const UInt8 *)dataptr,
+	datalen, 
+	kCFStringEncodingUTF8,
+	false/*,
+	kCFAllocatorNull*/);
     CFStringReplaceAll((CFMutableStringRef)str, substr);
     CFRelease(substr);
 #else
@@ -612,11 +638,6 @@ str_new(VALUE klass, const char *ptr, long len)
 	}
 	else {
 	    long slen;
-	    char sentinel_char = 0;
-	    if (ptr[len] != '\0') {
-		sentinel_char = ptr[len];
-		((char *)ptr)[len] = '\0';
-	    }
 	    slen = strlen(ptr);
 	    if (slen == len) {
 		CFStringAppendCString((CFMutableStringRef)str, ptr, 
@@ -626,8 +647,6 @@ str_new(VALUE klass, const char *ptr, long len)
 	    else {
 		rb_objc_str_set_bytestring(str, ptr, len);
 	    }
-	    if (sentinel_char != 0)
-		((char *)ptr)[len] = sentinel_char;
 	}
     }
     if (need_padding)
@@ -968,11 +987,14 @@ static VALUE rb_str_replace(VALUE, VALUE);
 VALUE
 rb_str_dup(VALUE str)
 {
-    VALUE dup = str_alloc(rb_obj_class(str));
 #if WITH_OBJC
+    CFMutableStringRef copy = CFStringCreateMutableCopy(NULL, 0, 
+	(CFStringRef)str);
+    CFMakeCollectable(copy);
+    return (VALUE)copy;
+#if 0
     struct rb_objc_str_struct *s = rb_objc_str_get_struct(str);
     if (s != NULL && s->cfdata != NULL) {
-#if 1
 	rb_str_bytesync(str);
 	if (rb_str_cfdata2(str) != NULL) {
 	    struct rb_objc_str_struct *s2 = rb_objc_str_get_struct2(dup);
@@ -981,11 +1003,13 @@ rb_str_dup(VALUE str)
 	    GC_WB(&s2->cfdata, data);
 	    CFMakeCollectable(data);
 	}
-#endif
     }
 #endif
+#else
+    VALUE dup = str_alloc(rb_obj_class(str));
     rb_str_replace(dup, str);
     return dup;
+#endif
 }
 
 
@@ -1425,7 +1449,7 @@ rb_string_value(volatile VALUE *ptr)
 char *
 rb_string_value_ptr(volatile VALUE *ptr)
 {
-    return RSTRING_PTR(rb_string_value(ptr));
+    return (char *)RSTRING_CPTR(rb_string_value(ptr));
 }
 
 #if WITH_OBJC
@@ -1438,7 +1462,8 @@ rb_str_cstr(VALUE ptr)
 	: (const char *)CFDataGetBytePtr(data);
 }
 
-long rb_str_clen(VALUE ptr)
+long
+rb_str_clen(VALUE ptr)
 {
     CFDataRef data = (CFDataRef)rb_str_cfdata2(ptr);
     return data == NULL 

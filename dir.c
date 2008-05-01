@@ -687,8 +687,9 @@ dir_close(VALUE dir)
 static void
 dir_chdir(VALUE path)
 {
-    if (chdir(RSTRING_PTR(path)) < 0)
-	rb_sys_fail(RSTRING_PTR(path));
+    const char *cpath = RSTRING_CPTR(path);
+    if (chdir(cpath) < 0)
+	rb_sys_fail(cpath);
 }
 
 static int chdir_blocking = 0;
@@ -719,6 +720,7 @@ chdir_restore(struct chdir_data *args)
 	    chdir_thread = Qnil;
 	dir_chdir(args->old_path);
     }
+    rb_objc_release(args->old_path);
     return Qnil;
 }
 
