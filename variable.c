@@ -287,7 +287,7 @@ rb_class_name(VALUE klass)
 char *
 rb_class2name(VALUE klass)
 {
-    return RSTRING_CPTR(rb_class_name(klass));
+    return (char *)RSTRING_CPTR(rb_class_name(klass));
 }
 
 char *
@@ -1149,26 +1149,28 @@ obj_ivar_each(VALUE obj, int (*func)(ANYARGS), st_data_t arg)
 
 void rb_ivar_foreach(VALUE obj, int (*func)(ANYARGS), st_data_t arg)
 {
+#if WITH_OBJC
+    if (!rb_objc_is_non_native(obj))
+#endif
     switch (TYPE(obj)) {
       case T_OBJECT:
         obj_ivar_each(obj, func, arg);
-	break;
+	return;
       case T_CLASS:
       case T_MODULE:
 	if (RCLASS_IV_TBL(obj)) {
 	    st_foreach_safe(RCLASS_IV_TBL(obj), func, arg);
 	}
-	break;
-      default:
-	if (!generic_iv_tbl) break;
-	if (FL_TEST(obj, FL_EXIVAR) || rb_special_const_p(obj)) {
-	    st_data_t tbl;
+	return;
+    }
+    if (!generic_iv_tbl)
+	return; 
+    if (FL_TEST(obj, FL_EXIVAR) || rb_special_const_p(obj)) {
+	st_data_t tbl;
 
-	    if (st_lookup(generic_iv_tbl, obj, &tbl)) {
-		st_foreach_safe((st_table *)tbl, func, arg);
-	    }
+	if (st_lookup(generic_iv_tbl, obj, &tbl)) {
+	    st_foreach_safe((st_table *)tbl, func, arg);
 	}
-	break;
     }
 }
 
