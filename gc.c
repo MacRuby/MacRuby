@@ -298,7 +298,13 @@ ruby_xmalloc(size_t size)
 	garbage_collect();
     }
 #if WITH_OBJC
-    assert(__auto_zone != NULL);
+    if (__auto_zone == NULL) {
+    	fprintf(stderr,
+		"The client that links against MacRuby was not built for "\
+		"GC. Please turn on garbage collection (-fobjc-gc) and "\
+		"try again.\n");
+	exit(1);
+    }
     RUBY_CRITICAL(mem = auto_zone_allocate_object(__auto_zone, size, 
 						  AUTO_MEMORY_SCANNED, 0, 0));
     xmalloc_count++;
