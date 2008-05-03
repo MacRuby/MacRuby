@@ -712,8 +712,16 @@ rb_obj_taint(VALUE obj)
 {
     rb_secure(4);
 #if WITH_OBJC
-    if (rb_objc_is_non_native(obj))
+    if (rb_objc_is_non_native(obj)) {
+	int type = TYPE(obj);
+	if (type == T_ARRAY)
+	    return rb_ary_taint(obj);
+	if (type == T_HASH)
+	    return rb_hash_taint(obj);
+	if (type == T_STRING)
+	    return rb_str_taint(obj);
 	rb_raise(rb_eRuntimeError, "can't taint pure objc objects");
+    }
 #endif
     if (!OBJ_TAINTED(obj)) {
 	if (OBJ_FROZEN(obj)) {

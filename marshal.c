@@ -449,10 +449,12 @@ w_uclass(VALUE obj, VALUE super, struct dump_arg *arg)
 
     w_extended(klass, arg, Qtrue);
     klass = rb_class_real(klass);
+#if 0
     if (klass != super) {
 	w_byte(TYPE_UCLASS, arg);
 	w_unique(RSTRING_PTR(class2path(klass)), arg);
     }
+#endif
 }
 
 static int
@@ -525,8 +527,12 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
     st_table *ivtbl = 0;
     st_data_t num;
     int hasiv = 0;
+#if WITH_OBJC
+#define has_ivars(obj, ivtbl) ((ivtbl = rb_generic_ivar_table(obj)) != 0)
+#else
 #define has_ivars(obj, ivtbl) ((ivtbl = rb_generic_ivar_table(obj)) != 0 || \
 			       (!SPECIAL_CONST_P(obj) && !ENCODING_IS_ASCII8BIT(obj)))
+#endif
 
     if (limit == 0) {
 	rb_raise(rb_eArgError, "exceed depth limit");
@@ -576,6 +582,9 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
 
 	st_add_direct(arg->data, obj, arg->data->num_entries);
 
+#if WITH_OBJC
+	if (!rb_objc_is_non_native(obj))
+#endif
         {
             st_data_t compat_data;
             rb_alloc_func_t allocator = rb_get_alloc_func(RBASIC(obj)->klass);
@@ -621,7 +630,7 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
 	    return;
 	}
 
-	switch (BUILTIN_TYPE(obj)) {
+	switch (TYPE(obj)) {
 	  case T_CLASS:
 	    if (FL_TEST(obj, FL_SINGLETON)) {
 		rb_raise(rb_eTypeError, "singleton class can't be dumped");
@@ -708,10 +717,11 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
 	    }
 	    break;
 
-#if !WITH_OBJC
-	    /* TODO */
 	  case T_HASH:
 	    w_uclass(obj, rb_cHash, arg);
+#if WITH_OBJC
+	    w_byte(TYPE_HASH, arg);
+#else
 	    if (NIL_P(RHASH(obj)->ifnone)) {
 		w_byte(TYPE_HASH, arg);
 	    }
@@ -722,13 +732,15 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
 	    else {
 		w_byte(TYPE_HASH_DEF, arg);
 	    }
+#endif
 	    w_long(RHASH_SIZE(obj), arg);
 	    rb_hash_foreach(obj, hash_each, (st_data_t)&c_arg);
+#if !WITH_OBJC
 	    if (!NIL_P(RHASH(obj)->ifnone)) {
 		w_object(RHASH(obj)->ifnone, arg, limit);
 	    }
-	    break;
 #endif
+	    break;
 
 	  case T_STRUCT:
 	    w_class(TYPE_STRUCT, obj, arg, Qtrue);
@@ -1060,9 +1072,9 @@ r_entry(VALUE v, struct load_arg *arg)
         rb_hash_aset(arg->data, INT2FIX(RHASH_SIZE(arg->data)), v);
     }
     if (arg->taint) {
-        OBJ_TAINT(v);
+	rb_obj_taint(v);
         if ((VALUE)real_obj != Qundef)
-            OBJ_TAINT((VALUE)real_obj);
+            rb_obj_taint((VALUE)real_obj);
     }
     return v;
 }
@@ -1338,8 +1350,6 @@ r_object0(struct load_arg *arg, int *ivp, VALUE extmod)
 	}
 	break;
 
-#if !WITH_OBJC
-	/* TODO */
       case TYPE_HASH:
       case TYPE_HASH_DEF:
 	{
@@ -1352,13 +1362,14 @@ r_object0(struct load_arg *arg, int *ivp, VALUE extmod)
 		VALUE value = r_object(arg);
 		rb_hash_aset(v, key, value);
 	    }
+#if !WITH_OBJC
 	    if (type == TYPE_HASH_DEF) {
 		RHASH(v)->ifnone = r_object(arg);
 	    }
+#endif
             v = r_leave(v, arg);
 	}
 	break;
-#endif
 
       case TYPE_STRUCT:
 	{

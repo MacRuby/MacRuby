@@ -871,7 +871,7 @@ lfp_svar_place(rb_thread_t *th, VALUE *lfp)
 	svar = (struct RValues *)th->local_svar;
 	if ((VALUE)svar == Qnil) {
 	    svar = new_value();
-	    th->local_svar = (VALUE)svar;
+	    GC_WB(&th->local_svar, (VALUE)svar);
 	}
     }
     return svar;
@@ -909,16 +909,16 @@ lfp_svar_set(rb_thread_t *th, VALUE *lfp, VALUE key, VALUE val)
 
     switch (key) {
       case 0:
-	svar->v1 = val;
-	//GC_WB(&svar->v1, val);
+	//svar->v1 = val;
+	GC_WB(&svar->v1, val);
 	return;
       case 1:
-	svar->v2 = val;
-	//GC_WB(&svar->v2, val);
+	//svar->v2 = val;
+	GC_WB(&svar->v2, val);
 	return;
       case 2:
-	svar->basic.klass = val;
-	//GC_WB(&svar->basic.klass, val);
+	//svar->basic.klass = val;
+	GC_WB(&svar->basic.klass, val);
 	return;
       default: {
 	VALUE hash = svar->v3;

@@ -105,6 +105,30 @@ void rb_objc_install_array_primitives(Class);
 void rb_objc_install_hash_primitives(Class);
 void rb_objc_install_string_primitives(Class);
 
+static bool
+rb_objc_install_primitives(Class ocklass, Class ocsuper)
+{
+    if (rb_cArray != 0 && rb_cHash != 0 && rb_cString != 0) {
+	do {
+	    if (ocsuper == RCLASS_OCID(rb_cArray)) {
+		rb_objc_install_array_primitives(ocklass);
+		return true;
+	    }
+	    if (ocsuper == RCLASS_OCID(rb_cHash)) {
+		rb_objc_install_hash_primitives(ocklass);
+		return true;
+	    }
+	    if (ocsuper == RCLASS_OCID(rb_cString)) {
+		rb_objc_install_string_primitives(ocklass);
+		return true;
+	    }
+	    ocsuper = class_getSuperclass(ocsuper);
+	}
+	while (ocsuper != NULL);
+    }
+    return false;
+}
+
 static VALUE
 rb_objc_alloc_class(const char *name, VALUE super, VALUE flags, VALUE klass)
 {
@@ -149,25 +173,8 @@ rb_objc_alloc_class(const char *name, VALUE super, VALUE flags, VALUE klass)
     if (name == NULL)
 	FL_SET(obj, RCLASS_ANONYMOUS);
 
-    if (rb_cArray != 0 && rb_cHash != 0 && rb_cString != 0 
-	&& ocsuper != NULL) {
-	do {
-	    if (ocsuper == RCLASS_OCID(rb_cArray)) {
-		rb_objc_install_array_primitives(ocklass);
-		break;
-	    }
-	    if (ocsuper == RCLASS_OCID(rb_cHash)) {
-		rb_objc_install_hash_primitives(ocklass);
-		break;
-	    }
-	    if (ocsuper == RCLASS_OCID(rb_cString)) {
-		rb_objc_install_string_primitives(ocklass);
-		break;
-	    }
-	    ocsuper = class_getSuperclass(ocsuper);
-	}
-	while (ocsuper != NULL);	
-    }
+    if (klass != 0)
+	rb_objc_install_primitives(ocklass, ocsuper);
 
     return obj;
 }
@@ -321,11 +328,29 @@ rb_mod_init_copy(VALUE clone, VALUE orig)
     RCLASS_SUPER(clone) = RCLASS_SUPER(orig);
 #if WITH_OBJC
     {
+#if 1
+	Class ocsuper;
+	extern VALUE rb_cStringRuby;
+	extern VALUE rb_cArrayRuby;
+	extern VALUE rb_cHashRuby;
+	if (orig == rb_cStringRuby
+	    || orig == rb_cArrayRuby
+	    || orig == rb_cHashRuby) {
+	    ocsuper = RCLASS_OCID(orig);
+	    rb_warn("cloning class `%s' is not supported, creating a " \
+		    "subclass instead", rb_class2name(orig));
+	}
+	else {
+	    ocsuper = class_getSuperclass(RCLASS_OCID(orig));
+	}
+	class_setSuperclass(RCLASS(clone)->ocklass, ocsuper);
+#else
 	char *ocname = strdup(class_getName(RCLASS_OCID(clone)));
 	objc_disposeClassPair(RCLASS_OCID(clone));
 	RCLASS(clone)->ocklass = objc_duplicateClass(RCLASS_OCID(orig), 
 						     ocname, 0);
 	free(ocname);
+#endif
     }
 #endif
     if (RCLASS_IV_TBL(orig)) {
@@ -358,7 +383,11 @@ rb_class_init_copy(VALUE clone, VALUE orig)
     if (FL_TEST(orig, FL_SINGLETON)) {
 	rb_raise(rb_eTypeError, "can't copy singleton class");
     }
-    return rb_mod_init_copy(clone, orig);
+    clone =  rb_mod_init_copy(clone, orig);
+#if WITH_OBJC 
+    rb_objc_install_primitives(RCLASS_OCID(clone), RCLASS_OCID(orig)); 
+#endif
+    return clone;
 }
 
 VALUE

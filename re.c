@@ -1194,6 +1194,9 @@ rb_reg_search(VALUE re, VALUE str, int pos, int reverse)
 	}
     }
 
+#if WITH_OBJC
+    match = match_alloc(rb_cMatch);
+#else
     match = rb_backref_get();
     if (NIL_P(match) || FL_TEST(match, MATCH_BUSY)) {
 	match = match_alloc(rb_cMatch);
@@ -1204,6 +1207,7 @@ rb_reg_search(VALUE re, VALUE str, int pos, int reverse)
 	else
 	    FL_UNSET(match, FL_TAINT);
     }
+#endif
 
     onig_region_copy(RMATCH_REGS(match), pregs);
     GC_WB(&RMATCH(match)->str, rb_str_new4(str));
