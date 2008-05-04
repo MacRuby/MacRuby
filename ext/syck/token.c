@@ -2111,7 +2111,7 @@ yy182:
                         char *chr_text = syck_strndup( YYTOKEN, 4 );
                         chr_text[0] = '0';
                         ch = strtol( chr_text, NULL, 16 );
-                        free( chr_text );
+                        xfree( chr_text );
                         QUOTECAT(qstr, qcapa, qidx, ch);
                         goto DoubleQuote2; 
                     }
@@ -2173,7 +2173,7 @@ yy189:
                         YYCURSOR = YYTOKTMP;
                         if ( YYCURSOR == YYTOKEN + 1 )
                         {
-                            free( qstr );
+                            xfree( qstr );
                             return YAML_ITRANSFER;
                         }
 
@@ -2188,7 +2188,7 @@ yy189:
                             sycklval->name[0] = '\0';
                             strcat( sycklval->name, lvl->domain );
                             strncat( sycklval->name, qstr + 1, qidx - 1 );
-                            free( qstr );
+                            xfree( qstr );
                         }
                         else
                         {
@@ -2202,13 +2202,13 @@ yy189:
 
                             if ( carat < qend )
                             {
-                                free( lvl->domain );
+                                xfree( lvl->domain );
                                 lvl->domain = syck_strndup( qstr, carat - qstr );
                                 sycklval->name = S_ALLOC_N( char, ( qend - carat ) + strlen( lvl->domain ) );
                                 sycklval->name[0] = '\0';
                                 strcat( sycklval->name, lvl->domain );
                                 strncat( sycklval->name, carat + 1, ( qend - carat ) - 1 );
-                                free( qstr );
+                                xfree( qstr );
                             }
                             else
                             {
@@ -2314,7 +2314,7 @@ yy202:
                         char *chr_text = syck_strndup( YYTOKTMP, 4 );
                         chr_text[0] = '0';
                         ch = strtol( chr_text, NULL, 16 );
-                        free( chr_text );
+                        xfree( chr_text );
                         QUOTECAT(qstr, qcapa, qidx, ch);
                         goto TransferMethod2;
                     }
