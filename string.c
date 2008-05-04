@@ -583,39 +583,29 @@ str_alloc(VALUE klass)
 static void
 rb_objc_str_set_bytestring(VALUE str, const char *dataptr, long datalen)
 {
-    struct rb_objc_str_struct *s;
-
     assert(dataptr != NULL);
     assert(datalen > 0);
 
-#if 1
-    CFStringRef substr = CFStringCreateWithBytes/*NoCopy*/(
+    CFStringRef substr = CFStringCreateWithBytes(
 	NULL, 
 	(const UInt8 *)dataptr,
 	datalen, 
 	kCFStringEncodingUTF8,
-	false/*,
-	kCFAllocatorNull*/);
-    CFStringReplaceAll((CFMutableStringRef)str, substr);
-    CFRelease(substr);
-#else
-    s = rb_objc_str_get_struct2(str);
-    if (s->cfdata == NULL) {
+	false);
+    if (substr != NULL) {
+	CFStringReplaceAll((CFMutableStringRef)str, substr);
+	CFRelease(substr);
+    }
+    else {
+	struct rb_objc_str_struct *s;
 	CFMutableDataRef data;
+
+	s = rb_objc_str_get_struct2(str);
 	data = CFDataCreateMutable(NULL, 0);
-	rb_warning("string %p becomes a bytestring (len %ld clen %ld)", 
-		str, datalen, strlen(dataptr));
 	CFDataAppendBytes(data, (const UInt8 *)dataptr, datalen);
 	GC_WB(&s->cfdata, (void *)data);
 	CFMakeCollectable(data);
     }
-    else {
-	CFDataReplaceBytes((CFMutableDataRef)s->cfdata, 
-	    CFRangeMake(0, CFDataGetLength((CFDataRef)s->cfdata)),
-	    (const UInt8 *)dataptr, datalen);
-    }
-    rb_str_bytesync(str);
-#endif
 }
 #endif
 
