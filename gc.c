@@ -2067,6 +2067,20 @@ void ruby_init_stack(VALUE *addr
  */
 
 #if WITH_OBJC
+static bool
+rb_objc_is_placeholder(void *obj)
+{
+    static void *placeholder_dict = NULL;
+    static void *placeholder_ary = NULL;
+    void *obj_klass;
+    if (placeholder_dict == NULL)
+	placeholder_dict = objc_getClass("__NSPlaceholderDictionary");
+    if (placeholder_ary == NULL)
+	placeholder_ary = objc_getClass("__NSPlaceholderArray");
+    obj_klass = *(void **)obj;
+    return obj_klass == placeholder_dict || obj_klass == placeholder_ary;
+}
+
 struct rb_objc_recorder_context {
     VALUE class_of;
     int count;
@@ -2118,6 +2132,10 @@ rb_objc_recorder(task_t task, void *context, unsigned type_mask,
 		    if (FL_TEST(r->address, FL_SINGLETON))
 			continue;
 	    }
+	}
+	else {
+	    if (rb_objc_is_placeholder((void *)r->address))
+		continue;
 	}
 	rb_yield((VALUE)r->address);
 	ctx->count++;
@@ -2513,7 +2531,10 @@ id2ref(VALUE obj, VALUE objid)
     if (auto_zone_is_valid_pointer(auto_zone(), p0)) {
 	auto_memory_type_t type = 
 	    auto_zone_get_layout_type_no_lock(__auto_zone, p0);
-	if (type == AUTO_OBJECT_SCANNED || type == AUTO_OBJECT_UNSCANNED)
+	if ((type == AUTO_OBJECT_SCANNED || type == AUTO_OBJECT_UNSCANNED)
+	    && !rb_objc_is_placeholder(p0)
+	    && (rb_objc_is_non_native((VALUE)p0)
+		|| (BUILTIN_TYPE(p0) < T_VALUES && BUILTIN_TYPE(p0) != T_ICLASS)))
 	    return (VALUE)p0;
     }
     rb_raise(rb_eRangeError, "%p is not id value", p0);

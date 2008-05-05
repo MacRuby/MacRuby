@@ -841,6 +841,10 @@ rb_obj_freeze(VALUE obj)
 VALUE
 rb_obj_frozen_p(VALUE obj)
 {
+    if (SPECIAL_CONST_P(obj)) {
+	if (!immediate_frozen_tbl) return Qfalse;
+	if (st_lookup(immediate_frozen_tbl, obj, 0)) return Qtrue;
+    }
 #if WITH_OBJC
     if (rb_objc_is_non_native(obj)) {
 	int type = TYPE(obj);
@@ -854,10 +858,6 @@ rb_obj_frozen_p(VALUE obj)
     }
 #endif
     if (OBJ_FROZEN(obj)) return Qtrue;
-    if (SPECIAL_CONST_P(obj)) {
-	if (!immediate_frozen_tbl) return Qfalse;
-	if (st_lookup(immediate_frozen_tbl, obj, 0)) return Qtrue;
-    }
     return Qfalse;
 }
 
