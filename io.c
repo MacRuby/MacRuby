@@ -1470,6 +1470,7 @@ io_getpartial(int argc, VALUE *argv, VALUE io, int nonblock)
         }
     }
     rb_str_resize(str, n);
+    RSTRING_SYNC(str);
 
     if (n == 0)
         return Qnil;
@@ -2999,6 +3000,7 @@ rb_io_sysread(int argc, VALUE *argv, VALUE io)
     }
     rb_str_resize(str, n);
     OBJ_TAINT(str);
+    RSTRING_SYNC(str);
 
     return str;
 }

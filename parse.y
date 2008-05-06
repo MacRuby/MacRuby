@@ -5015,7 +5015,7 @@ parser_nextc(struct parser_params *parser)
 #ifdef RIPPER
 	    ripper_flush(parser);
 #endif
-	    lex_lastline = v;
+	    lex_lastline =v;
 	}
     }
     c = (unsigned char)*lex_p++;
@@ -5931,9 +5931,9 @@ parser_magic_comment(struct parser_params *parser, const char *str, int len)
 {
     VALUE name = 0, val = 0;
     const char *beg, *end, *vbeg, *vend;
-#if 0// WITH_OBJC
+#if WITH_OBJC
 # define str_copy(_s, _p, _n) ((_s) \
-	? CFStringPad((CFMutableStringRef)_s, CFStringCreateWithCString(NULL, _p, kCFStringEncodingUTF8), _n, 0) \
+	? CFStringPad((CFMutableStringRef)_s, CFMakeCollectable(CFStringCreateWithCString(NULL, _p, kCFStringEncodingUTF8)), _n, 0) \
 	: ((_s) = STR_NEW((_p), (_n)))) 
 #else
 # define str_copy(_s, _p, _n) ((_s) \
@@ -6001,13 +6001,13 @@ parser_magic_comment(struct parser_params *parser, const char *str, int len)
 	str_copy(name, beg, n);
 #ifndef RIPPER
 	do {
-	    if (STRNCASECMP(p->name, RSTRING_PTR(name), n) == 0) {
+	    if (STRNCASECMP(p->name, RSTRING_CPTR(name), n) == 0) {
 		n = vend - vbeg;
 		if (p->length) {
 		    n = (*p->length)(parser, vbeg, n);
 		}
 		str_copy(val, vbeg, n);
-		(*p->func)(parser, RSTRING_PTR(name), RSTRING_PTR(val));
+		(*p->func)(parser, RSTRING_CPTR(name), RSTRING_CPTR(val));
 		break;
 	    }
 	} while (++p < magic_comments + sizeof(magic_comments) / sizeof(*p));
@@ -6058,7 +6058,7 @@ set_file_encoding(struct parser_params *parser, const char *str, const char *sen
     beg = str;
     while ((*str == '-' || *str == '_' || ISALNUM(*str)) && ++str < send);
     s = rb_str_new(beg, parser_encode_length(parser, beg, str - beg));
-    parser_set_encode(parser, RSTRING_PTR(s));
+    parser_set_encode(parser, RSTRING_CPTR(s));
     rb_str_resize(s, 0);
 }
 

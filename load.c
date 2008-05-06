@@ -171,7 +171,7 @@ rb_feature_p(const char *feature, const char *ext, int rb, int expanded, const c
 
 	    if (ext && *ext) return 0;
 	    bufstr = rb_str_tmp_new(len + DLEXT_MAXLEN);
-	    buf = RSTRING_PTR(bufstr);
+	    buf = RSTRING_PTR(bufstr); /* ok */
 	    MEMCPY(buf, feature, char, len);
 	    for (i = 0; (e = loadable_ext[i]) != 0; i++) {
 		strncpy(buf + len, e, DLEXT_MAXLEN + 1);
@@ -400,7 +400,7 @@ static int
 search_required(VALUE fname, volatile VALUE *path)
 {
     VALUE tmp;
-    char *ext, *ftptr;
+    const char *ext, *ftptr;
     int type, ft = 0;
     const char *loading;
 

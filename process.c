@@ -1022,7 +1022,7 @@ rb_proc_exec_n(int argc, VALUE *argv, const char *prog)
 
     args = ALLOCA_N(char*, argc+1);
     for (i=0; i<argc; i++) {
-	args[i] = RSTRING_PTR(argv[i]);
+	args[i] = RSTRING_CPTR(argv[i]);
     }
     args[i] = 0;
     if (args[0]) {
@@ -1161,11 +1161,11 @@ proc_spawn_n(int argc, VALUE *argv, VALUE prog)
 
     args = ALLOCA_N(char*, argc + 1);
     for (i = 0; i < argc; i++) {
-	args[i] = RSTRING_PTR(argv[i]);
+	args[i] = RSTRING_CPTR(argv[i]);
     }
     args[i] = (char*) 0;
     if (args[0])
-	return proc_spawn_v(args, prog ? RSTRING_PTR(prog) : 0);
+	return proc_spawn_v(args, prog ? RSTRING_CPTR(prog) : 0);
     return -1;
 }
 
@@ -1224,14 +1224,14 @@ rb_check_argv(int argc, VALUE *argv)
 	SafeStringValue(prog);
 	StringValueCStr(prog);
 	prog = rb_str_new4(prog);
-	name = RSTRING_PTR(prog);
+	name = RSTRING_CPTR(prog);
     }
     for (i = 0; i < argc; i++) {
 	SafeStringValue(argv[i]);
 	argv[i] = rb_str_new4(argv[i]);
 	StringValueCStr(argv[i]);
     }
-    security(name ? name : RSTRING_PTR(argv[0]));
+    security(name ? name : RSTRING_CPTR(argv[0]));
     return prog;
 }
 
@@ -1273,12 +1273,12 @@ rb_f_exec(int argc, VALUE *argv)
     if (!prog && argc == 1) {
 	e.argc = 0;
 	e.argv = 0;
-	e.prog = RSTRING_PTR(argv[0]);
+	e.prog = RSTRING_CPTR(argv[0]);
     }
     else {
 	e.argc = argc;
 	e.argv = argv;
-	e.prog = prog ? RSTRING_PTR(prog) : 0;
+	e.prog = prog ? RSTRING_CPTR(prog) : 0;
     }
     rb_exec(&e);
     rb_sys_fail(e.prog);
@@ -1727,13 +1727,13 @@ rb_spawn(int argc, VALUE *argv)
 	struct rb_exec_arg earg;
 	earg.argc = argc;
 	earg.argv = argv;
-	earg.prog = prog ? RSTRING_PTR(prog) : 0;
+	earg.prog = prog ? RSTRING_CPTR(prog) : 0;
 	status = rb_fork(&status, rb_exec_atfork, &earg);
 	if (prog && argc) argv[0] = prog;
     }
 #elif defined HAVE_SPAWNV
     if (!argc) {
-	status = proc_spawn(RSTRING_PTR(prog));
+	status = proc_spawn(RSTRING_CPTR(prog));
     }
     else {
 	status = proc_spawn_n(argc, argv, prog);
@@ -1816,7 +1816,7 @@ rb_f_spawn(int argc, VALUE *argv)
     rb_pid_t pid;
 
     pid = rb_spawn(argc, argv);
-    if (pid == -1) rb_sys_fail(RSTRING_PTR(argv[0]));
+    if (pid == -1) rb_sys_fail(RSTRING_CPTR(argv[0]));
 #if defined(HAVE_FORK) || defined(HAVE_SPAWNV)
     return PIDT2NUM(pid);
 #else
@@ -3004,10 +3004,10 @@ proc_setgroups(VALUE obj, VALUE ary)
 		groups[i] = NUM2GIDT(g);
 	    }
 	    else {
-		gr = getgrnam(RSTRING_PTR(tmp));
+		gr = getgrnam(RSTRING_CPTR(tmp));
 		if (gr == NULL)
 		    rb_raise(rb_eArgError,
-			     "can't find group for %s", RSTRING_PTR(tmp));
+			     "can't find group for %s", RSTRING_CPTR(tmp));
 		groups[i] = gr->gr_gid;
 	    }
 	}

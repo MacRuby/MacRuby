@@ -42,7 +42,11 @@
      ENCODING_GET_INLINED(obj) : \
      rb_enc_internal_get_index(obj))
 
-#define ENCODING_IS_ASCII8BIT(obj) (ENCODING_GET_INLINED(obj) == 0)
+#if WITH_OBJC
+# define ENCODING_IS_ASCII8BIT(obj) (1)
+#else
+# define ENCODING_IS_ASCII8BIT(obj) (ENCODING_GET_INLINED(obj) == 0)
+#endif
 
 #define ENCODING_MAXNAMELEN 42
 

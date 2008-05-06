@@ -697,12 +697,12 @@ rb_longjmp(int tag, VALUE mesg)
 	    if (file) {
 		warn_printf("Exception `%s' at %s:%d - %s\n",
 			    rb_obj_classname(th->errinfo),
-			    file, line, RSTRING_PTR(e));
+			    file, line, RSTRING_CPTR(e));
 	    }
 	    else {
 		warn_printf("Exception `%s' - %s\n",
 			    rb_obj_classname(th->errinfo),
-			    RSTRING_PTR(e));
+			    RSTRING_CPTR(e));
 	    }
 	}
 	POP_TAG();
@@ -1650,7 +1650,7 @@ rb_backtrace(void)
 
     ary = backtrace(-1);
     for (i = 0; i < RARRAY_LEN(ary); i++) {
-	printf("\tfrom %s\n", RSTRING_PTR(RARRAY_AT(ary, i)));
+	printf("\tfrom %s\n", RSTRING_CPTR(RARRAY_AT(ary, i)));
     }
 }
 
@@ -1763,7 +1763,7 @@ eval(VALUE self, VALUE src, VALUE scope, const char *file, int line)
 
 	if (0) {		/* for debug */
 	    extern VALUE ruby_iseq_disasm(VALUE);
-	    printf("%s\n", RSTRING_PTR(ruby_iseq_disasm(iseqval)));
+	    printf("%s\n", RSTRING_CPTR(ruby_iseq_disasm(iseqval)));
 	}
 
 	/* save new env */
@@ -1857,7 +1857,7 @@ rb_f_eval(int argc, VALUE *argv, VALUE self)
     }
 
     if (!NIL_P(vfile))
-	file = RSTRING_PTR(vfile);
+	file = RSTRING_CPTR(vfile);
     return eval(self, src, scope, file, line);
 }
 

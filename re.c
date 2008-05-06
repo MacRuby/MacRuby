@@ -450,7 +450,7 @@ rb_reg_raise(const char *s, long len, const char *err, VALUE re)
 {
     VALUE desc = rb_reg_desc(s, len, re);
 
-    rb_raise(rb_eRegexpError, "%s: %s", err, RSTRING_PTR(desc));
+    rb_raise(rb_eRegexpError, "%s: %s", err, RSTRING_CPTR(desc));
 }
 
 static VALUE
@@ -477,7 +477,7 @@ rb_enc_reg_raise(const char *s, long len, rb_encoding *enc, int options, const c
 static VALUE
 rb_reg_error_desc(VALUE str, int options, const char *err)
 {
-    return rb_enc_reg_error_desc(RSTRING_PTR(str), RSTRING_LEN(str),
+    return rb_enc_reg_error_desc(RSTRING_CPTR(str), RSTRING_CLEN(str),
 				 rb_enc_get(str), options, err);
 }
 
@@ -696,7 +696,7 @@ update_char_offset(VALUE match)
     struct re_registers *regs;
     int num_regs;
     int i, num_pos, c;
-    char *s, *p, *q, *e;
+    const char *s, *p, *q, *e;
     rb_encoding *enc;
     pair_t *pairs;
 
@@ -731,8 +731,8 @@ update_char_offset(VALUE match)
     }
     qsort(pairs, num_pos, sizeof(pair_t), pair_byte_cmp);
 
-    s = p = RSTRING_PTR(RMATCH(match)->str);
-    e = s + RSTRING_LEN(RMATCH(match)->str);
+    s = p = RSTRING_CPTR(RMATCH(match)->str);
+    e = s + RSTRING_CLEN(RMATCH(match)->str);
     c = 0;
     for (i = 0; i < num_pos; i++) {
         q = s + pairs[i].byte_pos;
@@ -1098,8 +1098,9 @@ rb_reg_prepare_re(VALUE re, VALUE str, int enable_warning)
             rb_raise(rb_eArgError, "regexp preprocess failed: %s", err);
         }
 
-	r = onig_new(&reg2, (UChar* )RSTRING_PTR(unescaped),
-		     (UChar* )(RSTRING_PTR(unescaped) + RSTRING_LEN(unescaped)),
+	r = onig_new(&reg2, (UChar* )RSTRING_CPTR(unescaped),
+		     (UChar* )(RSTRING_CPTR(unescaped) 
+			 + RSTRING_CLEN(unescaped)),
 		     reg->options, enc,
 		     OnigDefaultSyntax, &einfo);
 	if (r) {
@@ -1132,7 +1133,7 @@ rb_reg_adjust_startpos(VALUE re, VALUE str, int pos, int reverse)
     enc = (RREGEXP(re)->ptr)->enc;
 
     if (pos > 0 && ONIGENC_MBC_MAXLEN(enc) != 1 && pos < RSTRING_LEN(str)) {
-	 string = (UChar*)RSTRING_PTR(str);
+	 string = (UChar*)RSTRING_CPTR(str);
 
 	 if (range > 0) {
 	      p = onigenc_get_right_adjust_char_head(enc, string, string + pos);
@@ -1152,7 +1153,11 @@ rb_reg_search(VALUE re, VALUE str, int pos, int reverse)
     int result;
     VALUE match;
     struct re_registers *pregs;
-    char *range = RSTRING_PTR(str);
+    const char *cstr, *range;
+    long clen;
+
+    cstr = range = RSTRING_CPTR(str);
+    clen = RSTRING_CLEN(str);
 #if WITH_OBJC
     static struct re_registers *regs = NULL;
     if (regs == NULL) {
@@ -1165,7 +1170,7 @@ rb_reg_search(VALUE re, VALUE str, int pos, int reverse)
     pregs = &regs;
 #endif
 
-    if (pos > RSTRING_LEN(str) || pos < 0) {
+    if (pos > clen || pos < 0) {
 	rb_backref_set(Qnil);
 	return -1;
     }
@@ -1173,12 +1178,12 @@ rb_reg_search(VALUE re, VALUE str, int pos, int reverse)
     rb_reg_prepare_re(re, str, 1);
 
     if (!reverse) {
-	range += RSTRING_LEN(str);
+	range += RSTRING_CLEN(str);
     }
     result = onig_search(RREGEXP(re)->ptr,
-			 (UChar*)(RSTRING_PTR(str)),
-			 ((UChar*)(RSTRING_PTR(str)) + RSTRING_LEN(str)),
-			 ((UChar*)(RSTRING_PTR(str)) + pos),
+			 (UChar*)cstr,
+			 ((UChar*)cstr + clen),
+			 ((UChar*)cstr + pos),
 			 ((UChar*)range),
 			 pregs, ONIG_OPTION_NONE);
 
@@ -2065,12 +2070,12 @@ rb_reg_check_preprocess(VALUE str)
     rb_encoding *fixed_enc = 0;
     onig_errmsg_buffer err = "";
     VALUE buf;
-    char *p, *end;
+    const char *p, *end;
     rb_encoding *enc;
 
     StringValue(str);
-    p = RSTRING_PTR(str);
-    end = p + RSTRING_LEN(str);
+    p = RSTRING_CPTR(str);
+    end = p + RSTRING_CLEN(str);
     enc = rb_enc_get(str);
 
     buf = rb_reg_preprocess(p, end, enc, &fixed_enc, err);
@@ -2106,12 +2111,12 @@ rb_reg_preprocess_dregexp(VALUE ary)
         VALUE str = argv[i];
 #endif
         VALUE buf;
-        char *p, *end;
+        const char *p, *end;
         rb_encoding *src_enc;
 
         StringValue(str);
-        p = RSTRING_PTR(str);
-        end = p + RSTRING_LEN(str);
+        p = RSTRING_CPTR(str);
+        end = p + RSTRING_CLEN(str);
         src_enc = rb_enc_get(str);
 
         buf = rb_reg_preprocess(p, end, src_enc, &fixed_enc, err);
@@ -2185,7 +2190,8 @@ rb_reg_initialize(VALUE obj, const char *s, int len, rb_encoding *enc,
         re->basic.flags |= REG_ENCODING_NONE;
     }
     
-    GC_WB(&re->ptr, make_regexp(RSTRING_PTR(unescaped), RSTRING_LEN(unescaped), enc,
+    GC_WB(&re->ptr, make_regexp(RSTRING_CPTR(unescaped), 
+				RSTRING_CLEN(unescaped), enc,
                                 options & ARG_REG_OPTION_MASK, err));
     if (!re->ptr) return -1;
     GC_WB(&re->str, ALLOC_N(char, len+1));
@@ -2211,7 +2217,7 @@ rb_reg_initialize_str(VALUE obj, VALUE str, int options, onig_errmsg_buffer err)
             enc = ascii8bit;
         }
     }
-    ret = rb_reg_initialize(obj, RSTRING_PTR(str), RSTRING_LEN(str), enc,
+    ret = rb_reg_initialize(obj, RSTRING_CPTR(str), RSTRING_CLEN(str), enc,
 			    options, err);
     RB_GC_GUARD(str);
     return ret;
@@ -2291,7 +2297,7 @@ rb_reg_regcomp(VALUE str)
     volatile VALUE save_str = str;
     if (reg_cache && RREGEXP(reg_cache)->len == RSTRING_LEN(str)
 	&& ENCODING_GET(reg_cache) == ENCODING_GET(str)
-        && memcmp(RREGEXP(reg_cache)->str, RSTRING_PTR(str), RSTRING_LEN(str)) == 0)
+        && memcmp(RREGEXP(reg_cache)->str, RSTRING_CPTR(str), RSTRING_CLEN(str)) == 0)
 	return reg_cache;
 
     return reg_cache = rb_reg_new_str(save_str, 0);

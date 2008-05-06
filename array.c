@@ -1640,14 +1640,15 @@ recursive_join(VALUE ary, VALUE argp, int recur)
 VALUE
 rb_ary_join(VALUE ary, VALUE sep)
 {
-    long len = 1, i;
+    long len = 1, i, count;
     int taint = Qfalse;
     VALUE result, tmp;
 
     if (RARRAY_LEN(ary) == 0) return rb_str_new(0, 0);
     if (OBJ_TAINTED(ary) || OBJ_TAINTED(sep)) taint = Qtrue;
-#if !WITH_OBJC
-    /* TODO should use CFStringCreateByCombiningStrings */
+#if WITH_OBJC
+    result = rb_str_buf_new(0);
+#else
     for (i=0; i<RARRAY_LEN(ary); i++) {
 	tmp = rb_check_string_type(RARRAY_AT(ary, i));
 	len += NIL_P(tmp) ? 10 : RSTRING_LEN(tmp);
@@ -1656,10 +1657,10 @@ rb_ary_join(VALUE ary, VALUE sep)
 	StringValue(sep);
 	len += RSTRING_LEN(sep) * (RARRAY_LEN(ary) - 1);
     }
-#endif
     result = rb_str_buf_new(len);
+#endif
 
-    for (i=0; i<RARRAY_LEN(ary); i++) {
+    for (i=0, count=RARRAY_LEN(ary); i<count; i++) {
 	tmp = RARRAY_AT(ary, i);
 	switch (TYPE(tmp)) {
 	  case T_STRING:

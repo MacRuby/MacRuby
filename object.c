@@ -682,7 +682,7 @@ VALUE
 rb_obj_tainted(VALUE obj)
 {
 #if WITH_OBJC
-    if (rb_objc_is_non_native(obj)) {
+    if (!SPECIAL_CONST_P(obj) && rb_objc_is_non_native(obj)) {
 	int type = TYPE(obj);
 	if (type == T_ARRAY)
 	    return rb_ary_tainted(obj);
@@ -693,7 +693,7 @@ rb_obj_tainted(VALUE obj)
 	return Qfalse;
     }
 #endif
-    if (OBJ_TAINTED(obj))
+    if (FL_TEST(obj, FL_TAINT))
 	return Qtrue;
     return Qfalse;
 }
@@ -712,7 +712,7 @@ rb_obj_taint(VALUE obj)
 {
     rb_secure(4);
 #if WITH_OBJC
-    if (rb_objc_is_non_native(obj)) {
+    if (!SPECIAL_CONST_P(obj) && rb_objc_is_non_native(obj)) {
 	int type = TYPE(obj);
 	if (type == T_ARRAY)
 	    return rb_ary_taint(obj);
@@ -727,7 +727,7 @@ rb_obj_taint(VALUE obj)
 	if (OBJ_FROZEN(obj)) {
 	    rb_error_frozen("object");
 	}
-	OBJ_TAINT(obj);
+	FL_SET(obj, FL_TAINT);
     }
     return obj;
 }
@@ -745,7 +745,7 @@ rb_obj_untaint(VALUE obj)
 {
     rb_secure(3);
 #if WITH_OBJC
-    if (rb_objc_is_non_native(obj)) {
+    if (!SPECIAL_CONST_P(obj) && rb_objc_is_non_native(obj)) {
 	int type = TYPE(obj);
 	if (type == T_ARRAY)
 	    return rb_ary_untaint(obj);
@@ -797,31 +797,35 @@ static st_table *immediate_frozen_tbl = 0;
 VALUE
 rb_obj_freeze(VALUE obj)
 {
-#if WITH_OBJC
-    if (rb_objc_is_non_native(obj)) {
-	int type = TYPE(obj);
-	if (type == T_ARRAY)
-	    rb_ary_freeze(obj);
-	else if (type == T_HASH)
-	    rb_hash_freeze(obj);
-	else if (type == T_STRING)
-	    rb_str_freeze(obj);
-	else
-	    rb_raise(rb_eRuntimeError, "can't freeze pure objc object `%s'",
-		    RSTRING_PTR(rb_inspect(obj)));
-    }
-#endif
     if (!OBJ_FROZEN(obj)) {
 	if (rb_safe_level() >= 4 && !OBJ_TAINTED(obj)) {
 	    rb_raise(rb_eSecurityError, "Insecure: can't freeze object");
 	}
-	OBJ_FREEZE(obj);
-	if (SPECIAL_CONST_P(obj)) {
+	else if (SPECIAL_CONST_P(obj)) {
 	    if (!immediate_frozen_tbl) {
 		immediate_frozen_tbl = st_init_numtable();
 		GC_ROOT(&immediate_frozen_tbl);
 	    }
 	    st_insert(immediate_frozen_tbl, obj, (st_data_t)Qtrue);
+	}
+#if WITH_OBJC
+	else if (rb_objc_is_non_native(obj)) {
+	    int type = TYPE(obj);
+	    if (type == T_ARRAY)
+		return rb_ary_freeze(obj);
+	    else if (type == T_HASH)
+		return rb_hash_freeze(obj);
+	    else if (type == T_STRING)
+		return rb_str_freeze(obj);
+	    else {
+		if (rb_cString != 0 && rb_cArray != 0 && rb_cHash != 0)
+		    rb_raise(rb_eRuntimeError, "can't freeze pure objc " \
+			     "object `%p'", RSTRING_CPTR(rb_inspect(obj)));
+	    }
+	}
+#endif
+	else {
+	    FL_SET(obj, FL_FREEZE);
 	}
     }
     return obj;
@@ -857,7 +861,7 @@ rb_obj_frozen_p(VALUE obj)
 	return Qfalse;
     }
 #endif
-    if (OBJ_FROZEN(obj)) return Qtrue;
+    if (FL_TEST(obj, FL_FREEZE)) return Qtrue;
     return Qfalse;
 }
 

@@ -957,6 +957,8 @@ class TestString < Test::Unit::TestCase
 
     assert_equal([S("a"), S(""), S("b"), S("c")], S("a||b|c|").split(S('|')))
     assert_equal([S("a"), S(""), S("b"), S("c"), S("")], S("a||b|c|").split(S('|'), -1))
+
+    assert_equal([], S("").split(//))
   end
 
   def test_squeeze

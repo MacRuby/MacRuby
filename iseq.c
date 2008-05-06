@@ -49,8 +49,8 @@ iseq_free(void *ptr)
     if (ptr) {
 	iseq = ptr;
 	/* It's possible that strings are freed
-         * GC_INFO("%s @ %s\n", RSTRING_PTR(iseq->name),
-         *                      RSTRING_PTR(iseq->filename));
+         * GC_INFO("%s @ %s\n", RSTRING_CPTR(iseq->name),
+         *                      RSTRING_CPTR(iseq->filename));
 	 */
 	if (iseq->iseq != iseq->iseq_encoded) {
 	    RUBY_FREE_UNLESS_NULL(iseq->iseq_encoded);
@@ -75,7 +75,7 @@ iseq_mark(void *ptr)
 
     if (ptr) {
 	iseq = ptr;
-	RUBY_GC_INFO("%s @ %s\n", RSTRING_PTR(iseq->name), RSTRING_PTR(iseq->filename));
+	RUBY_GC_INFO("%s @ %s\n", RSTRING_CPTR(iseq->name), RSTRING_CPTR(iseq->filename));
 	RUBY_MARK_UNLESS_NULL(iseq->mark_ary);
 	RUBY_MARK_UNLESS_NULL(iseq->name);
 	RUBY_MARK_UNLESS_NULL(iseq->filename);
@@ -533,7 +533,7 @@ iseq_inspect(VALUE self)
     rb_iseq_t *iseq = iseq_check(self);
 
     snprintf(buff, sizeof(buff), "<ISeq:%s@%s>",
-	     RSTRING_PTR(iseq->name), RSTRING_PTR(iseq->filename));
+	     RSTRING_CPTR(iseq->name), RSTRING_CPTR(iseq->filename));
 
     return rb_str_new2(buff);
 }
@@ -745,7 +745,7 @@ ruby_iseq_disasm_insn(VALUE ret, VALUE *iseq, int pos,
 	int line_no = find_line_no(iseqdat, pos);
 	int prev = find_prev_line_no(iseqdat, pos);
 	if (line_no && line_no != prev) {
-	    snprintf(buff, sizeof(buff), "%-70s(%4d)", RSTRING_PTR(str),
+	    snprintf(buff, sizeof(buff), "%-70s(%4d)", RSTRING_CPTR(str),
 		     line_no);
 	    str = rb_str_new2(buff);
 	}
@@ -754,7 +754,7 @@ ruby_iseq_disasm_insn(VALUE ret, VALUE *iseq, int pos,
 	/* for debug */
 	struct iseq_insn_info_entry *entry = get_insn_info(iseqdat, pos);
 	snprintf(buff, sizeof(buff), "%-60s(line: %d, sp: %d)",
-		 RSTRING_PTR(str), entry->line_no, entry->sp);
+		 RSTRING_CPTR(str), entry->line_no, entry->sp);
 	str = rb_str_new2(buff);
     }
 
@@ -763,7 +763,7 @@ ruby_iseq_disasm_insn(VALUE ret, VALUE *iseq, int pos,
 	rb_str_concat(ret, str);
     }
     else {
-	printf("%s\n", RSTRING_PTR(str));
+	printf("%s\n", RSTRING_CPTR(str));
     }
     return len;
 }
@@ -814,6 +814,7 @@ ruby_iseq_disasm(VALUE self)
     if ((i = RSTRING_LEN(str)) < header_minlen) {
 	rb_str_resize(str, header_minlen);
 	memset(RSTRING_PTR(str) + i, '=', header_minlen - i);
+	RSTRING_SYNC(str);
     }
     rb_str_cat2(str, "\n");
 

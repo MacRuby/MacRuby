@@ -446,8 +446,8 @@ pack_pack(VALUE ary, VALUE fmt)
 #endif
 
     StringValue(fmt);
-    p = RSTRING_PTR(fmt);
-    pend = p + RSTRING_LEN(fmt);
+    p = RSTRING_CPTR(fmt);
+    pend = p + RSTRING_CLEN(fmt);
     res = rb_str_buf_new(0);
 
     items = RARRAY_LEN(ary);
@@ -458,7 +458,7 @@ pack_pack(VALUE ary, VALUE fmt)
 #define NEXTFROM (items-- > 0 ? RARRAY_AT(ary, idx++) : TOO_FEW)
 
     while (p < pend) {
-	if (RSTRING_PTR(fmt) + RSTRING_LEN(fmt) != pend) {
+	if (RSTRING_CPTR(fmt) + RSTRING_CLEN(fmt) != pend) {
 	    rb_raise(rb_eRuntimeError, "format string modified");
 	}
 	type = *p++;		/* get data type */
@@ -508,8 +508,8 @@ pack_pack(VALUE ary, VALUE fmt)
 	    }
 	    else {
 		StringValue(from);
-		ptr = RSTRING_PTR(from);
-		plen = RSTRING_LEN(from);
+		ptr = RSTRING_CPTR(from);
+		plen = RSTRING_CLEN(from);
 		OBJ_INFECT(res, from);
 	    }
 
@@ -879,8 +879,8 @@ pack_pack(VALUE ary, VALUE fmt)
 	  case 'm':		/* base64 encoded string */
 	    from = NEXTFROM;
 	    StringValue(from);
-	    ptr = RSTRING_PTR(from);
-	    plen = RSTRING_LEN(from);
+	    ptr = RSTRING_CPTR(from);
+	    plen = RSTRING_CLEN(from);
 
 	    if (len <= 2)
 		len = 45;
@@ -1047,8 +1047,8 @@ qpencode(VALUE str, VALUE from, long len)
 {
     char buff[1024];
     long i = 0, n = 0, prev = EOF;
-    unsigned char *s = (unsigned char*)RSTRING_PTR(from);
-    unsigned char *send = s + RSTRING_LEN(from);
+    const unsigned char *s = (unsigned char*)RSTRING_CPTR(from);
+    const unsigned char *send = s + RSTRING_CLEN(from);
 
     while (s < send) {
         if ((*s > 126) ||
@@ -1287,8 +1287,8 @@ static VALUE
 pack_unpack(VALUE str, VALUE fmt)
 {
     static const char *hexdigits = "0123456789abcdef0123456789ABCDEFx";
-    char *s, *send;
-    char *p, *pend;
+    const char *s, *send;
+    const char *p, *pend;
     VALUE ary;
     char type;
     long len;
@@ -1309,10 +1309,10 @@ pack_unpack(VALUE str, VALUE fmt)
 
     StringValue(str);
     StringValue(fmt);
-    s = RSTRING_PTR(str);
-    send = s + RSTRING_LEN(str);
-    p = RSTRING_PTR(fmt);
-    pend = p + RSTRING_LEN(fmt);
+    s = RSTRING_CPTR(str);
+    send = s + RSTRING_CLEN(str);
+    p = RSTRING_CPTR(fmt);
+    pend = p + RSTRING_CLEN(fmt);
 
     ary = block_p ? Qnil : rb_ary_new();
     while (p < pend) {
@@ -1365,7 +1365,7 @@ pack_unpack(VALUE str, VALUE fmt)
 	    if (len > send - s) len = send - s;
 	    {
 		long end = len;
-		char *t = s + len - 1;
+		const char *t = s + len - 1;
 
 		while (t >= s) {
 		    if (*t != ' ' && *t != '\0') break;
@@ -1378,7 +1378,7 @@ pack_unpack(VALUE str, VALUE fmt)
 
 	  case 'Z':
 	    {
-		char *t = s;
+		const char *t = s;
 
 		if (len > send-s) len = send-s;
 		while (t < s+len && *t) t++;
@@ -1411,6 +1411,7 @@ pack_unpack(VALUE str, VALUE fmt)
 		    else bits = *s++;
 		    *t++ = (bits & 1) ? '1' : '0';
 		}
+		RSTRING_SYNC(bitstr);
 	    }
 	    break;
 
@@ -1431,6 +1432,7 @@ pack_unpack(VALUE str, VALUE fmt)
 		    else bits = *s++;
 		    *t++ = (bits & 128) ? '1' : '0';
 		}
+		RSTRING_SYNC(bitstr);
 	    }
 	    break;
 
@@ -1453,6 +1455,7 @@ pack_unpack(VALUE str, VALUE fmt)
 			bits = *s++;
 		    *t++ = hexdigits[bits & 15];
 		}
+		RSTRING_SYNC(bitstr);
 	    }
 	    break;
 
@@ -1475,6 +1478,7 @@ pack_unpack(VALUE str, VALUE fmt)
 			bits = *s++;
 		    *t++ = hexdigits[(bits >> 4) & 15];
 		}
+		RSTRING_SYNC(bitstr);
 	    }
 	    break;
 
@@ -1770,6 +1774,7 @@ pack_unpack(VALUE str, VALUE fmt)
 
 		rb_str_set_len(buf, total);
 		UNPACK_PUSH(buf);
+		RSTRING_SYNC(buf);
 	    }
 	    break;
 
@@ -1820,6 +1825,7 @@ pack_unpack(VALUE str, VALUE fmt)
 		}
 		rb_str_set_len(buf, ptr - RSTRING_PTR(buf));
 		UNPACK_PUSH(buf);
+		RSTRING_SYNC(buf);
 	    }
 	    break;
 
@@ -1848,17 +1854,18 @@ pack_unpack(VALUE str, VALUE fmt)
 		}
 		rb_str_set_len(buf, ptr - RSTRING_PTR(buf));
 		UNPACK_PUSH(buf);
+		RSTRING_SYNC(buf);
 	    }
 	    break;
 
 	  case '@':
-	    if (len > RSTRING_LEN(str))
+	    if (len > RSTRING_CLEN(str))
 		rb_raise(rb_eArgError, "@ outside of string");
-	    s = RSTRING_PTR(str) + len;
+	    s = RSTRING_CPTR(str) + len;
 	    break;
 
 	  case 'X':
-	    if (len > s - RSTRING_PTR(str))
+	    if (len > s - RSTRING_CPTR(str))
 		rb_raise(rb_eArgError, "X outside of string");
 	    s -= len;
 	    break;
@@ -1887,7 +1894,7 @@ pack_unpack(VALUE str, VALUE fmt)
 		    count = RARRAY_LEN(a);
 		    for (i = 0; i < count; i++) {
 			VALUE p = RARRAY_AT(a, i);
-			if (TYPE(p) == T_STRING && RSTRING_PTR(p) == t) {
+			if (TYPE(p) == T_STRING && RSTRING_CPTR(p) == t) {
 			    if (len < RSTRING_LEN(p)) {
 				tmp = rb_tainted_str_new(t, len);
 				rb_str_associate(tmp, a);
@@ -1910,7 +1917,7 @@ pack_unpack(VALUE str, VALUE fmt)
 		    p = RARRAY_PTR(a);
 		    pend = p + RARRAY_LEN(a);
 		    while (p < pend) {
-			if (TYPE(*p) == T_STRING && RSTRING_PTR(*p) == t) {
+			if (TYPE(*p) == T_STRING && RSTRING_CPTR(*p) == t) {
 			    if (len < RSTRING_LEN(*p)) {
 				tmp = rb_tainted_str_new(t, len);
 				rb_str_associate(tmp, a);
@@ -1958,7 +1965,7 @@ pack_unpack(VALUE str, VALUE fmt)
 			count = RARRAY_LEN(a);
 			for (i = 0; i < count; i++) {
 			    VALUE p = RARRAY_AT(a, i);
-			    if (TYPE(p) == T_STRING && RSTRING_PTR(p) == t) {
+			    if (TYPE(p) == T_STRING && RSTRING_CPTR(p) == t) {
 				tmp = p;
 				break;
 			    }
@@ -1975,7 +1982,7 @@ pack_unpack(VALUE str, VALUE fmt)
 			p = RARRAY_PTR(a);
 			pend = p + RARRAY_LEN(a);
 			while (p < pend) {
-			    if (TYPE(*p) == T_STRING && RSTRING_PTR(*p) == t) {
+			    if (TYPE(*p) == T_STRING && RSTRING_CPTR(*p) == t) {
 				tmp = *p;
 				break;
 			    }
