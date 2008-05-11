@@ -320,7 +320,7 @@ enumerator_each(VALUE obj)
 {
     struct enumerator *e;
     int argc = 0;
-    VALUE *argv = 0;
+    const VALUE *argv = 0;
 
     if (!rb_block_given_p()) return obj;
     e = enumerator_ptr(obj);
@@ -353,7 +353,7 @@ enumerator_with_index(VALUE obj)
     struct enumerator *e = enumerator_ptr(obj);
     VALUE memo = 0;
     int argc = 0;
-    VALUE *argv = 0;
+    const VALUE *argv = 0;
 
     RETURN_ENUMERATOR(obj, 0, 0);
     if (e->args) {

@@ -714,7 +714,7 @@ trap_handler(VALUE *cmd, int sig)
 	command = rb_check_string_type(*cmd);
 	if (!NIL_P(command)) {
 	    SafeStringValue(command);	/* taint check */
-	    switch (RSTRING_LEN(command)) {
+	    switch (RSTRING_CLEN(command)) {
 	      case 0:
                 goto sig_ign;
 		break;

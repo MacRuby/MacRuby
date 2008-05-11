@@ -25,13 +25,11 @@ static VALUE rb_hash_s_try_convert(VALUE, VALUE);
 #define HASH_DELETED  FL_USER1
 #define HASH_PROC_DEFAULT FL_USER2
 
-#if !WITH_OBJC
 VALUE
 rb_hash_freeze(VALUE hash)
 {
     return rb_obj_freeze(hash);
 }
-#endif
 
 VALUE rb_cHash;
 #if WITH_OBJC
@@ -269,8 +267,6 @@ rb_cfdictionary_release_cb(CFAllocatorRef allocator, const void *v)
 struct rb_objc_hash_struct {
     VALUE ifnone;
     bool has_proc_default; 
-    bool frozen;
-    bool tainted;
 };
 
 /* This variable will always stay NULL, we only use its address. */
@@ -293,59 +289,8 @@ rb_objc_hash_get_struct2(VALUE hash)
 	rb_objc_set_associative_ref((void *)hash, &rb_objc_hash_assoc_key, s);
 	s->ifnone = Qnil;
 	s->has_proc_default = false;
-	s->frozen = false;
-	s->tainted = false;
     }
     return s;
-}
-
-VALUE
-rb_hash_freeze(VALUE hash)
-{
-    struct rb_objc_hash_struct *s;
-
-    s = rb_objc_hash_get_struct2(hash);
-    s->frozen = true;
-
-    return hash;
-}
-
-VALUE
-rb_hash_frozen(VALUE hash)
-{
-    struct rb_objc_hash_struct *s;
-
-    s = rb_objc_hash_get_struct(hash);
-
-    return s != NULL && s->frozen ? Qtrue : Qfalse;
-}
-
-VALUE
-rb_hash_taint(VALUE hash)
-{
-    rb_objc_hash_get_struct2(hash)->tainted = true;
-    return hash;
-}
-
-VALUE
-rb_hash_untaint(VALUE hash)
-{
-    struct rb_objc_hash_struct *s;
-    s = rb_objc_hash_get_struct(hash);
-    if (s != NULL)
-        s->tainted = false;
-    return hash;
-}
-
-
-VALUE
-rb_hash_tainted(VALUE hash)
-{
-    struct rb_objc_hash_struct *s;
-
-    s = rb_objc_hash_get_struct(hash);
-
-    return s != NULL && s->tainted ? Qtrue : Qfalse;
 }
 
 static void
@@ -357,20 +302,6 @@ rb_objc_hash_set_struct(VALUE hash, VALUE ifnone, bool has_proc_default)
 
     GC_WB(&s->ifnone, ifnone);
     s->has_proc_default = has_proc_default;
-}
-
-static void
-rb_objc_ary_copy_struct(VALUE old, VALUE new)
-{
-    struct rb_objc_hash_struct *s;
-
-    s = rb_objc_hash_get_struct(old);
-    if (s != NULL) {
-	struct rb_objc_hash_struct *n;
-
-	n = rb_objc_hash_get_struct2(new);
-	memcpy(n, s, sizeof(struct rb_objc_hash_struct));
-    }
 }
 #endif
 
@@ -398,6 +329,7 @@ hash_alloc(VALUE klass)
 	*(Class *)hash = RCLASS_OCID(klass);
 
     CFMakeCollectable((CFTypeRef)hash);
+    rb_gc_malloc_increase(sizeof(void *));
 
     return hash;
 #else
@@ -420,36 +352,17 @@ rb_hash_new(void)
 #endif
 }
 
-#if WITH_OBJC
-static VALUE rb_hash_replace(VALUE, VALUE);
-
-VALUE
-rb_hash_clone(VALUE hash)
-{
-    VALUE klass, dup;
-    long n;
-
-    klass = rb_obj_class(hash);
-    dup = hash_alloc(klass);
-    rb_hash_replace(dup, hash);
-    rb_objc_ary_copy_struct(hash, dup);
-    return dup;
-}
-#endif
-
 static void
 rb_hash_modify_check(VALUE hash)
 {
 #if WITH_OBJC
     bool _CFDictionaryIsMutable(void *);
-    if (rb_hash_frozen(hash) == Qtrue) rb_error_frozen("hash");
     if (!_CFDictionaryIsMutable((void *)hash)) 
 	rb_raise(rb_eRuntimeError, "can't modify immutable hash");
-#else
+#endif
     if (OBJ_FROZEN(hash)) rb_error_frozen("hash");
     if (!OBJ_TAINTED(hash) && rb_safe_level() >= 4)
 	rb_raise(rb_eSecurityError, "Insecure: can't modify hash");
-#endif
 }
 
 struct st_table *
@@ -1313,8 +1226,8 @@ rb_hash_aset(VALUE hash, VALUE key, VALUE val)
 {
     rb_hash_modify(hash);
 #if WITH_OBJC
-    if (TYPE(key) == T_STRING)
-	key = rb_obj_dup(key); /* FIXME temporary fix. */
+//    if (TYPE(key) == T_STRING)
+//	key = rb_obj_dup(key); /* FIXME temporary fix. */
     CFDictionarySetValue((CFMutableDictionaryRef)hash, (const void *)key,
 	(const void *)val);
 #else
@@ -2208,12 +2121,12 @@ env_str_new2(const char *ptr)
 static VALUE
 env_delete(VALUE obj, VALUE name)
 {
-    char *nam, *val;
+    const char *nam, *val;
 
     rb_secure(4);
     SafeStringValue(name);
-    nam = RSTRING_PTR(name);
-    if (strlen(nam) != RSTRING_LEN(name)) {
+    nam = RSTRING_CPTR(name);
+    if (strlen(nam) != RSTRING_CLEN(name)) {
 	rb_raise(rb_eArgError, "bad environment variable name");
     }
     val = getenv(nam);
@@ -2247,12 +2160,12 @@ env_delete_m(VALUE obj, VALUE name)
 static VALUE
 rb_f_getenv(VALUE obj, VALUE name)
 {
-    char *nam, *env;
+    const char *nam, *env;
 
     rb_secure(4);
     SafeStringValue(name);
-    nam = RSTRING_PTR(name);
-    if (strlen(nam) != RSTRING_LEN(name)) {
+    nam = RSTRING_CPTR(name);
+    if (strlen(nam) != RSTRING_CLEN(name)) {
 	rb_raise(rb_eArgError, "bad environment variable name");
     }
     env = getenv(nam);
@@ -2278,7 +2191,7 @@ env_fetch(int argc, VALUE *argv)
 {
     VALUE key, if_none;
     long block_given;
-    char *nam, *env;
+    const char *nam, *env;
 
     rb_secure(4);
     rb_scan_args(argc, argv, "11", &key, &if_none);
@@ -2287,8 +2200,8 @@ env_fetch(int argc, VALUE *argv)
 	rb_warn("block supersedes default value argument");
     }
     SafeStringValue(key);
-    nam = RSTRING_PTR(key);
-    if (strlen(nam) != RSTRING_LEN(key)) {
+    nam = RSTRING_CPTR(key);
+    if (strlen(nam) != RSTRING_CLEN(key)) {
 	rb_raise(rb_eArgError, "bad environment variable name");
     }
     env = getenv(nam);
@@ -2309,7 +2222,7 @@ env_fetch(int argc, VALUE *argv)
 }
 
 static void
-path_tainted_p(char *path)
+path_tainted_p(const char *path)
 {
     path_tainted = rb_path_check(path)?0:1;
 }
@@ -2435,7 +2348,7 @@ ruby_unsetenv(const char *name)
 static VALUE
 env_aset(VALUE obj, VALUE nm, VALUE val)
 {
-    char *name, *value;
+    const char *name, *value;
 
     if (rb_safe_level() >= 4) {
 	rb_raise(rb_eSecurityError, "can't change environment variable");
@@ -2446,11 +2359,11 @@ env_aset(VALUE obj, VALUE nm, VALUE val)
     }
     StringValue(nm);
     StringValue(val);
-    name = RSTRING_PTR(nm);
-    value = RSTRING_PTR(val);
-    if (strlen(name) != RSTRING_LEN(nm))
+    name = RSTRING_CPTR(nm);
+    value = RSTRING_CPTR(val);
+    if (strlen(name) != RSTRING_CLEN(nm))
 	rb_raise(rb_eArgError, "bad environment variable name");
-    if (strlen(value) != RSTRING_LEN(val))
+    if (strlen(value) != RSTRING_CLEN(val))
 	rb_raise(rb_eArgError, "bad environment variable value");
 
     ruby_setenv(name, value);
@@ -2756,7 +2669,7 @@ env_has_key(VALUE env, VALUE key)
 
     rb_secure(4);
     s = StringValuePtr(key);
-    if (strlen(s) != RSTRING_LEN(key))
+    if (strlen(s) != RSTRING_CLEN(key))
 	rb_raise(rb_eArgError, "bad environment variable name");
     if (getenv(s)) return Qtrue;
     return Qfalse;
@@ -2769,7 +2682,7 @@ env_assoc(VALUE env, VALUE key)
 
     rb_secure(4);
     s = StringValuePtr(key);
-    if (strlen(s) != RSTRING_LEN(key))
+    if (strlen(s) != RSTRING_CLEN(key))
 	rb_raise(rb_eArgError, "bad environment variable name");
     e = getenv(s);
     if (e) return rb_assoc_new(key, rb_tainted_str_new2(e));
@@ -2789,7 +2702,7 @@ env_has_value(VALUE dmy, VALUE obj)
 	char *s = strchr(*env, '=');
 	if (s++) {
 	    long len = strlen(s);
-	    if (RSTRING_LEN(obj) == len && strncmp(s, RSTRING_PTR(obj), len) == 0) {
+	    if (RSTRING_CLEN(obj) == len && strncmp(s, RSTRING_CPTR(obj), len) == 0) {
 		FREE_ENVIRON(environ);
 		return Qtrue;
 	    }
@@ -2813,7 +2726,7 @@ env_rassoc(VALUE dmy, VALUE obj)
 	char *s = strchr(*env, '=');
 	if (s++) {
 	    long len = strlen(s);
-	    if (RSTRING_LEN(obj) == len && strncmp(s, RSTRING_PTR(obj), len) == 0) {
+	    if (RSTRING_CLEN(obj) == len && strncmp(s, RSTRING_CPTR(obj), len) == 0) {
 		VALUE result = rb_assoc_new(rb_tainted_str_new(*env, s-*env-1), obj);
 		FREE_ENVIRON(environ);
 		return result;
@@ -2838,7 +2751,7 @@ env_key(VALUE dmy, VALUE value)
 	char *s = strchr(*env, '=');
 	if (s++) {
 	    long len = strlen(s);
-	    if (RSTRING_LEN(value) == len && strncmp(s, RSTRING_PTR(value), len) == 0) {
+	    if (RSTRING_CLEN(value) == len && strncmp(s, RSTRING_CPTR(value), len) == 0) {
 		str = env_str_new(*env, s-*env-1);
 		FREE_ENVIRON(environ);
 		return str;
@@ -2895,7 +2808,7 @@ env_shift(void)
 	char *s = strchr(*env, '=');
 	if (s) {
 	    VALUE key = env_str_new(*env, s-*env);
-	    VALUE val = env_str_new2(getenv(RSTRING_PTR(key)));
+	    VALUE val = env_str_new2(getenv(RSTRING_CPTR(key)));
 	    env_delete(Qnil, key);
 	    return rb_assoc_new(key, val);
 	}
@@ -3115,10 +3028,6 @@ Init_Hash(void)
     rb_cHashRuby = rb_objc_import_class((Class)objc_getClass("NSMutableDictionary"));
     FL_UNSET(rb_cHashRuby, RCLASS_OBJC_IMPORTED);
     rb_const_set(rb_cObject, rb_intern("Hash"), rb_cHashRuby);
-    rb_define_method(rb_cHash, "freeze", rb_hash_freeze, 0);
-    rb_define_method(rb_cHash, "frozen?", rb_hash_frozen, 0);
-    rb_define_method(rb_cHash, "taint", rb_hash_taint, 0);
-    rb_define_method(rb_cHash, "tainted?", rb_hash_tainted, 0);
 #else
     rb_cHash = rb_define_class("Hash", rb_cObject);
 #endif

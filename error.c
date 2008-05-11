@@ -447,7 +447,7 @@ exc_inspect(VALUE exc)
 
     klass = CLASS_OF(exc);
     exc = rb_obj_as_string(exc);
-    if (RSTRING_LEN(exc) == 0) {
+    if (RSTRING_CLEN(exc) == 0) {
 	return rb_str_dup(rb_class_name(klass));
     }
 
@@ -768,7 +768,7 @@ name_err_mesg_to_str(VALUE obj)
 	    break;
 	  default:
 	    d = rb_protect(rb_inspect, obj, 0);
-	    if (NIL_P(d) || RSTRING_LEN(d) > 65) {
+	    if (NIL_P(d) || RSTRING_CLEN(d) > 65) {
 		d = rb_any_to_s(obj);
 	    }
 	    desc = RSTRING_CPTR(d);

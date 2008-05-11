@@ -282,7 +282,7 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
     StringValue(fmt);
     enc = rb_enc_get(fmt);
     fmt = rb_str_new4(fmt);
-    p = RSTRING_PTR(fmt);
+    p = RSTRING_PTR(fmt); /* ok */
     end = p + RSTRING_LEN(fmt);
     blen = 0;
     bsiz = 120;

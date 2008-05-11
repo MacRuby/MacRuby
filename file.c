@@ -829,7 +829,7 @@ rb_file_s_lstat(VALUE klass, VALUE fname)
     rb_secure(2);
     FilePathValue(fname);
     if (lstat(StringValueCStr(fname), &st) == -1) {
-	rb_sys_fail(RSTRING_PTR(fname));
+	rb_sys_fail(RSTRING_CPTR(fname));
     }
     return stat_new(&st);
 #else
@@ -1565,13 +1565,13 @@ rb_file_identical_p(VALUE obj, VALUE fname1, VALUE fname2)
     FilePathValue(fname1);
     fname1 = rb_str_new4(fname1);
     FilePathValue(fname2);
-    if (access(RSTRING_PTR(fname1), 0)) return Qfalse;
-    if (access(RSTRING_PTR(fname2), 0)) return Qfalse;
+    if (access(RSTRING_CPTR(fname1), 0)) return Qfalse;
+    if (access(RSTRING_CPTR(fname2), 0)) return Qfalse;
 #endif
     fname1 = rb_file_expand_path(fname1, Qnil);
     fname2 = rb_file_expand_path(fname2, Qnil);
-    if (RSTRING_LEN(fname1) != RSTRING_LEN(fname2)) return Qfalse;
-    if (rb_memcicmp(RSTRING_PTR(fname1), RSTRING_PTR(fname2), RSTRING_LEN(fname1)))
+    if (RSTRING_CLEN(fname1) != RSTRING_CLEN(fname2)) return Qfalse;
+    if (rb_memcicmp(RSTRING_CPTR(fname1), RSTRING_CPTR(fname2), RSTRING_CLEN(fname1)))
 	return Qfalse;
 #endif
     return Qtrue;
@@ -1658,7 +1658,7 @@ rb_file_s_ftype(VALUE klass, VALUE fname)
     rb_secure(2);
     FilePathValue(fname);
     if (lstat(StringValueCStr(fname), &st) == -1) {
-	rb_sys_fail(RSTRING_PTR(fname));
+	rb_sys_fail(RSTRING_CPTR(fname));
     }
 
     return rb_file_ftype(&st);
@@ -1724,7 +1724,7 @@ rb_file_s_mtime(VALUE klass, VALUE fname)
     struct stat st;
 
     if (rb_stat(fname, &st) < 0)
-	rb_sys_fail(RSTRING_PTR(fname));
+	rb_sys_fail(RSTRING_CPTR(fname));
     return stat_mtime(&st);
 }
 
@@ -1769,7 +1769,7 @@ rb_file_s_ctime(VALUE klass, VALUE fname)
     struct stat st;
 
     if (rb_stat(fname, &st) < 0)
-	rb_sys_fail(RSTRING_PTR(fname));
+	rb_sys_fail(RSTRING_CPTR(fname));
     return stat_ctime(&st);
 }
 
@@ -2159,7 +2159,7 @@ sys_fail2(VALUE s1, VALUE s2)
 #endif
     const char *e1, *e2;
     int len = 5;
-    int l1 = RSTRING_LEN(s1), l2 = RSTRING_LEN(s2);
+    int l1 = RSTRING_CLEN(s1), l2 = RSTRING_CLEN(s2);
 
     e1 = e2 = "";
     if (l1 > max_pathlen) {
@@ -2175,8 +2175,8 @@ sys_fail2(VALUE s1, VALUE s2)
     len += l1 + l2;
     buf = ALLOCA_N(char, len);
     snprintf(buf, len, "(%.*s%s, %.*s%s)",
-	     l1, RSTRING_PTR(s1), e1,
-	     l2, RSTRING_PTR(s2), e2);
+	     l1, RSTRING_CPTR(s1), e1,
+	     l2, RSTRING_CPTR(s2), e2);
     rb_sys_fail(buf);
 }
 
@@ -2263,7 +2263,7 @@ rb_file_s_readlink(VALUE klass, VALUE path)
     rb_secure(2);
     FilePathValue(path);
     buf = xmalloc(size);
-    while ((rv = readlink(RSTRING_PTR(path), buf, size)) == size
+    while ((rv = readlink(RSTRING_CPTR(path), buf, size)) == size
 #ifdef _AIX
 	    || (rv < 0 && errno == ERANGE) /* quirky behavior of GPFS */
 #endif
@@ -2273,7 +2273,7 @@ rb_file_s_readlink(VALUE klass, VALUE path)
     }
     if (rv < 0) {
 	free(buf);
-	rb_sys_fail(RSTRING_PTR(path));
+	rb_sys_fail(RSTRING_CPTR(path));
     }
     v = rb_tainted_str_new(buf, rv);
     xfree(buf);
@@ -2835,7 +2835,7 @@ static VALUE
 rb_file_s_basename(int argc, VALUE *argv)
 {
     VALUE fname, fext, basename;
-    char *name, *p;
+    const char *name, *p;
 #if defined DOSISH_DRIVE_LETTER || defined DOSISH_UNC
     char *root;
 #endif
@@ -3139,7 +3139,7 @@ rb_file_s_truncate(VALUE klass, VALUE path, VALUE len)
     FilePathValue(path);
 #ifdef HAVE_TRUNCATE
     if (truncate(StringValueCStr(path), pos) < 0)
-	rb_sys_fail(RSTRING_PTR(path));
+	rb_sys_fail(RSTRING_CPTR(path));
 #else
 # ifdef HAVE_CHSIZE
     {
@@ -3147,16 +3147,16 @@ rb_file_s_truncate(VALUE klass, VALUE path, VALUE len)
 
 #  ifdef _WIN32
 	if ((tmpfd = open(StringValueCStr(path), O_RDWR)) < 0) {
-	    rb_sys_fail(RSTRING_PTR(path));
+	    rb_sys_fail(RSTRING_CPTR(path));
 	}
 #  else
 	if ((tmpfd = open(StringValueCStr(path), 0)) < 0) {
-	    rb_sys_fail(RSTRING_PTR(path));
+	    rb_sys_fail(RSTRING_CPTR(path));
 	}
 #  endif
 	if (chsize(tmpfd, pos) < 0) {
 	    close(tmpfd);
-	    rb_sys_fail(RSTRING_PTR(path));
+	    rb_sys_fail(RSTRING_CPTR(path));
 	}
 	close(tmpfd);
     }
@@ -3481,7 +3481,7 @@ rb_f_test(int argc, VALUE *argv)
 
 	CHECK(1);
 	if (rb_stat(argv[1], &st) == -1) {
-	    rb_sys_fail(RSTRING_PTR(argv[1]));
+	    rb_sys_fail(RSTRING_CPTR(argv[1]));
 	}
 
 	switch (cmd) {
@@ -3570,7 +3570,7 @@ rb_stat_init(VALUE obj, VALUE fname)
     rb_secure(2);
     FilePathValue(fname);
     if (stat(StringValueCStr(fname), &st) == -1) {
-	rb_sys_fail(RSTRING_PTR(fname));
+	rb_sys_fail(RSTRING_CPTR(fname));
     }
     if (DATA_PTR(obj)) {
 	free(DATA_PTR(obj));
@@ -4212,7 +4212,7 @@ static int
 path_check_0(VALUE path, int execpath)
 {
     struct stat st;
-    char *p0 = StringValueCStr(path);
+    const char *p0 = StringValueCStr(path);
     char *p = 0, *s;
 
     if (!is_absolute_path(p0)) {
@@ -4225,7 +4225,7 @@ path_check_0(VALUE path, int execpath)
 	rb_str_cat2(newpath, "/");
 	rb_str_cat2(newpath, p0);
 	path = newpath;
-	p0 = RSTRING_PTR(path);
+	p0 = RSTRING_CPTR(path);
     }
     for (;;) {
 #ifndef S_IWOTH
@@ -4307,8 +4307,8 @@ extern VALUE rb_load_path;
 int
 rb_find_file_ext(VALUE *filep, const char *const *ext)
 {
-    char *path, *found;
-    char *f = RSTRING_PTR(*filep);
+    const char *path, *found;
+    const char *f = RSTRING_CPTR(*filep);
     VALUE fname;
     long i, j;
 
@@ -4346,8 +4346,8 @@ rb_find_file_ext(VALUE *filep, const char *const *ext)
 	    VALUE str = RARRAY_AT(rb_load_path, i);
 
 	    FilePathValue(str);
-	    if (RSTRING_LEN(str) == 0) continue;
-	    path = RSTRING_PTR(str);
+	    if (RSTRING_CLEN(str) == 0) continue;
+	    path = RSTRING_CPTR(str);
 	    found = dln_find_file(StringValueCStr(fname), path);
 	    if (found && file_load_ok(found)) {
 		*filep = rb_str_new2(found);
@@ -4363,7 +4363,7 @@ rb_find_file(VALUE path)
 {
     VALUE tmp;
     char *f = StringValueCStr(path);
-    char *lpath;
+    const char *lpath;
 
     if (f[0] == '~') {
 	path = rb_file_expand_path(path, Qnil);
@@ -4402,16 +4402,16 @@ rb_find_file(VALUE path)
 	for (i=0, count=RARRAY_LEN(rb_load_path);i < count;i++) {
 	    VALUE str = RARRAY_AT(rb_load_path, i);
 	    FilePathValue(str);
-	    if (RSTRING_LEN(str) > 0) {
+	    if (RSTRING_CLEN(str) > 0) {
 		rb_ary_push(tmp, str);
 	    }
 	}
 	tmp = rb_ary_join(tmp, rb_str_new2(PATH_SEP));
-	if (RSTRING_LEN(tmp) == 0) {
+	if (RSTRING_CLEN(tmp) == 0) {
 	    lpath = 0;
 	}
 	else {
-	    lpath = RSTRING_PTR(tmp);
+	    lpath = RSTRING_CPTR(tmp);
 	}
     }
     else {

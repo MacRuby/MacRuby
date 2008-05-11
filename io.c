@@ -464,6 +464,11 @@ io_alloc(VALUE klass)
 
     io->fptr = 0;
 
+#if WITH_OBJC
+    void rb_objc_keep_for_exit_finalize(VALUE);
+    rb_objc_keep_for_exit_finalize((VALUE)io);
+#endif
+
     return (VALUE)io;
 }
 

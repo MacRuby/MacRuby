@@ -574,7 +574,7 @@ rb_cstr_to_inum(const char *str, int base, int badcheck)
 VALUE
 rb_str_to_inum(VALUE str, int base, int badcheck)
 {
-    char *s;
+    const char *s;
     long len;
 
     StringValue(str);
@@ -880,7 +880,7 @@ big2str_karatsuba(VALUE x, int base, char* ptr,
 
     if (FIXNUM_P(x)) {
         VALUE str = rb_fix2str(x, base);
-        char* str_ptr = RSTRING_CPTR(str);
+        const char* str_ptr = RSTRING_CPTR(str);
         long str_len = RSTRING_CLEN(str);
         if (trim) {
             if (FIX2INT(x) == 0) return 0;

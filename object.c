@@ -159,19 +159,8 @@ init_copy(VALUE dest, VALUE obj)
 {
 #if WITH_OBJC
     if (rb_objc_is_non_native(obj)) {
-	int type = TYPE(obj);
-	if (type == T_ARRAY) {
-	    if (rb_ary_tainted(obj)) 
-		rb_ary_taint(dest);
-	}
-	else if (type == T_HASH) {
-	    if (rb_hash_tainted(obj)) 
-		rb_hash_taint(dest);
-	}
-	else if (type == T_STRING) {
-	    if (rb_str_tainted(obj)) 
-		rb_str_taint(dest);
-	}
+	if (rb_objc_flag_check(obj, FL_TAINT))
+	    rb_objc_flag_set(dest, FL_TAINT);
 	goto call_init_copy;
     }
 #endif
@@ -253,15 +242,10 @@ rb_obj_clone(VALUE obj)
     }
 #if WITH_OBJC
     if (rb_objc_is_non_native(obj)) {
-	int type = TYPE(obj);
-	if (type == T_ARRAY)
-	    return rb_ary_clone(obj);
-	if (type == T_HASH)
-	    return rb_hash_clone(obj);
-	if (type == T_STRING)
-	    return rb_str_clone(obj);
         clone = rb_obj_alloc(rb_obj_class(obj));
         init_copy(clone, obj);
+	if (OBJ_FROZEN(obj))
+	    OBJ_FREEZE(clone);
 	return clone;
     }
 #endif
@@ -354,12 +338,20 @@ inspect_i(ID id, VALUE value, VALUE str)
 {
     VALUE str2;
     const char *ivname;
+    const char *cstr;
+
+    cstr = RSTRING_CPTR(str);
 
     /* need not to show internal data */
     if (CLASS_OF(value) == 0) return ST_CONTINUE;
     if (!rb_is_instance_id(id)) return ST_CONTINUE;
-    if (RSTRING_PTR(str)[0] == '-') { /* first element */
+
+    if (cstr[0] == '-') { /* first element */
+#if WITH_OBJC
+	rb_str_update(str, 0, 0, rb_str_new2("#"));
+#else
 	RSTRING_PTR(str)[0] = '#';
+#endif
 	rb_str_cat2(str, " ");
     }
     else {
@@ -385,7 +377,11 @@ inspect_obj(VALUE obj, VALUE str, int recur)
 	rb_ivar_foreach(obj, inspect_i, str);
     }
     rb_str_cat2(str, ">");
+#if WITH_OBJC
+    rb_str_update(str, 0, 0, rb_str_new2("#"));
+#else
     RSTRING_PTR(str)[0] = '#';
+#endif
     OBJ_INFECT(str, obj);
 
     return str;
@@ -683,14 +679,7 @@ rb_obj_tainted(VALUE obj)
 {
 #if WITH_OBJC
     if (!SPECIAL_CONST_P(obj) && rb_objc_is_non_native(obj)) {
-	int type = TYPE(obj);
-	if (type == T_ARRAY)
-	    return rb_ary_tainted(obj);
-	if (type == T_HASH)
-	    return rb_hash_tainted(obj);
-	if (type == T_STRING)
-	    return rb_str_tainted(obj);
-	return Qfalse;
+	return rb_objc_flag_check(obj, FL_TAINT) ? Qtrue : Qfalse;
     }
 #endif
     if (FL_TEST(obj, FL_TAINT))
@@ -713,14 +702,8 @@ rb_obj_taint(VALUE obj)
     rb_secure(4);
 #if WITH_OBJC
     if (!SPECIAL_CONST_P(obj) && rb_objc_is_non_native(obj)) {
-	int type = TYPE(obj);
-	if (type == T_ARRAY)
-	    return rb_ary_taint(obj);
-	if (type == T_HASH)
-	    return rb_hash_taint(obj);
-	if (type == T_STRING)
-	    return rb_str_taint(obj);
-	rb_raise(rb_eRuntimeError, "can't taint pure objc objects");
+	rb_objc_flag_set(obj, FL_TAINT, true);
+	return obj;
     }
 #endif
     if (!OBJ_TAINTED(obj)) {
@@ -746,16 +729,8 @@ rb_obj_untaint(VALUE obj)
     rb_secure(3);
 #if WITH_OBJC
     if (!SPECIAL_CONST_P(obj) && rb_objc_is_non_native(obj)) {
-	int type = TYPE(obj);
-	if (type == T_ARRAY)
-	    return rb_ary_untaint(obj);
-	else if (type == T_HASH)
-	    return rb_hash_untaint(obj);
-	else if (type == T_STRING)
-	    return rb_str_untaint(obj);
-	else
-	    rb_raise(rb_eRuntimeError, "can't untaint pure objc object `%s'",
-		    RSTRING_PTR(rb_inspect(obj)));
+	rb_objc_flag_set(obj, FL_TAINT, false);
+	return obj;
     }
 #endif
     if (OBJ_TAINTED(obj)) {
@@ -810,18 +785,7 @@ rb_obj_freeze(VALUE obj)
 	}
 #if WITH_OBJC
 	else if (rb_objc_is_non_native(obj)) {
-	    int type = TYPE(obj);
-	    if (type == T_ARRAY)
-		return rb_ary_freeze(obj);
-	    else if (type == T_HASH)
-		return rb_hash_freeze(obj);
-	    else if (type == T_STRING)
-		return rb_str_freeze(obj);
-	    else {
-		if (rb_cString != 0 && rb_cArray != 0 && rb_cHash != 0)
-		    rb_raise(rb_eRuntimeError, "can't freeze pure objc " \
-			     "object `%p'", RSTRING_CPTR(rb_inspect(obj)));
-	    }
+	    rb_objc_flag_set(obj, FL_FREEZE, true);
 	}
 #endif
 	else {
@@ -851,14 +815,7 @@ rb_obj_frozen_p(VALUE obj)
     }
 #if WITH_OBJC
     if (rb_objc_is_non_native(obj)) {
-	int type = TYPE(obj);
-	if (type == T_ARRAY)
-	    return rb_ary_frozen_p(obj);
-	if (type == T_HASH)
-	    return rb_hash_frozen(obj);
-	if (type == T_STRING)
-	    return rb_str_frozen(obj);
-	return Qfalse;
+	return rb_objc_flag_check(obj, FL_FREEZE) ? Qtrue : Qfalse;
     }
 #endif
     if (FL_TEST(obj, FL_FREEZE)) return Qtrue;
@@ -1522,15 +1479,9 @@ rb_class_new_instance(int argc, VALUE *argv, VALUE klass)
 #if WITH_OBJC
     if (FL_TEST(klass, RCLASS_OBJC_IMPORTED)) {
 	static SEL sel_new = 0;
-	id ocid;
 	if (sel_new == 0)
 	    sel_new = sel_registerName("new");
-	ocid = objc_msgSend((id)RCLASS_OCID(klass), sel_new);
-	/* FIXME this is a temporary solution until the Ruby primitive classes
-	 * are re-implemented using their CF equivalents.
-	 */
-	unsigned rb_objc_ocid_to_rval(void **ocval, VALUE *rbval);
-	rb_objc_ocid_to_rval((void **)&ocid, &obj);
+	obj = (VALUE)objc_msgSend((id)RCLASS_OCID(klass), sel_new);
 	return obj;
     }
 #endif
@@ -2229,12 +2180,12 @@ rb_cstr_to_dbl(const char *p, int badcheck)
 double
 rb_str_to_dbl(VALUE str, int badcheck)
 {
-    char *s;
+    const char *s;
     long len;
 
     StringValue(str);
-    s = RSTRING_PTR(str);
-    len = RSTRING_LEN(str);
+    s = RSTRING_CPTR(str);
+    len = RSTRING_CLEN(str);
     if (s) {
 	if (s[len]) {		/* no sentinel somehow */
 	    char *p = ALLOCA_N(char, len+1);
@@ -2321,15 +2272,15 @@ rb_num2dbl(VALUE val)
     return RFLOAT_VALUE(rb_Float(val));
 }
 
-char*
+const char*
 rb_str2cstr(VALUE str, long *len)
 {
     StringValue(str);
-    if (len) *len = RSTRING_LEN(str);
-    else if (RTEST(ruby_verbose) && RSTRING_LEN(str) != strlen(RSTRING_PTR(str))) {
+    if (len) *len = RSTRING_CLEN(str);
+    else if (RTEST(ruby_verbose) && RSTRING_CLEN(str) != strlen(RSTRING_CPTR(str))) {
 	rb_warn("string contains \\0 character");
     }
-    return RSTRING_PTR(str);
+    return RSTRING_CPTR(str);
 }
 
 VALUE

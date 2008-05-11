@@ -2506,11 +2506,10 @@ dyld_add_image_cb(const struct mach_header* mh, intptr_t vmaddr_slide)
 }
 #endif
 
+#if 0
 /* XXX the ivar cluster API is not used yet, and may not simply be used. 
  */
-
 #define IVAR_CLUSTER_NAME "__rivars__"
-
 void
 rb_objc_install_ivar_cluster(Class klass)
 {
@@ -2530,6 +2529,48 @@ void
 rb_objc_set_ivar_cluster(void *obj, void *v)
 {
     assert(object_setInstanceVariable((id)obj, IVAR_CLUSTER_NAME, v) != NULL);
+}
+#endif
+
+static CFMutableDictionaryRef __obj_flags;
+
+bool
+rb_objc_flag_check(const void *obj, int flag)
+{
+    long v;
+
+    if (__obj_flags == NULL)
+	return false;
+ 
+    v = (long)CFDictionaryGetValue(__obj_flags, obj);
+    if (v == 0)
+	return false;
+
+    return (v & flag) == flag;
+}
+
+void
+rb_objc_flag_set(const void *obj, int flag, bool val)
+{
+    long v;
+
+    if (__obj_flags == NULL) {
+	__obj_flags = CFDictionaryCreateMutable(NULL, 0, NULL, NULL);
+    }
+    v = (long)CFDictionaryGetValue(__obj_flags, obj);
+    if (val) {
+	v |= flag;
+    }
+    else {
+	v ^= flag;
+    }
+    CFDictionarySetValue(__obj_flags, obj, (void *)v);
+}
+
+void
+rb_objc_remove_keys(const void *obj)
+{
+    CFDictionaryRemoveValue(__obj_flags, obj);
 }
 
 static void

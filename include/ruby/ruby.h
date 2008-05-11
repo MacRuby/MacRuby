@@ -369,7 +369,7 @@ double rb_num2dbl(VALUE);
 #define NUM2DBL(x) rb_num2dbl((VALUE)(x))
 
 /* obsolete API - use StringValue() */
-char *rb_str2cstr(VALUE,long*);
+const char *rb_str2cstr(VALUE,long*);
 /* obsolete API - use StringValuePtr() */
 #define STR2CSTR(x) rb_str2cstr((VALUE)(x),0)
 
@@ -389,14 +389,10 @@ void *rb_objc_newobj(size_t size);
     if (rb_safe_level() >= 3) FL_SET(obj, FL_TAINT);\
 } while (0)
 #if WITH_OBJC
-void rb_objc_keep_for_exit_finalize(VALUE v);
 # define OBJSETUP(obj,c,t) do {\
     __OBJSETUP(obj,c,t);\
     if (c != 0) \
 	RBASIC(obj)->isa = (void *)RCLASS_OCID(c); \
-    if (!SPECIAL_CONST_P(obj) \
-	&& (BUILTIN_TYPE(obj) == T_FILE /*|| BUILTIN_TYPE(obj) == T_DATA*/)) \
-	rb_objc_keep_for_exit_finalize((VALUE)obj); \
 } while (0)
 #else
 # define OBJSETUP(obj,c,t) __OBJSETUP(obj,c,t)

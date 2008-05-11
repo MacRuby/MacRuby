@@ -43,8 +43,6 @@ memfill(register VALUE *mem, register long size, register VALUE val)
 #if WITH_OBJC
 /* TODO optimize this */
 struct rb_objc_ary_struct {
-    bool frozen;
-    bool tainted;
     bool named_args;
     void *cptr;
 };
@@ -67,26 +65,10 @@ rb_objc_ary_get_struct2(VALUE ary)
     if (s == NULL) {
 	s = xmalloc(sizeof(struct rb_objc_ary_struct));
 	rb_objc_set_associative_ref((void *)ary, &rb_objc_ary_assoc_key, s);
-	s->frozen = false;
-	s->tainted = false;
 	s->named_args = false;
 	s->cptr = NULL;
     }
     return s;
-}
-
-static void
-rb_objc_ary_copy_struct(VALUE old, VALUE new)
-{
-    struct rb_objc_ary_struct *s;
-
-    s = rb_objc_ary_get_struct(old);
-    if (s != NULL) {
-	struct rb_objc_ary_struct *n;
-
-	n = rb_objc_ary_get_struct2(new);
-	memcpy(n, s, sizeof(struct rb_objc_ary_struct));
-    }
 }
 #else
 #define ARY_SHARED_P(a) FL_TEST(a, ELTS_SHARED)
@@ -109,14 +91,12 @@ rb_ary_modify_check(VALUE ary)
 {
 #if WITH_OBJC
     bool _CFArrayIsMutable(void *);
-    if (rb_ary_frozen_p(ary) == Qtrue) rb_error_frozen("hash");
     if (!_CFArrayIsMutable((void *)ary))
 	rb_raise(rb_eRuntimeError, "can't modify immutable array");
-#else
+#endif
     if (OBJ_FROZEN(ary)) rb_error_frozen("array");
     if (!OBJ_TAINTED(ary) && rb_safe_level() >= 4)
 	rb_raise(rb_eSecurityError, "Insecure: can't modify array");
-#endif
 }
 
 static void
@@ -139,39 +119,8 @@ rb_ary_modify(VALUE ary)
 VALUE
 rb_ary_freeze(VALUE ary)
 {
-#if WITH_OBJC
-    rb_objc_ary_get_struct2(ary)->frozen = true;
-    return ary;
-#else
     return rb_obj_freeze(ary);
-#endif
 }
-
-#if WITH_OBJC
-VALUE
-rb_ary_taint(VALUE ary)
-{
-    rb_objc_ary_get_struct2(ary)->tainted = true;
-    return ary;
-}
-
-VALUE 
-rb_ary_untaint(VALUE ary)
-{
-    struct rb_objc_ary_struct *s;
-    s = rb_objc_ary_get_struct(ary);
-    if (s != NULL)
-        s->tainted = false;
-    return ary;
-}
-
-VALUE
-rb_ary_tainted(VALUE ary)
-{
-    struct rb_objc_ary_struct *s = rb_objc_ary_get_struct(ary);
-    return s != NULL && s->tainted ? Qtrue : Qfalse;
-}
-#endif
 
 /*
  *  call-seq:
@@ -184,13 +133,8 @@ rb_ary_tainted(VALUE ary)
 VALUE
 rb_ary_frozen_p(VALUE ary)
 {
-#if WITH_OBJC
-    struct rb_objc_ary_struct *s = rb_objc_ary_get_struct(ary);
-    return s != NULL && s->frozen ? Qtrue : Qfalse;
-#else
     if (OBJ_FROZEN(ary)) return Qtrue;
     return Qfalse;
-#endif
 }
 
 #if WITH_OBJC
@@ -236,7 +180,8 @@ ary_alloc(VALUE klass)
         *(Class *)ary = RCLASS_OCID(klass);
 
     CFMakeCollectable((CFTypeRef)ary);
-
+    rb_gc_malloc_increase(sizeof(void *));
+    
     return ary;
 #else
     NEWOBJ(ary, struct RArray);
@@ -1589,14 +1534,6 @@ rb_ary_dup2(VALUE ary)
     if (n > 0)
 	CFArrayAppendArray((CFMutableArrayRef)dup, (CFArrayRef)ary,
 		CFRangeMake(0, n));
-    return dup;
-}
-
-VALUE
-rb_ary_clone(VALUE ary)
-{
-    VALUE dup = rb_ary_dup2(ary);
-    rb_objc_ary_copy_struct(ary, dup);
     return dup;
 }
 #endif
@@ -4033,9 +3970,6 @@ Init_Array(void)
 	rb_objc_import_class((Class)objc_getClass("NSMutableArray"));
     FL_UNSET(rb_cArrayRuby, RCLASS_OBJC_IMPORTED);
     rb_const_set(rb_cObject, rb_intern("Array"), rb_cArrayRuby);
-    rb_define_method(rb_cArray, "freeze", rb_ary_freeze, 0);
-    rb_define_method(rb_cArray, "taint", rb_ary_taint, 0);
-    rb_define_method(rb_cArray, "tainted?", rb_ary_tainted, 0);
 #else
     rb_cArray  = rb_define_class("Array", rb_cObject);
 #endif

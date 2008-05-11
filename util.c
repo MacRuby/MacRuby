@@ -279,13 +279,13 @@ ruby_add_suffix(VALUE str, const char *suffix)
     long slen;
     char buf[1024];
 
-    if (RSTRING_LEN(str) > 1000)
+    if (RSTRING_CLEN(str) > 1000)
         rb_fatal("Cannot do inplace edit on long filename (%ld characters)",
-		 RSTRING_LEN(str));
+		 RSTRING_CLEN(str));
 
 #if defined(DJGPP) || defined(__CYGWIN32__) || defined(_WIN32)
     /* Style 0 */
-    slen = RSTRING_LEN(str);
+    slen = RSTRING_CLEN(str);
     rb_str_cat(str, suffix, extlen);
 #if defined(DJGPP)
     if (_USE_LFN) return;

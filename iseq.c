@@ -811,7 +811,7 @@ ruby_iseq_disasm(VALUE self)
     rb_str_cat2(str, "== disasm: ");
 
     rb_str_concat(str, iseq_inspect(iseqdat->self));
-    if ((i = RSTRING_LEN(str)) < header_minlen) {
+    if ((i = RSTRING_CLEN(str)) < header_minlen) {
 	rb_str_resize(str, header_minlen);
 	memset(RSTRING_PTR(str) + i, '=', header_minlen - i);
 	RSTRING_SYNC(str);

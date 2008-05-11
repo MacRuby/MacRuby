@@ -1,4 +1,4 @@
-  /**********************************************************************
+/**********************************************************************
 
   gc.c -
 
@@ -36,7 +36,7 @@
 #endif
 
 #if WITH_OBJC
-# if HAVE_AUTO_ZONE_H
+# if 1//HAVE_AUTO_ZONE_H
 #  include <auto_zone.h>
 # else
 #  include <malloc/malloc.h>
@@ -45,7 +45,9 @@ typedef malloc_zone_t auto_zone_t;
 #define AUTO_MEMORY_UNSCANNED 1
 #define AUTO_OBJECT_SCANNED   2
 #define AUTO_OBJECT_UNSCANNED 3 
+#define AUTO_COLLECT_RATIO_COLLECTION (0 << 0)
 #define AUTO_COLLECT_GENERATIONAL_COLLECTION (1 << 0)
+#define AUTO_COLLECT_FULL_COLLECTION (1 << 0)
 #define AUTO_LOG_COLLECTIONS (1 << 1)
 #define AUTO_LOG_REGIONS (1 << 4)
 #define AUTO_LOG_UNUSUAL (1 << 5)
@@ -76,9 +78,18 @@ typedef struct {
     size_t unused11;
 } auto_collection_control_t;
 extern auto_collection_control_t *auto_collection_parameters(auto_zone_t *);
+typedef struct {
+    malloc_statistics_t malloc_statistics;
+    uint32_t            version;
+    size_t              num_collections[2];
+    boolean_t           last_collection_was_generational;
+    size_t              bytes_in_use_after_last_collection[2];
+    size_t              bytes_allocated_after_last_collection[2];
+    size_t              bytes_freed_during_last_collection[2];
+    // durations not included
+} auto_statistics_t;
 # endif
 static auto_zone_t *__auto_zone = NULL;
-static long gc_count = 0;
 static long xmalloc_count = 0;
 #endif
 
@@ -283,6 +294,14 @@ gc_stress_set(VALUE self, VALUE flag)
     return flag;
 }
 
+void
+rb_gc_malloc_increase(size_t size)
+{
+    malloc_increase += size;
+    if (!dont_gc && (ruby_gc_stress || malloc_increase > malloc_limit))
+	garbage_collect();
+}
+
 void *
 ruby_xmalloc(size_t size)
 {
@@ -292,11 +311,7 @@ ruby_xmalloc(size_t size)
 	rb_raise(rb_eNoMemError, "negative allocation size (or too big)");
     }
     if (size == 0) size = 1;
-    malloc_increase += size;
-
-    if (ruby_gc_stress || malloc_increase > malloc_limit) {
-	garbage_collect();
-    }
+    rb_gc_malloc_increase(size);
 #if WITH_OBJC
     if (__auto_zone == NULL) {
     	fprintf(stderr,
@@ -402,7 +417,6 @@ ruby_xfree(void *x)
 	RUBY_CRITICAL(free(x));
 #endif
 }
-
 
 /*
  *  call-seq:
@@ -628,72 +642,6 @@ rb_newobj(void)
 
 #else /* !WITH_OBJC */
 
-struct finalize_at_exit {
-    VALUE v;
-    struct finalize_at_exit *next;
-};
-
-static struct finalize_at_exit *finalize_at_exit_head = NULL;
-
-void
-rb_objc_keep_for_exit_finalize(VALUE v)
-{
-    if (finalize_at_exit_head == NULL) {
-	finalize_at_exit_head = (struct finalize_at_exit *)malloc(
-	    sizeof(struct finalize_at_exit));
-	finalize_at_exit_head->v = v;
-	finalize_at_exit_head->next = NULL;
-    }
-    else {
-	struct finalize_at_exit *entry;
-	entry = (struct finalize_at_exit *)malloc(
-	    sizeof(struct finalize_at_exit));
-	entry->v = v;
-	entry->next = finalize_at_exit_head;
-	finalize_at_exit_head = entry;
-    }
-}
-
-static inline void
-rb_objc_finalize(VALUE obj) 
-{
-    struct finalize_at_exit *entry;
-    
-    //printf("rb_objc_finalize %p\n", (void *)obj);
-
-    for (entry = finalize_at_exit_head; entry != NULL; entry = entry->next) {
-	if (obj == entry->v)
-	    entry->v = Qnil;
-    }
-
-    switch (RBASIC(obj)->flags & T_MASK) {
-    	case T_FILE:
-	    if (RFILE(obj)->fptr != NULL)
-		rb_io_fptr_finalize(RFILE(obj)->fptr);
-	    break;
-	default:
-	    rb_bug("rb_objc_finalize: unhandled object type 0x%X",
-		   RBASIC(obj)->flags & T_MASK);
-    }
-}
-
-static id
-rb_objc_imp_finalize(id rcv, SEL sel)
-{
-    void *p;
-
-    assert(!rb_objc_is_non_native((VALUE)rcv));
-    rb_objc_finalize((VALUE)rcv);    
-}
-
-static void
-rb_objc_define_finalizer(VALUE klass)
-{
-    Class ocklass = (Class)RCLASS(klass)->ocklass;
-    assert(class_addMethod(ocklass, sel_registerName("finalize"), 
-			   (IMP)rb_objc_imp_finalize, "@@:")); 
-}
-
 void
 rb_objc_wb(void *dst, void *newval)
 {
@@ -782,9 +730,7 @@ void *
 rb_objc_newobj(size_t size)
 {
     void *obj;
-    malloc_increase += size;
-    if (!dont_gc && (ruby_gc_stress || malloc_increase > malloc_limit))
-	garbage_collect();
+    rb_gc_malloc_increase(size);
 #if USE_OBJECTS_POOL
     if (objects_pool == NULL) 
 	objects_pool = malloc(sizeof(void *) * OBJECTS_POOL_SIZE);
@@ -1873,24 +1819,8 @@ garbage_collect(void)
 {
     if (dont_gc)
 	return Qtrue;
-
     auto_collect(__auto_zone, AUTO_COLLECT_GENERATIONAL_COLLECTION, NULL);
-
-    gc_count++;
-#if 0
-    if (malloc_increase > malloc_limit) {
-	auto_statistics_t stats;
-	size_t live, freed;
-	auto_zone_statistics(__auto_zone, &stats);
-	live = stats.bytes_in_use_after_last_collection[1] / sizeof(RVALUE);
-	freed = stats.bytes_freed_during_last_collection[1] / sizeof(RVALUE);
-	malloc_limit += (malloc_increase - malloc_limit) * (double)live / (live + freed);
-	if (malloc_limit < GC_MALLOC_LIMIT) malloc_limit = GC_MALLOC_LIMIT;
-	printf("malloc_increase was %ld, malloc_limit is now %ld\n", malloc_increase, malloc_limit);
-    }
-#endif
     malloc_increase = 0;
-
     return Qtrue;
 }
 #endif
@@ -2403,15 +2333,46 @@ assert(0);
 }
 
 #if WITH_OBJC
+static CFMutableArrayRef __exit_finalize = NULL;
+
+static void
+rb_objc_finalize_pure_ruby_obj(VALUE obj)
+{
+    switch (RBASIC(obj)->flags & T_MASK) {
+	case T_FILE:
+	    if (RFILE(obj)->fptr != NULL) {
+		rb_io_fptr_finalize(RFILE(obj)->fptr);
+	    }
+	    break;
+    }
+}
+
+void
+rb_objc_keep_for_exit_finalize(VALUE v)
+{
+    if (__exit_finalize == NULL) {
+	__exit_finalize = CFArrayCreateMutable(NULL, 0, 
+	    &kCFTypeArrayCallBacks);
+    }
+    CFArrayAppendValue(__exit_finalize, (void *)v);
+}
 
 void
 rb_gc_call_finalizer_at_exit(void)
 {
-    struct finalize_at_exit *entry;
-
-    for (entry = finalize_at_exit_head; entry != NULL; entry = entry->next)
-	if (entry->v != Qnil)
-	    rb_objc_finalize(entry->v);
+    if (__exit_finalize != NULL) {
+	long i, count;
+	for (i = 0, count = CFArrayGetCount((CFArrayRef)__exit_finalize); 
+	     i < count; 
+	     i++) {
+	    VALUE v;
+	    v = (VALUE)CFArrayGetValueAtIndex((CFArrayRef)__exit_finalize, i);
+	    rb_objc_finalize_pure_ruby_obj(v);
+	}
+    }
+    CFArrayRemoveAllValues(__exit_finalize);
+    CFRelease(__exit_finalize);
+    auto_collect(__auto_zone, AUTO_COLLECT_FULL_COLLECTION, NULL);
 }
 
 #else /* WITH_OBJC */
@@ -2720,6 +2681,34 @@ count_objects(int argc, VALUE *argv, VALUE os)
  *  are also available via the <code>ObjectSpace</code> module.
  */
 
+#if WITH_OBJC
+static void (*old_batch_invalidate)(auto_zone_t *, auto_zone_foreach_object_t, 
+    auto_zone_cursor_t, size_t);
+
+static void
+__rb_objc_finalize(void *obj, void *data)
+{
+    if (rb_objc_is_non_native((VALUE)obj)) {
+	static SEL sel = NULL;
+	rb_objc_remove_keys(obj);
+	if (sel == NULL)
+	    sel = sel_registerName("finalize");
+	objc_msgSend(obj, sel);
+    }
+    else {
+	/* TODO: call ObjectSpace finalizers, if any */
+    }
+}
+
+static void 
+rb_objc_batch_invalidate(auto_zone_t *zone, 
+			 auto_zone_foreach_object_t foreach, 
+			 auto_zone_cursor_t cursor, size_t cursor_size) 
+{
+    foreach(cursor, __rb_objc_finalize, NULL);
+}
+#endif
+
 void
 Init_PreGC(void)
 {
@@ -2733,6 +2722,8 @@ Init_PreGC(void)
     if (getenv("GC_DEBUG"))
 	auto_collection_parameters(__auto_zone)->log = 
 	    AUTO_LOG_COLLECTIONS | AUTO_LOG_REGIONS | AUTO_LOG_UNUSUAL;
+    old_batch_invalidate = auto_collection_parameters(__auto_zone)->batch_invalidate;
+    auto_collection_parameters(__auto_zone)->batch_invalidate = rb_objc_batch_invalidate;
 #endif
 }
 
@@ -2740,7 +2731,6 @@ void
 Init_PostGC(void)
 {
 #if WITH_OBJC
-    rb_objc_define_finalizer(rb_cIO);
 # if 0
     /* It is better to let Foundation start the dedicated collection thread
      * when necessary. 

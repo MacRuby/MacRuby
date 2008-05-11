@@ -841,14 +841,14 @@ pack_pack(VALUE ary, VALUE fmt)
 
 	  case 'X':		/* back up byte */
 	  shrink:
-	    plen = RSTRING_LEN(res);
+	    plen = RSTRING_CLEN(res);
 	    if (plen < len)
 		rb_raise(rb_eArgError, "X outside of string");
 	    rb_str_set_len(res, plen - len);
 	    break;
 
 	  case '@':		/* null fill to absolute position */
-	    len -= RSTRING_LEN(res);
+	    len -= RSTRING_CLEN(res);
 	    if (len > 0) goto grow;
 	    len = -len;
 	    if (len > 0) goto shrink;
@@ -910,9 +910,9 @@ pack_pack(VALUE ary, VALUE fmt)
 	    from = THISFROM;
 	    if (!NIL_P(from)) {
 		StringValue(from);
-		if (RSTRING_LEN(from) < len) {
+		if (RSTRING_CLEN(from) < len) {
 		    rb_raise(rb_eArgError, "too short buffer for P(%ld for %ld)",
-			     RSTRING_LEN(from), len);
+			     RSTRING_CLEN(from), len);
 		}
 	    }
 	    len = 1;
@@ -1895,7 +1895,7 @@ pack_unpack(VALUE str, VALUE fmt)
 		    for (i = 0; i < count; i++) {
 			VALUE p = RARRAY_AT(a, i);
 			if (TYPE(p) == T_STRING && RSTRING_CPTR(p) == t) {
-			    if (len < RSTRING_LEN(p)) {
+			    if (len < RSTRING_CLEN(p)) {
 				tmp = rb_tainted_str_new(t, len);
 				rb_str_associate(tmp, a);
 			    }
@@ -1918,7 +1918,7 @@ pack_unpack(VALUE str, VALUE fmt)
 		    pend = p + RARRAY_LEN(a);
 		    while (p < pend) {
 			if (TYPE(*p) == T_STRING && RSTRING_CPTR(*p) == t) {
-			    if (len < RSTRING_LEN(*p)) {
+			    if (len < RSTRING_CLEN(*p)) {
 				tmp = rb_tainted_str_new(t, len);
 				rb_str_associate(tmp, a);
 			    }

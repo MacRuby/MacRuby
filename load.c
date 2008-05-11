@@ -58,7 +58,7 @@ loaded_feature_path(const char *name, long vlen, const char *feature, long len,
     for (i = 0; i < RARRAY_LEN(load_path); ++i) {
 	VALUE p = RARRAY_AT(load_path, i);
 	const char *s = StringValuePtr(p);
-	long n = RSTRING_LEN(p);
+	long n = RSTRING_CLEN(p);
 
 	if (vlen < n + len + 1) continue;
 	if (n && (strncmp(name, s, n) || name[n] != '/')) continue;
@@ -123,13 +123,13 @@ rb_feature_p(const char *feature, const char *ext, int rb, int expanded, const c
     for (i = 0, count = RARRAY_LEN(features); i < count; ++i) {
 	v = RARRAY_AT(features, i);
 	f = StringValueCStr(v);
-	if ((n = RSTRING_LEN(v)) < len) continue;
+	if ((n = RSTRING_CLEN(v)) < len) continue;
 	if (strncmp(f, feature, len) != 0) {
 	    if (expanded) continue;
 	    if (!load_path) load_path = get_load_path();
 	    if (!(p = loaded_feature_path(f, n, feature, len, type, load_path)))
 		continue;
-	    f += RSTRING_LEN(p) + 1;
+	    f += RSTRING_CLEN(p) + 1;
 	}
 	if (!*(e = f + len)) {
 	    if (ext) continue;

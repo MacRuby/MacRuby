@@ -1022,7 +1022,7 @@ rb_proc_exec_n(int argc, VALUE *argv, const char *prog)
 
     args = ALLOCA_N(char*, argc+1);
     for (i=0; i<argc; i++) {
-	args[i] = RSTRING_CPTR(argv[i]);
+	args[i] = (char *)RSTRING_CPTR(argv[i]);
     }
     args[i] = 0;
     if (args[0]) {

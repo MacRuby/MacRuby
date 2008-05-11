@@ -303,7 +303,7 @@ ruby_incpush(const char *path)
 static VALUE
 expand_include_path(VALUE path)
 {
-    char *p = RSTRING_CPTR(path);
+    const char *p = RSTRING_CPTR(path);
     if (!p)
 	return path;
     if (*p == '.' && p[1] == '/')
@@ -1324,7 +1324,8 @@ get_arglen(int argc, char **argv)
 static void
 set_arg0(VALUE val, ID id)
 {
-    char *s, *t;
+    const char *s;
+    char *t;
     long i;
 
     if (origarg.argv == 0)

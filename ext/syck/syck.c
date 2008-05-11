@@ -354,7 +354,7 @@ syck_parser_pop_level( SyckParser *p )
     if ( p->lvl_idx <= 1 ) return;
 
     p->lvl_idx -= 1;
-    xfree( p->levels[p->lvl_idx].domain );
+    free( p->levels[p->lvl_idx].domain );
 }
 
 void 

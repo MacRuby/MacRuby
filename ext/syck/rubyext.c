@@ -56,7 +56,7 @@ static VALUE sym_model, sym_generic, sym_input, sym_bytecode;
 static VALUE sym_scalar, sym_seq, sym_map;
 static VALUE sym_1quote, sym_2quote, sym_fold, sym_literal, sym_plain, sym_inline;
 static VALUE cDate, cNode, cMap, cSeq, cScalar, cOut, cParser, cResolver, cPrivateType, cDomainType, cYObject, cBadAlias, cDefaultKey, cMergeKey, cEmitter;
-static VALUE oDefaultResolver, oGenericResolver;
+static VALUE oDefaultResolver, oGenericResolver, oColon, oDoubleColon;
 
 /*
  * my private collection of numerical oddities.
@@ -1026,9 +1026,9 @@ VALUE
 syck_const_find(VALUE const_name)
 {
     VALUE tclass = rb_cObject;
-    VALUE tparts = rb_str_split( const_name, "::" );
-    int i = 0;
-    for ( i = 0; i < RARRAY_LEN(tparts); i++ ) {
+    VALUE tparts = rb_str_split2( const_name, oDoubleColon );
+    int i = 0, count;
+    for ( i = 0, count = RARRAY_LEN(tparts); i < count; i++ ) {
         VALUE tpart = rb_to_id( rb_ary_entry( tparts, i ) );
         if ( !rb_const_defined( tclass, tpart ) ) return Qnil;
         tclass = rb_const_get( tclass, tpart );
@@ -1050,7 +1050,6 @@ syck_resolver_transfer(VALUE self, VALUE type, VALUE val)
     if ( ! (NIL_P(type) || RSTRING_CLEN(StringValue(type)) == 0) )
     {
         VALUE str_xprivate = rb_str_new2( "x-private" );
-        VALUE colon = rb_str_new2( ":" );
         VALUE tags = rb_attr_get(self, s_tags);
         VALUE target_class = rb_hash_aref( tags, type );
         VALUE subclass = target_class;
@@ -1062,17 +1061,18 @@ syck_resolver_transfer(VALUE self, VALUE type, VALUE val)
         if ( NIL_P( target_class ) )
         {
             VALUE subclass_parts = rb_ary_new();
-            VALUE parts = rb_str_split( type, ":" );
+            VALUE parts = rb_str_split2( type, oColon );
 
             while ( RARRAY_LEN(parts) > 1 )
             {
                 VALUE partial;
                 rb_ary_unshift( subclass_parts, rb_ary_pop( parts ) );
-                partial = rb_ary_join( parts, colon );
+                partial = rb_ary_join( parts, oColon );
+		//printf("partial %p parts %p\n", partial, parts);
                 target_class = rb_hash_aref( tags, partial );
                 if ( NIL_P( target_class ) )
                 {
-                    rb_str_append( partial, colon );
+                    rb_str_append( partial, oColon );
                     target_class = rb_hash_aref( tags, partial );
                 }
 
@@ -1086,7 +1086,7 @@ syck_resolver_transfer(VALUE self, VALUE type, VALUE val)
                          RTEST( rb_funcall( target_class, s_tag_subclasses, 0 ) ) )
                     {
                         VALUE subclass_v;
-                        subclass = rb_ary_join( subclass_parts, colon );
+                        subclass = rb_ary_join( subclass_parts, oColon );
                         subclass = rb_funcall( target_class, s_tag_read_class, 1, subclass );
                         subclass_v = syck_const_find( subclass );
 
@@ -1146,17 +1146,17 @@ syck_resolver_transfer(VALUE self, VALUE type, VALUE val)
             }
             else 
             {
-                VALUE parts = rb_str_split( type, ":" );
+                VALUE parts = rb_str_split2( type, oColon );
                 VALUE scheme = rb_ary_shift( parts );
                 if ( rb_str_cmp( scheme, str_xprivate ) == 0 )
                 {
-                    VALUE name = rb_ary_join( parts, colon );
+                    VALUE name = rb_ary_join( parts, oColon );
                     obj = rb_funcall( cPrivateType, s_new, 2, name, val );
                 }
                 else
                 {
                     VALUE domain = rb_ary_shift( parts );
-                    VALUE name = rb_ary_join( parts, colon );
+                    VALUE name = rb_ary_join( parts, oColon );
                     obj = rb_funcall( cDomainType, s_new, 3, domain, name, val );
                 }
             }
@@ -2158,6 +2158,11 @@ Init_syck()
     oGenericResolver = rb_funcall( cResolver, rb_intern( "new" ), 0 );
     rb_define_singleton_method( oGenericResolver, "node_import", syck_genericresolver_node_import, 1 );
     rb_define_const( rb_syck, "GenericResolver", oGenericResolver );
+    
+    oColon = rb_str_new2( ":" );
+    rb_global_variable( &oColon );
+    oDoubleColon = rb_str_new2( "::" );
+    rb_global_variable( &oDoubleColon );
 
     /*
      * Define YAML::Syck::Parser class

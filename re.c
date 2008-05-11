@@ -309,9 +309,15 @@ static VALUE
 rb_reg_source(VALUE re)
 {
     VALUE str;
+    const char *cstr;
+    long clen;
 
     rb_reg_check(re);
-    str = rb_enc_str_new(RREGEXP(re)->str,RREGEXP(re)->len, rb_enc_get(re));
+    cstr = RREGEXP(re)->str;
+    clen = RREGEXP(re)->len;
+    if (clen == 0)
+	cstr = NULL;
+    str = rb_enc_str_new(cstr, clen, rb_enc_get(re));
     if (OBJ_TAINTED(re)) OBJ_TAINT(str);
     return str;
 }
@@ -1127,12 +1133,12 @@ rb_reg_adjust_startpos(VALUE re, VALUE str, int pos, int reverse)
 	range = -pos;
     }
     else {
-	range = RSTRING_LEN(str) - pos;
+	range = RSTRING_CLEN(str) - pos;
     }
 
     enc = (RREGEXP(re)->ptr)->enc;
 
-    if (pos > 0 && ONIGENC_MBC_MAXLEN(enc) != 1 && pos < RSTRING_LEN(str)) {
+    if (pos > 0 && ONIGENC_MBC_MAXLEN(enc) != 1 && pos < RSTRING_CLEN(str)) {
 	 string = (UChar*)RSTRING_CPTR(str);
 
 	 if (range > 0) {
@@ -1324,7 +1330,7 @@ rb_reg_match_post(VALUE match)
     if (BEG(0) == -1) return Qnil;
     str = RMATCH(match)->str;
     pos = END(0);
-    str = rb_str_subseq(str, pos, RSTRING_LEN(str) - pos);
+    str = rb_str_subseq(str, pos, RSTRING_CLEN(str) - pos);
     if (OBJ_TAINTED(match)) OBJ_TAINT(str);
     return str;
 }
@@ -2295,7 +2301,7 @@ VALUE
 rb_reg_regcomp(VALUE str)
 {
     volatile VALUE save_str = str;
-    if (reg_cache && RREGEXP(reg_cache)->len == RSTRING_LEN(str)
+    if (reg_cache && RREGEXP(reg_cache)->len == RSTRING_CLEN(str)
 	&& ENCODING_GET(reg_cache) == ENCODING_GET(str)
         && memcmp(RREGEXP(reg_cache)->str, RSTRING_CPTR(str), RSTRING_CLEN(str)) == 0)
 	return reg_cache;
@@ -2647,7 +2653,7 @@ rb_reg_initialize_m(int argc, VALUE *argv, VALUE self)
 	str = argv[0];
 	ptr = StringValuePtr(str);
 	if (enc
-	    ? rb_reg_initialize(self, ptr, RSTRING_LEN(str), enc, flags, err)
+	    ? rb_reg_initialize(self, ptr, RSTRING_CLEN(str), enc, flags, err)
 	    : rb_reg_initialize_str(self, str, flags, err)) {
 	    rb_reg_raise_str(str, flags, err);
 	}

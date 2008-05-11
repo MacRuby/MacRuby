@@ -182,7 +182,7 @@ w_nbyte(const char *s, int n, struct dump_arg *arg)
 {
     VALUE buf = arg->str;
     rb_str_buf_cat(buf, s, n);
-    if (arg->dest && RSTRING_LEN(buf) >= BUFSIZ) {
+    if (arg->dest && RSTRING_CLEN(buf) >= BUFSIZ) {
 	if (arg->taint) OBJ_TAINT(buf);
 	rb_io_write(arg->dest, buf);
 	rb_str_resize(buf, 0);
@@ -916,7 +916,7 @@ r_byte(struct load_arg *arg)
     int c;
 
     if (TYPE(arg->src) == T_STRING) {
-	if (RSTRING_LEN(arg->src) > arg->offset) {
+	if (RSTRING_CLEN(arg->src) > arg->offset) {
 	    c = (unsigned char)RSTRING_CPTR(arg->src)[arg->offset++];
 	}
 	else {
@@ -989,7 +989,7 @@ r_bytes0(long len, struct load_arg *arg)
 
     if (len == 0) return rb_str_new(0, 0);
     if (TYPE(arg->src) == T_STRING) {
-	if (RSTRING_LEN(arg->src) - arg->offset >= len) {
+	if (RSTRING_CLEN(arg->src) - arg->offset >= len) {
 	    str = rb_str_new(RSTRING_CPTR(arg->src)+arg->offset, len);
 	    arg->offset += len;
 	}
@@ -1004,7 +1004,7 @@ r_bytes0(long len, struct load_arg *arg)
 	str = rb_funcall2(src, s_read, 1, &n);
 	if (NIL_P(str)) goto too_short;
 	StringValue(str);
-	if (RSTRING_LEN(str) != len) goto too_short;
+	if (RSTRING_CLEN(str) != len) goto too_short;
 	if (OBJ_TAINTED(str)) arg->taint = Qtrue;
     }
     return str;
@@ -1269,7 +1269,7 @@ r_object0(struct load_arg *arg, int *ivp, VALUE extmod)
 	    else {
 		char *e;
 		d = strtod(ptr, &e);
-		d = load_mantissa(d, e, RSTRING_LEN(str) - (e - ptr));
+		d = load_mantissa(d, e, RSTRING_CLEN(str) - (e - ptr));
 	    }
 	    v = DOUBLE2NUM(d);
 	    v = r_entry(v, arg);

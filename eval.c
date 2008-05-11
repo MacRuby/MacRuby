@@ -1798,7 +1798,7 @@ eval(VALUE self, VALUE src, VALUE scope, const char *file, int line)
 		mesg = rb_attr_get(errinfo, rb_intern("mesg"));
 		if (!NIL_P(errat) && TYPE(errat) == T_ARRAY &&
 		    (bt2 = backtrace(-2), RARRAY_LEN(bt2) > 0)) {
-		    if (!NIL_P(mesg) && TYPE(mesg) == T_STRING && !RSTRING_LEN(mesg)) {
+		    if (!NIL_P(mesg) && TYPE(mesg) == T_STRING && !RSTRING_CLEN(mesg)) {
 			rb_str_update(mesg, 0, 0, rb_str_new2(": "));
 			rb_str_update(mesg, 0, 0, RARRAY_AT(errat, 0));
 		    }
@@ -1835,7 +1835,7 @@ VALUE
 rb_f_eval(int argc, VALUE *argv, VALUE self)
 {
     VALUE src, scope, vfile, vline;
-    char *file = "(eval)";
+    const char *file = "(eval)";
     int line = 1;
 
     rb_scan_args(argc, argv, "13", &src, &scope, &vfile, &vline);
