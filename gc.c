@@ -36,7 +36,7 @@
 #endif
 
 #if WITH_OBJC
-# if 1//HAVE_AUTO_ZONE_H
+# if HAVE_AUTO_ZONE_H
 #  include <auto_zone.h>
 # else
 #  include <malloc/malloc.h>
@@ -62,9 +62,14 @@ extern void auto_zone_set_associative_ref(auto_zone_t *, void *, void *,
 	void *);
 extern void *auto_zone_get_associative_ref(auto_zone_t *, void *, void *);
 extern auto_zone_t *auto_zone(void);
+typedef struct auto_zone_cursor *auto_zone_cursor_t;
+typedef void (*auto_zone_foreach_object_t) (auto_zone_cursor_t cursor, 
+    void (*op) (void *ptr, void *data), void* data);
 typedef struct {
     uint32_t unused1;
-    void *unused2;
+    void (*batch_invalidate) (auto_zone_t *zone, 
+	auto_zone_foreach_object_t foreach, auto_zone_cursor_t cursor, 
+	size_t cursor_size);
     void *unused3;
     void *unused4;
     void *unused5;
@@ -2682,8 +2687,8 @@ count_objects(int argc, VALUE *argv, VALUE os)
  */
 
 #if WITH_OBJC
-static void (*old_batch_invalidate)(auto_zone_t *, auto_zone_foreach_object_t, 
-    auto_zone_cursor_t, size_t);
+static void (*old_batch_invalidate)(auto_zone_t *, 
+    auto_zone_foreach_object_t, auto_zone_cursor_t, size_t);
 
 static void
 __rb_objc_finalize(void *obj, void *data)
@@ -2713,17 +2718,21 @@ void
 Init_PreGC(void)
 {
 #if WITH_OBJC
+    auto_collection_control_t *control;
+
     __auto_zone = auto_zone();
     //auto_zone_register_thread(__auto_zone);
     finalizer_table = st_init_strtable();
     GC_ROOT(&finalizer_table);
-    auto_collection_parameters(__auto_zone)->scan_external_callout = 
+
+    control = auto_collection_parameters(__auto_zone);
+    control->scan_external_callout = 
 	rb_objc_scan_external_callout;
     if (getenv("GC_DEBUG"))
-	auto_collection_parameters(__auto_zone)->log = 
-	    AUTO_LOG_COLLECTIONS | AUTO_LOG_REGIONS | AUTO_LOG_UNUSUAL;
-    old_batch_invalidate = auto_collection_parameters(__auto_zone)->batch_invalidate;
-    auto_collection_parameters(__auto_zone)->batch_invalidate = rb_objc_batch_invalidate;
+	control->log = AUTO_LOG_COLLECTIONS | AUTO_LOG_REGIONS 
+		       | AUTO_LOG_UNUSUAL;
+    old_batch_invalidate = control->batch_invalidate;
+    control->batch_invalidate = rb_objc_batch_invalidate;
 #endif
 }
 
