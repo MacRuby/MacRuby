@@ -81,7 +81,7 @@ VALUE rb_get_values_at(VALUE, long, int, VALUE*, VALUE(*)(VALUE,long));
 VALUE rb_ary_elt(VALUE, long);
 void rb_ary_set_named_args(VALUE, bool);
 bool rb_ary_is_named_args(VALUE);
-VALUE rb_ary_clone(VALUE);
+bool rb_objc_ary_is_pure(VALUE);
 #endif
 /* bignum.c */
 VALUE rb_big_clone(VALUE);
@@ -363,7 +363,7 @@ struct st_table *rb_hash_tbl(VALUE);
 int rb_path_check(const char*);
 int rb_env_path_tainted(void);
 #if WITH_OBJC
-VALUE rb_hash_clone(VALUE);
+bool rb_objc_hash_is_pure(VALUE);
 #endif
 /* io.c */
 #define rb_defout rb_stdout
@@ -573,6 +573,9 @@ void rb_str_setter(VALUE, ID, VALUE*);
 VALUE rb_str_intern(VALUE);
 VALUE rb_sym_to_s(VALUE);
 VALUE rb_str_length(VALUE);
+#if WITH_OBJC
+bool rb_objc_str_is_pure(VALUE);
+#endif
 /* struct.c */
 VALUE rb_struct_new(VALUE, ...);
 VALUE rb_struct_define(const char*, ...);

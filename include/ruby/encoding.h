@@ -123,6 +123,7 @@ rb_encoding * rb_enc_find2(VALUE name);
 /* encoding -> name */
 #if WITH_OBJC
 const char *rb_enc_name(rb_encoding *);
+VALUE rb_enc_name2(rb_encoding *);
 #else
 #define rb_enc_name(enc) (enc)->name
 #endif

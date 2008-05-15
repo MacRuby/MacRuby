@@ -1409,14 +1409,21 @@ rb_enc_aliases(VALUE klass)
 #endif
 }
 
-const char *
-rb_enc_name(rb_encoding *enc)
+VALUE
+rb_enc_name2(rb_encoding *enc)
 {
     CFStringRef str;
     if (enc != NULL 
 	&& (str = CFStringConvertEncodingToIANACharSetName(*enc)) != NULL)
-	return RSTRING_CPTR(str);
-    return NULL;
+	return str;
+    return Qnil;
+}
+
+const char *
+rb_enc_name(rb_encoding *enc)
+{
+    CFStringRef str = rb_enc_name2(enc);
+    return str == Qnil ? NULL : RSTRING_CPTR(str);
 }
 
 long 

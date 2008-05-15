@@ -443,18 +443,24 @@ w_class(char type, VALUE obj, struct dump_arg *arg, int check)
 }
 
 static void
+#if WITH_OBJC
+w_uclass(VALUE obj, bool is_pure, struct dump_arg *arg)
+#else
 w_uclass(VALUE obj, VALUE super, struct dump_arg *arg)
+#endif
 {
     VALUE klass = CLASS_OF(obj);
 
     w_extended(klass, arg, Qtrue);
     klass = rb_class_real(klass);
-#if 0
+#if WITH_OBJC
+    if (!is_pure) {
+#else
     if (klass != super) {
+#endif
 	w_byte(TYPE_UCLASS, arg);
 	w_unique(RSTRING_CPTR(class2path(klass)), arg);
     }
-#endif
 }
 
 static int
@@ -471,14 +477,14 @@ w_encoding(VALUE obj, long num, struct dump_call_arg *arg)
 {
     rb_encoding *enc = 0;
 #if WITH_OBJC
-    const char *name;
+    VALUE name;
 
     enc = rb_enc_get(obj);
     if (enc == NULL) {
 	w_long(num, arg->arg);
 	return;
     }
-    name = rb_enc_name(enc);
+    name = rb_enc_name2(enc);
 #else
     int encidx = rb_enc_get_index(obj);
     st_data_t name;
@@ -694,7 +700,11 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
 	    break;
 
 	  case T_STRING:
+#if WITH_OBJC
+	    w_uclass(obj, rb_objc_str_is_pure(obj), arg);
+#else
 	    w_uclass(obj, rb_cString, arg);
+#endif
 	    w_byte(TYPE_STRING, arg);
 	    w_bytes(RSTRING_CPTR(obj), RSTRING_CLEN(obj), arg);
 	    break;
@@ -707,7 +717,11 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
 	    break;
 
 	  case T_ARRAY:
+#if WITH_OBJC
+	    w_uclass(obj, rb_objc_ary_is_pure(obj), arg);
+#else
 	    w_uclass(obj, rb_cArray, arg);
+#endif
 	    w_byte(TYPE_ARRAY, arg);
 	    {
 		long len = RARRAY_LEN(obj);
@@ -729,9 +743,14 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
 	    break;
 
 	  case T_HASH:
+#if WITH_OBJC
+	    w_uclass(obj, rb_objc_hash_is_pure(obj), arg);
+#else
 	    w_uclass(obj, rb_cHash, arg);
+#endif
 #if WITH_OBJC
 	    w_byte(TYPE_HASH, arg);
+	    /* TODO: encode ifnone too */
 #else
 	    if (NIL_P(RHASH(obj)->ifnone)) {
 		w_byte(TYPE_HASH, arg);
@@ -1121,15 +1140,14 @@ r_ivar(VALUE obj, struct load_arg *arg)
 	while (len--) {
 	    ID id = r_symbol(arg);
 	    VALUE val = r_object(arg);
-#if WITH_OBJC
-	    if (0) {
-#else
+#if !WITH_OBJC
 	    if (id == rb_id_encoding()) {
-#endif
 		int idx = rb_enc_find_index(StringValueCStr(val));
 		if (idx > 0) rb_enc_associate_index(obj, idx);
 	    }
-	    else {
+	    else 
+#endif
+	    {
 		rb_ivar_set(obj, id, val);
 	    }
 	}
@@ -1234,12 +1252,19 @@ r_object0(struct load_arg *arg, int *ivp, VALUE extmod)
 	      format_error:
 		rb_raise(rb_eArgError, "dump format error (user class)");
 	    }
-	    if (TYPE(v) == T_MODULE || !RTEST(rb_class_inherited_p(c, RBASIC(v)->klass))) {
-		VALUE tmp = rb_obj_alloc(c);
-
-		if (TYPE(v) != TYPE(tmp)) goto format_error;
+#if WITH_OBJC
+	    if (rb_objc_is_non_native(v)) {
+		*(Class *)v = RCLASS_OCID(c);	
 	    }
-	    RBASIC(v)->klass = c;
+	    else {
+#endif
+		if (TYPE(v) == T_MODULE || !RTEST(rb_class_inherited_p(c, RBASIC(v)->klass))) {
+		    VALUE tmp = rb_obj_alloc(c);
+
+		    if (TYPE(v) != TYPE(tmp)) goto format_error;
+		}
+		RBASIC(v)->klass = c;
+	    }
 	}
 	break;
 
@@ -1284,7 +1309,7 @@ r_object0(struct load_arg *arg, int *ivp, VALUE extmod)
 	    else {
 		char *e;
 		d = strtod(ptr, &e);
-		d = load_mantissa(d, e, RSTRING_CLEN(str) - (e - ptr));
+		d = load_mantissa(d, e, strlen(ptr) - (e - ptr));
 	    }
 	    v = DOUBLE2NUM(d);
 	    v = r_entry(v, arg);

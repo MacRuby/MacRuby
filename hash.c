@@ -2890,14 +2890,24 @@ env_update(VALUE env, VALUE hash)
 
 #if WITH_OBJC
 static Class __nscfdictionary = NULL;
+
+#define NSCFDICTIONARY() \
+    (__nscfdictionary == NULL \
+	? __nscfdictionary = (Class)objc_getClass("NSCFDictionary") \
+ 	: __nscfdictionary)
+
 #define PREPARE_RCV(x) \
-  Class old = *(Class *)x; \
-  if (__nscfdictionary == NULL) \
-    __nscfdictionary = (Class)objc_getClass("NSCFDictionary"); \
-  *(Class *)x = __nscfdictionary;
+    Class old = *(Class *)x; \
+    *(Class *)x = __nscfdictionary;
 
 #define RESTORE_RCV(x) \
-  *(Class *)x = old;
+    *(Class *)x = old;
+
+bool
+rb_objc_hash_is_pure(VALUE ary)
+{
+    return *(Class *)ary == NSCFDICTIONARY();
+}
 
 static CFIndex
 imp_rb_hash_count(void *rcv, SEL sel) 

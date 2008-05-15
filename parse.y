@@ -9055,7 +9055,7 @@ is_special_global_name(const char *m, const char *e, rb_encoding *enc)
 	if (m < e && is_identchar(m, e, enc)) {
 	    if (!ISASCII(*m)) mb = 1;
 #if WITH_OBJC
-	    m += e-m;
+	    m += 1;
 #else
 	    m += rb_enc_mbclen(m, e, enc);
 #endif
@@ -9160,7 +9160,7 @@ rb_enc_symname2_p(const char *name, int len, rb_encoding *enc)
 	if (m >= e || (*m != '_' && !rb_enc_isalpha(*m, enc) && ISASCII(*m)))
 	    return Qfalse;
 #if WITH_OBJC
-	while (m < e && is_identchar(m, e, enc)) m += e-m;
+	while (m < e && is_identchar(m, e, enc)) m += 1;
 #else
 	while (m < e && is_identchar(m, e, enc)) m += rb_enc_mbclen(m, e, enc);
 #endif
@@ -9272,7 +9272,6 @@ rb_intern3(const char *name, long len, rb_encoding *enc)
 	}
 	break;
     }
-#if !WITH_OBJC
     mb = 0;
     if (!rb_enc_isdigit(*m, enc)) {
 	while (m <= name + last && is_identchar(m, e, enc)) {
@@ -9281,11 +9280,16 @@ rb_intern3(const char *name, long len, rb_encoding *enc)
 	    }
 	    else {
 		mb = 1;
+#if WITH_OBJC
+		m += 1;
+#else
 		m += rb_enc_mbclen(m, e, enc);
+#endif
 	    }
 	}
     }
     if (m - name < len) id = ID_JUNK;
+#if !WITH_OBJC
     if (enc != rb_usascii_encoding()) {
 	/*
 	 * this clause makes sense only when called from other than

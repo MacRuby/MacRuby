@@ -3847,7 +3847,7 @@ static Class __nscfarray = NULL;
 #define RESTORE_RCV(x) \
       *(Class *)x = old;
 
-static bool
+bool
 rb_objc_ary_is_pure(VALUE ary)
 {
     return *(Class *)ary == NSCFARRAY();

@@ -2396,7 +2396,7 @@ rb_str_cmp(VALUE str1, VALUE str2)
 }
 
 #if WITH_OBJC
-static bool rb_objc_str_is_pure(VALUE);
+bool rb_objc_str_is_pure(VALUE);
 #endif
 
 /*
@@ -8253,7 +8253,7 @@ static Class __nscfstring = NULL;
 #define RESTORE_RCV(x) \
     *(Class *)x = old;
 
-static bool
+bool
 rb_objc_str_is_pure(VALUE str)
 {
     return *(Class *)str == NSCFSTRING();
