@@ -8,8 +8,9 @@ assert_normal_exit %q{
     rescue RangeError
       next
     end
-    next if o.is_a?(Hash) # Some CF dictionaries cannot be inspected because 
-			  # they contain pointers to C raw data.
+    # Some CF containers cannot be inspected because they contain pointers
+    # to C raw data.
+    next if o.is_a?(Hash) or o.is_a?(Array)
     o.inspect if defined?(o.inspect)
   }
 }, '[ruby-dev:31911]'

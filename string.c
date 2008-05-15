@@ -1209,8 +1209,8 @@ static void
 str_modifiable(VALUE str)
 {
 #if WITH_OBJC
-    bool _CFStringIsMutable(void *);
-    if (!__CFStringIsMutable(str)) 
+    bool __CFStringIsMutable(void *);
+    if (!__CFStringIsMutable((void *)str)) 
 	rb_raise(rb_eRuntimeError, "can't modify immutable string");
 #else
     if (FL_TEST(str, STR_TMPLOCK)) {

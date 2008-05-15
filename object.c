@@ -815,7 +815,8 @@ rb_obj_frozen_p(VALUE obj)
     }
 #if WITH_OBJC
     if (rb_objc_is_non_native(obj)) {
-	return rb_objc_flag_check(obj, FL_FREEZE) ? Qtrue : Qfalse;
+	return rb_objc_is_immutable(obj) || rb_objc_flag_check(obj, FL_FREEZE)
+	    ? Qtrue : Qfalse;
     }
 #endif
     if (FL_TEST(obj, FL_FREEZE)) return Qtrue;

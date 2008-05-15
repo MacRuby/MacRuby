@@ -2710,6 +2710,24 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
     return Qnil;
 }
 
+extern bool __CFStringIsMutable(void *);
+extern bool _CFArrayIsMutable(void *);
+extern bool _CFDictionaryIsMutable(void *);
+
+bool
+rb_objc_is_immutable(VALUE v)
+{
+    switch(TYPE(v)) {
+	case T_STRING:
+	    return !__CFStringIsMutable((void *)v);
+	case T_ARRAY:
+	    return !_CFArrayIsMutable((void *)v);
+	case T_HASH:
+	    return !_CFDictionaryIsMutable((void *)v);	    
+    }
+    return false;
+}
+
 void
 Init_ObjC(void)
 {
