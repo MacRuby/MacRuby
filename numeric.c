@@ -1863,12 +1863,17 @@ int_chr(int argc, VALUE *argv, VALUE num)
 	rb_raise(rb_eArgError, "wrong number of arguments (%d for 0 or 1)", argc);
 	break;
     }
+#if WITH_OBJC
+    /* TODO */
+    rb_notimplement();
+#else
     enc = rb_to_encoding(argv[0]);
     if (!enc) enc = rb_ascii8bit_encoding();
     if (i < 0 || (n = rb_enc_codelen(i, enc)) <= 0) goto out_of_range;
     str = rb_enc_str_new(0, n, enc);
     rb_enc_mbcput(i, RSTRING_PTR(str), enc);
     return str;
+#endif
 }
 
 /********************************************************************

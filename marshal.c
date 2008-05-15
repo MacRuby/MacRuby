@@ -469,8 +469,18 @@ w_obj_each(ID id, VALUE value, struct dump_call_arg *arg)
 static void
 w_encoding(VALUE obj, long num, struct dump_call_arg *arg)
 {
-    int encidx = rb_enc_get_index(obj);
     rb_encoding *enc = 0;
+#if WITH_OBJC
+    const char *name;
+
+    enc = rb_enc_get(obj);
+    if (enc == NULL) {
+	w_long(num, arg->arg);
+	return;
+    }
+    name = rb_enc_name(enc);
+#else
+    int encidx = rb_enc_get_index(obj);
     st_data_t name;
 
     if (encidx <= 0 || !(enc = rb_enc_from_index(encidx))) {
@@ -487,6 +497,7 @@ w_encoding(VALUE obj, long num, struct dump_call_arg *arg)
 	name = (st_data_t)rb_str_new2(rb_enc_name(enc));
 	st_insert(arg->arg->encodings, (st_data_t)rb_enc_name(enc), name);
     } while (0);
+#endif
     w_object(name, arg->arg, arg->limit);
 }
 
@@ -1110,7 +1121,11 @@ r_ivar(VALUE obj, struct load_arg *arg)
 	while (len--) {
 	    ID id = r_symbol(arg);
 	    VALUE val = r_object(arg);
+#if WITH_OBJC
+	    if (0) {
+#else
 	    if (id == rb_id_encoding()) {
+#endif
 		int idx = rb_enc_find_index(StringValueCStr(val));
 		if (idx > 0) rb_enc_associate_index(obj, idx);
 	    }

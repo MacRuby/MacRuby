@@ -460,6 +460,7 @@ rb_objc_rval_to_ocid(VALUE rval, void **ocval)
 	{
 	    char v = RTEST(rval);
 	    *(id *)ocval = (id)CFNumberCreate(NULL, kCFNumberCharType, &v);
+	    CFMakeCollectable(*(id *)ocval);
 	    return true;
 	}
 
@@ -467,6 +468,7 @@ rb_objc_rval_to_ocid(VALUE rval, void **ocval)
 	{
 	    double v = RFLOAT_VALUE(rval);
 	    *(id *)ocval = (id)CFNumberCreate(NULL, kCFNumberDoubleType, &v);
+	    CFMakeCollectable(*(id *)ocval);
 	    return true;
 	}	
 
@@ -487,6 +489,7 @@ rb_objc_rval_to_ocid(VALUE rval, void **ocval)
 		*(id *)ocval = (id)CFNumberCreate(NULL, kCFNumberLongType, &v);
 #endif
 	    }
+	    CFMakeCollectable(*(id *)ocval);
 	    return true;
 	}
 
@@ -495,6 +498,7 @@ rb_objc_rval_to_ocid(VALUE rval, void **ocval)
 	    ID name = SYM2ID(rval);
 	    *(id *)ocval = (id)CFStringCreateWithCString(NULL, rb_id2name(name),
 		kCFStringEncodingASCII); /* XXX this is temporary */
+	    CFMakeCollectable(*(id *)ocval);
 	    return true;
 	}
     }
@@ -2120,7 +2124,7 @@ load_bridge_support(const char *framework_path)
     if (bs_find_path(framework_path, path, sizeof path)) {
 	if (!bs_parse(path, 0, bs_parse_cb, NULL, &error))
 	    rb_raise(rb_eRuntimeError, error);
-#if 1
+#if 0
 	/* FIXME 'GC capability mismatch' with .dylib files */
 	p = strrchr(path, '.');
 	assert(p != NULL);

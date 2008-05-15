@@ -184,6 +184,7 @@ rb_char_to_option_kcode(int c, int *option, int *kcode)
       case 'n':
         *kcode = -1;
         return (*option = ARG_ENCODING_NONE);
+#if !WITH_OBJC
       case 'e':
 	*kcode = rb_enc_find_index("EUC-JP");
 	break;
@@ -193,6 +194,7 @@ rb_char_to_option_kcode(int c, int *option, int *kcode)
       case 'u':
 	*kcode = rb_enc_find_index("UTF-8");
 	break;
+#endif
       default:
 	*kcode = -1;
 	return (*option = char_to_option(c));
@@ -219,10 +221,16 @@ rb_reg_expr_str(VALUE str, const char *s, long len)
 
     p = s; pend = p + len;
     while (p<pend) {
+#if WITH_OBJC
+	c = *p;
+	clen = 1;
+	if (0) {}
+#else
         c = rb_enc_ascget(p, pend, &clen, enc);
         if (c == -1) {
             p += mbclen(p, pend, enc);
         }
+#endif
         else if (c != '/' && rb_enc_isprint(c, enc)) {
             p += clen;
         }
@@ -237,9 +245,18 @@ rb_reg_expr_str(VALUE str, const char *s, long len)
     else {
 	p = s;
 	while (p<pend) {
+#if WITH_OBJC
+	    c = *p;
+	    clen = 1;
+#else
             c = rb_enc_ascget(p, pend, &clen, enc);
+#endif
 	    if (c == '\\' && p+clen < pend) {
+#if WITH_OBJC
+		int n = clen + (pend - (p+clen));
+#else
 		int n = clen + mbclen(p+clen, pend, enc);
+#endif
 		rb_str_buf_cat(str, p, n);
 		p += n;
 		continue;
@@ -249,12 +266,14 @@ rb_reg_expr_str(VALUE str, const char *s, long len)
 		rb_str_buf_cat(str, &c, 1);
 		rb_str_buf_cat(str, p, clen);
 	    }
+#if !WITH_OBJC
 	    else if (c == -1) {
                 int l = mbclen(p, pend, enc);
 	    	rb_str_buf_cat(str, p, l);
 		p += l;
 		continue;
 	    }
+#endif
 	    else if (rb_enc_isprint(c, enc)) {
 		rb_str_buf_cat(str, p, clen);
 	    }
@@ -277,7 +296,9 @@ rb_reg_desc(const char *s, long len, VALUE re)
 {
     VALUE str = rb_str_buf_new2("/");
 
+#if !WITH_OBJC
     rb_enc_copy(str, re);
+#endif
     rb_reg_expr_str(str, s, len);
     rb_str_buf_cat2(str, "/");
     if (re) {
@@ -374,7 +395,9 @@ rb_reg_to_s(VALUE re)
 
     rb_reg_check(re);
 
+#if !WITH_OBJC
     rb_enc_copy(str, re);
+#endif
     options = RREGEXP(re)->ptr->options;
     ptr = (UChar*)RREGEXP(re)->str;
     len = RREGEXP(re)->len;
@@ -416,9 +439,17 @@ rb_reg_to_s(VALUE re)
 	if (*ptr == ':' && ptr[len-1] == ')') {
 	    int r;
 	    Regexp *rp;
+	    OnigEncoding oenc;
+	    
+#if WITH_OBJC
+	    oenc = ONIG_ENCODING_ASCII;
+#else
+	    oenc = rb_enc_get(re);
+#endif
+
             r = onig_alloc_init(&rp, ONIG_OPTION_DEFAULT,
                                 ONIGENC_CASE_FOLD_DEFAULT,
-                                rb_enc_get(re),
+                                oenc,
                                 OnigDefaultSyntax);
 	    if (r == 0) {
 		 ++ptr;
@@ -445,7 +476,9 @@ rb_reg_to_s(VALUE re)
     rb_str_buf_cat2(str, ":");
     rb_reg_expr_str(str, (char*)ptr, len);
     rb_str_buf_cat2(str, ")");
+#if !WITH_OBJC
     rb_enc_copy(str, re);
+#endif
 
     OBJ_INFECT(str, re);
     return str;
@@ -465,7 +498,9 @@ rb_enc_reg_error_desc(const char *s, long len, rb_encoding *enc, int options, co
     char opts[6];
     VALUE desc = rb_str_buf_new2(err);
 
+#if !WITH_OBJC
     rb_enc_associate(desc, enc);
+#endif
     rb_str_buf_cat2(desc, ": /");
     rb_reg_expr_str(desc, s, len);
     opts[0] = '/';
@@ -629,6 +664,7 @@ make_regexp(const char *s, long len, rb_encoding *enc, int flags, onig_errmsg_bu
     Regexp *rp;
     int r;
     OnigErrorInfo einfo;
+    OnigEncoding oenc;
 
     /* Handle escaped characters first. */
 
@@ -637,8 +673,14 @@ make_regexp(const char *s, long len, rb_encoding *enc, int flags, onig_errmsg_bu
        from that.
     */
 
+#if WITH_OBJC
+    oenc = ONIG_ENCODING_ASCII;
+#else
+    oenc = enc;
+#endif
+
     r = onig_alloc_init(&rp, flags, ONIGENC_CASE_FOLD_DEFAULT,
-                        enc, OnigDefaultSyntax);
+                        oenc, OnigDefaultSyntax);
     if (r) {
 	onig_error_code_to_str((UChar*)err, r);
 	return 0;
@@ -742,7 +784,12 @@ update_char_offset(VALUE match)
     c = 0;
     for (i = 0; i < num_pos; i++) {
         q = s + pairs[i].byte_pos;
+#if WITH_OBJC
+	//long n = strlen(p);
+	c += q-p;//(n > (q-p) ? q-p : n);
+#else
         c += rb_enc_strlen(p, q, enc);
+#endif
         pairs[i].char_pos = c;
         p = q;
     }
@@ -1052,20 +1099,25 @@ rb_reg_prepare_re(VALUE re, VALUE str, int enable_warning)
     int need_recompile = 0;
     rb_encoding *enc;
 
+#if WITH_OBJC
+    need_recompile = 0;
+#else
     if (rb_enc_str_coderange(str) == ENC_CODERANGE_BROKEN) {
         rb_raise(rb_eArgError,
             "broken %s string",
             rb_enc_name(rb_enc_get(str)));
     }
+#endif
 
     rb_reg_check(re);
     /* ignorecase status */
+#if !WITH_OBJC
     if (rb_reg_fixed_encoding_p(re) || !rb_enc_str_asciicompat_p(str)) {
         if (ENCODING_GET(re) != rb_enc_get_index(str) &&
             rb_enc_str_coderange(str) != ENC_CODERANGE_7BIT) {
             rb_raise(rb_eArgError,
                 "incompatible encoding regexp match (%s regexp with %s string)",
-                rb_enc_name(rb_enc_from_index(ENCODING_GET(re))),
+		rb_enc_name(rb_enc_get(re)),
                 rb_enc_name(rb_enc_get(str)));
         }
     }
@@ -1082,6 +1134,7 @@ rb_reg_prepare_re(VALUE re, VALUE str, int enable_warning)
                     rb_enc_name(enc));
         }
     }
+#endif
 
     if (need_recompile) {
 	onig_errmsg_buffer err = "";
@@ -1104,10 +1157,14 @@ rb_reg_prepare_re(VALUE re, VALUE str, int enable_warning)
             rb_raise(rb_eArgError, "regexp preprocess failed: %s", err);
         }
 
+#if WITH_OBJC
+	enc = (rb_encoding *)ONIG_ENCODING_ASCII;
+#endif
+
 	r = onig_new(&reg2, (UChar* )RSTRING_CPTR(unescaped),
 		     (UChar* )(RSTRING_CPTR(unescaped) 
 			 + RSTRING_CLEN(unescaped)),
-		     reg->options, enc,
+		     reg->options, (OnigEncoding)enc,
 		     OnigDefaultSyntax, &einfo);
 	if (r) {
 	    onig_error_code_to_str((UChar*)err, r, &einfo);
@@ -1815,8 +1872,12 @@ unescape_escaped_nonascii(const char **pp, const char *end, rb_encoding *enc,
     }
 
     chbuf[chlen++] = byte;
-    while (chlen < chmaxlen &&
-           MBCLEN_NEEDMORE_P(rb_enc_precise_mbclen(chbuf, chbuf+chlen, enc))) {
+    while (chlen < chmaxlen 
+#if WITH_OBJC
+	&& 1) {
+#else
+	&& MBCLEN_NEEDMORE_P(rb_enc_precise_mbclen(chbuf, chbuf+chlen, enc))) {
+#endif
         byte = read_escaped_byte(&p, end, err);
         if (byte == -1) {
             return -1;
@@ -1824,11 +1885,13 @@ unescape_escaped_nonascii(const char **pp, const char *end, rb_encoding *enc,
         chbuf[chlen++] = byte;
     }
 
+#if !WITH_OBJC
     l = rb_enc_precise_mbclen(chbuf, chbuf+chlen, enc);
     if (MBCLEN_INVALID_P(l)) {
         strcpy(err, "invalid multibyte escape");
         return -1;
     }
+#endif
     if (1 < chlen || (chbuf[0] & 0x80)) {
         rb_str_buf_cat(buf, chbuf, chlen);
 
@@ -1876,12 +1939,14 @@ append_utf8(unsigned long uv,
         len = rb_uv_to_utf8(utf8buf, uv);
         rb_str_buf_cat(buf, utf8buf, len);
 
+#if !WITH_OBJC
         if (*encp == 0)
             *encp = rb_utf8_encoding();
         else if (*encp != rb_utf8_encoding()) {
             strcpy(err, "UTF-8 character in non UTF-8 regexp");
             return -1;
         }
+#endif
     }
     return 0;
 }
@@ -1954,12 +2019,16 @@ unescape_nonascii(const char *p, const char *end, rb_encoding *enc,
     char smallbuf[2];
 
     while (p < end) {
+#if WITH_OBJC
+	int chlen = 1;
+#else
         int chlen = rb_enc_precise_mbclen(p, end, enc);
         if (!MBCLEN_CHARFOUND_P(chlen)) {
             strcpy(err, "invalid multibyte character");
             return -1;
         }
         chlen = MBCLEN_CHARFOUND_LEN(chlen);
+#endif
         if (1 < chlen || (*p & 0x80)) {
             rb_str_buf_cat(buf, p, chlen);
             p += chlen;
@@ -2057,14 +2126,18 @@ rb_reg_preprocess(const char *p, const char *end, rb_encoding *enc,
         *fixed_enc = 0;
     else {
         *fixed_enc = enc;
+#if !WITH_OBJC
         rb_enc_associate(buf, enc);
+#endif
     }
 
     if (unescape_nonascii(p, end, enc, buf, fixed_enc, err) != 0)
         return Qnil;
 
     if (*fixed_enc) {
+#if !WITH_OBJC
         rb_enc_associate(buf, *fixed_enc);
+#endif
     }
 
     return buf;
@@ -2144,7 +2217,9 @@ rb_reg_preprocess_dregexp(VALUE ary)
             rb_str_buf_append(result, str);
     }
     if (regexp_enc) {
+#if !WITH_OBJC
         rb_enc_associate(result, regexp_enc);
+#endif
     }
 
     return result;
@@ -2157,7 +2232,11 @@ rb_reg_initialize(VALUE obj, const char *s, int len, rb_encoding *enc,
     struct RRegexp *re = RREGEXP(obj);
     VALUE unescaped;
     rb_encoding *fixed_enc = 0;
+#if WITH_OBJC
+    rb_encoding *a_enc = NULL;
+#else
     rb_encoding *a_enc = rb_ascii8bit_encoding();
+#endif
 
     if (!OBJ_TAINTED(obj) && rb_safe_level() >= 4)
 	rb_raise(rb_eSecurityError, "Insecure: can't modify regexp");
@@ -2184,11 +2263,15 @@ rb_reg_initialize(VALUE obj, const char *s, int len, rb_encoding *enc,
 	    enc = fixed_enc;
 	}
     }
+#if !WITH_OBJC
     else if (!(options & ARG_ENCODING_FIXED)) {
        enc = rb_usascii_encoding();
     }
+#endif
 
+#if !WITH_OBJC
     rb_enc_associate((VALUE)re, enc);
+#endif
     if ((options & ARG_ENCODING_FIXED) || fixed_enc) {
 	re->basic.flags |= KCODE_FIXED;
     }
@@ -2214,6 +2297,8 @@ rb_reg_initialize_str(VALUE obj, VALUE str, int options, onig_errmsg_buffer err)
     int ret;
     rb_encoding *enc = rb_enc_get(str);
     if (options & ARG_ENCODING_NONE) {
+#if !WITH_OBJC
+	/* TODO */
         rb_encoding *ascii8bit = rb_ascii8bit_encoding();
         if (enc != ascii8bit) {
             if (rb_enc_str_coderange(str) != ENC_CODERANGE_7BIT) {
@@ -2222,6 +2307,7 @@ rb_reg_initialize_str(VALUE obj, VALUE str, int options, onig_errmsg_buffer err)
             }
             enc = ascii8bit;
         }
+#endif
     }
     ret = rb_reg_initialize(obj, RSTRING_CPTR(str), RSTRING_CLEN(str), enc,
 			    options, err);
@@ -2277,7 +2363,11 @@ rb_enc_reg_new(const char *s, long len, rb_encoding *enc, int options)
 VALUE
 rb_reg_new(const char *s, long len, int options)
 {
+#if WITH_OBJC
+    return rb_enc_reg_new(s, len, NULL, options);
+#else
     return rb_enc_reg_new(s, len, rb_ascii8bit_encoding(), options);
+#endif
 }
 
 VALUE
@@ -2302,7 +2392,11 @@ rb_reg_regcomp(VALUE str)
 {
     volatile VALUE save_str = str;
     if (reg_cache && RREGEXP(reg_cache)->len == RSTRING_CLEN(str)
+#if WITH_OBJC
+	&& rb_enc_get(reg_cache) == rb_enc_get(str)
+#else
 	&& ENCODING_GET(reg_cache) == ENCODING_GET(str)
+#endif
         && memcmp(RREGEXP(reg_cache)->str, RSTRING_CPTR(str), RSTRING_CLEN(str)) == 0)
 	return reg_cache;
 
@@ -2359,7 +2453,11 @@ rb_reg_equal(VALUE re1, VALUE re2)
     if (FL_TEST(re1, KCODE_FIXED) != FL_TEST(re2, KCODE_FIXED)) return Qfalse;
     if (RREGEXP(re1)->ptr->options != RREGEXP(re2)->ptr->options) return Qfalse;
     if (RREGEXP(re1)->len != RREGEXP(re2)->len) return Qfalse;
+#if WITH_OBJC
+    if (rb_enc_get(re1) != rb_enc_get(re2)) return Qfalse;
+#else
     if (ENCODING_GET(re1) != ENCODING_GET(re2)) return Qfalse;
+#endif
     if (memcmp(RREGEXP(re1)->str, RREGEXP(re2)->str, RREGEXP(re1)->len) == 0) {
 	return Qtrue;
     }
@@ -2643,7 +2741,9 @@ rb_reg_initialize_m(int argc, VALUE *argv, VALUE self)
 	if (argc == 3 && !NIL_P(argv[2])) {
 	    char *kcode = StringValuePtr(argv[2]);
 	    if (kcode[0] == 'n' || kcode[1] == 'N') {
+#if !WITH_OBJC
 		enc = rb_ascii8bit_encoding();
+#endif
 		flags |= ARG_ENCODING_FIXED;
 	    }
 	    else {
@@ -2669,18 +2769,27 @@ rb_reg_quote(VALUE str)
     char *t;
     VALUE tmp;
     int c, clen;
+#if WITH_OBJC
+    int ascii_only = 0;
+#else
     int ascii_only = rb_enc_str_asciionly_p(str);
+#endif
 
     s = RSTRING_CPTR(str);
     if (s == NULL)
 	return str;
     send = s + RSTRING_CLEN(str);
     while (s < send) {
-        c = rb_enc_ascget(s, send, &clen, enc);
+#if WITH_OBJC
+	c = *s;
+	clen = 1;
+#else
+	c = rb_enc_ascget(s, send, &clen, enc);
 	if (c == -1) {
             s += mbclen(s, send, enc);
 	    continue;
 	}
+#endif
 	switch (c) {
 	  case '[': case ']': case '{': case '}':
 	  case '(': case ')': case '|': case '-':
@@ -2694,24 +2803,32 @@ rb_reg_quote(VALUE str)
     }
     if (ascii_only) {
         str = rb_str_new3(str);
+#if !WITH_OBJC
         rb_enc_associate(str, rb_usascii_encoding());
+#endif
     }
     return str;
 
   meta_found:
     tmp = rb_str_new(0, RSTRING_CLEN(str)*2);
+#if !WITH_OBJC
     if (ascii_only) {
         rb_enc_associate(tmp, rb_usascii_encoding());
     }
     else {
         rb_enc_copy(tmp, str);
     }
+#endif
     t = RSTRING_PTR(tmp);
     /* copy upto metacharacter */
     memcpy(t, RSTRING_CPTR(str), s - RSTRING_CPTR(str));
     t += s - RSTRING_CPTR(str);
 
     while (s < send) {
+#if WITH_OBJC
+	c = *s;
+	clen = 1;
+#else
         c = rb_enc_ascget(s, send, &clen, enc);
 	if (c == -1) {
 	    int n = mbclen(s, send, enc);
@@ -2720,6 +2837,7 @@ rb_reg_quote(VALUE str)
 		*t++ = *s++;
 	    continue;
 	}
+#endif
         s += clen;
 	switch (c) {
 	  case '[': case ']': case '{': case '}':
@@ -2758,7 +2876,9 @@ rb_reg_quote(VALUE str)
     }
     rb_str_resize(tmp, t - RSTRING_PTR(tmp));
     RSTRING_SYNC(tmp);
+#if !WITH_OBJC
     OBJ_INFECT(tmp, str);
+#endif
     return tmp;
 }
 
@@ -2894,9 +3014,11 @@ rb_reg_s_union(VALUE self, VALUE args0)
                         rb_raise(rb_eArgError, "incompatible encodings: %s and %s",
                             rb_enc_name(has_ascii_incompat), rb_enc_name(enc));
                 }
+#if !WITH_OBJC
                 else if (rb_enc_str_asciionly_p(e)) {
                     has_asciionly = 1;
                 }
+#endif
                 else {
                     if (!has_ascii_compat_fixed)
                         has_ascii_compat_fixed = enc;
@@ -2917,12 +3039,15 @@ rb_reg_s_union(VALUE self, VALUE args0)
                 }
             }
 
+#if !WITH_OBJC
             if (i == 0) {
                 rb_enc_copy(source, v);
             }
+#endif
 	    rb_str_append(source, v);
 	}
 
+#if !WITH_OBJC
         if (has_ascii_incompat) {
             result_enc = has_ascii_incompat;
         }
@@ -2934,6 +3059,7 @@ rb_reg_s_union(VALUE self, VALUE args0)
         }
 
         rb_enc_associate(source, result_enc);
+#endif
         return rb_class_new_instance(1, &source, rb_cRegexp);
     }
 }
@@ -2998,18 +3124,24 @@ rb_reg_regsub(VALUE str, VALUE src, struct re_registers *regs, VALUE regexp)
     rb_encoding *str_enc = rb_enc_get(str);
     rb_encoding *src_enc = rb_enc_get(src);
 
+#if !WITH_OBJC
     rb_enc_check(str, src);
+#endif
     p = s = RSTRING_CPTR(str);
     e = s + RSTRING_CLEN(str);
 
     while (s < e) {
-        int c = rb_enc_ascget(s, e, &clen, str_enc);
 	const char *ss;
-
+#if WITH_OBJC
+	int c = *s;
+	clen = 1;
+#else
+        int c = rb_enc_ascget(s, e, &clen, str_enc);
 	if (c == -1) {
 	    s += mbclen(s, e, str_enc);
 	    continue;
 	}
+#endif
 	ss = s;
         s += clen;
 
@@ -3020,6 +3152,10 @@ rb_reg_regsub(VALUE str, VALUE src, struct re_registers *regs, VALUE regexp)
 	}
         rb_enc_str_buf_cat(val, p, ss-p, str_enc);
 
+#if WITH_OBJC
+	c = *s;
+	clen = 1;
+#else
         c = rb_enc_ascget(s, e, &clen, str_enc);
         if (c == -1) {
             s += mbclen(s, e, str_enc);
@@ -3027,6 +3163,7 @@ rb_reg_regsub(VALUE str, VALUE src, struct re_registers *regs, VALUE regexp)
             p = s;
 	    continue;
         }
+#endif
         s += clen;
 
 	p = s;
@@ -3042,14 +3179,26 @@ rb_reg_regsub(VALUE str, VALUE src, struct re_registers *regs, VALUE regexp)
 	    break;
 
           case 'k':
+#if WITH_OBJC
+	    clen = 1;
+	    if (s < e && *s == '<') {
+#else
             if (s < e && rb_enc_ascget(s, e, &clen, str_enc) == '<') {
+#endif
                 const char *name, *name_end;
                
                 name_end = name = s + clen;
                 while (name_end < e) {
+#if WITH_OBJC
+		    c = *name_end;
+		    clen = 1;
+                    if (c == '>') break;
+                    name_end += clen;
+#else
                     c = rb_enc_ascget(name_end, e, &clen, str_enc);
                     if (c == '>') break;
                     name_end += c == -1 ? mbclen(name_end, e, str_enc) : clen;
+#endif
                 }
                 if (name_end < e) {
                     no = name_to_backref_number(regs, regexp, name, name_end);

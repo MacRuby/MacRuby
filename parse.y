@@ -266,14 +266,23 @@ struct parser_params {
 #endif
 };
 
-#define UTF8_ENC() (parser->utf8 ? parser->utf8 : \
+#if WITH_OBJC
+# define UTF8_ENC() (NULL)
+#else
+# define UTF8_ENC() (parser->utf8 ? parser->utf8 : \
 		    (parser->utf8 = rb_utf8_encoding()))
+#endif
 #define STR_NEW(p,n) rb_enc_str_new((p),(n),parser->enc)
 #define STR_NEW0() rb_usascii_str_new(0,0)
 #define STR_NEW2(p) rb_enc_str_new((p),strlen(p),parser->enc)
 #define STR_NEW3(p,n,e,func) parser_str_new((p),(n),(e),(func),parser->enc)
-#define STR_ENC(m) ((m)?parser->enc:rb_usascii_encoding())
-#define ENC_SINGLE(cr) ((cr)==ENC_CODERANGE_7BIT)
+#if WITH_OBJC
+# define STR_ENC(m) (parser->enc)
+# define ENC_SINGLE(cr) (1)
+#else
+# define STR_ENC(m) ((m)?parser->enc:rb_usascii_encoding())
+# define ENC_SINGLE(cr) ((cr)==ENC_CODERANGE_7BIT)
+#endif
 #define TOK_INTERN(mb) rb_intern3(tok(), toklen(), STR_ENC(mb))
 
 #ifdef YYMALLOC
@@ -4641,8 +4650,10 @@ ripper_dispatch_delayed_token(struct parser_params *parser, int t)
 # define SIGN_EXTEND_CHAR(c) ((((unsigned char)(c)) ^ 128) - 128)
 #endif
 
+#if !WITH_OBJC
 #define parser_mbclen()  mbclen((lex_p-1),lex_pend,parser->enc)
 #define parser_precise_mbclen()  rb_enc_precise_mbclen((lex_p-1),lex_pend,parser->enc)
+#endif
 #define is_identchar(p,e,enc) (rb_enc_isalnum(*p,enc) || (*p) == '_' || !ISASCII(*p))
 #define parser_is_identchar() (!parser->eofp && is_identchar((lex_p-1),lex_pend,parser->enc))
 
@@ -4678,11 +4689,19 @@ parser_yyerror(struct parser_params *parser, const char *msg)
 
 	if (len > max_line_margin * 2 + 10) {
 	    if (lex_p - p > max_line_margin) {
+#if WITH_OBJC
+		p = lex_p - max_line_margin;
+#else
 		p = rb_enc_prev_char(p, lex_p - max_line_margin, rb_enc_get(lex_lastline));
+#endif
 		pre = "...";
 	    }
 	    if (pe - lex_p > max_line_margin) {
+#if WITH_OBJC
+		pe = lex_p + max_line_margin;
+#else
 		pe = rb_enc_prev_char(lex_p, lex_p + max_line_margin, rb_enc_get(lex_lastline));
+#endif
 		post = "...";
 	    }
 	    len = pe - p;
@@ -4956,6 +4975,7 @@ parser_str_new(const char *p, long n, rb_encoding *enc, int func, rb_encoding *e
 #endif
 
     str = rb_enc_str_new(p, n, enc);
+#if !WITH_OBJC
     if (!(func & STR_FUNC_REGEXP) && rb_enc_asciicompat(enc)) {
 	if (rb_enc_str_coderange(str) == ENC_CODERANGE_7BIT) {
 	    rb_enc_associate(str, rb_usascii_encoding());
@@ -4964,6 +4984,7 @@ parser_str_new(const char *p, long n, rb_encoding *enc, int func, rb_encoding *e
 	    rb_enc_associate(str, rb_ascii8bit_encoding());
 	}
     }
+#endif
 
     return str;
 }
@@ -5281,8 +5302,14 @@ parser_read_escape(struct parser_params *parser, int flags,
 static void
 parser_tokaddmbc(struct parser_params *parser, int c, rb_encoding *enc)
 {
+#if WITH_OBJC
+    /* FIXME */
+    char *buf = tokspace(1);
+    *(buf) = c;    
+#else
     int len = rb_enc_codelen(c, enc);
     rb_enc_mbcput(c, tokspace(len), enc);
+#endif
 }
 
 static int
@@ -5409,11 +5436,15 @@ dispose_string(VALUE str)
 static int
 parser_tokadd_mbchar(struct parser_params *parser, int c)
 {
+#if WITH_OBJC
+    int len = 1;
+#else
     int len = parser_precise_mbclen();
     if (!MBCLEN_CHARFOUND_P(len)) {
 	compile_error(PARSER_ARG "invalid multibyte char");
 	return -1;
     }
+#endif
     tokadd(c);
     lex_p += --len;
     if (len > 0) tokcopy(len);
@@ -5856,8 +5887,15 @@ parser_encode_length(struct parser_params *parser, const char *name, int len)
 static void
 parser_set_encode(struct parser_params *parser, const char *name)
 {
-    int idx = rb_enc_find_index(name);
     rb_encoding *enc;
+#if WITH_OBJC
+    enc = rb_enc_find(name);
+    if (enc == NULL) {
+	rb_raise(rb_eArgError, "unknown encoding name: %s", name);
+    }
+    /* TODO should raise if the encoding is not ASCII compatible */
+#else
+    int idx = rb_enc_find_index(name);
 
     if (idx < 0) {
 	rb_raise(rb_eArgError, "unknown encoding name: %s", name);
@@ -5866,6 +5904,7 @@ parser_set_encode(struct parser_params *parser, const char *name)
     if (!rb_enc_asciicompat(enc)) {
 	rb_raise(rb_eArgError, "%s is not ASCII compatible", rb_enc_name(enc));
     }
+#endif
     parser->enc = enc;
 }
 
@@ -6085,8 +6124,10 @@ parser_prepare(struct parser_params *parser)
     }
     pushback(c);
     parser->enc = rb_enc_get(lex_lastline);
+#if !WITH_OBJC
     if (parser->enc == NULL)
 	parser->enc = rb_utf8_encoding();
+#endif
 }
 
 #define IS_ARG() (lex_state == EXPR_ARG || lex_state == EXPR_CMDARG)
@@ -7248,9 +7289,13 @@ parser_yylex(struct parser_params *parser)
 	break;
     }
 
+#if !WITH_OBJC
     mb = ENC_CODERANGE_7BIT;
+#endif
     do {
+#if !WITH_OBJC
 	if (!ISASCII(c)) mb = ENC_CODERANGE_UNKNOWN;
+#endif
 	if (tokadd_mbchar(c) == -1) return 0;
 	c = nextc();
     } while (parser_is_identchar());
@@ -7303,7 +7348,11 @@ parser_yylex(struct parser_params *parser)
 		}
 	    }
 
+#if WITH_OBJC
+	    if (lex_state != EXPR_DOT) {
+#else
 	    if (mb == ENC_CODERANGE_7BIT && lex_state != EXPR_DOT) {
+#endif
 		const struct kwtable *kw;
 
 		/* See if it is a reserved word.  */
@@ -7557,11 +7606,13 @@ list_concat_gen(struct parser_params *parser, NODE *head, NODE *tail)
 static void
 literal_concat0(struct parser_params *parser, VALUE head, VALUE tail)
 {
+#if !WITH_OBJC
     if (!rb_enc_compatible(head, tail)) {
 	compile_error(PARSER_ARG "string literal encodings differ (%s / %s)",
 		      rb_enc_name(rb_enc_get(head)),
 		      rb_enc_name(rb_enc_get(tail)));
     }
+#endif
     RSTRING_SYNC(head);
     rb_str_buf_append(head, tail);
 }
@@ -8629,6 +8680,9 @@ VALUE rb_reg_check_preprocess(VALUE);
 static void
 reg_fragment_setenc_gen(struct parser_params* parser, VALUE str, int options)
 {
+#if WITH_OBJC
+    /* TODO */
+#else
     int c = RE_OPTION_ENCODING_IDX(options);
 
     if (c) {
@@ -8663,6 +8717,7 @@ reg_fragment_setenc_gen(struct parser_params* parser, VALUE str, int options)
     compile_error(PARSER_ARG
         "regexp encoding option '%c' differs from source encoding '%s'",
         c, rb_enc_name(rb_enc_get(str)));
+#endif
 }
 
 static void
@@ -8999,7 +9054,11 @@ is_special_global_name(const char *m, const char *e, rb_encoding *enc)
 	++m;
 	if (m < e && is_identchar(m, e, enc)) {
 	    if (!ISASCII(*m)) mb = 1;
+#if WITH_OBJC
+	    m += e-m;
+#else
 	    m += rb_enc_mbclen(m, e, enc);
+#endif
 	}
 	break;
       default:
@@ -9015,7 +9074,11 @@ is_special_global_name(const char *m, const char *e, rb_encoding *enc)
 int
 rb_symname_p(const char *name)
 {
+#if WITH_OBJC
+    return rb_enc_symname_p(name, NULL);
+#else
     return rb_enc_symname_p(name, rb_ascii8bit_encoding());
+#endif
 }
 
 int
@@ -9096,7 +9159,11 @@ rb_enc_symname2_p(const char *name, int len, rb_encoding *enc)
       id:
 	if (m >= e || (*m != '_' && !rb_enc_isalpha(*m, enc) && ISASCII(*m)))
 	    return Qfalse;
+#if WITH_OBJC
+	while (m < e && is_identchar(m, e, enc)) m += e-m;
+#else
 	while (m < e && is_identchar(m, e, enc)) m += rb_enc_mbclen(m, e, enc);
+#endif
 	if (localid) {
 	    switch (*m) {
 	      case '!': case '?': case '=': ++m;
@@ -9152,7 +9219,13 @@ rb_intern3(const char *name, long len, rb_encoding *enc)
       case '$':
 	id |= ID_GLOBAL;
 	if ((mb = is_special_global_name(++m, e, enc)) != 0) {
-	    if (!--mb) enc = rb_ascii8bit_encoding();
+	    if (!--mb) {
+#if WITH_OBJC
+		enc = NULL;
+#else
+		enc = rb_ascii8bit_encoding();
+#endif
+	    }
 	    goto new_id;
 	}
 	break;
@@ -9199,6 +9272,7 @@ rb_intern3(const char *name, long len, rb_encoding *enc)
 	}
 	break;
     }
+#if !WITH_OBJC
     mb = 0;
     if (!rb_enc_isdigit(*m, enc)) {
 	while (m <= name + last && is_identchar(m, e, enc)) {
@@ -9225,12 +9299,12 @@ rb_intern3(const char *name, long len, rb_encoding *enc)
 	}
       mbstr:;
     }
+#endif
   new_id:
     id |= ++global_symbols.last_id << ID_SCOPE_SHIFT;
   id_register:
     str = rb_enc_str_new(name, len, enc);
-// TODO
-//    OBJ_FREEZE(str);
+    OBJ_FREEZE(str);
 #if WITH_OBJC
     CFDictionarySetValue(global_symbols.sym_id, (const void *)name_hash, 
 	(const void *)id);
@@ -9246,7 +9320,11 @@ rb_intern3(const char *name, long len, rb_encoding *enc)
 ID
 rb_intern2(const char *name, long len)
 {
+#if WITH_OBJC
+    return rb_intern3(name, len, NULL);
+#else
     return rb_intern3(name, len, rb_usascii_encoding());
+#endif
 }
 
 #undef rb_intern
@@ -9262,12 +9340,16 @@ rb_intern_str(VALUE str)
     rb_encoding *enc;
     ID id;
 
+#if WITH_OBJC
+    enc = rb_enc_get(str);
+#else
     if (rb_enc_str_coderange(str) == ENC_CODERANGE_7BIT) {
 	enc = rb_usascii_encoding();
     }
     else {
 	enc = rb_enc_get(str);
     }
+#endif
     id = rb_intern3(RSTRING_CPTR(str), RSTRING_CLEN(str), enc);
     RB_GC_GUARD(str);
     return id;
@@ -9467,7 +9549,11 @@ parser_initialize(struct parser_params *parser)
 #ifdef YYMALLOC
     parser->heap = NULL;
 #endif
+#if WITH_OBJC
+    parser->enc = NULL;
+#else
     parser->enc = rb_usascii_encoding();
+#endif
 }
 
 extern void rb_mark_source_filename(char *);

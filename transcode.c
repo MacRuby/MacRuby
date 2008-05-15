@@ -10,6 +10,9 @@
 **********************************************************************/
 
 #include "ruby/ruby.h"
+
+#if !WITH_OBJC
+
 #include "ruby/encoding.h"
 #define PType (int)
 #include "transcode_data.h"
@@ -441,15 +444,35 @@ rb_str_transcode(int argc, VALUE *argv, VALUE str)
     return newstr;
 }
 
+#else // WITH_OBJC
+
+static VALUE
+rb_str_transcode(int argc, VALUE *argv, VALUE self)
+{
+    /* TODO */
+    return self;
+}
+
+static VALUE
+rb_str_transcode_bang(int argc, VALUE *argv, VALUE self)
+{
+    /* TODO */
+    return self;
+}
+
+#endif
+
 void
 Init_transcode(void)
 {
+#if !WITH_OBJC
     transcoder_table = st_init_strcasetable();
     transcoder_lib_table = st_init_strcasetable();
     init_transcoder_table();
 
     sym_invalid = ID2SYM(rb_intern("invalid"));
     sym_ignore = ID2SYM(rb_intern("ignore"));
+#endif
 
     rb_define_method(rb_cString, "encode", rb_str_transcode, -1);
     rb_define_method(rb_cString, "encode!", rb_str_transcode_bang, -1);

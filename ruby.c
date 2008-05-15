@@ -91,7 +91,11 @@ struct cmdline_options {
     struct {
 	struct {
 	    VALUE name;
+#if WITH_OBJC
+	    rb_encoding *enc;
+#else
 	    int index;
+#endif
 	} enc;
     } src, ext;
 };
@@ -926,6 +930,17 @@ ruby_init_gems(int enable)
     Init_prelude();
 }
 
+#if WITH_OBJC
+static rb_encoding *
+opt_enc_find(VALUE enc_name)
+{
+    rb_encoding *enc = rb_enc_find2(enc_name);
+    if (enc == NULL)
+	rb_raise(rb_eRuntimeError, "unknown encoding name - %s", 
+	    RSTRING_CPTR(enc_name));
+    return enc;
+}
+#else
 static int
 opt_enc_index(VALUE enc_name)
 {
@@ -940,8 +955,13 @@ opt_enc_index(VALUE enc_name)
     }
     return i;
 }
+#endif
 
+#if WITH_OBJC
+static rb_encoding *src_encoding;
+#else
 static int src_encoding_index = -1; /* TODO: VM private */
+#endif
 
 static VALUE
 process_options(VALUE arg)
@@ -1059,15 +1079,30 @@ process_options(VALUE arg)
     parser = rb_parser_new();
     if (opt->yydebug) rb_parser_set_yydebug(parser, Qtrue);
     if (opt->ext.enc.name != 0) {
+#if WITH_OBJC
+	opt->ext.enc.enc = opt_enc_find(opt->ext.enc.name);
+#else
 	opt->ext.enc.index = opt_enc_index(opt->ext.enc.name);
+#endif
     }
     if (opt->src.enc.name != 0) {
+#if WITH_OBJC
+	opt->src.enc.enc = opt_enc_find(opt->src.enc.name);
+	src_encoding = opt->src.enc.enc;
+#else
 	opt->src.enc.index = opt_enc_index(opt->src.enc.name);
 	src_encoding_index = opt->src.enc.index;
+#endif
     }
+#if WITH_OBJC
+    if (opt->ext.enc.enc != NULL) {
+	enc = opt->ext.enc.enc;
+    }
+#else
     if (opt->ext.enc.index >= 0) {
 	enc = rb_enc_from_index(opt->ext.enc.index);
     }
+#endif
     else {
 	enc = rb_locale_encoding();
     }
@@ -1075,13 +1110,21 @@ process_options(VALUE arg)
 
     if (opt->e_script) {
 	rb_encoding *eenc;
+#if WITH_OBJC
+	if (opt->src.enc.enc != NULL) {
+	    eenc = opt->src.enc.enc;
+	}
+#else
 	if (opt->src.enc.index >= 0) {
 	    eenc = rb_enc_from_index(opt->src.enc.index);
 	}
+#endif
 	else {
 	    eenc = rb_locale_encoding();
 	}
+#if !WITH_OBJC
 	rb_enc_associate(opt->e_script, eenc);
+#endif
 	require_libraries();
 	tree = rb_parser_compile_string(parser, opt->script, opt->e_script, 1);
     }
@@ -1233,11 +1276,20 @@ load_file(VALUE parser, const char *fname, int script, struct cmdline_options *o
 	    }
 	    rb_io_ungetc(f, INT2FIX('#'));
 	    if (no_src_enc && opt->src.enc.name) {
+#if WITH_OBJC
+		opt->src.enc.enc = opt_enc_find(opt->src.enc.name);
+		src_encoding = opt->src.enc.enc;
+#else
 		opt->src.enc.index = opt_enc_index(opt->src.enc.name);
 		src_encoding_index = opt->src.enc.index;
+#endif
 	    }
 	    if (no_ext_enc && opt->ext.enc.name) {
+#if WITH_OBJC
+		opt->ext.enc.enc = opt_enc_find(opt->ext.enc.name);
+#else
 		opt->ext.enc.index = opt_enc_index(opt->ext.enc.name);
+#endif
 	    }
 	}
 	else if (!NIL_P(c)) {
@@ -1245,6 +1297,14 @@ load_file(VALUE parser, const char *fname, int script, struct cmdline_options *o
 	}
 	require_libraries();	/* Why here? unnatural */
     }
+#if WITH_OBJC
+    if (opt->src.enc.enc != NULL) {
+    	enc = opt->src.enc.enc;
+    }
+    else {
+	enc = rb_locale_encoding();
+    }
+#else
     if (opt->src.enc.index >= 0) {
 	enc = rb_enc_from_index(opt->src.enc.index);
     }
@@ -1254,6 +1314,7 @@ load_file(VALUE parser, const char *fname, int script, struct cmdline_options *o
     else {
 	enc = rb_usascii_encoding();
     }
+#endif
     rb_funcall(f, rb_intern("set_encoding"), 1, rb_enc_from_encoding(enc));
     tree = (NODE *)rb_parser_compile_file(parser, fname, f, line_start);
     rb_funcall(f, rb_intern("set_encoding"), 1, rb_parser_encoding(parser));
@@ -1272,7 +1333,11 @@ rb_load_file(const char *fname)
     struct cmdline_options opt;
 
     MEMZERO(&opt, opt, 1);
+#if WITH_OBJC
+    opt.src.enc.enc = src_encoding;
+#else
     opt.src.enc.index = src_encoding_index;
+#endif
     return load_file(rb_parser_new(), fname, 0, &opt);
 }
 
@@ -1504,8 +1569,13 @@ ruby_process_options(int argc, char **argv)
     args.argc = argc;
     args.argv = argv;
     args.opt = &opt;
+#if WITH_OBJC
+    opt.src.enc.enc = src_encoding;
+    opt.ext.enc.enc = NULL;
+#else
     opt.src.enc.index = src_encoding_index;
     opt.ext.enc.index = -1;
+#endif
     tree = (NODE *)rb_vm_call_cfunc(rb_vm_top_self(),
 				    process_options, (VALUE)&args,
 				    0, rb_progname);

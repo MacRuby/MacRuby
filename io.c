@@ -1351,6 +1351,7 @@ static VALUE
 io_enc_str(VALUE str, rb_io_t *fptr)
 {
     OBJ_TAINT(str);
+#if !WITH_OBJC
     if (fptr->enc2) {
 	/* two encodings, so transcode from enc2 to enc */
 	/* the methods in transcode.c are static, so call indirectly */
@@ -1362,6 +1363,7 @@ io_enc_str(VALUE str, rb_io_t *fptr)
 	/* just one encoding, so associate it with the string */
 	rb_enc_associate(str, io_read_encoding(fptr));
     }
+#endif
     return str;
 }
 
@@ -1372,7 +1374,9 @@ read_all(rb_io_t *fptr, long siz, VALUE str)
     long n;
     long pos = 0;
     rb_encoding *enc = io_input_encoding(fptr);
+#if !WITH_OBJC
     int cr = fptr->enc2 ? ENC_CODERANGE_BROKEN : 0;
+#endif
 
     if (siz == 0) siz = BUFSIZ;
     if (NIL_P(str)) {
@@ -1388,17 +1392,21 @@ read_all(rb_io_t *fptr, long siz, VALUE str)
             break;
 	}
 	bytes += n;
+#if !WITH_OBJC
 	if (cr != ENC_CODERANGE_BROKEN)
 	    pos = rb_str_coderange_scan_restartable(RSTRING_PTR(str) + pos, RSTRING_PTR(str) + bytes, enc, &cr);
+#endif
 	if (bytes < siz) break;
 	siz += BUFSIZ;
 	rb_str_resize(str, siz);
     }
     if (bytes != siz) rb_str_resize(str, bytes);
     str = io_enc_str(str, fptr);
+#if !WITH_OBJC
     if (!fptr->enc2) {
 	ENC_CODERANGE_SET(str, cr);
     }
+#endif
     return str;
 }
 
@@ -1738,6 +1746,7 @@ appendline(rb_io_t *fptr, int delim, VALUE *strp, long *lp)
 		RSTRING_PTR(str)[last++] = c;
 	    }
 	    if (limit > 0 && limit == pending) {
+#if !WITH_OBJC
 		char *p = fptr->rbuf+fptr->rbuf_off;
 		char *pp = p + limit;
 		char *pl = rb_enc_left_char_head(p, pp, enc);
@@ -1748,6 +1757,7 @@ appendline(rb_io_t *fptr, int delim, VALUE *strp, long *lp)
 		    limit = pending;
 		    rb_str_set_len(str, RSTRING_LEN(str)-diff);
 		}
+#endif
 	    }
 	    read_buffered_data(RSTRING_PTR(str) + last, pending, fptr); /* must not fail */
 	    limit -= pending;
@@ -1816,7 +1826,9 @@ rb_io_getline_fast(rb_io_t *fptr)
     int len = 0;
     long pos = 0;
     rb_encoding *enc = io_input_encoding(fptr);
+#if !WITH_OBJC
     int cr = fptr->enc2 ? ENC_CODERANGE_BROKEN : 0;
+#endif
 
     for (;;) {
 	long pending = READ_DATA_PENDING_COUNT(fptr);
@@ -1839,8 +1851,10 @@ rb_io_getline_fast(rb_io_t *fptr)
 		read_buffered_data(RSTRING_PTR(str)+len, pending, fptr);
 	    }
 	    len += pending;
+#if !WITH_OBJC
 	    if (cr != ENC_CODERANGE_BROKEN)
 		pos = rb_str_coderange_scan_restartable(RSTRING_PTR(str) + pos, RSTRING_PTR(str) + len, enc, &cr);
+#endif
 	    if (e) break;
 	}
 	rb_thread_wait_fd(fptr->fd);
@@ -1853,7 +1867,9 @@ rb_io_getline_fast(rb_io_t *fptr)
 
     RSTRING_SYNC(str);
     str = io_enc_str(str, fptr);
+#if !WITH_OBJC
     if (!fptr->enc2) ENC_CODERANGE_SET(str, cr);
+#endif
     fptr->lineno++;
     ARGF.lineno = INT2FIX(fptr->lineno);
     return str;
@@ -1884,6 +1900,7 @@ prepare_getline_args(int argc, VALUE *argv, VALUE *rsp, long *limit, VALUE io)
 	}
     }
     if (!NIL_P(rs)) {
+#if !WITH_OBJC
 	rb_encoding *enc_rs, *enc_io;
 
 	GetOpenFile(io, fptr);
@@ -1911,6 +1928,7 @@ prepare_getline_args(int argc, VALUE *argv, VALUE *rsp, long *limit, VALUE io)
                 rs = rs2;
             }
 	}
+#endif
     }
     *rsp = rs;
     *limit = NIL_P(lim) ? -1L : NUM2LONG(lim);
@@ -1934,8 +1952,12 @@ rb_io_getline_1(VALUE rs, long limit, VALUE io)
     else if (limit == 0) {
 	return rb_enc_str_new(0, 0, io_read_encoding(fptr));
     }
-    else if (rs == rb_default_rs && limit < 0 &&
-             rb_enc_asciicompat(io_read_encoding(fptr))) {
+    else if (rs == rb_default_rs && limit < 0
+#if WITH_OBJC
+	    ) {
+#else	
+	     && rb_enc_asciicompat(io_read_encoding(fptr))) {
+#endif
 	return rb_io_getline_fast(fptr);
     }
     else {
@@ -1964,8 +1986,10 @@ rb_io_getline_1(VALUE rs, long limit, VALUE io)
 		if (RSTRING_LEN(str) < rslen) continue;
 		s = RSTRING_PTR(str);
 		p = s +  RSTRING_LEN(str) - rslen;
+#if !WITH_OBJC
 		pp = rb_enc_left_char_head(s, p, enc);
 		if (pp != p) continue;
+#endif
 		if (!rspara) rscheck(rsptr, rslen, rs);
 		if (memcmp(p, rsptr, rslen) == 0) break;
 	    }
@@ -2296,6 +2320,11 @@ rb_io_getc(VALUE io)
     if (io_fillbuf(fptr) < 0) {
 	return Qnil;
     }
+#if WITH_OBJC
+    /* FIXME */
+    if (0) {
+    }
+#else
     r = rb_enc_precise_mbclen(fptr->rbuf+fptr->rbuf_off, fptr->rbuf+fptr->rbuf_off+fptr->rbuf_len, enc);
     if (MBCLEN_CHARFOUND_P(r) &&
         (n = MBCLEN_CHARFOUND_LEN(r)) <= fptr->rbuf_len) {
@@ -2317,6 +2346,7 @@ rb_io_getc(VALUE io)
             }
         }
     }
+#endif
     else {
 	str = rb_str_new(fptr->rbuf+fptr->rbuf_off, 1);
 	fptr->rbuf_off++;
@@ -2447,10 +2477,14 @@ rb_io_ungetc(VALUE io, VALUE c)
     enc = io_read_encoding(fptr);
     if (FIXNUM_P(c)) {
 	int cc = FIX2INT(c);
+#if WITH_OBJC
+	c = rb_str_new((char *)&cc, 1);
+#else
 	char buf[16];
 
 	rb_enc_mbcput(cc, buf, enc);
 	c = rb_str_new(buf, rb_enc_codelen(cc, enc));
+#endif
     }
     else {
 	SafeStringValue(c);
@@ -3227,11 +3261,24 @@ mode_enc(rb_io_t *fptr, const char *estr)
 {
     const char *p0, *p1;
     char *enc2name;
+#if WITH_OBJC
+    rb_encoding *enc1, enc2;
+#else
     int idx, idx2;
-    
+#endif
+
     p0 = strrchr(estr, ':');
     if (!p0) p1 = estr;
     else     p1 = p0 + 1;
+#if WITH_OBJC
+    enc1 = rb_enc_find(p1);
+    if (enc1 != NULL) {
+	fptr->enc = enc1;
+    }
+    else {
+	rb_warn("Unsupported encoding %s ignored", p1);
+    }
+#else
     idx = rb_enc_find_index(p1);
     if (idx >= 0) {
 	fptr->enc = rb_enc_from_index(idx);
@@ -3239,28 +3286,49 @@ mode_enc(rb_io_t *fptr, const char *estr)
     else {
 	rb_warn("Unsupported encoding %s ignored", p1);
     }
+#endif
 
     if (p0) {
 	int n = p0 - estr;
 	if (n > ENCODING_MAXNAMELEN) {
+#if WITH_OBJC
+	    enc2 = NULL;
+#else
 	    idx2 = -1;
+#endif
 	}
 	else {
 	    enc2name = ALLOCA_N(char, n+1);
 	    memcpy(enc2name, estr, n);
 	    enc2name[n] = '\0';
 	    estr = enc2name;
+#if WITH_OBJC
+	    enc2 = rb_enc_find(enc2name);
+#else
 	    idx2 = rb_enc_find_index(enc2name);
+#endif
 	}
+#if WITH_OBJC
+	if (enc2 == NULL) {
+#else
 	if (idx2 < 0) {
+#endif
 	    rb_warn("Unsupported encoding %.*s ignored", n, estr);
 	}
+#if WITH_OBJC
+	else if (enc1 == enc2) {
+#else
 	else if (idx2 == idx) {
+#endif
 	    rb_warn("Ignoring internal encoding %.*s: it is identical to external encoding %s",
 		    n, estr, p1);
 	}
 	else {
+#if WITH_OBJC
+	    fptr->enc2 = enc2;
+#else
 	    fptr->enc2 = rb_enc_from_index(idx2);
+#endif
 	}
     }
 }

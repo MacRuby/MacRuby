@@ -20,6 +20,100 @@
 static ID id_encoding, id_base_encoding;
 static VALUE rb_cEncoding;
 
+#if WITH_OBJC
+
+static CFMutableDictionaryRef __encodings = NULL;
+
+static VALUE
+enc_new(const CFStringEncoding *enc)
+{
+    return Data_Wrap_Struct(rb_cEncoding, NULL, NULL, (void *)enc);
+}
+
+static void
+enc_init_db(void)
+{
+    const CFStringEncoding *e;
+
+    __encodings = CFDictionaryCreateMutable(NULL, 0, NULL, NULL);
+    
+    e = CFStringGetListOfAvailableEncodings();
+    while (e != NULL && *e != kCFStringEncodingInvalidId) {
+	VALUE iana;
+	VALUE encoding;
+
+	encoding = enc_new(e);
+
+	iana = (VALUE)CFStringConvertEncodingToIANACharSetName(*e);
+	if (iana != 0) {
+	    const char *name;
+	    char *p;
+
+	    name = RSTRING_CPTR(iana);
+	    p = strchr(name, '-');
+	    if ((p = strchr(name, '-')) != NULL
+		|| islower(*name)) {
+		char *tmp = alloca(strlen(name));
+		strcpy(tmp, name);
+		if (p != NULL) {
+		    p = tmp + (p - name);
+		    do {
+			*p = '_';
+			p++;
+			p = strchr(p, '-');	
+		    }
+		    while (p != NULL);
+		}
+		if (islower(*tmp))
+		    *tmp = toupper(*tmp);
+		name = tmp;
+	    }
+	    rb_define_const(rb_cEncoding, name, encoding);
+	}
+	CFDictionarySetValue(__encodings, (const void *)(*e), 
+	    (const void *)encoding);
+	e++;
+    }
+
+    assert(CFDictionaryGetCount((CFDictionaryRef)__encodings) > 0);
+}
+
+static VALUE
+enc_make(const CFStringEncoding *enc)
+{
+    VALUE v;
+    v = (VALUE)CFDictionaryGetValue( (CFDictionaryRef)__encodings, 
+	(const void *)(*enc));
+    assert(v != 0);
+    return v;
+}
+
+VALUE
+rb_enc_from_encoding(rb_encoding *enc)
+{
+    return enc_make(enc);
+}
+
+static inline CFStringEncoding
+rb_enc_to_enc(VALUE v)
+{
+    return *(CFStringEncoding *)DATA_PTR(v);
+}
+
+static inline CFStringEncoding *
+rb_enc_to_enc_ptr(VALUE v)
+{
+    return (CFStringEncoding *)DATA_PTR(v);
+}
+
+rb_encoding *
+rb_to_encoding(VALUE v)
+{
+    return rb_enc_to_enc_ptr(v);
+}
+
+#else
+
 struct rb_encoding_entry {
     const char *name;
     rb_encoding *enc;
@@ -81,9 +175,6 @@ enc_new(rb_encoding *encoding)
 {
     VALUE enc = Data_Wrap_Struct(rb_cEncoding, enc_mark, 0, encoding);
     encoding->auxiliary_data = (void *)enc;
-#if WITH_OBJC
-    rb_objc_retain(enc);
-#endif
     return enc;
 }
 
@@ -348,12 +439,17 @@ encdb_dummy(const char *name)
     return index;
 }
 #endif
+#endif // WITH_OBJC
 
 int
 rb_enc_dummy_p(rb_encoding *enc)
 {
+#if WITH_OBJC
+    return Qfalse;
+#else
     VALUE encoding = rb_enc_from_encoding(enc);
     return ENC_DUMMY_P(encoding);
+#endif
 }
 
 /*
@@ -375,6 +471,7 @@ enc_dummy_p(VALUE enc)
     return rb_enc_dummy_p(rb_to_encoding(enc)) ? Qtrue : Qfalse;
 }
 
+#if !WITH_OBJC
 static int
 enc_alias(const char *alias, int idx)
 {
@@ -576,6 +673,7 @@ enc_check_capable(VALUE x)
 	rb_raise(rb_eTypeError, "wrong argument type %s (not encode capable)", etype);
     }
 }
+#endif
 
 ID
 rb_id_encoding(void)
@@ -586,12 +684,10 @@ rb_id_encoding(void)
     return id_encoding;
 }
 
+#if !WITH_OBJC
 int
 rb_enc_internal_get_index(VALUE obj)
 {
-#if WITH_OBJC
-    return 0;
-#else
     int i;
 
     i = ENCODING_GET_INLINED(obj);
@@ -602,13 +698,11 @@ rb_enc_internal_get_index(VALUE obj)
 	i = NUM2INT(iv);
     }
     return i;
-#endif
 }
 
 void
 rb_enc_internal_set_index(VALUE obj, int idx)
 {
-#if !WITH_OBJC
     if (idx < ENCODING_INLINE_MAX) {
 	ENCODING_SET_INLINED(obj, idx);
 	return;
@@ -616,7 +710,6 @@ rb_enc_internal_set_index(VALUE obj, int idx)
     ENCODING_SET_INLINED(obj, ENCODING_INLINE_MAX);
     rb_ivar_set(obj, rb_id_encoding(), INT2NUM(idx));
     return;
-#endif
 }
 
 void
@@ -648,31 +741,31 @@ rb_enc_get_index(VALUE obj)
 rb_encoding*
 rb_enc_get(VALUE obj)
 {
-#if WITH_OBJC
-    return rb_ascii8bit_encoding(); /* FIXME */
-#else
     return rb_enc_from_index(rb_enc_get_index(obj));
-#endif
 }
 
 rb_encoding*
 rb_enc_check(VALUE str1, VALUE str2)
 {
-#if WITH_OBJC
-    return NULL;
-#else
     rb_encoding *enc = rb_enc_compatible(str1, str2);
     if (!enc)
 	rb_raise(rb_eArgError, "character encodings differ: %s and %s",
 		 rb_enc_name(rb_enc_get(str1)),
 		 rb_enc_name(rb_enc_get(str2)));
     return enc;
-#endif
 }
+#endif
 
 rb_encoding*
 rb_enc_compatible(VALUE str1, VALUE str2)
 {
+#if WITH_OBJC
+    /* TODO */
+    rb_encoding *enc = rb_enc_get(str1);
+    if (enc == rb_enc_get(str2))
+	return enc;
+    return NULL;
+#else
     int idx1, idx2;
     rb_encoding *enc1, *enc2;
 
@@ -724,14 +817,16 @@ rb_enc_compatible(VALUE str1, VALUE str2)
 	    return enc2;
     }
     return 0;
+#endif
 }
 
+#if !WITH_OBJC
 void
 rb_enc_copy(VALUE obj1, VALUE obj2)
 {
     rb_enc_associate_index(obj1, rb_enc_get_index(obj2));
 }
-
+#endif
 
 /*
  *  call-seq:
@@ -743,26 +838,18 @@ rb_enc_copy(VALUE obj1, VALUE obj2)
 VALUE
 rb_obj_encoding(VALUE obj)
 {
-#if WITH_OBJC
-    /* TODO */
-    return Qnil;
-#else
     rb_encoding *enc = rb_enc_get(obj);
     if (!enc) {
 	rb_raise(rb_eTypeError, "unknown encoding");
     }
     return rb_enc_from_encoding(enc);
-#endif
 }
 
+#if !WITH_OBJC
 int
 rb_enc_mbclen(const char *p, const char *e, rb_encoding *enc)
 {
-#if WITH_OBJC
-    int n = 1;
-#else
     int n = ONIGENC_PRECISE_MBC_ENC_LEN(enc, (UChar*)p, (UChar*)e);
-#endif
     if (MBCLEN_CHARFOUND_P(n) && MBCLEN_CHARFOUND_LEN(n) <= e-p)
         return MBCLEN_CHARFOUND_LEN(n);
     else {
@@ -840,6 +927,7 @@ rb_enc_tolower(int c, rb_encoding *enc)
 {
     return (ONIGENC_IS_ASCII_CODE(c)?ONIGENC_ASCII_CODE_TO_LOWER_CASE(c):(c));
 }
+#endif
 
 /*
  * call-seq:
@@ -853,11 +941,24 @@ rb_enc_tolower(int c, rb_encoding *enc)
 static VALUE
 enc_inspect(VALUE self)
 {
+#if WITH_OBJC
+    char buffer[512];
+    VALUE enc_name;
+    long n;
+
+    enc_name = (VALUE)CFStringGetNameOfEncoding(rb_enc_to_enc(self));
+    
+    n = snprintf(buffer, sizeof buffer, "#<%s:%s>", rb_obj_classname(self),
+	RSTRING_CPTR(enc_name));
+
+    return rb_str_new(buffer, n);
+#else
     VALUE str = rb_sprintf("#<%s:%s%s>", rb_obj_classname(self),
 		      rb_enc_name((rb_encoding*)DATA_PTR(self)),
 		      (ENC_DUMMY_P(self) ? " (dummy)" : ""));
     ENCODING_CODERANGE_SET(str, rb_usascii_encindex(), ENC_CODERANGE_7BIT);
     return str;
+#endif
 }
 
 /*
@@ -871,7 +972,11 @@ enc_inspect(VALUE self)
 static VALUE
 enc_name(VALUE self)
 {
+#if WITH_OBJC
+    return (VALUE)CFStringConvertEncodingToIANACharSetName(rb_enc_to_enc(self));
+#else
     return rb_usascii_str_new2(rb_enc_name((rb_encoding*)DATA_PTR(self)));
+#endif
 }
 
 static VALUE
@@ -898,9 +1003,21 @@ enc_base_encoding(VALUE self)
  *       #<Encoding:US-ASCII>, #<Encoding:ISO-2022-JP (dummy)>]
  *
  */
+
 static VALUE
 enc_list(VALUE klass)
 {
+#if WITH_OBJC
+    VALUE ary;
+    const CFStringEncoding *e;
+
+    ary = rb_ary_new();
+    e = CFStringGetListOfAvailableEncodings();
+    while (e != NULL && *e != kCFStringEncodingInvalidId) {
+	rb_ary_push(ary, enc_make(e));
+	e++;
+    }
+#else
     VALUE ary = rb_ary_new2(enc_table.count);
     int i;
     for (i = 0; i < enc_table.count; ++i) {
@@ -909,6 +1026,7 @@ enc_list(VALUE klass)
 	    rb_ary_push(ary, rb_enc_from_encoding(enc));
 	}
     }
+#endif
     return ary;
 }
 
@@ -925,8 +1043,25 @@ enc_list(VALUE klass)
  *
  */
 static VALUE
+enc_find2(VALUE enc)
+{
+    CFStringEncoding e;
+    
+    e = CFStringConvertIANACharSetNameToEncoding((CFStringRef)StringValue(enc));
+    if (e == kCFStringEncodingInvalidId)
+	return Qnil;
+    return enc_make(&e);
+}
+
+static VALUE
 enc_find(VALUE klass, VALUE enc)
 {
+#if WITH_OBJC
+    VALUE e = enc_find2(enc);
+    if (e == Qnil)
+	rb_raise(rb_eArgError, "unknown encoding name - %s", RSTRING_PTR(enc));
+    return e;
+#else
     int idx;
 
     StringValue(enc);
@@ -938,6 +1073,7 @@ enc_find(VALUE klass, VALUE enc)
 	rb_raise(rb_eArgError, "unknown encoding name - %s", RSTRING_PTR(enc));
     }
     return rb_enc_from_encoding(rb_enc_from_index(idx));
+#endif
 }
 
 /*
@@ -983,6 +1119,7 @@ enc_load(VALUE klass, VALUE str)
     return enc_find(klass, str);
 }
 
+#if !WITH_OBJC
 rb_encoding *
 rb_ascii8bit_encoding(void)
 {
@@ -1045,6 +1182,23 @@ rb_enc_default_external(void)
 {
     return rb_enc_from_encoding(rb_default_external_encoding());
 }
+#endif
+
+#if WITH_OBJC
+static rb_encoding *default_external;
+    
+rb_encoding *
+rb_default_external_encoding(void)
+{
+    return default_external;
+}
+
+VALUE
+rb_enc_default_external(void)
+{
+    return enc_make(default_external);
+}
+#endif
 
 /*
  * call-seq:
@@ -1063,7 +1217,11 @@ get_default_external(VALUE klass)
 void
 rb_enc_set_default_external(VALUE encoding)
 {
+#if WITH_OBJC
+    default_external = rb_enc_to_enc_ptr(encoding);
+#else
     default_external_index = rb_enc_to_index(rb_to_encoding(encoding));
+#endif
 }
 
 /*
@@ -1088,7 +1246,10 @@ rb_enc_set_default_external(VALUE encoding)
 VALUE
 rb_locale_charmap(VALUE klass)
 {
-#if defined NO_LOCALE_CHARMAP
+#if WITH_OBJC
+    CFStringEncoding enc = CFStringGetSystemEncoding();
+    return (VALUE)CFStringConvertEncodingToIANACharSetName(enc);
+#elif defined NO_LOCALE_CHARMAP
     return rb_usascii_str_new2("ASCII-8BIT");
 #elif defined HAVE_LANGINFO_H
     char *codeset;
@@ -1101,6 +1262,7 @@ rb_locale_charmap(VALUE klass)
 #endif
 }
 
+#if !WITH_OBJC
 static void
 set_encoding_const(const char *name, rb_encoding *enc)
 {
@@ -1156,6 +1318,7 @@ rb_enc_name_list_i(st_data_t name, st_data_t idx, st_data_t arg)
     rb_ary_push(ary, str);
     return ST_CONTINUE;
 }
+#endif
 
 /*
  * call-seq:
@@ -1176,11 +1339,22 @@ rb_enc_name_list_i(st_data_t name, st_data_t idx, st_data_t arg)
 static VALUE
 rb_enc_name_list(VALUE klass)
 {
+#if WITH_OBJC
+    VALUE ary, list;
+    long i, count;
+
+    ary = rb_ary_new();
+    list = enc_list(klass);
+    for (i = 0, count = RARRAY_LEN(list); i < count; i++)
+	rb_ary_push(ary, enc_name(RARRAY_AT(list, i)));
+#else
     VALUE ary = rb_ary_new2(enc_table.names->num_entries);
     st_foreach(enc_table.names, rb_enc_name_list_i, (st_data_t)ary);
+#endif
     return ary;
 }
 
+#if !WITH_OBJC
 static int
 rb_enc_aliases_enc_i(st_data_t name, st_data_t orig, st_data_t arg)
 {
@@ -1204,6 +1378,7 @@ rb_enc_aliases_enc_i(st_data_t name, st_data_t orig, st_data_t arg)
     rb_hash_aset(aliases, key, str);
     return ST_CONTINUE;
 }
+#endif
 
 /*
  * call-seq:
@@ -1220,11 +1395,76 @@ rb_enc_aliases_enc_i(st_data_t name, st_data_t orig, st_data_t arg)
 static VALUE
 rb_enc_aliases(VALUE klass)
 {
+#if WITH_OBJC
+    /* TODO: the CFString IANA <-> charset code does support aliases, we should
+     * find a way to return them here. 
+     */
+    return rb_hash_new();
+#else
     VALUE aliases[2];
     aliases[0] = rb_hash_new();
     aliases[1] = rb_ary_new();
     st_foreach(enc_table.names, rb_enc_aliases_enc_i, (st_data_t)aliases);
     return aliases[0];
+#endif
+}
+
+const char *
+rb_enc_name(rb_encoding *enc)
+{
+    CFStringRef str;
+    if (enc != NULL 
+	&& (str = CFStringConvertEncodingToIANACharSetName(*enc)) != NULL)
+	return RSTRING_CPTR(str);
+    return NULL;
+}
+
+long 
+rb_enc_mbminlen(rb_encoding *enc)
+{
+    return rb_enc_mbmaxlen(enc);
+}
+
+long
+rb_enc_mbmaxlen(rb_encoding *enc)
+{
+    return CFStringGetMaximumSizeForEncoding(1, *enc);
+}
+
+rb_encoding *
+rb_enc_find(const char *name)
+{
+    return rb_enc_find2(rb_str_new2(name));
+}
+
+rb_encoding *
+rb_enc_find2(VALUE name)
+{
+    VALUE e = enc_find2(name);
+    return e == Qnil ? NULL : rb_enc_to_enc_ptr(e);
+}
+
+rb_encoding *
+rb_enc_get(VALUE obj)
+{
+    int type = TYPE(obj);
+    if (type == T_STRING) {
+	CFStringEncoding enc = CFStringGetFastestEncoding((CFStringRef)obj);
+	if (enc == kCFStringEncodingInvalidId)
+	    return NULL;
+	return rb_enc_to_enc_ptr(enc_make(&enc));
+    }
+    else {
+	/* TODO */
+	return NULL;
+    }
+}
+
+rb_encoding *
+rb_locale_encoding(void)
+{
+    CFStringEncoding enc = CFStringGetSystemEncoding();
+    return rb_enc_to_enc_ptr(enc_make(&enc));
 }
 
 void

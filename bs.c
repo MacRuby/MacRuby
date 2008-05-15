@@ -186,6 +186,7 @@ get_type_modifier_attribute(xmlTextReaderPtr reader, bs_type_modifier_t *type)
         break;
     }
   }
+  free(type_modifier);
 } 
 
 static inline bool
@@ -921,6 +922,7 @@ _bs_parse(const char *path, char **loaded_paths,
             ASSERT_ALLOC(bs_informal_method);
 
             bs_informal_method->name = sel_registerName(selector);
+	    free(selector);
             bs_informal_method->class_method = 
               get_boolean_attribute(reader, "class_method", false);
             bs_informal_method->type = method_type;

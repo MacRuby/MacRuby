@@ -2097,7 +2097,7 @@ time_strftime(VALUE time, VALUE format)
 	    rb_str_cat(str, buf, len);
 	    p += strlen(p);
 	    if (buf != buffer) {
-		free(buf);
+		xfree(buf);
 		buf = buffer;
 	    }
 	    for (fmt = p; p < pe && !*p; ++p);
@@ -2109,8 +2109,10 @@ time_strftime(VALUE time, VALUE format)
 	len = rb_strftime(&buf, RSTRING_CPTR(format), &tobj->tm);
     }
     str = rb_str_new(buf, len);
-    if (buf != buffer) free(buf);
+    if (buf != buffer) xfree(buf);
+#if !WITH_OBJC
     rb_enc_copy(str, format);
+#endif
     return str;
 }
 

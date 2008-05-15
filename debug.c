@@ -21,6 +21,7 @@ static const union {
     enum ruby_value_type        value_type;
     enum node_type              node_type;
     enum {
+#if !WITH_OBJC
         RUBY_ENCODING_INLINE_MAX = ENCODING_INLINE_MAX,
         RUBY_ENCODING_SHIFT = ENCODING_SHIFT,
         RUBY_ENCODING_MASK  = ENCODING_MASK,
@@ -28,7 +29,8 @@ static const union {
         RUBY_ENC_CODERANGE_UNKNOWN = ENC_CODERANGE_UNKNOWN,
         RUBY_ENC_CODERANGE_7BIT    = ENC_CODERANGE_7BIT,
         RUBY_ENC_CODERANGE_VALID   = ENC_CODERANGE_VALID,
-        RUBY_ENC_CODERANGE_BROKEN  = ENC_CODERANGE_BROKEN, 
+        RUBY_ENC_CODERANGE_BROKEN  = ENC_CODERANGE_BROKEN,
+#endif
         RUBY_FL_MARK        = FL_MARK,
         RUBY_FL_RESERVED    = FL_RESERVED,
         RUBY_FL_FINALIZE    = FL_FINALIZE,

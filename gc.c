@@ -2039,7 +2039,8 @@ rb_objc_recorder(task_t task, void *context, unsigned type_mask,
 	if (ctx->class_of != 0) {
 	    if (ctx->class_of == rb_cClass) {
 		/* Class is a special case. */
-		if (TYPE(r->address) != T_CLASS 
+		if (rb_objc_is_non_native(r->address)
+		    || TYPE(r->address) != T_CLASS 
 		    || FL_TEST(r->address, FL_SINGLETON))
 		    continue;
 	    }
