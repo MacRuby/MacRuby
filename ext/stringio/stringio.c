@@ -639,7 +639,11 @@ strio_getc(VALUE self)
 	return Qnil;
     }
     p = RSTRING_PTR(ptr->string)+ptr->pos;
+#if WITH_OBJC
+    len = 1;
+#else
     len = rb_enc_mbclen(p, RSTRING_END(ptr->string), enc);
+#endif
     ptr->pos += len;
     return rb_enc_str_new(p, len, rb_enc_get(ptr->string));
 }
@@ -700,11 +704,15 @@ strio_ungetc(VALUE self, VALUE c)
     if (NIL_P(c)) return Qnil;
     if (FIXNUM_P(c)) {
 	int cc = FIX2INT(c);
+#if WITH_OBJC
+	c = rb_str_new((char *)&cc, 1);
+#else
 	char buf[16];
 
 	enc = rb_enc_get(ptr->string);
 	rb_enc_mbcput(cc, buf, enc);
 	c = rb_enc_str_new(buf, rb_enc_codelen(cc, enc), enc);
+#endif
     }
     else {
 	SafeStringValue(c);
@@ -713,7 +721,11 @@ strio_ungetc(VALUE self, VALUE c)
     /* get logical position */
     lpos = 0; p = RSTRING_PTR(ptr->string); pend = p + ptr->pos - 1;
     for (;;) {
+#if WITH_OBJC
+	clen = 1;
+#else
 	clen = rb_enc_mbclen(p, pend, enc);
+#endif
 	if (p+clen >= pend) break;
 	p += clen;
 	lpos++;

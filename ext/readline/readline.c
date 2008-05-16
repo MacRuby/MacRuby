@@ -69,7 +69,7 @@ static VALUE
 readline_readline(int argc, VALUE *argv, VALUE self)
 {
     VALUE tmp, add_hist, result;
-    char *prompt = NULL;
+    const char *prompt = NULL;
     char *buff;
     int status;
 
@@ -103,7 +103,9 @@ readline_readline(int argc, VALUE *argv, VALUE self)
     }
     if (buff) {
 	result = rb_tainted_str_new2(buff);
+#if !WITH_OBJC
 	rb_enc_associate(result, rb_locale_encoding());
+#endif
     }
     else
 	result = Qnil;
@@ -288,7 +290,7 @@ readline_s_get_completion_append_character(VALUE self)
     if (rl_completion_append_character == '\0')
 	return Qnil;
 
-    str = rb_str_new(&rl_completion_append_character, 1);
+    str = rb_str_new((char *)&rl_completion_append_character, 1);
     return str;
 #else
     rb_notimplement();
@@ -579,7 +581,7 @@ rb_remove_history(int index)
     entry = remove_history(index);
     if (entry) {
         val = rb_tainted_str_new2(entry->line);
-        free(entry->line);
+        free((void *)entry->line);
         free(entry);
         return val;
     }
