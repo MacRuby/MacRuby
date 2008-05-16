@@ -1772,28 +1772,32 @@ rb_str_resize(VALUE str, long len)
 static void
 rb_objc_str_cat(VALUE str, const char *ptr, long len, int cfstring_encoding)
 {
-    long slen;
-    if (ptr[len] != '\0') {
-	char *p = alloca(len + 1);
-	memcpy(p, ptr, len);
-	p[len] = '\0';
-	ptr = p;
-    }
-    slen = strlen(ptr);
-    if (slen == len) {
-	CFStringAppendCString((CFMutableStringRef)str, ptr, cfstring_encoding);
+    CFMutableDataRef data;
+
+    data = (CFMutableDataRef)rb_str_cfdata2(str);
+    if (data != NULL) {
+	CFDataAppendBytes(data, (const UInt8 *)ptr, len);
     }
     else {
-#if 1
-	CFStringRef substr = CFStringCreateWithBytes(NULL, (const UInt8 *)ptr,
+	long slen;
+	if (ptr[len] != '\0') {
+	    char *p = alloca(len + 1);
+	    memcpy(p, ptr, len);
+	    p[len] = '\0';
+	    ptr = p;
+	}
+	slen = strlen(ptr);
+	if (slen == len) {
+	    CFStringAppendCString((CFMutableStringRef)str, ptr, 
+		cfstring_encoding);
+	}
+	else {
+	    CFStringRef substr = CFStringCreateWithBytes(NULL, 
+		(const UInt8 *)ptr,
 		len, cfstring_encoding, false);
-	CFStringAppend((CFMutableStringRef)str, substr);
-	CFRelease(substr);
-#else
-	CFMutableDataRef data;
-	data = (CFMutableDataRef)rb_str_cfdata(str);
-	CFDataAppendBytes(data, (const UInt8 *)ptr, len);
-#endif
+	    CFStringAppend((CFMutableStringRef)str, substr);
+	    CFRelease(substr);
+	}
     }
 }
 #endif
@@ -2421,6 +2425,11 @@ rb_str_equal(VALUE str1, VALUE str2)
 	return rb_equal(str2, str1);
     }
 #if WITH_OBJC
+    len = RSTRING_CLEN(str1);
+    if (len != RSTRING_CLEN(str2))
+	return Qfalse;
+    if (rb_str_cfdata2(str1) != NULL || rb_str_cfdata2(str2) != NULL)
+	return memcmp(RSTRING_CPTR(str1), RSTRING_CPTR(str2), len) == 0;
     if (!rb_objc_str_is_pure(str2)) {
 	/* This is to work around a strange bug in CFEqual's objc 
 	 * dispatching.
@@ -2429,8 +2438,6 @@ rb_str_equal(VALUE str1, VALUE str2)
 	str1 = str2;
 	str2 = tmp;
     }
-    if (RSTRING_CLEN(str1) == 0)
-	return RSTRING_CLEN(str2) == 0 ? Qtrue : Qfalse;
     if (CFEqual((CFTypeRef)str1, (CFTypeRef)str2))
 	return Qtrue;
 #else

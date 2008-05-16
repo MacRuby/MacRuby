@@ -450,6 +450,10 @@ pack_pack(VALUE ary, VALUE fmt)
     pend = p + RSTRING_CLEN(fmt);
     res = rb_str_buf_new(0);
 
+#if WITH_OBJC
+    RSTRING_PTR(res); /* create bytestring */
+#endif
+
     items = RARRAY_LEN(ary);
     idx = 0;
 
@@ -510,7 +514,9 @@ pack_pack(VALUE ary, VALUE fmt)
 		StringValue(from);
 		ptr = RSTRING_CPTR(from);
 		plen = RSTRING_CLEN(from);
+#if !WITH_OBJC
 		OBJ_INFECT(res, from);
+#endif
 	    }
 
 	    if (p[-1] == '*')
@@ -1140,7 +1146,9 @@ infected_str_new(const char *ptr, long len, VALUE str)
 {
     VALUE s = rb_str_new(ptr, len);
 
+#if !WITH_OBJC
     OBJ_INFECT(s, str);
+#endif
     return s;
 }
 
@@ -1557,6 +1565,7 @@ pack_unpack(VALUE str, VALUE fmt)
 	    }
 	    PACK_ITEM_ADJUST();
 	    break;
+
 	  case 'L':
 	    PACK_LENGTH_ADJUST(unsigned long,4);
 	    while (len-- > 0) {
@@ -1577,6 +1586,7 @@ pack_unpack(VALUE str, VALUE fmt)
 	    }
 	    PACK_ITEM_ADJUST();
 	    break;
+
 	  case 'Q':
 	    PACK_LENGTH_ADJUST_SIZE(QUAD_SIZE);
 	    while (len-- > 0) {
@@ -1773,8 +1783,8 @@ pack_unpack(VALUE str, VALUE fmt)
 		}
 
 		rb_str_set_len(buf, total);
-		UNPACK_PUSH(buf);
 		RSTRING_SYNC(buf);
+		UNPACK_PUSH(buf);
 	    }
 	    break;
 
@@ -1824,8 +1834,8 @@ pack_unpack(VALUE str, VALUE fmt)
 		    }
 		}
 		rb_str_set_len(buf, ptr - RSTRING_PTR(buf));
-		UNPACK_PUSH(buf);
 		RSTRING_SYNC(buf);
+		UNPACK_PUSH(buf);
 	    }
 	    break;
 
@@ -1853,8 +1863,8 @@ pack_unpack(VALUE str, VALUE fmt)
 		    s++;
 		}
 		rb_str_set_len(buf, ptr - RSTRING_PTR(buf));
-		UNPACK_PUSH(buf);
 		RSTRING_SYNC(buf);
+		UNPACK_PUSH(buf);
 	    }
 	    break;
 
