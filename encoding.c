@@ -1045,9 +1045,14 @@ enc_list(VALUE klass)
 static VALUE
 enc_find2(VALUE enc)
 {
+    CFStringRef str;
     CFStringEncoding e;
-    
-    e = CFStringConvertIANACharSetNameToEncoding((CFStringRef)StringValue(enc));
+
+    str = (CFStringRef)StringValue(enc);
+    if (CFEqual(str, CFSTR("ASCII-8BIT")))
+	str = CFSTR("ASCII");
+
+    e = CFStringConvertIANACharSetNameToEncoding(str);
     if (e == kCFStringEncodingInvalidId)
 	return Qnil;
     return enc_make(&e);
@@ -1415,14 +1420,14 @@ rb_enc_name2(rb_encoding *enc)
     CFStringRef str;
     if (enc != NULL 
 	&& (str = CFStringConvertEncodingToIANACharSetName(*enc)) != NULL)
-	return str;
+	return (VALUE)str;
     return Qnil;
 }
 
 const char *
 rb_enc_name(rb_encoding *enc)
 {
-    CFStringRef str = rb_enc_name2(enc);
+    VALUE str = rb_enc_name2(enc);
     return str == Qnil ? NULL : RSTRING_CPTR(str);
 }
 

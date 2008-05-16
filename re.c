@@ -181,9 +181,6 @@ rb_char_to_option_kcode(int c, int *option, int *kcode)
     *option = 0;
 
     switch (c) {
-      case 'n':
-        *kcode = -1;
-        return (*option = ARG_ENCODING_NONE);
 #if !WITH_OBJC
       case 'e':
 	*kcode = rb_enc_find_index("EUC-JP");
@@ -194,7 +191,14 @@ rb_char_to_option_kcode(int c, int *option, int *kcode)
       case 'u':
 	*kcode = rb_enc_find_index("UTF-8");
 	break;
+#else
+      case 'e':
+      case 's':
+      case 'u':
 #endif
+      case 'n':
+        *kcode = -1;
+        return (*option = ARG_ENCODING_NONE);
       default:
 	*kcode = -1;
 	return (*option = char_to_option(c));
@@ -2233,7 +2237,7 @@ rb_reg_initialize(VALUE obj, const char *s, int len, rb_encoding *enc,
     VALUE unescaped;
     rb_encoding *fixed_enc = 0;
 #if WITH_OBJC
-    rb_encoding *a_enc = NULL;
+    rb_encoding *a_enc = enc;
 #else
     rb_encoding *a_enc = rb_ascii8bit_encoding();
 #endif
