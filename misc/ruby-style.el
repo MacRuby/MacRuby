@@ -4,11 +4,11 @@
 ;;;
 ;;; C/C++ mode style for Ruby.
 ;;;
-;;;  $Author: akr $
+;;;  $Author: nobu $
 ;;;  created at: Thu Apr 26 13:54:01 JST 2007
 ;;;
 
-(defconst ruby-style-revision "$Revision: 14912 $"
+(defconst ruby-style-revision "$Revision: 16153 $"
   "Ruby style revision string.")
 
 (defconst ruby-style-version
@@ -19,6 +19,7 @@
 
 (defun ruby-style-case-indent (x)
   (save-excursion
+    (back-to-indentation)
     (unless (progn (backward-up-list) (back-to-indentation)
 		   (> (point) (cdr x)))
       (goto-char (cdr x))
@@ -26,8 +27,9 @@
 
 (defun ruby-style-label-indent (x)
   (save-excursion
+    (back-to-indentation)
     (unless (progn (backward-up-list) (back-to-indentation)
-		   (> (point) (cdr x)))
+		   (>= (point) (cdr x)))
       (goto-char (cdr x))
       (condition-case ()
 	  (progn

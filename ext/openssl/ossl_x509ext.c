@@ -1,5 +1,5 @@
 /*
- * $Id: ossl_x509ext.c 11708 2007-02-12 23:01:19Z shyouhei $
+ * $Id: ossl_x509ext.c 16111 2008-04-20 22:32:06Z technorama $
  * 'OpenSSL for Ruby' project
  * Copyright (C) 2001-2002  Michal Rokos <m.rokos@sh.cvut.cz>
  * All rights reserved.
@@ -110,6 +110,7 @@ ossl_x509extfactory_alloc(VALUE klass)
     VALUE obj;
 
     MakeX509ExtFactory(klass, obj, ctx);
+    rb_iv_set(obj, "@config", Qnil);
 
     return obj;
 }

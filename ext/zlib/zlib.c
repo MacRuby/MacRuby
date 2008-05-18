@@ -3,7 +3,7 @@
  *
  *   Copyright (C) UENO Katsuhiro 2000-2003
  *
- * $Id: zlib.c 12480 2007-06-08 07:33:59Z akr $
+ * $Id: zlib.c 16304 2008-05-06 15:56:21Z matz $
  */
 
 #include <ruby.h>
@@ -2934,6 +2934,9 @@ static VALUE
 rb_gzreader_each_byte(VALUE obj)
 {
     VALUE c;
+
+    RETURN_ENUMERATOR(obj, 0, 0);
+
     while (!NIL_P(c = rb_gzreader_getc(obj))) {
 	rb_yield(c);
     }
@@ -3013,6 +3016,8 @@ gzreader_gets(int argc, VALUE *argv, VALUE obj)
     if (NIL_P(rs)) {
 	dst = gzfile_read_all(gz);
 	if (RSTRING_LEN(dst) != 0) gz->lineno++;
+	else
+	    return Qnil;
 	return dst;
     }
 
@@ -3102,6 +3107,9 @@ static VALUE
 rb_gzreader_each(int argc, VALUE *argv, VALUE obj)
 {
     VALUE str;
+
+    RETURN_ENUMERATOR(obj, 0, 0);
+
     while (!NIL_P(str = gzreader_gets(argc, argv, obj))) {
 	rb_yield(str);
     }
@@ -3361,11 +3369,13 @@ void Init_zlib()
     rb_define_method(cGzipReader, "getc", rb_gzreader_getc, 0);
     rb_define_method(cGzipReader, "readchar", rb_gzreader_readchar, 0);
     rb_define_method(cGzipReader, "each_byte", rb_gzreader_each_byte, 0);
+    rb_define_method(cGzipReader, "bytes", rb_gzreader_each_byte, 0);
     rb_define_method(cGzipReader, "ungetc", rb_gzreader_ungetc, 1);
     rb_define_method(cGzipReader, "gets", rb_gzreader_gets, -1);
     rb_define_method(cGzipReader, "readline", rb_gzreader_readline, -1);
     rb_define_method(cGzipReader, "each", rb_gzreader_each, -1);
     rb_define_method(cGzipReader, "each_line", rb_gzreader_each, -1);
+    rb_define_method(cGzipReader, "lines", rb_gzreader_each, -1);
     rb_define_method(cGzipReader, "readlines", rb_gzreader_readlines, -1);
 
     rb_define_const(mZlib, "OS_CODE", INT2FIX(OS_CODE));

@@ -2,7 +2,7 @@
 
   object.c -
 
-  $Author: naruse $
+  $Author: matz $
   created at: Thu Jul 15 12:01:24 JST 1993
 
   Copyright (C) 1993-2007 Yukihiro Matsumoto
@@ -396,7 +396,7 @@ inspect_obj(VALUE obj, VALUE str, int recur)
  *  generate the string.
  *     
  *     [ 1, 2, 3..4, 'five' ].inspect   #=> "[1, 2, 3..4, \"five\"]"
- *     Time.new.inspect                 #=> "Wed Apr 09 08:54:39 CDT 2003"
+ *     Time.new.inspect                 #=> "2008-03-08 19:43:39 +0900"
  */
 
 
@@ -1137,8 +1137,8 @@ rb_obj_not_match(VALUE obj1, VALUE obj2)
  *       end
  *     end
  *     Mod.class              #=> Module
- *     Mod.constants          #=> ["E", "PI", "CONST"]
- *     Mod.instance_methods   #=> ["meth"]
+ *     Mod.constants          #=> [:CONST, :PI, :E]
+ *     Mod.instance_methods   #=> [:meth]
  *     
  */
 
@@ -1184,7 +1184,7 @@ rb_mod_to_s(VALUE klass)
 static VALUE
 rb_mod_freeze(VALUE mod)
 {
-    rb_mod_to_s(mod);
+    rb_class_name(mod);
     return rb_obj_freeze(mod);
 }
 
@@ -1406,10 +1406,11 @@ rb_class_initialize(int argc, VALUE *argv, VALUE klass)
     if (RCLASS_SUPER(klass) != 0) {
 	rb_raise(rb_eTypeError, "already initialized class");
     }
-    if (rb_scan_args(argc, argv, "01", &super) == 0) {
+    if (argc == 0) {
 	super = rb_cObject;
     }
     else {
+	rb_scan_args(argc, argv, "01", &super);
 	rb_check_inheritable(super);
     }
     RCLASS_SUPER(klass) = super;
@@ -1498,9 +1499,10 @@ rb_class_new_instance(int argc, VALUE *argv, VALUE klass)
  *  
  *  Returns the superclass of <i>class</i>, or <code>nil</code>.
  *     
- *     File.superclass     #=> IO
- *     IO.superclass       #=> Object
- *     Object.superclass   #=> nil
+ *     File.superclass          #=> IO
+ *     IO.superclass            #=> Object
+ *     Object.superclass        #=> BasicObject
+ *     BasicObject.superclass   #=> nil
  *     
  */
 
@@ -1585,7 +1587,7 @@ rb_mod_attr_writer(int argc, VALUE *argv, VALUE klass)
  *     module Mod
  *       attr_accessor(:one, :two)
  *     end
- *     Mod.instance_methods.sort   #=> ["one", "one=", "two", "two="]
+ *     Mod.instance_methods.sort   #=> [:one, :one=, :two, :two=]
  */
 
 static VALUE
@@ -1701,8 +1703,8 @@ rb_mod_const_defined(int argc, VALUE *argv, VALUE mod)
  *     end
  *     k = Klass.new
  *     k.methods[0..9]    #=> ["kMethod", "freeze", "nil?", "is_a?", 
- *                             "class", "instance_variable_set",
- *                              "methods", "extend", "__send__", "instance_eval"]
+ *                        #    "class", "instance_variable_set",
+ *                        #    "methods", "extend", "__send__", "instance_eval"]
  *     k.methods.length   #=> 42
  */
 
@@ -2103,7 +2105,7 @@ rb_Integer(VALUE val)
  *     
  *     Integer(123.999)    #=> 123
  *     Integer("0x1a")     #=> 26
- *     Integer(Time.new)   #=> 1049896590
+ *     Integer(Time.new)   #=> 1204973019
  */
 
 static VALUE
@@ -2124,16 +2126,16 @@ rb_cstr_to_dbl(const char *p, int badcheck)
 
     if (!p) return 0.0;
     q = p;
-	while (ISSPACE(*p)) p++;
+    while (ISSPACE(*p)) p++;
     d = strtod(p, &end);
     if (errno == ERANGE) {
 	OutOfRange();
-	rb_warn("Float %.*s%s out of range", w, p, ellipsis);
+	rb_warning("Float %.*s%s out of range", w, p, ellipsis);
 	errno = 0;
     }
     if (p == end) {
-	  bad:
 	if (badcheck) {
+	  bad:
 	    rb_invalid_str(q, "Float()");
 	}
 	return d;
@@ -2142,26 +2144,31 @@ rb_cstr_to_dbl(const char *p, int badcheck)
 	char buf[DBL_DIG * 4 + 10];
 	char *n = buf;
 	char *e = buf + sizeof(buf) - 1;
+	char prev = 0;
 
-	while (p < end && n < e) *n++ = *p++;
-	while (n < e && *p) {
+	while (p < end && n < e) prev = *n++ = *p++;
+	while (*p) {
 	    if (*p == '_') {
 		/* remove underscores between digits */
-		if (n == buf || !ISDIGIT(n[-1])) goto bad;
-		while (*++p == '_');
-		if (!ISDIGIT(*p)) {
-		    if (badcheck) goto bad;
-		    break;
+		if (badcheck) {
+		    if (n == buf || !ISDIGIT(prev)) goto bad;
+		    ++p;
+		    if (!ISDIGIT(*p)) goto bad;
+		}
+		else {
+		    while (*++p == '_');
+		    continue;
 		}
 	    }
-	    *n++ = *p++;
+	    prev = *p++;
+	    if (n < e) *n++ = prev;
 	}
 	*n = '\0';
 	p = buf;
 	d = strtod(p, &end);
 	if (errno == ERANGE) {
 	    OutOfRange();
-	    rb_warn("Float %.*s%s out of range", w, p, ellipsis);
+	    rb_warning("Float %.*s%s out of range", w, p, ellipsis);
 	    errno = 0;
 	}
 	if (badcheck) {
@@ -2223,13 +2230,7 @@ rb_Float(VALUE val)
 	break;
 
       default:
-      {
-	  VALUE f = rb_convert_type(val, T_FLOAT, "Float", "to_f");
-	  if (isnan(RFLOAT_VALUE(f))) {
-	      rb_raise(rb_eArgError, "invalid value for Float()");
-	  }
-	  return f;
-      }
+	return rb_convert_type(val, T_FLOAT, "Float", "to_f");
     }
 }
 

@@ -237,28 +237,11 @@ getconstant
 DEFINE_INSN
 setconstant
 (ID id)
-(VALUE val, VALUE klass)
+(VALUE val, VALUE cbase)
 ()
 {
-    if (klass == Qnil) {
-	klass = vm_get_cbase(th);
-    }
-    if (NIL_P(klass)) {
-	rb_raise(rb_eTypeError, "no class/module to define constant");
-    }
-
-    switch (TYPE(klass)) {
-      case T_CLASS:
-      case T_MODULE:
-	break;
-      default: {
-	volatile VALUE tmp = rb_obj_as_string(klass);
-	rb_raise(rb_eTypeError, "%s is not a class/module",
-		 RSTRING_CPTR(tmp));
-      }
-    }
-
-    rb_const_set(klass, id, val);
+    vm_check_if_namespace(cbase);
+    rb_const_set(cbase, id, val);
     INC_VM_STATE_VERSION();
 }
 
@@ -321,6 +304,20 @@ putself
 (VALUE val)
 {
     val = GET_SELF();
+}
+
+/**
+  @c put
+  @e put cbase.
+  @j スタックに cbase をプッシュする。
+ */
+DEFINE_INSN
+putcbase
+()
+()
+(VALUE val)
+{
+    val = vm_get_cbase(th);
 }
 
 /**
@@ -965,9 +962,7 @@ defineclass
 	    super = rb_cObject;
 	}
 
-	if (cbase == Qnil) {
-	    cbase = vm_get_cbase(th);
-	}
+	vm_check_if_namespace(cbase);
 
 	/* find klass */
 	if (rb_const_defined_at(cbase, id)) {
@@ -1003,9 +998,8 @@ defineclass
       case 2:
 	/* val is dummy.  classdef returns class scope value */
 	/* super is dummy */
-	if (cbase == Qnil) {
-	    cbase = vm_get_cbase(th);
-	}
+
+	vm_check_if_namespace(cbase);
 
 	/* find klass */
 	if (rb_const_defined_at(cbase, id)) {

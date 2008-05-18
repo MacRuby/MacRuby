@@ -1,5 +1,5 @@
 /*
- * $Id: ossl_pkey_rsa.c 12139 2007-04-03 07:02:44Z technorama $
+ * $Id: ossl_pkey_rsa.c 15610 2008-02-26 07:07:26Z technorama $
  * 'OpenSSL for Ruby' project
  * Copyright (C) 2001-2002  Michal Rokos <m.rokos@sh.cvut.cz>
  * All rights reserved.
@@ -585,11 +585,9 @@ Init_ossl_rsa()
 }
 
 #else /* defined NO_RSA */
-#   warning >>> OpenSSL is compiled without RSA support <<<
 void
 Init_ossl_rsa()
 {
-    rb_warning("OpenSSL is compiled without RSA support");
 }
 #endif /* NO_RSA */
 

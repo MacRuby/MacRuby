@@ -2,7 +2,7 @@
 
   struct.c -
 
-  $Author: akr $
+  $Author: matz $
   created at: Tue Mar 22 18:44:30 JST 1995
 
   Copyright (C) 1993-2007 Yukihiro Matsumoto
@@ -86,7 +86,7 @@ rb_struct_s_members_m(VALUE klass)
  *     
  *     Customer = Struct.new(:name, :address, :zip)
  *     joe = Customer.new("Joe Smith", "123 Maple, Anytown NC", 12345)
- *     joe.members   #=> ["name", "address", "zip"]
+ *     joe.members   #=> [:name, :address, :zip]
  */
 
 static VALUE
@@ -131,7 +131,7 @@ static VALUE rb_struct_ref9(VALUE obj) {return RSTRUCT_PTR(obj)[9];}
 
 #define N_REF_FUNC (sizeof(ref_func) / sizeof(ref_func[0]))
 
-static VALUE (*ref_func[])(VALUE) = {
+static VALUE (*const ref_func[])(VALUE) = {
     rb_struct_ref0,
     rb_struct_ref1,
     rb_struct_ref2,
@@ -185,14 +185,14 @@ make_struct(VALUE name, VALUE members, VALUE klass)
 	rb_class_inherited(klass, nstr);
     }
     else {
-	char *cname = StringValuePtr(name);
-
-	id = rb_intern(cname);
+	/* old style: should we warn? */
+	name = rb_str_to_str(name);
+	id = rb_to_id(name);
 	if (!rb_is_const_id(id)) {
-	    rb_name_error(id, "identifier %s needs to be constant", cname);
+	    rb_name_error(id, "identifier %s needs to be constant", StringValuePtr(name));
 	}
 	if (rb_const_defined_at(klass, id)) {
-	    rb_warn("redefining constant Struct::%s", cname);
+	    rb_warn("redefining constant Struct::%s", StringValuePtr(name));
 	    rb_mod_remove_const(klass, ID2SYM(id));
 	}
 	nstr = rb_define_class_under(klass, rb_id2name(id), klass);
@@ -312,11 +312,11 @@ rb_struct_define(const char *name, ...)
  *     
  *     # Create a structure with a name in Struct
  *     Struct.new("Customer", :name, :address)    #=> Struct::Customer
- *     Struct::Customer.new("Dave", "123 Main")   #=> #<Struct::Customer name="Dave", address="123 Main">
+ *     Struct::Customer.new("Dave", "123 Main")   #=> #<struct Struct::Customer name="Dave", address="123 Main">
  *     
  *     # Create a structure named by its constant
  *     Customer = Struct.new(:name, :address)     #=> Customer
- *     Customer.new("Dave", "123 Main")           #=> #<Customer name="Dave", address="123 Main">
+ *     Customer.new("Dave", "123 Main")           #=> #<struct Customer name="Dave", address="123 Main">
  */
 
 static VALUE
@@ -328,13 +328,13 @@ rb_struct_s_def(int argc, VALUE *argv, VALUE klass)
     ID id;
 
     rb_scan_args(argc, argv, "1*", &name, &rest);
-    for (i=0; i<RARRAY_LEN(rest); i++) {
-	id = rb_to_id(RARRAY_AT(rest, i));
-	rb_ary_store(rest, i, ID2SYM(id));
-    }
     if (!NIL_P(name) && SYMBOL_P(name)) {
 	rb_ary_unshift(rest, name);
 	name = Qnil;
+    }
+    for (i=0; i<RARRAY_LEN(rest); i++) {
+	id = rb_to_id(RARRAY_PTR(rest)[i]);
+	rb_ary_store(rest, i, ID2SYM(id));
     }
     st = make_struct(name, rest, klass);
     if (rb_block_given_p()) {

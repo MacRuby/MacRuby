@@ -2,7 +2,7 @@
 /*
  * rubyext.c
  *
- * $Author: akr $
+ * $Author: mame $
  *
  * Copyright (C) 2003-2005 why the lucky stiff
  */
@@ -886,7 +886,6 @@ syck_parser_set_resolver(VALUE self, VALUE resolver)
 static VALUE
 syck_resolver_initialize(VALUE self)
 {
-    VALUE tags = rb_hash_new();
     rb_ivar_set(self, s_tags, rb_hash_new());
     return self;
 }
@@ -918,7 +917,6 @@ syck_resolver_use_types_at(VALUE self, VALUE hsh)
 VALUE
 syck_resolver_detect_implicit(VALUE self, VALUE val)
 {
-    char *type_id;
     return rb_str_new2( "" );
 }
 
@@ -1068,7 +1066,6 @@ syck_resolver_transfer(VALUE self, VALUE type, VALUE val)
                 VALUE partial;
                 rb_ary_unshift( subclass_parts, rb_ary_pop( parts ) );
                 partial = rb_ary_join( parts, oColon );
-		//printf("partial %p parts %p\n", partial, parts);
                 target_class = rb_hash_aref( tags, partial );
                 if ( NIL_P( target_class ) )
                 {
@@ -1948,7 +1945,6 @@ VALUE
 syck_emitter_emit(int argc, VALUE *argv, VALUE self)
 {
     VALUE oid, proc;
-    char *anchor_name;
     SyckEmitter *emitter;
     struct emitter_xtra *bonus;
     SYMID symple;
@@ -2158,7 +2154,7 @@ Init_syck()
     oGenericResolver = rb_funcall( cResolver, rb_intern( "new" ), 0 );
     rb_define_singleton_method( oGenericResolver, "node_import", syck_genericresolver_node_import, 1 );
     rb_define_const( rb_syck, "GenericResolver", oGenericResolver );
-    
+
     oColon = rb_str_new2( ":" );
     rb_global_variable( &oColon );
     oDoubleColon = rb_str_new2( "::" );

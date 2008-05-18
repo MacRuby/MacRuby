@@ -213,3 +213,36 @@ assert_equal 'true', %{
     true
   end
 }
+
+assert_finish 3, %{
+  th = Thread.new {sleep 2}
+  th.join(1)
+  th.join
+}
+
+assert_finish 3, %{
+  require 'timeout'
+  th = Thread.new {sleep 2}
+  begin
+    Timeout.timeout(1) {th.join}
+  rescue Timeout::Error
+  end
+  th.join
+}
+
+assert_normal_exit %q{
+  STDERR.reopen(STDOUT)
+  exec "/"
+}
+
+assert_normal_exit %q{
+  (0..10).map {
+    Thread.new {
+     10000.times {
+        Object.new.to_s
+      }
+    }
+  }.each {|t|
+    t.join
+  }
+}

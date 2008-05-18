@@ -4,10 +4,20 @@
  *              Oct. 24, 1997   Y. Matsumoto
  */
 
-#define TCLTKLIB_RELEASE_DATE "2007-12-21"
+#define TCLTKLIB_RELEASE_DATE "2008-03-29"
 
-#include "ruby/ruby.h"
+#include "ruby.h"
+
+#ifdef RUBY_VM
+/* #include "ruby/ruby.h" */
 #include "ruby/signal.h"
+#include "ruby/encoding.h"
+#else
+/* #include "ruby.h" */
+#include "rubysig.h"
+#include "version.h"
+#endif
+
 #undef EXTERN   /* avoid conflict with tcl.h of tcl8.2 or before */
 #include <stdio.h>
 #ifdef HAVE_STDARG_PROTOTYPES
@@ -28,6 +38,24 @@
 #define TCL_BETA_RELEASE        1
 #define TCL_FINAL_RELEASE       2
 #endif
+
+static struct {
+  int major;
+  int minor;
+  int patchlevel;
+  int type;
+} tcltk_version = {0, 0, 0, 0};
+
+static void
+set_tcltk_version()
+{
+    if (tcltk_version.major) return;
+
+    Tcl_GetVersion(&(tcltk_version.major), 
+		   &(tcltk_version.minor), 
+		   &(tcltk_version.patchlevel), 
+		   &(tcltk_version.type));
+}
 
 #if TCL_MAJOR_VERSION >= 8
 # ifndef CONST84
@@ -82,6 +110,26 @@ static void ip_finalize _((Tcl_Interp*));
 
 static int at_exit = 0;
 
+#ifdef RUBY_VM
+static VALUE cRubyEncoding;
+
+/* encoding */
+static int ENCODING_INDEX_UTF8;
+static int ENCODING_INDEX_BINARY;
+#endif
+static VALUE ENCODING_NAME_UTF8;
+static VALUE ENCODING_NAME_BINARY;
+
+static VALUE create_dummy_encoding_for_tk_core _((VALUE, VALUE, VALUE));
+static VALUE create_dummy_encoding_for_tk _((VALUE, VALUE));
+static int update_encoding_table _((VALUE, VALUE, VALUE));
+static VALUE encoding_table_get_name_core _((VALUE, VALUE, VALUE));
+static VALUE encoding_table_get_obj_core _((VALUE, VALUE, VALUE));
+static VALUE encoding_table_get_name _((VALUE, VALUE));
+static VALUE encoding_table_get_obj _((VALUE, VALUE));
+static VALUE create_encoding_table _((VALUE));
+static VALUE ip_get_encoding_table _((VALUE));
+
 
 /* for callback break & continue */
 static VALUE eTkCallbackReturn;
@@ -99,6 +147,9 @@ static VALUE tcltkip_class;
 
 static ID ID_at_enc;
 static ID ID_at_interp;
+
+static ID ID_encoding_name;
+static ID ID_encoding_table;
 
 static ID ID_stop_p;
 static ID ID_alive_p;
@@ -122,6 +173,21 @@ static VALUE ip_invoke_real _((int, VALUE*, VALUE));
 static VALUE ip_invoke _((int, VALUE*, VALUE));
 
 static VALUE tk_funcall _((VALUE(), int, VALUE*, VALUE));
+
+/* Tcl's object type */
+#if TCL_MAJOR_VERSION >= 8
+static char *Tcl_ObjTypeName_ByteArray = "bytearray";
+static Tcl_ObjType *Tcl_ObjType_ByteArray;
+
+static char *Tcl_ObjTypeName_String    = "string";
+static Tcl_ObjType *Tcl_ObjType_String;
+
+#if TCL_MAJOR_VERSION > 8 || (TCL_MAJOR_VERSION == 8 && TCL_MINOR_VERSION >= 1)
+#define IS_TCL_BYTEARRAY(obj)    ((obj)->typePtr == Tcl_ObjType_ByteArray)
+#define IS_TCL_STRING(obj)       ((obj)->typePtr == Tcl_ObjType_String)
+#define IS_TCL_VALID_STRING(obj) ((obj)->bytes != (char*)NULL)
+#endif
+#endif
 
 /* safe Tcl_Eval and Tcl_GlobalEval */
 static int
@@ -8325,6 +8391,15 @@ Init_tcltklib()
 
     /* --------------------------------------------------------------- */
 
+#if !WITH_OBJC
+    /* XXX these symbols do not seem to be imported */
+    rb_define_method(ip, "create_dummy_encoding_for_tk", 
+		     create_dummy_encoding_for_tk, 1);
+    rb_define_method(ip, "encoding_table", ip_get_encoding_table, 0);
+#endif
+
+    /* --------------------------------------------------------------- */
+
     rb_define_method(ip, "_get_variable", ip_get_variable, 2);
     rb_define_method(ip, "_get_variable2", ip_get_variable2, 3);
     rb_define_method(ip, "_set_variable", ip_set_variable, 3);
@@ -8384,7 +8459,11 @@ Init_tcltklib()
 
     /* if ruby->nativethread-supprt and tcltklib->doen't, 
        the following will cause link-error. */
+#ifdef RUBY_VM
     ruby_native_thread_p();
+#else
+    is_ruby_native_thread();
+#endif
 
     /* --------------------------------------------------------------- */
 
@@ -8403,6 +8482,11 @@ Init_tcltklib()
     default:
         rb_raise(rb_eLoadError, "tcltklib: unknown error(%d) on ruby_open_tcl_dll", ret);
     }
+
+    /* --------------------------------------------------------------- */
+
+    Tcl_ObjType_ByteArray = Tcl_GetObjType(Tcl_ObjTypeName_ByteArray);
+    Tcl_ObjType_String    = Tcl_GetObjType(Tcl_ObjTypeName_String);
 
     /* --------------------------------------------------------------- */
 }

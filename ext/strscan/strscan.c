@@ -1,5 +1,5 @@
 /*
-    $Id: strscan.c 14772 2007-12-28 14:55:43Z akr $
+    $Id: strscan.c 16387 2008-05-12 06:09:53Z matz $
 
     Copyright (c) 1999-2006 Minero Aoki
 
@@ -403,7 +403,9 @@ strscan_set_pos(VALUE self, VALUE v)
 static VALUE
 strscan_do_scan(VALUE self, VALUE regex, int succptr, int getstr, int headonly)
 {
+    regex_t *rb_reg_prepare_re(VALUE re, VALUE str);
     struct strscanner *p;
+    regex_t *re;
     int ret;
 
     Check_Type(regex, T_REGEXP);
@@ -413,13 +415,14 @@ strscan_do_scan(VALUE self, VALUE regex, int succptr, int getstr, int headonly)
     if (S_RESTLEN(p) < 0) {
         return Qnil;
     }
+    re = rb_reg_prepare_re(regex, p->str);
     if (headonly) {
-        ret = onig_match(RREGEXP(regex)->ptr, (UChar* )CURPTR(p),
+        ret = onig_match(re, (UChar* )CURPTR(p),
                          (UChar* )(CURPTR(p) + S_RESTLEN(p)),
                          (UChar* )CURPTR(p), &(p->regs), ONIG_OPTION_NONE);
     }
     else {
-        ret = onig_search(RREGEXP(regex)->ptr,
+        ret = onig_search(re,
                           (UChar* )CURPTR(p), (UChar* )(CURPTR(p) + S_RESTLEN(p)),
                           (UChar* )CURPTR(p), (UChar* )(CURPTR(p) + S_RESTLEN(p)),
                           &(p->regs), ONIG_OPTION_NONE);
@@ -1251,7 +1254,7 @@ Init_strscan()
     tmp = rb_str_new2(STRSCAN_VERSION);
     rb_obj_freeze(tmp);
     rb_const_set(StringScanner, rb_intern("Version"), tmp);
-    tmp = rb_str_new2("$Id: strscan.c 14772 2007-12-28 14:55:43Z akr $");
+    tmp = rb_str_new2("$Id: strscan.c 16387 2008-05-12 06:09:53Z matz $");
     rb_obj_freeze(tmp);
     rb_const_set(StringScanner, rb_intern("Id"), tmp);
     

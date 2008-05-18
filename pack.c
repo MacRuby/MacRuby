@@ -2,7 +2,7 @@
 
   pack.c -
 
-  $Author: akr $
+  $Author: nobu $
   created at: Thu Feb 10 15:17:05 JST 1994
 
   Copyright (C) 1993-2007 Yukihiro Matsumoto
@@ -1888,8 +1888,8 @@ pack_unpack(VALUE str, VALUE fmt)
 
 	  case 'P':
 	    if (sizeof(char *) <= send - s) {
+		VALUE tmp = Qnil;
 		char *t;
-		VALUE tmp;
 
 		memcpy(&t, s, sizeof(char *));
 		s += sizeof(char *);
@@ -1927,8 +1927,8 @@ pack_unpack(VALUE str, VALUE fmt)
 		    p = RARRAY_PTR(a);
 		    pend = p + RARRAY_LEN(a);
 		    while (p < pend) {
-			if (TYPE(*p) == T_STRING && RSTRING_CPTR(*p) == t) {
-			    if (len < RSTRING_CLEN(*p)) {
+			if (TYPE(*p) == T_STRING && RSTRING_PTR(*p) == t) {
+			    if (len < RSTRING_LEN(*p)) {
 				tmp = rb_tainted_str_new(t, len);
 				rb_str_associate(tmp, a);
 			    }
@@ -1958,7 +1958,7 @@ pack_unpack(VALUE str, VALUE fmt)
 		if (send - s < sizeof(char *))
 		    break;
 		else {
-		    VALUE tmp;
+		    VALUE tmp = Qnil;
 		    char *t;
 
 		    memcpy(&t, s, sizeof(char *));

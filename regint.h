@@ -84,8 +84,7 @@
 /* */
 /* escape other system UChar definition */
 #ifndef RUBY_DEFINES_H
-#include "ruby/config.h"
-#include "ruby/defines.h"
+#include "ruby/ruby.h"
 #endif
 #ifdef ONIG_ESCAPE_UCHAR_COLLISION
 #undef ONIG_ESCAPE_UCHAR_COLLISION
@@ -110,10 +109,10 @@
 #define xfree       free
 #endif
 
-#define CHECK_INTERRUPT_IN_MATCH_AT
-
 #ifdef RUBY
 
+#include "vm_core.h"
+#define CHECK_INTERRUPT_IN_MATCH_AT RUBY_VM_CHECK_INTS()
 #define onig_st_init_table                  st_init_table
 #define onig_st_init_table_with_size        st_init_table_with_size
 #define onig_st_init_numtable               st_init_numtable
@@ -155,6 +154,8 @@
 #define st_nothing_key_free            onig_st_nothing_key_free
 /* */
 #define onig_st_is_member              st_is_member
+
+#define CHECK_INTERRUPT_IN_MATCH_AT
 
 #endif
 

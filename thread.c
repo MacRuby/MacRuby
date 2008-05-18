@@ -2,7 +2,7 @@
 
   thread.c -
 
-  $Author: matz $
+  $Author: akr $
 
   Copyright (C) 2004-2007 Koichi Sasada
 
@@ -70,9 +70,9 @@ static VALUE eTerminateSignal = INT2FIX(1);
 static volatile int system_working = 1;
 
 inline static void
-st_delete_wrap(st_table * table, VALUE key)
+st_delete_wrap(st_table *table, st_data_t key)
 {
-    st_delete(table, (st_data_t *) & key, 0);
+    st_delete(table, &key, 0);
 }
 
 /********************************************************************************/
@@ -273,7 +273,7 @@ rb_thread_terminate_all(void)
 }
 
 static void
-thread_cleanup_func(void *th_ptr)
+thread_cleanup_func_before_exec(void *th_ptr)
 {
     rb_thread_t *th = th_ptr;
     th->status = THREAD_KILLED;
@@ -281,6 +281,13 @@ thread_cleanup_func(void *th_ptr)
 #ifdef __ia64
     th->machine_register_stack_start = th->machine_register_stack_end = 0;
 #endif
+}
+
+static void
+thread_cleanup_func(void *th_ptr)
+{
+    rb_thread_t *th = th_ptr;
+    thread_cleanup_func_before_exec(th_ptr);
     native_thread_destroy(th);
 }
 
@@ -298,9 +305,11 @@ thread_start_func_2(rb_thread_t *th, VALUE *stack_start, VALUE *register_stack_s
     rb_thread_t *main_th;
     VALUE errinfo = Qnil;
 
+#if !WITH_OBJC
     th->machine_stack_start = stack_start;
 #ifdef __ia64
     th->machine_register_stack_start = register_stack_start;
+#endif
 #endif
     thread_debug("thread start: %p\n", th);
 
@@ -461,20 +470,42 @@ rb_thread_create(VALUE (*fn)(ANYARGS), void *arg)
 /* +infty, for this purpose */
 #define DELAY_INFTY 1E30
 
-static VALUE
-thread_join(rb_thread_t *target_th, double delay)
-{
-    rb_thread_t *th = GET_THREAD();
-    double now, limit = timeofday() + delay;
+struct join_arg {
+    rb_thread_t *target, *waiting;
+    double limit;
+    int forever;
+};
 
-    thread_debug("thread_join (thid: %p)\n", (void *)target_th->thread_id);
+static VALUE
+remove_from_join_list(VALUE arg)
+{
+    struct join_arg *p = (struct join_arg *)arg;
+    rb_thread_t *target_th = p->target, *th = p->waiting;
 
     if (target_th->status != THREAD_KILLED) {
-	th->join_list_next = target_th->join_list_head;
-	target_th->join_list_head = th;
+	rb_thread_t **pth = &target_th->join_list_head;
+
+	while (*pth) {
+	    if (*pth == th) {
+		*pth = th->join_list_next;
+		break;
+	    }
+	    pth = &(*pth)->join_list_next;
+	}
     }
+
+    return Qnil;
+}
+
+static VALUE
+thread_join_sleep(VALUE arg)
+{
+    struct join_arg *p = (struct join_arg *)arg;
+    rb_thread_t *target_th = p->target, *th = p->waiting;
+    double now, limit = p->limit;
+
     while (target_th->status != THREAD_KILLED) {
-	if (delay == DELAY_INFTY) {
+	if (p->forever) {
 	    sleep_forever(th);
 	}
 	else {
@@ -482,12 +513,36 @@ thread_join(rb_thread_t *target_th, double delay)
 	    if (now > limit) {
 		thread_debug("thread_join: timeout (thid: %p)\n",
 			     (void *)target_th->thread_id);
-		return Qnil;
+		return Qfalse;
 	    }
 	    sleep_wait_for_interrupt(th, limit - now);
 	}
 	thread_debug("thread_join: interrupted (thid: %p)\n",
 		     (void *)target_th->thread_id);
+    }
+    return Qtrue;
+}
+
+static VALUE
+thread_join(rb_thread_t *target_th, double delay)
+{
+    rb_thread_t *th = GET_THREAD();
+    struct join_arg arg;
+
+    arg.target = target_th;
+    arg.waiting = th;
+    arg.limit = timeofday() + delay;
+    arg.forever = delay == DELAY_INFTY;
+
+    thread_debug("thread_join (thid: %p)\n", (void *)target_th->thread_id);
+
+    if (target_th->status != THREAD_KILLED) {
+	th->join_list_next = target_th->join_list_head;
+	target_th->join_list_head = th;
+	if (!rb_ensure(thread_join_sleep, (VALUE)&arg,
+		       remove_from_join_list, (VALUE)&arg)) {
+	    return Qnil;
+	}
     }
 
     thread_debug("thread_join: success (thid: %p)\n",
@@ -628,9 +683,18 @@ rb_thread_sleep_forever()
 static double
 timeofday(void)
 {
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    return (double)tv.tv_sec + (double)tv.tv_usec * 1e-6;
+#if defined(HAVE_CLOCK_GETTIME) && defined(CLOCK_MONOTONIC)
+    struct timespec tp;
+
+    if (clock_gettime(CLOCK_MONOTONIC, &tp) == 0) {
+        return (double)tp.tv_sec + (double)tp.tv_nsec * 1e-9;
+    } else
+#endif
+    {
+        struct timeval tv;
+        gettimeofday(&tv, NULL);
+        return (double)tv.tv_sec + (double)tv.tv_usec * 1e-6;
+    }
 }
 
 static void
@@ -1476,7 +1540,7 @@ rb_thread_local_aset(VALUE thread, ID id, VALUE val)
 	GC_WB(&th->local_storage, st_init_numtable());
     }
     if (NIL_P(val)) {
-	st_delete(th->local_storage, (st_data_t *) & id, 0);
+	st_delete_wrap(th->local_storage, id);
 	return Qnil;
     }
     st_insert(th->local_storage, id, val);
@@ -1511,15 +1575,17 @@ rb_thread_aset(VALUE self, ID id, VALUE val)
  */
 
 static VALUE
-rb_thread_key_p(VALUE self, ID id)
+rb_thread_key_p(VALUE self, VALUE key)
 {
     rb_thread_t *th;
+    ID id = rb_to_id(key);
+
     GetThreadPtr(self, th);
 
     if (!th->local_storage) {
 	return Qfalse;
     }
-    if (st_lookup(th->local_storage, rb_to_id(id), 0)) {
+    if (st_lookup(th->local_storage, id, 0)) {
 	return Qtrue;
     }
     return Qfalse;
@@ -1702,6 +1768,25 @@ rb_fd_copy(rb_fdset_t *dst, const fd_set *src, int max)
     memcpy(dst->fdset, src, size);
 }
 
+int
+rb_fd_select(int n, rb_fdset_t *readfds, rb_fdset_t *writefds, rb_fdset_t *exceptfds, struct timeval *timeout)
+{
+    fd_set *r = NULL, *w = NULL, *e = NULL;
+    if (readfds) {
+        rb_fd_resize(n - 1, readfds);
+        r = rb_fd_ptr(readfds);
+    }
+    if (writefds) {
+        rb_fd_resize(n - 1, writefds);
+        w = rb_fd_ptr(writefds);
+    }
+    if (exceptfds) {
+        rb_fd_resize(n - 1, exceptfds);
+        e = rb_fd_ptr(exceptfds);
+    }
+    return select(n, r, w, e, timeout);
+}
+
 #undef FD_ZERO
 #undef FD_SET
 #undef FD_CLR
@@ -1746,7 +1831,7 @@ do_select(int n, fd_set *read, fd_set *write, fd_set *except,
     fd_set orig_read, orig_write, orig_except;
 
 #ifndef linux
-    double limit;
+    double limit = 0;
     struct timeval wait_rest;
 
     if (timeout) {
@@ -1797,11 +1882,11 @@ do_select(int n, fd_set *read, fd_set *write, fd_set *except,
     errno = lerrno;
 
     if (result < 0) {
-	if (errno == EINTR
+	switch (errno) {
+	  case EINTR:
 #ifdef ERESTART
-	    || errno == ERESTART
+	  case ERESTART:
 #endif
-	    ) {
 	    if (read) *read = orig_read;
 	    if (write) *write = orig_write;
 	    if (except) *except = orig_except;
@@ -1816,6 +1901,8 @@ do_select(int n, fd_set *read, fd_set *write, fd_set *except,
 	    }
 #endif
 	    goto retry;
+	  default:
+	    break;
 	}
     }
     return result;
@@ -1896,9 +1983,12 @@ rb_gc_set_stack_end(VALUE **stack_end_p)
 void
 rb_gc_save_machine_context(rb_thread_t *th)
 {
+#if !WITH_OBJC
     SET_MACHINE_STACK_END(&th->machine_stack_end);
+    FLUSH_REGISTER_WINDOWS;
 #ifdef __ia64
     th->machine_register_stack_end = rb_ia64_bsp();
+#endif
 #endif
     setjmp(th->machine_regs);
 }
@@ -1920,8 +2010,8 @@ timer_thread_function(void)
     /* check signal */
     if (vm->buffered_signal_size && vm->main_thread->exec_signal == 0) {
 	vm->main_thread->exec_signal = rb_get_next_signal(vm);
-	thread_debug("buffered_signal_size: %d, sig: %d\n",
-		     vm->buffered_signal_size, vm->main_thread->exec_signal);
+	thread_debug("buffered_signal_size: %ld, sig: %d\n",
+		     (long)vm->buffered_signal_size, vm->main_thread->exec_signal);
 	rb_thread_interrupt(vm->main_thread);
     }
 
@@ -1943,6 +2033,7 @@ rb_thread_stop_timer_thread(void)
     if (timer_thread_id) {
 	system_working = 0;
 	native_thread_join(timer_thread_id);
+	timer_thread_id = 0;
     }
 }
 
@@ -1980,6 +2071,32 @@ rb_thread_atfork(void)
     vm->main_thread = th;
 
     st_foreach(vm->living_threads, terminate_atfork_i, (st_data_t)th);
+    st_clear(vm->living_threads);
+    st_insert(vm->living_threads, thval, (st_data_t) th->thread_id);
+}
+
+static int
+terminate_atfork_before_exec_i(st_data_t key, st_data_t val, rb_thread_t *current_th)
+{
+    VALUE thval = key;
+    rb_thread_t *th;
+    GetThreadPtr(thval, th);
+
+    if (th != current_th) {
+	thread_cleanup_func_before_exec(th);
+    }
+    return ST_CONTINUE;
+}
+
+void
+rb_thread_atfork_before_exec(void)
+{
+    rb_thread_t *th = GET_THREAD();
+    rb_vm_t *vm = th->vm;
+    VALUE thval = th->self;
+    vm->main_thread = th;
+
+    st_foreach(vm->living_threads, terminate_atfork_before_exec_i, (st_data_t)th);
     st_clear(vm->living_threads);
     st_insert(vm->living_threads, thval, (st_data_t) th->thread_id);
 }
@@ -2298,34 +2415,23 @@ rb_mutex_trylock(VALUE self)
     return locked;
 }
 
-static VALUE
+static int
 lock_func(rb_thread_t *th, mutex_t *mutex)
 {
-    int locked = 0;
+    int interrupted = Qfalse;
 
-    while (locked == 0) {
-	native_mutex_lock(&mutex->lock);
-	{
-	    if (mutex->th == 0) {
-		mutex->th = th;
-		locked = 1;
-	    }
-	    else {
-		mutex->cond_waiting++;
-		native_cond_wait(&mutex->cond, &mutex->lock);
+    native_mutex_lock(&mutex->lock);
+    while (mutex->th || (mutex->th = th, 0)) {
+	mutex->cond_waiting++;
+	native_cond_wait(&mutex->cond, &mutex->lock);
 
-		if (th->interrupt_flag) {
-		    locked = 1;
-		}
-		else if (mutex->th == 0) {
-		    mutex->th = th;
-		    locked = 1;
-		}
-	    }
+	if (th->interrupt_flag) {
+	    interrupted = Qtrue;
+	    break;
 	}
-	native_mutex_unlock(&mutex->lock);
     }
-    return Qnil;
+    native_mutex_unlock(&mutex->lock);
+    return interrupted;
 }
 
 static void
@@ -2356,11 +2462,15 @@ rb_mutex_lock(VALUE self)
 	GetMutexPtr(self, mutex);
 
 	while (mutex->th != th) {
+	    int interrupted;
+
 	    BLOCKING_REGION({
-		lock_func(th, mutex);
+		interrupted = lock_func(th, mutex);
 	    }, lock_interrupt, mutex);
 
-	    RUBY_VM_CHECK_INTS();
+	    if (interrupted) {
+		RUBY_VM_CHECK_INTS();
+	    }
 	}
     }
     return self;
@@ -2404,6 +2514,21 @@ rb_mutex_unlock(VALUE self)
     return self;
 }
 
+static VALUE
+rb_mutex_sleep_forever(VALUE time)
+{
+    rb_thread_sleep_forever();
+    return Qnil;
+}
+
+static VALUE
+rb_mutex_wait_for(VALUE time)
+{
+    const struct timeval *t = (struct timeval *)time;
+    rb_thread_wait_for(*t);
+    return Qnil;
+}
+
 VALUE
 rb_mutex_sleep(VALUE self, VALUE timeout)
 {
@@ -2416,19 +2541,18 @@ rb_mutex_sleep(VALUE self, VALUE timeout)
     rb_mutex_unlock(self);
     beg = time(0);
     if (NIL_P(timeout)) {
-	rb_thread_sleep_forever();
+	rb_ensure(rb_mutex_sleep_forever, Qnil, rb_mutex_lock, self);
     }
     else {
-	rb_thread_wait_for(t);
+	rb_ensure(rb_mutex_wait_for, (VALUE)&t, rb_mutex_lock, self);
     }
-    rb_mutex_lock(self);
     end = time(0) - beg;
     return INT2FIX(end);
 }
 
 /*
  * call-seq:
- *    mutex.sleep(timeout = nil)    => self
+ *    mutex.sleep(timeout = nil)    => number
  *
  * Releases the lock and sleeps +timeout+ seconds if it is given and
  * non-nil or forever.  Raises +ThreadError+ if +mutex+ wasn't locked by
@@ -2771,7 +2895,7 @@ remove_event_hook(rb_event_hook_t **root, rb_event_hook_func_t func)
 	    xfree(hook);
 	}
 	else {
-	prev = hook;
+	    prev = hook;
 	}
 	hook = next;
     }

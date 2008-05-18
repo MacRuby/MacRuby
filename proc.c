@@ -2,7 +2,7 @@
 
   proc.c - Proc, Binding, Env
 
-  $Author: mame $
+  $Author: matz $
   created at: Wed Jan 17 12:13:14 2007
 
   Copyright (C) 2004-2007 Koichi Sasada
@@ -95,6 +95,7 @@ proc_dup(VALUE self)
     dst->envval = src->envval;
     dst->safe_level = dst->safe_level;
     dst->special_cref_stack = src->special_cref_stack;
+    dst->is_lambda = src->is_lambda;
 
     return procval;
 }
@@ -921,7 +922,7 @@ method_receiver(VALUE obj)
 
 /*
  *  call-seq:
- *     meth.name    => string
+ *     meth.name    => symbol
  *  
  *  Returns the name of the method.
  */
@@ -932,7 +933,7 @@ method_name(VALUE obj)
     struct METHOD *data;
 
     Data_Get_Struct(obj, struct METHOD, data);
-    return rb_str_dup(rb_id2str(data->id));
+    return ID2SYM(data->id);
 }
 
 /*
@@ -1603,7 +1604,6 @@ localjump_reason(VALUE exc)
  *     
  *     b = fred(99)
  *     eval("param", b.binding)   #=> 99
- *     eval("param", b)           #=> 99
  */
 static VALUE
 proc_binding(VALUE self)
@@ -1615,7 +1615,7 @@ proc_binding(VALUE self)
     GetProcPtr(self, proc);
     GetBindingPtr(bindval, bind);
 
-    if (TYPE(proc->block.iseq) == T_NODE) {
+    if (BUILTIN_TYPE(proc->block.iseq) == T_NODE) {
 	rb_raise(rb_eArgError, "Can't create Binding from C level Proc");
     }
 

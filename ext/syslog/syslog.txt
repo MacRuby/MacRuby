@@ -1,13 +1,16 @@
 .\" syslog.txt -  -*- Indented-Text -*-
 $RoughId: syslog.txt,v 1.18 2002/02/25 08:20:14 knu Exp $
-$Id: syslog.txt 11708 2007-02-12 23:01:19Z shyouhei $
+$Id: syslog.txt 15821 2008-03-21 12:15:06Z knu $
 
 UNIX Syslog extension for Ruby
 Amos Gouaux, University of Texas at Dallas
 <amos+ruby@utdallas.edu>
 &
 Akinori MUSHA
-<knu@ruby-lang.org>
+<knu@iDaemons.org>
+
+Contact:
+  - Akinori MUSHA <knu@iDaemons.org> (current maintainer)
 
 ** Syslog(Module)
 

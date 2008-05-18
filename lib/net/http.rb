@@ -19,10 +19,10 @@
 # See Net::HTTP for an overview and examples. 
 # 
 # NOTE: You can find Japanese version of this document here:
-# http://www.ruby-lang.org/ja/man/?cmd=view;name=net%2Fhttp.rb
+# http://www.ruby-lang.org/ja/man/html/net_http.html
 # 
 #--
-# $Id: http.rb 15442 2008-02-12 06:18:06Z naruse $
+# $Id: http.rb 16033 2008-04-15 08:12:30Z kazu $
 #++ 
 
 require 'net/protocol'
@@ -284,7 +284,7 @@ module Net   #:nodoc:
   class HTTP < Protocol
 
     # :stopdoc:
-    Revision = %q$Revision: 15442 $.split[1]
+    Revision = %q$Revision: 16033 $.split[1]
     HTTPVersion = '1.1'
     @newimpl = true
     begin

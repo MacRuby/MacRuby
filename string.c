@@ -2,7 +2,7 @@
 
   string.c -
 
-  $Author: matz $
+  $Author: mame $
   created at: Mon Aug  9 17:12:58 JST 1993
 
   Copyright (C) 1993-2007 Yukihiro Matsumoto
@@ -251,9 +251,9 @@ VALUE rb_fs;
 static inline const char *
 search_nonascii(const char *p, const char *e)
 {
-#if ULONG_MAX == 18446744073709551615UL
-# define NONASCII_MASK 0x8080808080808080UL
-#elif ULONG_MAX == 4294967295UL
+#if SIZEOF_VALUE == 8
+# define NONASCII_MASK 0x8080808080808080LL
+#elif SIZEOF_VALUE == 4
 # define NONASCII_MASK 0x80808080UL
 #endif
 #ifdef NONASCII_MASK
@@ -1190,8 +1190,8 @@ rb_str_times(VALUE str, VALUE times)
  *  the values to be substituted. See <code>Kernel::sprintf</code> for details
  *  of the format string.
  *     
- *     "%05d" % 123                       #=> "00123"
- *     "%-5s: %08x" % [ "ID", self.id ]   #=> "ID   : 200e14d6"
+ *     "%05d" % 123                              #=> "00123"
+ *     "%-5s: %08x" % [ "ID", self.object_id ]   #=> "ID   : 200e14d6"
  */
 
 static VALUE
@@ -1205,7 +1205,7 @@ rb_str_format_m(VALUE str, VALUE arg)
     return rb_str_format(1, &arg, str);
 }
 
-static void
+static inline void
 str_modifiable(VALUE str)
 {
 #if WITH_OBJC
@@ -2645,6 +2645,7 @@ rb_str_index(VALUE str, VALUE sub, long offset)
  *     "hello".index('e')             #=> 1
  *     "hello".index('lo')            #=> 3
  *     "hello".index('a')             #=> nil
+ *     "hello".index(?e)              #=> 1
  *     "hello".index(101)             #=> 1
  *     "hello".index(/[aeiou]/, -3)   #=> 4
  */
@@ -2772,6 +2773,7 @@ rb_str_rindex(VALUE str, VALUE sub, long pos)
  *     "hello".rindex('e')             #=> 1
  *     "hello".rindex('l')             #=> 3
  *     "hello".rindex('a')             #=> nil
+ *     "hello".rindex(?e)              #=> 1
  *     "hello".rindex(101)             #=> 1
  *     "hello".rindex(/[aeiou]/, -2)   #=> 1
  */
@@ -2842,7 +2844,7 @@ rb_str_rindex_m(int argc, VALUE *argv, VALUE str)
  *  <code>=~</code> in <code>Object</code> returns <code>false</code>.
  *     
  *     "cat o' 9 tails" =~ /\d/   #=> 7
- *     "cat o' 9 tails" =~ 9      #=> false
+ *     "cat o' 9 tails" =~ 9      #=> nil
  */
 
 static VALUE
@@ -2873,7 +2875,7 @@ static VALUE get_pat(VALUE, int);
  *  parameter is present, it specifies the position in the string to begin the
  *  search.
  *     
- *     'hello'.match('(.)\1')      #=> #<MatchData "ll" "l">
+ *     'hello'.match('(.)\1')      #=> #<MatchData "ll" 1:"l">
  *     'hello'.match('(.)\1')[0]   #=> "ll"
  *     'hello'.match(/(.)\1/)[0]   #=> "ll"
  *     'hello'.match('xx')         #=> nil
@@ -3693,7 +3695,7 @@ rb_str_insert(VALUE str, VALUE idx, VALUE str2)
  *  deleted.
  *     
  *     string = "this is a string"
- *     string.slice!(2)        #=> 105
+ *     string.slice!(2)        #=> "i"
  *     string.slice!(3..6)     #=> " is "
  *     string.slice!(/s.*t/)   #=> "sa st"
  *     string.slice!("r")      #=> "r"
@@ -3891,7 +3893,7 @@ rb_str_sub_bang(int argc, VALUE *argv, VALUE str)
  *     
  *     "hello".sub(/[aeiou]/, '*')                  #=> "h*llo"
  *     "hello".sub(/([aeiou])/, '<\1>')             #=> "h<e>llo"
- *     "hello".sub(/./) {|s| s[0].to_s + ' ' }      #=> "104 ello"
+ *     "hello".sub(/./) {|s| s[0].ord.to_s + ' ' }  #=> "104 ello"
  *     "hello".sub(/(?<foo>[aeiou])/, '*\k<foo>*')  #=> "h*e*llo"
  */
 
@@ -3926,7 +3928,7 @@ str_gsub(int argc, VALUE *argv, VALUE str, int bang)
 	if (NIL_P(hash)) {
 	    StringValue(repl);
 	}
-	if (rb_obj_tainted(repl) == Qtrue) tainted = 1;
+	if (OBJ_TAINTED(repl)) tainted = 1;
 	break;
       default:
 	rb_raise(rb_eArgError, "wrong number of arguments (%d for 2)", argc);
@@ -3978,7 +3980,7 @@ str_gsub(int argc, VALUE *argv, VALUE str, int bang)
 	    val = rb_reg_regsub(repl, str, regs, pat);
 	}
 
-	if (rb_obj_tainted(val) == Qtrue) tainted = 1;
+	if (OBJ_TAINTED(val)) tainted = 1;
 
 	len = beg - offset;	/* copy pre-match substr */
         if (len) {
@@ -4083,7 +4085,7 @@ rb_str_gsub_bang(int argc, VALUE *argv, VALUE str)
  *     
  *     "hello".gsub(/[aeiou]/, '*')                  #=> "h*ll*"
  *     "hello".gsub(/([aeiou])/, '<\1>')             #=> "h<e>ll<o>"
- *     "hello".gsub(/./) {|s| s[0].to_s + ' '}       #=> "104 101 108 108 111 "
+ *     "hello".gsub(/./) {|s| s[0].ord.to_s + ' '}   #=> "104 101 108 108 111 "
  *     "hello".gsub(/(?<foo>[aeiou])/, '{\k<foo>}')  #=> "h{e}ll{o}"
  */
 
@@ -4389,13 +4391,15 @@ rb_str_include(VALUE str, VALUE arg)
 static VALUE
 rb_str_to_i(int argc, VALUE *argv, VALUE str)
 {
-    VALUE b;
     int base;
 
-    rb_scan_args(argc, argv, "01", &b);
     if (argc == 0) base = 10;
-    else base = NUM2INT(b);
+    else {
+	VALUE b;
 
+	rb_scan_args(argc, argv, "01", &b);
+	base = NUM2INT(b);
+    }
     if (base < 0) {
 	rb_raise(rb_eArgError, "invalid radix %d", base);
     }
@@ -4478,7 +4482,7 @@ prefix_escape(VALUE str, int c, rb_encoding *enc)
  *
  *    str = "hello"
  *    str[3] = "\b"
- *    str.inspect       #=> "\"hel\bo\""
+ *    str.inspect       #=> "\"hel\\bo\""
  */
 
 VALUE
@@ -6409,9 +6413,8 @@ rb_str_split2(VALUE str, VALUE sep)
  *  
  *  Splits <i>str</i> using the supplied parameter as the record separator
  *  (<code>$/</code> by default), passing each substring in turn to the supplied
- *  block. If a zero-length record separator is supplied, the string is split on
- *  <code>\n</code> characters, except that multiple successive newlines are
- *  appended together.
+ *  block. If a zero-length record separator is supplied, the string is split
+ *  into paragraphs delimited by multiple successive newlines.
  *     
  *     print "Example one\n"
  *     "hello\nworld".each {|s| p s}
@@ -6513,8 +6516,11 @@ rb_str_each_line(int argc, VALUE *argv, VALUE str)
     VALUE line;
     int n;
 
-    if (rb_scan_args(argc, argv, "01", &rs) == 0) {
+    if (argc == 0) {
 	rs = rb_rs;
+    }
+    else {
+	rb_scan_args(argc, argv, "01", &rs);
     }
     RETURN_ENUMERATOR(str, argc, argv);
     if (NIL_P(rs)) {
@@ -7484,11 +7490,13 @@ rb_str_sum(int argc, VALUE *argv, VALUE str)
     char *ptr, *p, *pend;
     long len;
 
-    if (rb_scan_args(argc, argv, "01", &vbits) == 0) {
+    if (argc == 0) {
 	bits = 16;
     }
-    else bits = NUM2INT(vbits);
-
+    else {
+	rb_scan_args(argc, argv, "01", &vbits);
+	bits = NUM2INT(vbits);
+    }
     ptr = p = RSTRING_PTR(str);
     len = RSTRING_LEN(str);
     pend = p + len;
@@ -7981,9 +7989,9 @@ rb_str_is_ascii_only_p(VALUE str)
  *     def Fred()
  *     end
  *     $f3 = :Fred
- *     $f1.id   #=> 2514190
- *     $f2.id   #=> 2514190
- *     $f3.id   #=> 2514190
+ *     $f1.object_id   #=> 2514190
+ *     $f2.object_id   #=> 2514190
+ *     $f3.object_id   #=> 2514190
  *     
  */
 
@@ -8002,26 +8010,6 @@ sym_equal(VALUE sym1, VALUE sym2)
 {
     if (sym1 == sym2) return Qtrue;
     return Qfalse;
-}
-
-
-/*
- *  call-seq:
- *     sym.to_i      => fixnum
- *  
- *  Returns an integer that is unique for each symbol within a
- *  particular execution of a program.
- *     
- *     :fred.to_i           #=> 9809
- *     "fred".to_sym.to_i   #=> 9809
- */
-
-static VALUE
-sym_to_i(VALUE sym)
-{
-    ID id = SYM2ID(sym);
-
-    return LONG2FIX(id);
 }
 
 
@@ -8542,7 +8530,6 @@ Init_String(void)
     rb_define_singleton_method(rb_cSymbol, "all_symbols", rb_sym_all_symbols, 0); /* in parse.y */
 
     rb_define_method(rb_cSymbol, "==", sym_equal, 1);
-    rb_define_method(rb_cSymbol, "to_i", sym_to_i, 0);
     rb_define_method(rb_cSymbol, "inspect", sym_inspect, 0);
     rb_define_method(rb_cSymbol, "to_s", rb_sym_to_s, 0);
     rb_define_method(rb_cSymbol, "id2name", rb_sym_to_s, 0);

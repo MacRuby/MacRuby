@@ -81,7 +81,9 @@ class TestFloat < Test::Unit::TestCase
     assert_raise(ArgumentError){Float("-")}
     assert_raise(ArgumentError){Float("-.")}
     assert_raise(ArgumentError){Float("1e")}
+    assert_raise(ArgumentError){Float("1__1")}
     # add expected behaviour here.
+    assert_equal(10, Float("1_0"))
   end
 
   def test_divmod
@@ -275,4 +277,154 @@ class TestFloat < Test::Unit::TestCase
     assert_equal(1.0, Float.induced_from(1.0))
     assert_raise(TypeError) { Float.induced_from(nil) }
   end
+
+
+  VS = [
+    18446744073709551617.0,
+    18446744073709551616.0,
+    18446744073709551615.8,
+    18446744073709551615.5,
+    18446744073709551615.2,
+    18446744073709551615.0,
+    18446744073709551614.0,
+
+    4611686018427387905.0,
+    4611686018427387904.0,
+    4611686018427387903.8,
+    4611686018427387903.5,
+    4611686018427387903.2,
+    4611686018427387903.0,
+    4611686018427387902.0,
+
+    4294967297.0,
+    4294967296.0,
+    4294967295.8,
+    4294967295.5,
+    4294967295.2,
+    4294967295.0,
+    4294967294.0,
+
+    1073741825.0,
+    1073741824.0,
+    1073741823.8,
+    1073741823.5,
+    1073741823.2,
+    1073741823.0,
+    1073741822.0,
+
+    -1073741823.0,
+    -1073741824.0,
+    -1073741824.2,
+    -1073741824.5,
+    -1073741824.8,
+    -1073741825.0,
+    -1073741826.0,
+
+    -4294967295.0,
+    -4294967296.0,
+    -4294967296.2,
+    -4294967296.5,
+    -4294967296.8,
+    -4294967297.0,
+    -4294967298.0,
+
+    -4611686018427387903.0,
+    -4611686018427387904.0,
+    -4611686018427387904.2,
+    -4611686018427387904.5,
+    -4611686018427387904.8,
+    -4611686018427387905.0,
+    -4611686018427387906.0,
+
+    -18446744073709551615.0,
+    -18446744073709551616.0,
+    -18446744073709551616.2,
+    -18446744073709551616.5,
+    -18446744073709551616.8,
+    -18446744073709551617.0,
+    -18446744073709551618.0,
+  ]
+
+  def test_truncate
+    VS.each {|f|
+      i = f.truncate
+      assert_equal(i, f.to_i)
+      if f < 0
+        assert_operator(i, :<, 0)
+      else
+        assert_operator(i, :>, 0)
+      end
+      assert_operator(i.abs, :<=, f.abs)
+      d = f.abs - i.abs
+      assert_operator(0, :<=, d)
+      assert_operator(d, :<, 1)
+    }
+  end
+
+  def test_ceil
+    VS.each {|f|
+      i = f.ceil
+      if f < 0
+        assert_operator(i, :<, 0)
+      else
+        assert_operator(i, :>, 0)
+      end
+      assert_operator(i, :>=, f)
+      d = f - i
+      assert_operator(-1, :<, d)
+      assert_operator(d, :<=, 0)
+    }
+  end
+
+  def test_floor
+    VS.each {|f|
+      i = f.floor
+      if f < 0
+        assert_operator(i, :<, 0)
+      else
+        assert_operator(i, :>, 0)
+      end
+      assert_operator(i, :<=, f)
+      d = f - i
+      assert_operator(0, :<=, d)
+      assert_operator(d, :<, 1)
+    }
+  end
+
+  def test_round
+    VS.each {|f|
+      i = f.round
+      if f < 0
+        assert_operator(i, :<, 0)
+      else
+        assert_operator(i, :>, 0)
+      end
+      d = f - i
+      assert_operator(-0.5, :<=, d)
+      assert_operator(d, :<=, 0.5)
+    }
+  end
+
+  def test_Float
+    assert_in_delta(0.125, Float("0.1_2_5"), 0.00001)
+    assert_in_delta(0.125, "0.1_2_5__".to_f, 0.00001)
+    assert(Float(([1] * 10000).join).infinite?)
+    assert(!Float(([1] * 10000).join("_")).infinite?) # is it really OK?
+    assert_raise(ArgumentError) { Float("1.0\x001") }
+    assert(Float("1e10_00").infinite?)
+    assert_raise(TypeError) { Float(nil) }
+    o = Object.new
+    def o.to_f; inf = 1.0/0.0; inf/inf; end
+    assert(Float(o).nan?)
+  end
+
+  def test_num2dbl
+    assert_raise(TypeError) do
+      1.0.step(2.0, "0.5") {}
+    end
+    assert_raise(TypeError) do
+      1.0.step(2.0, nil) {}
+    end
+  end
+
 end

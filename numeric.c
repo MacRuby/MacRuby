@@ -249,15 +249,14 @@ num_uminus(VALUE num)
 /*
  *  call-seq:
  *     num.quo(numeric)    =>   result
- *     num.fdiv(numeric)   =>   result
  *
- *  Equivalent to <code>Numeric#/</code>, but overridden in subclasses.
+ *  Returns most exact division (rational for integers, float for floats).
  */
 
 static VALUE
 num_quo(VALUE x, VALUE y)
 {
-    return rb_funcall(x, '/', 1, y);
+    return rb_funcall(rb_rational_raw1(x), '/', 1, y);
 }
 
 
@@ -312,6 +311,7 @@ num_div(VALUE x, VALUE y)
  *
  *
  *  Examples
+ *
  *     11.divmod(3)         #=> [3, 2]
  *     11.divmod(-3)        #=> [-4, -1]
  *     11.divmod(3.5)       #=> [3, 0.5]
@@ -645,6 +645,11 @@ flo_div(VALUE x, VALUE y)
     }
 }
 
+static VALUE
+flo_quo(VALUE x, VALUE y)
+{
+    return rb_funcall(x, '/', 1, y);
+}
 
 static void
 flodivmod(double x, double y, double *divp, double *modp)
@@ -707,6 +712,22 @@ flo_mod(VALUE x, VALUE y)
     return DOUBLE2NUM(mod);
 }
 
+static VALUE
+dbl2ival(double d)
+{
+    if (FIXABLE(d)) {
+	d = round(d);
+	return LONG2FIX((long)d);
+    }
+    else if (isnan(d) || isinf(d)) {
+	/* special case: cannot return integer value */
+	return rb_float_new(d);
+    }
+    else {
+	return rb_dbl2big(d);
+    }
+}
+
 /*
  *  call-seq:
  *     flt.divmod(numeric)    => array
@@ -717,7 +738,7 @@ flo_mod(VALUE x, VALUE y)
 static VALUE
 flo_divmod(VALUE x, VALUE y)
 {
-    double fy, div, mod, val;
+    double fy, div, mod;
     volatile VALUE a, b;
 
     switch (TYPE(y)) {
@@ -734,16 +755,7 @@ flo_divmod(VALUE x, VALUE y)
 	return rb_num_coerce_bin(x, y, rb_intern("divmod"));
     }
     flodivmod(RFLOAT_VALUE(x), fy, &div, &mod);
-    if (FIXABLE(div)) {
-	val = round(div);
-	a = LONG2FIX(val);
-    }
-    else if (isnan(div) || isinf(div)) {
-	a = rb_float_new(div);
-    }
-    else {
-	a = rb_dbl2big(div);
-    }
+    a = dbl2ival(div);
     b = DOUBLE2NUM(mod);
     return rb_assoc_new(a, b);
 }
@@ -1263,7 +1275,7 @@ flo_round(int argc, VALUE *argv, VALUE num)
     int ndigits = 0, i;
     long val;
 
-    if (rb_scan_args(argc, argv, "01", &nd) == 1) {
+    if (argc > 0 && rb_scan_args(argc, argv, "01", &nd) == 1) {
 	ndigits = NUM2INT(nd);
     }
     number  = RFLOAT_VALUE(num);
@@ -1492,6 +1504,7 @@ num_step(int argc, VALUE *argv, VALUE from)
 SIGNED_VALUE
 rb_num2long(VALUE val)
 {
+  again:
     if (NIL_P(val)) {
 	rb_raise(rb_eTypeError, "no implicit conversion from nil to integer");
     }
@@ -1518,7 +1531,7 @@ rb_num2long(VALUE val)
 
       default:
 	val = rb_to_int(val);
-	return NUM2LONG(val);
+	goto again;
     }
 }
 
@@ -1690,6 +1703,17 @@ rb_num2ull(VALUE val)
 
 #endif  /* HAVE_LONG_LONG */
 
+static VALUE
+num_numerator(VALUE num)
+{
+    return rb_funcall(rb_Rational1(num), rb_intern("numerator"), 0);
+}
+
+static VALUE
+num_denominator(VALUE num)
+{
+    return rb_funcall(rb_Rational1(num), rb_intern("denominator"), 0);
+}
 
 /*
  * Document-class: Integer
@@ -1876,6 +1900,18 @@ int_chr(int argc, VALUE *argv, VALUE num)
 #endif
 }
 
+static VALUE
+int_numerator(VALUE num)
+{
+    return num;
+}
+
+static VALUE
+int_denominator(VALUE num)
+{
+    return INT2FIX(1);
+}
+
 /********************************************************************
  *
  * Document-class: Fixnum
@@ -1924,6 +1960,7 @@ rb_int_induced_from(VALUE klass, VALUE x)
       case T_BIGNUM:
 	return x;
       case T_FLOAT:
+      case T_RATIONAL:
 	return rb_funcall(x, id_to_i, 0);
       default:
 	rb_raise(rb_eTypeError, "failed to convert %s into Integer",
@@ -1944,6 +1981,7 @@ rb_flo_induced_from(VALUE klass, VALUE x)
     switch (TYPE(x)) {
       case T_FIXNUM:
       case T_BIGNUM:
+      case T_RATIONAL:
 	return rb_funcall(x, rb_intern("to_f"), 0);
       case T_FLOAT:
 	return x;
@@ -2013,12 +2051,15 @@ rb_fix2str(VALUE x, int base)
 static VALUE
 fix_to_s(int argc, VALUE *argv, VALUE x)
 {
-    VALUE b;
     int base;
 
-    rb_scan_args(argc, argv, "01", &b);
     if (argc == 0) base = 10;
-    else base = NUM2INT(b);
+    else {
+	VALUE b;
+
+	rb_scan_args(argc, argv, "01", &b);
+	base = NUM2INT(b);
+    }
 
     return rb_fix2str(x, base);
 }
@@ -2178,19 +2219,18 @@ fixdivmod(long x, long y, long *divp, long *modp)
 
 /*
  *  call-seq:
- *     fix.quo(numeric)    => float
  *     fix.fdiv(numeric)   => float
  *
  *  Returns the floating point result of dividing <i>fix</i> by
  *  <i>numeric</i>.
  *
- *     654321.quo(13731)      #=> 47.6528293642124
- *     654321.quo(13731.24)   #=> 47.6519964693647
+ *     654321.fdiv(13731)      #=> 47.6528293642124
+ *     654321.fdiv(13731.24)   #=> 47.6519964693647
  *
  */
 
 static VALUE
-fix_quo(VALUE x, VALUE y)
+fix_fdiv(VALUE x, VALUE y)
 {
     if (FIXNUM_P(y)) {
 	return DOUBLE2NUM((double)FIX2LONG(x) / (double)FIX2LONG(y));
@@ -2201,12 +2241,12 @@ fix_quo(VALUE x, VALUE y)
       case T_FLOAT:
 	return DOUBLE2NUM((double)FIX2LONG(x) / RFLOAT_VALUE(y));
       default:
-	return rb_num_coerce_bin(x, y, rb_intern("quo"));
+	return rb_num_coerce_bin(x, y, rb_intern("fdiv"));
     }
 }
 
 static VALUE
-fix_divide(VALUE x, VALUE y, int flo)
+fix_divide(VALUE x, VALUE y, ID op)
 {
     if (FIXNUM_P(y)) {
 	long div;
@@ -2219,15 +2259,17 @@ fix_divide(VALUE x, VALUE y, int flo)
 	x = rb_int2big(FIX2LONG(x));
 	return rb_big_div(x, y);
       case T_FLOAT:
-	if (flo) {
-	    return DOUBLE2NUM((double)FIX2LONG(x) / RFLOAT_VALUE(y));
-	}
-	else {
-	    long div = (double)FIX2LONG(x) / RFLOAT_VALUE(y);
-	    return LONG2NUM(div);
+	{
+	    double div = (double)FIX2LONG(x) / RFLOAT_VALUE(y);
+	    if (op == '/') {
+		return DOUBLE2NUM(div);
+	    }
+	    else {
+		return rb_dbl2big(floor(div));
+	    }
 	}
       default:
-	return rb_num_coerce_bin(x, y, flo ? '/' : rb_intern("div"));
+	return rb_num_coerce_bin(x, y, op);
     }
 }
 
@@ -2243,7 +2285,7 @@ fix_divide(VALUE x, VALUE y, int flo)
 static VALUE
 fix_div(VALUE x, VALUE y)
 {
-    return fix_divide(x, y, Qtrue);
+    return fix_divide(x, y, '/');
 }
 
 /*
@@ -2256,7 +2298,7 @@ fix_div(VALUE x, VALUE y)
 static VALUE
 fix_idiv(VALUE x, VALUE y)
 {
-    return fix_divide(x, y, Qfalse);
+    return fix_divide(x, y, rb_intern("div"));
 }
 
 /*
@@ -2319,7 +2361,7 @@ fix_divmod(VALUE x, VALUE y)
 	    volatile VALUE a, b;
 
 	    flodivmod((double)FIX2LONG(x), RFLOAT_VALUE(y), &div, &mod);
-	    a = DOUBLE2NUM(div);
+	    a = dbl2ival(div);
 	    b = DOUBLE2NUM(mod);
 	    return rb_assoc_new(a, b);
 	}
@@ -2385,6 +2427,9 @@ fix_pow(VALUE x, VALUE y)
     if (FIXNUM_P(y)) {
 	long b = FIX2LONG(y);
 
+	if (b < 0)
+	  return rb_funcall(rb_rational_raw1(x), rb_intern("**"), 1, y);
+
 	if (b == 0) return INT2FIX(1);
 	if (b == 1) return x;
 	if (a == 0) {
@@ -2398,13 +2443,14 @@ fix_pow(VALUE x, VALUE y)
 	    else 
 		return INT2FIX(-1);
 	}
-	if (b > 0) {
-	    return int_pow(a, b);
-	}
-	return DOUBLE2NUM(pow((double)a, (double)b));
+	return int_pow(a, b);
     }
     switch (TYPE(y)) {
       case T_BIGNUM:
+
+	if (rb_funcall(y, '<', 1, INT2FIX(0)))
+	  return rb_funcall(rb_rational_raw1(x), rb_intern("**"), 1, y);
+
 	if (a == 0) return INT2FIX(0);
 	if (a == 1) return INT2FIX(1);
 	if (a == -1) {
@@ -2594,6 +2640,18 @@ fix_rev(VALUE num)
     return LONG2NUM(val);
 }
 
+static VALUE
+bit_coerce(VALUE x)
+{
+    while (!FIXNUM_P(x) && TYPE(x) != T_BIGNUM) {
+	if (TYPE(x) == T_FLOAT) {
+	    rb_raise(rb_eTypeError, "can't convert Float into Integer");
+	}
+	x = rb_to_int(x);
+    }
+    return x;
+}
+
 /*
  * call-seq:
  *   fix & other     => integer
@@ -2606,10 +2664,10 @@ fix_and(VALUE x, VALUE y)
 {
     long val;
 
-    if (TYPE(y) == T_BIGNUM) {
+    if (!FIXNUM_P(y = bit_coerce(y))) {
 	return rb_big_and(y, x);
     }
-    val = FIX2LONG(x) & NUM2LONG(y);
+    val = FIX2LONG(x) & FIX2LONG(y);
     return LONG2NUM(val);
 }
 
@@ -2625,10 +2683,10 @@ fix_or(VALUE x, VALUE y)
 {
     long val;
 
-    if (TYPE(y) == T_BIGNUM) {
+    if (!FIXNUM_P(y = bit_coerce(y))) {
 	return rb_big_or(y, x);
     }
-    val = FIX2LONG(x) | NUM2LONG(y);
+    val = FIX2LONG(x) | FIX2LONG(y);
     return LONG2NUM(val);
 }
 
@@ -2644,10 +2702,10 @@ fix_xor(VALUE x, VALUE y)
 {
     long val;
 
-    if (TYPE(y) == T_BIGNUM) {
+    if (!FIXNUM_P(y = bit_coerce(y))) {
 	return rb_big_xor(y, x);
     }
-    val = FIX2LONG(x) ^ NUM2LONG(y);
+    val = FIX2LONG(x) ^ FIX2LONG(y);
     return LONG2NUM(val);
 }
 
@@ -2741,7 +2799,8 @@ fix_aref(VALUE fix, VALUE idx)
     long val = FIX2LONG(fix);
     long i;
 
-    if (TYPE(idx) == T_BIGNUM) {
+    idx = rb_to_int(idx);
+    if (!FIXNUM_P(idx)) {
 	idx = rb_big_norm(idx);
 	if (!FIXNUM_P(idx)) {
 	    if (!RBIGNUM_SIGN(idx) || val >= 0)
@@ -2749,7 +2808,7 @@ fix_aref(VALUE fix, VALUE idx)
 	    return INT2FIX(1);
 	}
     }
-    i = NUM2LONG(idx);
+    i = FIX2LONG(idx);
 
     if (i < 0) return INT2FIX(0);
     if (SIZEOF_LONG*CHAR_BIT-1 < i) {
@@ -2800,52 +2859,6 @@ fix_abs(VALUE fix)
     return LONG2NUM(i);
 }
 
-/*
- *  call-seq:
- *     fix.id2name -> string or nil
- *
- *  Returns the name of the object whose symbol id is <i>fix</i>. If
- *  there is no symbol in the symbol table with this value, returns
- *  <code>nil</code>. <code>id2name</code> has nothing to do with the
- *  <code>Object.id</code> method. See also <code>Fixnum#to_sym</code>,
- *  <code>String#intern</code>, and class <code>Symbol</code>.
- *
- *     symbol = :@inst_var    #=> :@inst_var
- *     id     = symbol.to_i   #=> 9818
- *     id.id2name             #=> "@inst_var"
- */
-
-static VALUE
-fix_id2name(VALUE fix)
-{
-    VALUE name = rb_id2str(FIX2UINT(fix));
-    if (name) return rb_str_dup(name);
-    return Qnil;
-}
-
-
-/*
- *  call-seq:
- *     fix.to_sym -> aSymbol
- *
- *  Returns the symbol whose integer value is <i>fix</i>. See also
- *  <code>Fixnum#id2name</code>.
- *
- *     fred = :fred.to_i
- *     fred.id2name   #=> "fred"
- *     fred.to_sym    #=> :fred
- */
-
-static VALUE
-fix_to_sym(VALUE fix)
-{
-    ID id = FIX2UINT(fix);
-
-    if (rb_id2name(id)) {
-	return ID2SYM(id);
-    }
-    return Qnil;
-}
 
 
 /*
@@ -3120,6 +3133,9 @@ Init_Numeric(void)
     rb_define_method(rb_cNumeric, "truncate", num_truncate, 0);
     rb_define_method(rb_cNumeric, "step", num_step, -1);
 
+    rb_define_method(rb_cNumeric, "numerator", num_numerator, 0);
+    rb_define_method(rb_cNumeric, "denominator", num_denominator, 0);
+
     rb_cInteger = rb_define_class("Integer", rb_cNumeric);
     rb_undef_alloc_func(rb_cInteger);
     rb_undef_method(CLASS_OF(rb_cInteger), "new");
@@ -3147,10 +3163,10 @@ Init_Numeric(void)
     rb_define_singleton_method(rb_cFixnum, "induced_from", rb_fix_induced_from, 1);
     rb_define_singleton_method(rb_cInteger, "induced_from", rb_int_induced_from, 1);
 
-    rb_define_method(rb_cFixnum, "to_s", fix_to_s, -1);
+    rb_define_method(rb_cInteger, "numerator", int_numerator, 0);
+    rb_define_method(rb_cInteger, "denominator", int_denominator, 0);
 
-    rb_define_method(rb_cFixnum, "id2name", fix_id2name, 0);
-    rb_define_method(rb_cFixnum, "to_sym", fix_to_sym, 0);
+    rb_define_method(rb_cFixnum, "to_s", fix_to_s, -1);
 
     rb_define_method(rb_cFixnum, "-@", fix_uminus, 0);
     rb_define_method(rb_cFixnum, "+", fix_plus, 1);
@@ -3161,8 +3177,7 @@ Init_Numeric(void)
     rb_define_method(rb_cFixnum, "%", fix_mod, 1);
     rb_define_method(rb_cFixnum, "modulo", fix_mod, 1);
     rb_define_method(rb_cFixnum, "divmod", fix_divmod, 1);
-    rb_define_method(rb_cFixnum, "quo", fix_quo, 1);
-    rb_define_method(rb_cFixnum, "fdiv", fix_quo, 1);
+    rb_define_method(rb_cFixnum, "fdiv", fix_fdiv, 1);
     rb_define_method(rb_cFixnum, "**", fix_pow, 1);
 
     rb_define_method(rb_cFixnum, "abs", fix_abs, 0);
@@ -3217,6 +3232,8 @@ Init_Numeric(void)
     rb_define_method(rb_cFloat, "-", flo_minus, 1);
     rb_define_method(rb_cFloat, "*", flo_mul, 1);
     rb_define_method(rb_cFloat, "/", flo_div, 1);
+    rb_define_method(rb_cFloat, "quo", flo_quo, 1);
+    rb_define_method(rb_cFloat, "fdiv", flo_quo, 1);
     rb_define_method(rb_cFloat, "%", flo_mod, 1);
     rb_define_method(rb_cFloat, "modulo", flo_mod, 1);
     rb_define_method(rb_cFloat, "divmod", flo_divmod, 1);

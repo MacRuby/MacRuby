@@ -120,15 +120,6 @@ EOT
     }
   end
 
-  def test_open_w_enc
-    with_tmpdir {
-      open("tmp", "w:euc-jp") {|f|
-        assert_equal(Encoding::EUC_JP, f.external_encoding)
-        assert_equal(nil, f.internal_encoding)
-      }
-    }
-  end
-
   def test_stdin
     assert_equal(Encoding.default_external, STDIN.external_encoding)
     assert_equal(nil, STDIN.internal_encoding)
@@ -424,6 +415,15 @@ EOT
       w.close
       result = r.gets(nil)
       assert_equal("\u{3042}".encode("euc-jp"), result)
+    }
+  end
+
+  def test_file_foreach
+    with_tmpdir {
+      generate_file('tst', 'a' * 8191 + "\xa1\xa1")
+      assert_nothing_raised {
+        File.foreach('tst', :encoding=>"euc-jp") {|line| line.inspect }
+      }
     }
   end
 end

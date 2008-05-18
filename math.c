@@ -2,7 +2,7 @@
 
   math.c -
 
-  $Author: akr $
+  $Author: matz $
   created at: Tue Jan 25 14:12:56 JST 1994
 
   Copyright (C) 1993-2007 Yukihiro Matsumoto
@@ -15,7 +15,20 @@
 
 VALUE rb_mMath;
 
-#define Need_Float(x) (x) = rb_Float(x)
+static VALUE
+to_flo(VALUE x)
+{
+    if (!rb_obj_is_kind_of(x, rb_cNumeric)) {
+	rb_raise(rb_eTypeError, "can't convert %s into Float",
+		 NIL_P(x) ? "nil" :
+		 x == Qtrue ? "true" :
+		 x == Qfalse ? "false" :
+		 rb_obj_classname(x));
+    }
+    return rb_convert_type(x, T_FLOAT, "Float", "to_f");
+}
+
+#define Need_Float(x) (x) = to_flo(x)
 #define Need_Float2(x,y) do {\
     Need_Float(x);\
     Need_Float(y);\
@@ -50,7 +63,7 @@ domain_check(double x, char *msg)
  *     
  */
 
-static VALUE
+VALUE
 math_atan2(VALUE obj, VALUE y, VALUE x)
 {
     Need_Float2(y, x);
@@ -66,7 +79,7 @@ math_atan2(VALUE obj, VALUE y, VALUE x)
  *  -1..1.
  */
 
-static VALUE
+VALUE
 math_cos(VALUE obj, VALUE x)
 {
     Need_Float(x);
@@ -81,7 +94,7 @@ math_cos(VALUE obj, VALUE x)
  *  -1..1.
  */
 
-static VALUE
+VALUE
 math_sin(VALUE obj, VALUE x)
 {
     Need_Float(x);
@@ -172,7 +185,7 @@ cosh(double x)
  *  Computes the hyperbolic cosine of <i>x</i> (expressed in radians).
  */
 
-static VALUE
+VALUE
 math_cosh(VALUE obj, VALUE x)
 {
     Need_Float(x);
@@ -196,7 +209,7 @@ sinh(double x)
  *  radians).
  */
 
-static VALUE
+VALUE
 math_sinh(VALUE obj, VALUE x)
 {
     Need_Float(x);
@@ -285,7 +298,7 @@ math_atanh(VALUE obj, VALUE x)
  *  Returns e**x.
  */
 
-static VALUE
+VALUE
 math_exp(VALUE obj, VALUE x)
 {
     Need_Float(x);
@@ -311,7 +324,7 @@ math_exp(VALUE obj, VALUE x)
  *  of logarithm.
  */
 
-static VALUE
+VALUE
 math_log(int argc, VALUE *argv)
 {
     VALUE x, base;
@@ -388,7 +401,7 @@ math_log10(VALUE obj, VALUE x)
  *  Returns the non-negative square root of <i>numeric</i>.
  */
 
-static VALUE
+VALUE
 math_sqrt(VALUE obj, VALUE x)
 {
     double d;
@@ -465,7 +478,7 @@ math_ldexp(VALUE obj, VALUE x, VALUE n)
  *     Math.hypot(3, 4)   #=> 5.0
  */
 
-static VALUE
+VALUE
 math_hypot(VALUE obj, VALUE x, VALUE y)
 {
     Need_Float2(x, y);

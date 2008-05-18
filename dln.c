@@ -2,7 +2,7 @@
 
   dln.c -
 
-  $Author: akr $
+  $Author: nobu $
   created at: Tue Jan 18 17:05:06 JST 1994
 
   Copyright (C) 1993-2007 Yukihiro Matsumoto
@@ -1570,10 +1570,10 @@ dln_load(const char *file)
     return 0;			/* dummy return */
 }
 
-static char *dln_find_1(const char *fname, const char *path, int exe_flag);
+static char *dln_find_1(const char *fname, const char *path, char *buf, int size, int exe_flag);
 
 char *
-dln_find_exe(const char *fname, const char *path)
+dln_find_exe_r(const char *fname, const char *path, char *buf, int size)
 {
     if (!path) {
 	path = getenv(PATH_ENV);
@@ -1586,25 +1586,38 @@ dln_find_exe(const char *fname, const char *path)
 	path = "/usr/local/bin:/usr/ucb:/usr/bin:/bin:.";
 #endif
     }
-    return dln_find_1(fname, path, 1);
+    return dln_find_1(fname, path, buf, size, 1);
 }
 
 char *
-dln_find_file(const char *fname, const char *path)
+dln_find_file_r(const char *fname, const char *path, char *buf, int size)
 {
 #ifndef __MACOS__
     if (!path) path = ".";
-    return dln_find_1(fname, path, 0);
+    return dln_find_1(fname, path, buf, size, 0);
 #else
     if (!path) path = ".";
-    return _macruby_path_conv_posix_to_macos(dln_find_1(fname, path, 0));
+    return _macruby_path_conv_posix_to_macos(dln_find_1(fname, path, buf, size, 0));
 #endif
 }
 
 static char fbuf[MAXPATHLEN];
 
+char *
+dln_find_exe(const char *fname, const char *path)
+{
+    return dln_find_exe_r(fname, path, fbuf, sizeof(fbuf));
+}
+
+char *
+dln_find_file(const char *fname, const char *path)
+{
+    return dln_find_file_r(fname, path, fbuf, sizeof(fbuf));
+}
+
 static char *
-dln_find_1(const char *fname, const char *path, int exe_flag /* non 0 if looking for executable. */)
+dln_find_1(const char *fname, const char *path, char *fbuf, int size,
+	   int exe_flag /* non 0 if looking for executable. */)
 {
     register const char *dp;
     register const char *ep;
@@ -1644,7 +1657,7 @@ dln_find_1(const char *fname, const char *path, int exe_flag /* non 0 if looking
 	/* find the length of that component */
 	l = ep - dp;
 	bp = fbuf;
-	fspace = sizeof fbuf - 2;
+	fspace = size - 2;
 	if (l > 0) {
 	    /*
 	    **	If the length of the component is zero length,
@@ -1696,6 +1709,45 @@ dln_find_1(const char *fname, const char *path, int exe_flag /* non 0 if looking
 	}
 	memcpy(bp, fname, i + 1);
 
+#if defined(DOSISH)
+	if (exe_flag) {
+	    static const char extension[][5] = {
+#if defined(MSDOS)
+		".com", ".exe", ".bat",
+#if defined(DJGPP)
+		".btm", ".sh", ".ksh", ".pl", ".sed",
+#endif
+#elif defined(__EMX__) || defined(_WIN32)
+		".exe", ".com", ".cmd", ".bat",
+/* end of __EMX__ or _WIN32 */
+#else
+		".r", ".R", ".x", ".X", ".bat", ".BAT",
+/* __human68k__ */
+#endif
+	    };
+	    int j;
+
+	    for (j = 0; j < sizeof(extension) / sizeof(extension[0]); j++) {
+		if (fspace < strlen(extension[j])) {
+		    fprintf(stderr, "openpath: pathname too long (ignored)\n");
+		    fprintf(stderr, "\tDirectory \"%.*s\"\n", (int) (bp - fbuf), fbuf);
+		    fprintf(stderr, "\tFile \"%s%s\"\n", fname, extension[j]);
+		    continue;
+		}
+		strcpy(bp + i, extension[j]);
+#ifndef __MACOS__
+		if (stat(fbuf, &st) == 0)
+		    return fbuf;
+#else
+		if (mac_fullpath = _macruby_exist_file_in_libdir_as_posix_name(fbuf))
+		    return mac_fullpath;
+
+#endif
+	    }
+	    goto next;
+	}
+#endif /* MSDOS or _WIN32 or __human68k__ or __EMX__ */
+
 #ifndef __MACOS__
 	if (stat(fbuf, &st) == 0) {
 	    if (exe_flag == 0) return fbuf;
@@ -1713,44 +1765,6 @@ dln_find_1(const char *fname, const char *path, int exe_flag /* non 0 if looking
 	    }
 	}
 #endif
-#if defined(DOSISH)
-	if (exe_flag) {
-	    static const char *const extension[] = {
-#if defined(MSDOS)
-		".com", ".exe", ".bat",
-#if defined(DJGPP)
-		".btm", ".sh", ".ksh", ".pl", ".sed",
-#endif
-#elif defined(__EMX__) || defined(_WIN32)
-		".exe", ".com", ".cmd", ".bat",
-/* end of __EMX__ or _WIN32 */
-#else
-		".r", ".R", ".x", ".X", ".bat", ".BAT",
-/* __human68k__ */
-#endif
-		(char *) NULL
-	    };
-	    int j;
-
-	    for (j = 0; extension[j]; j++) {
-		if (fspace < strlen(extension[j])) {
-		    fprintf(stderr, "openpath: pathname too long (ignored)\n");
-		    fprintf(stderr, "\tDirectory \"%.*s\"\n", (int) (bp - fbuf), fbuf);
-		    fprintf(stderr, "\tFile \"%s%s\"\n", fname, extension[j]);
-		    continue;
-		}
-		strcpy(bp + i, extension[j]);
-#ifndef __MACOS__
-		if (stat(fbuf, &st) == 0)
-		    return fbuf;
-#else
-		if (mac_fullpath = _macruby_exist_file_in_libdir_as_posix_name(fbuf))
-		    return mac_fullpath;
-
-#endif
-	    }
-	}
-#endif /* MSDOS or _WIN32 or __human68k__ or __EMX__ */
 
       next:
 	/* if not, and no other alternatives, life is bleak */

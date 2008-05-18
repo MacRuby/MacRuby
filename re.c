@@ -95,45 +95,152 @@ rb_memcmp(const void *p1, const void *p2, long len)
     return memcmp(p1, p2, len);
 }
 
-long
-rb_memsearch(const void *x0, long m, const void *y0, long n)
+static inline long
+rb_memsearch_ss(const unsigned char *xs, long m, const unsigned char *ys, long n)
 {
-    const unsigned char *x = x0, *y = y0;
-    const unsigned char *s, *e;
-    long i;
-    int d;
-    unsigned long hx, hy;
+    const unsigned char *x = xs, *xe = xs + m;
+    const unsigned char *y = ys, *ye = ys + n;
+#ifndef VALUE_MAX
+# if SIZEOF_VALUE == 8
+#  define VALUE_MAX 0xFFFFFFFFFFFFFFFFULL
+# elif SIZEOF_VALUE == 4
+#  define VALUE_MAX 0xFFFFFFFFUL
+# endif
+#endif
+    VALUE hx, hy, mask = VALUE_MAX >> ((SIZEOF_VALUE - m) * CHAR_BIT);
 
-#define KR_REHASH(a, b, h) (((h) << 1) - (((unsigned long)(a))<<d) + (b))
+    if (m > SIZEOF_VALUE)
+	rb_bug("!!too long pattern string!!");
 
-    if (m > n) return -1;
-    s = y; e = s + n - m;
-
-    /* Preprocessing */
-    /* computes d = 2^(m-1) with
-       the left-shift operator */
-    d = sizeof(hx) * CHAR_BIT - 1;
-    if (d > m) d = m;
-
-    if (n == m) {
-	return memcmp(x, s, m) == 0 ? 0 : -1;
-    }
-    /* Prepare hash value */
-    for (hy = hx = i = 0; i < d; ++i) {
-	hx = KR_REHASH(0, x[i], hx);
-	hy = KR_REHASH(0, s[i], hy);
+    	/* Prepare hash value */
+    for (hx = *x++, hy = *y++; x < xe; ++x, ++y) {
+	hx <<= CHAR_BIT;
+	hy <<= CHAR_BIT;
+	hx |= *x;
+	hy |= *y;
     }
     /* Searching */
-    while (hx != hy || memcmp(x, s, m)) {
-	if (s >= e) return -1;
-	hy = KR_REHASH(*s, *(s+d), hy);
-	s++;
+    while (hx != hy) {
+	if (y == ye)
+	    return -1;
+	hy <<= CHAR_BIT;
+	hy |= *y;
+	hy &= mask;
+	y++;
     }
-    return s-y;
+    return y - ys - m;
+}
+
+static inline long
+rb_memsearch_qs(const unsigned char *xs, long m, const unsigned char *ys, long n)
+{
+    const unsigned char *x = xs, *xe = xs + m;
+    const unsigned char *y = ys;
+    VALUE i, qstable[256];
+
+    /* Preprocessing */
+    for (i = 0; i < 256; ++i)
+	qstable[i] = m + 1;
+    for (; x < xe; ++x)
+	qstable[*x] = xe - x;
+    /* Searching */
+    for (; y + m <= ys + n; y += *(qstable + y[m])) {
+	if (*xs == *y && memcmp(xs, y, m) == 0)
+	    return y - ys;
+    }
+    return -1;
+}
+
+static inline unsigned int
+rb_memsearch_qs_utf8_hash(const unsigned char *x)
+{
+    register const unsigned int mix = 8353;
+    register unsigned int h = *x;
+    if (h < 0xC0) {
+	return h + 256;
+    }
+    else if (h < 0xE0) {
+	h *= mix;
+	h += x[1];
+    }
+    else if (h < 0xF0) {
+	h *= mix;
+	h += x[1];
+	h *= mix;
+	h += x[2];
+    }
+    else if (h < 0xF5) {
+	h *= mix;
+	h += x[1];
+	h *= mix;
+	h += x[2];
+	h *= mix;
+	h += x[3];
+    }
+    else {
+	return h + 256;
+    }
+    return (unsigned char)h;
+}
+
+static inline long
+rb_memsearch_qs_utf8(const unsigned char *xs, long m, const unsigned char *ys, long n)
+{
+    const unsigned char *x = xs, *xe = xs + m;
+    const unsigned char *y = ys;
+    VALUE i, qstable[512];
+
+    /* Preprocessing */
+    for (i = 0; i < 512; ++i) {
+	qstable[i] = m + 1;
+    }
+    for (; x < xe; ++x) {
+	qstable[rb_memsearch_qs_utf8_hash(x)] = xe - x;
+    }
+    /* Searching */
+    for (; y + m <= ys + n; y += qstable[rb_memsearch_qs_utf8_hash(y+m)]) {
+	if (*xs == *y && memcmp(xs, y, m) == 0)
+	    return y - ys;
+    }
+    return -1;
+}
+
+long
+rb_memsearch(const void *x0, long m, const void *y0, long n, rb_encoding *enc)
+{
+    const unsigned char *x = x0, *y = y0;
+
+    if (m > n) return -1;
+    else if (m == n) {
+	return memcmp(x0, y0, m) == 0 ? 0 : -1;
+    }
+    else if (m < 1) {
+	return 0;
+    }
+    else if (m == 1) {
+	const unsigned char *ys = y, *ye = ys + n;
+	for (; y < ye; ++y) {
+	    if (*x == *y)
+		return y - ys;
+	}
+	return -1;
+    }
+    else if (m <= SIZEOF_VALUE) {
+	return rb_memsearch_ss(x0, m, y0, n);
+    }
+#if !WITH_OBJC
+    else if (enc == rb_utf8_encoding()){
+	return rb_memsearch_qs_utf8(x0, m, y0, n);
+    }
+#endif
+    else {
+	return rb_memsearch_qs(x0, m, y0, n);
+    }
 }
 
 #define REG_LITERAL FL_USER5
 #define REG_ENCODING_NONE FL_USER6
+#define REG_BUSY FL_USER7
 
 #define KCODE_FIXED FL_USER4
 
@@ -357,7 +464,7 @@ rb_reg_source(VALUE re)
  *
  *      /ab+c/ix.inspect        #=> "/ab+c/ix"
  *
-*/
+ */
 
 static VALUE
 rb_reg_inspect(VALUE re)
@@ -604,7 +711,7 @@ reg_names_iter(const OnigUChar *name, const OnigUChar *name_end,
  *     /(?<foo>.)(?<foo>.)/.names
  *     #=> ["foo"]
  *
- *     /(.)(.)/.names' 
+ *     /(.)(.)/.names
  *     #=> []
  */
 
@@ -645,12 +752,12 @@ reg_named_captures_iter(const OnigUChar *name, const OnigUChar *name_end,
  *    /(?<foo>.)(?<bar>.)/.named_captures
  *    #=> {"foo"=>[1], "bar"=>[2]}
  *
- *    /(?<foo>.)(?<foo>.)/.named_captures'
+ *    /(?<foo>.)(?<foo>.)/.named_captures
  *    #=> {"foo"=>[1, 2]}
  *
  * If there are no named captures, an empty hash is returned.
  *
- *    /(.)(.)/.named_captures' 
+ *    /(.)(.)/.named_captures
  *    #=> {}
  */
 
@@ -789,8 +896,7 @@ update_char_offset(VALUE match)
     for (i = 0; i < num_pos; i++) {
         q = s + pairs[i].byte_pos;
 #if WITH_OBJC
-	//long n = strlen(p);
-	c += q-p;//(n > (q-p) ? q-p : n);
+	c += q-p;
 #else
         c += rb_enc_strlen(p, q, enc);
 #endif
@@ -1071,16 +1177,16 @@ rb_match_busy(VALUE match)
  *
  *      r = /a/u
  *      r.fixed_encoding?                               #=> true
- *      r.encoding                                      #=> <Encoding:UTF-8>
+ *      r.encoding                                      #=> #<Encoding:UTF-8>
  *      r =~ "\u{6666} a"                               #=> 2
- *      r =~ "\xa1\xa2".force_encoding("euc-jp")        # ArgumentError
+ *      r =~ "\xa1\xa2".force_encoding("euc-jp")        #=> ArgumentError
  *      r =~ "abc".force_encoding("euc-jp")             #=> 0
  *
  *      r = /\u{6666}/
  *      r.fixed_encoding?                               #=> true
- *      r.encoding                                      #=> <Encoding:UTF-8>
+ *      r.encoding                                      #=> #<Encoding:UTF-8>
  *      r =~ "\u{6666} a"                               #=> 0
- *      r =~ "\xa1\xa2".force_encoding("euc-jp")        # ArgumentError
+ *      r =~ "\xa1\xa2".force_encoding("euc-jp")        #=> ArgumentError
  *      r =~ "abc".force_encoding("euc-jp")             #=> nil
  */
 
@@ -1097,15 +1203,22 @@ static VALUE
 rb_reg_preprocess(const char *p, const char *end, rb_encoding *enc,
         rb_encoding **fixed_enc, onig_errmsg_buffer err);
 
-static void
-rb_reg_prepare_re(VALUE re, VALUE str, int enable_warning)
-{
-    int need_recompile = 0;
-    rb_encoding *enc;
 
-#if WITH_OBJC
-    need_recompile = 0;
-#else
+static void
+reg_enc_error(VALUE re, VALUE str)
+{
+    rb_raise(rb_eArgError,
+	     "incompatible encoding regexp match (%s regexp with %s string)",
+	     rb_enc_name(rb_enc_get(re)),
+	     rb_enc_name(rb_enc_get(str)));
+}
+
+static rb_encoding*
+rb_reg_prepare_enc(VALUE re, VALUE str, int warn)
+{
+    rb_encoding *enc = 0;
+
+#if !WITH_OBJC
     if (rb_enc_str_coderange(str) == ENC_CODERANGE_BROKEN) {
         rb_raise(rb_eArgError,
             "broken %s string",
@@ -1114,81 +1227,84 @@ rb_reg_prepare_re(VALUE re, VALUE str, int enable_warning)
 #endif
 
     rb_reg_check(re);
-    /* ignorecase status */
+    enc = rb_enc_get(str);
 #if !WITH_OBJC
-    if (rb_reg_fixed_encoding_p(re) || !rb_enc_str_asciicompat_p(str)) {
-        if (ENCODING_GET(re) != rb_enc_get_index(str) &&
-            rb_enc_str_coderange(str) != ENC_CODERANGE_7BIT) {
-            rb_raise(rb_eArgError,
-                "incompatible encoding regexp match (%s regexp with %s string)",
-		rb_enc_name(rb_enc_get(re)),
-                rb_enc_name(rb_enc_get(str)));
-        }
+    if (!rb_enc_str_asciicompat_p(str)) {
+        if (RREGEXP(re)->ptr->enc != enc) {
+	    reg_enc_error(re, str);
+	}
     }
-    else {
-        if ((enc = rb_enc_get(str)) != 0 &&
-	     RREGEXP(re)->ptr->enc != enc) {
-            need_recompile = 1;
-        }
-        if (enable_warning &&
-            (RBASIC(re)->flags & REG_ENCODING_NONE) &&
-	    enc != rb_ascii8bit_encoding() &&
-            rb_enc_str_coderange(str) != ENC_CODERANGE_7BIT) {
-            rb_warn("regexp match /.../n against to %s string",
-                    rb_enc_name(enc));
-        }
+    else if (rb_reg_fixed_encoding_p(re)) {
+        if (RREGEXP(re)->ptr->enc != enc &&
+	    (!rb_enc_asciicompat(RREGEXP(re)->ptr->enc) ||
+	     rb_enc_str_coderange(str) != ENC_CODERANGE_7BIT)) {
+	    reg_enc_error(re, str);
+	}
+	enc = RREGEXP(re)->ptr->enc;
+    }
+    if (warn && (RBASIC(re)->flags & REG_ENCODING_NONE) &&
+	enc != rb_ascii8bit_encoding() &&
+	rb_enc_str_coderange(str) != ENC_CODERANGE_7BIT) {
+	rb_warn("regexp match /.../n against to %s string",
+		rb_enc_name(enc));
     }
 #endif
+    return enc;
+}
 
-    if (need_recompile) {
-	onig_errmsg_buffer err = "";
-	int r;
-	OnigErrorInfo einfo;
-	regex_t *reg, *reg2;
-	UChar *pattern;
-        VALUE unescaped;
-        rb_encoding *fixed_enc = 0;
+regex_t *
+rb_reg_prepare_re(VALUE re, VALUE str)
+{
+    regex_t *reg = RREGEXP(re)->ptr;
+    onig_errmsg_buffer err = "";
+    int r;
+    OnigErrorInfo einfo;
+    const char *pattern;
+    VALUE unescaped;
+    rb_encoding *fixed_enc = 0;
+    rb_encoding *enc = rb_reg_prepare_enc(re, str, 1);
 
-	rb_reg_check(re);
-	reg = RREGEXP(re)->ptr;
-	pattern = ((UChar*)RREGEXP(re)->str);
+#if !WITH_OBJC
+    if (reg->enc == enc) return reg;
+#endif
 
-        unescaped = rb_reg_preprocess(
-            RREGEXP(re)->str, RREGEXP(re)->str + RREGEXP(re)->len, enc,
-            &fixed_enc, err);
+    rb_reg_check(re);
+    reg = RREGEXP(re)->ptr;
+    pattern = RREGEXP(re)->str;
 
-        if (unescaped == Qnil) {
-            rb_raise(rb_eArgError, "regexp preprocess failed: %s", err);
-        }
+    unescaped = rb_reg_preprocess(
+	pattern, pattern + RREGEXP(re)->len, enc,
+	&fixed_enc, err);
+
+    if (unescaped == Qnil) {
+	rb_raise(rb_eArgError, "regexp preprocess failed: %s", err);
+    }
 
 #if WITH_OBJC
-	enc = (rb_encoding *)ONIG_ENCODING_ASCII;
+    enc = (rb_encoding *)ONIG_ENCODING_ASCII;
 #endif
 
-	r = onig_new(&reg2, (UChar* )RSTRING_CPTR(unescaped),
-		     (UChar* )(RSTRING_CPTR(unescaped) 
-			 + RSTRING_CLEN(unescaped)),
-		     reg->options, (OnigEncoding)enc,
-		     OnigDefaultSyntax, &einfo);
-	if (r) {
-	    onig_error_code_to_str((UChar*)err, r, &einfo);
-	    rb_reg_raise((char* )pattern, RREGEXP(re)->len, err, re);
-	}
-
-	GC_WB(&RREGEXP(re)->ptr, reg2);
-	onig_free(reg);
-        RB_GC_GUARD(unescaped);
+    r = onig_new(&reg, (UChar* )RSTRING_PTR(unescaped),
+		 (UChar* )(RSTRING_PTR(unescaped) + RSTRING_LEN(unescaped)),
+		 reg->options, (OnigEncoding)enc,
+		 OnigDefaultSyntax, &einfo);
+    if (r) {
+	onig_error_code_to_str((UChar*)err, r, &einfo);
+	rb_reg_raise(pattern, RREGEXP(re)->len, err, re);
     }
+
+    RB_GC_GUARD(unescaped);
+    return reg;
 }
 
 int
 rb_reg_adjust_startpos(VALUE re, VALUE str, int pos, int reverse)
 {
     int range;
-    OnigEncoding enc;
+    rb_encoding *enc;
     UChar *p, *string;
 
-    rb_reg_prepare_re(re, str, 0);
+    enc = rb_reg_prepare_enc(re, str, 0);
 
     if (reverse) {
 	range = -pos;
@@ -1197,8 +1313,7 @@ rb_reg_adjust_startpos(VALUE re, VALUE str, int pos, int reverse)
 	range = RSTRING_CLEN(str) - pos;
     }
 
-    enc = (RREGEXP(re)->ptr)->enc;
-
+#if !WITH_OBJC
     if (pos > 0 && ONIGENC_MBC_MAXLEN(enc) != 1 && pos < RSTRING_CLEN(str)) {
 	 string = (UChar*)RSTRING_CPTR(str);
 
@@ -1210,6 +1325,7 @@ rb_reg_adjust_startpos(VALUE re, VALUE str, int pos, int reverse)
 	 }
 	 return p - string;
     }
+#endif
 
     return pos;
 }
@@ -1222,6 +1338,8 @@ rb_reg_search(VALUE re, VALUE str, int pos, int reverse)
     struct re_registers *pregs;
     const char *cstr, *range;
     long clen;
+    regex_t *reg0 = RREGEXP(re)->ptr, *reg;
+    int busy = FL_TEST(re, REG_BUSY);
 
     cstr = range = RSTRING_CPTR(str);
     clen = RSTRING_CLEN(str);
@@ -1242,11 +1360,13 @@ rb_reg_search(VALUE re, VALUE str, int pos, int reverse)
 	return -1;
     }
 
-    rb_reg_prepare_re(re, str, 1);
+    reg = rb_reg_prepare_re(re, str);
 
+    FL_SET(re, REG_BUSY);
     if (!reverse) {
 	range += RSTRING_CLEN(str);
     }
+    MEMZERO(&regs, struct re_registers, 1);
     result = onig_search(RREGEXP(re)->ptr,
 			 (UChar*)cstr,
 			 ((UChar*)cstr + clen),
@@ -1254,7 +1374,18 @@ rb_reg_search(VALUE re, VALUE str, int pos, int reverse)
 			 ((UChar*)range),
 			 pregs, ONIG_OPTION_NONE);
 
+    if (RREGEXP(re)->ptr != reg) {
+	if (busy) {
+	    onig_free(reg);
+	}
+	else {
+	    onig_free(reg0);
+	    RREGEXP(re)->ptr = reg;
+	}
+    }
+    if (!busy) FL_UNSET(re, REG_BUSY);
     if (result < 0) {
+	onig_region_free(pregs, 0);
 	if (result == ONIG_MISMATCH) {
 	    rb_backref_set(Qnil);
 	    return result;
@@ -1282,6 +1413,7 @@ rb_reg_search(VALUE re, VALUE str, int pos, int reverse)
 #endif
 
     onig_region_copy(RMATCH_REGS(match), pregs);
+    onig_region_free(pregs, 0);
     GC_WB(&RMATCH(match)->str, rb_str_new4(str));
     GC_WB(&RMATCH(match)->regexp, re);
     RMATCH(match)->rmatch->char_offset_updated = 0;
@@ -1604,7 +1736,6 @@ match_entry(VALUE match, long n)
  *  call-seq:
  *
  *     mtch.values_at([index]*)   => array
- *     mtch.select([index]*)   => array
  *
  *  Uses each <i>index</i> to access the matching values, returning an array of
  *  the corresponding matches.
@@ -3317,7 +3448,7 @@ match_setter(VALUE val)
  *  <em>n</em> can be a string or symbol to reference a named capture.
  *
  *     /c(.)t/ =~ 'cat'        #=> 0
- *     Regexp.last_match       #=> #<MatchData "cat" "a">
+ *     Regexp.last_match       #=> #<MatchData "cat" 1:"a">
  *     Regexp.last_match(0)    #=> "cat"
  *     Regexp.last_match(1)    #=> "a"
  *     Regexp.last_match(2)    #=> nil
@@ -3333,7 +3464,7 @@ rb_reg_s_last_match(int argc, VALUE *argv)
 {
     VALUE nth;
 
-    if (rb_scan_args(argc, argv, "01", &nth) == 1) {
+    if (argc > 0 && rb_scan_args(argc, argv, "01", &nth) == 1) {
         VALUE match = rb_backref_get();
         int n;
         if (NIL_P(match)) return Qnil;
@@ -3429,7 +3560,6 @@ Init_Regexp(void)
     rb_define_method(rb_cMatch, "[]", match_aref, -1);
     rb_define_method(rb_cMatch, "captures", match_captures, 0);
     rb_define_method(rb_cMatch, "values_at", match_values_at, -1);
-    rb_define_method(rb_cMatch, "select", match_values_at, -1);
     rb_define_method(rb_cMatch, "pre_match", rb_reg_match_pre, 0);
     rb_define_method(rb_cMatch, "post_match", rb_reg_match_post, 0);
     rb_define_method(rb_cMatch, "to_s", match_to_s, 0);

@@ -1,5 +1,6 @@
 require 'test/unit'
 require 'stringio'
+require_relative 'allpairs'
 
 class TestM17NComb < Test::Unit::TestCase
   def assert_encoding(encname, actual, message=nil)
@@ -113,20 +114,8 @@ class TestM17NComb < Test::Unit::TestCase
     #"aaa".force_encoding("utf-32be"),
   ]
 
-  def combination(*args)
-    args = args.map {|a| a.to_a }
-    i = 0
-    while true
-      n = i
-      as = []
-      args.reverse_each {|a|
-        n, m = n.divmod(a.length)
-        as.unshift a[m]
-      }
-      break if 0 < n
-      yield as
-      i += 1
-    end
+  def combination(*args, &b)
+    AllPairs.each(*args, &b)
   end
 
   def encdump(str)
@@ -720,8 +709,10 @@ class TestM17NComb < Test::Unit::TestCase
 
   def test_str_chomp
     combination(STRINGS, STRINGS) {|s1, s2|
-      if !s1.ascii_only? && !s2.ascii_only? && s1.encoding != s2.encoding
-        assert_raise(ArgumentError) { s1.chomp(s2) }
+      if !s1.ascii_only? && !s2.ascii_only? && !Encoding.compatible?(s1,s2)
+        if s1.bytesize > s2.bytesize 
+          assert_raise(ArgumentError) { s1.chomp(s2) }
+        end
         next
       end
       t = enccall(s1, :chomp, s2)
@@ -813,6 +804,10 @@ class TestM17NComb < Test::Unit::TestCase
 
   def test_str_delete
     combination(STRINGS, STRINGS) {|s1, s2|
+      if s1.empty?
+        assert_equal(s1, s1.delete(s2))
+        next
+      end
       if !s1.valid_encoding? || !s2.valid_encoding?
         assert_raise(ArgumentError) { s1.delete(s2) }
         next
@@ -1563,6 +1558,8 @@ class TestM17NComb < Test::Unit::TestCase
         assert_raise(ArgumentError, desc) { s1.start_with?(s2) }
         next
       end
+      s1 = s1.dup.force_encoding("ASCII-8BIT")
+      s2 = s2.dup.force_encoding("ASCII-8BIT")
       if s1.length < s2.length
         assert_equal(false, enccall(s1, :start_with?, s2), desc)
         next

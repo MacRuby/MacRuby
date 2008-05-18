@@ -2,7 +2,7 @@
 
   error.c -
 
-  $Author: akr $
+  $Author: nobu $
   created at: Mon Aug  9 16:11:34 JST 1993
 
   Copyright (C) 1993-2007 Yukihiro Matsumoto
@@ -238,7 +238,7 @@ rb_compile_bug(const char *file, int line, const char *fmt, ...)
     abort();
 }
 
-static struct types {
+static const struct types {
     int type;
     const char *name;
 } builtin_types[] = {
@@ -256,6 +256,8 @@ static struct types {
     {T_STRUCT,	"Struct"},
     {T_BIGNUM,	"Bignum"},
     {T_FILE,	"File"},
+    {T_RATIONAL,"Rational"},
+    {T_COMPLEX, "Complex"},
     {T_TRUE,	"true"},
     {T_FALSE,	"false"},
     {T_SYMBOL,	"Symbol"},	/* :symbol */
@@ -263,20 +265,21 @@ static struct types {
     {T_MATCH,	"MatchData"},	/* data of $~ */
     {T_NODE,	"Node"},	/* internal use: syntax tree node */
     {T_UNDEF,	"undef"},	/* internal use: #undef; should not happen */
-    {-1,	0}
 };
 
 void
 rb_check_type(VALUE x, int t)
 {
-    struct types *type = builtin_types;
+    const struct types *type = builtin_types;
+    const struct types *const typeend = builtin_types +
+	sizeof(builtin_types) / sizeof(builtin_types[0]);
 
     if (x == Qundef) {
 	rb_bug("undef leaked to the Ruby space");
     }
 
     if (TYPE(x) != t) {
-	while (type->type >= 0) {
+	while (type < typeend) {
 	    if (type->type == t) {
 		const char *etype;
 
@@ -332,7 +335,7 @@ VALUE rb_eLoadError;
 
 VALUE rb_eSystemCallError;
 VALUE rb_mErrno;
-static VALUE eNOERROR;
+static VALUE rb_eNOERROR;
 
 VALUE
 rb_exc_new(VALUE etype, const char *ptr, long len)
@@ -845,7 +848,7 @@ rb_invalid_str(const char *str, const char *type)
  *  The full list of operating system errors on your particular platform
  *  are available as the constants of <code>Errno</code>.
  *
- *     Errno.constants   #=> E2BIG, EACCES, EADDRINUSE, EADDRNOTAVAIL, ...
+ *     Errno.constants   #=> :E2BIG, :EACCES, :EADDRINUSE, :EADDRNOTAVAIL, ...
  */
 
 static st_table *syserr_tbl;
@@ -988,7 +991,7 @@ syserr_eqq(VALUE self, VALUE exc)
 static VALUE
 errno_missing(VALUE self, VALUE id)
 {
-    return eNOERROR;
+    return rb_eNOERROR;
 }
 
 /*
@@ -1534,7 +1537,7 @@ Init_syserr(void)
 #ifdef EDQUOT
     set_syserr(EDQUOT, "EDQUOT");
 #endif
-    eNOERROR = set_syserr(0, "NOERROR");
+    rb_eNOERROR = set_syserr(0, "NOERROR");
 }
 
 static void

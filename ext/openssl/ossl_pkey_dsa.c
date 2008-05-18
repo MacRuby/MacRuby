@@ -1,5 +1,5 @@
 /*
- * $Id: ossl_pkey_dsa.c 12128 2007-03-29 17:29:03Z technorama $
+ * $Id: ossl_pkey_dsa.c 15610 2008-02-26 07:07:26Z technorama $
  * 'OpenSSL for Ruby' project
  * Copyright (C) 2001-2002  Michal Rokos <m.rokos@sh.cvut.cz>
  * All rights reserved.
@@ -477,12 +477,8 @@ Init_ossl_dsa()
 }
 
 #else /* defined NO_DSA */
-#   warning >>> OpenSSL is compiled without DSA support <<<
-
 void
 Init_ossl_dsa()
 {
-    rb_warning("OpenSSL is compiled without DSA support");
 }
-
 #endif /* NO_DSA */

@@ -31,7 +31,7 @@
  * 現在、nkf は SorceForge にてメンテナンスが続けられています。
  * http://sourceforge.jp/projects/nkf/
 ***********************************************************************/
-#define NKF_IDENT "$Id: nkf.c 15386 2008-02-07 00:06:55Z matz $"
+#define NKF_IDENT "$Id: nkf.c 16149 2008-04-22 12:20:36Z naruse $"
 #define NKF_VERSION "2.0.8"
 #define NKF_RELEASE_DATE "2008-01-23"
 #define COPY_RIGHT \
@@ -2456,14 +2456,14 @@ void w_oconv32(nkf_char c2, nkf_char c1)
 
 #define SCORE_INIT (SCORE_iMIME)
 
-static const char score_table_A0[] = {
+static const unsigned char score_table_A0[] = {
     0, 0, 0, 0,
     0, 0, 0, 0,
     0, SCORE_DEPEND, SCORE_DEPEND, SCORE_DEPEND,
     SCORE_DEPEND, SCORE_DEPEND, SCORE_DEPEND, SCORE_NO_EXIST,
 };
 
-static const char score_table_F0[] = {
+static const unsigned char score_table_F0[] = {
     SCORE_L2, SCORE_L2, SCORE_L2, SCORE_L2,
     SCORE_L2, SCORE_DEPEND, SCORE_NO_EXIST, SCORE_NO_EXIST,
     SCORE_DEPEND, SCORE_DEPEND, SCORE_CP932, SCORE_CP932,
@@ -3041,7 +3041,7 @@ static void init_broken_state(void)
     memset(&broken_state, 0, sizeof(broken_state));
 }
 
-static void push_broken_buf(c)
+static void push_broken_buf(nkf_char c)
 {
     broken_state.buf[broken_state.count++] = c;
 }
@@ -3390,7 +3390,7 @@ void z_conv(nkf_char c2, nkf_char c1)
     if (alpha_f & 16) {
 	/* JIS X 0208 Katakana to JIS X 0201 Katakana */
 	if (c2 == 0x21) {
-	    char c = 0;
+	    nkf_char c = 0;
 	    switch (c1) {
 	    case 0x23:
 		/* U+3002 (0x8142) Ideographic Full Stop -> U+FF61 (0xA1) Halfwidth Ideographic Full Stop */
@@ -5599,7 +5599,7 @@ void options(unsigned char *cp)
                 if (strcmp(long_option[i].name, "oc=") == 0){
 		    nkf_str_upcase((char *)p, codeset, 32);
 		    enc = nkf_enc_find(codeset);
-		    if (enc <= 0) continue;
+		    if (enc == 0) continue;
 		    output_encoding = enc;
                     continue;
 		}

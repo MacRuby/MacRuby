@@ -2,7 +2,7 @@
 
   version.c -
 
-  $Author: akr $
+  $Author: nobu $
   created at: Thu Sep 30 20:08:01 JST 1993
 
   Copyright (C) 1993-2007 Yukihiro Matsumoto
@@ -14,7 +14,7 @@
 #include <stdio.h>
 
 #define PRINT(type) puts(ruby_##type)
-#define MKSTR(type) rb_obj_freeze(rb_str_new(ruby_##type, sizeof(ruby_##type)-1))
+#define MKSTR(type) rb_obj_freeze(rb_usascii_str_new(ruby_##type, sizeof(ruby_##type)-1))
 
 const int ruby_version_code = RUBY_VERSION_CODE;
 const char ruby_version[] = RUBY_VERSION;

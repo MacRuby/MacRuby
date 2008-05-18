@@ -236,7 +236,7 @@
 # Rails, the web application framework, uses ERB to create views.
 #
 class ERB
-  Revision = '$Date:: 2008-01-06 08:07:04 -0800#$' 	#'
+  Revision = '$Date:: 2008-04-30 05:40:52 -0700#$' 	#'
 
   # Returns revision information for the erb.rb module.
   def self.version
@@ -799,7 +799,9 @@ class ERB
     # 	Programming%20Ruby%3A%20%20The%20Pragmatic%20Programmer%27s%20Guide
     #
     def url_encode(s)
-      s.to_s.gsub(/[^a-zA-Z0-9_\-.]/n){ sprintf("%%%02X", $&.unpack("C")[0]) }
+      s.to_s.dup.force_encoding("ASCII-8BIT").gsub(/[^a-zA-Z0-9_\-.]/n) {
+        sprintf("%%%02X", $&.unpack("C")[0])
+      }
     end
     alias u url_encode
     module_function :u

@@ -2,7 +2,7 @@
 
   range.c -
 
-  $Author: nobu $
+  $Author: matz $
   created at: Thu Aug 19 17:46:47 JST 1993
 
   Copyright (C) 1993-2007 Yukihiro Matsumoto
@@ -223,10 +223,12 @@ range_hash(VALUE range)
 }
 
 static void
-range_each_func(VALUE range, VALUE (*func) (VALUE, void *), VALUE v, VALUE e,
-		void *arg)
+range_each_func(VALUE range, VALUE (*func) (VALUE, void *), void *arg)
 {
     int c;
+    VALUE b = RANGE_BEG(range);
+    VALUE e = RANGE_END(range);
+    VALUE v = b;
 
     if (EXCL(range)) {
 	while (r_lt(v, e)) {
@@ -267,7 +269,7 @@ step_i(VALUE i, void *arg)
  *     rng.step(n=1) {| obj | block }    => rng
  *  
  *  Iterates over <i>rng</i>, passing each <i>n</i>th element to the block. If
- *  the range contains numbers or strings, natural ordering is used.  Otherwise
+ *  the range contains numbers, <i>n</i> is added for each iteration.  Otherwise
  *  <code>step</code> invokes <code>succ</code> to iterate through range
  *  elements. The following code uses class <code>Xs</code>, which is defined
  *  in the class-level documentation.
@@ -293,33 +295,31 @@ step_i(VALUE i, void *arg)
 static VALUE
 range_step(int argc, VALUE *argv, VALUE range)
 {
-    VALUE b, e, step;
-    long unit;
+    VALUE b, e, step, tmp;
 
     RETURN_ENUMERATOR(range, argc, argv);
 
     b = RANGE_BEG(range);
     e = RANGE_END(range);
-    if (rb_scan_args(argc, argv, "01", &step) == 0) {
+    if (argc == 0) {
 	step = INT2FIX(1);
-	unit = 1;
-    }
-    else if (FIXNUM_P(step)) {
-	unit = NUM2LONG(step);
     }
     else {
-	VALUE tmp = rb_to_int(step);
-	unit = rb_cmpint(tmp, step, INT2FIX(0));
-	step = tmp;
+	rb_scan_args(argc, argv, "01", &step);
+	if (!rb_obj_is_kind_of(step, rb_cNumeric)) {
+	    step = rb_to_int(step);
+	}
+	if (rb_funcall(step, '<', 1, INT2FIX(0))) {
+	    rb_raise(rb_eArgError, "step can't be negative");
+	}
+	else if (!rb_funcall(step, '>', 1, INT2FIX(0))) {
+	    rb_raise(rb_eArgError, "step can't be 0");
+	}
     }
-    if (unit < 0) {
-	rb_raise(rb_eArgError, "step can't be negative");
-    }
-    if (unit == 0)
-	rb_raise(rb_eArgError, "step can't be 0");
+
     if (FIXNUM_P(b) && FIXNUM_P(e) && FIXNUM_P(step)) { /* fixnums are special */
 	long end = FIX2LONG(e);
-	long i;
+	long i, unit = FIX2LONG(step);
 
 	if (!EXCL(range))
 	    end += 1;
@@ -329,9 +329,20 @@ range_step(int argc, VALUE *argv, VALUE range)
 	    if (i + unit < i) break;
 	    i += unit;
 	}
+
+    }
+    else if (rb_obj_is_kind_of(b, rb_cNumeric) ||
+	     !NIL_P(rb_check_to_integer(b, "to_int")) ||
+	     !NIL_P(rb_check_to_integer(e, "to_int"))) {
+	ID op = EXCL(range) ? '<' : rb_intern("<=");
+
+	while (RTEST(rb_funcall(b, op, 1, e))) {
+	    rb_yield(b);
+	    b = rb_funcall(b, '+', 1, step);
+	}
     }
     else {
-	VALUE tmp = rb_check_string_type(b);
+	tmp = rb_check_string_type(b);
 
 	if (!NIL_P(tmp)) {
 	    VALUE args[2], iter[2];
@@ -343,16 +354,6 @@ range_step(int argc, VALUE *argv, VALUE range)
 	    iter[1] = step;
 	    rb_block_call(b, rb_intern("upto"), 2, args, step_i, (VALUE)iter);
 	}
-	else if (rb_obj_is_kind_of(b, rb_cNumeric)) {
-	    ID c = rb_intern(EXCL(range) ? "<" : "<=");
-
-	    if (rb_equal(step, INT2FIX(0)))
-		rb_raise(rb_eArgError, "step can't be 0");
-	    while (RTEST(rb_funcall(b, c, 1, e))) {
-		rb_yield(b);
-		b = rb_funcall(b, '+', 1, step);
-	    }
-	}
 	else {
 	    VALUE args[2];
 
@@ -362,7 +363,7 @@ range_step(int argc, VALUE *argv, VALUE range)
 	    }
 	    args[0] = INT2FIX(1);
 	    args[1] = step;
-	    range_each_func(range, step_i, b, e, args);
+	    range_each_func(range, step_i, args);
 	}
     }
     return range;
@@ -414,7 +415,7 @@ range_each(VALUE range)
 	if (!EXCL(range))
 	    lim += 1;
 	for (i = FIX2LONG(beg); i < lim; i++) {
-	    rb_yield(LONG2NUM(i));
+	    rb_yield(LONG2FIX(i));
 	}
     }
     else if (TYPE(beg) == T_STRING) {
@@ -425,7 +426,7 @@ range_each(VALUE range)
 	rb_block_call(beg, rb_intern("upto"), 2, args, rb_yield, 0);
     }
     else {
-	range_each_func(range, each_i, beg, end, NULL);
+	range_each_func(range, each_i, NULL);
     }
     return range;
 }
@@ -717,7 +718,8 @@ range_eqq(VALUE range, VALUE val)
  *     rng.include?(val) =>  true or false
  *  
  *  Returns <code>true</code> if <i>obj</i> is an element of
- *  <i>rng</i>, <code>false</code> otherwise.
+ *  <i>rng</i>, <code>false</code> otherwise.  If beg and end are
+ *  numeric, comparison is done according magnitude of values.
  *     
  *     ("a".."z").include?("g")  # => true
  *     ("a".."z").include?("A")  # => false

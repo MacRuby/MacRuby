@@ -328,7 +328,6 @@ rb_mod_init_copy(VALUE clone, VALUE orig)
     RCLASS_SUPER(clone) = RCLASS_SUPER(orig);
 #if WITH_OBJC
     {
-#if 1
 	Class ocsuper;
 	extern VALUE rb_cStringRuby;
 	extern VALUE rb_cArrayRuby;
@@ -344,13 +343,6 @@ rb_mod_init_copy(VALUE clone, VALUE orig)
 	    ocsuper = class_getSuperclass(RCLASS_OCID(orig));
 	}
 	class_setSuperclass(RCLASS(clone)->ocklass, ocsuper);
-#else
-	char *ocname = strdup(class_getName(RCLASS_OCID(clone)));
-	objc_disposeClassPair(RCLASS_OCID(clone));
-	RCLASS(clone)->ocklass = objc_duplicateClass(RCLASS_OCID(orig), 
-						     ocname, 0);
-	free(ocname);
-#endif
     }
 #endif
     if (RCLASS_IV_TBL(orig)) {
@@ -937,9 +929,9 @@ class_instance_method_list(int argc, VALUE *argv, VALUE mod, int (*func) (ID, lo
  *       def method3()  end
  *     end
  *     
- *     A.instance_methods                #=> ["method1"]
- *     B.instance_methods(false)         #=> ["method2"]
- *     C.instance_methods(false)         #=> ["method3"]
+ *     A.instance_methods                #=> [:method1]
+ *     B.instance_methods(false)         #=> [:method2]
+ *     C.instance_methods(false)         #=> [:method3]
  *     C.instance_methods(true).length   #=> 43
  */
 
@@ -977,8 +969,8 @@ rb_class_protected_instance_methods(int argc, VALUE *argv, VALUE mod)
  *       private :method1
  *       def method2()  end
  *     end
- *     Mod.instance_methods           #=> ["method2"]
- *     Mod.private_instance_methods   #=> ["method1"]
+ *     Mod.instance_methods           #=> [:method2]
+ *     Mod.private_instance_methods   #=> [:method1]
  */
 
 VALUE
@@ -1029,9 +1021,9 @@ rb_class_public_instance_methods(int argc, VALUE *argv, VALUE mod)
  *       end
  *     end
  *     
- *     Single.singleton_methods    #=> ["four"]
- *     a.singleton_methods(false)  #=> ["two", "one"]
- *     a.singleton_methods         #=> ["two", "one", "three"]
+ *     Single.singleton_methods    #=> [:four]
+ *     a.singleton_methods(false)  #=> [:two, :one]
+ *     a.singleton_methods         #=> [:two, :one, :three]
  */
 
 VALUE
@@ -1040,9 +1032,11 @@ rb_obj_singleton_methods(int argc, VALUE *argv, VALUE obj)
     VALUE recur, ary, klass;
     st_table *list;
 
-    rb_scan_args(argc, argv, "01", &recur);
     if (argc == 0) {
 	recur = Qtrue;
+    }
+    else {
+	rb_scan_args(argc, argv, "01", &recur);
     }
     klass = CLASS_OF(obj);
     list = st_init_numtable();

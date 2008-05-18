@@ -469,8 +469,13 @@ rb_define_hooked_variable(
     void  (*setter)(ANYARGS))
 {
     struct global_variable *gvar;
-    ID id = global_id(name);
+    ID id;
+    VALUE tmp;
+    
+    if (var)
+        tmp = *var;
 
+    id = global_id(name);
     gvar = rb_global_entry(id)->var;
     gvar->data = (void*)var;
     gvar->getter = getter?getter:var_getter;
@@ -723,7 +728,7 @@ gvar_i(ID key, struct global_entry *entry, VALUE ary)
  *  
  *  Returns an array of the names of global variables.
  *     
- *     global_variables.grep /std/   #=> ["$stderr", "$stdout", "$stdin"]
+ *     global_variables.grep /std/   #=> [:$stdin, :$stdout, :$stderr]
  */
 
 VALUE
@@ -752,7 +757,7 @@ rb_alias_variable(ID name1, ID name2)
 
     entry2 = rb_global_entry(name2);
     if (!st_lookup(rb_global_tbl, name1, &data1)) {
-	entry1 = ALLOC(struct global_entry);
+ 	entry1 = ALLOC(struct global_entry);
 	entry1->id = name1;
 	st_add_direct(rb_global_tbl, name1, (st_data_t)entry1);
     }
@@ -1155,22 +1160,23 @@ void rb_ivar_foreach(VALUE obj, int (*func)(ANYARGS), st_data_t arg)
     switch (TYPE(obj)) {
       case T_OBJECT:
         obj_ivar_each(obj, func, arg);
-	return;
+	break;
       case T_CLASS:
       case T_MODULE:
 	if (RCLASS_IV_TBL(obj)) {
 	    st_foreach_safe(RCLASS_IV_TBL(obj), func, arg);
 	}
-	return;
-    }
-    if (!generic_iv_tbl)
-	return; 
-    if (FL_TEST(obj, FL_EXIVAR) || rb_special_const_p(obj)) {
-	st_data_t tbl;
+	break;
+      default:
+	if (!generic_iv_tbl) break;
+	if (FL_TEST(obj, FL_EXIVAR) || rb_special_const_p(obj)) {
+	    st_data_t tbl;
 
-	if (st_lookup(generic_iv_tbl, obj, &tbl)) {
-	    st_foreach_safe((st_table *)tbl, func, arg);
+	    if (st_lookup(generic_iv_tbl, obj, &tbl)) {
+		st_foreach_safe((st_table *)tbl, func, arg);
+	    }
 	}
+	break;
     }
 }
 
@@ -1197,7 +1203,7 @@ ivar_i(ID key, VALUE val, VALUE ary)
  *         @iv = 3
  *       end
  *     end
- *     Fred.new.instance_variables   #=> ["@iv"]
+ *     Fred.new.instance_variables   #=> [:@iv]
  */
 
 VALUE
@@ -1415,7 +1421,7 @@ rb_autoload_load(VALUE klass, ID id)
     VALUE file;
     NODE *load = autoload_delete(klass, id);
 
-    if (!load || !(file = load->nd_lit) || rb_provided(RSTRING_CPTR(file))) {
+    if (!load || !(file = load->nd_lit)) {
 	return Qfalse;
     }
     return rb_require_safe(file, load->nd_nth);
@@ -1474,7 +1480,7 @@ rb_const_get_0(VALUE klass, ID id, int exclude, int recurse)
 
     tmp = klass;
   retry:
-    while (tmp && !NIL_P(tmp)) {
+    while (RTEST(tmp)) {
 	while (RCLASS_IV_TBL(tmp) && st_lookup(RCLASS_IV_TBL(tmp),id,&value)) {
 	    if (value == Qundef) {
 		if (!RTEST(rb_autoload_load(tmp, id))) break;
@@ -1642,8 +1648,8 @@ rb_const_list(void *data)
  *  modules (example at start of section), unless the <i>all</i>
  *  parameter is set to <code>false</code>.
  *
- *    IO.constants.include?("SYNC")         => true
- *    IO.constants(false).include?("SYNC")  => false
+ *    IO.constants.include?(:SYNC)         => true
+ *    IO.constants(false).include?(:SYNC)  => false
  *
  *  Also see <code>Module::const_defined?</code>.
  */
@@ -1928,8 +1934,8 @@ cv_i(ID key, VALUE value, VALUE ary)
  *     class Two < One
  *       @@var2 = 2
  *     end
- *     One.class_variables   #=> ["@@var1"]
- *     Two.class_variables   #=> ["@@var2"]
+ *     One.class_variables   #=> [:@@var1]
+ *     Two.class_variables   #=> [:@@var2]
  */
 
 VALUE

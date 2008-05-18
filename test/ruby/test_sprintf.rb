@@ -31,22 +31,22 @@ class TestSprintf < Test::Unit::TestCase
     assert_equal("  0010", sprintf("%6.4b", 2))
     assert_equal("  ..11", sprintf("%6.4b", -1))
 
-    assert_equal(" 0b0", sprintf("%#4b", 0))
+    assert_equal("   0", sprintf("%#4b", 0))
     assert_equal(" 0b1", sprintf("%#4b", 1))
     assert_equal("0b10", sprintf("%#4b", 2))
     assert_equal("0b..1", sprintf("%#4b", -1))
 
-    assert_equal("0b00", sprintf("%#04b", 0))
+    assert_equal("0000", sprintf("%#04b", 0))
     assert_equal("0b01", sprintf("%#04b", 1))
     assert_equal("0b10", sprintf("%#04b", 2))
     assert_equal("0b..1", sprintf("%#04b", -1))
 
-    assert_equal("0b0000", sprintf("%#.4b", 0))
+    assert_equal("0000", sprintf("%#.4b", 0))
     assert_equal("0b0001", sprintf("%#.4b", 1))
     assert_equal("0b0010", sprintf("%#.4b", 2))
     assert_equal("0b..11", sprintf("%#.4b", -1))
 
-    assert_equal("0b0000", sprintf("%#6.4b", 0))
+    assert_equal("  0000", sprintf("%#6.4b", 0))
     assert_equal("0b0001", sprintf("%#6.4b", 1))
     assert_equal("0b0010", sprintf("%#6.4b", 2))
     assert_equal("0b..11", sprintf("%#6.4b", -1))
@@ -87,17 +87,17 @@ class TestSprintf < Test::Unit::TestCase
     assert_equal("NaN     ", sprintf("%-8f", nan))
     assert_equal("    +NaN", sprintf("%+8f", nan))
 
-    assert_equal("00000NaN", sprintf("%08f", nan))
+    assert_equal("     NaN", sprintf("%08f", nan))
     assert_equal("NaN     ", sprintf("%-08f", nan))
-    assert_equal("+0000NaN", sprintf("%+08f", nan))
+    assert_equal("    +NaN", sprintf("%+08f", nan))
 
     assert_equal("     NaN", sprintf("% 8f", nan))
     assert_equal(" NaN    ", sprintf("%- 8f", nan))
     assert_equal("    +NaN", sprintf("%+ 8f", nan))
 
-    assert_equal(" 0000NaN", sprintf("% 08f", nan))
+    assert_equal("     NaN", sprintf("% 08f", nan))
     assert_equal(" NaN    ", sprintf("%- 08f", nan))
-    assert_equal("+0000NaN", sprintf("%+ 08f", nan))
+    assert_equal("    +NaN", sprintf("%+ 08f", nan))
   end
 
   def test_inf
@@ -110,17 +110,17 @@ class TestSprintf < Test::Unit::TestCase
     assert_equal("Inf     ", sprintf("%-8f", inf))
     assert_equal("    +Inf", sprintf("%+8f", inf))
 
-    assert_equal("00000Inf", sprintf("%08f", inf))
+    assert_equal("     Inf", sprintf("%08f", inf))
     assert_equal("Inf     ", sprintf("%-08f", inf))
-    assert_equal("+0000Inf", sprintf("%+08f", inf))
+    assert_equal("    +Inf", sprintf("%+08f", inf))
 
     assert_equal("     Inf", sprintf("% 8f", inf))
     assert_equal(" Inf    ", sprintf("%- 8f", inf))
     assert_equal("    +Inf", sprintf("%+ 8f", inf))
 
-    assert_equal(" 0000Inf", sprintf("% 08f", inf))
+    assert_equal("     Inf", sprintf("% 08f", inf))
     assert_equal(" Inf    ", sprintf("%- 08f", inf))
-    assert_equal("+0000Inf", sprintf("%+ 08f", inf))
+    assert_equal("    +Inf", sprintf("%+ 08f", inf))
 
     assert_equal("-Inf", sprintf("%f", -inf))
     assert_equal("-Inf", sprintf("%-f", -inf))
@@ -130,21 +130,22 @@ class TestSprintf < Test::Unit::TestCase
     assert_equal("-Inf    ", sprintf("%-8f", -inf))
     assert_equal("    -Inf", sprintf("%+8f", -inf))
 
-    assert_equal("-0000Inf", sprintf("%08f", -inf))
+    assert_equal("    -Inf", sprintf("%08f", -inf))
     assert_equal("-Inf    ", sprintf("%-08f", -inf))
-    assert_equal("-0000Inf", sprintf("%+08f", -inf))
+    assert_equal("    -Inf", sprintf("%+08f", -inf))
 
     assert_equal("    -Inf", sprintf("% 8f", -inf))
     assert_equal("-Inf    ", sprintf("%- 8f", -inf))
     assert_equal("    -Inf", sprintf("%+ 8f", -inf))
 
-    assert_equal("-0000Inf", sprintf("% 08f", -inf))
+    assert_equal("    -Inf", sprintf("% 08f", -inf))
     assert_equal("-Inf    ", sprintf("%- 08f", -inf))
-    assert_equal("-0000Inf", sprintf("%+ 08f", -inf))
+    assert_equal("    -Inf", sprintf("%+ 08f", -inf))
     assert_equal('..f00000000',
       sprintf("%x", -2**32), '[ruby-dev:32351]')
     assert_equal("..101111111111111111111111111111111",
       sprintf("%b", -2147483649), '[ruby-dev:32365]')
+    assert_equal(" Inf", sprintf("% e", inf), '[ruby-dev:34002]')
   end
 
   def test_invalid
@@ -219,6 +220,9 @@ class TestSprintf < Test::Unit::TestCase
     assert_equal("0B1", sprintf("%#B", 1))
     assert_equal("1", sprintf("%d", 1.0))
     assert_equal("4294967296", sprintf("%d", (2**32).to_f))
+    assert_equal("-2147483648", sprintf("%d", -(2**31).to_f))
+    assert_equal("18446744073709551616", sprintf("%d", (2**64).to_f))
+    assert_equal("-9223372036854775808", sprintf("%d", -(2**63).to_f))
     assert_equal("1", sprintf("%d", "1"))
     o = Object.new; def o.to_int; 1; end
     assert_equal("1", sprintf("%d", o))

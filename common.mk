@@ -4,7 +4,8 @@ dll: $(LIBRUBY_SO)
 
 .SUFFIXES: .inc
 
-RUBYOPT       =
+RUBYLIB       = -
+RUBYOPT       = -
 
 STATIC_RUBY   = static-ruby
 
@@ -18,11 +19,13 @@ NORMALMAINOBJ = main.$(OBJEXT)
 MAINOBJ       = $(NORMALMAINOBJ)
 EXTOBJS	      = 
 DLDOBJS	      = $(DMYEXT)
+MINIOBJS      = $(ARCHMINIOBJS) dmyencoding.$(OBJEXT) miniprelude.$(OBJEXT)
 
 COMMONOBJS    = array.$(OBJEXT) \
 		bignum.$(OBJEXT) \
 		class.$(OBJEXT) \
 		compar.$(OBJEXT) \
+		complex.$(OBJEXT) \
 		dir.$(OBJEXT) \
 		enum.$(OBJEXT) \
 		enumerator.$(OBJEXT) \
@@ -45,6 +48,7 @@ COMMONOBJS    = array.$(OBJEXT) \
 		prec.$(OBJEXT) \
 		random.$(OBJEXT) \
 		range.$(OBJEXT) \
+		rational.$(OBJEXT) \
 		re.$(OBJEXT) \
 		regcomp.$(OBJEXT) \
 		regenc.$(OBJEXT) \
@@ -59,6 +63,7 @@ COMMONOBJS    = array.$(OBJEXT) \
 		string.$(OBJEXT) \
 		struct.$(OBJEXT) \
 		time.$(OBJEXT) \
+		transcode.$(OBJEXT) \
 		util.$(OBJEXT) \
 		variable.$(OBJEXT) \
 		version.$(OBJEXT) \
@@ -78,10 +83,12 @@ COMMONOBJS    = array.$(OBJEXT) \
 OBJS          = dln.$(OBJEXT) \
 		encoding.$(OBJEXT) \
 		prelude.$(OBJEXT) \
-		transcode.$(OBJEXT) \
 		$(COMMONOBJS)
 
 GOLFOBJS      = goruby.$(OBJEXT) golf_prelude.$(OBJEXT)
+
+PRELUDE_SCRIPTS = $(srcdir)/prelude.rb $(srcdir)/enc/prelude.rb $(srcdir)/gem_prelude.rb
+PRELUDES      = prelude.c miniprelude.c golf_prelude.c
 
 SCRIPT_ARGS   =	--dest-dir="$(DESTDIR)" \
 		--extout="$(EXTOUT)" \
@@ -105,9 +112,14 @@ BOOTSTRAPRUBY = $(BASERUBY)
 
 VCS           = svn
 
-all: $(MKFILES) $(PREP) encdb transdb $(RBCONFIG) $(LIBRUBY) encs
+all: $(MKFILES) $(PREP) incs $(RBCONFIG) $(LIBRUBY) encs
 	@$(MINIRUBY) $(srcdir)/ext/extmk.rb --make="$(MAKE)" $(EXTMK_ARGS)
 prog: $(PROGRAM) $(WPROGRAM)
+
+loadpath: $(PREP)
+	$(MINIRUBY) -e 'p $$:'
+
+$(PREP): $(MKFILES)
 
 miniruby$(EXEEXT): config.status $(NORMALMAINOBJ) $(MINIOBJS) $(COMMONOBJS) $(DMYEXT) $(ARCHFILE)
 
@@ -121,7 +133,7 @@ $(PROGRAM): $(LIBRUBY) $(MAINOBJ) $(OBJS) $(EXTOBJS) $(SETUP) $(PREP)
 
 $(LIBRUBY_A):	$(OBJS) $(DMYEXT) $(ARCHFILE)
 
-$(LIBRUBY_SO):	$(OBJS) $(DLDOBJS) $(LIBRUBY_A) $(PREP) $(LIBRUBY_SO_UPDATE)
+$(LIBRUBY_SO):	$(OBJS) $(DLDOBJS) $(LIBRUBY_A) $(PREP) $(LIBRUBY_SO_UPDATE) $(BUILTIN_ENCOBJS)
 
 $(LIBRUBY_EXTS):
 	@exit > $@
@@ -309,9 +321,9 @@ clear-installed-list:
 
 clean: clean-ext clean-local clean-enc
 clean-local::
-	@$(RM) $(OBJS) $(MINIOBJS) $(MAINOBJ) $(WINMAINOBJ) $(LIBRUBY_A) $(LIBRUBY_SO) $(LIBRUBY) $(LIBRUBY_ALIASES)
+	@$(RM) $(OBJS) $(MINIOBJS) $(MAINOBJ) $(LIBRUBY_A) $(LIBRUBY_SO) $(LIBRUBY) $(LIBRUBY_ALIASES)
 	@$(RM) $(PROGRAM) $(WPROGRAM) miniruby$(EXEEXT) dmyext.$(OBJEXT) $(ARCHFILE) .*.time
-	@$(RM) *.inc $(GOLFOBJS) y.tab.c y.output
+	@$(RM) *.inc $(GOLFOBJS) y.tab.c y.output encdb.h transdb.h
 clean-ext:
 	@-$(MINIRUBY) $(srcdir)/ext/extmk.rb --make="$(MAKE)" $(EXTMK_ARGS) clean
 clean-enc:
@@ -319,7 +331,7 @@ clean-enc:
 
 distclean: distclean-ext distclean-local distclean-enc
 distclean-local:: clean-local
-	@$(RM) $(MKFILES) config.h rbconfig.rb yasmdata.rb encdb.h
+	@$(RM) $(MKFILES) $(arch_hdrdir)/ruby/config.h rbconfig.rb yasmdata.rb encdb.h
 	@$(RM) config.cache config.log config.status config.status.lineno $(PRELUDES)
 	@$(RM) *~ *.bak *.stackdump core *.core gmon.out $(PREP)
 distclean-ext:
@@ -425,6 +437,9 @@ class.$(OBJEXT): {$(VPATH)}class.c {$(VPATH)}ruby.h {$(VPATH)}config.h \
 compar.$(OBJEXT): {$(VPATH)}compar.c {$(VPATH)}ruby.h {$(VPATH)}config.h \
   {$(VPATH)}defines.h {$(VPATH)}missing.h {$(VPATH)}intern.h \
   {$(VPATH)}st.h
+complex.$(OBJEXT): {$(VPATH)}complex.c {$(VPATH)}ruby.h {$(VPATH)}config.h \
+  {$(VPATH)}defines.h {$(VPATH)}missing.h {$(VPATH)}intern.h \
+  {$(VPATH)}st.h
 dir.$(OBJEXT): {$(VPATH)}dir.c {$(VPATH)}ruby.h {$(VPATH)}config.h \
   {$(VPATH)}defines.h {$(VPATH)}missing.h {$(VPATH)}intern.h \
   {$(VPATH)}st.h {$(VPATH)}util.h
@@ -438,7 +453,7 @@ dmyencoding.$(OBJEXT): {$(VPATH)}dmyencoding.c \
   {$(VPATH)}config.h {$(VPATH)}defines.h {$(VPATH)}missing.h \
   {$(VPATH)}intern.h {$(VPATH)}st.h {$(VPATH)}encoding.h \
   {$(VPATH)}oniguruma.h {$(VPATH)}regenc.h
-encoding.$(OBJEXT): dmyencoding.$(OBJEXT) {$(VPATH)}encdb.h
+encoding.$(OBJEXT): dmyencoding.$(OBJEXT)
 enum.$(OBJEXT): {$(VPATH)}enum.c {$(VPATH)}ruby.h {$(VPATH)}config.h \
   {$(VPATH)}defines.h {$(VPATH)}missing.h {$(VPATH)}intern.h \
   {$(VPATH)}st.h {$(VPATH)}node.h {$(VPATH)}util.h
@@ -474,7 +489,7 @@ gc.$(OBJEXT): {$(VPATH)}gc.c {$(VPATH)}ruby.h {$(VPATH)}config.h \
   {$(VPATH)}regex.h {$(VPATH)}oniguruma.h {$(VPATH)}io.h \
   {$(VPATH)}encoding.h {$(VPATH)}vm_core.h {$(VPATH)}debug.h \
   {$(VPATH)}vm_opts.h {$(VPATH)}id.h {$(VPATH)}thread_$(THREAD_MODEL).h \
-  {$(VPATH)}gc.h
+  {$(VPATH)}gc.h {$(VPATH)}eval_intern.h
 hash.$(OBJEXT): {$(VPATH)}hash.c {$(VPATH)}ruby.h {$(VPATH)}config.h \
   {$(VPATH)}defines.h {$(VPATH)}missing.h {$(VPATH)}intern.h \
   {$(VPATH)}st.h {$(VPATH)}util.h {$(VPATH)}signal.h
@@ -529,6 +544,9 @@ random.$(OBJEXT): {$(VPATH)}random.c {$(VPATH)}ruby.h {$(VPATH)}config.h \
   {$(VPATH)}defines.h {$(VPATH)}missing.h {$(VPATH)}intern.h \
   {$(VPATH)}st.h
 range.$(OBJEXT): {$(VPATH)}range.c {$(VPATH)}ruby.h {$(VPATH)}config.h \
+  {$(VPATH)}defines.h {$(VPATH)}missing.h {$(VPATH)}intern.h \
+  {$(VPATH)}st.h
+rational.$(OBJEXT): {$(VPATH)}rational.c {$(VPATH)}ruby.h {$(VPATH)}config.h \
   {$(VPATH)}defines.h {$(VPATH)}missing.h {$(VPATH)}intern.h \
   {$(VPATH)}st.h
 re.$(OBJEXT): {$(VPATH)}re.c {$(VPATH)}ruby.h {$(VPATH)}config.h \
@@ -586,11 +604,10 @@ thread.$(OBJEXT): {$(VPATH)}thread.c {$(VPATH)}eval_intern.h \
   {$(VPATH)}debug.h {$(VPATH)}vm_opts.h {$(VPATH)}id.h \
   {$(VPATH)}thread_$(THREAD_MODEL).h {$(VPATH)}dln.h {$(VPATH)}vm.h \
   {$(VPATH)}gc.h {$(VPATH)}thread_$(THREAD_MODEL).c
-dmytranscode.$(OBJEXT): {$(VPATH)}transcode.c {$(VPATH)}ruby.h \
+transcode.$(OBJEXT): {$(VPATH)}transcode.c {$(VPATH)}ruby.h \
   {$(VPATH)}config.h {$(VPATH)}defines.h {$(VPATH)}missing.h \
   {$(VPATH)}intern.h {$(VPATH)}st.h {$(VPATH)}encoding.h \
   {$(VPATH)}oniguruma.h {$(VPATH)}transcode_data.h
-transcode.$(OBJEXT): dmytranscode.$(OBJEXT) {$(VPATH)}transdb.h
 cont.$(OBJEXT): {$(VPATH)}cont.c {$(VPATH)}ruby.h {$(VPATH)}config.h \
   {$(VPATH)}defines.h {$(VPATH)}missing.h {$(VPATH)}intern.h \
   {$(VPATH)}st.h {$(VPATH)}vm_core.h {$(VPATH)}signal.h {$(VPATH)}node.h \
@@ -684,14 +701,14 @@ objc.$(OBJEXT): {$(VPATH)}objc.m {$(VPATH)}ruby.h {$(VPATH)}node.h \
   {$(VPATH)}encoding.h
 bs.$(OBJEXT): {$(VPATH)}bs.c {$(VPATH)}bs.h {$(VPATH)}bs_lex.h
 
-INSNS	= opt_sc.inc optinsn.inc optunifs.inc insns.inc \
+INSNS	= opt_sc.inc optinsn.inc optunifs.inc insns.inc insns_info.inc \
 	  vmtc.inc vm.inc
 
 INSNS2VMOPT = --srcdir="$(srcdir)"
 
 $(INSNS): $(srcdir)/insns.def {$(VPATH)}vm_opts.h
 	$(RM) $(PROGRAM)
-	$(BASERUBY) -Ks $(srcdir)/tool/insns2vm.rb $(INSNS2VMOPT)
+	$(BASERUBY) -Ks $(srcdir)/tool/insns2vm.rb $(INSNS2VMOPT) $@
 
 minsns.inc: $(srcdir)/template/minsns.inc.tmpl
 
@@ -713,37 +730,35 @@ srcs: {$(VPATH)}parse.c {$(VPATH)}lex.c $(srcdir)/ext/ripper/ripper.c
 
 incs: $(INSNS) {$(VPATH)}node_name.inc {$(VPATH)}encdb.h {$(VPATH)}transdb.h $(srcdir)/revision.h
 
+insns: $(INSNS)
+
 node_name.inc: {$(VPATH)}node.h
 	$(BASERUBY) -n $(srcdir)/tool/node_name.rb $? > $@
 
-encdb: $(PREP)
-	$(MINIRUBY) $(srcdir)/enc/make_encdb.rb $(srcdir)/enc encdb.h.new
-	$(IFCHANGE) "encdb.h" "encdb.h.new"
+encdb.h: $(PREP)
+	$(MINIRUBY) $(srcdir)/enc/make_encdb.rb $(srcdir)/enc $@.new
+	$(IFCHANGE) "$@" "$@.new"
 
-encdb.h:
-	$(MINIRUBY) $(srcdir)/enc/make_encdb.rb $(srcdir)/enc $@
-
-transdb: $(PREP)
-	$(MINIRUBY) $(srcdir)/enc/trans/make_transdb.rb $(srcdir)/enc/trans transdb.h.new
-	$(IFCHANGE) "transdb.h" "transdb.h.new"
-
-transdb.h:
-	$(MINIRUBY) $(srcdir)/enc/trans/make_transdb.rb $(srcdir)/enc/trans $@
+transdb.h: $(PREP)
+	$(MINIRUBY) $(srcdir)/enc/trans/make_transdb.rb $(srcdir)/enc/trans $@.new
+	$(IFCHANGE) "$@" "$@.new"
 
 miniprelude.c: $(srcdir)/tool/compile_prelude.rb $(srcdir)/prelude.rb
 	$(BASERUBY) -I$(srcdir) $(srcdir)/tool/compile_prelude.rb $(srcdir)/prelude.rb $@
 
-prelude.c: $(srcdir)/tool/compile_prelude.rb $(srcdir)/prelude.rb $(srcdir)/gem_prelude.rb $(RBCONFIG)
-	$(MINIRUBY) -I$(srcdir) -rrbconfig $(srcdir)/tool/compile_prelude.rb $(srcdir)/prelude.rb $(srcdir)/gem_prelude.rb $@
+prelude.c: $(srcdir)/tool/compile_prelude.rb $(PRELUDE_SCRIPTS) $(RBCONFIG) $(PREP)
+	$(MINIRUBY) -I$(srcdir) -rrbconfig $(srcdir)/tool/compile_prelude.rb \
+		$(PRELUDE_SCRIPTS) $@.new
+	$(IFCHANGE) "$@" "$@.new"
 
-golf_prelude.c: $(srcdir)/tool/compile_prelude.rb $(srcdir)/prelude.rb $(srcdir)/golf_prelude.rb
-	$(MINIRUBY) -I$(srcdir) -rrbconfig $(srcdir)/tool/compile_prelude.rb $(srcdir)/golf_prelude.rb $@
+golf_prelude.c: $(srcdir)/tool/compile_prelude.rb $(srcdir)/prelude.rb $(srcdir)/golf_prelude.rb $(PREP)
+	$(MINIRUBY) -I$(srcdir) -rrbconfig $(srcdir)/tool/compile_prelude.rb $(srcdir)/golf_prelude.rb $@.new
+	$(IFCHANGE) "$@" "$@.new"
 
 prereq: incs srcs preludes
 
 preludes: {$(VPATH)}miniprelude.c
 preludes: {$(srcdir)}golf_prelude.c
-PRELUDES = prelude.c miniprelude.c golf_prelude.c
 
 docs:
 	$(BASERUBY) -I$(srcdir) $(srcdir)/tool/makedocs.rb $(INSNS2VMOPT)

@@ -13,9 +13,10 @@
 /* BIN : Basic Instruction Name */
 #define BIN(n) YARVINSN_##n
 
-enum{
+enum ruby_vminsn_type {
 <%= insns %>
 };
 
 #define VM_INSTRUCTION_SIZE <%= @insns.size %>
+
 

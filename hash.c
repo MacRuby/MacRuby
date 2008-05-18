@@ -83,15 +83,16 @@ static int
 rb_any_hash(VALUE a)
 {
     VALUE hval;
+    int hnum;
 
     switch (TYPE(a)) {
       case T_FIXNUM:
       case T_SYMBOL:
-	return (int)a;
+	hnum = (int)a;
 	break;
 
       case T_STRING:
-	return rb_str_hash(a);
+	hnum = rb_str_hash(a);
 	break;
 
       default:
@@ -99,13 +100,24 @@ rb_any_hash(VALUE a)
 	if (!FIXNUM_P(hval)) {
 	    hval = rb_funcall(hval, '%', 1, INT2FIX(536870923));
 	}
-	return (int)FIX2LONG(hval);
+	hnum = (int)FIX2LONG(hval);
     }
+#if WITH_OBJC
+    return hnum;
+#else
+    hnum <<= 1;
+    return RSHIFT(hnum, 1);
+#endif
 }
 
 static const struct st_hash_type objhash = {
     rb_any_cmp,
     rb_any_hash,
+};
+
+static const struct st_hash_type identhash = {
+    st_numcmp,
+    st_numhash,
 };
 
 typedef int st_foreach_func(st_data_t, st_data_t, st_data_t);
@@ -749,7 +761,7 @@ rb_hash_fetch(int argc, VALUE *argv, VALUE hash)
  *     h.default(2)                            #=> "cat"
  *
  *     h = Hash.new {|h,k| h[k] = k.to_i*10}   #=> {}
- *     h.default                               #=> 0
+ *     h.default                               #=> nil
  *     h.default(2)                            #=> 20
  */
 
@@ -1061,6 +1073,7 @@ delete_if_i(VALUE key, VALUE value, VALUE hash)
 VALUE
 rb_hash_delete_if(VALUE hash)
 {
+    RETURN_ENUMERATOR(hash, 0, 0);
     rb_hash_modify(hash);
     rb_hash_foreach(hash, delete_if_i, hash);
     return hash;
@@ -1080,6 +1093,7 @@ rb_hash_reject_bang(VALUE hash)
 #if WITH_OBJC
     CFIndex n;
 
+    RETURN_ENUMERATOR(hash, 0, 0);
     n = CFDictionaryGetCount((CFDictionaryRef)hash);
     rb_hash_delete_if(hash);
     if (n == CFDictionaryGetCount((CFDictionaryRef)hash))
@@ -1087,6 +1101,8 @@ rb_hash_reject_bang(VALUE hash)
     return hash;
 #else
     int n;
+
+    RETURN_ENUMERATOR(hash, 0, 0);
     if (!RHASH(hash)->ntbl)
         return Qnil;
     n = RHASH(hash)->ntbl->num_entries;
@@ -1121,7 +1137,7 @@ rb_hash_reject(VALUE hash)
  *
  *   h = { "cat" => "feline", "dog" => "canine", "cow" => "bovine" }
  *   h.values_at("cow", "cat")  #=> ["bovine", "feline"]
-*/
+ */
 
 VALUE
 rb_hash_values_at(int argc, VALUE *argv, VALUE hash)
@@ -1226,12 +1242,11 @@ rb_hash_aset(VALUE hash, VALUE key, VALUE val)
 {
     rb_hash_modify(hash);
 #if WITH_OBJC
-//    if (TYPE(key) == T_STRING)
-//	key = rb_obj_dup(key); /* FIXME temporary fix. */
     CFDictionarySetValue((CFMutableDictionaryRef)hash, (const void *)key,
 	(const void *)val);
 #else
-    if (TYPE(key) != T_STRING || st_lookup(RHASH(hash)->ntbl, key, 0)) {
+    if (RHASH(hash)->ntbl->type == &identhash ||
+	TYPE(key) != T_STRING || st_lookup(RHASH(hash)->ntbl, key, 0)) {
 	st_insert(RHASH(hash)->ntbl, key, val);
     }
     else {
@@ -1328,11 +1343,7 @@ rb_hash_size(VALUE hash)
 static VALUE
 rb_hash_empty_p(VALUE hash)
 {
-#if WITH_OBJC
-    return CFDictionaryGetCount((CFDictionaryRef)hash) == 0 ? Qtrue : Qfalse;
-#else
     return RHASH_EMPTY_P(hash) ? Qtrue : Qfalse;
-#endif
 }
 
 static int
@@ -1448,7 +1459,7 @@ to_a_i(VALUE key, VALUE value, VALUE ary)
  *  value</i> <code>]</code> arrays.
  *
  *     h = { "c" => 300, "a" => 100, "d" => 400, "c" => 300  }
- *     h.to_a   #=> [["a", 100], ["c", 300], ["d", 400]]
+ *     h.to_a   #=> [["c", 300], ["a", 100], ["d", 400]]
  */
 
 static VALUE
@@ -1509,13 +1520,13 @@ inspect_hash(VALUE hash, VALUE dummy, int recur)
  * Return the contents of this hash as a string.
  *
  *     h = { "c" => 300, "a" => 100, "d" => 400, "c" => 300  }
- *     h.to_s   #=> "{\"a\"=>100, \"c\"=>300, \"d\"=>400}"
+ *     h.to_s   #=> "{\"c\"=>300, \"a\"=>100, \"d\"=>400}"
  */
 
 static VALUE
 rb_hash_inspect(VALUE hash)
 {
-    if (CFDictionaryGetCount((CFDictionaryRef)hash) == 0)
+    if (RHASH_EMPTY_P(hash))
 	return rb_usascii_str_new2("{}");
     return rb_exec_recursive(inspect_hash, hash, 0);
 }
@@ -1725,6 +1736,8 @@ hash_equal(VALUE hash1, VALUE hash2, int eql)
 #else
     if (!RHASH(hash1)->ntbl || !RHASH(hash2)->ntbl)
         return Qtrue;
+    if (RHASH(hash1)->ntbl->type != RHASH(hash2)->ntbl->type)
+	return Qfalse;
 #if 0
     if (!(rb_equal(RHASH(hash1)->ifnone, RHASH(hash2)->ifnone) &&
 	  FL_TEST(hash1, HASH_PROC_DEFAULT) == FL_TEST(hash2, HASH_PROC_DEFAULT)))
@@ -1835,7 +1848,7 @@ rb_hash_invert_i(VALUE key, VALUE value, VALUE hash)
  *  the keys as values.
  *
  *     h = { "n" => 100, "m" => 100, "y" => 300, "d" => 200, "a" => 0 }
- *     h.invert   #=> {0=>"a", 100=>"n", 200=>"d", 300=>"y"}
+ *     h.invert   #=> {0=>"a", 100=>"m", 200=>"d", 300=>"y"}
  *
  */
 
@@ -1883,6 +1896,9 @@ rb_hash_update_block_i(VALUE key, VALUE value, VALUE hash)
  *     h1 = { "a" => 100, "b" => 200 }
  *     h2 = { "b" => 254, "c" => 300 }
  *     h1.merge!(h2)   #=> {"a"=>100, "b"=>254, "c"=>300}
+ *
+ *     h1 = { "a" => 100, "b" => 200 }
+ *     h2 = { "b" => 254, "c" => 300 }
  *     h1.merge!(h2) { |key, v1, v2| v1 }
  *                     #=> {"a"=>100, "b"=>200, "c"=>300}
  */
@@ -2023,11 +2039,6 @@ rb_hash_flatten(int argc, VALUE *argv, VALUE hash)
     rb_funcall2(ary, rb_intern("flatten!"), argc, argv);
     return ary;
 }
-
-static const struct st_hash_type identhash = {
-    st_numcmp,
-    st_numhash,
-};
 
 /*
  *  call-seq:
@@ -2483,12 +2494,13 @@ env_each_pair(VALUE ehash)
 }
 
 static VALUE
-env_reject_bang(void)
+env_reject_bang(VALUE ehash)
 {
     volatile VALUE keys;
     long i;
     int del = 0;
 
+    RETURN_ENUMERATOR(ehash, 0, 0);
     rb_secure(4);
     keys = env_keys();
     for (i=0; i<RARRAY_LEN(keys); i++) {
@@ -2506,9 +2518,10 @@ env_reject_bang(void)
 }
 
 static VALUE
-env_delete_if(void)
+env_delete_if(VALUE ehash)
 {
-    env_reject_bang();
+    RETURN_ENUMERATOR(ehash, 0, 0);
+    env_reject_bang(ehash);
     return envtbl;
 }
 
@@ -2552,8 +2565,8 @@ env_select(VALUE ehash)
     return result;
 }
 
-static VALUE
-env_clear(void)
+VALUE
+rb_env_clear(void)
 {
     volatile VALUE keys;
     long i;
@@ -3042,15 +3055,15 @@ Init_Hash(void)
     rb_cHash = rb_define_class("Hash", rb_cObject);
 #endif
 
+    rb_include_module(rb_cHash, rb_mEnumerable);
+
     rb_define_alloc_func(rb_cHash, hash_alloc);
     rb_define_singleton_method(rb_cHash, "[]", rb_hash_s_create, -1);
     rb_define_singleton_method(rb_cHash, "try_convert", rb_hash_s_try_convert, 1);
     rb_define_method(rb_cHash,"initialize", rb_hash_initialize, -1);
     rb_define_method(rb_cHash,"initialize_copy", rb_hash_replace, 1);
-
-    rb_include_module(rb_cHash, rb_mEnumerable);
-
     rb_define_method(rb_cHash,"rehash", rb_hash_rehash, 0);
+
     rb_define_method(rb_cHash,"to_hash", rb_hash_to_hash, 0);
     rb_define_method(rb_cHash,"to_a", rb_hash_to_a, 0);
     rb_define_method(rb_cHash,"to_s", rb_hash_inspect, 0);
@@ -3124,7 +3137,7 @@ Init_Hash(void)
     rb_define_singleton_method(envtbl,"each_value", env_each_value, 0);
     rb_define_singleton_method(envtbl,"delete", env_delete_m, 1);
     rb_define_singleton_method(envtbl,"delete_if", env_delete_if, 0);
-    rb_define_singleton_method(envtbl,"clear", env_clear, 0);
+    rb_define_singleton_method(envtbl,"clear", rb_env_clear, 0);
     rb_define_singleton_method(envtbl,"reject", env_reject, 0);
     rb_define_singleton_method(envtbl,"reject!", env_reject_bang, 0);
     rb_define_singleton_method(envtbl,"select", env_select, 0);

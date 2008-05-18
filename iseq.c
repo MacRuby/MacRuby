@@ -2,7 +2,7 @@
 
   iseq.c -
 
-  $Author: nobu $
+  $Author: ko1 $
   created at: 2006-07-11(Tue) 09:00:03 +0900
 
   Copyright (C) 2006 Koichi Sasada
@@ -247,6 +247,10 @@ make_compile_option(rb_compile_option_t *option, VALUE opt)
       if (flag == Qtrue)  { o->mem = 1; } \
       else if (flag == Qfalse)  { o->mem = 0; } \
   }
+#define SET_COMPILE_OPTION_NUM(o, h, mem) \
+  { VALUE num = rb_hash_aref(opt, ID2SYM(rb_intern(#mem))); \
+      if (!NIL_P(num)) o->mem = NUM2INT(num); \
+  }
 	SET_COMPILE_OPTION(option, opt, inline_const_cache);
 	SET_COMPILE_OPTION(option, opt, peephole_optimization);
 	SET_COMPILE_OPTION(option, opt, tailcall_optimization);
@@ -255,7 +259,9 @@ make_compile_option(rb_compile_option_t *option, VALUE opt)
 	SET_COMPILE_OPTION(option, opt, instructions_unification);
 	SET_COMPILE_OPTION(option, opt, stack_caching);
 	SET_COMPILE_OPTION(option, opt, trace_instruction);
+	SET_COMPILE_OPTION_NUM(option, opt, debug_level);
 #undef SET_COMPILE_OPTION
+#undef SET_COMPILE_OPTION_NUM
     }
     else {
 	rb_raise(rb_eTypeError, "Compile option must be Hash/true/false/nil");
@@ -268,6 +274,8 @@ make_compile_option_value(rb_compile_option_t *option)
     VALUE opt = rb_hash_new();
 #define SET_COMPILE_OPTION(o, h, mem) \
   rb_hash_aset(h, ID2SYM(rb_intern(#mem)), o->mem ? Qtrue : Qfalse)
+#define SET_COMPILE_OPTION_NUM(o, h, mem) \
+  rb_hash_aset(h, ID2SYM(rb_intern(#mem)), INT2NUM(o->mem))
     {
 	SET_COMPILE_OPTION(option, opt, inline_const_cache);
 	SET_COMPILE_OPTION(option, opt, peephole_optimization);
@@ -276,8 +284,10 @@ make_compile_option_value(rb_compile_option_t *option)
 	SET_COMPILE_OPTION(option, opt, operands_unification);
 	SET_COMPILE_OPTION(option, opt, instructions_unification);
 	SET_COMPILE_OPTION(option, opt, stack_caching);
+	SET_COMPILE_OPTION_NUM(option, opt, debug_level);
     }
 #undef SET_COMPILE_OPTION
+#undef SET_COMPILE_OPTION_NUM
     return opt;
 }
 
@@ -434,7 +444,7 @@ VALUE
 rb_iseq_compile_with_option(VALUE src, VALUE file, VALUE line, VALUE opt)
 {
     rb_compile_option_t option;
-    NODE *node = compile_string(src, file, line);
+    NODE *node = compile_string(StringValue(src), file, line);
     rb_thread_t *th = GET_THREAD();
     make_compile_option(&option, opt);
 
@@ -603,7 +613,7 @@ insn_operand_intern(rb_iseq_t *iseq,
 		    int insn, int op_no, VALUE op,
 		    int len, int pos, VALUE *pnop, VALUE child)
 {
-    char *types = insn_op_types(insn);
+    const char *types = insn_op_types(insn);
     char type = types[op_no];
     VALUE ret;
     char buff[0x100];
@@ -655,6 +665,7 @@ insn_operand_intern(rb_iseq_t *iseq,
       }
       case TS_ID:		/* ID (symbol) */
 	op = ID2SYM(op);
+
       case TS_VALUE:		/* VALUE */
 	ret = rb_inspect(op);
 	if (CLASS_OF(op) == rb_cISeq) {
@@ -712,7 +723,7 @@ ruby_iseq_disasm_insn(VALUE ret, VALUE *iseq, int pos,
     int insn = iseq[pos];
     int len = insn_len(insn);
     int i, j;
-    char *types = insn_op_types(insn);
+    const char *types = insn_op_types(insn);
     VALUE str = rb_str_new(0, 0);
     char buff[0x100];
     char insn_name_buff[0x100];
@@ -730,7 +741,7 @@ ruby_iseq_disasm_insn(VALUE ret, VALUE *iseq, int pos,
     rb_str_cat2(str, buff);
 
     for (j = 0; types[j]; j++) {
-	char *types = insn_op_types(insn);
+	const char *types = insn_op_types(insn);
 	VALUE opstr = insn_operand_intern(iseqdat, insn, j, iseq[pos + j + 1],
 					  len, pos, &iseq[pos + j + 2],
 					  child);

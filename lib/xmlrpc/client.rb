@@ -268,7 +268,7 @@ Note: Inherited methods from class (({Object})) cannot be used as XML-RPC names,
 
 
 = History
-    $Id: client.rb 13769 2007-10-24 20:00:10Z jeg2 $
+    $Id: client.rb 16042 2008-04-15 14:10:18Z kou $
 
 =end
 
@@ -565,8 +565,13 @@ module XMLRPC
         raise "Wrong size. Was #{data.size}, should be #{expected}"
       end
 
-      c = resp["Set-Cookie"]
-      @cookie = c if c
+      set_cookies = resp.get_fields("Set-Cookie")
+      if set_cookies and !set_cookies.empty?
+        @cookie = set_cookies.collect do |set_cookie|
+          cookie = WEBrick::Cookie.parse_set_cookie(set_cookie)
+          WEBrick::Cookie.new(cookie.name, cookie.value).to_s
+        end.join("; ")
+      end
 
       return data
     end

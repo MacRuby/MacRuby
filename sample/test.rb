@@ -1463,7 +1463,6 @@ shift_test(-0xfffffffffffffffff)
 
 test_check "string & char"
 
-"abcd" =~ /ab/
 test_ok("abcd" == "abcd")
 test_ok("abcd" =~ /abcd/)
 test_ok("abcd" === "abcd")

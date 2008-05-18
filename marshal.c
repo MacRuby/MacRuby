@@ -2,7 +2,7 @@
 
   marshal.c -
 
-  $Author: akr $
+  $Author: matz $
   created at: Thu Apr 27 16:30:01 JST 1995
 
   Copyright (C) 1993-2007 Yukihiro Matsumoto
@@ -487,6 +487,7 @@ w_encoding(VALUE obj, long num, struct dump_call_arg *arg)
     name = rb_enc_name2(enc);
 #else
     int encidx = rb_enc_get_index(obj);
+    rb_encoding *enc = 0;
     st_data_t name;
 
     if (encidx <= 0 || !(enc = rb_enc_from_index(encidx))) {
@@ -616,7 +617,9 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
         }
 
 	if (rb_respond_to(obj, s_mdump)) {
-	    VALUE v;
+	    volatile VALUE v;
+
+            st_add_direct(arg->data, obj, arg->data->num_entries);
 
 	    v = rb_funcall(obj, s_mdump, 0, 0);
 	    w_class(TYPE_USRMARSHAL, obj, arg, Qfalse);
@@ -644,10 +647,29 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
             else if (hasiv) {
 		w_ivar(obj, ivtbl, &c_arg);
 	    }
+            st_add_direct(arg->data, obj, arg->data->num_entries);
 	    return;
 	}
 
-	switch (TYPE(obj)) {
+        st_add_direct(arg->data, obj, arg->data->num_entries);
+
+#if WITH_OBJC
+	if (!rb_objc_is_non_native(obj))
+#endif
+        {
+            st_data_t compat_data;
+            rb_alloc_func_t allocator = rb_get_alloc_func(RBASIC(obj)->klass);
+            if (st_lookup(compat_allocator_tbl,
+                          (st_data_t)allocator,
+                          &compat_data)) {
+                marshal_compat_t *compat = (marshal_compat_t*)compat_data;
+                VALUE real_obj = obj;
+                obj = compat->dumper(real_obj);
+                st_insert(arg->compat_tbl, (st_data_t)obj, (st_data_t)real_obj);
+            }
+        }
+
+	switch (/*BUILTIN_*/TYPE(obj)) {
 	  case T_CLASS:
 	    if (FL_TEST(obj, FL_SINGLETON)) {
 		rb_raise(rb_eTypeError, "singleton class can't be dumped");
@@ -1102,9 +1124,9 @@ r_entry(VALUE v, struct load_arg *arg)
         rb_hash_aset(arg->data, INT2FIX(RHASH_SIZE(arg->data)), v);
     }
     if (arg->taint) {
-	rb_obj_taint(v);
+        OBJ_TAINT(v);
         if ((VALUE)real_obj != Qundef)
-            rb_obj_taint((VALUE)real_obj);
+            OBJ_TAINT((VALUE)real_obj);
     }
     return v;
 }
@@ -1680,9 +1702,9 @@ marshal_load(int argc, VALUE *argv)
  * first two bytes of marshaled data.
  *
  *     str = Marshal.dump("thing")
- *     RUBY_VERSION   #=> "1.8.0"
- *     str[0]         #=> 4
- *     str[1]         #=> 8
+ *     RUBY_VERSION   #=> "1.9.0"
+ *     str[0].ord     #=> 4
+ *     str[1].ord     #=> 8
  *
  * Some objects cannot be dumped: if the objects to be dumped include
  * bindings, procedure or method objects, instances of class IO, or

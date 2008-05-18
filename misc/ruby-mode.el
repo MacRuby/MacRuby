@@ -1,11 +1,11 @@
 ;;;
 ;;;  ruby-mode.el -
 ;;;
-;;;  $Author: nobu $
+;;;  $Author: matz $
 ;;;  created at: Fri Feb  4 14:49:13 JST 1994
 ;;;
 
-(defconst ruby-mode-revision "$Revision: 15297 $"
+(defconst ruby-mode-revision "$Revision: 16266 $"
   "Ruby mode revision string.")
 
 (defconst ruby-mode-version
@@ -162,6 +162,14 @@ Also ignores spaces after parenthesis when 'space."
   "Default deep indent style."
   :options '(t nil space) :group 'ruby)
 
+(defcustom ruby-encoding-map '((shift_jis . cp932) (shift-jis . cp932))
+  "Alist to map encoding name from emacs to ruby."
+  :group 'ruby)
+
+(defcustom ruby-use-encoding-map t
+  "*Use `ruby-encoding-map' to set encoding magic comment if this is non-nil."
+  :type 'boolean :group 'ruby)
+
 (eval-when-compile (require 'cl))
 (defun ruby-imenu-create-index-in-block (prefix beg end)
   (let ((index-alist '()) (case-fold-search nil)
@@ -234,11 +242,6 @@ Also ignores spaces after parenthesis when 'space."
   (make-local-variable 'paragraph-ignore-fill-prefix)
   (setq paragraph-ignore-fill-prefix t))
 
-(eval-when-compile
-  (unless (fboundp 'coding-system-to-mime-charset)
-    (defun coding-system-to-mime-charset (coding-system)
-      (coding-system-change-eol-conversion coding-system nil))))
-
 (defun ruby-mode-set-encoding ()
   (save-excursion
     (widen)
@@ -246,18 +249,29 @@ Also ignores spaces after parenthesis when 'space."
     (when (re-search-forward "[^\0-\177]" nil t)
       (goto-char (point-min))
       (let ((coding-system
-	     (coding-system-to-mime-charset
-	      (or coding-system-for-write
-		  buffer-file-coding-system))))
+	     (or coding-system-for-write
+		 buffer-file-coding-system)))
+	(if coding-system
+	    (setq coding-system
+		  (or (coding-system-get coding-system 'mime-charset)
+		      (coding-system-change-eol-conversion coding-system nil))))
 	(setq coding-system
 	      (if coding-system
-		  (symbol-name coding-system)
+		  (symbol-name
+		   (or (and ruby-use-encoding-map
+			    (cdr (assq coding-system ruby-encoding-map)))
+		       coding-system))
 		"ascii-8bit"))
 	(if (looking-at "^#![^\n]*ruby") (beginning-of-line 2))
-	(cond ((looking-at "\\s *#.*-\*-\\s *\\(en\\)?coding\\s *:\\s *\\([-a-z0-9_]+\\)")
+	(cond ((looking-at "\\s *#.*-\*-\\s *\\(en\\)?coding\\s *:\\s *\\([-a-z0-9_]*\\)\\s *\\(;\\|-\*-\\)")
 	       (unless (string= (match-string 2) coding-system)
 		 (goto-char (match-beginning 2))
 		 (delete-region (point) (match-end 2))
+		 (and (looking-at "-\*-")
+		      (let ((n (skip-chars-backward " ")))
+			(cond ((= n 0) (insert "  ") (backward-char))
+			      ((= n -1) (insert " "))
+			      ((forward-char)))))
 		 (insert coding-system)))
 	      ((looking-at "\\s *#.*coding\\s *[:=]"))
 	      (t (insert "# -*- coding: " coding-system " -*-\n"))
@@ -285,10 +299,20 @@ The variable ruby-indent-level controls the amount of indentation.
   (make-local-variable 'add-log-current-defun-function)
   (setq add-log-current-defun-function 'ruby-add-log-current-method)
 
-  (make-local-variable 'before-save-hook)
-  (add-hook 'before-save-hook 'ruby-mode-set-encoding)
+  (add-hook
+   (cond ((boundp 'before-save-hook)
+	  (make-local-variable 'before-save-hook)
+	  'before-save-hook)
+	 ((boundp 'write-contents-functions) 'write-contents-functions)
+	 ((boundp 'write-contents-hooks) 'write-contents-hooks))
+   'ruby-mode-set-encoding)
 
-  (run-hooks 'ruby-mode-hook))
+  (set (make-local-variable 'font-lock-defaults) '((ruby-font-lock-keywords) nil nil))
+  (set (make-local-variable 'font-lock-keywords) ruby-font-lock-keywords)
+  (set (make-local-variable 'font-lock-syntax-table) ruby-font-lock-syntax-table)
+  (set (make-local-variable 'font-lock-syntactic-keywords) ruby-font-lock-syntactic-keywords)
+
+  (run-mode-hooks 'ruby-mode-hook))
 
 (defun ruby-current-indentation ()
   (save-excursion
@@ -713,7 +737,7 @@ The variable ruby-indent-level controls the amount of indentation.
 	      (setq end nil))
 	    (goto-char (or end pos))
 	    (skip-chars-backward " \t")
-	    (setq begin (if (nth 0 state) pos (cdr (nth 1 state))))
+	    (setq begin (if (and end (nth 0 state)) pos (cdr (nth 1 state))))
 	    (setq state (ruby-parse-region parse-start (point))))
 	  (or (bobp) (forward-char -1))
 	  (and
@@ -1001,17 +1025,19 @@ balanced expression is found."
   "Return current method string."
   (condition-case nil
       (save-excursion
-	(let ((mlist nil) (indent 0))
+	(let (mname mlist (indent 0))
 	  ;; get current method (or class/module)
 	  (if (re-search-backward
 	       (concat "^[ \t]*\\(def\\|class\\|module\\)[ \t]+"
-		       "\\(" 
-		       ;; \\. for class method
-			"\\(" ruby-symbol-re "\\|\\." "\\)" 
+		       "\\("
+		       ;; \\. and :: for class method
+			"\\([A-Za-z_]" ruby-symbol-re "*\\|\\.\\|::" "\\)" 
 			"+\\)")
 	       nil t)
 	      (progn
-		(setq mlist (list (match-string 2)))
+		(setq mname (match-string 2))
+		(unless (string-equal "def" (match-string 1))
+		  (setq mlist (list mname) mname nil))
 		(goto-char (match-beginning 1))
 		(setq indent (current-column))
 		(beginning-of-line)))
@@ -1020,7 +1046,7 @@ balanced expression is found."
 		      (re-search-backward
 		       (concat
 			"^[ \t]*\\(class\\|module\\)[ \t]+"
-			"\\([A-Z]" ruby-symbol-re "+\\)")
+			"\\([A-Z]" ruby-symbol-re "*\\)")
 		       nil t))
 	    (goto-char (match-beginning 1))
 	    (if (< (current-column) indent)
@@ -1028,10 +1054,33 @@ balanced expression is found."
 		  (setq mlist (cons (match-string 2) mlist))
 		  (setq indent (current-column))
 		  (beginning-of-line))))
+	  (when mname
+	    (let ((mn (split-string mname "\\.\\|::")))
+	      (if (cdr mn)
+		  (progn
+		    (cond
+		     ((string-equal "" (car mn))
+		      (setq mn (cdr mn) mlist nil))
+		     ((string-equal "self" (car mn))
+		      (setq mn (cdr mn)))
+		     ((let ((ml (nreverse mlist)))
+			(while ml
+			  (if (string-equal (car ml) (car mn))
+			      (setq mlist (nreverse (cdr ml)) ml nil))
+			  (or (setq ml (cdr ml)) (nreverse mlist))))))
+		    (if mlist
+			(setcdr (last mlist) mn)
+		      (setq mlist mn))
+		    (setq mn (last mn 2))
+		    (setq mname (concat "." (cadr mn)))
+		    (setcdr mn nil))
+		(setq mname (concat "#" mname)))))
 	  ;; generate string
 	  (if (consp mlist)
-	      (mapconcat (function identity) mlist "::")
-	    nil)))))
+	      (setq mlist (mapconcat (function identity) mlist "::")))
+	  (if mname
+	      (if mlist (concat mlist mname) mname)
+	    mlist)))))
 
 (cond
  ((featurep 'font-lock)
@@ -1057,24 +1106,13 @@ balanced expression is found."
 	  ("^\\(=\\)begin\\(\\s \\|$\\)" 1 (7 . nil))
 	  ("^\\(=\\)end\\(\\s \\|$\\)" 1 (7 . nil))))
 
-  (cond ((featurep 'xemacs)
-	 (put 'ruby-mode 'font-lock-defaults
-	      '((ruby-font-lock-keywords)
-		nil nil nil
-		beginning-of-line
-		(font-lock-syntactic-keywords
-		 . ruby-font-lock-syntactic-keywords))))
-	(t
-	 (add-hook 'ruby-mode-hook
-	    '(lambda ()
-	       (make-local-variable 'font-lock-defaults)
-	       (make-local-variable 'font-lock-keywords)
-	       (make-local-variable 'font-lock-syntax-table)
-	       (make-local-variable 'font-lock-syntactic-keywords)
-	       (setq font-lock-defaults '((ruby-font-lock-keywords) nil nil))
-	       (setq font-lock-keywords ruby-font-lock-keywords)
-	       (setq font-lock-syntax-table ruby-font-lock-syntax-table)
-	       (setq font-lock-syntactic-keywords ruby-font-lock-syntactic-keywords)))))
+  (if (featurep 'xemacs)
+      (put 'ruby-mode 'font-lock-defaults
+	   '((ruby-font-lock-keywords)
+	     nil nil nil
+	     beginning-of-line
+	     (font-lock-syntactic-keywords
+	      . ruby-font-lock-syntactic-keywords))))
 
   (defun ruby-font-lock-docs (limit)
     (if (re-search-forward "^=begin\\(\\s \\|$\\)" limit t)

@@ -13,12 +13,14 @@
 #include "ruby/encoding.h"
 #include "ruby/util.h"
 #include "debug.h"
+#include "eval_intern.h"
 #include "vm_core.h"
 
 /* for gdb */
 static const union {
     enum ruby_special_consts    special_consts;
     enum ruby_value_type        value_type;
+    enum ruby_tag_type          tag_type;
     enum node_type              node_type;
     enum {
 #if !WITH_OBJC
@@ -29,7 +31,7 @@ static const union {
         RUBY_ENC_CODERANGE_UNKNOWN = ENC_CODERANGE_UNKNOWN,
         RUBY_ENC_CODERANGE_7BIT    = ENC_CODERANGE_7BIT,
         RUBY_ENC_CODERANGE_VALID   = ENC_CODERANGE_VALID,
-        RUBY_ENC_CODERANGE_BROKEN  = ENC_CODERANGE_BROKEN,
+        RUBY_ENC_CODERANGE_BROKEN  = ENC_CODERANGE_BROKEN, 
 #endif
         RUBY_FL_MARK        = FL_MARK,
         RUBY_FL_RESERVED    = FL_RESERVED,
@@ -69,13 +71,24 @@ static const union {
 
 const VALUE RUBY_FL_USER20    = FL_USER20;
 
-void
+int
 ruby_debug_print_indent(int level, int debug_level, int indent_level)
 {
     if (level < debug_level) {
 	fprintf(stderr, "%*s", indent_level, "");
 	fflush(stderr);
+	return Qtrue;
     }
+    return Qfalse;
+}
+
+void
+ruby_debug_printf(const char *format, ...)
+{
+    va_list ap;
+    va_start(ap, format);
+    vfprintf(stderr, format, ap);
+    va_end(ap);
 }
 
 VALUE
@@ -135,10 +148,10 @@ set_debug_option(const char *str, int len, void *arg)
 	    return;			    \
 	}				    \
     } while (0)
-	SET_WHEN("gc_stress", gc_stress);
-	SET_WHEN("core", enable_coredump);
-	fprintf(stderr, "unexpected debug option: %.*s\n", len, str);
-    }
+    SET_WHEN("gc_stress", gc_stress);
+    SET_WHEN("core", enable_coredump);
+    fprintf(stderr, "unexpected debug option: %.*s\n", len, str);
+}
 
 void
 ruby_set_debug_option(const char *str)

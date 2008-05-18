@@ -128,29 +128,7 @@ static struct {
 
 void rb_enc_init(void);
 
-#ifndef NO_ENCDB_H
-#undef ENC_REPLICATE
-#undef ENC_ALIAS
-#undef ENC_DUMMY
-static int encdb_replicate(const char *alias, const char *orig);
-static int encdb_alias(const char *alias, const char *orig);
-static int encdb_dummy(const char *name);
-static void encdb_declare(const char *name);
-#define ENC_REPLICATE(name, orig) encdb_replicate(name, orig)
-#define ENC_ALIAS(name, orig) encdb_alias(name, orig)
-#define ENC_DUMMY(name) encdb_dummy(name)
-#define ENC_DEFINE(name) encdb_declare(name)
-#endif
-
-static void
-enc_init_db(void)
-{
-#ifdef NO_ENCDB_H
 #define ENCODING_COUNT ENCINDEX_BUILTIN_MAX
-#else
-#include "encdb.h"
-#endif
-}
 
 #define enc_autoload_p(enc) (!rb_enc_mbmaxlen(enc))
 
@@ -202,7 +180,7 @@ enc_check_encoding(VALUE obj)
     if (rb_enc_from_index(index) != enc)
 	return -1;
     if (enc_autoload_p(enc)) {
-	index = load_encoding(enc->name);
+	index = rb_enc_find_index(enc->name);
     }
     return index;
 }
@@ -345,9 +323,8 @@ rb_enc_register(const char *name, rb_encoding *encoding)
     return index;
 }
 
-#ifndef NO_ENCDB_H
-static void
-encdb_declare(const char *name)
+void
+rb_encdb_declare(const char *name)
 {
     int idx = rb_enc_registered(name);
     if (idx < 0) {
@@ -355,7 +332,6 @@ encdb_declare(const char *name)
     }
     set_encoding_const(name, rb_enc_from_index(idx));
 }
-#endif
 
 static void
 enc_check_duplication(const char *name)
@@ -387,7 +363,6 @@ rb_enc_replicate(const char *name, rb_encoding *encoding)
     return idx;
 }
 
-#ifndef NO_ENCDB_H
 static int
 enc_replicate(int idx, const char *name, rb_encoding *origenc)
 {
@@ -404,8 +379,8 @@ enc_replicate(int idx, const char *name, rb_encoding *origenc)
     return idx;
 }
 
-static int
-encdb_replicate(const char *name, const char *orig)
+int
+rb_encdb_replicate(const char *name, const char *orig)
 {
     int origidx = rb_enc_registered(orig);
     int idx = rb_enc_registered(name);
@@ -415,7 +390,6 @@ encdb_replicate(const char *name, const char *orig)
     }
     return enc_replicate(idx, name, rb_enc_from_index(origidx));
 }
-#endif
 
 int
 rb_define_dummy_encoding(const char *name)
@@ -427,9 +401,8 @@ rb_define_dummy_encoding(const char *name)
     return index;
 }
 
-#ifndef NO_ENCDB_H
-static int
-encdb_dummy(const char *name)
+int
+rb_encdb_dummy(const char *name)
 {
     int index = enc_replicate(rb_enc_registered(name), name,
 			      rb_ascii8bit_encoding());
@@ -438,7 +411,6 @@ encdb_dummy(const char *name)
     ENC_SET_DUMMY(enc);
     return index;
 }
-#endif
 #endif // WITH_OBJC
 
 int
@@ -496,9 +468,8 @@ rb_enc_alias(const char *alias, const char *orig)
     return enc_alias(alias, idx);
 }
 
-#ifndef NO_ENCDB_H
-static int
-encdb_alias(const char *alias, const char *orig)
+int
+rb_encdb_alias(const char *alias, const char *orig)
 {
     int idx = rb_enc_registered(orig);
 
@@ -507,7 +478,6 @@ encdb_alias(const char *alias, const char *orig)
     }
     return enc_alias(alias, idx);
 }
-#endif
 
 enum {
     ENCINDEX_ASCII,
@@ -716,7 +686,7 @@ void
 rb_enc_associate_index(VALUE obj, int idx)
 {
     enc_check_capable(obj);
-    if (rb_enc_get_index(obj) == idx)
+    if (rb_enc_internal_get_index(obj) == idx)
     	return;
     if (!ENC_CODERANGE_ASCIIONLY(obj) ||
 	!rb_enc_asciicompat(rb_enc_from_index(idx))) {
@@ -1003,7 +973,6 @@ enc_base_encoding(VALUE self)
  *       #<Encoding:US-ASCII>, #<Encoding:ISO-2022-JP (dummy)>]
  *
  */
-
 static VALUE
 enc_list(VALUE klass)
 {
@@ -1440,7 +1409,8 @@ rb_enc_mbminlen(rb_encoding *enc)
 long
 rb_enc_mbmaxlen(rb_encoding *enc)
 {
-    return CFStringGetMaximumSizeForEncoding(1, *enc);
+    return enc == NULL
+	? 1 : CFStringGetMaximumSizeForEncoding(1, *enc);
 }
 
 rb_encoding *

@@ -2,7 +2,7 @@
 
   insnhelper.c - instruction helper functions.
 
-  $Author: nobu $
+  $Author: matz $
 
   Copyright (C) 2007 Koichi Sasada
 
@@ -909,15 +909,12 @@ lfp_svar_set(rb_thread_t *th, VALUE *lfp, VALUE key, VALUE val)
 
     switch (key) {
       case 0:
-	//svar->v1 = val;
 	GC_WB(&svar->v1, val);
 	return;
       case 1:
-	//svar->v2 = val;
 	GC_WB(&svar->v2, val);
 	return;
       case 2:
-	//svar->basic.klass = val;
 	GC_WB(&svar->basic.klass, val);
 	return;
       default: {
@@ -985,6 +982,19 @@ vm_getspecial(rb_thread_t *th, VALUE *lfp, VALUE key, rb_num_t type)
     return val;
 }
 
+static inline void
+vm_check_if_namespace(VALUE klass)
+{
+    switch (TYPE(klass)) {
+      case T_CLASS:
+      case T_MODULE:
+	break;
+      default:
+	rb_raise(rb_eTypeError, "%s is not a class/module",
+		 RSTRING_CPTR(rb_inspect(klass)));
+    }
+}
+
 static inline VALUE
 vm_get_ev_const(rb_thread_t *th, rb_iseq_t *iseq,
 		VALUE klass, ID id, int is_defined)
@@ -1039,19 +1049,12 @@ vm_get_ev_const(rb_thread_t *th, rb_iseq_t *iseq,
 	}
     }
     else {
-	switch (TYPE(klass)) {
-	  case T_CLASS:
-	  case T_MODULE:
-	    break;
-	  default:
-	    rb_raise(rb_eTypeError, "%s is not a class/module",
-		     RSTRING_CPTR(rb_obj_as_string(klass)));
-	}
+	vm_check_if_namespace(klass);
 	if (is_defined) {
-	    return rb_const_defined(klass, id);
+	    return rb_const_defined_from(klass, id);
 	}
 	else {
-	    return rb_const_get(klass, id);
+	    return rb_const_get_from(klass, id);
 	}
     }
 }
@@ -1089,7 +1092,7 @@ vm_define_method(rb_thread_t *th, VALUE obj,
 		     rb_id2name(id), rb_obj_classname(obj));
 	}
 
-	if (rb_obj_frozen_p(obj)) {
+	if (OBJ_FROZEN(obj)) {
 	    rb_error_frozen("object");
 	}
 

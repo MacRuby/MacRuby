@@ -134,7 +134,7 @@ class TestFixnum < Test::Unit::TestCase
     assert_raise(ArgumentError) { 10.to_s(1) }
   end
 
-  def test_plus
+  def test_plus2
     assert_equal(2, 1 + 1)
     assert_equal(4294967297, 1 + 2**32)
     assert_equal(2.0, 1 + 1.0)
@@ -237,12 +237,5 @@ class TestFixnum < Test::Unit::TestCase
     assert(1.send(:<=, 4294967296))
     assert(!(1.send(:<=, 0.0)))
     assert_raise(ArgumentError) { 1.send(:<=, nil) }
-  end
-
-  def test_id2name
-    assert_equal("foo", :foo.to_i.id2name)
-    assert_nil(0.id2name)
-    assert_equal(:foo, :foo.to_i.to_sym)
-    assert_nil(0.to_sym)
   end
 end

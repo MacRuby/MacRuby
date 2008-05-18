@@ -7,10 +7,14 @@
 #
 # You can redistribute and/or modify it under the same terms as Ruby.
 #
-# $Id: ipaddr.rb 13629 2007-10-04 19:03:56Z knu $
+# $Id: ipaddr.rb 15821 2008-03-21 12:15:06Z knu $
+#
+# Contact:
+#   - Akinori MUSHA <knu@iDaemons.org> (current maintainer)
 #
 # TODO:
 #   - scope_id support
+#
 require 'socket'
 
 unless Socket.const_defined? "AF_INET6"

@@ -68,6 +68,7 @@ class RDoc::Generator::HTML
   def initialize(options) #:not-new:
     @options = options
     load_html_template
+    @main_page_path = nil
   end
 
   ##
@@ -247,7 +248,7 @@ class RDoc::Generator::HTML
     @main_page = @options.main_page
     @main_page_ref = nil
     if @main_page
-      @main_page_ref = AllReferences[@main_page]
+      @main_page_ref = RDoc::Generator::AllReferences[@main_page]
       if @main_page_ref then
         @main_page_path = @main_page_ref.path
       else
@@ -256,7 +257,7 @@ class RDoc::Generator::HTML
     end
 
     unless @main_page_path then
-      file = @files.find { |file| file.document_self }
+      file = @files.find { |context| context.document_self }
       @main_page_path = file.path if file
     end
 

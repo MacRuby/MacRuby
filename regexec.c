@@ -186,6 +186,7 @@ onig_region_resize(OnigRegion* region, int n)
     region->allocated = n;
   }
   else if (region->allocated < n) {
+    region->allocated = 0;
     GC_WB(&region->beg, (int* )xrealloc(region->beg, n * sizeof(int)));
     GC_WB(&region->end, (int* )xrealloc(region->end, n * sizeof(int)));
 
@@ -240,7 +241,8 @@ onig_region_new(void)
   OnigRegion* r;
 
   r = (OnigRegion* )xmalloc(sizeof(OnigRegion));
-  onig_region_init(r);
+  if (r)
+    onig_region_init(r);
   return r;
 }
 
@@ -268,19 +270,7 @@ onig_region_copy(OnigRegion* to, OnigRegion* from)
 
   if (to == from) return;
 
-  if (to->allocated == 0) {
-    if (from->num_regs > 0) {
-      GC_WB(&to->beg, (int* )xmalloc(RREGC_SIZE));
-      GC_WB(&to->end, (int* )xmalloc(RREGC_SIZE));
-      to->allocated = from->num_regs;
-    }
-  }
-  else if (to->allocated < from->num_regs) {
-    GC_WB(to->beg, (int* )xrealloc(to->beg, RREGC_SIZE));
-    GC_WB(to->end, (int* )xrealloc(to->end, RREGC_SIZE));
-    to->allocated = from->num_regs;
-  }
-
+  onig_region_resize(to, from->num_regs);
   for (i = 0; i < from->num_regs; i++) {
     GC_WB(&to->beg[i], from->beg[i]);
     GC_WB(&to->end[i], from->end[i]);
@@ -352,8 +342,10 @@ onig_region_copy(OnigRegion* to, OnigRegion* from)
     unsigned int size = (unsigned int )(((str_len) + 1) * (state_num) + 7) >> 3;\
     offset = ((offset) * (state_num)) >> 3;\
     if (size > 0 && offset < size && size < STATE_CHECK_BUFF_MAX_SIZE) {\
-      if (size >= STATE_CHECK_BUFF_MALLOC_THRESHOLD_SIZE) \
+      if (size >= STATE_CHECK_BUFF_MALLOC_THRESHOLD_SIZE) {\
         (msa).state_check_buff = (void* )xmalloc(size);\
+        CHECK_NULL_RETURN_MEMERR((msa).state_check_buff);\
+      }\
       else \
         (msa).state_check_buff = (void* )xalloca(size);\
       xmemset(((char* )((msa).state_check_buff)+(offset)), 0, \
@@ -378,7 +370,6 @@ onig_region_copy(OnigRegion* to, OnigRegion* from)
   }\
 } while(0)
 #else
-#define STATE_CHECK_BUFF_INIT(msa, str_len, offset, state_num)
 #define MATCH_ARG_FREE(msa)  if ((msa).stack_p) xfree((msa).stack_p)
 #endif
 

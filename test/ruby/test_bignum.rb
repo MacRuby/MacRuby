@@ -163,7 +163,7 @@ class TestBignum < Test::Unit::TestCase
 
   def test_to_s2
     assert_raise(ArgumentError) { T31P.to_s(37) }
-    assert_equal(32768, (10**32768-1).to_s.size)
+    assert_equal("9" * 32768, (10**32768-1).to_s)
     assert_raise(RangeError) { Process.wait(1, T64P) }
     assert_equal("0", T_ZERO.to_s)
     assert_equal("1", T_ONE.to_s)
@@ -236,6 +236,11 @@ class TestBignum < Test::Unit::TestCase
   def test_div
     assert_equal(T32.to_f, T32 / 1.0)
     assert_raise(TypeError) { T32 / "foo" }
+    assert_equal(0x20000000, 0x40000001.div(2.0), "[ruby-dev:34553]")
+  end
+
+  def test_idiv
+    assert_equal(715827882, 1073741824.div(Rational(3,2)), ' [ruby-dev:34066]')
   end
 
   def test_modulo
@@ -258,17 +263,14 @@ class TestBignum < Test::Unit::TestCase
     assert_equal(T32.to_f, T32.quo(1.0))
     assert_equal(T32.to_f, T32.quo(T_ONE))
 
-    ### rational changes the behavior of Bignum#quo
-    #assert_raise(TypeError) { T32.quo("foo") }
-    assert_raise(TypeError, NoMethodError) { T32.quo("foo") }
+    assert_raise(TypeError) { T32.quo("foo") }
 
     assert_equal(1024**1024, (1024**1024).quo(1))
     assert_equal(1024**1024, (1024**1024).quo(1.0))
     assert_equal(1024**1024*2, (1024**1024*2).quo(1))
     inf = 1 / 0.0; nan = inf / inf
 
-    ### rational changes the behavior of Bignum#quo
-    #assert_raise(FloatDomainError) { (1024**1024*2).quo(nan) }
+    assert((1024**1024*2).quo(nan).nan?)
   end
 
   def test_pow
@@ -376,5 +378,13 @@ class TestBignum < Test::Unit::TestCase
 
   def test_interrupt
     assert(interrupt { (65536 ** 65536).to_s })
+  end
+
+  def test_too_big_to_s
+    if (big = 2**31-1).is_a?(Fixnum)
+      return
+    end
+    e = assert_raise(RangeError) {(1 << big).to_s}
+    assert_match(/too big to convert/, e.message)
   end
 end

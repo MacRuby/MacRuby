@@ -77,5 +77,59 @@ class TestSymbol < Test::Unit::TestCase
 
   def test_to_proc
     assert_equal %w(1 2 3), (1..3).map(&:to_s)
+    [
+      [],
+      [1],
+      [1, 2],
+      [1, [2, 3]],
+    ].each do |ary|
+      ary_id = ary.object_id
+      assert_equal ary_id, :object_id.to_proc.call(ary)
+      ary_ids = ary.collect{|x| x.object_id }
+      assert_equal ary_ids, ary.collect(&:object_id)
+    end
+  end
+
+  def test_call
+    o = Object.new
+    def o.foo(x, y); x + y; end
+
+    assert_equal(3, :foo.to_proc.call(o, 1, 2))
+    assert_raise(ArgumentError) { :foo.to_proc.call }
+  end
+
+  def test_succ
+    assert_equal(:fop, :foo.succ)
+  end
+
+  def test_cmp
+    assert_equal(0, :FoO <=> :FoO)
+    assert_equal(-1, :FoO <=> :fOO)
+    assert_equal(1, :fOO <=> :FoO)
+    assert_nil(:foo <=> "foo")
+  end
+
+  def test_casecmp
+    assert_equal(0, :FoO.casecmp(:fOO))
+    assert_equal(1, :FoO.casecmp(:BaR))
+    assert_equal(-1, :baR.casecmp(:FoO))
+    assert_nil(:foo.casecmp("foo"))
+  end
+
+  def test_length
+    assert_equal(3, :FoO.length)
+    assert_equal(3, :FoO.size)
+  end
+
+  def test_empty
+    assert_equal(false, :FoO.empty?)
+    assert_equal(true, :"".empty?)
+  end
+
+  def test_case
+    assert_equal(:FOO, :FoO.upcase)
+    assert_equal(:foo, :FoO.downcase)
+    assert_equal(:Foo, :foo.capitalize)
+    assert_equal(:fOo, :FoO.swapcase)
   end
 end

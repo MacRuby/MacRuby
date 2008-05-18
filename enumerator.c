@@ -2,13 +2,13 @@
 
   enumerator.c - provides Enumerator class
 
-  $Author: mame $
+  $Author: knu $
 
   Copyright (C) 2001-2003 Akinori MUSHA
 
   $Idaemons: /home/cvs/rb/enumerator/enumerator.c,v 1.1.1.1 2001/07/15 10:12:48 knu Exp $
   $RoughId: enumerator.c,v 1.6 2003/07/27 11:03:24 nobu Exp $
-  $Id: enumerator.c 15326 2008-01-29 13:30:15Z mame $
+  $Id: enumerator.c 16402 2008-05-13 06:10:56Z knu $
 
 ************************************************/
 
@@ -21,23 +21,14 @@
  * A class which provides a method `each' to be used as an Enumerable
  * object.
  */
-static VALUE rb_cEnumerator;
-static VALUE sym_each, sym_call;
+VALUE rb_cEnumerator;
+static VALUE sym_each;
 
 VALUE rb_eStopIteration;
 
-static VALUE
-proc_call(VALUE proc, VALUE args)
-{
-    if (TYPE(args) != T_ARRAY) {
-	args = rb_ary_new3(1, args);
-    }
-    return rb_proc_call(proc, args);
-}
-
 struct enumerator {
-    VALUE method;
-    VALUE proc;
+    VALUE obj;
+    ID    meth;
     VALUE args;
     rb_block_call_func *iter;
     VALUE fib;
@@ -49,8 +40,7 @@ static void
 enumerator_mark(void *p)
 {
     struct enumerator *ptr = p;
-    rb_gc_mark(ptr->method);
-    rb_gc_mark(ptr->proc);
+    rb_gc_mark(ptr->obj);
     rb_gc_mark(ptr->args);
     rb_gc_mark(ptr->fib);
     rb_gc_mark(ptr->dst);
@@ -73,13 +63,6 @@ enumerator_ptr(VALUE obj)
     return ptr;
 }
 
-static VALUE
-enumerator_iter_i(VALUE i, VALUE enum_obj, int argc, VALUE *argv)
-{
-    struct enumerator *e = (struct enumerator *)enum_obj;
-    return rb_yield(proc_call(e->proc, i));
-}
-
 /*
  *  call-seq:
  *    obj.to_enum(method = :each, *args)
@@ -88,6 +71,7 @@ enumerator_iter_i(VALUE i, VALUE enum_obj, int argc, VALUE *argv)
  *  Returns Enumerable::Enumerator.new(self, method, *args).
  *
  *  e.g.:
+ *
  *     str = "xyz"
  *
  *     enum = str.enum_for(:each_byte)
@@ -130,8 +114,10 @@ each_slice_i(VALUE val, VALUE *memo)
 /*
  *  call-seq:
  *    e.each_slice(n) {...}
+ *    e.each_slice(n)
  *
- *  Iterates the given block for each slice of <n> elements.
+ *  Iterates the given block for each slice of <n> elements.  If no
+ *  block is given, returns an enumerator.
  *
  *  e.g.:
  *      (1..10).each_slice(3) {|a| p a}
@@ -181,9 +167,10 @@ each_cons_i(VALUE val, VALUE *memo)
 /*
  *  call-seq:
  *    each_cons(n) {...}
+ *    each_cons(n)
  *
  *  Iterates the given block for each array of consecutive <n>
- *  elements.
+ *  elements.  If no block is given, returns an enumerator.a
  *
  *  e.g.:
  *      (1..10).each_cons(3) {|a| p a}
@@ -233,14 +220,9 @@ enumerator_init(VALUE enum_obj, VALUE obj, VALUE meth, int argc, VALUE *argv)
 {
     struct enumerator *ptr = enumerator_ptr(enum_obj);
 
-    ptr->method = rb_obj_method(obj, meth);
-    if (rb_block_given_p()) {
-	ptr->proc = rb_block_proc();
-	ptr->iter = enumerator_iter_i;
-    }
-    else {
-	ptr->iter = enumerator_each_i;
-    }
+    ptr->obj  = obj;
+    ptr->meth = rb_to_id(meth);
+    ptr->iter = enumerator_each_i;
     if (argc) GC_WB(&ptr->args, rb_ary_new4(argc, argv));
     ptr->fib = 0;
     ptr->dst = Qnil;
@@ -257,12 +239,8 @@ enumerator_init(VALUE enum_obj, VALUE obj, VALUE meth, int argc, VALUE *argv)
  *  used as an Enumerable object using the given object's given
  *  method with the given arguments.
  *
- *  e.g.:
- *      str = "xyz"
- *
- *      enum = Enumerable::Enumerator.new(str, :each_byte)
- *      a = enum.map {|b| '%02x' % b } #=> ["78", "79", "7a"]
- *
+ *  Use of this method is not discouraged.  Use Kernel#enum_for()
+ *  instead.
  */
 static VALUE
 enumerator_initialize(int argc, VALUE *argv, VALUE obj)
@@ -292,8 +270,8 @@ enumerator_init_copy(VALUE obj, VALUE orig)
     }
     ptr1 = enumerator_ptr(obj);
 
-    ptr1->method = ptr0->method;
-    ptr1->proc = ptr0->proc;
+    ptr1->obj  = ptr0->obj;
+    ptr1->meth = ptr0->meth;
     ptr1->iter = ptr0->iter;
     ptr1->args = ptr0->args;
     ptr1->fib  = 0;
@@ -312,7 +290,7 @@ rb_enumeratorize(VALUE obj, VALUE meth, int argc, VALUE *argv)
  *    enum.each {...}
  *
  *  Iterates the given block using the object and the method specified
- *  in the first place.
+ *  in the first place.  If no block is given, returns self.
  *
  */
 static VALUE
@@ -328,7 +306,7 @@ enumerator_each(VALUE obj)
 	argc = RARRAY_LEN(e->args);
 	argv = RARRAY_PTR(e->args);
     }
-    return rb_block_call(e->method, SYM2ID(sym_call), argc, argv, e->iter, (VALUE)e);
+    return rb_block_call(e->obj, e->meth, argc, argv, e->iter, (VALUE)e);
 }
 
 static VALUE
@@ -342,9 +320,10 @@ enumerator_with_index_i(VALUE val, VALUE *memo)
 /*
  *  call-seq:
  *    e.with_index {|(*args), idx| ... }
+ *    e.with_index
  *
  *  Iterates the given block for each elements with an index, which
- *  start from 0.
+ *  start from 0.  If no block is given, returns an enumerator.
  *
  */
 static VALUE
@@ -360,7 +339,7 @@ enumerator_with_index(VALUE obj)
 	argc = RARRAY_LEN(e->args);
 	argv = RARRAY_PTR(e->args);
     }
-    return rb_block_call(e->method, SYM2ID(sym_call), argc, argv,
+    return rb_block_call(e->obj, e->meth, argc, argv,
 			 enumerator_with_index_i, (VALUE)&memo);
 }
 
@@ -465,8 +444,7 @@ Init_Enumerator(void)
 
     rb_eStopIteration   = rb_define_class("StopIteration", rb_eIndexError);
 
-    sym_each		= ID2SYM(rb_intern("each"));
-    sym_call		= ID2SYM(rb_intern("call"));
+    sym_each	 	= ID2SYM(rb_intern("each"));
 
     rb_provide("enumerator.so");	/* for backward compatibility */
 }
