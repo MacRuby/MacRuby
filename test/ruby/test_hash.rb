@@ -1,5 +1,5 @@
 require 'test/unit'
-require 'continuation'
+#require 'continuation'
 
 class TestHash < Test::Unit::TestCase
 

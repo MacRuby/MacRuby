@@ -333,7 +333,7 @@ rb_struct_s_def(int argc, VALUE *argv, VALUE klass)
 	name = Qnil;
     }
     for (i=0; i<RARRAY_LEN(rest); i++) {
-	id = rb_to_id(RARRAY_PTR(rest)[i]);
+	id = rb_to_id(RARRAY_AT(rest, i));
 	rb_ary_store(rest, i, ID2SYM(id));
     }
     st = make_struct(name, rest, klass);

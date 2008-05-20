@@ -780,8 +780,8 @@ nucomp_expt(VALUE self, VALUE other)
 	    VALUE a, r, theta;
 
 	    a = f_polar(self);
-	    r = RARRAY_PTR(a)[0];
-	    theta = RARRAY_PTR(a)[1];
+	    r = RARRAY_AT(a, 0);
+	    theta = RARRAY_AT(a, 1);
 	    return nucomp_s_polar(CLASS_OF(self), f_expt(r, other),
 				  f_mul(theta, other));
 	}
@@ -792,8 +792,8 @@ nucomp_expt(VALUE self, VALUE other)
 	    get_dat1(other);
 
 	    a = f_polar(self);
-	    r = RARRAY_PTR(a)[0];
-	    theta = RARRAY_PTR(a)[1];
+	    r = RARRAY_AT(a, 0);
+	    theta = RARRAY_AT(a, 1);
 
 	    ore = dat->real;
 	    oim = dat->image;
@@ -1037,8 +1037,8 @@ static VALUE
 nucomp_marshal_load(VALUE self, VALUE a)
 {
     get_dat1(self);
-    dat->real = RARRAY_PTR(a)[0];
-    dat->image = RARRAY_PTR(a)[1];
+    dat->real = RARRAY_AT(a, 0);
+    dat->image = RARRAY_AT(a, 1);
     return self;
 }
 
@@ -1201,7 +1201,7 @@ string_to_c_internal(VALUE self)
 
     s = f_strip(self);
 
-    if (RSTRING_LEN(s) == 0)
+    if (RSTRING_CLEN(s) == 0)
 	return rb_assoc_new(Qnil, self);
 
     {
@@ -1248,12 +1248,12 @@ static VALUE
 string_to_c_strict(VALUE self)
 {
     VALUE a = string_to_c_internal(self);
-    if (NIL_P(RARRAY_PTR(a)[0]) || RSTRING_LEN(RARRAY_PTR(a)[1]) > 0) {
+    if (NIL_P(RARRAY_AT(a, 0)) || RSTRING_CLEN(RARRAY_AT(a, 1)) > 0) {
 	VALUE s = f_inspect(self);
 	rb_raise(rb_eArgError, "invalid value for Complex: %s",
 		 StringValuePtr(s));
     }
-    return RARRAY_PTR(a)[0];
+    return RARRAY_AT(a, 0);
 }
 
 #define id_gsub rb_intern("gsub")
@@ -1264,8 +1264,8 @@ string_to_c(VALUE self)
 {
     VALUE s = f_gsub(self, underscores_pat, an_underscore);
     VALUE a = string_to_c_internal(s);
-    if (!NIL_P(RARRAY_PTR(a)[0]))
-	return RARRAY_PTR(a)[0];
+    if (!NIL_P(RARRAY_AT(a, 0)))
+	return RARRAY_AT(a, 0);
     return rb_complex_new1(INT2FIX(0));
 }
 

@@ -1416,6 +1416,7 @@ rb_class_initialize(int argc, VALUE *argv, VALUE klass)
     RCLASS_SUPER(klass) = super;
 #if WITH_OBJC
     class_setSuperclass(RCLASS(klass)->ocklass, RCLASS(super)->ocklass);
+    rb_objc_install_primitives(RCLASS(klass)->ocklass, RCLASS(super)->ocklass);
 #endif
     rb_make_metaclass(klass, RBASIC(super)->klass);
     rb_class_inherited(super, klass);

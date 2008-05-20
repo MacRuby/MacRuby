@@ -507,21 +507,33 @@ rb_ary_insert(VALUE ary, long idx, VALUE val)
 void
 rb_ary_store(VALUE ary, long idx, VALUE val)
 {
+    long len = RARRAY_LEN(ary);
     if (idx < 0) {
-	idx += RARRAY_LEN(ary);
+	idx += len;
 	if (idx < 0) {
 	    rb_raise(rb_eIndexError, "index %ld out of array",
-		    idx - RARRAY_LEN(ary));
+		    idx - len);
 	}
     }
 
     rb_ary_modify(ary);
 
 #if WITH_OBJC
-    if (idx > RARRAY_LEN(ary)) {
+    if (idx > len) {
+	const void **objs;
 	long i;
-	for (i = 0; i < idx; i++)
-    	    CFArrayAppendValue((CFMutableArrayRef)ary, (const void *)Qnil);
+	if (idx > sizeof(CFIndex))
+	if ((idx - len) * (long)sizeof(VALUE) <= idx - len)
+	    rb_raise(rb_eArgError, "index too big");
+	objs = (const void **)alloca(sizeof(void *) * (idx - len));
+	if (objs == NULL)
+	    rb_raise(rb_eArgError, "index too big");
+	for (i = 0; i < (idx - len); i++)
+	    objs[i] = (const void *)Qnil;
+	CFArrayReplaceValues((CFMutableArrayRef)ary, 
+	    CFRangeMake(len, 0),
+	    objs,
+	    idx - len);
 	CFArrayAppendValue((CFMutableArrayRef)ary, (const void *)val);	
     }
     else {
@@ -1431,12 +1443,11 @@ rb_ary_insert_m(int argc, VALUE *argv, VALUE ary)
 VALUE
 rb_ary_each(VALUE ary)
 {
-    long i, n;
+    long i;
 
     RETURN_ENUMERATOR(ary, 0, 0);
-    for (i = 0, n = RARRAY_LEN(ary); i < n; i++) {
+    for (i = 0; i < RARRAY_LEN(ary); i++)
 	rb_yield(RARRAY_AT(ary, i));
-    }
     return ary;
 }
 
@@ -1488,9 +1499,10 @@ rb_ary_reverse_each(VALUE ary)
     long n, len;
 
     RETURN_ENUMERATOR(ary, 0, 0);
-    len = n = RARRAY_LEN(ary);
+    len = RARRAY_LEN(ary);
     while (len--) {
 	rb_yield(RARRAY_AT(ary, len));
+	n = RARRAY_LEN(ary);
 	if (n < len) {
 	    len = n;
 	}
@@ -1703,7 +1715,7 @@ static VALUE
 rb_ary_to_a(VALUE ary)
 {
 #if WITH_OBJC
-    if (rb_obj_is_kind_of(ary, rb_cArray) == Qfalse) {
+    if (!rb_objc_ary_is_pure(ary)) {
 #else
     if (rb_obj_class(ary) != rb_cArray) {
 #endif
@@ -3444,7 +3456,7 @@ rb_ary_shuffle_bang(VALUE ary)
     while (i) {
 	long j = rb_genrand_real()*i;
 #if WITH_OBJC
-	CFArrayExchangeValuesAtIndices((CFMutableArrayRef)ary, i, j);
+	CFArrayExchangeValuesAtIndices((CFMutableArrayRef)ary, --i, j);
 #else
 	VALUE tmp = RARRAY_AT(ary, --i);
 	RARRAY_PTR(ary)[i] = RARRAY_PTR(ary)[j];
@@ -3529,7 +3541,7 @@ rb_ary_cycle(int argc, VALUE *argv, VALUE ary)
 
     while (RARRAY_LEN(ary) > 0 && (n < 0 || 0 < n--)) {
         for (i=0; i<RARRAY_LEN(ary); i++) {
-            rb_yield(RARRAY_PTR(ary)[i]);
+            rb_yield(RARRAY_AT(ary, i));
         }
     }
     return Qnil;
@@ -3995,6 +4007,17 @@ imp_rb_array_addObject(void *rcv, SEL sel, void *obj)
     RESTORE_RCV(rcv);
 }
 
+static CFIndex
+imp_rb_array_cfindexOfObjectInRange(void *rcv, SEL sel, void *obj, 
+    CFRange range)
+{
+    CFIndex i;
+    PREPARE_RCV(rcv);
+    i = CFArrayGetFirstIndexOfValue((CFArrayRef)rcv, range, obj);
+    RESTORE_RCV(rcv);
+    return i;
+}
+
 void
 rb_objc_install_array_primitives(Class klass)
 {
@@ -4020,6 +4043,8 @@ rb_objc_install_array_primitives(Class klass)
      * method. 
      */
     if (true) {
+	INSTALL_METHOD("_cfindexOfObject:range:",
+		imp_rb_array_cfindexOfObjectInRange);
 	Method m = class_getInstanceMethod(klass, 
 	    sel_registerName("_cfindexOfObject:range:"));
 	class_addMethod(klass, sel_registerName("_cfindexOfObject:inRange:"), 

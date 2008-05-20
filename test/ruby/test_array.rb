@@ -539,10 +539,10 @@ class TestArray < Test::Unit::TestCase
 
   def test_count
     a = @cls[1, 2, 3, 1, 2]
-    assert_equal(2, a.count(1))
-    assert_equal(3, a.count {|x| x % 2 == 1 })
-    assert_equal(2, a.count(1) {|x| x % 2 == 1 })
-    assert_raise(ArgumentError) { a.count(0, 1) }
+    assert_equal(2, a._count(1))
+    assert_equal(3, a._count {|x| x % 2 == 1 })
+    assert_equal(2, a._count(1) {|x| x % 2 == 1 })
+    assert_raise(ArgumentError) { a._count(0, 1) }
   end
 
   def test_delete
@@ -1368,11 +1368,13 @@ class TestArray < Test::Unit::TestCase
     assert_equal([2, 1, 0], a.rindex.to_a)
     assert_equal(1, a.rindex {|x| x == 1 })
 
+=begin
     a = [0, 1]
     e = a.rindex
     assert_equal(1, e.next)
     a.clear
     assert_raise(StopIteration) { e.next }
+=end
 
     o = Object.new
     class << o; self; end.class_eval do
@@ -1413,7 +1415,7 @@ class TestArray < Test::Unit::TestCase
     klass = Class.new(Array)
     a = klass.new.to_a
     assert_equal([], a)
-    assert_equal(Array, a.class)
+    assert_equal(NSCFArray, a.class)
   end
 
   def test_values_at2
@@ -1526,6 +1528,17 @@ class TestArray < Test::Unit::TestCase
       a.pop
     end
     assert_equal([5, 3, 1], r)
+  end
+
+  def test_each2
+    a = [0, 1, 2, 3, 4, 5]
+    r = []
+    a.each do |x|
+      r << x
+      a.pop
+      a.pop
+    end
+    assert_equal([0, 1], r)
   end
 
   def test_combination2

@@ -5648,7 +5648,7 @@ select_internal(VALUE read, VALUE write, VALUE except, struct timeval *tp, rb_fd
     if (!NIL_P(read)) {
 	Check_Type(read, T_ARRAY);
 	for (i=0; i<RARRAY_LEN(read); i++) {
-	    GetOpenFile(rb_io_get_io(RARRAY_PTR(read)[i]), fptr);
+	    GetOpenFile(rb_io_get_io(RARRAY_AT(read, i)), fptr);
 	    rb_fd_set(fptr->fd, &fds[0]);
 	    if (READ_DATA_PENDING(fptr)) { /* check for buffered data */
 		pending++;
@@ -5668,7 +5668,7 @@ select_internal(VALUE read, VALUE write, VALUE except, struct timeval *tp, rb_fd
     if (!NIL_P(write)) {
 	Check_Type(write, T_ARRAY);
 	for (i=0; i<RARRAY_LEN(write); i++) {
-            VALUE write_io = GetWriteIO(rb_io_get_io(RARRAY_PTR(write)[i]));
+            VALUE write_io = GetWriteIO(rb_io_get_io(RARRAY_AT(write, i)));
 	    GetOpenFile(write_io, fptr);
 	    rb_fd_set(fptr->fd, &fds[1]);
 	    if (max < fptr->fd) max = fptr->fd;
@@ -5681,7 +5681,7 @@ select_internal(VALUE read, VALUE write, VALUE except, struct timeval *tp, rb_fd
     if (!NIL_P(except)) {
 	Check_Type(except, T_ARRAY);
 	for (i=0; i<RARRAY_LEN(except); i++) {
-            VALUE io = rb_io_get_io(RARRAY_PTR(except)[i]);
+            VALUE io = rb_io_get_io(RARRAY_AT(except, i));
             VALUE write_io = GetWriteIO(io);
 	    GetOpenFile(io, fptr);
 	    rb_fd_set(fptr->fd, &fds[2]);
@@ -5713,7 +5713,7 @@ select_internal(VALUE read, VALUE write, VALUE except, struct timeval *tp, rb_fd
 
     if (interrupt_flag == 0) {
 	if (rp) {
-	    list = RARRAY_PTR(res)[0];
+	    list = RARRAY_AT(res, 0);
 	    for (i=0; i< RARRAY_LEN(read); i++) {
                 VALUE obj = rb_ary_entry(read, i);
                 VALUE io = rb_io_get_io(obj);
@@ -5726,7 +5726,7 @@ select_internal(VALUE read, VALUE write, VALUE except, struct timeval *tp, rb_fd
 	}
 
 	if (wp) {
-	    list = RARRAY_PTR(res)[1];
+	    list = RARRAY_AT(res, 1);
 	    for (i=0; i< RARRAY_LEN(write); i++) {
                 VALUE obj = rb_ary_entry(write, i);
                 VALUE io = rb_io_get_io(obj);
@@ -5739,7 +5739,7 @@ select_internal(VALUE read, VALUE write, VALUE except, struct timeval *tp, rb_fd
 	}
 
 	if (ep) {
-	    list = RARRAY_PTR(res)[2];
+	    list = RARRAY_AT(res, 2);
 	    for (i=0; i< RARRAY_LEN(except); i++) {
                 VALUE obj = rb_ary_entry(except, i);
                 VALUE io = rb_io_get_io(obj);

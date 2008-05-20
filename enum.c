@@ -1782,10 +1782,12 @@ Init_Enumerable(void)
     rb_define_method(rb_mEnumerable,"sort", enum_sort, 0);
     rb_define_method(rb_mEnumerable,"sort_by", enum_sort_by, 0);
     rb_define_method(rb_mEnumerable,"grep", enum_grep, 1);
-#if !WITH_OBJC
+#if WITH_OBJC
     /* FIXME we cannot define count because it overlaps with
      * NSArray#count, NSDictionary#count, etc... 
      */
+    rb_define_method(rb_mEnumerable,"_count", enum_count, -1);
+#else
     rb_define_method(rb_mEnumerable,"count", enum_count, -1);
 #endif
     rb_define_method(rb_mEnumerable,"find", enum_find, -1);

@@ -697,7 +697,12 @@ rb_objc_rval_to_ocval(VALUE rval, const char *octype, void **ocval)
 	    break;
 
 	case _C_CHR:
-	    *(char *)ocval = (char) NUM2INT(rb_Integer(rval));
+	    if (TYPE(rval) == T_STRING && RSTRING_CLEN(rval) == 1) {
+		*(char *)ocval = RSTRING_CPTR(rval)[0];
+	    }
+	    else {
+		*(char *)ocval = (char) NUM2INT(rb_Integer(rval));
+	    }
 	    break;
 
 	case _C_SHT:
@@ -2578,8 +2583,8 @@ rb_objc_remove_keys(const void *obj)
 }
 
 static void
-rb_objc_get_types_for_format_str(char **octypes, const int len, 
-				 const char *format_str)
+rb_objc_get_types_for_format_str(char **octypes, const int len, VALUE *args,
+				 const char *format_str, char **new_fmt)
 {
     unsigned i, j, format_str_len;
 
@@ -2587,6 +2592,7 @@ rb_objc_get_types_for_format_str(char **octypes, const int len,
     i = j = 0;
 
     while (i < format_str_len) {
+	bool sharp_modifier = false;
 	if (format_str[i++] != '%')
 	    continue;
 	if (i < format_str_len && format_str[i] == '%') {
@@ -2595,16 +2601,23 @@ rb_objc_get_types_for_format_str(char **octypes, const int len,
 	}
 	while (i < format_str_len) {
 	    char *type = NULL;
-	    switch (format_str[i++]) {
+	    switch (format_str[i]) {
+		case '#':
+		    sharp_modifier = true;
+		    break;
+
 		case 'd':
 		case 'i':
 		case 'o':
 		case 'u':
 		case 'x':
 		case 'X':
+		    type = "i"; // _C_INT;
+		    break;
+
 		case 'c':
 		case 'C':
-		    type = "i"; // _C_INT;
+		    type = "c"; // _C_CHR;
 		    break;
 
 		case 'D':
@@ -2626,7 +2639,16 @@ rb_objc_get_types_for_format_str(char **octypes, const int len,
 
 		case 's':
 		case 'S':
-		    type = "*"; // _C_CHARPTR;
+		    {
+			if (i - 1 > 0) {
+			    long k = i - 1;
+			    while (k > 0 && format_str[k] == '0')
+				k--;
+			    if (k < i && format_str[k] == '.')
+				args[j] = (VALUE)CFSTR("");
+			}
+			type = "*"; // _C_CHARPTR;
+		    }
 		    break;
 
 		case 'p':
@@ -2636,7 +2658,35 @@ rb_objc_get_types_for_format_str(char **octypes, const int len,
 		case '@':
 		    type = "@"; // _C_ID;
 		    break;
+
+		case 'B':
+		case 'b':
+		    {
+			VALUE arg = args[j];
+			switch (TYPE(arg)) {
+			    case T_STRING:
+				arg = rb_str_to_inum(arg, 0, Qtrue);
+				break;
+			}
+			arg = rb_big2str(arg, 2);
+			if (sharp_modifier) {
+			    VALUE prefix = format_str[i] == 'B'
+				? (VALUE)CFSTR("0B") : (VALUE)CFSTR("0b");
+			   rb_str_update(arg, 0, 0, prefix);
+			}
+			if (*new_fmt == NULL) {
+			    *new_fmt = (char *)malloc(sizeof(char) * 
+						      format_str_len);
+			    strncpy(*new_fmt, format_str, format_str_len);
+			}
+			(*new_fmt)[i] = '@';
+			args[j] = arg;
+			type = "@"; 
+		    }
+		    break;
 	    }
+
+	    i++;
 
 	    if (type != NULL) {
 		if (len == 0 || j >= len)
@@ -2671,16 +2721,17 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 
     null = NULL;
 
-    ffi_argtypes[0] = &ffi_type_pointer;
-    ffi_args[0] = &null;
-    ffi_argtypes[1] = &ffi_type_pointer;
-    ffi_args[1] = &null;
-    ffi_argtypes[2] = &ffi_type_pointer;
-    ffi_args[2] = &fmt;
-   
     if (argc > 0) {
-	rb_objc_get_types_for_format_str(types, argc, RSTRING_CPTR(fmt));
-  
+	char *new_fmt = NULL;
+
+	rb_objc_get_types_for_format_str(types, argc, (VALUE *)argv, 
+	    RSTRING_CPTR(fmt), &new_fmt);
+	if (new_fmt != NULL) {
+	    fmt = (VALUE)CFStringCreateWithCString(NULL, new_fmt, 
+		kCFStringEncodingUTF8);
+	    free(new_fmt);
+	}  
+
 	for (i = 0; i < argc; i++) {
 	    ffi_argtypes[i + 3] = rb_objc_octype_to_ffitype(types[i]);
 	    ffi_args[i + 3] = (void *)alloca(ffi_argtypes[i + 3]->size);
@@ -2688,6 +2739,13 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 	}
     }
 
+    ffi_argtypes[0] = &ffi_type_pointer;
+    ffi_args[0] = &null;
+    ffi_argtypes[1] = &ffi_type_pointer;
+    ffi_args[1] = &null;
+    ffi_argtypes[2] = &ffi_type_pointer;
+    ffi_args[2] = &fmt;
+   
     ffi_argtypes[argc + 4] = NULL;
     ffi_args[argc + 4] = NULL;
 

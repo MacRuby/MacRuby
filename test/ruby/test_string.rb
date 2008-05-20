@@ -1560,7 +1560,7 @@ class TestString < Test::Unit::TestCase
     s = c.new
     s.replace("foo")
     assert_equal("foo", s.to_s)
-    assert_instance_of(String, s.to_s)
+    assert_instance_of(NSCFString, s.to_s)
   end
 
   def test_partition

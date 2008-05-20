@@ -105,7 +105,7 @@ void rb_objc_install_array_primitives(Class);
 void rb_objc_install_hash_primitives(Class);
 void rb_objc_install_string_primitives(Class);
 
-static bool
+bool
 rb_objc_install_primitives(Class ocklass, Class ocsuper)
 {
     if (rb_cArray != 0 && rb_cHash != 0 && rb_cString != 0) {

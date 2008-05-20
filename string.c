@@ -123,30 +123,34 @@ rb_str_cfdata(VALUE str)
 {
     void *cfdata;
 
+    assert(str != 0);
+
     cfdata = rb_str_cfdata2(str);
     if (cfdata == NULL) {
-	CFDataRef data;
 	CFMutableDataRef mdata;
 	long len;
-	data = CFStringCreateExternalRepresentation(NULL,
-	    (CFStringRef)str, kCFStringEncodingUTF8, 0);
-	if (data == NULL)
-	    return NULL;
-	mdata = CFDataCreateMutableCopy(NULL, 0, data);
-	//assert(mdata != NULL);
-	//assert(CFEqual(data, mdata));
-	//assert(CFDataGetLength(data) == CFStringGetLength((CFStringRef)str));
-	len = CFDataGetLength(data);
-	/* This is a hack to make sure a sentinel byte is created at the end 
-	 * of the buffer. 
-	 */
-	CFDataSetLength(mdata, len + 1); 
-	CFDataSetLength(mdata, len);
-	//assert(strcmp(CFDataGetBytePtr(mdata), CFStringGetCStringPtr((CFStringRef)str, 0))==0);
+
+	if (CFStringGetLength((CFStringRef)str) == 0) {
+	    mdata = CFDataCreateMutable(NULL, 0);
+	}
+	else {
+	    CFDataRef data;
+	    data = CFStringCreateExternalRepresentation(NULL,
+		    (CFStringRef)str, kCFStringEncodingUTF8, 0);
+	    if (data == NULL)
+		return NULL;
+	    mdata = CFDataCreateMutableCopy(NULL, 0, data);
+	    len = CFDataGetLength(data);
+	    /* This is a hack to make sure a sentinel byte is created at the 
+	     * end of the buffer. 
+	     */
+	    CFDataSetLength(mdata, len + 1); 
+	    CFDataSetLength(mdata, len);
+	    CFRelease((CFTypeRef)data);
+	}
 	cfdata = (void *)mdata;
 	rb_str_cfdata_set(str, cfdata);
-	CFRelease((CFTypeRef)data);
-	CFMakeCollectable(cfdata);
+	CFMakeCollectable(mdata);
     }
     return cfdata;    
 }
@@ -500,27 +504,15 @@ str_alloc(VALUE klass)
 static void
 rb_objc_str_set_bytestring(VALUE str, const char *dataptr, long datalen)
 {
+    CFMutableDataRef data;
+
     assert(dataptr != NULL);
     assert(datalen > 0);
 
-    CFStringRef substr = CFStringCreateWithBytes(
-	NULL, 
-	(const UInt8 *)dataptr,
-	datalen, 
-	kCFStringEncodingUTF8,
-	false);
-    if (substr != NULL) {
-	CFStringReplaceAll((CFMutableStringRef)str, substr);
-	CFRelease(substr);
-    }
-    else {
-	CFMutableDataRef data;
-
-	data = CFDataCreateMutable(NULL, 0);
-	CFDataAppendBytes(data, (const UInt8 *)dataptr, datalen);
-	rb_str_cfdata_set(str, data);
-	CFMakeCollectable(data);
-    }
+    data = CFDataCreateMutable(NULL, 0);
+    CFDataAppendBytes(data, (const UInt8 *)dataptr, datalen);
+    rb_str_cfdata_set(str, data);
+    CFMakeCollectable(data);
 }
 #endif
 
@@ -544,13 +536,32 @@ str_new(VALUE klass, const char *ptr, long len)
 	else {
 	    long slen;
 	    slen = strlen(ptr);
+
 	    if (slen == len) {
 		CFStringAppendCString((CFMutableStringRef)str, ptr, 
 			kCFStringEncodingUTF8);
 		need_padding = false;
+		if (CFStringGetLength((CFStringRef)str) != len)
+		    rb_objc_str_set_bytestring(str, ptr, len);
 	    }
 	    else {
-		rb_objc_str_set_bytestring(str, ptr, len);
+		if (len < slen) {
+		    CFStringRef substr;
+
+		    substr = CFStringCreateWithBytes(NULL, (const UInt8 *)ptr, 
+			len, kCFStringEncodingUTF8, false);
+
+		    if (substr != NULL) {
+			CFStringAppend((CFMutableStringRef)str, substr);
+			CFRelease(substr);		
+		    }
+		    else {
+			rb_objc_str_set_bytestring(str, ptr, len);
+		    }
+		}
+		else {
+		    rb_objc_str_set_bytestring(str, ptr, len);
+		}
 	    }
 	}
     }
@@ -885,6 +896,13 @@ rb_str_dup(VALUE str)
 {
     VALUE dup = str_alloc(rb_obj_class(str));
     rb_str_replace(dup, str);
+#if WITH_OBJC
+    {
+	void *data = rb_str_cfdata2(str);
+	if (data != NULL)
+	    rb_str_cfdata_set(dup, data);
+    }
+#endif
     return dup;
 }
 
@@ -1266,11 +1284,9 @@ rb_str_modify(VALUE str)
 void
 rb_str_associate(VALUE str, VALUE add)
 {
-#if WITH_OBJC
-    rb_str_replace(str, add);
-#else
     /* sanity check */
     if (OBJ_FROZEN(str)) rb_error_frozen("string");
+#if !WITH_OBJC
     if (STR_ASSOC_P(str)) {
 	/* already associated */
 	rb_ary_concat(RSTRING(str)->as.heap.aux.shared, add);
@@ -2429,7 +2445,7 @@ rb_str_equal(VALUE str1, VALUE str2)
     if (len != RSTRING_CLEN(str2))
 	return Qfalse;
     if (rb_str_cfdata2(str1) != NULL || rb_str_cfdata2(str2) != NULL)
-	return memcmp(RSTRING_CPTR(str1), RSTRING_CPTR(str2), len) == 0;
+	return memcmp(RSTRING_CPTR(str1), RSTRING_CPTR(str2), len) == 0 ? Qtrue : Qfalse;
     if (!rb_objc_str_is_pure(str2)) {
 	/* This is to work around a strange bug in CFEqual's objc 
 	 * dispatching.
@@ -4114,6 +4130,14 @@ rb_str_replace(VALUE str, VALUE str2)
     if (str == str2) return str;
 #if WITH_OBJC
     rb_str_modify(str);
+    CFDataRef data = (CFDataRef)rb_str_cfdata2(str2);
+    if (data != NULL) {
+	CFMutableDataRef mdata;
+       
+	mdata = CFDataCreateMutableCopy(NULL, 0, data);
+	rb_str_cfdata_set(str, mdata);
+	CFMakeCollectable(mdata);
+    }
     CFStringReplaceAll((CFMutableStringRef)str, (CFStringRef)str2);
     if (OBJ_TAINTED(str2))
 	OBJ_TAINT(str);
@@ -4440,7 +4464,7 @@ static VALUE
 rb_str_to_s(VALUE str)
 {
 #if WITH_OBJC
-    if (rb_obj_is_kind_of(str, rb_cString) == Qfalse) {
+    if (!rb_objc_str_is_pure(str)) {
 #else
     if (rb_obj_class(str) != rb_cString) {
 #endif
@@ -6818,29 +6842,45 @@ rb_str_chomp_bang(int argc, VALUE *argv, VALUE str)
 {
 #if WITH_OBJC
     VALUE rs;
-    long n;
+    long len, rslen;
     CFRange range_result;
 
     if (rb_scan_args(argc, argv, "01", &rs) == 0)
 	rs = rb_rs;
     rb_str_modify(str);
-    n = CFStringGetLength((CFStringRef)str);
-    if (NIL_P(rs)) {
-	CFCharacterSetRef charset;
-
-        charset = CFCharacterSetGetPredefined(kCFCharacterSetNewline);
-	if (!CFStringFindCharacterFromSet((CFStringRef)str, charset, 
-	    CFRangeMake(0, n), kCFCompareBackwards | kCFCompareAnchored, 
-	    &range_result))
-	    return Qnil;
+    if (rs == Qnil)
+	return Qnil;
+    len = CFStringGetLength((CFStringRef)str);
+    if (len == 0)
+	return Qnil;
+    rslen = CFStringGetLength((CFStringRef)rs);
+    range_result = CFRangeMake(len, 0);
+    if (rs == rb_default_rs
+	|| rslen == 0
+	|| (rslen == 1 
+	    && CFStringGetCharacterAtIndex((CFStringRef)rs, 0) == '\n')) {
+	UniChar c;
+	c = CFStringGetCharacterAtIndex((CFStringRef)str, 
+		range_result.location - 1);
+	if (c == '\n') {
+	    range_result.location--;
+	    range_result.length++;
+	    c = CFStringGetCharacterAtIndex((CFStringRef)str, 
+		    range_result.location - 1);
+	}
+	if (c == '\r' && (rslen > 0 || range_result.location != len)) {
+	    /* MS is the devil */
+	    range_result.location--;
+	    range_result.length++;
+	}
     }
     else {
 	StringValue(rs);
-	range_result = CFStringFind((CFStringRef)str, (CFStringRef)rs,
-	    kCFCompareBackwards);
+	CFStringFindWithOptions((CFStringRef)str, (CFStringRef)rs,
+	    CFRangeMake(len - rslen, rslen), 0, &range_result);
     }
     if (range_result.length == 0 
-	|| range_result.location + range_result.length < n)
+	|| range_result.location + range_result.length > len)
 	return Qnil;
     CFStringDelete((CFMutableStringRef)str, range_result);
     return str;
@@ -7797,7 +7837,7 @@ rb_str_rpartition(VALUE str, VALUE sep)
 {
     long pos = RSTRING_LEN(str);
     int regex = Qfalse;
-    long strlen;
+    long seplen;
 
     if (TYPE(sep) == T_REGEXP) {
 	pos = rb_reg_search(sep, str, pos, 1);
@@ -7819,11 +7859,13 @@ rb_str_rpartition(VALUE str, VALUE sep)
     }
     if (regex) {
 	sep = rb_reg_nth_match(0, rb_backref_get());
+	if (sep == Qnil)
+	    return rb_ary_new3(3, rb_str_new(0,0),rb_str_new(0,0), str);
     }
-    strlen = CFStringGetLength((CFStringRef)str);
+    seplen = RSTRING_CLEN(sep);
     return rb_ary_new3(3, rb_str_substr(str, 0, pos),
 		          sep,
-		          rb_str_substr(str,pos+str_strlen(sep,STR_ENC_GET(sep)),strlen));
+		          rb_str_substr(str, pos + seplen, seplen));
 }
 
 /*

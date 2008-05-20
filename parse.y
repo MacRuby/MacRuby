@@ -4996,10 +4996,12 @@ parser_str_new(const char *p, long n, rb_encoding *enc, int func, rb_encoding *e
     VALUE str;
 
 #if WITH_OBJC
-    /* Let's not create unnecessary bytestrings. */
-    long slen = strlen(p);
-    if (slen < n)
-	n = slen;
+    if (p[n] != '\0') {
+	/* Let's not create unnecessary bytestrings. */
+	long slen = strlen(p);
+	if (slen < n)
+	    n = slen;
+    }
 #endif
 
     str = rb_enc_str_new(p, n, enc);

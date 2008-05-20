@@ -1190,8 +1190,8 @@ static VALUE
 nurat_marshal_load(VALUE self, VALUE a)
 {
     get_dat1(self);
-    dat->num = RARRAY_PTR(a)[0];
-    dat->den = RARRAY_PTR(a)[1];
+    dat->num = RARRAY_AT(a, 0);
+    dat->den = RARRAY_AT(a, 1);
 
     if (f_zero_p(dat->den))
 	rb_raise(rb_eZeroDivError, "devided by zero");
@@ -1273,8 +1273,8 @@ static VALUE
 float_to_r(VALUE self)
 {
     VALUE a = float_decode(self);
-    return f_mul(RARRAY_PTR(a)[0],
-		 f_expt(INT2FIX(FLT_RADIX), RARRAY_PTR(a)[1]));
+    return f_mul(RARRAY_AT(a, 0),
+		 f_expt(INT2FIX(FLT_RADIX), RARRAY_AT(a, 1)));
 }
 
 static VALUE rat_pat, an_e_pat, a_dot_pat, underscores_pat, an_underscore;
@@ -1333,7 +1333,7 @@ string_to_r_internal(VALUE self)
 
     s = f_strip(self);
 
-    if (RSTRING_LEN(s) == 0)
+    if (RSTRING_CLEN(s) == 0)
 	return rb_assoc_new(Qnil, self);
 
     m = f_match(rat_pat, s);
@@ -1349,18 +1349,18 @@ string_to_r_internal(VALUE self)
 	    VALUE a;
 
 	    a = f_split(nu, an_e_pat);
-	    ifp = RARRAY_PTR(a)[0];
+	    ifp = RARRAY_AT(a, 0);
 	    if (RARRAY_LEN(a) != 2)
 		exp = Qnil;
 	    else
-		exp = RARRAY_PTR(a)[1];
+		exp = RARRAY_AT(a, 1);
 
 	    a = f_split(ifp, a_dot_pat);
-	    ip = RARRAY_PTR(a)[0];
+	    ip = RARRAY_AT(a, 0);
 	    if (RARRAY_LEN(a) != 2)
 		fp = Qnil;
 	    else
-		fp = RARRAY_PTR(a)[1];
+		fp = RARRAY_AT(a, 1);
 	}
 
 	v = rb_rational_new1(f_to_i(ip));
@@ -1397,12 +1397,12 @@ static VALUE
 string_to_r_strict(VALUE self)
 {
     VALUE a = string_to_r_internal(self);
-    if (NIL_P(RARRAY_PTR(a)[0]) || RSTRING_LEN(RARRAY_PTR(a)[1]) > 0) {
+    if (NIL_P(RARRAY_AT(a, 0)) || RSTRING_CLEN(RARRAY_AT(a, 1)) > 0) {
 	VALUE s = f_inspect(self);
 	rb_raise(rb_eArgError, "invalid value for Rational: %s",
 		 StringValuePtr(s));
     }
-    return RARRAY_PTR(a)[0];
+    return RARRAY_AT(a, 0);
 }
 
 #define id_gsub rb_intern("gsub")
@@ -1413,8 +1413,8 @@ string_to_r(VALUE self)
 {
     VALUE s = f_gsub(self, underscores_pat, an_underscore);
     VALUE a = string_to_r_internal(s);
-    if (!NIL_P(RARRAY_PTR(a)[0]))
-	return RARRAY_PTR(a)[0];
+    if (!NIL_P(RARRAY_AT(a, 0)))
+	return RARRAY_AT(a, 0);
     return rb_rational_new1(INT2FIX(0));
 }
 
