@@ -194,13 +194,7 @@ rb_str_bytesync(VALUE str)
 	if (bytestr != NULL) {
 	    CFStringReplaceAll((CFMutableStringRef)str, (CFStringRef)bytestr);
 	    CFRelease(bytestr);
-	    strptr = CFStringGetCStringPtr((CFStringRef)str, 0);
-	    if (strptr != NULL
-		&& ((const char *)dataptr == strptr
-		    || dataptr == NULL
-		    || memcmp((const char *)dataptr, strptr, datalen) == 0)) {
-		rb_str_cfdata_set(str, NULL);
-	    }
+	    rb_str_cfdata_set(str, NULL);
 	}
     }
 }
@@ -545,7 +539,7 @@ str_new(VALUE klass, const char *ptr, long len)
 		    rb_objc_str_set_bytestring(str, ptr, len);
 	    }
 	    else {
-		if (len < slen) {
+		if (slen == 0 || len < slen) {
 		    CFStringRef substr;
 
 		    substr = CFStringCreateWithBytes(NULL, (const UInt8 *)ptr, 
@@ -1552,25 +1546,59 @@ VALUE
 rb_str_subseq(VALUE str, long beg, long len)
 {
 #if WITH_OBJC
-    long n = CFStringGetLength((CFStringRef)str);
+    CFDataRef data;
     CFMutableStringRef substr;
+    long n;
+
+#if 1
+    data = NULL;
+    n = CFStringGetLength((CFStringRef)str);
+#else
+    /* the world is not prepared for this yet */
+    data = (CFDataRef)rb_str_cfdata2(str);
+    if (data != NULL) {
+	n = CFDataGetLength(data);
+    }
+    else {
+        n = CFStringGetLength((CFStringRef)str);
+    }
+#endif
+
     if (beg < 0)
 	beg += n;
     if (beg > n || beg < 0)
 	return Qnil;
     if (beg + len > n)
 	return (VALUE)CFSTR("");
+
     substr = CFStringCreateMutable(NULL, 0);
-    if (len == 1) {
-	UniChar c = CFStringGetCharacterAtIndex((CFStringRef)str, beg);
-	CFStringAppendCharacters(substr, &c, 1);
+
+    if (data != NULL) {
+	const UInt8 *bytes;
+	CFMutableDataRef subdata;
+
+	bytes = CFDataGetBytePtr(data);
+	subdata = CFDataCreateMutable(NULL, 0);
+	CFDataAppendBytes(subdata, bytes + beg, len);
+	rb_str_cfdata_set((VALUE)substr, subdata);
+	CFMakeCollectable(subdata);
+	rb_gc_malloc_increase(sizeof(UInt8) * len);
+
+	RSTRING_SYNC(substr);
     }
     else {
-	UniChar *buffer = alloca(sizeof(UniChar) * len);
-	CFStringGetCharacters((CFStringRef)str, CFRangeMake(beg, len), buffer);
-	CFStringAppendCharacters(substr, buffer, len);
+	if (len == 1) {
+	    UniChar c = CFStringGetCharacterAtIndex((CFStringRef)str, beg);
+	    CFStringAppendCharacters(substr, &c, 1);
+	}
+	else {
+	    UniChar *buffer = alloca(sizeof(UniChar) * len);
+	    CFStringGetCharacters((CFStringRef)str, CFRangeMake(beg, len), 
+		buffer);
+	    CFStringAppendCharacters(substr, buffer, len);
+	}
+	rb_gc_malloc_increase(sizeof(UniChar) * len);
     }
-    rb_gc_malloc_increase(sizeof(UniChar) * len);
     CFMakeCollectable(substr);
     return (VALUE)substr;
 #else
@@ -6211,8 +6239,8 @@ rb_str_split_m(int argc, VALUE *argv, VALUE str)
     else {
       fs_set:
 	if (TYPE(spat) == T_STRING) {
-	    spat_string = Qtrue;
 #if WITH_OBJC
+	    spat_string = Qtrue;
 	    if (RSTRING_CLEN(spat) == 1
 		&& CFStringGetCharacterAtIndex((CFStringRef)spat, 0) == ' ') {
 		awk_split = Qtrue;
@@ -6384,10 +6412,12 @@ rb_str_split_m(int argc, VALUE *argv, VALUE str)
 	}
     }
     if (clen > 0 && (!NIL_P(limit) || clen > beg || lim < 0)) {
-	if (clen == beg)
+	if (clen == beg) {
 	    tmp = rb_str_new5(str, 0, 0);
-	else
+	}
+	else {
 	    tmp = rb_str_subseq(str, beg, clen-beg);
+	}
 	rb_ary_push(result, tmp);
     }
     if (NIL_P(limit) && lim == 0) {
@@ -7952,7 +7982,24 @@ rb_str_force_encoding(VALUE str, VALUE enc)
 {
     str_modifiable(str);
 #if WITH_OBJC
-    /* TODO */
+# if 0
+    CFDataRef data = rb_str_cfdata2(str);
+    if (data != NULL) {
+	CFStringRef substr;
+	CFStringEncoding *cfenc;
+
+	cfenc = rb_to_encoding(enc);
+	assert(cfenc != NULL);
+
+	substr = CFStringCreateFromExternalRepresentation(NULL, data, *cfenc);
+
+	if (substr) {
+	    CFStringReplaceAll((CFMutableStringRef)str, substr);
+	    CFRelease(substr);
+	    rb_str_cfdata_set(str, NULL);
+	}
+    }
+# endif
 #else
     rb_enc_associate(str, rb_to_encoding(enc));
 #endif

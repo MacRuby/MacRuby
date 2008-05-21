@@ -1134,7 +1134,10 @@ class TestArray < Test::Unit::TestCase
   end
 
   def test_sort_with_callcc
-    respond_to?(:callcc) or require 'continuation'
+    begin
+      respond_to?(:callcc) or require 'continuation'
+    rescue LoadError; return
+    end
     n = 1000
     cont = nil
     ary = (1..100).to_a
@@ -1291,7 +1294,7 @@ class TestArray < Test::Unit::TestCase
     assert_raise(SecurityError) do
       Thread.new do
         $SAFE = 4
-       a.shift
+        a.shift
       end.value
     end
   end

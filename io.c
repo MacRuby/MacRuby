@@ -1313,7 +1313,6 @@ io_fread(VALUE str, long offset, rb_io_t *fptr)
 	    break;
 	}
     }
-    RSTRING_SYNC(str);
     return len - n;
 }
 
@@ -1330,6 +1329,7 @@ rb_io_fread(char *ptr, long len, FILE *f)
     str = rb_str_new(ptr, len);
     n = io_fread(str, 0, &of);
     MEMCPY(ptr, RSTRING_PTR(str), char, n);
+    RSTRING_SYNC(str);
     return n;
 }
 
@@ -1423,6 +1423,7 @@ read_all(rb_io_t *fptr, long siz, VALUE str)
 	ENC_CODERANGE_SET(str, cr);
     }
 #endif
+    RSTRING_SYNC(str);
     return str;
 }
 
@@ -1719,6 +1720,7 @@ io_read(int argc, VALUE *argv, VALUE io)
         return Qnil;
     }
     rb_str_resize(str, n);
+    RSTRING_SYNC(str);
 
     return str;
 }

@@ -109,6 +109,8 @@ rb_enc_to_enc_ptr(VALUE v)
 rb_encoding *
 rb_to_encoding(VALUE v)
 {
+    if (TYPE(v) == T_STRING)
+	return rb_enc_find2(v);
     return rb_enc_to_enc_ptr(v);
 }
 
@@ -1018,8 +1020,14 @@ enc_find2(VALUE enc)
     CFStringEncoding e;
 
     str = (CFStringRef)StringValue(enc);
-    if (CFEqual(str, CFSTR("ASCII-8BIT")))
+    if (CFStringCompare(str, CFSTR("ASCII-8BIT"), 
+			kCFCompareCaseInsensitive) == 0) {
 	str = CFSTR("ASCII");
+    }
+    else if (CFStringCompare(str, CFSTR("SJIS"), 
+	     kCFCompareCaseInsensitive) == 0) {
+	str = CFSTR("Shift-JIS");
+    }
 
     e = CFStringConvertIANACharSetNameToEncoding(str);
     if (e == kCFStringEncodingInvalidId)

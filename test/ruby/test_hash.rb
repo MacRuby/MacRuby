@@ -1,5 +1,4 @@
 require 'test/unit'
-#require 'continuation'
 
 class TestHash < Test::Unit::TestCase
 
@@ -801,6 +800,10 @@ class TestHash < Test::Unit::TestCase
   end
 
   def test_callcc
+    begin
+      respond_to?(:callcc) or require 'continuation'
+    rescue LoadError; return
+    end
     h = {1=>2}
     c = nil
     f = false
