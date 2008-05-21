@@ -2958,14 +2958,26 @@ primary		: literal
 		    /*%%%*/
 			NODE *body = remove_begin($5);
 			reduce_nodes(&body);
+#if WITH_OBJC
+			$$ = NEW_DEFN(cur_mid, $4, body, NOEX_PRIVATE);
+#else
 			$$ = NEW_DEFN($2, $4, body, NOEX_PRIVATE);
+#endif
 			fixpos($$, $4);
+#if WITH_OBJC
 			if (in_def_named_args > 0
-			    && in_def_named_args != 
-			       $$->nd_defn->nd_args->nd_frml - 1)
-			    yyerror("invalid use of named arguments in method definition");
+			    && in_def_named_args 
+			       != $$->nd_defn->nd_args->nd_frml - 1)
+{printf("xxx %d != %d\n", in_def_named_args, $$->nd_defn->nd_args->nd_frml-1);
+			    yyerror("invalid use of named arguments in " \
+				    "method definition");
+}
+#endif
 			local_pop();
 			in_def--;
+#if WITH_OBJC
+			in_def_named_args = 0;
+#endif
 			cur_mid = $<id>3;
 		    /*%
 			$$ = dispatch3(def, $2, $4, $5);
@@ -2977,6 +2989,10 @@ primary		: literal
 		    {
 			in_single++;
 			lex_state = EXPR_END; /* force for args */
+#if WITH_OBJC
+			cur_mid = $5;
+			in_def_named_args = 0;
+#endif
 		    /*%%%*/
 			local_push(0);
 		    /*%
@@ -2989,10 +3005,26 @@ primary		: literal
 		    /*%%%*/
 			NODE *body = remove_begin($8);
 			reduce_nodes(&body);
+#if WITH_OBJC
+			$$ = NEW_DEFS($2, cur_mid, $7, body);
+#else
 			$$ = NEW_DEFS($2, $5, $7, body);
+#endif
 			fixpos($$, $2);
+#if WITH_OBJC
+			if (in_def_named_args > 0
+			    && in_def_named_args 
+			       != $$->nd_defn->nd_args->nd_frml - 1)
+{printf("yyy %d != %d\n", in_def_named_args, $$->nd_defn->nd_args->nd_frml-1);
+			    yyerror("invalid use of named arguments in " \
+				    "method definition");
+}
+#endif
 			local_pop();
 			in_single--;
+#if WITH_OBJC
+			in_def_named_args = 0;
+#endif
 		    /*%
 			$$ = dispatch5(defs, $2, $3, $5, $7, $8);
 			in_single--;
