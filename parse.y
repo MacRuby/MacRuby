@@ -2968,10 +2968,8 @@ primary		: literal
 			if (in_def_named_args > 0
 			    && in_def_named_args 
 			       != $$->nd_defn->nd_args->nd_frml - 1)
-{printf("xxx %d != %d\n", in_def_named_args, $$->nd_defn->nd_args->nd_frml-1);
 			    yyerror("invalid use of named arguments in " \
 				    "method definition");
-}
 #endif
 			local_pop();
 			in_def--;
@@ -3015,10 +3013,8 @@ primary		: literal
 			if (in_def_named_args > 0
 			    && in_def_named_args 
 			       != $$->nd_defn->nd_args->nd_frml - 1)
-{printf("yyy %d != %d\n", in_def_named_args, $$->nd_defn->nd_args->nd_frml-1);
 			    yyerror("invalid use of named arguments in " \
 				    "method definition");
-}
 #endif
 			local_pop();
 			in_single--;
