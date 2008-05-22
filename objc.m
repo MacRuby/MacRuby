@@ -1267,7 +1267,6 @@ rb_objc_sync_ruby_method(VALUE mod, ID mid, NODE *node, unsigned override)
     }
 }
 
-#if 0
 static int
 __rb_objc_add_ruby_method(ID mid, NODE *body, VALUE mod)
 {
@@ -1277,14 +1276,25 @@ __rb_objc_add_ruby_method(ID mid, NODE *body, VALUE mod)
     if (body == NULL || body->nd_body->nd_body == NULL)
 	return ST_CONTINUE;
 
-    if (VISI(body->nd_body->nd_noex) != NOEX_PUBLIC)
+    if ((body->nd_body->nd_noex & NOEX_MASK) != NOEX_PUBLIC)
 	return ST_CONTINUE;
 
     rb_objc_sync_ruby_method(mod, mid, body->nd_body->nd_body, 0);
 
     return ST_CONTINUE;
 }
-#endif
+
+void
+rb_objc_sync_ruby_methods(VALUE mod, VALUE klass)
+{
+    for (;;) {
+	st_foreach(RCLASS_M_TBL(mod), __rb_objc_add_ruby_method, 
+		   (st_data_t)klass);
+	mod = RCLASS_SUPER(mod);
+	if (mod == 0 || BUILTIN_TYPE(mod) != T_ICLASS)
+	    break;
+    }
+}
 
 static inline unsigned
 is_ignored_selector(SEL sel)
@@ -2674,11 +2684,8 @@ rb_objc_get_types_for_format_str(char **octypes, const int len, VALUE *args,
 				? (VALUE)CFSTR("0B") : (VALUE)CFSTR("0b");
 			   rb_str_update(arg, 0, 0, prefix);
 			}
-			if (*new_fmt == NULL) {
-			    *new_fmt = (char *)malloc(sizeof(char) * 
-						      format_str_len);
-			    strncpy(*new_fmt, format_str, format_str_len);
-			}
+			if (*new_fmt == NULL)
+			    *new_fmt = strdup(format_str);
 			(*new_fmt)[i] = '@';
 			args[j] = arg;
 			type = "@"; 
@@ -2711,6 +2718,7 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
     ffi_cif *cif;
     int i;
     void *null;
+    char *new_fmt;
 
     if (argc == 0)
 	return fmt;
@@ -2720,23 +2728,21 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
     ffi_args = (void **)alloca(sizeof(void *) * argc + 4);
 
     null = NULL;
+    new_fmt = NULL;
 
-    if (argc > 0) {
-	char *new_fmt = NULL;
-
-	rb_objc_get_types_for_format_str(types, argc, (VALUE *)argv, 
+    rb_objc_get_types_for_format_str(types, argc, (VALUE *)argv, 
 	    RSTRING_CPTR(fmt), &new_fmt);
-	if (new_fmt != NULL) {
-	    fmt = (VALUE)CFStringCreateWithCString(NULL, new_fmt, 
+    if (new_fmt != NULL) {
+	fmt = (VALUE)CFStringCreateWithCString(NULL, new_fmt, 
 		kCFStringEncodingUTF8);
-	    free(new_fmt);
-	}  
+	free(new_fmt);
+	CFMakeCollectable((void *)fmt);
+    }  
 
-	for (i = 0; i < argc; i++) {
-	    ffi_argtypes[i + 3] = rb_objc_octype_to_ffitype(types[i]);
-	    ffi_args[i + 3] = (void *)alloca(ffi_argtypes[i + 3]->size);
-	    rb_objc_rval_to_ocval(argv[i], types[i], ffi_args[i + 3]);
-	}
+    for (i = 0; i < argc; i++) {
+	ffi_argtypes[i + 3] = rb_objc_octype_to_ffitype(types[i]);
+	ffi_args[i + 3] = (void *)alloca(ffi_argtypes[i + 3]->size);
+	rb_objc_rval_to_ocval(argv[i], types[i], ffi_args[i + 3]);
     }
 
     ffi_argtypes[0] = &ffi_type_pointer;

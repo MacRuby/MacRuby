@@ -685,23 +685,26 @@ rb_include_module(VALUE klass, VALUE module)
 
 	if (RCLASS_M_TBL(klass) == RCLASS_M_TBL(module))
 	    rb_raise(rb_eArgError, "cyclic include detected");
-       /* ignore if the module included already in superclasses */
-       for (p = RCLASS_SUPER(klass); p; p = RCLASS_SUPER(p)) {
-           switch (BUILTIN_TYPE(p)) {
-             case T_ICLASS:
-               if (RCLASS_M_TBL(p) == RCLASS_M_TBL(module)) {
-                   if (!superclass_seen) {
-                       c = p;  /* move insertion point */
-                   }
-                   goto skip;
-               }
-               break;
-             case T_CLASS:
-               superclass_seen = Qtrue;
-               break;
-           }
-       }
-       c = RCLASS_SUPER(c) = include_class_new(module, RCLASS_SUPER(c));
+	/* ignore if the module included already in superclasses */
+	for (p = RCLASS_SUPER(klass); p; p = RCLASS_SUPER(p)) {
+	    switch (BUILTIN_TYPE(p)) {
+		case T_ICLASS:
+		    if (RCLASS_M_TBL(p) == RCLASS_M_TBL(module)) {
+			if (!superclass_seen) {
+			    c = p;  /* move insertion point */
+			}
+			goto skip;
+		    }
+		    break;
+		case T_CLASS:
+		    superclass_seen = Qtrue;
+		    break;
+	    }
+	}
+#if WITH_OBJC
+	rb_objc_sync_ruby_methods(module, klass);
+#endif
+	c = RCLASS_SUPER(c) = include_class_new(module, RCLASS_SUPER(c));
 	changed = 1;
       skip:
 	module = RCLASS_SUPER(module);

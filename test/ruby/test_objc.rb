@@ -55,5 +55,24 @@ class TestObjC < Test::Unit::TestCase
     assert_equal(['xxx'], a)
   end
 
+  module DispatchModule
+    def foo(x)
+      x
+    end
+    def foo(x, with:y)
+      x + y
+    end
+  end
+  class DispatchClass 
+    include DispatchModule
+  end
+  def test_objc_dispatch_on_module_function
+    o = DispatchClass.new
+    r = o.performSelector('foo:', withObject:'xxx')
+    assert_equal('xxx', r)
+    r = o.performSelector('foo:with:', withObject:'xxx', withObject:'yyy')
+    assert_equal('xxxyyy', r)
+  end
+
 end
 
