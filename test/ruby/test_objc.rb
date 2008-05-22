@@ -13,46 +13,39 @@ class TestObjC < Test::Unit::TestCase
   end
 
   class ClassWithNamedArg
-    def doSomethingWith(ary, andObject:obj1, andObject:obj2)
-      ary << obj1
-      ary << obj2
-      return ary
+    def doSomethingWith(x, andObject:y, andObject:z)
+      x + y + z
     end
-    def doSomethingWith(ary, andObject:obj)
-      ary << obj
-      return ary
+    def doSomethingWith(x, andObject:y)
+      x + y
     end
   end
 
-  def test_named_argument_call
+  def test_named_argument
     o = ClassWithNamedArg.new
-    a = []
-    a2 = o.doSomethingWith(a, andObject:'x', andObject:'y')
-    assert_equal(a, a2)
-    assert_equal(['x', 'y'], a)
+    a = o.doSomethingWith('x', andObject:'y', andObject:'z')
+    assert_equal('xyz', a)
 
-    a = []
-    a2 = o.performSelector('doSomethingWith:andObject:',
-			   withObject:a, withObject:'xxx')
-    assert_equal(a, a2)
-    assert_equal(['xxx'], a)
+    a = o.performSelector('doSomethingWith:andObject:',
+			  withObject:'x', withObject:'y')
+    assert_equal('xy', a)
+  end
 
+  def test_named_argument_metaclass
     o = Object.new
-    def o.doSomethingWith(ary, andObject:obj)
-      ary << obj
-      return ary
+    def o.doSomethingWith(x, andObject:y, andObject:z)
+      (x + y + z) * 2
+    end
+    def o.doSomethingWith(x, andObject:y)
+      (x + y) * 2
     end
 
-    a = []
-    a2 = o.doSomethingWith(a, andObject:'xxx')
-    assert_equal(a, a2)
-    assert_equal(['xxx'], a)
+    a = o.doSomethingWith('x', andObject:'y', andObject:'z')
+    assert_equal('xyzxyz', a)
 
-    a = []
-    a2 = o.performSelector('doSomethingWith:andObject:',
-			   withObject:a, withObject:'xxx')
-    assert_equal(a, a2)
-    assert_equal(['xxx'], a)
+    a = o.performSelector('doSomethingWith:andObject:',
+			  withObject:'x', withObject:'y')
+    assert_equal('xyxy', a)
   end
 
   module DispatchModule

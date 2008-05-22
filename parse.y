@@ -217,7 +217,10 @@ struct parser_params {
     int parser_lpar_beg;
     int parser_in_single;
     int parser_in_def;
+#if WITH_OBJC
     int parser_in_def_named_args;
+    char parser_named_mid[1024];
+#endif
     int parser_compile_for_eval;
     VALUE parser_cur_mid;
     int parser_in_defined;
@@ -306,7 +309,10 @@ static int parser_yyerror(struct parser_params*, const char*);
 #define lpar_beg		(parser->parser_lpar_beg)
 #define in_single		(parser->parser_in_single)
 #define in_def			(parser->parser_in_def)
-#define in_def_named_args	(parser->parser_in_def_named_args)
+#if WITH_OBJC
+# define in_def_named_args	(parser->parser_in_def_named_args)
+# define named_mid		(parser->parser_named_mid)
+#endif
 #define compile_for_eval	(parser->parser_compile_for_eval)
 #define cur_mid			(parser->parser_cur_mid)
 #define in_defined		(parser->parser_in_defined)
@@ -426,8 +432,10 @@ static int local_var_gen(struct parser_params*, ID);
 #define local_var(id) local_var_gen(parser, id);
 static int arg_var_gen(struct parser_params*, ID);
 #define arg_var(id) arg_var_gen(parser, id)
-static int named_arg_gen(struct parser_params*, ID);
-#define named_arg(id) named_arg_gen(parser, id)
+#if WITH_OBJC
+static int named_arg_gen(struct parser_params*, ID, int);
+# define named_arg(id, flag) named_arg_gen(parser, id, flag)
+#endif
 static int  local_id_gen(struct parser_params*, ID);
 #define local_id(id) local_id_gen(parser, id)
 static ID  *local_tbl_gen(struct parser_params*);
@@ -2945,7 +2953,10 @@ primary		: literal
 			$<id>$ = cur_mid;
 			cur_mid = $2;
 			in_def++;
+#if WITH_OBJC
 			in_def_named_args = 0;
+			named_arg($2, 1);
+#endif
 		    /*%%%*/
 			local_push(0);
 		    /*%
@@ -2957,25 +2968,25 @@ primary		: literal
 		    {
 		    /*%%%*/
 			NODE *body = remove_begin($5);
+			ID mid = $2;
 			reduce_nodes(&body);
 #if WITH_OBJC
-			$$ = NEW_DEFN(cur_mid, $4, body, NOEX_PRIVATE);
-#else
-			$$ = NEW_DEFN($2, $4, body, NOEX_PRIVATE);
+			if (in_def_named_args > 0)
+			    mid = rb_intern(named_mid);
 #endif
+			$$ = NEW_DEFN(mid, $4, body, NOEX_PRIVATE);
 			fixpos($$, $4);
 #if WITH_OBJC
 			if (in_def_named_args > 0
 			    && in_def_named_args 
-			       != $$->nd_defn->nd_args->nd_frml - 1)
+			       != $$->nd_defn->nd_args->nd_frml - 1) {
 			    yyerror("invalid use of named arguments in " \
 				    "method definition");
+			}
+			in_def_named_args = 0;
 #endif
 			local_pop();
 			in_def--;
-#if WITH_OBJC
-			in_def_named_args = 0;
-#endif
 			cur_mid = $<id>3;
 		    /*%
 			$$ = dispatch3(def, $2, $4, $5);
@@ -2988,8 +2999,8 @@ primary		: literal
 			in_single++;
 			lex_state = EXPR_END; /* force for args */
 #if WITH_OBJC
-			cur_mid = $5;
 			in_def_named_args = 0;
+			named_arg($5, 1);
 #endif
 		    /*%%%*/
 			local_push(0);
@@ -3002,25 +3013,25 @@ primary		: literal
 		    {
 		    /*%%%*/
 			NODE *body = remove_begin($8);
+			ID mid = $5;
 			reduce_nodes(&body);
 #if WITH_OBJC
-			$$ = NEW_DEFS($2, cur_mid, $7, body);
-#else
-			$$ = NEW_DEFS($2, $5, $7, body);
+			if (in_def_named_args > 0)
+			    mid = rb_intern(named_mid);
 #endif
+			$$ = NEW_DEFS($2, mid, $7, body);
 			fixpos($$, $2);
 #if WITH_OBJC
-			if (in_def_named_args > 0
+			if (in_def_named_args > 0 
 			    && in_def_named_args 
-			       != $$->nd_defn->nd_args->nd_frml - 1)
+			       != $$->nd_defn->nd_args->nd_frml - 1) {
 			    yyerror("invalid use of named arguments in " \
 				    "method definition");
+			}
+			in_def_named_args = 0;
 #endif
 			local_pop();
 			in_single--;
-#if WITH_OBJC
-			in_def_named_args = 0;
-#endif
 		    /*%
 			$$ = dispatch5(defs, $2, $3, $5, $7, $8);
 			in_single--;
@@ -4307,12 +4318,16 @@ f_norm_arg	: f_bad_arg
 		    }
 		| tIDENTIFIER tASSOC tIDENTIFIER
                     {
-			named_arg($1);
+#if WITH_OBJC
+			named_arg($1, 0);
+#endif
 			$$ = $3;
                     }
                 | tLABEL tIDENTIFIER
                     {
-			named_arg($1);
+#if WITH_OBJC
+			named_arg($1, 0);
+#endif
 			$$ = $2;
                     }
 		;
@@ -8647,19 +8662,20 @@ arg_var_gen(struct parser_params *parser, ID id)
     return vtable_size(lvtbl->args) - 1;
 }
 
-static int named_arg_gen(struct parser_params *parser, ID id)
+#if WITH_OBJC
+static int
+named_arg_gen(struct parser_params *parser, ID id, int init)
 {
-    char buf[256];
-    
-    strlcpy(buf, rb_id2name(cur_mid), sizeof buf);
-    if (in_def_named_args == 0)
-	strlcat(buf, ":", sizeof buf);
-    strlcat(buf, rb_id2name(id), sizeof buf);
-    strlcat(buf, ":", sizeof buf);
-    cur_mid = rb_intern(buf);
-    
-    in_def_named_args++;
+    if (init)
+	memset(named_mid, 0, sizeof named_mid);
+
+    strlcat(named_mid, rb_id2name(id), sizeof named_mid);
+    strlcat(named_mid, ":", sizeof named_mid);
+
+    if (!init) 
+	in_def_named_args++;
 }
+#endif
 
 static int
 local_var_gen(struct parser_params *parser, ID id)
