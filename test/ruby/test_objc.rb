@@ -91,5 +91,57 @@ class TestObjC < Test::Unit::TestCase
     assert_equal('"foo" == "bar"', p.predicateFormat)
   end
 
+  def test_struct_create
+    p = NSPoint.new
+    assert_kind_of(NSPoint, p)
+    assert_equal(0.0, p.x)
+    assert_equal(0.0, p.y)
+
+    p = NSPoint.new(1, 2)
+    assert_equal(1.0, p.x)
+    assert_equal(2.0, p.y)
+
+    assert_raise(ArgumentError) { NSPoint.new(1) }
+    assert_raise(ArgumentError) { NSPoint.new(1, 2, 3) }
+    assert_raise(ArgumentError) { NSPoint.new('x', 'y') }
+
+    r = NSRect.new
+    assert_equal(NSPoint.new(0, 0), r.origin)
+    assert_equal(NSSize.new(0, 0), r.size)
+
+    r = NSRect.new(NSPoint.new(1, 2), NSSize.new(3, 4))
+    assert_equal(NSPoint.new(1, 2), r.origin)
+    assert_equal(NSSize.new(3, 4), r.size)
+
+    r.origin.x = 42
+    r.size.width = 42
+
+    assert_equal(NSRect.new(NSPoint.new(42, 2), NSSize.new(42, 4)), r)
+  end
+
+  def test_create_struct_with_array
+    s = NSStringFromSize([1, 2])
+    assert_equal(NSSize.new(1, 2), NSSizeFromString(s))
+    
+    assert_raise(ArgumentError) { NSStringFromSize([]) }
+    assert_raise(ArgumentError) { NSStringFromSize([1]) }
+    assert_raise(ArgumentError) { NSStringFromSize([1, 2, 3]) }
+
+    s = NSStringFromRect([[1, 2], [3, 4]])
+    assert_equal(NSRect.new(NSPoint.new(1, 2), NSSize.new(3, 4)), 
+		 NSRectFromString(s))
+
+    a = [1, 2, 3, 4]
+    s = NSStringFromRect(a)
+    assert_equal(NSRect.new(NSPoint.new(1, 2), NSSize.new(3, 4)), 
+		 NSRectFromString(s))
+    assert_equal([1, 2, 3, 4], a)
+
+    assert_raise(ArgumentError) { NSStringFromRect([]) }
+    assert_raise(ArgumentError) { NSStringFromRect([1]) }
+    assert_raise(ArgumentError) { NSStringFromRect([1, 2]) }
+    assert_raise(ArgumentError) { NSStringFromRect([1, 2, 3, 4, 5]) }
+  end
+
 end
 

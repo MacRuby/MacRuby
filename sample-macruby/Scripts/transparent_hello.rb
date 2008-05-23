@@ -30,8 +30,8 @@ end
 application = NSApplication.sharedApplication
 
 # Create the window
-frame = NSRect.new(NSPoint.new(0, 0), NSSize.new(450, 200))
-window = NSWindow.alloc.initWithContentRect(frame, 
+frame = [0, 0, 450, 200]
+window = NSWindow.alloc.initWithContentRect(frame,
     styleMask:NSBorderlessWindowMask,
     backing:NSBackingStoreBuffered,
     defer:false)

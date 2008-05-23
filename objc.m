@@ -611,33 +611,96 @@ rb_bs_boxed_new_from_ocdata(bs_element_boxed_t *bs_boxed, void *ocval)
     return Data_Wrap_Struct(bs_boxed->klass, NULL, NULL, data);     
 }
 
+static long
+rebuild_new_struct_ary(ffi_type **elements, VALUE orig, VALUE new)
+{
+    long n = 0;
+    while ((*elements) != NULL) {
+	if ((*elements)->type == FFI_TYPE_STRUCT) {
+	    long i, n2 = rebuild_new_struct_ary((*elements)->elements, orig, new);
+	    VALUE tmp = rb_ary_new();
+	    for (i = 0; i < n2; i++) {
+		if (RARRAY_LEN(orig) == 0)
+		    return 0;
+		rb_ary_push(tmp, rb_ary_shift(orig));
+	    }
+	    rb_ary_push(new, tmp);
+	}
+	elements++;
+	n++;
+    } 
+    return n;
+}
+
 static void
 rb_objc_rval_to_ocval(VALUE rval, const char *octype, void **ocval)
 {
-    bool ok;
+    bs_element_boxed_t *bs_boxed;
+    bool ok = true;
 
     octype = rb_objc_skip_octype_modifiers(octype);
 
     if (*octype == _C_VOID)
 	return;
 
-    {
-	bs_element_boxed_t *bs_boxed;
-	if (st_lookup(bs_boxeds, (st_data_t)octype, 
-		      (st_data_t *)&bs_boxed)) {
-	    void *data = bs_element_boxed_get_data(bs_boxed, rval, &ok);
-	    if (ok) {
-		if (data == NULL)
-		    *(void **)ocval = NULL;
-		else
-		    memcpy(ocval, data, bs_boxed->ffi_type->size);
+    if (st_lookup(bs_boxeds, (st_data_t)octype, (st_data_t *)&bs_boxed)) {
+	void *data;
+	if (TYPE(rval) == T_ARRAY && bs_boxed->type == BS_ELEMENT_STRUCT) {
+	    bs_element_struct_t *bs_struct;
+	    long i, n;
+	    size_t pos;
+
+	    bs_struct = (bs_element_struct_t *)bs_boxed->value;
+
+	    n = RARRAY_LEN(rval);
+	    if (n < bs_struct->fields_count)
+		rb_raise(rb_eArgError, 
+		    "not enough elements in array `%s' to create " \
+		    "structure `%s' (%d for %d)", 
+		    RSTRING_CPTR(rb_inspect(rval)), bs_struct->name, n, 
+		    bs_struct->fields_count);
+	    
+	    if (n > bs_struct->fields_count) {
+		VALUE new_rval = rb_ary_new();
+		VALUE orig = rval;
+		rval = rb_ary_dup(rval);
+		rebuild_new_struct_ary(bs_boxed->ffi_type->elements, rval, 
+				       new_rval);
+		n = RARRAY_LEN(new_rval);
+		if (RARRAY_LEN(rval) != 0 || n != bs_struct->fields_count) {
+		    rb_raise(rb_eArgError, 
+			"too much elements in array `%s' to create " \
+			"structure `%s' (%d for %d)", 
+			RSTRING_CPTR(rb_inspect(orig)), 
+			bs_struct->name, RARRAY_LEN(orig), 
+			bs_struct->fields_count);
+		}
+		rval = new_rval;
 	    }
-	    goto bails; 
+
+	    data = alloca(bs_boxed->ffi_type->size);
+
+	    for (i = 0, pos = 0; i < bs_struct->fields_count; i++) {
+		VALUE o = RARRAY_AT(rval, i);
+		char *field_type = bs_struct->fields[i].type;
+		rb_objc_rval_to_ocval(o, field_type, data + pos);
+		pos += rb_objc_octype_to_ffitype(field_type)->size;
+	    }
 	}
-	
-	if (st_lookup(bs_cftypes, (st_data_t)octype, NULL))
-	    octype = "@";
+	else {
+	    data = bs_element_boxed_get_data(bs_boxed, rval, &ok);
+	}
+	if (ok) {
+	    if (data == NULL)
+		*(void **)ocval = NULL;
+	    else
+		memcpy(ocval, data, bs_boxed->ffi_type->size);
+	}
+	goto bails; 
     }
+
+    if (st_lookup(bs_cftypes, (st_data_t)octype, NULL))
+	octype = "@";
 
     if (*octype != _C_BOOL) {
 	if (rval == Qtrue)
@@ -646,7 +709,6 @@ rb_objc_rval_to_ocval(VALUE rval, const char *octype, void **ocval)
 	    rval = INT2FIX(0);
     }
 
-    ok = true;
     switch (*octype) {
 	case _C_ID:
 	case _C_CLASS:
