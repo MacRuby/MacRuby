@@ -17,6 +17,7 @@
 
 VALUE rb_cArray;
 #if WITH_OBJC
+VALUE rb_cCFArray;
 VALUE rb_cArrayRuby;
 #endif
 
@@ -86,14 +87,30 @@ rb_objc_ary_get_struct2(VALUE ary)
 
 VALUE rb_ary_frozen_p(VALUE ary);
 
+#if WITH_OBJC
+
 static inline void
 rb_ary_modify_check(VALUE ary)
 {
-#if WITH_OBJC
-    bool _CFArrayIsMutable(void *);
-    if (!_CFArrayIsMutable((void *)ary))
-	rb_raise(rb_eRuntimeError, "can't modify immutable array");
-#endif
+    long mask;
+    mask = rb_objc_flag_get_mask(ary);
+    if (mask == 0) {
+	bool _CFArrayIsMutable(void *);
+	if (!_CFArrayIsMutable((void *)ary))
+	    mask |= FL_FREEZE;
+    }
+    if ((mask & FL_FREEZE) == FL_FREEZE)
+	rb_raise(rb_eRuntimeError, "can't modify frozen/immutable array");
+    if ((mask & FL_TAINT) == FL_TAINT && rb_safe_level() >= 4)
+	rb_raise(rb_eSecurityError, "Insecure: can't modify array");
+}
+#define rb_ary_modify rb_ary_modify_check
+
+#else
+
+static inline void
+rb_ary_modify_check(VALUE ary)
+{
     if (OBJ_FROZEN(ary)) rb_error_frozen("array");
     if (!OBJ_TAINTED(ary) && rb_safe_level() >= 4)
 	rb_raise(rb_eSecurityError, "Insecure: can't modify array");
@@ -105,7 +122,6 @@ rb_ary_modify(VALUE ary)
     VALUE *ptr;
 
     rb_ary_modify_check(ary);
-#if !WITH_OBJC
     if (ARY_SHARED_P(ary)) {
 	ptr = ALLOC_N(VALUE, RARRAY_LEN(ary));
 	FL_UNSET(ary, ELTS_SHARED);
@@ -113,8 +129,8 @@ rb_ary_modify(VALUE ary)
 	MEMCPY(ptr, RARRAY_PTR(ary), VALUE, RARRAY_LEN(ary));
 	RARRAY(ary)->ptr = ptr;
     }
-#endif
 }
+#endif
 
 VALUE
 rb_ary_freeze(VALUE ary)
@@ -632,7 +648,12 @@ ary_shared_first(int argc, VALUE *argv, VALUE ary, int last, bool remove)
 VALUE
 rb_ary_push(VALUE ary, VALUE item)
 {
+#if WITH_OBJC
+    rb_ary_modify(ary);
+    CFArrayAppendValue((CFMutableArrayRef)ary, (const void *)item);
+#else
     rb_ary_store(ary, RARRAY_LEN(ary), item);
+#endif
     return ary;
 }
 
@@ -3934,12 +3955,8 @@ rb_ary_drop_while(VALUE ary)
 }
 
 #if WITH_OBJC
-static Class __nscfarray = NULL;
 
-#define NSCFARRAY() \
-    (__nscfarray == NULL \
-	? __nscfarray = (Class)objc_getClass("NSCFArray") \
-	: __nscfarray)
+#define NSCFARRAY() RCLASS_OCID(rb_cCFArray)
 
 #define PREPARE_RCV(x) \
     Class old = *(Class *)x; \
@@ -4079,6 +4096,7 @@ void
 Init_Array(void)
 {
 #if WITH_OBJC
+    rb_cCFArray = rb_objc_import_class((Class)objc_getClass("NSCFArray"));;
     rb_cArray = rb_objc_import_class((Class)objc_getClass("NSArray"));
     rb_cArrayRuby = 
 	rb_objc_import_class((Class)objc_getClass("NSMutableArray"));

@@ -27,6 +27,7 @@
 
 VALUE rb_cString;
 #if WITH_OBJC
+VALUE rb_cCFString;
 VALUE rb_cStringRuby;
 #endif
 VALUE rb_cSymbol;
@@ -8323,12 +8324,7 @@ rb_to_id(VALUE name)
 }
 
 #if WITH_OBJC
-static Class __nscfstring = NULL;
-
-#define NSCFSTRING() \
-    (__nscfstring == NULL \
-	? __nscfstring = (Class)objc_getClass("NSCFString") \
-	: __nscfstring)
+#define NSCFSTRING() (RCLASS_OCID(rb_cCFString))
 
 #define PREPARE_RCV(x) \
     Class old = *(Class *)x; \
@@ -8467,6 +8463,7 @@ void
 Init_String(void)
 {
 #if WITH_OBJC
+    rb_cCFString = rb_objc_import_class((Class)objc_getClass("NSCFString"));
     rb_cString = rb_objc_import_class((Class)objc_getClass("NSString"));
     rb_cStringRuby =
         rb_objc_import_class((Class)objc_getClass("NSMutableString"));

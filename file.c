@@ -3209,15 +3209,27 @@ rb_file_join(VALUE ary, VALUE sep)
 {
 #if WITH_OBJC
     VALUE mstr;
-    if (RARRAY_LEN(ary) == 0) {
-	mstr = rb_str_new(0, 0);
-    }
-    else {
-	VALUE str;
-	str = (VALUE)CFStringCreateByCombiningStrings(NULL, (CFArrayRef)ary,
-		(CFStringRef)sep);
-	mstr = rb_str_dup(str);
-	CFRelease((CFTypeRef)str);
+    long count;
+
+    mstr = rb_str_new(0, 0);
+    count = RARRAY_LEN(ary);
+    if (count > 0) {
+	long i;
+	for (i = 0; i < count; i++) {
+	    VALUE tmp = RARRAY_AT(ary, i);
+	    switch (TYPE(tmp)) {
+		case T_STRING:
+		    break;
+		case T_ARRAY:
+		    tmp = rb_file_join(tmp, sep);
+		    break;
+		default:
+		    FilePathStringValue(tmp);
+	    }
+	    if (i > 0)
+		rb_str_buf_append(mstr, sep);
+	    rb_str_buf_append(mstr, tmp);
+	}
     }
     return mstr;
 #else

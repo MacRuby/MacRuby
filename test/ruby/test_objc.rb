@@ -2,6 +2,10 @@ require 'test/unit'
 
 class TestObjC < Test::Unit::TestCase
 
+  def setup
+    framework 'Foundation'
+  end
+
   def test_all_objects_inherit_from_nsobject
     assert_kind_of(NSObject, true)
     assert_kind_of(NSObject, false)
@@ -65,6 +69,26 @@ class TestObjC < Test::Unit::TestCase
     assert_equal('xxx', r)
     r = o.performSelector('foo:with:', withObject:'xxx', withObject:'yyy')
     assert_equal('xxxyyy', r)
+  end
+
+  def test_pure_objc_ivar
+    o = NSObject.alloc.init
+    assert_kind_of(NSObject, o)
+    o.instance_variable_set(:@foo, 'foo')
+    GC.start
+    assert_equal('foo', o.instance_variable_get(:@foo))
+  end
+
+  def test_method_variadic
+    p = NSPredicate.predicateWithFormat('foo == 1')
+    assert_kind_of(NSPredicate, p)
+    assert_equal('foo == 1', p.predicateFormat)
+    p = NSPredicate.predicateWithFormat('foo == %@', 'bar')
+    assert_kind_of(NSPredicate, p)
+    assert_equal('foo == "bar"', p.predicateFormat)
+    p = NSPredicate.predicateWithFormat('%@ == %@', 'foo', 'bar')
+    assert_kind_of(NSPredicate, p)
+    assert_equal('"foo" == "bar"', p.predicateFormat)
   end
 
 end

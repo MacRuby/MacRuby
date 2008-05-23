@@ -571,7 +571,7 @@ struct RArray {
  */
 const VALUE *rb_ary_ptr(VALUE);
 # define RARRAY_PTR(a) (rb_ary_ptr((VALUE)a)) 
-# define RARRAY_AT(a,i) (rb_ary_elt((VALUE)a, (int)i))
+# define RARRAY_AT(a,i) ((VALUE)CFArrayGetValueAtIndex((CFArrayRef)a, (long)i))
 #endif
 
 struct RRegexp {
@@ -1042,6 +1042,15 @@ rb_class_of(VALUE obj)
 	if (obj == Qfalse) return rb_cFalseClass;
     }
 #if WITH_OBJC
+    extern VALUE rb_cCFString;
+    extern VALUE rb_cCFArray;
+    extern VALUE rb_cCFHash;
+    if (rb_cCFString != 0 && *(Class *)obj == RCLASS_OCID(rb_cCFString))
+	return rb_cCFString;
+    if (rb_cCFArray != 0 && *(Class *)obj == RCLASS_OCID(rb_cCFArray))
+	return rb_cCFArray;
+    if (rb_cCFHash != 0 && *(Class *)obj == RCLASS_OCID(rb_cCFHash))
+	return rb_cCFHash;
     VALUE rb_objc_import_class(Class);
     if (rb_objc_is_non_native(obj))
 	return rb_objc_import_class(RBASIC(obj)->isa);
@@ -1066,8 +1075,7 @@ rb_type(VALUE obj)
     /* FIXME this is super slow */
     else if (rb_cHash != 0 
 	     && rb_cArray != 0
-	     && rb_cString != 0
-	     && !class_isMetaClass(*(Class *)obj)) {
+	     && rb_cString != 0) {
 	Class k = *(Class *)obj;
 	while (k != NULL) {
 	    if (k == RCLASS_OCID(rb_cHash))

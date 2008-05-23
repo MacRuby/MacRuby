@@ -130,7 +130,9 @@ static VALUE
 str_new(struct strscanner *p, const char *ptr, long len)
 {
     VALUE str = rb_str_new(ptr, len);
+#if !WITH_OBJC
     rb_enc_copy(str, p->str);
+#endif
     return str;
 }
 

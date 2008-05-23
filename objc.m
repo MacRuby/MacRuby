@@ -2553,15 +2553,21 @@ rb_objc_set_ivar_cluster(void *obj, void *v)
 
 static CFMutableDictionaryRef __obj_flags;
 
+long
+rb_objc_flag_get_mask(const void *obj)
+{
+    if (__obj_flags == NULL)
+	return 0;
+
+    return (long)CFDictionaryGetValue(__obj_flags, obj);
+}
+
 bool
 rb_objc_flag_check(const void *obj, int flag)
 {
     long v;
 
-    if (__obj_flags == NULL)
-	return false;
- 
-    v = (long)CFDictionaryGetValue(__obj_flags, obj);
+    v = rb_objc_flag_get_mask(obj);
     if (v == 0)
 	return false;
 

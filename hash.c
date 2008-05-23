@@ -33,6 +33,7 @@ rb_hash_freeze(VALUE hash)
 
 VALUE rb_cHash;
 #if WITH_OBJC
+VALUE rb_cCFHash;
 VALUE rb_cHashRuby;
 #endif
 
@@ -253,7 +254,7 @@ rb_hash_foreach(VALUE hash, int (*func)(ANYARGS), VALUE farg)
 static Boolean 
 rb_cfdictionary_equal_cb(const void *v1, const void *v2)
 {
-    return !rb_any_cmp((VALUE)v1, (VALUE)v2);
+    return v1 == v2 || !rb_any_cmp((VALUE)v1, (VALUE)v2);
 }
 
 static CFHashCode
@@ -364,14 +365,31 @@ rb_hash_new(void)
 #endif
 }
 
+#if WITH_OBJC
+
+static inline void
+rb_hash_modify_check(VALUE hash)
+{
+    long mask;
+    mask = rb_objc_flag_get_mask(hash);
+    if (mask == 0) {
+	bool _CFDictionaryIsMutable(void *);
+	if (!_CFDictionaryIsMutable((void *)hash))
+	    mask |= FL_FREEZE;
+    }
+    if ((mask & FL_FREEZE) == FL_FREEZE)
+	rb_raise(rb_eRuntimeError, "can't modify frozen/immutable hash");
+    if ((mask & FL_TAINT) == FL_TAINT && rb_safe_level() >= 4)
+	rb_raise(rb_eSecurityError, "Insecure: can't modify hash");
+}
+
+#define rb_hash_modify rb_hash_modify_check
+
+#else
+
 static void
 rb_hash_modify_check(VALUE hash)
 {
-#if WITH_OBJC
-    bool _CFDictionaryIsMutable(void *);
-    if (!_CFDictionaryIsMutable((void *)hash)) 
-	rb_raise(rb_eRuntimeError, "can't modify immutable hash");
-#endif
     if (OBJ_FROZEN(hash)) rb_error_frozen("hash");
     if (!OBJ_TAINTED(hash) && rb_safe_level() >= 4)
 	rb_raise(rb_eSecurityError, "Insecure: can't modify hash");
@@ -380,24 +398,20 @@ rb_hash_modify_check(VALUE hash)
 struct st_table *
 rb_hash_tbl(VALUE hash)
 {
-#if WITH_OBJC
-    rb_notimplement();
-#else
     if (!RHASH(hash)->ntbl) {
 	GC_WB(&RHASH(hash)->ntbl, st_init_table(&objhash));
     }
     return RHASH(hash)->ntbl;
-#endif
 }
 
 static void
 rb_hash_modify(VALUE hash)
 {
     rb_hash_modify_check(hash);
-#if !WITH_OBJC
     rb_hash_tbl(hash);
-#endif
 }
+#endif
+
 
 /*
  *  call-seq:
@@ -2902,16 +2916,12 @@ env_update(VALUE env, VALUE hash)
  */
 
 #if WITH_OBJC
-static Class __nscfdictionary = NULL;
 
-#define NSCFDICTIONARY() \
-    (__nscfdictionary == NULL \
-	? __nscfdictionary = (Class)objc_getClass("NSCFDictionary") \
- 	: __nscfdictionary)
+#define NSCFDICTIONARY() RCLASS_OCID(rb_cCFHash)
 
 #define PREPARE_RCV(x) \
     Class old = *(Class *)x; \
-    *(Class *)x = __nscfdictionary;
+    *(Class *)x = NSCFDICTIONARY();
 
 #define RESTORE_RCV(x) \
     *(Class *)x = old;
@@ -3047,6 +3057,7 @@ Init_Hash(void)
     id_default = rb_intern("default");
 
 #if WITH_OBJC
+    rb_cCFHash = rb_objc_import_class((Class)objc_getClass("NSCFDictionary"));
     rb_cHash = rb_objc_import_class((Class)objc_getClass("NSDictionary"));
     rb_cHashRuby = rb_objc_import_class((Class)objc_getClass("NSMutableDictionary"));
     FL_UNSET(rb_cHashRuby, RCLASS_OBJC_IMPORTED);
