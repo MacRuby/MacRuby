@@ -3208,10 +3208,11 @@ static VALUE
 rb_file_join(VALUE ary, VALUE sep)
 {
 #if WITH_OBJC
-    VALUE mstr;
+    CFMutableStringRef mstr;
     long count;
 
-    mstr = rb_str_new(0, 0);
+    mstr = CFStringCreateMutable(NULL, 0);
+
     count = RARRAY_LEN(ary);
     if (count > 0) {
 	long i;
@@ -3227,11 +3228,11 @@ rb_file_join(VALUE ary, VALUE sep)
 		    FilePathStringValue(tmp);
 	    }
 	    if (i > 0)
-		rb_str_buf_append(mstr, sep);
-	    rb_str_buf_append(mstr, tmp);
+		CFStringAppend(mstr, (CFStringRef)sep);
+	    CFStringAppend(mstr, (CFStringRef)tmp);
 	}
     }
-    return mstr;
+    return (VALUE)mstr;
 #else
     long len, i, count;
     VALUE result, tmp;
