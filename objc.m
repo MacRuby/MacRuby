@@ -2860,6 +2860,12 @@ rb_objc_is_immutable(VALUE v)
     return false;
 }
 
+static void 
+timer_cb(CFRunLoopTimerRef timer, void *ctx)
+{
+    RUBY_VM_CHECK_INTS();
+}
+
 void
 Init_ObjC(void)
 {
@@ -2893,4 +2899,11 @@ Init_ObjC(void)
 #endif
 
     rb_define_global_function("load_bridge_support_file", rb_objc_load_bs, 1);
+
+    {
+	CFRunLoopTimerRef timer;
+	timer = CFRunLoopTimerCreate(NULL,
+		CFAbsoluteTimeGetCurrent(), 0.1, 0, 0, timer_cb, NULL);
+	CFRunLoopAddTimer(CFRunLoopGetMain(), timer, kCFRunLoopDefaultMode);
+    }
 }
