@@ -3232,6 +3232,7 @@ rb_file_join(VALUE ary, VALUE sep)
 	    CFStringAppend(mstr, (CFStringRef)tmp);
 	}
     }
+    CFMakeCollectable(mstr);
     return (VALUE)mstr;
 #else
     long len, i, count;
