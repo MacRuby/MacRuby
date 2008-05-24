@@ -694,6 +694,8 @@ _bs_parse(const char *path, char **loaded_paths,
         
         case BS_XML_INFORMAL_PROTOCOL: 
         {
+	  if (protocol_name != NULL)
+	    free(protocol_name);
           protocol_name = get_attribute(reader, "name");
           CHECK_ATTRIBUTE(protocol_name, "name");
           break;
@@ -825,6 +827,9 @@ _bs_parse(const char *path, char **loaded_paths,
               func_ptr = bs_arg->function_pointer;
               func_ptr_arg_depth = xmlTextReaderDepth(reader);
             }
+	    else {
+              bs_arg->function_pointer = NULL;
+	    }
           }
           else {
             BAIL("argument defined outside of a " \
@@ -897,6 +902,9 @@ _bs_parse(const char *path, char **loaded_paths,
               func_ptr = bs_retval->function_pointer;
               func_ptr_arg_depth = xmlTextReaderDepth(reader);
             }
+	    else {
+              bs_retval->function_pointer = NULL;
+	    }
           }
           else {
             BAIL("return value defined outside a function/method");
@@ -926,7 +934,7 @@ _bs_parse(const char *path, char **loaded_paths,
             bs_informal_method->class_method = 
               get_boolean_attribute(reader, "class_method", false);
             bs_informal_method->type = method_type;
-            bs_informal_method->protocol_name = protocol_name;
+            bs_informal_method->protocol_name = strdup(protocol_name);
 
             bs_element = bs_informal_method;
             bs_element_type = BS_ELEMENT_INFORMAL_PROTOCOL_METHOD;
@@ -942,6 +950,7 @@ _bs_parse(const char *path, char **loaded_paths,
             ASSERT_ALLOC(method);
 
             method->name = sel_registerName(selector);
+	    free(selector);
             method->class_method = 
               get_boolean_attribute(reader, "class_method", false);
             method->variadic = 
@@ -1083,6 +1092,9 @@ _bs_parse(const char *path, char **loaded_paths,
   success = true;
 
 bails:
+  if (protocol_name != NULL)
+    free(protocol_name);
+
   xmlFreeTextReader(reader);
   
   return success;
@@ -1108,10 +1120,165 @@ bs_parse(const char *path, bs_parse_options_t options,
   return status;
 }
 
+#define SAFE_FREE(x) do { if ((x) != NULL) free(x); } while (0)
+
+static void bs_free_retval(bs_element_retval_t *bs_retval);
+static void bs_free_arg(bs_element_arg_t *bs_arg);
+
+static void
+bs_free_function_pointer(bs_element_function_pointer_t *bs_func_ptr)
+{
+  if (bs_func_ptr != NULL) {
+    unsigned i;
+    for (i = 0; i < bs_func_ptr->args_count; i++)
+      bs_free_arg(&bs_func_ptr->args[i]);
+    SAFE_FREE(bs_func_ptr->args);
+    bs_free_retval(bs_func_ptr->retval);
+    SAFE_FREE(bs_func_ptr);
+  }
+}
+
+static void
+bs_free_retval(bs_element_retval_t *bs_retval)
+{
+  if (bs_retval == NULL)
+    return;
+  SAFE_FREE(bs_retval->type);
+  bs_free_function_pointer(bs_retval->function_pointer);
+}
+
+static void
+bs_free_arg(bs_element_arg_t *bs_arg)
+{
+  SAFE_FREE(bs_arg->type);
+  SAFE_FREE(bs_arg->sel_of_type);
+  bs_free_function_pointer(bs_arg->function_pointer);
+}
+
+static void 
+bs_free_method(bs_element_method_t *bs_method)
+{
+  unsigned i;
+  for (i = 0; i < bs_method->args_count; i++)
+    bs_free_arg(&bs_method->args[i]);
+  SAFE_FREE(bs_method->args);
+  bs_free_retval(bs_method->retval);
+  SAFE_FREE(bs_method->suggestion); 
+}
+
 void 
 bs_element_free(bs_element_type_t type, void *value)
 {
-  /* TODO */
+  assert(value != NULL);
+
+  switch (type) {
+    case BS_ELEMENT_STRUCT:
+    {
+      bs_element_struct_t *bs_struct = (bs_element_struct_t *)value;
+      unsigned i;
+      SAFE_FREE(bs_struct->name);
+      SAFE_FREE(bs_struct->type);
+      for (i = 0; i < bs_struct->fields_count; i++) {
+        SAFE_FREE(bs_struct->fields[i].name);
+        SAFE_FREE(bs_struct->fields[i].type);
+      }
+      SAFE_FREE(bs_struct->fields);
+      break;
+    }
+
+    case BS_ELEMENT_CFTYPE:
+    {
+      bs_element_cftype_t *bs_cftype = (bs_element_cftype_t *)value;
+      SAFE_FREE(bs_cftype->name);
+      SAFE_FREE(bs_cftype->type);
+      SAFE_FREE(bs_cftype->tollfree);
+      break;
+    }
+
+    case BS_ELEMENT_OPAQUE:
+    {
+      bs_element_opaque_t *bs_opaque = (bs_element_opaque_t *)value;
+      SAFE_FREE(bs_opaque->name);
+      SAFE_FREE(bs_opaque->type);
+      break;    
+    }
+
+    case BS_ELEMENT_CONSTANT:
+    {
+      bs_element_constant_t *bs_const = (bs_element_constant_t *)value;
+      SAFE_FREE(bs_const->name);
+      SAFE_FREE(bs_const->type);
+      SAFE_FREE(bs_const->suggestion);
+      break;
+    }
+
+    case BS_ELEMENT_STRING_CONSTANT:
+    {
+      bs_element_string_constant_t *bs_str_const = 
+        (bs_element_string_constant_t *)value;
+      SAFE_FREE(bs_str_const->name);
+      SAFE_FREE(bs_str_const->value);
+      break;
+    }
+
+    case BS_ELEMENT_ENUM:
+    {
+      bs_element_enum_t *bs_enum = (bs_element_enum_t *)value;
+      SAFE_FREE(bs_enum->name);
+      SAFE_FREE(bs_enum->value);
+      SAFE_FREE(bs_enum->suggestion);
+      break;
+    }
+
+    case BS_ELEMENT_FUNCTION:
+    {
+      unsigned i;
+      bs_element_function_t *bs_func = (bs_element_function_t *)value;
+      free(bs_func->name);
+      for (i = 0; i < bs_func->args_count; i++)
+        bs_free_arg(&bs_func->args[i]);
+      SAFE_FREE(bs_func->args);
+      bs_free_retval(bs_func->retval);
+      break;
+    }
+
+    case BS_ELEMENT_FUNCTION_ALIAS:
+    {
+      bs_element_function_alias_t *bs_func_alias = 
+        (bs_element_function_alias_t *)value;
+      SAFE_FREE(bs_func_alias->name);
+      SAFE_FREE(bs_func_alias->original);
+      break;
+    }
+
+    case BS_ELEMENT_CLASS:
+    {
+      bs_element_class_t *bs_class = (bs_element_class_t *)value;
+      unsigned i;
+      free(bs_class->name);
+      for (i = 0; i < bs_class->class_methods_count; i++)
+        bs_free_method(&bs_class->class_methods[i]);
+      SAFE_FREE(bs_class->class_methods);
+      for (i = 0; i < bs_class->instance_methods_count; i++)
+        bs_free_method(&bs_class->instance_methods[i]);
+      SAFE_FREE(bs_class->instance_methods);
+      break;
+    }
+
+    case BS_ELEMENT_INFORMAL_PROTOCOL_METHOD:
+    {
+      bs_element_informal_protocol_method_t *bs_iprotm = 
+        (bs_element_informal_protocol_method_t *)value;
+      SAFE_FREE(bs_iprotm->protocol_name);
+      SAFE_FREE(bs_iprotm->type);
+      break;
+    }
+
+    default:
+      fprintf(stderr, "unknown value %p of type %d passed to bs_free()", 
+	      value, type);
+  }
+  free(value);
 }
 
 #if 0

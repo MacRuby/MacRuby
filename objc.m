@@ -2109,6 +2109,7 @@ bs_parse_cb(const char *path, bs_element_type_t type, void *value, void *ctx)
 	case BS_ELEMENT_STRUCT:
 	{
 	    setup_bs_boxed_type(type, value);
+	    do_not_free = true;
 	    break;
 	}
 
@@ -2121,7 +2122,7 @@ bs_parse_cb(const char *path, bs_element_type_t type, void *value, void *ctx)
 	    bs_class_new = (bs_element_indexed_class_t *)
 		malloc(sizeof(bs_element_indexed_class_t));
 
-	    bs_class_new->name = strdup(bs_class->name);
+	    bs_class_new->name = bs_class->name;
 
 #define INDEX_METHODS(table, ary, len) \
     do { \
@@ -2150,6 +2151,8 @@ bs_parse_cb(const char *path, bs_element_type_t type, void *value, void *ctx)
 	    st_insert(bs_classes, (st_data_t)bs_class_new->name, 
 		(st_data_t)bs_class_new);
 
+	    free(bs_class);
+	    do_not_free = true;
 	    break;
 	}
 
@@ -2164,6 +2167,9 @@ bs_parse_cb(const char *path, bs_element_type_t type, void *value, void *ctx)
 	    st_insert(t, (st_data_t)bs_inf_prot_method->name,
 		(st_data_t)bs_inf_prot_method->type);
 
+	    free(bs_inf_prot_method->protocol_name);
+	    free(bs_inf_prot_method);
+	    do_not_free = true;
 	    break;
 	}
 
@@ -2172,6 +2178,7 @@ bs_parse_cb(const char *path, bs_element_type_t type, void *value, void *ctx)
 	    bs_element_cftype_t *bs_cftype = (bs_element_cftype_t *)value;
 	    st_insert(bs_cftypes, (st_data_t)bs_cftype->type, 
 		    (st_data_t)bs_cftype);
+	    do_not_free = true;
 	    break;
 	}
     }

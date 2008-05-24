@@ -2923,12 +2923,14 @@ __rb_objc_finalize(void *obj, void *data)
     if (rb_objc_is_non_native((VALUE)obj)) {
 	static SEL sel = NULL;
 	rb_objc_remove_keys(obj);
+	rb_free_generic_ivar((VALUE)obj, true);
 	if (sel == NULL)
 	    sel = sel_registerName("finalize");
 	objc_msgSend(obj, sel);
     }
     else {
-	/* TODO: call ObjectSpace finalizers, if any */
+	if (FL_TEST(obj, FL_EXIVAR))
+	    rb_free_generic_ivar((VALUE)obj, false);
     }
 }
 

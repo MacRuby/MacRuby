@@ -263,14 +263,14 @@ rb_cfdictionary_hash_cb(const void *v)
     return (CFHashCode)rb_any_hash((VALUE)v); 
 }
 
-static const void *
+const void *
 rb_cfdictionary_retain_cb(CFAllocatorRef allocator, const void *v)
 {
     rb_objc_retain(v);
     return v;
 }
 
-static void
+void
 rb_cfdictionary_release_cb(CFAllocatorRef allocator, const void *v)
 {
     rb_objc_release(v);
