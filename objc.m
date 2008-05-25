@@ -2661,10 +2661,16 @@ rb_objc_flag_set(const void *obj, int flag, bool val)
     CFDictionarySetValue(__obj_flags, obj, (void *)v);
 }
 
-void
-rb_objc_remove_keys(const void *obj)
+long
+rb_objc_remove_flags(const void *obj)
 {
-    CFDictionaryRemoveValue(__obj_flags, obj);
+    long flag;
+    if (CFDictionaryGetValueIfPresent(__obj_flags, obj, 
+	(const void **)&flag)) {
+	CFDictionaryRemoveValue(__obj_flags, obj);
+	return flag;
+    }
+    return 0;
 }
 
 static void
@@ -2914,3 +2920,13 @@ Init_ObjC(void)
 	CFRunLoopAddTimer(CFRunLoopGetMain(), timer, kCFRunLoopDefaultMode);
     }
 }
+
+@interface Protocol
+@end
+
+@implementation Protocol (MRFindProtocol)
++(id)protocolWithName:(NSString *)name
+{
+    return (id)objc_getProtocol([name UTF8String]);
+} 
+@end

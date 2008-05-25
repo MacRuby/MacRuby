@@ -656,7 +656,7 @@ struct st_table* rb_generic_ivar_table(VALUE);
 void rb_copy_generic_ivar(VALUE,VALUE);
 void rb_mark_generic_ivar(VALUE);
 void rb_mark_generic_ivar_tbl(void);
-void rb_free_generic_ivar(VALUE,bool);
+void rb_free_generic_ivar(VALUE);
 VALUE rb_ivar_get(VALUE, ID);
 VALUE rb_ivar_set(VALUE, ID, VALUE);
 VALUE rb_ivar_defined(VALUE, ID);

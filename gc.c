@@ -2397,11 +2397,23 @@ os_each_obj(int argc, VALUE *argv, VALUE os)
  *
  */
 
+#if WITH_OBJC
+static CFMutableDictionaryRef __os_finalizers = NULL;
+#endif
+
 static VALUE
 undefine_final(VALUE os, VALUE obj)
 {
 #if WITH_OBJC
-    rb_notimplement();
+    if (__os_finalizers != NULL)
+	CFDictionaryRemoveValue(__os_finalizers, (const void *)obj);
+    
+    if (rb_objc_is_non_native(obj)) {
+	rb_objc_flag_set(obj, FL_FINALIZE, false);
+    }
+    else {
+	FL_UNSET(obj, FL_FINALIZE);
+    }
 #else
     rb_objspace_t *objspace = &rb_objspace;
     if (finalizer_table) {
@@ -2424,7 +2436,38 @@ static VALUE
 define_final(int argc, VALUE *argv, VALUE os)
 {
 #if WITH_OBJC
-    rb_notimplement();
+    VALUE obj, block, table;
+
+    if (__os_finalizers == NULL)
+	__os_finalizers = CFDictionaryCreateMutable(NULL, 0, NULL,
+	    &kCFTypeDictionaryValueCallBacks);
+
+    rb_scan_args(argc, argv, "11", &obj, &block);
+    if (argc == 1) {
+	block = rb_block_proc();
+    }
+    else if (!rb_respond_to(block, rb_intern("call"))) {
+	rb_raise(rb_eArgError, "wrong type argument %s (should be callable)",
+		 rb_obj_classname(block));
+    }
+
+    table = (VALUE)CFDictionaryGetValue((CFDictionaryRef)__os_finalizers, 
+	(const void *)obj);
+
+    if (table == 0) {
+	table = rb_ary_new();
+	CFDictionarySetValue(__os_finalizers, (const void *)obj, 
+	    (const void *)table);
+    }
+
+    rb_ary_push(table, block);
+    
+    if (rb_objc_is_non_native(obj)) {
+	rb_objc_flag_set(obj, FL_FINALIZE, true);
+    }
+    else {
+	FL_SET(obj, FL_FINALIZE);
+    }
 #else
     rb_objspace_t *objspace = &rb_objspace;
     VALUE obj, block, table;
@@ -2459,7 +2502,30 @@ void
 rb_gc_copy_finalizer(VALUE dest, VALUE obj)
 {
 #if WITH_OBJC
-    /* TODO */
+    VALUE table;
+
+    if (__os_finalizers == NULL)
+	return;
+
+    if (rb_objc_is_non_native(obj)) {
+	if (!rb_objc_flag_check(obj, FL_FINALIZE))
+	    return;
+    }
+    else {
+	if (!FL_TEST(obj, FL_FINALIZE))
+	    return;
+    }
+
+    table = (VALUE)CFDictionaryGetValue((CFDictionaryRef)__os_finalizers,
+	(const void *)obj);
+
+    if (table == 0) {
+	CFDictionaryRemoveValue(__os_finalizers, (const void *)dest);
+    }
+    else {
+	CFDictionarySetValue(__os_finalizers, (const void *)dest, 
+	    (const void *)table);	
+    }
 #else
     rb_objspace_t *objspace = &rb_objspace;
     VALUE table;
@@ -2533,6 +2599,14 @@ rb_objc_keep_for_exit_finalize(VALUE v)
     CFArrayAppendValue(__exit_finalize, (void *)v);
 }
 
+static void rb_call_os_finalizer2(VALUE, VALUE);
+
+static void
+os_finalize_cb(const void *key, const void *val, void *context)
+{
+    rb_call_os_finalizer2((VALUE)key, (VALUE)val);
+}
+
 void
 rb_gc_call_finalizer_at_exit(void)
 {
@@ -2545,9 +2619,17 @@ rb_gc_call_finalizer_at_exit(void)
 	    v = (VALUE)CFArrayGetValueAtIndex((CFArrayRef)__exit_finalize, i);
 	    rb_objc_finalize_pure_ruby_obj(v);
 	}
+	CFArrayRemoveAllValues(__exit_finalize);
+	CFRelease(__exit_finalize);
     }
-    CFArrayRemoveAllValues(__exit_finalize);
-    CFRelease(__exit_finalize);
+
+    if (__os_finalizers != NULL) {
+	CFDictionaryApplyFunction((CFDictionaryRef)__os_finalizers,
+    	    os_finalize_cb, NULL);
+	CFDictionaryRemoveAllValues(__os_finalizers);
+	CFRelease(__os_finalizers);
+    }
+
     auto_collect(__auto_zone, AUTO_COLLECT_FULL_COLLECTION, NULL);
 }
 
@@ -2917,20 +2999,71 @@ gc_count(VALUE self)
 static void (*old_batch_invalidate)(auto_zone_t *, 
     auto_zone_foreach_object_t, auto_zone_cursor_t, size_t);
 
+static VALUE
+run_single_final(VALUE arg)
+{
+    VALUE *args = (VALUE *)arg;
+    rb_eval_cmd(args[0], args[1], (int)args[2]);
+    return Qnil;
+}
+
+static void
+rb_call_os_finalizer2(VALUE obj, VALUE table)
+{
+    long i, count;
+    VALUE args[3];
+    int status, critical_save;
+
+    critical_save = rb_thread_critical;
+    rb_thread_critical = Qtrue;
+
+    args[1] = rb_ary_new3(1, rb_obj_id(obj));
+    args[2] = (VALUE)rb_safe_level();
+
+    for (i = 0, count = RARRAY_LEN(table); i < count; i++) {
+	args[0] = RARRAY_AT(table, i);
+	rb_protect(run_single_final, (VALUE)args, &status);
+    }
+
+    rb_thread_critical = critical_save;
+}
+
+static void
+rb_call_os_finalizer(void *obj)
+{
+    if (__os_finalizers != NULL) {
+	VALUE table;
+
+	table = (VALUE)CFDictionaryGetValue((CFDictionaryRef)__os_finalizers,
+	    (const void *)obj);
+
+	if (table != 0) {
+	    rb_call_os_finalizer2((VALUE)obj, table);
+	    CFDictionaryRemoveValue(__os_finalizers, (const void *)obj);
+	}
+    }
+}
+
 static void
 __rb_objc_finalize(void *obj, void *data)
 {
     if (rb_objc_is_non_native((VALUE)obj)) {
 	static SEL sel = NULL;
-	rb_objc_remove_keys(obj);
-	rb_free_generic_ivar((VALUE)obj, true);
+	long flag;
+	flag = rb_objc_remove_flags(obj);
+	if ((flag & FL_FINALIZE) == FL_FINALIZE)
+	    rb_call_os_finalizer(obj);
+	if ((flag & FL_EXIVAR) == FL_EXIVAR)
+	    rb_free_generic_ivar((VALUE)obj);
 	if (sel == NULL)
 	    sel = sel_registerName("finalize");
 	objc_msgSend(obj, sel);
     }
     else {
+	if (FL_TEST(obj, FL_FINALIZE))
+	    rb_call_os_finalizer(obj);
 	if (FL_TEST(obj, FL_EXIVAR))
-	    rb_free_generic_ivar((VALUE)obj, false);
+	    rb_free_generic_ivar((VALUE)obj);
     }
 }
 

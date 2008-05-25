@@ -240,6 +240,7 @@ module IRB
     yield proc{|rc| home+"/irb#{rc.sub(/\A_?/, '.')}"}
     yield proc{|rc| home+"/_irb#{rc}"}
     yield proc{|rc| home+"/$irb#{rc}"}
+    yield proc{|rc| "/etc/irb#{rc}"}
   end
 
   # loading modules

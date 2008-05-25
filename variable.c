@@ -844,7 +844,7 @@ generic_ivar_get(VALUE obj, ID id, int warn)
 }
 
 static void
-generic_ivar_set(VALUE obj, ID id, VALUE val, int pure)
+generic_ivar_set(VALUE obj, ID id, VALUE val)
 {
 #if WITH_OBJC
     CFMutableDictionaryRef obj_dict;
@@ -879,8 +879,6 @@ generic_ivar_set(VALUE obj, ID id, VALUE val, int pure)
 	    (const void *)obj_dict);
 	CFMakeCollectable(obj_dict);
     }
-    if (!pure)
-	FL_SET(obj, FL_EXIVAR);
     CFDictionarySetValue(obj_dict, (const void *)id, (const void *)val);
 #else
     st_table *tbl;
@@ -1012,21 +1010,11 @@ rb_mark_generic_ivar_tbl(void)
 #endif
 
 void
-rb_free_generic_ivar(VALUE obj, bool lookup)
+rb_free_generic_ivar(VALUE obj)
 {
 #if WITH_OBJC
-    if (generic_iv_dict != NULL) {
-	if (lookup) {
-	    if (CFDictionaryGetValueIfPresent(generic_iv_dict, 
-		(const void *)obj, NULL)) {
-		CFDictionaryReplaceValue(generic_iv_dict, (const void *)obj, 
-		    NULL);
-	    }
-	}
-	else {
-	    CFDictionaryRemoveValue(generic_iv_dict, (const void *)obj);
-	}
-    }
+    if (generic_iv_dict != NULL)
+	CFDictionaryRemoveValue(generic_iv_dict, (const void *)obj);
 #else
     st_data_t tbl;
 
@@ -1157,7 +1145,8 @@ rb_ivar_set(VALUE obj, ID id, VALUE val)
     if (OBJ_FROZEN(obj)) rb_error_frozen("object");
 #if WITH_OBJC
     if (rb_objc_is_non_native(obj)) {
-	generic_ivar_set(obj, id, val, 1);
+	rb_objc_flag_set(obj, FL_EXIVAR, true);
+	generic_ivar_set(obj, id, val);
 	return val;
     }
 #endif
@@ -1221,7 +1210,8 @@ rb_ivar_set(VALUE obj, ID id, VALUE val)
 	st_insert(RCLASS_IV_TBL(obj), id, val);
         break;
       default:
-	generic_ivar_set(obj, id, val, 0);
+	generic_ivar_set(obj, id, val);
+	FL_SET(obj, FL_EXIVAR);
 	break;
     }
     return val;
@@ -1316,9 +1306,11 @@ generic:
     if (generic_iv_dict != NULL) {
 	CFDictionaryRef obj_dict;
 
-	obj_dict = (CFDictionaryRef)CFDictionaryGetValue((CFDictionaryRef)generic_iv_dict, (const void *)obj);
+	obj_dict = (CFDictionaryRef)CFDictionaryGetValue(
+	    (CFDictionaryRef)generic_iv_dict, (const void *)obj);
 	if (obj_dict != NULL)
-	    CFDictionaryApplyFunction(obj_dict, (CFDictionaryApplierFunction)func, (void *)arg);
+	    CFDictionaryApplyFunction(obj_dict, 
+		(CFDictionaryApplierFunction)func, (void *)arg);
     }
 #else
     if (!generic_iv_tbl) break;
