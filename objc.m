@@ -2684,6 +2684,7 @@ rb_objc_get_types_for_format_str(char **octypes, const int len, VALUE *args,
 
     while (i < format_str_len) {
 	bool sharp_modifier = false;
+	bool star_modifier = false;
 	if (format_str[i++] != '%')
 	    continue;
 	if (i < format_str_len && format_str[i] == '%') {
@@ -2695,6 +2696,11 @@ rb_objc_get_types_for_format_str(char **octypes, const int len, VALUE *args,
 	    switch (format_str[i]) {
 		case '#':
 		    sharp_modifier = true;
+		    break;
+
+		case '*':
+		    star_modifier = true;
+		    type = "i"; // C_INT;
 		    break;
 
 		case 'd':
@@ -2782,7 +2788,8 @@ rb_objc_get_types_for_format_str(char **octypes, const int len, VALUE *args,
 			"Too much tokens in the format string `%s' "\
 			"for the given %d argument(s)", format_str, len);
 		octypes[j++] = type;
-		break;
+		if (!star_modifier)
+		    break;
 	    }
 	}
     }
