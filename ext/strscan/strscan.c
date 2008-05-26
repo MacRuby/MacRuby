@@ -233,7 +233,7 @@ strscan_init_copy(VALUE vself, VALUE vorig)
     Data_Get_Struct(vorig, struct strscanner, orig);
     if (self != orig) {
 	self->flags = orig->flags;
-	GC_WN(&self->str, orig->str);
+	GC_WB(&self->str, orig->str);
 	self->prev = orig->prev;
 	self->curr = orig->curr;
 	onig_region_copy(&self->regs, &orig->regs);
