@@ -122,7 +122,9 @@ static VALUE inspect2 _((struct strscanner *p));
 static VALUE
 infect(VALUE str, struct strscanner *p)
 {
+#if !WITH_OBJC
     OBJ_INFECT(str, p->str);
+#endif
     return str;
 }
 
@@ -199,7 +201,7 @@ strscan_initialize(int argc, VALUE *argv, VALUE self)
     Data_Get_Struct(self, struct strscanner, p);
     rb_scan_args(argc, argv, "11", &str, &need_dup);
     StringValue(str);
-    p->str = str;
+    GC_WB(&p->str, str);
 
     return self;
 }
@@ -231,7 +233,7 @@ strscan_init_copy(VALUE vself, VALUE vorig)
     Data_Get_Struct(vorig, struct strscanner, orig);
     if (self != orig) {
 	self->flags = orig->flags;
-	self->str = orig->str;
+	GC_WN(&self->str, orig->str);
 	self->prev = orig->prev;
 	self->curr = orig->curr;
 	onig_region_copy(&self->regs, &orig->regs);
@@ -323,7 +325,7 @@ strscan_set_string(VALUE self, VALUE str)
 
     Data_Get_Struct(self, struct strscanner, p);
     StringValue(str);
-    p->str = rb_str_dup(str);
+    GC_WB(&p->str, rb_str_dup(str));
     rb_obj_freeze(p->str);
     p->curr = 0;
     CLEAR_MATCH_STATUS(p);

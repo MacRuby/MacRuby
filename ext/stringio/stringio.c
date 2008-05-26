@@ -191,7 +191,7 @@ strio_init(int argc, VALUE *argv, struct StringIO *ptr)
 	ptr->flags = FMODE_READWRITE;
 	break;
     }
-    ptr->string = string;
+    GC_WB(&ptr->string, string);
 }
 
 static VALUE
@@ -307,7 +307,8 @@ strio_set_string(VALUE self, VALUE string)
     ptr->flags = OBJ_FROZEN(string) ? FMODE_READABLE : FMODE_READWRITE;
     ptr->pos = 0;
     ptr->lineno = 0;
-    return ptr->string = string;
+    GC_WB(&ptr->string, string);
+    return string;
 }
 
 /*
