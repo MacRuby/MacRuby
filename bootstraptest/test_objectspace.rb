@@ -34,3 +34,11 @@ assert_normal_exit %q{
     end
   }
 }, '[ruby-dev:31985]'
+
+assert_equal "[Class]", %q{
+  ObjectSpace.each_object(Class).map { |x| x.class }.uniq
+}, 'macruby #61'
+
+assert_equal "[Class, Module]", %q{
+  ObjectSpace.each_object(Module).map { |x| x.class }.uniq
+}, 'macruby #61'
