@@ -313,7 +313,7 @@ syck_parser_file( SyckParser *p, FILE *fp, SyckIoFileRead read )
 }
 
 void
-syck_parser_str( SyckParser *p, char *ptr, long len, SyckIoStrRead read )
+syck_parser_str( SyckParser *p, const char *ptr, long len, SyckIoStrRead read )
 {
     ASSERT( p != NULL );
     free_any_io( p );

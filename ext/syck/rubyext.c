@@ -177,7 +177,7 @@ syck_parser_assign_io(SyckParser *parser, VALUE *pport)
         if (rb_respond_to(port, s_binmode)) {
             rb_funcall2(port, s_binmode, 0, 0);
         }
-        syck_parser_str( parser, (char *)port, 0, rb_syck_io_str_read );
+        syck_parser_str( parser, (const char *)port, 0, rb_syck_io_str_read );
     }
     else {
         rb_raise(rb_eTypeError, "instance of IO needed");
@@ -821,10 +821,10 @@ syck_parser_load(int argc, VALUE *argv, VALUE self)
 
     bonus = (struct parser_xtra *)parser->bonus;
     bonus->taint = syck_parser_assign_io(parser, &port);
-    bonus->data = rb_hash_new();
-    bonus->resolver = rb_attr_get( self, s_resolver );
+    GC_WB(&bonus->data, rb_hash_new());
+    GC_WB(&bonus->resolver, rb_attr_get( self, s_resolver ));
     if ( NIL_P( proc ) ) bonus->proc = 0;
-    else                 bonus->proc = proc;
+    else                 GC_WB(&bonus->proc, proc);
 
     return syck_parse( parser );
 }
@@ -848,13 +848,13 @@ syck_parser_load_documents(int argc, VALUE *argv, VALUE self)
     
     bonus = (struct parser_xtra *)parser->bonus;
     bonus->taint = syck_parser_assign_io(parser, &port);
-    bonus->resolver = rb_attr_get( self, s_resolver );
+    GC_WB(&bonus->resolver, rb_attr_get( self, s_resolver ));
     bonus->proc = 0;
 
     while ( 1 )
     {
         /* Reset hash for tracking nodes */
-        bonus->data = rb_hash_new();
+        GC_WB(&bonus->data, rb_hash_new());
 
         /* Parse a document */
         v = syck_parse( parser );
@@ -1885,7 +1885,11 @@ syck_emitter_s_alloc(VALUE class)
     VALUE pobj;
     SyckEmitter *emitter = syck_new_emitter();
 
+#if WITH_OBJC
+    emitter->bonus = xmalloc( sizeof(struct emitter_xtra) );
+#else
     emitter->bonus = S_ALLOC( struct emitter_xtra );
+#endif
     S_MEMZERO( emitter->bonus, struct emitter_xtra, 1 );
 
     pobj = Data_Wrap_Struct( class, syck_mark_emitter, rb_syck_free_emitter, emitter );
@@ -1910,8 +1914,8 @@ syck_emitter_reset(int argc, VALUE *argv, VALUE self)
     bonus = (struct emitter_xtra *)emitter->bonus;
 
     bonus->oid = Qnil;
-    bonus->port = rb_str_new2( "" );
-    bonus->data = rb_hash_new();
+    GC_WB(&bonus->port, rb_str_new2( "" ));
+    GC_WB(&bonus->data, rb_hash_new());
 
     if (rb_scan_args(argc, argv, "01", &options) == 0)
     {
@@ -1920,11 +1924,11 @@ syck_emitter_reset(int argc, VALUE *argv, VALUE self)
     }
     else if ( !NIL_P(tmp = rb_check_string_type(options)) )
     {
-        bonus->port = tmp;
+        GC_WB(&bonus->port, tmp);
     }
     else if ( rb_respond_to( options, s_write ) )
     {
-        bonus->port = options;
+        GC_WB(&bonus->port, options);
     }
     else
     {
@@ -1956,7 +1960,7 @@ syck_emitter_emit(int argc, VALUE *argv, VALUE self)
     bonus = (struct emitter_xtra *)emitter->bonus;
 
     /* Calculate anchors, normalize nodes, build a simpler symbol table */
-    bonus->oid = oid;
+    GC_WB(&bonus->oid, oid);
     if ( !NIL_P( oid ) && RTEST( rb_funcall( bonus->data, s_haskey, 1, oid ) ) ) {
         symple = rb_hash_aref( bonus->data, oid );
     } else {

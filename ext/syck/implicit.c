@@ -1608,7 +1608,7 @@ syck_tagcmp( const char *tag1, const char *tag2 )
 }
 
 char *
-syck_type_id_to_uri( char *type_id )
+syck_type_id_to_uri( const char *type_id )
 {
     char *cursor, *limit, *marker;
 
