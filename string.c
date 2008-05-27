@@ -565,9 +565,9 @@ str_new(VALUE klass, const char *ptr, long len)
 	    }
 	}
     }
+    rb_gc_malloc_increase(32 + (sizeof(UniChar) * len));
     if (need_padding)
 	CFStringPad((CFMutableStringRef)str, CFSTR(" "), len, 0);
-    rb_gc_malloc_increase(32 + (sizeof(UniChar) * len));
 #else
     if (len > RSTRING_EMBED_LEN_MAX) {
 	RSTRING(str)->as.heap.aux.capa = len;
@@ -611,10 +611,12 @@ rb_enc_str_new(const char *ptr, long len, rb_encoding *enc)
 VALUE
 rb_str_new2(const char *ptr)
 {
+    long len;
     if (!ptr) {
 	rb_raise(rb_eArgError, "NULL pointer given");
     }
-    return rb_str_new(ptr, strlen(ptr));
+    len = strlen(ptr);
+    return rb_str_new(len == 0 ? NULL : ptr, len);
 }
 
 VALUE

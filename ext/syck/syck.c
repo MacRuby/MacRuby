@@ -157,7 +157,11 @@ SyckParser *
 syck_new_parser(void)
 {
     SyckParser *p;
+#if WITH_OBJC
+    p = xmalloc(sizeof(SyckParser));
+#else
     p = S_ALLOC( SyckParser );
+#endif
     S_MEMZERO( p, SyckParser, 1 );
     p->lvl_capa = ALLOC_CT;
     p->levels = S_ALLOC_N( SyckLevel, p->lvl_capa ); 
