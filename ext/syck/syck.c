@@ -63,7 +63,7 @@ syck_io_file_read( char *buf, SyckIoFile *file, long max_size, long skip )
 long
 syck_io_str_read( char *buf, SyckIoStr *str, long max_size, long skip )
 {
-    char *beg;
+    const char *beg;
     long len = 0;
 
     ASSERT( str != NULL );

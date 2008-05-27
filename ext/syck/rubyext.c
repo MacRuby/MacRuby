@@ -744,7 +744,11 @@ syck_parser_s_alloc(VALUE class)
     VALUE pobj;
     SyckParser *parser = syck_new_parser();
 
+#if WITH_OBJC
+    GC_WB(&parser->bonus, xmalloc( sizeof(struct parser_xtra) ));
+#else
     parser->bonus = S_ALLOC( struct parser_xtra );
+#endif
     S_MEMZERO( parser->bonus, struct parser_xtra, 1 );
 
     pobj = Data_Wrap_Struct( class, syck_mark_parser, rb_syck_free_parser, parser );
@@ -1886,7 +1890,7 @@ syck_emitter_s_alloc(VALUE class)
     SyckEmitter *emitter = syck_new_emitter();
 
 #if WITH_OBJC
-    emitter->bonus = xmalloc( sizeof(struct emitter_xtra) );
+    GC_WB(&emitter->bonus, xmalloc( sizeof(struct emitter_xtra) ));
 #else
     emitter->bonus = S_ALLOC( struct emitter_xtra );
 #endif

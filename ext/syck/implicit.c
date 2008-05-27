@@ -44,9 +44,9 @@ try_tag_implicit( SyckNode *n, int taguri )
     }
 }
 
-char *syck_match_implicit( char *str, size_t len )
+char *syck_match_implicit( const char *str, size_t len )
 {
-    char *cursor, *limit, *marker;
+    const char *cursor, *limit, *marker;
     cursor = str;
     limit = str + len;
 

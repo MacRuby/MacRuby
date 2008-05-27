@@ -108,7 +108,11 @@ SyckEmitter *
 syck_new_emitter(void)
 {
     SyckEmitter *e;
+#if WITH_OBJC
+    e = xmalloc(sizeof(SyckEmitter));
+#else
     e = S_ALLOC( SyckEmitter );
+#endif
     e->headless = 0;
     e->use_header = 0;
     e->use_version = 0;
