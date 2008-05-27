@@ -276,10 +276,13 @@ if $extout
   end
 end
 
+$installing_rdoc = false
+
 install?(:rdoc) do
   if $rdocdir
     puts "installing rdoc"
 
+    $installing_rdoc = true
     ridatadir = File.join(CONFIG['datadir'], 'ri/$(MAJOR).$(MINOR).$(TEENY)/system')
     Config.expand(ridatadir)
     makedirs [ridatadir]
@@ -428,6 +431,8 @@ def install_stuff(what, from, to, mode)
   Dir.glob(File.join(to, '**', '.svn')).each { |x| rm_rf(x) }
 end
 
+unless $installing_rdoc
+
 install_stuff('Xcode templates', 'misc/xcode-templates', 
   '/Library/Application Support/Developer/3.0/Xcode', 0755)
 install_stuff('samples', 'sample-macruby', 
@@ -483,5 +488,7 @@ if RUBY_FRAMEWORK
     end
   end
 end
+
+end # unless $installing_rdoc
 
 # vi:set sw=2:
