@@ -23,7 +23,7 @@ extern st_table *rb_class_tbl;
 static VALUE
 class_init(VALUE obj)
 {
-    RCLASS(obj)->ptr = ALLOC(rb_classext_t);
+    GC_WB(&RCLASS(obj)->ptr, ALLOC(rb_classext_t));
     RCLASS_IV_TBL(obj) = 0;
     RCLASS_M_TBL(obj) = 0;
     RCLASS_SUPER(obj) = 0;
@@ -348,7 +348,7 @@ rb_mod_init_copy(VALUE clone, VALUE orig)
     if (RCLASS_IV_TBL(orig)) {
 	ID id;
 
-	RCLASS_IV_TBL(clone) = st_copy(RCLASS_IV_TBL(orig));
+	GC_WB(&RCLASS_IV_TBL(clone), st_copy(RCLASS_IV_TBL(orig)));
 	id = rb_intern("__classpath__");
 	st_delete(RCLASS_IV_TBL(clone), (st_data_t*)&id, 0);
 	id = rb_intern("__classid__");
@@ -356,7 +356,8 @@ rb_mod_init_copy(VALUE clone, VALUE orig)
     }
     if (RCLASS_M_TBL(orig)) {
 	struct clone_method_data data;
-	data.tbl = RCLASS_M_TBL(clone) = st_init_numtable();
+	GC_WB(&RCLASS_M_TBL(clone), st_init_numtable());
+	data.tbl = RCLASS_M_TBL(clone);
 	data.klass = clone;
 	st_foreach(RCLASS_M_TBL(orig), clone_method,
 	  (st_data_t)&data);
@@ -424,7 +425,7 @@ rb_singleton_class_attached(VALUE klass, VALUE obj)
 {
     if (FL_TEST(klass, FL_SINGLETON)) {
 	if (!RCLASS_IV_TBL(klass)) {
-	    RCLASS_IV_TBL(klass) = st_init_numtable();
+	    GC_WB(&RCLASS_IV_TBL(klass), st_init_numtable());
 	}
 	st_insert(RCLASS_IV_TBL(klass), rb_intern("__attached__"), obj);
     }

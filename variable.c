@@ -1188,7 +1188,7 @@ rb_ivar_set(VALUE obj, ID id, VALUE val)
                     newptr = ALLOC_N(VALUE, newsize);
                     MEMCPY(newptr, ptr, VALUE, len);
                     RBASIC(obj)->flags &= ~ROBJECT_EMBED;
-                    ROBJECT(obj)->as.heap.ivptr = newptr;
+                    GC_WB(&ROBJECT(obj)->as.heap.ivptr, newptr);
                 }
                 else {
                     REALLOC_N(ROBJECT(obj)->as.heap.ivptr, VALUE, newsize);
@@ -1200,7 +1200,7 @@ rb_ivar_set(VALUE obj, ID id, VALUE val)
                 ROBJECT(obj)->as.heap.iv_index_tbl = iv_index_tbl;
             }
         }
-        ROBJECT_IVPTR(obj)[index] = val;
+        GC_WB(&ROBJECT_IVPTR(obj)[index], val);
 	break;
       case T_CLASS:
       case T_MODULE:
@@ -1301,6 +1301,8 @@ void rb_ivar_foreach(VALUE obj, int (*func)(ANYARGS), st_data_t arg)
 	}
 	return;
     }
+    if (!FL_TEST(obj, FL_EXIVAR) && !rb_special_const_p(obj))
+	return;
 generic:
 #if WITH_OBJC
     if (generic_iv_dict != NULL) {

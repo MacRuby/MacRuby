@@ -3057,6 +3057,7 @@ rb_call_os_finalizer(void *obj)
 static void
 __rb_objc_finalize(void *obj, void *data)
 {
+    //printf("finalize %p <%s>\n",obj, class_getName(*(Class *)obj));
     if (rb_objc_is_non_native((VALUE)obj)) {
 	static SEL sel = NULL;
 	long flag;
