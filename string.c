@@ -6279,18 +6279,30 @@ rb_str_split_m(int argc, VALUE *argv, VALUE str)
 #if WITH_OBJC
     if (awk_split || spat_string) {
 	CFRange search_range;
+	CFCharacterSetRef charset;
 	if (spat == Qnil)
-	    spat = (VALUE)CFSTR(" ");
+	    charset = CFCharacterSetGetPredefined(
+		kCFCharacterSetWhitespaceAndNewline);
 	search_range = CFRangeMake(0, clen);
 	do {
 	    CFRange result_range;
 	    CFRange substr_range;
-	    if (!CFStringFindWithOptions((CFStringRef)str, 
-			(CFStringRef)spat,
-			search_range,
-			0,
-			&result_range))
-		break;
+	    if (spat != Qnil) {
+		if (!CFStringFindWithOptions((CFStringRef)str, 
+		    (CFStringRef)spat,
+		    search_range,
+		    0,
+		    &result_range))
+		    break;
+	    }
+	    else {
+		if (!CFStringFindCharacterFromSet((CFStringRef)str,
+		    charset, 
+		    search_range,
+		    0,
+		    &result_range))
+		    break;
+	    }
 
 	    substr_range.location = search_range.location;
 	    substr_range.length = result_range.location 

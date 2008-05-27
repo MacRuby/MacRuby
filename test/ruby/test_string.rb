@@ -1067,6 +1067,7 @@ class TestString < Test::Unit::TestCase
 
     assert_equal([], "".split(//, 1))
     assert_equal(["\0"], "\0".split(//))
+    assert_equal(["*.c", "lib", "ext"], "\n\n\n\n\n\n*.c\n\n\n\nlib\n\n\n\n\next\n".split)
   end
 
   def test_squeeze
