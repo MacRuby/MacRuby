@@ -1088,7 +1088,7 @@ ivar_get(VALUE obj, ID id, int warn)
     st_data_t index;
 
 #if WITH_OBJC
-    if (rb_objc_is_non_native(obj))
+    if (!rb_special_const_p(obj) && rb_objc_is_non_native(obj))
 	return generic_ivar_get(obj, id, warn);
 #endif
 
@@ -1144,7 +1144,7 @@ rb_ivar_set(VALUE obj, ID id, VALUE val)
 	rb_raise(rb_eSecurityError, "Insecure: can't modify instance variable");
     if (OBJ_FROZEN(obj)) rb_error_frozen("object");
 #if WITH_OBJC
-    if (rb_objc_is_non_native(obj)) {
+    if (!rb_special_const_p(obj) && rb_objc_is_non_native(obj)) {
 	rb_objc_flag_set(obj, FL_EXIVAR, true);
 	generic_ivar_set(obj, id, val);
 	return val;
@@ -1223,9 +1223,11 @@ rb_ivar_defined(VALUE obj, ID id)
     VALUE val;
     struct st_table *iv_index_tbl;
     st_data_t index;
-    if (rb_objc_is_non_native(obj)) {
+#if WITH_OBJC
+    if (!rb_special_const_p(obj) && rb_objc_is_non_native(obj)) {
 	return generic_ivar_defined(obj, id);
     }
+#endif
     switch (TYPE(obj)) {
       case T_OBJECT:
         iv_index_tbl = ROBJECT_IV_INDEX_TBL(obj);
@@ -1287,7 +1289,7 @@ obj_ivar_each(VALUE obj, int (*func)(ANYARGS), st_data_t arg)
 void rb_ivar_foreach(VALUE obj, int (*func)(ANYARGS), st_data_t arg)
 {
 #if WITH_OBJC
-    if (rb_objc_is_non_native(obj))
+    if (!rb_special_const_p(obj) && rb_objc_is_non_native(obj))
 	goto generic;
 #endif
     switch (TYPE(obj)) {

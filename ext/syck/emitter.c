@@ -1194,7 +1194,10 @@ syck_emitter_mark_node( SyckEmitter *e, st_data_t n )
      */
     if ( e->markers == NULL )
     {
-        GC_WB(&e->markers, st_init_numtable());
+        e->markers = st_init_numtable();
+#if WITH_OBJC
+	rb_objc_retain(e->markers);
+#endif
     }
 
     /*
