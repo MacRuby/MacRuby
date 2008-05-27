@@ -142,6 +142,7 @@ rb_str_cfdata(VALUE str)
 		return NULL;
 	    mdata = CFDataCreateMutableCopy(NULL, 0, data);
 	    len = CFDataGetLength(data);
+	    rb_gc_malloc_increase(len);
 	    /* This is a hack to make sure a sentinel byte is created at the 
 	     * end of the buffer. 
 	     */
@@ -192,6 +193,7 @@ rb_str_bytesync(VALUE str)
 		kCFStringEncodingUTF8,
 		false,
 		kCFAllocatorNull);
+	rb_gc_malloc_increase(datalen);
 	if (bytestr != NULL) {
 	    CFStringReplaceAll((CFMutableStringRef)str, (CFStringRef)bytestr);
 	    CFRelease(bytestr);
@@ -506,6 +508,7 @@ rb_objc_str_set_bytestring(VALUE str, const char *dataptr, long datalen)
 
     data = CFDataCreateMutable(NULL, 0);
     CFDataAppendBytes(data, (const UInt8 *)dataptr, datalen);
+    rb_gc_malloc_increase(datalen);
     rb_str_cfdata_set(str, data);
     CFMakeCollectable(data);
 }
@@ -545,6 +548,8 @@ str_new(VALUE klass, const char *ptr, long len)
 
 		    substr = CFStringCreateWithBytes(NULL, (const UInt8 *)ptr, 
 			len, kCFStringEncodingUTF8, false);
+    
+		    rb_gc_malloc_increase(32 + (sizeof(UniChar) * len));
 
 		    if (substr != NULL) {
 			CFStringAppend((CFMutableStringRef)str, substr);
@@ -562,7 +567,7 @@ str_new(VALUE klass, const char *ptr, long len)
     }
     if (need_padding)
 	CFStringPad((CFMutableStringRef)str, CFSTR(" "), len, 0);
-    rb_gc_malloc_increase(sizeof(UniChar) * len);
+    rb_gc_malloc_increase(32 + (sizeof(UniChar) * len));
 #else
     if (len > RSTRING_EMBED_LEN_MAX) {
 	RSTRING(str)->as.heap.aux.capa = len;
@@ -4164,10 +4169,12 @@ rb_str_replace(VALUE str, VALUE str2)
 	CFMutableDataRef mdata;
        
 	mdata = CFDataCreateMutableCopy(NULL, 0, data);
+	rb_gc_malloc_increase(CFDataGetLength(data));
 	rb_str_cfdata_set(str, mdata);
 	CFMakeCollectable(mdata);
     }
     CFStringReplaceAll((CFMutableStringRef)str, (CFStringRef)str2);
+    rb_gc_malloc_increase(CFStringGetLength((CFStringRef)str2) * sizeof(UniChar));
     if (OBJ_TAINTED(str2))
 	OBJ_TAINT(str);
 #else
