@@ -1773,7 +1773,7 @@ rb_str_resize(VALUE str, long len)
 
     rb_str_modify(str);
 #if WITH_OBJC
-    slen = CFStringGetLength((CFStringRef)str);
+    slen = RSTRING_CLEN(str);
     if (slen != len) {
 	void *cfdata;
 
