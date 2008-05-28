@@ -413,9 +413,12 @@ Options may also be set in the 'RI' environment variable.
   end
 
   def write_cache(cache, path)
-    File.open path, "wb" do |cache_file|
-      Marshal.dump cache, cache_file
-    end
+    # FIXME the following code doesn't work in MR yet
+    #File.open path, "wb" do |cache_file|
+    #  Marshal.dump cache, cache_file
+    #end
+    data = Marshal.dump cache
+    File.open path, 'wb' { |io| io.write data }
 
     cache
   end

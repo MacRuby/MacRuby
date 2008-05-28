@@ -598,24 +598,6 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
     else {
 	if (OBJ_TAINTED(obj)) arg->taint = Qtrue;
 
-	st_add_direct(arg->data, obj, arg->data->num_entries);
-
-#if WITH_OBJC
-	if (!rb_objc_is_non_native(obj))
-#endif
-        {
-            st_data_t compat_data;
-            rb_alloc_func_t allocator = rb_get_alloc_func(RBASIC(obj)->klass);
-            if (st_lookup(compat_allocator_tbl,
-                          (st_data_t)allocator,
-                          &compat_data)) {
-                marshal_compat_t *compat = (marshal_compat_t*)compat_data;
-                VALUE real_obj = obj;
-                obj = compat->dumper(real_obj);
-                st_insert(arg->compat_tbl, (st_data_t)obj, (st_data_t)real_obj);
-            }
-        }
-
 	if (rb_respond_to(obj, s_mdump)) {
 	    volatile VALUE v;
 
@@ -928,6 +910,8 @@ marshal_dump(int argc, VALUE *argv)
 	port = rb_str_buf_new(0);
 	arg.str = port;
     }
+
+    RSTRING_PTR(arg.str); /* force bytestring creation */
 
     arg.symbols = st_init_numtable();
     arg.data    = st_init_numtable();
@@ -1265,21 +1249,23 @@ r_object0(struct load_arg *arg, int *ivp, VALUE extmod)
       case TYPE_UCLASS:
 	{
 	    VALUE c = path2class(r_unique(arg));
+	    bool non_native;
 
 	    if (FL_TEST(c, FL_SINGLETON)) {
 		rb_raise(rb_eTypeError, "singleton can't be loaded");
 	    }
 	    v = r_object0(arg, 0, extmod);
-	    if (rb_special_const_p(v) || TYPE(v) == T_OBJECT || TYPE(v) == T_CLASS) {
-	      format_error:
-		rb_raise(rb_eArgError, "dump format error (user class)");
-	    }
 #if WITH_OBJC
 	    if (rb_objc_is_non_native(v)) {
 		*(Class *)v = RCLASS_OCID(c);	
 	    }
-	    else {
+	    else
 #endif
+	    {
+		if (rb_special_const_p(v) || TYPE(v) == T_OBJECT || TYPE(v) == T_CLASS) {
+format_error:
+		    rb_raise(rb_eArgError, "dump format error (user class)");
+		}
 		if (TYPE(v) == T_MODULE || !RTEST(rb_class_inherited_p(c, RBASIC(v)->klass))) {
 		    VALUE tmp = rb_obj_alloc(c);
 
