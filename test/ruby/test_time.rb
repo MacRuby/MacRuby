@@ -64,6 +64,12 @@ class TestTime < Test::Unit::TestCase
     end
   end
 
+  def test_strtime
+    t = nil
+    assert_nothing_raised { t = Time.utc("2000", "1", "2" , "3", "4", "5") }
+    assert_equal(Time.utc(2000,1,2,3,4,5), t)
+  end
+
   def test_huge_difference
     if negative_time_t?
       assert_equal(Time.at(-0x80000000), Time.at(0x7fffffff) - 0xffffffff, "[ruby-dev:22619]")
@@ -327,6 +333,7 @@ class TestTime < Test::Unit::TestCase
   end
 
   def test_strftime
+    t = Time.at(946684800).getlocal
     assert_equal("Sat", T2000.strftime("%a"))
     assert_equal("Saturday", T2000.strftime("%A"))
     assert_equal("Jan", T2000.strftime("%b"))
@@ -347,7 +354,7 @@ class TestTime < Test::Unit::TestCase
     assert_equal("00:00:00", T2000.strftime("%X"))
     assert_equal("00", T2000.strftime("%y"))
     assert_equal("2000", T2000.strftime("%Y"))
-    assert_equal("GMT", T2000.strftime("%Z"))
+    assert(["GMT", "UTC"].include?(T2000.strftime("%Z")))
     assert_equal("%", T2000.strftime("%%"))
 
     assert_equal("", T2000.strftime(""))

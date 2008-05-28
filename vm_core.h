@@ -139,6 +139,7 @@ typedef struct rb_compile_option_struct {
     int instructions_unification;
     int stack_caching;
     int trace_instruction;
+    int debug_level;
 } rb_compile_option_t;
 
 struct iseq_compile_data {
@@ -161,6 +162,8 @@ struct iseq_compile_data {
     struct iseq_compile_data_storage *storage_current;
     int last_line;
     int flip_cnt;
+    int label_no;
+    int node_level;
     const rb_compile_option_t *option;
 };
 
@@ -300,6 +303,7 @@ typedef struct rb_vm_struct {
 
     /* load */
     VALUE top_self;
+    VALUE load_path;
     VALUE loaded_features;
     struct st_table *loading_table;
     
@@ -309,6 +313,10 @@ typedef struct rb_vm_struct {
 
     /* hook */
     rb_event_hook_t *event_hooks;
+
+#if defined(ENABLE_VM_OBJSPACE) && ENABLE_VM_OBJSPACE
+    struct rb_objspace *objspace;
+#endif
 } rb_vm_t;
 
 typedef struct {
@@ -346,7 +354,7 @@ enum rb_thread_status {
     THREAD_KILLED,
 };
 
-typedef jmp_buf rb_jmpbuf_t;
+typedef RUBY_JMP_BUF rb_jmpbuf_t;
 
 struct rb_vm_tag {
     rb_jmpbuf_t buf;
@@ -439,6 +447,7 @@ struct rb_thread_struct
     VALUE *machine_register_stack_end;
     size_t machine_register_stack_maxsize;
 #endif
+
     jmp_buf machine_regs;
     int mark_stack_len;
 
@@ -650,7 +659,7 @@ void rb_thread_execute_interrupts(rb_thread_t *);
   RUBY_VM_CHECK_INTS_TH(GET_THREAD())
 
 /* tracer */
-static void inline
+static inline void
 exec_event_hooks(rb_event_hook_t *hook, rb_event_flag_t flag, VALUE self, ID id, VALUE klass)
 {
     while (hook) {

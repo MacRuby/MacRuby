@@ -2,7 +2,7 @@
 
   signal.c -
 
-  $Author: usa $
+  $Author: nobu $
   created at: Tue Dec 20 10:13:44 JST 1994
 
   Copyright (C) 1993-2007 Yukihiro Matsumoto
@@ -36,7 +36,7 @@
 # endif
 #endif
 
-static struct signals {
+static const struct signals {
     const char *signm;
     int  signo;
 } siglist [] = {
@@ -178,7 +178,7 @@ static struct signals {
 static int
 signm2signo(const char *nm)
 {
-    struct signals *sigs;
+    const struct signals *sigs;
 
     for (sigs = siglist; sigs->signm; sigs++)
 	if (strcmp(sigs->signm, nm) == 0)
@@ -189,7 +189,7 @@ signm2signo(const char *nm)
 static const char*
 signo2signm(int no)
 {
-    struct signals *sigs;
+    const struct signals *sigs;
 
     for (sigs = siglist; sigs->signm; sigs++)
 	if (sigs->signo == no)
@@ -330,7 +330,7 @@ rb_f_kill(int argc, VALUE *argv)
 	goto str_signal;
 
       case T_STRING:
-	s = RSTRING_PTR(argv[0]);
+	s = RSTRING_CPTR(argv[0]);
 	if (s[0] == '-') {
 	    negative++;
 	    s++;
@@ -351,7 +351,7 @@ rb_f_kill(int argc, VALUE *argv)
 
 	    str = rb_check_string_type(argv[0]);
 	    if (!NIL_P(str)) {
-		s = RSTRING_PTR(str);
+		s = RSTRING_CPTR(str);
 		goto str_signal;
 	    }
 	    rb_raise(rb_eArgError, "bad signal type %s",
@@ -381,7 +381,9 @@ static struct {
     VALUE cmd;
 } trap_list[NSIG];
 static rb_atomic_t trap_pending_list[NSIG];
+#if 0
 static char rb_trap_accept_nativethreads[NSIG];
+#endif
 rb_atomic_t rb_trap_pending;
 rb_atomic_t rb_trap_immediate;
 int rb_prohibit_interrupt = 1;
@@ -417,7 +419,9 @@ ruby_signal(int signum, sighandler_t handler)
 {
     struct sigaction sigact, old;
 
+#if 0
     rb_trap_accept_nativethreads[signum] = 0;
+#endif
 
     sigemptyset(&sigact.sa_mask);
 #ifdef SA_SIGINFO
@@ -443,8 +447,8 @@ posix_signal(int signum, sighandler_t handler)
 }
 
 #else /* !POSIX_SIGNAL */
-#define ruby_signal(sig,handler) (rb_trap_accept_nativethreads[sig] = 0, signal((sig),(handler)))
-#ifdef HAVE_NATIVETHREAD
+#define ruby_signal(sig,handler) (/* rb_trap_accept_nativethreads[sig] = 0,*/ signal((sig),(handler)))
+#if 0 /* def HAVE_NATIVETHREAD */
 static sighandler_t
 ruby_nativethread_signal(int signum, sighandler_t handler)
 {
@@ -469,12 +473,13 @@ sighandler(int sig)
 #endif
 }
 
+#if USE_TRAP_MASK
 # ifdef HAVE_SIGPROCMASK
 static sigset_t trap_last_mask;
 # else
 static int trap_last_mask;
 # endif
-
+#endif
 
 #if HAVE_PTHREAD_H
 #include <pthread.h>
@@ -714,45 +719,45 @@ trap_handler(VALUE *cmd, int sig)
 	command = rb_check_string_type(*cmd);
 	if (!NIL_P(command)) {
 	    SafeStringValue(command);	/* taint check */
-	    switch (RSTRING_LEN(command)) {
+	    switch (RSTRING_CLEN(command)) {
 	      case 0:
                 goto sig_ign;
 		break;
               case 14:
-		if (strncmp(RSTRING_PTR(command), "SYSTEM_DEFAULT", 14) == 0) {
+		if (strncmp(RSTRING_CPTR(command), "SYSTEM_DEFAULT", 14) == 0) {
                     func = SIG_DFL;
                     *cmd = 0;
 		}
                 break;
 	      case 7:
-		if (strncmp(RSTRING_PTR(command), "SIG_IGN", 7) == 0) {
+		if (strncmp(RSTRING_CPTR(command), "SIG_IGN", 7) == 0) {
 sig_ign:
                     func = SIG_IGN;
                     *cmd = 0;
 		}
-		else if (strncmp(RSTRING_PTR(command), "SIG_DFL", 7) == 0) {
+		else if (strncmp(RSTRING_CPTR(command), "SIG_DFL", 7) == 0) {
 sig_dfl:
                     func = default_handler(sig);
                     *cmd = 0;
 		}
-		else if (strncmp(RSTRING_PTR(command), "DEFAULT", 7) == 0) {
+		else if (strncmp(RSTRING_CPTR(command), "DEFAULT", 7) == 0) {
                     goto sig_dfl;
 		}
 		break;
 	      case 6:
-		if (strncmp(RSTRING_PTR(command), "IGNORE", 6) == 0) {
+		if (strncmp(RSTRING_CPTR(command), "IGNORE", 6) == 0) {
                     goto sig_ign;
 		}
 		break;
 	      case 4:
-		if (strncmp(RSTRING_PTR(command), "EXIT", 4) == 0) {
+		if (strncmp(RSTRING_CPTR(command), "EXIT", 4) == 0) {
 		    func = sighandler;
 		    *cmd = Qundef;
 		}
 		break;
 	    }
 	    if (func == wrong_trap) {
-		rb_raise(rb_eArgError, "wrong trap - %s", RSTRING_PTR(command));
+		rb_raise(rb_eArgError, "wrong trap - %s", RSTRING_CPTR(command));
 	    }
 	}
 	else {
@@ -938,7 +943,7 @@ static VALUE
 sig_list(void)
 {
     VALUE h = rb_hash_new();
-    struct signals *sigs;
+    const struct signals *sigs;
 
     for (sigs = siglist; sigs->signm; sigs++) {
 	rb_hash_aset(h, rb_str_new2(sigs->signm), INT2FIX(sigs->signo));
@@ -957,6 +962,7 @@ install_sighandler(int signum, sighandler_t handler)
     }
 }
 
+#if defined(SIGCLD) || defined(SIGCHLD)
 static void
 init_sigchld(int sig)
 {
@@ -997,6 +1003,7 @@ init_sigchld(int sig)
     trap_last_mask = mask;
 #endif
 }
+#endif
 
 void
 ruby_sig_finalize()

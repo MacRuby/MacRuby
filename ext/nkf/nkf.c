@@ -3,11 +3,11 @@
  *
  *  original nkf2.x is maintained at http://sourceforge.jp/projects/nkf/
  *
- *  $Id: nkf.c 15267 2008-01-27 07:43:31Z naruse $
+ *  $Id: nkf.c 16149 2008-04-22 12:20:36Z naruse $
  *
  */
 
-#define RUBY_NKF_REVISION "$Revision: 15267 $"
+#define RUBY_NKF_REVISION "$Revision: 16149 $"
 #define RUBY_NKF_VERSION NKF_VERSION " (" NKF_RELEASE_DATE ")"
 
 #include "ruby/ruby.h"
@@ -80,7 +80,7 @@ rb_encoding* rb_nkf_enc_get(const char *name)
 int nkf_split_options(const char *arg)
 {
     int count = 0;
-    char option[256];
+    unsigned char option[256];
     int i = 0, j = 0;
     int is_escaped = FALSE;
     int is_single_quoted = FALSE;
@@ -138,10 +138,6 @@ int nkf_split_options(const char *arg)
 static VALUE
 rb_nkf_convert(VALUE obj, VALUE opt, VALUE src)
 {
-    rb_encoding *to_enc;
-    const char *to_e;
-    int to_encidx;
-
     reinit();
     StringValue(opt);
     nkf_split_options(RSTRING_PTR(opt));

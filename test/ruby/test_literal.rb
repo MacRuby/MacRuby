@@ -17,10 +17,13 @@ class TestRubyLiteral < Test::Unit::TestCase
     assert_instance_of Fixnum, 1_2_3_4
     assert_equal '18', 0x12.inspect
     assert_instance_of Fixnum, 0x12
+    assert_raise(SyntaxError) { eval("0x") }
     assert_equal '15', 0o17.inspect
     assert_instance_of Fixnum, 0o17
+    assert_raise(SyntaxError) { eval("0o") }
     assert_equal '5', 0b101.inspect
     assert_instance_of Fixnum, 0b101
+    assert_raise(SyntaxError) { eval("0b") }
     assert_equal '123456789012345678901234567890', 123456789012345678901234567890.inspect
     assert_instance_of Bignum, 123456789012345678901234567890
     assert_instance_of Float, 1.3
@@ -179,6 +182,60 @@ class TestRubyLiteral < Test::Unit::TestCase
   def test__LINE__
     assert_instance_of Fixnum, __LINE__
     assert_equal __LINE__, __LINE__
+  end
+
+  def test_integer
+    head = ['', '0x', '0o', '0b', '0d', '-', '+']
+    chars = ['0', '1', '_', '9', 'f']
+    head.each {|h|
+      4.times {|len|
+        a = [h]
+        len.times { a = a.product(chars).map {|x| x.join('') } }
+        a.each {|s|
+          next if s.empty?
+          begin
+            r1 = Integer(s)
+          rescue ArgumentError
+            r1 = :err
+          end
+          begin
+            r2 = eval(s)
+          rescue NameError, SyntaxError
+            r2 = :err
+          end
+          assert_equal(r1, r2, "Integer(#{s.inspect}) != eval(#{s.inspect})")
+        }
+      }
+    }
+  end
+
+  def test_float
+    head = ['', '-', '+']
+    chars = ['0', '1', '_', '9', 'f', '.']
+    head.each {|h|
+      6.times {|len|
+        a = [h]
+        len.times { a = a.product(chars).map {|x| x.join('') } }
+        a.each {|s|
+          next if s.empty?
+          next if /\.\z/ =~ s
+          next if /\A[-+]?\./ =~ s
+          next if /\A[-+]?0/ =~ s
+          begin
+            r1 = Float(s)
+          rescue ArgumentError
+            r1 = :err
+          end
+          begin
+            r2 = eval(s)
+          rescue NameError, SyntaxError
+            r2 = :err
+          end
+          r2 = :err if Range === r2
+          assert_equal(r1, r2, "Float(#{s.inspect}) != eval(#{s.inspect})")
+        }
+      }
+    }
   end
 
 end

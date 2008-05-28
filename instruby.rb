@@ -80,7 +80,7 @@ def parse_args(argv = ARGV)
   $mflags.unshift(*mflags)
 
   def $mflags.set?(flag)
-    grep(/\A-(?!-).*#{'%s' % flag}/i) { return true }
+    grep(/\A-(?!-).*#{flag.chr}/i) { return true }
     false
   end
   def $mflags.defined?(var)
@@ -183,9 +183,13 @@ def install_recursive(srcdir, dest, options = {})
   end
 end
 
-def open_for_install(path, mode, &block)
+def open_for_install(path, mode)
+  data = open(realpath = with_destdir(path), "rb") {|f| f.read} rescue nil
+  newdata = yield
   unless $dryrun
-    open(realpath = with_destdir(path), "wb", mode, &block)
+    unless newdata == data
+      open(realpath, "wb", mode) {|f| f.write newdata}
+    end
     File.chmod(mode, realpath)
   end
   $installed_list.puts path if $installed_list
@@ -272,10 +276,13 @@ if $extout
   end
 end
 
+$installing_rdoc = false
+
 install?(:rdoc) do
   if $rdocdir
     puts "installing rdoc"
 
+    $installing_rdoc = true
     ridatadir = File.join(CONFIG['datadir'], 'ri/$(MAJOR).$(MINOR).$(TEENY)/system')
     Config.expand(ridatadir)
     makedirs [ridatadir]
@@ -290,7 +297,7 @@ install?(:local, :comm, :bin, :'bin-comm') do
   makedirs [bindir, rubylibdir]
 
   ruby_shebang = File.join(bindir, ruby_install_name)
-  if $cmdtype
+  if File::ALT_SEPARATOR
     ruby_bin = ruby_shebang.tr(File::SEPARATOR, File::ALT_SEPARATOR)
   end
   for src in Dir["bin/*"]
@@ -304,17 +311,17 @@ install?(:local, :comm, :bin, :'bin-comm') do
     open(src, "rb") do |f|
       shebang = f.gets
       body = f.read
-      end
+    end
     shebang.sub!(/^\#!.*?ruby\b/) {"#!" + ruby_shebang}
     shebang.sub!(/\r$/, '')
     body.gsub!(/\r$/, '')
 
     cmd = File.join(bindir, name)
     cmd << ".#{$cmdtype}" if $cmdtype
-    open_for_install(cmd, $script_mode) do |f|
+    open_for_install(cmd, $script_mode) do
       case $cmdtype
       when "bat"
-        f.print((<<EOH+shebang+body+<<EOF).gsub(/$/, "\r"))
+        "#{<<EOH}#{shebang}#{body}#{<<EOF}".gsub(/$/, "\r")
 @echo off
 @if not "%~d0" == "~d0" goto WinNT
 #{ruby_bin} -x "#{cmd}" %1 %2 %3 %4 %5 %6 %7 %8 %9
@@ -327,12 +334,12 @@ __END__
 :endofruby
 EOF
       when "cmd"
-        f.print(<<EOH, shebang, body)
+        "#{<<EOH}#{shebang}#{body}"
 @"%~dp0#{ruby_install_name}" -x "%~f0" %*
 @exit /b %ERRORLEVEL%
 EOH
       else
-        f.print shebang, body
+        shebang + body
       end
     end
   end
@@ -424,6 +431,8 @@ def install_stuff(what, from, to, mode)
   Dir.glob(File.join(to, '**', '.svn')).each { |x| rm_rf(x) }
 end
 
+unless $installing_rdoc
+
 install_stuff('Xcode templates', 'misc/xcode-templates', 
   '/Library/Application Support/Developer/3.0/Xcode', 0755)
 install_stuff('samples', 'sample-macruby', 
@@ -431,6 +440,7 @@ install_stuff('samples', 'sample-macruby',
 
 if RUBY_FRAMEWORK
   puts "installing framework"
+  # Creating framework infrastructure.
   base = File.join(CONFIG["prefix"], '..')
   resources = File.join(base, 'Resources')
   mkdir_p resources, :mode => 0755
@@ -438,6 +448,8 @@ if RUBY_FRAMEWORK
   mkdir_p File.join(resources, 'English.lproj'), :mode => 0755
   install File.join('framework/InfoPlist.strings'), 
     File.join(resources, 'English.lproj')
+  rm_f File.join(base, '..', 'Current') if 
+    File.symlink?(with_destdir(File.join(base, '..', 'Current')))
   ln_sfh MACRUBY_VERSION.to_s, File.join(base, '..', 'Current')
   ln_sfh 'Versions/Current/Headers', File.join(base, '../../Headers')
   ln_sfh 'Versions/Current/MacRuby', File.join(base, '../../MacRuby')
@@ -446,6 +458,7 @@ if RUBY_FRAMEWORK
   ln_sfh "usr/include/ruby-#{RUBY_VERSION}", File.join(base, 'Headers')
   ln_sfh "../#{CONFIG['arch']}/ruby/config.h", 
     File.join(base, "usr/include/ruby-#{RUBY_VERSION}/ruby/config.h")
+  # Installing executable links.
   dest_bin = '/usr/local/bin'
   mkdir_p dest_bin, :mode => 0755
   Dir.entries(CONFIG['bindir']).each do |bin|
@@ -454,6 +467,28 @@ if RUBY_FRAMEWORK
     link.sub!(/#{MACRUBY_VERSION}/, 'Current')
     ln_sfh link, File.join(dest_bin, File.basename(bin))
   end
+  # Installing man pages links.
+  dest_man = '/usr/local/share/man'
+  mkdir_p dest_man, :mode => 0755
+  Dir.entries(CONFIG['mandir']).each do |mandir|
+    next if mandir[0] == '.'
+    if File.stat(File.join(CONFIG['mandir'], mandir)).directory?
+      mkdir_p File.join(dest_man, File.basename(mandir)), :mode => 0755
+      Dir.entries(File.join(CONFIG['mandir'], mandir)).each do |man|
+        next if man[0] == '.'
+        link = File.join("../../../../../", CONFIG['mandir'], mandir, man)
+        link.sub!(/#{MACRUBY_VERSION}/, 'Current')
+        ln_sfh link, File.join(dest_man, File.basename(mandir), 
+	  File.basename(man))
+      end
+    else
+      link = File.join("../../../../", CONFIG['mandir'], mandir)
+      link.sub!(/#{MACRUBY_VERSION}/, 'Current')
+      ln_sfh link, File.join(dest_man, File.basename(mandir))
+    end
+  end
 end
+
+end # unless $installing_rdoc
 
 # vi:set sw=2:

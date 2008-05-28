@@ -10,7 +10,7 @@ rb_sourcefile(void)
     rb_control_frame_t *cfp = vm_get_ruby_level_cfp(th, th->cfp);
 
     if (cfp) {
-	return RSTRING_PTR(cfp->iseq->filename);
+	return RSTRING_CPTR(cfp->iseq->filename);
     }
     else {
 	return 0;
@@ -91,7 +91,7 @@ error_print(void)
     VALUE errat = Qnil;		/* OK */
     VALUE errinfo = GET_THREAD()->errinfo;
     volatile VALUE eclass, e;
-    char *einfo;
+    const char *einfo;
     long elen;
 
     if (NIL_P(errinfo))
@@ -118,12 +118,12 @@ error_print(void)
 	error_pos();
     }
     else {
-	VALUE mesg = RARRAY_PTR(errat)[0];
+	VALUE mesg = RARRAY_AT(errat, 0);
 
 	if (NIL_P(mesg))
 	    error_pos();
 	else {
-	    warn_print2(RSTRING_PTR(mesg), RSTRING_LEN(mesg));
+	    warn_print2(RSTRING_CPTR(mesg), RSTRING_CLEN(mesg));
 	}
     }
 
@@ -131,8 +131,8 @@ error_print(void)
     if (EXEC_TAG() == 0) {
 	e = rb_funcall(errinfo, rb_intern("message"), 0, 0);
 	StringValue(e);
-	einfo = RSTRING_PTR(e);
-	elen = RSTRING_LEN(e);
+	einfo = RSTRING_CPTR(e);
+	elen = RSTRING_CLEN(e);
     }
     else {
 	einfo = "";
@@ -149,14 +149,14 @@ error_print(void)
 	epath = rb_class_name(eclass);
 	if (elen == 0) {
 	    warn_print(": ");
-	    warn_print2(RSTRING_PTR(epath), RSTRING_LEN(epath));
+	    warn_print2(RSTRING_CPTR(epath), RSTRING_CLEN(epath));
 	    warn_print("\n");
 	}
 	else {
 	    char *tail = 0;
 	    long len = elen;
 
-	    if (RSTRING_PTR(epath)[0] == '#')
+	    if (RSTRING_CPTR(epath)[0] == '#')
 		epath = 0;
 	    if ((tail = memchr(einfo, '\n', elen)) != 0) {
 		len = tail - einfo;
@@ -166,7 +166,7 @@ error_print(void)
 	    warn_print2(einfo, len);
 	    if (epath) {
 		warn_print(" (");
-		warn_print2(RSTRING_PTR(epath), RSTRING_LEN(epath));
+		warn_print2(RSTRING_CPTR(epath), RSTRING_CLEN(epath));
 		warn_print(")\n");
 	    }
 	    if (tail) {
@@ -179,7 +179,6 @@ error_print(void)
     if (!NIL_P(errat)) {
 	long i;
 	long len = RARRAY_LEN(errat);
-	VALUE *ptr = RARRAY_PTR(errat);
         int skip = eclass == rb_eSysStackError;
 	
 #define TRACE_MAX (TRACE_HEAD+TRACE_TAIL+5)
@@ -187,8 +186,9 @@ error_print(void)
 #define TRACE_TAIL 5
 
 	for (i = 1; i < len; i++) {
-	    if (TYPE(ptr[i]) == T_STRING) {
-		warn_printf("\tfrom %s\n", RSTRING_PTR(ptr[i]));
+	    VALUE v = RARRAY_AT(errat, i);
+	    if (TYPE(v) == T_STRING) {
+		warn_printf("\tfrom %s\n", RSTRING_CPTR(v));
 	    }
 	    if (skip && i == TRACE_HEAD && len > TRACE_MAX) {
 		warn_printf("\t ... %ld levels...\n",

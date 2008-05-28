@@ -20,7 +20,7 @@ class TestGemCommandsEnvironmentCommand < RubyGemTestCase
       @cmd.execute
     end
 
-    assert_match %r|RUBYGEMS VERSION: (\d\.)+\d \((\d\.)+\d\)|, @ui.output
+    assert_match %r|RUBYGEMS VERSION: (\d\.)+\d|, @ui.output
     assert_match %r|RUBY VERSION: \d\.\d\.\d \(.*\) \[.*\]|, @ui.output
     assert_match %r|INSTALLATION DIRECTORY: #{Regexp.escape @gemhome}|,
                  @ui.output
@@ -59,6 +59,21 @@ class TestGemCommandsEnvironmentCommand < RubyGemTestCase
     end
 
     assert_equal "#{@gemhome}\n", @ui.output
+    assert_equal '', @ui.error
+  end
+
+  def test_execute_gempath_multiple
+    Gem.clear_paths
+    path = [@gemhome, "#{@gemhome}2"].join File::PATH_SEPARATOR
+    ENV['GEM_PATH'] = path
+
+    @cmd.send :handle_options, %w[gempath]
+
+    use_ui @ui do
+      @cmd.execute
+    end
+
+    assert_equal "#{Gem.path.join File::PATH_SEPARATOR}\n", @ui.output
     assert_equal '', @ui.error
   end
 

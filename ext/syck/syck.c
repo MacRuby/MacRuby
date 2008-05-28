@@ -63,7 +63,7 @@ syck_io_file_read( char *buf, SyckIoFile *file, long max_size, long skip )
 long
 syck_io_str_read( char *buf, SyckIoStr *str, long max_size, long skip )
 {
-    char *beg;
+    const char *beg;
     long len = 0;
 
     ASSERT( str != NULL );
@@ -157,7 +157,11 @@ SyckParser *
 syck_new_parser(void)
 {
     SyckParser *p;
+#if WITH_OBJC
+    p = xmalloc(sizeof(SyckParser));
+#else
     p = S_ALLOC( SyckParser );
+#endif
     S_MEMZERO( p, SyckParser, 1 );
     p->lvl_capa = ALLOC_CT;
     p->levels = S_ALLOC_N( SyckLevel, p->lvl_capa ); 
@@ -313,7 +317,7 @@ syck_parser_file( SyckParser *p, FILE *fp, SyckIoFileRead read )
 }
 
 void
-syck_parser_str( SyckParser *p, char *ptr, long len, SyckIoStrRead read )
+syck_parser_str( SyckParser *p, const char *ptr, long len, SyckIoStrRead read )
 {
     ASSERT( p != NULL );
     free_any_io( p );

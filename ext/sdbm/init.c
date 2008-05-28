@@ -2,7 +2,7 @@
 
   sdbminit.c -
 
-  $Author: akr $
+  $Author: knu $
   created at: Fri May  7 08:34:24 JST 1999
 
   Copyright (C) 1995-2001 Yukihiro Matsumoto
@@ -323,7 +323,7 @@ fsdbm_delete_if(VALUE obj)
     }
 
     for (i = 0; i < RARRAY_LEN(ary); i++) {
-	keystr = RARRAY_PTR(ary)[i];
+	keystr = RARRAY_AT(ary, i);
 	StringValue(keystr);
 	key.dptr = RSTRING_PTR(keystr);
 	key.dsize = RSTRING_LEN(keystr);
@@ -418,7 +418,7 @@ update_i(VALUE pair, VALUE dbm)
     if (RARRAY_LEN(pair) < 2) {
 	rb_raise(rb_eArgError, "pair must be [key, value]");
     }
-    fsdbm_store(dbm, RARRAY_PTR(pair)[0], RARRAY_PTR(pair)[1]);
+    fsdbm_store(dbm, RARRAY_AT(pair, 0), RARRAY_AT(pair, 1));
     return Qnil;
 }
 
@@ -486,6 +486,8 @@ fsdbm_each_value(VALUE obj)
     struct dbmdata *dbmp;
     DBM *dbm;
 
+    RETURN_ENUMERATOR(obj, 0, 0);
+
     GetDBM2(obj, dbmp, dbm);
     for (key = sdbm_firstkey(dbm); key.dptr; key = sdbm_nextkey(dbm)) {
 	val = sdbm_fetch(dbm, key);
@@ -502,6 +504,8 @@ fsdbm_each_key(VALUE obj)
     struct dbmdata *dbmp;
     DBM *dbm;
 
+    RETURN_ENUMERATOR(obj, 0, 0);
+
     GetDBM2(obj, dbmp, dbm);
     for (key = sdbm_firstkey(dbm); key.dptr; key = sdbm_nextkey(dbm)) {
 	rb_yield(rb_tainted_str_new(key.dptr, key.dsize));
@@ -517,6 +521,8 @@ fsdbm_each_pair(VALUE obj)
     DBM *dbm;
     struct dbmdata *dbmp;
     VALUE keystr, valstr;
+
+    RETURN_ENUMERATOR(obj, 0, 0);
 
     GetDBM2(obj, dbmp, dbm);
     for (key = sdbm_firstkey(dbm); key.dptr; key = sdbm_nextkey(dbm)) {

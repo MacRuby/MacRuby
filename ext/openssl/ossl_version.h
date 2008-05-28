@@ -1,5 +1,5 @@
 /*
- * $Id: ossl_version.h 11708 2007-02-12 23:01:19Z shyouhei $
+ * $Id: ossl_version.h 16111 2008-04-20 22:32:06Z technorama $
  * 'OpenSSL for Ruby' project
  * Copyright (C) 2001-2002  Michal Rokos <m.rokos@sh.cvut.cz>
  * All rights reserved.
@@ -11,6 +11,6 @@
 #if !defined(_OSSL_VERSION_H_)
 #define _OSSL_VERSION_H_
 
-#define OSSL_VERSION "1.0.0"
+#define OSSL_VERSION "1.1.0"
 
 #endif /* _OSSL_VERSION_H_ */

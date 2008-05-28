@@ -2,7 +2,7 @@
 
   dir.c -
 
-  $Author: akr $
+  $Author: nobu $
   created at: Wed Jan  5 09:51:01 JST 1994
 
   Copyright (C) 1993-2007 Yukihiro Matsumoto
@@ -64,14 +64,6 @@ char *strchr(char*,char);
 
 #if !defined HAVE_LSTAT && !defined lstat
 #define lstat stat
-#endif
-
-#ifndef CASEFOLD_FILESYSTEM
-# if defined DOSISH || defined __VMS
-#   define CASEFOLD_FILESYSTEM 1
-# else
-#   define CASEFOLD_FILESYSTEM 0
-# endif
 #endif
 
 #define FNM_NOESCAPE	0x01
@@ -386,6 +378,7 @@ static VALUE
 dir_initialize(VALUE dir, VALUE dirname)
 {
     struct dir_data *dp;
+    const char *dirname_cstr;
 
     FilePathValue(dirname);
     Data_Get_Struct(dir, struct dir_data, dp);
@@ -393,17 +386,18 @@ dir_initialize(VALUE dir, VALUE dirname)
     if (dp->path) free(dp->path);
     dp->dir = NULL;
     dp->path = NULL;
-    dp->dir = opendir(RSTRING_PTR(dirname));
+    dirname_cstr = RSTRING_CPTR(dirname);
+    dp->dir = opendir(dirname_cstr);
     if (dp->dir == NULL) {
 	if (errno == EMFILE || errno == ENFILE) {
 	    rb_gc();
-	    dp->dir = opendir(RSTRING_PTR(dirname));
+	    dp->dir = opendir(dirname_cstr);
 	}
 	if (dp->dir == NULL) {
-	    rb_sys_fail(RSTRING_PTR(dirname));
+	    rb_sys_fail(dirname_cstr);
 	}
     }
-    dp->path = strdup(RSTRING_PTR(dirname));
+    dp->path = strdup(dirname_cstr);
 
     return dir;
 }
@@ -470,6 +464,7 @@ dir_inspect(VALUE dir)
 	int len = strlen(c) + strlen(dirp->path) + 4;
 	VALUE s = rb_str_new(0, len);
 	snprintf(RSTRING_PTR(s), len+1, "#<%s:%s>", c, dirp->path);
+	RSTRING_SYNC(s);
 	return s;
     }
     return rb_funcall(dir, rb_intern("to_s"), 0, 0);
@@ -580,7 +575,7 @@ dir_tell(VALUE dir)
     struct dir_data *dirp;
     long pos;
 
-    Data_Get_Struct(dir, struct dir_data, dirp);
+    GetDIR(dir, dirp);
     pos = telldir(dirp->dir);
     return rb_int2inum(pos);
 #else
@@ -687,8 +682,9 @@ dir_close(VALUE dir)
 static void
 dir_chdir(VALUE path)
 {
-    if (chdir(RSTRING_PTR(path)) < 0)
-	rb_sys_fail(RSTRING_PTR(path));
+    const char *cpath = RSTRING_CPTR(path);
+    if (chdir(cpath) < 0)
+	rb_sys_fail(cpath);
 }
 
 static int chdir_blocking = 0;
@@ -719,6 +715,7 @@ chdir_restore(struct chdir_data *args)
 	    chdir_thread = Qnil;
 	dir_chdir(args->old_path);
     }
+    rb_objc_release(args->old_path);
     return Qnil;
 }
 
@@ -789,6 +786,7 @@ dir_s_chdir(int argc, VALUE *argv, VALUE obj)
 	char *cwd = my_getcwd();
 
 	args.old_path = rb_tainted_str_new2(cwd); xfree(cwd);
+	rb_objc_retain(args.old_path);
 	args.new_path = path;
 	args.done = Qfalse;
 	return rb_ensure(chdir_yield, (VALUE)&args, chdir_restore, (VALUE)&args);
@@ -826,11 +824,11 @@ dir_s_getwd(VALUE dir)
 static void
 check_dirname(volatile VALUE *dir)
 {
-    char *path, *pend;
+    const char *path, *pend;
 
     rb_secure(2);
     FilePathValue(*dir);
-    path = RSTRING_PTR(*dir);
+    path = RSTRING_CPTR(*dir);
     if (path && *(pend = rb_path_end(rb_path_skip_prefix(path)))) {
 	*dir = rb_str_new(path, pend - path);
     }
@@ -849,10 +847,12 @@ static VALUE
 dir_s_chroot(VALUE dir, VALUE path)
 {
 #if defined(HAVE_CHROOT) && !defined(__CHECKER__)
+    const char *path_cstr = RSTRING_CPTR(path);
+
     check_dirname(&path);
 
-    if (chroot(RSTRING_PTR(path)) == -1)
-	rb_sys_fail(RSTRING_PTR(path));
+    if (chroot(path_cstr) == -1)
+	rb_sys_fail(path_cstr);
 
     return INT2FIX(0);
 #else
@@ -879,6 +879,7 @@ dir_s_mkdir(int argc, VALUE *argv, VALUE obj)
 {
     VALUE path, vmode;
     int mode;
+    const char *path_cstr;
 
     if (rb_scan_args(argc, argv, "11", &path, &vmode) == 2) {
 	mode = NUM2INT(vmode);
@@ -888,8 +889,9 @@ dir_s_mkdir(int argc, VALUE *argv, VALUE obj)
     }
 
     check_dirname(&path);
-    if (mkdir(RSTRING_PTR(path), mode) == -1)
-	rb_sys_fail(RSTRING_PTR(path));
+    path_cstr = RSTRING_CPTR(path);
+    if (mkdir(path_cstr, mode) == -1)
+	rb_sys_fail(path_cstr);
 
     return INT2FIX(0);
 }
@@ -906,9 +908,12 @@ dir_s_mkdir(int argc, VALUE *argv, VALUE obj)
 static VALUE
 dir_s_rmdir(VALUE obj, VALUE dir)
 {
+    const char *dir_cstr;
+
     check_dirname(&dir);
-    if (rmdir(RSTRING_PTR(dir)) < 0)
-	rb_sys_fail(RSTRING_PTR(dir));
+    dir_cstr = RSTRING_CPTR(dir);
+    if (rmdir(dir_cstr) < 0)
+	rb_sys_fail(dir_cstr);
 
     return INT2FIX(0);
 }
@@ -1547,23 +1552,27 @@ push_glob(VALUE ary, const char *str, int flags)
 static VALUE
 rb_push_glob(VALUE str, int flags) /* '\0' is delimiter */
 {
+    const char *cstr;
+    long clen;
     long offset = 0;
     VALUE ary;
 
     StringValue(str);
     ary = rb_ary_new();
+    cstr = RSTRING_CPTR(str);
+    clen = RSTRING_CLEN(str);
 
-    while (offset < RSTRING_LEN(str)) {
-	int status = push_glob(ary, RSTRING_PTR(str) + offset, flags);
-	char *p, *pend;
+    while (offset < clen) {
+	int status = push_glob(ary, cstr + offset, flags);
+	const char *p, *pend;
 	if (status) GLOB_JUMP_TAG(status);
-	if (offset >= RSTRING_LEN(str)) break;
-	p = RSTRING_PTR(str) + offset;
+	if (offset >= clen) break;
+	p = cstr + offset;
 	p += strlen(p) + 1;
-	pend = RSTRING_PTR(str) + RSTRING_LEN(str);
+	pend = cstr + clen;
 	while (p < pend && !*p)
 	    p++;
-	offset = p - RSTRING_PTR(str);
+	offset = p - cstr;
     }
 
     return ary;
@@ -1579,7 +1588,7 @@ dir_globs(long argc, VALUE *argv, int flags)
 	int status;
 	VALUE str = argv[i];
 	StringValue(str);
-	status = push_glob(ary, RSTRING_PTR(str), flags);
+	status = push_glob(ary, RSTRING_CPTR(str), flags);
 	if (status) GLOB_JUMP_TAG(status);
     }
 
@@ -1653,14 +1662,14 @@ dir_s_aref(int argc, VALUE *argv, VALUE obj)
  *
  *     rbfiles = File.join("**", "*.rb")
  *     Dir.glob(rbfiles)                   #=> ["main.rb",
- *                                              "lib/song.rb",
- *                                              "lib/song/karaoke.rb"]
+ *                                         #    "lib/song.rb",
+ *                                         #    "lib/song/karaoke.rb"]
  *     libdirs = File.join("**", "lib")
  *     Dir.glob(libdirs)                   #=> ["lib"]
  *
  *     librbfiles = File.join("**", "lib", "**", "*.rb")
  *     Dir.glob(librbfiles)                #=> ["lib/song.rb",
- *                                              "lib/song/karaoke.rb"]
+ *                                         #    "lib/song/karaoke.rb"]
  *
  *     librbfiles = File.join("**", "lib", "*.rb")
  *     Dir.glob(librbfiles)                #=> ["lib/song.rb"]
@@ -1681,7 +1690,7 @@ dir_s_glob(int argc, VALUE *argv, VALUE obj)
 	ary = rb_push_glob(str, flags);
     }
     else {
-	volatile VALUE v = ary;
+	VALUE v = ary;
 	ary = dir_globs(RARRAY_LEN(v), RARRAY_PTR(v), flags);
     }
 
@@ -1788,31 +1797,31 @@ dir_entries(VALUE io, VALUE dirname)
  *  parameters. The same glob pattern and flags are used by
  *  <code>Dir::glob</code>.
  *
- *     File.fnmatch('cat',       'cat')        #=> true  : match entire string
- *     File.fnmatch('cat',       'category')   #=> false : only match partial string
- *     File.fnmatch('c{at,ub}s', 'cats')       #=> false : { } isn't supported
+ *     File.fnmatch('cat',       'cat')        #=> true  # match entire string
+ *     File.fnmatch('cat',       'category')   #=> false # only match partial string
+ *     File.fnmatch('c{at,ub}s', 'cats')       #=> false # { } isn't supported
  *
- *     File.fnmatch('c?t',     'cat')          #=> true  : '?' match only 1 character
- *     File.fnmatch('c??t',    'cat')          #=> false : ditto
- *     File.fnmatch('c*',      'cats')         #=> true  : '*' match 0 or more characters
- *     File.fnmatch('c*t',     'c/a/b/t')      #=> true  : ditto
- *     File.fnmatch('ca[a-z]', 'cat')          #=> true  : inclusive bracket expression
- *     File.fnmatch('ca[^t]',  'cat')          #=> false : exclusive bracket expression ('^' or '!')
+ *     File.fnmatch('c?t',     'cat')          #=> true  # '?' match only 1 character
+ *     File.fnmatch('c??t',    'cat')          #=> false # ditto
+ *     File.fnmatch('c*',      'cats')         #=> true  # '*' match 0 or more characters
+ *     File.fnmatch('c*t',     'c/a/b/t')      #=> true  # ditto
+ *     File.fnmatch('ca[a-z]', 'cat')          #=> true  # inclusive bracket expression
+ *     File.fnmatch('ca[^t]',  'cat')          #=> false # exclusive bracket expression ('^' or '!')
  *
- *     File.fnmatch('cat', 'CAT')                     #=> false : case sensitive
- *     File.fnmatch('cat', 'CAT', File::FNM_CASEFOLD) #=> true  : case insensitive
+ *     File.fnmatch('cat', 'CAT')                     #=> false # case sensitive
+ *     File.fnmatch('cat', 'CAT', File::FNM_CASEFOLD) #=> true  # case insensitive
  *
- *     File.fnmatch('?',   '/', File::FNM_PATHNAME)  #=> false : wildcard doesn't match '/' on FNM_PATHNAME
- *     File.fnmatch('*',   '/', File::FNM_PATHNAME)  #=> false : ditto
- *     File.fnmatch('[/]', '/', File::FNM_PATHNAME)  #=> false : ditto
+ *     File.fnmatch('?',   '/', File::FNM_PATHNAME)  #=> false # wildcard doesn't match '/' on FNM_PATHNAME
+ *     File.fnmatch('*',   '/', File::FNM_PATHNAME)  #=> false # ditto
+ *     File.fnmatch('[/]', '/', File::FNM_PATHNAME)  #=> false # ditto
  *
- *     File.fnmatch('\?',   '?')                       #=> true  : escaped wildcard becomes ordinary
- *     File.fnmatch('\a',   'a')                       #=> true  : escaped ordinary remains ordinary
- *     File.fnmatch('\a',   '\a', File::FNM_NOESCAPE)  #=> true  : FNM_NOESACPE makes '\' ordinary
- *     File.fnmatch('[\?]', '?')                       #=> true  : can escape inside bracket expression
+ *     File.fnmatch('\?',   '?')                       #=> true  # escaped wildcard becomes ordinary
+ *     File.fnmatch('\a',   'a')                       #=> true  # escaped ordinary remains ordinary
+ *     File.fnmatch('\a',   '\a', File::FNM_NOESCAPE)  #=> true  # FNM_NOESACPE makes '\' ordinary
+ *     File.fnmatch('[\?]', '?')                       #=> true  # can escape inside bracket expression
  *
- *     File.fnmatch('*',   '.profile')                      #=> false : wildcard doesn't match leading
- *     File.fnmatch('*',   '.profile', File::FNM_DOTMATCH)  #=> true    period by default.
+ *     File.fnmatch('*',   '.profile')                      #=> false # wildcard doesn't match leading
+ *     File.fnmatch('*',   '.profile', File::FNM_DOTMATCH)  #=> true  # period by default.
  *     File.fnmatch('.*',  '.profile')                      #=> true
  *
  *     rbfiles = '**' '/' '*.rb' # you don't have to do like this. just write in single string.
@@ -1850,7 +1859,7 @@ file_s_fnmatch(int argc, VALUE *argv, VALUE obj)
     StringValue(pattern);
     FilePathStringValue(path);
 
-    if (fnmatch(RSTRING_PTR(pattern), RSTRING_PTR(path), flags) == 0)
+    if (fnmatch(RSTRING_CPTR(pattern), RSTRING_CPTR(path), flags) == 0)
 	return Qtrue;
 
     return Qfalse;

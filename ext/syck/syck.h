@@ -48,17 +48,10 @@ extern "C" {
 
 #define ALLOC_CT 8
 #define SYCK_BUFFERSIZE 4096
-#if WITH_OBJC
-#define S_ALLOC_N(type,n) (type*)xmalloc(sizeof(type)*(n))
-#define S_ALLOC(type) (type*)xmalloc(sizeof(type))
-#define S_REALLOC_N(var,type,n) (var)=(type*)xrealloc((char*)(var),sizeof(type)*(n))
-#define S_FREE(n) if (n) { xfree(n); n = NULL; }
-#else
 #define S_ALLOC_N(type,n) (type*)malloc(sizeof(type)*(n))
 #define S_ALLOC(type) (type*)malloc(sizeof(type))
 #define S_REALLOC_N(var,type,n) (var)=(type*)realloc((char*)(var),sizeof(type)*(n))
 #define S_FREE(n) if (n) { free(n); n = NULL; }
-#endif
 
 #define S_ALLOCA_N(type,n) (type*)alloca(sizeof(type)*(n))
 
@@ -208,7 +201,7 @@ struct _syck_file {
 
 struct _syck_str {
     /* String buffer pointers */
-    char *beg, *ptr, *end;
+    const char *beg, *ptr, *end;
     /* Function which string -> buffer */
     SyckIoStrRead read;
 };
@@ -358,9 +351,9 @@ int syck_tagcmp( const char *, const char * );
 int syck_add_sym( SyckParser *, char * );
 int syck_lookup_sym( SyckParser *, SYMID, char ** );
 int syck_try_implicit( SyckNode * );
-char *syck_type_id_to_uri( char * );
+char *syck_type_id_to_uri( const char * );
 void try_tag_implicit( SyckNode *, int );
-char *syck_match_implicit( char *, size_t );
+char *syck_match_implicit( const char *, size_t );
 
 /*
  * API prototypes
@@ -408,7 +401,7 @@ void syck_parser_error_handler( SyckParser *, SyckErrorHandler );
 void syck_parser_bad_anchor_handler( SyckParser *, SyckBadAnchorHandler );
 void syck_parser_set_input_type( SyckParser *, enum syck_parser_input );
 void syck_parser_file( SyckParser *, FILE *, SyckIoFileRead );
-void syck_parser_str( SyckParser *, char *, long, SyckIoStrRead );
+void syck_parser_str( SyckParser *, const char *, long, SyckIoStrRead );
 void syck_parser_str_auto( SyckParser *, char *, SyckIoStrRead );
 SyckLevel *syck_parser_current_level( SyckParser * );
 void syck_parser_add_level( SyckParser *, int, enum syck_level_status );

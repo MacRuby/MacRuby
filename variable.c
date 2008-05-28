@@ -161,9 +161,11 @@ classname(VALUE klass)
 	    st_insert(RCLASS_IV_TBL(klass), classpath, path);
 	    st_delete(RCLASS_IV_TBL(klass), (st_data_t*)&classid, 0);
 	}
+#if !WITH_OBJC
 	if (TYPE(path) != T_STRING) {
 	    rb_bug("class path is not set properly");
 	}
+#endif
 	return path;
     }
     return find_class_path(klass);
@@ -230,7 +232,7 @@ rb_set_class_path(VALUE klass, VALUE under, const char *name)
     OBJ_FREEZE(str);
     rb_ivar_set(klass, classpath, str);
 #if WITH_OBJC
-    rb_objc_rename_class(klass, RSTRING_PTR(str));
+    rb_objc_rename_class(klass, RSTRING_CPTR(str));
 #endif
 }
 
@@ -285,7 +287,7 @@ rb_class_name(VALUE klass)
 char *
 rb_class2name(VALUE klass)
 {
-    return RSTRING_PTR(rb_class_name(klass));
+    return (char *)RSTRING_CPTR(rb_class_name(klass));
 }
 
 char *
@@ -467,8 +469,13 @@ rb_define_hooked_variable(
     void  (*setter)(ANYARGS))
 {
     struct global_variable *gvar;
-    ID id = global_id(name);
+    ID id;
+    VALUE tmp;
+    
+    if (var)
+        tmp = *var;
 
+    id = global_id(name);
     gvar = rb_global_entry(id)->var;
     gvar->data = (void*)var;
     gvar->getter = getter?getter:var_getter;
@@ -721,7 +728,7 @@ gvar_i(ID key, struct global_entry *entry, VALUE ary)
  *  
  *  Returns an array of the names of global variables.
  *     
- *     global_variables.grep /std/   #=> ["$stderr", "$stdout", "$stdin"]
+ *     global_variables.grep /std/   #=> [:$stdin, :$stdout, :$stderr]
  */
 
 VALUE
@@ -750,7 +757,7 @@ rb_alias_variable(ID name1, ID name2)
 
     entry2 = rb_global_entry(name2);
     if (!st_lookup(rb_global_tbl, name1, &data1)) {
-	entry1 = ALLOC(struct global_entry);
+ 	entry1 = ALLOC(struct global_entry);
 	entry1->id = name1;
 	st_add_direct(rb_global_tbl, name1, (st_data_t)entry1);
     }
@@ -777,23 +784,48 @@ rb_alias_variable(ID name1, ID name2)
     entry1->var = entry2->var;
 }
 
+#if WITH_OBJC
+static CFMutableDictionaryRef generic_iv_dict = NULL;
+const void * rb_cfdictionary_retain_cb(CFAllocatorRef, const void *);
+void rb_cfdictionary_release_cb(CFAllocatorRef, const void *);
+#else
 static int special_generic_ivar = 0;
 static st_table *generic_iv_tbl;
+#endif
 
 st_table*
 rb_generic_ivar_table(VALUE obj)
 {
+#if WITH_OBJC
+    return NULL;
+#else
     st_data_t tbl;
 
     if (!FL_TEST(obj, FL_EXIVAR)) return 0;
     if (!generic_iv_tbl) return 0;
     if (!st_lookup(generic_iv_tbl, obj, &tbl)) return 0;
     return (st_table *)tbl;
+#endif
 }
 
 static VALUE
 generic_ivar_get(VALUE obj, ID id, int warn)
 {
+#if WITH_OBJC
+    if (generic_iv_dict != NULL) {
+	CFDictionaryRef obj_dict;
+
+	if (CFDictionaryGetValueIfPresent(generic_iv_dict, 
+	    (const void *)obj, (const void **)&obj_dict) 
+	    && obj_dict != NULL) {
+	    VALUE val;
+
+	    if (CFDictionaryGetValueIfPresent(obj_dict, (const void *)id, 
+		(const void **)&val))
+		return val;
+	}
+    }
+#else
     st_data_t tbl;
     VALUE val;
 
@@ -804,6 +836,7 @@ generic_ivar_get(VALUE obj, ID id, int warn)
 	    }
 	}
     }
+#endif
     if (warn) {
 	rb_warning("instance variable %s not initialized", rb_id2name(id));
     }
@@ -813,6 +846,41 @@ generic_ivar_get(VALUE obj, ID id, int warn)
 static void
 generic_ivar_set(VALUE obj, ID id, VALUE val)
 {
+#if WITH_OBJC
+    CFMutableDictionaryRef obj_dict;
+
+    if (rb_special_const_p(obj)) {
+	if (rb_obj_frozen_p(obj)) 
+	    rb_error_frozen("object");
+    }
+    if (generic_iv_dict == NULL) {
+	CFDictionaryValueCallBacks values_cb;
+
+	memset(&values_cb, 0, sizeof(values_cb));
+	values_cb.retain = rb_cfdictionary_retain_cb;
+	values_cb.release = rb_cfdictionary_release_cb;
+
+	generic_iv_dict = CFDictionaryCreateMutable(NULL, 0, NULL, &values_cb);
+	obj_dict = NULL;
+    }
+    else {
+	obj_dict = (CFMutableDictionaryRef)CFDictionaryGetValue(
+	    (CFDictionaryRef)generic_iv_dict, (const void *)obj);
+    }
+    if (obj_dict == NULL) {
+	CFDictionaryValueCallBacks values_cb;
+
+	memset(&values_cb, 0, sizeof(values_cb));
+	values_cb.retain = rb_cfdictionary_retain_cb;
+	values_cb.release = rb_cfdictionary_release_cb;
+
+	obj_dict = CFDictionaryCreateMutable(NULL, 0, NULL, &values_cb);
+	CFDictionarySetValue(generic_iv_dict, (const void *)obj, 
+	    (const void *)obj_dict);
+	CFMakeCollectable(obj_dict);
+    }
+    CFDictionarySetValue(obj_dict, (const void *)id, (const void *)val);
+#else
     st_table *tbl;
     st_data_t data;
 
@@ -832,11 +900,24 @@ generic_ivar_set(VALUE obj, ID id, VALUE val)
 	return;
     }
     st_insert((st_table *)data, id, val);
+#endif
 }
 
 static VALUE
 generic_ivar_defined(VALUE obj, ID id)
 {
+#if WITH_OBJC
+    CFMutableDictionaryRef obj_dict;
+
+    if (generic_iv_dict != NULL
+	&& CFDictionaryGetValueIfPresent((CFDictionaryRef)generic_iv_dict, 
+	   (const void *)obj, (const void **)&obj_dict) && obj_dict != NULL) {
+    	if (CFDictionaryGetValueIfPresent(obj_dict, (const void *)id, NULL))
+	    return Qtrue;
+    }
+    return Qfalse;    
+
+#else
     st_table *tbl;
     st_data_t data;
     VALUE val;
@@ -848,11 +929,33 @@ generic_ivar_defined(VALUE obj, ID id)
 	return Qtrue;
     }
     return Qfalse;
+#endif
 }
 
 static int
 generic_ivar_remove(VALUE obj, ID id, VALUE *valp)
 {
+#if WITH_OBJC
+    CFMutableDictionaryRef obj_dict;
+    VALUE val;
+
+    if (generic_iv_dict == NULL)
+	return 0;
+
+    obj_dict = (CFMutableDictionaryRef)CFDictionaryGetValue(
+	(CFDictionaryRef)generic_iv_dict, (const void *)obj);
+    if (obj_dict == NULL)
+	return 0;
+
+    if (CFDictionaryGetValueIfPresent(obj_dict, (const void *)id, 
+	(const void **)&val)) {
+	*valp = val;
+	CFDictionaryRemoveValue(obj_dict, (const void *)id);
+	return 1;
+    }
+
+    return 0;
+#else
     st_table *tbl;
     st_data_t data;
     int status;
@@ -866,8 +969,10 @@ generic_ivar_remove(VALUE obj, ID id, VALUE *valp)
 	st_free_table((st_table *)data);
     }
     return status;
+#endif
 }
 
+#if !WITH_OBJC
 void
 rb_mark_generic_ivar(VALUE obj)
 {
@@ -902,20 +1007,49 @@ rb_mark_generic_ivar_tbl(void)
     if (special_generic_ivar == 0) return;
     st_foreach_safe(generic_iv_tbl, givar_i, 0);
 }
+#endif
 
 void
 rb_free_generic_ivar(VALUE obj)
 {
+#if WITH_OBJC
+    if (generic_iv_dict != NULL)
+	CFDictionaryRemoveValue(generic_iv_dict, (const void *)obj);
+#else
     st_data_t tbl;
 
     if (!generic_iv_tbl) return;
     if (st_delete(generic_iv_tbl, &obj, &tbl))
 	st_free_table((st_table *)tbl);
+#endif
 }
 
 void
 rb_copy_generic_ivar(VALUE clone, VALUE obj)
 {
+#if WITH_OBJC
+    CFMutableDictionaryRef obj_dict;
+    CFMutableDictionaryRef clone_dict;
+    VALUE val;
+
+    if (generic_iv_dict == NULL)
+	return;
+
+    obj_dict = (CFMutableDictionaryRef)CFDictionaryGetValue(
+	(CFDictionaryRef)generic_iv_dict, (const void *)obj);
+    if (obj_dict == NULL)
+	return;
+
+    if (CFDictionaryGetValueIfPresent((CFDictionaryRef)generic_iv_dict, 
+	(const void *)clone, (const void **)&clone_dict) 
+	&& clone_dict != NULL)
+	CFDictionaryRemoveValue(generic_iv_dict, (const void *)clone);
+
+    clone_dict = CFDictionaryCreateMutableCopy(NULL, 0, obj_dict);
+    CFDictionarySetValue(generic_iv_dict, (const void *)clone, 
+	(const void *)clone_dict);
+    CFMakeCollectable(clone_dict);
+#else
     st_data_t data;
 
     if (!generic_iv_tbl) return;
@@ -942,6 +1076,7 @@ clear:
 	    FL_SET(clone, FL_EXIVAR);
 	}
     }
+#endif
 }
 
 static VALUE
@@ -953,7 +1088,7 @@ ivar_get(VALUE obj, ID id, int warn)
     st_data_t index;
 
 #if WITH_OBJC
-    if (rb_objc_is_non_native(obj))
+    if (!rb_special_const_p(obj) && rb_objc_is_non_native(obj))
 	return generic_ivar_get(obj, id, warn);
 #endif
 
@@ -1005,16 +1140,16 @@ rb_ivar_set(VALUE obj, ID id, VALUE val)
     long i, len;
     int ivar_extended;
 
+    if (!OBJ_TAINTED(obj) && rb_safe_level() >= 4)
+	rb_raise(rb_eSecurityError, "Insecure: can't modify instance variable");
+    if (OBJ_FROZEN(obj)) rb_error_frozen("object");
 #if WITH_OBJC
-    if (rb_objc_is_non_native(obj)) {
+    if (!rb_special_const_p(obj) && rb_objc_is_non_native(obj)) {
+	rb_objc_flag_set(obj, FL_EXIVAR, true);
 	generic_ivar_set(obj, id, val);
 	return val;
     }
 #endif
-
-    if (!OBJ_TAINTED(obj) && rb_safe_level() >= 4)
-	rb_raise(rb_eSecurityError, "Insecure: can't modify instance variable");
-    if (OBJ_FROZEN(obj)) rb_error_frozen("object");
     switch (TYPE(obj)) {
       case T_OBJECT:
         iv_index_tbl = ROBJECT_IV_INDEX_TBL(obj);
@@ -1053,7 +1188,7 @@ rb_ivar_set(VALUE obj, ID id, VALUE val)
                     newptr = ALLOC_N(VALUE, newsize);
                     MEMCPY(newptr, ptr, VALUE, len);
                     RBASIC(obj)->flags &= ~ROBJECT_EMBED;
-                    ROBJECT(obj)->as.heap.ivptr = newptr;
+                    GC_WB(&ROBJECT(obj)->as.heap.ivptr, newptr);
                 }
                 else {
                     REALLOC_N(ROBJECT(obj)->as.heap.ivptr, VALUE, newsize);
@@ -1065,7 +1200,7 @@ rb_ivar_set(VALUE obj, ID id, VALUE val)
                 ROBJECT(obj)->as.heap.iv_index_tbl = iv_index_tbl;
             }
         }
-        ROBJECT_IVPTR(obj)[index] = val;
+        GC_WB(&ROBJECT_IVPTR(obj)[index], val);
 	break;
       case T_CLASS:
       case T_MODULE:
@@ -1076,6 +1211,7 @@ rb_ivar_set(VALUE obj, ID id, VALUE val)
         break;
       default:
 	generic_ivar_set(obj, id, val);
+	FL_SET(obj, FL_EXIVAR);
 	break;
     }
     return val;
@@ -1087,6 +1223,11 @@ rb_ivar_defined(VALUE obj, ID id)
     VALUE val;
     struct st_table *iv_index_tbl;
     st_data_t index;
+#if WITH_OBJC
+    if (!rb_special_const_p(obj) && rb_objc_is_non_native(obj)) {
+	return generic_ivar_defined(obj, id);
+    }
+#endif
     switch (TYPE(obj)) {
       case T_OBJECT:
         iv_index_tbl = ROBJECT_IV_INDEX_TBL(obj);
@@ -1147,27 +1288,44 @@ obj_ivar_each(VALUE obj, int (*func)(ANYARGS), st_data_t arg)
 
 void rb_ivar_foreach(VALUE obj, int (*func)(ANYARGS), st_data_t arg)
 {
+#if WITH_OBJC
+    if (!rb_special_const_p(obj) && rb_objc_is_non_native(obj))
+	goto generic;
+#endif
     switch (TYPE(obj)) {
       case T_OBJECT:
         obj_ivar_each(obj, func, arg);
-	break;
+	return;
       case T_CLASS:
       case T_MODULE:
 	if (RCLASS_IV_TBL(obj)) {
 	    st_foreach_safe(RCLASS_IV_TBL(obj), func, arg);
 	}
-	break;
-      default:
-	if (!generic_iv_tbl) break;
-	if (FL_TEST(obj, FL_EXIVAR) || rb_special_const_p(obj)) {
-	    st_data_t tbl;
-
-	    if (st_lookup(generic_iv_tbl, obj, &tbl)) {
-		st_foreach_safe((st_table *)tbl, func, arg);
-	    }
-	}
-	break;
+	return;
     }
+    if (!FL_TEST(obj, FL_EXIVAR) && !rb_special_const_p(obj))
+	return;
+generic:
+#if WITH_OBJC
+    if (generic_iv_dict != NULL) {
+	CFDictionaryRef obj_dict;
+
+	obj_dict = (CFDictionaryRef)CFDictionaryGetValue(
+	    (CFDictionaryRef)generic_iv_dict, (const void *)obj);
+	if (obj_dict != NULL)
+	    CFDictionaryApplyFunction(obj_dict, 
+		(CFDictionaryApplierFunction)func, (void *)arg);
+    }
+#else
+    if (!generic_iv_tbl) break;
+    if (FL_TEST(obj, FL_EXIVAR) || rb_special_const_p(obj)) {
+	st_data_t tbl;
+
+	if (st_lookup(generic_iv_tbl, obj, &tbl)) {
+	    st_foreach_safe((st_table *)tbl, func, arg);
+	}
+    }
+#endif
 }
 
 static int
@@ -1193,7 +1351,7 @@ ivar_i(ID key, VALUE val, VALUE ary)
  *         @iv = 3
  *       end
  *     end
- *     Fred.new.instance_variables   #=> ["@iv"]
+ *     Fred.new.instance_variables   #=> [:@iv]
  */
 
 VALUE
@@ -1339,7 +1497,7 @@ check_autoload_table(VALUE av)
 #endif
 	RDATA(av)->dfree != (RUBY_DATA_FUNC)st_free_table) {
 	VALUE desc = rb_inspect(av);
-	rb_raise(rb_eTypeError, "wrong autoload table: %s", RSTRING_PTR(desc));
+	rb_raise(rb_eTypeError, "wrong autoload table: %s", RSTRING_CPTR(desc));
     }
     return (struct st_table *)DATA_PTR(av);
 }
@@ -1411,7 +1569,7 @@ rb_autoload_load(VALUE klass, ID id)
     VALUE file;
     NODE *load = autoload_delete(klass, id);
 
-    if (!load || !(file = load->nd_lit) || rb_provided(RSTRING_PTR(file))) {
+    if (!load || !(file = load->nd_lit)) {
 	return Qfalse;
     }
     return rb_require_safe(file, load->nd_nth);
@@ -1430,10 +1588,10 @@ autoload_file(VALUE mod, ID id)
     }
     file = ((NODE *)load)->nd_lit;
     Check_Type(file, T_STRING);
-    if (!RSTRING_PTR(file)) {
+    if (RSTRING_CLEN(file) == 0) {
 	rb_raise(rb_eArgError, "empty file name");
     }
-    if (!rb_provided(RSTRING_PTR(file))) {
+    if (!rb_provided(RSTRING_CPTR(file))) {
 	return file;
     }
 
@@ -1470,7 +1628,7 @@ rb_const_get_0(VALUE klass, ID id, int exclude, int recurse)
 
     tmp = klass;
   retry:
-    while (tmp && !NIL_P(tmp)) {
+    while (RTEST(tmp)) {
 	while (RCLASS_IV_TBL(tmp) && st_lookup(RCLASS_IV_TBL(tmp),id,&value)) {
 	    if (value == Qundef) {
 		if (!RTEST(rb_autoload_load(tmp, id))) break;
@@ -1638,8 +1796,8 @@ rb_const_list(void *data)
  *  modules (example at start of section), unless the <i>all</i>
  *  parameter is set to <code>false</code>.
  *
- *    IO.constants.include?("SYNC")         => true
- *    IO.constants(false).include?("SYNC")  => false
+ *    IO.constants.include?(:SYNC)         => true
+ *    IO.constants(false).include?(:SYNC)  => false
  *
  *  Also see <code>Module::const_defined?</code>.
  */
@@ -1924,8 +2082,8 @@ cv_i(ID key, VALUE value, VALUE ary)
  *     class Two < One
  *       @@var2 = 2
  *     end
- *     One.class_variables   #=> ["@@var1"]
- *     Two.class_variables   #=> ["@@var2"]
+ *     One.class_variables   #=> [:@@var1]
+ *     Two.class_variables   #=> [:@@var2]
  */
 
 VALUE

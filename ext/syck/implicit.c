@@ -44,9 +44,9 @@ try_tag_implicit( SyckNode *n, int taguri )
     }
 }
 
-char *syck_match_implicit( char *str, size_t len )
+char *syck_match_implicit( const char *str, size_t len )
 {
-    char *cursor, *limit, *marker;
+    const char *cursor, *limit, *marker;
     cursor = str;
     limit = str + len;
 
@@ -1608,7 +1608,7 @@ syck_tagcmp( const char *tag1, const char *tag2 )
 }
 
 char *
-syck_type_id_to_uri( char *type_id )
+syck_type_id_to_uri( const char *type_id )
 {
     char *cursor, *limit, *marker;
 

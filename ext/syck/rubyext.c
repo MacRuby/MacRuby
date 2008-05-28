@@ -2,7 +2,7 @@
 /*
  * rubyext.c
  *
- * $Author: akr $
+ * $Author: mame $
  *
  * Copyright (C) 2003-2005 why the lucky stiff
  */
@@ -25,9 +25,11 @@ typedef struct RVALUE {
     struct RClass  klass;
     /*struct RFloat  flonum;*/
     /*struct RString string;*/
-    struct RArray  array;
     /*struct RRegexp regexp;*/
+#if !WITH_OBJC
+    struct RArray  array;
     struct RHash   hash;
+#endif
     /*struct RData   data;*/
     struct RStruct rstruct;
     /*struct RBignum bignum;*/
@@ -54,7 +56,7 @@ static VALUE sym_model, sym_generic, sym_input, sym_bytecode;
 static VALUE sym_scalar, sym_seq, sym_map;
 static VALUE sym_1quote, sym_2quote, sym_fold, sym_literal, sym_plain, sym_inline;
 static VALUE cDate, cNode, cMap, cSeq, cScalar, cOut, cParser, cResolver, cPrivateType, cDomainType, cYObject, cBadAlias, cDefaultKey, cMergeKey, cEmitter;
-static VALUE oDefaultResolver, oGenericResolver;
+static VALUE oDefaultResolver, oGenericResolver, oColon, oDoubleColon;
 
 /*
  * my private collection of numerical oddities.
@@ -148,8 +150,8 @@ rb_syck_io_str_read( char *buf, SyckIoStr *str, long max_size, long skip )
         if (!NIL_P(str2))
         {
             StringValue(str2);
-            len = RSTRING_LEN(str2);
-            memcpy( buf + skip, RSTRING_PTR(str2), len );
+            len = RSTRING_CLEN(str2);
+            memcpy( buf + skip, RSTRING_CPTR(str2), len );
         }
     }
     len += skip;
@@ -169,13 +171,13 @@ syck_parser_assign_io(SyckParser *parser, VALUE *pport)
     if (!NIL_P(tmp = rb_check_string_type(port))) {
         taint = OBJ_TAINTED(port); /* original taintedness */
         port = tmp;
-        syck_parser_str( parser, RSTRING_PTR(port), RSTRING_LEN(port), NULL );
+        syck_parser_str( parser, RSTRING_CPTR(port), RSTRING_CLEN(port), NULL );
     }
     else if (rb_respond_to(port, s_read)) {
         if (rb_respond_to(port, s_binmode)) {
             rb_funcall2(port, s_binmode, 0, 0);
         }
-        syck_parser_str( parser, (char *)port, 0, rb_syck_io_str_read );
+        syck_parser_str( parser, (const char *)port, 0, rb_syck_io_str_read );
     }
     else {
         rb_raise(rb_eTypeError, "instance of IO needed");
@@ -742,7 +744,11 @@ syck_parser_s_alloc(VALUE class)
     VALUE pobj;
     SyckParser *parser = syck_new_parser();
 
+#if WITH_OBJC
+    GC_WB(&parser->bonus, xmalloc( sizeof(struct parser_xtra) ));
+#else
     parser->bonus = S_ALLOC( struct parser_xtra );
+#endif
     S_MEMZERO( parser->bonus, struct parser_xtra, 1 );
 
     pobj = Data_Wrap_Struct( class, syck_mark_parser, rb_syck_free_parser, parser );
@@ -819,10 +825,10 @@ syck_parser_load(int argc, VALUE *argv, VALUE self)
 
     bonus = (struct parser_xtra *)parser->bonus;
     bonus->taint = syck_parser_assign_io(parser, &port);
-    bonus->data = rb_hash_new();
-    bonus->resolver = rb_attr_get( self, s_resolver );
+    GC_WB(&bonus->data, rb_hash_new());
+    GC_WB(&bonus->resolver, rb_attr_get( self, s_resolver ));
     if ( NIL_P( proc ) ) bonus->proc = 0;
-    else                 bonus->proc = proc;
+    else                 GC_WB(&bonus->proc, proc);
 
     return syck_parse( parser );
 }
@@ -846,13 +852,13 @@ syck_parser_load_documents(int argc, VALUE *argv, VALUE self)
     
     bonus = (struct parser_xtra *)parser->bonus;
     bonus->taint = syck_parser_assign_io(parser, &port);
-    bonus->resolver = rb_attr_get( self, s_resolver );
+    GC_WB(&bonus->resolver, rb_attr_get( self, s_resolver ));
     bonus->proc = 0;
 
     while ( 1 )
     {
         /* Reset hash for tracking nodes */
-        bonus->data = rb_hash_new();
+        GC_WB(&bonus->data, rb_hash_new());
 
         /* Parse a document */
         v = syck_parse( parser );
@@ -884,7 +890,6 @@ syck_parser_set_resolver(VALUE self, VALUE resolver)
 static VALUE
 syck_resolver_initialize(VALUE self)
 {
-    VALUE tags = rb_hash_new();
     rb_ivar_set(self, s_tags, rb_hash_new());
     return self;
 }
@@ -916,7 +921,6 @@ syck_resolver_use_types_at(VALUE self, VALUE hsh)
 VALUE
 syck_resolver_detect_implicit(VALUE self, VALUE val)
 {
-    char *type_id;
     return rb_str_new2( "" );
 }
 
@@ -1009,10 +1013,10 @@ syck_set_ivars(VALUE vars, VALUE obj)
     VALUE ivname = rb_ary_entry( vars, 0 );
     char *ivn;
     StringValue( ivname );
-    ivn = S_ALLOCA_N( char, RSTRING_LEN(ivname) + 2 );
+    ivn = S_ALLOCA_N( char, RSTRING_CLEN(ivname) + 2 );
     ivn[0] = '@';
     ivn[1] = '\0';
-    strncat( ivn, RSTRING_PTR(ivname), RSTRING_LEN(ivname) );
+    strncat( ivn, RSTRING_CPTR(ivname), RSTRING_CLEN(ivname) );
     rb_iv_set( obj, ivn, rb_ary_entry( vars, 1 ) );
     return Qnil;
 }
@@ -1024,9 +1028,9 @@ VALUE
 syck_const_find(VALUE const_name)
 {
     VALUE tclass = rb_cObject;
-    VALUE tparts = rb_str_split( const_name, "::" );
-    int i = 0;
-    for ( i = 0; i < RARRAY_LEN(tparts); i++ ) {
+    VALUE tparts = rb_str_split2( const_name, oDoubleColon );
+    int i = 0, count;
+    for ( i = 0, count = RARRAY_LEN(tparts); i < count; i++ ) {
         VALUE tpart = rb_to_id( rb_ary_entry( tparts, i ) );
         if ( !rb_const_defined( tclass, tpart ) ) return Qnil;
         tclass = rb_const_get( tclass, tpart );
@@ -1040,15 +1044,14 @@ syck_const_find(VALUE const_name)
 VALUE
 syck_resolver_transfer(VALUE self, VALUE type, VALUE val)
 {
-    if (NIL_P(type) || RSTRING_LEN(StringValue(type)) == 0) 
+    if (NIL_P(type) || RSTRING_CLEN(StringValue(type)) == 0) 
     {
         type = rb_funcall( self, s_detect_implicit, 1, val );
     }
 
-    if ( ! (NIL_P(type) || RSTRING_LEN(StringValue(type)) == 0) )
+    if ( ! (NIL_P(type) || RSTRING_CLEN(StringValue(type)) == 0) )
     {
         VALUE str_xprivate = rb_str_new2( "x-private" );
-        VALUE colon = rb_str_new2( ":" );
         VALUE tags = rb_attr_get(self, s_tags);
         VALUE target_class = rb_hash_aref( tags, type );
         VALUE subclass = target_class;
@@ -1060,17 +1063,17 @@ syck_resolver_transfer(VALUE self, VALUE type, VALUE val)
         if ( NIL_P( target_class ) )
         {
             VALUE subclass_parts = rb_ary_new();
-            VALUE parts = rb_str_split( type, ":" );
+            VALUE parts = rb_str_split2( type, oColon );
 
             while ( RARRAY_LEN(parts) > 1 )
             {
                 VALUE partial;
                 rb_ary_unshift( subclass_parts, rb_ary_pop( parts ) );
-                partial = rb_ary_join( parts, colon );
+                partial = rb_ary_join( parts, oColon );
                 target_class = rb_hash_aref( tags, partial );
                 if ( NIL_P( target_class ) )
                 {
-                    rb_str_append( partial, colon );
+                    rb_str_append( partial, oColon );
                     target_class = rb_hash_aref( tags, partial );
                 }
 
@@ -1084,7 +1087,7 @@ syck_resolver_transfer(VALUE self, VALUE type, VALUE val)
                          RTEST( rb_funcall( target_class, s_tag_subclasses, 0 ) ) )
                     {
                         VALUE subclass_v;
-                        subclass = rb_ary_join( subclass_parts, colon );
+                        subclass = rb_ary_join( subclass_parts, oColon );
                         subclass = rb_funcall( target_class, s_tag_read_class, 1, subclass );
                         subclass_v = syck_const_find( subclass );
 
@@ -1144,17 +1147,17 @@ syck_resolver_transfer(VALUE self, VALUE type, VALUE val)
             }
             else 
             {
-                VALUE parts = rb_str_split( type, ":" );
+                VALUE parts = rb_str_split2( type, oColon );
                 VALUE scheme = rb_ary_shift( parts );
                 if ( rb_str_cmp( scheme, str_xprivate ) == 0 )
                 {
-                    VALUE name = rb_ary_join( parts, colon );
+                    VALUE name = rb_ary_join( parts, oColon );
                     obj = rb_funcall( cPrivateType, s_new, 2, name, val );
                 }
                 else
                 {
                     VALUE domain = rb_ary_shift( parts );
-                    VALUE name = rb_ary_join( parts, colon );
+                    VALUE name = rb_ary_join( parts, oColon );
                     obj = rb_funcall( cDomainType, s_new, 3, domain, name, val );
                 }
             }
@@ -1175,7 +1178,7 @@ syck_resolver_tagurize(VALUE self, VALUE val)
 
     if ( !NIL_P(tmp) )
     {
-        char *taguri = syck_type_id_to_uri( RSTRING_PTR(tmp) );
+        char *taguri = syck_type_id_to_uri( RSTRING_CPTR(tmp) );
         val = rb_str_new2( taguri );
         S_FREE( taguri );
     }
@@ -1195,7 +1198,7 @@ syck_defaultresolver_detect_implicit(VALUE self, VALUE val)
     if ( !NIL_P(tmp) )
     {
         val = tmp;
-        type_id = syck_match_implicit( RSTRING_PTR(val), RSTRING_LEN(val) );
+        type_id = syck_match_implicit( RSTRING_CPTR(val), RSTRING_CLEN(val) );
         return rb_str_new2( type_id );
     }
 
@@ -1454,8 +1457,8 @@ syck_scalar_value_set(VALUE  self, VALUE val)
     Data_Get_Struct( self, SyckNode, node );
 
     StringValue( val );
-    node->data.str->ptr = syck_strndup( RSTRING_PTR(val), RSTRING_LEN(val) );
-    node->data.str->len = RSTRING_LEN(val);
+    node->data.str->ptr = syck_strndup( RSTRING_CPTR(val), RSTRING_CLEN(val) );
+    node->data.str->len = RSTRING_CLEN(val);
     node->data.str->style = scalar_none;
 
     rb_iv_set( self, "@value", val );
@@ -1714,7 +1717,7 @@ syck_node_type_id_set(VALUE self, VALUE type_id)
 
     if ( !NIL_P( type_id ) ) {
         StringValue( type_id );
-        node->type_id = syck_strndup( RSTRING_PTR(type_id), RSTRING_LEN(type_id) );
+        node->type_id = syck_strndup( RSTRING_CPTR(type_id), RSTRING_CLEN(type_id) );
     }
 
     rb_iv_set( self, "@type_id", type_id );
@@ -1886,7 +1889,11 @@ syck_emitter_s_alloc(VALUE class)
     VALUE pobj;
     SyckEmitter *emitter = syck_new_emitter();
 
+#if WITH_OBJC
+    GC_WB(&emitter->bonus, xmalloc( sizeof(struct emitter_xtra) ));
+#else
     emitter->bonus = S_ALLOC( struct emitter_xtra );
+#endif
     S_MEMZERO( emitter->bonus, struct emitter_xtra, 1 );
 
     pobj = Data_Wrap_Struct( class, syck_mark_emitter, rb_syck_free_emitter, emitter );
@@ -1911,8 +1918,8 @@ syck_emitter_reset(int argc, VALUE *argv, VALUE self)
     bonus = (struct emitter_xtra *)emitter->bonus;
 
     bonus->oid = Qnil;
-    bonus->port = rb_str_new2( "" );
-    bonus->data = rb_hash_new();
+    GC_WB(&bonus->port, rb_str_new2( "" ));
+    GC_WB(&bonus->data, rb_hash_new());
 
     if (rb_scan_args(argc, argv, "01", &options) == 0)
     {
@@ -1921,11 +1928,11 @@ syck_emitter_reset(int argc, VALUE *argv, VALUE self)
     }
     else if ( !NIL_P(tmp = rb_check_string_type(options)) )
     {
-        bonus->port = tmp;
+        GC_WB(&bonus->port, tmp);
     }
     else if ( rb_respond_to( options, s_write ) )
     {
-        bonus->port = options;
+        GC_WB(&bonus->port, options);
     }
     else
     {
@@ -1946,7 +1953,6 @@ VALUE
 syck_emitter_emit(int argc, VALUE *argv, VALUE self)
 {
     VALUE oid, proc;
-    char *anchor_name;
     SyckEmitter *emitter;
     struct emitter_xtra *bonus;
     SYMID symple;
@@ -1958,7 +1964,7 @@ syck_emitter_emit(int argc, VALUE *argv, VALUE self)
     bonus = (struct emitter_xtra *)emitter->bonus;
 
     /* Calculate anchors, normalize nodes, build a simpler symbol table */
-    bonus->oid = oid;
+    GC_WB(&bonus->oid, oid);
     if ( !NIL_P( oid ) && RTEST( rb_funcall( bonus->data, s_haskey, 1, oid ) ) ) {
         symple = rb_hash_aref( bonus->data, oid );
     } else {
@@ -2156,6 +2162,11 @@ Init_syck()
     oGenericResolver = rb_funcall( cResolver, rb_intern( "new" ), 0 );
     rb_define_singleton_method( oGenericResolver, "node_import", syck_genericresolver_node_import, 1 );
     rb_define_const( rb_syck, "GenericResolver", oGenericResolver );
+
+    oColon = rb_str_new2( ":" );
+    rb_global_variable( &oColon );
+    oDoubleColon = rb_str_new2( "::" );
+    rb_global_variable( &oDoubleColon );
 
     /*
      * Define YAML::Syck::Parser class

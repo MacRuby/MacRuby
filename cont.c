@@ -2,7 +2,7 @@
 
   cont.c - 
 
-  $Author: akr $
+  $Author: matz $
   created at: Thu May 23 09:03:43 2007
 
   Copyright (C) 2007 Koichi Sasada
@@ -111,6 +111,7 @@ cont_save_machine_stack(rb_thread_t *th, rb_context_t *cont)
     int size;
     rb_thread_t *sth = &cont->saved_thread;
 
+#if !WITH_OBJC
     SET_MACHINE_STACK_END(&th->machine_stack_end);
 #ifdef __ia64
     th->machine_register_stack_end = rb_ia64_bsp();
@@ -152,6 +153,7 @@ cont_save_machine_stack(rb_thread_t *th, rb_context_t *cont)
     sth->machine_stack_start = sth->machine_stack_end = 0;
 #ifdef __ia64
     sth->machine_register_stack_start = sth->machine_register_stack_end = 0;
+#endif
 #endif
 }
 
@@ -327,7 +329,7 @@ cont_restore_0(rb_context_t *cont, VALUE *addr_in_prev_frame)
 #else
 	if (addr_in_prev_frame > &space[0]) {
 	    /* Stack grows downward */
-	    if (addr_in_prev_frame > cont->saved_thread.machine_stack_src) {
+	    if (addr_in_prev_frame > cont->machine_stack_src) {
 		cont_restore_0(cont, &space[0]);
 	    }
 	}

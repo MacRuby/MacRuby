@@ -17,6 +17,13 @@
 #else
 # include <varargs.h>
 #endif
+
+#if WITH_OBJC
+
+typedef CFStringEncoding rb_encoding;
+
+#else
+
 #include "ruby/oniguruma.h"
 
 #define ENCODING_INLINE_MAX 1023
@@ -42,9 +49,11 @@
      ENCODING_GET_INLINED(obj) : \
      rb_enc_internal_get_index(obj))
 
-#define ENCODING_IS_ASCII8BIT(obj) (ENCODING_GET_INLINED(obj) == 0)
-
-#define ENCODING_MAXNAMELEN 42
+#if WITH_OBJC
+# define ENCODING_IS_ASCII8BIT(obj) (1)
+#else
+# define ENCODING_IS_ASCII8BIT(obj) (ENCODING_GET_INLINED(obj) == 0)
+#endif
 
 #define ENC_CODERANGE_MASK	(FL_USER8|FL_USER9)
 #define ENC_CODERANGE_UNKNOWN	0
@@ -71,6 +80,9 @@
     } while (0)
 
 typedef OnigEncodingType rb_encoding;
+#endif
+
+#define ENCODING_MAXNAMELEN 42
 
 int rb_enc_replicate(const char *, rb_encoding *);
 int rb_define_dummy_encoding(const char *);
@@ -104,12 +116,26 @@ rb_encoding* rb_enc_from_index(int idx);
 /* name -> rb_encoding */
 rb_encoding * rb_enc_find(const char *name);
 
+#if WITH_OBJC
+rb_encoding * rb_enc_find2(VALUE name);
+#endif
+
 /* encoding -> name */
+#if WITH_OBJC
+const char *rb_enc_name(rb_encoding *);
+VALUE rb_enc_name2(rb_encoding *);
+#else
 #define rb_enc_name(enc) (enc)->name
+#endif
 
 /* encoding -> minlen/maxlen */
+#if WITH_OBJC
+long rb_enc_mbminlen(rb_encoding *);
+long rb_enc_mbmaxlen(rb_encoding *);
+#else
 #define rb_enc_mbminlen(enc) (enc)->min_enc_len
 #define rb_enc_mbmaxlen(enc) (enc)->max_enc_len
+#endif
 
 /* -> mbclen (no error notification: 0 < ret <= e-p, no exception) */
 int rb_enc_mbclen(const char *p, const char *e, rb_encoding *enc);
@@ -144,6 +170,17 @@ int rb_enc_codelen(int code, rb_encoding *enc);
 /* ptr, ptr, encoding -> newline_or_not */
 #define rb_enc_is_newline(p,end,enc)  ONIGENC_IS_MBC_NEWLINE(enc,(UChar*)(p),(UChar*)(end))
 
+#if WITH_OBJC
+#define rb_enc_isctype(c,t,enc)	(iswctype(c,t))
+#define rb_enc_isascii(c,enc)	(iswascii(c))
+#define rb_enc_isalpha(c,enc)	(iswalpha(c))
+#define rb_enc_islower(c,enc)	(iswlower(c))
+#define rb_enc_isupper(c,enc)	(iswupper(c))
+#define rb_enc_isalnum(c,enc)	(iswalnum(c))
+#define rb_enc_isprint(c,enc)	(iswprint(c))
+#define rb_enc_isspace(c,enc)	(iswspace(c))
+#define rb_enc_isdigit(c,enc)	(iswdigit(c))
+#else
 #define rb_enc_isctype(c,t,enc) ONIGENC_IS_CODE_CTYPE(enc,c,t)
 #define rb_enc_isascii(c,enc) ONIGENC_IS_CODE_ASCII(c)
 #define rb_enc_isalpha(c,enc) ONIGENC_IS_CODE_ALPHA(enc,c)
@@ -153,6 +190,7 @@ int rb_enc_codelen(int code, rb_encoding *enc);
 #define rb_enc_isprint(c,enc) ONIGENC_IS_CODE_PRINT(enc,c)
 #define rb_enc_isspace(c,enc) ONIGENC_IS_CODE_SPACE(enc,c)
 #define rb_enc_isdigit(c,enc) ONIGENC_IS_CODE_DIGIT(enc,c)
+#endif
 
 #define rb_enc_asciicompat(enc) (!rb_enc_dummy_p(enc) && rb_enc_mbminlen(enc)==1)
 
@@ -176,5 +214,6 @@ int rb_usascii_encindex(void);
 VALUE rb_enc_default_external(void);
 void rb_enc_set_default_external(VALUE encoding);
 VALUE rb_locale_charmap(VALUE klass);
+long rb_memsearch(const void*,long,const void*,long,rb_encoding*);
 
 #endif /* RUBY_ENCODING_H */

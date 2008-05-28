@@ -2,7 +2,7 @@
 
   marshal.c -
 
-  $Author: akr $
+  $Author: matz $
   created at: Thu Apr 27 16:30:01 JST 1995
 
   Copyright (C) 1993-2007 Yukihiro Matsumoto
@@ -54,7 +54,7 @@ shortlen(long len, BDIGIT *ds)
 #define TYPE_FALSE	'F'
 #define TYPE_FIXNUM	'i'
 
-#define TYPE_EXTENDED	'e'
+#define TYPE_EXTENDED_R	'e'
 #define TYPE_UCLASS	'C'
 #define TYPE_OBJECT	'o'
 #define TYPE_DATA       'd'
@@ -162,7 +162,7 @@ static VALUE
 class2path(VALUE klass)
 {
     VALUE path = rb_class_path(klass);
-    char *n = RSTRING_PTR(path);
+    const char *n = RSTRING_CPTR(path);
 
     if (n[0] == '#') {
 	rb_raise(rb_eTypeError, "can't dump anonymous %s %s",
@@ -182,7 +182,7 @@ w_nbyte(const char *s, int n, struct dump_arg *arg)
 {
     VALUE buf = arg->str;
     rb_str_buf_cat(buf, s, n);
-    if (arg->dest && RSTRING_LEN(buf) >= BUFSIZ) {
+    if (arg->dest && RSTRING_CLEN(buf) >= BUFSIZ) {
 	if (arg->taint) OBJ_TAINT(buf);
 	rb_io_write(arg->dest, buf);
 	rb_str_resize(buf, 0);
@@ -417,7 +417,7 @@ w_extended(VALUE klass, struct dump_arg *arg, int check)
     }
     while (BUILTIN_TYPE(klass) == T_ICLASS) {
 	path = rb_class2name(RBASIC(klass)->klass);
-	w_byte(TYPE_EXTENDED, arg);
+	w_byte(TYPE_EXTENDED_R, arg);
 	w_unique(path, arg);
 	klass = RCLASS_SUPER(klass);
     }
@@ -427,7 +427,7 @@ static void
 w_class(char type, VALUE obj, struct dump_arg *arg, int check)
 {
     volatile VALUE p;
-    char *path;
+    const char *path;
     st_data_t real_obj;
     VALUE klass;
 
@@ -438,20 +438,28 @@ w_class(char type, VALUE obj, struct dump_arg *arg, int check)
     w_extended(klass, arg, check);
     w_byte(type, arg);
     p = class2path(rb_class_real(klass));
-    path = RSTRING_PTR(p);
+    path = RSTRING_CPTR(p);
     w_unique(path, arg);
 }
 
 static void
+#if WITH_OBJC
+w_uclass(VALUE obj, bool is_pure, struct dump_arg *arg)
+#else
 w_uclass(VALUE obj, VALUE super, struct dump_arg *arg)
+#endif
 {
     VALUE klass = CLASS_OF(obj);
 
     w_extended(klass, arg, Qtrue);
     klass = rb_class_real(klass);
+#if WITH_OBJC
+    if (!is_pure) {
+#else
     if (klass != super) {
+#endif
 	w_byte(TYPE_UCLASS, arg);
-	w_unique(RSTRING_PTR(class2path(klass)), arg);
+	w_unique(RSTRING_CPTR(class2path(klass)), arg);
     }
 }
 
@@ -467,6 +475,17 @@ w_obj_each(ID id, VALUE value, struct dump_call_arg *arg)
 static void
 w_encoding(VALUE obj, long num, struct dump_call_arg *arg)
 {
+    rb_encoding *enc = 0;
+#if WITH_OBJC
+    VALUE name;
+
+    enc = rb_enc_get(obj);
+    if (enc == NULL) {
+	w_long(num, arg->arg);
+	return;
+    }
+    name = rb_enc_name2(enc);
+#else
     int encidx = rb_enc_get_index(obj);
     rb_encoding *enc = 0;
     st_data_t name;
@@ -485,6 +504,7 @@ w_encoding(VALUE obj, long num, struct dump_call_arg *arg)
 	name = (st_data_t)rb_str_new2(rb_enc_name(enc));
 	st_insert(arg->arg->encodings, (st_data_t)rb_enc_name(enc), name);
     } while (0);
+#endif
     w_object(name, arg->arg, arg->limit);
 }
 
@@ -525,8 +545,12 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
     st_table *ivtbl = 0;
     st_data_t num;
     int hasiv = 0;
+#if WITH_OBJC
+#define has_ivars(obj, ivtbl) ((ivtbl = rb_generic_ivar_table(obj)) != 0)
+#else
 #define has_ivars(obj, ivtbl) ((ivtbl = rb_generic_ivar_table(obj)) != 0 || \
 			       (!SPECIAL_CONST_P(obj) && !ENCODING_IS_ASCII8BIT(obj)))
+#endif
 
     if (limit == 0) {
 	rb_raise(rb_eArgError, "exceed depth limit");
@@ -574,23 +598,10 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
     else {
 	if (OBJ_TAINTED(obj)) arg->taint = Qtrue;
 
-	st_add_direct(arg->data, obj, arg->data->num_entries);
-
-        {
-            st_data_t compat_data;
-            rb_alloc_func_t allocator = rb_get_alloc_func(RBASIC(obj)->klass);
-            if (st_lookup(compat_allocator_tbl,
-                          (st_data_t)allocator,
-                          &compat_data)) {
-                marshal_compat_t *compat = (marshal_compat_t*)compat_data;
-                VALUE real_obj = obj;
-                obj = compat->dumper(real_obj);
-                st_insert(arg->compat_tbl, (st_data_t)obj, (st_data_t)real_obj);
-            }
-        }
-
 	if (rb_respond_to(obj, s_mdump)) {
-	    VALUE v;
+	    volatile VALUE v;
+
+            st_add_direct(arg->data, obj, arg->data->num_entries);
 
 	    v = rb_funcall(obj, s_mdump, 0, 0);
 	    w_class(TYPE_USRMARSHAL, obj, arg, Qfalse);
@@ -611,17 +622,36 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
 		w_byte(TYPE_IVAR, arg);
 	    }
 	    w_class(TYPE_USERDEF, obj, arg, Qfalse);
-	    w_bytes(RSTRING_PTR(v), RSTRING_LEN(v), arg);
+	    w_bytes(RSTRING_CPTR(v), RSTRING_CLEN(v), arg);
             if (hasiv2) {
 		w_ivar(v, ivtbl2, &c_arg);
             }
             else if (hasiv) {
 		w_ivar(obj, ivtbl, &c_arg);
 	    }
+            st_add_direct(arg->data, obj, arg->data->num_entries);
 	    return;
 	}
 
-	switch (BUILTIN_TYPE(obj)) {
+        st_add_direct(arg->data, obj, arg->data->num_entries);
+
+#if WITH_OBJC
+	if (!rb_objc_is_non_native(obj))
+#endif
+        {
+            st_data_t compat_data;
+            rb_alloc_func_t allocator = rb_get_alloc_func(RBASIC(obj)->klass);
+            if (st_lookup(compat_allocator_tbl,
+                          (st_data_t)allocator,
+                          &compat_data)) {
+                marshal_compat_t *compat = (marshal_compat_t*)compat_data;
+                VALUE real_obj = obj;
+                obj = compat->dumper(real_obj);
+                st_insert(arg->compat_tbl, (st_data_t)obj, (st_data_t)real_obj);
+            }
+        }
+
+	switch (/*BUILTIN_*/TYPE(obj)) {
 	  case T_CLASS:
 	    if (FL_TEST(obj, FL_SINGLETON)) {
 		rb_raise(rb_eTypeError, "singleton class can't be dumped");
@@ -629,7 +659,7 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
 	    w_byte(TYPE_CLASS, arg);
 	    {
 		volatile VALUE path = class2path(obj);
-		w_bytes(RSTRING_PTR(path), RSTRING_LEN(path), arg);
+		w_bytes(RSTRING_CPTR(path), RSTRING_CLEN(path), arg);
 	    }
 	    break;
 
@@ -637,7 +667,7 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
 	    w_byte(TYPE_MODULE, arg);
 	    {
 		VALUE path = class2path(obj);
-		w_bytes(RSTRING_PTR(path), RSTRING_LEN(path), arg);
+		w_bytes(RSTRING_CPTR(path), RSTRING_CLEN(path), arg);
 	    }
 	    break;
 
@@ -674,9 +704,13 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
 	    break;
 
 	  case T_STRING:
+#if WITH_OBJC
+	    w_uclass(obj, rb_objc_str_is_pure(obj), arg);
+#else
 	    w_uclass(obj, rb_cString, arg);
+#endif
 	    w_byte(TYPE_STRING, arg);
-	    w_bytes(RSTRING_PTR(obj), RSTRING_LEN(obj), arg);
+	    w_bytes(RSTRING_CPTR(obj), RSTRING_CLEN(obj), arg);
 	    break;
 
 	  case T_REGEXP:
@@ -687,10 +721,20 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
 	    break;
 
 	  case T_ARRAY:
+#if WITH_OBJC
+	    w_uclass(obj, rb_objc_ary_is_pure(obj), arg);
+#else
 	    w_uclass(obj, rb_cArray, arg);
+#endif
 	    w_byte(TYPE_ARRAY, arg);
 	    {
 		long len = RARRAY_LEN(obj);
+#if WITH_OBJC
+		long i;
+		w_long(len, arg);
+		for (i = 0; i < len; i++)
+		    w_object(RARRAY_AT(obj, i), arg, limit);
+#else
 		VALUE *ptr = RARRAY_PTR(obj);
 
 		w_long(len, arg);
@@ -698,11 +742,20 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
 		    w_object(*ptr, arg, limit);
 		    ptr++;
 		}
+#endif
 	    }
 	    break;
 
 	  case T_HASH:
+#if WITH_OBJC
+	    w_uclass(obj, rb_objc_hash_is_pure(obj), arg);
+#else
 	    w_uclass(obj, rb_cHash, arg);
+#endif
+#if WITH_OBJC
+	    w_byte(TYPE_HASH, arg);
+	    /* TODO: encode ifnone too */
+#else
 	    if (NIL_P(RHASH(obj)->ifnone)) {
 		w_byte(TYPE_HASH, arg);
 	    }
@@ -713,11 +766,14 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
 	    else {
 		w_byte(TYPE_HASH_DEF, arg);
 	    }
+#endif
 	    w_long(RHASH_SIZE(obj), arg);
 	    rb_hash_foreach(obj, hash_each, (st_data_t)&c_arg);
+#if !WITH_OBJC
 	    if (!NIL_P(RHASH(obj)->ifnone)) {
 		w_object(RHASH(obj)->ifnone, arg, limit);
 	    }
+#endif
 	    break;
 
 	  case T_STRUCT:
@@ -730,7 +786,7 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
 		w_long(len, arg);
 		mem = rb_struct_members(obj);
 		for (i=0; i<len; i++) {
-		    w_symbol(SYM2ID(RARRAY_PTR(mem)[i]), arg);
+		    w_symbol(SYM2ID(RARRAY_AT(mem, i)), arg);
 		    w_object(RSTRUCT_PTR(obj)[i], arg, limit);
 		}
 	    }
@@ -855,6 +911,8 @@ marshal_dump(int argc, VALUE *argv)
 	arg.str = port;
     }
 
+    RSTRING_PTR(arg.str); /* force bytestring creation */
+
     arg.symbols = st_init_numtable();
     arg.data    = st_init_numtable();
     arg.taint   = Qfalse;
@@ -894,8 +952,8 @@ r_byte(struct load_arg *arg)
     int c;
 
     if (TYPE(arg->src) == T_STRING) {
-	if (RSTRING_LEN(arg->src) > arg->offset) {
-	    c = (unsigned char)RSTRING_PTR(arg->src)[arg->offset++];
+	if (RSTRING_CLEN(arg->src) > arg->offset) {
+	    c = (unsigned char)RSTRING_CPTR(arg->src)[arg->offset++];
 	}
 	else {
 	    rb_raise(rb_eArgError, "marshal data too short");
@@ -967,8 +1025,8 @@ r_bytes0(long len, struct load_arg *arg)
 
     if (len == 0) return rb_str_new(0, 0);
     if (TYPE(arg->src) == T_STRING) {
-	if (RSTRING_LEN(arg->src) - arg->offset >= len) {
-	    str = rb_str_new(RSTRING_PTR(arg->src)+arg->offset, len);
+	if (RSTRING_CLEN(arg->src) - arg->offset >= len) {
+	    str = rb_str_new(RSTRING_CPTR(arg->src)+arg->offset, len);
 	    arg->offset += len;
 	}
 	else {
@@ -982,7 +1040,7 @@ r_bytes0(long len, struct load_arg *arg)
 	str = rb_funcall2(src, s_read, 1, &n);
 	if (NIL_P(str)) goto too_short;
 	StringValue(str);
-	if (RSTRING_LEN(str) != len) goto too_short;
+	if (RSTRING_CLEN(str) != len) goto too_short;
 	if (OBJ_TAINTED(str)) arg->taint = Qtrue;
     }
     return str;
@@ -1004,7 +1062,7 @@ static ID
 r_symreal(struct load_arg *arg)
 {
     volatile VALUE s = r_bytes(arg);
-    ID id = rb_intern(RSTRING_PTR(s));
+    ID id = rb_intern(RSTRING_CPTR(s));
 
     st_insert(arg->symbols, arg->symbols->num_entries, id);
 
@@ -1088,11 +1146,14 @@ r_ivar(VALUE obj, struct load_arg *arg)
 	while (len--) {
 	    ID id = r_symbol(arg);
 	    VALUE val = r_object(arg);
+#if !WITH_OBJC
 	    if (id == rb_id_encoding()) {
 		int idx = rb_enc_find_index(StringValueCStr(val));
 		if (idx > 0) rb_enc_associate_index(obj, idx);
 	    }
-	    else {
+	    else 
+#endif
+	    {
 		rb_ivar_set(obj, id, val);
 	    }
 	}
@@ -1170,7 +1231,7 @@ r_object0(struct load_arg *arg, int *ivp, VALUE extmod)
 	}
 	break;
 
-      case TYPE_EXTENDED:
+      case TYPE_EXTENDED_R:
 	{
 	    VALUE m = path2module(r_unique(arg));
 
@@ -1188,21 +1249,30 @@ r_object0(struct load_arg *arg, int *ivp, VALUE extmod)
       case TYPE_UCLASS:
 	{
 	    VALUE c = path2class(r_unique(arg));
+	    bool non_native;
 
 	    if (FL_TEST(c, FL_SINGLETON)) {
 		rb_raise(rb_eTypeError, "singleton can't be loaded");
 	    }
 	    v = r_object0(arg, 0, extmod);
-	    if (rb_special_const_p(v) || TYPE(v) == T_OBJECT || TYPE(v) == T_CLASS) {
-	      format_error:
-		rb_raise(rb_eArgError, "dump format error (user class)");
+#if WITH_OBJC
+	    if (rb_objc_is_non_native(v)) {
+		*(Class *)v = RCLASS_OCID(c);	
 	    }
-	    if (TYPE(v) == T_MODULE || !RTEST(rb_class_inherited_p(c, RBASIC(v)->klass))) {
-		VALUE tmp = rb_obj_alloc(c);
+	    else
+#endif
+	    {
+		if (rb_special_const_p(v) || TYPE(v) == T_OBJECT || TYPE(v) == T_CLASS) {
+format_error:
+		    rb_raise(rb_eArgError, "dump format error (user class)");
+		}
+		if (TYPE(v) == T_MODULE || !RTEST(rb_class_inherited_p(c, RBASIC(v)->klass))) {
+		    VALUE tmp = rb_obj_alloc(c);
 
-		if (TYPE(v) != TYPE(tmp)) goto format_error;
+		    if (TYPE(v) != TYPE(tmp)) goto format_error;
+		}
+		RBASIC(v)->klass = c;
 	    }
-	    RBASIC(v)->klass = c;
 	}
 	break;
 
@@ -1233,7 +1303,7 @@ r_object0(struct load_arg *arg, int *ivp, VALUE extmod)
 	{
 	    double d, t = 0.0;
 	    VALUE str = r_bytes(arg);
-	    const char *ptr = RSTRING_PTR(str);
+	    const char *ptr = RSTRING_CPTR(str);
 
 	    if (strcmp(ptr, "nan") == 0) {
 		d = t / t;
@@ -1247,7 +1317,7 @@ r_object0(struct load_arg *arg, int *ivp, VALUE extmod)
 	    else {
 		char *e;
 		d = strtod(ptr, &e);
-		d = load_mantissa(d, e, RSTRING_LEN(str) - (e - ptr));
+		d = load_mantissa(d, e, strlen(ptr) - (e - ptr));
 	    }
 	    v = DOUBLE2NUM(d);
 	    v = r_entry(v, arg);
@@ -1272,7 +1342,7 @@ r_object0(struct load_arg *arg, int *ivp, VALUE extmod)
             rb_big_resize((VALUE)big, (len + 1) * 2 / sizeof(BDIGIT));
 #endif
             digits = RBIGNUM_DIGITS(big);
-	    MEMCPY(digits, RSTRING_PTR(data), char, len * 2);
+	    MEMCPY(digits, RSTRING_CPTR(data), char, len * 2);
 #if SIZEOF_BDIGITS > SIZEOF_SHORT
 	    MEMZERO((char *)digits + len * 2, char,
 		    RBIGNUM_LEN(big) * sizeof(BDIGIT) - len * 2);
@@ -1340,9 +1410,11 @@ r_object0(struct load_arg *arg, int *ivp, VALUE extmod)
 		VALUE value = r_object(arg);
 		rb_hash_aset(v, key, value);
 	    }
+#if !WITH_OBJC
 	    if (type == TYPE_HASH_DEF) {
 		RHASH(v)->ifnone = r_object(arg);
 	    }
+#endif
             v = r_leave(v, arg);
 	}
 	break;
@@ -1373,11 +1445,11 @@ r_object0(struct load_arg *arg, int *ivp, VALUE extmod)
 	    for (i=0; i<len; i++) {
 		slot = r_symbol(arg);
 
-		if (RARRAY_PTR(mem)[i] != ID2SYM(slot)) {
+		if (RARRAY_AT(mem, i) != ID2SYM(slot)) {
 		    rb_raise(rb_eTypeError, "struct %s not compatible (:%s for :%s)",
 			     rb_class2name(klass),
 			     rb_id2name(slot),
-			     rb_id2name(SYM2ID(RARRAY_PTR(mem)[i])));
+			     rb_id2name(SYM2ID(RARRAY_AT(mem, i))));
 		}
                 rb_ary_push(values, r_object(arg));
 	    }
@@ -1473,7 +1545,7 @@ r_object0(struct load_arg *arg, int *ivp, VALUE extmod)
         {
 	    volatile VALUE str = r_bytes(arg);
 
-	    v = rb_path2class(RSTRING_PTR(str));
+	    v = rb_path2class(RSTRING_CPTR(str));
 	    v = r_entry(v, arg);
             v = r_leave(v, arg);
 	}
@@ -1483,7 +1555,7 @@ r_object0(struct load_arg *arg, int *ivp, VALUE extmod)
         {
 	    volatile VALUE str = r_bytes(arg);
 
-	    v = path2class(RSTRING_PTR(str));
+	    v = path2class(RSTRING_CPTR(str));
 	    v = r_entry(v, arg);
             v = r_leave(v, arg);
 	}
@@ -1493,7 +1565,7 @@ r_object0(struct load_arg *arg, int *ivp, VALUE extmod)
         {
 	    volatile VALUE str = r_bytes(arg);
 
-	    v = path2module(RSTRING_PTR(str));
+	    v = path2module(RSTRING_CPTR(str));
 	    v = r_entry(v, arg);
             v = r_leave(v, arg);
 	}
@@ -1616,9 +1688,9 @@ marshal_load(int argc, VALUE *argv)
  * first two bytes of marshaled data.
  *
  *     str = Marshal.dump("thing")
- *     RUBY_VERSION   #=> "1.8.0"
- *     str[0]         #=> 4
- *     str[1]         #=> 8
+ *     RUBY_VERSION   #=> "1.9.0"
+ *     str[0].ord     #=> 4
+ *     str[1].ord     #=> 8
  *
  * Some objects cannot be dumped: if the objects to be dumped include
  * bindings, procedure or method objects, instances of class IO, or

@@ -3,7 +3,7 @@
 
 require 'test/unit'
 class TestTranscode < Test::Unit::TestCase
-  def setup # trick to create all the necessary encodings
+  def setup_really_needed? # trick to create all the necessary encodings
     all_encodings = [ 'ISO-8859-1', 'ISO-8859-2',
                       'ISO-8859-3', 'ISO-8859-4',
                       'ISO-8859-5', 'ISO-8859-6',
@@ -19,8 +19,6 @@ class TestTranscode < Test::Unit::TestCase
   end
 
   def test_errors
-    # we don't have semantics for conversion without attribute yet
-    # maybe 'convert to UTF-8' would be nice :-)
     assert_raise(ArgumentError) { 'abc'.encode }
     assert_raise(ArgumentError) { 'abc'.encode! }
     assert_raise(ArgumentError) { 'abc'.encode('foo', 'bar') }
@@ -240,5 +238,19 @@ class TestTranscode < Test::Unit::TestCase
     check_utf_32_both_ways("\u{F0F0F}", "\x00\x0F\x0F\x0F")
     check_utf_32_both_ways("\u{8FF00}", "\x00\x08\xFF\x00")
     check_utf_32_both_ways("\u{F00FF}", "\x00\x0F\x00\xFF")
+  end
+  
+  def test_invalid_ignore
+    # arguments only
+    assert_nothing_raised { 'abc'.encode('utf-8', invalid: :ignore) }
+    # check handling of UTF-8 ill-formed subsequences
+    assert_equal("\x00\x41\x00\x3E\x00\x42".force_encoding('UTF-16BE'),
+      "\x41\xC2\x3E\x42".encode('UTF-16BE', 'UTF-8', invalid: :ignore))
+    assert_equal("\x00\x41\x00\xF1\x00\x42".force_encoding('UTF-16BE'),
+      "\x41\xC2\xC3\xB1\x42".encode('UTF-16BE', 'UTF-8', invalid: :ignore))
+    assert_equal("\x00\x42".force_encoding('UTF-16BE'),
+      "\xF0\x80\x80\x42".encode('UTF-16BE', 'UTF-8', invalid: :ignore))
+    assert_equal(''.force_encoding('UTF-16BE'),
+      "\x82\xAB".encode('UTF-16BE', 'UTF-8', invalid: :ignore))
   end
 end

@@ -106,7 +106,7 @@ assert_equal '1',       %q( begin 7::C = 7; rescue TypeError; 1 end )
 assert_equal 'C',       %q( class A; class ::C; end end;  C )
 assert_equal 'Class',   %q( class A; class ::C; end end;  C.class )
 assert_equal 'OK',      %q( class A; ::C = "OK"; end;  C )
-assert_equal 'String',  %q( class A; ::C = "OK"; end;  C.class )
+assert_equal 'NSCFString',  %q( class A; ::C = "OK"; end;  C.class )
 
 # class/module dup
 assert_equal 'Class',   %q( class C; end;  C.dup.class )

@@ -98,11 +98,11 @@ control_frame_dump(rb_thread_t *th, rb_control_frame_t *cfp)
 	}
 	else {
 	    pc = cfp->pc - cfp->iseq->iseq_encoded;
-	    iseq_name = RSTRING_PTR(cfp->iseq->name);
+	    iseq_name = RSTRING_CPTR(cfp->iseq->name);
 	    line = vm_get_sourceline(cfp);
 	    if (line) {
 		char fn[MAX_POSBUF+1];
-		snprintf(fn, MAX_POSBUF, "%s", RSTRING_PTR(cfp->iseq->filename));
+		snprintf(fn, MAX_POSBUF, "%s", RSTRING_CPTR(cfp->iseq->filename));
 		snprintf(posbuf, MAX_POSBUF, "%s:%d", fn, line);
 	    }
 	}
@@ -257,7 +257,7 @@ stack_dump_each(rb_thread_t *th, rb_control_frame_t *cfp)
     else {
 	argc = iseq->argc;
 	local_size = iseq->local_size;
-	name = RSTRING_PTR(iseq->name);
+	name = RSTRING_CPTR(iseq->name);
     }
 
     /* stack trace header */
@@ -575,7 +575,7 @@ rb_vm_bugreport(void)
 	bt = vm_backtrace(th, 0);
 	if (TYPE(bt) == T_ARRAY)
 	for (i = 0; i < RARRAY_LEN(bt); i++) {
-	    dp(RARRAY_PTR(bt)[i]);
+	    dp(RARRAY_AT(bt, i));
 	}
     }
 

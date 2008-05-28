@@ -1,7 +1,7 @@
 #
 #   irb.rb - irb main module
 #   	$Release Version: 0.9.5 $
-#   	$Revision: 15408 $
+#   	$Revision: 15689 $
 #   	by Keiju ISHITSUKA(keiju@ruby-lang.org)
 #
 # --
@@ -22,7 +22,7 @@ require "irb/locale"
 STDOUT.sync = true
 
 module IRB
-  @RCS_ID='-$Id: irb.rb 15408 2008-02-08 15:44:54Z nobu $-'
+  @RCS_ID='-$Id: irb.rb 15689 2008-03-04 12:37:05Z matz $-'
 
   class Abort < Exception;end
 
@@ -156,12 +156,13 @@ module IRB
 	  end
 	  if exc
 	    print exc.class, ": ", exc, "\n"
-	    if exc.backtrace[0] =~ /irb(2)?(\/.*|-.*|\.rb)?:/ && exc.class.to_s !~ /^IRB/
+	    if exc.backtrace[0] =~ /irb(2)?(\/.*|-.*|\.rb)?:/ && exc.class.to_s !~ /^IRB/ &&
+                !(SyntaxError === exc)
 	      irb_bug = true 
 	    else
 	      irb_bug = false
 	    end
-	    
+
 	    messages = []
 	    lasts = []
 	    levels = 0

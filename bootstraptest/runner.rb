@@ -1,4 +1,4 @@
-# $Id: runner.rb 15443 2008-02-12 06:28:23Z naruse $
+# $Id: runner.rb 16364 2008-05-11 13:54:04Z nobu $
 
 # NOTE:
 # Never use optparse in this file.
@@ -52,7 +52,8 @@ def main
     when /\A--ruby=(.*)/
       @ruby = $1
       @ruby.gsub!(/^([^ ]*)/){File.expand_path($1)}
-      @ruby.gsub!(/-I([^ ]*)/){"-I"+File.expand_path($1)}
+      @ruby.gsub!(/(\s+-I\s*)((?!(?:\.\/)*-(?:\s|\z))\S+)/){$1+File.expand_path($2)}
+      @ruby.gsub!(/(\s+-r\s*)(\.\.?\/\S+)/){$1+File.expand_path($2)}
       true
     when /\A--sets=(.*)/
       tests = Dir.glob("#{File.dirname($0)}/test_{#{$1}}*.rb")
@@ -79,14 +80,14 @@ Usage: #{File.basename($0, '.*')} --ruby=PATH [--sets=NAME,NAME,...]
     -q, --quiet                     Don\'t print header message.
     -h, --help                      Print this message and quit.
 End
-      exit 0
+      exit true
     else
       false
     end
   }
   if tests and not ARGV.empty?
     $stderr.puts "--tests and arguments are exclusive"
-    exit 1
+    exit false
   end
   tests ||= ARGV
   tests = Dir.glob("#{File.dirname($0)}/test_*.rb") if tests.empty?
@@ -96,7 +97,7 @@ End
     puts Time.now
     patchlevel = defined?(RUBY_PATCHLEVEL) ? " patchlevel #{RUBY_PATCHLEVEL}" : ''
     puts "Driver is ruby #{RUBY_VERSION} (#{RUBY_RELEASE_DATE}#{patchlevel}) [#{RUBY_PLATFORM}]"
-    puts "Target is #{`#{@ruby} -v`}"
+    puts "Target is #{`#{@ruby} -v`.chomp}"
     puts
     $stdout.flush
   end
@@ -118,13 +119,13 @@ def exec_test(pathes)
   $stderr.puts
   if @error == 0
     $stderr.puts "PASS #{@count} tests"
-    exit 0
+    exit true
   else
     @errbuf.each do |msg|
       $stderr.puts msg
     end
     $stderr.puts "FAIL #{@error}/#{@count} tests failed"
-    exit 1
+    exit false
   end
 end
 

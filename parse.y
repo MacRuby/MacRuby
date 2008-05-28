@@ -2,7 +2,7 @@
 
   parse.y -
 
-  $Author: matz $
+  $Author: usa $
   created at: Fri May 28 18:02:42 JST 1993
 
   Copyright (C) 1993-2007 Yukihiro Matsumoto
@@ -217,7 +217,10 @@ struct parser_params {
     int parser_lpar_beg;
     int parser_in_single;
     int parser_in_def;
+#if WITH_OBJC
     int parser_in_def_named_args;
+    char parser_named_mid[1024];
+#endif
     int parser_compile_for_eval;
     VALUE parser_cur_mid;
     int parser_in_defined;
@@ -266,14 +269,23 @@ struct parser_params {
 #endif
 };
 
-#define UTF8_ENC() (parser->utf8 ? parser->utf8 : \
+#if WITH_OBJC
+# define UTF8_ENC() (NULL)
+#else
+# define UTF8_ENC() (parser->utf8 ? parser->utf8 : \
 		    (parser->utf8 = rb_utf8_encoding()))
+#endif
 #define STR_NEW(p,n) rb_enc_str_new((p),(n),parser->enc)
 #define STR_NEW0() rb_usascii_str_new(0,0)
 #define STR_NEW2(p) rb_enc_str_new((p),strlen(p),parser->enc)
 #define STR_NEW3(p,n,e,func) parser_str_new((p),(n),(e),(func),parser->enc)
-#define STR_ENC(m) ((m)?parser->enc:rb_usascii_encoding())
-#define ENC_SINGLE(cr) ((cr)==ENC_CODERANGE_7BIT)
+#if WITH_OBJC
+# define STR_ENC(m) (parser->enc)
+# define ENC_SINGLE(cr) (1)
+#else
+# define STR_ENC(m) ((m)?parser->enc:rb_usascii_encoding())
+# define ENC_SINGLE(cr) ((cr)==ENC_CODERANGE_7BIT)
+#endif
 #define TOK_INTERN(mb) rb_intern3(tok(), toklen(), STR_ENC(mb))
 
 #ifdef YYMALLOC
@@ -297,7 +309,10 @@ static int parser_yyerror(struct parser_params*, const char*);
 #define lpar_beg		(parser->parser_lpar_beg)
 #define in_single		(parser->parser_in_single)
 #define in_def			(parser->parser_in_def)
-#define in_def_named_args	(parser->parser_in_def_named_args)
+#if WITH_OBJC
+# define in_def_named_args	(parser->parser_in_def_named_args)
+# define named_mid		(parser->parser_named_mid)
+#endif
 #define compile_for_eval	(parser->parser_compile_for_eval)
 #define cur_mid			(parser->parser_cur_mid)
 #define in_defined		(parser->parser_in_defined)
@@ -417,8 +432,10 @@ static int local_var_gen(struct parser_params*, ID);
 #define local_var(id) local_var_gen(parser, id);
 static int arg_var_gen(struct parser_params*, ID);
 #define arg_var(id) arg_var_gen(parser, id)
-static int named_arg_gen(struct parser_params*, ID);
-#define named_arg(id) named_arg_gen(parser, id)
+#if WITH_OBJC
+static int named_arg_gen(struct parser_params*, ID, int);
+# define named_arg(id, flag) named_arg_gen(parser, id, flag)
+#endif
 static int  local_id_gen(struct parser_params*, ID);
 #define local_id(id) local_id_gen(parser, id)
 static ID  *local_tbl_gen(struct parser_params*);
@@ -562,9 +579,7 @@ static void ripper_warn0(struct parser_params*, const char*);
 static void ripper_warnI(struct parser_params*, const char*, int);
 static void ripper_warnS(struct parser_params*, const char*, const char*);
 static void ripper_warning0(struct parser_params*, const char*);
-#if 0				/* unused in ripper right now */
 static void ripper_warningS(struct parser_params*, const char*, const char*);
-#endif
 #endif
 
 #ifdef RIPPER
@@ -1796,9 +1811,11 @@ arg		: lhs '=' arg
 		| lhs '=' arg modifier_rescue arg
 		    {
 		    /*%%%*/
-			$$ = node_assign($1, NEW_RESCUE($3, NEW_RESBODY(0,$5,0), 0));
+			value_expr($3);
+		        $3 = NEW_RESCUE($3, NEW_RESBODY(0,$5,0), 0);
+			$$ = node_assign($1, $3);
 		    /*%
-			$$ = dispatch2(assign, $1, dispatch2(rescue_mod,$3,$5));
+			$$ = dispatch2(assign, $1, dispatch2(rescue_mod, $3, $5));
 		    %*/
 		    }
 		| var_lhs tOP_ASGN arg
@@ -1827,6 +1844,37 @@ arg		: lhs '=' arg
 			    $$ = NEW_BEGIN(0);
 			}
 		    /*%
+			$$ = dispatch3(opassign, $1, $2, $3);
+		    %*/
+		    }
+		| var_lhs tOP_ASGN arg modifier_rescue arg
+		    {
+		    /*%%%*/
+			value_expr($3);
+		        $3 = NEW_RESCUE($3, NEW_RESBODY(0,$5,0), 0);
+			if ($1) {
+			    ID vid = $1->nd_vid;
+			    if ($2 == tOROP) {
+				$1->nd_value = $3;
+				$$ = NEW_OP_ASGN_OR(gettable(vid), $1);
+				if (is_asgn_or_id(vid)) {
+				    $$->nd_aid = vid;
+				}
+			    }
+			    else if ($2 == tANDOP) {
+				$1->nd_value = $3;
+				$$ = NEW_OP_ASGN_AND(gettable(vid), $1);
+			    }
+			    else {
+				$$ = $1;
+				$$->nd_value = NEW_CALL(gettable(vid), $2, NEW_LIST($3));
+			    }
+			}
+			else {
+			    $$ = NEW_BEGIN(0);
+			}
+		    /*%
+			$3 = dispatch2(rescue_mod, $3, $5);
 			$$ = dispatch3(opassign, $1, $2, $3);
 		    %*/
 		    }
@@ -2905,7 +2953,10 @@ primary		: literal
 			$<id>$ = cur_mid;
 			cur_mid = $2;
 			in_def++;
+#if WITH_OBJC
 			in_def_named_args = 0;
+			named_arg($2, 1);
+#endif
 		    /*%%%*/
 			local_push(0);
 		    /*%
@@ -2917,13 +2968,23 @@ primary		: literal
 		    {
 		    /*%%%*/
 			NODE *body = remove_begin($5);
+			ID mid = $2;
 			reduce_nodes(&body);
-			$$ = NEW_DEFN(cur_mid, $4, body, NOEX_PRIVATE);
+#if WITH_OBJC
+			if (in_def_named_args > 0)
+			    mid = rb_intern(named_mid);
+#endif
+			$$ = NEW_DEFN(mid, $4, body, NOEX_PRIVATE);
 			fixpos($$, $4);
+#if WITH_OBJC
 			if (in_def_named_args > 0
-			    && in_def_named_args != 
-			       $$->nd_defn->nd_args->nd_frml - 1)
-			    yyerror("invalid use of named arguments in method definition");
+			    && in_def_named_args 
+			       != $$->nd_defn->nd_args->nd_frml - 1) {
+			    yyerror("invalid use of named arguments in " \
+				    "method definition");
+			}
+			in_def_named_args = 0;
+#endif
 			local_pop();
 			in_def--;
 			cur_mid = $<id>3;
@@ -2937,6 +2998,10 @@ primary		: literal
 		    {
 			in_single++;
 			lex_state = EXPR_END; /* force for args */
+#if WITH_OBJC
+			in_def_named_args = 0;
+			named_arg($5, 1);
+#endif
 		    /*%%%*/
 			local_push(0);
 		    /*%
@@ -2948,9 +3013,23 @@ primary		: literal
 		    {
 		    /*%%%*/
 			NODE *body = remove_begin($8);
+			ID mid = $5;
 			reduce_nodes(&body);
-			$$ = NEW_DEFS($2, $5, $7, body);
+#if WITH_OBJC
+			if (in_def_named_args > 0)
+			    mid = rb_intern(named_mid);
+#endif
+			$$ = NEW_DEFS($2, mid, $7, body);
 			fixpos($$, $2);
+#if WITH_OBJC
+			if (in_def_named_args > 0 
+			    && in_def_named_args 
+			       != $$->nd_defn->nd_args->nd_frml - 1) {
+			    yyerror("invalid use of named arguments in " \
+				    "method definition");
+			}
+			in_def_named_args = 0;
+#endif
 			local_pop();
 			in_single--;
 		    /*%
@@ -4239,12 +4318,16 @@ f_norm_arg	: f_bad_arg
 		    }
 		| tIDENTIFIER tASSOC tIDENTIFIER
                     {
-			named_arg($1);
+#if WITH_OBJC
+			named_arg($1, 0);
+#endif
 			$$ = $3;
                     }
                 | tLABEL tIDENTIFIER
                     {
-			named_arg($1);
+#if WITH_OBJC
+			named_arg($1, 0);
+#endif
 			$$ = $2;
                     }
 		;
@@ -4641,8 +4724,10 @@ ripper_dispatch_delayed_token(struct parser_params *parser, int t)
 # define SIGN_EXTEND_CHAR(c) ((((unsigned char)(c)) ^ 128) - 128)
 #endif
 
+#if !WITH_OBJC
 #define parser_mbclen()  mbclen((lex_p-1),lex_pend,parser->enc)
 #define parser_precise_mbclen()  rb_enc_precise_mbclen((lex_p-1),lex_pend,parser->enc)
+#endif
 #define is_identchar(p,e,enc) (rb_enc_isalnum(*p,enc) || (*p) == '_' || !ISASCII(*p))
 #define parser_is_identchar() (!parser->eofp && is_identchar((lex_p-1),lex_pend,parser->enc))
 
@@ -4678,11 +4763,19 @@ parser_yyerror(struct parser_params *parser, const char *msg)
 
 	if (len > max_line_margin * 2 + 10) {
 	    if (lex_p - p > max_line_margin) {
+#if WITH_OBJC
+		p = lex_p - max_line_margin;
+#else
 		p = rb_enc_prev_char(p, lex_p - max_line_margin, rb_enc_get(lex_lastline));
+#endif
 		pre = "...";
 	    }
 	    if (pe - lex_p > max_line_margin) {
+#if WITH_OBJC
+		pe = lex_p + max_line_margin;
+#else
 		pe = rb_enc_prev_char(lex_p, lex_p + max_line_margin, rb_enc_get(lex_lastline));
+#endif
 		post = "...";
 	    }
 	    len = pe - p;
@@ -4721,11 +4814,8 @@ debug_lines(const char *f)
 	VALUE hash = rb_const_get_at(rb_cObject, rb_intern("SCRIPT_LINES__"));
 	if (TYPE(hash) == T_HASH) {
 	    VALUE fname = rb_str_new2(f);
-	    VALUE lines = rb_hash_lookup(hash, fname);
-	    if (NIL_P(lines)) {
-		lines = rb_ary_new();
-		rb_hash_aset(hash, fname, lines);
-	    }
+	    VALUE lines = rb_ary_new();
+	    rb_hash_aset(hash, fname, lines);
 	    return lines;
 	}
     }
@@ -4782,7 +4872,7 @@ yycompile0(VALUE arg, int tracing)
 static NODE*
 yycompile(struct parser_params *parser, const char *f, int line)
 {
-    ruby_sourcefile = rb_source_filename(f);
+    ruby_sourcefile = ruby_strdup(f);
     ruby_sourceline = line - 1;
     return (NODE *)ruby_suppress_tracing(yycompile0, (VALUE)parser, Qtrue);
 }
@@ -4791,20 +4881,52 @@ yycompile(struct parser_params *parser, const char *f, int line)
 static VALUE
 lex_get_str(struct parser_params *parser, VALUE s)
 {
-    char *beg, *end, *pend;
-
-    beg = RSTRING_PTR(s);
-    if (lex_gets_ptr) {
-	if (RSTRING_LEN(s) == lex_gets_ptr) return Qnil;
+#if WITH_OBJC
+    long beg, len, n;
+    CFRange search_range;  
+    VALUE v;
+ 
+    beg = 0; 
+    n = CFStringGetLength((CFStringRef)s);
+    if (lex_gets_ptr > 0) {
+	if (n == lex_gets_ptr)
+	    return Qnil;
 	beg += lex_gets_ptr;
     }
-    pend = RSTRING_PTR(s) + RSTRING_LEN(s);
+    if (CFStringFindCharacterFromSet((CFStringRef)s, 
+	CFCharacterSetGetPredefined(kCFCharacterSetNewline),
+	CFRangeMake(beg, n - beg),
+	0,
+	&search_range)) {
+	lex_gets_ptr = search_range.location + 1;
+	len = search_range.location - beg;
+    }
+    else {
+	lex_gets_ptr = n;
+	len = lex_gets_ptr - beg;	
+    }
+    v = (VALUE)CFStringCreateWithSubstring(NULL, (CFStringRef)s, 
+	CFRangeMake(beg, lex_gets_ptr - beg));
+    CFMakeCollectable((CFTypeRef)v);
+    return v;
+#else
+    const char *cptr, *beg, *end, *pend;
+    long clen;
+
+    cptr = beg = RSTRING_PTR(s);
+    clen = RSTRING_LEN(s);
+    if (lex_gets_ptr) {
+	if (clen == lex_gets_ptr) return Qnil;
+	beg += lex_gets_ptr;
+    }
+    pend = cptr + clen;
     end = beg;
     while (end < pend) {
 	if (*end++ == '\n') break;
     }
-    lex_gets_ptr = end - RSTRING_PTR(s);
+    lex_gets_ptr = end - cptr;
     return rb_enc_str_new(beg, end - beg, rb_enc_get(s));
+#endif
 }
 
 static VALUE
@@ -4916,7 +5038,17 @@ parser_str_new(const char *p, long n, rb_encoding *enc, int func, rb_encoding *e
 {
     VALUE str;
 
+#if WITH_OBJC
+    if (p[n] != '\0') {
+	/* Let's not create unnecessary bytestrings. */
+	long slen = strlen(p);
+	if (slen < n)
+	    n = slen;
+    }
+#endif
+
     str = rb_enc_str_new(p, n, enc);
+#if !WITH_OBJC
     if (!(func & STR_FUNC_REGEXP) && rb_enc_asciicompat(enc)) {
 	if (rb_enc_str_coderange(str) == ENC_CODERANGE_7BIT) {
 	    rb_enc_associate(str, rb_usascii_encoding());
@@ -4925,6 +5057,7 @@ parser_str_new(const char *p, long n, rb_encoding *enc, int func, rb_encoding *e
 	    rb_enc_associate(str, rb_ascii8bit_encoding());
 	}
     }
+#endif
 
     return str;
 }
@@ -5242,8 +5375,14 @@ parser_read_escape(struct parser_params *parser, int flags,
 static void
 parser_tokaddmbc(struct parser_params *parser, int c, rb_encoding *enc)
 {
+#if WITH_OBJC
+    /* FIXME */
+    char *buf = tokspace(1);
+    *(buf) = c;    
+#else
     int len = rb_enc_codelen(c, enc);
     rb_enc_mbcput(c, tokspace(len), enc);
+#endif
 }
 
 static int
@@ -5320,7 +5459,7 @@ parser_tokadd_escape(struct parser_params *parser, rb_encoding **encp)
 	return -1;
 
       default:
-	    tokadd('\\');
+        tokadd('\\');
 	tokadd(c);
     }
     return 0;
@@ -5361,19 +5500,25 @@ static void
 dispose_string(VALUE str)
 {
     /* TODO: should use another API? */
+#if !WITH_OBJC
     if (RBASIC(str)->flags & RSTRING_NOEMBED)
 	xfree(RSTRING_PTR(str));
+#endif
     rb_gc_force_recycle(str);
 }
 
 static int
 parser_tokadd_mbchar(struct parser_params *parser, int c)
 {
+#if WITH_OBJC
+    int len = 1;
+#else
     int len = parser_precise_mbclen();
     if (!MBCLEN_CHARFOUND_P(len)) {
 	compile_error(PARSER_ARG "invalid multibyte char");
 	return -1;
     }
+#endif
     tokadd(c);
     lex_p += --len;
     if (len > 0) tokcopy(len);
@@ -5686,8 +5831,8 @@ parser_here_document(struct parser_params *parser, NODE *here)
     long len;
     VALUE str = 0;
 
-    eos = RSTRING_PTR(here->nd_lit);
-    len = RSTRING_LEN(here->nd_lit) - 1;
+    eos = RSTRING_CPTR(here->nd_lit);
+    len = RSTRING_CLEN(here->nd_lit) - 1;
     indent = (func = *eos++) & STR_FUNC_INDENT;
 
     if ((c = nextc()) == -1) {
@@ -5705,7 +5850,7 @@ parser_here_document(struct parser_params *parser, NODE *here)
 
     if (!(func & STR_FUNC_EXPAND)) {
 	do {
-	    p = RSTRING_PTR(lex_lastline);
+	    p = RSTRING_CPTR(lex_lastline);
 	    pend = lex_pend;
 	    if (pend > p) {
 		switch (pend[-1]) {
@@ -5816,8 +5961,15 @@ parser_encode_length(struct parser_params *parser, const char *name, int len)
 static void
 parser_set_encode(struct parser_params *parser, const char *name)
 {
-    int idx = rb_enc_find_index(name);
     rb_encoding *enc;
+#if WITH_OBJC
+    enc = rb_enc_find(name);
+    if (enc == NULL) {
+	rb_raise(rb_eArgError, "unknown encoding name: %s", name);
+    }
+    /* TODO should raise if the encoding is not ASCII compatible */
+#else
+    int idx = rb_enc_find_index(name);
 
     if (idx < 0) {
 	rb_raise(rb_eArgError, "unknown encoding name: %s", name);
@@ -5826,6 +5978,7 @@ parser_set_encode(struct parser_params *parser, const char *name)
     if (!rb_enc_asciicompat(enc)) {
 	rb_raise(rb_eArgError, "%s is not ASCII compatible", rb_enc_name(enc));
     }
+#endif
     parser->enc = enc;
 }
 
@@ -5891,10 +6044,16 @@ parser_magic_comment(struct parser_params *parser, const char *str, int len)
 {
     VALUE name = 0, val = 0;
     const char *beg, *end, *vbeg, *vend;
-#define str_copy(_s, _p, _n) ((_s) \
+#if WITH_OBJC
+# define str_copy(_s, _p, _n) ((_s) \
+	? CFStringPad((CFMutableStringRef)_s, CFMakeCollectable(CFStringCreateWithCString(NULL, _p, kCFStringEncodingUTF8)), _n, 0) \
+	: ((_s) = STR_NEW((_p), (_n)))) 
+#else
+# define str_copy(_s, _p, _n) ((_s) \
 	? (rb_str_resize((_s), (_n)), \
 	   MEMCPY(RSTRING_PTR(_s), (_p), char, (_n)), (_s)) \
 	: ((_s) = STR_NEW((_p), (_n))))
+#endif
 
     if (len <= 7) return Qfalse;
     if (!(beg = magic_comment_marker(str, len))) return Qfalse;
@@ -5955,13 +6114,13 @@ parser_magic_comment(struct parser_params *parser, const char *str, int len)
 	str_copy(name, beg, n);
 #ifndef RIPPER
 	do {
-	    if (STRNCASECMP(p->name, RSTRING_PTR(name), n) == 0) {
+	    if (STRNCASECMP(p->name, RSTRING_CPTR(name), n) == 0) {
 		n = vend - vbeg;
 		if (p->length) {
 		    n = (*p->length)(parser, vbeg, n);
 		}
 		str_copy(val, vbeg, n);
-		(*p->func)(parser, RSTRING_PTR(name), RSTRING_PTR(val));
+		(*p->func)(parser, RSTRING_CPTR(name), RSTRING_CPTR(val));
 		break;
 	    }
 	} while (++p < magic_comments + sizeof(magic_comments) / sizeof(*p));
@@ -6012,7 +6171,7 @@ set_file_encoding(struct parser_params *parser, const char *str, const char *sen
     beg = str;
     while ((*str == '-' || *str == '_' || ISALNUM(*str)) && ++str < send);
     s = rb_str_new(beg, parser_encode_length(parser, beg, str - beg));
-    parser_set_encode(parser, RSTRING_PTR(s));
+    parser_set_encode(parser, RSTRING_CPTR(s));
     rb_str_resize(s, 0);
 }
 
@@ -6039,6 +6198,10 @@ parser_prepare(struct parser_params *parser)
     }
     pushback(c);
     parser->enc = rb_enc_get(lex_lastline);
+#if !WITH_OBJC
+    if (parser->enc == NULL)
+	parser->enc = rb_utf8_encoding();
+#endif
 }
 
 #define IS_ARG() (lex_state == EXPR_ARG || lex_state == EXPR_CMDARG)
@@ -6675,7 +6838,7 @@ parser_yylex(struct parser_params *parser)
 		if (c == 'o' || c == 'O') {
 		    /* prefixed octal */
 		    c = nextc();
-		    if (c == '_') {
+		    if (c == '_' || !ISDIGIT(c)) {
 			yyerror("numeric literal without digits");
 		    }
 		}
@@ -6788,7 +6951,7 @@ parser_yylex(struct parser_params *parser)
 	    if (is_float) {
 		double d = strtod(tok(), 0);
 		if (errno == ERANGE) {
-		    rb_warnS("Float %s out of range", tok());
+		    rb_warningS("Float %s out of range", tok());
 		    errno = 0;
 		}
                 set_yylval_literal(DOUBLE2NUM(d));
@@ -7200,17 +7363,27 @@ parser_yylex(struct parser_params *parser)
 	break;
     }
 
+#if !WITH_OBJC
     mb = ENC_CODERANGE_7BIT;
+#endif
     do {
+#if !WITH_OBJC
 	if (!ISASCII(c)) mb = ENC_CODERANGE_UNKNOWN;
+#endif
 	if (tokadd_mbchar(c) == -1) return 0;
 	c = nextc();
     } while (parser_is_identchar());
-    if ((c == '!' || c == '?') && !peek('=')) {
-	tokadd(c);
-    }
-    else {
+    switch (tok()[0]) {
+      case '@': case '$':
 	pushback(c);
+	break;
+      default:
+	if ((c == '!' || c == '?') && !peek('=')) {
+	    tokadd(c);
+	}
+	else {
+	    pushback(c);
+	}
     }
     tokfix();
 
@@ -7255,7 +7428,11 @@ parser_yylex(struct parser_params *parser)
 		}
 	    }
 
+#if WITH_OBJC
+	    if (lex_state != EXPR_DOT) {
+#else
 	    if (mb == ENC_CODERANGE_7BIT && lex_state != EXPR_DOT) {
+#endif
 		const struct kwtable *kw;
 
 		/* See if it is a reserved word.  */
@@ -7360,7 +7537,6 @@ node_newnode(struct parser_params *parser, enum node_type type, VALUE a0, VALUE 
 {
     NODE *n = (rb_node_newnode)(type, a0, a1, a2);
     nd_set_line(n, ruby_sourceline);
-    n->nd_file = ruby_sourcefile;
     return n;
 }
 
@@ -7392,21 +7568,22 @@ fixpos(NODE *node, NODE *orig)
     if (!node) return;
     if (!orig) return;
     if (orig == (NODE*)1) return;
-    node->nd_file = orig->nd_file;
     nd_set_line(node, nd_line(orig));
 }
 
 static void
-parser_warning(NODE *node, const char *mesg)
+parser_warning(struct parser_params *parser, NODE *node, const char *mesg)
 {
-    rb_compile_warning(node->nd_file, nd_line(node), "%s", mesg);
+    rb_compile_warning(ruby_sourcefile, nd_line(node), "%s", mesg);
 }
+#define parser_warning(node, mesg) parser_warning(parser, node, mesg)
 
 static void
-parser_warn(NODE *node, const char *mesg)
+parser_warn(struct parser_params *parser, NODE *node, const char *mesg)
 {
-    rb_compile_warn(node->nd_file, nd_line(node), "%s", mesg);
+    rb_compile_warn(ruby_sourcefile, nd_line(node), "%s", mesg);
 }
+#define parser_warn(node, mesg) parser_warn(parser, node, mesg)
 
 static NODE*
 block_append_gen(struct parser_params *parser, NODE *head, NODE *tail)
@@ -7506,15 +7683,22 @@ list_concat_gen(struct parser_params *parser, NODE *head, NODE *tail)
     return head;
 }
 
-static void
+static int
 literal_concat0(struct parser_params *parser, VALUE head, VALUE tail)
 {
+#if !WITH_OBJC
     if (!rb_enc_compatible(head, tail)) {
 	compile_error(PARSER_ARG "string literal encodings differ (%s / %s)",
 		      rb_enc_name(rb_enc_get(head)),
 		      rb_enc_name(rb_enc_get(tail)));
+	rb_str_resize(head, 0);
+	rb_str_resize(tail, 0);
+	return 0;
     }
+#endif
+    RSTRING_SYNC(head);
     rb_str_buf_append(head, tail);
+    return 1;
 }
 
 /* concat two string literals */
@@ -7534,7 +7718,12 @@ literal_concat_gen(struct parser_params *parser, NODE *head, NODE *tail)
     switch (nd_type(tail)) {
       case NODE_STR:
 	if (htype == NODE_STR) {
-	    literal_concat0(parser, head->nd_lit, tail->nd_lit);
+	    if (!literal_concat0(parser, head->nd_lit, tail->nd_lit)) {
+	      error:
+		rb_gc_force_recycle((VALUE)head);
+		rb_gc_force_recycle((VALUE)tail);
+		return 0;
+	    }
 	    rb_gc_force_recycle((VALUE)tail);
 	}
 	else {
@@ -7544,7 +7733,8 @@ literal_concat_gen(struct parser_params *parser, NODE *head, NODE *tail)
 
       case NODE_DSTR:
 	if (htype == NODE_STR) {
-	    literal_concat0(parser, head->nd_lit, tail->nd_lit);
+	    if (!literal_concat0(parser, head->nd_lit, tail->nd_lit))
+		goto error;
 	    tail->nd_lit = head->nd_lit;
 	    rb_gc_force_recycle((VALUE)head);
 	    head = tail;
@@ -8178,23 +8368,23 @@ assign_in_cond(struct parser_params *parser, NODE *node)
 }
 
 static int
-e_option_supplied(NODE *node)
+e_option_supplied(struct parser_params *parser)
 {
-    if (strcmp(node->nd_file, "-e") == 0)
+    if (strcmp(ruby_sourcefile, "-e") == 0)
 	return Qtrue;
     return Qfalse;
 }
 
 static void
-warn_unless_e_option(NODE *node, const char *str)
+warn_unless_e_option(struct parser_params *parser, NODE *node, const char *str)
 {
-    if (!e_option_supplied(node)) parser_warn(node, str);
+    if (!e_option_supplied(parser)) parser_warn(node, str);
 }
 
 static void
-warning_unless_e_option(NODE *node, const char *str)
+warning_unless_e_option(struct parser_params *parser, NODE *node, const char *str)
 {
-    if (!e_option_supplied(node)) parser_warning(node, str);
+    if (!e_option_supplied(parser)) parser_warning(node, str);
 }
 
 static NODE *cond0(struct parser_params*,NODE*);
@@ -8204,14 +8394,14 @@ range_op(struct parser_params *parser, NODE *node)
 {
     enum node_type type;
 
-    if (!e_option_supplied(node)) return node;
+    if (!e_option_supplied(parser)) return node;
     if (node == 0) return 0;
 
     value_expr(node);
     node = cond0(parser, node);
     type = nd_type(node);
     if (type == NODE_LIT && FIXNUM_P(node->nd_lit)) {
-	warn_unless_e_option(node, "integer literal in conditional range");
+	warn_unless_e_option(parser, node, "integer literal in conditional range");
 	return NEW_CALL(node, tEQ, NEW_LIST(NEW_GVAR(rb_intern("$."))));
     }
     return node;
@@ -8253,7 +8443,7 @@ cond0(struct parser_params *parser, NODE *node)
 
       case NODE_DREGX:
       case NODE_DREGX_ONCE:
-	warning_unless_e_option(node, "regex literal in condition");
+	warning_unless_e_option(parser, node, "regex literal in condition");
 	return NEW_MATCH2(node, NEW_GVAR(rb_intern("$_")));
 
       case NODE_AND:
@@ -8268,7 +8458,7 @@ cond0(struct parser_params *parser, NODE *node)
 	node->nd_end = range_op(parser, node->nd_end);
 	if (nd_type(node) == NODE_DOT2) nd_set_type(node,NODE_FLIP2);
 	else if (nd_type(node) == NODE_DOT3) nd_set_type(node, NODE_FLIP3);
-	if (!e_option_supplied(node)) {
+	if (!e_option_supplied(parser)) {
 	    int b = literal_node(node->nd_beg);
 	    int e = literal_node(node->nd_end);
 	    if ((b == 1 && e == 1) || (b + e >= 2 && RTEST(ruby_verbose))) {
@@ -8283,7 +8473,7 @@ cond0(struct parser_params *parser, NODE *node)
 
       case NODE_LIT:
 	if (TYPE(node->nd_lit) == T_REGEXP) {
-	    warn_unless_e_option(node, "regex literal in condition");
+	    warn_unless_e_option(parser, node, "regex literal in condition");
 	    nd_set_type(node, NODE_MATCH);
 	}
 	else {
@@ -8472,19 +8662,20 @@ arg_var_gen(struct parser_params *parser, ID id)
     return vtable_size(lvtbl->args) - 1;
 }
 
-static int named_arg_gen(struct parser_params *parser, ID id)
+#if WITH_OBJC
+static int
+named_arg_gen(struct parser_params *parser, ID id, int init)
 {
-    char buf[256];
-    
-    strlcpy(buf, rb_id2name(cur_mid), sizeof buf);
-    if (in_def_named_args == 0)
-	strlcat(buf, ":", sizeof buf);
-    strlcat(buf, rb_id2name(id), sizeof buf);
-    strlcat(buf, ":", sizeof buf);
-    cur_mid = rb_intern(buf);
-    
-    in_def_named_args++;
+    if (init)
+	memset(named_mid, 0, sizeof named_mid);
+
+    strlcat(named_mid, rb_id2name(id), sizeof named_mid);
+    strlcat(named_mid, ":", sizeof named_mid);
+
+    if (!init) 
+	in_def_named_args++;
 }
+#endif
 
 static int
 local_var_gen(struct parser_params *parser, ID id)
@@ -8580,6 +8771,9 @@ VALUE rb_reg_check_preprocess(VALUE);
 static void
 reg_fragment_setenc_gen(struct parser_params* parser, VALUE str, int options)
 {
+#if WITH_OBJC
+    /* TODO */
+#else
     int c = RE_OPTION_ENCODING_IDX(options);
 
     if (c) {
@@ -8614,6 +8808,7 @@ reg_fragment_setenc_gen(struct parser_params* parser, VALUE str, int options)
     compile_error(PARSER_ARG
         "regexp encoding option '%c' differs from source encoding '%s'",
         c, rb_enc_name(rb_enc_get(str)));
+#endif
 }
 
 static void
@@ -8624,7 +8819,7 @@ reg_fragment_check_gen(struct parser_params* parser, VALUE str, int options)
     err = rb_reg_check_preprocess(str);
     if (err != Qnil) {
         err = rb_obj_as_string(err);
-        compile_error(PARSER_ARG "%s", RSTRING_PTR(err));
+        compile_error(PARSER_ARG "%s", RSTRING_CPTR(err));
 	RB_GC_GUARD(err);
     }
 }
@@ -8725,7 +8920,7 @@ reg_compile_gen(struct parser_params* parser, VALUE str, int options)
 	    rb_str_append(rb_str_cat(rb_attr_get(err, mesg), "\n", 1), m);
 	}
 	else {
-	    compile_error(PARSER_ARG "%s", RSTRING_PTR(m));
+	    compile_error(PARSER_ARG "%s", RSTRING_CPTR(m));
 	}
 	return Qnil;
     }
@@ -8853,13 +9048,13 @@ static const struct {
 
 static struct symbols {
     ID last_id;
-    st_table *sym_id;
-    st_table *id_str;
-    st_table *ivar2_id;
-    st_table *id_ivar2;
 #if WITH_OBJC
+    CFMutableDictionaryRef sym_id;
+    CFMutableDictionaryRef id_str;
     VALUE *op_sym;
 #else
+    st_table *sym_id;
+    st_table *id_str;
     VALUE op_sym[tLAST_TOKEN];
 #endif
 } global_symbols = {tLAST_TOKEN >> ID_SCOPE_SHIFT};
@@ -8897,21 +9092,24 @@ static const struct st_hash_type ivar2_hash_type = {
 void
 Init_sym(void)
 {
-    global_symbols.sym_id = st_init_table_with_size(&symhash, 1000);
-    GC_ROOT(&global_symbols.sym_id);
-    global_symbols.id_str = st_init_numtable_with_size(1000);
-    GC_ROOT(&global_symbols.id_str);
-    global_symbols.ivar2_id = st_init_table_with_size(&ivar2_hash_type, 1000);
-    GC_ROOT(&global_symbols.ivar2_id);
-    global_symbols.id_ivar2 = st_init_numtable_with_size(1000);
-    GC_ROOT(&global_symbols.id_ivar2);
 #if WITH_OBJC
+    CFDictionaryKeyCallBacks cb;
+    global_symbols.sym_id = CFDictionaryCreateMutable(NULL,
+	0, NULL, NULL);
+    GC_ROOT(&global_symbols.sym_id);
+    global_symbols.id_str = CFDictionaryCreateMutable(NULL,
+	0, NULL, &kCFTypeDictionaryValueCallBacks);
+    GC_ROOT(&global_symbols.id_str);
     global_symbols.op_sym = xmalloc(sizeof(VALUE) * tLAST_TOKEN);
     GC_ROOT(&global_symbols.op_sym);
+#else
+    global_symbols.sym_id = st_init_table_with_size(&symhash, 1000);
+    global_symbols.id_str = st_init_numtable_with_size(1000);
 #endif
     rb_intern2("", 0);
 }
 
+#if !WITH_OBJC 
 void
 rb_gc_mark_symbols(void)
 {
@@ -8919,6 +9117,7 @@ rb_gc_mark_symbols(void)
     rb_gc_mark_locations(global_symbols.op_sym,
 			 global_symbols.op_sym + tLAST_TOKEN);
 }
+#endif
 
 static ID
 internal_id_gen(struct parser_params *parser)
@@ -8946,7 +9145,11 @@ is_special_global_name(const char *m, const char *e, rb_encoding *enc)
 	++m;
 	if (m < e && is_identchar(m, e, enc)) {
 	    if (!ISASCII(*m)) mb = 1;
+#if WITH_OBJC
+	    m += 1;
+#else
 	    m += rb_enc_mbclen(m, e, enc);
+#endif
 	}
 	break;
       default:
@@ -8962,7 +9165,11 @@ is_special_global_name(const char *m, const char *e, rb_encoding *enc)
 int
 rb_symname_p(const char *name)
 {
+#if WITH_OBJC
+    return rb_enc_symname_p(name, NULL);
+#else
     return rb_enc_symname_p(name, rb_ascii8bit_encoding());
+#endif
 }
 
 int
@@ -9043,7 +9250,11 @@ rb_enc_symname2_p(const char *name, int len, rb_encoding *enc)
       id:
 	if (m >= e || (*m != '_' && !rb_enc_isalpha(*m, enc) && ISASCII(*m)))
 	    return Qfalse;
+#if WITH_OBJC
+	while (m < e && is_identchar(m, e, enc)) m += 1;
+#else
 	while (m < e && is_identchar(m, e, enc)) m += rb_enc_mbclen(m, e, enc);
+#endif
 	if (localid) {
 	    switch (*m) {
 	      case '!': case '?': case '=': ++m;
@@ -9063,10 +9274,9 @@ rb_intern3(const char *name, long len, rb_encoding *enc)
     ID id;
     int last;
     int mb;
+#if !WITH_OBJC
     struct RString fake_str;
-#if WITH_OBJC
     fake_str.basic.isa = NULL;
-#endif
     fake_str.basic.flags = T_STRING|RSTRING_NOEMBED|FL_FREEZE;
     fake_str.basic.klass = rb_cString;
     fake_str.as.heap.len = len;
@@ -9077,6 +9287,22 @@ rb_intern3(const char *name, long len, rb_encoding *enc)
 
     if (st_lookup(global_symbols.sym_id, str, (st_data_t *)&id))
 	return id;
+#else
+    long sname = strlen(name);
+    assert(len <= sname);
+    if (sname != len) {
+	char *tmp = (char *)alloca(len + 1);
+	memcpy(tmp, name, len);
+	tmp[len] = '\0';
+	m = name = tmp;
+	e = m + len;
+    }
+    SEL name_hash = sel_registerName(name);
+    id = (ID)CFDictionaryGetValue((CFDictionaryRef)global_symbols.sym_id, 
+	(const void *)name_hash);
+    if (id != 0)
+	return id; 
+#endif
 
     last = len-1;
     id = 0;
@@ -9084,7 +9310,13 @@ rb_intern3(const char *name, long len, rb_encoding *enc)
       case '$':
 	id |= ID_GLOBAL;
 	if ((mb = is_special_global_name(++m, e, enc)) != 0) {
-	    if (!--mb) enc = rb_ascii8bit_encoding();
+	    if (!--mb) {
+#if WITH_OBJC
+		enc = NULL;
+#else
+		enc = rb_ascii8bit_encoding();
+#endif
+	    }
 	    goto new_id;
 	}
 	break;
@@ -9139,11 +9371,16 @@ rb_intern3(const char *name, long len, rb_encoding *enc)
 	    }
 	    else {
 		mb = 1;
+#if WITH_OBJC
+		m += 1;
+#else
 		m += rb_enc_mbclen(m, e, enc);
+#endif
 	    }
 	}
     }
     if (m - name < len) id = ID_JUNK;
+#if !WITH_OBJC
     if (enc != rb_usascii_encoding()) {
 	/*
 	 * this clause makes sense only when called from other than
@@ -9157,20 +9394,32 @@ rb_intern3(const char *name, long len, rb_encoding *enc)
 	}
       mbstr:;
     }
+#endif
   new_id:
     id |= ++global_symbols.last_id << ID_SCOPE_SHIFT;
   id_register:
     str = rb_enc_str_new(name, len, enc);
     OBJ_FREEZE(str);
+#if WITH_OBJC
+    CFDictionarySetValue(global_symbols.sym_id, (const void *)name_hash, 
+	(const void *)id);
+    CFDictionarySetValue(global_symbols.id_str, (const void *)id,
+	(const void *)str);
+#else
     st_add_direct(global_symbols.sym_id, (st_data_t)str, id);
     st_add_direct(global_symbols.id_str, id, (st_data_t)str);
+#endif
     return id;
 }
 
 ID
 rb_intern2(const char *name, long len)
 {
+#if WITH_OBJC
+    return rb_intern3(name, len, NULL);
+#else
     return rb_intern3(name, len, rb_usascii_encoding());
+#endif
 }
 
 #undef rb_intern
@@ -9186,13 +9435,17 @@ rb_intern_str(VALUE str)
     rb_encoding *enc;
     ID id;
 
+#if WITH_OBJC
+    enc = rb_enc_get(str);
+#else
     if (rb_enc_str_coderange(str) == ENC_CODERANGE_7BIT) {
 	enc = rb_usascii_encoding();
     }
     else {
 	enc = rb_enc_get(str);
     }
-    id = rb_intern3(RSTRING_PTR(str), RSTRING_LEN(str), enc);
+#endif
+    id = rb_intern3(RSTRING_CPTR(str), RSTRING_CLEN(str), enc);
     RB_GC_GUARD(str);
     return id;
 }
@@ -9218,16 +9471,20 @@ rb_id2str(ID id)
 	}
     }
 
+#if WITH_OBJC
+    data = (VALUE)CFDictionaryGetValue(
+	(CFDictionaryRef)global_symbols.id_str,
+	(const void *)id);
+    if (data != 0)
+	return data;
+#else
     if (st_lookup(global_symbols.id_str, id, &data)) {
         VALUE str = (VALUE)data;
-        if (RBASIC(str)->klass == 0 && rb_cString != 0) {
+        if (RBASIC(str)->klass == 0)
             RBASIC(str)->klass = rb_cString;
-#if WITH_OBJC
-	    RBASIC(str)->isa = RCLASS(rb_cString)->ocklass;
-#endif
-	}
 	return str;
     }
+#endif
 
     if (is_attrset_id(id)) {
 	ID id2 = (id & ~ID_SCOPE_MASK) | ID_LOCAL;
@@ -9240,12 +9497,20 @@ rb_id2str(ID id)
 	str = rb_str_dup(str);
 	rb_str_cat(str, "=", 1);
 	rb_intern_str(str);
+#if WITH_OBJC
+	data = (VALUE)CFDictionaryGetValue(
+	    (CFDictionaryRef)global_symbols.id_str,
+	    (const void *)id);
+	if (data != 0)
+	    return data;
+#else
 	if (st_lookup(global_symbols.id_str, id, &data)) {
             VALUE str = (VALUE)data;
             if (RBASIC(str)->klass == 0)
                 RBASIC(str)->klass = rb_cString;
             return str;
         }
+#endif
     }
     return 0;
 }
@@ -9256,7 +9521,7 @@ rb_id2name(ID id)
     VALUE str = rb_id2str(id);
 
     if (!str) return 0;
-    return RSTRING_PTR(str);
+    return RSTRING_CPTR(str);
 }
 
 static int
@@ -9285,9 +9550,15 @@ symbols_i(VALUE sym, ID value, VALUE ary)
 VALUE
 rb_sym_all_symbols(void)
 {
+#if WITH_OBJC
+    VALUE ary = rb_ary_new();
+    CFDictionaryApplyFunction((CFDictionaryRef)global_symbols.sym_id,
+	(CFDictionaryApplierFunction)symbols_i, (void *)ary);
+#else
     VALUE ary = rb_ary_new2(global_symbols.sym_id->num_entries);
 
     st_foreach(global_symbols.sym_id, symbols_i, ary);
+#endif
     return ary;
 }
 
@@ -9372,10 +9643,12 @@ parser_initialize(struct parser_params *parser)
 #ifdef YYMALLOC
     parser->heap = NULL;
 #endif
+#if WITH_OBJC
+    parser->enc = NULL;
+#else
     parser->enc = rb_usascii_encoding();
+#endif
 }
-
-extern void rb_mark_source_filename(char *);
 
 #ifdef RIPPER
 #define parser_mark ripper_parser_mark
@@ -9395,7 +9668,6 @@ parser_mark(void *ptr)
     rb_gc_mark((VALUE)p->parser_eval_tree_begin) ;
     rb_gc_mark((VALUE)p->parser_eval_tree) ;
     rb_gc_mark(p->debug_lines);
-    rb_mark_source_filename(p->parser_ruby_sourcefile);
 #else
     rb_gc_mark(p->parser_ruby_sourcefile_string);
     rb_gc_mark(p->delayed);
@@ -9422,6 +9694,9 @@ parser_free(void *ptr)
 	prev = local->prev;
 	xfree(local);
     }
+#ifndef RIPPER
+    xfree(p->parser_ruby_sourcefile);
+#endif
     xfree(p);
 }
 
@@ -9803,14 +10078,12 @@ ripper_warning0(struct parser_params *parser, const char *fmt)
     rb_funcall(parser->value, rb_intern("warning"), 1, STR_NEW2(fmt));
 }
 
-#if 0				/* unused in ripper right now */
 static void
 ripper_warningS(struct parser_params *parser, const char *fmt, const char *str)
 {
     rb_funcall(parser->value, rb_intern("warning"), 2,
-    	       STR_NEW2(fmt), STR_NEW2(str));
+               STR_NEW2(fmt), STR_NEW2(str));
 }
-#endif
 
 static VALUE
 ripper_lex_get_generic(struct parser_params *parser, VALUE src)
@@ -9848,7 +10121,6 @@ ripper_initialize(int argc, VALUE *argv, VALUE self)
 {
     struct parser_params *parser;
     VALUE src, fname, lineno;
-    VALUE fname2;
 
     Data_Get_Struct(self, struct parser_params, parser);
     rb_scan_args(argc, argv, "12", &src, &fname, &lineno);
@@ -9862,17 +10134,15 @@ ripper_initialize(int argc, VALUE *argv, VALUE self)
     parser->parser_lex_input = src;
     parser->eofp = Qfalse;
     if (NIL_P(fname)) {
-        fname2 = STR_NEW2(" (ripper)");
+        fname = STR_NEW2("(ripper)");
     }
     else {
         StringValue(fname);
-        fname2 = rb_usascii_str_new2(" ");
-        rb_str_append(fname2, fname);
     }
     parser_initialize(parser);
 
-    parser->parser_ruby_sourcefile_string = fname2;
-    parser->parser_ruby_sourcefile = RSTRING_PTR(fname2)+1;
+    parser->parser_ruby_sourcefile_string = fname;
+    parser->parser_ruby_sourcefile = RSTRING_PTR(fname);
     parser->parser_ruby_sourceline = NIL_P(lineno) ? 0 : NUM2INT(lineno) - 1;
 
     return Qnil;
@@ -9983,7 +10253,7 @@ ripper_assert_Qundef(VALUE self, VALUE obj, VALUE msg)
 {
     StringValue(msg);
     if (obj == Qundef) {
-        rb_raise(rb_eArgError, "%s", RSTRING_PTR(msg));
+        rb_raise(rb_eArgError, "%s", RSTRING_CPTR(msg));
     }
     return Qnil;
 }

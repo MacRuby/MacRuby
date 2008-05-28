@@ -2,7 +2,7 @@
 
   random.c -
 
-  $Author: akr $
+  $Author: matz $
   created at: Fri Dec 24 16:39:21 JST 1993
 
   Copyright (C) 1993-2007 Yukihiro Matsumoto
@@ -332,8 +332,11 @@ rb_f_srand(int argc, VALUE *argv, VALUE obj)
     VALUE seed, old;
 
     rb_secure(4);
-    if (rb_scan_args(argc, argv, "01", &seed) == 0) {
+    if (argc == 0) {
 	seed = random_seed();
+    }
+    else {
+	rb_scan_args(argc, argv, "01", &seed);
     }
     old = rand_init(seed);
 

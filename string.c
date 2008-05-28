@@ -2,7 +2,7 @@
 
   string.c -
 
-  $Author: matz $
+  $Author: mame $
   created at: Mon Aug  9 17:12:58 JST 1993
 
   Copyright (C) 1993-2007 Yukihiro Matsumoto
@@ -26,8 +26,13 @@
 #endif
 
 VALUE rb_cString;
+#if WITH_OBJC
+VALUE rb_cCFString;
+VALUE rb_cStringRuby;
+#endif
 VALUE rb_cSymbol;
 
+#if !WITH_OBJC
 #define STR_TMPLOCK FL_USER7
 #define STR_NOEMBED FL_USER1
 #define STR_SHARED  FL_USER2 /* = ELTS_SHARED */
@@ -91,11 +96,138 @@ VALUE rb_cSymbol;
     }\
 } while (0)
 
-#define is_ascii_string(str) (rb_enc_str_coderange(str) == ENC_CODERANGE_7BIT)
-#define is_broken_string(str) (rb_enc_str_coderange(str) == ENC_CODERANGE_BROKEN)
+#else
 
-#define STR_ENC_GET(str) rb_enc_from_index(ENCODING_GET(str))
+static void *rb_str_cfdata_key;
 
+static inline void
+rb_str_cfdata_set(VALUE str, void *cfdata)
+{
+    rb_objc_set_associative_ref((void *)str, &rb_str_cfdata_key,
+	    cfdata);
+}
+
+static inline void *
+rb_str_cfdata2(VALUE str) 
+{
+    return rb_objc_get_associative_ref((void *)str, &rb_str_cfdata_key);
+}
+
+static inline bool
+rb_objc_str_is_bytestring(VALUE str)
+{
+    return rb_str_cfdata2(str) != NULL;
+}
+
+static void *
+rb_str_cfdata(VALUE str)
+{
+    void *cfdata;
+
+    assert(str != 0);
+
+    cfdata = rb_str_cfdata2(str);
+    if (cfdata == NULL) {
+	CFMutableDataRef mdata;
+	long len;
+
+	if (CFStringGetLength((CFStringRef)str) == 0) {
+	    mdata = CFDataCreateMutable(NULL, 0);
+	}
+	else {
+	    CFDataRef data;
+	    data = CFStringCreateExternalRepresentation(NULL,
+		    (CFStringRef)str, kCFStringEncodingUTF8, 0);
+	    if (data == NULL)
+		return NULL;
+	    mdata = CFDataCreateMutableCopy(NULL, 0, data);
+	    len = CFDataGetLength(data);
+	    rb_gc_malloc_increase(len);
+	    /* This is a hack to make sure a sentinel byte is created at the 
+	     * end of the buffer. 
+	     */
+	    CFDataSetLength(mdata, len + 1); 
+	    CFDataSetLength(mdata, len);
+	    CFRelease((CFTypeRef)data);
+	}
+	cfdata = (void *)mdata;
+	rb_str_cfdata_set(str, cfdata);
+	CFMakeCollectable(mdata);
+    }
+    return cfdata;    
+}
+
+char *
+rb_str_byteptr(VALUE str)
+{
+    return (char *)CFDataGetMutableBytePtr(
+	(CFMutableDataRef)rb_str_cfdata(str));
+}
+
+long
+rb_str_bytelen(VALUE str)
+{
+    return CFDataGetLength((CFDataRef)rb_str_cfdata(str));
+}
+
+void
+rb_str_bytesync(VALUE str)
+{
+    void *cfdata;
+
+    cfdata = rb_str_cfdata2(str);
+    if (cfdata != NULL) {
+	CFDataRef data;
+	CFIndex datalen;
+	const UInt8 *dataptr;
+	CFStringRef bytestr;
+	const char *strptr;
+
+	data = (CFDataRef)cfdata;
+	datalen = CFDataGetLength(data);
+	dataptr = CFDataGetBytePtr(data);
+	bytestr = CFStringCreateWithBytesNoCopy(
+		NULL,
+		dataptr,
+		datalen,
+		kCFStringEncodingUTF8,
+		false,
+		kCFAllocatorNull);
+	rb_gc_malloc_increase(datalen);
+	if (bytestr != NULL) {
+	    CFStringReplaceAll((CFMutableStringRef)str, (CFStringRef)bytestr);
+	    CFRelease(bytestr);
+	    rb_str_cfdata_set(str, NULL);
+	}
+    }
+}
+
+VALUE
+rb_str_freeze(VALUE str)
+{
+    rb_obj_freeze(str);
+    return str;
+}
+
+static VALUE
+rb_str_bytestring_m(VALUE str)
+{
+    return rb_objc_str_is_bytestring(str) ? Qtrue : Qfalse;
+}
+#endif
+
+#if WITH_OBJC
+/* TODO */
+# define is_ascii_string(str) (1)
+# define is_broken_string(str) (0)
+# define STR_ENC_GET(str) (NULL)
+#else
+# define is_ascii_string(str) (rb_enc_str_coderange(str) == ENC_CODERANGE_7BIT)
+# define is_broken_string(str) (rb_enc_str_coderange(str) == ENC_CODERANGE_BROKEN)
+# define STR_ENC_GET(str) rb_enc_from_index(ENCODING_GET(str))
+#endif
+
+#if !WITH_OBJC
 static int
 single_byte_optimizable(VALUE str)
 {
@@ -112,15 +244,17 @@ single_byte_optimizable(VALUE str)
      * "\xa1" in Shift_JIS for example. */
     return 0;
 }
+#endif
 
 VALUE rb_fs;
 
+#if !WITH_OBJC
 static inline const char *
 search_nonascii(const char *p, const char *e)
 {
-#if ULONG_MAX == 18446744073709551615UL
-# define NONASCII_MASK 0x8080808080808080UL
-#elif ULONG_MAX == 4294967295UL
+#if SIZEOF_VALUE == 8
+# define NONASCII_MASK 0x8080808080808080LL
+#elif SIZEOF_VALUE == 4
 # define NONASCII_MASK 0x80808080UL
 #endif
 #ifdef NONASCII_MASK
@@ -313,13 +447,17 @@ rb_enc_str_asciionly_p(VALUE str)
         return Qtrue;
     return Qfalse;
 }
+#endif
 
 static inline void
 str_mod_check(VALUE s, const char *p, long len)
 {
+#if !WITH_OBJC
+    /* TODO */
     if (RSTRING_PTR(s) != p || RSTRING_LEN(s) != len){
 	rb_raise(rb_eRuntimeError, "string modified");
     }
+#endif
 }
 
 static inline void
@@ -333,6 +471,17 @@ str_frozen_check(VALUE s)
 static VALUE
 str_alloc(VALUE klass)
 {
+#if WITH_OBJC
+    VALUE str;
+
+    str = (VALUE)CFStringCreateMutable(NULL, 0);
+    if (klass != 0 
+	&& klass != rb_cString 
+	&& klass != rb_cStringRuby 
+	&& klass != rb_cSymbol)
+	*(Class *)str = RCLASS_OCID(klass);
+    CFMakeCollectable((CFTypeRef)str);
+#else
     NEWOBJ(str, struct RString);
     OBJSETUP(str, klass, T_STRING);
 
@@ -343,9 +492,27 @@ str_alloc(VALUE klass)
     str->as.heap.ptr = 0;
     str->as.heap.len = 0;
     str->as.heap.aux.capa = 0;
+#endif
 
     return (VALUE)str;
 }
+
+#if WITH_OBJC
+static void
+rb_objc_str_set_bytestring(VALUE str, const char *dataptr, long datalen)
+{
+    CFMutableDataRef data;
+
+    assert(dataptr != NULL);
+    assert(datalen > 0);
+
+    data = CFDataCreateMutable(NULL, 0);
+    CFDataAppendBytes(data, (const UInt8 *)dataptr, datalen);
+    rb_gc_malloc_increase(datalen);
+    rb_str_cfdata_set(str, data);
+    CFMakeCollectable(data);
+}
+#endif
 
 static VALUE
 str_new(VALUE klass, const char *ptr, long len)
@@ -357,9 +524,54 @@ str_new(VALUE klass, const char *ptr, long len)
     }
 
     str = str_alloc(klass);
+#if WITH_OBJC
+    bool need_padding = len > 0;
+    if (ptr != NULL) {
+	if (len == 0) {
+	    char c = 0;
+	    rb_objc_str_set_bytestring(str, &c, 1);
+	}
+	else {
+	    long slen;
+	    slen = strlen(ptr);
+
+	    if (slen == len) {
+		CFStringAppendCString((CFMutableStringRef)str, ptr, 
+			kCFStringEncodingUTF8);
+		need_padding = false;
+		if (CFStringGetLength((CFStringRef)str) != len)
+		    rb_objc_str_set_bytestring(str, ptr, len);
+	    }
+	    else {
+		if (slen == 0 || len < slen) {
+		    CFStringRef substr;
+
+		    substr = CFStringCreateWithBytes(NULL, (const UInt8 *)ptr, 
+			len, kCFStringEncodingUTF8, false);
+    
+		    rb_gc_malloc_increase(32 + (sizeof(UniChar) * len));
+
+		    if (substr != NULL) {
+			CFStringAppend((CFMutableStringRef)str, substr);
+			CFRelease(substr);		
+		    }
+		    else {
+			rb_objc_str_set_bytestring(str, ptr, len);
+		    }
+		}
+		else {
+		    rb_objc_str_set_bytestring(str, ptr, len);
+		}
+	    }
+	}
+    }
+    rb_gc_malloc_increase(32 + (sizeof(UniChar) * len));
+    if (need_padding)
+	CFStringPad((CFMutableStringRef)str, CFSTR(" "), len, 0);
+#else
     if (len > RSTRING_EMBED_LEN_MAX) {
 	RSTRING(str)->as.heap.aux.capa = len;
-	RSTRING(str)->as.heap.ptr = ALLOC_N(char,len+1);
+	GC_WB(&RSTRING(str)->as.heap.ptr, ALLOC_N(char,len+1));
 	STR_SET_NOEMBED(str);
     }
     if (ptr) {
@@ -367,6 +579,7 @@ str_new(VALUE klass, const char *ptr, long len)
     }
     STR_SET_LEN(str, len);
     RSTRING_PTR(str)[len] = '\0';
+#endif
     return str;
 }
 
@@ -381,7 +594,7 @@ rb_usascii_str_new(const char *ptr, long len)
 {
     VALUE str = str_new(rb_cString, ptr, len);
 
-    ENCODING_CODERANGE_SET(str, rb_usascii_encindex(), ENC_CODERANGE_7BIT);
+    //ENCODING_CODERANGE_SET(str, rb_usascii_encindex(), ENC_CODERANGE_7BIT);
     return str;
 }
 
@@ -390,17 +603,20 @@ rb_enc_str_new(const char *ptr, long len, rb_encoding *enc)
 {
     VALUE str = str_new(rb_cString, ptr, len);
 
-    rb_enc_associate(str, enc);
+    // TODO we should pass the real encoding
+    //rb_enc_associate(str, enc);
     return str;
 }
 
 VALUE
 rb_str_new2(const char *ptr)
 {
+    long len;
     if (!ptr) {
 	rb_raise(rb_eArgError, "NULL pointer given");
     }
-    return rb_str_new(ptr, strlen(ptr));
+    len = strlen(ptr);
+    return rb_str_new(len == 0 ? NULL : ptr, len);
 }
 
 VALUE
@@ -416,7 +632,6 @@ VALUE
 rb_tainted_str_new(const char *ptr, long len)
 {
     VALUE str = rb_str_new(ptr, len);
-
     OBJ_TAINT(str);
     return str;
 }
@@ -425,11 +640,11 @@ VALUE
 rb_tainted_str_new2(const char *ptr)
 {
     VALUE str = rb_str_new2(ptr);
-
     OBJ_TAINT(str);
     return str;
 }
 
+#if !WITH_OBJC
 static VALUE
 str_replace_shared(VALUE str2, VALUE str)
 {
@@ -530,6 +745,29 @@ rb_str_new4(VALUE orig)
     OBJ_FREEZE(str);
     return str;
 }
+#else
+
+static VALUE
+str_new3(VALUE klass, VALUE str)
+{
+    return rb_str_dup(str);
+}
+
+VALUE
+rb_str_new3(VALUE str)
+{
+    VALUE str2 = str_new3(rb_obj_class(str), str);
+
+    // TODO OBJ_INFECT(str2, str);
+    return str2;
+}
+
+VALUE
+rb_str_new4(VALUE orig)
+{
+    return rb_str_new3(orig);
+}
+#endif
 
 VALUE
 rb_str_new5(VALUE obj, const char *ptr, long len)
@@ -544,13 +782,15 @@ rb_str_buf_new(long capa)
 {
     VALUE str = str_alloc(rb_cString);
 
+#if !WITH_OBJC
     if (capa < STR_BUF_MIN_SIZE) {
 	capa = STR_BUF_MIN_SIZE;
     }
     FL_SET(str, STR_NOEMBED);
     RSTRING(str)->as.heap.aux.capa = capa;
-    RSTRING(str)->as.heap.ptr = ALLOC_N(char, capa+1);
+    GC_WB(&RSTRING(str)->as.heap.ptr, ALLOC_N(char, capa+1));
     RSTRING(str)->as.heap.ptr[0] = '\0';
+#endif
 
     return str;
 }
@@ -576,9 +816,11 @@ rb_str_tmp_new(long len)
 void
 rb_str_free(VALUE str)
 {
+#if !WITH_OBJC
     if (!STR_EMBED_P(str) && !STR_SHARED_P(str)) {
 	xfree(RSTRING(str)->as.heap.ptr);
     }
+#endif
 }
 
 VALUE
@@ -590,6 +832,10 @@ rb_str_to_str(VALUE str)
 void
 rb_str_shared_replace(VALUE str, VALUE str2)
 {
+#if WITH_OBJC
+    rb_str_modify(str);
+    CFStringReplaceAll((CFMutableStringRef)str, (CFStringRef)str2);
+#else
     rb_encoding *enc;
     int cr;
     if (str == str2) return;
@@ -625,6 +871,7 @@ rb_str_shared_replace(VALUE str, VALUE str2)
     STR_UNSET_NOCAPA(str2);
     rb_enc_associate(str, enc);
     ENC_CODERANGE_SET(str, cr);
+#endif
 }
 
 static ID id_to_s;
@@ -651,6 +898,13 @@ rb_str_dup(VALUE str)
 {
     VALUE dup = str_alloc(rb_obj_class(str));
     rb_str_replace(dup, str);
+#if WITH_OBJC
+    {
+	void *data = rb_str_cfdata2(str);
+	if (data != NULL)
+	    rb_str_cfdata_set(dup, data);
+    }
+#endif
     return dup;
 }
 
@@ -672,6 +926,7 @@ rb_str_init(int argc, VALUE *argv, VALUE str)
     return str;
 }
 
+#if !WITH_OBJC
 long
 rb_enc_strlen(const char *p, const char *e, rb_encoding *enc)
 {
@@ -754,10 +1009,15 @@ rb_enc_strlen_cr(const char *p, const char *e, rb_encoding *enc, int *cr)
     if (!*cr) *cr = ENC_CODERANGE_7BIT;
     return c;
 }
+#endif
 
 static long
 str_strlen(VALUE str, rb_encoding *enc)
 {
+#if WITH_OBJC
+    /* TODO should use CFStringGetMaximumSizeForEncoding too */
+    return RSTRING_CLEN(str);
+#else
     const char *p, *e;
     int n, cr;
 
@@ -803,6 +1063,7 @@ str_strlen(VALUE str, rb_encoding *enc)
         ENC_CODERANGE_SET(str, cr);
     }
     return n;
+#endif
 }
 
 /*
@@ -832,7 +1093,7 @@ rb_str_length(VALUE str)
 static VALUE
 rb_str_bytesize(VALUE str)
 {
-    return INT2NUM(RSTRING_LEN(str));
+    return INT2NUM(rb_str_bytelen(str));
 }
 
 /*
@@ -848,7 +1109,7 @@ rb_str_bytesize(VALUE str)
 static VALUE
 rb_str_empty(VALUE str)
 {
-    if (RSTRING_LEN(str) == 0)
+    if (CFStringGetLength((CFStringRef)str) == 0)
 	return Qtrue;
     return Qfalse;
 }
@@ -866,6 +1127,13 @@ rb_str_empty(VALUE str)
 VALUE
 rb_str_plus(VALUE str1, VALUE str2)
 {
+#if WITH_OBJC
+    VALUE str3 = rb_str_new(0, 0);
+    rb_str_buf_append(str3, str1);
+    rb_str_buf_append(str3, str2);
+    if (OBJ_TAINTED(str1) || OBJ_TAINTED(str2))
+	OBJ_TAINT(str3);
+#else
     VALUE str3;
     rb_encoding *enc;
 
@@ -881,6 +1149,7 @@ rb_str_plus(VALUE str1, VALUE str2)
 	OBJ_TAINT(str3);
     ENCODING_CODERANGE_SET(str3, rb_enc_to_index(enc),
 			   ENC_CODERANGE_AND(ENC_CODERANGE(str1), ENC_CODERANGE(str2)));
+#endif
     return str3;
 }
 
@@ -900,17 +1169,22 @@ rb_str_times(VALUE str, VALUE times)
     VALUE str2;
     long n, len;
 
+    n = RSTRING_CLEN(str);
     len = NUM2LONG(times);
     if (len < 0) {
 	rb_raise(rb_eArgError, "negative argument");
     }
-    if (len && LONG_MAX/len <  RSTRING_LEN(str)) {
+    if (len && LONG_MAX/len < n) {
 	rb_raise(rb_eArgError, "argument too big");
     }
 
-    str2 = rb_str_new5(str, 0, len *= RSTRING_LEN(str));
+#if WITH_OBJC
+    str2 = rb_str_new(NULL, 0);
+    CFStringPad((CFMutableStringRef)str2, (CFStringRef)str,
+	len * n, 0);
+#else
+    str2 = rb_str_new5(str, 0, len *= n);
     if (len) {
-        n = RSTRING_LEN(str);
         memcpy(RSTRING_PTR(str2), RSTRING_PTR(str), n);
         while (n <= len/2) {
             memcpy(RSTRING_PTR(str2) + n, RSTRING_PTR(str2), n);
@@ -921,6 +1195,7 @@ rb_str_times(VALUE str, VALUE times)
     RSTRING_PTR(str2)[RSTRING_LEN(str2)] = '\0';
     OBJ_INFECT(str2, str);
     rb_enc_cr_str_copy_for_substr(str2, str);
+#endif
 
     return str2;
 }
@@ -935,8 +1210,8 @@ rb_str_times(VALUE str, VALUE times)
  *  the values to be substituted. See <code>Kernel::sprintf</code> for details
  *  of the format string.
  *     
- *     "%05d" % 123                       #=> "00123"
- *     "%-5s: %08x" % [ "ID", self.id ]   #=> "ID   : 200e14d6"
+ *     "%05d" % 123                              #=> "00123"
+ *     "%-5s: %08x" % [ "ID", self.object_id ]   #=> "ID   : 200e14d6"
  */
 
 static VALUE
@@ -950,17 +1225,24 @@ rb_str_format_m(VALUE str, VALUE arg)
     return rb_str_format(1, &arg, str);
 }
 
-static void
+static inline void
 str_modifiable(VALUE str)
 {
+#if WITH_OBJC
+    bool __CFStringIsMutable(void *);
+    if (!__CFStringIsMutable((void *)str)) 
+	rb_raise(rb_eRuntimeError, "can't modify immutable string");
+#else
     if (FL_TEST(str, STR_TMPLOCK)) {
 	rb_raise(rb_eRuntimeError, "can't modify string; temporarily locked");
     }
+#endif
     if (OBJ_FROZEN(str)) rb_error_frozen("string");
     if (!OBJ_TAINTED(str) && rb_safe_level() >= 4)
 	rb_raise(rb_eSecurityError, "Insecure: can't modify string");
 }
 
+#if !WITH_OBJC
 static int
 str_independent(VALUE str)
 {
@@ -982,18 +1264,23 @@ str_make_independent(VALUE str)
     }
     STR_SET_NOEMBED(str);
     ptr[len] = 0;
-    RSTRING(str)->as.heap.ptr = ptr;
+    GC_WB(&RSTRING(str)->as.heap.ptr, ptr);
     RSTRING(str)->as.heap.len = len;
     RSTRING(str)->as.heap.aux.capa = len;
     STR_UNSET_NOCAPA(str);
 }
+#endif
 
 void
 rb_str_modify(VALUE str)
 {
+#if WITH_OBJC
+    str_modifiable(str);
+#else
     if (!str_independent(str))
 	str_make_independent(str);
     ENC_CODERANGE_CLEAR(str);
+#endif
 }
 
 void
@@ -1001,6 +1288,7 @@ rb_str_associate(VALUE str, VALUE add)
 {
     /* sanity check */
     if (OBJ_FROZEN(str)) rb_error_frozen("string");
+#if !WITH_OBJC
     if (STR_ASSOC_P(str)) {
 	/* already associated */
 	rb_ary_concat(RSTRING(str)->as.heap.aux.shared, add);
@@ -1025,15 +1313,18 @@ rb_str_associate(VALUE str, VALUE add)
 	RBASIC(add)->klass = 0;
 	RSTRING(str)->as.heap.aux.shared = add;
     }
+#endif
 }
 
 VALUE
 rb_str_associated(VALUE str)
 {
+#if !WITH_OBJC
     if (STR_SHARED_P(str)) str = RSTRING(str)->as.heap.aux.shared;
     if (STR_ASSOC_P(str)) {
 	return RSTRING(str)->as.heap.aux.shared;
     }
+#endif
     return Qfalse;
 }
 
@@ -1051,19 +1342,55 @@ rb_string_value(volatile VALUE *ptr)
 char *
 rb_string_value_ptr(volatile VALUE *ptr)
 {
-    return RSTRING_PTR(rb_string_value(ptr));
+    return (char *)RSTRING_CPTR(rb_string_value(ptr));
 }
+
+#if WITH_OBJC
+const char *
+rb_str_cstr(VALUE ptr)
+{
+    CFDataRef data;
+    const char *cptr;
+   
+    data = (CFDataRef)rb_str_cfdata2(ptr);
+    if (data == NULL) {
+	cptr = CFStringGetCStringPtr((CFStringRef)ptr, 0);
+    	if (cptr == NULL) {
+	    long len;
+	    len = CFStringGetLength((CFStringRef)ptr);
+	    if (len == 0)
+		return "";
+	    else 
+		data = (CFDataRef)rb_str_cfdata(ptr);
+	}
+    }
+    return data == NULL ? cptr : (const char *)CFDataGetBytePtr(data);
+}
+
+long
+rb_str_clen(VALUE ptr)
+{
+    CFDataRef data = (CFDataRef)rb_str_cfdata2(ptr);
+    return data == NULL 
+	? CFStringGetLength((CFStringRef)ptr) 
+	: CFDataGetLength(data);
+}
+#endif
 
 char *
 rb_string_value_cstr(volatile VALUE *ptr)
 {
+#if WITH_OBJC
     VALUE str = rb_string_value(ptr);
+    return (char *)rb_str_cstr(str);
+#else
     char *s = RSTRING_PTR(str);
 
     if (!s || RSTRING_LEN(str) != strlen(s)) {
 	rb_raise(rb_eArgError, "string contains null byte");
     }
     return s;
+#endif
 }
 
 VALUE
@@ -1090,6 +1417,7 @@ rb_str_s_try_convert(VALUE dummy, VALUE str)
     return rb_check_string_type(str);
 }
 
+#if !WITH_OBJC
 char*
 rb_enc_nth(const char *p, const char *e, int nth, rb_encoding *enc)
 {
@@ -1203,34 +1531,100 @@ str_utf8_offset(const char *p, const char *e, int nth)
     if (!pp) return e - p;
     return pp - p;
 }
-#endif
+#endif /* NONASCII_MASK */
+#endif /* WITH_OBJC */
 
 /* byte offset to char offset */
 long
 rb_str_sublen(VALUE str, long pos)
 {
+#if WITH_OBJC
+    return pos;
+#else
     if (single_byte_optimizable(str) || pos < 0)
         return pos;
     else {
 	char *p = RSTRING_PTR(str);
         return rb_enc_strlen(p, p + pos, STR_ENC_GET(str));
     }
+#endif
 }
 
 VALUE
 rb_str_subseq(VALUE str, long beg, long len)
 {
+#if WITH_OBJC
+    CFDataRef data;
+    CFMutableStringRef substr;
+    long n;
+
+#if 1
+    data = NULL;
+    n = CFStringGetLength((CFStringRef)str);
+#else
+    /* the world is not prepared for this yet */
+    data = (CFDataRef)rb_str_cfdata2(str);
+    if (data != NULL) {
+	n = CFDataGetLength(data);
+    }
+    else {
+        n = CFStringGetLength((CFStringRef)str);
+    }
+#endif
+
+    if (beg < 0)
+	beg += n;
+    if (beg > n || beg < 0)
+	return Qnil;
+    if (beg + len > n)
+	return (VALUE)CFSTR("");
+
+    substr = CFStringCreateMutable(NULL, 0);
+
+    if (data != NULL) {
+	const UInt8 *bytes;
+	CFMutableDataRef subdata;
+
+	bytes = CFDataGetBytePtr(data);
+	subdata = CFDataCreateMutable(NULL, 0);
+	CFDataAppendBytes(subdata, bytes + beg, len);
+	rb_str_cfdata_set((VALUE)substr, subdata);
+	CFMakeCollectable(subdata);
+	rb_gc_malloc_increase(sizeof(UInt8) * len);
+
+	RSTRING_SYNC(substr);
+    }
+    else {
+	if (len == 1) {
+	    UniChar c = CFStringGetCharacterAtIndex((CFStringRef)str, beg);
+	    CFStringAppendCharacters(substr, &c, 1);
+	}
+	else {
+	    UniChar *buffer = alloca(sizeof(UniChar) * len);
+	    CFStringGetCharacters((CFStringRef)str, CFRangeMake(beg, len), 
+		buffer);
+	    CFStringAppendCharacters(substr, buffer, len);
+	}
+	rb_gc_malloc_increase(sizeof(UniChar) * len);
+    }
+    CFMakeCollectable(substr);
+    return (VALUE)substr;
+#else
     VALUE str2 = rb_str_new5(str, RSTRING_PTR(str)+beg, len);
 
     rb_enc_cr_str_copy_for_substr(str2, str);
     OBJ_INFECT(str2, str);
 
     return str2;
+#endif
 }
 
 VALUE
 rb_str_substr(VALUE str, long beg, long len)
 {
+#if WITH_OBJC
+    return rb_str_subseq(str, beg, len);
+#else
     rb_encoding *enc = STR_ENC_GET(str);
     VALUE str2;
     char *p, *s = RSTRING_PTR(str), *e = s + RSTRING_LEN(str);
@@ -1296,8 +1690,10 @@ rb_str_substr(VALUE str, long beg, long len)
     }
 
     return str2;
+#endif
 }
 
+#if !WITH_OBJC
 VALUE
 rb_str_freeze(VALUE str)
 {
@@ -1307,10 +1703,16 @@ rb_str_freeze(VALUE str)
     }
     return rb_obj_freeze(str);
 }
+#endif
 
 VALUE
 rb_str_dup_frozen(VALUE str)
 {
+#if WITH_OBJC
+    str = rb_str_dup(str);
+    rb_str_freeze(str);
+    return str;
+#else
     if (STR_SHARED_P(str) && RSTRING(str)->as.heap.aux.shared) {
 	VALUE shared = RSTRING(str)->as.heap.aux.shared;
 	if (RSTRING_LEN(shared) == RSTRING_LEN(str)) {
@@ -1322,33 +1724,42 @@ rb_str_dup_frozen(VALUE str)
     str = rb_str_dup(str);
     OBJ_FREEZE(str);
     return str;
+#endif
 }
 
 VALUE
 rb_str_locktmp(VALUE str)
 {
+#if !WITH_OBJC
     if (FL_TEST(str, STR_TMPLOCK)) {
 	rb_raise(rb_eRuntimeError, "temporal locking already locked string");
     }
     FL_SET(str, STR_TMPLOCK);
+#endif
     return str;
 }
 
 VALUE
 rb_str_unlocktmp(VALUE str)
 {
+#if !WITH_OBJC
     if (!FL_TEST(str, STR_TMPLOCK)) {
 	rb_raise(rb_eRuntimeError, "temporal unlocking already unlocked string");
     }
     FL_UNSET(str, STR_TMPLOCK);
+#endif
     return str;
 }
 
 void
 rb_str_set_len(VALUE str, long len)
 {
+#if WITH_OBJC
+    rb_str_resize(str, len);    
+#else
     STR_SET_LEN(str, len);
     RSTRING_PTR(str)[len] = '\0';
+#endif
 }
 
 VALUE
@@ -1361,6 +1772,18 @@ rb_str_resize(VALUE str, long len)
     }
 
     rb_str_modify(str);
+#if WITH_OBJC
+    slen = RSTRING_CLEN(str);
+    if (slen != len) {
+	void *cfdata;
+
+	CFStringPad((CFMutableStringRef)str, CFSTR(" "), len, 0);
+
+	cfdata = rb_str_cfdata2(str);
+	if (cfdata != NULL)
+	    CFDataSetLength((CFMutableDataRef)cfdata, len); 
+    }
+#else
     slen = RSTRING_LEN(str);
     if (len != slen) {
 	if (STR_EMBED_P(str)) {
@@ -1393,12 +1816,50 @@ rb_str_resize(VALUE str, long len)
 	RSTRING(str)->as.heap.len = len;
 	RSTRING(str)->as.heap.ptr[len] = '\0';	/* sentinel */
     }
+#endif
     return str;
 }
+
+#if WITH_OBJC
+static void
+rb_objc_str_cat(VALUE str, const char *ptr, long len, int cfstring_encoding)
+{
+    CFMutableDataRef data;
+
+    data = (CFMutableDataRef)rb_str_cfdata2(str);
+    if (data != NULL) {
+	CFDataAppendBytes(data, (const UInt8 *)ptr, len);
+    }
+    else {
+	long slen;
+	if (ptr[len] != '\0') {
+	    char *p = alloca(len + 1);
+	    memcpy(p, ptr, len);
+	    p[len] = '\0';
+	    ptr = p;
+	}
+	slen = strlen(ptr);
+	if (slen == len) {
+	    CFStringAppendCString((CFMutableStringRef)str, ptr, 
+		cfstring_encoding);
+	}
+	else {
+	    CFStringRef substr = CFStringCreateWithBytes(NULL, 
+		(const UInt8 *)ptr,
+		len, cfstring_encoding, false);
+	    CFStringAppend((CFMutableStringRef)str, substr);
+	    CFRelease(substr);
+	}
+    }
+}
+#endif
 
 VALUE
 rb_str_buf_cat(VALUE str, const char *ptr, long len)
 {
+#if WITH_OBJC
+    rb_objc_str_cat(str, ptr, len, kCFStringEncodingASCII);
+#else
     long capa, total;
 
     if (len == 0) return str;
@@ -1426,6 +1887,7 @@ rb_str_buf_cat(VALUE str, const char *ptr, long len)
     memcpy(RSTRING_PTR(str) + RSTRING_LEN(str), ptr, len);
     STR_SET_LEN(str, total);
     RSTRING_PTR(str)[total] = '\0'; /* sentinel */
+#endif
 
     return str;
 }
@@ -1442,6 +1904,7 @@ rb_str_cat(VALUE str, const char *ptr, long len)
     if (len < 0) {
 	rb_raise(rb_eArgError, "negative string size (or size too big)");
     }
+#if !WITH_OBJC
     if (STR_ASSOC_P(str)) {
 	rb_str_modify(str);
 	if (STR_EMBED_P(str)) str_make_independent(str);
@@ -1451,6 +1914,7 @@ rb_str_cat(VALUE str, const char *ptr, long len)
 	RSTRING(str)->as.heap.ptr[RSTRING(str)->as.heap.len] = '\0'; /* sentinel */
 	return str;
     }
+#endif
 
     return rb_str_buf_cat(str, ptr, len);
 }
@@ -1461,6 +1925,7 @@ rb_str_cat2(VALUE str, const char *ptr)
     return rb_str_cat(str, ptr, strlen(ptr));
 }
 
+#if !WITH_OBJC
 static VALUE
 rb_enc_cr_str_buf_cat(VALUE str, const char *ptr, long len,
     int ptr_encindex, int ptr_cr, int *ptr_cr_ret)
@@ -1580,17 +2045,27 @@ rb_enc_cr_str_buf_cat(VALUE str, const char *ptr, long len,
     ENCODING_CODERANGE_SET(str, res_encindex, res_cr);
     return str;
 }
+#endif
 
 VALUE
 rb_enc_str_buf_cat(VALUE str, const char *ptr, long len, rb_encoding *ptr_enc)
 {
+#if WITH_OBJC
+    rb_objc_str_cat(str, ptr, len, kCFStringEncodingUTF8);
+    return str;
+#else
     return rb_enc_cr_str_buf_cat(str, ptr, len,
         rb_enc_to_index(ptr_enc), ENC_CODERANGE_UNKNOWN, NULL);
+#endif
 }
 
 VALUE
 rb_str_buf_cat_ascii(VALUE str, const char *ptr)
 {
+#if WITH_OBJC
+    rb_objc_str_cat(str, ptr, strlen(ptr), kCFStringEncodingASCII);
+    return str;
+#else
     /* ptr must reference NUL terminated ASCII string. */
     int encindex = ENCODING_GET(str);
     rb_encoding *enc = rb_enc_from_index(encindex);
@@ -1610,11 +2085,41 @@ rb_str_buf_cat_ascii(VALUE str, const char *ptr)
         }
         return str;
     }
+#endif
 }
 
 VALUE
 rb_str_buf_append(VALUE str, VALUE str2)
 {
+#if WITH_OBJC
+    CFMutableDataRef mdata;
+    CFDataRef data;
+    long str2len;
+
+    str2len = RSTRING_CLEN(str2);
+
+    if (str2len == 0)
+	return str;
+
+    data = (CFDataRef)rb_str_cfdata2(str2);
+    if (data != NULL) {
+	mdata = (CFMutableDataRef)rb_str_cfdata(str);
+	CFDataAppendBytes(mdata, CFDataGetBytePtr(data),
+	    CFDataGetLength(data));
+    }
+    else {
+	mdata = (CFMutableDataRef)rb_str_cfdata2(str);
+	if (mdata == NULL) {
+	    CFStringAppend((CFMutableStringRef)str, (CFStringRef)str2);
+	}
+	else {
+	    data = (CFDataRef)rb_str_cfdata(str2);
+	    CFDataAppendBytes(mdata, CFDataGetBytePtr(data), 
+		CFDataGetLength(data));
+	}
+    }
+    rb_gc_malloc_increase(sizeof(UniChar) * str2len);
+#else
     int str2_cr;
 
     str2_cr = ENC_CODERANGE(str2);
@@ -1624,6 +2129,7 @@ rb_str_buf_append(VALUE str, VALUE str2)
 
     OBJ_INFECT(str, str2);
     ENC_CODERANGE_SET(str2, str2_cr);
+#endif
 
     return str;
 }
@@ -1631,11 +2137,12 @@ rb_str_buf_append(VALUE str, VALUE str2)
 VALUE
 rb_str_append(VALUE str, VALUE str2)
 {
-    rb_encoding *enc;
-    int cr, cr2;
-
     StringValue(str2);
+#if !WITH_OBJC
     if (RSTRING_LEN(str2) > 0 && STR_ASSOC_P(str)) {
+	rb_encoding *enc;
+	int cr, cr2;
+
         long len = RSTRING_LEN(str)+RSTRING_LEN(str2);
         enc = rb_enc_check(str, str2);
         cr = ENC_CODERANGE(str);
@@ -1651,6 +2158,7 @@ rb_str_append(VALUE str, VALUE str2)
         OBJ_INFECT(str, str2);
         return str;
     }
+#endif
     return rb_str_buf_append(str, str2);
 }
 
@@ -1675,6 +2183,14 @@ VALUE
 rb_str_concat(VALUE str1, VALUE str2)
 {
     if (FIXNUM_P(str2)) {
+#if WITH_OBJC
+        int c = FIX2INT(str2);
+
+	rb_str_modify(str1);
+        CFStringAppendCharacters((CFMutableStringRef)str1, (const UniChar *)&c, 
+	    1);
+	rb_gc_malloc_increase(sizeof(UniChar));
+#else
 	rb_encoding *enc = STR_ENC_GET(str1);
 	int c = FIX2INT(str2);
 	int pos = RSTRING_LEN(str1);
@@ -1684,10 +2200,13 @@ rb_str_concat(VALUE str1, VALUE str2)
 	rb_str_resize(str1, pos+len);
 	rb_enc_mbcput(c, RSTRING_PTR(str1)+pos, enc);
 	ENC_CODERANGE_SET(str1, cr);
+#endif
 	return str1;
     }
     return rb_str_append(str1, str2);
 }
+
+#if !WITH_OBJC
 
 typedef  unsigned int  ub4;   /* unsigned 4-byte quantities */
 typedef  unsigned char ub1;   /* unsigned 1-byte quantities */
@@ -1832,6 +2351,34 @@ rb_str_hash_cmp(VALUE str1, VALUE str2)
     return 1;
 }
 
+#else
+
+int
+rb_memhash(const void *ptr, long len)
+{
+    CFDataRef data;
+    int code;
+
+    data = CFDataCreate(NULL, (const UInt8 *)ptr, len);
+    code = CFHash(data);
+    CFRelease((CFTypeRef)data);
+    return code;
+}
+
+int
+rb_str_hash(VALUE str)
+{
+    return CFHash((CFTypeRef)str);
+}
+
+int
+rb_str_hash_cmp(VALUE str1, VALUE str2)
+{
+    return CFEqual((CFTypeRef)str1, (CFTypeRef)str2) ? 0 : 1;
+}
+
+#endif
+
 /*
  * call-seq:
  *    str.hash   => fixnum
@@ -1851,6 +2398,9 @@ rb_str_hash_m(VALUE str)
 int
 rb_str_comparable(VALUE str1, VALUE str2)
 {
+#if WITH_OBJC
+    return Qtrue;
+#else
     int idx1 = ENCODING_GET(str1);
     int idx2 = ENCODING_GET(str2);
     int rc1, rc2;
@@ -1868,11 +2418,15 @@ rb_str_comparable(VALUE str1, VALUE str2)
 	    return Qtrue;
     }
     return Qfalse;
+#endif
 }
 
 int
 rb_str_cmp(VALUE str1, VALUE str2)
 {
+#if WITH_OBJC
+    return CFStringCompare((CFStringRef)str1, (CFStringRef)str2, 0);
+#else
     long len;
     int retval;
     rb_encoding *enc;
@@ -1894,8 +2448,12 @@ rb_str_cmp(VALUE str1, VALUE str2)
     }
     if (retval > 0) return 1;
     return -1;
+#endif
 }
 
+#if WITH_OBJC
+bool rb_objc_str_is_pure(VALUE);
+#endif
 
 /*
  *  call-seq:
@@ -1918,11 +2476,30 @@ rb_str_equal(VALUE str1, VALUE str2)
 	}
 	return rb_equal(str2, str1);
     }
+#if WITH_OBJC
+    len = RSTRING_CLEN(str1);
+    if (len != RSTRING_CLEN(str2))
+	return Qfalse;
+    if (rb_str_cfdata2(str1) != NULL || rb_str_cfdata2(str2) != NULL)
+	return memcmp(RSTRING_CPTR(str1), RSTRING_CPTR(str2), len) == 0 ? Qtrue : Qfalse;
+    if (!rb_objc_str_is_pure(str2)) {
+	/* This is to work around a strange bug in CFEqual's objc 
+	 * dispatching.
+	 */
+	VALUE tmp = str1;
+	str1 = str2;
+	str2 = tmp;
+    }
+    if (CFEqual((CFTypeRef)str1, (CFTypeRef)str2))
+	return Qtrue;
+#else
     if (!rb_str_comparable(str1, str2)) return Qfalse;
     if (RSTRING_LEN(str1) == (len = RSTRING_LEN(str2)) &&
 	memcmp(RSTRING_PTR(str1), RSTRING_PTR(str2), len) == 0) {
 	return Qtrue;
     }
+#endif
+
     return Qfalse;
 }
 
@@ -1939,10 +2516,15 @@ rb_str_eql(VALUE str1, VALUE str2)
     if (TYPE(str2) != T_STRING || RSTRING_LEN(str1) != RSTRING_LEN(str2))
 	return Qfalse;
 
+#if WITH_OBJC
+    if (CFEqual((CFTypeRef)str1, (CFTypeRef)str2))
+	return Qtrue;
+#else
     if (!rb_str_comparable(str1, str2)) return Qfalse;
     if (memcmp(RSTRING_PTR(str1), RSTRING_PTR(str2),
 	       lesser(RSTRING_LEN(str1), RSTRING_LEN(str2))) == 0)
 	return Qtrue;
+#endif
 
     return Qfalse;
 }
@@ -2013,6 +2595,10 @@ rb_str_cmp_m(VALUE str1, VALUE str2)
 static VALUE
 rb_str_casecmp(VALUE str1, VALUE str2)
 {
+#if WITH_OBJC
+    return INT2FIX(CFStringCompare((CFStringRef)str1, (CFStringRef)str2,
+	kCFCompareCaseInsensitive));
+#else
     long len;
     rb_encoding *enc;
     char *p1, *p1end, *p2, *p2end;
@@ -2042,11 +2628,21 @@ rb_str_casecmp(VALUE str1, VALUE str2)
     if (RSTRING_LEN(str1) == RSTRING_LEN(str2)) return INT2FIX(0);
     if (RSTRING_LEN(str1) > RSTRING_LEN(str2)) return INT2FIX(1);
     return INT2FIX(-1);
+#endif
 }
 
 static long
 rb_str_index(VALUE str, VALUE sub, long offset)
 {
+#if WITH_OBJC
+    CFRange r;
+    return (CFStringFindWithOptions((CFStringRef)str, 
+		(CFStringRef)sub,
+		CFRangeMake(offset, CFStringGetLength((CFStringRef)str) - offset),
+		0,
+		&r))
+	? r.location : -1;
+#else
     long pos;
     char *s, *sptr;
     long len, slen;
@@ -2084,8 +2680,8 @@ rb_str_index(VALUE str, VALUE sub, long offset)
 	s = t;
     }
     return pos + offset;
+#endif
 }
-
 
 /*
  *  call-seq:
@@ -2101,6 +2697,7 @@ rb_str_index(VALUE str, VALUE sub, long offset)
  *     "hello".index('e')             #=> 1
  *     "hello".index('lo')            #=> 3
  *     "hello".index('a')             #=> nil
+ *     "hello".index(?e)              #=> 1
  *     "hello".index(101)             #=> 1
  *     "hello".index(/[aeiou]/, -3)   #=> 4
  */
@@ -2159,6 +2756,23 @@ rb_str_index_m(int argc, VALUE *argv, VALUE str)
 static long
 rb_str_rindex(VALUE str, VALUE sub, long pos)
 {
+#if WITH_OBJC
+    CFRange r;
+    long sublen, strlen;
+    sublen = RSTRING_CLEN(sub);
+    strlen = RSTRING_CLEN(str);
+    if (sublen == 0 && strlen == 0)
+	return 0;
+    if (pos <= sublen) {
+	pos = strlen < sublen ? strlen : sublen;
+    }
+    return (CFStringFindWithOptions((CFStringRef)str, 
+		(CFStringRef)sub,
+		CFRangeMake(0, pos+1),
+		kCFCompareBackwards,
+		&r))
+	? r.location : -1;
+#else
     long len, slen;
     char *s, *sbeg, *e, *t;
     rb_encoding *enc;
@@ -2192,6 +2806,7 @@ rb_str_rindex(VALUE str, VALUE sub, long pos)
 	pos--;
     }
     return -1;
+#endif
 }
 
 
@@ -2210,6 +2825,7 @@ rb_str_rindex(VALUE str, VALUE sub, long pos)
  *     "hello".rindex('e')             #=> 1
  *     "hello".rindex('l')             #=> 3
  *     "hello".rindex('a')             #=> nil
+ *     "hello".rindex(?e)              #=> 1
  *     "hello".rindex(101)             #=> 1
  *     "hello".rindex(/[aeiou]/, -2)   #=> 1
  */
@@ -2280,7 +2896,7 @@ rb_str_rindex_m(int argc, VALUE *argv, VALUE str)
  *  <code>=~</code> in <code>Object</code> returns <code>false</code>.
  *     
  *     "cat o' 9 tails" =~ /\d/   #=> 7
- *     "cat o' 9 tails" =~ 9      #=> false
+ *     "cat o' 9 tails" =~ 9      #=> nil
  */
 
 static VALUE
@@ -2311,7 +2927,7 @@ static VALUE get_pat(VALUE, int);
  *  parameter is present, it specifies the position in the string to begin the
  *  search.
  *     
- *     'hello'.match('(.)\1')      #=> #<MatchData "ll" "l">
+ *     'hello'.match('(.)\1')      #=> #<MatchData "ll" 1:"l">
  *     'hello'.match('(.)\1')[0]   #=> "ll"
  *     'hello'.match(/(.)\1/)[0]   #=> "ll"
  *     'hello'.match('xx')         #=> nil
@@ -2351,6 +2967,7 @@ enum neighbor_char {
     NEIGHBOR_WRAPPED
 };
 
+#if !WITH_OBJC
 static enum neighbor_char
 enc_succ_char(char *p, int len, rb_encoding *enc)
 {
@@ -2414,6 +3031,7 @@ enc_pred_char(char *p, int len, rb_encoding *enc)
         }
     }
 }
+#endif
 
 /*
   overwrite +p+ by succeeding letter in +enc+ and returns
@@ -2427,6 +3045,10 @@ enc_pred_char(char *p, int len, rb_encoding *enc)
 static enum neighbor_char
 enc_succ_alnum_char(char *p, int len, rb_encoding *enc, char *carry)
 {
+#if WITH_OBJC
+    /* TODO rewrite me */
+    return NEIGHBOR_NOT_CHAR;
+#else
     enum neighbor_char ret;
     int c;
     int ctype;
@@ -2478,6 +3100,7 @@ enc_succ_alnum_char(char *p, int len, rb_encoding *enc, char *carry)
     MEMCPY(carry, p, char, len);
     enc_succ_char(carry, len, enc);
     return NEIGHBOR_WRAPPED;
+#endif
 }
 
 
@@ -2509,6 +3132,69 @@ enc_succ_alnum_char(char *p, int len, rb_encoding *enc, char *carry)
 VALUE
 rb_str_succ(VALUE orig)
 {
+#if WITH_OBJC
+    UniChar *buf;
+    UniChar carry;
+    long i, len;
+    bool modified;
+
+    len = CFStringGetLength((CFStringRef)orig);
+    if (len == 0)
+	return orig;
+
+    buf = (UniChar *)alloca(sizeof(UniChar) * (len + 1));
+    buf++;
+    
+    CFStringGetCharacters((CFStringRef)orig, CFRangeMake(0, len), buf);
+    modified = false;
+    carry = 0;
+
+    for (i = len - 1; i >= 0; i--) {
+	UniChar c = buf[i];
+	if (iswdigit(c)) {
+	    modified = true;
+	    if (c != '9') {
+		buf[i]++;
+		carry = 0;
+		break;
+	    }
+	    else {
+		buf[i] = '0';
+		carry = '1';
+	    }
+	}
+	else if (iswalpha(c)) {
+	    bool lower = islower(c);
+	    UniChar e = lower ? 'z' : 'Z';
+	    modified = true;
+	    if (c != e) {
+		buf[i]++;
+		carry = 0;
+		break;
+	    }
+	    else {
+		carry = buf[i] = lower ? 'a' : 'A';
+	    }
+	}
+    }
+
+    if (!modified) {
+	buf[len-1]++;
+    }
+    else if (carry != 0) {
+	buf--;
+	*buf = carry;
+	len++;
+    }
+
+    CFMutableStringRef newstr;
+
+    newstr = CFStringCreateMutable(NULL, 0);
+    CFStringAppendCharacters(newstr, buf, len);
+    CFMakeCollectable(newstr);
+
+    return (VALUE)newstr;
+#else
     rb_encoding *enc;
     VALUE str;
     char *sbeg, *s, *e;
@@ -2517,10 +3203,12 @@ rb_str_succ(VALUE orig)
     char carry[ONIGENC_CODE_TO_MBC_MAXLEN] = "\1";
     int carry_pos = 0, carry_len = 1;
 
-    str = rb_str_new5(orig, RSTRING_PTR(orig), RSTRING_LEN(orig));
+    str = rb_str_new5(orig, RSTRING_CPTR(orig), RSTRING_CLEN(orig));
+#if !WITH_OBJC
     rb_enc_cr_str_copy_for_substr(str, orig);
     OBJ_INFECT(str, orig);
-    if (RSTRING_LEN(str) == 0) return str;
+#endif
+    if (RSTRING_CLEN(str) == 0) return str;
 
     enc = STR_ENC_GET(orig);
     sbeg = RSTRING_PTR(str);
@@ -2532,8 +3220,10 @@ rb_str_succ(VALUE orig)
         neighbor = enc_succ_alnum_char(s, l, enc, carry);
         if (neighbor == NEIGHBOR_NOT_CHAR)
             continue;
-        if (neighbor == NEIGHBOR_FOUND)
+        if (neighbor == NEIGHBOR_FOUND) {
+	    RSTRING_SYNC(str);
             return str;
+	}
         c = 1;
         carry_pos = s - sbeg;
         carry_len = l;
@@ -2544,8 +3234,10 @@ rb_str_succ(VALUE orig)
             enum neighbor_char neighbor;
             if ((l = rb_enc_precise_mbclen(s, e, enc)) <= 0) continue;
             neighbor = enc_succ_char(s, l, enc);
-            if (neighbor == NEIGHBOR_FOUND)
-                return str;
+	    if (neighbor == NEIGHBOR_FOUND) {
+		RSTRING_SYNC(str);
+		return str;
+	    }
             if (rb_enc_precise_mbclen(s, s+l, enc) != l) {
                 /* wrapped to \0...\0.  search next valid char. */
                 enc_succ_char(s, l, enc);
@@ -2557,6 +3249,14 @@ rb_str_succ(VALUE orig)
             carry_pos = s - sbeg;
 	}
     }
+#if WITH_OBJC
+    CFMutableDataRef data = (CFMutableDataRef)rb_str_cfdata(str);
+    CFDataSetLength(data, RSTRING_LEN(str) + carry_len);
+    s = (char *)CFDataGetMutableBytePtr(data);
+    memmove(s + carry_len, s, RSTRING_LEN(str) - carry_pos);
+    memmove(s, carry, carry_len);
+    RSTRING_SYNC(str);
+#else
     RESIZE_CAPA(str, RSTRING_LEN(str) + carry_len);
     s = RSTRING_PTR(str) + carry_pos;
     memmove(s + carry_len, s, RSTRING_LEN(str) - carry_pos);
@@ -2564,7 +3264,9 @@ rb_str_succ(VALUE orig)
     STR_SET_LEN(str, RSTRING_LEN(str) + carry_len);
     RSTRING_PTR(str)[RSTRING_LEN(str)] = '\0';
     rb_enc_str_coderange(str);
+#endif
     return str;
+#endif
 }
 
 
@@ -2618,13 +3320,33 @@ rb_str_upto(int argc, VALUE *argv, VALUE beg)
 
     rb_scan_args(argc, argv, "11", &end, &exclusive);
     excl = RTEST(exclusive);
-    succ = rb_intern("succ");
     StringValue(end);
+#if WITH_OBJC
+    if (RSTRING_CLEN(beg) == 1 && RSTRING_CLEN(end) == 1) {
+	UniChar c = CFStringGetCharacterAtIndex((CFStringRef)beg, 0);
+	UniChar e = CFStringGetCharacterAtIndex((CFStringRef)end, 0);
+	
+	if (c > e || (excl && c == e)) 
+	    return beg;
+	for (;;) {
+	    CFMutableStringRef substr;
+	    substr = CFStringCreateMutable(NULL, 0);
+	    CFStringAppendCharacters(substr, &c, 1);
+	    CFMakeCollectable(substr);
+	    rb_yield((VALUE)substr);
+	    if (!excl && c == e) 
+		break;
+	    c++;
+	    if (excl && c == e) 
+		break;
+	}
+	return beg;
+#else
     enc = rb_enc_check(beg, end);
-    if (RSTRING_LEN(beg) == 1 && RSTRING_LEN(end) == 1 &&
+    if (RSTRING_CLEN(beg) == 1 && RSTRING_CLEN(end) == 1 &&
 	is_ascii_string(beg) && is_ascii_string(end)) {
-	char c = RSTRING_PTR(beg)[0];
-	char e = RSTRING_PTR(end)[0];
+	char c = RSTRING_CPTR(beg)[0];
+	char e = RSTRING_CPTR(end)[0];
 
 	if (c > e || (excl && c == e)) return beg;
 	for (;;) {
@@ -2634,10 +3356,12 @@ rb_str_upto(int argc, VALUE *argv, VALUE beg)
 	    if (excl && c == e) break;
 	}
 	return beg;
+#endif
     }
     n = rb_str_cmp(beg, end);
     if (n > 0 || (excl && n == 0)) return beg;
 	
+    succ = rb_intern("succ");
     after_end = rb_funcall(end, succ, 0, 0);
     current = beg;
     while (!rb_str_equal(current, after_end)) {
@@ -2646,7 +3370,7 @@ rb_str_upto(int argc, VALUE *argv, VALUE beg)
 	current = rb_funcall(current, succ, 0, 0);
 	StringValue(current);
 	if (excl && rb_str_equal(current, end)) break;
-	if (RSTRING_LEN(current) > RSTRING_LEN(end) || RSTRING_LEN(current) == 0)
+	if (RSTRING_CLEN(current) > RSTRING_CLEN(end) || RSTRING_CLEN(current) == 0)
 	    break;
     }
 
@@ -2673,7 +3397,7 @@ rb_str_aref(VALUE str, VALUE indx)
 
       num_index:
 	str = rb_str_substr(str, idx, 1);
-	if (!NIL_P(str) && RSTRING_LEN(str) == 0) return Qnil;
+	if (!NIL_P(str) && RSTRING_CLEN(str) == 0) return Qnil;
 	return str;
 
       case T_REGEXP:
@@ -2774,6 +3498,10 @@ static void
 rb_str_splice_0(VALUE str, long beg, long len, VALUE val)
 {
     rb_str_modify(str);
+#if WITH_OBJC
+    CFStringReplace((CFMutableStringRef)str, CFRangeMake(beg, len), 
+	(CFStringRef)val);
+#else
     if (len < RSTRING_LEN(val)) {
 	/* expand string */
 	RESIZE_CAPA(str, RSTRING_LEN(str) + RSTRING_LEN(val) - len + 1);
@@ -2795,22 +3523,29 @@ rb_str_splice_0(VALUE str, long beg, long len, VALUE val)
 	RSTRING_PTR(str)[RSTRING_LEN(str)] = '\0';
     }
     OBJ_INFECT(str, val);
+#endif
 }
 
 static void
 rb_str_splice(VALUE str, long beg, long len, VALUE val)
 {
     long slen;
+#if !WITH_OBJC
     char *p, *e;
     rb_encoding *enc;
     int singlebyte = single_byte_optimizable(str);
+#endif
 
     if (len < 0) rb_raise(rb_eIndexError, "negative length %ld", len);
 
     StringValue(val);
     rb_str_modify(str);
+#if WITH_OBJC
+    slen = CFStringGetLength((CFStringRef)str);
+#else
     enc = rb_enc_check(str, val);
     slen = str_strlen(str, enc);
+#endif
 
     if (slen < beg) {
       out_of_range:
@@ -2825,6 +3560,9 @@ rb_str_splice(VALUE str, long beg, long len, VALUE val)
     if (slen < len || slen < beg + len) {
 	len = slen - beg;
     }
+#if WITH_OBJC
+    rb_str_splice_0(str, beg, len, val);
+#else
     p = str_nth(RSTRING_PTR(str), RSTRING_END(str), beg, enc, singlebyte);
     if (!p) p = RSTRING_END(str);
     e = str_nth(p, RSTRING_END(str), len, enc, singlebyte);
@@ -2834,6 +3572,7 @@ rb_str_splice(VALUE str, long beg, long len, VALUE val)
     len = e - p;		/* physical length */
     rb_str_splice_0(str, beg, len, val);
     rb_enc_associate(str, enc);
+#endif
 }
 
 void
@@ -2873,9 +3612,13 @@ rb_str_subpat_set(VALUE str, VALUE re, int nth, VALUE val)
     end = END(nth);
     len = end - start;
     StringValue(val);
+#if !WITH_OBJC
     enc = rb_enc_check(str, val);
+#endif
     rb_str_splice_0(str, start, len, val);
+#if !WITH_OBJC
     rb_enc_associate(str, enc);
+#endif
 }
 
 static VALUE
@@ -3004,7 +3747,7 @@ rb_str_insert(VALUE str, VALUE idx, VALUE str2)
  *  deleted.
  *     
  *     string = "this is a string"
- *     string.slice!(2)        #=> 105
+ *     string.slice!(2)        #=> "i"
  *     string.slice!(3..6)     #=> " is "
  *     string.slice!(/s.*t/)   #=> "sa st"
  *     string.slice!("r")      #=> "r"
@@ -3098,13 +3841,17 @@ rb_str_sub_bang(int argc, VALUE *argv, VALUE str)
     pat = get_pat(argv[0], 1);
     if (rb_reg_search(pat, str, 0, 0) >= 0) {
 	rb_encoding *enc;
+#if !WITH_OBJC
 	int cr = ENC_CODERANGE(str);
+#endif
 
 	match = rb_backref_get();
 	regs = RMATCH_REGS(match);
 
 	if (iter || !NIL_P(hash)) {
+#if !WITH_OBJC
 	    char *p = RSTRING_PTR(str); long len = RSTRING_LEN(str);
+#endif
 
             if (iter) {
                 rb_match_busy(match);
@@ -3114,13 +3861,16 @@ rb_str_sub_bang(int argc, VALUE *argv, VALUE str)
                 repl = rb_hash_aref(hash, rb_str_subseq(str, BEG(0), END(0) - BEG(0)));
                 repl = rb_obj_as_string(repl);
             }
+#if !WITH_OBJC
 	    str_mod_check(str, p, len);
+#endif
 	    str_frozen_check(str);
 	    if (iter) rb_backref_set(match);
 	}
 	else {
 	    repl = rb_reg_regsub(repl, str, regs, pat);
 	}
+#if !WITH_OBJC
         enc = rb_enc_compatible(str, repl);
         if (!enc) {
             rb_encoding *str_enc = STR_ENC_GET(str);
@@ -3133,9 +3883,14 @@ rb_str_sub_bang(int argc, VALUE *argv, VALUE str)
             }
             enc = STR_ENC_GET(repl);
         }
+#endif
 	rb_str_modify(str);
-	rb_enc_associate(str, enc);
+#if WITH_OBJC
+	RSTRING_SYNC(str);
+	rb_str_splice_0(str, BEG(0), END(0) - BEG(0), repl);
 	if (OBJ_TAINTED(repl)) tainted = 1;
+#else
+	rb_enc_associate(str, enc);
 	if (ENC_CODERANGE_UNKNOWN < cr && cr < ENC_CODERANGE_BROKEN) {
 	    int cr2 = ENC_CODERANGE(repl);
 	    if (cr2 == ENC_CODERANGE_UNKNOWN || cr2 > cr) cr = cr2;
@@ -3154,6 +3909,7 @@ rb_str_sub_bang(int argc, VALUE *argv, VALUE str)
 	STR_SET_LEN(str, RSTRING_LEN(str) + RSTRING_LEN(repl) - plen);
 	RSTRING_PTR(str)[RSTRING_LEN(str)] = '\0';
 	ENC_CODERANGE_SET(str, cr);
+#endif
 	if (tainted) OBJ_TAINT(str);
 
 	return str;
@@ -3189,7 +3945,7 @@ rb_str_sub_bang(int argc, VALUE *argv, VALUE str)
  *     
  *     "hello".sub(/[aeiou]/, '*')                  #=> "h*llo"
  *     "hello".sub(/([aeiou])/, '<\1>')             #=> "h<e>llo"
- *     "hello".sub(/./) {|s| s[0].to_s + ' ' }      #=> "104 ello"
+ *     "hello".sub(/./) {|s| s[0].ord.to_s + ' ' }  #=> "104 ello"
  *     "hello".sub(/(?<foo>[aeiou])/, '*\k<foo>*')  #=> "h*e*llo"
  */
 
@@ -3209,7 +3965,7 @@ str_gsub(int argc, VALUE *argv, VALUE str, int bang)
     long beg, n;
     long offset, blen, slen, len;
     int iter = 0;
-    char *sp, *cp;
+    const char *sp, *cp;
     int tainted = 0;
     rb_encoding *str_enc;
     
@@ -3238,12 +3994,19 @@ str_gsub(int argc, VALUE *argv, VALUE str, int bang)
 	return rb_str_dup(str);
     }
 
+#if WITH_OBJC
+    dest = rb_str_new5(str, NULL, 0);
+    slen = RSTRING_CLEN(str);
+    sp = RSTRING_CPTR(str);
+    cp = sp;
+#else
     blen = RSTRING_LEN(str) + 30; /* len + margin */
     dest = rb_str_buf_new(blen);
     sp = RSTRING_PTR(str);
     slen = RSTRING_LEN(str);
     cp = sp;
     str_enc = STR_ENC_GET(str);
+#endif
 
     do {
 	n++;
@@ -3273,7 +4036,7 @@ str_gsub(int argc, VALUE *argv, VALUE str, int bang)
 
 	len = beg - offset;	/* copy pre-match substr */
         if (len) {
-            rb_enc_str_buf_cat(dest, cp, len, str_enc);
+	    rb_enc_str_buf_cat(dest, cp, len, str_enc);
         }
 
         rb_str_buf_append(dest, val);
@@ -3284,30 +4047,45 @@ str_gsub(int argc, VALUE *argv, VALUE str, int bang)
 	     * Always consume at least one character of the input string
 	     * in order to prevent infinite loops.
 	     */
-	    if (RSTRING_LEN(str) <= END(0)) break;
-	    len = rb_enc_mbclen(RSTRING_PTR(str)+END(0), RSTRING_END(str), str_enc);
-            rb_enc_str_buf_cat(dest, RSTRING_PTR(str)+END(0), len, str_enc);
+	    if (slen <= END(0)) break;
+#if WITH_OBJC
+	    len = 1;
+#else
+	    len = rb_enc_mbclen(sp+END(0), sp+slen, str_enc);
+#endif
+            rb_enc_str_buf_cat(dest, sp+END(0), len, str_enc);
 	    offset = END(0) + len;
 	}
-	cp = RSTRING_PTR(str) + offset;
-	if (offset > RSTRING_LEN(str)) break;
+	cp = sp + offset;
+	if (offset > slen) break;
 	beg = rb_reg_search(pat, str, offset, 0);
     } while (beg >= 0);
-    if (RSTRING_LEN(str) > offset) {
-        rb_enc_str_buf_cat(dest, cp, RSTRING_LEN(str) - offset, str_enc);
+    if (slen > offset) {
+        rb_enc_str_buf_cat(dest, cp, slen - offset, str_enc);
     }
     rb_backref_set(match);
+#if WITH_OBJC
+    if (bang) {
+	RSTRING_SYNC(str);
+	RSTRING_SYNC(dest);
+	CFStringReplaceAll((CFMutableStringRef)str, (CFStringRef)dest);
+    }
+    else {
+    	if (!tainted && OBJ_TAINTED(str))
+	    tainted = 1;
+	str = dest;
+    }
+#else
     if (bang) {
         rb_str_shared_replace(str, dest);
     }
     else {
 	RBASIC(dest)->klass = rb_obj_class(str);
-#if WITH_OBJC
 	RBASIC(dest)->isa = RCLASS_OCID(RBASIC(dest)->klass);
-#endif
 	OBJ_INFECT(dest, str);
 	str = dest;
     }
+#endif
 
     if (tainted) OBJ_TAINT(str);
     return str;
@@ -3359,7 +4137,7 @@ rb_str_gsub_bang(int argc, VALUE *argv, VALUE str)
  *     
  *     "hello".gsub(/[aeiou]/, '*')                  #=> "h*ll*"
  *     "hello".gsub(/([aeiou])/, '<\1>')             #=> "h<e>ll<o>"
- *     "hello".gsub(/./) {|s| s[0].to_s + ' '}       #=> "104 101 108 108 111 "
+ *     "hello".gsub(/./) {|s| s[0].ord.to_s + ' '}   #=> "104 101 108 108 111 "
  *     "hello".gsub(/(?<foo>[aeiou])/, '{\k<foo>}')  #=> "h{e}ll{o}"
  */
 
@@ -3381,12 +4159,27 @@ rb_str_gsub(int argc, VALUE *argv, VALUE str)
  *     s.replace "world"   #=> "world"
  */
 
-static VALUE
+VALUE
 rb_str_replace(VALUE str, VALUE str2)
 {
     long len;
     if (str == str2) return str;
-
+#if WITH_OBJC
+    rb_str_modify(str);
+    CFDataRef data = (CFDataRef)rb_str_cfdata2(str2);
+    if (data != NULL) {
+	CFMutableDataRef mdata;
+       
+	mdata = CFDataCreateMutableCopy(NULL, 0, data);
+	rb_gc_malloc_increase(CFDataGetLength(data));
+	rb_str_cfdata_set(str, mdata);
+	CFMakeCollectable(mdata);
+    }
+    CFStringReplaceAll((CFMutableStringRef)str, (CFStringRef)str2);
+    rb_gc_malloc_increase(CFStringGetLength((CFStringRef)str2) * sizeof(UniChar));
+    if (OBJ_TAINTED(str2))
+	OBJ_TAINT(str);
+#else
     StringValue(str2);
     len = RSTRING_LEN(str2);
     if (STR_ASSOC_P(str2)) {
@@ -3410,6 +4203,7 @@ rb_str_replace(VALUE str, VALUE str2)
 
     OBJ_INFECT(str, str2);
     rb_enc_cr_str_exact_copy(str, str2);
+#endif
     return str;
 }
 
@@ -3426,6 +4220,11 @@ rb_str_replace(VALUE str, VALUE str2)
 static VALUE
 rb_str_clear(VALUE str)
 {
+#if WITH_OBJC
+    rb_str_modify(str);
+    CFStringDelete((CFMutableStringRef)str, 
+	CFRangeMake(0, CFStringGetLength((CFStringRef)str)));
+#else
     /* rb_str_modify() */	/* no need for str_make_independent */
     if (str_independent(str) && !STR_EMBED_P(str)) {
 	free(RSTRING_PTR(str));
@@ -3434,6 +4233,7 @@ rb_str_clear(VALUE str)
     STR_SET_EMBED_LEN(str, 0);
     RSTRING_PTR(str)[0] = 0;
     ENC_CODERANGE_CLEAR(str);
+#endif
     return str;
 }
 
@@ -3463,10 +4263,11 @@ static VALUE
 rb_str_getbyte(VALUE str, VALUE index)
 {
     long pos = NUM2LONG(index);
+    long n = RSTRING_LEN(str);
 
     if (pos < 0)
-        pos += RSTRING_LEN(str);
-    if (pos < 0 ||  RSTRING_LEN(str) <= pos)
+        pos += n;
+    if (pos < 0 || n <= pos)
         return Qnil;
 
     return INT2FIX((unsigned char)RSTRING_PTR(str)[pos]);
@@ -3483,17 +4284,72 @@ rb_str_setbyte(VALUE str, VALUE index, VALUE value)
 {
     long pos = NUM2LONG(index);
     int byte = NUM2INT(value);
+    long n = RSTRING_LEN(str);
 
     rb_str_modify(str);
 
-    if (pos < -RSTRING_LEN(str) || RSTRING_LEN(str) <= pos)
+    if (pos < -n || n <= pos)
         rb_raise(rb_eIndexError, "index %ld out of string", pos);
     if (pos < 0)
-        pos += RSTRING_LEN(str);
+        pos += n;
 
     RSTRING_PTR(str)[pos] = byte;
+#if WITH_OBJC
+    RSTRING_SYNC(str);
+#endif
 
     return value;
+}
+
+
+/*
+ *  call-seq:
+ *     str.reverse!   => str
+ *  
+ *  Reverses <i>str</i> in place.
+ */
+
+static VALUE
+rb_str_reverse_bang(VALUE str)
+{
+#if WITH_OBJC
+    CFIndex i, n;
+    UniChar *buffer;
+
+    n = CFStringGetLength((CFStringRef)str);
+    if (n <= 1)
+	return rb_str_dup(str);
+   
+    buffer = (UniChar *)alloca(sizeof(UniChar) * n);
+    CFStringGetCharacters((CFStringRef)str, CFRangeMake(0, n), buffer);
+    for (i = 0; i < (n / 2); i++) {
+	UniChar c = buffer[i];
+	buffer[i] = buffer[n - i - 1];
+	buffer[n - i - 1] = c;
+    }
+    CFStringDelete((CFMutableStringRef)str, CFRangeMake(0, n));
+    CFStringAppendCharacters((CFMutableStringRef)str, (const UniChar *)buffer, n);
+#else
+    char *s, *e, c;
+
+    if (RSTRING_LEN(str) > 1) {
+	rb_str_modify(str);
+	s = RSTRING_PTR(str);
+	e = RSTRING_END(str) - 1;
+
+	if (single_byte_optimizable(str)) {
+	    while (s < e) {
+		c = *s;
+		*s++ = *e;
+ 		*e-- = c;
+	    }
+	}
+	else {
+	    rb_str_shared_replace(str, rb_str_reverse(str));
+	}
+    }
+#endif
+    return str;
 }
 
 /*
@@ -3508,6 +4364,11 @@ rb_str_setbyte(VALUE str, VALUE index, VALUE value)
 static VALUE
 rb_str_reverse(VALUE str)
 {
+#if WITH_OBJC
+    VALUE obj = rb_str_dup(str);
+    rb_str_reverse_bang(obj);
+    return obj;
+#else
     rb_encoding *enc;
     VALUE obj;
     char *s, *e, *p;
@@ -3539,40 +4400,8 @@ rb_str_reverse(VALUE str)
     rb_enc_cr_str_copy_for_substr(obj, str);
 
     return obj;
+#endif
 }
-
-
-/*
- *  call-seq:
- *     str.reverse!   => str
- *  
- *  Reverses <i>str</i> in place.
- */
-
-static VALUE
-rb_str_reverse_bang(VALUE str)
-{
-    char *s, *e, c;
-
-    if (RSTRING_LEN(str) > 1) {
-	rb_str_modify(str);
-	s = RSTRING_PTR(str);
-	e = RSTRING_END(str) - 1;
-
-	if (single_byte_optimizable(str)) {
-	    while (s < e) {
-		c = *s;
-		*s++ = *e;
- 		*e-- = c;
-	    }
-	}
-	else {
-	    rb_str_shared_replace(str, rb_str_reverse(str));
-	}
-    }
-    return str;
-}
-
 
 /*
  *  call-seq:
@@ -3624,13 +4453,15 @@ rb_str_include(VALUE str, VALUE arg)
 static VALUE
 rb_str_to_i(int argc, VALUE *argv, VALUE str)
 {
-    VALUE b;
     int base;
 
-    rb_scan_args(argc, argv, "01", &b);
     if (argc == 0) base = 10;
-    else base = NUM2INT(b);
+    else {
+	VALUE b;
 
+	rb_scan_args(argc, argv, "01", &b);
+	base = NUM2INT(b);
+    }
     if (base < 0) {
 	rb_raise(rb_eArgError, "invalid radix %d", base);
     }
@@ -3670,7 +4501,11 @@ rb_str_to_f(VALUE str)
 static VALUE
 rb_str_to_s(VALUE str)
 {
+#if WITH_OBJC
+    if (!rb_objc_str_is_pure(str)) {
+#else
     if (rb_obj_class(str) != rb_cString) {
+#endif
 	VALUE dup = str_alloc(rb_cString);
 	rb_str_replace(dup, str);
 	return dup;
@@ -3681,11 +4516,16 @@ rb_str_to_s(VALUE str)
 static void
 str_cat_char(VALUE str, int c, rb_encoding *enc)
 {
+#if WITH_OBJC
+    CFStringAppendCharacters((CFMutableStringRef)str, 
+	(const UniChar *)&c, 1); 	 
+#else
     char s[16];
     int n = rb_enc_codelen(c, enc);
 
     rb_enc_mbcput(c, s, enc);
     rb_enc_str_buf_cat(str, s, n, enc);
+#endif
 }
 
 static void
@@ -3704,25 +4544,45 @@ prefix_escape(VALUE str, int c, rb_encoding *enc)
  *
  *    str = "hello"
  *    str[3] = "\b"
- *    str.inspect       #=> "\"hel\bo\""
+ *    str.inspect       #=> "\"hel\\bo\""
  */
 
 VALUE
 rb_str_inspect(VALUE str)
 {
     rb_encoding *enc = STR_ENC_GET(str);
-    char *p, *pend;
-    VALUE result = rb_str_buf_new2("");
+    const char *p, *pend;
+    VALUE result;
 
+#if WITH_OBJC
+    if (rb_objc_str_is_bytestring(str)) {
+	p = (const char *)RSTRING_PTR(str); 
+	pend = (const char *)RSTRING_END(str);
+    }
+    else {
+	p = RSTRING_CPTR(str); 
+	pend = p + RSTRING_CLEN(str);
+    }
+    if (p == NULL)
+	return rb_str_new2("\"\"");
+#else
+    p = RSTRING_PTR(str); pend = RSTRING_END(str);
+#endif
+    result = rb_str_buf_new2("");
+#if !WITH_OBJC
     if (!rb_enc_asciicompat(enc)) enc = rb_usascii_encoding();
     rb_enc_associate(result, enc);
+#endif
     str_cat_char(result, '"', enc);
-    p = RSTRING_PTR(str); pend = RSTRING_END(str);
     while (p < pend) {
 	int c;
 	int n;
 	int cc;
 
+#if WITH_OBJC
+	c = *p;
+	n = 1;
+#else
         n = rb_enc_precise_mbclen(p, pend, enc);
         if (!MBCLEN_CHARFOUND_P(n)) {
             p++;
@@ -3733,13 +4593,18 @@ rb_str_inspect(VALUE str)
 
 	c = rb_enc_codepoint(p, pend, enc);
 	n = rb_enc_codelen(c, enc);
+#endif
 
 	p += n;
 	if (c == '"'|| c == '\\' ||
 	    (c == '#' &&
              p < pend &&
+#if WITH_OBJC
+	     ((cc = *p),
+#else
              MBCLEN_CHARFOUND_P(rb_enc_precise_mbclen(p,pend,enc)) &&
              (cc = rb_enc_codepoint(p,pend,enc),
+#endif
               (cc == '$' || cc == '@' || cc == '{')))) {
 	    prefix_escape(result, c, enc);
 	}
@@ -3773,7 +4638,7 @@ rb_str_inspect(VALUE str)
 	else {
 	    char buf[5];
 	    char *s;
-            char *q;
+            const char *q;
 
 	  escape_codepoint:
             for (q = p-n; q < p; q++) {
@@ -3811,7 +4676,18 @@ rb_str_dump(VALUE str)
     VALUE result;
 
     len = 2;			/* "" */
+#if WITH_OBJC
+    if (rb_objc_str_is_bytestring(str)) {
+	p = RSTRING_PTR(str); 
+	pend = RSTRING_END(str);
+    }
+    else {
+	p = RSTRING_CPTR(str); 
+	pend = p + RSTRING_CLEN(str);
+    }
+#else
     p = RSTRING_PTR(str); pend = p + RSTRING_LEN(str);
+#endif
     while (p < pend) {
 	unsigned char c = *p++;
 	switch (c) {
@@ -3838,7 +4714,7 @@ rb_str_dump(VALUE str)
     }
     if (!rb_enc_asciicompat(enc0)) {
 	len += 19;		/* ".force_encoding('')" */
-	len += strlen(enc0->name);
+	len += strlen(rb_enc_name(enc0));
     }
 
     result = rb_str_new5(str, 0, len);
@@ -3900,13 +4776,18 @@ rb_str_dump(VALUE str)
     }
     *q++ = '"';
     if (!rb_enc_asciicompat(enc0)) {
-	sprintf(q, ".force_encoding(\"%s\")", enc0->name);
+	sprintf(q, ".force_encoding(\"%s\")", rb_enc_name(enc0));
+#if !WITH_OBJC
 	enc0 = rb_ascii8bit_encoding();
+#endif
     }
 
     OBJ_INFECT(result, str);
     /* result from dump is ASCII */
+#if !WITH_OBJC
     rb_enc_associate(result, enc0);
+#endif
+    RSTRING_SYNC(result);
     return result;
 }
 
@@ -3923,6 +4804,15 @@ rb_str_dump(VALUE str)
 static VALUE
 rb_str_upcase_bang(VALUE str)
 {
+#if WITH_OBJC
+    CFHashCode h;
+    rb_str_modify(str);
+    h = CFHash((CFTypeRef)str);
+    CFStringUppercase((CFMutableStringRef)str, NULL);
+    if (h == CFHash((CFTypeRef)str))
+	return Qnil;
+    return str;
+#else
     rb_encoding *enc;
     char *s, *send;
     int modify = 0;
@@ -3945,6 +4835,7 @@ rb_str_upcase_bang(VALUE str)
     ENC_CODERANGE_SET(str, cr);
     if (modify) return str;
     return Qnil;
+#endif
 }
 
 
@@ -3981,6 +4872,15 @@ rb_str_upcase(VALUE str)
 static VALUE
 rb_str_downcase_bang(VALUE str)
 {
+#if WITH_OBJC
+    CFHashCode h;
+    rb_str_modify(str);
+    h = CFHash((CFTypeRef)str);
+    CFStringLowercase((CFMutableStringRef)str, NULL);
+    if (h == CFHash((CFTypeRef)str))
+	return Qnil;
+    return str;
+#else
     rb_encoding *enc;
     char *s, *send;
     int modify = 0;
@@ -4003,6 +4903,7 @@ rb_str_downcase_bang(VALUE str)
     ENC_CODERANGE_SET(str, cr);
     if (modify) return str;
     return Qnil;
+#endif
 }
 
 
@@ -4044,6 +4945,37 @@ rb_str_downcase(VALUE str)
 static VALUE
 rb_str_capitalize_bang(VALUE str)
 {
+#if WITH_OBJC
+    CFStringRef tmp;
+    long i, n;
+    bool changed;
+    UniChar c;
+    UniChar *buffer;
+
+    rb_str_modify(str);
+    n = CFStringGetLength((CFStringRef)str);
+    if (n == 0)
+	return Qnil;
+    buffer = (UniChar *)alloca(sizeof(UniChar) * n);
+    CFStringGetCharacters((CFStringRef)str, CFRangeMake(0, n), buffer);
+    changed = false;
+    if (iswlower(buffer[0])) {
+	buffer[0] = towupper(buffer[0]);
+	changed = true;
+    }
+    for (i = 1; i < n; i++) {
+	if (iswupper(buffer[i])) {
+	    buffer[i] = towlower(buffer[i]);
+	    changed = true;
+	}
+    }
+    if (!changed)
+	return Qnil;
+    tmp = CFStringCreateWithCharacters(NULL, buffer, n);
+    CFStringReplaceAll((CFMutableStringRef)str, tmp);
+    CFRelease(tmp);
+    return str;
+#else
     rb_encoding *enc;
     char *s, *send;
     int modify = 0;
@@ -4073,6 +5005,7 @@ rb_str_capitalize_bang(VALUE str)
     ENC_CODERANGE_SET(str, cr);
     if (modify) return str;
     return Qnil;
+#endif
 }
 
 
@@ -4110,6 +5043,40 @@ rb_str_capitalize(VALUE str)
 static VALUE
 rb_str_swapcase_bang(VALUE str)
 {
+#if WITH_OBJC
+    CFIndex i, n;
+    UniChar *buffer;
+    bool changed;
+
+    n = CFStringGetLength((CFStringRef)str);
+    if (n == 0)
+	return rb_str_dup(str);
+   
+    buffer = (UniChar *)CFStringGetCharactersPtr((CFStringRef)str);
+    if (buffer == NULL) {
+	buffer = (UniChar *)alloca(sizeof(UniChar) * n);
+    	CFStringGetCharacters((CFStringRef)str, CFRangeMake(0, n), buffer);
+    }
+    for (i = 0, changed = false; i < n; i++) {
+	UniChar c = buffer[i];
+	if (iswlower(c)) {
+	    c = towupper(c);
+	}
+	else if (iswupper(c)) {
+	    c = towlower(c);
+	}
+	else {
+	    continue;
+	}
+	changed = true;
+	buffer[i] = c;
+    }
+    if (!changed)
+	return Qnil;
+    CFStringDelete((CFMutableStringRef)str, CFRangeMake(0, n));
+    CFStringAppendCharacters((CFMutableStringRef)str, (const UniChar *)buffer, n);
+    return str;
+#else
     rb_encoding *enc;
     char *s, *send;
     int modify = 0;
@@ -4137,6 +5104,7 @@ rb_str_swapcase_bang(VALUE str)
     ENC_CODERANGE_SET(str, cr);
     if (modify) return str;
     return Qnil;
+#endif
 }
 
 
@@ -4160,6 +5128,7 @@ rb_str_swapcase(VALUE str)
     return str;
 }
 
+#if !WITH_OBJC
 typedef unsigned char *USTR;
 
 struct tr {
@@ -4201,10 +5170,353 @@ trnext(struct tr *t, rb_encoding *enc)
 }
 
 static VALUE rb_str_delete_bang(int,VALUE*,VALUE);
+#endif
+
+#if WITH_OBJC
+typedef void str_charset_find_cb
+(CFRange *, const CFRange *, CFStringRef, UniChar, void *);
+
+static void
+str_charset_find(CFStringRef str, VALUE *charsets, int charset_count,
+		 bool squeeze_mode, str_charset_find_cb *cb, void *ctx)
+{
+    int i;
+    long n;
+    bool changed;
+    CFMutableCharacterSetRef charset;
+    CFRange search_range, result_range; 
+
+    if (charset_count == 0)
+	return;
+
+    n = CFStringGetLength((CFStringRef)str);
+    if (n == 0)
+    	return;
+
+    for (i = 0, charset = NULL; i < charset_count; i++) {
+	VALUE s = charsets[i];
+	bool exclude;
+	const char *sptr, *p;
+
+	StringValue(s);
+
+	sptr = RSTRING_CPTR(s);
+	exclude = sptr[0] == '^';
+
+	p = NULL;
+	if (exclude || (p = strchr(sptr, '-')) != NULL) {
+	    CFMutableCharacterSetRef subset;
+	    const char *b, *e;
+
+	    b = exclude ? sptr + 1 : sptr;
+	    e = sptr + strlen(sptr) - 1;
+	    subset = CFCharacterSetCreateMutable(NULL);
+	    if (p == NULL)
+		p = strchr(b, '-');
+	    while (p != NULL) {
+		if (p > b && *(p - 1) != '\\' && *(p + 1) != '\0') {
+		    CFCharacterSetAddCharactersInRange(subset,
+			    CFRangeMake(*(p - 1), *(p + 1) - *(p - 1) + 1));
+		}
+		if (p > b) {
+		    CFStringRef substr;
+		    substr = CFStringCreateWithBytes(NULL,
+			    (const UInt8 *)b,
+			    (CFIndex)p - (CFIndex)b,
+			    kCFStringEncodingUTF8,
+			    false);
+		    CFCharacterSetAddCharactersInString(subset, substr);
+		    CFRelease(substr);
+		}
+		if (p == b) {
+		    p = NULL; 
+		}
+		else {
+		    b = p + 2;
+		    p = strchr(b, '-');
+		}
+	    }
+	    if (b <= e) {
+		CFStringRef substr;
+		substr = CFStringCreateWithBytes(NULL,
+			(const UInt8 *)b,
+			(CFIndex)e - (CFIndex)b + 1,
+			kCFStringEncodingUTF8,
+			false);
+		CFCharacterSetAddCharactersInString(subset, substr);
+		CFRelease(substr);
+	    }
+
+	    if (exclude)
+		CFCharacterSetInvert(subset);
+
+	    if (charset == NULL) {
+		charset = subset;
+	    }
+	    else {
+		CFCharacterSetIntersect(charset, subset);
+		CFRelease(subset);
+	    }
+	}
+	else {
+	    if (charset == NULL) {
+		charset = CFCharacterSetCreateMutable(NULL);
+		CFCharacterSetAddCharactersInString(charset, (CFStringRef)s);
+	    }
+	    else {
+		CFCharacterSetRef subset;
+		subset = CFCharacterSetCreateWithCharactersInString(NULL,
+		    (CFStringRef)s);
+		CFCharacterSetIntersect(charset, subset);
+		CFRelease(subset);	
+	    }
+	}
+    }
+
+    search_range = CFRangeMake(0, n);
+#if 0 
+    while (search_range.length != 0 
+	    && CFStringFindCharacterFromSet(
+		(CFStringRef)str,
+		(CFCharacterSetRef)charset,
+		search_range,
+		0,
+		&result_range)) {
+	(*cb)(&search_range, (const CFRange *)&result_range, str, ctx);
+    }
+#else
+    CFStringInlineBuffer buf;
+    UniChar previous_char = 0;
+    CFStringInitInlineBuffer((CFStringRef)str, &buf, search_range);
+    do {
+        long i;
+	bool mutated = false;
+
+	if (search_range.location + search_range.length < n) {
+	    n = search_range.location + search_range.length;
+	    CFStringInitInlineBuffer((CFStringRef)str, &buf, CFRangeMake(0, n));
+	}
+
+	result_range.length = 0;
+
+	for (i = search_range.location;
+	     i < search_range.location + search_range.length; 
+	     i++) {
+
+	    UniChar c;
+
+	    c = CFStringGetCharacterFromInlineBuffer(&buf, i);
+	    if (CFCharacterSetIsCharacterMember((CFCharacterSetRef)charset, 
+						c)) {
+		if (result_range.length == 0) {
+		    result_range.location = i;
+		    result_range.length = 1;
+		    previous_char = c;
+		}
+		else {
+		    if (result_range.location + result_range.length == i
+			&& (!squeeze_mode || previous_char == c)) {
+			result_range.length++;
+		    }
+		    else {
+			(*cb)(&search_range, (const CFRange *)&result_range, 
+			    str, previous_char, ctx);
+			result_range.location = i;
+			result_range.length = 1;
+			previous_char = c;
+			if (search_range.location + search_range.length < n) {
+			    result_range.location -= n 
+				- (search_range.location + search_range.length);
+			    mutated = true;
+			    break;
+			}
+		    }
+		}
+	    }
+	}
+	if (!mutated) {
+	    if (result_range.length != 0) {
+		(*cb)(&search_range, (const CFRange *)&result_range, str, 
+			previous_char, ctx);
+		result_range.length = 0;
+		previous_char = 0;
+	    }
+	}
+    }
+    while (search_range.length != 0 && result_range.length != 0); 
+#endif
+
+    CFRelease(charset);	
+}
+
+struct tr_trans_cb_ctx {
+    VALUE orepl;
+    const char *src;
+    long src_len;
+    const char *repl;
+    long repl_len;
+    int sflag;
+    bool changed;
+    CFStringRef opt;
+};
+
+static inline void
+trans_replace(CFMutableStringRef str, const CFRange *result_range, 
+	      CFStringRef substr, CFRange *search_range, int sflag)
+{
+    assert(result_range->location + result_range->length 
+	<= CFStringGetLength((CFStringRef)str));
+    if (sflag == 0) {
+	long n;
+	for (n = result_range->location; 
+	     n < result_range->location + result_range->length; 
+	     n++)
+	    CFStringReplace(str, CFRangeMake(n, 1), substr);
+    }
+    else {
+	CFStringReplace(str, *result_range, substr);
+	search_range->location = result_range->location + 1;
+	search_range->length = RSTRING_CLEN(str) - search_range->location;
+    }	    
+}
+
+static void
+rb_str_trans_cb(CFRange *search_range, const CFRange *result_range, 
+    CFStringRef str, UniChar character, void *ctx)
+{
+    struct tr_trans_cb_ctx *_ctx;
+
+    _ctx = (struct tr_trans_cb_ctx *)ctx;
+    if (_ctx->repl_len == 0) {
+	CFStringDelete((CFMutableStringRef)str, *result_range);
+	search_range->length -= result_range->length 
+	    + (result_range->location - search_range->location);
+	search_range->location = result_range->location;
+    }
+    else if (_ctx->repl_len == 1) {
+	trans_replace((CFMutableStringRef)str, result_range, 
+	    (CFStringRef)_ctx->orepl, search_range, _ctx->sflag);
+    }
+    else if (_ctx->repl_len > 1) {
+	if (_ctx->src_len == 1) {
+	    if (_ctx->opt == NULL) {
+		_ctx->opt = CFStringCreateWithBytes(NULL, 
+		    (const UInt8 *)_ctx->repl, 1, kCFStringEncodingUTF8,
+		    false);
+	    }
+	    trans_replace((CFMutableStringRef)str, result_range, 
+	        (CFStringRef)_ctx->opt, search_range, _ctx->sflag);
+	}
+	else {
+	    /* TODO: support all syntaxes */
+	    char sb, se, rb, re;
+	    long n;
+	    bool s_is_range, r_is_range;
+	    CFStringRef substr;
+	    bool release_substr;
+	    long delta;
+
+	    if (_ctx->src_len == 3 && _ctx->src[1] == '-') {
+		sb = _ctx->src[0];
+		se = _ctx->src[2];
+		s_is_range = true;
+	    }
+	    else {
+		s_is_range = false;
+		if (_ctx->src[0] == '^' || strchr(_ctx->src, '-') != NULL)
+		    rb_raise(rb_eRuntimeError, "src argument value (%s) not " \
+			    "supported yet", _ctx->src);
+	    }
+
+	    if (_ctx->repl_len == 3 && _ctx->repl[1] == '-') {
+		rb = _ctx->repl[0];
+		re = _ctx->repl[2];
+		r_is_range = true;
+	    }
+	    else {
+		r_is_range = false;
+		if (_ctx->repl[0] == '^' || strchr(_ctx->repl, '-') != NULL)
+		    rb_raise(rb_eRuntimeError, "repl argument value (%s) not " \
+			    "supported yet", _ctx->repl);
+	    }
+
+	    if (s_is_range) {
+		assert(sb <= character && se >= character);
+		delta = character - sb;
+	    }
+	    else {
+		char *p;
+		p = strchr(_ctx->src, character);
+		assert(p != NULL);
+		delta = (long)p - (long)_ctx->src;
+	    }
+
+	    if ((r_is_range && delta > (re - rb))
+		    || (!r_is_range && delta > _ctx->repl_len)) {
+		if (_ctx->opt == NULL) {
+		    _ctx->opt = CFStringCreateWithBytes(NULL, 
+			    (const UInt8 *)&_ctx->repl[_ctx->repl_len - 1], 
+			    1, 
+			    kCFStringEncodingUTF8,
+			    false);
+		}
+		substr = _ctx->opt;
+		release_substr = false;
+	    }
+	    else {
+		const char r = r_is_range
+		    ? rb + delta : _ctx->repl[delta];
+		substr = CFStringCreateWithBytes(NULL, (const UInt8 *)&r, 1, 
+			kCFStringEncodingUTF8, false);
+		release_substr = true;
+	    }
+
+	    trans_replace((CFMutableStringRef)str, result_range, 
+	        (CFStringRef)substr, search_range, _ctx->sflag);
+
+	    if (release_substr)
+		CFRelease(substr);
+	}
+    }
+    _ctx->changed = true;
+}
+#endif
 
 static VALUE
 tr_trans(VALUE str, VALUE src, VALUE repl, int sflag)
 {
+#if WITH_OBJC
+    struct tr_trans_cb_ctx _ctx;
+
+    StringValue(src);
+    StringValue(repl);
+    
+    if (RSTRING_CLEN(str) == 0)
+       return Qnil;
+  
+    rb_str_modify(str);
+
+    _ctx.orepl = repl; 
+    _ctx.src = RSTRING_CPTR(src);
+    _ctx.repl = RSTRING_CPTR(repl);
+
+    /* TODO: support non-8-bit src/repl */
+    assert(_ctx.src != NULL && _ctx.repl != NULL);
+
+    _ctx.src_len = strlen(_ctx.src);
+    _ctx.repl_len = strlen(_ctx.repl);
+    _ctx.sflag = sflag;
+    _ctx.changed = false;
+    _ctx.opt = NULL;
+
+    str_charset_find((CFStringRef)str, &src, 1, _ctx.repl_len > 1,
+	rb_str_trans_cb, &_ctx); 
+
+    if (_ctx.opt != NULL)
+	CFRelease(_ctx.opt);
+
+    return _ctx.changed ? str : Qnil;
+#else
     SIGNED_VALUE trans[256];
     rb_encoding *enc, *e1, *e2;
     struct tr trsrc, trrepl;
@@ -4325,7 +5637,7 @@ tr_trans(VALUE str, VALUE src, VALUE repl, int sflag)
 	    t += tlen;
 	}
 	*t = '\0';
-	RSTRING(str)->as.heap.ptr = buf;
+	GC_WB(&RSTRING(str)->as.heap.ptr, buf);
 	RSTRING(str)->as.heap.len = t - buf;
 	STR_SET_NOEMBED(str);
 	RSTRING(str)->as.heap.aux.capa = max;
@@ -4389,19 +5701,21 @@ tr_trans(VALUE str, VALUE src, VALUE repl, int sflag)
 	    xfree(RSTRING(str)->as.heap.ptr);
 	}
 	*t = '\0';
-	RSTRING(str)->as.heap.ptr = buf;
+	GC_WB(&RSTRING(str)->as.heap.ptr, buf);
 	RSTRING(str)->as.heap.len = t - buf;
 	STR_SET_NOEMBED(str);
 	RSTRING(str)->as.heap.aux.capa = max;
     }
     
     if (modify) {
+#if !WITH_OBJC
 	rb_enc_associate(str, enc);
+#endif
 	return str;
     }
     return Qnil;
+#endif
 }
-
 
 /*
  *  call-seq:
@@ -4440,10 +5754,11 @@ static VALUE
 rb_str_tr(VALUE str, VALUE src, VALUE repl)
 {
     str = rb_str_dup(str);
-    tr_trans(str, src, repl, 0);
+    rb_str_tr_bang(str, src, repl);
     return str;
 }
 
+#if !WITH_OBJC
 static void
 tr_setup_table(VALUE str, char stable[256], int first, 
 	       VALUE *tablep, VALUE *ctablep, rb_encoding *enc)
@@ -4517,6 +5832,10 @@ tr_find(int c, char table[256], VALUE del, VALUE nodel)
     }
 }
 
+#else
+
+#endif
+
 /*
  *  call-seq:
  *     str.delete!([other_str]+)   => str or nil
@@ -4525,9 +5844,34 @@ tr_find(int c, char table[256], VALUE del, VALUE nodel)
  *  <code>nil</code> if <i>str</i> was not modified.
  */
 
+#if WITH_OBJC
+static void
+rb_str_delete_bang_cb(CFRange *search_range, const CFRange *result_range, 
+    CFStringRef str, UniChar character, void *ctx)
+{
+    CFStringDelete((CFMutableStringRef)str, *result_range);
+    search_range->length -= result_range->length 
+	+ (result_range->location - search_range->location);
+    search_range->location = result_range->location;
+    *(bool *)ctx = true;
+}
+#endif
+
 static VALUE
 rb_str_delete_bang(int argc, VALUE *argv, VALUE str)
 {
+#if WITH_OBJC
+    bool changed;
+    if (argc < 1)
+	rb_raise(rb_eArgError, "wrong number of arguments");
+    rb_str_modify(str);
+    changed = false;
+    str_charset_find((CFStringRef)str, argv, argc, false,
+	rb_str_delete_bang_cb, &changed);
+    if (!changed)
+    	return Qnil;
+    return str;
+#else
     char squeez[256];
     rb_encoding *enc = 0;
     char *s, *send, *t;
@@ -4570,8 +5914,8 @@ rb_str_delete_bang(int argc, VALUE *argv, VALUE str)
     ENC_CODERANGE_SET(str, cr);
     if (modify) return str;
     return Qnil;
+#endif
 }
-
 
 /*
  *  call-seq:
@@ -4604,9 +5948,42 @@ rb_str_delete(int argc, VALUE *argv, VALUE str)
  *  <code>nil</code> if no changes were made.
  */
 
+#if WITH_OBJC
+static void
+rb_str_squeeze_bang_cb(CFRange *search_range, const CFRange *result_range, 
+    CFStringRef str, UniChar character, void *ctx)
+{
+    if (result_range->length > 1) {
+	CFRange to_delete = *result_range;
+	to_delete.length--;
+	CFStringDelete((CFMutableStringRef)str, to_delete);
+	search_range->length -= result_range->length 
+	    + (result_range->location - search_range->location);
+	search_range->location = result_range->location + 1;
+	*(bool *)ctx = true;
+    }
+}
+#endif
+
 static VALUE
 rb_str_squeeze_bang(int argc, VALUE *argv, VALUE str)
 {
+#if WITH_OBJC
+    bool changed;
+    VALUE all_chars;
+    if (argc == 0) {
+	argc = 1;
+	all_chars = (VALUE)CFSTR("a-z");
+	argv = &all_chars;
+    }
+    rb_str_modify(str);
+    changed = false;
+    str_charset_find((CFStringRef)str, argv, argc, true,
+	rb_str_squeeze_bang_cb, &changed);
+    if (!changed)
+    	return Qnil;
+    return str;
+#else
     char squeez[256];
     rb_encoding *enc = 0;
     VALUE del = 0, nodel = 0;
@@ -4651,6 +6028,7 @@ rb_str_squeeze_bang(int argc, VALUE *argv, VALUE str)
 
     if (modify) return str;
     return Qnil;
+#endif
 }
 
 
@@ -4710,7 +6088,7 @@ static VALUE
 rb_str_tr_s(VALUE str, VALUE src, VALUE repl)
 {
     str = rb_str_dup(str);
-    tr_trans(str, src, repl, 1);
+    rb_str_tr_s_bang(str, src, repl);
     return str;
 }
 
@@ -4731,9 +6109,27 @@ rb_str_tr_s(VALUE str, VALUE src, VALUE repl)
  *     a.count "ej-m"          #=> 4
  */
 
+#if WITH_OBJC
+static void
+rb_str_count_cb(CFRange *search_range, const CFRange *result_range, 
+    CFStringRef str, UniChar character, void *ctx)
+{
+    (*(int *)ctx) += result_range->length;
+}
+#endif
+
 static VALUE
 rb_str_count(int argc, VALUE *argv, VALUE str)
 {
+#if WITH_OBJC
+    int count;
+    if (argc < 1)
+	rb_raise(rb_eArgError, "wrong number of arguments");
+    count = 0;
+    str_charset_find((CFStringRef)str, argv, argc, false,
+	rb_str_count_cb, &count); 
+    return INT2NUM(count);
+#else
     char table[256];
     rb_encoding *enc = 0;
     VALUE del = 0, nodel = 0;
@@ -4765,6 +6161,7 @@ rb_str_count(int argc, VALUE *argv, VALUE str)
 	s += clen;
     }
     return INT2NUM(i);
+#endif
 }
 
 
@@ -4817,15 +6214,23 @@ rb_str_split_m(int argc, VALUE *argv, VALUE str)
     VALUE spat;
     VALUE limit;
     int awk_split = Qfalse;
+    int spat_string = Qfalse;
     long beg, end, i = 0;
     int lim = 0;
     VALUE result, tmp;
+    const char *cstr;
+    long clen;
+
+#if !WITH_OBJC
+    cstr = RSTRING_CPTR(str);
+#endif
+    clen = RSTRING_CLEN(str);
 
     if (rb_scan_args(argc, argv, "02", &spat, &limit) == 2) {
 	lim = NUM2INT(limit);
 	if (lim <= 0) limit = Qnil;
 	else if (lim == 1) {
-	    if (RSTRING_LEN(str) == 0)
+	    if (clen == 0)
 		return rb_ary_new2(0);
 	    return rb_ary_new3(1, str);
 	}
@@ -4833,6 +6238,7 @@ rb_str_split_m(int argc, VALUE *argv, VALUE str)
     }
 
     enc = STR_ENC_GET(str);
+    result = rb_ary_new();
     if (NIL_P(spat)) {
 	if (!NIL_P(rb_fs)) {
 	    spat = rb_fs;
@@ -4843,35 +6249,101 @@ rb_str_split_m(int argc, VALUE *argv, VALUE str)
     else {
       fs_set:
 	if (TYPE(spat) == T_STRING) {
-	    rb_encoding *enc2 = STR_ENC_GET(spat);
-
-	    if (rb_enc_mbminlen(enc2) == 1) {
-		if (RSTRING_LEN(spat) == 1 && RSTRING_PTR(spat)[0] == ' '){
+#if WITH_OBJC
+	    spat_string = Qtrue;
+	    if (RSTRING_CLEN(spat) == 1
+		&& CFStringGetCharacterAtIndex((CFStringRef)spat, 0) == ' ') {
 		awk_split = Qtrue;
 	    }
+#else
+	    const char *spat_cstr;
+	    long spat_clen;
+	    rb_encoding *enc2 = STR_ENC_GET(spat);
+
+	    spat_cstr = RSTRING_CPTR(spat);
+	    spat_clen = RSTRING_CLEN(spat);
+	    if (rb_enc_mbminlen(enc2) == 1) {
+		if (spat_clen == 1 && spat_cstr[0] == ' '){
+		    awk_split = Qtrue;
+		}
 	    }
 	    else {
 		int l;
-		if (rb_enc_ascget(RSTRING_PTR(spat), RSTRING_END(spat), &l, enc2) == ' ' &&
-		    RSTRING_LEN(spat) == l) {
+		if (rb_enc_ascget(spat_cstr, spat_cstr+spat_clen, &l, enc2) == ' ' &&
+		    spat_clen == l) {
 		    awk_split = Qtrue;
 		}
 	    }
 	    if (!awk_split) {
 		spat = rb_reg_regcomp(rb_reg_quote(spat));
 	    }
+#endif
 	}
 	else {
 	    spat = get_pat(spat, 1);
 	}
     }
 
-    result = rb_ary_new();
     beg = 0;
+#if WITH_OBJC
+    if (awk_split || spat_string) {
+	CFRange search_range;
+	CFCharacterSetRef charset;
+	if (spat == Qnil)
+	    charset = CFCharacterSetGetPredefined(
+		kCFCharacterSetWhitespaceAndNewline);
+	search_range = CFRangeMake(0, clen);
+	do {
+	    CFRange result_range;
+	    CFRange substr_range;
+	    if (spat != Qnil) {
+		if (!CFStringFindWithOptions((CFStringRef)str, 
+		    (CFStringRef)spat,
+		    search_range,
+		    0,
+		    &result_range))
+		    break;
+	    }
+	    else {
+		if (!CFStringFindCharacterFromSet((CFStringRef)str,
+		    charset, 
+		    search_range,
+		    0,
+		    &result_range))
+		    break;
+	    }
+
+	    substr_range.location = search_range.location;
+	    substr_range.length = result_range.location 
+		- search_range.location;
+
+	    if (awk_split == Qfalse || substr_range.length > 0) {
+		VALUE substr;
+	       
+		substr = rb_str_subseq(str, substr_range.location,
+		    substr_range.length);
+
+		if (awk_split == Qtrue) {
+		    CFStringTrimWhitespace((CFMutableStringRef)substr);
+		    if (CFStringGetLength((CFStringRef)substr) > 0)
+			rb_ary_push(result, substr);
+		}
+		else {
+		    rb_ary_push(result, substr);
+		}
+	    }
+
+	    search_range.location = result_range.location 
+		+ result_range.length;
+	    search_range.length = clen - search_range.location;
+	}
+	while ((limit == Qnil || --lim > 1));
+	beg = search_range.location;
+#else
     if (awk_split) {
-	char *ptr = RSTRING_PTR(str);
-	char *eptr = RSTRING_END(str);
-	char *bptr = ptr;
+	const char *ptr = cstr;
+	const char *eptr = cstr+clen;
+	const char *bptr = ptr;
 	int skip = 1;
 	int c;
 
@@ -4901,6 +6373,7 @@ rb_str_split_m(int argc, VALUE *argv, VALUE str)
 		}
 	    }
 	}
+#endif
     }
     else {
 	long start = beg;
@@ -4911,22 +6384,34 @@ rb_str_split_m(int argc, VALUE *argv, VALUE str)
 	while ((end = rb_reg_search(spat, str, start, 0)) >= 0) {
 	    regs = RMATCH_REGS(rb_backref_get());
 	    if (start == end && BEG(0) == END(0)) {
-		if (!RSTRING_PTR(str)) {
+#if WITH_OBJC
+		if (0) {
+#else
+		if (!cstr) {
 		    rb_ary_push(result, rb_str_new("", 0));
+#endif
 		    break;
 		}
 		else if (last_null == 1) {
+#if WITH_OBJC
+		    rb_ary_push(result, rb_str_subseq(str, beg, 1));
+#else
 		    rb_ary_push(result, rb_str_subseq(str, beg,
-						      rb_enc_mbclen(RSTRING_PTR(str)+beg,
-								    RSTRING_END(str),
+						      rb_enc_mbclen(cstr+beg,
+								    cstr+clen,
 								    enc)));
+#endif
 		    beg = start;
 		}
 		else {
-                    if (RSTRING_PTR(str)+start == RSTRING_END(str))
+                    if (start == clen)
                         start++;
                     else
-                        start += rb_enc_mbclen(RSTRING_PTR(str)+start,RSTRING_END(str),enc);
+#if WITH_OBJC
+			start += 1;
+#else
+                        start += rb_enc_mbclen(cstr+start,cstr+clen,enc);
+#endif
 		    last_null = 1;
 		    continue;
 		}
@@ -4948,16 +6433,18 @@ rb_str_split_m(int argc, VALUE *argv, VALUE str)
 	    if (!NIL_P(limit) && lim <= ++i) break;
 	}
     }
-    if (RSTRING_LEN(str) > 0 && (!NIL_P(limit) || RSTRING_LEN(str) > beg || lim < 0)) {
-	if (RSTRING_LEN(str) == beg)
+    if (clen > 0 && (!NIL_P(limit) || clen > beg || lim < 0)) {
+	if (clen == beg) {
 	    tmp = rb_str_new5(str, 0, 0);
-	else
-	    tmp = rb_str_subseq(str, beg, RSTRING_LEN(str)-beg);
+	}
+	else {
+	    tmp = rb_str_subseq(str, beg, clen-beg);
+	}
 	rb_ary_push(result, tmp);
     }
     if (NIL_P(limit) && lim == 0) {
 	while (RARRAY_LEN(result) > 0 &&
-	       RSTRING_LEN(RARRAY_PTR(result)[RARRAY_LEN(result)-1]) == 0)
+	       RSTRING_CLEN(RARRAY_AT(result, RARRAY_LEN(result)-1)) == 0)
 	    rb_ary_pop(result);
     }
 
@@ -4974,6 +6461,13 @@ rb_str_split(VALUE str, const char *sep0)
     return rb_str_split_m(1, &sep, str);
 }
 
+VALUE
+rb_str_split2(VALUE str, VALUE sep)
+{
+    StringValue(str);
+    StringValue(sep);
+    return rb_str_split_m(1, &sep, str);
+}
 
 /*
  *  Document-method: lines
@@ -4995,9 +6489,8 @@ rb_str_split(VALUE str, const char *sep0)
  *  
  *  Splits <i>str</i> using the supplied parameter as the record separator
  *  (<code>$/</code> by default), passing each substring in turn to the supplied
- *  block. If a zero-length record separator is supplied, the string is split on
- *  <code>\n</code> characters, except that multiple successive newlines are
- *  appended together.
+ *  block. If a zero-length record separator is supplied, the string is split
+ *  into paragraphs delimited by multiple successive newlines.
  *     
  *     print "Example one\n"
  *     "hello\nworld".each {|s| p s}
@@ -5024,6 +6517,73 @@ rb_str_split(VALUE str, const char *sep0)
 static VALUE
 rb_str_each_line(int argc, VALUE *argv, VALUE str)
 {
+#if WITH_OBJC
+    VALUE rs;
+    CFArrayRef ranges;
+    long n;
+    CFStringRef substr;
+    CFRange sub_range, search_range, res_range;
+    bool zero_sep;
+
+    if (rb_scan_args(argc, argv, "01", &rs) == 0) {
+	rs = rb_rs;
+    }
+    RETURN_ENUMERATOR(str, argc, argv);
+    if (NIL_P(rs)) {
+	rb_yield(str);
+	return str;
+    }
+    StringValue(rs);
+    zero_sep = CFStringGetLength((CFStringRef)rs) == 0;
+    if (zero_sep) {
+	rs = rb_default_rs;
+    }
+    n = CFStringGetLength((CFStringRef)str);
+    search_range = CFRangeMake(0, n);
+    sub_range = CFRangeMake(0, 0);
+
+#define YIELD_SUBSTR(range) \
+    do { \
+	VALUE mcopy; \
+	substr = CFStringCreateWithSubstring(NULL, (CFStringRef)str,  \
+	    range); \
+	mcopy = (VALUE)CFStringCreateMutableCopy(NULL, 0, \
+	    (CFStringRef)substr); \
+	CFMakeCollectable((CFTypeRef)mcopy); \
+	rb_yield(mcopy); \
+	CFRelease(substr); \
+    } \
+    while (0)
+
+    while (CFStringFindWithOptions((CFStringRef)str, (CFStringRef)rs,
+	search_range, 0, &res_range)) {
+	if (zero_sep
+	    && sub_range.length > 0 
+	    && sub_range.location + sub_range.length 
+	       == res_range.location) {
+	    sub_range.length += res_range.length;
+	}		
+	else {
+	    if (sub_range.length > 0)
+		YIELD_SUBSTR(sub_range);
+	    sub_range = CFRangeMake(search_range.location, 
+		res_range.location - search_range.location + res_range.length);
+	}
+	search_range.location = res_range.location + res_range.length;
+	search_range.length = n - search_range.location;
+    }
+
+    if (sub_range.length != 0)
+	YIELD_SUBSTR(sub_range);
+
+    if (search_range.location < n)
+	YIELD_SUBSTR(CFRangeMake(search_range.location, 
+	    n - search_range.location));
+
+#undef YIELD_SUBSTR
+
+    return str;
+#else
     rb_encoding *enc;
     VALUE rs;
     int newline;
@@ -5032,8 +6592,11 @@ rb_str_each_line(int argc, VALUE *argv, VALUE str)
     VALUE line;
     int n;
 
-    if (rb_scan_args(argc, argv, "01", &rs) == 0) {
+    if (argc == 0) {
 	rs = rb_rs;
+    }
+    else {
+	rb_scan_args(argc, argv, "01", &rs);
     }
     RETURN_ENUMERATOR(str, argc, argv);
     if (NIL_P(rs)) {
@@ -5108,6 +6671,7 @@ rb_str_each_line(int argc, VALUE *argv, VALUE str)
     }
 
     return str;
+#endif
 }
 
 
@@ -5140,11 +6704,15 @@ rb_str_each_line(int argc, VALUE *argv, VALUE str)
 static VALUE
 rb_str_each_byte(VALUE str)
 {
-    long i;
+    long n, i;
+    char *ptr;
 
     RETURN_ENUMERATOR(str, 0, 0);
-    for (i=0; i<RSTRING_LEN(str); i++) {
-	rb_yield(INT2FIX(RSTRING_PTR(str)[i] & 0xff));
+
+    n = RSTRING_LEN(str);
+    ptr = RSTRING_PTR(str);
+    for (i=0; i<n; i++) {
+	rb_yield(INT2FIX(ptr[i] & 0xff));
     }
     return str;
 }
@@ -5179,6 +6747,24 @@ rb_str_each_byte(VALUE str)
 static VALUE
 rb_str_each_char(VALUE str)
 {
+#if WITH_OBJC
+    CFStringInlineBuffer buf;
+    long i, n;
+
+    RETURN_ENUMERATOR(str, 0, 0);
+    n = CFStringGetLength((CFStringRef)str);
+    CFStringInitInlineBuffer((CFStringRef)str, &buf, CFRangeMake(0, n));
+    for (i = 0; i < n; i++) {
+	UniChar c;
+	VALUE s;
+
+	c = CFStringGetCharacterFromInlineBuffer(&buf, i);
+	s = rb_str_new(NULL, 0);
+	CFStringAppendCharacters((CFMutableStringRef)s, &c, 1);
+	rb_yield(s);
+    }
+    return str;
+#else
     int i, len, n;
     const char *ptr;
     rb_encoding *enc;
@@ -5193,8 +6779,10 @@ rb_str_each_char(VALUE str)
 	rb_yield(rb_str_subseq(str, i, n));
     }
     return str;
+#endif
 }
 
+#if !WITH_OBJC
 static long
 chopped_length(VALUE str)
 {
@@ -5212,6 +6800,7 @@ chopped_length(VALUE str)
     }
     return p - beg;
 }
+#endif
 
 /*
  *  call-seq:
@@ -5225,6 +6814,27 @@ chopped_length(VALUE str)
 static VALUE
 rb_str_chop_bang(VALUE str)
 {
+#if WITH_OBJC
+    long n;
+    const char *p;
+    CFRange r;
+
+    n = CFStringGetLength((CFStringRef)str);
+    if (n == 0)
+	return Qnil;
+    rb_str_modify(str);
+    p = RSTRING_CPTR(str);
+    r = CFRangeMake(n - 1, 1);
+    if (n >= 2 && p[n - 1] == '\n' && p[n - 2] == '\r') {
+	/* We need this to pass the tests, but this is most probably 
+	 * unnecessary.
+	 */
+	r.location--;
+	r.length++;
+    }
+    CFStringDelete((CFMutableStringRef)str, r);
+    return str;
+#else
     if (RSTRING_LEN(str) > 0) {
 	long len;
 	rb_str_modify(str);
@@ -5234,6 +6844,7 @@ rb_str_chop_bang(VALUE str)
 	return str;
     }
     return Qnil;
+#endif
 }
 
 
@@ -5257,10 +6868,16 @@ rb_str_chop_bang(VALUE str)
 static VALUE
 rb_str_chop(VALUE str)
 {
+#if WITH_OBJC
+    VALUE str2 = rb_str_dup(str);
+    rb_str_chop_bang(str2);
+    return str2;
+#else
     VALUE str2 = rb_str_new5(str, RSTRING_PTR(str), chopped_length(str));
     rb_enc_cr_str_copy_for_substr(str2, str);
     OBJ_INFECT(str2, str);
     return str2;
+#endif
 }
 
 
@@ -5275,6 +6892,51 @@ rb_str_chop(VALUE str)
 static VALUE
 rb_str_chomp_bang(int argc, VALUE *argv, VALUE str)
 {
+#if WITH_OBJC
+    VALUE rs;
+    long len, rslen;
+    CFRange range_result;
+
+    if (rb_scan_args(argc, argv, "01", &rs) == 0)
+	rs = rb_rs;
+    rb_str_modify(str);
+    if (rs == Qnil)
+	return Qnil;
+    len = CFStringGetLength((CFStringRef)str);
+    if (len == 0)
+	return Qnil;
+    rslen = CFStringGetLength((CFStringRef)rs);
+    range_result = CFRangeMake(len, 0);
+    if (rs == rb_default_rs
+	|| rslen == 0
+	|| (rslen == 1 
+	    && CFStringGetCharacterAtIndex((CFStringRef)rs, 0) == '\n')) {
+	UniChar c;
+	c = CFStringGetCharacterAtIndex((CFStringRef)str, 
+		range_result.location - 1);
+	if (c == '\n') {
+	    range_result.location--;
+	    range_result.length++;
+	    c = CFStringGetCharacterAtIndex((CFStringRef)str, 
+		    range_result.location - 1);
+	}
+	if (c == '\r' && (rslen > 0 || range_result.location != len)) {
+	    /* MS is the devil */
+	    range_result.location--;
+	    range_result.length++;
+	}
+    }
+    else {
+	StringValue(rs);
+	CFStringFindWithOptions((CFStringRef)str, (CFStringRef)rs,
+	    CFRangeMake(len - rslen, rslen), 0, &range_result);
+    }
+    if (range_result.length == 0 
+	|| range_result.location + range_result.length > len)
+	return Qnil;
+    CFStringDelete((CFMutableStringRef)str, range_result);
+    return str;
+#else
     rb_encoding *enc;
     VALUE rs;
     int newline;
@@ -5366,6 +7028,7 @@ rb_str_chomp_bang(int argc, VALUE *argv, VALUE str)
 	return str;
     }
     return Qnil;
+#endif
 }
 
 
@@ -5408,9 +7071,58 @@ rb_str_chomp(int argc, VALUE *argv, VALUE str)
  *     "hello".lstrip!      #=> nil
  */
 
+#if WITH_OBJC
+static VALUE
+rb_str_strip_bang2(VALUE str, int direction)
+{
+    long i, n, orig_n;
+    CFStringInlineBuffer buf;
+    CFCharacterSetRef charset;
+    bool changed;
+
+    rb_str_modify(str);
+    n = orig_n = CFStringGetLength((CFStringRef)str);
+    if (n == 0)
+	return Qnil;
+    CFStringInitInlineBuffer((CFStringRef)str, &buf, CFRangeMake(0, n));
+    charset = CFCharacterSetGetPredefined(kCFCharacterSetWhitespaceAndNewline);
+    changed = false;
+
+    if (direction >= 0) {
+	for (i = n - 1; i >= 0; i--) {
+	    UniChar c = CFStringGetCharacterFromInlineBuffer(&buf, i);
+	    if (!CFCharacterSetIsCharacterMember(charset, c))
+		break;
+	}
+	if (i < n - 1) {
+	    CFRange range = CFRangeMake(i + 1, n - i - 1);
+	    CFStringDelete((CFMutableStringRef)str, range);
+	    n -= range.length;	    
+	}
+    }
+
+    if (direction <= 0) {
+	for (i = 0; i < n; i++) {
+	    UniChar c = CFStringGetCharacterFromInlineBuffer(&buf, i);
+	    if (!CFCharacterSetIsCharacterMember(charset, c))
+		break;
+	}
+	if (i > 0) {
+	    CFRange range = CFRangeMake(0, i);
+	    CFStringDelete((CFMutableStringRef)str, range);
+	}
+    }
+
+    return orig_n != n ? str : Qnil;
+}
+#endif
+
 static VALUE
 rb_str_lstrip_bang(VALUE str)
 {
+#if WITH_OBJC
+    return rb_str_strip_bang2(str, -1);
+#else
     rb_encoding *enc;
     char *s, *t, *e;
 
@@ -5435,6 +7147,7 @@ rb_str_lstrip_bang(VALUE str)
 	return str;
     }
     return Qnil;
+#endif
 }
 
 
@@ -5473,6 +7186,9 @@ rb_str_lstrip(VALUE str)
 static VALUE
 rb_str_rstrip_bang(VALUE str)
 {
+#if WITH_OBJC
+    return rb_str_strip_bang2(str, 1);
+#else
     rb_encoding *enc;
     char *s, *t, *e;
     int space_seen = Qfalse;
@@ -5502,6 +7218,7 @@ rb_str_rstrip_bang(VALUE str)
 	return str;
     }
     return Qnil;
+#endif
 }
 
 
@@ -5536,11 +7253,15 @@ rb_str_rstrip(VALUE str)
 static VALUE
 rb_str_strip_bang(VALUE str)
 {
+#if WITH_OBJC
+    return rb_str_strip_bang2(str, 0);
+#else
     VALUE l = rb_str_lstrip_bang(str);
     VALUE r = rb_str_rstrip_bang(str);
 
     if (NIL_P(l) && NIL_P(r)) return Qnil;
     return str;
+#endif
 }
 
 
@@ -5563,14 +7284,41 @@ rb_str_strip(VALUE str)
 }
 
 static VALUE
-scan_once(VALUE str, VALUE pat, long *start)
+scan_once(VALUE str, VALUE pat, long *start, long strlen, bool pat_is_string)
 {
     rb_encoding *enc;
     VALUE result, match;
     struct re_registers *regs;
     long i;
 
+#if WITH_OBJC
+    if (pat_is_string) {
+	/* XXX this is sometimes slower than the regexp search, especially for
+	 * long pattern strings 
+	 */
+	CFRange result_range;
+	if (CFStringFindWithOptions((CFStringRef)str, 
+	    (CFStringRef)pat,
+	    CFRangeMake(*start, strlen - *start),
+	    0,
+	    &result_range)) {
+	    CFStringRef str = CFStringCreateWithSubstring(NULL, 
+		(CFStringRef)str, result_range);
+	    *start = result_range.location + result_range.length + 1;
+	    result = (VALUE)CFStringCreateMutableCopy(NULL, 0, str);
+	    CFRelease(str);
+	    CFMakeCollectable((CFTypeRef)result);
+	}
+	else {
+	    result = Qnil;
+	}
+	return result;
+    }
+#endif
+
+#if !WITH_OBJC
     enc = STR_ENC_GET(str);
+#endif
     if (rb_reg_search(pat, str, *start, 0) >= 0) {
 	match = rb_backref_get();
 	regs = RMATCH_REGS(match);
@@ -5578,10 +7326,12 @@ scan_once(VALUE str, VALUE pat, long *start)
 	    /*
 	     * Always consume at least one character of the input string
 	     */
+#if !WITH_OBJC
 	    if (RSTRING_LEN(str) > END(0))
 		*start = END(0)+rb_enc_mbclen(RSTRING_PTR(str)+END(0),
 					      RSTRING_END(str), enc);
 	    else
+#endif
 		*start = END(0)+1;
 	}
 	else {
@@ -5638,13 +7388,16 @@ rb_str_scan(VALUE str, VALUE pat)
     VALUE result;
     long start = 0;
     VALUE match = Qnil;
-    char *p = RSTRING_PTR(str); long len = RSTRING_LEN(str);
-
-    pat = get_pat(pat, 1);
+    long len = CFStringGetLength((CFStringRef)str);
+    bool pat_is_string = TYPE(pat) == T_STRING;
+    
+    if (!pat_is_string)
+	pat = get_pat(pat, 1);
     if (!rb_block_given_p()) {
 	VALUE ary = rb_ary_new();
 
-	while (!NIL_P(result = scan_once(str, pat, &start))) {
+	while (!NIL_P(result = scan_once(str, pat, &start, len, 
+					 pat_is_string))) {
 	    match = rb_backref_get();
 	    rb_ary_push(ary, result);
 	}
@@ -5652,11 +7405,13 @@ rb_str_scan(VALUE str, VALUE pat)
 	return ary;
     }
 
-    while (!NIL_P(result = scan_once(str, pat, &start))) {
+    while (!NIL_P(result = scan_once(str, pat, &start, len, pat_is_string))) {
 	match = rb_backref_get();
 	rb_match_busy(match);
 	rb_yield(result);
+#if !WITH_OBJC
 	str_mod_check(str, p, len);
+#endif
 	rb_backref_set(match);	/* restore $~ value */
     }
     rb_backref_set(match);
@@ -5737,8 +7492,9 @@ rb_str_crypt(VALUE str, VALUE salt)
     if (RSTRING_LEN(salt) < 2)
 	rb_raise(rb_eArgError, "salt too short (need >=2 bytes)");
 
-    if (RSTRING_PTR(str)) s = RSTRING_PTR(str);
-    else s = "";
+    s = RSTRING_PTR(str);
+    if (s == NULL)
+	s = "";
     result = rb_str_new2(crypt(s, RSTRING_PTR(salt)));
     OBJ_INFECT(result, str);
     OBJ_INFECT(result, salt);
@@ -5769,7 +7525,11 @@ rb_str_crypt(VALUE str, VALUE salt)
 VALUE
 rb_str_intern(VALUE s)
 {
+#if WITH_OBJC
+    VALUE str = s;
+#else
     VALUE str = RB_GC_GUARD(s);
+#endif
     ID id;
 
     if (OBJ_TAINTED(str) && rb_safe_level() >= 1) {
@@ -5778,7 +7538,6 @@ rb_str_intern(VALUE s)
     id = rb_intern_str(str);
     return ID2SYM(id);
 }
-
 
 /*
  *  call-seq:
@@ -5792,11 +7551,18 @@ rb_str_intern(VALUE s)
 VALUE
 rb_str_ord(VALUE s)
 {
+#if WITH_OBJC
+    if (CFStringGetLength((CFStringRef)s) == 0)
+	rb_raise(rb_eArgError, "empty string");
+    return INT2NUM(CFStringGetCharacterAtIndex((CFStringRef)s, 0));
+#else
     int c;
 
     c = rb_enc_codepoint(RSTRING_PTR(s), RSTRING_END(s), STR_ENC_GET(s));
     return INT2NUM(c);
+#endif
 }
+
 /*
  *  call-seq:
  *     str.sum(n=16)   => integer
@@ -5816,11 +7582,13 @@ rb_str_sum(int argc, VALUE *argv, VALUE str)
     char *ptr, *p, *pend;
     long len;
 
-    if (rb_scan_args(argc, argv, "01", &vbits) == 0) {
+    if (argc == 0) {
 	bits = 16;
     }
-    else bits = NUM2INT(vbits);
-
+    else {
+	rb_scan_args(argc, argv, "01", &vbits);
+	bits = NUM2INT(vbits);
+    }
     ptr = p = RSTRING_PTR(str);
     len = RSTRING_LEN(str);
     pend = p + len;
@@ -5856,9 +7624,66 @@ rb_str_sum(int argc, VALUE *argv, VALUE str)
     }
 }
 
+#if WITH_OBJC
+static inline void
+rb_str_justify0(VALUE str, VALUE pad, long width, long padwidth, long index)
+{
+    do {
+	if (padwidth > width) {
+	    pad = (VALUE)CFStringCreateWithSubstring(
+		    NULL,
+		    (CFStringRef)pad,
+		    CFRangeMake(0, width));
+	    CFMakeCollectable((CFTypeRef)pad);
+	}
+	CFStringInsert((CFMutableStringRef)str, index, (CFStringRef)pad);
+	width -= padwidth;	
+    }
+    while (width > 0);
+}
+#endif
+
 static VALUE
 rb_str_justify(int argc, VALUE *argv, VALUE str, char jflag)
 {
+#if WITH_OBJC
+    VALUE w, pad;
+    long n, width, padwidth;
+
+    rb_scan_args(argc, argv, "11", &w, &pad);
+    width = NUM2LONG(w);
+    n = CFStringGetLength((CFStringRef)str);
+   
+    str =  rb_str_dup(str);
+    if (width < 0 || width <= n)
+	return str;
+    width -= n;
+
+    if (NIL_P(pad)) {
+	pad = rb_str_new(" ", 1);
+	padwidth = 1;
+    }
+    else {
+	StringValue(pad);
+	padwidth = CFStringGetLength((CFStringRef)pad);
+    }
+
+    if (jflag == 'c') {
+	rb_str_justify0(str, pad, ceil(width / 2.0), padwidth, n);
+	rb_str_justify0(str, pad, floor(width / 2.0), padwidth, 0);
+    }
+    else if (jflag == 'l') {
+	rb_str_justify0(str, pad, width, padwidth, n);
+    }
+    else if (jflag == 'r') {
+	rb_str_justify0(str, pad, width, padwidth, 0);
+    }
+    else {
+	rb_bug("invalid jflag");
+    }
+
+    return str;
+#else
     rb_encoding *enc;
     VALUE w;
     long width, len, flen = 1, fclen = 1;
@@ -5933,6 +7758,7 @@ rb_str_justify(int argc, VALUE *argv, VALUE str, char jflag)
     if (!NIL_P(pad)) OBJ_INFECT(res, pad);
     rb_enc_associate(res, enc);
     return res;
+#endif
 }
 
 
@@ -6012,6 +7838,7 @@ rb_str_partition(VALUE str, VALUE sep)
 {
     long pos;
     int regex = Qfalse;
+    long strlen, seplen;
 
     if (TYPE(sep) == T_REGEXP) {
 	pos = rb_reg_search(sep, str, 0, 0);
@@ -6026,6 +7853,7 @@ rb_str_partition(VALUE str, VALUE sep)
 		     rb_obj_classname(sep));
 	}
 	pos = rb_str_index(str, sep, 0);
+	seplen = CFStringGetLength((CFStringRef)sep);
     }
     if (pos < 0) {
       failed:
@@ -6033,12 +7861,14 @@ rb_str_partition(VALUE str, VALUE sep)
     }
     if (regex) {
 	sep = rb_str_subpat(str, sep, 0);
-	if (pos == 0 && RSTRING_LEN(sep) == 0) goto failed;
+	seplen = CFStringGetLength((CFStringRef)sep);
+	if (pos == 0 && seplen == 0) goto failed;
     }
+    strlen = CFStringGetLength((CFStringRef)str);
     return rb_ary_new3(3, rb_str_subseq(str, 0, pos),
 		          sep,
-		          rb_str_subseq(str, pos+RSTRING_LEN(sep),
-					     RSTRING_LEN(str)-pos-RSTRING_LEN(sep)));
+		          rb_str_subseq(str, pos+seplen,
+					     strlen-pos-seplen));
 }
 
 /*
@@ -6059,6 +7889,7 @@ rb_str_rpartition(VALUE str, VALUE sep)
 {
     long pos = RSTRING_LEN(str);
     int regex = Qfalse;
+    long seplen;
 
     if (TYPE(sep) == T_REGEXP) {
 	pos = rb_reg_search(sep, str, pos, 1);
@@ -6080,10 +7911,13 @@ rb_str_rpartition(VALUE str, VALUE sep)
     }
     if (regex) {
 	sep = rb_reg_nth_match(0, rb_backref_get());
+	if (sep == Qnil)
+	    return rb_ary_new3(3, rb_str_new(0,0),rb_str_new(0,0), str);
     }
+    seplen = RSTRING_CLEN(sep);
     return rb_ary_new3(3, rb_str_substr(str, 0, pos),
 		          sep,
-		          rb_str_substr(str,pos+str_strlen(sep,STR_ENC_GET(sep)),RSTRING_LEN(str)));
+		          rb_str_substr(str, pos + seplen, seplen));
 }
 
 /*
@@ -6101,10 +7935,15 @@ rb_str_start_with(int argc, VALUE *argv, VALUE str)
     for (i=0; i<argc; i++) {
 	VALUE tmp = rb_check_string_type(argv[i]);
 	if (NIL_P(tmp)) continue;
+#if WITH_OBJC
+	if (CFStringHasPrefix((CFStringRef)str, (CFStringRef)tmp))
+	    return Qtrue;
+#else
 	rb_enc_check(str, tmp);
 	if (RSTRING_LEN(str) < RSTRING_LEN(tmp)) continue;
 	if (memcmp(RSTRING_PTR(str), RSTRING_PTR(tmp), RSTRING_LEN(tmp)) == 0)
 	    return Qtrue;
+#endif
     }
     return Qfalse;
 }
@@ -6126,6 +7965,10 @@ rb_str_end_with(int argc, VALUE *argv, VALUE str)
     for (i=0; i<argc; i++) {
 	VALUE tmp = rb_check_string_type(argv[i]);
 	if (NIL_P(tmp)) continue;
+#if WITH_OBJC
+	if (CFStringHasSuffix((CFStringRef)str, (CFStringRef)tmp))
+	    return Qtrue;
+#else
 	enc = rb_enc_check(str, tmp);
 	if (RSTRING_LEN(str) < RSTRING_LEN(tmp)) continue;
 	p = RSTRING_PTR(str);
@@ -6134,6 +7977,7 @@ rb_str_end_with(int argc, VALUE *argv, VALUE str)
 	    continue;
 	if (memcmp(s, RSTRING_PTR(tmp), RSTRING_LEN(tmp)) == 0)
 	    return Qtrue;
+#endif
     }
     return Qfalse;
 }
@@ -6159,7 +8003,28 @@ static VALUE
 rb_str_force_encoding(VALUE str, VALUE enc)
 {
     str_modifiable(str);
+#if WITH_OBJC
+# if 0
+    CFDataRef data = rb_str_cfdata2(str);
+    if (data != NULL) {
+	CFStringRef substr;
+	CFStringEncoding *cfenc;
+
+	cfenc = rb_to_encoding(enc);
+	assert(cfenc != NULL);
+
+	substr = CFStringCreateFromExternalRepresentation(NULL, data, *cfenc);
+
+	if (substr) {
+	    CFStringReplaceAll((CFMutableStringRef)str, substr);
+	    CFRelease(substr);
+	    rb_str_cfdata_set(str, NULL);
+	}
+    }
+# endif
+#else
     rb_enc_associate(str, rb_to_encoding(enc));
+#endif
     return str;
 }
 
@@ -6177,9 +8042,13 @@ rb_str_force_encoding(VALUE str, VALUE enc)
 static VALUE
 rb_str_valid_encoding_p(VALUE str)
 {
+#if WITH_OBJC
+    rb_notimplement();
+#else
     int cr = rb_enc_str_coderange(str);
 
     return cr == ENC_CODERANGE_BROKEN ? Qfalse : Qtrue;
+#endif
 }
 
 /*
@@ -6195,9 +8064,13 @@ rb_str_valid_encoding_p(VALUE str)
 static VALUE
 rb_str_is_ascii_only_p(VALUE str)
 {
+#if WITH_OBJC
+    rb_notimplement();
+#else
     int cr = rb_enc_str_coderange(str);
 
     return cr == ENC_CODERANGE_7BIT ? Qtrue : Qfalse;
+#endif
 }
 
 /**********************************************************************
@@ -6227,9 +8100,9 @@ rb_str_is_ascii_only_p(VALUE str)
  *     def Fred()
  *     end
  *     $f3 = :Fred
- *     $f1.id   #=> 2514190
- *     $f2.id   #=> 2514190
- *     $f3.id   #=> 2514190
+ *     $f1.object_id   #=> 2514190
+ *     $f2.object_id   #=> 2514190
+ *     $f3.object_id   #=> 2514190
  *     
  */
 
@@ -6253,26 +8126,6 @@ sym_equal(VALUE sym1, VALUE sym2)
 
 /*
  *  call-seq:
- *     sym.to_i      => fixnum
- *  
- *  Returns an integer that is unique for each symbol within a
- *  particular execution of a program.
- *     
- *     :fred.to_i           #=> 9809
- *     "fred".to_sym.to_i   #=> 9809
- */
-
-static VALUE
-sym_to_i(VALUE sym)
-{
-    ID id = SYM2ID(sym);
-
-    return LONG2FIX(id);
-}
-
-
-/*
- *  call-seq:
  *     sym.inspect    => string
  *  
  *  Returns the representation of <i>sym</i> as a symbol literal.
@@ -6283,6 +8136,18 @@ sym_to_i(VALUE sym)
 static VALUE
 sym_inspect(VALUE sym)
 {
+#if WITH_OBJC
+    ID id = SYM2ID(sym);
+    VALUE str;
+
+    sym = rb_id2str(id);
+    if (!rb_enc_symname_p(RSTRING_CPTR(sym), NULL)) {
+	sym = rb_str_inspect(sym);
+    }
+    str = rb_str_new(":", 1);
+    rb_str_buf_append(str, sym);
+    return str;
+#else
     VALUE str, klass = Qundef;
     ID id = SYM2ID(sym);
     rb_encoding *enc;
@@ -6293,7 +8158,7 @@ sym_inspect(VALUE sym)
     RSTRING_PTR(str)[0] = ':';
     memcpy(RSTRING_PTR(str)+1, RSTRING_PTR(sym), RSTRING_LEN(sym));
     if (RSTRING_LEN(sym) != strlen(RSTRING_PTR(sym)) ||
-	!rb_enc_symname_p(RSTRING_PTR(sym), enc)) {
+	!rb_enc_symname_p(RSTRING_PTR(sym), enc)) {	
 	str = rb_str_inspect(str);
 	strncpy(RSTRING_PTR(str), ":\"", 2);
     }
@@ -6302,6 +8167,7 @@ sym_inspect(VALUE sym)
 	rb_str_append(str, rb_inspect(klass));
     }
     return str;
+#endif
 }
 
 
@@ -6478,6 +8344,129 @@ rb_to_id(VALUE name)
     return id;
 }
 
+#if WITH_OBJC
+#define NSCFSTRING() (RCLASS_OCID(rb_cCFString))
+
+#define PREPARE_RCV(x) \
+    Class old = *(Class *)x; \
+    *(Class *)x = NSCFSTRING();
+
+#define RESTORE_RCV(x) \
+    *(Class *)x = old;
+
+bool
+rb_objc_str_is_pure(VALUE str)
+{
+    return *(Class *)str == NSCFSTRING();
+}
+
+static CFIndex
+imp_rb_str_length(void *rcv, SEL sel)
+{
+    CFIndex length;
+    PREPARE_RCV(rcv);
+    length = CFStringGetLength((CFStringRef)rcv);
+    RESTORE_RCV(rcv);
+    return length;
+}
+
+static UniChar
+imp_rb_str_characterAtIndex(void *rcv, SEL sel, CFIndex idx)
+{
+    UniChar character;
+    PREPARE_RCV(rcv);
+    character = CFStringGetCharacterAtIndex((CFStringRef)rcv, idx);
+    RESTORE_RCV(rcv);
+    return character;
+}
+
+static void
+imp_rb_str_getCharactersRange(void *rcv, SEL sel, UniChar *buffer, 
+			      CFRange range)
+{
+    PREPARE_RCV(rcv);
+    CFStringGetCharacters((CFStringRef)rcv, range, buffer);
+    RESTORE_RCV(rcv);
+}
+
+static void
+imp_rb_str_replaceCharactersInRangeWithString(void *rcv, SEL sel, 
+					      CFRange range, void *str)
+{
+    PREPARE_RCV(rcv);
+    CFStringReplace((CFMutableStringRef)rcv, range, (CFStringRef)str);
+    RESTORE_RCV(rcv);
+}
+
+static const UniChar *
+imp_rb_str_fastCharacterContents(void *rcv, SEL sel)
+{
+    const UniChar *ptr;
+    PREPARE_RCV(rcv);
+    ptr = CFStringGetCharactersPtr((CFStringRef)rcv);
+    RESTORE_RCV(rcv);
+    return ptr;
+}
+
+static const char *
+imp_rb_str_fastCStringContents(void *rcv, SEL sel, bool nullTerminaisonRequired)
+{
+    const char *cstr;
+    PREPARE_RCV(rcv);
+    cstr = CFStringGetCStringPtr((CFStringRef)rcv, 0);
+    /* XXX nullTerminaisonRequired should perhaps be honored */
+    RESTORE_RCV(rcv);
+    return cstr;
+}
+
+static CFStringEncoding
+imp_rb_str_fastestEncodingInCFStringEncoding(void *rcv, SEL sel)
+{
+    CFStringEncoding encoding;
+    PREPARE_RCV(rcv);
+    encoding =  CFStringGetFastestEncoding((CFStringRef)rcv);
+    RESTORE_RCV(rcv);
+    return encoding;
+}
+
+static bool
+imp_rb_str_isEqual(void *rcv, SEL sel, void *other)
+{
+    bool flag;
+    PREPARE_RCV(rcv);
+    flag = CFEqual((CFTypeRef)rcv, (CFTypeRef)other);    
+    RESTORE_RCV(rcv);
+    return flag;
+}
+
+void
+rb_objc_install_string_primitives(Class klass)
+{
+#define INSTALL_METHOD(selname, imp)                            \
+    do {                                                        \
+        SEL sel = sel_registerName(selname);                    \
+        Method method = class_getInstanceMethod(klass, sel);    \
+        assert(method != NULL);                                 \
+        assert(class_addMethod(klass, sel, (IMP)imp,            \
+                    method_getTypeEncoding(method)));           \
+    }                                                           \
+    while(0)
+
+    INSTALL_METHOD("length", imp_rb_str_length);
+    INSTALL_METHOD("characterAtIndex:", imp_rb_str_characterAtIndex);
+    INSTALL_METHOD("getCharacters:range:", imp_rb_str_getCharactersRange);
+    INSTALL_METHOD("replaceCharactersInRange:withString:", 
+	imp_rb_str_replaceCharactersInRangeWithString);
+    INSTALL_METHOD("_fastCharacterContents", imp_rb_str_fastCharacterContents);
+    INSTALL_METHOD("_fastCStringContents:", imp_rb_str_fastCStringContents);
+    INSTALL_METHOD("_fastestEncodingInCFStringEncoding",
+	imp_rb_str_fastestEncodingInCFStringEncoding);
+    INSTALL_METHOD("isEqual:", imp_rb_str_isEqual);
+
+#undef INSTALL_METHOD
+}
+#endif
+
 /*
  *  A <code>String</code> object holds and manipulates an arbitrary sequence of
  *  bytes, typically representing characters. String objects may be created
@@ -6495,8 +8484,13 @@ void
 Init_String(void)
 {
 #if WITH_OBJC
-    rb_cString  = rb_define_class("String",
-	rb_objc_import_class((Class)objc_getClass("NSMutableString")));
+    rb_cCFString = rb_objc_import_class((Class)objc_getClass("NSCFString"));
+    rb_cString = rb_objc_import_class((Class)objc_getClass("NSString"));
+    rb_cStringRuby =
+        rb_objc_import_class((Class)objc_getClass("NSMutableString"));
+    FL_UNSET(rb_cStringRuby, RCLASS_OBJC_IMPORTED);
+    rb_const_set(rb_cObject, rb_intern("String"), rb_cStringRuby);
+    rb_define_method(rb_cString, "__bytestring__?", rb_str_bytestring_m, 0);
 #else
     rb_cString  = rb_define_class("String", rb_cObject);
 #endif
@@ -6508,7 +8502,11 @@ Init_String(void)
     rb_define_method(rb_cString, "<=>", rb_str_cmp_m, 1);
     rb_define_method(rb_cString, "==", rb_str_equal, 1);
     rb_define_method(rb_cString, "eql?", rb_str_eql, 1);
+#if 1 
+/* FIXME remove me once we use the objc dispatch for everything
+/*#if !WITH_OBJC*/
     rb_define_method(rb_cString, "hash", rb_str_hash_m, 0);
+#endif
     rb_define_method(rb_cString, "casecmp", rb_str_casecmp, 1);
     rb_define_method(rb_cString, "+", rb_str_plus, 1);
     rb_define_method(rb_cString, "*", rb_str_times, 1);
@@ -6516,7 +8514,12 @@ Init_String(void)
     rb_define_method(rb_cString, "[]", rb_str_aref_m, -1);
     rb_define_method(rb_cString, "[]=", rb_str_aset_m, -1);
     rb_define_method(rb_cString, "insert", rb_str_insert, 2);
+#if !WITH_OBJC
+    /* This method cannot be defined because it exists in 
+     * NSString already. 
+     */
     rb_define_method(rb_cString, "length", rb_str_length, 0);
+#endif
     rb_define_method(rb_cString, "size", rb_str_length, 0);
     rb_define_method(rb_cString, "bytesize", rb_str_bytesize, 0);
     rb_define_method(rb_cString, "empty?", rb_str_empty, 0);
@@ -6634,7 +8637,6 @@ Init_String(void)
     rb_define_singleton_method(rb_cSymbol, "all_symbols", rb_sym_all_symbols, 0); /* in parse.y */
 
     rb_define_method(rb_cSymbol, "==", sym_equal, 1);
-    rb_define_method(rb_cSymbol, "to_i", sym_to_i, 0);
     rb_define_method(rb_cSymbol, "inspect", sym_inspect, 0);
     rb_define_method(rb_cSymbol, "to_s", rb_sym_to_s, 0);
     rb_define_method(rb_cSymbol, "id2name", rb_sym_to_s, 0);

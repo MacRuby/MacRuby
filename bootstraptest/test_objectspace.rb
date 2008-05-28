@@ -8,6 +8,9 @@ assert_normal_exit %q{
     rescue RangeError
       next
     end
+    # Some CF containers cannot be inspected because they contain pointers
+    # to C raw data.
+    next if o.is_a?(Hash) or o.is_a?(Array)
     o.inspect if defined?(o.inspect)
   }
 }, '[ruby-dev:31911]'
@@ -31,3 +34,11 @@ assert_normal_exit %q{
     end
   }
 }, '[ruby-dev:31985]'
+
+assert_equal "[Class]", %q{
+  ObjectSpace.each_object(Class).map { |x| x.class }.uniq
+}, 'macruby #61'
+
+assert_equal "[Class, Module]", %q{
+  ObjectSpace.each_object(Module).map { |x| x.class }.uniq
+}, 'macruby #61'

@@ -2,7 +2,7 @@
 
   insnhelper.c - instruction helper functions.
 
-  $Author: nobu $
+  $Author: matz $
 
   Copyright (C) 2007 Koichi Sasada
 
@@ -240,7 +240,6 @@ caller_setup_args(rb_thread_t *th, rb_control_frame_t *cfp, VALUE flag,
     /* expand top of stack? */
     if (flag & VM_CALL_ARGS_SPLAT_BIT) {
 	VALUE ary = *(cfp->sp - 1);
-	VALUE *ptr;
 	int i;
 	VALUE tmp = rb_check_convert_type(ary, T_ARRAY, "Array", "to_a");
 
@@ -249,13 +248,12 @@ caller_setup_args(rb_thread_t *th, rb_control_frame_t *cfp, VALUE flag,
 	}
 	else {
 	    int len = RARRAY_LEN(tmp);
-	    ptr = RARRAY_PTR(tmp);
 	    cfp->sp -= 1;
 
 	    CHECK_STACK_OVERFLOW(cfp, len);
 
 	    for (i = 0; i < len; i++) {
-		*cfp->sp++ = ptr[i];
+		*cfp->sp++ = RARRAY_AT(tmp, i);
 	    }
 	    argc += i-1;
 	}
@@ -873,7 +871,7 @@ lfp_svar_place(rb_thread_t *th, VALUE *lfp)
 	svar = (struct RValues *)th->local_svar;
 	if ((VALUE)svar == Qnil) {
 	    svar = new_value();
-	    th->local_svar = (VALUE)svar;
+	    GC_WB(&th->local_svar, (VALUE)svar);
 	}
     }
     return svar;
@@ -911,16 +909,13 @@ lfp_svar_set(rb_thread_t *th, VALUE *lfp, VALUE key, VALUE val)
 
     switch (key) {
       case 0:
-	svar->v1 = val;
-	//GC_WB(&svar->v1, val);
+	GC_WB(&svar->v1, val);
 	return;
       case 1:
-	svar->v2 = val;
-	//GC_WB(&svar->v2, val);
+	GC_WB(&svar->v2, val);
 	return;
       case 2:
-	svar->basic.klass = val;
-	//GC_WB(&svar->basic.klass, val);
+	GC_WB(&svar->basic.klass, val);
 	return;
       default: {
 	VALUE hash = svar->v3;
@@ -987,6 +982,19 @@ vm_getspecial(rb_thread_t *th, VALUE *lfp, VALUE key, rb_num_t type)
     return val;
 }
 
+static inline void
+vm_check_if_namespace(VALUE klass)
+{
+    switch (TYPE(klass)) {
+      case T_CLASS:
+      case T_MODULE:
+	break;
+      default:
+	rb_raise(rb_eTypeError, "%s is not a class/module",
+		 RSTRING_CPTR(rb_inspect(klass)));
+    }
+}
+
 static inline VALUE
 vm_get_ev_const(rb_thread_t *th, rb_iseq_t *iseq,
 		VALUE klass, ID id, int is_defined)
@@ -1041,19 +1049,12 @@ vm_get_ev_const(rb_thread_t *th, rb_iseq_t *iseq,
 	}
     }
     else {
-	switch (TYPE(klass)) {
-	  case T_CLASS:
-	  case T_MODULE:
-	    break;
-	  default:
-	    rb_raise(rb_eTypeError, "%s is not a class/module",
-		     RSTRING_PTR(rb_obj_as_string(klass)));
-	}
+	vm_check_if_namespace(klass);
 	if (is_defined) {
-	    return rb_const_defined(klass, id);
+	    return rb_const_defined_from(klass, id);
 	}
 	else {
-	    return rb_const_get(klass, id);
+	    return rb_const_get_from(klass, id);
 	}
     }
 }
@@ -1125,7 +1126,7 @@ vm_method_process_named_args(ID *pid, NODE **pmn, VALUE recv, rb_num_t *pnum,
     if (/* *pmn == NULL 
 	&&*/ *pnum == 2 
 	&& TYPE(argv[1]) == T_ARRAY 
-	&& FL_TEST(argv[1], RARRAY_NAMED_ARGS)) {
+	&& rb_ary_is_named_args(argv[1])) {
 
 	unsigned i, count;
 
@@ -1138,30 +1139,26 @@ vm_method_process_named_args(ID *pid, NODE **pmn, VALUE recv, rb_num_t *pnum,
 	count = RARRAY_LEN(argv[1]);
 
 	for (i = 0; i < count; i += 2) {
-	    VALUE sym = RARRAY_PTR(argv[1])[i];
+	    VALUE sym = RARRAY_AT(argv[1], i);
 	    if (TYPE(sym) != T_SYMBOL)
 		rb_bug("expected symbol for first pair element");
 	    strncat(buf, rb_id2name(SYM2ID(sym)), sizeof buf);
 	    strncat(buf, ":", sizeof buf);
 	}
 
-//printf("buf is %s\n", buf);
-
 	id = rb_intern(buf);
 	if ((mn = rb_method_node(CLASS_OF(recv), id)) != NULL 
 	    || (mn = rb_objc_define_objc_mid_closure(recv, id, NULL)) != NULL) {
-#if 1
 	    unsigned j, newnum = 1 + (count / 2);
 	    void **new_argv = alloca(sizeof(void *) * newnum);
 	    new_argv[0] = (void *)argv[0];
 	    for (i = 0, j = 1; i < count; i += 2, j++) {
-		new_argv[j] = (void *)RARRAY_PTR(argv[1])[i + 1];
+		new_argv[j] = (void *)RARRAY_AT(argv[1], i + 1);
 	    }
 	    argv = cfp->sp - newnum;
 	    cfp->bp -= newnum - *pnum;
 
 	    memcpy(argv, new_argv, sizeof(void *) * newnum);
-#endif
 	    *pmn = mn;
 	    *pid = id;
 	    *pnum = newnum;
@@ -1169,8 +1166,8 @@ vm_method_process_named_args(ID *pid, NODE **pmn, VALUE recv, rb_num_t *pnum,
 	else {
 	    VALUE h = rb_hash_new();
 	    for (i = 0; i < count; i += 2) {
-		rb_hash_aset(h, RARRAY_PTR(argv[1])[i], 
-			     RARRAY_PTR(argv[1])[i+1]);
+		rb_hash_aset(h, RARRAY_AT(argv[1], i), 
+			     RARRAY_AT(argv[1], i+1));
 	    }
 	    argv[1] = h;
 	}
@@ -1437,7 +1434,7 @@ vm_expandarray(rb_control_frame_t *cfp, VALUE ary, int num, int flag)
 {
     int is_splat = flag & 0x01;
     int space_size = num + is_splat;
-    VALUE *base = cfp->sp, *ptr;
+    VALUE *base = cfp->sp;
     volatile VALUE tmp_ary;
     int len;
 
@@ -1448,7 +1445,6 @@ vm_expandarray(rb_control_frame_t *cfp, VALUE ary, int num, int flag)
     cfp->sp += space_size;
 
     tmp_ary = ary;
-    ptr = RARRAY_PTR(ary);
     len = RARRAY_LEN(ary);
 
     if (flag & 0x02) {
@@ -1461,11 +1457,18 @@ vm_expandarray(rb_control_frame_t *cfp, VALUE ary, int num, int flag)
 	    }
 	}
 	for (j=0; i<num; i++, j++) {
-	    VALUE v = ptr[len - j - 1];
+	    VALUE v = RARRAY_AT(ary, len - j - 1);
 	    *base++ = v;
 	}
 	if (is_splat) {
+#if WITH_OBJC
+	    *base = rb_ary_new();
+	    CFArrayAppendArray((CFMutableArrayRef)*base,
+		(CFArrayRef)ary,
+		CFRangeMake(0, len - j));
+#else
 	    *base = rb_ary_new4(len - j, ptr);
+#endif
 	}
     }
     else {
@@ -1480,14 +1483,21 @@ vm_expandarray(rb_control_frame_t *cfp, VALUE ary, int num, int flag)
 		}
 		break;
 	    }
-	    *bptr-- = ptr[i];
+	    *bptr-- = RARRAY_AT(ary, i);
 	}
 	if (is_splat) {
 	    if (num > len) {
 		*bptr = rb_ary_new();
 	    }
 	    else {
+#if WITH_OBJC
+		*base = rb_ary_new();
+		CFArrayAppendArray((CFMutableArrayRef)*base,
+			(CFArrayRef)ary,
+			CFRangeMake(num, len - num));
+#else
 		*bptr = rb_ary_new4(len - num, ptr + num);
+#endif
 	    }
 	}
     }

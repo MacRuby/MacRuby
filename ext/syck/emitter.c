@@ -108,7 +108,11 @@ SyckEmitter *
 syck_new_emitter(void)
 {
     SyckEmitter *e;
+#if WITH_OBJC
+    e = xmalloc(sizeof(SyckEmitter));
+#else
     e = S_ALLOC( SyckEmitter );
+#endif
     e->headless = 0;
     e->use_header = 0;
     e->use_version = 0;
@@ -1194,7 +1198,10 @@ syck_emitter_mark_node( SyckEmitter *e, st_data_t n )
      */
     if ( e->markers == NULL )
     {
-        GC_WB(&e->markers, st_init_numtable());
+        e->markers = st_init_numtable();
+#if WITH_OBJC
+	rb_objc_retain(e->markers);
+#endif
     }
 
     /*

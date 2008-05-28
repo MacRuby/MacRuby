@@ -1,5 +1,5 @@
 /*
- * $Id: openssl_missing.c 11708 2007-02-12 23:01:19Z shyouhei $
+ * $Id: openssl_missing.c 16422 2008-05-15 09:44:38Z matz $
  * 'OpenSSL for Ruby' project
  * Copyright (C) 2001-2002  Michal Rokos <m.rokos@sh.cvut.cz>
  * All rights reserved.
@@ -22,17 +22,15 @@
 #include "openssl_missing.h"
 
 #if !defined(HAVE_HMAC_CTX_COPY)
-int
+void
 HMAC_CTX_copy(HMAC_CTX *out, HMAC_CTX *in)
 {
-    if (!out || !in) return 0;
+    if (!out || !in) return;
     memcpy(out, in, sizeof(HMAC_CTX));
 
-    if (!EVP_MD_CTX_copy(&out->md_ctx, &in->md_ctx)
-	    || !EVP_MD_CTX_copy(&out->i_ctx, &in->i_ctx)
-	    || !EVP_MD_CTX_copy(&out->o_ctx, &in->o_ctx))
-	return 0;
-    return 1;
+    EVP_MD_CTX_copy(&out->md_ctx, &in->md_ctx);
+    EVP_MD_CTX_copy(&out->i_ctx, &in->i_ctx);
+    EVP_MD_CTX_copy(&out->o_ctx, &in->o_ctx);
 }
 #endif /* HAVE_HMAC_CTX_COPY */
 #endif /* NO_HMAC */

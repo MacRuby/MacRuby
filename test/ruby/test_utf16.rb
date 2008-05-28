@@ -113,6 +113,11 @@ EOT
     assert_equal(s.encoding, s.intern.to_s.encoding, "#{encdump s}.intern.to_s.encoding")
   end
 
+  def test_sym_eq
+    s = "aa".force_encoding("utf-16le")
+    assert(s.intern != :aa, "#{encdump s}.intern != :aa")
+  end
+
   def test_compatible
     s1 = "aa".force_encoding("utf-16be")
     s2 = "z".force_encoding("us-ascii")
@@ -132,13 +137,21 @@ EOT
   end
 
   def test_hex
-    s1 = "f\0f\0".force_encoding("utf-16le")
-    assert_equal(255, s1.hex, "#{encdump s1}.hex")
+    assert_raise(ArgumentError) {
+      "ff".encode("utf-16le").hex
+    }
+    assert_raise(ArgumentError) {
+      "ff".encode("utf-16be").hex
+    }
   end
 
   def test_oct
-    assert_equal(077, "77".encode("utf-16le").oct)
-    assert_equal(077, "77".encode("utf-16be").oct)
+    assert_raise(ArgumentError) {
+      "77".encode("utf-16le").oct
+    }
+    assert_raise(ArgumentError) {
+      "77".encode("utf-16be").oct
+    }
   end
 
   def test_count
@@ -224,7 +237,11 @@ EOT
 
   def test_chomp
     s = "\1\n".force_encoding("utf-16be")
-    assert_str_equal(s, s.chomp, "#{encdump s}.chomp")
+    assert_equal(s, s.chomp, "#{encdump s}.chomp")
+    s = "\0\n".force_encoding("utf-16be")
+    assert_equal("", s.chomp, "#{encdump s}.chomp")
+    s = "\0\r\0\n".force_encoding("utf-16be")
+    assert_equal("", s.chomp, "#{encdump s}.chomp")
   end
 
   def test_succ
@@ -245,8 +262,16 @@ EOT
                 "Regexp.new(#{encdump s}).encoding")
   end
 
+  def test_regexp_match
+    assert_raise(ArgumentError) { Regexp.new("aa".force_encoding("utf-16be")) =~ "aa" }
+  end
+
   def test_gsub
     s = "abcd".force_encoding("utf-16be")
+    assert_nothing_raised {
+      s.gsub(Regexp.new(".".encode("utf-16be")), "xy")
+    }
+    s = "ab\0\ncd".force_encoding("utf-16be")
     assert_raise(ArgumentError) {
       s.gsub(Regexp.new(".".encode("utf-16be")), "xy")
     }
@@ -260,7 +285,7 @@ EOT
     assert_str_equal("cd".encode("utf-16be"), r[1])
   end
 
-  def test_count
+  def test_count2
     e = "abc".count("^b")
     assert_equal(e, "abc".encode("utf-16be").count("^b".encode("utf-16be")))
     assert_equal(e, "abc".encode("utf-16le").count("^b".encode("utf-16le")))

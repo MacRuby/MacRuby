@@ -2,7 +2,7 @@
 
   eval.c -
 
-  $Author: mame $
+  $Author: matz $
   created at: Thu Jun 10 14:22:17 JST 1993
 
   Copyright (C) 1993-2007 Yukihiro Matsumoto
@@ -171,7 +171,13 @@ ruby_cleanup(int ex)
     errs[1] = th->errinfo;
     th->safe_level = 0;
     Init_stack((void *)&state);
-    ruby_finalize_0();
+
+    PUSH_TAG();
+    if ((state = EXEC_TAG()) == 0) {
+	SAVE_ROOT_JMPBUF(th, ruby_finalize_0());
+    }
+    POP_TAG();
+
     errs[0] = th->errinfo;
     PUSH_TAG();
     if ((state = EXEC_TAG()) == 0) {
@@ -221,22 +227,19 @@ ruby_cleanup(int ex)
 }
 
 int
-ruby_exec_node(void *n, char *file)
+ruby_exec_node(void *n, const char *file)
 {
     int state;
-    VALUE val;
-    NODE *node = n;
+    VALUE iseq = (VALUE)n;
     rb_thread_t *th = GET_THREAD();
 
-    if (!node) return 0;
+    if (!n) return 0;
 
     PUSH_TAG();
     if ((state = EXEC_TAG()) == 0) {
-	VALUE iseq = rb_iseq_new(n, rb_str_new2("<main>"),
-				 rb_str_new2(file), Qfalse, ISEQ_TYPE_TOP);
 	SAVE_ROOT_JMPBUF(th, {
 	    th->base_block = 0;
-	    val = rb_iseq_eval(iseq);
+	    rb_iseq_eval(iseq);
 	});
     }
     POP_TAG();
@@ -252,17 +255,17 @@ ruby_stop(int ex)
 int
 ruby_run_node(void *n)
 {
-    NODE *node = (NODE *)n;
+    VALUE v = (VALUE)n;
 
-    switch ((VALUE)n) {
+    switch (v) {
       case Qtrue:  return EXIT_SUCCESS;
       case Qfalse: return EXIT_FAILURE;
     }
-    if (FIXNUM_P((VALUE)n)) {
-	return FIX2INT((VALUE)n);
+    if (FIXNUM_P(v)) {
+	return FIX2INT(v);
     }
     Init_stack((void *)&n);
-    return ruby_cleanup(ruby_exec_node(node, node->nd_file));
+    return ruby_cleanup(ruby_exec_node(n, 0));
 }
 
 VALUE
@@ -464,7 +467,7 @@ rb_obj_respond_to(VALUE obj, ID id, int priv)
 	args[n++] = ID2SYM(id);
 	if (priv)
 	    args[n++] = Qtrue;
-	return rb_funcall2(obj, respond_to, n, args);
+	return RTEST(rb_funcall2(obj, respond_to, n, args));
     }
 }
 
@@ -697,12 +700,12 @@ rb_longjmp(int tag, VALUE mesg)
 	    if (file) {
 		warn_printf("Exception `%s' at %s:%d - %s\n",
 			    rb_obj_classname(th->errinfo),
-			    file, line, RSTRING_PTR(e));
+			    file, line, RSTRING_CPTR(e));
 	    }
 	    else {
 		warn_printf("Exception `%s' - %s\n",
 			    rb_obj_classname(th->errinfo),
-			    RSTRING_PTR(e));
+			    RSTRING_CPTR(e));
 	    }
 	}
 	POP_TAG();
@@ -722,7 +725,7 @@ rb_longjmp(int tag, VALUE mesg)
 			0 /* TODO: id */, 0 /* TODO: klass */);
     }
 
-    rb_thread_reset_raised(th);
+    rb_thread_raised_clear(th);
     JUMP_TAG(tag);
 }
 
@@ -991,6 +994,8 @@ loop_i()
  *       break if !line or line =~ /^qQ/
  *       # ...
  *     end
+ *
+ *  StopIteration raised in the block breaks the loop.
  */
 
 static VALUE
@@ -1076,7 +1081,7 @@ iterate_method(VALUE obj)
 
     arg = (struct iter_method_arg *)obj;
     return rb_call(CLASS_OF(arg->obj), arg->obj, arg->mid,
-		   arg->argc, arg->argv, NOEX_PRIVATE);
+		   arg->argc, arg->argv, CALL_FCALL);
 }
 
 VALUE
@@ -1095,8 +1100,7 @@ rb_block_call(VALUE obj, ID mid, int argc, VALUE *argv,
 VALUE
 rb_each(VALUE obj)
 {
-    return rb_call(CLASS_OF(obj), obj, rb_intern("each"), 0, 0,
-		   NOEX_PRIVATE);
+    return rb_call(CLASS_OF(obj), obj, rb_intern("each"), 0, 0, CALL_FCALL);
 }
 
 VALUE
@@ -1250,16 +1254,9 @@ stack_check(void)
 {
     rb_thread_t *th = GET_THREAD();
 
-    if (!rb_thread_stack_overflowing_p(th) && ruby_stack_check()) {
-	int state;
-	rb_thread_set_stack_overflow(th);
-	PUSH_TAG();
-	if ((state = EXEC_TAG()) == 0) {
-	    rb_exc_raise(sysstack_error);
-	}
-	POP_TAG();
-	rb_thread_reset_stack_overflow(th);
-	JUMP_TAG(state);
+    if (!rb_thread_raised_p(th, RAISED_STACKOVERFLOW) && ruby_stack_check()) {
+	rb_thread_raised_set(th, RAISED_STACKOVERFLOW);
+	rb_exc_raise(sysstack_error);
     }
 }
 
@@ -1376,19 +1373,22 @@ rb_call0(VALUE klass, VALUE recv, ID mid, int argc, const VALUE *argv, int scope
     ID id = mid;
     struct cache_entry *ent;
     rb_thread_t *th = GET_THREAD();
+#if WITH_OBJC
+    unsigned redo = 0;
+#endif
 
 rb_call0_redo:
 
 #if WITH_OBJC
 # define REDO_PERHAPS() \
-    do { \
+    if (!redo) { \
 	ID newid = rb_objc_missing_sel(mid, argc); \
 	if (newid != mid) { \
 	    id = mid = newid; \
+	    redo = 1; \
 	    goto rb_call0_redo; \
 	} \
-    } \
-    while (0)
+    } 
 #else
 # define REDO_PERHAPS()
 #endif
@@ -1442,6 +1442,9 @@ rb_call0_redo:
 		    defined_class = RBASIC(defined_class)->klass;
 		}
 		
+		if (self == Qundef) {
+		    self = rb_frame_self();
+		}
 		if (!rb_obj_is_kind_of(self, rb_class_real(defined_class))) {
 		    return method_missing(recv, mid, argc, argv, NOEX_PROTECTED);
 		}
@@ -1481,7 +1484,7 @@ rb_call0_redo:
 static VALUE
 rb_call(VALUE klass, VALUE recv, ID mid, int argc, const VALUE *argv, int scope)
 {
-    return rb_call0(klass, recv, mid, argc, argv, scope, rb_frame_self());
+    return rb_call0(klass, recv, mid, argc, argv, scope, Qundef);
 }
 
 VALUE
@@ -1493,7 +1496,7 @@ rb_apply(VALUE recv, ID mid, VALUE args)
     argc = RARRAY_LEN(args);	/* Assigns LONG, but argc is INT */
     argv = ALLOCA_N(VALUE, argc);
     MEMCPY(argv, RARRAY_PTR(args), VALUE, argc);
-    return rb_call(CLASS_OF(recv), recv, mid, argc, argv, NOEX_NOSUPER);
+    return rb_call(CLASS_OF(recv), recv, mid, argc, argv, CALL_FCALL);
 }
 
 static VALUE
@@ -1573,21 +1576,19 @@ rb_funcall(VALUE recv, ID mid, int n, ...)
     else {
 	argv = 0;
     }
-    return rb_call(CLASS_OF(recv), recv, mid, n, argv,
-		   NOEX_NOSUPER | NOEX_PRIVATE);
+    return rb_call(CLASS_OF(recv), recv, mid, n, argv, CALL_FCALL);
 }
 
 VALUE
 rb_funcall2(VALUE recv, ID mid, int argc, const VALUE *argv)
 {
-    return rb_call(CLASS_OF(recv), recv, mid, argc, argv,
-		   NOEX_NOSUPER | NOEX_PRIVATE);
+    return rb_call(CLASS_OF(recv), recv, mid, argc, argv, CALL_FCALL);
 }
 
 VALUE
 rb_funcall3(VALUE recv, ID mid, int argc, const VALUE *argv)
 {
-    return rb_call(CLASS_OF(recv), recv, mid, argc, argv, NOEX_PUBLIC);
+    return rb_call(CLASS_OF(recv), recv, mid, argc, argv, CALL_PUBLIC);
 }
 
 static VALUE
@@ -1647,7 +1648,7 @@ rb_backtrace(void)
 
     ary = backtrace(-1);
     for (i = 0; i < RARRAY_LEN(ary); i++) {
-	printf("\tfrom %s\n", RSTRING_PTR(RARRAY_PTR(ary)[i]));
+	printf("\tfrom %s\n", RSTRING_CPTR(RARRAY_AT(ary, i)));
     }
 }
 
@@ -1760,7 +1761,7 @@ eval(VALUE self, VALUE src, VALUE scope, const char *file, int line)
 
 	if (0) {		/* for debug */
 	    extern VALUE ruby_iseq_disasm(VALUE);
-	    printf("%s\n", RSTRING_PTR(ruby_iseq_disasm(iseqval)));
+	    printf("%s\n", RSTRING_CPTR(ruby_iseq_disasm(iseqval)));
 	}
 
 	/* save new env */
@@ -1795,11 +1796,11 @@ eval(VALUE self, VALUE src, VALUE scope, const char *file, int line)
 		mesg = rb_attr_get(errinfo, rb_intern("mesg"));
 		if (!NIL_P(errat) && TYPE(errat) == T_ARRAY &&
 		    (bt2 = backtrace(-2), RARRAY_LEN(bt2) > 0)) {
-		    if (!NIL_P(mesg) && TYPE(mesg) == T_STRING && !RSTRING_LEN(mesg)) {
+		    if (!NIL_P(mesg) && TYPE(mesg) == T_STRING && !RSTRING_CLEN(mesg)) {
 			rb_str_update(mesg, 0, 0, rb_str_new2(": "));
-			rb_str_update(mesg, 0, 0, RARRAY_PTR(errat)[0]);
+			rb_str_update(mesg, 0, 0, RARRAY_AT(errat, 0));
 		    }
-		    RARRAY_PTR(errat)[0] = RARRAY_PTR(bt2)[0];
+		    rb_ary_store(errat, 0, RARRAY_AT(bt2, 0));
 		}
 	    }
 	    rb_exc_raise(errinfo);
@@ -1832,7 +1833,7 @@ VALUE
 rb_f_eval(int argc, VALUE *argv, VALUE self)
 {
     VALUE src, scope, vfile, vline;
-    char *file = "(eval)";
+    const char *file = "(eval)";
     int line = 1;
 
     rb_scan_args(argc, argv, "13", &src, &scope, &vfile, &vline);
@@ -1854,7 +1855,7 @@ rb_f_eval(int argc, VALUE *argv, VALUE self)
     }
 
     if (!NIL_P(vfile))
-	file = RSTRING_PTR(vfile);
+	file = RSTRING_CPTR(vfile);
     return eval(self, src, scope, file, line);
 }
 
@@ -2007,12 +2008,12 @@ specific_eval(int argc, VALUE *argv, VALUE klass, VALUE self)
  *  parameters supply a filename and starting line number that are used
  *  when reporting compilation errors.
  *
- *     class Klass
+ *     class KlassWithSecret
  *       def initialize
  *         @secret = 99
  *       end
  *     end
- *     k = Klass.new
+ *     k = KlassWithSecret.new
  *     k.instance_eval { @secret }   #=> 99
  */
 
@@ -2022,7 +2023,7 @@ rb_obj_instance_eval(int argc, VALUE *argv, VALUE self)
     VALUE klass;
 
     if (SPECIAL_CONST_P(self)) {
-	klass = CLASS_OF(self); //klass = Qnil;
+	klass = CLASS_OF(self); /* klass = Qnil; */
     }
     else {
 	klass = rb_singleton_class(self);
@@ -2039,12 +2040,12 @@ rb_obj_instance_eval(int argc, VALUE *argv, VALUE self)
  *  to _obj_ while the code is executing, giving the code access to
  *  _obj_'s instance variables.  Arguments are passed as block parameters.
  *
- *     class Klass
+ *     class KlassWithSecret
  *       def initialize
  *         @secret = 99
  *       end
  *     end
- *     k = Klass.new
+ *     k = KlassWithSecret.new
  *     k.instance_exec(5) {|x| @secret+x }   #=> 104
  */
 
@@ -2200,7 +2201,7 @@ rb_mod_protected(int argc, VALUE *argv, VALUE module)
  *       def c()  end
  *       private :a
  *     end
- *     Mod.private_instance_methods   #=> ["a", "c"]
+ *     Mod.private_instance_methods   #=> [:a, :c]
  */
 
 static VALUE
@@ -2655,7 +2656,7 @@ rb_f_local_variables(void)
 		    const char *vname = rb_id2name(lid);
 		    /* should skip temporary variable */
 		    if (vname) {
-			rb_ary_push(ary, rb_str_new2(vname));
+			rb_ary_push(ary, ID2SYM(lid));
 		    }
 		}
 	    }

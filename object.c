@@ -2,7 +2,7 @@
 
   object.c -
 
-  $Author: naruse $
+  $Author: matz $
   created at: Thu Jul 15 12:01:24 JST 1993
 
   Copyright (C) 1993-2007 Yukihiro Matsumoto
@@ -157,6 +157,13 @@ rb_obj_class(VALUE obj)
 static void
 init_copy(VALUE dest, VALUE obj)
 {
+#if WITH_OBJC
+    if (rb_objc_is_non_native(obj)) {
+	if (rb_objc_flag_check(obj, FL_TAINT))
+	    rb_objc_flag_set(dest, FL_TAINT);
+	goto call_init_copy;
+    }
+#endif
     if (OBJ_FROZEN(dest)) {
         rb_raise(rb_eTypeError, "[bug] frozen object (%s) allocated", rb_obj_classname(dest));
     }
@@ -197,6 +204,7 @@ init_copy(VALUE dest, VALUE obj)
 	}
         break;
     }
+call_init_copy:
     rb_funcall(dest, id_init_copy, 1, obj);
 }
 
@@ -232,6 +240,15 @@ rb_obj_clone(VALUE obj)
     if (rb_special_const_p(obj)) {
         rb_raise(rb_eTypeError, "can't clone %s", rb_obj_classname(obj));
     }
+#if WITH_OBJC
+    if (rb_objc_is_non_native(obj)) {
+        clone = rb_obj_alloc(rb_obj_class(obj));
+        init_copy(clone, obj);
+	if (OBJ_FROZEN(obj))
+	    OBJ_FREEZE(clone);
+	return clone;
+    }
+#endif
     clone = rb_obj_alloc(rb_obj_class(obj));
 #if WITH_OBJC
     RBASIC(clone)->isa = RBASIC(obj)->isa;
@@ -321,12 +338,20 @@ inspect_i(ID id, VALUE value, VALUE str)
 {
     VALUE str2;
     const char *ivname;
+    const char *cstr;
+
+    cstr = RSTRING_CPTR(str);
 
     /* need not to show internal data */
     if (CLASS_OF(value) == 0) return ST_CONTINUE;
     if (!rb_is_instance_id(id)) return ST_CONTINUE;
-    if (RSTRING_PTR(str)[0] == '-') { /* first element */
+
+    if (cstr[0] == '-') { /* first element */
+#if WITH_OBJC
+	rb_str_update(str, 0, 0, rb_str_new2("#"));
+#else
 	RSTRING_PTR(str)[0] = '#';
+#endif
 	rb_str_cat2(str, " ");
     }
     else {
@@ -352,7 +377,11 @@ inspect_obj(VALUE obj, VALUE str, int recur)
 	rb_ivar_foreach(obj, inspect_i, str);
     }
     rb_str_cat2(str, ">");
+#if WITH_OBJC
+    rb_str_update(str, 0, 0, rb_str_new2("#"));
+#else
     RSTRING_PTR(str)[0] = '#';
+#endif
     OBJ_INFECT(str, obj);
 
     return str;
@@ -367,7 +396,7 @@ inspect_obj(VALUE obj, VALUE str, int recur)
  *  generate the string.
  *     
  *     [ 1, 2, 3..4, 'five' ].inspect   #=> "[1, 2, 3..4, \"five\"]"
- *     Time.new.inspect                 #=> "Wed Apr 09 08:54:39 CDT 2003"
+ *     Time.new.inspect                 #=> "2008-03-08 19:43:39 +0900"
  */
 
 
@@ -648,7 +677,12 @@ rb_obj_dummy(void)
 VALUE
 rb_obj_tainted(VALUE obj)
 {
-    if (OBJ_TAINTED(obj))
+#if WITH_OBJC
+    if (!SPECIAL_CONST_P(obj) && rb_objc_is_non_native(obj)) {
+	return rb_objc_flag_check(obj, FL_TAINT) ? Qtrue : Qfalse;
+    }
+#endif
+    if (FL_TEST(obj, FL_TAINT))
 	return Qtrue;
     return Qfalse;
 }
@@ -666,11 +700,17 @@ VALUE
 rb_obj_taint(VALUE obj)
 {
     rb_secure(4);
+#if WITH_OBJC
+    if (!SPECIAL_CONST_P(obj) && rb_objc_is_non_native(obj)) {
+	rb_objc_flag_set(obj, FL_TAINT, true);
+	return obj;
+    }
+#endif
     if (!OBJ_TAINTED(obj)) {
 	if (OBJ_FROZEN(obj)) {
 	    rb_error_frozen("object");
 	}
-	OBJ_TAINT(obj);
+	FL_SET(obj, FL_TAINT);
     }
     return obj;
 }
@@ -687,6 +727,12 @@ VALUE
 rb_obj_untaint(VALUE obj)
 {
     rb_secure(3);
+#if WITH_OBJC
+    if (!SPECIAL_CONST_P(obj) && rb_objc_is_non_native(obj)) {
+	rb_objc_flag_set(obj, FL_TAINT, false);
+	return obj;
+    }
+#endif
     if (OBJ_TAINTED(obj)) {
 	if (OBJ_FROZEN(obj)) {
 	    rb_error_frozen("object");
@@ -730,12 +776,20 @@ rb_obj_freeze(VALUE obj)
 	if (rb_safe_level() >= 4 && !OBJ_TAINTED(obj)) {
 	    rb_raise(rb_eSecurityError, "Insecure: can't freeze object");
 	}
-	OBJ_FREEZE(obj);
-	if (SPECIAL_CONST_P(obj)) {
+	else if (SPECIAL_CONST_P(obj)) {
 	    if (!immediate_frozen_tbl) {
 		immediate_frozen_tbl = st_init_numtable();
+		GC_ROOT(&immediate_frozen_tbl);
 	    }
 	    st_insert(immediate_frozen_tbl, obj, (st_data_t)Qtrue);
+	}
+#if WITH_OBJC
+	else if (rb_objc_is_non_native(obj)) {
+	    rb_objc_flag_set(obj, FL_FREEZE, true);
+	}
+#endif
+	else {
+	    FL_SET(obj, FL_FREEZE);
 	}
     }
     return obj;
@@ -755,11 +809,18 @@ rb_obj_freeze(VALUE obj)
 VALUE
 rb_obj_frozen_p(VALUE obj)
 {
-    if (OBJ_FROZEN(obj)) return Qtrue;
     if (SPECIAL_CONST_P(obj)) {
 	if (!immediate_frozen_tbl) return Qfalse;
 	if (st_lookup(immediate_frozen_tbl, obj, 0)) return Qtrue;
+	return Qfalse;
     }
+#if WITH_OBJC
+    if (rb_objc_is_non_native(obj)) {
+	return rb_objc_is_immutable(obj) || rb_objc_flag_check(obj, FL_FREEZE)
+	    ? Qtrue : Qfalse;
+    }
+#endif
+    if (FL_TEST(obj, FL_FREEZE)) return Qtrue;
     return Qfalse;
 }
 
@@ -1077,8 +1138,8 @@ rb_obj_not_match(VALUE obj1, VALUE obj2)
  *       end
  *     end
  *     Mod.class              #=> Module
- *     Mod.constants          #=> ["E", "PI", "CONST"]
- *     Mod.instance_methods   #=> ["meth"]
+ *     Mod.constants          #=> [:CONST, :PI, :E]
+ *     Mod.instance_methods   #=> [:meth]
  *     
  */
 
@@ -1124,7 +1185,7 @@ rb_mod_to_s(VALUE klass)
 static VALUE
 rb_mod_freeze(VALUE mod)
 {
-    rb_mod_to_s(mod);
+    rb_class_name(mod);
     return rb_obj_freeze(mod);
 }
 
@@ -1346,15 +1407,17 @@ rb_class_initialize(int argc, VALUE *argv, VALUE klass)
     if (RCLASS_SUPER(klass) != 0) {
 	rb_raise(rb_eTypeError, "already initialized class");
     }
-    if (rb_scan_args(argc, argv, "01", &super) == 0) {
+    if (argc == 0) {
 	super = rb_cObject;
     }
     else {
+	rb_scan_args(argc, argv, "01", &super);
 	rb_check_inheritable(super);
     }
     RCLASS_SUPER(klass) = super;
 #if WITH_OBJC
     class_setSuperclass(RCLASS(klass)->ocklass, RCLASS(super)->ocklass);
+    rb_objc_install_primitives(RCLASS(klass)->ocklass, RCLASS(super)->ocklass);
 #endif
     rb_make_metaclass(klass, RBASIC(super)->klass);
     rb_class_inherited(super, klass);
@@ -1384,9 +1447,11 @@ rb_obj_alloc(VALUE klass)
 	rb_raise(rb_eTypeError, "can't create instance of singleton class");
     }
     obj = rb_funcall(klass, ID_ALLOCATOR, 0, 0);
+#if !WITH_OBJC
     if (rb_obj_class(obj) != rb_class_real(klass)) {
 	rb_raise(rb_eTypeError, "wrong instance allocation");
     }
+#endif
     return obj;
 }
 
@@ -1418,15 +1483,9 @@ rb_class_new_instance(int argc, VALUE *argv, VALUE klass)
 #if WITH_OBJC
     if (FL_TEST(klass, RCLASS_OBJC_IMPORTED)) {
 	static SEL sel_new = 0;
-	id ocid;
 	if (sel_new == 0)
 	    sel_new = sel_registerName("new");
-	ocid = objc_msgSend((id)RCLASS_OCID(klass), sel_new);
-	/* FIXME this is a temporary solution until the Ruby primitive classes
-	 * are re-implemented using their CF equivalents.
-	 */
-	unsigned rb_objc_ocid_to_rval(void **ocval, VALUE *rbval);
-	rb_objc_ocid_to_rval((void **)&ocid, &obj);
+	obj = (VALUE)objc_msgSend((id)RCLASS_OCID(klass), sel_new);
 	return obj;
     }
 #endif
@@ -1442,9 +1501,10 @@ rb_class_new_instance(int argc, VALUE *argv, VALUE klass)
  *  
  *  Returns the superclass of <i>class</i>, or <code>nil</code>.
  *     
- *     File.superclass     #=> IO
- *     IO.superclass       #=> Object
- *     Object.superclass   #=> nil
+ *     File.superclass          #=> IO
+ *     IO.superclass            #=> Object
+ *     Object.superclass        #=> BasicObject
+ *     BasicObject.superclass   #=> nil
  *     
  */
 
@@ -1529,7 +1589,7 @@ rb_mod_attr_writer(int argc, VALUE *argv, VALUE klass)
  *     module Mod
  *       attr_accessor(:one, :two)
  *     end
- *     Mod.instance_methods.sort   #=> ["one", "one=", "two", "two="]
+ *     Mod.instance_methods.sort   #=> [:one, :one=, :two, :two=]
  */
 
 static VALUE
@@ -1645,8 +1705,8 @@ rb_mod_const_defined(int argc, VALUE *argv, VALUE mod)
  *     end
  *     k = Klass.new
  *     k.methods[0..9]    #=> ["kMethod", "freeze", "nil?", "is_a?", 
- *                             "class", "instance_variable_set",
- *                              "methods", "extend", "__send__", "instance_eval"]
+ *                        #    "class", "instance_variable_set",
+ *                        #    "methods", "extend", "__send__", "instance_eval"]
  *     k.methods.length   #=> 42
  */
 
@@ -2047,7 +2107,7 @@ rb_Integer(VALUE val)
  *     
  *     Integer(123.999)    #=> 123
  *     Integer("0x1a")     #=> 26
- *     Integer(Time.new)   #=> 1049896590
+ *     Integer(Time.new)   #=> 1204973019
  */
 
 static VALUE
@@ -2068,16 +2128,16 @@ rb_cstr_to_dbl(const char *p, int badcheck)
 
     if (!p) return 0.0;
     q = p;
-	while (ISSPACE(*p)) p++;
+    while (ISSPACE(*p)) p++;
     d = strtod(p, &end);
     if (errno == ERANGE) {
 	OutOfRange();
-	rb_warn("Float %.*s%s out of range", w, p, ellipsis);
+	rb_warning("Float %.*s%s out of range", w, p, ellipsis);
 	errno = 0;
     }
     if (p == end) {
-	  bad:
 	if (badcheck) {
+	  bad:
 	    rb_invalid_str(q, "Float()");
 	}
 	return d;
@@ -2086,26 +2146,31 @@ rb_cstr_to_dbl(const char *p, int badcheck)
 	char buf[DBL_DIG * 4 + 10];
 	char *n = buf;
 	char *e = buf + sizeof(buf) - 1;
+	char prev = 0;
 
-	while (p < end && n < e) *n++ = *p++;
-	while (n < e && *p) {
+	while (p < end && n < e) prev = *n++ = *p++;
+	while (*p) {
 	    if (*p == '_') {
 		/* remove underscores between digits */
-		if (n == buf || !ISDIGIT(n[-1])) goto bad;
-		while (*++p == '_');
-		if (!ISDIGIT(*p)) {
-		    if (badcheck) goto bad;
-		    break;
+		if (badcheck) {
+		    if (n == buf || !ISDIGIT(prev)) goto bad;
+		    ++p;
+		    if (!ISDIGIT(*p)) goto bad;
+		}
+		else {
+		    while (*++p == '_');
+		    continue;
 		}
 	    }
-	    *n++ = *p++;
+	    prev = *p++;
+	    if (n < e) *n++ = prev;
 	}
 	*n = '\0';
 	p = buf;
 	d = strtod(p, &end);
 	if (errno == ERANGE) {
 	    OutOfRange();
-	    rb_warn("Float %.*s%s out of range", w, p, ellipsis);
+	    rb_warning("Float %.*s%s out of range", w, p, ellipsis);
 	    errno = 0;
 	}
 	if (badcheck) {
@@ -2125,12 +2190,12 @@ rb_cstr_to_dbl(const char *p, int badcheck)
 double
 rb_str_to_dbl(VALUE str, int badcheck)
 {
-    char *s;
+    const char *s;
     long len;
 
     StringValue(str);
-    s = RSTRING_PTR(str);
-    len = RSTRING_LEN(str);
+    s = RSTRING_CPTR(str);
+    len = RSTRING_CLEN(str);
     if (s) {
 	if (s[len]) {		/* no sentinel somehow */
 	    char *p = ALLOCA_N(char, len+1);
@@ -2167,13 +2232,7 @@ rb_Float(VALUE val)
 	break;
 
       default:
-      {
-	  VALUE f = rb_convert_type(val, T_FLOAT, "Float", "to_f");
-	  if (isnan(RFLOAT_VALUE(f))) {
-	      rb_raise(rb_eArgError, "invalid value for Float()");
-	  }
-	  return f;
-      }
+	return rb_convert_type(val, T_FLOAT, "Float", "to_f");
     }
 }
 
@@ -2217,15 +2276,15 @@ rb_num2dbl(VALUE val)
     return RFLOAT_VALUE(rb_Float(val));
 }
 
-char*
+const char*
 rb_str2cstr(VALUE str, long *len)
 {
     StringValue(str);
-    if (len) *len = RSTRING_LEN(str);
-    else if (RTEST(ruby_verbose) && RSTRING_LEN(str) != strlen(RSTRING_PTR(str))) {
+    if (len) *len = RSTRING_CLEN(str);
+    else if (RTEST(ruby_verbose) && RSTRING_CLEN(str) != strlen(RSTRING_CPTR(str))) {
 	rb_warn("string contains \\0 character");
     }
-    return RSTRING_PTR(str);
+    return RSTRING_CPTR(str);
 }
 
 VALUE
@@ -2299,6 +2358,15 @@ boot_defclass(const char *name, VALUE super)
     rb_const_set((rb_cObject ? rb_cObject : obj), id, obj);
     return obj;
 }
+
+#if WITH_OBJC
+static VALUE
+rb_obj_is_pure(VALUE recv)
+{
+    return rb_objc_is_non_native(recv) ? Qtrue : Qfalse;
+}
+#endif
+
 
 /*
  *  Document-class: Class
@@ -2457,6 +2525,10 @@ Init_Object(void)
     rb_define_method(rb_mKernel, "kind_of?", rb_obj_is_kind_of, 1);
     rb_define_method(rb_mKernel, "is_a?", rb_obj_is_kind_of, 1);
     rb_define_method(rb_mKernel, "tap", rb_obj_tap, 0);
+
+#if WITH_OBJC
+    rb_define_method(rb_mKernel, "__pure__?", rb_obj_is_pure, 0);
+#endif
 
     rb_define_global_function("sprintf", rb_f_sprintf, -1); /* in sprintf.c */
     rb_define_global_function("format", rb_f_sprintf, -1);  /* in sprintf.c */

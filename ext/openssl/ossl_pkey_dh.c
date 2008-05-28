@@ -1,5 +1,5 @@
 /*
- * $Id: ossl_pkey_dh.c 12133 2007-04-02 19:00:23Z technorama $
+ * $Id: ossl_pkey_dh.c 15610 2008-02-26 07:07:26Z technorama $
  * 'OpenSSL for Ruby' project
  * Copyright (C) 2001-2002  Michal Rokos <m.rokos@sh.cvut.cz>
  * All rights reserved.
@@ -524,11 +524,9 @@ Init_ossl_dh()
 }
 
 #else /* defined NO_DH */
-#   warning >>> OpenSSL is compiled without DH support <<<
 void
 Init_ossl_dh()
 {
-    rb_warning("OpenSSL is compiled without DH support");
 }
 #endif /* NO_DH */
 

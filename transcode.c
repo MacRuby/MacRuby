@@ -2,7 +2,7 @@
 
   transcode.c -
 
-  $Author: duerst $
+  $Author: nobu $
   created at: Tue Oct 30 16:10:22 JST 2007
 
   Copyright (C) 2007 Martin Duerst
@@ -10,6 +10,9 @@
 **********************************************************************/
 
 #include "ruby/ruby.h"
+
+#if !WITH_OBJC
+
 #include "ruby/encoding.h"
 #define PType (int)
 #include "transcode_data.h"
@@ -83,14 +86,6 @@ rb_declare_transcoder(const char *enc1, const char *enc2, const char *lib)
     }
     declare_transcoder(enc1, enc2, lib);
     declare_transcoder(enc2, enc1, lib);
-}
-
-static void
-init_transcoder_table(void)
-{
-#ifndef NO_TRANSDB_H
-#include "transdb.h"
-#endif
 }
 
 #define encoding_equal(enc1, enc2) (STRCASECMP(enc1, enc2) == 0)
@@ -177,8 +172,10 @@ transcode_loop(unsigned char **in_pos, unsigned char **out_pos,
 	    if (from_utf8) {
 		if ((next_byte&0xC0) == 0x80)
 		    next_byte -= 0x80;
-		else
+		else {
+		    in_p--; /* may need to add more code later to revert other things */
 		    goto invalid;
+		}
 	    }
 	    next_table = (const BYTE_LOOKUP *)next_info;
 	    goto follow_byte;
@@ -390,13 +387,15 @@ str_transcode(int argc, VALUE *argv, VALUE *self)
 
 /*
  *  call-seq:
- *     str.encode!(encoding)   => str
- *     str.encode!(to_encoding, from_encoding)   => str
+ *     str.encode!(encoding [, options] )   => str
+ *     str.encode!(to_encoding, from_encoding [, options] )   => str
  *
- *  With one argument, transcodes the contents of <i>str</i> from
+ *  The first form transcodes the contents of <i>str</i> from
  *  str.encoding to +encoding+.
- *  With two arguments, transcodes the contents of <i>str</i> from
+ *  The second form transcodes the contents of <i>str</i> from
  *  from_encoding to to_encoding.
+ *  The options Hash gives details for conversion. See String#encode
+ *  for details.
  *  Returns the string even if no changes were made.
  */
 
@@ -405,51 +404,71 @@ rb_str_transcode_bang(int argc, VALUE *argv, VALUE str)
 {
     VALUE newstr = str;
     int encidx = str_transcode(argc, argv, &newstr);
+    int cr = 0;
 
     if (encidx < 0) return str;
     rb_str_shared_replace(str, newstr);
     rb_enc_associate_index(str, encidx);
+
+    /* transcoded string never be broken. */
+    if (rb_enc_asciicompat(rb_enc_from_index(encidx))) {
+	rb_str_coderange_scan_restartable(RSTRING_PTR(str), RSTRING_END(str), 0, &cr);
+    }
+    else {
+	cr = ENC_CODERANGE_VALID;
+    }
+    ENC_CODERANGE_SET(str, cr);
     return str;
 }
 
 /*
  *  call-seq:
- *     str.encode(encoding)   => str
- *     str.encode(to_encoding, from_encoding)   => str
+ *     str.encode(encoding [, options] )   => str
+ *     str.encode(to_encoding, from_encoding [, options] )   => str
  *
- *  With one argument, returns a copy of <i>str</i> transcoded
+ *  The first form returns a copy of <i>str</i> transcoded
  *  to encoding +encoding+.
- *  With two arguments, returns a copy of <i>str</i> transcoded
+ *  The second form returns a copy of <i>str</i> transcoded
  *  from from_encoding to to_encoding.
+ *  The options Hash gives details for conversion. Details
+ *  to be added.
  */
 
 static VALUE
 rb_str_transcode(int argc, VALUE *argv, VALUE str)
 {
-    VALUE newstr = str;
-    int encidx = str_transcode(argc, argv, &newstr);
-
-    if (newstr == str) {
-	newstr = rb_str_new3(str);
-	if (encidx >= 0) rb_enc_associate_index(newstr, encidx);
-    }
-    else {
-	RBASIC(newstr)->klass = rb_obj_class(str);
-	OBJ_INFECT(newstr, str);
-	rb_enc_associate_index(newstr, encidx);
-    }
-    return newstr;
+    str = rb_str_dup(str);
+    return rb_str_transcode_bang(argc, argv, str);
 }
+
+#else // WITH_OBJC
+
+static VALUE
+rb_str_transcode(int argc, VALUE *argv, VALUE self)
+{
+    /* TODO */
+    return self;
+}
+
+static VALUE
+rb_str_transcode_bang(int argc, VALUE *argv, VALUE self)
+{
+    /* TODO */
+    return self;
+}
+
+#endif
 
 void
 Init_transcode(void)
 {
+#if !WITH_OBJC
     transcoder_table = st_init_strcasetable();
     transcoder_lib_table = st_init_strcasetable();
-    init_transcoder_table();
 
     sym_invalid = ID2SYM(rb_intern("invalid"));
     sym_ignore = ID2SYM(rb_intern("ignore"));
+#endif
 
     rb_define_method(rb_cString, "encode", rb_str_transcode, -1);
     rb_define_method(rb_cString, "encode!", rb_str_transcode_bang, -1);

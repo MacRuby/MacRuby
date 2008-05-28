@@ -2,7 +2,7 @@
 
   time.c -
 
-  $Author: matz $
+  $Author: akr $
   created at: Tue Dec 28 14:31:59 JST 1993
 
   Copyright (C) 1993-2007 Yukihiro Matsumoto
@@ -12,6 +12,7 @@
 #include "ruby/ruby.h"
 #include <sys/types.h>
 #include <time.h>
+#include <errno.h>
 #include "ruby/encoding.h"
 
 #ifdef HAVE_UNISTD_H
@@ -216,18 +217,24 @@ time_timespec(VALUE num, int interval)
 	break;
 
       default:
-        ary = rb_check_array_type(rb_funcall(num, id_divmod, 1, INT2FIX(1)));
-        if (NIL_P(ary)) {
+        if (rb_respond_to(num, id_divmod)) {
+            ary = rb_check_array_type(rb_funcall(num, id_divmod, 1, INT2FIX(1)));
+            if (NIL_P(ary)) {
+                goto typeerror;
+            }
+            i = rb_ary_entry(ary, 0);
+            f = rb_ary_entry(ary, 1);
+            t.tv_sec = NUM2LONG(i);
+            if (interval && t.tv_sec < 0)
+                rb_raise(rb_eArgError, "%s must be positive", tstr);
+            f = rb_funcall(f, id_mul, 1, INT2FIX(1000000000));
+            t.tv_nsec = NUM2LONG(f);
+        }
+        else {
+typeerror:
             rb_raise(rb_eTypeError, "can't convert %s into %s",
                      rb_obj_classname(num), tstr);
         }
-        i = rb_ary_entry(ary, 0);
-        f = rb_ary_entry(ary, 1);
-        t.tv_sec = NUM2LONG(i);
-	if (interval && t.tv_sec < 0)
-	    rb_raise(rb_eArgError, "%s must be positive", tstr);
-        f = rb_funcall(f, id_mul, 1, INT2FIX(1000000000));
-        t.tv_nsec = NUM2LONG(f);
 	break;
     }
     return t;
@@ -326,7 +333,7 @@ time_s_at(int argc, VALUE *argv, VALUE klass)
     return t;
 }
 
-static const char *months[] = {
+static const char *const months[] = {
     "jan", "feb", "mar", "apr", "may", "jun",
     "jul", "aug", "sep", "oct", "nov", "dec",
 };
@@ -349,7 +356,7 @@ obj2nsec(VALUE obj, long *nsec)
     if (TYPE(obj) == T_STRING) {
 	obj = rb_str_to_inum(obj, 10, Qfalse);
         *nsec = 0;
-        return NUM2LONG(obj) * 1000;
+        return NUM2LONG(obj);
     }
 
     ts = time_timespec(obj, 1);
@@ -418,14 +425,14 @@ time_arg(int argc, VALUE *argv, struct tm *tm, long *nsec)
 	if (!NIL_P(s)) {
 	    tm->tm_mon = -1;
 	    for (i=0; i<12; i++) {
-		if (RSTRING_LEN(s) == 3 &&
-		    STRCASECMP(months[i], RSTRING_PTR(s)) == 0) {
+		if (RSTRING_CLEN(s) == 3 &&
+		    STRCASECMP(months[i], RSTRING_CPTR(s)) == 0) {
 		    tm->tm_mon = i;
 		    break;
 		}
 	    }
 	    if (tm->tm_mon == -1) {
-		char c = RSTRING_PTR(s)[0];
+		char c = RSTRING_CPTR(s)[0];
 
 		if ('0' <= c && c <= '9') {
 		    tm->tm_mon = obj2long(s)-1;
@@ -1830,7 +1837,7 @@ time_yday(VALUE time)
  *  Returns <code>true</code> if <i>time</i> occurs during Daylight
  *  Saving Time in its time zone.
  *     
- *   CST6CDT:
+ *   # CST6CDT:
  *     Time.local(2000, 1, 1).zone    #=> "CST"
  *     Time.local(2000, 1, 1).isdst   #=> false
  *     Time.local(2000, 1, 1).dst?    #=> false
@@ -1838,7 +1845,7 @@ time_yday(VALUE time)
  *     Time.local(2000, 7, 1).isdst   #=> true
  *     Time.local(2000, 7, 1).dst?    #=> true
  *
- *   Asia/Tokyo:
+ *   # Asia/Tokyo:
  *     Time.local(2000, 1, 1).zone    #=> "JST"
  *     Time.local(2000, 1, 1).isdst   #=> false
  *     Time.local(2000, 1, 1).dst?    #=> false
@@ -2003,8 +2010,9 @@ rb_strftime(char **buf, const char *format, struct tm *time)
     if (flen == 0) {
 	return 0;
     }
+    errno = 0;
     len = strftime(*buf, SMALLBUF, format, time);
-    if (len != 0 || **buf == '\0') return len;
+    if (len != 0 || (**buf == '\0' && errno != ERANGE)) return len;
     for (size=1024; ; size*=2) {
 	*buf = xmalloc(size);
 	(*buf)[0] = '\0';
@@ -2082,8 +2090,8 @@ time_strftime(VALUE time, VALUE format)
 	rb_raise(rb_eArgError, "format should have ASCII compatible encoding");
     }
     format = rb_str_new4(format);
-    fmt = RSTRING_PTR(format);
-    len = RSTRING_LEN(format);
+    fmt = RSTRING_CPTR(format);
+    len = RSTRING_CLEN(format);
     if (len == 0) {
 	rb_warning("strftime called with empty format string");
     }
@@ -2097,7 +2105,7 @@ time_strftime(VALUE time, VALUE format)
 	    rb_str_cat(str, buf, len);
 	    p += strlen(p);
 	    if (buf != buffer) {
-		free(buf);
+		xfree(buf);
 		buf = buffer;
 	    }
 	    for (fmt = p; p < pe && !*p; ++p);
@@ -2106,11 +2114,13 @@ time_strftime(VALUE time, VALUE format)
 	return str;
     }
     else {
-	len = rb_strftime(&buf, RSTRING_PTR(format), &tobj->tm);
+	len = rb_strftime(&buf, RSTRING_CPTR(format), &tobj->tm);
     }
     str = rb_str_new(buf, len);
-    if (buf != buffer) free(buf);
+    if (buf != buffer) xfree(buf);
+#if !WITH_OBJC
     rb_enc_copy(str, format);
+#endif
     return str;
 }
 
@@ -2226,7 +2236,7 @@ time_mload(VALUE time, VALUE str)
     rb_copy_generic_ivar(time, str);
 
     StringValue(str);
-    buf = (unsigned char *)RSTRING_PTR(str);
+    buf = (unsigned char *)RSTRING_PTR(str); /* ok */
     if (RSTRING_LEN(str) != 8) {
 	rb_raise(rb_eTypeError, "marshaled time format differ");
     }

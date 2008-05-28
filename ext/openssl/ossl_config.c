@@ -1,5 +1,5 @@
 /*
- * $Id: ossl_config.c 12821 2007-07-20 06:22:54Z nobu $
+ * $Id: ossl_config.c 16125 2008-04-21 08:48:33Z knu $
  * 'OpenSSL for Ruby' project
  * Copyright (C) 2001-2002  Michal Rokos <m.rokos@sh.cvut.cz>
  * All rights reserved.
@@ -388,6 +388,8 @@ static VALUE
 ossl_config_each(VALUE self)
 {
     CONF *conf;
+
+    RETURN_ENUMERATOR(self, 0, 0);
 
     GetConfig(self, conf);
     lh_doall_arg(conf->data, LHASH_DOALL_ARG_FN(each_conf_value), (void*)NULL);

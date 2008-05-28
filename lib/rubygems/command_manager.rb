@@ -93,7 +93,7 @@ module Gem
         say Gem::Command::HELP
         terminate_interaction(0)
       when '-v', '--version'
-        say Gem::RubyGemsPackageVersion
+        say Gem::RubyGemsVersion
         terminate_interaction(0)
       when /^-/
         alert_error "Invalid option: #{args[0]}.  See 'gem --help'."
@@ -123,6 +123,7 @@ module Gem
     end
     
     private
+
     def load_and_instantiate(command_name)
       command_name = command_name.to_s
       retried = false

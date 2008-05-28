@@ -81,12 +81,10 @@ char *strrchr(const char *, const char);
 #include "vmsruby_private.h"
 #endif
 
-#if !defined(setjmp) && defined(HAVE__SETJMP) && !defined(sigsetjmp) && !defined(HAVE_SIGSETJMP)
-#define ruby_setjmp(env) _setjmp(env)
-#define ruby_longjmp(env,val) _longjmp(env,val)
-#else
-#define ruby_setjmp(env) setjmp(env)
-#define ruby_longjmp(env,val) longjmp(env,val)
+#define ruby_setjmp(env) RUBY_SETJMP(env)
+#define ruby_longjmp(env,val) RUBY_LONGJMP(env,val)
+#ifdef __CYGWIN__
+int _setjmp(), _longjmp();
 #endif
 
 #include <sys/types.h>
@@ -142,8 +140,7 @@ char *strrchr(const char *, const char);
 #define PUSH_TAG() TH_PUSH_TAG(GET_THREAD())
 #define POP_TAG()      TH_POP_TAG()
 
-#define TH_EXEC_TAG() \
-  (FLUSH_REGISTER_WINDOWS, ruby_setjmp(_th->tag->buf))
+#define TH_EXEC_TAG() ruby_setjmp(_th->tag->buf)
 
 #define EXEC_TAG() \
   TH_EXEC_TAG()
@@ -154,15 +151,26 @@ char *strrchr(const char *, const char);
 
 #define JUMP_TAG(st) TH_JUMP_TAG(GET_THREAD(), st)
 
-#define TAG_RETURN	0x1
-#define TAG_BREAK	0x2
-#define TAG_NEXT	0x3
-#define TAG_RETRY	0x4
-#define TAG_REDO	0x5
-#define TAG_RAISE	0x6
-#define TAG_THROW	0x7
-#define TAG_FATAL	0x8
-#define TAG_MASK	0xf
+enum ruby_tag_type {
+    RUBY_TAG_RETURN	= 0x1,
+    RUBY_TAG_BREAK	= 0x2,
+    RUBY_TAG_NEXT	= 0x3,
+    RUBY_TAG_RETRY	= 0x4,
+    RUBY_TAG_REDO	= 0x5,
+    RUBY_TAG_RAISE	= 0x6,
+    RUBY_TAG_THROW	= 0x7,
+    RUBY_TAG_FATAL	= 0x8,
+    RUBY_TAG_MASK	= 0xf
+};
+#define TAG_RETURN	RUBY_TAG_RETURN
+#define TAG_BREAK	RUBY_TAG_BREAK
+#define TAG_NEXT	RUBY_TAG_NEXT
+#define TAG_RETRY	RUBY_TAG_RETRY
+#define TAG_REDO	RUBY_TAG_REDO
+#define TAG_RAISE	RUBY_TAG_RAISE
+#define TAG_THROW	RUBY_TAG_THROW
+#define TAG_FATAL	RUBY_TAG_FATAL
+#define TAG_MASK	RUBY_TAG_MASK
 
 #define NEW_THROW_OBJECT(val, pt, st) \
   ((VALUE)NEW_NODE(NODE_LIT, (val), (pt), (st)))
@@ -195,16 +203,17 @@ while (0)
 void rb_thread_cleanup(void);
 void rb_thread_wait_other_threads(void);
 
-#define RAISED_EXCEPTION     1
-#define RAISED_STACKOVERFLOW 2
+enum {
+    RAISED_EXCEPTION = 1,
+    RAISED_STACKOVERFLOW = 2,
+    RAISED_NOMEMORY = 4,
+};
 int rb_thread_set_raised(rb_thread_t *th);
 int rb_thread_reset_raised(rb_thread_t *th);
-#define rb_thread_set_stack_overflow(th) \
-    ((th)->raised_flag |= RAISED_STACKOVERFLOW)
-#define rb_thread_reset_stack_overflow(th) \
-    ((th)->raised_flag &= ~RAISED_STACKOVERFLOW)
-#define rb_thread_stack_overflowing_p(th) \
-    (((th)->raised_flag & RAISED_STACKOVERFLOW) != 0)
+#define rb_thread_raised_set(th, f)   ((th)->raised_flag |= (f))
+#define rb_thread_raised_reset(th, f) ((th)->raised_flag &= ~(f))
+#define rb_thread_raised_p(th, f)     (((th)->raised_flag & (f)) != 0)
+#define rb_thread_raised_clear(th)    ((th)->raised_flag = 0)
 
 VALUE rb_f_eval(int argc, VALUE *argv, VALUE self);
 VALUE rb_make_exception(int argc, VALUE *argv);

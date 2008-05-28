@@ -65,6 +65,13 @@ END
   end
 
   def test_char
+    assert_equal('', "")
+    assert_equal(0, ''.size)
+    assert_equal("\0", "\000")
+    assert_equal("\0", [0].pack('C'))
+    assert_equal(1, "\0".size) 
+    assert_equal("./\055", './-')
+
     # character constants(assumes ASCII)
     assert_equal(?a, "a"[0])
     assert_equal(?a, ?a)

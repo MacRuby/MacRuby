@@ -13,9 +13,9 @@
 # Ruby Distribute License.
 # 
 # NOTE: You can find Japanese version of this document at:
-# http://www.ruby-lang.org/ja/man/index.cgi?cmd=view;name=net%2Fpop.rb
+# http://www.ruby-lang.org/ja/man/html/net_pop.html
 # 
-#   $Id: pop.rb 14479 2007-12-22 08:31:53Z gotoyuzo $
+#   $Id: pop.rb 16033 2008-04-15 08:12:30Z kazu $
 # 
 # See Net::POP3 for documentation.
 #
@@ -196,7 +196,7 @@ module Net
   # 
   class POP3 < Protocol
 
-    Revision = %q$Revision: 14479 $.split[1]
+    Revision = %q$Revision: 16033 $.split[1]
 
     #
     # Class Parameters
@@ -577,6 +577,8 @@ module Net
 
     def do_finish
       @mails = nil
+      @n_mails = nil
+      @n_bytes = nil
       @command.quit if @command
     ensure
       @started = false

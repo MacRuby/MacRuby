@@ -1,21 +1,7 @@
 #
 #  autoload
 #
-major, minor, type, type_name, patchlevel = TclTkLib.get_version
-
-######################################
-#  depend on version of Tcl/Tk
-if major > 8 || 
-    (major == 8 && minor > 5) || 
-    (major == 8 && minor == 5 && type >= TclTkLib::RELEASE_TYPE::BETA) 
-  # Tcl/Tk 8.5 beta or later
-  autoload :Ttk, 'tkextlib/tile'
-  module Tk
-    autoload :Tile, 'tkextlib/tile'
-  end
-end
-
-######################################
+############################################
 #  geometry manager
 module Tk
   autoload :Grid,             'tk/grid'

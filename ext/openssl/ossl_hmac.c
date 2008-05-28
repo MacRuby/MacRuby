@@ -1,5 +1,5 @@
 /*
- * $Id: ossl_hmac.c 12133 2007-04-02 19:00:23Z technorama $
+ * $Id: ossl_hmac.c 16422 2008-05-15 09:44:38Z matz $
  * 'OpenSSL for Ruby' project
  * Copyright (C) 2001-2002  Michal Rokos <m.rokos@sh.cvut.cz>
  * All rights reserved.
@@ -87,9 +87,7 @@ ossl_hmac_copy(VALUE self, VALUE other)
     GetHMAC(self, ctx1);
     SafeGetHMAC(other, ctx2);
 
-    if (!HMAC_CTX_copy(ctx1, ctx2)) {
-	ossl_raise(eHMACError, NULL);
-    }
+    HMAC_CTX_copy(ctx1, ctx2);
     return self;
 }
 
@@ -115,9 +113,7 @@ hmac_final(HMAC_CTX *ctx, char **buf, int *buf_len)
 {
     HMAC_CTX final;
 
-    if (!HMAC_CTX_copy(&final, ctx)) {
-	ossl_raise(eHMACError, NULL);
-    }
+    HMAC_CTX_copy(&final, ctx);
     if (!(*buf = OPENSSL_malloc(HMAC_size(&final)))) {
 	HMAC_CTX_cleanup(&final);
 	OSSL_Debug("Allocating %d mem", HMAC_size(&final));

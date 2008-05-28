@@ -36,7 +36,7 @@ rb_f_throw(int argc, VALUE *argv)
     }
     if (!tt) {
 	VALUE desc = rb_inspect(tag);
-	rb_raise(rb_eArgError, "uncaught throw %s", RSTRING_PTR(desc));
+	rb_raise(rb_eArgError, "uncaught throw %s", RSTRING_CPTR(desc));
     }
     rb_trap_restore_mask();
     th->errinfo = NEW_THROW_OBJECT(tag, 0, TAG_THROW);
@@ -107,9 +107,11 @@ rb_f_catch(int argc, VALUE *argv)
     rb_thread_t *th = GET_THREAD();
     rb_control_frame_t *saved_cfp = th->cfp;
 
-    rb_scan_args(argc, argv, "01", &tag);
     if (argc == 0) {
 	tag = rb_obj_alloc(rb_cObject);
+    }
+    else {
+	rb_scan_args(argc, argv, "01", &tag);
     }
     PUSH_TAG();
 

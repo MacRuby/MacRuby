@@ -9,77 +9,75 @@
 #
 
 #
-# Open3 grants you access to stdin, stdout, and stderr when running another
-# program. Example:
+# Open3 grants you access to stdin, stdout, stderr and a thread to wait the
+# child process when running another program.
+#
+# Example:
 #
 #   require "open3"
 #   include Open3
 #   
-#   stdin, stdout, stderr = popen3('nroff -man')
+#   stdin, stdout, stderr, wait_thr = popen3('nroff -man')
 #
-# Open3.popen3 can also take a block which will receive stdin, stdout and
-# stderr as parameters.  This ensures stdin, stdout and stderr are closed
-# once the block exits. Example:
+# Open3.popen3 can also take a block which will receive stdin, stdout,
+# stderr and wait_thr as parameters.
+# This ensures stdin, stdout and stderr are closed and
+# the process is terminated once the block exits.
+#
+# Example:
 #
 #   require "open3"
 #
-#   Open3.popen3('nroff -man') { |stdin, stdout, stderr| ... }
+#   Open3.popen3('nroff -man') { |stdin, stdout, stderr, wait_thr| ... }
 #
 
 module Open3
   # 
   # Open stdin, stdout, and stderr streams and start external executable.
+  # In addition, a thread for waiting the started process is noticed.
+  # The thread has a thread variable :pid which is the pid of the started
+  # process.
+  #
   # Non-block form:
   #   
-  #   require 'open3'
-  #
-  #   [stdin, stdout, stderr] = Open3.popen3(cmd)
+  #   stdin, stdout, stderr, wait_thr = Open3.popen3(cmd)
+  #   pid = wait_thr[:pid]  # pid of the started process.
+  #   ...
+  #   stdin.close  # stdin, stdout and stderr should be closed in this form.
+  #   stdout.close
+  #   stderr.close
+  #   exit_status = wait_thr.value  # Process::Status object returned.
   #
   # Block form:
   #
-  #   require 'open3'
+  #   Open3.popen3(cmd) { |stdin, stdout, stderr, wait_thr| ... }
   #
-  #   Open3.popen3(cmd) { |stdin, stdout, stderr| ... }
+  # The parameter +cmd+ is passed directly to Kernel#spawn.
   #
-  # The parameter +cmd+ is passed directly to Kernel#exec.
+  # wait_thr.value waits the termination of the process.
+  # The block form also waits the process when it returns.
+  #
+  # Closing stdin, stdout and stderr does not wait the process.
   #
   def popen3(*cmd)
     pw = IO::pipe   # pipe[0] for read, pipe[1] for write
     pr = IO::pipe
     pe = IO::pipe
 
-    pid = fork{
-      # child
-      fork{
-	# grandchild
-	pw[1].close
-	STDIN.reopen(pw[0])
-	pw[0].close
-
-	pr[0].close
-	STDOUT.reopen(pr[1])
-	pr[1].close
-
-	pe[0].close
-	STDERR.reopen(pe[1])
-	pe[1].close
-
-	exec(*cmd)
-      }
-      exit!(0)
-    }
-
+    pid = spawn(*cmd, STDIN=>pw[0], STDOUT=>pr[1], STDERR=>pe[1])
+    wait_thr = Process.detach(pid)
+    wait_thr[:pid] = pid
     pw[0].close
     pr[1].close
     pe[1].close
-    Process.waitpid(pid)
-    pi = [pw[1], pr[0], pe[0]]
+    pi = [pw[1], pr[0], pe[0], wait_thr]
     pw[1].sync = true
     if defined? yield
       begin
 	return yield(*pi)
       ensure
-	pi.each{|p| p.close unless p.closed?}
+	[pw[1], pr[0], pe[0]].each{|p| p.close unless p.closed?}
+        wait_thr.join
       end
     end
     pi

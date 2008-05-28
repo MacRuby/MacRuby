@@ -1,5 +1,4 @@
 require 'test/unit'
-require 'continuation'
 
 class TestHash < Test::Unit::TestCase
 
@@ -105,12 +104,12 @@ class TestHash < Test::Unit::TestCase
 
   def test_s_new
     h = @cls.new
-    assert_instance_of(@cls, h)
+    assert_kind_of(@cls, h)
     assert_nil(h.default)
     assert_nil(h['spurious'])
 
     h = @cls.new('default')
-    assert_instance_of(@cls, h)
+    assert_kind_of(@cls, h)
     assert_equal('default', h.default)
     assert_equal('default', h['spurious'])
     
@@ -671,6 +670,9 @@ class TestHash < Test::Unit::TestCase
     assert_equal({1=>2, 3=>4}, Hash[[[1,2],[3,4]]])
     assert_raise(ArgumentError) { Hash[0, 1, 2] }
     assert_equal({1=>2, 3=>4}, Hash[1,2,3,4])
+    o = Object.new
+    def o.to_hash() {1=>2} end
+    assert_equal({1=>2}, Hash[o], "[ruby-dev:34555]")
   end
 
   def test_rehash2
@@ -718,7 +720,7 @@ class TestHash < Test::Unit::TestCase
     assert_equal({3=>4,5=>6}, {1=>2,3=>4,5=>6}.select {|k, v| k + v >= 7 })
   end
 
-  def test_clear
+  def test_clear2
     assert_equal({}, {1=>2,3=>4,5=>6}.clear)
     h = {1=>2,3=>4,5=>6}
     h.each { h.clear }
@@ -798,6 +800,10 @@ class TestHash < Test::Unit::TestCase
   end
 
   def test_callcc
+    begin
+      respond_to?(:callcc) or require 'continuation'
+    rescue LoadError; return
+    end
     h = {1=>2}
     c = nil
     f = false

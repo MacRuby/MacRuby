@@ -460,6 +460,7 @@ rb_objc_rval_to_ocid(VALUE rval, void **ocval)
 	{
 	    char v = RTEST(rval);
 	    *(id *)ocval = (id)CFNumberCreate(NULL, kCFNumberCharType, &v);
+	    CFMakeCollectable(*(id *)ocval);
 	    return true;
 	}
 
@@ -467,6 +468,7 @@ rb_objc_rval_to_ocid(VALUE rval, void **ocval)
 	{
 	    double v = RFLOAT_VALUE(rval);
 	    *(id *)ocval = (id)CFNumberCreate(NULL, kCFNumberDoubleType, &v);
+	    CFMakeCollectable(*(id *)ocval);
 	    return true;
 	}	
 
@@ -487,6 +489,16 @@ rb_objc_rval_to_ocid(VALUE rval, void **ocval)
 		*(id *)ocval = (id)CFNumberCreate(NULL, kCFNumberLongType, &v);
 #endif
 	    }
+	    CFMakeCollectable(*(id *)ocval);
+	    return true;
+	}
+
+	case T_SYMBOL:
+	{
+	    ID name = SYM2ID(rval);
+	    *(id *)ocval = (id)CFStringCreateWithCString(NULL, rb_id2name(name),
+		kCFStringEncodingASCII); /* XXX this is temporary */
+	    CFMakeCollectable(*(id *)ocval);
 	    return true;
 	}
     }
@@ -599,33 +611,96 @@ rb_bs_boxed_new_from_ocdata(bs_element_boxed_t *bs_boxed, void *ocval)
     return Data_Wrap_Struct(bs_boxed->klass, NULL, NULL, data);     
 }
 
+static long
+rebuild_new_struct_ary(ffi_type **elements, VALUE orig, VALUE new)
+{
+    long n = 0;
+    while ((*elements) != NULL) {
+	if ((*elements)->type == FFI_TYPE_STRUCT) {
+	    long i, n2 = rebuild_new_struct_ary((*elements)->elements, orig, new);
+	    VALUE tmp = rb_ary_new();
+	    for (i = 0; i < n2; i++) {
+		if (RARRAY_LEN(orig) == 0)
+		    return 0;
+		rb_ary_push(tmp, rb_ary_shift(orig));
+	    }
+	    rb_ary_push(new, tmp);
+	}
+	elements++;
+	n++;
+    } 
+    return n;
+}
+
 static void
 rb_objc_rval_to_ocval(VALUE rval, const char *octype, void **ocval)
 {
-    bool ok;
+    bs_element_boxed_t *bs_boxed;
+    bool ok = true;
 
     octype = rb_objc_skip_octype_modifiers(octype);
 
     if (*octype == _C_VOID)
 	return;
 
-    {
-	bs_element_boxed_t *bs_boxed;
-	if (st_lookup(bs_boxeds, (st_data_t)octype, 
-		      (st_data_t *)&bs_boxed)) {
-	    void *data = bs_element_boxed_get_data(bs_boxed, rval, &ok);
-	    if (ok) {
-		if (data == NULL)
-		    *(void **)ocval = NULL;
-		else
-		    memcpy(ocval, data, bs_boxed->ffi_type->size);
+    if (st_lookup(bs_boxeds, (st_data_t)octype, (st_data_t *)&bs_boxed)) {
+	void *data;
+	if (TYPE(rval) == T_ARRAY && bs_boxed->type == BS_ELEMENT_STRUCT) {
+	    bs_element_struct_t *bs_struct;
+	    long i, n;
+	    size_t pos;
+
+	    bs_struct = (bs_element_struct_t *)bs_boxed->value;
+
+	    n = RARRAY_LEN(rval);
+	    if (n < bs_struct->fields_count)
+		rb_raise(rb_eArgError, 
+		    "not enough elements in array `%s' to create " \
+		    "structure `%s' (%d for %d)", 
+		    RSTRING_CPTR(rb_inspect(rval)), bs_struct->name, n, 
+		    bs_struct->fields_count);
+	    
+	    if (n > bs_struct->fields_count) {
+		VALUE new_rval = rb_ary_new();
+		VALUE orig = rval;
+		rval = rb_ary_dup(rval);
+		rebuild_new_struct_ary(bs_boxed->ffi_type->elements, rval, 
+				       new_rval);
+		n = RARRAY_LEN(new_rval);
+		if (RARRAY_LEN(rval) != 0 || n != bs_struct->fields_count) {
+		    rb_raise(rb_eArgError, 
+			"too much elements in array `%s' to create " \
+			"structure `%s' (%d for %d)", 
+			RSTRING_CPTR(rb_inspect(orig)), 
+			bs_struct->name, RARRAY_LEN(orig), 
+			bs_struct->fields_count);
+		}
+		rval = new_rval;
 	    }
-	    goto bails; 
+
+	    data = alloca(bs_boxed->ffi_type->size);
+
+	    for (i = 0, pos = 0; i < bs_struct->fields_count; i++) {
+		VALUE o = RARRAY_AT(rval, i);
+		char *field_type = bs_struct->fields[i].type;
+		rb_objc_rval_to_ocval(o, field_type, data + pos);
+		pos += rb_objc_octype_to_ffitype(field_type)->size;
+	    }
 	}
-	
-	if (st_lookup(bs_cftypes, (st_data_t)octype, NULL))
-	    octype = "@";
+	else {
+	    data = bs_element_boxed_get_data(bs_boxed, rval, &ok);
+	}
+	if (ok) {
+	    if (data == NULL)
+		*(void **)ocval = NULL;
+	    else
+		memcpy(ocval, data, bs_boxed->ffi_type->size);
+	}
+	goto bails; 
     }
+
+    if (st_lookup(bs_cftypes, (st_data_t)octype, NULL))
+	octype = "@";
 
     if (*octype != _C_BOOL) {
 	if (rval == Qtrue)
@@ -634,7 +709,6 @@ rb_objc_rval_to_ocval(VALUE rval, const char *octype, void **ocval)
 	    rval = INT2FIX(0);
     }
 
-    ok = true;
     switch (*octype) {
 	case _C_ID:
 	case _C_CLASS:
@@ -685,7 +759,12 @@ rb_objc_rval_to_ocval(VALUE rval, const char *octype, void **ocval)
 	    break;
 
 	case _C_CHR:
-	    *(char *)ocval = (char) NUM2INT(rb_Integer(rval));
+	    if (TYPE(rval) == T_STRING && RSTRING_CLEN(rval) == 1) {
+		*(char *)ocval = RSTRING_CPTR(rval)[0];
+	    }
+	    else {
+		*(char *)ocval = (char) NUM2INT(rb_Integer(rval));
+	    }
 	    break;
 
 	case _C_SHT:
@@ -792,59 +871,7 @@ rb_objc_ocid_to_rval(void **ocval, VALUE *rbval)
 	*rbval = Qnil;
     }
     else {
-	/* FIXME this is a temporary hack, until String/Array/Hash will be
-	 * supporting their CF equivalents.
-	 */
-	static Class nscfstring = NULL;
-	static Class nscfarray = NULL;
-	static Class nscfdictionary = NULL;
-	Class klass;
-
-	if (nscfstring == NULL)
-	    nscfstring = objc_getClass("NSCFString");
-	if (nscfarray == NULL)
-	    nscfarray = objc_getClass("NSCFArray");
-	if (nscfdictionary == NULL)
-	    nscfdictionary = objc_getClass("NSCFDictionary");
-
-	klass = (Class)object_getClass(ocid);
-
-	if (klass == nscfstring) {
-	    const char *p;
-	    p = [ocid UTF8String];
-	    *rbval = rb_enc_str_new(p, strlen(p), rb_utf8_encoding());
-	}
-	else if (klass == nscfarray) {
-	    unsigned i, count;
-
-	    count = [ocid count];
-	    *rbval = rb_ary_new();
-	    for (i = 0, count = [ocid count]; i < count; i++) {
-		id ocelem = [ocid objectAtIndex:i];
-		VALUE elem;
-		rb_objc_ocval_to_rbval((void **)&ocelem, "@", &elem);
-		rb_ary_push(*rbval, elem);
-	    }
-	}
-	else if (klass == nscfdictionary) {
-	    unsigned i, count;
-	    id *keys, *values;
-
-	    count = [ocid count];
-	    keys = (id *)alloca(sizeof(id) * count);
-	    values = (id *)alloca(sizeof(id) * count);
-	    [ocid getObjects:values andKeys:keys];
-	    *rbval = rb_hash_new();
-	    for (i = 0; i < count; i++) {
-		VALUE key, value;
-		rb_objc_ocval_to_rbval((void **)&keys[i], "@", &key);
-		rb_objc_ocval_to_rbval((void **)&values[i], "@", &value);
-		rb_hash_aset(*rbval, key, value);
-	    }
-	}
-	else {
-	    *rbval = rb_objc_boot_ocid(ocid);
-	}
+	*rbval = rb_objc_boot_ocid(ocid);
     }
 
     return true;
@@ -922,6 +949,13 @@ rb_objc_ocval_to_rbval(void **ocval, const char *octype, VALUE *rbval)
 
 	case _C_DBL:
 	    *rbval = rb_float_new(*(double *)ocval);
+	    break;
+
+	case _C_SEL:
+	    {
+		const char *selname = sel_getName(*(SEL *)ocval);
+		*rbval = rb_str_new2(selname);
+	    }
 	    break;
 
 	case _C_CHARPTR:
@@ -1087,7 +1121,7 @@ rb_objc_to_ruby_closure(VALUE rcv, VALUE argv)
 	ffi_argtypes[i + 2] = rb_objc_octype_to_ffitype(type);
 	assert(ffi_argtypes[i + 2]->size > 0);
 	ffi_args[i + 2] = (void *)alloca(ffi_argtypes[i + 2]->size);
-	rb_objc_rval_to_ocval(RARRAY_PTR(argv)[i], type, ffi_args[i + 2]);
+	rb_objc_rval_to_ocval(RARRAY_AT(argv, i), type, ffi_args[i + 2]);
     }
 
     ffi_argtypes[count] = NULL;
@@ -1295,7 +1329,6 @@ rb_objc_sync_ruby_method(VALUE mod, ID mid, NODE *node, unsigned override)
     }
 }
 
-#if 0
 static int
 __rb_objc_add_ruby_method(ID mid, NODE *body, VALUE mod)
 {
@@ -1305,14 +1338,25 @@ __rb_objc_add_ruby_method(ID mid, NODE *body, VALUE mod)
     if (body == NULL || body->nd_body->nd_body == NULL)
 	return ST_CONTINUE;
 
-    if (VISI(body->nd_body->nd_noex) != NOEX_PUBLIC)
+    if ((body->nd_body->nd_noex & NOEX_MASK) != NOEX_PUBLIC)
 	return ST_CONTINUE;
 
     rb_objc_sync_ruby_method(mod, mid, body->nd_body->nd_body, 0);
 
     return ST_CONTINUE;
 }
-#endif
+
+void
+rb_objc_sync_ruby_methods(VALUE mod, VALUE klass)
+{
+    for (;;) {
+	st_foreach(RCLASS_M_TBL(mod), __rb_objc_add_ruby_method, 
+		   (st_data_t)klass);
+	mod = RCLASS_SUPER(mod);
+	if (mod == 0 || BUILTIN_TYPE(mod) != T_ICLASS)
+	    break;
+    }
+}
 
 static inline unsigned
 is_ignored_selector(SEL sel)
@@ -2065,6 +2109,7 @@ bs_parse_cb(const char *path, bs_element_type_t type, void *value, void *ctx)
 	case BS_ELEMENT_STRUCT:
 	{
 	    setup_bs_boxed_type(type, value);
+	    do_not_free = true;
 	    break;
 	}
 
@@ -2077,7 +2122,7 @@ bs_parse_cb(const char *path, bs_element_type_t type, void *value, void *ctx)
 	    bs_class_new = (bs_element_indexed_class_t *)
 		malloc(sizeof(bs_element_indexed_class_t));
 
-	    bs_class_new->name = strdup(bs_class->name);
+	    bs_class_new->name = bs_class->name;
 
 #define INDEX_METHODS(table, ary, len) \
     do { \
@@ -2106,6 +2151,8 @@ bs_parse_cb(const char *path, bs_element_type_t type, void *value, void *ctx)
 	    st_insert(bs_classes, (st_data_t)bs_class_new->name, 
 		(st_data_t)bs_class_new);
 
+	    free(bs_class);
+	    do_not_free = true;
 	    break;
 	}
 
@@ -2120,6 +2167,9 @@ bs_parse_cb(const char *path, bs_element_type_t type, void *value, void *ctx)
 	    st_insert(t, (st_data_t)bs_inf_prot_method->name,
 		(st_data_t)bs_inf_prot_method->type);
 
+	    free(bs_inf_prot_method->protocol_name);
+	    free(bs_inf_prot_method);
+	    do_not_free = true;
 	    break;
 	}
 
@@ -2128,6 +2178,7 @@ bs_parse_cb(const char *path, bs_element_type_t type, void *value, void *ctx)
 	    bs_element_cftype_t *bs_cftype = (bs_element_cftype_t *)value;
 	    st_insert(bs_cftypes, (st_data_t)bs_cftype->type, 
 		    (st_data_t)bs_cftype);
+	    do_not_free = true;
 	    break;
 	}
     }
@@ -2293,270 +2344,37 @@ success:
     return Qtrue;
 }
 
-static NSUInteger
-imp_rb_ary_count(void *rcv, SEL sel)
+static const char *
+imp_rb_boxed_objCType(void *rcv, SEL sel)
 {
-    return RARRAY_LEN(rcv);
-}
+    VALUE klass, type;
 
-static void *
-imp_rb_ary_objectAtIndex(void *rcv, SEL sel, NSUInteger idx)
-{
-    VALUE element;
-    void *ptr;
-
-    if (idx >= RARRAY_LEN(rcv))
-	[NSException raise:@"NSRangeException" 
-	    format:@"index (%d) beyond bounds (%d)", idx, RARRAY_LEN(rcv)];
-
-    element = RARRAY_PTR(rcv)[idx];
-
-    if (!rb_objc_rval_to_ocid(element, &ptr))
-	[NSException raise:@"NSException" 
-	    format:@"element (%s) at index (%d) cannot be passed to " \
-	    "Objective-C", RSTRING_PTR(rb_inspect(element)), idx];
-
-    if (ptr == NULL)
-	ptr = [NSNull null];
-
-    return ptr;
-}
-
-static void
-imp_rb_ary_insertObjectAtIndex(void *rcv, SEL sel, void *obj, NSUInteger idx)
-{
-    VALUE robj;
-
-    if (obj == NULL)    
-	[NSException raise:@"NSInvalidArgumentException" 
-	    format:@"given object is nil"];
-
-    if (idx >= RARRAY_LEN(rcv))
-	[NSException raise:@"NSRangeException" 
-	    format:@"index (%d) beyond bounds (%d)", idx, RARRAY_LEN(rcv)];
-
-    rb_objc_ocid_to_rval(&obj, &robj); 
-
-    rb_ary_store((VALUE)rcv, idx, robj);
-}
-
-static void
-imp_rb_ary_removeObjectAtIndex(void *rcv, SEL sel, NSUInteger idx)
-{
-    if (idx >= RARRAY_LEN(rcv))
-	[NSException raise:@"NSRangeException" 
-	    format:@"index (%d) beyond bounds (%d)", idx, RARRAY_LEN(rcv)];
+    klass = CLASS_OF(rcv);
+    type = rb_boxed_objc_type(klass);
     
-    rb_ary_delete_at((VALUE)rcv, idx); 
+    return StringValuePtr(type);
 }
 
 static void
-imp_rb_ary_addObject(void *rcv, SEL sel, void *obj)
+imp_rb_boxed_getValue(void *rcv, SEL sel, void *buffer)
 {
-    VALUE robj;
+    bs_element_boxed_t *bs_boxed;
+    void *data;
+    bool ok;  
 
-    rb_objc_ocid_to_rval(&obj, &robj); 
+    bs_boxed = rb_klass_get_bs_boxed(CLASS_OF(rcv));
 
-    rb_ary_push((VALUE)rcv, robj);
-}
-
-static void
-imp_rb_ary_removeLastObject(void *rcv, SEL sel)
-{
-    if (RARRAY_LEN(rcv) == 0)
-	[NSException raise:@"NSRangeException" 
-	    format:@"array doesn't contain any object"];
-
-    rb_ary_delete_at((VALUE)rcv, RARRAY_LEN(rcv) - 1);
-}
-
-static void
-imp_rb_ary_replaceObjectAtIndexWithObject(void *rcv, SEL sel, NSUInteger idx,
-    void *obj)
-{
-    VALUE robj;
-
-    if (idx >= RARRAY_LEN(rcv))
-	[NSException raise:@"NSRangeException" 
-	    format:@"index (%d) beyond bounds (%d)", idx, RARRAY_LEN(rcv)];
-    
-    rb_objc_ocid_to_rval(&obj, &robj); 
-
-    rb_ary_store((VALUE)rcv, idx, robj);
-}
-
-static NSUInteger
-imp_rb_hash_count(void *rcv, SEL sel)
-{
-    return RHASH_SIZE(rcv);
-}
-
-static void *
-imp_rb_hash_objectForKey(void *rcv, SEL sel, void *key)
-{
-    VALUE rkey;
-    VALUE val;
-    void *ptr;
-
-    rb_objc_ocid_to_rval(&key, &rkey); 
-
-    val = rb_hash_aref((VALUE)rcv, rkey);
-
-    if (!rb_objc_rval_to_ocid(val, &ptr))
+    data = bs_element_boxed_get_data(bs_boxed, (VALUE)rcv, &ok);
+    if (!ok)
 	[NSException raise:@"NSException" 
-	    format:@"element (%s) at key (%s) cannot be passed to Objective-C", 
-	    RSTRING_PTR(rb_inspect(val)), RSTRING_PTR(rb_inspect(rkey))];
-
-    if (ptr == NULL
-	&& RHASH(rcv)->ntbl != NULL 
-	&& st_lookup(RHASH(rcv)->ntbl, (st_data_t)rkey, 0))
-	ptr = [NSNull null];
-
-    return ptr;
-}
-
-static void *
-imp_rb_hash_keyEnumerator(void *rcv, SEL sel)
-{
-    VALUE keys;
-
-    keys = rb_funcall((VALUE)rcv, rb_intern("keys"), 0, NULL);
-    return [(NSArray *)keys objectEnumerator];
-}
-
-static void
-imp_rb_hash_setObjectForKey(void *rcv, SEL sel, void *obj, void *key)
-{
-    VALUE robj, rkey;
-
-    rb_objc_ocid_to_rval(&obj, &robj); 
-    rb_objc_ocid_to_rval(&key, &rkey); 
-
-    rb_hash_aset((VALUE)rcv, rkey, robj);
-}
-
-static void
-imp_rb_hash_removeObjectForKey(void *rcv, SEL sel, void *key)
-{
-    VALUE rkey;
-
-    rb_objc_ocid_to_rval(&key, &rkey); 
-
-    rb_hash_delete((VALUE)rcv, rkey);
-}
-
-static NSUInteger
-imp_rb_string_length(void *rcv, SEL sel)
-{
-    return NUM2INT(rb_str_length((VALUE)rcv));
-}
-
-static long
-imp_rb_string_hash(void *rcv, SEL sel)
-{
-    /* FIXME this is a temporary hack to make sure our custom NSString
-     * subclass can be properly hashed.
-     * We won't need that once String is re-implemented on top of CFString.
-     */
-    UniChar *buf;
-    int i;
-    buf = alloca(sizeof(UniChar) * RSTRING_LEN(rcv));
-    for (i = 0; i < RSTRING_LEN(rcv); i++)
-	buf[i] = (UniChar)RSTRING_PTR(rcv)[i];
-    return CFStringHashCharacters(buf, RSTRING_LEN(rcv));
-}
-
-static UniChar
-imp_rb_string_characterAtIndex(void *rcv, SEL sel, NSUInteger idx)
-{
-    VALUE rstr;
-    NSString* ocstr;
-    int length = NUM2INT(rb_str_length((VALUE)rcv));
-    UniChar c;
-    rb_encoding *enc;
-
-    if (idx >= length)
-	[NSException raise:@"NSRangeException" 
-	    format:@"index (%d) beyond bounds (%d)", idx, length];
-
-    enc = rb_enc_get((VALUE)rcv);
-    if (enc == rb_usascii_encoding() || enc == rb_ascii8bit_encoding())
-	return (UniChar)RSTRING_PTR(rcv)[idx];
-
-    if (enc != rb_utf8_encoding())
-	[NSException raise:@"NSException" 
-	    format:@"encoding (%s) not supported", enc->name];
-
-    /* FIXME all of this is temporary, and will be addressed once String is
-     * reimplemented on top of CFString 
-     */
-
-    rstr = rb_str_substr((VALUE)rcv, idx, 1);
-    ocstr = [NSString stringWithCString:RSTRING_PTR(rstr) 
-	encoding:NSUTF8StringEncoding];
-    return [ocstr characterAtIndex:0];
-}
-
-static void
-imp_rb_string_getCharactersRange(void *rcv, SEL sel, unichar *buffer, 
-    NSRange range)
-{
-    VALUE rstr;
-    NSString* ocstr;
-    NSData* data;
-    int length = NUM2INT(rb_str_length((VALUE)rcv));
-    rb_encoding *enc;
-
-    if (NSMaxRange(range) > length)
-	[NSException raise:@"NSRangeException" 
-	    format:@"range (%@) beyond bounds (%d)", NSStringFromRange(range), 
-		length];
-
-    enc = rb_enc_get((VALUE)rcv);
-    if (enc == rb_usascii_encoding() || enc == rb_ascii8bit_encoding()) {
-	int i;
-	for (i = range.location; i < range.location + range.length; i++) {
-	    *buffer = (UniChar)RSTRING_PTR(rcv)[i];
-	    buffer++;
-	}
-	return;
+	    format:@"can't get internal data for boxed type `%s'",
+	    RSTRING_PTR(rb_inspect((VALUE)rcv))];
+    if (data == NULL) {
+	*(void **)buffer = NULL; 
     }
-
-    /* FIXME all of this is temporary, and will be addressed once String is
-     * reimplemented on top of CFString 
-     */
-
-    if (enc != rb_utf8_encoding())
-	[NSException raise:@"NSException" 
-	    format:@"encoding (%s) not supported", enc->name];
-
-    rstr = rb_str_substr((VALUE)rcv, range.location, range.length);
-    ocstr = [NSString stringWithCString:RSTRING_PTR(rstr) encoding:NSUTF8StringEncoding];
-    data = [ocstr dataUsingEncoding:NSUTF16LittleEndianStringEncoding];
-    [data getBytes:buffer];
-}
-
-static void
-imp_rb_string_replaceCharactersInRangeWithString(void *rcv, SEL sel, 
-    NSRange range, void *str)
-{
-    VALUE newstr;
-    VALUE rstr;
-    int length = NUM2INT(rb_str_length((VALUE)rcv));
-
-    if (length < range.location + range.length) {
-	[NSException raise:@"NSRangeException" 
-	    format:@"range (%@) beyond bounds (%d)", 
-	    NSStringFromRange(range), length];
+    else {
+ 	memcpy(buffer, data, bs_boxed->ffi_type->size);
     }
-
-    newstr = rb_str_substr((VALUE)rcv, 0, range.location);
-    rb_objc_ocid_to_rval(&str, &rstr);
-    rb_str_concat(newstr, rstr);
-    rb_str_concat(newstr, rb_str_substr((VALUE)rcv, 
-	range.location + range.length, length));
-
-    rb_funcall((VALUE)rcv, rb_intern("replace"), 1, newstr);
 }
 
 static inline void
@@ -2580,46 +2398,12 @@ rb_install_objc_primitives(void)
 {
     Class klass;
 
-    /* Array */
-    klass = RCLASS_OCID(rb_cArray);
-    rb_objc_install_method(klass, @selector(count), (IMP)imp_rb_ary_count);
-    rb_objc_install_method(klass, @selector(objectAtIndex:), 
-	(IMP)imp_rb_ary_objectAtIndex);
-    rb_objc_install_method(klass, @selector(insertObject:atIndex:), 
-	(IMP)imp_rb_ary_insertObjectAtIndex);
-    rb_objc_install_method(klass, @selector(removeObjectAtIndex:), 
-	(IMP)imp_rb_ary_removeObjectAtIndex);
-    rb_objc_install_method(klass, @selector(addObject:), 
-	(IMP)imp_rb_ary_addObject);
-    rb_objc_install_method(klass, @selector(removeLastObject), 
-	(IMP)imp_rb_ary_removeLastObject);
-    rb_objc_install_method(klass, @selector(replaceObjectAtIndex:withObject:),
-	(IMP)imp_rb_ary_replaceObjectAtIndexWithObject);
-
-    /* Hash */
-    klass = RCLASS_OCID(rb_cHash);
-    rb_objc_install_method(klass, @selector(count), (IMP)imp_rb_hash_count);
-    rb_objc_install_method(klass, @selector(objectForKey:), 
-	(IMP)imp_rb_hash_objectForKey);
-    rb_objc_install_method(klass, @selector(keyEnumerator), 
-	(IMP)imp_rb_hash_keyEnumerator);
-    rb_objc_install_method(klass, @selector(setObject:forKey:),
-	(IMP)imp_rb_hash_setObjectForKey);
-    rb_objc_install_method(klass, @selector(removeObjectForKey:),
-	(IMP)imp_rb_hash_removeObjectForKey);
-
-    /* String */
-    klass = RCLASS_OCID(rb_cString);
-    rb_objc_override_method(klass, @selector(length), 
-	(IMP)imp_rb_string_length);
-    rb_objc_override_method(klass, @selector(hash), 
-	(IMP)imp_rb_string_hash);
-    rb_objc_install_method(klass, @selector(characterAtIndex:), 
-	(IMP)imp_rb_string_characterAtIndex);
-    rb_objc_install_method(klass, @selector(getCharacters:range:),
-	(IMP)imp_rb_string_getCharactersRange);
-    rb_objc_install_method(klass, @selector(replaceCharactersInRange:withString:), 
-	(IMP)imp_rb_string_replaceCharactersInRangeWithString);
+    /* Boxed */
+    klass = RCLASS_OCID(rb_cBoxed);
+    rb_objc_override_method(klass, @selector(objCType), 
+	(IMP)imp_rb_boxed_objCType);
+    rb_objc_override_method(klass, @selector(getValue:), 
+	(IMP)imp_rb_boxed_getValue);
 }
 
 static void *
@@ -2810,6 +2594,298 @@ dyld_add_image_cb(const struct mach_header* mh, intptr_t vmaddr_slide)
 }
 #endif
 
+#if 0
+/* XXX the ivar cluster API is not used yet, and may not simply be used. 
+ */
+#define IVAR_CLUSTER_NAME "__rivars__"
+void
+rb_objc_install_ivar_cluster(Class klass)
+{
+    assert(class_addIvar(klass, IVAR_CLUSTER_NAME, sizeof(void *), 
+	log2(sizeof(void *)), "^v") == YES);
+}
+
+void *
+rb_objc_get_ivar_cluster(void *obj)
+{
+    void *v = NULL;
+    assert(object_getInstanceVariable((id)obj, IVAR_CLUSTER_NAME, &v) != NULL);
+    return v;
+}
+
+void
+rb_objc_set_ivar_cluster(void *obj, void *v)
+{
+    assert(object_setInstanceVariable((id)obj, IVAR_CLUSTER_NAME, v) != NULL);
+}
+#endif
+
+static CFMutableDictionaryRef __obj_flags;
+
+long
+rb_objc_flag_get_mask(const void *obj)
+{
+    if (__obj_flags == NULL)
+	return 0;
+
+    return (long)CFDictionaryGetValue(__obj_flags, obj);
+}
+
+bool
+rb_objc_flag_check(const void *obj, int flag)
+{
+    long v;
+
+    v = rb_objc_flag_get_mask(obj);
+    if (v == 0)
+	return false;
+
+    return (v & flag) == flag;
+}
+
+void
+rb_objc_flag_set(const void *obj, int flag, bool val)
+{
+    long v;
+
+    if (__obj_flags == NULL) {
+	__obj_flags = CFDictionaryCreateMutable(NULL, 0, NULL, NULL);
+    }
+    v = (long)CFDictionaryGetValue(__obj_flags, obj);
+    if (val) {
+	v |= flag;
+    }
+    else {
+	v ^= flag;
+    }
+    CFDictionarySetValue(__obj_flags, obj, (void *)v);
+}
+
+long
+rb_objc_remove_flags(const void *obj)
+{
+    long flag;
+    if (CFDictionaryGetValueIfPresent(__obj_flags, obj, 
+	(const void **)&flag)) {
+	CFDictionaryRemoveValue(__obj_flags, obj);
+	return flag;
+    }
+    return 0;
+}
+
+static void
+rb_objc_get_types_for_format_str(char **octypes, const int len, VALUE *args,
+				 const char *format_str, char **new_fmt)
+{
+    unsigned i, j, format_str_len;
+
+    format_str_len = strlen(format_str);
+    i = j = 0;
+
+    while (i < format_str_len) {
+	bool sharp_modifier = false;
+	bool star_modifier = false;
+	if (format_str[i++] != '%')
+	    continue;
+	if (i < format_str_len && format_str[i] == '%') {
+	    i++;
+	    continue;
+	}
+	while (i < format_str_len) {
+	    char *type = NULL;
+	    switch (format_str[i]) {
+		case '#':
+		    sharp_modifier = true;
+		    break;
+
+		case '*':
+		    star_modifier = true;
+		    type = "i"; // C_INT;
+		    break;
+
+		case 'd':
+		case 'i':
+		case 'o':
+		case 'u':
+		case 'x':
+		case 'X':
+		    type = "i"; // _C_INT;
+		    break;
+
+		case 'c':
+		case 'C':
+		    type = "c"; // _C_CHR;
+		    break;
+
+		case 'D':
+		case 'O':
+		case 'U':
+		    type = "l"; // _C_LNG;
+		    break;
+
+		case 'f':       
+		case 'F':
+		case 'e':       
+		case 'E':
+		case 'g':       
+		case 'G':
+		case 'a':
+		case 'A':
+		    type = "d"; // _C_DBL;
+		    break;
+
+		case 's':
+		case 'S':
+		    {
+			if (i - 1 > 0) {
+			    long k = i - 1;
+			    while (k > 0 && format_str[k] == '0')
+				k--;
+			    if (k < i && format_str[k] == '.')
+				args[j] = (VALUE)CFSTR("");
+			}
+			type = "*"; // _C_CHARPTR;
+		    }
+		    break;
+
+		case 'p':
+		    type = "^"; // _C_PTR;
+		    break;
+
+		case '@':
+		    type = "@"; // _C_ID;
+		    break;
+
+		case 'B':
+		case 'b':
+		    {
+			VALUE arg = args[j];
+			switch (TYPE(arg)) {
+			    case T_STRING:
+				arg = rb_str_to_inum(arg, 0, Qtrue);
+				break;
+			}
+			arg = rb_big2str(arg, 2);
+			if (sharp_modifier) {
+			    VALUE prefix = format_str[i] == 'B'
+				? (VALUE)CFSTR("0B") : (VALUE)CFSTR("0b");
+			   rb_str_update(arg, 0, 0, prefix);
+			}
+			if (*new_fmt == NULL)
+			    *new_fmt = strdup(format_str);
+			(*new_fmt)[i] = '@';
+			args[j] = arg;
+			type = "@"; 
+		    }
+		    break;
+	    }
+
+	    i++;
+
+	    if (type != NULL) {
+		if (len == 0 || j >= len)
+		    rb_raise(rb_eArgError, 
+			"Too much tokens in the format string `%s' "\
+			"for the given %d argument(s)", format_str, len);
+		octypes[j++] = type;
+		if (!star_modifier)
+		    break;
+	    }
+	}
+    }
+    for (; j < len; j++)
+	octypes[j] = "@"; // _C_ID;
+}
+
+VALUE
+rb_str_format(int argc, const VALUE *argv, VALUE fmt)
+{
+    char **types;
+    ffi_type *ffi_rettype, **ffi_argtypes;
+    void *ffi_ret, **ffi_args;
+    ffi_cif *cif;
+    int i;
+    void *null;
+    char *new_fmt;
+
+    if (argc == 0)
+	return fmt;
+
+    types = (char **)alloca(sizeof(char *) * argc);
+    ffi_argtypes = (ffi_type **)alloca(sizeof(ffi_type *) * argc + 4);
+    ffi_args = (void **)alloca(sizeof(void *) * argc + 4);
+
+    null = NULL;
+    new_fmt = NULL;
+
+    rb_objc_get_types_for_format_str(types, argc, (VALUE *)argv, 
+	    RSTRING_CPTR(fmt), &new_fmt);
+    if (new_fmt != NULL) {
+	fmt = (VALUE)CFStringCreateWithCString(NULL, new_fmt, 
+		kCFStringEncodingUTF8);
+	free(new_fmt);
+	CFMakeCollectable((void *)fmt);
+    }  
+
+    for (i = 0; i < argc; i++) {
+	ffi_argtypes[i + 3] = rb_objc_octype_to_ffitype(types[i]);
+	ffi_args[i + 3] = (void *)alloca(ffi_argtypes[i + 3]->size);
+	rb_objc_rval_to_ocval(argv[i], types[i], ffi_args[i + 3]);
+    }
+
+    ffi_argtypes[0] = &ffi_type_pointer;
+    ffi_args[0] = &null;
+    ffi_argtypes[1] = &ffi_type_pointer;
+    ffi_args[1] = &null;
+    ffi_argtypes[2] = &ffi_type_pointer;
+    ffi_args[2] = &fmt;
+   
+    ffi_argtypes[argc + 4] = NULL;
+    ffi_args[argc + 4] = NULL;
+
+    ffi_rettype = &ffi_type_pointer;
+    
+    cif = (ffi_cif *)alloca(sizeof(ffi_cif));
+
+    if (ffi_prep_cif(cif, FFI_DEFAULT_ABI, argc + 3, ffi_rettype, ffi_argtypes)
+        != FFI_OK)
+        rb_fatal("can't prepare cif for CFStringCreateWithFormat");
+
+    ffi_ret = NULL;
+
+    ffi_call(cif, FFI_FN(CFStringCreateWithFormat), &ffi_ret, ffi_args);
+
+    if (ffi_ret != NULL) {
+        CFMakeCollectable((CFTypeRef)ffi_ret);
+        return (VALUE)ffi_ret;
+    }
+    return Qnil;
+}
+
+extern bool __CFStringIsMutable(void *);
+extern bool _CFArrayIsMutable(void *);
+extern bool _CFDictionaryIsMutable(void *);
+
+bool
+rb_objc_is_immutable(VALUE v)
+{
+    switch(TYPE(v)) {
+	case T_STRING:
+	    return !__CFStringIsMutable((void *)v);
+	case T_ARRAY:
+	    return !_CFArrayIsMutable((void *)v);
+	case T_HASH:
+	    return !_CFDictionaryIsMutable((void *)v);	    
+    }
+    return false;
+}
+
+static void 
+timer_cb(CFRunLoopTimerRef timer, void *ctx)
+{
+    RUBY_VM_CHECK_INTS();
+}
+
 void
 Init_ObjC(void)
 {
@@ -2822,10 +2898,13 @@ Init_ObjC(void)
     rb_objc_retain(bs_inf_prot_imethods = st_init_numtable());
     rb_objc_retain(bs_cftypes = st_init_strtable());
 
-    bs_const_magic_cookie = rb_str_new2("bs_const_magic_cookie");
-    rb_objc_class_magic_cookie = rb_str_new2("rb_objc_class_magic_cookie");
+    rb_objc_retain(
+	bs_const_magic_cookie = rb_str_new2("bs_const_magic_cookie"));
+    rb_objc_retain(
+	rb_objc_class_magic_cookie = rb_str_new2("rb_objc_class_magic_cookie"));
 
-    rb_cBoxed = rb_define_class("Boxed", rb_cObject);
+    rb_cBoxed = rb_define_class("Boxed",
+	rb_objc_import_class(objc_getClass("NSValue")));
     rb_define_singleton_method(rb_cBoxed, "objc_type", rb_boxed_objc_type, 0);
     rb_define_singleton_method(rb_cBoxed, "opaque?", rb_boxed_is_opaque, 0);
     rb_define_singleton_method(rb_cBoxed, "fields", rb_boxed_fields, 0);
@@ -2840,4 +2919,21 @@ Init_ObjC(void)
 #endif
 
     rb_define_global_function("load_bridge_support_file", rb_objc_load_bs, 1);
+
+    {
+	CFRunLoopTimerRef timer;
+	timer = CFRunLoopTimerCreate(NULL,
+		CFAbsoluteTimeGetCurrent(), 0.1, 0, 0, timer_cb, NULL);
+	CFRunLoopAddTimer(CFRunLoopGetMain(), timer, kCFRunLoopDefaultMode);
+    }
 }
+
+@interface Protocol
+@end
+
+@implementation Protocol (MRFindProtocol)
++(id)protocolWithName:(NSString *)name
+{
+    return (id)objc_getProtocol([name UTF8String]);
+} 
+@end

@@ -2,7 +2,7 @@
 
   error.c -
 
-  $Author: akr $
+  $Author: nobu $
   created at: Mon Aug  9 16:11:34 JST 1993
 
   Copyright (C) 1993-2007 Yukihiro Matsumoto
@@ -238,7 +238,7 @@ rb_compile_bug(const char *file, int line, const char *fmt, ...)
     abort();
 }
 
-static struct types {
+static const struct types {
     int type;
     const char *name;
 } builtin_types[] = {
@@ -256,6 +256,8 @@ static struct types {
     {T_STRUCT,	"Struct"},
     {T_BIGNUM,	"Bignum"},
     {T_FILE,	"File"},
+    {T_RATIONAL,"Rational"},
+    {T_COMPLEX, "Complex"},
     {T_TRUE,	"true"},
     {T_FALSE,	"false"},
     {T_SYMBOL,	"Symbol"},	/* :symbol */
@@ -263,20 +265,21 @@ static struct types {
     {T_MATCH,	"MatchData"},	/* data of $~ */
     {T_NODE,	"Node"},	/* internal use: syntax tree node */
     {T_UNDEF,	"undef"},	/* internal use: #undef; should not happen */
-    {-1,	0}
 };
 
 void
 rb_check_type(VALUE x, int t)
 {
-    struct types *type = builtin_types;
+    const struct types *type = builtin_types;
+    const struct types *const typeend = builtin_types +
+	sizeof(builtin_types) / sizeof(builtin_types[0]);
 
     if (x == Qundef) {
 	rb_bug("undef leaked to the Ruby space");
     }
 
     if (TYPE(x) != t) {
-	while (type->type >= 0) {
+	while (type < typeend) {
 	    if (type->type == t) {
 		const char *etype;
 
@@ -290,7 +293,7 @@ rb_check_type(VALUE x, int t)
 		    etype = "Symbol";
 		}
 		else if (rb_special_const_p(x)) {
-		    etype = RSTRING_PTR(rb_obj_as_string(x));
+		    etype = RSTRING_CPTR(rb_obj_as_string(x));
 		}
 		else {
 		    etype = rb_obj_classname(x);
@@ -332,7 +335,7 @@ VALUE rb_eLoadError;
 
 VALUE rb_eSystemCallError;
 VALUE rb_mErrno;
-static VALUE eNOERROR;
+static VALUE rb_eNOERROR;
 
 VALUE
 rb_exc_new(VALUE etype, const char *ptr, long len)
@@ -447,7 +450,7 @@ exc_inspect(VALUE exc)
 
     klass = CLASS_OF(exc);
     exc = rb_obj_as_string(exc);
-    if (RSTRING_LEN(exc) == 0) {
+    if (RSTRING_CLEN(exc) == 0) {
 	return rb_str_dup(rb_class_name(klass));
     }
 
@@ -513,7 +516,7 @@ rb_check_backtrace(VALUE bt)
 	    rb_raise(rb_eTypeError, err);
 	}
 	for (i=0;i<RARRAY_LEN(bt);i++) {
-	    if (TYPE(RARRAY_PTR(bt)[i]) != T_STRING) {
+	    if (TYPE(RARRAY_AT(bt, i)) != T_STRING) {
 		rb_raise(rb_eTypeError, err);
 	    }
 	}
@@ -768,10 +771,10 @@ name_err_mesg_to_str(VALUE obj)
 	    break;
 	  default:
 	    d = rb_protect(rb_inspect, obj, 0);
-	    if (NIL_P(d) || RSTRING_LEN(d) > 65) {
+	    if (NIL_P(d) || RSTRING_CLEN(d) > 65) {
 		d = rb_any_to_s(obj);
 	    }
-	    desc = RSTRING_PTR(d);
+	    desc = RSTRING_CPTR(d);
 	    break;
 	}
 	if (desc && desc[0] != '#') {
@@ -814,7 +817,7 @@ rb_invalid_str(const char *str, const char *type)
 {
     VALUE s = rb_str_inspect(rb_str_new2(str));
 
-    rb_raise(rb_eArgError, "invalid value for %s: %s", type, RSTRING_PTR(s));
+    rb_raise(rb_eArgError, "invalid value for %s: %s", type, RSTRING_CPTR(s));
 }
 
 /* 
@@ -845,7 +848,7 @@ rb_invalid_str(const char *str, const char *type)
  *  The full list of operating system errors on your particular platform
  *  are available as the constants of <code>Errno</code>.
  *
- *     Errno.constants   #=> E2BIG, EACCES, EADDRINUSE, EADDRNOTAVAIL, ...
+ *     Errno.constants   #=> :E2BIG, :EACCES, :EADDRINUSE, :EADDRNOTAVAIL, ...
  */
 
 static st_table *syserr_tbl;
@@ -925,7 +928,7 @@ syserr_initialize(int argc, VALUE *argv, VALUE self)
 
 	StringValue(str);
 	mesg = rb_sprintf("%s - %.*s", err,
-			  (int)RSTRING_LEN(str), RSTRING_PTR(str));
+			  (int)RSTRING_CLEN(str), RSTRING_CPTR(str));
     }
     else {
 	mesg = rb_str_new2(err);
@@ -988,7 +991,7 @@ syserr_eqq(VALUE self, VALUE exc)
 static VALUE
 errno_missing(VALUE self, VALUE id)
 {
-    return eNOERROR;
+    return rb_eNOERROR;
 }
 
 /*
@@ -1534,7 +1537,7 @@ Init_syserr(void)
 #ifdef EDQUOT
     set_syserr(EDQUOT, "EDQUOT");
 #endif
-    eNOERROR = set_syserr(0, "NOERROR");
+    rb_eNOERROR = set_syserr(0, "NOERROR");
 }
 
 static void

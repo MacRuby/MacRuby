@@ -2,7 +2,7 @@
 
   stringio.c -
 
-  $Author: nobu $
+  $Author: knu $
   $RoughId: stringio.c,v 1.13 2002/03/14 03:24:18 nobu Exp $
   created at: Tue Feb 19 04:10:38 JST 2002
 
@@ -191,7 +191,7 @@ strio_init(int argc, VALUE *argv, struct StringIO *ptr)
 	ptr->flags = FMODE_READWRITE;
 	break;
     }
-    ptr->string = string;
+    GC_WB(&ptr->string, string);
 }
 
 static VALUE
@@ -307,7 +307,8 @@ strio_set_string(VALUE self, VALUE string)
     ptr->flags = OBJ_FROZEN(string) ? FMODE_READABLE : FMODE_READWRITE;
     ptr->pos = 0;
     ptr->lineno = 0;
-    return ptr->string = string;
+    GC_WB(&ptr->string, string);
+    return string;
 }
 
 /*
@@ -614,6 +615,9 @@ static VALUE
 strio_each_byte(VALUE self)
 {
     struct StringIO *ptr = readable(StringIO(self));
+
+    RETURN_ENUMERATOR(self, 0, 0);
+
     while (ptr->pos < RSTRING_LEN(ptr->string)) {
 	char c = RSTRING_PTR(ptr->string)[ptr->pos++];
 	rb_yield(CHR2FIX(c));
@@ -639,7 +643,11 @@ strio_getc(VALUE self)
 	return Qnil;
     }
     p = RSTRING_PTR(ptr->string)+ptr->pos;
+#if WITH_OBJC
+    len = 1;
+#else
     len = rb_enc_mbclen(p, RSTRING_END(ptr->string), enc);
+#endif
     ptr->pos += len;
     return rb_enc_str_new(p, len, rb_enc_get(ptr->string));
 }
@@ -700,11 +708,15 @@ strio_ungetc(VALUE self, VALUE c)
     if (NIL_P(c)) return Qnil;
     if (FIXNUM_P(c)) {
 	int cc = FIX2INT(c);
+#if WITH_OBJC
+	c = rb_str_new((char *)&cc, 1);
+#else
 	char buf[16];
 
 	enc = rb_enc_get(ptr->string);
 	rb_enc_mbcput(cc, buf, enc);
 	c = rb_enc_str_new(buf, rb_enc_codelen(cc, enc), enc);
+#endif
     }
     else {
 	SafeStringValue(c);
@@ -713,7 +725,11 @@ strio_ungetc(VALUE self, VALUE c)
     /* get logical position */
     lpos = 0; p = RSTRING_PTR(ptr->string); pend = p + ptr->pos - 1;
     for (;;) {
+#if WITH_OBJC
+	clen = 1;
+#else
 	clen = rb_enc_mbclen(p, pend, enc);
+#endif
 	if (p+clen >= pend) break;
 	p += clen;
 	lpos++;
@@ -925,6 +941,8 @@ strio_each(int argc, VALUE *argv, VALUE self)
 {
     struct StringIO *ptr = StringIO(self);
     VALUE line;
+
+    RETURN_ENUMERATOR(self, argc, argv);
 
     while (!NIL_P(line = strio_getline(argc, argv, readable(ptr)))) {
 	rb_yield(line);
@@ -1233,7 +1251,9 @@ Init_stringio()
 
     rb_define_method(StringIO, "each", strio_each, -1);
     rb_define_method(StringIO, "each_byte", strio_each_byte, 0);
+    rb_define_method(StringIO, "bytes", strio_each_byte, -1);
     rb_define_method(StringIO, "each_line", strio_each, -1);
+    rb_define_method(StringIO, "lines", strio_each, -1);
     rb_define_method(StringIO, "getc", strio_getc, 0);
     rb_define_method(StringIO, "ungetc", strio_ungetc, 1);
     rb_define_method(StringIO, "readchar", strio_readchar, 0);

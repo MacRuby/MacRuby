@@ -30,8 +30,8 @@ end
 application = NSApplication.sharedApplication
 
 # Create the window
-frame = NSRect.new(NSPoint.new(0, 0), NSSize.new(450, 200))
-window = NSWindow.alloc.initWithContentRect(frame, 
+frame = [0, 0, 450, 200]
+window = NSWindow.alloc.initWithContentRect(frame,
     styleMask:NSBorderlessWindowMask,
     backing:NSBackingStoreBuffered,
     defer:false)
@@ -56,13 +56,6 @@ window.frameOrigin = NSPoint.new(40,
 window.makeKeyAndOrderFront(nil)
 window.orderFrontRegardless
 
-# Prepare a timer that will auto-terminate our application
-$stderr.puts "Starting. Application will automatically quit in 5 seconds."
-NSTimer.scheduledTimerWithTimeInterval(5.0,
-    target:application,
-    selector:'terminate:',
-    userInfo:nil,
-    repeats:false)
-
 # And start the application event loop
+$stderr.puts "Starting. Press ^C to quit."
 application.run

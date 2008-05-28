@@ -2,7 +2,7 @@
 
   proc.c - Proc, Binding, Env
 
-  $Author: mame $
+  $Author: matz $
   created at: Wed Jan 17 12:13:14 2007
 
   Copyright (C) 2004-2007 Koichi Sasada
@@ -95,6 +95,7 @@ proc_dup(VALUE self)
     dst->envval = src->envval;
     dst->safe_level = dst->safe_level;
     dst->special_cref_stack = src->special_cref_stack;
+    dst->is_lambda = src->is_lambda;
 
     return procval;
 }
@@ -680,7 +681,7 @@ proc_to_s(VALUE self)
 	    line_no = iseq->insn_info_table[0].line_no;
 	}
 	str = rb_sprintf("#<%s:%p@%s:%d%s>", cname, (void *)self,
-			 RSTRING_PTR(iseq->filename),
+			 RSTRING_CPTR(iseq->filename),
 			 line_no, is_lambda);
     }
     else {
@@ -921,7 +922,7 @@ method_receiver(VALUE obj)
 
 /*
  *  call-seq:
- *     meth.name    => string
+ *     meth.name    => symbol
  *  
  *  Returns the name of the method.
  */
@@ -932,7 +933,7 @@ method_name(VALUE obj)
     struct METHOD *data;
 
     Data_Get_Struct(obj, struct METHOD, data);
-    return rb_str_dup(rb_id2str(data->id));
+    return ID2SYM(data->id);
 }
 
 /*
@@ -1504,9 +1505,15 @@ bmcall(VALUE args, VALUE method)
 {
     volatile VALUE a;
 
+#if WITH_OBJC
+    if (TYPE(args) != T_ARRAY) {
+    	return rb_method_call(1, &args, method);
+    }
+#else
     if (CLASS_OF(args) != rb_cArray) {
 	args = rb_ary_new3(1, args);
     }
+#endif
 
     a = args;
     return rb_method_call(RARRAY_LEN(a), RARRAY_PTR(a), method);
@@ -1597,7 +1604,6 @@ localjump_reason(VALUE exc)
  *     
  *     b = fred(99)
  *     eval("param", b.binding)   #=> 99
- *     eval("param", b)           #=> 99
  */
 static VALUE
 proc_binding(VALUE self)
@@ -1609,7 +1615,7 @@ proc_binding(VALUE self)
     GetProcPtr(self, proc);
     GetBindingPtr(bindval, bind);
 
-    if (TYPE(proc->block.iseq) == T_NODE) {
+    if (BUILTIN_TYPE(proc->block.iseq) == T_NODE) {
 	rb_raise(rb_eArgError, "Can't create Binding from C level Proc");
     }
 
@@ -1623,11 +1629,15 @@ static VALUE curry(VALUE dummy, VALUE args, int argc, VALUE *argv);
 static VALUE
 make_curry_proc(VALUE proc, VALUE passed, VALUE arity)
 {
+#if WITH_OBJC
+    VALUE args = rb_ary_new3(3, proc, passed, arity);
+#else
     VALUE args = rb_ary_new2(3);
     RARRAY_PTR(args)[0] = proc;
     RARRAY_PTR(args)[1] = passed;
     RARRAY_PTR(args)[2] = arity;
     RARRAY_LEN(args) = 3;
+#endif
     rb_ary_freeze(passed);
     rb_ary_freeze(args);
     return rb_proc_new(curry, args);
@@ -1637,9 +1647,9 @@ static VALUE
 curry(VALUE dummy, VALUE args, int argc, VALUE *argv)
 {
     VALUE proc, passed, arity;
-    proc = RARRAY_PTR(args)[0];
-    passed = RARRAY_PTR(args)[1];
-    arity = RARRAY_PTR(args)[2];
+    proc = RARRAY_AT(args, 0);
+    passed = RARRAY_AT(args, 1);
+    arity = RARRAY_AT(args, 2);
 
     passed = rb_ary_plus(passed, rb_ary_new4(argc, argv));
     rb_ary_freeze(passed);
