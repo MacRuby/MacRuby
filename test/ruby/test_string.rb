@@ -653,6 +653,9 @@ class TestString < Test::Unit::TestCase
 
     a = S("hello")
     assert_nil(a.sub!(S('X'), S('Y')))
+
+    a = S("hello").freeze
+    assert_raise(RuntimeError) { a.gsub!(/./, '') }
   end
 
   def test_sub_hash

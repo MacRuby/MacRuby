@@ -4066,6 +4066,7 @@ str_gsub(int argc, VALUE *argv, VALUE str, int bang)
     rb_backref_set(match);
 #if WITH_OBJC
     if (bang) {
+	rb_str_modify(str);
 	RSTRING_SYNC(str);
 	RSTRING_SYNC(dest);
 	CFStringReplaceAll((CFMutableStringRef)str, (CFStringRef)dest);
