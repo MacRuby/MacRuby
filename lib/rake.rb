@@ -1088,8 +1088,9 @@ end
 # other objects.
 
 include RakeFileUtils
-private(*FileUtils.instance_methods(false))
-private(*RakeFileUtils.instance_methods(false))
+# FIXME: this doesn't work in MacRuby yet
+#private(*FileUtils.instance_methods(false))
+#private(*RakeFileUtils.instance_methods(false))
 
 ######################################################################
 module Rake
@@ -1167,23 +1168,21 @@ module Rake
     # Now do the delegation.
     DELEGATING_METHODS.each_with_index do |sym, i|
       if SPECIAL_RETURN.include?(sym)
-        ln = __LINE__+1
-        class_eval %{
-          def #{sym}(*args, &block)
+        class_eval do
+	  define_method(sym) do |*args, &block|
             resolve
-            result = @items.send(:#{sym}, *args, &block)
+            result = @items.send(sym, *args, &block)
             FileList.new.import(result)
           end
-        }, __FILE__, ln
+        end
       else
-        ln = __LINE__+1
-        class_eval %{
-          def #{sym}(*args, &block)
+        class_eval do
+	  define_method(sym) do |*args, &block|
             resolve
-            result = @items.send(:#{sym}, *args, &block)
+            result = @items.send(sym, *args, &block)
             result.object_id == @items.object_id ? self : result
-          end
-        }, __FILE__, ln
+          end 
+        end
       end
     end
 
