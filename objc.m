@@ -1696,12 +1696,6 @@ rb_bs_struct_field_ivar_id(void)
 }
 
 static VALUE
-rb_bs_struct_get_field(bs_element_struct_t *bs_struct, VALUE recv,
-		       ID ivar_id)
-{
-}
-
-static VALUE
 rb_bs_struct_get(VALUE recv)
 {
     bs_element_boxed_t *bs_boxed = rb_klass_get_bs_boxed(CLASS_OF(recv));
@@ -1733,7 +1727,7 @@ rb_bs_struct_get(VALUE recv)
 	    val = ((VALUE *)data)[i];
 	    if (val == 0) {
 		rb_objc_ocval_to_rbval(data + pos, bs_field->type, &val);
-	   	((VALUE *)data)[i] = val; 
+	   	GC_WB(&((VALUE *)data)[i], val); 
 	    }
 	    return val;
 	}
