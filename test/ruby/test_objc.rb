@@ -94,11 +94,15 @@ class TestObjC < Test::Unit::TestCase
   def test_struct_create
     p = NSPoint.new
     assert_kind_of(NSPoint, p)
+    assert_kind_of(Float, p.x)
     assert_equal(0.0, p.x)
+    assert_kind_of(Float, p.y)
     assert_equal(0.0, p.y)
 
     p = NSPoint.new(1, 2)
+    assert_kind_of(Float, p.x)
     assert_equal(1.0, p.x)
+    assert_kind_of(Float, p.y)
     assert_equal(2.0, p.y)
 
     assert_raise(ArgumentError) { NSPoint.new(1) }
