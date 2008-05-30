@@ -577,6 +577,10 @@ math_gamma(VALUE obj, VALUE x)
  *  but avoid overflow by Math.gamma(x) for large x.
  */
 
+#if WITH_OBJC && HAVE_LGAMMA_R && BYTE_ORDER == LITTLE_ENDIAN
+#  include "missing/lgamma_r.c"
+#endif
+
 static VALUE
 math_lgamma(VALUE obj, VALUE x)
 {

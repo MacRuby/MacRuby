@@ -2185,10 +2185,13 @@ rb_str_concat(VALUE str1, VALUE str2)
     if (FIXNUM_P(str2)) {
 #if WITH_OBJC
         int c = FIX2INT(str2);
+	char buf[2];
 
 	rb_str_modify(str1);
-        CFStringAppendCharacters((CFMutableStringRef)str1, (const UniChar *)&c, 
-	    1);
+	buf[0] = (char)c;
+	buf[1] = '\0';
+	CFStringAppendCString((CFMutableStringRef)str1, buf, 
+			      kCFStringEncodingUTF8);
 	rb_gc_malloc_increase(sizeof(UniChar));
 #else
 	rb_encoding *enc = STR_ENC_GET(str1);
@@ -4518,8 +4521,10 @@ static void
 str_cat_char(VALUE str, int c, rb_encoding *enc)
 {
 #if WITH_OBJC
-    CFStringAppendCharacters((CFMutableStringRef)str, 
-	(const UniChar *)&c, 1); 	 
+    char buf[2];
+    buf[0] = (char)c;
+    buf[1] = '\0';
+    CFStringAppendCString((CFMutableStringRef)str, buf, kCFStringEncodingUTF8);
 #else
     char s[16];
     int n = rb_enc_codelen(c, enc);

@@ -1808,7 +1808,14 @@ appendline(rb_io_t *fptr, int delim, VALUE *strp, long *lp)
 	    rb_str_cat(str, &ch, 1);
 	}
 	else {
+#if WITH_OBJC
+	    char buf[2];
+	    buf[0] = ch;
+	    buf[1] = '\0';
+	    *strp = str = rb_str_new(buf, 1);
+#else
 	    *strp = str = rb_str_new(&ch, 1);
+#endif
 	}
     }
 
@@ -2581,7 +2588,10 @@ rb_io_ungetc(VALUE io, VALUE c)
     if (FIXNUM_P(c)) {
 	int cc = FIX2INT(c);
 #if WITH_OBJC
-	c = rb_str_new((char *)&cc, 1);
+	char buf[2];
+	buf[0] = cc;
+	buf[1] = '\0';
+	c = rb_str_new(buf, 1);
 #else
 	rb_encoding *enc = io_read_encoding(fptr);
 	char buf[16];

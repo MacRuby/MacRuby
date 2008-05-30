@@ -4017,6 +4017,15 @@ imp_rb_array_replaceObjectAtIndexWithObject(void *rcv, SEL sel, CFIndex idx,
 }
 
 static void
+imp_rb_array_replaceObjectsInRangeWithObjectsCount(void *rcv, SEL sel,
+    CFRange range, const void **objects, CFIndex count)
+{
+    PREPARE_RCV(rcv);
+    CFArrayReplaceValues((CFMutableArrayRef)rcv, range, objects, count);
+    RESTORE_RCV(rcv);
+}
+
+static void
 imp_rb_array_addObject(void *rcv, SEL sel, void *obj)
 {
     PREPARE_RCV(rcv);
@@ -4054,6 +4063,8 @@ rb_objc_install_array_primitives(Class klass)
     INSTALL_METHOD("removeObjectAtIndex:", imp_rb_array_removeObjectAtIndex);
     INSTALL_METHOD("replaceObjectAtIndex:withObject:", 
 	imp_rb_array_replaceObjectAtIndexWithObject);
+    INSTALL_METHOD("replaceObjectsInRange:withObjects:count:",
+	imp_rb_array_replaceObjectsInRangeWithObjectsCount);
     INSTALL_METHOD("addObject:", imp_rb_array_addObject);
 
     /* This is to work around a bug where CF will try to call an non-existing 
