@@ -82,6 +82,7 @@ static VALUE
 enc_make(const CFStringEncoding *enc)
 {
     VALUE v;
+    assert(enc != NULL);
     v = (VALUE)CFDictionaryGetValue( (CFDictionaryRef)__encodings, 
 	(const void *)(*enc));
     assert(v != 0);

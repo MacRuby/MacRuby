@@ -6198,8 +6198,10 @@ parser_prepare(struct parser_params *parser)
     }
     pushback(c);
     parser->enc = rb_enc_get(lex_lastline);
-#if !WITH_OBJC
     if (parser->enc == NULL)
+#if WITH_OBJC
+	parser->enc = rb_locale_encoding();
+#else
 	parser->enc = rb_utf8_encoding();
 #endif
 }
@@ -9644,7 +9646,7 @@ parser_initialize(struct parser_params *parser)
     parser->heap = NULL;
 #endif
 #if WITH_OBJC
-    parser->enc = NULL;
+    parser->enc = rb_locale_encoding();
 #else
     parser->enc = rb_usascii_encoding();
 #endif
