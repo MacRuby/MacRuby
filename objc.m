@@ -2280,7 +2280,6 @@ reload_class_constants(void)
     class_count = count;
 }
 
-static void dyld_add_image_cb(const struct mach_header* mh, intptr_t vmaddr_slide);
 VALUE
 rb_require_framework(int argc, VALUE *argv, VALUE recv)
 {
@@ -2328,6 +2327,12 @@ rb_require_framework(int argc, VALUE *argv, VALUE recv)
 	    : NSUserDomainMask | NSLocalDomainMask | NSSystemDomainMask;
 
 	frameworkName = [path stringByAppendingPathExtension:@"framework"];
+
+	path = [[[[NSBundle mainBundle] bundlePath] 
+	    stringByAppendingPathComponent:@"Contents/Frameworks"] 
+		stringByAppendingPathComponent:frameworkName];
+	if ([fileManager fileExistsAtPath:path])
+	    goto success;	
 
 	dirs = NSSearchPathForDirectoriesInDomains(NSLibraryDirectory, 
 	    pathDomainMask, YES);
@@ -2618,14 +2623,6 @@ rb_mod_objc_ib_outlet(int argc, VALUE *argv, VALUE recv)
 		     symname);
     }
 }
-
-#if 0
-static void
-dyld_add_image_cb(const struct mach_header* mh, intptr_t vmaddr_slide)
-{
-    reload_class_constants();
-}
-#endif
 
 #if 0
 /* XXX the ivar cluster API is not used yet, and may not simply be used. 
@@ -2946,10 +2943,6 @@ Init_ObjC(void)
 
     rb_install_objc_primitives();
     rb_install_alloc_methods();
-
-#if 0 /* FIXME this doesn't seem to work as expected */
-    _dyld_register_func_for_add_image(dyld_add_image_cb);
-#endif
 
     rb_define_global_function("load_bridge_support_file", rb_objc_load_bs, 1);
 
