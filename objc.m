@@ -593,8 +593,11 @@ rebuild_new_struct_ary(ffi_type **elements, VALUE orig, VALUE new)
     long n = 0;
     while ((*elements) != NULL) {
 	if ((*elements)->type == FFI_TYPE_STRUCT) {
-	    long i, n2 = rebuild_new_struct_ary((*elements)->elements, orig, new);
-	    VALUE tmp = rb_ary_new();
+	    long i, n2;
+	    VALUE tmp;
+
+	    n2 = rebuild_new_struct_ary((*elements)->elements, orig, new);
+	    tmp = rb_ary_new();
 	    for (i = 0; i < n2; i++) {
 		if (RARRAY_LEN(orig) == 0)
 		    return 0;
@@ -606,6 +609,66 @@ rebuild_new_struct_ary(ffi_type **elements, VALUE orig, VALUE new)
 	n++;
     } 
     return n;
+}
+
+static void rb_objc_rval_to_ocval(VALUE, const char *, void **);
+
+static void *
+rb_objc_rval_to_boxed_data(VALUE rval, bs_element_boxed_t *bs_boxed, bool *ok)
+{
+    void *data;
+
+    if (TYPE(rval) == T_ARRAY && bs_boxed->type == BS_ELEMENT_STRUCT) {
+	bs_element_struct_t *bs_struct;
+	long i, n;
+	size_t pos;
+
+	bs_struct = (bs_element_struct_t *)bs_boxed->value;
+
+	rb_bs_boxed_assert_ffitype_ok(bs_boxed);
+
+	n = RARRAY_LEN(rval);
+	if (n < bs_struct->fields_count)
+	    rb_raise(rb_eArgError, 
+		    "not enough elements in array `%s' to create " \
+		    "structure `%s' (%d for %d)", 
+		    RSTRING_CPTR(rb_inspect(rval)), bs_struct->name, n, 
+		    bs_struct->fields_count);
+
+	if (n > bs_struct->fields_count) {
+	    VALUE new_rval = rb_ary_new();
+	    VALUE orig = rval;
+	    rval = rb_ary_dup(rval);
+	    rebuild_new_struct_ary(bs_boxed->ffi_type->elements, rval, 
+		    new_rval);
+	    n = RARRAY_LEN(new_rval);
+	    if (RARRAY_LEN(rval) != 0 || n != bs_struct->fields_count) {
+		rb_raise(rb_eArgError, 
+			"too much elements in array `%s' to create " \
+			"structure `%s' (%d for %d)", 
+			RSTRING_CPTR(rb_inspect(orig)), 
+			bs_struct->name, RARRAY_LEN(orig), 
+			bs_struct->fields_count);
+	    }
+	    rval = new_rval;
+	}
+
+	data = xmalloc(bs_boxed->ffi_type->size);
+
+	for (i = 0, pos = 0; i < bs_struct->fields_count; i++) {
+	    VALUE o = RARRAY_AT(rval, i);
+	    char *field_type = bs_struct->fields[i].type;
+	    rb_objc_rval_to_ocval(o, field_type, data + pos);
+	    pos += rb_objc_octype_to_ffitype(field_type)->size;
+	}
+
+	*ok = true;
+    }
+    else {
+	data = bs_element_boxed_get_data(bs_boxed, rval, ok);
+    }
+
+    return data;
 }
 
 static void
@@ -622,56 +685,14 @@ rb_objc_rval_to_ocval(VALUE rval, const char *octype, void **ocval)
     if (st_lookup(bs_boxeds, (st_data_t)octype, (st_data_t *)&bs_boxed)) {
 	void *data;
 
-	if (TYPE(rval) == T_ARRAY && bs_boxed->type == BS_ELEMENT_STRUCT) {
-	    bs_element_struct_t *bs_struct;
-	    long i, n;
-	    size_t pos;
-
-	    bs_struct = (bs_element_struct_t *)bs_boxed->value;
-
-	    n = RARRAY_LEN(rval);
-	    if (n < bs_struct->fields_count)
-		rb_raise(rb_eArgError, 
-		    "not enough elements in array `%s' to create " \
-		    "structure `%s' (%d for %d)", 
-		    RSTRING_CPTR(rb_inspect(rval)), bs_struct->name, n, 
-		    bs_struct->fields_count);
-	    
-	    if (n > bs_struct->fields_count) {
-		VALUE new_rval = rb_ary_new();
-		VALUE orig = rval;
-		rval = rb_ary_dup(rval);
-		rebuild_new_struct_ary(bs_boxed->ffi_type->elements, rval, 
-				       new_rval);
-		n = RARRAY_LEN(new_rval);
-		if (RARRAY_LEN(rval) != 0 || n != bs_struct->fields_count) {
-		    rb_raise(rb_eArgError, 
-			"too much elements in array `%s' to create " \
-			"structure `%s' (%d for %d)", 
-			RSTRING_CPTR(rb_inspect(orig)), 
-			bs_struct->name, RARRAY_LEN(orig), 
-			bs_struct->fields_count);
-		}
-		rval = new_rval;
-	    }
-
-	    data = alloca(bs_boxed->ffi_type->size);
-
-	    for (i = 0, pos = 0; i < bs_struct->fields_count; i++) {
-		VALUE o = RARRAY_AT(rval, i);
-		char *field_type = bs_struct->fields[i].type;
-		rb_objc_rval_to_ocval(o, field_type, data + pos);
-		pos += rb_objc_octype_to_ffitype(field_type)->size;
-	    }
-	}
-	else {
-	    data = bs_element_boxed_get_data(bs_boxed, rval, &ok);
-	}
+	data = rb_objc_rval_to_boxed_data(rval, bs_boxed, &ok);
 	if (ok) {
 	    if (data == NULL)
 		*(void **)ocval = NULL;
-	    else
+	    else {
 		memcpy(ocval, data, bs_boxed->ffi_type->size);
+		xfree(data);
+	    }
 	}
 	goto bails; 
     }
@@ -703,6 +724,14 @@ rb_objc_rval_to_ocval(VALUE rval, const char *octype, void **ocval)
 	    else if (TYPE(rval) == T_STRING) {
 		*(char **)ocval = StringValuePtr(rval);
 	    }	
+	    else if (st_lookup(bs_boxeds, (st_data_t)octype + 1, 
+		     (st_data_t *)&bs_boxed)) {
+		void *data;
+
+		data = rb_objc_rval_to_boxed_data(rval, bs_boxed, &ok);
+		if (ok)
+		    *(void **)ocval = data;
+	    }
 	    else {
 		ok = false;
 	    }
@@ -1521,6 +1550,24 @@ rb_objc_methods(VALUE ary, Class ocklass)
     rb_funcall(ary, rb_intern("uniq!"), 0);
 }
 
+static bool
+rb_objc_resourceful(VALUE obj)
+{
+    /* TODO we should export this function in the runtime 
+     * Object#__resourceful__? perhaps? 
+     */
+    extern CFTypeID __CFGenericTypeID(void *);
+    CFTypeID t = __CFGenericTypeID((void *)obj);
+    if (t > 0) {
+	extern void *_CFRuntimeGetClassWithTypeID(CFTypeID);
+	long *d = (long *)_CFRuntimeGetClassWithTypeID(t);
+	/* first long is version, 4 means resourceful */
+	if (d != NULL && *d & 4)
+	    return true;	
+    }
+    return false;
+}
+
 static VALUE
 bs_function_dispatch(int argc, VALUE *argv, VALUE recv)
 {
@@ -1588,9 +1635,11 @@ bs_function_dispatch(int argc, VALUE *argv, VALUE recv)
     }
 
     resp = Qnil;
-    if (ffi_rettype != &ffi_type_void)
+    if (ffi_rettype != &ffi_type_void) {
 	rb_objc_ocval_to_rbval(ffi_ret, bs_func->retval->type, &resp);
-
+    	if (bs_func->retval->already_retained && !rb_objc_resourceful(resp))
+	    CFMakeCollectable((void *)resp);
+    }
     return resp;
 }
 
@@ -2199,18 +2248,9 @@ load_bridge_support(const char *framework_path)
     char *p;
 
     if (bs_find_path(framework_path, path, sizeof path)) {
-	if (!bs_parse(path, 0, bs_parse_cb, NULL, &error))
+	if (!bs_parse(path, BS_PARSE_OPTIONS_LOAD_DYLIBS, bs_parse_cb, NULL, 
+		      &error))
 	    rb_raise(rb_eRuntimeError, error);
-#if 0
-	/* FIXME 'GC capability mismatch' with .dylib files */
-	p = strrchr(path, '.');
-	assert(p != NULL);
-	strlcpy(p, ".dylib", p - path - 1);
-	if (access(path, R_OK) == 0) {
-	    if (dlopen(path, RTLD_LAZY) == NULL)
-		rb_raise(rb_eRuntimeError, dlerror());
-	}
-#endif
     }
 }
 

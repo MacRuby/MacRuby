@@ -1096,7 +1096,21 @@ bails:
     free(protocol_name);
 
   xmlFreeTextReader(reader);
-  
+
+  if (success && options == BS_PARSE_OPTIONS_LOAD_DYLIBS) {
+    char *p, buf[PATH_MAX];
+    strncpy(buf, path, sizeof buf);
+    p = strrchr(buf, '.');
+    assert(p != NULL);
+    strlcpy(p, ".dylib", p - path - 1);
+    if (access(buf, R_OK) == 0) {
+      if (dlopen(buf, RTLD_LAZY) == NULL) {
+        *error = dlerror();
+        success = false;
+      }
+    }
+  }
+
   return success;
 }
 

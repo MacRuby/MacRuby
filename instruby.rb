@@ -489,6 +489,20 @@ if RUBY_FRAMEWORK
   end
 end
 
+puts "fixing bridge support dylibs"
+unless File.exist?('markgc')
+  unless system("gcc markgc.c -std=gnu99 -o markgc")
+    $stderr.puts "cannot build the markgc tool"
+    exit 1
+  end
+end
+Dir.glob('/System/Library/Frameworks/**/BridgeSupport/*.dylib').each do |p|
+  unless system("markgc '#{p}' >& /dev/null")
+    $stderr.puts "cannot markgc #{p}"
+    exit 1
+  end
+end
+
 end # unless $installing_rdoc
 
 # vi:set sw=2:
