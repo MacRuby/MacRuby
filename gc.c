@@ -1056,7 +1056,7 @@ rb_data_object_alloc(VALUE klass, void *datap, RUBY_DATA_FUNC dmark, RUBY_DATA_F
     NEWOBJ(data, struct RData);
     if (klass) Check_Type(klass, T_CLASS);
     OBJSETUP(data, klass, T_DATA);
-    data->data = datap;
+    GC_WB(&data->data, datap);
     data->dfree = dfree;
     data->dmark = dmark;
 

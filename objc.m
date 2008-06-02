@@ -503,7 +503,6 @@ bs_element_boxed_get_data(bs_element_boxed_t *bs_boxed, VALUE rval,
 			  bool *success)
 {
     void *data;
-    size_t soffset;
 
     assert(bs_boxed->ffi_type != NULL);
 
@@ -530,23 +529,20 @@ bs_element_boxed_get_data(bs_element_boxed_t *bs_boxed, VALUE rval,
 	 * could have been modified as a copy in the Ruby world.
 	 */
 	for (i = 0; i < bs_struct->fields_count; i++) {
-	    if (((VALUE *)data)[i] != 0) {
+	    VALUE *v;
+	    v = &((VALUE *)(data + bs_boxed->ffi_type->size))[i];
+	    if (*v != 0) {
 		char buf[512];
 		snprintf(buf, sizeof buf, "%s=", bs_struct->fields[i].name);
-		rb_funcall(rval, rb_intern(buf), 1, ((VALUE *)data)[i]);
-		((VALUE *)data)[i] = 0;
+		rb_funcall(rval, rb_intern(buf), 1, *v);
+		*v = 0;
 	    }
 	}
-
-	soffset = bs_struct->fields_count * sizeof(VALUE);
-    }
-    else {
-	soffset = 0;
     }
 
     *success = true;		
 
-    return data + soffset;
+    return data;
 }
 
 static void
@@ -581,8 +577,8 @@ rb_bs_boxed_new_from_ocdata(bs_element_boxed_t *bs_boxed, void *ocval)
     }
 
     data = xmalloc(soffset + bs_boxed->ffi_type->size);
-    memset(data, 0, soffset);
-    memcpy(data + soffset, ocval, bs_boxed->ffi_type->size);
+    memcpy(data, ocval, bs_boxed->ffi_type->size);
+    memset(data + bs_boxed->ffi_type->size, 0, soffset);
 
     return Data_Wrap_Struct(bs_boxed->klass, NULL, NULL, data);     
 }
@@ -653,9 +649,12 @@ rb_objc_rval_to_boxed_data(VALUE rval, bs_element_boxed_t *bs_boxed, bool *ok)
 	    rval = new_rval;
 	}
 
-	data = xmalloc(bs_boxed->ffi_type->size);
+	pos = bs_struct->fields_count * sizeof(VALUE);
+	data = xmalloc(bs_boxed->ffi_type->size + pos);
+	memset(data + bs_boxed->ffi_type->size, 0, pos);
+	pos = 0;
 
-	for (i = 0, pos = 0; i < bs_struct->fields_count; i++) {
+	for (i = 0; i < bs_struct->fields_count; i++) {
 	    VALUE o = RARRAY_AT(rval, i);
 	    char *field_type = bs_struct->fields[i].type;
 	    rb_objc_rval_to_ocval(o, field_type, data + pos);
@@ -1711,12 +1710,10 @@ rb_bs_struct_new(int argc, VALUE *argv, VALUE recv)
 	rb_raise(rb_eArgError, "wrong number of arguments (%d for %d)",
 		 argc, bs_struct->fields_count);
 
-    pos = 0;
-    if (bs_boxed->type == BS_ELEMENT_STRUCT)
-	pos = bs_struct->fields_count * sizeof(VALUE);
-
+    pos = bs_struct->fields_count * sizeof(VALUE);
     data = (void *)xmalloc(pos + bs_boxed->ffi_type->size);
     memset(data, 0, pos + bs_boxed->ffi_type->size);
+    pos = 0;
 
     for (i = 0; i < argc; i++) {
 	bs_element_struct_field_t *bs_field = 
@@ -1764,21 +1761,20 @@ rb_bs_struct_get(VALUE recv)
     Data_Get_Struct(recv, void, data);
     assert(data != NULL);
 
-    pos = bs_struct->fields_count * sizeof(VALUE);
+    rb_objc_wb_range(data + bs_boxed->ffi_type->size,
+		     bs_struct->fields_count * sizeof(VALUE));
 
-    for (i = 0; i < bs_struct->fields_count; i++) {
+    for (i = 0, pos = 0; i < bs_struct->fields_count; i++) {
 	bs_element_struct_field_t *bs_field =
 	    (bs_element_struct_field_t *)&bs_struct->fields[i];
 
 	if (strcmp(ivar_id_str, bs_field->name) == 0) {
-	    VALUE val;
+	    VALUE *val;
 
-	    val = ((VALUE *)data)[i];
-	    if (val == 0) {
-		rb_objc_ocval_to_rbval(data + pos, bs_field->type, &val);
-	   	GC_WB(&((VALUE *)data)[i], val); 
-	    }
-	    return val;
+	    val = &((VALUE *)(data + bs_boxed->ffi_type->size))[i];
+	    if (*val == 0)
+		rb_objc_ocval_to_rbval(data + pos, bs_field->type, val);
+	    return *val;
 	}
         pos += rb_objc_octype_to_ffitype(bs_field->type)->size;
     }
@@ -1809,9 +1805,7 @@ rb_bs_struct_set(VALUE recv, VALUE value)
     Data_Get_Struct(recv, void, data);
     assert(data != NULL);
 
-    pos = bs_struct->fields_count * sizeof(VALUE);
-
-    for (i = 0; i < bs_struct->fields_count; i++) {
+    for (i = 0, pos = 0; i < bs_struct->fields_count; i++) {
 	bs_element_struct_field_t *bs_field =
 	    (bs_element_struct_field_t *)&bs_struct->fields[i];
 
@@ -1820,7 +1814,7 @@ rb_bs_struct_set(VALUE recv, VALUE value)
 	    /* We do not update the cache because `value' may have been
 	     * transformed (ex. fixnum to float).
 	     */
-	    ((VALUE *)data)[i] = 0;
+	    ((VALUE *)(data + bs_boxed->ffi_type->size))[i] = 0;
 	    return value;
 	}
         pos += rb_objc_octype_to_ffitype(bs_field->type)->size;
@@ -1892,7 +1886,7 @@ static VALUE
 rb_bs_struct_dup(VALUE recv)
 {
     bs_element_boxed_t *bs_boxed = rb_klass_get_bs_boxed(CLASS_OF(recv));
-    void *data, *newdata;
+    void *data;
     bool ok;
 
     data = bs_element_boxed_get_data(bs_boxed, recv, &ok);
@@ -1903,10 +1897,7 @@ rb_bs_struct_dup(VALUE recv)
     if (data == NULL)
 	return Qnil;
 
-    newdata = xmalloc(sizeof(bs_boxed->ffi_type->size));
-    memcpy(newdata, data, bs_boxed->ffi_type->size);
-
-    return rb_bs_boxed_new_from_ocdata(bs_boxed, newdata);
+    return rb_bs_boxed_new_from_ocdata(bs_boxed, data);
 }
 
 static VALUE
