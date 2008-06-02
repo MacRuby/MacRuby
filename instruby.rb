@@ -497,7 +497,7 @@ unless File.exist?('markgc')
   end
 end
 Dir.glob('/System/Library/Frameworks/**/BridgeSupport/*.dylib').each do |p|
-  unless system("markgc '#{p}' >& /dev/null")
+  unless system("./markgc '#{p}' >& /dev/null")
     $stderr.puts "cannot markgc #{p}"
     exit 1
   end
