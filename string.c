@@ -8079,6 +8079,37 @@ rb_str_is_ascii_only_p(VALUE str)
 #endif
 }
 
+#if WITH_OBJC
+static VALUE
+rb_str_transform_bang(VALUE str, VALUE transform_name)
+{
+    CFRange range;
+
+    rb_str_modify(str);
+    StringValue(transform_name);
+    
+    range = CFRangeMake(0, RSTRING_CLEN(str));
+
+    if (!CFStringTransform((CFMutableStringRef)str, 
+	&range,
+	(CFStringRef)transform_name,
+       	false))
+	rb_raise(rb_eRuntimeError, "cannot apply transformation `%s' to `%s'",
+		RSTRING_CPTR(transform_name), RSTRING_CPTR(str));
+
+    return range.length == kCFNotFound ? Qnil : str;
+}
+
+static VALUE
+rb_str_transform(VALUE str, VALUE transform_name)
+{
+    str = rb_str_dup(str);
+    rb_str_transform_bang(str, transform_name);
+    return str;
+}
+
+#endif
+
 /**********************************************************************
  * Document-class: Symbol
  *
@@ -8629,6 +8660,11 @@ Init_String(void)
     rb_define_method(rb_cString, "force_encoding", rb_str_force_encoding, 1);
     rb_define_method(rb_cString, "valid_encoding?", rb_str_valid_encoding_p, 0);
     rb_define_method(rb_cString, "ascii_only?", rb_str_is_ascii_only_p, 0);
+
+#if WITH_OBJC
+    rb_define_method(rb_cString, "transform", rb_str_transform, 1);
+    rb_define_method(rb_cString, "transform!", rb_str_transform_bang, 1);
+#endif
 
     id_to_s = rb_intern("to_s");
 
