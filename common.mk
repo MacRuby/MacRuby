@@ -110,9 +110,11 @@ TESTWORKDIR   = testwork
 
 BOOTSTRAPRUBY = $(BASERUBY)
 
+COMPILE_PRELUDE = $(MINIRUBY) -I$(srcdir) -rrbconfig $(srcdir)/tool/compile_prelude.rb
+
 VCS           = svn
 
-all: $(MKFILES) $(PREP) incs $(RBCONFIG) $(LIBRUBY) encs
+all: $(MKFILES) incs $(PREP) $(RBCONFIG) $(LIBRUBY) encs
 	@$(MINIRUBY) $(srcdir)/ext/extmk.rb --make="$(MAKE)" $(EXTMK_ARGS)
 prog: $(PROGRAM) $(WPROGRAM)
 
@@ -373,12 +375,12 @@ $(RBCONFIG): $(srcdir)/mkconfig.rb config.status $(PREP)
 		-install_name=$(RUBY_INSTALL_NAME) \
 		-so_name=$(RUBY_SO_NAME) rbconfig.rb
 
-encs: enc.mk
+encs: enc.mk $(LIBRUBY)
 	$(MINIRUBY) -run -e mkdir -- -p "$(EXTOUT)/$(arch)/enc/trans" enc/trans
 	$(MAKE) -f enc.mk $(MFLAGS)
 
 enc.mk: $(srcdir)/enc/make_encmake.rb $(srcdir)/enc/Makefile.in $(srcdir)/enc/depend \
-	$(srcdir)/lib/mkmf.rb $(RBCONFIG)
+	$(srcdir)/lib/mkmf.rb $(PREP)
 	$(MINIRUBY) $(srcdir)/enc/make_encmake.rb --builtin-encs="$(BUILTIN_ENCOBJS)" $@
 
 .PRECIOUS: $(MKFILES)
@@ -471,7 +473,7 @@ eval.$(OBJEXT): {$(VPATH)}eval.c {$(VPATH)}eval_intern.h \
   {$(VPATH)}util.h {$(VPATH)}signal.h {$(VPATH)}vm_core.h \
   {$(VPATH)}debug.h {$(VPATH)}vm_opts.h {$(VPATH)}id.h \
   {$(VPATH)}thread_$(THREAD_MODEL).h {$(VPATH)}dln.h \
-  {$(VPATH)}eval_error.c {$(VPATH)}eval_method.c {$(VPATH)}eval_safe.c \
+  {$(VPATH)}eval_error.c {$(VPATH)}eval_safe.c \
   {$(VPATH)}eval_jump.c
 load.$(OBJEXT): {$(VPATH)}load.c {$(VPATH)}eval_intern.h \
   {$(VPATH)}ruby.h {$(VPATH)}config.h {$(VPATH)}defines.h \
@@ -616,7 +618,7 @@ cont.$(OBJEXT): {$(VPATH)}cont.c {$(VPATH)}ruby.h {$(VPATH)}config.h \
   {$(VPATH)}eval_intern.h {$(VPATH)}util.h {$(VPATH)}dln.h
 time.$(OBJEXT): {$(VPATH)}time.c {$(VPATH)}ruby.h {$(VPATH)}config.h \
   {$(VPATH)}defines.h {$(VPATH)}missing.h {$(VPATH)}intern.h \
-  {$(VPATH)}st.h
+  {$(VPATH)}st.h {$(VPATH)}encoding.h 
 util.$(OBJEXT): {$(VPATH)}util.c {$(VPATH)}ruby.h {$(VPATH)}config.h \
   {$(VPATH)}defines.h {$(VPATH)}missing.h {$(VPATH)}intern.h \
   {$(VPATH)}st.h {$(VPATH)}util.h
@@ -648,7 +650,8 @@ vm.$(OBJEXT): {$(VPATH)}vm.c {$(VPATH)}ruby.h {$(VPATH)}config.h \
   {$(VPATH)}vm_core.h {$(VPATH)}debug.h {$(VPATH)}vm_opts.h {$(VPATH)}id.h \
   {$(VPATH)}thread_$(THREAD_MODEL).h {$(VPATH)}dln.h {$(VPATH)}vm.h \
   {$(VPATH)}vm_insnhelper.c {$(VPATH)}insns.inc {$(VPATH)}vm_evalbody.c \
-  {$(VPATH)}vmtc.inc {$(VPATH)}vm.inc {$(VPATH)}insns.def
+  {$(VPATH)}vmtc.inc {$(VPATH)}vm.inc {$(VPATH)}insns.def \
+  {$(VPATH)}vm_method.c {$(VPATH)}vm_eval.c
 vm_dump.$(OBJEXT): {$(VPATH)}vm_dump.c {$(VPATH)}ruby.h \
   {$(VPATH)}config.h {$(VPATH)}defines.h {$(VPATH)}missing.h \
   {$(VPATH)}intern.h {$(VPATH)}st.h {$(VPATH)}node.h {$(VPATH)}vm_core.h \
@@ -746,14 +749,11 @@ transdb.h: $(PREP)
 miniprelude.c: $(srcdir)/tool/compile_prelude.rb $(srcdir)/prelude.rb
 	$(BASERUBY) -I$(srcdir) $(srcdir)/tool/compile_prelude.rb $(srcdir)/prelude.rb $@
 
-prelude.c: $(srcdir)/tool/compile_prelude.rb $(PRELUDE_SCRIPTS) $(RBCONFIG) $(PREP)
-	$(MINIRUBY) -I$(srcdir) -rrbconfig $(srcdir)/tool/compile_prelude.rb \
-		$(PRELUDE_SCRIPTS) $@.new
-	$(IFCHANGE) "$@" "$@.new"
+prelude.c: $(srcdir)/tool/compile_prelude.rb $(PRELUDE_SCRIPTS) $(PREP)
+	$(COMPILE_PRELUDE) $(PRELUDE_SCRIPTS) $@
 
 golf_prelude.c: $(srcdir)/tool/compile_prelude.rb $(srcdir)/prelude.rb $(srcdir)/golf_prelude.rb $(PREP)
-	$(MINIRUBY) -I$(srcdir) -rrbconfig $(srcdir)/tool/compile_prelude.rb $(srcdir)/golf_prelude.rb $@.new
-	$(IFCHANGE) "$@" "$@.new"
+	$(COMPILE_PRELUDE) $(srcdir)/golf_prelude.rb $@
 
 prereq: incs srcs preludes
 

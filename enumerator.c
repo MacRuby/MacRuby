@@ -8,7 +8,7 @@
 
   $Idaemons: /home/cvs/rb/enumerator/enumerator.c,v 1.1.1.1 2001/07/15 10:12:48 knu Exp $
   $RoughId: enumerator.c,v 1.6 2003/07/27 11:03:24 nobu Exp $
-  $Id: enumerator.c 16402 2008-05-13 06:10:56Z knu $
+  $Id: enumerator.c 16614 2008-05-26 08:49:08Z knu $
 
 ************************************************/
 
@@ -30,7 +30,6 @@ struct enumerator {
     VALUE obj;
     ID    meth;
     VALUE args;
-    rb_block_call_func *iter;
     VALUE fib;
     VALUE dst;
     VALUE no_next;
@@ -39,11 +38,13 @@ struct enumerator {
 static void
 enumerator_mark(void *p)
 {
+#if !WITH_OBJC
     struct enumerator *ptr = p;
     rb_gc_mark(ptr->obj);
     rb_gc_mark(ptr->args);
     rb_gc_mark(ptr->fib);
     rb_gc_mark(ptr->dst);
+#endif
 }
 
 static struct enumerator *
@@ -54,8 +55,8 @@ enumerator_ptr(VALUE obj)
     Data_Get_Struct(obj, struct enumerator, ptr);
     if (RDATA(obj)->dmark != enumerator_mark) {
 	rb_raise(rb_eTypeError,
-		 "wrong argument type %s (expected Enumerable::Enumerator)",
-		 rb_obj_classname(obj));
+		 "wrong argument type %s (expected %s)",
+		 rb_obj_classname(obj), rb_class2name(rb_cEnumerator));
     }
     if (!ptr) {
 	rb_raise(rb_eArgError, "uninitialized enumerator");
@@ -222,7 +223,6 @@ enumerator_init(VALUE enum_obj, VALUE obj, VALUE meth, int argc, VALUE *argv)
 
     ptr->obj  = obj;
     ptr->meth = rb_to_id(meth);
-    ptr->iter = enumerator_each_i;
     if (argc) GC_WB(&ptr->args, rb_ary_new4(argc, argv));
     ptr->fib = 0;
     ptr->dst = Qnil;
@@ -272,7 +272,6 @@ enumerator_init_copy(VALUE obj, VALUE orig)
 
     ptr1->obj  = ptr0->obj;
     ptr1->meth = ptr0->meth;
-    ptr1->iter = ptr0->iter;
     ptr1->args = ptr0->args;
     ptr1->fib  = 0;
 
@@ -306,7 +305,8 @@ enumerator_each(VALUE obj)
 	argc = RARRAY_LEN(e->args);
 	argv = RARRAY_PTR(e->args);
     }
-    return rb_block_call(e->obj, e->meth, argc, argv, e->iter, (VALUE)e);
+    return rb_block_call(e->obj, e->meth, argc, argv,
+			 enumerator_each_i, (VALUE)e);
 }
 
 static VALUE
@@ -329,12 +329,13 @@ enumerator_with_index_i(VALUE val, VALUE *memo)
 static VALUE
 enumerator_with_index(VALUE obj)
 {
-    struct enumerator *e = enumerator_ptr(obj);
+    struct enumerator *e;
     VALUE memo = 0;
     int argc = 0;
     const VALUE *argv = 0;
 
     RETURN_ENUMERATOR(obj, 0, 0);
+    e = enumerator_ptr(obj);
     if (e->args) {
 	argc = RARRAY_LEN(e->args);
 	argv = RARRAY_PTR(e->args);
@@ -438,6 +439,7 @@ Init_Enumerator(void)
     rb_define_method(rb_cEnumerator, "initialize", enumerator_initialize, -1);
     rb_define_method(rb_cEnumerator, "initialize_copy", enumerator_init_copy, 1);
     rb_define_method(rb_cEnumerator, "each", enumerator_each, 0);
+    rb_define_method(rb_cEnumerator, "each_with_index", enumerator_with_index, 0);
     rb_define_method(rb_cEnumerator, "with_index", enumerator_with_index, 0);
     rb_define_method(rb_cEnumerator, "next", enumerator_next, 0);
     rb_define_method(rb_cEnumerator, "rewind", enumerator_rewind, 0);

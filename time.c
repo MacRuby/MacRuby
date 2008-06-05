@@ -2,7 +2,7 @@
 
   time.c -
 
-  $Author: akr $
+  $Author: nobu $
   created at: Tue Dec 28 14:31:59 JST 1993
 
   Copyright (C) 1993-2007 Yukihiro Matsumoto
@@ -333,7 +333,7 @@ time_s_at(int argc, VALUE *argv, VALUE klass)
     return t;
 }
 
-static const char *const months[] = {
+static const char months[][4] = {
     "jan", "feb", "mar", "apr", "may", "jun",
     "jul", "aug", "sep", "oct", "nov", "dec",
 };
@@ -829,7 +829,10 @@ static time_t
 make_time_t(struct tm *tptr, int utc_p)
 {
     time_t t;
-    struct tm *tmp, buf;
+#ifdef NEGATIVE_TIME_T
+    struct tm *tmp;
+#endif
+    struct tm buf;
     buf = *tptr;
     if (utc_p) {
 #if defined(HAVE_TIMEGM)

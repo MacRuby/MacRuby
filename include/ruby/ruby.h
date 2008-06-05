@@ -1,18 +1,18 @@
 /**********************************************************************
 
-  ruby.h -
+  ruby/ruby.h -
 
-  $Author: akr $
+  $Author: nobu $
   created at: Thu Jun 10 14:26:32 JST 1993
 
-  Copyright (C) 1993-2007 Yukihiro Matsumoto
+  Copyright (C) 1993-2008 Yukihiro Matsumoto
   Copyright (C) 2000  Network Applied Communication Laboratory, Inc.
   Copyright (C) 2000  Information-technology Promotion Agency, Japan
 
 **********************************************************************/
 
-#ifndef RUBY_H
-#define RUBY_H 1
+#ifndef RUBY_RUBY_H
+#define RUBY_RUBY_H 1
 
 #if defined(__cplusplus)
 extern "C" {
@@ -21,6 +21,7 @@ extern "C" {
 #endif
 #endif
 
+#ifndef RUBY_LIB
 #if RUBY_INCLUDED_AS_FRAMEWORK
 #include <MacRuby/ruby/config.h>
 #else
@@ -28,6 +29,7 @@ extern "C" {
 #endif
 #ifdef RUBY_EXTCONF_H
 #include RUBY_EXTCONF_H
+#endif
 #endif
 
 #define NORETURN_STYLE_NEW 1
@@ -93,12 +95,24 @@ typedef unsigned long VALUE;
 typedef unsigned long ID;
 # define SIGNED_VALUE long
 # define SIZEOF_VALUE SIZEOF_LONG
+# define PRIdVALUE "ld"
+# define PRIiVALUE "li"
+# define PRIoVALUE "lo"
+# define PRIuVALUE "lu"
+# define PRIxVALUE "lx"
+# define PRIXVALUE "lX"
 #elif SIZEOF_LONG_LONG == SIZEOF_VOIDP
 typedef unsigned LONG_LONG VALUE;
 typedef unsigned LONG_LONG ID;
 # define SIGNED_VALUE LONG_LONG
 # define LONG_LONG_VALUE 1
 # define SIZEOF_VALUE SIZEOF_LONG_LONG
+# define PRIdVALUE "lld"
+# define PRIiVALUE "lli"
+# define PRIoVALUE "llo"
+# define PRIuVALUE "llu"
+# define PRIxVALUE "llx"
+# define PRIXVALUE "llX"
 #else
 # error ---->> ruby requires sizeof(void*) == sizeof(long) to be compiled. <<----
 #endif
@@ -270,7 +284,6 @@ enum ruby_value_type {
     RUBY_T_SYMBOL = 0x14,
     RUBY_T_FIXNUM = 0x15,
 
-    RUBY_T_VALUES = 0x1a,
     RUBY_T_UNDEF  = 0x1b,
     RUBY_T_NODE   = 0x1c,
     RUBY_T_ICLASS = 0x1d,
@@ -300,7 +313,6 @@ enum ruby_value_type {
 #define T_SYMBOL RUBY_T_SYMBOL
 #define T_RATIONAL RUBY_T_RATIONAL
 #define T_COMPLEX RUBY_T_COMPLEX
-#define T_VALUES RUBY_T_VALUES
 #define T_UNDEF  RUBY_T_UNDEF
 #define T_NODE   RUBY_T_NODE
 #define T_MASK   RUBY_T_MASK
@@ -459,13 +471,6 @@ struct RObject {
     ((RBASIC(o)->flags & ROBJECT_EMBED) ? \
      RCLASS_IV_INDEX_TBL(rb_obj_class(o)) : \
      ROBJECT(o)->as.heap.iv_index_tbl)
-
-struct RValues {
-    struct RBasic basic;
-    VALUE v1;
-    VALUE v2;
-    VALUE v3;
-};
 
 typedef struct {
     VALUE super;
@@ -852,8 +857,8 @@ VALUE rb_id2str(ID);
         rb_intern(str))
 #endif
 
-char *rb_class2name(VALUE);
-char *rb_obj_classname(VALUE);
+const char *rb_class2name(VALUE);
+const char *rb_obj_classname(VALUE);
 
 void rb_p(VALUE);
 
@@ -896,7 +901,7 @@ typedef VALUE rb_block_call_func(VALUE, VALUE, int, VALUE*);
 VALUE rb_each(VALUE);
 VALUE rb_yield(VALUE);
 VALUE rb_yield_values(int n, ...);
-VALUE rb_yield_values2(int n, VALUE *argv);
+VALUE rb_yield_values2(int n, const VALUE *argv);
 VALUE rb_yield_splat(VALUE);
 int rb_block_given_p(void);
 void rb_need_block(void);
@@ -1198,4 +1203,4 @@ unsigned long ruby_strtoul(const char *str, char **endptr, int base);
 #endif
 }  /* extern "C" { */
 #endif
-#endif /* RUBY_H */
+#endif /* RUBY_RUBY_H */

@@ -26,13 +26,14 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "bs_lex.h"
 #include "bs.h"
 
 #include <libxml/xmlreader.h>
 #include <dlfcn.h>
 #include <libgen.h>
 #include <unistd.h>
+
+#include "bs_lex.h"
 
 #define ASSERT_ALLOC(ptr) (assert(ptr != NULL))
 
@@ -369,7 +370,7 @@ _bs_parse(const char *path, char **loaded_paths,
   unsigned int i;
 #define MAX_ARGS 128
   bs_element_arg_t args[MAX_ARGS];
-  char *protocol_name;
+  char *protocol_name = NULL;
   int func_ptr_arg_depth;
   bs_element_function_pointer_t *func_ptr;
   bool success;
@@ -436,10 +437,10 @@ _bs_parse(const char *path, char **loaded_paths,
     const char *name;
     unsigned int namelen;
     int node_type = -1;
-    bool eof;
+    bool eof = false;
     struct bs_xml_atom *atom;
     void *bs_element;
-    bs_element_type_t bs_element_type;
+    bs_element_type_t bs_element_type = 0;
 
     do {
       int retval = xmlTextReaderRead(reader);

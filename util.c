@@ -5,7 +5,7 @@
   $Author: nobu $
   created at: Fri Mar 10 17:22:34 JST 1995
 
-  Copyright (C) 1993-2007 Yukihiro Matsumoto
+  Copyright (C) 1993-2008 Yukihiro Matsumoto
 
 **********************************************************************/
 
@@ -48,7 +48,7 @@ ruby_scan_oct(const char *start, int len, int *retlen)
 unsigned long
 ruby_scan_hex(const char *start, int len, int *retlen)
 {
-    static char hexdigit[] = "0123456789abcdef0123456789ABCDEF";
+    static const char hexdigit[] = "0123456789abcdef0123456789ABCDEF";
     register const char *s = start;
     register unsigned long retval = 0;
     char *tmp;
@@ -998,8 +998,6 @@ static double private_mem[PRIVATE_mem], *pmem_next = private_mem;
 #ifdef IEEE_LITTLE_ENDIAN
 #define IEEE_Arith
 #endif
-
-#include "errno.h"
 
 #ifdef Bad_float_h
 
@@ -2205,6 +2203,7 @@ ruby_strtod(const char *s00, char **se)
     const char *s2;
 #endif
 
+    errno = 0;
     sign = nz0 = nz = 0;
     dval(rv) = 0.;
     for (s = s00;;s++)
@@ -2384,7 +2383,7 @@ ret0:
 #endif
         dval(rv) = tens[k - 9] * dval(rv) + z;
     }
-    bd0 = 0;
+    bd0 = bb = bd = bs = delta = 0;
     if (nd <= DBL_DIG
 #ifndef RND_PRODQUOT
 #ifndef Honor_FLT_ROUNDS
@@ -3202,7 +3201,7 @@ rv_alloc(int i)
 }
 
 static char *
-nrv_alloc(char *s, char **rve, int n)
+nrv_alloc(const char *s, char **rve, int n)
 {
     char *rv, *t;
 
@@ -3310,7 +3309,7 @@ dtoa(double d, int mode, int ndigits, int *decpt, int *sign, char **rve)
     int denorm;
     ULong x;
 #endif
-    Bigint *b, *b1, *delta, *mlo, *mhi, *S;
+    Bigint *b, *b1, *delta, *mlo = 0, *mhi = 0, *S;
     double d2, ds, eps;
     char *s, *s0;
 #ifdef Honor_FLT_ROUNDS
@@ -3663,7 +3662,6 @@ bump_up:
 
     m2 = b2;
     m5 = b5;
-    mhi = mlo = 0;
     if (leftright) {
         i =
 #ifndef Sudden_Underflow

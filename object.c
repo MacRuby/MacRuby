@@ -2,7 +2,7 @@
 
   object.c -
 
-  $Author: matz $
+  $Author: nobu $
   created at: Thu Jul 15 12:01:24 JST 1993
 
   Copyright (C) 1993-2007 Yukihiro Matsumoto
@@ -159,8 +159,8 @@ init_copy(VALUE dest, VALUE obj)
 {
 #if WITH_OBJC
     if (rb_objc_is_non_native(obj)) {
-	if (rb_objc_flag_check(obj, FL_TAINT))
-	    rb_objc_flag_set(dest, FL_TAINT);
+	if (rb_objc_flag_check((const void *)obj, FL_TAINT))
+	    rb_objc_flag_set((const void *)dest, FL_TAINT, true);
 	goto call_init_copy;
     }
 #endif
@@ -318,7 +318,7 @@ rb_obj_init_copy(VALUE obj, VALUE orig)
 VALUE
 rb_any_to_s(VALUE obj)
 {
-    char *cname = rb_obj_classname(obj);
+    const char *cname = rb_obj_classname(obj);
     VALUE str;
 
     str = rb_sprintf("#<%s:%p>", cname, (void*)obj);
@@ -419,9 +419,8 @@ rb_obj_inspect(VALUE obj)
 
         if (has_ivar) {
             VALUE str;
-            char *c;
+            const char *c = rb_obj_classname(obj);
 
-            c = rb_obj_classname(obj);
             str = rb_sprintf("-<%s:%p", c, (void*)obj);
             return rb_exec_recursive(inspect_obj, obj, str);
         }
@@ -679,7 +678,7 @@ rb_obj_tainted(VALUE obj)
 {
 #if WITH_OBJC
     if (!SPECIAL_CONST_P(obj) && rb_objc_is_non_native(obj)) {
-	return rb_objc_flag_check(obj, FL_TAINT) ? Qtrue : Qfalse;
+	return rb_objc_flag_check((const void *)obj, FL_TAINT) ? Qtrue : Qfalse;
     }
 #endif
     if (FL_TEST(obj, FL_TAINT))
@@ -702,7 +701,7 @@ rb_obj_taint(VALUE obj)
     rb_secure(4);
 #if WITH_OBJC
     if (!SPECIAL_CONST_P(obj) && rb_objc_is_non_native(obj)) {
-	rb_objc_flag_set(obj, FL_TAINT, true);
+	rb_objc_flag_set((const void *)obj, FL_TAINT, true);
 	return obj;
     }
 #endif
@@ -729,7 +728,7 @@ rb_obj_untaint(VALUE obj)
     rb_secure(3);
 #if WITH_OBJC
     if (!SPECIAL_CONST_P(obj) && rb_objc_is_non_native(obj)) {
-	rb_objc_flag_set(obj, FL_TAINT, false);
+	rb_objc_flag_set((const void *)obj, FL_TAINT, false);
 	return obj;
     }
 #endif
@@ -785,7 +784,7 @@ rb_obj_freeze(VALUE obj)
 	}
 #if WITH_OBJC
 	else if (rb_objc_is_non_native(obj)) {
-	    rb_objc_flag_set(obj, FL_FREEZE, true);
+	    rb_objc_flag_set((const void *)obj, FL_FREEZE, true);
 	}
 #endif
 	else {
@@ -816,7 +815,8 @@ rb_obj_frozen_p(VALUE obj)
     }
 #if WITH_OBJC
     if (rb_objc_is_non_native(obj)) {
-	return rb_objc_is_immutable(obj) || rb_objc_flag_check(obj, FL_FREEZE)
+	return rb_objc_is_immutable(obj) 
+	    || rb_objc_flag_check((const void *)obj, FL_FREEZE)
 	    ? Qtrue : Qfalse;
     }
 #endif
@@ -1976,7 +1976,7 @@ convert_type(VALUE val, const char *tname, const char *method, int raise)
     ID m;
 
     m = rb_intern(method);
-    if (!rb_respond_to(val, m)) {
+    if (!rb_obj_respond_to(val, m, Qtrue)) {
 	if (raise) {
 	    rb_raise(rb_eTypeError, "can't convert %s into %s",
 		     NIL_P(val) ? "nil" :
@@ -2000,7 +2000,7 @@ rb_convert_type(VALUE val, int type, const char *tname, const char *method)
     if (TYPE(val) == type) return val;
     v = convert_type(val, tname, method, Qtrue);
     if (TYPE(v) != type) {
-	char *cname = rb_obj_classname(val);
+	const char *cname = rb_obj_classname(val);
 	rb_raise(rb_eTypeError, "can't convert %s to %s (%s#%s gives %s)",
 		 cname, tname, cname, method, rb_obj_classname(v));
     }
@@ -2017,7 +2017,7 @@ rb_check_convert_type(VALUE val, int type, const char *tname, const char *method
     v = convert_type(val, tname, method, Qfalse);
     if (NIL_P(v)) return Qnil;
     if (TYPE(v) != type) {
-	char *cname = rb_obj_classname(val);
+	const char *cname = rb_obj_classname(val);
 	rb_raise(rb_eTypeError, "can't convert %s to %s (%s#%s gives %s)",
 		 cname, tname, cname, method, rb_obj_classname(v));
     }
@@ -2033,7 +2033,7 @@ rb_to_integer(VALUE val, const char *method)
     if (FIXNUM_P(val)) return val;
     v = convert_type(val, "Integer", method, Qtrue);
     if (!rb_obj_is_kind_of(v, rb_cInteger)) {
-	char *cname = rb_obj_classname(val);
+	const char *cname = rb_obj_classname(val);
 	rb_raise(rb_eTypeError, "can't convert %s to Integer (%s#%s gives %s)",
 		 cname, cname, method, rb_obj_classname(v));
     }

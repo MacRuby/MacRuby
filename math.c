@@ -2,7 +2,7 @@
 
   math.c -
 
-  $Author: matz $
+  $Author: nobu $
   created at: Tue Jan 25 14:12:56 JST 1994
 
   Copyright (C) 1993-2007 Yukihiro Matsumoto
@@ -35,7 +35,7 @@ to_flo(VALUE x)
 } while (0)
 
 static void
-domain_check(double x, char *msg)
+domain_check(double x, const char *msg)
 {
     while(1) {
 	if (errno) {

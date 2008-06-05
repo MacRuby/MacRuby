@@ -1,5 +1,5 @@
 /*
- * $Id: ossl_bn.c 14377 2007-12-21 02:31:11Z akr $
+ * $Id: ossl_bn.c 16689 2008-05-29 17:41:56Z knu $
  * 'OpenSSL for Ruby' project
  * Copyright (C) 2001-2002  Technorama team <oss-ruby@technorama.net>
  * All rights reserved.
@@ -515,7 +515,7 @@ BIGNUM_SELF_SHIFT(rshift);
 	    bottom = (odd == Qtrue) ? 1 : 0;			\
 	    /* FALLTHROUGH */					\
 	case 2:							\
-	    top = FIX2INT(fill);				\
+	    top = NUM2INT(fill);				\
 	}							\
 	b = NUM2INT(bits);					\
 	if (!(result = BN_new())) {				\

@@ -20,7 +20,7 @@ class TestFileExhaustive < Test::Unit::TestCase
     end
     begin
       File.link(@file, @hardlinkfile)
-    rescue NotImplementedError
+    rescue NotImplementedError, Errno::EINVAL	# EINVAL for Windows Vista
       @hardlinkfile = nil
     end
   end
@@ -411,6 +411,17 @@ class TestFileExhaustive < Test::Unit::TestCase
   def test_extname
     assert(".test", File.extname(@file))
     assert_equal("", File.extname("foo"))
+    assert_equal("", File.extname("/foo"))
+    assert_equal("", File.extname(".foo"))
+    assert_equal("", File.extname("/.foo"))
+    assert_equal("", File.extname("bar/.foo"))
+    assert_equal("", File.extname("/bar/.foo"))
+    assert_equal(".ext", File.extname("foo.ext"))
+    assert_equal(".ext", File.extname("/foo.ext"))
+    assert_equal(".ext", File.extname(".foo.ext"))
+    assert_equal(".ext", File.extname("/.foo.ext"))
+    assert_equal(".ext", File.extname("bar/.foo.ext"))
+    assert_equal(".ext", File.extname("/bar/.foo.ext"))
     assert_equal("", File.extname(""))
     if /cygwin|mingw|mswin|bccwin/ =~ RUBY_PLATFORM
       assert_equal("", File.extname("foo "))

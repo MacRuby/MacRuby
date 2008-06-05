@@ -12,6 +12,7 @@
 #include "ruby/ruby.h"
 #include <sys/types.h>
 #include <ctype.h>
+#include <errno.h>
 
 #define SIZE16 2
 #define SIZE32 4
@@ -478,7 +479,7 @@ pack_pack(VALUE ary, VALUE fmt)
 	    continue;
 	}
         if (*p == '_' || *p == '!') {
-	    const char *natstr = "sSiIlL";
+	    static const char natstr[] = "sSiIlL";
 
 	    if (strchr(natstr, type)) {
 #ifdef NATINT_PACK
@@ -495,7 +496,11 @@ pack_pack(VALUE ary, VALUE fmt)
 	    p++;
 	}
 	else if (ISDIGIT(*p)) {
+	    errno = 0;
 	    len = STRTOUL(p, (char**)&p, 10);
+	    if (errno) {
+		rb_raise(rb_eRangeError, "pack length too big");
+	    }
 	}
 	else {
 	    len = 1;
@@ -1338,7 +1343,7 @@ pack_unpack(VALUE str, VALUE fmt)
 	}
 	star = 0;
 	if (*p == '_' || *p == '!') {
-	    const char *natstr = "sSiIlL";
+	    static const char natstr[] = "sSiIlL";
 
 	    if (strchr(natstr, type)) {
 #ifdef NATINT_PACK
@@ -1358,7 +1363,11 @@ pack_unpack(VALUE str, VALUE fmt)
 	    p++;
 	}
 	else if (ISDIGIT(*p)) {
+	    errno = 0;
 	    len = STRTOUL(p, (char**)&p, 10);
+	    if (errno) {
+		rb_raise(rb_eRangeError, "pack length too big");
+	    }
 	}
 	else {
 	    len = (type != '@');
@@ -1565,7 +1574,6 @@ pack_unpack(VALUE str, VALUE fmt)
 	    }
 	    PACK_ITEM_ADJUST();
 	    break;
-
 	  case 'L':
 	    PACK_LENGTH_ADJUST(unsigned long,4);
 	    while (len-- > 0) {
@@ -1586,7 +1594,6 @@ pack_unpack(VALUE str, VALUE fmt)
 	    }
 	    PACK_ITEM_ADJUST();
 	    break;
-
 	  case 'Q':
 	    PACK_LENGTH_ADJUST_SIZE(QUAD_SIZE);
 	    while (len-- > 0) {

@@ -2,7 +2,7 @@
 
   variable.c -
 
-  $Author: akr $
+  $Author: nobu $
   created at: Tue Apr 19 23:55:15 JST 1994
 
   Copyright (C) 1993-2007 Yukihiro Matsumoto
@@ -284,13 +284,13 @@ rb_class_name(VALUE klass)
     return rb_class_path(rb_class_real(klass));
 }
 
-char *
+const char *
 rb_class2name(VALUE klass)
 {
-    return (char *)RSTRING_CPTR(rb_class_name(klass));
+    return RSTRING_CPTR(rb_class_name(klass));
 }
 
-char *
+const char *
 rb_obj_classname(VALUE obj)
 {
     return rb_class2name(CLASS_OF(obj));
@@ -1030,7 +1030,6 @@ rb_copy_generic_ivar(VALUE clone, VALUE obj)
 #if WITH_OBJC
     CFMutableDictionaryRef obj_dict;
     CFMutableDictionaryRef clone_dict;
-    VALUE val;
 
     if (generic_iv_dict == NULL)
 	return;
@@ -1145,7 +1144,7 @@ rb_ivar_set(VALUE obj, ID id, VALUE val)
     if (OBJ_FROZEN(obj)) rb_error_frozen("object");
 #if WITH_OBJC
     if (!rb_special_const_p(obj) && rb_objc_is_non_native(obj)) {
-	rb_objc_flag_set(obj, FL_EXIVAR, true);
+	rb_objc_flag_set((const void *)obj, FL_EXIVAR, true);
 	generic_ivar_set(obj, id, val);
 	return val;
     }

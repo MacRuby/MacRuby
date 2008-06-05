@@ -3,7 +3,7 @@
 
   vm_opts.h - VM optimize option
 
-  $Author: nobu $
+  $Author: ko1 $
 
   Copyright (C) 2004-2007 Koichi Sasada
 
@@ -31,6 +31,7 @@
 
 /* C compiler depend */
 #define OPT_DIRECT_THREADED_CODE     1
+#define OPT_TOKEN_THREADED_CODE      0
 #define OPT_CALL_THREADED_CODE       0
 
 /* VM running option */

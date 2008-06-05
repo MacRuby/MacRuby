@@ -38,6 +38,7 @@
 #endif
 
 #if WITH_OBJC
+# include <mach/mach.h>
 # if HAVE_AUTO_ZONE_H
 #  include <auto_zone.h>
 # else
@@ -904,7 +905,7 @@ rb_objc_wb(void *dst, void *newval)
     if (!SPECIAL_CONST_P(newval)) {
 	//printf("rb_objc_wb %p %p\n", dst, newval);
 	if (!auto_zone_set_write_barrier(__auto_zone, dst, newval))
-	    rb_bug("destination %p isn't in the auto zone");
+	    rb_bug("destination %p isn't in the auto zone", dst);
     }
     *(void **)dst = newval;
 }
@@ -929,17 +930,17 @@ rb_objc_root(void *addr)
 }
 
 void
-rb_objc_retain(void *addr)
+rb_objc_retain(const void *addr)
 {
     if (addr != NULL && !SPECIAL_CONST_P(addr))
-	auto_zone_retain(__auto_zone, addr);
+	auto_zone_retain(__auto_zone, (void *)addr);
 }
 
 void
-rb_objc_release(void *addr)
+rb_objc_release(const void *addr)
 {
     if (addr != NULL && !SPECIAL_CONST_P(addr))
-	auto_zone_release(__auto_zone, addr);
+	auto_zone_release(__auto_zone, (void *)addr);
 }
 
 void
@@ -2281,8 +2282,7 @@ rb_objc_recorder(task_t task, void *context, unsigned type_mask,
 	    switch (BUILTIN_TYPE(r->address)) {
 		case T_NONE: 
 		case T_ICLASS: 
-		case T_NODE: 
-		case T_VALUES: 
+		case T_NODE:
 		    continue;
 		case T_CLASS:
 		    if (FL_TEST(r->address, FL_SINGLETON))
@@ -2419,7 +2419,7 @@ undefine_final(VALUE os, VALUE obj)
 	CFDictionaryRemoveValue(__os_finalizers, (const void *)obj);
     
     if (rb_objc_is_non_native(obj)) {
-	rb_objc_flag_set(obj, FL_FINALIZE, false);
+	rb_objc_flag_set((void *)obj, FL_FINALIZE, false);
     }
     else {
 	FL_UNSET(obj, FL_FINALIZE);
@@ -2473,7 +2473,7 @@ define_final(int argc, VALUE *argv, VALUE os)
     rb_ary_push(table, block);
     
     if (rb_objc_is_non_native(obj)) {
-	rb_objc_flag_set(obj, FL_FINALIZE, true);
+	rb_objc_flag_set((void *)obj, FL_FINALIZE, true);
     }
     else {
 	FL_SET(obj, FL_FINALIZE);
@@ -2504,8 +2504,8 @@ define_final(int argc, VALUE *argv, VALUE os)
     else {
 	st_add_direct(finalizer_table, obj, rb_ary_new3(1, block));
     }
-    return block;
 #endif
+    return block;
 }
 
 void
@@ -2518,7 +2518,7 @@ rb_gc_copy_finalizer(VALUE dest, VALUE obj)
 	return;
 
     if (rb_objc_is_non_native(obj)) {
-	if (!rb_objc_flag_check(obj, FL_FINALIZE))
+	if (!rb_objc_flag_check((void *)obj, FL_FINALIZE))
 	    return;
     }
     else {
@@ -2784,8 +2784,7 @@ id2ref(VALUE obj, VALUE objid)
 	if ((type == AUTO_OBJECT_SCANNED || type == AUTO_OBJECT_UNSCANNED)
 	    && !rb_objc_is_placeholder(p0)
 	    && (rb_objc_is_non_native((VALUE)p0)
-		|| (BUILTIN_TYPE(p0) < T_VALUES 
-		    && BUILTIN_TYPE(p0) != T_ICLASS)))
+		|| (BUILTIN_TYPE(p0) < T_FIXNUM && BUILTIN_TYPE(p0) != T_ICLASS)))
 	    return (VALUE)p0;
     }
     rb_raise(rb_eRangeError, "%p is not id value", p0);

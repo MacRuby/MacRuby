@@ -2,7 +2,7 @@
 
   hash.c -
 
-  $Author: matz $
+  $Author: knu $
   created at: Mon Nov 22 18:51:18 JST 1993
 
   Copyright (C) 1993-2007 Yukihiro Matsumoto
@@ -371,7 +371,7 @@ static inline void
 rb_hash_modify_check(VALUE hash)
 {
     long mask;
-    mask = rb_objc_flag_get_mask(hash);
+    mask = rb_objc_flag_get_mask((const void *)hash);
     if (mask == 0) {
 	bool _CFDictionaryIsMutable(void *);
 	if (!_CFDictionaryIsMutable((void *)hash))
@@ -508,7 +508,7 @@ rb_hash_s_create(int argc, VALUE *argv, VALUE klass)
 	    hash = hash_alloc(klass);
 	    count = CFDictionaryGetCount((CFDictionaryRef)tmp);
 	    if (count == 0)
-		return;
+		return hash;
 
 	    keys = (const void **)alloca(sizeof(void *) * count);
 	    values = (const void **)alloca(sizeof(void *) * count);
@@ -836,8 +836,8 @@ rb_hash_set_default(VALUE hash, VALUE ifnone)
 #else
     RHASH(hash)->ifnone = ifnone;
     FL_UNSET(hash, HASH_PROC_DEFAULT);
-    return ifnone;
 #endif
+    return ifnone;
 }
 
 /*
@@ -975,6 +975,7 @@ rb_hash_delete(VALUE hash, VALUE key)
     return Qnil;
 }
 
+#if !WITH_OBJC
 struct shift_var {
     VALUE key;
     VALUE val;
@@ -998,6 +999,7 @@ shift_i_safe(VALUE key, VALUE value, struct shift_var *var)
     var->val = value;
     return ST_STOP;
 }
+#endif
 
 /*
  *  call-seq:
@@ -1196,11 +1198,13 @@ rb_hash_select(VALUE hash)
     return result;
 }
 
+#if !WITH_OBJC
 static int
 clear_i(VALUE key, VALUE value, VALUE dummy)
 {
     return ST_DELETE;
 }
+#endif
 
 /*
  *  call-seq:
@@ -1652,6 +1656,7 @@ rb_hash_has_key(VALUE hash, VALUE key)
     return Qfalse;
 }
 
+#if !WITH_OBJC
 static int
 rb_hash_search_value(VALUE key, VALUE value, VALUE *data)
 {
@@ -1662,6 +1667,7 @@ rb_hash_search_value(VALUE key, VALUE value, VALUE *data)
     }
     return ST_CONTINUE;
 }
+#endif
 
 /*
  *  call-seq:
@@ -1692,6 +1698,7 @@ rb_hash_has_value(VALUE hash, VALUE val)
 #endif
 }
 
+#if !WITH_OBJC
 struct equal_data {
     VALUE result;
     st_table *tbl;
@@ -1727,12 +1734,11 @@ recursive_eql(VALUE hash, VALUE dt, int recur)
 
     return data->result;
 }
+#endif
 
 static VALUE
 hash_equal(VALUE hash1, VALUE hash2, int eql)
 {
-    struct equal_data data;
-
     if (hash1 == hash2) return Qtrue;
     if (TYPE(hash2) != T_HASH) {
 	if (!rb_respond_to(hash2, rb_intern("to_hash"))) {
@@ -2079,8 +2085,8 @@ rb_hash_compare_by_id(VALUE hash)
 #else
     RHASH(hash)->ntbl->type = &identhash;
     rb_hash_rehash(hash);
-    return hash;
 #endif
+    return hash;
 }
 
 /*
@@ -2436,8 +2442,7 @@ env_each_key(VALUE ehash)
     long i;
 
     RETURN_ENUMERATOR(ehash, 0, 0);
-    rb_secure(4);
-    keys = env_keys();
+    keys = env_keys();	/* rb_secure(4); */
     for (i=0; i<RARRAY_LEN(keys); i++) {
 	rb_yield(RARRAY_AT(keys, i));
     }
@@ -2467,12 +2472,11 @@ env_values(void)
 static VALUE
 env_each_value(VALUE ehash)
 {
-    VALUE values = env_values();
+    VALUE values;
     long i;
 
     RETURN_ENUMERATOR(ehash, 0, 0);
-    rb_secure(4);
-    values = env_values();
+    values = env_values();	/* rb_secure(4); */
     for (i=0; i<RARRAY_LEN(values); i++) {
 	rb_yield(RARRAY_AT(values, i));
     }
@@ -2515,8 +2519,7 @@ env_reject_bang(VALUE ehash)
     int del = 0;
 
     RETURN_ENUMERATOR(ehash, 0, 0);
-    rb_secure(4);
-    keys = env_keys();
+    keys = env_keys();	/* rb_secure(4); */
     for (i=0; i<RARRAY_LEN(keys); i++) {
 	VALUE val = rb_f_getenv(Qnil, RARRAY_AT(keys, i));
 	if (!NIL_P(val)) {
@@ -2585,8 +2588,7 @@ rb_env_clear(void)
     volatile VALUE keys;
     long i;
 
-    rb_secure(4);
-    keys = env_keys();
+    keys = env_keys();	/* rb_secure(4); */
     for (i=0; i<RARRAY_LEN(keys); i++) {
 	VALUE val = rb_f_getenv(Qnil, RARRAY_AT(keys, i));
 	if (!NIL_P(val)) {
@@ -2868,8 +2870,7 @@ env_replace(VALUE env, VALUE hash)
     volatile VALUE keys;
     long i;
 
-    rb_secure(4);
-    keys = env_keys();
+    keys = env_keys();	/* rb_secure(4); */
     if (env == hash) return env;
     hash = to_hash(hash);
     rb_hash_foreach(hash, env_replace_i, keys);

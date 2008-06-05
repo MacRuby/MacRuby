@@ -2,7 +2,7 @@
 
   struct.c -
 
-  $Author: matz $
+  $Author: nobu $
   created at: Tue Mar 22 18:44:30 JST 1995
 
   Copyright (C) 1993-2007 Yukihiro Matsumoto
@@ -227,7 +227,7 @@ rb_struct_alloc_noinit(VALUE klass)
 }
 
 VALUE
-rb_struct_define_without_accessor(char *class_name, VALUE super, rb_alloc_func_t alloc, ...)
+rb_struct_define_without_accessor(const char *class_name, VALUE super, rb_alloc_func_t alloc, ...)
 {
     VALUE klass;
     va_list ar;
@@ -483,7 +483,7 @@ rb_struct_each_pair(VALUE s)
 static VALUE
 inspect_struct(VALUE s, VALUE dummy, int recur)
 {
-    char *cname = rb_class2name(rb_obj_class(s));
+    const char *cname = rb_class2name(rb_obj_class(s));
     VALUE str, members;
     long i;
 

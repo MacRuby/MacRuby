@@ -17,6 +17,7 @@
 #include <setjmp.h>
 
 #include "ruby/ruby.h"
+#include "ruby/mvm.h"
 #include "ruby/signal.h"
 #include "ruby/st.h"
 #include "ruby/node.h"
@@ -87,6 +88,8 @@
 #define LIKELY(x)   (x)
 #define UNLIKELY(x) (x)
 #endif /* __GNUC__ >= 3 */
+
+typedef unsigned long rb_num_t;
 
 #define ISEQ_TYPE_TOP    INT2FIX(1)
 #define ISEQ_TYPE_METHOD INT2FIX(2)
@@ -283,7 +286,8 @@ typedef struct rb_iseq_struct rb_iseq_t;
 #define GetVMPtr(obj, ptr) \
   GetCoreDataFromValue(obj, rb_vm_t, ptr)
 
-typedef struct rb_vm_struct {
+struct rb_vm_struct
+{
     VALUE self;
 
     rb_thread_lock_t global_interpreter_lock;
@@ -295,6 +299,7 @@ typedef struct rb_vm_struct {
     VALUE thgroup_default;
     VALUE last_status; /* $? */
 
+    int running;
     int thread_abort_on_exception;
     unsigned long trace_flag;
 
@@ -317,7 +322,7 @@ typedef struct rb_vm_struct {
 #if defined(ENABLE_VM_OBJSPACE) && ENABLE_VM_OBJSPACE
     struct rb_objspace *objspace;
 #endif
-} rb_vm_t;
+};
 
 typedef struct {
     VALUE *pc;			/* cfp[0] */
@@ -370,7 +375,10 @@ struct rb_vm_trap_tag {
 #define RUBY_VM_VALUE_CACHE_SIZE 0x1000
 #define USE_VALUE_CACHE 0
 
-typedef struct rb_thread_struct rb_thread_t;
+struct rb_unblock_callback {
+    rb_unblock_function_t *func;
+    void *arg;
+};
 
 struct rb_thread_struct
 {
@@ -415,9 +423,8 @@ struct rb_thread_struct
     int exec_signal;
 
     int interrupt_flag;
-    rb_unblock_function_t *unblock_function;
-    void *unblock_function_arg;
     rb_thread_lock_t interrupt_lock;
+    struct rb_unblock_callback unblock;
 
     struct rb_vm_tag *tag;
     struct rb_vm_trap_tag *trap_tag;
@@ -447,7 +454,6 @@ struct rb_thread_struct
     VALUE *machine_register_stack_end;
     size_t machine_register_stack_maxsize;
 #endif
-
     jmp_buf machine_regs;
     int mark_stack_len;
 
@@ -498,8 +504,6 @@ typedef struct {
     int safe_level;
     int is_from_method;
     int is_lambda;
-
-    NODE *special_cref_stack;
 } rb_proc_t;
 
 #define GetEnvPtr(obj, ptr) \
@@ -518,7 +522,6 @@ typedef struct {
 
 typedef struct {
     VALUE env;
-    NODE *cref_stack;
 } rb_binding_t;
 
 
@@ -607,18 +610,10 @@ void rb_enable_interrupt(void);
 void rb_disable_interrupt(void);
 int rb_thread_method_id_and_class(rb_thread_t *th, ID *idp, VALUE *klassp);
 
-VALUE vm_eval_body(rb_thread_t *th);
 VALUE vm_invoke_proc(rb_thread_t *th, rb_proc_t *proc, VALUE self,
-		     int argc, VALUE *argv, rb_block_t *blockptr);
-VALUE vm_make_proc(rb_thread_t *th, rb_control_frame_t *cfp, rb_block_t *block);
+		     int argc, const VALUE *argv, rb_block_t *blockptr);
+VALUE vm_make_proc(rb_thread_t *th, rb_control_frame_t *cfp, const rb_block_t *block);
 VALUE vm_make_env_object(rb_thread_t *th, rb_control_frame_t *cfp);
-VALUE vm_backtrace(rb_thread_t *, int);
-
-VALUE vm_yield(rb_thread_t *th, int argc, VALUE *argv);
-VALUE vm_call0(rb_thread_t *th, VALUE klass, VALUE recv, VALUE id, ID oid,
-	       int argc, const VALUE *argv, NODE *body, int nosuper);
-
-int vm_get_sourceline(rb_control_frame_t *);
 
 NOINLINE(void rb_gc_save_machine_context(rb_thread_t *));
 

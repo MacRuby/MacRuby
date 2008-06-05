@@ -69,6 +69,7 @@ static struct st_table *bs_inf_prot_cmethods;
 static struct st_table *bs_inf_prot_imethods;
 static struct st_table *bs_cftypes;
 
+#if 0
 static char *
 rb_objc_sel_to_mid(SEL selector, char *buffer, unsigned buffer_len)
 {
@@ -89,6 +90,7 @@ rb_objc_sel_to_mid(SEL selector, char *buffer, unsigned buffer_len)
 
     return buffer;
 }
+#endif
 
 static inline const char *
 rb_objc_skip_octype_modifiers(const char *octype)
@@ -213,7 +215,6 @@ fake_ary_ffi_type(size_t size, size_t align)
 static size_t
 get_ffi_struct_size(ffi_type *type)
 {
-    unsigned i;
     ffi_type **p;
     size_t s;
 
@@ -627,7 +628,7 @@ rb_objc_rval_to_boxed_data(VALUE rval, bs_element_boxed_t *bs_boxed, bool *ok)
 	if (n < bs_struct->fields_count)
 	    rb_raise(rb_eArgError, 
 		    "not enough elements in array `%s' to create " \
-		    "structure `%s' (%d for %d)", 
+		    "structure `%s' (%ld for %d)", 
 		    RSTRING_CPTR(rb_inspect(rval)), bs_struct->name, n, 
 		    bs_struct->fields_count);
 
@@ -641,7 +642,7 @@ rb_objc_rval_to_boxed_data(VALUE rval, bs_element_boxed_t *bs_boxed, bool *ok)
 	    if (RARRAY_LEN(rval) != 0 || n != bs_struct->fields_count) {
 		rb_raise(rb_eArgError, 
 			"too much elements in array `%s' to create " \
-			"structure `%s' (%d for %d)", 
+			"structure `%s' (%ld for %d)", 
 			RSTRING_CPTR(rb_inspect(orig)), 
 			bs_struct->name, RARRAY_LEN(orig), 
 			bs_struct->fields_count);
@@ -1087,12 +1088,12 @@ rb_objc_to_ruby_closure(VALUE rcv, VALUE argv)
     real_count = count;
     if (bs_method != NULL && bs_method->variadic) {
 	if (RARRAY_LEN(argv) < count - 2)
-	    rb_raise(rb_eArgError, "wrong number of arguments (%d for %d)",
+	    rb_raise(rb_eArgError, "wrong number of arguments (%ld for %d)",
 		RARRAY_LEN(argv), count - 2);
 	count = RARRAY_LEN(argv) + 2;
     }
     else if (RARRAY_LEN(argv) != count - 2) {
-	rb_raise(rb_eArgError, "wrong number of arguments (%d for %d)",
+	rb_raise(rb_eArgError, "wrong number of arguments (%ld for %d)",
 		 RARRAY_LEN(argv), count - 2);
     }
 
@@ -1849,7 +1850,6 @@ rb_bs_struct_to_a(VALUE recv)
 static VALUE
 rb_bs_boxed_is_equal(VALUE recv, VALUE other)
 {
-    unsigned i;
     bs_element_boxed_t *bs_boxed;  
     bool ok;
     void *d1, *d2; 
@@ -1905,7 +1905,6 @@ rb_bs_struct_inspect(VALUE recv)
 {
     bs_element_boxed_t *bs_boxed = rb_klass_get_bs_boxed(CLASS_OF(recv));
     bs_element_struct_t *bs_struct = (bs_element_struct_t *)bs_boxed->value;    
-    VALUE ary;
     unsigned i;
     VALUE str;
 
@@ -2236,7 +2235,6 @@ load_bridge_support(const char *framework_path)
 {
     char path[PATH_MAX];
     char *error;
-    char *p;
 
     if (bs_find_path(framework_path, path, sizeof path)) {
 	if (!bs_parse(path, BS_PARSE_OPTIONS_LOAD_DYLIBS, bs_parse_cb, NULL, 
@@ -2468,7 +2466,7 @@ rb_objc_missing_sel(ID mid, int arity)
 {
     const char *name;
     size_t len;
-    char buf[100];    
+    char buf[100];
 
     if (mid == 0)
 	return mid;
@@ -2504,10 +2502,11 @@ rb_objc_missing_sel(ID mid, int arity)
 	strlcpy(buf, name, sizeof buf);
 	buf[len - 1] = '\0';
     }
-    else
+    else {
 	return mid;
+    }
 
-//    printf("new sel %s for %s\n", buf, name);
+    //printf("new sel %s for %s\n", buf, name);
 
     return rb_intern(buf);	
 }
@@ -2613,33 +2612,8 @@ rb_mod_objc_ib_outlet(int argc, VALUE *argv, VALUE recv)
 	    rb_raise(rb_eArgError, "can't register `%s' as an IB outlet",
 		     symname);
     }
+    return recv;
 }
-
-#if 0
-/* XXX the ivar cluster API is not used yet, and may not simply be used. 
- */
-#define IVAR_CLUSTER_NAME "__rivars__"
-void
-rb_objc_install_ivar_cluster(Class klass)
-{
-    assert(class_addIvar(klass, IVAR_CLUSTER_NAME, sizeof(void *), 
-	log2(sizeof(void *)), "^v") == YES);
-}
-
-void *
-rb_objc_get_ivar_cluster(void *obj)
-{
-    void *v = NULL;
-    assert(object_getInstanceVariable((id)obj, IVAR_CLUSTER_NAME, &v) != NULL);
-    return v;
-}
-
-void
-rb_objc_set_ivar_cluster(void *obj, void *v)
-{
-    assert(object_setInstanceVariable((id)obj, IVAR_CLUSTER_NAME, v) != NULL);
-}
-#endif
 
 static CFMutableDictionaryRef __obj_flags;
 
@@ -2919,10 +2893,10 @@ Init_ObjC(void)
     rb_objc_retain(bs_inf_prot_imethods = st_init_numtable());
     rb_objc_retain(bs_cftypes = st_init_strtable());
 
-    rb_objc_retain(
-	bs_const_magic_cookie = rb_str_new2("bs_const_magic_cookie"));
-    rb_objc_retain(
-	rb_objc_class_magic_cookie = rb_str_new2("rb_objc_class_magic_cookie"));
+    rb_objc_retain((const void *)(
+	bs_const_magic_cookie = rb_str_new2("bs_const_magic_cookie")));
+    rb_objc_retain((const void *)(
+	rb_objc_class_magic_cookie = rb_str_new2("rb_objc_class_magic_cookie")));
 
     rb_cBoxed = rb_define_class("Boxed",
 	rb_objc_import_class(objc_getClass("NSValue")));

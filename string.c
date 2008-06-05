@@ -2,7 +2,7 @@
 
   string.c -
 
-  $Author: mame $
+  $Author: nobu $
   created at: Mon Aug  9 17:12:58 JST 1993
 
   Copyright (C) 1993-2007 Yukihiro Matsumoto
@@ -181,7 +181,6 @@ rb_str_bytesync(VALUE str)
 	CFIndex datalen;
 	const UInt8 *dataptr;
 	CFStringRef bytestr;
-	const char *strptr;
 
 	data = (CFDataRef)cfdata;
 	datalen = CFDataGetLength(data);
@@ -921,7 +920,7 @@ rb_str_init(int argc, VALUE *argv, VALUE str)
 {
     VALUE orig;
 
-    if (rb_scan_args(argc, argv, "01", &orig) == 1)
+    if (argc > 0 && rb_scan_args(argc, argv, "01", &orig) == 1)
 	rb_str_replace(str, orig);
     return str;
 }
@@ -1109,7 +1108,7 @@ rb_str_bytesize(VALUE str)
 static VALUE
 rb_str_empty(VALUE str)
 {
-    if (CFStringGetLength((CFStringRef)str) == 0)
+    if (RSTRING_CLEN(str) == 0)
 	return Qtrue;
     return Qfalse;
 }
@@ -3045,13 +3044,10 @@ enc_pred_char(char *p, int len, rb_encoding *enc)
   NEIGHBOR_NOT_CHAR is returned if invalid character or the range has only one
   character.
  */
+#if !WITH_OBJC
 static enum neighbor_char
 enc_succ_alnum_char(char *p, int len, rb_encoding *enc, char *carry)
 {
-#if WITH_OBJC
-    /* TODO rewrite me */
-    return NEIGHBOR_NOT_CHAR;
-#else
     enum neighbor_char ret;
     int c;
     int ctype;
@@ -3103,9 +3099,8 @@ enc_succ_alnum_char(char *p, int len, rb_encoding *enc, char *carry)
     MEMCPY(carry, p, char, len);
     enc_succ_char(carry, len, enc);
     return NEIGHBOR_WRAPPED;
-#endif
 }
-
+#endif
 
 /*
  *  call-seq:
@@ -3319,10 +3314,13 @@ rb_str_upto(int argc, VALUE *argv, VALUE beg)
     VALUE current, after_end;
     ID succ;
     int n, excl;
+#if !WITH_OBJC
     rb_encoding *enc;
+#endif
 
     rb_scan_args(argc, argv, "11", &end, &exclusive);
     excl = RTEST(exclusive);
+    succ = rb_intern("succ");
     StringValue(end);
 #if WITH_OBJC
     if (RSTRING_CLEN(beg) == 1 && RSTRING_CLEN(end) == 1) {
@@ -3364,7 +3362,6 @@ rb_str_upto(int argc, VALUE *argv, VALUE beg)
     n = rb_str_cmp(beg, end);
     if (n > 0 || (excl && n == 0)) return beg;
 	
-    succ = rb_intern("succ");
     after_end = rb_funcall(end, succ, 0, 0);
     current = beg;
     while (!rb_str_equal(current, after_end)) {
@@ -3589,7 +3586,9 @@ rb_str_subpat_set(VALUE str, VALUE re, int nth, VALUE val)
 {
     VALUE match;
     long start, end, len;
+#if !WITH_OBJC
     rb_encoding *enc;
+#endif
     struct re_registers *regs;
 
     if (rb_reg_search(re, str, 0, 0) < 0) {
@@ -3824,7 +3823,6 @@ rb_str_sub_bang(int argc, VALUE *argv, VALUE str)
     struct re_registers *regs;
     int iter = 0;
     int tainted = 0;
-    long plen;
 
     if (argc == 1 && rb_block_given_p()) {
 	iter = 1;
@@ -3843,8 +3841,8 @@ rb_str_sub_bang(int argc, VALUE *argv, VALUE str)
 
     pat = get_pat(argv[0], 1);
     if (rb_reg_search(pat, str, 0, 0) >= 0) {
-	rb_encoding *enc;
 #if !WITH_OBJC
+	rb_encoding *enc;
 	int cr = ENC_CODERANGE(str);
 #endif
 
@@ -3894,6 +3892,7 @@ rb_str_sub_bang(int argc, VALUE *argv, VALUE str)
 	if (OBJ_TAINTED(repl)) tainted = 1;
 #else
 	rb_enc_associate(str, enc);
+	if (OBJ_TAINTED(repl)) tainted = 1;
 	if (ENC_CODERANGE_UNKNOWN < cr && cr < ENC_CODERANGE_BROKEN) {
 	    int cr2 = ENC_CODERANGE(repl);
 	    if (cr2 == ENC_CODERANGE_UNKNOWN || cr2 > cr) cr = cr2;
@@ -3966,7 +3965,7 @@ str_gsub(int argc, VALUE *argv, VALUE str, int bang)
     VALUE pat, val, repl, match, dest, hash = Qnil;
     struct re_registers *regs;
     long beg, n;
-    long offset, blen, slen, len;
+    long offset, slen, len;
     int iter = 0;
     const char *sp, *cp;
     int tainted = 0;
@@ -4002,6 +4001,7 @@ str_gsub(int argc, VALUE *argv, VALUE str, int bang)
     slen = RSTRING_CLEN(str);
     sp = RSTRING_CPTR(str);
     cp = sp;
+    str_enc = NULL;
 #else
     blen = RSTRING_LEN(str) + 30; /* len + margin */
     dest = rb_str_buf_new(blen);
@@ -4166,7 +4166,6 @@ rb_str_gsub(int argc, VALUE *argv, VALUE str)
 VALUE
 rb_str_replace(VALUE str, VALUE str2)
 {
-    long len;
     if (str == str2) return str;
 #if WITH_OBJC
     rb_str_modify(str);
@@ -4646,7 +4645,9 @@ rb_str_inspect(VALUE str)
 	    char *s;
             const char *q;
 
+#if !WITH_OBJC
 	  escape_codepoint:
+#endif
             for (q = p-n; q < p; q++) {
                 s = buf;
                 sprintf(buf, "\\x%02X", *q & 0377);
@@ -4955,7 +4956,6 @@ rb_str_capitalize_bang(VALUE str)
     CFStringRef tmp;
     long i, n;
     bool changed;
-    UniChar c;
     UniChar *buffer;
 
     rb_str_modify(str);
@@ -5188,7 +5188,6 @@ str_charset_find(CFStringRef str, VALUE *charsets, int charset_count,
 {
     int i;
     long n;
-    bool changed;
     CFMutableCharacterSetRef charset;
     CFRange search_range, result_range; 
 
@@ -5416,11 +5415,12 @@ rb_str_trans_cb(CFRange *search_range, const CFRange *result_range,
 	else {
 	    /* TODO: support all syntaxes */
 	    char sb, se, rb, re;
-	    long n;
 	    bool s_is_range, r_is_range;
 	    CFStringRef substr;
 	    bool release_substr;
 	    long delta;
+
+	    sb = se = rb = re = 0;
 
 	    if (_ctx->src_len == 3 && _ctx->src[1] == '-') {
 		sb = _ctx->src[0];
@@ -6224,7 +6224,6 @@ rb_str_split_m(int argc, VALUE *argv, VALUE str)
     long beg, end, i = 0;
     int lim = 0;
     VALUE result, tmp;
-    const char *cstr;
     long clen;
 
 #if !WITH_OBJC
@@ -6294,7 +6293,7 @@ rb_str_split_m(int argc, VALUE *argv, VALUE str)
 #if WITH_OBJC
     if (awk_split || spat_string) {
 	CFRange search_range;
-	CFCharacterSetRef charset;
+	CFCharacterSetRef charset = NULL;
 	if (spat == Qnil)
 	    charset = CFCharacterSetGetPredefined(
 		kCFCharacterSetWhitespaceAndNewline);
@@ -6525,7 +6524,6 @@ rb_str_each_line(int argc, VALUE *argv, VALUE str)
 {
 #if WITH_OBJC
     VALUE rs;
-    CFArrayRef ranges;
     long n;
     CFStringRef substr;
     CFRange sub_range, search_range, res_range;
@@ -6953,7 +6951,7 @@ rb_str_chomp_bang(int argc, VALUE *argv, VALUE str)
 	if (len == 0) return Qnil;
 	p = RSTRING_PTR(str);
     e = p + len;
-    if (rb_scan_args(argc, argv, "01", &rs) == 0) {
+    if (argc == 0) {
 	rs = rb_rs;
 	if (rs == rb_default_rs) {
 	  smart_chomp:
@@ -7292,7 +7290,9 @@ rb_str_strip(VALUE str)
 static VALUE
 scan_once(VALUE str, VALUE pat, long *start, long strlen, bool pat_is_string)
 {
+#if !WITH_OBJC
     rb_encoding *enc;
+#endif
     VALUE result, match;
     struct re_registers *regs;
     long i;
@@ -7308,11 +7308,11 @@ scan_once(VALUE str, VALUE pat, long *start, long strlen, bool pat_is_string)
 	    CFRangeMake(*start, strlen - *start),
 	    0,
 	    &result_range)) {
-	    CFStringRef str = CFStringCreateWithSubstring(NULL, 
+	    CFStringRef substr = CFStringCreateWithSubstring(NULL, 
 		(CFStringRef)str, result_range);
 	    *start = result_range.location + result_range.length + 1;
-	    result = (VALUE)CFStringCreateMutableCopy(NULL, 0, str);
-	    CFRelease(str);
+	    result = (VALUE)CFStringCreateMutableCopy(NULL, 0, substr);
+	    CFRelease(substr);
 	    CFMakeCollectable((CFTypeRef)result);
 	}
 	else {
@@ -7844,7 +7844,7 @@ rb_str_partition(VALUE str, VALUE sep)
 {
     long pos;
     int regex = Qfalse;
-    long strlen, seplen;
+    long strlen, seplen = 0;
 
     if (TYPE(sep) == T_REGEXP) {
 	pos = rb_reg_search(sep, str, 0, 0);
@@ -7965,8 +7965,10 @@ static VALUE
 rb_str_end_with(int argc, VALUE *argv, VALUE str)
 {
     int i;
+#if !WITH_OBJC
     char *p, *s;
     rb_encoding *enc;
+#endif
 
     for (i=0; i<argc; i++) {
 	VALUE tmp = rb_check_string_type(argv[i]);
@@ -8540,8 +8542,7 @@ Init_String(void)
     rb_define_method(rb_cString, "==", rb_str_equal, 1);
     rb_define_method(rb_cString, "eql?", rb_str_eql, 1);
 #if 1 
-/* FIXME remove me once we use the objc dispatch for everything
-/*#if !WITH_OBJC*/
+    /* FIXME remove me once we use the objc dispatch for everything */
     rb_define_method(rb_cString, "hash", rb_str_hash_m, 0);
 #endif
     rb_define_method(rb_cString, "casecmp", rb_str_casecmp, 1);

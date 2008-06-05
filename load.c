@@ -407,7 +407,7 @@ rb_f_require(VALUE obj, VALUE fname)
     return rb_require_safe(fname, rb_safe_level());
 }
 
-static int
+/*static*/ int
 search_required(VALUE fname, volatile VALUE *path)
 {
     VALUE tmp;
@@ -650,7 +650,7 @@ rb_mod_autoload_p(VALUE mod, VALUE sym)
 static VALUE
 rb_f_autoload(VALUE obj, VALUE sym, VALUE file)
 {
-    VALUE klass = ruby_cbase();
+    VALUE klass = rb_vm_cbase();
     if (NIL_P(klass)) {
 	rb_raise(rb_eTypeError, "Can not set autoload on singleton class");
     }
@@ -664,8 +664,8 @@ rb_f_autoload(VALUE obj, VALUE sym, VALUE file)
 static VALUE
 rb_f_autoload_p(VALUE obj, VALUE sym)
 {
-    /* use ruby_cbase() as same as rb_f_autoload. */
-    VALUE klass = ruby_cbase();
+    /* use rb_vm_cbase() as same as rb_f_autoload. */
+    VALUE klass = rb_vm_cbase();
     if (NIL_P(klass)) {
 	return Qnil;
     }
@@ -686,7 +686,7 @@ Init_load()
 
     rb_define_virtual_variable("$\"", get_loaded_features, 0);
     rb_define_virtual_variable("$LOADED_FEATURES", get_loaded_features, 0);
-    GC_WB(&GET_VM()->loaded_features, rb_ary_new());
+    GC_WB(&vm->loaded_features, rb_ary_new());
 
     rb_define_global_function("load", rb_f_load, -1);
     rb_define_global_function("require", rb_f_require, 1);

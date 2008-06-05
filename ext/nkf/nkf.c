@@ -3,11 +3,11 @@
  *
  *  original nkf2.x is maintained at http://sourceforge.jp/projects/nkf/
  *
- *  $Id: nkf.c 16149 2008-04-22 12:20:36Z naruse $
+ *  $Id: nkf.c 16493 2008-05-20 13:10:28Z naruse $
  *
  */
 
-#define RUBY_NKF_REVISION "$Revision: 16149 $"
+#define RUBY_NKF_REVISION "$Revision: 16493 $"
 #define RUBY_NKF_VERSION NKF_VERSION " (" NKF_RELEASE_DATE ")"
 
 #include "ruby/ruby.h"
@@ -142,6 +142,15 @@ rb_nkf_convert(VALUE obj, VALUE opt, VALUE src)
     StringValue(opt);
     nkf_split_options(RSTRING_PTR(opt));
     if (!output_encoding) rb_raise(rb_eArgError, "no output encoding given");
+
+    switch (nkf_enc_to_index(output_encoding)) {
+    case UTF_8_BOM:    output_encoding = nkf_enc_from_index(UTF_8); break;
+    case UTF_16BE_BOM: output_encoding = nkf_enc_from_index(UTF_16BE); break;
+    case UTF_16LE_BOM: output_encoding = nkf_enc_from_index(UTF_16LE); break;
+    case UTF_32BE_BOM: output_encoding = nkf_enc_from_index(UTF_32BE); break;
+    case UTF_32LE_BOM: output_encoding = nkf_enc_from_index(UTF_32LE); break;
+    }
+    output_bom_f = FALSE;
 
     incsize = INCSIZE;
 
@@ -480,8 +489,8 @@ Init_nkf()
     rb_define_const(mNKF, "EUC",	rb_enc_from_encoding(rb_nkf_enc_get("EUC-JP")));
     rb_define_const(mNKF, "SJIS",	rb_enc_from_encoding(rb_nkf_enc_get("Shift_JIS")));
     rb_define_const(mNKF, "UTF8",	rb_enc_from_encoding(rb_utf8_encoding()));
-    rb_define_const(mNKF, "UTF16",	rb_enc_from_encoding(rb_nkf_enc_get("UTF-16")));
-    rb_define_const(mNKF, "UTF32",	rb_enc_from_encoding(rb_nkf_enc_get("UTF-32")));
+    rb_define_const(mNKF, "UTF16",	rb_enc_from_encoding(rb_nkf_enc_get("UTF-16BE")));
+    rb_define_const(mNKF, "UTF32",	rb_enc_from_encoding(rb_nkf_enc_get("UTF-32BE")));
 
     /* Full version string of nkf */
     rb_define_const(mNKF, "VERSION", rb_str_new2(RUBY_NKF_VERSION));

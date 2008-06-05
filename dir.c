@@ -460,7 +460,7 @@ dir_inspect(VALUE dir)
 
     Data_Get_Struct(dir, struct dir_data, dirp);
     if (dirp->path) {
-	char *c = rb_obj_classname(dir);
+	const char *c = rb_obj_classname(dir);
 	int len = strlen(c) + strlen(dirp->path) + 4;
 	VALUE s = rb_str_new(0, len);
 	snprintf(RSTRING_PTR(s), len+1, "#<%s:%s>", c, dirp->path);
@@ -715,7 +715,7 @@ chdir_restore(struct chdir_data *args)
 	    chdir_thread = Qnil;
 	dir_chdir(args->old_path);
     }
-    rb_objc_release(args->old_path);
+    rb_objc_release((const void *)args->old_path);
     return Qnil;
 }
 
@@ -786,7 +786,7 @@ dir_s_chdir(int argc, VALUE *argv, VALUE obj)
 	char *cwd = my_getcwd();
 
 	args.old_path = rb_tainted_str_new2(cwd); xfree(cwd);
-	rb_objc_retain(args.old_path);
+	rb_objc_retain((const void *)args.old_path);
 	args.new_path = path;
 	args.done = Qfalse;
 	return rb_ensure(chdir_yield, (VALUE)&args, chdir_restore, (VALUE)&args);
@@ -1690,7 +1690,7 @@ dir_s_glob(int argc, VALUE *argv, VALUE obj)
 	ary = rb_push_glob(str, flags);
     }
     else {
-	VALUE v = ary;
+	volatile VALUE v = ary;
 	ary = dir_globs(RARRAY_LEN(v), RARRAY_PTR(v), flags);
     }
 

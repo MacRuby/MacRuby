@@ -2392,7 +2392,10 @@ rb_file_s_umask(int argc, VALUE *argv)
     return INT2FIX(omask);
 }
 
-#if defined DOSISH
+#ifdef __CYGWIN__
+#undef DOSISH
+#endif
+#if defined __CYGWIN__ || defined DOSISH
 #define DOSISH_UNC
 #define DOSISH_DRIVE_LETTER
 #define isdirsep(x) ((x) == '/' || (x) == '\\')
@@ -2552,6 +2555,7 @@ rb_path_end(const char *path)
 static char *
 ntfs_tail(const char *path)
 {
+    while (*path == '.') path++;
     while (*path && *path != ':') {
 	if (istrailinggabage(*path)) {
 	    const char *last = path++;
@@ -2574,13 +2578,13 @@ ntfs_tail(const char *path)
 
 #define BUFCHECK(cond) do {\
     long bdiff = p - buf;\
-    while (cond) {\
-	buflen *= 2;\
+    if (cond) {\
+	do {buflen *= 2;} while (cond);\
+	rb_str_resize(result, buflen);\
+	buf = RSTRING_PTR(result);\
+	p = buf + bdiff;\
+	pend = buf + buflen;\
     }\
-    rb_str_resize(result, buflen);\
-    buf = RSTRING_PTR(result);\
-    p = buf + bdiff;\
-    pend = buf + buflen;\
 } while (0)
 
 #define BUFINIT() (\
@@ -2605,7 +2609,9 @@ file_expand_path(VALUE fname, VALUE dname, VALUE result)
     char *buf, *p, *pend, *root;
     long buflen, dirlen;
     int tainted;
+#if !WITH_OBJC
     rb_encoding *extenc = 0;
+#endif
 
     FilePathValue(fname);
     s = StringValuePtr(fname);
@@ -2735,8 +2741,11 @@ file_expand_path(VALUE fname, VALUE dname, VALUE result)
     }
     if (p > buf && p[-1] == '/')
 	--p;
-    else
+    else {
+	++buflen;
+	BUFCHECK(bdiff >= buflen);
 	*p = '/';
+    }
 
     p[1] = 0;
     root = skipprefix(buf);
@@ -2829,19 +2838,23 @@ file_expand_path(VALUE fname, VALUE dname, VALUE result)
 	p += s-b;
     }
     if (p == skiproot(buf) - 1) p++;
-    buflen = p - buf;
 
 #if USE_NTFS
     *p = '\0';
-    if (!strpbrk(b = buf, "*?")) {
+    if (1 &&
+#ifdef __CYGWIN__
+	!(buf[0] == '/' && !buf[1]) &&
+#endif
+	!strpbrk(b = buf, "*?")) {
 	size_t len;
 	WIN32_FIND_DATA wfd;
 #ifdef __CYGWIN__
-	int lnk_added = 0;
+	int lnk_added = 0, is_symlink = 0;
 	struct stat st;
 	char w32buf[MAXPATHLEN], sep = 0;
 	p = 0;
 	if (lstat(buf, &st) == 0 && S_ISLNK(st.st_mode)) {
+	    is_symlink = 1;
 	    p = strrdirsep(buf);
 	    if (!p) p = skipprefix(buf);
 	    if (p) {
@@ -2854,8 +2867,7 @@ file_expand_path(VALUE fname, VALUE dname, VALUE result)
 	}
 	if (p) *p = sep;
 	else p = buf;
-	if (b == w32buf) {
-	    strlcat(w32buf, p, sizeof(w32buf));
+	if (is_symlink && b == w32buf) {
 	    len = strlen(p);
 	    if (len > 4 && STRCASECMP(p + len - 4, ".lnk") != 0) {
 		lnk_added = 1;
@@ -2871,19 +2883,20 @@ file_expand_path(VALUE fname, VALUE dname, VALUE result)
 #ifdef __CYGWIN__
 	    if (lnk_added && len > 4 &&
 		STRCASECMP(wfd.cFileName + len - 4, ".lnk") == 0) {
-		len -= 4;
+		wfd.cFileName[len -= 4] = '\0';
 	    }
 #endif
 	    if (!p) p = buf;
-	    buflen = ++p - buf + len;
-	    rb_str_resize(result, buflen);
+	    else ++p;
+	    BUFCHECK(bdiff + len >= buflen);
 	    memcpy(p, wfd.cFileName, len + 1);
+	    p += len;
 	}
     }
 #endif
 
     if (tainted) OBJ_TAINT(result);
-    rb_str_set_len(result, buflen);
+    rb_str_set_len(result, p - buf);
 #if !WITH_OBJC
     rb_enc_check(fname, result);
 #endif
@@ -3117,7 +3130,7 @@ rb_file_s_extname(VALUE klass, VALUE fname)
     if (!p)
 	p = name;
     else
-	p++;
+	name = ++p;
 
     e = 0;
     while (*p) {
@@ -3147,7 +3160,7 @@ rb_file_s_extname(VALUE klass, VALUE fname)
 	    break;
 	p = CharNext(p);
     }
-    if (!e || e+1 == p)	/* no dot, or the only dot is first or end? */
+    if (!e || e == name || e+1 == p)	/* no dot, or the only dot is first or end? */
 	return rb_str_new(0, 0);
     extname = rb_str_new(e, p - e);	/* keep the dot, too! */
 #if !WITH_OBJC
@@ -3196,6 +3209,7 @@ static VALUE separator;
 
 static VALUE rb_file_join(VALUE ary, VALUE sep);
 
+#if !WITH_OBJC
 static VALUE
 file_inspect_join(VALUE ary, VALUE argp, int recur)
 {
@@ -3203,6 +3217,7 @@ file_inspect_join(VALUE ary, VALUE argp, int recur)
     if (recur) return rb_usascii_str_new2("[...]");
     return rb_file_join(arg[0], arg[1]);
 }
+#endif
 
 static VALUE
 rb_file_join(VALUE ary, VALUE sep)

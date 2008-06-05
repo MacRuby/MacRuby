@@ -2,7 +2,7 @@
 
   proc.c - Proc, Binding, Env
 
-  $Author: matz $
+  $Author: nobu $
   created at: Wed Jan 17 12:13:14 2007
 
   Copyright (C) 2004-2007 Koichi Sasada
@@ -50,7 +50,6 @@ proc_mark(void *ptr)
 	proc = ptr;
 	RUBY_MARK_UNLESS_NULL(proc->envval);
 	RUBY_MARK_UNLESS_NULL(proc->blockprocval);
-	RUBY_MARK_UNLESS_NULL((VALUE)proc->special_cref_stack);
 	RUBY_MARK_UNLESS_NULL(proc->block.proc);
 	RUBY_MARK_UNLESS_NULL(proc->block.self);
 	if (proc->block.iseq && RUBY_VM_IFUNC_P(proc->block.iseq)) {
@@ -93,8 +92,7 @@ proc_dup(VALUE self)
     dst->block = src->block;
     dst->block.proc = procval;
     dst->envval = src->envval;
-    dst->safe_level = dst->safe_level;
-    dst->special_cref_stack = src->special_cref_stack;
+    dst->safe_level = src->safe_level;
     dst->is_lambda = src->is_lambda;
 
     return procval;
@@ -241,7 +239,6 @@ binding_mark(void *ptr)
     if (ptr) {
 	bind = ptr;
 	RUBY_MARK_UNLESS_NULL(bind->env);
-	RUBY_MARK_UNLESS_NULL((VALUE)bind->cref_stack);
     }
     RUBY_MARK_LEAVE("binding");
 }
@@ -264,7 +261,6 @@ binding_dup(VALUE self)
     GetBindingPtr(self, src);
     GetBindingPtr(bindval, dst);
     dst->env = src->env;
-    dst->cref_stack = src->cref_stack;
     return bindval;
 }
 
@@ -286,7 +282,6 @@ rb_binding_new(void)
 
     GetBindingPtr(bindval, bind);
     GC_WB(&bind->env, vm_make_env_object(th, cfp));
-    GC_WB(&bind->cref_stack, ruby_cref());
     return bindval;
 }
 
@@ -666,7 +661,7 @@ proc_to_s(VALUE self)
 {
     VALUE str = 0;
     rb_proc_t *proc;
-    char *cname = rb_obj_classname(self);
+    const char *cname = rb_obj_classname(self);
     rb_iseq_t *iseq;
     const char *is_lambda;
     
@@ -709,23 +704,6 @@ proc_to_proc(VALUE self)
 {
     return self;
 }
-
-/*
- *  call-seq:
- *     prc.binding    => binding
- *  
- *  Returns the binding associated with <i>prc</i>. Note that
- *  <code>Kernel#eval</code> accepts either a <code>Proc</code> or a
- *  <code>Binding</code> object as its second parameter.
- *     
- *     def fred(param)
- *       proc {}
- *     end
- *     
- *     b = fred(99)
- *     eval("param", b.binding)   #=> 99
- *     eval("param", b)           #=> 99
- */
 
 static void
 bm_mark(struct METHOD *data)
@@ -1208,10 +1186,12 @@ rb_method_call(int argc, VALUE *argv, VALUE method)
 	}
     }
     if ((state = EXEC_TAG()) == 0) {
+	VALUE rb_vm_call(rb_thread_t * th, VALUE klass, VALUE recv, VALUE id, ID oid,
+			 int argc, const VALUE *argv, const NODE *body, int nosuper);
+
 	PASS_PASSED_BLOCK();
-	result = vm_call0(GET_THREAD(),
-			  data->oclass, data->recv, data->id, data->oid,
-			  argc, argv, data->body, 0);
+	result = rb_vm_call(GET_THREAD(), data->oclass, data->recv, data->id, data->oid,
+			    argc, argv, data->body, 0);
     }
     POP_TAG();
     if (safe >= 0)
@@ -1447,7 +1427,7 @@ method_inspect(VALUE method)
     struct METHOD *data;
     VALUE str;
     const char *s;
-    char *sharp = "#";
+    const char *sharp = "#";
 
     Data_Get_Struct(method, struct METHOD, data);
     str = rb_str_buf_new2("#<");
@@ -1615,12 +1595,11 @@ proc_binding(VALUE self)
     GetProcPtr(self, proc);
     GetBindingPtr(bindval, bind);
 
-    if (BUILTIN_TYPE(proc->block.iseq) == T_NODE) {
+    if (TYPE(proc->block.iseq) == T_NODE) {
 	rb_raise(rb_eArgError, "Can't create Binding from C level Proc");
     }
 
     bind->env = proc->envval;
-    bind->cref_stack = proc->special_cref_stack;
     return bindval;
 }
 

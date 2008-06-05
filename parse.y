@@ -2,7 +2,7 @@
 
   parse.y -
 
-  $Author: usa $
+  $Author: mame $
   created at: Fri May 28 18:02:42 JST 1993
 
   Copyright (C) 1993-2007 Yukihiro Matsumoto
@@ -433,8 +433,10 @@ static int local_var_gen(struct parser_params*, ID);
 static int arg_var_gen(struct parser_params*, ID);
 #define arg_var(id) arg_var_gen(parser, id)
 #if WITH_OBJC
-static int named_arg_gen(struct parser_params*, ID, int);
+static void named_arg_gen(struct parser_params*, ID, int);
 # define named_arg(id, flag) named_arg_gen(parser, id, flag)
+static NODE *process_named_args_gen(struct parser_params*, NODE*);
+# define process_named_args(node) process_named_args_gen(parser, node)
 #endif
 static int  local_id_gen(struct parser_params*, ID);
 #define local_id(id) local_id_gen(parser, id)
@@ -6217,7 +6219,9 @@ parser_yylex(struct parser_params *parser)
     int cmd_state;
     enum lex_state_e last_state;
     rb_encoding *enc;
+#if !WITH_OBJC
     int mb;
+#endif
 #ifdef RIPPER
     int fallthru = Qfalse;
 #endif
@@ -7939,7 +7943,9 @@ assignable_gen(struct parser_params *parser, ID id, NODE *val)
     else if (is_class_id(id)) {
 	return NEW_CVASGN(id, val);
     }
-    compile_error(PARSER_ARG "identifier %s is not valid to set", rb_id2name(id));
+    else {
+	compile_error(PARSER_ARG "identifier %s is not valid to set", rb_id2name(id));
+    }
     return 0;
 }
 
@@ -8665,7 +8671,47 @@ arg_var_gen(struct parser_params *parser, ID id)
 }
 
 #if WITH_OBJC
-static int
+static NODE *
+process_named_args_gen(struct parser_params *parser, NODE *n)
+{
+    NODE *args = n->nd_args;
+    if (args != NULL 
+	&& args->nd_argc == 2 
+	&& nd_type(args->u3.node->u1.node) == NODE_ARRAY
+	&& args->u3.node->u1.node->flags & NODE_ARRAY_NAMED_ARGS) {
+
+	NODE *named_args;
+	NODE *new_argv;
+	NODE *p;
+	char buf[512];
+	bool flip;	
+
+	new_argv = NEW_LIST(args->nd_head);
+
+	strlcpy(buf, rb_id2name(n->u2.id), sizeof buf);
+	strlcat(buf, ":", sizeof buf);
+	
+	named_args = args->u3.node->u1.node;
+	for (flip = true, p = named_args; 
+	     p != NULL; 
+	     p = p->nd_next, flip = !flip) {
+	    if (flip) {
+		strlcat(buf, rb_id2name(SYM2ID(p->nd_head->nd_lit)), 
+			sizeof buf);
+		strlcat(buf, ":", sizeof buf);
+	    }
+	    else {
+		list_append(new_argv, p->nd_head);
+	    }	    
+	}
+
+	n->nd_mid = rb_intern(buf);
+	n->nd_args = new_argv;
+    }
+    return n;
+}
+
+static void
 named_arg_gen(struct parser_params *parser, ID id, int init)
 {
     if (init)
@@ -9095,7 +9141,6 @@ void
 Init_sym(void)
 {
 #if WITH_OBJC
-    CFDictionaryKeyCallBacks cb;
     global_symbols.sym_id = CFDictionaryCreateMutable(NULL,
 	0, NULL, NULL);
     GC_ROOT(&global_symbols.sym_id);
@@ -9660,7 +9705,9 @@ parser_initialize(struct parser_params *parser)
 static void
 parser_mark(void *ptr)
 {
+#if !WITH_OBJC
     struct parser_params *p = (struct parser_params*)ptr;
+#endif
 
     rb_gc_mark((VALUE)p->parser_lex_strterm);
     rb_gc_mark(p->parser_lex_input);

@@ -42,6 +42,7 @@ CFLAGS = @CFLAGS@ @ARCH_FLAG@
 cflags = @cflags@
 optflags = @optflags@
 debugflags = @debugflags@
+warnflags = @warnflags@
 XCFLAGS = -I. -I$(arch_hdrdir) -I$(hdrdir) -I$(srcdir) @XCFLAGS@
 CPPFLAGS = @CPPFLAGS@
 LDFLAGS = @STATIC@ $(CFLAGS) @LDFLAGS@
@@ -96,7 +97,7 @@ RANLIB        = @RANLIB@
 AS            = @AS@
 ASFLAGS       = @ASFLAGS@
 IFCHANGE      = $(srcdir)/tool/ifchange
-SET_LC_MESSAGES = LC_MESSAGES=C
+SET_LC_MESSAGES = env LC_MESSAGES=C
 
 OBJEXT        = @OBJEXT@
 ASMEXT        = S

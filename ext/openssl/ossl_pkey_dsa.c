@@ -1,5 +1,5 @@
 /*
- * $Id: ossl_pkey_dsa.c 15610 2008-02-26 07:07:26Z technorama $
+ * $Id: ossl_pkey_dsa.c 16689 2008-05-29 17:41:56Z knu $
  * 'OpenSSL for Ruby' project
  * Copyright (C) 2001-2002  Michal Rokos <m.rokos@sh.cvut.cz>
  * All rights reserved.
@@ -110,7 +110,7 @@ dsa_generate(int size)
 static VALUE
 ossl_dsa_s_generate(VALUE klass, VALUE size)
 {
-    DSA *dsa = dsa_generate(FIX2INT(size)); /* err handled by dsa_instance */
+    DSA *dsa = dsa_generate(NUM2INT(size)); /* err handled by dsa_instance */
     VALUE obj = dsa_instance(klass, dsa);
 
     if (obj == Qfalse) {

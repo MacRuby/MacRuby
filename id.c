@@ -2,7 +2,7 @@
 
   id.c - 
 
-  $Author: akr $
+  $Author: ko1 $
   created at: Thu Jul 12 04:37:51 2007
 
   Copyright (C) 2004-2007 Koichi Sasada
@@ -63,4 +63,7 @@ Init_id(void)
 
     idSend = rb_intern("send");
     id__send__ = rb_intern("__send__");
+
+    idRespond_to = rb_intern("respond_to?");
+    idInitialize = rb_intern("initialize");
 }

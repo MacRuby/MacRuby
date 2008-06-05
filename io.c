@@ -2,7 +2,7 @@
 
   io.c -
 
-  $Author: akr $
+  $Author: mame $
   created at: Fri Oct 15 18:08:59 JST 1993
 
   Copyright (C) 1993-2007 Yukihiro Matsumoto
@@ -271,6 +271,7 @@ VALUE
 rb_io_get_write_io(VALUE io)
 {
     VALUE write_io;
+    rb_io_check_initialized(RFILE(io)->fptr);
     write_io = RFILE(io)->fptr->tied_io_for_writing;
     if (write_io) {
         return write_io;
@@ -1388,9 +1389,9 @@ read_all(rb_io_t *fptr, long siz, VALUE str)
 {
     long bytes = 0;
     long n;
+#if !WITH_OBJC
     long pos = 0;
     rb_encoding *enc = io_input_encoding(fptr);
-#if !WITH_OBJC
     int cr = fptr->enc2 ? ENC_CODERANGE_BROKEN : 0;
 #endif
 
@@ -1746,7 +1747,9 @@ appendline(rb_io_t *fptr, int delim, VALUE *strp, long *lp)
 	    const char *p = READ_DATA_PENDING_PTR(fptr);
 	    const char *e;
 	    long last = 0, len = (c != EOF);
+#if !WITH_OBJC
 	    rb_encoding *enc = io_read_encoding(fptr);
+#endif
 
 	    if (limit > 0 && pending > limit) pending = limit;
 	    e = memchr(p, delim, pending);
@@ -1849,9 +1852,9 @@ rb_io_getline_fast(rb_io_t *fptr)
 {
     VALUE str = Qnil;
     int len = 0;
+#if !WITH_OBJC
     long pos = 0;
     rb_encoding *enc = io_input_encoding(fptr);
-#if !WITH_OBJC
     int cr = fptr->enc2 ? ENC_CODERANGE_BROKEN : 0;
 #endif
 
@@ -1904,7 +1907,9 @@ static void
 prepare_getline_args(int argc, VALUE *argv, VALUE *rsp, long *limit, VALUE io)
 {
     VALUE lim, rs;
+#if !WITH_OBJC
     rb_io_t *fptr;
+#endif
 
     if (argc == 0) {
 	rs = rb_rs;
@@ -2006,7 +2011,7 @@ rb_io_getline_1(VALUE rs, long limit, VALUE io)
 
 	while ((c = appendline(fptr, newline, &str, &limit)) != EOF) {
 	    if (c == newline) {
-		const char *s, *p, *pp;
+		const char *s, *p;
 
 		if (RSTRING_LEN(str) < rslen) continue;
 		s = RSTRING_PTR(str);
@@ -2287,7 +2292,9 @@ rb_io_each_byte(VALUE io)
 static VALUE
 io_getc(rb_io_t *fptr, rb_encoding *enc)
 {
+#if !WITH_OBJC
     int r, n, cr = 0;
+#endif
     VALUE str;
 
     if (io_fillbuf(fptr) < 0) {
@@ -2472,9 +2479,7 @@ rb_getc(FILE *f)
 {
     int c;
 
-    if (!STDIO_READ_DATA_PENDING(f)) {
-	rb_thread_wait_fd(fileno(f));
-    }
+    rb_read_check(f);
     TRAP_BEG;
     c = getc(f);
     TRAP_END;
@@ -5180,7 +5185,9 @@ rb_io_s_for_fd(int argc, VALUE *argv, VALUE klass)
 static void
 argf_mark(void *ptr)
 {
+#if !WITH_OBJC
     struct argf *p = ptr;
+#endif
     rb_gc_mark(p->filename);
     rb_gc_mark(p->current_file);
     rb_gc_mark(p->lineno);
@@ -6440,9 +6447,9 @@ struct copy_stream_struct {
     int close_src;
     int close_dst;
     off_t total;
-    char *syserr;
+    const char *syserr;
     int error_no;
-    char *notimp;
+    const char *notimp;
     rb_fdset_t fds;
     rb_thread_t *th;
 };
@@ -7037,13 +7044,19 @@ rb_io_set_encoding(int argc, VALUE *argv, VALUE io)
 static VALUE
 argf_external_encoding(VALUE argf)
 {
-    return rb_io_external_encoding(current_file);
+    if (!RTEST(current_file)) {
+	return rb_enc_from_encoding(rb_default_external_encoding());
+    }
+    return rb_io_external_encoding(rb_io_check_io(current_file));
 }
 
 static VALUE
 argf_internal_encoding(VALUE argf)
 {
-    return rb_io_internal_encoding(current_file);
+    if (!RTEST(current_file)) {
+	return rb_enc_from_encoding(rb_default_external_encoding());
+    }
+    return rb_io_internal_encoding(rb_io_check_io(current_file));
 }
 
 static VALUE
@@ -7282,7 +7295,7 @@ argf_readchar(VALUE argf)
     VALUE ch;
 
   retry:
-    if (!next_argv()) return Qnil;
+    if (!next_argv()) rb_eof_error();
     if (TYPE(current_file) != T_FILE) {
 	ch = rb_funcall3(current_file, rb_intern("getc"), 0, 0);
     }
@@ -7743,6 +7756,9 @@ Init_IO(void)
     rb_define_method(rb_cARGF, "each_line",  argf_each_line, -1);
     rb_define_method(rb_cARGF, "each_byte",  argf_each_byte, 0);
     rb_define_method(rb_cARGF, "each_char",  argf_each_char, 0);
+    rb_define_method(rb_cARGF, "lines", argf_each_line, -1);
+    rb_define_method(rb_cARGF, "bytes", argf_each_byte, 0);
+    rb_define_method(rb_cARGF, "chars", argf_each_char, 0);
 
     rb_define_method(rb_cARGF, "read",  argf_read, -1);
     rb_define_method(rb_cARGF, "readpartial",  argf_readpartial, -1);
