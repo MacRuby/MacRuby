@@ -294,6 +294,7 @@ void rb_ia64_flushrs(void);
 # include <CoreFoundation/CoreFoundation.h>
 # define ASSERT_NO_OBJC() (assert(1 == 0))
 void rb_objc_wb(void *dst, void *newval);
+void rb_objc_wb_range(void *dest, size_t len);
 void rb_objc_root(void *addr);
 # define GC_WB(dst, newval) (rb_objc_wb((void *)dst, (void *)newval))
 # define GC_ROOT(dst) (rb_objc_root((void *)dst))

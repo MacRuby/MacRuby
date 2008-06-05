@@ -272,7 +272,7 @@ class TestRegexp < Test::Unit::TestCase
       Thread.new { $SAFE = 4; re.instance_eval { initialize(re) } }.join
     end
 
-    assert_equal(Encoding::ASCII_8BIT, Regexp.new("b..", nil, "n").encoding)
+    assert_equal(Encoding.find("ASCII-8BIT"), Regexp.new("b..", nil, "n").encoding)
     assert_equal("bar", "foobarbaz"[Regexp.new("b..", nil, "n")])
 
     assert_raise(RegexpError) { Regexp.new(")(") }
@@ -471,12 +471,12 @@ class TestRegexp < Test::Unit::TestCase
     ss = [ss] unless ss.is_a?(Array)
     ss.each do |e, s|
       s ||= e
+      assert_match(re, s)
       m = re.match(s)
-      assert_kind_of(MatchData, m)
       assert_equal(e, m[0])
     end
     fs = [fs] unless fs.is_a?(Array)
-    fs.each {|s| assert_nil(re.match(s)) }
+    fs.each {|s| assert_no_match(re, s) }
   end
 
   def failcheck(re)
@@ -512,6 +512,51 @@ class TestRegexp < Test::Unit::TestCase
     check(/\A\a\z/, "\007")
     check(/\A\e\z/, "\033")
     check(/\A\v\z/, "\v")
+    failcheck('(')
+    failcheck('(?foo)')
+    failcheck('/\p{foobarbazqux}/')
+    failcheck('/\p{foobarbazqux' + 'a' * 1000 + '}/')
+    failcheck('/[1-\w]/')
+  end
+
+  def test_exec
+    check(/A*B/, %w(B AB AAB AAAB), %w(A))
+    check(/\w*!/, %w(! a! ab! abc!), %w(abc))
+    check(/\w*\W/, %w(! a" ab# abc$), %w(abc))
+    check(/\w*\w/, %w(z az abz abcz), %w(!))
+    check(/[a-z]*\w/, %w(z az abz abcz), %w(!))
+    check(/[a-z]*\W/, %w(! a" ab# abc$), %w(A))
+    check(/((a|bb|ccc|dddd)(1|22|333|4444))/i, %w(a1 bb1 a22), %w(a2 b1))
+    check(/\u0080/, (1..4).map {|i| ["\u0080", "\u0080" * i] }, ["\u0081"])
+    check(/\u0080\u0080/, (2..4).map {|i| ["\u0080" * 2, "\u0080" * i] }, ["\u0081"])
+    check(/\u0080\u0080\u0080/, (3..4).map {|i| ["\u0080" * 3, "\u0080" * i] }, ["\u0081"])
+    check(/\u0080\u0080\u0080\u0080/, (4..4).map {|i| ["\u0080" * 4, "\u0080" * i] }, ["\u0081"])
+    check(/[^\u3042\u3043\u3044]/, %W(a b \u0080 \u3041 \u3045), %W(\u3042 \u3043 \u3044))
+    check(/a.+/m, %W(a\u0080 a\u0080\u0080 a\u0080\u0080\u0080), %W(a))
+    check(/a.+z/m, %W(a\u0080z a\u0080\u0080z a\u0080\u0080\u0080z), %W(az))
+    check(/abc\B.\Bxyz/, %w(abcXxyz abc0xyz), %w(abc|xyz abc-xyz))
+    check(/\Bxyz/, [%w(xyz abcXxyz), %w(xyz abc0xyz)], %w(abc xyz abc-xyz))
+    check(/abc\B/, [%w(abc abcXxyz), %w(abc abc0xyz)], %w(abc xyz abc-xyz))
+    failcheck('(?<foo>abc)\1')
+    check(/^(A+|B+)(?>\g<1>)*[BC]$/, %w(AC BC ABC BAC AABBC), %w(AABB))
+    check(/^(A+|B(?>\g<1>)*)[AC]$/, %w(AAAC BBBAAAAC), %w(BBBAAA))
+    check(/^()(?>\g<1>)*$/, "", "a")
+    check(/^(?>(?=a)(#{ "a" * 1000 }|))++$/, ["a" * 1000, "a" * 2000, "a" * 3000], ["", "a" * 500, "b" * 1000])
+    check(eval('/^(?:a?)?$/'), ["", "a"], ["aa"])
+    check(eval('/^(?:a+)?$/'), ["", "a", "aa"], ["ab"])
+    check(/^(?:a?)+?$/, ["", "a", "aa"], ["ab"])
+    check(/^a??[ab]/, [["a", "a"], ["a", "aa"], ["b", "b"], ["a", "ab"]], ["c"])
+    check(/^(?:a*){3,5}$/, ["", "a", "aa", "aaa", "aaaa", "aaaaa", "aaaaaa"], ["b"])
+    check(/^(?:a+){3,5}$/, ["aaa", "aaaa", "aaaaa", "aaaaaa"], ["", "a", "aa", "b"])
+  end
+
+  def test_parse_look_behind
+    check(/(?<=A)B(?=C)/, [%w(B ABC)], %w(aBC ABc aBc))
+    check(/(?<!A)B(?!C)/, [%w(B aBc)], %w(ABC aBC ABc))
+    failcheck('(?<=.*)')
+    failcheck('(?<!.*)')
+    check(/(?<=A|B.)C/, [%w(C AC), %w(C BXC)], %w(C BC))
+    check(/(?<!A|B.)C/, [%w(C C), %w(C BC)], %w(AC BXC))
   end
 
   def test_parse_kg
@@ -532,7 +577,22 @@ class TestRegexp < Test::Unit::TestCase
     failcheck('()\k<-2>')
     failcheck('()\g<-2>')
     check(/\A(?<x>.)(?<x>.)\k<x>\z/, %w(aba abb), %w(abc .. ....))
+    check(/\A(?<x>.)(?<x>.)\k<x>\z/i, %w(aba ABa abb ABb), %w(abc .. ....))
     check(/\k\g/, "kg")
+    failcheck('(.\g<1>)')
+    failcheck('(.\g<2>)')
+    failcheck('(?=\g<1>)')
+    failcheck('((?=\g<1>))')
+    failcheck('(\g<1>|.)')
+    failcheck('(.|\g<1>)')
+    check(/(!)(?<=(a)|\g<1>)/, ["!"], %w(a))
+    check(/^(a|b\g<1>c)$/, %w(a bac bbacc bbbaccc), %w(bbac bacc))
+    check(/^(a|b\g<2>c)(B\g<1>C){0}$/, %w(a bBaCc bBbBaCcCc bBbBbBaCcCcCc), %w(bBbBaCcC BbBaCcCc))
+    check(/\A(?<n>.|X\g<n>)(?<x>\g<n>){0}(?<y>\k<n+0>){0}\g<x>\g<y>\z/, "XXaXbXXa", %w(XXabXa abb))
+    check(/\A(?<n>.|X\g<n>)(?<x>\g<n>){0}(?<y>\k<n+1>){0}\g<x>\g<y>\z/, "XaXXbXXb", %w(aXXbXb aba))
+    failcheck('(?<x>)(?<x>)(\g<x>)')
+    check(/^(?<x>foo)(bar)\k<x>/, %w(foobarfoo), %w(foobar barfoo))
+    check(/^(?<a>f)(?<a>o)(?<a>o)(?<a>b)(?<a>a)(?<a>r)(?<a>b)(?<a>a)(?<a>z)\k<a>{9}$/, %w(foobarbazfoobarbaz foobarbazbazbarfoo foobarbazzabraboof), %w(foobar barfoo))
   end
 
   def test_parse_curly_brace
@@ -595,6 +655,7 @@ class TestRegexp < Test::Unit::TestCase
     check(/\A[a-f&&[^b-c]&&[^e]]\z/, %w(a d f), %w(b c e g 0))
     check(/\A[[^b-c]&&[^e]&&a-f]\z/, %w(a d f), %w(b c e g 0))
     check(/\A[\n\r\t]\z/, ["\n", "\r", "\t"])
+    failcheck('[9-1]')
   end
 
   def test_posix_bracket
@@ -607,5 +668,91 @@ class TestRegexp < Test::Unit::TestCase
     failcheck('[[:alpha')
     failcheck('[[:alpha:')
     failcheck('[[:alp:]]')
+  end
+
+  def test_backward
+    assert_equal(3, "foobar".rindex(/b.r/i))
+    assert_equal(nil, "foovar".rindex(/b.r/i))
+    assert_equal(3, ("foo" + "bar" * 1000).rindex(/#{"bar"*1000}/))
+    assert_equal(4, ("foo\nbar\nbaz\n").rindex(/bar/i))
+  end
+
+  def test_uninitialized
+    assert_raise(TypeError) { Regexp.allocate.hash }
+    assert_raise(TypeError) { Regexp.allocate.eql? Regexp.allocate }
+    assert_raise(TypeError) { Regexp.allocate == Regexp.allocate }
+    assert_raise(TypeError) { Regexp.allocate =~ "" }
+    assert_equal(false, Regexp.allocate === Regexp.allocate)
+    assert_nil(~Regexp.allocate)
+    assert_raise(TypeError) { Regexp.allocate.match("") }
+    assert_raise(TypeError) { Regexp.allocate.to_s }
+    assert_raise(TypeError) { Regexp.allocate.inspect }
+    assert_raise(TypeError) { Regexp.allocate.source }
+    assert_raise(TypeError) { Regexp.allocate.casefold? }
+    assert_raise(TypeError) { Regexp.allocate.options }
+    assert_equal(Encoding.find("ASCII-8BIT"), Regexp.allocate.encoding)
+    assert_equal(false, Regexp.allocate.fixed_encoding?)
+    assert_raise(TypeError) { Regexp.allocate.names }
+    assert_raise(TypeError) { Regexp.allocate.named_captures }
+
+    assert_raise(TypeError) { MatchData.allocate.regexp }
+    assert_raise(TypeError) { MatchData.allocate.names }
+    assert_raise(TypeError) { MatchData.allocate.size }
+    assert_raise(TypeError) { MatchData.allocate.length }
+    assert_raise(TypeError) { MatchData.allocate.offset(0) }
+    assert_raise(TypeError) { MatchData.allocate.begin(0) }
+    assert_raise(TypeError) { MatchData.allocate.end(0) }
+    assert_raise(TypeError) { MatchData.allocate.to_a }
+    assert_raise(TypeError) { MatchData.allocate[:foo] }
+    assert_raise(TypeError) { MatchData.allocate.captures }
+    assert_raise(TypeError) { MatchData.allocate.values_at }
+    assert_raise(TypeError) { MatchData.allocate.pre_match }
+    assert_raise(TypeError) { MatchData.allocate.post_match }
+    assert_raise(TypeError) { MatchData.allocate.to_s }
+    assert_match(/^#<MatchData:.*>$/, MatchData.allocate.inspect)
+    assert_raise(TypeError) { MatchData.allocate.string }
+    $~ = MatchData.allocate
+    assert_raise(TypeError) { $& }
+    assert_raise(TypeError) { $` }
+    assert_raise(TypeError) { $' }
+    assert_raise(TypeError) { $+ }
+  end
+
+  def test_unicode
+    assert_match(/^\u3042{0}\p{Any}$/, "a")
+    assert_match(/^\u3042{0}\p{Any}$/, "\u3041")
+    assert_match(/^\u3042{0}\p{Any}$/, "\0")
+    assert_no_match(/^\u3042{0}\p{Any}$/, "\0\0")
+    assert_no_match(/^\u3042{0}\p{Any}$/, "")
+    assert_raise(SyntaxError) { eval('/^\u3042{0}\p{' + "\u3042" + '}$/') }
+    assert_raise(SyntaxError) { eval('/^\u3042{0}\p{' + 'a' * 1000 + '}$/') }
+    assert_raise(SyntaxError) { eval('/^\u3042{0}\p{foobarbazqux}$/') }
+    assert_match(/^(\uff21)(a)\1\2$/i, "\uff21A\uff41a")
+    assert_no_match(/^(\uff21)\1$/i, "\uff21A")
+    assert_no_match(/^(\uff41)\1$/i, "\uff41a")
+    assert_match(/^\u00df$/i, "\u00df")
+    assert_match(/^\u00df$/i, "ss")
+    #assert_match(/^(\u00df)\1$/i, "\u00dfss") # this must be bug...
+    assert_match(/^\u00df{2}$/i, "\u00dfss")
+    assert_match(/^\u00c5$/i, "\u00c5")
+    assert_match(/^\u00c5$/i, "\u00e5")
+    assert_match(/^\u00c5$/i, "\u212b")
+    assert_match(/^(\u00c5)\1\1$/i, "\u00c5\u00e5\u212b")
+    assert_match(/^\u0149$/i, "\u0149")
+    assert_match(/^\u0149$/i, "\u02bcn")
+    #assert_match(/^(\u0149)\1$/i, "\u0149\u02bcn") # this must be bug...
+    assert_match(/^\u0149{2}$/i, "\u0149\u02bcn")
+    assert_match(/^\u0390$/i, "\u0390")
+    assert_match(/^\u0390$/i, "\u03b9\u0308\u0301")
+    #assert_match(/^(\u0390)\1$/i, "\u0390\u03b9\u0308\u0301") # this must be bug...
+    assert_match(/^\u0390{2}$/i, "\u0390\u03b9\u0308\u0301")
+    assert_match(/^\ufb05$/i, "\ufb05")
+    assert_match(/^\ufb05$/i, "\ufb06")
+    assert_match(/^\ufb05$/i, "st")
+    #assert_match(/^(\ufb05)\1\1$/i, "\ufb05\ufb06st") # this must be bug...
+    assert_match(/^\ufb05{3}$/i, "\ufb05\ufb06st")
+    assert_match(/^\u03b9\u0308\u0301$/i, "\u0390")
+    assert_nothing_raised { 0x03ffffff.chr("utf-8").size }
+    assert_nothing_raised { 0x7fffffff.chr("utf-8").size }
   end
 end

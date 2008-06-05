@@ -2,7 +2,7 @@
 
   math.c -
 
-  $Author: matz $
+  $Author: nobu $
   created at: Tue Jan 25 14:12:56 JST 1994
 
   Copyright (C) 1993-2007 Yukihiro Matsumoto
@@ -35,7 +35,7 @@ to_flo(VALUE x)
 } while (0)
 
 static void
-domain_check(double x, char *msg)
+domain_check(double x, const char *msg)
 {
     while(1) {
 	if (errno) {
@@ -576,6 +576,10 @@ math_gamma(VALUE obj, VALUE x)
  *   [Math.log(Math.gamma(x).abs), Math.gamma(x) < 0 ? -1 : 1]
  *  but avoid overflow by Math.gamma(x) for large x.
  */
+
+#if WITH_OBJC && HAVE_LGAMMA_R && BYTE_ORDER == LITTLE_ENDIAN
+#  include "missing/lgamma_r.c"
+#endif
 
 static VALUE
 math_lgamma(VALUE obj, VALUE x)

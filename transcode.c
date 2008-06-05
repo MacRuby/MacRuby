@@ -2,7 +2,7 @@
 
   transcode.c -
 
-  $Author: nobu $
+  $Author: naruse $
   created at: Tue Oct 30 16:10:22 JST 2007
 
   Copyright (C) 2007 Martin Duerst
@@ -329,7 +329,7 @@ str_transcode(int argc, VALUE *argv, VALUE *self)
 	    my_transcoding.ruby_string_dest = dest;
 	    (*my_transcoder->preprocessor)(&fromp, &bp, (sp+slen), (bp+blen), &my_transcoding);
 	    if (fromp != sp+slen) {
-		rb_raise(rb_eArgError, "not fully converted, %d bytes left", sp+slen-fromp);
+		rb_raise(rb_eArgError, "not fully converted, %td bytes left", sp+slen-fromp);
 	    }
 	    buf = (unsigned char *)RSTRING_PTR(dest);
 	    *bp = '\0';
@@ -346,7 +346,7 @@ str_transcode(int argc, VALUE *argv, VALUE *self)
 
 	transcode_loop(&fromp, &bp, (sp+slen), (bp+blen), my_transcoder, &my_transcoding, options);
 	if (fromp != sp+slen) {
-	    rb_raise(rb_eArgError, "not fully converted, %d bytes left", sp+slen-fromp);
+	    rb_raise(rb_eArgError, "not fully converted, %td bytes left", sp+slen-fromp);
 	}
 	buf = (unsigned char *)RSTRING_PTR(dest);
 	*bp = '\0';
@@ -361,7 +361,7 @@ str_transcode(int argc, VALUE *argv, VALUE *self)
 	    my_transcoding.ruby_string_dest = dest;
 	    (*my_transcoder->postprocessor)(&fromp, &bp, (sp+slen), (bp+blen), &my_transcoding);
 	    if (fromp != sp+slen) {
-		rb_raise(rb_eArgError, "not fully converted, %d bytes left", sp+slen-fromp);
+		rb_raise(rb_eArgError, "not fully converted, %td bytes left", sp+slen-fromp);
 	    }
 	    buf = (unsigned char *)RSTRING_PTR(dest);
 	    *bp = '\0';
@@ -400,7 +400,7 @@ str_transcode(int argc, VALUE *argv, VALUE *self)
  */
 
 static VALUE
-rb_str_transcode_bang(int argc, VALUE *argv, VALUE str)
+str_encode_bang(int argc, VALUE *argv, VALUE str)
 {
     VALUE newstr = str;
     int encidx = str_transcode(argc, argv, &newstr);
@@ -434,30 +434,29 @@ rb_str_transcode_bang(int argc, VALUE *argv, VALUE str)
  *  to be added.
  */
 
-static VALUE
-rb_str_transcode(int argc, VALUE *argv, VALUE str)
-{
-    str = rb_str_dup(str);
-    return rb_str_transcode_bang(argc, argv, str);
-}
-
 #else // WITH_OBJC
 
 static VALUE
-rb_str_transcode(int argc, VALUE *argv, VALUE self)
-{
-    /* TODO */
-    return self;
-}
-
-static VALUE
-rb_str_transcode_bang(int argc, VALUE *argv, VALUE self)
+str_encode_bang(int argc, VALUE *argv, VALUE self)
 {
     /* TODO */
     return self;
 }
 
 #endif
+
+static VALUE
+str_encode(int argc, VALUE *argv, VALUE str)
+{
+    str = rb_str_dup(str);
+    return str_encode_bang(argc, argv, str);
+}
+
+VALUE
+rb_str_transcode(VALUE str, VALUE to)
+{
+    return str_encode(1, &to, str);
+}
 
 void
 Init_transcode(void)
@@ -470,6 +469,6 @@ Init_transcode(void)
     sym_ignore = ID2SYM(rb_intern("ignore"));
 #endif
 
-    rb_define_method(rb_cString, "encode", rb_str_transcode, -1);
-    rb_define_method(rb_cString, "encode!", rb_str_transcode_bang, -1);
+    rb_define_method(rb_cString, "encode", str_encode, -1);
+    rb_define_method(rb_cString, "encode!", str_encode_bang, -1);
 }

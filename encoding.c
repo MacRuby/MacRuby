@@ -18,7 +18,7 @@
 #endif
 
 static ID id_encoding, id_base_encoding;
-static VALUE rb_cEncoding;
+VALUE rb_cEncoding;
 
 #if WITH_OBJC
 
@@ -82,6 +82,7 @@ static VALUE
 enc_make(const CFStringEncoding *enc)
 {
     VALUE v;
+    assert(enc != NULL);
     v = (VALUE)CFDictionaryGetValue( (CFDictionaryRef)__encodings, 
 	(const void *)(*enc));
     assert(v != 0);
@@ -414,17 +415,6 @@ rb_encdb_dummy(const char *name)
     return index;
 }
 #endif // WITH_OBJC
-
-int
-rb_enc_dummy_p(rb_encoding *enc)
-{
-#if WITH_OBJC
-    return Qfalse;
-#else
-    VALUE encoding = rb_enc_from_encoding(enc);
-    return ENC_DUMMY_P(encoding);
-#endif
-}
 
 /*
  * call-seq:

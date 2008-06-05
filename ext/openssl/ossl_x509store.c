@@ -1,5 +1,5 @@
 /*
- * $Id: ossl_x509store.c 12153 2007-04-05 19:03:28Z technorama $
+ * $Id: ossl_x509store.c 16689 2008-05-29 17:41:56Z knu $
  * 'OpenSSL for Ruby' project
  * Copyright (C) 2001-2002  Michal Rokos <m.rokos@sh.cvut.cz>
  * All rights reserved.
@@ -458,7 +458,7 @@ ossl_x509stctx_set_error(VALUE self, VALUE err)
     X509_STORE_CTX *ctx;
 
     GetX509StCtx(self, ctx);
-    X509_STORE_CTX_set_error(ctx, FIX2INT(err));
+    X509_STORE_CTX_set_error(ctx, NUM2INT(err));
 
     return err;
 }

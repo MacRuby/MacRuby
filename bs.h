@@ -202,7 +202,10 @@ typedef void (*bs_parse_callback_t)
   (const char *path, bs_element_type_t type, void *value, void *context);
 
 typedef enum {
-  BS_PARSE_DEFAULT = 0
+  /* Default option: parse bridge support files. */
+  BS_PARSE_OPTIONS_DEFAULT = 0,
+  /* Parse bridge support files and dlopen(3) the dylib files, if any. */
+  BS_PARSE_OPTIONS_LOAD_DYLIBS
 } bs_parse_options_t;
 
 /* bs_parse() 
@@ -213,7 +216,7 @@ typedef enum {
  * Returns true on success, otherwise false.
  *
  * path: the full path of the bridge support file to parse.
- * options: parsing options, reserved for future use. You can pass 0 for now.
+ * options: parsing options.
  * callback: a callback function pointer.
  * context: a contextual data pointer that will be passed to the callback 
  * function.

@@ -2,7 +2,7 @@
 
   numeric.c -
 
-  $Author: matz $
+  $Author: akr $
   created at: Fri Aug 13 18:33:09 JST 1993
 
   Copyright (C) 1993-2007 Yukihiro Matsumoto
@@ -260,6 +260,20 @@ num_quo(VALUE x, VALUE y)
 }
 
 
+/*
+ *  call-seq:
+ *     num.fdiv(numeric)    =>   float
+ *
+ *  Returns float division.
+ */
+
+static VALUE
+num_fdiv(VALUE x, VALUE y)
+{
+    return rb_funcall(rb_Float(x), '/', 1, y);
+}
+
+
 static VALUE num_floor(VALUE num);
 
 /*
@@ -274,6 +288,7 @@ static VALUE num_floor(VALUE num);
 static VALUE
 num_div(VALUE x, VALUE y)
 {
+    if (rb_equal(INT2FIX(0), y)) rb_num_zerodiv();
     return num_floor(rb_funcall(x, '/', 1, y));
 }
 
@@ -1559,22 +1574,14 @@ check_int(SIGNED_VALUE num)
     else {
 	return;
     }
-#ifdef LONG_LONG_VALUE
-    rb_raise(rb_eRangeError, "integer %lld too %s to convert to `int'", num, s);
-#else
-    rb_raise(rb_eRangeError, "integer %ld too %s to convert to `int'", num, s);
-#endif
+    rb_raise(rb_eRangeError, "integer %"PRIdVALUE " too %s to convert to `int'", num, s);
 }
 
 static void
 check_uint(VALUE num)
 {
     if (num > UINT_MAX) {
-#ifdef LONG_LONG_VALUE
-	rb_raise(rb_eRangeError, "integer %llu too big to convert to `unsigned int'", num);
-#else
-	rb_raise(rb_eRangeError, "integer %lu too big to convert to `unsigned int'", num);
-#endif
+	rb_raise(rb_eRangeError, "integer %"PRIuVALUE " too big to convert to `unsigned int'", num);
     }
 }
 
@@ -1644,7 +1651,7 @@ rb_num2fix(VALUE val)
 
     v = rb_num2long(val);
     if (!FIXABLE(v))
-	rb_raise(rb_eRangeError, "integer %ld out of range of fixnum", v);
+	rb_raise(rb_eRangeError, "integer %"PRIdVALUE " out of range of fixnum", v);
     return LONG2FIX(v);
 }
 
@@ -1863,7 +1870,9 @@ static VALUE
 int_chr(int argc, VALUE *argv, VALUE num)
 {
     char c;
+#if !WITH_OBJC
     int n;
+#endif
     long i = NUM2LONG(num);
     rb_encoding *enc;
     VALUE str;
@@ -1871,8 +1880,10 @@ int_chr(int argc, VALUE *argv, VALUE num)
     switch (argc) {
       case 0:
 	if (i < 0 || 0xff < i) {
+#if !WITH_OBJC
 	  out_of_range:
-	    rb_raise(rb_eRangeError, "%ld out of char range", i);
+#endif
+	    rb_raise(rb_eRangeError, "%"PRIdVALUE " out of char range", i);
 	}
 	c = i;
 	if (i < 0x80) {
@@ -1888,16 +1899,16 @@ int_chr(int argc, VALUE *argv, VALUE num)
 	break;
     }
 #if WITH_OBJC
-    /* TODO */
-    rb_notimplement();
+    enc = rb_to_encoding(argv[0]);
+    str = rb_enc_str_new(&c, 1, enc);
 #else
     enc = rb_to_encoding(argv[0]);
     if (!enc) enc = rb_ascii8bit_encoding();
     if (i < 0 || (n = rb_enc_codelen(i, enc)) <= 0) goto out_of_range;
     str = rb_enc_str_new(0, n, enc);
     rb_enc_mbcput(i, RSTRING_PTR(str), enc);
-    return str;
 #endif
+    return str;
 }
 
 static VALUE
@@ -2260,11 +2271,15 @@ fix_divide(VALUE x, VALUE y, ID op)
 	return rb_big_div(x, y);
       case T_FLOAT:
 	{
-	    double div = (double)FIX2LONG(x) / RFLOAT_VALUE(y);
+	    double div;
+
 	    if (op == '/') {
+		div = (double)FIX2LONG(x) / RFLOAT_VALUE(y);
 		return DOUBLE2NUM(div);
 	    }
 	    else {
+		if (RFLOAT_VALUE(y) == 0) rb_num_zerodiv();
+		div = (double)FIX2LONG(x) / RFLOAT_VALUE(y);
 		return rb_dbl2big(floor(div));
 	    }
 	}
@@ -3114,7 +3129,7 @@ Init_Numeric(void)
     rb_define_method(rb_cNumeric, "<=>", num_cmp, 1);
     rb_define_method(rb_cNumeric, "eql?", num_eql, 1);
     rb_define_method(rb_cNumeric, "quo", num_quo, 1);
-    rb_define_method(rb_cNumeric, "fdiv", num_quo, 1);
+    rb_define_method(rb_cNumeric, "fdiv", num_fdiv, 1);
     rb_define_method(rb_cNumeric, "div", num_div, 1);
     rb_define_method(rb_cNumeric, "divmod", num_divmod, 1);
     rb_define_method(rb_cNumeric, "modulo", num_modulo, 1);

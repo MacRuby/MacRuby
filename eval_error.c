@@ -3,34 +3,6 @@
  * included by eval.c
  */
 
-const char *
-rb_sourcefile(void)
-{
-    rb_thread_t *th = GET_THREAD();
-    rb_control_frame_t *cfp = vm_get_ruby_level_cfp(th, th->cfp);
-
-    if (cfp) {
-	return RSTRING_CPTR(cfp->iseq->filename);
-    }
-    else {
-	return 0;
-    }
-}
-
-int
-rb_sourceline(void)
-{
-    rb_thread_t *th = GET_THREAD();
-    rb_control_frame_t *cfp = vm_get_ruby_level_cfp(th, th->cfp);
-
-    if (cfp) {
-	return vm_get_sourceline(cfp);
-    }
-    else {
-	return 0;
-    }
-}
-
 static void
 warn_printf(const char *fmt, ...)
 {
@@ -77,6 +49,12 @@ get_backtrace(VALUE info)
     if (NIL_P(info))
 	return Qnil;
     return rb_check_backtrace(info);
+}
+
+VALUE
+rb_get_backtrace(VALUE info)
+{
+    return get_backtrace(info);
 }
 
 static void
@@ -210,7 +188,7 @@ ruby_error_print(void)
 void
 rb_print_undef(VALUE klass, ID id, int scope)
 {
-    char *v;
+    const char *v;
 
     switch (scope) {
       default:
@@ -269,8 +247,7 @@ error_handle(int ex)
 	error_pos();
 	warn_printf(": unexpected throw\n");
 	break;
-      case TAG_RAISE:
-      case TAG_FATAL: {
+      case TAG_RAISE: {
 	VALUE errinfo = GET_THREAD()->errinfo;
 	if (rb_obj_is_kind_of(errinfo, rb_eSystemExit)) {
 	    status = sysexit_status(errinfo);
@@ -283,6 +260,9 @@ error_handle(int ex)
 	}
 	break;
       }
+      case TAG_FATAL:
+	error_print();
+	break;
       default:
 	rb_bug("Unknown longjmp status %d", ex);
 	break;

@@ -134,7 +134,6 @@ rb_objc_alloc_class(const char *name, VALUE super, VALUE flags, VALUE klass)
 {
     VALUE obj;
     Class ocklass, ocsuper;
-    size_t size;
     char ocname[128];
 
     if (name == NULL) {
@@ -146,7 +145,7 @@ rb_objc_alloc_class(const char *name, VALUE super, VALUE flags, VALUE klass)
 	    long count = 1;
 	    snprintf(ocname, sizeof ocname, "RB%s", name);
 	    while (objc_getClass(ocname) != NULL)
-		snprintf(ocname, sizeof ocname, "RB%s%d", name, ++count);
+		snprintf(ocname, sizeof ocname, "RB%s%ld", name, ++count);
 	    rb_warning("can't create `%s' as an Objective-C class, because " \
 		       "it already exists, instead using `%s'", name, ocname);
 	}
@@ -168,7 +167,7 @@ rb_objc_alloc_class(const char *name, VALUE super, VALUE flags, VALUE klass)
     RBASIC(obj)->isa = ocklass->isa;
     RCLASS(obj)->ocklass = ocklass;
 
-    rb_objc_retain(obj); /* classes should never be released */
+    rb_objc_retain((const void *)obj); /* classes should never be released */
 
     if (name == NULL)
 	FL_SET(obj, RCLASS_ANONYMOUS);
@@ -454,7 +453,7 @@ rb_make_metaclass(VALUE obj, VALUE super)
 	    NEWOBJ(obj2, struct RClass); 
 	    OBJSETUP(obj2, rb_cClass, T_CLASS); 
 	    klass = (VALUE)obj2; 
-	    rb_objc_retain(klass); 
+	    rb_objc_retain((const void *)klass); 
 	    class_init(klass); 
 	    OBJ_INFECT(klass, super); 
 	    RCLASS_SUPER(klass) = super; 

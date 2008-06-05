@@ -425,9 +425,15 @@ typedef struct RNode {
 #define NEW_DXSTR(s) NEW_NODE(NODE_DXSTR,s,0,0)
 #define NEW_DSYM(s) NEW_NODE(NODE_DSYM,s,0,0)
 #define NEW_EVSTR(n) NEW_NODE(NODE_EVSTR,0,(n),0)
-#define NEW_CALL(r,m,a) NEW_NODE(NODE_CALL,r,m,a)
-#define NEW_FCALL(m,a) NEW_NODE(NODE_FCALL,0,m,a)
-#define NEW_VCALL(m) NEW_NODE(NODE_VCALL,0,m,0)
+#if WITH_OBJC
+# define NEW_CALL(r,m,a) process_named_args(NEW_NODE(NODE_CALL,r,m,a))
+# define NEW_FCALL(m,a) process_named_args(NEW_NODE(NODE_FCALL,0,m,a))
+# define NEW_VCALL(m) process_named_args(NEW_NODE(NODE_VCALL,0,m,0))
+#else
+# define NEW_CALL(r,m,a) NEW_NODE(NODE_CALL,r,m,a)
+# define NEW_FCALL(m,a) NEW_NODE(NODE_FCALL,0,m,a)
+# define NEW_VCALL(m) NEW_NODE(NODE_VCALL,0,m,0)
+#endif
 #define NEW_SUPER(a) NEW_NODE(NODE_SUPER,0,0,a)
 #define NEW_ZSUPER() NEW_NODE(NODE_ZSUPER,0,0,0)
 #define NEW_ARGS(m,o) NEW_NODE(NODE_ARGS,o,m,0)

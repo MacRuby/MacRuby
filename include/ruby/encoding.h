@@ -20,6 +20,8 @@
 
 #if WITH_OBJC
 
+#include <wctype.h>
+
 typedef CFStringEncoding rb_encoding;
 
 #else
@@ -40,14 +42,14 @@ typedef CFStringEncoding rb_encoding;
     if (encoding_set_enc_index < ENCODING_INLINE_MAX) \
         ENCODING_SET_INLINED(rb_encoding_set_obj, encoding_set_enc_index); \
     else \
-        rb_enc_internal_set_index(rb_encoding_set_obj, encoding_set_enc_index); \
+        rb_enc_set_index(rb_encoding_set_obj, encoding_set_enc_index); \
 } while (0)
 
 #define ENCODING_GET_INLINED(obj) ((RBASIC(obj)->flags & ENCODING_MASK)>>ENCODING_SHIFT)
 #define ENCODING_GET(obj) \
     (ENCODING_GET_INLINED(obj) != ENCODING_INLINE_MAX ? \
      ENCODING_GET_INLINED(obj) : \
-     rb_enc_internal_get_index(obj))
+     rb_enc_get_index(obj))
 
 #if WITH_OBJC
 # define ENCODING_IS_ASCII8BIT(obj) (1)
@@ -86,20 +88,18 @@ typedef OnigEncodingType rb_encoding;
 
 int rb_enc_replicate(const char *, rb_encoding *);
 int rb_define_dummy_encoding(const char *);
-int rb_enc_dummy_p(rb_encoding *);
 #define rb_enc_to_index(enc) ((enc) ? ((enc)->ruby_encoding_index) : 0)
 int rb_enc_get_index(VALUE obj);
+void rb_enc_set_index(VALUE obj, int encindex);
 int rb_enc_find_index(const char *name);
 int rb_to_encoding_index(VALUE);
 rb_encoding* rb_to_encoding(VALUE);
 rb_encoding* rb_enc_get(VALUE);
 rb_encoding* rb_enc_compatible(VALUE,VALUE);
 rb_encoding* rb_enc_check(VALUE,VALUE);
-void rb_enc_associate_index(VALUE, int);
-void rb_enc_associate(VALUE, rb_encoding*);
+VALUE rb_enc_associate_index(VALUE, int);
+VALUE rb_enc_associate(VALUE, rb_encoding*);
 void rb_enc_copy(VALUE dst, VALUE src);
-int rb_enc_internal_get_index(VALUE obj);
-void rb_enc_internal_set_index(VALUE obj, int encindex);
 
 VALUE rb_enc_str_new(const char*, long, rb_encoding*);
 VALUE rb_enc_reg_new(const char*, long, rb_encoding*, int);
@@ -192,7 +192,7 @@ int rb_enc_codelen(int code, rb_encoding *enc);
 #define rb_enc_isdigit(c,enc) ONIGENC_IS_CODE_DIGIT(enc,c)
 #endif
 
-#define rb_enc_asciicompat(enc) (!rb_enc_dummy_p(enc) && rb_enc_mbminlen(enc)==1)
+#define rb_enc_asciicompat(enc) (rb_enc_mbminlen(enc)==1 && !rb_enc_dummy_p(enc))
 
 int rb_enc_casefold(char *to, const char *p, const char *e, rb_encoding *enc);
 int rb_enc_toupper(int c, rb_encoding *enc);
@@ -211,9 +211,33 @@ rb_encoding *rb_usascii_encoding(void);
 rb_encoding *rb_locale_encoding(void);
 rb_encoding *rb_default_external_encoding(void);
 int rb_usascii_encindex(void);
+int rb_ascii8bit_encindex(void);
 VALUE rb_enc_default_external(void);
 void rb_enc_set_default_external(VALUE encoding);
 VALUE rb_locale_charmap(VALUE klass);
 long rb_memsearch(const void*,long,const void*,long,rb_encoding*);
+
+RUBY_EXTERN VALUE rb_cEncoding;
+
+#define ENC_UNINITIALIZED (&rb_cEncoding)
+#define enc_initialized_p(enc) ((enc)->auxiliary_data != &rb_cEncoding)
+#define ENC_FROM_ENCODING(enc) ((VALUE)(enc)->auxiliary_data)
+
+#define ENC_DUMMY_FLAG FL_USER2
+#define ENC_DUMMY_P(enc) (RBASIC(enc)->flags & ENC_DUMMY_FLAG)
+#define ENC_SET_DUMMY(enc) (RBASIC(enc)->flags |= ENC_DUMMY_FLAG)
+
+#if WITH_OBJC
+# define rb_enc_dummy_p(x) (Qfalse)
+#else
+static inline int
+rb_enc_dummy_p(rb_encoding *enc)
+{
+    if (!enc_initialized_p(enc)) return Qfalse;
+    return ENC_DUMMY_P(ENC_FROM_ENCODING(enc));
+}
+#endif
+
+VALUE rb_str_transcode(VALUE str, VALUE to);
 
 #endif /* RUBY_ENCODING_H */

@@ -5,7 +5,7 @@
 ;;;  created at: Fri Feb  4 14:49:13 JST 1994
 ;;;
 
-(defconst ruby-mode-revision "$Revision: 16266 $"
+(defconst ruby-mode-revision "$Revision: 16611 $"
   "Ruby mode revision string.")
 
 (defconst ruby-mode-version
@@ -312,7 +312,9 @@ The variable ruby-indent-level controls the amount of indentation.
   (set (make-local-variable 'font-lock-syntax-table) ruby-font-lock-syntax-table)
   (set (make-local-variable 'font-lock-syntactic-keywords) ruby-font-lock-syntactic-keywords)
 
-  (run-mode-hooks 'ruby-mode-hook))
+  (if (fboundp 'run-mode-hooks)
+      (run-mode-hooks 'ruby-mode-hook)
+    (run-hooks 'ruby-mode-hook)))
 
 (defun ruby-current-indentation ()
   (save-excursion

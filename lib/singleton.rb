@@ -85,16 +85,16 @@ module Singleton
       Singleton.__init__(super)
     end
 
+    def _load(str)
+      instance
+    end
+
     private
     
     #  ensure that the Singleton pattern is properly inherited   
     def inherited(sub_klass)
       super
       Singleton.__init__(sub_klass)
-    end
-    
-    def _load(str) 
-      instance 
     end
   end
 

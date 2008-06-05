@@ -3,7 +3,7 @@
 
   vm_evalbody.c -
 
-  $Author: shyouhei $
+  $Author: ko1 $
 
   Copyright (C) 2004-2007 Koichi Sasada
 
@@ -26,7 +26,7 @@
 /* #define DECL_SC_REG(r, reg) VALUE reg_##r */
 
 #if !OPT_CALL_THREADED_CODE
-VALUE
+static VALUE
 vm_eval(rb_thread_t *th, VALUE initial)
 {
 
@@ -140,3 +140,9 @@ vm_eval(rb_thread_t *th, VALUE initial)
     return ret;
 }
 #endif
+
+const void **
+vm_get_insns_address_table(void)
+{
+    return (const void **)vm_eval(0, 0);
+}

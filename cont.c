@@ -108,10 +108,10 @@ cont_free(void *ptr)
 static void
 cont_save_machine_stack(rb_thread_t *th, rb_context_t *cont)
 {
+#if !WITH_OBJC
     int size;
     rb_thread_t *sth = &cont->saved_thread;
 
-#if !WITH_OBJC
     SET_MACHINE_STACK_END(&th->machine_stack_end);
 #ifdef __ia64
     th->machine_register_stack_end = rb_ia64_bsp();

@@ -2,7 +2,7 @@
 
   enum.c -
 
-  $Author: nobu $
+  $Author: knu $
   created at: Fri Oct  1 15:15:19 JST 1993
 
   Copyright (C) 1993-2007 Yukihiro Matsumoto
@@ -14,7 +14,7 @@
 #include "ruby/util.h"
 
 VALUE rb_mEnumerable;
-static ID id_each, id_eqq, id_cmp, id_next;
+static ID id_each, id_eqq, id_cmp, id_next, id_size;
 
 static VALUE
 enum_values_pack(int argc, VALUE *argv)
@@ -108,15 +108,29 @@ count_iter_i(VALUE i, VALUE memop, int argc, VALUE *argv)
     return Qnil;
 }
 
+static VALUE
+count_all_i(VALUE i, VALUE memop, int argc, VALUE *argv)
+{
+    VALUE *memo = (VALUE*)memop;
+
+    memo[0]++;
+    return Qnil;
+}
+
 /*
  *  call-seq:
+ *     enum.count                   => int
  *     enum.count(item)             => int
  *     enum.count {| obj | block }  => int
  *
- *  Returns the number of items in <i>enum</i> for which equals to <i>item</i>.
- *  If a block is given, counts the number of elements yielding a true value.
+ *  Returns the number of items in <i>enum</i>, where #size is called
+ *  if it responds to it, otherwise the items are counted through
+ *  enumeration.  If an argument is given, counts the number of items
+ *  in <i>enum</i>, for which equals to <i>item</i>.  If a block is
+ *  given, counts the number of elements yielding a true value.
  *
  *     ary = [1, 2, 4, 2]
+ *     ary.count             # => 4
  *     ary.count(2)          # => 2
  *     ary.count{|x|x%2==0}  # => 3
  *
@@ -129,8 +143,15 @@ enum_count(int argc, VALUE *argv, VALUE obj)
     rb_block_call_func *func;
 
     if (argc == 0) {
-	RETURN_ENUMERATOR(obj, 0, 0);
-        func = count_iter_i;
+	if (rb_block_given_p()) {
+	    func = count_iter_i;
+	}
+	else {
+	    if (rb_respond_to(obj, id_size)) {
+		return rb_funcall(obj, id_size, 0, 0);
+	    }
+	    func = count_all_i;
+	}
     }
     else {
 	rb_scan_args(argc, argv, "1", &memo[1]);
@@ -383,11 +404,11 @@ enum_collect(VALUE obj)
  *     { 'a'=>1, 'b'=>2, 'c'=>3 }.to_a   #=> [["a", 1], ["b", 2], ["c", 3]]
  */
 static VALUE
-enum_to_a(VALUE obj)
+enum_to_a(int argc, VALUE *argv, VALUE obj)
 {
     VALUE ary = rb_ary_new();
 
-    rb_block_call(obj, id_each, 0, 0, collect_all, ary);
+    rb_block_call(obj, id_each, argc, argv, collect_all, ary);
 
     return ary;
 }
@@ -657,7 +678,7 @@ enum_first(int argc, VALUE *argv, VALUE obj)
 static VALUE
 enum_sort(VALUE obj)
 {
-    return rb_ary_sort(enum_to_a(obj));
+    return rb_ary_sort(enum_to_a(0, 0, obj));
 }
 
 static VALUE
@@ -685,10 +706,8 @@ sort_by_cmp(const void *ap, const void *bp, void *data)
 #else
     VALUE a = (*(NODE *const *)ap)->u1.value;
     VALUE b = (*(NODE *const *)bp)->u1.value;
-#endif
     VALUE ary = (VALUE)data;
-
-#if !WITH_OBJC
+    
     if (RBASIC(ary)->klass) {
 	rb_raise(rb_eRuntimeError, "sort_by reentered");
     }
@@ -1424,6 +1443,31 @@ enum_each_with_index(int argc, VALUE *argv, VALUE obj)
 }
 
 
+/*
+ *  call-seq:
+ *     enum.reverse_each {|item| block } 
+ *  
+ *  Traverses <i>enum</i> in reverse order.
+ */
+
+static VALUE
+enum_reverse_each(int argc, VALUE *argv, VALUE obj)
+{
+    VALUE ary;
+    long i;
+
+    RETURN_ENUMERATOR(obj, argc, argv);
+
+    ary = enum_to_a(argc, argv, obj);
+
+    for (i = RARRAY_LEN(ary); --i >= 0; ) {
+	rb_yield(RARRAY_AT(ary, i));
+    }
+
+    return obj;
+}
+
+
 static VALUE
 zip_ary(VALUE val, NODE *memo, int argc, VALUE *argv)
 {
@@ -1776,8 +1820,8 @@ Init_Enumerable(void)
 {
     rb_mEnumerable = rb_define_module("Enumerable");
 
-    rb_define_method(rb_mEnumerable,"to_a", enum_to_a, 0);
-    rb_define_method(rb_mEnumerable,"entries", enum_to_a, 0);
+    rb_define_method(rb_mEnumerable, "to_a", enum_to_a, -1);
+    rb_define_method(rb_mEnumerable, "entries", enum_to_a, -1);
 
     rb_define_method(rb_mEnumerable,"sort", enum_sort, 0);
     rb_define_method(rb_mEnumerable,"sort_by", enum_sort_by, 0);
@@ -1790,32 +1834,33 @@ Init_Enumerable(void)
 #else
     rb_define_method(rb_mEnumerable,"count", enum_count, -1);
 #endif
-    rb_define_method(rb_mEnumerable,"find", enum_find, -1);
-    rb_define_method(rb_mEnumerable,"detect", enum_find, -1);
-    rb_define_method(rb_mEnumerable,"find_index", enum_find_index, -1);
-    rb_define_method(rb_mEnumerable,"find_all", enum_find_all, 0);
-    rb_define_method(rb_mEnumerable,"select", enum_find_all, 0);
-    rb_define_method(rb_mEnumerable,"reject", enum_reject, 0);
-    rb_define_method(rb_mEnumerable,"collect", enum_collect, 0);
-    rb_define_method(rb_mEnumerable,"map", enum_collect, 0);
-    rb_define_method(rb_mEnumerable,"inject", enum_inject, -1);
-    rb_define_method(rb_mEnumerable,"reduce", enum_inject, -1);
-    rb_define_method(rb_mEnumerable,"partition", enum_partition, 0);
-    rb_define_method(rb_mEnumerable,"group_by", enum_group_by, 0);
-    rb_define_method(rb_mEnumerable,"first", enum_first, -1);
-    rb_define_method(rb_mEnumerable,"all?", enum_all, 0);
-    rb_define_method(rb_mEnumerable,"any?", enum_any, 0);
-    rb_define_method(rb_mEnumerable,"one?", enum_one, 0);
-    rb_define_method(rb_mEnumerable,"none?", enum_none, 0);
-    rb_define_method(rb_mEnumerable,"min", enum_min, 0);
-    rb_define_method(rb_mEnumerable,"max", enum_max, 0);
-    rb_define_method(rb_mEnumerable,"minmax", enum_minmax, 0);
-    rb_define_method(rb_mEnumerable,"min_by", enum_min_by, 0);
-    rb_define_method(rb_mEnumerable,"max_by", enum_max_by, 0);
-    rb_define_method(rb_mEnumerable,"minmax_by", enum_minmax_by, 0);
-    rb_define_method(rb_mEnumerable,"member?", enum_member, 1);
-    rb_define_method(rb_mEnumerable,"include?", enum_member, 1);
-    rb_define_method(rb_mEnumerable,"each_with_index", enum_each_with_index, -1);
+    rb_define_method(rb_mEnumerable, "find", enum_find, -1);
+    rb_define_method(rb_mEnumerable, "detect", enum_find, -1);
+    rb_define_method(rb_mEnumerable, "find_index", enum_find_index, -1);
+    rb_define_method(rb_mEnumerable, "find_all", enum_find_all, 0);
+    rb_define_method(rb_mEnumerable, "select", enum_find_all, 0);
+    rb_define_method(rb_mEnumerable, "reject", enum_reject, 0);
+    rb_define_method(rb_mEnumerable, "collect", enum_collect, 0);
+    rb_define_method(rb_mEnumerable, "map", enum_collect, 0);
+    rb_define_method(rb_mEnumerable, "inject", enum_inject, -1);
+    rb_define_method(rb_mEnumerable, "reduce", enum_inject, -1);
+    rb_define_method(rb_mEnumerable, "partition", enum_partition, 0);
+    rb_define_method(rb_mEnumerable, "group_by", enum_group_by, 0);
+    rb_define_method(rb_mEnumerable, "first", enum_first, -1);
+    rb_define_method(rb_mEnumerable, "all?", enum_all, 0);
+    rb_define_method(rb_mEnumerable, "any?", enum_any, 0);
+    rb_define_method(rb_mEnumerable, "one?", enum_one, 0);
+    rb_define_method(rb_mEnumerable, "none?", enum_none, 0);
+    rb_define_method(rb_mEnumerable, "min", enum_min, 0);
+    rb_define_method(rb_mEnumerable, "max", enum_max, 0);
+    rb_define_method(rb_mEnumerable, "minmax", enum_minmax, 0);
+    rb_define_method(rb_mEnumerable, "min_by", enum_min_by, 0);
+    rb_define_method(rb_mEnumerable, "max_by", enum_max_by, 0);
+    rb_define_method(rb_mEnumerable, "minmax_by", enum_minmax_by, 0);
+    rb_define_method(rb_mEnumerable, "member?", enum_member, 1);
+    rb_define_method(rb_mEnumerable, "include?", enum_member, 1);
+    rb_define_method(rb_mEnumerable, "each_with_index", enum_each_with_index, -1);
+    rb_define_method(rb_mEnumerable, "reverse_each", enum_reverse_each, -1);
     rb_define_method(rb_mEnumerable, "zip", enum_zip, -1);
     rb_define_method(rb_mEnumerable, "take", enum_take, 1);
     rb_define_method(rb_mEnumerable, "take_while", enum_take_while, 0);
@@ -1827,5 +1872,6 @@ Init_Enumerable(void)
     id_each = rb_intern("each");
     id_cmp  = rb_intern("<=>");
     id_next = rb_intern("next");
+    id_size = rb_intern("size");
 }
 

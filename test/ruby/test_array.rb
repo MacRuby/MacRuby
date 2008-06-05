@@ -74,7 +74,7 @@ class TestArray < Test::Unit::TestCase
   end
 
   def test_split_0
-    x = "The Boassert of Mormon"
+    x = "The Book of Mormon"
     assert_equal(x.reverse, x.split(//).reverse!.join)
     assert_equal(x.reverse, x.reverse!)
     assert_equal("g:n:i:r:t:s: :e:t:y:b: :1", "1 byte string".split(//).reverse.join(":"))
@@ -539,6 +539,7 @@ class TestArray < Test::Unit::TestCase
 
   def test_count
     a = @cls[1, 2, 3, 1, 2]
+    assert_equal(5, a._count)
     assert_equal(2, a._count(1))
     assert_equal(3, a._count {|x| x % 2 == 1 })
     assert_equal(2, a._count(1) {|x| x % 2 == 1 })
@@ -726,6 +727,20 @@ class TestArray < Test::Unit::TestCase
                  @cls[@cls[@cls[@cls[],@cls[]],@cls[@cls[]],@cls[]],@cls[@cls[@cls[]]]].flatten)
   end
 
+  def test_flatten_with_callcc
+    respond_to?(:callcc, true) or require 'continuation'
+    o = Object.new
+    def o.to_ary() callcc {|k| @cont = k; [1,2,3]} end
+    begin
+      assert_equal([10, 20, 1, 2, 3, 30, 1, 2, 3, 40], [10, 20, o, 30, o, 40].flatten)
+    rescue => e
+    else
+      o.instance_eval {@cont}.call
+    end
+    assert_instance_of(RuntimeError, e, '[ruby-dev:34798]')
+    assert_match(/reentered/, e.message, '[ruby-dev:34798]')
+  end
+
   def test_hash
     a1 = @cls[ 'cat', 'dog' ]
     a2 = @cls[ 'cat', 'dog' ]
@@ -811,14 +826,6 @@ class TestArray < Test::Unit::TestCase
     a = @cls[ ]
     assert_equal(@cls[], a.map! { 99 })
     assert_equal(@cls[], a)
-  end
-
-  def test_nitems
-    assert_equal(0, @cls[].nitems)
-    assert_equal(1, @cls[1].nitems)
-    assert_equal(1, @cls[1, nil].nitems)
-    assert_equal(1, @cls[nil, 1].nitems)
-    assert_equal(3, @cls[1, nil, nil, 2, nil, 3, nil].nitems)
   end
 
   def test_pack
@@ -1155,6 +1162,16 @@ class TestArray < Test::Unit::TestCase
     assert_match(/reentered/, e.message, '[ruby-core:16679]')
   end
 
+  def test_sort_with_replace
+    xary = (1..100).to_a
+    100.times do
+      ary = (1..100).to_a
+      ary.sort! {|a,b| ary.replace(xary); a <=> b}
+      GC.start
+      assert_equal(xary, ary, '[ruby-dev:34732]')
+    end
+  end
+
   def test_to_a
     a = @cls[ 1, 2, 3 ]
     a_id = a.__id__
@@ -1294,14 +1311,24 @@ class TestArray < Test::Unit::TestCase
     assert_raise(SecurityError) do
       Thread.new do
         $SAFE = 4
-        a.shift
+       a.shift
       end.value
+    end
+  end
+
+  LONGP = [127, 63, 31, 15, 7].map {|x| 2**x-1 }.find do |x|
+    begin
+      [].first(x)
+    rescue ArgumentError
+      true
+    rescue RangeError
+      false
     end
   end
 
   def test_ary_new
     assert_raise(ArgumentError) { [].to_enum.first(-1) }
-    assert_raise(ArgumentError) { [].to_enum.first(2**31-1) }
+    assert_raise(ArgumentError) { [].to_enum.first(LONGP) }
   end
 
   def test_try_convert
@@ -1314,7 +1341,7 @@ class TestArray < Test::Unit::TestCase
     assert_nothing_raised { Array.new { } }
     assert_equal([1, 2, 3], Array.new([1, 2, 3]))
     assert_raise(ArgumentError) { Array.new(-1, 1) }
-    assert_raise(ArgumentError) { Array.new(2**31-1, 1) }
+    assert_raise(ArgumentError) { Array.new(LONGP, 1) }
     assert_equal([1, 1, 1], Array.new(3, 1))
     assert_equal([1, 1, 1], Array.new(3) { 1 })
     assert_equal([1, 1, 1], Array.new(3, 1) { 1 })
@@ -1322,8 +1349,8 @@ class TestArray < Test::Unit::TestCase
 
   def test_aset
     assert_raise(IndexError) { [0][-2] = 1 }
-    assert_raise(ArgumentError) { [0][2**31-1] = 2 }
-    assert_raise(ArgumentError) { [0][2**30-1] = 3 }
+    assert_raise(ArgumentError) { [0][LONGP] = 2 }
+    assert_raise(ArgumentError) { [0][(LONGP + 1) / 2 - 1] = 2 }
     a = [0]
     a[2] = 4
     assert_equal([0, nil, 4], a)
@@ -1461,11 +1488,11 @@ class TestArray < Test::Unit::TestCase
   end
 
   def test_fill2
-    assert_raise(ArgumentError) { [].fill(0, 1, 2**31-1) }
+    assert_raise(ArgumentError) { [].fill(0, 1, LONGP) }
   end
 
   def test_times
-    assert_raise(ArgumentError) { [0, 0, 0, 0] * (2**29) }
+    assert_raise(ArgumentError) { [0, 0, 0, 0] * ((LONGP + 1) / 4) }
   end
 
   def test_equal
@@ -1482,10 +1509,6 @@ class TestArray < Test::Unit::TestCase
     b = []
     b << b
     assert_equal(a.hash, b.hash)
-  end
-
-  def test_nitems2
-    assert_equal(3, [5,6,7,8,9].nitems { |x| x % 2 != 0 })
   end
 
   def test_flatten2
@@ -1531,17 +1554,6 @@ class TestArray < Test::Unit::TestCase
       a.pop
     end
     assert_equal([5, 3, 1], r)
-  end
-
-  def test_each2
-    a = [0, 1, 2, 3, 4, 5]
-    r = []
-    a.each do |x|
-      r << x
-      a.pop
-      a.pop
-    end
-    assert_equal([0, 1], r)
   end
 
   def test_combination2

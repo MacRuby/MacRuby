@@ -2,7 +2,7 @@
 
   intern.h -
 
-  $Author: usa $
+  $Author: nobu $
   created at: Thu Jun 10 14:22:17 JST 1993
 
   Copyright (C) 1993-2007 Yukihiro Matsumoto
@@ -79,8 +79,6 @@ VALUE rb_ary_replace(VALUE copy, VALUE orig);
 VALUE rb_get_values_at(VALUE, long, int, VALUE*, VALUE(*)(VALUE,long));
 #if WITH_OBJC
 VALUE rb_ary_elt(VALUE, long);
-void rb_ary_set_named_args(VALUE, bool);
-bool rb_ary_is_named_args(VALUE);
 bool rb_objc_ary_is_pure(VALUE);
 #endif
 /* bignum.c */
@@ -346,6 +344,9 @@ void rb_objc_gc_register_thread(void);
 void rb_objc_gc_unregister_thread(void);
 void rb_objc_set_associative_ref(void *, void *, void *);
 void *rb_objc_get_associative_ref(void *, void *);
+void rb_objc_retain(const void *);
+void rb_objc_release(const void *);
+void rb_gc_malloc_increase(size_t);
 # define rb_gc_mark_locations(x,y)
 # define rb_mark_tbl(x)
 # define rb_mark_set(x)
@@ -617,7 +618,7 @@ VALUE rb_struct_iv_get(VALUE, const char*);
 VALUE rb_struct_s_members(VALUE);
 VALUE rb_struct_members(VALUE);
 VALUE rb_struct_alloc_noinit(VALUE);
-VALUE rb_struct_define_without_accessor(char *, VALUE, rb_alloc_func_t, ...);
+VALUE rb_struct_define_without_accessor(const char *, VALUE, rb_alloc_func_t, ...);
 /* thread.c */
 typedef void rb_unblock_function_t(void *);
 typedef VALUE rb_blocking_function_t(void *);
@@ -693,10 +694,14 @@ VALUE rb_mod_objc_ancestors(VALUE);
 VALUE rb_mod_objc_ib_outlet(int, VALUE *, VALUE);
 VALUE rb_require_framework(int, VALUE *, VALUE);
 VALUE rb_objc_resolve_const_value(VALUE, VALUE, ID);
-ID rb_objc_missing_sel(ID mid, int arity);
-void rb_objc_install_ivar_cluster(Class);
-void *rb_objc_get_ivar_cluster(void *);
-void rb_objc_set_ivar_cluster(void *, void *);
+ID rb_objc_missing_sel(ID, int);
+long rb_objc_flag_get_mask(const void *);
+void rb_objc_flag_set(const void *, int, bool);
+bool rb_objc_flag_check(const void *, int);
+long rb_objc_remove_flags(const void *obj);
+void rb_objc_sync_ruby_methods(VALUE, VALUE);
+void rb_objc_methods(VALUE, Class);
+bool rb_objc_is_immutable(VALUE);
 #endif
 /* version.c */
 void ruby_show_version(void);

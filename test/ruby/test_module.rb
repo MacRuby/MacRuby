@@ -68,6 +68,10 @@ class TestModule < Test::Unit::TestCase
     list.reject {|c| c == PP::ObjectMixin }
   end
 
+  def remove_json_mixins(list)
+    list.reject {|c| c.to_s.start_with?("JSON") }
+  end
+
   module Mixin
     MIXIN = 1
     def mixin
@@ -194,9 +198,10 @@ class TestModule < Test::Unit::TestCase
     assert_equal([User, Mixin],      User.ancestors)
     assert_equal([Mixin],            Mixin.ancestors)
 
-    assert_equal([Object, Kernel, BasicObject], remove_pp_mixins(Object.ancestors))
+    assert_equal([Object, Kernel, BasicObject],
+                 remove_json_mixins(remove_pp_mixins(Object.ancestors)))
     assert_equal([String, Comparable, Object, Kernel, BasicObject],
-                 remove_pp_mixins(String.ancestors))
+                 remove_json_mixins(remove_pp_mixins(String.ancestors)))
   end
 
   def test_class_eval
@@ -242,9 +247,10 @@ class TestModule < Test::Unit::TestCase
   def test_included_modules
     assert_equal([], Mixin.included_modules)
     assert_equal([Mixin], User.included_modules)
-    assert_equal([Kernel], remove_pp_mixins(Object.included_modules))
+    assert_equal([Kernel],
+                 remove_json_mixins(remove_pp_mixins(Object.included_modules)))
     assert_equal([Comparable, Kernel],
-                 remove_pp_mixins(String.included_modules))
+                 remove_json_mixins(remove_pp_mixins(String.included_modules)))
   end
 
   def test_instance_methods
@@ -689,5 +695,24 @@ class TestModule < Test::Unit::TestCase
     o = Object.new
     o.extend(m2)
     assert_equal(true, o.respond_to?(:foo))
+  end
+
+  def test_cyclic_include
+    m1 = Module.new
+    m2 = Module.new
+    m1.instance_eval { include(m2) }
+    assert_raise(ArgumentError) do
+      m2.instance_eval { include(m1) }
+    end
+  end
+
+  def test_include_p
+    m = Module.new
+    c1 = Class.new
+    c1.instance_eval { include(m) }
+    c2 = Class.new(c1)
+    assert_equal(true, c1.include?(m))
+    assert_equal(true, c2.include?(m))
+    assert_equal(false, m.include?(m))
   end
 end

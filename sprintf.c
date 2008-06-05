@@ -21,6 +21,7 @@
 #define BITSPERDIG (SIZEOF_BDIGITS*CHAR_BIT)
 #define EXTENDSIGN(n, l) (((~0 << (n)) >> (((n)*(l)) % BITSPERDIG)) & ~(~0 << (n)))
 
+#if !WITH_OBJC
 static void fmt_setup(char*,int,int,int,int);
 
 static char*
@@ -67,6 +68,7 @@ sign_bits(int base, const char *p)
     }
     return c;
 }
+#endif
 
 #define FNONE  0
 #define FSHARP 1
@@ -987,7 +989,6 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
     if (tainted) OBJ_TAINT(result);
     return result;
 }
-#endif
 
 static void
 fmt_setup(char *buf, int c, int flags, int width, int prec)
@@ -1058,6 +1059,7 @@ ruby__sfvwrite(register rb_printf_buffer *fp, register struct __suio *uio)
     fp->_p = (unsigned char *)buf;
     return 0;
 }
+#endif
 
 VALUE
 rb_enc_vsprintf(rb_encoding *enc, const char *fmt, va_list ap)

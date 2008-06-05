@@ -47,5 +47,10 @@ End
     assert(h.values.all? {|x| x.is_a?(Integer) })
 
     assert_raise(TypeError) { ObjectSpace.count_objects(1) }
+
+    h0 = {:T_FOO=>1000}
+    h = ObjectSpace.count_objects(h0)
+    assert_same(h0, h)
+    assert_equal(0, h0[:T_FOO])
   end
 end

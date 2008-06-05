@@ -11,7 +11,7 @@ class AppDelegate
 end
 
 app = NSApplication.sharedApplication
-app.delegate = AppDelegate.alloc.init
+app.delegate = AppDelegate.new
 
 win = NSWindow.alloc.initWithContentRect([200, 300, 250, 100],
     styleMask:NSTitledWindowMask|NSClosableWindowMask|NSMiniaturizableWindowMask|NSResizableWindowMask, 

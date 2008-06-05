@@ -2,7 +2,7 @@
 
   thread.c -
 
-  $Author: akr $
+  $Author: nobu $
 
   Copyright (C) 2004-2007 Koichi Sasada
 
@@ -79,8 +79,9 @@ st_delete_wrap(st_table *table, st_data_t key)
 
 #define THREAD_SYSTEM_DEPENDENT_IMPLEMENTATION
 
-static void set_unblock_function(rb_thread_t *th, rb_unblock_function_t *func, void *ptr,
-				 rb_unblock_function_t **oldfunc, void **oldptr);
+static void set_unblock_function(rb_thread_t *th, rb_unblock_function_t *func, void *arg,
+				 struct rb_unblock_callback *old);
+static void reset_unblock_function(rb_thread_t *th, const struct rb_unblock_callback *old);
 
 #define GVL_UNLOCK_BEGIN() do { \
   rb_thread_t *_th_stored = GET_THREAD(); \
@@ -95,9 +96,8 @@ static void set_unblock_function(rb_thread_t *th, rb_unblock_function_t *func, v
 #define BLOCKING_REGION(exec, ubf, ubfarg) do { \
     rb_thread_t *__th = GET_THREAD(); \
     int __prev_status = __th->status; \
-    rb_unblock_function_t *__oldubf; \
-    void *__oldubfarg; \
-    set_unblock_function(__th, ubf, ubfarg, &__oldubf, &__oldubfarg); \
+    struct rb_unblock_callback __oldubf; \
+    set_unblock_function(__th, ubf, ubfarg, &__oldubf); \
     __th->status = THREAD_STOPPED; \
     thread_debug("enter blocking region (%p)\n", __th); \
     GVL_UNLOCK_BEGIN(); {\
@@ -106,7 +106,7 @@ static void set_unblock_function(rb_thread_t *th, rb_unblock_function_t *func, v
     GVL_UNLOCK_END(); \
     thread_debug("leave blocking region (%p)\n", __th); \
     remove_signal_thread_list(__th); \
-    set_unblock_function(__th, __oldubf, __oldubfarg, 0, 0); \
+    reset_unblock_function(__th, &__oldubf); \
     if (__th->status == THREAD_STOPPED) { \
 	__th->status = __prev_status; \
     } \
@@ -195,7 +195,7 @@ rb_thread_debug(const char *fmt, ...)
 
 static void
 set_unblock_function(rb_thread_t *th, rb_unblock_function_t *func, void *arg,
-		     rb_unblock_function_t **oldfunc, void **oldarg)
+		     struct rb_unblock_callback *old)
 {
   check_ints:
     RUBY_VM_CHECK_INTS(); /* check signal or so */
@@ -205,11 +205,18 @@ set_unblock_function(rb_thread_t *th, rb_unblock_function_t *func, void *arg,
 	goto check_ints;
     }
     else {
-	if (oldfunc) *oldfunc = th->unblock_function;
-	if (oldarg) *oldarg = th->unblock_function_arg;
-	th->unblock_function = func;
-	th->unblock_function_arg = arg;
+	if (old) *old = th->unblock;
+	th->unblock.func = func;
+	th->unblock.arg = arg;
     }
+    native_mutex_unlock(&th->interrupt_lock);
+}
+
+static void
+reset_unblock_function(rb_thread_t *th, const struct rb_unblock_callback *old)
+{
+    native_mutex_lock(&th->interrupt_lock);
+    th->unblock = *old;
     native_mutex_unlock(&th->interrupt_lock);
 }
 
@@ -218,8 +225,8 @@ rb_thread_interrupt(rb_thread_t *th)
 {
     native_mutex_lock(&th->interrupt_lock);
     RUBY_VM_SET_INTERRUPT(th);
-    if (th->unblock_function) {
-	(th->unblock_function)(th->unblock_function_arg);
+    if (th->unblock.func) {
+	(th->unblock.func)(th->unblock.arg);
     }
     else {
 	/* none */
@@ -816,6 +823,7 @@ thread_s_pass(VALUE klass)
 void
 rb_thread_execute_interrupts(rb_thread_t *th)
 {
+    if (th->raised_flag) return;
     while (th->interrupt_flag) {
 	int status = th->status;
 	th->status = THREAD_RUNNABLE;
@@ -1465,7 +1473,7 @@ rb_thread_safe_level(VALUE thread)
 static VALUE
 rb_thread_inspect(VALUE thread)
 {
-    char *cname = rb_obj_classname(thread);
+    const char *cname = rb_obj_classname(thread);
     rb_thread_t *th;
     const char *status;
     VALUE str;
@@ -2487,7 +2495,7 @@ VALUE
 rb_mutex_unlock(VALUE self)
 {
     mutex_t *mutex;
-    char *err = NULL;
+    const char *err = NULL;
     GetMutexPtr(self, mutex);
 
     native_mutex_lock(&mutex->lock);
@@ -3035,7 +3043,7 @@ thread_set_trace_func_m(VALUE obj, VALUE trace)
     return trace;
 }
 
-static char *
+static const char *
 get_event_name(rb_event_flag_t event)
 {
     switch (event) {
@@ -3252,6 +3260,9 @@ Init_Thread(void)
     }
 
     rb_thread_create_timer_thread();
+
+    (void)native_mutex_trylock;
+    (void)ruby_thread_set_native;
 }
 
 int
