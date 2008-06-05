@@ -159,25 +159,11 @@ class CircleView < NSView
     # We schedule a timer for a desired 30fps animation rate.
     # In performAnimation: we determine exactly
     # how much time has elapsed and animate accordingly.
-
-=begin
-    @timer = NSTimer.timerWithTimeInterval 1.0/30.0,
-      target:self,
-      selector:'performAnimation:',
-      userInfo:nil,
-      repeats:true
-=end
-    
-    #@timer = Foo.foo(self)
-    
-#=begin
     @timer = NSTimer.scheduledTimerWithTimeInterval 1.0/30.0, 
       target:self,
       selector:'performAnimation:',
       userInfo:nil,
       repeats:true
-#=end
- p @timer
            
     # The next two lines make sure that animation will continue to occur
     # while modal panels are displayed and while event tracking is taking
