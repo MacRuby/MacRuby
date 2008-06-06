@@ -17,6 +17,7 @@
 
 #include "ruby/ruby.h"
 #include "ruby/intern.h"
+#define __IN_PARSE_Y__ 1
 #include "ruby/node.h"
 #include "ruby/st.h"
 #include "ruby/encoding.h"
@@ -437,6 +438,8 @@ static void named_arg_gen(struct parser_params*, ID, int);
 # define named_arg(id, flag) named_arg_gen(parser, id, flag)
 static NODE *process_named_args_gen(struct parser_params*, NODE*);
 # define process_named_args(node) process_named_args_gen(parser, node)
+static NODE *unprocess_named_args_gen(struct parser_params*, NODE*);
+# define unprocess_named_args(node) unprocess_named_args_gen(parser, node)
 #endif
 static int  local_id_gen(struct parser_params*, ID);
 #define local_id(id) local_id_gen(parser, id)
@@ -8706,6 +8709,22 @@ process_named_args_gen(struct parser_params *parser, NODE *n)
 	}
 
 	n->nd_mid = rb_intern(buf);
+	n->nd_args = new_argv;
+    }
+    return n;
+}
+
+static NODE *
+unprocess_named_args_gen(struct parser_params *parser, NODE *n)
+{
+    NODE *args = n->nd_args;
+    if (args != NULL 
+	&& args->nd_argc == 2 
+	&& nd_type(args->u3.node->u1.node) == NODE_ARRAY
+	&& args->u3.node->u1.node->flags & NODE_ARRAY_NAMED_ARGS) {
+
+	NODE *new_argv = NEW_LIST(args->nd_head);
+	arg_append(new_argv, NEW_HASH(args->u3.node->u1.node));
 	n->nd_args = new_argv;
     }
     return n;
