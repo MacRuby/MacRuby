@@ -9,9 +9,6 @@
 **********************************************************************/
 
 #include "ruby/ruby.h"
-#if WITH_OBJC
-# define process_named_args(x) (x)
-#endif
 #include "ruby/node.h"
 #include "vm_core.h"
 
