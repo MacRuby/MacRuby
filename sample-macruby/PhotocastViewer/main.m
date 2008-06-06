@@ -1,8 +1,8 @@
 //
 //  main.m
-//  CircleView
+//  PhotocastViewer
 //
-//  Created by Laurent Sansonetti on 2/29/08.
+//  Created by Laurent Sansonetti on 6/5/08.
 //  Copyright __MyCompanyName__ 2008. All rights reserved.
 //
 
