@@ -51,7 +51,7 @@ class PhotocastViewerController < NSWindowController
     return photo
   end
 
-  def imageBrowser_cellWasDoubleClickedAtIndex(browser, index)
+  def imageBrowser(browser, cellWasDoubleClickedAtIndex:index)
     NSWorkspace.sharedWorkspace.openURL @cache[index].url
   end
 end
