@@ -501,6 +501,11 @@ Dir.glob('/System/Library/Frameworks/**/BridgeSupport/*.dylib').each do |p|
     $stderr.puts "cannot markgc #{p}"
     exit 1
   end
+  if $destdir
+    dirname = File.dirname(p)
+    mkdir_p(dirname)
+    install(p, dirname)
+  end
 end
 
 end # unless $installing_rdoc
