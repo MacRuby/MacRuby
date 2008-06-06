@@ -4224,6 +4224,10 @@ Init_Array(void)
     rb_define_method(rb_cArray, "flatten", rb_ary_flatten, -1);
     rb_define_method(rb_cArray, "flatten!", rb_ary_flatten_bang, -1);
     rb_define_method(rb_cArray, "_count", rb_ary_count, -1);
+#if WITH_OBJC
+    /* to maintain backwards compatibility with our /etc/irbrc file */
+    rb_define_method(rb_cArray, "nitems", rb_ary_count, -1);
+#endif
     rb_define_method(rb_cArray, "shuffle!", rb_ary_shuffle_bang, 0);
     rb_define_method(rb_cArray, "shuffle", rb_ary_shuffle, 0);
     rb_define_method(rb_cArray, "choice", rb_ary_choice, 0);
