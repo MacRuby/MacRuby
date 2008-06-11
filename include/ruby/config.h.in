@@ -49,7 +49,6 @@
 #define NOINLINE(x) __attribute__ ((noinline)) x
 #define FUNC_STDCALL(x) __attribute__ ((stdcall)) x
 #define FUNC_CDECL(x) __attribute__ ((cdecl)) x
-#define FUNC_FASTCALL(x) __attribute__ ((fastcall)) x
 #define HAVE_DECL_SYS_NERR 1
 #define HAVE_LIBDL 1
 #define HAVE_DIRENT_H 1
