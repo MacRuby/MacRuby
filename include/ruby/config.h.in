@@ -47,7 +47,6 @@
 #define NORETURN(x) __attribute__ ((noreturn)) x
 #define DEPRECATED(x) __attribute__ ((deprecated)) x
 #define NOINLINE(x) __attribute__ ((noinline)) x
-#define FUNC_STDCALL(x) __attribute__ ((stdcall)) x
 #define FUNC_CDECL(x) __attribute__ ((cdecl)) x
 #define HAVE_DECL_SYS_NERR 1
 #define HAVE_LIBDL 1
