@@ -496,7 +496,7 @@ end
 
 task :clean_ext do
   if File.exist?('./miniruby') 
-    exec_line("./miniruby -I./lib -I.ext/common -I./- -r./ext/purelib.rb ext/extmk.rb #{EXTMK_ARGS} clean")
+    exec_line("./miniruby -I./lib -I.ext/common -I./- -r./ext/purelib.rb ext/extmk.rb #{EXTMK_ARGS} -- clean")
   end
 end
 
