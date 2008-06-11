@@ -65,8 +65,9 @@ class Builder
     @header_paths = {}
   end
 
-  def build
-    OBJS.each do |obj| 
+  def build(objs=nil)
+    objs ||= @objs
+    objs.each do |obj| 
       if should_build?(obj) 
         s = obj_source(obj)
         flags = File.extname(s) == '.m' ? @objc_cflags : @cflags
@@ -221,6 +222,25 @@ task :objects => [:config_h] do
   end
   if !File.exist?('prelude.c')
     FileUtils.touch('prelude.c') # create empty file nevertheless
+  end
+  if !File.exist?('parse.c') or File.mtime('parse.y') > File.mtime('parse.c')
+    exec_line("/usr/bin/bison -o y.tab.c parse.y")
+    exec_line("/usr/bin/sed -f ./tool/ytab.sed -e \"/^#/s!y\.tab\.c!parse.c!\" y.tab.c > parse.c.new")
+    if !File.exist?('parse.c') or File.read('parse.c.new') != File.read('parse.c')
+      FileUtils.mv('parse.c.new', 'parse.c')
+    else
+      FileUtils.rm('parse.c.new')
+    end
+  end
+  if !File.exist?('lex.c') or File.read('lex.c') != File.read('lex.c.blt')
+    FileUtils.cp('lex.c.blt', 'lex.c')
+  end
+  inc_to_gen = %w{opt_sc.inc optinsn.inc optunifs.inc insns.inc insns_info.inc vmtc.inc vm.inc}.select { |inc| !File.exist?(inc) or File.mtime("template/#{inc}.tmpl") > File.mtime(inc) }
+  unless inc_to_gen.empty?
+    exec_line("/usr/bin/ruby -Ks tool/insns2vm.rb #{inc_to_gen.join(' ')}")
+  end
+  if !File.exist?('node_name.inc') or File.mtime('include/ruby/node.h') > File.mtime('node_name.inc')
+    exec_line("/usr/bin/ruby -n tool/node_name.rb include/ruby/node.h > node_name.inc")
   end
   $builder.build
 end
@@ -422,7 +442,7 @@ CROSS_COMPILING = nil
 RUBY_FRAMEWORK = true
 RUBY_FRAMEWORK_VERSION = RbConfig::CONFIG['ruby_version']
 EOS
-  if File.read('rbconfig.rb') != rbconfig
+  if !File.exist?('rbconfig.rb') or File.read('rbconfig.rb') != rbconfig
     File.open('rbconfig.rb', 'w') { |io| io.print rbconfig }
   end
 end
@@ -431,6 +451,7 @@ task :macruby_dylib => [:rbconfig, :miniruby] do
   exec_line("./miniruby -I. -I./lib -rrbconfig tool/compile_prelude.rb prelude.rb gem_prelude.rb prelude.c.new")
   if !File.exist?('prelude.c') or File.read('prelude.c') != File.read('prelude.c.new')
     FileUtils.mv('prelude.c.new', 'prelude.c')
+    $builder.build(['prelude'])
   else
     FileUtils.rm('prelude.c.new')
   end
@@ -470,7 +491,7 @@ end
 
 task :clean_local do
   $builder.clean
-  FileUtils.rm_f(INSTALLED_LIST)
+  ['parse.c', 'lex.c', INSTALLED_LIST].each { |x| FileUtils.rm_f(x) }
 end
 
 task :clean_ext do
