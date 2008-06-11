@@ -525,42 +525,36 @@ str_new(VALUE klass, const char *ptr, long len)
     str = str_alloc(klass);
 #if WITH_OBJC
     bool need_padding = len > 0;
-    if (ptr != NULL) {
-	if (len == 0) {
-	    char c = 0;
-	    rb_objc_str_set_bytestring(str, &c, 1);
+    if (ptr != NULL && len > 0) {
+	long slen;
+	slen = strlen(ptr);
+
+	if (slen == len) {
+	    CFStringAppendCString((CFMutableStringRef)str, ptr, 
+		    kCFStringEncodingUTF8);
+	    need_padding = false;
+	    if (CFStringGetLength((CFStringRef)str) != len)
+		rb_objc_str_set_bytestring(str, ptr, len);
 	}
 	else {
-	    long slen;
-	    slen = strlen(ptr);
+	    if (slen == 0 || len < slen) {
+		CFStringRef substr;
 
-	    if (slen == len) {
-		CFStringAppendCString((CFMutableStringRef)str, ptr, 
-			kCFStringEncodingUTF8);
-		need_padding = false;
-		if (CFStringGetLength((CFStringRef)str) != len)
-		    rb_objc_str_set_bytestring(str, ptr, len);
-	    }
-	    else {
-		if (slen == 0 || len < slen) {
-		    CFStringRef substr;
-
-		    substr = CFStringCreateWithBytes(NULL, (const UInt8 *)ptr, 
+		substr = CFStringCreateWithBytes(NULL, (const UInt8 *)ptr, 
 			len, kCFStringEncodingUTF8, false);
-    
-		    rb_gc_malloc_increase(32 + (sizeof(UniChar) * len));
 
-		    if (substr != NULL) {
-			CFStringAppend((CFMutableStringRef)str, substr);
-			CFRelease(substr);		
-		    }
-		    else {
-			rb_objc_str_set_bytestring(str, ptr, len);
-		    }
+		rb_gc_malloc_increase(32 + (sizeof(UniChar) * len));
+
+		if (substr != NULL) {
+		    CFStringAppend((CFMutableStringRef)str, substr);
+		    CFRelease(substr);		
 		}
 		else {
 		    rb_objc_str_set_bytestring(str, ptr, len);
 		}
+	    }
+	    else {
+		rb_objc_str_set_bytestring(str, ptr, len);
 	    }
 	}
     }
