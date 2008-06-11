@@ -395,6 +395,16 @@ rb_gc_malloc_increase(size_t size)
 
 #if WITH_OBJC
 
+static void
+rb_objc_no_gc_error(void)
+{ 
+    fprintf(stderr,
+	    "The client that links against MacRuby was not built for "\
+	    "GC. Please turn on garbage collection (-fobjc-gc) and "\
+	    "try again.\n");
+    exit(1);
+}
+
 void *
 ruby_xmalloc(size_t size)
 {
@@ -406,13 +416,8 @@ ruby_xmalloc(size_t size)
     if (size == 0) size = 1;
     rb_gc_malloc_increase(size);
     
-    if (__auto_zone == NULL) {
-    	fprintf(stderr,
-		"The client that links against MacRuby was not built for "\
-		"GC. Please turn on garbage collection (-fobjc-gc) and "\
-		"try again.\n");
-	exit(1);
-    }
+    if (__auto_zone == NULL)
+	rb_objc_no_gc_error();
     mem = auto_zone_allocate_object(__auto_zone, size, 
 				    AUTO_MEMORY_SCANNED, 0, 0);
     xmalloc_count++;
@@ -3097,6 +3102,10 @@ Init_PreGC(void)
     auto_collection_control_t *control;
 
     __auto_zone = auto_zone();
+    
+    if (__auto_zone == NULL)
+	rb_objc_no_gc_error();
+    
     //auto_zone_register_thread(__auto_zone);
 
     control = auto_collection_parameters(__auto_zone);
