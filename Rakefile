@@ -176,8 +176,10 @@ end
 
 $builder = Builder.new(OBJS)
 
+desc "Same as all"
 task :default => [:all]
 
+desc "Create config.h"
 task :config_h do
   config_h = 'include/ruby/config.h'
   if !File.exist?(config_h) \
@@ -208,6 +210,7 @@ task :config_h do
   end
 end
 
+desc "Build known objects"
 task :objects => [:config_h] do
   sh "/usr/bin/ruby -I. tool/compile_prelude.rb prelude.rb miniprelude.c.new"
   if !File.exist?('miniprelude.c') or File.read('miniprelude.c') != File.read('miniprelude.c.new')
@@ -240,10 +243,12 @@ task :objects => [:config_h] do
   $builder.build
 end
 
+desc "Create miniruby"
 task :miniruby => [:objects] do
   $builder.link_executable('miniruby', OBJS - ['prelude'])
 end
 
+desc "Create config file"
 task :rbconfig => [:miniruby] do
   rbconfig = <<EOS
 # This file was created when MacRuby was built.  Any changes made to this file 
@@ -442,6 +447,7 @@ EOS
   end
 end
 
+desc "Build dynamic libraries for MacRuby"
 task :macruby_dylib => [:rbconfig, :miniruby] do
   sh("./miniruby -I. -I./lib -rrbconfig tool/compile_prelude.rb prelude.rb gem_prelude.rb prelude.c.new")
   if !File.exist?('prelude.c') or File.read('prelude.c') != File.read('prelude.c.new')
@@ -461,10 +467,12 @@ task :macruby_dylib => [:rbconfig, :miniruby] do
   end
 end
 
+desc "Build static libraries for MacRuby"
 task :macruby_static => [:macruby_dylib] do
   $builder.link_archive("lib#{RUBY_SO_NAME}-static.a", $builder.objs - ['main', 'gc-stub', 'miniprelude'])
 end
 
+desc "Build MacRuby"
 task :macruby => [:macruby_dylib] do
   $builder.link_executable(RUBY_INSTALL_NAME, ['main', 'gc-stub'], "-L. -l#{RUBY_SO_NAME}")
 end
@@ -476,10 +484,12 @@ SCRIPT_ARGS = "--make=\"/usr/bin/make\" --dest-dir=\"#{DESTDIR}\" --extout=\"#{E
 EXTMK_ARGS = "#{SCRIPT_ARGS} --extension --extstatic"
 INSTRUBY_ARGS = "#{SCRIPT_ARGS} --data-mode=0644 --prog-mode=0755 --installed-list #{INSTALLED_LIST} --mantype=\"doc\""
 
+desc "Build extensions"
 task :extensions => [:miniruby, :macruby_static] do
   sh("./miniruby -I./lib -I.ext/common -I./- -r./ext/purelib.rb ext/extmk.rb #{EXTMK_ARGS}")
 end
 
+desc "Create the plist file for the framework"
 task :framework_info_plist do
   plist = <<EOS
 <?xml version="1.0" encoding="UTF-8"?>
@@ -516,25 +526,34 @@ EOS
   File.open('framework/Info.plist', 'w') { |io| io.print plist }
 end
 
+desc "Install the framework"
 task :install =>[:framework_info_plist] do
   sh("./miniruby instruby.rb #{INSTRUBY_ARGS}")  
 end
 
+desc "Clean local build files"
 task :clean_local do
   $builder.clean
   ['parse.c', 'lex.c', INSTALLED_LIST].each { |x| FileUtils.rm_f(x) }
 end
 
+desc "Clean extension build files"
 task :clean_ext do
   if File.exist?('./miniruby') 
     sh("./miniruby -I./lib -I.ext/common -I./- -r./ext/purelib.rb ext/extmk.rb #{EXTMK_ARGS} -- clean")
   end
 end
 
+desc "Run the sample tests"
 task :sample_test do
   sh("./miniruby rubytest.rb")
 end
 
+desc "Clean local and extension build files"
 task :clean => [:clean_local, :clean_ext]
+
+desc "Build MacRuby and extensions"
 task :all => [:macruby, :extensions]
+
+desc "Same as sample_test"
 task :test => [:sample_test]
