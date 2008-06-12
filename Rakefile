@@ -539,7 +539,7 @@ namespace :clean do
   desc "Clean local build files"
   task :local do
     $builder.clean
-    ['parse.c', 'lex.c', INSTALLED_LIST, *Dir['*.inc']].each { |x| rm_f(x) }
+    ['parse.c', 'lex.c', INSTALLED_LIST, 'Makefile', *Dir['*.inc']].each { |x| rm_f(x) }
   end
 
   desc "Clean extension build files"
