@@ -487,7 +487,43 @@ task :extensions => [:miniruby, :macruby_static] do
   exec_line("./miniruby -I./lib -I.ext/common -I./- -r./ext/purelib.rb ext/extmk.rb #{EXTMK_ARGS}")
 end
 
-task :install do
+task :framework_info_plist do
+  plist = <<EOS
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+        <key>CFBundleDevelopmentRegion</key>
+        <string>English</string>
+        <key>CFBundleExecutable</key>
+        <string>Ruby</string>
+        <key>CFBundleName</key>
+        <string>Ruby</string>
+        <key>CFBundleGetInfoString</key>
+        <string>MacRuby Runtime and Library</string>
+        <key>CFBundleIconFile</key>
+        <string></string>
+        <key>CFBundleIdentifier</key>
+        <string>com.apple.macruby</string>
+        <key>CFBundleInfoDictionaryVersion</key>
+        <string>#{MACRUBY_VERSION}</string>
+        <key>CFBundlePackageType</key>
+        <string>FMWK</string>
+        <key>CFBundleShortVersionString</key>
+        <string>#{MACRUBY_VERSION}</string>
+        <key>CFBundleSignature</key>
+        <string>????</string>
+        <key>CFBundleVersion</key>
+        <string>MacRuby-#{MACRUBY_VERSION}</string>
+        <key>NSPrincipalClass</key>
+        <string></string>
+</dict>
+</plist>
+EOS
+  File.open('framework/Info.plist', 'w') { |io| io.print plist }
+end
+
+task :install =>[:framework_info_plist] do
   exec_line("./miniruby instruby.rb #{INSTRUBY_ARGS}")  
 end
 
