@@ -5,6 +5,7 @@ RUBY_SO_NAME = RUBY_INSTALL_NAME
 ARCHS = %w{ppc i386}
 FRAMEWORK_NAME = 'MacRuby'
 FRAMEWORK_INSTDIR = '/Library/Frameworks'
+NO_WARN_BUILD = true
 
 # Everything below this comment should *not* be customized.
 
@@ -30,7 +31,8 @@ RUBY_VENDOR_LIB2 = File.join(RUBY_VENDOR_LIB, NEW_RUBY_VERSION)
 RUBY_VENDOR_ARCHLIB = File.join(RUBY_VENDOR_LIB2, NEW_RUBY_PLATFORM)
 
 ARCHFLAGS = ARCHS.map { |a| '-arch ' + a }.join(' ')
-CFLAGS = "-I. -I./include -I/usr/include/libxml2 #{ARCHFLAGS} -fno-common -pipe -O2 -g -Wall -Wno-parentheses"
+CFLAGS = "-I. -I./include -I/usr/include/libxml2 #{ARCHFLAGS} -fno-common -pipe -O2 -g -Wall"
+CFLAGS << " -Wno-parentheses -Wno-deprecated-declarations -Werror" if NO_WARN_BUILD
 OBJC_CFLAGS = CFLAGS + " -fobjc-gc-only"
 LDFLAGS = "-lpthread -ldl -lxml2 -lobjc -lffi -lauto -framework Foundation"
 DLDFLAGS = "-dynamiclib -undefined suppress -flat_namespace -install_name #{File.join(FRAMEWORK_USR_LIB, 'lib' + RUBY_SO_NAME + '.dylib')} -current_version #{MACRUBY_VERSION} -compatibility_version #{MACRUBY_VERSION}"
@@ -500,7 +502,10 @@ task :clean_ext do
   end
 end
 
-task :clean => [:clean_local, :clean_ext]
-
-task :all => [:macruby, :extensions] do
+task :sample_test do
+  exec_line("./miniruby rubytest.rb")
 end
+
+task :clean => [:clean_local, :clean_ext]
+task :all => [:macruby, :extensions]
+task :test => [:sample_test]

@@ -1496,7 +1496,7 @@ bmcall(VALUE args, VALUE method)
 #endif
 
     a = args;
-    return rb_method_call(RARRAY_LEN(a), RARRAY_PTR(a), method);
+    return rb_method_call(RARRAY_LEN(a), (VALUE *)RARRAY_PTR(a), method);
 }
 
 VALUE

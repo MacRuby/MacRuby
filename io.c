@@ -1254,7 +1254,7 @@ static VALUE
 rb_io_inspect(VALUE obj)
 {
     rb_io_t *fptr;
-    char *cname;
+    const char *cname;
     const char *st = "";
 
     fptr = RFILE(rb_io_taint_check(obj))->fptr;
@@ -4085,8 +4085,10 @@ rb_io_s_popen(int argc, VALUE *argv, VALUE klass)
     tmp = rb_check_array_type(pname);
     if (!NIL_P(tmp)) {
 	tmp = rb_ary_dup(tmp);
+#if !WITH_OBJC
 	RBASIC(tmp)->klass = 0;
-	port = pipe_open_v(RARRAY_LEN(tmp), RARRAY_PTR(tmp), mode);
+#endif
+	port = pipe_open_v(RARRAY_LEN(tmp), (VALUE *)RARRAY_PTR(tmp), mode);
 	rb_ary_clear(tmp);
     }
     else {
@@ -5157,7 +5159,7 @@ static VALUE
 rb_io_s_new(int argc, VALUE *argv, VALUE klass)
 {
     if (rb_block_given_p()) {
-	char *cname = rb_class2name(klass);
+	const char *cname = rb_class2name(klass);
 
 	rb_warn("%s::new() does not take block; use %s::open() instead",
 		cname, cname);
@@ -6273,15 +6275,22 @@ open_key_args(int argc, VALUE *argv, struct foreach_arg *arg)
     }
     v = rb_hash_aref(opt, open_args);
     if (!NIL_P(v)) {
-	VALUE args;
-
 	v = rb_convert_type(v, T_ARRAY, "Array", "to_ary");
+#if WITH_OBJC
+	long i, v_len = RARRAY_LEN(v);
+	VALUE *values = (VALUE *)alloca(v_len + 1);
+	values[0] = argv[0];
+	for (i = 0; i < v_len; i++)
+	    values[i + 1] = RARRAY_AT(v, i);
+	arg->io = rb_io_open_with_args(v_len + 1, values);
+#else
+	VALUE args;
 	args = rb_ary_new2(RARRAY_LEN(v)+1);
 	rb_ary_push(args, argv[0]);
 	rb_ary_concat(args, v);
 	MEMCPY(RARRAY_PTR(args)+1, RARRAY_PTR(v), VALUE, RARRAY_LEN(v));
-
 	arg->io = rb_io_open_with_args(RARRAY_LEN(args), RARRAY_PTR(args));
+#endif
 	return;
     }
     v = rb_hash_aref(opt, mode);

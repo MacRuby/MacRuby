@@ -305,7 +305,7 @@ enumerator_each(VALUE obj)
 	argc = RARRAY_LEN(e->args);
 	argv = RARRAY_PTR(e->args);
     }
-    return rb_block_call(e->obj, e->meth, argc, argv,
+    return rb_block_call(e->obj, e->meth, argc, (VALUE *)argv,
 			 enumerator_each_i, (VALUE)e);
 }
 
@@ -340,7 +340,7 @@ enumerator_with_index(VALUE obj)
 	argc = RARRAY_LEN(e->args);
 	argv = RARRAY_PTR(e->args);
     }
-    return rb_block_call(e->obj, e->meth, argc, argv,
+    return rb_block_call(e->obj, e->meth, argc, (VALUE *)argv,
 			 enumerator_with_index_i, (VALUE)&memo);
 }
 
