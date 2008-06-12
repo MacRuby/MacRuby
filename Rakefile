@@ -551,7 +551,7 @@ namespace :clean do
 end
 
 desc "Same as framework:install"
-task :framework => 'framework:install'
+task :install => 'framework:install'
 
 desc "Same as macruby:build"
 task :macruby => 'macruby:build'
