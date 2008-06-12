@@ -46,13 +46,6 @@ OBJS = %w{
   main dln dmyext enc/ascii missing/lgamma_r prelude miniprelude gc-stub
 }
 
-def exec_line(line)
-  $stderr.puts line
-  exit 1 unless system(line)
-end
-
-require 'fileutils'
-
 class Builder
   attr_reader :objs, :cflags
   attr_accessor :objc_cflags, :ldflags, :dldflags
@@ -90,8 +83,8 @@ class Builder
     objs ||= @objs
     if should_link?(name, objs)
       FileUtils.rm_f(name)
-      exec_line("/usr/bin/ar rcu #{name} #{objs.map { |x| x + '.o' }.join(' ') }")
-      exec_line("/usr/bin/ranlib #{name}")
+      sh("/usr/bin/ar rcu #{name} #{objs.map { |x| x + '.o' }.join(' ') }")
+      sh("/usr/bin/ranlib #{name}")
     end
   end
 
@@ -102,7 +95,7 @@ class Builder
   private
 
   def cc(args)
-    exec_line("/usr/bin/gcc #{args}")
+    sh("/usr/bin/gcc #{args}")
   end
 
   def link(objs, ldflags, args, name)
@@ -216,7 +209,7 @@ task :config_h do
 end
 
 task :objects => [:config_h] do
-  exec_line "/usr/bin/ruby -I. tool/compile_prelude.rb prelude.rb miniprelude.c.new"
+  sh "/usr/bin/ruby -I. tool/compile_prelude.rb prelude.rb miniprelude.c.new"
   if !File.exist?('miniprelude.c') or File.read('miniprelude.c') != File.read('miniprelude.c.new')
     FileUtils.mv('miniprelude.c.new', 'miniprelude.c')
   else
@@ -226,8 +219,8 @@ task :objects => [:config_h] do
     FileUtils.touch('prelude.c') # create empty file nevertheless
   end
   if !File.exist?('parse.c') or File.mtime('parse.y') > File.mtime('parse.c')
-    exec_line("/usr/bin/bison -o y.tab.c parse.y")
-    exec_line("/usr/bin/sed -f ./tool/ytab.sed -e \"/^#/s!y\.tab\.c!parse.c!\" y.tab.c > parse.c.new")
+    sh("/usr/bin/bison -o y.tab.c parse.y")
+    sh("/usr/bin/sed -f ./tool/ytab.sed -e \"/^#/s!y\.tab\.c!parse.c!\" y.tab.c > parse.c.new")
     if !File.exist?('parse.c') or File.read('parse.c.new') != File.read('parse.c')
       FileUtils.mv('parse.c.new', 'parse.c')
     else
@@ -239,10 +232,10 @@ task :objects => [:config_h] do
   end
   inc_to_gen = %w{opt_sc.inc optinsn.inc optunifs.inc insns.inc insns_info.inc vmtc.inc vm.inc}.select { |inc| !File.exist?(inc) or File.mtime("template/#{inc}.tmpl") > File.mtime(inc) }
   unless inc_to_gen.empty?
-    exec_line("/usr/bin/ruby -Ks tool/insns2vm.rb #{inc_to_gen.join(' ')}")
+    sh("/usr/bin/ruby -Ks tool/insns2vm.rb #{inc_to_gen.join(' ')}")
   end
   if !File.exist?('node_name.inc') or File.mtime('include/ruby/node.h') > File.mtime('node_name.inc')
-    exec_line("/usr/bin/ruby -n tool/node_name.rb include/ruby/node.h > node_name.inc")
+    sh("/usr/bin/ruby -n tool/node_name.rb include/ruby/node.h > node_name.inc")
   end
   $builder.build
 end
@@ -450,7 +443,7 @@ EOS
 end
 
 task :macruby_dylib => [:rbconfig, :miniruby] do
-  exec_line("./miniruby -I. -I./lib -rrbconfig tool/compile_prelude.rb prelude.rb gem_prelude.rb prelude.c.new")
+  sh("./miniruby -I. -I./lib -rrbconfig tool/compile_prelude.rb prelude.rb gem_prelude.rb prelude.c.new")
   if !File.exist?('prelude.c') or File.read('prelude.c') != File.read('prelude.c.new')
     FileUtils.mv('prelude.c.new', 'prelude.c')
     $builder.build(['prelude'])
@@ -484,7 +477,7 @@ EXTMK_ARGS = "#{SCRIPT_ARGS} --extension --extstatic"
 INSTRUBY_ARGS = "#{SCRIPT_ARGS} --data-mode=0644 --prog-mode=0755 --installed-list #{INSTALLED_LIST} --mantype=\"doc\""
 
 task :extensions => [:miniruby, :macruby_static] do
-  exec_line("./miniruby -I./lib -I.ext/common -I./- -r./ext/purelib.rb ext/extmk.rb #{EXTMK_ARGS}")
+  sh("./miniruby -I./lib -I.ext/common -I./- -r./ext/purelib.rb ext/extmk.rb #{EXTMK_ARGS}")
 end
 
 task :framework_info_plist do
@@ -524,7 +517,7 @@ EOS
 end
 
 task :install =>[:framework_info_plist] do
-  exec_line("./miniruby instruby.rb #{INSTRUBY_ARGS}")  
+  sh("./miniruby instruby.rb #{INSTRUBY_ARGS}")  
 end
 
 task :clean_local do
@@ -534,12 +527,12 @@ end
 
 task :clean_ext do
   if File.exist?('./miniruby') 
-    exec_line("./miniruby -I./lib -I.ext/common -I./- -r./ext/purelib.rb ext/extmk.rb #{EXTMK_ARGS} -- clean")
+    sh("./miniruby -I./lib -I.ext/common -I./- -r./ext/purelib.rb ext/extmk.rb #{EXTMK_ARGS} -- clean")
   end
 end
 
 task :sample_test do
-  exec_line("./miniruby rubytest.rb")
+  sh("./miniruby rubytest.rb")
 end
 
 task :clean => [:clean_local, :clean_ext]
