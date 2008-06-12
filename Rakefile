@@ -82,14 +82,14 @@ class Builder
   def link_archive(name, objs=nil)
     objs ||= @objs
     if should_link?(name, objs)
-      FileUtils.rm_f(name)
+      rm_f(name)
       sh("/usr/bin/ar rcu #{name} #{objs.map { |x| x + '.o' }.join(' ') }")
       sh("/usr/bin/ranlib #{name}")
     end
   end
 
   def clean
-    @objs.map { |o| o + '.o' }.select { |o| File.exist?(o) }.each { |o| FileUtils.rm_f(o) }
+    @objs.map { |o| o + '.o' }.select { |o| File.exist?(o) }.each { |o| rm_f(o) }
   end
  
   private
@@ -177,7 +177,7 @@ end
 $builder = Builder.new(OBJS)
 
 desc "Same as all"
-task :default => [:all]
+task :default => :all
 
 desc "Create config.h"
 task :config_h do
@@ -204,34 +204,34 @@ task :config_h do
     if !File.exist?(config_h) or File.read(config_h) != new_config_h
       File.open(config_h, 'w') { |io| io.print new_config_h }
       ext_dir = ".ext/include/#{NEW_RUBY_PLATFORM}/ruby"
-      FileUtils.mkdir_p(ext_dir)
-      FileUtils.cp(config_h, ext_dir)
+      mkdir_p(ext_dir)
+      cp(config_h, ext_dir)
     end
   end
 end
 
 desc "Build known objects"
-task :objects => [:config_h] do
+task :objects => :config_h do
   sh "/usr/bin/ruby -I. tool/compile_prelude.rb prelude.rb miniprelude.c.new"
   if !File.exist?('miniprelude.c') or File.read('miniprelude.c') != File.read('miniprelude.c.new')
-    FileUtils.mv('miniprelude.c.new', 'miniprelude.c')
+    mv('miniprelude.c.new', 'miniprelude.c')
   else
-    FileUtils.rm('miniprelude.c.new')
+    rm('miniprelude.c.new')
   end
   if !File.exist?('prelude.c')
-    FileUtils.touch('prelude.c') # create empty file nevertheless
+    touch('prelude.c') # create empty file nevertheless
   end
   if !File.exist?('parse.c') or File.mtime('parse.y') > File.mtime('parse.c')
     sh("/usr/bin/bison -o y.tab.c parse.y")
     sh("/usr/bin/sed -f ./tool/ytab.sed -e \"/^#/s!y\.tab\.c!parse.c!\" y.tab.c > parse.c.new")
     if !File.exist?('parse.c') or File.read('parse.c.new') != File.read('parse.c')
-      FileUtils.mv('parse.c.new', 'parse.c')
+      mv('parse.c.new', 'parse.c')
     else
-      FileUtils.rm('parse.c.new')
+      rm('parse.c.new')
     end
   end
   if !File.exist?('lex.c') or File.read('lex.c') != File.read('lex.c.blt')
-    FileUtils.cp('lex.c.blt', 'lex.c')
+    cp('lex.c.blt', 'lex.c')
   end
   inc_to_gen = %w{opt_sc.inc optinsn.inc optunifs.inc insns.inc insns_info.inc vmtc.inc vm.inc}.select { |inc| !File.exist?(inc) or File.mtime("template/#{inc}.tmpl") > File.mtime(inc) }
   unless inc_to_gen.empty?
@@ -244,12 +244,12 @@ task :objects => [:config_h] do
 end
 
 desc "Create miniruby"
-task :miniruby => [:objects] do
+task :miniruby => :objects do
   $builder.link_executable('miniruby', OBJS - ['prelude'])
 end
 
 desc "Create config file"
-task :rbconfig => [:miniruby] do
+task :rbconfig => :miniruby do
   rbconfig = <<EOS
 # This file was created when MacRuby was built.  Any changes made to this file 
 # will be lost the next time MacRuby is built.
@@ -447,34 +447,36 @@ EOS
   end
 end
 
-desc "Build dynamic libraries for MacRuby"
-task :macruby_dylib => [:rbconfig, :miniruby] do
-  sh("./miniruby -I. -I./lib -rrbconfig tool/compile_prelude.rb prelude.rb gem_prelude.rb prelude.c.new")
-  if !File.exist?('prelude.c') or File.read('prelude.c') != File.read('prelude.c.new')
-    FileUtils.mv('prelude.c.new', 'prelude.c')
-    $builder.build(['prelude'])
-  else
-    FileUtils.rm('prelude.c.new')
-  end
-  dylib = "lib#{RUBY_SO_NAME}.#{NEW_RUBY_VERSION}.dylib"
-  $builder.link_dylib(dylib, $builder.objs - ['main', 'gc-stub', 'miniprelude'])
-  major, minor, teeny = NEW_RUBY_VERSION.scan(/\d+/)
-  ["lib#{RUBY_SO_NAME}.#{major}.#{minor}.dylib", "lib#{RUBY_SO_NAME}.dylib"].each do |dylib_alias|
-    if !File.exist?(dylib_alias) or File.readlink(dylib_alias) != dylib  
-      FileUtils.rm_f(dylib_alias)
-      FileUtils.ln_s(dylib, dylib_alias)
+namespace :macruby do
+  desc "Build dynamic libraries for MacRuby"
+  task :dylib => [:rbconfig, :miniruby] do
+    sh("./miniruby -I. -I./lib -rrbconfig tool/compile_prelude.rb prelude.rb gem_prelude.rb prelude.c.new")
+    if !File.exist?('prelude.c') or File.read('prelude.c') != File.read('prelude.c.new')
+      mv('prelude.c.new', 'prelude.c')
+      $builder.build(['prelude'])
+    else
+      rm('prelude.c.new')
+    end
+    dylib = "lib#{RUBY_SO_NAME}.#{NEW_RUBY_VERSION}.dylib"
+    $builder.link_dylib(dylib, $builder.objs - ['main', 'gc-stub', 'miniprelude'])
+    major, minor, teeny = NEW_RUBY_VERSION.scan(/\d+/)
+    ["lib#{RUBY_SO_NAME}.#{major}.#{minor}.dylib", "lib#{RUBY_SO_NAME}.dylib"].each do |dylib_alias|
+      if !File.exist?(dylib_alias) or File.readlink(dylib_alias) != dylib  
+        rm_f(dylib_alias)
+        ln_s(dylib, dylib_alias)
+      end
     end
   end
-end
 
-desc "Build static libraries for MacRuby"
-task :macruby_static => [:macruby_dylib] do
-  $builder.link_archive("lib#{RUBY_SO_NAME}-static.a", $builder.objs - ['main', 'gc-stub', 'miniprelude'])
-end
+  desc "Build static libraries for MacRuby"
+  task :static => :dylib do
+    $builder.link_archive("lib#{RUBY_SO_NAME}-static.a", $builder.objs - ['main', 'gc-stub', 'miniprelude'])
+  end
 
-desc "Build MacRuby"
-task :macruby => [:macruby_dylib] do
-  $builder.link_executable(RUBY_INSTALL_NAME, ['main', 'gc-stub'], "-L. -l#{RUBY_SO_NAME}")
+  desc "Build MacRuby"
+  task :build => :dylib do
+    $builder.link_executable(RUBY_INSTALL_NAME, ['main', 'gc-stub'], "-L. -l#{RUBY_SO_NAME}")
+  end
 end
 
 DESTDIR = (ENV['DESTDIR'] or "")
@@ -485,13 +487,14 @@ EXTMK_ARGS = "#{SCRIPT_ARGS} --extension --extstatic"
 INSTRUBY_ARGS = "#{SCRIPT_ARGS} --data-mode=0644 --prog-mode=0755 --installed-list #{INSTALLED_LIST} --mantype=\"doc\""
 
 desc "Build extensions"
-task :extensions => [:miniruby, :macruby_static] do
-  sh("./miniruby -I./lib -I.ext/common -I./- -r./ext/purelib.rb ext/extmk.rb #{EXTMK_ARGS}")
+task :extensions => [:miniruby, "macruby:static"] do
+  sh "./miniruby -I./lib -I.ext/common -I./- -r./ext/purelib.rb ext/extmk.rb #{EXTMK_ARGS}"
 end
 
-desc "Create the plist file for the framework"
-task :framework_info_plist do
-  plist = <<EOS
+namespace :framework do
+  desc "Create the plist file for the framework"
+  task :info_plist do
+    plist = <<EOS
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -523,37 +526,46 @@ task :framework_info_plist do
 </dict>
 </plist>
 EOS
-  File.open('framework/Info.plist', 'w') { |io| io.print plist }
-end
+    File.open('framework/Info.plist', 'w') { |io| io.print plist }
+  end
 
-desc "Install the framework"
-task :install =>[:framework_info_plist] do
-  sh("./miniruby instruby.rb #{INSTRUBY_ARGS}")  
-end
-
-desc "Clean local build files"
-task :clean_local do
-  $builder.clean
-  ['parse.c', 'lex.c', INSTALLED_LIST].each { |x| FileUtils.rm_f(x) }
-end
-
-desc "Clean extension build files"
-task :clean_ext do
-  if File.exist?('./miniruby') 
-    sh("./miniruby -I./lib -I.ext/common -I./- -r./ext/purelib.rb ext/extmk.rb #{EXTMK_ARGS} -- clean")
+  desc "Install the framework"
+  task :install => :info_plist do
+    sh "./miniruby instruby.rb #{INSTRUBY_ARGS}"
   end
 end
 
+namespace :clean do
+  desc "Clean local build files"
+  task :local do
+    $builder.clean
+    ['parse.c', 'lex.c', INSTALLED_LIST, *Dir['*.inc']].each { |x| rm_f(x) }
+  end
+
+  desc "Clean extension build files"
+  task :ext do
+    if File.exist?('./miniruby') 
+      sh "./miniruby -I./lib -I.ext/common -I./- -r./ext/purelib.rb ext/extmk.rb #{EXTMK_ARGS} -- clean"
+    end
+  end
+end
+
+desc "Same as framework:install"
+task :framework => 'framework:install'
+
+desc "Same as macruby:build"
+task :macruby => 'macruby:build'
+
 desc "Run the sample tests"
 task :sample_test do
-  sh("./miniruby rubytest.rb")
+  sh "./miniruby rubytest.rb"
 end
 
 desc "Clean local and extension build files"
-task :clean => [:clean_local, :clean_ext]
+task :clean => ['clean:local', 'clean:ext']
 
 desc "Build MacRuby and extensions"
 task :all => [:macruby, :extensions]
 
 desc "Same as sample_test"
-task :test => [:sample_test]
+task :test => :sample_test
