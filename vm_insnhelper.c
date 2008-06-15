@@ -353,6 +353,10 @@ call_cfunc(VALUE (*func)(), VALUE recv,
     return Qnil;		/* not reached */
 }
 
+#if WITH_OBJC
+NODE *rb_current_cfunc_node = NULL;
+#endif
+
 static inline VALUE
 vm_call_cfunc(rb_thread_t *th, rb_control_frame_t *reg_cfp,
 	      int num, ID id, VALUE recv, VALUE klass,
@@ -371,7 +375,13 @@ vm_call_cfunc(rb_thread_t *th, rb_control_frame_t *reg_cfp,
 
 	reg_cfp->sp -= num + 1;
 
+#if WITH_OBJC
+	rb_current_cfunc_node = (NODE *)mn;
+#endif
 	val = call_cfunc(mn->nd_cfnc, recv, mn->nd_argc, num, reg_cfp->sp + 1);
+#if WITH_OBJC
+	rb_current_cfunc_node = NULL;
+#endif
 
 	if (reg_cfp != th->cfp + 1) {
 	    rb_bug("cfp consistency error - send");

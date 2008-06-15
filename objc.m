@@ -1055,6 +1055,8 @@ rb_objc_method_get_type(Method method, unsigned count,
     return type;
 }
 
+extern NODE *rb_current_cfunc_node;
+
 static VALUE
 rb_objc_to_ruby_closure(int argc, VALUE *argv, VALUE rcv)
 {
@@ -1071,16 +1073,35 @@ rb_objc_to_ruby_closure(int argc, VALUE *argv, VALUE rcv)
     void *imp;
     bs_element_method_t *bs_method;
 
-    selector = sel_registerName(rb_id2name(rb_frame_this_func()));
-    method = class_getInstanceMethod(object_getClass((void *)rcv), selector); 
+    rb_objc_rval_to_ocid(rcv, (void **)&ocrcv);
+    klass = *(Class *)ocrcv;
+
+    assert(rb_current_cfunc_node != NULL);
+
+    if (rb_current_cfunc_node->u3.value == 0) {
+	selector = sel_registerName(rb_id2name(rb_frame_this_func()));
+	bs_method = rb_bs_find_method(klass, selector);
+	if (bs_method != NULL)
+	    rb_current_cfunc_node->u3.value = (VALUE)bs_method;
+	else
+	    rb_current_cfunc_node->u3.value = Qnil;
+    }
+    else {
+	if (rb_current_cfunc_node->u3.value == Qnil) {
+	    bs_method = NULL;
+	    selector = sel_registerName(rb_id2name(rb_frame_this_func()));
+	}
+	else {
+	    bs_method = (bs_element_method_t *)rb_current_cfunc_node->u3.value;
+	    selector = bs_method->name;
+	}
+    }
+
+    method = class_getInstanceMethod(klass, selector); 
     assert(method != NULL);
     count = method_getNumberOfArguments(method);
     assert(count >= 2);
 
-    rb_objc_rval_to_ocid(rcv, (void **)&ocrcv);
-    klass = *(Class *)ocrcv;
-
-    bs_method = rb_bs_find_method(klass, selector);
     real_count = count;
     if (bs_method != NULL && bs_method->variadic) {
 	if (argc < count - 2)
