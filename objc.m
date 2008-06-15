@@ -1056,7 +1056,7 @@ rb_objc_method_get_type(Method method, unsigned count,
 }
 
 static VALUE
-rb_objc_to_ruby_closure(VALUE rcv, VALUE argv)
+rb_objc_to_ruby_closure(int argc, VALUE *argv, VALUE rcv)
 {
     Method method;
     unsigned i, real_count, count;
@@ -1071,31 +1071,41 @@ rb_objc_to_ruby_closure(VALUE rcv, VALUE argv)
     void *imp;
     bs_element_method_t *bs_method;
 
-    if (TYPE(argv) != T_ARRAY)
-	rb_bug("argv isn't an array");
-
-    method = class_getInstanceMethod(object_getClass((void *)rcv), 
-	sel_registerName(rb_id2name(rb_frame_this_func())));	
+    selector = sel_registerName(rb_id2name(rb_frame_this_func()));
+    method = class_getInstanceMethod(object_getClass((void *)rcv), selector); 
     assert(method != NULL);
     count = method_getNumberOfArguments(method);
     assert(count >= 2);
 
     rb_objc_rval_to_ocid(rcv, (void **)&ocrcv);
-    klass = object_getClass(ocrcv);
-    selector = method_getName(method);
+    klass = *(Class *)ocrcv;
 
     bs_method = rb_bs_find_method(klass, selector);
     real_count = count;
     if (bs_method != NULL && bs_method->variadic) {
-	if (RARRAY_LEN(argv) < count - 2)
-	    rb_raise(rb_eArgError, "wrong number of arguments (%ld for %d)",
-		RARRAY_LEN(argv), count - 2);
-	count = RARRAY_LEN(argv) + 2;
+	if (argc < count - 2)
+	    rb_raise(rb_eArgError, "wrong number of arguments (%d for %d)",
+		argc, count - 2);
+	count = argc + 2;
     }
-    else if (RARRAY_LEN(argv) != count - 2) {
-	rb_raise(rb_eArgError, "wrong number of arguments (%ld for %d)",
-		 RARRAY_LEN(argv), count - 2);
+    else if (argc != count - 2) {
+	rb_raise(rb_eArgError, "wrong number of arguments (%d for %d)",
+		 argc, count - 2);
     }
+
+    if (count == 2) {
+	method_getReturnType(method, buf, sizeof buf);
+	if (buf[0] == '@' || buf[0] == 'v') {
+	    /* Easy case! */
+	    @try {
+		ffi_ret = objc_msgSend(ocrcv, selector);
+	    }
+	    @catch (id e) {
+		rb_objc_exc_raise(e);
+	    }
+	    return buf[0] == '@' ? (VALUE)ffi_ret : Qnil;
+	}
+    } 
 
     ffi_argtypes = (ffi_type **)alloca(sizeof(ffi_type *) * (count + 1));
     ffi_argtypes[0] = &ffi_type_pointer;
@@ -1121,13 +1131,13 @@ rb_objc_to_ruby_closure(VALUE rcv, VALUE argv)
 	    : objc_msgSend; /* alea jacta est */
     }
 
-    for (i = 0; i < RARRAY_LEN(argv); i++) {
+    for (i = 0; i < argc; i++) {
 	type = rb_objc_method_get_type(method, real_count, bs_method, i, buf, 
 	    sizeof buf);
 	ffi_argtypes[i + 2] = rb_objc_octype_to_ffitype(type);
 	assert(ffi_argtypes[i + 2]->size > 0);
 	ffi_args[i + 2] = (void *)alloca(ffi_argtypes[i + 2]->size);
-	rb_objc_rval_to_ocval(RARRAY_AT(argv, i), type, ffi_args[i + 2]);
+	rb_objc_rval_to_ocval(argv[i], type, ffi_args[i + 2]);
     }
 
     ffi_argtypes[count] = NULL;
@@ -1484,7 +1494,7 @@ rb_objc_define_objc_mid_closure(VALUE recv, ID mid, NODE *node)
     if (node != NULL)
 	return node;
 
-    node = NEW_CFUNC(rb_objc_to_ruby_closure, -2); 
+    node = NEW_CFUNC(rb_objc_to_ruby_closure, -1);
     data = NEW_FBODY(NEW_METHOD(node, mod, 
 				NOEX_WITH_SAFE(NOEX_PUBLIC)), 0);
 
