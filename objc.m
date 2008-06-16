@@ -1057,21 +1057,31 @@ rb_objc_method_get_type(Method method, unsigned count,
 
 extern NODE *rb_current_cfunc_node;
 
+struct objc_ruby_closure_context {
+    SEL selector;
+    bs_element_method_t *bs_method;
+    Method method;
+    ffi_cif *cif;
+    IMP imp;
+};
+
 static VALUE
 rb_objc_to_ruby_closure(int argc, VALUE *argv, VALUE rcv)
 {
-    Method method;
     unsigned i, real_count, count;
     ffi_type *ffi_rettype, **ffi_argtypes;
     void *ffi_ret, **ffi_args;
     ffi_cif *cif;
     Class klass;
-    SEL selector;
     const char *type;
     char buf[128];
     id ocrcv;
     void *imp;
-    bs_element_method_t *bs_method;
+    struct objc_ruby_closure_context *ctx;
+    bool super_call;
+
+    super_call = (ruby_current_thread->cfp->flag >> FRAME_MAGIC_MASK_BITS) 
+	& VM_CALL_SUPER_BIT;
 
     rb_objc_rval_to_ocid(rcv, (void **)&ocrcv);
     klass = *(Class *)ocrcv;
@@ -1079,31 +1089,26 @@ rb_objc_to_ruby_closure(int argc, VALUE *argv, VALUE rcv)
     assert(rb_current_cfunc_node != NULL);
 
     if (rb_current_cfunc_node->u3.value == 0) {
-	selector = sel_registerName(rb_id2name(rb_frame_this_func()));
-	bs_method = rb_bs_find_method(klass, selector);
-	if (bs_method != NULL)
-	    rb_current_cfunc_node->u3.value = (VALUE)bs_method;
-	else
-	    rb_current_cfunc_node->u3.value = Qnil;
+	ctx = (struct objc_ruby_closure_context *)xmalloc(sizeof(
+	    struct objc_ruby_closure_context));
+	ctx->selector = sel_registerName(rb_id2name(rb_frame_this_func()));
+	ctx->bs_method = rb_bs_find_method(klass, ctx->selector);
+	ctx->method = class_getInstanceMethod(klass, ctx->selector); 
+	ctx->cif = NULL;
+	ctx->imp = NULL;
+	assert(ctx->method != NULL);
+	GC_WB(&rb_current_cfunc_node->u3.value, ctx);
     }
     else {
-	if (rb_current_cfunc_node->u3.value == Qnil) {
-	    bs_method = NULL;
-	    selector = sel_registerName(rb_id2name(rb_frame_this_func()));
-	}
-	else {
-	    bs_method = (bs_element_method_t *)rb_current_cfunc_node->u3.value;
-	    selector = bs_method->name;
-	}
+	ctx = (struct objc_ruby_closure_context *)
+	    rb_current_cfunc_node->u3.value;
     }
 
-    method = class_getInstanceMethod(klass, selector); 
-    assert(method != NULL);
-    count = method_getNumberOfArguments(method);
+    count = method_getNumberOfArguments(ctx->method);
     assert(count >= 2);
 
     real_count = count;
-    if (bs_method != NULL && bs_method->variadic) {
+    if (ctx->bs_method != NULL && ctx->bs_method->variadic) {
 	if (argc < count - 2)
 	    rb_raise(rb_eArgError, "wrong number of arguments (%d for %d)",
 		argc, count - 2);
@@ -1115,11 +1120,19 @@ rb_objc_to_ruby_closure(int argc, VALUE *argv, VALUE rcv)
     }
 
     if (count == 2) {
-	method_getReturnType(method, buf, sizeof buf);
+	method_getReturnType(ctx->method, buf, sizeof buf);
 	if (buf[0] == '@' || buf[0] == 'v') {
 	    /* Easy case! */
 	    @try {
-		ffi_ret = objc_msgSend(ocrcv, selector);
+		if (super_call) {
+		    struct objc_super s;
+		    s.receiver = ocrcv;
+		    s.class = class_getSuperclass(*(Class *)ocrcv);
+		    ffi_ret = objc_msgSendSuper(&s, ctx->selector);
+		}
+		else {
+		    ffi_ret = objc_msgSend(ocrcv, ctx->selector);
+		}
 	    }
 	    @catch (id e) {
 		rb_objc_exc_raise(e);
@@ -1128,53 +1141,79 @@ rb_objc_to_ruby_closure(int argc, VALUE *argv, VALUE rcv)
 	}
     } 
 
-    ffi_argtypes = (ffi_type **)alloca(sizeof(ffi_type *) * (count + 1));
-    ffi_argtypes[0] = &ffi_type_pointer;
-    ffi_argtypes[1] = &ffi_type_pointer;
+    if (ctx->cif == NULL) {
+	const size_t s = sizeof(ffi_type *) * (count + 1);
+	ffi_argtypes = ctx->bs_method != NULL && ctx->bs_method->variadic
+	    ? (ffi_type **)alloca(s) : (ffi_type **)malloc(s);
+	ffi_argtypes[0] = &ffi_type_pointer;
+	ffi_argtypes[1] = &ffi_type_pointer;
+    }
 
     ffi_args = (void **)alloca(sizeof(void *) * (count + 1));
     ffi_args[0] = &ocrcv;
-    ffi_args[1] = &selector;
+    ffi_args[1] = &ctx->selector;
 
-    if ((ruby_current_thread->cfp->flag >> FRAME_MAGIC_MASK_BITS) 
-	& VM_CALL_SUPER_BIT) {
+    if (super_call) {
 	Class sklass;
 	Method smethod;
 	sklass = class_getSuperclass(klass);
 	assert(sklass != NULL);
-	smethod = class_getInstanceMethod(sklass, selector);
-	assert(smethod != method);
+	smethod = class_getInstanceMethod(sklass, ctx->selector);
+	assert(smethod != ctx->method);
 	imp = method_getImplementation(smethod);	
     }
     else {
-	imp = method == class_getInstanceMethod(klass, selector)
-	    ? method_getImplementation(method)
-	    : objc_msgSend; /* alea jacta est */
+	if (ctx->imp != NULL) {
+	    imp = ctx->imp;
+	}
+	else {
+	    ctx->imp = imp = ctx->method == 
+		class_getInstanceMethod(klass, ctx->selector)
+		    ? method_getImplementation(ctx->method)
+		    : objc_msgSend; /* alea jacta est */
+	}
     }
 
     for (i = 0; i < argc; i++) {
-	type = rb_objc_method_get_type(method, real_count, bs_method, i, buf, 
-	    sizeof buf);
-	ffi_argtypes[i + 2] = rb_objc_octype_to_ffitype(type);
-	assert(ffi_argtypes[i + 2]->size > 0);
-	ffi_args[i + 2] = (void *)alloca(ffi_argtypes[i + 2]->size);
+	ffi_type *ffi_argtype;
+
+	type = rb_objc_method_get_type(ctx->method, real_count, ctx->bs_method, 
+	    i, buf, sizeof buf);
+
+	if (ctx->cif == NULL) {
+	    ffi_argtypes[i + 2] = rb_objc_octype_to_ffitype(type);
+	    assert(ffi_argtypes[i + 2]->size > 0);
+	    ffi_argtype = ffi_argtypes[i + 2];
+	}
+	else {
+	    ffi_argtype = ctx->cif->arg_types[i + 2];
+	}
+
+	ffi_args[i + 2] = (void *)alloca(ffi_argtype->size);
 	rb_objc_rval_to_ocval(argv[i], type, ffi_args[i + 2]);
     }
 
-    ffi_argtypes[count] = NULL;
+    if (ctx->cif == NULL)
+	ffi_argtypes[count] = NULL;
     ffi_args[count] = NULL;
 
-    type = rb_objc_method_get_type(method, real_count, bs_method, -1, buf, 
-	sizeof buf);
-    ffi_rettype = rb_objc_octype_to_ffitype(type);
+    type = rb_objc_method_get_type(ctx->method, real_count, ctx->bs_method, 
+	-1, buf, sizeof buf);
+    ffi_rettype = ctx->cif == NULL 
+	? rb_objc_octype_to_ffitype(type) : ctx->cif->rtype;
 
-    cif = (ffi_cif *)alloca(sizeof(ffi_cif));
-    if (ffi_prep_cif(cif, FFI_DEFAULT_ABI, count, ffi_rettype, 
-		     ffi_argtypes) 
-	!= FFI_OK)
-	rb_fatal("can't prepare cif for objc method type `%s'",
-		 method_getTypeEncoding(method));
-
+    cif = ctx->cif;
+    if (cif == NULL) {
+	if (ctx->bs_method != NULL && ctx->bs_method->variadic)
+	    cif = (ffi_cif *)alloca(sizeof(ffi_cif));
+	else
+	    cif = ctx->cif = (ffi_cif *)malloc(sizeof(ffi_cif));
+	if (ffi_prep_cif(cif, FFI_DEFAULT_ABI, count, ffi_rettype, 
+			 ffi_argtypes) != FFI_OK) {
+	    rb_fatal("can't prepare cif for objc method type `%s'",
+		    method_getTypeEncoding(ctx->method));
+	}
+    }
     if (ffi_rettype != &ffi_type_void) {
 	ffi_ret = (void *)alloca(ffi_rettype->size);
     }
