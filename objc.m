@@ -1500,19 +1500,16 @@ __rb_objc_sync_methods(VALUE mod, Class ocklass)
 #endif
 
 NODE *
-rb_objc_define_objc_mid_closure(VALUE recv, ID mid, NODE *node)
+rb_objc_define_objc_mid_closure(VALUE recv, ID mid, ID alias_mid)
 {
     SEL sel;
     Class ocklass;
     Method method;
     VALUE mod;
-    NODE *data;
+    NODE *node, *data;
     Method (*getMethod)(Class, SEL);
 
     assert(mid > 1);
-
-    if (node != NULL)
-	return NULL; /* TODO: verify that there isn't a prior method */
 
     sel = sel_registerName(rb_id2name(mid));
 
@@ -1559,6 +1556,9 @@ rb_objc_define_objc_mid_closure(VALUE recv, ID mid, NODE *node)
 				NOEX_WITH_SAFE(NOEX_PUBLIC)), 0);
 
     rb_add_method_direct(mod, mid, data);
+
+    if (alias_mid != 0)
+	rb_add_method_direct(mod, alias_mid, data);
 
     return data->nd_body;
 }
