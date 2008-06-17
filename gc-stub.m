@@ -26,13 +26,11 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
-#import <Foundation/Foundation.h>
-
 /* This file is needed to enable GC in miniruby and ruby executables.
  * The __RBDummy__ class is only to have something Objective-C in the 
  * executable bits, for the compiler.
  */
-@interface __RBDummy__ : NSObject
+@interface __RBDummy__
 @end
 @implementation __RBDummy__
 @end

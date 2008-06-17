@@ -1116,7 +1116,7 @@ rb_special_const_p(VALUE obj)
 static char *dln_libs_to_be_linked[] = { EXTLIB, 0 };
 #endif
 
-#if (defined(__APPLE__) || defined(__NeXT__)) && defined(__MACH__)
+#if (defined(__APPLE__) || defined(__NeXT__)) && defined(__MACH__) && !defined(WITH_OBJC)
 /* to link startup code with ObjC support */
 #define RUBY_GLOBAL_SETUP static void objcdummyfunction(void) {objc_msgSend(NULL,NULL);}
 #else

@@ -150,6 +150,7 @@ VALUE rb_Complex(VALUE, VALUE);
 VALUE rb_objc_import_class(Class);
 VALUE rb_objc_create_class(const char *name, VALUE super);
 VALUE rb_objc_rename_class(VALUE klass, const char *name);
+bool rb_objc_install_primitives(Class ocklass, Class ocsuper);
 #endif
 VALUE rb_class_boot(VALUE);
 VALUE rb_class_new(VALUE);

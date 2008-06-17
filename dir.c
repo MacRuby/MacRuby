@@ -1595,6 +1595,26 @@ dir_globs(long argc, VALUE *argv, int flags)
     return ary;
 }
 
+#if WITH_OBJC
+static VALUE
+dir_globs0(VALUE args, int flags)
+{
+    VALUE ary = rb_ary_new();
+    long i, n;
+
+    for (i = 0, n = RARRAY_LEN(args); i < n; i++) {
+	int status;
+	VALUE str = RARRAY_AT(args, i);
+	StringValue(str);
+	status = push_glob(ary, RSTRING_CPTR(str), flags);
+	if (status) 
+	    GLOB_JUMP_TAG(status);
+    }
+
+    return ary;
+}
+#endif
+
 /*
  *  call-seq:
  *     Dir[ array ]                 => array
@@ -1690,8 +1710,12 @@ dir_s_glob(int argc, VALUE *argv, VALUE obj)
 	ary = rb_push_glob(str, flags);
     }
     else {
+#if WITH_OBJC
+	ary = dir_globs0(ary, flags);
+#else
 	volatile VALUE v = ary;
 	ary = dir_globs(RARRAY_LEN(v), RARRAY_PTR(v), flags);
+#endif
     }
 
     if (rb_block_given_p()) {

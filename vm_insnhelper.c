@@ -353,6 +353,10 @@ call_cfunc(VALUE (*func)(), VALUE recv,
     return Qnil;		/* not reached */
 }
 
+#if WITH_OBJC
+NODE *rb_current_cfunc_node = NULL;
+#endif
+
 static inline VALUE
 vm_call_cfunc(rb_thread_t *th, rb_control_frame_t *reg_cfp,
 	      int num, ID id, VALUE recv, VALUE klass,
@@ -371,7 +375,13 @@ vm_call_cfunc(rb_thread_t *th, rb_control_frame_t *reg_cfp,
 
 	reg_cfp->sp -= num + 1;
 
+#if WITH_OBJC
+	rb_current_cfunc_node = (NODE *)mn;
+#endif
 	val = call_cfunc(mn->nd_cfnc, recv, mn->nd_argc, num, reg_cfp->sp + 1);
+#if WITH_OBJC
+	rb_current_cfunc_node = NULL;
+#endif
 
 	if (reg_cfp != th->cfp + 1) {
 	    rb_bug("cfp consistency error - send");
@@ -589,7 +599,7 @@ vm_call_method(rb_thread_t * const th, rb_control_frame_t * const cfp,
 	else {
 	    int stat = 0;
 #if WITH_OBJC
-	    mn = rb_objc_define_objc_mid_closure(recv, id, NULL);
+	    mn = rb_objc_define_objc_mid_closure(recv, id, 0);
 	    if (mn != NULL) {
 		return vm_call_method(th, cfp, num, blockptr, flag, id,
 				      mn, recv, klass);
@@ -1150,25 +1160,16 @@ vm_method_process_named_args(ID *pid, NODE **pmn, VALUE recv, rb_num_t *pnum,
 		return;
 	    }
 	}
-    }
-  
-    if (*pmn == NULL) {
 	id = rb_objc_missing_sel(*pid, *pnum);
-	if (id != *pid
-	    && (mn = rb_objc_define_objc_mid_closure(recv, id, NULL)) 
-		!= NULL) {
-	    *pmn = mn;
-	    *pid = id;
-	    return;
+	if (id != *pid) {
+	    mn = rb_objc_define_objc_mid_closure(recv, id, *pid);
+	    if (mn != NULL) {
+		*pmn = mn;
+		*pid = id;
+		return;
+	    }
 	}
     }
-    else {
-	mn = rb_objc_define_objc_mid_closure(recv, *pid, *pmn);
-	if (mn != NULL) {
-	    *pmn = mn;
-	    return;
-	}
-    }	
 }
 #endif
 

@@ -461,7 +461,7 @@ if RUBY_FRAMEWORK
   # Installing executable links.
   dest_bin = '/usr/local/bin'
   mkdir_p dest_bin, :mode => 0755
-  Dir.entries(CONFIG['bindir']).each do |bin|
+  Dir.entries(with_destdir(CONFIG['bindir'])).each do |bin|
     next if bin[0] == '.'
     link = File.join("../../../", CONFIG['bindir'], bin)
     link.sub!(/#{MACRUBY_VERSION}/, 'Current')
@@ -470,11 +470,11 @@ if RUBY_FRAMEWORK
   # Installing man pages links.
   dest_man = '/usr/local/share/man'
   mkdir_p dest_man, :mode => 0755
-  Dir.entries(CONFIG['mandir']).each do |mandir|
+  Dir.entries(with_destdir(CONFIG['mandir'])).each do |mandir|
     next if mandir[0] == '.'
-    if File.stat(File.join(CONFIG['mandir'], mandir)).directory?
+    if File.stat(File.join(with_destdir(CONFIG['mandir']), mandir)).directory?
       mkdir_p File.join(dest_man, File.basename(mandir)), :mode => 0755
-      Dir.entries(File.join(CONFIG['mandir'], mandir)).each do |man|
+      Dir.entries(File.join(with_destdir(CONFIG['mandir']), mandir)).each do |man|
         next if man[0] == '.'
         link = File.join("../../../../../", CONFIG['mandir'], mandir, man)
         link.sub!(/#{MACRUBY_VERSION}/, 'Current')
