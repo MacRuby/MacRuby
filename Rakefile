@@ -212,7 +212,7 @@ end
 
 desc "Build known objects"
 task :objects => :config_h do
-  sh "/usr/bin/ruby -I. tool/compile_prelude.rb prelude.rb miniprelude.c.new"
+  sh "/usr/bin/ruby tool/compile_prelude.rb prelude.rb miniprelude.c.new"
   if !File.exist?('miniprelude.c') or File.read('miniprelude.c') != File.read('miniprelude.c.new')
     mv('miniprelude.c.new', 'miniprelude.c')
   else
