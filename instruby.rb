@@ -435,6 +435,8 @@ unless $installing_rdoc
 
 install_stuff('Xcode templates', 'misc/xcode-templates', 
   '/Library/Application Support/Developer/3.0/Xcode', 0755)
+install_stuff('Xcode 3.1 templates', 'misc/xcode-templates', 
+  '/Library/Application Support/Developer/Shared/Xcode', 0755)
 install_stuff('samples', 'sample-macruby', 
   '/Developer/Examples/Ruby/MacRuby', 0775)
 
