@@ -1063,6 +1063,7 @@ struct objc_ruby_closure_context {
     Method method;
     ffi_cif *cif;
     IMP imp;
+    Class klass;
 };
 
 static VALUE
@@ -1096,6 +1097,7 @@ rb_objc_to_ruby_closure(int argc, VALUE *argv, VALUE rcv)
 	ctx->method = class_getInstanceMethod(klass, ctx->selector); 
 	ctx->cif = NULL;
 	ctx->imp = NULL;
+	ctx->klass = NULL;
 	assert(ctx->method != NULL);
 	GC_WB(&rb_current_cfunc_node->u3.value, ctx);
     }
@@ -1163,7 +1165,7 @@ rb_objc_to_ruby_closure(int argc, VALUE *argv, VALUE rcv)
 	imp = method_getImplementation(smethod);	
     }
     else {
-	if (ctx->imp != NULL) {
+	if (ctx->imp != NULL && ctx->klass == klass) {
 	    imp = ctx->imp;
 	}
 	else {
@@ -1171,6 +1173,7 @@ rb_objc_to_ruby_closure(int argc, VALUE *argv, VALUE rcv)
 		class_getInstanceMethod(klass, ctx->selector)
 		    ? method_getImplementation(ctx->method)
 		    : objc_msgSend; /* alea jacta est */
+	    ctx->klass = klass;
 	}
     }
 
