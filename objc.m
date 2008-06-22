@@ -2524,6 +2524,13 @@ imp_rb_obj_allocWithZone(void *rcv, SEL sel, void *zone)
     return rb_objc_allocate(rcv);
 }
 
+static void *
+imp_rb_obj_init(void *rcv, SEL sel)
+{
+    rb_funcall((VALUE)rcv, idInitialize, 0);
+    return rcv;
+}
+
 static void
 rb_install_alloc_methods(void)
 {
@@ -2532,6 +2539,8 @@ rb_install_alloc_methods(void)
     rb_objc_install_method(klass, @selector(alloc), (IMP)imp_rb_obj_alloc);
     rb_objc_install_method(klass, @selector(allocWithZone:), 
 	(IMP)imp_rb_obj_allocWithZone);
+    rb_objc_install_method(RCLASS_OCID(rb_cObject), @selector(init), 
+	(IMP)imp_rb_obj_init);
 }
 
 ID
