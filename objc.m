@@ -163,7 +163,7 @@ rb_objc_get_first_type(const char *type, char *buf, size_t buf_len)
 	    type++;
 	    buf[0] = _C_PTR;
 	    buf_len -= 1;
-	    return rb_objc_get_first_type(type, buf, buf_len);
+	    return rb_objc_get_first_type(type, &buf[1], buf_len);
     }
 
     type++;
