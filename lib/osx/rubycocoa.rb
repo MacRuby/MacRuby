@@ -55,15 +55,16 @@ class NSObject
       # end
       
       selector = parts.join(':') << ':'
-      
-      #if respond_to? selector # doesn't find objc methods yet.
-      #if respondsToSelector(selector) # need to load foundation framework, but hangs...
-      if respondsToSelector(selector) == 1
+      if respond_to?(selector) || respondsToSelector(selector) == 1
         eval "def #{mname}(*args); send('#{selector}', *args); end"
         return send(selector, *args)
       end
     end
-    __method_missing_before_rubycocoa_layer(mname, *args, &block)
+    # FIXME: For some reason calling super or the original implementation
+    # causes a stack level too deep execption. Is this a problem?
+    #__method_missing_before_rubycocoa_layer(mname, *args, &block)
+    
+    raise NoMethodError, "undefined method `#{mname}' for #{inspect}:#{self.class}"
   end
 end
 

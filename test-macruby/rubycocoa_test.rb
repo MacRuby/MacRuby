@@ -3,7 +3,7 @@
 require "test/spec"
 require 'mocha'
 
-#require File.expand_path('../../lib/osx/rubycocoa', __FILE__)
+#require File.expand_path('../../lib/osx/cocoa', __FILE__)
 require 'osx/cocoa'
 
 class TestRubyCocoaStyleMethod < OSX::NSObject
@@ -25,6 +25,10 @@ class TestRubyCocoaStyleMethod < OSX::NSObject
   
   def method_notRubyCocoaStyle(first_arg, second_arg, third_arg)
   end
+  
+  def self.classMethod(mname, macRubyStyle:mr_style, withExtraArg:arg)
+    "#{mname}(#{mr_style}, #{arg})"
+  end
 end
 
 class TestRubyCocoaStyleSuperMethod < OSX::NSObject
@@ -44,7 +48,7 @@ class NSObjectSubclassWithoutInitialize < OSX::NSObject; end
 CONSTANT_IN_THE_TOPLEVEL_OBJECT_INSTEAD_OF_OSX = true
 
 describe "RubyCocoa layer, in general" do
-  it "should load AppKit when the osx/cocoa file is loaded" do
+  xit "should load AppKit when the osx/cocoa file is loaded" do
     Kernel.expects(:framework).with('AppKit')
     load 'osx/cocoa.rb'
   end
@@ -73,15 +77,34 @@ describe "NSObject additions" do
     NSObjectSubclassWithoutInitialize.alloc.init.instance_variable_get(:@set_from_initialize).should.be nil
   end
   
-  it "should catch RubyCocoa style method names, call the correct MacRuby style method and define a shortcut method" do
+  it "should catch RubyCocoa style instance method, call the correct MacRuby style method and define a shortcut method" do
     @obj.perform_selector_with_object('description', nil).should.match /^<TestRubyCocoaStyleMethod/
     @obj.respond_to?(:callMethod_withArgs).should.be true
     @obj.perform_selector_with_object('description', nil).should.match /^<TestRubyCocoaStyleMethod/
   end
   
-  it "should also catch RubyCocoa style methods that end with a underscore" do
+  it "should catch RubyCocoa style instance methods that end with a underscore" do
     @obj.callMethod_withArgs_('description', nil).should.match /^<TestRubyCocoaStyleMethod/
     @obj.respond_to?(:callMethod_withArgs_).should.be true
+  end
+  
+  it "should catch RubyCocoa style instance methods defined in Objective-C" do
+    color = NSColor.colorWithCalibratedRed(1.0, green:1.0, blue:1.0, alpha:1.0)
+    lambda { color.blendedColorWithFraction_ofColor(0.5, NSColor.greenColor) }.should.not.raise NoMethodError
+  end
+  
+  it "should catch RubyCocoa style class methods defined in ruby" do
+    lambda { TestRubyCocoaStyleMethod.classMethod_macRubyStyle_withExtraArg(1, 2, 3) }.should.not.raise NoMethodError
+    TestRubyCocoaStyleMethod.respond_to?(:classMethod_macRubyStyle_withExtraArg).should.be true
+  end
+  
+  it "should catch RubyCocoa style class methods defined in Objective-C" do
+    lambda { NSColor.colorWithCalibratedRed_green_blue_alpha(1.0, 1.0, 1.0, 1.0) }.should.not.raise NoMethodError
+    NSColor.respond_to?(:colorWithCalibratedRed_green_blue_alpha).should.be true
+  end
+  
+  it "should still raise NoMethodError if a class method doesn't exist" do
+    lambda { NSColor.colorWithCalibratedRed_pink(1.0, 1.0) }.should.raise NoMethodError
   end
   
   it "should also work on other regular NSObject subclasses" do
