@@ -2,6 +2,8 @@
 
 require "test/spec"
 require 'mocha'
+
+#require File.expand_path('../../lib/osx/rubycocoa', __FILE__)
 require 'osx/cocoa'
 
 class TestRubyCocoaStyleMethod < OSX::NSObject
@@ -19,6 +21,9 @@ class TestRubyCocoaStyleMethod < OSX::NSObject
   
   def method_rubyCocoaStyle_withExtraArg(mname, rc_style, arg)
     "#{mname}(#{rc_style}, #{arg})"
+  end
+  
+  def method_notRubyCocoaStyle(first_arg, second_arg, third_arg)
   end
 end
 
@@ -39,13 +44,9 @@ class NSObjectSubclassWithoutInitialize < OSX::NSObject; end
 CONSTANT_IN_THE_TOPLEVEL_OBJECT_INSTEAD_OF_OSX = true
 
 describe "RubyCocoa layer, in general" do
-  xit "should load AppKit when the osx/cocoa file is loaded" do
+  it "should load AppKit when the osx/cocoa file is loaded" do
     Kernel.expects(:framework).with('AppKit')
     load 'osx/cocoa.rb'
-  end
-  
-  it "should still raise a RuntimeError" do
-    lambda { Kernel.framework 'Foo' }.should.raise RuntimeError
   end
   
   it "should set a global variable which indicates that a framework is being loaded" do
@@ -72,7 +73,7 @@ describe "NSObject additions" do
     NSObjectSubclassWithoutInitialize.alloc.init.instance_variable_get(:@set_from_initialize).should.be nil
   end
   
-  it "should catch RubyCocoa style method names, call the correct method and define a shortcut method" do
+  it "should catch RubyCocoa style method names, call the correct MacRuby style method and define a shortcut method" do
     @obj.perform_selector_with_object('description', nil).should.match /^<TestRubyCocoaStyleMethod/
     @obj.respond_to?(:callMethod_withArgs).should.be true
     @obj.perform_selector_with_object('description', nil).should.match /^<TestRubyCocoaStyleMethod/
@@ -89,13 +90,13 @@ describe "NSObject additions" do
     nsstring.should == 'foobar'
   end
   
-  it "should still raise a NoMethodError if the selector doesn't exist (or rather call the previous implementation)" do
+  it "should still raise a NoMethodError if the selector doesn't exist when a method is missing" do
     lambda { @obj.does_not_exist }.should.raise NoMethodError
     lambda { @obj.doesnotexist_ }.should.raise NoMethodError
     lambda { @obj.doesnotexist }.should.raise NoMethodError
   end
   
-  it "should be possible to call super methods" do
+  it "should be possible to call super_foo type methods" do
     lambda { TestRubyCocoaStyleSuperMethod.alloc.init }.should.not.raise.exception
   end
   
@@ -110,6 +111,10 @@ describe "NSObject additions" do
   it "should create MacRuby style method aliases for any method containing underscores" do
     @obj.respond_to?(:"method:rubyCocoaStyle:withExtraArg:").should.be true
     @obj.method('foo', rubyCocoaStyle:true, withExtraArg:false).should == 'foo(true, false)'
+  end
+  
+  it "should not create MacRuby style method aliases for methods containing underscores if the arity doesn't match" do
+    @obj.respond_to?(:"method:notRubyCocoaStyle:").should.be false
   end
 end
 
@@ -139,7 +144,7 @@ describe 'OSX module' do
     OSX::CONSTANT_IN_THE_TOPLEVEL_OBJECT_INSTEAD_OF_OSX.should.be true
   end
   
-  it "should still raise a NameError from OSX not the toplevel object" do
+  it "should still raise a NameError from OSX, not from the toplevel object, when a constant is missing" do
     lambda { OSX::DOES_NOT_EXIST_IN_TOPLEVEL_OBJECT }.should.raise NameError
     
     begin

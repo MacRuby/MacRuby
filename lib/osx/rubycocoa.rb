@@ -31,16 +31,6 @@ class NSObject
     end
   end
   
-  #alias_method :__init_added_before_rubycocoa_layer, :init
-  # def init
-  #   #if __init_added_before_rubycocoa_layer
-  #     # p self
-  #     # p initialize
-  #     initialize
-  #     self
-  #   #end
-  # end
-  
   def objc_send(*args)
     if args.length > 1
       selector, new_args = '', []
