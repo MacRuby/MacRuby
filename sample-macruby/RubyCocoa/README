@@ -1,0 +1,5 @@
+sndplay.rb - Works.
+HelloWorld.rb - Sometimes hangs when pushing the hello button.
+fontnames.rb  - Works.
+darkroom.rb - Works (when used with these options: --output=google.png --height=600 http://google.com, there's a bug in darkroom which triggers when a height isn't specified). But needed to move #initialize code into #init because #initialize isn't called when used with alloc.init. However #init can't be used either in a real RubyCocoa way, because that would mean calling super_init which also isn't implemented yet.
+TransparentHello.rb - Works, but trying to interrupt the runloop doesn't work.
