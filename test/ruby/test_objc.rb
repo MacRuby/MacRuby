@@ -147,5 +147,64 @@ class TestObjC < Test::Unit::TestCase
     assert_raise(ArgumentError) { NSStringFromRect([1, 2, 3, 4, 5]) }
   end
 
+  class TestInitCallInitialize
+    attr_reader :foo
+    def initialize
+      @foo = 42
+    end
+  end
+  def test_init_call_initialize
+    o = TestInitCallInitialize.new
+    assert_equal(42, o.foo)
+    o = TestInitCallInitialize.alloc.init
+    assert_equal(42, o.foo)
+  end
+
+  def test_call_self
+    o = Object.new
+    assert_equal(o, o.self)
+    s = 'foo'
+    assert_equal(s, s.self)
+    n = 42
+    assert_kind_of(NSNumber, n.self)
+    assert_equal(42, n.self.intValue)
+    n = nil
+    assert_kind_of(NSNull, n.self)
+    assert_equal(NSNull.null, n.self)
+    # TODO this currently SEGV
+    #m = String
+    #assert_equal(m, m.self)
+  end
+
+  def test_call_superclass
+    o = Object.new
+    assert_equal(NSObject, o.superclass)
+    s = 'foo'
+    assert_equal(NSMutableString, s.superclass)
+    n = 42
+    assert_equal(NSNumber, n.superclass)
+    n = nil 
+    assert_equal(NSObject, n.superclass)
+  end
+
+  def test_no_direct_nsobject_subclass
+    old_verbose = $VERBOSE
+    $VERBOSE = nil # no warn
+    klass = eval("class Foo < NSObject; end; Foo")
+    assert_equal(Object, klass.superclass)
+    $VERBOSE = old_verbose
+  end
+
+  class TestSuper1
+    def foo; 'xxx'; end
+  end
+  class TestSuper2 < TestSuper1
+    def bar; __super_objc_send__(:foo); end
+  end
+  def test_objc_super
+    o = TestSuper2.new
+    assert_equal('xxx', o.bar)
+  end
+
 end
 

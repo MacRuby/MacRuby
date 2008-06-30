@@ -130,17 +130,24 @@ rb_objc_install_primitives(Class ocklass, Class ocsuper)
 }
 
 static VALUE
-rb_objc_alloc_class(const char *name, VALUE super, VALUE flags, VALUE klass)
+rb_objc_alloc_class(const char *name, VALUE *psuper, VALUE flags, VALUE klass)
 {
-    VALUE obj;
+    VALUE super, obj;
     Class ocklass, ocsuper;
     char ocname[128];
+
+    super = psuper == NULL ? 0 : *psuper;
 
     if (name == NULL) {
 	static long anon_count = 1;
     	snprintf(ocname, sizeof ocname, "RBAnonymous%ld", ++anon_count);
     }
     else {
+	if (super == rb_cBasicObject && strcmp(name, "Object") != 0) {
+	    rb_warn("Do not subclass NSObject directly, please subclass " \
+		    "Object instead.");
+	    super = *psuper = rb_cObject; 
+	}
 	if (objc_getClass(name) != NULL) {
 	    long count = 1;
 	    snprintf(ocname, sizeof ocname, "RB%s", name);
@@ -183,7 +190,7 @@ rb_objc_create_class(const char *name, VALUE super)
 {
     VALUE klass;
     
-    klass = rb_objc_alloc_class(name, super, T_CLASS, rb_cClass);
+    klass = rb_objc_alloc_class(name, &super, T_CLASS, rb_cClass);
  
     class_init(klass);
 
@@ -247,7 +254,7 @@ static VALUE
 class_alloc(VALUE flags, VALUE klass)
 {
 #if WITH_OBJC
-    VALUE obj = rb_objc_alloc_class(NULL, 0, flags, klass);
+    VALUE obj = rb_objc_alloc_class(NULL, NULL, flags, klass);
 #else
     NEWOBJ(obj, struct RClass);
     OBJSETUP(obj, klass, flags);

@@ -47,12 +47,12 @@ class NSObject
   alias_method :__method_missing_before_rubycocoa_layer, :method_missing
   def method_missing(mname, *args, &block)
     if (parts = mname.to_s.split('_')).length > 1
-      # if parts.first == 'super'
-      #   selector = args.empty? ? parts.last : parts[1..-1].join(':') << ':'
-      #   if self.class.superclass.instance_methods.include?(selector.to_sym)
-      #     # and now we need to somehow call the supers implementation of the caller
-      #   end
-      # end
+       if parts.first == 'super'
+         selector = args.empty? ? parts.last : parts[1..-1].join(':') << ':'
+         if self.class.superclass.instance_methods.include?(selector.to_sym)
+	   return __super_objc_send__(selector, *args)
+         end
+       end
       
       selector = parts.join(':') << ':'
       if respond_to?(selector) || respondsToSelector(selector) == 1

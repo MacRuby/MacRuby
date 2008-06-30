@@ -402,7 +402,7 @@ rb_objc_octype_to_ffitype(const char *octype)
 }
 
 static bool
-rb_objc_rval_to_ocid(VALUE rval, void **ocval)
+rb_objc_rval_to_ocid(VALUE rval, void **ocval, bool force_nsnil)
 {
     if (!rb_special_const_p(rval) && rb_objc_is_non_native(rval)) {
 	*(id *)ocval = (id)rval;
@@ -423,7 +423,15 @@ rb_objc_rval_to_ocid(VALUE rval, void **ocval)
 	    return true;
 
 	case T_NIL:
-	    *(id *)ocval = NULL;
+	    if (force_nsnil) {
+		static id snull = nil;
+		if (snull == nil)
+		    snull = [NSNull null];
+		*(id *)ocval = snull;
+	    }
+	    else {
+		*(id *)ocval = NULL;
+	    }
 	    return true;
 
 	case T_TRUE:
@@ -710,7 +718,7 @@ rb_objc_rval_to_ocval(VALUE rval, const char *octype, void **ocval)
     switch (*octype) {
 	case _C_ID:
 	case _C_CLASS:
-	    ok = rb_objc_rval_to_ocid(rval, ocval);
+	    ok = rb_objc_rval_to_ocid(rval, ocval, false);
 	    break;
 
 	case _C_SEL:
@@ -1067,44 +1075,16 @@ struct objc_ruby_closure_context {
 };
 
 static VALUE
-rb_objc_to_ruby_closure(int argc, VALUE *argv, VALUE rcv)
+rb_objc_call_objc(int argc, VALUE *argv, id ocrcv, Class klass, 
+		  bool super_call, struct objc_ruby_closure_context *ctx)
 {
     unsigned i, real_count, count;
     ffi_type *ffi_rettype, **ffi_argtypes;
     void *ffi_ret, **ffi_args;
     ffi_cif *cif;
-    Class klass;
     const char *type;
     char buf[128];
-    id ocrcv;
     void *imp;
-    struct objc_ruby_closure_context *ctx;
-    bool super_call;
-
-    super_call = (ruby_current_thread->cfp->flag >> FRAME_MAGIC_MASK_BITS) 
-	& VM_CALL_SUPER_BIT;
-
-    rb_objc_rval_to_ocid(rcv, (void **)&ocrcv);
-    klass = *(Class *)ocrcv;
-
-    assert(rb_current_cfunc_node != NULL);
-
-    if (rb_current_cfunc_node->u3.value == 0) {
-	ctx = (struct objc_ruby_closure_context *)xmalloc(sizeof(
-	    struct objc_ruby_closure_context));
-	ctx->selector = sel_registerName(rb_id2name(rb_frame_this_func()));
-	ctx->bs_method = rb_bs_find_method(klass, ctx->selector);
-	ctx->method = class_getInstanceMethod(klass, ctx->selector); 
-	ctx->cif = NULL;
-	ctx->imp = NULL;
-	ctx->klass = NULL;
-	assert(ctx->method != NULL);
-	GC_WB(&rb_current_cfunc_node->u3.value, ctx);
-    }
-    else {
-	ctx = (struct objc_ruby_closure_context *)
-	    rb_current_cfunc_node->u3.value;
-    }
 
     count = method_getNumberOfArguments(ctx->method);
     assert(count >= 2);
@@ -1129,7 +1109,7 @@ rb_objc_to_ruby_closure(int argc, VALUE *argv, VALUE rcv)
 		if (super_call) {
 		    struct objc_super s;
 		    s.receiver = ocrcv;
-		    s.class = class_getSuperclass(*(Class *)ocrcv);
+		    s.class = klass;
 		    ffi_ret = objc_msgSendSuper(&s, ctx->selector);
 		}
 		else {
@@ -1173,7 +1153,6 @@ rb_objc_to_ruby_closure(int argc, VALUE *argv, VALUE rcv)
 		class_getInstanceMethod(klass, ctx->selector)
 		    ? method_getImplementation(ctx->method)
 		    : objc_msgSend; /* alea jacta est */
-	    ctx->klass = klass;
 	}
     }
 
@@ -1239,6 +1218,70 @@ rb_objc_to_ruby_closure(int argc, VALUE *argv, VALUE rcv)
     else {
 	return Qnil;
     }
+}
+
+static VALUE
+rb_objc_to_ruby_closure(int argc, VALUE *argv, VALUE rcv)
+{
+    id ocrcv;
+    bool super_call;
+    Class klass;
+    struct objc_ruby_closure_context *ctx;
+
+    rb_objc_rval_to_ocid(rcv, (void **)&ocrcv, true);
+    super_call = (ruby_current_thread->cfp->flag >> FRAME_MAGIC_MASK_BITS) 
+	& VM_CALL_SUPER_BIT;
+    klass = super_call ? class_getSuperclass(*(Class *)ocrcv) : *(Class *)ocrcv;
+    
+    assert(rb_current_cfunc_node != NULL);
+
+    if (rb_current_cfunc_node->u3.value == 0) {
+	ctx = (struct objc_ruby_closure_context *)xmalloc(sizeof(
+	    struct objc_ruby_closure_context));
+	ctx->selector = sel_registerName(rb_id2name(rb_frame_this_func()));
+	ctx->bs_method = rb_bs_find_method(*(Class *)rcv, ctx->selector);
+	ctx->method = class_getInstanceMethod(*(Class *)rcv, ctx->selector); 
+	assert(ctx->method != NULL);
+	ctx->cif = NULL;
+	ctx->imp = NULL;
+	ctx->klass = NULL;
+	GC_WB(&rb_current_cfunc_node->u3.value, ctx);
+    }
+    else {
+	ctx = (struct objc_ruby_closure_context *)
+	    rb_current_cfunc_node->u3.value;
+    }
+
+    return rb_objc_call_objc(argc, argv, ocrcv, klass, super_call, ctx);
+}
+
+static VALUE
+rb_super_objc_send(int argc, VALUE *argv, VALUE rcv)
+{
+    struct objc_ruby_closure_context fake_ctx;
+    id ocrcv;
+    ID mid;
+    Class klass;
+
+    if (argc < 1)
+	rb_raise(rb_eArgError, "expected at least one argument");
+
+    mid = rb_to_id(argv[0]);
+    argv++;
+    argc--;
+
+    rb_objc_rval_to_ocid(rcv, (void **)&ocrcv, true);
+    klass = class_getSuperclass(*(Class *)ocrcv);
+
+    fake_ctx.selector = sel_registerName(rb_id2name(mid));
+    fake_ctx.method = class_getInstanceMethod(klass, fake_ctx.selector); 
+    assert(fake_ctx.method != NULL);
+    fake_ctx.bs_method = NULL;
+    fake_ctx.cif = NULL;
+    fake_ctx.imp = NULL;
+    fake_ctx.klass = NULL;
+
+    return rb_objc_call_objc(argc, argv, ocrcv, klass, true, &fake_ctx);
 }
 
 #define IGNORE_PRIVATE_OBJC_METHODS 1
@@ -2999,6 +3042,8 @@ Init_ObjC(void)
 		CFAbsoluteTimeGetCurrent(), 0.1, 0, 0, timer_cb, NULL);
 	CFRunLoopAddTimer(CFRunLoopGetMain(), timer, kCFRunLoopDefaultMode);
     }
+
+    rb_define_method(rb_cBasicObject, "__super_objc_send__", rb_super_objc_send, -1);
 }
 
 @interface Protocol
