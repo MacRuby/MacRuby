@@ -353,10 +353,6 @@ call_cfunc(VALUE (*func)(), VALUE recv,
     return Qnil;		/* not reached */
 }
 
-#if WITH_OBJC
-NODE *rb_current_cfunc_node = NULL;
-#endif
-
 static inline VALUE
 vm_call_cfunc(rb_thread_t *th, rb_control_frame_t *reg_cfp,
 	      int num, ID id, VALUE recv, VALUE klass,

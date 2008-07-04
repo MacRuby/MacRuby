@@ -14,6 +14,10 @@
 #include "ruby/encoding.h"
 #include "gc.h"
 
+#if WITH_OBJC
+NODE *rb_current_cfunc_node = NULL;
+#endif
+
 #include "insnhelper.h"
 #include "vm_insnhelper.c"
 #include "vm_eval.c"

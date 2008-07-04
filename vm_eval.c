@@ -72,7 +72,13 @@ vm_call0(rb_thread_t * th, VALUE klass, VALUE recv, VALUE id, ID oid,
 	    cfp->method_id = id;
 	    cfp->method_class = klass;
 
+#if WITH_OBJC
+	    rb_current_cfunc_node = (NODE *)body;
+#endif
 	    val = call_cfunc(body->nd_cfnc, recv, body->nd_argc, argc, argv);
+#if WITH_OBJC
+	    rb_current_cfunc_node = NULL;
+#endif
 
 	    if (reg_cfp != th->cfp + 1) {
 		SDR2(reg_cfp);
