@@ -1,11 +1,27 @@
 # User customizable variables.
 
-RUBY_INSTALL_NAME = 'macruby'
-RUBY_SO_NAME = RUBY_INSTALL_NAME
-ARCHS = %w{ppc i386}
-FRAMEWORK_NAME = 'MacRuby'
-FRAMEWORK_INSTDIR = '/Library/Frameworks'
-NO_WARN_BUILD = true
+def do_option(name, default)
+  val = ENV[name]
+  if val
+    if block_given?
+      yield val
+    else
+      val
+    end
+  else
+    default
+  end
+end
+
+RUBY_INSTALL_NAME = do_option('ruby_install_name', 'macruby')
+RUBY_SO_NAME = do_option('ruby_so_name', RUBY_INSTALL_NAME)
+ARCHS = do_option('archs', %w{ppc i386}) { |x| x.split(',') }
+FRAMEWORK_NAME = do_option('framework_name', 'MacRuby')
+FRAMEWORK_INSTDIR = do_option('framework_instdir', '/Library/Frameworks')
+NO_WARN_BUILD = !do_option('allow_build_warnings', true)
+BUILD_AS_EMBEDDABLE = do_option('build_as_embeddable', false)
+
+# TODO: we should find a way to document these options in rake's --help
 
 # Everything below this comment should *not* be customized.
 
@@ -30,12 +46,21 @@ RUBY_VENDOR_LIB = File.join(FRAMEWORK_USR_LIB_RUBY, 'vendor_ruby')
 RUBY_VENDOR_LIB2 = File.join(RUBY_VENDOR_LIB, NEW_RUBY_VERSION)
 RUBY_VENDOR_ARCHLIB = File.join(RUBY_VENDOR_LIB2, NEW_RUBY_PLATFORM)
 
+INSTALL_NAME = 
+  if BUILD_AS_EMBEDDABLE
+    File.join("@executable_path/../Frameworks", FRAMEWORK_NAME + '.framework',
+	      'Versions', MACRUBY_VERSION, 'usr/lib', 
+	      'lib' + RUBY_SO_NAME + '.dylib')
+  else
+    File.join(FRAMEWORK_USR_LIB, 'lib' + RUBY_SO_NAME + '.dylib')
+  end
+
 ARCHFLAGS = ARCHS.map { |a| '-arch ' + a }.join(' ')
 CFLAGS = "-I. -I./include -I/usr/include/libxml2 #{ARCHFLAGS} -fno-common -pipe -O2 -g -Wall"
 CFLAGS << " -Wno-parentheses -Wno-deprecated-declarations -Werror" if NO_WARN_BUILD
 OBJC_CFLAGS = CFLAGS + " -fobjc-gc-only"
 LDFLAGS = "-lpthread -ldl -lxml2 -lobjc -lffi -lauto -framework Foundation"
-DLDFLAGS = "-dynamiclib -undefined suppress -flat_namespace -install_name #{File.join(FRAMEWORK_USR_LIB, 'lib' + RUBY_SO_NAME + '.dylib')} -current_version #{MACRUBY_VERSION} -compatibility_version #{MACRUBY_VERSION}"
+DLDFLAGS = "-dynamiclib -undefined suppress -flat_namespace -install_name #{INSTALL_NAME} -current_version #{MACRUBY_VERSION} -compatibility_version #{MACRUBY_VERSION}"
 
 OBJS = %w{ 
   array bignum class compar complex dir enum enumerator error eval load proc 
