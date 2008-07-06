@@ -353,10 +353,6 @@ call_cfunc(VALUE (*func)(), VALUE recv,
     return Qnil;		/* not reached */
 }
 
-#if WITH_OBJC
-NODE *rb_current_cfunc_node = NULL;
-#endif
-
 static inline VALUE
 vm_call_cfunc(rb_thread_t *th, rb_control_frame_t *reg_cfp,
 	      int num, ID id, VALUE recv, VALUE klass,
@@ -1130,6 +1126,11 @@ vm_method_process_named_args(ID *pid, NODE **pmn, VALUE recv, rb_num_t *pnum,
     if (*pmn == NULL) {
 	const char *p, *mname;
 	long i;
+	mn = rb_objc_define_objc_mid_closure(recv, *pid, 0);
+	if (mn != NULL) {
+	    *pmn = mn;
+	    return;
+	}
 	mname = rb_id2name(*pid);
 	if (*pid > 1 && (p = strchr(mname, ':')) != NULL) {
 	    char buf[512];

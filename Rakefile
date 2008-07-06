@@ -1,11 +1,28 @@
 # User customizable variables.
 
-RUBY_INSTALL_NAME = 'macruby'
-RUBY_SO_NAME = RUBY_INSTALL_NAME
-ARCHS = %w{ppc i386}
-FRAMEWORK_NAME = 'MacRuby'
-FRAMEWORK_INSTDIR = '/Library/Frameworks'
-NO_WARN_BUILD = true
+def do_option(name, default)
+  val = ENV[name]
+  if val
+    if block_given?
+      yield val
+    else
+      val
+    end
+  else
+    default
+  end
+end
+
+RUBY_INSTALL_NAME = do_option('ruby_install_name', 'macruby')
+RUBY_SO_NAME = do_option('ruby_so_name', RUBY_INSTALL_NAME)
+ARCHS = do_option('archs', %w{ppc i386}) { |x| x.split(',') }
+FRAMEWORK_NAME = do_option('framework_name', 'MacRuby')
+FRAMEWORK_INSTDIR = do_option('framework_instdir', '/Library/Frameworks')
+NO_WARN_BUILD = !do_option('allow_build_warnings', false)
+BUILD_AS_EMBEDDABLE = do_option('build_as_embeddable', false)
+ENABLE_STATIC_LIBRARY = do_option('enable_static_library', 'no') { 'yes' }
+
+# TODO: we should find a way to document these options in rake's --help
 
 # Everything below this comment should *not* be customized.
 
@@ -30,12 +47,21 @@ RUBY_VENDOR_LIB = File.join(FRAMEWORK_USR_LIB_RUBY, 'vendor_ruby')
 RUBY_VENDOR_LIB2 = File.join(RUBY_VENDOR_LIB, NEW_RUBY_VERSION)
 RUBY_VENDOR_ARCHLIB = File.join(RUBY_VENDOR_LIB2, NEW_RUBY_PLATFORM)
 
+INSTALL_NAME = 
+  if BUILD_AS_EMBEDDABLE
+    File.join("@executable_path/../Frameworks", FRAMEWORK_NAME + '.framework',
+	      'Versions', MACRUBY_VERSION, 'usr/lib', 
+	      'lib' + RUBY_SO_NAME + '.dylib')
+  else
+    File.join(FRAMEWORK_USR_LIB, 'lib' + RUBY_SO_NAME + '.dylib')
+  end
+
 ARCHFLAGS = ARCHS.map { |a| '-arch ' + a }.join(' ')
 CFLAGS = "-I. -I./include -I/usr/include/libxml2 #{ARCHFLAGS} -fno-common -pipe -O2 -g -Wall"
 CFLAGS << " -Wno-parentheses -Wno-deprecated-declarations -Werror" if NO_WARN_BUILD
 OBJC_CFLAGS = CFLAGS + " -fobjc-gc-only"
 LDFLAGS = "-lpthread -ldl -lxml2 -lobjc -lffi -lauto -framework Foundation"
-DLDFLAGS = "-dynamiclib -undefined suppress -flat_namespace -install_name #{File.join(FRAMEWORK_USR_LIB, 'lib' + RUBY_SO_NAME + '.dylib')} -current_version #{MACRUBY_VERSION} -compatibility_version #{MACRUBY_VERSION}"
+DLDFLAGS = "-dynamiclib -undefined suppress -flat_namespace -install_name #{INSTALL_NAME} -current_version #{MACRUBY_VERSION} -compatibility_version #{MACRUBY_VERSION}"
 
 OBJS = %w{ 
   array bignum class compar complex dir enum enumerator error eval load proc 
@@ -388,6 +414,7 @@ module RbConfig
   CONFIG["SOLIBS"] = ""
   CONFIG["DLDLIBS"] = ""
   CONFIG["ENABLE_SHARED"] = "yes"
+  CONFIG["ENABLE_STATIC"] = "#{ENABLE_STATIC_LIBRARY}"
   CONFIG["MAINLIBS"] = ""
   CONFIG["COMMON_LIBS"] = ""
   CONFIG["COMMON_MACROS"] = ""
@@ -547,6 +574,34 @@ namespace :clean do
     if File.exist?('./miniruby') 
       sh "./miniruby -I./lib -I.ext/common -I./- -r./ext/purelib.rb ext/extmk.rb #{EXTMK_ARGS} -- clean"
     end
+  end
+end
+
+namespace :rubycocoa do
+  def get(url)
+    file = File.basename(url)
+    sh "curl #{url} -o /tmp/#{file}"
+    # for some reason mocha extracts with some junk...
+    puts `cd /tmp && tar -zxvf #{file}`
+  end
+  
+  def install(path)
+    cp_r path, '/Library/Frameworks/MacRuby.framework/Versions/Current/usr/lib/ruby/site_ruby/'
+  end
+  
+  desc 'For lack of working RubyGems this is a task that installs the dependencies for the RubyCocoa layer tests'
+  task :install_test_spec_and_mocha do
+    get 'http://files.rubyforge.vm.bytemark.co.uk/test-spec/test-spec-0.4.0.tar.gz'
+    install '/tmp/test-spec-0.4.0/lib/test'
+    
+    get 'http://files.rubyforge.mmmultiworks.com/mocha/mocha-0.5.6.tgz'
+    mocha = '/tmp/mocha-0.5.6'
+    FileList["#{mocha}/lib/*.rb", "#{mocha}/lib/mocha"].each { |f| install f }
+  end
+  
+  desc 'Run the RubyCocoa layer tests'
+  task :test do
+    sh 'macruby test-macruby/rubycocoa_test.rb'
   end
 end
 
