@@ -18,7 +18,7 @@ RUBY_SO_NAME = do_option('ruby_so_name', RUBY_INSTALL_NAME)
 ARCHS = do_option('archs', %w{ppc i386}) { |x| x.split(',') }
 FRAMEWORK_NAME = do_option('framework_name', 'MacRuby')
 FRAMEWORK_INSTDIR = do_option('framework_instdir', '/Library/Frameworks')
-NO_WARN_BUILD = !do_option('allow_build_warnings', true)
+NO_WARN_BUILD = !do_option('allow_build_warnings', false)
 BUILD_AS_EMBEDDABLE = do_option('build_as_embeddable', false)
 
 # TODO: we should find a way to document these options in rake's --help
