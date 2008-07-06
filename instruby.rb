@@ -221,6 +221,7 @@ vendorarchlibdir = CONFIG["vendorarchdir"]
 mandir = File.join(CONFIG["mandir"], "man")
 configure_args = Shellwords.shellwords(CONFIG["configure_args"])
 enable_shared = CONFIG["ENABLE_SHARED"] == 'yes'
+enable_static = CONFIG["ENABLE_STATIC"] == 'yes'
 dll = CONFIG["LIBRUBY_SO"]
 lib = CONFIG["LIBRUBY"]
 arc = CONFIG["LIBRUBY_A"]
@@ -241,7 +242,7 @@ install?(:local, :arch, :bin, :'bin-arch') do
     install dll, bindir, :mode => $prog_mode
   end
   install lib, libdir, :mode => $prog_mode unless lib == arc
-  install arc, libdir, :mode => $data_mode
+  install arc, libdir, :mode => $data_mode if enable_static
   install "rbconfig.rb", archlibdir, :mode => $data_mode
   if CONFIG["ARCHFILE"]
     for file in CONFIG["ARCHFILE"].split

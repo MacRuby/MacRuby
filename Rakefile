@@ -20,6 +20,7 @@ FRAMEWORK_NAME = do_option('framework_name', 'MacRuby')
 FRAMEWORK_INSTDIR = do_option('framework_instdir', '/Library/Frameworks')
 NO_WARN_BUILD = !do_option('allow_build_warnings', false)
 BUILD_AS_EMBEDDABLE = do_option('build_as_embeddable', false)
+ENABLE_STATIC_LIBRARY = do_option('enable_static_library', 'no') { 'yes' }
 
 # TODO: we should find a way to document these options in rake's --help
 
@@ -413,6 +414,7 @@ module RbConfig
   CONFIG["SOLIBS"] = ""
   CONFIG["DLDLIBS"] = ""
   CONFIG["ENABLE_SHARED"] = "yes"
+  CONFIG["ENABLE_STATIC"] = "#{ENABLE_STATIC_LIBRARY}"
   CONFIG["MAINLIBS"] = ""
   CONFIG["COMMON_LIBS"] = ""
   CONFIG["COMMON_MACROS"] = ""
