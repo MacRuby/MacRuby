@@ -71,6 +71,26 @@ class TestObjC < Test::Unit::TestCase
     assert_equal('xxxyyy', r)
   end
 
+  class TestSuperMethod
+    def init
+      super
+      @foo = 42
+      self
+    end
+    attr_reader :foo
+  end
+  def test_super_method
+    obj = TestSuperMethod.alloc.init
+    assert_equal(42, obj.foo)
+    obj = TestSuperMethod.performSelector(:alloc).performSelector(:init)
+    assert_equal(42, obj.foo)
+    # FIXME this doesn't work yet
+    #obj = TestSuperMethod.new
+    #assert_equal(42, obj.foo)
+    obj = TestSuperMethod.performSelector(:new)
+    assert_equal(42, obj.foo)
+  end
+
   def test_pure_objc_ivar
     o = NSObject.alloc.init
     assert_kind_of(NSObject, o)

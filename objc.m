@@ -1136,13 +1136,11 @@ rb_objc_call_objc(int argc, VALUE *argv, id ocrcv, Class klass,
     ffi_args[1] = &ctx->selector;
 
     if (super_call) {
-	Class sklass;
 	Method smethod;
-	sklass = class_getSuperclass(klass);
-	assert(sklass != NULL);
-	smethod = class_getInstanceMethod(sklass, ctx->selector);
+	smethod = class_getInstanceMethod(klass, ctx->selector);
 	assert(smethod != ctx->method);
-	imp = method_getImplementation(smethod);	
+	imp = method_getImplementation(smethod);
+	assert(imp != NULL);
     }
     else {
 	if (ctx->imp != NULL && ctx->klass == klass) {
@@ -1236,9 +1234,21 @@ rb_objc_to_ruby_closure(int argc, VALUE *argv, VALUE rcv)
     assert(rb_current_cfunc_node != NULL);
 
     if (rb_current_cfunc_node->u3.value == 0) {
+	const char *selname;
+	size_t selnamelen;
+
 	ctx = (struct objc_ruby_closure_context *)xmalloc(sizeof(
 	    struct objc_ruby_closure_context));
-	ctx->selector = sel_registerName(rb_id2name(rb_frame_this_func()));
+
+	selname = rb_id2name(rb_frame_this_func());
+	selnamelen = strlen(selname);
+	if (argc == 1 && selname[selnamelen - 1] != ':') {
+	    char *tmp = alloca(selnamelen + 2);
+	    snprintf(tmp, selnamelen + 2, "%s:", selname);
+	    selname = (const char *)tmp;
+	}
+	ctx->selector = sel_registerName(selname);
+
 	ctx->bs_method = rb_bs_find_method(*(Class *)rcv, ctx->selector);
 	ctx->method = class_getInstanceMethod(*(Class *)rcv, ctx->selector); 
 	assert(ctx->method != NULL);
