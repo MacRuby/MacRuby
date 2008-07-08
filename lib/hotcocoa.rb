@@ -21,5 +21,6 @@ require 'hotcocoa/mapper'
 require 'hotcocoa/delegate_builder'
 require 'hotcocoa/table_data_source'
 require 'hotcocoa/combo_box_data_source'
-require 'hotococa/kernel_ext'
+require 'hotcocoa/kernel_ext'
+
 HotCocoa::Mappings.reload
