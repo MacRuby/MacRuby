@@ -1,11 +1,6 @@
 framework 'webkit'
 
-begin
-  require 'hotcocoa'
-rescue LoadError => e
-  $:.unshift "../../lib"
-  require 'hotcocoa'
-end
+require 'hotcocoa'
 
 include HotCocoa
 
