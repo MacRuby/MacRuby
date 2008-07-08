@@ -36,7 +36,7 @@ module HotCocoa
         if item.kind_of?(Hash)
           item.values.first
         else
-          item.to_str
+          item.to_s
         end
       end
 

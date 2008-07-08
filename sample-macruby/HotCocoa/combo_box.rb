@@ -8,7 +8,7 @@ end
 include HotCocoa
 
 class Person < Struct.new(:first, :last)
-  def to_str
+  def to_s
     "#{first} #{last}"
   end
 end
