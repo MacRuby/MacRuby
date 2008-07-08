@@ -1229,7 +1229,7 @@ rb_objc_to_ruby_closure(int argc, VALUE *argv, VALUE rcv)
     rb_objc_rval_to_ocid(rcv, (void **)&ocrcv, true);
     super_call = (ruby_current_thread->cfp->flag >> FRAME_MAGIC_MASK_BITS) 
 	& VM_CALL_SUPER_BIT;
-    klass = super_call ? class_getSuperclass(*(Class *)ocrcv) : *(Class *)ocrcv;
+    klass = *(Class *)ocrcv;
     
     assert(rb_current_cfunc_node != NULL);
 
@@ -1262,6 +1262,21 @@ rb_objc_to_ruby_closure(int argc, VALUE *argv, VALUE rcv)
 	    rb_current_cfunc_node->u3.value;
     }
 
+    if (super_call) {
+	Class sklass = klass;
+	for (;;) {
+	    Method smethod;
+	    sklass = class_getSuperclass(sklass);
+	    if (sklass == NULL)
+		break;
+	    smethod = class_getInstanceMethod(sklass, ctx->selector);
+	    if (smethod != ctx->method) {
+		klass = sklass;
+	        break;
+	    }
+	}
+    }
+    
 //NSLog(@"Ruby -> ObjC [%@ klass=%@ sel=%s argc=%d super_call=%d", ocrcv, (id)klass, (char *)ctx->selector, argc, super_call);
 
     return rb_objc_call_objc(argc, argv, ocrcv, klass, super_call, ctx);
