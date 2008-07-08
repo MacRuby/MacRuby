@@ -10,9 +10,9 @@ end
 include HotCocoa
 
 application do |app|
-  window :frame => [100, 100, 500, 500], :title => "HotCocoa!" do |win|
-    mview = movie_view :frame => [10, 10, 480, 480], 
-                       :movie => movie(:url => "http://www.infoether.com/~rich/hotcocoa.mov"),
+  window :frame => [100, 100, 660, 308], :title => "HotCocoa!" do |win|
+    mview = movie_view :frame => [10, 10, 640, 288], 
+                       :movie => movie(:url => "http://movies.apple.com/movies/disney/wall-e/wall-e-tlr3_h.640.mov"),
                        :controller_buttons => [:back, :volume],
                        :fill_color => color(:name => :black)
     win << mview
