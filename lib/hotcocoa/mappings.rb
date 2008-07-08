@@ -13,7 +13,7 @@ module HotCocoa
       framework = options.delete(:framework)
       mapped_name = options.keys.first
       mapped_value = options.values.first
-      if framework.nil? || Object.constants.include?(mapped_value)
+      if framework.nil? || Object.const_defined?(mapped_value)
         m = Mapper.new(mapped_name, Object.const_get(mapped_value), &block)
         mappings[m.builder_method] = m
       else
