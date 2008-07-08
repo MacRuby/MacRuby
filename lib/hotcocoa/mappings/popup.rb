@@ -11,6 +11,8 @@ HotCocoa::Mappings.map :popup => :NSPopUpButton do
     
     class ItemList
       
+      include Enumerable
+      
       attr_reader :control
       
       def initialize(control)
@@ -21,8 +23,16 @@ HotCocoa::Mappings.map :popup => :NSPopUpButton do
         control.addItemWithTitle(title)
       end
       
+      def [](index)
+        control.itemTitleAtIndex(index)
+      end
+      
       def delete(title)
-        control.removeItemWithTitle(title)
+        if title.kind_of?(Fixnum)
+          control.removeItemAtIndex(title)
+        else
+          control.removeItemWithTitle(title)
+        end
       end
       
       def insert(title, at:index)
@@ -33,12 +43,49 @@ HotCocoa::Mappings.map :popup => :NSPopUpButton do
         control.titleOfSelectedItem
       end
       
+      def selected=(title)
+        if title.kind_of?(Fixnum)
+          control.selectItemAtIndex(title)
+        else
+          control.selectItemWithTitle(title)
+        end
+      end
+      
       def selected_index
         control.indexOfSelectedItem
       end
       
       def size
         control.numberOfItems
+      end
+      
+      def each(&block)
+        control.itemTitles.each(&block)
+      end
+      
+    end
+    
+    class MenuItemList < ItemList
+      include Enumerable
+      
+      def selected
+        control.selectedItem
+      end
+
+      def selected=(title)
+        if title.kind_of?(Fixnum)
+          control.selectItemAtIndex(title)
+        else
+          control.selectItem(title)
+        end
+      end
+
+      def [](index)
+        control.itemAtIndex(index)
+      end
+      
+      def each(&block)
+        control.itemArray.each(&block)
       end
     end
     
@@ -49,6 +96,10 @@ HotCocoa::Mappings.map :popup => :NSPopUpButton do
     
     def items
       @_item_list ||= ItemList.new(self)
+    end
+    
+    def menu_items
+      @_menu_item_list ||=  MenuItemList.new(self)
     end
     
   end
