@@ -19,7 +19,19 @@ HotCocoa::Mappings.map :control => :NSControl do
     def text=(text)
       setStringValue(text)
     end
+
+    def to_i
+      intValue
+    end
+
+    def to_f
+      doubleValue
+    end
     
+    def to_s
+      stringValue
+    end
+
   end
 
 end
