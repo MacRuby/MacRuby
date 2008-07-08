@@ -13,7 +13,7 @@ module HotCocoa::Mappings
       @control_module = mod
       inst = self
       HotCocoa.send(:define_method, builder_method) do |*args, &control_block|
-        map = args.length == 1 ? args[0] : args[1]
+        map = (args.length == 1 ? args[0] : args[1]) || {}
         guid = args.length == 1 ? nil : args[0]
         map = inst.remap_constants(map)
         default_empty_rect_used = (map[:frame].__id__ == DefaultEmptyRect.__id__)
@@ -28,7 +28,7 @@ module HotCocoa::Mappings
           end
         end
         if default_empty_rect_used
-          control.sizeToFit
+          control.sizeToFit if control.respondsToSelector(:sizeToFit) == 1
         end
         control_block.call(control) if control_block
         control
