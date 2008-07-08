@@ -1262,6 +1262,8 @@ rb_objc_to_ruby_closure(int argc, VALUE *argv, VALUE rcv)
 	    rb_current_cfunc_node->u3.value;
     }
 
+//NSLog(@"Ruby -> ObjC [%@ klass=%@ sel=%s argc=%d super_call=%d", ocrcv, (id)klass, (char *)ctx->selector, argc, super_call);
+
     return rb_objc_call_objc(argc, argv, ocrcv, klass, super_call, ctx);
 }
 
@@ -1303,30 +1305,42 @@ rb_ruby_to_objc_closure_handler(ffi_cif *cif, void *resp, void **args,
     void *rcv;
     SEL sel;
     ID mid;
-    VALUE rrcv, rargs, ret;
-    unsigned i;
+    VALUE rrcv, ret;
     Method method;
     char type[128];
+    long i, argc;
+    VALUE *argv;
+    NODE *body;
 
     rcv = (*(id **)args)[0];
     sel = (*(SEL **)args)[1];
+    body = (NODE *)userdata;
 
-    method = class_getInstanceMethod(object_getClass(rcv), sel);
+    method = class_getInstanceMethod(*(Class *)rcv, sel);
     assert(method != NULL);
 
-    rargs = rb_ary_new();
-    for (i = 2; i < cif->nargs; i++) {
+    argc = cif->nargs - 2;
+    argv = (VALUE *)alloca(sizeof(VALUE) * argc);
+    for (i = 0; i < argc; i++) {
 	VALUE val;
         
-	method_getArgumentType(method, i, type, sizeof type);
-	rb_objc_ocval_to_rbval(args[i], type, &val);
-	rb_ary_push(rargs, val);
+	method_getArgumentType(method, i + 2, type, sizeof type);
+	rb_objc_ocval_to_rbval(args[i + 2], type, &val);
+        argv[i] = val;
     }
 
     rb_objc_ocid_to_rval(&rcv, &rrcv);
 
     mid = rb_intern((const char *)sel);
-    ret = rb_apply(rrcv, mid, rargs);
+
+//NSLog(@"ObjC -> Ruby [%@ mid=%s]\n", rrcv, rb_id2name(mid));
+
+    VALUE rb_vm_call(rb_thread_t * th, VALUE klass, VALUE recv, VALUE id, 
+		     ID oid, int argc, const VALUE *argv, const NODE *body, 
+		     int nosuper);
+
+    ret = rb_vm_call(GET_THREAD(), CLASS_OF(rrcv), rrcv, mid, Qnil,
+		     argc, argv, body, 0);
 
     method_getReturnType(method, type, sizeof type);
     rb_objc_rval_to_ocval(ret, type, resp);
