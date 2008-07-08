@@ -72,11 +72,11 @@ HotCocoa::Mappings.map :popup => :NSPopUpButton do
         control.selectedItem
       end
 
-      def selected=(title)
-        if title.kind_of?(Fixnum)
-          control.selectItemAtIndex(title)
+      def selected=(menu_item)
+        if menu_item.kind_of?(Fixnum)
+          control.selectItemAtIndex(menu_item)
         else
-          control.selectItem(title)
+          control.selectItem(menu_item)
         end
       end
 
