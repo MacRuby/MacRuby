@@ -241,7 +241,7 @@ str_transcoding_resize(rb_transcoding *my_transcoding, int len, int new_len)
 {
     VALUE dest_string = my_transcoding->ruby_string_dest;
     rb_str_resize(dest_string, new_len);
-    return (unsigned char *)RSTRING_PTR(dest_string);
+    return (unsigned char *)RSTRING_BYTEPTR(dest_string);
 }
 
 static int
@@ -321,26 +321,26 @@ str_transcode(int argc, VALUE *argv, VALUE *self)
 	my_transcoding.transcoder = my_transcoder;
 
 	if (my_transcoder->preprocessor) {
-	    fromp = sp = (unsigned char *)RSTRING_PTR(str);
-	    slen = RSTRING_LEN(str);
+	    fromp = sp = (unsigned char *)RSTRING_BYTEPTR(str);
+	    slen = RSTRING_BYTELEN(str);
 	    blen = slen + 30; /* len + margin */
 	    dest = rb_str_tmp_new(blen);
-	    bp = (unsigned char *)RSTRING_PTR(dest);
+	    bp = (unsigned char *)RSTRING_BYTEPTR(dest);
 	    my_transcoding.ruby_string_dest = dest;
 	    (*my_transcoder->preprocessor)(&fromp, &bp, (sp+slen), (bp+blen), &my_transcoding);
 	    if (fromp != sp+slen) {
 		rb_raise(rb_eArgError, "not fully converted, %td bytes left", sp+slen-fromp);
 	    }
-	    buf = (unsigned char *)RSTRING_PTR(dest);
+	    buf = (unsigned char *)RSTRING_BYTEPTR(dest);
 	    *bp = '\0';
 	    rb_str_set_len(dest, bp - buf);
 	    str = dest;
 	}
-	fromp = sp = (unsigned char *)RSTRING_PTR(str);
-	slen = RSTRING_LEN(str);
+	fromp = sp = (unsigned char *)RSTRING_BYTEPTR(str);
+	slen = RSTRING_BYTELEN(str);
 	blen = slen + 30; /* len + margin */
 	dest = rb_str_tmp_new(blen);
-	bp = (unsigned char *)RSTRING_PTR(dest);
+	bp = (unsigned char *)RSTRING_BYTEPTR(dest);
 	my_transcoding.ruby_string_dest = dest;
 	my_transcoding.flush_func = str_transcoding_resize;
 
@@ -348,22 +348,22 @@ str_transcode(int argc, VALUE *argv, VALUE *self)
 	if (fromp != sp+slen) {
 	    rb_raise(rb_eArgError, "not fully converted, %td bytes left", sp+slen-fromp);
 	}
-	buf = (unsigned char *)RSTRING_PTR(dest);
+	buf = (unsigned char *)RSTRING_BYTEPTR(dest);
 	*bp = '\0';
 	rb_str_set_len(dest, bp - buf);
 	if (my_transcoder->postprocessor) {
 	    str = dest;
-	    fromp = sp = (unsigned char *)RSTRING_PTR(str);
-	    slen = RSTRING_LEN(str);
+	    fromp = sp = (unsigned char *)RSTRING_BYTEPTR(str);
+	    slen = RSTRING_BYTELEN(str);
 	    blen = slen + 30; /* len + margin */
 	    dest = rb_str_tmp_new(blen);
-	    bp = (unsigned char *)RSTRING_PTR(dest);
+	    bp = (unsigned char *)RSTRING_BYTEPTR(dest);
 	    my_transcoding.ruby_string_dest = dest;
 	    (*my_transcoder->postprocessor)(&fromp, &bp, (sp+slen), (bp+blen), &my_transcoding);
 	    if (fromp != sp+slen) {
 		rb_raise(rb_eArgError, "not fully converted, %td bytes left", sp+slen-fromp);
 	    }
-	    buf = (unsigned char *)RSTRING_PTR(dest);
+	    buf = (unsigned char *)RSTRING_BYTEPTR(dest);
 	    *bp = '\0';
 	    rb_str_set_len(dest, bp - buf);
 	}
@@ -412,7 +412,7 @@ str_encode_bang(int argc, VALUE *argv, VALUE str)
 
     /* transcoded string never be broken. */
     if (rb_enc_asciicompat(rb_enc_from_index(encidx))) {
-	rb_str_coderange_scan_restartable(RSTRING_PTR(str), RSTRING_END(str), 0, &cr);
+	rb_str_coderange_scan_restartable(RSTRING_BYTEPTR(str), RSTRING_END(str), 0, &cr);
     }
     else {
 	cr = ENC_CODERANGE_VALID;

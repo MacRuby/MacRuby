@@ -342,7 +342,7 @@ rb_f_kill(int argc, VALUE *argv)
 	goto str_signal;
 
       case T_STRING:
-	s = RSTRING_CPTR(argv[0]);
+	s = RSTRING_PTR(argv[0]);
 	if (s[0] == '-') {
 	    negative++;
 	    s++;
@@ -363,7 +363,7 @@ rb_f_kill(int argc, VALUE *argv)
 
 	    str = rb_check_string_type(argv[0]);
 	    if (!NIL_P(str)) {
-		s = RSTRING_CPTR(str);
+		s = RSTRING_PTR(str);
 		goto str_signal;
 	    }
 	    rb_raise(rb_eArgError, "bad signal type %s",
@@ -731,45 +731,45 @@ trap_handler(VALUE *cmd, int sig)
 	command = rb_check_string_type(*cmd);
 	if (!NIL_P(command)) {
 	    SafeStringValue(command);	/* taint check */
-	    switch (RSTRING_CLEN(command)) {
+	    switch (RSTRING_LEN(command)) {
 	      case 0:
                 goto sig_ign;
 		break;
               case 14:
-		if (strncmp(RSTRING_CPTR(command), "SYSTEM_DEFAULT", 14) == 0) {
+		if (strncmp(RSTRING_PTR(command), "SYSTEM_DEFAULT", 14) == 0) {
                     func = SIG_DFL;
                     *cmd = 0;
 		}
                 break;
 	      case 7:
-		if (strncmp(RSTRING_CPTR(command), "SIG_IGN", 7) == 0) {
+		if (strncmp(RSTRING_PTR(command), "SIG_IGN", 7) == 0) {
 sig_ign:
                     func = SIG_IGN;
                     *cmd = 0;
 		}
-		else if (strncmp(RSTRING_CPTR(command), "SIG_DFL", 7) == 0) {
+		else if (strncmp(RSTRING_PTR(command), "SIG_DFL", 7) == 0) {
 sig_dfl:
                     func = default_handler(sig);
                     *cmd = 0;
 		}
-		else if (strncmp(RSTRING_CPTR(command), "DEFAULT", 7) == 0) {
+		else if (strncmp(RSTRING_PTR(command), "DEFAULT", 7) == 0) {
                     goto sig_dfl;
 		}
 		break;
 	      case 6:
-		if (strncmp(RSTRING_CPTR(command), "IGNORE", 6) == 0) {
+		if (strncmp(RSTRING_PTR(command), "IGNORE", 6) == 0) {
                     goto sig_ign;
 		}
 		break;
 	      case 4:
-		if (strncmp(RSTRING_CPTR(command), "EXIT", 4) == 0) {
+		if (strncmp(RSTRING_PTR(command), "EXIT", 4) == 0) {
 		    func = sighandler;
 		    *cmd = Qundef;
 		}
 		break;
 	    }
 	    if (func == wrong_trap) {
-		rb_raise(rb_eArgError, "wrong trap - %s", RSTRING_CPTR(command));
+		rb_raise(rb_eArgError, "wrong trap - %s", RSTRING_PTR(command));
 	    }
 	}
 	else {

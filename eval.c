@@ -399,12 +399,12 @@ rb_longjmp(int tag, VALUE mesg)
 	    if (file) {
 		warn_printf("Exception `%s' at %s:%d - %s\n",
 			    rb_obj_classname(th->errinfo),
-			    file, line, RSTRING_CPTR(e));
+			    file, line, RSTRING_PTR(e));
 	    }
 	    else {
 		warn_printf("Exception `%s' - %s\n",
 			    rb_obj_classname(th->errinfo),
-			    RSTRING_CPTR(e));
+			    RSTRING_PTR(e));
 	    }
 	}
 	POP_TAG();

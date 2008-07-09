@@ -134,7 +134,7 @@ coerce_rescue(VALUE *x)
 
     rb_raise(rb_eTypeError, "%s can't be coerced into %s",
 	     rb_special_const_p(x[1])?
-	     RSTRING_PTR(v):
+	     RSTRING_BYTEPTR(v):
 	     rb_obj_classname(x[1]),
 	     rb_obj_classname(x[0]));
     return Qnil;		/* dummy */
@@ -1906,7 +1906,7 @@ int_chr(int argc, VALUE *argv, VALUE num)
     if (!enc) enc = rb_ascii8bit_encoding();
     if (i < 0 || (n = rb_enc_codelen(i, enc)) <= 0) goto out_of_range;
     str = rb_enc_str_new(0, n, enc);
-    rb_enc_mbcput(i, RSTRING_PTR(str), enc);
+    rb_enc_mbcput(i, RSTRING_BYTEPTR(str), enc);
 #endif
     return str;
 }

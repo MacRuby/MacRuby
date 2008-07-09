@@ -85,7 +85,7 @@ sign_bits(int base, const char *p)
 	bsiz*=2;\
     }\
     rb_str_resize(result, bsiz);\
-    buf = RSTRING_PTR(result);\
+    buf = RSTRING_BYTEPTR(result);\
 } while (0)
 
 #define PUSH(s, l) do { \
@@ -432,13 +432,13 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
     StringValue(fmt);
     enc = rb_enc_get(fmt);
     fmt = rb_str_new4(fmt);
-    p = RSTRING_PTR(fmt); /* ok */
-    end = p + RSTRING_LEN(fmt);
+    p = RSTRING_BYTEPTR(fmt); /* ok */
+    end = p + RSTRING_BYTELEN(fmt);
     blen = 0;
     bsiz = 120;
     result = rb_str_buf_new(bsiz);
     rb_enc_copy(result, fmt);
-    buf = RSTRING_PTR(result);
+    buf = RSTRING_BYTEPTR(result);
     memset(buf, 0, bsiz);
 
     for (; p < end; p++) {
@@ -560,10 +560,10 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 
 		tmp = rb_check_string_type(val);
 		if (!NIL_P(tmp)) {
-		    if (rb_enc_strlen(RSTRING_PTR(tmp),RSTRING_END(tmp),enc) != 1) {
+		    if (rb_enc_strlen(RSTRING_BYTEPTR(tmp),RSTRING_END(tmp),enc) != 1) {
 			rb_raise(rb_eArgError, "%%c requires a character");
 		    }
-		    c = rb_enc_codepoint(RSTRING_PTR(tmp), RSTRING_END(tmp), enc);
+		    c = rb_enc_codepoint(RSTRING_BYTEPTR(tmp), RSTRING_END(tmp), enc);
 		}
 		else {
 		    c = NUM2INT(val);
@@ -601,18 +601,18 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 		if (*p == 'p') arg = rb_inspect(arg);
 		str = rb_obj_as_string(arg);
 		if (OBJ_TAINTED(str)) tainted = 1;
-		len = RSTRING_LEN(str);
+		len = RSTRING_BYTELEN(str);
 		enc = rb_enc_check(result, str);
 		if (flags&(FPREC|FWIDTH)) {
-		    slen = rb_enc_strlen(RSTRING_PTR(str),RSTRING_END(str),enc);
+		    slen = rb_enc_strlen(RSTRING_BYTEPTR(str),RSTRING_END(str),enc);
 		    if (slen < 0) {
 			rb_raise(rb_eArgError, "invalid mbstring sequence");
 		    }
 		    if ((flags&FPREC) && (prec < slen)) {
-			char *p = rb_enc_nth(RSTRING_PTR(str), RSTRING_END(str),
+			char *p = rb_enc_nth(RSTRING_BYTEPTR(str), RSTRING_END(str),
 					     prec, enc);
 			slen = prec;
-			len = p - RSTRING_PTR(str);
+			len = p - RSTRING_BYTEPTR(str);
 		    }
 		    /* need to adjust multi-byte string pos */
 		    if ((flags&FWIDTH) && (width > slen)) {
@@ -624,7 +624,7 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 			    }
 			}
 			CHECK(len);
-			memcpy(&buf[blen], RSTRING_PTR(str), len);
+			memcpy(&buf[blen], RSTRING_BYTEPTR(str), len);
 			blen += len;
 			if (flags&FMINUS) {
 			    CHECK(width);
@@ -636,7 +636,7 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 			break;
 		    }
 		}
-		PUSH(RSTRING_PTR(str), len);
+		PUSH(RSTRING_BYTEPTR(str), len);
 		rb_enc_associate(result, enc);
 	    }
 	    break;
@@ -780,7 +780,7 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 		else {
 		    if (sign) {
 			tmp = rb_big2str(val, base);
-			s = RSTRING_PTR(tmp);
+			s = RSTRING_BYTEPTR(tmp);
 			if (s[0] == '-') {
 			    s++;
 			    sc = '-';
@@ -801,7 +801,7 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 			    rb_big_2comp(val);
 			}
 			tmp1 = tmp = rb_big2str0(val, base, RBIGNUM_SIGN(val));
-			s = RSTRING_PTR(tmp);
+			s = RSTRING_BYTEPTR(tmp);
 			if (*s == '-') {
 			    dots = 1;
 			    if (base == 10) {
@@ -1041,7 +1041,7 @@ ruby__sfvwrite(register rb_printf_buffer *fp, register struct __suio *uio)
     VALUE result = (VALUE)fp->_bf._base;
     char *buf = (char*)fp->_p;
     size_t len, n;
-    int blen = buf - RSTRING_PTR(result), bsiz = fp->_w;
+    int blen = buf - RSTRING_BYTEPTR(result), bsiz = fp->_w;
 
     if (RBASIC(result)->klass) {
 	rb_raise(rb_eRuntimeError, "rb_vsprintf reentered");
@@ -1079,12 +1079,12 @@ rb_enc_vsprintf(rb_encoding *enc, const char *fmt, va_list ap)
     result = rb_str_buf_new(f._w);
     if (enc) rb_enc_associate(result, enc);
     f._bf._base = (unsigned char *)result;
-    f._p = (unsigned char *)RSTRING_PTR(result);
+    f._p = (unsigned char *)RSTRING_BYTEPTR(result);
     RBASIC(result)->klass = 0;
     f.vwrite = ruby__sfvwrite;
     BSD_vfprintf(&f, fmt, ap);
     RBASIC(result)->klass = rb_cString;
-    rb_str_resize(result, (char *)f._p - RSTRING_PTR(result));
+    rb_str_resize(result, (char *)f._p - RSTRING_BYTEPTR(result));
 
     return result;
 #endif

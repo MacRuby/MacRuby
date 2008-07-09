@@ -434,7 +434,11 @@ zstream_expand_buffer(struct zstream *z)
 	z->buf_filled = 0;
 	z->stream.next_out = (Bytef*)RSTRING_PTR(z->buf);
 	z->stream.avail_out = ZSTREAM_INITIAL_BUFSIZE;
+#if WITH_OBJC
+	RSTRING_BYTEPTR(z->buf); /* force bytestring creation */
+#else
 	RBASIC(z->buf)->klass = 0;
+#endif
 	return;
     }
 
@@ -557,8 +561,12 @@ zstream_buffer_ungetc(struct zstream *z, int c)
 	zstream_expand_buffer(z);
     }
 
+#if WITH_OBJC
+    CFStringInsert((CFMutableStringRef)z->buf, 0, rb_str_new(&c, 1));
+#else
     memmove(RSTRING_PTR(z->buf) + 1, RSTRING_PTR(z->buf), z->buf_filled);
     RSTRING_PTR(z->buf)[0] = (char)c;
+#endif
     z->buf_filled++;
     if (z->stream.avail_out > 0) {
 	z->stream.next_out++;

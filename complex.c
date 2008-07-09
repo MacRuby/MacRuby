@@ -1201,7 +1201,7 @@ string_to_c_internal(VALUE self)
 
     s = f_strip(self);
 
-    if (RSTRING_CLEN(s) == 0)
+    if (RSTRING_LEN(s) == 0)
 	return rb_assoc_new(Qnil, self);
 
     {
@@ -1248,7 +1248,7 @@ static VALUE
 string_to_c_strict(VALUE self)
 {
     VALUE a = string_to_c_internal(self);
-    if (NIL_P(RARRAY_AT(a, 0)) || RSTRING_CLEN(RARRAY_AT(a, 1)) > 0) {
+    if (NIL_P(RARRAY_AT(a, 0)) || RSTRING_LEN(RARRAY_AT(a, 1)) > 0) {
 	VALUE s = f_inspect(self);
 	rb_raise(rb_eArgError, "invalid value for Complex: %s",
 		 StringValuePtr(s));

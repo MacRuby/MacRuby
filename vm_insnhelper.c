@@ -988,7 +988,7 @@ vm_check_if_namespace(VALUE klass)
 	break;
       default:
 	rb_raise(rb_eTypeError, "%s is not a class/module",
-		 RSTRING_CPTR(rb_inspect(klass)));
+		 RSTRING_PTR(rb_inspect(klass)));
     }
 }
 

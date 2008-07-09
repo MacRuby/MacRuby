@@ -279,18 +279,18 @@ ruby_add_suffix(VALUE str, const char *suffix)
     long slen;
     char buf[1024];
 
-    if (RSTRING_CLEN(str) > 1000)
+    if (RSTRING_LEN(str) > 1000)
         rb_fatal("Cannot do inplace edit on long filename (%ld characters)",
-		 RSTRING_CLEN(str));
+		 RSTRING_LEN(str));
 
 #if defined(DJGPP) || defined(__CYGWIN32__) || defined(_WIN32)
     /* Style 0 */
-    slen = RSTRING_CLEN(str);
+    slen = RSTRING_LEN(str);
     rb_str_cat(str, suffix, extlen);
 #if defined(DJGPP)
     if (_USE_LFN) return;
 #else
-    if (valid_filename(RSTRING_CPTR(str))) return;
+    if (valid_filename(RSTRING_PTR(str))) return;
 #endif
 
     /* Fooey, style 0 failed.  Fix str before continuing. */
@@ -298,7 +298,7 @@ ruby_add_suffix(VALUE str, const char *suffix)
 #endif
 
     slen = extlen;
-    t = buf; baselen = 0; s = RSTRING_CPTR(str);
+    t = buf; baselen = 0; s = RSTRING_PTR(str);
     while ((*t = *s) && *s != '.') {
 	baselen++;
 	if (*s == '\\' || *s == '/') baselen = 0;

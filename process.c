@@ -1045,7 +1045,7 @@ rb_proc_exec_n(int argc, VALUE *argv, const char *prog)
 
     args = ALLOCA_N(char*, argc+1);
     for (i=0; i<argc; i++) {
-	args[i] = (char *)RSTRING_CPTR(argv[i]);
+	args[i] = (char *)RSTRING_PTR(argv[i]);
     }
     args[i] = 0;
     if (args[0]) {
@@ -1188,11 +1188,11 @@ proc_spawn_n(int argc, VALUE *argv, VALUE prog)
 
     args = ALLOCA_N(char*, argc + 1);
     for (i = 0; i < argc; i++) {
-	args[i] = RSTRING_CPTR(argv[i]);
+	args[i] = RSTRING_PTR(argv[i]);
     }
     args[i] = (char*) 0;
     if (args[0])
-	return proc_spawn_v(args, prog ? RSTRING_CPTR(prog) : 0);
+	return proc_spawn_v(args, prog ? RSTRING_PTR(prog) : 0);
     return -1;
 }
 
@@ -1592,14 +1592,14 @@ rb_check_argv(int argc, VALUE *argv)
 	SafeStringValue(prog);
 	StringValueCStr(prog);
 	prog = rb_str_new4(prog);
-	name = RSTRING_CPTR(prog);
+	name = RSTRING_PTR(prog);
     }
     for (i = 0; i < argc; i++) {
 	SafeStringValue(argv[i]);
 	argv[i] = rb_str_new4(argv[i]);
 	StringValueCStr(argv[i]);
     }
-    security(name ? name : RSTRING_CPTR(argv[0]));
+    security(name ? name : RSTRING_PTR(argv[0]));
     return prog;
 }
 
@@ -1653,7 +1653,7 @@ rb_exec_fillarg(VALUE prog, int argc, VALUE *argv, VALUE env, VALUE opthash, str
 
     e->argc = argc;
     e->argv = argv;
-    e->prog = prog ? RSTRING_CPTR(prog) : 0;
+    e->prog = prog ? RSTRING_PTR(prog) : 0;
 }
 
 VALUE
@@ -1979,7 +1979,7 @@ run_exec_open(VALUE ary, VALUE save)
         VALUE elt = RARRAY_AT(ary, i);;
         int fd = FIX2INT(RARRAY_AT(elt, 0));
         VALUE param = RARRAY_AT(elt, 1);
-        const char *path = RSTRING_CPTR(RARRAY_AT(param, 0));
+        const char *path = RSTRING_PTR(RARRAY_AT(param, 0));
         int flags = NUM2INT(RARRAY_AT(param, 1));
         int perm = NUM2INT(RARRAY_AT(param, 2));
         int need_close = 1;
@@ -2122,7 +2122,7 @@ rb_run_exec_options(const struct rb_exec_arg *e, struct rb_exec_arg *s)
             rb_ary_store(soptions, EXEC_OPTION_CHDIR,
                          hide_obj(rb_str_new2(cwd)));
         }
-        if (chdir(RSTRING_CPTR(obj)) == -1)
+        if (chdir(RSTRING_PTR(obj)) == -1)
             return -1;
     }
 
@@ -2671,7 +2671,7 @@ rb_spawn_internal(int argc, VALUE *argv, int default_close_others)
     if (prog && argc) argv[0] = prog;
 # if defined HAVE_SPAWNV
     if (!argc) {
-	status = proc_spawn(RSTRING_CPTR(prog));
+	status = proc_spawn(RSTRING_PTR(prog));
     }
     else {
 	status = proc_spawn_n(argc, argv, prog);
@@ -2902,7 +2902,7 @@ rb_f_spawn(int argc, VALUE *argv)
     rb_pid_t pid;
 
     pid = rb_spawn(argc, argv);
-    if (pid == -1) rb_sys_fail(RSTRING_CPTR(argv[0]));
+    if (pid == -1) rb_sys_fail(RSTRING_PTR(argv[0]));
 #if defined(HAVE_FORK) || defined(HAVE_SPAWNV)
     return PIDT2NUM(pid);
 #else
@@ -4118,10 +4118,10 @@ proc_setgroups(VALUE obj, VALUE ary)
 		groups[i] = NUM2GIDT(g);
 	    }
 	    else {
-		gr = getgrnam(RSTRING_CPTR(tmp));
+		gr = getgrnam(RSTRING_PTR(tmp));
 		if (gr == NULL)
 		    rb_raise(rb_eArgError,
-			     "can't find group for %s", RSTRING_CPTR(tmp));
+			     "can't find group for %s", RSTRING_PTR(tmp));
 		groups[i] = gr->gr_gid;
 	    }
 	}

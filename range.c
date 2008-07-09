@@ -750,15 +750,15 @@ range_include(VALUE range, VALUE val)
 	return Qfalse;
     }
     else if (TYPE(beg) == T_STRING && TYPE(end) == T_STRING &&
-	     RSTRING_CLEN(beg) == 1 && RSTRING_CLEN(end) == 1) {
+	     RSTRING_LEN(beg) == 1 && RSTRING_LEN(end) == 1) {
 	if (NIL_P(val)) return Qfalse;
 	if (TYPE(val) == T_STRING) {
-	    if (RSTRING_CLEN(val) == 0 || RSTRING_CLEN(val) > 1)
+	    if (RSTRING_LEN(val) == 0 || RSTRING_LEN(val) > 1)
 		return Qfalse;
 	    else {
-		char b = RSTRING_CPTR(beg)[0];
-		char e = RSTRING_CPTR(end)[0];
-		char v = RSTRING_CPTR(val)[0];
+		char b = RSTRING_PTR(beg)[0];
+		char e = RSTRING_PTR(end)[0];
+		char v = RSTRING_PTR(val)[0];
 
 		if (ISASCII(b) && ISASCII(e) && ISASCII(v)) {
 		    if (b <= v && v < e) return Qtrue;

@@ -1618,11 +1618,11 @@ rb_ary_join(VALUE ary, VALUE sep)
 #else
     for (i=0; i<RARRAY_LEN(ary); i++) {
 	tmp = rb_check_string_type(RARRAY_AT(ary, i));
-	len += NIL_P(tmp) ? 10 : RSTRING_LEN(tmp);
+	len += NIL_P(tmp) ? 10 : RSTRING_BYTELEN(tmp);
     }
     if (!NIL_P(sep)) {
 	StringValue(sep);
-	len += RSTRING_LEN(sep) * (RARRAY_LEN(ary) - 1);
+	len += RSTRING_BYTELEN(sep) * (RARRAY_LEN(ary) - 1);
     }
     result = rb_str_buf_new(len);
 #endif
@@ -3703,9 +3703,9 @@ rb_ary_permutation(int argc, VALUE *argv, VALUE ary)
     }
     else {             /* this is the general case */
 	volatile VALUE t0 = tmpbuf(n,sizeof(long));
-	long *p = (long*)RSTRING_PTR(t0);
+	long *p = (long*)RSTRING_BYTEPTR(t0);
 	volatile VALUE t1 = tmpbuf(n,sizeof(int));
-	int *used = (int*)RSTRING_PTR(t1);
+	int *used = (int*)RSTRING_BYTEPTR(t1);
 #if WITH_OBJC
 	VALUE ary0 = rb_ary_dup(ary);
 #else
@@ -3788,7 +3788,7 @@ rb_ary_combination(VALUE ary, VALUE num)
     }
     else {
 	volatile VALUE t0 = tmpbuf(n+1, sizeof(long));
-	long *stack = (long*)RSTRING_PTR(t0);
+	long *stack = (long*)RSTRING_BYTEPTR(t0);
 	long nlen = combi_len(len, n);
 	volatile VALUE cc = rb_ary_new2(n);
 	long lev = 0;
@@ -3839,8 +3839,8 @@ rb_ary_product(int argc, VALUE *argv, VALUE ary)
     int n = argc+1;    /* How many arrays we're operating on */
     volatile VALUE t0 = tmpbuf(n, sizeof(VALUE));
     volatile VALUE t1 = tmpbuf(n, sizeof(int));
-    VALUE *arrays = (VALUE*)RSTRING_PTR(t0); /* The arrays we're computing the product of */
-    int *counters = (int*)RSTRING_PTR(t1); /* The current position in each one */
+    VALUE *arrays = (VALUE*)RSTRING_BYTEPTR(t0); /* The arrays we're computing the product of */
+    int *counters = (int*)RSTRING_BYTEPTR(t1); /* The current position in each one */
     VALUE result;      /* The array we'll be returning */
     long i,j;
     long resultlen = 1;

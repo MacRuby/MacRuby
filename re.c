@@ -602,7 +602,7 @@ rb_reg_raise(const char *s, long len, const char *err, VALUE re)
 {
     VALUE desc = rb_reg_desc(s, len, re);
 
-    rb_raise(rb_eRegexpError, "%s: %s", err, RSTRING_CPTR(desc));
+    rb_raise(rb_eRegexpError, "%s: %s", err, RSTRING_PTR(desc));
 }
 
 static VALUE
@@ -631,7 +631,7 @@ rb_enc_reg_raise(const char *s, long len, rb_encoding *enc, int options, const c
 static VALUE
 rb_reg_error_desc(VALUE str, int options, const char *err)
 {
-    return rb_enc_reg_error_desc(RSTRING_CPTR(str), RSTRING_CLEN(str),
+    return rb_enc_reg_error_desc(RSTRING_PTR(str), RSTRING_LEN(str),
 				 rb_enc_get(str), options, err);
 }
 
@@ -892,8 +892,8 @@ update_char_offset(VALUE match)
     }
     qsort(pairs, num_pos, sizeof(pair_t), pair_byte_cmp);
 
-    s = p = RSTRING_CPTR(RMATCH(match)->str);
-    e = s + RSTRING_CLEN(RMATCH(match)->str);
+    s = p = RSTRING_PTR(RMATCH(match)->str);
+    e = s + RSTRING_LEN(RMATCH(match)->str);
     c = 0;
     for (i = 0; i < num_pos; i++) {
         q = s + pairs[i].byte_pos;
@@ -1299,8 +1299,8 @@ rb_reg_prepare_re(VALUE re, VALUE str)
     enc = (rb_encoding *)ONIG_ENCODING_ASCII;
 #endif
 
-    r = onig_new(&reg, (UChar* )RSTRING_PTR(unescaped),
-		 (UChar* )(RSTRING_PTR(unescaped) + RSTRING_LEN(unescaped)),
+    r = onig_new(&reg, (UChar* )RSTRING_BYTEPTR(unescaped),
+		 (UChar* )(RSTRING_BYTEPTR(unescaped) + RSTRING_BYTELEN(unescaped)),
 		 reg->options, (OnigEncoding)enc,
 		 OnigDefaultSyntax, &einfo);
     if (r) {
@@ -1327,12 +1327,12 @@ rb_reg_adjust_startpos(VALUE re, VALUE str, int pos, int reverse)
 	range = -pos;
     }
     else {
-	range = RSTRING_CLEN(str) - pos;
+	range = RSTRING_LEN(str) - pos;
     }
 
 #if !WITH_OBJC
-    if (pos > 0 && ONIGENC_MBC_MAXLEN(enc) != 1 && pos < RSTRING_CLEN(str)) {
-	 string = (UChar*)RSTRING_CPTR(str);
+    if (pos > 0 && ONIGENC_MBC_MAXLEN(enc) != 1 && pos < RSTRING_LEN(str)) {
+	 string = (UChar*)RSTRING_PTR(str);
 
 	 if (range > 0) {
 	      p = onigenc_get_right_adjust_char_head(enc, string, string + pos);
@@ -1358,8 +1358,8 @@ rb_reg_search(VALUE re, VALUE str, int pos, int reverse)
     regex_t *reg0 = RREGEXP(re)->ptr, *reg;
     int busy = FL_TEST(re, REG_BUSY);
 
-    cstr = range = RSTRING_CPTR(str);
-    clen = RSTRING_CLEN(str);
+    cstr = range = RSTRING_PTR(str);
+    clen = RSTRING_LEN(str);
 #if WITH_OBJC
     static struct re_registers *regs = NULL;
     if (regs == NULL) {
@@ -1381,7 +1381,7 @@ rb_reg_search(VALUE re, VALUE str, int pos, int reverse)
 
     FL_SET(re, REG_BUSY);
     if (!reverse) {
-	range += RSTRING_CLEN(str);
+	range += RSTRING_LEN(str);
     }
     MEMZERO(&regs, struct re_registers, 1);
     result = onig_search(RREGEXP(re)->ptr,
@@ -1544,7 +1544,7 @@ rb_reg_match_post(VALUE match)
     if (BEG(0) == -1) return Qnil;
     str = RMATCH(match)->str;
     pos = END(0);
-    str = rb_str_subseq(str, pos, RSTRING_CLEN(str) - pos);
+    str = rb_str_subseq(str, pos, RSTRING_LEN(str) - pos);
     if (OBJ_TAINTED(match)) OBJ_TAINT(str);
     return str;
 }
@@ -2317,8 +2317,8 @@ rb_reg_check_preprocess(VALUE str)
     rb_encoding *enc;
 
     StringValue(str);
-    p = RSTRING_CPTR(str);
-    end = p + RSTRING_CLEN(str);
+    p = RSTRING_PTR(str);
+    end = p + RSTRING_LEN(str);
     enc = rb_enc_get(str);
 
     buf = rb_reg_preprocess(p, end, enc, &fixed_enc, err);
@@ -2358,8 +2358,8 @@ rb_reg_preprocess_dregexp(VALUE ary)
         rb_encoding *src_enc;
 
         StringValue(str);
-        p = RSTRING_CPTR(str);
-        end = p + RSTRING_CLEN(str);
+        p = RSTRING_PTR(str);
+        end = p + RSTRING_LEN(str);
         src_enc = rb_enc_get(str);
 
         buf = rb_reg_preprocess(p, end, src_enc, &fixed_enc, err);
@@ -2443,8 +2443,8 @@ rb_reg_initialize(VALUE obj, const char *s, int len, rb_encoding *enc,
         re->basic.flags |= REG_ENCODING_NONE;
     }
     
-    GC_WB(&re->ptr, make_regexp(RSTRING_CPTR(unescaped), 
-				RSTRING_CLEN(unescaped), enc,
+    GC_WB(&re->ptr, make_regexp(RSTRING_PTR(unescaped), 
+				RSTRING_LEN(unescaped), enc,
                                 options & ARG_REG_OPTION_MASK, err));
     if (!re->ptr) return -1;
     GC_WB(&re->str, ALLOC_N(char, len+1));
@@ -2473,7 +2473,7 @@ rb_reg_initialize_str(VALUE obj, VALUE str, int options, onig_errmsg_buffer err)
         }
 #endif
     }
-    ret = rb_reg_initialize(obj, RSTRING_CPTR(str), RSTRING_CLEN(str), enc,
+    ret = rb_reg_initialize(obj, RSTRING_PTR(str), RSTRING_LEN(str), enc,
 			    options, err);
     RB_GC_GUARD(str);
     return ret;
@@ -2555,13 +2555,13 @@ VALUE
 rb_reg_regcomp(VALUE str)
 {
     volatile VALUE save_str = str;
-    if (reg_cache && RREGEXP(reg_cache)->len == RSTRING_CLEN(str)
+    if (reg_cache && RREGEXP(reg_cache)->len == RSTRING_LEN(str)
 #if WITH_OBJC
 	&& rb_enc_get(reg_cache) == rb_enc_get(str)
 #else
 	&& ENCODING_GET(reg_cache) == ENCODING_GET(str)
 #endif
-        && memcmp(RREGEXP(reg_cache)->str, RSTRING_CPTR(str), RSTRING_CLEN(str)) == 0)
+        && memcmp(RREGEXP(reg_cache)->str, RSTRING_PTR(str), RSTRING_LEN(str)) == 0)
 	return reg_cache;
 
     return reg_cache = rb_reg_new_str(save_str, 0);
@@ -2917,7 +2917,7 @@ rb_reg_initialize_m(int argc, VALUE *argv, VALUE self)
 	str = argv[0];
 	ptr = StringValuePtr(str);
 	if (enc
-	    ? rb_reg_initialize(self, ptr, RSTRING_CLEN(str), enc, flags, err)
+	    ? rb_reg_initialize(self, ptr, RSTRING_LEN(str), enc, flags, err)
 	    : rb_reg_initialize_str(self, str, flags, err)) {
 	    rb_reg_raise_str(str, flags, err);
 	}
@@ -2941,10 +2941,10 @@ rb_reg_quote(VALUE str)
     int ascii_only = rb_enc_str_asciionly_p(str);
 #endif
 
-    s = RSTRING_CPTR(str);
+    s = RSTRING_PTR(str);
     if (s == NULL)
 	return str;
-    send = s + RSTRING_CLEN(str);
+    send = s + RSTRING_LEN(str);
     while (s < send) {
 #if WITH_OBJC
 	c = *s;
@@ -2976,7 +2976,7 @@ rb_reg_quote(VALUE str)
     return str;
 
   meta_found:
-    tmp = rb_str_new(0, RSTRING_CLEN(str)*2);
+    tmp = rb_str_new(0, RSTRING_LEN(str)*2);
 #if !WITH_OBJC
     if (ascii_only) {
         rb_enc_associate(tmp, rb_usascii_encoding());
@@ -2985,10 +2985,10 @@ rb_reg_quote(VALUE str)
         rb_enc_copy(tmp, str);
     }
 #endif
-    t = RSTRING_PTR(tmp);
+    t = RSTRING_BYTEPTR(tmp);
     /* copy upto metacharacter */
-    memcpy(t, RSTRING_CPTR(str), s - RSTRING_CPTR(str));
-    t += s - RSTRING_CPTR(str);
+    memcpy(t, RSTRING_PTR(str), s - RSTRING_PTR(str));
+    t += s - RSTRING_PTR(str);
 
     while (s < send) {
 #if WITH_OBJC
@@ -3040,7 +3040,7 @@ rb_reg_quote(VALUE str)
 	}
 	*t++ = c;
     }
-    rb_str_resize(tmp, t - RSTRING_PTR(tmp));
+    rb_str_resize(tmp, t - RSTRING_BYTEPTR(tmp));
     RSTRING_SYNC(tmp);
 #if !WITH_OBJC
     OBJ_INFECT(tmp, str);
@@ -3295,8 +3295,8 @@ rb_reg_regsub(VALUE str, VALUE src, struct re_registers *regs, VALUE regexp)
 #if !WITH_OBJC
     rb_enc_check(str, src);
 #endif
-    p = s = RSTRING_CPTR(str);
-    e = s + RSTRING_CLEN(str);
+    p = s = RSTRING_PTR(str);
+    e = s + RSTRING_LEN(str);
 
     while (s < e) {
 	const char *ss;
@@ -3387,11 +3387,11 @@ rb_reg_regsub(VALUE str, VALUE src, struct re_registers *regs, VALUE regexp)
 	    break;
 
 	  case '`':
-	    rb_enc_str_buf_cat(val, RSTRING_CPTR(src), BEG(0), src_enc);
+	    rb_enc_str_buf_cat(val, RSTRING_PTR(src), BEG(0), src_enc);
 	    continue;
 
 	  case '\'':
-	    rb_enc_str_buf_cat(val, RSTRING_CPTR(src)+END(0), RSTRING_CLEN(src)-END(0), src_enc);
+	    rb_enc_str_buf_cat(val, RSTRING_PTR(src)+END(0), RSTRING_LEN(src)-END(0), src_enc);
 	    continue;
 
 	  case '+':
@@ -3412,7 +3412,7 @@ rb_reg_regsub(VALUE str, VALUE src, struct re_registers *regs, VALUE regexp)
 	if (no >= 0) {
 	    if (no >= regs->num_regs) continue;
 	    if (BEG(no) == -1) continue;
-	    rb_enc_str_buf_cat(val, RSTRING_CPTR(src)+BEG(no), END(no)-BEG(no), src_enc);
+	    rb_enc_str_buf_cat(val, RSTRING_PTR(src)+BEG(no), END(no)-BEG(no), src_enc);
 	}
     }
 

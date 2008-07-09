@@ -49,7 +49,7 @@ enc_init_db(void)
 	    const char *name;
 	    char *p;
 
-	    name = RSTRING_CPTR(iana);
+	    name = RSTRING_PTR(iana);
 	    p = strchr(name, '-');
 	    if ((p = strchr(name, '-')) != NULL
 		|| islower(*name)) {
@@ -213,7 +213,7 @@ rb_to_encoding(VALUE enc)
     idx = enc_check_encoding(enc);
     if (idx >= 0) return RDATA(enc)->data;
     if ((idx = rb_enc_find_index(StringValueCStr(enc))) < 0) {
-	rb_raise(rb_eArgError, "unknown encoding name - %s", RSTRING_PTR(enc));
+	rb_raise(rb_eArgError, "unknown encoding name - %s", RSTRING_BYTEPTR(enc));
     }
     return rb_enc_from_index(idx);
 }
@@ -535,7 +535,7 @@ load_encoding(const char *name)
     VALUE verbose = ruby_verbose;
     VALUE debug = ruby_debug;
     VALUE loaded;
-    char *s = RSTRING_PTR(enclib) + 4, *e = RSTRING_END(enclib);
+    char *s = RSTRING_BYTEPTR(enclib) + 4, *e = RSTRING_END(enclib);
     int idx;
 
     while (s < e) {
@@ -627,7 +627,7 @@ enc_check_capable(VALUE x)
 	    etype = "Symbol";
 	}
 	else if (rb_special_const_p(x)) {
-	    etype = RSTRING_PTR(rb_obj_as_string(x));
+	    etype = RSTRING_BYTEPTR(rb_obj_as_string(x));
 	}
 	else {
 	    etype = rb_obj_classname(x);
@@ -743,9 +743,9 @@ rb_enc_compatible(VALUE str1, VALUE str2)
     enc1 = rb_enc_from_index(idx1);
     enc2 = rb_enc_from_index(idx2);
 
-    if (TYPE(str2) == T_STRING && RSTRING_LEN(str2) == 0)
+    if (TYPE(str2) == T_STRING && RSTRING_BYTELEN(str2) == 0)
 	return enc1;
-    if (TYPE(str1) == T_STRING && RSTRING_LEN(str1) == 0)
+    if (TYPE(str1) == T_STRING && RSTRING_BYTELEN(str1) == 0)
 	return enc2;
     if (!rb_enc_asciicompat(enc1) || !rb_enc_asciicompat(enc2)) {
 	return 0;
@@ -911,7 +911,7 @@ enc_inspect(VALUE self)
     enc_name = (VALUE)CFStringGetNameOfEncoding(rb_enc_to_enc(self));
     
     n = snprintf(buffer, sizeof buffer, "#<%s:%s>", rb_obj_classname(self),
-	RSTRING_CPTR(enc_name));
+	RSTRING_PTR(enc_name));
 
     return rb_str_new(buffer, n);
 #else
@@ -1031,7 +1031,7 @@ enc_find(VALUE klass, VALUE enc)
 #if WITH_OBJC
     VALUE e = enc_find2(enc);
     if (e == Qnil)
-	rb_raise(rb_eArgError, "unknown encoding name - %s", RSTRING_PTR(enc));
+	rb_raise(rb_eArgError, "unknown encoding name - %s", RSTRING_BYTEPTR(enc));
     return e;
 #else
     int idx;
@@ -1042,7 +1042,7 @@ enc_find(VALUE klass, VALUE enc)
     }
     idx = rb_enc_find_index(StringValueCStr(enc));
     if (idx < 0) {
-	rb_raise(rb_eArgError, "unknown encoding name - %s", RSTRING_PTR(enc));
+	rb_raise(rb_eArgError, "unknown encoding name - %s", RSTRING_BYTEPTR(enc));
     }
     return rb_enc_from_encoding(rb_enc_from_index(idx));
 #endif
@@ -1395,7 +1395,7 @@ const char *
 rb_enc_name(rb_encoding *enc)
 {
     VALUE str = rb_enc_name2(enc);
-    return str == Qnil ? NULL : RSTRING_CPTR(str);
+    return str == Qnil ? NULL : RSTRING_PTR(str);
 }
 
 long 

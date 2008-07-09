@@ -340,7 +340,7 @@ inspect_i(ID id, VALUE value, VALUE str)
     const char *ivname;
     const char *cstr;
 
-    cstr = RSTRING_CPTR(str);
+    cstr = RSTRING_PTR(str);
 
     /* need not to show internal data */
     if (CLASS_OF(value) == 0) return ST_CONTINUE;
@@ -350,7 +350,7 @@ inspect_i(ID id, VALUE value, VALUE str)
 #if WITH_OBJC
 	rb_str_update(str, 0, 0, rb_str_new2("#"));
 #else
-	RSTRING_PTR(str)[0] = '#';
+	RSTRING_BYTEPTR(str)[0] = '#';
 #endif
 	rb_str_cat2(str, " ");
     }
@@ -380,7 +380,7 @@ inspect_obj(VALUE obj, VALUE str, int recur)
 #if WITH_OBJC
     rb_str_update(str, 0, 0, rb_str_new2("#"));
 #else
-    RSTRING_PTR(str)[0] = '#';
+    RSTRING_BYTEPTR(str)[0] = '#';
 #endif
     OBJ_INFECT(str, obj);
 
@@ -2194,8 +2194,8 @@ rb_str_to_dbl(VALUE str, int badcheck)
     long len;
 
     StringValue(str);
-    s = RSTRING_CPTR(str);
-    len = RSTRING_CLEN(str);
+    s = RSTRING_PTR(str);
+    len = RSTRING_LEN(str);
     if (s) {
 	if (s[len]) {		/* no sentinel somehow */
 	    char *p = ALLOCA_N(char, len+1);
@@ -2280,11 +2280,11 @@ const char*
 rb_str2cstr(VALUE str, long *len)
 {
     StringValue(str);
-    if (len) *len = RSTRING_CLEN(str);
-    else if (RTEST(ruby_verbose) && RSTRING_CLEN(str) != strlen(RSTRING_CPTR(str))) {
+    if (len) *len = RSTRING_LEN(str);
+    else if (RTEST(ruby_verbose) && RSTRING_LEN(str) != strlen(RSTRING_PTR(str))) {
 	rb_warn("string contains \\0 character");
     }
-    return RSTRING_CPTR(str);
+    return RSTRING_PTR(str);
 }
 
 VALUE

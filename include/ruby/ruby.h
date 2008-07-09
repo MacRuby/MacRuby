@@ -537,21 +537,21 @@ struct RString {
 #else
 /* IMPORTANT: try to avoid using RSTRING_PTR/RSTRING_LEN if necessary, 
  * because they can be slow operations in non-8bit strings. 
- * If you modify RSTRING_PTR, you need to call RSTRING_SYNC in order to
+ * If you modify RSTRING_BYTEPTR, you need to call RSTRING_SYNC in order to
  * synchronize its content with the real string storage.
- * RSTRING_PTR/RSTRING_LEN deal with bytes. If you want to access a C string
- * pointer, please use RSTRING_CPTR instead which is faster.
+ * RSTRING_BYTEPTR/RSTRING_BYTELEN deal with bytes. If you want to access a C string
+ * pointer, please use RSTRING_PTR/RSTRING/LEN instead which are faster.
  */
 char *rb_str_byteptr(VALUE);
 long rb_str_bytelen(VALUE);
 void rb_str_bytesync(VALUE);
 const char *rb_str_cstr(VALUE);
 long rb_str_clen(VALUE);
-# define RSTRING_PTR(str) (rb_str_byteptr((VALUE)str))
-# define RSTRING_LEN(str) (rb_str_bytelen((VALUE)str))
+# define RSTRING_BYTEPTR(str) (rb_str_byteptr((VALUE)str))
+# define RSTRING_BYTELEN(str) (rb_str_bytelen((VALUE)str))
 # define RSTRING_SYNC(str) (rb_str_bytesync((VALUE)str))
-# define RSTRING_CPTR(str) (rb_str_cstr((VALUE)str))
-# define RSTRING_CLEN(str) (rb_str_clen((VALUE)str))
+# define RSTRING_PTR(str) (rb_str_cstr((VALUE)str))
+# define RSTRING_LEN(str) (rb_str_clen((VALUE)str))
 #endif
 #define RSTRING_END(str) (RSTRING_PTR(str)+RSTRING_LEN(str))
 

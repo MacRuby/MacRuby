@@ -329,7 +329,7 @@ io_unread(rb_io_t *fptr)
 static void
 io_ungetc(VALUE str, rb_io_t *fptr)
 {
-    int len = RSTRING_LEN(str);
+    int len = RSTRING_BYTELEN(str);
 
     if (fptr->rbuf == NULL) {
         fptr->rbuf_off = 0;
@@ -351,7 +351,7 @@ io_ungetc(VALUE str, rb_io_t *fptr)
     }
     fptr->rbuf_off-=len;
     fptr->rbuf_len+=len;
-    MEMMOVE(fptr->rbuf+fptr->rbuf_off, RSTRING_PTR(str), char, len);
+    MEMMOVE(fptr->rbuf+fptr->rbuf_off, RSTRING_BYTEPTR(str), char, len);
 }
 
 static rb_io_t *
@@ -711,7 +711,7 @@ io_fwrite(VALUE str, rb_io_t *fptr)
 	}
     }
 
-    len = RSTRING_LEN(str);
+    len = RSTRING_BYTELEN(str);
     if ((n = len) <= 0) return n;
     if (fptr->wbuf == NULL && !(fptr->mode & FMODE_SYNC)) {
         fptr->wbuf_off = 0;
@@ -727,7 +727,7 @@ io_fwrite(VALUE str, rb_io_t *fptr)
                 MEMMOVE(fptr->wbuf, fptr->wbuf+fptr->wbuf_off, char, fptr->wbuf_len);
                 fptr->wbuf_off = 0;
             }
-            MEMMOVE(fptr->wbuf+fptr->wbuf_off+fptr->wbuf_len, RSTRING_PTR(str)+offset, char, len);
+            MEMMOVE(fptr->wbuf+fptr->wbuf_off+fptr->wbuf_len, RSTRING_BYTEPTR(str)+offset, char, len);
             fptr->wbuf_len += len;
             n = 0;
         }
@@ -748,7 +748,7 @@ io_fwrite(VALUE str, rb_io_t *fptr)
             wsplit_p(fptr)) {
             l = PIPE_BUF;
         }
-	r = rb_write_internal(fptr->fd, RSTRING_PTR(str)+offset, l);
+	r = rb_write_internal(fptr->fd, RSTRING_BYTEPTR(str)+offset, l);
 	/* xxx: other threads may modify given string. */
         if (r == n) return len;
         if (0 <= r) {
@@ -758,7 +758,7 @@ io_fwrite(VALUE str, rb_io_t *fptr)
         }
         if (rb_io_wait_writable(fptr->fd)) {
             rb_io_check_closed(fptr);
-	    if (offset < RSTRING_LEN(str))
+	    if (offset < RSTRING_BYTELEN(str))
 		goto retry;
         }
         return -1L;
@@ -769,7 +769,7 @@ io_fwrite(VALUE str, rb_io_t *fptr)
             MEMMOVE(fptr->wbuf, fptr->wbuf+fptr->wbuf_off, char, fptr->wbuf_len);
         fptr->wbuf_off = 0;
     }
-    MEMMOVE(fptr->wbuf+fptr->wbuf_off+fptr->wbuf_len, RSTRING_PTR(str)+offset, char, len);
+    MEMMOVE(fptr->wbuf+fptr->wbuf_off+fptr->wbuf_len, RSTRING_BYTEPTR(str)+offset, char, len);
     fptr->wbuf_len += len;
     return len;
 }
@@ -820,7 +820,7 @@ io_write(VALUE io, VALUE str)
 	return rb_funcall(io, id_write, 1, str);
     }
     io = tmp;
-    if (RSTRING_CLEN(str) == 0) return INT2FIX(0);
+    if (RSTRING_LEN(str) == 0) return INT2FIX(0);
 
     GetOpenFile(io, fptr);
     rb_io_check_writable(fptr);
@@ -1297,10 +1297,10 @@ read_buffered_data(char *ptr, long len, rb_io_t *fptr)
 static long
 io_fread(VALUE str, long offset, rb_io_t *fptr)
 {
-    long len = RSTRING_LEN(str) - offset;
+    long len = RSTRING_BYTELEN(str) - offset;
     long n = len;
     int c;
-    char *ptr = RSTRING_PTR(str);
+    char *ptr = RSTRING_BYTEPTR(str);
 
     while (n > 0) {
 	c = read_buffered_data(ptr+offset, n, fptr);
@@ -1329,7 +1329,7 @@ rb_io_fread(char *ptr, long len, FILE *f)
     of.mode = FMODE_READABLE;
     str = rb_str_new(ptr, len);
     n = io_fread(str, 0, &of);
-    MEMCPY(ptr, RSTRING_PTR(str), char, n);
+    MEMCPY(ptr, RSTRING_BYTEPTR(str), char, n);
     RSTRING_SYNC(str);
     return n;
 }
@@ -1411,7 +1411,7 @@ read_all(rb_io_t *fptr, long siz, VALUE str)
 	bytes += n;
 #if !WITH_OBJC
 	if (cr != ENC_CODERANGE_BROKEN)
-	    pos = rb_str_coderange_scan_restartable(RSTRING_PTR(str) + pos, RSTRING_PTR(str) + bytes, enc, &cr);
+	    pos = rb_str_coderange_scan_restartable(RSTRING_BYTEPTR(str) + pos, RSTRING_BYTEPTR(str) + bytes, enc, &cr);
 #endif
 	if (bytes < siz) break;
 	siz += BUFSIZ;
@@ -1479,20 +1479,20 @@ io_getpartial(int argc, VALUE *argv, VALUE io, int nonblock)
 
     if (!nonblock)
         READ_CHECK(fptr);
-    if (RSTRING_LEN(str) != len) {
+    if (RSTRING_BYTELEN(str) != len) {
       modified:
 	rb_raise(rb_eRuntimeError, "buffer string modified");
     }
-    n = read_buffered_data(RSTRING_PTR(str), len, fptr);
+    n = read_buffered_data(RSTRING_BYTEPTR(str), len, fptr);
     if (n <= 0) {
       again:
-	if (RSTRING_LEN(str) != len) goto modified;
+	if (RSTRING_BYTELEN(str) != len) goto modified;
         if (nonblock) {
             rb_io_set_nonblock(fptr);
-	    n = rb_read_internal(fptr->fd, RSTRING_PTR(str), len);
+	    n = rb_read_internal(fptr->fd, RSTRING_BYTEPTR(str), len);
         }
         else {
-            n = rb_read_internal(fptr->fd, RSTRING_PTR(str), len);
+            n = rb_read_internal(fptr->fd, RSTRING_BYTEPTR(str), len);
 	}
         if (n < 0) {
             if (!nonblock && rb_io_wait_readable(fptr->fd))
@@ -1648,7 +1648,7 @@ rb_io_write_nonblock(VALUE io, VALUE str)
     io_fflush(fptr);
 
     rb_io_set_nonblock(fptr);
-    n = write(fptr->fd, RSTRING_PTR(str), RSTRING_LEN(str));
+    n = write(fptr->fd, RSTRING_BYTEPTR(str), RSTRING_BYTELEN(str));
 
     if (n == -1) rb_sys_fail(fptr->path);
 
@@ -1711,7 +1711,7 @@ io_read(int argc, VALUE *argv, VALUE io)
     if (len == 0) return str;
 
     READ_CHECK(fptr);
-    if (RSTRING_LEN(str) != len) {
+    if (RSTRING_BYTELEN(str) != len) {
 	rb_raise(rb_eRuntimeError, "buffer string modified");
     }
     n = io_fread(str, 0, fptr);
@@ -1730,7 +1730,7 @@ static void
 rscheck(const char *rsptr, long rslen, VALUE rs)
 {
     if (!rs) return;
-    if (RSTRING_PTR(rs) != rsptr && RSTRING_LEN(rs) != rslen)
+    if (RSTRING_BYTEPTR(rs) != rsptr && RSTRING_BYTELEN(rs) != rslen)
 	rb_raise(rb_eRuntimeError, "rs modified");
 }
 
@@ -1756,7 +1756,7 @@ appendline(rb_io_t *fptr, int delim, VALUE *strp, long *lp)
 	    if (e) pending = e - p + 1;
 	    len += pending;
 	    if (!NIL_P(str)) {
-		last = RSTRING_LEN(str);
+		last = RSTRING_BYTELEN(str);
 		rb_str_resize(str, last + len);
 	    }
 	    else {
@@ -1764,7 +1764,7 @@ appendline(rb_io_t *fptr, int delim, VALUE *strp, long *lp)
 		rb_str_set_len(str, len);
 	    }
 	    if (c != EOF) {
-		RSTRING_PTR(str)[last++] = c;
+		RSTRING_BYTEPTR(str)[last++] = c;
 	    }
 	    if (limit > 0 && limit == pending) {
 #if !WITH_OBJC
@@ -1776,14 +1776,14 @@ appendline(rb_io_t *fptr, int delim, VALUE *strp, long *lp)
 		    int diff = pp - pl;
 		    pending -= diff;
 		    limit = pending;
-		    rb_str_set_len(str, RSTRING_LEN(str)-diff);
+		    rb_str_set_len(str, RSTRING_BYTELEN(str)-diff);
 		}
 #endif
 	    }
-	    read_buffered_data(RSTRING_PTR(str) + last, pending, fptr); /* must not fail */
+	    read_buffered_data(RSTRING_BYTEPTR(str) + last, pending, fptr); /* must not fail */
 	    limit -= pending;
 	    *lp = limit;
-	    if (limit == 0) return RSTRING_PTR(str)[RSTRING_LEN(str)-1];
+	    if (limit == 0) return RSTRING_BYTEPTR(str)[RSTRING_BYTELEN(str)-1];
 	    if (e) return delim;
 	}
 	else if (c != EOF) {
@@ -1794,7 +1794,7 @@ appendline(rb_io_t *fptr, int delim, VALUE *strp, long *lp)
 	    else {
 		*strp = str = rb_str_buf_new(1);
 		rb_str_resize(str, 1);
-		RSTRING_PTR(str)[0] = c;
+		RSTRING_BYTEPTR(str)[0] = c;
 	    }
 	}
 	rb_thread_wait_fd(fptr->fd);
@@ -1876,12 +1876,12 @@ rb_io_getline_fast(rb_io_t *fptr)
 	    }
 	    else {
 		rb_str_resize(str, len + pending);
-		read_buffered_data(RSTRING_PTR(str)+len, pending, fptr);
+		read_buffered_data(RSTRING_BYTEPTR(str)+len, pending, fptr);
 	    }
 	    len += pending;
 #if !WITH_OBJC
 	    if (cr != ENC_CODERANGE_BROKEN)
-		pos = rb_str_coderange_scan_restartable(RSTRING_PTR(str) + pos, RSTRING_PTR(str) + len, enc, &cr);
+		pos = rb_str_coderange_scan_restartable(RSTRING_BYTEPTR(str) + pos, RSTRING_BYTEPTR(str) + len, enc, &cr);
 #endif
 	    if (e) break;
 	}
@@ -1977,7 +1977,7 @@ rb_io_getline_1(VALUE rs, long limit, VALUE io)
     enc = io_input_encoding(fptr);
     if (NIL_P(rs)) {
 	str = read_all(fptr, 0, Qnil);
-	if (RSTRING_LEN(str) == 0) return Qnil;
+	if (RSTRING_BYTELEN(str) == 0) return Qnil;
     }
     else if (limit == 0) {
 	return rb_enc_str_new(0, 0, io_read_encoding(fptr));
@@ -1996,7 +1996,7 @@ rb_io_getline_1(VALUE rs, long limit, VALUE io)
 	long rslen;
 	int rspara = 0;
 
-	rslen = RSTRING_LEN(rs);
+	rslen = RSTRING_BYTELEN(rs);
 	if (rslen == 0) {
 	    rsptr = "\n\n";
 	    rslen = 2;
@@ -2005,7 +2005,7 @@ rb_io_getline_1(VALUE rs, long limit, VALUE io)
 	    rs = 0;
 	}
 	else {
-	    rsptr = RSTRING_PTR(rs);
+	    rsptr = RSTRING_BYTEPTR(rs);
 	}
 	newline = rsptr[rslen - 1];
 
@@ -2013,9 +2013,9 @@ rb_io_getline_1(VALUE rs, long limit, VALUE io)
 	    if (c == newline) {
 		const char *s, *p;
 
-		if (RSTRING_LEN(str) < rslen) continue;
-		s = RSTRING_PTR(str);
-		p = s +  RSTRING_LEN(str) - rslen;
+		if (RSTRING_BYTELEN(str) < rslen) continue;
+		s = RSTRING_BYTEPTR(str);
+		p = s +  RSTRING_BYTELEN(str) - rslen;
 #if !WITH_OBJC
 		pp = rb_enc_left_char_head(s, p, enc);
 		if (pp != p) continue;
@@ -2328,7 +2328,7 @@ io_getc(rb_io_t *fptr, rb_encoding *enc)
 		rb_str_cat(str, fptr->rbuf+fptr->rbuf_off, 1);
 		fptr->rbuf_off++;
 		fptr->rbuf_len--;
-		r = rb_enc_precise_mbclen(RSTRING_PTR(str), RSTRING_PTR(str)+RSTRING_LEN(str), enc);
+		r = rb_enc_precise_mbclen(RSTRING_BYTEPTR(str), RSTRING_BYTEPTR(str)+RSTRING_BYTELEN(str), enc);
 		if (MBCLEN_NEEDMORE_P(r)) {
 		    goto getc_needmore;
 		}
@@ -3088,7 +3088,7 @@ rb_io_syswrite(VALUE io, VALUE str)
         rb_io_check_closed(fptr);
     }
     TRAP_BEG;
-    n = write(fptr->fd, RSTRING_PTR(str), RSTRING_LEN(str));
+    n = write(fptr->fd, RSTRING_BYTEPTR(str), RSTRING_BYTELEN(str));
     TRAP_END;
 
     if (n == -1) rb_sys_fail(fptr->path);
@@ -3142,11 +3142,11 @@ rb_io_sysread(int argc, VALUE *argv, VALUE io)
     n = fptr->fd;
     rb_thread_wait_fd(fptr->fd);
     rb_io_check_closed(fptr);
-    if (RSTRING_LEN(str) != ilen) {
+    if (RSTRING_BYTELEN(str) != ilen) {
 	rb_raise(rb_eRuntimeError, "buffer string modified");
     }
 
-    n = rb_read_internal(fptr->fd, RSTRING_PTR(str), ilen);
+    n = rb_read_internal(fptr->fd, RSTRING_BYTEPTR(str), ilen);
 
     if (n == -1) {
 	rb_sys_fail(fptr->path);
@@ -3910,14 +3910,14 @@ pipe_open(struct rb_exec_arg *eargp, VALUE prog, const char *mode)
 	    rb_raise(rb_eArgError, "too many arguments");
 	}
 	argbuf = rb_str_tmp_new((argc+1) * sizeof(char *));
-	args = (void *)RSTRING_PTR(argbuf);
+	args = (void *)RSTRING_BYTEPTR(argbuf);
 	for (i = 0; i < argc; ++i) {
 	    args[i] = StringValueCStr(argv[i]);
 	}
 	args[i] = NULL;
 	exename = cmd;
 	cmdbuf = rb_str_tmp_new(rb_w32_argv_size(args));
-	cmd = rb_w32_join_argv(RSTRING_PTR(cmdbuf), args);
+	cmd = rb_w32_join_argv(RSTRING_BYTEPTR(cmdbuf), args);
 	rb_str_resize(argbuf, 0);
     }
     if (eargp) {
@@ -3954,7 +3954,7 @@ pipe_open(struct rb_exec_arg *eargp, VALUE prog, const char *mode)
     fp = popen(cmd, mode);
     if (eargp)
 	rb_run_exec_options(&sarg, NULL);
-    if (!fp) rb_sys_fail(RSTRING_PTR(prog));
+    if (!fp) rb_sys_fail(RSTRING_BYTEPTR(prog));
     fd = fileno(fp);
 #endif
 
@@ -3995,12 +3995,12 @@ pipe_open_v(int argc, VALUE *argv, const char *mode)
 static VALUE
 pipe_open_s(VALUE prog, const char *mode)
 {
-    const char *cmd = RSTRING_CPTR(prog);
+    const char *cmd = RSTRING_PTR(prog);
     int argc = 1;
     VALUE *argv = &prog;
     struct rb_exec_arg earg;
 
-    if (RSTRING_CLEN(prog) == 1 && cmd[0] == '-') {
+    if (RSTRING_LEN(prog) == 1 && cmd[0] == '-') {
 #if !defined(HAVE_FORK)
 	rb_raise(rb_eNotImpError,
 		 "fork() function is unimplemented on this machine");
@@ -4132,12 +4132,12 @@ rb_open_file(int argc, VALUE *argv, VALUE io)
 	}
 	fmode = NIL_P(perm) ? 0666 :  NUM2INT(perm);
 
-	rb_file_sysopen_internal(io, RSTRING_PTR(fname), flags, fmode);
+	rb_file_sysopen_internal(io, RSTRING_BYTEPTR(fname), flags, fmode);
     }
     else {
 
 	mode = NIL_P(vmode) ? "r" : StringValueCStr(vmode);
-	rb_file_open_internal(io, RSTRING_PTR(fname), mode);
+	rb_file_open_internal(io, RSTRING_BYTEPTR(fname), mode);
     }
     return io;
 }
@@ -4198,7 +4198,7 @@ rb_io_s_sysopen(int argc, VALUE *argv)
     else             fmode = NUM2INT(perm);
 
     RB_GC_GUARD(fname) = rb_str_new4(fname);
-    path = RSTRING_PTR(fname);
+    path = RSTRING_BYTEPTR(fname);
     fd = rb_sysopen(path, flags, fmode);
     return INT2NUM(fd);
 }
@@ -4330,7 +4330,7 @@ rb_f_open(int argc, VALUE *argv)
 	    else {
 		char *str = StringValuePtr(tmp);
 		if (str && str[0] == '|') {
-		    argv[0] = rb_str_new(str+1, RSTRING_LEN(tmp)-1);
+		    argv[0] = rb_str_new(str+1, RSTRING_BYTELEN(tmp)-1);
 		    OBJ_INFECT(argv[0], tmp);
 		    return rb_io_s_popen(argc, argv, rb_cIO);
 		}
@@ -4817,8 +4817,8 @@ rb_io_puts(int argc, VALUE *argv, VALUE out)
 	}
 	line = rb_obj_as_string(argv[i]);
 	rb_io_write(out, line);
-	if (RSTRING_LEN(line) == 0 ||
-            RSTRING_PTR(line)[RSTRING_LEN(line)-1] != '\n') {
+	if (RSTRING_BYTELEN(line) == 0 ||
+            RSTRING_BYTEPTR(line)[RSTRING_BYTELEN(line)-1] != '\n') {
 	    rb_io_write(out, rb_default_rs);
 	}
     }
@@ -5085,7 +5085,7 @@ rb_io_initialize(int argc, VALUE *argv, VALUE io)
 		    rb_raise(rb_eArgError, "incompatible mode 0%o", flags);
 		}
 		else {
-		    rb_raise(rb_eArgError, "incompatible mode \"%s\"", RSTRING_PTR(mode));
+		    rb_raise(rb_eArgError, "incompatible mode \"%s\"", RSTRING_BYTEPTR(mode));
 		}
 	    }
 	}
@@ -5356,13 +5356,13 @@ argf_next_argv(VALUE argf)
 #endif
 #ifdef NO_SAFE_RENAME
 			(void)close(fr);
-			(void)unlink(RSTRING_PTR(str));
-			(void)rename(fn, RSTRING_PTR(str));
-			fr = rb_sysopen(RSTRING_PTR(str), O_RDONLY, 0);
+			(void)unlink(RSTRING_BYTEPTR(str));
+			(void)rename(fn, RSTRING_BYTEPTR(str));
+			fr = rb_sysopen(RSTRING_BYTEPTR(str), O_RDONLY, 0);
 #else
-			if (rename(fn, RSTRING_PTR(str)) < 0) {
+			if (rename(fn, RSTRING_BYTEPTR(str)) < 0) {
 			    rb_warn("Can't rename %s to %s: %s, skipping file",
-				    fn, RSTRING_PTR(str), strerror(errno));
+				    fn, RSTRING_BYTEPTR(str), strerror(errno));
 			    close(fr);
 			    goto retry;
 			}
@@ -5915,20 +5915,20 @@ rb_io_ctl(VALUE io, VALUE req, VALUE arg, int io_p)
 #endif
 	    rb_str_modify(arg);
 
-	    if (len <= RSTRING_LEN(arg)) {
-		len = RSTRING_LEN(arg);
+	    if (len <= RSTRING_BYTELEN(arg)) {
+		len = RSTRING_BYTELEN(arg);
 	    }
-	    if (RSTRING_LEN(arg) < len) {
+	    if (RSTRING_BYTELEN(arg) < len) {
 		rb_str_resize(arg, len+1);
 	    }
-	    RSTRING_PTR(arg)[len] = 17;	/* a little sanity check here */
-	    narg = (long)RSTRING_PTR(arg);
+	    RSTRING_BYTEPTR(arg)[len] = 17;	/* a little sanity check here */
+	    narg = (long)RSTRING_BYTEPTR(arg);
 	}
     }
     GetOpenFile(io, fptr);
     retval = io_cntl(fptr->fd, cmd, narg, io_p);
     if (retval < 0) rb_sys_fail(fptr->path);
-    if (TYPE(arg) == T_STRING && RSTRING_PTR(arg)[len] != 17) {
+    if (TYPE(arg) == T_STRING && RSTRING_BYTEPTR(arg)[len] != 17) {
 	rb_raise(rb_eArgError, "return value overflowed string");
     }
 
@@ -6256,7 +6256,7 @@ open_key_args(int argc, VALUE *argv, struct foreach_arg *arg)
     arg->argv = argv + 1;
     if (argc == 1) {
       no_key:
-	arg->io = rb_io_open(RSTRING_PTR(argv[0]), "r");
+	arg->io = rb_io_open(RSTRING_BYTEPTR(argv[0]), "r");
 	return;
     }
     opt = rb_check_convert_type(argv[argc-1], T_HASH, "Hash", "to_hash");
@@ -6295,10 +6295,10 @@ open_key_args(int argc, VALUE *argv, struct foreach_arg *arg)
     }
     v = rb_hash_aref(opt, mode);
     if (!NIL_P(v)) {
-	arg->io = rb_io_open(RSTRING_PTR(argv[0]), StringValueCStr(v));
+	arg->io = rb_io_open(RSTRING_BYTEPTR(argv[0]), StringValueCStr(v));
     }
     else {
-	arg->io = rb_io_open(RSTRING_PTR(argv[0]), "r");
+	arg->io = rb_io_open(RSTRING_BYTEPTR(argv[0]), "r");
     }
 
     v = rb_hash_aref(opt, encoding);
@@ -6761,7 +6761,7 @@ copy_stream_fallback_body(VALUE arg)
             ssize_t ss;
             rb_thread_wait_fd(stp->src_fd);
             rb_str_resize(buf, buflen);
-            ss = copy_stream_read(stp, RSTRING_PTR(buf), l, off);
+            ss = copy_stream_read(stp, RSTRING_BYTEPTR(buf), l, off);
             if (ss == -1)
                 return Qnil;
             if (ss == 0)
@@ -6872,7 +6872,7 @@ copy_stream_body(VALUE arg)
         }
         str = rb_str_buf_new(len);
         rb_str_resize(str,len);
-        read_buffered_data(RSTRING_PTR(str), len, src_fptr);
+        read_buffered_data(RSTRING_BYTEPTR(str), len, src_fptr);
         if (dst_fptr) /* IO or filename */
             io_fwrite(str, dst_fptr);
         else /* others such as StringIO */
@@ -7190,8 +7190,8 @@ argf_read(int argc, VALUE *argv, VALUE argf)
 	}
     }
     else if (argc >= 1) {
-	if (RSTRING_LEN(str) < len) {
-	    len -= RSTRING_LEN(str);
+	if (RSTRING_BYTELEN(str) < len) {
+	    len -= RSTRING_BYTELEN(str);
 	    argv[0] = INT2NUM(len);
 	    goto retry;
 	}
@@ -7457,7 +7457,7 @@ argf_inplace_mode_set(VALUE argf, VALUE val)
 	StringValue(val);
 	if (ruby_inplace_mode) free(ruby_inplace_mode);
 	ruby_inplace_mode = 0;
-	ruby_inplace_mode = strdup(RSTRING_PTR(val));
+	ruby_inplace_mode = strdup(RSTRING_BYTEPTR(val));
     }
     return argf;
 }

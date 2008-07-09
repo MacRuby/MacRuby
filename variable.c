@@ -232,7 +232,7 @@ rb_set_class_path(VALUE klass, VALUE under, const char *name)
     OBJ_FREEZE(str);
     rb_ivar_set(klass, classpath, str);
 #if WITH_OBJC
-    rb_objc_rename_class(klass, RSTRING_CPTR(str));
+    rb_objc_rename_class(klass, RSTRING_PTR(str));
 #endif
 }
 
@@ -287,7 +287,7 @@ rb_class_name(VALUE klass)
 const char *
 rb_class2name(VALUE klass)
 {
-    return RSTRING_CPTR(rb_class_name(klass));
+    return RSTRING_PTR(rb_class_name(klass));
 }
 
 const char *
@@ -1496,7 +1496,7 @@ check_autoload_table(VALUE av)
 #endif
 	RDATA(av)->dfree != (RUBY_DATA_FUNC)st_free_table) {
 	VALUE desc = rb_inspect(av);
-	rb_raise(rb_eTypeError, "wrong autoload table: %s", RSTRING_CPTR(desc));
+	rb_raise(rb_eTypeError, "wrong autoload table: %s", RSTRING_PTR(desc));
     }
     return (struct st_table *)DATA_PTR(av);
 }
@@ -1587,10 +1587,10 @@ autoload_file(VALUE mod, ID id)
     }
     file = ((NODE *)load)->nd_lit;
     Check_Type(file, T_STRING);
-    if (RSTRING_CLEN(file) == 0) {
+    if (RSTRING_LEN(file) == 0) {
 	rb_raise(rb_eArgError, "empty file name");
     }
-    if (!rb_provided(RSTRING_CPTR(file))) {
+    if (!rb_provided(RSTRING_PTR(file))) {
 	return file;
     }
 

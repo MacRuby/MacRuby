@@ -252,6 +252,7 @@ task :objects => :config_h do
     sh("/usr/bin/sed -f ./tool/ytab.sed -e \"/^#/s!y\.tab\.c!parse.c!\" y.tab.c > parse.c.new")
     if !File.exist?('parse.c') or File.read('parse.c.new') != File.read('parse.c')
       mv('parse.c.new', 'parse.c')
+      rm_f('parse.o')
     else
       rm('parse.c.new')
     end

@@ -735,7 +735,7 @@ eval_string_with_cref(VALUE self, VALUE src, VALUE scope, NODE *cref, const char
 
 	if (0) {		/* for debug */
 	    extern VALUE ruby_iseq_disasm(VALUE);
-	    printf("%s\n", RSTRING_CPTR(ruby_iseq_disasm(iseqval)));
+	    printf("%s\n", RSTRING_PTR(ruby_iseq_disasm(iseqval)));
 	}
 
 	/* save new env */
@@ -761,7 +761,7 @@ eval_string_with_cref(VALUE self, VALUE src, VALUE scope, NODE *cref, const char
 		mesg = rb_attr_get(errinfo, rb_intern("mesg"));
 		if (!NIL_P(errat) && TYPE(errat) == T_ARRAY &&
 		    (bt2 = vm_backtrace(th, -2), RARRAY_LEN(bt2) > 0)) {
-		    if (!NIL_P(mesg) && TYPE(mesg) == T_STRING && !RSTRING_CLEN(mesg)) {
+		    if (!NIL_P(mesg) && TYPE(mesg) == T_STRING && !RSTRING_LEN(mesg)) {
 			rb_str_update(mesg, 0, 0, rb_str_new2(": "));
 			rb_str_update(mesg, 0, 0, RARRAY_AT(errat, 0));
 		    }
@@ -826,7 +826,7 @@ rb_f_eval(int argc, VALUE *argv, VALUE self)
     }
 
     if (!NIL_P(vfile))
-	file = RSTRING_CPTR(vfile);
+	file = RSTRING_PTR(vfile);
     return eval_string(self, src, scope, file, line);
 }
 
@@ -1141,7 +1141,7 @@ rb_f_throw(int argc, VALUE *argv)
     }
     if (!tt) {
 	VALUE desc = rb_inspect(tag);
-	rb_raise(rb_eArgError, "uncaught throw %s", RSTRING_CPTR(desc));
+	rb_raise(rb_eArgError, "uncaught throw %s", RSTRING_PTR(desc));
     }
     rb_trap_restore_mask();
     th->errinfo = NEW_THROW_OBJECT(tag, 0, TAG_THROW);
@@ -1316,7 +1316,7 @@ rb_backtrace(void)
 
     ary = vm_backtrace(GET_THREAD(), -1);
     for (i = 0; i < RARRAY_LEN(ary); i++) {
-	printf("\tfrom %s\n", RSTRING_CPTR(RARRAY_AT(ary, i)));
+	printf("\tfrom %s\n", RSTRING_PTR(RARRAY_AT(ary, i)));
     }
 }
 

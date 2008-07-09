@@ -174,7 +174,7 @@ static VALUE
 class2path(VALUE klass)
 {
     VALUE path = rb_class_path(klass);
-    const char *n = RSTRING_CPTR(path);
+    const char *n = RSTRING_PTR(path);
 
     if (n[0] == '#') {
 	rb_raise(rb_eTypeError, "can't dump anonymous %s %s",
@@ -194,7 +194,7 @@ w_nbyte(const char *s, int n, struct dump_arg *arg)
 {
     VALUE buf = arg->str;
     rb_str_buf_cat(buf, s, n);
-    if (arg->dest && RSTRING_CLEN(buf) >= BUFSIZ) {
+    if (arg->dest && RSTRING_LEN(buf) >= BUFSIZ) {
 	if (arg->taint) OBJ_TAINT(buf);
 	rb_io_write(arg->dest, buf);
 	rb_str_resize(buf, 0);
@@ -450,7 +450,7 @@ w_class(char type, VALUE obj, struct dump_arg *arg, int check)
     w_extended(klass, arg, check);
     w_byte(type, arg);
     p = class2path(rb_class_real(klass));
-    path = RSTRING_CPTR(p);
+    path = RSTRING_PTR(p);
     w_unique(path, arg);
 }
 
@@ -471,7 +471,7 @@ w_uclass(VALUE obj, VALUE super, struct dump_arg *arg)
     if (klass != super) {
 #endif
 	w_byte(TYPE_UCLASS, arg);
-	w_unique(RSTRING_CPTR(class2path(klass)), arg);
+	w_unique(RSTRING_PTR(class2path(klass)), arg);
     }
 }
 
@@ -636,7 +636,7 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
 		w_byte(TYPE_IVAR, arg);
 	    }
 	    w_class(TYPE_USERDEF, obj, arg, Qfalse);
-	    w_bytes(RSTRING_CPTR(v), RSTRING_CLEN(v), arg);
+	    w_bytes(RSTRING_PTR(v), RSTRING_LEN(v), arg);
             if (hasiv2) {
 		w_ivar(v, ivtbl2, &c_arg);
             }
@@ -673,7 +673,7 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
 	    w_byte(TYPE_CLASS, arg);
 	    {
 		volatile VALUE path = class2path(obj);
-		w_bytes(RSTRING_CPTR(path), RSTRING_CLEN(path), arg);
+		w_bytes(RSTRING_PTR(path), RSTRING_LEN(path), arg);
 	    }
 	    break;
 
@@ -681,7 +681,7 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
 	    w_byte(TYPE_MODULE, arg);
 	    {
 		VALUE path = class2path(obj);
-		w_bytes(RSTRING_CPTR(path), RSTRING_CLEN(path), arg);
+		w_bytes(RSTRING_PTR(path), RSTRING_LEN(path), arg);
 	    }
 	    break;
 
@@ -724,7 +724,7 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
 	    w_uclass(obj, rb_cString, arg);
 #endif
 	    w_byte(TYPE_STRING, arg);
-	    w_bytes(RSTRING_CPTR(obj), RSTRING_CLEN(obj), arg);
+	    w_bytes(RSTRING_PTR(obj), RSTRING_LEN(obj), arg);
 	    break;
 
 	  case T_REGEXP:
@@ -927,7 +927,7 @@ marshal_dump(int argc, VALUE *argv)
 	arg.str = port;
     }
 
-    RSTRING_PTR(arg.str); /* force bytestring creation */
+    RSTRING_BYTEPTR(arg.str); /* force bytestring creation */
 
     arg.symbols = st_init_numtable();
     arg.data    = st_init_numtable();
@@ -976,8 +976,8 @@ r_byte(struct load_arg *arg)
     int c;
 
     if (TYPE(arg->src) == T_STRING) {
-	if (RSTRING_CLEN(arg->src) > arg->offset) {
-	    c = (unsigned char)RSTRING_CPTR(arg->src)[arg->offset++];
+	if (RSTRING_LEN(arg->src) > arg->offset) {
+	    c = (unsigned char)RSTRING_PTR(arg->src)[arg->offset++];
 	}
 	else {
 	    rb_raise(rb_eArgError, "marshal data too short");
@@ -1050,8 +1050,8 @@ r_bytes0(long len, struct load_arg *arg)
 
     if (len == 0) return rb_str_new(0, 0);
     if (TYPE(arg->src) == T_STRING) {
-	if (RSTRING_CLEN(arg->src) - arg->offset >= len) {
-	    str = rb_str_new(RSTRING_CPTR(arg->src)+arg->offset, len);
+	if (RSTRING_LEN(arg->src) - arg->offset >= len) {
+	    str = rb_str_new(RSTRING_PTR(arg->src)+arg->offset, len);
 	    arg->offset += len;
 	}
 	else {
@@ -1066,7 +1066,7 @@ r_bytes0(long len, struct load_arg *arg)
 	check_load_arg(arg);
 	if (NIL_P(str)) goto too_short;
 	StringValue(str);
-	if (RSTRING_CLEN(str) != len) goto too_short;
+	if (RSTRING_LEN(str) != len) goto too_short;
 	if (OBJ_TAINTED(str)) arg->taint = Qtrue;
     }
     return str;
@@ -1088,7 +1088,7 @@ static ID
 r_symreal(struct load_arg *arg)
 {
     volatile VALUE s = r_bytes(arg);
-    ID id = rb_intern(RSTRING_CPTR(s));
+    ID id = rb_intern(RSTRING_PTR(s));
 
     st_insert(arg->symbols, arg->symbols->num_entries, id);
 
@@ -1331,7 +1331,7 @@ format_error:
 	{
 	    double d, t = 0.0;
 	    VALUE str = r_bytes(arg);
-	    const char *ptr = RSTRING_CPTR(str);
+	    const char *ptr = RSTRING_PTR(str);
 
 	    if (strcmp(ptr, "nan") == 0) {
 		d = t / t;
@@ -1370,7 +1370,7 @@ format_error:
             rb_big_resize((VALUE)big, (len + 1) * 2 / sizeof(BDIGIT));
 #endif
             digits = RBIGNUM_DIGITS(big);
-	    MEMCPY(digits, RSTRING_CPTR(data), char, len * 2);
+	    MEMCPY(digits, RSTRING_PTR(data), char, len * 2);
 #if SIZEOF_BDIGITS > SIZEOF_SHORT
 	    MEMZERO((char *)digits + len * 2, char,
 		    RBIGNUM_LEN(big) * sizeof(BDIGIT) - len * 2);
@@ -1577,7 +1577,7 @@ format_error:
         {
 	    volatile VALUE str = r_bytes(arg);
 
-	    v = rb_path2class(RSTRING_CPTR(str));
+	    v = rb_path2class(RSTRING_PTR(str));
 	    v = r_entry(v, arg);
             v = r_leave(v, arg);
 	}
@@ -1587,7 +1587,7 @@ format_error:
         {
 	    volatile VALUE str = r_bytes(arg);
 
-	    v = path2class(RSTRING_CPTR(str));
+	    v = path2class(RSTRING_PTR(str));
 	    v = r_entry(v, arg);
             v = r_leave(v, arg);
 	}
@@ -1597,7 +1597,7 @@ format_error:
         {
 	    volatile VALUE str = r_bytes(arg);
 
-	    v = path2module(RSTRING_CPTR(str));
+	    v = path2module(RSTRING_PTR(str));
 	    v = r_entry(v, arg);
             v = r_leave(v, arg);
 	}

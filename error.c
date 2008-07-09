@@ -293,7 +293,7 @@ rb_check_type(VALUE x, int t)
 		    etype = "Symbol";
 		}
 		else if (rb_special_const_p(x)) {
-		    etype = RSTRING_CPTR(rb_obj_as_string(x));
+		    etype = RSTRING_PTR(rb_obj_as_string(x));
 		}
 		else {
 		    etype = rb_obj_classname(x);
@@ -450,7 +450,7 @@ exc_inspect(VALUE exc)
 
     klass = CLASS_OF(exc);
     exc = rb_obj_as_string(exc);
-    if (RSTRING_CLEN(exc) == 0) {
+    if (RSTRING_LEN(exc) == 0) {
 	return rb_str_dup(rb_class_name(klass));
     }
 
@@ -771,10 +771,10 @@ name_err_mesg_to_str(VALUE obj)
 	    break;
 	  default:
 	    d = rb_protect(rb_inspect, obj, 0);
-	    if (NIL_P(d) || RSTRING_CLEN(d) > 65) {
+	    if (NIL_P(d) || RSTRING_LEN(d) > 65) {
 		d = rb_any_to_s(obj);
 	    }
-	    desc = RSTRING_CPTR(d);
+	    desc = RSTRING_PTR(d);
 	    break;
 	}
 	if (desc && desc[0] != '#') {
@@ -817,7 +817,7 @@ rb_invalid_str(const char *str, const char *type)
 {
     VALUE s = rb_str_inspect(rb_str_new2(str));
 
-    rb_raise(rb_eArgError, "invalid value for %s: %s", type, RSTRING_CPTR(s));
+    rb_raise(rb_eArgError, "invalid value for %s: %s", type, RSTRING_PTR(s));
 }
 
 /* 
@@ -928,7 +928,7 @@ syserr_initialize(int argc, VALUE *argv, VALUE self)
 
 	StringValue(str);
 	mesg = rb_sprintf("%s - %.*s", err,
-			  (int)RSTRING_CLEN(str), RSTRING_CPTR(str));
+			  (int)RSTRING_LEN(str), RSTRING_PTR(str));
     }
     else {
 	mesg = rb_str_new2(err);

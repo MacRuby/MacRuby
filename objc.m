@@ -642,7 +642,7 @@ rb_objc_rval_to_boxed_data(VALUE rval, bs_element_boxed_t *bs_boxed, bool *ok)
 	    rb_raise(rb_eArgError, 
 		    "not enough elements in array `%s' to create " \
 		    "structure `%s' (%ld for %d)", 
-		    RSTRING_CPTR(rb_inspect(rval)), bs_struct->name, n, 
+		    RSTRING_PTR(rb_inspect(rval)), bs_struct->name, n, 
 		    bs_struct->fields_count);
 
 	if (n > bs_struct->fields_count) {
@@ -656,7 +656,7 @@ rb_objc_rval_to_boxed_data(VALUE rval, bs_element_boxed_t *bs_boxed, bool *ok)
 		rb_raise(rb_eArgError, 
 			"too much elements in array `%s' to create " \
 			"structure `%s' (%ld for %d)", 
-			RSTRING_CPTR(rb_inspect(orig)), 
+			RSTRING_PTR(rb_inspect(orig)), 
 			bs_struct->name, RARRAY_LEN(orig), 
 			bs_struct->fields_count);
 	    }
@@ -778,8 +778,8 @@ rb_objc_rval_to_ocval(VALUE rval, const char *octype, void **ocval)
 	    break;
 
 	case _C_CHR:
-	    if (TYPE(rval) == T_STRING && RSTRING_CLEN(rval) == 1) {
-		*(char *)ocval = RSTRING_CPTR(rval)[0];
+	    if (TYPE(rval) == T_STRING && RSTRING_LEN(rval) == 1) {
+		*(char *)ocval = RSTRING_PTR(rval)[0];
 	    }
 	    else {
 		*(char *)ocval = (char) NUM2INT(rb_Integer(rval));
@@ -846,7 +846,7 @@ bails:
     if (!ok)
     	rb_raise(rb_eArgError, "can't convert Ruby object `%s' to " \
 		 "Objective-C value of type `%s'", 
-		 RSTRING_CPTR(rb_inspect(rval)), octype);
+		 RSTRING_PTR(rb_inspect(rval)), octype);
 }
 
 VALUE
@@ -1941,7 +1941,7 @@ rb_bs_struct_get(VALUE recv)
     }
 
     rb_bug("can't find field `%s' in recv `%s'", ivar_id_str,
-	   RSTRING_CPTR(rb_inspect(recv)));
+	   RSTRING_PTR(rb_inspect(recv)));
 
     return Qnil;
 }
@@ -1982,7 +1982,7 @@ rb_bs_struct_set(VALUE recv, VALUE value)
     }
 
     rb_bug("can't find field `%s' in recv `%s'", ivar_id_str,
-	   RSTRING_CPTR(rb_inspect(recv)));
+	   RSTRING_PTR(rb_inspect(recv)));
 
     return Qnil;
 }
@@ -2027,12 +2027,12 @@ rb_bs_boxed_is_equal(VALUE recv, VALUE other)
     d1 = bs_element_boxed_get_data(bs_boxed, recv, &ok);
     if (!ok)
 	rb_raise(rb_eRuntimeError, "can't retrieve data for boxed `%s'",
-		 RSTRING_CPTR(rb_inspect(recv)));
+		 RSTRING_PTR(rb_inspect(recv)));
 
     d2 = bs_element_boxed_get_data(bs_boxed, other, &ok);
     if (!ok)
 	rb_raise(rb_eRuntimeError, "can't retrieve data for boxed `%s'",
-		 RSTRING_CPTR(rb_inspect(recv)));
+		 RSTRING_PTR(rb_inspect(recv)));
 
     if (d1 == d2)
 	return Qtrue;
@@ -2052,7 +2052,7 @@ rb_bs_struct_dup(VALUE recv)
     data = bs_element_boxed_get_data(bs_boxed, recv, &ok);
     if (!ok)
 	rb_raise(rb_eRuntimeError, "can't retrieve data for boxed `%s'",
-		 RSTRING_CPTR(rb_inspect(recv)));
+		 RSTRING_PTR(rb_inspect(recv)));
 
     if (data == NULL)
 	return Qnil;
@@ -2444,7 +2444,7 @@ rb_require_framework(int argc, VALUE *argv, VALUE recv)
     rb_scan_args(argc, argv, "11", &framework, &search_network);
 
     Check_Type(framework, T_STRING);
-    cstr = RSTRING_CPTR(framework);
+    cstr = RSTRING_PTR(framework);
 
     fileManager = [NSFileManager defaultManager];
     path = [fileManager stringWithFileSystemRepresentation:cstr
@@ -2502,7 +2502,7 @@ rb_require_framework(int argc, VALUE *argv, VALUE recv)
 #undef FIND_LOAD_PATH_IN_LIBRARY
 
 	rb_raise(rb_eRuntimeError, "framework `%s' not found", 
-	    RSTRING_CPTR(framework));
+	    RSTRING_PTR(framework));
     }
 
 success:
@@ -2556,7 +2556,7 @@ imp_rb_boxed_getValue(void *rcv, SEL sel, void *buffer)
     if (!ok)
 	[NSException raise:@"NSException" 
 	    format:@"can't get internal data for boxed type `%s'",
-	    RSTRING_CPTR(rb_inspect((VALUE)rcv))];
+	    RSTRING_PTR(rb_inspect((VALUE)rcv))];
     if (data == NULL) {
 	*(void **)buffer = NULL; 
     }
@@ -2984,7 +2984,7 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
     new_fmt = NULL;
 
     rb_objc_get_types_for_format_str(types, argc, (VALUE *)argv, 
-	    RSTRING_CPTR(fmt), &new_fmt);
+	    RSTRING_PTR(fmt), &new_fmt);
     if (new_fmt != NULL) {
 	fmt = (VALUE)CFStringCreateWithCString(NULL, new_fmt, 
 		kCFStringEncodingUTF8);
