@@ -54,6 +54,18 @@ Mappings.map :button => :NSButton do
     def type=(value)
       setButtonType(value)
     end
+
+    def state=(value)
+      case value 
+        when :on
+          value = NSOnState
+        when :off
+          value = NSOffState
+        when :mixed
+          value = NSMixedState
+      end 
+      setState(value)
+    end
     
     def on?
       state == NSOnState
