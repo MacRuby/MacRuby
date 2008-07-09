@@ -490,6 +490,11 @@ rb_objc_rval_to_ocsel(VALUE rval, void **ocval)
 {
     const char *cstr;
 
+    if (NIL_P(rval)) {
+	*(SEL *)ocval = NULL;
+	return true;
+    }
+
     switch (TYPE(rval)) {
 	case T_STRING:
 	    cstr = StringValuePtr(rval);
