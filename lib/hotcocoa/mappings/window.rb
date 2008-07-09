@@ -3,7 +3,8 @@ HotCocoa::Mappings.map :window => :NSWindow do
   defaults  :style => [:titled, :closable, :miniturizable, :resizable],
             :backing => :buffered, 
             :defer => true,
-            :show => true
+            :show => true,
+            :view => :layout
             
   constant :backing, :buffered => NSBackingStoreBuffered
   
@@ -31,15 +32,19 @@ HotCocoa::Mappings.map :window => :NSWindow do
     def view
       contentView
     end
+
+    def view=(view)
+      if view == :layout
+        setContentView(LayoutView.alloc.initWithFrame([0,0,contentView.frameSize.width, contentView.frameSize.height]))
+      else
+        setContentView(view)
+      end
+    end
     
     def show
       display
       makeKeyAndOrderFront(nil)
       orderFrontRegardless
-    end
-    
-    def content_view=(view)
-      setContentView(view)
     end
     
   end

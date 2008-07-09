@@ -1,12 +1,91 @@
 module HotCocoa
+
+class LayoutOptions
+  attr_accessor :view
+  attr_reader :left_padding, :right_padding, :top_padding, :bottom_padding, :padding, :other
+  
+  def initialize(options={})
+    @start = options[:start].nil? ? true : options[:start]
+    @expand = options[:expand].nil? ? false : options[:expand]
+    @padding = options[:padding]
+    @left_padding   = options[:left_padding]    || @padding || 0.0
+    @right_padding  = options[:right_padding]   || @padding || 0.0
+    @top_padding    = options[:top_padding]     || @padding || 0.0
+    @bottom_padding = options[:bottom_padding]  || @padding || 0.0
+    @other = options[:other] || :align_head
+    @view = options[:view]
+    update_view!
+  end
+  
+  def start?
+    @start
+  end
+  
+  def expand?
+    @expand
+  end
+  
+  def other=(value)
+    @other = value
+    update_view!
+  end
+  
+  def expand=(value)
+    @expand = value
+    update_view!
+  end
+  
+  def start=(value)
+    @start = value
+    update_view!
+  end
+  
+  def left_padding=(value)
+    @left_padding = value
+    @padding = nil
+    update_view!
+  end
+  
+  def right_padding=(value)
+    @right_padding = value
+    @padding = nil
+    update_view!
+  end
+  
+  def top_padding=(value)
+    @top_padding = value
+    @padding = nil
+    update_view!
+  end
+
+  def bottom_padding=(value)
+    @bottom_padding = value
+    @padding = nil
+    update_view!
+  end
+
+  def padding=(value)
+    @right_padding = @left_padding = @top_padding = @bottom_padding = value
+    @padding = value
+    update_view!
+  end
+  
+  private
+
+    def update_view!
+      @view.views_updated! if @view && @view.respond_to?(:views_updated!)
+    end
+    
+end
+
 class LayoutView < NSView
 
   def initWithFrame(frame)
     super
     @mode = :vertical
-    @spacing = 0.0
-    @margin = 0.0
-    @options = {}
+    @spacing = 10.0
+    @margin = 10.0
+    @layout_views = []
     self
   end
 
@@ -50,6 +129,17 @@ class LayoutView < NSView
     end
   end
   
+  def <<(view)
+    if subviews.include?(view)
+      raise ArgumentError, "view #{view} already in this layout view"
+    end
+    addSubview(view)
+    if view.respond_to?(:layout) && !view.layout.nil?
+      @layout_views << view
+    end
+    relayout!
+  end
+  
   # options can be
   #
   #  :start -> bool
@@ -83,42 +173,23 @@ class LayoutView < NSView
   #        Will be aligned to the tail (end) of the packing area.
   #      :fill
   #        Will be filled to the maximum size.
-  def pack(view, options={})
-    if subviews.include?(view)
-      raise ArgumentError, "view #{view} already packed"
-    end
-    options[:start] = true unless options.has_key?(:start)
-    options[:expand] = false unless options.has_key?(:expand)
-    [:left_padding, :right_padding, :top_padding, :bottom_padding].each { |s| options[s] = (options[:padding] or 0.0) }
-    options[:other] ||= :align_head
-    @options[view] = options
-    addSubview(view)
+
+  def views_updated!
     relayout!
   end
 
-  def change_option_for_view(view, key, value)
-    old = @options[view][key]
-    if old != value
-      @options[view][key] = value
-      relayout!
-    end
-  end
-
-  def options_for_view(view)
-    @options[view]
-  end
-
-  def unpack(view)
+  def remove_view(view)
     unless subviews.include?(view)
       raise ArgumentError, "view #{view} not packed"
     end
     view.removeFromSuperview
-    @options.delete(view)
+    @layout_views.delete(view)
   end
 
-  def unpack_all_views
+  def remove_all_views
+    @layout_views.each {|view| view.layout.view = nil}
     subviews.each { |view| view.removeFromSuperview }
-    @options.clear
+    @layout_views.clear
   end
 
   if $DEBUG
@@ -149,9 +220,8 @@ class LayoutView < NSView
 
     expandable_size = end_dimension
     expandable_views = 0
-    subviews.each do |view|
-      options = @options[view]
-      if options[:expand]
+    @layout_views.each do |view|
+      if view.layout.expand?
         expandable_views += 1
       else
         expandable_size -= vertical ? view.frameSize.height : view.frameSize.width
@@ -160,21 +230,21 @@ class LayoutView < NSView
     end
     expandable_size /= expandable_views
 
-    subviews.each do |view|
-      options = @options[view]
+    @layout_views.each do |view|
+      options = view.layout
       subview_size = view.frameSize
       view_frame = NSMakeRect(0, 0, *subview_size)
       subview_dimension = vertical ? subview_size.height : subview_size.width
 
       if vertical
         view_frame.origin.x = @margin
-        if options[:start]
+        if options.start?
           view_frame.origin.y = dimension
         else
           view_frame.origin.y = end_dimension - subview_dimension
         end        
       else
-        if options[:start]
+        if options.start?
           view_frame.origin.x = dimension
         else
           view_frame.origin.x = end_dimension - subview_dimension
@@ -182,7 +252,7 @@ class LayoutView < NSView
         view_frame.origin.y = @margin
       end
 
-      if options[:expand]
+      if options.expand?
         if vertical
           view_frame.size.height = expandable_size
         else
@@ -191,7 +261,7 @@ class LayoutView < NSView
         subview_dimension = expandable_size
       end
 
-      case options[:other]
+      case options.other
       when :fill
         if vertical
           view_frame.size.width = view_size.width - (2 * @margin)
@@ -219,15 +289,15 @@ class LayoutView < NSView
 
       puts "view #{view} options #{options} final frame #{view_frame}" if $DEBUG
 
-      view_frame.origin.x += options[:left_padding]
-      view_frame.origin.y += options[:bottom_padding]
+      view_frame.origin.x += options.left_padding
+      view_frame.origin.y += options.bottom_padding
 
-      if options[:start]
+      if options.start?
         dimension += subview_dimension + @spacing
         if vertical
-          dimension += options[:bottom_padding] + options[:top_padding]
+          dimension += options.bottom_padding + options.top_padding
         else
-          dimension += options[:left_padding] + options[:right_padding]
+          dimension += options.left_padding + options.right_padding
         end
       else
         end_dimension -= subview_dimension + @spacing

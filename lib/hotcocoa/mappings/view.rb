@@ -22,6 +22,24 @@ HotCocoa::Mappings.map :view => :NSView do
     def auto_resize=(value)
       setAutoresizingMask(value)
     end
+    
+    def layout=(options)
+      if @layout && @layout.view
+        if options.nil?
+          @layout.view.remove_view(self)
+          @layout = nil
+        else
+          options[:view] = @layout.view
+          @layout = LayoutOptions.new(options)
+        end
+      else
+        @layout = LayoutOptions.new(options)
+      end
+    end
+    
+    def layout
+      @layout
+    end
 
   end
     
