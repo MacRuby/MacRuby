@@ -16,6 +16,10 @@ HotCocoa::Mappings.map :slider => :NSSlider do
       setMaxValue(value)
     end
     
+    def tic_marks=(value)
+      setNumberOfTickMarks(value)
+    end
+    
   end
   
 end

@@ -1,5 +1,5 @@
 module HotCocoa
-class PackingView < NSView
+class LayoutView < NSView
 
   def initWithFrame(frame)
     super
@@ -49,7 +49,7 @@ class PackingView < NSView
       relayout!
     end
   end
-
+  
   # options can be
   #
   #  :start -> bool
@@ -167,54 +167,54 @@ class PackingView < NSView
       subview_dimension = vertical ? subview_size.height : subview_size.width
 
       if vertical
-	view_frame.origin.x = @margin
-	if options[:start]
+        view_frame.origin.x = @margin
+        if options[:start]
           view_frame.origin.y = dimension
         else
           view_frame.origin.y = end_dimension - subview_dimension
         end        
       else
-	if options[:start]
+        if options[:start]
           view_frame.origin.x = dimension
         else
           view_frame.origin.x = end_dimension - subview_dimension
         end        
-	view_frame.origin.y = @margin
+        view_frame.origin.y = @margin
       end
 
       if options[:expand]
         if vertical
-	  view_frame.size.height = expandable_size
-	else
+          view_frame.size.height = expandable_size
+        else
           view_frame.size.width = expandable_size
         end
-	subview_dimension = expandable_size
+        subview_dimension = expandable_size
       end
 
       case options[:other]
-	when :fill
-          if vertical
-            view_frame.size.width = view_size.width - (2 * @margin)
-          else
-            view_frame.size.height = view_size.height - (2 * @margin)
-          end           
+      when :fill
+        if vertical
+          view_frame.size.width = view_size.width - (2 * @margin)
+        else
+          view_frame.size.height = view_size.height - (2 * @margin)
+        end           
 
-        when :align_head
-	  # Nothing to do
+      when :align_head
+        # Nothing to do
 
-	when :align_center
-	  if vertical
-	    view_frame.origin.x = (view_size.width / 2.0) - (subview_size.width / 2.0)
-	  else
-	    view_frame.origin.y = (view_size.height / 2.0) - (subview_size.height / 2.0)
-	  end
+      when :align_center
+        if vertical
+          view_frame.origin.x = (view_size.width / 2.0) - (subview_size.width / 2.0)
+        else
+          view_frame.origin.y = (view_size.height / 2.0) - (subview_size.height / 2.0)
+        end
 
-	when :align_tail
-          if vertical
-	    view_frame.origin.x = view_size.width - subview_size.width - @margin
-          else
-	    view_frame.origin.y = view_size.height - subview_size.height - @margin
-          end
+      when :align_tail
+        if vertical
+          view_frame.origin.x = view_size.width - subview_size.width - @margin
+        else
+          view_frame.origin.y = view_size.height - subview_size.height - @margin
+        end
       end
 
       puts "view #{view} options #{options} final frame #{view_frame}" if $DEBUG
@@ -225,9 +225,9 @@ class PackingView < NSView
       if options[:start]
         dimension += subview_dimension + @spacing
         if vertical
-	  dimension += options[:bottom_padding] + options[:top_padding]
-	else
-	  dimension += options[:left_padding] + options[:right_padding]
+          dimension += options[:bottom_padding] + options[:top_padding]
+        else
+          dimension += options[:left_padding] + options[:right_padding]
         end
       else
         end_dimension -= subview_dimension + @spacing
@@ -236,6 +236,5 @@ class PackingView < NSView
       view.frame = view_frame      
     end    
   end
-
 end
 end

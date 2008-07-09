@@ -38,6 +38,10 @@ HotCocoa::Mappings.map :window => :NSWindow do
       orderFrontRegardless
     end
     
+    def content_view=(view)
+      setContentView(view)
+    end
+    
   end
   
   delegating "window:shouldDragDocumentWithEvent:from:withPasteboard:", :to => :should_drag_document?,    :parameters => [:shouldDragDocumentWithEvent, :from, :withPasteboard]
