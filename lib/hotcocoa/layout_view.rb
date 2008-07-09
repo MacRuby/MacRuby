@@ -4,6 +4,39 @@ class LayoutOptions
   attr_accessor :view
   attr_reader :left_padding, :right_padding, :top_padding, :bottom_padding, :padding, :other
   
+  # options can be
+  #
+  #  :start -> bool
+  #    Whether the view is packed at the start or the end of the packing view.
+  #    Default value is true.
+  #
+  #  :expand -> bool
+  #    Whether the view's first dimension (width for horizontal and height for vertical)
+  #    should be expanded to the maximum possible size, and should be variable according
+  #    to the packing view frame.
+  #    Default value is false.
+  #
+  #  :padding         -> float
+  #  :left_padding    -> float
+  #  :right_padding   -> float
+  #  :top_padding     -> float
+  #  :bottom_padding  -> float
+  #    Controls the padding area around the view. :padding controls all areas, while
+  #    :left_padding for example only controls the left side. If :padding is set, other
+  #    padding flags are ignored.
+  #    Default value is 0.0 for all flags.
+  #
+  #  :other -> mode
+  #    Controls the view's second dimension (height for horizontal and width for vertical).
+  #    Modes can be:
+  #      :align_head
+  #        Will be aligned to the head (start) of the packing area.
+  #      :align_center
+  #        Will be centered inside the packing area.
+  #      :align_tail
+  #        Will be aligned to the tail (end) of the packing area.
+  #      :fill
+  #        Will be filled to the maximum size.
   def initialize(options={})
     @start = options[:start].nil? ? true : options[:start]
     @expand = options[:expand].nil? ? false : options[:expand]
@@ -140,40 +173,6 @@ class LayoutView < NSView
     relayout!
   end
   
-  # options can be
-  #
-  #  :start -> bool
-  #    Whether the view is packed at the start or the end of the packing view.
-  #    Default value is true.
-  #
-  #  :expand -> bool
-  #    Whether the view's first dimension (width for horizontal and height for vertical)
-  #    should be expanded to the maximum possible size, and should be variable according
-  #    to the packing view frame.
-  #    Default value is false.
-  #
-  #  :padding         -> float
-  #  :left_padding    -> float
-  #  :right_padding   -> float
-  #  :top_padding     -> float
-  #  :bottom_padding  -> float
-  #    Controls the padding area around the view. :padding controls all areas, while
-  #    :left_padding for example only controls the left side. If :padding is set, other
-  #    padding flags are ignored.
-  #    Default value is 0.0 for all flags.
-  #
-  #  :other -> mode
-  #    Controls the view's second dimension (height for horizontal and width for vertical).
-  #    Modes can be:
-  #      :align_head
-  #        Will be aligned to the head (start) of the packing area.
-  #      :align_center
-  #        Will be centered inside the packing area.
-  #      :align_tail
-  #        Will be aligned to the tail (end) of the packing area.
-  #      :fill
-  #        Will be filled to the maximum size.
-
   def views_updated!
     relayout!
   end
