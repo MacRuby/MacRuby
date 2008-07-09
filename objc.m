@@ -2172,6 +2172,7 @@ setup_bs_boxed_type(bs_element_type_t type, void *value)
 	rb_define_method(klass, "dup", rb_bs_struct_dup, 0);
 	rb_define_alias(klass, "clone", "dup");	
 	rb_define_method(klass, "inspect", rb_bs_struct_inspect, 0);
+	rb_define_alias(klass, "to_s", "inspect");
     }
     else {
 	rb_undef_alloc_func(klass);
