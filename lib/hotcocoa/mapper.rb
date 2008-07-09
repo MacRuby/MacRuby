@@ -30,7 +30,13 @@ module HotCocoa::Mappings
         if default_empty_rect_used
           control.sizeToFit if control.respondsToSelector(:sizeToFit) == 1
         end
-        control_block.call(control) if control_block
+        if control_block
+          if inst.respond_to?(:handle_block)
+            inst.handle_block(control, &control_block)
+          else
+            control_block.call(control)
+          end
+        end
         control
       end
     end

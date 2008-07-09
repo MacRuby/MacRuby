@@ -17,7 +17,7 @@ HotCocoa::Mappings.map :color => :NSColor do
       else
         return NSColor.colorWithDeviceRed red, green:green, blue:blue, alpha:alpha
       end
-    elsif [:red, :green, :blue].all? { |s| options.has_key?(s) }
+    elsif (options.keys & [:red, :green, :blue]).size == 3
       alpha = (options.delete(:alpha) or 1.0)
       return NSColor.colorWithCalibratedRed options.delete(:red), green:options.delete(:green), blue:options.delete(:blue), alpha:alpha
     else

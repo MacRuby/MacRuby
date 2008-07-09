@@ -2,15 +2,6 @@ framework 'cocoa'
 
 module HotCocoa
   
-  def application(&block)
-    app = NSApplication.sharedApplication
-    if block
-      block.call(app)
-      app.run
-    end
-    app
-  end
-  
   Views = {}
   
 end
