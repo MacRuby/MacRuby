@@ -8,9 +8,13 @@ class MyView < NSView
   def self.create 
     alloc.initWithFrame([0, 0, *DefaultSize])
   end
-
+  
   def reset_size
     setFrameSize(DefaultSize)
+  end
+  
+  def layout
+    @layout ||= HotCocoa::LayoutOptions.new
   end
 
   attr_accessor :number
@@ -21,69 +25,59 @@ class MyView < NSView
     (color :red => 0.51, :green => 0.45, :blue => 0.95).set
     NSRectFill(NSInsetRect(rect, 1, 1))
 
-    @attributes ||= {
-      NSFontAttributeName => NSFont.systemFontOfSize(10)
-    }
+    @attributes ||= { NSFontAttributeName => NSFont.systemFontOfSize(10) }
     str = @number.to_s
     strsize = str.sizeWithAttributes @attributes
-    point = [(rect.size.width / 2.0) - (strsize.width / 2.0),
-	     (rect.size.height / 2.0) - (strsize.height / 2.0)]
+    point = [
+      (rect.size.width / 2.0) - (strsize.width / 2.0),
+	    (rect.size.height / 2.0) - (strsize.height / 2.0)
+	  ]
     @number.to_s.drawAtPoint point, withAttributes:@attributes
   end
   
 end
 
-def create_slider_packing_view(label, &block)
-  pv = packing_view :mode => :horizontal, :frame => [0, 0, 0, 24]
-  l = label(:text => label)
-  pv.pack l, :other => :align_center
-  s = slider :min => 0, :max => 50, :tic_marks => 20,
-	     :on_action => block
-  s.setFrameSize([0, 24]) # TODO sizeToFit doesn't set the height for us
-  pv.pack s, :expand => true
-  pv
+def create_slider_layout(label, &block)
+  layout_view :mode => :horizontal, :frame => [0, 0, 0, 24], :layout => {:start => false, :other => :fill} do |view|
+    view << label(:text => label, :layout => {:other => :align_center})
+    s = slider :min => 0, :max => 50, :tic_marks => 20, :on_action => block, :layout => {:expand => true}
+    s.setFrameSize([0, 24]) # TODO sizeToFit doesn't set the height for us
+    view << s
+  end
 end
 
 application do |app|
 
   window :frame => [100, 100, 500, 500], :title => "Packing View Madness" do |win|
-
-    pv = packing_view :frame => [0, 0, 500, 500]
-    win.contentView = pv
     views = []
 
     window :frame => [700, 100, 200, 500] do |pane|
 
-      pane_pv = packing_view :frame => [0, 0, 200, 500], :spacing => 10, :margin => 10
-      pane.contentView = pane_pv
+      pane.view << create_slider_layout('Spacing') { |x| win.view.spacing = x.to_i }
 
-      v = create_slider_packing_view('Spacing') { |x| pv.spacing = x.to_i }
-      pane_pv.pack v, :start => false, :other => :fill
+      pane.view << create_slider_layout('Margin') { |x| win.view.margin = x.to_i }
 
-      v = create_slider_packing_view('Margin') { |x| pv.margin = x.to_i }
-      pane_pv.pack v, :start => false, :other => :fill
-
-      vertical_b = button :title => "Vertical", :type => :switch, :state => :on
-      vertical_b.on_action do |b| 
-	      views.each { |v| v.reset_size }
-        pv.mode = b.on? ? :vertical : :horizontal
+      pane.view << button(:title => "Vertical", :type => :switch, :state => :on, :layout => {:start => false}) do |b|
+        b.on_action do |b| 
+	        views.each { |v| v.reset_size }
+          win.view.mode = b.on? ? :vertical : :horizontal
+        end
       end
-      pane_pv.pack vertical_b, :start => false
       
       selected_view = nil
       expand_b = nil
       left_padding_s = right_padding_s = top_padding_s = bottom_padding_s = nil
       other_p = nil
-      views_p = popup :items => ['No View']
+      views_p = popup :items => ['No View'], :layout => {:start => false, :other => :fill}
       views_p.on_action do |p| 
         selected_view = views[p.items.selected_index]
-        options = pv.options_for_view(selected_view)
-        expand_b.state = options[:expand] ? :on : :off
-      	left_padding_s.intValue = options[:left_padding]
-      	right_padding_s.intValue = options[:right_padding]
-      	top_padding_s.intValue = options[:top_padding]
-      	bottom_padding_s.intValue = options[:bottom_padding]
-      	other_p.items.selected = case options[:other]
+        options = selected_view.layout
+        expand_b.state = options.expand? ? :on : :off
+      	left_padding_s.intValue = options.left_padding
+      	right_padding_s.intValue = options.right_padding
+      	top_padding_s.intValue = options.top_padding
+      	bottom_padding_s.intValue = options.bottom_padding
+      	other_p.items.selected = case options.other
     	  when :align_head then 0
     	  when :align_center then 1
     	  when :align_tail then 2
@@ -91,52 +85,49 @@ application do |app|
         end
       end
  
-      add_b = button :title => "Add view"
+      add_b = button :title => "Add view", :layout => {:start => false}
       add_b.on_action do
         view = MyView.create
         views << view
         view.number = views.size
-        pv.pack view
+        win.view << view
         views_p.items = views.map { |x| "View #{x.number}" }
         selected_view = views[0]
       end
-      pane_pv.pack add_b, :start => false
-
-      pane_pv.pack views_p, :start => false, :other => :fill
-
-      expand_b = button :title => "Expand", :type => :switch, :state => :off
+      pane.view << add_b
+      pane.view << views_p
+      expand_b = button :title => "Expand", :type => :switch, :state => :off, :layout => {:start => false}
       expand_b.on_action do |b| 
         selected_view.reset_size unless b.on?
-        pv.change_option_for_view(selected_view, :expand, b.on?)
+        selected_view.layout.expand = b.on?
       end
-      pane_pv.pack expand_b, :start => false
+      pane.view << expand_b
 
-      v = create_slider_packing_view('Left') { |x| pv.change_option_for_view(selected_view, :left_padding, x.to_i) }
+      v = create_slider_layout('Left') { |x| selected_view.layout.left_padding = x.to_i }
       left_padding_s = v.subviews[1]
-      pane_pv.pack v, :start => false, :other => :fill
+      pane.view << v
  
-      v = create_slider_packing_view('Right') { |x| pv.change_option_for_view(selected_view, :right_padding, x.to_i) }
+      v = create_slider_layout('Right') { |x| selected_view.layout.right_padding = x.to_i }
       right_padding_s = v.subviews[1]
-      pane_pv.pack v, :start => false, :other => :fill
+      pane.view << v
  
-      v = create_slider_packing_view('Top') { |x| pv.change_option_for_view(selected_view, :top_padding, x.to_i) }
+      v = create_slider_layout('Top') { |x| selected_view.layout.top_padding = x.to_i }
       top_padding_s = v.subviews[1]
-      pane_pv.pack v, :start => false, :other => :fill
+      pane.view << v
  
-      v = create_slider_packing_view('Bottom') { |x| pv.change_option_for_view(selected_view, :bottom_padding, x.to_i) }
+      v = create_slider_layout('Bottom') { |x| selected_view.layout.bottom_padding = x.to_i }
       bottom_padding_s = v.subviews[1]
-      pane_pv.pack v, :start => false, :other => :fill
+      pane.view << v
   
-      tmp_pv = packing_view :mode => :horizontal, :frame => [0, 0, 0, 24]
-      l = label(:text => 'Other')
-      tmp_pv.pack l, :other => :align_center
-      other_p = popup :items => ['Align Head', 'Align Center', 'Align Tail', 'Fill']
-      other_p.on_action do |x|
-      	selected_view.reset_size 
-      	pv.change_option_for_view(selected_view, :other, x.items.selected.downcase.tr(' ', '_').intern)
+      pane.view << layout_view(:mode => :horizontal, :frame => [0, 0, 0, 24], :layout => {:start => false, :other => :fill}) do |view|
+        view << label(:text => 'Other', :layout => {:other => :align_center})
+        view << popup(:items => ['Align Head', 'Align Center', 'Align Tail', 'Fill'], :layout => {:expand => true}) do |p|
+          p.on_action do  |x|
+        	  selected_view.reset_size
+        	  selected_view.layout.other = x.items.selected.downcase.tr(' ', '_').intern
+        	end
+        end
       end
-      tmp_pv.pack other_p, :expand => true
-      pane_pv.pack tmp_pv, :start => false, :other => :fill
     end
   end
 end
