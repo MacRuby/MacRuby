@@ -1,7 +1,8 @@
 module HotCocoa
 
 class LayoutOptions
-  attr_accessor :view
+  
+  attr_accessor :view, :defaults_view
   
   # options can be
   #
@@ -47,6 +48,7 @@ class LayoutOptions
     @other = options[:other]
     @view = options[:view]
     update_view!
+    @defaults_view = options[:view]
   end
 
   def start=(value)
@@ -181,6 +183,7 @@ class LayoutOptions
 
     def update_view!
       @view.views_updated! if in_layout_view?
+      @defaults_view.views_updated! if @defaults_view
     end
     
 end
@@ -215,12 +218,13 @@ class LayoutView < NSView
   end
   
   def default_layout=(options)
+    options[:defaults_view] = self
     @default_layout = LayoutOptions.new(options)
     relayout!
   end
   
   def default_layout
-    @default_layout ||= LayoutOptions.new
+    @default_layout ||= LayoutOptions.new(:defaults_view => self)
   end
 
   def spacing
