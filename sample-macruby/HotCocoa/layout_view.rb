@@ -9,15 +9,17 @@ class MyView < NSView
     alloc.initWithFrame([0, 0, *DefaultSize])
   end
   
+  def initWithFrame(frame)
+    super
+    @layout = HotCocoa::LayoutOptions.new(self)
+    self
+  end
+  
   def reset_size
     setFrameSize(DefaultSize)
   end
   
-  def layout
-    @layout ||= HotCocoa::LayoutOptions.new
-  end
-
-  attr_accessor :number
+  attr_accessor :number, :layout
  
   def drawRect(rect)
     (color :red => 0.29, :green => 0.26, :blue => 0.55).set
@@ -90,7 +92,7 @@ application do |app|
         view = MyView.create
         views << view
         view.number = views.size
-        win.view << view
+        win.view.addSubview view
         views_p.items = views.map { |x| "View #{x.number}" }
         selected_view = views[0]
       end
