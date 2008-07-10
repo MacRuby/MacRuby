@@ -53,9 +53,7 @@ application do |app|
   window :frame => [100, 100, 500, 500], :title => "Packing View Madness" do |win|
     views = []
 
-    window :frame => [700, 100, 200, 500] do |pane|
-      
-      pane.view.default_layout.start = false
+    window :frame => [700, 100, 200, 500], :default_layout => {:start => false} do |pane|
 
       pane.view << create_slider_layout('Spacing') { |x| win.view.spacing = x.to_i }
 
