@@ -121,7 +121,7 @@ application do |app|
   
       pane.view << layout_view(:mode => :horizontal, :frame => [0, 0, 0, 24], :layout => {:start => false, :other => :fill}) do |view|
         view << label(:text => 'Other', :layout => {:other => :align_center})
-        view << popup(:items => ['Align Head', 'Align Center', 'Align Tail', 'Fill'], :layout => {:expand => true}) do |p|
+        view << popup(:items => ['Align Head', 'Align Center', 'Align Tail', 'Fill'], :layout => {:expand => true, :other => :align_center}) do |p|
           p.on_action do  |x|
         	  selected_view.reset_size
         	  selected_view.layout.other = x.items.selected.downcase.tr(' ', '_').intern
