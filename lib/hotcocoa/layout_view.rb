@@ -2,7 +2,6 @@ module HotCocoa
 
 class LayoutOptions
   attr_accessor :view
-  attr_reader :left_padding, :right_padding, :top_padding, :bottom_padding, :padding, :other
   
   # options can be
   #
@@ -38,81 +37,156 @@ class LayoutOptions
   #      :fill
   #        Will be filled to the maximum size.
   def initialize(options={})
-    @start = options[:start].nil? ? true : options[:start]
-    @expand = options[:expand].nil? ? false : options[:expand]
+    @start = options[:start]
+    @expand = options[:expand]
     @padding = options[:padding]
-    @left_padding   = options[:left_padding]    || @padding || 0.0
-    @right_padding  = options[:right_padding]   || @padding || 0.0
-    @top_padding    = options[:top_padding]     || @padding || 0.0
-    @bottom_padding = options[:bottom_padding]  || @padding || 0.0
-    @other = options[:other] || :align_head
+    @left_padding   = options[:left_padding]    || @padding
+    @right_padding  = options[:right_padding]   || @padding
+    @top_padding    = options[:top_padding]     || @padding
+    @bottom_padding = options[:bottom_padding]  || @padding
+    @other = options[:other]
     @view = options[:view]
     update_view!
   end
-  
-  def start?
-    @start
-  end
-  
-  def expand?
-    @expand
-  end
-  
-  def other=(value)
-    @other = value
-    update_view!
-  end
-  
-  def expand=(value)
-    @expand = value
-    update_view!
-  end
-  
+
   def start=(value)
+    return if value == @start
     @start = value
     update_view!
   end
   
+  def start?
+    return @start unless @start.nil?
+    if in_layout_view?
+      @view.default_layout.start?
+    else
+      true
+    end
+  end
+  
+  def expand=(value)
+    return if value == @expand
+    @expand = value
+    update_view!
+  end
+  
+  def expand?
+    return @expand unless @expand.nil?
+    if in_layout_view?
+      @view.default_layout.expand?
+    else
+      false
+    end
+  end
+  
   def left_padding=(value)
+    return if value == @left_padding
     @left_padding = value
     @padding = nil
     update_view!
   end
   
+  def left_padding
+    return @left_padding unless @left_padding.nil?
+    if in_layout_view?
+      @view.default_layout.left_padding
+    else
+      @padding || 0.0
+    end
+  end
+
   def right_padding=(value)
+    return if value == @right_padding
     @right_padding = value
     @padding = nil
     update_view!
   end
   
+  def right_padding
+    return @right_padding unless @right_padding.nil?
+    if in_layout_view?
+      @view.default_layout.right_padding
+    else
+      @padding || 0.0
+    end
+  end
+
   def top_padding=(value)
+    return if value == @top_padding
     @top_padding = value
     @padding = nil
     update_view!
   end
 
+  def top_padding
+    return @top_padding unless @top_padding.nil?
+    if in_layout_view?
+      @view.default_layout.top_padding
+    else
+      @padding || 0.0
+    end
+  end
+
   def bottom_padding=(value)
+    return if value == @bottom_padding
     @bottom_padding = value
     @padding = nil
     update_view!
   end
 
+  def bottom_padding
+    return @bottom_padding unless @bottom_padding.nil?
+    if in_layout_view?
+      @view.default_layout.bottom_padding
+    else
+      @padding || 0.0
+    end
+  end
+  
+  def other
+    return @other unless @other.nil?
+    if in_layout_view?
+      @view.default_layout.other
+    else
+      :align_head
+    end
+  end
+
+  def other=(value)
+    return if value == @other
+    @other = value
+    update_view!
+  end
+  
   def padding=(value)
+    return if value == @padding
     @right_padding = @left_padding = @top_padding = @bottom_padding = value
     @padding = value
     update_view!
   end
   
+  def padding
+    @padding
+  end
+  
+  def to_s
+    "start=#{start?}\nexpand=#{expand?}\nleft_padding=#{left_padding}\nright_padding=#{right_padding}\ntop_padding=#{top_padding}\nbottom_padding=#{bottom_padding}\nother=#{other}\nview=#{view.inspect}"
+  end
+  
   private
+  
+    def in_layout_view?
+      @view && @view.kind_of?(LayoutView)
+    end
 
     def update_view!
-      @view.views_updated! if @view && @view.respond_to?(:views_updated!)
+      @view.views_updated! if in_layout_view?
     end
     
 end
 
 class LayoutView < NSView
-
+  
   def initWithFrame(frame)
     super
     @mode = :vertical
@@ -138,6 +212,15 @@ class LayoutView < NSView
       @mode = mode
       relayout!
     end
+  end
+  
+  def default_layout=(options)
+    @default_layout = LayoutOptions.new(options)
+    relayout!
+  end
+  
+  def default_layout
+    @default_layout ||= LayoutOptions.new
   end
 
   def spacing
@@ -168,6 +251,7 @@ class LayoutView < NSView
     end
     addSubview(view)
     if view.respond_to?(:layout) && !view.layout.nil?
+      view.layout.view = self
       @layout_views << view
     end
     relayout!
