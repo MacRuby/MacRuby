@@ -139,6 +139,10 @@ describe "NSObject additions" do
   it "should not create MacRuby style method aliases for methods containing underscores if the arity doesn't match" do
     @obj.respond_to?(:"method:notRubyCocoaStyle:").should.be false
   end
+  
+  it "should respond to to_ruby" do
+    @obj.respond_to?(:to_ruby).should.be true
+  end
 end
 
 describe 'OSX module' do
@@ -175,5 +179,62 @@ describe 'OSX module' do
     rescue NameError => e
       e.message.should.include 'OSX::DOES_NOT_EXIST_IN_TOPLEVEL_OBJECT'
     end
+  end
+end
+
+describe 'NSUserDefaults additions' do
+  before do
+    @obj = NSUserDefaults.alloc.init
+  end
+  
+  it "should respond to [] and []=" do
+    @obj.respond_to?(:[]).should.be true
+    @obj.respond_to?(:[]=).should.be true
+    @obj['key'] = 'value'
+    @obj['key'].should.equal 'value'
+  end
+end
+
+describe 'NSIndexSet additions' do
+  before do
+    @obj = NSIndexSet.alloc.init
+  end
+  
+  it "should respond to to_a" do
+    @obj.respond_to?(:to_a).should.be true
+  end
+end
+
+describe 'NSNumber additions' do
+  before do
+    @i = NSNumber.numberWithInt(42)
+    @f = NSNumber.numberWithDouble(42.42)
+  end
+  
+  it "should respond to to_i and to_f" do
+    @i.respond_to?(:to_i).should.be true
+    @i.respond_to?(:to_f).should.be true
+    @i.to_i.should.equal 42
+    @f.to_f.should.equal 42.42
+  end
+end
+
+describe 'NSDate additions' do
+  before do
+    @obj = NSDate.alloc.init
+  end
+  
+  it "should respond to to_time" do
+    @obj.respond_to?(:to_time).should.be true
+  end
+end
+
+describe 'NSImage additions' do
+  before do
+    @obj = NSImage.alloc.init
+  end
+  
+  it "should respond to focus" do
+    @obj.respond_to?(:focus).should.be true
   end
 end
