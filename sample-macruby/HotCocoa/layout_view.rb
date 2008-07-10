@@ -126,6 +126,7 @@ application do |app|
         	  selected_view.reset_size
         	  selected_view.layout.other = x.items.selected.downcase.tr(' ', '_').intern
         	end
+        	other_p = p
         end
       end
     end
