@@ -40,9 +40,9 @@ class MyView < NSView
 end
 
 def create_slider_layout(label, &block)
-  layout_view :mode => :horizontal, :frame => [0, 0, 0, 24], :layout => {:start => false, :other => :fill} do |view|
+  layout_view :mode => :horizontal, :frame => [0, 0, 0, 24], :layout => {:other => :fill} do |view|
     view << label(:text => label, :layout => {:other => :align_center})
-    s = slider :min => 0, :max => 50, :tic_marks => 20, :on_action => block, :layout => {:expand => true}
+    s = slider :min => 0, :max => 50, :tic_marks => 20, :on_action => block, :layout => {:expand => true, :other => :align_center}
     s.setFrameSize([0, 24]) # TODO sizeToFit doesn't set the height for us
     view << s
   end
@@ -54,12 +54,14 @@ application do |app|
     views = []
 
     window :frame => [700, 100, 200, 500] do |pane|
+      
+      pane.view.default_layout.start = false
 
       pane.view << create_slider_layout('Spacing') { |x| win.view.spacing = x.to_i }
 
       pane.view << create_slider_layout('Margin') { |x| win.view.margin = x.to_i }
 
-      pane.view << button(:title => "Vertical", :type => :switch, :state => :on, :layout => {:start => false}) do |b|
+      pane.view << button(:title => "Vertical", :type => :switch, :state => :on) do |b|
         b.on_action do |b| 
           views.each { |v| v.reset_size }
           win.view.mode = b.on? ? :vertical : :horizontal
@@ -70,7 +72,7 @@ application do |app|
       expand_b = nil
       left_padding_s = right_padding_s = top_padding_s = bottom_padding_s = nil
       other_p = nil
-      views_p = popup :items => ['No View'], :layout => {:start => false, :other => :fill}
+      views_p = popup :items => ['No View'], :layout => {:other => :fill}
       views_p.on_action do |p| 
         selected_view = views[p.items.selected_index]
         options = selected_view.layout
@@ -87,7 +89,7 @@ application do |app|
         end
       end
  
-      add_b = button :title => "Add view", :layout => {:start => false}
+      add_b = button :title => "Add view"
       add_b.on_action do
         view = MyView.create
         views << view
@@ -98,7 +100,7 @@ application do |app|
       end
       pane.view << add_b
       pane.view << views_p
-      expand_b = button :title => "Expand", :type => :switch, :state => :off, :layout => {:start => false}
+      expand_b = button :title => "Expand", :type => :switch, :state => :off
       expand_b.on_action do |b| 
         selected_view.reset_size unless b.on?
         selected_view.layout.expand = b.on?
@@ -121,7 +123,7 @@ application do |app|
       bottom_padding_s = v.subviews[1]
       pane.view << v
   
-      pane.view << layout_view(:mode => :horizontal, :frame => [0, 0, 0, 24], :layout => {:start => false, :other => :fill}) do |view|
+      pane.view << layout_view(:mode => :horizontal, :frame => [0, 0, 0, 24], :layout => {:other => :fill}) do |view|
         view << label(:text => 'Other', :layout => {:other => :align_center})
         view << popup(:items => ['Align Head', 'Align Center', 'Align Tail', 'Fill'], :layout => {:expand => true, :other => :align_center}) do |p|
           p.on_action do  |x|
