@@ -1143,7 +1143,8 @@ rb_objc_call_objc(int argc, VALUE *argv, id ocrcv, Class klass,
     if (super_call) {
 	Method smethod;
 	smethod = class_getInstanceMethod(klass, ctx->selector);
-	assert(smethod != ctx->method);
+	if (klass == ctx->klass)
+	    assert(smethod != ctx->method);
 	imp = method_getImplementation(smethod);
 	assert(imp != NULL);
     }
@@ -1269,13 +1270,15 @@ rb_objc_to_ruby_closure(int argc, VALUE *argv, VALUE rcv)
 
     if (super_call) {
 	Class sklass = klass;
+	Method orig_method = ctx->klass == klass 
+	    ? ctx->method : class_getInstanceMethod(klass, ctx->selector);
 	for (;;) {
 	    Method smethod;
 	    sklass = class_getSuperclass(sklass);
 	    if (sklass == NULL)
 		break;
 	    smethod = class_getInstanceMethod(sklass, ctx->selector);
-	    if (smethod != ctx->method) {
+	    if (smethod != orig_method) {
 		klass = sklass;
 	        break;
 	    }
