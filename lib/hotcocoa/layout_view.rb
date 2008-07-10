@@ -171,8 +171,8 @@ class LayoutOptions
     @padding
   end
   
-  def to_s
-    "start=#{start?}\nexpand=#{expand?}\nleft_padding=#{left_padding}\nright_padding=#{right_padding}\ntop_padding=#{top_padding}\nbottom_padding=#{bottom_padding}\nother=#{other}\nview=#{view.inspect}"
+  def inspect
+    "#{description} (start=#{start?}, expand=#{expand?}, left_padding=#{left_padding}, right_padding=#{right_padding}, top_padding=#{top_padding}, bottom_padding=#{bottom_padding}, other=#{other.inspect}, view=#{view.inspect})"
   end
   
   private
