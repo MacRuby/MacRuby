@@ -4,7 +4,8 @@ HotCocoa::Mappings.map :window => :NSWindow do
             :backing => :buffered, 
             :defer => true,
             :show => true,
-            :view => :layout
+            :view => :layout,
+            :default_layout => {}
             
   constant :backing, :buffered => NSBackingStoreBuffered
   
@@ -17,10 +18,16 @@ HotCocoa::Mappings.map :window => :NSWindow do
   }
 
   def init_with_options(window, options)
-    window.initWithContentRect options.delete(:frame), 
+    window = window.initWithContentRect options.delete(:frame), 
                                styleMask:options.delete(:style), 
                                backing:options.delete(:backing), 
                                defer:options.delete(:defer)
+    if options[:view] == :layout
+      options.delete(:view)
+      window.setContentView(LayoutView.alloc.initWithFrame([0,0,window.contentView.frameSize.width, window.contentView.frameSize.height]))
+      window.contentView.default_layout = options.delete(:default_layout)
+    end
+    window
   end
     
   custom_methods do
@@ -34,11 +41,7 @@ HotCocoa::Mappings.map :window => :NSWindow do
     end
 
     def view=(view)
-      if view == :layout
-        setContentView(LayoutView.alloc.initWithFrame([0,0,contentView.frameSize.width, contentView.frameSize.height]))
-      else
-        setContentView(view)
-      end
+      setContentView(view)
     end
     
     def show
