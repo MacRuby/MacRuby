@@ -105,6 +105,12 @@ module OSX
 end
 include OSX
 
+class NSData
+  def rubyString
+    NSString.alloc.initWithData(self, encoding:NSASCIIStringEncoding).mutableCopy
+  end
+end
+
 class NSUserDefaults
   def [](key)
     objectForKey(key)

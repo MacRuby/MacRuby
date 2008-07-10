@@ -182,6 +182,19 @@ describe 'OSX module' do
   end
 end
 
+describe 'NSData additions' do
+  before do
+    path = '/System/Library/DTDs/BridgeSupport.dtd'
+    @obj = NSData.dataWithContentsOfFile(path)
+    @ruby_data = File.read(path)
+  end
+
+  it "should respond to rubyString" do
+    @obj.respond_to?(:rubyString).should.be true
+    @obj.rubyString.should.equal @ruby_data
+  end
+end
+
 describe 'NSUserDefaults additions' do
   before do
     @obj = NSUserDefaults.alloc.init
