@@ -30,8 +30,8 @@ class MyView < NSView
     strsize = str.sizeWithAttributes @attributes
     point = [
       (rect.size.width / 2.0) - (strsize.width / 2.0),
-	    (rect.size.height / 2.0) - (strsize.height / 2.0)
-	  ]
+      (rect.size.height / 2.0) - (strsize.height / 2.0)
+    ]
     @number.to_s.drawAtPoint point, withAttributes:@attributes
   end
   
@@ -59,7 +59,7 @@ application do |app|
 
       pane.view << button(:title => "Vertical", :type => :switch, :state => :on, :layout => {:start => false}) do |b|
         b.on_action do |b| 
-	        views.each { |v| v.reset_size }
+          views.each { |v| v.reset_size }
           win.view.mode = b.on? ? :vertical : :horizontal
         end
       end
@@ -73,15 +73,15 @@ application do |app|
         selected_view = views[p.items.selected_index]
         options = selected_view.layout
         expand_b.state = options.expand? ? :on : :off
-      	left_padding_s.intValue = options.left_padding
-      	right_padding_s.intValue = options.right_padding
-      	top_padding_s.intValue = options.top_padding
-      	bottom_padding_s.intValue = options.bottom_padding
-      	other_p.items.selected = case options.other
-    	  when :align_head then 0
-    	  when :align_center then 1
-    	  when :align_tail then 2
-    	  when :fill then 3
+        left_padding_s.intValue = options.left_padding
+        right_padding_s.intValue = options.right_padding
+        top_padding_s.intValue = options.top_padding
+        bottom_padding_s.intValue = options.bottom_padding
+        other_p.items.selected = case options.other
+          when :align_head then 0
+          when :align_center then 1
+          when :align_tail then 2
+          when :fill then 3
         end
       end
  
@@ -123,10 +123,10 @@ application do |app|
         view << label(:text => 'Other', :layout => {:other => :align_center})
         view << popup(:items => ['Align Head', 'Align Center', 'Align Tail', 'Fill'], :layout => {:expand => true, :other => :align_center}) do |p|
           p.on_action do  |x|
-        	  selected_view.reset_size
-        	  selected_view.layout.other = x.items.selected.downcase.tr(' ', '_').intern
-        	end
-        	other_p = p
+            selected_view.reset_size
+            selected_view.layout.other = x.items.selected.downcase.tr(' ', '_').intern
+          end
+          other_p = p
         end
       end
     end
