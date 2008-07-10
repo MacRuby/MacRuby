@@ -2,7 +2,8 @@ module HotCocoa
 
 class LayoutOptions
   
-  attr_accessor :view, :defaults_view
+  attr_accessor :defaults_view
+  attr_reader   :view
   
   # options can be
   #
@@ -37,30 +38,30 @@ class LayoutOptions
   #        Will be aligned to the tail (end) of the packing area.
   #      :fill
   #        Will be filled to the maximum size.
-  def initialize(options={})
-    @start = options[:start]
-    @expand = options[:expand]
-    @padding = options[:padding]
+  def initialize(view, options={})
+    @view           = view
+    @start          = options[:start]
+    @expand         = options[:expand]
+    @padding        = options[:padding]
     @left_padding   = options[:left_padding]    || @padding
     @right_padding  = options[:right_padding]   || @padding
     @top_padding    = options[:top_padding]     || @padding
     @bottom_padding = options[:bottom_padding]  || @padding
-    @other = options[:other]
-    @view = options[:view]
-    update_view!
-    @defaults_view = options[:view]
+    @other          = options[:other]
+    update_layout_views!
+    @defaults_view  = options[:defaults_view]
   end
 
   def start=(value)
     return if value == @start
     @start = value
-    update_view!
+    update_layout_views!
   end
   
   def start?
     return @start unless @start.nil?
     if in_layout_view?
-      @view.default_layout.start?
+      @view.superview.default_layout.start?
     else
       true
     end
@@ -69,13 +70,13 @@ class LayoutOptions
   def expand=(value)
     return if value == @expand
     @expand = value
-    update_view!
+    update_layout_views!
   end
   
   def expand?
     return @expand unless @expand.nil?
     if in_layout_view?
-      @view.default_layout.expand?
+      @view.superview.default_layout.expand?
     else
       false
     end
@@ -85,13 +86,13 @@ class LayoutOptions
     return if value == @left_padding
     @left_padding = value
     @padding = nil
-    update_view!
+    update_layout_views!
   end
   
   def left_padding
     return @left_padding unless @left_padding.nil?
     if in_layout_view?
-      @view.default_layout.left_padding
+      @view.superview.default_layout.left_padding
     else
       @padding || 0.0
     end
@@ -101,13 +102,13 @@ class LayoutOptions
     return if value == @right_padding
     @right_padding = value
     @padding = nil
-    update_view!
+    update_layout_views!
   end
   
   def right_padding
     return @right_padding unless @right_padding.nil?
     if in_layout_view?
-      @view.default_layout.right_padding
+      @view.superview.default_layout.right_padding
     else
       @padding || 0.0
     end
@@ -117,13 +118,13 @@ class LayoutOptions
     return if value == @top_padding
     @top_padding = value
     @padding = nil
-    update_view!
+    update_layout_views!
   end
 
   def top_padding
     return @top_padding unless @top_padding.nil?
     if in_layout_view?
-      @view.default_layout.top_padding
+      @view.superview.default_layout.top_padding
     else
       @padding || 0.0
     end
@@ -133,13 +134,13 @@ class LayoutOptions
     return if value == @bottom_padding
     @bottom_padding = value
     @padding = nil
-    update_view!
+    update_layout_views!
   end
 
   def bottom_padding
     return @bottom_padding unless @bottom_padding.nil?
     if in_layout_view?
-      @view.default_layout.bottom_padding
+      @view.superview.default_layout.bottom_padding
     else
       @padding || 0.0
     end
@@ -148,7 +149,7 @@ class LayoutOptions
   def other
     return @other unless @other.nil?
     if in_layout_view?
-      @view.default_layout.other
+      @view.superview.default_layout.other
     else
       :align_head
     end
@@ -157,14 +158,14 @@ class LayoutOptions
   def other=(value)
     return if value == @other
     @other = value
-    update_view!
+    update_layout_views!
   end
   
   def padding=(value)
     return if value == @padding
     @right_padding = @left_padding = @top_padding = @bottom_padding = value
     @padding = value
-    update_view!
+    update_layout_views!
   end
   
   def padding
@@ -178,11 +179,11 @@ class LayoutOptions
   private
   
     def in_layout_view?
-      @view && @view.kind_of?(LayoutView)
+      @view && @view.superview.kind_of?(LayoutView)
     end
 
-    def update_view!
-      @view.views_updated! if in_layout_view?
+    def update_layout_views!
+      @view.superview.views_updated! if in_layout_view?
       @defaults_view.views_updated! if @defaults_view
     end
     
@@ -195,7 +196,6 @@ class LayoutView < NSView
     @mode = :vertical
     @spacing = 10.0
     @margin = 10.0
-    @layout_views = []
     self
   end
 
@@ -219,12 +219,12 @@ class LayoutView < NSView
   
   def default_layout=(options)
     options[:defaults_view] = self
-    @default_layout = LayoutOptions.new(options)
+    @default_layout = LayoutOptions.new(nil, options)
     relayout!
   end
   
   def default_layout
-    @default_layout ||= LayoutOptions.new(:defaults_view => self)
+    @default_layout ||= LayoutOptions.new(nil, :defaults_view => self)
   end
 
   def spacing
@@ -250,15 +250,12 @@ class LayoutView < NSView
   end
   
   def <<(view)
-    if subviews.include?(view)
-      raise ArgumentError, "view #{view} already in this layout view"
-    end
     addSubview(view)
-    if view.respond_to?(:layout) && !view.layout.nil?
-      view.layout.view = self
-      @layout_views << view
-    end
-    relayout!
+  end
+  
+  def addSubview(view)
+    super
+    relayout! if view.respond_to?(:layout)
   end
   
   def views_updated!
@@ -270,13 +267,12 @@ class LayoutView < NSView
       raise ArgumentError, "view #{view} not packed"
     end
     view.removeFromSuperview
-    @layout_views.delete(view)
+    relayout!
   end
 
   def remove_all_views
-    @layout_views.each {|view| view.layout.view = nil}
     subviews.each { |view| view.removeFromSuperview }
-    @layout_views.clear
+    relayout!
   end
 
   if $DEBUG
@@ -307,7 +303,8 @@ class LayoutView < NSView
 
     expandable_size = end_dimension
     expandable_views = 0
-    @layout_views.each do |view|
+    subviews.each do |view|
+      next if !view.respond_to?(:layout) || view.layout.nil?
       if view.layout.expand?
         expandable_views += 1
       else
@@ -317,7 +314,8 @@ class LayoutView < NSView
     end
     expandable_size /= expandable_views
 
-    @layout_views.each do |view|
+    subviews.each do |view|
+      next if !view.respond_to?(:layout) || view.layout.nil?
       options = view.layout
       subview_size = view.frameSize
       view_frame = NSMakeRect(0, 0, *subview_size)
