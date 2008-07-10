@@ -172,7 +172,7 @@ class LayoutOptions
   end
   
   def inspect
-    "#{description} (start=#{start?}, expand=#{expand?}, left_padding=#{left_padding}, right_padding=#{right_padding}, top_padding=#{top_padding}, bottom_padding=#{bottom_padding}, other=#{other.inspect}, view=#{view.inspect})"
+    "#<#{self.class} start=#{start?}, expand=#{expand?}, left_padding=#{left_padding}, right_padding=#{right_padding}, top_padding=#{top_padding}, bottom_padding=#{bottom_padding}, other=#{other.inspect}, view=#{view.inspect}>"
   end
   
   private
