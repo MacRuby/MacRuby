@@ -1,5 +1,7 @@
 HotCocoa::Mappings.map :segmented_control => :NSSegmentedControl do
   
+  defaults :layout => {}
+  
   def init_with_options(segmented_control, options)
     segmented_control.initWithFrame options.delete(:frame)
   end

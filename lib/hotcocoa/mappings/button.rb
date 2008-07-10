@@ -3,7 +3,8 @@ include HotCocoa
 Mappings.map :button => :NSButton do
   
   defaults :bezel => :rounded, 
-           :frame => DefaultEmptyRect
+           :frame => DefaultEmptyRect,
+           :layout => {}
   
   constant :bezel, {
      :rounded             => NSRoundedBezelStyle,

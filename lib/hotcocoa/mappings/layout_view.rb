@@ -2,7 +2,7 @@ require 'hotcocoa/packing_view'
 
 Mappings.map :layout_view => :LayoutView do
 
-  defaults :frame => DefaultEmptyRect
+  defaults :frame => DefaultEmptyRect, :layout => {}
 
   def init_with_options(view, options)
     view.initWithFrame options.delete(:frame)

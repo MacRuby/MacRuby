@@ -1,5 +1,7 @@
 HotCocoa::Mappings.map :image_view => :NSImageView do
   
+  defaults :layout => {}
+  
   def init_with_options(image_view, options)
     image_view.initWithFrame options.delete(:frame)
   end

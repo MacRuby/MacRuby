@@ -1,5 +1,7 @@
 HotCocoa::Mappings.map :split_view => :NSSplitView do
   
+  defaults :layout => {}
+  
   def init_with_options(split_view, options)
     split_view.initWithFrame options.delete(:frame)
   end
