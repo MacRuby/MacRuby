@@ -1,3 +1,4 @@
+
 HotCocoa::Mappings.map :view => :NSView do
 
   constant :auto_resize, {
@@ -28,16 +29,8 @@ HotCocoa::Mappings.map :view => :NSView do
     end
     
     def layout=(options)
-      if @layout
-        if options.nil?
-          superview.views_updated! if superview.kind_of?(LayoutView)
-          @layout = nil
-        else
-          @layout = LayoutOptions.new(self, options)
-        end
-      else
-        @layout = LayoutOptions.new(self, options)
-      end
+      @layout = LayoutOptions.new(self, options)
+      @layout.update_layout_views!
     end
     
     def layout

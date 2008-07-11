@@ -1,4 +1,17 @@
 module HotCocoa
+  
+module LayoutManaged
+  
+  def layout=(options)
+    @layout = LayoutOptions.new(self, options)
+    @layout.update_layout_views!
+  end
+  
+  def layout
+    @layout
+  end
+  
+end
 
 class LayoutOptions
   
@@ -39,7 +52,7 @@ class LayoutOptions
   #      :fill
   #        Will be filled to the maximum size.
   def initialize(view, options={})
-    @view           = view
+    @view = view
     @start          = options[:start]
     @expand         = options[:expand]
     @padding        = options[:padding]
@@ -48,10 +61,9 @@ class LayoutOptions
     @top_padding    = options[:top_padding]     || @padding
     @bottom_padding = options[:bottom_padding]  || @padding
     @other          = options[:other]
-    update_layout_views!
     @defaults_view  = options[:defaults_view]
   end
-
+  
   def start=(value)
     return if value == @start
     @start = value
@@ -175,6 +187,11 @@ class LayoutOptions
   def inspect
     "#<#{self.class} start=#{start?}, expand=#{expand?}, left_padding=#{left_padding}, right_padding=#{right_padding}, top_padding=#{top_padding}, bottom_padding=#{bottom_padding}, other=#{other.inspect}, view=#{view.inspect}>"
   end
+
+  def update_layout_views!
+    @view.superview.views_updated! if in_layout_view?
+    @defaults_view.views_updated! if @defaults_view
+  end
   
   private
   
@@ -182,10 +199,6 @@ class LayoutOptions
       @view && @view.superview.kind_of?(LayoutView)
     end
 
-    def update_layout_views!
-      @view.superview.views_updated! if in_layout_view?
-      @defaults_view.views_updated! if @defaults_view
-    end
     
 end
 
@@ -255,7 +268,11 @@ class LayoutView < NSView
   
   def addSubview(view)
     super
-    relayout! if view.respond_to?(:layout)
+    if view.respond_to?(:layout)
+      relayout!
+    else
+      raise ArgumentError, "view #{view} does not support the #layout method"
+    end
   end
   
   def views_updated!
@@ -264,7 +281,7 @@ class LayoutView < NSView
 
   def remove_view(view)
     unless subviews.include?(view)
-      raise ArgumentError, "view #{view} not packed"
+      raise ArgumentError, "view #{view} not a subview of this LayoutView"
     end
     view.removeFromSuperview
     relayout!
