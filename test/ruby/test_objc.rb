@@ -1,5 +1,66 @@
 require 'test/unit'
 
+DUMMY_M = <<END_DUMMY_M
+#import <Foundation/Foundation.h>
+
+@interface TestGetMethod : NSObject
+@end
+
+@implementation TestGetMethod
+- (void)getInt:(int *)v {}
+- (void)getLong:(long *)l {}
+- (void)getObject:(id *)o {}
+- (void)getRect:(NSRect *)r {}
+@end
+
+@interface Dummy : NSObject
+@end
+
+@implementation Dummy
+
+- (void)testCallGetIntMethod:(id)receiver expectedValue:(int)val
+{
+    int i = 0;
+    [(TestGetMethod *)receiver getInt:&i];
+    if (i != val)
+        [NSException raise:@"testCallGetIntMethod" format:@"expected %d, got %d", val, i];
+}
+
+- (void)testCallGetLongMethod:(id)receiver expectedValue:(long)val
+{
+    long l = 0;
+    [(TestGetMethod *)receiver getLong:&l];
+    if (l != val)
+        [NSException raise:@"testCallGetLongMethod" format:@"expected %ld, got %ld", val, l];
+}
+
+- (void)testCallGetObjectMethod:(id)receiver expectedValue:(id)val
+{
+    id o = nil;
+    [(TestGetMethod *)receiver getObject:&o];
+    if (o != val)
+        [NSException raise:@"testCallGetLongMethod" format:@"expected %p, got %p", val, o];
+}
+
+- (void)testCallGetRectMethod:(id)receiver expectedValue:(NSRect)val
+{
+    NSRect r = NSZeroRect;
+    [(TestGetMethod *)receiver getRect:&r];
+    if (!NSEqualRects(r, val)) 
+        [NSException raise:@"testCallGetLongMethod" format:@"expected %@, got %@", NSStringFromRect(val), NSStringFromRect(r)];
+}
+
+@end
+
+void Init_dummy(void) {}
+END_DUMMY_M
+
+if !File.exist?('/tmp/dummy.bundle') or File.mtime(__FILE__) > File.mtime('/tmp/dummy.bundle')
+  File.open('/tmp/dummy.m', 'w') { |io| io.write(DUMMY_M) }
+  system("/usr/bin/gcc /tmp/dummy.m -o /tmp/dummy.bundle -g -framework Foundation -dynamiclib -fobjc-gc")
+end
+require '/tmp/dummy.bundle'
+
 class TestObjC < Test::Unit::TestCase
 
   def setup
@@ -226,5 +287,27 @@ class TestObjC < Test::Unit::TestCase
     assert_equal('xxx', o.bar)
   end
 
-end
+  class RubyTestGetMethod < TestGetMethod
+    attr_accessor :tc, :val
+    [:getInt, :getLong, :getObject, :getRect].each do |s|
+      define_method(s) do |ptr|
+        @tc.assert_kind_of(Pointer, ptr)
+        ptr.assign(@val)
+      end
+    end
+  end
+  def test_call_get_int
+    d = Dummy.new
+    obj = RubyTestGetMethod.new
+    obj.tc = self
+    obj.val = 42
+    d.testCallGetIntMethod(obj, expectedValue:obj.val)
+    obj.val = 42_000_000
+    d.testCallGetLongMethod(obj, expectedValue:obj.val)
+    obj.val = d
+    d.testCallGetObjectMethod(obj, expectedValue:obj.val)
+    obj.val = NSRect.new(NSPoint.new(1, 2), NSSize.new(3, 4))
+    d.testCallGetRectMethod(obj, expectedValue:obj.val)
+  end
 
+end

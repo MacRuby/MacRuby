@@ -621,7 +621,43 @@ rebuild_new_struct_ary(ffi_type **elements, VALUE orig, VALUE new)
     return n;
 }
 
+VALUE rb_cPointer;
+
+struct RPointer
+{
+  void *ptr;
+  const char *type;
+};
+
+static VALUE
+rb_pointer_create(void *ptr, const char *type)
+{
+    struct RPointer *data;
+
+    data = (struct RPointer *)xmalloc(sizeof(struct RPointer ));
+    data->ptr = ptr;
+    data->type = type;
+
+    return Data_Wrap_Struct(rb_cPointer, NULL, NULL, data);
+}
+
 static void rb_objc_rval_to_ocval(VALUE, const char *, void **);
+
+static VALUE
+rb_pointer_assign(VALUE recv, VALUE val)
+{
+    struct RPointer *data;
+
+    Data_Get_Struct(recv, struct RPointer, data);
+
+    assert(data != NULL);
+    assert(data->ptr != NULL);
+    assert(data->type != NULL);
+
+    rb_objc_rval_to_ocval(val, data->type, data->ptr);
+
+    return val;
+}
 
 static void *
 rb_objc_rval_to_boxed_data(VALUE rval, bs_element_boxed_t *bs_boxed, bool *ok)
@@ -988,8 +1024,7 @@ rb_objc_ocval_to_rbval(void **ocval, const char *octype, VALUE *rbval)
 		*rbval = Qnil;
 	    }
 	    else {
-		/* TODO: wrap C pointers into a specific object */
-		ok = false;
+		*rbval = rb_pointer_create(*(void **)ocval, octype + 1);
 	    }
 	    break;
 
@@ -1153,10 +1188,8 @@ rb_objc_call_objc(int argc, VALUE *argv, id ocrcv, Class klass,
 	    imp = ctx->imp;
 	}
 	else {
-	    ctx->imp = imp = ctx->method == 
-		class_getInstanceMethod(klass, ctx->selector)
-		    ? method_getImplementation(ctx->method)
-		    : objc_msgSend; /* alea jacta est */
+	    ctx->imp = imp = method_getImplementation(ctx->method);
+	    ctx->klass = klass;
 	}
     }
 
@@ -1260,7 +1293,7 @@ rb_objc_to_ruby_closure(int argc, VALUE *argv, VALUE rcv)
 	assert(ctx->method != NULL);
 	ctx->cif = NULL;
 	ctx->imp = NULL;
-	ctx->klass = NULL;
+	ctx->klass = klass;
 	GC_WB(&rb_current_cfunc_node->u3.value, ctx);
     }
     else {
@@ -3076,6 +3109,10 @@ Init_ObjC(void)
     rb_define_singleton_method(rb_cBoxed, "objc_type", rb_boxed_objc_type, 0);
     rb_define_singleton_method(rb_cBoxed, "opaque?", rb_boxed_is_opaque, 0);
     rb_define_singleton_method(rb_cBoxed, "fields", rb_boxed_fields, 0);
+
+    rb_cPointer = rb_define_class("Pointer", rb_cObject);
+    rb_undef_alloc_func(rb_cPointer);
+    rb_define_method(rb_cPointer, "assign", rb_pointer_assign, 1);
 
     rb_ivar_type = rb_intern("@__objc_type__");
 
