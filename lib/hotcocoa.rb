@@ -7,6 +7,7 @@ module HotCocoa
 end
 
 require 'hotcocoa/mappings'
+require 'hotcocoa/behaviors'
 require 'hotcocoa/mapping_methods'
 require 'hotcocoa/mapper'
 require 'hotcocoa/layout_view'

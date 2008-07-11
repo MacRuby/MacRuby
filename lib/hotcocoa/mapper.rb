@@ -4,8 +4,25 @@ module HotCocoa::Mappings
     
     attr_reader :control_class, :builder_method, :control_module
 
-    def initialize(builder_method, control_class, &block)
-      @control_class = control_class
+    def self.map_class(klass)
+      new(klass).include_in_class
+    end
+    
+    def self.map_instances_of(klass, builder_method, &block)
+      new(klass).map_method(builder_method, &block)
+    end
+    
+    def initialize(klass)
+      @control_class = klass
+    end
+    
+    def include_in_class
+      @extension_method = :include
+      customize(@control_class)
+    end
+    
+    def map_method(builder_method, &block)
+      @extension_method = :extend
       @builder_method = builder_method
       mod = (class << self; self; end)
       mod.extend MappingMethods
@@ -17,7 +34,7 @@ module HotCocoa::Mappings
         guid = args.length == 1 ? nil : args[0]
         map = inst.remap_constants(map)
         default_empty_rect_used = (map[:frame].__id__ == DefaultEmptyRect.__id__)
-        control = inst.respond_to?(:init_with_options) ? inst.init_with_options(control_class.alloc, map) : inst.alloc_with_options(map)
+        control = inst.respond_to?(:init_with_options) ? inst.init_with_options(inst.control_class.alloc, map) : inst.alloc_with_options(map)
         Views[guid] = control if guid
         inst.customize(control)
         map.each do |key, value|
@@ -39,6 +56,7 @@ module HotCocoa::Mappings
         end
         control
       end
+      self
     end
     
     def inherited_constants
@@ -75,7 +93,7 @@ module HotCocoa::Mappings
     
     def customize(control)
       inherited_custom_methods.each do |custom_methods|
-        control.extend(custom_methods)
+        control.send(@extension_method, custom_methods)
       end
       decorate_with_delegate_methods(control)
     end
@@ -92,7 +110,7 @@ module HotCocoa::Mappings
           end
         }
       end
-      control.extend(delegate_module)
+      control.send(@extension_method, delegate_module)
     end
 
     def remap_constants(tags)

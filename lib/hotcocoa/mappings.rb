@@ -14,11 +14,11 @@ module HotCocoa
       mapped_name = options.keys.first
       mapped_value = options.values.first
       if framework.nil? || Object.const_defined?(mapped_value)
-        m = Mapper.new(mapped_name, Object.const_get(mapped_value), &block)
+        m = Mapper.map_instances_of(Object.const_get(mapped_value), mapped_name, &block)
         mappings[m.builder_method] = m
       else
         on_framework(framework) do
-          m = Mapper.new(mapped_name, Object.const_get(mapped_value), &block)
+          m = Mapper.map_instances_of(Object.const_get(mapped_value), mapped_name, &block)
           mappings[m.builder_method] = m
         end
       end
