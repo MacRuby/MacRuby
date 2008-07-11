@@ -26,10 +26,6 @@ HotCocoa::Mappings.map :box => :NSBox do
   
   custom_methods do
     
-    def <<(view)
-      addSubview(view)
-    end
-    
     def title_position=(value)
       setTitlePosition(value)
     end

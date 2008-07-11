@@ -66,7 +66,7 @@ module HotCocoa::Mappings
     end
     
     def each_control_ancestor
-      control_class.ancestors.each do |ancestor|
+      control_class.ancestors.reverse.each do |ancestor|
         Mappings.mappings.values.each do |mapper|
           yield mapper if mapper.control_class == ancestor
         end

@@ -8,10 +8,6 @@ HotCocoa::Mappings.map :split_view => :NSSplitView do
   
   custom_methods do
     
-    def <<(view)
-      addSubview(view)
-    end
-    
     def horizontal=(value)
       setVertical(!value)
     end
