@@ -1,5 +1,3 @@
-require 'hotcocoa/packing_view'
-
 Mappings.map :layout_view => :LayoutView do
 
   defaults :frame => DefaultEmptyRect, :layout => {}
