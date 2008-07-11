@@ -1,9 +1,8 @@
 require 'hotcocoa'
-include HotCocoa
 
 class MyView < NSView
   
-  include LayoutManaged
+  include HotCocoa::Behaviors
 
   DefaultSize = [30, 30]
 
@@ -49,6 +48,8 @@ def create_slider_layout(label, &block)
     view << s
   end
 end
+
+include HotCocoa
 
 application do |app|
 
