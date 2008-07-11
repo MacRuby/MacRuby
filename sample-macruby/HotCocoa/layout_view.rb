@@ -2,6 +2,8 @@ require 'hotcocoa'
 include HotCocoa
 
 class MyView < NSView
+  
+  include LayoutManaged
 
   DefaultSize = [30, 30]
 
@@ -11,7 +13,7 @@ class MyView < NSView
   
   def initWithFrame(frame)
     super
-    @layout = HotCocoa::LayoutOptions.new(self)
+    self.layout = {}
     self
   end
   
@@ -19,7 +21,7 @@ class MyView < NSView
     setFrameSize(DefaultSize)
   end
   
-  attr_accessor :number, :layout
+  attr_accessor :number
  
   def drawRect(rect)
     (color :red => 0.29, :green => 0.26, :blue => 0.55).set
