@@ -3098,6 +3098,78 @@ fix_even_p(VALUE num)
     return Qtrue;
 }
 
+#if WITH_OBJC
+static const char *
+imp_rb_float_objCType(void *rcv, SEL sel)
+{
+    return "d";
+}
+
+static const char *
+imp_rb_integer_objCType(void *rcv, SEL sel)
+{
+    return "q";
+}
+
+static void
+imp_rb_float_getValue(void *rcv, SEL sel, void *buffer)
+{
+    double v = RFLOAT_VALUE(rcv);
+    *(double *)buffer = v;
+}
+
+static void
+imp_rb_integer_getValue(void *rcv, SEL sel, void *buffer)
+{
+    long long v = NUM2LL(rcv);
+    *(long long *)buffer = v;
+}
+
+static double
+imp_rb_float_doubleValue(void *rcv, SEL sel)
+{
+    return RFLOAT_VALUE(rcv);
+}
+
+static long long
+imp_rb_integer_longLongValue(void *rcv, SEL sel)
+{
+    return NUM2LL(rcv);
+}
+
+static inline void
+rb_objc_install_method(Class klass, SEL sel, IMP imp)
+{
+    Method method = class_getInstanceMethod(klass, sel);
+    assert(method != NULL);
+    assert(class_addMethod(klass, sel, imp, method_getTypeEncoding(method)));
+}
+
+static void
+rb_install_nsnumber_float_primitives(void)
+{
+    Class klass = RCLASS_OCID(rb_cFloat);
+    rb_objc_install_method(klass, sel_registerName("objCType"),
+	    (IMP)imp_rb_float_objCType);
+    rb_objc_install_method(klass, sel_registerName("getValue:"), 
+	    (IMP)imp_rb_float_getValue);
+    rb_objc_install_method(klass, sel_registerName("doubleValue"), 
+	    (IMP)imp_rb_float_doubleValue);
+}
+
+static void
+rb_install_nsnumber_integer_primitives(void)
+{
+    Class klass = RCLASS_OCID(rb_cNumeric);
+    rb_objc_install_method(klass, sel_registerName("objCType"),
+	    (IMP)imp_rb_integer_objCType);
+    rb_objc_install_method(klass, sel_registerName("getValue:"), 
+	    (IMP)imp_rb_integer_getValue);
+    rb_objc_install_method(klass, sel_registerName("longLongValue"), 
+	    (IMP)imp_rb_integer_longLongValue);
+}
+#endif
+
 void
 Init_Numeric(void)
 {
@@ -3117,7 +3189,12 @@ Init_Numeric(void)
 
     rb_eZeroDivError = rb_define_class("ZeroDivisionError", rb_eStandardError);
     rb_eFloatDomainError = rb_define_class("FloatDomainError", rb_eRangeError);
+#if WITH_OBJC
+    rb_cNumeric = rb_define_class("Numeric",
+        rb_objc_import_class((void*)objc_getClass("NSNumber")));
+#else
     rb_cNumeric = rb_define_class("Numeric", rb_cObject);
+#endif
 
     rb_define_method(rb_cNumeric, "singleton_method_added", num_sadded, 1);
     rb_include_module(rb_cNumeric, rb_mComparable);
@@ -3275,4 +3352,9 @@ Init_Numeric(void)
     rb_define_method(rb_cFloat, "nan?",      flo_is_nan_p, 0);
     rb_define_method(rb_cFloat, "infinite?", flo_is_infinite_p, 0);
     rb_define_method(rb_cFloat, "finite?",   flo_is_finite_p, 0);
+
+#if WITH_OBJC
+    rb_install_nsnumber_integer_primitives();
+    rb_install_nsnumber_float_primitives();
+#endif
 }

@@ -401,88 +401,54 @@ rb_objc_octype_to_ffitype(const char *octype)
     return NULL;
 }
 
-static bool
+bool
 rb_objc_rval_to_ocid(VALUE rval, void **ocval, bool force_nsnil)
 {
-    if (!rb_special_const_p(rval) && rb_objc_is_non_native(rval)) {
+    if (SPECIAL_CONST_P(rval)) {
+	if (rval == Qtrue) {
+	    *(id *)ocval = (id)kCFBooleanTrue;
+	}
+	else if (rval == Qfalse) {
+	    *(id *)ocval = (id)kCFBooleanFalse;
+	}
+	else if (rval == Qnil) {
+	    *(id *)ocval = force_nsnil ? (id)kCFNull : nil;
+	}
+	else if (SYMBOL_P(rval)) {
+	    *(id *)ocval = (id)rb_id2str(SYM2ID(rval));
+	}
+	else if (FIXNUM_P(rval)) {
+#define FIXNUM_CFNUMBER_CACHE_SIZE 2000
+	    static void *fixnum_cfnumber_cache[FIXNUM_CFNUMBER_CACHE_SIZE];
+	    static bool fixnum_cfnumber_cache_init = false;
+	    long v = FIX2LONG(rval);
+	    CFNumberRef number;
+	    if (!fixnum_cfnumber_cache_init) {
+		memset(fixnum_cfnumber_cache, 0, sizeof(void *) * FIXNUM_CFNUMBER_CACHE_SIZE);
+		fixnum_cfnumber_cache_init = true;
+	    }
+	    /* cache -500..1500 */
+	    if (v >= -500 && v < 1500) {
+		number = fixnum_cfnumber_cache[v+500];
+		if (number == NULL) {
+		    number = CFNumberCreate(NULL, kCFNumberLongType, &v);
+		    fixnum_cfnumber_cache[v+500] = (void *)number;
+		}
+	    }
+	    else {
+		number = CFNumberCreate(NULL, kCFNumberLongType, &v);
+		CFMakeCollectable(number);	
+	    }
+	    *(id *)ocval = (id)number;
+	}
+    }
+    else if (class_isMetaClass(*(Class *)rval)) {
+	*(id *)ocval = (id)RCLASS_OCID(rval);
+    }
+    else {
 	*(id *)ocval = (id)rval;
-	return true;
     }
-
-    switch (TYPE(rval)) {
-	case T_STRING:
-	case T_ARRAY:
-	case T_HASH:
-	case T_OBJECT:
-	    *(id *)ocval = (id)rval;
-	    return true;
-
-	case T_CLASS:
-	case T_MODULE:
-	    *(id *)ocval = (id)RCLASS_OCID(rval);
-	    return true;
-
-	case T_NIL:
-	    if (force_nsnil) {
-		static id snull = nil;
-		if (snull == nil)
-		    snull = [NSNull null];
-		*(id *)ocval = snull;
-	    }
-	    else {
-		*(id *)ocval = NULL;
-	    }
-	    return true;
-
-	case T_TRUE:
-	case T_FALSE:
-	{
-	    char v = RTEST(rval);
-	    *(id *)ocval = (id)CFNumberCreate(NULL, kCFNumberCharType, &v);
-	    CFMakeCollectable(*(id *)ocval);
-	    return true;
-	}
-
-	case T_FLOAT:
-	{
-	    double v = RFLOAT_VALUE(rval);
-	    *(id *)ocval = (id)CFNumberCreate(NULL, kCFNumberDoubleType, &v);
-	    CFMakeCollectable(*(id *)ocval);
-	    return true;
-	}	
-
-	case T_FIXNUM:
-	case T_BIGNUM:
-	{
-	    if (FIXNUM_P(rval)) {
-		long v = FIX2LONG(rval);
-		*(id *)ocval = (id)CFNumberCreate(NULL, kCFNumberLongType, &v);
-	    }
-	    else {
-#if HAVE_LONG_LONG
-		long long v = NUM2LL(rval);
-		*(id *)ocval = 
-		    (id)CFNumberCreate(NULL, kCFNumberLongLongType, &v);
-#else
-		long v = NUM2LONG(rval);
-		*(id *)ocval = (id)CFNumberCreate(NULL, kCFNumberLongType, &v);
-#endif
-	    }
-	    CFMakeCollectable(*(id *)ocval);
-	    return true;
-	}
-
-	case T_SYMBOL:
-	{
-	    ID name = SYM2ID(rval);
-	    *(id *)ocval = (id)CFStringCreateWithCString(NULL, rb_id2name(name),
-		kCFStringEncodingASCII); /* XXX this is temporary */
-	    CFMakeCollectable(*(id *)ocval);
-	    return true;
-	}
-    }
-
-    return false;
+    return true;
 }
 
 static bool
@@ -749,7 +715,7 @@ rb_objc_rval_to_ocval(VALUE rval, const char *octype, void **ocval)
     if (st_lookup(bs_cftypes, (st_data_t)octype, NULL))
 	octype = "@";
 
-    if (*octype != _C_BOOL) {
+    if (*octype != _C_BOOL && *octype != _C_ID) {
 	if (rval == Qtrue)
 	    rval = INT2FIX(1);
 	else if (rval == Qfalse)
@@ -996,6 +962,14 @@ rb_objc_ocval_to_rbval(void **ocval, const char *octype, VALUE *rbval)
 	
 	case _C_ULNG:
 	    *rbval = UINT2NUM(*(unsigned long *)ocval);
+	    break;
+
+	case _C_LNG_LNG:
+	    *rbval = LL2NUM(*(long long *)ocval);
+	    break;
+
+	case _C_ULNG_LNG:
+	    *rbval = ULL2NUM(*(unsigned long long *)ocval);
 	    break;
 
 	case _C_FLT:
@@ -1288,18 +1262,18 @@ rb_objc_to_ruby_closure(int argc, VALUE *argv, VALUE rcv)
 	}
 	ctx->selector = sel_registerName(selname);
 
-	ctx->bs_method = rb_bs_find_method(*(Class *)rcv, ctx->selector);
-	ctx->method = class_getInstanceMethod(*(Class *)rcv, ctx->selector); 
-	assert(ctx->method != NULL);
-	ctx->cif = NULL;
-	ctx->imp = NULL;
-	ctx->klass = klass;
+	ctx->bs_method = rb_bs_find_method(*(Class *)ocrcv, ctx->selector);
 	GC_WB(&rb_current_cfunc_node->u3.value, ctx);
     }
     else {
 	ctx = (struct objc_ruby_closure_context *)
 	    rb_current_cfunc_node->u3.value;
     }
+    ctx->method = class_getInstanceMethod(*(Class *)ocrcv, ctx->selector); 
+    assert(ctx->method != NULL);
+    ctx->cif = NULL;
+    ctx->imp = NULL;
+    ctx->klass = klass;
 
     if (super_call) {
 	Class sklass = klass;
@@ -2624,9 +2598,9 @@ rb_install_objc_primitives(void)
 
     /* Boxed */
     klass = RCLASS_OCID(rb_cBoxed);
-    rb_objc_override_method(klass, @selector(objCType), 
+    rb_objc_install_method(klass, @selector(objCType), 
 	(IMP)imp_rb_boxed_objCType);
-    rb_objc_override_method(klass, @selector(getValue:), 
+    rb_objc_install_method(klass, @selector(getValue:), 
 	(IMP)imp_rb_boxed_getValue);
 }
 
@@ -2815,8 +2789,9 @@ rb_mod_objc_ib_outlet(int argc, VALUE *argv, VALUE recv)
 
 	if (!class_addMethod(RCLASS_OCID(recv), sel_registerName(buf), 
 			     (IMP)rb_objc_ib_outlet_imp, "v@:@"))
-	    rb_raise(rb_eArgError, "can't register `%s' as an IB outlet",
-		     symname);
+	    rb_raise(rb_eArgError, 
+		     "can't register `%s' (method %s) as an IB outlet",
+		     symname, buf);
     }
     return recv;
 }
