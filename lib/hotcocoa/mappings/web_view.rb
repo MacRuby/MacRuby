@@ -1,5 +1,3 @@
-framework 'WebKit'
-
 HotCocoa::Mappings.map :web_view => :WebView , :framework => :WebKit do
 
   defaults :auto_size => true, :layout => {}
