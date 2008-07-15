@@ -1,6 +1,6 @@
 HotCocoa::Mappings.map :collection_view => :NSCollectionView do
   
-  defaults :layout => {}, :frame => [0,0,0,0]
+  defaults :layout => {}, :frame => [0,0,100,100]
   
   def init_with_options(collection_view, options)
     collection_view.initWithFrame options.delete(:frame)
