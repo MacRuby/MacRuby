@@ -47,9 +47,8 @@ icons = array_controller  :for => (1..100).collect { |i| Icon.new("Rich #{i}", i
 
 application do |app|
   window :frame => [100, 100, 500, 500], :title => "HotCocoa!" do |win|
-    win << scroll_view(:frame => [10,10,480,470], :layout => {:expand => true, :other => :fill}) do |scroll|
-      cv = collection_view :frame => [0,0,480,470], 
-                           :content => {icons => "arrangedObjects"}, 
+    win << scroll_view(:layout => {:expand => true, :other => :fill}) do |scroll|
+      cv = collection_view :content => {icons => "arrangedObjects"}, 
                            :selection_indexes => {icons => "selectionIndexes"},
                            :item_view => MyIconView.create,
                            :map_bindings => true
