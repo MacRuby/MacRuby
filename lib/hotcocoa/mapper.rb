@@ -96,6 +96,7 @@ module HotCocoa::Mappings
         control.send(@extension_method, custom_methods)
       end
       decorate_with_delegate_methods(control)
+      decorate_with_bindings_methods(control)
     end
 
     def decorate_with_delegate_methods(control)
@@ -111,6 +112,29 @@ module HotCocoa::Mappings
         }
       end
       control.send(@extension_method, delegate_module)
+    end
+    
+    def decorate_with_bindings_methods(control)
+      return if control_class == NSApplication
+      bindings_module = Module.new
+      instance = if control == control_class
+        control_class.alloc.init
+      else
+        control
+      end
+      instance.exposedBindings.each do |exposed_binding|
+        bindings_module.module_eval %{
+          def #{underscore(exposed_binding)}=(value)
+            if value.kind_of?(Hash)
+              options = value.delete(:options)
+              bind "#{exposed_binding}", toObject:value.keys.first, withKeyPath:value.values.first, options:options
+            else
+              set#{exposed_binding.capitalize}(value)
+            end
+          end
+        }
+      end
+      control.send(@extension_method, bindings_module)
     end
 
     def remap_constants(tags)
@@ -129,6 +153,14 @@ module HotCocoa::Mappings
         end
       end
       result
+    end
+    
+    def underscore(camel_cased_word)
+      camel_cased_word.to_s.gsub(/::/, '/').
+        gsub(/([A-Z]+)([A-Z][a-z])/,'\1_\2').
+        gsub(/([a-z\d])([A-Z])/,'\1_\2').
+        tr("-", "_").
+        downcase
     end
 
   end

@@ -1,12 +1,24 @@
 HotCocoa::Mappings.map :image_view => :NSImageView do
   
-  defaults :layout => {}
+  defaults :layout => {}, :frame_style => :none
+  
+  constant :frame_style, {
+    :none   => NSImageFrameNone,
+    :photo  => NSImageFramePhoto,
+    :bezel  => NSImageFrameGrayBezel,
+    :groove => NSImageFrameGroove,
+    :button => NSImageFrameButton
+  }
   
   def init_with_options(image_view, options)
     image_view.initWithFrame options.delete(:frame)
   end
   
   custom_methods do
+    
+    def frame_style=(value)
+      setImageFrameStyle(value)
+    end
     
     def url=(url)
       setImage(NSImage.alloc.initByReferencingURL(NSURL.alloc.initWithString(url)))
