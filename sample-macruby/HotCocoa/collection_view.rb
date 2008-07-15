@@ -38,22 +38,21 @@ class MyIconView < NSView
   
 end
 
-array_controller = NSArrayController.new
-array_controller.setAvoidsEmptySelection(false)
-array_controller.setPreservesSelection(false)
-array_controller.setSelectsInsertedObjects(false)
-array_controller.setAutomaticallyRearrangesObjects(true)
-array_controller.setSortDescriptors(NSArray.arrayWithObject(NSSortDescriptor.alloc.initWithKey("name", ascending: false)))
-array_controller.addObject Icon.new("Rich", image(:file => "rich.jpg"))
+icons = array_controller  :for => (1..100).collect { |i| Icon.new("Rich #{i}", image(:file => "rich.jpg")) },
+                          :avoids_empty_selection => true, 
+                          :preserves_selection => false, 
+                          :selects_inserted => false, 
+                          :rearrange_automatically => true, 
+                          :sort_by => {:name => :ascending}
 
 application do |app|
   window :frame => [100, 100, 500, 500], :title => "HotCocoa!" do |win|
-    win << scroll_view(:frame => [10,10,480,470]) do |scroll|
+    win << scroll_view(:frame => [10,10,480,470], :layout => {:expand => true, :other => :fill}) do |scroll|
       cv = collection_view :frame => [0,0,480,470], 
-                                       :content => {array_controller => "arrangedObjects"}, 
-                                       :selection_indexes => {array_controller => "selectionIndexes"},
-                                       :item_view => MyIconView.create,
-                                       :map_bindings => true
+                           :content => {icons => "arrangedObjects"}, 
+                           :selection_indexes => {icons => "selectionIndexes"},
+                           :item_view => MyIconView.create,
+                           :map_bindings => true
       scroll << cv
     end
   end
