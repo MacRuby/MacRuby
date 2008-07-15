@@ -52,7 +52,8 @@ application do |app|
       cv = collection_view :frame => [0,0,480,470], 
                                        :content => {array_controller => "arrangedObjects"}, 
                                        :selection_indexes => {array_controller => "selectionIndexes"},
-                                       :item_view => MyIconView.create
+                                       :item_view => MyIconView.create,
+                                       :map_bindings => true
       scroll << cv
     end
   end

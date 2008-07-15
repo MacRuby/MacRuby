@@ -3,6 +3,8 @@ module HotCocoa::Mappings
   class Mapper
     
     attr_reader :control_class, :builder_method, :control_module
+    
+    attr_accessor :map_bindings
 
     def self.map_class(klass)
       new(klass).include_in_class
@@ -10,6 +12,14 @@ module HotCocoa::Mappings
     
     def self.map_instances_of(klass, builder_method, &block)
       new(klass).map_method(builder_method, &block)
+    end
+    
+    def self.bindings_modules
+      @bindings_module ||= {}
+    end
+    
+    def self.delegate_modules
+      @delegate_modules ||= {}
     end
     
     def initialize(klass)
@@ -33,6 +43,7 @@ module HotCocoa::Mappings
         map = (args.length == 1 ? args[0] : args[1]) || {}
         guid = args.length == 1 ? nil : args[0]
         map = inst.remap_constants(map)
+        inst.map_bindings = map.delete(:map_bindings)
         default_empty_rect_used = (map[:frame].__id__ == DefaultEmptyRect.__id__)
         control = inst.respond_to?(:init_with_options) ? inst.init_with_options(inst.control_class.alloc, map) : inst.alloc_with_options(map)
         Views[guid] = control if guid
@@ -100,6 +111,11 @@ module HotCocoa::Mappings
     end
 
     def decorate_with_delegate_methods(control)
+      control.send(@extension_method, delegate_module_for_control_class)
+    end
+    
+    def delegate_module_for_control_class
+      return Mapper.delegate_modules[control_class] if Mapper.delegate_modules.has_key?(control_class)
       delegate_module = Module.new
       inherited_delegate_methods.each do |delegate_method, mapping|
         parameters = mapping[:parameters] ? ", "+mapping[:parameters].map {|param| %{"#{param}"} }.join(",") : ""
@@ -111,17 +127,23 @@ module HotCocoa::Mappings
           end
         }
       end
-      control.send(@extension_method, delegate_module)
+      Mapper.delegate_modules[control_class] = delegate_module
+      delegate_module
     end
     
     def decorate_with_bindings_methods(control)
       return if control_class == NSApplication
-      bindings_module = Module.new
+      control.send(@extension_method, bindings_module_for_control(control)) if @map_bindings
+    end
+    
+    def bindings_module_for_control(control)
+      return Mapper.bindings_modules[control_class] if Mapper.bindings_modules.has_key?(control_class)
       instance = if control == control_class
         control_class.alloc.init
       else
         control
       end
+      bindings_module = Module.new
       instance.exposedBindings.each do |exposed_binding|
         bindings_module.module_eval %{
           def #{underscore(exposed_binding)}=(value)
@@ -134,7 +156,8 @@ module HotCocoa::Mappings
           end
         }
       end
-      control.send(@extension_method, bindings_module)
+      Mapper.bindings_modules[control_class] = bindings_module
+      bindings_module
     end
 
     def remap_constants(tags)
