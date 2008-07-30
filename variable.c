@@ -15,6 +15,7 @@
 #include "ruby/node.h"
 #include "ruby/st.h"
 #include "ruby/util.h"
+#include "debug.h"
 
 void rb_vm_change_state(void);
 st_table *rb_global_tbl;
@@ -1209,11 +1210,6 @@ ivar_get(VALUE obj, ID id, int warn)
     st_data_t index;
 #endif
 
-#if WITH_OBJC
-    if (!rb_special_const_p(obj) && NATIVE(obj))
-	return generic_ivar_get(obj, id, warn);
-#endif
-
     switch (TYPE(obj)) {
       case T_OBJECT:
 #if WITH_OBJC
@@ -1266,6 +1262,10 @@ ivar_get(VALUE obj, ID id, int warn)
 	    return val;
 #endif
 	break;
+#if WITH_OBJC
+      case T_NATIVE:
+	return generic_ivar_get(obj, id, warn);
+#endif
       default:
 	if (FL_TEST(obj, FL_EXIVAR) || rb_special_const_p(obj))
 	    return generic_ivar_get(obj, id, warn);
@@ -1302,13 +1302,6 @@ rb_ivar_set(VALUE obj, ID id, VALUE val)
     if (!OBJ_TAINTED(obj) && rb_safe_level() >= 4)
 	rb_raise(rb_eSecurityError, "Insecure: can't modify instance variable");
     if (OBJ_FROZEN(obj)) rb_error_frozen("object");
-#if WITH_OBJC
-    if (!rb_special_const_p(obj) && NATIVE(obj)) {
-	rb_objc_flag_set((const void *)obj, FL_EXIVAR, true);
-	generic_ivar_set(obj, id, val);
-	return val;
-    }
-#endif
     switch (TYPE(obj)) {
       case T_OBJECT:
 #if WITH_OBJC
@@ -1449,6 +1442,12 @@ rb_ivar_set(VALUE obj, ID id, VALUE val)
 	st_insert(RCLASS_IV_TBL(obj), id, val);
         break;
 #endif
+#if WITH_OBJC
+      case T_NATIVE:
+	rb_objc_flag_set((const void *)obj, FL_EXIVAR, true);
+	generic_ivar_set(obj, id, val);
+	break;
+#endif
       default:
 	generic_ivar_set(obj, id, val);
 	FL_SET(obj, FL_EXIVAR);
@@ -1466,11 +1465,6 @@ rb_ivar_defined(VALUE obj, ID id)
     st_data_t index;
 #endif
 
-#if WITH_OBJC
-    if (!rb_special_const_p(obj) && NATIVE(obj)) {
-	return generic_ivar_defined(obj, id);
-    }
-#endif
     switch (TYPE(obj)) {
       case T_OBJECT:
 #if WITH_OBJC
@@ -1519,6 +1513,10 @@ rb_ivar_defined(VALUE obj, ID id)
 	    return Qtrue;
 	break;
 #endif
+#if WITH_OBJC
+      case T_NATIVE:
+	return generic_ivar_defined(obj, id);
+#endif
       default:
 	if (FL_TEST(obj, FL_EXIVAR) || rb_special_const_p(obj))
 	    return generic_ivar_defined(obj, id);
@@ -1566,10 +1564,6 @@ obj_ivar_each(VALUE obj, int (*func)(ANYARGS), st_data_t arg)
 
 void rb_ivar_foreach(VALUE obj, int (*func)(ANYARGS), st_data_t arg)
 {
-#if WITH_OBJC
-    if (!rb_special_const_p(obj) && NATIVE(obj))
-	goto generic;
-#endif
     switch (TYPE(obj)) {
       case T_OBJECT:
 #if WITH_OBJC
@@ -1609,6 +1603,10 @@ void rb_ivar_foreach(VALUE obj, int (*func)(ANYARGS), st_data_t arg)
 	}
 #endif
 	return;
+#if WITH_OBJC
+      case T_NATIVE:
+	goto generic;
+#endif
     }
     if (!FL_TEST(obj, FL_EXIVAR) && !rb_special_const_p(obj))
 	return;
@@ -2323,6 +2321,7 @@ mod_av_set(VALUE klass, ID id, VALUE val, int isconst)
 	rb_vm_change_state();
     }
 #if WITH_OBJC
+    DLOG("CONS", "%s::%s <- %p", class_getName((Class)klass), rb_id2name(id), (void *)val);
     CFDictionarySetValue(iv_dict, (const void *)id, (const void *)val);
 #else
     st_insert(RCLASS_IV_TBL(klass), id, val);

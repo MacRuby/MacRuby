@@ -283,6 +283,9 @@ enum ruby_value_type {
     RUBY_T_FALSE  = 0x13,
     RUBY_T_SYMBOL = 0x14,
     RUBY_T_FIXNUM = 0x15,
+#if WITH_OBJC
+    RUBY_T_NATIVE = 0x16,
+#endif
 
     RUBY_T_UNDEF  = 0x1b,
     RUBY_T_NODE   = 0x1c,
@@ -306,6 +309,9 @@ enum ruby_value_type {
 #define T_BIGNUM RUBY_T_BIGNUM
 #define T_FILE   RUBY_T_FILE
 #define T_FIXNUM RUBY_T_FIXNUM
+#if WITH_OBJC
+# define T_NATIVE RUBY_T_NATIVE
+#endif
 #define T_TRUE   RUBY_T_TRUE
 #define T_FALSE  RUBY_T_FALSE
 #define T_DATA   RUBY_T_DATA
@@ -498,7 +504,7 @@ struct RClass {
 #  define _RCLASS_INFO(m) (*(long *)((void *)m + (sizeof(void *) * 4)))
 #  define RCLASS_SINGLETON(m) (_RCLASS_INFO(m) & CLS_META)
 # endif
-# define NATIVE(obj) (*(Class *)obj != NULL && (RCLASS_VERSION(*(Class *)obj) & RCLASS_IS_OBJECT_SUBCLASS) != RCLASS_IS_OBJECT_SUBCLASS)
+# define NATIVE(obj) (*(Class *)obj != NULL && *(Class *)obj != (Class)rb_cBignum && (RCLASS_VERSION(*(Class *)obj) & RCLASS_IS_OBJECT_SUBCLASS) != RCLASS_IS_OBJECT_SUBCLASS)
 # define RCLASS_RUBY(m) ((RCLASS_VERSION(m) & RCLASS_IS_RUBY_CLASS) == RCLASS_IS_RUBY_CLASS)
 # define RCLASS_MODULE(m) ((RCLASS_VERSION(m) & RCLASS_IS_MODULE) == RCLASS_IS_MODULE)
 CFMutableDictionaryRef rb_class_ivar_dict(VALUE);
@@ -1076,6 +1082,7 @@ rb_type(VALUE obj)
 	if (*(Class *)obj == (Class)rb_cCFString) return T_STRING;
 	if (*(Class *)obj == (Class)rb_cCFArray) return T_ARRAY;
 	if (*(Class *)obj == (Class)rb_cCFHash) return T_HASH;
+	if (NATIVE(obj)) return T_NATIVE;
     }
 #endif
     return BUILTIN_TYPE(obj);

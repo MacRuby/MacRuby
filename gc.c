@@ -2300,20 +2300,17 @@ rb_objc_recorder(task_t task, void *context, unsigned type_mask,
 		    continue;
 	    }
 	}
-	if (!NATIVE((VALUE)r->address)) {
-	    switch (BUILTIN_TYPE(r->address)) {
-		case T_NONE: 
-		case T_ICLASS: 
-		case T_NODE:
-		    continue;
-		case T_CLASS:
-		    if (RCLASS_SINGLETON(r->address))
-			continue;
-	    }
-	}
-	else {
-	    if (rb_objc_is_placeholder((void *)r->address))
+	switch (BUILTIN_TYPE(r->address)) {
+	    case T_NONE: 
+	    case T_ICLASS: 
+	    case T_NODE:
 		continue;
+	    case T_CLASS:
+		if (RCLASS_SINGLETON(r->address))
+		    continue;
+	    case T_NATIVE:
+		if (rb_objc_is_placeholder((void *)r->address))
+		    continue;
 	}
 	rb_yield((VALUE)r->address);
 	ctx->count++;

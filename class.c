@@ -402,18 +402,10 @@ rb_singleton_class_attached(VALUE klass, VALUE obj)
 VALUE
 rb_make_metaclass(VALUE obj, VALUE super)
 {
-    bool pure;
-
 #if WITH_OBJC
-    pure = NATIVE(obj);
+    if (TYPE(obj) == T_CLASS && RCLASS_SINGLETON(obj)) {
 #else
-    pure = false;
-#endif
-
-#if WITH_OBJC
-    if (!pure && TYPE(obj) == T_CLASS && RCLASS_SINGLETON(obj)) {
-#else
-    if (!pure && BUILTIN_TYPE(obj) == T_CLASS && FL_TEST(obj, FL_SINGLETON)) {
+    if (BUILTIN_TYPE(obj) == T_CLASS && FL_TEST(obj, FL_SINGLETON)) {
 #endif
 	RBASIC(obj)->klass = rb_cClass;
 	return rb_cClass;
