@@ -339,7 +339,7 @@ hash_alloc(VALUE klass)
 
     hash = (VALUE)CFDictionaryCreateMutable(NULL, 0, &keys_cb, &values_cb);
     if (klass != 0 && klass != rb_cHash && klass != rb_cHashRuby)
-	*(Class *)hash = RCLASS_OCID(klass);
+	*(Class *)hash = (Class)klass;
 
     CFMakeCollectable((CFTypeRef)hash);
     rb_gc_malloc_increase(sizeof(void *));
@@ -2918,11 +2918,9 @@ env_update(VALUE env, VALUE hash)
 
 #if WITH_OBJC
 
-#define NSCFDICTIONARY() RCLASS_OCID(rb_cCFHash)
-
 #define PREPARE_RCV(x) \
     Class old = *(Class *)x; \
-    *(Class *)x = NSCFDICTIONARY();
+    *(Class *)x = (Class)rb_cCFHash;
 
 #define RESTORE_RCV(x) \
     *(Class *)x = old;
@@ -2930,7 +2928,7 @@ env_update(VALUE env, VALUE hash)
 bool
 rb_objc_hash_is_pure(VALUE ary)
 {
-    return *(Class *)ary == NSCFDICTIONARY();
+    return *(Class *)ary == (Class)rb_cCFHash;
 }
 
 static CFIndex
@@ -3061,7 +3059,6 @@ Init_Hash(void)
     rb_cCFHash = rb_objc_import_class((Class)objc_getClass("NSCFDictionary"));
     rb_cHash = rb_objc_import_class((Class)objc_getClass("NSDictionary"));
     rb_cHashRuby = rb_objc_import_class((Class)objc_getClass("NSMutableDictionary"));
-    FL_UNSET(rb_cHashRuby, RCLASS_OBJC_IMPORTED);
     rb_const_set(rb_cObject, rb_intern("Hash"), rb_cHashRuby);
 #else
     rb_cHash = rb_define_class("Hash", rb_cObject);

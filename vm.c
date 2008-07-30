@@ -14,10 +14,6 @@
 #include "ruby/encoding.h"
 #include "gc.h"
 
-#if WITH_OBJC
-NODE *rb_current_cfunc_node = NULL;
-#endif
-
 #include "insnhelper.h"
 #include "vm_insnhelper.c"
 #include "vm_eval.c"
@@ -852,6 +848,12 @@ rb_iter_break(void)
 /* optimization: redefine management */
 
 VALUE ruby_vm_redefined_flag = 0;
+#if WITH_OBJC
+static void 
+rb_vm_check_redefinition_opt_method(const NODE *node) 
+{
+}
+#else
 static st_table *vm_opt_method_table = 0;
 
 static void
@@ -876,10 +878,12 @@ add_opt_method(VALUE klass, ID mid, VALUE bop)
 	rb_bug("undefined optimized method: %s", rb_id2name(mid));
     }
 }
+#endif
 
 static void
 vm_init_redefined_flag(void)
 {
+#if !WITH_OBJC
     ID mid;
     VALUE bop;
 
@@ -899,16 +903,13 @@ vm_init_redefined_flag(void)
     OP(LTLT, LTLT), (C(String), C(Array));
     OP(AREF, AREF), (C(Array), C(Hash));
     OP(ASET, ASET), (C(Array), C(Hash));
-#if WITH_OBJC
-    OP(Length, LENGTH), (C(Array), C(Hash));
-#else
     OP(Length, LENGTH), (C(Array), C(String), C(Hash));
-#endif
     OP(Succ, SUCC), (C(Fixnum), C(String), C(Time));
     OP(GT, GT), (C(Fixnum));
     OP(GE, GE), (C(Fixnum));
 #undef C
 #undef OP
+#endif
 }
 
 /* evaluator body */

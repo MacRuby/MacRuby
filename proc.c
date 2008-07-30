@@ -757,7 +757,7 @@ mnew(VALUE klass, VALUE obj, ID id, VALUE mclass, int scope)
     }
 
     while (rclass != klass &&
-	   (FL_TEST(rclass, FL_SINGLETON) || TYPE(rclass) == T_ICLASS)) {
+	   (RCLASS_SINGLETON(rclass) || TYPE(rclass) == T_ICLASS)) {
 	rclass = RCLASS_SUPER(rclass);
     }
     if (TYPE(klass) == T_ICLASS)
@@ -1080,7 +1080,7 @@ rb_mod_define_method(int argc, VALUE *argv, VALUE mod)
 	struct METHOD *method = (struct METHOD *)DATA_PTR(body);
 	VALUE rclass = method->rclass;
 	if (rclass != mod) {
-	    if (FL_TEST(rclass, FL_SINGLETON)) {
+	    if (RCLASS_SINGLETON(rclass)) {
 		rb_raise(rb_eTypeError,
 			 "can't bind singleton method to a different class");
 	    }
@@ -1299,7 +1299,7 @@ umethod_bind(VALUE method, VALUE recv)
 
     Data_Get_Struct(method, struct METHOD, data);
     if (data->rclass != CLASS_OF(recv)) {
-	if (FL_TEST(data->rclass, FL_SINGLETON)) {
+	if (RCLASS_SINGLETON(data->rclass)) {
 	    rb_raise(rb_eTypeError,
 		     "singleton method called for a different object");
 	}
@@ -1435,7 +1435,7 @@ method_inspect(VALUE method)
     rb_str_buf_cat2(str, s);
     rb_str_buf_cat2(str, ": ");
 
-    if (FL_TEST(data->oclass, FL_SINGLETON)) {
+    if (RCLASS_SINGLETON(data->oclass)) {
 	VALUE v = rb_iv_get(data->oclass, "__attached__");
 
 	if (data->recv == Qundef) {

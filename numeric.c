@@ -3148,7 +3148,7 @@ rb_objc_install_method(Class klass, SEL sel, IMP imp)
 static void
 rb_install_nsnumber_float_primitives(void)
 {
-    Class klass = RCLASS_OCID(rb_cFloat);
+    Class klass = (Class)rb_cFloat;
     rb_objc_install_method(klass, sel_registerName("objCType"),
 	    (IMP)imp_rb_float_objCType);
     rb_objc_install_method(klass, sel_registerName("getValue:"), 
@@ -3160,7 +3160,7 @@ rb_install_nsnumber_float_primitives(void)
 static void
 rb_install_nsnumber_integer_primitives(void)
 {
-    Class klass = RCLASS_OCID(rb_cNumeric);
+    Class klass = (Class)rb_cNumeric;
     rb_objc_install_method(klass, sel_registerName("objCType"),
 	    (IMP)imp_rb_integer_objCType);
     rb_objc_install_method(klass, sel_registerName("getValue:"), 

@@ -66,4 +66,7 @@ Init_id(void)
 
     idRespond_to = rb_intern("respond_to?");
     idInitialize = rb_intern("initialize");
+
+    idIncludedModules = rb_intern("__included_modules__");
+    idIncludedInClasses = rb_intern("__included_in_classes__");
 }

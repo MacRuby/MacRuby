@@ -371,13 +371,7 @@ vm_call_cfunc(rb_thread_t *th, rb_control_frame_t *reg_cfp,
 
 	reg_cfp->sp -= num + 1;
 
-#if WITH_OBJC
-	rb_current_cfunc_node = (NODE *)mn;
-#endif
 	val = call_cfunc(mn->nd_cfnc, recv, mn->nd_argc, num, reg_cfp->sp + 1);
-#if WITH_OBJC
-	rb_current_cfunc_node = NULL;
-#endif
 
 	if (reg_cfp != th->cfp + 1) {
 	    rb_bug("cfp consistency error - send");
@@ -488,9 +482,49 @@ vm_setup_method(rb_thread_t *th, rb_control_frame_t *cfp,
 static inline VALUE
 vm_call_method(rb_thread_t * const th, rb_control_frame_t * const cfp,
 	       const int num, rb_block_t * const blockptr, const VALUE flag,
-	       const ID id, const NODE * mn, const VALUE recv, VALUE klass)
+	       const ID id, const NODE * mn, const VALUE recv, VALUE klass,
+	       SEL sel)
 {
     VALUE val;
+#if WITH_OBJC
+    IMP imp;
+
+#define STUPID_CACHE 0
+
+#if STUPID_CACHE
+static VALUE c_klass = 0;
+static IMP c_imp = 0;
+static NODE *c_mn = NULL;
+
+if (c_klass == klass) {
+imp = c_imp;
+mn = c_mn;
+}
+else {
+#endif
+
+    NODE *rb_objc_method_node2(VALUE mod, SEL sel, IMP *pimp); 
+
+    if (sel == 0)
+	mn = rb_objc_method_node(klass, id, &imp, &sel);
+    else
+	mn = rb_objc_method_node2(klass, sel, &imp);
+
+#if STUPID_CACHE
+c_klass = klass;
+c_imp = imp;
+c_mn = (NODE*)mn;
+}
+#endif
+
+    if (mn == NULL && imp != NULL) {
+	printf("OBJC_CALL %p %s %p %p\n",(void*)klass,(char*)sel,mn,imp);
+	assert(1==0);
+	return Qnil;
+    }
+
+    DLOG("RCALL", "[<%s %p> %s] node=%p", class_getName((Class)klass), (void *)recv, (char *)sel, mn);
+#endif
 
   start_method_dispatch:
 
@@ -594,7 +628,7 @@ vm_call_method(rb_thread_t * const th, rb_control_frame_t * const cfp,
 	}
 	else {
 	    int stat = 0;
-#if WITH_OBJC
+#if 0//WITH_OBJC
 	    mn = rb_objc_define_objc_mid_closure(recv, id, 0);
 	    if (mn != NULL) {
 		return vm_call_method(th, cfp, num, blockptr, flag, id,
@@ -997,6 +1031,9 @@ vm_get_ev_const(rb_thread_t *th, const rb_iseq_t *iseq,
 		VALUE orig_klass, ID id, int is_defined)
 {
     VALUE val;
+#if WITH_OBJC
+    CFDictionaryRef iv_dict;
+#endif
 
     if (orig_klass == Qnil) {
 	/* in current lexical scope */
@@ -1010,8 +1047,13 @@ vm_get_ev_const(rb_thread_t *th, const rb_iseq_t *iseq,
 
 	    if (!NIL_P(klass)) {
 	      search_continue:
+#if WITH_OBJC
+		iv_dict = (CFDictionaryRef)rb_class_ivar_dict(klass);
+		if (iv_dict != NULL && CFDictionaryGetValueIfPresent(iv_dict, (const void *)id, (const void **)&val)) {
+#else
 		if (RCLASS_IV_TBL(klass) &&
 		    st_lookup(RCLASS_IV_TBL(klass), id, &val)) {
+#endif
 		    if (val == Qundef) {
 			rb_autoload_load(klass, id);
 			goto search_continue;
@@ -1057,7 +1099,7 @@ vm_get_cvar_base(NODE *cref)
 {
     VALUE klass;
 
-    while (cref && cref->nd_next && (NIL_P(cref->nd_clss) || FL_TEST(cref->nd_clss, FL_SINGLETON))) {
+    while (cref && cref->nd_next && (NIL_P(cref->nd_clss) || RCLASS_SINGLETON(cref->nd_clss))) {
 	cref = cref->nd_next;
 
 	if (!cref->nd_next) {
@@ -1114,7 +1156,7 @@ vm_define_method(rb_thread_t *th, VALUE obj, ID id, rb_iseq_t *miseq,
     INC_VM_STATE_VERSION();
 }
 
-#if WITH_OBJC
+#if 0//TODO WITH_OBJC
 static inline void
 vm_method_process_named_args(ID *pid, NODE **pmn, VALUE recv, rb_num_t *pnum, 
 			     rb_control_frame_t *cfp) 

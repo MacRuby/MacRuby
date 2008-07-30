@@ -336,7 +336,7 @@ rb_frozen_class_p(VALUE klass)
     const char *desc = "something(?!)";
 
     if (OBJ_FROZEN(klass)) {
-	if (FL_TEST(klass, FL_SINGLETON))
+	if (RCLASS_SINGLETON(klass))
 	    desc = "object";
 	else {
 	    switch (TYPE(klass)) {

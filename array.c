@@ -191,7 +191,7 @@ ary_alloc(VALUE klass)
 
     ary = (VALUE)CFArrayCreateMutable(NULL, 0, &cb);
     if (klass != 0 && klass != rb_cArray && klass != rb_cArrayRuby)
-        *(Class *)ary = RCLASS_OCID(klass);
+        *(Class *)ary = (Class)klass;
 
     CFMakeCollectable((CFTypeRef)ary);
     rb_gc_malloc_increase(sizeof(void *));
@@ -3992,11 +3992,9 @@ rb_ary_drop_while(VALUE ary)
 
 #if WITH_OBJC
 
-#define NSCFARRAY() RCLASS_OCID(rb_cCFArray)
-
 #define PREPARE_RCV(x) \
     Class old = *(Class *)x; \
-    *(Class *)x = NSCFARRAY();
+    *(Class *)x = (Class)rb_cCFArray;
 
 #define RESTORE_RCV(x) \
       *(Class *)x = old;
@@ -4004,7 +4002,7 @@ rb_ary_drop_while(VALUE ary)
 bool
 rb_objc_ary_is_pure(VALUE ary)
 {
-    return *(Class *)ary == NSCFARRAY();
+    return *(Class *)ary == (Class)rb_cCFArray;
 }
 
 static CFIndex
@@ -4135,7 +4133,6 @@ Init_Array(void)
     rb_cArray = rb_objc_import_class((Class)objc_getClass("NSArray"));
     rb_cArrayRuby = 
 	rb_objc_import_class((Class)objc_getClass("NSMutableArray"));
-    FL_UNSET(rb_cArrayRuby, RCLASS_OBJC_IMPORTED);
     rb_const_set(rb_cObject, rb_intern("Array"), rb_cArrayRuby);
 #else
     rb_cArray  = rb_define_class("Array", rb_cObject);

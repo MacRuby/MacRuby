@@ -29,4 +29,25 @@ int   ruby_debug_print_indent(int level, int debug_level, int indent_level);
 void  ruby_debug_breakpoint(void);
 void  ruby_debug_gc_check_func(void);
 
+#if ENABLE_DEBUG_LOGGING 
+static inline bool dlog_enabled(void) {
+    static int flag = -1;
+    if (flag == -1) {
+        flag = getenv("MACRUBY_DEBUG") != NULL;
+    }
+    return (bool)flag;
+}
+# define DLOG(mod, fmt, args...)        \
+  do {                                  \
+    if (dlog_enabled()) {               \
+        printf("%10s   ", mod);         \
+        printf(fmt, ##args);            \
+        printf("\n");                   \
+    }                                   \
+  }                                     \
+  while (0)
+#else
+# define DLOG(mod, fmt, args...)
+#endif
+
 #endif /* RUBY_DEBUG_H */

@@ -72,13 +72,7 @@ vm_call0(rb_thread_t * th, VALUE klass, VALUE recv, VALUE id, ID oid,
 	    cfp->method_id = id;
 	    cfp->method_class = klass;
 
-#if WITH_OBJC
-	    rb_current_cfunc_node = (NODE *)body;
-#endif
 	    val = call_cfunc(body->nd_cfnc, recv, body->nd_argc, argc, argv);
-#if WITH_OBJC
-	    rb_current_cfunc_node = NULL;
-#endif
 
 	    if (reg_cfp != th->cfp + 1) {
 		SDR2(reg_cfp);
@@ -188,42 +182,38 @@ rb_call0(VALUE klass, VALUE recv, ID mid, int argc, const VALUE *argv,
     NODE *body, *method;
     int noex;
     ID id = mid;
+#if !WITH_OBJC
     struct cache_entry *ent;
+#endif
     rb_thread_t *th = GET_THREAD();
-#if WITH_OBJC
-    unsigned redo = 0;
-#endif
-
-rb_call0_redo:
-
-#if WITH_OBJC
-# define REDO_PERHAPS() \
-    do { \
-	if (!redo && mid != missing) { \
-	    ID newid = rb_objc_missing_sel(mid, argc); \
-	    if (newid != mid) { \
-		id = mid = newid; \
-		redo = 1; \
-		goto rb_call0_redo; \
-	    } \
-	} \
-    } \
-    while (0)
-#else
-# define REDO_PERHAPS()
-#endif
 
     if (!klass) {
 	rb_raise(rb_eNotImpError,
 		 "method `%s' called on terminated object (%p)",
 		 rb_id2name(mid), (void *)recv);
     }
+
+#if WITH_OBJC
+    IMP imp;
+    SEL sel;
+
+    method = rb_objc_method_node(klass, mid, &imp, &sel);    
+
+    if (imp != NULL && method == NULL) {
+	printf("OBJC_CALL!\n");
+	assert(1==0);
+    }
+    else if (method != NULL) {
+	noex = method->nd_noex;
+	klass = method->nd_clss;
+	body = method->nd_body;
+    }
+#else
     /* is it in the method cache? */
     ent = cache + EXPR1(klass, mid);
 
     if (ent->mid == mid && ent->klass == klass) {
 	if (!ent->method) {
-	    REDO_PERHAPS();
 	    return method_missing(recv, mid, argc, argv,
 				  scope == 2 ? NOEX_VCALL : 0);
 	}
@@ -237,8 +227,8 @@ rb_call0_redo:
 	klass = method->nd_clss;
 	body = method->nd_body;
     }
+#endif
     else {
-	REDO_PERHAPS();
 	if (scope == 3) {
 	    return method_missing(recv, mid, argc, argv, NOEX_SUPER);
 	}
@@ -246,7 +236,6 @@ rb_call0_redo:
 			      scope == 2 ? NOEX_VCALL : 0);
     }
     
-
     if (mid != missing) {
 	/* receiver specified form for private method */
 	if (UNLIKELY(noex)) {

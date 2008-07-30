@@ -1029,7 +1029,7 @@ rb_objc_newobj(size_t size)
 #endif
     if (__nsobject == NULL)
 	__nsobject = (void *)objc_getClass("NSObject");
-    RBASIC(obj)->isa = __nsobject;
+    RBASIC(obj)->klass = (VALUE)__nsobject;
     return obj;
 }
 
@@ -2267,9 +2267,10 @@ rb_objc_recorder(task_t task, void *context, unsigned type_mask,
 	if (type != AUTO_OBJECT_SCANNED && type != AUTO_OBJECT_UNSCANNED)
 	    continue;
 	if (ctx->class_of != 0) {
+#if 0
 	    if (ctx->class_of == rb_cClass || ctx->class_of == rb_cModule) {
 		/* Class/Module are a special case. */
-		if (rb_objc_is_non_native(r->address)
+		if (NATIVE(r->address)
 		    || FL_TEST(r->address, FL_SINGLETON))
 		    continue;
 		if (ctx->class_of == rb_cClass) {
@@ -2284,11 +2285,13 @@ rb_objc_recorder(task_t task, void *context, unsigned type_mask,
 			continue;
 		}
 	    }
-	    else {
+	    else
+#endif
+	    {
 	    	unsigned ok = 0;
 	    	for (c = *(Class *)r->address; c != NULL; 
 		     c = class_getSuperclass(c)) {
-		    if (c == RCLASS(ctx->class_of)->ocklass) {
+		    if (c ==(Class)ctx->class_of) {
 		        ok = 1;
 		        break;
 		    }
@@ -2297,14 +2300,14 @@ rb_objc_recorder(task_t task, void *context, unsigned type_mask,
 		    continue;
 	    }
 	}
-	if (!rb_objc_is_non_native((VALUE)r->address)) {
+	if (!NATIVE((VALUE)r->address)) {
 	    switch (BUILTIN_TYPE(r->address)) {
 		case T_NONE: 
 		case T_ICLASS: 
 		case T_NODE:
 		    continue;
 		case T_CLASS:
-		    if (FL_TEST(r->address, FL_SINGLETON))
+		    if (RCLASS_SINGLETON(r->address))
 			continue;
 	    }
 	}
@@ -2437,7 +2440,7 @@ undefine_final(VALUE os, VALUE obj)
     if (__os_finalizers != NULL)
 	CFDictionaryRemoveValue(__os_finalizers, (const void *)obj);
     
-    if (rb_objc_is_non_native(obj)) {
+    if (NATIVE(obj)) {
 	rb_objc_flag_set((void *)obj, FL_FINALIZE, false);
     }
     else {
@@ -2491,7 +2494,7 @@ define_final(int argc, VALUE *argv, VALUE os)
 
     rb_ary_push(table, block);
     
-    if (rb_objc_is_non_native(obj)) {
+    if (NATIVE(obj)) {
 	rb_objc_flag_set((void *)obj, FL_FINALIZE, true);
     }
     else {
@@ -2536,7 +2539,7 @@ rb_gc_copy_finalizer(VALUE dest, VALUE obj)
     if (__os_finalizers == NULL)
 	return;
 
-    if (rb_objc_is_non_native(obj)) {
+    if (NATIVE(obj)) {
 	if (!rb_objc_flag_check((void *)obj, FL_FINALIZE))
 	    return;
     }
@@ -2802,7 +2805,7 @@ id2ref(VALUE obj, VALUE objid)
 	    auto_zone_get_layout_type_no_lock(__auto_zone, p0);
 	if ((type == AUTO_OBJECT_SCANNED || type == AUTO_OBJECT_UNSCANNED)
 	    && !rb_objc_is_placeholder(p0)
-	    && (rb_objc_is_non_native((VALUE)p0)
+	    && (NATIVE((VALUE)p0)
 		|| (BUILTIN_TYPE(p0) < T_FIXNUM && BUILTIN_TYPE(p0) != T_ICLASS)))
 	    return (VALUE)p0;
     }
@@ -3076,7 +3079,7 @@ static void
 __rb_objc_finalize(void *obj, void *data)
 {
     //printf("finalize %p <%s>\n",obj, class_getName(*(Class *)obj));
-    if (rb_objc_is_non_native((VALUE)obj)) {
+    if (NATIVE((VALUE)obj)) {
 	static SEL sel = NULL;
 	long flag;
 	flag = rb_objc_remove_flags(obj);

@@ -478,7 +478,7 @@ str_alloc(VALUE klass)
 	&& klass != rb_cString 
 	&& klass != rb_cStringRuby 
 	&& klass != rb_cSymbol)
-	*(Class *)str = RCLASS_OCID(klass);
+	*(Class *)str = (Class)klass;
     CFMakeCollectable((CFTypeRef)str);
 #else
     NEWOBJ(str, struct RString);
@@ -8378,11 +8378,10 @@ rb_to_id(VALUE name)
 }
 
 #if WITH_OBJC
-#define NSCFSTRING() (RCLASS_OCID(rb_cCFString))
 
 #define PREPARE_RCV(x) \
     Class old = *(Class *)x; \
-    *(Class *)x = NSCFSTRING();
+    *(Class *)x = (Class)rb_cCFString;
 
 #define RESTORE_RCV(x) \
     *(Class *)x = old;
@@ -8390,7 +8389,7 @@ rb_to_id(VALUE name)
 bool
 rb_objc_str_is_pure(VALUE str)
 {
-    return *(Class *)str == NSCFSTRING();
+    return *(Class *)str == (Class)rb_cCFString;
 }
 
 static CFIndex
@@ -8521,7 +8520,6 @@ Init_String(void)
     rb_cString = rb_objc_import_class((Class)objc_getClass("NSString"));
     rb_cStringRuby =
         rb_objc_import_class((Class)objc_getClass("NSMutableString"));
-    FL_UNSET(rb_cStringRuby, RCLASS_OBJC_IMPORTED);
     rb_const_set(rb_cObject, rb_intern("String"), rb_cStringRuby);
     rb_define_method(rb_cString, "__bytestring__?", rb_str_bytestring_m, 0);
 #else

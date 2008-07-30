@@ -416,20 +416,11 @@ void *rb_objc_newobj(size_t size);
 #else
 # define NEWOBJ(obj,type) type *obj = (type*)rb_newobj()
 #endif
-#define __OBJSETUP(obj,c,t) do {\
+#define OBJSETUP(obj,c,t) do {\
     RBASIC(obj)->flags = (t);\
     RBASIC(obj)->klass = (c);\
     if (rb_safe_level() >= 3) FL_SET(obj, FL_TAINT);\
 } while (0)
-#if WITH_OBJC
-# define OBJSETUP(obj,c,t) do {\
-    __OBJSETUP(obj,c,t);\
-    if (c != 0) \
-	RBASIC(obj)->isa = (void *)RCLASS_OCID(c); \
-} while (0)
-#else
-# define OBJSETUP(obj,c,t) __OBJSETUP(obj,c,t)
-#endif
 #define CLONESETUP(clone,obj) do {\
     OBJSETUP(clone,rb_singleton_class_clone((VALUE)obj),RBASIC(obj)->flags);\
     rb_singleton_class_attached(RBASIC(clone)->klass, (VALUE)clone);\
@@ -441,37 +432,34 @@ void *rb_objc_newobj(size_t size);
 } while (0)
 
 struct RBasic {
-    void *isa;
+    VALUE klass; /* isa */
     VALUE flags;
-    VALUE klass;
 };
 
-#define ROBJECT_EMBED_LEN_MAX 3
-struct RObject {
-    struct RBasic basic;
+struct rb_ivars {
+#define RB_IVAR_ARY 0 
+#define RB_IVAR_TBL 1
+#define RB_IVAR_TYPE(ivars) (ivars.type & 0x1)
+#define RB_IVAR_SET_TYPE(ivars, t) (ivars.type |= t)
+#define RB_IVAR_ARY_LEN(ivars) (ivars.type >> 1)
+#define RB_IVAR_ARY_SET_LEN(ivars, len) (ivars.type = (len << 1) | (ivars.type & 0x1))
+#define RB_IVAR_ARY_MAX 10
+    short type;
     union {
-	struct {
-	    long numiv;
-	    VALUE *ivptr;
-            struct st_table *iv_index_tbl; /* shortcut for RCLASS_IV_INDEX_TBL(rb_obj_class(obj)) */
-	} heap;
-	VALUE ary[ROBJECT_EMBED_LEN_MAX];
+	struct rb_ivar_ary_entry {
+	    ID name;
+	    VALUE value;
+	} *ary;
+	CFMutableDictionaryRef tbl;
     } as;
 };
-#define ROBJECT_EMBED FL_USER1
-#define ROBJECT_NUMIV(o) \
-    ((RBASIC(o)->flags & ROBJECT_EMBED) ? \
-     ROBJECT_EMBED_LEN_MAX : \
-     ROBJECT(o)->as.heap.numiv)
-#define ROBJECT_IVPTR(o) \
-    ((RBASIC(o)->flags & ROBJECT_EMBED) ? \
-     ROBJECT(o)->as.ary : \
-     ROBJECT(o)->as.heap.ivptr)
-#define ROBJECT_IV_INDEX_TBL(o) \
-    ((RBASIC(o)->flags & ROBJECT_EMBED) ? \
-     RCLASS_IV_INDEX_TBL(rb_obj_class(o)) : \
-     ROBJECT(o)->as.heap.iv_index_tbl)
 
+struct RObject {
+    struct RBasic basic;
+    struct rb_ivars ivars;
+};
+
+#if !WITH_OBJC
 typedef struct {
     VALUE super;
     struct st_table *iv_tbl;
@@ -484,17 +472,38 @@ struct RClass {
     struct st_table *m_tbl;
     struct st_table *iv_index_tbl;
 };
-#define RCLASS_IV_TBL(c) (RCLASS(c)->ptr->iv_tbl)
-#define RCLASS_M_TBL(c) (RCLASS(c)->m_tbl)
-#define RCLASS_SUPER(c) (RCLASS(c)->ptr->super)
-#define RCLASS_IV_INDEX_TBL(c) (RCLASS(c)->iv_index_tbl)
-#define RMODULE_IV_TBL(m) RCLASS_IV_TBL(m)
-#define RMODULE_M_TBL(m) RCLASS_M_TBL(m)
-#define RMODULE_SUPER(m) RCLASS_SUPER(m)
-#if WITH_OBJC
-# define RCLASS_ANONYMOUS FL_USER1
-# define RCLASS_OBJC_IMPORTED FL_USER2
-# define RCLASS_OCID(obj) ((Class)RCLASS(obj)->ocklass)
+# define RCLASS_IV_TBL(c) (RCLASS(c)->ptr->iv_tbl)
+# define RCLASS_M_TBL(c) (RCLASS(c)->m_tbl)
+# define RCLASS_SUPER(c) (RCLASS(c)->ptr->super)
+# define RCLASS_IV_INDEX_TBL(c) (RCLASS(c)->iv_index_tbl)
+# define RMODULE_IV_TBL(m) RCLASS_IV_TBL(m)
+# define RMODULE_M_TBL(m) RCLASS_M_TBL(m)
+# define RMODULE_SUPER(m) RCLASS_SUPER(m)
+#else
+# define RCLASS_IS_OBJECT_SUBCLASS    0x100   /* class is a true RBObject subclass */
+# define RCLASS_IS_RUBY_CLASS         0x200   /* class was created from Ruby */
+# define RCLASS_IS_MODULE             0x400   /* class represents a Ruby Module */
+# define RCLASS_IS_SINGLETON	      0x800   /* class represents a singleton/metaclass */
+# define RCLASS_IS_FROZEN	      0x1000  /* class is frozen */
+# define RCLASS_IS_TAINTED	      0x2000  /* class is tainted */
+# if __OBJC2__
+#  define RCLASS_VERSION(m) (class_getVersion((Class)m))
+#  define RCLASS_SET_VERSION_FLAG(m,f) (class_setVersion((Class)m, (RCLASS_VERSION(m) | f)))
+#  define RCLASS_SUPER(m) (class_getSuperclass((Class)m))
+#  define RCLASS_SINGLETON(m) (class_isMetaclass((Class)m))
+# else
+#  define RCLASS_VERSION(m) (*(long *)((void *)m + (sizeof(void *) * 3)))
+#  define RCLASS_SET_VERSION_FLAG(m,f) (RCLASS_VERSION(m) |= f)
+#  define RCLASS_SUPER(m) (*(VALUE *)((void *)m + (sizeof(void *) * 1)))
+#  define _RCLASS_INFO(m) (*(long *)((void *)m + (sizeof(void *) * 4)))
+#  define RCLASS_SINGLETON(m) (_RCLASS_INFO(m) & CLS_META)
+# endif
+# define NATIVE(obj) (*(Class *)obj != NULL && (RCLASS_VERSION(*(Class *)obj) & RCLASS_IS_OBJECT_SUBCLASS) != RCLASS_IS_OBJECT_SUBCLASS)
+# define RCLASS_RUBY(m) ((RCLASS_VERSION(m) & RCLASS_IS_RUBY_CLASS) == RCLASS_IS_RUBY_CLASS)
+# define RCLASS_MODULE(m) ((RCLASS_VERSION(m) & RCLASS_IS_MODULE) == RCLASS_IS_MODULE)
+CFMutableDictionaryRef rb_class_ivar_dict(VALUE);
+CFMutableDictionaryRef rb_class_ivar_dict_or_create(VALUE);
+void rb_class_ivar_set_dict(VALUE, CFMutableDictionaryRef);
 #endif
 
 struct RFloat {
@@ -710,12 +719,12 @@ struct RBignum {
 #define R_CAST(st)   (struct st*)
 #define RBASIC(obj)  (R_CAST(RBasic)(obj))
 #define ROBJECT(obj) (R_CAST(RObject)(obj))
-#define RCLASS(obj)  (R_CAST(RClass)(obj))
-#define RMODULE(obj) RCLASS(obj)
 #define RFLOAT(obj)  (R_CAST(RFloat)(obj))
 #define RSTRING(obj) (R_CAST(RString)(obj))
 #define RREGEXP(obj) (R_CAST(RRegexp)(obj))
 #if !WITH_OBJC
+# define RCLASS(obj)  (R_CAST(RClass)(obj))
+# define RMODULE(obj) RCLASS(obj)
 # define RSTRING(obj) (R_CAST(RString)(obj))
 # define RARRAY(obj)  (R_CAST(RArray)(obj))
 # define RHASH(obj)   (R_CAST(RHash)(obj))
@@ -984,6 +993,15 @@ RUBY_EXTERN VALUE rb_cISeq;
 RUBY_EXTERN VALUE rb_cVM;
 RUBY_EXTERN VALUE rb_cEnv;
 
+#if WITH_OBJC
+RUBY_EXTERN VALUE rb_cCFString;
+RUBY_EXTERN VALUE rb_cStringRuby;
+RUBY_EXTERN VALUE rb_cCFArray;
+RUBY_EXTERN VALUE rb_cArrayRuby;
+RUBY_EXTERN VALUE rb_cCFHash;
+RUBY_EXTERN VALUE rb_cHashRuby;
+#endif
+
 RUBY_EXTERN VALUE rb_eException;
 RUBY_EXTERN VALUE rb_eStandardError;
 RUBY_EXTERN VALUE rb_eSystemExit;
@@ -1018,22 +1036,6 @@ RUBY_EXTERN VALUE rb_eLoadError;
 
 RUBY_EXTERN VALUE rb_stdin, rb_stdout, rb_stderr;
 
-#if WITH_OBJC
-static inline unsigned
-rb_objc_is_non_native(VALUE obj)
-{
-    void *isa = RBASIC(obj)->isa;
-    if (isa == NULL || class_isMetaClass(isa))
-	return 0;
-    while (isa != NULL) {
-	if (rb_cObject != 0 && isa == RCLASS_OCID(rb_cObject))
-	    return 0;
-	isa = (void *)class_getSuperclass(isa);
-    }
-    return 1;
-}
-#endif
-
 static inline VALUE
 rb_class_of(VALUE obj)
 {
@@ -1046,20 +1048,6 @@ rb_class_of(VALUE obj)
 	if (obj == Qnil)   return rb_cNilClass;
 	if (obj == Qfalse) return rb_cFalseClass;
     }
-#if WITH_OBJC
-    extern VALUE rb_cCFString;
-    extern VALUE rb_cCFArray;
-    extern VALUE rb_cCFHash;
-    if (rb_cCFString != 0 && *(Class *)obj == RCLASS_OCID(rb_cCFString))
-	return rb_cCFString;
-    if (rb_cCFArray != 0 && *(Class *)obj == RCLASS_OCID(rb_cCFArray))
-	return rb_cCFArray;
-    if (rb_cCFHash != 0 && *(Class *)obj == RCLASS_OCID(rb_cCFHash))
-	return rb_cCFHash;
-    VALUE rb_objc_import_class(Class);
-    if (rb_objc_is_non_native(obj))
-	return rb_objc_import_class(RBASIC(obj)->isa);
-#endif
     return RBASIC(obj)->klass;
 }
 
@@ -1077,20 +1065,14 @@ rb_type(VALUE obj)
 	if (obj == Qfalse) return T_FALSE;
     }
 #if WITH_OBJC
-    /* FIXME this is super slow */
-    else if (rb_cHash != 0 
-	     && rb_cArray != 0
-	     && rb_cString != 0) {
-	Class k = *(Class *)obj;
-	while (k != NULL) {
-	    if (k == RCLASS_OCID(rb_cHash))
-		return T_HASH;
-	    if (k == RCLASS_OCID(rb_cArray))
-		return T_ARRAY;
-	    if (k == RCLASS_OCID(rb_cString))
-		return T_STRING;
-	    k = class_getSuperclass(k);
+    else if (*(Class *)obj != NULL) {
+	if (RCLASS_SINGLETON(*(Class *)obj)) {
+	    if (RCLASS_MODULE(obj)) return T_MODULE;
+	    else return T_CLASS;
 	}
+	if (*(Class *)obj == (Class)rb_cCFString) return T_STRING;
+	if (*(Class *)obj == (Class)rb_cCFArray) return T_ARRAY;
+	if (*(Class *)obj == (Class)rb_cCFHash) return T_HASH;
     }
 #endif
     return BUILTIN_TYPE(obj);

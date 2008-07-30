@@ -338,9 +338,9 @@ compile_data_alloc(rb_iseq_t *iseq, size_t size)
 	    alloc_size *= 2;
 	    goto retry;
 	}
-	storage->next = (void *)ALLOC_N(char, alloc_size +
+	GC_WB(&storage->next, (void *)ALLOC_N(char, alloc_size +
 					sizeof(struct
-					       iseq_compile_data_storage));
+					       iseq_compile_data_storage)));
 	storage = iseq->compile_data->storage_current = storage->next;
 	storage->next = 0;
 	storage->pos = 0;
@@ -687,13 +687,15 @@ new_insn_send(rb_iseq_t *iseq, int line_no,
 {
     INSN *iobj = 0;
     VALUE *operands =
-      (VALUE *)compile_data_alloc(iseq, sizeof(VALUE) * 5);
+      (VALUE *)compile_data_alloc(iseq, sizeof(VALUE) * 7);
     operands[0] = id;
     operands[1] = argc;
     operands[2] = block;
     operands[3] = flag;
     operands[4] = 0;
-    iobj = new_insn_core(iseq, line_no, BIN(send), 5, operands);
+    operands[5] = (VALUE)sel_registerName(rb_id2name(SYM2ID(id)));
+    operands[6] = 0;
+    iobj = new_insn_core(iseq, line_no, BIN(send), 6, operands);
     return iobj;
 }
 

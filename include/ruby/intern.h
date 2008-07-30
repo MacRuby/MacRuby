@@ -691,6 +691,7 @@ VALUE rb_mod_class_variables(VALUE);
 VALUE rb_mod_remove_cvar(VALUE, VALUE);
 /* objc.m */
 #if WITH_OBJC
+void rb_objc_alias(VALUE, ID, ID);
 VALUE rb_mod_objc_ancestors(VALUE);
 VALUE rb_mod_objc_ib_outlet(int, VALUE *, VALUE);
 VALUE rb_require_framework(int, VALUE *, VALUE);
@@ -700,7 +701,6 @@ long rb_objc_flag_get_mask(const void *);
 void rb_objc_flag_set(const void *, int, bool);
 bool rb_objc_flag_check(const void *, int);
 long rb_objc_remove_flags(const void *obj);
-void rb_objc_sync_ruby_methods(VALUE, VALUE);
 void rb_objc_methods(VALUE, Class);
 bool rb_objc_is_immutable(VALUE);
 #endif

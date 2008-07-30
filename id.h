@@ -52,4 +52,8 @@ extern ID idSend;
 extern ID id__send__;
 extern ID idRespond_to;
 extern ID idInitialize;
+#if WITH_OBJC
+extern ID idIncludedModules;
+extern ID idIncludedInClasses;
+#endif
 #endif /* RUBY_ID_H */

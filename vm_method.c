@@ -62,6 +62,7 @@ rb_clear_cache_for_undef(VALUE klass, ID id)
     }
 }
 
+#if !WITH_OBJC
 static void
 rb_clear_cache_by_id(ID id)
 {
@@ -80,6 +81,7 @@ rb_clear_cache_by_id(ID id)
 	ent++;
     }
 }
+#endif
 
 void
 rb_clear_cache_by_class(VALUE klass)
@@ -100,17 +102,6 @@ rb_clear_cache_by_class(VALUE klass)
     }
 }
 
-#if WITH_OBJC
-void rb_objc_sync_ruby_method(VALUE, ID, NODE*, unsigned);
-#endif
-
-void
-rb_add_method_direct(VALUE klass, ID mid, NODE *node)
-{
-    rb_clear_cache_by_id(mid);
-    st_insert(RCLASS_M_TBL(klass), (st_data_t)mid, (st_data_t)node);
-}
-
 void
 rb_add_method(VALUE klass, ID mid, NODE * node, int noex)
 {
@@ -122,12 +113,12 @@ rb_add_method(VALUE klass, ID mid, NODE * node, int noex)
     if (rb_safe_level() >= 4 && (klass == rb_cObject || !OBJ_TAINTED(klass))) {
 	rb_raise(rb_eSecurityError, "Insecure: can't define method");
     }
-    if (!FL_TEST(klass, FL_SINGLETON) &&
+    if (!RCLASS_SINGLETON(klass) &&
 	node && nd_type(node) != NODE_ZSUPER &&
 	(mid == rb_intern("initialize") || mid == rb_intern("initialize_copy"))) {
 	noex = NOEX_PRIVATE | noex;
     }
-    else if (FL_TEST(klass, FL_SINGLETON) && node
+    else if (RCLASS_SINGLETON(klass) && node
 	     && nd_type(node) == NODE_CFUNC && mid == rb_intern("allocate")) {
 	rb_warn
 	    ("defining %s.allocate is deprecated; use rb_define_alloc_func()",
@@ -137,7 +128,9 @@ rb_add_method(VALUE klass, ID mid, NODE * node, int noex)
     if (OBJ_FROZEN(klass)) {
 	rb_error_frozen("class/module");
     }
+#if !WITH_OBJC
     rb_clear_cache_by_id(mid);
+#endif
 
     /*
      * NODE_METHOD (NEW_METHOD(body, klass, vis)):
@@ -157,6 +150,7 @@ rb_add_method(VALUE klass, ID mid, NODE * node, int noex)
 	body = 0;
     }
 
+#if !WITH_OBJC // TODO
     {
 	/* check re-definition */
 	st_data_t data;
@@ -184,18 +178,16 @@ rb_add_method(VALUE klass, ID mid, NODE * node, int noex)
 	    }
 	}
     }
-
-    st_insert(RCLASS_M_TBL(klass), mid, (st_data_t) body);
+#endif
 
 #if WITH_OBJC
-    if (node != NULL && noex == NOEX_PUBLIC) {
-	unsigned override = !FL_TEST(klass, FL_SINGLETON);
-	rb_objc_sync_ruby_method(klass, mid, node, override);
-    }
+    rb_objc_register_ruby_method(klass, mid, body != NULL ? body->nd_body : NULL);
+#else
+    st_insert(RCLASS_M_TBL(klass), mid, (st_data_t) body);
 #endif
 
     if (node && mid != ID_ALLOCATOR && ruby_running) {
-	if (FL_TEST(klass, FL_SINGLETON)) {
+	if (RCLASS_SINGLETON(klass)) {
 	    rb_funcall(rb_iv_get(klass, "__attached__"), singleton_added, 1,
 		       ID2SYM(mid));
 	}
@@ -236,6 +228,17 @@ rb_get_alloc_func(VALUE klass)
 static NODE *
 search_method(VALUE klass, ID id, VALUE *klassp)
 {
+#if WITH_OBJC
+    NODE *node;
+    if (klass == 0)
+	return NULL;
+    node = rb_objc_method_node(klass, id, NULL, NULL);
+    if (node != NULL) {
+	if (klassp != NULL) /* TODO honour klassp */
+	    *klassp = klass;
+    }
+    return node;
+#else
     st_data_t body;
 
     if (!klass) {
@@ -253,6 +256,7 @@ search_method(VALUE klass, ID id, VALUE *klassp)
     }
 
     return (NODE *)body;
+#endif
 }
 
 /*
@@ -266,6 +270,9 @@ search_method(VALUE klass, ID id, VALUE *klassp)
 NODE *
 rb_get_method_body(VALUE klass, ID id, ID *idp)
 {
+#if WITH_OBJC
+    return search_method(klass, id, NULL);
+#else
     NODE *volatile fbody, *body;
     NODE *method;
 
@@ -301,11 +308,15 @@ rb_get_method_body(VALUE klass, ID id, ID *idp)
     }
 
     return body;
+#endif
 }
 
 NODE *
 rb_method_node(VALUE klass, ID id)
 {
+#if WITH_OBJC
+    return rb_objc_method_node(klass, id, NULL, NULL);
+#else
     struct cache_entry *ent;
 
     ent = cache + EXPR1(klass, id);
@@ -314,12 +325,15 @@ rb_method_node(VALUE klass, ID id)
     }
 
     return rb_get_method_body(klass, id, 0);
+#endif
 }
 
 static void
 remove_method(VALUE klass, ID mid)
 {
+#if !WITH_OBJC
     st_data_t data;
+#endif
     NODE *body = 0;
 
     if (klass == rb_cObject) {
@@ -333,6 +347,9 @@ remove_method(VALUE klass, ID mid)
     if (mid == object_id || mid == __send__ || mid == idInitialize) {
 	rb_warn("removing `%s' may cause serious problem", rb_id2name(mid));
     }
+#if WITH_OBJC
+    // TODO
+#else
     if (st_lookup(RCLASS_M_TBL(klass), mid, &data)) {
 	body = (NODE *)data;
 	if (!body || !body->nd_body) body = 0;
@@ -340,6 +357,7 @@ remove_method(VALUE klass, ID mid)
 	    st_delete(RCLASS_M_TBL(klass), &mid, &data);
 	}
     }
+#endif
     if (!body) {
 	rb_name_error(mid, "method `%s' not defined in %s",
 		      rb_id2name(mid), rb_class2name(klass));
@@ -350,7 +368,7 @@ remove_method(VALUE klass, ID mid)
     }
 
     rb_clear_cache_for_undef(klass, mid);
-    if (FL_TEST(klass, FL_SINGLETON)) {
+    if (RCLASS_SINGLETON(klass)) {
 	rb_funcall(rb_iv_get(klass, "__attached__"), singleton_removed, 1,
 		   ID2SYM(mid));
     }
@@ -408,10 +426,23 @@ rb_export_method(VALUE klass, ID name, ID noex)
     if (klass == rb_cObject) {
 	rb_secure(4);
     }
+#if WITH_OBJC
+    fbody = rb_method_node(klass, name);
+    if (fbody == NULL && TYPE(klass) == T_MODULE) {
+	fbody = rb_method_node(rb_cObject, name);
+	origin = rb_method_node(rb_cObject, name) == fbody
+	    ? rb_cObject : klass;
+    }
+    else {
+	origin = rb_method_node(RCLASS_SUPER(klass), name) == fbody
+	    ? RCLASS_SUPER(klass) : klass;
+    }
+#else
     fbody = search_method(klass, name, &origin);
     if (!fbody && TYPE(klass) == T_MODULE) {
 	fbody = search_method(rb_cObject, name, &origin);
     }
+#endif
     if (!fbody || !fbody->nd_body) {
 	rb_print_undef(klass, name, 0);
     }
@@ -503,7 +534,7 @@ rb_undef(VALUE klass, ID id)
 #if WITH_OBJC
     /* TODO: we should only warn regarding important NSObject methods that
        are necessary by the GC to call finalizers. */
-    if (class_respondsToSelector(RCLASS_OCID(rb_cBasicObject),
+    if (class_respondsToSelector((Class)rb_cBasicObject,
 				 sel_registerName(rb_id2name(id)))) {
 	rb_warn("undefining `NSObject#%s' may cause serious problem", 
 		rb_id2name(id));
@@ -514,7 +545,7 @@ rb_undef(VALUE klass, ID id)
 	const char *s0 = " class";
 	VALUE c = klass;
 
-	if (FL_TEST(c, FL_SINGLETON)) {
+	if (RCLASS_SINGLETON(c)) {
 	    VALUE obj = rb_iv_get(klass, "__attached__");
 
 	    switch (TYPE(obj)) {
@@ -527,27 +558,13 @@ rb_undef(VALUE klass, ID id)
 	else if (TYPE(c) == T_MODULE) {
 	    s0 = " module";
 	}
-#if WITH_OBJC
-	if (!class_respondsToSelector(RCLASS(klass)->ocklass,
-	    			      sel_registerName(rb_id2name(id))))
-#endif
 	rb_name_error(id, "undefined method `%s' for%s `%s'",
 		      rb_id2name(id), s0, rb_class2name(c));
     }
 
     rb_add_method(klass, id, 0, NOEX_PUBLIC);
 
-#if WITH_OBJC
-    {
-	Method method;
-        method = class_getInstanceMethod(RCLASS(klass)->ocklass,
-	 				 sel_registerName(rb_id2name(id)));
-	if (method != NULL)
-	    method_setImplementation(method, NULL);
-    }
-#endif
-
-    if (FL_TEST(klass, FL_SINGLETON)) {
+    if (RCLASS_SINGLETON(klass)) {
 	rb_funcall(rb_iv_get(klass, "__attached__"),
 		   singleton_undefined, 1, ID2SYM(id));
     }
@@ -766,14 +783,22 @@ rb_mod_protected_method_defined(VALUE mod, VALUE mid)
 void
 rb_alias(VALUE klass, ID name, ID def)
 {
+#if !WITH_OBJC
     NODE *orig_fbody, *node;
-    VALUE singleton = 0;
     st_data_t data;
+#endif
+    VALUE singleton = 0;
 
     rb_frozen_class_p(klass);
     if (klass == rb_cObject) {
 	rb_secure(4);
     }
+#if WITH_OBJC
+    if (RCLASS_SINGLETON(klass)) {
+	singleton = rb_iv_get(klass, "__attached__");
+    }
+    rb_objc_alias(klass, name, def);
+#else
     orig_fbody = search_method(klass, def, 0);
     if (!orig_fbody || !orig_fbody->nd_body) {
 	if (TYPE(klass) == T_MODULE) {
@@ -807,12 +832,8 @@ rb_alias(VALUE klass, ID name, ID def)
 			     orig_fbody->nd_body->nd_clss,
 			     NOEX_WITH_SAFE(orig_fbody->nd_body->nd_noex)), def));
 
-#if WITH_OBJC
-    if (orig_fbody->nd_body->nd_noex == NOEX_PUBLIC)
-	rb_objc_sync_ruby_method(klass, name, orig_fbody->nd_body->nd_body, 0);
-#endif
-
     rb_clear_cache_by_id(name);
+#endif
 
     if (!ruby_running) return;
 
@@ -1104,6 +1125,10 @@ static NODE *basic_respond_to = 0;
 int
 rb_obj_respond_to(VALUE obj, ID id, int priv)
 {
+#if WITH_OBJC
+    SEL sel = sel_registerName(rb_id2name(id));
+    return class_respondsToSelector(*(Class *)obj, sel); 
+#else
     VALUE klass = CLASS_OF(obj);
 
     if (rb_method_node(klass, idRespond_to) == basic_respond_to) {
@@ -1117,6 +1142,7 @@ rb_obj_respond_to(VALUE obj, ID id, int priv)
 	    args[n++] = Qtrue;
 	return RTEST(rb_funcall2(obj, idRespond_to, n, args));
     }
+#endif
 }
 
 int

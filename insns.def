@@ -1023,7 +1023,7 @@ defineclass
  */
 DEFINE_INSN
 send
-(ID op_id, rb_num_t op_argc, ISEQ blockiseq, rb_num_t op_flag, IC ic)
+(ID op_id, rb_num_t op_argc, ISEQ blockiseq, rb_num_t op_flag, IC ic, VALUE sel)
 (...)
 (VALUE val) // inc += - (op_argc + ((op_flag & VM_CALL_ARGS_BLOCKARG_BIT) ? 1 : 0));
 {
@@ -1038,17 +1038,19 @@ send
     /* get receiver */
     recv = (flag & VM_CALL_FCALL_BIT) ? GET_SELF() : TOPN(num);
     klass = CLASS_OF(recv);
-    mn = vm_method_search(id, klass, ic);
 #if WITH_OBJC
-    vm_method_process_named_args(&id, &mn, recv, &num, GET_CFP());
-#endif
+    ic = 0;
+    mn = NULL;
+#else
+    mn = vm_method_search(id, klass, ic);
 
     /* send/funcall optimization */
     if (flag & VM_CALL_SEND_BIT) {
 	vm_send_optimize(GET_CFP(), &mn, &flag, &num, &id, klass);
     }
+#endif
 
-    CALL_METHOD(num, blockptr, flag, id, mn, recv, klass);
+    CALL_METHOD(num, blockptr, flag, id, mn, recv, klass, (SEL)sel);
 }
 
 /**
@@ -1073,12 +1075,13 @@ invokesuper
 
     recv = GET_SELF();
     vm_search_superclass(GET_CFP(), GET_ISEQ(), recv, TOPN(num), &id, &klass);
-    mn = rb_method_node(klass, id);
 #if WITH_OBJC
-    vm_method_process_named_args(&id, &mn, recv, (rb_num_t *)&num, GET_CFP());
+    mn = NULL;
+#else
+    mn = rb_method_node(klass, id);
 #endif
 
-    CALL_METHOD(num, blockptr, flag, id, mn, recv, klass);
+    CALL_METHOD(num, blockptr, flag, id, mn, recv, klass, (SEL)0);
 }
 
 /**
@@ -1405,7 +1408,11 @@ opt_plus
       INSN_LABEL(normal_dispatch):
 	PUSH(recv);
 	PUSH(obj);
-	CALL_SIMPLE_METHOD(1, idPLUS, recv);
+
+	static SEL selPLUS=0;
+	if (selPLUS==0) { selPLUS = sel_registerName("+:"); }
+	CALL_METHOD(1, 0, 0, idPLUS, NULL, recv, CLASS_OF(recv), (SEL)selPLUS);
+	//CALL_SIMPLE_METHOD(1, idPLUS, recv);
     }
 }
 
@@ -1716,6 +1723,8 @@ opt_lt
     else {
 	PUSH(recv);
 	PUSH(obj);
+	//static SEL selPLUS=0;
+	//if (selPLUS==0) { selPLUS = sel_registerName("+:"); }
 	CALL_SIMPLE_METHOD(1, idLT, recv);
     }
 }
