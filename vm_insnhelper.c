@@ -479,6 +479,33 @@ vm_setup_method(rb_thread_t *th, rb_control_frame_t *cfp,
     }
 }
 
+static inline void
+vm_send_optimize(rb_control_frame_t * const reg_cfp, NODE ** const mn,
+		 rb_num_t * const flag, rb_num_t * const num,
+		 ID * const id, const VALUE klass)
+{
+    if (*mn && nd_type((*mn)->nd_body) == NODE_CFUNC) {
+	NODE *node = (*mn)->nd_body;
+	extern VALUE rb_f_send(int argc, VALUE *argv, VALUE recv);
+
+	if (node->nd_cfnc == rb_f_send) {
+	    int i = *num - 1;
+	    VALUE sym = TOPN(i);
+	    *id = SYMBOL_P(sym) ? SYM2ID(sym) : rb_to_id(sym);
+
+	    /* shift arguments */
+	    if (i > 0) {
+		MEMMOVE(&TOPN(i), &TOPN(i-1), VALUE, i);
+	    }
+
+	    *mn = rb_method_node(klass, *id);
+	    *num -= 1;
+	    DEC_SP(1);
+	    *flag |= VM_CALL_FCALL_BIT;
+	}
+    }
+}
+
 static inline VALUE
 vm_call_method(rb_thread_t * const th, rb_control_frame_t * const cfp,
 	       const int num, rb_block_t * const blockptr, const VALUE flag,
@@ -511,6 +538,10 @@ else {
     else
 	mn = rb_objc_method_node2(klass, sel, &imp);
 
+    if (flag & VM_CALL_SEND_BIT) {
+	vm_send_optimize(cfp, (NODE **)&mn, (rb_num_t *)&flag, (rb_num_t *)&num, (ID *)&id, klass);  
+    }
+
 #if STUPID_CACHE
 c_klass = klass;
 c_sel = sel;
@@ -521,12 +552,12 @@ c_mn = (NODE*)mn;
 
     if (mn == NULL && imp != NULL) {
 	rb_control_frame_t *reg_cfp = cfp;
-	rb_control_frame_t *cfp =
+	rb_control_frame_t *_cfp =
 	    vm_push_frame(th, 0, FRAME_MAGIC_CFUNC | (flag << FRAME_MAGIC_MASK_BITS),
-		    recv, (VALUE) blockptr, 0, reg_cfp->sp, 0, 1);
+			  recv, (VALUE) blockptr, 0, reg_cfp->sp, 0, 1);
 
-	cfp->method_id = id;
-	cfp->method_class = klass;
+	_cfp->method_id = id;
+	_cfp->method_class = klass;
 
 	reg_cfp->sp -= num + 1;
 
@@ -657,33 +688,6 @@ c_mn = (NODE*)mn;
 
     RUBY_VM_CHECK_INTS();
     return val;
-}
-
-static inline void
-vm_send_optimize(rb_control_frame_t * const reg_cfp, NODE ** const mn,
-		 rb_num_t * const flag, rb_num_t * const num,
-		 ID * const id, const VALUE klass)
-{
-    if (*mn && nd_type((*mn)->nd_body) == NODE_CFUNC) {
-	NODE *node = (*mn)->nd_body;
-	extern VALUE rb_f_send(int argc, VALUE *argv, VALUE recv);
-
-	if (node->nd_cfnc == rb_f_send) {
-	    int i = *num - 1;
-	    VALUE sym = TOPN(i);
-	    *id = SYMBOL_P(sym) ? SYM2ID(sym) : rb_to_id(sym);
-
-	    /* shift arguments */
-	    if (i > 0) {
-		MEMMOVE(&TOPN(i), &TOPN(i-1), VALUE, i);
-	    }
-
-	    *mn = rb_method_node(klass, *id);
-	    *num -= 1;
-	    DEC_SP(1);
-	    *flag |= VM_CALL_FCALL_BIT;
-	}
-    }
 }
 
 /* yield */
@@ -1165,66 +1169,6 @@ vm_define_method(rb_thread_t *th, VALUE obj, ID id, rb_iseq_t *miseq,
     }
     INC_VM_STATE_VERSION();
 }
-
-#if 0//TODO WITH_OBJC
-static inline void
-vm_method_process_named_args(ID *pid, NODE **pmn, VALUE recv, rb_num_t *pnum, 
-			     rb_control_frame_t *cfp) 
-{
-    VALUE *argv = cfp->sp - *pnum;
-    NODE *mn;
-    ID id;
-
-    if (*pmn == NULL) {
-	const char *p, *mname;
-	long i;
-	mn = rb_objc_define_objc_mid_closure(recv, *pid, 0);
-	if (mn != NULL) {
-	    *pmn = mn;
-	    return;
-	}
-	mname = rb_id2name(*pid);
-	if (*pid > 1 && (p = strchr(mname, ':')) != NULL) {
-	    char buf[512];
-	    strlcpy(buf, mname, sizeof buf);
-	    buf[p - mname] = '\0';
-	    mname = p + 1;
-	    id = rb_intern(buf);
-	    mn = rb_method_node(CLASS_OF(recv), id);
-	    if (mn != NULL) {
-		VALUE h = rb_hash_new();
-		VALUE new_argv[2];
-		for (i = 1; i < *pnum; i++) {
-		    p = strchr(mname, ':');
-		    if (p == NULL)
-			return;
-		    strlcpy(buf, mname, sizeof buf);
-		    buf[p - mname] = '\0';
-		    mname = p + 1;
-		    rb_hash_aset(h, ID2SYM(rb_intern(buf)), argv[i]);
-		}
-		new_argv[0] = argv[0];
-		new_argv[1] = h;
-		memcpy(cfp->sp - 2, new_argv, sizeof(void *) * 2);
-		cfp->bp -= 2 - *pnum;
-		*pmn = mn;
-		*pid = id;
-		*pnum = 2;
-		return;
-	    }
-	}
-	id = rb_objc_missing_sel(*pid, *pnum);
-	if (id != *pid) {
-	    mn = rb_objc_define_objc_mid_closure(recv, id, *pid);
-	    if (mn != NULL) {
-		*pmn = mn;
-		*pid = id;
-		return;
-	    }
-	}
-    }
-}
-#endif
 
 static inline NODE *
 vm_method_search(VALUE id, VALUE klass, IC ic)

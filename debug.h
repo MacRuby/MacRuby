@@ -33,7 +33,8 @@ void  ruby_debug_gc_check_func(void);
 static inline bool dlog_enabled(void) {
     static int flag = -1;
     if (flag == -1) {
-        flag = getenv("MACRUBY_DEBUG") != NULL;
+	char *s = getenv("MACRUBY_DEBUG");
+	flag = !(s == NULL || *s == '0');
     }
     return (bool)flag;
 }

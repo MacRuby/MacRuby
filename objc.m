@@ -850,39 +850,7 @@ bails:
 		 RSTRING_PTR(rb_inspect(rval)), octype);
 }
 
-VALUE
-rb_objc_boot_ocid(id ocid)
-{
-    if (NATIVE((VALUE)ocid)) {
-        /* Make sure the ObjC class is imported in Ruby. */ 
-        rb_objc_import_class(object_getClass(ocid)); 
-    }
-    else if (RBASIC(ocid)->klass == 0) {
-	/* This pure-Ruby object was created from Objective-C, we need to 
-	 * initialize the Ruby bits. 
-	 */
-	VALUE klass;
-        
-	klass = rb_objc_import_class(object_getClass(ocid)); 
-
-	RBASIC(ocid)->klass = klass;
-	RBASIC(ocid)->flags = 
-	    klass == rb_cString
-	    ? T_STRING
-	    : klass == rb_cArray
-	    ? T_ARRAY
-	    : klass == rb_cHash
-	    ? T_HASH
-	    : T_OBJECT;
-    }
-
-    return (VALUE)ocid;
-}
-
-static void
-rb_objc_ocval_to_rbval(void **ocval, const char *octype, VALUE *rbval);
-
-bool 
+static inline bool 
 rb_objc_ocid_to_rval(void **ocval, VALUE *rbval)
 {
     id ocid = *(id *)ocval;
@@ -891,7 +859,7 @@ rb_objc_ocid_to_rval(void **ocval, VALUE *rbval)
 	*rbval = Qnil;
     }
     else {
-	*rbval = rb_objc_boot_ocid(ocid);
+	*rbval = (VALUE)ocid;
     }
 
     return true;

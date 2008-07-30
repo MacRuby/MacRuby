@@ -46,9 +46,9 @@ RUBY_EXTERN const char ruby_copyright[];
 #endif
 
 #if WITH_OBJC
-# define RUBY_IMPL_NAME "MacRuby"
+# define RUBY_ENGINE "macruby"
 #else
-# define RUBY_IMPL_NAME "ruby"
+# define RUBY_ENGINE "ruby"
 #endif
 
 #if WITH_OBJC

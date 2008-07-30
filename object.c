@@ -2548,6 +2548,7 @@ Init_Object(void)
     RCLASS_SET_VERSION_FLAG(rb_cObject, RCLASS_IS_OBJECT_SUBCLASS);
     rb_cModule = boot_defclass("Module", rb_cObject);
     rb_cClass =  boot_defclass("Class",  rb_cModule);
+    RCLASS_SUPER(*(Class *)rb_cNSObject) = rb_cClass;
 #else
     VALUE metaclass;
 
@@ -2555,11 +2556,7 @@ Init_Object(void)
     rb_cObject = boot_defclass("Object", rb_cBasicObject);
     rb_cModule = boot_defclass("Module", rb_cObject);
     rb_cClass =  boot_defclass("Class",  rb_cModule);
-#endif
 
-#if WITH_OBJC
-    RCLASS_SUPER(*(Class *)rb_cNSObject) = rb_cClass;
-#else
     metaclass = rb_make_metaclass(rb_cBasicObject, rb_cClass);
     metaclass = rb_make_metaclass(rb_cObject, metaclass);
     metaclass = rb_make_metaclass(rb_cModule, metaclass);
@@ -2600,7 +2597,8 @@ Init_Object(void)
     rb_define_method(rb_mKernel, "!~", rb_obj_not_match, 1);
     rb_define_method(rb_mKernel, "eql?", rb_obj_equal, 1);
 
-#if !WITH_OBJC // defined in NSObject
+#if !WITH_OBJC 
+    // #class is already defined in NSObject
     rb_define_method(rb_mKernel, "class", rb_obj_class, 0);
 #endif
     rb_define_method(rb_mKernel, "clone", rb_obj_clone, 0);
