@@ -848,42 +848,41 @@ rb_iter_break(void)
 /* optimization: redefine management */
 
 VALUE ruby_vm_redefined_flag = 0;
-#if WITH_OBJC
-static void 
-rb_vm_check_redefinition_opt_method(const NODE *node) 
-{
-}
-#else
 static st_table *vm_opt_method_table = 0;
 
 static void
 rb_vm_check_redefinition_opt_method(const NODE *node)
 {
+#if !WITH_OBJC
     VALUE bop;
 
-    if (st_lookup(vm_opt_method_table, (st_data_t)node, &bop)) {
+    if (vm_opt_method_table != NULL 
+	&& st_lookup(vm_opt_method_table, (st_data_t)node, &bop)) {
 	ruby_vm_redefined_flag |= bop;
     }
+#endif
 }
 
 static void
 add_opt_method(VALUE klass, ID mid, VALUE bop)
 {
     NODE *node;
+#if WITH_OBJC
+    if ((node = rb_method_node(klass, mid)) != NULL) {
+#else
     if (st_lookup(RCLASS_M_TBL(klass), mid, (void *)&node) &&
 	nd_type(node->nd_body->nd_body) == NODE_CFUNC) {
+#endif
 	st_insert(vm_opt_method_table, (st_data_t)node, (st_data_t)bop);
     }
     else {
 	rb_bug("undefined optimized method: %s", rb_id2name(mid));
     }
 }
-#endif
 
 static void
 vm_init_redefined_flag(void)
 {
-#if !WITH_OBJC
     ID mid;
     VALUE bop;
 
@@ -903,13 +902,14 @@ vm_init_redefined_flag(void)
     OP(LTLT, LTLT), (C(String), C(Array));
     OP(AREF, AREF), (C(Array), C(Hash));
     OP(ASET, ASET), (C(Array), C(Hash));
+#if !WITH_OBJC
     OP(Length, LENGTH), (C(Array), C(String), C(Hash));
+#endif
     OP(Succ, SUCC), (C(Fixnum), C(String), C(Time));
     OP(GT, GT), (C(Fixnum));
     OP(GE, GE), (C(Fixnum));
 #undef C
 #undef OP
-#endif
 }
 
 /* evaluator body */

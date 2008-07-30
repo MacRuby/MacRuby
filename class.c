@@ -123,7 +123,7 @@ rb_objc_alloc_class(const char *name, VALUE super, VALUE flags, VALUE klass)
     	snprintf(ocname, sizeof ocname, "RBAnonymous%ld", ++anon_count);
     }
     else {
-	if (super == rb_cBasicObject && strcmp(name, "Object") != 0) {
+	if (super == rb_cNSObject && strcmp(name, "Object") != 0) {
 	    rb_warn("Do not subclass NSObject directly, please subclass " \
 		    "Object instead.");
 	    super = rb_cObject; 

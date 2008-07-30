@@ -1101,7 +1101,7 @@ rb_objc_call_objc(int argc, VALUE *argv, id ocrcv, Class klass,
     char buf[128];
     void *imp;
 
-    DLOG("OCALL", "[%p %s] argc=%d", ocrcv, (char *)ctx->selector, argc);
+    DLOG("OCALL", "[<%s %p> %s]", class_getName((Class)klass), (void *)ocrcv, (char *)ctx->selector);
 
     count = method_getNumberOfArguments(ctx->method);
     assert(count >= 2);
@@ -1120,7 +1120,7 @@ rb_objc_call_objc(int argc, VALUE *argv, id ocrcv, Class klass,
 
     if (count == 2) {
 	method_getReturnType(ctx->method, buf, sizeof buf);
-	if (buf[0] == '@' || buf[0] == 'v') {
+	if (buf[0] == '@' || buf[0] == '#' || buf[0] == 'v') {
 	    /* Easy case! */
 	    @try {
 		if (super_call) {
@@ -1136,7 +1136,7 @@ rb_objc_call_objc(int argc, VALUE *argv, id ocrcv, Class klass,
 	    @catch (id e) {
 		rb_objc_exc_raise(e);
 	    }
-	    return buf[0] == '@' ? (VALUE)ffi_ret : Qnil;
+	    return buf[0] == '@' || buf[0] == '#' ? (VALUE)ffi_ret : Qnil;
 	}
     } 
 
@@ -1234,119 +1234,25 @@ rb_objc_call_objc(int argc, VALUE *argv, id ocrcv, Class klass,
     }
 }
 
-#if 0
-static VALUE
-rb_objc_to_ruby_closure(int argc, VALUE *argv, VALUE rcv)
-{
-    id ocrcv;
-    bool super_call;
-    Class klass;
-    struct objc_ruby_closure_context *ctx;
-
-    rb_objc_rval_to_ocid(rcv, (void **)&ocrcv, true);
-    super_call = (ruby_current_thread->cfp->flag >> FRAME_MAGIC_MASK_BITS) 
-	& VM_CALL_SUPER_BIT;
-    klass = *(Class *)ocrcv;
-    
-    assert(rb_current_cfunc_node != NULL);
-
-    if (rb_current_cfunc_node->u3.value == 0) {
-	const char *selname;
-	size_t selnamelen;
-
-	ctx = (struct objc_ruby_closure_context *)xmalloc(sizeof(
-	    struct objc_ruby_closure_context));
-
-	selname = rb_id2name(rb_frame_this_func());
-	selnamelen = strlen(selname);
-	if (argc == 1 && selname[selnamelen - 1] != ':') {
-	    char *tmp = alloca(selnamelen + 2);
-	    snprintf(tmp, selnamelen + 2, "%s:", selname);
-	    selname = (const char *)tmp;
-	}
-	ctx->selector = sel_registerName(selname);
-
-	ctx->bs_method = rb_bs_find_method(*(Class *)ocrcv, ctx->selector);
-	GC_WB(&rb_current_cfunc_node->u3.value, ctx);
-    }
-    else {
-	ctx = (struct objc_ruby_closure_context *)
-	    rb_current_cfunc_node->u3.value;
-    }
-    ctx->method = class_getInstanceMethod(*(Class *)ocrcv, ctx->selector); 
-    assert(ctx->method != NULL);
-    ctx->cif = NULL;
-    ctx->imp = NULL;
-    ctx->klass = klass;
-
-    if (super_call) {
-	Class sklass = klass;
-	Method orig_method = ctx->klass == klass 
-	    ? ctx->method : class_getInstanceMethod(klass, ctx->selector);
-	for (;;) {
-	    Method smethod;
-	    sklass = class_getSuperclass(sklass);
-	    if (sklass == NULL)
-		break;
-	    smethod = class_getInstanceMethod(sklass, ctx->selector);
-	    if (smethod != orig_method) {
-		klass = sklass;
-	        break;
-	    }
-	}
-    }
-    
-//NSLog(@"Ruby -> ObjC [%@ klass=%@ sel=%s argc=%d super_call=%d", ocrcv, (id)klass, (char *)ctx->selector, argc, super_call);
-
-    return rb_objc_call_objc(argc, argv, ocrcv, klass, super_call, ctx);
-}
-#endif
-
 VALUE
-rb_objc_call(VALUE recv, ID mid, int argc, VALUE *argv)
+rb_objc_call(VALUE recv, SEL sel, int argc, VALUE *argv)
 {
+    struct objc_ruby_closure_context fake_ctx;
     VALUE klass;
-    SEL sel;
-    IMP imp;
-    NODE *node;
+    id ocrcv;
 
-    klass = CLASS_OF(recv);
-    node = rb_objc_method_node(klass, mid, &imp, &sel);
+    rb_objc_rval_to_ocid(recv, (void **)&ocrcv, true);
+    klass = *(VALUE *)ocrcv;
 
-    if (imp == NULL) {
-	// TODO
-	printf("METHOD_MISSING!");
-	assert(1 == 0);
-	return Qnil;
-    }
-    else if (node != NULL) {
-	assert(node->nd_body != NULL);
+    fake_ctx.selector = sel;
+    fake_ctx.method = class_getInstanceMethod((Class)klass, fake_ctx.selector); 
+    assert(fake_ctx.method != NULL);
+    fake_ctx.bs_method = NULL;
+    fake_ctx.cif = NULL;
+    fake_ctx.imp = NULL;
+    fake_ctx.klass = NULL;
 
-	DLOG("RCALL", "[<%s %p> %s] node=%p argc=%d", class_getName((Class)klass), (void *)recv, (char *)sel, node->nd_body, argc);
-
-	VALUE rb_vm_call(rb_thread_t * th, VALUE klass, VALUE recv, VALUE id, 
-		ID oid, int argc, const VALUE *argv, const NODE *body, 
-		int nosuper);
-
-	return rb_vm_call(GET_THREAD(), klass, recv, mid, Qnil,
-		argc, argv, node->nd_body, 0);
-    }
-    else {
-	id ocrcv;
-	struct objc_ruby_closure_context fake_ctx;
-
-	rb_objc_rval_to_ocid(recv, (void **)&ocrcv, true);
-
-	fake_ctx.selector = sel;
-	fake_ctx.method = class_getInstanceMethod((Class)klass, fake_ctx.selector); 
-	assert(fake_ctx.method != NULL);
-	fake_ctx.bs_method = NULL;
-	fake_ctx.cif = NULL;
-	fake_ctx.imp = imp;
-	fake_ctx.klass = NULL;
-
-	return rb_objc_call_objc(argc, argv, ocrcv, (Class)klass, true, &fake_ctx);
-    }
+    return rb_objc_call_objc(argc, argv, ocrcv, (Class)klass, false, &fake_ctx);
 }
 
 void

@@ -955,6 +955,9 @@ RUBY_EXTERN VALUE rb_mProcess;
 
 RUBY_EXTERN VALUE rb_cBasicObject;
 RUBY_EXTERN VALUE rb_cObject;
+#if WITH_OBJC
+RUBY_EXTERN VALUE rb_cNSObject;
+#endif
 RUBY_EXTERN VALUE rb_cArray;
 RUBY_EXTERN VALUE rb_cBignum;
 RUBY_EXTERN VALUE rb_cBinding;

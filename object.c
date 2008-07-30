@@ -23,6 +23,9 @@
 
 VALUE rb_cBasicObject;
 VALUE rb_mKernel;
+#if WITH_OBJC
+VALUE rb_cNSObject;
+#endif
 VALUE rb_cObject;
 VALUE rb_cModule;
 VALUE rb_cClass;
@@ -2538,23 +2541,24 @@ rb_obj_is_native(VALUE recv)
 void
 Init_Object(void)
 {
+#if WITH_OBJC
+    rb_cNSObject = (VALUE)objc_getClass("NSObject");
+    rb_cObject = boot_defclass("Object", rb_cNSObject);
+    rb_cBasicObject = rb_cObject; // TODO
+    RCLASS_SET_VERSION_FLAG(rb_cObject, RCLASS_IS_OBJECT_SUBCLASS);
+    rb_cModule = boot_defclass("Module", rb_cObject);
+    rb_cClass =  boot_defclass("Class",  rb_cModule);
+#else
     VALUE metaclass;
 
-#if WITH_OBJC
-    rb_cBasicObject = boot_defclass("BasicObject", rb_objc_import_class((Class)objc_getClass("NSObject")));
-    RCLASS_SET_VERSION_FLAG(rb_cBasicObject, RCLASS_IS_OBJECT_SUBCLASS);
-#else
     rb_cBasicObject = boot_defclass("BasicObject", 0);
-#endif
     rb_cObject = boot_defclass("Object", rb_cBasicObject);
     rb_cModule = boot_defclass("Module", rb_cObject);
     rb_cClass =  boot_defclass("Class",  rb_cModule);
+#endif
 
 #if WITH_OBJC
-    metaclass = 0; // eliminate warning
-    RCLASS_SUPER(*(Class *)RCLASS_SUPER(rb_cBasicObject)) = rb_cClass;
-    //metaclass = boot_defclass("MetaClass", rb_cClass);
-    //RCLASS_SUPER(*(Class *)rb_cBasicObject) = rb_cClass;//metaclass;
+    RCLASS_SUPER(*(Class *)rb_cNSObject) = rb_cClass;
 #else
     metaclass = rb_make_metaclass(rb_cBasicObject, rb_cClass);
     metaclass = rb_make_metaclass(rb_cObject, metaclass);
@@ -2578,7 +2582,11 @@ Init_Object(void)
     rb_define_private_method(rb_cBasicObject, "singleton_method_undefined", rb_obj_dummy, 1);
 
     rb_mKernel = rb_define_module("Kernel");
+#if WITH_OBJC
+    rb_include_module(rb_cNSObject, rb_mKernel);
+#else
     rb_include_module(rb_cObject, rb_mKernel);
+#endif
     rb_define_private_method(rb_cClass, "inherited", rb_obj_dummy, 1);
     rb_define_private_method(rb_cModule, "included", rb_obj_dummy, 1);
     rb_define_private_method(rb_cModule, "extended", rb_obj_dummy, 1);

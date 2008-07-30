@@ -489,14 +489,15 @@ vm_call_method(rb_thread_t * const th, rb_control_frame_t * const cfp,
 #if WITH_OBJC
     IMP imp;
 
-#define STUPID_CACHE 0
+#define STUPID_CACHE 1
 
 #if STUPID_CACHE
 static VALUE c_klass = 0;
+static SEL c_sel = 0;
 static IMP c_imp = 0;
 static NODE *c_mn = NULL;
 
-if (c_klass == klass) {
+if (c_klass == klass && c_sel == sel && sel != 0) {
 imp = c_imp;
 mn = c_mn;
 }
@@ -512,15 +513,31 @@ else {
 
 #if STUPID_CACHE
 c_klass = klass;
+c_sel = sel;
 c_imp = imp;
 c_mn = (NODE*)mn;
 }
 #endif
 
     if (mn == NULL && imp != NULL) {
-	printf("OBJC_CALL %p %s %p %p\n",(void*)klass,(char*)sel,mn,imp);
-	assert(1==0);
-	return Qnil;
+	rb_control_frame_t *reg_cfp = cfp;
+	rb_control_frame_t *cfp =
+	    vm_push_frame(th, 0, FRAME_MAGIC_CFUNC | (flag << FRAME_MAGIC_MASK_BITS),
+		    recv, (VALUE) blockptr, 0, reg_cfp->sp, 0, 1);
+
+	cfp->method_id = id;
+	cfp->method_class = klass;
+
+	reg_cfp->sp -= num + 1;
+
+   	val = rb_objc_call(recv, sel, num, reg_cfp->sp + 1);
+
+	if (reg_cfp != th->cfp + 1)
+	    rb_bug("cfp consistency error - send");
+
+	vm_pop_frame(th);
+
+	return val;
     }
 
     DLOG("RCALL", "[<%s %p> %s] node=%p", class_getName((Class)klass), (void *)recv, (char *)sel, mn);
@@ -628,13 +645,6 @@ c_mn = (NODE*)mn;
 	}
 	else {
 	    int stat = 0;
-#if 0//WITH_OBJC
-	    mn = rb_objc_define_objc_mid_closure(recv, id, 0);
-	    if (mn != NULL) {
-		return vm_call_method(th, cfp, num, blockptr, flag, id,
-				      mn, recv, klass);
-	    }
-#endif
 	    if (flag & VM_CALL_VCALL_BIT) {
 		stat |= NOEX_VCALL;
 	    }

@@ -162,6 +162,15 @@ find_class_path(VALUE klass)
 #endif
 	return arg.path;
     }
+#if WITH_OBJC
+    if (!RCLASS_RUBY(klass)) {
+	VALUE name = rb_str_new2(class_getName((Class)klass));
+	iv_dict = rb_class_ivar_dict_or_create(klass);
+	CFDictionarySetValue(iv_dict, (const void *)classpath, (const void *)name);
+	CFDictionaryRemoveValue(iv_dict, (const void *)tmp_classpath);
+	return name;
+    }
+#endif
     return Qnil;
 }
 
