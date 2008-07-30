@@ -780,7 +780,7 @@ struct RBignum {
 #define FL_REVERSE(x,f) do {if (FL_ABLE(x)) RBASIC(x)->flags ^= (f);} while (0)
 
 #if WITH_OBJC
-# define OBJ_TAINTED(x) (rb_obj_tainted((VALUE)x))
+# define OBJ_TAINTED(x) (SPECIAL_CONST_P(x) || NATIVE(x) ? rb_obj_tainted((VALUE)x) : FL_TEST((x), FL_TAINT))
 # define OBJ_TAINT(x)   (rb_obj_taint((VALUE)x))
 #else
 # define OBJ_TAINTED(x) FL_TEST((x), FL_TAINT)
@@ -790,7 +790,7 @@ struct RBignum {
 #define OBJ_INFECT(x,s) do {if (FL_ABLE(x) && FL_ABLE(s)) RBASIC(x)->flags |= RBASIC(s)->flags & FL_TAINT;} while (0)
 
 #if WITH_OBJC
-# define OBJ_FROZEN(x) (rb_obj_frozen_p((VALUE)x))
+# define OBJ_FROZEN(x) (SPECIAL_CONST_P(x) || NATIVE(x) ? rb_obj_frozen_p((VALUE)x) : FL_TEST((x), FL_FREEZE))
 # define OBJ_FREEZE(x) (rb_obj_freeze((VALUE)x))
 #else
 # define OBJ_FROZEN(x) FL_TEST((x), FL_FREEZE)

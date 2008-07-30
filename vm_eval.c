@@ -200,8 +200,7 @@ rb_call0(VALUE klass, VALUE recv, ID mid, int argc, const VALUE *argv,
     method = rb_objc_method_node(klass, mid, &imp, &sel);    
 
     if (imp != NULL && method == NULL) {
-	printf("OBJC_CALL!\n");
-	assert(1==0);
+	return rb_objc_call(recv, sel, argc, (VALUE *)argv);
     }
     else if (method != NULL) {
 	noex = method->nd_noex;

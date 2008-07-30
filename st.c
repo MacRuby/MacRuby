@@ -9,6 +9,7 @@
 #include "ruby/config.h"
 #include "ruby/defines.h"
 #include "ruby/st.h"
+#include "ruby/ruby.h"
 #endif
 
 #include <stdio.h>
