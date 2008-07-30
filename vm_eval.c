@@ -199,10 +199,16 @@ rb_call0(VALUE klass, VALUE recv, ID mid, int argc, const VALUE *argv,
 
     method = rb_objc_method_node(klass, mid, &imp, &sel);    
 
-    if (imp != NULL && method == NULL) {
+    if (imp != NULL && method == NULL)
 	return rb_objc_call(recv, sel, argc, (VALUE *)argv);
+
+    DLOG("RCALL", "[<%s %p> %s] node=%p", class_getName((Class)klass), (void *)recv, (char *)sel, method);
+    
+    if (method == NULL) {
+	int missing_scope = scope == 2 ? NOEX_VCALL : scope == 3 ? NOEX_SUPER : NOEX_VCALL;
+	return method_missing(recv, mid, argc, argv, missing_scope);
     }
-    else if (method != NULL) {
+    else {
 	noex = method->nd_noex;
 	klass = method->nd_clss;
 	body = method->nd_body;
@@ -226,7 +232,6 @@ rb_call0(VALUE klass, VALUE recv, ID mid, int argc, const VALUE *argv,
 	klass = method->nd_clss;
 	body = method->nd_body;
     }
-#endif
     else {
 	if (scope == 3) {
 	    return method_missing(recv, mid, argc, argv, NOEX_SUPER);
@@ -234,6 +239,7 @@ rb_call0(VALUE klass, VALUE recv, ID mid, int argc, const VALUE *argv,
 	return method_missing(recv, mid, argc, argv,
 			      scope == 2 ? NOEX_VCALL : 0);
     }
+#endif
     
     if (mid != missing) {
 	/* receiver specified form for private method */
@@ -1324,7 +1330,11 @@ Init_vm_eval(void)
 
     rb_define_method(rb_cBasicObject, "instance_eval", rb_obj_instance_eval, -1);
     rb_define_method(rb_cBasicObject, "instance_exec", rb_obj_instance_exec, -1);
+#if WITH_OBJC
+    rb_define_private_method(rb_cNSObject, "method_missing", rb_method_missing, -1);
+#else
     rb_define_private_method(rb_cBasicObject, "method_missing", rb_method_missing, -1);
+#endif
 
     rb_define_method(rb_cBasicObject, "__send__", rb_f_send, -1);
     rb_define_method(rb_mKernel, "send", rb_f_send, -1);
