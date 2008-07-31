@@ -2569,10 +2569,17 @@ Init_Object(void)
     // required because otherwise NSObject.new will be first in the method chain.
     rb_define_singleton_method(rb_cBasicObject, "new", rb_class_new_instance, -1);
 #endif
+#if WITH_OBJC
+    rb_define_method(rb_cNSObject, "==", rb_obj_equal, 1);
+    rb_define_method(rb_cNSObject, "equal?", rb_obj_equal, 1);
+    rb_define_method(rb_cNSObject, "!", rb_obj_not, 0);
+    rb_define_method(rb_cNSObject, "!=", rb_obj_not_equal, 1);
+#else
     rb_define_method(rb_cBasicObject, "==", rb_obj_equal, 1);
     rb_define_method(rb_cBasicObject, "equal?", rb_obj_equal, 1);
     rb_define_method(rb_cBasicObject, "!", rb_obj_not, 0);
     rb_define_method(rb_cBasicObject, "!=", rb_obj_not_equal, 1);
+#endif
 
     rb_define_private_method(rb_cBasicObject, "singleton_method_added", rb_obj_dummy, 1);
     rb_define_private_method(rb_cBasicObject, "singleton_method_removed", rb_obj_dummy, 1);

@@ -141,7 +141,7 @@ rb_objc_alloc_class(const char *name, VALUE super, VALUE flags, VALUE klass)
 	}
     }
 
-    ocsuper = super == 0 ? (Class)rb_cBasicObject : (Class)super;
+    ocsuper = super == 0 ? (Class)rb_cObject : (Class)super;
     ocklass = objc_allocateClassPair(ocsuper, ocname, sizeof(id));
     assert(ocklass != NULL);
 

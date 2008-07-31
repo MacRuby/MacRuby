@@ -2021,7 +2021,9 @@ rb_const_get_0(VALUE klass, ID id, int exclude, int recurse)
   retry:
     while (RTEST(tmp)) {
 #if WITH_OBJC
-	while ((value = rb_attr_get(tmp, id)) != Qnil) {
+	CFDictionaryRef iv_dict = rb_class_ivar_dict(tmp);
+	while ((iv_dict = rb_class_ivar_dict(tmp)) != NULL
+	       && CFDictionaryGetValueIfPresent(iv_dict, (const void *)id, (const void **)&value)) {
 #else
 	while (RCLASS_IV_TBL(tmp) && st_lookup(RCLASS_IV_TBL(tmp),id,&value)) {
 #endif

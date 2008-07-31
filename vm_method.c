@@ -1127,7 +1127,7 @@ rb_obj_respond_to(VALUE obj, ID id, int priv)
 {
 #if WITH_OBJC
     SEL sel = sel_registerName(rb_id2name(id));
-    return class_respondsToSelector(*(Class *)obj, sel); 
+    return class_respondsToSelector((Class)CLASS_OF(obj), sel); 
 #else
     VALUE klass = CLASS_OF(obj);
 

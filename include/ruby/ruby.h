@@ -504,7 +504,11 @@ struct RClass {
 #  define _RCLASS_INFO(m) (*(long *)((void *)m + (sizeof(void *) * 4)))
 #  define RCLASS_SINGLETON(m) (_RCLASS_INFO(m) & CLS_META)
 # endif
-# define NATIVE(obj) (*(Class *)obj != NULL && *(Class *)obj != (Class)rb_cBignum && (RCLASS_VERSION(*(Class *)obj) & RCLASS_IS_OBJECT_SUBCLASS) != RCLASS_IS_OBJECT_SUBCLASS)
+# define NATIVE(obj) \
+    (*(Class *)obj != NULL \
+     && *(Class *)obj != (Class)rb_cBignum \
+     && *(Class *)obj != (Class)rb_cFloat \
+     && (RCLASS_VERSION(*(Class *)obj) & RCLASS_IS_OBJECT_SUBCLASS) != RCLASS_IS_OBJECT_SUBCLASS)
 # define RCLASS_RUBY(m) ((RCLASS_VERSION(m) & RCLASS_IS_RUBY_CLASS) == RCLASS_IS_RUBY_CLASS)
 # define RCLASS_MODULE(m) ((RCLASS_VERSION(m) & RCLASS_IS_MODULE) == RCLASS_IS_MODULE)
 CFMutableDictionaryRef rb_class_ivar_dict(VALUE);

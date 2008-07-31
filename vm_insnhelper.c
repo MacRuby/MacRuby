@@ -1197,13 +1197,13 @@ vm_method_search(VALUE id, VALUE klass, IC ic)
 static inline VALUE
 vm_search_normal_superclass(VALUE klass, VALUE recv)
 {
-    if (BUILTIN_TYPE(klass) == T_CLASS) {
+    if (TYPE(klass) == T_CLASS) {
 	klass = RCLASS_SUPER(klass);
     }
-    else if (BUILTIN_TYPE(klass) == T_MODULE) {
+    else if (TYPE(klass) == T_MODULE) {
 	VALUE k = CLASS_OF(recv);
 	while (k) {
-	    if (BUILTIN_TYPE(k) == T_ICLASS && RBASIC(k)->klass == klass) {
+	    if (TYPE(k) == T_ICLASS && RBASIC(k)->klass == klass) {
 		klass = RCLASS_SUPER(k);
 		break;
 	    }
