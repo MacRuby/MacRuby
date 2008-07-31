@@ -59,7 +59,6 @@ static VALUE rb_cBoxed;
 static ID rb_ivar_type;
 
 static VALUE bs_const_magic_cookie = Qnil;
-static VALUE rb_objc_class_magic_cookie = Qnil;
 
 static struct st_table *bs_constants;
 static struct st_table *bs_functions;
@@ -894,7 +893,7 @@ rb_objc_ocval_to_rbval(void **ocval, const char *octype, VALUE *rbval)
 	    break;
 	
 	case _C_CLASS:
-	    *rbval = rb_objc_import_class(*(Class *)ocval);
+	    *rbval = (VALUE)*(Class *)ocval;
 	    break;
 
 	case _C_BOOL:
@@ -1729,10 +1728,7 @@ rb_objc_resolve_const_value(VALUE v, VALUE klass, ID id)
     void *sym;
     bs_element_constant_t *bs_const;
 
-    if (v == rb_objc_class_magic_cookie) {
-	v = rb_objc_import_class(objc_getClass(rb_id2name(id)));
-    }
-    else if (v == bs_const_magic_cookie) { 
+    if (v == bs_const_magic_cookie) { 
 	if (!st_lookup(bs_constants, (st_data_t)id, (st_data_t *)&bs_const))
 	    rb_bug("unresolved bridgesupport constant `%s' not in cache",
 		    rb_id2name(id));
@@ -2338,7 +2334,7 @@ reload_class_constants(void)
 	if (name[0] != '_') {
 	    ID id = rb_intern(name);
 	    if (!rb_const_defined(rb_cObject, id))
-		rb_const_set(rb_cObject, id, rb_objc_class_magic_cookie);
+		rb_const_set(rb_cObject, id, (VALUE)buf[i]);
 	}
     }
 
@@ -2981,11 +2977,8 @@ Init_ObjC(void)
 
     rb_objc_retain((const void *)(
 	bs_const_magic_cookie = rb_str_new2("bs_const_magic_cookie")));
-    rb_objc_retain((const void *)(
-	rb_objc_class_magic_cookie = rb_str_new2("rb_objc_class_magic_cookie")));
 
-    rb_cBoxed = rb_define_class("Boxed",
-	rb_objc_import_class(objc_getClass("NSValue")));
+    rb_cBoxed = rb_define_class("Boxed", (VALUE)objc_getClass("NSValue"));
     rb_define_singleton_method(rb_cBoxed, "objc_type", rb_boxed_objc_type, 0);
     rb_define_singleton_method(rb_cBoxed, "opaque?", rb_boxed_is_opaque, 0);
     rb_define_singleton_method(rb_cBoxed, "fields", rb_boxed_fields, 0);

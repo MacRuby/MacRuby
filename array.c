@@ -14,11 +14,13 @@
 #include "ruby/ruby.h"
 #include "ruby/util.h"
 #include "ruby/st.h"
+#include "id.h"
 
 VALUE rb_cArray;
 #if WITH_OBJC
 VALUE rb_cCFArray;
-VALUE rb_cArrayRuby;
+VALUE rb_cNSArray;
+VALUE rb_cNSMutableArray;
 #endif
 
 static ID id_cmp;
@@ -173,8 +175,7 @@ rb_cfarray_release_cb(CFAllocatorRef allocator, const void *v)
     rb_objc_release(v);
 }
 
-static void
-rb_ary_insert(VALUE ary, long idx, VALUE val);
+void rb_ary_insert(VALUE ary, long idx, VALUE val);
 #endif
 
 static VALUE
@@ -190,7 +191,7 @@ ary_alloc(VALUE klass)
     cb.equal = rb_cfarray_equal_cb;
 
     ary = (VALUE)CFArrayCreateMutable(NULL, 0, &cb);
-    if (klass != 0 && klass != rb_cArray && klass != rb_cArrayRuby)
+    if (klass != 0 && klass != rb_cNSArray && klass != rb_cNSMutableArray)
         *(Class *)ary = (Class)klass;
 
     CFMakeCollectable((CFTypeRef)ary);
@@ -410,7 +411,12 @@ rb_ary_initialize(int argc, VALUE *argv, VALUE ary)
     long len;
     VALUE size, val;
 
+#if WITH_OBJC
+    ary = (VALUE)objc_msgSend((id)ary, selInit);
+#else
     rb_ary_modify(ary);
+#endif
+
     if (argc ==  0) {
 #if !WITH_OBJC
 	if (RARRAY_PTR(ary) && !ARY_SHARED_P(ary)) {
@@ -500,7 +506,7 @@ rb_ary_s_create(int argc, VALUE *argv, VALUE klass)
 }
 
 #if WITH_OBJC
-static void
+void
 rb_ary_insert(VALUE ary, long idx, VALUE val)
 {
     if (idx < 0) {
@@ -4129,17 +4135,19 @@ void
 Init_Array(void)
 {
 #if WITH_OBJC
-    rb_cCFArray = rb_objc_import_class((Class)objc_getClass("NSCFArray"));;
-    rb_cArray = rb_objc_import_class((Class)objc_getClass("NSArray"));
-    rb_cArrayRuby = 
-	rb_objc_import_class((Class)objc_getClass("NSMutableArray"));
-    rb_const_set(rb_cObject, rb_intern("Array"), rb_cArrayRuby);
+    rb_cCFArray = (VALUE)objc_getClass("NSCFArray");
+    rb_cArray = rb_cNSArray = (VALUE)objc_getClass("NSArray");
+    rb_cNSMutableArray = (VALUE)objc_getClass("NSMutableArray");
+    rb_set_class_path(rb_cNSMutableArray, rb_cObject, "NSMutableArray");
+    rb_const_set(rb_cObject, rb_intern("Array"), rb_cNSMutableArray);
 #else
     rb_cArray  = rb_define_class("Array", rb_cObject);
 #endif
     rb_include_module(rb_cArray, rb_mEnumerable);
 
+#if !WITH_OBJC
     rb_define_alloc_func(rb_cArray, ary_alloc);
+#endif
     rb_define_singleton_method(rb_cArray, "[]", rb_ary_s_create, -1);
     rb_define_singleton_method(rb_cArray, "try_convert", rb_ary_s_try_convert, 1);
     rb_define_method(rb_cArray, "initialize", rb_ary_initialize, -1);

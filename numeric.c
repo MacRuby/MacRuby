@@ -3190,8 +3190,7 @@ Init_Numeric(void)
     rb_eZeroDivError = rb_define_class("ZeroDivisionError", rb_eStandardError);
     rb_eFloatDomainError = rb_define_class("FloatDomainError", rb_eRangeError);
 #if WITH_OBJC
-    rb_cNumeric = rb_define_class("Numeric",
-        rb_objc_import_class((void*)objc_getClass("NSNumber")));
+    rb_cNumeric = rb_define_class("Numeric", (VALUE)objc_getClass("NSNumber"));
     // We need to redefine #class because otherwise NSObject#class will return NSCFNumber for all numeric types.
     rb_define_method(rb_cNumeric, "class", rb_obj_class, 0);
 #else

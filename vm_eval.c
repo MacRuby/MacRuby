@@ -197,6 +197,14 @@ rb_call0(VALUE klass, VALUE recv, ID mid, int argc, const VALUE *argv,
     IMP imp;
     SEL sel;
 
+    if (argc > 0) {
+	char buf[512];
+	strncpy(buf, rb_id2name(mid), sizeof buf);
+	if (buf[strlen(buf) - 1] != ':')
+	    strlcat(buf, ":", sizeof buf);
+	mid = rb_intern(buf);
+    }
+
     method = rb_objc_method_node(klass, mid, &imp, &sel);    
 
     if (imp != NULL && method == NULL)

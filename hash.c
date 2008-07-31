@@ -15,6 +15,7 @@
 #include "ruby/st.h"
 #include "ruby/util.h"
 #include "ruby/signal.h"
+#include "id.h"
 
 #ifdef __APPLE__
 #include <crt_externs.h>
@@ -34,7 +35,8 @@ rb_hash_freeze(VALUE hash)
 VALUE rb_cHash;
 #if WITH_OBJC
 VALUE rb_cCFHash;
-VALUE rb_cHashRuby;
+VALUE rb_cNSHash;
+VALUE rb_cNSMutableHash;
 #endif
 
 static VALUE envtbl;
@@ -338,7 +340,7 @@ hash_alloc(VALUE klass)
     values_cb.equal = rb_cfdictionary_equal_cb;
 
     hash = (VALUE)CFDictionaryCreateMutable(NULL, 0, &keys_cb, &values_cb);
-    if (klass != 0 && klass != rb_cHash && klass != rb_cHashRuby)
+    if (klass != 0 && klass != rb_cNSHash && klass != rb_cNSMutableHash)
 	*(Class *)hash = (Class)klass;
 
     CFMakeCollectable((CFTypeRef)hash);
@@ -453,7 +455,12 @@ rb_hash_initialize(int argc, VALUE *argv, VALUE hash)
 {
     VALUE ifnone;
 
+#if WITH_OBJC
+    hash = (VALUE)objc_msgSend((id)hash, selInit);
+#else
     rb_hash_modify(hash);
+#endif
+
     if (rb_block_given_p()) {
 	if (argc > 0) {
 	    rb_raise(rb_eArgError, "wrong number of arguments");
@@ -3056,17 +3063,20 @@ Init_Hash(void)
     id_default = rb_intern("default");
 
 #if WITH_OBJC
-    rb_cCFHash = rb_objc_import_class((Class)objc_getClass("NSCFDictionary"));
-    rb_cHash = rb_objc_import_class((Class)objc_getClass("NSDictionary"));
-    rb_cHashRuby = rb_objc_import_class((Class)objc_getClass("NSMutableDictionary"));
-    rb_const_set(rb_cObject, rb_intern("Hash"), rb_cHashRuby);
+    rb_cCFHash = (VALUE)objc_getClass("NSCFDictionary");
+    rb_cHash = rb_cNSHash = (VALUE)objc_getClass("NSDictionary");
+    rb_cNSMutableHash = (VALUE)objc_getClass("NSMutableDictionary");
+    rb_set_class_path(rb_cNSMutableHash, rb_cObject, "NSMutableDictionary");
+    rb_const_set(rb_cObject, rb_intern("Hash"), rb_cNSMutableHash);
 #else
     rb_cHash = rb_define_class("Hash", rb_cObject);
 #endif
 
     rb_include_module(rb_cHash, rb_mEnumerable);
 
+#if !WITH_OBJC
     rb_define_alloc_func(rb_cHash, hash_alloc);
+#endif
     rb_define_singleton_method(rb_cHash, "[]", rb_hash_s_create, -1);
     rb_define_singleton_method(rb_cHash, "try_convert", rb_hash_s_try_convert, 1);
     rb_define_method(rb_cHash,"initialize", rb_hash_initialize, -1);

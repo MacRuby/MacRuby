@@ -58,6 +58,7 @@ Init_id(void)
     selLength = sel_registerName("length");
     selSucc = sel_registerName("succ");
     selNot = sel_registerName("!");
+    selInit = sel_registerName("init");
 #endif
 
     idAREF = rb_intern("[]");

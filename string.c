@@ -14,6 +14,7 @@
 #include "ruby/ruby.h"
 #include "ruby/re.h"
 #include "ruby/encoding.h"
+#include "id.h"
 
 #define BEG(no) regs->beg[no]
 #define END(no) regs->end[no]
@@ -28,7 +29,8 @@
 VALUE rb_cString;
 #if WITH_OBJC
 VALUE rb_cCFString;
-VALUE rb_cStringRuby;
+VALUE rb_cNSString;
+VALUE rb_cNSMutableString;
 #endif
 VALUE rb_cSymbol;
 
@@ -475,8 +477,8 @@ str_alloc(VALUE klass)
 
     str = (VALUE)CFStringCreateMutable(NULL, 0);
     if (klass != 0 
-	&& klass != rb_cString 
-	&& klass != rb_cStringRuby 
+	&& klass != rb_cNSString 
+	&& klass != rb_cNSMutableString
 	&& klass != rb_cSymbol)
 	*(Class *)str = (Class)klass;
     CFMakeCollectable((CFTypeRef)str);
@@ -913,6 +915,10 @@ static VALUE
 rb_str_init(int argc, VALUE *argv, VALUE str)
 {
     VALUE orig;
+
+#if WITH_OBJC
+    str = (VALUE)objc_msgSend((id)str, selInit);
+#endif
 
     if (argc > 0 && rb_scan_args(argc, argv, "01", &orig) == 1)
 	rb_str_replace(str, orig);
@@ -8516,17 +8522,21 @@ void
 Init_String(void)
 {
 #if WITH_OBJC
-    rb_cCFString = rb_objc_import_class((Class)objc_getClass("NSCFString"));
-    rb_cString = rb_objc_import_class((Class)objc_getClass("NSString"));
-    rb_cStringRuby =
-        rb_objc_import_class((Class)objc_getClass("NSMutableString"));
-    rb_const_set(rb_cObject, rb_intern("String"), rb_cStringRuby);
+    rb_cCFString = (VALUE)objc_getClass("NSCFString");
+    rb_cString = rb_cNSString = (VALUE)objc_getClass("NSString");
+    rb_cNSMutableString = (VALUE)objc_getClass("NSMutableString");
+    rb_const_set(rb_cObject, rb_intern("String"), rb_cNSMutableString);
+    rb_set_class_path(rb_cNSMutableString, rb_cObject, "NSMutableString");
     rb_define_method(rb_cString, "__bytestring__?", rb_str_bytestring_m, 0);
 #else
     rb_cString  = rb_define_class("String", rb_cObject);
 #endif
+
     rb_include_module(rb_cString, rb_mComparable);
+
+#if !WITH_OBJC
     rb_define_alloc_func(rb_cString, str_alloc);
+#endif
     rb_define_singleton_method(rb_cString, "try_convert", rb_str_s_try_convert, 1);
     rb_define_method(rb_cString, "initialize", rb_str_init, -1);
     rb_define_method(rb_cString, "initialize_copy", rb_str_replace, 1);

@@ -24,66 +24,6 @@ extern st_table *rb_class_tbl;
 
 #if WITH_OBJC
 
-VALUE
-rb_objc_import_class(Class ocklass)
-{
-#if 0
-    VALUE rbklass;
-    ID nameid;
-    VALUE super;
-
-    assert(ocklass != NULL);
-    assert(class_isMetaClass(ocklass) == 0);
-
-    {
-	NEWOBJ(obj, struct RClass);
-	OBJSETUP(obj, rb_cClass, T_CLASS);
-	rbklass = (VALUE)obj;
-    }
-
-    RBASIC(rbklass)->isa = ocklass->isa;
-    RCLASS(rbklass)->ocklass = ocklass;
-
-    RCLASS_M_TBL(rbklass) = st_init_numtable();
-
-    nameid = rb_intern(class_getName(ocklass));
-
-    if (rb_cObject != 0 && RCLASS_IV_TBL(rb_cObject) != NULL)
-	st_delete(RCLASS_IV_TBL(rb_cObject), (st_data_t*)&nameid, NULL);
-    rb_const_set((rb_cObject != 0 ? rb_cObject : rbklass), nameid, rbklass);   
-
-    /* FIXME do we need to maintain rb_class_tbl anymore? */
-    st_insert(rb_class_tbl, (st_data_t)nameid, (st_data_t)rbklass);
-
-    ocklass = class_getSuperclass(ocklass);
-
-    /* Hack: make sure that all classes that inherit from NSObject have their
-     * Ruby class counterpart inherit from Object first.
-     * This is because constants declared in Object are meant to be visible
-     * in all scopes, and we need to be able to access them in Ruby-written
-     * subclasses of Objective-C classes. 
-     */
-    if (rb_cBasicObject != 0
-	&& rb_cObject != 0
-	&& ocklass == RCLASS_OCID(rb_cBasicObject)) {
-	super = rb_cObject;
-    }
-    else {
-	super = ocklass == NULL ? 0 : rb_objc_import_class(ocklass);
-    }
-
-    RCLASS_SUPER(rbklass) = super;
-    OBJ_INFECT(rbklass, super);
-    FL_SET(rbklass, RCLASS_OBJC_IMPORTED);
-
-    if (super != 0)
-	rb_make_metaclass(rbklass, RBASIC(super)->klass);
-
-    return rbklass;
-#endif
-    return (VALUE)ocklass;
-}
-
 void rb_objc_install_array_primitives(Class);
 void rb_objc_install_hash_primitives(Class);
 void rb_objc_install_string_primitives(Class);
@@ -175,13 +115,6 @@ rb_objc_create_class(const char *name, VALUE super)
     if (name != NULL) 
 	st_insert(rb_class_tbl, (st_data_t)rb_intern(name), (st_data_t)klass);
 
-    return klass;
-}
-
-VALUE
-rb_objc_rename_class(VALUE klass, const char *name)
-{
-    /* TODO */
     return klass;
 }
 
@@ -280,18 +213,17 @@ VALUE
 rb_mod_init_copy(VALUE clone, VALUE orig)
 {
     rb_obj_init_copy(clone, orig);
-    if (!FL_TEST(CLASS_OF(clone), FL_SINGLETON)) {
+    if (!RCLASS_SINGLETON(CLASS_OF(clone))) {
 	RBASIC(clone)->klass = rb_singleton_class_clone(orig);
     }
-#if !WITH_OBJC
-    RCLASS_SUPER(clone) = RCLASS_SUPER(orig);
-#endif
 #if WITH_OBJC
     {
 	Class ocsuper;
-	if (orig == rb_cStringRuby
-	    || orig == rb_cArrayRuby
-	    || orig == rb_cHashRuby) {
+	int version_flag;
+
+	if (orig == rb_cNSMutableString
+	    || orig == rb_cNSMutableArray
+	    || orig == rb_cNSMutableHash) {
 	    ocsuper = (Class)orig;
 	    rb_warn("cloning class `%s' is not supported, creating a " \
 		    "subclass instead", rb_class2name(orig));
@@ -300,7 +232,15 @@ rb_mod_init_copy(VALUE clone, VALUE orig)
 	    ocsuper = class_getSuperclass((Class)orig);
 	}
 	class_setSuperclass((Class)clone, ocsuper);
+
+	version_flag = RCLASS_IS_RUBY_CLASS;
+	if ((RCLASS_VERSION(ocsuper) & RCLASS_IS_OBJECT_SUBCLASS) == RCLASS_IS_OBJECT_SUBCLASS)
+	    version_flag |= RCLASS_IS_OBJECT_SUBCLASS;
+
+	class_setVersion((Class)clone, version_flag);
     }
+#else
+    RCLASS_SUPER(clone) = RCLASS_SUPER(orig);
 #endif
 #if 0 // TODO
     if (RCLASS_IV_TBL(orig)) {
@@ -329,10 +269,12 @@ rb_mod_init_copy(VALUE clone, VALUE orig)
 VALUE
 rb_class_init_copy(VALUE clone, VALUE orig)
 {
+#if !WITH_OBJC
     if (RCLASS_SUPER(clone) != 0) {
 	rb_raise(rb_eTypeError, "already initialized class");
     }
-    if (FL_TEST(orig, FL_SINGLETON)) {
+#endif
+    if (RCLASS_SINGLETON(orig)) {
 	rb_raise(rb_eTypeError, "can't copy singleton class");
     }
     clone =  rb_mod_init_copy(clone, orig);
@@ -635,7 +577,7 @@ rb_include_module(VALUE klass, VALUE module)
 	ary = rb_ary_new();
 	rb_ivar_set(klass, idIncludedModules, ary);
     }
-    rb_ary_push(ary, module);
+    rb_ary_insert(ary, 0, module);
 
     ary = rb_ivar_get(module, idIncludedInClasses);
     if (ary == Qnil) {
@@ -727,9 +669,18 @@ rb_mod_included_modules(VALUE mod)
     VALUE p;
 
     for (p = RCLASS_SUPER(mod); p; p = RCLASS_SUPER(p)) {
+#if WITH_OBJC
+	VALUE inc_mods = rb_ivar_get(p, idIncludedModules);
+	if (inc_mods != Qnil) {
+	    int i, count = RARRAY_LEN(inc_mods);
+	    for (i = 0; i < count; i++)
+		rb_ary_push(ary, RARRAY_AT(inc_mods, i));
+	}
+#else
 	if (BUILTIN_TYPE(p) == T_ICLASS) {
 	    rb_ary_push(ary, RBASIC(p)->klass);
 	}
+#endif
     }
     return ary;
 }
@@ -756,6 +707,9 @@ rb_mod_included_modules(VALUE mod)
 VALUE
 rb_mod_include_p(VALUE mod, VALUE mod2)
 {
+#if WITH_OBJC
+    return rb_ary_includes(rb_mod_included_modules(mod), mod2);
+#else
     VALUE p;
 
     Check_Type(mod2, T_MODULE);
@@ -765,6 +719,7 @@ rb_mod_include_p(VALUE mod, VALUE mod2)
 	}
     }
     return Qfalse;
+#endif
 }
 
 /*
@@ -790,7 +745,15 @@ rb_mod_ancestors(VALUE mod)
 
     for (p = mod; p; p = RCLASS_SUPER(p)) {
 #if WITH_OBJC
+	VALUE inc_mods;
+
 	rb_ary_push(ary, p);
+	inc_mods = rb_ivar_get(p, idIncludedModules);
+	if (inc_mods != Qnil) {
+	    int i, count;
+	    for (i = 0, count = RARRAY_LEN(inc_mods); i < count; i++)
+		rb_ary_push(ary, RARRAY_AT(inc_mods, i));
+	}
 #else
 	if (RCLASS_SINGLETON(p))
 	    continue;

@@ -70,6 +70,7 @@ extern SEL selASET;
 extern SEL selLength;
 extern SEL selSucc;
 extern SEL selNot;
+extern SEL selInit;
 extern ID idIncludedModules;
 extern ID idIncludedInClasses;
 #endif

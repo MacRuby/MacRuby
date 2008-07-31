@@ -16,6 +16,7 @@
 #include "ruby/st.h"
 #include "ruby/util.h"
 #include "debug.h"
+#include "id.h"
 
 void rb_vm_change_state(void);
 st_table *rb_global_tbl;
@@ -285,9 +286,6 @@ rb_set_class_path(VALUE klass, VALUE under, const char *name)
     }
     OBJ_FREEZE(str);
     rb_ivar_set(klass, classpath, str);
-#if WITH_OBJC
-    rb_objc_rename_class(klass, RSTRING_PTR(str));
-#endif
 }
 
 VALUE
@@ -2021,7 +2019,7 @@ rb_const_get_0(VALUE klass, ID id, int exclude, int recurse)
   retry:
     while (RTEST(tmp)) {
 #if WITH_OBJC
-	CFDictionaryRef iv_dict = rb_class_ivar_dict(tmp);
+	CFDictionaryRef iv_dict;
 	while ((iv_dict = rb_class_ivar_dict(tmp)) != NULL
 	       && CFDictionaryGetValueIfPresent(iv_dict, (const void *)id, (const void **)&value)) {
 #else
@@ -2041,6 +2039,17 @@ rb_const_get_0(VALUE klass, ID id, int exclude, int recurse)
 	    return value;
 	}
 	if (!recurse && klass != rb_cObject) break;
+#if WITH_OBJC
+	VALUE inc_mods = rb_ivar_get(tmp, idIncludedModules);
+	if (inc_mods != Qnil) {
+	    int i, count = RARRAY_LEN(inc_mods);
+	    for (i = 0; i < count; i++) {
+		iv_dict = rb_class_ivar_dict(RARRAY_AT(inc_mods, i));
+		if (CFDictionaryGetValueIfPresent(iv_dict, (const void *)id, (const void **)&value))
+		    return rb_objc_resolve_const_value(value, klass, id);
+	    }
+	}
+#endif
 	tmp = RCLASS_SUPER(tmp);
     }
     if (!exclude && !mod_retry && BUILTIN_TYPE(klass) == T_MODULE) {
@@ -2057,11 +2066,8 @@ rb_const_get_0(VALUE klass, ID id, int exclude, int recurse)
      */
     {
 	Class k = (Class)objc_getClass(rb_id2name(id));
-	if (k != NULL) {
-	    tmp = rb_objc_import_class(k);
-	    if (!NIL_P(tmp))
-		return tmp;
-	}
+	if (k != NULL)
+	    return (VALUE)k;
     }
 #endif
 

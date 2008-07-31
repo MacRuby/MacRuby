@@ -77,6 +77,7 @@ VALUE rb_ary_includes(VALUE, VALUE);
 VALUE rb_ary_cmp(VALUE, VALUE);
 VALUE rb_ary_replace(VALUE copy, VALUE orig);
 VALUE rb_get_values_at(VALUE, long, int, VALUE*, VALUE(*)(VALUE,long));
+void rb_ary_insert(VALUE, long, VALUE);
 #if WITH_OBJC
 VALUE rb_ary_elt(VALUE, long);
 bool rb_objc_ary_is_pure(VALUE);
@@ -147,9 +148,7 @@ VALUE rb_Complex(VALUE, VALUE);
 #define rb_Complex2(x,y) rb_Complex(x, y)
 /* class.c */
 #if WITH_OBJC
-VALUE rb_objc_import_class(Class);
 VALUE rb_objc_create_class(const char *name, VALUE super);
-VALUE rb_objc_rename_class(VALUE klass, const char *name);
 bool rb_objc_install_primitives(Class ocklass, Class ocsuper);
 #endif
 VALUE rb_class_boot(VALUE);
@@ -279,7 +278,7 @@ int rb_provided(const char*);
 void rb_provide(const char*);
 VALUE rb_f_require(VALUE, VALUE);
 VALUE rb_require_safe(VALUE, int);
-void rb_obj_call_init(VALUE, int, VALUE*);
+VALUE rb_obj_call_init(VALUE, int, VALUE*);
 VALUE rb_class_new_instance(int, VALUE*, VALUE);
 VALUE rb_block_proc(void);
 VALUE rb_f_lambda(void);

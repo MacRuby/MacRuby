@@ -289,6 +289,8 @@ call_init_copy:
  *  the class.
  */
 
+static VALUE rb_class_s_alloc(VALUE);
+
 VALUE
 rb_obj_clone(VALUE obj)
 {
@@ -298,19 +300,31 @@ rb_obj_clone(VALUE obj)
         rb_raise(rb_eTypeError, "can't clone %s", rb_obj_classname(obj));
     }
 #if WITH_OBJC
-    if (NATIVE(obj)) {
-        clone = rb_obj_alloc(rb_obj_class(obj));
-        init_copy(clone, obj);
-	if (OBJ_FROZEN(obj))
-	    OBJ_FREEZE(clone);
-	return clone;
+    switch (TYPE(obj)) {
+	case T_NATIVE:
+	    clone = rb_obj_alloc(rb_obj_class(obj));
+	    break;
+	case T_CLASS:
+	case T_MODULE:
+	    clone = rb_class_s_alloc(Qnil);
+	    break;
+	default:
+	    clone = rb_obj_alloc(rb_obj_class(obj));
+	    RBASIC(clone)->klass = rb_singleton_class_clone(obj);
+	    RBASIC(clone)->flags = (RBASIC(obj)->flags | FL_TEST(clone, FL_TAINT)) & ~(FL_FREEZE|FL_FINALIZE);
+	    break;
     }
-#endif
+
+    init_copy(clone, obj);
+    if (OBJ_FROZEN(obj))
+	OBJ_FREEZE(clone);
+#else
     clone = rb_obj_alloc(rb_obj_class(obj));
     RBASIC(clone)->klass = rb_singleton_class_clone(obj);
     RBASIC(clone)->flags = (RBASIC(obj)->flags | FL_TEST(clone, FL_TAINT)) & ~(FL_FREEZE|FL_FINALIZE);
     init_copy(clone, obj);
     RBASIC(clone)->flags |= RBASIC(obj)->flags & FL_FREEZE;
+#endif
 
     return clone;
 }
@@ -353,7 +367,11 @@ rb_obj_init_copy(VALUE obj, VALUE orig)
 {
     if (obj == orig) return obj;
     rb_check_frozen(obj);
+#if WITH_OBJC
+    if (TYPE(obj) != TYPE(orig)) {
+#else
     if (TYPE(obj) != TYPE(orig) || rb_obj_class(obj) != rb_obj_class(orig)) {
+#endif
 	rb_raise(rb_eTypeError, "initialize_copy should take same class object");
     }
     return obj;
@@ -1500,9 +1518,11 @@ rb_class_initialize(int argc, VALUE *argv, VALUE klass)
 {
     VALUE super;
 
+#if !WITH_OBJC
     if (RCLASS_SUPER(klass) != 0) {
 	rb_raise(rb_eTypeError, "already initialized class");
     }
+#endif
     if (argc == 0) {
 	super = rb_cObject;
     }
@@ -1513,8 +1533,9 @@ rb_class_initialize(int argc, VALUE *argv, VALUE klass)
     RCLASS_SUPER(klass) = super;
 #if WITH_OBJC
     rb_objc_install_primitives((Class)klass, (Class)super);
-#endif
+#else
     rb_make_metaclass(klass, RBASIC(super)->klass);
+#endif
     rb_class_inherited(super, klass);
     rb_mod_initialize(klass);
 
@@ -1573,19 +1594,16 @@ rb_class_allocate_instance(VALUE klass)
 VALUE
 rb_class_new_instance(int argc, VALUE *argv, VALUE klass)
 {
-    VALUE obj;
+    VALUE obj, init_obj, p;
 
-#if 0//WITH_OBJC
-    if (FL_TEST(klass, RCLASS_OBJC_IMPORTED)) {
-	static SEL sel_new = 0;
-	if (sel_new == 0)
-	    sel_new = sel_registerName("new");
-	obj = (VALUE)objc_msgSend((id)RCLASS_OCID(klass), sel_new);
-	return obj;
-    }
-#endif
     obj = rb_obj_alloc(klass);
-    rb_obj_call_init(obj, argc, argv);
+    init_obj = rb_obj_call_init(obj, argc, argv);
+    p = CLASS_OF(init_obj);
+    while (p != 0) {
+	if (p == klass)
+	    return init_obj;
+	p = RCLASS_SUPER(p);
+    }
 
     return obj;
 }
@@ -1603,6 +1621,7 @@ rb_class_new_instance(int argc, VALUE *argv, VALUE klass)
  *     
  */
 
+#if !WITH_OBJC
 static VALUE
 rb_class_superclass(VALUE klass)
 {
@@ -1620,6 +1639,7 @@ rb_class_superclass(VALUE klass)
     }
     return super;
 }
+#endif
 
 /*
  *  call-seq:
@@ -2719,7 +2739,9 @@ Init_Object(void)
     rb_define_method(rb_cClass, "new", rb_class_new_instance, -1);
     rb_define_method(rb_cClass, "initialize", rb_class_initialize, -1);
     rb_define_method(rb_cClass, "initialize_copy", rb_class_init_copy, 1); /* in class.c */
+#if !WITH_OBJC
     rb_define_method(rb_cClass, "superclass", rb_class_superclass, 0);
+#endif
     rb_define_alloc_func(rb_cClass, rb_class_s_alloc);
     rb_undef_method(rb_cClass, "extend_object");
     rb_undef_method(rb_cClass, "append_features");

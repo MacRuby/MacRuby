@@ -857,11 +857,11 @@ rb_mod_include(int argc, VALUE *argv, VALUE module)
     return module;
 }
 
-void
+VALUE
 rb_obj_call_init(VALUE obj, int argc, VALUE *argv)
 {
     PASS_PASSED_BLOCK();
-    rb_funcall2(obj, idInitialize, argc, argv);
+    return rb_funcall2(obj, idInitialize, argc, argv);
 }
 
 void
