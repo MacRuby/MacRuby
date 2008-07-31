@@ -1408,11 +1408,7 @@ opt_plus
       INSN_LABEL(normal_dispatch):
 	PUSH(recv);
 	PUSH(obj);
-
-	static SEL selPLUS=0;
-	if (selPLUS==0) { selPLUS = sel_registerName("+:"); }
-	CALL_METHOD(1, 0, 0, idPLUS, NULL, recv, CLASS_OF(recv), (SEL)selPLUS);
-	//CALL_SIMPLE_METHOD(1, idPLUS, recv);
+	CALL_SIMPLE_METHOD(1, idPLUS, recv, selPLUS);
     }
 }
 
@@ -1446,7 +1442,7 @@ opt_minus
 	/* other */
 	PUSH(recv);
 	PUSH(obj);
-	CALL_SIMPLE_METHOD(1, idMINUS, recv);
+	CALL_SIMPLE_METHOD(1, idMINUS, recv, selMINUS);
     }
 }
 
@@ -1499,7 +1495,7 @@ opt_mult
       INSN_LABEL(normal_dispatch):
 	PUSH(recv);
 	PUSH(obj);
-	CALL_SIMPLE_METHOD(1, idMULT, recv);
+	CALL_SIMPLE_METHOD(1, idMULT, recv, selMULT);
     }
 }
 
@@ -1563,7 +1559,7 @@ opt_div
       INSN_LABEL(normal_dispatch):
 	PUSH(recv);
 	PUSH(obj);
-	CALL_SIMPLE_METHOD(1, idDIV, recv);
+	CALL_SIMPLE_METHOD(1, idDIV, recv, selDIV);
     }
 }
 
@@ -1642,7 +1638,7 @@ opt_mod
       INSN_LABEL(normal_dispatch):
 	PUSH(recv);
 	PUSH(obj);
-	CALL_SIMPLE_METHOD(1, idMOD, recv);
+	CALL_SIMPLE_METHOD(1, idMOD, recv, selMOD);
     }
 }
 
@@ -1663,7 +1659,7 @@ opt_eq
 	/* other */
 	PUSH(recv);
 	PUSH(obj);
-	CALL_SIMPLE_METHOD(1, idEq, recv);
+	CALL_SIMPLE_METHOD(1, idEq, recv, selEq);
     }
 }
 
@@ -1694,7 +1690,7 @@ opt_neq
 	/* other */
 	PUSH(recv);
 	PUSH(obj);
-	CALL_SIMPLE_METHOD(1, idNeq, recv);
+	CALL_SIMPLE_METHOD(1, idNeq, recv, selNeq);
     }
 }
 
@@ -1723,9 +1719,7 @@ opt_lt
     else {
 	PUSH(recv);
 	PUSH(obj);
-	//static SEL selPLUS=0;
-	//if (selPLUS==0) { selPLUS = sel_registerName("+:"); }
-	CALL_SIMPLE_METHOD(1, idLT, recv);
+	CALL_SIMPLE_METHOD(1, idLT, recv, selLT);
     }
 }
 
@@ -1755,7 +1749,7 @@ opt_le
 	/* other */
 	PUSH(recv);
 	PUSH(obj);
-	CALL_SIMPLE_METHOD(1, idLE, recv);
+	CALL_SIMPLE_METHOD(1, idLE, recv, selLE);
     }
 }
 
@@ -1784,7 +1778,7 @@ opt_gt
     else {
 	PUSH(recv);
 	PUSH(obj);
-	CALL_SIMPLE_METHOD(1, idGT, recv);
+	CALL_SIMPLE_METHOD(1, idGT, recv, selGT);
     }
 }
 
@@ -1813,7 +1807,7 @@ opt_ge
     else {
 	PUSH(recv);
 	PUSH(obj);
-	CALL_SIMPLE_METHOD(1, idGE, recv);
+	CALL_SIMPLE_METHOD(1, idGE, recv, selGE);
     }
 }
 
@@ -1847,7 +1841,7 @@ opt_ltlt
       INSN_LABEL(normal_dispatch):
 	PUSH(recv);
 	PUSH(obj);
-	CALL_SIMPLE_METHOD(1, idLTLT, recv);
+	CALL_SIMPLE_METHOD(1, idLTLT, recv, selLTLT);
     }
 }
 
@@ -1877,7 +1871,7 @@ opt_aref
       INSN_LABEL(normal_dispatch):
 	PUSH(recv);
 	PUSH(obj);
-	CALL_SIMPLE_METHOD(1, idAREF, recv);
+	CALL_SIMPLE_METHOD(1, idAREF, recv, selAREF);
     }
 }
 
@@ -1911,7 +1905,7 @@ opt_aset
 	PUSH(recv);
 	PUSH(obj);
 	PUSH(set);
-	CALL_SIMPLE_METHOD(2, idASET, recv);
+	CALL_SIMPLE_METHOD(2, idASET, recv, selASET);
     }
 }
 
@@ -1944,7 +1938,7 @@ opt_length
     else {
       INSN_LABEL(normal_dispatch):
 	PUSH(recv);
-	CALL_SIMPLE_METHOD(0, idLength, recv);
+	CALL_SIMPLE_METHOD(0, idLength, recv, selLength);
     }
 }
 
@@ -1991,7 +1985,7 @@ opt_succ
     if (0) {
       INSN_LABEL(normal_dispatch):
 	PUSH(recv);
-	CALL_SIMPLE_METHOD(0, idSucc, recv);
+	CALL_SIMPLE_METHOD(0, idSucc, recv, selSucc);
     }
 }
 
@@ -2014,7 +2008,7 @@ opt_not
     }
     else {
 	PUSH(recv);
-	CALL_SIMPLE_METHOD(0, idNot, recv);
+	CALL_SIMPLE_METHOD(0, idNot, recv, selNot);
     }
 }
 

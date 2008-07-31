@@ -8711,14 +8711,6 @@ process_named_args_gen(struct parser_params *parser, NODE *n)
 	n->nd_mid = rb_intern(buf);
 	n->nd_args = new_argv;
     }
-    else if (args != NULL && args->nd_argc >= 1) {
-	char buf[512];
-
-	strlcpy(buf, rb_id2name(n->u2.id), sizeof buf);
-	strlcat(buf, ":", sizeof buf);
-
-	n->nd_mid = rb_intern(buf);
-    }
     return n;
 }
 

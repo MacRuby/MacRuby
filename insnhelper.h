@@ -140,9 +140,9 @@
 #define BASIC_OP_UNREDEFINED_P(op) ((ruby_vm_redefined_flag & (op)) == 0)
 #define HEAP_CLASS_OF(obj) RBASIC(obj)->klass
 
-#define CALL_SIMPLE_METHOD(num, id, recv) do { \
+#define CALL_SIMPLE_METHOD(num, id, recv, sel) do { \
     VALUE klass = CLASS_OF(recv); \
-    CALL_METHOD(num, 0, 0, id, rb_method_node(klass, id), recv, CLASS_OF(recv), (SEL)0); \
+    CALL_METHOD(num, 0, 0, id, rb_method_node(klass, id), recv, CLASS_OF(recv), sel); \
 } while (0)
 
 #endif /* RUBY_INSNHELPER_H */

@@ -53,6 +53,23 @@ extern ID id__send__;
 extern ID idRespond_to;
 extern ID idInitialize;
 #if WITH_OBJC
+extern SEL selPLUS;
+extern SEL selMINUS;
+extern SEL selMULT;
+extern SEL selDIV;
+extern SEL selMOD;
+extern SEL selEq;
+extern SEL selNeq;
+extern SEL selLT;
+extern SEL selLE;
+extern SEL selGT;
+extern SEL selGE;
+extern SEL selLTLT;
+extern SEL selAREF;
+extern SEL selASET;
+extern SEL selLength;
+extern SEL selSucc;
+extern SEL selNot;
 extern ID idIncludedModules;
 extern ID idIncludedInClasses;
 #endif

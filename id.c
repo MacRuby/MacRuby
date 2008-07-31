@@ -40,6 +40,26 @@ Init_id(void)
     idNot = rb_intern("!");
     idNeq = rb_intern("!=");
 
+#if WITH_OBJC
+    selPLUS = sel_registerName("+:");
+    selMINUS = sel_registerName("-:");
+    selMULT = sel_registerName("*:");
+    selDIV = sel_registerName("/:");
+    selMOD = sel_registerName("%:");
+    selEq = sel_registerName("==:");
+    selNeq = sel_registerName("!=:");
+    selLT = sel_registerName("<:");
+    selLE = sel_registerName("<=:");
+    selGT = sel_registerName(">:");
+    selGE = sel_registerName(">=:");
+    selLTLT = sel_registerName("<<:");
+    selAREF = sel_registerName("[]:");
+    selASET = sel_registerName("[]=:");
+    selLength = sel_registerName("length");
+    selSucc = sel_registerName("succ");
+    selNot = sel_registerName("!");
+#endif
+
     idAREF = rb_intern("[]");
     idASET = rb_intern("[]=");
 

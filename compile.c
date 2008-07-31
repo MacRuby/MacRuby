@@ -693,7 +693,17 @@ new_insn_send(rb_iseq_t *iseq, int line_no,
     operands[2] = block;
     operands[3] = flag;
     operands[4] = 0;
-    operands[5] = (VALUE)sel_registerName(rb_id2name(SYM2ID(id)));
+    if (FIX2INT(argc) > 0) {
+        char buf[512];
+
+        strlcpy(buf, rb_id2name(SYM2ID(id)), sizeof buf);
+	if (buf[strlen(buf) - 1] != ':')
+	    strlcat(buf, ":", sizeof buf);
+	operands[5] = (VALUE)sel_registerName(buf);
+    }
+    else {
+	operands[5] = (VALUE)sel_registerName(rb_id2name(SYM2ID(id)));
+    }
     operands[6] = 0;
     iobj = new_insn_core(iseq, line_no, BIN(send), 6, operands);
     return iobj;
@@ -1609,6 +1619,11 @@ iseq_specialized_instruction(rb_iseq_t *iseq, INSN *iobj)
 		}
 		else if (mid == idAREF) {
 		    insn_set_specialized_instruction(iobj, BIN(opt_aref));
+		}
+	    }
+	    else if (argc == 2) {
+		if (mid == idASET) {
+		    insn_set_specialized_instruction(iobj, BIN(opt_aset));
 		}
 	    }
 	}
