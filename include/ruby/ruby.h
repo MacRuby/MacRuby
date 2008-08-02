@@ -229,9 +229,15 @@ VALUE rb_ull2inum(unsigned LONG_LONG);
 
 #define IMMEDIATE_P(x) ((VALUE)(x) & IMMEDIATE_MASK)
 
-#define SYMBOL_P(x) (((VALUE)(x)&~(~(VALUE)0<<RUBY_SPECIAL_SHIFT))==SYMBOL_FLAG)
-#define ID2SYM(x) (((VALUE)(x)<<RUBY_SPECIAL_SHIFT)|SYMBOL_FLAG)
-#define SYM2ID(x) RSHIFT((unsigned long)x,RUBY_SPECIAL_SHIFT)
+#if WITH_OBJC
+# define SYMBOL_P(x) (TYPE(x) == T_SYMBOL)
+# define ID2SYM(x) (rb_id2str((ID)x))
+# define SYM2ID(x) (RSYMBOL(x)->id)
+#else
+# define SYMBOL_P(x) (((VALUE)(x)&~(~(VALUE)0<<RUBY_SPECIAL_SHIFT))==SYMBOL_FLAG)
+# define ID2SYM(x) (((VALUE)(x)<<RUBY_SPECIAL_SHIFT)|SYMBOL_FLAG)
+# define SYM2ID(x) RSHIFT((unsigned long)x,RUBY_SPECIAL_SHIFT)
+#endif
 
 /* special contants - i.e. non-zero and non-fixnum constants */
 enum ruby_special_consts {
@@ -242,7 +248,9 @@ enum ruby_special_consts {
 
     RUBY_IMMEDIATE_MASK = 0x03,
     RUBY_FIXNUM_FLAG    = 0x01,
+#if !WITH_OBJC
     RUBY_SYMBOL_FLAG    = 0x0e,
+#endif
     RUBY_SPECIAL_SHIFT  = 8,
 };
 
@@ -252,7 +260,9 @@ enum ruby_special_consts {
 #define Qundef ((VALUE)RUBY_Qundef)	/* undefined value for placeholder */
 #define IMMEDIATE_MASK RUBY_IMMEDIATE_MASK
 #define FIXNUM_FLAG RUBY_FIXNUM_FLAG
-#define SYMBOL_FLAG RUBY_SYMBOL_FLAG
+#if !WITH_OBJC
+# define SYMBOL_FLAG RUBY_SYMBOL_FLAG
+#endif
 
 #define RTEST(v) (((VALUE)(v) & ~Qnil) != 0)
 #define NIL_P(v) ((VALUE)(v) == Qnil)
@@ -504,11 +514,6 @@ struct RClass {
 #  define _RCLASS_INFO(m) (*(long *)((void *)m + (sizeof(void *) * 4)))
 #  define RCLASS_SINGLETON(m) (_RCLASS_INFO(m) & CLS_META)
 # endif
-# define NATIVE(obj) \
-    (*(Class *)obj != NULL \
-     && *(Class *)obj != (Class)rb_cBignum \
-     && *(Class *)obj != (Class)rb_cFloat \
-     && (RCLASS_VERSION(*(Class *)obj) & RCLASS_IS_OBJECT_SUBCLASS) != RCLASS_IS_OBJECT_SUBCLASS)
 # define RCLASS_RUBY(m) ((RCLASS_VERSION(m) & RCLASS_IS_RUBY_CLASS) == RCLASS_IS_RUBY_CLASS)
 # define RCLASS_MODULE(m) ((RCLASS_VERSION(m) & RCLASS_IS_MODULE) == RCLASS_IS_MODULE)
 CFMutableDictionaryRef rb_class_ivar_dict(VALUE);
@@ -522,6 +527,20 @@ struct RFloat {
 };
 #define RFLOAT_VALUE(v) (RFLOAT(v)->float_value)
 #define DOUBLE2NUM(dbl)  rb_float_new(dbl)
+
+#if WITH_OBJC
+struct RFixnum {
+    VALUE klass;
+    long value;
+};
+
+struct RSymbol {
+    VALUE klass;
+    char *str;
+    unsigned int len;
+    ID id;
+};
+#endif
 
 #define ELTS_SHARED FL_USER2
 
@@ -595,7 +614,6 @@ struct RArray {
  */
 const VALUE *rb_ary_ptr(VALUE);
 # define RARRAY_PTR(a) (rb_ary_ptr((VALUE)a)) 
-# define RARRAY_AT(a,i) ((VALUE)CFArrayGetValueAtIndex((CFArrayRef)a, (long)i))
 #endif
 
 struct RRegexp {
@@ -730,6 +748,10 @@ struct RBignum {
 #define RBASIC(obj)  (R_CAST(RBasic)(obj))
 #define ROBJECT(obj) (R_CAST(RObject)(obj))
 #define RFLOAT(obj)  (R_CAST(RFloat)(obj))
+#if WITH_OBJC
+# define RFIXNUM(obj) (R_CAST(RFixnum)(obj))
+# define RSYMBOL(obj) (R_CAST(RSymbol)(obj))
+#endif
 #define RSTRING(obj) (R_CAST(RString)(obj))
 #define RREGEXP(obj) (R_CAST(RRegexp)(obj))
 #if !WITH_OBJC
@@ -858,9 +880,19 @@ void rb_gc_unregister_address(VALUE*);
 ID rb_intern(const char*);
 ID rb_intern2(const char*, long);
 ID rb_intern_str(VALUE str);
-const char *rb_id2name(ID);
 ID rb_to_id(VALUE);
 VALUE rb_id2str(ID);
+#if WITH_OBJC
+# define rb_sym2name(sym) (RSYMBOL(sym)->str)
+static inline
+const char *rb_id2name(ID val)
+{
+    VALUE s = rb_id2str(val);
+    return s == 0 ? NULL : rb_sym2name(s);
+}
+#else
+const char *rb_id2name(ID);
+#endif
 
 #ifdef __GNUC__
 /* __builtin_constant_p and statement expression is available
@@ -1016,6 +1048,7 @@ RUBY_EXTERN VALUE rb_cNSMutableArray;
 RUBY_EXTERN VALUE rb_cCFHash;
 RUBY_EXTERN VALUE rb_cNSHash;
 RUBY_EXTERN VALUE rb_cNSMutableHash;
+RUBY_EXTERN VALUE rb_cCFNumber;
 #endif
 
 RUBY_EXTERN VALUE rb_eException;
@@ -1052,13 +1085,88 @@ RUBY_EXTERN VALUE rb_eLoadError;
 
 RUBY_EXTERN VALUE rb_stdin, rb_stdout, rb_stderr;
 
+#if WITH_OBJC
+static inline bool
+rb_is_native(VALUE obj) {
+    Class k = *(Class *)obj;
+    return k != NULL
+	   && k != (Class)rb_cBignum
+	   && k != (Class)rb_cFloat
+	   && (RCLASS_VERSION(k) & RCLASS_IS_OBJECT_SUBCLASS) != RCLASS_IS_OBJECT_SUBCLASS;
+}
+#define NATIVE(obj) (rb_is_native((VALUE)obj))
+
+VALUE rb_box_fixnum(VALUE);
+
+static inline id
+rb_rval_to_ocid(VALUE obj)
+{
+    if (SPECIAL_CONST_P(obj)) {
+        if (obj == Qtrue) {
+            return (id)kCFBooleanTrue;
+        }
+        if (obj == Qfalse) {
+            return (id)kCFBooleanFalse;
+        }
+        if (obj == Qnil) {
+            return (id)kCFNull;
+        }
+        if (FIXNUM_P(obj)) {
+	    return (id)rb_box_fixnum(obj);
+	}
+    }
+    return (id)obj;
+}
+
+static inline VALUE
+rb_ocid_to_rval(id obj)
+{
+    if (obj == (id)kCFBooleanTrue) {
+	return Qtrue;
+    }
+    if (obj == (id)kCFBooleanFalse) {
+	return Qfalse;
+    }
+    if (obj == (id)kCFNull) {
+	return Qnil;
+    }
+    if (*(Class *)obj == (Class)rb_cFixnum) {
+	return LONG2FIX(RFIXNUM(obj)->value);
+    }
+    return (VALUE)obj;
+}
+#define RB2OC(obj) (rb_rval_to_ocid((VALUE)obj))
+#define OC2RB(obj) (rb_ocid_to_rval((id)obj))
+
+static inline bool
+rb_ignored_selector(SEL sel)
+{
+#if defined(__ppc__)
+    return sel == (SEL)0xfffef000;
+#elif defined(__i386__)
+    return sel == (SEL)0xfffeb010;
+#else
+# error Unsupported arch
+#endif
+}
+
+static inline VALUE
+rb_ary_elt_fast(CFArrayRef ary, long i)
+{
+    return OC2RB(CFArrayGetValueAtIndex(ary, i));
+}
+#define RARRAY_AT(a,i) (rb_ary_elt_fast((CFArrayRef)a, (long)i))
+#endif
+
 static inline VALUE
 rb_class_of(VALUE obj)
 {
     if (IMMEDIATE_P(obj)) {
 	if (FIXNUM_P(obj)) return rb_cFixnum;
 	if (obj == Qtrue)  return rb_cTrueClass;
+#if !WITH_OBJC
 	if (SYMBOL_P(obj)) return rb_cSymbol;
+#endif
     }
     else if (!RTEST(obj)) {
 	if (obj == Qnil)   return rb_cNilClass;
@@ -1070,10 +1178,13 @@ rb_class_of(VALUE obj)
 static inline int
 rb_type(VALUE obj)
 {
+    Class k;
     if (IMMEDIATE_P(obj)) {
 	if (FIXNUM_P(obj)) return T_FIXNUM;
 	if (obj == Qtrue) return T_TRUE;
+#if !WITH_OBJC
 	if (SYMBOL_P(obj)) return T_SYMBOL;
+#endif
 	if (obj == Qundef) return T_UNDEF;
     }
     else if (!RTEST(obj)) {
@@ -1081,14 +1192,15 @@ rb_type(VALUE obj)
 	if (obj == Qfalse) return T_FALSE;
     }
 #if WITH_OBJC
-    else if (*(Class *)obj != NULL) {
-	if (RCLASS_SINGLETON(*(Class *)obj)) {
+    else if ((k = *(Class *)obj) != NULL) {
+	if (RCLASS_SINGLETON(k)) {
 	    if (RCLASS_MODULE(obj)) return T_MODULE;
 	    else return T_CLASS;
 	}
-	if (*(Class *)obj == (Class)rb_cCFString) return T_STRING;
-	if (*(Class *)obj == (Class)rb_cCFArray) return T_ARRAY;
-	if (*(Class *)obj == (Class)rb_cCFHash) return T_HASH;
+	if (k == (Class)rb_cSymbol) return T_SYMBOL;
+	if (k == (Class)rb_cCFString) return T_STRING;
+	if (k == (Class)rb_cCFArray) return T_ARRAY;
+	if (k == (Class)rb_cCFHash) return T_HASH;
 	if (NATIVE(obj)) return T_NATIVE;
     }
 #endif

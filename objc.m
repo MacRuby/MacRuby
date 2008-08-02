@@ -401,53 +401,6 @@ rb_objc_octype_to_ffitype(const char *octype)
     return NULL;
 }
 
-bool
-rb_objc_rval_to_ocid(VALUE rval, void **ocval, bool force_nsnil)
-{
-    if (SPECIAL_CONST_P(rval)) {
-	if (rval == Qtrue) {
-	    *(id *)ocval = (id)kCFBooleanTrue;
-	}
-	else if (rval == Qfalse) {
-	    *(id *)ocval = (id)kCFBooleanFalse;
-	}
-	else if (rval == Qnil) {
-	    *(id *)ocval = force_nsnil ? (id)kCFNull : nil;
-	}
-	else if (SYMBOL_P(rval)) {
-	    *(id *)ocval = (id)rb_id2str(SYM2ID(rval));
-	}
-	else if (FIXNUM_P(rval)) {
-#define FIXNUM_CFNUMBER_CACHE_SIZE 2000
-	    static void *fixnum_cfnumber_cache[FIXNUM_CFNUMBER_CACHE_SIZE];
-	    static bool fixnum_cfnumber_cache_init = false;
-	    long v = FIX2LONG(rval);
-	    CFNumberRef number;
-	    if (!fixnum_cfnumber_cache_init) {
-		memset(fixnum_cfnumber_cache, 0, sizeof(void *) * FIXNUM_CFNUMBER_CACHE_SIZE);
-		fixnum_cfnumber_cache_init = true;
-	    }
-	    /* cache -500..1500 */
-	    if (v >= -500 && v < 1500) {
-		number = fixnum_cfnumber_cache[v+500];
-		if (number == NULL) {
-		    number = CFNumberCreate(NULL, kCFNumberLongType, &v);
-		    fixnum_cfnumber_cache[v+500] = (void *)number;
-		}
-	    }
-	    else {
-		number = CFNumberCreate(NULL, kCFNumberLongType, &v);
-		CFMakeCollectable(number);	
-	    }
-	    *(id *)ocval = (id)number;
-	}
-    }
-    else {
-	*(id *)ocval = (id)rval;
-    }
-    return true;
-}
-
 static bool
 rb_objc_rval_to_ocsel(VALUE rval, void **ocval)
 {
@@ -464,7 +417,7 @@ rb_objc_rval_to_ocsel(VALUE rval, void **ocval)
 	    break;
 
 	case T_SYMBOL:
-	    cstr = rb_id2name(SYM2ID(rval));
+	    cstr = rb_sym2name(rval);
 	    break;
 
 	default:
@@ -723,7 +676,8 @@ rb_objc_rval_to_ocval(VALUE rval, const char *octype, void **ocval)
     switch (*octype) {
 	case _C_ID:
 	case _C_CLASS:
-	    ok = rb_objc_rval_to_ocid(rval, ocval, false);
+	    *(id *)ocval = rval == Qnil ? NULL : RB2OC(rval);
+	    ok = true;
 	    break;
 
 	case _C_SEL:
@@ -889,11 +843,9 @@ rb_objc_ocval_to_rbval(void **ocval, const char *octype, VALUE *rbval)
     
     switch (*octype) {
 	case _C_ID:
-	    ok = rb_objc_ocid_to_rval(ocval, rbval);
-	    break;
-	
 	case _C_CLASS:
-	    *rbval = (VALUE)*(Class *)ocval;
+	    *rbval = *(void **)ocval == NULL ? Qnil : *(VALUE *)ocval;
+	    ok = true;
 	    break;
 
 	case _C_BOOL:
@@ -1208,7 +1160,7 @@ rb_objc_call(VALUE recv, SEL sel, int argc, VALUE *argv)
     VALUE klass;
     id ocrcv;
 
-    rb_objc_rval_to_ocid(recv, (void **)&ocrcv, true);
+    ocrcv = RB2OC(recv);
     klass = *(VALUE *)ocrcv;
 
     fake_ctx.selector = sel;
@@ -1256,8 +1208,8 @@ rb_objc_alias(VALUE klass, ID name, ID def)
     DLOG("ALIAS", "[%s %s -> %s]", class_getName((Class)klass), (char *)name_sel, (char *)def_sel);
 
     assert(class_addMethod((Class)klass, name_sel, 
-			   method_getImplementation(method), 
-			   method_getTypeEncoding(method)));
+		method_getImplementation(method), 
+		method_getTypeEncoding(method)));
 }
 
 static VALUE
@@ -1275,7 +1227,7 @@ rb_super_objc_send(int argc, VALUE *argv, VALUE rcv)
     argv++;
     argc--;
 
-    rb_objc_rval_to_ocid(rcv, (void **)&ocrcv, true);
+    ocrcv = RB2OC(rcv);
     klass = class_getSuperclass(*(Class *)ocrcv);
 
     fake_ctx.selector = sel_registerName(rb_id2name(mid));
@@ -1323,7 +1275,7 @@ rb_ruby_to_objc_closure_handler(ffi_cif *cif, void *resp, void **args,
         argv[i] = val;
     }
 
-    rb_objc_ocid_to_rval(&rcv, &rrcv);
+    rrcv = rcv == NULL ? Qnil : (VALUE)rcv;
 
     mid = rb_intern((const char *)sel);
 
@@ -1498,6 +1450,12 @@ rb_objc_register_ruby_method(VALUE mod, ID mid, NODE *body)
 	sel = sel_registerName(mid_str);
     }
 
+    if (rb_ignored_selector(sel)) {
+	rb_warn("cannot register %c[%s %s] because it is an ignored selector",
+		class_isMetaClass((Class)mod) ? '+' : '-', class_getName((Class)mod), mid_str);
+	return;
+    }
+
     direct_override = false;
     method = class_getInstanceMethod((Class)mod, sel);
 
@@ -1513,7 +1471,6 @@ rb_objc_register_ruby_method(VALUE mod, ID mid, NODE *body)
 	}
 
 	if (oc_arity + 2 != method_getNumberOfArguments(method)) {
-printf("method %p\n",method);
 	    rb_warn("cannot override Objective-C method `%s' in " \
 		       "class `%s' because of an arity mismatch (%d for %d)", 
 		       (char *)method_getName(method),
@@ -2653,7 +2610,6 @@ rb_objc_ib_outlet_imp(void *recv, SEL sel, void *value)
     const char *selname;
     char buf[128];
     size_t s;   
-    VALUE rvalue;
 
     selname = sel_getName(sel);
     buf[0] = '@';
@@ -2661,8 +2617,7 @@ rb_objc_ib_outlet_imp(void *recv, SEL sel, void *value)
     s = strlcpy(&buf[2], &selname[4], sizeof buf - 2);
     buf[s + 1] = '\0';
 
-    rb_objc_ocid_to_rval(&value, &rvalue);
-    rb_ivar_set((VALUE)recv, rb_intern(buf), rvalue);
+    rb_ivar_set((VALUE)recv, rb_intern(buf), value == NULL ? Qnil : (VALUE)value);
 }
 
 VALUE
@@ -2678,7 +2633,7 @@ rb_mod_objc_ib_outlet(int argc, VALUE *argv, VALUE recv)
 	const char *symname;
 	
 	Check_Type(sym, T_SYMBOL);
-	symname = rb_id2name(SYM2ID(sym));
+	symname = rb_sym2name(sym);
 
 	if (strlen(symname) == 0)
 	    rb_raise(rb_eArgError, "empty symbol given");

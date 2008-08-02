@@ -112,7 +112,7 @@ rb_objc_create_class(const char *name, VALUE super)
  
     objc_registerClassPair((Class)klass);
    
-    if (name != NULL) 
+    if (name != NULL && rb_class_tbl != NULL) 
 	st_insert(rb_class_tbl, (st_data_t)rb_intern(name), (st_data_t)klass);
 
     return klass;
@@ -836,20 +836,6 @@ method_entry(ID key, NODE *body, st_table *list)
 }
 #endif
 
-#if WITH_OBJC
-static inline bool
-is_ignored_selector(SEL sel)
-{
-#if defined(__ppc__)
-    return sel == (SEL)0xfffef000;
-#elif defined(__i386__)
-    return sel == (SEL)0xfffeb010;
-#else
-# error Unsupported arch
-#endif
-}
-#endif
-
 static VALUE
 class_instance_method_list(int argc, VALUE *argv, VALUE mod, int (*func) (ID, long, VALUE))
 {
@@ -876,7 +862,7 @@ class_instance_method_list(int argc, VALUE *argv, VALUE mod, int (*func) (ID, lo
 	if (methods != NULL) {  
 	    for (i = 0; i < count; i++) { 
 		SEL sel = method_getName(methods[i]); 
-		if (is_ignored_selector(sel)) 
+		if (rb_ignored_selector(sel)) 
 		    continue; 
 		rb_ary_push(ary, ID2SYM(rb_intern(sel_getName(sel)))); 
 	    } 

@@ -696,13 +696,13 @@ new_insn_send(rb_iseq_t *iseq, int line_no,
     if (FIX2INT(argc) > 0) {
         char buf[512];
 
-        strlcpy(buf, rb_id2name(SYM2ID(id)), sizeof buf);
+        strlcpy(buf, rb_sym2name(id), sizeof buf);
 	if (buf[strlen(buf) - 1] != ':')
 	    strlcat(buf, ":", sizeof buf);
 	operands[5] = (VALUE)sel_registerName(buf);
     }
     else {
-	operands[5] = (VALUE)sel_registerName(rb_id2name(SYM2ID(id)));
+	operands[5] = (VALUE)sel_registerName(rb_sym2name(id));
     }
     operands[6] = 0;
     iobj = new_insn_core(iseq, line_no, BIN(send), 6, operands);
@@ -910,7 +910,7 @@ iseq_set_arguments(rb_iseq_t *iseq, LINK_ANCHOR *optargs, NODE *node_args)
 	    i += 1;
 
 	    iseq->arg_opts = i;
-	    iseq->arg_opt_table = ALLOC_N(VALUE, i);
+	    GC_WB(&iseq->arg_opt_table, ALLOC_N(VALUE, i));
 #if WITH_OBJC
 	    CFArrayGetValues((CFArrayRef)labels, CFRangeMake(0, i), 
 		(const void **)iseq->arg_opt_table);
@@ -919,6 +919,9 @@ iseq_set_arguments(rb_iseq_t *iseq, LINK_ANCHOR *optargs, NODE *node_args)
 #endif
 	    for (j = 0; j < i; j++) {
 		iseq->arg_opt_table[j] &= ~1;
+#if WITH_OBJC
+		iseq->arg_opt_table[j] = OC2RB(iseq->arg_opt_table[j]);
+#endif
 	    }
 	}
 	else {

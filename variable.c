@@ -22,6 +22,46 @@ void rb_vm_change_state(void);
 st_table *rb_global_tbl;
 st_table *rb_class_tbl;
 static ID autoload, classpath, tmp_classpath;
+#if WITH_OBJC
+static const void *
+retain_cb(CFAllocatorRef allocator, const void *v)
+{
+    rb_objc_retain(v);
+    return v;
+}
+
+static void
+release_cb(CFAllocatorRef allocator, const void *v)
+{
+    rb_objc_release(v);
+}
+
+static void
+ivar_dict_foreach(VALUE hash, int (*func)(ANYARGS), VALUE farg)
+{
+    CFIndex i, count;
+    const void **keys;
+    const void **values;
+
+    count = CFDictionaryGetCount((CFDictionaryRef)hash);
+    if (count == 0)
+	return;
+
+    keys = (const void **)alloca(sizeof(void *) * count);
+    values = (const void **)alloca(sizeof(void *) * count);
+
+    CFDictionaryGetKeysAndValues((CFDictionaryRef)hash, keys, values);
+
+    for (i = 0; i < count; i++) {
+	if ((*func)(keys[i], values[i], farg) != ST_CONTINUE)
+	    break;
+    }
+}
+
+static CFDictionaryValueCallBacks rb_cfdictionary_value_cb = {
+    0, retain_cb, release_cb, NULL, NULL
+};
+#endif
 
 void
 Init_var_tables(void)
@@ -108,7 +148,7 @@ fc_i(ID key, VALUE value, struct fc_result *res)
 	    arg.track = value;
 	    arg.prev = res;
 #if WITH_OBJC
-	    rb_hash_foreach((VALUE)iv_dict, fc_i, (VALUE)&arg);
+	    ivar_dict_foreach((VALUE)iv_dict, fc_i, (VALUE)&arg);
 #else
 	    st_foreach(RCLASS_IV_TBL(value), fc_i, (st_data_t)&arg);
 #endif
@@ -140,7 +180,7 @@ find_class_path(VALUE klass)
 #if WITH_OBJC
     CFMutableDictionaryRef iv_dict = rb_class_ivar_dict(rb_cObject);
     if (iv_dict != NULL) {
-	rb_hash_foreach((VALUE)iv_dict, fc_i, (VALUE)&arg);
+	ivar_dict_foreach((VALUE)iv_dict, fc_i, (VALUE)&arg);
     }
 #else
     if (RCLASS_IV_TBL(rb_cObject)) {
@@ -196,7 +236,7 @@ classname(VALUE klass)
 		(const void *)classid, (const void **)&path))
 		return find_class_path(klass);
 
-	    path = rb_str_dup(rb_id2str(SYM2ID(path)));
+	    path = rb_str_dup(path);
 	    OBJ_FREEZE(path);
 	    CFDictionarySetValue(iv_dict, (const void *)classpath, (const void *)path);
 	    CFDictionaryRemoveValue(iv_dict, (const void *)classid);
@@ -838,8 +878,6 @@ rb_alias_variable(ID name1, ID name2)
 
 #if WITH_OBJC
 static CFMutableDictionaryRef generic_iv_dict = NULL;
-const void * rb_cfdictionary_retain_cb(CFAllocatorRef, const void *);
-void rb_cfdictionary_release_cb(CFAllocatorRef, const void *);
 #else
 static int special_generic_ivar = 0;
 static st_table *generic_iv_tbl;
@@ -906,13 +944,7 @@ generic_ivar_set(VALUE obj, ID id, VALUE val)
 	    rb_error_frozen("object");
     }
     if (generic_iv_dict == NULL) {
-	CFDictionaryValueCallBacks values_cb;
-
-	memset(&values_cb, 0, sizeof(values_cb));
-	values_cb.retain = rb_cfdictionary_retain_cb;
-	values_cb.release = rb_cfdictionary_release_cb;
-
-	generic_iv_dict = CFDictionaryCreateMutable(NULL, 0, NULL, &values_cb);
+	generic_iv_dict = CFDictionaryCreateMutable(NULL, 0, NULL, &rb_cfdictionary_value_cb);
 	obj_dict = NULL;
     }
     else {
@@ -920,13 +952,7 @@ generic_ivar_set(VALUE obj, ID id, VALUE val)
 	    (CFDictionaryRef)generic_iv_dict, (const void *)obj);
     }
     if (obj_dict == NULL) {
-	CFDictionaryValueCallBacks values_cb;
-
-	memset(&values_cb, 0, sizeof(values_cb));
-	values_cb.retain = rb_cfdictionary_retain_cb;
-	values_cb.release = rb_cfdictionary_release_cb;
-
-	obj_dict = CFDictionaryCreateMutable(NULL, 0, NULL, &values_cb);
+	obj_dict = CFDictionaryCreateMutable(NULL, 0, NULL, &rb_cfdictionary_value_cb);
 	CFDictionarySetValue(generic_iv_dict, (const void *)obj, 
 	    (const void *)obj_dict);
 	CFMakeCollectable(obj_dict);
@@ -1164,13 +1190,7 @@ rb_class_ivar_set_dict(VALUE mod, CFMutableDictionaryRef dict)
     }
     else {
 	if (generic_iv_dict == NULL) {
-	    CFDictionaryValueCallBacks values_cb;
-
-	    memset(&values_cb, 0, sizeof(values_cb));
-	    values_cb.retain = rb_cfdictionary_retain_cb;
-	    values_cb.release = rb_cfdictionary_release_cb;
-
-	    generic_iv_dict = CFDictionaryCreateMutable(NULL, 0, NULL, &values_cb);
+	    generic_iv_dict = CFDictionaryCreateMutable(NULL, 0, NULL, &rb_cfdictionary_value_cb);
 	}
 	CFDictionarySetValue(generic_iv_dict, (const void *)mod, (const void *)dict);
     }
@@ -1183,13 +1203,7 @@ rb_class_ivar_dict_or_create(VALUE mod)
 
     dict = rb_class_ivar_dict(mod);
     if (dict == NULL) {
-	CFDictionaryValueCallBacks values_cb;
-
-	memset(&values_cb, 0, sizeof(values_cb));
-	values_cb.retain = rb_cfdictionary_retain_cb;
-	values_cb.release = rb_cfdictionary_release_cb;
-
-	dict = CFDictionaryCreateMutable(NULL, 0, NULL, &values_cb);
+	dict = CFDictionaryCreateMutable(NULL, 0, NULL, &rb_cfdictionary_value_cb);
 	rb_class_ivar_set_dict(mod, dict);
 	CFMakeCollectable(dict);
     }
@@ -1337,13 +1351,7 @@ rb_ivar_set(VALUE obj, ID id, VALUE val)
 		if (new_ivar) {
 		    if (len + 1 == RB_IVAR_ARY_MAX) {
 			CFMutableDictionaryRef tbl;
-			CFDictionaryValueCallBacks values_cb;
-
-			memset(&values_cb, 0, sizeof(values_cb));
-			values_cb.retain = rb_cfdictionary_retain_cb;
-			values_cb.release = rb_cfdictionary_release_cb;
-
-			tbl = CFDictionaryCreateMutable(NULL, 0, NULL, &values_cb);
+			tbl = CFDictionaryCreateMutable(NULL, 0, NULL, &rb_cfdictionary_value_cb);
 
 			for (i = 0; i < len; i++)
 			    CFDictionarySetValue(tbl, 
@@ -1593,7 +1601,7 @@ void rb_ivar_foreach(VALUE obj, int (*func)(ANYARGS), st_data_t arg)
       {
 	  CFMutableDictionaryRef iv_dict = rb_class_ivar_dict(obj);
 	  if (iv_dict != NULL)
-	      rb_hash_foreach((VALUE)iv_dict, func, arg);
+	      ivar_dict_foreach((VALUE)iv_dict, func, arg);
       }
 #else
 	if (RCLASS_IV_TBL(obj)) {
@@ -2159,7 +2167,7 @@ rb_mod_const_at(VALUE mod, void *data)
 #if WITH_OBJC
     CFMutableDictionaryRef iv_dict = rb_class_ivar_dict(mod);
     if (iv_dict != NULL)
-	rb_hash_foreach((VALUE)iv_dict, sv_i, (VALUE)tbl);
+	ivar_dict_foreach((VALUE)iv_dict, sv_i, (VALUE)tbl);
 #else
     if (RCLASS_IV_TBL(mod)) {
 	st_foreach_safe(RCLASS_IV_TBL(mod), sv_i, (st_data_t)tbl);
@@ -2552,7 +2560,7 @@ rb_mod_class_variables(VALUE obj)
 #if WITH_OBJC
     CFMutableDictionaryRef iv_dict = rb_class_ivar_dict(obj);
     if (iv_dict != NULL)
-	rb_hash_foreach((VALUE)iv_dict, cv_i, (VALUE)ary);
+	ivar_dict_foreach((VALUE)iv_dict, cv_i, (VALUE)ary);
 #else
     if (RCLASS_IV_TBL(obj)) {
 	st_foreach_safe(RCLASS_IV_TBL(obj), cv_i, ary);

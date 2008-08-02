@@ -1301,8 +1301,9 @@ opt_case_dispatch
 	VALUE val;
 #if WITH_OBJC
 	if (CFDictionaryGetValueIfPresent((CFDictionaryRef)hash,
-	    (const void *)key,
+	    (const void *)RB2OC(key),
 	    (const void **)&val)) {
+	val = OC2RB(val);
 #else
 	if (st_lookup(RHASH_TBL(hash), key, &val)) {
 #endif

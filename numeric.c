@@ -83,12 +83,38 @@ round(double x)
 static ID id_coerce, id_to_i, id_eq;
 
 VALUE rb_cNumeric;
+#if WITH_OBJC
+VALUE rb_cCFNumber;
+#endif
 VALUE rb_cFloat;
 VALUE rb_cInteger;
 VALUE rb_cFixnum;
 
 VALUE rb_eZeroDivError;
 VALUE rb_eFloatDomainError;
+
+#if WITH_OBJC
+static CFMutableDictionaryRef fixnum_cache = NULL;
+
+VALUE
+rb_box_fixnum(VALUE fixnum)
+{
+    struct RFixnum *val;
+
+    if (fixnum_cache == NULL)
+	fixnum_cache = CFDictionaryCreateMutable(NULL, 0, NULL, NULL); 
+ 
+    val = (struct RFixnum *)CFDictionaryGetValue(fixnum_cache, (const void *)fixnum);
+    if (val == NULL) {
+	val = (struct RFixnum *)rb_objc_newobj(sizeof(struct RFixnum));
+	val->klass = rb_cFixnum;
+	val->value = FIX2LONG(fixnum);
+	CFDictionarySetValue(fixnum_cache, (const void *)fixnum, (const void *)val);
+    }
+
+    return (VALUE)val;
+}
+#endif
 
 void
 rb_num_zerodiv(void)
@@ -3106,9 +3132,9 @@ imp_rb_float_objCType(void *rcv, SEL sel)
 }
 
 static const char *
-imp_rb_integer_objCType(void *rcv, SEL sel)
+imp_rb_fixnum_objCType(void *rcv, SEL sel)
 {
-    return "q";
+    return "l";
 }
 
 static void
@@ -3119,10 +3145,10 @@ imp_rb_float_getValue(void *rcv, SEL sel, void *buffer)
 }
 
 static void
-imp_rb_integer_getValue(void *rcv, SEL sel, void *buffer)
+imp_rb_fixnum_getValue(void *rcv, SEL sel, void *buffer)
 {
-    long long v = NUM2LL(rcv);
-    *(long long *)buffer = v;
+    long v = RFIXNUM(rcv)->value;
+    *(long *)buffer = v;
 }
 
 static double
@@ -3132,9 +3158,9 @@ imp_rb_float_doubleValue(void *rcv, SEL sel)
 }
 
 static long long
-imp_rb_integer_longLongValue(void *rcv, SEL sel)
+imp_rb_fixnum_longValue(void *rcv, SEL sel)
 {
-    return NUM2LL(rcv);
+    return RFIXNUM(rcv)->value;
 }
 
 static inline void
@@ -3146,27 +3172,25 @@ rb_objc_install_method(Class klass, SEL sel, IMP imp)
 }
 
 static void
-rb_install_nsnumber_float_primitives(void)
+rb_install_nsnumber_primitives(void)
 {
-    Class klass = (Class)rb_cFloat;
+    Class klass;
+  
+    klass = (Class)rb_cFloat;
     rb_objc_install_method(klass, sel_registerName("objCType"),
 	    (IMP)imp_rb_float_objCType);
     rb_objc_install_method(klass, sel_registerName("getValue:"), 
 	    (IMP)imp_rb_float_getValue);
     rb_objc_install_method(klass, sel_registerName("doubleValue"), 
 	    (IMP)imp_rb_float_doubleValue);
-}
 
-static void
-rb_install_nsnumber_integer_primitives(void)
-{
-    Class klass = (Class)rb_cNumeric;
+    klass = (Class)rb_cFixnum;
     rb_objc_install_method(klass, sel_registerName("objCType"),
-	    (IMP)imp_rb_integer_objCType);
+	    (IMP)imp_rb_fixnum_objCType);
     rb_objc_install_method(klass, sel_registerName("getValue:"), 
-	    (IMP)imp_rb_integer_getValue);
-    rb_objc_install_method(klass, sel_registerName("longLongValue"), 
-	    (IMP)imp_rb_integer_longLongValue);
+	    (IMP)imp_rb_fixnum_getValue);
+    rb_objc_install_method(klass, sel_registerName("longValue"),
+	    (IMP)imp_rb_fixnum_longValue);
 }
 #endif
 
@@ -3190,6 +3214,7 @@ Init_Numeric(void)
     rb_eZeroDivError = rb_define_class("ZeroDivisionError", rb_eStandardError);
     rb_eFloatDomainError = rb_define_class("FloatDomainError", rb_eRangeError);
 #if WITH_OBJC
+    rb_cCFNumber = (VALUE)objc_getClass("NSCFNumber");
     rb_cNumeric = rb_define_class("Numeric", (VALUE)objc_getClass("NSNumber"));
     // We need to redefine #class because otherwise NSObject#class will return NSCFNumber for all numeric types.
     rb_define_method(rb_cNumeric, "class", rb_obj_class, 0);
@@ -3355,7 +3380,6 @@ Init_Numeric(void)
     rb_define_method(rb_cFloat, "finite?",   flo_is_finite_p, 0);
 
 #if WITH_OBJC
-    rb_install_nsnumber_integer_primitives();
-    rb_install_nsnumber_float_primitives();
+    rb_install_nsnumber_primitives();
 #endif
 }

@@ -2388,12 +2388,14 @@ rb_str_hash_cmp(VALUE str1, VALUE str2)
  * Return a hash based on the string's length and content.
  */
 
+#if !WITH_OBJC
 static VALUE
 rb_str_hash_m(VALUE str)
 {
     int hval = rb_str_hash(str);
     return INT2FIX(hval);
 }
+#endif
 
 #define lesser(a,b) (((a)>(b))?(b):(a))
 
@@ -8176,14 +8178,14 @@ static VALUE
 sym_inspect(VALUE sym)
 {
 #if WITH_OBJC
-    ID id = SYM2ID(sym);
     VALUE str;
 
-    sym = rb_id2str(id);
+#if 0
     if (!rb_enc_symname_p(RSTRING_PTR(sym), NULL)) {
 	sym = rb_str_inspect(sym);
     }
-    str = rb_str_new(":", 1);
+#endif
+    str = rb_str_new2(":");
     rb_str_buf_append(str, sym);
     return str;
 #else
@@ -8224,9 +8226,13 @@ sym_inspect(VALUE sym)
 VALUE
 rb_sym_to_s(VALUE sym)
 {
+#if WITH_OBJC
+    return str_new3(rb_cString, sym);
+#else
     ID id = SYM2ID(sym);
 
     return str_new3(rb_cString, rb_id2str(id));
+#endif
 }
 
 
@@ -8274,6 +8280,7 @@ sym_to_proc(VALUE sym)
 }
 
 
+#if !WITH_OBJC
 static VALUE
 sym_succ(VALUE sym)
 {
@@ -8358,6 +8365,7 @@ sym_encoding(VALUE sym)
 {
     return rb_obj_encoding(rb_id2str(SYM2ID(sym)));
 }
+#endif
 
 ID
 rb_to_id(VALUE name)
@@ -8370,7 +8378,7 @@ rb_to_id(VALUE name)
 	tmp = rb_check_string_type(name);
 	if (NIL_P(tmp)) {
 	    rb_raise(rb_eTypeError, "%s is not a symbol",
-		     RSTRING_BYTEPTR(rb_inspect(name)));
+		     RSTRING_PTR(rb_inspect(name)));
 	}
 	name = tmp;
 	/* fall through */
@@ -8477,9 +8485,6 @@ imp_rb_str_isEqual(void *rcv, SEL sel, void *other)
     return flag;
 }
 
-void
-rb_objc_install_string_primitives(Class klass)
-{
 #define INSTALL_METHOD(selname, imp)                            \
     do {                                                        \
         SEL sel = sel_registerName(selname);                    \
@@ -8490,6 +8495,9 @@ rb_objc_install_string_primitives(Class klass)
     }                                                           \
     while(0)
 
+void
+rb_objc_install_string_primitives(Class klass)
+{
     INSTALL_METHOD("length", imp_rb_str_length);
     INSTALL_METHOD("characterAtIndex:", imp_rb_str_characterAtIndex);
     INSTALL_METHOD("getCharacters:range:", imp_rb_str_getCharactersRange);
@@ -8500,9 +8508,48 @@ rb_objc_install_string_primitives(Class klass)
     INSTALL_METHOD("_fastestEncodingInCFStringEncoding",
 	imp_rb_str_fastestEncodingInCFStringEncoding);
     INSTALL_METHOD("isEqual:", imp_rb_str_isEqual);
+}
+
+static CFIndex
+imp_rb_symbol_length(void *rcv, SEL sel)
+{
+    return RSYMBOL(rcv)->len;
+}
+
+static UniChar
+imp_rb_symbol_characterAtIndex(void *rcv, SEL sel, CFIndex idx)
+{
+    if (idx < 0 || idx > RSYMBOL(rcv)->len)
+	rb_bug("[Symbol characterAtIndex:] out of bounds");
+    return RSYMBOL(rcv)->str[idx];
+}
+
+static void
+imp_rb_symbol_getCharactersRange(void *rcv, SEL sel, UniChar *buffer, 
+			      CFRange range)
+{
+    int i;
+
+    if (range.location + range.length > RSYMBOL(rcv)->len)
+	rb_bug("[Symbol getCharacters:range:] out of bounds");
+
+    for (i = range.location; i < range.length; i++) {
+	*buffer = RSYMBOL(rcv)->str[i];
+	buffer++;
+    }
+}
+
+static void
+install_symbol_primitives(void)
+{
+    Class klass = (Class)rb_cSymbol;
+
+    INSTALL_METHOD("length", imp_rb_symbol_length);
+    INSTALL_METHOD("characterAtIndex:", imp_rb_symbol_characterAtIndex);
+    INSTALL_METHOD("getCharacters:range:", imp_rb_symbol_getCharactersRange);
+}
 
 #undef INSTALL_METHOD
-}
 #endif
 
 /*
@@ -8543,8 +8590,8 @@ Init_String(void)
     rb_define_method(rb_cString, "<=>", rb_str_cmp_m, 1);
     rb_define_method(rb_cString, "==", rb_str_equal, 1);
     rb_define_method(rb_cString, "eql?", rb_str_eql, 1);
-#if 1 
-    /* FIXME remove me once we use the objc dispatch for everything */
+#if !WITH_OBJC
+    /* already in objc */
     rb_define_method(rb_cString, "hash", rb_str_hash_m, 0);
 #endif
     rb_define_method(rb_cString, "casecmp", rb_str_casecmp, 1);
@@ -8555,9 +8602,7 @@ Init_String(void)
     rb_define_method(rb_cString, "[]=", rb_str_aset_m, -1);
     rb_define_method(rb_cString, "insert", rb_str_insert, 2);
 #if !WITH_OBJC
-    /* This method cannot be defined because it exists in 
-     * NSString already. 
-     */
+    /* already in objc */
     rb_define_method(rb_cString, "length", rb_str_length, 0);
 #endif
     rb_define_method(rb_cString, "size", rb_str_length, 0);
@@ -8675,19 +8720,27 @@ Init_String(void)
     rb_define_variable("$;", &rb_fs);
     rb_define_variable("$-F", &rb_fs);
 
+#if WITH_OBJC // rb_cSymbol is defined in parse.y because it's needed early
+#else
     rb_cSymbol = rb_define_class("Symbol", rb_cObject);
     rb_include_module(rb_cSymbol, rb_mComparable);
+#endif
     rb_undef_alloc_func(rb_cSymbol);
     rb_undef_method(CLASS_OF(rb_cSymbol), "new");
     rb_define_singleton_method(rb_cSymbol, "all_symbols", rb_sym_all_symbols, 0); /* in parse.y */
 
     rb_define_method(rb_cSymbol, "==", sym_equal, 1);
     rb_define_method(rb_cSymbol, "inspect", sym_inspect, 0);
+#if WITH_OBJC
+    rb_define_method(rb_cSymbol, "description", sym_inspect, 0);
+#endif
+    rb_define_method(rb_cSymbol, "to_proc", sym_to_proc, 0);
     rb_define_method(rb_cSymbol, "to_s", rb_sym_to_s, 0);
     rb_define_method(rb_cSymbol, "id2name", rb_sym_to_s, 0);
     rb_define_method(rb_cSymbol, "intern", sym_to_sym, 0);
     rb_define_method(rb_cSymbol, "to_sym", sym_to_sym, 0);
-    rb_define_method(rb_cSymbol, "to_proc", sym_to_proc, 0);
+
+#if !WITH_OBJC
     rb_define_method(rb_cSymbol, "succ", sym_succ, 0);
     rb_define_method(rb_cSymbol, "next", sym_succ, 0);
 
@@ -8709,4 +8762,9 @@ Init_String(void)
     rb_define_method(rb_cSymbol, "swapcase", sym_swapcase, 0);
 
     rb_define_method(rb_cSymbol, "encoding", sym_encoding, 0);
+#endif
+
+#if WITH_OBJC
+    install_symbol_primitives();
+#endif
 }

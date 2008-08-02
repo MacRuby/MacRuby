@@ -2660,6 +2660,47 @@ rb_big_even_p(VALUE num)
     return Qtrue;
 }
 
+#if WITH_OBJC
+static const char *
+imp_rb_bignum_objCType(void *rcv, SEL sel)
+{
+    return "q";
+}
+    
+static void
+imp_rb_bignum_getValue(void *rcv, SEL sel, void *buffer)
+{
+    long long v = NUM2LL(rcv);
+    *(long long *)buffer = v;
+}
+
+static long long
+imp_rb_bignum_longLongValue(void *rcv, SEL sel)
+{
+    return NUM2LL(rcv);
+}
+
+static inline void
+rb_objc_install_method(Class klass, SEL sel, IMP imp)
+{
+    Method method = class_getInstanceMethod(klass, sel);
+    assert(method != NULL);
+    assert(class_addMethod(klass, sel, imp, method_getTypeEncoding(method)));
+}
+
+static void
+rb_install_nsnumber_primitives(void)
+{
+    Class klass = (Class)rb_cBignum;
+    rb_objc_install_method(klass, sel_registerName("objCType"),
+	    (IMP)imp_rb_bignum_objCType);
+    rb_objc_install_method(klass, sel_registerName("getValue:"),
+	    (IMP)imp_rb_bignum_getValue);
+    rb_objc_install_method(klass, sel_registerName("longLongValue"),
+	    (IMP)imp_rb_bignum_longLongValue);
+}
+#endif
+
 /*
  *  Bignum objects hold integers outside the range of
  *  Fixnum. Bignum objects are created
@@ -2716,4 +2757,8 @@ Init_Bignum(void)
     rb_define_method(rb_cBignum, "even?", rb_big_even_p, 0);
 
     power_cache_init();
+
+#if WITH_OBJC
+    rb_install_nsnumber_primitives();
+#endif
 }

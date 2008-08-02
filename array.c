@@ -154,27 +154,6 @@ rb_ary_frozen_p(VALUE ary)
 }
 
 #if WITH_OBJC
-int rb_any_cmp(VALUE a, VALUE b);
-
-static Boolean
-rb_cfarray_equal_cb(const void *v1, const void *v2)
-{
-    return !rb_any_cmp((VALUE)v1, (VALUE)v2);
-}
-
-static const void *
-rb_cfarray_retain_cb(CFAllocatorRef allocator, const void *v)
-{
-    rb_objc_retain(v);
-    return v;
-}
-
-static void
-rb_cfarray_release_cb(CFAllocatorRef allocator, const void *v)
-{
-    rb_objc_release(v);
-}
-
 void rb_ary_insert(VALUE ary, long idx, VALUE val);
 #endif
 
@@ -182,22 +161,14 @@ static VALUE
 ary_alloc(VALUE klass)
 {
 #if WITH_OBJC
-    VALUE ary;
-    CFArrayCallBacks cb;
+    CFMutableArrayRef ary;
 
-    memset(&cb, 0, sizeof(CFArrayCallBacks));
-    cb.retain = rb_cfarray_retain_cb;
-    cb.release = rb_cfarray_release_cb;
-    cb.equal = rb_cfarray_equal_cb;
-
-    ary = (VALUE)CFArrayCreateMutable(NULL, 0, &cb);
+    ary = CFArrayCreateMutable(NULL, 0, &kCFTypeArrayCallBacks);
     if (klass != 0 && klass != rb_cNSArray && klass != rb_cNSMutableArray)
-        *(Class *)ary = (Class)klass;
+	*(Class *)ary = (Class)klass;
 
-    CFMakeCollectable((CFTypeRef)ary);
+    CFMakeCollectable(ary);
     rb_gc_malloc_increase(sizeof(void *));
-    
-    return ary;
 #else
     NEWOBJ(ary, struct RArray);
     OBJSETUP(ary, klass, T_ARRAY);
@@ -205,9 +176,9 @@ ary_alloc(VALUE klass)
     ary->len = 0;
     ary->ptr = 0;
     ary->aux.capa = 0;
+#endif
 
     return (VALUE)ary;
-#endif
 }
 
 static VALUE
@@ -279,7 +250,11 @@ rb_ary_new4(long n, const VALUE *elts)
     ary = rb_ary_new2(n);
     if (n > 0 && elts) {
 #if WITH_OBJC
-	CFArrayReplaceValues((CFMutableArrayRef)ary, CFRangeMake(0, 0), (const void **)elts, n);
+	long i;
+	void **vals = (void **)alloca(n * sizeof(void *));
+	for (i = 0; i < n; i++)
+	    vals[i] = RB2OC(elts[i]);
+	CFArrayReplaceValues((CFMutableArrayRef)ary, CFRangeMake(0, 0), (const void **)vals, n);
 #else
 	MEMCPY(RARRAY_PTR(ary), elts, VALUE, n);
 	RARRAY(ary)->len = n;
@@ -493,8 +468,10 @@ rb_ary_s_create(int argc, VALUE *argv, VALUE klass)
 	rb_raise(rb_eArgError, "negative array size");
     }
 #if WITH_OBJC
-    CFArrayReplaceValues((CFMutableArrayRef)ary, CFRangeMake(0, 0), 
-	(const void **)argv, argc);
+    int i;
+    for (i = 0; i < argc; i++) {
+	CFArrayAppendValue((CFMutableArrayRef)ary, RB2OC(argv[i]));
+    }
 #else
     RARRAY(ary)->ptr = ALLOC_N(VALUE, argc);
     RARRAY(ary)->aux.capa = argc;
@@ -520,7 +497,7 @@ rb_ary_insert(VALUE ary, long idx, VALUE val)
     rb_ary_modify(ary);
 
     CFArrayInsertValueAtIndex((CFMutableArrayRef)ary, idx, 
-	(const void *)val);
+	(const void *)RB2OC(val));
 }
 #endif
 
@@ -540,24 +517,17 @@ rb_ary_store(VALUE ary, long idx, VALUE val)
 
 #if WITH_OBJC
     if (idx > len) {
-	const void **objs;
 	long i;
-	if (idx > sizeof(CFIndex))
-	if ((idx - len) * (long)sizeof(VALUE) <= idx - len)
+	if ((idx - len) * (long)sizeof(VALUE) <= idx - len) {
 	    rb_raise(rb_eArgError, "index too big");
-	objs = (const void **)alloca(sizeof(void *) * (idx - len));
-	if (objs == NULL)
-	    rb_raise(rb_eArgError, "index too big");
-	for (i = 0; i < (idx - len); i++)
-	    objs[i] = (const void *)Qnil;
-	CFArrayReplaceValues((CFMutableArrayRef)ary, 
-	    CFRangeMake(len, 0),
-	    objs,
-	    idx - len);
-	CFArrayAppendValue((CFMutableArrayRef)ary, (const void *)val);	
+	}
+	for (i = 0; i < (idx - len); i++) {
+	    CFArrayAppendValue((CFMutableArrayRef)ary, (const void *)kCFNull);
+	}
+	CFArrayAppendValue((CFMutableArrayRef)ary, (const void *)RB2OC(val));	
     }
     else {
-        CFArraySetValueAtIndex((CFMutableArrayRef)ary, idx, (const void *)val);
+        CFArraySetValueAtIndex((CFMutableArrayRef)ary, idx, (const void *)RB2OC(val));
     }
 #else
     if (idx >= ARY_CAPA(ary)) {
@@ -654,7 +624,7 @@ rb_ary_push(VALUE ary, VALUE item)
 {
 #if WITH_OBJC
     rb_ary_modify(ary);
-    CFArrayAppendValue((CFMutableArrayRef)ary, (const void *)item);
+    CFArrayAppendValue((CFMutableArrayRef)ary, (const void *)RB2OC(item));
 #else
     rb_ary_store(ary, RARRAY_LEN(ary), item);
 #endif
@@ -843,7 +813,7 @@ rb_ary_unshift_m(int argc, VALUE *argv, VALUE ary)
 	long i;
 	for (i = argc - 1; i >= 0; i--)
 	    CFArrayInsertValueAtIndex((CFMutableArrayRef)ary,
-		0, (const void *)argv[i]);
+		0, (const void *)RB2OC(argv[i]));
     }
 #else
     if (RARRAY(ary)->aux.capa <= (len = RARRAY(ary)->len) + argc) {
@@ -875,7 +845,7 @@ rb_ary_elt(VALUE ary, long offset)
 	return Qnil;
     if (offset < 0 || n <= offset)
 	return Qnil;
-    return (VALUE)CFArrayGetValueAtIndex((CFArrayRef)ary, offset);
+    return OC2RB(CFArrayGetValueAtIndex((CFArrayRef)ary, offset));
 }
 #else
 static inline VALUE
@@ -896,15 +866,17 @@ rb_ary_ptr(VALUE ary)
     /* FIXME we could inline __CFArrayGetBucketsPtr for non-store arrays,
      * for performance reasons.
      */
-    const VALUE *values;
-    long len;
+    VALUE *values;
+    long i, len;
 
     len = RARRAY_LEN(ary);
     if (len == 0)
 	return NULL;
-    values = (const VALUE *)xmalloc(sizeof(VALUE) * len);
+    values = (VALUE *)xmalloc(sizeof(VALUE) * len);
     CFArrayGetValues((CFArrayRef)ary, CFRangeMake(0, len), 
 	(const void **)values);
+    for (i = 0; i < len; i++)
+	values[i] = OC2RB(values[i]);
     GC_WB(&rb_objc_ary_get_struct2(ary)->cptr, values);
 
     return values;
@@ -1196,7 +1168,7 @@ rb_ary_index(int argc, VALUE *argv, VALUE ary)
 #if WITH_OBJC
 	CFIndex idx;
 	idx = CFArrayGetFirstIndexOfValue((CFArrayRef)ary, CFRangeMake(0, n), 
-	    (const void *)val);
+	    (const void *)RB2OC(val));
 	if (idx != -1)
 	    return LONG2NUM(idx);
 #else
@@ -1246,7 +1218,7 @@ rb_ary_rindex(int argc, VALUE *argv, VALUE ary)
  	rb_scan_args(argc, argv, "01", &val);
 #if WITH_OBJC
 	i = CFArrayGetLastIndexOfValue((CFArrayRef)ary, CFRangeMake(0, n),
-	   (const void *)val);
+	   (const void *)RB2OC(val));
 	if (i != -1)
 	    return LONG2NUM(i);
 #else
@@ -1304,7 +1276,7 @@ rb_ary_splice(VALUE ary, long beg, long len, VALUE rpl)
     if (beg >= n) {
 	long i;
 	for (i = n; i < beg - n; i++) {
-	    CFArrayAppendValue((CFMutableArrayRef)ary, (const void *)Qnil);
+	    CFArrayAppendValue((CFMutableArrayRef)ary, (const void *)kCFNull);
 	}
 	if (rlen > 0) 
 	    CFArrayAppendArray((CFMutableArrayRef)ary, (CFArrayRef)rpl,
@@ -1570,16 +1542,12 @@ rb_ary_empty_p(VALUE ary)
 static inline VALUE
 rb_ary_dup2(VALUE ary)
 {
-    VALUE klass, dup;
-    long n;
+    CFMutableArrayRef dup;
 
-    klass = rb_obj_class(ary);
-    dup = ary_new(klass, 0);
-    n = RARRAY_LEN(ary);
-    if (n > 0)
-	CFArrayAppendArray((CFMutableArrayRef)dup, (CFArrayRef)ary,
-		CFRangeMake(0, n));
-    return dup;
+    dup = CFArrayCreateMutableCopy(NULL, 0, (CFArrayRef)ary);
+    CFMakeCollectable(dup);
+
+    return (VALUE)dup;
 }
 #endif
 
@@ -1851,11 +1819,13 @@ sort_2(const void *ap, const void *bp, void *dummy)
 #endif
     int n;
 
+#if !WITH_OBJC
     if (FIXNUM_P(a) && FIXNUM_P(b)) {
 	if ((long)a > (long)b) return 1;
 	if ((long)a < (long)b) return -1;
 	return 0;
     }
+#endif
     if (TYPE(a) == T_STRING) {
 	if (TYPE(b) == T_STRING) return rb_str_cmp(a, b);
     }
@@ -2127,7 +2097,7 @@ rb_ary_delete(VALUE ary, VALUE item)
     r = CFRangeMake(0, RARRAY_LEN(ary));
     n = 0;
     while ((i = CFArrayGetFirstIndexOfValue((CFArrayRef)ary, r, 
-	(const void *)item)) != -1) {
+	(const void *)RB2OC(item))) != -1) {
 	CFArrayRemoveValueAtIndex((CFMutableArrayRef)ary, i);
     	n++;
     }
@@ -2824,6 +2794,7 @@ rb_ary_rassoc(VALUE ary, VALUE value)
     return Qnil;
 }
 
+#if !WITH_OBJC
 static VALUE
 recursive_equal(VALUE ary1, VALUE ary2, int recur)
 {
@@ -2836,6 +2807,7 @@ recursive_equal(VALUE ary1, VALUE ary2, int recur)
     }
     return Qtrue;
 }
+#endif
 
 /* 
  *  call-seq:
@@ -2861,8 +2833,12 @@ rb_ary_equal(VALUE ary1, VALUE ary2)
 	}
 	return rb_equal(ary2, ary1);
     }
+#if WITH_OBJC
+    return CFEqual((CFTypeRef)ary1, (CFTypeRef)ary2) ? Qtrue : Qfalse;
+#else
     if (RARRAY_LEN(ary1) != RARRAY_LEN(ary2)) return Qfalse;
     return rb_exec_recursive(recursive_equal, ary1, ary2);
+#endif
 }
 
 static VALUE
@@ -2895,6 +2871,7 @@ rb_ary_eql(VALUE ary1, VALUE ary2)
     return rb_exec_recursive(recursive_eql, ary1, ary2);
 }
 
+#if !WITH_OBJC
 static VALUE
 recursive_hash(VALUE ary, VALUE dummy, int recur)
 {
@@ -2912,6 +2889,7 @@ recursive_hash(VALUE ary, VALUE dummy, int recur)
     }
     return LONG2FIX(h);
 }
+#endif
 
 /*
  *  call-seq:
@@ -2921,11 +2899,13 @@ recursive_hash(VALUE ary, VALUE dummy, int recur)
  *  will have the same hash code (and will compare using <code>eql?</code>).
  */
 
+#if !WITH_OBJC
 static VALUE
 rb_ary_hash(VALUE ary)
 {
     return rb_exec_recursive(recursive_hash, ary, 0);
 }
+#endif
 
 /*
  *  call-seq:
@@ -2945,7 +2925,7 @@ rb_ary_includes(VALUE ary, VALUE item)
 {
 #if WITH_OBJC
     return CFArrayContainsValue((CFArrayRef)ary, 
-	CFRangeMake(0, RARRAY_LEN(ary)), (const void *)item) ? Qtrue : Qfalse;
+	CFRangeMake(0, RARRAY_LEN(ary)), (const void *)RB2OC(item)) ? Qtrue : Qfalse;
 #else
     long i;
     
@@ -3055,8 +3035,9 @@ rb_ary_diff(VALUE ary1, VALUE ary2)
 
     for (i=0; i<RARRAY_LEN(ary1); i++) {
 #if WITH_OBJC
-	if (CFDictionaryGetValueIfPresent((CFDictionaryRef)hash,
-	    (const void *)RARRAY_AT(ary1, i), NULL)) continue;
+	const void *v = CFArrayGetValueAtIndex((CFArrayRef)ary1, i);
+	if (CFDictionaryGetValueIfPresent((CFDictionaryRef)hash, (const void *)v, NULL)) 
+	    continue;
 #else
 	if (st_lookup(RHASH_TBL(hash), RARRAY_PTR(ary1)[i], 0)) continue;
 #endif
@@ -3093,9 +3074,10 @@ rb_ary_and(VALUE ary1, VALUE ary2)
     for (i=0; i<RARRAY_LEN(ary1); i++) {
 	v = vv = rb_ary_elt(ary1, i);
 #if WITH_OBJC
-	if (CFDictionaryContainsKey((CFDictionaryRef)hash, (const void *)vv)) {
+	id ocvv = RB2OC(vv);
+	if (CFDictionaryContainsKey((CFDictionaryRef)hash, (const void *)ocvv)) {
 	    CFDictionaryRemoveValue((CFMutableDictionaryRef)hash,
-		(const void *)vv);
+		(const void *)ocvv);
 #else
 	if (st_delete(RHASH_TBL(hash), (st_data_t*)&vv, 0)) {
 #endif
@@ -3131,9 +3113,10 @@ rb_ary_or(VALUE ary1, VALUE ary2)
     for (i=0; i<RARRAY_LEN(ary1); i++) {
 	v = vv = rb_ary_elt(ary1, i);
 #if WITH_OBJC
-	if (CFDictionaryContainsKey((CFDictionaryRef)hash, (const void *)vv)) {
+	id ocvv = RB2OC(vv);
+	if (CFDictionaryContainsKey((CFDictionaryRef)hash, (const void *)ocvv)) {
 	    CFDictionaryRemoveValue((CFMutableDictionaryRef)hash,
-		(const void *)vv);
+		(const void *)ocvv);
 #else
 	if (st_delete(RHASH_TBL(hash), (st_data_t*)&vv, 0)) {
 #endif
@@ -3143,9 +3126,10 @@ rb_ary_or(VALUE ary1, VALUE ary2)
     for (i=0; i<RARRAY_LEN(ary2); i++) {
 	v = vv = rb_ary_elt(ary2, i);
 #if WITH_OBJC
-	if (CFDictionaryContainsKey((CFDictionaryRef)hash, (const void *)vv)) {
+	id ocvv = RB2OC(vv);
+	if (CFDictionaryContainsKey((CFDictionaryRef)hash, (const void *)ocvv)) {
 	    CFDictionaryRemoveValue((CFMutableDictionaryRef)hash,
-		(const void *)vv);
+		(const void *)ocvv);
 #else
 	if (st_delete(RHASH_TBL(hash), (st_data_t*)&vv, 0)) {
 #endif
@@ -3180,13 +3164,15 @@ rb_ary_uniq_bang(VALUE ary)
     n = RARRAY_LEN(ary);
     for (i = 0, changed = false; i < n; i++) {
 	VALUE e;
+	id oce;
 	long idx;
      	CFRange r;
 
         e = RARRAY_AT(ary, i);
+	oce = RB2OC(e);
 	r = CFRangeMake(i + 1, n - i - 1);	
 	while ((idx = CFArrayGetFirstIndexOfValue((CFArrayRef)ary, 
-	    r, (const void *)e)) != -1) {
+	    r, (const void *)oce)) != -1) {
 	    CFArrayRemoveValueAtIndex((CFMutableArrayRef)ary, idx);
 	    r.location = idx;
 	    r.length = --n - idx;
@@ -3207,9 +3193,10 @@ rb_ary_uniq_bang(VALUE ary)
     for (i=j=0; i<RARRAY_LEN(ary); i++) {
 	v = vv = rb_ary_elt(ary, i);
 #if WITH_OBJC
-	if (CFDictionaryContainsKey((CFDictionaryRef)hash, (const void *)vv)) {
+	id ocvv = RB2OC(vv);
+	if (CFDictionaryContainsKey((CFDictionaryRef)hash, (const void *)ocvv)) {
 	    CFDictionaryRemoveValue((CFMutableDictionaryRef)hash,
-		(const void *)vv);
+		(const void *)ocvv);
 #else
 	if (st_delete(RHASH_TBL(hash), (st_data_t*)&vv, 0)) {
 #endif
@@ -3265,10 +3252,10 @@ rb_ary_compact_bang(VALUE ary)
     k = 0;
     r = CFRangeMake(0, n);
     while ((i = CFArrayGetFirstIndexOfValue((CFArrayRef)ary,
-	r, (const void *)Qnil)) != -1) {
+	r, (const void *)kCFNull)) != -1) {
 	CFArrayRemoveValueAtIndex((CFMutableArrayRef)ary, i);
 	r.location = i;
-	r.length = n - i;
+	r.length = --n - i;
 	k++;
     }
     if (k == 0)
@@ -4161,7 +4148,9 @@ Init_Array(void)
 
     rb_define_method(rb_cArray, "==", rb_ary_equal, 1);
     rb_define_method(rb_cArray, "eql?", rb_ary_eql, 1);
+#if !WITH_OBJC
     rb_define_method(rb_cArray, "hash", rb_ary_hash, 0);
+#endif
 
     rb_define_method(rb_cArray, "[]", rb_ary_aref, -1);
     rb_define_method(rb_cArray, "[]=", rb_ary_aset, -1);
