@@ -1736,10 +1736,19 @@ rb_ary_reverse(VALUE ary)
     rb_ary_modify(ary);
     n = RARRAY_LEN(ary);
     if (n > 0) {
+	void **values;
+	CFRange range;
 	long i;
-	for (i = 0; i < (n / 2); i++)
-	    CFArrayExchangeValuesAtIndices((CFMutableArrayRef)ary,
-		i, n - i - 1);
+
+	values = alloca(sizeof(void *) * n);
+	range = CFRangeMake(0, n);
+	CFArrayGetValues((CFArrayRef)ary, range, (const void **)values);
+	for (i = 0; i < (n / 2); i++) {
+	    void *v = values[i];
+	    values[i] = values[n - i - 1];
+	    values[n - i - 1] = v;
+	}
+	CFArrayReplaceValues((CFMutableArrayRef)ary, range, (const void **)values, n);
     }
 #else
     VALUE *p1, *p2;

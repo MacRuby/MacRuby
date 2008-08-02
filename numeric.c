@@ -106,7 +106,7 @@ rb_box_fixnum(VALUE fixnum)
  
     val = (struct RFixnum *)CFDictionaryGetValue(fixnum_cache, (const void *)fixnum);
     if (val == NULL) {
-	val = (struct RFixnum *)rb_objc_newobj(sizeof(struct RFixnum));
+	val = (struct RFixnum *)malloc(sizeof(struct RFixnum));
 	val->klass = rb_cFixnum;
 	val->value = FIX2LONG(fixnum);
 	CFDictionarySetValue(fixnum_cache, (const void *)fixnum, (const void *)val);

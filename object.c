@@ -1598,11 +1598,14 @@ rb_class_new_instance(int argc, VALUE *argv, VALUE klass)
 
     obj = rb_obj_alloc(klass);
     init_obj = rb_obj_call_init(obj, argc, argv);
-    p = CLASS_OF(init_obj);
-    while (p != 0) {
-	if (p == klass)
-	    return init_obj;
-	p = RCLASS_SUPER(p);
+
+    if (init_obj != Qnil) {
+	p = CLASS_OF(init_obj);
+	while (p != 0) {
+	    if (p == klass)
+		return init_obj;
+	    p = RCLASS_SUPER(p);
+	}
     }
 
     return obj;

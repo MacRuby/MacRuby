@@ -2680,6 +2680,16 @@ imp_rb_bignum_longLongValue(void *rcv, SEL sel)
     return NUM2LL(rcv);
 }
 
+static bool
+imp_rb_bignum_isEqual(void *rcv, SEL sel, void *other)
+{
+    if (other == NULL)
+	return false;
+    if (*(Class *)other != (Class)rb_cBignum)
+	return false;
+    return rb_big_eq((VALUE)rcv, (VALUE)other) == Qtrue;
+}
+
 static inline void
 rb_objc_install_method(Class klass, SEL sel, IMP imp)
 {
@@ -2698,6 +2708,8 @@ rb_install_nsnumber_primitives(void)
 	    (IMP)imp_rb_bignum_getValue);
     rb_objc_install_method(klass, sel_registerName("longLongValue"),
 	    (IMP)imp_rb_bignum_longLongValue);
+    rb_objc_install_method(klass, sel_registerName("isEqual:"),
+	    (IMP)imp_rb_bignum_isEqual);
 }
 #endif
 
