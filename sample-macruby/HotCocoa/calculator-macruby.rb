@@ -1,3 +1,6 @@
+#
+# Port of John Lipsky's weblog post: http://blog.elevenworks.com/?p=38
+#
 require 'hotcocoa'
 
 include HotCocoa
