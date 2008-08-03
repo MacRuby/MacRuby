@@ -19,18 +19,31 @@ class Calculator
 
   def show
     application do |app|
-      window :frame => [100, 100, 220, 280], :title => "Calculator", :view => :nolayout, :style => [:titled, :closable, :miniturizable]  do |win|
-        @value = text_field :frame => [10, 230, 200, 40], :text => "0", :font => font(:name => "Tahoma", :size => 22), :text_align => :right 
-        win << value
-        @button_view = view :frame => [10, 10, 200, 240]
-        win << button_view
-        add_buttons
-        win.will_close { exit }
-      end
+      main_window << value
+      main_window << button_view
+      main_window.will_close { exit }
     end
   end
   
   private
+  
+    def main_window(&block)
+      @main_window ||= window(:frame => [100, 100, 220, 280], :title => "Calculator", :view => :nolayout, :style => [:titled, :closable, :miniturizable], &block)
+    end
+  
+    def value
+      @value ||= text_field(:frame => [10, 230, 200, 40], :text => "0", :font => font(:name => "Tahoma", :size => 22), :text_align => :right)
+    end
+    
+    def button_view
+      @button_view || create_button_view
+    end
+    
+    def create_button_view
+      @button_view = view(:frame => [10, 10, 200, 240])
+      add_buttons
+      @button_view
+    end
   
     def add_buttons
       calc_button("CL",  0, 4)         { clear }
