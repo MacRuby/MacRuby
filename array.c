@@ -3351,17 +3351,14 @@ rb_ary_count(int argc, VALUE *argv, VALUE ary)
     }
     else {
 	VALUE obj;
-	long i, count = RARRAY_LEN(ary);
+	long count = RARRAY_LEN(ary);
 
 	rb_scan_args(argc, argv, "1", &obj);
 	if (rb_block_given_p()) {
 	    rb_warn("given block not used");
 	}
 #if WITH_OBJC
-	for (i = 0; i < count; i++) {
-	    if (rb_equal(RARRAY_AT(ary, i), obj)) 
-		n++;
-	}
+	n = CFArrayGetCountOfValue((CFArrayRef)ary, CFRangeMake(0, count), RB2OC(obj));
 #else
 	for (p = RARRAY_PTR(ary), pend = p + RARRAY_LEN(ary); p < pend; p++) {
 	    if (rb_equal(*p, obj)) n++;
