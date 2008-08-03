@@ -14,6 +14,7 @@ HotCocoa::Mappings.map :control => :NSControl do
     
     def on_action(&behavior)
       self.on_action = behavior
+      self
     end
     
     def text=(text)
