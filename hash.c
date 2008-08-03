@@ -3007,6 +3007,8 @@ rb_objc_install_hash_primitives(Class klass)
     INSTALL_METHOD("isEqual:", imp_rb_hash_isEqual);
     INSTALL_METHOD("containsObject:", imp_rb_hash_containsObject);
 
+    rb_define_alloc_func((VALUE)klass, hash_alloc);
+
 #undef INSTALL_METHOD
 }
 #endif

@@ -8508,6 +8508,8 @@ rb_objc_install_string_primitives(Class klass)
     INSTALL_METHOD("_fastestEncodingInCFStringEncoding",
 	imp_rb_str_fastestEncodingInCFStringEncoding);
     INSTALL_METHOD("isEqual:", imp_rb_str_isEqual);
+    
+    rb_define_alloc_func((VALUE)klass, str_alloc);
 }
 
 static CFIndex

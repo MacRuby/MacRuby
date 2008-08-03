@@ -4111,6 +4111,8 @@ rb_objc_install_array_primitives(Class klass)
 	class_addMethod(klass, sel_registerName("_cfindexOfObject:inRange:"), 
 	    method_getImplementation(m), method_getTypeEncoding(m));
     }
+    
+    rb_define_alloc_func((VALUE)klass, ary_alloc);
 
 #undef INSTALL_METHOD
 }
