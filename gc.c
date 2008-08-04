@@ -2251,6 +2251,48 @@ struct rb_objc_recorder_context {
     int count;
 };
 
+static int
+rb_objc_yield_classes(VALUE of)
+{
+    int i, count, rcount;
+    Class *buf;
+
+    count = objc_getClassList(NULL, 0);
+    assert(count > 0);
+
+    buf = (Class *)alloca(sizeof(Class) * count);
+    objc_getClassList(buf, count);
+
+    for (i = rcount = 0; i < count; i++) {
+	Class sk, k = buf[i];
+	bool nsobject_based;
+
+	if (class_getName(k)[0] == '_')
+	    continue;
+
+	if (of == rb_cModule && !RCLASS_MODULE(k))
+	    continue;
+
+	nsobject_based = false;
+	sk = k;
+	do {
+	    sk = (Class)RCLASS_SUPER(sk);
+	    if (sk == (Class)rb_cNSObject) {
+		nsobject_based = true;
+		break;
+	    }
+	}
+	while (sk != NULL);	
+
+	if (nsobject_based) {
+	    rb_yield((VALUE)k);
+	    rcount++;
+	}
+    }
+
+    return rcount;
+}
+
 static void 
 rb_objc_recorder(task_t task, void *context, unsigned type_mask,
 		 vm_range_t *ranges, unsigned range_count)
@@ -2266,48 +2308,29 @@ rb_objc_recorder(task_t task, void *context, unsigned type_mask,
 	    auto_zone_get_layout_type_no_lock(__auto_zone, (void *)r->address);
 	if (type != AUTO_OBJECT_SCANNED && type != AUTO_OBJECT_UNSCANNED)
 	    continue;
+	if (*(Class *)r->address == NULL)
+	    continue;
 	if (ctx->class_of != 0) {
-#if 0
-	    if (ctx->class_of == rb_cClass || ctx->class_of == rb_cModule) {
-		/* Class/Module are a special case. */
-		if (NATIVE(r->address)
-		    || FL_TEST(r->address, FL_SINGLETON))
-		    continue;
-		if (ctx->class_of == rb_cClass) {
-		    /* Only match classes. */
-		    if (BUILTIN_TYPE(r->address) != T_CLASS)
-			continue;
-		}
-		else {
-		    /* Match classes & modules. */
-		    if (BUILTIN_TYPE(r->address) != T_CLASS 
-			&& BUILTIN_TYPE(r->address) != T_MODULE)
-			continue;
+	    bool ok = false;
+	    for (c = *(Class *)r->address; c != NULL; 
+		    c = class_getSuperclass(c)) {
+		if (c ==(Class)ctx->class_of) {
+		    ok = true;
+		    break;
 		}
 	    }
-	    else
-#endif
-	    {
-	    	unsigned ok = 0;
-	    	for (c = *(Class *)r->address; c != NULL; 
-		     c = class_getSuperclass(c)) {
-		    if (c ==(Class)ctx->class_of) {
-		        ok = 1;
-		        break;
-		    }
-	        }
-	        if (!ok)
-		    continue;
-	    }
+	    if (!ok)
+		continue;
 	}
-	switch (BUILTIN_TYPE(r->address)) {
+	switch (TYPE(r->address)) {
 	    case T_NONE: 
-	    case T_ICLASS: 
 	    case T_NODE:
 		continue;
+	    case T_ICLASS: 
 	    case T_CLASS:
-		if (RCLASS_SINGLETON(r->address))
-		    continue;
+	    case T_MODULE:
+		rb_bug("object %p of type %d should not be recorded", 
+		       (void *)r->address, TYPE(r->address));
 	    case T_NATIVE:
 		if (rb_objc_is_placeholder((void *)r->address))
 		    continue;
@@ -2408,11 +2431,20 @@ os_each_obj(int argc, VALUE *argv, VALUE os)
     }
     RETURN_ENUMERATOR(os, 1, &of);
 #if WITH_OBJC
-    struct rb_objc_recorder_context ctx = {of, 0};
-    (((malloc_zone_t *)__auto_zone)->introspect->enumerator)(
+    /* Class/Module are a special case, because they are not auto objects */
+    int count = rb_objc_yield_classes(of);
+
+    if (of != rb_cClass && of != rb_cModule) {
+	struct rb_objc_recorder_context ctx = {of, count};
+
+	(((malloc_zone_t *)__auto_zone)->introspect->enumerator)(
 	    mach_task_self(), (void *)&ctx, MALLOC_PTR_IN_USE_RANGE_TYPE,
 	    (vm_address_t)__auto_zone, NULL, rb_objc_recorder);
-    return INT2FIX(ctx.count);
+
+	count = ctx.count;
+    }
+
+    return INT2FIX(count);
 #else
     return os_obj_of(&rb_objspace, of);
 #endif

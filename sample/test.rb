@@ -1879,7 +1879,6 @@ rescue Exception
   false
 end
 
-=begin
 for script in Dir["#{dir}{lib,sample,ext,test}/**/*.rb"]
   unless valid_syntax? IO::read(script), script
     STDERR.puts script
@@ -1887,7 +1886,6 @@ for script in Dir["#{dir}{lib,sample,ext,test}/**/*.rb"]
   end
 end
 test_ok(!$bad)
-=end
 
 test_check "const"
 TEST1 = 1

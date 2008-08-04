@@ -502,6 +502,9 @@ struct RClass {
 # define RCLASS_IS_SINGLETON	      0x800   /* class represents a singleton/metaclass */
 # define RCLASS_IS_FROZEN	      0x1000  /* class is frozen */
 # define RCLASS_IS_TAINTED	      0x2000  /* class is tainted */
+# define RCLASS_IS_STRING_SUBCLASS    0x10000 /* class is a subclass of NSCFString */
+# define RCLASS_IS_ARRAY_SUBCLASS     0x20000 /* class is a subclass of NSCFArray */
+# define RCLASS_IS_HASH_SUBCLASS      0x40000 /* class is a subclass of NSCFDictionary */
 # if __OBJC2__
 #  define RCLASS_VERSION(m) (class_getVersion((Class)m))
 #  define RCLASS_SET_VERSION_FLAG(m,f) (class_setVersion((Class)m, (RCLASS_VERSION(m) | f)))
@@ -1198,9 +1201,18 @@ rb_type(VALUE obj)
 	    else return T_CLASS;
 	}
 	if (k == (Class)rb_cSymbol) return T_SYMBOL;
-	if (k == (Class)rb_cCFString) return T_STRING;
-	if (k == (Class)rb_cCFArray) return T_ARRAY;
-	if (k == (Class)rb_cCFHash) return T_HASH;
+	if (k == (Class)rb_cCFString
+	    || (RCLASS_VERSION(k) & RCLASS_IS_STRING_SUBCLASS) 
+	    == RCLASS_IS_STRING_SUBCLASS) 
+	    return T_STRING;
+	if (k == (Class)rb_cCFArray
+	    || (RCLASS_VERSION(k) & RCLASS_IS_ARRAY_SUBCLASS) 
+	    == RCLASS_IS_ARRAY_SUBCLASS) 
+	    return T_ARRAY;
+	if (k == (Class)rb_cCFHash
+	    || (RCLASS_VERSION(k) & RCLASS_IS_HASH_SUBCLASS) 
+	    == RCLASS_IS_HASH_SUBCLASS)
+	    return T_HASH;
 	if (NATIVE(obj)) return T_NATIVE;
     }
 #endif

@@ -35,14 +35,17 @@ rb_objc_install_primitives(Class ocklass, Class ocsuper)
 	do {
 	    if (ocsuper == (Class)rb_cArray) {
 		rb_objc_install_array_primitives(ocklass);
+		RCLASS_SET_VERSION_FLAG(ocklass, RCLASS_IS_ARRAY_SUBCLASS);
 		return true;
 	    }
 	    if (ocsuper == (Class)rb_cHash) {
 		rb_objc_install_hash_primitives(ocklass);
+		RCLASS_SET_VERSION_FLAG(ocklass, RCLASS_IS_HASH_SUBCLASS);
 		return true;
 	    }
 	    if (ocsuper == (Class)rb_cString) {
 		rb_objc_install_string_primitives(ocklass);
+		RCLASS_SET_VERSION_FLAG(ocklass, RCLASS_IS_STRING_SUBCLASS);
 		return true;
 	    }
 	    ocsuper = class_getSuperclass(ocsuper);
