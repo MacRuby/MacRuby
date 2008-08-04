@@ -1203,15 +1203,15 @@ rb_type(VALUE obj)
 	if (k == (Class)rb_cSymbol) return T_SYMBOL;
 	if (k == (Class)rb_cCFString
 	    || (RCLASS_VERSION(k) & RCLASS_IS_STRING_SUBCLASS) 
-	    == RCLASS_IS_STRING_SUBCLASS) 
+		== RCLASS_IS_STRING_SUBCLASS) 
 	    return T_STRING;
 	if (k == (Class)rb_cCFArray
 	    || (RCLASS_VERSION(k) & RCLASS_IS_ARRAY_SUBCLASS) 
-	    == RCLASS_IS_ARRAY_SUBCLASS) 
+		== RCLASS_IS_ARRAY_SUBCLASS) 
 	    return T_ARRAY;
 	if (k == (Class)rb_cCFHash
 	    || (RCLASS_VERSION(k) & RCLASS_IS_HASH_SUBCLASS) 
-	    == RCLASS_IS_HASH_SUBCLASS)
+		== RCLASS_IS_HASH_SUBCLASS)
 	    return T_HASH;
 	if (NATIVE(obj)) return T_NATIVE;
     }

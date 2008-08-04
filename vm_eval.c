@@ -210,7 +210,7 @@ rb_call0(VALUE klass, VALUE recv, ID mid, int argc, const VALUE *argv,
     if (imp != NULL && method == NULL)
 	return rb_objc_call(recv, sel, argc, (VALUE *)argv);
 
-    DLOG("RCALL", "[<%s %p> %s] node=%p", class_getName((Class)klass), (void *)recv, (char *)sel, method);
+    DLOG("RCALL", "%c[<%s %p> %s] node=%p", class_isMetaClass((Class)klass) ? '+' : '-', class_getName((Class)klass), (void *)recv, (char *)sel, method);
     
     if (method == NULL) {
 	int missing_scope = scope == 2 ? NOEX_VCALL : scope == 3 ? NOEX_SUPER : NOEX_VCALL;

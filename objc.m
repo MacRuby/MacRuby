@@ -1020,7 +1020,7 @@ rb_objc_call_objc(int argc, VALUE *argv, id ocrcv, Class klass,
     char buf[128];
     void *imp;
 
-    DLOG("OCALL", "[<%s %p> %s]", class_getName((Class)klass), (void *)ocrcv, (char *)ctx->selector);
+    DLOG("OCALL", "%c[<%s %p> %s]", class_isMetaClass(klass) ? '+' : '-', class_getName(klass), (void *)ocrcv, (char *)ctx->selector);
 
     count = method_getNumberOfArguments(ctx->method);
     assert(count >= 2);

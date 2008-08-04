@@ -531,12 +531,9 @@ mn = c_mn;
 else {
 #endif
 
-    NODE *rb_objc_method_node2(VALUE mod, SEL sel, IMP *pimp); 
-
-    if (sel == 0)
-	mn = rb_objc_method_node(klass, id, &imp, &sel);
-    else
-	mn = rb_objc_method_node2(klass, sel, &imp);
+    mn = sel == 0 
+	? rb_objc_method_node(klass, id, &imp, &sel)
+	: rb_objc_method_node2(klass, sel, &imp);
 
     if (flag & VM_CALL_SEND_BIT) {
 	vm_send_optimize(cfp, (NODE **)&mn, (rb_num_t *)&flag, (rb_num_t *)&num, (ID *)&id, klass);  
@@ -571,7 +568,7 @@ c_mn = (NODE*)mn;
 	return val;
     }
 
-    DLOG("RCALL", "[<%s %p> %s] node=%p", class_getName((Class)klass), (void *)recv, (char *)sel, mn);
+    DLOG("RCALL", "%c[<%s %p> %s] node=%p", class_isMetaClass((Class)klass) ? '+' : '-', class_getName((Class)klass), (void *)recv, (char *)sel, mn);
 #endif
 
   start_method_dispatch:

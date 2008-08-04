@@ -3032,7 +3032,10 @@ Init_Hash(void)
 
     rb_include_module(rb_cHash, rb_mEnumerable);
 
-#if !WITH_OBJC
+#if WITH_OBJC
+    /* required because Hash.new can accept a block */
+    rb_define_singleton_method(rb_cHash, "new", rb_class_new_instance, -1);
+#else
     rb_define_alloc_func(rb_cHash, hash_alloc);
 #endif
     rb_define_singleton_method(rb_cHash, "[]", rb_hash_s_create, -1);

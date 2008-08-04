@@ -566,6 +566,8 @@ void
 rb_include_module(VALUE klass, VALUE module)
 {
 #if WITH_OBJC
+    Method *methods;
+    unsigned int i, methods_count;
     VALUE ary;
 
     rb_frozen_class_p(klass);
@@ -580,6 +582,8 @@ rb_include_module(VALUE klass, VALUE module)
 	ary = rb_ary_new();
 	rb_ivar_set(klass, idIncludedModules, ary);
     }
+    if (rb_ary_includes(ary, module))
+	return;
     rb_ary_insert(ary, 0, module);
 
     ary = rb_ivar_get(module, idIncludedInClasses);
@@ -590,9 +594,6 @@ rb_include_module(VALUE klass, VALUE module)
     rb_ary_push(ary, klass);
 
     DLOG("INCM", "%s <- %s", class_getName((Class)klass), class_getName((Class)module));
-
-    Method *methods;
-    unsigned int i, methods_count;
 
     methods = class_copyMethodList((Class)module, &methods_count);
     for (i = 0; i < methods_count; i++) {
@@ -668,23 +669,29 @@ rb_include_module(VALUE klass, VALUE module)
 VALUE
 rb_mod_included_modules(VALUE mod)
 {
-    VALUE ary = rb_ary_new();
-    VALUE p;
+    VALUE p, ary = rb_ary_new();
 
-    for (p = RCLASS_SUPER(mod); p; p = RCLASS_SUPER(p)) {
 #if WITH_OBJC
+    for (p = mod; p; p = RCLASS_SUPER(p)) {
 	VALUE inc_mods = rb_ivar_get(p, idIncludedModules);
 	if (inc_mods != Qnil) {
 	    int i, count = RARRAY_LEN(inc_mods);
-	    for (i = 0; i < count; i++)
-		rb_ary_push(ary, RARRAY_AT(inc_mods, i));
+	    for (i = 0; i < count; i++) {
+		VALUE imod = RARRAY_AT(inc_mods, i);
+		rb_ary_push(ary, imod);
+		rb_ary_concat(ary, rb_mod_included_modules(imod));
+	    }
 	}
+	if (RCLASS_MODULE(p))
+	    break;
+    }
 #else
+    for (p = RCLASS_SUPER(mod); p; p = RCLASS_SUPER(p)) {
 	if (BUILTIN_TYPE(p) == T_ICLASS) {
 	    rb_ary_push(ary, RBASIC(p)->klass);
 	}
-#endif
     }
+#endif
     return ary;
 }
 
@@ -745,19 +752,16 @@ VALUE
 rb_mod_ancestors(VALUE mod)
 {
     VALUE p, ary = rb_ary_new();
-
-    for (p = mod; p; p = RCLASS_SUPER(p)) {
+   
 #if WITH_OBJC
-	VALUE inc_mods;
-
+    for (p = mod; p; p = RCLASS_SUPER(p)) {
 	rb_ary_push(ary, p);
-	inc_mods = rb_ivar_get(p, idIncludedModules);
-	if (inc_mods != Qnil) {
-	    int i, count;
-	    for (i = 0, count = RARRAY_LEN(inc_mods); i < count; i++)
-		rb_ary_push(ary, RARRAY_AT(inc_mods, i));
-	}
+	rb_ary_concat(ary, rb_mod_included_modules(p));
+	if (RCLASS_MODULE(p))
+	    break;
+    }
 #else
+    for (p = mod; p; p = RCLASS_SUPER(p)) {
 	if (RCLASS_SINGLETON(p))
 	    continue;
 	if (BUILTIN_TYPE(p) == T_ICLASS) {
@@ -766,8 +770,8 @@ rb_mod_ancestors(VALUE mod)
 	else {
 	    rb_ary_push(ary, p);
 	}
-#endif
     }
+#endif
     return ary;
 }
 

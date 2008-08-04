@@ -1329,9 +1329,7 @@ rb_mod_eqq(VALUE mod, VALUE arg)
 VALUE
 rb_class_inherited_p(VALUE mod, VALUE arg)
 {
-#if !WITH_OBJC
     VALUE start = mod;
-#endif
 
     if (mod == arg) return Qtrue;
     switch (TYPE(arg)) {
@@ -1341,7 +1339,18 @@ rb_class_inherited_p(VALUE mod, VALUE arg)
       default:
 	rb_raise(rb_eTypeError, "compared with non class/module");
     }
-#if WITH_OBJC // TODO
+#if WITH_OBJC
+    while (mod) {
+	if (mod == arg)
+	    return Qtrue;
+	mod = RCLASS_SUPER(mod);
+    }
+    /* not mod < arg; check if mod > arg */
+    while (arg) {
+	if (arg == start)
+	    return Qfalse;
+	arg = RCLASS_SUPER(arg);
+    }
 #else
     while (mod) {
 	if (RCLASS_M_TBL(mod) == RCLASS_M_TBL(arg))
