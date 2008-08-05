@@ -1254,7 +1254,7 @@ rb_ruby_to_objc_closure_handler(ffi_cif *cif, void *resp, void **args,
     Method method;
     char type[128];
     long i, argc;
-    VALUE *argv;
+    VALUE *argv, klass;
     NODE *body, *node;
 
     rcv = (*(id **)args)[0];
@@ -1278,14 +1278,15 @@ rb_ruby_to_objc_closure_handler(ffi_cif *cif, void *resp, void **args,
     rrcv = rcv == NULL ? Qnil : (VALUE)rcv;
 
     mid = rb_intern((const char *)sel);
+    klass = CLASS_OF(rrcv);
 
-    DLOG("RCALL", "[%p %s] node=%p argc=%ld", (void *)rrcv, (char *)sel, body, argc);
+    DLOG("RCALL", "%c[<%s %p> %s] node=%p", class_isMetaClass((Class)klass) ? '+' : '-', class_getName((Class)klass), (void *)rrcv, (char *)sel, body);
 
     VALUE rb_vm_call(rb_thread_t * th, VALUE klass, VALUE recv, VALUE id, 
 		     ID oid, int argc, const VALUE *argv, const NODE *body, 
 		     int nosuper);
 
-    ret = rb_vm_call(GET_THREAD(), CLASS_OF(rrcv), rrcv, mid, Qnil,
+    ret = rb_vm_call(GET_THREAD(), klass, rrcv, mid, Qnil,
 		     argc, argv, node, 0);
 
     method_getReturnType(method, type, sizeof type);

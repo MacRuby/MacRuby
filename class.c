@@ -666,6 +666,20 @@ rb_include_module(VALUE klass, VALUE module)
  *     Outer.included_modules   #=> [Mixin]
  */
 
+static void
+rb_mod_included_modules_nosuper(VALUE mod, VALUE ary)
+{
+    VALUE inc_mods = rb_ivar_get(mod, idIncludedModules);
+    if (inc_mods != Qnil) {
+	int i, count = RARRAY_LEN(inc_mods);
+	for (i = 0; i < count; i++) {
+	    VALUE imod = RARRAY_AT(inc_mods, i);
+	    rb_ary_push(ary, imod);
+	    rb_ary_concat(ary, rb_mod_included_modules(imod));
+	}
+    }
+}
+
 VALUE
 rb_mod_included_modules(VALUE mod)
 {
@@ -673,15 +687,7 @@ rb_mod_included_modules(VALUE mod)
 
 #if WITH_OBJC
     for (p = mod; p; p = RCLASS_SUPER(p)) {
-	VALUE inc_mods = rb_ivar_get(p, idIncludedModules);
-	if (inc_mods != Qnil) {
-	    int i, count = RARRAY_LEN(inc_mods);
-	    for (i = 0; i < count; i++) {
-		VALUE imod = RARRAY_AT(inc_mods, i);
-		rb_ary_push(ary, imod);
-		rb_ary_concat(ary, rb_mod_included_modules(imod));
-	    }
-	}
+	rb_mod_included_modules_nosuper(p, ary);
 	if (RCLASS_MODULE(p))
 	    break;
     }
@@ -748,6 +754,8 @@ rb_mod_include_p(VALUE mod, VALUE mod2)
  *     Math.ancestors   #=> [Math]
  */
 
+static void rb_mod_included_modules_nosuper(VALUE, VALUE);
+
 VALUE
 rb_mod_ancestors(VALUE mod)
 {
@@ -756,7 +764,7 @@ rb_mod_ancestors(VALUE mod)
 #if WITH_OBJC
     for (p = mod; p; p = RCLASS_SUPER(p)) {
 	rb_ary_push(ary, p);
-	rb_ary_concat(ary, rb_mod_included_modules(p));
+	rb_mod_included_modules_nosuper(p, ary);
 	if (RCLASS_MODULE(p))
 	    break;
     }

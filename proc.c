@@ -770,7 +770,9 @@ mnew(VALUE klass, VALUE obj, ID id, VALUE mclass, int scope)
     data->body = body;
     data->rclass = rclass;
     data->oid = oid;
+#if !WITH_OBJC
     OBJ_INFECT(method, klass);
+#endif
 
     return method;
 }
@@ -877,7 +879,9 @@ method_unbind(VALUE obj)
     data->body = orig->body;
     data->rclass = orig->rclass;
     data->oid = orig->oid;
+#if !WITH_OBJC
     OBJ_INFECT(method, obj);
+#endif
 
     return method;
 }
