@@ -97,7 +97,7 @@ class Calculator
     end
   
     def sqrt
-      value.text = Math.sqrt(value.to_f).to_s
+      value.text = Math.sqrt(float_value).to_s
     end
   
     def clear
