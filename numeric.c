@@ -3216,8 +3216,9 @@ Init_Numeric(void)
 #if WITH_OBJC
     rb_cCFNumber = (VALUE)objc_getClass("NSCFNumber");
     rb_cNumeric = rb_define_class("Numeric", (VALUE)objc_getClass("NSNumber"));
-    // We need to redefine #class because otherwise NSObject#class will return NSCFNumber for all numeric types.
+    /* overriding NSObject methods */
     rb_define_method(rb_cNumeric, "class", rb_obj_class, 0);
+    rb_define_method(rb_cNumeric, "dup", rb_obj_dup, 0);
 #else
     rb_cNumeric = rb_define_class("Numeric", rb_cObject);
 #endif

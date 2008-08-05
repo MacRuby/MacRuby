@@ -891,15 +891,22 @@ static VALUE rb_str_replace(VALUE, VALUE);
 VALUE
 rb_str_dup(VALUE str)
 {
+#if WITH_OBJC
+    VALUE dup;
+    void *data;
+
+    dup = (VALUE)CFStringCreateMutableCopy(NULL, 0, (CFStringRef)str);
+
+    data = rb_str_cfdata2(str);
+    if (data != NULL)
+	rb_str_cfdata_set(dup, data);
+
+    CFMakeCollectable((CFTypeRef)dup);
+#else
     VALUE dup = str_alloc(rb_obj_class(str));
     rb_str_replace(dup, str);
-#if WITH_OBJC
-    {
-	void *data = rb_str_cfdata2(str);
-	if (data != NULL)
-	    rb_str_cfdata_set(dup, data);
-    }
 #endif
+
     return dup;
 }
 
@@ -8714,6 +8721,9 @@ Init_String(void)
 #if WITH_OBJC
     rb_define_method(rb_cString, "transform", rb_str_transform, 1);
     rb_define_method(rb_cString, "transform!", rb_str_transform_bang, 1);
+
+    /* to return a mutable copy */
+    rb_define_method(rb_cString, "dup", rb_str_dup, 0);
 #endif
 
     id_to_s = rb_intern("to_s");
@@ -8723,6 +8733,7 @@ Init_String(void)
     rb_define_variable("$-F", &rb_fs);
 
 #if WITH_OBJC // rb_cSymbol is defined in parse.y because it's needed early
+    rb_set_class_path(rb_cSymbol, rb_cObject, "Symbol");
 #else
     rb_cSymbol = rb_define_class("Symbol", rb_cObject);
     rb_include_module(rb_cSymbol, rb_mComparable);
@@ -8735,6 +8746,7 @@ Init_String(void)
     rb_define_method(rb_cSymbol, "inspect", sym_inspect, 0);
 #if WITH_OBJC
     rb_define_method(rb_cSymbol, "description", sym_inspect, 0);
+    rb_define_method(rb_cSymbol, "dup", rb_obj_dup, 0);
 #endif
     rb_define_method(rb_cSymbol, "to_proc", sym_to_proc, 0);
     rb_define_method(rb_cSymbol, "to_s", rb_sym_to_s, 0);

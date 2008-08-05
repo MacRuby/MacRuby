@@ -4243,5 +4243,10 @@ Init_Array(void)
     rb_define_method(rb_cArray, "drop", rb_ary_drop, 1);
     rb_define_method(rb_cArray, "drop_while", rb_ary_drop_while, 0);
 
+#if WITH_OBJC
+    /* to return a mutable copy */
+    rb_define_method(rb_cArray, "dup", rb_ary_dup, 0);
+#endif
+
     id_cmp = rb_intern("<=>");
 }

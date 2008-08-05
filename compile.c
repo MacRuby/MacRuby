@@ -918,10 +918,10 @@ iseq_set_arguments(rb_iseq_t *iseq, LINK_ANCHOR *optargs, NODE *node_args)
 	    MEMCPY(iseq->arg_opt_table, RARRAY_PTR(labels), VALUE, i);
 #endif
 	    for (j = 0; j < i; j++) {
-		iseq->arg_opt_table[j] &= ~1;
 #if WITH_OBJC
 		iseq->arg_opt_table[j] = OC2RB(iseq->arg_opt_table[j]);
 #endif
+		iseq->arg_opt_table[j] &= ~1;
 	    }
 	}
 	else {

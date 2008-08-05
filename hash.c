@@ -311,6 +311,14 @@ hash_alloc(VALUE klass)
 }
 
 VALUE
+rb_hash_dup(VALUE rcv)
+{
+    VALUE dup = (VALUE)CFDictionaryCreateMutableCopy(NULL, 0, (CFDictionaryRef)rcv);
+    CFMakeCollectable((CFTypeRef)dup);
+    return dup;
+}
+
+VALUE
 rb_hash_new(void)
 {
 #if WITH_OBJC
@@ -1918,7 +1926,7 @@ rb_hash_update(VALUE hash1, VALUE hash2)
 static VALUE
 rb_hash_merge(VALUE hash1, VALUE hash2)
 {
-    return rb_hash_update(rb_obj_dup(hash1), hash2);
+    return rb_hash_update(rb_hash_dup(hash1), hash2);
 }
 
 static int
@@ -3035,6 +3043,8 @@ Init_Hash(void)
 #if WITH_OBJC
     /* required because Hash.new can accept a block */
     rb_define_singleton_method(rb_cHash, "new", rb_class_new_instance, -1);
+    /* to return a mutable copy */
+    rb_define_method(rb_cHash, "dup", rb_hash_dup, 0);
 #else
     rb_define_alloc_func(rb_cHash, hash_alloc);
 #endif

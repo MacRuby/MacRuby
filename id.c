@@ -59,6 +59,7 @@ Init_id(void)
     selSucc = sel_registerName("succ");
     selNot = sel_registerName("!");
     selInit = sel_registerName("init");
+    selCopy = sel_registerName("copy");
 #endif
 
     idAREF = rb_intern("[]");

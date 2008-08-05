@@ -437,12 +437,25 @@ rb_export_method(VALUE klass, ID name, ID noex)
 	origin = rb_method_node(RCLASS_SUPER(klass), name) == fbody
 	    ? RCLASS_SUPER(klass) : klass;
     }
+    if (fbody == NULL) {
+	rb_print_undef(klass, name, 0);
+    }
+    if (fbody->nd_noex != noex) {
+	if (nd_type(fbody->nd_body) == NODE_CFUNC) {
+	    rb_vm_check_redefinition_opt_method(fbody);
+	}
+	if (klass == origin) {
+	    fbody->nd_noex = noex;
+	}
+	else {
+	    rb_add_method(klass, name, NEW_ZSUPER(), noex);
+	}
+    }
 #else
     fbody = search_method(klass, name, &origin);
     if (!fbody && TYPE(klass) == T_MODULE) {
 	fbody = search_method(rb_cObject, name, &origin);
     }
-#endif
     if (!fbody || !fbody->nd_body) {
 	rb_print_undef(klass, name, 0);
     }
@@ -457,6 +470,7 @@ rb_export_method(VALUE klass, ID name, ID noex)
 	    rb_add_method(klass, name, NEW_ZSUPER(), noex);
 	}
     }
+#endif
 }
 
 int

@@ -15,6 +15,7 @@
 #include "ruby/st.h"
 #include "ruby/util.h"
 #include "debug.h"
+#include "id.h"
 #include <stdio.h>
 #include <errno.h>
 #include <ctype.h>
@@ -352,7 +353,7 @@ rb_obj_dup(VALUE obj)
 {
     VALUE dup;
 
-    if (rb_special_const_p(obj)) {
+    if (rb_special_const_p(obj) || TYPE(obj) == T_SYMBOL) {
         rb_raise(rb_eTypeError, "can't dup %s", rb_obj_classname(obj));
     }
     dup = rb_obj_alloc(rb_obj_class(obj));
@@ -360,6 +361,14 @@ rb_obj_dup(VALUE obj)
 
     return dup;
 }
+
+#if WITH_OBJC
+static VALUE
+rb_nsobj_dup(VALUE obj)
+{
+    return (VALUE)objc_msgSend((id)obj, selCopy); 
+}
+#endif
 
 /* :nodoc: */
 VALUE
@@ -2640,9 +2649,18 @@ Init_Object(void)
     // #class is already defined in NSObject
     rb_define_method(rb_mKernel, "class", rb_obj_class, 0);
 #endif
+
+#if WITH_OBJC
+    rb_define_method(rb_cObject, "clone", rb_obj_clone, 0);
+    rb_define_method(rb_cObject, "dup", rb_obj_dup, 0);
+    rb_define_method(rb_cObject, "copy", rb_obj_dup, 0);
+    rb_define_method(rb_cObject, "initialize_copy", rb_obj_init_copy, 1);
+    rb_define_method(rb_cNSObject, "dup", rb_nsobj_dup, 0);
+#else
     rb_define_method(rb_mKernel, "clone", rb_obj_clone, 0);
     rb_define_method(rb_mKernel, "dup", rb_obj_dup, 0);
     rb_define_method(rb_mKernel, "initialize_copy", rb_obj_init_copy, 1);
+#endif
 
     rb_define_method(rb_mKernel, "taint", rb_obj_taint, 0);
     rb_define_method(rb_mKernel, "tainted?", rb_obj_tainted, 0);
