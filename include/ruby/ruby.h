@@ -1092,10 +1092,7 @@ RUBY_EXTERN VALUE rb_stdin, rb_stdout, rb_stderr;
 static inline bool
 rb_is_native(VALUE obj) {
     Class k = *(Class *)obj;
-    return k != NULL
-	   && k != (Class)rb_cBignum
-	   && k != (Class)rb_cFloat
-	   && (RCLASS_VERSION(k) & RCLASS_IS_OBJECT_SUBCLASS) != RCLASS_IS_OBJECT_SUBCLASS;
+    return k != NULL && (RCLASS_VERSION(k) & RCLASS_IS_OBJECT_SUBCLASS) != RCLASS_IS_OBJECT_SUBCLASS;
 }
 #define NATIVE(obj) (rb_is_native((VALUE)obj))
 
@@ -1213,6 +1210,7 @@ rb_type(VALUE obj)
 	    || (RCLASS_VERSION(k) & RCLASS_IS_HASH_SUBCLASS) 
 		== RCLASS_IS_HASH_SUBCLASS)
 	    return T_HASH;
+	if (k == (Class)rb_cFixnum) return T_FIXNUM;
 	if (NATIVE(obj)) return T_NATIVE;
     }
 #endif

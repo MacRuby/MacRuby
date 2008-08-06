@@ -197,7 +197,7 @@ rb_call0(VALUE klass, VALUE recv, ID mid, int argc, const VALUE *argv,
     IMP imp;
     SEL sel;
 
-    if (argc > 0) {
+    if (argc > 0 && mid != ID_ALLOCATOR) {
 	char buf[512];
 	strncpy(buf, rb_id2name(mid), sizeof buf);
 	if (buf[strlen(buf) - 1] != ':')

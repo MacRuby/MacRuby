@@ -1589,6 +1589,7 @@ rb_obj_alloc(VALUE klass)
     return obj;
 }
 
+#if !WITH_OBJC
 static VALUE
 rb_class_allocate_instance(VALUE klass)
 {
@@ -1596,6 +1597,7 @@ rb_class_allocate_instance(VALUE klass)
     OBJSETUP(obj, klass, T_OBJECT);
     return (VALUE)obj;
 }
+#endif
 
 /*
  *  call-seq:
@@ -2583,10 +2585,9 @@ void
 Init_Object(void)
 {
 #if WITH_OBJC
-    rb_cNSObject = (VALUE)objc_getClass("NSObject");
-    rb_cObject = boot_defclass("Object", rb_cNSObject);
+    rb_cNSObject = rb_cObject = (VALUE)objc_getClass("NSObject");
+    rb_const_set(rb_cObject, rb_intern("Object"), rb_cNSObject);
     rb_cBasicObject = rb_cObject; // TODO
-    RCLASS_SET_VERSION_FLAG(rb_cObject, RCLASS_IS_OBJECT_SUBCLASS);
     rb_cModule = boot_defclass("Module", rb_cObject);
     rb_cClass =  boot_defclass("Class",  rb_cModule);
     RCLASS_SUPER(*(Class *)rb_cNSObject) = rb_cClass;
@@ -2605,17 +2606,13 @@ Init_Object(void)
 #endif
 
     rb_define_private_method(rb_cBasicObject, "initialize", rb_obj_dummy, 0);
-    rb_define_alloc_func(rb_cBasicObject, rb_class_allocate_instance);
-#if WITH_OBJC
-    // required because otherwise NSObject.new will be first in the method chain.
-    rb_define_singleton_method(rb_cBasicObject, "new", rb_class_new_instance, -1);
-#endif
 #if WITH_OBJC
     rb_define_method(rb_cNSObject, "==", rb_obj_equal, 1);
     rb_define_method(rb_cNSObject, "equal?", rb_obj_equal, 1);
     rb_define_method(rb_cNSObject, "!", rb_obj_not, 0);
     rb_define_method(rb_cNSObject, "!=", rb_obj_not_equal, 1);
 #else
+    rb_define_alloc_func(rb_cBasicObject, rb_class_allocate_instance);
     rb_define_method(rb_cBasicObject, "==", rb_obj_equal, 1);
     rb_define_method(rb_cBasicObject, "equal?", rb_obj_equal, 1);
     rb_define_method(rb_cBasicObject, "!", rb_obj_not, 0);
@@ -2627,11 +2624,7 @@ Init_Object(void)
     rb_define_private_method(rb_cBasicObject, "singleton_method_undefined", rb_obj_dummy, 1);
 
     rb_mKernel = rb_define_module("Kernel");
-#if WITH_OBJC
-    rb_include_module(rb_cNSObject, rb_mKernel);
-#else
     rb_include_module(rb_cObject, rb_mKernel);
-#endif
     rb_define_private_method(rb_cClass, "inherited", rb_obj_dummy, 1);
     rb_define_private_method(rb_cModule, "included", rb_obj_dummy, 1);
     rb_define_private_method(rb_cModule, "extended", rb_obj_dummy, 1);
@@ -2646,7 +2639,7 @@ Init_Object(void)
     rb_define_method(rb_mKernel, "eql?", rb_obj_equal, 1);
 
 #if !WITH_OBJC 
-    // #class is already defined in NSObject
+    /* NSObject#class already exists */
     rb_define_method(rb_mKernel, "class", rb_obj_class, 0);
 #endif
 
@@ -2730,7 +2723,6 @@ Init_Object(void)
     rb_define_method(rb_cModule, "name", rb_mod_name, 0);  /* in variable.c */
     rb_define_method(rb_cModule, "ancestors", rb_mod_ancestors, 0); /* in class.c */
 #if WITH_OBJC
-    rb_define_method(rb_cModule, "objc_ancestors", rb_mod_objc_ancestors, 0); /* in objc.m */
     rb_define_private_method(rb_cModule, "ib_outlet", rb_mod_objc_ib_outlet, -1); /* in objc.m */
 #endif
 
@@ -2770,6 +2762,7 @@ Init_Object(void)
     rb_define_method(rb_cClass, "initialize", rb_class_initialize, -1);
     rb_define_method(rb_cClass, "initialize_copy", rb_class_init_copy, 1); /* in class.c */
 #if !WITH_OBJC
+    /* already defined */
     rb_define_method(rb_cClass, "superclass", rb_class_superclass, 0);
 #endif
     rb_define_alloc_func(rb_cClass, rb_class_s_alloc);

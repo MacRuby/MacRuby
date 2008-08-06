@@ -3216,6 +3216,7 @@ Init_Numeric(void)
 #if WITH_OBJC
     rb_cCFNumber = (VALUE)objc_getClass("NSCFNumber");
     rb_cNumeric = rb_define_class("Numeric", (VALUE)objc_getClass("NSNumber"));
+    RCLASS_SET_VERSION_FLAG(rb_cNumeric, RCLASS_IS_OBJECT_SUBCLASS);
     /* overriding NSObject methods */
     rb_define_method(rb_cNumeric, "class", rb_obj_class, 0);
     rb_define_method(rb_cNumeric, "dup", rb_obj_dup, 0);

@@ -1522,26 +1522,22 @@ rb_objc_register_ruby_method(VALUE mod, ID mid, NODE *body)
     DLOG("DEFM", "%c[%s %s] types=%s arity=%d body=%p override=%d direct_override=%d",
 	   class_isMetaClass((Class)mod) ? '+' : '-', class_getName((Class)mod), (char *)sel, types, arity, body, method != NULL, direct_override);
 
-    if (node == NULL) {
-	assert(class_addMethod((Class)mod, sel, NULL, types));
-	forward_method_definition(included_in_classes, sel, NULL, types);
+    imp = body == NULL ? NULL : rb_ruby_to_objc_closure(types, oc_arity, body);
+
+    if (method != NULL && direct_override) {
+	method_setImplementation(method, imp);
     }
     else {
+	assert(class_addMethod((Class)mod, sel, imp, types));
+    }
+    forward_method_definition(included_in_classes, sel, imp, types);
+
+    if (node != NULL) {
 	const char *sel_str = (const char *)sel;
 	const size_t sel_len = strlen(sel_str);
 	SEL new_sel;
 	char *new_types;
 	bool override;
-
-	imp = rb_ruby_to_objc_closure(types, oc_arity, body);
-
-	if (method != NULL && direct_override) {
-	    method_setImplementation(method, imp);
-	}
-	else {
-	    assert(class_addMethod((Class)mod, sel, imp, types));
-	}
-	forward_method_definition(included_in_classes, sel, imp, types);
 
 	if (sel_str[sel_len - 1] == ':') {
 	    char buf[512];
@@ -1578,22 +1574,6 @@ rb_objc_register_ruby_method(VALUE mod, ID mid, NODE *body)
 	    forward_method_definition(included_in_classes, new_sel, imp, new_types);
 	}
     }
-}
-
-VALUE
-rb_mod_objc_ancestors(VALUE recv)
-{
-    Class klass;
-    VALUE ary;
-
-    ary = rb_ary_new();
-
-    for (klass = (Class)recv; klass != NULL; 
-	 klass = class_getSuperclass(klass)) {
-	rb_ary_push(ary, rb_str_new2(class_getName(klass)));		
-    }
-
-    return ary;
 }
 
 static bool

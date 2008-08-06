@@ -56,21 +56,25 @@ rb_objc_install_primitives(Class ocklass, Class ocsuper)
 }
 
 static VALUE
+rb_class_allocate_instance(VALUE klass)
+{
+    NEWOBJ(obj, struct RObject);
+    OBJSETUP(obj, klass, T_OBJECT);
+    return (VALUE)obj;
+}
+
+static VALUE
 rb_objc_alloc_class(const char *name, VALUE super, VALUE flags, VALUE klass)
 {
-    Class ocsuper, ocklass;
+    Class ocklass;
     char ocname[128];
+    int version_flag;
 
     if (name == NULL) {
 	static long anon_count = 1;
     	snprintf(ocname, sizeof ocname, "RBAnonymous%ld", ++anon_count);
     }
     else {
-	if (super == rb_cNSObject && strcmp(name, "Object") != 0) {
-	    rb_warn("Do not subclass NSObject directly, please subclass " \
-		    "Object instead.");
-	    super = rb_cObject; 
-	}
 	if (objc_getClass(name) != NULL) {
 	    long count = 1;
 	    snprintf(ocname, sizeof ocname, "RB%s", name);
@@ -84,24 +88,31 @@ rb_objc_alloc_class(const char *name, VALUE super, VALUE flags, VALUE klass)
 	}
     }
 
-    ocsuper = super == 0 ? (Class)rb_cObject : (Class)super;
-    ocklass = objc_allocateClassPair(ocsuper, ocname, sizeof(id));
+    if (super == 0)
+	super = rb_cObject;
+
+    ocklass = objc_allocateClassPair((Class)super, ocname, sizeof(id));
     assert(ocklass != NULL);
 
-    int version_flag;
-
     version_flag = RCLASS_IS_RUBY_CLASS;
-    if (flags == T_MODULE)
+    if (flags == T_MODULE) {
 	version_flag |= RCLASS_IS_MODULE;
-    if ((RCLASS_VERSION(ocsuper) & RCLASS_IS_OBJECT_SUBCLASS) == RCLASS_IS_OBJECT_SUBCLASS)
+    }
+    if (super == rb_cObject) {
 	version_flag |= RCLASS_IS_OBJECT_SUBCLASS;
+	rb_define_alloc_func((VALUE)ocklass, rb_class_allocate_instance);
+	rb_define_singleton_method((VALUE)ocklass, "new", rb_class_new_instance, -1);
+    }
+    else if ((RCLASS_VERSION(super) & RCLASS_IS_OBJECT_SUBCLASS) == RCLASS_IS_OBJECT_SUBCLASS) {
+	version_flag |= RCLASS_IS_OBJECT_SUBCLASS;
+    }
 
     class_setVersion(ocklass, version_flag);
 
     DLOG("DEFC", "%s < %s (version=%d)", ocname, class_getName(class_getSuperclass((Class)ocklass)), version_flag);
 
     if (klass != 0)
-	rb_objc_install_primitives(ocklass, ocsuper);
+	rb_objc_install_primitives(ocklass, (Class)super);
 
     return (VALUE)ocklass;
 }
