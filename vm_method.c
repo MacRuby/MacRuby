@@ -437,6 +437,18 @@ rb_export_method(VALUE klass, ID name, ID noex)
 	origin = rb_method_node(RCLASS_SUPER(klass), name) == fbody
 	    ? RCLASS_SUPER(klass) : klass;
     }
+#if 0
+    if (fbody == NULL) {
+	char buf[512];
+	ID newname;
+
+	snprintf(buf, sizeof buf, "%s:", rb_id2name(name));
+	newname = rb_intern(buf);
+	fbody = rb_method_node(klass, newname);
+	if (fbody != NULL)
+	    name = newname;
+    }
+#endif
     if (fbody == NULL) {
 	rb_print_undef(klass, name, 0);
     }
@@ -1109,18 +1121,32 @@ rb_mod_modfunc(int argc, VALUE *argv, VALUE module)
 	    if (fbody == 0) {
 		fbody = search_method(rb_cObject, id, &m);
 	    }
+#if WITH_OBJC
+	    if (fbody == 0) {
+		rb_bug("undefined method `%s'; can't happen", rb_id2name(id));
+	    }
+	    if (nd_type(fbody->nd_body) != NODE_ZSUPER) {
+		break;		/* normal case: need not to follow 'super' link */
+	    }
+#else
 	    if (fbody == 0 || fbody->nd_body == 0) {
 		rb_bug("undefined method `%s'; can't happen", rb_id2name(id));
 	    }
 	    if (nd_type(fbody->nd_body->nd_body) != NODE_ZSUPER) {
 		break;		/* normal case: need not to follow 'super' link */
 	    }
+#endif
 	    m = RCLASS_SUPER(m);
 	    if (!m)
 		break;
 	}
+#if WITH_OBJC
+	rb_add_method(rb_singleton_class(module), id, fbody->nd_body,
+		      NOEX_PUBLIC);
+#else
 	rb_add_method(rb_singleton_class(module), id, fbody->nd_body->nd_body,
 		      NOEX_PUBLIC);
+#endif
     }
     return module;
 }

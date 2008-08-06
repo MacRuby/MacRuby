@@ -510,6 +510,7 @@ void rb_add_method_direct(VALUE, ID, NODE *);
 void rb_objc_register_ruby_method(VALUE, ID, NODE *);
 NODE *rb_objc_method_node(VALUE, ID, IMP *, SEL *);
 NODE *rb_objc_method_node2(VALUE, SEL, IMP *);
+NODE *rb_objc_method_node3(IMP);
 #endif
 NODE *rb_node_newnode(enum node_type,VALUE,VALUE,VALUE);
 

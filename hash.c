@@ -3094,6 +3094,10 @@ Init_Hash(void)
     rb_define_method(rb_cHash,"reject!", rb_hash_reject_bang, 0);
     rb_define_method(rb_cHash,"clear", rb_hash_clear, 0);
     rb_define_method(rb_cHash,"invert", rb_hash_invert, 0);
+#if WITH_OBJC
+    /* to override the private -[NSMutableDictionary invert] method */
+    rb_define_method(rb_cNSMutableHash,"invert", rb_hash_invert, 0);
+#endif
     rb_define_method(rb_cHash,"update", rb_hash_update, 1);
     rb_define_method(rb_cHash,"replace", rb_hash_replace, 1);
     rb_define_method(rb_cHash,"merge!", rb_hash_update, 1);

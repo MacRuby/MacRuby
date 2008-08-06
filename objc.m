@@ -1330,6 +1330,15 @@ rb_ruby_to_objc_closure(const char *octype, unsigned arity, NODE *node)
 }
 
 NODE *
+rb_objc_method_node3(IMP imp)
+{
+    if (imp == NULL || ((ffi_closure *)imp)->fun != rb_ruby_to_objc_closure_handler)
+	return NULL;
+
+    return ((ffi_closure *)imp)->user_data;
+}
+
+NODE *
 rb_objc_method_node2(VALUE mod, SEL sel, IMP *pimp)
 {
     IMP imp;

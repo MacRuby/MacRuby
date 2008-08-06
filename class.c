@@ -596,13 +596,16 @@ rb_include_module(VALUE klass, VALUE module)
     DLOG("INCM", "%s <- %s", class_getName((Class)klass), class_getName((Class)module));
 
     methods = class_copyMethodList((Class)module, &methods_count);
-    for (i = 0; i < methods_count; i++) {
-	Method method = methods[i];
-	DLOG("DEFI", "-[%s %s]", class_getName((Class)klass), (char *)method_getName(method));
-	assert(class_addMethod((Class)klass, 
-		method_getName(method), 
-		method_getImplementation(method), 
-		method_getTypeEncoding(method)));
+    if (methods != NULL) {
+	for (i = 0; i < methods_count; i++) {
+	    Method method = methods[i];
+	    DLOG("DEFI", "-[%s %s]", class_getName((Class)klass), (char *)method_getName(method));
+	    assert(class_addMethod((Class)klass, 
+			method_getName(method), 
+			method_getImplementation(method), 
+			method_getTypeEncoding(method)));
+	}
+	free(methods);
     }
 #else
     VALUE p, c;
@@ -851,6 +854,45 @@ method_entry(ID key, NODE *body, st_table *list)
 }
 #endif
 
+static void
+rb_objc_push_methods(VALUE ary, VALUE mod)
+{
+    Method *methods;
+    unsigned int i, count;
+
+    methods = class_copyMethodList((Class)mod, &count); 
+    if (methods != NULL) {  
+	for (i = 0; i < count; i++) { 
+	    Method method;
+	    SEL sel;
+	    char *sel_name, *p;
+	    VALUE sym;
+
+	    method = methods[i];
+
+	    sel = method_getName(method);
+	    if (rb_ignored_selector(sel)) 
+		continue; 
+
+	    sel_name = (char *)sel_getName(sel);
+	    p = strchr(sel_name, ':');
+	    if (p != NULL && strchr(p + 1, ':') == NULL) {
+		size_t len = strlen(sel_name);
+		p = alloca(len);
+		strncpy(p, sel_name, len);
+		p[len - 1] = '\0';
+		sel_name = p;	
+	    }
+
+	    sym = ID2SYM(rb_intern(sel_name));
+
+	    if (rb_ary_includes(ary, sym) == Qfalse)
+		rb_ary_push(ary, sym);
+	} 
+	free(methods); 
+    }
+}
+
 static VALUE
 class_instance_method_list(int argc, VALUE *argv, VALUE mod, int (*func) (ID, long, VALUE))
 {
@@ -870,19 +912,7 @@ class_instance_method_list(int argc, VALUE *argv, VALUE mod, int (*func) (ID, lo
     }
 
     while (mod != 0) {
-	unsigned i, count; 
-	Method *methods; 
-
-	methods = class_copyMethodList((Class)mod, &count); 
-	if (methods != NULL) {  
-	    for (i = 0; i < count; i++) { 
-		SEL sel = method_getName(methods[i]); 
-		if (rb_ignored_selector(sel)) 
-		    continue; 
-		rb_ary_push(ary, ID2SYM(rb_intern(sel_getName(sel)))); 
-	    } 
-	    free(methods); 
-	}
+	rb_objc_push_methods(ary, mod);
 	if (!recur)
 	   break;	   
 	mod = (VALUE)class_getSuperclass((Class)mod); 
@@ -1038,8 +1068,25 @@ rb_class_public_instance_methods(int argc, VALUE *argv, VALUE mod)
 VALUE
 rb_obj_singleton_methods(int argc, VALUE *argv, VALUE obj)
 {
-#if WITH_OBJC // TODO
-    return Qnil;
+#if WITH_OBJC
+    VALUE recur, klass, ary;
+
+    if (argc == 0) {
+	recur = Qtrue;
+    }
+    else {
+	rb_scan_args(argc, argv, "01", &recur);
+    }
+
+    klass = CLASS_OF(obj);
+    ary = rb_ary_new();
+
+    do {
+	if (RCLASS_SINGLETON(klass))
+	    rb_objc_push_methods(ary, klass);
+	klass = RCLASS_SUPER(klass);
+    }
+    while (recur == Qtrue && klass != 0);
 #else
     VALUE recur, ary, klass;
     st_table *list;
@@ -1065,9 +1112,9 @@ rb_obj_singleton_methods(int argc, VALUE *argv, VALUE obj)
     ary = rb_ary_new();
     st_foreach(list, ins_methods_i, ary);
     st_free_table(list);
+#endif
 
     return ary;
-#endif
 }
 
 void
