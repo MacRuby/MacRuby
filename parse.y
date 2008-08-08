@@ -9380,6 +9380,17 @@ rb_intern3(const char *name, long len, rb_encoding *enc)
 	e = m + len;
     }
     SEL name_hash = sel_registerName(name);
+    if (name_hash == sel_ignored) {
+	if (strcmp(name, "retain") == 0) {
+	    name_hash = (SEL)0x1000;
+	}
+	else if (strcmp(name, "release") == 0) {
+	    name_hash = (SEL)0x2000;
+	}
+	else {
+	    assert(1==0);
+	}
+    }
     id = (ID)CFDictionaryGetValue((CFDictionaryRef)global_symbols.sym_id, 
 	(const void *)name_hash);
     if (id != 0)

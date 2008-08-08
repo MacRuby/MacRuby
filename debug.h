@@ -30,23 +30,14 @@ void  ruby_debug_breakpoint(void);
 void  ruby_debug_gc_check_func(void);
 
 #if ENABLE_DEBUG_LOGGING 
-static inline bool dlog_enabled(void) {
-    static int flag = -1;
-    if (flag == -1) {
-	char *s = getenv("MACRUBY_DEBUG");
-	flag = !(s == NULL || *s == '0');
+# include "vm_core.h"
+extern bool ruby_dlog_enabled;
+# define DLOG(mod, fmt, args...)         \
+    if (UNLIKELY(ruby_dlog_enabled)) {   \
+	printf("%10s   ", mod);          \
+	printf(fmt, ##args);             \
+	printf("\n");                    \
     }
-    return (bool)flag;
-}
-# define DLOG(mod, fmt, args...)        \
-  do {                                  \
-    if (dlog_enabled()) {               \
-        printf("%10s   ", mod);         \
-        printf(fmt, ##args);            \
-        printf("\n");                   \
-    }                                   \
-  }                                     \
-  while (0)
 #else
 # define DLOG(mod, fmt, args...)
 #endif

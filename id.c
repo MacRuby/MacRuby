@@ -60,6 +60,8 @@ Init_id(void)
     selNot = sel_registerName("!");
     selInit = sel_registerName("init");
     selCopy = sel_registerName("copy");
+    sel_ignored = sel_registerName("retain");
+    assert(sel_ignored == sel_registerName("release"));
 #endif
 
     idAREF = rb_intern("[]");

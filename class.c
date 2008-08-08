@@ -882,7 +882,7 @@ rb_objc_push_methods(VALUE ary, VALUE mod)
 	    method = methods[i];
 
 	    sel = method_getName(method);
-	    if (rb_ignored_selector(sel)) 
+	    if (sel == sel_ignored)
 		continue; 
 
 	    sel_name = (char *)sel_getName(sel);

@@ -405,10 +405,13 @@ struct global_variable {
     struct trace_var *trace;
 };
 
+#if !WITH_OBJC
+/* defined in vm_core.h, imported by debug.h */
 struct global_entry {
     struct global_variable *var;
     ID id;
 };
+#endif
 
 static VALUE undef_getter(ID id);
 static void  undef_setter(VALUE val, ID id, void *data, struct global_variable *var);
@@ -482,7 +485,7 @@ val_getter(ID id, VALUE val)
 static void
 val_setter(VALUE val, ID id, void *data, struct global_variable *var)
 {
-    var->data = (void*)val;
+    GC_WB(&var->data, (void*)val);
 }
 
 static void

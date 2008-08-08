@@ -692,20 +692,18 @@ new_insn_send(rb_iseq_t *iseq, int line_no,
     operands[1] = argc;
     operands[2] = block;
     operands[3] = flag;
-    operands[4] = 0;
     if (FIX2INT(argc) > 0) {
         char buf[512];
 
         strlcpy(buf, rb_sym2name(id), sizeof buf);
 	if (buf[strlen(buf) - 1] != ':')
 	    strlcat(buf, ":", sizeof buf);
-	operands[5] = (VALUE)sel_registerName(buf);
+	operands[4] = (VALUE)sel_registerName(buf);
     }
     else {
-	operands[5] = (VALUE)sel_registerName(rb_sym2name(id));
+	operands[4] = (VALUE)sel_registerName(rb_sym2name(id));
     }
-    operands[6] = 0;
-    iobj = new_insn_core(iseq, line_no, BIN(send), 6, operands);
+    iobj = new_insn_core(iseq, line_no, BIN(send), 5, operands);
     return iobj;
 }
 

@@ -1460,10 +1460,10 @@ rb_objc_register_ruby_method(VALUE mod, ID mid, NODE *body)
 	sel = sel_registerName(mid_str);
     }
 
-    if (rb_ignored_selector(sel)) {
-	rb_warn("cannot register %c[%s %s] because it is an ignored selector",
-		class_isMetaClass((Class)mod) ? '+' : '-', class_getName((Class)mod), mid_str);
-	return;
+    if (sel == sel_ignored) {
+	char buf[100];
+	snprintf(buf, sizeof buf, "__rb_%s__", mid_str);
+	sel = sel_registerName(buf);
     }
 
     direct_override = false;

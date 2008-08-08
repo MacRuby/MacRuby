@@ -54,6 +54,10 @@ void Init_ext(void);
 void Init_PreGC(void);
 void Init_BareVM(void);
 
+#if WITH_OBJC
+bool ruby_dlog_enabled = false;
+#endif
+
 void
 ruby_init(void)
 {
@@ -68,6 +72,11 @@ ruby_init(void)
     rb_origenviron = 0;
 #else
     rb_origenviron = environ;
+#endif
+
+#if WITH_OBJC
+    char *s = getenv("MACRUBY_DEBUG");
+    ruby_dlog_enabled = !(s == NULL || *s == '0');
 #endif
 
     Init_stack((void *)&state);

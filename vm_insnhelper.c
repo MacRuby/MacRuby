@@ -516,7 +516,13 @@ vm_call_method(rb_thread_t * const th, rb_control_frame_t * const cfp,
 #if WITH_OBJC
     IMP imp;
 
-#define STUPID_CACHE 1
+#define STUPID_CACHE 0
+
+    if (sel == sel_ignored) {
+	char buf[100];
+	snprintf(buf, sizeof buf, "__rb_%s__", rb_id2name(id));
+	sel = sel_registerName(buf);
+    }
 
 #if STUPID_CACHE
 static VALUE c_klass = 0;

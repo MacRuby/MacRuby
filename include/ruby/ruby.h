@@ -1138,18 +1138,6 @@ rb_ocid_to_rval(id obj)
 #define RB2OC(obj) (rb_rval_to_ocid((VALUE)obj))
 #define OC2RB(obj) (rb_ocid_to_rval((id)obj))
 
-static inline bool
-rb_ignored_selector(SEL sel)
-{
-#if defined(__ppc__)
-    return sel == (SEL)0xfffef000;
-#elif defined(__i386__)
-    return sel == (SEL)0xfffeb010;
-#else
-# error Unsupported arch
-#endif
-}
-
 static inline VALUE
 rb_ary_elt_fast(CFArrayRef ary, long i)
 {

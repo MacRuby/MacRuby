@@ -1035,7 +1035,7 @@ defineclass
  */
 DEFINE_INSN
 send
-(ID op_id, rb_num_t op_argc, ISEQ blockiseq, rb_num_t op_flag, IC ic, VALUE sel)
+(ID op_id, rb_num_t op_argc, ISEQ blockiseq, rb_num_t op_flag, VALUE sel)
 (...)
 (VALUE val) // inc += - (op_argc + ((op_flag & VM_CALL_ARGS_BLOCKARG_BIT) ? 1 : 0));
 {
@@ -1051,7 +1051,6 @@ send
     recv = (flag & VM_CALL_FCALL_BIT) ? GET_SELF() : TOPN(num);
     klass = CLASS_OF(recv);
 #if WITH_OBJC
-    ic = 0;
     mn = NULL;
 #else
     mn = vm_method_search(id, klass, ic);
