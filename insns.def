@@ -1035,11 +1035,13 @@ defineclass
  */
 DEFINE_INSN
 send
-(ID op_id, rb_num_t op_argc, ISEQ blockiseq, rb_num_t op_flag, VALUE sel)
+(ID op_id, rb_num_t op_argc, ISEQ blockiseq, rb_num_t op_flag, VALUE mcache)
 (...)
 (VALUE val) // inc += - (op_argc + ((op_flag & VM_CALL_ARGS_BLOCKARG_BIT) ? 1 : 0));
 {
+#if !WITH_OBJC
     NODE *mn;
+#endif
     VALUE recv, klass;
     rb_block_t *blockptr = 0;
     rb_num_t num = caller_setup_args(th, GET_CFP(), op_flag, op_argc,
@@ -1050,9 +1052,7 @@ send
     /* get receiver */
     recv = (flag & VM_CALL_FCALL_BIT) ? GET_SELF() : TOPN(num);
     klass = CLASS_OF(recv);
-#if WITH_OBJC
-    mn = NULL;
-#else
+#if !WITH_OBJC
     mn = vm_method_search(id, klass, ic);
 
     /* send/funcall optimization */
@@ -1061,7 +1061,7 @@ send
     }
 #endif
 
-    CALL_METHOD(num, blockptr, flag, id, mn, recv, klass, (SEL)sel);
+    CALL_METHOD(num, blockptr, flag, id, recv, klass, mcache);
 }
 
 /**
@@ -1080,19 +1080,19 @@ invokesuper
     rb_block_t *blockptr = !(op_flag & VM_CALL_ARGS_BLOCKARG_BIT) ? GET_BLOCK_PTR() : 0;
     int num = caller_setup_args(th, GET_CFP(), op_flag, op_argc, blockiseq, &blockptr);
     VALUE recv, klass;
+#if !WITH_OBJC
     NODE *mn;
+#endif
     ID id;
     const VALUE flag = VM_CALL_SUPER_BIT | VM_CALL_FCALL_BIT;
 
     recv = GET_SELF();
     vm_search_superclass(GET_CFP(), GET_ISEQ(), recv, TOPN(num), &id, &klass);
-#if WITH_OBJC
-    mn = NULL;
-#else
+#if !WITH_OBJC
     mn = rb_method_node(klass, id);
 #endif
 
-    CALL_METHOD(num, blockptr, flag, id, mn, recv, klass, (SEL)0);
+    CALL_METHOD(num, blockptr, flag, id, recv, klass, 0);
 }
 
 /**

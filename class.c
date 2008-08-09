@@ -100,8 +100,6 @@ rb_objc_alloc_class(const char *name, VALUE super, VALUE flags, VALUE klass)
     }
     if (super == rb_cObject) {
 	version_flag |= RCLASS_IS_OBJECT_SUBCLASS;
-	rb_define_alloc_func((VALUE)ocklass, rb_class_allocate_instance);
-	rb_define_singleton_method((VALUE)ocklass, "new", rb_class_new_instance, -1);
     }
     else if ((RCLASS_VERSION(super) & RCLASS_IS_OBJECT_SUBCLASS) == RCLASS_IS_OBJECT_SUBCLASS) {
 	version_flag |= RCLASS_IS_OBJECT_SUBCLASS;
@@ -123,9 +121,16 @@ rb_objc_create_class(const char *name, VALUE super)
     VALUE klass;
     
     klass = rb_objc_alloc_class(name, super, T_CLASS, rb_cClass);
- 
+
     objc_registerClassPair((Class)klass);
    
+    if (RCLASS_SUPER(klass) == rb_cNSObject) {
+	rb_define_alloc_func(klass, rb_class_allocate_instance);
+	rb_define_singleton_method(klass, "new", rb_class_new_instance, -1);
+	rb_define_method(klass, "dup", rb_obj_dup, 0);
+	rb_define_method(klass, "initialize_copy", rb_obj_init_copy, 1);
+    }
+
     if (name != NULL && rb_class_tbl != NULL) 
 	st_insert(rb_class_tbl, (st_data_t)rb_intern(name), (st_data_t)klass);
 

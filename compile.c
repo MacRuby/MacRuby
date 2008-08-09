@@ -688,21 +688,33 @@ new_insn_send(rb_iseq_t *iseq, int line_no,
     INSN *iobj = 0;
     VALUE *operands =
       (VALUE *)compile_data_alloc(iseq, sizeof(VALUE) * 7);
+    struct rb_method_cache *mcache;
+
     operands[0] = id;
     operands[1] = argc;
     operands[2] = block;
     operands[3] = flag;
+
+    mcache = (struct rb_method_cache *)xmalloc(sizeof(struct rb_method_cache));
+    mcache->flags = RB_MCACHE_RCALL_FLAG;
+    mcache->as.rcall.klass = 0;
+    mcache->as.rcall.node = NULL;
     if (FIX2INT(argc) > 0) {
         char buf[512];
-
         strlcpy(buf, rb_sym2name(id), sizeof buf);
 	if (buf[strlen(buf) - 1] != ':')
 	    strlcat(buf, ":", sizeof buf);
-	operands[4] = (VALUE)sel_registerName(buf);
+	mcache->as.rcall.sel = sel_registerName(buf);
     }
     else {
-	operands[4] = (VALUE)sel_registerName(rb_sym2name(id));
+	mcache->as.rcall.sel = sel_registerName(rb_sym2name(id));
+	if (mcache->as.rcall.sel == sel_ignored) {
+	    char buf[100];
+	    snprintf(buf, sizeof buf, "__rb_%s__", rb_sym2name(id));
+	    mcache->as.rcall.sel = sel_registerName(buf);
+	}
     }
+    operands[4] = (VALUE)mcache;
     iobj = new_insn_core(iseq, line_no, BIN(send), 5, operands);
     return iobj;
 }

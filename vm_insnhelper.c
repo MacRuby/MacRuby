@@ -13,6 +13,10 @@
 
 #include <math.h>
 
+#if WITH_OBJC
+# include <dlfcn.h>
+#endif
+
 /* control stack frame */
 
 
@@ -509,75 +513,133 @@ vm_send_optimize(rb_control_frame_t * const reg_cfp, NODE ** const mn,
 static inline VALUE
 vm_call_method(rb_thread_t * const th, rb_control_frame_t * const cfp,
 	       const int num, rb_block_t * const blockptr, const VALUE flag,
-	       const ID id, const NODE * mn, const VALUE recv, VALUE klass,
-	       SEL sel)
+	       const ID id, const VALUE recv, VALUE klass, 
+	       struct rb_method_cache *mcache)
 {
     VALUE val;
 #if WITH_OBJC
-    IMP imp;
-
-#define STUPID_CACHE 0
-
-    if (sel == sel_ignored) {
-	char buf[100];
-	snprintf(buf, sizeof buf, "__rb_%s__", rb_id2name(id));
-	sel = sel_registerName(buf);
-    }
-
-#if STUPID_CACHE
-static VALUE c_klass = 0;
-static SEL c_sel = 0;
-static IMP c_imp = 0;
-static NODE *c_mn = NULL;
-
-if (c_klass == klass && c_sel == sel && sel != 0) {
-imp = c_imp;
-mn = c_mn;
-}
-else {
+    NODE *mn;
+#if ENABLE_DEBUG_LOGGING
+    bool cached = false;
 #endif
 
-    mn = sel == 0 
-	? rb_objc_method_node(klass, id, &imp, &sel)
-	: rb_objc_method_node2(klass, sel, &imp);
+    mn = NULL;
+
+    if (mcache != NULL) {
+	if (mcache->flags & RB_MCACHE_RCALL_FLAG) {
+	    if (mcache->as.rcall.klass == klass) {
+		mn = mcache->as.rcall.node;
+#if ENABLE_DEBUG_LOGGING
+		cached = true;
+#endif
+		goto rcall_dispatch;
+	    }
+	    else {
+		IMP imp;
+		mn = rb_objc_method_node2(klass, mcache->as.rcall.sel, &imp);
+		if (mn == NULL) {
+		    if (imp != NULL) {
+			mcache->flags = RB_MCACHE_OCALL_FLAG;
+			mcache->as.ocall.klass = klass;
+			mcache->as.ocall.imp = imp;
+			mcache->as.ocall.method = class_getInstanceMethod((Class)klass, mcache->as.rcall.sel);
+			bs_element_method_t * rb_bs_find_method(Class klass, SEL sel);
+			mcache->as.ocall.bs_method = rb_bs_find_method((Class)klass, mcache->as.rcall.sel);
+			goto ocall_dispatch;
+		    }
+
+		    if ((mcache->flags & RB_MCACHE_NOT_CFUNC_FLAG) == 0) {
+			extern struct st_table *bs_functions;
+			bs_element_function_t *bs_func;
+
+			if (!st_lookup(bs_functions, (st_data_t)id, (st_data_t *)&bs_func)) {
+			    mcache->flags |= RB_MCACHE_NOT_CFUNC_FLAG;
+			    goto rcall_dispatch;
+			}
+
+			mcache->flags = RB_MCACHE_CFUNC_FLAG;
+			mcache->as.cfunc.bs_func = bs_func;
+			mcache->as.cfunc.sym = dlsym(RTLD_DEFAULT, bs_func->name);
+			if (mcache->as.cfunc.sym == NULL)
+			    rb_bug("bs func sym '%s' is NULL", bs_func->name);
+			goto cfunc_dispatch;
+		    }
+		}
+		mcache->as.rcall.node = mn;
+		mcache->as.rcall.klass = klass;
+	    }
+	}
+	else if (mcache->flags & RB_MCACHE_OCALL_FLAG) {
+	    rb_control_frame_t *reg_cfp;
+	    rb_control_frame_t *_cfp;
+	   
+ocall_dispatch: 
+	    reg_cfp = cfp;
+	    _cfp = vm_push_frame(th, 0, FRAME_MAGIC_CFUNC | (flag << FRAME_MAGIC_MASK_BITS),
+		    recv, (VALUE) blockptr, 0, reg_cfp->sp, 0, 1);
+
+	    _cfp->method_id = id;
+	    _cfp->method_class = klass;
+
+	    reg_cfp->sp -= num + 1;
+
+	    VALUE rb_objc_call2(VALUE recv, VALUE klass, SEL sel, IMP imp, Method method, bs_element_method_t *bs_method, bool super_call, int argc, VALUE *argv);
+
+	    val = rb_objc_call2(recv, klass, mcache->as.rcall.sel, mcache->as.ocall.imp, mcache->as.ocall.method, mcache->as.ocall.bs_method, false, num, reg_cfp->sp + 1);
+
+	    if (reg_cfp != th->cfp + 1)
+		rb_bug("cfp consistency error - send");
+
+	    vm_pop_frame(th);
+
+	    return val;
+	}
+	else if (mcache->flags & RB_MCACHE_CFUNC_FLAG) {
+	    rb_control_frame_t *reg_cfp;
+	    rb_control_frame_t *_cfp;
+	  
+cfunc_dispatch: 
+	    reg_cfp = cfp;
+	    _cfp = vm_push_frame(th, 0, FRAME_MAGIC_CFUNC | (flag << FRAME_MAGIC_MASK_BITS),
+		    recv, (VALUE) blockptr, 0, reg_cfp->sp, 0, 1);
+
+	    _cfp->method_id = id;
+	    _cfp->method_class = klass;
+
+	    reg_cfp->sp -= num + 1;
+
+	    VALUE rb_bsfunc_call(bs_element_function_t *bs_func, void *sym, int argc, VALUE *argv);
+
+	    val = rb_bsfunc_call(mcache->as.cfunc.bs_func, mcache->as.cfunc.sym, num, reg_cfp->sp + 1);
+
+	    if (reg_cfp != th->cfp + 1)
+		rb_bug("cfp consistency error - send");
+
+	    vm_pop_frame(th);
+
+	    return val;
+	}
+	else {
+	    rb_bug("invalid cache flag");
+	}
+
+    }
+    else {
+	SEL sel;
+	IMP imp;
+	mn = rb_objc_method_node(klass, id, &imp, &sel);
+    }
+
+rcall_dispatch:
 
     if (flag & VM_CALL_SEND_BIT) {
 	vm_send_optimize(cfp, (NODE **)&mn, (rb_num_t *)&flag, (rb_num_t *)&num, (ID *)&id, klass);  
     }
 
-#if STUPID_CACHE
-c_klass = klass;
-c_sel = sel;
-c_imp = imp;
-c_mn = (NODE*)mn;
-}
+    DLOG("RCALL", "%c[<%s %p> %s] node=%p cached=%d", class_isMetaClass((Class)klass) ? '+' : '-', class_getName((Class)klass), (void *)recv, (char *)rb_id2name(id), mn, cached);
 #endif
 
-    if (mn == NULL && imp != NULL) {
-	rb_control_frame_t *reg_cfp = cfp;
-	rb_control_frame_t *_cfp =
-	    vm_push_frame(th, 0, FRAME_MAGIC_CFUNC | (flag << FRAME_MAGIC_MASK_BITS),
-			  recv, (VALUE) blockptr, 0, reg_cfp->sp, 0, 1);
-
-	_cfp->method_id = id;
-	_cfp->method_class = klass;
-
-	reg_cfp->sp -= num + 1;
-
-   	val = rb_objc_call(recv, sel, num, reg_cfp->sp + 1);
-
-	if (reg_cfp != th->cfp + 1)
-	    rb_bug("cfp consistency error - send");
-
-	vm_pop_frame(th);
-
-	return val;
-    }
-
-    DLOG("RCALL", "%c[<%s %p> %s] node=%p", class_isMetaClass((Class)klass) ? '+' : '-', class_getName((Class)klass), (void *)recv, (char *)sel, mn);
-#endif
-
-  start_method_dispatch:
+start_method_dispatch:
 
     if (mn != 0) {
 	if ((mn->nd_noex == 0)) {

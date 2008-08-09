@@ -543,6 +543,35 @@ typedef struct {
 #define ic_vmstat u3.cnt
 typedef NODE *IC;
 
+#if WITH_OBJC
+# include "bs.h"
+struct rb_method_cache {
+    unsigned int flags;
+#define RB_MCACHE_RCALL_FLAG		0x10
+#define RB_MCACHE_OCALL_FLAG		0x20
+#define RB_MCACHE_CFUNC_FLAG		0x40
+#define RB_MCACHE_NOT_CFUNC_FLAG	0x100
+    union {
+	struct {
+	    SEL sel;
+	    VALUE klass;
+	    NODE *node;
+	} rcall;
+	struct {
+	    SEL sel;
+	    VALUE klass;
+	    IMP imp;
+	    Method method;
+	    bs_element_method_t *bs_method;
+	} ocall;
+	struct {
+	    bs_element_function_t *bs_func;
+	    void *sym;
+	} cfunc;
+    } as;
+};
+#endif
+
 void rb_vm_change_state(void);
 
 typedef VALUE CDHASH;

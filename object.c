@@ -2644,10 +2644,7 @@ Init_Object(void)
 #endif
 
 #if WITH_OBJC
-    rb_define_method(rb_cObject, "clone", rb_obj_clone, 0);
-    rb_define_method(rb_cObject, "dup", rb_obj_dup, 0);
-    rb_define_method(rb_cObject, "copy", rb_obj_dup, 0);
-    rb_define_method(rb_cObject, "initialize_copy", rb_obj_init_copy, 1);
+    rb_define_method(rb_cNSObject, "clone", rb_obj_clone, 0);
     rb_define_method(rb_cNSObject, "dup", rb_nsobj_dup, 0);
 #else
     rb_define_method(rb_mKernel, "clone", rb_obj_clone, 0);
