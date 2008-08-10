@@ -928,18 +928,21 @@ rb_obj_frozen_p(VALUE obj)
 	return Qfalse;
     }
 #if WITH_OBJC
-    if (NATIVE(obj)) {
-	return rb_objc_is_immutable(obj) 
-	    || rb_objc_flag_check((const void *)obj, FL_FREEZE)
-	    ? Qtrue : Qfalse;
+    switch (TYPE(obj)) {
+	case T_NATIVE:
+	    return rb_objc_is_immutable(obj) 
+		|| rb_objc_flag_check((const void *)obj, FL_FREEZE)
+		? Qtrue : Qfalse;
+	case T_CLASS:
+	case T_MODULE:
+	    return (RCLASS_VERSION(obj) & RCLASS_IS_FROZEN) == RCLASS_IS_FROZEN ? Qtrue : Qfalse;
+	default:
+	    return FL_TEST(obj, FL_FREEZE) ? Qtrue : Qfalse;
     }
-    int type = TYPE(obj);
-    if (type == T_CLASS || type == T_MODULE) {
-	return (RCLASS_VERSION(obj) & RCLASS_IS_FROZEN) == RCLASS_IS_FROZEN ? Qtrue : Qfalse;
-    }
-#endif
+#else
     if (FL_TEST(obj, FL_FREEZE)) return Qtrue;
     return Qfalse;
+#endif
 }
 
 

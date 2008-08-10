@@ -152,17 +152,15 @@ class_init(VALUE obj)
 
 #endif
 
+#if !WITH_OBJC
 static VALUE
 class_alloc(VALUE flags, VALUE klass)
 {
-#if WITH_OBJC
-    return rb_objc_alloc_class(NULL, 0, flags, klass);
-#else
     NEWOBJ(obj, struct RClass);
     OBJSETUP(obj, klass, flags);
     return class_init((VALUE)obj);
-#endif
 }
+#endif
 
 VALUE
 rb_class_boot(VALUE super)
@@ -480,9 +478,11 @@ rb_define_class_under(VALUE outer, const char *name, VALUE super)
 VALUE
 rb_module_new(void)
 {
+#if WITH_OBJC
+    VALUE mdl = rb_objc_alloc_class(NULL, 0, T_MODULE, rb_cModule);
+    objc_registerClassPair((Class)mdl);
+#else
     VALUE mdl = class_alloc(T_MODULE, rb_cModule);
-
-#if !WITH_OBJC
     RCLASS_M_TBL(mdl) = st_init_numtable();
 #endif
 

@@ -1007,6 +1007,11 @@ rb_objc_call2(VALUE recv, VALUE klass, SEL sel, IMP imp, Method method, bs_eleme
     char buf[128];
     id ocrcv;
 
+    /* XXX because Hash.new can accept a block */
+    if (recv == rb_cNSMutableHash && sel == @selector(new)) {
+	return rb_class_new_instance(0, NULL, recv);
+    }
+
     ocrcv = RB2OC(recv);
 
     DLOG("OCALL", "%c[<%s %p> %s]", class_isMetaClass((Class)klass) ? '+' : '-', class_getName((Class)klass), (void *)ocrcv, (char *)sel);
@@ -1341,10 +1346,14 @@ rb_objc_method_node(VALUE mod, ID mid, IMP *pimp, SEL *psel)
 	*pimp = imp;
 
     if (imp == NULL) {
-    	char buf[512];
-	strlcpy(buf, (char *)sel, sizeof buf);
-	if (buf[strlen(buf) - 1] == ':')
+    	char buf[100];
+	size_t slen;
+
+	slen = strlen((char *)sel);
+	if (((char *)sel)[slen - 1] == ':') {
 	    return NULL;
+	}
+	strlcpy(buf, (char *)sel, sizeof buf);
 	strlcat(buf, ":", sizeof buf);
 	return rb_objc_method_node2(mod, sel_registerName(buf), pimp);
     }
@@ -1359,7 +1368,6 @@ rb_objc_register_ruby_method(VALUE mod, ID mid, NODE *body)
     Method method;
     char *types;
     int arity, oc_arity;
-    char *mid_str;
     IMP imp;
     bool direct_override;
     NODE *node;
@@ -1402,29 +1410,46 @@ rb_objc_register_ruby_method(VALUE mod, ID mid, NODE *body)
     }
 
     if (mid == ID_ALLOCATOR) {
-	mid_str = "alloc";	
+	sel = @selector(alloc);
     }
     else {
+	char *mid_str;
+	size_t mid_str_len;
+	char buf[100];
+
 	mid_str = (char *)rb_id2name(mid);
+	mid_str_len = strlen(mid_str);
+
+	if (arity == 1 && mid_str[mid_str_len - 1] == '=' && isalpha(mid_str[mid_str_len - 2])) {
+	    assert(sizeof(buf) > mid_str_len + 3);
+	    buf[0] = 's';
+	    buf[1] = 'e';
+	    buf[2] = 't';
+	    buf[3] = toupper(mid_str[0]);
+	    strncpy(&buf[4], &mid_str[1], mid_str_len - 2);
+	    buf[mid_str_len + 2] = ':';
+	    buf[mid_str_len + 3] = '\0';
+	    sel = sel_registerName(buf);
+	}
+	else {
+	    if ((arity < 0 || arity > 0) && mid_str[mid_str_len - 1] != ':') {
+		assert(sizeof(buf) > mid_str_len + 1);
+		snprintf(buf, sizeof buf, "%s:", mid_str);
+		sel = sel_registerName(buf);
+		oc_arity = 1;
+	    }
+	    else {
+		sel = sel_registerName(mid_str);
+		if (sel == sel_ignored) {
+		    assert(sizeof(buf) > mid_str_len + 7);
+		    snprintf(buf, sizeof buf, "__rb_%s__", mid_str);
+		    sel = sel_registerName(buf);
+		}
+	    }
+	}
     }
 
     included_in_classes = RCLASS_MODULE(mod) ? rb_ivar_get(mod, idIncludedInClasses) : Qnil;
-
-    if ((arity < 0 || arity > 0) && mid_str[strlen(mid_str) - 1] != ':') {
-	char buf[100];
-	snprintf(buf, sizeof buf, "%s:", mid_str);
-	sel = sel_registerName(buf);
-	oc_arity = 1;
-    }
-    else {
-	sel = sel_registerName(mid_str);
-    }
-
-    if (sel == sel_ignored) {
-	char buf[100];
-	snprintf(buf, sizeof buf, "__rb_%s__", mid_str);
-	sel = sel_registerName(buf);
-    }
 
     direct_override = false;
     method = class_getInstanceMethod((Class)mod, sel);
@@ -2079,7 +2104,7 @@ bs_parse_cb(const char *path, bs_element_type_t type, void *value, void *ctx)
 	{
 	    bs_element_function_t *bs_func = (bs_element_function_t *)value;
 	    ID name = rb_intern(bs_func->name);
-	    if (1) {
+	    if (!st_lookup(bs_functions, (st_data_t)name, NULL)) {
 		st_insert(bs_functions, (st_data_t)name, (st_data_t)bs_func);
 		do_not_free = true;
 	    }
@@ -2093,8 +2118,13 @@ bs_parse_cb(const char *path, bs_element_type_t type, void *value, void *ctx)
 	{
 	    bs_element_function_alias_t *bs_func_alias = 
 		(bs_element_function_alias_t *)value;
-	    rb_define_alias(CLASS_OF(rb_mKernel), bs_func_alias->name,
-			    bs_func_alias->original);
+	    bs_element_function_t *bs_func_original;
+	    if (st_lookup(bs_functions, (st_data_t)rb_intern(bs_func_alias->original), (st_data_t *)&bs_func_original)) {
+		st_insert(bs_functions, (st_data_t)rb_intern(bs_func_alias->name), (st_data_t)bs_func_original);
+	    }
+	    else {
+		rb_raise(rb_eRuntimeError, "cannot alias '%s' to '%s' because it doesn't exist", bs_func_alias->name, bs_func_alias->original);
+	    }
 	    break;
 	}
 
@@ -2432,54 +2462,6 @@ rb_install_alloc_methods(void)
 	(IMP)imp_rb_obj_init);
 }
 #endif
-
-ID
-rb_objc_missing_sel(ID mid, int arity)
-{
-    const char *name;
-    size_t len;
-    char buf[100];
-
-    if (mid == 0)
-	return mid;
-
-    name = rb_id2name(mid);
-    if (name == NULL)
-	return mid;
-
-    len = strlen(name);
-    if (len == 0)
-	return mid;
-    
-    if (arity == 1 && name[len - 1] == '=') {
-	strlcpy(buf, "set", sizeof buf);
-	buf[3] = toupper(name[0]);
-	buf[4] = '\0';
-	strlcat(buf, &name[1], sizeof buf);
-	buf[len + 2] = ':';
-    }
-    else if (arity == 0 && name[len - 1] == '?') {
-	strlcpy(buf, "is", sizeof buf);
-	buf[2] = toupper(name[0]);
-	buf[3] = '\0';
-	strlcat(buf, &name[1], sizeof buf);
-	buf[len + 1] = '\0';
-    }
-    else if (arity >= 1 && name[len - 1] != ':' && len < sizeof buf) {
-	strlcpy(buf, name, sizeof buf);
-	buf[len] = ':';
-	buf[len + 1] = '\0';
-    }
-    else if (arity == 1 && name[len - 1] == ':' && len < sizeof buf) {
-	strlcpy(buf, name, sizeof buf);
-	buf[len - 1] = '\0';
-    }
-    else {
-	return mid;
-    }
-
-    return rb_intern(buf);	
-}
 
 static const char *
 resources_path(char *path, size_t len)
@@ -2865,6 +2847,7 @@ Init_ObjC(void)
 	bs_const_magic_cookie = rb_str_new2("bs_const_magic_cookie")));
 
     rb_cBoxed = rb_define_class("Boxed", (VALUE)objc_getClass("NSValue"));
+    RCLASS_SET_VERSION_FLAG(rb_cBoxed, RCLASS_IS_OBJECT_SUBCLASS);
     rb_define_singleton_method(rb_cBoxed, "objc_type", rb_boxed_objc_type, 0);
     rb_define_singleton_method(rb_cBoxed, "opaque?", rb_boxed_is_opaque, 0);
     rb_define_singleton_method(rb_cBoxed, "fields", rb_boxed_fields, 0);

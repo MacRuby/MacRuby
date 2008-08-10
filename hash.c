@@ -3041,8 +3041,6 @@ Init_Hash(void)
     rb_include_module(rb_cHash, rb_mEnumerable);
 
 #if WITH_OBJC
-    /* required because Hash.new can accept a block */
-    rb_define_singleton_method(rb_cHash, "new", rb_class_new_instance, -1);
     /* to return a mutable copy */
     rb_define_method(rb_cHash, "dup", rb_hash_dup, 0);
 #else
