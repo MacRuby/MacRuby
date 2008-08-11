@@ -510,10 +510,13 @@ vm_send_optimize(rb_control_frame_t * const reg_cfp, NODE ** const mn,
     }
 }
 
+bs_element_method_t * rb_bs_find_method(Class klass, SEL sel);
+VALUE rb_objc_call2(VALUE recv, VALUE klass, SEL sel, IMP imp, Method method, bs_element_method_t *bs_method, int argc, VALUE *argv);
+
 static inline VALUE
 vm_call_method(rb_thread_t * const th, rb_control_frame_t * const cfp,
-	       const int num, rb_block_t * const blockptr, const VALUE flag,
-	       const ID id, const VALUE recv, VALUE klass, 
+	       /*const*/ int num, rb_block_t * const blockptr, const VALUE flag,
+	       /*const*/ ID id, const VALUE recv, VALUE klass, 
 	       struct rb_method_cache *mcache)
 {
     VALUE val;
@@ -536,6 +539,8 @@ vm_call_method(rb_thread_t * const th, rb_control_frame_t * const cfp,
 	    }
 	    else {
 		IMP imp;
+		char *p, *mname;
+
 		mn = rb_objc_method_node2(klass, mcache->as.rcall.sel, &imp);
 		if (mn == NULL) {
 		    if (imp != NULL) {
@@ -543,7 +548,6 @@ vm_call_method(rb_thread_t * const th, rb_control_frame_t * const cfp,
 			mcache->as.ocall.klass = klass;
 			mcache->as.ocall.imp = imp;
 			mcache->as.ocall.method = class_getInstanceMethod((Class)klass, mcache->as.rcall.sel);
-			bs_element_method_t * rb_bs_find_method(Class klass, SEL sel);
 			mcache->as.ocall.bs_method = rb_bs_find_method((Class)klass, mcache->as.rcall.sel);
 			goto ocall_dispatch;
 		    }
@@ -554,7 +558,7 @@ vm_call_method(rb_thread_t * const th, rb_control_frame_t * const cfp,
 
 			if (!st_lookup(bs_functions, (st_data_t)id, (st_data_t *)&bs_func)) {
 			    mcache->flags |= RB_MCACHE_NOT_CFUNC_FLAG;
-			    goto rcall_dispatch;
+			    goto rcall_missing;
 			}
 
 			mcache->flags = RB_MCACHE_CFUNC_FLAG;
@@ -563,6 +567,50 @@ vm_call_method(rb_thread_t * const th, rb_control_frame_t * const cfp,
 			if (mcache->as.cfunc.sym == NULL)
 			    rb_bug("bs func sym '%s' is NULL", bs_func->name);
 			goto cfunc_dispatch;
+		    }
+rcall_missing:
+		    mname = (char *)mcache->as.rcall.sel;
+		    if (num > 1 
+			&& (p = strchr(mname, ':')) != NULL
+			&& p + 1 != '\0') {
+			char *tmp = alloca(p - mname + 1);
+			NODE *new_mn;
+
+			strncpy(tmp, mname, p - mname + 1);
+			tmp[p - mname + 1] = '\0';
+			new_mn = rb_objc_method_node2(klass, sel_registerName(tmp), &imp);
+			if (new_mn == NULL) {
+			    goto rcall_dispatch;
+			}
+
+			VALUE *argv = cfp->sp - num;
+			VALUE h = rb_hash_new();
+			int i;
+
+			mname = p + 1;
+			for (i = 1; i < num; i++) {
+			    char buf[100];
+
+			    p = strchr(mname, ':');
+			    if (p == NULL) {
+				goto rcall_dispatch;
+			    }
+			    strlcpy(buf, mname, sizeof buf);
+			    buf[p - mname] = '\0';
+			    mname = p + 1;
+			    rb_hash_aset(h, ID2SYM(rb_intern(buf)), argv[i]);
+			}
+
+			VALUE new_argv[2];
+			new_argv[0] = argv[0];
+			new_argv[1] = h;
+
+			memcpy(cfp->sp - 2, new_argv, sizeof(void *) * 2);
+			cfp->bp -= 2 - num;
+			mn = new_mn;
+			id = rb_intern(tmp);
+			num = 2;
+			goto rcall_dispatch;
 		    }
 		}
 		mcache->as.rcall.node = mn;
@@ -583,9 +631,8 @@ ocall_dispatch:
 
 	    reg_cfp->sp -= num + 1;
 
-	    VALUE rb_objc_call2(VALUE recv, VALUE klass, SEL sel, IMP imp, Method method, bs_element_method_t *bs_method, bool super_call, int argc, VALUE *argv);
 
-	    val = rb_objc_call2(recv, klass, mcache->as.rcall.sel, mcache->as.ocall.imp, mcache->as.ocall.method, mcache->as.ocall.bs_method, false, num, reg_cfp->sp + 1);
+	    val = rb_objc_call2(recv, klass, mcache->as.rcall.sel, mcache->as.ocall.imp, mcache->as.ocall.method, mcache->as.ocall.bs_method, num, reg_cfp->sp + 1);
 
 	    if (reg_cfp != th->cfp + 1)
 		rb_bug("cfp consistency error - send");
@@ -622,12 +669,21 @@ cfunc_dispatch:
 	else {
 	    rb_bug("invalid cache flag");
 	}
-
     }
     else {
 	SEL sel;
 	IMP imp;
 	mn = rb_objc_method_node(klass, id, &imp, &sel);
+	if (imp != NULL) {
+	    static struct rb_method_cache mcache_s;
+	    mcache = &mcache_s;
+	    mcache->as.ocall.sel = sel;
+	    mcache->as.ocall.klass = klass;
+	    mcache->as.ocall.imp = imp;
+	    mcache->as.ocall.method = class_getInstanceMethod((Class)klass, mcache->as.rcall.sel);
+	    mcache->as.ocall.bs_method = rb_bs_find_method((Class)klass, mcache->as.rcall.sel);
+	    goto ocall_dispatch;
+	}
     }
 
 rcall_dispatch:

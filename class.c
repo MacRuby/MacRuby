@@ -890,7 +890,12 @@ rb_objc_push_methods(VALUE ary, VALUE mod)
 	    if (sel == sel_ignored)
 		continue; 
 
-	    sel_name = (char *)sel_getName(sel);
+	    sel_name = (char *)sel;
+
+	    if (rb_objc_method_node3(method_getImplementation(method)) == NULL
+		&& *sel_name == '_')
+		continue;
+
 	    p = strchr(sel_name, ':');
 	    if (p != NULL && strchr(p + 1, ':') == NULL) {
 		size_t len = strlen(sel_name);

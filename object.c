@@ -929,6 +929,9 @@ rb_obj_frozen_p(VALUE obj)
     }
 #if WITH_OBJC
     switch (TYPE(obj)) {
+	case T_STRING:
+	case T_ARRAY:
+	case T_HASH:
 	case T_NATIVE:
 	    return rb_objc_is_immutable(obj) 
 		|| rb_objc_flag_check((const void *)obj, FL_FREEZE)
@@ -1480,7 +1483,9 @@ rb_module_s_alloc(VALUE klass)
 {
     VALUE mod = rb_module_new();
 
+#if !WITH_OBJC
     RBASIC(mod)->klass = klass;
+#endif
     return mod;
 }
 

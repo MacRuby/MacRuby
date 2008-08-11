@@ -997,7 +997,7 @@ rb_objc_method_get_type(Method method, unsigned count,
 }
 
 VALUE
-rb_objc_call2(VALUE recv, VALUE klass, SEL sel, IMP imp, Method method, bs_element_method_t *bs_method, bool super_call, int argc, VALUE *argv)
+rb_objc_call2(VALUE recv, VALUE klass, SEL sel, IMP imp, Method method, bs_element_method_t *bs_method, int argc, VALUE *argv)
 {
     unsigned i, real_count, count;
     ffi_type *ffi_rettype, **ffi_argtypes;
@@ -1036,7 +1036,7 @@ rb_objc_call2(VALUE recv, VALUE klass, SEL sel, IMP imp, Method method, bs_eleme
 	if (buf[0] == '@' || buf[0] == '#' || buf[0] == 'v') {
 	    /* Easy case! */
 	    @try {
-		if (super_call) {
+		if (klass == RCLASS_SUPER(*(Class *)ocrcv)) {
 		    struct objc_super s;
 		    s.receiver = ocrcv;
 		    s.class = (Class)klass;
@@ -1124,7 +1124,7 @@ rb_objc_call(VALUE recv, SEL sel, int argc, VALUE *argv)
     klass = CLASS_OF(recv);
     method = class_getInstanceMethod((Class)klass, sel);
 
-    return rb_objc_call2(recv, klass, sel, method_getImplementation(method), method, NULL, false, argc, argv);
+    return rb_objc_call2(recv, klass, sel, method_getImplementation(method), method, NULL, argc, argv);
 }
 
 void
@@ -1355,7 +1355,10 @@ rb_objc_method_node(VALUE mod, ID mid, IMP *pimp, SEL *psel)
 	}
 	strlcpy(buf, (char *)sel, sizeof buf);
 	strlcat(buf, ":", sizeof buf);
-	return rb_objc_method_node2(mod, sel_registerName(buf), pimp);
+	sel = sel_registerName(buf);
+	if (psel != NULL)
+	    *psel = sel;
+	return rb_objc_method_node2(mod, sel, pimp);
     }
 
     return node;
