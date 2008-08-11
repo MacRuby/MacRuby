@@ -1,10 +1,12 @@
+require 'fileutils'
+
 module HotCocoa
   
   class ApplicationBuilder
     
     ApplicationBundlePackage = "APPL????"
     
-    attr_accessor :name, :require_file, :sources
+    attr_accessor :name, :load_file, :sources, :force
     
     def self.build(build_options)
       if build_options[:file]
@@ -13,8 +15,10 @@ module HotCocoa
       end
       ab = new
       ab.name = build_options[:name]
-      ab.require_file = build_options[:require]
-      build_options[:sources].each do |source|
+      ab.load_file = build_options[:load]
+      ab.force = (build_options.include?(:force) ? build_options[:force] : false)
+      sources = build_options[:sources] || []
+      sources.each do |source|
         ab << source
       end
       ab.build
@@ -25,9 +29,14 @@ module HotCocoa
     end
       
     def build
+      check_for_bundle_root
       build_bundle_structure
       write_bundle_files
       copy_sources
+    end
+    
+    def force?
+      @force
     end
     
     def <<(source_file)
@@ -35,6 +44,16 @@ module HotCocoa
     end
     
     private
+    
+      def check_for_bundle_root
+        if File.exist?(bundle_root)
+          if force?
+            puts `rm -rf #{bundle_root}`
+          else
+            puts "Error, #{bundle_root} already exists, use :force => true to remove"
+          end
+        end
+      end
     
       def build_bundle_structure
         Dir.mkdir(bundle_root)
@@ -51,8 +70,10 @@ module HotCocoa
       end
       
       def copy_sources
-        require 'fileutils'
-        FileUtils.cp_r sources, resources_root
+        FileUtils.cp_r load_file, resources_root unless sources.include?(load_file)
+        sources.each do |source|
+          FileUtils.cp_r source, resources_root
+        end
       end
       
       def write_pkg_info_file
@@ -108,7 +129,7 @@ module HotCocoa
         File.open(main_ruby_source_file, "wb") do |f|
           f.puts %{
             $:.unshift NSBundle.mainBundle.resourcePath.fileSystemRepresentation
-            require '#{require_file}'
+            load '#{load_file}'
           }
         end
       end
