@@ -6,7 +6,7 @@ module HotCocoa
     
     ApplicationBundlePackage = "APPL????"
     
-    attr_accessor :name, :load_file, :sources, :force
+    attr_accessor :name, :load_file, :sources, :overwrite
     
     def self.build(build_options)
       if build_options[:file]
@@ -16,7 +16,7 @@ module HotCocoa
       ab = new
       ab.name = build_options[:name]
       ab.load_file = build_options[:load]
-      ab.force = (build_options.include?(:force) ? build_options[:force] : false)
+      ab.overwrite = (build_options.include?(:overwrite) ? build_options[:overwrite] : true)
       sources = build_options[:sources] || []
       sources.each do |source|
         ab << source
@@ -35,22 +35,24 @@ module HotCocoa
       copy_sources
     end
     
-    def force?
-      @force
+    def overwrite?
+      @overwrite
     end
     
-    def <<(source_file)
-      sources << source_file
+    def <<(source_file_pattern)
+      Dir.glob(source_file_pattern).each do |source_file|
+        sources << source_file
+      end
     end
     
     private
     
       def check_for_bundle_root
         if File.exist?(bundle_root)
-          if force?
-            puts `rm -rf #{bundle_root}`
+          if overwrite?
+            `rm -rf #{bundle_root}`
           else
-            puts "Error, #{bundle_root} already exists, use :force => true to remove"
+            puts "Error, #{bundle_root} already exists, use :overwrite => true to remove"
           end
         end
       end
@@ -72,7 +74,9 @@ module HotCocoa
       def copy_sources
         FileUtils.cp_r load_file, resources_root unless sources.include?(load_file)
         sources.each do |source|
-          FileUtils.cp_r source, resources_root
+          destination = File.join(resources_root, source)
+          FileUtils.mkdir_p(File.dirname(destination)) unless File.exist?(File.dirname(destination))
+          FileUtils.cp_r source, destination
         end
       end
       
