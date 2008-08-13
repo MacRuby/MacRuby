@@ -2067,16 +2067,23 @@ static void
 bs_parse_cb(const char *path, bs_element_type_t type, void *value, void *ctx)
 {
     bool do_not_free = false;
+    CFMutableDictionaryRef rb_cObject_dict;
+
+    rb_cObject_dict = rb_class_ivar_dict(rb_cObject);
+    assert(rb_cObject_dict != NULL);
+
     switch (type) {
 	case BS_ELEMENT_ENUM:
 	{
 	    bs_element_enum_t *bs_enum = (bs_element_enum_t *)value;
 	    ID name = generate_const_name(bs_enum->name);
-	    if (!rb_const_defined(rb_cObject, name)) {
+	    if (!CFDictionaryGetValueIfPresent(
+		(CFDictionaryRef)rb_cObject_dict, (const void *)name, NULL)) {
 		VALUE val = strchr(bs_enum->value, '.') != NULL
 		    ? rb_float_new(rb_cstr_to_dbl(bs_enum->value, 1))
 		    : rb_cstr_to_inum(bs_enum->value, 10, 1);
-		rb_const_set(rb_cObject, name, val); 
+		CFDictionarySetValue(rb_cObject_dict, (const void *)name, 
+			(const void *)val);
 	    }
 	    else {
 		rb_warning("bs: enum `%s' already defined", rb_id2name(name));
@@ -2088,9 +2095,11 @@ bs_parse_cb(const char *path, bs_element_type_t type, void *value, void *ctx)
 	{
 	    bs_element_constant_t *bs_const = (bs_element_constant_t *)value;
 	    ID name = generate_const_name(bs_const->name);
-	    if (!rb_const_defined(rb_cObject, name)) {	
+	    if (!CFDictionaryGetValueIfPresent(
+		(CFDictionaryRef)rb_cObject_dict, (const void *)name, NULL)) {
 		st_insert(bs_constants, (st_data_t)name, (st_data_t)bs_const);
-		rb_const_set(rb_cObject, name, bs_const_magic_cookie); 
+		CFDictionarySetValue(rb_cObject_dict, (const void *)name, 
+			(const void *)bs_const_magic_cookie);
 		do_not_free = true;
 	    }
 	    else {
@@ -2105,7 +2114,8 @@ bs_parse_cb(const char *path, bs_element_type_t type, void *value, void *ctx)
 	    bs_element_string_constant_t *bs_strconst = 
 		(bs_element_string_constant_t *)value;
 	    ID name = generate_const_name(bs_strconst->name);
-	    if (!rb_const_defined(rb_cObject, name)) {	
+	    if (!CFDictionaryGetValueIfPresent(
+		(CFDictionaryRef)rb_cObject_dict, (const void *)name, NULL)) {
 		VALUE val;
 	    	if (bs_strconst->nsstring) {
 		    CFStringRef string;
@@ -2116,7 +2126,8 @@ bs_parse_cb(const char *path, bs_element_type_t type, void *value, void *ctx)
 	    	else {
 		    val = rb_str_new2(bs_strconst->value);
 	    	}
-		rb_const_set(rb_cObject, name, val);
+		CFDictionarySetValue(rb_cObject_dict, (const void *)name, 
+			(const void *)val);
 	    }
 	    else {
 		rb_warning("bs: string constant `%s' already defined", 
@@ -2144,11 +2155,17 @@ bs_parse_cb(const char *path, bs_element_type_t type, void *value, void *ctx)
 	    bs_element_function_alias_t *bs_func_alias = 
 		(bs_element_function_alias_t *)value;
 	    bs_element_function_t *bs_func_original;
-	    if (st_lookup(bs_functions, (st_data_t)rb_intern(bs_func_alias->original), (st_data_t *)&bs_func_original)) {
-		st_insert(bs_functions, (st_data_t)rb_intern(bs_func_alias->name), (st_data_t)bs_func_original);
+	    if (st_lookup(bs_functions, 
+		(st_data_t)rb_intern(bs_func_alias->original), 
+		(st_data_t *)&bs_func_original)) {
+		st_insert(bs_functions, 
+			(st_data_t)rb_intern(bs_func_alias->name), 
+			(st_data_t)bs_func_original);
 	    }
 	    else {
-		rb_raise(rb_eRuntimeError, "cannot alias '%s' to '%s' because it doesn't exist", bs_func_alias->name, bs_func_alias->original);
+		rb_raise(rb_eRuntimeError, 
+			"cannot alias '%s' to '%s' because it doesn't exist", 
+			bs_func_alias->name, bs_func_alias->original);
 	    }
 	    break;
 	}
