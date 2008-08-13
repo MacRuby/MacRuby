@@ -1,4 +1,4 @@
-#!/usr/local/bin/macruby
+#!/usr/bin/env ruby
 
 project_name = ARGV.shift
 
