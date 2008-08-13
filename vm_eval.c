@@ -198,10 +198,25 @@ rb_call0(VALUE klass, VALUE recv, ID mid, int argc, const VALUE *argv,
     SEL sel;
 
     if (argc > 0 && mid != ID_ALLOCATOR) {
+	const char *mid_str;
 	char buf[512];
-	strncpy(buf, rb_id2name(mid), sizeof buf);
-	if (buf[strlen(buf) - 1] != ':')
-	    strlcat(buf, ":", sizeof buf);
+	size_t len;
+
+	mid_str = rb_id2name(mid);
+	len = strlen(mid_str);
+	if (len > 1 && mid_str[len - 1] == '=' && isalpha(mid_str[len - 2])) {
+	    assert(len + 3 < sizeof(buf));
+	    buf[0] = 's'; 
+	    buf[1] = 'e'; 
+	    buf[2] = 't'; 
+	    buf[3] = toupper(mid_str[0]);
+	    strlcpy(&buf[4], &mid_str[1], len - 1);
+	    buf[len + 2] = ':';
+	    buf[len + 3] = '\0';
+	}
+	else if (mid_str[len - 1] != ':') {
+	    snprintf(buf, sizeof buf, "%s:", mid_str);
+	}
 	mid = rb_intern(buf);
     }
 

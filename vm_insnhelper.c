@@ -674,7 +674,7 @@ cfunc_dispatch:
 	SEL sel;
 	IMP imp;
 	mn = rb_objc_method_node(klass, id, &imp, &sel);
-	if (imp != NULL) {
+	if (mn == NULL && imp != NULL) {
 	    static struct rb_method_cache mcache_s;
 	    mcache = &mcache_s;
 	    mcache->as.ocall.sel = sel;

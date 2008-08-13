@@ -1246,7 +1246,7 @@ ivar_get(VALUE obj, ID id, int warn)
 		if (!CFDictionaryGetValueIfPresent(
 		    (CFDictionaryRef)ROBJECT(obj)->ivars.as.tbl,
 		    (const void *)id,
-		    (const void **)val))
+		    (const void **)&val))
 		    val = Qundef;
 		break;
 	}
@@ -1259,6 +1259,7 @@ ivar_get(VALUE obj, ID id, int warn)
         if (len <= index) break;
         val = ptr[index];
 #endif
+
         if (val != Qundef)
             return val;
 	break;
@@ -1363,6 +1364,7 @@ rb_ivar_set(VALUE obj, ID id, VALUE val)
 
 			xfree(ROBJECT(obj)->ivars.as.ary);
 			GC_WB(&ROBJECT(obj)->ivars.as.tbl, tbl);
+			CFMakeCollectable(tbl);
 			RB_IVAR_SET_TYPE(ROBJECT(obj)->ivars, RB_IVAR_TBL);
 		    }
 		    else {
@@ -2427,6 +2429,10 @@ rb_cvar_set(VALUE klass, ID id, VALUE val)
 #endif
 
     tmp = klass;
+#if WITH_OBJC
+    if (!RCLASS_META(klass)) 
+	tmp = klass = *(VALUE *)klass;
+#endif
     CVAR_LOOKUP(0, {if (!front) front = klass; target = klass;});
     if (target) {
 	if (front && target != front) {
@@ -2461,6 +2467,10 @@ rb_cvar_get(VALUE klass, ID id)
 #endif
 
     tmp = klass;
+#if WITH_OBJC
+    if (!RCLASS_META(klass)) 
+	tmp = klass = *(VALUE *)klass;
+#endif
     CVAR_LOOKUP(&value, {if (!front) front = klass; target = klass;});
     if (!target) {
 	rb_name_error(id,"uninitialized class variable %s in %s",
@@ -2492,6 +2502,10 @@ rb_cvar_defined(VALUE klass, ID id)
     CFMutableDictionaryRef iv_dict;
 #endif
     if (!klass) return Qfalse;
+#if WITH_OBJC
+    if (!RCLASS_META(klass)) 
+	klass = *(VALUE *)klass;
+#endif
     CVAR_LOOKUP(0,return Qtrue);
     return Qfalse;
 }

@@ -131,6 +131,11 @@ VALUE
 rb_class_real(VALUE cl)
 {
 #if WITH_OBJC
+    if (cl == 0)
+        return 0;
+    while (RCLASS_SINGLETON(cl)) {
+	cl = RCLASS_SUPER(cl);
+    }
     return cl;
 #else
     if (cl == 0)
@@ -937,6 +942,7 @@ rb_obj_frozen_p(VALUE obj)
 		|| rb_objc_flag_check((const void *)obj, FL_FREEZE)
 		? Qtrue : Qfalse;
 	case T_CLASS:
+	case T_ICLASS:
 	case T_MODULE:
 	    return (RCLASS_VERSION(obj) & RCLASS_IS_FROZEN) == RCLASS_IS_FROZEN ? Qtrue : Qfalse;
 	default:
@@ -2508,6 +2514,12 @@ rb_obj_is_native(VALUE recv)
 {
     return NATIVE(recv) ? Qtrue : Qfalse;
 }
+
+static VALUE
+rb_class_is_meta(VALUE klass)
+{
+    return RCLASS_META(klass) ? Qtrue : Qfalse;
+}
 #endif
 
 /*
@@ -2729,6 +2741,7 @@ Init_Object(void)
     rb_define_method(rb_cModule, "ancestors", rb_mod_ancestors, 0); /* in class.c */
 #if WITH_OBJC
     rb_define_private_method(rb_cModule, "ib_outlet", rb_mod_objc_ib_outlet, -1); /* in objc.m */
+    rb_define_method(rb_cClass, "__meta__?", rb_class_is_meta, 0);
 #endif
 
     rb_define_private_method(rb_cModule, "attr", rb_mod_attr, -1);

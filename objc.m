@@ -1722,12 +1722,25 @@ rb_bs_struct_new(int argc, VALUE *argv, VALUE recv)
 static ID
 rb_bs_struct_field_ivar_id(void)
 {
+    const char *frame_str;
     char ivar_name[128];
-    int len;
+    size_t len;
 
-    len = snprintf(ivar_name, sizeof ivar_name, "@%s", 
-		   rb_id2name(rb_frame_this_func()));
-    if (ivar_name[len - 1] == '=')
+    frame_str = rb_id2name(rb_frame_this_func());
+    if (strlen(frame_str) >= 5
+	&& frame_str[0] == 's'
+	&& frame_str[1] == 'e'
+	&& frame_str[2] == 't'
+	&& isupper(frame_str[3])) {
+
+	len = snprintf(ivar_name, sizeof ivar_name, "@%s", &frame_str[3]);
+	ivar_name[1] = tolower(ivar_name[1]);
+    }
+    else {
+	len = snprintf(ivar_name, sizeof ivar_name, "@%s", frame_str);
+    }
+	
+    if (ivar_name[len - 1] == '=' || ivar_name[len - 1] == ':')
 	ivar_name[len - 1] = '\0';
 
     return rb_intern(ivar_name);

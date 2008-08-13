@@ -499,7 +499,7 @@ struct RClass {
 # define RCLASS_IS_OBJECT_SUBCLASS    0x100   /* class is a true RBObject subclass */
 # define RCLASS_IS_RUBY_CLASS         0x200   /* class was created from Ruby */
 # define RCLASS_IS_MODULE             0x400   /* class represents a Ruby Module */
-# define RCLASS_IS_SINGLETON	      0x800   /* class represents a singleton/metaclass */
+# define RCLASS_IS_SINGLETON	      0x800   /* class represents a singleton */
 # define RCLASS_IS_FROZEN	      0x1000  /* class is frozen */
 # define RCLASS_IS_TAINTED	      0x2000  /* class is tainted */
 # define RCLASS_IS_STRING_SUBCLASS    0x10000 /* class is a subclass of NSCFString */
@@ -509,16 +509,17 @@ struct RClass {
 #  define RCLASS_VERSION(m) (class_getVersion((Class)m))
 #  define RCLASS_SET_VERSION_FLAG(m,f) (class_setVersion((Class)m, (RCLASS_VERSION(m) | f)))
 #  define RCLASS_SUPER(m) (class_getSuperclass((Class)m))
-#  define RCLASS_SINGLETON(m) (class_isMetaclass((Class)m))
+#  define RCLASS_META(m) (class_isMetaclass((Class)m))
 # else
 #  define RCLASS_VERSION(m) (*(long *)((void *)m + (sizeof(void *) * 3)))
 #  define RCLASS_SET_VERSION_FLAG(m,f) (RCLASS_VERSION(m) |= f)
 #  define RCLASS_SUPER(m) (*(VALUE *)((void *)m + (sizeof(void *) * 1)))
 #  define _RCLASS_INFO(m) (*(long *)((void *)m + (sizeof(void *) * 4)))
-#  define RCLASS_SINGLETON(m) (_RCLASS_INFO(m) & CLS_META)
+#  define RCLASS_META(m) (_RCLASS_INFO(m) & CLS_META)
 # endif
 # define RCLASS_RUBY(m) ((RCLASS_VERSION(m) & RCLASS_IS_RUBY_CLASS) == RCLASS_IS_RUBY_CLASS)
 # define RCLASS_MODULE(m) ((RCLASS_VERSION(m) & RCLASS_IS_MODULE) == RCLASS_IS_MODULE)
+# define RCLASS_SINGLETON(m) ((RCLASS_VERSION(m) & RCLASS_IS_SINGLETON) == RCLASS_IS_SINGLETON)
 CFMutableDictionaryRef rb_class_ivar_dict(VALUE);
 CFMutableDictionaryRef rb_class_ivar_dict_or_create(VALUE);
 void rb_class_ivar_set_dict(VALUE, CFMutableDictionaryRef);
@@ -1181,7 +1182,7 @@ rb_type(VALUE obj)
     }
 #if WITH_OBJC
     else if ((k = *(Class *)obj) != NULL) {
-	if (RCLASS_SINGLETON(k)) {
+	if (RCLASS_META(k)) {
 	    if (RCLASS_MODULE(obj)) return T_MODULE;
 	    else return T_CLASS;
 	}

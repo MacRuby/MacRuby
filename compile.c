@@ -732,7 +732,7 @@ new_insn_send(rb_iseq_t *iseq, int line_no,
 	    mcache->as.rcall.sel = sel_registerName(buf);
 	}
     }
-    operands[4] = (VALUE)mcache;
+    GC_WB(&operands[4], mcache);
     iobj = new_insn_core(iseq, line_no, BIN(send), 5, operands);
     return iobj;
 }

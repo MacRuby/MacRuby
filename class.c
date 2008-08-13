@@ -121,7 +121,6 @@ rb_objc_create_class(const char *name, VALUE super)
     VALUE klass;
     
     klass = rb_objc_alloc_class(name, super, T_CLASS, rb_cClass);
-
     objc_registerClassPair((Class)klass);
    
     if (RCLASS_SUPER(klass) == rb_cNSObject) {
@@ -230,28 +229,30 @@ VALUE
 rb_mod_init_copy(VALUE clone, VALUE orig)
 {
     rb_obj_init_copy(clone, orig);
+#if !WITH_OBJC
     if (!RCLASS_SINGLETON(CLASS_OF(clone))) {
 	RBASIC(clone)->klass = rb_singleton_class_clone(orig);
     }
+#endif
 #if WITH_OBJC
     {
-	Class ocsuper;
+	VALUE super;
 	int version_flag;
 
 	if (orig == rb_cNSMutableString
 	    || orig == rb_cNSMutableArray
 	    || orig == rb_cNSMutableHash) {
-	    ocsuper = (Class)orig;
+	    super = orig;
 	    rb_warn("cloning class `%s' is not supported, creating a " \
 		    "subclass instead", rb_class2name(orig));
 	}
 	else {
-	    ocsuper = class_getSuperclass((Class)orig);
+	    super = RCLASS_SUPER(orig);
 	}
-	class_setSuperclass((Class)clone, ocsuper);
+	RCLASS_SUPER(clone) = super;
 
 	version_flag = RCLASS_IS_RUBY_CLASS;
-	if ((RCLASS_VERSION(ocsuper) & RCLASS_IS_OBJECT_SUBCLASS) == RCLASS_IS_OBJECT_SUBCLASS)
+	if ((RCLASS_VERSION(super) & RCLASS_IS_OBJECT_SUBCLASS) == RCLASS_IS_OBJECT_SUBCLASS)
 	    version_flag |= RCLASS_IS_OBJECT_SUBCLASS;
 
 	class_setVersion((Class)clone, version_flag);
@@ -370,26 +371,21 @@ rb_make_metaclass(VALUE obj, VALUE super)
 	return rb_cClass;
     }
     else {
-//	VALUE metasuper;
 	VALUE klass;
 
 	klass = rb_class_boot(super);
 	RBASIC(obj)->klass = klass;
 #if WITH_OBJC
-	//RCLASS_SET_SINGLETON(klass);
+	if (super == rb_cNSObject) {
+	    RCLASS_VERSION(klass) ^= RCLASS_IS_OBJECT_SUBCLASS;
+	}
+	RCLASS_SET_VERSION_FLAG(klass, RCLASS_IS_SINGLETON);
 #else
 	FL_SET(klass, FL_SINGLETON);
 #endif
 
 	rb_singleton_class_attached(klass, obj);
 
-#if 0
-	metasuper = RBASIC(rb_class_real(super))->klass;
-	/* metaclass of a superclass may be NULL at boot time */
-	if (metasuper) {
-	    RBASIC(klass)->klass = metasuper;
-	}
-#endif
 	return klass;
     }
 }
@@ -1190,29 +1186,22 @@ rb_singleton_class(VALUE obj)
     }
 
     DEFER_INTS;
-#if WITH_OBJC
-    if (NATIVE(obj)) {
-	Class ocklass;
-
-	ocklass = *(Class *)obj;
-	klass = (VALUE)ocklass;
-	if (class_isMetaClass(ocklass))
-	    return klass;
-
-	if (!RCLASS_SINGLETON(ocklass))
-	    klass = rb_make_metaclass(obj, (VALUE)ocklass);
-
-	return klass;
-    }
-    if (TYPE(obj) == T_CLASS)
-	return obj;
-#endif
     if (RCLASS_SINGLETON(RBASIC(obj)->klass) &&
 	rb_iv_get(RBASIC(obj)->klass, "__attached__") == obj) {
 	klass = RBASIC(obj)->klass;
     }
     else {
-	klass = rb_make_metaclass(obj, RBASIC(obj)->klass);
+#if WITH_OBJC
+	switch (TYPE(obj)) {
+	    case T_CLASS:
+	    case T_MODULE:
+		klass = *(VALUE *)obj;
+		break;
+	    default:
+		klass = rb_make_metaclass(obj, RBASIC(obj)->klass);
+		break;
+	}
+#endif
     }
 #if 0
     if (OBJ_TAINTED(obj)) {
