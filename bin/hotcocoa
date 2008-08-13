@@ -1,0 +1,79 @@
+#!/usr/local/bin/macruby
+
+project_name = ARGV.shift
+
+unless project_name
+  puts "Usage: hotcocoa <project name>"
+  exit
+end
+
+if File.exist?(project_name)
+  if File.extname(project_name) == ".rb"
+    file_to_copy = project_name
+    project_name = project_name[0..-4]
+  else
+    puts %{Error: "#{project_name}" already exists in this directory.}
+    exit
+  end
+else
+  file_to_copy = nil
+end
+
+require 'fileutils'
+
+config_dir  = File.join(project_name, "config")
+lib_dir     = File.join(project_name, "lib")
+test_dir    = File.join(project_name, "test")
+app_name    = project_name.split("_").collect(&:capitalize).join(" ")
+
+FileUtils.mkdir_p config_dir
+FileUtils.mkdir_p lib_dir
+FileUtils.mkdir_p test_dir
+
+File.open(File.join(config_dir, "build.yml"), "w") do |file|
+  file.puts %{:name: #{app_name}}
+  file.puts %{:load: lib/#{project_name}.rb}
+  file.puts %{:sources: }
+  file.puts %{  - lib/**/*.rb}
+end
+
+File.open(File.join(lib_dir, "#{project_name}.rb"), "w") do |file|
+  if file_to_copy
+    file.write File.read(file_to_copy)
+  else
+    file.puts %{
+require 'hotcocoa'
+
+include HotCocoa
+
+application do |app|
+  window :frame => [100, 100, 500, 500], :title => "#{app_name}" do |win|
+     win.will_close { exit }
+  end
+end
+    }
+  end
+end
+
+File.open(File.join(project_name, "Rakefile"), "w") do |file|
+  file.puts %{
+task :default => [:run]
+
+task :build do
+  require 'hotcocoa/application_builder'
+  ApplicationBuilder.build :file => "config/build.yml"
+end
+
+task :run => [:build] do
+  require 'yaml'
+  app_name = YAML.load(File.read("config/build.yml"))[:name]
+  `open "#{app_name}.app"`
+end
+
+task :clean do
+  require 'yaml'
+  app_name = YAML.load(File.read("config/build.yml"))[:name]
+  `rm -rf "#{app_name}.app"`
+end
+  }
+end
