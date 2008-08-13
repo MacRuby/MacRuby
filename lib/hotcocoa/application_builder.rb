@@ -93,7 +93,7 @@ module HotCocoa
           f.puts %{	<key>CFBundleDevelopmentRegion</key>}
           f.puts %{	<string>English</string>}
           f.puts %{	<key>CFBundleExecutable</key>}
-          f.puts %{	<string>#{name}</string>}
+          f.puts %{	<string>#{name.gsub(/ /, '')}</string>}
           f.puts %{	<key>CFBundleIdentifier</key>}
           f.puts %{	<string>com.yourcompany.#{name}</string>}
           f.puts %{	<key>CFBundleInfoDictionaryVersion</key>}
@@ -125,7 +125,7 @@ module HotCocoa
             }
           }
         end
-        `cd #{macos_root} && gcc main.m -o #{name} -arch ppc -arch i386 -framework MacRuby -framework Foundation -fobjc-gc-only`
+        puts `cd "#{macos_root}" && gcc main.m -o #{name.gsub(/ /, '')} -arch ppc -arch i386 -framework MacRuby -framework Foundation -fobjc-gc-only`
         File.unlink(objective_c_source_file)
       end
       
