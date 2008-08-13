@@ -232,7 +232,7 @@ search_method(VALUE klass, ID id, VALUE *klassp)
     NODE *node;
     if (klass == 0)
 	return NULL;
-    node = rb_objc_method_node(klass, id, NULL, NULL);
+    node = rb_method_node(klass, id);
     if (node != NULL) {
 	if (klassp != NULL) /* TODO honour klassp */
 	    *klassp = klass;
@@ -315,7 +315,21 @@ NODE *
 rb_method_node(VALUE klass, ID id)
 {
 #if WITH_OBJC
-    return rb_objc_method_node(klass, id, NULL, NULL);
+    NODE *node = rb_objc_method_node(klass, id, NULL, NULL);
+    if (node == NULL) {
+	const char *id_str = rb_id2name(id);
+	size_t slen = strlen(id_str);
+
+	if (id_str[slen - 1] == ':') {
+	    return NULL;
+	}
+	else {
+	    char buf[100];
+	    snprintf(buf, sizeof buf, "%s:", id_str);
+	    return rb_method_node(klass, rb_intern(buf));
+	}
+    }
+    return node;
 #else
     struct cache_entry *ent;
 

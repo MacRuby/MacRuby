@@ -610,12 +610,19 @@ rb_include_module(VALUE klass, VALUE module)
     methods = class_copyMethodList((Class)module, &methods_count);
     if (methods != NULL) {
 	for (i = 0; i < methods_count; i++) {
-	    Method method = methods[i];
+	    Method method = methods[i], method2;
 	    DLOG("DEFI", "-[%s %s]", class_getName((Class)klass), (char *)method_getName(method));
-	    assert(class_addMethod((Class)klass, 
-			method_getName(method), 
-			method_getImplementation(method), 
-			method_getTypeEncoding(method)));
+	
+	    method2 = class_getInstanceMethod((Class)klass, method_getName(method));
+	    if (method2 != NULL && method2 != class_getInstanceMethod((Class)RCLASS_SUPER(klass), method_getName(method))) {
+		method_setImplementation(method2, method_getImplementation(method));
+	    }
+	    else {
+		assert(class_addMethod((Class)klass, 
+			    method_getName(method), 
+			    method_getImplementation(method), 
+			    method_getTypeEncoding(method)));
+	    }
 	}
 	free(methods);
     }
