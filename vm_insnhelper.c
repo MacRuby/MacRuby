@@ -791,6 +791,24 @@ start_method_dispatch:
 	}
     }
     else {
+#if WITH_OBJC
+	if (flag & VM_CALL_SUPER_BIT) {
+	    VALUE k;
+	    for (k = CLASS_OF(recv); k != 0; k = RCLASS_SUPER(k)) {
+		VALUE ary = rb_ivar_get(k, idIncludedModules);
+		if (ary != Qnil) {
+		    int i, count = RARRAY_LEN(ary);
+		    for (i = 0; i < count; i++) {
+			VALUE imod = RARRAY_AT(ary, i);
+			mn = rb_objc_method_node(imod, id, NULL, NULL);
+			if (mn != NULL) {
+			    goto start_method_dispatch;
+			}
+		    }
+		}
+	    }
+	}
+#endif
 	/* method missing */
 	if (id == idMethodMissing) {
 	    rb_bug("method missing");

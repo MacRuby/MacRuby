@@ -3972,7 +3972,7 @@ pipe_open(struct rb_exec_arg *eargp, VALUE prog, const char *mode)
         write_fptr->fd = write_fd;
         write_fptr->mode = (modef & ~FMODE_READABLE)| FMODE_SYNC|FMODE_DUPLEX;
         fptr->mode &= ~FMODE_WRITABLE;
-        fptr->tied_io_for_writing = write_port;
+        GC_WB(&fptr->tied_io_for_writing, write_port);
         rb_ivar_set(port, rb_intern("@tied_io_for_writing"), write_port);
     }
 
@@ -4589,7 +4589,7 @@ rb_io_init_copy(VALUE dest, VALUE io)
     write_io = GetWriteIO(io);
     if (io != write_io) {
         write_io = rb_obj_dup(write_io);
-        fptr->tied_io_for_writing = write_io;
+        GC_WB(&fptr->tied_io_for_writing, write_io);
         rb_ivar_set(dest, rb_intern("@tied_io_for_writing"), write_io);
     }
 

@@ -314,8 +314,19 @@ VALUE
 rb_hash_dup(VALUE rcv)
 {
     VALUE dup = (VALUE)CFDictionaryCreateMutableCopy(NULL, 0, (CFDictionaryRef)rcv);
+    if (OBJ_TAINTED(rcv))
+	OBJ_TAINT(dup);
     CFMakeCollectable((CFTypeRef)dup);
     return dup;
+}
+
+static VALUE
+rb_hash_clone(VALUE rcv)
+{
+    VALUE clone = rb_hash_dup(rcv);
+    if (OBJ_FROZEN(rcv))
+	OBJ_FREEZE(clone);
+    return clone;
 }
 
 VALUE
@@ -3041,8 +3052,9 @@ Init_Hash(void)
     rb_include_module(rb_cHash, rb_mEnumerable);
 
 #if WITH_OBJC
-    /* to return a mutable copy */
+    /* to return mutable copies */
     rb_define_method(rb_cHash, "dup", rb_hash_dup, 0);
+    rb_define_method(rb_cHash, "clone", rb_hash_clone, 0);
 #else
     rb_define_alloc_func(rb_cHash, hash_alloc);
 #endif

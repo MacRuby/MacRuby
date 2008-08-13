@@ -901,6 +901,9 @@ rb_str_dup(VALUE str)
     if (data != NULL)
 	rb_str_cfdata_set(dup, data);
 
+    if (OBJ_TAINTED(str))
+	OBJ_TAINT(dup);
+
     CFMakeCollectable((CFTypeRef)dup);
 #else
     VALUE dup = str_alloc(rb_obj_class(str));
@@ -910,6 +913,14 @@ rb_str_dup(VALUE str)
     return dup;
 }
 
+static VALUE
+rb_str_clone(VALUE str)
+{
+    VALUE clone = rb_str_dup(str);
+    if (OBJ_FROZEN(str))
+	OBJ_FREEZE(clone);
+    return clone;
+}
 
 /*
  *  call-seq:
@@ -8723,8 +8734,9 @@ Init_String(void)
     rb_define_method(rb_cString, "transform", rb_str_transform, 1);
     rb_define_method(rb_cString, "transform!", rb_str_transform_bang, 1);
 
-    /* to return a mutable copy */
+    /* to return mutable copies */
     rb_define_method(rb_cString, "dup", rb_str_dup, 0);
+    rb_define_method(rb_cString, "clone", rb_str_clone, 0);
 #endif
 
     id_to_s = rb_intern("to_s");

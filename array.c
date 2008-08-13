@@ -1538,32 +1538,33 @@ rb_ary_empty_p(VALUE ary)
     return Qfalse;
 }
 
-#if WITH_OBJC
-static inline VALUE
-rb_ary_dup2(VALUE ary)
-{
-    CFMutableArrayRef dup;
-
-    dup = CFArrayCreateMutableCopy(NULL, 0, (CFArrayRef)ary);
-    CFMakeCollectable(dup);
-
-    return (VALUE)dup;
-}
-#endif
-
 VALUE
 rb_ary_dup(VALUE ary)
 {
 #if WITH_OBJC
-    VALUE dup = rb_ary_dup2(ary);
+    VALUE dup;
+
+    dup = (VALUE)CFArrayCreateMutableCopy(NULL, 0, (CFArrayRef)ary);
+    if (OBJ_TAINTED(ary))
+	OBJ_TAINT(dup);
+
+    CFMakeCollectable((CFTypeRef)dup);
 #else
     VALUE dup = rb_ary_new2(RARRAY_LEN(ary));
 
     MEMCPY(RARRAY_PTR(dup), RARRAY_PTR(ary), VALUE, RARRAY_LEN(ary));
     RARRAY(dup)->len = RARRAY_LEN(ary);
-
 #endif
     return dup;
+}
+
+static VALUE
+rb_ary_clone(VALUE ary)
+{
+    VALUE clone = rb_ary_dup(ary);
+    if (OBJ_FROZEN(ary))
+	OBJ_FREEZE(clone);
+    return clone;
 }
 
 extern VALUE rb_output_fs;
@@ -4244,8 +4245,9 @@ Init_Array(void)
     rb_define_method(rb_cArray, "drop_while", rb_ary_drop_while, 0);
 
 #if WITH_OBJC
-    /* to return a mutable copy */
+    /* to return mutable copies */
     rb_define_method(rb_cArray, "dup", rb_ary_dup, 0);
+    rb_define_method(rb_cArray, "clone", rb_ary_clone, 0);
 #endif
 
     id_cmp = rb_intern("<=>");
