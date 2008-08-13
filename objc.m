@@ -1142,17 +1142,26 @@ rb_objc_alias(VALUE klass, ID name, ID def)
 
     method = class_getInstanceMethod((Class)klass, def_sel);
     if (method == NULL) {
-	if (def_str[strlen(def_str) - 1] != ':') {
-	    char buf[512];
-	    strlcpy(buf, def_str, sizeof buf);
-	    strlcat(buf, ":", sizeof buf);
+	size_t len = strlen(def_str);
+	if (def_str[len - 1] != ':') {
+	    char buf[100];
+
+	    if (def_str[len - 1] == '=' && isalpha(def_str[len - 2])) {
+		snprintf(buf, sizeof buf, "set%s", def_str);
+		buf[3] = toupper(buf[3]);
+		buf[len + 2] = ':';
+	    }
+	    else {
+		snprintf(buf, sizeof buf, "%s:", def_str);
+	    }
 	    def_sel = sel_registerName(buf);
 	    method = class_getInstanceMethod((Class)klass, def_sel);
-	    if (method == NULL)
+	    if (method == NULL) {
 		rb_print_undef(klass, def, 0);
-	    if (name_str[strlen(name_str) - 1] != ':') {
-		strlcpy(buf, name_str, sizeof buf);
-		strlcat(buf, ":", sizeof buf);
+	    }
+	    len = strlen(name_str);
+	    if (name_str[len - 1] != ':') {
+		snprintf(buf, sizeof buf, "%s:", name_str);
 		name_sel = sel_registerName(buf);
 	    }
 	}

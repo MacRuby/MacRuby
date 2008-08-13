@@ -279,6 +279,7 @@ def DelegateClass(superclass)
     :clone, :dup, :marshal_dump, :marshal_load, :instance_eval, :instance_exec,
     :extend,
   ]
+  methods -= NSObject.methods
   klass.module_eval {
     include Delegator::MethodDelegation
     def __getobj__  # :nodoc:
