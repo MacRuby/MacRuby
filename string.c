@@ -1359,6 +1359,7 @@ rb_str_cstr(VALUE ptr)
     const char *cptr;
    
     data = (CFDataRef)rb_str_cfdata2(ptr);
+    cptr = NULL;
     if (data == NULL) {
 	cptr = CFStringGetCStringPtr((CFStringRef)ptr, 0);
     	if (cptr == NULL) {

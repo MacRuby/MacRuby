@@ -82,7 +82,7 @@ rb_big_realloc(VALUE big, long len)
 	    ds = ALLOC_N(BDIGIT, len);
 	    MEMCPY(ds, RBIGNUM(big)->as.ary, BDIGIT, RBIGNUM_EMBED_LEN_MAX);
 	    RBIGNUM(big)->as.heap.len = RBIGNUM_LEN(big);
-	    RBIGNUM(big)->as.heap.digits = ds;
+	    GC_WB(&RBIGNUM(big)->as.heap.digits, ds);
 	    RBASIC(big)->flags &= ~RBIGNUM_EMBED_FLAG;
 	}
     }
@@ -98,10 +98,11 @@ rb_big_realloc(VALUE big, long len)
 	}
 	else {
 	    if (RBIGNUM_LEN(big) == 0) {
-		RBIGNUM(big)->as.heap.digits = ALLOC_N(BDIGIT, len);
+		GC_WB(&RBIGNUM(big)->as.heap.digits, ALLOC_N(BDIGIT, len));
 	    }
 	    else {
 		REALLOC_N(RBIGNUM(big)->as.heap.digits, BDIGIT, len);
+		GC_WB(&RBIGNUM(big)->as.heap.digits, RBIGNUM(big)->as.heap.digits);
 	    }
 	}
     }

@@ -1383,7 +1383,7 @@ rb_reg_search(VALUE re, VALUE str, int pos, int reverse)
     if (!reverse) {
 	range += RSTRING_LEN(str);
     }
-    MEMZERO(&regs, struct re_registers, 1);
+    MEMZERO(pregs, struct re_registers, 1);
     result = onig_search(RREGEXP(re)->ptr,
 			 (UChar*)cstr,
 			 ((UChar*)cstr + clen),
