@@ -307,7 +307,50 @@ rb_singleton_class_clone(VALUE obj)
 {
     VALUE klass = RBASIC(obj)->klass;
 #if WITH_OBJC
-    return klass;
+    if (!RCLASS_SINGLETON(klass)) {
+	return klass;
+    }
+    else {
+	/* copy singleton(unnamed) class */
+	VALUE clone = rb_objc_create_class(NULL, RCLASS_SUPER(klass));
+
+	CFMutableDictionaryRef ivar_dict = rb_class_ivar_dict(klass);
+	if (ivar_dict != NULL) {
+	    CFMutableDictionaryRef cloned_ivar_dict;
+
+	    cloned_ivar_dict = CFDictionaryCreateMutableCopy(NULL, 0, (CFDictionaryRef)ivar_dict);
+	    rb_class_ivar_set_dict(clone, cloned_ivar_dict);
+	    CFMakeCollectable(cloned_ivar_dict);
+	}
+
+	Method *methods;
+	unsigned i, methods_count;
+	methods = class_copyMethodList((Class)klass, &methods_count);
+	if (methods != NULL) {
+	    for (i = 0; i < methods_count; i++) {
+		Method method = methods[i], method2;
+		method2 = class_getInstanceMethod((Class)clone, method_getName(method));
+		if (method2 != class_getInstanceMethod((Class)RCLASS_SUPER(clone), method_getName(method))) {
+		    method_setImplementation(method2, method_getImplementation(method));
+		}
+		else {
+		    assert(class_addMethod((Class)clone, 
+				method_getName(method), 
+				method_getImplementation(method), 
+				method_getTypeEncoding(method)));
+		}
+	    }
+	    free(methods);
+	}
+
+	rb_singleton_class_attached(RBASIC(clone)->klass, (VALUE)clone);
+	if (RCLASS_SUPER(clone) == rb_cNSObject) {
+	    RCLASS_VERSION(clone) ^= RCLASS_IS_OBJECT_SUBCLASS;
+	}
+	RCLASS_SET_VERSION_FLAG(clone, RCLASS_IS_SINGLETON);
+
+	return clone;
+    }
 #else
     if (!FL_TEST(klass, FL_SINGLETON))
 	return klass;

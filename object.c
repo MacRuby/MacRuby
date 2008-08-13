@@ -309,6 +309,7 @@ rb_obj_clone(VALUE obj)
     switch (TYPE(obj)) {
 	case T_NATIVE:
 	    clone = rb_obj_alloc(rb_obj_class(obj));
+	    RBASIC(clone)->klass = rb_singleton_class_clone(obj);
 	    break;
 	case T_CLASS:
 	case T_MODULE:

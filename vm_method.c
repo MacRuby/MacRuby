@@ -316,7 +316,7 @@ rb_method_node(VALUE klass, ID id)
 {
 #if WITH_OBJC
     NODE *node = rb_objc_method_node(klass, id, NULL, NULL);
-    if (node == NULL) {
+    if (node == NULL && id != ID_ALLOCATOR) {
 	const char *id_str = rb_id2name(id);
 	size_t slen = strlen(id_str);
 
