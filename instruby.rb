@@ -304,8 +304,8 @@ install?(:local, :comm, :bin, :'bin-comm') do
   for src in Dir["bin/*"]
     next unless File.file?(src)
     next if /\/[.#]|(\.(old|bak|orig|rej|diff|patch|core)|~|\/core)$/i =~ src
-
-    name = ruby_install_name.sub(/ruby/, File.basename(src))
+    
+    name = (File.basename(src) == "hotcocoa" ? "hotcocoa" : ruby_install_name.sub(/ruby/, File.basename(src)))
 
     shebang = ''
     body = ''
