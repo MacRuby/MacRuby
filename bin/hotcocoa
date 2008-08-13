@@ -46,9 +46,12 @@ require 'hotcocoa'
 
 include HotCocoa
 
+# Replace the following code with your own hotcocoa code
+
 application do |app|
   window :frame => [100, 100, 500, 500], :title => "#{app_name}" do |win|
-     win.will_close { exit }
+    win << label(:text => "Hello from HotCocoa", :layout => {:start => false})
+    win.will_close { exit }
   end
 end
     }
