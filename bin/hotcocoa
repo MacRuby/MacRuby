@@ -19,64 +19,13 @@ else
   file_to_copy = nil
 end
 
-require 'fileutils'
+require 'hotcocoa/template'
+HotCocoa::Template.copy_to(project_name, project_name.split("_").collect(&:capitalize).join(" "))
 
-config_dir  = File.join(project_name, "config")
-lib_dir     = File.join(project_name, "lib")
-test_dir    = File.join(project_name, "test")
-app_name    = project_name.split("_").collect(&:capitalize).join(" ")
-
-FileUtils.mkdir_p config_dir
-FileUtils.mkdir_p lib_dir
-FileUtils.mkdir_p test_dir
-
-File.open(File.join(config_dir, "build.yml"), "w") do |file|
-  file.puts %{:name: #{app_name}}
-  file.puts %{:load: lib/#{project_name}.rb}
-  file.puts %{:sources: }
-  file.puts %{  - lib/**/*.rb}
-end
-
-File.open(File.join(lib_dir, "#{project_name}.rb"), "w") do |file|
-  if file_to_copy
+if file_to_copy
+  lib_dir     = File.join(project_name, "lib")
+  File.open(File.join(lib_dir, "application.rb"), "w") do |file|
     file.write File.read(file_to_copy)
-  else
-    file.puts %{
-require 'hotcocoa'
-
-include HotCocoa
-
-# Replace the following code with your own hotcocoa code
-
-application do |app|
-  window :frame => [100, 100, 500, 500], :title => "#{app_name}" do |win|
-    win << label(:text => "Hello from HotCocoa", :layout => {:start => false})
-    win.will_close { exit }
-  end
-end
-    }
   end
 end
 
-File.open(File.join(project_name, "Rakefile"), "w") do |file|
-  file.puts %{
-task :default => [:run]
-
-task :build do
-  require 'hotcocoa/application_builder'
-  ApplicationBuilder.build :file => "config/build.yml"
-end
-
-task :run => [:build] do
-  require 'yaml'
-  app_name = YAML.load(File.read("config/build.yml"))[:name]
-  `open "#{app_name}.app"`
-end
-
-task :clean do
-  require 'yaml'
-  app_name = YAML.load(File.read("config/build.yml"))[:name]
-  `rm -rf "#{app_name}.app"`
-end
-  }
-end
