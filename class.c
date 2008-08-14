@@ -929,6 +929,7 @@ rb_objc_push_methods(VALUE ary, VALUE mod)
 	    SEL sel;
 	    char *sel_name, *p;
 	    VALUE sym;
+	    ID mid;
 
 	    method = methods[i];
 
@@ -945,13 +946,28 @@ rb_objc_push_methods(VALUE ary, VALUE mod)
 	    p = strchr(sel_name, ':');
 	    if (p != NULL && strchr(p + 1, ':') == NULL) {
 		size_t len = strlen(sel_name);
-		p = alloca(len);
-		strncpy(p, sel_name, len);
-		p[len - 1] = '\0';
-		sel_name = p;	
+		char buf[100];
+
+		assert(len < sizeof(buf));
+
+		if (len > 4 && sel_name[0] == 's' && sel_name[1] == 'e' 
+		    && sel_name[2] == 't' && isupper(sel_name[3])) {
+		    snprintf(buf, sizeof buf, "%s", &sel_name[3]);
+		    buf[len - 4] = '=';
+		    buf[0] = tolower(buf[0]);
+		}
+		else {
+		    strncpy(buf, sel_name, len);
+		    buf[len - 1] = '\0';
+		}
+
+		mid = rb_intern(buf);
+	    }
+	    else {
+		mid = rb_intern(sel_name);
 	    }
 
-	    sym = ID2SYM(rb_intern(sel_name));
+	    sym = ID2SYM(mid);
 
 	    if (rb_ary_includes(ary, sym) == Qfalse)
 		rb_ary_push(ary, sym);

@@ -1355,12 +1355,16 @@ rb_ivar_set(VALUE obj, ID id, VALUE val)
 		if (new_ivar) {
 		    if (len + 1 == RB_IVAR_ARY_MAX) {
 			CFMutableDictionaryRef tbl;
-			tbl = CFDictionaryCreateMutable(NULL, 0, NULL, &rb_cfdictionary_value_cb);
+			tbl = CFDictionaryCreateMutable(NULL, 0, NULL, 
+				&rb_cfdictionary_value_cb);
 
-			for (i = 0; i < len; i++)
+			for (i = 0; i < len; i++) 
 			    CFDictionarySetValue(tbl, 
 				(const void *)ROBJECT(obj)->ivars.as.ary[i].name, 
 				(const void *)ROBJECT(obj)->ivars.as.ary[i].value);
+
+			CFDictionarySetValue(tbl, (const void *)id, 
+				(const void *)val);
 
 			xfree(ROBJECT(obj)->ivars.as.ary);
 			GC_WB(&ROBJECT(obj)->ivars.as.tbl, tbl);
@@ -1383,7 +1387,8 @@ rb_ivar_set(VALUE obj, ID id, VALUE val)
 	    }
 
 	    case RB_IVAR_TBL:
-		CFDictionarySetValue(ROBJECT(obj)->ivars.as.tbl, (const void *)id, (const void *)val);
+		CFDictionarySetValue(ROBJECT(obj)->ivars.as.tbl, 
+			(const void *)id, (const void *)val);
 		break;
 	}
 #else
