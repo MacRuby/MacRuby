@@ -2099,19 +2099,23 @@ VALUE
 rb_ary_delete(VALUE ary, VALUE item)
 {
 #if WITH_OBJC
-    long n, i;
+    long k, n, i;
     CFRange r;
+    const void *ocitem;
 
     rb_ary_modify(ary);
 
-    r = CFRangeMake(0, RARRAY_LEN(ary));
-    n = 0;
-    while ((i = CFArrayGetFirstIndexOfValue((CFArrayRef)ary, r, 
-	(const void *)RB2OC(item))) != -1) {
+    ocitem = (const void *)RB2OC(item);
+    n = RARRAY_LEN(ary);
+    r = CFRangeMake(0, n);
+    k = 0;
+    while ((i = CFArrayGetFirstIndexOfValue((CFArrayRef)ary, r, ocitem)) != -1) {
 	CFArrayRemoveValueAtIndex((CFMutableArrayRef)ary, i);
-    	n++;
+	r.location = i;
+	r.length = --n - i;
+	k++;
     }
-    if (n == 0) {
+    if (k == 0) {
 	if (rb_block_given_p()) {
 	    return rb_yield(item);
 	}

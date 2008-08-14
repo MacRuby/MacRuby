@@ -133,6 +133,8 @@ rb_class_real(VALUE cl)
 #if WITH_OBJC
     if (cl == 0)
         return 0;
+    if (RCLASS_META(cl))
+	return rb_cClass;
     while (RCLASS_SINGLETON(cl)) {
 	cl = RCLASS_SUPER(cl);
     }

@@ -1007,9 +1007,14 @@ rb_objc_call2(VALUE recv, VALUE klass, SEL sel, IMP imp, Method method, bs_eleme
     char buf[128];
     id ocrcv;
 
-    /* XXX because Hash.new can accept a block */
+    /* XXX very special exceptions! */
     if (recv == rb_cNSMutableHash && sel == @selector(new)) {
+	/* because Hash.new can accept a block */
 	return rb_class_new_instance(0, NULL, recv);
+    }
+    else if (RCLASS_META(klass) && sel == @selector(class)) {
+	/* because +[NSObject class] returns self */
+	return rb_cClass;
     }
 
     ocrcv = RB2OC(recv);
