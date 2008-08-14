@@ -4,7 +4,7 @@ include HotCocoa
 
 sounds = Dir.glob("/System/Library/Sounds/*.aiff")
 
-application do |app|
+application :name => "Popup Action" do |app|
   window :frame => [200, 200, 300, 120], :title => "HotCocoa!" do |win|
     win << button(:frame => [10, 80, 100, 25], :title => "Sounds!") do |b|
       b.on_action do 

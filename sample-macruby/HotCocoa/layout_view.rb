@@ -51,7 +51,7 @@ end
 
 include HotCocoa
 
-application do |app|
+application :name => "Layout View" do |app|
 
   window :frame => [100, 100, 500, 500], :title => "Packing View Madness" do |win|
     views = []

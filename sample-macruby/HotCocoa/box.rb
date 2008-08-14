@@ -2,7 +2,7 @@ require 'hotcocoa'
 
 include HotCocoa
 
-application do |app|
+application :name => "Box" do |app|
   window :frame => [200, 800, 300, 120], :title => "HotCocoa!" do |win|
 
     win.did_move do

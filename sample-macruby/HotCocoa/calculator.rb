@@ -18,7 +18,7 @@ class Calculator
   end
 
   def show
-    application do |app|
+    application :name => "Calculator" do |app|
       main_window << value
       main_window << button_view
       main_window.will_close { exit }

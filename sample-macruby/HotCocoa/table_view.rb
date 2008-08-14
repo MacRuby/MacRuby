@@ -2,7 +2,7 @@ require 'hotcocoa'
 
 include HotCocoa
 
-application do |app|
+application :name => "Table View" do |app|
   window :frame => [100, 100, 500, 500], :title => "HotCocoa!" do |win|
     people = table_view :frame => [10, 10, 480, 470], 
       :columns => [

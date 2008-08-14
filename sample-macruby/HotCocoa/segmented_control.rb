@@ -2,7 +2,7 @@ require 'hotcocoa'
 
 include HotCocoa
 
-application do |app|
+application :name => "Segmented Control" do |app|
   window :frame => [200, 200, 500, 120], :title => "HotCocoa!" do |win|
     segment = segmented_control(
       :frame => [10,10,480,60], 

@@ -2,7 +2,7 @@ require 'hotcocoa'
 
 include HotCocoa
 
-application do |app|
+application :name => "Font" do |app|
   window :frame => [200, 200, 300, 120], :title => "HotCocoa!" do |win|
     win << box(
       :title => "Very Big Font!", 
