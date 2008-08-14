@@ -43,7 +43,7 @@ def parse_args(argv = ARGV)
     $mflags.concat(v)
   end
   opt.on('-i', '--install=TYPE',
-         [:local, :bin, :"bin-arch", :"bin-comm", :lib, :man, :ext, :"ext-arch", :"ext-comm", :rdoc]) do |ins|
+         [:local, :bin, :"bin-arch", :"bin-comm", :lib, :man, :ext, :"ext-arch", :"ext-comm", :rdoc, :data]) do |ins|
     $install << ins
   end
   opt.on('--data-mode=OCTAL-MODE', OptionParser::OctalInteger) do |mode|
@@ -210,6 +210,7 @@ goruby_install_name = "go" + ruby_install_name
 version = CONFIG["ruby_version"]
 bindir = CONFIG["bindir"]
 libdir = CONFIG["libdir"]
+datadir = CONFIG['datadir']
 archhdrdir = rubyhdrdir = CONFIG["rubyhdrdir"]
 archhdrdir += "/" + CONFIG["arch"]
 rubylibdir = CONFIG["rubylibdir"]
@@ -401,6 +402,14 @@ install?(:local, :comm, :man) do
     end
   end
 end
+
+install?(:local, :data) do
+  puts "installing data files"
+  destination_dir = datadir.clone
+  Config.expand(destination_dir)
+  makedirs [destination_dir]
+  install_recursive("data", destination_dir, :mode => $data_mode)
+end  
 
 $install << :local << :ext if $install.empty?
 $install.each do |inst|
