@@ -1166,7 +1166,14 @@ rb_objc_alias(VALUE klass, ID name, ID def)
 	    }
 	    len = strlen(name_str);
 	    if (name_str[len - 1] != ':') {
-		snprintf(buf, sizeof buf, "%s:", name_str);
+		if (name_str[len - 1] == '=' && isalpha(name_str[len - 2])) {
+		    snprintf(buf, sizeof buf, "set%s", name_str);
+		    buf[3] = toupper(buf[3]);
+		    buf[len + 2] = ':';
+		}
+		else {
+		    snprintf(buf, sizeof buf, "%s:", name_str);
+		}
 		name_sel = sel_registerName(buf);
 	    }
 	}

@@ -325,7 +325,14 @@ rb_method_node(VALUE klass, ID id)
 	}
 	else {
 	    char buf[100];
-	    snprintf(buf, sizeof buf, "%s:", id_str);
+	    if (id_str[slen - 1] == '=' && isalpha(id_str[slen - 2])) {
+		snprintf(buf, sizeof buf, "set%s", id_str);
+		buf[3] = toupper(buf[3]);
+		buf[slen + 2] = ':';
+	    }
+	    else {
+		snprintf(buf, sizeof buf, "%s:", id_str);
+	    }
 	    return rb_method_node(klass, rb_intern(buf));
 	}
     }
