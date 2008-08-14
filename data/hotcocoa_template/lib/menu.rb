@@ -1,6 +1,6 @@
 module HotCocoa
   def application_menu(app)
-    menu :main do |main|
+    menu do |main|
       main.submenu :apple do |apple|
         apple.item :about, :title => "About #{app.name}", :target => app, :action => "orderFrontStandardAboutPanel:"
         apple.separator
