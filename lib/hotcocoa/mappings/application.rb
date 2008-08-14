@@ -6,6 +6,14 @@ HotCocoa::Mappings.map :application => :NSApplication do
   
   def handle_block(application, &block)
     block.call(application)
+    unless application.menu
+      begin
+        require 'lib/menu'
+        application.menu = application_menu(application)
+      rescue LoadError => e
+        puts "No menu specified"
+      end
+    end
     application.run
   end
   
@@ -17,6 +25,14 @@ HotCocoa::Mappings.map :application => :NSApplication do
     
     def name
       @name
+    end
+    
+    def menu=(menu)
+      setMainMenu(menu)
+    end
+    
+    def menu
+      mainMenu
     end
     
   end
