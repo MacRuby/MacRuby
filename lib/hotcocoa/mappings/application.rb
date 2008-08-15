@@ -5,15 +5,12 @@ HotCocoa::Mappings.map :application => :NSApplication do
   end
   
   def handle_block(application, &block)
-    block.call(application)
-    unless application.menu
-      begin
-        require 'lib/menu'
-        application.menu = application_menu(application)
-      rescue LoadError => e
-        puts "No menu specified"
-      end
+    begin
+      require 'lib/menu'
+      application.menu = application_menu
+    rescue LoadError => e
     end
+    block.call(application)
     application.run
   end
   
@@ -31,9 +28,46 @@ HotCocoa::Mappings.map :application => :NSApplication do
       setMainMenu(menu)
     end
     
-    def menu
-      mainMenu
+    def menu(path=nil)
+      if path
+        find_menu(mainMenu, path)
+      else
+        mainMenu
+      end
     end
+    
+    def on_hide(menu)
+      hide(menu)
+    end
+    
+    def on_about(menu)
+      orderFrontStandardAboutPanel(menu)
+    end
+    
+    def on_hide_others(menu)
+      hideOtherApplications(menu)
+    end
+    
+    def on_show_all(menu)
+      unhideAllApplications(menu)
+    end
+    
+    def on_quit(menu)
+      terminate(menu)
+    end
+    
+    private
+    
+      def find_menu(menu, path)
+        key = path.keys.first
+        value = path.values.first
+        menu = menu[key]
+        if value.kind_of?(Array)
+          find_menu(menu, value.first)
+        else
+          menu[value]
+        end
+      end
     
   end
   

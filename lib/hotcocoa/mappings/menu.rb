@@ -27,6 +27,7 @@ HotCocoa::Mappings.map :menu => :NSMenu do
     
     def item(symbol, options={})
       options[:title] ||= titleize(symbol)
+      options[:action] ||= "on_#{symbol}:"
       item = builder.menu_item(options)
       item_map[symbol] = item
       addItem item
@@ -37,8 +38,9 @@ HotCocoa::Mappings.map :menu => :NSMenu do
       addItem NSMenuItem.separatorItem
     end
     
-    def [](symbol)
-      item_map[symbol]
+    def [](*symbols)
+      symbol = symbols.shift
+      symbols.empty? ? item_map[symbol] : item_map[symbol][*symbols]
     end
     
     private
