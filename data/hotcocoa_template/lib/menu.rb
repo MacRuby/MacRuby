@@ -1,18 +1,18 @@
 module HotCocoa
-  def application_menu(app)
+  def application_menu
     menu do |main|
       main.submenu :apple do |apple|
-        apple.item :about, :title => "About #{app.name}", :target => app, :action => "orderFrontStandardAboutPanel:"
+        apple.item :about, :title => "About #{NSApp.name}"
         apple.separator
         apple.item :preferences, :key => ","
         apple.separator
         apple.submenu :services
         apple.separator
-        apple.item :hide, :title => "Hide #{app.name}", :key => "h", :target => app, :action => "hide:"
-        apple.item :hide_others, :title => "Hide Others", :key => "h", :modifiers => [:command, :alt],  :target => app, :action => "hideOtherApplications:"
-        apple.item :show_all, :title => "Show All", :target => app, :action => "unhideAllApplications:"
+        apple.item :hide, :title => "Hide #{NSApp.name}", :key => "h"
+        apple.item :hide_others, :title => "Hide Others", :key => "h", :modifiers => [:command, :alt]
+        apple.item :show_all, :title => "Show All"
         apple.separator
-        apple.item :quit, :title => "Quit #{app.name}", :key => "q", :target => app, :action => "terminate:"
+        apple.item :quit, :title => "Quit #{NSApp.name}", :key => "q"
       end
       main.submenu :file do |file|
         file.item :new, :key => "n"
@@ -25,7 +25,7 @@ module HotCocoa
         win.item :bring_all_to_front, :title => "Bring All to Front", :key => "o"
       end
       main.submenu :help do |help|
-        help.item :help, :title => "#{app.name} Help"
+        help.item :help, :title => "#{NSApp.name} Help"
       end
     end
   end
