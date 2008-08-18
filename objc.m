@@ -2079,10 +2079,12 @@ static void
 bs_parse_cb(const char *path, bs_element_type_t type, void *value, void *ctx)
 {
     bool do_not_free = false;
-    CFMutableDictionaryRef rb_cObject_dict;
+    static CFMutableDictionaryRef rb_cObject_dict = NULL;
 
-    rb_cObject_dict = rb_class_ivar_dict(rb_cObject);
-    assert(rb_cObject_dict != NULL);
+    if (rb_cObject_dict == NULL) {
+	rb_cObject_dict = rb_class_ivar_dict(rb_cObject);
+	assert(rb_cObject_dict != NULL);
+    }
 
     switch (type) {
 	case BS_ELEMENT_ENUM:

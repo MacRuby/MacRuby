@@ -94,22 +94,38 @@ VALUE rb_eZeroDivError;
 VALUE rb_eFloatDomainError;
 
 #if WITH_OBJC
-static CFMutableDictionaryRef fixnum_cache = NULL;
+static CFMutableDictionaryRef fixnum_dict = NULL;
+static struct RFixnum *fixnum_cache = NULL;
 
 VALUE
 rb_box_fixnum(VALUE fixnum)
 {
     struct RFixnum *val;
+    long value;
 
-    if (fixnum_cache == NULL)
-	fixnum_cache = CFDictionaryCreateMutable(NULL, 0, NULL, NULL); 
- 
-    val = (struct RFixnum *)CFDictionaryGetValue(fixnum_cache, (const void *)fixnum);
+    if (fixnum_dict == NULL)
+	fixnum_dict = CFDictionaryCreateMutable(kCFAllocatorMalloc, 0, NULL, NULL); 
+
+    value = FIX2LONG(fixnum);
+
+    if (value >= 0 && value <= 1000000) {
+	if (fixnum_cache == NULL) {
+	   fixnum_cache = (struct RFixnum *)calloc(1, sizeof(struct RFixnum) * 1000000);
+	}
+	val = &fixnum_cache[value];
+	if (val->klass == 0) {
+	    val->klass = rb_cFixnum;
+	    val->value = value;
+	}
+	return (VALUE)val;
+    }
+
+    val = (struct RFixnum *)CFDictionaryGetValue(fixnum_dict, (const void *)fixnum);
     if (val == NULL) {
 	val = (struct RFixnum *)malloc(sizeof(struct RFixnum));
 	val->klass = rb_cFixnum;
 	val->value = FIX2LONG(fixnum);
-	CFDictionarySetValue(fixnum_cache, (const void *)fixnum, (const void *)val);
+	CFDictionarySetValue(fixnum_dict, (const void *)fixnum, (const void *)val);
     }
 
     return (VALUE)val;

@@ -305,8 +305,13 @@ rb_ary_initialize(int argc, VALUE *argv, VALUE ary)
     }
     else {
 	long i;
+	const void **values = alloca(sizeof(void *) * len);
+	void *ocval = RB2OC(val);
+
 	for (i=0; i<len; i++)
-	    rb_ary_insert(ary, i, val);
+	    values[i] = ocval;
+
+	CFArrayReplaceValues((CFMutableArrayRef)ary, CFRangeMake(0, 0), values, len); 
     }
     return ary;
 }
