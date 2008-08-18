@@ -695,7 +695,7 @@ new_insn_send(rb_iseq_t *iseq, int line_no,
     operands[2] = block;
     operands[3] = flag;
 
-    mcache = (struct rb_method_cache *)xmalloc(sizeof(struct rb_method_cache));
+    mcache = (struct rb_method_cache *)malloc(sizeof(struct rb_method_cache));
     mcache->flags = RB_MCACHE_RCALL_FLAG;
     mcache->as.rcall.klass = 0;
     mcache->as.rcall.node = NULL;
@@ -729,7 +729,7 @@ new_insn_send(rb_iseq_t *iseq, int line_no,
 	    mcache->as.rcall.sel = sel_registerName(buf);
 	}
     }
-    GC_WB(&operands[4], mcache);
+    operands[4] = (VALUE)mcache;
     iobj = new_insn_core(iseq, line_no, BIN(send), 5, operands);
     return iobj;
 }
