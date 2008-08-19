@@ -9524,21 +9524,23 @@ rb_intern(const char *name)
 ID
 rb_intern_str(VALUE str)
 {
-    rb_encoding *enc;
     ID id;
 
 #if WITH_OBJC
-    enc = rb_enc_get(str);
+    const char *s = RSTRING_PTR(str);
+    id = rb_intern3(s, strlen(s), NULL);
 #else
+    rb_encoding *enc;
+    enc = rb_enc_get(str);
     if (rb_enc_str_coderange(str) == ENC_CODERANGE_7BIT) {
 	enc = rb_usascii_encoding();
     }
     else {
 	enc = rb_enc_get(str);
     }
-#endif
     id = rb_intern3(RSTRING_PTR(str), RSTRING_LEN(str), enc);
     RB_GC_GUARD(str);
+#endif
     return id;
 }
 

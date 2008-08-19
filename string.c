@@ -2523,7 +2523,6 @@ rb_str_inspect(VALUE str)
     }
     if (p == NULL)
 	return rb_str_new2("\"\"");
-    p = RSTRING_BYTEPTR(str); pend = RSTRING_END(str);
     result = rb_str_buf_new2("");
     str_cat_char(result, '"', enc);
     while (p < pend) {
@@ -2584,8 +2583,8 @@ rb_str_inspect(VALUE str)
 	}
     }
     str_cat_char(result, '"', enc);
+    RSTRING_SYNC(result);
 
-    OBJ_INFECT(result, str);
     return result;
 }
 
@@ -2709,7 +2708,6 @@ rb_str_dump(VALUE str)
 
     }
 
-    OBJ_INFECT(result, str);
     /* result from dump is ASCII */
 
     RSTRING_SYNC(result);
@@ -4445,8 +4443,6 @@ rb_str_crypt(VALUE str, VALUE salt)
     if (s == NULL)
 	s = "";
     result = rb_str_new2(crypt(s, RSTRING_BYTEPTR(salt)));
-    OBJ_INFECT(result, str);
-    OBJ_INFECT(result, salt);
     return result;
 }
 
