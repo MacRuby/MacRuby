@@ -1699,25 +1699,21 @@ rb_mod_const_defined(int argc, VALUE *argv, VALUE mod)
 static VALUE
 rb_obj_methods(int argc, VALUE *argv, VALUE obj)
 {
-  retry:
-    if (argc == 0) {
-	VALUE args[1];
-	VALUE ary;
+    VALUE recur, objc_methods;
+    VALUE args[2];
 
-	args[0] = Qtrue;
-	ary = rb_class_instance_methods(1, args, CLASS_OF(obj));
-	return ary;
+    if (argc == 0) {
+	recur = Qtrue;
+	objc_methods = Qfalse;
     }
     else {
-	VALUE recur;
-
-	rb_scan_args(argc, argv, "1", &recur);
-	if (RTEST(recur)) {
-	    argc = 0;
-	    goto retry;
-	}
-	return rb_obj_singleton_methods(argc, argv, obj);
+	rb_scan_args(argc, argv, "02", &recur, &objc_methods);
     }
+
+    args[0] = recur;
+    args[1] = objc_methods;
+
+    return rb_class_instance_methods(2, args, CLASS_OF(obj));
 }
 
 /*

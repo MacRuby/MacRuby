@@ -647,7 +647,7 @@ ins_methods_pub_i(ID name, long type, VALUE ary)
 }
 
 static void
-rb_objc_push_methods(VALUE ary, VALUE mod)
+rb_objc_push_methods(VALUE ary, VALUE mod, VALUE objc_methods)
 {
     Method *methods;
     unsigned int i, count;
@@ -660,7 +660,10 @@ rb_objc_push_methods(VALUE ary, VALUE mod)
 	    char *sel_name, *p;
 	    VALUE sym;
 	    ID mid;
-
+	    char buf[100];
+	    BOOL is_ruby_method;
+	    size_t len;
+	   
 	    method = methods[i];
 
 	    sel = method_getName(method);
@@ -668,35 +671,52 @@ rb_objc_push_methods(VALUE ary, VALUE mod)
 		continue; 
 
 	    sel_name = (char *)sel;
+	    is_ruby_method = rb_objc_method_node3(method_getImplementation(method)) != NULL;
 
-	    if (rb_objc_method_node3(method_getImplementation(method)) == NULL
-		&& *sel_name == '_')
+	    if (!is_ruby_method && objc_methods == Qfalse)
 		continue;
 
+	    len = strlen(sel_name);
+
+	    if (is_ruby_method && len >= 3 && sel_name[len - 1] == ':' && isalpha(sel_name[len - 3])) {
+		assert(len + 3 < sizeof(buf));
+		if (sel_name[len - 2] == '=') {
+		    /* skip foo=: (ruby) -> setFoo: (objc) shortcuts */
+		    snprintf(buf, sizeof buf, "set%s", sel_name);
+		    buf[4] = toupper(buf[4]);
+		    buf[len + 1] = ':';
+		    buf[len + 2] = '\0';
+
+		    method = class_getInstanceMethod((Class)mod, sel_registerName(buf));
+		    if (method != NULL && rb_objc_method_node3(method_getImplementation(method)) == NULL)
+			continue;
+		}
+		else if (sel_name[len - 2] == '?') {
+		    /* skip foo?: (ruby) -> isFoo: (objc) shortcuts */
+
+		    snprintf(buf, sizeof buf, "is%s", sel_name);
+		    buf[3] = toupper(buf[3]);
+		    buf[len] = ':';
+		    buf[len + 1] = '\0';
+		    
+		    method = class_getInstanceMethod((Class)mod, sel_registerName(buf));
+		    if (method != NULL && rb_objc_method_node3(method_getImplementation(method)) == NULL)
+			continue;
+		}
+	    }
 	    p = strchr(sel_name, ':');
 	    if (p != NULL && strchr(p + 1, ':') == NULL) {
-		size_t len = strlen(sel_name);
-		char buf[100];
+		/* remove trailing ':' for methods with arity 1 */
 
 		assert(len < sizeof(buf));
 
-		if (len > 4 && sel_name[0] == 's' && sel_name[1] == 'e' 
-		    && sel_name[2] == 't' && isupper(sel_name[3])) {
-		    snprintf(buf, sizeof buf, "%s", &sel_name[3]);
-		    buf[len - 4] = '=';
-		    buf[0] = tolower(buf[0]);
-		}
-		else {
-		    strncpy(buf, sel_name, len);
-		    buf[len - 1] = '\0';
-		}
+		strncpy(buf, sel_name, len);
+		buf[len - 1] = '\0';
 
-		mid = rb_intern(buf);
-	    }
-	    else {
-		mid = rb_intern(sel_name);
+		sel_name = buf;
 	    }
 
+	    mid = rb_intern(sel_name);
 	    sym = ID2SYM(mid);
 
 	    if (rb_ary_includes(ary, sym) == Qfalse)
@@ -710,22 +730,25 @@ static VALUE
 class_instance_method_list(int argc, VALUE *argv, VALUE mod, int (*func) (ID, long, VALUE))
 {
     VALUE ary;
-    bool recur;
+    VALUE recur, objc_methods;
 
     ary = rb_ary_new();
 
     if (argc == 0) {
-	recur = true;
+	recur = Qtrue;
+	objc_methods = Qfalse;
     }
     else {
-	VALUE r;
-	rb_scan_args(argc, argv, "01", &r);
-	recur = RTEST(r);
+	rb_scan_args(argc, argv, "02", &recur, &objc_methods);
+	if (NIL_P(recur))
+	    recur = Qtrue;
+	if (NIL_P(objc_methods))
+	    objc_methods = Qfalse;
     }
 
     while (mod != 0) {
-	rb_objc_push_methods(ary, mod);
-	if (!recur)
+	rb_objc_push_methods(ary, mod, objc_methods);
+	if (recur == Qfalse)
 	   break;	   
 	mod = (VALUE)class_getSuperclass((Class)mod); 
     } 
@@ -854,13 +877,14 @@ rb_class_public_instance_methods(int argc, VALUE *argv, VALUE mod)
 VALUE
 rb_obj_singleton_methods(int argc, VALUE *argv, VALUE obj)
 {
-    VALUE recur, klass, ary;
+    VALUE recur, objc_methods, klass, ary;
 
     if (argc == 0) {
 	recur = Qtrue;
+	objc_methods = Qfalse;
     }
     else {
-	rb_scan_args(argc, argv, "01", &recur);
+	rb_scan_args(argc, argv, "02", &recur, &objc_methods);
     }
 
     klass = CLASS_OF(obj);
@@ -868,7 +892,7 @@ rb_obj_singleton_methods(int argc, VALUE *argv, VALUE obj)
 
     do {
 	if (RCLASS_SINGLETON(klass))
-	    rb_objc_push_methods(ary, klass);
+	    rb_objc_push_methods(ary, klass, objc_methods);
 	klass = RCLASS_SUPER(klass);
     }
     while (recur == Qtrue && klass != 0);

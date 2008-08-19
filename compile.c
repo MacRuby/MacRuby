@@ -707,14 +707,7 @@ new_insn_send(rb_iseq_t *iseq, int line_no,
 	id_str = (char *)rb_sym2name(id);
 	id_str_len = strlen(id_str);
 
-	if (id_str[id_str_len - 1] == '=' && isalpha(id_str[id_str_len - 2]) 
-	    && FIX2INT(argc) == 1) {
-	    snprintf(buf, sizeof buf, "set%s", id_str);
-	    buf[3] = toupper(id_str[0]);
-	    buf[id_str_len + 2] = ':';
-	    id_str = buf;
-	}
-	else if (id_str[id_str_len - 1] != ':') {
+	if (id_str[id_str_len - 1] != ':') {
 	    snprintf(buf, sizeof buf, "%s:", id_str);
 	    id_str = buf;
 	}

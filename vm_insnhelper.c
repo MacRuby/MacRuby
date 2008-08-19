@@ -530,7 +530,7 @@ vm_call_method(rb_thread_t * const th, rb_control_frame_t * const cfp,
 
     if (mcache != NULL) {
 	if (mcache->flags & RB_MCACHE_RCALL_FLAG) {
-	    if (mcache->as.rcall.klass == klass) {
+	    if (mcache->as.rcall.klass == klass && mcache->as.rcall.node != NULL) {
 		mn = mcache->as.rcall.node;
 #if ENABLE_DEBUG_LOGGING
 		cached = true;
@@ -803,6 +803,45 @@ start_method_dispatch:
 			mn = rb_objc_method_node(imod, id, NULL, NULL);
 			if (mn != NULL) {
 			    goto start_method_dispatch;
+			}
+		    }
+		}
+	    }
+	}
+	else if (mcache != NULL) {
+	    const char *p = (const char *)mcache->as.rcall.sel;
+	    size_t len = strlen(p);
+	    if (len >= 3) {
+		char buf[100];
+		SEL sel = 0;
+		if (isalpha(p[len - 3]) && p[len - 2] == '=' && p[len - 1] == ':') {
+		    /* foo=: -> setFoo: shortcut */
+		    snprintf(buf, sizeof buf, "set%s", p);
+		    buf[3] = toupper(buf[3]);
+		    buf[len + 1] = ':';
+		    buf[len + 2] = '\0';
+		    sel = sel_registerName(buf);
+		}
+		else if (isalpha(p[len - 2]) && p[len - 1] == '?') {
+		    /* foo?: -> isFoo: shortcut */
+		    snprintf(buf, sizeof buf, "is%s", p);
+		    buf[2] = toupper(buf[2]);
+		    buf[len + 1] = '\0';
+		    sel = sel_registerName(buf);
+		}
+		if (sel != 0) {
+		    Method method = class_getInstanceMethod((Class)klass, sel);
+		    if (method != NULL) {
+			IMP imp = method_getImplementation(method);
+			if (rb_objc_method_node3(imp) == NULL) {
+			    assert(class_addMethod((Class)klass, mcache->as.rcall.sel, imp,
+					method_getTypeEncoding(method)));
+			    mcache->flags = RB_MCACHE_OCALL_FLAG;
+			    mcache->as.ocall.klass = klass;
+			    mcache->as.ocall.imp = imp;
+			    mcache->as.ocall.method = class_getInstanceMethod((Class)klass, mcache->as.rcall.sel);
+			    mcache->as.ocall.bs_method = rb_bs_find_method((Class)klass, mcache->as.rcall.sel);
+			    goto ocall_dispatch;
 			}
 		    }
 		}

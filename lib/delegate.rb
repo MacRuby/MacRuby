@@ -117,9 +117,8 @@
 class Delegator
   preserved = [
     :__id__, :object_id, :__send__, :public_send, :respond_to?, :send,
-    :instance_eval, :instance_exec, :extend,
+    :instance_eval, :instance_exec, :extend, :initialize
   ]
-  preserved.concat(NSObject.instance_methods)
   instance_methods.each do |m|
     next if preserved.include?(m)
     undef_method m
@@ -279,7 +278,6 @@ def DelegateClass(superclass)
     :clone, :dup, :marshal_dump, :marshal_load, :instance_eval, :instance_exec,
     :extend,
   ]
-  methods -= NSObject.methods
   klass.module_eval {
     include Delegator::MethodDelegation
     def __getobj__  # :nodoc:

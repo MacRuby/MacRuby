@@ -202,7 +202,7 @@ rb_define_alloc_func(VALUE klass, VALUE (*func)(VALUE))
 {
     Check_Type(klass, T_CLASS);
     rb_add_method(rb_singleton_class(klass), ID_ALLOCATOR, NEW_CFUNC(func, 0),
-		  NOEX_PRIVATE);
+		  NOEX_PUBLIC);
 }
 
 void
@@ -325,14 +325,7 @@ rb_method_node(VALUE klass, ID id)
 	}
 	else {
 	    char buf[100];
-	    if (id_str[slen - 1] == '=' && isalpha(id_str[slen - 2])) {
-		snprintf(buf, sizeof buf, "set%s", id_str);
-		buf[3] = toupper(buf[3]);
-		buf[slen + 2] = ':';
-	    }
-	    else {
-		snprintf(buf, sizeof buf, "%s:", id_str);
-	    }
+	    snprintf(buf, sizeof buf, "%s:", id_str);
 	    return rb_method_node(klass, rb_intern(buf));
 	}
     }
@@ -578,15 +571,9 @@ rb_undef(VALUE klass, ID id)
     if (id == object_id || id == __send__ || id == idInitialize) {
 	rb_warn("undefining `%s' may cause serious problem", rb_id2name(id));
     }
-#if WITH_OBJC
-    /* TODO: we should only warn regarding important NSObject methods that
-       are necessary by the GC to call finalizers. */
-    if (class_respondsToSelector((Class)rb_cBasicObject,
-				 sel_registerName(rb_id2name(id)))) {
-	rb_warn("undefining `NSObject#%s' may cause serious problem", 
-		rb_id2name(id));
-    }
-#endif
+    /* TODO: warn if a very important method of NSObject is undefined 
+     * by default, pure objc methods are not exposed by introspections API 
+     */
     body = search_method(klass, id, &origin);
     if (!body || !body->nd_body) {
 	const char *s0 = " class";

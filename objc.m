@@ -1151,14 +1151,7 @@ rb_objc_alias(VALUE klass, ID name, ID def)
 	if (def_str[len - 1] != ':') {
 	    char buf[100];
 
-	    if (def_str[len - 1] == '=' && isalpha(def_str[len - 2])) {
-		snprintf(buf, sizeof buf, "set%s", def_str);
-		buf[3] = toupper(buf[3]);
-		buf[len + 2] = ':';
-	    }
-	    else {
-		snprintf(buf, sizeof buf, "%s:", def_str);
-	    }
+	    snprintf(buf, sizeof buf, "%s:", def_str);
 	    def_sel = sel_registerName(buf);
 	    method = class_getInstanceMethod((Class)klass, def_sel);
 	    if (method == NULL) {
@@ -1166,14 +1159,7 @@ rb_objc_alias(VALUE klass, ID name, ID def)
 	    }
 	    len = strlen(name_str);
 	    if (name_str[len - 1] != ':') {
-		if (name_str[len - 1] == '=' && isalpha(name_str[len - 2])) {
-		    snprintf(buf, sizeof buf, "set%s", name_str);
-		    buf[3] = toupper(buf[3]);
-		    buf[len + 2] = ':';
-		}
-		else {
-		    snprintf(buf, sizeof buf, "%s:", name_str);
-		}
+		snprintf(buf, sizeof buf, "%s:", name_str);
 		name_sel = sel_registerName(buf);
 	    }
 	}
@@ -1444,31 +1430,18 @@ rb_objc_register_ruby_method(VALUE mod, ID mid, NODE *body)
 	mid_str = (char *)rb_id2name(mid);
 	mid_str_len = strlen(mid_str);
 
-	if (arity == 1 && mid_str[mid_str_len - 1] == '=' && isalpha(mid_str[mid_str_len - 2])) {
-	    assert(sizeof(buf) > mid_str_len + 3);
-	    buf[0] = 's';
-	    buf[1] = 'e';
-	    buf[2] = 't';
-	    buf[3] = toupper(mid_str[0]);
-	    strncpy(&buf[4], &mid_str[1], mid_str_len - 2);
-	    buf[mid_str_len + 2] = ':';
-	    buf[mid_str_len + 3] = '\0';
+	if ((arity < 0 || arity > 0) && mid_str[mid_str_len - 1] != ':') {
+	    assert(sizeof(buf) > mid_str_len + 1);
+	    snprintf(buf, sizeof buf, "%s:", mid_str);
 	    sel = sel_registerName(buf);
+	    oc_arity = 1;
 	}
 	else {
-	    if ((arity < 0 || arity > 0) && mid_str[mid_str_len - 1] != ':') {
-		assert(sizeof(buf) > mid_str_len + 1);
-		snprintf(buf, sizeof buf, "%s:", mid_str);
+	    sel = sel_registerName(mid_str);
+	    if (sel == sel_ignored) {
+		assert(sizeof(buf) > mid_str_len + 7);
+		snprintf(buf, sizeof buf, "__rb_%s__", mid_str);
 		sel = sel_registerName(buf);
-		oc_arity = 1;
-	    }
-	    else {
-		sel = sel_registerName(mid_str);
-		if (sel == sel_ignored) {
-		    assert(sizeof(buf) > mid_str_len + 7);
-		    snprintf(buf, sizeof buf, "__rb_%s__", mid_str);
-		    sel = sel_registerName(buf);
-		}
 	    }
 	}
     }
@@ -1748,21 +1721,13 @@ rb_bs_struct_field_ivar_id(void)
     size_t len;
 
     frame_str = rb_id2name(rb_frame_this_func());
-    if (strlen(frame_str) >= 5
-	&& frame_str[0] == 's'
-	&& frame_str[1] == 'e'
-	&& frame_str[2] == 't'
-	&& isupper(frame_str[3])) {
-
-	len = snprintf(ivar_name, sizeof ivar_name, "@%s", &frame_str[3]);
-	ivar_name[1] = tolower(ivar_name[1]);
-    }
-    else {
-	len = snprintf(ivar_name, sizeof ivar_name, "@%s", frame_str);
-    }
+    len = snprintf(ivar_name, sizeof ivar_name, "@%s", frame_str);
 	
-    if (ivar_name[len - 1] == '=' || ivar_name[len - 1] == ':')
-	ivar_name[len - 1] = '\0';
+    if (ivar_name[len - 1] == ':')
+	len--;
+    if (ivar_name[len - 1] == '=')
+	len--;
+    ivar_name[len] = '\0';
 
     return rb_intern(ivar_name);
 }
@@ -2594,7 +2559,7 @@ VALUE
 rb_mod_objc_ib_outlet(int argc, VALUE *argv, VALUE recv)
 {
     int i;
-    char buf[128];
+    char buf[100];
 
     buf[0] = 's'; buf[1] = 'e'; buf[2] = 't';
 

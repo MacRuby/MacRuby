@@ -1508,7 +1508,7 @@ module FileUtils
 
   METHODS = singleton_methods() - [:private_module_function,
       :commands, :options, :have_option?, :options_of, 
-      :collect_method] - NSObject.methods
+      :collect_method]
 
   # 
   # This module has all methods of FileUtils module, but it outputs messages
