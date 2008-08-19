@@ -1063,7 +1063,6 @@ _bs_parse(const char *path, char **loaded_paths,
     // FIXME this is inefficient
           memcpy(&methods[*methods_count], method, 
             sizeof(bs_element_method_t));
-          free(method);
 
           (*methods_count)++;
           
@@ -1071,7 +1070,8 @@ _bs_parse(const char *path, char **loaded_paths,
             klass->class_methods = methods;
           else
             klass->instance_methods = methods;
-          
+         
+          free(method);
           method = NULL;
           break;
         }
