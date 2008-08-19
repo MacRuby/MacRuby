@@ -150,6 +150,7 @@ VALUE rb_Complex(VALUE, VALUE);
 #if WITH_OBJC
 VALUE rb_objc_create_class(const char *name, VALUE super);
 bool rb_objc_install_primitives(Class ocklass, Class ocsuper);
+void rb_define_object_special_methods(VALUE klass);
 #endif
 VALUE rb_class_boot(VALUE);
 VALUE rb_class_new(VALUE);

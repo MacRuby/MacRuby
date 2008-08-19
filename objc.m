@@ -1138,6 +1138,7 @@ rb_objc_alias(VALUE klass, ID name, ID def)
     const char *name_str, *def_str;
     SEL name_sel, def_sel;
     Method method, dest_method;
+    bool redo = false;
 
     name_str = rb_id2name(name);
     def_str = rb_id2name(def);
@@ -1165,10 +1166,12 @@ rb_objc_alias(VALUE klass, ID name, ID def)
 	}
     }
 
+alias_method:
+
     dest_method = class_getInstanceMethod((Class)klass, name_sel);
 
-    DLOG("ALIAS", "[%s %s -> %s] direct_override=%d", 
-	    class_getName((Class)klass), (char *)name_sel, (char *)def_sel, dest_method != NULL);
+    DLOG("ALIAS", "%c[%s %s -> %s] types=%s direct_override=%d orig_node=%p", 
+	    class_isMetaClass((Class)klass) ? '+' : '-', class_getName((Class)klass), (char *)name_sel, (char *)def_sel, method_getTypeEncoding(method), dest_method != NULL, rb_objc_method_node3(method_getImplementation(method)));
 
     if (dest_method != NULL 
 	&& dest_method != class_getInstanceMethod((Class)RCLASS_SUPER(klass), name_sel)) {
@@ -1179,6 +1182,20 @@ rb_objc_alias(VALUE klass, ID name, ID def)
 		    method_getImplementation(method), 
 		    method_getTypeEncoding(method)));
     }
+
+    if (!redo && name_str[strlen(name_str) - 1] != ':') {
+	char buf[100];
+
+	snprintf(buf, sizeof buf, "%s:", def_str);
+	def_sel = sel_registerName(buf);
+	method = class_getInstanceMethod((Class)klass, def_sel);
+	if (method != NULL) {
+	    snprintf(buf, sizeof buf, "%s:", name_str);
+	    name_sel = sel_registerName(buf);
+	    redo = true;
+	    goto alias_method;
+	}	
+    } 
 }
 
 static VALUE
@@ -1438,7 +1455,7 @@ rb_objc_register_ruby_method(VALUE mod, ID mid, NODE *body)
 	}
 	else {
 	    sel = sel_registerName(mid_str);
-	    if (sel == sel_ignored) {
+	    if (sel == sel_ignored || sel == sel_zone) {
 		assert(sizeof(buf) > mid_str_len + 7);
 		snprintf(buf, sizeof buf, "__rb_%s__", mid_str);
 		sel = sel_registerName(buf);
@@ -1446,7 +1463,7 @@ rb_objc_register_ruby_method(VALUE mod, ID mid, NODE *body)
 	}
     }
 
-    included_in_classes = RCLASS_MODULE(mod) ? rb_ivar_get(mod, idIncludedInClasses) : Qnil;
+    included_in_classes = RCLASS_MODULE(mod) ? rb_attr_get(mod, idIncludedInClasses) : Qnil;
 
     direct_override = false;
     method = class_getInstanceMethod((Class)mod, sel);
@@ -1454,21 +1471,13 @@ rb_objc_register_ruby_method(VALUE mod, ID mid, NODE *body)
     if (method != NULL) {
 	Class klass;
 
-        /* Do not override certain NSObject selectors. */
-        if (sel == @selector(superclass)
-	    || sel == @selector(hash)
-	    || sel == @selector(zone)) {
-	    if (class_getInstanceMethod((Class)rb_cBasicObject, sel) == method)
-		return;
-	}
-
 	if (oc_arity + 2 != method_getNumberOfArguments(method)) {
 	    rb_warn("cannot override Objective-C method `%s' in " \
-		       "class `%s' because of an arity mismatch (%d for %d)", 
-		       (char *)method_getName(method),
-		       class_getName((Class)mod), 
-		       oc_arity + 2, 
-		       method_getNumberOfArguments(method));
+		    "class `%s' because of an arity mismatch (%d for %d)", 
+		    (char *)method_getName(method),
+		    class_getName((Class)mod), 
+		    oc_arity + 2, 
+		    method_getNumberOfArguments(method));
 	    return;
 	}
 	types = (char *)method_getTypeEncoding(method);

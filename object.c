@@ -1381,9 +1381,7 @@ rb_mod_cmp(VALUE mod, VALUE arg)
 static VALUE
 rb_module_s_alloc(VALUE klass)
 {
-    VALUE mod = rb_module_new();
-
-    return mod;
+    return rb_module_new();
 }
 
 static VALUE
@@ -1415,7 +1413,7 @@ rb_class_s_alloc(VALUE klass)
  *     a.meth2          #=> "bye"
  */
 
-static VALUE
+ VALUE
 rb_mod_initialize(VALUE module)
 {
     extern VALUE rb_mod_module_exec(int argc, VALUE *argv, VALUE mod);

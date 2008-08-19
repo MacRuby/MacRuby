@@ -674,7 +674,7 @@ new_insn_body(rb_iseq_t *iseq, int line_no, int insn_id, int argc, ...)
 	operands = (VALUE *)compile_data_alloc(iseq, sizeof(VALUE) * argc);
 	for (i = 0; i < argc; i++) {
 	    VALUE v = va_arg(argv, VALUE);
-	    operands[i] = v;
+	    GC_WB(&operands[i], v);
 	}
 	va_end(argv);
     }
@@ -695,7 +695,7 @@ new_insn_send(rb_iseq_t *iseq, int line_no,
     operands[2] = block;
     operands[3] = flag;
 
-    mcache = (struct rb_method_cache *)malloc(sizeof(struct rb_method_cache));
+    mcache = (struct rb_method_cache *)xmalloc(sizeof(struct rb_method_cache));
     mcache->flags = RB_MCACHE_RCALL_FLAG;
     mcache->as.rcall.klass = 0;
     mcache->as.rcall.node = NULL;
@@ -716,13 +716,14 @@ new_insn_send(rb_iseq_t *iseq, int line_no,
     }
     else {
 	mcache->as.rcall.sel = sel_registerName(rb_sym2name(id));
-	if (mcache->as.rcall.sel == sel_ignored) {
+	if (mcache->as.rcall.sel == sel_ignored
+	    || mcache->as.rcall.sel == sel_zone) {
 	    char buf[100];
 	    snprintf(buf, sizeof buf, "__rb_%s__", rb_sym2name(id));
 	    mcache->as.rcall.sel = sel_registerName(buf);
 	}
     }
-    operands[4] = (VALUE)mcache;
+    GC_WB(&operands[4], (VALUE)mcache);
     iobj = new_insn_core(iseq, line_no, BIN(send), 5, operands);
     return iobj;
 }

@@ -1134,6 +1134,20 @@ rb_ocid_to_rval(id obj)
     if (*(Class *)obj == (Class)rb_cFixnum) {
 	return LONG2FIX(RFIXNUM(obj)->value);
     }
+    if (*(Class *)obj == (Class)rb_cCFNumber) {
+	/* TODO NSNumber should implement the Numeric primitive methods */
+	if (CFNumberIsFloatType((CFNumberRef)obj)) {
+	    double v;
+	    assert(CFNumberGetValue((CFNumberRef)obj, kCFNumberDoubleType, &v));
+	    extern VALUE rb_float_new(double);
+	    return rb_float_new(v);
+	}
+	else {
+	    long v;
+	    assert(CFNumberGetValue((CFNumberRef)obj, kCFNumberLongType, &v));
+	    return LONG2FIX(v);
+	}
+    }
     return (VALUE)obj;
 }
 #define RB2OC(obj) (rb_rval_to_ocid((VALUE)obj))

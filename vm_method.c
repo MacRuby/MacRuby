@@ -320,13 +320,22 @@ rb_method_node(VALUE klass, ID id)
 	const char *id_str = rb_id2name(id);
 	size_t slen = strlen(id_str);
 
-	if (id_str[slen - 1] == ':') {
-	    return NULL;
+	if (strcmp(id_str, "retain") == 0
+	    || strcmp(id_str, "release") == 0
+	    || strcmp(id_str, "zone") == 0) {
+	    char buf[100];
+	    snprintf(buf, sizeof buf, "__rb_%s__", id_str);
+	    return rb_method_node(klass, rb_intern(buf));
 	}
 	else {
-	    char buf[100];
-	    snprintf(buf, sizeof buf, "%s:", id_str);
-	    return rb_method_node(klass, rb_intern(buf));
+	    if (id_str[slen - 1] == ':') {
+		return NULL;
+	    }
+	    else {
+		char buf[100];
+		snprintf(buf, sizeof buf, "%s:", id_str);
+		return rb_method_node(klass, rb_intern(buf));
+	    }
 	}
     }
     return node;
@@ -451,18 +460,6 @@ rb_export_method(VALUE klass, ID name, ID noex)
 	origin = rb_method_node(RCLASS_SUPER(klass), name) == fbody
 	    ? RCLASS_SUPER(klass) : klass;
     }
-#if 0
-    if (fbody == NULL) {
-	char buf[512];
-	ID newname;
-
-	snprintf(buf, sizeof buf, "%s:", rb_id2name(name));
-	newname = rb_intern(buf);
-	fbody = rb_method_node(klass, newname);
-	if (fbody != NULL)
-	    name = newname;
-    }
-#endif
     if (fbody == NULL) {
 	rb_print_undef(klass, name, 0);
     }

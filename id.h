@@ -73,6 +73,7 @@ extern SEL selNot;
 extern SEL selInit;
 extern SEL selCopy;
 extern SEL sel_ignored;
+extern SEL sel_zone;
 extern ID idIncludedModules;
 extern ID idIncludedInClasses;
 #endif

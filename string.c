@@ -5014,7 +5014,7 @@ sym_inspect(VALUE sym)
 VALUE
 rb_sym_to_s(VALUE sym)
 {
-    return str_new3(rb_cString, sym);
+    return rb_str_new2(RSYMBOL(sym)->str);
 }
 
 

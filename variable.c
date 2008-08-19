@@ -2058,7 +2058,7 @@ rb_const_get_0(VALUE klass, ID id, int exclude, int recurse)
 	}
 	if (!recurse && klass != rb_cObject) break;
 #if WITH_OBJC
-	VALUE inc_mods = rb_ivar_get(tmp, idIncludedModules);
+	VALUE inc_mods = rb_attr_get(tmp, idIncludedModules);
 	if (inc_mods != Qnil) {
 	    int i, count = RARRAY_LEN(inc_mods);
 	    for (i = 0; i < count; i++) {
