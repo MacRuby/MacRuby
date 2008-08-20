@@ -946,6 +946,8 @@ rb_objc_exc_raise(id exception)
 bs_element_method_t *
 rb_bs_find_method(Class klass, SEL sel)
 {
+    if (bs_classes == NULL)
+	return NULL;
     do {
 	bs_element_indexed_class_t *bs_class;
 	bs_element_method_t *bs_method;
@@ -1241,10 +1243,12 @@ rb_ruby_to_objc_closure_handler(ffi_cif *cif, void *resp, void **args,
     ID mid;
     VALUE rrcv, ret;
     Method method;
-    char type[128];
+    const char *type;
+    char buf[128];
     long i, argc;
     VALUE *argv, klass;
     NODE *body, *node;
+    bs_element_method_t *bs_method;
 
     rcv = (*(id **)args)[0];
     sel = (*(SEL **)args)[1];
@@ -1253,13 +1257,16 @@ rb_ruby_to_objc_closure_handler(ffi_cif *cif, void *resp, void **args,
 
     method = class_getInstanceMethod(*(Class *)rcv, sel);
     assert(method != NULL);
+    bs_method = rb_bs_find_method(*(Class *)rcv, sel);
 
     argc = cif->nargs - 2;
     argv = (VALUE *)alloca(sizeof(VALUE) * argc);
     for (i = 0; i < argc; i++) {
 	VALUE val;
-        
-	method_getArgumentType(method, i + 2, type, sizeof type);
+       
+        type = rb_objc_method_get_type(method, cif->nargs, bs_method,
+            i, buf, sizeof buf);
+ 
 	rb_objc_ocval_to_rbval(args[i + 2], type, &val);
         argv[i] = val;
     }
@@ -1278,7 +1285,8 @@ rb_ruby_to_objc_closure_handler(ffi_cif *cif, void *resp, void **args,
     ret = rb_vm_call(GET_THREAD(), klass, rrcv, mid, Qnil,
 		     argc, argv, node, 0);
 
-    method_getReturnType(method, type, sizeof type);
+    type = rb_objc_method_get_type(method, cif->nargs, bs_method,
+	    -1, buf, sizeof buf);
     rb_objc_rval_to_ocval(ret, type, resp);
 }
 
