@@ -28,7 +28,7 @@ class Calculator
   private
   
     def main_window(&block)
-      @main_window ||= window(:frame => [100, 100, 220, 280], :title => "Calculator", :view => :nolayout, :style => [:titled, :closable, :miniturizable], &block)
+      @main_window ||= window(:frame => [100, 800, 220, 280], :title => "Calculator", :view => :nolayout, :style => [:titled, :closable, :miniturizable], &block)
     end
   
     def value
