@@ -6,9 +6,12 @@ module HotCocoa
     
     ApplicationBundlePackage = "APPL????"
     
-    attr_accessor :name, :load_file, :sources, :overwrite
+    attr_accessor :name, :load_file, :sources, :overwrite, :icon, :version, :info_string
     
     def self.build(build_options)
+      build_options.each do |key, value|
+        build_options[key.intern] = value if key.respond_to?(:intern)
+      end
       if build_options[:file]
         require 'yaml'
         build_options = YAML.load(File.read(build_options[:file]))
@@ -16,6 +19,9 @@ module HotCocoa
       ab = new
       ab.name = build_options[:name]
       ab.load_file = build_options[:load]
+      ab.icon = build_options[:icon] if build_options[:icon] && File.exist?(build_options[:icon])
+      ab.version = build_options[:version] || "1.0"
+      ab.info_string = build_options[:info_string]
       ab.overwrite = (build_options.include?(:overwrite) ? build_options[:overwrite] : true)
       sources = build_options[:sources] || []
       sources.each do |source|
@@ -33,6 +39,7 @@ module HotCocoa
       build_bundle_structure
       write_bundle_files
       copy_sources
+      copy_icon_file if icon
     end
     
     def overwrite?
@@ -80,6 +87,10 @@ module HotCocoa
         end
       end
       
+      def copy_icon_file
+        FileUtils.cp(icon, icon_file)
+      end
+      
       def write_pkg_info_file
         File.open(pkg_info_file, "wb") {|f| f.write ApplicationBundlePackage}
       end
@@ -91,7 +102,11 @@ module HotCocoa
           f.puts %{<plist version="1.0">}
           f.puts %{<dict>}
           f.puts %{	<key>CFBundleDevelopmentRegion</key>}
-          f.puts %{	<string>English</string>}
+          f.puts %{ <string>English</string>}
+          f.puts %{ <key>CFBundleIconFile</key>} if icon
+          f.puts %{ <string>#{name}.icns</string>} if icon
+          f.puts %{ <key>CFBundleGetInfoString</key>} if info_string
+          f.puts %{ <string>#{info_string}</string>} if info_string
           f.puts %{	<key>CFBundleExecutable</key>}
           f.puts %{	<string>#{name.gsub(/ /, '')}</string>}
           f.puts %{	<key>CFBundleIdentifier</key>}
@@ -105,7 +120,7 @@ module HotCocoa
           f.puts %{	<key>CFBundleSignature</key>}
           f.puts %{	<string>????</string>}
           f.puts %{	<key>CFBundleVersion</key>}
-          f.puts %{	<string>1.0</string>}
+          f.puts %{	<string>#{version}</string>}
           f.puts %{	<key>NSPrincipalClass</key>}
           f.puts %{	<string>NSApplication</string>}
           f.puts %{</dict>}
@@ -156,6 +171,10 @@ module HotCocoa
       
       def info_plist_file
         File.join(contents_root, "Info.plist")
+      end
+      
+      def icon_file
+        File.join(resources_root, "#{name}.icns")
       end
       
       def pkg_info_file
