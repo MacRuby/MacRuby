@@ -1,6 +1,6 @@
-:name: Calculator
-:load: lib/application.rb
-:version: "1.0"
-:icon: /Applications/Calculator.app/Contents/Resources/Calculator.icns
-:sources: 
+name: Calculator
+load: lib/application.rb
+version: "1.0"
+icon: /Applications/Calculator.app/Contents/Resources/Calculator.icns
+sources: 
   - lib/**/*.rb
