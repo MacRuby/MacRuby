@@ -85,7 +85,6 @@ def extract_makefile(makefile, keep = true)
 end
 
 def extmake(target)
-GC.start
   print "#{$message} #{target}\n"
   $stdout.flush
   if $force_static or $static_ext[target]
@@ -430,8 +429,6 @@ end
 dir = Dir.pwd
 FileUtils::makedirs('ext')
 Dir::chdir('ext')
-
-GC.start
 
 hdrdir = $hdrdir
 $hdrdir = ($top_srcdir = relative_from(srcdir, $topdir = "..")) + "/include"

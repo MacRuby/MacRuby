@@ -22,11 +22,11 @@ typedef struct RVALUE {
 #endif
     struct RBasic  basic;
     struct RObject object;
-    struct RClass  klass;
     /*struct RFloat  flonum;*/
     /*struct RString string;*/
     /*struct RRegexp regexp;*/
 #if !WITH_OBJC
+    struct RClass  klass;
     struct RArray  array;
     struct RHash   hash;
 #endif

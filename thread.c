@@ -3102,7 +3102,7 @@ call_trace_proc(VALUE args, int tracing)
 	if (TYPE(klass) == T_ICLASS) {
 	    klass = RBASIC(klass)->klass;
 	}
-	else if (FL_TEST(klass, FL_SINGLETON)) {
+	else if (RCLASS_SINGLETON(klass)) {
 	    klass = rb_iv_get(klass, "__attached__");
 	}
     }

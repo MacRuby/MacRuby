@@ -9,6 +9,7 @@
 #include "ruby/config.h"
 #include "ruby/defines.h"
 #include "ruby/st.h"
+#include "ruby/ruby.h"
 #endif
 
 #include <stdio.h>
@@ -173,7 +174,7 @@ st_init_table_with_size(const struct st_hash_type *type, int size)
     tbl->num_entries = 0;
     tbl->entries_packed = type == &type_numhash && size/2 <= MAX_PACKED_NUMHASH;
     tbl->num_bins = size;
-    tbl->bins = (st_table_entry **)Calloc(size, sizeof(st_table_entry*));
+    GC_WB(&tbl->bins, (st_table_entry **)Calloc(size, sizeof(st_table_entry*)));
     tbl->head = 0;
 
     return tbl;
@@ -472,8 +473,8 @@ st_copy(st_table *old_table)
     }
 
     *new_table = *old_table;
-    new_table->bins = (st_table_entry**)
-	Calloc((unsigned)num_bins, sizeof(st_table_entry*));
+    GC_WB(&new_table->bins, (st_table_entry**)
+	Calloc((unsigned)num_bins, sizeof(st_table_entry*)));
 
     if (new_table->bins == 0) {
 	free(new_table);
@@ -497,7 +498,7 @@ st_copy(st_table *old_table)
 	    *entry = *ptr;
 	    hash_val = entry->hash % num_bins;
 	    entry->next = new_table->bins[hash_val];
-	    new_table->bins[hash_val] = entry;
+	    GC_WB(&new_table->bins[hash_val], entry);
 	    entry->back = prev;
 	    *tail = prev = entry;
 	    tail = &entry->fore;

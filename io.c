@@ -3972,7 +3972,7 @@ pipe_open(struct rb_exec_arg *eargp, VALUE prog, const char *mode)
         write_fptr->fd = write_fd;
         write_fptr->mode = (modef & ~FMODE_READABLE)| FMODE_SYNC|FMODE_DUPLEX;
         fptr->mode &= ~FMODE_WRITABLE;
-        fptr->tied_io_for_writing = write_port;
+        GC_WB(&fptr->tied_io_for_writing, write_port);
         rb_ivar_set(port, rb_intern("@tied_io_for_writing"), write_port);
     }
 
@@ -4589,7 +4589,7 @@ rb_io_init_copy(VALUE dest, VALUE io)
     write_io = GetWriteIO(io);
     if (io != write_io) {
         write_io = rb_obj_dup(write_io);
-        fptr->tied_io_for_writing = write_io;
+        GC_WB(&fptr->tied_io_for_writing, write_io);
         rb_ivar_set(dest, rb_intern("@tied_io_for_writing"), write_io);
     }
 
@@ -5209,7 +5209,7 @@ argf_init(struct argf *p, VALUE v)
     p->filename = Qnil;
     p->current_file = Qnil;
     p->lineno = Qnil;
-    p->argv = v;
+    GC_WB(&p->argv, v);
 }
 
 static VALUE
@@ -5248,11 +5248,11 @@ static VALUE
 argf_initialize_copy(VALUE argf, VALUE orig)
 {
     ARGF = argf_of(orig);
-    rb_argv = rb_obj_dup(rb_argv);
+    GC_WB(&rb_argv, rb_obj_dup(rb_argv));
     if (ARGF.inplace) {
 	const char *inplace = ARGF.inplace;
 	ARGF.inplace = 0;
-	ARGF.inplace = ruby_strdup(inplace);
+	GC_WB(&ARGF.inplace, ruby_strdup(inplace));
     }
     return argf;
 }
@@ -7812,7 +7812,7 @@ Init_IO(void)
 
     rb_define_hooked_variable("$.", &argf, argf_lineno_getter, argf_lineno_setter);
     rb_define_hooked_variable("$FILENAME", &argf, argf_filename_getter, 0);
-    filename = rb_str_new2("-");
+    GC_WB(&filename, rb_str_new2("-"));
 
     rb_define_hooked_variable("$-i", &argf, opt_i_get, opt_i_set);
     rb_define_hooked_variable("$*", &argf, argf_argv_getter, 0);

@@ -31,6 +31,7 @@
 #define YYREALLOC(ptr, size)	rb_parser_realloc(parser, ptr, size)
 #define YYCALLOC(nelem, size)	rb_parser_calloc(parser, nelem, size)
 #define YYFREE(ptr)		rb_parser_free(parser, ptr)
+static inline void *orig_malloc(size_t l) { return malloc(l); }
 #define malloc	YYMALLOC
 #define realloc	YYREALLOC
 #define calloc	YYCALLOC
@@ -8699,7 +8700,7 @@ process_named_args_gen(struct parser_params *parser, NODE *n)
 	     p != NULL; 
 	     p = p->nd_next, flip = !flip) {
 	    if (flip) {
-		strlcat(buf, rb_id2name(SYM2ID(p->nd_head->nd_lit)), 
+		strlcat(buf, rb_sym2name(p->nd_head->nd_lit),
 			sizeof buf);
 		strlcat(buf, ":", sizeof buf);
 	    }
@@ -9118,12 +9119,11 @@ static struct symbols {
 #if WITH_OBJC
     CFMutableDictionaryRef sym_id;
     CFMutableDictionaryRef id_str;
-    VALUE *op_sym;
 #else
     st_table *sym_id;
     st_table *id_str;
-    VALUE op_sym[tLAST_TOKEN];
 #endif
+    VALUE op_sym[tLAST_TOKEN];
 } global_symbols = {tLAST_TOKEN >> ID_SCOPE_SHIFT};
 
 static const struct st_hash_type symhash = {
@@ -9164,10 +9164,9 @@ Init_sym(void)
 	0, NULL, NULL);
     GC_ROOT(&global_symbols.sym_id);
     global_symbols.id_str = CFDictionaryCreateMutable(NULL,
-	0, NULL, &kCFTypeDictionaryValueCallBacks);
+	0, NULL, NULL);
     GC_ROOT(&global_symbols.id_str);
-    global_symbols.op_sym = xmalloc(sizeof(VALUE) * tLAST_TOKEN);
-    GC_ROOT(&global_symbols.op_sym);
+    rb_cSymbol = rb_objc_create_class("Symbol", (VALUE)objc_getClass("NSString"));
 #else
     global_symbols.sym_id = st_init_table_with_size(&symhash, 1000);
     global_symbols.id_str = st_init_numtable_with_size(1000);
@@ -9331,6 +9330,23 @@ rb_enc_symname2_p(const char *name, int len, rb_encoding *enc)
     return *m ? Qfalse : Qtrue;
 }
 
+#if WITH_OBJC
+static inline VALUE
+rsymbol_new(const char *name, const int len, ID id)
+{
+    VALUE sym;
+
+    sym = (VALUE)orig_malloc(sizeof(struct RSymbol));
+    RSYMBOL(sym)->str = orig_malloc(len + 1);
+    RSYMBOL(sym)->klass = rb_cSymbol;
+    strcpy(RSYMBOL(sym)->str, name);
+    RSYMBOL(sym)->len = len;
+    RSYMBOL(sym)->id = id;
+    
+    return sym;
+}
+#endif
+
 ID
 rb_intern3(const char *name, long len, rb_encoding *enc)
 {
@@ -9364,6 +9380,17 @@ rb_intern3(const char *name, long len, rb_encoding *enc)
 	e = m + len;
     }
     SEL name_hash = sel_registerName(name);
+    if (name_hash == sel_ignored) {
+	if (strcmp(name, "retain") == 0) {
+	    name_hash = (SEL)0x1000;
+	}
+	else if (strcmp(name, "release") == 0) {
+	    name_hash = (SEL)0x2000;
+	}
+	else {
+	    assert(1==0);
+	}
+    }
     id = (ID)CFDictionaryGetValue((CFDictionaryRef)global_symbols.sym_id, 
 	(const void *)name_hash);
     if (id != 0)
@@ -9464,8 +9491,7 @@ rb_intern3(const char *name, long len, rb_encoding *enc)
   new_id:
     id |= ++global_symbols.last_id << ID_SCOPE_SHIFT;
   id_register:
-    str = rb_enc_str_new(name, len, enc);
-    OBJ_FREEZE(str);
+    str = rsymbol_new(name, len, id);
 #if WITH_OBJC
     CFDictionarySetValue(global_symbols.sym_id, (const void *)name_hash, 
 	(const void *)id);
@@ -9498,21 +9524,23 @@ rb_intern(const char *name)
 ID
 rb_intern_str(VALUE str)
 {
-    rb_encoding *enc;
     ID id;
 
 #if WITH_OBJC
-    enc = rb_enc_get(str);
+    const char *s = RSTRING_PTR(str);
+    id = rb_intern3(s, strlen(s), NULL);
 #else
+    rb_encoding *enc;
+    enc = rb_enc_get(str);
     if (rb_enc_str_coderange(str) == ENC_CODERANGE_7BIT) {
 	enc = rb_usascii_encoding();
     }
     else {
 	enc = rb_enc_get(str);
     }
-#endif
     id = rb_intern3(RSTRING_PTR(str), RSTRING_LEN(str), enc);
     RB_GC_GUARD(str);
+#endif
     return id;
 }
 
@@ -9528,9 +9556,13 @@ rb_id2str(ID id)
 	    if (op_tbl[i].token == id) {
 		VALUE str = global_symbols.op_sym[i];
 		if (!str) {
+#if WITH_OBJC
+		    str = rsymbol_new(op_tbl[i].name, strlen(op_tbl[i].name), op_tbl[i].token);
+#else
 		    str = rb_usascii_str_new2(op_tbl[i].name);
 		    OBJ_FREEZE(str);
-		    GC_WB(&global_symbols.op_sym[i], str);
+#endif
+		    global_symbols.op_sym[i] = str;
 		}
 		return str;
 	    }
@@ -9581,6 +9613,7 @@ rb_id2str(ID id)
     return 0;
 }
 
+#if !WITH_OBJC
 const char *
 rb_id2name(ID id)
 {
@@ -9589,13 +9622,16 @@ rb_id2name(ID id)
     if (!str) return 0;
     return RSTRING_PTR(str);
 }
+#endif
 
+#if !WITH_OBJC
 static int
 symbols_i(VALUE sym, ID value, VALUE ary)
 {
     rb_ary_push(ary, ID2SYM(value));
     return ST_CONTINUE;
 }
+#endif
 
 /*
  *  call-seq:
@@ -9617,9 +9653,17 @@ VALUE
 rb_sym_all_symbols(void)
 {
 #if WITH_OBJC
-    VALUE ary = rb_ary_new();
-    CFDictionaryApplyFunction((CFDictionaryRef)global_symbols.sym_id,
-	(CFDictionaryApplierFunction)symbols_i, (void *)ary);
+    const void **values;
+    long count;
+    VALUE ary;
+
+    ary = rb_ary_new();
+    count = CFDictionaryGetCount(global_symbols.id_str);
+    if (count == 0)
+	return ary;
+    values = alloca(sizeof(void *) * count);
+    CFDictionaryGetKeysAndValues(global_symbols.id_str, NULL, values);
+    CFArrayReplaceValues((CFMutableArrayRef)ary, CFRangeMake(0, 0), values, count);   
 #else
     VALUE ary = rb_ary_new2(global_symbols.sym_id->num_entries);
 

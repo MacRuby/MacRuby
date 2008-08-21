@@ -112,8 +112,8 @@
   c1->nd_next = __tmp_c2->nd_next; \
 } while (0)
 
-#define CALL_METHOD(num, blockptr, flag, id, mn, recv, klass) do { \
-    VALUE v = vm_call_method(th, GET_CFP(), num, blockptr, flag, id, mn, recv, klass); \
+#define CALL_METHOD(num, blockptr, flag, id, recv, klass, mcache) do { \
+    VALUE v = vm_call_method(th, GET_CFP(), num, blockptr, flag, id, recv, klass, (struct rb_method_cache *)mcache); \
     if (v == Qundef) { \
 	RESTORE_REGS(); \
 	NEXT_INSN(); \
@@ -140,9 +140,13 @@
 #define BASIC_OP_UNREDEFINED_P(op) ((ruby_vm_redefined_flag & (op)) == 0)
 #define HEAP_CLASS_OF(obj) RBASIC(obj)->klass
 
-#define CALL_SIMPLE_METHOD(num, id, recv) do { \
-    VALUE klass = CLASS_OF(recv); \
-    CALL_METHOD(num, 0, 0, id, rb_method_node(klass, id), recv, CLASS_OF(recv)); \
+#define CALL_SIMPLE_METHOD(num, id, recv, asel) do { \
+    struct rb_method_cache mcache; \
+    mcache.flags = RB_MCACHE_RCALL_FLAG; \
+    mcache.as.rcall.sel = asel; \
+    mcache.as.rcall.klass = 0; \
+    mcache.as.rcall.node = NULL; \
+    CALL_METHOD(num, 0, 0, id, recv, CLASS_OF(recv), &mcache); \
 } while (0)
 
 #endif /* RUBY_INSNHELPER_H */

@@ -21,6 +21,7 @@ FRAMEWORK_INSTDIR = do_option('framework_instdir', '/Library/Frameworks')
 NO_WARN_BUILD = !do_option('allow_build_warnings', false)
 BUILD_AS_EMBEDDABLE = do_option('build_as_embeddable', false)
 ENABLE_STATIC_LIBRARY = do_option('enable_static_library', 'no') { 'yes' }
+ENABLE_DEBUG_LOGGING = do_option('enable_debug_logging', true)
 
 # TODO: we should find a way to document these options in rake's --help
 
@@ -208,31 +209,28 @@ task :default => :all
 desc "Create config.h"
 task :config_h do
   config_h = 'include/ruby/config.h'
-  if !File.exist?(config_h) \
-  or File.mtime(config_h) < File.mtime(config_h + '.in') \
-  or File.mtime(config_h) < File.mtime(__FILE__)
-    new_config_h = File.read(config_h + '.in') << "\n"
-    flag = ['/System/Library/Frameworks', '/Library/Frameworks'].any? do |p|
-      File.exist?(File.join(p, 'BridgeSupport.framework'))
-    end 
-    new_config_h << "#define HAVE_BRIDGESUPPORT_FRAMEWORK #{flag ? 1 : 0}\n"
-    flag = File.exist?('/usr/include/auto_zone.h')
-    new_config_h << "#define HAVE_AUTO_ZONE_H #{flag ? 1 : 0}\n"
-    new_config_h << "#define RUBY_PLATFORM \"#{NEW_RUBY_PLATFORM}\"\n"
-    new_config_h << "#define RUBY_LIB \"#{RUBY_LIB}\"\n"
-    new_config_h << "#define RUBY_ARCHLIB \"#{RUBY_ARCHLIB}\"\n"
-    new_config_h << "#define RUBY_SITE_LIB \"#{RUBY_SITE_LIB}\"\n"
-    new_config_h << "#define RUBY_SITE_LIB2 \"#{RUBY_SITE_LIB2}\"\n"
-    new_config_h << "#define RUBY_SITE_ARCHLIB \"#{RUBY_SITE_ARCHLIB}\"\n"
-    new_config_h << "#define RUBY_VENDOR_LIB \"#{RUBY_VENDOR_LIB}\"\n"
-    new_config_h << "#define RUBY_VENDOR_LIB2 \"#{RUBY_VENDOR_LIB2}\"\n"
-    new_config_h << "#define RUBY_VENDOR_ARCHLIB \"#{RUBY_VENDOR_ARCHLIB}\"\n"
-    if !File.exist?(config_h) or File.read(config_h) != new_config_h
-      File.open(config_h, 'w') { |io| io.print new_config_h }
-      ext_dir = ".ext/include/#{NEW_RUBY_PLATFORM}/ruby"
-      mkdir_p(ext_dir)
-      cp(config_h, ext_dir)
-    end
+  new_config_h = File.read(config_h + '.in') << "\n"
+  flag = ['/System/Library/Frameworks', '/Library/Frameworks'].any? do |p|
+    File.exist?(File.join(p, 'BridgeSupport.framework'))
+  end 
+  new_config_h << "#define HAVE_BRIDGESUPPORT_FRAMEWORK #{flag ? 1 : 0}\n"
+  flag = File.exist?('/usr/include/auto_zone.h')
+  new_config_h << "#define HAVE_AUTO_ZONE_H #{flag ? 1 : 0}\n"
+  new_config_h << "#define ENABLE_DEBUG_LOGGING 1\n" if ENABLE_DEBUG_LOGGING
+  new_config_h << "#define RUBY_PLATFORM \"#{NEW_RUBY_PLATFORM}\"\n"
+  new_config_h << "#define RUBY_LIB \"#{RUBY_LIB}\"\n"
+  new_config_h << "#define RUBY_ARCHLIB \"#{RUBY_ARCHLIB}\"\n"
+  new_config_h << "#define RUBY_SITE_LIB \"#{RUBY_SITE_LIB}\"\n"
+  new_config_h << "#define RUBY_SITE_LIB2 \"#{RUBY_SITE_LIB2}\"\n"
+  new_config_h << "#define RUBY_SITE_ARCHLIB \"#{RUBY_SITE_ARCHLIB}\"\n"
+  new_config_h << "#define RUBY_VENDOR_LIB \"#{RUBY_VENDOR_LIB}\"\n"
+  new_config_h << "#define RUBY_VENDOR_LIB2 \"#{RUBY_VENDOR_LIB2}\"\n"
+  new_config_h << "#define RUBY_VENDOR_ARCHLIB \"#{RUBY_VENDOR_ARCHLIB}\"\n"
+  if !File.exist?(config_h) or File.read(config_h) != new_config_h
+    File.open(config_h, 'w') { |io| io.print new_config_h }
+    ext_dir = ".ext/include/#{NEW_RUBY_PLATFORM}/ruby"
+    mkdir_p(ext_dir)
+    cp(config_h, ext_dir)
   end
 end
 
@@ -261,7 +259,7 @@ task :objects => :config_h do
     cp('lex.c.blt', 'lex.c')
   end
   inc_to_gen = %w{opt_sc.inc optinsn.inc optunifs.inc insns.inc insns_info.inc vmtc.inc vm.inc}.select { |inc| !File.exist?(inc) or File.mtime("template/#{inc}.tmpl") > File.mtime(inc) }
-  unless inc_to_gen.empty?
+  if !inc_to_gen.empty? or File.mtime('insns.def') > File.mtime('vm.inc')
     sh("/usr/bin/ruby -Ks tool/insns2vm.rb #{inc_to_gen.join(' ')}")
   end
   if !File.exist?('node_name.inc') or File.mtime('include/ruby/node.h') > File.mtime('node_name.inc')

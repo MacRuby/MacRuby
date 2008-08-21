@@ -13,6 +13,10 @@
 
 #include <math.h>
 
+#if WITH_OBJC
+# include <dlfcn.h>
+#endif
+
 /* control stack frame */
 
 
@@ -371,13 +375,7 @@ vm_call_cfunc(rb_thread_t *th, rb_control_frame_t *reg_cfp,
 
 	reg_cfp->sp -= num + 1;
 
-#if WITH_OBJC
-	rb_current_cfunc_node = (NODE *)mn;
-#endif
 	val = call_cfunc(mn->nd_cfnc, recv, mn->nd_argc, num, reg_cfp->sp + 1);
-#if WITH_OBJC
-	rb_current_cfunc_node = NULL;
-#endif
 
 	if (reg_cfp != th->cfp + 1) {
 	    rb_bug("cfp consistency error - send");
@@ -485,14 +483,219 @@ vm_setup_method(rb_thread_t *th, rb_control_frame_t *cfp,
     }
 }
 
+static inline void
+vm_send_optimize(rb_control_frame_t * const reg_cfp, NODE ** const mn,
+		 rb_num_t * const flag, rb_num_t * const num,
+		 ID * const id, const VALUE klass)
+{
+    if (*mn && nd_type((*mn)->nd_body) == NODE_CFUNC) {
+	NODE *node = (*mn)->nd_body;
+	extern VALUE rb_f_send(int argc, VALUE *argv, VALUE recv);
+
+	if (node->nd_cfnc == rb_f_send) {
+	    int i = *num - 1;
+	    VALUE sym = TOPN(i);
+	    *id = SYMBOL_P(sym) ? SYM2ID(sym) : rb_to_id(sym);
+
+	    /* shift arguments */
+	    if (i > 0) {
+		MEMMOVE(&TOPN(i), &TOPN(i-1), VALUE, i);
+	    }
+
+	    *mn = rb_method_node(klass, *id);
+	    *num -= 1;
+	    DEC_SP(1);
+	    *flag |= VM_CALL_FCALL_BIT;
+	}
+    }
+}
+
+bs_element_method_t * rb_bs_find_method(Class klass, SEL sel);
+VALUE rb_objc_call2(VALUE recv, VALUE klass, SEL sel, IMP imp, Method method, bs_element_method_t *bs_method, int argc, VALUE *argv);
+
 static inline VALUE
 vm_call_method(rb_thread_t * const th, rb_control_frame_t * const cfp,
-	       const int num, rb_block_t * const blockptr, const VALUE flag,
-	       const ID id, const NODE * mn, const VALUE recv, VALUE klass)
+	       /*const*/ int num, rb_block_t * const blockptr, const VALUE flag,
+	       /*const*/ ID id, const VALUE recv, VALUE klass, 
+	       struct rb_method_cache *mcache)
 {
     VALUE val;
+#if WITH_OBJC
+    NODE *mn;
+#if ENABLE_DEBUG_LOGGING
+    bool cached = false;
+#endif
 
-  start_method_dispatch:
+    mn = NULL;
+
+    if (mcache != NULL) {
+	if (mcache->flags & RB_MCACHE_RCALL_FLAG) {
+	    if (mcache->as.rcall.klass == klass && mcache->as.rcall.node != NULL) {
+		mn = mcache->as.rcall.node;
+#if ENABLE_DEBUG_LOGGING
+		cached = true;
+#endif
+		goto rcall_dispatch;
+	    }
+	    else {
+		IMP imp;
+		char *p, *mname;
+
+		mn = rb_objc_method_node2(klass, mcache->as.rcall.sel, &imp);
+		if (mn == NULL) {
+		    if (imp != NULL) {
+			mcache->flags = RB_MCACHE_OCALL_FLAG;
+			mcache->as.ocall.klass = klass;
+			mcache->as.ocall.imp = imp;
+			mcache->as.ocall.method = class_getInstanceMethod((Class)klass, mcache->as.rcall.sel);
+			mcache->as.ocall.bs_method = rb_bs_find_method((Class)klass, mcache->as.rcall.sel);
+			goto ocall_dispatch;
+		    }
+
+		    if ((mcache->flags & RB_MCACHE_NOT_CFUNC_FLAG) == 0) {
+			extern struct st_table *bs_functions;
+			bs_element_function_t *bs_func;
+
+			if (!st_lookup(bs_functions, (st_data_t)id, (st_data_t *)&bs_func)) {
+			    mcache->flags |= RB_MCACHE_NOT_CFUNC_FLAG;
+			    goto rcall_missing;
+			}
+
+			mcache->flags = RB_MCACHE_CFUNC_FLAG;
+			mcache->as.cfunc.bs_func = bs_func;
+			mcache->as.cfunc.sym = dlsym(RTLD_DEFAULT, bs_func->name);
+			if (mcache->as.cfunc.sym == NULL)
+			    rb_bug("bs func sym '%s' is NULL", bs_func->name);
+			goto cfunc_dispatch;
+		    }
+rcall_missing:
+		    mname = (char *)mcache->as.rcall.sel;
+		    if (num > 1 
+			&& (p = strchr(mname, ':')) != NULL
+			&& p + 1 != '\0') {
+			char *tmp = alloca(p - mname + 1);
+			NODE *new_mn;
+
+			strncpy(tmp, mname, p - mname + 1);
+			tmp[p - mname + 1] = '\0';
+			new_mn = rb_objc_method_node2(klass, sel_registerName(tmp), &imp);
+			if (new_mn == NULL) {
+			    goto rcall_dispatch;
+			}
+
+			VALUE *argv = cfp->sp - num;
+			VALUE h = rb_hash_new();
+			int i;
+
+			mname = p + 1;
+			for (i = 1; i < num; i++) {
+			    char buf[100];
+
+			    p = strchr(mname, ':');
+			    if (p == NULL) {
+				goto rcall_dispatch;
+			    }
+			    strlcpy(buf, mname, sizeof buf);
+			    buf[p - mname] = '\0';
+			    mname = p + 1;
+			    rb_hash_aset(h, ID2SYM(rb_intern(buf)), argv[i]);
+			}
+
+			VALUE new_argv[2];
+			new_argv[0] = argv[0];
+			new_argv[1] = h;
+
+			memcpy(cfp->sp - 2, new_argv, sizeof(void *) * 2);
+			cfp->bp -= 2 - num;
+			mn = new_mn;
+			id = rb_intern(tmp);
+			num = 2;
+			goto rcall_dispatch;
+		    }
+		}
+		mcache->as.rcall.node = mn;
+		mcache->as.rcall.klass = klass;
+	    }
+	}
+	else if (mcache->flags & RB_MCACHE_OCALL_FLAG) {
+	    rb_control_frame_t *reg_cfp;
+	    rb_control_frame_t *_cfp;
+	   
+ocall_dispatch: 
+	    reg_cfp = cfp;
+	    _cfp = vm_push_frame(th, 0, FRAME_MAGIC_CFUNC | (flag << FRAME_MAGIC_MASK_BITS),
+		    recv, (VALUE) blockptr, 0, reg_cfp->sp, 0, 1);
+
+	    _cfp->method_id = id;
+	    _cfp->method_class = klass;
+
+	    reg_cfp->sp -= num + 1;
+
+
+	    val = rb_objc_call2(recv, klass, mcache->as.rcall.sel, mcache->as.ocall.imp, mcache->as.ocall.method, mcache->as.ocall.bs_method, num, reg_cfp->sp + 1);
+
+	    if (reg_cfp != th->cfp + 1)
+		rb_bug("cfp consistency error - send");
+
+	    vm_pop_frame(th);
+
+	    return val;
+	}
+	else if (mcache->flags & RB_MCACHE_CFUNC_FLAG) {
+	    rb_control_frame_t *reg_cfp;
+	    rb_control_frame_t *_cfp;
+	  
+cfunc_dispatch: 
+	    reg_cfp = cfp;
+	    _cfp = vm_push_frame(th, 0, FRAME_MAGIC_CFUNC | (flag << FRAME_MAGIC_MASK_BITS),
+		    recv, (VALUE) blockptr, 0, reg_cfp->sp, 0, 1);
+
+	    _cfp->method_id = id;
+	    _cfp->method_class = klass;
+
+	    reg_cfp->sp -= num + 1;
+
+	    VALUE rb_bsfunc_call(bs_element_function_t *bs_func, void *sym, int argc, VALUE *argv);
+
+	    val = rb_bsfunc_call(mcache->as.cfunc.bs_func, mcache->as.cfunc.sym, num, reg_cfp->sp + 1);
+
+	    if (reg_cfp != th->cfp + 1)
+		rb_bug("cfp consistency error - send");
+
+	    vm_pop_frame(th);
+
+	    return val;
+	}
+	else {
+	    rb_bug("invalid cache flag");
+	}
+    }
+    else {
+	SEL sel;
+	IMP imp;
+	mn = rb_objc_method_node(klass, id, &imp, &sel);
+	if (mn == NULL && imp != NULL) {
+	    static struct rb_method_cache mcache_s;
+	    mcache = &mcache_s;
+	    mcache->as.ocall.sel = sel;
+	    mcache->as.ocall.klass = klass;
+	    mcache->as.ocall.imp = imp;
+	    mcache->as.ocall.method = class_getInstanceMethod((Class)klass, mcache->as.rcall.sel);
+	    mcache->as.ocall.bs_method = rb_bs_find_method((Class)klass, mcache->as.rcall.sel);
+	    goto ocall_dispatch;
+	}
+    }
+
+rcall_dispatch:
+
+    if (flag & VM_CALL_SEND_BIT) {
+	vm_send_optimize(cfp, (NODE **)&mn, (rb_num_t *)&flag, (rb_num_t *)&num, (ID *)&id, klass);  
+    }
+
+    DLOG("RCALL", "%c[<%s %p> %s] node=%p cached=%d", class_isMetaClass((Class)klass) ? '+' : '-', class_getName((Class)klass), (void *)recv, (char *)rb_id2name(id), mn, cached);
+#endif
+
+start_method_dispatch:
 
     if (mn != 0) {
 	if ((mn->nd_noex == 0)) {
@@ -588,19 +791,69 @@ vm_call_method(rb_thread_t * const th, rb_control_frame_t * const cfp,
 	}
     }
     else {
+#if WITH_OBJC
+	if (flag & VM_CALL_SUPER_BIT) {
+	    VALUE k;
+	    for (k = CLASS_OF(recv); k != 0; k = RCLASS_SUPER(k)) {
+		VALUE ary = rb_attr_get(k, idIncludedModules);
+		if (ary != Qnil) {
+		    int i, count = RARRAY_LEN(ary);
+		    for (i = 0; i < count; i++) {
+			VALUE imod = RARRAY_AT(ary, i);
+			mn = rb_objc_method_node(imod, id, NULL, NULL);
+			if (mn != NULL) {
+			    goto start_method_dispatch;
+			}
+		    }
+		}
+	    }
+	}
+	else if (mcache != NULL) {
+	    const char *p = (const char *)mcache->as.rcall.sel;
+	    size_t len = strlen(p);
+	    if (len >= 3) {
+		char buf[100];
+		SEL sel = 0;
+		if (isalpha(p[len - 3]) && p[len - 2] == '=' && p[len - 1] == ':') {
+		    /* foo=: -> setFoo: shortcut */
+		    snprintf(buf, sizeof buf, "set%s", p);
+		    buf[3] = toupper(buf[3]);
+		    buf[len + 1] = ':';
+		    buf[len + 2] = '\0';
+		    sel = sel_registerName(buf);
+		}
+		else if (isalpha(p[len - 2]) && p[len - 1] == '?') {
+		    /* foo?: -> isFoo: shortcut */
+		    snprintf(buf, sizeof buf, "is%s", p);
+		    buf[2] = toupper(buf[2]);
+		    buf[len + 1] = '\0';
+		    sel = sel_registerName(buf);
+		}
+		if (sel != 0) {
+		    Method method = class_getInstanceMethod((Class)klass, sel);
+		    if (method != NULL) {
+			IMP imp = method_getImplementation(method);
+			if (rb_objc_method_node3(imp) == NULL) {
+			    assert(class_addMethod((Class)klass, mcache->as.rcall.sel, imp,
+					method_getTypeEncoding(method)));
+			    mcache->flags = RB_MCACHE_OCALL_FLAG;
+			    mcache->as.ocall.klass = klass;
+			    mcache->as.ocall.imp = imp;
+			    mcache->as.ocall.method = class_getInstanceMethod((Class)klass, mcache->as.rcall.sel);
+			    mcache->as.ocall.bs_method = rb_bs_find_method((Class)klass, mcache->as.rcall.sel);
+			    goto ocall_dispatch;
+			}
+		    }
+		}
+	    }
+	}
+#endif
 	/* method missing */
 	if (id == idMethodMissing) {
 	    rb_bug("method missing");
 	}
 	else {
 	    int stat = 0;
-#if WITH_OBJC
-	    mn = rb_objc_define_objc_mid_closure(recv, id, 0);
-	    if (mn != NULL) {
-		return vm_call_method(th, cfp, num, blockptr, flag, id,
-				      mn, recv, klass);
-	    }
-#endif
 	    if (flag & VM_CALL_VCALL_BIT) {
 		stat |= NOEX_VCALL;
 	    }
@@ -613,33 +866,6 @@ vm_call_method(rb_thread_t * const th, rb_control_frame_t * const cfp,
 
     RUBY_VM_CHECK_INTS();
     return val;
-}
-
-static inline void
-vm_send_optimize(rb_control_frame_t * const reg_cfp, NODE ** const mn,
-		 rb_num_t * const flag, rb_num_t * const num,
-		 ID * const id, const VALUE klass)
-{
-    if (*mn && nd_type((*mn)->nd_body) == NODE_CFUNC) {
-	NODE *node = (*mn)->nd_body;
-	extern VALUE rb_f_send(int argc, VALUE *argv, VALUE recv);
-
-	if (node->nd_cfnc == rb_f_send) {
-	    int i = *num - 1;
-	    VALUE sym = TOPN(i);
-	    *id = SYMBOL_P(sym) ? SYM2ID(sym) : rb_to_id(sym);
-
-	    /* shift arguments */
-	    if (i > 0) {
-		MEMMOVE(&TOPN(i), &TOPN(i-1), VALUE, i);
-	    }
-
-	    *mn = rb_method_node(klass, *id);
-	    *num -= 1;
-	    DEC_SP(1);
-	    *flag |= VM_CALL_FCALL_BIT;
-	}
-    }
 }
 
 /* yield */
@@ -997,6 +1223,9 @@ vm_get_ev_const(rb_thread_t *th, const rb_iseq_t *iseq,
 		VALUE orig_klass, ID id, int is_defined)
 {
     VALUE val;
+#if WITH_OBJC
+    CFDictionaryRef iv_dict;
+#endif
 
     if (orig_klass == Qnil) {
 	/* in current lexical scope */
@@ -1010,8 +1239,13 @@ vm_get_ev_const(rb_thread_t *th, const rb_iseq_t *iseq,
 
 	    if (!NIL_P(klass)) {
 	      search_continue:
+#if WITH_OBJC
+		iv_dict = (CFDictionaryRef)rb_class_ivar_dict(klass);
+		if (iv_dict != NULL && CFDictionaryGetValueIfPresent(iv_dict, (const void *)id, (const void **)&val)) {
+#else
 		if (RCLASS_IV_TBL(klass) &&
 		    st_lookup(RCLASS_IV_TBL(klass), id, &val)) {
+#endif
 		    if (val == Qundef) {
 			rb_autoload_load(klass, id);
 			goto search_continue;
@@ -1057,7 +1291,7 @@ vm_get_cvar_base(NODE *cref)
 {
     VALUE klass;
 
-    while (cref && cref->nd_next && (NIL_P(cref->nd_clss) || FL_TEST(cref->nd_clss, FL_SINGLETON))) {
+    while (cref && cref->nd_next && (NIL_P(cref->nd_clss) || RCLASS_SINGLETON(cref->nd_clss))) {
 	cref = cref->nd_next;
 
 	if (!cref->nd_next) {
@@ -1114,66 +1348,6 @@ vm_define_method(rb_thread_t *th, VALUE obj, ID id, rb_iseq_t *miseq,
     INC_VM_STATE_VERSION();
 }
 
-#if WITH_OBJC
-static inline void
-vm_method_process_named_args(ID *pid, NODE **pmn, VALUE recv, rb_num_t *pnum, 
-			     rb_control_frame_t *cfp) 
-{
-    VALUE *argv = cfp->sp - *pnum;
-    NODE *mn;
-    ID id;
-
-    if (*pmn == NULL) {
-	const char *p, *mname;
-	long i;
-	mn = rb_objc_define_objc_mid_closure(recv, *pid, 0);
-	if (mn != NULL) {
-	    *pmn = mn;
-	    return;
-	}
-	mname = rb_id2name(*pid);
-	if (*pid > 1 && (p = strchr(mname, ':')) != NULL) {
-	    char buf[512];
-	    strlcpy(buf, mname, sizeof buf);
-	    buf[p - mname] = '\0';
-	    mname = p + 1;
-	    id = rb_intern(buf);
-	    mn = rb_method_node(CLASS_OF(recv), id);
-	    if (mn != NULL) {
-		VALUE h = rb_hash_new();
-		VALUE new_argv[2];
-		for (i = 1; i < *pnum; i++) {
-		    p = strchr(mname, ':');
-		    if (p == NULL)
-			return;
-		    strlcpy(buf, mname, sizeof buf);
-		    buf[p - mname] = '\0';
-		    mname = p + 1;
-		    rb_hash_aset(h, ID2SYM(rb_intern(buf)), argv[i]);
-		}
-		new_argv[0] = argv[0];
-		new_argv[1] = h;
-		memcpy(cfp->sp - 2, new_argv, sizeof(void *) * 2);
-		cfp->bp -= 2 - *pnum;
-		*pmn = mn;
-		*pid = id;
-		*pnum = 2;
-		return;
-	    }
-	}
-	id = rb_objc_missing_sel(*pid, *pnum);
-	if (id != *pid) {
-	    mn = rb_objc_define_objc_mid_closure(recv, id, *pid);
-	    if (mn != NULL) {
-		*pmn = mn;
-		*pid = id;
-		return;
-	    }
-	}
-    }
-}
-#endif
-
 static inline NODE *
 vm_method_search(VALUE id, VALUE klass, IC ic)
 {
@@ -1201,13 +1375,13 @@ vm_method_search(VALUE id, VALUE klass, IC ic)
 static inline VALUE
 vm_search_normal_superclass(VALUE klass, VALUE recv)
 {
-    if (BUILTIN_TYPE(klass) == T_CLASS) {
+    if (TYPE(klass) == T_CLASS) {
 	klass = RCLASS_SUPER(klass);
     }
-    else if (BUILTIN_TYPE(klass) == T_MODULE) {
+    else if (TYPE(klass) == T_MODULE) {
 	VALUE k = CLASS_OF(recv);
 	while (k) {
-	    if (BUILTIN_TYPE(k) == T_ICLASS && RBASIC(k)->klass == klass) {
+	    if (TYPE(k) == T_ICLASS && RBASIC(k)->klass == klass) {
 		klass = RCLASS_SUPER(k);
 		break;
 	    }
@@ -1217,10 +1391,41 @@ vm_search_normal_superclass(VALUE klass, VALUE recv)
     return klass;
 }
 
+#if WITH_OBJC
+static VALUE previous_sklass = Qnil;
+static inline VALUE
+vm_search_normal_superclass2(VALUE klass, VALUE recv, ID mid, NODE **mnp, IMP *impp, SEL *selp)
+{
+    VALUE ary = rb_attr_get(klass, idIncludedModules);
+    if (ary != Qnil) {
+	int i, count = RARRAY_LEN(ary);
+	for (i = 0; i < count; i++) {
+	    VALUE imod = RARRAY_AT(ary, i);
+	    NODE *mn;
+	    IMP imp;
+	    SEL sel;
+	    mn = rb_objc_method_node(imod, mid, &imp, &sel);
+	    if (imp != NULL) {
+		previous_sklass = klass;
+		*mnp = mn;
+		*impp = imp;
+		*selp = sel;
+		return imod;
+	    }
+	}
+    }
+    if (previous_sklass != Qnil) {
+	klass = previous_sklass;
+	previous_sklass = Qnil;
+    }
+    return vm_search_normal_superclass(klass, recv);
+}
+#endif
+
 static void
 vm_search_superclass(rb_control_frame_t *reg_cfp, rb_iseq_t *ip,
 		     VALUE recv, VALUE sigval,
-		     ID *idp, VALUE *klassp)
+		     ID *idp, VALUE *klassp, NODE **mnp, IMP *impp, SEL *selp)
 {
     ID id;
     VALUE klass;
@@ -1250,7 +1455,7 @@ vm_search_superclass(rb_control_frame_t *reg_cfp, rb_iseq_t *ip,
 	}
 
 	id = lcfp->method_id;
-	klass = vm_search_normal_superclass(lcfp->method_class, recv);
+	klass = vm_search_normal_superclass2(lcfp->method_class, recv, id, mnp, impp, selp);
 
 	if (sigval == Qfalse) {
 	    /* zsuper */
@@ -1258,7 +1463,7 @@ vm_search_superclass(rb_control_frame_t *reg_cfp, rb_iseq_t *ip,
 	}
     }
     else {
-	klass = vm_search_normal_superclass(ip->klass, recv);
+	klass = vm_search_normal_superclass2(ip->klass, recv, id, mnp, impp, selp);
     }
 
     *idp = id;

@@ -77,6 +77,7 @@ VALUE rb_ary_includes(VALUE, VALUE);
 VALUE rb_ary_cmp(VALUE, VALUE);
 VALUE rb_ary_replace(VALUE copy, VALUE orig);
 VALUE rb_get_values_at(VALUE, long, int, VALUE*, VALUE(*)(VALUE,long));
+void rb_ary_insert(VALUE, long, VALUE);
 #if WITH_OBJC
 VALUE rb_ary_elt(VALUE, long);
 bool rb_objc_ary_is_pure(VALUE);
@@ -147,10 +148,9 @@ VALUE rb_Complex(VALUE, VALUE);
 #define rb_Complex2(x,y) rb_Complex(x, y)
 /* class.c */
 #if WITH_OBJC
-VALUE rb_objc_import_class(Class);
 VALUE rb_objc_create_class(const char *name, VALUE super);
-VALUE rb_objc_rename_class(VALUE klass, const char *name);
 bool rb_objc_install_primitives(Class ocklass, Class ocsuper);
+void rb_define_object_special_methods(VALUE klass);
 #endif
 VALUE rb_class_boot(VALUE);
 VALUE rb_class_new(VALUE);
@@ -279,7 +279,7 @@ int rb_provided(const char*);
 void rb_provide(const char*);
 VALUE rb_f_require(VALUE, VALUE);
 VALUE rb_require_safe(VALUE, int);
-void rb_obj_call_init(VALUE, int, VALUE*);
+VALUE rb_obj_call_init(VALUE, int, VALUE*);
 VALUE rb_class_new_instance(int, VALUE*, VALUE);
 VALUE rb_block_proc(void);
 VALUE rb_f_lambda(void);
@@ -691,6 +691,7 @@ VALUE rb_mod_class_variables(VALUE);
 VALUE rb_mod_remove_cvar(VALUE, VALUE);
 /* objc.m */
 #if WITH_OBJC
+void rb_objc_alias(VALUE, ID, ID);
 VALUE rb_mod_objc_ancestors(VALUE);
 VALUE rb_mod_objc_ib_outlet(int, VALUE *, VALUE);
 VALUE rb_require_framework(int, VALUE *, VALUE);
@@ -700,9 +701,9 @@ long rb_objc_flag_get_mask(const void *);
 void rb_objc_flag_set(const void *, int, bool);
 bool rb_objc_flag_check(const void *, int);
 long rb_objc_remove_flags(const void *obj);
-void rb_objc_sync_ruby_methods(VALUE, VALUE);
 void rb_objc_methods(VALUE, Class);
 bool rb_objc_is_immutable(VALUE);
+VALUE rb_objc_call(VALUE, SEL, int, VALUE *);
 #endif
 /* version.c */
 void ruby_show_version(void);

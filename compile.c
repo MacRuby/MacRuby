@@ -338,9 +338,9 @@ compile_data_alloc(rb_iseq_t *iseq, size_t size)
 	    alloc_size *= 2;
 	    goto retry;
 	}
-	storage->next = (void *)ALLOC_N(char, alloc_size +
+	GC_WB(&storage->next, (void *)ALLOC_N(char, alloc_size +
 					sizeof(struct
-					       iseq_compile_data_storage));
+					       iseq_compile_data_storage)));
 	storage = iseq->compile_data->storage_current = storage->next;
 	storage->next = 0;
 	storage->pos = 0;
@@ -674,7 +674,7 @@ new_insn_body(rb_iseq_t *iseq, int line_no, int insn_id, int argc, ...)
 	operands = (VALUE *)compile_data_alloc(iseq, sizeof(VALUE) * argc);
 	for (i = 0; i < argc; i++) {
 	    VALUE v = va_arg(argv, VALUE);
-	    operands[i] = v;
+	    GC_WB(&operands[i], v);
 	}
 	va_end(argv);
     }
@@ -687,12 +687,43 @@ new_insn_send(rb_iseq_t *iseq, int line_no,
 {
     INSN *iobj = 0;
     VALUE *operands =
-      (VALUE *)compile_data_alloc(iseq, sizeof(VALUE) * 5);
+      (VALUE *)compile_data_alloc(iseq, sizeof(VALUE) * 7);
+    struct rb_method_cache *mcache;
+
     operands[0] = id;
     operands[1] = argc;
     operands[2] = block;
     operands[3] = flag;
-    operands[4] = 0;
+
+    mcache = (struct rb_method_cache *)xmalloc(sizeof(struct rb_method_cache));
+    mcache->flags = RB_MCACHE_RCALL_FLAG;
+    mcache->as.rcall.klass = 0;
+    mcache->as.rcall.node = NULL;
+    if (FIX2INT(argc) > 0) {
+	char *id_str;
+	size_t id_str_len;
+	char buf[100];
+
+	id_str = (char *)rb_sym2name(id);
+	id_str_len = strlen(id_str);
+
+	if (id_str[id_str_len - 1] != ':') {
+	    snprintf(buf, sizeof buf, "%s:", id_str);
+	    id_str = buf;
+	}
+
+	mcache->as.rcall.sel = sel_registerName(id_str);
+    }
+    else {
+	mcache->as.rcall.sel = sel_registerName(rb_sym2name(id));
+	if (mcache->as.rcall.sel == sel_ignored
+	    || mcache->as.rcall.sel == sel_zone) {
+	    char buf[100];
+	    snprintf(buf, sizeof buf, "__rb_%s__", rb_sym2name(id));
+	    mcache->as.rcall.sel = sel_registerName(buf);
+	}
+    }
+    GC_WB(&operands[4], (VALUE)mcache);
     iobj = new_insn_core(iseq, line_no, BIN(send), 5, operands);
     return iobj;
 }
@@ -898,7 +929,7 @@ iseq_set_arguments(rb_iseq_t *iseq, LINK_ANCHOR *optargs, NODE *node_args)
 	    i += 1;
 
 	    iseq->arg_opts = i;
-	    iseq->arg_opt_table = ALLOC_N(VALUE, i);
+	    GC_WB(&iseq->arg_opt_table, ALLOC_N(VALUE, i));
 #if WITH_OBJC
 	    CFArrayGetValues((CFArrayRef)labels, CFRangeMake(0, i), 
 		(const void **)iseq->arg_opt_table);
@@ -906,6 +937,9 @@ iseq_set_arguments(rb_iseq_t *iseq, LINK_ANCHOR *optargs, NODE *node_args)
 	    MEMCPY(iseq->arg_opt_table, RARRAY_PTR(labels), VALUE, i);
 #endif
 	    for (j = 0; j < i; j++) {
+#if WITH_OBJC
+		iseq->arg_opt_table[j] = OC2RB(iseq->arg_opt_table[j]);
+#endif
 		iseq->arg_opt_table[j] &= ~1;
 	    }
 	}
@@ -1607,6 +1641,11 @@ iseq_specialized_instruction(rb_iseq_t *iseq, INSN *iobj)
 		}
 		else if (mid == idAREF) {
 		    insn_set_specialized_instruction(iobj, BIN(opt_aref));
+		}
+	    }
+	    else if (argc == 2) {
+		if (mid == idASET) {
+		    insn_set_specialized_instruction(iobj, BIN(opt_aset));
 		}
 	    }
 	}

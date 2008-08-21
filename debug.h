@@ -29,4 +29,17 @@ int   ruby_debug_print_indent(int level, int debug_level, int indent_level);
 void  ruby_debug_breakpoint(void);
 void  ruby_debug_gc_check_func(void);
 
+#if ENABLE_DEBUG_LOGGING 
+# include "vm_core.h"
+extern bool ruby_dlog_enabled;
+# define DLOG(mod, fmt, args...)         \
+    if (UNLIKELY(ruby_dlog_enabled)) {   \
+	printf("%10s   ", mod);          \
+	printf(fmt, ##args);             \
+	printf("\n");                    \
+    }
+#else
+# define DLOG(mod, fmt, args...)
+#endif
+
 #endif /* RUBY_DEBUG_H */

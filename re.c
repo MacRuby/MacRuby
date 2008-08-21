@@ -1040,7 +1040,7 @@ match_backref_number(VALUE match, VALUE backref)
         return NUM2INT(backref);
 
       case T_SYMBOL:
-        name = rb_id2name(SYM2ID(backref));
+        name = rb_sym2name(backref);
         break;
 
       case T_STRING:
@@ -1383,7 +1383,7 @@ rb_reg_search(VALUE re, VALUE str, int pos, int reverse)
     if (!reverse) {
 	range += RSTRING_LEN(str);
     }
-    MEMZERO(&regs, struct re_registers, 1);
+    MEMZERO(pregs, struct re_registers, 1);
     result = onig_search(RREGEXP(re)->ptr,
 			 (UChar*)cstr,
 			 ((UChar*)cstr + clen),
@@ -1728,7 +1728,7 @@ match_aref(int argc, VALUE *argv, VALUE match)
 
         switch (TYPE(idx)) {
           case T_SYMBOL:
-            p = rb_id2name(SYM2ID(idx));
+            p = rb_sym2name(idx);
             goto name_to_backref;
             break;
           case T_STRING:

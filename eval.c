@@ -54,6 +54,10 @@ void Init_ext(void);
 void Init_PreGC(void);
 void Init_BareVM(void);
 
+#if WITH_OBJC
+bool ruby_dlog_enabled = false;
+#endif
+
 void
 ruby_init(void)
 {
@@ -68,6 +72,11 @@ ruby_init(void)
     rb_origenviron = 0;
 #else
     rb_origenviron = environ;
+#endif
+
+#if WITH_OBJC
+    char *s = getenv("MACRUBY_DEBUG");
+    ruby_dlog_enabled = !(s == NULL || *s == '0');
 #endif
 
     Init_stack((void *)&state);
@@ -336,7 +345,7 @@ rb_frozen_class_p(VALUE klass)
     const char *desc = "something(?!)";
 
     if (OBJ_FROZEN(klass)) {
-	if (FL_TEST(klass, FL_SINGLETON))
+	if (RCLASS_SINGLETON(klass))
 	    desc = "object";
 	else {
 	    switch (TYPE(klass)) {
@@ -857,11 +866,11 @@ rb_mod_include(int argc, VALUE *argv, VALUE module)
     return module;
 }
 
-void
+VALUE
 rb_obj_call_init(VALUE obj, int argc, VALUE *argv)
 {
     PASS_PASSED_BLOCK();
-    rb_funcall2(obj, idInitialize, argc, argv);
+    return rb_funcall2(obj, idInitialize, argc, argv);
 }
 
 void

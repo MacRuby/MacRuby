@@ -420,14 +420,16 @@ w_extended(VALUE klass, struct dump_arg *arg, int check)
 {
     const char *path;
 
-    if (check && FL_TEST(klass, FL_SINGLETON)) {
+    if (check && RCLASS_SINGLETON(klass)) {
+#if !WITH_OBJC // TODO
 	if (RCLASS_M_TBL(klass)->num_entries ||
 	    (RCLASS_IV_TBL(klass) && RCLASS_IV_TBL(klass)->num_entries > 1)) {
 	    rb_raise(rb_eTypeError, "singleton can't be dumped");
 	}
+#endif
 	klass = RCLASS_SUPER(klass);
     }
-    while (BUILTIN_TYPE(klass) == T_ICLASS) {
+    while (TYPE(klass) == T_ICLASS) {
 	path = rb_class2name(RBASIC(klass)->klass);
 	w_byte(TYPE_EXTENDED_R, arg);
 	w_unique(path, arg);
@@ -534,6 +536,7 @@ w_ivar(VALUE obj, st_table *tbl, struct dump_call_arg *arg)
 static void
 w_objivar(VALUE obj, struct dump_call_arg *arg)
 {
+#if !WITH_OBJC /* TODO */
     VALUE *ptr;
     long i, len, num;
 
@@ -548,6 +551,7 @@ w_objivar(VALUE obj, struct dump_call_arg *arg)
     if (num != 0) {
         rb_ivar_foreach(obj, w_obj_each, (st_data_t)arg);
     }
+#endif
 }
 
 static void
@@ -650,7 +654,7 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
         st_add_direct(arg->data, obj, arg->data->num_entries);
 
 #if WITH_OBJC
-	if (!rb_objc_is_non_native(obj))
+	if (!NATIVE(obj))
 #endif
         {
             st_data_t compat_data;
@@ -667,7 +671,7 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
 
 	switch (/*BUILTIN_*/TYPE(obj)) {
 	  case T_CLASS:
-	    if (FL_TEST(obj, FL_SINGLETON)) {
+	    if (RCLASS_SINGLETON(obj)) {
 		rb_raise(rb_eTypeError, "singleton class can't be dumped");
 	    }
 	    w_byte(TYPE_CLASS, arg);
@@ -1279,28 +1283,20 @@ r_object0(struct load_arg *arg, int *ivp, VALUE extmod)
 	{
 	    VALUE c = path2class(r_unique(arg));
 
-	    if (FL_TEST(c, FL_SINGLETON)) {
+	    if (RCLASS_SINGLETON(c)) {
 		rb_raise(rb_eTypeError, "singleton can't be loaded");
 	    }
 	    v = r_object0(arg, 0, extmod);
-#if WITH_OBJC
-	    if (rb_objc_is_non_native(v)) {
-		*(Class *)v = RCLASS_OCID(c);	
-	    }
-	    else
-#endif
-	    {
-		if (rb_special_const_p(v) || TYPE(v) == T_OBJECT || TYPE(v) == T_CLASS) {
+	    if (rb_special_const_p(v) || TYPE(v) == T_OBJECT || TYPE(v) == T_CLASS) {
 format_error:
-		    rb_raise(rb_eArgError, "dump format error (user class)");
-		}
-		if (TYPE(v) == T_MODULE || !RTEST(rb_class_inherited_p(c, RBASIC(v)->klass))) {
-		    VALUE tmp = rb_obj_alloc(c);
-
-		    if (TYPE(v) != TYPE(tmp)) goto format_error;
-		}
-		RBASIC(v)->klass = c;
+		rb_raise(rb_eArgError, "dump format error (user class)");
 	    }
+	    if (TYPE(v) == T_MODULE || !RTEST(rb_class_inherited_p(c, RBASIC(v)->klass))) {
+		VALUE tmp = rb_obj_alloc(c);
+
+		if (TYPE(v) != TYPE(tmp)) goto format_error;
+	    }
+	    RBASIC(v)->klass = c;
 	}
 	break;
 

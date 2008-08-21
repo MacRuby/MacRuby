@@ -205,7 +205,7 @@ get_boolean_attribute(xmlTextReaderPtr reader, const char *name,
   return ret;
 }
 
-#define MAX_ENCODE_LEN 1024
+#define MAX_ENCODE_LEN 2048
 
 #ifndef MIN
 # define MIN(a, b) (((a) < (b)) ? (a) : (b))
@@ -252,7 +252,7 @@ undecorate_struct_type(const char *src, char *dest, size_t dest_len,
     p_src = pos + 1;
     pos = strchr(p_src, '"');
     if (pos == NULL) {
-      // XXX NSLog("Can't find the end of field delimiter starting at %d", p_src - src);
+      fprintf(stderr, "Can't find the end of field delimiter starting at %d\n", p_src - src);
       goto bails; 
     }
     if (field != NULL) {
@@ -307,19 +307,19 @@ undecorate_struct_type(const char *src, char *dest, size_t dest_len,
       }
 
       if (ok == false) {
-        //XXX DLOG("MDLOSX", "Can't find the field encoding starting at %d", p_src - src);
+        fprintf(stderr, "Can't find the field encoding starting at %d\n", p_src - src);
         goto bails;
       }
 
       if (opposite == '}' || opposite == ')') {
         char buf[MAX_ENCODE_LEN];
         char buf2[MAX_ENCODE_LEN];
-   
+ 
         strncpy(buf, p_src, MIN(sizeof buf, i));
         buf[MIN(sizeof buf, i)] = '\0';        
      
         if (!undecorate_struct_type(buf, buf2, sizeof buf2, NULL, 0, NULL)) {
-          // XXX DLOG("MDLOSX", "Can't un-decode the field encoding '%s'", buf);
+          fprintf(stderr, "Can't un-decode the field encoding '%s'\n", buf);
           goto bails;
         }
 
@@ -597,10 +597,10 @@ _bs_parse(const char *path, char **loaded_paths,
           CHECK_ATTRIBUTE(struct_name, "name");
 
           if (!undecorate_struct_type(struct_decorated_type, type, 
-                                      MAX_ENCODE_LEN, fields, 128, 
+                                      sizeof type, fields, 128, 
                                       &field_count)) {
             BAIL("Can't handle structure '%s' with type '%s'", 
-                 name, struct_decorated_type);
+                 struct_name, struct_decorated_type);
           }
 
           free(struct_decorated_type);
@@ -1063,7 +1063,6 @@ _bs_parse(const char *path, char **loaded_paths,
     // FIXME this is inefficient
           memcpy(&methods[*methods_count], method, 
             sizeof(bs_element_method_t));
-          free(method);
 
           (*methods_count)++;
           
@@ -1071,7 +1070,8 @@ _bs_parse(const char *path, char **loaded_paths,
             klass->class_methods = methods;
           else
             klass->instance_methods = methods;
-          
+         
+          free(method);
           method = NULL;
           break;
         }

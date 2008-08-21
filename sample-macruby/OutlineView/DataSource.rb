@@ -14,10 +14,7 @@ class DataSource
   
   def outlineView outlineView, objectValueForTableColumn:tableColumn, byItem:item
     if item
-      # relativePath returns an ASCII-8BIT file name
-      s = item.relativePath.dup
-      s.force_encoding('utf-8')
-      s
+      s = item.relativePath
     else
       '/'
     end

@@ -1,105 +1,26 @@
-/**********************************************************************
-
-  class.c -
-
-  $Author: akr $
-  created at: Tue Aug 10 15:05:44 JST 1993
-
-  Copyright (C) 1993-2007 Yukihiro Matsumoto
-
-**********************************************************************/
+/* 
+ * MacRuby implementation of Ruby 1.9's class.c.
+ *
+ * This file is covered by the Ruby license. See COPYING for more details.
+ * 
+ * Copyright (C) 2007-2008, Apple Inc. All rights reserved.
+ * Copyright (C) 1993-2007 Yukihiro Matsumoto
+ * Copyright (C) 2000 Network Applied Communication Laboratory, Inc.
+ * Copyright (C) 2000 Information-technology Promotion Agency, Japan
+ */
 
 #include "ruby/ruby.h"
 #include "ruby/signal.h"
 #include "ruby/node.h"
 #include "ruby/st.h"
+#include "debug.h"
+#include "id.h"
 #include <ctype.h>
 
 extern st_table *rb_class_tbl;
 
 #define VISI(x) ((x)&NOEX_MASK)
 #define VISI_CHECK(x,f) (VISI(x) == (f))
-
-static VALUE
-class_init(VALUE obj)
-{
-    GC_WB(&RCLASS(obj)->ptr, ALLOC(rb_classext_t));
-    RCLASS_IV_TBL(obj) = 0;
-    RCLASS_M_TBL(obj) = 0;
-    RCLASS_SUPER(obj) = 0;
-    RCLASS_IV_INDEX_TBL(obj) = 0;
-    return obj;
-}
-
-#if WITH_OBJC
-
-extern st_table *rb_objc_class_tbl;
-
-VALUE
-rb_objc_import_class(Class ocklass)
-{
-    VALUE rbklass;
-    ID nameid;
-    VALUE super;
-
-    assert(ocklass != NULL);
-    assert(class_isMetaClass(ocklass) == 0);
-    assert(rb_objc_class_tbl != NULL);
-
-    if (st_lookup(rb_objc_class_tbl, (st_data_t)ocklass, (st_data_t *)&rbklass))
-	return rbklass;
-
-//printf("import %s (%p)\n", class_getName(ocklass), ocklass);
-
-    {
-	NEWOBJ(obj, struct RClass);
-	OBJSETUP(obj, rb_cClass, T_CLASS);
-	rbklass = (VALUE)obj;
-    }
-
-    RBASIC(rbklass)->isa = ocklass->isa;
-    RCLASS(rbklass)->ocklass = ocklass;
-
-    class_init(rbklass);
-
-    RCLASS_M_TBL(rbklass) = st_init_numtable();
-
-    nameid = rb_intern(class_getName(ocklass));
-
-    if (rb_cObject != 0 && RCLASS_IV_TBL(rb_cObject) != NULL)
-	st_delete(RCLASS_IV_TBL(rb_cObject), (st_data_t*)&nameid, NULL);
-    rb_const_set((rb_cObject != 0 ? rb_cObject : rbklass), nameid, rbklass);   
-
-    /* FIXME do we need to maintain rb_class_tbl anymore? */
-    st_insert(rb_class_tbl, (st_data_t)nameid, (st_data_t)rbklass);
-    st_insert(rb_objc_class_tbl, (st_data_t)ocklass, (st_data_t)rbklass);
-
-    ocklass = class_getSuperclass(ocklass);
-
-    /* Hack: make sure that all classes that inherit from NSObject have their
-     * Ruby class counterpart inherit from Object first.
-     * This is because constants declared in Object are meant to be visible
-     * in all scopes, and we need to be able to access them in Ruby-written
-     * subclasses of Objective-C classes. 
-     */
-    if (rb_cBasicObject != 0
-	&& rb_cObject != 0
-	&& ocklass == RCLASS_OCID(rb_cBasicObject)) {
-	super = rb_cObject;
-    }
-    else {
-	super = ocklass == NULL ? 0 : rb_objc_import_class(ocklass);
-    }
-
-    RCLASS_SUPER(rbklass) = super;
-    OBJ_INFECT(rbklass, super);
-    FL_SET(rbklass, RCLASS_OBJC_IMPORTED);
-
-    if (super != 0)
-	rb_make_metaclass(rbklass, RBASIC(super)->klass);
-
-    return rbklass;
-}
 
 void rb_objc_install_array_primitives(Class);
 void rb_objc_install_hash_primitives(Class);
@@ -110,16 +31,19 @@ rb_objc_install_primitives(Class ocklass, Class ocsuper)
 {
     if (rb_cArray != 0 && rb_cHash != 0 && rb_cString != 0) {
 	do {
-	    if (ocsuper == RCLASS_OCID(rb_cArray)) {
+	    if (ocsuper == (Class)rb_cArray) {
 		rb_objc_install_array_primitives(ocklass);
+		RCLASS_SET_VERSION_FLAG(ocklass, RCLASS_IS_ARRAY_SUBCLASS);
 		return true;
 	    }
-	    if (ocsuper == RCLASS_OCID(rb_cHash)) {
+	    if (ocsuper == (Class)rb_cHash) {
 		rb_objc_install_hash_primitives(ocklass);
+		RCLASS_SET_VERSION_FLAG(ocklass, RCLASS_IS_HASH_SUBCLASS);
 		return true;
 	    }
-	    if (ocsuper == RCLASS_OCID(rb_cString)) {
+	    if (ocsuper == (Class)rb_cString) {
 		rb_objc_install_string_primitives(ocklass);
+		RCLASS_SET_VERSION_FLAG(ocklass, RCLASS_IS_STRING_SUBCLASS);
 		return true;
 	    }
 	    ocsuper = class_getSuperclass(ocsuper);
@@ -130,24 +54,42 @@ rb_objc_install_primitives(Class ocklass, Class ocsuper)
 }
 
 static VALUE
-rb_objc_alloc_class(const char *name, VALUE *psuper, VALUE flags, VALUE klass)
+rb_class_allocate_instance(VALUE klass)
 {
-    VALUE super, obj;
-    Class ocklass, ocsuper;
-    char ocname[128];
+    NEWOBJ(obj, struct RObject);
+    OBJSETUP(obj, klass, T_OBJECT);
+    return (VALUE)obj;
+}
 
-    super = psuper == NULL ? 0 : *psuper;
+static VALUE
+rb_objc_init(VALUE rcv)
+{
+    rb_funcall(rcv, idInitialize, 0);
+    return rcv;
+}
+
+void
+rb_define_object_special_methods(VALUE klass)
+{
+    rb_define_alloc_func(klass, rb_class_allocate_instance);
+    rb_define_singleton_method(klass, "new", rb_class_new_instance, -1);
+    rb_define_method(klass, "dup", rb_obj_dup, 0);
+    rb_define_method(klass, "init", rb_objc_init, 0);
+    rb_define_method(klass, "initialize_copy", rb_obj_init_copy, 1);
+}
+
+static VALUE
+rb_objc_alloc_class(const char *name, VALUE super, VALUE flags, VALUE klass)
+{
+    Class ocklass;
+    char ocname[128];
+    int version_flag;
 
     if (name == NULL) {
 	static long anon_count = 1;
     	snprintf(ocname, sizeof ocname, "RBAnonymous%ld", ++anon_count);
     }
     else {
-	if (super == rb_cBasicObject && strcmp(name, "Object") != 0) {
-	    rb_warn("Do not subclass NSObject directly, please subclass " \
-		    "Object instead.");
-	    super = *psuper = rb_cObject; 
-	}
 	if (objc_getClass(name) != NULL) {
 	    long count = 1;
 	    snprintf(ocname, sizeof ocname, "RB%s", name);
@@ -161,28 +103,31 @@ rb_objc_alloc_class(const char *name, VALUE *psuper, VALUE flags, VALUE klass)
 	}
     }
 
-    ocsuper = super == 0 ? NULL : RCLASS_OCID(super);
-    ocklass = objc_allocateClassPair(ocsuper, ocname, 0);
+    if (super == 0)
+	super = rb_cObject;
+
+    ocklass = objc_allocateClassPair((Class)super, ocname, sizeof(id));
     assert(ocklass != NULL);
 
-    {
-	NEWOBJ(obj2, struct RClass);
-	OBJSETUP(obj2, klass, flags);
-	obj = (VALUE)obj2;
+    version_flag = RCLASS_IS_RUBY_CLASS;
+    if (flags == T_MODULE) {
+	version_flag |= RCLASS_IS_MODULE;
+    }
+    if (super == rb_cObject) {
+	version_flag |= RCLASS_IS_OBJECT_SUBCLASS;
+    }
+    else if ((RCLASS_VERSION(super) & RCLASS_IS_OBJECT_SUBCLASS) == RCLASS_IS_OBJECT_SUBCLASS) {
+	version_flag |= RCLASS_IS_OBJECT_SUBCLASS;
     }
 
-    RBASIC(obj)->isa = ocklass->isa;
-    RCLASS(obj)->ocklass = ocklass;
+    class_setVersion(ocklass, version_flag);
 
-    rb_objc_retain((const void *)obj); /* classes should never be released */
-
-    if (name == NULL)
-	FL_SET(obj, RCLASS_ANONYMOUS);
+    DLOG("DEFC", "%s < %s (version=%d)", ocname, class_getName(class_getSuperclass((Class)ocklass)), version_flag);
 
     if (klass != 0)
-	rb_objc_install_primitives(ocklass, ocsuper);
+	rb_objc_install_primitives(ocklass, (Class)super);
 
-    return obj;
+    return (VALUE)ocklass;
 }
 
 VALUE
@@ -190,90 +135,23 @@ rb_objc_create_class(const char *name, VALUE super)
 {
     VALUE klass;
     
-    klass = rb_objc_alloc_class(name, &super, T_CLASS, rb_cClass);
- 
-    class_init(klass);
-
-    objc_registerClassPair(RCLASS_OCID(klass));
+    klass = rb_objc_alloc_class(name, super, T_CLASS, rb_cClass);
+    objc_registerClassPair((Class)klass);
    
-    if (name != NULL) 
-	st_insert(rb_class_tbl, (st_data_t)rb_intern(name), (st_data_t)klass);
-    st_insert(rb_objc_class_tbl, (st_data_t)RCLASS_OCID(klass), 
-	      (st_data_t)klass);
-
-    RCLASS_M_TBL(klass) = st_init_numtable();
-    RCLASS_SUPER(klass) = super;
-    
-    OBJ_INFECT(klass, super);
-
-    return klass;
-}
-
-VALUE
-rb_objc_rename_class(VALUE klass, const char *name)
-{
-#if 0
-    Class ocorig;
-    Class ocnew;
-    char *ocname;
-    unsigned i, count;
-
-    count = strlen(name);
-    ocname = (char *)alloca(count + 3);
-    ocname[0] = 'R';
-    ocname[1] = 'B';
-    for (i = 0; i < count; i++) {
-	char c = name[i];
-	if (c == ':')
-	    c = '_';
-	ocname[i + 2] = c;
+    if (super == rb_cNSObject) {
+	rb_define_object_special_methods(klass);
     }
-    ocname[count + 2] = '\0';
 
-    ocorig = RCLASS_OCID(klass);
-
-    //printf("renamed class %p %s to %s\n", klass, class_getName(ocorig), ocname);
-
-    ocnew = objc_duplicateClass(ocorig, ocname, 0);
-
-    RBASIC(klass)->isa = ocnew->isa;
-    RCLASS(klass)->ocklass = ocnew;   
-
-    //printf("old %p new %p\n", ocorig, ocnew);
-
-    //objc_disposeClassPair(ocorig);
+    if (name != NULL && rb_class_tbl != NULL) 
+	st_insert(rb_class_tbl, (st_data_t)rb_intern(name), (st_data_t)klass);
 
     return klass;
-#endif
-    return klass;
-}
-
-#endif /* WITH_OBJC */
-
-static VALUE
-class_alloc(VALUE flags, VALUE klass)
-{
-#if WITH_OBJC
-    VALUE obj = rb_objc_alloc_class(NULL, NULL, flags, klass);
-#else
-    NEWOBJ(obj, struct RClass);
-    OBJSETUP(obj, klass, flags);
-#endif
-    return class_init((VALUE)obj);
 }
 
 VALUE
 rb_class_boot(VALUE super)
 {
-#if WITH_OBJC
     VALUE klass = rb_objc_create_class(NULL, super);
-#else
-    VALUE klass = class_alloc(T_CLASS, rb_cClass);
-
-    RCLASS_SUPER(klass) = super;
-    RCLASS_M_TBL(klass) = st_init_numtable();
-#endif
-    OBJ_INFECT(klass, super);
     return (VALUE)klass;
 }
 
@@ -284,7 +162,7 @@ rb_check_inheritable(VALUE super)
 	rb_raise(rb_eTypeError, "superclass must be a Class (%s given)",
 		 rb_obj_classname(super));
     }
-    if (RBASIC(super)->flags & FL_SINGLETON) {
+    if (RCLASS_SINGLETON(super)) {
 	rb_raise(rb_eTypeError, "can't make subclass of singleton class");
     }
 }
@@ -300,57 +178,34 @@ rb_class_new(VALUE super)
     return rb_class_boot(super);
 }
 
-struct clone_method_data {
-    st_table *tbl;
-    VALUE klass;
-};
-
-static int
-clone_method(ID mid, NODE *body, struct clone_method_data *data)
-{
-    if (body == 0) {
-	st_insert(data->tbl, mid, 0);
-    }
-    else {
-	st_insert(data->tbl, mid,
-		  (st_data_t)
-		  NEW_FBODY(
-		      NEW_METHOD(body->nd_body->nd_body,
-				 data->klass, /* TODO */
-				 body->nd_body->nd_noex),
-		      0));
-    }
-    return ST_CONTINUE;
-}
-
 /* :nodoc: */
 VALUE
 rb_mod_init_copy(VALUE clone, VALUE orig)
 {
     rb_obj_init_copy(clone, orig);
-    if (!FL_TEST(CLASS_OF(clone), FL_SINGLETON)) {
-	RBASIC(clone)->klass = rb_singleton_class_clone(orig);
-    }
-    RCLASS_SUPER(clone) = RCLASS_SUPER(orig);
-#if WITH_OBJC
     {
-	Class ocsuper;
-	extern VALUE rb_cStringRuby;
-	extern VALUE rb_cArrayRuby;
-	extern VALUE rb_cHashRuby;
-	if (orig == rb_cStringRuby
-	    || orig == rb_cArrayRuby
-	    || orig == rb_cHashRuby) {
-	    ocsuper = RCLASS_OCID(orig);
+	VALUE super;
+	int version_flag;
+
+	if (orig == rb_cNSMutableString
+	    || orig == rb_cNSMutableArray
+	    || orig == rb_cNSMutableHash) {
+	    super = orig;
 	    rb_warn("cloning class `%s' is not supported, creating a " \
 		    "subclass instead", rb_class2name(orig));
 	}
 	else {
-	    ocsuper = class_getSuperclass(RCLASS_OCID(orig));
+	    super = RCLASS_SUPER(orig);
 	}
-	class_setSuperclass(RCLASS(clone)->ocklass, ocsuper);
+	RCLASS_SUPER(clone) = super;
+
+	version_flag = RCLASS_IS_RUBY_CLASS;
+	if ((RCLASS_VERSION(super) & RCLASS_IS_OBJECT_SUBCLASS) == RCLASS_IS_OBJECT_SUBCLASS)
+	    version_flag |= RCLASS_IS_OBJECT_SUBCLASS;
+
+	class_setVersion((Class)clone, version_flag);
     }
-#endif
+#if 0 // TODO
     if (RCLASS_IV_TBL(orig)) {
 	ID id;
 
@@ -368,6 +223,7 @@ rb_mod_init_copy(VALUE clone, VALUE orig)
 	st_foreach(RCLASS_M_TBL(orig), clone_method,
 	  (st_data_t)&data);
     }
+#endif
 
     return clone;
 }
@@ -376,16 +232,11 @@ rb_mod_init_copy(VALUE clone, VALUE orig)
 VALUE
 rb_class_init_copy(VALUE clone, VALUE orig)
 {
-    if (RCLASS_SUPER(clone) != 0) {
-	rb_raise(rb_eTypeError, "already initialized class");
-    }
-    if (FL_TEST(orig, FL_SINGLETON)) {
+    if (RCLASS_SINGLETON(orig)) {
 	rb_raise(rb_eTypeError, "can't copy singleton class");
     }
     clone =  rb_mod_init_copy(clone, orig);
-#if WITH_OBJC 
-    rb_objc_install_primitives(RCLASS_OCID(clone), RCLASS_OCID(orig)); 
-#endif
+    rb_objc_install_primitives((Class)clone, (Class)orig);
     return clone;
 }
 
@@ -393,100 +244,82 @@ VALUE
 rb_singleton_class_clone(VALUE obj)
 {
     VALUE klass = RBASIC(obj)->klass;
-
-    if (!FL_TEST(klass, FL_SINGLETON))
+    if (!RCLASS_SINGLETON(klass)) {
 	return klass;
+    }
     else {
-	struct clone_method_data data;
 	/* copy singleton(unnamed) class */
-        VALUE clone = class_alloc(RBASIC(klass)->flags, 0);
+	VALUE clone = rb_objc_create_class(NULL, RCLASS_SUPER(klass));
 
-	if (BUILTIN_TYPE(obj) == T_CLASS) {
-	    RBASIC(clone)->klass = (VALUE)clone;
-	}
-	else {
-	    RBASIC(clone)->klass = rb_singleton_class_clone(klass);
+	CFMutableDictionaryRef ivar_dict = rb_class_ivar_dict(klass);
+	if (ivar_dict != NULL) {
+	    CFMutableDictionaryRef cloned_ivar_dict;
+
+	    cloned_ivar_dict = CFDictionaryCreateMutableCopy(NULL, 0, (CFDictionaryRef)ivar_dict);
+	    rb_class_ivar_set_dict(clone, cloned_ivar_dict);
+	    CFMakeCollectable(cloned_ivar_dict);
 	}
 
-	RCLASS_SUPER(clone) = RCLASS_SUPER(klass);
-	if (RCLASS_IV_TBL(klass)) {
-	    GC_WB(&RCLASS_IV_TBL(clone), st_copy(RCLASS_IV_TBL(klass)));
+	Method *methods;
+	unsigned i, methods_count;
+	methods = class_copyMethodList((Class)klass, &methods_count);
+	if (methods != NULL) {
+	    for (i = 0; i < methods_count; i++) {
+		Method method = methods[i], method2;
+		method2 = class_getInstanceMethod((Class)clone, method_getName(method));
+		if (method2 != class_getInstanceMethod((Class)RCLASS_SUPER(clone), method_getName(method))) {
+		    method_setImplementation(method2, method_getImplementation(method));
+		}
+		else {
+		    assert(class_addMethod((Class)clone, 
+				method_getName(method), 
+				method_getImplementation(method), 
+				method_getTypeEncoding(method)));
+		}
+	    }
+	    free(methods);
 	}
-	GC_WB(&RCLASS_M_TBL(clone), st_init_numtable());
-	data.tbl = RCLASS_M_TBL(clone);
-	data.klass = (VALUE)clone;
-	st_foreach(RCLASS_M_TBL(klass), clone_method,
-	  (st_data_t)&data);
+
 	rb_singleton_class_attached(RBASIC(clone)->klass, (VALUE)clone);
-	FL_SET(clone, FL_SINGLETON);
-#if WITH_OBJC
-    	objc_registerClassPair(RCLASS_OCID(clone));
-#endif
-	return (VALUE)clone;
+	if (RCLASS_SUPER(clone) == rb_cNSObject) {
+	    RCLASS_VERSION(clone) ^= RCLASS_IS_OBJECT_SUBCLASS;
+	}
+	RCLASS_SET_VERSION_FLAG(clone, RCLASS_IS_SINGLETON);
+
+	return clone;
     }
 }
 
 void
 rb_singleton_class_attached(VALUE klass, VALUE obj)
 {
-    if (FL_TEST(klass, FL_SINGLETON)) {
-	if (!RCLASS_IV_TBL(klass)) {
-	    GC_WB(&RCLASS_IV_TBL(klass), st_init_numtable());
-	}
-	st_insert(RCLASS_IV_TBL(klass), rb_intern("__attached__"), obj);
+    if (RCLASS_SINGLETON(klass)) {
+	static ID attachedId = 0;
+	if (attachedId == 0)
+	    attachedId = rb_intern("__attached__");
+	rb_ivar_set(klass, attachedId, obj);
     }
 }
 
 VALUE
 rb_make_metaclass(VALUE obj, VALUE super)
 {
-    bool pure;
-
-#if WITH_OBJC
-    pure = rb_objc_is_non_native(obj);
-#else
-    pure = false;
-#endif
-
-    if (!pure && BUILTIN_TYPE(obj) == T_CLASS && FL_TEST(obj, FL_SINGLETON)) {
-	return RBASIC(obj)->klass = rb_cClass;
+    if (TYPE(obj) == T_CLASS && RCLASS_SINGLETON(obj)) {
+	RBASIC(obj)->klass = rb_cClass;
+	return rb_cClass;
     }
     else {
-	VALUE metasuper;
 	VALUE klass;
 
-#if WITH_OBJC
-	if (!pure && BUILTIN_TYPE(obj) == T_CLASS) {
-	    NEWOBJ(obj2, struct RClass); 
-	    OBJSETUP(obj2, rb_cClass, T_CLASS); 
-	    klass = (VALUE)obj2; 
-	    rb_objc_retain((const void *)klass); 
-	    class_init(klass); 
-	    OBJ_INFECT(klass, super); 
-	    RCLASS_SUPER(klass) = super; 
-	    RCLASS_M_TBL(klass) = st_init_numtable(); 
-	    RCLASS(klass)->ocklass = RBASIC(super)->isa; 
-	    RBASIC(obj)->klass = klass;
-	}
-	else {
-	    klass = rb_class_boot(super);
-	    *(Class *)obj = RCLASS_OCID(klass);
-	    if (!pure)
-		RBASIC(obj)->klass = klass;
-	}
-#else
 	klass = rb_class_boot(super);
 	RBASIC(obj)->klass = klass;
-#endif
-	FL_SET(klass, FL_SINGLETON);
+	if (super == rb_cNSObject) {
+	    RCLASS_VERSION(klass) ^= RCLASS_IS_OBJECT_SUBCLASS;
+	}
+	RCLASS_SET_VERSION_FLAG(klass, RCLASS_IS_SINGLETON);
 
 	rb_singleton_class_attached(klass, obj);
 
-	metasuper = RBASIC(rb_class_real(super))->klass;
-	/* metaclass of a superclass may be NULL at boot time */
-	if (metasuper) {
-	    RBASIC(klass)->klass = metasuper;
-	}
 	return klass;
     }
 }
@@ -497,12 +330,7 @@ rb_define_class_id(ID id, VALUE super)
     VALUE klass;
 
     if (!super) super = rb_cObject;
-#if WITH_OBJC
     klass = rb_objc_create_class(rb_id2name(id), super);
-#else
-    klass = rb_class_new(super);
-#endif
-    rb_make_metaclass(klass, RBASIC(super)->klass);
 
     return klass;
 }
@@ -575,11 +403,7 @@ rb_define_class_under(VALUE outer, const char *name, VALUE super)
 VALUE
 rb_module_new(void)
 {
-    VALUE mdl = class_alloc(T_MODULE, rb_cModule);
-
-    RCLASS_M_TBL(mdl) = st_init_numtable();
-
-    return (VALUE)mdl;
+    return rb_define_module_id(0);
 }
 
 VALUE
@@ -587,14 +411,14 @@ rb_define_module_id(ID id)
 {
     VALUE mdl;
 
-#if WITH_OBJC
-    mdl = rb_objc_create_class(rb_id2name(id), 0);
-    RBASIC(mdl)->flags = T_MODULE;
-    RBASIC(mdl)->klass = rb_cModule; /* necessary? */
-#else
-    mdl = rb_module_new();
-    rb_name_class(mdl, id);
-#endif
+    mdl = rb_objc_alloc_class(id == 0 ? NULL : rb_id2name(id), rb_cObject, T_MODULE, rb_cModule);
+    objc_registerClassPair((Class)mdl);
+
+    if (rb_mKernel != 0) {
+	/* because Module#initialize can accept a block */
+	extern VALUE rb_mod_initialize(VALUE);
+	rb_define_method(*(VALUE *)mdl, "initialize", rb_mod_initialize, 0);
+    }
 
     return mdl;
 }
@@ -640,83 +464,57 @@ rb_define_module_under(VALUE outer, const char *name)
     return module;
 }
 
-static VALUE
-include_class_new(VALUE module, VALUE super)
-{
-    VALUE klass = class_alloc(T_ICLASS, rb_cClass);
-
-    if (BUILTIN_TYPE(module) == T_ICLASS) {
-	module = RBASIC(module)->klass;
-    }
-    if (!RCLASS_IV_TBL(module)) {
-	GC_WB(&RCLASS_IV_TBL(module), st_init_numtable());
-    }
-    RCLASS_IV_TBL(klass) = RCLASS_IV_TBL(module);
-    RCLASS_M_TBL(klass) = RCLASS_M_TBL(module);
-    RCLASS_SUPER(klass) = super;
-    if (TYPE(module) == T_ICLASS) {
-	RBASIC(klass)->klass = RBASIC(module)->klass;
-    }
-    else {
-	RBASIC(klass)->klass = module;
-    }
-#if WITH_OBJC
-    class_setSuperclass(RCLASS(klass)->ocklass, 
-	    		RCLASS(RBASIC(klass)->klass)->ocklass);
-#endif
-    OBJ_INFECT(klass, module);
-    OBJ_INFECT(klass, super);
-
-    return (VALUE)klass;
-}
-
 void
 rb_include_module(VALUE klass, VALUE module)
 {
-    VALUE p, c;
-    int changed = 0;
+    Method *methods;
+    unsigned int i, methods_count;
+    VALUE ary;
 
     rb_frozen_class_p(klass);
-    if (!OBJ_TAINTED(klass)) {
+
+    if (!OBJ_TAINTED(klass))
 	rb_secure(4);
-    }
-    
-    if (TYPE(module) != T_MODULE) {
-	Check_Type(module, T_MODULE);
-    }
 
-    OBJ_INFECT(klass, module);
-    c = klass;
-    while (module) {
-       int superclass_seen = Qfalse;
+    Check_Type(module, T_MODULE);
 
-	if (RCLASS_M_TBL(klass) == RCLASS_M_TBL(module))
-	    rb_raise(rb_eArgError, "cyclic include detected");
-	/* ignore if the module included already in superclasses */
-	for (p = RCLASS_SUPER(klass); p; p = RCLASS_SUPER(p)) {
-	    switch (BUILTIN_TYPE(p)) {
-		case T_ICLASS:
-		    if (RCLASS_M_TBL(p) == RCLASS_M_TBL(module)) {
-			if (!superclass_seen) {
-			    c = p;  /* move insertion point */
-			}
-			goto skip;
-		    }
-		    break;
-		case T_CLASS:
-		    superclass_seen = Qtrue;
-		    break;
+    ary = rb_attr_get(klass, idIncludedModules);
+    if (ary == Qnil) {
+	ary = rb_ary_new();
+	rb_ivar_set(klass, idIncludedModules, ary);
+    }
+    if (rb_ary_includes(ary, module))
+	return;
+    rb_ary_insert(ary, 0, module);
+
+    ary = rb_attr_get(module, idIncludedInClasses);
+    if (ary == Qnil) {
+	ary = rb_ary_new();
+	rb_ivar_set(module, idIncludedInClasses, ary);
+    }
+    rb_ary_push(ary, klass);
+
+    DLOG("INCM", "%s <- %s", class_getName((Class)klass), class_getName((Class)module));
+
+    methods = class_copyMethodList((Class)module, &methods_count);
+    if (methods != NULL) {
+	for (i = 0; i < methods_count; i++) {
+	    Method method = methods[i], method2;
+	    DLOG("DEFI", "-[%s %s]", class_getName((Class)klass), (char *)method_getName(method));
+	
+	    method2 = class_getInstanceMethod((Class)klass, method_getName(method));
+	    if (method2 != NULL && method2 != class_getInstanceMethod((Class)RCLASS_SUPER(klass), method_getName(method))) {
+		method_setImplementation(method2, method_getImplementation(method));
+	    }
+	    else {
+		assert(class_addMethod((Class)klass, 
+			    method_getName(method), 
+			    method_getImplementation(method), 
+			    method_getTypeEncoding(method)));
 	    }
 	}
-#if WITH_OBJC
-	rb_objc_sync_ruby_methods(module, klass);
-#endif
-	c = RCLASS_SUPER(c) = include_class_new(module, RCLASS_SUPER(c));
-	changed = 1;
-      skip:
-	module = RCLASS_SUPER(module);
+	free(methods);
     }
-    if (changed) rb_clear_cache();
 }
 
 /*
@@ -736,16 +534,29 @@ rb_include_module(VALUE klass, VALUE module)
  *     Outer.included_modules   #=> [Mixin]
  */
 
+static void
+rb_mod_included_modules_nosuper(VALUE mod, VALUE ary)
+{
+    VALUE inc_mods = rb_ivar_get(mod, idIncludedModules);
+    if (inc_mods != Qnil) {
+	int i, count = RARRAY_LEN(inc_mods);
+	for (i = 0; i < count; i++) {
+	    VALUE imod = RARRAY_AT(inc_mods, i);
+	    rb_ary_push(ary, imod);
+	    rb_ary_concat(ary, rb_mod_included_modules(imod));
+	}
+    }
+}
+
 VALUE
 rb_mod_included_modules(VALUE mod)
 {
-    VALUE ary = rb_ary_new();
-    VALUE p;
+    VALUE p, ary = rb_ary_new();
 
-    for (p = RCLASS_SUPER(mod); p; p = RCLASS_SUPER(p)) {
-	if (BUILTIN_TYPE(p) == T_ICLASS) {
-	    rb_ary_push(ary, RBASIC(p)->klass);
-	}
+    for (p = mod; p; p = RCLASS_SUPER(p)) {
+	rb_mod_included_modules_nosuper(p, ary);
+	if (RCLASS_MODULE(p))
+	    break;
     }
     return ary;
 }
@@ -772,15 +583,7 @@ rb_mod_included_modules(VALUE mod)
 VALUE
 rb_mod_include_p(VALUE mod, VALUE mod2)
 {
-    VALUE p;
-
-    Check_Type(mod2, T_MODULE);
-    for (p = RCLASS_SUPER(mod); p; p = RCLASS_SUPER(p)) {
-	if (BUILTIN_TYPE(p) == T_ICLASS) {
-	    if (RBASIC(p)->klass == mod2) return Qtrue;
-	}
-    }
-    return Qfalse;
+    return rb_ary_includes(rb_mod_included_modules(mod), mod2);
 }
 
 /*
@@ -799,20 +602,18 @@ rb_mod_include_p(VALUE mod, VALUE mod2)
  *     Math.ancestors   #=> [Math]
  */
 
+static void rb_mod_included_modules_nosuper(VALUE, VALUE);
+
 VALUE
 rb_mod_ancestors(VALUE mod)
 {
     VALUE p, ary = rb_ary_new();
-
+   
     for (p = mod; p; p = RCLASS_SUPER(p)) {
-	if (FL_TEST(p, FL_SINGLETON))
-	    continue;
-	if (BUILTIN_TYPE(p) == T_ICLASS) {
-	    rb_ary_push(ary, RBASIC(p)->klass);
-	}
-	else {
-	    rb_ary_push(ary, p);
-	}
+	rb_ary_push(ary, p);
+	rb_mod_included_modules_nosuper(p, ary);
+	if (RCLASS_MODULE(p))
+	    break;
     }
     return ary;
 }
@@ -862,58 +663,116 @@ ins_methods_pub_i(ID name, long type, VALUE ary)
     return ins_methods_push(name, type, ary, NOEX_PUBLIC);
 }
 
-static int
-method_entry(ID key, NODE *body, st_table *list)
+static void
+rb_objc_push_methods(VALUE ary, VALUE mod, VALUE objc_methods)
 {
-    long type;
+    Method *methods;
+    unsigned int i, count;
 
-    if (key == ID_ALLOCATOR) {
-	return ST_CONTINUE;
+    methods = class_copyMethodList((Class)mod, &count); 
+    if (methods != NULL) {  
+	for (i = 0; i < count; i++) { 
+	    Method method;
+	    SEL sel;
+	    char *sel_name, *p;
+	    VALUE sym;
+	    ID mid;
+	    char buf[100];
+	    BOOL is_ruby_method;
+	    size_t len;
+	   
+	    method = methods[i];
+
+	    sel = method_getName(method);
+	    if (sel == sel_ignored)
+		continue; 
+
+	    sel_name = (char *)sel;
+	    is_ruby_method = rb_objc_method_node3(method_getImplementation(method)) != NULL;
+
+	    if (!is_ruby_method && objc_methods == Qfalse)
+		continue;
+
+	    len = strlen(sel_name);
+
+	    if (is_ruby_method && len > 8 && sel_name[0] == '_' && sel_name[1] == '_' && sel_name[2] == 'r' && sel_name[3] == 'b' && sel_name[4] == '_' && sel_name[len - 1] == '_' && sel_name[len - 2] == '_') {
+		/* retransform ignored selectors, __rb_%s__ -> %s */
+		assert(sizeof buf > len - 7);
+		strncpy(buf, &sel_name[5], len - 7);
+		buf[len - 7] = '\0';
+		sel_name = buf;
+	    }
+	    else {
+		if (is_ruby_method && len >= 3 && sel_name[len - 1] == ':' && isalpha(sel_name[len - 3])) {
+		    assert(len + 3 < sizeof(buf));
+		    if (sel_name[len - 2] == '=') {
+			/* skip foo=: (ruby) -> setFoo: (objc) shortcuts */
+			snprintf(buf, sizeof buf, "set%s", sel_name);
+			buf[4] = toupper(buf[4]);
+			buf[len + 1] = ':';
+			buf[len + 2] = '\0';
+
+			method = class_getInstanceMethod((Class)mod, sel_registerName(buf));
+			if (method != NULL && rb_objc_method_node3(method_getImplementation(method)) == NULL)
+			    continue;
+		    }
+		    else if (sel_name[len - 2] == '?') {
+			/* skip foo?: (ruby) -> isFoo: (objc) shortcuts */
+			snprintf(buf, sizeof buf, "is%s", sel_name);
+			buf[3] = toupper(buf[3]);
+			buf[len] = ':';
+			buf[len + 1] = '\0';
+
+			method = class_getInstanceMethod((Class)mod, sel_registerName(buf));
+			if (method != NULL && rb_objc_method_node3(method_getImplementation(method)) == NULL)
+			    continue;
+		    }
+		}
+		p = strchr(sel_name, ':');
+		if (p != NULL && strchr(p + 1, ':') == NULL) {
+		    /* remove trailing ':' for methods with arity 1 */
+		    assert(len < sizeof(buf));
+		    strncpy(buf, sel_name, len);
+		    buf[len - 1] = '\0';
+		    sel_name = buf;
+		}
+	    }
+	    mid = rb_intern(sel_name);
+	    sym = ID2SYM(mid);
+
+	    if (rb_ary_includes(ary, sym) == Qfalse)
+		rb_ary_push(ary, sym);
+	} 
+	free(methods); 
     }
-    
-    if (!st_lookup(list, key, 0)) {
-	if (body ==0 || !body->nd_body->nd_body) {
-	    type = -1; /* none */
-	}
-	else {
-	    type = VISI(body->nd_body->nd_noex);
-	}
-	st_add_direct(list, key, type);
-    }
-    return ST_CONTINUE;
 }
 
 static VALUE
 class_instance_method_list(int argc, VALUE *argv, VALUE mod, int (*func) (ID, long, VALUE))
 {
     VALUE ary;
-    int recur;
-    st_table *list;
-    VALUE mod_orig = mod;
+    VALUE recur, objc_methods;
+
+    ary = rb_ary_new();
 
     if (argc == 0) {
 	recur = Qtrue;
+	objc_methods = Qfalse;
     }
     else {
-	VALUE r;
-	rb_scan_args(argc, argv, "01", &r);
-	recur = RTEST(r);
+	rb_scan_args(argc, argv, "02", &recur, &objc_methods);
+	if (NIL_P(recur))
+	    recur = Qtrue;
+	if (NIL_P(objc_methods))
+	    objc_methods = Qfalse;
     }
 
-    list = st_init_numtable();
-    for (; mod; mod = RCLASS_SUPER(mod)) {
-	st_foreach(RCLASS_M_TBL(mod), method_entry, (st_data_t)list);
-	if (BUILTIN_TYPE(mod) == T_ICLASS) continue;
-	if (FL_TEST(mod, FL_SINGLETON)) continue;
-	if (!recur) break;
-    }
-    ary = rb_ary_new();
-    st_foreach(list, func, ary);
-    st_free_table(list);
-
-#if WITH_OBJC
-    rb_objc_methods(ary, RCLASS(mod_orig)->ocklass);
-#endif
+    while (mod != 0) {
+	rb_objc_push_methods(ary, mod, objc_methods);
+	if (recur == Qfalse)
+	   break;	   
+	mod = (VALUE)class_getSuperclass((Class)mod); 
+    } 
 
     return ary;
 }
@@ -1039,30 +898,25 @@ rb_class_public_instance_methods(int argc, VALUE *argv, VALUE mod)
 VALUE
 rb_obj_singleton_methods(int argc, VALUE *argv, VALUE obj)
 {
-    VALUE recur, ary, klass;
-    st_table *list;
+    VALUE recur, objc_methods, klass, ary;
 
     if (argc == 0) {
 	recur = Qtrue;
+	objc_methods = Qfalse;
     }
     else {
-	rb_scan_args(argc, argv, "01", &recur);
+	rb_scan_args(argc, argv, "02", &recur, &objc_methods);
     }
+
     klass = CLASS_OF(obj);
-    list = st_init_numtable();
-    if (klass && FL_TEST(klass, FL_SINGLETON)) {
-	st_foreach(RCLASS_M_TBL(klass), method_entry, (st_data_t)list);
+    ary = rb_ary_new();
+
+    do {
+	if (RCLASS_SINGLETON(klass))
+	    rb_objc_push_methods(ary, klass, objc_methods);
 	klass = RCLASS_SUPER(klass);
     }
-    if (RTEST(recur)) {
-	while (klass && (FL_TEST(klass, FL_SINGLETON) || TYPE(klass) == T_ICLASS)) {
-	    st_foreach(RCLASS_M_TBL(klass), method_entry, (st_data_t)list);
-	    klass = RCLASS_SUPER(klass);
-	}
-    }
-    ary = rb_ary_new();
-    st_foreach(list, ins_methods_i, ary);
-    st_free_table(list);
+    while (recur == Qtrue && klass != 0);
 
     return ary;
 }
@@ -1119,36 +973,30 @@ rb_singleton_class(VALUE obj)
     }
 
     DEFER_INTS;
-#if WITH_OBJC
-    if (rb_objc_is_non_native(obj)) {
-	Class ocklass;
-
-	ocklass = *(Class *)obj;
-	klass = rb_objc_import_class(ocklass);
-	if (class_isMetaClass(ocklass))
-	    return klass;
-
-	if (!FL_TEST(klass, FL_SINGLETON))
-	    klass = rb_make_metaclass(obj, klass);
-	return klass;
-    }
-#endif
-    if (FL_TEST(RBASIC(obj)->klass, FL_SINGLETON) &&
+    if (RCLASS_SINGLETON(RBASIC(obj)->klass) &&
 	rb_iv_get(RBASIC(obj)->klass, "__attached__") == obj) {
 	klass = RBASIC(obj)->klass;
     }
     else {
-	klass = rb_make_metaclass(obj, RBASIC(obj)->klass);
+	switch (TYPE(obj)) {
+	    case T_CLASS:
+	    case T_MODULE:
+		klass = *(VALUE *)obj;
+		break;
+	    default:
+		klass = rb_make_metaclass(obj, RBASIC(obj)->klass);
+		break;
+	}
     }
-#if !WITH_OBJC
+#if 0
     if (OBJ_TAINTED(obj)) {
 	OBJ_TAINT(klass);
     }
     else {
-	FL_UNSET(klass, FL_TAINT);
+	OBJ_UNTAINT(klass);
     }
-    if (OBJ_FROZEN(obj)) OBJ_FREEZE(klass);
 #endif
+    if (OBJ_FROZEN(obj)) OBJ_FREEZE(klass);
     ALLOW_INTS;
 
     return klass;
@@ -1227,7 +1075,7 @@ rb_scan_args(int argc, const VALUE *argv, const char *fmt, ...)
 	p++;
     }
 
-    if(*p == '*') {
+    if (*p == '*') {
       rest_arg:
 	var = va_arg(vargs, VALUE*);
 	if (argc > i) {

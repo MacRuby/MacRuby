@@ -14,10 +14,6 @@
 #include "ruby/encoding.h"
 #include "gc.h"
 
-#if WITH_OBJC
-NODE *rb_current_cfunc_node = NULL;
-#endif
-
 #include "insnhelper.h"
 #include "vm_insnhelper.c"
 #include "vm_eval.c"
@@ -95,7 +91,7 @@ vm_set_eval_stack(rb_thread_t * th, VALUE iseqval, const NODE *cref)
 		  th->cfp->sp, block->lfp, iseq->local_size);
 
     if (cref) {
-	th->cfp->dfp[-1] = (VALUE)cref;
+	GC_WB(&th->cfp->dfp[-1], (VALUE)cref);
     }
 }
 
@@ -250,8 +246,8 @@ vm_make_env_each(rb_thread_t * const th, rb_control_frame_t * const cfp,
 
     env->env_size = local_size + 1 + 2;
     env->local_size = local_size;
-    env->env = ALLOC_N(VALUE, env->env_size);
-    env->prev_envval = penvval;
+    GC_WB(&env->env, ALLOC_N(VALUE, env->env_size));
+    GC_WB(&env->prev_envval, penvval);
 
     for (i = 0; i <= local_size; i++) {
 	env->env[i] = envptr[-local_size + i];
@@ -857,19 +853,26 @@ static st_table *vm_opt_method_table = 0;
 static void
 rb_vm_check_redefinition_opt_method(const NODE *node)
 {
+#if !WITH_OBJC
     VALUE bop;
 
-    if (st_lookup(vm_opt_method_table, (st_data_t)node, &bop)) {
+    if (vm_opt_method_table != NULL 
+	&& st_lookup(vm_opt_method_table, (st_data_t)node, &bop)) {
 	ruby_vm_redefined_flag |= bop;
     }
+#endif
 }
 
 static void
 add_opt_method(VALUE klass, ID mid, VALUE bop)
 {
     NODE *node;
+#if WITH_OBJC
+    if ((node = rb_method_node(klass, mid)) != NULL) {
+#else
     if (st_lookup(RCLASS_M_TBL(klass), mid, (void *)&node) &&
 	nd_type(node->nd_body->nd_body) == NODE_CFUNC) {
+#endif
 	st_insert(vm_opt_method_table, (st_data_t)node, (st_data_t)bop);
     }
     else {
@@ -899,9 +902,7 @@ vm_init_redefined_flag(void)
     OP(LTLT, LTLT), (C(String), C(Array));
     OP(AREF, AREF), (C(Array), C(Hash));
     OP(ASET, ASET), (C(Array), C(Hash));
-#if WITH_OBJC
-    OP(Length, LENGTH), (C(Array), C(Hash));
-#else
+#if !WITH_OBJC
     OP(Length, LENGTH), (C(Array), C(String), C(Hash));
 #endif
     OP(Succ, SUCC), (C(Fixnum), C(String), C(Time));
@@ -1724,11 +1725,12 @@ Init_VM(void)
 	rb_iseq_t *iseq;
 
 	/* create vm object */
-	vm->self = Data_Wrap_Struct(rb_cVM, rb_vm_mark, vm_free, vm);
+	GC_WB(&vm->self, Data_Wrap_Struct(rb_cVM, rb_vm_mark, vm_free, vm));
 
 	/* create main thread */
-	th_self = th->self = Data_Wrap_Struct(rb_cThread, rb_thread_mark,
+	th_self = Data_Wrap_Struct(rb_cThread, rb_thread_mark,
 					      thread_free, th);
+	GC_WB(&th->self, th_self);
 	vm->main_thread = th;
 	vm->running_thread = th;
 	th->vm = vm;
@@ -1736,10 +1738,11 @@ Init_VM(void)
 	th->top_self = rb_vm_top_self();
 	rb_thread_set_current(th);
 
-	vm->living_threads = st_init_numtable();
+	GC_WB(&vm->living_threads, st_init_numtable());
 	st_insert(vm->living_threads, th_self, (st_data_t) th->thread_id);
 
 	rb_register_mark_object(iseqval);
+	rb_objc_retain((void *)iseqval);	
 	GetISeqPtr(iseqval, iseq);
 	th->cfp->iseq = iseq;
 	th->cfp->pc = iseq->iseq_encoded;
