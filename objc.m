@@ -1144,12 +1144,16 @@ rb_objc_alias(VALUE klass, ID name, ID def)
     SEL name_sel, def_sel;
     Method method, dest_method;
     bool redo = false;
+    VALUE included_in_classes;
+    int included_in_classes_count = -1;
 
     name_str = rb_id2name(name);
     def_str = rb_id2name(def);
 
     name_sel = sel_registerName(name_str);
     def_sel = sel_registerName(def_str);
+
+    included_in_classes = RCLASS_MODULE(klass) ? rb_attr_get(klass, idIncludedInClasses) : Qnil;
 
     method = class_getInstanceMethod((Class)klass, def_sel);
     if (method == NULL) {
@@ -1173,6 +1177,29 @@ rb_objc_alias(VALUE klass, ID name, ID def)
 
 alias_method:
 
+#define forward_method_definition(sel,imp,types) \
+    do { \
+        if (included_in_classes != Qnil) { \
+            int i; \
+            if (included_in_classes_count == -1) \
+                included_in_classes_count = RARRAY_LEN(included_in_classes); \
+            for (i = 0; i < included_in_classes_count; i++) { \
+                VALUE k = RARRAY_AT(included_in_classes, i); \
+                Method m = class_getInstanceMethod((Class)k, sel); \
+                DLOG("DEFI", "-[%s %s]", class_getName((Class)k), (char *)sel); \
+                if (m != NULL) { \
+                    Method m2 = class_getInstanceMethod((Class)RCLASS_SUPER(k), sel); \
+                    if (m != m2) { \
+                        method_setImplementation(m, imp); \
+                        break; \
+                    } \
+                } \
+                assert(class_addMethod((Class)k, sel, imp, types)); \
+            } \
+        } \
+    } \
+    while (0)
+
     dest_method = class_getInstanceMethod((Class)klass, name_sel);
 
     DLOG("ALIAS", "%c[%s %s -> %s] types=%s direct_override=%d orig_node=%p", 
@@ -1187,6 +1214,7 @@ alias_method:
 		    method_getImplementation(method), 
 		    method_getTypeEncoding(method)));
     }
+    forward_method_definition(name_sel, method_getImplementation(method), method_getTypeEncoding(method));
 
     if (!redo && name_str[strlen(name_str) - 1] != ':') {
 	char buf[100];
@@ -1417,7 +1445,7 @@ rb_objc_register_ruby_method(VALUE mod, ID mid, NODE *body)
     VALUE included_in_classes;
     int included_in_classes_count = - 1;
 
-#define forward_method_definition(ary,sel,imp,types) \
+#define forward_method_definition(sel,imp,types) \
     do { \
 	if (included_in_classes != Qnil) { \
 	    int i; \
@@ -1537,7 +1565,7 @@ rb_objc_register_ruby_method(VALUE mod, ID mid, NODE *body)
     else {
 	assert(class_addMethod((Class)mod, sel, imp, types));
     }
-    forward_method_definition(included_in_classes, sel, imp, types);
+    forward_method_definition(sel, imp, types);
 
     if (node != NULL) {
 	const char *sel_str = (const char *)sel;
@@ -1578,9 +1606,11 @@ rb_objc_register_ruby_method(VALUE mod, ID mid, NODE *body)
 	    else { 
 		assert(class_addMethod((Class)mod, new_sel, imp, new_types));
 	    }
-	    forward_method_definition(included_in_classes, new_sel, imp, new_types);
+	    forward_method_definition(new_sel, imp, new_types);
 	}
     }
+
+#undef forward_method_definition
 }
 
 static inline bool
