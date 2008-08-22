@@ -1404,7 +1404,11 @@ vm_search_normal_superclass2(VALUE klass, VALUE recv, ID mid, NODE **mnp, IMP *i
 	    NODE *mn;
 	    IMP imp;
 	    SEL sel;
+
+	    VALUE saved_imod_super = RCLASS_SUPER(imod);
+	    RCLASS_SUPER(imod) = 0;
 	    mn = rb_objc_method_node(imod, mid, &imp, &sel);
+	    RCLASS_SUPER(imod) = saved_imod_super;
 	    if (imp != NULL) {
 		previous_sklass = klass;
 		*mnp = mn;
