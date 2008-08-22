@@ -899,6 +899,21 @@ rb_objc_ocval_to_rbval(void **ocval, const char *octype, VALUE *rbval)
    
     switch (*octype) {
 	case _C_ID:
+	{
+	    id obj = *(id *)ocval;
+	    if (obj == NULL) {
+		*rbval = Qnil;
+	    }
+	    else if (*(Class *)obj == (Class)rb_cFixnum) {
+		*rbval = LONG2FIX(RFIXNUM(obj)->value);
+	    }
+	    else {
+		*rbval = *(VALUE *)ocval;
+	    }
+	    ok = true;
+	    break;
+	}
+
 	case _C_CLASS:
 	    *rbval = *(void **)ocval == NULL ? Qnil : *(VALUE *)ocval;
 	    ok = true;
@@ -1113,10 +1128,12 @@ rb_objc_call2(VALUE recv, VALUE klass, SEL sel, IMP imp, Method method, bs_eleme
 	    @catch (id e) {
 		rb_objc_exc_raise(e);
 	    }
-	    if (buf[0] == '@' || buf[0] == '#')
-		return ffi_ret == NULL ? Qnil : (VALUE)ffi_ret;
-	    else
-		return Qnil;
+	    if (buf[0] == '@' || buf[0] == '#') {
+		VALUE retval;
+		rb_objc_ocval_to_rbval(&ffi_ret, buf, &retval);
+		return retval;
+	    }
+	    return Qnil;
 	}
     } 
 
