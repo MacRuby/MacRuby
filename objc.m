@@ -400,6 +400,15 @@ rb_objc_octype_to_ffitype(const char *octype)
     return NULL;
 }
 
+static size_t
+rb_objc_octype_size(const char *octype)
+{
+    ffi_type *t = rb_objc_octype_to_ffitype(octype);
+    if (t == NULL)
+	rb_bug("can't determine size of type `%s'", octype);
+    return t->size;
+}
+
 static bool
 rb_objc_rval_to_ocsel(VALUE rval, void **ocval)
 {
@@ -574,6 +583,29 @@ rb_pointer_assign(VALUE recv, VALUE val)
     return val;
 }
 
+static void rb_objc_ocval_to_rbval(void **ocval, const char *octype, VALUE *rbval);
+
+static VALUE
+rb_pointer_aref(VALUE recv, VALUE i)
+{
+    struct RPointer *data;
+    int idx;
+    VALUE ret;
+
+    Data_Get_Struct(recv, struct RPointer, data);
+
+    assert(data != NULL);
+    assert(data->ptr != NULL);
+    assert(data->type != NULL);
+
+    idx = FIX2INT(i);
+
+    rb_objc_ocval_to_rbval(data->ptr + (idx * rb_objc_octype_size(data->type)),
+			   data->type, &ret);
+
+    return ret;
+}
+
 static void *
 rb_objc_rval_to_boxed_data(VALUE rval, bs_element_boxed_t *bs_boxed, bool *ok)
 {
@@ -643,6 +675,8 @@ rb_objc_rval_to_ocval(VALUE rval, const char *octype, void **ocval)
 
     octype = rb_objc_skip_octype_modifiers(octype);
 
+    DLOG("CONV", "ruby obj=%p type=%s dest=%p", (void *)rval, octype, ocval);
+
     if (*octype == _C_VOID)
 	return;
 
@@ -684,22 +718,43 @@ rb_objc_rval_to_ocval(VALUE rval, const char *octype, void **ocval)
 	    break;
 
 	case _C_PTR:
-	    if (NIL_P(rval)) {
-		*(void **)ocval = NULL;
-	    }
-	    else if (TYPE(rval) == T_STRING) {
-		*(char **)ocval = StringValuePtr(rval);
-	    }	
-	    else if (st_lookup(bs_boxeds, (st_data_t)octype + 1, 
-		     (st_data_t *)&bs_boxed)) {
-		void *data;
+	    switch (TYPE(rval)) {
+		case T_NIL:
+		    *(void **)ocval = NULL;
+		    break;
+		case T_STRING:
+		    *(char **)ocval = StringValuePtr(rval);
+		    break;
+		case T_ARRAY:
+		    {
+			int i, count = RARRAY_LEN(rval);
+			void *buf = NULL;
 
-		data = rb_objc_rval_to_boxed_data(rval, bs_boxed, &ok);
-		if (ok)
-		    *(void **)ocval = data;
-	    }
-	    else {
-		ok = false;
+			if (count > 0) {
+			    size_t subs = rb_objc_octype_size(octype + 1);
+			    void *p;
+			    p = buf = xmalloc(subs * count);
+			    for (i = 0; i < count; i++) {
+				rb_objc_rval_to_ocval(RARRAY_AT(rval, i), octype + 1, p);
+				p += subs;
+			    }
+			}
+			*(void **)ocval = buf;
+		    }
+		    break;
+		default:
+		    if (st_lookup(bs_boxeds, (st_data_t)octype + 1, 
+				(st_data_t *)&bs_boxed)) {
+			void *data;
+
+			data = rb_objc_rval_to_boxed_data(rval, bs_boxed, &ok);
+			if (ok)
+			    *(void **)ocval = data;
+		    }
+		    else {
+			ok = false;
+		    }
+		    break;
 	    }
 	    break;
 
@@ -825,6 +880,8 @@ rb_objc_ocval_to_rbval(void **ocval, const char *octype, VALUE *rbval)
     octype = rb_objc_skip_octype_modifiers(octype);
     ok = true;
     
+    DLOG("CONV", "objc obj=%p type=%s dest=%p", ocval, octype, rbval);
+
     {
 	bs_element_boxed_t *bs_boxed;
 
@@ -2932,6 +2989,7 @@ Init_ObjC(void)
     rb_cPointer = rb_define_class("Pointer", rb_cObject);
     rb_undef_alloc_func(rb_cPointer);
     rb_define_method(rb_cPointer, "assign", rb_pointer_assign, 1);
+    rb_define_method(rb_cPointer, "[]", rb_pointer_aref, 1);
 
     rb_ivar_type = rb_intern("@__objc_type__");
 
