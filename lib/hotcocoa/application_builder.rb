@@ -6,7 +6,7 @@ module HotCocoa
     
     ApplicationBundlePackage = "APPL????"
     
-    attr_accessor :name, :load_file, :sources, :overwrite, :icon, :version, :info_string
+    attr_accessor :name, :load_file, :sources, :overwrite, :icon, :version, :info_string, :secure
     
     def self.build(build_options)
       build_options.each do |key, value|
@@ -17,6 +17,7 @@ module HotCocoa
         build_options = YAML.load(File.read(build_options[:file]))
       end
       ab = new
+      ab.secure = (build_options[:secure] == true)
       ab.name = build_options[:name]
       ab.load_file = build_options[:load]
       ab.icon = build_options[:icon] if build_options[:icon] && File.exist?(build_options[:icon])
@@ -52,6 +53,10 @@ module HotCocoa
       end
     end
     
+    def secure?
+      secure
+    end
+    
     private
     
       def check_for_bundle_root
@@ -79,11 +84,22 @@ module HotCocoa
       end
       
       def copy_sources
-        FileUtils.cp_r load_file, resources_root unless sources.include?(load_file)
-        sources.each do |source|
-          destination = File.join(resources_root, source)
-          FileUtils.mkdir_p(File.dirname(destination)) unless File.exist?(File.dirname(destination))
-          FileUtils.cp_r source, destination
+        if secure?
+          data = {}
+          data["/"+load_file] = File.open(load_file, "r") {|f| f.read}
+          sources.each do |source|
+            data["/"+source] = File.open(source, "r") {|f| f.read}
+          end
+          File.open(File.join(resources_root, "vfs.db"), "wb") do |db|
+            db.write Marshal.dump(data)
+          end
+        else
+          FileUtils.cp_r load_file, resources_root unless sources.include?(load_file)
+          sources.each do |source|
+            destination = File.join(resources_root, source)
+            FileUtils.mkdir_p(File.dirname(destination)) unless File.exist?(File.dirname(destination))
+            FileUtils.cp_r source, destination
+          end
         end
       end
       
@@ -146,10 +162,15 @@ module HotCocoa
       
       def write_ruby_main
         File.open(main_ruby_source_file, "wb") do |f|
-          f.puts %{
-            $:.unshift NSBundle.mainBundle.resourcePath.fileSystemRepresentation
-            load '#{load_file}'
-          }
+          if secure?
+            require 'hotcocoa/virtual_file_system'
+            f.puts VirtualFileSystem.code_to_load(load_file)
+          else
+            f.puts %{
+              $:.unshift NSBundle.mainBundle.resourcePath.fileSystemRepresentation
+              load '#{load_file}'
+            }
+          end
         end
       end
       
