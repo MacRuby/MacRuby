@@ -7,7 +7,9 @@ HotCocoa::Mappings.map :application => :NSApplication do
   def handle_block(application, &block)
     begin
       require 'lib/menu'
-      application.menu = application_menu
+      o = Object.new
+      o.extend HotCocoa
+      application.menu = o.application_menu
     rescue LoadError => e
     end
     block.call(application)
