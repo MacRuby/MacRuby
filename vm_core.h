@@ -272,6 +272,7 @@ struct rb_iseq_struct {
     /* klass/module nest information stack (cref) */
     NODE *cref_stack;
     VALUE klass;
+    VALUE previous_sklass;	/* for super in included modules */
 
     /* misc */
     ID defined_method_id;	/* for define_method */
