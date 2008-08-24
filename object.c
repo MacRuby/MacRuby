@@ -2426,6 +2426,7 @@ Init_Object(void)
 {
     rb_cNSObject = rb_cObject = (VALUE)objc_getClass("NSObject");
     rb_const_set(rb_cObject, rb_intern("Object"), rb_cNSObject);
+    rb_set_class_path(rb_cObject, rb_cObject, "NSObject");
     rb_cBasicObject = rb_cObject; // TODO
     rb_cModule = boot_defclass("Module", rb_cObject);
     rb_cClass =  boot_defclass("Class",  rb_cModule);
