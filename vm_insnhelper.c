@@ -1393,35 +1393,44 @@ vm_search_normal_superclass(VALUE klass, VALUE recv)
 
 #if WITH_OBJC
 static inline VALUE
-vm_search_normal_superclass2(VALUE klass, rb_iseq_t *ip, VALUE recv, ID mid, NODE **mnp, IMP *impp, SEL *selp)
+vm_search_normal_superclass2(VALUE klass, VALUE recv, ID mid, NODE **mnp, IMP *impp, SEL *selp)
 {
-    if (ip != NULL) {
-	VALUE ary = rb_attr_get(klass, idIncludedModules);
-	if (ary != Qnil) {
-	    int i, count = RARRAY_LEN(ary);
-	    for (i = 0; i < count; i++) {
-		VALUE imod = RARRAY_AT(ary, i);
-		NODE *mn;
-		IMP imp;
-		SEL sel;
+    static ID idPreviousKlass = 0;
+    CFMutableDictionaryRef iv_dict;
+    VALUE ary, k;
+  
+    if (idPreviousKlass == 0) {
+	idPreviousKlass = rb_intern("__previous_sklass__");
+    }
 
-		VALUE saved_imod_super = RCLASS_SUPER(imod);
-		RCLASS_SUPER(imod) = 0;
-		mn = rb_objc_method_node(imod, mid, &imp, &sel);
-		RCLASS_SUPER(imod) = saved_imod_super;
-		if (imp != NULL) {
-		    ip->previous_sklass = klass;
-		    *mnp = mn;
-		    *impp = imp;
-		    *selp = sel;
-		    return imod;
-		}
+    ary = rb_attr_get(klass, idIncludedModules);
+    if (ary != Qnil) {
+	int i, count = RARRAY_LEN(ary);
+	for (i = 0; i < count; i++) {
+	    VALUE saved_imod_super, imod;
+	    NODE *mn;
+	    IMP imp;
+	    SEL sel;
+
+	    imod = RARRAY_AT(ary, i);
+	    saved_imod_super = RCLASS_SUPER(imod);
+	    RCLASS_SUPER(imod) = 0;
+	    mn = rb_objc_method_node(imod, mid, &imp, &sel);
+	    RCLASS_SUPER(imod) = saved_imod_super;
+	    if (imp != NULL) {
+		rb_ivar_set(imod, idPreviousKlass, klass);
+		*mnp = mn;
+		*impp = imp;
+		*selp = sel;
+		return imod;
 	    }
 	}
-	if (ip->previous_sklass != 0) {
-	    klass = ip->previous_sklass;
-	    ip->previous_sklass = 0;
-	}
+    }
+
+    iv_dict = rb_class_ivar_dict(klass);
+    if (iv_dict != NULL && CFDictionaryGetValueIfPresent((CFDictionaryRef)iv_dict, (const void *)idPreviousKlass, (const void **)&k)) {
+	CFDictionaryRemoveValue(iv_dict, (const void *)idPreviousKlass);
+	klass = k;
     }
     return vm_search_normal_superclass(klass, recv);
 }
@@ -1460,7 +1469,7 @@ vm_search_superclass(rb_control_frame_t *reg_cfp, rb_iseq_t *ip,
 	}
 
 	id = lcfp->method_id;
-	klass = vm_search_normal_superclass2(lcfp->method_class, NULL, recv, id, mnp, impp, selp);
+	klass = vm_search_normal_superclass2(lcfp->method_class, recv, id, mnp, impp, selp);
 
 	if (sigval == Qfalse) {
 	    /* zsuper */
@@ -1468,7 +1477,7 @@ vm_search_superclass(rb_control_frame_t *reg_cfp, rb_iseq_t *ip,
 	}
     }
     else {
-	klass = vm_search_normal_superclass2(ip->klass, ip, recv, id, mnp, impp, selp);
+	klass = vm_search_normal_superclass2(ip->klass, recv, id, mnp, impp, selp);
     }
 
     *idp = id;
