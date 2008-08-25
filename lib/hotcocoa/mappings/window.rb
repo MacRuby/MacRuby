@@ -18,6 +18,15 @@ HotCocoa::Mappings.map :window => :NSWindow do
   }
 
   def init_with_options(window, options)
+    unless options[:frame]
+      size = (options.delete(:size) || [400,400])
+      width, height = size
+      screen_frame = NSScreen.screens[0].visibleFrame
+      center = options.delete(:center)
+      x = screen_frame.origin.x + (center ? (screen_frame.size.width - width)/2    : 30)
+      y = screen_frame.origin.y + (center ? (screen_frame.size.height - height)/2 : (screen_frame.size.height - height - 30))
+      options[:frame] = [x, y, width, height]
+    end
     window = window.initWithContentRect options.delete(:frame), 
                                styleMask:options.delete(:style), 
                                backing:options.delete(:backing), 
