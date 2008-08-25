@@ -1170,15 +1170,22 @@ static NODE *basic_respond_to = 0;
 int
 rb_obj_respond_to(VALUE obj, ID id, int priv)
 {
-#if WITH_OBJC
-    SEL sel = sel_registerName(rb_id2name(id));
-    return class_respondsToSelector((Class)CLASS_OF(obj), sel); 
-#else
     VALUE klass = CLASS_OF(obj);
+#if WITH_OBJC
+    IMP imp;
+    static SEL sel_respondTo = 0;
+    if (sel_respondTo == 0)
+	sel_respondTo = sel_registerName("respond_to?:");
 
+    if (rb_objc_method_node2(klass, sel_respondTo, NULL) == basic_respond_to) {
+	rb_objc_method_node(klass, id, &imp, NULL);
+	return imp != NULL;
+    }
+#else
     if (rb_method_node(klass, idRespond_to) == basic_respond_to) {
 	return rb_method_boundp(klass, id, !priv);
     }
+#endif
     else {
 	VALUE args[2];
 	int n = 0;
@@ -1187,7 +1194,6 @@ rb_obj_respond_to(VALUE obj, ID id, int priv)
 	    args[n++] = Qtrue;
 	return RTEST(rb_funcall2(obj, idRespond_to, n, args));
     }
-#endif
 }
 
 int

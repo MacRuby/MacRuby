@@ -1205,6 +1205,9 @@ rb_ary_dup(VALUE ary)
     VALUE dup;
 
     dup = (VALUE)CFArrayCreateMutableCopy(NULL, 0, (CFArrayRef)ary);
+    if (*(Class *)ary != (Class)rb_cCFArray) {
+	*(Class *)dup = *(Class *)ary;
+    }
     if (OBJ_TAINTED(ary))
 	OBJ_TAINT(dup);
 

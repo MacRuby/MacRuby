@@ -1447,7 +1447,11 @@ rb_class_initialize(int argc, VALUE *argv, VALUE klass)
 	rb_check_inheritable(super);
     }
     RCLASS_SUPER(klass) = super;
+    if ((RCLASS_VERSION(super) & RCLASS_IS_OBJECT_SUBCLASS) != RCLASS_IS_OBJECT_SUBCLASS) {
+	RCLASS_VERSION(klass) ^= RCLASS_IS_OBJECT_SUBCLASS;
+    }
     rb_objc_install_primitives((Class)klass, (Class)super);
+
     rb_class_inherited(super, klass);
     rb_mod_initialize(klass);
 

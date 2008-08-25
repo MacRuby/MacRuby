@@ -68,6 +68,12 @@ rb_objc_init(VALUE rcv)
     return rcv;
 }
 
+static BOOL
+rb_obj_imp_isEqual(void *rcv, SEL sel, void *obj)
+{
+    return rb_funcall((VALUE)rcv, idEq, 1, OC2RB(obj)) == Qtrue;
+}
+
 void
 rb_define_object_special_methods(VALUE klass)
 {
@@ -76,6 +82,11 @@ rb_define_object_special_methods(VALUE klass)
     rb_define_method(klass, "dup", rb_obj_dup, 0);
     rb_define_method(klass, "init", rb_objc_init, 0);
     rb_define_method(klass, "initialize_copy", rb_obj_init_copy, 1);
+
+    static SEL sel_isEqual = 0;
+    if (sel_isEqual == 0)
+	sel_isEqual = sel_registerName("isEqual:");
+    class_addMethod((Class)klass, sel_isEqual, (IMP)rb_obj_imp_isEqual, "c@:@");
 }
 
 static VALUE

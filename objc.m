@@ -1683,7 +1683,6 @@ rb_objc_register_ruby_method(VALUE mod, ID mid, NODE *body)
 	    forward_method_definition(new_sel, imp, new_types);
 	}
     }
-
 #undef forward_method_definition
 }
 
@@ -2574,45 +2573,6 @@ rb_install_boxed_primitives(void)
 	(IMP)imp_rb_boxed_getValue);
 }
 
-#if 0
-static void *
-rb_objc_allocate(void *klass)
-{
-    return (void *)rb_obj_alloc(rb_objc_import_class(klass));
-}
-
-static void *
-imp_rb_obj_alloc(void *rcv, SEL sel)
-{
-    return rb_objc_allocate(rcv);
-}
-
-static void *
-imp_rb_obj_allocWithZone(void *rcv, SEL sel, void *zone)
-{
-    return rb_objc_allocate(rcv);
-}
-
-static void *
-imp_rb_obj_init(void *rcv, SEL sel)
-{
-    rb_funcall((VALUE)rcv, idInitialize, 0);
-    return rcv;
-}
-
-static void
-rb_install_alloc_methods(void)
-{
-    Class klass = RCLASS_OCID(rb_cObject)->isa;
-
-    rb_objc_install_method(klass, @selector(alloc), (IMP)imp_rb_obj_alloc);
-    rb_objc_install_method(klass, @selector(allocWithZone:), 
-	(IMP)imp_rb_obj_allocWithZone);
-    rb_objc_install_method(RCLASS_OCID(rb_cObject), @selector(init), 
-	(IMP)imp_rb_obj_init);
-}
-#endif
-
 static const char *
 resources_path(char *path, size_t len)
 {
@@ -2919,7 +2879,7 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
     if (new_fmt != NULL) {
 	fmt = (VALUE)CFStringCreateWithCString(NULL, new_fmt, 
 		kCFStringEncodingUTF8);
-	free(new_fmt);
+	xfree(new_fmt);
 	CFMakeCollectable((void *)fmt);
     }  
 
@@ -3009,8 +2969,6 @@ Init_ObjC(void)
     rb_define_method(rb_cPointer, "[]", rb_pointer_aref, 1);
 
     rb_ivar_type = rb_intern("@__objc_type__");
-
-    //rb_install_alloc_methods();
 
     rb_define_global_function("load_bridge_support_file", rb_objc_load_bs, 1);
 
