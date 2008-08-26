@@ -1886,10 +1886,10 @@ opt_aref
 (VALUE val)
 {
     if (!SPECIAL_CONST_P(recv) && BASIC_OP_UNREDEFINED_P(BOP_AREF)) {
-	if (HEAP_CLASS_OF(recv) == rb_cArray && FIXNUM_P(obj)) {
+	if (HEAP_CLASS_OF(recv) == rb_cCFArray && FIXNUM_P(obj)) {
 	    val = rb_ary_entry(recv, FIX2LONG(obj));
 	}
-	else if (HEAP_CLASS_OF(recv) == rb_cHash) {
+	else if (HEAP_CLASS_OF(recv) == rb_cCFHash) {
 	    val = rb_hash_aref(recv, obj);
 	}
 	else {
@@ -1917,11 +1917,11 @@ opt_aset
 {
     if (!SPECIAL_CONST_P(recv) &&
 	BASIC_OP_UNREDEFINED_P(BOP_ASET)) {
-	if (HEAP_CLASS_OF(recv) == rb_cArray && FIXNUM_P(obj)) {
+	if (HEAP_CLASS_OF(recv) == rb_cCFArray && FIXNUM_P(obj)) {
 	    rb_ary_store(recv, FIX2LONG(obj), set);
 	    val = set;
 	}
-	else if (HEAP_CLASS_OF(recv) == rb_cHash) {
+	else if (HEAP_CLASS_OF(recv) == rb_cCFHash) {
 	    rb_hash_aset(recv, obj, set);
 	    val = set;
 	}
