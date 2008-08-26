@@ -14,6 +14,8 @@ module LayoutManaged
 end
 
 class LayoutOptions
+
+  VALID_EXPANSIONS = [nil, :height, :width, [:height, :width], [:width, :height]]
   
   attr_accessor :defaults_view
   attr_reader   :view
@@ -24,11 +26,11 @@ class LayoutOptions
   #    Whether the view is packed at the start or the end of the packing view.
   #    Default value is true.
   #
-  #  :expand -> bool
+  #  :expand -> :vertical, :horizontal, [:vertical, :horizontal]
   #    Whether the view's first dimension (width for horizontal and height for vertical)
   #    should be expanded to the maximum possible size, and should be variable according
   #    to the packing view frame.
-  #    Default value is false.
+  #    Default value is nil.
   #
   #  :padding         -> float
   #  :left_padding    -> float
@@ -40,27 +42,29 @@ class LayoutOptions
   #    padding flags are ignored.
   #    Default value is 0.0 for all flags.
   #
-  #  :other -> mode
-  #    Controls the view's second dimension (height for horizontal and width for vertical).
+  #  :align -> mode
+  #    Controls the view's alignment if its not expanded in the other dimension
   #    Modes can be:
-  #      :align_head
-  #        Will be aligned to the head (start) of the packing area.
-  #      :align_center
-  #        Will be centered inside the packing area.
-  #      :align_tail
-  #        Will be aligned to the tail (end) of the packing area.
-  #      :fill
-  #        Will be filled to the maximum size.
+  #      :left
+  #        For horizontal layouts, align left
+  #      :center
+  #        Align center for horizontal or vertical layouts
+  #      :right
+  #        For horizontal layouts, align right
+  #      :top
+  #        For vertical layouts, align top
+  #      :bottom
+  #        For vertical layouts, align bottom
   def initialize(view, options={})
     @view = view
     @start          = options[:start]
     @expand         = options[:expand]
     @padding        = options[:padding]
-    @left_padding   = options[:left_padding]    || @padding
-    @right_padding  = options[:right_padding]   || @padding
-    @top_padding    = options[:top_padding]     || @padding
-    @bottom_padding = options[:bottom_padding]  || @padding
-    @other          = options[:other]
+    @left_padding   = @padding || options[:left_padding]
+    @right_padding  = @padding || options[:right_padding]
+    @top_padding    = @padding || options[:top_padding]
+    @bottom_padding = @padding || options[:bottom_padding]
+    @align          = options[:align]
     @defaults_view  = options[:defaults_view]
   end
   
@@ -81,17 +85,30 @@ class LayoutOptions
   
   def expand=(value)
     return if value == @expand
+    unless VALID_EXPANSIONS.include?(value)
+      raise ArgumentError, "Expand must be nil, :height, :width or [:width, :height] not #{value.inspect}"
+    end
     @expand = value
     update_layout_views!
   end
   
-  def expand?
+  def expand
     return @expand unless @expand.nil?
     if in_layout_view?
-      @view.superview.default_layout.expand?
+      @view.superview.default_layout.expand
     else
       false
     end
+  end
+
+  def expand_width?
+    e = self.expand
+    e == :width || (e.respond_to?(:include?) && e.include?(:width))
+  end
+
+  def expand_height?
+    e = self.expand
+    e == :height || (e.respond_to?(:include?) && e.include?(:height))
   end
   
   def left_padding=(value)
@@ -158,18 +175,18 @@ class LayoutOptions
     end
   end
   
-  def other
-    return @other unless @other.nil?
+  def align
+    return @align unless @align.nil?
     if in_layout_view?
-      @view.superview.default_layout.other
+      @view.superview.default_layout.align
     else
-      :align_head
+      :left
     end
   end
 
-  def other=(value)
-    return if value == @other
-    @other = value
+  def align=(value)
+    return if value == @align
+    @align = value
     update_layout_views!
   end
   
@@ -185,7 +202,7 @@ class LayoutOptions
   end
   
   def inspect
-    "#<#{self.class} start=#{start?}, expand=#{expand?}, left_padding=#{left_padding}, right_padding=#{right_padding}, top_padding=#{top_padding}, bottom_padding=#{bottom_padding}, other=#{other.inspect}, view=#{view.inspect}>"
+    "#<#{self.class} start=#{start?}, expand=#{expand.inspect}, left_padding=#{left_padding}, right_padding=#{right_padding}, top_padding=#{top_padding}, bottom_padding=#{bottom_padding}, align=#{align.inspect}, view=#{view.inspect}>"
   end
 
   def update_layout_views!
@@ -322,7 +339,7 @@ class LayoutView < NSView
     expandable_views = 0
     subviews.each do |view|
       next if !view.respond_to?(:layout) || view.layout.nil?
-      if view.layout.expand?
+      if (vertical ? view.layout.expand_height? : view.layout.expand_width?)
         expandable_views += 1
       else
         expandable_size -= vertical ? view.frameSize.height : view.frameSize.width
@@ -354,7 +371,7 @@ class LayoutView < NSView
         view_frame.origin.y = @margin
       end
 
-      if options.expand?
+      if (vertical ? options.expand_height? : options.expand_width?)
         if vertical
           view_frame.size.height = expandable_size
         else
@@ -362,30 +379,31 @@ class LayoutView < NSView
         end
         subview_dimension = expandable_size
       end
-
-      case options.other
-      when :fill
+      
+      if (vertical ? options.expand_width? : options.expand_height?)
         if vertical
           view_frame.size.width = view_size.width - (2 * @margin)
         else
           view_frame.size.height = view_size.height - (2 * @margin)
-        end           
-
-      when :align_head
-        # Nothing to do
-
-      when :align_center
-        if vertical
-          view_frame.origin.x = (view_size.width / 2.0) - (subview_size.width / 2.0)
-        else
-          view_frame.origin.y = (view_size.height / 2.0) - (subview_size.height / 2.0)
         end
+      else
+        case options.align
+        when :left, :bottom
+          # Nothing to do
 
-      when :align_tail
-        if vertical
-          view_frame.origin.x = view_size.width - subview_size.width - @margin
-        else
-          view_frame.origin.y = view_size.height - subview_size.height - @margin
+        when :center
+          if vertical
+            view_frame.origin.x = (view_size.width / 2.0) - (subview_size.width / 2.0)
+          else
+            view_frame.origin.y = (view_size.height / 2.0) - (subview_size.height / 2.0)
+          end
+
+        when :right, :top
+          if vertical
+            view_frame.origin.x = view_size.width - subview_size.width - @margin
+          else
+            view_frame.origin.y = view_size.height - subview_size.height - @margin
+          end
         end
       end
 
