@@ -10,4 +10,3 @@ application :name => "Web View" do |app|
     win << web
   end
 end
-

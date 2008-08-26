@@ -41,9 +41,9 @@ class MyView < NSView
 end
 
 def create_slider_layout(label, &block)
-  layout_view :mode => :horizontal, :frame => [0, 0, 0, 24], :layout => {:other => :fill} do |view|
-    view << label(:text => label, :layout => {:other => :align_center})
-    s = slider :min => 0, :max => 50, :tic_marks => 20, :on_action => block, :layout => {:expand => true, :other => :align_center}
+  layout_view :mode => :horizontal, :frame => [0, 0, 0, 24], :layout => {:expand => :width} do |view|
+    view << label(:text => label, :layout => {:align => :center})
+    s = slider :min => 0, :max => 50, :tic_marks => 20, :on_action => block, :layout => {:expand => :width, :align => :center}
     s.setFrameSize([0, 24]) # TODO sizeToFit doesn't set the height for us
     view << s
   end
@@ -71,22 +71,23 @@ application :name => "Layout View" do |app|
       
       selected_view = nil
       expand_b = nil
+      expand_h = nil
       left_padding_s = right_padding_s = top_padding_s = bottom_padding_s = nil
       other_p = nil
-      views_p = popup :items => ['No View'], :layout => {:other => :fill}
+      views_p = popup :items => ['No View'], :layout => {:expand => :width}
       views_p.on_action do |p| 
         selected_view = views[p.items.selected_index]
         options = selected_view.layout
-        expand_b.state = options.expand? ? :on : :off
+        expand_b.state = options.expand_width?
+        expand_h.state = options.expand_height?
         left_padding_s.intValue = options.left_padding
         right_padding_s.intValue = options.right_padding
         top_padding_s.intValue = options.top_padding
         bottom_padding_s.intValue = options.bottom_padding
-        other_p.items.selected = case options.other
-          when :align_head then 0
-          when :align_center then 1
-          when :align_tail then 2
-          when :fill then 3
+        other_p.items.selected = case options.align
+          when :left then 0
+          when :center then 1
+          when :right then 2
         end
       end
  
@@ -101,12 +102,38 @@ application :name => "Layout View" do |app|
       end
       pane.view << add_b
       pane.view << views_p
-      expand_b = button :title => "Expand", :type => :switch, :state => :off
+      expand_b = button :title => "Expand width", :type => :switch, :state => :off
+      expand_h = button :title => "Expand height", :type => :switch, :state => :off
       expand_b.on_action do |b| 
-        selected_view.reset_size unless b.on?
-        selected_view.layout.expand = b.on?
+        selected_view.reset_size
+        selected_view.layout.expand = if expand_b.on?
+          if expand_h.on?
+            [:width, :height]
+          else
+            :width
+          end
+        elsif expand_h.on?
+          :height
+        else
+          nil
+        end
+      end
+      expand_h.on_action do |b|
+        selected_view.reset_size
+        selected_view.layout.expand = if expand_b.on?
+          if expand_h.on?
+            [:width, :height]
+          else
+            :width
+          end
+        elsif expand_h.on?
+          :height
+        else
+          nil
+        end
       end
       pane.view << expand_b
+      pane.view << expand_h
 
       v = create_slider_layout('Left') { |x| selected_view.layout.left_padding = x.to_i }
       left_padding_s = v.subviews[1]
@@ -124,12 +151,12 @@ application :name => "Layout View" do |app|
       bottom_padding_s = v.subviews[1]
       pane.view << v
   
-      pane.view << layout_view(:mode => :horizontal, :frame => [0, 0, 0, 24], :layout => {:other => :fill}) do |view|
-        view << label(:text => 'Other', :layout => {:other => :align_center})
-        view << popup(:items => ['Align Head', 'Align Center', 'Align Tail', 'Fill'], :layout => {:expand => true, :other => :align_center}) do |p|
+      pane.view << layout_view(:mode => :horizontal, :frame => [0, 0, 0, 24], :layout => {:expand => :width}) do |view|
+        view << label(:text => 'Align', :layout => {:align => :center})
+        view << popup(:items => ['Left/Bottom', 'Center', 'Right/Top'], :layout => {:expand => :width, :align => :center}) do |p|
           p.on_action do  |x|
             selected_view.reset_size
-            selected_view.layout.other = x.items.selected.downcase.tr(' ', '_').intern
+            selected_view.layout.align = [:left, :center, :right][p.items.selected_index-1]
           end
           other_p = p
         end
