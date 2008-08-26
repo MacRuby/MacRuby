@@ -657,7 +657,7 @@ new_insn_core(rb_iseq_t *iseq, int line_no,
     iobj->link.next = 0;
     iobj->insn_id = insn_id;
     iobj->line_no = line_no;
-    iobj->operands = argv;
+    GC_WB(&iobj->operands, argv);
     iobj->operand_size = argc;
     iobj->sc_state = 0;
     return iobj;
@@ -1301,9 +1301,9 @@ iseq_set_sequence(rb_iseq_t *iseq, LINK_ANCHOR *anchor)
     }
 #endif
 
-    iseq->iseq = (void *)generated_iseq;
+    GC_WB(&iseq->iseq, generated_iseq);
     iseq->iseq_size = pos;
-    iseq->insn_info_table = insn_info_table;
+    GC_WB(&iseq->insn_info_table, insn_info_table);
     iseq->insn_info_size = k;
     iseq->stack_max = stack_max;
 
