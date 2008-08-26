@@ -2169,15 +2169,11 @@ generate_const_name(char *name)
 }
 
 static void
-bs_parse_cb(const char *path, bs_element_type_t type, void *value, void *ctx)
+bs_parse_cb(bs_parser_t *parser, const char *path, bs_element_type_t type, 
+            void *value, void *ctx)
 {
     bool do_not_free = false;
-    static CFMutableDictionaryRef rb_cObject_dict = NULL;
-
-    if (rb_cObject_dict == NULL) {
-	rb_cObject_dict = rb_class_ivar_dict(rb_cObject);
-	assert(rb_cObject_dict != NULL);
-    }
+    CFMutableDictionaryRef rb_cObject_dict = (CFMutableDictionaryRef)ctx;
 
     switch (type) {
 	case BS_ELEMENT_ENUM:
@@ -2359,27 +2355,47 @@ bs_parse_cb(const char *path, bs_element_type_t type, void *value, void *ctx)
 	bs_element_free(type, value);
 }
 
+extern VALUE enable_method_added;
+
+static bs_parser_t *bs_parser = NULL;
+
+static void
+rb_objc_load_bridge_support(const char *path, int options)
+{
+    char *error;
+    bool ok;
+    CFMutableDictionaryRef rb_cObject_dict;  
+
+    if (bs_parser == NULL) {
+	bs_parser = bs_parser_new();
+    }
+
+    rb_cObject_dict = rb_class_ivar_dict(rb_cObject);
+    assert(rb_cObject_dict != NULL);
+
+    enable_method_added = Qfalse;
+    ok = bs_parser_parse(bs_parser, path, options,
+			 bs_parse_cb, rb_cObject_dict, &error);
+    enable_method_added = Qtrue;
+    if (!ok) {
+	rb_raise(rb_eRuntimeError, error);
+    }
+}
+
 static VALUE
 rb_objc_load_bs(VALUE recv, VALUE path)
 {
-    char *error;
-
-    if (!bs_parse(StringValuePtr(path), 0, bs_parse_cb, NULL, &error))
-	rb_raise(rb_eRuntimeError, error);
-
+    rb_objc_load_bridge_support(StringValuePtr(path), 0);
     return recv;
 }
 
 static void
-load_bridge_support(const char *framework_path)
+rb_objc_search_and_load_bridge_support(const char *framework_path)
 {
     char path[PATH_MAX];
-    char *error;
 
     if (bs_find_path(framework_path, path, sizeof path)) {
-	if (!bs_parse(path, BS_PARSE_OPTIONS_LOAD_DYLIBS, bs_parse_cb, NULL, 
-		      &error))
-	    rb_raise(rb_eRuntimeError, error);
+	rb_objc_load_bridge_support(path, BS_PARSE_OPTIONS_LOAD_DYLIBS);
     }
 }
 
@@ -2505,7 +2521,7 @@ success:
 		 [[error description] UTF8String]); 
     }
 
-    load_bridge_support(cstr);
+    rb_objc_search_and_load_bridge_support(cstr);
     reload_class_constants();
 
     return Qtrue;

@@ -358,10 +358,33 @@ bails:
   return false;
 }
 
-static bool 
-_bs_parse(const char *path, char **loaded_paths, 
-          bs_parse_options_t options, bs_parse_callback_t callback, 
-          void *context, char **error)
+struct _bs_parser {
+  CFMutableArrayRef loaded_paths; 
+};
+
+bs_parser_t *
+bs_parser_new(void)
+{
+  struct _bs_parser *parser;
+
+  parser = (struct _bs_parser *)malloc(sizeof(struct _bs_parser));
+  parser->loaded_paths = 
+    CFArrayCreateMutable(kCFAllocatorMalloc, 0, &kCFTypeArrayCallBacks);
+
+  return parser;
+}
+
+void
+bs_parser_free(bs_parser_t *parser)
+{
+  CFRelease(parser->loaded_paths);
+  free(parser);
+}
+
+bool 
+bs_parser_parse(bs_parser_t *parser, const char *path, 
+		bs_parse_options_t options, bs_parse_callback_t callback, 
+		void *context, char **error)
 {
   xmlTextReaderPtr reader;
   bs_element_function_t *func;
@@ -374,22 +397,19 @@ _bs_parse(const char *path, char **loaded_paths,
   int func_ptr_arg_depth;
   bs_element_function_pointer_t *func_ptr;
   bool success;
+  CFStringRef cf_path;
 
   if (callback == NULL)
     return false;
 
-  for (i = 0; i < PATH_MAX; i++) {
-    char *p = loaded_paths[i];
-    if (p == NULL) {
-      loaded_paths[i] = strdup(path);
-      break;
-    }
-    else if (strcmp(p, path) == 0) {
-      /* already loaded */
-      return true;
-    }
-  }  
-  
+  cf_path = CFStringCreateWithFileSystemRepresentation(kCFAllocatorMalloc, 
+    path);
+  if (CFArrayContainsValue(parser->loaded_paths, CFRangeMake(0, CFArrayGetCount(parser->loaded_paths)), cf_path)) {
+    /* already loaded */
+    CFRelease(cf_path);
+    return true;
+  }
+
   //printf("parsing %s\n", path);
 
 #define BAIL(fmt, args...)                      \
@@ -483,8 +503,8 @@ _bs_parse(const char *path, char **loaded_paths,
                                        sizeof bs_path);
           free(depends_on_path);
           if (bs_path_found) {
-            if (!_bs_parse(bs_path, loaded_paths, options, callback, context, 
-                           error))
+            if (!bs_parser_parse(parser, bs_path, options, callback, context, 
+                                 error))
               return false;
           }
           break;
@@ -1087,7 +1107,7 @@ _bs_parse(const char *path, char **loaded_paths,
     }
 
     if (bs_element != NULL)
-      (*callback)(path, bs_element_type, bs_element, context);
+      (*callback)(parser, path, bs_element_type, bs_element, context);
   }
   
   success = true;
@@ -1097,6 +1117,11 @@ bails:
     free(protocol_name);
 
   xmlFreeTextReader(reader);
+
+  if (success) {
+    CFArrayAppendValue(parser->loaded_paths, cf_path);
+  }
+  CFRelease(cf_path);
 
   if (success && options == BS_PARSE_OPTIONS_LOAD_DYLIBS) {
     char *p, buf[PATH_MAX];
@@ -1113,26 +1138,6 @@ bails:
   }
 
   return success;
-}
-
-bool 
-bs_parse(const char *path, bs_parse_options_t options, 
-         bs_parse_callback_t callback, void *context, char **error)
-{
-  char **loaded_paths;
-  bool status;
-  unsigned i;
-  
-  loaded_paths = (char **)alloca(sizeof(char *) * PATH_MAX);
-  ASSERT_ALLOC(loaded_paths);
-  memset(loaded_paths, 0, PATH_MAX);
-  
-  status = _bs_parse(path, loaded_paths, options, callback, context, error);
-
-  for (i = 0; i < PATH_MAX && loaded_paths[i] != NULL; i++)
-    free(loaded_paths[i]);
-
-  return status;
 }
 
 #define SAFE_FREE(x) do { if ((x) != NULL) free(x); } while (0)
@@ -1294,56 +1299,4 @@ bs_element_free(bs_element_type_t type, void *value)
 	      value, type);
   }
   free(value);
-}
-
-#if 0
-struct bs_register_entry {
-  bs_parse_callback_t *callback;
-  void *context;
-};
-
-static struct bs_register_entry **bs_register_entries = NULL;
-static unsigned bs_register_entries_count = 0;
-static bs_register_token_t tokens = 0;
-
-bs_register_token_t 
-bs_register(bs_parse_callback_t *callback, void *context)
-{
-  struct bs_register_entry *entry;
-
-  entry = (struct bs_register_entry *)malloc(sizeof(struct bs_register_entry));
-  ASSERT_ALLOC(entry);
-  
-  entry->callback = callback;
-  entry->context = context;
-
-  if (bs_register_entries == NULL) {
-    assert(bs_register_entries_count == 0);
-    bs_register_entries = (struct bs_register_entry **)
-      malloc(sizeof(struct bs_register_entry *));
-  }
-  else {
-    assert(bs_register_entries_count > 0);
-    
-  }
-}
-#endif
-
-bs_register_token_t 
-bs_register(bs_parse_callback_t *callback, void *context)
-{
-  /* TODO */
-  return 1;
-}
-
-void 
-bs_unregister(bs_register_token_t token)
-{
-  /* TODO */
-}
-
-void 
-bs_notify(bs_element_type_t type, void *value)
-{
-  /* TODO */
 }
