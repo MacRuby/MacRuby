@@ -626,5 +626,5 @@ task :clean => ['clean:local', 'clean:ext']
 desc "Build MacRuby and extensions"
 task :all => [:macruby, :extensions]
 
-desc "Run the tests"
+desc "Run all tests"
 task :test => [:sample_test, :unit_tests]
