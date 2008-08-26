@@ -14,6 +14,7 @@
 #include "ruby/util.h"
 #include "ruby/signal.h"
 #include "id.h"
+#include "objc.h"
 
 #include <crt_externs.h>
 
@@ -768,7 +769,7 @@ rb_hash_reject_bang(VALUE hash)
 static VALUE
 rb_hash_reject(VALUE hash)
 {
-    return rb_hash_delete_if(rb_obj_dup(hash));
+    return rb_hash_delete_if(rb_hash_dup(hash));
 }
 
 /*
@@ -1529,7 +1530,7 @@ static VALUE
 rb_hash_compare_by_id(VALUE hash)
 {
     rb_hash_modify(hash);
-    HASH_KEY_CALLBACKS(hash)->equal = NULL;
+//    HASH_KEY_CALLBACKS(hash)->equal = NULL;
     return hash;
 }
 
@@ -1545,7 +1546,10 @@ rb_hash_compare_by_id(VALUE hash)
 static VALUE
 rb_hash_compare_by_id_p(VALUE hash)
 {
-    return HASH_KEY_CALLBACKS(hash)->equal == NULL ? Qtrue : Qfalse;
+    return Qfalse;
+//    return HASH_KEY_CALLBACKS(hash) != &kCFTypeDictionaryKeyCallBacks 
+//	&& HASH_KEY_CALLBACKS(hash)->equal == NULL
+//	    ? Qtrue : Qfalse;
 }
 
 static int path_tainted = -1;
@@ -2340,29 +2344,17 @@ imp_rb_hash_containsObject(void *rcv, SEL sel, void *obj)
 void
 rb_objc_install_hash_primitives(Class klass)
 {
-#define INSTALL_METHOD(selname, imp) 				\
-    do {							\
-	SEL sel = sel_registerName(selname);			\
-     	Method method = class_getInstanceMethod(klass, sel);	\
-     	assert(method != NULL);					\
-     	assert(class_addMethod(klass, sel, (IMP)imp, 		\
-	    method_getTypeEncoding(method)));			\
-    }								\
-    while(0)
-
-    INSTALL_METHOD("count", imp_rb_hash_count);
-    INSTALL_METHOD("keyEnumerator", imp_rb_hash_keyEnumerator);
-    INSTALL_METHOD("objectForKey:", imp_rb_hash_objectForKey);
-    INSTALL_METHOD("getObjects:andKeys:", imp_rb_hash_getObjectsAndKeys);
-    INSTALL_METHOD("setObject:forKey:", imp_rb_hash_setObjectForKey);
-    INSTALL_METHOD("removeObjectForKey:", imp_rb_hash_removeObjectForKey);
-    INSTALL_METHOD("removeAllObjects", imp_rb_hash_removeAllObjects);
-    INSTALL_METHOD("isEqual:", imp_rb_hash_isEqual);
-    INSTALL_METHOD("containsObject:", imp_rb_hash_containsObject);
+    rb_objc_install_method2(klass, "count", (IMP)imp_rb_hash_count);
+    rb_objc_install_method2(klass, "keyEnumerator", (IMP)imp_rb_hash_keyEnumerator);
+    rb_objc_install_method2(klass, "objectForKey:", (IMP)imp_rb_hash_objectForKey);
+    rb_objc_install_method2(klass, "getObjects:andKeys:", (IMP)imp_rb_hash_getObjectsAndKeys);
+    rb_objc_install_method2(klass, "setObject:forKey:", (IMP)imp_rb_hash_setObjectForKey);
+    rb_objc_install_method2(klass, "removeObjectForKey:", (IMP)imp_rb_hash_removeObjectForKey);
+    rb_objc_install_method2(klass, "removeAllObjects", (IMP)imp_rb_hash_removeAllObjects);
+    rb_objc_install_method2(klass, "isEqual:", (IMP)imp_rb_hash_isEqual);
+    rb_objc_install_method2(klass, "containsObject:", (IMP)imp_rb_hash_containsObject);
 
     rb_define_alloc_func((VALUE)klass, hash_alloc);
-
-#undef INSTALL_METHOD
 }
 
 /*

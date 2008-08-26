@@ -133,6 +133,12 @@ rb_class_real(VALUE cl)
     while (RCLASS_SINGLETON(cl)) {
 	cl = RCLASS_SUPER(cl);
     }
+    if (cl == rb_cCFString)
+	return rb_cNSMutableString;
+    if (cl == rb_cCFArray)
+	return rb_cNSMutableArray;
+    if (cl == rb_cCFHash)
+	return rb_cNSMutableHash;
     return cl;
 }
 
@@ -1451,6 +1457,8 @@ rb_class_initialize(int argc, VALUE *argv, VALUE klass)
 	RCLASS_VERSION(klass) ^= RCLASS_IS_OBJECT_SUBCLASS;
     }
     rb_objc_install_primitives((Class)klass, (Class)super);
+    if (super == rb_cObject)
+	rb_define_object_special_methods(klass);
 
     rb_class_inherited(super, klass);
     rb_mod_initialize(klass);
@@ -1500,6 +1508,11 @@ rb_class_new_instance(int argc, VALUE *argv, VALUE klass)
     VALUE obj, init_obj, p;
 
     obj = rb_obj_alloc(klass);
+
+    /* Because we cannot override +[NSObject initialize] */
+    if (klass == rb_cClass)
+	return rb_class_initialize(argc, argv, obj);
+
     init_obj = rb_obj_call_init(obj, argc, argv);
 
     if (init_obj != Qnil) {
@@ -2538,7 +2551,6 @@ Init_Object(void)
     rb_define_private_method(rb_cModule, "attr_accessor", rb_mod_attr_accessor, -1);
 
     rb_define_alloc_func(rb_cModule, rb_module_s_alloc);
-    rb_define_method(rb_cModule, "initialize", rb_mod_initialize, 0);
     rb_define_method(rb_cModule, "instance_methods", rb_class_instance_methods, -1); /* in class.c */
     rb_define_method(rb_cModule, "public_instance_methods", 
 		     rb_class_public_instance_methods, -1);    /* in class.c */
@@ -2565,7 +2577,6 @@ Init_Object(void)
 
     rb_define_method(rb_cClass, "allocate", rb_obj_alloc, 0);
     rb_define_method(rb_cClass, "new", rb_class_new_instance, -1);
-    rb_define_method(rb_cClass, "initialize", rb_class_initialize, -1);
     rb_define_method(rb_cClass, "initialize_copy", rb_class_init_copy, 1); /* in class.c */
     rb_define_alloc_func(rb_cClass, rb_class_s_alloc);
     rb_undef_method(rb_cClass, "extend_object");

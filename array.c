@@ -13,6 +13,7 @@
 #include "ruby/util.h"
 #include "ruby/st.h"
 #include "id.h"
+#include "objc.h"
 
 VALUE rb_cArray;
 VALUE rb_cCFArray;
@@ -3377,41 +3378,27 @@ imp_rb_array_cfindexOfObjectInRange(void *rcv, SEL sel, void *obj,
 void
 rb_objc_install_array_primitives(Class klass)
 {
-#define INSTALL_METHOD(selname, imp)                            \
-    do {                                                        \
-	SEL sel = sel_registerName(selname);                    \
-	Method method = class_getInstanceMethod(klass, sel);    \
-	assert(method != NULL);                                 \
-	assert(class_addMethod(klass, sel, (IMP)imp,            \
-		    method_getTypeEncoding(method)));           \
-    }                                                           \
-    while(0)
-
-    INSTALL_METHOD("count", imp_rb_array_count);
-    INSTALL_METHOD("objectAtIndex:", imp_rb_array_objectAtIndex);
-    INSTALL_METHOD("insertObject:atIndex:", imp_rb_array_insertObjectAtIndex);
-    INSTALL_METHOD("removeObjectAtIndex:", imp_rb_array_removeObjectAtIndex);
-    INSTALL_METHOD("replaceObjectAtIndex:withObject:", 
-	imp_rb_array_replaceObjectAtIndexWithObject);
-    INSTALL_METHOD("replaceObjectsInRange:withObjects:count:",
-	imp_rb_array_replaceObjectsInRangeWithObjectsCount);
-    INSTALL_METHOD("addObject:", imp_rb_array_addObject);
+    rb_objc_install_method2(klass, "count", (IMP)imp_rb_array_count);
+    rb_objc_install_method2(klass, "objectAtIndex:", (IMP)imp_rb_array_objectAtIndex);
+    rb_objc_install_method2(klass, "insertObject:atIndex:", (IMP)imp_rb_array_insertObjectAtIndex);
+    rb_objc_install_method2(klass, "removeObjectAtIndex:", (IMP)imp_rb_array_removeObjectAtIndex);
+    rb_objc_install_method2(klass, "replaceObjectAtIndex:withObject:", 
+	(IMP)imp_rb_array_replaceObjectAtIndexWithObject);
+    rb_objc_install_method2(klass, "replaceObjectsInRange:withObjects:count:",
+	(IMP)imp_rb_array_replaceObjectsInRangeWithObjectsCount);
+    rb_objc_install_method2(klass, "addObject:", (IMP)imp_rb_array_addObject);
 
     /* This is to work around a bug where CF will try to call an non-existing 
      * method. 
      */
-    if (true) {
-	INSTALL_METHOD("_cfindexOfObject:range:",
-		imp_rb_array_cfindexOfObjectInRange);
-	Method m = class_getInstanceMethod(klass, 
+    rb_objc_install_method2(klass, "_cfindexOfObject:range:",
+	    (IMP)imp_rb_array_cfindexOfObjectInRange);
+    Method m = class_getInstanceMethod(klass, 
 	    sel_registerName("_cfindexOfObject:range:"));
-	class_addMethod(klass, sel_registerName("_cfindexOfObject:inRange:"), 
+    class_addMethod(klass, sel_registerName("_cfindexOfObject:inRange:"), 
 	    method_getImplementation(m), method_getTypeEncoding(m));
-    }
     
     rb_define_alloc_func((VALUE)klass, ary_alloc);
-
-#undef INSTALL_METHOD
 }
 
 /* Arrays are ordered, integer-indexed collections of any object. 

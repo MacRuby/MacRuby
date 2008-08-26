@@ -13,6 +13,7 @@
 #include "ruby/re.h"
 #include "ruby/encoding.h"
 #include "id.h"
+#include "objc.h"
 
 #define BEG(no) regs->beg[no]
 #define END(no) regs->end[no]
@@ -5173,29 +5174,19 @@ imp_rb_str_isEqual(void *rcv, SEL sel, void *other)
     return flag;
 }
 
-#define INSTALL_METHOD(selname, imp)                            \
-    do {                                                        \
-        SEL sel = sel_registerName(selname);                    \
-        Method method = class_getInstanceMethod(klass, sel);    \
-        assert(method != NULL);                                 \
-        assert(class_addMethod(klass, sel, (IMP)imp,            \
-                    method_getTypeEncoding(method)));           \
-    }                                                           \
-    while(0)
-
 void
 rb_objc_install_string_primitives(Class klass)
 {
-    INSTALL_METHOD("length", imp_rb_str_length);
-    INSTALL_METHOD("characterAtIndex:", imp_rb_str_characterAtIndex);
-    INSTALL_METHOD("getCharacters:range:", imp_rb_str_getCharactersRange);
-    INSTALL_METHOD("replaceCharactersInRange:withString:", 
-	imp_rb_str_replaceCharactersInRangeWithString);
-    INSTALL_METHOD("_fastCharacterContents", imp_rb_str_fastCharacterContents);
-    INSTALL_METHOD("_fastCStringContents:", imp_rb_str_fastCStringContents);
-    INSTALL_METHOD("_fastestEncodingInCFStringEncoding",
-	imp_rb_str_fastestEncodingInCFStringEncoding);
-    INSTALL_METHOD("isEqual:", imp_rb_str_isEqual);
+    rb_objc_install_method2(klass, "length", (IMP)imp_rb_str_length);
+    rb_objc_install_method2(klass, "characterAtIndex:", (IMP)imp_rb_str_characterAtIndex);
+    rb_objc_install_method2(klass, "getCharacters:range:", (IMP)imp_rb_str_getCharactersRange);
+    rb_objc_install_method2(klass, "replaceCharactersInRange:withString:", 
+	(IMP)imp_rb_str_replaceCharactersInRangeWithString);
+    rb_objc_install_method2(klass, "_fastCharacterContents", (IMP)imp_rb_str_fastCharacterContents);
+    rb_objc_install_method2(klass, "_fastCStringContents:", (IMP)imp_rb_str_fastCStringContents);
+    rb_objc_install_method2(klass, "_fastestEncodingInCFStringEncoding",
+	(IMP)imp_rb_str_fastestEncodingInCFStringEncoding);
+    rb_objc_install_method2(klass, "isEqual:", (IMP)imp_rb_str_isEqual);
     
     rb_define_alloc_func((VALUE)klass, str_alloc);
 }
@@ -5216,7 +5207,7 @@ imp_rb_symbol_characterAtIndex(void *rcv, SEL sel, CFIndex idx)
 
 static void
 imp_rb_symbol_getCharactersRange(void *rcv, SEL sel, UniChar *buffer, 
-			      CFRange range)
+	CFRange range)
 {
     int i;
 
@@ -5234,9 +5225,9 @@ install_symbol_primitives(void)
 {
     Class klass = (Class)rb_cSymbol;
 
-    INSTALL_METHOD("length", imp_rb_symbol_length);
-    INSTALL_METHOD("characterAtIndex:", imp_rb_symbol_characterAtIndex);
-    INSTALL_METHOD("getCharacters:range:", imp_rb_symbol_getCharactersRange);
+    rb_objc_install_method2(klass, "length", (IMP)imp_rb_symbol_length);
+    rb_objc_install_method2(klass, "characterAtIndex:", (IMP)imp_rb_symbol_characterAtIndex);
+    rb_objc_install_method2(klass, "getCharacters:range:", (IMP)imp_rb_symbol_getCharactersRange);
 }
 
 #undef INSTALL_METHOD

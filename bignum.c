@@ -11,6 +11,8 @@
 
 #include "ruby/ruby.h"
 
+#include "objc.h"
+
 #include <math.h>
 #include <float.h>
 #include <ctype.h>
@@ -2691,25 +2693,17 @@ imp_rb_bignum_isEqual(void *rcv, SEL sel, void *other)
     return rb_big_eq((VALUE)rcv, (VALUE)other) == Qtrue;
 }
 
-static inline void
-rb_objc_install_method(Class klass, SEL sel, IMP imp)
-{
-    Method method = class_getInstanceMethod(klass, sel);
-    assert(method != NULL);
-    assert(class_addMethod(klass, sel, imp, method_getTypeEncoding(method)));
-}
-
 static void
 rb_install_nsnumber_primitives(void)
 {
     Class klass = (Class)rb_cBignum;
-    rb_objc_install_method(klass, sel_registerName("objCType"),
+    rb_objc_install_method2(klass, "objCType",
 	    (IMP)imp_rb_bignum_objCType);
-    rb_objc_install_method(klass, sel_registerName("getValue:"),
+    rb_objc_install_method2(klass, "getValue:",
 	    (IMP)imp_rb_bignum_getValue);
-    rb_objc_install_method(klass, sel_registerName("longLongValue"),
+    rb_objc_install_method2(klass, "longLongValue",
 	    (IMP)imp_rb_bignum_longLongValue);
-    rb_objc_install_method(klass, sel_registerName("isEqual:"),
+    rb_objc_install_method2(klass, "isEqual:",
 	    (IMP)imp_rb_bignum_isEqual);
 }
 #endif

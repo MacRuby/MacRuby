@@ -615,11 +615,16 @@ task :sample_test do
   sh "./miniruby rubytest.rb"
 end
 
+desc "Run the unit tests"
+task :unit_tests do
+  sh "./miniruby test/macruby_runner.rb"
+end
+
 desc "Clean local and extension build files"
 task :clean => ['clean:local', 'clean:ext']
 
 desc "Build MacRuby and extensions"
 task :all => [:macruby, :extensions]
 
-desc "Same as sample_test"
-task :test => :sample_test
+desc "Run the tests"
+task :test => [:sample_test, :unit_tests]
