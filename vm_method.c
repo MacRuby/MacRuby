@@ -25,6 +25,7 @@ struct cache_entry {		/* method hash table. */
 static struct cache_entry cache[CACHE_SIZE];
 #define ruby_running (GET_VM()->running)
 /* int ruby_running = 0; */
+VALUE enable_method_added;
 
 void
 rb_clear_cache(void)
@@ -186,7 +187,7 @@ rb_add_method(VALUE klass, ID mid, NODE * node, int noex)
     st_insert(RCLASS_M_TBL(klass), mid, (st_data_t) body);
 #endif
 
-    if (node && mid != ID_ALLOCATOR && ruby_running) {
+    if (node && mid != ID_ALLOCATOR && ruby_running && enable_method_added == Qtrue) {
 	if (RCLASS_SINGLETON(klass)) {
 	    rb_funcall(rb_iv_get(klass, "__attached__"), singleton_added, 1,
 		       ID2SYM(mid));
@@ -1228,6 +1229,8 @@ obj_respond_to(int argc, VALUE *argv, VALUE obj)
 void
 Init_eval_method(void)
 {
+    enable_method_added = Qtrue;
+
     rb_define_method(rb_mKernel, "respond_to?", obj_respond_to, -1);
     basic_respond_to = rb_method_node(rb_cObject, idRespond_to);
     rb_register_mark_object((VALUE)basic_respond_to);
