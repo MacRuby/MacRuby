@@ -1,16 +1,31 @@
 require 'hotcocoa'
 
+include HotCocoa
+
 # Replace the following code with your own hotcocoa code
 
-class Application
-
-  include HotCocoa
+class DemoApplication
+  
+  def self.register(view_class)
+    view_classes << view_class
+  end
+  
+  def self.view_classes
+    @view_classes ||= []
+  end
+  
+  def self.view_with_description(description)
+    @view_classes.detect {|view| view.description == description}
+  end
+  
+  attr_reader :current_demo_view, :main_window
   
   def start
-    application :name => "Demo" do |app|
+    load_view_files
+    application(:name => "Demo") do |app|
       app.delegate = self
-      window :frame => [100, 100, 500, 500], :title => "HotCocoa Demo Application" do |win|
-        win << label(:text => "Hello!", :layout => {:start => false})
+      @main_window = window(:frame => [100, 100, 500, 500], :title => "HotCocoa Demo Application") do |win|
+        win << segment_control
         win.will_close { exit }
       end
     end
@@ -39,6 +54,36 @@ class Application
   # window/bring_all_to_front
   def on_bring_all_to_front(menu)
   end
+  
+  private
+  
+    def demo(description)
+      main_window.view.remove(current_demo_view) if current_demo_view
+      @current_demo_view = DemoApplication.view_with_description(description).create
+      main_window << @current_demo_view
+    end
+
+    def segment_control
+      @segment_control ||= create_segment_control
+    end
+  
+    def create_segment_control
+      segmented_control(:layout => {:expand => :width, :align => :center, :start => false}, :segments => demo_app_segments) do |seg|
+        seg.on_action do
+          demo(@segment_control.selected_segment.label)
+        end      
+      end
+    end
+    
+    def demo_app_segments
+      DemoApplication.view_classes.collect {|view_class| {:label => view_class.description, :width => 0}}
+    end
+      
+    def load_view_files
+      Dir.glob(File.join(File.dirname(__FILE__), 'views', '*.rb')).each do |file|
+        load file
+      end
+    end
 end
 
-Application.new.start
+DemoApplication.new.start
