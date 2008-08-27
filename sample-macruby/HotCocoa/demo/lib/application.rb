@@ -25,9 +25,13 @@ class DemoApplication
     application(:name => "Demo") do |app|
       app.delegate = self
       @main_window = window(:frame => [100, 100, 500, 500], :title => "HotCocoa Demo Application") do |win|
+        win << window_geometry_label
         win << segment_control
         win.will_close { exit }
+        win.did_move { update_window_geometry_label }
+        win.did_resize { update_window_geometry_label }
       end
+      update_window_geometry_label
     end
   end
   
@@ -57,6 +61,16 @@ class DemoApplication
   
   private
   
+    def update_window_geometry_label
+      frame = main_window.frame
+      window_geometry = "x=#{frame.origin.x}, y=#{frame.origin.y}, width=#{frame.size.width}, height=#{frame.size.height}"
+      window_geometry_label.text = "Window frame: (#{window_geometry})"
+    end
+    
+    def window_geometry_label
+      @window_geometry_label ||= create_window_geometry_label
+    end
+  
     def demo(description)
       main_window.view.remove(current_demo_view) if current_demo_view
       @current_demo_view = DemoApplication.view_with_description(description).create
@@ -65,6 +79,10 @@ class DemoApplication
 
     def segment_control
       @segment_control ||= create_segment_control
+    end
+    
+    def create_window_geometry_label
+      label(:text => "", :layout => {:expand => :width, :start => false})
     end
   
     def create_segment_control
