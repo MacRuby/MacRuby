@@ -743,7 +743,15 @@ rb_objc_rval_to_ocval(VALUE rval, const char *octype, void **ocval)
 		    }
 		    break;
 		default:
-		    if (st_lookup(bs_boxeds, (st_data_t)octype + 1, 
+		    if (strcmp(octype, "^v") == 0) {
+			if (SPECIAL_CONST_P(rval)) {
+			    ok = false;
+			}
+			else {
+			    *(void **)ocval = (void *)rval;
+			}
+		    }
+		    else if (st_lookup(bs_boxeds, (st_data_t)octype + 1, 
 				(st_data_t *)&bs_boxed)) {
 			void *data;
 
