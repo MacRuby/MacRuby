@@ -21,12 +21,16 @@ class DemoApplication
   attr_reader :current_demo_view, :main_window
   
   def start
-    load_view_files
+    load_demo_files
     application(:name => "Demo") do |app|
       app.delegate = self
+
+      # window example
       @main_window = window(:frame => [100, 100, 500, 500], :title => "HotCocoa Demo Application") do |win|
         win << window_geometry_label
         win << segment_control
+
+        # can hook events on the window (mapped via delegate)
         win.will_close { exit }
         win.did_move { update_window_geometry_label }
         win.did_resize { update_window_geometry_label }
@@ -61,30 +65,11 @@ class DemoApplication
   
   private
   
-    def update_window_geometry_label
-      frame = main_window.frame
-      window_geometry = "x=#{frame.origin.x}, y=#{frame.origin.y}, width=#{frame.size.width}, height=#{frame.size.height}"
-      window_geometry_label.text = "Window frame: (#{window_geometry})"
-    end
-    
-    def window_geometry_label
-      @window_geometry_label ||= create_window_geometry_label
-    end
-  
-    def demo(description)
-      main_window.view.remove(current_demo_view) if current_demo_view
-      @current_demo_view = DemoApplication.view_with_description(description).create
-      main_window << @current_demo_view
-    end
-
     def segment_control
       @segment_control ||= create_segment_control
     end
     
-    def create_window_geometry_label
-      label(:text => "", :layout => {:expand => :width, :start => false})
-    end
-  
+    # segmented control example
     def create_segment_control
       segmented_control(:layout => {:expand => :width, :align => :center, :start => false}, :segments => demo_app_segments) do |seg|
         seg.on_action do
@@ -97,7 +82,28 @@ class DemoApplication
       DemoApplication.view_classes.collect {|view_class| {:label => view_class.description, :width => 0}}
     end
       
-    def load_view_files
+    def window_geometry_label
+      @window_geometry_label ||= create_window_geometry_label
+    end
+  
+    # label example with custom font
+    def create_window_geometry_label
+      label(:text => "", :layout => {:expand => :width, :start => false}, :font => font(:system => 15))
+    end
+    
+    def update_window_geometry_label
+      frame = main_window.frame
+      window_geometry = "x=#{frame.origin.x}, y=#{frame.origin.y}, width=#{frame.size.width}, height=#{frame.size.height}"
+      window_geometry_label.text = "Window frame: (#{window_geometry})"
+    end
+    
+    def demo(description)
+      main_window.view.remove(current_demo_view) if current_demo_view
+      @current_demo_view = DemoApplication.view_with_description(description).create
+      main_window << @current_demo_view
+    end
+
+    def load_demo_files
       Dir.glob(File.join(File.dirname(__FILE__), 'views', '*.rb')).each do |file|
         load file
       end
