@@ -14,7 +14,8 @@ HotCocoa::Mappings.map :window => :NSWindow do
     :titled             => NSTitledWindowMask, 
     :closable           => NSClosableWindowMask, 
     :miniturizable      => NSMiniaturizableWindowMask, 
-    :resizable          => NSResizableWindowMask
+    :resizable          => NSResizableWindowMask,
+    :textured           => NSTexturedBackgroundWindowMask
   }
 
   def init_with_options(window, options)
@@ -60,6 +61,22 @@ HotCocoa::Mappings.map :window => :NSWindow do
       display
       makeKeyAndOrderFront(nil)
       orderFrontRegardless
+    end
+    
+    def background_color=(color)
+      setBackgroundColor(color)
+    end
+    
+    def background_color
+      backgroundColor
+    end
+    
+    def has_shadow?
+      hasShadow
+    end
+    
+    def has_shadow=(value)
+      setHasShadow(value)
     end
     
   end
