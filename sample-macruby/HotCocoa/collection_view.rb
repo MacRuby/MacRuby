@@ -20,16 +20,16 @@ class MyIconView < NSView
     view
   end
   
-  attr_reader :image
+  attr_reader :icon
   
   def collection_item=(item)
-    image.bind "value",   toObject:item, withKeyPath:"representedObject.image", options:nil
-    image.bind "toolTip", toObject:item, withKeyPath:"representedObject.name",  options:nil
+    icon.bind "value",   toObject:item, withKeyPath:"representedObject.image", options:nil
+    icon.bind "toolTip", toObject:item, withKeyPath:"representedObject.name",  options:nil
   end
   
   def create_subviews
-    @image = image_view :frame => [0,0,60,60]
-    addSubview(image)
+    @icon = image_view :frame => [0,0,60,60]
+    addSubview(icon)
   end
   
   def hitTest(point)
@@ -44,7 +44,7 @@ icons = array_controller  :for => (1..100).collect { |i| Icon.new("Rich #{i}", i
                           :selects_inserted => false, 
                           :rearrange_automatically => true, 
                           :sort_by => {:name => :ascending}
-
+                          
 application :name => "Collection View" do |app|
   window :frame => [100, 100, 500, 500], :title => "HotCocoa!" do |win|
     win << scroll_view(:layout => {:expand => [:width, :height]}) do |scroll|
