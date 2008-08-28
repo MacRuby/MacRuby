@@ -546,6 +546,7 @@ typedef NODE *IC;
 
 #if WITH_OBJC
 # include "bs.h"
+# include "objc.h"
 struct rb_method_cache {
     unsigned int flags;
 #define RB_MCACHE_RCALL_FLAG		0x10
@@ -562,7 +563,7 @@ struct rb_method_cache {
 	    SEL sel;
 	    VALUE klass;
 	    IMP imp;
-	    Method method;
+	    struct rb_objc_method_sig sig;
 	    bs_element_method_t *bs_method;
 	} ocall;
 	struct {

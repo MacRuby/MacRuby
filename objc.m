@@ -1078,15 +1078,84 @@ rb_objc_method_get_type(Method method, unsigned count,
     return type;
 }
 
+static inline int
+SubtypeUntil(const char *type, char end)
+{
+    int level = 0;
+    const char *head = type;
+
+    while (*type)
+    {
+	if (!*type || (!level && (*type == end)))
+	    return (int)(type - head);
+
+	switch (*type)
+	{
+	    case ']': case '}': case ')': level--; break;
+	    case '[': case '{': case '(': level += 1; break;
+	}
+
+	type += 1;
+    }
+
+    rb_bug ("Object: SubtypeUntil: end of type encountered prematurely\n");
+    return 0;
+}
+
+static inline const char *
+SkipStackSize(const char *type)
+{
+    while ((*type >= '0') && (*type <= '9'))
+	type += 1;
+    return type;
+}
+
+static inline const char *
+SkipFirstType(const char *type)
+{
+    while (1)
+    {
+        switch (*type++)
+        {
+            case 'O':   /* bycopy */
+            case 'n':   /* in */
+            case 'o':   /* out */
+            case 'N':   /* inout */
+            case 'r':   /* const */
+            case 'V':   /* oneway */
+            case '^':   /* pointers */
+                break;
+
+                /* arrays */
+            case '[':
+                return type + SubtypeUntil (type, ']') + 1;
+
+                /* structures */
+            case '{':
+                return type + SubtypeUntil (type, '}') + 1;
+
+                /* unions */
+            case '(':
+                return type + SubtypeUntil (type, ')') + 1;
+
+                /* basic types */
+            default:
+                return type;
+        }
+    }
+}
+
 VALUE
-rb_objc_call2(VALUE recv, VALUE klass, SEL sel, IMP imp, Method method, bs_element_method_t *bs_method, int argc, VALUE *argv)
+rb_objc_call2(VALUE recv, VALUE klass, SEL sel, IMP imp, 
+	      struct rb_objc_method_sig *sig, bs_element_method_t *bs_method, 
+	      int argc, VALUE *argv)
 {
     unsigned i, real_count, count;
     ffi_type *ffi_rettype, **ffi_argtypes;
     void *ffi_ret, **ffi_args;
     ffi_cif *cif;
     const char *type;
-    char buf[128];
+    char *rettype, buf[100];
     id ocrcv;
 
     /* XXX very special exceptions! */
@@ -1103,7 +1172,7 @@ rb_objc_call2(VALUE recv, VALUE klass, SEL sel, IMP imp, Method method, bs_eleme
 
     DLOG("OCALL", "%c[<%s %p> %s]", class_isMetaClass((Class)klass) ? '+' : '-', class_getName((Class)klass), (void *)ocrcv, (char *)sel);
 
-    count = method_getNumberOfArguments(method);
+    count = sig->argc;
     assert(count >= 2);
 
     real_count = count;
@@ -1119,8 +1188,7 @@ rb_objc_call2(VALUE recv, VALUE klass, SEL sel, IMP imp, Method method, bs_eleme
     }
 
     if (count == 2) {
-	method_getReturnType(method, buf, sizeof buf);
-	if (buf[0] == '@' || buf[0] == '#' || buf[0] == 'v') {
+	if (sig->types[0] == '@' || sig->types[0] == '#' || sig->types[0] == 'v') {
 	    /* Easy case! */
 	    @try {
 		if (klass == RCLASS_SUPER(*(Class *)ocrcv)) {
@@ -1136,8 +1204,10 @@ rb_objc_call2(VALUE recv, VALUE klass, SEL sel, IMP imp, Method method, bs_eleme
 	    @catch (id e) {
 		rb_objc_exc_raise(e);
 	    }
-	    if (buf[0] == '@' || buf[0] == '#') {
+	    if (sig->types[0] == '@' || sig->types[0] == '#') {
 		VALUE retval;
+		buf[0] = sig->types[0];
+		buf[1] = '\0';
 		rb_objc_ocval_to_rbval(&ffi_ret, buf, &retval);
 		return retval;
 	    }
@@ -1156,31 +1226,43 @@ rb_objc_call2(VALUE recv, VALUE klass, SEL sel, IMP imp, Method method, bs_eleme
     ffi_args[0] = &ocrcv;
     ffi_args[1] = &sel;
 
+    type = SkipFirstType(sig->types);
+    rettype = alloca(type - sig->types + 1);
+    strncpy(rettype, sig->types, type - sig->types);
+    rettype[type - sig->types] = '\0';
+    ffi_rettype = rb_objc_octype_to_ffitype(rettype);
+
+    type = SkipStackSize(type);
+    type = SkipFirstType(type); /* skip receiver */
+    type = SkipStackSize(type);
+    type = SkipFirstType(type); /* skip selector */
+
     for (i = 0; i < argc; i++) {
 	ffi_type *ffi_argtype;
+	const char *type2;
 
-	type = rb_objc_method_get_type(method, real_count, bs_method,
-	    i, buf, sizeof buf);
+	type = SkipStackSize(type);
+	type2 = SkipFirstType(type);
+	strncpy(buf, type, MIN(sizeof buf, type2 - type));
+	buf[MIN(sizeof buf, type2 - type)] = '\0';
 
-	ffi_argtypes[i + 2] = rb_objc_octype_to_ffitype(type);
+	ffi_argtypes[i + 2] = rb_objc_octype_to_ffitype(buf);
 	assert(ffi_argtypes[i + 2]->size > 0);
 	ffi_argtype = ffi_argtypes[i + 2];
 	ffi_args[i + 2] = (void *)alloca(ffi_argtype->size);
-	rb_objc_rval_to_ocval(argv[i], type, ffi_args[i + 2]);
+	rb_objc_rval_to_ocval(argv[i], buf, ffi_args[i + 2]);
+	
+	type = type2;
     }
 
     ffi_argtypes[count] = NULL;
     ffi_args[count] = NULL;
 
-    type = rb_objc_method_get_type(method, real_count, bs_method, 
-	-1, buf, sizeof buf);
-    ffi_rettype = rb_objc_octype_to_ffitype(type);
-
     cif = (ffi_cif *)alloca(sizeof(ffi_cif));
     if (ffi_prep_cif(cif, FFI_DEFAULT_ABI, count, ffi_rettype, 
 		ffi_argtypes) != FFI_OK) {
 	rb_fatal("can't prepare cif for objc method type `%s'",
-		method_getTypeEncoding(method));
+		sig->types);
     }
 
     if (ffi_rettype != &ffi_type_void) {
@@ -1199,7 +1281,7 @@ rb_objc_call2(VALUE recv, VALUE klass, SEL sel, IMP imp, Method method, bs_eleme
 
     if (ffi_rettype != &ffi_type_void) {
 	VALUE resp;
-	rb_objc_ocval_to_rbval(ffi_ret, type, &resp);
+	rb_objc_ocval_to_rbval(ffi_ret, rettype, &resp);
 	return resp;
     }
     else {
@@ -1212,11 +1294,100 @@ rb_objc_call(VALUE recv, SEL sel, int argc, VALUE *argv)
 {
     VALUE klass;
     Method method;
+    struct rb_objc_method_sig sig;
 
     klass = CLASS_OF(recv);
     method = class_getInstanceMethod((Class)klass, sel);
+    assert(rb_objc_fill_sig(recv, (Class)klass, sel, &sig, NULL));
 
-    return rb_objc_call2(recv, klass, sel, method_getImplementation(method), method, NULL, argc, argv);
+    return rb_objc_call2(recv, klass, sel, method_getImplementation(method), 
+	    &sig, NULL, argc, argv);
+}
+
+static inline const char *
+rb_get_bs_method_type(bs_element_method_t *bs_method, int arg)
+{
+    if (bs_method != NULL) {
+	if (arg == -1) {
+	    if (bs_method->retval != NULL)
+		return bs_method->retval->type;
+	}
+	else {
+	    int i;
+	    for (i = 0; i < bs_method->args_count; i++) {
+		if (bs_method->args[i].index == arg)
+		    return bs_method->args[i].type;
+	    }
+	}
+    }
+    return NULL;
+}
+
+bool
+rb_objc_fill_sig(VALUE recv, Class klass, SEL sel, struct rb_objc_method_sig *sig, bs_element_method_t *bs_method)
+{
+    Method method;
+    const char *type;
+    char buf[100];
+    unsigned i;
+
+    method = class_getInstanceMethod(klass, sel);
+    if (method != NULL) {
+	if (bs_method == NULL) {
+	    sig->types = method_getTypeEncoding(method);
+	    sig->argc = method_getNumberOfArguments(method);
+	}
+	else {
+	    char buf2[100];
+	    type = rb_get_bs_method_type(bs_method, -1);
+	    if (type != NULL) {
+		strlcpy(buf, type, sizeof buf);
+	    }
+	    else {
+		method_getReturnType(method, buf2, sizeof buf2);
+		strlcpy(buf, buf2, sizeof buf);
+	    }
+
+	    sig->argc = method_getNumberOfArguments(method);
+	    for (i = 0; i < sig->argc; i++) {
+		if (i >= 2 && (type = rb_get_bs_method_type(bs_method, i - 2)) != NULL) {
+		    strlcat(buf, type, sizeof buf);
+		}
+		else {
+		    method_getArgumentType(method, i, buf2, sizeof(buf2));
+		    strlcat(buf, buf2, sizeof buf);
+		}
+	    }
+
+	    sig->types = (char *)sel_registerName(buf); /* unify the string */
+	}
+	return true;
+    }
+    else if (!SPECIAL_CONST_P(recv)) {
+	NSMethodSignature *msig = [(id)recv methodSignatureForSelector:sel];
+	if (msig != NULL) {
+	    char buf[100];
+	    unsigned i;
+
+	    buf[0] = '\0';
+	    type = rb_get_bs_method_type(bs_method, -1);
+	    if (type == NULL)
+		type = [msig methodReturnType];
+	    strlcat(buf, type, sizeof buf);
+
+	    sig->argc = [msig numberOfArguments];
+	    for (i = 0; i < sig->argc; i++) {
+		if (i < 2 || (type = rb_get_bs_method_type(bs_method, i - 2)) == NULL) {
+		    type = [msig getArgumentTypeAtIndex:i];
+		}
+		strlcat(buf, type, sizeof buf);
+	    }
+
+	    sig->types = (char *)sel_registerName(buf); /* unify the string */
+	    return true;
+	}
+    }
+    return false;
 }
 
 void
@@ -1896,12 +2067,14 @@ rb_bs_struct_get(VALUE recv)
 	    (bs_element_struct_field_t *)&bs_struct->fields[i];
 
 	if (strcmp(ivar_id_str, bs_field->name) == 0) {
-	    VALUE *val;
+	    VALUE val, *pval;
 
-	    val = &((VALUE *)(data + bs_boxed->ffi_type->size))[i];
-	    if (*val == 0)
-		rb_objc_ocval_to_rbval(data + pos, bs_field->type, val);
-	    return *val;
+	    pval = &((VALUE *)(data + bs_boxed->ffi_type->size))[i];
+	    if (*pval == 0) {
+		pval = &val;
+		rb_objc_ocval_to_rbval(data + pos, bs_field->type, pval);
+	    }
+	    return *pval;
 	}
         pos += rb_objc_octype_to_ffitype(bs_field->type)->size;
     }
@@ -2566,22 +2739,6 @@ imp_rb_boxed_getValue(void *rcv, SEL sel, void *buffer)
     else {
  	memcpy(buffer, data, bs_boxed->ffi_type->size);
     }
-}
-
-static inline void
-rb_objc_install_method(Class klass, SEL sel, IMP imp)
-{
-    Method method = class_getInstanceMethod(klass, sel);
-    assert(method != NULL);
-    assert(class_addMethod(klass, sel, imp, method_getTypeEncoding(method)));
-}
-
-static inline void
-rb_objc_override_method(Class klass, SEL sel, IMP imp)
-{
-    Method method = class_getInstanceMethod(klass, sel);
-    assert(method != NULL);
-    method_setImplementation(method, imp);
 }
 
 static void

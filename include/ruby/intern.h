@@ -703,7 +703,6 @@ bool rb_objc_flag_check(const void *, int);
 long rb_objc_remove_flags(const void *obj);
 void rb_objc_methods(VALUE, Class);
 bool rb_objc_is_immutable(VALUE);
-VALUE rb_objc_call(VALUE, SEL, int, VALUE *);
 #endif
 /* version.c */
 void ruby_show_version(void);
