@@ -1,0 +1,135 @@
+/*
+Theme Name: WP-Andreas01
+Theme URI: http://andreasviklund.com/wordpress-themes/
+Description: The first public theme by Andreas, based on the andreas01 <a href="http://andreasviklund.com/templates/">free website template</a>. More themes and add-ons are available from the author's website.
+Version: 1.5
+Author: Andreas Viklund
+Author URI: http://andreasviklund.com/
+Latest updated: July 15th, 2006
+Thanks and greetings: R.J Kaplan (who did the first WordPress port of this design), Rob Miller (who wrote the List Subpages code), Ainslie Johnson (who helped with betatesting and bugfixing) and Johanna Fält (for whom this theme was originally created). Also thanks to webhostingsources.com for providing valuable help and theme fixes!
+*/
+
+/* Body */
+*{margin:0; padding:0;}
+body{background:#333333 color:#303030; font:76% Verdana,Tahoma,Arial,sans-serif;}
+#wrap{background-color:#ffffff; color:#303030; margin:0 auto; width:850px;}
+
+/* Links */
+a{background-color:inherit; color:#286ea0; font-weight:bold; text-decoration:none;}
+a:hover{background-color:inherit; color:#286ea0; font-weight:bold; text-decoration:underline;}
+a img{border:0;}
+
+/* Header */
+#header{margin:0px 0 0; height:128px;}
+#header h1{background-color:inherit; color:#505050; align:left; font-size:2.5em; letter-spacing:-1px; margin:20px 0 10px; }
+#header h1 a{background-color:inherit; color:#594A00; text-decoration:none;}
+#header p{background-color:inherit; color:#808080; font-size:1.1em; font-weight:bold; line-height:1.3em; margin:2px 40px 10px; }
+#frontphoto{margin:0px 10px 0px 0px; float:right;}
+
+/* Sidebars */
+#leftside{clear:left; float:left; line-height:1.4em; margin:0 0 5px; padding:0; width:40px;}
+#extras{float:right; line-height:1.4em; margin:10px 0 5px; padding:0; width:140px;}
+#leftside p, #leftside ul, #leftside div.textwidget, #extras p, #extras ul, #extras div.textwidget{font-size:0.9em; margin:0 0 20px;}
+#leftside li, #extras li{line-height:1.2em; list-style:none; margin:0 0 6px;}
+#leftside ul ul, #extras ul ul{margin:6px 0 0 10px;}
+#leftside ul ul li, #extras ul ul li{margin:0 0 4px;}
+#leftside ul ul li a, #extras ul ul li a{font-weight:normal;}
+#leftside ul.linklist, #extras ul.linklist{font-size:1em;}
+#leftside ul.linklist ul, #extras ul.linklist ul{margin:0 0 20px;}
+#leftside ul.linklist ul li a, #extras ul.linklist ul li a{font-weight:bold;}
+#leftside h2, #leftside ul.linklist li h2, #leftside h3, #extras h2, #extras ul.linklist li h2, #extras h3, table#wp-calendar caption{background-color:inherit; color:#505050; font-size:1.3em; font-weight:normal; text-align:left; margin:0 0 6px;}
+#leftside label, #extras label{display:none;}
+
+/* Main menu */
+ul.page{list-style:none; margin:0 0 20px; width:140px;}
+ul.page li{display:inline; line-height:1.4em; width:140px;}
+ul.page li a{background-color:#f4f4f4; border-left:4px solid #cccccc; color:#505050; float:left; font-weight:bold; margin-bottom:5px; padding:5px 1px 5px 5px; text-decoration:none; width:130px;}
+ul.page li a:hover, ul.page li.current_page_item a{background-color:#eaeaea; border-left:4px solid #286ea0; color:#505050;}
+ul.page ul{font-size:0.9em;margin:0 0 0 15px;padding:0 0 5px;width:125px;}
+ul.page ul a{padding:3px 1px 3px 5px;width:115px;}
+ul.page ul ul{width:113px;}
+ul.page ul ul a{width:100px;}
+
+/* Content */
+#content{line-height:1.6em;margin:5px 5px 5px 0;padding:10;width:700px;}
+#contentwide{line-height:1.6em;margin:0 0 5px 150px;padding:0;}
+#content h2,#contentwide h2{font-size:1.6em;margin:0 0 10px;}
+#content h3,#contentwide h3{font-size:1.4em;margin:0 0 8px;}
+#content iframe {float:right;}
+#content img,#contentwide img{border:1px solid #d0d0d0;margin:3px 3px 3px 10px;}
+#content ul,#contentwide ul,#content ol,#contentwide ol{margin:0 0 16px 20px;}
+#content li,#contentwide li{padding:0 0 0 5px;}
+#content ul ul,#contentwide ul ul,#content ol ol,#contentwide ol ol{margin:0 0 0 16px;}
+
+pre
+{
+   font-family: Courier;
+   font-size:1.2em;
+   width: 96%;
+   padding: 5px 5px 5px 5px;
+}
+
+pre.code
+{
+   border: solid;
+   border-width: thin;
+}
+
+
+/* Footer */
+#footer{background-color:#ffffff;border-top:2px solid #e0e0e0;clear:both;color:#808080;font-weight:normal;line-height:1.4em;margin:0 auto;padding:10px 0;text-align:center;width:800px;}
+#footer p{margin:0;padding:0;}
+#footer a{background-color:inherit;color:#808080;font-weight:normal;text-decoration:none;}
+#footer a:hover{background-color:inherit;color:#505050;text-decoration:underline;}
+#footer strong a {font-weight:bold;}
+
+/* Subpage menu */
+#subpages{border-bottom:1px solid #e0e0e0;border-left:1px solid #e0e0e0;float:right;font-weight:bold;line-height:1.3em;margin:-5px 0 8px 15px;padding:0 0 10px 10px;width:190px;}
+#subpages h2{font-size:1.2em;font-weight:bold;letter-spacing:-1px;line-height:1.3em;margin:0 0 12px;}
+#subpages ul.submenu{line-height:1.4em;list-style:none; margin:0;}
+#subpages ul.submenu li{display:inline; line-height:1.4em; width:180px; padding:0;}
+#subpages ul.submenu li a{background-color:#f4f4f4;border-left:4px solid #cccccc;color:#505050;float:left;font-weight:bold;margin-bottom:5px;padding:3px 1px 3px 5px;text-decoration:none;width:180px;}
+#subpages ul.submenu li ul{margin:0 0 5px 10px;width:170px;}
+#subpages ul.submenu li ul li a{width:170px;}
+#subpages ul.submenu li ul ul{margin:0 0 5px 10px;width:160px;}
+#subpages ul.submenu li ul ul li a{width:160px;}
+#subpages ul.submenu li ul ul ul{margin:0 0 5px 10px;width:150px;}
+#subpages ul.submenu li ul ul ul li a{width:150px;}
+#subpages ul.submenu li a:hover,#subpages ul.submenu li.current_page_item a{background-color:#eaeaea;border-left:4px solid #286ea0;color:#505050;}
+#subpages ul.submenu li.current_page_item ul li a{background-color:#f4f4f4;border-left:4px solid #cccccc;color:#505050;}
+
+/* Tags */
+p,ul,ol{margin:0 0 18px;}
+blockquote{border-left:4px solid #e0e0e0;margin:20px;padding:8px 8px 8px 15px;}
+blockquote p{background-color:inherit;color:#505050;font-size:0.9em;line-height:1.3em;}
+label{background-color:inherit;color:#606060;font-size:0.9em;font-weight:bold;}
+table#wp-calendar{margin:0 0 20px;width:140px;}
+
+/* Forms */
+#s,#submit{background-color:#ffffff;border:1px solid #cccccc;color:#505050;font-size:0.9em;margin:0 0 16px;padding:4px;width:130px;}
+#author,#email,#url,#comment{border:1px solid #cccccc;font-family:Verdana,Tahoma,Arial,Sans-Serif;font-size:1em;margin:0;padding:4px;}
+#commentsection{margin:25px 0 0;}
+#commentsection p{margin:0 0 6px;}
+
+/* Float fix */
+.contenttext{overflow:hidden;}
+* html .contenttext{height:1px;overflow:visible;}
+* html .contenttext p{overflow:hidden;width:99%;}
+
+/* Various classes */
+.left{border:1px solid #cccccc;float:left;margin:10px 15px 10px 0;}
+.right{border:1px solid #cccccc;float:right;margin:10px 0 5px 10px;}
+.center{border:1px solid #aaaaaa;margin:5px auto 12px;text-align:center;}
+.textright{text-align:right;}
+.small{font-size:0.8em;}
+.bold{font-weight:bold;}
+.hide{display:none;}
+.post{margin:0 0 25px;}
+.postinfo{background-color:#f4f4f4;border-left:4px solid #cccccc;color:#606060;font-size:0.9em;font-weight:bold;line-height:1.5em;margin:1px 0 40px;padding:8px 5px 8px 8px;}
+.comment{background-color:#f4f4f4;border-left:4px solid #cccccc;color:#606060;margin:0 0 10px;padding:8px 5px 0 8px;}
+.comment p.commenthead{line-height:1.6em;}
+.comment p{font-size:0.9em;line-height:1.3em;margin:0 0 6px;padding-bottom:5px;}
+.navigation{display:block;margin:10px 0;padding:0 0 15px;text-align:center;}
+.navigation p{margin:0;padding:0;}
+.prevlink{margin-right:20px;}
+.nextlink{margin-left:20px;}

@@ -1,0 +1,18 @@
+{
+    IBClasses = (
+        {CLASS = FirstResponder; LANGUAGE = ObjC; SUPERCLASS = NSObject; }, 
+        {
+            CLASS = MyDocument; 
+            LANGUAGE = ObjC; 
+            OUTLETS = {packerView = PackerView; }; 
+            SUPERCLASS = NSDocument; 
+        }, 
+        {
+            ACTIONS = {changeImageableRectDisplay = id; }; 
+            CLASS = PackerView; 
+            LANGUAGE = ObjC; 
+            SUPERCLASS = NSView; 
+        }
+    ); 
+    IBVersion = 1; 
+}
