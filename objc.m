@@ -2067,11 +2067,10 @@ rb_bs_struct_get(VALUE recv)
 	    (bs_element_struct_field_t *)&bs_struct->fields[i];
 
 	if (strcmp(ivar_id_str, bs_field->name) == 0) {
-	    VALUE val, *pval;
+	    VALUE *pval;
 
 	    pval = &((VALUE *)(data + bs_boxed->ffi_type->size))[i];
 	    if (*pval == 0) {
-		pval = &val;
 		rb_objc_ocval_to_rbval(data + pos, bs_field->type, pval);
 	    }
 	    return *pval;
