@@ -28,7 +28,7 @@ class DemoApplication
       add_status_bar_speech_menu_exammple
 
       # window example
-      @main_window = window(:frame => [100, 100, 500, 500], :title => "HotCocoa Demo Application") do |win|
+      @main_window = window(:frame => [100, 100, 600, 500], :title => "HotCocoa Demo Application") do |win|
         win << window_geometry_label
         win << segment_control
 
