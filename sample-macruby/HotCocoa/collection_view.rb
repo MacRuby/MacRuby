@@ -3,11 +3,24 @@ require 'hotcocoa'
 include HotCocoa
 
 class Icon
-  attr_accessor :name, :image
+  
+  ib_outlet :name, :image
+  
   def initialize(name, image)
     @name = name
+    puts "crea of #{object_id} - #{@name}"
     @image = image
   end
+  
+  def image
+    @image
+  end
+  
+  def name
+    puts "Name of #{object_id} - #{@name}"
+    @name
+  end
+  
 end
 
 class MyIconView < NSView
@@ -37,13 +50,16 @@ class MyIconView < NSView
   end
   
 end
-
-icons = array_controller  :for => (1..100).collect { |i| Icon.new("Rich #{i}", image(:file => "rich.jpg")) },
+list = (1..5).collect { |i| Icon.new("Rich #{i}", image(:file => "rich.jpg"))}
+puts list.inspect
+icons = array_controller  :for => list ,
                           :avoids_empty_selection => true, 
                           :preserves_selection => false, 
                           :selects_inserted => false, 
                           :rearrange_automatically => true, 
                           :sort_by => {:name => :ascending}
+                          
+puts icons.arrangedObjects.first.class
                           
 application :name => "Collection View" do |app|
   window :frame => [100, 100, 500, 500], :title => "HotCocoa!" do |win|
