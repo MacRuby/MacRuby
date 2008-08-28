@@ -10,6 +10,5 @@
 
 int main(int argc, char *argv[])
 {
-    setenv("GC_DEBUG", "1", 1);
     return macruby_main("rb_main.rb", argc, argv);
 }
