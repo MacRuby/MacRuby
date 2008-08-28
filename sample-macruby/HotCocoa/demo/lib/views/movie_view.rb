@@ -3,7 +3,7 @@ framework 'qtkit'
 class MovieView
 
   def self.description 
-    "Movie Views" 
+    "Movies" 
   end
   
   def self.create

@@ -37,7 +37,7 @@ class CollectionView
   end
 
   def self.description 
-    "Collection Views" 
+    "Collection View" 
   end
   
   def self.icon_image

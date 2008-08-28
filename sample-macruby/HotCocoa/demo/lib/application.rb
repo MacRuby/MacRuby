@@ -24,6 +24,8 @@ class DemoApplication
     load_demo_files
     application(:name => "Demo") do |app|
       app.delegate = self
+      
+      add_status_bar_speech_menu_exammple
 
       # window example
       @main_window = window(:frame => [100, 100, 500, 500], :title => "HotCocoa Demo Application") do |win|
@@ -64,6 +66,15 @@ class DemoApplication
   end
   
   private
+  
+    # status item and speech example
+    def add_status_bar_speech_menu_exammple
+      m = menu do |main|
+        main.item :speak, 
+                  :on_action => proc { speech_synthesizer.speak('I have a lot to say.') }
+      end
+      status_item :title => 'Speech Demo', :menu => m
+    end
   
     def segment_control
       @segment_control ||= create_segment_control

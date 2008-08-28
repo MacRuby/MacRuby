@@ -1,7 +1,7 @@
 class TableView
 
   def self.description 
-    "Table Views"
+    "Tables"
   end
   
   def self.create
