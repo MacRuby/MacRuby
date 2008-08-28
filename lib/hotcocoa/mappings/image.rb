@@ -1,12 +1,14 @@
 HotCocoa::Mappings.map :image => :NSImage do
   
-  def init_with_options(image, options)
+  def alloc_with_options(options)
     if options.has_key?(:file)
-      image.initWithContentsOfFile(options.delete(:file))
+      NSImage.alloc.initWithContentsOfFile(options.delete(:file))
     elsif options.has_key?(:url)
-      image.initByReferencingURL(NSURL.alloc.initWithString(options.delete(:url)))
+      NSImage.alloc.initByReferencingURL(NSURL.alloc.initWithString(options.delete(:url)))
+    elsif options.has_key?(:named)
+      NSImage.imageNamed(options.delete(:named))
     else
-      image.init
+      NSImage.alloc.init
     end
   end
   

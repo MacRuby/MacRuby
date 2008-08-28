@@ -13,7 +13,7 @@ HotCocoa::Mappings.map :combo_box => :NSComboBox do
       data_source = ComboBoxDataSource.new(data_source) if data_source.kind_of?(Array)
       setDataSource(data_source)
     end
-
+    
   end
   
 end
