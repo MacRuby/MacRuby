@@ -6,7 +6,7 @@ class ButtonsView
   
   def self.create
     action = Proc.new {
-      alert(:message => "This is an alert!", :info => "This is a little more info!").show
+      alert :message => "This is an alert!", :info => "This is a little more info!"
     }
     
     layout_view :frame => [0, 0, 0, 0], :layout => {:expand => [:width, :height]} do |view|
