@@ -145,9 +145,8 @@ class TestObjC < Test::Unit::TestCase
     assert_equal(42, obj.foo)
     obj = TestSuperMethod.performSelector(:alloc).performSelector(:init)
     assert_equal(42, obj.foo)
-    # FIXME this doesn't work yet
-    #obj = TestSuperMethod.new
-    #assert_equal(42, obj.foo)
+    obj = TestSuperMethod.new
+    assert_equal(42, obj.foo)
     obj = TestSuperMethod.performSelector(:new)
     assert_equal(42, obj.foo)
   end
@@ -252,28 +251,17 @@ class TestObjC < Test::Unit::TestCase
     n = nil
     assert_kind_of(NSNull, n.self)
     assert_equal(NSNull.null, n.self)
-    # TODO this currently SEGV
-    #m = String
-    #assert_equal(m, m.self)
+    m = String
+    assert_equal(m, m.self)
   end
 
   def test_call_superclass
     o = Object.new
-    assert_equal(NSObject, o.superclass)
+    assert_equal(nil, o.superclass)
     s = 'foo'
     assert_equal(NSMutableString, s.superclass)
-    n = 42
-    assert_equal(NSNumber, n.superclass)
     n = nil 
     assert_equal(NSObject, n.superclass)
-  end
-
-  def test_no_direct_nsobject_subclass
-    old_verbose = $VERBOSE
-    $VERBOSE = nil # no warn
-    klass = eval("class Foo < NSObject; end; Foo")
-    assert_equal(Object, klass.superclass)
-    $VERBOSE = old_verbose
   end
 
   class TestSuper1

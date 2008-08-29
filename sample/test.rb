@@ -1948,7 +1948,10 @@ $x = [1,2,3,[4,5,"foo"],{1=>"bar"},2.5,fact(30)]
 $y = Marshal.dump($x)
 test_ok($x == Marshal.load($y))
 
-StrClone=String.clone;
+old_verbose = $VERBOSE # because String.clone produces a warning in MacRuby
+$VERBOSE = nil
+StrClone=String.clone
+$VERBOSE = old_verbose
 test_ok(Marshal.load(Marshal.dump(StrClone.new("abc"))).class == StrClone)
 
 [[1,2,3,4], [81, 2, 118, 3146]].each { |w,x,y,z|

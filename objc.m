@@ -1239,20 +1239,31 @@ rb_objc_call2(VALUE recv, VALUE klass, SEL sel, IMP imp,
 
     for (i = 0; i < argc; i++) {
 	ffi_type *ffi_argtype;
-	const char *type2;
 
-	type = SkipStackSize(type);
-	type2 = SkipFirstType(type);
-	strncpy(buf, type, MIN(sizeof buf, type2 - type));
-	buf[MIN(sizeof buf, type2 - type)] = '\0';
+	if (*type == '\0') {
+	    if (bs_method->variadic) {
+		buf[0] = '@';
+		buf[1] = '\0';
+	    }
+	    else {
+		rb_bug("incomplete method signature `%s' for argc %d", sig->types, argc);
+	    }
+	}
+	else {
+	    const char *type2;
+
+	    type = SkipStackSize(type);
+	    type2 = SkipFirstType(type);
+	    strncpy(buf, type, MIN(sizeof buf, type2 - type));
+	    buf[MIN(sizeof buf, type2 - type)] = '\0';
+	    type = type2;
+	}
 
 	ffi_argtypes[i + 2] = rb_objc_octype_to_ffitype(buf);
 	assert(ffi_argtypes[i + 2]->size > 0);
 	ffi_argtype = ffi_argtypes[i + 2];
 	ffi_args[i + 2] = (void *)alloca(ffi_argtype->size);
 	rb_objc_rval_to_ocval(argv[i], buf, ffi_args[i + 2]);
-	
-	type = type2;
     }
 
     ffi_argtypes[count] = NULL;
