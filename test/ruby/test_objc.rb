@@ -77,6 +77,28 @@ class TestObjC < Test::Unit::TestCase
     assert_kind_of(NSObject, [])
   end
 
+  def test_class_shortcuts
+    assert_equal(NSObject, Object)
+    assert_equal(NSMutableString, String)
+    assert_equal(NSMutableArray, Array)
+    assert_equal(NSMutableDictionary, Hash)
+  end
+
+  def test_instance_of_on_primitive_types
+    o = 'foo'
+    assert(o.instance_of?(NSMutableString))
+    assert(o.instance_of?(String))
+    assert(o.kind_of?(String))
+    o = [42]
+    assert(o.instance_of?(NSMutableArray))
+    assert(o.instance_of?(Array))
+    assert(o.kind_of?(Array))
+    o = {42=>42}
+    assert(o.instance_of?(NSMutableDictionary))
+    assert(o.instance_of?(Hash))
+    assert(o.kind_of?(Hash))
+  end
+
   class ClassWithNamedArg
     def doSomethingWith(x, andObject:y, andObject:z)
       x + y + z
