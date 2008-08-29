@@ -1,10 +1,10 @@
 HotCocoa::Mappings.map :alert => :NSAlert do
   
-  defaults :default => "OK", :alternate => nil, :other => nil, :info => nil
+  defaults :default => "OK", :alternate => nil, :other => nil, :info => nil, :show => true
   
   def alloc_with_options(options)
     if options[:message]
-      NSAlert.alertWithMessageText options.delete(:message), 
+      alert = NSAlert.alertWithMessageText options.delete(:message), 
         defaultButton:options.delete(:default), 
         alternateButton:options.delete(:alternate),
         otherButton:options.delete(:other),
@@ -13,9 +13,11 @@ HotCocoa::Mappings.map :alert => :NSAlert do
   end
   
   custom_methods do
+    
     def show
       runModal
     end
+    
   end
   
 end
