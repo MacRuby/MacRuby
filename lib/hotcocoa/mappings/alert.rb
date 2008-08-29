@@ -1,6 +1,6 @@
 HotCocoa::Mappings.map :alert => :NSAlert do
   
-  defaults :default => "OK", :alternate => nil, :other => nil, :info => nil, :show => true
+  defaults :default => "OK", :alternate => nil, :other => nil, :info => "", :show => true
   
   def alloc_with_options(options)
     if options[:message]
