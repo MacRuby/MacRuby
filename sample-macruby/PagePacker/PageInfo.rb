@@ -1,5 +1,4 @@
 class PageInfo 
-
   def encodeWithCoder(c)
     c.encodeObject @imageRep, forKey:'imageRep'
     c.encodeInt @pageOfRep, forKey:'pageOfRep' 

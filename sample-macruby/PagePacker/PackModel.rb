@@ -84,7 +84,7 @@ class PackModel
 
   def putAttributedString(attString, startingOnPage:i)
     pdf = pdfFromAttributedStringOfSize attString, NSMakeSize(200, 300)
-    putPDFData pdf, startingOnpage:i
+    putPDFData pdf, startingOnPage:i
   end
 
   def putPDF(pdf, startingOnPage:i)
@@ -113,7 +113,7 @@ class PackModel
     end
   end
 
-  def putFiles(filenames, startingOnpage:i)
+  def putFiles(filenames, startingOnPage:i)
     currentStart = i
     filenames.each { |x| currentStart = putFile(x, startingOnPage:currentStart) }
     currentStart
