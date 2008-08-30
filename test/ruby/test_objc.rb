@@ -363,4 +363,25 @@ class TestObjC < Test::Unit::TestCase
     assert_equal(Icon, o.class)
     assert_equal('Chad', o.name)
   end
+
+  class TestKVCSetter
+    attr_accessor :foo
+  end
+  def test_KVO_setter_defined_by_attr_setter
+    o = TestKVCSetter.new
+    assert(o.respond_to?(:foo=))
+    assert(o.respond_to?(:setFoo))
+    o.setFoo(42)
+    assert(42, o.foo)
+    o.performSelector('setFoo:', withObject:42)
+    assert(42, o.foo)
+  end
+
+  def test_respond_to_objc_methods
+    s = ''
+    assert(s.respond_to?(:strip))
+    assert(s.respond_to?(:setString))
+    assert(s.respond_to?('setString:'))
+    assert(s.respond_to?('performSelector:withObject:'))
+  end
 end
