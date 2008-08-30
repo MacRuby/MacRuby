@@ -260,6 +260,17 @@ class TestObjC < Test::Unit::TestCase
                  r.inspect)
   end
 
+  def test_struct_dup
+    r = NSMakeRect(1, 2, 3, 4)
+    r2 = r.dup
+    assert_kind_of(NSRect, r2)
+    assert_equal(r, r2)
+    r2.origin.x = 42
+    assert(r != r2) 
+    r2.origin.x = 1
+    assert_equal(r, r2)
+  end
+
   class TestInitCallInitialize
     attr_reader :foo
     def initialize

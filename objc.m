@@ -2150,10 +2150,31 @@ rb_bs_struct_dup(VALUE recv)
     bs_element_boxed_t *bs_boxed = rb_klass_get_bs_boxed(CLASS_OF(recv));
     bs_element_struct_t *bs_struct = (bs_element_struct_t *)bs_boxed->value;    
     VALUE *data, *new_data;
+    int i;
+    static ID idDup = 0;
+
+    if (idDup == 0) {
+	idDup = rb_intern("dup");
+    }
 
     Data_Get_Struct(recv, VALUE, data);
     new_data = (VALUE *)xmalloc(bs_struct->fields_count * sizeof(VALUE));
-    memcpy(new_data, data, bs_struct->fields_count * sizeof(VALUE));
+
+    for (i = 0; i < bs_struct->fields_count; i++) {
+	bs_element_struct_field_t *bs_field =
+	    (bs_element_struct_field_t *)&bs_struct->fields[i];
+	size_t fdata_size;
+	void *fdata;
+	VALUE fval;
+
+	fdata_size = rb_objc_octype_to_ffitype(bs_field->type)->size;
+	fdata = alloca(fdata_size);
+
+	rb_objc_rval_to_ocval(data[i], bs_field->type, fdata);
+	rb_objc_ocval_to_rval(fdata, bs_field->type, &fval);
+
+	GC_WB(&new_data[i], fval);
+    }
 
     return Data_Wrap_Struct(CLASS_OF(recv), NULL, NULL, new_data);
 }
