@@ -249,6 +249,16 @@ class TestObjC < Test::Unit::TestCase
     assert_raise(ArgumentError) { NSStringFromRect([1, 2, 3, 4, 5]) }
   end
 
+  def test_struct_inspect
+    r = NSRect.new
+    assert_equal("#<NSRect origin=#<NSPoint x=0.0 y=0.0> size=#<NSSize width=0.0 height=0.0>>",
+                 r.inspect)
+    r.origin.x = 42
+    r.size.width = 42
+    assert_equal("#<NSRect origin=#<NSPoint x=42.0 y=0.0> size=#<NSSize width=42.0 height=0.0>>",
+                 r.inspect)
+  end
+
   class TestInitCallInitialize
     attr_reader :foo
     def initialize
