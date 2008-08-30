@@ -2778,7 +2778,7 @@ macruby_main(const char *path, int argc, char **argv)
 }
 
 static void
-rb_objc_ib_outlet_imp(void *recv, SEL sel, void *value)
+rb_objc_kvo_setter_imp(void *recv, SEL sel, void *value)
 {
     const char *selname;
     char buf[128];
@@ -2790,38 +2790,44 @@ rb_objc_ib_outlet_imp(void *recv, SEL sel, void *value)
     s = strlcpy(&buf[2], &selname[4], sizeof buf - 2);
     buf[s + 1] = '\0';
 
-    rb_ivar_set((VALUE)recv, rb_intern(buf), value == NULL ? Qnil : (VALUE)value);
+    rb_ivar_set((VALUE)recv, rb_intern(buf), value == NULL ? Qnil : OC2RB(value));
+}
+
+void
+rb_objc_define_kvo_setter(VALUE klass, ID mid)
+{
+    char buf[100];
+    const char *mid_name;
+
+    buf[0] = 's'; buf[1] = 'e'; buf[2] = 't';
+    mid_name = rb_id2name(mid);
+
+    buf[3] = toupper(mid_name[0]);
+    buf[4] = '\0';
+    strlcat(buf, &mid_name[1], sizeof buf);
+    strlcat(buf, ":", sizeof buf);
+
+    if (!class_addMethod((Class)klass, sel_registerName(buf), 
+			 (IMP)rb_objc_kvo_setter_imp, "v@:@")) {
+	rb_warn("can't register `%s' as an KVO setter (method `%s')",
+		mid_name, buf);
+    }
 }
 
 VALUE
 rb_mod_objc_ib_outlet(int argc, VALUE *argv, VALUE recv)
 {
     int i;
-    char buf[100];
 
-    buf[0] = 's'; buf[1] = 'e'; buf[2] = 't';
+    rb_warn("ib_outlet has been deprecated, please use attr_writer instead");
 
     for (i = 0; i < argc; i++) {
 	VALUE sym = argv[i];
-	const char *symname;
 	
 	Check_Type(sym, T_SYMBOL);
-	symname = rb_sym2name(sym);
-
-	if (strlen(symname) == 0)
-	    rb_raise(rb_eArgError, "empty symbol given");
-	
-	buf[3] = toupper(symname[0]);
-	buf[4] = '\0';
-	strlcat(buf, &symname[1], sizeof buf);
-	strlcat(buf, ":", sizeof buf);
-
-	if (!class_addMethod((Class)recv, sel_registerName(buf), 
-			     (IMP)rb_objc_ib_outlet_imp, "v@:@"))
-	    rb_raise(rb_eArgError, 
-		     "can't register `%s' (method %s) as an IB outlet",
-		     symname, buf);
+	rb_objc_define_kvo_setter(recv, SYM2ID(sym));
     }
+
     return recv;
 }
 

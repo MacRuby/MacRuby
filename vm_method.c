@@ -549,6 +549,9 @@ rb_attr(VALUE klass, ID id, int read, int write, int ex)
     }
     if (write) {
 	rb_add_method(klass, rb_id_attrset(id), NEW_ATTRSET(attriv), noex);
+#if WITH_OBJC
+	rb_objc_define_kvo_setter(klass, id);
+#endif
     }
 }
 
