@@ -6,7 +6,7 @@ module HotCocoa
     
     ApplicationBundlePackage = "APPL????"
     
-    attr_accessor :name, :load_file, :sources, :overwrite, :icon, :version, :info_string, :secure
+    attr_accessor :name, :load_file, :sources, :overwrite, :icon, :version, :info_string, :secure, :resources
     
     def self.build(build_options)
       build_options.each do |key, value|
@@ -16,23 +16,28 @@ module HotCocoa
         require 'yaml'
         build_options = YAML.load(File.read(build_options[:file]))
       end
-      ab = new
-      ab.secure = (build_options[:secure] == true)
-      ab.name = build_options[:name]
-      ab.load_file = build_options[:load]
-      ab.icon = build_options[:icon] if build_options[:icon] && File.exist?(build_options[:icon])
-      ab.version = build_options[:version] || "1.0"
-      ab.info_string = build_options[:info_string]
-      ab.overwrite = (build_options.include?(:overwrite) ? build_options[:overwrite] : true)
+      builder = new
+      builder.secure = (build_options[:secure] == true)
+      builder.name = build_options[:name]
+      builder.load_file = build_options[:load]
+      builder.icon = build_options[:icon] if build_options[:icon] && File.exist?(build_options[:icon])
+      builder.version = build_options[:version] || "1.0"
+      builder.info_string = build_options[:info_string]
+      builder.overwrite = (build_options.include?(:overwrite) ? build_options[:overwrite] : true)
       sources = build_options[:sources] || []
       sources.each do |source|
-        ab << source
+        builder.add_source_path source
       end
-      ab.build
+      resources = build_options[:resources] || []
+      resources.each do |resource|
+        builder.add_resource_path resource
+      end
+      builder.build
     end
     
     def initialize
       @sources = []
+      @resources = []
     end
       
     def build
@@ -40,6 +45,7 @@ module HotCocoa
       build_bundle_structure
       write_bundle_files
       copy_sources
+      copy_resources
       copy_icon_file if icon
     end
     
@@ -47,9 +53,15 @@ module HotCocoa
       @overwrite
     end
     
-    def <<(source_file_pattern)
+    def add_source_path(source_file_pattern)
       Dir.glob(source_file_pattern).each do |source_file|
         sources << source_file
+      end
+    end
+
+    def add_resource_path(resource_file_pattern)
+      Dir.glob(resource_file_pattern).each do |resource_file|
+        resources << resource_file
       end
     end
     
@@ -103,8 +115,16 @@ module HotCocoa
         end
       end
       
+      def copy_resources
+        resources.each do |resource|
+          destination = File.join(resources_root, resource.split("/")[1..-1].join("/"))
+          FileUtils.mkdir_p(File.dirname(destination)) unless File.exist?(File.dirname(destination))
+          FileUtils.cp_r resource, destination
+        end
+      end
+      
       def copy_icon_file
-        FileUtils.cp(icon, icon_file)
+        FileUtils.cp(icon, icon_file) unless File.exist?(icon_file)
       end
       
       def write_pkg_info_file
