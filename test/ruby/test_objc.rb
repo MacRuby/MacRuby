@@ -65,6 +65,7 @@ class TestObjC < Test::Unit::TestCase
 
   def setup
     framework 'Foundation'
+    framework 'AppKit'
   end
 
   def test_all_objects_inherit_from_nsobject
@@ -330,4 +331,25 @@ class TestObjC < Test::Unit::TestCase
     d.testCallGetRectMethod(obj, expectedValue:obj.val)
   end
 
+  class Icon
+    attr_accessor :name
+    def initialize(name)
+      @name = name
+    end
+  end
+  def test_NSKVONotifying_class_preserve_ivars
+    array_controller = NSArrayController.new
+    array_controller.setAvoidsEmptySelection(false)
+    array_controller.setPreservesSelection(false)
+    array_controller.setSelectsInsertedObjects(false)
+    array_controller.setAutomaticallyRearrangesObjects(true)
+    array_controller.setSortDescriptors([NSSortDescriptor.alloc.initWithKey("name", ascending: false)])
+    array_controller.addObjects([Icon.new("Rich"), Icon.new("Chad")])
+    o = array_controller.arrangedObjects[0]
+    assert_equal(Icon, o.class)
+    assert_equal('Rich', o.name)
+    o = array_controller.arrangedObjects[1]
+    assert_equal(Icon, o.class)
+    assert_equal('Chad', o.name)
+  end
 end

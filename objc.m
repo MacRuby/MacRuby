@@ -630,12 +630,17 @@ rb_objc_rval_copy_boxed_data(VALUE rval, bs_element_boxed_t *bs_boxed, void *ocv
     else {
 	void *data;
 
-	Data_Get_Struct(rval, void, data);
-	if (data == NULL) {
+	if (rval == Qnil) {
 	    *(void **)ocval = NULL; 
 	}
 	else {
-	    memcpy(ocval, data, bs_boxed->ffi_type->size);
+	    Data_Get_Struct(rval, void, data);
+	    if (data == NULL) {
+		*(void **)ocval = NULL; 
+	    }
+	    else {
+		memcpy(ocval, data, bs_boxed->ffi_type->size);
+	    }
 	}
     }
 
@@ -3065,6 +3070,32 @@ timer_cb(CFRunLoopTimerRef timer, void *ctx)
     RUBY_VM_CHECK_INTS();
 }
 
+static IMP old_imp_isaForAutonotifying;
+
+static Class
+rb_obj_imp_isaForAutonotifying(void *rcv, SEL sel)
+{
+    Class ret;
+
+#define KVO_CHECK_DONE 0x100000
+
+    ret = ((Class (*)(void *, SEL)) old_imp_isaForAutonotifying)(rcv, sel);
+    if (ret != NULL && (RCLASS_VERSION(ret) & KVO_CHECK_DONE) == 0) {
+	const char *name = class_getName(ret);
+	if (strncmp(name, "NSKVONotifying_", 15) == 0) {
+	    Class ret_orig;
+	    name += 15;
+	    ret_orig = objc_getClass(name);
+	    if (ret_orig != NULL && RCLASS_VERSION(ret_orig) & RCLASS_IS_OBJECT_SUBCLASS) {
+		DLOG("XXX", "marking KVO generated klass %p (%s) as RObject", ret, class_getName(ret));
+		RCLASS_VERSION(ret) |= RCLASS_IS_OBJECT_SUBCLASS;
+	    }
+	}
+	RCLASS_VERSION(ret) |= KVO_CHECK_DONE;
+    }
+    return ret;
+}
+
 void
 Init_ObjC(void)
 {
@@ -3103,6 +3134,11 @@ Init_ObjC(void)
     }
 
     rb_define_method(rb_cBasicObject, "__super_objc_send__", rb_super_objc_send, -1);
+
+    Method m = class_getInstanceMethod(objc_getClass("NSKeyValueUnnestedProperty"), sel_registerName("isaForAutonotifying"));
+    assert(m != NULL);
+    old_imp_isaForAutonotifying = method_getImplementation(m);
+    method_setImplementation(m, (IMP)rb_obj_imp_isaForAutonotifying);
 }
 
 // for debug in gdb
