@@ -436,53 +436,6 @@ rb_objc_rval_to_ocsel(VALUE rval, void **ocval)
     return true;
 }
 
-static void *
-bs_element_boxed_get_data(bs_element_boxed_t *bs_boxed, VALUE rval,
-			  bool *success)
-{
-    void *data;
-
-    assert(bs_boxed->ffi_type != NULL);
-
-    if (NIL_P(rval) && bs_boxed->ffi_type == &ffi_type_pointer) {
-	*success = true;
-	return NULL;
-    }
-
-    if (rb_obj_is_kind_of(rval, rb_cBoxed) == Qfalse) {
-	*success = false;
-	return NULL;
-    } 
-    
-    Data_Get_Struct(rval, void, data);
-
-    if (bs_boxed->type == BS_ELEMENT_STRUCT) {
-	bs_element_struct_t *bs_struct;
-	unsigned i;
-
-	bs_struct = (bs_element_struct_t *)bs_boxed->value;
-
-	/* Resync the ivars if necessary.
-	 * This is required as a field may nest another structure, which
-	 * could have been modified as a copy in the Ruby world.
-	 */
-	for (i = 0; i < bs_struct->fields_count; i++) {
-	    VALUE *v;
-	    v = &((VALUE *)(data + bs_boxed->ffi_type->size))[i];
-	    if (*v != 0) {
-		char buf[512];
-		snprintf(buf, sizeof buf, "%s=", bs_struct->fields[i].name);
-		rb_funcall(rval, rb_intern(buf), 1, *v);
-		*v = 0;
-	    }
-	}
-    }
-
-    *success = true;		
-
-    return data;
-}
-
 static void
 rb_bs_boxed_assert_ffitype_ok(bs_element_boxed_t *bs_boxed)
 {
@@ -494,12 +447,11 @@ rb_bs_boxed_assert_ffitype_ok(bs_element_boxed_t *bs_boxed)
     assert(bs_boxed->ffi_type != NULL);
 }
 
+static void rb_objc_ocval_to_rval(void **ocval, const char *octype, VALUE *rbval);
+
 static VALUE
 rb_bs_boxed_new_from_ocdata(bs_element_boxed_t *bs_boxed, void *ocval)
 {
-    void *data;
-    size_t soffset;
-
     if (ocval == NULL)
 	return Qnil;
 
@@ -508,17 +460,32 @@ rb_bs_boxed_new_from_ocdata(bs_element_boxed_t *bs_boxed, void *ocval)
 
     rb_bs_boxed_assert_ffitype_ok(bs_boxed);
 
-    soffset = 0;
     if (bs_boxed->type == BS_ELEMENT_STRUCT) {
-	soffset = ((bs_element_struct_t *)bs_boxed->value)->fields_count 
-		* sizeof(VALUE);
+	bs_element_struct_t *bs_struct = (bs_element_struct_t *)bs_boxed->value;
+	VALUE *data;
+	int i;
+	size_t pos;
+
+	data = (VALUE *)xmalloc(bs_struct->fields_count * sizeof(VALUE));
+	for (i = 0, pos = 0; i < bs_struct->fields_count; i++) {
+	    bs_element_struct_field_t *bs_field = 
+		(bs_element_struct_field_t *)&bs_struct->fields[i];
+	    VALUE fval;
+
+	    rb_objc_ocval_to_rval(ocval + pos, bs_field->type, &fval);
+	    GC_WB(&data[i], fval);
+	    pos += rb_objc_octype_to_ffitype(bs_field->type)->size;
+	}
+	return Data_Wrap_Struct(bs_boxed->klass, NULL, NULL, data);     
     }
+    else {
+	void *data;
 
-    data = xmalloc(soffset + bs_boxed->ffi_type->size);
-    memcpy(data, ocval, bs_boxed->ffi_type->size);
-    memset(data + bs_boxed->ffi_type->size, 0, soffset);
+	data = xmalloc(bs_boxed->ffi_type->size);
+	memcpy(data, ocval, bs_boxed->ffi_type->size);
 
-    return Data_Wrap_Struct(bs_boxed->klass, NULL, NULL, data);     
+	return Data_Wrap_Struct(bs_boxed->klass, NULL, NULL, data);     
+    }
 }
 
 static long
@@ -583,8 +550,6 @@ rb_pointer_assign(VALUE recv, VALUE val)
     return val;
 }
 
-static void rb_objc_ocval_to_rbval(void **ocval, const char *octype, VALUE *rbval);
-
 static VALUE
 rb_pointer_aref(VALUE recv, VALUE i)
 {
@@ -600,71 +565,81 @@ rb_pointer_aref(VALUE recv, VALUE i)
 
     idx = FIX2INT(i);
 
-    rb_objc_ocval_to_rbval(data->ptr + (idx * rb_objc_octype_size(data->type)),
-			   data->type, &ret);
+    rb_objc_ocval_to_rval(data->ptr + (idx * rb_objc_octype_size(data->type)),
+			  data->type, &ret);
 
     return ret;
 }
 
-static void *
-rb_objc_rval_to_boxed_data(VALUE rval, bs_element_boxed_t *bs_boxed, bool *ok)
+static bool
+rb_objc_rval_copy_boxed_data(VALUE rval, bs_element_boxed_t *bs_boxed, void *ocval)
 {
-    void *data;
+    rb_bs_boxed_assert_ffitype_ok(bs_boxed);
 
-    if (TYPE(rval) == T_ARRAY && bs_boxed->type == BS_ELEMENT_STRUCT) {
-	bs_element_struct_t *bs_struct;
+    if (bs_boxed->type == BS_ELEMENT_STRUCT) {
+	bs_element_struct_t *bs_struct = (bs_element_struct_t *)bs_boxed->value;
+	bool is_ary;
 	long i, n;
 	size_t pos;
+	VALUE *data = NULL;
 
-	bs_struct = (bs_element_struct_t *)bs_boxed->value;
-
-	rb_bs_boxed_assert_ffitype_ok(bs_boxed);
-
-	n = RARRAY_LEN(rval);
-	if (n < bs_struct->fields_count)
-	    rb_raise(rb_eArgError, 
-		    "not enough elements in array `%s' to create " \
-		    "structure `%s' (%ld for %d)", 
-		    RSTRING_PTR(rb_inspect(rval)), bs_struct->name, n, 
-		    bs_struct->fields_count);
-
-	if (n > bs_struct->fields_count) {
-	    VALUE new_rval = rb_ary_new();
-	    VALUE orig = rval;
-	    rval = rb_ary_dup(rval);
-	    rebuild_new_struct_ary(bs_boxed->ffi_type->elements, rval, 
-		    new_rval);
-	    n = RARRAY_LEN(new_rval);
-	    if (RARRAY_LEN(rval) != 0 || n != bs_struct->fields_count) {
+	is_ary = TYPE(rval) == T_ARRAY;
+	if (is_ary) {
+	    n = RARRAY_LEN(rval);
+	    if (n < bs_struct->fields_count)
 		rb_raise(rb_eArgError, 
-			"too much elements in array `%s' to create " \
+			"not enough elements in array `%s' to create " \
 			"structure `%s' (%ld for %d)", 
-			RSTRING_PTR(rb_inspect(orig)), 
-			bs_struct->name, RARRAY_LEN(orig), 
+			RSTRING_PTR(rb_inspect(rval)), bs_struct->name, n, 
 			bs_struct->fields_count);
+
+	    if (n > bs_struct->fields_count) {
+		VALUE new_rval = rb_ary_new();
+		VALUE orig = rval;
+		rval = rb_ary_dup(rval);
+		rebuild_new_struct_ary(bs_boxed->ffi_type->elements, rval, 
+			new_rval);
+		n = RARRAY_LEN(new_rval);
+		if (RARRAY_LEN(rval) != 0 || n != bs_struct->fields_count) {
+		    rb_raise(rb_eArgError, 
+			    "too much elements in array `%s' to create " \
+			    "structure `%s' (%ld for %d)", 
+			    RSTRING_PTR(rb_inspect(orig)), 
+			    bs_struct->name, RARRAY_LEN(orig), 
+			    bs_struct->fields_count);
+		}
+		rval = new_rval;
 	    }
-	    rval = new_rval;
+	}
+	else {
+	    if (TYPE(rval) != T_DATA)
+		return false;
+	    Data_Get_Struct(rval, VALUE, data);
 	}
 
-	pos = bs_struct->fields_count * sizeof(VALUE);
-	data = xmalloc(bs_boxed->ffi_type->size + pos);
-	memset(data + bs_boxed->ffi_type->size, 0, pos);
-	pos = 0;
+	for (i = 0, pos = 0; i < bs_struct->fields_count; i++) {
+	    char *field_type;
+	    VALUE o;
 
-	for (i = 0; i < bs_struct->fields_count; i++) {
-	    VALUE o = RARRAY_AT(rval, i);
-	    char *field_type = bs_struct->fields[i].type;
-	    rb_objc_rval_to_ocval(o, field_type, data + pos);
+	    field_type = bs_struct->fields[i].type;
+	    o = is_ary ? RARRAY_AT(rval, i) : data[i];
+	    rb_objc_rval_to_ocval(o, field_type, ocval + pos);
 	    pos += rb_objc_octype_to_ffitype(field_type)->size;
 	}
-
-	*ok = true;
     }
     else {
-	data = bs_element_boxed_get_data(bs_boxed, rval, ok);
+	void *data;
+
+	Data_Get_Struct(rval, void, data);
+	if (data == NULL) {
+	    *(void **)ocval = NULL; 
+	}
+	else {
+	    memcpy(ocval, data, bs_boxed->ffi_type->size);
+	}
     }
 
-    return data;
+    return true;
 }
 
 static void
@@ -682,17 +657,7 @@ rb_objc_rval_to_ocval(VALUE rval, const char *octype, void **ocval)
 
     if (bs_boxeds != NULL
 	&& st_lookup(bs_boxeds, (st_data_t)octype, (st_data_t *)&bs_boxed)) {
-	void *data;
-
-	data = rb_objc_rval_to_boxed_data(rval, bs_boxed, &ok);
-	if (ok) {
-	    if (data == NULL)
-		*(void **)ocval = NULL;
-	    else {
-		memcpy(ocval, data, bs_boxed->ffi_type->size);
-		xfree(data);
-	    }
-	}
+	ok = rb_objc_rval_copy_boxed_data(rval, bs_boxed, (void *)ocval);
 	goto bails; 
     }
 
@@ -752,12 +717,9 @@ rb_objc_rval_to_ocval(VALUE rval, const char *octype, void **ocval)
 			}
 		    }
 		    else if (st_lookup(bs_boxeds, (st_data_t)octype + 1, 
-				(st_data_t *)&bs_boxed)) {
-			void *data;
-
-			data = rb_objc_rval_to_boxed_data(rval, bs_boxed, &ok);
-			if (ok)
-			    *(void **)ocval = data;
+			     (st_data_t *)&bs_boxed)) {
+			*(void **)ocval = xmalloc(bs_boxed->ffi_type->size);
+			ok = rb_objc_rval_copy_boxed_data(rval, bs_boxed, *(void **)ocval);
 		    }
 		    else {
 			ok = false;
@@ -881,7 +843,7 @@ rb_objc_ocid_to_rval(void **ocval, VALUE *rbval)
 }
 
 static void
-rb_objc_ocval_to_rbval(void **ocval, const char *octype, VALUE *rbval)
+rb_objc_ocval_to_rval(void **ocval, const char *octype, VALUE *rbval)
 {
     bool ok;
 
@@ -1208,7 +1170,7 @@ rb_objc_call2(VALUE recv, VALUE klass, SEL sel, IMP imp,
 		VALUE retval;
 		buf[0] = sig->types[0];
 		buf[1] = '\0';
-		rb_objc_ocval_to_rbval(&ffi_ret, buf, &retval);
+		rb_objc_ocval_to_rval(&ffi_ret, buf, &retval);
 		return retval;
 	    }
 	    return Qnil;
@@ -1292,7 +1254,7 @@ rb_objc_call2(VALUE recv, VALUE klass, SEL sel, IMP imp,
 
     if (ffi_rettype != &ffi_type_void) {
 	VALUE resp;
-	rb_objc_ocval_to_rbval(ffi_ret, rettype, &resp);
+	rb_objc_ocval_to_rval(ffi_ret, rettype, &resp);
 	return resp;
     }
     else {
@@ -1563,7 +1525,7 @@ rb_ruby_to_objc_closure_handler(ffi_cif *cif, void *resp, void **args,
 	    type = rb_objc_method_get_type(method, cif->nargs, bs_method,
 		    i, buf, sizeof buf);
 
-	    rb_objc_ocval_to_rbval(args[i + 2], type, &val);
+	    rb_objc_ocval_to_rval(args[i + 2], type, &val);
 	    argv[i] = val;
 	}
     }
@@ -1947,7 +1909,7 @@ rb_bsfunc_call(bs_element_function_t *bs_func, void *sym, int argc, VALUE *argv)
 
     resp = Qnil;
     if (ffi_rettype != &ffi_type_void) {
-	rb_objc_ocval_to_rbval(ffi_ret, bs_func->retval->type, &resp);
+	rb_objc_ocval_to_rval(ffi_ret, bs_func->retval->type, &resp);
     	if (bs_func->retval->already_retained && !rb_objc_resourceful(resp))
 	    CFMakeCollectable((void *)resp);
     }
@@ -1970,7 +1932,7 @@ rb_objc_resolve_const_value(VALUE v, VALUE klass, ID id)
 	    rb_bug("cannot locate symbol for unresolved bridgesupport " \
 		    "constant `%s'", bs_const->name);
 
-	rb_objc_ocval_to_rbval(sym, bs_const->type, &v);
+	rb_objc_ocval_to_rval(sym, bs_const->type, &v);
 
 	CFMutableDictionaryRef iv_dict = rb_class_ivar_dict(rb_cObject);
 	assert(iv_dict != NULL);
@@ -2006,26 +1968,32 @@ rb_bs_struct_new(int argc, VALUE *argv, VALUE recv)
 {
     bs_element_boxed_t *bs_boxed = rb_klass_get_bs_boxed(recv);
     bs_element_struct_t *bs_struct = (bs_element_struct_t *)bs_boxed->value;    
-    void *data;
+    VALUE *data;
     unsigned i;
-    size_t pos;
 
     if (argc > 0 && argc != bs_struct->fields_count)
 	rb_raise(rb_eArgError, "wrong number of arguments (%d for %d)",
 		 argc, bs_struct->fields_count);
 
-    pos = bs_struct->fields_count * sizeof(VALUE);
-    data = (void *)xmalloc(pos + bs_boxed->ffi_type->size);
-    memset(data, 0, pos + bs_boxed->ffi_type->size);
-    pos = 0;
+    data = (VALUE *)xmalloc(bs_struct->fields_count * sizeof(VALUE));
 
-    for (i = 0; i < argc; i++) {
+    for (i = 0; i < bs_struct->fields_count; i++) {
 	bs_element_struct_field_t *bs_field = 
 	    (bs_element_struct_field_t *)&bs_struct->fields[i];
+	size_t fdata_size;
+	void *fdata;
+	VALUE fval;
 
-	rb_objc_rval_to_ocval(argv[i], bs_field->type, data + pos);
-    
-        pos += rb_objc_octype_to_ffitype(bs_field->type)->size;
+	fdata_size = rb_objc_octype_to_ffitype(bs_field->type)->size;
+	fdata = alloca(fdata_size);
+	if (i < argc) {
+	    rb_objc_rval_to_ocval(argv[i], bs_field->type, fdata);
+	}
+	else {
+	    memset(fdata, 0, fdata_size);
+	}
+	rb_objc_ocval_to_rval(fdata, bs_field->type, &fval);
+	GC_WB(&data[i], fval);
     }
 
     return Data_Wrap_Struct(recv, NULL, NULL, data);
@@ -2057,8 +2025,7 @@ rb_bs_struct_get(VALUE recv)
     bs_element_struct_t *bs_struct = (bs_element_struct_t *)bs_boxed->value;
     unsigned i;
     const char *ivar_id_str;
-    void *data;
-    size_t pos;
+    VALUE *data;
 
     /* FIXME we should cache the ivar IDs somewhere in the 
      * bs_element_struct_fields 
@@ -2067,26 +2034,16 @@ rb_bs_struct_get(VALUE recv)
     ivar_id_str = rb_id2name(rb_bs_struct_field_ivar_id());
     ivar_id_str++; /* skip first '@' */
 
-    Data_Get_Struct(recv, void, data);
+    Data_Get_Struct(recv, VALUE, data);
     assert(data != NULL);
 
-    rb_objc_wb_range(data + bs_boxed->ffi_type->size,
-		     bs_struct->fields_count * sizeof(VALUE));
-
-    for (i = 0, pos = 0; i < bs_struct->fields_count; i++) {
+    for (i = 0; i < bs_struct->fields_count; i++) {
 	bs_element_struct_field_t *bs_field =
 	    (bs_element_struct_field_t *)&bs_struct->fields[i];
 
 	if (strcmp(ivar_id_str, bs_field->name) == 0) {
-	    VALUE *pval;
-
-	    pval = &((VALUE *)(data + bs_boxed->ffi_type->size))[i];
-	    if (*pval == 0) {
-		rb_objc_ocval_to_rbval(data + pos, bs_field->type, pval);
-	    }
-	    return *pval;
+	    return data[i];
 	}
-        pos += rb_objc_octype_to_ffitype(bs_field->type)->size;
     }
 
     rb_bug("can't find field `%s' in recv `%s'", ivar_id_str,
@@ -2102,7 +2059,7 @@ rb_bs_struct_set(VALUE recv, VALUE value)
     bs_element_struct_t *bs_struct = (bs_element_struct_t *)bs_boxed->value;
     unsigned i;
     const char *ivar_id_str;
-    void *data;
+    VALUE *data;
     size_t pos;
 
     /* FIXME we should cache the ivar IDs somewhere in the 
@@ -2112,7 +2069,7 @@ rb_bs_struct_set(VALUE recv, VALUE value)
     ivar_id_str = rb_id2name(rb_bs_struct_field_ivar_id());
     ivar_id_str++; /* skip first '@' */
 
-    Data_Get_Struct(recv, void, data);
+    Data_Get_Struct(recv, VALUE, data);
     assert(data != NULL);
 
     for (i = 0, pos = 0; i < bs_struct->fields_count; i++) {
@@ -2120,11 +2077,18 @@ rb_bs_struct_set(VALUE recv, VALUE value)
 	    (bs_element_struct_field_t *)&bs_struct->fields[i];
 
 	if (strcmp(ivar_id_str, bs_field->name) == 0) {
-	    rb_objc_rval_to_ocval(value, bs_field->type, data + pos);
-	    /* We do not update the cache because `value' may have been
-	     * transformed (ex. fixnum to float).
-	     */
-	    ((VALUE *)(data + bs_boxed->ffi_type->size))[i] = 0;
+	    size_t fdata_size;
+	    void *fdata;
+	    VALUE fval;
+
+	    fdata_size = rb_objc_octype_to_ffitype(bs_field->type)->size;
+	    fdata = alloca(fdata_size);
+
+	    rb_objc_rval_to_ocval(value, bs_field->type, fdata);
+	    rb_objc_ocval_to_rval(fdata, bs_field->type, &fval);
+
+	    GC_WB(&data[i], fval);	
+
 	    return value;
 	}
         pos += rb_objc_octype_to_ffitype(bs_field->type)->size;
@@ -2141,16 +2105,17 @@ rb_bs_struct_to_a(VALUE recv)
 {
     bs_element_boxed_t *bs_boxed = rb_klass_get_bs_boxed(CLASS_OF(recv));
     bs_element_struct_t *bs_struct = (bs_element_struct_t *)bs_boxed->value;    
+    VALUE *data;
     VALUE ary;
     unsigned i;
-
+    
+    Data_Get_Struct(recv, VALUE, data);
+    assert(data != NULL);
+    
     ary = rb_ary_new();
 
     for (i = 0; i < bs_struct->fields_count; i++) {
-	VALUE obj;
-
-	obj = rb_funcall(recv, rb_intern(bs_struct->fields[i].name), 0, NULL);
-	rb_ary_push(ary, obj);
+	rb_ary_push(ary, data[i]);
     }
 
     return ary;
@@ -2160,8 +2125,6 @@ static VALUE
 rb_bs_boxed_is_equal(VALUE recv, VALUE other)
 {
     bs_element_boxed_t *bs_boxed;  
-    bool ok;
-    void *d1, *d2; 
 
     if (recv == other)
 	return Qtrue;
@@ -2173,40 +2136,21 @@ rb_bs_boxed_is_equal(VALUE recv, VALUE other)
     if (bs_boxed != rb_klass_get_bs_boxed(CLASS_OF(other)))
 	return Qfalse;
 
-    d1 = bs_element_boxed_get_data(bs_boxed, recv, &ok);
-    if (!ok)
-	rb_raise(rb_eRuntimeError, "can't retrieve data for boxed `%s'",
-		 RSTRING_PTR(rb_inspect(recv)));
-
-    d2 = bs_element_boxed_get_data(bs_boxed, other, &ok);
-    if (!ok)
-	rb_raise(rb_eRuntimeError, "can't retrieve data for boxed `%s'",
-		 RSTRING_PTR(rb_inspect(recv)));
-
-    if (d1 == d2)
-	return Qtrue;
-    else if (d1 == NULL || d2 == NULL)
-	return Qfalse;
-
-    return memcmp(d1, d2, bs_boxed->ffi_type->size) == 0 ? Qtrue : Qfalse;
+    return CFEqual((CFTypeRef)recv, (CFTypeRef)other) ? Qtrue : Qfalse;
 }
 
 static VALUE
 rb_bs_struct_dup(VALUE recv)
 {
     bs_element_boxed_t *bs_boxed = rb_klass_get_bs_boxed(CLASS_OF(recv));
-    void *data;
-    bool ok;
+    bs_element_struct_t *bs_struct = (bs_element_struct_t *)bs_boxed->value;    
+    VALUE *data, *new_data;
 
-    data = bs_element_boxed_get_data(bs_boxed, recv, &ok);
-    if (!ok)
-	rb_raise(rb_eRuntimeError, "can't retrieve data for boxed `%s'",
-		 RSTRING_PTR(rb_inspect(recv)));
+    Data_Get_Struct(recv, VALUE, data);
+    new_data = (VALUE *)xmalloc(bs_struct->fields_count * sizeof(VALUE));
+    memcpy(new_data, data, bs_struct->fields_count * sizeof(VALUE));
 
-    if (data == NULL)
-	return Qnil;
-
-    return rb_bs_boxed_new_from_ocdata(bs_boxed, data);
+    return Data_Wrap_Struct(CLASS_OF(recv), NULL, NULL, new_data);
 }
 
 static VALUE
@@ -2221,15 +2165,15 @@ rb_bs_struct_inspect(VALUE recv)
     rb_str_cat2(str, rb_obj_classname(recv));
 
     if (!bs_struct->opaque) {
-	for (i = 0; i < bs_struct->fields_count; i++) {
-	    VALUE obj;
+	VALUE *data;
 
-	    obj = rb_funcall(recv, rb_intern(bs_struct->fields[i].name), 
-			     0, NULL);
+	Data_Get_Struct(recv, VALUE, data);
+
+	for (i = 0; i < bs_struct->fields_count; i++) {
 	    rb_str_cat2(str, " ");
 	    rb_str_cat2(str, bs_struct->fields[i].name);
 	    rb_str_cat2(str, "=");
-	    rb_str_append(str, rb_inspect(obj));
+	    rb_str_append(str, rb_inspect(data[i]));
 	}
     }
 
@@ -2278,8 +2222,9 @@ rb_boxed_fields(VALUE recv)
     if (bs_boxed->type == BS_ELEMENT_STRUCT) {
 	bs_element_struct_t *bs_struct;
 	bs_struct = (bs_element_struct_t *)bs_boxed->value;
-	for (i = 0; i < bs_struct->fields_count; i++)
+	for (i = 0; i < bs_struct->fields_count; i++) {
 	    rb_ary_push(ary, ID2SYM(rb_intern(bs_struct->fields[i].name)));
+	}
     }
     return ary;
 }
@@ -2733,22 +2678,9 @@ static void
 imp_rb_boxed_getValue(void *rcv, SEL sel, void *buffer)
 {
     bs_element_boxed_t *bs_boxed;
-    void *data;
-    bool ok;  
 
     bs_boxed = rb_klass_get_bs_boxed(CLASS_OF(rcv));
-
-    data = bs_element_boxed_get_data(bs_boxed, (VALUE)rcv, &ok);
-    if (!ok)
-	[NSException raise:@"NSException" 
-	    format:@"can't get internal data for boxed type `%s'",
-	    RSTRING_PTR(rb_inspect((VALUE)rcv))];
-    if (data == NULL) {
-	*(void **)buffer = NULL; 
-    }
-    else {
- 	memcpy(buffer, data, bs_boxed->ffi_type->size);
-    }
+    assert(rb_objc_rval_copy_boxed_data((VALUE)rcv, bs_boxed, buffer));
 }
 
 static void
