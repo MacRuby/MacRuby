@@ -1182,7 +1182,11 @@ rb_obj_respond_to(VALUE obj, ID id, int priv)
 	sel_respondTo = sel_registerName("respond_to?:");
 
     if (rb_objc_method_node2(klass, sel_respondTo, NULL) == basic_respond_to) {
-	rb_objc_method_node(klass, id, &imp, NULL);
+	NODE *method;
+
+	method = rb_objc_method_node(klass, id, &imp, NULL);
+	if (method != NULL && priv == 0 && (method->nd_noex & NOEX_PRIVATE))
+	    return false;
 	return imp != NULL;
     }
 #else
@@ -1223,9 +1227,13 @@ obj_respond_to(int argc, VALUE *argv, VALUE obj)
 
     rb_scan_args(argc, argv, "11", &mid, &priv);
     id = rb_to_id(mid);
+#if WITH_OBJC
+    return rb_obj_respond_to(obj, id, RTEST(priv)) ? Qtrue : Qfalse;
+#else
     if (rb_method_boundp(CLASS_OF(obj), id, !RTEST(priv))) {
 	return Qtrue;
     }
+#endif
     return Qfalse;
 }
 
