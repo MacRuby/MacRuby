@@ -31,7 +31,7 @@ version_h = File.read('version.h')
 NEW_RUBY_VERSION = version_h.scan(/#\s*define\s+RUBY_VERSION\s+\"([^"]+)\"/)[0][0]
 MACRUBY_VERSION = version_h.scan(/#\s*define\s+MACRUBY_VERSION\s+(.*)/)[0][0]
 
-NEW_RUBY_PLATFORM = 'universal-darwin' + `uname -r`.scan(/^\d+.\d+/)[0]
+NEW_RUBY_PLATFORM = 'universal-darwin' + `uname -r`.scan(/^(\d+)\.\d+\.(\d+)/)[0].join('.')
 
 FRAMEWORK_PATH = File.join(FRAMEWORK_INSTDIR, FRAMEWORK_NAME + '.framework')
 FRAMEWORK_VERSION = File.join(FRAMEWORK_PATH, 'Versions', MACRUBY_VERSION)
