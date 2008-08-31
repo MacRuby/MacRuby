@@ -372,7 +372,28 @@ remove_method(VALUE klass, ID mid)
 	rb_warn("removing `%s' may cause serious problem", rb_id2name(mid));
     }
 #if WITH_OBJC
-    // TODO
+    SEL sel;
+    Method m;
+
+    sel = sel_registerName(rb_id2name(mid));
+    m = class_getInstanceMethod((Class)klass, sel);
+    if (m == NULL) {
+	char buf[100];
+	size_t len = strlen((char *)sel);
+	if (((char *)sel)[len - 1] != ':') {
+	    snprintf(buf, sizeof buf, "%s:", (char *)sel);
+	    sel = sel_registerName(buf);
+	    m = class_getInstanceMethod((Class)klass, sel);
+	}
+    }
+    if (m == NULL) {
+	rb_name_error(mid, "method `%s' not defined in %s",
+		      rb_id2name(mid), rb_class2name(klass));
+    }
+    if (rb_objc_method_node3(method_getImplementation(m)) == NULL) {
+	rb_warn("removing pure Objective-C method `%s' may cause serious problem", rb_id2name(mid));
+    }
+    method_setImplementation(m, NULL);
 #else
     if (st_lookup(RCLASS_M_TBL(klass), mid, &data)) {
 	body = (NODE *)data;
@@ -381,11 +402,11 @@ remove_method(VALUE klass, ID mid)
 	    st_delete(RCLASS_M_TBL(klass), &mid, &data);
 	}
     }
-#endif
     if (!body) {
 	rb_name_error(mid, "method `%s' not defined in %s",
 		      rb_id2name(mid), rb_class2name(klass));
     }
+#endif
 
     if (nd_type(body->nd_body->nd_body) == NODE_CFUNC) {
 	rb_vm_check_redefinition_opt_method(body);
