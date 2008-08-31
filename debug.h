@@ -31,12 +31,15 @@ void  ruby_debug_gc_check_func(void);
 
 #if ENABLE_DEBUG_LOGGING 
 # include "vm_core.h"
+# include <libgen.h>
 extern bool ruby_dlog_enabled;
-# define DLOG(mod, fmt, args...)         \
-    if (UNLIKELY(ruby_dlog_enabled)) {   \
-	printf("%10s   ", mod);          \
-	printf(fmt, ##args);             \
-	printf("\n");                    \
+extern FILE *ruby_dlog_file;
+# define DLOG(mod, fmt, args...) 					  \
+    if (UNLIKELY(ruby_dlog_enabled)) { 					  \
+	fprintf(ruby_dlog_file, "%s:%d %s ",				  \
+		basename((char *)rb_sourcefile()), rb_sourceline(), mod); \
+	fprintf(ruby_dlog_file, fmt, ##args); 				  \
+	fprintf(ruby_dlog_file, "\n");              			  \
     }
 #else
 # define DLOG(mod, fmt, args...)

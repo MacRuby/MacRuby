@@ -56,6 +56,7 @@ void Init_BareVM(void);
 
 #if WITH_OBJC
 bool ruby_dlog_enabled = false;
+FILE *ruby_dlog_file = NULL;
 #endif
 
 void
@@ -75,8 +76,22 @@ ruby_init(void)
 #endif
 
 #if WITH_OBJC
-    char *s = getenv("MACRUBY_DEBUG");
+    char *s;
+   
+    s = getenv("MACRUBY_DEBUG");
     ruby_dlog_enabled = !(s == NULL || *s == '0');
+    s = getenv("MACRUBY_DEBUG_FILE");
+    if (s == NULL) {
+	ruby_dlog_file = stderr;
+    }
+    else {
+	ruby_dlog_file = fopen(s, "w");
+	if (ruby_dlog_file == NULL) {
+	    fprintf(stderr, "cannot open macruby debug file `%s'",
+		    strerror(errno));
+	    ruby_dlog_file = stderr;
+	}
+    }
 #endif
 
     Init_stack((void *)&state);
