@@ -153,8 +153,9 @@ rb_objc_create_class(const char *name, VALUE super)
 	rb_define_object_special_methods(klass);
     }
 
-    if (name != NULL && rb_class_tbl != NULL) 
+    if (name != NULL && rb_class_tbl != NULL) {
 	st_insert(rb_class_tbl, (st_data_t)rb_intern(name), (st_data_t)klass);
+    }
 
     return klass;
 }
@@ -162,8 +163,7 @@ rb_objc_create_class(const char *name, VALUE super)
 VALUE
 rb_class_boot(VALUE super)
 {
-    VALUE klass = rb_objc_create_class(NULL, super);
-    return (VALUE)klass;
+    return rb_objc_create_class(NULL, super);
 }
 
 void

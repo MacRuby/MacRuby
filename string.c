@@ -5389,6 +5389,8 @@ Init_String(void)
 
     /* rb_cSymbol is defined in parse.y because it's needed early */
     rb_set_class_path(rb_cSymbol, rb_cObject, "Symbol");
+    rb_const_set(rb_cObject, rb_intern("Symbol"), rb_cSymbol);
+
     rb_undef_alloc_func(rb_cSymbol);
     rb_undef_method(CLASS_OF(rb_cSymbol), "new");
     rb_define_singleton_method(rb_cSymbol, "all_symbols", rb_sym_all_symbols, 0); /* in parse.y */
