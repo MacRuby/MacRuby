@@ -1,6 +1,6 @@
 class Controller
 
-  ib_outlet :mySuperview, :numberText, :speedText, :numberSlider, :speedSlider
+  attr_accessor :mySuperview, :numberText, :speedText, :numberSlider, :speedSlider
 	
   def init
     super

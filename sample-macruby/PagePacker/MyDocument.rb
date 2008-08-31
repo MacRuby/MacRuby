@@ -1,5 +1,5 @@
 class MyDocument < NSDocument
-  ib_outlet :packerView
+  attr_accessor :packerView
   
   def init
     super

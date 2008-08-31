@@ -5,7 +5,7 @@ FontSizeKey = 'FontSize'
 
 class PreferenceController < NSWindowController
 
-  ib_outlet :paperPopUp, :textFontField
+  attr_accessor :paperPopUp, :textFontField
 
   attr_reader :textFont
 

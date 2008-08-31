@@ -1,6 +1,6 @@
 class ServiceWatcher
 
-  ib_outlet :dataSource
+  attr_accessor :dataSource
 
   def startMonitoring
     nCenter = IMService.notificationCenter

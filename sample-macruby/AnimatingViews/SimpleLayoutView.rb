@@ -1,6 +1,6 @@
 class SimpleLayoutView < NSView
   
-  ib_outlet :boxColorField
+  attr_accessor :boxColorField
   
   # Default separation between items, and default size of added subviews
   SEPARATION = 10.0

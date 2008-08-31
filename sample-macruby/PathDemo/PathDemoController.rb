@@ -1,6 +1,6 @@
 class PathDemoController
 
-  ib_outlet :button, :popup, :window, :demoView
+  attr_accessor :button, :popup, :window, :demoView
 
   def awakeFromNib
     @popup.removeAllItems

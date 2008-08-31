@@ -1,10 +1,8 @@
 
 class MySuperview < NSView
 		
-  ib_outlet :controller, :shadowSwitch, :moveToTopSwitch
+  attr_accessor :controller, :shadowSwitch, :moveToTopSwitch
 	
-  attr_reader :shadowSwitch, :moveToTopSwitch
-
   def initWithFrame(frame)
     super
     return self

@@ -1,6 +1,6 @@
 class PhotocastViewerController < NSWindowController
   
-  ib_outlet :imageBrowserView
+  attr_accessor :imageBrowserView
   
   def awakeFromNib
     @cache = []

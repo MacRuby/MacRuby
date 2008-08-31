@@ -1,5 +1,5 @@
 class CatalogController < NSWindowController
-  ib_outlet :pdfView, :pageSlider, :pageField
+  attr_accessor :pdfView, :pageSlider, :pageField
   
   attr_reader :currentPageIndex
   
