@@ -2958,7 +2958,8 @@ str_charset_find(CFStringRef str, VALUE *charsets, int charset_count,
     if (n == 0)
     	return;
 
-    for (i = 0, charset = NULL; i < charset_count; i++) {
+    charset = NULL;
+    for (i = 0; i < charset_count; i++) {
 	VALUE s = charsets[i];
 	bool exclude;
 	const char *sptr, *p;
@@ -2976,8 +2977,9 @@ str_charset_find(CFStringRef str, VALUE *charsets, int charset_count,
 	    b = exclude ? sptr + 1 : sptr;
 	    e = sptr + strlen(sptr) - 1;
 	    subset = CFCharacterSetCreateMutable(NULL);
-	    if (p == NULL)
+	    if (p == NULL) {
 		p = strchr(b, '-');
+	    }
 	    while (p != NULL) {
 		if (p > b && *(p - 1) != '\\' && *(p + 1) != '\0') {
 		    CFCharacterSetAddCharactersInRange(subset,
@@ -2990,6 +2992,7 @@ str_charset_find(CFStringRef str, VALUE *charsets, int charset_count,
 			    (CFIndex)p - (CFIndex)b,
 			    kCFStringEncodingUTF8,
 			    false);
+		    assert(substr != NULL);
 		    CFCharacterSetAddCharactersInString(subset, substr);
 		    CFRelease(substr);
 		}
@@ -3008,12 +3011,14 @@ str_charset_find(CFStringRef str, VALUE *charsets, int charset_count,
 			(CFIndex)e - (CFIndex)b + 1,
 			kCFStringEncodingUTF8,
 			false);
+		assert(substr != NULL);
 		CFCharacterSetAddCharactersInString(subset, substr);
 		CFRelease(substr);
 	    }
 
-	    if (exclude)
+	    if (exclude) {
 		CFCharacterSetInvert(subset);
+	    }
 
 	    if (charset == NULL) {
 		charset = subset;
@@ -3031,7 +3036,7 @@ str_charset_find(CFStringRef str, VALUE *charsets, int charset_count,
 	    else {
 		CFCharacterSetRef subset;
 		subset = CFCharacterSetCreateWithCharactersInString(NULL,
-		    (CFStringRef)s);
+			(CFStringRef)s);
 		CFCharacterSetIntersect(charset, subset);
 		CFRelease(subset);	
 	    }
