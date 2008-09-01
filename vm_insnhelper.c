@@ -495,17 +495,20 @@ vm_send_optimize(rb_control_frame_t * const reg_cfp, NODE ** const mn,
 	if (node->nd_cfnc == rb_f_send) {
 	    int i = *num - 1;
 	    VALUE sym = TOPN(i);
-	    *id = SYMBOL_P(sym) ? SYM2ID(sym) : rb_to_id(sym);
+	    ID new_id = SYMBOL_P(sym) ? SYM2ID(sym) : rb_to_id(sym);
+	    NODE *new_node = rb_method_node(klass, new_id);
+	    if (new_node != NULL) {
+		/* shift arguments */
+		if (i > 0) {
+		    MEMMOVE(&TOPN(i), &TOPN(i-1), VALUE, i);
+		}
 
-	    /* shift arguments */
-	    if (i > 0) {
-		MEMMOVE(&TOPN(i), &TOPN(i-1), VALUE, i);
+		*mn = new_node;
+		*id = new_id;
+		*num -= 1;
+		DEC_SP(1);
+		*flag |= VM_CALL_FCALL_BIT;
 	    }
-
-	    *mn = rb_method_node(klass, *id);
-	    *num -= 1;
-	    DEC_SP(1);
-	    *flag |= VM_CALL_FCALL_BIT;
 	}
     }
 }
@@ -695,7 +698,7 @@ cfunc_dispatch:
 rcall_dispatch:
 
     if (flag & VM_CALL_SEND_BIT) {
-	vm_send_optimize(cfp, (NODE **)&mn, (rb_num_t *)&flag, (rb_num_t *)&num, (ID *)&id, klass);  
+	vm_send_optimize(cfp, (NODE **)&mn, (rb_num_t *)&flag, (rb_num_t *)&num, (ID *)&id, klass);
     }
 
     DLOG("RCALL", "%c[<%s %p> %s] node=%p cached=%d", class_isMetaClass((Class)klass) ? '+' : '-', class_getName((Class)klass), (void *)recv, (char *)rb_id2name(id), mn, cached);

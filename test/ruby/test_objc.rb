@@ -372,9 +372,13 @@ class TestObjC < Test::Unit::TestCase
     assert(o.respond_to?(:foo=))
     assert(o.respond_to?(:setFoo))
     o.setFoo(42)
-    assert(42, o.foo)
-    o.performSelector('setFoo:', withObject:42)
-    assert(42, o.foo)
+    assert_equal(42, o.foo)
+    assert_equal(nil, o.performSelector('setFoo:', withObject:42))
+    assert_equal(42, o.foo)
+    assert_equal(nil, o.send('setFoo', 42))
+    assert_equal(42, o.foo)
+    assert_equal(nil, o.send('setFoo:', 42))
+    assert_equal(42, o.foo)
   end
 
   def test_respond_to_objc_methods
