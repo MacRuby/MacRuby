@@ -50,7 +50,11 @@ module HotCocoa::Mappings
         inst.customize(control)
         map.each do |key, value|
           if control.respond_to?(key) && value == true
-            control.send("#{key}")
+            if control.respond_to?("set#{key.to_s.capitalize}")
+              eval "control.set#{key.to_s.capitalize}(true)"
+            else
+              control.send("#{key}")
+            end
           else
             eval "control.#{key}= value"
           end
