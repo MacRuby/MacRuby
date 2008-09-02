@@ -1418,12 +1418,20 @@ vm_search_normal_superclass(VALUE klass, VALUE recv)
 
 #if WITH_OBJC
 static inline VALUE
-vm_search_normal_superclass2(VALUE klass, VALUE recv, ID mid, NODE **mnp, IMP *impp, SEL *selp)
+vm_search_normal_superclass2(VALUE klass, VALUE recv, ID mid, NODE **mnp, 
+			     IMP *impp, SEL *selp)
 {
     static ID idPreviousKlass = 0;
+    static ID idNew = 0, idNew2 = 0, idNew3 = 0;
     CFMutableDictionaryRef iv_dict;
     VALUE ary, k;
   
+    if (idNew == 0) {
+	idNew = rb_intern("new");
+	idNew2 = rb_intern("new:");
+	idNew3 = rb_intern("__new__");
+    }
+
     if (idPreviousKlass == 0) {
 	idPreviousKlass = rb_intern("__previous_sklass__");
     }
@@ -1453,11 +1461,27 @@ vm_search_normal_superclass2(VALUE klass, VALUE recv, ID mid, NODE **mnp, IMP *i
     }
 
     iv_dict = rb_class_ivar_dict(klass);
-    if (iv_dict != NULL && CFDictionaryGetValueIfPresent((CFDictionaryRef)iv_dict, (const void *)idPreviousKlass, (const void **)&k)) {
+    if (iv_dict != NULL 
+	&& CFDictionaryGetValueIfPresent((CFDictionaryRef)iv_dict, 
+					 (const void *)idPreviousKlass, 
+					 (const void **)&k)) {
 	CFDictionaryRemoveValue(iv_dict, (const void *)idPreviousKlass);
 	klass = k;
     }
-    return vm_search_normal_superclass(klass, recv);
+
+    k = vm_search_normal_superclass(klass, recv);
+   
+    /* because #new is added on every new NSObject subclasses, and if overriden
+       we should still call our implementation with super */ 
+    if ((mid == idNew || mid == idNew2) && k == *(VALUE *)rb_cNSObject) {
+	*mnp = rb_objc_method_node(klass, idNew3, impp, selp);
+	if (*mnp == NULL)
+	    rb_bug("can't look up __new__ in klass `%s'\n", 
+		   class_getName((Class)klass));
+	k = klass;
+    }
+
+    return k;
 }
 #endif
 

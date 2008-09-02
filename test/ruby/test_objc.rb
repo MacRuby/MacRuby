@@ -388,4 +388,18 @@ class TestObjC < Test::Unit::TestCase
     assert(s.respond_to?('setString:'))
     assert(s.respond_to?('performSelector:withObject:'))
   end
+
+  class TestCallSuperOverridenNew
+    def self.new(x)
+      super
+    end
+    def initialize(x)
+      @x = x
+    end
+    attr_reader :x
+  end
+  def test_call_super_overriden_new
+    o = TestCallSuperOverridenNew.new(42)
+    assert_equal(42, o.x)
+  end
 end

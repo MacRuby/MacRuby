@@ -1341,17 +1341,15 @@ Init_vm_eval(void)
 
     rb_define_global_function("loop", rb_f_loop, 0);
 
-#if WITH_OBJC
     rb_define_method(rb_cNSObject, "instance_eval", rb_obj_instance_eval, -1);
     rb_define_method(rb_cNSObject, "instance_exec", rb_obj_instance_exec, -1);
     rb_define_private_method(rb_cNSObject, "method_missing", rb_method_missing, -1);
     rb_define_method(rb_cNSObject, "__send__", rb_f_send, -1);
-#else
+
     rb_define_method(rb_cBasicObject, "instance_eval", rb_obj_instance_eval, -1);
     rb_define_method(rb_cBasicObject, "instance_exec", rb_obj_instance_exec, -1);
     rb_define_private_method(rb_cBasicObject, "method_missing", rb_method_missing, -1);
     rb_define_method(rb_cBasicObject, "__send__", rb_f_send, -1);
-#endif
 
     rb_define_method(rb_mKernel, "send", rb_f_send, -1);
     rb_define_method(rb_mKernel, "public_send", rb_f_public_send, -1);

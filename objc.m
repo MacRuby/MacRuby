@@ -3163,7 +3163,7 @@ Init_ObjC(void)
 	CFRunLoopAddTimer(CFRunLoopGetMain(), timer, kCFRunLoopDefaultMode);
     }
 
-    rb_define_method(rb_cBasicObject, "__super_objc_send__", rb_super_objc_send, -1);
+    rb_define_method(rb_cNSObject, "__super_objc_send__", rb_super_objc_send, -1);
 
     Method m = class_getInstanceMethod(objc_getClass("NSKeyValueUnnestedProperty"), sel_registerName("isaForAutonotifying"));
     assert(m != NULL);

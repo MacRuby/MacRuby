@@ -1480,7 +1480,7 @@ rb_obj_alloc(VALUE klass)
 {
     VALUE obj;
 
-    if (RCLASS_SUPER(klass) == 0 && klass != rb_cBasicObject) {
+    if (RCLASS_SUPER(klass) == 0 && klass != rb_cBasicObject && klass != rb_cObject) {
 	rb_raise(rb_eTypeError, "can't instantiate uninitialized class");
     }
     if (RCLASS_SINGLETON(klass)) {
@@ -2441,26 +2441,32 @@ rb_class_is_meta(VALUE klass)
 void
 Init_Object(void)
 {
-    rb_cNSObject = rb_cObject = (VALUE)objc_getClass("NSObject");
+    rb_cObject = rb_cNSObject = (VALUE)objc_getClass("NSObject");
     rb_const_set(rb_cObject, rb_intern("Object"), rb_cNSObject);
     rb_set_class_path(rb_cObject, rb_cObject, "NSObject");
-    rb_cBasicObject = rb_cObject; // TODO
+    rb_cBasicObject = (VALUE)objc_duplicateClass((Class)rb_cObject, "BasicObject", 0);
     rb_cModule = boot_defclass("Module", rb_cObject);
     rb_cClass =  boot_defclass("Class",  rb_cModule);
     RCLASS_SUPER(*(Class *)rb_cNSObject) = rb_cClass;
 
-    rb_define_private_method(rb_cBasicObject, "initialize", rb_obj_dummy, 0);
+    rb_define_private_method(rb_cNSObject, "initialize", rb_obj_dummy, 0);
     rb_define_method(rb_cNSObject, "==", rb_obj_equal, 1);
     rb_define_method(rb_cNSObject, "equal?", rb_obj_equal, 1);
     rb_define_method(rb_cNSObject, "!", rb_obj_not, 0);
     rb_define_method(rb_cNSObject, "!=", rb_obj_not_equal, 1);
 
-    rb_define_private_method(rb_cBasicObject, "singleton_method_added", rb_obj_dummy, 1);
-    rb_define_private_method(rb_cBasicObject, "singleton_method_removed", rb_obj_dummy, 1);
-    rb_define_private_method(rb_cBasicObject, "singleton_method_undefined", rb_obj_dummy, 1);
+    rb_define_private_method(rb_cBasicObject, "initialize", rb_obj_dummy, 0);
+    rb_define_method(rb_cBasicObject, "==", rb_obj_equal, 1);
+    rb_define_method(rb_cBasicObject, "equal?", rb_obj_equal, 1);
+    rb_define_method(rb_cBasicObject, "!", rb_obj_not, 0);
+    rb_define_method(rb_cBasicObject, "!=", rb_obj_not_equal, 1);
+
+    rb_define_private_method(rb_cNSObject, "singleton_method_added", rb_obj_dummy, 1);
+    rb_define_private_method(rb_cNSObject, "singleton_method_removed", rb_obj_dummy, 1);
+    rb_define_private_method(rb_cNSObject, "singleton_method_undefined", rb_obj_dummy, 1);
 
     rb_mKernel = rb_define_module("Kernel");
-    rb_include_module(rb_cObject, rb_mKernel);
+    rb_include_module(rb_cNSObject, rb_mKernel);
     rb_define_private_method(rb_cClass, "inherited", rb_obj_dummy, 1);
     rb_define_private_method(rb_cModule, "included", rb_obj_dummy, 1);
     rb_define_private_method(rb_cModule, "extended", rb_obj_dummy, 1);

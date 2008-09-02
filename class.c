@@ -61,17 +61,27 @@ rb_class_allocate_instance(VALUE klass)
     return (VALUE)obj;
 }
 
-static VALUE
-rb_objc_init(VALUE rcv)
-{
-    rb_funcall(rcv, idInitialize, 0);
-    return rcv;
-}
-
 static BOOL
 rb_obj_imp_isEqual(void *rcv, SEL sel, void *obj)
 {
     return rb_funcall((VALUE)rcv, idEq, 1, OC2RB(obj)) == Qtrue;
+}
+
+static void *
+rb_obj_imp_init(void *rcv, SEL sel)
+{
+    rb_funcall((VALUE)rcv, idInitialize, 0);
+    return rcv;
+}
+
+static VALUE
+rb_objc_init(VALUE rcv)
+{
+    IMP imp = class_getMethodImplementation((Class)CLASS_OF(rcv), selInit);
+    if (imp != NULL && imp != (IMP)rb_obj_imp_init) {
+	return (VALUE)((void *(*)(void *, SEL))*imp)((void *)rcv, selInit);
+    }
+    return rcv;
 }
 
 void
@@ -79,14 +89,17 @@ rb_define_object_special_methods(VALUE klass)
 {
     rb_define_alloc_func(klass, rb_class_allocate_instance);
     rb_define_singleton_method(klass, "new", rb_class_new_instance, -1);
+    rb_define_singleton_method(klass, "__new__", rb_class_new_instance, -1);
     rb_define_method(klass, "dup", rb_obj_dup, 0);
-    rb_define_method(klass, "init", rb_objc_init, 0);
+    rb_define_method(klass, "initialize", rb_objc_init, 0);
     rb_define_method(klass, "initialize_copy", rb_obj_init_copy, 1);
 
     static SEL sel_isEqual = 0;
     if (sel_isEqual == 0)
 	sel_isEqual = sel_registerName("isEqual:");
     class_addMethod((Class)klass, sel_isEqual, (IMP)rb_obj_imp_isEqual, "c@:@");
+
+    class_addMethod((Class)klass, selInit, (IMP)rb_obj_imp_init, "@@:");
 }
 
 static VALUE
@@ -548,7 +561,7 @@ rb_include_module(VALUE klass, VALUE module)
 static void
 rb_mod_included_modules_nosuper(VALUE mod, VALUE ary)
 {
-    VALUE inc_mods = rb_ivar_get(mod, idIncludedModules);
+    VALUE inc_mods = rb_attr_get(mod, idIncludedModules);
     if (inc_mods != Qnil) {
 	int i, count = RARRAY_LEN(inc_mods);
 	for (i = 0; i < count; i++) {
@@ -680,6 +693,11 @@ rb_objc_push_methods(VALUE ary, VALUE mod, VALUE objc_methods)
     Method *methods;
     unsigned int i, count;
 
+    /* XXX: 
+     * - fails to ignore undefined methods (#undef_method)
+     * - does not filter public/private/protected methods
+     */
+
     methods = class_copyMethodList((Class)mod, &count); 
     if (methods != NULL) {  
 	for (i = 0; i < count; i++) { 
@@ -691,6 +709,7 @@ rb_objc_push_methods(VALUE ary, VALUE mod, VALUE objc_methods)
 	    char buf[100];
 	    BOOL is_ruby_method;
 	    size_t len;
+	    IMP imp;
 	   
 	    method = methods[i];
 
@@ -698,12 +717,15 @@ rb_objc_push_methods(VALUE ary, VALUE mod, VALUE objc_methods)
 	    if (sel == sel_ignored)
 		continue; 
 
-	    sel_name = (char *)sel;
-	    is_ruby_method = rb_objc_method_node3(method_getImplementation(method)) != NULL;
+	    imp = method_getImplementation(method);
+	    if (imp == NULL)
+		continue;
 
+	    is_ruby_method = rb_objc_method_node3(imp) != NULL;
 	    if (!is_ruby_method && objc_methods == Qfalse)
 		continue;
 
+	    sel_name = (char *)sel;
 	    len = strlen(sel_name);
 
 	    if (is_ruby_method && len > 8 && sel_name[0] == '_' && sel_name[1] == '_' && sel_name[2] == 'r' && sel_name[3] == 'b' && sel_name[4] == '_' && sel_name[len - 1] == '_' && sel_name[len - 2] == '_') {
