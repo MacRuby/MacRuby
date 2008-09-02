@@ -142,6 +142,46 @@ vm_call_super(rb_thread_t * const th, const int argc, const VALUE * const argv)
 	rb_bug("vm_call_super: should not be reached");
     }
 
+#if WITH_OBJC
+    SEL sel;
+    IMP imp;
+
+    if (argc == 0) {
+	const char *id_str;
+	size_t id_str_len;
+
+	id_str = rb_id2name(id);
+	id_str_len = strlen(id_str);
+	if (id_str[id_str_len - 1] == ':') {
+	    char buf[100];
+	    strncpy(buf, id_str, sizeof buf);
+	    buf[MIN(sizeof buf, id_str_len - 1)] = '\0';
+	    id = rb_intern(buf);
+	}
+    }
+
+    body = rb_objc_method_node(klass, id, &imp, &sel);
+    if (body != NULL) {
+	body = body->nd_body;
+	return vm_call0(th, klass, recv, id, id, argc, argv, body, CALL_SUPER);
+    }
+    else if (imp != NULL) {
+	struct rb_objc_method_sig sig;
+	Method m;
+
+	m = class_getInstanceMethod((Class)klass, sel);
+	assert(m != NULL);
+	sig.argc = method_getNumberOfArguments(m);
+	sig.types = method_getTypeEncoding(m);
+	return rb_objc_call2(recv, klass, sel, imp, &sig, NULL, argc, (VALUE *)argv);
+    }
+    else {
+	dp(recv);
+	dp(klass);
+	dpi(id);
+	rb_bug("vm_call_super: not found");
+    }
+#else
     body = rb_method_node(klass, id);	/* this returns NODE_METHOD */
 
     if (body) {
@@ -155,6 +195,7 @@ vm_call_super(rb_thread_t * const th, const int argc, const VALUE * const argv)
     }
 
     return vm_call0(th, klass, recv, id, id, argc, argv, body, CALL_SUPER);
+#endif
 }
 
 VALUE

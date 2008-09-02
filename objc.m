@@ -1632,18 +1632,19 @@ rb_objc_method_node(VALUE mod, ID mid, IMP *pimp, SEL *psel)
     IMP imp;
     NODE *node;
 
-    if (mid == ID_ALLOCATOR)
-	sel = @selector(alloc);
-    else
-	sel = sel_registerName(rb_id2name(mid));
+    sel = mid == ID_ALLOCATOR 
+	? @selector(alloc) 
+	: sel_registerName(rb_id2name(mid));
 
-    if (psel != NULL)
+    if (psel != NULL) {
 	*psel = sel;
+    }
 
     node = rb_objc_method_node2(mod, sel, &imp);
 
-    if (pimp != NULL)
+    if (pimp != NULL) {
 	*pimp = imp;
+    }
 
     if (imp == NULL) {
     	char buf[100];
@@ -1656,8 +1657,9 @@ rb_objc_method_node(VALUE mod, ID mid, IMP *pimp, SEL *psel)
 	strlcpy(buf, (char *)sel, sizeof buf);
 	strlcat(buf, ":", sizeof buf);
 	sel = sel_registerName(buf);
-	if (psel != NULL)
+	if (psel != NULL) {
 	    *psel = sel;
+	}
 	return rb_objc_method_node2(mod, sel, pimp);
     }
 
