@@ -647,7 +647,7 @@ rb_mod_ancestors(VALUE mod)
 }
 
 static int
-ins_methods_push(ID name, long type, VALUE ary, long visi)
+ins_methods_push(VALUE name, long type, VALUE ary, long visi)
 {
     if (type == -1) return ST_CONTINUE;
 
@@ -662,58 +662,56 @@ ins_methods_push(ID name, long type, VALUE ary, long visi)
 	break;
     }
     if (visi) {
-	rb_ary_push(ary, ID2SYM(name));
+	rb_ary_push(ary, name);
     }
     return ST_CONTINUE;
 }
 
 static int
-ins_methods_i(ID name, long type, VALUE ary)
+ins_methods_i(VALUE name, long type, VALUE ary)
 {
     return ins_methods_push(name, type, ary, -1); /* everything but private */
 }
 
 static int
-ins_methods_prot_i(ID name, long type, VALUE ary)
+ins_methods_prot_i(VALUE name, long type, VALUE ary)
 {
     return ins_methods_push(name, type, ary, NOEX_PROTECTED);
 }
 
 static int
-ins_methods_priv_i(ID name, long type, VALUE ary)
+ins_methods_priv_i(VALUE name, long type, VALUE ary)
 {
     return ins_methods_push(name, type, ary, NOEX_PRIVATE);
 }
 
 static int
-ins_methods_pub_i(ID name, long type, VALUE ary)
+ins_methods_pub_i(VALUE name, long type, VALUE ary)
 {
     return ins_methods_push(name, type, ary, NOEX_PUBLIC);
 }
 
 static void
-rb_objc_push_methods(VALUE ary, VALUE mod, VALUE objc_methods)
+rb_objc_push_methods(VALUE ary, VALUE mod, VALUE objc_methods, int (*func) (VALUE, long, VALUE))
 {
     Method *methods;
     unsigned int i, count;
 
-    /* XXX: 
-     * - fails to ignore undefined methods (#undef_method)
-     * - does not filter public/private/protected methods
-     */
+    /* XXX fails to ignore undefined methods (#undef_method) */
 
     methods = class_copyMethodList((Class)mod, &count); 
     if (methods != NULL) {  
-	for (i = 0; i < count; i++) { 
+	for (i = 0; i < count; i++) {
 	    Method method;
 	    SEL sel;
 	    char *sel_name, *p;
-	    VALUE sym;
 	    ID mid;
 	    char buf[100];
 	    BOOL is_ruby_method;
 	    size_t len;
 	    IMP imp;
+	    VALUE sym;
+	    NODE *mn;
 	   
 	    method = methods[i];
 
@@ -725,7 +723,8 @@ rb_objc_push_methods(VALUE ary, VALUE mod, VALUE objc_methods)
 	    if (imp == NULL)
 		continue;
 
-	    is_ruby_method = rb_objc_method_node3(imp) != NULL;
+	    mn = rb_objc_method_node3(imp);
+	    is_ruby_method = mn != NULL;
 	    if (!is_ruby_method && objc_methods == Qfalse)
 		continue;
 
@@ -777,8 +776,17 @@ rb_objc_push_methods(VALUE ary, VALUE mod, VALUE objc_methods)
 	    mid = rb_intern(sel_name);
 	    sym = ID2SYM(mid);
 
-	    if (rb_ary_includes(ary, sym) == Qfalse)
-		rb_ary_push(ary, sym);
+	    if (rb_ary_includes(ary, sym) == Qfalse) {
+		if (is_ruby_method) {
+		    int type;
+
+		    type = mn->nd_body == NULL ? -1 : VISI(mn->nd_noex);
+		    (*func)(sym, type, ary);
+		}
+		else {
+		    rb_ary_push(ary, sym);
+		}
+	    }
 	} 
 	free(methods); 
     }
@@ -805,7 +813,7 @@ class_instance_method_list(int argc, VALUE *argv, VALUE mod, int (*func) (ID, lo
     }
 
     while (mod != 0) {
-	rb_objc_push_methods(ary, mod, objc_methods);
+	rb_objc_push_methods(ary, mod, objc_methods, func);
 	if (recur == Qfalse)
 	   break;	   
 	mod = (VALUE)class_getSuperclass((Class)mod); 
@@ -949,8 +957,9 @@ rb_obj_singleton_methods(int argc, VALUE *argv, VALUE obj)
     ary = rb_ary_new();
 
     do {
-	if (RCLASS_SINGLETON(klass))
-	    rb_objc_push_methods(ary, klass, objc_methods);
+	if (RCLASS_SINGLETON(klass)) {
+	    rb_objc_push_methods(ary, klass, objc_methods, ins_methods_i);
+	}
 	klass = RCLASS_SUPER(klass);
     }
     while (recur == Qtrue && klass != 0);
