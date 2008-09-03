@@ -764,7 +764,7 @@ mnew(VALUE klass, VALUE obj, ID id, VALUE mclass, int scope)
 	klass = RBASIC(klass)->klass;
     method = Data_Make_Struct(mclass, struct METHOD, bm_mark, -1, data);
     data->oclass = klass;
-    data->recv = obj;
+    GC_WB(&data->recv, obj);
 
     data->id = id;
     data->body = body;
@@ -1315,7 +1315,7 @@ umethod_bind(VALUE method, VALUE recv)
 
     method = Data_Make_Struct(rb_cMethod, struct METHOD, bm_mark, xfree, bound);
     *bound = *data;
-    bound->recv = recv;
+    GC_WB(&bound->recv, recv);
     bound->rclass = CLASS_OF(recv);
 
     return method;

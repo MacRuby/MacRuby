@@ -267,9 +267,10 @@ module Gem
 
       field_count = MARSHAL_FIELDS[spec.specification_version]
 
-      if field_count.nil? or array.size < field_count then
-        raise TypeError, "invalid Gem::Specification format #{array.inspect}"
-      end
+      # XXX sync this file with the upstream version!
+      #if field_count.nil? or array.size < field_count then
+      #  raise TypeError, "invalid Gem::Specification format #{array.inspect}"
+      #end
 
       spec.instance_variable_set :@rubygems_version,          array[0]
       # spec version

@@ -178,6 +178,14 @@ str_alloc(VALUE klass)
     return (VALUE)str;
 }
 
+static VALUE
+rb_str_new_bytestring_m(VALUE rcv, VALUE data)
+{
+    VALUE str = str_alloc(0);
+    rb_str_cfdata_set(str, (void *)data);
+    return str;
+}
+
 static void
 rb_objc_str_set_bytestring(VALUE str, const char *dataptr, long datalen)
 {
@@ -5258,6 +5266,8 @@ Init_String(void)
     rb_cNSMutableString = (VALUE)objc_getClass("NSMutableString");
     rb_const_set(rb_cObject, rb_intern("String"), rb_cNSMutableString);
     rb_set_class_path(rb_cNSMutableString, rb_cObject, "NSMutableString");
+
+    rb_define_singleton_method(rb_cString, "__new_bytestring__", rb_str_new_bytestring_m, 1);
     rb_define_method(rb_cString, "__bytestring__?", rb_str_bytestring_m, 0);
 
     rb_include_module(rb_cString, rb_mComparable);

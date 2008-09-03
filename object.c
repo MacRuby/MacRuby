@@ -538,8 +538,20 @@ rb_obj_is_kind_of(VALUE obj, VALUE c)
     }
 
     while (cl) {
-	if (cl == c) // TODO check included modules
+	VALUE ary;
+	if (cl == c) {
 	    return Qtrue;
+	}
+	ary = rb_attr_get(cl, idIncludedModules);
+	if (ary != Qnil) {
+	    int i, count;
+	    for (i = 0, count = RARRAY_LEN(ary); i < count; i++) {
+		VALUE imod = RARRAY_AT(ary, i);
+		if (imod == c) {
+		    return Qtrue;
+		}
+	    }
+	}
 	cl = RCLASS_SUPER(cl);
     }
     return Qfalse;

@@ -1791,8 +1791,8 @@ opt_eq_func(VALUE recv, VALUE obj, IC ic)
 		val = Qfalse;
 	    }
 	}
-	else if (HEAP_CLASS_OF(recv) == rb_cString &&
-		 HEAP_CLASS_OF(obj) == rb_cString &&
+	else if (HEAP_CLASS_OF(recv) == rb_cCFString &&
+		 HEAP_CLASS_OF(obj) == rb_cCFString &&
 		 BASIC_OP_UNREDEFINED_P(BOP_EQ)) {
 	    val = rb_str_equal(recv, obj);
 	}

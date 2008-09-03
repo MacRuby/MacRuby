@@ -8980,6 +8980,7 @@ reg_compile_gen(struct parser_params* parser, VALUE str, int options)
     reg_fragment_setenc(str, options);
     err = rb_errinfo();
     re = rb_reg_compile(str, options & RE_OPTION_MASK);
+    rb_objc_retain((void *)re);
     if (NIL_P(re)) {
 	ID mesg = rb_intern("mesg");
 	VALUE m = rb_attr_get(rb_errinfo(), mesg);
