@@ -453,6 +453,7 @@ rb_objc_newobj(size_t size)
     if (__nsobject == NULL)
 	__nsobject = (void *)objc_getClass("NSObject");
     RBASIC(obj)->klass = (VALUE)__nsobject;
+    //DLOG("NEWOBJ", "size %ld -> %p", size, obj);
     return obj;
 }
 

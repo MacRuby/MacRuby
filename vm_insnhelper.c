@@ -831,8 +831,23 @@ start_method_dispatch:
 	    else {
 		const char *p = (const char *)mcache->as.rcall.sel;
 		size_t len = strlen(p);
+		char buf[100];
+		if (p[len - 1] == ':' && num == 0) {
+		    SEL new_sel;
+
+		    /* foo(*args) is always compiled as foo:, even if args is [] */
+		    strncpy(buf, p, sizeof buf);
+		    buf[MIN(sizeof buf, len) - 1] = '\0';
+		    new_sel = sel_registerName(buf);
+		   
+		    mn = rb_objc_method_node2(klass, new_sel, NULL);
+		    if (mn != NULL) {
+			mcache->as.rcall.sel = new_sel;
+			mcache->as.rcall.node = mn;
+			goto rcall_dispatch;
+		    }
+		}
 		if (len >= 3) {
-		    char buf[100];
 		    SEL sel = 0;
 		    if (isalpha(p[len - 3]) && p[len - 2] == '=' && p[len - 1] == ':') {
 			/* foo=: -> setFoo: shortcut */
