@@ -738,7 +738,7 @@ module Gem
       @@attributes.inject(0) { |hash_code, (name, default_value)|
         n = self.send(name).hash
         hash_code + n
-      }
+      } / @@attributes.length # XXX because NSObject#hash is 'unsigned long' and this returns a bignum
     end
 
     # Export methods (YAML and Ruby code) ----------------------------
