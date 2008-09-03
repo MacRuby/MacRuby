@@ -265,12 +265,17 @@ module Gem
 
       current_version = CURRENT_SPECIFICATION_VERSION
 
-      field_count = MARSHAL_FIELDS[spec.specification_version]
+      field_count = if spec.specification_version > current_version then
+                      spec.instance_variable_set :@specification_version,
+                                                 current_version
+                      MARSHAL_FIELDS[current_version]
+                    else
+                      MARSHAL_FIELDS[spec.specification_version]
+                    end
 
-      # XXX sync this file with the upstream version!
-      #if field_count.nil? or array.size < field_count then
-      #  raise TypeError, "invalid Gem::Specification format #{array.inspect}"
-      #end
+      if array.size < field_count then
+        raise TypeError, "invalid Gem::Specification format #{array.inspect}"
+      end
 
       spec.instance_variable_set :@rubygems_version,          array[0]
       # spec version
