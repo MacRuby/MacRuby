@@ -611,12 +611,27 @@ rcall_missing:
 			new_argv[0] = argv[0];
 			new_argv[1] = h;
 
-			memcpy(cfp->sp - 2, new_argv, sizeof(void *) * 2);
-			cfp->bp -= 2 - num;
-			mn = new_mn;
+			rb_control_frame_t *reg_cfp;
+			rb_control_frame_t *_cfp;
+
+			reg_cfp = cfp;
+			_cfp = vm_push_frame(th, 0, FRAME_MAGIC_CFUNC | (flag << FRAME_MAGIC_MASK_BITS),
+				recv, (VALUE) blockptr, 0, reg_cfp->sp, 0, 1);
+
+			_cfp->method_id = id;
+			_cfp->method_class = klass;
+
+			reg_cfp->sp -= num + 1;
+
 			id = rb_intern(tmp);
-			num = 2;
-			goto rcall_dispatch;
+			val = rb_funcall2(recv, id, 2, (const VALUE *)&new_argv);
+
+			if (reg_cfp != th->cfp + 1)
+			    rb_bug("cfp consistency error - send");
+
+			vm_pop_frame(th);
+
+			return val;
 		    }
 		}
 		mcache->as.rcall.node = mn;
@@ -636,7 +651,6 @@ ocall_dispatch:
 	    _cfp->method_class = klass;
 
 	    reg_cfp->sp -= num + 1;
-
 
 	    val = rb_objc_call2(recv, klass, mcache->as.rcall.sel, mcache->as.ocall.imp, &mcache->as.ocall.sig, mcache->as.ocall.bs_method, num, reg_cfp->sp + 1);
 
