@@ -133,27 +133,27 @@ class CircleView < NSView
     setNeedsDisplay true
   end    
 
-  ib_action :takeColorFrom do |sender|
+  def takeColorFrom(sender)
     setColor sender.color
   end
   
-  ib_action :takeRadiusFrom do |sender|
+  def takeRadiusFrom(sender)
     setRadius sender.doubleValue
   end
 
-  ib_action :takeStartingAngleFrom do |sender|
+  def takeStartingAngleFrom(sender)
     setStartingAngle sender.doubleValue
   end
 
-  ib_action :takeAngularVelocityFrom do |sender|
+  def takeAngularVelocityFrom(sender)
     setAngularVelocity sender.doubleValue
   end
   
-  ib_action :takeStringFrom do |sender|
+  def takeStringFrom(sender)
     setString sender.stringValue
   end
 
-  ib_action :startAnimation do |sender|
+  def startAnimation(sender)
     stopAnimation sender
     
     # We schedule a timer for a desired 30fps animation rate.
@@ -174,14 +174,14 @@ class CircleView < NSView
     @lastTime = NSDate.timeIntervalSinceReferenceDate
   end
 
-  ib_action :stopAnimation do |sender|
+  def stopAnimation(sender)
     if @timer
       @timer.invalidate
       @timer = nil
     end
   end
 
-  ib_action :toggleAnimation do |sender|
+  def toggleAnimation(sender)
     if @timer
       stopAnimation sender
     else

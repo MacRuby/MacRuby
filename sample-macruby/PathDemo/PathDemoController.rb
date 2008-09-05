@@ -12,13 +12,11 @@ class PathDemoController
   def runAgain(sender)
     select(self)
   end
-  ib_action :runAgain
   
   def select(sender)
     @demoView.demoNumber = @popup.indexOfSelectedItem
     @demoView.needsDisplay = true
   end
-  ib_action :select
 
   def print(sender)
     info = NSPrintInfo.sharedPrintInfo
@@ -26,7 +24,6 @@ class PathDemoController
     printOp.showPanels = true
     printOp.runOperation
   end
-  ib_action :print
 
   def applicationShouldTerminateAfterLastWindowClosed(application)
     true

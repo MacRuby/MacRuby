@@ -1123,6 +1123,7 @@ rb_mod_define_method(int argc, VALUE *argv, VALUE mod)
 static VALUE
 rb_mod_objc_ib_action(VALUE recv, VALUE sym)
 {
+    rb_warn("ib_action has been deprecated, please define methods with only one argument instead. If you want IB support, the argument must be named 'sender' to appear in IB.");
     if (rb_block_given_p())
 	return rb_mod_define_method(1, &sym, recv);	
     return recv;

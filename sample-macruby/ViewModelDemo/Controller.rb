@@ -52,13 +52,13 @@ class Controller
     @objs.push myObj
   end
 	
-  ib_action :numberSliderAction do |sender|
+  def numberSliderAction(sender)
     number = @numberSlider.intValue
     @numberText.stringValue = "Number: " + number.to_s
     adjustNumberOfViewModels
   end
   
-  ib_action :moveButtonAction do |sender|
+  def moveButtonAction(sender)
     # Assign new destinations to the objects
     @objs.each do |obj|
       destPt = getRandomViewPoint
@@ -69,7 +69,7 @@ class Controller
     end
   end
   	
-  ib_action :speedSliderAction do |sender|
+  def speedSliderAction(sender)
     # No need to store the speed in an instance variable, since the speed is read
     # right from the control in moveButtonAction. Just update the speed text.
     speed = @speedSlider.floatValue
