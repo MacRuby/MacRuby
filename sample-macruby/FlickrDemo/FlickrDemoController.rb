@@ -76,15 +76,17 @@ class FlickrDemoController < NSWindowController
     photo = @cache[index]
     if photo.nil? 
       entry = @results[index]
-      url = entry.content.HTMLString.scan(/<img\s+src="([^"]+)"/)[0][0] # " stupid Xcode
-      photo = Photo.new(url)
+      html = entry.content.HTMLString
+      link = html.scan(/<a\s+href="([^"]+)" title/)[0][0] # " stupid Xcode parser
+      url = html.scan(/<img\s+src="([^"]+)"/)[0][0] # " stupid Xcode parser
+      photo = Photo.new(url, link)
       @cache[index] = photo
     end
     return photo
   end
 
   def imageBrowser(browser, cellWasDoubleClickedAtIndex:index)
-    NSWorkspace.sharedWorkspace.openURL @cache[index].url
+    NSWorkspace.sharedWorkspace.openURL @cache[index].link
   end
   
   private
@@ -103,11 +105,12 @@ class FlickrDemoController < NSWindowController
 end
 
 class Photo
-  attr_reader :url
+  attr_reader :url, :link
   
-  def initialize(url)
+  def initialize(url, link)
     @urlString = url
     @url = NSURL.alloc.initWithString url
+    @link = NSURL.alloc.initWithString link
   end
   
   # IKImageBrowserItem protocol conformance
