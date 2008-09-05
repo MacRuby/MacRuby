@@ -30,9 +30,14 @@ class FlickrDemoController < NSWindowController
   end
   
   def removeSource(sender)
-    @sources.delete_at @sourcesTableView.selectedRow
-    @sourcesTableView.reloadData
-    tableViewSelectionDidChange(nil)
+    i =@sourcesTableView.selectedRow
+    if i == -1
+      NSBeep()
+    else
+      @sources.delete_at @sourcesTableView.selectedRow
+      @sourcesTableView.reloadData
+      tableViewSelectionDidChange(nil)
+    end
   end
   
   def zoomChanged(sender)
