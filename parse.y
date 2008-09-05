@@ -523,6 +523,8 @@ static VALUE ripper_dispatch5(struct parser_params*,ID,VALUE,VALUE,VALUE,VALUE,V
 #define dispatch4(n,a,b,c,d)    ripper_dispatch4(parser, TOKEN_PASTE(ripper_id_, n), a, b, c, d)
 #define dispatch5(n,a,b,c,d,e)  ripper_dispatch5(parser, TOKEN_PASTE(ripper_id_, n), a, b, c, d, e)
 
+#define named_arg(id, flag)
+
 #define yyparse ripper_yyparse
 
 static VALUE ripper_intern(const char*);
@@ -9723,7 +9725,9 @@ parser_initialize(struct parser_params *parser)
     parser->parser_lpar_beg = 0;
     parser->parser_in_single = 0;
     parser->parser_in_def = 0;
+#if WITH_OBJC
     parser->parser_in_def_named_args = 0;
+#endif
     parser->parser_in_defined = 0;
     parser->parser_compile_for_eval = 0;
     parser->parser_cur_mid = 0;

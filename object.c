@@ -1530,8 +1530,9 @@ rb_class_new_instance(int argc, VALUE *argv, VALUE klass)
     if (init_obj != Qnil) {
 	p = CLASS_OF(init_obj);
 	while (p != 0) {
-	    if (p == klass)
+	    if (p == klass) {
 		return init_obj;
+	    }
 	    p = RCLASS_SUPER(p);
 	}
     }
