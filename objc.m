@@ -1497,10 +1497,22 @@ rb_super_objc_send(int argc, VALUE *argv, VALUE rcv)
 
 #define IGNORE_PRIVATE_OBJC_METHODS 1
 
-static void
-rb_ruby_to_objc_closure_handler(ffi_cif *cif, void *resp, void **args,
-				void *userdata)
+struct rb_ruby_to_objc_closure_handler_main_ctx {
+  ffi_cif *cif;
+  void *resp;
+  void **args;
+  void *userdata;
+};
+
+static VALUE
+rb_ruby_to_objc_closure_handler_main(void *ctx)
 {
+    struct rb_ruby_to_objc_closure_handler_main_ctx *_ctx = 
+	(struct rb_ruby_to_objc_closure_handler_main_ctx *)ctx;
+    ffi_cif *cif = _ctx->cif;
+    void *resp = _ctx->resp;
+    void **args = _ctx->args;
+    void *userdata = _ctx->userdata;
     void *rcv;
     SEL sel;
     ID mid;
@@ -1556,6 +1568,49 @@ rb_ruby_to_objc_closure_handler(ffi_cif *cif, void *resp, void **args,
     type = rb_objc_method_get_type(method, cif->nargs, bs_method,
 	    -1, buf, sizeof buf);
     rb_objc_rval_to_ocval(ret, type, resp);
+
+    return Qnil;
+}
+
+static void
+rb_ruby_to_objc_closure_handler(ffi_cif *cif, void *resp, void **args,
+				void *userdata)
+{
+    struct rb_ruby_to_objc_closure_handler_main_ctx ctx;
+
+    ctx.cif = cif;
+    ctx.resp = resp;
+    ctx.args = args;
+    ctx.userdata = userdata;
+
+    extern VALUE rb_cMutex;
+
+    if (rb_cMutex == 0) {
+	/* GL not initialized yet! */
+	rb_ruby_to_objc_closure_handler_main(&ctx);
+    }
+    else {
+#if 0
+	if (GET_VM()->main_thread == GET_THREAD()) {
+	    rb_ruby_to_objc_closure_handler_main(&ctx);
+	}
+	else {
+	    void native_mutex_lock(pthread_mutex_t *lock);
+	    void native_mutex_unlock(pthread_mutex_t *lock);
+
+	    native_mutex_lock(&GET_THREAD()->vm->global_interpreter_lock);
+	    rb_ruby_to_objc_closure_handler_main(&ctx);
+	    native_mutex_unlock(&GET_THREAD()->vm->global_interpreter_lock);
+	}
+#else
+	if (GET_VM()->main_thread == GET_THREAD()) {
+	    rb_ruby_to_objc_closure_handler_main(&ctx);
+	}
+	else {
+	    rb_thread_blocking_region(rb_ruby_to_objc_closure_handler_main, &ctx, RB_UBF_DFL, 0);
+	}
+#endif
+    }
 }
 
 static void *
