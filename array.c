@@ -3144,9 +3144,6 @@ rb_ary_product(int argc, VALUE *argv, VALUE ary)
     long i,j;
     long resultlen = 1;
 
-    RBASIC(t0)->klass = 0;
-    RBASIC(t1)->klass = 0;
-
     /* initialize the arrays of arrays */
     arrays[0] = ary;
     for (i = 1; i < n; i++) arrays[i] = to_ary(argv[i-1]);

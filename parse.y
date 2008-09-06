@@ -9837,7 +9837,7 @@ rb_parser_new(void)
 {
     struct parser_params *p = parser_new();
 
-    return Data_Wrap_Struct(0, parser_mark, parser_free, p);
+    return Data_Wrap_Struct(rb_cData, parser_mark, parser_free, p);
 }
 
 /*

@@ -352,7 +352,8 @@ load_lock(const char *ftptr)
     if (!loading_tbl || !st_lookup(loading_tbl, (st_data_t)ftptr, &data)) {
 	/* loading ruby library should be serialized. */
 	if (!loading_tbl) {
-	    GET_VM()->loading_table = loading_tbl = st_init_strtable();
+	    loading_tbl = st_init_strtable();
+	    GC_WB(&GET_VM()->loading_table, loading_tbl);
 	}
 	/* partial state */
 	ftptr = ruby_strdup(ftptr);

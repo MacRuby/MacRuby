@@ -1792,7 +1792,9 @@ enum_cycle(int argc, VALUE *argv, VALUE obj)
         if (n <= 0) return Qnil;
     }
     ary = rb_ary_new();
+#if !WITH_OBJC
     RBASIC(ary)->klass = 0;
+#endif
     rb_block_call(obj, id_each, 0, 0, cycle_i, ary);
     len = RARRAY_LEN(ary);
     if (len == 0) return Qnil;
