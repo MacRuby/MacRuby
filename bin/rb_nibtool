@@ -1,0 +1,159 @@
+#!/usr/bin/env ruby
+# This script is called by Interface Builder. Do not touch it unless you
+# really know what you're doing.
+#
+# This file is covered by the Ruby license.
+#
+# Copyright (C) 2008, Apple Inc
+
+require 'optparse'
+require 'ripper/filter'
+
+framework 'Foundation'
+
+class NibPlistGenerator < Ripper::Filter
+
+  DOES_NOTHING = 
+    "This option does nothing, it's there for backward compatibility"
+
+  def self.new(argv)
+    file = nil
+    OptionParser.new do |opts|
+      opts.banner = "Usage: #{__FILE__} [options]"
+      opts.on('-p', '--plist', DOES_NOTHING) {}
+      opts.on('-s', '--sorted-plist', DOES_NOTHING) {}
+      opts.on('-f', '--file PATH', 'Path to Ruby file') do |_file|
+        file = case _file
+          when '' then nil
+          when '-' then '/dev/stdin'
+          else _file
+        end
+      end
+      opts.on('-h', '--help', 'Print this message') { fail opts }
+      begin
+        opts.parse!(argv)
+      rescue OptionParser::InvalidOption => e
+        puts e
+        fail opts
+      end
+      fail opts if file.nil?
+    end
+
+    o = super(File.read(file)); o.parse(nil); o
+  end
+
+  def dump(io)
+    h = {}
+    h['IBClasses'] = @ib_classes.map do |k|
+      { 'CLASS' => k.name, 
+        'LANGUAGE' => 'Ruby',
+        'OUTLETS' => k.outlets,
+        'ACTIONS' => k.actions,
+        'SUPERCLASS' => k.super }
+    end
+    unless d = NSPropertyListSerialization.dataFromPropertyList(h, 
+                 format:NSPropertyListXMLFormat_v1_0, errorDescription:nil)
+      $stderr.puts "Cannot serialize #{h} as a plist"
+      exit 1
+    end
+    io.write NSString.alloc.initWithData(d, encoding:NSUTF8StringEncoding)
+  end
+
+  private
+
+  def fail(opts); puts opts; exit 1; end
+
+  class IBClass
+    attr_accessor :name, :super, :outlets, :actions
+    def initialize(name)
+      @name = name
+      @super = 'NSObject'
+      @outlets = []
+      @actions = []
+    end
+  end 
+
+  def on_default(event, token, data)
+    @token_n ||= 0
+
+    return token if event == :on_sp
+
+    p @token_n, event, token, data, '---' if $DEBUG
+
+    if event == :on_kw
+      if token == 'class'
+        @def_class = true
+      elsif token == 'def'
+        @def_method = true
+      end
+
+    elsif event == :on_const
+      if @def_class
+        @def_class = nil
+        @waiting_for_superclass = @token_n
+        (@ib_classes ||= []) << @current_class = IBClass.new(token)
+
+      elsif @waiting_for_superclass
+        raise "current_class undefined" unless @current_class
+        @current_class.super = token
+      end
+
+    elsif event == :on_ident
+      if token == 'attr_accessor' or token == 'attr_writer' \
+      or token == 'ib_outlet' or token == 'ib_outlets'
+        @waiting_for_outlet = @token_n
+
+      elsif @waiting_for_outlet
+        raise "current_class undefined" unless @current_class
+        @current_class.outlets << token
+        @waiting_for_outlet += 1 # maybe another outlet is coming...
+
+      elsif @def_method
+        @def_method = nil
+        @current_method = token
+        @waiting_for_method_end = @token_n
+        @on_def_method_paren = 0
+      end
+    end
+
+    if @waiting_for_superclass and @token_n != @waiting_for_superclass
+      if event == :on_op and token == '<'
+        @waiting_for_superclass += 1
+      else
+        @waiting_for_superclass = nil
+      end
+    end
+
+    if @waiting_for_outlet and @token_n != @waiting_for_outlet
+      if (event == :on_symbeg and token == ':') \
+      or (event == :on_comma and token == ',')
+        @waiting_for_outlet += 1
+      else
+        @waiting_for_outlet = nil
+      end
+    end
+
+    if @waiting_for_method_end and @token_n != @waiting_for_method_end
+      if event == :on_lparen
+        @on_def_method_paren += 1
+        @waiting_for_method_end += 1
+      elsif event == :on_rparen
+	@on_def_method_paren -= 1
+        @waiting_for_method_end += 1
+      elsif event == :on_ident and token == 'sender'
+        @waiting_for_method_end += 1
+      elsif event == :on_nl or event == :on_ignored_nl \
+      or event == :on_semicolon or event == :on_comment
+        @current_class.actions << @current_method
+      else
+        @waiting_for_method_end = nil
+      end
+    end
+
+    @token_n += 1 
+    token
+  end
+end
+
+gen = NibPlistGenerator.new(ARGV)
+gen.dump(STDOUT)

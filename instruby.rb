@@ -305,9 +305,15 @@ install?(:local, :comm, :bin, :'bin-comm') do
   for src in Dir["bin/*"]
     next unless File.file?(src)
     next if /\/[.#]|(\.(old|bak|orig|rej|diff|patch|core)|~|\/core)$/i =~ src
-    
-    name = (File.basename(src) == "hotcocoa" ? "hotcocoa" : ruby_install_name.sub(/ruby/, File.basename(src)))
 
+    bname = File.basename(src)
+    name = case bname
+      when 'hotcocoa', 'rb_nibtool'
+        bname
+      else
+        ruby_install_name.sub(/ruby/, bname)
+    end
+    
     shebang = ''
     body = ''
     open(src, "rb") do |f|
@@ -475,6 +481,8 @@ if RUBY_FRAMEWORK
   mkdir_p dest_bin, :mode => 0755
   Dir.entries(with_destdir(CONFIG['bindir'])).each do |bin|
     next if bin[0] == '.'
+    # Except rb_nibtool!
+    next if bin == 'rb_nibtool'
     link = File.join("../../../", CONFIG['bindir'], bin)
     link.sub!(/#{MACRUBY_VERSION}/, 'Current')
     ln_sfh link, File.join(dest_bin, File.basename(bin))
@@ -500,6 +508,12 @@ if RUBY_FRAMEWORK
     end
   end
 end
+
+puts "installing IB support"
+ib_dest = '/Developer/usr/bin'
+mkdir_p ib_dest
+install('bin/rb_nibtool', ib_dest, :mode => $prog_mode)
+install('tool/rb_nibtool.old', ib_dest, :mode => $prog_mode)
 
 touch_file = '/System/Library/Frameworks/.bridgesupport_dylib_gcmarked'
 if $destdir.empty? and File.exist?(touch_file)
