@@ -15,7 +15,7 @@ This will generate your directory structure.  The samples in this
 directory were generated with this command.  The basic HotCocoa
 directory structure is:
 
-./directory/Rakefile              #=> used with macrake to buid the app
+./directory/Rakefile              #=> used with macrake to build the app
 ./directory/config/build.yml      #=> build options
 ./directory/lib/application.rb    #=> application template
 ./directory/lib/menu.rb           #=> menus used by the app
@@ -23,7 +23,7 @@ directory structure is:
 
 After generating the structure, cd into that directory and run 
 macrake to build.
-  
+
 Demos:
 
 calculator    #=> simple calculator example
@@ -33,13 +33,13 @@ layout_view   #=> demo of using the layout view system
 Building the demos:
 
 Calculator:
-cd calculator
-macrake
+$ cd calculator
+$ macrake
 
-Demo
-cd demo
-macrake
+Demo:
+$ cd demo
+$ macrake
 
-Layout View
-cd layout_view
-macrake
+Layout View:
+$ cd layout_view
+$ macrake
