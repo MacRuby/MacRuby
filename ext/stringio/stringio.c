@@ -637,7 +637,7 @@ strio_getc(VALUE self)
     struct StringIO *ptr = readable(StringIO(self));
     rb_encoding *enc = rb_enc_get(ptr->string);
     int len;
-    char *p;
+    const char *p;
 
     if (ptr->pos >= RSTRING_LEN(ptr->string)) {
 	return Qnil;
@@ -680,7 +680,11 @@ strio_extend(struct StringIO *ptr, long pos, long len)
     if (pos + len > olen) {
 	rb_str_resize(ptr->string, pos + len);
 	if (pos > olen)
+#if WITH_OBJC
+	    CFStringDelete((CFMutableStringRef)ptr->string, CFRangeMake(olen, pos - olen));
+#else
 	    MEMZERO(RSTRING_PTR(ptr->string) + olen, char, pos - olen);
+#endif
     }
     else {
 	rb_str_modify(ptr->string);
@@ -702,7 +706,7 @@ strio_ungetc(VALUE self, VALUE c)
 {
     struct StringIO *ptr = readable(StringIO(self));
     long lpos, clen;
-    char *p, *pend;
+    const char *p, *pend;
     rb_encoding *enc;
 
     if (NIL_P(c)) return Qnil;
@@ -1018,7 +1022,11 @@ strio_write(VALUE self, VALUE str)
     }
     else {
 	strio_extend(ptr, ptr->pos, len);
+#if WITH_OBJC
+	CFStringReplace((CFMutableStringRef)ptr->string, CFRangeMake(ptr->pos, len), (CFStringRef)str);
+#else
 	memmove(RSTRING_PTR(ptr->string)+ptr->pos, RSTRING_PTR(str), len);
+#endif
 	OBJ_INFECT(ptr->string, str);
     }
     OBJ_INFECT(ptr->string, self);
@@ -1070,7 +1078,13 @@ strio_putc(VALUE self, VALUE ch)
 	ptr->pos = olen;
     }
     strio_extend(ptr, ptr->pos, 1);
+#if WITH_OBJC
+    CFStringRef tmp_str = CFStringCreateWithCharacters(NULL, (const UniChar *)&c, 1);
+    CFStringReplace((CFMutableStringRef)ptr->string, CFRangeMake(ptr->pos, 1), tmp_str);
+    CFRelease(tmp_str);
+#else
     RSTRING_PTR(ptr->string)[ptr->pos++] = c;
+#endif
     OBJ_INFECT(ptr->string, self);
     return ch;
 }

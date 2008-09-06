@@ -402,12 +402,15 @@ toregexp
     VALUE rb_reg_new_ary(VALUE ary, int options);
     int i;
     const VALUE ary = rb_ary_new2(cnt);
+#if !WITH_OBJC
     RBASIC(ary)->klass = 0;
+#endif
     for (i = 0; i < cnt; i++) {
         rb_ary_store(ary, cnt-i-1, TOPN(i));
     }
     POPN(cnt);
     val = rb_reg_new_ary(ary, opt);
+    rb_objc_retain((void *)val);
 }
 
 /**
@@ -812,9 +815,21 @@ defined
 	break;
       case DEFINED_METHOD:{
 	  VALUE klass = CLASS_OF(v);
+#if WITH_OBJC
+	  NODE *method;
+	  IMP imp;
+
+	  method = rb_objc_method_node(klass, SYM2ID(obj), &imp, NULL);
+
+	  if (method == NULL && imp != NULL) {
+	      expr_type = "method";
+	  }
+	  else if (method != NULL) {
+#else
 	  NODE *method = (NODE *) rb_method_node(klass, SYM2ID(obj));
 
 	  if (method) {
+#endif
 	      if (!(method->nd_noex & NOEX_PRIVATE)) {
 		  if (!((method->nd_noex & NOEX_PROTECTED) &&
 			!rb_obj_is_kind_of(GET_SELF(),
@@ -1023,11 +1038,13 @@ defineclass
  */
 DEFINE_INSN
 send
-(ID op_id, rb_num_t op_argc, ISEQ blockiseq, rb_num_t op_flag, IC ic)
+(ID op_id, rb_num_t op_argc, ISEQ blockiseq, rb_num_t op_flag, VALUE mcache)
 (...)
 (VALUE val) // inc += - (op_argc + ((op_flag & VM_CALL_ARGS_BLOCKARG_BIT) ? 1 : 0));
 {
+#if !WITH_OBJC
     NODE *mn;
+#endif
     VALUE recv, klass;
     rb_block_t *blockptr = 0;
     rb_num_t num = caller_setup_args(th, GET_CFP(), op_flag, op_argc,
@@ -1038,17 +1055,16 @@ send
     /* get receiver */
     recv = (flag & VM_CALL_FCALL_BIT) ? GET_SELF() : TOPN(num);
     klass = CLASS_OF(recv);
+#if !WITH_OBJC
     mn = vm_method_search(id, klass, ic);
-#if WITH_OBJC
-    vm_method_process_named_args(&id, &mn, recv, &num, GET_CFP());
-#endif
 
     /* send/funcall optimization */
     if (flag & VM_CALL_SEND_BIT) {
 	vm_send_optimize(GET_CFP(), &mn, &flag, &num, &id, klass);
     }
+#endif
 
-    CALL_METHOD(num, blockptr, flag, id, mn, recv, klass);
+    CALL_METHOD(num, blockptr, flag, id, recv, klass, mcache);
 }
 
 /**
@@ -1069,16 +1085,34 @@ invokesuper
     VALUE recv, klass;
     NODE *mn;
     ID id;
+    IMP imp;
+    SEL sel;
     const VALUE flag = VM_CALL_SUPER_BIT | VM_CALL_FCALL_BIT;
 
     recv = GET_SELF();
-    vm_search_superclass(GET_CFP(), GET_ISEQ(), recv, TOPN(num), &id, &klass);
+    mn = NULL; imp = NULL; sel = 0;
+    vm_search_superclass(GET_CFP(), GET_ISEQ(), recv, TOPN(num), &id, &klass, &mn, &imp, &sel);
+#if !WITH_OBJC
     mn = rb_method_node(klass, id);
-#if WITH_OBJC
-    vm_method_process_named_args(&id, &mn, recv, (rb_num_t *)&num, GET_CFP());
 #endif
 
-    CALL_METHOD(num, blockptr, flag, id, mn, recv, klass);
+#if WITH_OBJC
+    struct rb_method_cache mcache;
+    void *mcachep;
+
+    if (mn != NULL) {
+	mcache.flags = RB_MCACHE_RCALL_FLAG;
+	mcache.as.rcall.sel = sel;
+	mcache.as.rcall.klass = klass;
+	mcache.as.rcall.node = mn;
+	mcachep = &mcache;
+    }
+    else {
+	mcachep = NULL;
+    }
+#endif
+
+    CALL_METHOD(num, blockptr, flag, id, recv, klass, mcachep);
 }
 
 /**
@@ -1298,8 +1332,9 @@ opt_case_dispatch
 	VALUE val;
 #if WITH_OBJC
 	if (CFDictionaryGetValueIfPresent((CFDictionaryRef)hash,
-	    (const void *)key,
+	    (const void *)RB2OC(key),
 	    (const void **)&val)) {
+	val = OC2RB(val);
 #else
 	if (st_lookup(RHASH_TBL(hash), key, &val)) {
 #endif
@@ -1385,14 +1420,14 @@ opt_plus
 #endif
 
 #if 1
-	else if (HEAP_CLASS_OF(recv) == rb_cString &&
-		 HEAP_CLASS_OF(obj) == rb_cString &&
+	else if (HEAP_CLASS_OF(recv) == rb_cCFString &&
+		 HEAP_CLASS_OF(obj) == rb_cCFString &&
 		 BASIC_OP_UNREDEFINED_P(BOP_PLUS)) {
 	    val = rb_str_plus(recv, obj);
 	}
 #endif
 #if 1
-	else if (HEAP_CLASS_OF(recv) == rb_cArray &&
+	else if (HEAP_CLASS_OF(recv) == rb_cCFArray &&
 		 BASIC_OP_UNREDEFINED_P(BOP_PLUS)) {
 	    val = rb_ary_plus(recv, obj);
 	}
@@ -1405,7 +1440,7 @@ opt_plus
       INSN_LABEL(normal_dispatch):
 	PUSH(recv);
 	PUSH(obj);
-	CALL_SIMPLE_METHOD(1, idPLUS, recv);
+	CALL_SIMPLE_METHOD(1, idPLUS, recv, selPLUS);
     }
 }
 
@@ -1439,7 +1474,7 @@ opt_minus
 	/* other */
 	PUSH(recv);
 	PUSH(obj);
-	CALL_SIMPLE_METHOD(1, idMINUS, recv);
+	CALL_SIMPLE_METHOD(1, idMINUS, recv, selMINUS);
     }
 }
 
@@ -1492,7 +1527,7 @@ opt_mult
       INSN_LABEL(normal_dispatch):
 	PUSH(recv);
 	PUSH(obj);
-	CALL_SIMPLE_METHOD(1, idMULT, recv);
+	CALL_SIMPLE_METHOD(1, idMULT, recv, selMULT);
     }
 }
 
@@ -1556,7 +1591,7 @@ opt_div
       INSN_LABEL(normal_dispatch):
 	PUSH(recv);
 	PUSH(obj);
-	CALL_SIMPLE_METHOD(1, idDIV, recv);
+	CALL_SIMPLE_METHOD(1, idDIV, recv, selDIV);
     }
 }
 
@@ -1635,7 +1670,7 @@ opt_mod
       INSN_LABEL(normal_dispatch):
 	PUSH(recv);
 	PUSH(obj);
-	CALL_SIMPLE_METHOD(1, idMOD, recv);
+	CALL_SIMPLE_METHOD(1, idMOD, recv, selMOD);
     }
 }
 
@@ -1656,7 +1691,7 @@ opt_eq
 	/* other */
 	PUSH(recv);
 	PUSH(obj);
-	CALL_SIMPLE_METHOD(1, idEq, recv);
+	CALL_SIMPLE_METHOD(1, idEq, recv, selEq);
     }
 }
 
@@ -1687,7 +1722,7 @@ opt_neq
 	/* other */
 	PUSH(recv);
 	PUSH(obj);
-	CALL_SIMPLE_METHOD(1, idNeq, recv);
+	CALL_SIMPLE_METHOD(1, idNeq, recv, selNeq);
     }
 }
 
@@ -1716,7 +1751,7 @@ opt_lt
     else {
 	PUSH(recv);
 	PUSH(obj);
-	CALL_SIMPLE_METHOD(1, idLT, recv);
+	CALL_SIMPLE_METHOD(1, idLT, recv, selLT);
     }
 }
 
@@ -1746,7 +1781,7 @@ opt_le
 	/* other */
 	PUSH(recv);
 	PUSH(obj);
-	CALL_SIMPLE_METHOD(1, idLE, recv);
+	CALL_SIMPLE_METHOD(1, idLE, recv, selLE);
     }
 }
 
@@ -1775,7 +1810,7 @@ opt_gt
     else {
 	PUSH(recv);
 	PUSH(obj);
-	CALL_SIMPLE_METHOD(1, idGT, recv);
+	CALL_SIMPLE_METHOD(1, idGT, recv, selGT);
     }
 }
 
@@ -1804,7 +1839,7 @@ opt_ge
     else {
 	PUSH(recv);
 	PUSH(obj);
-	CALL_SIMPLE_METHOD(1, idGE, recv);
+	CALL_SIMPLE_METHOD(1, idGE, recv, selGE);
     }
 }
 
@@ -1822,11 +1857,11 @@ opt_ltlt
     if (!SPECIAL_CONST_P(recv)) {
 	if (0) {
 	}
-	else if (HEAP_CLASS_OF(recv) == rb_cString &&
+	else if (HEAP_CLASS_OF(recv) == rb_cCFString &&
 		 BASIC_OP_UNREDEFINED_P(BOP_LTLT)) {
 	    val = rb_str_concat(recv, obj);
 	}
-	else if (HEAP_CLASS_OF(recv) == rb_cArray &&
+	else if (HEAP_CLASS_OF(recv) == rb_cCFArray &&
 		 BASIC_OP_UNREDEFINED_P(BOP_LTLT)) {
 	    val = rb_ary_push(recv, obj);
 	}
@@ -1838,7 +1873,7 @@ opt_ltlt
       INSN_LABEL(normal_dispatch):
 	PUSH(recv);
 	PUSH(obj);
-	CALL_SIMPLE_METHOD(1, idLTLT, recv);
+	CALL_SIMPLE_METHOD(1, idLTLT, recv, selLTLT);
     }
 }
 
@@ -1854,10 +1889,10 @@ opt_aref
 (VALUE val)
 {
     if (!SPECIAL_CONST_P(recv) && BASIC_OP_UNREDEFINED_P(BOP_AREF)) {
-	if (HEAP_CLASS_OF(recv) == rb_cArray && FIXNUM_P(obj)) {
+	if (HEAP_CLASS_OF(recv) == rb_cCFArray && FIXNUM_P(obj)) {
 	    val = rb_ary_entry(recv, FIX2LONG(obj));
 	}
-	else if (HEAP_CLASS_OF(recv) == rb_cHash) {
+	else if (HEAP_CLASS_OF(recv) == rb_cCFHash) {
 	    val = rb_hash_aref(recv, obj);
 	}
 	else {
@@ -1868,7 +1903,7 @@ opt_aref
       INSN_LABEL(normal_dispatch):
 	PUSH(recv);
 	PUSH(obj);
-	CALL_SIMPLE_METHOD(1, idAREF, recv);
+	CALL_SIMPLE_METHOD(1, idAREF, recv, selAREF);
     }
 }
 
@@ -1885,11 +1920,11 @@ opt_aset
 {
     if (!SPECIAL_CONST_P(recv) &&
 	BASIC_OP_UNREDEFINED_P(BOP_ASET)) {
-	if (HEAP_CLASS_OF(recv) == rb_cArray && FIXNUM_P(obj)) {
+	if (HEAP_CLASS_OF(recv) == rb_cCFArray && FIXNUM_P(obj)) {
 	    rb_ary_store(recv, FIX2LONG(obj), set);
 	    val = set;
 	}
-	else if (HEAP_CLASS_OF(recv) == rb_cHash) {
+	else if (HEAP_CLASS_OF(recv) == rb_cCFHash) {
 	    rb_hash_aset(recv, obj, set);
 	    val = set;
 	}
@@ -1902,7 +1937,7 @@ opt_aset
 	PUSH(recv);
 	PUSH(obj);
 	PUSH(set);
-	CALL_SIMPLE_METHOD(2, idASET, recv);
+	CALL_SIMPLE_METHOD(2, idASET, recv, selASET);
     }
 }
 
@@ -1919,13 +1954,13 @@ opt_length
 {
     if (!SPECIAL_CONST_P(recv) &&
 	BASIC_OP_UNREDEFINED_P(BOP_LENGTH)) {
-	if (HEAP_CLASS_OF(recv) == rb_cString) {
+	if (HEAP_CLASS_OF(recv) == rb_cCFString) {
 	    val = rb_str_length(recv);
 	}
-	else if (HEAP_CLASS_OF(recv) == rb_cArray) {
+	else if (HEAP_CLASS_OF(recv) == rb_cCFArray) {
 	    val = LONG2NUM(RARRAY_LEN(recv));
 	}
-	else if (HEAP_CLASS_OF(recv) == rb_cHash) {
+	else if (HEAP_CLASS_OF(recv) == rb_cCFHash) {
 	    val = INT2FIX(RHASH_SIZE(recv));
 	}
 	else {
@@ -1935,7 +1970,7 @@ opt_length
     else {
       INSN_LABEL(normal_dispatch):
 	PUSH(recv);
-	CALL_SIMPLE_METHOD(0, idLength, recv);
+	CALL_SIMPLE_METHOD(0, idLength, recv, selLength);
     }
 }
 
@@ -1966,7 +2001,7 @@ opt_succ
 	}
     }
     else {
-	if (HEAP_CLASS_OF(recv) == rb_cString &&
+	if (HEAP_CLASS_OF(recv) == rb_cCFString &&
 	    BASIC_OP_UNREDEFINED_P(BOP_SUCC)) {
 	    val = rb_str_succ(recv);
 	}
@@ -1982,7 +2017,7 @@ opt_succ
     if (0) {
       INSN_LABEL(normal_dispatch):
 	PUSH(recv);
-	CALL_SIMPLE_METHOD(0, idSucc, recv);
+	CALL_SIMPLE_METHOD(0, idSucc, recv, selSucc);
     }
 }
 
@@ -2005,7 +2040,7 @@ opt_not
     }
     else {
 	PUSH(recv);
-	CALL_SIMPLE_METHOD(0, idNot, recv);
+	CALL_SIMPLE_METHOD(0, idNot, recv, selNot);
     }
 }
 

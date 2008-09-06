@@ -1,0 +1,6 @@
+name: Layout View
+load: lib/application.rb
+version: "1.0"
+icon: resources/HotCocoa.icns
+sources: 
+  - lib/**/*.rb

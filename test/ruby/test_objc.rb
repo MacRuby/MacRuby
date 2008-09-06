@@ -1,9 +1,71 @@
 require 'test/unit'
 
+DUMMY_M = <<END_DUMMY_M
+#import <Foundation/Foundation.h>
+
+@interface TestGetMethod : NSObject
+@end
+
+@implementation TestGetMethod
+- (void)getInt:(int *)v {}
+- (void)getLong:(long *)l {}
+- (void)getObject:(id *)o {}
+- (void)getRect:(NSRect *)r {}
+@end
+
+@interface Dummy : NSObject
+@end
+
+@implementation Dummy
+
+- (void)testCallGetIntMethod:(id)receiver expectedValue:(int)val
+{
+    int i = 0;
+    [(TestGetMethod *)receiver getInt:&i];
+    if (i != val)
+        [NSException raise:@"testCallGetIntMethod" format:@"expected %d, got %d", val, i];
+}
+
+- (void)testCallGetLongMethod:(id)receiver expectedValue:(long)val
+{
+    long l = 0;
+    [(TestGetMethod *)receiver getLong:&l];
+    if (l != val)
+        [NSException raise:@"testCallGetLongMethod" format:@"expected %ld, got %ld", val, l];
+}
+
+- (void)testCallGetObjectMethod:(id)receiver expectedValue:(id)val
+{
+    id o = nil;
+    [(TestGetMethod *)receiver getObject:&o];
+    if (o != val)
+        [NSException raise:@"testCallGetLongMethod" format:@"expected %p, got %p", val, o];
+}
+
+- (void)testCallGetRectMethod:(id)receiver expectedValue:(NSRect)val
+{
+    NSRect r = NSZeroRect;
+    [(TestGetMethod *)receiver getRect:&r];
+    if (!NSEqualRects(r, val)) 
+        [NSException raise:@"testCallGetLongMethod" format:@"expected %@, got %@", NSStringFromRect(val), NSStringFromRect(r)];
+}
+
+@end
+
+void Init_dummy(void) {}
+END_DUMMY_M
+
+if !File.exist?('/tmp/dummy.bundle') or File.mtime(__FILE__) > File.mtime('/tmp/dummy.bundle')
+  File.open('/tmp/dummy.m', 'w') { |io| io.write(DUMMY_M) }
+  system("/usr/bin/gcc /tmp/dummy.m -o /tmp/dummy.bundle -g -framework Foundation -dynamiclib -fobjc-gc")
+end
+require '/tmp/dummy.bundle'
+
 class TestObjC < Test::Unit::TestCase
 
   def setup
     framework 'Foundation'
+    framework 'AppKit'
   end
 
   def test_all_objects_inherit_from_nsobject
@@ -14,6 +76,28 @@ class TestObjC < Test::Unit::TestCase
     assert_kind_of(NSObject, 42_000_000_000_000)
     assert_kind_of(NSObject, 'foo')
     assert_kind_of(NSObject, [])
+  end
+
+  def test_class_shortcuts
+    assert_equal(NSObject, Object)
+    assert_equal(NSMutableString, String)
+    assert_equal(NSMutableArray, Array)
+    assert_equal(NSMutableDictionary, Hash)
+  end
+
+  def test_instance_of_on_primitive_types
+    o = 'foo'
+    assert(o.instance_of?(NSMutableString))
+    assert(o.instance_of?(String))
+    assert(o.kind_of?(String))
+    o = [42]
+    assert(o.instance_of?(NSMutableArray))
+    assert(o.instance_of?(Array))
+    assert(o.kind_of?(Array))
+    o = {42=>42}
+    assert(o.instance_of?(NSMutableDictionary))
+    assert(o.instance_of?(Hash))
+    assert(o.kind_of?(Hash))
   end
 
   class ClassWithNamedArg
@@ -84,9 +168,8 @@ class TestObjC < Test::Unit::TestCase
     assert_equal(42, obj.foo)
     obj = TestSuperMethod.performSelector(:alloc).performSelector(:init)
     assert_equal(42, obj.foo)
-    # FIXME this doesn't work yet
-    #obj = TestSuperMethod.new
-    #assert_equal(42, obj.foo)
+    obj = TestSuperMethod.new
+    assert_equal(42, obj.foo)
     obj = TestSuperMethod.performSelector(:new)
     assert_equal(42, obj.foo)
   end
@@ -167,6 +250,27 @@ class TestObjC < Test::Unit::TestCase
     assert_raise(ArgumentError) { NSStringFromRect([1, 2, 3, 4, 5]) }
   end
 
+  def test_struct_inspect
+    r = NSRect.new
+    assert_equal("#<NSRect origin=#<NSPoint x=0.0 y=0.0> size=#<NSSize width=0.0 height=0.0>>",
+                 r.inspect)
+    r.origin.x = 42
+    r.size.width = 42
+    assert_equal("#<NSRect origin=#<NSPoint x=42.0 y=0.0> size=#<NSSize width=42.0 height=0.0>>",
+                 r.inspect)
+  end
+
+  def test_struct_dup
+    r = NSMakeRect(1, 2, 3, 4)
+    r2 = r.dup
+    assert_kind_of(NSRect, r2)
+    assert_equal(r, r2)
+    r2.origin.x = 42
+    assert(r != r2) 
+    r2.origin.x = 1
+    assert_equal(r, r2)
+  end
+
   class TestInitCallInitialize
     attr_reader :foo
     def initialize
@@ -191,28 +295,17 @@ class TestObjC < Test::Unit::TestCase
     n = nil
     assert_kind_of(NSNull, n.self)
     assert_equal(NSNull.null, n.self)
-    # TODO this currently SEGV
-    #m = String
-    #assert_equal(m, m.self)
+    m = String
+    assert_equal(m, m.self)
   end
 
   def test_call_superclass
     o = Object.new
-    assert_equal(NSObject, o.superclass)
+    assert_equal(nil, o.superclass)
     s = 'foo'
     assert_equal(NSMutableString, s.superclass)
-    n = 42
-    assert_equal(NSNumber, n.superclass)
     n = nil 
     assert_equal(NSObject, n.superclass)
-  end
-
-  def test_no_direct_nsobject_subclass
-    old_verbose = $VERBOSE
-    $VERBOSE = nil # no warn
-    klass = eval("class Foo < NSObject; end; Foo")
-    assert_equal(Object, klass.superclass)
-    $VERBOSE = old_verbose
   end
 
   class TestSuper1
@@ -226,5 +319,87 @@ class TestObjC < Test::Unit::TestCase
     assert_equal('xxx', o.bar)
   end
 
-end
+  class RubyTestGetMethod < TestGetMethod
+    attr_accessor :tc, :val
+    [:getInt, :getLong, :getObject, :getRect].each do |s|
+      define_method(s) do |ptr|
+        @tc.assert_kind_of(Pointer, ptr)
+        ptr.assign(@val)
+      end
+    end
+  end
+  def test_call_get_int
+    d = Dummy.new
+    obj = RubyTestGetMethod.new
+    obj.tc = self
+    obj.val = 42
+    d.testCallGetIntMethod(obj, expectedValue:obj.val)
+    obj.val = 42_000_000
+    d.testCallGetLongMethod(obj, expectedValue:obj.val)
+    obj.val = d
+    d.testCallGetObjectMethod(obj, expectedValue:obj.val)
+    obj.val = NSRect.new(NSPoint.new(1, 2), NSSize.new(3, 4))
+    d.testCallGetRectMethod(obj, expectedValue:obj.val)
+  end
 
+  class Icon
+    attr_accessor :name
+    def initialize(name)
+      @name = name
+    end
+  end
+  def test_NSKVONotifying_class_preserve_ivars
+    array_controller = NSArrayController.new
+    array_controller.setAvoidsEmptySelection(false)
+    array_controller.setPreservesSelection(false)
+    array_controller.setSelectsInsertedObjects(false)
+    array_controller.setAutomaticallyRearrangesObjects(true)
+    array_controller.setSortDescriptors([NSSortDescriptor.alloc.initWithKey("name", ascending: false)])
+    array_controller.addObjects([Icon.new("Rich"), Icon.new("Chad")])
+    o = array_controller.arrangedObjects[0]
+    assert_equal(Icon, o.class)
+    assert_equal('Rich', o.name)
+    o = array_controller.arrangedObjects[1]
+    assert_equal(Icon, o.class)
+    assert_equal('Chad', o.name)
+  end
+
+  class TestKVCSetter
+    attr_accessor :foo
+  end
+  def test_KVO_setter_defined_by_attr_setter
+    o = TestKVCSetter.new
+    assert(o.respond_to?(:foo=))
+    assert(o.respond_to?(:setFoo))
+    o.setFoo(42)
+    assert_equal(42, o.foo)
+    assert_equal(nil, o.performSelector('setFoo:', withObject:42))
+    assert_equal(42, o.foo)
+    assert_equal(nil, o.send('setFoo', 42))
+    assert_equal(42, o.foo)
+    assert_equal(nil, o.send('setFoo:', 42))
+    assert_equal(42, o.foo)
+  end
+
+  def test_respond_to_objc_methods
+    s = ''
+    assert(s.respond_to?(:strip))
+    assert(s.respond_to?(:setString))
+    assert(s.respond_to?('setString:'))
+    assert(s.respond_to?('performSelector:withObject:'))
+  end
+
+  class TestCallSuperOverridenNew
+    def self.new(x)
+      super
+    end
+    def initialize(x)
+      @x = x
+    end
+    attr_reader :x
+  end
+  def test_call_super_overriden_new
+    o = TestCallSuperOverridenNew.new(42)
+    assert_equal(42, o.x)
+  end
+end

@@ -1178,7 +1178,7 @@ class TestString < Test::Unit::TestCase
 
     o = Object.new
     def o.to_s; self; end
-    assert_match(/^foo#<Object:0x.*>baz$/, "foobarbaz".sub("bar") { o })
+    assert_match(/^foo#<NSObject:0x.*>baz$/, "foobarbaz".sub("bar") { o })
   end
 
   def test_sub!
@@ -1636,7 +1636,7 @@ class TestString < Test::Unit::TestCase
     s = c.new
     s.replace("foo")
     assert_equal("foo", s.to_s)
-    assert_instance_of(NSCFString, s.to_s)
+    assert_instance_of(String, s.to_s)
   end
 
   def test_partition

@@ -1,0 +1,45 @@
+This directory contains a few demos of using the HotCocoa library.
+
+To learn more about HotCocoa see:
+
+  http://www.macruby.org/trac/wiki/HotCocoa
+  
+Part of HotCocoa installs a hotcocoa command which generates a
+project directory from a template.
+
+Usage:
+
+hotcocoa <directory>
+
+This will generate your directory structure.  The samples in this
+directory were generated with this command.  The basic HotCocoa
+directory structure is:
+
+./directory/Rakefile              #=> used with macrake to build the app
+./directory/config/build.yml      #=> build options
+./directory/lib/application.rb    #=> application template
+./directory/lib/menu.rb           #=> menus used by the app
+./resources/HotCocoa.icns         #=> hotcocoa icon 
+
+After generating the structure, cd into that directory and run 
+macrake to build.
+
+Demos:
+
+calculator    #=> simple calculator example
+demo          #=> demo of many hotcocoa wrappers
+layout_view   #=> demo of using the layout view system
+
+Building the demos:
+
+Calculator:
+$ cd calculator
+$ macrake
+
+Demo:
+$ cd demo
+$ macrake
+
+Layout View:
+$ cd layout_view
+$ macrake

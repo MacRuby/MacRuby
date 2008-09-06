@@ -265,9 +265,15 @@ module Gem
 
       current_version = CURRENT_SPECIFICATION_VERSION
 
-      field_count = MARSHAL_FIELDS[spec.specification_version]
+      field_count = if spec.specification_version > current_version then
+                      spec.instance_variable_set :@specification_version,
+                                                 current_version
+                      MARSHAL_FIELDS[current_version]
+                    else
+                      MARSHAL_FIELDS[spec.specification_version]
+                    end
 
-      if field_count.nil? or array.size < field_count then
+      if array.size < field_count then
         raise TypeError, "invalid Gem::Specification format #{array.inspect}"
       end
 
@@ -737,7 +743,7 @@ module Gem
       @@attributes.inject(0) { |hash_code, (name, default_value)|
         n = self.send(name).hash
         hash_code + n
-      }
+      } / @@attributes.length # XXX because NSObject#hash is 'unsigned long' and this returns a bignum
     end
 
     # Export methods (YAML and Ruby code) ----------------------------

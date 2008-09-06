@@ -54,6 +54,11 @@ void Init_ext(void);
 void Init_PreGC(void);
 void Init_BareVM(void);
 
+#if WITH_OBJC
+bool ruby_dlog_enabled = false;
+FILE *ruby_dlog_file = NULL;
+#endif
+
 void
 ruby_init(void)
 {
@@ -68,6 +73,25 @@ ruby_init(void)
     rb_origenviron = 0;
 #else
     rb_origenviron = environ;
+#endif
+
+#if WITH_OBJC
+    char *s;
+   
+    s = getenv("MACRUBY_DEBUG");
+    ruby_dlog_enabled = !(s == NULL || *s == '0');
+    s = getenv("MACRUBY_DEBUG_FILE");
+    if (s == NULL) {
+	ruby_dlog_file = stderr;
+    }
+    else {
+	ruby_dlog_file = fopen(s, "w");
+	if (ruby_dlog_file == NULL) {
+	    fprintf(stderr, "cannot open macruby debug file `%s'",
+		    strerror(errno));
+	    ruby_dlog_file = stderr;
+	}
+    }
 #endif
 
     Init_stack((void *)&state);
@@ -336,7 +360,7 @@ rb_frozen_class_p(VALUE klass)
     const char *desc = "something(?!)";
 
     if (OBJ_FROZEN(klass)) {
-	if (FL_TEST(klass, FL_SINGLETON))
+	if (RCLASS_SINGLETON(klass))
 	    desc = "object";
 	else {
 	    switch (TYPE(klass)) {
@@ -399,12 +423,12 @@ rb_longjmp(int tag, VALUE mesg)
 	    if (file) {
 		warn_printf("Exception `%s' at %s:%d - %s\n",
 			    rb_obj_classname(th->errinfo),
-			    file, line, RSTRING_CPTR(e));
+			    file, line, RSTRING_PTR(e));
 	    }
 	    else {
 		warn_printf("Exception `%s' - %s\n",
 			    rb_obj_classname(th->errinfo),
-			    RSTRING_CPTR(e));
+			    RSTRING_PTR(e));
 	    }
 	}
 	POP_TAG();
@@ -857,11 +881,11 @@ rb_mod_include(int argc, VALUE *argv, VALUE module)
     return module;
 }
 
-void
+VALUE
 rb_obj_call_init(VALUE obj, int argc, VALUE *argv)
 {
     PASS_PASSED_BLOCK();
-    rb_funcall2(obj, idInitialize, argc, argv);
+    return rb_funcall2(obj, idInitialize, argc, argv);
 }
 
 void

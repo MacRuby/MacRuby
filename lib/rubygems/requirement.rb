@@ -77,6 +77,11 @@ class Gem::Requirement
     @version = nil   # Avoid warnings.
   end
 
+  def yaml_initialize(tags, values)
+    @requirements = values['requirements']
+    @version = nil
+  end
+
   # Marshal raw requirements, rather than the full object
   def marshal_dump
     [@requirements]

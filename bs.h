@@ -198,8 +198,23 @@ typedef enum {
  */
 bool bs_find_path(const char *framework_path, char *path, const size_t path_len);
 
+/* bs_parser_new()
+ * 
+ * Creates and returns a parser object, required for bs_parser_parse().
+ * Use bs_parser_free() when you're done.
+ */
+typedef struct _bs_parser bs_parser_t;
+bs_parser_t *bs_parser_new(void);
+
+/* bs_parser_free()
+ *
+ * Frees a previously-created parser object.
+ */
+void bs_parser_free(bs_parser_t *parser);
+
 typedef void (*bs_parse_callback_t)
-  (const char *path, bs_element_type_t type, void *value, void *context);
+  (bs_parser_t *parser, const char *path, bs_element_type_t type, void *value, 
+   void *context);
 
 typedef enum {
   /* Default option: parse bridge support files. */
@@ -215,6 +230,7 @@ typedef enum {
  * to the callback function, using bs_element_free().
  * Returns true on success, otherwise false.
  *
+ * parser: the parser object.
  * path: the full path of the bridge support file to parse.
  * options: parsing options.
  * callback: a callback function pointer.
@@ -224,8 +240,9 @@ typedef enum {
  * allocated error message. You are responsible to free it. Pass NULL if you 
  * don't need it.  
  */
-bool bs_parse(const char *path, bs_parse_options_t options, 
-  bs_parse_callback_t callback, void *context, char **error);
+bool bs_parser_parse(bs_parser_t *parser, const char *path, 
+  bs_parse_options_t options, bs_parse_callback_t callback, void *context, 
+  char **error);
 
 /* bs_element_free()
  *
@@ -236,43 +253,5 @@ bool bs_parse(const char *path, bs_parse_options_t options,
  * value: a pointer to the bridge support element.
  */
 void bs_element_free(bs_element_type_t type, void *value);
-
-typedef unsigned bs_register_token_t;
-
-/* bs_register()
- *
- * Registers an asynchronous callback that will be called by bs_notify(). 
- * This function is meant to be called by scripting language bridges, to 
- * register themselves for future notifications by frameworks that dynamically
- * generate APIs. You are responsible to free every element passed to the 
- * callback function, using bs_element_free(). 
- * Returns a token identifier that can be passed to bs_unregister() to 
- * unregister the callback.
- *
- * callback: a callback function pointer.
- * context: a contextual data pointer that will be passed to the callback 
- * function.
-*/
-bs_register_token_t bs_register(bs_parse_callback_t *callback, void *context);
-
-/* bs_unregister()
- *
- * Unregisters a previously-registered callback.
- *
- * token: a token that was returned by bs_register().
- */
-void bs_unregister(bs_register_token_t token);
-
-/* bs_notify()
- *
- * Notifies all clients registered through bs_register() that a new bridge 
- * support element is available. This function is meant to be called by 
- * frameworks that generate APIs at runtime. 
- *
- * type: the type of the bridge support element.
- * value: a pointer to the bridge support element. The element should be 
- * entierely composed of memory allocated by malloc(3).
- */
-void bs_notify(bs_element_type_t type, void *value);
 
 #endif /* __BS_H_ */

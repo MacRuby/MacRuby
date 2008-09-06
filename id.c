@@ -40,6 +40,31 @@ Init_id(void)
     idNot = rb_intern("!");
     idNeq = rb_intern("!=");
 
+#if WITH_OBJC
+    selPLUS = sel_registerName("+:");
+    selMINUS = sel_registerName("-:");
+    selMULT = sel_registerName("*:");
+    selDIV = sel_registerName("/:");
+    selMOD = sel_registerName("%:");
+    selEq = sel_registerName("==:");
+    selNeq = sel_registerName("!=:");
+    selLT = sel_registerName("<:");
+    selLE = sel_registerName("<=:");
+    selGT = sel_registerName(">:");
+    selGE = sel_registerName(">=:");
+    selLTLT = sel_registerName("<<:");
+    selAREF = sel_registerName("[]:");
+    selASET = sel_registerName("[]=:");
+    selLength = sel_registerName("length");
+    selSucc = sel_registerName("succ");
+    selNot = sel_registerName("!");
+    selInit = sel_registerName("init");
+    selCopy = sel_registerName("copy");
+    sel_ignored = sel_registerName("retain");
+    assert(sel_ignored == sel_registerName("release"));
+    sel_zone = sel_registerName("zone");
+#endif
+
     idAREF = rb_intern("[]");
     idASET = rb_intern("[]=");
 
@@ -66,4 +91,7 @@ Init_id(void)
 
     idRespond_to = rb_intern("respond_to?");
     idInitialize = rb_intern("initialize");
+
+    idIncludedModules = rb_intern("__included_modules__");
+    idIncludedInClasses = rb_intern("__included_in_classes__");
 }

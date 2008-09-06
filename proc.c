@@ -676,7 +676,7 @@ proc_to_s(VALUE self)
 	    line_no = iseq->insn_info_table[0].line_no;
 	}
 	str = rb_sprintf("#<%s:%p@%s:%d%s>", cname, (void *)self,
-			 RSTRING_CPTR(iseq->filename),
+			 RSTRING_PTR(iseq->filename),
 			 line_no, is_lambda);
     }
     else {
@@ -757,20 +757,22 @@ mnew(VALUE klass, VALUE obj, ID id, VALUE mclass, int scope)
     }
 
     while (rclass != klass &&
-	   (FL_TEST(rclass, FL_SINGLETON) || TYPE(rclass) == T_ICLASS)) {
+	   (RCLASS_SINGLETON(rclass) || TYPE(rclass) == T_ICLASS)) {
 	rclass = RCLASS_SUPER(rclass);
     }
     if (TYPE(klass) == T_ICLASS)
 	klass = RBASIC(klass)->klass;
     method = Data_Make_Struct(mclass, struct METHOD, bm_mark, -1, data);
     data->oclass = klass;
-    data->recv = obj;
+    GC_WB(&data->recv, obj);
 
     data->id = id;
     data->body = body;
     data->rclass = rclass;
     data->oid = oid;
+#if !WITH_OBJC
     OBJ_INFECT(method, klass);
+#endif
 
     return method;
 }
@@ -877,7 +879,9 @@ method_unbind(VALUE obj)
     data->body = orig->body;
     data->rclass = orig->rclass;
     data->oid = orig->oid;
+#if !WITH_OBJC
     OBJ_INFECT(method, obj);
+#endif
 
     return method;
 }
@@ -1080,7 +1084,7 @@ rb_mod_define_method(int argc, VALUE *argv, VALUE mod)
 	struct METHOD *method = (struct METHOD *)DATA_PTR(body);
 	VALUE rclass = method->rclass;
 	if (rclass != mod) {
-	    if (FL_TEST(rclass, FL_SINGLETON)) {
+	    if (RCLASS_SINGLETON(rclass)) {
 		rb_raise(rb_eTypeError,
 			 "can't bind singleton method to a different class");
 	    }
@@ -1119,6 +1123,7 @@ rb_mod_define_method(int argc, VALUE *argv, VALUE mod)
 static VALUE
 rb_mod_objc_ib_action(VALUE recv, VALUE sym)
 {
+    rb_warn("ib_action has been deprecated, please define methods with only one argument instead. If you want IB support, the argument must be named 'sender' to appear in IB.");
     if (rb_block_given_p())
 	return rb_mod_define_method(1, &sym, recv);	
     return recv;
@@ -1299,7 +1304,7 @@ umethod_bind(VALUE method, VALUE recv)
 
     Data_Get_Struct(method, struct METHOD, data);
     if (data->rclass != CLASS_OF(recv)) {
-	if (FL_TEST(data->rclass, FL_SINGLETON)) {
+	if (RCLASS_SINGLETON(data->rclass)) {
 	    rb_raise(rb_eTypeError,
 		     "singleton method called for a different object");
 	}
@@ -1311,7 +1316,7 @@ umethod_bind(VALUE method, VALUE recv)
 
     method = Data_Make_Struct(rb_cMethod, struct METHOD, bm_mark, xfree, bound);
     *bound = *data;
-    bound->recv = recv;
+    GC_WB(&bound->recv, recv);
     bound->rclass = CLASS_OF(recv);
 
     return method;
@@ -1435,7 +1440,7 @@ method_inspect(VALUE method)
     rb_str_buf_cat2(str, s);
     rb_str_buf_cat2(str, ": ");
 
-    if (FL_TEST(data->oclass, FL_SINGLETON)) {
+    if (RCLASS_SINGLETON(data->oclass)) {
 	VALUE v = rb_iv_get(data->oclass, "__attached__");
 
 	if (data->recv == Qundef) {

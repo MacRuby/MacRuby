@@ -1,6 +1,6 @@
 class SimpleLayoutView < NSView
   
-  ib_outlet :boxColorField
+  attr_accessor :boxColorField
   
   # Default separation between items, and default size of added subviews
   SEPARATION = 10.0
@@ -108,18 +108,18 @@ class SimpleLayoutView < NSView
   # Action methods to add/remove boxes, giving us something to animate.  
   # Note that we cause a relayout here; a better design is to relayout in the 
   # view automatically on addition/removal of subviews.
-  ib_action :addABox do |sender|
+  def addABox(sender)
     addSubview viewToBeAdded
     layout!
   end
   
-  ib_action :removeLastBox do |sender|
+  def removeLastBox(sender)
     subviews.lastObject.removeFromSuperview
     layout!
   end
   
   # Action method to change layout style.
-  ib_action :changeLayout do |sender|
+  def changeLayout(sender)
     setLayoutStyle sender.selectedTag
   end
 

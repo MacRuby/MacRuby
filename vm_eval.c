@@ -72,13 +72,7 @@ vm_call0(rb_thread_t * th, VALUE klass, VALUE recv, VALUE id, ID oid,
 	    cfp->method_id = id;
 	    cfp->method_class = klass;
 
-#if WITH_OBJC
-	    rb_current_cfunc_node = (NODE *)body;
-#endif
 	    val = call_cfunc(body->nd_cfnc, recv, body->nd_argc, argc, argv);
-#if WITH_OBJC
-	    rb_current_cfunc_node = NULL;
-#endif
 
 	    if (reg_cfp != th->cfp + 1) {
 		SDR2(reg_cfp);
@@ -148,6 +142,46 @@ vm_call_super(rb_thread_t * const th, const int argc, const VALUE * const argv)
 	rb_bug("vm_call_super: should not be reached");
     }
 
+#if WITH_OBJC
+    SEL sel;
+    IMP imp;
+
+    if (argc == 0) {
+	const char *id_str;
+	size_t id_str_len;
+
+	id_str = rb_id2name(id);
+	id_str_len = strlen(id_str);
+	if (id_str[id_str_len - 1] == ':') {
+	    char buf[100];
+	    strncpy(buf, id_str, sizeof buf);
+	    buf[MIN(sizeof buf, id_str_len - 1)] = '\0';
+	    id = rb_intern(buf);
+	}
+    }
+
+    body = rb_objc_method_node(klass, id, &imp, &sel);
+    if (body != NULL) {
+	body = body->nd_body;
+	return vm_call0(th, klass, recv, id, id, argc, argv, body, CALL_SUPER);
+    }
+    else if (imp != NULL) {
+	struct rb_objc_method_sig sig;
+	Method m;
+
+	m = class_getInstanceMethod((Class)klass, sel);
+	assert(m != NULL);
+	sig.argc = method_getNumberOfArguments(m);
+	sig.types = method_getTypeEncoding(m);
+	return rb_objc_call2(recv, klass, sel, imp, &sig, NULL, argc, (VALUE *)argv);
+    }
+    else {
+	dp(recv);
+	dp(klass);
+	dpi(id);
+	rb_bug("vm_call_super: not found");
+    }
+#else
     body = rb_method_node(klass, id);	/* this returns NODE_METHOD */
 
     if (body) {
@@ -161,6 +195,7 @@ vm_call_super(rb_thread_t * const th, const int argc, const VALUE * const argv)
     }
 
     return vm_call0(th, klass, recv, id, id, argc, argv, body, CALL_SUPER);
+#endif
 }
 
 VALUE
@@ -188,42 +223,56 @@ rb_call0(VALUE klass, VALUE recv, ID mid, int argc, const VALUE *argv,
     NODE *body, *method;
     int noex;
     ID id = mid;
+#if !WITH_OBJC
     struct cache_entry *ent;
+#endif
     rb_thread_t *th = GET_THREAD();
-#if WITH_OBJC
-    unsigned redo = 0;
-#endif
-
-rb_call0_redo:
-
-#if WITH_OBJC
-# define REDO_PERHAPS() \
-    do { \
-	if (!redo && mid != missing) { \
-	    ID newid = rb_objc_missing_sel(mid, argc); \
-	    if (newid != mid) { \
-		id = mid = newid; \
-		redo = 1; \
-		goto rb_call0_redo; \
-	    } \
-	} \
-    } \
-    while (0)
-#else
-# define REDO_PERHAPS()
-#endif
 
     if (!klass) {
 	rb_raise(rb_eNotImpError,
 		 "method `%s' called on terminated object (%p)",
 		 rb_id2name(mid), (void *)recv);
     }
+
+#if WITH_OBJC
+    IMP imp;
+    SEL sel;
+
+    if (argc > 0 && mid != ID_ALLOCATOR) {
+	const char *mid_str;
+	char buf[100];
+	size_t len;
+
+	mid_str = rb_id2name(mid);
+	len = strlen(mid_str);
+	if (mid_str[len - 1] != ':') {
+	    snprintf(buf, sizeof buf, "%s:", mid_str);
+	    mid = rb_intern(buf);
+	}
+    }
+
+    method = rb_objc_method_node(klass, mid, &imp, &sel);    
+
+    if (imp != NULL && method == NULL)
+	return rb_objc_call(recv, sel, argc, (VALUE *)argv);
+
+    DLOG("RCALL", "%c[<%s %p> %s] node=%p", class_isMetaClass((Class)klass) ? '+' : '-', class_getName((Class)klass), (void *)recv, (char *)sel, method);
+    
+    if (method == NULL) {
+	int missing_scope = scope == 2 ? NOEX_VCALL : scope == 3 ? NOEX_SUPER : 0;
+	return method_missing(recv, mid, argc, argv, missing_scope);
+    }
+    else {
+	noex = method->nd_noex;
+	klass = method->nd_clss;
+	body = method->nd_body;
+    }
+#else
     /* is it in the method cache? */
     ent = cache + EXPR1(klass, mid);
 
     if (ent->mid == mid && ent->klass == klass) {
 	if (!ent->method) {
-	    REDO_PERHAPS();
 	    return method_missing(recv, mid, argc, argv,
 				  scope == 2 ? NOEX_VCALL : 0);
 	}
@@ -238,15 +287,14 @@ rb_call0_redo:
 	body = method->nd_body;
     }
     else {
-	REDO_PERHAPS();
 	if (scope == 3) {
 	    return method_missing(recv, mid, argc, argv, NOEX_SUPER);
 	}
 	return method_missing(recv, mid, argc, argv,
 			      scope == 2 ? NOEX_VCALL : 0);
     }
+#endif
     
-
     if (mid != missing) {
 	/* receiver specified form for private method */
 	if (UNLIKELY(noex)) {
@@ -735,7 +783,7 @@ eval_string_with_cref(VALUE self, VALUE src, VALUE scope, NODE *cref, const char
 
 	if (0) {		/* for debug */
 	    extern VALUE ruby_iseq_disasm(VALUE);
-	    printf("%s\n", RSTRING_CPTR(ruby_iseq_disasm(iseqval)));
+	    printf("%s\n", RSTRING_PTR(ruby_iseq_disasm(iseqval)));
 	}
 
 	/* save new env */
@@ -761,7 +809,7 @@ eval_string_with_cref(VALUE self, VALUE src, VALUE scope, NODE *cref, const char
 		mesg = rb_attr_get(errinfo, rb_intern("mesg"));
 		if (!NIL_P(errat) && TYPE(errat) == T_ARRAY &&
 		    (bt2 = vm_backtrace(th, -2), RARRAY_LEN(bt2) > 0)) {
-		    if (!NIL_P(mesg) && TYPE(mesg) == T_STRING && !RSTRING_CLEN(mesg)) {
+		    if (!NIL_P(mesg) && TYPE(mesg) == T_STRING && !RSTRING_LEN(mesg)) {
 			rb_str_update(mesg, 0, 0, rb_str_new2(": "));
 			rb_str_update(mesg, 0, 0, RARRAY_AT(errat, 0));
 		    }
@@ -826,7 +874,7 @@ rb_f_eval(int argc, VALUE *argv, VALUE self)
     }
 
     if (!NIL_P(vfile))
-	file = RSTRING_CPTR(vfile);
+	file = RSTRING_PTR(vfile);
     return eval_string(self, src, scope, file, line);
 }
 
@@ -1141,7 +1189,7 @@ rb_f_throw(int argc, VALUE *argv)
     }
     if (!tt) {
 	VALUE desc = rb_inspect(tag);
-	rb_raise(rb_eArgError, "uncaught throw %s", RSTRING_CPTR(desc));
+	rb_raise(rb_eArgError, "uncaught throw %s", RSTRING_PTR(desc));
     }
     rb_trap_restore_mask();
     th->errinfo = NEW_THROW_OBJECT(tag, 0, TAG_THROW);
@@ -1316,7 +1364,7 @@ rb_backtrace(void)
 
     ary = vm_backtrace(GET_THREAD(), -1);
     for (i = 0; i < RARRAY_LEN(ary); i++) {
-	printf("\tfrom %s\n", RSTRING_CPTR(RARRAY_AT(ary, i)));
+	printf("\tfrom %s\n", RSTRING_PTR(RARRAY_AT(ary, i)));
     }
 }
 
@@ -1334,11 +1382,16 @@ Init_vm_eval(void)
 
     rb_define_global_function("loop", rb_f_loop, 0);
 
+    rb_define_method(rb_cNSObject, "instance_eval", rb_obj_instance_eval, -1);
+    rb_define_method(rb_cNSObject, "instance_exec", rb_obj_instance_exec, -1);
+    rb_define_private_method(rb_cNSObject, "method_missing", rb_method_missing, -1);
+    rb_define_method(rb_cNSObject, "__send__", rb_f_send, -1);
+
     rb_define_method(rb_cBasicObject, "instance_eval", rb_obj_instance_eval, -1);
     rb_define_method(rb_cBasicObject, "instance_exec", rb_obj_instance_exec, -1);
     rb_define_private_method(rb_cBasicObject, "method_missing", rb_method_missing, -1);
-
     rb_define_method(rb_cBasicObject, "__send__", rb_f_send, -1);
+
     rb_define_method(rb_mKernel, "send", rb_f_send, -1);
     rb_define_method(rb_mKernel, "public_send", rb_f_public_send, -1);
 

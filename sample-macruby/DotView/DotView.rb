@@ -70,7 +70,7 @@ class DotView < NSView
   # redisplayed. A possible optimization is to check to see if the old and
   # new value is the same, and not do anything if so.
 
-  ib_action :setRadius do |sender|
+  def setRadius(sender)
     @radius = sender.doubleValue
     setNeedsDisplay true
   end
@@ -81,7 +81,7 @@ class DotView < NSView
   # A possible optimization is to check to see if the old and new value is the same, 
   # and not do anything if so.
  
-  ib_action :setColor do |sender|
+  def setColor(sender)
     @color = sender.color
     setNeedsDisplay true
   end

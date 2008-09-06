@@ -15,6 +15,8 @@
 #include <math.h>
 #include <stdio.h>
 
+#include "objc.h"
+
 #if defined(__FreeBSD__) && __FreeBSD__ < 4
 #include <floatingpoint.h>
 #endif
@@ -83,12 +85,54 @@ round(double x)
 static ID id_coerce, id_to_i, id_eq;
 
 VALUE rb_cNumeric;
+#if WITH_OBJC
+VALUE rb_cCFNumber;
+#endif
 VALUE rb_cFloat;
 VALUE rb_cInteger;
 VALUE rb_cFixnum;
 
 VALUE rb_eZeroDivError;
 VALUE rb_eFloatDomainError;
+
+#if WITH_OBJC
+static CFMutableDictionaryRef fixnum_dict = NULL;
+static struct RFixnum *fixnum_cache = NULL;
+
+VALUE
+rb_box_fixnum(VALUE fixnum)
+{
+    struct RFixnum *val;
+    long value;
+
+    if (fixnum_dict == NULL)
+	fixnum_dict = CFDictionaryCreateMutable(kCFAllocatorMalloc, 0, NULL, NULL); 
+
+    value = FIX2LONG(fixnum);
+
+    if (value >= 0 && value <= 1000000) {
+	if (fixnum_cache == NULL) {
+	   fixnum_cache = (struct RFixnum *)calloc(1, sizeof(struct RFixnum) * 1000000);
+	}
+	val = &fixnum_cache[value];
+	if (val->klass == 0) {
+	    val->klass = rb_cFixnum;
+	    val->value = value;
+	}
+	return (VALUE)val;
+    }
+
+    val = (struct RFixnum *)CFDictionaryGetValue(fixnum_dict, (const void *)fixnum);
+    if (val == NULL) {
+	val = (struct RFixnum *)malloc(sizeof(struct RFixnum));
+	val->klass = rb_cFixnum;
+	val->value = FIX2LONG(fixnum);
+	CFDictionarySetValue(fixnum_dict, (const void *)fixnum, (const void *)val);
+    }
+
+    return (VALUE)val;
+}
+#endif
 
 void
 rb_num_zerodiv(void)
@@ -134,7 +178,7 @@ coerce_rescue(VALUE *x)
 
     rb_raise(rb_eTypeError, "%s can't be coerced into %s",
 	     rb_special_const_p(x[1])?
-	     RSTRING_PTR(v):
+	     RSTRING_BYTEPTR(v):
 	     rb_obj_classname(x[1]),
 	     rb_obj_classname(x[0]));
     return Qnil;		/* dummy */
@@ -1906,7 +1950,7 @@ int_chr(int argc, VALUE *argv, VALUE num)
     if (!enc) enc = rb_ascii8bit_encoding();
     if (i < 0 || (n = rb_enc_codelen(i, enc)) <= 0) goto out_of_range;
     str = rb_enc_str_new(0, n, enc);
-    rb_enc_mbcput(i, RSTRING_PTR(str), enc);
+    rb_enc_mbcput(i, RSTRING_BYTEPTR(str), enc);
 #endif
     return str;
 }
@@ -3098,6 +3142,68 @@ fix_even_p(VALUE num)
     return Qtrue;
 }
 
+#if WITH_OBJC
+static const char *
+imp_rb_float_objCType(void *rcv, SEL sel)
+{
+    return "d";
+}
+
+static const char *
+imp_rb_fixnum_objCType(void *rcv, SEL sel)
+{
+    return "l";
+}
+
+static void
+imp_rb_float_getValue(void *rcv, SEL sel, void *buffer)
+{
+    double v = RFLOAT_VALUE(rcv);
+    *(double *)buffer = v;
+}
+
+static void
+imp_rb_fixnum_getValue(void *rcv, SEL sel, void *buffer)
+{
+    long v = RFIXNUM(rcv)->value;
+    *(long *)buffer = v;
+}
+
+static double
+imp_rb_float_doubleValue(void *rcv, SEL sel)
+{
+    return RFLOAT_VALUE(rcv);
+}
+
+static long long
+imp_rb_fixnum_longValue(void *rcv, SEL sel)
+{
+    return RFIXNUM(rcv)->value;
+}
+
+static void
+rb_install_nsnumber_primitives(void)
+{
+    Class klass;
+  
+    klass = (Class)rb_cFloat;
+    rb_objc_install_method2(klass, "objCType",
+	    (IMP)imp_rb_float_objCType);
+    rb_objc_install_method2(klass, "getValue:", 
+	    (IMP)imp_rb_float_getValue);
+    rb_objc_install_method2(klass, "doubleValue", 
+	    (IMP)imp_rb_float_doubleValue);
+
+    klass = (Class)rb_cFixnum;
+    rb_objc_install_method2(klass, "objCType",
+	    (IMP)imp_rb_fixnum_objCType);
+    rb_objc_install_method2(klass, "getValue:", 
+	    (IMP)imp_rb_fixnum_getValue);
+    rb_objc_install_method2(klass, "longValue",
+	    (IMP)imp_rb_fixnum_longValue);
+}
+#endif
+
 void
 Init_Numeric(void)
 {
@@ -3117,7 +3223,17 @@ Init_Numeric(void)
 
     rb_eZeroDivError = rb_define_class("ZeroDivisionError", rb_eStandardError);
     rb_eFloatDomainError = rb_define_class("FloatDomainError", rb_eRangeError);
+#if WITH_OBJC
+    rb_cCFNumber = (VALUE)objc_getClass("NSCFNumber");
+    rb_cNumeric = rb_define_class("Numeric", (VALUE)objc_getClass("NSNumber"));
+    RCLASS_SET_VERSION_FLAG(rb_cNumeric, RCLASS_IS_OBJECT_SUBCLASS);
+    rb_define_object_special_methods(rb_cNumeric);
+    /* overriding NSObject methods */
+    rb_define_method(rb_cNumeric, "class", rb_obj_class, 0);
+    rb_define_method(rb_cNumeric, "dup", rb_obj_dup, 0);
+#else
     rb_cNumeric = rb_define_class("Numeric", rb_cObject);
+#endif
 
     rb_define_method(rb_cNumeric, "singleton_method_added", num_sadded, 1);
     rb_include_module(rb_cNumeric, rb_mComparable);
@@ -3275,4 +3391,8 @@ Init_Numeric(void)
     rb_define_method(rb_cFloat, "nan?",      flo_is_nan_p, 0);
     rb_define_method(rb_cFloat, "infinite?", flo_is_infinite_p, 0);
     rb_define_method(rb_cFloat, "finite?",   flo_is_finite_p, 0);
+
+#if WITH_OBJC
+    rb_install_nsnumber_primitives();
+#endif
 }

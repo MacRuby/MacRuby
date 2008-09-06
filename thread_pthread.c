@@ -11,8 +11,8 @@
 
 #ifdef THREAD_SYSTEM_DEPENDENT_IMPLEMENTATION
 
-static void native_mutex_lock(pthread_mutex_t *lock);
-static void native_mutex_unlock(pthread_mutex_t *lock);
+void native_mutex_lock(pthread_mutex_t *lock);
+void native_mutex_unlock(pthread_mutex_t *lock);
 static int native_mutex_trylock(pthread_mutex_t *lock);
 static void native_mutex_initialize(pthread_mutex_t *lock);
 static void native_mutex_destroy(pthread_mutex_t *lock);
@@ -23,7 +23,7 @@ static void native_cond_wait(pthread_cond_t *cond, pthread_mutex_t *mutex);
 static void native_cond_initialize(pthread_cond_t *cond);
 static void native_cond_destroy(pthread_cond_t *cond);
 
-static void
+void
 native_mutex_lock(pthread_mutex_t *lock)
 {
     int r;
@@ -32,7 +32,7 @@ native_mutex_lock(pthread_mutex_t *lock)
     }
 }
 
-static void
+void
 native_mutex_unlock(pthread_mutex_t *lock)
 {
     int r;

@@ -447,12 +447,12 @@ pack_pack(VALUE ary, VALUE fmt)
 #endif
 
     StringValue(fmt);
-    p = RSTRING_CPTR(fmt);
-    pend = p + RSTRING_CLEN(fmt);
+    p = RSTRING_PTR(fmt);
+    pend = p + RSTRING_LEN(fmt);
     res = rb_str_buf_new(0);
 
 #if WITH_OBJC
-    RSTRING_PTR(res); /* create bytestring */
+    RSTRING_BYTEPTR(res); /* create bytestring */
 #endif
 
     items = RARRAY_LEN(ary);
@@ -463,7 +463,7 @@ pack_pack(VALUE ary, VALUE fmt)
 #define NEXTFROM (items-- > 0 ? RARRAY_AT(ary, idx++) : TOO_FEW)
 
     while (p < pend) {
-	if (RSTRING_CPTR(fmt) + RSTRING_CLEN(fmt) != pend) {
+	if (RSTRING_PTR(fmt) + RSTRING_LEN(fmt) != pend) {
 	    rb_raise(rb_eRuntimeError, "format string modified");
 	}
 	type = *p++;		/* get data type */
@@ -517,8 +517,8 @@ pack_pack(VALUE ary, VALUE fmt)
 	    }
 	    else {
 		StringValue(from);
-		ptr = RSTRING_CPTR(from);
-		plen = RSTRING_CLEN(from);
+		ptr = RSTRING_PTR(from);
+		plen = RSTRING_LEN(from);
 #if !WITH_OBJC
 		OBJ_INFECT(res, from);
 #endif
@@ -852,14 +852,14 @@ pack_pack(VALUE ary, VALUE fmt)
 
 	  case 'X':		/* back up byte */
 	  shrink:
-	    plen = RSTRING_CLEN(res);
+	    plen = RSTRING_LEN(res);
 	    if (plen < len)
 		rb_raise(rb_eArgError, "X outside of string");
 	    rb_str_set_len(res, plen - len);
 	    break;
 
 	  case '@':		/* null fill to absolute position */
-	    len -= RSTRING_CLEN(res);
+	    len -= RSTRING_LEN(res);
 	    if (len > 0) goto grow;
 	    len = -len;
 	    if (len > 0) goto shrink;
@@ -890,8 +890,8 @@ pack_pack(VALUE ary, VALUE fmt)
 	  case 'm':		/* base64 encoded string */
 	    from = NEXTFROM;
 	    StringValue(from);
-	    ptr = RSTRING_CPTR(from);
-	    plen = RSTRING_CLEN(from);
+	    ptr = RSTRING_PTR(from);
+	    plen = RSTRING_LEN(from);
 
 	    if (len <= 2)
 		len = 45;
@@ -921,9 +921,9 @@ pack_pack(VALUE ary, VALUE fmt)
 	    from = THISFROM;
 	    if (!NIL_P(from)) {
 		StringValue(from);
-		if (RSTRING_CLEN(from) < len) {
+		if (RSTRING_LEN(from) < len) {
 		    rb_raise(rb_eArgError, "too short buffer for P(%ld for %ld)",
-			     RSTRING_CLEN(from), len);
+			     RSTRING_LEN(from), len);
 		}
 	    }
 	    len = 1;
@@ -978,16 +978,16 @@ pack_pack(VALUE ary, VALUE fmt)
 		    ul >>=  7;
 		}
 
-		if (RSTRING_LEN(buf)) {
-		    bufs = RSTRING_PTR(buf);
-		    bufe = bufs + RSTRING_LEN(buf) - 1;
+		if (RSTRING_BYTELEN(buf)) {
+		    bufs = RSTRING_BYTEPTR(buf);
+		    bufe = bufs + RSTRING_BYTELEN(buf) - 1;
 		    *bufs &= 0x7f; /* clear continue bit */
 		    while (bufs < bufe) { /* reverse */
 			c = *bufs;
 			*bufs++ = *bufe;
 			*bufe-- = c;
 		    }
-		    rb_str_buf_cat(res, RSTRING_PTR(buf), RSTRING_LEN(buf));
+		    rb_str_buf_cat(res, RSTRING_BYTEPTR(buf), RSTRING_BYTELEN(buf));
 		}
 		else {
 		    c = 0;
@@ -1058,8 +1058,8 @@ qpencode(VALUE str, VALUE from, long len)
 {
     char buff[1024];
     long i = 0, n = 0, prev = EOF;
-    const unsigned char *s = (unsigned char*)RSTRING_CPTR(from);
-    const unsigned char *send = s + RSTRING_CLEN(from);
+    const unsigned char *s = (unsigned char*)RSTRING_PTR(from);
+    const unsigned char *send = s + RSTRING_LEN(from);
 
     while (s < send) {
         if ((*s > 126) ||
@@ -1322,10 +1322,10 @@ pack_unpack(VALUE str, VALUE fmt)
 
     StringValue(str);
     StringValue(fmt);
-    s = RSTRING_CPTR(str);
-    send = s + RSTRING_CLEN(str);
-    p = RSTRING_CPTR(fmt);
-    pend = p + RSTRING_CLEN(fmt);
+    s = RSTRING_PTR(str);
+    send = s + RSTRING_LEN(str);
+    p = RSTRING_PTR(fmt);
+    pend = p + RSTRING_LEN(fmt);
 
     ary = block_p ? Qnil : rb_ary_new();
     while (p < pend) {
@@ -1422,7 +1422,7 @@ pack_unpack(VALUE str, VALUE fmt)
 		    len = (send - s) * 8;
 		bits = 0;
 		UNPACK_PUSH(bitstr = rb_str_new(0, len));
-		t = RSTRING_PTR(bitstr);
+		t = RSTRING_BYTEPTR(bitstr);
 		for (i=0; i<len; i++) {
 		    if (i & 7) bits >>= 1;
 		    else bits = *s++;
@@ -1443,7 +1443,7 @@ pack_unpack(VALUE str, VALUE fmt)
 		    len = (send - s) * 8;
 		bits = 0;
 		UNPACK_PUSH(bitstr = rb_str_new(0, len));
-		t = RSTRING_PTR(bitstr);
+		t = RSTRING_BYTEPTR(bitstr);
 		for (i=0; i<len; i++) {
 		    if (i & 7) bits <<= 1;
 		    else bits = *s++;
@@ -1464,7 +1464,7 @@ pack_unpack(VALUE str, VALUE fmt)
 		    len = (send - s) * 2;
 		bits = 0;
 		UNPACK_PUSH(bitstr = rb_str_new(0, len));
-		t = RSTRING_PTR(bitstr);
+		t = RSTRING_BYTEPTR(bitstr);
 		for (i=0; i<len; i++) {
 		    if (i & 1)
 			bits >>= 4;
@@ -1487,7 +1487,7 @@ pack_unpack(VALUE str, VALUE fmt)
 		    len = (send - s) * 2;
 		bits = 0;
 		UNPACK_PUSH(bitstr = rb_str_new(0, len));
-		t = RSTRING_PTR(bitstr);
+		t = RSTRING_BYTEPTR(bitstr);
 		for (i=0; i<len; i++) {
 		    if (i & 1)
 			bits <<= 4;
@@ -1742,7 +1742,7 @@ pack_unpack(VALUE str, VALUE fmt)
 	  case 'u':
 	    {
 		VALUE buf = infected_str_new(0, (send - s)*3/4, str);
-		char *ptr = RSTRING_PTR(buf);
+		char *ptr = RSTRING_BYTEPTR(buf);
 		long total = 0;
 
 		while (s < send && *s > ' ' && *s < 'a') {
@@ -1752,9 +1752,9 @@ pack_unpack(VALUE str, VALUE fmt)
 		    hunk[3] = '\0';
 		    len = (*s++ - ' ') & 077;
 		    total += len;
-		    if (total > RSTRING_LEN(buf)) {
-			len -= total - RSTRING_LEN(buf);
-			total = RSTRING_LEN(buf);
+		    if (total > RSTRING_BYTELEN(buf)) {
+			len -= total - RSTRING_BYTELEN(buf);
+			total = RSTRING_BYTELEN(buf);
 		    }
 
 		    while (len > 0) {
@@ -1798,7 +1798,7 @@ pack_unpack(VALUE str, VALUE fmt)
 	  case 'm':
 	    {
 		VALUE buf = infected_str_new(0, (send - s)*3/4, str);
-		char *ptr = RSTRING_PTR(buf);
+		char *ptr = RSTRING_BYTEPTR(buf);
 		int a = -1,b = -1,c = 0,d;
 		static int first = 1;
 		static int b64_xtable[256];
@@ -1840,7 +1840,7 @@ pack_unpack(VALUE str, VALUE fmt)
 			*ptr++ = b << 4 | c >> 2;
 		    }
 		}
-		rb_str_set_len(buf, ptr - RSTRING_PTR(buf));
+		rb_str_set_len(buf, ptr - RSTRING_BYTEPTR(buf));
 		RSTRING_SYNC(buf);
 		UNPACK_PUSH(buf);
 	    }
@@ -1849,7 +1849,7 @@ pack_unpack(VALUE str, VALUE fmt)
 	  case 'M':
 	    {
 		VALUE buf = infected_str_new(0, send - s, str);
-		char *ptr = RSTRING_PTR(buf);
+		char *ptr = RSTRING_BYTEPTR(buf);
 		int c1, c2;
 
 		while (s < send) {
@@ -1869,20 +1869,20 @@ pack_unpack(VALUE str, VALUE fmt)
 		    }
 		    s++;
 		}
-		rb_str_set_len(buf, ptr - RSTRING_PTR(buf));
+		rb_str_set_len(buf, ptr - RSTRING_BYTEPTR(buf));
 		RSTRING_SYNC(buf);
 		UNPACK_PUSH(buf);
 	    }
 	    break;
 
 	  case '@':
-	    if (len > RSTRING_CLEN(str))
+	    if (len > RSTRING_LEN(str))
 		rb_raise(rb_eArgError, "@ outside of string");
-	    s = RSTRING_CPTR(str) + len;
+	    s = RSTRING_PTR(str) + len;
 	    break;
 
 	  case 'X':
-	    if (len > s - RSTRING_CPTR(str))
+	    if (len > s - RSTRING_PTR(str))
 		rb_raise(rb_eArgError, "X outside of string");
 	    s -= len;
 	    break;
@@ -1911,8 +1911,8 @@ pack_unpack(VALUE str, VALUE fmt)
 		    count = RARRAY_LEN(a);
 		    for (i = 0; i < count; i++) {
 			VALUE p = RARRAY_AT(a, i);
-			if (TYPE(p) == T_STRING && RSTRING_CPTR(p) == t) {
-			    if (len < RSTRING_CLEN(p)) {
+			if (TYPE(p) == T_STRING && RSTRING_PTR(p) == t) {
+			    if (len < RSTRING_LEN(p)) {
 				tmp = rb_tainted_str_new(t, len);
 				rb_str_associate(tmp, a);
 			    }
@@ -1934,8 +1934,8 @@ pack_unpack(VALUE str, VALUE fmt)
 		    p = RARRAY_PTR(a);
 		    pend = p + RARRAY_LEN(a);
 		    while (p < pend) {
-			if (TYPE(*p) == T_STRING && RSTRING_PTR(*p) == t) {
-			    if (len < RSTRING_LEN(*p)) {
+			if (TYPE(*p) == T_STRING && RSTRING_BYTEPTR(*p) == t) {
+			    if (len < RSTRING_BYTELEN(*p)) {
 				tmp = rb_tainted_str_new(t, len);
 				rb_str_associate(tmp, a);
 			    }
@@ -1982,7 +1982,7 @@ pack_unpack(VALUE str, VALUE fmt)
 			count = RARRAY_LEN(a);
 			for (i = 0; i < count; i++) {
 			    VALUE p = RARRAY_AT(a, i);
-			    if (TYPE(p) == T_STRING && RSTRING_CPTR(p) == t) {
+			    if (TYPE(p) == T_STRING && RSTRING_PTR(p) == t) {
 				tmp = p;
 				break;
 			    }
@@ -1999,7 +1999,7 @@ pack_unpack(VALUE str, VALUE fmt)
 			p = RARRAY_PTR(a);
 			pend = p + RARRAY_LEN(a);
 			while (p < pend) {
-			    if (TYPE(*p) == T_STRING && RSTRING_CPTR(*p) == t) {
+			    if (TYPE(*p) == T_STRING && RSTRING_PTR(*p) == t) {
 				tmp = *p;
 				break;
 			    }

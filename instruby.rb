@@ -43,7 +43,7 @@ def parse_args(argv = ARGV)
     $mflags.concat(v)
   end
   opt.on('-i', '--install=TYPE',
-         [:local, :bin, :"bin-arch", :"bin-comm", :lib, :man, :ext, :"ext-arch", :"ext-comm", :rdoc]) do |ins|
+         [:local, :bin, :"bin-arch", :"bin-comm", :lib, :man, :ext, :"ext-arch", :"ext-comm", :rdoc, :data]) do |ins|
     $install << ins
   end
   opt.on('--data-mode=OCTAL-MODE', OptionParser::OctalInteger) do |mode|
@@ -210,6 +210,7 @@ goruby_install_name = "go" + ruby_install_name
 version = CONFIG["ruby_version"]
 bindir = CONFIG["bindir"]
 libdir = CONFIG["libdir"]
+datadir = CONFIG['datadir']
 archhdrdir = rubyhdrdir = CONFIG["rubyhdrdir"]
 archhdrdir += "/" + CONFIG["arch"]
 rubylibdir = CONFIG["rubylibdir"]
@@ -305,8 +306,14 @@ install?(:local, :comm, :bin, :'bin-comm') do
     next unless File.file?(src)
     next if /\/[.#]|(\.(old|bak|orig|rej|diff|patch|core)|~|\/core)$/i =~ src
 
-    name = ruby_install_name.sub(/ruby/, File.basename(src))
-
+    bname = File.basename(src)
+    name = case bname
+      when 'hotcocoa', 'rb_nibtool'
+        bname
+      else
+        ruby_install_name.sub(/ruby/, bname)
+    end
+    
     shebang = ''
     body = ''
     open(src, "rb") do |f|
@@ -402,6 +409,14 @@ install?(:local, :comm, :man) do
   end
 end
 
+install?(:local, :data) do
+  puts "installing data files"
+  destination_dir = datadir.clone
+  Config.expand(destination_dir)
+  makedirs [destination_dir]
+  install_recursive("data", destination_dir, :mode => $data_mode)
+end  
+
 $install << :local << :ext if $install.empty?
 $install.each do |inst|
   if !(procs = $install_procs[inst]) || procs.empty?
@@ -466,6 +481,8 @@ if RUBY_FRAMEWORK
   mkdir_p dest_bin, :mode => 0755
   Dir.entries(with_destdir(CONFIG['bindir'])).each do |bin|
     next if bin[0] == '.'
+    # Except rb_nibtool!
+    next if bin == 'rb_nibtool'
     link = File.join("../../../", CONFIG['bindir'], bin)
     link.sub!(/#{MACRUBY_VERSION}/, 'Current')
     ln_sfh link, File.join(dest_bin, File.basename(bin))
@@ -492,22 +509,36 @@ if RUBY_FRAMEWORK
   end
 end
 
-puts "fixing bridge support dylibs"
-unless File.exist?('markgc')
-  unless system("gcc markgc.c -std=gnu99 -o markgc")
-    $stderr.puts "cannot build the markgc tool"
-    exit 1
+puts "installing IB support"
+ib_dest = '/Developer/usr/bin'
+mkdir_p ib_dest
+install('bin/rb_nibtool', ib_dest, :mode => $prog_mode)
+install('tool/rb_nibtool.old', ib_dest, :mode => $prog_mode)
+
+touch_file = '/System/Library/Frameworks/.bridgesupport_dylib_gcmarked'
+if $destdir.empty? and File.exist?(touch_file)
+  puts "bridge support dylibs already fixed"
+else
+  puts "fixing bridge support dylibs"
+  unless File.exist?('markgc')
+    unless system("gcc markgc.c -std=gnu99 -o markgc")
+      $stderr.puts "cannot build the markgc tool"
+      exit 1
+    end
   end
-end
-Dir.glob('/System/Library/Frameworks/**/BridgeSupport/*.dylib').each do |p|
-  unless system("./markgc '#{p}' >& /dev/null")
-    $stderr.puts "cannot markgc #{p}"
-    exit 1
+  Dir.glob('/System/Library/Frameworks/**/BridgeSupport/*.dylib').each do |p|
+    unless system("./markgc '#{p}' >& /dev/null")
+      $stderr.puts "cannot markgc #{p}"
+      exit 1
+    end
+    unless $destdir.empty?
+      dirname = File.dirname(p)
+      mkdir_p(dirname)
+      install(p, dirname)
+    end
   end
-  unless $destdir.empty?
-    dirname = File.dirname(p)
-    mkdir_p(dirname)
-    install(p, dirname)
+  if $destdir.empty?
+    touch(touch_file)
   end
 end
 

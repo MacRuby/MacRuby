@@ -513,7 +513,7 @@ fiber_new(VALUE klass, VALUE proc)
 
     th->stack = 0;
     th->stack_size = FIBER_VM_STACK_SIZE;
-    th->stack = ALLOC_N(VALUE, th->stack_size);
+    GC_WB(&th->stack, ALLOC_N(VALUE, th->stack_size));
 
     th->cfp = (void *)(th->stack + th->stack_size);
     th->cfp--;
@@ -529,9 +529,9 @@ fiber_new(VALUE klass, VALUE proc)
     th->cfp->proc = 0;
     th->cfp->block_iseq = 0;
     th->tag = 0;
-    th->local_storage = st_init_numtable();
+    GC_WB(&th->local_storage, st_init_numtable());
 
-    th->first_proc = proc;
+    GC_WB(&th->first_proc, proc);
 
     MEMCPY(&cont->jmpbuf, &th->root_jmpbuf, rb_jmpbuf_t, 1);
 

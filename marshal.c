@@ -174,7 +174,7 @@ static VALUE
 class2path(VALUE klass)
 {
     VALUE path = rb_class_path(klass);
-    const char *n = RSTRING_CPTR(path);
+    const char *n = RSTRING_PTR(path);
 
     if (n[0] == '#') {
 	rb_raise(rb_eTypeError, "can't dump anonymous %s %s",
@@ -194,7 +194,7 @@ w_nbyte(const char *s, int n, struct dump_arg *arg)
 {
     VALUE buf = arg->str;
     rb_str_buf_cat(buf, s, n);
-    if (arg->dest && RSTRING_CLEN(buf) >= BUFSIZ) {
+    if (arg->dest && RSTRING_LEN(buf) >= BUFSIZ) {
 	if (arg->taint) OBJ_TAINT(buf);
 	rb_io_write(arg->dest, buf);
 	rb_str_resize(buf, 0);
@@ -420,14 +420,16 @@ w_extended(VALUE klass, struct dump_arg *arg, int check)
 {
     const char *path;
 
-    if (check && FL_TEST(klass, FL_SINGLETON)) {
+    if (check && RCLASS_SINGLETON(klass)) {
+#if !WITH_OBJC // TODO
 	if (RCLASS_M_TBL(klass)->num_entries ||
 	    (RCLASS_IV_TBL(klass) && RCLASS_IV_TBL(klass)->num_entries > 1)) {
 	    rb_raise(rb_eTypeError, "singleton can't be dumped");
 	}
+#endif
 	klass = RCLASS_SUPER(klass);
     }
-    while (BUILTIN_TYPE(klass) == T_ICLASS) {
+    while (TYPE(klass) == T_ICLASS) {
 	path = rb_class2name(RBASIC(klass)->klass);
 	w_byte(TYPE_EXTENDED_R, arg);
 	w_unique(path, arg);
@@ -450,7 +452,7 @@ w_class(char type, VALUE obj, struct dump_arg *arg, int check)
     w_extended(klass, arg, check);
     w_byte(type, arg);
     p = class2path(rb_class_real(klass));
-    path = RSTRING_CPTR(p);
+    path = RSTRING_PTR(p);
     w_unique(path, arg);
 }
 
@@ -471,7 +473,7 @@ w_uclass(VALUE obj, VALUE super, struct dump_arg *arg)
     if (klass != super) {
 #endif
 	w_byte(TYPE_UCLASS, arg);
-	w_unique(RSTRING_CPTR(class2path(klass)), arg);
+	w_unique(RSTRING_PTR(class2path(klass)), arg);
     }
 }
 
@@ -534,6 +536,7 @@ w_ivar(VALUE obj, st_table *tbl, struct dump_call_arg *arg)
 static void
 w_objivar(VALUE obj, struct dump_call_arg *arg)
 {
+#if !WITH_OBJC /* TODO */
     VALUE *ptr;
     long i, len, num;
 
@@ -548,6 +551,7 @@ w_objivar(VALUE obj, struct dump_call_arg *arg)
     if (num != 0) {
         rb_ivar_foreach(obj, w_obj_each, (st_data_t)arg);
     }
+#endif
 }
 
 static void
@@ -636,7 +640,7 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
 		w_byte(TYPE_IVAR, arg);
 	    }
 	    w_class(TYPE_USERDEF, obj, arg, Qfalse);
-	    w_bytes(RSTRING_CPTR(v), RSTRING_CLEN(v), arg);
+	    w_bytes(RSTRING_PTR(v), RSTRING_LEN(v), arg);
             if (hasiv2) {
 		w_ivar(v, ivtbl2, &c_arg);
             }
@@ -650,7 +654,7 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
         st_add_direct(arg->data, obj, arg->data->num_entries);
 
 #if WITH_OBJC
-	if (!rb_objc_is_non_native(obj))
+	if (!NATIVE(obj))
 #endif
         {
             st_data_t compat_data;
@@ -667,13 +671,13 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
 
 	switch (/*BUILTIN_*/TYPE(obj)) {
 	  case T_CLASS:
-	    if (FL_TEST(obj, FL_SINGLETON)) {
+	    if (RCLASS_SINGLETON(obj)) {
 		rb_raise(rb_eTypeError, "singleton class can't be dumped");
 	    }
 	    w_byte(TYPE_CLASS, arg);
 	    {
 		volatile VALUE path = class2path(obj);
-		w_bytes(RSTRING_CPTR(path), RSTRING_CLEN(path), arg);
+		w_bytes(RSTRING_PTR(path), RSTRING_LEN(path), arg);
 	    }
 	    break;
 
@@ -681,7 +685,7 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
 	    w_byte(TYPE_MODULE, arg);
 	    {
 		VALUE path = class2path(obj);
-		w_bytes(RSTRING_CPTR(path), RSTRING_CLEN(path), arg);
+		w_bytes(RSTRING_PTR(path), RSTRING_LEN(path), arg);
 	    }
 	    break;
 
@@ -724,7 +728,7 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
 	    w_uclass(obj, rb_cString, arg);
 #endif
 	    w_byte(TYPE_STRING, arg);
-	    w_bytes(RSTRING_CPTR(obj), RSTRING_CLEN(obj), arg);
+	    w_bytes(RSTRING_PTR(obj), RSTRING_LEN(obj), arg);
 	    break;
 
 	  case T_REGEXP:
@@ -927,7 +931,7 @@ marshal_dump(int argc, VALUE *argv)
 	arg.str = port;
     }
 
-    RSTRING_PTR(arg.str); /* force bytestring creation */
+    RSTRING_BYTEPTR(arg.str); /* force bytestring creation */
 
     arg.symbols = st_init_numtable();
     arg.data    = st_init_numtable();
@@ -976,8 +980,8 @@ r_byte(struct load_arg *arg)
     int c;
 
     if (TYPE(arg->src) == T_STRING) {
-	if (RSTRING_CLEN(arg->src) > arg->offset) {
-	    c = (unsigned char)RSTRING_CPTR(arg->src)[arg->offset++];
+	if (RSTRING_LEN(arg->src) > arg->offset) {
+	    c = (unsigned char)RSTRING_PTR(arg->src)[arg->offset++];
 	}
 	else {
 	    rb_raise(rb_eArgError, "marshal data too short");
@@ -1050,8 +1054,8 @@ r_bytes0(long len, struct load_arg *arg)
 
     if (len == 0) return rb_str_new(0, 0);
     if (TYPE(arg->src) == T_STRING) {
-	if (RSTRING_CLEN(arg->src) - arg->offset >= len) {
-	    str = rb_str_new(RSTRING_CPTR(arg->src)+arg->offset, len);
+	if (RSTRING_LEN(arg->src) - arg->offset >= len) {
+	    str = rb_str_new(RSTRING_PTR(arg->src)+arg->offset, len);
 	    arg->offset += len;
 	}
 	else {
@@ -1066,7 +1070,7 @@ r_bytes0(long len, struct load_arg *arg)
 	check_load_arg(arg);
 	if (NIL_P(str)) goto too_short;
 	StringValue(str);
-	if (RSTRING_CLEN(str) != len) goto too_short;
+	if (RSTRING_LEN(str) != len) goto too_short;
 	if (OBJ_TAINTED(str)) arg->taint = Qtrue;
     }
     return str;
@@ -1088,7 +1092,7 @@ static ID
 r_symreal(struct load_arg *arg)
 {
     volatile VALUE s = r_bytes(arg);
-    ID id = rb_intern(RSTRING_CPTR(s));
+    ID id = rb_intern(RSTRING_PTR(s));
 
     st_insert(arg->symbols, arg->symbols->num_entries, id);
 
@@ -1279,28 +1283,20 @@ r_object0(struct load_arg *arg, int *ivp, VALUE extmod)
 	{
 	    VALUE c = path2class(r_unique(arg));
 
-	    if (FL_TEST(c, FL_SINGLETON)) {
+	    if (RCLASS_SINGLETON(c)) {
 		rb_raise(rb_eTypeError, "singleton can't be loaded");
 	    }
 	    v = r_object0(arg, 0, extmod);
-#if WITH_OBJC
-	    if (rb_objc_is_non_native(v)) {
-		*(Class *)v = RCLASS_OCID(c);	
-	    }
-	    else
-#endif
-	    {
-		if (rb_special_const_p(v) || TYPE(v) == T_OBJECT || TYPE(v) == T_CLASS) {
+	    if (rb_special_const_p(v) || TYPE(v) == T_OBJECT || TYPE(v) == T_CLASS) {
 format_error:
-		    rb_raise(rb_eArgError, "dump format error (user class)");
-		}
-		if (TYPE(v) == T_MODULE || !RTEST(rb_class_inherited_p(c, RBASIC(v)->klass))) {
-		    VALUE tmp = rb_obj_alloc(c);
-
-		    if (TYPE(v) != TYPE(tmp)) goto format_error;
-		}
-		RBASIC(v)->klass = c;
+		rb_raise(rb_eArgError, "dump format error (user class)");
 	    }
+	    if (TYPE(v) == T_MODULE || !RTEST(rb_class_inherited_p(c, RBASIC(v)->klass))) {
+		VALUE tmp = rb_obj_alloc(c);
+
+		if (TYPE(v) != TYPE(tmp)) goto format_error;
+	    }
+	    RBASIC(v)->klass = c;
 	}
 	break;
 
@@ -1331,7 +1327,7 @@ format_error:
 	{
 	    double d, t = 0.0;
 	    VALUE str = r_bytes(arg);
-	    const char *ptr = RSTRING_CPTR(str);
+	    const char *ptr = RSTRING_PTR(str);
 
 	    if (strcmp(ptr, "nan") == 0) {
 		d = t / t;
@@ -1370,7 +1366,7 @@ format_error:
             rb_big_resize((VALUE)big, (len + 1) * 2 / sizeof(BDIGIT));
 #endif
             digits = RBIGNUM_DIGITS(big);
-	    MEMCPY(digits, RSTRING_CPTR(data), char, len * 2);
+	    MEMCPY(digits, RSTRING_PTR(data), char, len * 2);
 #if SIZEOF_BDIGITS > SIZEOF_SHORT
 	    MEMZERO((char *)digits + len * 2, char,
 		    RBIGNUM_LEN(big) * sizeof(BDIGIT) - len * 2);
@@ -1577,7 +1573,7 @@ format_error:
         {
 	    volatile VALUE str = r_bytes(arg);
 
-	    v = rb_path2class(RSTRING_CPTR(str));
+	    v = rb_path2class(RSTRING_PTR(str));
 	    v = r_entry(v, arg);
             v = r_leave(v, arg);
 	}
@@ -1587,7 +1583,7 @@ format_error:
         {
 	    volatile VALUE str = r_bytes(arg);
 
-	    v = path2class(RSTRING_CPTR(str));
+	    v = path2class(RSTRING_PTR(str));
 	    v = r_entry(v, arg);
             v = r_leave(v, arg);
 	}
@@ -1597,7 +1593,7 @@ format_error:
         {
 	    volatile VALUE str = r_bytes(arg);
 
-	    v = path2module(RSTRING_CPTR(str));
+	    v = path2module(RSTRING_PTR(str));
 	    v = r_entry(v, arg);
             v = r_leave(v, arg);
 	}

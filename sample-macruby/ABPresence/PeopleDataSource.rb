@@ -1,6 +1,6 @@
 class PeopleDataSource
 
-  ib_outlet :table, :serviceWatcher
+  attr_accessor :table, :serviceWatcher
 
   # Initialize and register for AddressBook notifications
   def awakeFromNib 

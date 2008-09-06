@@ -1,9 +1,3 @@
-class NSRect
-  def to_cgrect
-    CGRect.new(CGPoint.new(origin.x, origin.y), CGSize.new(size.width, size.height))
-  end
-end
-
 class DemoView < NSView
 
   attr_accessor :demoNumber
@@ -16,17 +10,16 @@ class DemoView < NSView
   end
 
   def drawRect(rect)
-    r = rect.to_cgrect
 	context = NSGraphicsContext.currentContext.graphicsPort
 	
     CGContextSetGrayFillColor(context, 1.0, 1.0)
-    CGContextFillRect(context, r)
+    CGContextFillRect(context, rect)
 
     case @demoNumber
-    when 0 then rectangles(context, r)
-    when 1 then circles(context, r)
-    when 2 then bezierPaths(context, r)
-    when 3 then circleClipping(context, r)
+    when 0 then rectangles(context, rect)
+    when 1 then circles(context, rect)
+    when 2 then bezierPaths(context, rect)
+    when 3 then circleClipping(context, rect)
     else
       NSLog("Invalid demo number #{@demoNumber}")
     end

@@ -181,7 +181,9 @@ make_struct(VALUE name, VALUE members, VALUE klass)
     OBJ_FREEZE(members);
     if (NIL_P(name)) {
 	nstr = rb_class_new(klass);
+#if !WITH_OBJC
 	rb_make_metaclass(nstr, RBASIC(klass)->klass);
+#endif
 	rb_class_inherited(klass, nstr);
     }
     else {

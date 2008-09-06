@@ -31,6 +31,7 @@
 #define YYREALLOC(ptr, size)	rb_parser_realloc(parser, ptr, size)
 #define YYCALLOC(nelem, size)	rb_parser_calloc(parser, nelem, size)
 #define YYFREE(ptr)		rb_parser_free(parser, ptr)
+static inline void *orig_malloc(size_t l) { return malloc(l); }
 #define malloc	YYMALLOC
 #define realloc	YYREALLOC
 #define calloc	YYCALLOC
@@ -521,6 +522,8 @@ static VALUE ripper_dispatch5(struct parser_params*,ID,VALUE,VALUE,VALUE,VALUE,V
 #define dispatch3(n,a,b,c)      ripper_dispatch3(parser, TOKEN_PASTE(ripper_id_, n), a, b, c)
 #define dispatch4(n,a,b,c,d)    ripper_dispatch4(parser, TOKEN_PASTE(ripper_id_, n), a, b, c, d)
 #define dispatch5(n,a,b,c,d,e)  ripper_dispatch5(parser, TOKEN_PASTE(ripper_id_, n), a, b, c, d, e)
+
+#define named_arg(id, flag)
 
 #define yyparse ripper_yyparse
 
@@ -4918,8 +4921,8 @@ lex_get_str(struct parser_params *parser, VALUE s)
     const char *cptr, *beg, *end, *pend;
     long clen;
 
-    cptr = beg = RSTRING_PTR(s);
-    clen = RSTRING_LEN(s);
+    cptr = beg = RSTRING_BYTEPTR(s);
+    clen = RSTRING_BYTELEN(s);
     if (lex_gets_ptr) {
 	if (clen == lex_gets_ptr) return Qnil;
 	beg += lex_gets_ptr;
@@ -5109,8 +5112,8 @@ parser_nextc(struct parser_params *parser)
 	    }
 	    ruby_sourceline++;
 	    parser->line_count++;
-	    lex_pbeg = lex_p = RSTRING_PTR(v);
-	    lex_pend = lex_p + RSTRING_LEN(v);
+	    lex_pbeg = lex_p = RSTRING_BYTEPTR(v);
+	    lex_pend = lex_p + RSTRING_BYTELEN(v);
 #ifdef RIPPER
 	    ripper_flush(parser);
 #endif
@@ -5507,7 +5510,7 @@ dispose_string(VALUE str)
     /* TODO: should use another API? */
 #if !WITH_OBJC
     if (RBASIC(str)->flags & RSTRING_NOEMBED)
-	xfree(RSTRING_PTR(str));
+	xfree(RSTRING_BYTEPTR(str));
 #endif
     rb_gc_force_recycle(str);
 }
@@ -5800,8 +5803,8 @@ parser_heredoc_restore(struct parser_params *parser, NODE *here)
 #endif
     line = here->nd_orig;
     lex_lastline = line;
-    lex_pbeg = RSTRING_PTR(line);
-    lex_pend = lex_pbeg + RSTRING_LEN(line);
+    lex_pbeg = RSTRING_BYTEPTR(line);
+    lex_pend = lex_pbeg + RSTRING_BYTELEN(line);
     lex_p = lex_pbeg + here->nd_nth;
     heredoc_end = ruby_sourceline;
     ruby_sourceline = nd_line(here);
@@ -5836,8 +5839,8 @@ parser_here_document(struct parser_params *parser, NODE *here)
     long len;
     VALUE str = 0;
 
-    eos = RSTRING_CPTR(here->nd_lit);
-    len = RSTRING_CLEN(here->nd_lit) - 1;
+    eos = RSTRING_PTR(here->nd_lit);
+    len = RSTRING_LEN(here->nd_lit) - 1;
     indent = (func = *eos++) & STR_FUNC_INDENT;
 
     if ((c = nextc()) == -1) {
@@ -5855,7 +5858,7 @@ parser_here_document(struct parser_params *parser, NODE *here)
 
     if (!(func & STR_FUNC_EXPAND)) {
 	do {
-	    p = RSTRING_CPTR(lex_lastline);
+	    p = RSTRING_PTR(lex_lastline);
 	    pend = lex_pend;
 	    if (pend > p) {
 		switch (pend[-1]) {
@@ -6056,7 +6059,7 @@ parser_magic_comment(struct parser_params *parser, const char *str, int len)
 #else
 # define str_copy(_s, _p, _n) ((_s) \
 	? (rb_str_resize((_s), (_n)), \
-	   MEMCPY(RSTRING_PTR(_s), (_p), char, (_n)), (_s)) \
+	   MEMCPY(RSTRING_BYTEPTR(_s), (_p), char, (_n)), (_s)) \
 	: ((_s) = STR_NEW((_p), (_n))))
 #endif
 
@@ -6119,13 +6122,13 @@ parser_magic_comment(struct parser_params *parser, const char *str, int len)
 	str_copy(name, beg, n);
 #ifndef RIPPER
 	do {
-	    if (STRNCASECMP(p->name, RSTRING_CPTR(name), n) == 0) {
+	    if (STRNCASECMP(p->name, RSTRING_PTR(name), n) == 0) {
 		n = vend - vbeg;
 		if (p->length) {
 		    n = (*p->length)(parser, vbeg, n);
 		}
 		str_copy(val, vbeg, n);
-		(*p->func)(parser, RSTRING_CPTR(name), RSTRING_CPTR(val));
+		(*p->func)(parser, RSTRING_PTR(name), RSTRING_PTR(val));
 		break;
 	    }
 	} while (++p < magic_comments + sizeof(magic_comments) / sizeof(*p));
@@ -6176,7 +6179,7 @@ set_file_encoding(struct parser_params *parser, const char *str, const char *sen
     beg = str;
     while ((*str == '-' || *str == '_' || ISALNUM(*str)) && ++str < send);
     s = rb_str_new(beg, parser_encode_length(parser, beg, str - beg));
-    parser_set_encode(parser, RSTRING_CPTR(s));
+    parser_set_encode(parser, RSTRING_PTR(s));
     rb_str_resize(s, 0);
 }
 
@@ -8699,7 +8702,7 @@ process_named_args_gen(struct parser_params *parser, NODE *n)
 	     p != NULL; 
 	     p = p->nd_next, flip = !flip) {
 	    if (flip) {
-		strlcat(buf, rb_id2name(SYM2ID(p->nd_head->nd_lit)), 
+		strlcat(buf, rb_sym2name(p->nd_head->nd_lit),
 			sizeof buf);
 		strlcat(buf, ":", sizeof buf);
 	    }
@@ -8886,7 +8889,7 @@ reg_fragment_check_gen(struct parser_params* parser, VALUE str, int options)
     err = rb_reg_check_preprocess(str);
     if (err != Qnil) {
         err = rb_obj_as_string(err);
-        compile_error(PARSER_ARG "%s", RSTRING_CPTR(err));
+        compile_error(PARSER_ARG "%s", RSTRING_PTR(err));
 	RB_GC_GUARD(err);
     }
 }
@@ -8979,6 +8982,7 @@ reg_compile_gen(struct parser_params* parser, VALUE str, int options)
     reg_fragment_setenc(str, options);
     err = rb_errinfo();
     re = rb_reg_compile(str, options & RE_OPTION_MASK);
+    rb_objc_retain((void *)re);
     if (NIL_P(re)) {
 	ID mesg = rb_intern("mesg");
 	VALUE m = rb_attr_get(rb_errinfo(), mesg);
@@ -8987,7 +8991,7 @@ reg_compile_gen(struct parser_params* parser, VALUE str, int options)
 	    rb_str_append(rb_str_cat(rb_attr_get(err, mesg), "\n", 1), m);
 	}
 	else {
-	    compile_error(PARSER_ARG "%s", RSTRING_CPTR(m));
+	    compile_error(PARSER_ARG "%s", RSTRING_PTR(m));
 	}
 	return Qnil;
     }
@@ -9118,12 +9122,11 @@ static struct symbols {
 #if WITH_OBJC
     CFMutableDictionaryRef sym_id;
     CFMutableDictionaryRef id_str;
-    VALUE *op_sym;
 #else
     st_table *sym_id;
     st_table *id_str;
-    VALUE op_sym[tLAST_TOKEN];
 #endif
+    VALUE op_sym[tLAST_TOKEN];
 } global_symbols = {tLAST_TOKEN >> ID_SCOPE_SHIFT};
 
 static const struct st_hash_type symhash = {
@@ -9164,10 +9167,9 @@ Init_sym(void)
 	0, NULL, NULL);
     GC_ROOT(&global_symbols.sym_id);
     global_symbols.id_str = CFDictionaryCreateMutable(NULL,
-	0, NULL, &kCFTypeDictionaryValueCallBacks);
+	0, NULL, NULL);
     GC_ROOT(&global_symbols.id_str);
-    global_symbols.op_sym = xmalloc(sizeof(VALUE) * tLAST_TOKEN);
-    GC_ROOT(&global_symbols.op_sym);
+    rb_cSymbol = rb_objc_create_class("Symbol", (VALUE)objc_getClass("NSString"));
 #else
     global_symbols.sym_id = st_init_table_with_size(&symhash, 1000);
     global_symbols.id_str = st_init_numtable_with_size(1000);
@@ -9331,6 +9333,23 @@ rb_enc_symname2_p(const char *name, int len, rb_encoding *enc)
     return *m ? Qfalse : Qtrue;
 }
 
+#if WITH_OBJC
+static inline VALUE
+rsymbol_new(const char *name, const int len, ID id)
+{
+    VALUE sym;
+
+    sym = (VALUE)orig_malloc(sizeof(struct RSymbol));
+    RSYMBOL(sym)->str = orig_malloc(len + 1);
+    RSYMBOL(sym)->klass = rb_cSymbol;
+    strcpy(RSYMBOL(sym)->str, name);
+    RSYMBOL(sym)->len = len;
+    RSYMBOL(sym)->id = id;
+    
+    return sym;
+}
+#endif
+
 ID
 rb_intern3(const char *name, long len, rb_encoding *enc)
 {
@@ -9364,6 +9383,17 @@ rb_intern3(const char *name, long len, rb_encoding *enc)
 	e = m + len;
     }
     SEL name_hash = sel_registerName(name);
+    if (name_hash == sel_ignored) {
+	if (strcmp(name, "retain") == 0) {
+	    name_hash = (SEL)0x1000;
+	}
+	else if (strcmp(name, "release") == 0) {
+	    name_hash = (SEL)0x2000;
+	}
+	else {
+	    assert(1==0);
+	}
+    }
     id = (ID)CFDictionaryGetValue((CFDictionaryRef)global_symbols.sym_id, 
 	(const void *)name_hash);
     if (id != 0)
@@ -9464,8 +9494,7 @@ rb_intern3(const char *name, long len, rb_encoding *enc)
   new_id:
     id |= ++global_symbols.last_id << ID_SCOPE_SHIFT;
   id_register:
-    str = rb_enc_str_new(name, len, enc);
-    OBJ_FREEZE(str);
+    str = rsymbol_new(name, len, id);
 #if WITH_OBJC
     CFDictionarySetValue(global_symbols.sym_id, (const void *)name_hash, 
 	(const void *)id);
@@ -9498,21 +9527,23 @@ rb_intern(const char *name)
 ID
 rb_intern_str(VALUE str)
 {
-    rb_encoding *enc;
     ID id;
 
 #if WITH_OBJC
-    enc = rb_enc_get(str);
+    const char *s = RSTRING_PTR(str);
+    id = rb_intern3(s, strlen(s), NULL);
 #else
+    rb_encoding *enc;
+    enc = rb_enc_get(str);
     if (rb_enc_str_coderange(str) == ENC_CODERANGE_7BIT) {
 	enc = rb_usascii_encoding();
     }
     else {
 	enc = rb_enc_get(str);
     }
-#endif
-    id = rb_intern3(RSTRING_CPTR(str), RSTRING_CLEN(str), enc);
+    id = rb_intern3(RSTRING_PTR(str), RSTRING_LEN(str), enc);
     RB_GC_GUARD(str);
+#endif
     return id;
 }
 
@@ -9528,9 +9559,13 @@ rb_id2str(ID id)
 	    if (op_tbl[i].token == id) {
 		VALUE str = global_symbols.op_sym[i];
 		if (!str) {
+#if WITH_OBJC
+		    str = rsymbol_new(op_tbl[i].name, strlen(op_tbl[i].name), op_tbl[i].token);
+#else
 		    str = rb_usascii_str_new2(op_tbl[i].name);
 		    OBJ_FREEZE(str);
-		    GC_WB(&global_symbols.op_sym[i], str);
+#endif
+		    global_symbols.op_sym[i] = str;
 		}
 		return str;
 	    }
@@ -9581,21 +9616,25 @@ rb_id2str(ID id)
     return 0;
 }
 
+#if !WITH_OBJC
 const char *
 rb_id2name(ID id)
 {
     VALUE str = rb_id2str(id);
 
     if (!str) return 0;
-    return RSTRING_CPTR(str);
+    return RSTRING_PTR(str);
 }
+#endif
 
+#if !WITH_OBJC
 static int
 symbols_i(VALUE sym, ID value, VALUE ary)
 {
     rb_ary_push(ary, ID2SYM(value));
     return ST_CONTINUE;
 }
+#endif
 
 /*
  *  call-seq:
@@ -9617,9 +9656,17 @@ VALUE
 rb_sym_all_symbols(void)
 {
 #if WITH_OBJC
-    VALUE ary = rb_ary_new();
-    CFDictionaryApplyFunction((CFDictionaryRef)global_symbols.sym_id,
-	(CFDictionaryApplierFunction)symbols_i, (void *)ary);
+    const void **values;
+    long count;
+    VALUE ary;
+
+    ary = rb_ary_new();
+    count = CFDictionaryGetCount(global_symbols.id_str);
+    if (count == 0)
+	return ary;
+    values = alloca(sizeof(void *) * count);
+    CFDictionaryGetKeysAndValues(global_symbols.id_str, NULL, values);
+    CFArrayReplaceValues((CFMutableArrayRef)ary, CFRangeMake(0, 0), values, count);   
 #else
     VALUE ary = rb_ary_new2(global_symbols.sym_id->num_entries);
 
@@ -9678,7 +9725,9 @@ parser_initialize(struct parser_params *parser)
     parser->parser_lpar_beg = 0;
     parser->parser_in_single = 0;
     parser->parser_in_def = 0;
+#if WITH_OBJC
     parser->parser_in_def_named_args = 0;
+#endif
     parser->parser_in_defined = 0;
     parser->parser_compile_for_eval = 0;
     parser->parser_cur_mid = 0;
@@ -9788,7 +9837,7 @@ rb_parser_new(void)
 {
     struct parser_params *p = parser_new();
 
-    return Data_Wrap_Struct(0, parser_mark, parser_free, p);
+    return Data_Wrap_Struct(rb_cData, parser_mark, parser_free, p);
 }
 
 /*
@@ -10210,7 +10259,7 @@ ripper_initialize(int argc, VALUE *argv, VALUE self)
     parser_initialize(parser);
 
     parser->parser_ruby_sourcefile_string = fname;
-    parser->parser_ruby_sourcefile = RSTRING_PTR(fname);
+    parser->parser_ruby_sourcefile = RSTRING_BYTEPTR(fname);
     parser->parser_ruby_sourceline = NIL_P(lineno) ? 0 : NUM2INT(lineno) - 1;
 
     return Qnil;
@@ -10321,7 +10370,7 @@ ripper_assert_Qundef(VALUE self, VALUE obj, VALUE msg)
 {
     StringValue(msg);
     if (obj == Qundef) {
-        rb_raise(rb_eArgError, "%s", RSTRING_CPTR(msg));
+        rb_raise(rb_eArgError, "%s", RSTRING_PTR(msg));
     }
     return Qnil;
 }

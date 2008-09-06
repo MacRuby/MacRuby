@@ -40,6 +40,7 @@
 #endif
 #include "vm_core.h"
 #include "vm.h"
+#include "eval_intern.h"
 
 typedef struct {
     bs_element_type_t type;
@@ -58,11 +59,9 @@ static VALUE rb_cBoxed;
 static ID rb_ivar_type;
 
 static VALUE bs_const_magic_cookie = Qnil;
-static VALUE rb_objc_class_magic_cookie = Qnil;
 
 static struct st_table *bs_constants;
-static struct st_table *bs_functions;
-static struct st_table *bs_function_syms;
+struct st_table *bs_functions;
 static struct st_table *bs_boxeds;
 static struct st_table *bs_classes;
 static struct st_table *bs_inf_prot_cmethods;
@@ -401,88 +400,13 @@ rb_objc_octype_to_ffitype(const char *octype)
     return NULL;
 }
 
-static bool
-rb_objc_rval_to_ocid(VALUE rval, void **ocval, bool force_nsnil)
+static size_t
+rb_objc_octype_size(const char *octype)
 {
-    if (!rb_special_const_p(rval) && rb_objc_is_non_native(rval)) {
-	*(id *)ocval = (id)rval;
-	return true;
-    }
-
-    switch (TYPE(rval)) {
-	case T_STRING:
-	case T_ARRAY:
-	case T_HASH:
-	case T_OBJECT:
-	    *(id *)ocval = (id)rval;
-	    return true;
-
-	case T_CLASS:
-	case T_MODULE:
-	    *(id *)ocval = (id)RCLASS_OCID(rval);
-	    return true;
-
-	case T_NIL:
-	    if (force_nsnil) {
-		static id snull = nil;
-		if (snull == nil)
-		    snull = [NSNull null];
-		*(id *)ocval = snull;
-	    }
-	    else {
-		*(id *)ocval = NULL;
-	    }
-	    return true;
-
-	case T_TRUE:
-	case T_FALSE:
-	{
-	    char v = RTEST(rval);
-	    *(id *)ocval = (id)CFNumberCreate(NULL, kCFNumberCharType, &v);
-	    CFMakeCollectable(*(id *)ocval);
-	    return true;
-	}
-
-	case T_FLOAT:
-	{
-	    double v = RFLOAT_VALUE(rval);
-	    *(id *)ocval = (id)CFNumberCreate(NULL, kCFNumberDoubleType, &v);
-	    CFMakeCollectable(*(id *)ocval);
-	    return true;
-	}	
-
-	case T_FIXNUM:
-	case T_BIGNUM:
-	{
-	    if (FIXNUM_P(rval)) {
-		long v = FIX2LONG(rval);
-		*(id *)ocval = (id)CFNumberCreate(NULL, kCFNumberLongType, &v);
-	    }
-	    else {
-#if HAVE_LONG_LONG
-		long long v = NUM2LL(rval);
-		*(id *)ocval = 
-		    (id)CFNumberCreate(NULL, kCFNumberLongLongType, &v);
-#else
-		long v = NUM2LONG(rval);
-		*(id *)ocval = (id)CFNumberCreate(NULL, kCFNumberLongType, &v);
-#endif
-	    }
-	    CFMakeCollectable(*(id *)ocval);
-	    return true;
-	}
-
-	case T_SYMBOL:
-	{
-	    ID name = SYM2ID(rval);
-	    *(id *)ocval = (id)CFStringCreateWithCString(NULL, rb_id2name(name),
-		kCFStringEncodingASCII); /* XXX this is temporary */
-	    CFMakeCollectable(*(id *)ocval);
-	    return true;
-	}
-    }
-
-    return false;
+    ffi_type *t = rb_objc_octype_to_ffitype(octype);
+    if (t == NULL)
+	rb_bug("can't determine size of type `%s'", octype);
+    return t->size;
 }
 
 static bool
@@ -490,13 +414,18 @@ rb_objc_rval_to_ocsel(VALUE rval, void **ocval)
 {
     const char *cstr;
 
+    if (NIL_P(rval)) {
+	*(SEL *)ocval = NULL;
+	return true;
+    }
+
     switch (TYPE(rval)) {
 	case T_STRING:
 	    cstr = StringValuePtr(rval);
 	    break;
 
 	case T_SYMBOL:
-	    cstr = rb_id2name(SYM2ID(rval));
+	    cstr = rb_sym2name(rval);
 	    break;
 
 	default:
@@ -505,53 +434,6 @@ rb_objc_rval_to_ocsel(VALUE rval, void **ocval)
 
     *(SEL *)ocval = sel_registerName(cstr);
     return true;
-}
-
-static void *
-bs_element_boxed_get_data(bs_element_boxed_t *bs_boxed, VALUE rval,
-			  bool *success)
-{
-    void *data;
-
-    assert(bs_boxed->ffi_type != NULL);
-
-    if (NIL_P(rval) && bs_boxed->ffi_type == &ffi_type_pointer) {
-	*success = true;
-	return NULL;
-    }
-
-    if (rb_obj_is_kind_of(rval, rb_cBoxed) == Qfalse) {
-	*success = false;
-	return NULL;
-    } 
-    
-    Data_Get_Struct(rval, void, data);
-
-    if (bs_boxed->type == BS_ELEMENT_STRUCT) {
-	bs_element_struct_t *bs_struct;
-	unsigned i;
-
-	bs_struct = (bs_element_struct_t *)bs_boxed->value;
-
-	/* Resync the ivars if necessary.
-	 * This is required as a field may nest another structure, which
-	 * could have been modified as a copy in the Ruby world.
-	 */
-	for (i = 0; i < bs_struct->fields_count; i++) {
-	    VALUE *v;
-	    v = &((VALUE *)(data + bs_boxed->ffi_type->size))[i];
-	    if (*v != 0) {
-		char buf[512];
-		snprintf(buf, sizeof buf, "%s=", bs_struct->fields[i].name);
-		rb_funcall(rval, rb_intern(buf), 1, *v);
-		*v = 0;
-	    }
-	}
-    }
-
-    *success = true;		
-
-    return data;
 }
 
 static void
@@ -565,12 +447,11 @@ rb_bs_boxed_assert_ffitype_ok(bs_element_boxed_t *bs_boxed)
     assert(bs_boxed->ffi_type != NULL);
 }
 
+static void rb_objc_ocval_to_rval(void **ocval, const char *octype, VALUE *rbval);
+
 static VALUE
 rb_bs_boxed_new_from_ocdata(bs_element_boxed_t *bs_boxed, void *ocval)
 {
-    void *data;
-    size_t soffset;
-
     if (ocval == NULL)
 	return Qnil;
 
@@ -579,17 +460,32 @@ rb_bs_boxed_new_from_ocdata(bs_element_boxed_t *bs_boxed, void *ocval)
 
     rb_bs_boxed_assert_ffitype_ok(bs_boxed);
 
-    soffset = 0;
     if (bs_boxed->type == BS_ELEMENT_STRUCT) {
-	soffset = ((bs_element_struct_t *)bs_boxed->value)->fields_count 
-		* sizeof(VALUE);
+	bs_element_struct_t *bs_struct = (bs_element_struct_t *)bs_boxed->value;
+	VALUE *data;
+	int i;
+	size_t pos;
+
+	data = (VALUE *)xmalloc(bs_struct->fields_count * sizeof(VALUE));
+	for (i = 0, pos = 0; i < bs_struct->fields_count; i++) {
+	    bs_element_struct_field_t *bs_field = 
+		(bs_element_struct_field_t *)&bs_struct->fields[i];
+	    VALUE fval;
+
+	    rb_objc_ocval_to_rval(ocval + pos, bs_field->type, &fval);
+	    GC_WB(&data[i], fval);
+	    pos += rb_objc_octype_to_ffitype(bs_field->type)->size;
+	}
+	return Data_Wrap_Struct(bs_boxed->klass, NULL, NULL, data);     
     }
+    else {
+	void *data;
 
-    data = xmalloc(soffset + bs_boxed->ffi_type->size);
-    memcpy(data, ocval, bs_boxed->ffi_type->size);
-    memset(data + bs_boxed->ffi_type->size, 0, soffset);
+	data = xmalloc(bs_boxed->ffi_type->size);
+	memcpy(data, ocval, bs_boxed->ffi_type->size);
 
-    return Data_Wrap_Struct(bs_boxed->klass, NULL, NULL, data);     
+	return Data_Wrap_Struct(bs_boxed->klass, NULL, NULL, data);     
+    }
 }
 
 static long
@@ -616,67 +512,139 @@ rebuild_new_struct_ary(ffi_type **elements, VALUE orig, VALUE new)
     return n;
 }
 
+VALUE rb_cPointer;
+
+struct RPointer
+{
+  void *ptr;
+  const char *type;
+};
+
+static VALUE
+rb_pointer_create(void *ptr, const char *type)
+{
+    struct RPointer *data;
+
+    data = (struct RPointer *)xmalloc(sizeof(struct RPointer ));
+    data->ptr = ptr;
+    data->type = type;
+
+    return Data_Wrap_Struct(rb_cPointer, NULL, NULL, data);
+}
+
 static void rb_objc_rval_to_ocval(VALUE, const char *, void **);
 
-static void *
-rb_objc_rval_to_boxed_data(VALUE rval, bs_element_boxed_t *bs_boxed, bool *ok)
+static VALUE
+rb_pointer_assign(VALUE recv, VALUE val)
 {
-    void *data;
+    struct RPointer *data;
 
-    if (TYPE(rval) == T_ARRAY && bs_boxed->type == BS_ELEMENT_STRUCT) {
-	bs_element_struct_t *bs_struct;
+    Data_Get_Struct(recv, struct RPointer, data);
+
+    assert(data != NULL);
+    assert(data->ptr != NULL);
+    assert(data->type != NULL);
+
+    rb_objc_rval_to_ocval(val, data->type, data->ptr);
+
+    return val;
+}
+
+static VALUE
+rb_pointer_aref(VALUE recv, VALUE i)
+{
+    struct RPointer *data;
+    int idx;
+    VALUE ret;
+
+    Data_Get_Struct(recv, struct RPointer, data);
+
+    assert(data != NULL);
+    assert(data->ptr != NULL);
+    assert(data->type != NULL);
+
+    idx = FIX2INT(i);
+
+    rb_objc_ocval_to_rval(data->ptr + (idx * rb_objc_octype_size(data->type)),
+			  data->type, &ret);
+
+    return ret;
+}
+
+static bool
+rb_objc_rval_copy_boxed_data(VALUE rval, bs_element_boxed_t *bs_boxed, void *ocval)
+{
+    rb_bs_boxed_assert_ffitype_ok(bs_boxed);
+
+    if (bs_boxed->type == BS_ELEMENT_STRUCT) {
+	bs_element_struct_t *bs_struct = (bs_element_struct_t *)bs_boxed->value;
+	bool is_ary;
 	long i, n;
 	size_t pos;
+	VALUE *data = NULL;
 
-	bs_struct = (bs_element_struct_t *)bs_boxed->value;
-
-	rb_bs_boxed_assert_ffitype_ok(bs_boxed);
-
-	n = RARRAY_LEN(rval);
-	if (n < bs_struct->fields_count)
-	    rb_raise(rb_eArgError, 
-		    "not enough elements in array `%s' to create " \
-		    "structure `%s' (%ld for %d)", 
-		    RSTRING_CPTR(rb_inspect(rval)), bs_struct->name, n, 
-		    bs_struct->fields_count);
-
-	if (n > bs_struct->fields_count) {
-	    VALUE new_rval = rb_ary_new();
-	    VALUE orig = rval;
-	    rval = rb_ary_dup(rval);
-	    rebuild_new_struct_ary(bs_boxed->ffi_type->elements, rval, 
-		    new_rval);
-	    n = RARRAY_LEN(new_rval);
-	    if (RARRAY_LEN(rval) != 0 || n != bs_struct->fields_count) {
+	is_ary = TYPE(rval) == T_ARRAY;
+	if (is_ary) {
+	    n = RARRAY_LEN(rval);
+	    if (n < bs_struct->fields_count)
 		rb_raise(rb_eArgError, 
-			"too much elements in array `%s' to create " \
+			"not enough elements in array `%s' to create " \
 			"structure `%s' (%ld for %d)", 
-			RSTRING_CPTR(rb_inspect(orig)), 
-			bs_struct->name, RARRAY_LEN(orig), 
+			RSTRING_PTR(rb_inspect(rval)), bs_struct->name, n, 
 			bs_struct->fields_count);
+
+	    if (n > bs_struct->fields_count) {
+		VALUE new_rval = rb_ary_new();
+		VALUE orig = rval;
+		rval = rb_ary_dup(rval);
+		rebuild_new_struct_ary(bs_boxed->ffi_type->elements, rval, 
+			new_rval);
+		n = RARRAY_LEN(new_rval);
+		if (RARRAY_LEN(rval) != 0 || n != bs_struct->fields_count) {
+		    rb_raise(rb_eArgError, 
+			    "too much elements in array `%s' to create " \
+			    "structure `%s' (%ld for %d)", 
+			    RSTRING_PTR(rb_inspect(orig)), 
+			    bs_struct->name, RARRAY_LEN(orig), 
+			    bs_struct->fields_count);
+		}
+		rval = new_rval;
 	    }
-	    rval = new_rval;
+	}
+	else {
+	    if (TYPE(rval) != T_DATA)
+		return false;
+	    Data_Get_Struct(rval, VALUE, data);
 	}
 
-	pos = bs_struct->fields_count * sizeof(VALUE);
-	data = xmalloc(bs_boxed->ffi_type->size + pos);
-	memset(data + bs_boxed->ffi_type->size, 0, pos);
-	pos = 0;
+	for (i = 0, pos = 0; i < bs_struct->fields_count; i++) {
+	    char *field_type;
+	    VALUE o;
 
-	for (i = 0; i < bs_struct->fields_count; i++) {
-	    VALUE o = RARRAY_AT(rval, i);
-	    char *field_type = bs_struct->fields[i].type;
-	    rb_objc_rval_to_ocval(o, field_type, data + pos);
+	    field_type = bs_struct->fields[i].type;
+	    o = is_ary ? RARRAY_AT(rval, i) : data[i];
+	    rb_objc_rval_to_ocval(o, field_type, ocval + pos);
 	    pos += rb_objc_octype_to_ffitype(field_type)->size;
 	}
-
-	*ok = true;
     }
     else {
-	data = bs_element_boxed_get_data(bs_boxed, rval, ok);
+	void *data;
+
+	if (rval == Qnil) {
+	    *(void **)ocval = NULL; 
+	}
+	else {
+	    Data_Get_Struct(rval, void, data);
+	    if (data == NULL) {
+		*(void **)ocval = NULL; 
+	    }
+	    else {
+		memcpy(ocval, data, bs_boxed->ffi_type->size);
+	    }
+	}
     }
 
-    return data;
+    return true;
 }
 
 static void
@@ -687,28 +655,21 @@ rb_objc_rval_to_ocval(VALUE rval, const char *octype, void **ocval)
 
     octype = rb_objc_skip_octype_modifiers(octype);
 
+    DLOG("CONV", "ruby obj=%p type=%s dest=%p", (void *)rval, octype, ocval);
+
     if (*octype == _C_VOID)
 	return;
 
-    if (st_lookup(bs_boxeds, (st_data_t)octype, (st_data_t *)&bs_boxed)) {
-	void *data;
-
-	data = rb_objc_rval_to_boxed_data(rval, bs_boxed, &ok);
-	if (ok) {
-	    if (data == NULL)
-		*(void **)ocval = NULL;
-	    else {
-		memcpy(ocval, data, bs_boxed->ffi_type->size);
-		xfree(data);
-	    }
-	}
+    if (bs_boxeds != NULL
+	&& st_lookup(bs_boxeds, (st_data_t)octype, (st_data_t *)&bs_boxed)) {
+	ok = rb_objc_rval_copy_boxed_data(rval, bs_boxed, (void *)ocval);
 	goto bails; 
     }
 
-    if (st_lookup(bs_cftypes, (st_data_t)octype, NULL))
+    if (bs_cftypes != NULL && st_lookup(bs_cftypes, (st_data_t)octype, NULL))
 	octype = "@";
 
-    if (*octype != _C_BOOL) {
+    if (*octype != _C_BOOL && *octype != _C_ID) {
 	if (rval == Qtrue)
 	    rval = INT2FIX(1);
 	else if (rval == Qfalse)
@@ -718,7 +679,8 @@ rb_objc_rval_to_ocval(VALUE rval, const char *octype, void **ocval)
     switch (*octype) {
 	case _C_ID:
 	case _C_CLASS:
-	    ok = rb_objc_rval_to_ocid(rval, ocval, false);
+	    *(id *)ocval = rval == Qnil ? NULL : RB2OC(rval);
+	    ok = true;
 	    break;
 
 	case _C_SEL:
@@ -726,22 +688,48 @@ rb_objc_rval_to_ocval(VALUE rval, const char *octype, void **ocval)
 	    break;
 
 	case _C_PTR:
-	    if (NIL_P(rval)) {
-		*(void **)ocval = NULL;
-	    }
-	    else if (TYPE(rval) == T_STRING) {
-		*(char **)ocval = StringValuePtr(rval);
-	    }	
-	    else if (st_lookup(bs_boxeds, (st_data_t)octype + 1, 
-		     (st_data_t *)&bs_boxed)) {
-		void *data;
+	    switch (TYPE(rval)) {
+		case T_NIL:
+		    *(void **)ocval = NULL;
+		    break;
+		case T_STRING:
+		    *(char **)ocval = StringValuePtr(rval);
+		    break;
+		case T_ARRAY:
+		    {
+			int i, count = RARRAY_LEN(rval);
+			void *buf = NULL;
 
-		data = rb_objc_rval_to_boxed_data(rval, bs_boxed, &ok);
-		if (ok)
-		    *(void **)ocval = data;
-	    }
-	    else {
-		ok = false;
+			if (count > 0) {
+			    size_t subs = rb_objc_octype_size(octype + 1);
+			    void *p;
+			    p = buf = xmalloc(subs * count);
+			    for (i = 0; i < count; i++) {
+				rb_objc_rval_to_ocval(RARRAY_AT(rval, i), octype + 1, p);
+				p += subs;
+			    }
+			}
+			*(void **)ocval = buf;
+		    }
+		    break;
+		default:
+		    if (strcmp(octype, "^v") == 0) {
+			if (SPECIAL_CONST_P(rval)) {
+			    ok = false;
+			}
+			else {
+			    *(void **)ocval = (void *)rval;
+			}
+		    }
+		    else if (st_lookup(bs_boxeds, (st_data_t)octype + 1, 
+			     (st_data_t *)&bs_boxed)) {
+			*(void **)ocval = xmalloc(bs_boxed->ffi_type->size);
+			ok = rb_objc_rval_copy_boxed_data(rval, bs_boxed, *(void **)ocval);
+		    }
+		    else {
+			ok = false;
+		    }
+		    break;
 	    }
 	    break;
 
@@ -773,8 +761,8 @@ rb_objc_rval_to_ocval(VALUE rval, const char *octype, void **ocval)
 	    break;
 
 	case _C_CHR:
-	    if (TYPE(rval) == T_STRING && RSTRING_CLEN(rval) == 1) {
-		*(char *)ocval = RSTRING_CPTR(rval)[0];
+	    if (TYPE(rval) == T_STRING && RSTRING_LEN(rval) == 1) {
+		*(char *)ocval = RSTRING_PTR(rval)[0];
 	    }
 	    else {
 		*(char *)ocval = (char) NUM2INT(rb_Integer(rval));
@@ -841,42 +829,10 @@ bails:
     if (!ok)
     	rb_raise(rb_eArgError, "can't convert Ruby object `%s' to " \
 		 "Objective-C value of type `%s'", 
-		 RSTRING_CPTR(rb_inspect(rval)), octype);
+		 RSTRING_PTR(rb_inspect(rval)), octype);
 }
 
-VALUE
-rb_objc_boot_ocid(id ocid)
-{
-    if (rb_objc_is_non_native((VALUE)ocid)) {
-        /* Make sure the ObjC class is imported in Ruby. */ 
-        rb_objc_import_class(object_getClass(ocid)); 
-    }
-    else if (RBASIC(ocid)->klass == 0) {
-	/* This pure-Ruby object was created from Objective-C, we need to 
-	 * initialize the Ruby bits. 
-	 */
-	VALUE klass;
-        
-	klass = rb_objc_import_class(object_getClass(ocid)); 
-
-	RBASIC(ocid)->klass = klass;
-	RBASIC(ocid)->flags = 
-	    klass == rb_cString
-	    ? T_STRING
-	    : klass == rb_cArray
-	    ? T_ARRAY
-	    : klass == rb_cHash
-	    ? T_HASH
-	    : T_OBJECT;
-    }
-
-    return (VALUE)ocid;
-}
-
-static void
-rb_objc_ocval_to_rbval(void **ocval, const char *octype, VALUE *rbval);
-
-bool 
+static inline bool 
 rb_objc_ocid_to_rval(void **ocval, VALUE *rbval)
 {
     id ocid = *(id *)ocval;
@@ -885,40 +841,57 @@ rb_objc_ocid_to_rval(void **ocval, VALUE *rbval)
 	*rbval = Qnil;
     }
     else {
-	*rbval = rb_objc_boot_ocid(ocid);
+	*rbval = (VALUE)ocid;
     }
 
     return true;
 }
 
 static void
-rb_objc_ocval_to_rbval(void **ocval, const char *octype, VALUE *rbval)
+rb_objc_ocval_to_rval(void **ocval, const char *octype, VALUE *rbval)
 {
     bool ok;
 
     octype = rb_objc_skip_octype_modifiers(octype);
     ok = true;
     
+    DLOG("CONV", "objc obj=%p type=%s dest=%p", ocval, octype, rbval);
+
     {
 	bs_element_boxed_t *bs_boxed;
 
-	if (st_lookup(bs_boxeds, (st_data_t)octype, 
+	if (bs_boxeds != NULL
+	    && st_lookup(bs_boxeds, (st_data_t)octype, 
 		      (st_data_t *)&bs_boxed)) {
 	    *rbval = rb_bs_boxed_new_from_ocdata(bs_boxed, ocval);
 	    goto bails; 
 	}
 
-	if (st_lookup(bs_cftypes, (st_data_t)octype, NULL))
+	if (bs_cftypes != NULL 
+	    && st_lookup(bs_cftypes, (st_data_t)octype, NULL))
 	    octype = "@";
     }
-    
+   
     switch (*octype) {
 	case _C_ID:
-	    ok = rb_objc_ocid_to_rval(ocval, rbval);
+	{
+	    id obj = *(id *)ocval;
+	    if (obj == NULL) {
+		*rbval = Qnil;
+	    }
+	    else if (*(Class *)obj == (Class)rb_cFixnum) {
+		*rbval = LONG2FIX(RFIXNUM(obj)->value);
+	    }
+	    else {
+		*rbval = *(VALUE *)ocval;
+	    }
+	    ok = true;
 	    break;
-	
+	}
+
 	case _C_CLASS:
-	    *rbval = rb_objc_import_class(*(Class *)ocval);
+	    *rbval = *(void **)ocval == NULL ? Qnil : *(VALUE *)ocval;
+	    ok = true;
 	    break;
 
 	case _C_BOOL:
@@ -957,6 +930,14 @@ rb_objc_ocval_to_rbval(void **ocval, const char *octype, VALUE *rbval)
 	    *rbval = UINT2NUM(*(unsigned long *)ocval);
 	    break;
 
+	case _C_LNG_LNG:
+	    *rbval = LL2NUM(*(long long *)ocval);
+	    break;
+
+	case _C_ULNG_LNG:
+	    *rbval = ULL2NUM(*(unsigned long long *)ocval);
+	    break;
+
 	case _C_FLT:
 	    *rbval = rb_float_new((double)(*(float *)ocval));
 	    break;
@@ -983,8 +964,7 @@ rb_objc_ocval_to_rbval(void **ocval, const char *octype, VALUE *rbval)
 		*rbval = Qnil;
 	    }
 	    else {
-		/* TODO: wrap C pointers into a specific object */
-		ok = false;
+		*rbval = rb_pointer_create(*(void **)ocval, octype + 1);
 	    }
 	    break;
 
@@ -1010,9 +990,11 @@ rb_objc_exc_raise(id exception)
     rb_raise(rb_eRuntimeError, "%s: %s", name, desc);
 }
 
-static bs_element_method_t *
+bs_element_method_t *
 rb_bs_find_method(Class klass, SEL sel)
 {
+    if (bs_classes == NULL)
+	return NULL;
     do {
 	bs_element_indexed_class_t *bs_class;
 	bs_element_method_t *bs_method;
@@ -1063,34 +1045,105 @@ rb_objc_method_get_type(Method method, unsigned count,
     return type;
 }
 
-extern NODE *rb_current_cfunc_node;
+static inline int
+SubtypeUntil(const char *type, char end)
+{
+    int level = 0;
+    const char *head = type;
 
-struct objc_ruby_closure_context {
-    SEL selector;
-    bs_element_method_t *bs_method;
-    Method method;
-    ffi_cif *cif;
-    IMP imp;
-    Class klass;
-};
+    while (*type)
+    {
+	if (!*type || (!level && (*type == end)))
+	    return (int)(type - head);
 
-static VALUE
-rb_objc_call_objc(int argc, VALUE *argv, id ocrcv, Class klass, 
-		  bool super_call, struct objc_ruby_closure_context *ctx)
+	switch (*type)
+	{
+	    case ']': case '}': case ')': level--; break;
+	    case '[': case '{': case '(': level += 1; break;
+	}
+
+	type += 1;
+    }
+
+    rb_bug ("Object: SubtypeUntil: end of type encountered prematurely\n");
+    return 0;
+}
+
+static inline const char *
+SkipStackSize(const char *type)
+{
+    while ((*type >= '0') && (*type <= '9'))
+	type += 1;
+    return type;
+}
+
+static inline const char *
+SkipFirstType(const char *type)
+{
+    while (1)
+    {
+        switch (*type++)
+        {
+            case 'O':   /* bycopy */
+            case 'n':   /* in */
+            case 'o':   /* out */
+            case 'N':   /* inout */
+            case 'r':   /* const */
+            case 'V':   /* oneway */
+            case '^':   /* pointers */
+                break;
+
+                /* arrays */
+            case '[':
+                return type + SubtypeUntil (type, ']') + 1;
+
+                /* structures */
+            case '{':
+                return type + SubtypeUntil (type, '}') + 1;
+
+                /* unions */
+            case '(':
+                return type + SubtypeUntil (type, ')') + 1;
+
+                /* basic types */
+            default:
+                return type;
+        }
+    }
+}
+
+VALUE
+rb_objc_call2(VALUE recv, VALUE klass, SEL sel, IMP imp, 
+	      struct rb_objc_method_sig *sig, bs_element_method_t *bs_method, 
+	      int argc, VALUE *argv)
 {
     unsigned i, real_count, count;
     ffi_type *ffi_rettype, **ffi_argtypes;
     void *ffi_ret, **ffi_args;
     ffi_cif *cif;
     const char *type;
-    char buf[128];
-    void *imp;
+    char *rettype, buf[100];
+    id ocrcv;
 
-    count = method_getNumberOfArguments(ctx->method);
+    /* XXX very special exceptions! */
+    if (recv == rb_cNSMutableHash && sel == @selector(new)) {
+	/* because Hash.new can accept a block */
+	return rb_class_new_instance(0, NULL, recv);
+    }
+    else if (RCLASS_META(klass) && sel == @selector(class)) {
+	/* because +[NSObject class] returns self */
+	return rb_cClass;
+    }
+
+    ocrcv = RB2OC(recv);
+
+    DLOG("OCALL", "%c[<%s %p> %s]", class_isMetaClass((Class)klass) ? '+' : '-', class_getName((Class)klass), (void *)ocrcv, (char *)sel);
+
+    count = sig->argc;
     assert(count >= 2);
 
     real_count = count;
-    if (ctx->bs_method != NULL && ctx->bs_method->variadic) {
+    if (bs_method != NULL && bs_method->variadic) {
 	if (argc < count - 2)
 	    rb_raise(rb_eArgError, "wrong number of arguments (%d for %d)",
 		argc, count - 2);
@@ -1102,100 +1155,97 @@ rb_objc_call_objc(int argc, VALUE *argv, id ocrcv, Class klass,
     }
 
     if (count == 2) {
-	method_getReturnType(ctx->method, buf, sizeof buf);
-	if (buf[0] == '@' || buf[0] == 'v') {
+	if (sig->types[0] == '@' || sig->types[0] == '#' || sig->types[0] == 'v') {
 	    /* Easy case! */
 	    @try {
-		if (super_call) {
+		if (klass == RCLASS_SUPER(*(Class *)ocrcv)) {
 		    struct objc_super s;
 		    s.receiver = ocrcv;
-		    s.class = klass;
-		    ffi_ret = objc_msgSendSuper(&s, ctx->selector);
+		    s.class = (Class)klass;
+		    ffi_ret = objc_msgSendSuper(&s, sel);
 		}
 		else {
-		    ffi_ret = objc_msgSend(ocrcv, ctx->selector);
+		    ffi_ret = objc_msgSend(ocrcv, sel);
 		}
 	    }
 	    @catch (id e) {
 		rb_objc_exc_raise(e);
 	    }
-	    return buf[0] == '@' ? (VALUE)ffi_ret : Qnil;
+	    if (sig->types[0] == '@' || sig->types[0] == '#') {
+		VALUE retval;
+		buf[0] = sig->types[0];
+		buf[1] = '\0';
+		rb_objc_ocval_to_rval(&ffi_ret, buf, &retval);
+		return retval;
+	    }
+	    return Qnil;
 	}
     } 
 
-    if (ctx->cif == NULL) {
-	const size_t s = sizeof(ffi_type *) * (count + 1);
-	ffi_argtypes = ctx->bs_method != NULL && ctx->bs_method->variadic
-	    ? (ffi_type **)alloca(s) : (ffi_type **)malloc(s);
-	ffi_argtypes[0] = &ffi_type_pointer;
-	ffi_argtypes[1] = &ffi_type_pointer;
-    }
+    const size_t s = sizeof(ffi_type *) * (count + 1);
+
+    ffi_argtypes = bs_method != NULL && bs_method->variadic
+	? (ffi_type **)alloca(s) : (ffi_type **)malloc(s);
+    ffi_argtypes[0] = &ffi_type_pointer;
+    ffi_argtypes[1] = &ffi_type_pointer;
 
     ffi_args = (void **)alloca(sizeof(void *) * (count + 1));
     ffi_args[0] = &ocrcv;
-    ffi_args[1] = &ctx->selector;
+    ffi_args[1] = &sel;
 
-    if (super_call) {
-	Method smethod;
-	smethod = class_getInstanceMethod(klass, ctx->selector);
-	assert(smethod != ctx->method);
-	imp = method_getImplementation(smethod);
-	assert(imp != NULL);
-    }
-    else {
-	if (ctx->imp != NULL && ctx->klass == klass) {
-	    imp = ctx->imp;
-	}
-	else {
-	    ctx->imp = imp = ctx->method == 
-		class_getInstanceMethod(klass, ctx->selector)
-		    ? method_getImplementation(ctx->method)
-		    : objc_msgSend; /* alea jacta est */
-	}
-    }
+    type = SkipFirstType(sig->types);
+    rettype = alloca(type - sig->types + 1);
+    strncpy(rettype, sig->types, type - sig->types);
+    rettype[type - sig->types] = '\0';
+    ffi_rettype = rb_objc_octype_to_ffitype(rettype);
+
+    type = SkipStackSize(type);
+    type = SkipFirstType(type); /* skip receiver */
+    type = SkipStackSize(type);
+    type = SkipFirstType(type); /* skip selector */
 
     for (i = 0; i < argc; i++) {
 	ffi_type *ffi_argtype;
 
-	type = rb_objc_method_get_type(ctx->method, real_count, ctx->bs_method, 
-	    i, buf, sizeof buf);
-
-	if (ctx->cif == NULL) {
-	    ffi_argtypes[i + 2] = rb_objc_octype_to_ffitype(type);
-	    assert(ffi_argtypes[i + 2]->size > 0);
-	    ffi_argtype = ffi_argtypes[i + 2];
+	if (*type == '\0') {
+	    if (bs_method->variadic) {
+		buf[0] = '@';
+		buf[1] = '\0';
+	    }
+	    else {
+		rb_bug("incomplete method signature `%s' for argc %d", sig->types, argc);
+	    }
 	}
 	else {
-	    ffi_argtype = ctx->cif->arg_types[i + 2];
+	    const char *type2;
+
+	    type = SkipStackSize(type);
+	    type2 = SkipFirstType(type);
+	    strncpy(buf, type, MIN(sizeof buf, type2 - type));
+	    buf[MIN(sizeof buf, type2 - type)] = '\0';
+	    type = type2;
 	}
 
+	ffi_argtypes[i + 2] = rb_objc_octype_to_ffitype(buf);
+	assert(ffi_argtypes[i + 2]->size > 0);
+	ffi_argtype = ffi_argtypes[i + 2];
 	ffi_args[i + 2] = (void *)alloca(ffi_argtype->size);
-	rb_objc_rval_to_ocval(argv[i], type, ffi_args[i + 2]);
+	rb_objc_rval_to_ocval(argv[i], buf, ffi_args[i + 2]);
     }
 
-    if (ctx->cif == NULL)
-	ffi_argtypes[count] = NULL;
+    ffi_argtypes[count] = NULL;
     ffi_args[count] = NULL;
 
-    type = rb_objc_method_get_type(ctx->method, real_count, ctx->bs_method, 
-	-1, buf, sizeof buf);
-    ffi_rettype = ctx->cif == NULL 
-	? rb_objc_octype_to_ffitype(type) : ctx->cif->rtype;
-
-    cif = ctx->cif;
-    if (cif == NULL) {
-	if (ctx->bs_method != NULL && ctx->bs_method->variadic)
-	    cif = (ffi_cif *)alloca(sizeof(ffi_cif));
-	else
-	    cif = ctx->cif = (ffi_cif *)malloc(sizeof(ffi_cif));
-	if (ffi_prep_cif(cif, FFI_DEFAULT_ABI, count, ffi_rettype, 
-			 ffi_argtypes) != FFI_OK) {
-	    rb_fatal("can't prepare cif for objc method type `%s'",
-		    method_getTypeEncoding(ctx->method));
-	}
+    cif = (ffi_cif *)alloca(sizeof(ffi_cif));
+    if (ffi_prep_cif(cif, FFI_DEFAULT_ABI, count, ffi_rettype, 
+		ffi_argtypes) != FFI_OK) {
+	rb_fatal("can't prepare cif for objc method type `%s'",
+		sig->types);
     }
+
     if (ffi_rettype != &ffi_type_void) {
 	ffi_ret = (void *)alloca(ffi_rettype->size);
+	memset(ffi_ret, 0, ffi_rettype->size);
     }
     else {
 	ffi_ret = NULL;
@@ -1210,7 +1260,7 @@ rb_objc_call_objc(int argc, VALUE *argv, id ocrcv, Class klass,
 
     if (ffi_rettype != &ffi_type_void) {
 	VALUE resp;
-	rb_objc_ocval_to_rbval(ffi_ret, type, &resp);
+	rb_objc_ocval_to_rval(ffi_ret, rettype, &resp);
 	return resp;
     }
     else {
@@ -1218,56 +1268,206 @@ rb_objc_call_objc(int argc, VALUE *argv, id ocrcv, Class klass,
     }
 }
 
-static VALUE
-rb_objc_to_ruby_closure(int argc, VALUE *argv, VALUE rcv)
+VALUE
+rb_objc_call(VALUE recv, SEL sel, int argc, VALUE *argv)
 {
-    id ocrcv;
-    bool super_call;
-    Class klass;
-    struct objc_ruby_closure_context *ctx;
+    VALUE klass;
+    Method method;
+    struct rb_objc_method_sig sig;
 
-    rb_objc_rval_to_ocid(rcv, (void **)&ocrcv, true);
-    super_call = (ruby_current_thread->cfp->flag >> FRAME_MAGIC_MASK_BITS) 
-	& VM_CALL_SUPER_BIT;
-    klass = super_call ? class_getSuperclass(*(Class *)ocrcv) : *(Class *)ocrcv;
-    
-    assert(rb_current_cfunc_node != NULL);
+    klass = CLASS_OF(recv);
+    method = class_getInstanceMethod((Class)klass, sel);
+    assert(rb_objc_fill_sig(recv, (Class)klass, sel, &sig, NULL));
 
-    if (rb_current_cfunc_node->u3.value == 0) {
-	const char *selname;
-	size_t selnamelen;
+    return rb_objc_call2(recv, klass, sel, method_getImplementation(method), 
+	    &sig, NULL, argc, argv);
+}
 
-	ctx = (struct objc_ruby_closure_context *)xmalloc(sizeof(
-	    struct objc_ruby_closure_context));
-
-	selname = rb_id2name(rb_frame_this_func());
-	selnamelen = strlen(selname);
-	if (argc == 1 && selname[selnamelen - 1] != ':') {
-	    char *tmp = alloca(selnamelen + 2);
-	    snprintf(tmp, selnamelen + 2, "%s:", selname);
-	    selname = (const char *)tmp;
+static inline const char *
+rb_get_bs_method_type(bs_element_method_t *bs_method, int arg)
+{
+    if (bs_method != NULL) {
+	if (arg == -1) {
+	    if (bs_method->retval != NULL)
+		return bs_method->retval->type;
 	}
-	ctx->selector = sel_registerName(selname);
+	else {
+	    int i;
+	    for (i = 0; i < bs_method->args_count; i++) {
+		if (bs_method->args[i].index == arg)
+		    return bs_method->args[i].type;
+	    }
+	}
+    }
+    return NULL;
+}
 
-	ctx->bs_method = rb_bs_find_method(*(Class *)rcv, ctx->selector);
-	ctx->method = class_getInstanceMethod(*(Class *)rcv, ctx->selector); 
-	assert(ctx->method != NULL);
-	ctx->cif = NULL;
-	ctx->imp = NULL;
-	ctx->klass = NULL;
-	GC_WB(&rb_current_cfunc_node->u3.value, ctx);
+bool
+rb_objc_fill_sig(VALUE recv, Class klass, SEL sel, struct rb_objc_method_sig *sig, bs_element_method_t *bs_method)
+{
+    Method method;
+    const char *type;
+    char buf[100];
+    unsigned i;
+
+    method = class_getInstanceMethod(klass, sel);
+    if (method != NULL) {
+	if (bs_method == NULL) {
+	    sig->types = method_getTypeEncoding(method);
+	    sig->argc = method_getNumberOfArguments(method);
+	}
+	else {
+	    char buf2[100];
+	    type = rb_get_bs_method_type(bs_method, -1);
+	    if (type != NULL) {
+		strlcpy(buf, type, sizeof buf);
+	    }
+	    else {
+		method_getReturnType(method, buf2, sizeof buf2);
+		strlcpy(buf, buf2, sizeof buf);
+	    }
+
+	    sig->argc = method_getNumberOfArguments(method);
+	    for (i = 0; i < sig->argc; i++) {
+		if (i >= 2 && (type = rb_get_bs_method_type(bs_method, i - 2)) != NULL) {
+		    strlcat(buf, type, sizeof buf);
+		}
+		else {
+		    method_getArgumentType(method, i, buf2, sizeof(buf2));
+		    strlcat(buf, buf2, sizeof buf);
+		}
+	    }
+
+	    sig->types = (char *)sel_registerName(buf); /* unify the string */
+	}
+	return true;
+    }
+    else if (!SPECIAL_CONST_P(recv)) {
+	NSMethodSignature *msig = [(id)recv methodSignatureForSelector:sel];
+	if (msig != NULL) {
+	    char buf[100];
+	    unsigned i;
+
+	    buf[0] = '\0';
+	    type = rb_get_bs_method_type(bs_method, -1);
+	    if (type == NULL)
+		type = [msig methodReturnType];
+	    strlcat(buf, type, sizeof buf);
+
+	    sig->argc = [msig numberOfArguments];
+	    for (i = 0; i < sig->argc; i++) {
+		if (i < 2 || (type = rb_get_bs_method_type(bs_method, i - 2)) == NULL) {
+		    type = [msig getArgumentTypeAtIndex:i];
+		}
+		strlcat(buf, type, sizeof buf);
+	    }
+
+	    sig->types = (char *)sel_registerName(buf); /* unify the string */
+	    return true;
+	}
+    }
+    return false;
+}
+
+void
+rb_objc_alias(VALUE klass, ID name, ID def)
+{
+    const char *name_str, *def_str;
+    SEL name_sel, def_sel;
+    Method method, dest_method;
+    bool redo = false;
+    VALUE included_in_classes;
+    int included_in_classes_count = -1;
+
+    name_str = rb_id2name(name);
+    def_str = rb_id2name(def);
+
+    name_sel = sel_registerName(name_str);
+    def_sel = sel_registerName(def_str);
+
+    included_in_classes = RCLASS_MODULE(klass) ? rb_attr_get(klass, idIncludedInClasses) : Qnil;
+
+    method = class_getInstanceMethod((Class)klass, def_sel);
+    if (method == NULL) {
+	size_t len = strlen(def_str);
+	if (def_str[len - 1] != ':') {
+	    char buf[100];
+
+	    snprintf(buf, sizeof buf, "%s:", def_str);
+	    def_sel = sel_registerName(buf);
+	    method = class_getInstanceMethod((Class)klass, def_sel);
+	    if (method == NULL) {
+		rb_print_undef(klass, def, 0);
+	    }
+	    len = strlen(name_str);
+	    if (name_str[len - 1] != ':') {
+		snprintf(buf, sizeof buf, "%s:", name_str);
+		name_sel = sel_registerName(buf);
+	    }
+	}
+    }
+
+alias_method:
+
+#define forward_method_definition(sel,imp,types) \
+    do { \
+        if (included_in_classes != Qnil) { \
+            int i; \
+            if (included_in_classes_count == -1) \
+                included_in_classes_count = RARRAY_LEN(included_in_classes); \
+            for (i = 0; i < included_in_classes_count; i++) { \
+                VALUE k = RARRAY_AT(included_in_classes, i); \
+                Method m = class_getInstanceMethod((Class)k, sel); \
+                DLOG("DEFI", "-[%s %s]", class_getName((Class)k), (char *)sel); \
+                if (m != NULL) { \
+                    Method m2 = class_getInstanceMethod((Class)RCLASS_SUPER(k), sel); \
+                    if (m != m2) { \
+                        method_setImplementation(m, imp); \
+                        break; \
+                    } \
+                } \
+                assert(class_addMethod((Class)k, sel, imp, types)); \
+            } \
+        } \
+    } \
+    while (0)
+
+    dest_method = class_getInstanceMethod((Class)klass, name_sel);
+
+    DLOG("ALIAS", "%c[%s %s -> %s] types=%s direct_override=%d orig_node=%p", 
+	    class_isMetaClass((Class)klass) ? '+' : '-', class_getName((Class)klass), (char *)name_sel, (char *)def_sel, method_getTypeEncoding(method), dest_method != NULL, rb_objc_method_node3(method_getImplementation(method)));
+
+    if (dest_method != NULL 
+	&& dest_method != class_getInstanceMethod((Class)RCLASS_SUPER(klass), name_sel)) {
+	method_setImplementation(dest_method, method_getImplementation(method));
     }
     else {
-	ctx = (struct objc_ruby_closure_context *)
-	    rb_current_cfunc_node->u3.value;
+	assert(class_addMethod((Class)klass, name_sel, 
+		    method_getImplementation(method), 
+		    method_getTypeEncoding(method)));
     }
+    forward_method_definition(name_sel, method_getImplementation(method), method_getTypeEncoding(method));
 
-    return rb_objc_call_objc(argc, argv, ocrcv, klass, super_call, ctx);
+    if (!redo && name_str[strlen(name_str) - 1] != ':') {
+	char buf[100];
+
+	snprintf(buf, sizeof buf, "%s:", def_str);
+	def_sel = sel_registerName(buf);
+	method = class_getInstanceMethod((Class)klass, def_sel);
+	if (method != NULL) {
+	    snprintf(buf, sizeof buf, "%s:", name_str);
+	    name_sel = sel_registerName(buf);
+	    redo = true;
+	    goto alias_method;
+	}	
+    } 
 }
 
 static VALUE
 rb_super_objc_send(int argc, VALUE *argv, VALUE rcv)
 {
+    return Qnil;
+#if 0
     struct objc_ruby_closure_context fake_ctx;
     id ocrcv;
     ID mid;
@@ -1280,7 +1480,7 @@ rb_super_objc_send(int argc, VALUE *argv, VALUE rcv)
     argv++;
     argc--;
 
-    rb_objc_rval_to_ocid(rcv, (void **)&ocrcv, true);
+    ocrcv = RB2OC(rcv);
     klass = class_getSuperclass(*(Class *)ocrcv);
 
     fake_ctx.selector = sel_registerName(rb_id2name(mid));
@@ -1292,44 +1492,125 @@ rb_super_objc_send(int argc, VALUE *argv, VALUE rcv)
     fake_ctx.klass = NULL;
 
     return rb_objc_call_objc(argc, argv, ocrcv, klass, true, &fake_ctx);
+#endif
 }
 
 #define IGNORE_PRIVATE_OBJC_METHODS 1
+
+struct rb_ruby_to_objc_closure_handler_main_ctx {
+  ffi_cif *cif;
+  void *resp;
+  void **args;
+  void *userdata;
+};
+
+static VALUE
+rb_ruby_to_objc_closure_handler_main(void *ctx)
+{
+    struct rb_ruby_to_objc_closure_handler_main_ctx *_ctx = 
+	(struct rb_ruby_to_objc_closure_handler_main_ctx *)ctx;
+    ffi_cif *cif = _ctx->cif;
+    void *resp = _ctx->resp;
+    void **args = _ctx->args;
+    void *userdata = _ctx->userdata;
+    void *rcv;
+    SEL sel;
+    ID mid;
+    VALUE rrcv, ret;
+    Method method;
+    const char *type;
+    char buf[128];
+    long i, argc;
+    VALUE *argv, klass;
+    NODE *body, *node;
+    bs_element_method_t *bs_method;
+
+    rcv = (*(id **)args)[0];
+    sel = (*(SEL **)args)[1];
+    body = (NODE *)userdata;
+    node = body->nd_body;
+
+    method = class_getInstanceMethod(*(Class *)rcv, sel);
+    assert(method != NULL);
+    bs_method = rb_bs_find_method(*(Class *)rcv, sel);
+
+    argc = method_getNumberOfArguments(method) - 2;
+    if (argc > 0) {
+	argv = (VALUE *)alloca(sizeof(VALUE) * argc);
+	for (i = 0; i < argc; i++) {
+	    VALUE val;
+
+	    type = rb_objc_method_get_type(method, cif->nargs, bs_method,
+		    i, buf, sizeof buf);
+
+	    rb_objc_ocval_to_rval(args[i + 2], type, &val);
+	    argv[i] = val;
+	}
+    }
+    else {
+	argv = NULL;
+    }
+
+    rrcv = rcv == NULL ? Qnil : (VALUE)rcv;
+
+    mid = rb_intern((const char *)sel);
+    klass = CLASS_OF(rrcv);
+
+    DLOG("RCALL", "%c[<%s %p> %s] node=%p", class_isMetaClass((Class)klass) ? '+' : '-', class_getName((Class)klass), (void *)rrcv, (char *)sel, body);
+
+    VALUE rb_vm_call(rb_thread_t * th, VALUE klass, VALUE recv, VALUE id, 
+		     ID oid, int argc, const VALUE *argv, const NODE *body, 
+		     int nosuper);
+
+    ret = rb_vm_call(GET_THREAD(), klass, rrcv, mid, Qnil,
+		     argc, argv, node, 0);
+
+    type = rb_objc_method_get_type(method, cif->nargs, bs_method,
+	    -1, buf, sizeof buf);
+    rb_objc_rval_to_ocval(ret, type, resp);
+
+    return Qnil;
+}
 
 static void
 rb_ruby_to_objc_closure_handler(ffi_cif *cif, void *resp, void **args,
 				void *userdata)
 {
-    void *rcv;
-    SEL sel;
-    ID mid;
-    VALUE rrcv, rargs, ret;
-    unsigned i;
-    Method method;
-    char type[128];
+    struct rb_ruby_to_objc_closure_handler_main_ctx ctx;
 
-    rcv = (*(id **)args)[0];
-    sel = (*(SEL **)args)[1];
+    ctx.cif = cif;
+    ctx.resp = resp;
+    ctx.args = args;
+    ctx.userdata = userdata;
 
-    method = class_getInstanceMethod(object_getClass(rcv), sel);
-    assert(method != NULL);
+    extern VALUE rb_cMutex;
 
-    rargs = rb_ary_new();
-    for (i = 2; i < cif->nargs; i++) {
-	VALUE val;
-        
-	method_getArgumentType(method, i, type, sizeof type);
-	rb_objc_ocval_to_rbval(args[i], type, &val);
-	rb_ary_push(rargs, val);
+    if (rb_cMutex == 0) {
+	/* GL not initialized yet! */
+	rb_ruby_to_objc_closure_handler_main(&ctx);
     }
+    else {
+#if 0
+	if (GET_VM()->main_thread == GET_THREAD()) {
+	    rb_ruby_to_objc_closure_handler_main(&ctx);
+	}
+	else {
+	    void native_mutex_lock(pthread_mutex_t *lock);
+	    void native_mutex_unlock(pthread_mutex_t *lock);
 
-    rb_objc_ocid_to_rval(&rcv, &rrcv);
-
-    mid = rb_intern((const char *)sel);
-    ret = rb_apply(rrcv, mid, rargs);
-
-    method_getReturnType(method, type, sizeof type);
-    rb_objc_rval_to_ocval(ret, type, resp);
+	    native_mutex_lock(&GET_THREAD()->vm->global_interpreter_lock);
+	    rb_ruby_to_objc_closure_handler_main(&ctx);
+	    native_mutex_unlock(&GET_THREAD()->vm->global_interpreter_lock);
+	}
+#else
+	if (GET_VM()->main_thread == GET_THREAD()) {
+	    rb_ruby_to_objc_closure_handler_main(&ctx);
+	}
+	else {
+	    rb_thread_blocking_region(rb_ruby_to_objc_closure_handler_main, &ctx, RB_UBF_DFL, 0);
+	}
+#endif
+    }
 }
 
 static void *
@@ -1363,320 +1644,264 @@ rb_ruby_to_objc_closure(const char *octype, unsigned arity, NODE *node)
 	!= FFI_OK)
 	rb_fatal("can't prepare ruby to objc closure");
 
+    rb_objc_retain(node);
+
     return closure;
 }
 
-void
-rb_objc_sync_ruby_method(VALUE mod, ID mid, NODE *node, unsigned override)
+NODE *
+rb_objc_method_node3(IMP imp)
+{
+    if (imp == NULL || ((ffi_closure *)imp)->fun != rb_ruby_to_objc_closure_handler)
+	return NULL;
+
+    return ((ffi_closure *)imp)->user_data;
+}
+
+NODE *
+rb_objc_method_node2(VALUE mod, SEL sel, IMP *pimp)
+{
+    IMP imp;
+
+    if (pimp != NULL)
+	*pimp = NULL;
+
+    imp = class_getMethodImplementation((Class)mod, sel);
+    extern void *_objc_msgForward;
+    if (imp == (IMP)&_objc_msgForward)
+	imp = NULL;
+
+    if (pimp != NULL)
+	*pimp = imp;
+
+    if (imp == NULL || ((ffi_closure *)imp)->fun != rb_ruby_to_objc_closure_handler)
+	return NULL;
+
+    return ((ffi_closure *)imp)->user_data;
+}
+
+NODE *
+rb_objc_method_node(VALUE mod, ID mid, IMP *pimp, SEL *psel)
 {
     SEL sel;
-    Class ocklass;
+    IMP imp;
+    NODE *node;
+
+    sel = mid == ID_ALLOCATOR 
+	? @selector(alloc) 
+	: sel_registerName(rb_id2name(mid));
+
+    if (psel != NULL) {
+	*psel = sel;
+    }
+
+    node = rb_objc_method_node2(mod, sel, &imp);
+
+    if (pimp != NULL) {
+	*pimp = imp;
+    }
+
+    if (imp == NULL) {
+    	char buf[100];
+	size_t slen;
+
+	slen = strlen((char *)sel);
+	if (((char *)sel)[slen - 1] == ':') {
+	    return NULL;
+	}
+	strlcpy(buf, (char *)sel, sizeof buf);
+	strlcat(buf, ":", sizeof buf);
+	sel = sel_registerName(buf);
+	if (psel != NULL) {
+	    *psel = sel;
+	}
+	return rb_objc_method_node2(mod, sel, pimp);
+    }
+
+    return node;
+}
+
+void
+rb_objc_register_ruby_method(VALUE mod, ID mid, NODE *body)
+{
+    SEL sel;
     Method method;
     char *types;
-    int arity;
-    char *mid_str;
+    int arity, oc_arity;
     IMP imp;
     bool direct_override;
+    NODE *node;
+    VALUE included_in_classes;
+    int included_in_classes_count = - 1;
 
-    /* Do not expose C functions. */
-    if (bs_functions != NULL
-	&& mod == CLASS_OF(rb_mKernel)
-	&& st_lookup(bs_functions, (st_data_t)mid, NULL))
-	return;
+#define forward_method_definition(sel,imp,types) \
+    do { \
+	if (included_in_classes != Qnil) { \
+	    int i; \
+	    if (included_in_classes_count == -1) \
+	        included_in_classes_count = RARRAY_LEN(included_in_classes); \
+	    for (i = 0; i < included_in_classes_count; i++) { \
+		VALUE k = RARRAY_AT(included_in_classes, i); \
+		Method m = class_getInstanceMethod((Class)k, sel); \
+		DLOG("DEFI", "-[%s %s]", class_getName((Class)k), (char *)sel); \
+		if (m != NULL) { \
+		    Method m2 = class_getInstanceMethod((Class)RCLASS_SUPER(k), sel); \
+		    if (m != m2) { \
+		        method_setImplementation(m, imp); \
+		        break; \
+		    } \
+	        } \
+	        assert(class_addMethod((Class)k, sel, imp, types)); \
+	    } \
+	} \
+    } \
+    while (0)
 
-    arity = rb_node_arity(node);
-    mid_str = (char *)rb_id2name(mid);
+    if (body != NULL) {
+	if (nd_type(body) != NODE_METHOD) 
+	    rb_bug("non-method node (%d)", nd_type(body));
 
-    if (arity < 0) {
-	//printf("mid %s has negative arity %d\n", mid_str, arity);
-	return;
-    }
-
-    if (arity == 1 && mid_str[strlen(mid_str) - 1] != ':') {
-	char buf[100];
-	snprintf(buf, sizeof buf, "%s:", mid_str);
-	sel = sel_registerName(buf);
+	node = body->nd_body;
+	arity = oc_arity = rb_node_arity(node);
     }
     else {
-	sel = sel_registerName(mid_str);
+	node = NULL;
+	arity = oc_arity = 0;
     }
 
-    ocklass = RCLASS_OCID(mod);
+    if (mid == ID_ALLOCATOR) {
+	sel = @selector(alloc);
+    }
+    else {
+	char *mid_str;
+	size_t mid_str_len;
+	char buf[100];
+
+	mid_str = (char *)rb_id2name(mid);
+	mid_str_len = strlen(mid_str);
+
+	if ((arity < 0 || arity > 0) && mid_str[mid_str_len - 1] != ':') {
+	    assert(sizeof(buf) > mid_str_len + 1);
+	    snprintf(buf, sizeof buf, "%s:", mid_str);
+	    sel = sel_registerName(buf);
+	    oc_arity = 1;
+	}
+	else {
+	    sel = sel_registerName(mid_str);
+	    if (sel == sel_ignored || sel == sel_zone) {
+		assert(sizeof(buf) > mid_str_len + 7);
+		snprintf(buf, sizeof buf, "__rb_%s__", mid_str);
+		sel = sel_registerName(buf);
+	    }
+	}
+    }
+
+    included_in_classes = RCLASS_MODULE(mod) ? rb_attr_get(mod, idIncludedInClasses) : Qnil;
+
     direct_override = false;
-    method = class_getInstanceMethod(ocklass, sel);
+    method = class_getInstanceMethod((Class)mod, sel);
 
     if (method != NULL) {
-	void *klass;
-	if (!override)
-	    return;
+	Class klass;
 
-        /* Do not override certain NSObject selectors. */
-        if (sel == @selector(superclass)
-	    || sel == @selector(hash)
-	    || sel == @selector(zone)) {
- 	    klass = RCLASS_OCID(rb_cBasicObject);
-	    if (class_getInstanceMethod(klass, sel) == method)
-		return;
-	}
-
-	if (arity >= 0 && arity + 2 != method_getNumberOfArguments(method)) {
-	    rb_warning("cannot override Objective-C method `%s' in " \
-		       "class `%s' because of an arity mismatch (%d for %d)", 
-		       (char *)sel, 
-		       class_getName(ocklass), 
-		       arity + 2, 
-		       method_getNumberOfArguments(method));
+	if (oc_arity + 2 != method_getNumberOfArguments(method)) {
+	    rb_warn("cannot override Objective-C method `%s' in " \
+		    "class `%s' because of an arity mismatch (%d for %d)", 
+		    (char *)method_getName(method),
+		    class_getName((Class)mod), 
+		    oc_arity + 2, 
+		    method_getNumberOfArguments(method));
 	    return;
 	}
 	types = (char *)method_getTypeEncoding(method);
-	klass = class_getSuperclass(ocklass);
+	klass = (Class)RCLASS_SUPER(mod);
 	direct_override = 
 	    klass == NULL || class_getInstanceMethod(klass, sel) != method;
     }
     else {
-	struct st_table *t = class_isMetaClass(ocklass)
+	struct st_table *t = class_isMetaClass((Class)mod)
 	    ? bs_inf_prot_cmethods
 	    : bs_inf_prot_imethods;
 
 	if (t == NULL || !st_lookup(t, (st_data_t)sel, (st_data_t *)&types)) {
-	    types = (char *)alloca((arity + 4) * sizeof(char));
-	    types[0] = '@';
-	    types[1] = '@';
-	    types[2] = ':';
-	    memset(&types[3], '@', arity);
-	    types[arity + 3] = '\0';
+	    if (oc_arity == 0) {
+		types = "@@:";
+	    }
+	    else if (oc_arity == 1) {
+		types = "@@:@";
+	    }
+	    else {
+		int i;
+		types = alloca(3 + oc_arity + 1);
+		types[0] = '@';
+		types[1] = '@';
+		types[2] = ':';
+		for (i = 0; i < oc_arity; i++)
+		    types[3 + i] = '@'; 
+		types[3 + oc_arity] = '\0';
+	    }
 	}
     }
 
-//    printf("registering sel %s of types %s arity %d to class %s\n",
-//	   (char *)sel, types, arity, class_getName(ocklass));
+    DLOG("DEFM", "%c[%s %s] types=%s arity=%d body=%p override=%d direct_override=%d",
+	   class_isMetaClass((Class)mod) ? '+' : '-', class_getName((Class)mod), (char *)sel, types, arity, body, method != NULL, direct_override);
 
-    imp = rb_ruby_to_objc_closure(types, arity, node);
+    imp = body == NULL ? NULL : rb_ruby_to_objc_closure(types, oc_arity, body);
 
     if (method != NULL && direct_override) {
 	method_setImplementation(method, imp);
     }
     else {
-	assert(class_addMethod(ocklass, sel, imp, types));	
+	assert(class_addMethod((Class)mod, sel, imp, types));
     }
-}
+    forward_method_definition(sel, imp, types);
 
-static int
-__rb_objc_add_ruby_method(ID mid, NODE *body, VALUE mod)
-{
-    if (mid == ID_ALLOCATOR)
-	return ST_CONTINUE;
-    
-    if (body == NULL || body->nd_body->nd_body == NULL)
-	return ST_CONTINUE;
+    if (node != NULL) {
+	const char *sel_str = (const char *)sel;
+	const size_t sel_len = strlen(sel_str);
+	SEL new_sel;
+	char *new_types;
+	bool override;
 
-    if ((body->nd_body->nd_noex & NOEX_MASK) != NOEX_PUBLIC)
-	return ST_CONTINUE;
+	if (sel_str[sel_len - 1] == ':') {
+	    char buf[100];
+	    strlcpy(buf, sel_str, sizeof buf);
+	    assert(sizeof buf > sel_len);
+	    buf[sel_len - 1] = '\0';
+	    new_sel = sel_registerName(buf);
+	    new_types = "@@:";
+	    override = arity == -1 || arity == -2;
+	    arity = 0;
+	}
+	else {
+	    char buf[100];
+	    strlcpy(buf, sel_str, sizeof buf);
+	    strlcat(buf, ":", sizeof buf);	
+	    new_sel = sel_registerName(buf);
+	    new_types = "@@:@";
+	    override = false;
+	    arity = -1;
+	}
 
-    rb_objc_sync_ruby_method(mod, mid, body->nd_body->nd_body, 0);
-
-    return ST_CONTINUE;
-}
-
-void
-rb_objc_sync_ruby_methods(VALUE mod, VALUE klass)
-{
-    for (;;) {
-	st_foreach(RCLASS_M_TBL(mod), __rb_objc_add_ruby_method, 
-		   (st_data_t)klass);
-	mod = RCLASS_SUPER(mod);
-	if (mod == 0 || BUILTIN_TYPE(mod) != T_ICLASS)
-	    break;
-    }
-}
-
-static inline unsigned
-is_ignored_selector(SEL sel)
-{
-#if defined(__ppc__)
-    return sel == (SEL)0xfffef000;
-#elif defined(__i386__)
-    return sel == (SEL)0xfffeb010;
-#else
-# error Unsupported arch
-#endif
-}
-
-#if 0
-static void
-__rb_objc_sync_methods(VALUE mod, Class ocklass)
-{
-    Method *methods;
-    unsigned int i, count;
-    char buffer[128];
-    VALUE imod;
-
-    methods = class_copyMethodList(ocklass, &count);
-
-    imod = mod;
-#if 0
-    for (;;) {
-	st_foreach(RCLASS_M_TBL(imod), __rb_objc_add_ruby_method, 
-		   (st_data_t)mod);
-	imod = RCLASS_SUPER(imod);
-	if (imod == 0 || BUILTIN_TYPE(imod) != T_ICLASS)
-	    break;
-    }
-#endif
-
-    for (i = 0; i < count; i++) {
-	SEL sel;
-	ID mid;
-	st_data_t data;
-	NODE *node;
-
-	sel = method_getName(methods[i]);
-	if (is_ignored_selector(sel))
-	    continue;
-#if IGNORE_PRIVATE_OBJC_METHODS
-	if (*(char *)sel == '_')
-	    continue;
-#endif
-
-	rb_objc_sel_to_mid(sel, buffer, sizeof buffer);
-	mid = rb_intern(buffer);
-
-	if (rb_method_boundp(mod, mid, 1) == Qtrue)
-	    continue;
-
-	node = NEW_CFUNC(rb_objc_to_ruby_closure(methods[i]), -2); 
-	data = (st_data_t)NEW_FBODY(NEW_METHOD(node, mod, 
-		    			       NOEX_WITH_SAFE(NOEX_PUBLIC)), 0);
-
-	st_insert(RCLASS_M_TBL(mod), mid, data);
-    }
-
-    free(methods);
-}
-#endif
-
-NODE *
-rb_objc_define_objc_mid_closure(VALUE recv, ID mid, ID alias_mid)
-{
-    SEL sel;
-    Class ocklass;
-    Method method;
-    VALUE mod;
-    NODE *node, *data;
-    Method (*getMethod)(Class, SEL);
-
-    assert(mid > 1);
-
-    sel = sel_registerName(rb_id2name(mid));
-
-    if (!rb_special_const_p(recv) && !rb_objc_is_non_native(recv) 
-	&& TYPE(recv) == T_CLASS) {
-	mod = recv;
-	getMethod = class_getClassMethod;
-    }
-    else {
-	mod = CLASS_OF(recv);
-	getMethod = class_getInstanceMethod;
-    }
-
-    ocklass = RCLASS_OCID(mod);
-
-    if (class_isMetaClass(ocklass))
-	return NULL;
-
-    method = (*getMethod)(ocklass, sel);
-    if (method == NULL || method_getImplementation(method) == NULL)
-	return NULL;	/* recv doesn't respond to this selector */
-
-    do {
-	Class ocsuper = class_getSuperclass(ocklass);
-	if ((*getMethod)(ocsuper, sel) == NULL) /* != method */
-	    break;
-	ocklass = ocsuper;
-    }
-    while (1);
-
-    if (RCLASS(mod)->ocklass != ocklass) {
-	mod = rb_objc_import_class(ocklass);
-	if (TYPE(recv) == T_CLASS)
-	    mod = CLASS_OF(mod);
-    }
-
-    /* Already defined. */
-    node = rb_method_node(mod, mid);
-    if (node != NULL)
-	return node;
-
-    node = NEW_CFUNC(rb_objc_to_ruby_closure, -1);
-    data = NEW_FBODY(NEW_METHOD(node, mod, 
-				NOEX_WITH_SAFE(NOEX_PUBLIC)), 0);
-
-    rb_add_method_direct(mod, mid, data);
-
-    if (alias_mid != 0)
-	rb_add_method_direct(mod, alias_mid, data);
-
-    return data->nd_body;
-}
-
-#if 0
-rb_objc_sync_objc_methods_into(VALUE mod, Class ocklass)
-{
-    /* Load instance methods */
-    __rb_objc_sync_methods(mod, ocklass);
-
-    /* Load class methods */
-    __rb_objc_sync_methods(rb_singleton_class(mod), 
-			   object_getClass((id)ocklass));
-}
-
-void
-rb_objc_sync_objc_methods(VALUE mod)
-{
-    rb_objc_sync_objc_methods_into(mod, RCLASS_OCID(mod));
-}
-#endif
-
-VALUE
-rb_mod_objc_ancestors(VALUE recv)
-{
-    void *klass;
-    VALUE ary;
-
-    ary = rb_ary_new();
-
-    for (klass = RCLASS(recv)->ocklass; klass != NULL; 
-	 klass = class_getSuperclass(klass)) {
-	rb_ary_push(ary, rb_str_new2(class_getName(klass)));		
-    }
-
-    return ary;
-}
-
-void 
-rb_objc_methods(VALUE ary, Class ocklass)
-{
-    while (ocklass != NULL) {
-	unsigned i, count;
-	Method *methods;
-
- 	methods = class_copyMethodList(ocklass, &count);
- 	if (methods != NULL) { 
-	    for (i = 0; i < count; i++) {
-		SEL sel = method_getName(methods[i]);
-		if (is_ignored_selector(sel))
-		    continue;
-		rb_ary_push(ary, ID2SYM(rb_intern(sel_getName(sel))));
+	method = class_getInstanceMethod((Class)mod, new_sel);
+	direct_override = false;
+	if (method != NULL || override) {
+	    direct_override = method != NULL && class_getInstanceMethod((Class)RCLASS_SUPER(mod), new_sel) != method;
+	    DLOG("DEFM", "%c[%s %s] types=%s arity=%d body=%p override=%d direct_override=%d",
+		class_isMetaClass((Class)mod) ? '+' : '-', class_getName((Class)mod), (char *)new_sel, new_types, arity, body, method != NULL, direct_override);
+	    if (method != NULL && direct_override) {
+	 	method_setImplementation(method, imp);	
 	    }
-	    free(methods);
-    	}
-	ocklass = class_getSuperclass(ocklass);
+	    else { 
+		assert(class_addMethod((Class)mod, new_sel, imp, new_types));
+	    }
+	    forward_method_definition(new_sel, imp, new_types);
+	}
     }
-
-    rb_funcall(ary, rb_intern("uniq!"), 0);
+#undef forward_method_definition
 }
 
-static bool
+static inline bool
 rb_objc_resourceful(VALUE obj)
 {
     /* TODO we should export this function in the runtime 
@@ -1694,35 +1919,20 @@ rb_objc_resourceful(VALUE obj)
     return false;
 }
 
-static VALUE
-bs_function_dispatch(int argc, VALUE *argv, VALUE recv)
+VALUE
+rb_bsfunc_call(bs_element_function_t *bs_func, void *sym, int argc, VALUE *argv)
 {
-    ID callee;
-    bs_element_function_t *bs_func;
-    void *sym;
     unsigned i;
     ffi_type *ffi_rettype, **ffi_argtypes;
     void *ffi_ret, **ffi_args;
     ffi_cif *cif;
     VALUE resp;
 
-    callee = rb_frame_this_func();
-    assert(callee > 1);
-    if (!st_lookup(bs_functions, (st_data_t)callee, (st_data_t *)&bs_func))
-	rb_bug("bridgesupport function `%s' not in cache", rb_id2name(callee));
-
-    if (!st_lookup(bs_function_syms, (st_data_t)callee, (st_data_t *)&sym)
-	|| sym == NULL) {
-	sym = dlsym(RTLD_DEFAULT, bs_func->name);
-	if (sym == NULL)
-	    rb_bug("cannot locate symbol for bridgesupport function `%s'",
-		   bs_func->name);
-	st_insert(bs_function_syms, (st_data_t)callee, (st_data_t)sym);
-    }
-
     if (argc != bs_func->args_count)
 	rb_raise(rb_eArgError, "wrong number of arguments (%d for %d)",
 		 argc, bs_func->args_count);
+
+    DLOG("FCALL", "%s() sym=%p argc=%d", bs_func->name, sym, argc);
 
     ffi_argtypes = (ffi_type **)alloca(sizeof(ffi_type *) * argc + 1);
     ffi_args = (void **)alloca(sizeof(void *) * argc + 1);
@@ -1762,7 +1972,7 @@ bs_function_dispatch(int argc, VALUE *argv, VALUE recv)
 
     resp = Qnil;
     if (ffi_rettype != &ffi_type_void) {
-	rb_objc_ocval_to_rbval(ffi_ret, bs_func->retval->type, &resp);
+	rb_objc_ocval_to_rval(ffi_ret, bs_func->retval->type, &resp);
     	if (bs_func->retval->already_retained && !rb_objc_resourceful(resp))
 	    CFMakeCollectable((void *)resp);
     }
@@ -1775,10 +1985,7 @@ rb_objc_resolve_const_value(VALUE v, VALUE klass, ID id)
     void *sym;
     bs_element_constant_t *bs_const;
 
-    if (v == rb_objc_class_magic_cookie) {
-	v = rb_objc_import_class(objc_getClass(rb_id2name(id)));
-    }
-    else if (v == bs_const_magic_cookie) { 
+    if (v == bs_const_magic_cookie) { 
 	if (!st_lookup(bs_constants, (st_data_t)id, (st_data_t *)&bs_const))
 	    rb_bug("unresolved bridgesupport constant `%s' not in cache",
 		    rb_id2name(id));
@@ -1788,16 +1995,11 @@ rb_objc_resolve_const_value(VALUE v, VALUE klass, ID id)
 	    rb_bug("cannot locate symbol for unresolved bridgesupport " \
 		    "constant `%s'", bs_const->name);
 
-	rb_objc_ocval_to_rbval(sym, bs_const->type, &v);
-    
-	/* To avoid a runtime warning when re-defining the constant, we remove
-	 * its entry from the table before.
-	 */
-	klass = rb_cObject;
-	assert(RCLASS_IV_TBL(klass) != NULL);
-	assert(st_delete(RCLASS_IV_TBL(klass), (st_data_t*)&id, NULL));
+	rb_objc_ocval_to_rval(sym, bs_const->type, &v);
 
-	rb_const_set(klass, id, v); 
+	CFMutableDictionaryRef iv_dict = rb_class_ivar_dict(rb_cObject);
+	assert(iv_dict != NULL);
+	CFDictionarySetValue(iv_dict, (const void *)id, (const void *)v);
     }
 
     return v;
@@ -1829,26 +2031,32 @@ rb_bs_struct_new(int argc, VALUE *argv, VALUE recv)
 {
     bs_element_boxed_t *bs_boxed = rb_klass_get_bs_boxed(recv);
     bs_element_struct_t *bs_struct = (bs_element_struct_t *)bs_boxed->value;    
-    void *data;
+    VALUE *data;
     unsigned i;
-    size_t pos;
 
     if (argc > 0 && argc != bs_struct->fields_count)
 	rb_raise(rb_eArgError, "wrong number of arguments (%d for %d)",
 		 argc, bs_struct->fields_count);
 
-    pos = bs_struct->fields_count * sizeof(VALUE);
-    data = (void *)xmalloc(pos + bs_boxed->ffi_type->size);
-    memset(data, 0, pos + bs_boxed->ffi_type->size);
-    pos = 0;
+    data = (VALUE *)xmalloc(bs_struct->fields_count * sizeof(VALUE));
 
-    for (i = 0; i < argc; i++) {
+    for (i = 0; i < bs_struct->fields_count; i++) {
 	bs_element_struct_field_t *bs_field = 
 	    (bs_element_struct_field_t *)&bs_struct->fields[i];
+	size_t fdata_size;
+	void *fdata;
+	VALUE fval;
 
-	rb_objc_rval_to_ocval(argv[i], bs_field->type, data + pos);
-    
-        pos += rb_objc_octype_to_ffitype(bs_field->type)->size;
+	fdata_size = rb_objc_octype_to_ffitype(bs_field->type)->size;
+	fdata = alloca(fdata_size);
+	if (i < argc) {
+	    rb_objc_rval_to_ocval(argv[i], bs_field->type, fdata);
+	}
+	else {
+	    memset(fdata, 0, fdata_size);
+	}
+	rb_objc_ocval_to_rval(fdata, bs_field->type, &fval);
+	GC_WB(&data[i], fval);
     }
 
     return Data_Wrap_Struct(recv, NULL, NULL, data);
@@ -1857,13 +2065,18 @@ rb_bs_struct_new(int argc, VALUE *argv, VALUE recv)
 static ID
 rb_bs_struct_field_ivar_id(void)
 {
+    const char *frame_str;
     char ivar_name[128];
-    int len;
+    size_t len;
 
-    len = snprintf(ivar_name, sizeof ivar_name, "@%s", 
-		   rb_id2name(rb_frame_this_func()));
+    frame_str = rb_id2name(rb_frame_this_func());
+    len = snprintf(ivar_name, sizeof ivar_name, "@%s", frame_str);
+	
+    if (ivar_name[len - 1] == ':')
+	len--;
     if (ivar_name[len - 1] == '=')
-	ivar_name[len - 1] = '\0';
+	len--;
+    ivar_name[len] = '\0';
 
     return rb_intern(ivar_name);
 }
@@ -1875,8 +2088,7 @@ rb_bs_struct_get(VALUE recv)
     bs_element_struct_t *bs_struct = (bs_element_struct_t *)bs_boxed->value;
     unsigned i;
     const char *ivar_id_str;
-    void *data;
-    size_t pos;
+    VALUE *data;
 
     /* FIXME we should cache the ivar IDs somewhere in the 
      * bs_element_struct_fields 
@@ -1885,29 +2097,20 @@ rb_bs_struct_get(VALUE recv)
     ivar_id_str = rb_id2name(rb_bs_struct_field_ivar_id());
     ivar_id_str++; /* skip first '@' */
 
-    Data_Get_Struct(recv, void, data);
+    Data_Get_Struct(recv, VALUE, data);
     assert(data != NULL);
 
-    rb_objc_wb_range(data + bs_boxed->ffi_type->size,
-		     bs_struct->fields_count * sizeof(VALUE));
-
-    for (i = 0, pos = 0; i < bs_struct->fields_count; i++) {
+    for (i = 0; i < bs_struct->fields_count; i++) {
 	bs_element_struct_field_t *bs_field =
 	    (bs_element_struct_field_t *)&bs_struct->fields[i];
 
 	if (strcmp(ivar_id_str, bs_field->name) == 0) {
-	    VALUE *val;
-
-	    val = &((VALUE *)(data + bs_boxed->ffi_type->size))[i];
-	    if (*val == 0)
-		rb_objc_ocval_to_rbval(data + pos, bs_field->type, val);
-	    return *val;
+	    return data[i];
 	}
-        pos += rb_objc_octype_to_ffitype(bs_field->type)->size;
     }
 
     rb_bug("can't find field `%s' in recv `%s'", ivar_id_str,
-	   RSTRING_CPTR(rb_inspect(recv)));
+	   RSTRING_PTR(rb_inspect(recv)));
 
     return Qnil;
 }
@@ -1919,7 +2122,7 @@ rb_bs_struct_set(VALUE recv, VALUE value)
     bs_element_struct_t *bs_struct = (bs_element_struct_t *)bs_boxed->value;
     unsigned i;
     const char *ivar_id_str;
-    void *data;
+    VALUE *data;
     size_t pos;
 
     /* FIXME we should cache the ivar IDs somewhere in the 
@@ -1929,7 +2132,7 @@ rb_bs_struct_set(VALUE recv, VALUE value)
     ivar_id_str = rb_id2name(rb_bs_struct_field_ivar_id());
     ivar_id_str++; /* skip first '@' */
 
-    Data_Get_Struct(recv, void, data);
+    Data_Get_Struct(recv, VALUE, data);
     assert(data != NULL);
 
     for (i = 0, pos = 0; i < bs_struct->fields_count; i++) {
@@ -1937,18 +2140,25 @@ rb_bs_struct_set(VALUE recv, VALUE value)
 	    (bs_element_struct_field_t *)&bs_struct->fields[i];
 
 	if (strcmp(ivar_id_str, bs_field->name) == 0) {
-	    rb_objc_rval_to_ocval(value, bs_field->type, data + pos);
-	    /* We do not update the cache because `value' may have been
-	     * transformed (ex. fixnum to float).
-	     */
-	    ((VALUE *)(data + bs_boxed->ffi_type->size))[i] = 0;
+	    size_t fdata_size;
+	    void *fdata;
+	    VALUE fval;
+
+	    fdata_size = rb_objc_octype_to_ffitype(bs_field->type)->size;
+	    fdata = alloca(fdata_size);
+
+	    rb_objc_rval_to_ocval(value, bs_field->type, fdata);
+	    rb_objc_ocval_to_rval(fdata, bs_field->type, &fval);
+
+	    GC_WB(&data[i], fval);	
+
 	    return value;
 	}
         pos += rb_objc_octype_to_ffitype(bs_field->type)->size;
     }
 
     rb_bug("can't find field `%s' in recv `%s'", ivar_id_str,
-	   RSTRING_CPTR(rb_inspect(recv)));
+	   RSTRING_PTR(rb_inspect(recv)));
 
     return Qnil;
 }
@@ -1958,16 +2168,17 @@ rb_bs_struct_to_a(VALUE recv)
 {
     bs_element_boxed_t *bs_boxed = rb_klass_get_bs_boxed(CLASS_OF(recv));
     bs_element_struct_t *bs_struct = (bs_element_struct_t *)bs_boxed->value;    
+    VALUE *data;
     VALUE ary;
     unsigned i;
-
+    
+    Data_Get_Struct(recv, VALUE, data);
+    assert(data != NULL);
+    
     ary = rb_ary_new();
 
     for (i = 0; i < bs_struct->fields_count; i++) {
-	VALUE obj;
-
-	obj = rb_funcall(recv, rb_intern(bs_struct->fields[i].name), 0, NULL);
-	rb_ary_push(ary, obj);
+	rb_ary_push(ary, data[i]);
     }
 
     return ary;
@@ -1977,8 +2188,6 @@ static VALUE
 rb_bs_boxed_is_equal(VALUE recv, VALUE other)
 {
     bs_element_boxed_t *bs_boxed;  
-    bool ok;
-    void *d1, *d2; 
 
     if (recv == other)
 	return Qtrue;
@@ -1990,40 +2199,42 @@ rb_bs_boxed_is_equal(VALUE recv, VALUE other)
     if (bs_boxed != rb_klass_get_bs_boxed(CLASS_OF(other)))
 	return Qfalse;
 
-    d1 = bs_element_boxed_get_data(bs_boxed, recv, &ok);
-    if (!ok)
-	rb_raise(rb_eRuntimeError, "can't retrieve data for boxed `%s'",
-		 RSTRING_CPTR(rb_inspect(recv)));
-
-    d2 = bs_element_boxed_get_data(bs_boxed, other, &ok);
-    if (!ok)
-	rb_raise(rb_eRuntimeError, "can't retrieve data for boxed `%s'",
-		 RSTRING_CPTR(rb_inspect(recv)));
-
-    if (d1 == d2)
-	return Qtrue;
-    else if (d1 == NULL || d2 == NULL)
-	return Qfalse;
-
-    return memcmp(d1, d2, bs_boxed->ffi_type->size) == 0 ? Qtrue : Qfalse;
+    return CFEqual((CFTypeRef)recv, (CFTypeRef)other) ? Qtrue : Qfalse;
 }
 
 static VALUE
 rb_bs_struct_dup(VALUE recv)
 {
     bs_element_boxed_t *bs_boxed = rb_klass_get_bs_boxed(CLASS_OF(recv));
-    void *data;
-    bool ok;
+    bs_element_struct_t *bs_struct = (bs_element_struct_t *)bs_boxed->value;    
+    VALUE *data, *new_data;
+    int i;
+    static ID idDup = 0;
 
-    data = bs_element_boxed_get_data(bs_boxed, recv, &ok);
-    if (!ok)
-	rb_raise(rb_eRuntimeError, "can't retrieve data for boxed `%s'",
-		 RSTRING_CPTR(rb_inspect(recv)));
+    if (idDup == 0) {
+	idDup = rb_intern("dup");
+    }
 
-    if (data == NULL)
-	return Qnil;
+    Data_Get_Struct(recv, VALUE, data);
+    new_data = (VALUE *)xmalloc(bs_struct->fields_count * sizeof(VALUE));
 
-    return rb_bs_boxed_new_from_ocdata(bs_boxed, data);
+    for (i = 0; i < bs_struct->fields_count; i++) {
+	bs_element_struct_field_t *bs_field =
+	    (bs_element_struct_field_t *)&bs_struct->fields[i];
+	size_t fdata_size;
+	void *fdata;
+	VALUE fval;
+
+	fdata_size = rb_objc_octype_to_ffitype(bs_field->type)->size;
+	fdata = alloca(fdata_size);
+
+	rb_objc_rval_to_ocval(data[i], bs_field->type, fdata);
+	rb_objc_ocval_to_rval(fdata, bs_field->type, &fval);
+
+	GC_WB(&new_data[i], fval);
+    }
+
+    return Data_Wrap_Struct(CLASS_OF(recv), NULL, NULL, new_data);
 }
 
 static VALUE
@@ -2038,15 +2249,15 @@ rb_bs_struct_inspect(VALUE recv)
     rb_str_cat2(str, rb_obj_classname(recv));
 
     if (!bs_struct->opaque) {
-	for (i = 0; i < bs_struct->fields_count; i++) {
-	    VALUE obj;
+	VALUE *data;
 
-	    obj = rb_funcall(recv, rb_intern(bs_struct->fields[i].name), 
-			     0, NULL);
+	Data_Get_Struct(recv, VALUE, data);
+
+	for (i = 0; i < bs_struct->fields_count; i++) {
 	    rb_str_cat2(str, " ");
 	    rb_str_cat2(str, bs_struct->fields[i].name);
 	    rb_str_cat2(str, "=");
-	    rb_str_append(str, rb_inspect(obj));
+	    rb_str_append(str, rb_inspect(data[i]));
 	}
     }
 
@@ -2095,8 +2306,9 @@ rb_boxed_fields(VALUE recv)
     if (bs_boxed->type == BS_ELEMENT_STRUCT) {
 	bs_element_struct_t *bs_struct;
 	bs_struct = (bs_element_struct_t *)bs_boxed->value;
-	for (i = 0; i < bs_struct->fields_count; i++)
+	for (i = 0; i < bs_struct->fields_count; i++) {
 	    rb_ary_push(ary, ID2SYM(rb_intern(bs_struct->fields[i].name)));
+	}
     }
     return ary;
 }
@@ -2143,6 +2355,7 @@ setup_bs_boxed_type(bs_element_type_t type, void *value)
 	rb_define_method(klass, "dup", rb_bs_struct_dup, 0);
 	rb_define_alias(klass, "clone", "dup");	
 	rb_define_method(klass, "inspect", rb_bs_struct_inspect, 0);
+	rb_define_alias(klass, "to_s", "inspect");
     }
     else {
 	rb_undef_alloc_func(klass);
@@ -2176,19 +2389,24 @@ generate_const_name(char *name)
 }
 
 static void
-bs_parse_cb(const char *path, bs_element_type_t type, void *value, void *ctx)
+bs_parse_cb(bs_parser_t *parser, const char *path, bs_element_type_t type, 
+            void *value, void *ctx)
 {
     bool do_not_free = false;
+    CFMutableDictionaryRef rb_cObject_dict = (CFMutableDictionaryRef)ctx;
+
     switch (type) {
 	case BS_ELEMENT_ENUM:
 	{
 	    bs_element_enum_t *bs_enum = (bs_element_enum_t *)value;
 	    ID name = generate_const_name(bs_enum->name);
-	    if (!rb_const_defined(rb_cObject, name)) {
+	    if (!CFDictionaryGetValueIfPresent(
+		(CFDictionaryRef)rb_cObject_dict, (const void *)name, NULL)) {
 		VALUE val = strchr(bs_enum->value, '.') != NULL
 		    ? rb_float_new(rb_cstr_to_dbl(bs_enum->value, 1))
 		    : rb_cstr_to_inum(bs_enum->value, 10, 1);
-		rb_const_set(rb_cObject, name, val); 
+		CFDictionarySetValue(rb_cObject_dict, (const void *)name, 
+			(const void *)val);
 	    }
 	    else {
 		rb_warning("bs: enum `%s' already defined", rb_id2name(name));
@@ -2200,9 +2418,11 @@ bs_parse_cb(const char *path, bs_element_type_t type, void *value, void *ctx)
 	{
 	    bs_element_constant_t *bs_const = (bs_element_constant_t *)value;
 	    ID name = generate_const_name(bs_const->name);
-	    if (!rb_const_defined(rb_cObject, name)) {	
+	    if (!CFDictionaryGetValueIfPresent(
+		(CFDictionaryRef)rb_cObject_dict, (const void *)name, NULL)) {
 		st_insert(bs_constants, (st_data_t)name, (st_data_t)bs_const);
-		rb_const_set(rb_cObject, name, bs_const_magic_cookie); 
+		CFDictionarySetValue(rb_cObject_dict, (const void *)name, 
+			(const void *)bs_const_magic_cookie);
 		do_not_free = true;
 	    }
 	    else {
@@ -2217,7 +2437,8 @@ bs_parse_cb(const char *path, bs_element_type_t type, void *value, void *ctx)
 	    bs_element_string_constant_t *bs_strconst = 
 		(bs_element_string_constant_t *)value;
 	    ID name = generate_const_name(bs_strconst->name);
-	    if (!rb_const_defined(rb_cObject, name)) {	
+	    if (!CFDictionaryGetValueIfPresent(
+		(CFDictionaryRef)rb_cObject_dict, (const void *)name, NULL)) {
 		VALUE val;
 	    	if (bs_strconst->nsstring) {
 		    CFStringRef string;
@@ -2228,7 +2449,8 @@ bs_parse_cb(const char *path, bs_element_type_t type, void *value, void *ctx)
 	    	else {
 		    val = rb_str_new2(bs_strconst->value);
 	    	}
-		rb_const_set(rb_cObject, name, val);
+		CFDictionarySetValue(rb_cObject_dict, (const void *)name, 
+			(const void *)val);
 	    }
 	    else {
 		rb_warning("bs: string constant `%s' already defined", 
@@ -2241,11 +2463,8 @@ bs_parse_cb(const char *path, bs_element_type_t type, void *value, void *ctx)
 	{
 	    bs_element_function_t *bs_func = (bs_element_function_t *)value;
 	    ID name = rb_intern(bs_func->name);
-	    if (1) {
+	    if (!st_lookup(bs_functions, (st_data_t)name, NULL)) {
 		st_insert(bs_functions, (st_data_t)name, (st_data_t)bs_func);
-		/* FIXME we should reuse the same node for all functions */
-		rb_define_global_function(
-		    bs_func->name, bs_function_dispatch, -1);
 		do_not_free = true;
 	    }
 	    else {
@@ -2258,8 +2477,19 @@ bs_parse_cb(const char *path, bs_element_type_t type, void *value, void *ctx)
 	{
 	    bs_element_function_alias_t *bs_func_alias = 
 		(bs_element_function_alias_t *)value;
-	    rb_define_alias(CLASS_OF(rb_mKernel), bs_func_alias->name,
-			    bs_func_alias->original);
+	    bs_element_function_t *bs_func_original;
+	    if (st_lookup(bs_functions, 
+		(st_data_t)rb_intern(bs_func_alias->original), 
+		(st_data_t *)&bs_func_original)) {
+		st_insert(bs_functions, 
+			(st_data_t)rb_intern(bs_func_alias->name), 
+			(st_data_t)bs_func_original);
+	    }
+	    else {
+		rb_raise(rb_eRuntimeError, 
+			"cannot alias '%s' to '%s' because it doesn't exist", 
+			bs_func_alias->name, bs_func_alias->original);
+	    }
 	    break;
 	}
 
@@ -2345,27 +2575,47 @@ bs_parse_cb(const char *path, bs_element_type_t type, void *value, void *ctx)
 	bs_element_free(type, value);
 }
 
+extern VALUE enable_method_added;
+
+static bs_parser_t *bs_parser = NULL;
+
+static void
+rb_objc_load_bridge_support(const char *path, int options)
+{
+    char *error;
+    bool ok;
+    CFMutableDictionaryRef rb_cObject_dict;  
+
+    if (bs_parser == NULL) {
+	bs_parser = bs_parser_new();
+    }
+
+    rb_cObject_dict = rb_class_ivar_dict(rb_cObject);
+    assert(rb_cObject_dict != NULL);
+
+    enable_method_added = Qfalse;
+    ok = bs_parser_parse(bs_parser, path, options,
+			 bs_parse_cb, rb_cObject_dict, &error);
+    enable_method_added = Qtrue;
+    if (!ok) {
+	rb_raise(rb_eRuntimeError, error);
+    }
+}
+
 static VALUE
 rb_objc_load_bs(VALUE recv, VALUE path)
 {
-    char *error;
-
-    if (!bs_parse(StringValuePtr(path), 0, bs_parse_cb, NULL, &error))
-	rb_raise(rb_eRuntimeError, error);
-
+    rb_objc_load_bridge_support(StringValuePtr(path), 0);
     return recv;
 }
 
 static void
-load_bridge_support(const char *framework_path)
+rb_objc_search_and_load_bridge_support(const char *framework_path)
 {
     char path[PATH_MAX];
-    char *error;
 
     if (bs_find_path(framework_path, path, sizeof path)) {
-	if (!bs_parse(path, BS_PARSE_OPTIONS_LOAD_DYLIBS, bs_parse_cb, NULL, 
-		      &error))
-	    rb_raise(rb_eRuntimeError, error);
+	rb_objc_load_bridge_support(path, BS_PARSE_OPTIONS_LOAD_DYLIBS);
     }
 }
 
@@ -2388,7 +2638,7 @@ reload_class_constants(void)
 	if (name[0] != '_') {
 	    ID id = rb_intern(name);
 	    if (!rb_const_defined(rb_cObject, id))
-		rb_const_set(rb_cObject, id, rb_objc_class_magic_cookie);
+		rb_const_set(rb_cObject, id, (VALUE)buf[i]);
 	}
     }
 
@@ -2409,7 +2659,7 @@ rb_require_framework(int argc, VALUE *argv, VALUE recv)
     rb_scan_args(argc, argv, "11", &framework, &search_network);
 
     Check_Type(framework, T_STRING);
-    cstr = RSTRING_CPTR(framework);
+    cstr = RSTRING_PTR(framework);
 
     fileManager = [NSFileManager defaultManager];
     path = [fileManager stringWithFileSystemRepresentation:cstr
@@ -2467,7 +2717,7 @@ rb_require_framework(int argc, VALUE *argv, VALUE recv)
 #undef FIND_LOAD_PATH_IN_LIBRARY
 
 	rb_raise(rb_eRuntimeError, "framework `%s' not found", 
-	    RSTRING_CPTR(framework));
+	    RSTRING_PTR(framework));
     }
 
 success:
@@ -2491,7 +2741,7 @@ success:
 		 [[error description] UTF8String]); 
     }
 
-    load_bridge_support(cstr);
+    rb_objc_search_and_load_bridge_support(cstr);
     reload_class_constants();
 
     return Qtrue;
@@ -2512,138 +2762,22 @@ static void
 imp_rb_boxed_getValue(void *rcv, SEL sel, void *buffer)
 {
     bs_element_boxed_t *bs_boxed;
-    void *data;
-    bool ok;  
 
     bs_boxed = rb_klass_get_bs_boxed(CLASS_OF(rcv));
-
-    data = bs_element_boxed_get_data(bs_boxed, (VALUE)rcv, &ok);
-    if (!ok)
-	[NSException raise:@"NSException" 
-	    format:@"can't get internal data for boxed type `%s'",
-	    RSTRING_CPTR(rb_inspect((VALUE)rcv))];
-    if (data == NULL) {
-	*(void **)buffer = NULL; 
-    }
-    else {
- 	memcpy(buffer, data, bs_boxed->ffi_type->size);
-    }
-}
-
-static inline void
-rb_objc_install_method(Class klass, SEL sel, IMP imp)
-{
-    Method method = class_getInstanceMethod(klass, sel);
-    assert(method != NULL);
-    assert(class_addMethod(klass, sel, imp, method_getTypeEncoding(method)));
-}
-
-static inline void
-rb_objc_override_method(Class klass, SEL sel, IMP imp)
-{
-    Method method = class_getInstanceMethod(klass, sel);
-    assert(method != NULL);
-    method_setImplementation(method, imp);
+    assert(rb_objc_rval_copy_boxed_data((VALUE)rcv, bs_boxed, buffer));
 }
 
 static void
-rb_install_objc_primitives(void)
+rb_install_boxed_primitives(void)
 {
     Class klass;
 
     /* Boxed */
-    klass = RCLASS_OCID(rb_cBoxed);
-    rb_objc_override_method(klass, @selector(objCType), 
+    klass = (Class)rb_cBoxed;
+    rb_objc_install_method(klass, @selector(objCType), 
 	(IMP)imp_rb_boxed_objCType);
-    rb_objc_override_method(klass, @selector(getValue:), 
+    rb_objc_install_method(klass, @selector(getValue:), 
 	(IMP)imp_rb_boxed_getValue);
-}
-
-static void *
-rb_objc_allocate(void *klass)
-{
-    return (void *)rb_obj_alloc(rb_objc_import_class(klass));
-}
-
-static void *
-imp_rb_obj_alloc(void *rcv, SEL sel)
-{
-    return rb_objc_allocate(rcv);
-}
-
-static void *
-imp_rb_obj_allocWithZone(void *rcv, SEL sel, void *zone)
-{
-    return rb_objc_allocate(rcv);
-}
-
-static void *
-imp_rb_obj_init(void *rcv, SEL sel)
-{
-    rb_funcall((VALUE)rcv, idInitialize, 0);
-    return rcv;
-}
-
-static void
-rb_install_alloc_methods(void)
-{
-    Class klass = RCLASS_OCID(rb_cObject)->isa;
-
-    rb_objc_install_method(klass, @selector(alloc), (IMP)imp_rb_obj_alloc);
-    rb_objc_install_method(klass, @selector(allocWithZone:), 
-	(IMP)imp_rb_obj_allocWithZone);
-    rb_objc_install_method(RCLASS_OCID(rb_cObject), @selector(init), 
-	(IMP)imp_rb_obj_init);
-}
-
-ID
-rb_objc_missing_sel(ID mid, int arity)
-{
-    const char *name;
-    size_t len;
-    char buf[100];
-
-    if (mid == 0)
-	return mid;
-
-    name = rb_id2name(mid);
-    if (name == NULL)
-	return mid;
-
-    len = strlen(name);
-    if (len == 0)
-	return mid;
-    
-    if (arity == 1 && name[len - 1] == '=') {
-	strlcpy(buf, "set", sizeof buf);
-	buf[3] = toupper(name[0]);
-	buf[4] = '\0';
-	strlcat(buf, &name[1], sizeof buf);
-	buf[len + 2] = ':';
-    }
-    else if (arity == 0 && name[len - 1] == '?') {
-	strlcpy(buf, "is", sizeof buf);
-	buf[2] = toupper(name[0]);
-	buf[3] = '\0';
-	strlcat(buf, &name[1], sizeof buf);
-	buf[len + 1] = '\0';
-    }
-    else if (arity >= 1 && name[len - 1] != ':' && len < sizeof buf) {
-	strlcpy(buf, name, sizeof buf);
-	buf[len] = ':';
-	buf[len + 1] = '\0';
-    }
-    else if (arity == 1 && name[len - 1] == ':' && len < sizeof buf) {
-	strlcpy(buf, name, sizeof buf);
-	buf[len - 1] = '\0';
-    }
-    else {
-	return mid;
-    }
-
-    //printf("new sel %s for %s\n", buf, name);
-
-    return rb_intern(buf);	
 }
 
 static const char *
@@ -2701,13 +2835,12 @@ macruby_main(const char *path, int argc, char **argv)
     }
 }
 
-static void
-rb_objc_ib_outlet_imp(void *recv, SEL sel, void *value)
+static void *
+rb_objc_kvo_setter_imp(void *recv, SEL sel, void *value)
 {
     const char *selname;
     char buf[128];
     size_t s;   
-    VALUE rvalue;
 
     selname = sel_getName(sel);
     buf[0] = '@';
@@ -2715,38 +2848,46 @@ rb_objc_ib_outlet_imp(void *recv, SEL sel, void *value)
     s = strlcpy(&buf[2], &selname[4], sizeof buf - 2);
     buf[s + 1] = '\0';
 
-    rb_objc_ocid_to_rval(&value, &rvalue);
-    rb_ivar_set((VALUE)recv, rb_intern(buf), rvalue);
+    rb_ivar_set((VALUE)recv, rb_intern(buf), value == NULL ? Qnil : OC2RB(value));
+
+    return NULL; /* we explicitely return NULL because otherwise a special constant may stay on the stack and be returned to Objective-C, and do some very nasty crap, especially if called via -[performSelector:]. */
+}
+
+void
+rb_objc_define_kvo_setter(VALUE klass, ID mid)
+{
+    char buf[100];
+    const char *mid_name;
+
+    buf[0] = 's'; buf[1] = 'e'; buf[2] = 't';
+    mid_name = rb_id2name(mid);
+
+    buf[3] = toupper(mid_name[0]);
+    buf[4] = '\0';
+    strlcat(buf, &mid_name[1], sizeof buf);
+    strlcat(buf, ":", sizeof buf);
+
+    if (!class_addMethod((Class)klass, sel_registerName(buf), 
+			 (IMP)rb_objc_kvo_setter_imp, "v@:@")) {
+	rb_warn("can't register `%s' as an KVO setter (method `%s')",
+		mid_name, buf);
+    }
 }
 
 VALUE
 rb_mod_objc_ib_outlet(int argc, VALUE *argv, VALUE recv)
 {
     int i;
-    char buf[128];
 
-    buf[0] = 's'; buf[1] = 'e'; buf[2] = 't';
+    rb_warn("ib_outlet has been deprecated, please use attr_writer instead");
 
     for (i = 0; i < argc; i++) {
 	VALUE sym = argv[i];
-	const char *symname;
 	
 	Check_Type(sym, T_SYMBOL);
-	symname = rb_id2name(SYM2ID(sym));
-
-	if (strlen(symname) == 0)
-	    rb_raise(rb_eArgError, "empty symbol given");
-	
-	buf[3] = toupper(symname[0]);
-	buf[4] = '\0';
-	strlcat(buf, &symname[1], sizeof buf);
-	strlcat(buf, ":", sizeof buf);
-
-	if (!class_addMethod(RCLASS_OCID(recv), sel_registerName(buf), 
-			     (IMP)rb_objc_ib_outlet_imp, "v@:@"))
-	    rb_raise(rb_eArgError, "can't register `%s' as an IB outlet",
-		     symname);
+	rb_objc_define_kvo_setter(recv, SYM2ID(sym));
     }
+
     return recv;
 }
 
@@ -2949,11 +3090,11 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
     new_fmt = NULL;
 
     rb_objc_get_types_for_format_str(types, argc, (VALUE *)argv, 
-	    RSTRING_CPTR(fmt), &new_fmt);
+	    RSTRING_PTR(fmt), &new_fmt);
     if (new_fmt != NULL) {
 	fmt = (VALUE)CFStringCreateWithCString(NULL, new_fmt, 
 		kCFStringEncodingUTF8);
-	free(new_fmt);
+	xfree(new_fmt);
 	CFMakeCollectable((void *)fmt);
     }  
 
@@ -3016,12 +3157,37 @@ timer_cb(CFRunLoopTimerRef timer, void *ctx)
     RUBY_VM_CHECK_INTS();
 }
 
+static IMP old_imp_isaForAutonotifying;
+
+static Class
+rb_obj_imp_isaForAutonotifying(void *rcv, SEL sel)
+{
+    Class ret;
+
+#define KVO_CHECK_DONE 0x100000
+
+    ret = ((Class (*)(void *, SEL)) old_imp_isaForAutonotifying)(rcv, sel);
+    if (ret != NULL && (RCLASS_VERSION(ret) & KVO_CHECK_DONE) == 0) {
+	const char *name = class_getName(ret);
+	if (strncmp(name, "NSKVONotifying_", 15) == 0) {
+	    Class ret_orig;
+	    name += 15;
+	    ret_orig = objc_getClass(name);
+	    if (ret_orig != NULL && RCLASS_VERSION(ret_orig) & RCLASS_IS_OBJECT_SUBCLASS) {
+		DLOG("XXX", "marking KVO generated klass %p (%s) as RObject", ret, class_getName(ret));
+		RCLASS_VERSION(ret) |= RCLASS_IS_OBJECT_SUBCLASS;
+	    }
+	}
+	RCLASS_VERSION(ret) |= KVO_CHECK_DONE;
+    }
+    return ret;
+}
+
 void
 Init_ObjC(void)
 {
     rb_objc_retain(bs_constants = st_init_numtable());
     rb_objc_retain(bs_functions = st_init_numtable());
-    rb_objc_retain(bs_function_syms = st_init_numtable());
     rb_objc_retain(bs_boxeds = st_init_strtable());
     rb_objc_retain(bs_classes = st_init_strtable());
     rb_objc_retain(bs_inf_prot_cmethods = st_init_numtable());
@@ -3030,19 +3196,20 @@ Init_ObjC(void)
 
     rb_objc_retain((const void *)(
 	bs_const_magic_cookie = rb_str_new2("bs_const_magic_cookie")));
-    rb_objc_retain((const void *)(
-	rb_objc_class_magic_cookie = rb_str_new2("rb_objc_class_magic_cookie")));
 
-    rb_cBoxed = rb_define_class("Boxed",
-	rb_objc_import_class(objc_getClass("NSValue")));
+    rb_cBoxed = rb_define_class("Boxed", (VALUE)objc_getClass("NSValue"));
+    RCLASS_SET_VERSION_FLAG(rb_cBoxed, RCLASS_IS_OBJECT_SUBCLASS);
     rb_define_singleton_method(rb_cBoxed, "objc_type", rb_boxed_objc_type, 0);
     rb_define_singleton_method(rb_cBoxed, "opaque?", rb_boxed_is_opaque, 0);
     rb_define_singleton_method(rb_cBoxed, "fields", rb_boxed_fields, 0);
+    rb_install_boxed_primitives();
+
+    rb_cPointer = rb_define_class("Pointer", rb_cObject);
+    rb_undef_alloc_func(rb_cPointer);
+    rb_define_method(rb_cPointer, "assign", rb_pointer_assign, 1);
+    rb_define_method(rb_cPointer, "[]", rb_pointer_aref, 1);
 
     rb_ivar_type = rb_intern("@__objc_type__");
-
-    rb_install_objc_primitives();
-    rb_install_alloc_methods();
 
     rb_define_global_function("load_bridge_support_file", rb_objc_load_bs, 1);
 
@@ -3053,8 +3220,16 @@ Init_ObjC(void)
 	CFRunLoopAddTimer(CFRunLoopGetMain(), timer, kCFRunLoopDefaultMode);
     }
 
-    rb_define_method(rb_cBasicObject, "__super_objc_send__", rb_super_objc_send, -1);
+    rb_define_method(rb_cNSObject, "__super_objc_send__", rb_super_objc_send, -1);
+
+    Method m = class_getInstanceMethod(objc_getClass("NSKeyValueUnnestedProperty"), sel_registerName("isaForAutonotifying"));
+    assert(m != NULL);
+    old_imp_isaForAutonotifying = method_getImplementation(m);
+    method_setImplementation(m, (IMP)rb_obj_imp_isaForAutonotifying);
 }
+
+// for debug in gdb
+int __rb_type(VALUE v) { return TYPE(v); }
 
 @interface Protocol
 @end

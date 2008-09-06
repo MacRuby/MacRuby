@@ -1,0 +1,21 @@
+{
+    IBClasses = (
+        {CLASS = AppController; LANGUAGE = ObjC; SUPERCLASS = NSObject; }, 
+        {
+            ACTIONS = {changePage = id; }; 
+            CLASS = CatalogController; 
+            LANGUAGE = ObjC; 
+            OUTLETS = {pageSlider = NSSlider; pdfView = PDFView; }; 
+            SUPERCLASS = NSWindowController; 
+        }, 
+        {CLASS = FirstResponder; LANGUAGE = ObjC; SUPERCLASS = NSObject; }, 
+        {
+            ACTIONS = {paperChosen = id; }; 
+            CLASS = PreferenceController; 
+            LANGUAGE = ObjC; 
+            OUTLETS = {paperPopUp = NSPopUpButton; }; 
+            SUPERCLASS = NSWindowController; 
+        }
+    ); 
+    IBVersion = 1; 
+}

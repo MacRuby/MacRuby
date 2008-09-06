@@ -1,20 +1,19 @@
-/**********************************************************************
-
-  object.c -
-
-  $Author: nobu $
-  created at: Thu Jul 15 12:01:24 JST 1993
-
-  Copyright (C) 1993-2007 Yukihiro Matsumoto
-  Copyright (C) 2000  Network Applied Communication Laboratory, Inc.
-  Copyright (C) 2000  Information-technology Promotion Agency, Japan
-
-**********************************************************************/
+/* 
+ * MacRuby implementation of Ruby 1.9's object.c.
+ *
+ * This file is covered by the Ruby license. See COPYING for more details.
+ * 
+ * Copyright (C) 2007-2008, Apple Inc. All rights reserved.
+ * Copyright (C) 1993-2007 Yukihiro Matsumoto
+ * Copyright (C) 2000 Network Applied Communication Laboratory, Inc.
+ * Copyright (C) 2000 Information-technology Promotion Agency, Japan
+ */
 
 #include "ruby/ruby.h"
 #include "ruby/st.h"
 #include "ruby/util.h"
 #include "debug.h"
+#include "id.h"
 #include <stdio.h>
 #include <errno.h>
 #include <ctype.h>
@@ -23,6 +22,7 @@
 
 VALUE rb_cBasicObject;
 VALUE rb_mKernel;
+VALUE rb_cNSObject;
 VALUE rb_cObject;
 VALUE rb_cModule;
 VALUE rb_cClass;
@@ -128,9 +128,17 @@ rb_class_real(VALUE cl)
 {
     if (cl == 0)
         return 0;
-    while ((RBASIC(cl)->flags & FL_SINGLETON) || BUILTIN_TYPE(cl) == T_ICLASS) {
+    if (RCLASS_META(cl))
+	return rb_cClass;
+    while (RCLASS_SINGLETON(cl)) {
 	cl = RCLASS_SUPER(cl);
     }
+    if (cl == rb_cCFString)
+	return rb_cNSMutableString;
+    if (cl == rb_cCFArray)
+	return rb_cNSMutableArray;
+    if (cl == rb_cCFHash)
+	return rb_cNSMutableHash;
     return cl;
 }
 
@@ -157,13 +165,11 @@ rb_obj_class(VALUE obj)
 static void
 init_copy(VALUE dest, VALUE obj)
 {
-#if WITH_OBJC
-    if (rb_objc_is_non_native(obj)) {
+    if (NATIVE(obj)) {
 	if (rb_objc_flag_check((const void *)obj, FL_TAINT))
 	    rb_objc_flag_set((const void *)dest, FL_TAINT, true);
 	goto call_init_copy;
     }
-#endif
     if (OBJ_FROZEN(dest)) {
         rb_raise(rb_eTypeError, "[bug] frozen object (%s) allocated", rb_obj_classname(dest));
     }
@@ -172,35 +178,57 @@ init_copy(VALUE dest, VALUE obj)
     rb_copy_generic_ivar(dest, obj);
     rb_gc_copy_finalizer(dest, obj);
     switch (TYPE(obj)) {
-      case T_OBJECT:
-        if (!(RBASIC(dest)->flags & ROBJECT_EMBED) && ROBJECT_IVPTR(dest)) {
-            xfree(ROBJECT_IVPTR(dest));
-            ROBJECT(dest)->as.heap.ivptr = 0;
-            ROBJECT(dest)->as.heap.numiv = 0;
-            ROBJECT(dest)->as.heap.iv_index_tbl = 0;
-        }
-        if (RBASIC(obj)->flags & ROBJECT_EMBED) {
-            MEMCPY(ROBJECT(dest)->as.ary, ROBJECT(obj)->as.ary, VALUE, ROBJECT_EMBED_LEN_MAX);
-            RBASIC(dest)->flags |= ROBJECT_EMBED;
-        }
-        else {
-            long len = ROBJECT(obj)->as.heap.numiv;
-            VALUE *ptr = ALLOC_N(VALUE, len);
-            MEMCPY(ptr, ROBJECT(obj)->as.heap.ivptr, VALUE, len);
-            ROBJECT(dest)->as.heap.ivptr = ptr;
-            ROBJECT(dest)->as.heap.numiv = len;
-            ROBJECT(dest)->as.heap.iv_index_tbl = ROBJECT(obj)->as.heap.iv_index_tbl;
-            RBASIC(dest)->flags &= ~ROBJECT_EMBED;
-        }
+      case T_NATIVE:
+	if (rb_objc_flag_check((const void *)obj, FL_TAINT))
+	    rb_objc_flag_set((const void *)dest, FL_TAINT, true);
         break;
+
+      case T_OBJECT:
+	ROBJECT(dest)->ivars.type = ROBJECT(obj)->ivars.type;
+	switch (RB_IVAR_TYPE(ROBJECT(obj)->ivars)) {
+	    case RB_IVAR_ARY:
+	    {
+		int i;
+		GC_WB(&ROBJECT(dest)->ivars.as.ary,
+		    (struct rb_ivar_ary_entry *)xmalloc(
+			sizeof(struct rb_ivar_ary_entry)
+			    * RB_IVAR_ARY_LEN(ROBJECT(obj)->ivars)));
+		for (i = 0; i < RB_IVAR_ARY_LEN(ROBJECT(obj)->ivars); i++) {
+		    ROBJECT(dest)->ivars.as.ary[i].name = ROBJECT(obj)->ivars.as.ary[i].name;
+		    GC_WB(&ROBJECT(dest)->ivars.as.ary[i].value, ROBJECT(obj)->ivars.as.ary[i].value);
+		}
+	    }
+	    break;
+
+	    case RB_IVAR_TBL:
+	    {
+		CFMutableDictionaryRef new_tbl;
+		new_tbl = CFDictionaryCreateMutableCopy(NULL, 0, (CFDictionaryRef)ROBJECT(obj)->ivars.as.tbl);
+		assert(new_tbl != NULL);
+		GC_WB(&ROBJECT(dest)->ivars.as.tbl, new_tbl);
+		CFMakeCollectable(new_tbl);
+	    }
+	    break;
+	}
+	break;
       case T_CLASS:
       case T_MODULE:
-	if (RCLASS_IV_TBL(dest)) {
-	    st_free_table(RCLASS_IV_TBL(dest));
-	    RCLASS_IV_TBL(dest) = 0;
-	}
-	if (RCLASS_IV_TBL(obj)) {
-	    RCLASS_IV_TBL(dest) = st_copy(RCLASS_IV_TBL(obj));
+	{
+	    CFMutableDictionaryRef dest_dict, obj_dict;
+	    
+	    obj_dict = rb_class_ivar_dict(obj);
+	    dest_dict = rb_class_ivar_dict(dest);
+	    if (dest_dict != NULL)
+		CFDictionaryRemoveAllValues(dest_dict);
+	    if (obj_dict != NULL) {
+		dest_dict = CFDictionaryCreateMutableCopy(NULL, 0, (CFDictionaryRef)obj_dict);
+		CFMakeCollectable(dest_dict);
+		rb_class_ivar_set_dict(dest, dest_dict);
+	    }
+	    else {
+		if (dest_dict)
+		    rb_class_ivar_set_dict(dest, NULL);
+	    }
 	}
         break;
     }
@@ -232,6 +260,8 @@ call_init_copy:
  *  the class.
  */
 
+static VALUE rb_class_s_alloc(VALUE);
+
 VALUE
 rb_obj_clone(VALUE obj)
 {
@@ -240,23 +270,25 @@ rb_obj_clone(VALUE obj)
     if (rb_special_const_p(obj)) {
         rb_raise(rb_eTypeError, "can't clone %s", rb_obj_classname(obj));
     }
-#if WITH_OBJC
-    if (rb_objc_is_non_native(obj)) {
-        clone = rb_obj_alloc(rb_obj_class(obj));
-        init_copy(clone, obj);
-	if (OBJ_FROZEN(obj))
-	    OBJ_FREEZE(clone);
-	return clone;
+    switch (TYPE(obj)) {
+	case T_NATIVE:
+	    clone = rb_obj_alloc(rb_obj_class(obj));
+	    RBASIC(clone)->klass = rb_singleton_class_clone(obj);
+	    break;
+	case T_CLASS:
+	case T_MODULE:
+	    clone = rb_class_s_alloc(Qnil);
+	    break;
+	default:
+	    clone = rb_obj_alloc(rb_obj_class(obj));
+	    RBASIC(clone)->klass = rb_singleton_class_clone(obj);
+	    RBASIC(clone)->flags = (RBASIC(obj)->flags | FL_TEST(clone, FL_TAINT)) & ~(FL_FREEZE|FL_FINALIZE);
+	    break;
     }
-#endif
-    clone = rb_obj_alloc(rb_obj_class(obj));
-#if WITH_OBJC
-    RBASIC(clone)->isa = RBASIC(obj)->isa;
-#endif
-    RBASIC(clone)->klass = rb_singleton_class_clone(obj);
-    RBASIC(clone)->flags = (RBASIC(obj)->flags | FL_TEST(clone, FL_TAINT)) & ~(FL_FREEZE|FL_FINALIZE);
+
     init_copy(clone, obj);
-    RBASIC(clone)->flags |= RBASIC(obj)->flags & FL_FREEZE;
+    if (OBJ_FROZEN(obj))
+	OBJ_FREEZE(clone);
 
     return clone;
 }
@@ -284,7 +316,7 @@ rb_obj_dup(VALUE obj)
 {
     VALUE dup;
 
-    if (rb_special_const_p(obj)) {
+    if (rb_special_const_p(obj) || TYPE(obj) == T_SYMBOL) {
         rb_raise(rb_eTypeError, "can't dup %s", rb_obj_classname(obj));
     }
     dup = rb_obj_alloc(rb_obj_class(obj));
@@ -293,13 +325,20 @@ rb_obj_dup(VALUE obj)
     return dup;
 }
 
+static VALUE
+rb_nsobj_dup(VALUE obj)
+{
+    return (VALUE)objc_msgSend((id)obj, selCopy); 
+}
+
 /* :nodoc: */
 VALUE
 rb_obj_init_copy(VALUE obj, VALUE orig)
 {
     if (obj == orig) return obj;
     rb_check_frozen(obj);
-    if (TYPE(obj) != TYPE(orig) || rb_obj_class(obj) != rb_obj_class(orig)) {
+    if (TYPE(obj) != TYPE(orig)) {
+	/* FIXME rb_obj_class(obj) != rb_obj_class(orig) */
 	rb_raise(rb_eTypeError, "initialize_copy should take same class object");
     }
     return obj;
@@ -340,18 +379,14 @@ inspect_i(ID id, VALUE value, VALUE str)
     const char *ivname;
     const char *cstr;
 
-    cstr = RSTRING_CPTR(str);
+    cstr = RSTRING_PTR(str);
 
     /* need not to show internal data */
     if (CLASS_OF(value) == 0) return ST_CONTINUE;
     if (!rb_is_instance_id(id)) return ST_CONTINUE;
 
     if (cstr[0] == '-') { /* first element */
-#if WITH_OBJC
 	rb_str_update(str, 0, 0, rb_str_new2("#"));
-#else
-	RSTRING_PTR(str)[0] = '#';
-#endif
 	rb_str_cat2(str, " ");
     }
     else {
@@ -377,11 +412,7 @@ inspect_obj(VALUE obj, VALUE str, int recur)
 	rb_ivar_foreach(obj, inspect_i, str);
     }
     rb_str_cat2(str, ">");
-#if WITH_OBJC
     rb_str_update(str, 0, 0, rb_str_new2("#"));
-#else
-    RSTRING_PTR(str)[0] = '#';
-#endif
     OBJ_INFECT(str, obj);
 
     return str;
@@ -406,17 +437,28 @@ rb_obj_inspect(VALUE obj)
 
     if (TYPE(obj) == T_OBJECT) {
         int has_ivar = 0;
-        VALUE *ptr = ROBJECT_IVPTR(obj);
-        long len = ROBJECT_NUMIV(obj);
-        long i;
+	switch (RB_IVAR_TYPE(ROBJECT(obj)->ivars)) {
+	    case RB_IVAR_ARY:
+	    {
+		int i, len = RB_IVAR_ARY_LEN(ROBJECT(obj)->ivars);
+		if (len == 0)
+		    break;
+		for (i = 0; i < len; i++) {
+		    if (ROBJECT(obj)->ivars.as.ary[i].value != Qundef) {
+			has_ivar = 1;
+			break;
+		    }
+		}
+		break;
+	    }
 
-        for (i = 0; i < len; i++) {
-            if (ptr[i] != Qundef) {
-                has_ivar = 1;
-                break;
-            }
-        }
-
+	    case RB_IVAR_TBL:
+		has_ivar = 
+		    CFDictionaryGetCount(
+			(CFDictionaryRef)ROBJECT(obj)->ivars.as.tbl)
+		    	    > 0;
+		break;
+	}
         if (has_ivar) {
             VALUE str;
             const char *c = rb_obj_classname(obj);
@@ -496,8 +538,20 @@ rb_obj_is_kind_of(VALUE obj, VALUE c)
     }
 
     while (cl) {
-	if (cl == c || RCLASS_M_TBL(cl) == RCLASS_M_TBL(c))
+	VALUE ary;
+	if (cl == c) {
 	    return Qtrue;
+	}
+	ary = rb_attr_get(cl, idIncludedModules);
+	if (ary != Qnil) {
+	    int i, count;
+	    for (i = 0, count = RARRAY_LEN(ary); i < count; i++) {
+		VALUE imod = RARRAY_AT(ary, i);
+		if (imod == c) {
+		    return Qtrue;
+		}
+	    }
+	}
 	cl = RCLASS_SUPER(cl);
     }
     return Qfalse;
@@ -676,11 +730,9 @@ rb_obj_dummy(void)
 VALUE
 rb_obj_tainted(VALUE obj)
 {
-#if WITH_OBJC
-    if (!SPECIAL_CONST_P(obj) && rb_objc_is_non_native(obj)) {
+    if (!SPECIAL_CONST_P(obj) && NATIVE(obj)) {
 	return rb_objc_flag_check((const void *)obj, FL_TAINT) ? Qtrue : Qfalse;
     }
-#endif
     if (FL_TEST(obj, FL_TAINT))
 	return Qtrue;
     return Qfalse;
@@ -699,12 +751,10 @@ VALUE
 rb_obj_taint(VALUE obj)
 {
     rb_secure(4);
-#if WITH_OBJC
-    if (!SPECIAL_CONST_P(obj) && rb_objc_is_non_native(obj)) {
+    if (!SPECIAL_CONST_P(obj) && NATIVE(obj)) {
 	rb_objc_flag_set((const void *)obj, FL_TAINT, true);
 	return obj;
     }
-#endif
     if (!OBJ_TAINTED(obj)) {
 	if (OBJ_FROZEN(obj)) {
 	    rb_error_frozen("object");
@@ -726,12 +776,10 @@ VALUE
 rb_obj_untaint(VALUE obj)
 {
     rb_secure(3);
-#if WITH_OBJC
-    if (!SPECIAL_CONST_P(obj) && rb_objc_is_non_native(obj)) {
+    if (!SPECIAL_CONST_P(obj) && NATIVE(obj)) {
 	rb_objc_flag_set((const void *)obj, FL_TAINT, false);
 	return obj;
     }
-#endif
     if (OBJ_TAINTED(obj)) {
 	if (OBJ_FROZEN(obj)) {
 	    rb_error_frozen("object");
@@ -772,6 +820,7 @@ VALUE
 rb_obj_freeze(VALUE obj)
 {
     if (!OBJ_FROZEN(obj)) {
+	int type;
 	if (rb_safe_level() >= 4 && !OBJ_TAINTED(obj)) {
 	    rb_raise(rb_eSecurityError, "Insecure: can't freeze object");
 	}
@@ -782,11 +831,12 @@ rb_obj_freeze(VALUE obj)
 	    }
 	    st_insert(immediate_frozen_tbl, obj, (st_data_t)Qtrue);
 	}
-#if WITH_OBJC
-	else if (rb_objc_is_non_native(obj)) {
+	else if (NATIVE(obj)) {
 	    rb_objc_flag_set((const void *)obj, FL_FREEZE, true);
 	}
-#endif
+	else if ((type = TYPE(obj)) == T_CLASS || type == T_MODULE) {
+	    RCLASS_SET_VERSION_FLAG(obj, RCLASS_IS_FROZEN);
+	}
 	else {
 	    FL_SET(obj, FL_FREEZE);
 	}
@@ -813,15 +863,21 @@ rb_obj_frozen_p(VALUE obj)
 	if (st_lookup(immediate_frozen_tbl, obj, 0)) return Qtrue;
 	return Qfalse;
     }
-#if WITH_OBJC
-    if (rb_objc_is_non_native(obj)) {
-	return rb_objc_is_immutable(obj) 
-	    || rb_objc_flag_check((const void *)obj, FL_FREEZE)
-	    ? Qtrue : Qfalse;
+    switch (TYPE(obj)) {
+	case T_STRING:
+	case T_ARRAY:
+	case T_HASH:
+	case T_NATIVE:
+	    return rb_objc_is_immutable(obj) 
+		|| rb_objc_flag_check((const void *)obj, FL_FREEZE)
+		? Qtrue : Qfalse;
+	case T_CLASS:
+	case T_ICLASS:
+	case T_MODULE:
+	    return (RCLASS_VERSION(obj) & RCLASS_IS_FROZEN) == RCLASS_IS_FROZEN ? Qtrue : Qfalse;
+	default:
+	    return FL_TEST(obj, FL_FREEZE) ? Qtrue : Qfalse;
     }
-#endif
-    if (FL_TEST(obj, FL_FREEZE)) return Qtrue;
-    return Qfalse;
 }
 
 
@@ -1155,7 +1211,7 @@ rb_obj_not_match(VALUE obj1, VALUE obj2)
 static VALUE
 rb_mod_to_s(VALUE klass)
 {
-    if (FL_TEST(klass, FL_SINGLETON)) {
+    if (RCLASS_SINGLETON(klass)) {
 	VALUE s = rb_usascii_str_new2("#<");
 	VALUE v = rb_iv_get(klass, "__attached__");
 
@@ -1231,13 +1287,13 @@ rb_class_inherited_p(VALUE mod, VALUE arg)
 	rb_raise(rb_eTypeError, "compared with non class/module");
     }
     while (mod) {
-	if (RCLASS_M_TBL(mod) == RCLASS_M_TBL(arg))
+	if (mod == arg)
 	    return Qtrue;
 	mod = RCLASS_SUPER(mod);
     }
     /* not mod < arg; check if mod > arg */
     while (arg) {
-	if (RCLASS_M_TBL(arg) == RCLASS_M_TBL(start))
+	if (arg == start)
 	    return Qfalse;
 	arg = RCLASS_SUPER(arg);
     }
@@ -1343,10 +1399,7 @@ rb_mod_cmp(VALUE mod, VALUE arg)
 static VALUE
 rb_module_s_alloc(VALUE klass)
 {
-    VALUE mod = rb_module_new();
-
-    RBASIC(mod)->klass = klass;
-    return mod;
+    return rb_module_new();
 }
 
 static VALUE
@@ -1378,7 +1431,7 @@ rb_class_s_alloc(VALUE klass)
  *     a.meth2          #=> "bye"
  */
 
-static VALUE
+ VALUE
 rb_mod_initialize(VALUE module)
 {
     extern VALUE rb_mod_module_exec(int argc, VALUE *argv, VALUE mod);
@@ -1404,9 +1457,6 @@ rb_class_initialize(int argc, VALUE *argv, VALUE klass)
 {
     VALUE super;
 
-    if (RCLASS_SUPER(klass) != 0) {
-	rb_raise(rb_eTypeError, "already initialized class");
-    }
     if (argc == 0) {
 	super = rb_cObject;
     }
@@ -1415,11 +1465,13 @@ rb_class_initialize(int argc, VALUE *argv, VALUE klass)
 	rb_check_inheritable(super);
     }
     RCLASS_SUPER(klass) = super;
-#if WITH_OBJC
-    class_setSuperclass(RCLASS(klass)->ocklass, RCLASS(super)->ocklass);
-    rb_objc_install_primitives(RCLASS(klass)->ocklass, RCLASS(super)->ocklass);
-#endif
-    rb_make_metaclass(klass, RBASIC(super)->klass);
+    if ((RCLASS_VERSION(super) & RCLASS_IS_OBJECT_SUBCLASS) != RCLASS_IS_OBJECT_SUBCLASS) {
+	RCLASS_VERSION(klass) ^= RCLASS_IS_OBJECT_SUBCLASS;
+    }
+    rb_objc_install_primitives((Class)klass, (Class)super);
+    if (super == rb_cObject)
+	rb_define_object_special_methods(klass);
+
     rb_class_inherited(super, klass);
     rb_mod_initialize(klass);
 
@@ -1440,27 +1492,14 @@ rb_obj_alloc(VALUE klass)
 {
     VALUE obj;
 
-    if (RCLASS_SUPER(klass) == 0 && klass != rb_cBasicObject) {
+    if (RCLASS_SUPER(klass) == 0 && klass != rb_cBasicObject && klass != rb_cObject) {
 	rb_raise(rb_eTypeError, "can't instantiate uninitialized class");
     }
-    if (FL_TEST(klass, FL_SINGLETON)) {
+    if (RCLASS_SINGLETON(klass)) {
 	rb_raise(rb_eTypeError, "can't create instance of singleton class");
     }
     obj = rb_funcall(klass, ID_ALLOCATOR, 0, 0);
-#if !WITH_OBJC
-    if (rb_obj_class(obj) != rb_class_real(klass)) {
-	rb_raise(rb_eTypeError, "wrong instance allocation");
-    }
-#endif
     return obj;
-}
-
-static VALUE
-rb_class_allocate_instance(VALUE klass)
-{
-    NEWOBJ(obj, struct RObject);
-    OBJSETUP(obj, klass, T_OBJECT);
-    return (VALUE)obj;
 }
 
 /*
@@ -1478,52 +1517,27 @@ rb_class_allocate_instance(VALUE klass)
 VALUE
 rb_class_new_instance(int argc, VALUE *argv, VALUE klass)
 {
-    VALUE obj;
+    VALUE obj, init_obj, p;
 
-#if WITH_OBJC
-    if (FL_TEST(klass, RCLASS_OBJC_IMPORTED)) {
-	static SEL sel_new = 0;
-	if (sel_new == 0)
-	    sel_new = sel_registerName("new");
-	obj = (VALUE)objc_msgSend((id)RCLASS_OCID(klass), sel_new);
-	return obj;
-    }
-#endif
     obj = rb_obj_alloc(klass);
-    rb_obj_call_init(obj, argc, argv);
+
+    /* Because we cannot override +[NSObject initialize] */
+    if (klass == rb_cClass)
+	return rb_class_initialize(argc, argv, obj);
+
+    init_obj = rb_obj_call_init(obj, argc, argv);
+
+    if (init_obj != Qnil) {
+	p = CLASS_OF(init_obj);
+	while (p != 0) {
+	    if (p == klass) {
+		return init_obj;
+	    }
+	    p = RCLASS_SUPER(p);
+	}
+    }
 
     return obj;
-}
-
-/*
- *  call-seq:
- *     class.superclass -> a_super_class or nil
- *  
- *  Returns the superclass of <i>class</i>, or <code>nil</code>.
- *     
- *     File.superclass          #=> IO
- *     IO.superclass            #=> Object
- *     Object.superclass        #=> BasicObject
- *     BasicObject.superclass   #=> nil
- *     
- */
-
-static VALUE
-rb_class_superclass(VALUE klass)
-{
-    VALUE super = RCLASS_SUPER(klass);
-
-    if (!super) {
-	if (klass == rb_cBasicObject) return Qnil;
-	rb_raise(rb_eTypeError, "uninitialized class");
-    }
-    while (TYPE(super) == T_ICLASS) {
-	super = RCLASS_SUPER(super);
-    }
-    if (!super) {
-	return Qnil;
-    }
-    return super;
 }
 
 /*
@@ -1713,28 +1727,21 @@ rb_mod_const_defined(int argc, VALUE *argv, VALUE mod)
 static VALUE
 rb_obj_methods(int argc, VALUE *argv, VALUE obj)
 {
-  retry:
-    if (argc == 0) {
-	VALUE args[1];
-	VALUE ary;
+    VALUE recur, objc_methods;
+    VALUE args[2];
 
-	args[0] = Qtrue;
-	ary = rb_class_instance_methods(1, args, CLASS_OF(obj));
-#if WITH_OBJC
-	rb_objc_methods(ary, RCLASS(CLASS_OF(obj))->ocklass);
-#endif
-	return ary;
+    if (argc == 0) {
+	recur = Qtrue;
+	objc_methods = Qfalse;
     }
     else {
-	VALUE recur;
-
-	rb_scan_args(argc, argv, "1", &recur);
-	if (RTEST(recur)) {
-	    argc = 0;
-	    goto retry;
-	}
-	return rb_obj_singleton_methods(argc, argv, obj);
+	rb_scan_args(argc, argv, "02", &recur, &objc_methods);
     }
+
+    args[0] = recur;
+    args[1] = objc_methods;
+
+    return rb_class_instance_methods(2, args, CLASS_OF(obj));
 }
 
 /*
@@ -2194,8 +2201,8 @@ rb_str_to_dbl(VALUE str, int badcheck)
     long len;
 
     StringValue(str);
-    s = RSTRING_CPTR(str);
-    len = RSTRING_CLEN(str);
+    s = RSTRING_PTR(str);
+    len = RSTRING_LEN(str);
     if (s) {
 	if (s[len]) {		/* no sentinel somehow */
 	    char *p = ALLOCA_N(char, len+1);
@@ -2280,11 +2287,11 @@ const char*
 rb_str2cstr(VALUE str, long *len)
 {
     StringValue(str);
-    if (len) *len = RSTRING_CLEN(str);
-    else if (RTEST(ruby_verbose) && RSTRING_CLEN(str) != strlen(RSTRING_CPTR(str))) {
+    if (len) *len = RSTRING_LEN(str);
+    else if (RTEST(ruby_verbose) && RSTRING_LEN(str) != strlen(RSTRING_PTR(str))) {
 	rb_warn("string contains \\0 character");
     }
-    return RSTRING_CPTR(str);
+    return RSTRING_PTR(str);
 }
 
 VALUE
@@ -2347,26 +2354,23 @@ boot_defclass(const char *name, VALUE super)
 {
     ID id = rb_intern(name);
     extern st_table *rb_class_tbl;
-#if WITH_OBJC
     VALUE obj = rb_objc_create_class(name, super);
-#else
-    VALUE obj = rb_class_boot(super);
-
-    rb_name_class(obj, id);
-#endif
     st_add_direct(rb_class_tbl, id, obj);
     rb_const_set((rb_cObject ? rb_cObject : obj), id, obj);
     return obj;
 }
 
-#if WITH_OBJC
 static VALUE
-rb_obj_is_pure(VALUE recv)
+rb_obj_is_native(VALUE recv)
 {
-    return rb_objc_is_non_native(recv) ? Qtrue : Qfalse;
+    return NATIVE(recv) ? Qtrue : Qfalse;
 }
-#endif
 
+static VALUE
+rb_class_is_meta(VALUE klass)
+{
+    return RCLASS_META(klass) ? Qtrue : Qfalse;
+}
 
 /*
  *  Document-class: Class
@@ -2450,39 +2454,32 @@ rb_obj_is_pure(VALUE recv)
 void
 Init_Object(void)
 {
-    VALUE metaclass;
-
-#if WITH_OBJC
-    rb_cBasicObject = rb_objc_import_class((Class)objc_getClass("NSObject"));
-#else
-    rb_cBasicObject = boot_defclass("BasicObject", 0);
-#endif
-    rb_cObject = boot_defclass("Object", rb_cBasicObject);
+    rb_cObject = rb_cNSObject = (VALUE)objc_getClass("NSObject");
+    rb_const_set(rb_cObject, rb_intern("Object"), rb_cNSObject);
+    rb_set_class_path(rb_cObject, rb_cObject, "NSObject");
+    rb_cBasicObject = (VALUE)objc_duplicateClass((Class)rb_cObject, "BasicObject", 0);
     rb_cModule = boot_defclass("Module", rb_cObject);
     rb_cClass =  boot_defclass("Class",  rb_cModule);
+    RCLASS_SUPER(*(Class *)rb_cNSObject) = rb_cClass;
 
-    metaclass = rb_make_metaclass(rb_cBasicObject, rb_cClass);
-    metaclass = rb_make_metaclass(rb_cObject, metaclass);
-    metaclass = rb_make_metaclass(rb_cModule, metaclass);
-    metaclass = rb_make_metaclass(rb_cClass, metaclass);
+    rb_define_private_method(rb_cNSObject, "initialize", rb_obj_dummy, 0);
+    rb_define_method(rb_cNSObject, "==", rb_obj_equal, 1);
+    rb_define_method(rb_cNSObject, "equal?", rb_obj_equal, 1);
+    rb_define_method(rb_cNSObject, "!", rb_obj_not, 0);
+    rb_define_method(rb_cNSObject, "!=", rb_obj_not_equal, 1);
 
     rb_define_private_method(rb_cBasicObject, "initialize", rb_obj_dummy, 0);
-    rb_define_alloc_func(rb_cBasicObject, rb_class_allocate_instance);
     rb_define_method(rb_cBasicObject, "==", rb_obj_equal, 1);
     rb_define_method(rb_cBasicObject, "equal?", rb_obj_equal, 1);
     rb_define_method(rb_cBasicObject, "!", rb_obj_not, 0);
     rb_define_method(rb_cBasicObject, "!=", rb_obj_not_equal, 1);
 
-    rb_define_private_method(rb_cBasicObject, "singleton_method_added", rb_obj_dummy, 1);
-    rb_define_private_method(rb_cBasicObject, "singleton_method_removed", rb_obj_dummy, 1);
-    rb_define_private_method(rb_cBasicObject, "singleton_method_undefined", rb_obj_dummy, 1);
+    rb_define_private_method(rb_cNSObject, "singleton_method_added", rb_obj_dummy, 1);
+    rb_define_private_method(rb_cNSObject, "singleton_method_removed", rb_obj_dummy, 1);
+    rb_define_private_method(rb_cNSObject, "singleton_method_undefined", rb_obj_dummy, 1);
 
     rb_mKernel = rb_define_module("Kernel");
-#if WITH_OBJC
-    rb_include_module(rb_cBasicObject, rb_mKernel);
-#else
-    rb_include_module(rb_cObject, rb_mKernel);
-#endif
+    rb_include_module(rb_cNSObject, rb_mKernel);
     rb_define_private_method(rb_cClass, "inherited", rb_obj_dummy, 1);
     rb_define_private_method(rb_cModule, "included", rb_obj_dummy, 1);
     rb_define_private_method(rb_cModule, "extended", rb_obj_dummy, 1);
@@ -2496,10 +2493,8 @@ Init_Object(void)
     rb_define_method(rb_mKernel, "!~", rb_obj_not_match, 1);
     rb_define_method(rb_mKernel, "eql?", rb_obj_equal, 1);
 
-    rb_define_method(rb_mKernel, "class", rb_obj_class, 0);
-    rb_define_method(rb_mKernel, "clone", rb_obj_clone, 0);
-    rb_define_method(rb_mKernel, "dup", rb_obj_dup, 0);
-    rb_define_method(rb_mKernel, "initialize_copy", rb_obj_init_copy, 1);
+    rb_define_method(rb_cNSObject, "clone", rb_obj_clone, 0);
+    rb_define_method(rb_cNSObject, "dup", rb_nsobj_dup, 0);
 
     rb_define_method(rb_mKernel, "taint", rb_obj_taint, 0);
     rb_define_method(rb_mKernel, "tainted?", rb_obj_tainted, 0);
@@ -2526,9 +2521,7 @@ Init_Object(void)
     rb_define_method(rb_mKernel, "is_a?", rb_obj_is_kind_of, 1);
     rb_define_method(rb_mKernel, "tap", rb_obj_tap, 0);
 
-#if WITH_OBJC
-    rb_define_method(rb_mKernel, "__pure__?", rb_obj_is_pure, 0);
-#endif
+    rb_define_method(rb_mKernel, "__native__?", rb_obj_is_native, 0);
 
     rb_define_global_function("sprintf", rb_f_sprintf, -1); /* in sprintf.c */
     rb_define_global_function("format", rb_f_sprintf, -1);  /* in sprintf.c */
@@ -2568,10 +2561,8 @@ Init_Object(void)
     rb_define_method(rb_cModule, "include?", rb_mod_include_p, 1); /* in class.c */
     rb_define_method(rb_cModule, "name", rb_mod_name, 0);  /* in variable.c */
     rb_define_method(rb_cModule, "ancestors", rb_mod_ancestors, 0); /* in class.c */
-#if WITH_OBJC
-    rb_define_method(rb_cModule, "objc_ancestors", rb_mod_objc_ancestors, 0); /* in objc.m */
     rb_define_private_method(rb_cModule, "ib_outlet", rb_mod_objc_ib_outlet, -1); /* in objc.m */
-#endif
+    rb_define_method(rb_cClass, "__meta__?", rb_class_is_meta, 0);
 
     rb_define_private_method(rb_cModule, "attr", rb_mod_attr, -1);
     rb_define_private_method(rb_cModule, "attr_reader", rb_mod_attr_reader, -1);
@@ -2579,7 +2570,6 @@ Init_Object(void)
     rb_define_private_method(rb_cModule, "attr_accessor", rb_mod_attr_accessor, -1);
 
     rb_define_alloc_func(rb_cModule, rb_module_s_alloc);
-    rb_define_method(rb_cModule, "initialize", rb_mod_initialize, 0);
     rb_define_method(rb_cModule, "instance_methods", rb_class_instance_methods, -1); /* in class.c */
     rb_define_method(rb_cModule, "public_instance_methods", 
 		     rb_class_public_instance_methods, -1);    /* in class.c */
@@ -2606,9 +2596,7 @@ Init_Object(void)
 
     rb_define_method(rb_cClass, "allocate", rb_obj_alloc, 0);
     rb_define_method(rb_cClass, "new", rb_class_new_instance, -1);
-    rb_define_method(rb_cClass, "initialize", rb_class_initialize, -1);
     rb_define_method(rb_cClass, "initialize_copy", rb_class_init_copy, 1); /* in class.c */
-    rb_define_method(rb_cClass, "superclass", rb_class_superclass, 0);
     rb_define_alloc_func(rb_cClass, rb_class_s_alloc);
     rb_undef_method(rb_cClass, "extend_object");
     rb_undef_method(rb_cClass, "append_features");

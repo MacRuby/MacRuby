@@ -212,7 +212,7 @@ rubylib_mangled_path(const char *s, unsigned int l)
 	return rb_str_new(s, l);
     }
     ret = rb_str_new(0, l + newl - oldl);
-    ptr = RSTRING_PTR(ret); /* ok */
+    ptr = RSTRING_BYTEPTR(ret); /* ok */
     memcpy(ptr, newp, newl);
     memcpy(ptr + newl, s + oldl, l - oldl);
     ptr[l + newl - oldl] = 0;
@@ -267,11 +267,11 @@ push_include_cygwin(const char *path, VALUE (*filter)(VALUE))
 	if (*s) {
 	    if (!buf) {
 		buf = rb_str_new(p, len);
-		p = RSTRING_CPTR(buf);
+		p = RSTRING_PTR(buf);
 	    }
 	    else {
 		rb_str_resize(buf, len);
-		p = strncpy(RSTRING_PTR(buf), p, len); /* ok */
+		p = strncpy(RSTRING_BYTEPTR(buf), p, len); /* ok */
 		RSTRING_SYNC(buf);
 	    }
 	}
@@ -309,7 +309,7 @@ ruby_incpush(const char *path)
 static VALUE
 expand_include_path(VALUE path)
 {
-    const char *p = RSTRING_CPTR(path);
+    const char *p = RSTRING_PTR(path);
     if (!p)
 	return path;
     if (*p == '.' && p[1] == '/')
@@ -951,14 +951,14 @@ opt_enc_find(VALUE enc_name)
     rb_encoding *enc = rb_enc_find2(enc_name);
     if (enc == NULL)
 	rb_raise(rb_eRuntimeError, "unknown encoding name - %s", 
-	    RSTRING_CPTR(enc_name));
+	    RSTRING_PTR(enc_name));
     return enc;
 }
 #else
 static int
 opt_enc_index(VALUE enc_name)
 {
-    const char *s = RSTRING_CPTR(enc_name);
+    const char *s = RSTRING_PTR(enc_name);
     int i = rb_enc_find_index(s);
 
     if (i < 0) {
@@ -1088,10 +1088,10 @@ process_options(VALUE arg)
 
     ruby_script(opt->script);
 #if defined DOSISH || defined __CYGWIN__
-    translate_char(RSTRING_CPTR(rb_progname), '\\', '/');
+    translate_char(RSTRING_PTR(rb_progname), '\\', '/');
 #endif
     opt->script_name = rb_str_new4(rb_progname);
-    opt->script = RSTRING_PTR(opt->script_name);
+    opt->script = RSTRING_BYTEPTR(opt->script_name);
     ruby_set_argv(argc, argv);
     process_sflag(opt);
 
@@ -1246,8 +1246,8 @@ load_file(VALUE parser, const char *fname, int script, struct cmdline_options *o
 	    opt->xflag = Qfalse;
 	    while (!NIL_P(line = rb_io_gets(f))) {
 		line_start++;
-		const char *lineptr = RSTRING_CPTR(line);
-		if (RSTRING_CLEN(line) > 2
+		const char *lineptr = RSTRING_PTR(line);
+		if (RSTRING_LEN(line) > 2
 		    && lineptr[0] == '#'
 		    && lineptr[1] == '!') {
 		    if ((p = strstr(lineptr, "ruby")) != 0) {
@@ -1266,13 +1266,13 @@ load_file(VALUE parser, const char *fname, int script, struct cmdline_options *o
 		if (NIL_P(line))
 		    return 0;
 
-		if ((p = strstr(RSTRING_CPTR(line), "ruby")) == 0) {
+		if ((p = strstr(RSTRING_PTR(line), "ruby")) == 0) {
 		    /* not ruby script, kick the program */
 		    char **argv;
 		    char *path;
-		    char *pend = RSTRING_PTR(line) + RSTRING_LEN(line);
+		    char *pend = RSTRING_BYTEPTR(line) + RSTRING_BYTELEN(line);
 
-		    p = RSTRING_PTR(line);	/* skip `#!' */
+		    p = RSTRING_BYTEPTR(line);	/* skip `#!' */
 		    if (pend[-1] == '\n')
 			pend--;	/* chomp line */
 		    if (pend[-1] == '\r')
@@ -1300,9 +1300,9 @@ load_file(VALUE parser, const char *fname, int script, struct cmdline_options *o
 
 	      start_read:
 		p += 4;
-		RSTRING_PTR(line)[RSTRING_LEN(line) - 1] = '\0';
-		if (RSTRING_PTR(line)[RSTRING_LEN(line) - 2] == '\r')
-		    RSTRING_PTR(line)[RSTRING_LEN(line) - 2] = '\0';
+		RSTRING_BYTEPTR(line)[RSTRING_BYTELEN(line) - 1] = '\0';
+		if (RSTRING_BYTEPTR(line)[RSTRING_BYTELEN(line) - 2] == '\r')
+		    RSTRING_BYTEPTR(line)[RSTRING_BYTELEN(line) - 2] = '\0';
 		if ((p = strstr(p, " -")) != 0) {
 		    p++;	/* skip space before `-' */
 		    while (*p == '-') {
@@ -1435,8 +1435,8 @@ set_arg0(VALUE val, ID id)
     if (origarg.argv == 0)
 	rb_raise(rb_eRuntimeError, "$0 not initialized");
     StringValue(val);
-    s = RSTRING_CPTR(val);
-    i = RSTRING_CLEN(val);
+    s = RSTRING_PTR(val);
+    i = RSTRING_LEN(val);
 #if defined(PSTAT_SETCMD)
     if (i > PST_CLEN) {
 	union pstun un;

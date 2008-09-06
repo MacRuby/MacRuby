@@ -272,6 +272,7 @@ struct rb_iseq_struct {
     /* klass/module nest information stack (cref) */
     NODE *cref_stack;
     VALUE klass;
+    VALUE previous_sklass;	/* for super in included modules */
 
     /* misc */
     ID defined_method_id;	/* for define_method */
@@ -542,6 +543,36 @@ typedef struct {
 #define ic_value  u2.value
 #define ic_vmstat u3.cnt
 typedef NODE *IC;
+
+#if WITH_OBJC
+# include "bs.h"
+# include "objc.h"
+struct rb_method_cache {
+    unsigned int flags;
+#define RB_MCACHE_RCALL_FLAG		0x10
+#define RB_MCACHE_OCALL_FLAG		0x20
+#define RB_MCACHE_CFUNC_FLAG		0x40
+#define RB_MCACHE_NOT_CFUNC_FLAG	0x100
+    union {
+	struct {
+	    SEL sel;
+	    VALUE klass;
+	    NODE *node;
+	} rcall;
+	struct {
+	    SEL sel;
+	    VALUE klass;
+	    IMP imp;
+	    struct rb_objc_method_sig sig;
+	    bs_element_method_t *bs_method;
+	} ocall;
+	struct {
+	    bs_element_function_t *bs_func;
+	    void *sym;
+	} cfunc;
+    } as;
+};
+#endif
 
 void rb_vm_change_state(void);
 

@@ -312,11 +312,9 @@ thread_start_func_2(rb_thread_t *th, VALUE *stack_start, VALUE *register_stack_s
     rb_thread_t *main_th;
     VALUE errinfo = Qnil;
 
-#if !WITH_OBJC
     th->machine_stack_start = stack_start;
 #ifdef __ia64
     th->machine_register_stack_start = register_stack_start;
-#endif
 #endif
     thread_debug("thread start: %p\n", th);
 
@@ -456,7 +454,7 @@ thread_initialize(VALUE thread, VALUE args)
         if (!proc || !RTEST(loc = rb_proc_location(proc))) {
             rb_raise(rb_eThreadError, "already initialized thread");
         }
-	file = RSTRING_CPTR(RARRAY_AT(loc, 0));
+	file = RSTRING_PTR(RARRAY_AT(loc, 0));
 	if (NIL_P(line = RARRAY_AT(loc, 1))) {
 	    rb_raise(rb_eThreadError, "already initialized thread - %s",
 		     file);
@@ -1991,12 +1989,10 @@ rb_gc_set_stack_end(VALUE **stack_end_p)
 void
 rb_gc_save_machine_context(rb_thread_t *th)
 {
-#if !WITH_OBJC
     SET_MACHINE_STACK_END(&th->machine_stack_end);
     FLUSH_REGISTER_WINDOWS;
 #ifdef __ia64
     th->machine_register_stack_end = rb_ia64_bsp();
-#endif
 #endif
     setjmp(th->machine_regs);
 }
@@ -3102,7 +3098,7 @@ call_trace_proc(VALUE args, int tracing)
 	if (TYPE(klass) == T_ICLASS) {
 	    klass = RBASIC(klass)->klass;
 	}
-	else if (FL_TEST(klass, FL_SINGLETON)) {
+	else if (RCLASS_SINGLETON(klass)) {
 	    klass = rb_iv_get(klass, "__attached__");
 	}
     }
