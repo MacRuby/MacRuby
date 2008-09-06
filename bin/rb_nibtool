@@ -29,14 +29,14 @@ class NibPlistGenerator < Ripper::Filter
           else _file
         end
       end
-      opts.on('-h', '--help', 'Print this message') { fail opts }
+      opts.on('-h', '--help', 'Print this message') { opt_error opts }
       begin
         opts.parse!(argv)
       rescue OptionParser::InvalidOption => e
         puts e
-        fail opts
+        opt_error opts
       end
-      fail opts if file.nil?
+      opt_error opts if file.nil?
     end
 
     o = super(File.read(file)); o.parse(nil); o
@@ -61,7 +61,7 @@ class NibPlistGenerator < Ripper::Filter
 
   private
 
-  def fail(opts); puts opts; exit 1; end
+  def self.opt_error(opts); puts opts; exit 1; end
 
   class IBClass
     attr_accessor :name, :super, :outlets, :actions
@@ -83,6 +83,7 @@ class NibPlistGenerator < Ripper::Filter
     if event == :on_kw
       if token == 'class'
         @def_class = true
+
       elsif token == 'def'
         @def_method = true
       end
@@ -91,7 +92,12 @@ class NibPlistGenerator < Ripper::Filter
       if @def_class
         @def_class = nil
         @waiting_for_superclass = @token_n
-        (@ib_classes ||= []) << @current_class = IBClass.new(token)
+        @ib_classes ||= []
+        if k = @ib_classes.find { |x| x.name == token }
+          @current_class = k
+        else
+ 	  @ib_classes << @current_class = IBClass.new(token)
+        end
 
       elsif @waiting_for_superclass
         raise "current_class undefined" unless @current_class
@@ -100,13 +106,23 @@ class NibPlistGenerator < Ripper::Filter
 
     elsif event == :on_ident
       if token == 'attr_accessor' or token == 'attr_writer' \
-      or token == 'ib_outlet' or token == 'ib_outlets'
+      or token == 'ib_outlet' or token == 'ib_outlets' \
+      or token == 'ns_outlet' or token == 'ns_outlets'
         @waiting_for_outlet = @token_n
+
+      elsif token == 'ib_action'
+        @waiting_for_action = @token_n
 
       elsif @waiting_for_outlet
         raise "current_class undefined" unless @current_class
-        @current_class.outlets << token
+        ary = @current_class.outlets
+        ary << token unless ary.include?(token)
         @waiting_for_outlet += 1 # maybe another outlet is coming...
+
+      elsif @waiting_for_action
+        raise "current_class undefined" unless @current_class
+        ary = @current_class.actions
+        ary << token unless ary.include?(token)
 
       elsif @def_method
         @def_method = nil
@@ -133,18 +149,36 @@ class NibPlistGenerator < Ripper::Filter
       end
     end
 
+    if @waiting_for_action and @token_n != @waiting_for_action
+      if (event == :on_symbeg and token == ':')
+        @waiting_for_action += 1
+      else
+        @waiting_for_action = nil
+      end
+    end
+
     if @waiting_for_method_end and @token_n != @waiting_for_method_end
       if event == :on_lparen
         @on_def_method_paren += 1
         @waiting_for_method_end += 1
+
       elsif event == :on_rparen
 	@on_def_method_paren -= 1
         @waiting_for_method_end += 1
+
       elsif event == :on_ident and token == 'sender'
         @waiting_for_method_end += 1
-      elsif event == :on_nl or event == :on_ignored_nl \
-      or event == :on_semicolon or event == :on_comment
-        @current_class.actions << @current_method
+        @has_sender_arg = true
+
+      elsif @on_def_method_paren == 0 \
+      and @has_sender_arg \
+      and (event == :on_nl or event == :on_ignored_nl \
+           or event == :on_semicolon or event == :on_comment)
+        ary = @current_class.actions
+        ary << @current_method unless ary.include?(@current_method)
+        @waiting_for_method_end = nil
+	@has_sender_arg = nil
+
       else
         @waiting_for_method_end = nil
       end
