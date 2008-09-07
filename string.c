@@ -4984,6 +4984,22 @@ sym_equal(VALUE sym1, VALUE sym2)
     return Qfalse;
 }
 
+static VALUE
+sym_cmp(VALUE sym1, VALUE sym2)
+{
+    int code;
+
+    if (CLASS_OF(sym2) != rb_cSymbol)
+	return Qnil;
+    code = strcmp(RSYMBOL(sym1)->str, RSYMBOL(sym2)->str);
+    if (code > 0) {
+	code = 1;
+    }
+    else if (code < 0) {
+	code = -1;
+    }
+    return INT2FIX(code);
+}
 
 /*
  *  call-seq:
@@ -5411,6 +5427,7 @@ Init_String(void)
     rb_define_singleton_method(rb_cSymbol, "all_symbols", rb_sym_all_symbols, 0); /* in parse.y */
 
     rb_define_method(rb_cSymbol, "==", sym_equal, 1);
+    rb_define_method(rb_cSymbol, "<=>", sym_cmp, 1);
     rb_define_method(rb_cSymbol, "inspect", sym_inspect, 0);
     rb_define_method(rb_cSymbol, "description", sym_inspect, 0);
     rb_define_method(rb_cSymbol, "dup", rb_obj_dup, 0);
