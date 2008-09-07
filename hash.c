@@ -37,7 +37,13 @@ static ID id_hash, id_yield, id_default;
 VALUE
 rb_hash(VALUE obj)
 {
-    return rb_funcall(obj, id_hash, 0);
+    VALUE v = rb_funcall(obj, id_hash, 0);
+    if (TYPE(v) == T_BIGNUM) {
+	unsigned long l = NUM2ULONG(v);
+	l /= 2.0;
+	v = ULONG2NUM(l);
+    }
+    return v;
 }
 
 typedef int st_foreach_func(st_data_t, st_data_t, st_data_t);
