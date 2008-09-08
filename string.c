@@ -413,6 +413,8 @@ rb_str_dup(VALUE str)
 
     CFMakeCollectable((CFTypeRef)dup);
 
+    rb_gc_malloc_increase(32 + (sizeof(UniChar) * RSTRING_LEN(dup)));
+
     return dup;
 }
 
@@ -822,6 +824,7 @@ rb_objc_str_cat(VALUE str, const char *ptr, long len, int cfstring_encoding)
     data = (CFMutableDataRef)rb_str_cfdata2(str);
     if (data != NULL) {
 	CFDataAppendBytes(data, (const UInt8 *)ptr, len);
+	rb_gc_malloc_increase(sizeof(UniChar) * len);
     }
     else {
 	long slen;
