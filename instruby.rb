@@ -527,9 +527,11 @@ else
     end
   end
   Dir.glob('/System/Library/Frameworks/**/BridgeSupport/*.dylib').each do |p|
-    unless system("./markgc '#{p}' >& /dev/null")
-      $stderr.puts "cannot markgc #{p}"
-      exit 1
+    unless File.exist?(touch_file)
+      unless system("./markgc '#{p}' >& /dev/null")
+        $stderr.puts "cannot markgc #{p}"
+        exit 1
+      end
     end
     unless $destdir.empty?
       dirname = File.dirname(p)
