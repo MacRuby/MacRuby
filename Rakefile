@@ -21,7 +21,7 @@ FRAMEWORK_INSTDIR = do_option('framework_instdir', '/Library/Frameworks')
 NO_WARN_BUILD = !do_option('allow_build_warnings', false)
 BUILD_AS_EMBEDDABLE = do_option('build_as_embeddable', false)
 ENABLE_STATIC_LIBRARY = do_option('enable_static_library', 'no') { 'yes' }
-ENABLE_DEBUG_LOGGING = do_option('enable_debug_logging', true)
+ENABLE_DEBUG_LOGGING = do_option('enable_debug_logging', true) { |x| x == 'true' }
 
 # TODO: we should find a way to document these options in rake's --help
 
