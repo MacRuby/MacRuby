@@ -29,8 +29,8 @@ int   ruby_debug_print_indent(int level, int debug_level, int indent_level);
 void  ruby_debug_breakpoint(void);
 void  ruby_debug_gc_check_func(void);
 
+#include "vm_core.h"
 #if ENABLE_DEBUG_LOGGING 
-# include "vm_core.h"
 # include <libgen.h>
 extern bool ruby_dlog_enabled;
 extern FILE *ruby_dlog_file;
