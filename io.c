@@ -711,9 +711,8 @@ io_fwrite(VALUE str, rb_io_t *fptr)
 	}
     }
 
-    len = RSTRING_BYTELEN(str);
+    len = RSTRING_LEN(str);
     if ((n = len) <= 0) {
-	RSTRING_SYNC(str);
 	return n;
     }
     if (fptr->wbuf == NULL && !(fptr->mode & FMODE_SYNC)) {
@@ -730,16 +729,14 @@ io_fwrite(VALUE str, rb_io_t *fptr)
                 MEMMOVE(fptr->wbuf, fptr->wbuf+fptr->wbuf_off, char, fptr->wbuf_len);
                 fptr->wbuf_off = 0;
             }
-            MEMMOVE(fptr->wbuf+fptr->wbuf_off+fptr->wbuf_len, RSTRING_BYTEPTR(str)+offset, char, len);
+            MEMMOVE(fptr->wbuf+fptr->wbuf_off+fptr->wbuf_len, RSTRING_PTR(str)+offset, char, len);
             fptr->wbuf_len += len;
             n = 0;
         }
         if (io_fflush(fptr) < 0) {
-	    RSTRING_SYNC(str);
             return -1L;
 	}
         if (n == 0) {
-	    RSTRING_SYNC(str);
             return len;
 	}
         /* avoid context switch between "a" and "\n" in STDERR.puts "a".
@@ -755,10 +752,9 @@ io_fwrite(VALUE str, rb_io_t *fptr)
             wsplit_p(fptr)) {
             l = PIPE_BUF;
         }
-	r = rb_write_internal(fptr->fd, RSTRING_BYTEPTR(str)+offset, l);
+	r = rb_write_internal(fptr->fd, ((char *)RSTRING_PTR(str))+offset, l);
 	/* xxx: other threads may modify given string. */
         if (r == n) {
-	    RSTRING_SYNC(str);
 	    return len;
 	}
         if (0 <= r) {
@@ -768,10 +764,9 @@ io_fwrite(VALUE str, rb_io_t *fptr)
         }
         if (rb_io_wait_writable(fptr->fd)) {
             rb_io_check_closed(fptr);
-	    if (offset < RSTRING_BYTELEN(str))
+	    if (offset < RSTRING_LEN(str))
 		goto retry;
         }
-	RSTRING_SYNC(str);
         return -1L;
     }
 
@@ -780,9 +775,8 @@ io_fwrite(VALUE str, rb_io_t *fptr)
             MEMMOVE(fptr->wbuf, fptr->wbuf+fptr->wbuf_off, char, fptr->wbuf_len);
         fptr->wbuf_off = 0;
     }
-    MEMMOVE(fptr->wbuf+fptr->wbuf_off+fptr->wbuf_len, RSTRING_BYTEPTR(str)+offset, char, len);
+    MEMMOVE(fptr->wbuf+fptr->wbuf_off+fptr->wbuf_len, RSTRING_PTR(str)+offset, char, len);
     fptr->wbuf_len += len;
-    RSTRING_SYNC(str);
     return len;
 }
 
@@ -4829,11 +4823,10 @@ rb_io_puts(int argc, VALUE *argv, VALUE out)
 	}
 	line = rb_obj_as_string(argv[i]);
 	rb_io_write(out, line);
-	if (RSTRING_BYTELEN(line) == 0 ||
-            RSTRING_BYTEPTR(line)[RSTRING_BYTELEN(line)-1] != '\n') {
+	if (RSTRING_LEN(line) == 0 ||
+            RSTRING_PTR(line)[RSTRING_LEN(line)-1] != '\n') {
 	    rb_io_write(out, rb_default_rs);
 	}
-	RSTRING_SYNC(line);
     }
 
     return Qnil;
