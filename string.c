@@ -5281,6 +5281,7 @@ void
 Init_String(void)
 {
     rb_cCFString = (VALUE)objc_getClass("NSCFString");
+    rb_const_set(rb_cObject, rb_intern("NSCFString"), rb_cCFString);
     rb_cString = rb_cNSString = (VALUE)objc_getClass("NSString");
     rb_cNSMutableString = (VALUE)objc_getClass("NSMutableString");
     rb_const_set(rb_cObject, rb_intern("String"), rb_cNSMutableString);

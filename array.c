@@ -3409,6 +3409,7 @@ void
 Init_Array(void)
 {
     rb_cCFArray = (VALUE)objc_getClass("NSCFArray");
+    rb_const_set(rb_cObject, rb_intern("NSCFArray"), rb_cCFArray);
     rb_cArray = rb_cNSArray = (VALUE)objc_getClass("NSArray");
     rb_cNSMutableArray = (VALUE)objc_getClass("NSMutableArray");
     rb_set_class_path(rb_cNSMutableArray, rb_cObject, "NSMutableArray");
