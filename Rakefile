@@ -181,7 +181,7 @@ class Builder
     txt = File.read(src)
     txt.scan(/#include\s+\"([^"]+)\"/).flatten.each do |header|
       p = header_path(header)
-      if p
+      if p and !cont.include?(p)
         cont << p
         locate_headers(cont, p)
       end
