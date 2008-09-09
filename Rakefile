@@ -399,7 +399,7 @@ module RbConfig
   CONFIG["optflags"] = "-O2"
   CONFIG["debugflags"] = "-g"
   CONFIG["warnflags"] = "-Wall -Wno-parentheses"
-  CONFIG["LIBRUBY_LDSHARED"] = "cc -dynamiclib -undefined suppress -flat_namespace"
+  CONFIG["LIBRUBY_LDSHARED"] = "gcc -dynamiclib -undefined suppress -flat_namespace"
   CONFIG["LIBRUBY_DLDFLAGS"] = "-install_name $(libdir)/lib$(RUBY_SO_NAME).dylib -current_version $(MAJOR).$(MINOR).$(TEENY) -compatibility_version $(MAJOR).$(MINOR)"
   CONFIG["rubyw_install_name"] = ""
   CONFIG["RUBYW_INSTALL_NAME"] = ""
