@@ -1499,6 +1499,12 @@ rb_obj_alloc(VALUE klass)
 	rb_raise(rb_eTypeError, "can't create instance of singleton class");
     }
     obj = rb_funcall(klass, ID_ALLOCATOR, 0, 0);
+
+    bool rb_objc_is_placeholder(void *obj);
+    if (rb_objc_is_placeholder((void *)obj)) {
+	obj = (VALUE)objc_msgSend((void *)obj, selInit);
+    }
+
     return obj;
 }
 
@@ -2531,6 +2537,8 @@ Init_Object(void)
 
     rb_define_global_function("String", rb_f_string, 1);
     rb_define_global_function("Array", rb_f_array, 1);
+
+    rb_const_set(rb_cObject, rb_intern("NSNull"), (VALUE)objc_getClass("NSNull"));
 
     rb_cNilClass = rb_define_class("NilClass", rb_cObject);
     rb_define_method(rb_cNilClass, "to_i", nil_to_i, 0);
