@@ -512,7 +512,7 @@ end
 puts "installing IB support"
 ib_dest = '/Developer/usr/bin'
 mkdir_p ib_dest
-install('bin/rb_nibtool', ib_dest, :mode => $prog_mode)
+ln_sfh File.join("../../..", CONFIG['bindir'], 'rb_nibtool'), ib_dest
 install('tool/rb_nibtool.old', ib_dest, :mode => $prog_mode)
 
 touch_file = '/System/Library/Frameworks/.bridgesupport_dylib_gcmarked'
