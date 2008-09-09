@@ -536,7 +536,18 @@ w_ivar(VALUE obj, st_table *tbl, struct dump_call_arg *arg)
 static void
 w_objivar(VALUE obj, struct dump_call_arg *arg)
 {
-#if !WITH_OBJC /* TODO */
+#if WITH_OBJC
+    VALUE ary = rb_obj_instance_variables(obj);
+    int i, len = RARRAY_LEN(ary);
+
+    w_encoding(obj, len, arg);
+
+    for (i = 0; i < len; i++) {
+	ID var_id = SYM2ID(RARRAY_AT(ary, i));
+	VALUE var_val = rb_ivar_get(obj, var_id);
+	w_obj_each(var_id, var_val, arg);
+    }
+#else
     VALUE *ptr;
     long i, len, num;
 
@@ -1243,8 +1254,6 @@ r_object0(struct load_arg *arg, int *ivp, VALUE extmod)
     int type = r_byte(arg);
     long id;
 
-printf("type %c %d\n",(char)type,type);
-
     switch (type) {
       case TYPE_LINK:
 	id = r_long(arg);
@@ -1616,7 +1625,6 @@ format_error:
 	rb_raise(rb_eArgError, "dump format error(0x%x)", type);
 	break;
     }
-printf("r_object0 -> %p (%s)\n", (void*)v, RSTRING_PTR(rb_inspect(v)));
     return v;
 }
 
