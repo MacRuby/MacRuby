@@ -5246,7 +5246,7 @@ imp_rb_symbol_getCharactersRange(void *rcv, SEL sel, UniChar *buffer,
     if (range.location + range.length > RSYMBOL(rcv)->len)
 	rb_bug("[Symbol getCharacters:range:] out of bounds");
 
-    for (i = range.location; i < range.length; i++) {
+    for (i = range.location; i < range.location + range.length; i++) {
 	*buffer = RSYMBOL(rcv)->str[i];
 	buffer++;
     }
