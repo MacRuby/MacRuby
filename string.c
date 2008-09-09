@@ -127,9 +127,11 @@ rb_str_bytesync(VALUE str)
 		kCFAllocatorNull);
 	rb_gc_malloc_increase(datalen);
 	if (bytestr != NULL) {
-	    CFStringReplaceAll((CFMutableStringRef)str, (CFStringRef)bytestr);
+	    if (CFStringGetLength(bytestr) == datalen) {
+		CFStringReplaceAll((CFMutableStringRef)str, (CFStringRef)bytestr);
+		rb_str_cfdata_set(str, NULL);
+	    }
 	    CFRelease(bytestr);
-	    rb_str_cfdata_set(str, NULL);
 	}
     }
 }

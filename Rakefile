@@ -608,7 +608,7 @@ desc "Same as framework:install"
 task :install => 'framework:install'
 
 desc "Generate and install RDoc/RI"
-task :install_doc => 'miniruby' do
+task :install_doc do
   doc_op = '.ext/rdoc'
   unless File.exist?(doc_op)
     sh "./miniruby -I./lib bin/rdoc --all --ri --op \"#{doc_op}\""
