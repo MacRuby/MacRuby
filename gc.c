@@ -687,18 +687,21 @@ ruby_init_stack(VALUE *addr
  *
  */
 
-static bool
+bool
 rb_objc_is_placeholder(void *obj)
 {
+    static void *placeholder_str = NULL;
     static void *placeholder_dict = NULL;
     static void *placeholder_ary = NULL;
     void *obj_klass;
+    if (placeholder_str == NULL)
+	placeholder_str = objc_getClass("NSPlaceholderMutableString");
     if (placeholder_dict == NULL)
 	placeholder_dict = objc_getClass("__NSPlaceholderDictionary");
     if (placeholder_ary == NULL)
 	placeholder_ary = objc_getClass("__NSPlaceholderArray");
     obj_klass = *(void **)obj;
-    return obj_klass == placeholder_dict || obj_klass == placeholder_ary;
+    return obj_klass == placeholder_str || obj_klass == placeholder_dict || obj_klass == placeholder_ary;
 }
 
 struct rb_objc_recorder_context {

@@ -413,6 +413,8 @@ rb_str_dup(VALUE str)
 
     CFMakeCollectable((CFTypeRef)dup);
 
+    rb_gc_malloc_increase(32 + (sizeof(UniChar) * RSTRING_LEN(dup)));
+
     return dup;
 }
 
@@ -822,6 +824,7 @@ rb_objc_str_cat(VALUE str, const char *ptr, long len, int cfstring_encoding)
     data = (CFMutableDataRef)rb_str_cfdata2(str);
     if (data != NULL) {
 	CFDataAppendBytes(data, (const UInt8 *)ptr, len);
+	rb_gc_malloc_increase(sizeof(UniChar) * len);
     }
     else {
 	long slen;
@@ -5243,7 +5246,7 @@ imp_rb_symbol_getCharactersRange(void *rcv, SEL sel, UniChar *buffer,
     if (range.location + range.length > RSYMBOL(rcv)->len)
 	rb_bug("[Symbol getCharacters:range:] out of bounds");
 
-    for (i = range.location; i < range.length; i++) {
+    for (i = range.location; i < range.location + range.length; i++) {
 	*buffer = RSYMBOL(rcv)->str[i];
 	buffer++;
     }
@@ -5278,6 +5281,7 @@ void
 Init_String(void)
 {
     rb_cCFString = (VALUE)objc_getClass("NSCFString");
+    rb_const_set(rb_cObject, rb_intern("NSCFString"), rb_cCFString);
     rb_cString = rb_cNSString = (VALUE)objc_getClass("NSString");
     rb_cNSMutableString = (VALUE)objc_getClass("NSMutableString");
     rb_const_set(rb_cObject, rb_intern("String"), rb_cNSMutableString);

@@ -2384,6 +2384,7 @@ Init_Hash(void)
     id_default = rb_intern("default");
 
     rb_cCFHash = (VALUE)objc_getClass("NSCFDictionary");
+    rb_const_set(rb_cObject, rb_intern("NSCFDictionary"), rb_cCFHash);
     rb_cHash = rb_cNSHash = (VALUE)objc_getClass("NSDictionary");
     rb_cNSMutableHash = (VALUE)objc_getClass("NSMutableDictionary");
     rb_set_class_path(rb_cNSMutableHash, rb_cObject, "NSMutableDictionary");

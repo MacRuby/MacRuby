@@ -1115,6 +1115,18 @@ syck_resolver_transfer(VALUE self, VALUE type, VALUE val)
          *         scheme);
          */
 
+#if WITH_OBJC
+	if (subclass == rb_cCFString) {
+	    subclass = rb_cNSMutableString;
+	}
+	else if (subclass == rb_cCFHash) {
+	    subclass = rb_cNSMutableHash;
+	}
+	else if (subclass == rb_cCFArray) {
+	    subclass = rb_cNSMutableArray;
+	}
+#endif
+
         if ( rb_respond_to( target_class, s_call ) )
         {
             obj = rb_funcall( target_class, s_call, 2, type, val );
