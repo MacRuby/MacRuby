@@ -1,6 +1,6 @@
 HotCocoa::Mappings.map :window => :NSWindow do
     
-  defaults  :style => [:titled, :closable, :miniturizable, :resizable],
+  defaults  :style => [:titled, :closable, :miniaturizable, :resizable],
             :backing => :buffered, 
             :defer => true,
             :show => true,
@@ -13,7 +13,7 @@ HotCocoa::Mappings.map :window => :NSWindow do
     :borderless         => NSBorderlessWindowMask, 
     :titled             => NSTitledWindowMask, 
     :closable           => NSClosableWindowMask, 
-    :miniturizable      => NSMiniaturizableWindowMask, 
+    :miniaturizable     => NSMiniaturizableWindowMask, 
     :resizable          => NSResizableWindowMask,
     :textured           => NSTexturedBackgroundWindowMask
   }
