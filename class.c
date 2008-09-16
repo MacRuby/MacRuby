@@ -64,10 +64,15 @@ rb_class_allocate_instance(VALUE klass)
 static BOOL
 rb_obj_imp_isEqual(void *rcv, SEL sel, void *obj)
 {
-    if (*(Class *)rcv == (Class)rb_cFixnum && *(Class *)obj == (Class)rb_cFixnum) {
+    if (obj == NULL)
+	return false;
+
+    if (*(Class *)rcv == (Class)rb_cFixnum 
+	&& *(Class *)obj == (Class)rb_cFixnum) {
 	/* XXX check if Numeric#== is not overriden */
 	return RFIXNUM(rcv)->value == RFIXNUM(obj)->value;
     }
+
     return rb_funcall((VALUE)rcv, idEq, 1, OC2RB(obj)) == Qtrue;
 }
 
