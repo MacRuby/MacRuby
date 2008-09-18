@@ -2,8 +2,8 @@ HotCocoa::Mappings.map :toolbar_item => :NSToolbarItem do
 
   def init_with_options(toolbar_item, options)
     identifier = options.delete(:identifier)
+    label = options[:label]
     unless identifier
-      label = options[:label]
       if label
         identifier = label.tr(' ', '_')
       else
@@ -11,6 +11,10 @@ HotCocoa::Mappings.map :toolbar_item => :NSToolbarItem do
       end
     end
     toolbar_item.initWithItemIdentifier identifier
+    if label
+      toolbar_item.paletteLabel = label
+    end
+    toolbar_item
   end
 
   custom_methods do
