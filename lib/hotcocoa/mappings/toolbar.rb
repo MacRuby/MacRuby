@@ -1,10 +1,24 @@
 HotCocoa::Mappings.map :toolbar => :NSToolbar do
 
+  constant :size, {
+    :default => NSToolbarSizeModeDefault,
+    :regular => NSToolbarSizeModeRegular,
+    :small => NSToolbarSizeModeSmall
+  }
+
+  constant :display, {
+    :default => NSToolbarDisplayModeDefault,
+    :icon_and_label => NSToolbarDisplayModeIconAndLabel,
+    :icon => NSToolbarDisplayModeIconOnly,
+    :label => NSToolbarDisplayModeLabelOnly
+  }
+
   defaults :identifier => 'DefaultToolbarIdentifier',
            :allowed => [:separator, :space, :flexible_space, :show_colors,
                         :show_fonts, :customize, :print],
            :default => [],
-           :allow_customization => true
+           :allow_customization => true,
+           :size => :default
 
   def init_with_options(toolbar, options)
     toolbar.initWithIdentifier options.delete(:identifier)
@@ -54,6 +68,18 @@ HotCocoa::Mappings.map :toolbar => :NSToolbar do
     toolbar.delegate = o
     toolbar.allowsUserCustomization = options.delete(:allow_customization)
     toolbar
+  end
+
+  custom_methods do
+
+    def size=(mode)
+      setSizeMode(mode)
+    end
+
+    def display=(mode)
+      setDisplayMode(mode)
+    end
+
   end
 
 end
