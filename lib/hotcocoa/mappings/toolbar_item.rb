@@ -13,7 +13,7 @@ HotCocoa::Mappings.map :toolbar_item => :NSToolbarItem do
     if !options.has_key?(:label) && !options.has_key?(:identifier)
       raise ArgumentError, ":identifier or :label required" 
     end
-    label = options.delete(:label)
+    label = options[:label]
     toolbar_item.initWithItemIdentifier(options.delete(:identifier) || label.tr(' ', '_'))
     toolbar_item.paletteLabel = label if label
     toolbar_item
