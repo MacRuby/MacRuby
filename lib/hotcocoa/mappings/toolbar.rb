@@ -1,16 +1,16 @@
 HotCocoa::Mappings.map :toolbar => :NSToolbar do
 
   constant :size, {
-    :default => NSToolbarSizeModeDefault,
-    :regular => NSToolbarSizeModeRegular,
-    :small => NSToolbarSizeModeSmall
+    :default  => NSToolbarSizeModeDefault,
+    :regular  => NSToolbarSizeModeRegular,
+    :small    => NSToolbarSizeModeSmall
   }
 
   constant :display, {
-    :default => NSToolbarDisplayModeDefault,
+    :default        => NSToolbarDisplayModeDefault,
     :icon_and_label => NSToolbarDisplayModeIconAndLabel,
-    :icon => NSToolbarDisplayModeIconOnly,
-    :label => NSToolbarDisplayModeLabelOnly
+    :icon           => NSToolbarDisplayModeIconOnly,
+    :label          => NSToolbarDisplayModeLabelOnly
   }
 
   defaults :identifier => 'DefaultToolbarIdentifier',
@@ -21,55 +21,11 @@ HotCocoa::Mappings.map :toolbar => :NSToolbar do
            :size => :default
 
   def init_with_options(toolbar, options)
-    toolbar.initWithIdentifier options.delete(:identifier)
-
-    allowed = options.delete(:allowed).dup
-    default = options.delete(:default).dup
-
-    ary = default.select { |x| x.is_a?(NSToolbarItem) }
-    default -= ary
-    custom_items = {}
-    ary.each { |x| custom_items[x.itemIdentifier] = x } 
-    allowed.concat(custom_items.keys)
-    default.concat(custom_items.keys)
-
-    [allowed, default].each do |a|
-      a.map! do |i|
-        case i
-          when :separator
-            NSToolbarSeparatorItemIdentifier
-          when :space
-            NSToolbarSpaceItemIdentifier
-          when :flexible_space
-            NSToolbarFlexibleSpaceItemIdentifier
-          when :show_colors
-            NSToolbarShowColorsItemIdentifier
-          when :show_fonts
-            NSToolbarShowFontsItemIdentifier
-          when :customize
-            NSToolbarCustomizeToolbarItemIdentifier
-          when :print
-            NSToolbarPrintItemIdentifier
-          else
-            i
-        end
-      end 
-    end 
-    o = Object.new
-    o.instance_variable_set(:@allowed, allowed)
-    o.instance_variable_set(:@default, default)
-    o.instance_variable_set(:@custom_items, custom_items)
-    def o.toolbarAllowedItemIdentifiers(sender); @allowed; end
-    def o.toolbarDefaultItemIdentifiers(sender); @default; end
-    def o.toolbar(sender, itemForItemIdentifier:identifier, 
-                  willBeInsertedIntoToolbar:flag)
-      @custom_items[identifier]
-    end
-    toolbar.delegate = o
+    toolbar = toolbar.initWithIdentifier options.delete(:identifier)
     toolbar.allowsUserCustomization = options.delete(:allow_customization)
     toolbar
   end
-
+  
   custom_methods do
 
     def size=(mode)
@@ -79,7 +35,63 @@ HotCocoa::Mappings.map :toolbar => :NSToolbar do
     def display=(mode)
       setDisplayMode(mode)
     end
+    
+    def default=(list)
+      @default = list.dup
+      build_custom_items
+    end
+    
+    def allowed=(list)
+      @allowed = list.dup
+      build_custom_items
+    end
+    
+    private
+    
+      def build_custom_items
+        if @allowed && @default
+          ary = @default.select { |x| x.is_a?(NSToolbarItem) }
+          @default -= ary
+          @custom_items = {}
+          ary.each { |x| @custom_items[x.itemIdentifier] = x } 
+          @allowed.concat(@custom_items.keys)
+          @default.concat(@custom_items.keys)
 
+          [@allowed, @default].each do |a|
+            a.map! do |i|
+              case i
+                when :separator
+                  NSToolbarSeparatorItemIdentifier
+                when :space
+                  NSToolbarSpaceItemIdentifier
+                when :flexible_space
+                  NSToolbarFlexibleSpaceItemIdentifier
+                when :show_colors
+                  NSToolbarShowColorsItemIdentifier
+                when :show_fonts
+                  NSToolbarShowFontsItemIdentifier
+                when :customize
+                  NSToolbarCustomizeToolbarItemIdentifier
+                when :print
+                  NSToolbarPrintItemIdentifier
+                else
+                  i
+              end
+            end 
+          end
+          allowed_items { @allowed }
+          default_items { @default }
+          item_for_identifier { |identifier, will_be_inserted| @custom_items[identifier] }
+        end
+      end
+    
   end
+
+  delegating "toolbar:itemForItemIdentifier:willBeInsertedIntoToolbar:", :to => :item_for_identifier,         :parameters => [:itemForItemIdentifier, :willBeInsertedIntoToolbar], :required => true
+  delegating "toolbarAllowedItemIdentifiers:",                           :to => :allowed_items, :required => true
+  delegating "toolbarDefaultItemIdentifiers:",                           :to => :default_items, :required => true
+  delegating "toolbarSelectableItemIdentifiers:",                        :to => :selectable_items
+  delegating "toolbarDidRemoveItem:",                                    :to => :did_remove_item,             :parameters => ["toolbarDidRemoveItem.userInfo['item']"]
+  delegating "toolbarWillAddItem:",                                      :to => :will_add_item,               :parameters => ["toolbarWillAddItem.userInfo['item']"]
 
 end

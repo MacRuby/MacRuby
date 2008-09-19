@@ -1,24 +1,36 @@
 HotCocoa::Mappings.map :toolbar_item => :NSToolbarItem do
+  
+  defaults :priority => :standard
+  
+  constant :priority, {
+    :standard => NSToolbarItemVisibilityPriorityStandard,
+    :low      => NSToolbarItemVisibilityPriorityLow,
+    :high     => NSToolbarItemVisibilityPriorityHigh,
+    :user     => NSToolbarItemVisibilityPriorityUser
+  }
 
   def init_with_options(toolbar_item, options)
-    identifier = options.delete(:identifier)
-    label = options[:label]
-    unless identifier
-      if label
-        identifier = label.tr(' ', '_')
-      else
-        raise ArgumentError, ":identifier or :label required"
-      end
+    if !options.has_key?(:label) && !options.has_key?(:identifier)
+      raise ArgumentError, ":identifier or :label required" 
     end
-    toolbar_item.initWithItemIdentifier identifier
-    if label
-      toolbar_item.paletteLabel = label
-    end
+    label = options.delete(:label)
+    toolbar_item.initWithItemIdentifier(options.delete(:identifier) || label.tr(' ', '_'))
+    toolbar_item.paletteLabel = label if label
     toolbar_item
   end
 
   custom_methods do
+    
     include TargetActionConvenience
+    
+    def priority=(value)
+      setVisibilityPriority(value)
+    end
+    
+    def priority
+      visibilityPriority
+    end
+    
   end
 
 end
