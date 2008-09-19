@@ -3,10 +3,10 @@ module HotCocoa
   class NotificationListener
     
     DistributedBehaviors = {
-      :drop => NSNotificationSuspensionBehaviorDrop,
-      :coalese => NSNotificationSuspensionBehaviorCoalesce,
-      :hold => NSNotificationSuspensionBehaviorHold,
-      :deliver_immediately => NSNotificationSuspensionBehaviorDeliverImmediately
+      :drop                 => NSNotificationSuspensionBehaviorDrop,
+      :coalesce             => NSNotificationSuspensionBehaviorCoalesce,
+      :hold                 => NSNotificationSuspensionBehaviorHold,
+      :deliver_immediately  => NSNotificationSuspensionBehaviorDeliverImmediately
     }
     
     attr_reader :callback, :name, :sender, :suspension_behavior
@@ -14,7 +14,7 @@ module HotCocoa
     def initialize(options={}, &block)
       @callback = block
       @distributed = (options[:distributed] == true)
-      @suspension_behavior = DistributedBehaviors[options[:when_suspended] || :coalese]
+      @suspension_behavior = DistributedBehaviors[options[:when_suspended] || :coalesce]
       @name = options[:named]
       @sender = options[:sent_by]
       observe
