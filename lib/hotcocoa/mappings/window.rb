@@ -56,6 +56,11 @@ HotCocoa::Mappings.map :window => :NSWindow do
     def view=(view)
       setContentView(view)
     end
+
+    def on_notification(options={}, &block)
+      options[:sent_by] = self
+      NotificationListener.new(options, &block)
+    end
     
     def show
       display

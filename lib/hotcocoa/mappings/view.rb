@@ -44,6 +44,11 @@ HotCocoa::Mappings.map :view => :NSView do
       @layout
     end
 
+    def on_notification(options={}, &block)
+      options[:sent_by] = self
+      NotificationListener.new(options, &block)
+    end
+
     def remove(subview, options = {})
       raise ArgumentError, "#{subview} is not a subview of #{self} and cannot be removed." unless subview.superview == self
       options[:needs_display] == false ? subview.removeFromSuperviewWithoutNeedingDisplay : subview.removeFromSuperview

@@ -11,5 +11,5 @@ HotCocoa::Mappings.map :image => :NSImage do
       NSImage.alloc.init
     end
   end
-  
+
 end

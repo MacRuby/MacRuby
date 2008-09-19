@@ -1,9 +1,13 @@
 HotCocoa::Mappings.map :text_view => :NSTextView do
 
-  defaults :frame => [0,0,0,0]
-
+  defaults :layout => {}, :frame => DefaultEmptyRect
+  
   def init_with_options(text_view, options)
-    text_view.initWithFrame options.delete(:frame)
+    if options[:container]
+      text_view.initWithFrame options.delete(:frame), :textContainer => options.delete(:container)
+    else
+      text_view.initWithFrame options.delete(:frame)
+    end
   end
-
+  
 end
