@@ -121,12 +121,16 @@ module HotCocoa::Mappings
     def delegate_module_for_control_class
       return Mapper.delegate_modules[control_class] if Mapper.delegate_modules.has_key?(control_class)
       delegate_module = Module.new
+      required_methods = []
+      inherited_delegate_methods.each do |delegate_method, mapping|
+        required_methods << delegate_method if mapping[:required]
+      end
       inherited_delegate_methods.each do |delegate_method, mapping|
         parameters = mapping[:parameters] ? ", "+mapping[:parameters].map {|param| %{"#{param}"} }.join(",") : ""
         delegate_module.module_eval %{
           def #{mapping[:to]}(&block)
             raise "Must pass in a block to use this delegate method" unless block_given?
-            @_delegate_builder ||= HotCocoa::DelegateBuilder.new(self)
+            @_delegate_builder ||= HotCocoa::DelegateBuilder.new(self, #{required_methods.inspect})
             @_delegate_builder.add_delegated_method(block, "#{delegate_method}" #{parameters})
           end
         }

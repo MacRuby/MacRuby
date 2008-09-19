@@ -2,10 +2,11 @@ module HotCocoa
     
   class DelegateBuilder
     
-    attr_reader :control, :delegate, :method_count
+    attr_reader :control, :delegate, :method_count, :required_methods
     
-    def initialize(control)
+    def initialize(control, required_methods)
       @control = control
+      @required_methods = required_methods
       @method_count = 0
       @delegate = Object.new
     end
@@ -15,7 +16,7 @@ module HotCocoa
       increment_method_count
       bind_block_to_delegate_instance_variable(block)
       create_delegate_method(selector_name, parameters)
-      set_delegate
+      set_delegate if required_methods.empty?
     end
     
     private 
@@ -29,6 +30,7 @@ module HotCocoa
       end
       
       def create_delegate_method(selector_name, parameters)
+        required_methods.delete(selector_name)
         eval %{
           def delegate.#{parameterize_selector_name(selector_name)}
             #{block_instance_variable}.call(#{parameter_values_for_mapping(selector_name, parameters)})
