@@ -1,5 +1,13 @@
 HotCocoa::Mappings.map :control => :NSControl do
-  
+
+  constant :alignment, {
+    :left      => NSLeftTextAlignment,
+    :right     => NSRightTextAlignment,
+    :center    => NSCenterTextAlignment,
+    :justified => NSJustifiedTextAlignment,
+    :natural   => NSNaturalTextAlignment
+  }
+
   custom_methods do
    
     include TargetActionConvenience 
