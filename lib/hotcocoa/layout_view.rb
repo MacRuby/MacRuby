@@ -390,9 +390,9 @@ class LayoutView < NSView
       
       if (vertical ? options.expand_width? : options.expand_height?)
         if vertical
-          view_frame.size.width = view_size.width - (2 * @margin)
+          view_frame.size.width = view_size.width - (2 * @margin) - options.right_padding - options.left_padding
         else
-          view_frame.size.height = view_size.height - (2 * @margin)
+          view_frame.size.height = view_size.height - (2 * @margin) - options.top_padding - options.bottom_padding
         end
       else
         case options.align
