@@ -350,6 +350,9 @@ class LayoutView < NSView
         expandable_size -= vertical ? view.frameSize.height : view.frameSize.width
         expandable_size -= @spacing
       end
+      expandable_size -= 
+        vertical ? view.layout.top_padding + view.layout.bottom_padding 
+                 : view.layout.left_padding + view.layout.right_padding
     end
     expandable_size /= expandable_views
 
