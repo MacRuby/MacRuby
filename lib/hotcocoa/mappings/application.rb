@@ -5,18 +5,22 @@ HotCocoa::Mappings.map :application => :NSApplication do
   end
   
   def handle_block(application, &block)
-    begin
-      require 'lib/menu'
-      o = Object.new
-      o.extend HotCocoa
-      application.menu = o.application_menu
-    rescue LoadError => e
-    end
+    application.load_application_menu
     block.call(application)
     application.run
   end
   
   custom_methods do
+    
+    def load_application_menu
+      begin
+        require 'lib/menu'
+        o = Object.new
+        o.extend HotCocoa
+        setMainMenu(o.application_menu)
+      rescue LoadError => e
+      end
+    end
     
     def name=(name)
       @name = name
