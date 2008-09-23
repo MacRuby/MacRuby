@@ -1,13 +1,14 @@
 HotCocoa::Mappings.map :xml_parser => :NSXMLParser do
 
   def alloc_with_options(options)
-    url = options.delete(:url)
-    data = options.delete(:data)
-    if url
+    if options[:url]
+      url = options.delete(:url)
       url = NSURL.alloc.initWithString(url) if url.is_a?(String)
       NSXMLParser.alloc.initWithContentsOfURL(url)
-    elsif data
-      NSXMLParser.alloc.initWithData(data)
+    elsif options[:file]
+      NSXMLParser.alloc.initWithData(NSData.alloc.initWithContentsOfFile(options.delete(:file)))
+    elsif options[:data]
+      NSXMLParser.alloc.initWithData(options.delete(:data))
     else
       raise "Must provide either :url or :data when constructing an NSXMLParser"
     end
