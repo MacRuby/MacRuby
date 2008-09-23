@@ -90,14 +90,17 @@ class TestObjC < Test::Unit::TestCase
     assert(o.instance_of?(NSMutableString))
     assert(o.instance_of?(String))
     assert(o.kind_of?(String))
+    assert_equal(String, o.class)
     o = [42]
     assert(o.instance_of?(NSMutableArray))
     assert(o.instance_of?(Array))
     assert(o.kind_of?(Array))
+    assert_equal(Array, o.class)
     o = {42=>42}
     assert(o.instance_of?(NSMutableDictionary))
     assert(o.instance_of?(Hash))
     assert(o.kind_of?(Hash))
+    assert_equal(Hash, o.class)
   end
 
   class ClassWithNamedArg

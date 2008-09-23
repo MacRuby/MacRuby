@@ -1130,9 +1130,21 @@ rb_objc_call2(VALUE recv, VALUE klass, SEL sel, IMP imp,
 	/* because Hash.new can accept a block */
 	return rb_class_new_instance(0, NULL, recv);
     }
-    else if (RCLASS_META(klass) && sel == @selector(class)) {
-	/* because +[NSObject class] returns self */
-	return rb_cClass;
+    else if (sel == @selector(class)) {
+	if (RCLASS_META(klass)) {
+	    /* because +[NSObject class] returns self */
+	    return rb_cClass;
+	}
+	/* because the CF classes should be hidden */
+	else if (klass == rb_cCFString) {
+	    return rb_cNSMutableString;
+	}
+	else if (klass == rb_cCFArray) {
+	    return rb_cNSMutableArray;
+	}
+	else if (klass == rb_cCFHash) {
+	    return rb_cNSMutableHash;
+	}
     }
 
     ocrcv = RB2OC(recv);
