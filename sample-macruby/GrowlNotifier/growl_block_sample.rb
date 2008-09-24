@@ -1,4 +1,3 @@
-require 'rubygems'
 require 'growl_helpers'
 
 class GrowlController < NSObject
