@@ -10,6 +10,12 @@ HotCocoa::Mappings.map :image_view => :NSImageView do
     :button => NSImageFrameButton
   }
   
+  constant :scale, {
+    :fit => NSScaleToFit,
+    :none => NSScaleNone,
+    :proportionally => NSScaleProportionally
+  }
+  
   def init_with_options(image_view, options)
     image_view.initWithFrame options.delete(:frame)
   end
@@ -26,6 +32,10 @@ HotCocoa::Mappings.map :image_view => :NSImageView do
     
     def file=(file)
       setImage(NSImage.alloc.initWithContentsOfFile(file))
+    end
+    
+    def scale=(value)
+      setImageScaling(value)
     end
     
   end
