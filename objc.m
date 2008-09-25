@@ -2074,107 +2074,6 @@ rb_bs_struct_new(int argc, VALUE *argv, VALUE recv)
     return Data_Wrap_Struct(recv, NULL, NULL, data);
 }
 
-static ID
-rb_bs_struct_field_ivar_id(void)
-{
-    const char *frame_str;
-    char ivar_name[128];
-    size_t len;
-
-    frame_str = rb_id2name(rb_frame_this_func());
-    len = snprintf(ivar_name, sizeof ivar_name, "@%s", frame_str);
-	
-    if (ivar_name[len - 1] == ':')
-	len--;
-    if (ivar_name[len - 1] == '=')
-	len--;
-    ivar_name[len] = '\0';
-
-    return rb_intern(ivar_name);
-}
-
-static VALUE
-rb_bs_struct_get(VALUE recv)
-{
-    bs_element_boxed_t *bs_boxed = rb_klass_get_bs_boxed(CLASS_OF(recv));
-    bs_element_struct_t *bs_struct = (bs_element_struct_t *)bs_boxed->value;
-    unsigned i;
-    const char *ivar_id_str;
-    VALUE *data;
-
-    /* FIXME we should cache the ivar IDs somewhere in the 
-     * bs_element_struct_fields 
-     */
-
-    ivar_id_str = rb_id2name(rb_bs_struct_field_ivar_id());
-    ivar_id_str++; /* skip first '@' */
-
-    Data_Get_Struct(recv, VALUE, data);
-    assert(data != NULL);
-
-    for (i = 0; i < bs_struct->fields_count; i++) {
-	bs_element_struct_field_t *bs_field =
-	    (bs_element_struct_field_t *)&bs_struct->fields[i];
-
-	if (strcmp(ivar_id_str, bs_field->name) == 0) {
-	    return data[i];
-	}
-    }
-
-    rb_bug("can't find field `%s' in recv `%s'", ivar_id_str,
-	   RSTRING_PTR(rb_inspect(recv)));
-
-    return Qnil;
-}
-
-static VALUE
-rb_bs_struct_set(VALUE recv, VALUE value)
-{
-    bs_element_boxed_t *bs_boxed = rb_klass_get_bs_boxed(CLASS_OF(recv));
-    bs_element_struct_t *bs_struct = (bs_element_struct_t *)bs_boxed->value;
-    unsigned i;
-    const char *ivar_id_str;
-    VALUE *data;
-    size_t pos;
-
-    /* FIXME we should cache the ivar IDs somewhere in the 
-     * bs_element_struct_fields 
-     */
-
-    ivar_id_str = rb_id2name(rb_bs_struct_field_ivar_id());
-    ivar_id_str++; /* skip first '@' */
-
-    Data_Get_Struct(recv, VALUE, data);
-    assert(data != NULL);
-
-    for (i = 0, pos = 0; i < bs_struct->fields_count; i++) {
-	bs_element_struct_field_t *bs_field =
-	    (bs_element_struct_field_t *)&bs_struct->fields[i];
-
-	if (strcmp(ivar_id_str, bs_field->name) == 0) {
-	    size_t fdata_size;
-	    void *fdata;
-	    VALUE fval;
-
-	    fdata_size = rb_objc_octype_to_ffitype(bs_field->type)->size;
-	    fdata = alloca(fdata_size);
-
-	    rb_objc_rval_to_ocval(value, bs_field->type, fdata);
-	    rb_objc_ocval_to_rval(fdata, bs_field->type, &fval);
-
-	    GC_WB(&data[i], fval);	
-
-	    return value;
-	}
-        pos += rb_objc_octype_to_ffitype(bs_field->type)->size;
-    }
-
-    rb_bug("can't find field `%s' in recv `%s'", ivar_id_str,
-	   RSTRING_PTR(rb_inspect(recv)));
-
-    return Qnil;
-}
-
 static VALUE
 rb_bs_struct_to_a(VALUE recv)
 {
@@ -2325,6 +2224,107 @@ rb_boxed_fields(VALUE recv)
     return ary;
 }
 
+static ffi_cif *struct_reader_cif = NULL;
+static ffi_cif *struct_writer_cif = NULL;
+
+struct rb_struct_accessor_context {
+    bs_element_struct_field_t *field;
+    int num;
+};
+
+static void
+rb_struct_reader_closure_handler(ffi_cif *cif, void *resp, void **args,
+				 void *userdata)
+{
+    struct rb_struct_accessor_context *ctx;
+    VALUE recv, *data;
+
+    recv = (*(VALUE **)args)[0];
+    Data_Get_Struct(recv, VALUE, data);
+    assert(data != NULL);
+
+    ctx = (struct rb_struct_accessor_context *)userdata;
+    *(VALUE *)resp = data[ctx->num];
+}
+
+static void
+rb_struct_writer_closure_handler(ffi_cif *cif, void *resp, void **args,
+                                 void *userdata)
+{
+    struct rb_struct_accessor_context *ctx;
+    VALUE recv, value, *data, fval;
+    size_t fdata_size;
+    void *fdata;
+
+    recv = (*(VALUE **)args)[0];
+    value = (*(VALUE **)args)[1];
+    Data_Get_Struct(recv, VALUE, data);
+    assert(data != NULL);
+
+    ctx = (struct rb_struct_accessor_context *)userdata;
+
+    fdata_size = rb_objc_octype_to_ffitype(ctx->field->type)->size;
+    fdata = alloca(fdata_size);
+
+    rb_objc_rval_to_ocval(value, ctx->field->type, fdata);
+    rb_objc_ocval_to_rval(fdata, ctx->field->type, &fval);
+
+    GC_WB(&data[ctx->num], fval);
+
+    *(VALUE *)resp = fval;
+}
+
+static void
+rb_struct_gen_accessors(VALUE klass, bs_element_struct_field_t *field, int num)
+{
+    ffi_closure *closure;
+    struct rb_struct_accessor_context *ctx;
+    char buf[100];
+
+    ctx = (struct rb_struct_accessor_context *)
+	malloc(sizeof(struct rb_struct_accessor_context));
+    ctx->field = field;
+    ctx->num = num;
+
+    if (struct_reader_cif == NULL) {
+	ffi_type **args;
+
+	struct_reader_cif = (ffi_cif *)malloc(sizeof(ffi_cif));
+	args = (ffi_type **)malloc(sizeof(ffi_type *) * 1);
+	args[0] = &ffi_type_pointer;
+	if (ffi_prep_cif(struct_reader_cif, FFI_DEFAULT_ABI, 1, 
+			 &ffi_type_pointer, args) != FFI_OK)
+	    rb_fatal("can't prepare struct_reader_cif");
+    }
+    closure = (ffi_closure *)malloc(sizeof(ffi_closure));
+    if (ffi_prep_closure(closure, struct_reader_cif, 
+		         rb_struct_reader_closure_handler, ctx)
+	!= FFI_OK)
+	rb_fatal("can't prepare struct reader closure");
+
+    rb_define_method(klass, field->name, (VALUE(*)(ANYARGS))closure, 0);
+
+    if (struct_writer_cif == NULL) {
+	ffi_type **args;
+
+	struct_writer_cif = (ffi_cif *)malloc(sizeof(ffi_cif));
+	args = (ffi_type **)malloc(sizeof(ffi_type *) * 2);
+	args[0] = &ffi_type_pointer;
+	args[1] = &ffi_type_pointer;
+	if (ffi_prep_cif(struct_writer_cif, FFI_DEFAULT_ABI, 2, 
+			 &ffi_type_pointer, args) != FFI_OK)
+	    rb_fatal("can't prepare struct_writer_cif");
+    }
+    closure = (ffi_closure *)malloc(sizeof(ffi_closure));
+    if (ffi_prep_closure(closure, struct_writer_cif, 
+			 rb_struct_writer_closure_handler, ctx)
+	!= FFI_OK)
+	rb_fatal("can't prepare struct writer closure");
+
+    snprintf(buf, sizeof buf, "%s=", field->name);
+    rb_define_method(klass, buf, (VALUE(*)(ANYARGS))closure, 1);
+}
+
 static void
 setup_bs_boxed_type(bs_element_type_t type, void *value)
 {
@@ -2344,7 +2344,6 @@ setup_bs_boxed_type(bs_element_type_t type, void *value)
 
     if (type == BS_ELEMENT_STRUCT) {
 	bs_element_struct_t *bs_struct = (bs_element_struct_t *)value;
-	char buf[128];
 	int i;
 
 	/* Needs to be lazily created, because the type of some fields
@@ -2355,10 +2354,7 @@ setup_bs_boxed_type(bs_element_type_t type, void *value)
 	if (!bs_struct->opaque) {
 	    for (i = 0; i < bs_struct->fields_count; i++) {
 		bs_element_struct_field_t *field = &bs_struct->fields[i];
-		rb_define_method(klass, field->name, rb_bs_struct_get, 0);
-		strlcpy(buf, field->name, sizeof buf);
-		strlcat(buf, "=", sizeof buf);
-		rb_define_method(klass, buf, rb_bs_struct_set, 1);
+		rb_struct_gen_accessors(klass, field, i);
 	    }
 	    rb_define_method(klass, "to_a", rb_bs_struct_to_a, 0);
 	}
