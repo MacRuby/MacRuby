@@ -27,6 +27,22 @@ HotCocoa::Mappings.map :collection_view => :NSCollectionView do
       setItemPrototype(item)
     end
     
+    def rows=(value)
+      setMaxNumberOfRows(value)
+    end
+    
+    def rows
+      maxNumberOfRows
+    end
+    
+    def columns=(value)
+      setMaxNumberOfColumns(value)
+    end
+    
+    def columns
+      maxNumberOfColumns
+    end
+    
   end
   
 end
