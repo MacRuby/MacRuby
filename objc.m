@@ -1602,26 +1602,25 @@ rb_ruby_to_objc_closure_handler(ffi_cif *cif, void *resp, void **args,
 	rb_ruby_to_objc_closure_handler_main(&ctx);
     }
     else {
-#if 0
-	if (GET_VM()->main_thread == GET_THREAD()) {
+	if (GET_THREAD()->thread_id == pthread_self()) {
 	    rb_ruby_to_objc_closure_handler_main(&ctx);
 	}
 	else {
+	    rb_thread_t *rb_thread_wrap_existing_native_thread(rb_thread_id_t id);
 	    void native_mutex_lock(pthread_mutex_t *lock);
 	    void native_mutex_unlock(pthread_mutex_t *lock);
 
+	    rb_thread_t *th, *old;
+
+	    th = rb_thread_wrap_existing_native_thread(pthread_self());
+
 	    native_mutex_lock(&GET_THREAD()->vm->global_interpreter_lock);
+	    old = ruby_current_thread;
+	    ruby_current_thread = th;
 	    rb_ruby_to_objc_closure_handler_main(&ctx);
 	    native_mutex_unlock(&GET_THREAD()->vm->global_interpreter_lock);
+	    ruby_current_thread = old;
 	}
-#else
-	if (GET_VM()->main_thread == GET_THREAD()) {
-	    rb_ruby_to_objc_closure_handler_main(&ctx);
-	}
-	else {
-	    rb_thread_blocking_region(rb_ruby_to_objc_closure_handler_main, &ctx, RB_UBF_DFL, 0);
-	}
-#endif
     }
 }
 

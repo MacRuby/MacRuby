@@ -434,7 +434,7 @@ void *rb_objc_newobj(size_t size);
 #endif
 #define OBJSETUP(obj,c,t) do {\
     RBASIC(obj)->flags = (t);\
-    RBASIC(obj)->klass = (c);\
+    if (c != 0) RBASIC(obj)->klass = (c);\
     if (rb_safe_level() >= 3) FL_SET(obj, FL_TAINT);\
 } while (0)
 #define CLONESETUP(clone,obj) do {\

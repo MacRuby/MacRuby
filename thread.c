@@ -383,6 +383,56 @@ thread_start_func_2(rb_thread_t *th, VALUE *stack_start, VALUE *register_stack_s
     return 0;
 }
 
+struct find_thread_ctx {
+    rb_thread_id_t id;
+    VALUE thval;    
+};
+
+static int
+find_thread(st_data_t key, st_data_t val, void *data)
+{
+    struct find_thread_ctx *ctx = (struct find_thread_ctx *)data;
+    if ((rb_thread_id_t)val == ctx->id) {
+	ctx->thval = (VALUE)key;
+	return ST_STOP;
+    }
+    return ST_CONTINUE;
+}
+
+rb_thread_t *
+rb_thread_wrap_existing_native_thread(rb_thread_id_t id)
+{
+    VALUE thval;
+    rb_thread_t *th;
+    struct find_thread_ctx ctx = {id, 0};
+
+    st_foreach(GET_THREAD()->vm->living_threads, find_thread, (st_data_t)&ctx);
+
+    if (ctx.thval != 0) {
+	GetThreadPtr(ctx.thval, th);
+	return th;
+    }
+
+    thval = rb_thread_alloc(rb_cThread);
+
+    GetThreadPtr(thval, th);
+
+    th->thread_id = id;
+
+    /* setup thread environment */
+    th->first_args = Qnil;
+    th->first_proc = Qfalse;
+    th->first_func = NULL;
+
+    th->priority = GET_THREAD()->priority;
+    th->thgroup = GET_THREAD()->thgroup;
+
+    native_mutex_initialize(&th->interrupt_lock);
+    st_insert(th->vm->living_threads, thval, (st_data_t) th->thread_id);
+
+    return th;
+}
+
 static VALUE
 thread_create_core(VALUE thval, VALUE args, VALUE (*fn)(ANYARGS))
 {
@@ -3218,6 +3268,8 @@ Init_Thread(void)
     rb_define_method(cThGroup, "enclose", thgroup_enclose, 0);
     rb_define_method(cThGroup, "enclosed?", thgroup_enclosed_p, 0);
     rb_define_method(cThGroup, "add", thgroup_add, 1);
+
+    rb_cBarrier = rb_define_class("Barrier", rb_cObject);
 
     {
 	rb_thread_t *th = GET_THREAD();

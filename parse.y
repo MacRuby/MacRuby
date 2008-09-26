@@ -5112,8 +5112,8 @@ parser_nextc(struct parser_params *parser)
 	    }
 	    ruby_sourceline++;
 	    parser->line_count++;
-	    lex_pbeg = lex_p = RSTRING_BYTEPTR(v);
-	    lex_pend = lex_p + RSTRING_BYTELEN(v);
+	    lex_pbeg = lex_p = RSTRING_PTR(v);
+	    lex_pend = lex_p + RSTRING_LEN(v);
 #ifdef RIPPER
 	    ripper_flush(parser);
 #endif
@@ -10259,7 +10259,7 @@ ripper_initialize(int argc, VALUE *argv, VALUE self)
     parser_initialize(parser);
 
     parser->parser_ruby_sourcefile_string = fname;
-    parser->parser_ruby_sourcefile = RSTRING_BYTEPTR(fname);
+    parser->parser_ruby_sourcefile = RSTRING_PTR(fname);
     parser->parser_ruby_sourceline = NIL_P(lineno) ? 0 : NUM2INT(lineno) - 1;
 
     return Qnil;

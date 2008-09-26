@@ -1225,9 +1225,6 @@ gc_count(VALUE self)
  *  are also available via the <code>ObjectSpace</code> module.
  */
 
-static void (*old_batch_invalidate)(auto_zone_t *, 
-    auto_zone_foreach_object_t, auto_zone_cursor_t, size_t);
-
 static VALUE
 run_single_final(VALUE arg)
 {
@@ -1274,39 +1271,48 @@ rb_call_os_finalizer(void *obj)
 }
 
 static void
-__rb_objc_finalize(void *obj, void *data)
+rb_obj_imp_finalize(void *obj, SEL sel)
 {
-    //printf("finalize %p <%s>\n",obj, class_getName(*(Class *)obj));
+    const bool need_protection = GET_THREAD()->thread_id != pthread_self();
+    void native_mutex_lock(pthread_mutex_t *lock);
+    void native_mutex_unlock(pthread_mutex_t *lock);
+
     if (NATIVE((VALUE)obj)) {
-	static SEL sel = NULL;
 	long flag;
+
+	if (need_protection) {
+	    native_mutex_lock(&GET_THREAD()->vm->global_interpreter_lock);
+	}
 	flag = rb_objc_remove_flags(obj);
-	if ((flag & FL_FINALIZE) == FL_FINALIZE)
+	if ((flag & FL_FINALIZE) == FL_FINALIZE) {
 	    rb_call_os_finalizer(obj);
-	if ((flag & FL_EXIVAR) == FL_EXIVAR)
+	}
+	if ((flag & FL_EXIVAR) == FL_EXIVAR) {
 	    rb_free_generic_ivar((VALUE)obj);
-	if (sel == NULL)
-	    sel = sel_registerName("finalize");
-	objc_msgSend(obj, sel);
+	}
+	if (need_protection) {
+	    native_mutex_unlock(&GET_THREAD()->vm->global_interpreter_lock);
+	}
     }
     else {
-	if (FL_TEST(obj, FL_FINALIZE))
-	    rb_call_os_finalizer(obj);
-	if (FL_TEST(obj, FL_EXIVAR))
-	    rb_free_generic_ivar((VALUE)obj);
-    }
-}
+	bool call_finalize, free_ivar;
 
-static void 
-rb_objc_batch_invalidate(auto_zone_t *zone, 
-			 auto_zone_foreach_object_t foreach, 
-			 auto_zone_cursor_t cursor, size_t cursor_size) 
-{
-    foreach(cursor, __rb_objc_finalize, NULL);
-    /* By incrementing the GC count here we make sure it will also be updated
-     * when a collection is triggered from the Objective-C world.
-     */
-    _gc_count++;
+	call_finalize = FL_TEST(obj, FL_FINALIZE);
+	free_ivar = FL_TEST(obj, FL_EXIVAR);
+
+	if (need_protection && (call_finalize || free_ivar)) {
+	    native_mutex_lock(&GET_THREAD()->vm->global_interpreter_lock);
+	}
+	if (call_finalize) {
+	    rb_call_os_finalizer(obj);
+	}
+	if (free_ivar) {
+	    rb_free_generic_ivar((VALUE)obj);
+	}
+	if (need_protection && (call_finalize || free_ivar)) {
+	    native_mutex_unlock(&GET_THREAD()->vm->global_interpreter_lock);
+	}
+    }
 }
 
 void
@@ -1325,19 +1331,16 @@ Init_PreGC(void)
     if (getenv("GC_DEBUG"))
 	control->log = AUTO_LOG_COLLECTIONS | AUTO_LOG_REGIONS 
 		       | AUTO_LOG_UNUSUAL;
-    old_batch_invalidate = control->batch_invalidate;
-    control->batch_invalidate = rb_objc_batch_invalidate;
+
+    Method m = class_getInstanceMethod((Class)objc_getClass("NSObject"), sel_registerName("finalize"));
+    assert(m != NULL);
+    method_setImplementation(m, (IMP)rb_obj_imp_finalize);
 }
 
 void
 Init_PostGC(void)
 {
-#if 0
-    /* It is better to let Foundation start the dedicated collection thread
-     * when necessary. 
-     */
     objc_startCollectorThread();
-#endif
 }
 
 void
