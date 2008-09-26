@@ -12,7 +12,7 @@ module HotCocoa
     end
     
     def add_delegated_method(block, selector_name, *parameters)
-      clear_delegate
+      clear_delegate if required_methods.empty?
       increment_method_count
       bind_block_to_delegate_instance_variable(block)
       create_delegate_method(selector_name, parameters)
