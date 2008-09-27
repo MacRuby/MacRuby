@@ -6,7 +6,7 @@ class Growl
   GROWL_IS_READY = 'Lend Me Some Sugar; I Am Your Neighbor!'
   GROWL_NOTIFICATION_CLICKED = 'GrowlClicked!'
   GROWL_NOTIFICATION_TIMED_OUT = 'GrowlTimedOut!'
-  GROWL_KEY_CLICKED_CONTEXT = 'ClickedContext'
+  GROWL_CLICKED_CONTEXT_KEY = 'ClickedContext'
   
   PRIORITIES = {
     :emergency =>  2,
@@ -56,12 +56,12 @@ class Growl
 
     on_notification(:distributed => true, :named => "#{@app_name}-#{pid}-#{GROWL_NOTIFICATION_CLICKED}") do |n|
       puts '@@@ on clicked'
-      puts n.userInfo[:ClickedContext][:user_click_context]
+      puts n.userInfo[GROWL_CLICKED_CONTEXT_KEY][:user_click_context]
     end
 
     on_notification(:distributed => true, :named => "#{@app_name}-#{pid}-#{GROWL_NOTIFICATION_TIMED_OUT}") do |n|
       puts '@@@ on timed out'
-      puts n.userInfo[:ClickedContext][:user_click_context]
+      puts n.userInfo[GROWL_CLICKED_CONTEXT_KEY][:user_click_context]
     end
   
     dic = {
