@@ -1,6 +1,6 @@
 require 'growl_helpers'
 
-class GrowlController < NSObject
+class GrowlController
   # Makes the #growl and #sticky_growl shortcut methods available.
   include Growl
   

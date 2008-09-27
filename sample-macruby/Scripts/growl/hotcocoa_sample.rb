@@ -1,6 +1,6 @@
 require 'hotcocoa_growl'
 
-class GrowlController < NSObject
+class GrowlController
   HELLO_TYPE = 'Hello message received'
   
   def init

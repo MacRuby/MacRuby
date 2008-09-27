@@ -1,6 +1,6 @@
 require 'hotcocoa'
 
-class Growl < NSObject
+class Growl
   include HotCocoa
   
   GROWL_IS_READY = "Lend Me Some Sugar; I Am Your Neighbor!"
@@ -46,7 +46,7 @@ class Growl < NSObject
   private
   
   def pid
-    NSProcessInfo.processInfo.processIdentifier.to_i
+    NSProcessInfo.processInfo.processIdentifier
   end
   
   def register_to_growl!
@@ -56,10 +56,12 @@ class Growl < NSObject
 
     on_notification(:distributed => true, :named => "#{@app_name}-#{pid}-#{GROWL_NOTIFICATION_CLICKED}") do |n|
       puts '@@@ on clicked'
+      puts n.userInfo[:ClickedContext][:user_click_context]
     end
 
     on_notification(:distributed => true, :named => "#{@app_name}-#{pid}-#{GROWL_NOTIFICATION_TIMED_OUT}") do |n|
       puts '@@@ on timed out'
+      puts n.userInfo[:ClickedContext][:user_click_context]
     end
   
     dic = {

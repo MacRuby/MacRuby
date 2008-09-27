@@ -1,7 +1,7 @@
 framework 'Cocoa'
 
 module Growl
-  class Notifier < NSObject
+  class Notifier
     VERSION = '1.0.1'
     
     GROWL_IS_READY = "Lend Me Some Sugar; I Am Your Neighbor!"

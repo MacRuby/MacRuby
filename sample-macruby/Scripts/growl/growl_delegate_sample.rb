@@ -1,6 +1,6 @@
 require 'growl'
 
-class GrowlController < NSObject
+class GrowlController
   HELLO_TYPE = 'Hello message received'
   
   def init
