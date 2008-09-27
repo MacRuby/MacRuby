@@ -3,10 +3,10 @@ require 'hotcocoa'
 class Growl
   include HotCocoa
   
-  GROWL_IS_READY = "Lend Me Some Sugar; I Am Your Neighbor!"
-  GROWL_NOTIFICATION_CLICKED = "GrowlClicked!"
-  GROWL_NOTIFICATION_TIMED_OUT = "GrowlTimedOut!"
-  GROWL_KEY_CLICKED_CONTEXT = "ClickedContext"
+  GROWL_IS_READY = 'Lend Me Some Sugar; I Am Your Neighbor!'
+  GROWL_NOTIFICATION_CLICKED = 'GrowlClicked!'
+  GROWL_NOTIFICATION_TIMED_OUT = 'GrowlTimedOut!'
+  GROWL_KEY_CLICKED_CONTEXT = 'ClickedContext'
   
   PRIORITIES = {
     :emergency =>  2,
@@ -68,7 +68,7 @@ class Growl
       :ApplicationName => @app_name,
       :ApplicationIcon => @app_icon.TIFFRepresentation,
       :AllNotifications => @notifications,
-      :DefaultNotifications => @default_notifications
+      :DefaultNotifications => @default_notifications,
     }
     notification :distributed => true, :name => :GrowlApplicationRegistrationNotification, :info => dic
   end
