@@ -6,6 +6,7 @@ class GrowlController
   def init
     if super
       @g = Growl.alloc.init
+      @g.delegate = self
       @g.register('GrowlSample', [HELLO_TYPE])
       @g.notify(HELLO_TYPE, 'Sticky', 'Hello world', :sticky => true, :click_context => Time.now.to_s)
       @g.notify(HELLO_TYPE, 'Timed out', 'Hello world', :click_context => Time.now.to_s)
@@ -14,12 +15,12 @@ class GrowlController
     end
   end
 
-  def growlNotifierClicked_context(sender, context)
+  def growlNotifierClicked(sender, context:context)
     puts "Clicked: #{context}"
     checkCount
   end
 
-  def growlNotifierTimedOut_context(sender, context)
+  def growlNotifierTimedOut(sender, context:context)
     puts "Timed out: #{context}"
     checkCount
   end
@@ -30,5 +31,5 @@ class GrowlController
   end
 end
 
-g = GrowlController.alloc.init
+g = GrowlController.new
 NSApp.run

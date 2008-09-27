@@ -2,6 +2,8 @@ require 'hotcocoa'
 
 class Growl
   include HotCocoa
+
+  attr_accessor :delegate
   
   GROWL_IS_READY = 'Lend Me Some Sugar; I Am Your Neighbor!'
   GROWL_NOTIFICATION_CLICKED = 'GrowlClicked!'
@@ -55,13 +57,17 @@ class Growl
     end
 
     on_notification(:distributed => true, :named => "#{@app_name}-#{pid}-#{GROWL_NOTIFICATION_CLICKED}") do |n|
-      puts '@@@ on clicked'
-      puts n.userInfo[GROWL_CLICKED_CONTEXT_KEY][:user_click_context]
+      if @delegate and @delegate.respond_to?('growlNotifierClicked:context:')
+        ctx = n.userInfo[GROWL_CLICKED_CONTEXT_KEY][:user_click_context]
+        @delegate.growlNotifierClicked(self, context:ctx)
+      end
     end
 
     on_notification(:distributed => true, :named => "#{@app_name}-#{pid}-#{GROWL_NOTIFICATION_TIMED_OUT}") do |n|
-      puts '@@@ on timed out'
-      puts n.userInfo[GROWL_CLICKED_CONTEXT_KEY][:user_click_context]
+      if @delegate and @delegate.respond_to?('growlNotifierTimedOut:context:')
+        ctx = n.userInfo[GROWL_CLICKED_CONTEXT_KEY][:user_click_context]
+        @delegate.growlNotifierTimedOut(self, context:ctx)
+      end
     end
   
     dic = {
