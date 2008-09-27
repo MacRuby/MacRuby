@@ -31,7 +31,7 @@ class Growl < NSObject
       :NotificationDescription => desc,
       :NotificationPriority => PRIORITIES[options[:priority]] || options[:priority] || 0,
       :ApplicationName => @app_name,
-      :ApplicationPID => self.class.pid,
+      :ApplicationPID => pid,
     }
     dic[:NotificationIcon] = options[:icon].TIFFRepresentation if options[:icon]
     dic[:NotificationSticky] = 1 if options[:sticky]
@@ -45,7 +45,7 @@ class Growl < NSObject
   
   private
   
-  def self.pid
+  def pid
     NSProcessInfo.processInfo.processIdentifier.to_i
   end
   
