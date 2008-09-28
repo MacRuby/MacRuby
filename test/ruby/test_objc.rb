@@ -405,4 +405,11 @@ class TestObjC < Test::Unit::TestCase
     o = TestCallSuperOverridenNew.new(42)
     assert_equal(42, o.x)
   end
+
+  def test_class_on_mods
+    assert_equal(Class, Object.class)
+    assert_equal(Module, Kernel.class)
+    assert_equal(Class, Class.new.class)
+    assert_equal(Module, Module.new.class)
+  end  
 end

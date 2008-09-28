@@ -1133,7 +1133,7 @@ rb_objc_call2(VALUE recv, VALUE klass, SEL sel, IMP imp,
     else if (sel == @selector(class)) {
 	if (RCLASS_META(klass)) {
 	    /* because +[NSObject class] returns self */
-	    return rb_cClass;
+	    return RCLASS_MODULE(recv) ? rb_cModule : rb_cClass;
 	}
 	/* because the CF classes should be hidden */
 	else if (klass == rb_cCFString) {
