@@ -23,5 +23,12 @@ HotCocoa::Mappings.map :text_field => :NSTextField do
     end
 
   end
+  
+  delegating "control:textShouldBeginEditing:", :to => :should_begin_editing?, :parameters => [:textShouldBeginEditing]
+  delegating "control:textShouldEndEditing:", :to => :should_end_editing?, :parameters => [:textShouldEndEditing]
+  delegating "controlTextDidBeginEditing:", :to => :did_begin_editing, :parameters => ["controlTextDidBeginEditing.userInfo['NSFieldEditor']"]
+  delegating "controlTextDidEndEditing:", :to => :did_end_editing, :parameters => ["controlTextDidEndEditing.userInfo['NSFieldEditor']"]
+  delegating "controlTextDidChange:", :to => :did_change, :parameters => ["controlTextDidChange.userInfo['NSFieldEditor']"]
+
 
 end
