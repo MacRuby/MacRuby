@@ -39,10 +39,12 @@ module HotCocoa
       end
       
       def clear_delegate
-        control.setDelegate(nil)
+        control.setDelegate(nil) if control.delegate
       end
       
       def set_delegate
+        puts "setting delegate (#{delegate}) on #{control.class} which has the following methods:"
+        puts (delegate.methods.sort - Object.methods).collect {|method| "- #{method}"}
         control.setDelegate(delegate)
       end
       
