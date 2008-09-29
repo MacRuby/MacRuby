@@ -531,6 +531,7 @@ vm_call_method(rb_thread_t * const th, rb_control_frame_t * const cfp,
     mn = NULL;
 
     if (mcache != NULL) {
+cache_relookup:
 	if (mcache->flags & RB_MCACHE_RCALL_FLAG) {
 	    if (mcache->as.rcall.klass == klass && mcache->as.rcall.node != NULL) {
 		mn = mcache->as.rcall.node;
@@ -641,8 +642,15 @@ rcall_missing:
 	else if (mcache->flags & RB_MCACHE_OCALL_FLAG) {
 	    rb_control_frame_t *reg_cfp;
 	    rb_control_frame_t *_cfp;
-	   
-ocall_dispatch: 
+
+	    if (mcache->as.ocall.klass != klass) {
+		mcache->flags = RB_MCACHE_RCALL_FLAG;
+		mcache->as.rcall.klass = 0;
+		mcache->as.rcall.node = NULL;
+		goto cache_relookup;
+	    }
+
+ocall_dispatch:
 	    reg_cfp = cfp;
 	    _cfp = vm_push_frame(th, 0, FRAME_MAGIC_CFUNC | (flag << FRAME_MAGIC_MASK_BITS),
 		    recv, (VALUE) blockptr, 0, reg_cfp->sp, 0, 1);
@@ -888,6 +896,7 @@ start_method_dispatch:
 					mcache->as.rcall.sel, imp,
 					method_getTypeEncoding(method)));
 			    mcache->flags = RB_MCACHE_OCALL_FLAG;
+			    mcache->as.rcall.sel = sel;
 			    mcache->as.ocall.klass = klass;
 			    mcache->as.ocall.imp = imp;
 			    mcache->as.ocall.sig.argc = method_getNumberOfArguments(method);
