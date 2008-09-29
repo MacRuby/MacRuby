@@ -43,9 +43,7 @@ module HotCocoa
       end
       
       def set_delegate
-        #puts "setting delegate (#{delegate}) on #{control.class} which has the following methods:"
-        #puts (delegate.methods.sort - Object.methods).collect {|method| "- #{method}"}
-        control.performSelector('setDelegate:', withObject:delegate)
+        control.setDelegate(delegate)
       end
       
       def block_instance_variable
