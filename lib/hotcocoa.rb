@@ -16,5 +16,6 @@ require 'hotcocoa/notification_listener'
 require 'hotcocoa/data_sources/table_data_source'
 require 'hotcocoa/data_sources/combo_box_data_source'
 require 'hotcocoa/kernel_ext'
+require 'hotcocoa/plist'
 
 HotCocoa::Mappings.reload
