@@ -9,6 +9,7 @@ class TestPlist < Test::Unit::TestCase
     assert_plist(true)
     assert_plist(false)
     assert_plist('foo')
+    assert_plist('aiueo'.transform('latin-hiragana'))
     assert_plist(:foo, 'foo')
     assert_plist([1,2,3])
     assert_plist({'un' => 1, 'deux' => 2})

@@ -11,7 +11,7 @@ module HotCocoa
         raise ArgumentError, "invalid mutability `#{mutability}'"
     end
     if data.is_a?(String)
-      data = data.dataUsingEncoding(NSASCIIStringEncoding)
+      data = data.dataUsingEncoding(NSUTF8StringEncoding)
       if data.nil?
         raise ArgumentError, "cannot convert string `#{data}' to data"
       end
@@ -40,6 +40,6 @@ class Object
     data = NSPropertyListSerialization.dataFromPropertyList(self,
       format:format,
       errorDescription:nil)
-    NSMutableString.alloc.initWithData(data, encoding:NSASCIIStringEncoding) 
+    NSMutableString.alloc.initWithData(data, encoding:NSUTF8StringEncoding) 
   end
 end
