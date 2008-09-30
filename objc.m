@@ -1360,11 +1360,10 @@ rb_objc_fill_sig(VALUE recv, Class klass, SEL sel, struct rb_objc_method_sig *si
 	    char buf[100];
 	    unsigned i;
 
-	    buf[0] = '\0';
 	    type = rb_get_bs_method_type(bs_method, -1);
 	    if (type == NULL)
 		type = [msig methodReturnType];
-	    strlcat(buf, type, sizeof buf);
+	    strlcpy(buf, type, sizeof buf);
 
 	    sig->argc = [msig numberOfArguments];
 	    for (i = 0; i < sig->argc; i++) {

@@ -523,12 +523,10 @@ vm_call_method(rb_thread_t * const th, rb_control_frame_t * const cfp,
 {
     VALUE val;
 #if WITH_OBJC
-    NODE *mn;
+    NODE *mn = NULL;
 #if ENABLE_DEBUG_LOGGING
     bool cached = false;
 #endif
-
-    mn = NULL;
 
     if (mcache != NULL) {
 cache_relookup:
@@ -728,7 +726,7 @@ rcall_dispatch:
 
 start_method_dispatch:
 
-    if (mn != 0) {
+    if (mn != NULL) {
 	if ((mn->nd_noex == 0)) {
 	    /* dispatch method */
 	    NODE *node;
