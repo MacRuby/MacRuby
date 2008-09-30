@@ -2627,6 +2627,45 @@ rb_objc_search_and_load_bridge_support(const char *framework_path)
 }
 
 static void
+reload_protocols(void)
+{
+    Protocol **prots;
+    unsigned int i, prots_count;
+
+    prots = objc_copyProtocolList(&prots_count);
+    for (i = 0; i < prots_count; i++) {
+	Protocol *p;
+	struct objc_method_description *methods;
+	unsigned j, methods_count;
+
+	p = prots[i];
+
+#define REGISTER_MDESCS(t) \
+    do { \
+	for (j = 0; j < methods_count; j++) { \
+	    if (methods[j].name == sel_ignored) \
+		continue; \
+	    st_insert(t, (st_data_t)methods[j].name, (st_data_t)methods[j].types); \
+	} \
+	free(methods); \
+    } \
+    while (0)
+
+	methods = protocol_copyMethodDescriptionList(p, true, true, &methods_count);
+	REGISTER_MDESCS(bs_inf_prot_imethods);
+	methods = protocol_copyMethodDescriptionList(p, false, true, &methods_count);
+	REGISTER_MDESCS(bs_inf_prot_imethods);
+	methods = protocol_copyMethodDescriptionList(p, true, false, &methods_count);
+	REGISTER_MDESCS(bs_inf_prot_cmethods);
+	methods = protocol_copyMethodDescriptionList(p, false, false, &methods_count);
+	REGISTER_MDESCS(bs_inf_prot_cmethods);
+
+#undef REGISTER_MDESCS
+    }
+    free(prots);
+}
+
+static void
 reload_class_constants(void)
 {
     static int class_count = 0;
@@ -2750,6 +2789,7 @@ success:
 
     rb_objc_search_and_load_bridge_support(cstr);
     reload_class_constants();
+    reload_protocols();
 
     return Qtrue;
 }

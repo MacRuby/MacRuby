@@ -411,5 +411,15 @@ class TestObjC < Test::Unit::TestCase
     assert_equal(Module, Kernel.class)
     assert_equal(Class, Class.new.class)
     assert_equal(Module, Module.new.class)
-  end  
+  end 
+
+  def test_protocol
+    o = Object.new
+    # TODO object should automatically conform to protocol when all mandatory methods are implemented.
+    #assert(!o.conformsToProtocol(Protocol.protocolWithName('NSMutableCopying')))
+    def o.mutableCopyWithZone(zone); self; end
+    #assert(o.conformsToProtocol(Protocol.protocolWithName('NSMutableCopying')))
+    assert_equal(o, o.mutableCopy)
+    assert_equal('^{_NSZone=}', o.methodSignatureForSelector('mutableCopyWithZone:').getArgumentTypeAtIndex(2))
+  end 
 end
