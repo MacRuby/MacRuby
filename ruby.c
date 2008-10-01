@@ -425,6 +425,9 @@ ruby_init_loadpath(void)
     }
 }
 
+#if WITH_OBJC
+static CFMutableArrayRef req_list = NULL;
+#else
 struct req_list {
     char *name;
     struct req_list *next;
@@ -432,10 +435,20 @@ struct req_list {
 static struct {
     struct req_list *last, head;
 } req_list = {&req_list.head,};
+#endif
 
 static void
 add_modules(const char *mod)
 {
+#if WITH_OBJC
+    CFStringRef mod_str;
+    if (req_list == NULL) {
+	req_list = CFArrayCreateMutable(NULL, 0, &kCFTypeArrayCallBacks);
+    }
+    mod_str = CFStringCreateWithFileSystemRepresentation(NULL, mod);
+    CFArrayAppendValue(req_list, mod_str);
+    CFRelease(mod_str);
+#else
     struct req_list *list;
 
     list = ALLOC(struct req_list);
@@ -444,6 +457,7 @@ add_modules(const char *mod)
     list->next = 0;
     req_list.last->next = list;
     req_list.last = list;
+#endif
 }
 
 extern void Init_ext(void);
@@ -452,6 +466,23 @@ extern VALUE rb_vm_top_self(void);
 static void
 require_libraries(void)
 {
+#if WITH_OBJC
+    Init_ext();		/* should be called here for some reason :-( */
+
+    if (req_list != NULL) {
+	VALUE vm;
+	ID require;
+	int i, count;
+       
+	vm = rb_vm_top_self();
+	require	= rb_intern("require");
+	for (i = 0, count = CFArrayGetCount(req_list); i < count; i++) {
+	    const void *feature = CFArrayGetValueAtIndex(req_list, i);
+	    rb_funcall2(vm, require, 1, (VALUE *)&feature);
+	}
+	CFRelease(req_list);
+    }
+#else
     struct req_list *list = req_list.head.next;
     struct req_list *tmp;
     ID require = rb_intern("require");
@@ -467,6 +498,7 @@ require_libraries(void)
 	rb_funcall2(rb_vm_top_self(), require, 1, &feature);
     }
     req_list.head.next = 0;
+#endif
 }
 
 static void
