@@ -75,7 +75,6 @@ rb_str_cfdata(VALUE str)
 		return NULL;
 	    mdata = CFDataCreateMutableCopy(NULL, 0, data);
 	    len = CFDataGetLength(data);
-	    rb_gc_malloc_increase(len);
 	    /* This is a hack to make sure a sentinel byte is created at the 
 	     * end of the buffer. 
 	     */
@@ -125,7 +124,6 @@ rb_str_bytesync(VALUE str)
 		kCFStringEncodingUTF8,
 		false,
 		kCFAllocatorNull);
-	rb_gc_malloc_increase(datalen);
 	if (bytestr != NULL) {
 	    if (CFStringGetLength(bytestr) == datalen) {
 		CFStringReplaceAll((CFMutableStringRef)str, (CFStringRef)bytestr);
@@ -198,7 +196,6 @@ rb_objc_str_set_bytestring(VALUE str, const char *dataptr, long datalen)
 
     data = CFDataCreateMutable(NULL, 0);
     CFDataAppendBytes(data, (const UInt8 *)dataptr, datalen);
-    rb_gc_malloc_increase(datalen);
     rb_str_cfdata_set(str, data);
     CFMakeCollectable(data);
 }
@@ -232,8 +229,6 @@ str_new(VALUE klass, const char *ptr, long len)
 		substr = CFStringCreateWithBytes(NULL, (const UInt8 *)ptr, 
 			len, kCFStringEncodingUTF8, false);
 
-		rb_gc_malloc_increase(32 + (sizeof(UniChar) * len));
-
 		if (substr != NULL) {
 		    CFStringAppend((CFMutableStringRef)str, substr);
 		    CFRelease(substr);		
@@ -247,7 +242,6 @@ str_new(VALUE klass, const char *ptr, long len)
 	    }
 	}
     }
-    rb_gc_malloc_increase(32 + (sizeof(UniChar) * len));
     if (need_padding)
 	CFStringPad((CFMutableStringRef)str, CFSTR(" "), len, 0);
 
@@ -414,8 +408,6 @@ rb_str_dup(VALUE str)
 	OBJ_TAINT(dup);
 
     CFMakeCollectable((CFTypeRef)dup);
-
-    rb_gc_malloc_increase(32 + (sizeof(UniChar) * RSTRING_LEN(dup)));
 
     return dup;
 }
@@ -742,7 +734,6 @@ rb_str_subseq(VALUE str, long beg, long len)
 	CFDataAppendBytes(subdata, bytes + beg, len);
 	rb_str_cfdata_set((VALUE)substr, subdata);
 	CFMakeCollectable(subdata);
-	rb_gc_malloc_increase(sizeof(UInt8) * len);
 
 	RSTRING_SYNC(substr);
     }
@@ -757,7 +748,6 @@ rb_str_subseq(VALUE str, long beg, long len)
 		buffer);
 	    CFStringAppendCharacters(substr, buffer, len);
 	}
-	rb_gc_malloc_increase(sizeof(UniChar) * len);
     }
     CFMakeCollectable(substr);
     return (VALUE)substr;
@@ -826,7 +816,6 @@ rb_objc_str_cat(VALUE str, const char *ptr, long len, int cfstring_encoding)
     data = (CFMutableDataRef)rb_str_cfdata2(str);
     if (data != NULL) {
 	CFDataAppendBytes(data, (const UInt8 *)ptr, len);
-	rb_gc_malloc_increase(sizeof(UniChar) * len);
     }
     else {
 	long slen;
@@ -924,7 +913,6 @@ rb_str_buf_append(VALUE str, VALUE str2)
 		CFDataGetLength(data));
 	}
     }
-    rb_gc_malloc_increase(sizeof(UniChar) * str2len);
 
     return str;
 }
@@ -965,7 +953,6 @@ rb_str_concat(VALUE str1, VALUE str2)
 	buf[1] = '\0';
 	CFStringAppendCString((CFMutableStringRef)str1, buf, 
 			      kCFStringEncodingUTF8);
-	rb_gc_malloc_increase(sizeof(UniChar));
 	return str1;
     }
     return rb_str_append(str1, str2);
@@ -2246,12 +2233,10 @@ rb_str_replace(VALUE str, VALUE str2)
 	CFMutableDataRef mdata;
        
 	mdata = CFDataCreateMutableCopy(NULL, 0, data);
-	rb_gc_malloc_increase(CFDataGetLength(data));
 	rb_str_cfdata_set(str, mdata);
 	CFMakeCollectable(mdata);
     }
     CFStringReplaceAll((CFMutableStringRef)str, (CFStringRef)str2);
-    rb_gc_malloc_increase(CFStringGetLength((CFStringRef)str2) * sizeof(UniChar));
     if (OBJ_TAINTED(str2))
 	OBJ_TAINT(str);
     return str;

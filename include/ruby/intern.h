@@ -347,7 +347,6 @@ void rb_objc_set_associative_ref(void *, void *, void *);
 void *rb_objc_get_associative_ref(void *, void *);
 void rb_objc_retain(const void *);
 void rb_objc_release(const void *);
-void rb_gc_malloc_increase(size_t);
 # define rb_gc_mark_locations(x,y)
 # define rb_mark_tbl(x)
 # define rb_mark_set(x)

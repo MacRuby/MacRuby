@@ -2644,7 +2644,8 @@ reload_protocols(void)
 	for (j = 0; j < methods_count; j++) { \
 	    if (methods[j].name == sel_ignored) \
 		continue; \
-	    st_insert(t, (st_data_t)methods[j].name, (st_data_t)methods[j].types); \
+	    st_insert(t, (st_data_t)methods[j].name, \
+		      (st_data_t)strdup(methods[j].types)); \
 	} \
 	free(methods); \
     } \
@@ -2937,15 +2938,21 @@ rb_mod_objc_ib_outlet(int argc, VALUE *argv, VALUE recv)
     return recv;
 }
 
+#define FLAGS_AS_ASSOCIATIVE_REF 1
+
 static CFMutableDictionaryRef __obj_flags;
 
 long
 rb_objc_flag_get_mask(const void *obj)
 {
+#if FLAGS_AS_ASSOCIATIVE_REF
+    return (long)rb_objc_get_associative_ref((void *)obj, &__obj_flags);
+#else
     if (__obj_flags == NULL)
 	return 0;
 
     return (long)CFDictionaryGetValue(__obj_flags, obj);
+#endif
 }
 
 bool
@@ -2963,6 +2970,16 @@ rb_objc_flag_check(const void *obj, int flag)
 void
 rb_objc_flag_set(const void *obj, int flag, bool val)
 {
+#if FLAGS_AS_ASSOCIATIVE_REF
+    long v = (long)rb_objc_get_associative_ref((void *)obj, &__obj_flags);
+    if (val) {
+	v |= flag;
+    }
+    else {
+	v ^= flag;
+    }
+    rb_objc_set_associative_ref((void *)obj, &__obj_flags, (void *)v);
+#else
     long v;
 
     if (__obj_flags == NULL) {
@@ -2976,11 +2993,17 @@ rb_objc_flag_set(const void *obj, int flag, bool val)
 	v ^= flag;
     }
     CFDictionarySetValue(__obj_flags, obj, (void *)v);
+#endif
 }
 
 long
 rb_objc_remove_flags(const void *obj)
 {
+#if FLAGS_AS_ASSOCIATIVE_REF
+    long flag = (long)rb_objc_get_associative_ref((void *)obj, &__obj_flags);
+    //rb_objc_set_associative_ref((void *)obj, &__obj_flags, (void *)0);
+    return flag;
+#else
     long flag;
     if (CFDictionaryGetValueIfPresent(__obj_flags, obj, 
 	(const void **)&flag)) {
@@ -2988,6 +3011,7 @@ rb_objc_remove_flags(const void *obj)
 	return flag;
     }
     return 0;
+#endif
 }
 
 static void

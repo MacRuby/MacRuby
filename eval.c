@@ -12,6 +12,7 @@
 **********************************************************************/
 
 #include "eval_intern.h"
+#include "dtrace.h"
 
 VALUE proc_invoke(VALUE, VALUE, VALUE, VALUE);
 VALUE rb_binding_new(void);
@@ -444,6 +445,11 @@ rb_longjmp(int tag, VALUE mesg)
     rb_trap_restore_mask();
 
     if (tag != TAG_FATAL) {
+	if (MACRUBY_RAISE_ENABLED()) {
+	    MACRUBY_RAISE((char *)rb_obj_classname(mesg), 
+			  (char *)rb_sourcefile(), 
+			  rb_sourceline());
+	}
 	EXEC_EVENT_HOOK(th, RUBY_EVENT_RAISE, th->cfp->self,
 			0 /* TODO: id */, 0 /* TODO: klass */);
     }

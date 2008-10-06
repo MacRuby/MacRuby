@@ -104,14 +104,14 @@ history_tree_add_child(OnigCaptureTreeNode* parent, OnigCaptureTreeNode* child)
 
     if (IS_NULL(parent->childs)) {
       n = HISTORY_TREE_INIT_ALLOC_SIZE;
-      parent->childs =
-        (OnigCaptureTreeNode** )xmalloc(sizeof(OnigCaptureTreeNode*) * n);
+      GC_WB(&parent->childs,
+        (OnigCaptureTreeNode** )xmalloc(sizeof(OnigCaptureTreeNode*) * n));
     }
     else {
       n = parent->allocated * 2;
-      parent->childs =
+      GC_WB(&parent->childs,
         (OnigCaptureTreeNode** )xrealloc(parent->childs,
-                                         sizeof(OnigCaptureTreeNode*) * n);
+                                         sizeof(OnigCaptureTreeNode*) * n));
     }
     CHECK_NULL_RETURN_MEMERR(parent->childs);
     for (i = parent->allocated; i < n; i++) {
@@ -343,7 +343,7 @@ onig_region_copy(OnigRegion* to, OnigRegion* from)
     offset = ((offset) * (state_num)) >> 3;\
     if (size > 0 && offset < size && size < STATE_CHECK_BUFF_MAX_SIZE) {\
       if (size >= STATE_CHECK_BUFF_MALLOC_THRESHOLD_SIZE) {\
-        (msa).state_check_buff = (void* )xmalloc(size);\
+        GC_WB(&(msa).state_check_buff, (void* )xmalloc(size));\
         CHECK_NULL_RETURN_MEMERR((msa).state_check_buff);\
       }\
       else \

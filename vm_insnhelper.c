@@ -15,6 +15,7 @@
 
 #if WITH_OBJC
 # include <dlfcn.h>
+# include "dtrace.h"
 #endif
 
 /* control stack frame */
@@ -723,6 +724,13 @@ rcall_dispatch:
 
     DLOG("RCALL", "%c[<%s %p> %s] node=%p cached=%d", class_isMetaClass((Class)klass) ? '+' : '-', class_getName((Class)klass), (void *)recv, (char *)rb_id2name(id), mn, cached);
 #endif
+
+    if (MACRUBY_METHOD_ENTRY_ENABLED()) {
+	MACRUBY_METHOD_ENTRY((char *)rb_class2name(klass),
+			     (char *)rb_id2name(id),
+			     (char *)rb_sourcefile(),
+			     rb_sourceline());
+    }
 
 start_method_dispatch:
 
@@ -1843,4 +1851,46 @@ opt_eq_func(VALUE recv, VALUE obj, IC ic)
     }
 
     return val;
+}
+
+#include "insns_info.inc"
+
+void
+rb_enter_insn_trace(rb_control_frame_t *cfp)
+{
+    if (MACRUBY_INSN_ENTRY_ENABLED()) {
+	/* just to get rid of compilation warnings... */
+	if (0) {
+	    insn_op_types(0);
+	    insn_op_type(0, 0);
+	}
+
+	rb_iseq_t *iseq = cfp->iseq;
+
+	if (iseq != NULL && VM_FRAME_TYPE(cfp) != FRAME_MAGIC_FINISH) {
+	    VALUE *seq = iseq->iseq;
+	    int pc = cfp->pc - iseq->iseq_encoded;
+
+	    MACRUBY_INSN_ENTRY((char *)insn_name(seq[pc]), 
+		    	       (char *)rb_sourcefile(), 
+			       rb_sourceline());
+	}
+    }
+}
+
+void
+rb_end_insn_trace(rb_control_frame_t *cfp)
+{
+    if (MACRUBY_INSN_RETURN_ENABLED()) {
+	rb_iseq_t *iseq = cfp->iseq;
+
+	if (iseq != NULL && VM_FRAME_TYPE(cfp) != FRAME_MAGIC_FINISH) {
+	    VALUE *seq = iseq->iseq;
+	    int pc = cfp->pc - iseq->iseq_encoded;
+
+	    MACRUBY_INSN_RETURN((char *)insn_name(seq[pc]),
+		    		(char *)rb_sourcefile(),
+				rb_sourceline());
+	}
+    }
 }

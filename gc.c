@@ -44,7 +44,11 @@ typedef malloc_zone_t auto_zone_t;
 #define AUTO_COLLECT_RATIO_COLLECTION (0 << 0)
 #define AUTO_COLLECT_GENERATIONAL_COLLECTION (1 << 0)
 #define AUTO_COLLECT_FULL_COLLECTION (1 << 0)
+#define AUTO_COLLECT_EXHAUSTIVE_COLLECTION (3 << 0)
+#define AUTO_COLLECT_SYNCHRONOUS (1 << 2)
+#define AUTO_COLLECT_IF_NEEDED (1 << 3)
 #define AUTO_LOG_COLLECTIONS (1 << 1)
+#define AUTO_LOG_COLLECT_DECISION (1 << 2)
 #define AUTO_LOG_REGIONS (1 << 4)
 #define AUTO_LOG_UNUSUAL (1 << 5)
 #define AUTO_LOG_WEAK (1 << 6)
@@ -105,7 +109,6 @@ typedef struct {
 } auto_statistics_t;
 #endif
 static auto_zone_t *__auto_zone = NULL;
-static long xmalloc_count = 0;
 
 int rb_io_fptr_finalize(struct rb_io_t*);
 
@@ -124,7 +127,6 @@ int ruby_gc_debug_indent = 0;
 #undef GC_DEBUG
 
 int ruby_gc_stress = 0;
-static long malloc_increase = 0;
 bool dont_gc = false;
 #define malloc_limit GC_MALLOC_LIMIT
 VALUE *rb_gc_stack_start = 0;
@@ -187,14 +189,6 @@ gc_stress_set(VALUE self, VALUE flag)
 
 static int garbage_collect(void);
 
-void
-rb_gc_malloc_increase(size_t size)
-{
-    malloc_increase += size;
-    if (!dont_gc && (ruby_gc_stress || malloc_increase > malloc_limit))
-	garbage_collect();
-}
-
 static void
 rb_objc_no_gc_error(void)
 { 
@@ -214,13 +208,11 @@ ruby_xmalloc(size_t size)
 	rb_raise(rb_eNoMemError, "negative allocation size (or too big)");
     }
     if (size == 0) size = 1;
-    rb_gc_malloc_increase(size);
     
     if (__auto_zone == NULL)
 	rb_objc_no_gc_error();
     mem = auto_zone_allocate_object(__auto_zone, size, 
 				    AUTO_MEMORY_SCANNED, 0, 0);
-    xmalloc_count++;
     if (!mem) {
 	rb_memerror();
     }
@@ -264,9 +256,6 @@ ruby_xrealloc(void *ptr, size_t size)
     if (size == 0) 
 	size = 1;
     
-    rb_gc_malloc_increase(size);
-    if (ruby_gc_stress) 
-	garbage_collect();
     mem = malloc_zone_realloc(__auto_zone, ptr, size);
     if (mem == NULL)
 	rb_memerror();
@@ -417,43 +406,17 @@ rb_gc_unregister_address(VALUE *addr)
 
 static void *__nsobject = NULL;
 
-#define USE_OBJECTS_POOL 0
-
-#if USE_OBJECTS_POOL
-# define OBJECTS_POOL_SIZE 1000000
-static void **objects_pool = NULL;
-static unsigned objects_pool_i = 0;
-#endif
-
 void *
 rb_objc_newobj(size_t size)
 {
     void *obj;
-    rb_gc_malloc_increase(size);
-#if USE_OBJECTS_POOL
-    if (objects_pool == NULL) 
-	objects_pool = malloc(sizeof(void *) * OBJECTS_POOL_SIZE);
-    if (objects_pool_i == 0) {
-	unsigned i;
-	//printf("repoll\n");
-	for (i = 0; i < OBJECTS_POOL_SIZE; i++) {
-	    objects_pool[i] = auto_zone_allocate_object(__auto_zone, sizeof(RVALUE), AUTO_OBJECT_SCANNED, 1, 0);
-	    assert(objects_pool[i] != NULL);
-	}
-	objects_pool_i = OBJECTS_POOL_SIZE - 1;
-    }
-    //printf("get object %d from poll\n", objects_pool_i);
-    obj = objects_pool[objects_pool_i--];
-    auto_zone_release(__auto_zone, obj);
-#else
     obj = auto_zone_allocate_object(__auto_zone, size, AUTO_OBJECT_SCANNED, 
 				    0, 0);
     assert(obj != NULL);
-#endif
-    if (__nsobject == NULL)
+    if (__nsobject == NULL) {
 	__nsobject = (void *)objc_getClass("NSObject");
+    }
     RBASIC(obj)->klass = (VALUE)__nsobject;
-    //DLOG("NEWOBJ", "size %ld -> %p", size, obj);
     return obj;
 }
 
@@ -469,12 +432,14 @@ rb_objc_gc_unregister_thread(void)
     auto_zone_unregister_thread(__auto_zone);
 }
 
-void
+void native_mutex_lock(pthread_mutex_t *lock);
+void native_mutex_unlock(pthread_mutex_t *lock);
+
+static void
 rb_objc_scan_external_callout(void *context, void (*scanner)(void *context, void *start, void *end))
 {
     rb_thread_t *th = GET_THREAD();
     (*scanner)(context, th->stack, th->cfp->sp);
-    //(*scanner)(context, th->stack, th->stack + th->stack_size);
 } 
 
 NODE*
@@ -582,7 +547,6 @@ garbage_collect(void)
     if (dont_gc)
 	return Qtrue;
     auto_collect(__auto_zone, AUTO_COLLECT_GENERATIONAL_COLLECTION, NULL);
-    malloc_increase = 0;
     return Qtrue;
 }
 
@@ -1274,33 +1238,23 @@ static void
 rb_obj_imp_finalize(void *obj, SEL sel)
 {
     const bool need_protection = GET_THREAD()->thread_id != pthread_self();
-    void native_mutex_lock(pthread_mutex_t *lock);
-    void native_mutex_unlock(pthread_mutex_t *lock);
+    bool call_finalize, free_ivar;
 
     if (NATIVE((VALUE)obj)) {
 	long flag;
 
-	if (need_protection) {
-	    native_mutex_lock(&GET_THREAD()->vm->global_interpreter_lock);
-	}
 	flag = rb_objc_remove_flags(obj);
-	if ((flag & FL_FINALIZE) == FL_FINALIZE) {
-	    rb_call_os_finalizer(obj);
-	}
-	if ((flag & FL_EXIVAR) == FL_EXIVAR) {
-	    rb_free_generic_ivar((VALUE)obj);
-	}
-	if (need_protection) {
-	    native_mutex_unlock(&GET_THREAD()->vm->global_interpreter_lock);
-	}
+
+	call_finalize = (flag & FL_FINALIZE) == FL_FINALIZE;
+	free_ivar = (flag & FL_EXIVAR) == FL_EXIVAR;
     }
     else {
-	bool call_finalize, free_ivar;
-
 	call_finalize = FL_TEST(obj, FL_FINALIZE);
 	free_ivar = FL_TEST(obj, FL_EXIVAR);
+    }
 
-	if (need_protection && (call_finalize || free_ivar)) {
+    if (call_finalize || free_ivar) {
+	if (need_protection) {
 	    native_mutex_lock(&GET_THREAD()->vm->global_interpreter_lock);
 	}
 	if (call_finalize) {
@@ -1309,7 +1263,7 @@ rb_obj_imp_finalize(void *obj, SEL sel)
 	if (free_ivar) {
 	    rb_free_generic_ivar((VALUE)obj);
 	}
-	if (need_protection && (call_finalize || free_ivar)) {
+	if (need_protection) {
 	    native_mutex_unlock(&GET_THREAD()->vm->global_interpreter_lock);
 	}
     }
@@ -1330,17 +1284,20 @@ Init_PreGC(void)
 	rb_objc_scan_external_callout;
     if (getenv("GC_DEBUG"))
 	control->log = AUTO_LOG_COLLECTIONS | AUTO_LOG_REGIONS 
-		       | AUTO_LOG_UNUSUAL;
+		       | AUTO_LOG_UNUSUAL | AUTO_LOG_COLLECT_DECISION;
 
     Method m = class_getInstanceMethod((Class)objc_getClass("NSObject"), sel_registerName("finalize"));
     assert(m != NULL);
     method_setImplementation(m, (IMP)rb_obj_imp_finalize);
+    
+    auto_collector_disable(__auto_zone);
 }
 
 void
 Init_PostGC(void)
 {
     objc_startCollectorThread();
+    auto_collector_reenable(__auto_zone);
 }
 
 void

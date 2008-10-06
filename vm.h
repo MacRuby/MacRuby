@@ -79,9 +79,11 @@ extern VALUE ruby_vm_redefined_flag;
 
 #else
 
+extern void rb_enter_insn_trace(rb_control_frame_t *);
+extern void rb_end_insn_trace(rb_control_frame_t *);
 #define debugs
-#define DEBUG_ENTER_INSN(insn) //printf("enter insn %s\n", insn);
-#define DEBUG_END_INSN()
+#define DEBUG_ENTER_INSN(insn) rb_enter_insn_trace(GET_CFP())
+#define DEBUG_END_INSN() rb_end_insn_trace(GET_CFP());
 #endif
 
 #define throwdebug if(0)printf

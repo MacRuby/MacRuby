@@ -234,8 +234,19 @@ task :config_h do
   end
 end
 
+desc "Create dtrace.h"
+task :dtrace_h do
+  dtrace_h = 'dtrace.h'
+  if !File.exist?(dtrace_h) or File.mtime(dtrace_h) < File.mtime('dtrace.d')
+    sh "/usr/sbin/dtrace -h -s dtrace.d -o new_dtrace.h"
+    if !File.exist?(dtrace_h) or File.read(dtrace_h) != File.read('new_dtrace.h')
+      mv 'new_dtrace.h', dtrace_h
+    end
+  end
+end
+
 desc "Build known objects"
-task :objects => :config_h do
+task :objects => [:config_h, :dtrace_h] do
   sh "/usr/bin/ruby tool/compile_prelude.rb prelude.rb miniprelude.c.new"
   if !File.exist?('miniprelude.c') or File.read('miniprelude.c') != File.read('miniprelude.c.new')
     mv('miniprelude.c.new', 'miniprelude.c')

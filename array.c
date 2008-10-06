@@ -110,7 +110,6 @@ ary_alloc(VALUE klass)
 	*(Class *)ary = (Class)klass;
 
     CFMakeCollectable(ary);
-    rb_gc_malloc_increase(sizeof(void *));
 
     return (VALUE)ary;
 }

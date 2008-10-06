@@ -467,7 +467,7 @@ class TestArray < Test::Unit::TestCase
 
   def test_collect
     a = @cls[ 1, 'cat', 1..1 ]
-    assert_equal([ Fixnum, NSCFString, Range], a.collect {|e| e.class} )
+    assert_equal([ Fixnum, String, Range], a.collect {|e| e.class} )
     assert_equal([ 99, 99, 99], a.collect { 99 } )
 
     assert_equal([], @cls[].collect { 99 })
@@ -481,8 +481,8 @@ class TestArray < Test::Unit::TestCase
   # also update map!
   def test_collect!
     a = @cls[ 1, 'cat', 1..1 ]
-    assert_equal([ Fixnum, NSCFString, Range], a.collect! {|e| e.class} )
-    assert_equal([ Fixnum, NSCFString, Range], a)
+    assert_equal([ Fixnum, String, Range], a.collect! {|e| e.class} )
+    assert_equal([ Fixnum, String, Range], a)
    
     a = @cls[ 1, 'cat', 1..1 ]
     assert_equal([ 99, 99, 99], a.collect! { 99 } )
@@ -821,8 +821,8 @@ class TestArray < Test::Unit::TestCase
   # also update collect!
   def test_map!
     a = @cls[ 1, 'cat', 1..1 ]
-    assert_equal(@cls[ Fixnum, NSCFString, Range], a.map! {|e| e.class} )
-    assert_equal(@cls[ Fixnum, NSCFString, Range], a)
+    assert_equal(@cls[ Fixnum, String, Range], a.map! {|e| e.class} )
+    assert_equal(@cls[ Fixnum, String, Range], a)
    
     a = @cls[ 1, 'cat', 1..1 ]
     assert_equal(@cls[ 99, 99, 99], a.map! { 99 } )
@@ -1454,7 +1454,7 @@ class TestArray < Test::Unit::TestCase
     klass = Class.new(Array)
     a = klass.new.to_a
     assert_equal([], a)
-    assert_equal(NSCFArray, a.class)
+    assert_equal(Array, a.class)
   end
 
   def test_values_at2

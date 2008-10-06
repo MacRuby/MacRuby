@@ -1153,6 +1153,16 @@ leave
     }
 
     RUBY_VM_CHECK_INTS();
+
+    if (MACRUBY_METHOD_RETURN_ENABLED()) {
+	if (reg_cfp->iseq != NULL && reg_cfp->iseq->type == ISEQ_TYPE_METHOD) {
+	    MACRUBY_METHOD_RETURN((char *)rb_class2name(reg_cfp->iseq->klass),
+		    (char *)RSTRING_PTR(reg_cfp->iseq->name),
+		    (char *)rb_sourcefile(),
+		    rb_sourceline());
+	}
+    }
+
     vm_pop_frame(th);
     RESTORE_REGS();
 }

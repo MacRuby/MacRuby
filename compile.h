@@ -167,6 +167,9 @@ PRINTF_ARGS(void ruby_debug_printf(const char*, ...), 1, 2);
       ADD_INSN1(seq, line, trace, INT2FIX(event)); \
   }
 
+#define ADD_TRACE2(seq, line, event) \
+  ADD_INSN1(seq, line, trace, INT2FIX(event));
+
 /* add label */
 #define ADD_LABEL(seq, label) \
   ADD_ELEM(seq, (LINK_ELEMENT *) label)
