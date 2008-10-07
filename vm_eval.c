@@ -649,7 +649,7 @@ rb_iterate(VALUE (* it_proc) (VALUE), VALUE data1,
       iter_retry:
 	{
 	    rb_block_t *blockptr = RUBY_VM_GET_BLOCK_PTR_IN_CFP(th->cfp);
-	    blockptr->iseq = (void *)node;
+	    GC_WB(&blockptr->iseq, (void *)node);
 	    blockptr->proc = 0;
 	    th->passed_block = blockptr;
 	}

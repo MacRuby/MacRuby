@@ -381,7 +381,7 @@ vm_make_proc(rb_thread_t *th,
 		th, cfp, (rb_block_t *)GC_GUARDED_PTR_REF(*cfp->lfp));
 
 	    GetProcPtr(blockprocval, p);
-	    *cfp->lfp = GC_GUARDED_PTR(&p->block);
+	    GC_WB(cfp->lfp, GC_GUARDED_PTR(&p->block));
 	}
     }
     envval = vm_make_env_object(th, cfp);

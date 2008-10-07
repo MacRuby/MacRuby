@@ -5153,7 +5153,7 @@ parser_newtok(struct parser_params *parser)
     tokidx = 0;
     if (!tokenbuf) {
 	toksiz = 60;
-	tokenbuf = ALLOC_N(char, 60);
+	GC_WB(&tokenbuf, ALLOC_N(char, 60));
     }
     if (toksiz > 4096) {
 	toksiz = 60;
