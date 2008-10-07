@@ -143,7 +143,7 @@ vtable_alloc(struct vtable *prev)
     struct vtable *tbl = ALLOC(struct vtable);
     tbl->pos = 0;
     tbl->capa = 8;
-    tbl->tbl = ALLOC_N(ID, tbl->capa);
+    GC_WB(&tbl->tbl, ALLOC_N(ID, tbl->capa));
     tbl->prev = prev;
     if (VTBL_DEBUG) printf("vtable_alloc: %p\n", tbl);
     return tbl;
@@ -8624,9 +8624,9 @@ local_push_gen(struct parser_params *parser, int inherit_dvars)
 
     local = ALLOC(struct local_vars);
     local->prev = lvtbl;
-    local->args = vtable_alloc(0);
-    local->vars = vtable_alloc(inherit_dvars ? DVARS_INHERIT : DVARS_TOPSCOPE);
-    lvtbl = local;
+    GC_WB(&local->args, vtable_alloc(0));
+    GC_WB(&local->vars, vtable_alloc(inherit_dvars ? DVARS_INHERIT : DVARS_TOPSCOPE));
+    GC_WB(&lvtbl, local);
 }
 
 static void
@@ -8636,7 +8636,7 @@ local_pop_gen(struct parser_params *parser)
     vtable_free(lvtbl->args);
     vtable_free(lvtbl->vars);
     xfree(lvtbl);
-    lvtbl = local;
+    GC_WB(&lvtbl, local);
 }
 
 static ID*
@@ -8779,8 +8779,8 @@ local_id_gen(struct parser_params *parser, ID id)
 static void
 dyna_push_gen(struct parser_params *parser)
 {
-    lvtbl->args = vtable_alloc(lvtbl->args);
-    lvtbl->vars = vtable_alloc(lvtbl->vars);
+    GC_WB(&lvtbl->args, vtable_alloc(lvtbl->args));
+    GC_WB(&lvtbl->vars, vtable_alloc(lvtbl->vars));
 }
 
 static void
