@@ -13,7 +13,12 @@
 
 - (void)awakeFromNib
 {
-    [expressionTextView setFont:[NSFont fontWithName:@"Monaco" size:14.0]];
+    NSFont *niceFont;
+    
+    niceFont = [NSFont fontWithName:@"Monaco" size:14.0];
+    [expressionTextView setFont:niceFont];
+    [resultTextView setFont:niceFont];
+    
     [expressionTextView setString:@"(0..42).to_a"];
 }
 
