@@ -29,6 +29,7 @@
 #include "ruby/ruby.h"
 #include "ruby/node.h"
 #include "ruby/encoding.h"
+#include "ruby/objc.h"
 #include <unistd.h>
 #include <dlfcn.h>
 #include <mach-o/dyld.h>
@@ -3309,4 +3310,50 @@ int __rb_type(VALUE v) { return TYPE(v); }
 {
     return (id)objc_getProtocol([name UTF8String]);
 } 
+@end
+
+extern int ruby_initialized; /* eval.c */
+
+@implementation MacRuby
+
++ (MacRuby *)sharedRuntime
+{
+    static MacRuby *runtime = nil;
+    if (runtime == nil) {
+	runtime = [[MacRuby alloc] init];
+	if (ruby_initialized == 0) {
+	    int argc = 0;
+	    char **argv = NULL;
+	    ruby_sysinit(&argc, &argv);
+	    RUBY_INIT_STACK;
+	    ruby_init();
+	}
+    }
+    return runtime;
+}
+
++ (MacRuby *)runtimeAttachedToProcessIdentifier:(pid_t)pid
+{
+    [NSException raise:NSGenericException format:@"not implemented yet"];
+    return nil;
+}
+
+- (id)evaluateString:(NSString *)expression
+{
+    return RB2OC(rb_eval_string([expression UTF8String]));
+}
+
+- (id)evaluateFileAtPath:(NSString *)path
+{
+    return [self evaluateString:[NSString stringWithContentsOfFile:path usedEncoding:nil error:nil]];
+}
+
+- (id)evaluateFileAtURL:(NSURL *)URL
+{
+    if (![URL isFileURL]) {
+	[NSException raise:NSInvalidArgumentException format:@"given URL is not a file URL"];
+    }
+    return [self evaluateFileAtPath:[URL relativePath]];
+}
+
 @end

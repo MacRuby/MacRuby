@@ -1230,6 +1230,7 @@ rb_special_const_p(VALUE obj)
 #if RUBY_INCLUDED_AS_FRAMEWORK
 #include <MacRuby/ruby/missing.h>
 #include <MacRuby/ruby/intern.h>
+#include <MacRuby/ruby/objc.h>
 #else
 #include "ruby/missing.h"
 #include "ruby/intern.h"

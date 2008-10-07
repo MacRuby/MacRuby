@@ -60,15 +60,16 @@ bool ruby_dlog_enabled = false;
 FILE *ruby_dlog_file = NULL;
 #endif
 
+int ruby_initialized = 0;
+
 void
 ruby_init(void)
 {
-    static int initialized = 0;
     int state;
 
-    if (initialized)
+    if (ruby_initialized)
 	return;
-    initialized = 1;
+    ruby_initialized = 1;
 
 #ifdef __MACOS__
     rb_origenviron = 0;
