@@ -439,7 +439,9 @@ static void
 rb_objc_scan_external_callout(void *context, void (*scanner)(void *context, void *start, void *end))
 {
     rb_thread_t *th = GET_THREAD();
-    (*scanner)(context, th->stack, th->cfp->sp);
+    if (th->stack != NULL) {
+	(*scanner)(context, th->stack, th->cfp->sp);
+    }
 } 
 
 NODE*
