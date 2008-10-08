@@ -2563,7 +2563,7 @@ rb_mutex_unlock(VALUE self)
 
     native_mutex_unlock(&mutex->lock);
 
-    if (err) rb_raise(rb_eThreadError, err);
+    if (err) rb_raise(rb_eThreadError, "%s", err);
 
     return self;
 }

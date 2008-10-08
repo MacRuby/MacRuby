@@ -506,21 +506,23 @@ VALUE
 rb_check_backtrace(VALUE bt)
 {
     long i;
-    static const char *err = "backtrace must be Array of String";
+#define BACKTRACE_ERROR "backtrace must be Array of String"
 
     if (!NIL_P(bt)) {
 	int t = TYPE(bt);
 
 	if (t == T_STRING) return rb_ary_new3(1, bt);
 	if (t != T_ARRAY) {
-	    rb_raise(rb_eTypeError, err);
+	    rb_raise(rb_eTypeError, BACKTRACE_ERROR);
 	}
 	for (i=0;i<RARRAY_LEN(bt);i++) {
 	    if (TYPE(RARRAY_AT(bt, i)) != T_STRING) {
-		rb_raise(rb_eTypeError, err);
+		rb_raise(rb_eTypeError, BACKTRACE_ERROR);
 	    }
 	}
     }
+#undef BACKTRACE_ERROR
+
     return bt;
 }
 

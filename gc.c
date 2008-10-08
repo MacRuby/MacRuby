@@ -59,15 +59,13 @@ extern void auto_collector_disable(auto_zone_t *);
 extern void auto_collector_reenable(auto_zone_t *);
 extern boolean_t auto_zone_set_write_barrier(auto_zone_t *, const void *, 
 	const void *);
-extern void auto_zone_write_barrier_range(auto_zone_t *, void *, size_t);
 extern void auto_zone_add_root(auto_zone_t *, void *, void *);
 extern void auto_zone_register_thread(auto_zone_t *);
 extern void auto_zone_unregister_thread(auto_zone_t *);
 extern void auto_collect(auto_zone_t *, int, void *);
 extern boolean_t auto_zone_is_valid_pointer(auto_zone_t *, const void *);
 typedef int auto_memory_type_t;
-extern auto_memory_type_t auto_zone_get_layout_type_no_lock(auto_zone_t *, 
-	void *);
+extern auto_memory_type_t auto_zone_get_layout_type(auto_zone_t *, void *);
 extern void *auto_zone_allocate_object(
         auto_zone_t *, size_t, auto_memory_type_t, boolean_t, boolean_t);
 extern void *auto_zone_write_barrier_memmove(
@@ -339,12 +337,6 @@ rb_objc_wb(void *dst, void *newval)
 	    rb_bug("destination %p isn't in the auto zone", dst);
     }
     *(void **)dst = newval;
-}
-
-void
-rb_objc_wb_range(void *dst, size_t len)
-{
-    auto_zone_write_barrier_range(__auto_zone, dst, len);
 }
 
 void *
@@ -729,7 +721,7 @@ rb_objc_recorder(task_t task, void *context, unsigned type_mask,
     for (r = ranges, end = ranges + range_count; r < end; r++) {
 	Class c;
 	auto_memory_type_t type =
-	    auto_zone_get_layout_type_no_lock(__auto_zone, (void *)r->address);
+	    auto_zone_get_layout_type(__auto_zone, (void *)r->address);
 	if (type != AUTO_OBJECT_SCANNED && type != AUTO_OBJECT_UNSCANNED)
 	    continue;
 	if (*(Class *)r->address == NULL)
@@ -1023,7 +1015,7 @@ id2ref(VALUE obj, VALUE objid)
 
     if (auto_zone_is_valid_pointer(auto_zone(), p0)) {
 	auto_memory_type_t type = 
-	    auto_zone_get_layout_type_no_lock(__auto_zone, p0);
+	    auto_zone_get_layout_type(__auto_zone, p0);
 	if ((type == AUTO_OBJECT_SCANNED || type == AUTO_OBJECT_UNSCANNED)
 	    && !rb_objc_is_placeholder(p0)
 	    && (NATIVE((VALUE)p0)

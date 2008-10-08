@@ -2605,7 +2605,7 @@ rb_objc_load_bridge_support(const char *path, int options)
 			 bs_parse_cb, rb_cObject_dict, &error);
     enable_method_added = Qtrue;
     if (!ok) {
-	rb_raise(rb_eRuntimeError, error);
+	rb_raise(rb_eRuntimeError, "%s", error);
     }
 }
 
