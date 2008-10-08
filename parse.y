@@ -174,6 +174,7 @@ vtable_add(struct vtable *tbl, ID id)
     if (tbl->pos == tbl->capa) {
         tbl->capa = tbl->capa * 2;
         REALLOC_N(tbl->tbl, ID, tbl->capa);
+        GC_WB(&tbl->tbl, tbl->tbl);
     }
     tbl->tbl[tbl->pos++] = id;
 }
@@ -5158,6 +5159,7 @@ parser_newtok(struct parser_params *parser)
     if (toksiz > 4096) {
 	toksiz = 60;
 	REALLOC_N(tokenbuf, char, 60);
+	GC_WB(&tokenbuf, tokenbuf);
     }
     return tokenbuf;
 }
@@ -5170,6 +5172,7 @@ parser_tokspace(struct parser_params *parser, int n)
     if (tokidx >= toksiz) {
 	do {toksiz *= 2;} while (toksiz < tokidx);
 	REALLOC_N(tokenbuf, char, toksiz);
+	GC_WB(&tokenbuf, tokenbuf);
     }
     return &tokenbuf[tokidx-n];
 }
@@ -5181,6 +5184,7 @@ parser_tokadd(struct parser_params *parser, int c)
     if (tokidx >= toksiz) {
 	toksiz *= 2;
 	REALLOC_N(tokenbuf, char, toksiz);
+	GC_WB(&tokenbuf, tokenbuf);
     }
 }
 

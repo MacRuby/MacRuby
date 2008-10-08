@@ -172,8 +172,28 @@ enum ruby_tag_type {
 #define TAG_FATAL	RUBY_TAG_FATAL
 #define TAG_MASK	RUBY_TAG_MASK
 
+#if WITH_OBJC
+static inline VALUE
+__new_throw_object(enum node_type type, VALUE a0, VALUE a1, VALUE a2)
+{
+    NEWOBJ(n, NODE);
+    n->flags |= T_NODE;
+    nd_set_type(n, type);
+
+    /* no WB! */
+    n->u1.value = a0;
+    n->u2.value = a1;
+    n->u3.value = a2;
+
+    return (VALUE)n;
+}
+#define NEW_THROW_OBJECT(val, pt, st) \
+  (__new_throw_object(NODE_LIT, (val), (pt), (st)))
+#else
 #define NEW_THROW_OBJECT(val, pt, st) \
   ((VALUE)NEW_NODE(NODE_LIT, (val), (pt), (st)))
+#endif
+
 #define SET_THROWOBJ_CATCH_POINT(obj, val) \
   (RNODE((obj))->u2.value = (val))
 #define SET_THROWOBJ_STATE(obj, val) \

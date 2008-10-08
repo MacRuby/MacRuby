@@ -585,9 +585,15 @@ typedef VALUE CDHASH;
 typedef rb_control_frame_t *
   (FUNC_FASTCALL(*rb_insn_func_t))(rb_thread_t *, rb_control_frame_t *);
 
+#if WITH_OBJC
+#define GC_GUARDED_PTR(p)	(VALUE)(p)
+#define GC_GUARDED_PTR_REF(p)	(void *)(p)
+#define GC_GUARDED_PTR_P(p)	(VALUE)(p)
+#else
 #define GC_GUARDED_PTR(p)     ((VALUE)((VALUE)(p) | 0x01))
 #define GC_GUARDED_PTR_REF(p) ((void *)(((VALUE)p) & ~0x03))
 #define GC_GUARDED_PTR_P(p)   (((VALUE)p) & 0x01)
+#endif
 
 #define RUBY_VM_METHOD_NODE NODE_METHOD
 
