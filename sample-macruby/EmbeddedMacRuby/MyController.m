@@ -24,10 +24,17 @@
 
 - (IBAction)evaluate:(id)sender
 {
-    id object;
+    @try {
+        id object;
     
-    object = [[MacRuby sharedRuntime] evaluateString:[expressionTextView string]];
-    [resultTextView setString:[object description]];
+        object = [[MacRuby sharedRuntime] evaluateString:[expressionTextView string]];
+        [resultTextView setString:[object description]];
+    }
+    @catch (NSException *exception) {
+        NSString *string = [NSString stringWithFormat:@"%@: %@\n%@", [exception name], [exception reason], 
+            [[[exception userInfo] objectForKey:@"backtrace"] description]];
+        [resultTextView setString:string];
+    }
 }
 
 

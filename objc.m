@@ -3338,9 +3338,54 @@ extern int ruby_initialized; /* eval.c */
     return nil;
 }
 
+static VALUE
+evaluateString_safe(VALUE expression)
+{
+    return rb_eval_string([(NSString *)expression UTF8String]);
+}
+
+static VALUE
+evaluateString_rescue(VALUE expression)
+{
+    VALUE ex, ex_name, ex_message, ex_backtrace;
+    NSException *ocex;
+    static ID name_id = 0;
+    static ID message_id = 0;
+    static ID backtrace_id = 0;
+
+    if (name_id == 0) {
+	name_id = rb_intern("name");
+    }
+    if (message_id == 0) {
+	message_id = rb_intern("message");
+    }
+    if (backtrace_id == 0) {
+	backtrace_id = rb_intern("backtrace");
+    }
+
+    ex = rb_errinfo();
+    ex_name = rb_funcall(CLASS_OF(ex), name_id, 0);
+    ex_message = rb_funcall(ex, message_id, 0);
+    ex_backtrace = rb_funcall(ex, backtrace_id, 0);
+
+    ocex = [NSException exceptionWithName:(id)ex_name reason:(id)ex_message userInfo:
+	[NSDictionary dictionaryWithObjectsAndKeys:(id)ex, @"object", 
+						   (id)ex_backtrace, @"backtrace",
+						   NULL]];
+
+    [ocex raise];
+
+    return Qnil;
+}
+
 - (id)evaluateString:(NSString *)expression
 {
-    return RB2OC(rb_eval_string([expression UTF8String]));
+    VALUE ret;
+
+    ret = rb_rescue2(evaluateString_safe, (VALUE)expression,
+	    	     evaluateString_rescue, (VALUE)expression,
+		     rb_eException, (VALUE)0);
+    return RB2OC(ret);
 }
 
 - (id)evaluateFileAtPath:(NSString *)path
