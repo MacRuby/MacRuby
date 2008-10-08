@@ -516,7 +516,7 @@ ln_sfh File.join("../../..", CONFIG['bindir'], 'rb_nibtool'), ib_dest
 install('tool/rb_nibtool.old', ib_dest, :mode => $prog_mode)
 
 touch_file = '/System/Library/Frameworks/.bridgesupport_dylib_gcmarked'
-if $destdir.empty? and File.exist?(touch_file)
+if ($destdir.empty? and File.exist?(touch_file)) or `sw_vers -productVersion`.strip.to_f >= 10.6
   puts "bridge support dylibs already fixed"
 else
   puts "fixing bridge support dylibs"
