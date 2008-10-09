@@ -9,8 +9,8 @@ class TableView
       view << scroll_view(:layout => {:expand => [:width, :height]}) do |scroll|
         scroll << table_view( 
           :columns => [
-            column(:id => :first_name, :text => "First"), 
-            column(:id => :last_name, :text => "Last")
+            column(:id => :first_name, :title => "First"), 
+            column(:id => :last_name, :title => "Last")
             ],
           :data => [
             {:first_name => "Richard", :last_name => "Kilmer"},
