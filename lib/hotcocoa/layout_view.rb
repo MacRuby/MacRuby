@@ -26,7 +26,7 @@ class LayoutOptions
   #    Whether the view is packed at the start or the end of the packing view.
   #    Default value is true.
   #
-  #  :expand -> :vertical, :horizontal, [:vertical, :horizontal]
+  #  :expand ->  :height, :width, [:height, :width]
   #    Whether the view's first dimension (width for horizontal and height for vertical)
   #    should be expanded to the maximum possible size, and should be variable according
   #    to the packing view frame.
@@ -267,7 +267,11 @@ class LayoutView < NSView
       relayout!
     end
   end
- 
+  
+  def frame=(frame)
+    setFrame(frame)
+  end
+  
   def margin
     @margin
   end

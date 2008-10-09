@@ -96,7 +96,7 @@ HotCocoa::Mappings.map :window => :NSWindow do
   delegating "windowDidDeminiaturize:",                                 :to => :did_deminiturize
   delegating "windowDidEndSheet:",                                      :to => :did_end_sheet
   delegating "windowDidExpose:",                                        :to => :did_expose,               :parameters => ["windowDidExpose.userInfo['NSExposedRect']"]
-  delegating "windowDidMiniaturize:",                                   :to => :did_miniturize
+  delegating "windowDidMiniaturize:",                                   :to => :did_miniaturize
   delegating "windowDidMove:",                                          :to => :did_move
   delegating "windowDidResignKey:",                                     :to => :did_resign_key
   delegating "windowDidResignMain:",                                    :to => :did_resign_main
@@ -106,7 +106,7 @@ HotCocoa::Mappings.map :window => :NSWindow do
   delegating "windowShouldZoom:toFrame:",                               :to => :should_zoom?,             :parameters => [:toFrame]
   delegating "windowWillBeginSheet:",                                   :to => :will_begin_sheet
   delegating "windowWillClose:",                                        :to => :will_close
-  delegating "windowWillMiniaturize:",                                  :to => :will_miniturize
+  delegating "windowWillMiniaturize:",                                  :to => :will_miniaturize
   delegating "windowWillMove:",                                         :to => :will_move
   delegating "windowWillResize:toSize:",                                :to => :will_resize,              :parameters => [:toSize]
   delegating "windowWillReturnFieldEditor:toObject:",                   :to => :returning_field_editor,   :parameters => [:toObject]
