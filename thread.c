@@ -1755,7 +1755,7 @@ void
 rb_fd_init(volatile rb_fdset_t *fds)
 {
     fds->maxfd = 0;
-    fds->fdset = ALLOC(fd_set);
+    GC_WB(&fds->fdset, ALLOC(fd_set));
     FD_ZERO(fds->fdset);
 }
 
@@ -1971,18 +1971,18 @@ rb_thread_wait_fd_rw(int fd, int read)
     thread_debug("rb_thread_wait_fd_rw(%d, %s)\n", fd, read ? "read" : "write");
 
     while (result <= 0) {
-	rb_fdset_t set;
-	rb_fd_init(&set);
-	FD_SET(fd, &set);
+	rb_fdset_t *set = ALLOC(rb_fdset_t);
+	rb_fd_init(set);
+	FD_SET(fd, set);
 
 	if (read) {
-	    result = do_select(fd + 1, rb_fd_ptr(&set), 0, 0, 0);
+	    result = do_select(fd + 1, rb_fd_ptr(set), 0, 0, 0);
 	}
 	else {
-	    result = do_select(fd + 1, 0, rb_fd_ptr(&set), 0, 0);
+	    result = do_select(fd + 1, 0, rb_fd_ptr(set), 0, 0);
 	}
 
-	rb_fd_term(&set);
+	rb_fd_term(set);
 
 	if (result < 0) {
 	    rb_sys_fail(0);
@@ -2748,7 +2748,8 @@ rb_barrier_wait(VALUE self)
 	return Qfalse;
     }
     else {
-	*barrier->tail = q = ALLOC(rb_thread_list_t);
+	GC_WB(barrier->tail, ALLOC(rb_thread_list_t));
+	q = *barrier->tail;
 	q->th = GET_THREAD();
 	q->next = 0;
 	barrier->tail = &q->next;
@@ -2872,7 +2873,7 @@ alloc_event_fook(rb_event_hook_func_t func, rb_event_flag_t events, VALUE data)
     rb_event_hook_t *hook = ALLOC(rb_event_hook_t);
     hook->func = func;
     hook->flag = events;
-    hook->data = data;
+    GC_WB(&hook->data, data);
     return hook;
 }
 
@@ -2892,6 +2893,7 @@ void
 rb_thread_add_event_hook(rb_thread_t *th,
 			 rb_event_hook_func_t func, rb_event_flag_t events, VALUE data)
 {
+    /* FIXME not GC safe! */
     rb_event_hook_t *hook = alloc_event_fook(func, events, data);
     hook->next = th->event_hooks;
     th->event_hooks = hook;

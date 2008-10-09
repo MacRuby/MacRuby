@@ -130,7 +130,7 @@ cont_save_machine_stack(rb_thread_t *th, rb_context_t *cont)
 	REALLOC_N(cont->machine_stack, VALUE, size);
     }
     else {
-	cont->machine_stack = ALLOC_N(VALUE, size);
+	GC_WB(&cont->machine_stack, ALLOC_N(VALUE, size));
     }
 
     FLUSH_REGISTER_WINDOWS;
@@ -144,7 +144,7 @@ cont_save_machine_stack(rb_thread_t *th, rb_context_t *cont)
 	REALLOC_N(cont->machine_register_stack, VALUE, size);
     }
     else {
-	cont->machine_register_stack = ALLOC_N(VALUE, size);
+	GC_WB(&cont->machine_register_stack, ALLOC_N(VALUE, size));
     }
 
     MEMCPY(cont->machine_register_stack, cont->machine_register_stack_src, VALUE, size);
@@ -190,7 +190,7 @@ cont_capture(volatile int *stat)
     contval = cont->self;
     sth = &cont->saved_thread;
 
-    cont->vm_stack = ALLOC_N(VALUE, th->stack_size);
+    GC_WB(&cont->vm_stack, ALLOC_N(VALUE, th->stack_size));
     MEMCPY(cont->vm_stack, th->stack, VALUE, th->stack_size);
     sth->stack = 0;
 
@@ -600,7 +600,7 @@ rb_fiber_start(void)
 	args = cont->value;
 	cont->value = Qnil;
 	th->errinfo = Qnil;
-	th->local_lfp = proc->block.lfp;
+	GC_WB(&th->local_lfp, proc->block.lfp);
 	th->local_svar = Qnil;
 
 	cont->value = vm_invoke_proc(th, proc, proc->block.self, 1, &args, 0);

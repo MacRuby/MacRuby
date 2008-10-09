@@ -304,7 +304,7 @@ iseq_translate_threaded_code(rb_iseq_t *iseq)
 #endif
     int i;
 
-    iseq->iseq_encoded = ALLOC_N(VALUE, iseq->iseq_size);
+    GC_WB(&iseq->iseq_encoded, ALLOC_N(VALUE, iseq->iseq_size));
     MEMCPY(iseq->iseq_encoded, iseq->iseq, VALUE, iseq->iseq_size);
 
     for (i = 0; i < iseq->iseq_size; /* */ ) {
@@ -802,7 +802,7 @@ iseq_set_exception_local_table(rb_iseq_t *iseq)
     if (!id_dollar_bang) {
 	id_dollar_bang = rb_intern("#$!");
     }
-    iseq->local_table = (ID *)ALLOC_N(ID *, 1);
+    GC_WB(&iseq->local_table, (ID *)ALLOC_N(ID *, 1));
     iseq->local_table_size = 1;
     iseq->local_size = iseq->local_table_size + 1;
     iseq->local_table[0] = id_dollar_bang;
@@ -1028,7 +1028,7 @@ iseq_set_local_table(rb_iseq_t *iseq, ID *tbl)
     }
 
     if (size > 0) {
-	iseq->local_table = (ID *)ALLOC_N(ID *, size);
+	GC_WB(&iseq->local_table, (ID *)ALLOC_N(ID *, size));
 	MEMCPY(iseq->local_table, tbl, ID *, size);
     }
 
@@ -5076,7 +5076,7 @@ iseq_build_from_ary(rb_iseq_t *iseq, VALUE locals, VALUE args,
 	iseq->arg_post_len = FIX2INT(arg_post_len);
 	iseq->arg_post_start = FIX2INT(arg_post_start);
 	iseq->arg_block = FIX2INT(arg_block);
-	iseq->arg_opt_table = (VALUE *)ALLOC_N(VALUE, RARRAY_LEN(arg_opt_labels));
+	GC_WB(&iseq->arg_opt_table, (VALUE *)ALLOC_N(VALUE, RARRAY_LEN(arg_opt_labels)));
 
 	if (iseq->arg_block != -1) {
 	    iseq->arg_size = iseq->arg_block + 1;

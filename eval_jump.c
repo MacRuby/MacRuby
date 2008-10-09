@@ -59,6 +59,7 @@ static struct end_proc_data *end_procs, *ephemeral_end_procs, *tmp_end_procs;
 void
 rb_set_end_proc(void (*func)(VALUE), VALUE data)
 {
+    /* FIXME not GC safe! */
     struct end_proc_data *link = ALLOC(struct end_proc_data);
     struct end_proc_data **list;
     rb_thread_t *th = GET_THREAD();

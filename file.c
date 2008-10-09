@@ -3785,7 +3785,7 @@ rb_stat_init(VALUE obj, VALUE fname)
     }
     nst = ALLOC(struct stat);
     *nst = st;
-    DATA_PTR(obj) = nst;
+    GC_WB(&DATA_PTR(obj), nst);
 
     return Qnil;
 }
@@ -3809,7 +3809,7 @@ rb_stat_init_copy(VALUE copy, VALUE orig)
     if (DATA_PTR(orig)) {
 	nst = ALLOC(struct stat);
 	*nst = *(struct stat*)DATA_PTR(orig);
-	DATA_PTR(copy) = nst;
+	GC_WB(&DATA_PTR(copy), nst);
     }
 
     return copy;
