@@ -1516,6 +1516,10 @@ struct rb_ruby_to_objc_closure_handler_main_ctx {
   void *userdata;
 };
 
+VALUE rb_vm_call(rb_thread_t * th, VALUE klass, VALUE recv, VALUE id, 
+	ID oid, int argc, const VALUE *argv, const NODE *body, 
+	int nosuper);
+
 static VALUE
 rb_ruby_to_objc_closure_handler_main(void *ctx)
 {
@@ -1569,10 +1573,6 @@ rb_ruby_to_objc_closure_handler_main(void *ctx)
     klass = CLASS_OF(rrcv);
 
     DLOG("RCALL", "%c[<%s %p> %s] node=%p", class_isMetaClass((Class)klass) ? '+' : '-', class_getName((Class)klass), (void *)rrcv, (char *)sel, body);
-
-    VALUE rb_vm_call(rb_thread_t * th, VALUE klass, VALUE recv, VALUE id, 
-		     ID oid, int argc, const VALUE *argv, const NODE *body, 
-		     int nosuper);
 
     ret = rb_vm_call(GET_THREAD(), klass, rrcv, mid, Qnil,
 		     argc, argv, node, 0);
@@ -3338,16 +3338,10 @@ extern int ruby_initialized; /* eval.c */
     return nil;
 }
 
-static VALUE
-evaluateString_safe(VALUE expression)
+static void
+rb_raise_ruby_exc_in_objc(VALUE ex)
 {
-    return rb_eval_string([(NSString *)expression UTF8String]);
-}
-
-static VALUE
-evaluateString_rescue(VALUE expression)
-{
-    VALUE ex, ex_name, ex_message, ex_backtrace;
+    VALUE ex_name, ex_message, ex_backtrace;
     NSException *ocex;
     static ID name_id = 0;
     static ID message_id = 0;
@@ -3355,27 +3349,34 @@ evaluateString_rescue(VALUE expression)
 
     if (name_id == 0) {
 	name_id = rb_intern("name");
-    }
-    if (message_id == 0) {
 	message_id = rb_intern("message");
-    }
-    if (backtrace_id == 0) {
 	backtrace_id = rb_intern("backtrace");
     }
 
-    ex = rb_errinfo();
     ex_name = rb_funcall(CLASS_OF(ex), name_id, 0);
     ex_message = rb_funcall(ex, message_id, 0);
     ex_backtrace = rb_funcall(ex, backtrace_id, 0);
 
-    ocex = [NSException exceptionWithName:(id)ex_name reason:(id)ex_message userInfo:
-	[NSDictionary dictionaryWithObjectsAndKeys:(id)ex, @"object", 
-						   (id)ex_backtrace, @"backtrace",
-						   NULL]];
+    ocex = [NSException exceptionWithName:(id)ex_name reason:(id)ex_message 
+		userInfo:[NSDictionary dictionaryWithObjectsAndKeys:
+		    (id)ex, @"object", 
+		    (id)ex_backtrace, @"backtrace",
+		    NULL]];
 
     [ocex raise];
+}
 
-    return Qnil;
+static VALUE
+evaluateString_safe(VALUE expression)
+{
+    return rb_eval_string([(NSString *)expression UTF8String]);
+}
+
+static VALUE
+evaluateString_rescue(void)
+{
+    rb_raise_ruby_exc_in_objc(rb_errinfo());
+    return Qnil; /* not reached */
 }
 
 - (id)evaluateString:(NSString *)expression
@@ -3383,7 +3384,7 @@ evaluateString_rescue(VALUE expression)
     VALUE ret;
 
     ret = rb_rescue2(evaluateString_safe, (VALUE)expression,
-	    	     evaluateString_rescue, (VALUE)expression,
+	    	     evaluateString_rescue, Qnil,
 		     rb_eException, (VALUE)0);
     return RB2OC(ret);
 }
@@ -3402,3 +3403,136 @@ evaluateString_rescue(VALUE expression)
 }
 
 @end
+
+@implementation NSObject (MacRubyAdditions)
+
+- (id)performRubySelector:(SEL)sel
+{
+    return [self performRubySelector:sel withArguments:NULL];
+}
+
+struct performRuby_context
+{
+    VALUE rcv;
+    ID mid;
+    int argc;
+    VALUE *argv;
+    NODE *node;
+};
+
+static VALUE
+performRuby_safe(VALUE arg)
+{
+    struct performRuby_context *ud = (struct performRuby_context *)arg;
+    return rb_vm_call(GET_THREAD(), *(VALUE *)ud->rcv, ud->rcv, ud->mid, Qnil,
+		      ud->argc, ud->argv, ud->node, 0);
+}
+
+static VALUE
+performRuby_rescue(VALUE arg)
+{
+    if (arg != 0) {
+	ruby_current_thread = (rb_thread_t *)arg;
+    }
+    rb_raise_ruby_exc_in_objc(rb_errinfo());
+    return Qnil; /* not reached */
+}
+
+- (id)performRubySelector:(SEL)sel withArguments:(id *)argv count:(int)argc
+{
+    const bool need_protection = GET_THREAD()->thread_id != pthread_self();
+    NODE *node;
+    IMP imp;
+    VALUE *rargs, ret;
+    ID mid;
+
+    imp = NULL;
+    node = rb_objc_method_node2(*(VALUE *)self, sel, &imp);
+    if (node == NULL) {
+	if (imp != NULL) {
+	    [NSException raise:NSInvalidArgumentException format:
+		@"-[%@ %s] is not a pure Ruby method", self, (char *)sel];
+	}
+	else {
+	    [NSException raise:NSInvalidArgumentException format:
+		@"receiver %@ does not respond to %s", (char *)sel];
+	}
+    }
+
+    if (argc == 0) {
+	rargs = NULL;
+    }
+    else {
+	int i;
+	rargs = (VALUE *)alloca(sizeof(VALUE) * argc);
+	for (i = 0; i < argc; i++) {
+	    rargs[i] = OC2RB(argv[i]);
+	}
+    }
+   
+    rb_thread_t *rb_thread_wrap_existing_native_thread(rb_thread_id_t id);
+    void native_mutex_unlock(pthread_mutex_t *lock);
+    void native_mutex_lock(pthread_mutex_t *lock);
+    rb_thread_t *th, *old = NULL;
+
+    if (need_protection) {
+	th = rb_thread_wrap_existing_native_thread(pthread_self());
+	native_mutex_lock(&GET_THREAD()->vm->global_interpreter_lock);
+	old = ruby_current_thread;
+	ruby_current_thread = th;
+    }
+
+    mid = rb_intern((char *)sel);
+
+    struct performRuby_context ud;
+    ud.rcv = (VALUE)self;
+    ud.mid = mid;
+    ud.argc = argc;
+    ud.argv = rargs;
+    ud.node = node->nd_body;
+
+    ret = rb_rescue2(performRuby_safe, (VALUE)&ud,
+                     performRuby_rescue, (VALUE)old,
+                     rb_eException, (VALUE)0);
+ 
+    if (need_protection) {
+	native_mutex_unlock(&GET_THREAD()->vm->global_interpreter_lock);
+	ruby_current_thread = old;
+    }
+
+    return RB2OC(ret);
+}
+
+- (id)performRubySelector:(SEL)sel withArguments:firstArg, ...
+{
+    va_list args;
+    int argc;
+    id *argv;
+
+    if (firstArg != nil) {
+	int i;
+
+        argc = 1;
+        va_start(args, firstArg);
+        while (va_arg(args, id)) {
+	    argc++;
+	}
+        va_end(args);
+	argv = alloca(sizeof(id) * argc);
+        va_start(args, firstArg);
+	argv[0] = firstArg;
+        for (i = 1; i < argc; i++) {
+            argv[i] = va_arg(args, id);
+	}
+        va_end(args);
+    }
+    else {
+	argc = 0;
+	argv = NULL;
+    }
+
+    return [self performRubySelector:sel withArguments:argv count:argc];
+}
+
+@end
+
