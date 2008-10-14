@@ -44,6 +44,7 @@ class NibPlistGenerator < Ripper::Filter
 
   def dump(io)
     h = {}
+    @ib_classes ||= []
     h['IBClasses'] = @ib_classes.map do |k|
       { 'CLASS' => k.name, 
         'LANGUAGE' => 'Ruby',
