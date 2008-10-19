@@ -1095,7 +1095,7 @@ r_symlink(struct load_arg *arg)
     ID id;
     long num = r_long(arg);
 
-    if (st_lookup(arg->symbols, num, &id)) {
+    if (st_lookup(arg->symbols, num, (st_data_t *)&id)) {
 	return id;
     }
     rb_raise(rb_eArgError, "bad symbol");

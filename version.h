@@ -53,11 +53,24 @@ RUBY_EXTERN const char ruby_copyright[];
 
 #if WITH_OBJC
 # define MACRUBY_VERSION 0.4
+# if defined(__LP64__)
+#   if BYTE_ORDER == BIG_ENDIAN
+#     define RUBY_ARCH "ppc64"
+#   else
+#     define RUBY_ARCH "x86_64"
+#   endif
+# else
+#   if BYTE_ORDER == BIG_ENDIAN
+#     define RUBY_ARCH "ppc"
+#   else
+#     define RUBY_ARCH "i386"
+#   endif
+# endif
 # define RUBY_DESCRIPTION	    \
     "MacRuby version " STRINGIZE(MACRUBY_VERSION) \
     " (ruby "RUBY_VERSION	    \
     " "RUBY_RELEASE_DATE")"	    \
-    " ["RUBY_PLATFORM"]"
+    " ["RUBY_PLATFORM", "RUBY_ARCH"]"
 #else
 # define RUBY_DESCRIPTION	    \
     "ruby "RUBY_VERSION		    \

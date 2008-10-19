@@ -92,7 +92,11 @@ extern "C" {
 
 #if SIZEOF_LONG == SIZEOF_VOIDP
 typedef unsigned long VALUE;
+#if WITH_OBJC
+#define ID unsigned long
+#else
 typedef unsigned long ID;
+#endif
 # define SIGNED_VALUE long
 # define SIZEOF_VALUE SIZEOF_LONG
 # define PRIdVALUE "ld"
@@ -505,15 +509,20 @@ struct RClass {
 # define RCLASS_IS_STRING_SUBCLASS    0x10000 /* class is a subclass of NSCFString */
 # define RCLASS_IS_ARRAY_SUBCLASS     0x20000 /* class is a subclass of NSCFArray */
 # define RCLASS_IS_HASH_SUBCLASS      0x40000 /* class is a subclass of NSCFDictionary */
-# if __OBJC2__
+# define RCLASS_IS_INCLUDED           0x80000 /* module is included */
+# if defined(__LP64__)
 #  define RCLASS_VERSION(m) (class_getVersion((Class)m))
+#  define RCLASS_SET_VERSION(m,f) (class_setVersion((Class)m, f))
 #  define RCLASS_SET_VERSION_FLAG(m,f) (class_setVersion((Class)m, (RCLASS_VERSION(m) | f)))
-#  define RCLASS_SUPER(m) (class_getSuperclass((Class)m))
-#  define RCLASS_META(m) (class_isMetaclass((Class)m))
+#  define RCLASS_SUPER(m) (*(VALUE *)((void *)m + (sizeof(void *) * 1)))
+#  define RCLASS_SET_SUPER(m, s) (class_setSuperclass((Class)m, (Class)s))
+#  define RCLASS_META(m) (class_isMetaClass((Class)m))
 # else
 #  define RCLASS_VERSION(m) (*(long *)((void *)m + (sizeof(void *) * 3)))
+#  define RCLASS_SET_VERSION(m,f) do { RCLASS_VERSION(m) = f; } while (0)
 #  define RCLASS_SET_VERSION_FLAG(m,f) (RCLASS_VERSION(m) |= f)
 #  define RCLASS_SUPER(m) (*(VALUE *)((void *)m + (sizeof(void *) * 1)))
+#  define RCLASS_SET_SUPER(m, s) (RCLASS_SUPER(m) = s)
 #  define _RCLASS_INFO(m) (*(long *)((void *)m + (sizeof(void *) * 4)))
 #  define RCLASS_META(m) (_RCLASS_INFO(m) & CLS_META)
 # endif
@@ -816,7 +825,7 @@ struct RBignum {
 #define FL_REVERSE(x,f) do {if (FL_ABLE(x)) RBASIC(x)->flags ^= (f);} while (0)
 
 #if WITH_OBJC
-# define OBJ_TAINTED(x) (SPECIAL_CONST_P(x) || NATIVE(x) ? rb_obj_tainted((VALUE)x) : FL_TEST((x), FL_TAINT))
+# define OBJ_TAINTED(x) (int)(SPECIAL_CONST_P(x) || NATIVE(x) ? rb_obj_tainted((VALUE)x) == Qtrue : FL_TEST((x), FL_TAINT))
 # define OBJ_TAINT(x)   (rb_obj_taint((VALUE)x))
 #else
 # define OBJ_TAINTED(x) FL_TEST((x), FL_TAINT)
@@ -826,7 +835,7 @@ struct RBignum {
 #define OBJ_INFECT(x,s) do {if (FL_ABLE(x) && FL_ABLE(s)) RBASIC(x)->flags |= RBASIC(s)->flags & FL_TAINT;} while (0)
 
 #if WITH_OBJC
-# define OBJ_FROZEN(x) (SPECIAL_CONST_P(x) || NATIVE(x) ? rb_obj_frozen_p((VALUE)x) : FL_TEST((x), FL_FREEZE))
+# define OBJ_FROZEN(x) (int)(SPECIAL_CONST_P(x) || NATIVE(x) ? rb_obj_frozen_p((VALUE)x) == Qtrue : FL_TEST((x), FL_FREEZE))
 # define OBJ_FREEZE(x) (rb_obj_freeze((VALUE)x))
 #else
 # define OBJ_FROZEN(x) FL_TEST((x), FL_FREEZE)

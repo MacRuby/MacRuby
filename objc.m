@@ -26,6 +26,7 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <Foundation/Foundation.h>
 #include "ruby/ruby.h"
 #include "ruby/node.h"
 #include "ruby/encoding.h"
@@ -33,7 +34,7 @@
 #include <unistd.h>
 #include <dlfcn.h>
 #include <mach-o/dyld.h>
-#include <Foundation/Foundation.h>
+#include <sys/mman.h>
 #if HAVE_BRIDGESUPPORT_FRAMEWORK
 # include <BridgeSupport/BridgeSupport.h>
 #else
@@ -367,7 +368,7 @@ rb_objc_octype_to_ffitype(const char *octype)
 		bs_boxed->ffi_type->alignment = 0;
 		bs_boxed->ffi_type->type = FFI_TYPE_STRUCT;
 		bs_boxed->ffi_type->elements = malloc(
-	     	    (bs_struct->fields_count) * sizeof(ffi_type *));
+	     	    (bs_struct->fields_count + 1) * sizeof(ffi_type *));
 
 		for (i = 0; i < bs_struct->fields_count; i++) {
 		    bs_element_struct_field_t *field = &bs_struct->fields[i];
@@ -1174,7 +1175,11 @@ rb_objc_call2(VALUE recv, VALUE klass, SEL sel, IMP imp,
 		if (klass == RCLASS_SUPER(*(Class *)ocrcv)) {
 		    struct objc_super s;
 		    s.receiver = ocrcv;
+#if defined(__LP64__)
+		    s.super_class = (Class)klass;
+#else
 		    s.class = (Class)klass;
+#endif
 		    ffi_ret = objc_msgSendSuper(&s, sel);
 		}
 		else {
@@ -1397,7 +1402,8 @@ rb_objc_alias(VALUE klass, ID name, ID def)
     name_sel = sel_registerName(name_str);
     def_sel = sel_registerName(def_str);
 
-    included_in_classes = RCLASS_MODULE(klass) ? rb_attr_get(klass, idIncludedInClasses) : Qnil;
+    included_in_classes = RCLASS_VERSION(klass) & RCLASS_IS_INCLUDED
+	? rb_attr_get(klass, idIncludedInClasses) : Qnil;
 
     method = class_getInstanceMethod((Class)klass, def_sel);
     if (method == NULL) {
@@ -1472,7 +1478,9 @@ alias_method:
 	    redo = true;
 	    goto alias_method;
 	}	
-    } 
+    }
+
+#undef forward_method_definition
 }
 
 static VALUE
@@ -1541,8 +1549,8 @@ rb_ruby_to_objc_closure_handler_main(void *ctx)
     NODE *body, *node;
     bs_element_method_t *bs_method;
 
-    rcv = (*(id **)args)[0];
-    sel = (*(SEL **)args)[1];
+    rcv = *(id *)args[0];
+    sel = *(SEL *)args[1];
     body = (NODE *)userdata;
     node = body->nd_body;
 
@@ -1651,9 +1659,17 @@ rb_ruby_to_objc_closure(const char *octype, unsigned arity, NODE *node)
 	rb_fatal("can't prepare ruby to objc cif");
     
     closure = (ffi_closure *)malloc(sizeof(ffi_closure));
+
+    if ((closure = mmap(NULL, sizeof(ffi_closure), PROT_READ | PROT_WRITE,
+			MAP_ANON | MAP_PRIVATE, -1, 0)) == (void *)-1)
+	rb_fatal("can't allocate ruby to objc closure");
+
     if (ffi_prep_closure(closure, cif, rb_ruby_to_objc_closure_handler, node)
 	!= FFI_OK)
 	rb_fatal("can't prepare ruby to objc closure");
+
+    if (mprotect(closure, sizeof(closure), PROT_READ | PROT_EXEC) == -1)
+	rb_fatal("can't mprotect the ruby to objc closure");
 
     rb_objc_retain(node);
 
@@ -1807,7 +1823,8 @@ rb_objc_register_ruby_method(VALUE mod, ID mid, NODE *body)
 	}
     }
 
-    included_in_classes = RCLASS_MODULE(mod) ? rb_attr_get(mod, idIncludedInClasses) : Qnil;
+    included_in_classes = RCLASS_VERSION(mod) & RCLASS_IS_INCLUDED
+	? rb_attr_get(mod, idIncludedInClasses) : Qnil;
 
     direct_override = false;
     method = class_getInstanceMethod((Class)mod, sel);
@@ -2295,11 +2312,15 @@ rb_struct_gen_accessors(VALUE klass, bs_element_struct_field_t *field, int num)
 			 &ffi_type_pointer, args) != FFI_OK)
 	    rb_fatal("can't prepare struct_reader_cif");
     }
-    closure = (ffi_closure *)malloc(sizeof(ffi_closure));
+    if ((closure = mmap(NULL, sizeof(ffi_closure), PROT_READ | PROT_WRITE,
+			MAP_ANON | MAP_PRIVATE, -1, 0)) == (void *)-1)
+	rb_fatal("can't allocate struct reader closure");
     if (ffi_prep_closure(closure, struct_reader_cif, 
 		         rb_struct_reader_closure_handler, ctx)
 	!= FFI_OK)
 	rb_fatal("can't prepare struct reader closure");
+    if (mprotect(closure, sizeof(closure), PROT_READ | PROT_EXEC) == -1)
+	rb_fatal("can't mprotect struct reader closure");
 
     rb_define_method(klass, field->name, (VALUE(*)(ANYARGS))closure, 0);
 
@@ -2314,11 +2335,15 @@ rb_struct_gen_accessors(VALUE klass, bs_element_struct_field_t *field, int num)
 			 &ffi_type_pointer, args) != FFI_OK)
 	    rb_fatal("can't prepare struct_writer_cif");
     }
-    closure = (ffi_closure *)malloc(sizeof(ffi_closure));
+    if ((closure = mmap(NULL, sizeof(ffi_closure), PROT_READ | PROT_WRITE,
+			MAP_ANON | MAP_PRIVATE, -1, 0)) == (void *)-1)
+	rb_fatal("can't allocate struct writer closure");
     if (ffi_prep_closure(closure, struct_writer_cif, 
 			 rb_struct_writer_closure_handler, ctx)
 	!= FFI_OK)
 	rb_fatal("can't prepare struct writer closure");
+    if (mprotect(closure, sizeof(closure), PROT_READ | PROT_EXEC) == -1)
+	rb_fatal("can't mprotect struct writer closure");
 
     snprintf(buf, sizeof buf, "%s=", field->name);
     rb_define_method(klass, buf, (VALUE(*)(ANYARGS))closure, 1);
@@ -3154,8 +3179,8 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 	return fmt;
 
     types = (char **)alloca(sizeof(char *) * argc);
-    ffi_argtypes = (ffi_type **)alloca(sizeof(ffi_type *) * argc + 4);
-    ffi_args = (void **)alloca(sizeof(void *) * argc + 4);
+    ffi_argtypes = (ffi_type **)alloca(sizeof(ffi_type *) * (argc + 4));
+    ffi_args = (void **)alloca(sizeof(void *) * (argc + 4));
 
     null = NULL;
     new_fmt = NULL;
@@ -3234,11 +3259,12 @@ static Class
 rb_obj_imp_isaForAutonotifying(void *rcv, SEL sel)
 {
     Class ret;
+    long ret_version;
 
 #define KVO_CHECK_DONE 0x100000
 
     ret = ((Class (*)(void *, SEL)) old_imp_isaForAutonotifying)(rcv, sel);
-    if (ret != NULL && (RCLASS_VERSION(ret) & KVO_CHECK_DONE) == 0) {
+    if (ret != NULL && ((ret_version = RCLASS_VERSION(ret)) & KVO_CHECK_DONE) == 0) {
 	const char *name = class_getName(ret);
 	if (strncmp(name, "NSKVONotifying_", 15) == 0) {
 	    Class ret_orig;
@@ -3246,10 +3272,11 @@ rb_obj_imp_isaForAutonotifying(void *rcv, SEL sel)
 	    ret_orig = objc_getClass(name);
 	    if (ret_orig != NULL && RCLASS_VERSION(ret_orig) & RCLASS_IS_OBJECT_SUBCLASS) {
 		DLOG("XXX", "marking KVO generated klass %p (%s) as RObject", ret, class_getName(ret));
-		RCLASS_VERSION(ret) |= RCLASS_IS_OBJECT_SUBCLASS;
+		ret_version |= RCLASS_IS_OBJECT_SUBCLASS;
 	    }
 	}
-	RCLASS_VERSION(ret) |= KVO_CHECK_DONE;
+	ret_version |= KVO_CHECK_DONE;
+	RCLASS_SET_VERSION(ret, ret_version);
     }
     return ret;
 }
@@ -3301,6 +3328,7 @@ Init_ObjC(void)
 
 // for debug in gdb
 int __rb_type(VALUE v) { return TYPE(v); }
+int __rb_native(VALUE v) { return NATIVE(v); }
 
 @interface Protocol
 @end

@@ -272,8 +272,8 @@ onig_region_copy(OnigRegion* to, OnigRegion* from)
 
   onig_region_resize(to, from->num_regs);
   for (i = 0; i < from->num_regs; i++) {
-    GC_WB(&to->beg[i], from->beg[i]);
-    GC_WB(&to->end[i], from->end[i]);
+    to->beg[i] = from->beg[i];
+    to->end[i] = from->end[i];
   }
   to->num_regs = from->num_regs;
 

@@ -295,7 +295,17 @@ void rb_ia64_flushrs(void);
 # define ASSERT_NO_OBJC() (assert(1 == 0))
 void rb_objc_wb(void *dst, void *newval);
 void rb_objc_root(void *addr);
-# define GC_WB(dst, newval) (SPECIAL_CONST_P(newval) ? *(void **)dst = (void *)newval : rb_objc_wb((void *)dst, (void *)newval))
+# define GC_WB(dst, newval) \
+    do { \
+	void *nv = (void *)newval; \
+	if (SPECIAL_CONST_P(nv)) { \
+	    *(void **)dst = nv; \
+	} \
+	else { \
+	    rb_objc_wb((void *)dst, (void *)newval); \
+	} \
+    } \
+    while (0)
 # define GC_ROOT(dst) (rb_objc_root((void *)dst))
 # define GC_WEAK(dst) (rb_objc_weak((void *)dst))
 #else

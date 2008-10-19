@@ -1886,6 +1886,10 @@ do_select(int n, fd_set *read, fd_set *write, fd_set *except,
     int result, lerrno;
     fd_set orig_read, orig_write, orig_except;
 
+    bzero(&orig_read, sizeof(fd_set));
+    bzero(&orig_write, sizeof(fd_set));
+    bzero(&orig_except, sizeof(fd_set));
+
 #ifndef linux
     double limit = 0;
     struct timeval wait_rest;
