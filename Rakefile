@@ -523,7 +523,7 @@ namespace :macruby do
 
   desc "Build MacRuby"
   task :build => :dylib do
-    $builder.link_executable(RUBY_INSTALL_NAME, ['main', 'gc-stub'], "-L. -l#{RUBY_SO_NAME}")
+    $builder.link_executable(RUBY_INSTALL_NAME, ['main', 'gc-stub'], "-L. -l#{RUBY_SO_NAME} -lobjc")
   end
 end
 
