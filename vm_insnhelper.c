@@ -1491,9 +1491,9 @@ vm_search_normal_superclass2(VALUE klass, VALUE recv, ID mid, NODE **mnp,
 
 	    imod = RARRAY_AT(ary, i);
 	    saved_imod_super = RCLASS_SUPER(imod);
-	    RCLASS_SET_SUPER(imod, 0);
+	    RCLASS_SUPER(imod) = 0;
 	    mn = rb_objc_method_node(imod, mid, &imp, &sel);
-	    RCLASS_SET_SUPER(imod, saved_imod_super);
+	    RCLASS_SUPER(imod) = saved_imod_super;
 	    if (imp != NULL) {
 		rb_ivar_set(imod, idPreviousKlass, klass);
 		*mnp = mn;

@@ -1231,7 +1231,8 @@ rb_call_os_finalizer(void *obj)
 static void
 rb_obj_imp_finalize(void *obj, SEL sel)
 {
-    const bool need_protection = GET_THREAD()->thread_id != pthread_self();
+    const bool need_protection = 
+	GET_THREAD()->thread_id != pthread_self();
     bool call_finalize, free_ivar;
 
     if (NATIVE((VALUE)obj)) {
@@ -1263,6 +1264,8 @@ rb_obj_imp_finalize(void *obj, SEL sel)
     }
 }
 
+static bool gc_disabled = false;
+
 void
 Init_PreGC(void)
 {
@@ -1276,9 +1279,13 @@ Init_PreGC(void)
     control = auto_collection_parameters(__auto_zone);
     control->scan_external_callout = 
 	rb_objc_scan_external_callout;
-    if (getenv("GC_DEBUG"))
+    if (getenv("GC_DEBUG")) {
 	control->log = AUTO_LOG_COLLECTIONS | AUTO_LOG_REGIONS 
 		       | AUTO_LOG_UNUSUAL | AUTO_LOG_COLLECT_DECISION;
+    }
+    if (getenv("GC_DISABLE")) {
+	gc_disabled = true;
+    }
 
     Method m = class_getInstanceMethod((Class)objc_getClass("NSObject"), sel_registerName("finalize"));
     assert(m != NULL);
@@ -1290,8 +1297,10 @@ Init_PreGC(void)
 void
 Init_PostGC(void)
 {
-    objc_startCollectorThread();
-    auto_collector_reenable(__auto_zone);
+    if (!gc_disabled) {
+	objc_startCollectorThread();
+	auto_collector_reenable(__auto_zone);
+    }
 }
 
 void
@@ -1320,7 +1329,7 @@ Init_GC(void)
     rb_global_variable(&nomem_error);
     nomem_error = rb_exc_new2(rb_eNoMemError, "failed to allocate memory");
 
-    rb_define_method(rb_mKernel, "hash", rb_obj_id, 0);
+    //rb_define_method(rb_mKernel, "hash", rb_obj_id, 0);
     rb_define_method(rb_mKernel, "__id__", rb_obj_id, 0);
     rb_define_method(rb_mKernel, "object_id", rb_obj_id, 0);
 

@@ -44,6 +44,11 @@
 #include "vm.h"
 #include "eval_intern.h"
 
+void native_mutex_lock(pthread_mutex_t *lock);
+void native_mutex_unlock(pthread_mutex_t *lock);
+rb_thread_t *rb_thread_wrap_existing_native_thread(rb_thread_id_t id);
+extern VALUE rb_cMutex;
+
 typedef struct {
     bs_element_type_t type;
     void *value;
@@ -1168,9 +1173,16 @@ rb_objc_call2(VALUE recv, VALUE klass, SEL sel, IMP imp,
 		 argc, count - 2);
     }
 
+#define UNLOCK_GIL() \
+    do { if (rb_cMutex != 0) { native_mutex_unlock(&GET_THREAD()->vm->global_interpreter_lock); }; } while (0)
+#define LOCK_GIL() \
+    do { if (rb_cMutex != 0) { native_mutex_lock(&GET_THREAD()->vm->global_interpreter_lock); }; } while (0)
+
     if (count == 2) {
 	if (sig->types[0] == '@' || sig->types[0] == '#' || sig->types[0] == 'v') {
 	    /* Easy case! */
+	    id exception = nil;
+	    //UNLOCK_GIL();
 	    @try {
 		if (klass == RCLASS_SUPER(*(Class *)ocrcv)) {
 		    struct objc_super s;
@@ -1187,7 +1199,11 @@ rb_objc_call2(VALUE recv, VALUE klass, SEL sel, IMP imp,
 		}
 	    }
 	    @catch (id e) {
-		rb_objc_exc_raise(e);
+		exception = e;
+	    }
+	    //LOCK_GIL();
+	    if (exception != nil) {
+		rb_objc_exc_raise(exception);
 	    }
 	    if (sig->types[0] == '@' || sig->types[0] == '#') {
 		VALUE retval;
@@ -1603,8 +1619,6 @@ rb_ruby_to_objc_closure_handler(ffi_cif *cif, void *resp, void **args,
     ctx.args = args;
     ctx.userdata = userdata;
 
-    extern VALUE rb_cMutex;
-
     if (rb_cMutex == 0) {
 	/* GL not initialized yet! */
 	rb_ruby_to_objc_closure_handler_main(&ctx);
@@ -1615,8 +1629,6 @@ rb_ruby_to_objc_closure_handler(ffi_cif *cif, void *resp, void **args,
 	}
 	else {
 	    rb_thread_t *rb_thread_wrap_existing_native_thread(rb_thread_id_t id);
-	    void native_mutex_lock(pthread_mutex_t *lock);
-	    void native_mutex_unlock(pthread_mutex_t *lock);
 
 	    rb_thread_t *th, *old;
 
@@ -2254,8 +2266,8 @@ rb_struct_reader_closure_handler(ffi_cif *cif, void *resp, void **args,
 {
     struct rb_struct_accessor_context *ctx;
     VALUE recv, *data;
-
-    recv = (*(VALUE **)args)[0];
+ 
+    recv = *(VALUE *)args[0];
     Data_Get_Struct(recv, VALUE, data);
     assert(data != NULL);
 
@@ -2272,8 +2284,8 @@ rb_struct_writer_closure_handler(ffi_cif *cif, void *resp, void **args,
     size_t fdata_size;
     void *fdata;
 
-    recv = (*(VALUE **)args)[0];
-    value = (*(VALUE **)args)[1];
+    recv = *(VALUE *)args[0];
+    value = *(VALUE *)args[1];
     Data_Get_Struct(recv, VALUE, data);
     assert(data != NULL);
 
@@ -2309,18 +2321,21 @@ rb_struct_gen_accessors(VALUE klass, bs_element_struct_field_t *field, int num)
 	args = (ffi_type **)malloc(sizeof(ffi_type *) * 1);
 	args[0] = &ffi_type_pointer;
 	if (ffi_prep_cif(struct_reader_cif, FFI_DEFAULT_ABI, 1, 
-			 &ffi_type_pointer, args) != FFI_OK)
+			 &ffi_type_pointer, args) != FFI_OK) {
 	    rb_fatal("can't prepare struct_reader_cif");
+	}
     }
     if ((closure = mmap(NULL, sizeof(ffi_closure), PROT_READ | PROT_WRITE,
-			MAP_ANON | MAP_PRIVATE, -1, 0)) == (void *)-1)
+			MAP_ANON | MAP_PRIVATE, -1, 0)) == (void *)-1) {
 	rb_fatal("can't allocate struct reader closure");
+    }
     if (ffi_prep_closure(closure, struct_reader_cif, 
-		         rb_struct_reader_closure_handler, ctx)
-	!= FFI_OK)
+		         rb_struct_reader_closure_handler, ctx) != FFI_OK) {
 	rb_fatal("can't prepare struct reader closure");
-    if (mprotect(closure, sizeof(closure), PROT_READ | PROT_EXEC) == -1)
+    }
+    if (mprotect(closure, sizeof(closure), PROT_READ | PROT_EXEC) == -1) {
 	rb_fatal("can't mprotect struct reader closure");
+    }
 
     rb_define_method(klass, field->name, (VALUE(*)(ANYARGS))closure, 0);
 
@@ -2332,18 +2347,21 @@ rb_struct_gen_accessors(VALUE klass, bs_element_struct_field_t *field, int num)
 	args[0] = &ffi_type_pointer;
 	args[1] = &ffi_type_pointer;
 	if (ffi_prep_cif(struct_writer_cif, FFI_DEFAULT_ABI, 2, 
-			 &ffi_type_pointer, args) != FFI_OK)
+			 &ffi_type_pointer, args) != FFI_OK) {
 	    rb_fatal("can't prepare struct_writer_cif");
+	}
     }
     if ((closure = mmap(NULL, sizeof(ffi_closure), PROT_READ | PROT_WRITE,
-			MAP_ANON | MAP_PRIVATE, -1, 0)) == (void *)-1)
+			MAP_ANON | MAP_PRIVATE, -1, 0)) == (void *)-1) {
 	rb_fatal("can't allocate struct writer closure");
+    }
     if (ffi_prep_closure(closure, struct_writer_cif, 
-			 rb_struct_writer_closure_handler, ctx)
-	!= FFI_OK)
+			 rb_struct_writer_closure_handler, ctx) != FFI_OK) {
 	rb_fatal("can't prepare struct writer closure");
-    if (mprotect(closure, sizeof(closure), PROT_READ | PROT_EXEC) == -1)
+    }
+    if (mprotect(closure, sizeof(closure), PROT_READ | PROT_EXEC) == -1) {
 	rb_fatal("can't mprotect struct writer closure");
+    }
 
     snprintf(buf, sizeof buf, "%s=", field->name);
     rb_define_method(klass, buf, (VALUE(*)(ANYARGS))closure, 1);
@@ -3498,9 +3516,6 @@ performRuby_rescue(VALUE arg)
 	}
     }
    
-    rb_thread_t *rb_thread_wrap_existing_native_thread(rb_thread_id_t id);
-    void native_mutex_unlock(pthread_mutex_t *lock);
-    void native_mutex_lock(pthread_mutex_t *lock);
     rb_thread_t *th, *old = NULL;
 
     if (need_protection) {
@@ -3563,4 +3578,3 @@ performRuby_rescue(VALUE arg)
 }
 
 @end
-
