@@ -436,7 +436,7 @@ rb_global_entry(ID id)
 	entry = ALLOC(struct global_entry);
 	var = ALLOC(struct global_variable);
 	entry->id = id;
-	entry->var = var;
+	GC_WB(&entry->var, var);
 	var->counter = 1;
 	var->data = 0;
 	var->getter = undef_getter;
@@ -468,7 +468,7 @@ undef_setter(VALUE val, ID id, void *data, struct global_variable *var)
     var->setter = val_setter;
     var->marker = val_marker;
 
-    var->data = (void*)val;
+    GC_WB(&var->data, (void*)val);
 }
 
 static void
@@ -504,7 +504,7 @@ var_getter(ID id, VALUE *var)
 static void
 var_setter(VALUE val, ID id, VALUE *var)
 {
-    *var = val;
+    GC_WB(var, val);
 }
 
 static void
@@ -577,7 +577,7 @@ rb_define_hooked_variable(
     gvar->setter = setter?setter:var_setter;
     gvar->marker = var_marker;
 
-    GC_ROOT(var);
+    rb_objc_retain((void *)var);
 }
 
 void
@@ -655,7 +655,7 @@ rb_f_trace_var(int argc, VALUE *argv)
     trace->func = rb_trace_eval;
     trace->data = cmd;
     trace->removed = 0;
-    entry->var->trace = trace;
+    GC_WB(&entry->var->trace, trace);
 
     return Qnil;
 }
