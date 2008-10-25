@@ -577,7 +577,7 @@ rb_define_hooked_variable(
     gvar->setter = setter?setter:var_setter;
     gvar->marker = var_marker;
 
-    rb_objc_retain((void *)var);
+    GC_ROOT(var);
 }
 
 void

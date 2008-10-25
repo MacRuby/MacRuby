@@ -1667,21 +1667,29 @@ rb_ruby_to_objc_closure(const char *octype, unsigned arity, NODE *node)
     }
 
     cif = (ffi_cif *)malloc(sizeof(ffi_cif));
-    if (ffi_prep_cif(cif, FFI_DEFAULT_ABI, arity + 2, ret, args) != FFI_OK)
+    if (ffi_prep_cif(cif, FFI_DEFAULT_ABI, arity + 2, ret, args) != FFI_OK) {
 	rb_fatal("can't prepare ruby to objc cif");
-    
+    }
+
     closure = (ffi_closure *)malloc(sizeof(ffi_closure));
 
+    /* XXX mmap() and mprotect() are 2 expensive calls, maybe we should try to 
+     * mmap() and mprotect() a large memory page and reuse it for closures?
+     */
+
     if ((closure = mmap(NULL, sizeof(ffi_closure), PROT_READ | PROT_WRITE,
-			MAP_ANON | MAP_PRIVATE, -1, 0)) == (void *)-1)
+			MAP_ANON | MAP_PRIVATE, -1, 0)) == (void *)-1) {
 	rb_fatal("can't allocate ruby to objc closure");
+    }
 
     if (ffi_prep_closure(closure, cif, rb_ruby_to_objc_closure_handler, node)
-	!= FFI_OK)
+	!= FFI_OK) {
 	rb_fatal("can't prepare ruby to objc closure");
+    }
 
-    if (mprotect(closure, sizeof(closure), PROT_READ | PROT_EXEC) == -1)
+    if (mprotect(closure, sizeof(closure), PROT_READ | PROT_EXEC) == -1) {
 	rb_fatal("can't mprotect the ruby to objc closure");
+    }
 
     rb_objc_retain(node);
 
@@ -3342,6 +3350,18 @@ Init_ObjC(void)
     assert(m != NULL);
     old_imp_isaForAutonotifying = method_getImplementation(m);
     method_setImplementation(m, (IMP)rb_obj_imp_isaForAutonotifying);
+
+    {
+	VALUE klass;
+	NODE *node, *body;
+	void *closure;
+
+	klass = rb_singleton_class(rb_cNSObject);
+	node = NEW_CFUNC(rb_class_new_instance, -1);
+	body = NEW_FBODY(NEW_METHOD(node, klass, NOEX_PUBLIC), 0);
+	closure = rb_ruby_to_objc_closure("@@:@", 1, body->nd_body);
+	assert(class_addMethod((Class)klass, @selector(new:), (IMP)closure, "@@:@"));
+    }
 }
 
 // for debug in gdb

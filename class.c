@@ -450,13 +450,11 @@ rb_define_module_id(ID id)
     mdl = rb_objc_alloc_class(id == 0 ? NULL : rb_id2name(id), rb_cObject, T_MODULE, rb_cModule);
     objc_registerClassPair((Class)mdl);
 
-#if 0
     if (rb_mKernel != 0) {
 	/* because Module#initialize can accept a block */
 	extern VALUE rb_mod_initialize(VALUE);
 	rb_define_method(*(VALUE *)mdl, "initialize", rb_mod_initialize, 0);
     }
-#endif
 
     return mdl;
 }

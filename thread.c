@@ -510,7 +510,7 @@ thread_initialize(VALUE thread, VALUE args)
 		     file);
 	}
         rb_raise(rb_eThreadError, "already initialized thread - %s:%d",
-                 file, NUM2INT(line));
+                 file, (int)NUM2INT(line));
     }
     return thread_create_core(thread, args, 0);
 }

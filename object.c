@@ -2468,6 +2468,8 @@ Init_Object(void)
     rb_cModule = boot_defclass("Module", rb_cNSObject);
     rb_cClass =  boot_defclass("Class",  rb_cModule);
 
+    rb_define_method(rb_cClass, "new", rb_class_new_instance, -1);
+
     void rb_include_module2(VALUE klass, VALUE module, int check, int add_methods);
 
     rb_include_module2(*(VALUE *)rb_cNSObject, rb_cClass, 0, 0);
@@ -2608,7 +2610,6 @@ Init_Object(void)
     rb_define_method(rb_cModule, "class_variable_defined?", rb_mod_cvar_defined, 1);
 
     rb_define_method(rb_cClass, "allocate", rb_obj_alloc, 0);
-    /*rb_define_method(rb_cClass, "new", rb_class_new_instance, -1);*/
     rb_define_method(rb_cClass, "initialize_copy", rb_class_init_copy, 1); /* in class.c */
     rb_define_alloc_func(rb_cClass, rb_class_s_alloc);
     rb_undef_method(rb_cClass, "extend_object");
