@@ -57,7 +57,7 @@ END_DUMMY_M
 
 if !File.exist?('/tmp/dummy.bundle') or File.mtime(__FILE__) > File.mtime('/tmp/dummy.bundle')
   File.open('/tmp/dummy.m', 'w') { |io| io.write(DUMMY_M) }
-  system("/usr/bin/gcc /tmp/dummy.m -o /tmp/dummy.bundle -g -framework Foundation -dynamiclib -fobjc-gc")
+  system("/usr/bin/gcc /tmp/dummy.m -o /tmp/dummy.bundle -g -framework Foundation -dynamiclib -fobjc-gc -arch i386 -arch x86_64 -arch ppc")
 end
 require '/tmp/dummy.bundle'
 
@@ -255,18 +255,32 @@ class TestObjC < Test::Unit::TestCase
 
   def test_struct_inspect
     r = NSRect.new
-    assert_equal("#<NSRect origin=#<NSPoint x=0.0 y=0.0> size=#<NSSize width=0.0 height=0.0>>",
-                 r.inspect)
+    if RUBY_ARCH == 'x86_64'
+      assert_equal("#<NSRect origin=#<CGPoint x=0.0 y=0.0> size=#<CGSize width=0.0 height=0.0>>",
+                   r.inspect)
+    else
+      assert_equal("#<NSRect origin=#<NSPoint x=0.0 y=0.0> size=#<NSSize width=0.0 height=0.0>>",
+                   r.inspect)
+    end
     r.origin.x = 42
     r.size.width = 42
-    assert_equal("#<NSRect origin=#<NSPoint x=42.0 y=0.0> size=#<NSSize width=42.0 height=0.0>>",
-                 r.inspect)
+    if RUBY_ARCH == 'x86_64'
+      assert_equal("#<NSRect origin=#<CGPoint x=42.0 y=0.0> size=#<CGSize width=42.0 height=0.0>>",
+                   r.inspect)
+    else
+      assert_equal("#<NSRect origin=#<NSPoint x=42.0 y=0.0> size=#<NSSize width=42.0 height=0.0>>",
+                   r.inspect)
+    end
   end
 
   def test_struct_dup
     r = NSMakeRect(1, 2, 3, 4)
     r2 = r.dup
-    assert_kind_of(NSRect, r2)
+    if RUBY_ARCH == 'x86_64'
+      assert_kind_of(CGRect, r2)
+    else
+      assert_kind_of(NSRect, r2)
+    end
     assert_equal(r, r2)
     r2.origin.x = 42
     assert(r != r2) 
@@ -422,4 +436,24 @@ class TestObjC < Test::Unit::TestCase
     assert_equal(o, o.mutableCopy)
     assert_equal('^{_NSZone=}', o.methodSignatureForSelector('mutableCopyWithZone:').getArgumentTypeAtIndex(2))
   end 
+
+  def test_create_pointer
+    assert_equal(nil, NSString.stringWithContentsOfFile('/does/not/exist', encoding:NSASCIIStringEncoding, error:nil))
+    p = Pointer.new_with_type('@')
+    p.assign(nil)
+    assert_equal(nil, NSString.stringWithContentsOfFile('/does/not/exist', encoding:NSASCIIStringEncoding, error:p))
+    err = p[0]
+    assert_kind_of(NSError, err) 
+    p.assign(nil)
+    assert(NSString.stringWithContentsOfFile(__FILE__, encoding:NSASCIIStringEncoding, error:p))
+    assert_equal(nil, p[0])
+  end
+
+  def test_create_pointer2
+    p1 = Pointer.new_with_type(NSRect.type)
+    p2 = Pointer.new_with_type(NSRect.type)
+    NSDivideRect([0, 0, 100, 100], p1, p2, 10.0, 0)
+    assert_equal(NSMakeRect(0, 0, 10, 100), p1[0])
+    assert_equal(NSMakeRect(10, 0, 90, 100), p2[0])
+  end
 end

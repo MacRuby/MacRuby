@@ -349,7 +349,7 @@ rb_path2class(const char *path)
 	}
 	if (!rb_const_defined(c, id)) {
 	  undefined_class:
-	    rb_raise(rb_eArgError, "undefined class/module %.*s", p-path, path);
+	    rb_raise(rb_eArgError, "undefined class/module %.*s", (int)(p-path), path);
 	}
 	c = rb_const_get_at(c, id);
 	switch (TYPE(c)) {
@@ -436,7 +436,7 @@ rb_global_entry(ID id)
 	entry = ALLOC(struct global_entry);
 	var = ALLOC(struct global_variable);
 	entry->id = id;
-	entry->var = var;
+	GC_WB(&entry->var, var);
 	var->counter = 1;
 	var->data = 0;
 	var->getter = undef_getter;
@@ -468,7 +468,7 @@ undef_setter(VALUE val, ID id, void *data, struct global_variable *var)
     var->setter = val_setter;
     var->marker = val_marker;
 
-    var->data = (void*)val;
+    GC_WB(&var->data, (void*)val);
 }
 
 static void
@@ -504,7 +504,7 @@ var_getter(ID id, VALUE *var)
 static void
 var_setter(VALUE val, ID id, VALUE *var)
 {
-    *var = val;
+    GC_WB(var, val);
 }
 
 static void
@@ -655,7 +655,7 @@ rb_f_trace_var(int argc, VALUE *argv)
     trace->func = rb_trace_eval;
     trace->data = cmd;
     trace->removed = 0;
-    entry->var->trace = trace;
+    GC_WB(&entry->var->trace, trace);
 
     return Qnil;
 }

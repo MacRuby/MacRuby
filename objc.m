@@ -26,6 +26,7 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <Foundation/Foundation.h>
 #include "ruby/ruby.h"
 #include "ruby/node.h"
 #include "ruby/encoding.h"
@@ -33,7 +34,7 @@
 #include <unistd.h>
 #include <dlfcn.h>
 #include <mach-o/dyld.h>
-#include <Foundation/Foundation.h>
+#include <sys/mman.h>
 #if HAVE_BRIDGESUPPORT_FRAMEWORK
 # include <BridgeSupport/BridgeSupport.h>
 #else
@@ -42,6 +43,11 @@
 #include "vm_core.h"
 #include "vm.h"
 #include "eval_intern.h"
+
+void native_mutex_lock(pthread_mutex_t *lock);
+void native_mutex_unlock(pthread_mutex_t *lock);
+rb_thread_t *rb_thread_wrap_existing_native_thread(rb_thread_id_t id);
+extern VALUE rb_cMutex;
 
 typedef struct {
     bs_element_type_t type;
@@ -69,28 +75,13 @@ static struct st_table *bs_inf_prot_cmethods;
 static struct st_table *bs_inf_prot_imethods;
 static struct st_table *bs_cftypes;
 
-#if 0
-static char *
-rb_objc_sel_to_mid(SEL selector, char *buffer, unsigned buffer_len)
+VALUE rb_cPointer;
+
+struct RPointer
 {
-    size_t s;
-    char *p;
-
-    s = strlcpy(buffer, (const char *)selector, buffer_len);
-
-    p = buffer + s - 1;
-    if (*p == ':')
-	*p = '\0';
-
-    p = buffer;
-    while ((p = strchr(p, ':')) != NULL) {
-	*p = '_';
-	p++;
-    }
-
-    return buffer;
-}
-#endif
+  void *ptr;
+  const char *type;
+};
 
 static inline const char *
 rb_objc_skip_octype_modifiers(const char *octype)
@@ -367,7 +358,7 @@ rb_objc_octype_to_ffitype(const char *octype)
 		bs_boxed->ffi_type->alignment = 0;
 		bs_boxed->ffi_type->type = FFI_TYPE_STRUCT;
 		bs_boxed->ffi_type->elements = malloc(
-	     	    (bs_struct->fields_count) * sizeof(ffi_type *));
+	     	    (bs_struct->fields_count + 1) * sizeof(ffi_type *));
 
 		for (i = 0; i < bs_struct->fields_count; i++) {
 		    bs_element_struct_field_t *field = &bs_struct->fields[i];
@@ -513,14 +504,6 @@ rebuild_new_struct_ary(ffi_type **elements, VALUE orig, VALUE new)
     return n;
 }
 
-VALUE rb_cPointer;
-
-struct RPointer
-{
-  void *ptr;
-  const char *type;
-};
-
 static VALUE
 rb_pointer_create(void *ptr, const char *type)
 {
@@ -534,6 +517,25 @@ rb_pointer_create(void *ptr, const char *type)
 }
 
 static void rb_objc_rval_to_ocval(VALUE, const char *, void **);
+
+static VALUE
+rb_pointer_new_with_type(VALUE recv, VALUE type)
+{
+    const char *ctype;
+    ffi_type *ffitype;
+    struct RPointer *data;
+
+    Check_Type(type, T_STRING);
+    ctype = RSTRING_PTR(type);
+    ffitype = rb_objc_octype_to_ffitype(ctype);
+
+    data = (struct RPointer *)xmalloc(sizeof(struct RPointer ));
+    GC_WB(&data->ptr, xmalloc(ffitype->size));
+    GC_WB(&data->type, xmalloc(strlen(ctype) + 1));
+    strcpy((char *)data->type, ctype);
+
+    return Data_Wrap_Struct(rb_cPointer, NULL, NULL, data);
+}
 
 static VALUE
 rb_pointer_assign(VALUE recv, VALUE val)
@@ -714,13 +716,17 @@ rb_objc_rval_to_ocval(VALUE rval, const char *octype, void **ocval)
 		    }
 		    break;
 		default:
-		    if (strcmp(octype, "^v") == 0) {
-			if (SPECIAL_CONST_P(rval)) {
-			    ok = false;
-			}
-			else {
-			    *(void **)ocval = (void *)rval;
-			}
+		    if (SPECIAL_CONST_P(rval)) {
+			ok = false;
+		    }
+		    else if (*(VALUE *)rval == rb_cPointer) {
+			struct RPointer *data;
+
+			Data_Get_Struct(rval, struct RPointer, data);
+			*(void **)ocval = data->ptr;
+		    }
+		    else if (strcmp(octype, "^v") == 0) {
+			*(void **)ocval = (void *)rval;
 		    }
 		    else if (st_lookup(bs_boxeds, (st_data_t)octype + 1, 
 			     (st_data_t *)&bs_boxed)) {
@@ -1167,14 +1173,25 @@ rb_objc_call2(VALUE recv, VALUE klass, SEL sel, IMP imp,
 		 argc, count - 2);
     }
 
+#define UNLOCK_GIL() \
+    do { if (rb_cMutex != 0) { native_mutex_unlock(&GET_THREAD()->vm->global_interpreter_lock); }; } while (0)
+#define LOCK_GIL() \
+    do { if (rb_cMutex != 0) { native_mutex_lock(&GET_THREAD()->vm->global_interpreter_lock); }; } while (0)
+
     if (count == 2) {
 	if (sig->types[0] == '@' || sig->types[0] == '#' || sig->types[0] == 'v') {
 	    /* Easy case! */
+	    id exception = nil;
+	    //UNLOCK_GIL();
 	    @try {
 		if (klass == RCLASS_SUPER(*(Class *)ocrcv)) {
 		    struct objc_super s;
 		    s.receiver = ocrcv;
+#if defined(__LP64__)
+		    s.super_class = (Class)klass;
+#else
 		    s.class = (Class)klass;
+#endif
 		    ffi_ret = objc_msgSendSuper(&s, sel);
 		}
 		else {
@@ -1182,7 +1199,11 @@ rb_objc_call2(VALUE recv, VALUE klass, SEL sel, IMP imp,
 		}
 	    }
 	    @catch (id e) {
-		rb_objc_exc_raise(e);
+		exception = e;
+	    }
+	    //LOCK_GIL();
+	    if (exception != nil) {
+		rb_objc_exc_raise(exception);
 	    }
 	    if (sig->types[0] == '@' || sig->types[0] == '#') {
 		VALUE retval;
@@ -1397,7 +1418,8 @@ rb_objc_alias(VALUE klass, ID name, ID def)
     name_sel = sel_registerName(name_str);
     def_sel = sel_registerName(def_str);
 
-    included_in_classes = RCLASS_MODULE(klass) ? rb_attr_get(klass, idIncludedInClasses) : Qnil;
+    included_in_classes = RCLASS_VERSION(klass) & RCLASS_IS_INCLUDED
+	? rb_attr_get(klass, idIncludedInClasses) : Qnil;
 
     method = class_getInstanceMethod((Class)klass, def_sel);
     if (method == NULL) {
@@ -1472,7 +1494,9 @@ alias_method:
 	    redo = true;
 	    goto alias_method;
 	}	
-    } 
+    }
+
+#undef forward_method_definition
 }
 
 static VALUE
@@ -1541,8 +1565,8 @@ rb_ruby_to_objc_closure_handler_main(void *ctx)
     NODE *body, *node;
     bs_element_method_t *bs_method;
 
-    rcv = (*(id **)args)[0];
-    sel = (*(SEL **)args)[1];
+    rcv = *(id *)args[0];
+    sel = *(SEL *)args[1];
     body = (NODE *)userdata;
     node = body->nd_body;
 
@@ -1595,8 +1619,6 @@ rb_ruby_to_objc_closure_handler(ffi_cif *cif, void *resp, void **args,
     ctx.args = args;
     ctx.userdata = userdata;
 
-    extern VALUE rb_cMutex;
-
     if (rb_cMutex == 0) {
 	/* GL not initialized yet! */
 	rb_ruby_to_objc_closure_handler_main(&ctx);
@@ -1607,8 +1629,6 @@ rb_ruby_to_objc_closure_handler(ffi_cif *cif, void *resp, void **args,
 	}
 	else {
 	    rb_thread_t *rb_thread_wrap_existing_native_thread(rb_thread_id_t id);
-	    void native_mutex_lock(pthread_mutex_t *lock);
-	    void native_mutex_unlock(pthread_mutex_t *lock);
 
 	    rb_thread_t *th, *old;
 
@@ -1647,13 +1667,29 @@ rb_ruby_to_objc_closure(const char *octype, unsigned arity, NODE *node)
     }
 
     cif = (ffi_cif *)malloc(sizeof(ffi_cif));
-    if (ffi_prep_cif(cif, FFI_DEFAULT_ABI, arity + 2, ret, args) != FFI_OK)
+    if (ffi_prep_cif(cif, FFI_DEFAULT_ABI, arity + 2, ret, args) != FFI_OK) {
 	rb_fatal("can't prepare ruby to objc cif");
-    
+    }
+
     closure = (ffi_closure *)malloc(sizeof(ffi_closure));
+
+    /* XXX mmap() and mprotect() are 2 expensive calls, maybe we should try to 
+     * mmap() and mprotect() a large memory page and reuse it for closures?
+     */
+
+    if ((closure = mmap(NULL, sizeof(ffi_closure), PROT_READ | PROT_WRITE,
+			MAP_ANON | MAP_PRIVATE, -1, 0)) == (void *)-1) {
+	rb_fatal("can't allocate ruby to objc closure");
+    }
+
     if (ffi_prep_closure(closure, cif, rb_ruby_to_objc_closure_handler, node)
-	!= FFI_OK)
+	!= FFI_OK) {
 	rb_fatal("can't prepare ruby to objc closure");
+    }
+
+    if (mprotect(closure, sizeof(closure), PROT_READ | PROT_EXEC) == -1) {
+	rb_fatal("can't mprotect the ruby to objc closure");
+    }
 
     rb_objc_retain(node);
 
@@ -1807,7 +1843,8 @@ rb_objc_register_ruby_method(VALUE mod, ID mid, NODE *body)
 	}
     }
 
-    included_in_classes = RCLASS_MODULE(mod) ? rb_attr_get(mod, idIncludedInClasses) : Qnil;
+    included_in_classes = RCLASS_VERSION(mod) & RCLASS_IS_INCLUDED
+	? rb_attr_get(mod, idIncludedInClasses) : Qnil;
 
     direct_override = false;
     method = class_getInstanceMethod((Class)mod, sel);
@@ -2237,8 +2274,8 @@ rb_struct_reader_closure_handler(ffi_cif *cif, void *resp, void **args,
 {
     struct rb_struct_accessor_context *ctx;
     VALUE recv, *data;
-
-    recv = (*(VALUE **)args)[0];
+ 
+    recv = *(VALUE *)args[0];
     Data_Get_Struct(recv, VALUE, data);
     assert(data != NULL);
 
@@ -2255,8 +2292,8 @@ rb_struct_writer_closure_handler(ffi_cif *cif, void *resp, void **args,
     size_t fdata_size;
     void *fdata;
 
-    recv = (*(VALUE **)args)[0];
-    value = (*(VALUE **)args)[1];
+    recv = *(VALUE *)args[0];
+    value = *(VALUE *)args[1];
     Data_Get_Struct(recv, VALUE, data);
     assert(data != NULL);
 
@@ -2292,14 +2329,21 @@ rb_struct_gen_accessors(VALUE klass, bs_element_struct_field_t *field, int num)
 	args = (ffi_type **)malloc(sizeof(ffi_type *) * 1);
 	args[0] = &ffi_type_pointer;
 	if (ffi_prep_cif(struct_reader_cif, FFI_DEFAULT_ABI, 1, 
-			 &ffi_type_pointer, args) != FFI_OK)
+			 &ffi_type_pointer, args) != FFI_OK) {
 	    rb_fatal("can't prepare struct_reader_cif");
+	}
     }
-    closure = (ffi_closure *)malloc(sizeof(ffi_closure));
+    if ((closure = mmap(NULL, sizeof(ffi_closure), PROT_READ | PROT_WRITE,
+			MAP_ANON | MAP_PRIVATE, -1, 0)) == (void *)-1) {
+	rb_fatal("can't allocate struct reader closure");
+    }
     if (ffi_prep_closure(closure, struct_reader_cif, 
-		         rb_struct_reader_closure_handler, ctx)
-	!= FFI_OK)
+		         rb_struct_reader_closure_handler, ctx) != FFI_OK) {
 	rb_fatal("can't prepare struct reader closure");
+    }
+    if (mprotect(closure, sizeof(closure), PROT_READ | PROT_EXEC) == -1) {
+	rb_fatal("can't mprotect struct reader closure");
+    }
 
     rb_define_method(klass, field->name, (VALUE(*)(ANYARGS))closure, 0);
 
@@ -2311,14 +2355,21 @@ rb_struct_gen_accessors(VALUE klass, bs_element_struct_field_t *field, int num)
 	args[0] = &ffi_type_pointer;
 	args[1] = &ffi_type_pointer;
 	if (ffi_prep_cif(struct_writer_cif, FFI_DEFAULT_ABI, 2, 
-			 &ffi_type_pointer, args) != FFI_OK)
+			 &ffi_type_pointer, args) != FFI_OK) {
 	    rb_fatal("can't prepare struct_writer_cif");
+	}
     }
-    closure = (ffi_closure *)malloc(sizeof(ffi_closure));
+    if ((closure = mmap(NULL, sizeof(ffi_closure), PROT_READ | PROT_WRITE,
+			MAP_ANON | MAP_PRIVATE, -1, 0)) == (void *)-1) {
+	rb_fatal("can't allocate struct writer closure");
+    }
     if (ffi_prep_closure(closure, struct_writer_cif, 
-			 rb_struct_writer_closure_handler, ctx)
-	!= FFI_OK)
+			 rb_struct_writer_closure_handler, ctx) != FFI_OK) {
 	rb_fatal("can't prepare struct writer closure");
+    }
+    if (mprotect(closure, sizeof(closure), PROT_READ | PROT_EXEC) == -1) {
+	rb_fatal("can't mprotect struct writer closure");
+    }
 
     snprintf(buf, sizeof buf, "%s=", field->name);
     rb_define_method(klass, buf, (VALUE(*)(ANYARGS))closure, 1);
@@ -3154,8 +3205,8 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 	return fmt;
 
     types = (char **)alloca(sizeof(char *) * argc);
-    ffi_argtypes = (ffi_type **)alloca(sizeof(ffi_type *) * argc + 4);
-    ffi_args = (void **)alloca(sizeof(void *) * argc + 4);
+    ffi_argtypes = (ffi_type **)alloca(sizeof(ffi_type *) * (argc + 4));
+    ffi_args = (void **)alloca(sizeof(void *) * (argc + 4));
 
     null = NULL;
     new_fmt = NULL;
@@ -3234,11 +3285,12 @@ static Class
 rb_obj_imp_isaForAutonotifying(void *rcv, SEL sel)
 {
     Class ret;
+    long ret_version;
 
 #define KVO_CHECK_DONE 0x100000
 
     ret = ((Class (*)(void *, SEL)) old_imp_isaForAutonotifying)(rcv, sel);
-    if (ret != NULL && (RCLASS_VERSION(ret) & KVO_CHECK_DONE) == 0) {
+    if (ret != NULL && ((ret_version = RCLASS_VERSION(ret)) & KVO_CHECK_DONE) == 0) {
 	const char *name = class_getName(ret);
 	if (strncmp(name, "NSKVONotifying_", 15) == 0) {
 	    Class ret_orig;
@@ -3246,10 +3298,11 @@ rb_obj_imp_isaForAutonotifying(void *rcv, SEL sel)
 	    ret_orig = objc_getClass(name);
 	    if (ret_orig != NULL && RCLASS_VERSION(ret_orig) & RCLASS_IS_OBJECT_SUBCLASS) {
 		DLOG("XXX", "marking KVO generated klass %p (%s) as RObject", ret, class_getName(ret));
-		RCLASS_VERSION(ret) |= RCLASS_IS_OBJECT_SUBCLASS;
+		ret_version |= RCLASS_IS_OBJECT_SUBCLASS;
 	    }
 	}
-	RCLASS_VERSION(ret) |= KVO_CHECK_DONE;
+	ret_version |= KVO_CHECK_DONE;
+	RCLASS_SET_VERSION(ret, ret_version);
     }
     return ret;
 }
@@ -3270,13 +3323,14 @@ Init_ObjC(void)
 
     rb_cBoxed = rb_define_class("Boxed", (VALUE)objc_getClass("NSValue"));
     RCLASS_SET_VERSION_FLAG(rb_cBoxed, RCLASS_IS_OBJECT_SUBCLASS);
-    rb_define_singleton_method(rb_cBoxed, "objc_type", rb_boxed_objc_type, 0);
+    rb_define_singleton_method(rb_cBoxed, "type", rb_boxed_objc_type, 0);
     rb_define_singleton_method(rb_cBoxed, "opaque?", rb_boxed_is_opaque, 0);
     rb_define_singleton_method(rb_cBoxed, "fields", rb_boxed_fields, 0);
     rb_install_boxed_primitives();
 
     rb_cPointer = rb_define_class("Pointer", rb_cObject);
     rb_undef_alloc_func(rb_cPointer);
+    rb_define_singleton_method(rb_cPointer, "new_with_type", rb_pointer_new_with_type, 1);
     rb_define_method(rb_cPointer, "assign", rb_pointer_assign, 1);
     rb_define_method(rb_cPointer, "[]", rb_pointer_aref, 1);
 
@@ -3297,10 +3351,23 @@ Init_ObjC(void)
     assert(m != NULL);
     old_imp_isaForAutonotifying = method_getImplementation(m);
     method_setImplementation(m, (IMP)rb_obj_imp_isaForAutonotifying);
+
+    {
+	VALUE klass;
+	NODE *node, *body;
+	void *closure;
+
+	klass = rb_singleton_class(rb_cNSObject);
+	node = NEW_CFUNC(rb_class_new_instance, -1);
+	body = NEW_FBODY(NEW_METHOD(node, klass, NOEX_PUBLIC), 0);
+	closure = rb_ruby_to_objc_closure("@@:@", 1, body->nd_body);
+	assert(class_addMethod((Class)klass, @selector(new:), (IMP)closure, "@@:@"));
+    }
 }
 
 // for debug in gdb
 int __rb_type(VALUE v) { return TYPE(v); }
+int __rb_native(VALUE v) { return NATIVE(v); }
 
 @interface Protocol
 @end
@@ -3470,9 +3537,6 @@ performRuby_rescue(VALUE arg)
 	}
     }
    
-    rb_thread_t *rb_thread_wrap_existing_native_thread(rb_thread_id_t id);
-    void native_mutex_unlock(pthread_mutex_t *lock);
-    void native_mutex_lock(pthread_mutex_t *lock);
     rb_thread_t *th, *old = NULL;
 
     if (need_protection) {
@@ -3535,4 +3599,3 @@ performRuby_rescue(VALUE arg)
 }
 
 @end
-

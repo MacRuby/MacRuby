@@ -153,7 +153,7 @@ rb_objc_alloc_class(const char *name, VALUE super, VALUE flags, VALUE klass)
 	version_flag |= RCLASS_IS_OBJECT_SUBCLASS;
     }
 
-    class_setVersion(ocklass, version_flag);
+    RCLASS_SET_VERSION(ocklass, version_flag);
 
     DLOG("DEFC", "%s < %s (version=%d)", ocname, class_getName(class_getSuperclass((Class)ocklass)), version_flag);
 
@@ -230,13 +230,14 @@ rb_mod_init_copy(VALUE clone, VALUE orig)
 	else {
 	    super = RCLASS_SUPER(orig);
 	}
-	RCLASS_SUPER(clone) = super;
+	RCLASS_SET_SUPER(clone, super);
 
 	version_flag = RCLASS_IS_RUBY_CLASS;
-	if ((RCLASS_VERSION(super) & RCLASS_IS_OBJECT_SUBCLASS) == RCLASS_IS_OBJECT_SUBCLASS)
+	if ((RCLASS_VERSION(super) & RCLASS_IS_OBJECT_SUBCLASS) == RCLASS_IS_OBJECT_SUBCLASS) {
 	    version_flag |= RCLASS_IS_OBJECT_SUBCLASS;
+	}
 
-	class_setVersion((Class)clone, version_flag);
+	RCLASS_SET_VERSION(clone, version_flag);
     }
 #if 0 // TODO
     if (RCLASS_IV_TBL(orig)) {
@@ -315,7 +316,8 @@ rb_singleton_class_clone(VALUE obj)
 
 	rb_singleton_class_attached(RBASIC(clone)->klass, (VALUE)clone);
 	if (RCLASS_SUPER(clone) == rb_cNSObject) {
-	    RCLASS_VERSION(clone) ^= RCLASS_IS_OBJECT_SUBCLASS;
+	    long v = RCLASS_VERSION(clone) ^ RCLASS_IS_OBJECT_SUBCLASS;
+	    RCLASS_SET_VERSION(clone, v);
 	}
 	RCLASS_SET_VERSION_FLAG(clone, RCLASS_IS_SINGLETON);
 
@@ -347,7 +349,8 @@ rb_make_metaclass(VALUE obj, VALUE super)
 	klass = rb_class_boot(super);
 	RBASIC(obj)->klass = klass;
 	if (super == rb_cNSObject) {
-	    RCLASS_VERSION(klass) ^= RCLASS_IS_OBJECT_SUBCLASS;
+	    long v = RCLASS_VERSION(klass) ^ RCLASS_IS_OBJECT_SUBCLASS;
+	    RCLASS_SET_VERSION(klass, v);
 	}
 	RCLASS_SET_VERSION_FLAG(klass, RCLASS_IS_SINGLETON);
 
@@ -498,18 +501,18 @@ rb_define_module_under(VALUE outer, const char *name)
 }
 
 void
-rb_include_module(VALUE klass, VALUE module)
+rb_include_module2(VALUE klass, VALUE module, int check, int add_methods)
 {
-    Method *methods;
-    unsigned int i, methods_count;
     VALUE ary;
 
-    rb_frozen_class_p(klass);
+    if (check) {
+	rb_frozen_class_p(klass);
 
-    if (!OBJ_TAINTED(klass))
-	rb_secure(4);
+	if (!OBJ_TAINTED(klass))
+	    rb_secure(4);
 
-    Check_Type(module, T_MODULE);
+	Check_Type(module, T_MODULE);
+    }
 
     ary = rb_attr_get(klass, idIncludedModules);
     if (ary == Qnil) {
@@ -520,6 +523,9 @@ rb_include_module(VALUE klass, VALUE module)
 	return;
     rb_ary_insert(ary, 0, module);
 
+    long v = RCLASS_VERSION(module) | RCLASS_IS_INCLUDED;
+    RCLASS_SET_VERSION(module, v);
+
     ary = rb_attr_get(module, idIncludedInClasses);
     if (ary == Qnil) {
 	ary = rb_ary_new();
@@ -529,26 +535,38 @@ rb_include_module(VALUE klass, VALUE module)
 
     DLOG("INCM", "%s <- %s", class_getName((Class)klass), class_getName((Class)module));
 
-    methods = class_copyMethodList((Class)module, &methods_count);
-    if (methods != NULL) {
-	for (i = 0; i < methods_count; i++) {
-	    Method method = methods[i], method2;
-	    DLOG("DEFI", "-[%s %s]", class_getName((Class)klass), (char *)method_getName(method));
-	
-	    method2 = class_getInstanceMethod((Class)klass, method_getName(method));
-	    if (method2 != NULL && method2 != class_getInstanceMethod((Class)RCLASS_SUPER(klass), method_getName(method))) {
-		method_setImplementation(method2, method_getImplementation(method));
+    if (add_methods) {
+	Method *methods;
+	unsigned int i, methods_count;
+
+	methods = class_copyMethodList((Class)module, &methods_count);
+	if (methods != NULL) {
+	    for (i = 0; i < methods_count; i++) {
+		Method method = methods[i], method2;
+		DLOG("DEFI", "-[%s %s]", class_getName((Class)klass), (char *)method_getName(method));
+
+		method2 = class_getInstanceMethod((Class)klass, method_getName(method));
+		if (method2 != NULL && method2 != class_getInstanceMethod((Class)RCLASS_SUPER(klass), method_getName(method))) {
+		    method_setImplementation(method2, method_getImplementation(method));
+		}
+		else {
+		    assert(class_addMethod((Class)klass, 
+				method_getName(method), 
+				method_getImplementation(method), 
+				method_getTypeEncoding(method)));
+		}
 	    }
-	    else {
-		assert(class_addMethod((Class)klass, 
-			    method_getName(method), 
-			    method_getImplementation(method), 
-			    method_getTypeEncoding(method)));
-	    }
+	    free(methods);
 	}
-	free(methods);
     }
 }
+
+void
+rb_include_module(VALUE klass, VALUE module)
+{
+    rb_include_module2(klass, module, 1, 1);
+}
+
 
 /*
  *  call-seq:
@@ -673,31 +691,31 @@ ins_methods_push(VALUE name, long type, VALUE ary, long visi)
 }
 
 static int
-ins_methods_i(VALUE name, long type, VALUE ary)
+ins_methods_i(VALUE name, ID type, VALUE ary)
 {
     return ins_methods_push(name, type, ary, -1); /* everything but private */
 }
 
 static int
-ins_methods_prot_i(VALUE name, long type, VALUE ary)
+ins_methods_prot_i(VALUE name, ID type, VALUE ary)
 {
     return ins_methods_push(name, type, ary, NOEX_PROTECTED);
 }
 
 static int
-ins_methods_priv_i(VALUE name, long type, VALUE ary)
+ins_methods_priv_i(VALUE name, ID type, VALUE ary)
 {
     return ins_methods_push(name, type, ary, NOEX_PRIVATE);
 }
 
 static int
-ins_methods_pub_i(VALUE name, long type, VALUE ary)
+ins_methods_pub_i(VALUE name, ID type, VALUE ary)
 {
     return ins_methods_push(name, type, ary, NOEX_PUBLIC);
 }
 
 static void
-rb_objc_push_methods(VALUE ary, VALUE mod, VALUE objc_methods, int (*func) (VALUE, long, VALUE))
+rb_objc_push_methods(VALUE ary, VALUE mod, VALUE objc_methods, int (*func) (VALUE, ID, VALUE))
 {
     Method *methods;
     unsigned int i, count;
@@ -798,7 +816,7 @@ rb_objc_push_methods(VALUE ary, VALUE mod, VALUE objc_methods, int (*func) (VALU
 }
 
 static VALUE
-class_instance_method_list(int argc, VALUE *argv, VALUE mod, int (*func) (ID, long, VALUE))
+class_instance_method_list(int argc, VALUE *argv, VALUE mod, int (*func) (VALUE, ID, VALUE))
 {
     VALUE ary;
     VALUE recur, objc_methods;

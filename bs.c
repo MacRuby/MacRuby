@@ -252,7 +252,7 @@ undecorate_struct_type(const char *src, char *dest, size_t dest_len,
     p_src = pos + 1;
     pos = strchr(p_src, '"');
     if (pos == NULL) {
-      fprintf(stderr, "Can't find the end of field delimiter starting at %d\n", p_src - src);
+      fprintf(stderr, "Can't find the end of field delimiter starting at %d\n", (int)(p_src - src));
       goto bails; 
     }
     if (field != NULL) {
@@ -307,7 +307,7 @@ undecorate_struct_type(const char *src, char *dest, size_t dest_len,
       }
 
       if (ok == false) {
-        fprintf(stderr, "Can't find the field encoding starting at %d\n", p_src - src);
+        fprintf(stderr, "Can't find the field encoding starting at %d\n", (int)(p_src - src));
         goto bails;
       }
 

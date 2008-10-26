@@ -1858,39 +1858,35 @@ opt_eq_func(VALUE recv, VALUE obj, IC ic)
 void
 rb_enter_insn_trace(rb_control_frame_t *cfp)
 {
-    if (MACRUBY_INSN_ENTRY_ENABLED()) {
-	/* just to get rid of compilation warnings... */
-	if (0) {
-	    insn_op_types(0);
-	    insn_op_type(0, 0);
-	}
+    /* just to get rid of compilation warnings... */
+    if (0) {
+	insn_op_types(0);
+	insn_op_type(0, 0);
+    }
 
-	rb_iseq_t *iseq = cfp->iseq;
+    rb_iseq_t *iseq = cfp->iseq;
 
-	if (iseq != NULL && VM_FRAME_TYPE(cfp) != FRAME_MAGIC_FINISH) {
-	    VALUE *seq = iseq->iseq;
-	    int pc = cfp->pc - iseq->iseq_encoded;
+    if (iseq != NULL && VM_FRAME_TYPE(cfp) != FRAME_MAGIC_FINISH) {
+	VALUE *seq = iseq->iseq;
+	int pc = cfp->pc - iseq->iseq_encoded;
 
-	    MACRUBY_INSN_ENTRY((char *)insn_name(seq[pc]), 
-		    	       (char *)rb_sourcefile(), 
-			       rb_sourceline());
-	}
+	MACRUBY_INSN_ENTRY((char *)insn_name(seq[pc]), 
+		(char *)rb_sourcefile(), 
+		rb_sourceline());
     }
 }
 
 void
 rb_end_insn_trace(rb_control_frame_t *cfp)
 {
-    if (MACRUBY_INSN_RETURN_ENABLED()) {
-	rb_iseq_t *iseq = cfp->iseq;
+    rb_iseq_t *iseq = cfp->iseq;
 
-	if (iseq != NULL && VM_FRAME_TYPE(cfp) != FRAME_MAGIC_FINISH) {
-	    VALUE *seq = iseq->iseq;
-	    int pc = cfp->pc - iseq->iseq_encoded;
+    if (iseq != NULL && VM_FRAME_TYPE(cfp) != FRAME_MAGIC_FINISH) {
+	VALUE *seq = iseq->iseq;
+	int pc = cfp->pc - iseq->iseq_encoded;
 
-	    MACRUBY_INSN_RETURN((char *)insn_name(seq[pc]),
-		    		(char *)rb_sourcefile(),
-				rb_sourceline());
-	}
+	MACRUBY_INSN_RETURN((char *)insn_name(seq[pc]),
+		(char *)rb_sourcefile(),
+		rb_sourceline());
     }
 }

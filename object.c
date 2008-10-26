@@ -1464,9 +1464,10 @@ rb_class_initialize(int argc, VALUE *argv, VALUE klass)
 	rb_scan_args(argc, argv, "01", &super);
 	rb_check_inheritable(super);
     }
-    RCLASS_SUPER(klass) = super;
+    RCLASS_SET_SUPER(klass, super);
     if ((RCLASS_VERSION(super) & RCLASS_IS_OBJECT_SUBCLASS) != RCLASS_IS_OBJECT_SUBCLASS) {
-	RCLASS_VERSION(klass) ^= RCLASS_IS_OBJECT_SUBCLASS;
+	long v = RCLASS_VERSION(klass) ^ RCLASS_IS_OBJECT_SUBCLASS;
+	RCLASS_SET_VERSION(klass, v);
     }
     rb_objc_install_primitives((Class)klass, (Class)super);
     if (super == rb_cObject)
@@ -2464,9 +2465,15 @@ Init_Object(void)
     rb_const_set(rb_cObject, rb_intern("Object"), rb_cNSObject);
     rb_set_class_path(rb_cObject, rb_cObject, "NSObject");
     rb_cBasicObject = (VALUE)objc_duplicateClass((Class)rb_cObject, "BasicObject", 0);
-    rb_cModule = boot_defclass("Module", rb_cObject);
+    rb_cModule = boot_defclass("Module", rb_cNSObject);
     rb_cClass =  boot_defclass("Class",  rb_cModule);
-    RCLASS_SUPER(*(Class *)rb_cNSObject) = rb_cClass;
+
+    rb_define_method(rb_cClass, "new", rb_class_new_instance, -1);
+
+    void rb_include_module2(VALUE klass, VALUE module, int check, int add_methods);
+
+    rb_include_module2(*(VALUE *)rb_cNSObject, rb_cClass, 0, 0);
+    rb_include_module2(*(VALUE *)rb_cNSObject, rb_cModule, 0, 0);
 
     rb_define_private_method(rb_cNSObject, "initialize", rb_obj_dummy, 0);
     rb_define_method(rb_cNSObject, "==", rb_obj_equal, 1);
@@ -2603,7 +2610,6 @@ Init_Object(void)
     rb_define_method(rb_cModule, "class_variable_defined?", rb_mod_cvar_defined, 1);
 
     rb_define_method(rb_cClass, "allocate", rb_obj_alloc, 0);
-    rb_define_method(rb_cClass, "new", rb_class_new_instance, -1);
     rb_define_method(rb_cClass, "initialize_copy", rb_class_init_copy, 1); /* in class.c */
     rb_define_alloc_func(rb_cClass, rb_class_s_alloc);
     rb_undef_method(rb_cClass, "extend_object");

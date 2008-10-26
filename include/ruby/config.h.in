@@ -21,16 +21,32 @@
 #define _TANDEM_SOURCE 1
 #define HAVE_LONG_LONG 1
 #define HAVE_OFF_T 1
+#define SIZEOF___INT64 0
+#if defined(__LP64__)
+#define SIZEOF_INT 4
+#define SIZEOF_SHORT 2
+#define SIZEOF_LONG 8
+#define SIZEOF_LONG_LONG 8
+#define SIZEOF_OFF_T 8
+#define SIZEOF_VOIDP 8
+#define SIZEOF_FLOAT 4
+#define SIZEOF_DOUBLE 8
+#define SIZEOF_TIME_T 8
+#define SIZEOF_RLIM_T 8
+#define SIZEOF_SIZE_T 8
+#else
 #define SIZEOF_INT 4
 #define SIZEOF_SHORT 2
 #define SIZEOF_LONG 4
 #define SIZEOF_LONG_LONG 8
-#define SIZEOF___INT64 0
 #define SIZEOF_OFF_T 8
 #define SIZEOF_VOIDP 4
 #define SIZEOF_FLOAT 4
 #define SIZEOF_DOUBLE 8
 #define SIZEOF_TIME_T 4
+#define SIZEOF_RLIM_T 8
+#define SIZEOF_SIZE_T 4
+#endif
 #define rb_pid_t pid_t
 #define PIDT2NUM(v) LONG2NUM(v)
 #define NUM2PIDT(v) NUM2LONG(v)
@@ -77,8 +93,6 @@
 #define HAVE_LANGINFO_H 1
 #define HAVE_LOCALE_H 1
 #define HAVE_TIME_H 1
-#define SIZEOF_RLIM_T 8
-#define SIZEOF_SIZE_T 4
 #define HAVE_STRUCT_STAT_ST_BLKSIZE 1
 #define HAVE_ST_BLKSIZE 1
 #define HAVE_STRUCT_STAT_ST_BLOCKS 1

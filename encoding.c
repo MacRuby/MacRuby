@@ -68,7 +68,7 @@ enc_init_db(void)
 	    }
 	    rb_define_const(rb_cEncoding, name, encoding);
 	}
-	CFDictionarySetValue(__encodings, (const void *)(*e), 
+	CFDictionarySetValue(__encodings, (const void *)iana, 
 	    (const void *)encoding);
 	e++;
     }
@@ -79,10 +79,12 @@ enc_init_db(void)
 static VALUE
 enc_make(const CFStringEncoding *enc)
 {
-    VALUE v;
+    VALUE iana, v;
+
     assert(enc != NULL);
-    v = (VALUE)CFDictionaryGetValue( (CFDictionaryRef)__encodings, 
-	(const void *)(*enc));
+    iana = (VALUE)CFStringConvertEncodingToIANACharSetName(*enc);
+    v = (VALUE)CFDictionaryGetValue((CFDictionaryRef)__encodings, 
+	(const void *)iana);
     assert(v != 0);
     return v;
 }

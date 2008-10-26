@@ -1,4 +1,6 @@
 # User customizable variables.
+# These variables can be set from the command line. Example:
+#    $ rake build_as_embeddable=true
 
 def do_option(name, default)
   val = ENV[name]
@@ -15,7 +17,7 @@ end
 
 RUBY_INSTALL_NAME = do_option('ruby_install_name', 'macruby')
 RUBY_SO_NAME = do_option('ruby_so_name', RUBY_INSTALL_NAME)
-ARCHS = do_option('archs', %w{ppc i386}) { |x| x.split(',') }
+ARCHS = do_option('archs', `arch`.include?('ppc') ? 'ppc' : %w{i386 x86_64}) { |x| x.split(',') }
 FRAMEWORK_NAME = do_option('framework_name', 'MacRuby')
 FRAMEWORK_INSTDIR = do_option('framework_instdir', '/Library/Frameworks')
 NO_WARN_BUILD = !do_option('allow_build_warnings', false)
@@ -25,7 +27,16 @@ ENABLE_DEBUG_LOGGING = do_option('enable_debug_logging', true) { |x| x == 'true'
 
 # TODO: we should find a way to document these options in rake's --help
 
-# Everything below this comment should *not* be customized.
+# Everything below this comment should *not* be modified.
+
+if `sw_vers -productVersion`.strip.to_f < 10.5
+  $stderr.puts "Sorry, your environment is not supported. MacRuby requires Mac OS X 10.5 or higher." 
+  exit 1
+end
+
+if `arch`.include?('ppc')
+  $stderr.puts "Warning: your appear to use a PowerPC machine. MacRuby's PPC support is very basic and may be dropped in a near future. Supported architectures are Intel 32-bit and 64-bit (i386 and x86_64)." 
+end
 
 version_h = File.read('version.h')
 NEW_RUBY_VERSION = version_h.scan(/#\s*define\s+RUBY_VERSION\s+\"([^"]+)\"/)[0][0]
@@ -512,7 +523,7 @@ namespace :macruby do
 
   desc "Build MacRuby"
   task :build => :dylib do
-    $builder.link_executable(RUBY_INSTALL_NAME, ['main', 'gc-stub'], "-L. -l#{RUBY_SO_NAME}")
+    $builder.link_executable(RUBY_INSTALL_NAME, ['main', 'gc-stub'], "-L. -l#{RUBY_SO_NAME} -lobjc")
   end
 end
 
