@@ -4881,7 +4881,7 @@ yycompile0(VALUE arg, int tracing)
 static NODE*
 yycompile(struct parser_params *parser, const char *f, int line)
 {
-    ruby_sourcefile = ruby_strdup(f);
+    GC_WB(&ruby_sourcefile, ruby_strdup(f));
     ruby_sourceline = line - 1;
     return (NODE *)ruby_suppress_tracing(yycompile0, (VALUE)parser, Qtrue);
 }

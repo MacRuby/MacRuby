@@ -2783,7 +2783,7 @@ rb_io_fptr_finalize(rb_io_t *fptr)
     if (!fptr) return 0;
     if (fptr->refcnt <= 0 || --fptr->refcnt) return 0;
     if (fptr->path) {
-	xfree(fptr->path);
+	free(fptr->path);
 	fptr->path = 0;
     }
     if (0 <= fptr->fd)
@@ -4425,7 +4425,7 @@ io_reopen(VALUE io, VALUE nfile)
     fptr->mode = orig->mode | (fptr->mode & FMODE_PREP);
     fptr->pid = orig->pid;
     fptr->lineno = orig->lineno;
-    if (fptr->path) xfree(fptr->path);
+    if (fptr->path) free(fptr->path);
     if (orig->path) fptr->path = strdup(orig->path);
     else fptr->path = 0;
     fptr->finalize = orig->finalize;

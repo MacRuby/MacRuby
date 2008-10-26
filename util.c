@@ -431,7 +431,7 @@ push_element(const char *path, VALUE vinfo)
 
     p = ALLOC(struct PathList);
     MEMZERO(p, struct PathList, 1);
-    p->path = ruby_strdup(path);
+    GC_WB(&p->path, ruby_strdup(path));
     p->next = info->head;
     info->head = p;
     info->count++;

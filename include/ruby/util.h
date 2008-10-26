@@ -60,8 +60,10 @@ void ruby_unsetenv(const char *);
 #define unsetenv(name,val) ruby_unsetenv(name);
 
 char *ruby_strdup(const char *);
+#if !WITH_OBJC
 #undef strdup
 #define strdup(s) ruby_strdup(s)
+#endif
 
 char *ruby_getcwd(void);
 #define my_getcwd() ruby_getcwd()
