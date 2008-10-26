@@ -3323,7 +3323,7 @@ Init_ObjC(void)
 
     rb_cBoxed = rb_define_class("Boxed", (VALUE)objc_getClass("NSValue"));
     RCLASS_SET_VERSION_FLAG(rb_cBoxed, RCLASS_IS_OBJECT_SUBCLASS);
-    rb_define_singleton_method(rb_cBoxed, "objc_type", rb_boxed_objc_type, 0);
+    rb_define_singleton_method(rb_cBoxed, "type", rb_boxed_objc_type, 0);
     rb_define_singleton_method(rb_cBoxed, "opaque?", rb_boxed_is_opaque, 0);
     rb_define_singleton_method(rb_cBoxed, "fields", rb_boxed_fields, 0);
     rb_install_boxed_primitives();

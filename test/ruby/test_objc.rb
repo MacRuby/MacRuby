@@ -450,8 +450,8 @@ class TestObjC < Test::Unit::TestCase
   end
 
   def test_create_pointer2
-    p1 = Pointer.new_with_type(NSRect.objc_type)
-    p2 = Pointer.new_with_type(NSRect.objc_type)
+    p1 = Pointer.new_with_type(NSRect.type)
+    p2 = Pointer.new_with_type(NSRect.type)
     NSDivideRect([0, 0, 100, 100], p1, p2, 10.0, 0)
     assert_equal(NSMakeRect(0, 0, 10, 100), p1[0])
     assert_equal(NSMakeRect(10, 0, 90, 100), p2[0])
