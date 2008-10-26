@@ -75,28 +75,13 @@ static struct st_table *bs_inf_prot_cmethods;
 static struct st_table *bs_inf_prot_imethods;
 static struct st_table *bs_cftypes;
 
-#if 0
-static char *
-rb_objc_sel_to_mid(SEL selector, char *buffer, unsigned buffer_len)
+VALUE rb_cPointer;
+
+struct RPointer
 {
-    size_t s;
-    char *p;
-
-    s = strlcpy(buffer, (const char *)selector, buffer_len);
-
-    p = buffer + s - 1;
-    if (*p == ':')
-	*p = '\0';
-
-    p = buffer;
-    while ((p = strchr(p, ':')) != NULL) {
-	*p = '_';
-	p++;
-    }
-
-    return buffer;
-}
-#endif
+  void *ptr;
+  const char *type;
+};
 
 static inline const char *
 rb_objc_skip_octype_modifiers(const char *octype)
@@ -519,14 +504,6 @@ rebuild_new_struct_ary(ffi_type **elements, VALUE orig, VALUE new)
     return n;
 }
 
-VALUE rb_cPointer;
-
-struct RPointer
-{
-  void *ptr;
-  const char *type;
-};
-
 static VALUE
 rb_pointer_create(void *ptr, const char *type)
 {
@@ -540,6 +517,25 @@ rb_pointer_create(void *ptr, const char *type)
 }
 
 static void rb_objc_rval_to_ocval(VALUE, const char *, void **);
+
+static VALUE
+rb_pointer_new_with_type(VALUE recv, VALUE type)
+{
+    const char *ctype;
+    ffi_type *ffitype;
+    struct RPointer *data;
+
+    Check_Type(type, T_STRING);
+    ctype = RSTRING_PTR(type);
+    ffitype = rb_objc_octype_to_ffitype(ctype);
+
+    data = (struct RPointer *)xmalloc(sizeof(struct RPointer ));
+    GC_WB(&data->ptr, xmalloc(ffitype->size));
+    GC_WB(&data->type, xmalloc(strlen(ctype) + 1));
+    strcpy((char *)data->type, ctype);
+
+    return Data_Wrap_Struct(rb_cPointer, NULL, NULL, data);
+}
 
 static VALUE
 rb_pointer_assign(VALUE recv, VALUE val)
@@ -720,13 +716,17 @@ rb_objc_rval_to_ocval(VALUE rval, const char *octype, void **ocval)
 		    }
 		    break;
 		default:
-		    if (strcmp(octype, "^v") == 0) {
-			if (SPECIAL_CONST_P(rval)) {
-			    ok = false;
-			}
-			else {
-			    *(void **)ocval = (void *)rval;
-			}
+		    if (SPECIAL_CONST_P(rval)) {
+			ok = false;
+		    }
+		    else if (*(VALUE *)rval == rb_cPointer) {
+			struct RPointer *data;
+
+			Data_Get_Struct(rval, struct RPointer, data);
+			*(void **)ocval = data->ptr;
+		    }
+		    else if (strcmp(octype, "^v") == 0) {
+			*(void **)ocval = (void *)rval;
 		    }
 		    else if (st_lookup(bs_boxeds, (st_data_t)octype + 1, 
 			     (st_data_t *)&bs_boxed)) {
@@ -3330,6 +3330,7 @@ Init_ObjC(void)
 
     rb_cPointer = rb_define_class("Pointer", rb_cObject);
     rb_undef_alloc_func(rb_cPointer);
+    rb_define_singleton_method(rb_cPointer, "new_with_type", rb_pointer_new_with_type, 1);
     rb_define_method(rb_cPointer, "assign", rb_pointer_assign, 1);
     rb_define_method(rb_cPointer, "[]", rb_pointer_aref, 1);
 
