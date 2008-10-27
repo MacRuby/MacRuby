@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Description</key>
+	<string>This project builds a Cocoa-based Core Data application written in Ruby, with MacRuby.</string>
+	<key>FilesToMacroExpand</key>
+	<array>
+		<string>AppDelegate.rb</string>
+		<string>English.lproj/InfoPlist.strings</string>
+		<string>main.m</string>
+		<string>rb_main.rb</string>
+		<string>Info.plist</string>
+	</array>
+</dict>
+</plist>
