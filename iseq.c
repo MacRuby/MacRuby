@@ -67,6 +67,9 @@ iseq_free(void *ptr)
     RUBY_FREE_LEAVE("iseq");
 }
 
+#if WITH_OBJC
+# define iseq_mark NULL
+#else
 static void
 iseq_mark(void *ptr)
 {
@@ -92,6 +95,7 @@ iseq_mark(void *ptr)
     }
     RUBY_MARK_LEAVE("iseq");
 }
+#endif
 
 static VALUE
 iseq_alloc(VALUE klass)
@@ -180,10 +184,10 @@ prepare_iseq_build(rb_iseq_t *iseq,
     RBASIC(iseq->compile_data->mark_ary)->klass = 0;
 #endif
 
-    iseq->compile_data->storage_head = iseq->compile_data->storage_current =
-      (struct iseq_compile_data_storage *)
+    GC_WB(&iseq->compile_data->storage_current,
 	ALLOC_N(char, INITIAL_ISEQ_COMPILE_DATA_STORAGE_BUFF_SIZE +
-		sizeof(struct iseq_compile_data_storage));
+		sizeof(struct iseq_compile_data_storage)));
+    iseq->compile_data->storage_head = iseq->compile_data->storage_current;
 
     GC_WB(&iseq->compile_data->catch_table_ary, rb_ary_new());
     iseq->compile_data->storage_head->pos = 0;

@@ -5239,6 +5239,12 @@ imp_rb_symbol_getCharactersRange(void *rcv, SEL sel, UniChar *buffer,
     }
 }
 
+static bool
+imp_rb_symbol_isEqual(void *rcv, SEL sel, void *other)
+{
+    return rcv == other;
+}
+
 static void
 install_symbol_primitives(void)
 {
@@ -5247,6 +5253,7 @@ install_symbol_primitives(void)
     rb_objc_install_method2(klass, "length", (IMP)imp_rb_symbol_length);
     rb_objc_install_method2(klass, "characterAtIndex:", (IMP)imp_rb_symbol_characterAtIndex);
     rb_objc_install_method2(klass, "getCharacters:range:", (IMP)imp_rb_symbol_getCharactersRange);
+    rb_objc_install_method2(klass, "isEqual:", (IMP)imp_rb_symbol_isEqual);
 }
 
 #undef INSTALL_METHOD

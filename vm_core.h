@@ -148,7 +148,9 @@ typedef struct rb_compile_option_struct {
 struct iseq_compile_data {
     /* GC is needed */
     VALUE err_info;
+#if !WITH_OBJC
     VALUE mark_ary;
+#endif
     VALUE catch_table_ary;	/* Array */
 
     /* GC is not needed */
