@@ -169,11 +169,12 @@ rb_ary_new4(long n, const VALUE *elts)
     VALUE ary;
 
     ary = rb_ary_new2(n);
-    if (n > 0 && elts) {
+    if (n > 0 && elts != NULL) {
 	long i;
 	void **vals = (void **)alloca(n * sizeof(void *));
-	for (i = 0; i < n; i++)
+	for (i = 0; i < n; i++) {
 	    vals[i] = RB2OC(elts[i]);
+	}
 	CFArrayReplaceValues((CFMutableArrayRef)ary, CFRangeMake(0, 0), (const void **)vals, n);
     }
 

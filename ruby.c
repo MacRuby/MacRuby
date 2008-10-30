@@ -1122,8 +1122,8 @@ process_options(VALUE arg)
 #if defined DOSISH || defined __CYGWIN__
     translate_char(RSTRING_PTR(rb_progname), '\\', '/');
 #endif
-    opt->script_name = rb_str_new4(rb_progname);
-    opt->script = RSTRING_BYTEPTR(opt->script_name);
+    GC_WB(&opt->script_name, rb_str_new4(rb_progname));
+    opt->script = RSTRING_PTR(opt->script_name);
     ruby_set_argv(argc, argv);
     process_sflag(opt);
 
@@ -1630,30 +1630,28 @@ true_value(void)
 void *
 ruby_process_options(int argc, char **argv)
 {
-    struct cmdline_arguments args;
-    struct cmdline_options opt;
+    struct cmdline_arguments *args;
+    struct cmdline_options *opt;
     NODE *tree;
 
-    MEMZERO(&opt, opt, 1);
+    args = (struct cmdline_arguments *)xmalloc(sizeof(struct cmdline_arguments));
+    opt = (struct cmdline_options *)xmalloc(sizeof(struct cmdline_options));
+
+    MEMZERO(opt, opt, 1);
     ruby_script(argv[0]);	/* for the time being */
     rb_argv0 = rb_progname;
-    args.argc = argc;
-    args.argv = argv;
-    args.opt = &opt;
-#if WITH_OBJC
-    opt.src.enc.enc = src_encoding;
-    opt.ext.enc.enc = NULL;
-#else
-    opt.src.enc.index = src_encoding_index;
-    opt.ext.enc.index = -1;
-#endif
+    args->argc = argc;
+    args->argv = argv;
+    args->opt = opt;
+    opt->src.enc.enc = src_encoding;
+    opt->ext.enc.enc = NULL;
     tree = (NODE *)rb_vm_call_cfunc(rb_vm_top_self(),
-				    process_options, (VALUE)&args,
+				    process_options, (VALUE)args,
 				    0, rb_progname);
 
-    rb_define_readonly_boolean("$-p", opt.do_print);
-    rb_define_readonly_boolean("$-l", opt.do_line);
-    rb_define_readonly_boolean("$-a", opt.do_split);
+    rb_define_readonly_boolean("$-p", opt->do_print);
+    rb_define_readonly_boolean("$-l", opt->do_line);
+    rb_define_readonly_boolean("$-a", opt->do_split);
 
     return tree;
 }
