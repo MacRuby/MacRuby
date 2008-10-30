@@ -1102,12 +1102,6 @@ onig_free_node_list(void)
   /* THREAD_ATOMIC_END; */
   return 0;
 }
-# if WITH_OBJC
-void 
-onig_setup_node_list(void) 
-{
-}
-# endif
 #endif
 
 static Node*

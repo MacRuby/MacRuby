@@ -3598,9 +3598,4 @@ Init_Regexp(void)
     rb_define_method(rb_cMatch, "to_s", match_to_s, 0);
     rb_define_method(rb_cMatch, "inspect", match_inspect, 0);
     rb_define_method(rb_cMatch, "string", match_string, 0);
-
-#if WITH_OBJC
-    void onig_setup_node_list(void);
-    onig_setup_node_list();
-#endif
 }
