@@ -1671,8 +1671,6 @@ rb_ruby_to_objc_closure(const char *octype, unsigned arity, NODE *node)
 	rb_fatal("can't prepare ruby to objc cif");
     }
 
-    closure = (ffi_closure *)malloc(sizeof(ffi_closure));
-
     /* XXX mmap() and mprotect() are 2 expensive calls, maybe we should try to 
      * mmap() and mprotect() a large memory page and reuse it for closures?
      */
