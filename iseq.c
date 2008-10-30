@@ -133,18 +133,18 @@ set_relation(rb_iseq_t *iseq, const VALUE parent)
 
     if (type == ISEQ_TYPE_TOP ||
 	type == ISEQ_TYPE_METHOD || type == ISEQ_TYPE_CLASS) {
-	iseq->local_iseq = iseq;
+	GC_WB(&iseq->local_iseq, iseq);
     }
     else if (RTEST(parent)) {
 	rb_iseq_t *piseq;
 	GetISeqPtr(parent, piseq);
-	iseq->local_iseq = piseq->local_iseq;
+	GC_WB(&iseq->local_iseq, piseq->local_iseq);
     }
 
     if (RTEST(parent)) {
 	rb_iseq_t *piseq;
 	GetISeqPtr(parent, piseq);
-	iseq->parent_iseq = piseq;
+	GC_WB(&iseq->parent_iseq, piseq);
     }
 }
 
@@ -311,7 +311,7 @@ rb_iseq_new_with_bopt_and_opt(NODE *node, VALUE name, VALUE filename,
     VALUE self = iseq_alloc(rb_cISeq);
 
     GetISeqPtr(self, iseq);
-    iseq->self = self;
+    GC_WB(&iseq->self, self);
 
     prepare_iseq_build(iseq, name, filename, parent, type, bopt, option);
     iseq_compile(self, node);
@@ -386,7 +386,7 @@ iseq_load(VALUE self, VALUE data, VALUE parent, VALUE opt)
     body        = CHECK_ARRAY(rb_ary_entry(data, i++));
 
     GetISeqPtr(iseqval, iseq);
-    iseq->self = iseqval;
+    GC_WB(&iseq->self, iseqval);
 
     if (type_map == 0) {
 	type_map = st_init_numtable();
@@ -1266,7 +1266,7 @@ rb_iseq_build_for_ruby2cext(
 #if !WITH_OBJC
     iseq->mark_ary = rb_ary_new();
 #endif
-    iseq->self = iseqval;
+    GC_WB(&iseq->self, iseqval);
 
     GC_WB(&iseq->iseq, ALLOC_N(VALUE, iseq->iseq_size));
 

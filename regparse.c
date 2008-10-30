@@ -1019,7 +1019,11 @@ onig_node_free(Node* node)
 
         THREAD_ATOMIC_START;
 	GC_WB(&n->next, FreeNodeList);
+	if (FreeNodeList != NULL) {
+	    rb_objc_release(FreeNodeList);
+	}
 	FreeNodeList = n;
+	rb_objc_retain(FreeNodeList);
         THREAD_ATOMIC_END;
       }
 #else
@@ -1067,7 +1071,11 @@ onig_node_free(Node* node)
 
     THREAD_ATOMIC_START;
     GC_WB(&n->next, FreeNodeList);
+    if (FreeNodeList != NULL) {
+	rb_objc_release(FreeNodeList);
+    }
     FreeNodeList = n;
+    rb_objc_retain(FreeNodeList);
     THREAD_ATOMIC_END;
   }
 #else
@@ -1084,7 +1092,11 @@ onig_free_node_list(void)
   /* THREAD_ATOMIC_START; */
   while (IS_NOT_NULL(FreeNodeList)) {
     n = FreeNodeList;
+    if (FreeNodeList != NULL) {
+	rb_objc_release(FreeNodeList);
+    }
     FreeNodeList = FreeNodeList->next;
+    rb_objc_retain(FreeNodeList);
     xfree(n);
   }
   /* THREAD_ATOMIC_END; */
@@ -1094,7 +1106,6 @@ onig_free_node_list(void)
 void 
 onig_setup_node_list(void) 
 {
-    GC_ROOT(&FreeNodeList);
 }
 # endif
 #endif
@@ -1108,7 +1119,11 @@ node_new(void)
   THREAD_ATOMIC_START;
   if (IS_NOT_NULL(FreeNodeList)) {
     node = (Node* )FreeNodeList;
+    if (FreeNodeList != NULL) {
+	rb_objc_release(FreeNodeList);
+    }
     FreeNodeList = FreeNodeList->next;
+    rb_objc_retain(FreeNodeList);
     THREAD_ATOMIC_END;
     return node;
   }
