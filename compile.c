@@ -1213,7 +1213,7 @@ iseq_set_sequence(rb_iseq_t *iseq, LINK_ANCHOR *anchor)
 		      case TS_IC: /* inline cache */
 			{
 			    VALUE v = (VALUE)NEW_INLINE_CACHE_ENTRY();
-			    generated_iseq[pos + 1 + j] = v;
+			    GC_WB(&generated_iseq[pos + 1 + j], v);
 			    iseq_add_mark_object(iseq, v);
 			    break;
 			}
