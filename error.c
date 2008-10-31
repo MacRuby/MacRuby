@@ -1549,20 +1549,20 @@ err_append(const char *s)
     if (th->parse_in_eval) {
 	if (!RTEST(err)) {
 	    err = rb_exc_new2(rb_eSyntaxError, s);
-	    th->errinfo = err;
+	    GC_WB(&th->errinfo, err);
 	}
 	else {
 	    VALUE str = rb_obj_as_string(err);
 
 	    rb_str_cat2(str, "\n");
 	    rb_str_cat2(str, s);
-	    th->errinfo = rb_exc_new3(rb_eSyntaxError, str);
+	    GC_WB(&th->errinfo, rb_exc_new3(rb_eSyntaxError, str));
 	}
     }
     else {
 	if (!RTEST(err)) {
 	    err = rb_exc_new2(rb_eSyntaxError, "compile error");
-	    th->errinfo = err;
+	    GC_WB(&th->errinfo, err);
 	}
 	rb_write_error(s);
 	rb_write_error("\n");

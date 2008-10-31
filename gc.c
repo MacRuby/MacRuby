@@ -430,9 +430,10 @@ void native_mutex_unlock(pthread_mutex_t *lock);
 static void
 rb_objc_scan_external_callout(void *context, void (*scanner)(void *context, void *start, void *end))
 {
+    /* XXX we should scan all threads */
     rb_thread_t *th = GET_THREAD();
     if (th->stack != NULL) {
-	(*scanner)(context, th->stack, th->cfp->sp);
+	(*scanner)(context, th->stack, th->stack + th->stack_size);
     }
 } 
 

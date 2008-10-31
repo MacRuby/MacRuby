@@ -362,7 +362,8 @@ vm_make_proc_from_block(rb_thread_t *th, rb_control_frame_t *cfp,
 
     bcfp = RUBY_VM_GET_CFP_FROM_BLOCK_PTR(block);
     bdfp = bcfp->dfp;
-    block->proc = procval = vm_make_proc(th, bcfp, block);
+    procval = vm_make_proc(th, bcfp, block);
+    GC_WB(&block->proc, procval); 
     return procval;
 }
 
@@ -391,13 +392,13 @@ vm_make_proc(rb_thread_t *th,
     }
     procval = rb_proc_alloc(rb_cProc);
     GetProcPtr(procval, proc);
-    proc->blockprocval = blockprocval;
-    proc->block.self = block->self;
-    proc->block.lfp = block->lfp;
-    proc->block.dfp = block->dfp;
-    proc->block.iseq = block->iseq;
-    proc->block.proc = procval;
-    proc->envval = envval;
+    GC_WB(&proc->blockprocval, blockprocval);
+    GC_WB(&proc->block.self, block->self);
+    GC_WB(&proc->block.lfp, block->lfp);
+    GC_WB(&proc->block.dfp, block->dfp);
+    GC_WB(&proc->block.iseq, block->iseq);
+    GC_WB(&proc->block.proc, procval);
+    GC_WB(&proc->envval, envval);
     proc->safe_level = th->safe_level;
 
     if (VMDEBUG) {
@@ -835,7 +836,7 @@ vm_iter_break(rb_thread_t *th)
     VALUE *dfp = GC_GUARDED_PTR_REF(*cfp->dfp);
 
     th->state = TAG_BREAK;
-    th->errinfo = (VALUE)NEW_THROW_OBJECT(Qnil, (VALUE)dfp, TAG_BREAK);
+    GC_WB(&th->errinfo, (VALUE)NEW_THROW_OBJECT(Qnil, (VALUE)dfp, TAG_BREAK));
     TH_JUMP_TAG(th, TAG_BREAK);
 }
 
@@ -1208,7 +1209,7 @@ vm_eval_body(rb_thread_t *th)
 	    }
 	    else {
 		vm_pop_frame(th);
-		th->errinfo = err;
+		GC_WB(&th->errinfo, err);
 		TH_POP_TAG2();
 		JUMP_TAG(state);
 	    }

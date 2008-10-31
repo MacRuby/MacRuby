@@ -571,7 +571,7 @@ rb_require_safe(VALUE fname, int safe)
 	load_failed(fname);
     }
 
-    th->errinfo = errinfo;
+    GC_WB(&th->errinfo, errinfo);
 
     return result;
 }

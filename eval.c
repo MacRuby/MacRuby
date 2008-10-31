@@ -200,7 +200,7 @@ ruby_cleanup(int ex)
     else if (ex == 0) {
 	ex = state;
     }
-    th->errinfo = errs[1];
+    GC_WB(&th->errinfo, errs[1]);
     ex = error_handle(ex);
     ruby_finalize_1();
     POP_TAG();
@@ -392,7 +392,7 @@ rb_longjmp(int tag, VALUE mesg)
     int line = 0;
 
     if (rb_thread_set_raised(th)) {
-	th->errinfo = exception_error;
+	GC_WB(&th->errinfo, exception_error);
 	JUMP_TAG(TAG_FATAL);
     }
 
@@ -412,7 +412,7 @@ rb_longjmp(int tag, VALUE mesg)
 	}
     }
     if (!NIL_P(mesg)) {
-	th->errinfo = mesg;
+	GC_WB(&th->errinfo, mesg);
     }
 
     if (RTEST(ruby_debug) && !NIL_P(e = th->errinfo) &&
@@ -435,7 +435,7 @@ rb_longjmp(int tag, VALUE mesg)
 	}
 	POP_TAG();
 	if (status == TAG_FATAL && th->errinfo == exception_error) {
-	    th->errinfo = mesg;
+	    GC_WB(&th->errinfo, mesg);
 	}
 	else if (status) {
 	    rb_thread_reset_raised(th);
@@ -695,7 +695,7 @@ rb_rescue2(VALUE (* b_proc) (ANYARGS), VALUE data1,
 		    state = 0;
 		}
 		if (state == 0) {
-		    th->errinfo = e_info;
+		    GC_WB(&th->errinfo, e_info);
 		}
 	    }
 	}
@@ -1076,7 +1076,7 @@ rb_set_errinfo(VALUE err)
     if (!NIL_P(err) && !rb_obj_is_kind_of(err, rb_eException)) {
 	rb_raise(rb_eTypeError, "assigning non-exception to $!");
     }
-    GET_THREAD()->errinfo = err;
+    GC_WB(&GET_THREAD()->errinfo, err);
 }
 
 VALUE

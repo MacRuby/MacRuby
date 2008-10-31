@@ -56,7 +56,7 @@ vm_push_frame(rb_thread_t * th, const rb_iseq_t * iseq,
     cfp->bp = sp + 1;
     cfp->iseq = (rb_iseq_t *) iseq;
     cfp->flag = type;
-    cfp->self = self;
+    GC_WB(&cfp->self, self);
     cfp->lfp = lfp;
     cfp->dfp = sp;
     cfp->proc = 0;

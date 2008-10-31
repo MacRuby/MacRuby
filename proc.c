@@ -90,8 +90,8 @@ proc_dup(VALUE self)
     GetProcPtr(procval, dst);
 
     dst->block = src->block;
-    dst->block.proc = procval;
-    dst->envval = src->envval;
+    GC_WB(&dst->block.proc, procval);
+    GC_WB(&dst->envval, src->envval);
     dst->safe_level = src->safe_level;
     dst->is_lambda = src->is_lambda;
 
