@@ -4138,12 +4138,12 @@ rb_open_file(int argc, VALUE *argv, VALUE io)
 	}
 	fmode = NIL_P(perm) ? 0666 :  NUM2INT(perm);
 
-	rb_file_sysopen_internal(io, RSTRING_BYTEPTR(fname), flags, fmode);
+	rb_file_sysopen_internal(io, RSTRING_PTR(fname), flags, fmode);
     }
     else {
 
 	mode = NIL_P(vmode) ? "r" : StringValueCStr(vmode);
-	rb_file_open_internal(io, RSTRING_BYTEPTR(fname), mode);
+	rb_file_open_internal(io, RSTRING_PTR(fname), mode);
     }
     return io;
 }
@@ -4189,7 +4189,7 @@ rb_io_s_sysopen(int argc, VALUE *argv)
 {
     VALUE fname, vmode, perm;
     int flags, fmode, fd;
-    char *path;
+    const char *path;
 
     rb_scan_args(argc, argv, "12", &fname, &vmode, &perm);
     FilePathValue(fname);
@@ -4204,8 +4204,8 @@ rb_io_s_sysopen(int argc, VALUE *argv)
     else             fmode = NUM2INT(perm);
 
     RB_GC_GUARD(fname) = rb_str_new4(fname);
-    path = RSTRING_BYTEPTR(fname);
-    fd = rb_sysopen(path, flags, fmode);
+    path = RSTRING_PTR(fname);
+    fd = rb_sysopen((char *)(char *)(char *)(char *)(char *)(char *)(char *)(char *)(char *)path, flags, fmode);
     return INT2NUM(fd);
 }
 
@@ -5362,13 +5362,13 @@ argf_next_argv(VALUE argf)
 #endif
 #ifdef NO_SAFE_RENAME
 			(void)close(fr);
-			(void)unlink(RSTRING_BYTEPTR(str));
-			(void)rename(fn, RSTRING_BYTEPTR(str));
-			fr = rb_sysopen(RSTRING_BYTEPTR(str), O_RDONLY, 0);
+			(void)unlink(RSTRING_PTR(str));
+			(void)rename(fn, RSTRING_PTR(str));
+			fr = rb_sysopen(RSTRING_PTR(str), O_RDONLY, 0);
 #else
-			if (rename(fn, RSTRING_BYTEPTR(str)) < 0) {
+			if (rename(fn, RSTRING_PTR(str)) < 0) {
 			    rb_warn("Can't rename %s to %s: %s, skipping file",
-				    fn, RSTRING_BYTEPTR(str), strerror(errno));
+				    fn, RSTRING_PTR(str), strerror(errno));
 			    close(fr);
 			    goto retry;
 			}
@@ -6262,7 +6262,7 @@ open_key_args(int argc, VALUE *argv, struct foreach_arg *arg)
     arg->argv = argv + 1;
     if (argc == 1) {
       no_key:
-	arg->io = rb_io_open(RSTRING_BYTEPTR(argv[0]), "r");
+	arg->io = rb_io_open(RSTRING_PTR(argv[0]), "r");
 	return;
     }
     opt = rb_check_convert_type(argv[argc-1], T_HASH, "Hash", "to_hash");
@@ -6301,10 +6301,10 @@ open_key_args(int argc, VALUE *argv, struct foreach_arg *arg)
     }
     v = rb_hash_aref(opt, mode);
     if (!NIL_P(v)) {
-	arg->io = rb_io_open(RSTRING_BYTEPTR(argv[0]), StringValueCStr(v));
+	arg->io = rb_io_open(RSTRING_PTR(argv[0]), StringValueCStr(v));
     }
     else {
-	arg->io = rb_io_open(RSTRING_BYTEPTR(argv[0]), "r");
+	arg->io = rb_io_open(RSTRING_PTR(argv[0]), "r");
     }
 
     v = rb_hash_aref(opt, encoding);
