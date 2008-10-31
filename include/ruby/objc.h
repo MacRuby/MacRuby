@@ -27,6 +27,14 @@
  */
 - (id)evaluateString:(NSString *)expression;
 
+/* Load the BridgeSupport file at the given path. 
+ */
+- (void)loadBridgeSupportFileAtPath:(NSString *)path;
+
+/* Load the BridgeSupport file at the given URL. 
+ */
+- (void)loadBridgeSupportFileAtURL:(NSURL *)URL;
+
 @end
 
 @interface NSObject (MacRubyAdditions)

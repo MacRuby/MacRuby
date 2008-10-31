@@ -3470,6 +3470,19 @@ evaluateString_rescue(void)
     return [self evaluateFileAtPath:[URL relativePath]];
 }
 
+- (void)loadBridgeSupportFileAtPath:(NSString *)path
+{
+    rb_objc_load_bridge_support([path fileSystemRepresentation], 0);
+}
+
+- (void)loadBridgeSupportFileAtURL:(NSURL *)URL
+{
+    if (![URL isFileURL]) {
+	[NSException raise:NSInvalidArgumentException format:@"given URL is not a file URL"];
+    }
+    [self loadBridgeSupportFileAtPath:[URL relativePath]];
+}
+
 @end
 
 @implementation NSObject (MacRubyAdditions)
