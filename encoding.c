@@ -35,6 +35,9 @@ enc_init_db(void)
 
     __encodings = CFDictionaryCreateMutable(NULL, 0, NULL, NULL);
     
+    /* XXX CFStringGetListOfAvailableEncodings() is a costly call and should
+     * be called on demand and not by default when the interpreter starts.
+     */
     e = CFStringGetListOfAvailableEncodings();
     while (e != NULL && *e != kCFStringEncodingInvalidId) {
 	VALUE iana;

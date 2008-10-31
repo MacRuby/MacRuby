@@ -3337,6 +3337,9 @@ Init_ObjC(void)
     rb_define_global_function("load_bridge_support_file", rb_objc_load_bs, 1);
 
     {
+	/* XXX timer_cb should acquires the GL or not be triggered when 
+	 * MacRuby.framework is loaded in an existing Objective-C app.
+	 */
 	CFRunLoopTimerRef timer;
 	timer = CFRunLoopTimerCreate(NULL,
 		CFAbsoluteTimeGetCurrent(), 0.1, 0, 0, timer_cb, NULL);
