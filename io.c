@@ -4205,7 +4205,7 @@ rb_io_s_sysopen(int argc, VALUE *argv)
 
     RB_GC_GUARD(fname) = rb_str_new4(fname);
     path = RSTRING_PTR(fname);
-    fd = rb_sysopen((char *)(char *)(char *)(char *)(char *)(char *)(char *)(char *)(char *)path, flags, fmode);
+    fd = rb_sysopen((char *)path, flags, fmode);
     return INT2NUM(fd);
 }
 
