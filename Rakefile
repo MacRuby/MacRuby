@@ -17,7 +17,13 @@ end
 
 RUBY_INSTALL_NAME = do_option('ruby_install_name', 'macruby')
 RUBY_SO_NAME = do_option('ruby_so_name', RUBY_INSTALL_NAME)
-ARCHS = do_option('archs', `arch`.include?('ppc') ? 'ppc' : %w{i386 x86_64}) { |x| x.split(',') }
+ARCHS = 
+  if s = ENV['RC_ARCHS']
+    $stderr.puts "getting archs from RC_ARCHS!"
+    s.strip.split(/\s+/)
+  else
+    do_option('archs', `arch`.include?('ppc') ? 'ppc' : %w{i386 x86_64}) { |x| x.split(',') }
+  end
 FRAMEWORK_NAME = do_option('framework_name', 'MacRuby')
 FRAMEWORK_INSTDIR = do_option('framework_instdir', '/Library/Frameworks')
 NO_WARN_BUILD = !do_option('allow_build_warnings', false)
@@ -42,7 +48,8 @@ version_h = File.read('version.h')
 NEW_RUBY_VERSION = version_h.scan(/#\s*define\s+RUBY_VERSION\s+\"([^"]+)\"/)[0][0]
 MACRUBY_VERSION = version_h.scan(/#\s*define\s+MACRUBY_VERSION\s+(.*)/)[0][0]
 
-NEW_RUBY_PLATFORM = 'universal-darwin' + `uname -r`.scan(/^(\d+)\.\d+\.(\d+)/)[0].join('.')
+uname_release_number = (ENV['UNAME_RELEASE'] or `uname -r`.scan(/^(\d+)\.\d+\.(\d+)/)[0].join('.'))
+NEW_RUBY_PLATFORM = 'universal-darwin' + uname_release_number
 
 FRAMEWORK_PATH = File.join(FRAMEWORK_INSTDIR, FRAMEWORK_NAME + '.framework')
 FRAMEWORK_VERSION = File.join(FRAMEWORK_PATH, 'Versions', MACRUBY_VERSION)
