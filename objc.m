@@ -281,11 +281,7 @@ rb_objc_octype_to_ffitype(const char *octype)
 
 	case _C_ARY_B:
 	{
-#if __LP64__
-	    unsigned long size, align;
-#else
-	    unsigned int size, align;
-#endif
+	    NSUInteger size, align;
 
 	    @try {
 		NSGetSizeAndAlignment(octype, &size, &align);
