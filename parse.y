@@ -144,7 +144,7 @@ vtable_alloc(struct vtable *prev)
     tbl->pos = 0;
     tbl->capa = 8;
     GC_WB(&tbl->tbl, ALLOC_N(ID, tbl->capa));
-    tbl->prev = prev;
+    GC_WB(&tbl->prev, prev);
     if (VTBL_DEBUG) printf("vtable_alloc: %p\n", tbl);
     return tbl;
 }
@@ -8627,7 +8627,7 @@ local_push_gen(struct parser_params *parser, int inherit_dvars)
     struct local_vars *local;
 
     local = ALLOC(struct local_vars);
-    local->prev = lvtbl;
+    GC_WB(&local->prev, lvtbl);
     GC_WB(&local->args, vtable_alloc(0));
     GC_WB(&local->vars, vtable_alloc(inherit_dvars ? DVARS_INHERIT : DVARS_TOPSCOPE));
     GC_WB(&lvtbl, local);
@@ -8793,10 +8793,10 @@ dyna_pop_gen(struct parser_params *parser)
     struct vtable *tmp;
 
     tmp = lvtbl->args;
-    lvtbl->args = lvtbl->args->prev;
+    GC_WB(&lvtbl->args, lvtbl->args->prev);
     vtable_free(tmp);
     tmp = lvtbl->vars;
-    lvtbl->vars = lvtbl->vars->prev;
+    GC_WB(&lvtbl->vars, lvtbl->vars->prev);
     vtable_free(tmp);
 }
 
