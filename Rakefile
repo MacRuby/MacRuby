@@ -26,6 +26,7 @@ ARCHS =
   end
 FRAMEWORK_NAME = do_option('framework_name', 'MacRuby')
 FRAMEWORK_INSTDIR = do_option('framework_instdir', '/Library/Frameworks')
+SYM_INSTDIR = do_option('sym_instdir', '/usr/local')
 NO_WARN_BUILD = !do_option('allow_build_warnings', false)
 BUILD_AS_EMBEDDABLE = do_option('build_as_embeddable', false)
 ENABLE_STATIC_LIBRARY = do_option('enable_static_library', 'no') { 'yes' }
@@ -539,7 +540,7 @@ EXTOUT = (ENV['EXTOUT'] or ".ext")
 INSTALLED_LIST = '.installed.list'
 SCRIPT_ARGS = "--make=\"/usr/bin/make\" --dest-dir=\"#{DESTDIR}\" --extout=\"#{EXTOUT}\" --mflags=\"\" --make-flags=\"\""
 EXTMK_ARGS = "#{SCRIPT_ARGS} --extension --extstatic"
-INSTRUBY_ARGS = "#{SCRIPT_ARGS} --data-mode=0644 --prog-mode=0755 --installed-list #{INSTALLED_LIST} --mantype=\"doc\""
+INSTRUBY_ARGS = "#{SCRIPT_ARGS} --data-mode=0644 --prog-mode=0755 --installed-list #{INSTALLED_LIST} --mantype=\"doc\" --sym-dest-dir=\"#{SYM_INSTDIR}\""
 
 desc "Build extensions"
 task :extensions => [:miniruby, "macruby:static"] do

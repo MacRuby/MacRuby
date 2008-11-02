@@ -16,7 +16,7 @@ File.umask(0)
 
 def parse_args(argv = ARGV)
   $mantype = 'doc'
-  $destdir = nil
+  $destdir = $sym_destdir = nil
   $extout = nil
   $make = 'make'
   $mflags = []
@@ -33,6 +33,7 @@ def parse_args(argv = ARGV)
   opt = OptionParser.new
   opt.on('-n') {$dryrun = true}
   opt.on('--dest-dir=DIR') {|dir| $destdir = dir}
+  opt.on('--sym-dest-dir=DIR') {|dir| $sym_destdir = dir}
   opt.on('--extout=DIR') {|dir| $extout = (dir unless dir.empty?)}
   opt.on('--make=COMMAND') {|make| $make = make}
   opt.on('--mantype=MAN') {|man| $mantype = man}
@@ -477,7 +478,7 @@ if RUBY_FRAMEWORK
   ln_sfh "../#{CONFIG['arch']}/ruby/config.h", 
     File.join(base, "usr/include/ruby-#{RUBY_VERSION}/ruby/config.h")
   # Installing executable links.
-  dest_bin = '/usr/local/bin'
+  dest_bin = File.join($sym_destdir, 'bin')
   mkdir_p dest_bin, :mode => 0755
   Dir.entries(with_destdir(CONFIG['bindir'])).each do |bin|
     next if bin[0] == '.'
@@ -488,7 +489,7 @@ if RUBY_FRAMEWORK
     ln_sfh link, File.join(dest_bin, File.basename(bin))
   end
   # Installing man pages links.
-  dest_man = '/usr/local/share/man'
+  dest_man = File.join($sym_destdir, 'share', 'man')
   mkdir_p dest_man, :mode => 0755
   Dir.entries(with_destdir(CONFIG['mandir'])).each do |mandir|
     next if mandir[0] == '.'
