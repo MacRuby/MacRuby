@@ -41,4 +41,16 @@ rb_objc_install_method2(Class klass, const char *selname, IMP imp)
     rb_objc_install_method(klass, sel_registerName(selname), imp);
 }
 
+static inline bool
+rb_objc_is_kind_of(id object, Class klass)
+{
+    Class cls;
+    for (cls = *(Class *)object; cls != NULL; cls = class_getSuperclass(cls)) {
+	if (cls == klass) {
+	    return true;
+	}
+    }
+    return false;
+}
+
 #endif /* __OBJC_H_ */

@@ -5242,7 +5242,13 @@ imp_rb_symbol_getCharactersRange(void *rcv, SEL sel, UniChar *buffer,
 static bool
 imp_rb_symbol_isEqual(void *rcv, SEL sel, void *other)
 {
-    return rcv == other;
+    if (other == NULL)
+	return false;
+    if (rcv == other)
+	return true;
+    if (!rb_objc_is_kind_of(other, (Class)rb_cNSString))
+	return false;
+    return CFStringCompare((CFStringRef)rcv, (CFStringRef)other, 0) == 0;
 }
 
 static void
