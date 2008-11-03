@@ -14,6 +14,9 @@ DUMMY_M = <<END_DUMMY_M
 @end
 
 @interface Dummy : NSObject
+{
+    int x;
+}
 @end
 
 @implementation Dummy
@@ -48,6 +51,21 @@ DUMMY_M = <<END_DUMMY_M
     [(TestGetMethod *)receiver getRect:&r];
     if (!NSEqualRects(r, val)) 
         [NSException raise:@"testCallGetLongMethod" format:@"expected %@, got %@", NSStringFromRect(val), NSStringFromRect(r)];
+}
+
+- (int)X
+{
+    return x;
+}
+
+- (void)setX:(int)aX
+{
+    x = aX;
+}
+
+- (int)isX
+{
+    return x == 1;
 }
 
 @end
@@ -455,5 +473,18 @@ class TestObjC < Test::Unit::TestCase
     NSDivideRect([0, 0, 100, 100], p1, p2, 10.0, 0)
     assert_equal(NSMakeRect(0, 0, 10, 100), p1[0])
     assert_equal(NSMakeRect(10, 0, 90, 100), p2[0])
+  end
+
+  def test_conversion_helpers
+    o = Dummy.new
+    o.setX(1)
+    assert_equal(1, o.X)
+    assert_equal(1, o.isX)
+    o.X = 2
+    assert_equal(2, o.X)
+    assert_equal(0, o.X?)
+    o = NSBundle.mainBundle
+    assert_equal(true, o.isLoaded)
+    assert_equal(true, o.loaded?)
   end
 end

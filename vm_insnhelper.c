@@ -56,7 +56,7 @@ vm_push_frame(rb_thread_t * th, const rb_iseq_t * iseq,
     cfp->bp = sp + 1;
     cfp->iseq = (rb_iseq_t *) iseq;
     cfp->flag = type;
-    GC_WB(&cfp->self, self);
+    cfp->self = self;
     cfp->lfp = lfp;
     cfp->dfp = sp;
     cfp->proc = 0;
@@ -875,9 +875,9 @@ start_method_dispatch:
 			goto rcall_dispatch;
 		    }
 		}
-		if (len >= 3) {
+		if (len >= 2) {
 		    SEL sel = 0;
-		    if (isalpha(p[len - 3]) && p[len - 2] == '=' && p[len - 1] == ':') {
+		    if (len >= 3 && isalpha(p[len - 3]) && p[len - 2] == '=' && p[len - 1] == ':') {
 			/* foo=: -> setFoo: shortcut */
 			snprintf(buf, sizeof buf, "set%s", p);
 			buf[3] = toupper(buf[3]);
@@ -905,11 +905,12 @@ start_method_dispatch:
 			    mcache->as.rcall.sel = sel;
 			    mcache->as.ocall.klass = klass;
 			    mcache->as.ocall.imp = imp;
-			    mcache->as.ocall.sig.argc = method_getNumberOfArguments(method);
-			    mcache->as.ocall.sig.types = method_getTypeEncoding(method);
 			    mcache->as.ocall.bs_method = 
-				rb_bs_find_method((Class)klass, 
-					mcache->as.rcall.sel);
+				rb_bs_find_method((Class)klass, sel);
+	    		    assert(rb_objc_fill_sig(recv, (Class)klass, 
+				mcache->as.rcall.sel, 
+				&mcache->as.ocall.sig,
+				mcache->as.ocall.bs_method));
 			    goto ocall_dispatch;
 			}
 		    }
