@@ -690,6 +690,7 @@ static long
 io_fwrite(VALUE str, rb_io_t *fptr)
 {
     long len, n, r, l, offset = 0;
+    void *cstr;
 
     /*
      * If an external encoding was specified and it differs from
@@ -711,6 +712,7 @@ io_fwrite(VALUE str, rb_io_t *fptr)
 	}
     }
 
+    cstr = (void *)RSTRING_PTR(str); /* generate bytestring if needed */
     len = RSTRING_LEN(str);
     if ((n = len) <= 0) {
 	return n;
@@ -729,7 +731,7 @@ io_fwrite(VALUE str, rb_io_t *fptr)
                 MEMMOVE(fptr->wbuf, fptr->wbuf+fptr->wbuf_off, char, fptr->wbuf_len);
                 fptr->wbuf_off = 0;
             }
-            MEMMOVE(fptr->wbuf+fptr->wbuf_off+fptr->wbuf_len, RSTRING_PTR(str)+offset, char, len);
+            MEMMOVE(fptr->wbuf+fptr->wbuf_off+fptr->wbuf_len, cstr+offset, char, len);
             fptr->wbuf_len += len;
             n = 0;
         }
@@ -752,7 +754,7 @@ io_fwrite(VALUE str, rb_io_t *fptr)
             wsplit_p(fptr)) {
             l = PIPE_BUF;
         }
-	r = rb_write_internal(fptr->fd, ((char *)RSTRING_PTR(str))+offset, l);
+	r = rb_write_internal(fptr->fd, cstr+offset, l);
 	/* xxx: other threads may modify given string. */
         if (r == n) {
 	    return len;
@@ -775,7 +777,7 @@ io_fwrite(VALUE str, rb_io_t *fptr)
             MEMMOVE(fptr->wbuf, fptr->wbuf+fptr->wbuf_off, char, fptr->wbuf_len);
         fptr->wbuf_off = 0;
     }
-    MEMMOVE(fptr->wbuf+fptr->wbuf_off+fptr->wbuf_len, RSTRING_PTR(str)+offset, char, len);
+    MEMMOVE(fptr->wbuf+fptr->wbuf_off+fptr->wbuf_len, cstr+offset, char, len);
     fptr->wbuf_len += len;
     return len;
 }
