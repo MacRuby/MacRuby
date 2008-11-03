@@ -8,9 +8,9 @@ task :build do
 end
 
 task :run => [:build] do
-  `open "#{AppConfig.name}.app"`
+  `/usr/bin/open "#{AppConfig.name}.app"`
 end
 
 task :clean do
-  `rm -rf "#{AppConfig.name}.app"`
+  `/bin/rm -rf "#{AppConfig.name}.app"`
 end
