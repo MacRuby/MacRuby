@@ -1,4 +1,4 @@
-framework 'cocoa'
+framework 'Cocoa'
 
 module HotCocoa
   

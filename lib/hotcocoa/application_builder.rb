@@ -4,32 +4,58 @@ module HotCocoa
   
   class ApplicationBuilder
     
+    class Configuration
+      attr_reader :name, :version, :icon, :resources, :sources, :info_string, :load
+      
+      def initialize(file)
+        require 'yaml'
+        yml = YAML.load(File.read(file))
+        @name = yml["name"]
+        @load = yml["load"]
+        @version = yml["version"] || "1.0"
+        @icon = yml["icon"]
+        @info_string = yml["info_string"]
+        @sources = yml["sources"] || []
+        @resources = yml["resources"] || []
+        @overwrite = yml["overwrite"] == true ? true : false
+        @secure = yml["secure"] == true ? true : false
+      end
+      
+      def overwrite?
+        @overwrite
+      end
+
+      def secure?
+        @secure
+      end
+      
+      def icon_exist?
+        @icon ? File.exist?(@icon) : false
+      end
+
+    end
+    
     ApplicationBundlePackage = "APPL????"
     
     attr_accessor :name, :load_file, :sources, :overwrite, :icon, :version, :info_string, :secure, :resources
     
-    def self.build(build_options)
-      build_options.each do |key, value|
-        build_options[key.intern] = value if key.respond_to?(:intern)
-      end
-      if build_options[:file]
-        require 'yaml'
-        build_options = YAML.load(File.read(build_options[:file]))
+    def self.build(config)
+      unless config.kind_of?(Configuration)
+        puts "Your Rakefile needs to be updated.  Please copy the Rakefile from"
+        exit
       end
       builder = new
-      builder.secure = (build_options[:secure] == true)
-      builder.name = build_options[:name]
-      builder.load_file = build_options[:load]
-      builder.icon = build_options[:icon] if build_options[:icon] && File.exist?(build_options[:icon])
-      builder.version = build_options[:version] || "1.0"
-      builder.info_string = build_options[:info_string]
-      builder.overwrite = (build_options.include?(:overwrite) ? build_options[:overwrite] : true)
-      sources = build_options[:sources] || []
-      sources.each do |source|
+      builder.secure = config.secure?
+      builder.name = config.name
+      builder.load_file = config.load
+      builder.icon = config.icon if config.icon_exist?
+      builder.version = config.version
+      builder.info_string = config.info_string
+      builder.overwrite = config.overwrite?
+      config.sources.each do |source|
         builder.add_source_path source
       end
-      resources = build_options[:resources] || []
-      resources.each do |resource|
+      config.resources.each do |resource|
         builder.add_resource_path resource
       end
       builder.build
@@ -72,26 +98,22 @@ module HotCocoa
     private
     
       def check_for_bundle_root
-        if File.exist?(bundle_root)
-          if overwrite?
-            `rm -rf #{bundle_root}`
-          else
-            puts "Error, #{bundle_root} already exists, use :overwrite => true to remove"
-          end
+        if File.exist?(bundle_root) && overwrite?
+          `rm -rf #{bundle_root}`
         end
       end
     
       def build_bundle_structure
-        Dir.mkdir(bundle_root)
-        Dir.mkdir(contents_root)
-        Dir.mkdir(macos_root)
-        Dir.mkdir(resources_root)
+        Dir.mkdir(bundle_root) unless File.exist?(bundle_root)
+        Dir.mkdir(contents_root) unless File.exist?(contents_root)
+        Dir.mkdir(macos_root) unless File.exist?(macos_root)
+        Dir.mkdir(resources_root) unless File.exist?(resources_root)
       end
       
       def write_bundle_files
         write_pkg_info_file
         write_info_plist_file
-        build_executable
+        build_executable unless File.exist?(File.join(macos_root, objective_c_executable_file))
         write_ruby_main
       end
       
@@ -177,7 +199,7 @@ module HotCocoa
           }
         end
         archs = RUBY_ARCH.include?('ppc') ? '-arch ppc' : '-arch i386 -arch x86_64'
-        puts `cd "#{macos_root}" && gcc main.m -o #{name.gsub(/ /, '')} #{archs} -framework MacRuby -framework Foundation -fobjc-gc-only`
+        puts `cd "#{macos_root}" && gcc main.m -o #{objective_c_executable_file} #{archs} -framework MacRuby -framework Foundation -fobjc-gc-only`
         File.unlink(objective_c_source_file)
       end
       
@@ -221,6 +243,10 @@ module HotCocoa
       
       def pkg_info_file
         File.join(contents_root, "PkgInfo")
+      end
+      
+      def objective_c_executable_file
+        name.gsub(/ /, '')
       end
       
       def objective_c_source_file
