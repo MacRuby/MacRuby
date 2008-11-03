@@ -1152,7 +1152,7 @@ rb_objc_call2(VALUE recv, VALUE klass, SEL sel, IMP imp,
 
     ocrcv = RB2OC(recv);
 
-    DLOG("OCALL", "%c[<%s %p> %s]", class_isMetaClass((Class)klass) ? '+' : '-', class_getName((Class)klass), (void *)ocrcv, (char *)sel);
+    DLOG("OCALL", "%c[<%s %p> %s] types=%s bs_method=%p", class_isMetaClass((Class)klass) ? '+' : '-', class_getName((Class)klass), (void *)ocrcv, (char *)sel, sig->types, bs_method);
 
     count = sig->argc;
     assert(count >= 2);
@@ -2559,23 +2559,29 @@ bs_parse_cb(bs_parser_t *parser, const char *path, bs_element_type_t type,
 	    bs_element_indexed_class_t *bs_class_new;
 	    unsigned i;
 
-	    bs_class_new = (bs_element_indexed_class_t *)
-		malloc(sizeof(bs_element_indexed_class_t));
+	    if (!st_lookup(bs_classes, (st_data_t)bs_class->name, 
+		(st_data_t *)&bs_class_new)) {
+		bs_class_new = (bs_element_indexed_class_t *)
+		    malloc(sizeof(bs_element_indexed_class_t));
 
-	    bs_class_new->name = bs_class->name;
+		bs_class_new->name = bs_class->name;
+		bs_class_new->cmethods = bs_class_new->imethods = NULL;
+
+		st_insert(bs_classes, (st_data_t)bs_class_new->name, 
+		    (st_data_t)bs_class_new);
+	    }
 
 #define INDEX_METHODS(table, ary, len) \
     do { \
 	if (len > 0) { \
-	    table = st_init_numtable(); \
-	    rb_objc_retain(table); \
+	    if (table == NULL) { \
+	        table = st_init_numtable(); \
+		rb_objc_retain(table); \
+	    } \
 	    for (i = 0; i < len; i++) { \
 		bs_element_method_t *method = &ary[i]; \
 		st_insert(table, (st_data_t)method->name, (st_data_t)method); \
 	    } \
-	} \
-	else { \
-	    table = NULL; \
 	} \
     } \
     while (0)
@@ -2587,9 +2593,6 @@ bs_parse_cb(bs_parser_t *parser, const char *path, bs_element_type_t type,
 		bs_class->instance_methods_count);
 
 #undef INDEX_METHODS
-
-	    st_insert(bs_classes, (st_data_t)bs_class_new->name, 
-		(st_data_t)bs_class_new);
 
 	    free(bs_class);
 	    do_not_free = true;
