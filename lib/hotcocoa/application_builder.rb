@@ -41,7 +41,9 @@ module HotCocoa
     
     def self.build(config)
       unless config.kind_of?(Configuration)
-        puts "Your Rakefile needs to be updated.  Please copy the Rakefile from"
+        require 'rbconfig'
+        puts "Your Rakefile needs to be updated.  Please copy the Rakefile from:"
+        puts File.expand_path(File.join(Config::CONFIG['datadir'], "hotcocoa_template", "Rakefile"))
         exit
       end
       builder = new
