@@ -1,18 +1,16 @@
+require 'hotcocoa/application_builder'
+AppConfig = ApplicationBuilder::Configuration.new("config/build.yml")
+
 task :default => [:run]
 
 task :build do
-  require 'hotcocoa/application_builder'
-  ApplicationBuilder.build :file => "config/build.yml"
+  ApplicationBuilder.build(AppConfig)
 end
 
 task :run => [:build] do
-  require 'yaml'
-  app_name = YAML.load(File.read("config/build.yml"))[:name]
-  `open "#{app_name}.app"`
+  `/usr/bin/open "#{AppConfig.name}.app"`
 end
 
 task :clean do
-  require 'yaml'
-  app_name = YAML.load(File.read("config/build.yml"))[:name]
-  `rm -rf "#{app_name}.app"`
+  `/bin/rm -rf "#{AppConfig.name}.app"`
 end
