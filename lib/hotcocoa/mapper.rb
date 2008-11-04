@@ -60,7 +60,7 @@ module HotCocoa::Mappings
           end
         end
         if default_empty_rect_used
-          control.sizeToFit if control.respondsToSelector(:sizeToFit) == 1
+          control.sizeToFit if control.respondsToSelector(:sizeToFit) == true
         end
         if control_block
           if inst.respond_to?(:handle_block)
