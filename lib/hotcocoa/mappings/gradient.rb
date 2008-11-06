@@ -5,7 +5,7 @@ HotCocoa::Mappings.map :gradient => :NSGradient do
       if options[:locations]
         NSGradient.alloc.initWithColors options.delete(:colors), atLocations:options.delete(:locations), colorSpace:(options.delete(:color_space) || NSColorSpace.deviceRGBColorSpace)
       else
-        NSGradient.alloc.initWithColors()
+        NSGradient.alloc.initWithColors(options.delete(:colors))
       end
     elsif options[:start] && option[:end]
       NSGradient.alloc.initWithStartingColor options.delete(:start), endingColor:options.delete(:end)
