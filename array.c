@@ -32,34 +32,6 @@ rb_mem_clear(register VALUE *mem, register long size)
     }
 }
 
-/* TODO optimize this */
-struct rb_objc_ary_struct {
-    void *cptr;
-};
-
-/* This variable will always stay NULL, we only use its address. */
-static void *rb_objc_ary_assoc_key = NULL;
-
-static struct rb_objc_ary_struct *
-rb_objc_ary_get_struct(VALUE ary)
-{
-    return rb_objc_get_associative_ref((void *)ary, &rb_objc_ary_assoc_key);
-}
-
-static struct rb_objc_ary_struct *
-rb_objc_ary_get_struct2(VALUE ary)
-{
-    struct rb_objc_ary_struct *s;
-
-    s = rb_objc_ary_get_struct(ary);
-    if (s == NULL) {
-	s = xmalloc(sizeof(struct rb_objc_ary_struct));
-	rb_objc_set_associative_ref((void *)ary, &rb_objc_ary_assoc_key, s);
-	s->cptr = NULL;
-    }
-    return s;
-}
-
 static inline void
 rb_ary_modify_check(VALUE ary)
 {
@@ -601,6 +573,8 @@ rb_ary_elt(VALUE ary, long offset)
     return OC2RB(CFArrayGetValueAtIndex((CFArrayRef)ary, offset));
 }
 
+static void *rb_objc_ary_cptr_assoc_key = NULL;
+
 const VALUE *
 rb_ary_ptr(VALUE ary)
 {
@@ -616,10 +590,10 @@ rb_ary_ptr(VALUE ary)
     values = (VALUE *)xmalloc(sizeof(VALUE) * len);
     CFArrayGetValues((CFArrayRef)ary, CFRangeMake(0, len), 
 	(const void **)values);
-    for (i = 0; i < len; i++)
+    for (i = 0; i < len; i++) {
 	values[i] = OC2RB(values[i]);
-    GC_WB(&rb_objc_ary_get_struct2(ary)->cptr, values);
-
+    }
+    rb_objc_set_associative_ref((void *)ary, &rb_objc_ary_cptr_assoc_key, values);
     return values;
 }
 
