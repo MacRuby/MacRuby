@@ -891,6 +891,8 @@ rb_str_buf_append(VALUE str, VALUE str2)
     CFDataRef data;
     long str2len;
 
+    Check_Type(str2, T_STRING);
+
     str2len = RSTRING_LEN(str2);
 
     if (str2len == 0)
