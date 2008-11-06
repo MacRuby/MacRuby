@@ -1140,13 +1140,19 @@ rb_objc_call2(VALUE recv, VALUE klass, SEL sel, IMP imp,
 	}
 	/* because the CF classes should be hidden */
 	else if (klass == rb_cCFString) {
-	    return rb_cNSMutableString;
+	    bool __CFStringIsMutable(void *);
+	    return __CFStringIsMutable((void *)recv) 
+		? rb_cNSMutableString : rb_cNSString;
 	}
 	else if (klass == rb_cCFArray) {
-	    return rb_cNSMutableArray;
+	    bool _CFArrayIsMutable(void *);
+	    return _CFArrayIsMutable((void *)recv)
+		? rb_cNSMutableArray : rb_cNSArray;
 	}
 	else if (klass == rb_cCFHash) {
-	    return rb_cNSMutableHash;
+	    bool _CFDictionaryIsMutable(void *);
+	    return _CFDictionaryIsMutable((void *)recv)
+		? rb_cNSMutableHash : rb_cNSHash;
 	}
     }
 
