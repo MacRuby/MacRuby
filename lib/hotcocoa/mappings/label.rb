@@ -1,4 +1,10 @@
 HotCocoa::Mappings.map :label => :NSTextField do
+
+  constant :text_align, {
+    :right  => NSRightTextAlignment,
+    :left   => NSLeftTextAlignment,
+    :center => NSCenterTextAlignment
+  }
   
   defaults :selectable => false, :bordered => false, :drawsBackground => false, :frame => DefaultEmptyRect, :layout => {}
   
@@ -6,6 +12,18 @@ HotCocoa::Mappings.map :label => :NSTextField do
     tf = text_field.initWithFrame options.delete(:frame)
     tf.editable = false
     tf
+  end
+  
+  custom_methods do
+
+    def text_align=(value)
+      setAlignment(value)
+    end
+    
+    def text_color=(value)
+      setTextColor(value)
+    end
+
   end
   
 end
