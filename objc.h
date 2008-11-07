@@ -17,6 +17,7 @@ VALUE rb_objc_call2(VALUE recv, VALUE klass, SEL sel, IMP imp,
 	VALUE *argv);
 
 void rb_objc_define_kvo_setter(VALUE klass, ID mid);
+void rb_objc_change_ruby_method_signature(VALUE mod, ID mid, VALUE sig);
 
 static inline void
 rb_objc_install_method(Class klass, SEL sel, IMP imp)

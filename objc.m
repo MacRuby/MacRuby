@@ -1949,6 +1949,29 @@ rb_objc_register_ruby_method(VALUE mod, ID mid, NODE *body)
 #undef forward_method_definition
 }
 
+void 
+rb_objc_change_ruby_method_signature(VALUE mod, VALUE mid, VALUE sig)
+{
+    SEL sel = sel_registerName(rb_id2name(rb_to_id(mid)));
+    char *types = StringValuePtr(sig);
+    Class c = (Class)mod;
+    Method m = class_getInstanceMethod(c, sel);
+    if (m == NULL) {
+	rb_raise(rb_eArgError, 
+	    "invalid method %s for given class",
+	    (char *)sel);
+    }
+    IMP imp = method_getImplementation(m);
+    if (rb_objc_method_node3(imp) == NULL) {
+	rb_raise(rb_eArgError, 
+	    "will not replace method signature for method %s because it is a pure Objective-C method", 
+	    (char *)sel);
+    }
+    char **types_p = ((void *)m + sizeof(SEL));
+    free(*types_p);
+    *types_p = strdup(types);
+}
+
 static inline bool
 rb_objc_resourceful(VALUE obj)
 {

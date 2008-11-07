@@ -1444,6 +1444,24 @@ rb_mod_initialize(VALUE module)
 
 /*
  *  call-seq:
+ *    class Something
+ *      def setThing(thing, forIndex: i); @things[i] = thing; end
+ *      method_signature :'setThing:forIndex:', 'v@:@i'
+ *    end
+ *
+ *  Changes the type signature stored in the Objective-C runtime for the
+ *  given method.
+ *
+ */
+static VALUE
+rb_mod_method_signature(VALUE module, VALUE mid, VALUE sim)
+{
+    rb_objc_change_ruby_method_signature(module, mid, sim);
+    return Qnil;
+}
+
+/*
+ *  call-seq:
  *     Class.new(super_class=Object)   =>    a_class
  *  
  *  Creates a new anonymous (unnamed) class with the given superclass
@@ -2499,6 +2517,7 @@ Init_Object(void)
     rb_define_private_method(rb_cModule, "method_added", rb_obj_dummy, 1);
     rb_define_private_method(rb_cModule, "method_removed", rb_obj_dummy, 1);
     rb_define_private_method(rb_cModule, "method_undefined", rb_obj_dummy, 1);
+    rb_define_private_method(rb_cModule, "method_signature", rb_mod_method_signature, 2);
 
     rb_define_method(rb_mKernel, "nil?", rb_false, 0);
     rb_define_method(rb_mKernel, "===", rb_equal, 1); 

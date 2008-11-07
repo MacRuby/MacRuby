@@ -487,4 +487,25 @@ class TestObjC < Test::Unit::TestCase
     assert_equal(true, o.isLoaded)
     assert_equal(true, o.loaded?)
   end
+
+  class TestChangeSignature
+    def foo; 42; end
+    def foo(x, with:y); 42; end
+    method_signature 'foo', 'v@:'
+    method_signature 'foo:with:', 'v@:ii'
+  end
+
+  def test_change_method_signature
+    o = TestChangeSignature.new 
+    ms = o.methodSignatureForSelector('foo')
+    assert_equal('v', ms.methodReturnType)
+    assert_equal('@', ms.getArgumentTypeAtIndex(0))
+    assert_equal(':', ms.getArgumentTypeAtIndex(1))
+    ms = o.methodSignatureForSelector('foo:with:')
+    assert_equal('v', ms.methodReturnType)
+    assert_equal('@', ms.getArgumentTypeAtIndex(0))
+    assert_equal(':', ms.getArgumentTypeAtIndex(1))
+    assert_equal('i', ms.getArgumentTypeAtIndex(2))
+    assert_equal('i', ms.getArgumentTypeAtIndex(3))
+  end
 end
