@@ -54,6 +54,14 @@ HotCocoa::Mappings.map :view => :NSView do
       options[:needs_display] == false ? subview.removeFromSuperviewWithoutNeedingDisplay : subview.removeFromSuperview
     end
     
+    def enter_full_screen(options={})
+      enterFullScreenMode((options.delete(:screen) || NSScreen.mainScreen), withOptions:options)
+    end
+    
+    def leave_full_screen(options={})
+      exitFullScreenModeWithOptions(options)
+    end
+    
   end
     
 end
