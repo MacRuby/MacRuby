@@ -64,6 +64,13 @@ module HotCocoa::Graphics
         options[:type] = :context
         Canvas.new(options, &block)
       end
+      
+      def for_current_context(options={}, &block)
+        options[:type] = :context
+        options[:context] = NSGraphicsContext.currentContext.graphicsPort
+        Canvas.new(options, &block)
+      end
+      
     end
   
     # create a new canvas with the given width, height, and output filename (pdf, png, jpg, gif, or tif)
@@ -604,7 +611,13 @@ module HotCocoa::Graphics
   
   
     # SAVING/EXPORTING
-  
+    
+    def nsimage
+      image = NSImage.alloc.init
+      image.addRepresentation(NSBitmapImageRep.alloc.initWithCGImage(cgimage))
+      image
+    end
+    
     # return a CGImage of the canvas for reprocessing (only works if using a bitmap context)
     def cgimage
       CGBitmapContextCreateImage(@ctx)  # => CGImageRef (works with bitmap context only)
