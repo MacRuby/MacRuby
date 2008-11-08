@@ -36,7 +36,11 @@ static inline void
 rb_ary_modify_check(VALUE ary)
 {
     long mask;
+#ifdef __LP64__
+    mask = RCLASS_RC_FLAGS(ary);
+#else
     mask = rb_objc_flag_get_mask((void *)ary);
+#endif
     if (mask == 0) {
 	bool _CFArrayIsMutable(void *);
 	if (!_CFArrayIsMutable((void *)ary))

@@ -166,8 +166,21 @@ static void
 init_copy(VALUE dest, VALUE obj)
 {
     if (NATIVE(obj)) {
+#ifdef __LP64__
+	switch (TYPE(obj)) {
+	    case T_STRING:
+	    case T_ARRAY:
+	    case T_HASH:
+		if (RCLASS_RC_FLAGS(obj) & FL_TAINT)
+		    RCLASS_RC_FLAGS(dest) |= FL_TAINT;
+	    default:
+		if (rb_objc_flag_check((const void *)obj, FL_TAINT))
+		    rb_objc_flag_set((const void *)dest, FL_TAINT, true);
+	}
+#else
 	if (rb_objc_flag_check((const void *)obj, FL_TAINT))
 	    rb_objc_flag_set((const void *)dest, FL_TAINT, true);
+#endif
 	goto call_init_copy;
     }
     if (OBJ_FROZEN(dest)) {
@@ -178,11 +191,6 @@ init_copy(VALUE dest, VALUE obj)
     rb_copy_generic_ivar(dest, obj);
     rb_gc_copy_finalizer(dest, obj);
     switch (TYPE(obj)) {
-      case T_NATIVE:
-	if (rb_objc_flag_check((const void *)obj, FL_TAINT))
-	    rb_objc_flag_set((const void *)dest, FL_TAINT, true);
-        break;
-
       case T_OBJECT:
 	ROBJECT(dest)->ivars.type = ROBJECT(obj)->ivars.type;
 	switch (RB_IVAR_TYPE(ROBJECT(obj)->ivars)) {
@@ -283,6 +291,9 @@ rb_obj_clone(VALUE obj)
 	    clone = rb_obj_alloc(rb_obj_class(obj));
 	    RBASIC(clone)->klass = rb_singleton_class_clone(obj);
 	    RBASIC(clone)->flags = (RBASIC(obj)->flags | FL_TEST(clone, FL_TAINT)) & ~(FL_FREEZE|FL_FINALIZE);
+#ifdef __LP64__
+	    RCLASS_RC_FLAGS(clone) = RCLASS_RC_FLAGS(obj);
+#endif
 	    break;
     }
 
@@ -731,7 +742,16 @@ VALUE
 rb_obj_tainted(VALUE obj)
 {
     if (!SPECIAL_CONST_P(obj) && NATIVE(obj)) {
-	return rb_objc_flag_check((const void *)obj, FL_TAINT) ? Qtrue : Qfalse;
+	switch (TYPE(obj)) {
+	    case T_STRING:
+	    case T_ARRAY:
+	    case T_HASH:
+#ifdef __LP64__
+		return (RCLASS_RC_FLAGS(obj) & FL_TAINT == FL_TAINT) ? Qtrue : Qfalse;
+#endif
+	    default:
+		return rb_objc_flag_check((const void *)obj, FL_TAINT) ? Qtrue : Qfalse;
+	}
     }
     if (FL_TEST(obj, FL_TAINT))
 	return Qtrue;
@@ -752,7 +772,17 @@ rb_obj_taint(VALUE obj)
 {
     rb_secure(4);
     if (!SPECIAL_CONST_P(obj) && NATIVE(obj)) {
-	rb_objc_flag_set((const void *)obj, FL_TAINT, true);
+	switch (TYPE(obj)) {
+	    case T_STRING:
+	    case T_ARRAY:
+	    case T_HASH:
+#ifdef __LP64__
+		RCLASS_RC_FLAGS(obj) |= FL_TAINT;
+		break;
+#endif
+	    default:
+		rb_objc_flag_set((const void *)obj, FL_TAINT, true);
+	}
 	return obj;
     }
     if (!OBJ_TAINTED(obj)) {
@@ -777,7 +807,17 @@ rb_obj_untaint(VALUE obj)
 {
     rb_secure(3);
     if (!SPECIAL_CONST_P(obj) && NATIVE(obj)) {
-	rb_objc_flag_set((const void *)obj, FL_TAINT, false);
+	switch (TYPE(obj)) {
+	    case T_STRING:
+	    case T_ARRAY:
+	    case T_HASH:
+#ifdef __LP64__
+		RCLASS_RC_FLAGS(obj) &= ~FL_TAINT;
+		break;
+#endif
+	    default:
+		rb_objc_flag_set((const void *)obj, FL_TAINT, false);
+	}
 	return obj;
     }
     if (OBJ_TAINTED(obj)) {
@@ -832,7 +872,17 @@ rb_obj_freeze(VALUE obj)
 	    st_insert(immediate_frozen_tbl, obj, (st_data_t)Qtrue);
 	}
 	else if (NATIVE(obj)) {
-	    rb_objc_flag_set((const void *)obj, FL_FREEZE, true);
+	    switch(TYPE(obj)) {
+		case T_STRING:
+		case T_ARRAY:
+		case T_HASH:
+#ifdef __LP64__
+		    RCLASS_RC_FLAGS(obj) |= FL_FREEZE;
+		    break;
+#endif
+		default:
+		    rb_objc_flag_set((const void *)obj, FL_FREEZE, true);
+	    }
 	}
 	else if ((type = TYPE(obj)) == T_CLASS || type == T_MODULE) {
 	    RCLASS_SET_VERSION_FLAG(obj, RCLASS_IS_FROZEN);
@@ -867,6 +917,9 @@ rb_obj_frozen_p(VALUE obj)
 	case T_STRING:
 	case T_ARRAY:
 	case T_HASH:
+#ifdef __LP64__
+	    return (RCLASS_RC_FLAGS(obj) & FL_FREEZE) == FL_FREEZE ? Qtrue : Qfalse;
+#endif
 	case T_NATIVE:
 	    return rb_objc_is_immutable(obj) 
 		|| rb_objc_flag_check((const void *)obj, FL_FREEZE)

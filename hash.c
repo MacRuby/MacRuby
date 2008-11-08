@@ -189,7 +189,11 @@ static inline void
 rb_hash_modify_check(VALUE hash)
 {
     long mask;
+#ifdef __LP64__
+    mask = RCLASS_RC_FLAGS(hash);
+#else
     mask = rb_objc_flag_get_mask((const void *)hash);
+#endif
     if (mask == 0) {
 	bool _CFDictionaryIsMutable(void *);
 	if (!_CFDictionaryIsMutable((void *)hash))
@@ -1865,7 +1869,7 @@ env_reject_bang(VALUE ehash)
 	VALUE val = rb_f_getenv(Qnil, RARRAY_AT(keys, i));
 	if (!NIL_P(val)) {
 	    if (RTEST(rb_yield_values(2, RARRAY_AT(keys, i), val))) {
-		FL_UNSET(RARRAY_AT(keys, i), FL_TAINT);
+		rb_obj_untaint(RARRAY_AT(keys, i));
 		env_delete(Qnil, RARRAY_AT(keys, i));
 		del++;
 	    }
