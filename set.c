@@ -88,6 +88,12 @@ rb_set_size(VALUE set)
     return INT2FIX(CFSetGetCount((CFSetRef)set));
 }
 
+static VALUE
+rb_set_empty_q(VALUE set)
+{
+    return CFSetGetCount((CFSetRef)set) == 0 ? Qtrue : Qnil;
+}
+
 static void
 rb_set_intersect_callback(const void *value, void *context)
 {
@@ -211,8 +217,12 @@ rb_set_delete2(VALUE set, VALUE obj)
 static void
 rb_set_delete_if_callback(const void *value, void *context)
 {
-    if (rb_yield(OC2RB(value)) == Qtrue)
-	rb_set_delete((VALUE)context, (VALUE)value);
+    VALUE set = ((VALUE *)context)[0];
+    VALUE *acted = ((VALUE **)context)[1];
+    if (rb_yield(OC2RB(value)) == Qtrue) {
+	*acted = Qtrue;
+	rb_set_delete(set, (VALUE)value);
+    }
 }
 
 static VALUE
@@ -221,9 +231,24 @@ rb_set_delete_if(VALUE set)
     rb_set_modify_check(set);
 
     VALUE new_set = rb_set_dup(set);
-    CFSetApplyFunction((CFMutableSetRef)new_set, rb_set_delete_if_callback, (void *)set);
+    VALUE acted = Qfalse;
+    VALUE context[2] = { set, (VALUE)&acted };
+    CFSetApplyFunction((CFMutableSetRef)new_set, rb_set_delete_if_callback, (void *)context);
 
     return set;
+}
+
+static VALUE
+rb_set_reject_bang(VALUE set)
+{
+    rb_set_modify_check(set);
+
+    VALUE new_set = rb_set_dup(set);
+    VALUE acted = Qfalse;
+    VALUE context[2] = { set, (VALUE)&acted };
+    CFSetApplyFunction((CFMutableSetRef)new_set, rb_set_delete_if_callback, (void *)context);
+
+    return acted == Qtrue ? set : Qnil ;
 }
 
 static void
@@ -285,6 +310,7 @@ Init_Set(void)
     rb_define_method(rb_cSet, "to_a", rb_set_to_a, 0);
     rb_define_method(rb_cSet, "==", rb_set_equal, 1);
     rb_define_method(rb_cSet, "size", rb_set_size, 0);
+    rb_define_method(rb_cSet, "empty?", rb_set_empty_q, 0);
     rb_define_alias(rb_cSet, "length", "size");
     rb_define_method(rb_cSet, "&", rb_set_intersect, 1);
     rb_define_alias(rb_cSet, "intersect", "&");
@@ -300,6 +326,7 @@ Init_Set(void)
     rb_define_method(rb_cSet, "delete", rb_set_delete, 1);
     rb_define_method(rb_cSet, "delete?", rb_set_delete2, 1);
     rb_define_method(rb_cSet, "delete_if", rb_set_delete_if, 0);
+    rb_define_method(rb_cSet, "reject!", rb_set_reject_bang, 0);
     rb_define_method(rb_cSet, "each", rb_set_each, 0);
     rb_define_method(rb_cSet, "include?", rb_set_include, 1);
     rb_define_alias(rb_cSet, "member?", "include?");

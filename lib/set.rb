@@ -55,15 +55,15 @@ class Set
   include Enumerable
 
   # Creates a new set containing the given objects.
-  def self.[](*ary)
-    new(ary)
-  end
-
-  # Creates a new set containing the elements of the given enumerable
-  # object.
-  #
-  # If a block is given, the elements of enum are preprocessed by the
-  # given block.
+#  def self.[](*ary)
+#    new(ary)
+#  end
+#
+#  # Creates a new set containing the elements of the given enumerable
+#  # object.
+#  #
+#  # If a block is given, the elements of enum are preprocessed by the
+#  # given block.
 #  def initialize(enum = nil, &block) # :yields: o
 #    @hash ||= Hash.new
 #
@@ -75,16 +75,11 @@ class Set
 #      merge(enum)
 #    end
 #  end
-
-  # Copy internal hash.
+#
+#  # Copy internal hash.
 #  def initialize_copy(orig)
-#    @hash = orig.instance_eval{@hash}.dup
+#    replace(orig)
 #  end
-
-  # Returns true if the set contains no elements.
-  def empty?
-    size == 0
-  end
 
   # Replaces the contents of the set with the contents of the given
   # enumerable object and returns self.
@@ -159,20 +154,12 @@ class Set
   end
 
 #  # Do collect() destructively.
-#  def collect!
-#    set = self.class.new
-#    each { |o| set << yield(o) }
-#    replace(set)
-#  end
-#  alias map! collect!
-
-#  # Equivalent to Set#delete_if, but returns nil if no changes were
-#  # made.
-#  def reject!
-#    n = size
-#    delete_if { |o| yield(o) }
-#    size == n ? nil : self
-#  end
+  def collect!
+    set = self.class.new
+    each { |o| set << yield(o) }
+    replace(set)
+  end
+  alias map! collect!
 
   # Returns a new set containing elements exclusive between the set
   # and the given enumerable object.  (set ^ enum) is equivalent to
@@ -291,94 +278,16 @@ class Set
 end
 
 # SortedSet implements a set which elements are sorted in order.  See Set.
-#class SortedSet < Set
-#  @@setup = false
-#
-#  class << self
-#    def [](*ary)	# :nodoc:
-#      new(ary)
-#    end
-#
-#    def setup	# :nodoc:
-#      @@setup and return
-#
-#      module_eval {
-#        # a hack to shut up warning
-#        alias old_init initialize
-#        remove_method :old_init
-#      }
-#      begin
-#	require 'rbtree'
-#
-#	module_eval %{
-#	  def initialize(*args, &block)
-#	    @hash = RBTree.new
-#	    super
-#	  end
-#	}
-#      rescue LoadError
-#	module_eval %{
-#	  def initialize(*args, &block)
-#	    @keys = nil
-#	    super
-#	  end
-#
-#	  def clear
-#	    @keys = nil
-#	    super
-#	  end
-#
-#	  def replace(enum)
-#	    @keys = nil
-#	    super
-#	  end
-#
-#	  def add(o)
-#	    @keys = nil
-#	    @hash[o] = true
-#	    self
-#	  end
-#	  alias << add
-#
-#	  def delete(o)
-#	    @keys = nil
-#	    @hash.delete(o)
-#	    self
-#	  end
-#
-#	  def delete_if
-#	    n = @hash.size
-#	    @hash.delete_if { |o,| yield(o) }
-#	    @keys = nil if @hash.size != n
-#	    self
-#	  end
-#
-#	  def merge(enum)
-#	    @keys = nil
-#	    super
-#	  end
-#
-#	  def each
-#	    block_given? or return enum_for(__method__)
-#	    to_a.each { |o| yield(o) }
-#	  end
-#
-#	  def to_a
-#	    (@keys = @hash.keys).sort! unless @keys
-#	    @keys
-#	  end
-#	}
-#      end
-#
-#      @@setup = true
-#    end
-#  end
-#
-#  def initialize(*args, &block)	# :nodoc:
-#    SortedSet.setup
-#    initialize(*args, &block)
-#  end
-#end
+class SortedSet < Set
+  def each
+    block_given? or return enum_for(__method__)
+    to_a.each { |o| yield(o) }
+  end
+
+  def to_a
+    super.sort!
+  end
+end
 
 module Enumerable
   # Makes a set from the enumerable object with given arguments.
