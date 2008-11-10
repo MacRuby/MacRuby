@@ -45,6 +45,7 @@ void Init_Regexp(void);
 void Init_signal(void);
 void Init_String(void);
 void Init_Struct(void);
+void Init_Set(void);
 void Init_Time(void);
 void Init_var_tables(void);
 void Init_version(void);
@@ -80,6 +81,7 @@ rb_call_inits()
     Init_syserr();
     Init_Array();
     Init_Hash();
+    Init_Set();
     Init_Struct();
     Init_Regexp();
     Init_pack();

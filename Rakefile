@@ -87,7 +87,7 @@ OBJS = %w{
   array bignum class compar complex dir enum enumerator error eval load proc 
   file gc hash inits io marshal math numeric object pack parse process prec 
   random range rational re regcomp regenc regerror regexec regparse regsyntax
-  ruby signal sprintf st string struct time transcode util variable version
+  ruby set signal sprintf st string struct time transcode util variable version
   blockinlining compile debug iseq vm vm_dump thread cont id objc bs encoding
   main dln dmyext enc/ascii missing/lgamma_r prelude miniprelude gc-stub
 }

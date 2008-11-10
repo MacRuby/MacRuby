@@ -1154,6 +1154,11 @@ rb_objc_call2(VALUE recv, VALUE klass, SEL sel, IMP imp,
 	    return _CFDictionaryIsMutable((void *)recv)
 		? rb_cNSMutableHash : rb_cNSHash;
 	}
+	else if (klass == rb_cCFSet) {
+	    bool _CFSetIsMutable(void *);
+	    return _CFSetIsMutable((void *)recv)
+		? rb_cNSMutableSet : rb_cNSSet;
+	}
     }
 
     ocrcv = RB2OC(recv);

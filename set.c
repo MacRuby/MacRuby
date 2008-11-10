@@ -1,0 +1,307 @@
+/*
+ * MacRuby CFSet-based--implementation of Ruby 1.9's lib/set.rb
+ *
+ * This file is covered by the Ruby license. See COPYING for more details.
+ *
+ * Copyright (C) 2007-2008, Apple Inc. All rights reserved.
+ * Copyright (C) 1993-2007 Yukihiro Matsumoto
+ * Copyright (C) 2000 Network Applied Communication Laboratory, Inc.
+ * Copyright (C) 2000 Information-technology Promotion Agency, Japan
+ */
+
+#include "ruby/ruby.h"
+
+VALUE rb_cSet;
+VALUE rb_cNSSet, rb_cNSMutableSet, rb_cCFSet;
+
+static inline void
+rb_set_modify_check(VALUE set)
+{
+    long mask;
+    mask = rb_objc_flag_get_mask((void *)set);
+    if (mask == 0) {
+	bool _CFSetIsMutable(void *);
+	if (!_CFSetIsMutable((void *)set))
+	    mask |= FL_FREEZE;
+    }
+    if ((mask & FL_FREEZE) == FL_FREEZE)
+	rb_raise(rb_eRuntimeError, "can't modify frozen/immutable set");
+    if ((mask & FL_TAINT) == FL_TAINT && rb_safe_level() >= 4)
+	rb_raise(rb_eSecurityError, "Insecure: can't modify set");
+}
+
+static VALUE
+set_alloc(VALUE klass)
+{
+    CFMutableSetRef set;
+
+    set = CFSetCreateMutable(NULL, 0, &kCFTypeSetCallBacks);
+    if (klass != 0 && klass != rb_cNSSet && klass != rb_cNSMutableSet)
+	*(Class *)set = (Class)klass;
+
+    CFMakeCollectable(set);
+
+    return (VALUE)set;
+}
+
+VALUE
+rb_set_dup(VALUE rcv)
+{
+    VALUE dup = (VALUE)CFSetCreateMutableCopy(NULL, 0, (CFSetRef)rcv);
+    if (OBJ_TAINTED(rcv))
+	OBJ_TAINT(dup);
+    CFMakeCollectable((CFTypeRef)dup);
+    return dup;
+}
+
+static VALUE
+rb_set_clone(VALUE rcv)
+{
+    VALUE clone = rb_set_dup(rcv);
+    if (OBJ_FROZEN(rcv))
+	OBJ_FREEZE(clone);
+    return clone;
+}
+
+VALUE
+rb_set_new(void)
+{
+    return set_alloc(0);
+}
+
+static VALUE
+rb_set_s_create(int argc, VALUE *argv, VALUE klass)
+{
+    int i;
+
+    VALUE set = set_alloc(klass);
+
+    for (i = 0; i < argc; i++)
+	CFSetAddValue((CFMutableSetRef)set, RB2OC(argv[i]));
+
+    return set;
+}
+
+static VALUE
+rb_set_size(VALUE set)
+{
+    return INT2FIX(CFSetGetCount((CFSetRef)set));
+}
+
+static void
+rb_set_intersect_callback(const void *value, void *context)
+{
+    CFMutableSetRef *sets = (CFMutableSetRef *)context;
+    if (CFSetContainsValue(sets[0], RB2OC(value)))
+	CFSetAddValue(sets[1], RB2OC(value));
+}
+
+static VALUE
+rb_set_intersect(VALUE set, VALUE other)
+{
+    rb_set_modify_check(set);
+
+    VALUE new_set = rb_set_new();
+    CFMutableSetRef sets[2] = { (CFMutableSetRef)other, (CFMutableSetRef)new_set };
+    CFSetApplyFunction((CFMutableSetRef)set, rb_set_intersect_callback, sets);
+
+    return new_set;
+}
+
+static void
+rb_set_union_callback(const void *value, void *context)
+{
+    CFMutableSetRef *sets = context;
+    if (!CFSetContainsValue(sets[0], RB2OC(value)))
+	CFSetAddValue(sets[1], RB2OC(value));
+}
+
+static VALUE
+rb_set_union(VALUE set, VALUE other)
+{
+    VALUE new_set = rb_set_new();
+    CFMutableSetRef sets[2] = { (CFMutableSetRef)other, (CFMutableSetRef)new_set };
+    CFSetApplyFunction((CFMutableSetRef)set, rb_set_union_callback, sets);
+
+    return new_set;
+}
+
+static VALUE
+rb_set_merge(VALUE set, VALUE other)
+{
+    rb_set_modify_check(set);
+
+    CFMutableSetRef sets[2] = { (CFMutableSetRef)other, (CFMutableSetRef)set };
+    CFSetApplyFunction((CFMutableSetRef)set, rb_set_union_callback, sets);
+
+    return set;
+}
+
+static void
+rb_set_subtract_callback(const void *value, void *context)
+{
+    CFMutableSetRef *sets = context;
+    if (CFSetContainsValue(sets[0], RB2OC(value)))
+	CFSetRemoveValue(sets[1], RB2OC(value));
+}
+
+static VALUE
+rb_set_subtract(VALUE set, VALUE other)
+{
+    VALUE new_set = rb_set_dup(set);
+    CFMutableSetRef sets[2] = { (CFMutableSetRef)other, (CFMutableSetRef)new_set };
+    CFSetApplyFunction((CFMutableSetRef)set, rb_set_subtract_callback, sets);
+
+    return new_set;
+}
+
+static VALUE
+rb_set_add(VALUE set, VALUE obj)
+{
+    rb_set_modify_check(set);
+
+    CFSetAddValue((CFMutableSetRef)set, (const void *)RB2OC(obj));
+
+    return set;
+}
+
+static VALUE
+rb_set_add2(VALUE set, VALUE obj)
+{
+    rb_set_modify_check(set);
+
+    if (CFSetContainsValue((CFMutableSetRef)set, (const void *)RB2OC(obj)))
+	return Qnil;
+    else {
+	CFSetAddValue((CFMutableSetRef)set, (const void *)RB2OC(obj));
+	return set;
+    }
+}
+
+static VALUE
+rb_set_clear(VALUE set)
+{
+    rb_set_modify_check(set);
+
+    CFSetRemoveAllValues((CFMutableSetRef)set);
+    return set;
+}
+
+static VALUE
+rb_set_delete(VALUE set, VALUE obj)
+{
+    rb_set_modify_check(set);
+
+    CFSetRemoveValue((CFMutableSetRef)set, (const void *)RB2OC(obj));
+    return set;
+}
+
+static VALUE
+rb_set_delete2(VALUE set, VALUE obj)
+{
+    rb_set_modify_check(set);
+
+    if (CFSetContainsValue((CFMutableSetRef)set, (const void *)RB2OC(obj))) {
+	CFSetRemoveValue((CFMutableSetRef)set, (const void *)RB2OC(obj));
+	return set;
+    } else
+	return Qnil;
+}
+
+static void
+rb_set_delete_if_callback(const void *value, void *context)
+{
+    if (rb_yield(OC2RB(value)) == Qtrue)
+	rb_set_delete((VALUE)context, (VALUE)value);
+}
+
+static VALUE
+rb_set_delete_if(VALUE set)
+{
+    rb_set_modify_check(set);
+
+    VALUE new_set = rb_set_dup(set);
+    CFSetApplyFunction((CFMutableSetRef)new_set, rb_set_delete_if_callback, (void *)set);
+
+    return set;
+}
+
+static void
+rb_set_each_callback(const void *value, void *context)
+{
+    rb_yield((VALUE)OC2RB(value));
+}
+
+static VALUE
+rb_set_each(VALUE set)
+{
+    CFSetApplyFunction((CFMutableSetRef)set, rb_set_each_callback, NULL);
+    return Qnil;
+}
+
+static VALUE
+rb_set_include(VALUE set, VALUE obj)
+{
+    return CFSetContainsValue((CFMutableSetRef)set, (const void *)RB2OC(obj)) ? Qtrue : Qfalse;
+}
+
+static void
+rb_set_to_a_callback(const void *value, void *context)
+{
+    rb_ary_push((VALUE)context, (VALUE)value);
+}
+
+static VALUE
+rb_set_to_a(VALUE set)
+{
+    VALUE ary = rb_ary_new();
+    CFSetApplyFunction((CFMutableSetRef)set, rb_set_to_a_callback, (void *)ary);
+
+    return ary;
+}
+
+static VALUE
+rb_set_equal(VALUE set, VALUE other)
+{
+    return CFEqual((CFTypeRef)set, (CFTypeRef)RB2OC(other)) ? Qtrue : Qfalse;
+}
+
+void
+Init_Set(void)
+{
+    rb_cSet = rb_cNSSet = (VALUE)objc_getClass("NSSet");
+    rb_cNSMutableSet = (VALUE)objc_getClass("NSMutableSet");
+    rb_cCFSet = (VALUE)objc_getClass("NSCFSet");
+    rb_set_class_path(rb_cNSMutableSet, rb_cObject, "NSMutableSet");
+    rb_const_set(rb_cObject, rb_intern("Set"), rb_cNSMutableSet);
+
+    rb_include_module(rb_cSet, rb_mEnumerable);
+
+    rb_define_singleton_method(rb_cSet, "[]", rb_set_s_create, -1);
+
+    rb_define_method(rb_cSet, "dup", rb_set_dup, 0);
+    rb_define_method(rb_cSet, "clone", rb_set_clone, 0);
+
+    rb_define_method(rb_cSet, "to_a", rb_set_to_a, 0);
+    rb_define_method(rb_cSet, "==", rb_set_equal, 1);
+    rb_define_method(rb_cSet, "size", rb_set_size, 0);
+    rb_define_alias(rb_cSet, "length", "size");
+    rb_define_method(rb_cSet, "&", rb_set_intersect, 1);
+    rb_define_alias(rb_cSet, "intersect", "&");
+    rb_define_method(rb_cSet, "|", rb_set_union, 1);
+    rb_define_alias(rb_cSet, "union", "|");
+    rb_define_alias(rb_cSet, "+", "|");
+    rb_define_method(rb_cSet, "merge", rb_set_merge, 1);
+    rb_define_method(rb_cSet, "-", rb_set_subtract, 1);
+    rb_define_method(rb_cSet, "add", rb_set_add, 1);
+    rb_define_alias(rb_cSet, "<<", "add");
+    rb_define_method(rb_cSet, "add?", rb_set_add2, 1);
+    rb_define_method(rb_cSet, "clear", rb_set_clear, 0);
+    rb_define_method(rb_cSet, "delete", rb_set_delete, 1);
+    rb_define_method(rb_cSet, "delete?", rb_set_delete2, 1);
+    rb_define_method(rb_cSet, "delete_if", rb_set_delete_if, 0);
+    rb_define_method(rb_cSet, "each", rb_set_each, 0);
+    rb_define_method(rb_cSet, "include?", rb_set_include, 1);
+    rb_define_alias(rb_cSet, "member?", "include?");
+    rb_define_method(rb_cSet, "to_a", rb_set_to_a, 0);
+}

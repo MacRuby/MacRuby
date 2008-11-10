@@ -64,74 +64,35 @@ class Set
   #
   # If a block is given, the elements of enum are preprocessed by the
   # given block.
-  def initialize(enum = nil, &block) # :yields: o
-    @hash ||= Hash.new
-
-    enum.nil? and return
-
-    if block
-      enum.each { |o| add(block[o]) }
-    else
-      merge(enum)
-    end
-  end
+#  def initialize(enum = nil, &block) # :yields: o
+#    @hash ||= Hash.new
+#
+#    enum.nil? and return
+#
+#    if block
+#      enum.each { |o| add(block[o]) }
+#    else
+#      merge(enum)
+#    end
+#  end
 
   # Copy internal hash.
-  def initialize_copy(orig)
-    @hash = orig.instance_eval{@hash}.dup
-  end
-
-  def freeze	# :nodoc:
-    super
-    @hash.freeze
-    self
-  end
-
-  def taint	# :nodoc:
-    super
-    @hash.taint
-    self
-  end
-
-  def untaint	# :nodoc:
-    super
-    @hash.untaint
-    self
-  end
-
-  # Returns the number of elements.
-  def size
-    @hash.size
-  end
-  alias length size
+#  def initialize_copy(orig)
+#    @hash = orig.instance_eval{@hash}.dup
+#  end
 
   # Returns true if the set contains no elements.
   def empty?
-    @hash.empty?
-  end
-
-  # Removes all elements and returns self.
-  def clear
-    @hash.clear
-    self
+    size == 0
   end
 
   # Replaces the contents of the set with the contents of the given
   # enumerable object and returns self.
   def replace(enum)
-    if enum.class == self.class
-      @hash.replace(enum.instance_eval { @hash })
-    else
-      clear
-      enum.each { |o| add(o) }
-    end
+    clear
+    enum.each { |o| add(o) }
 
     self
-  end
-
-  # Converts the set to an array.  The order of elements is uncertain.
-  def to_a
-    @hash.keys
   end
 
   def flatten_merge(set, seen = Set.new)
@@ -169,12 +130,6 @@ class Set
     end
   end
 
-  # Returns true if the set contains the given object.
-  def include?(o)
-    @hash.include?(o)
-  end
-  alias member? include?
-
   # Returns true if the set is a superset of the given set.
   def superset?(set)
     set.is_a?(Set) or raise ArgumentError, "value must be a set"
@@ -203,115 +158,21 @@ class Set
     all? { |o| set.include?(o) }
   end
 
-  # Calls the given block once for each element in the set, passing
-  # the element as parameter.  Returns an enumerator if no block is
-  # given.
-  def each
-    block_given? or return enum_for(__method__)
-    @hash.each_key { |o| yield(o) }
-    self
-  end
+#  # Do collect() destructively.
+#  def collect!
+#    set = self.class.new
+#    each { |o| set << yield(o) }
+#    replace(set)
+#  end
+#  alias map! collect!
 
-  # Adds the given object to the set and returns self.  Use +merge+ to
-  # add many elements at once.
-  def add(o)
-    @hash[o] = true
-    self
-  end
-  alias << add
-
-  # Adds the given object to the set and returns self.  If the
-  # object is already in the set, returns nil.
-  def add?(o)
-    if include?(o)
-      nil
-    else
-      add(o)
-    end
-  end
-
-  # Deletes the given object from the set and returns self.  Use +subtract+ to
-  # delete many items at once.
-  def delete(o)
-    @hash.delete(o)
-    self
-  end
-
-  # Deletes the given object from the set and returns self.  If the
-  # object is not in the set, returns nil.
-  def delete?(o)
-    if include?(o)
-      delete(o)
-    else
-      nil
-    end
-  end
-
-  # Deletes every element of the set for which block evaluates to
-  # true, and returns self.
-  def delete_if
-    @hash.delete_if { |o,| yield(o) }
-    self
-  end
-
-  # Do collect() destructively.
-  def collect!
-    set = self.class.new
-    each { |o| set << yield(o) }
-    replace(set)
-  end
-  alias map! collect!
-
-  # Equivalent to Set#delete_if, but returns nil if no changes were
-  # made.
-  def reject!
-    n = size
-    delete_if { |o| yield(o) }
-    size == n ? nil : self
-  end
-
-  # Merges the elements of the given enumerable object to the set and
-  # returns self.
-  def merge(enum)
-    if enum.is_a?(Set)
-      @hash.update(enum.instance_eval { @hash })
-    else
-      enum.each { |o| add(o) }
-    end
-
-    self
-  end
-
-  # Deletes every element that appears in the given enumerable object
-  # and returns self.
-  def subtract(enum)
-    enum.each { |o| delete(o) }
-    self
-  end
-
-  # Returns a new set built by merging the set and the elements of the
-  # given enumerable object.
-  def |(enum)
-    dup.merge(enum)
-  end
-  alias + |		##
-  alias union |		##
-
-  # Returns a new set built by duplicating the set, removing every
-  # element that appears in the given enumerable object.
-  def -(enum)
-    dup.subtract(enum)
-  end
-  alias difference -	##
-
-  # Returns a new set containing elements common to the set and the
-  # given enumerable object.
-  def &(enum)
-    n = self.class.new
-    enum.each { |o| n.add(o) if include?(o) }
-    n
-  end
-  alias intersection &	##
+#  # Equivalent to Set#delete_if, but returns nil if no changes were
+#  # made.
+#  def reject!
+#    n = size
+#    delete_if { |o| yield(o) }
+#    size == n ? nil : self
+#  end
 
   # Returns a new set containing elements exclusive between the set
   # and the given enumerable object.  (set ^ enum) is equivalent to
@@ -322,24 +183,9 @@ class Set
     n
   end
 
-  # Returns true if two sets are equal.  The equality of each couple
-  # of elements is defined according to Object#eql?.
-  def ==(set)
-    equal?(set) and return true
-
-    set.is_a?(Set) && size == set.size or return false
-
-    hash = @hash.dup
-    set.all? { |o| hash.include?(o) }
-  end
-
-  def hash	# :nodoc:
-    @hash.hash
-  end
-
   def eql?(o)	# :nodoc:
     return false unless o.is_a?(Set)
-    @hash.eql?(o.instance_eval{@hash})
+    hash.eql?(o.hash)
   end
 
   # Classifies the set by the return value of the given block and
@@ -445,94 +291,94 @@ class Set
 end
 
 # SortedSet implements a set which elements are sorted in order.  See Set.
-class SortedSet < Set
-  @@setup = false
-
-  class << self
-    def [](*ary)	# :nodoc:
-      new(ary)
-    end
-
-    def setup	# :nodoc:
-      @@setup and return
-
-      module_eval {
-        # a hack to shut up warning
-        alias old_init initialize
-        remove_method :old_init
-      }
-      begin
-	require 'rbtree'
-
-	module_eval %{
-	  def initialize(*args, &block)
-	    @hash = RBTree.new
-	    super
-	  end
-	}
-      rescue LoadError
-	module_eval %{
-	  def initialize(*args, &block)
-	    @keys = nil
-	    super
-	  end
-
-	  def clear
-	    @keys = nil
-	    super
-	  end
-
-	  def replace(enum)
-	    @keys = nil
-	    super
-	  end
-
-	  def add(o)
-	    @keys = nil
-	    @hash[o] = true
-	    self
-	  end
-	  alias << add
-
-	  def delete(o)
-	    @keys = nil
-	    @hash.delete(o)
-	    self
-	  end
-
-	  def delete_if
-	    n = @hash.size
-	    @hash.delete_if { |o,| yield(o) }
-	    @keys = nil if @hash.size != n
-	    self
-	  end
-
-	  def merge(enum)
-	    @keys = nil
-	    super
-	  end
-
-	  def each
-	    block_given? or return enum_for(__method__)
-	    to_a.each { |o| yield(o) }
-	  end
-
-	  def to_a
-	    (@keys = @hash.keys).sort! unless @keys
-	    @keys
-	  end
-	}
-      end
-
-      @@setup = true
-    end
-  end
-
-  def initialize(*args, &block)	# :nodoc:
-    SortedSet.setup
-    initialize(*args, &block)
-  end
-end
+#class SortedSet < Set
+#  @@setup = false
+#
+#  class << self
+#    def [](*ary)	# :nodoc:
+#      new(ary)
+#    end
+#
+#    def setup	# :nodoc:
+#      @@setup and return
+#
+#      module_eval {
+#        # a hack to shut up warning
+#        alias old_init initialize
+#        remove_method :old_init
+#      }
+#      begin
+#	require 'rbtree'
+#
+#	module_eval %{
+#	  def initialize(*args, &block)
+#	    @hash = RBTree.new
+#	    super
+#	  end
+#	}
+#      rescue LoadError
+#	module_eval %{
+#	  def initialize(*args, &block)
+#	    @keys = nil
+#	    super
+#	  end
+#
+#	  def clear
+#	    @keys = nil
+#	    super
+#	  end
+#
+#	  def replace(enum)
+#	    @keys = nil
+#	    super
+#	  end
+#
+#	  def add(o)
+#	    @keys = nil
+#	    @hash[o] = true
+#	    self
+#	  end
+#	  alias << add
+#
+#	  def delete(o)
+#	    @keys = nil
+#	    @hash.delete(o)
+#	    self
+#	  end
+#
+#	  def delete_if
+#	    n = @hash.size
+#	    @hash.delete_if { |o,| yield(o) }
+#	    @keys = nil if @hash.size != n
+#	    self
+#	  end
+#
+#	  def merge(enum)
+#	    @keys = nil
+#	    super
+#	  end
+#
+#	  def each
+#	    block_given? or return enum_for(__method__)
+#	    to_a.each { |o| yield(o) }
+#	  end
+#
+#	  def to_a
+#	    (@keys = @hash.keys).sort! unless @keys
+#	    @keys
+#	  end
+#	}
+#      end
+#
+#      @@setup = true
+#    end
+#  end
+#
+#  def initialize(*args, &block)	# :nodoc:
+#    SortedSet.setup
+#    initialize(*args, &block)
+#  end
+#end
 
 module Enumerable
   # Makes a set from the enumerable object with given arguments.
