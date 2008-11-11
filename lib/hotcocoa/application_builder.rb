@@ -128,7 +128,7 @@ module HotCocoa
       
       def copy_framework
         FileUtils.cp_r macruby_framework_path, frameworks_root
-        `install_name_tool -change #{current_macruby_path}/usr/lib/libmacruby.dylib @executable_path/../Frameworks/MacRuby.framework/Versions/#{current_macruby_version}/usr/lib/libmacruby.dylib #{macos_root}/#{objective_c_executable_file}`
+        `install_name_tool -change #{current_macruby_path}/usr/lib/libmacruby.dylib @executable_path/../Frameworks/MacRuby.framework/Versions/#{current_macruby_version}/usr/lib/libmacruby.dylib '#{macos_root}/#{objective_c_executable_file}'`
       end
       
       def copy_sources
