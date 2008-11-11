@@ -37,9 +37,9 @@ module HotCocoa
     
     ApplicationBundlePackage = "APPL????"
     
-    attr_accessor :name, :load_file, :sources, :overwrite, :icon, :version, :info_string, :secure, :resources
+    attr_accessor :name, :load_file, :sources, :overwrite, :icon, :version, :info_string, :secure, :resources, :deploy
     
-    def self.build(config)
+    def self.build(config, options={:deploy => false})
       unless config.kind_of?(Configuration)
         require 'rbconfig'
         puts "Your Rakefile needs to be updated.  Please copy the Rakefile from:"
@@ -47,6 +47,7 @@ module HotCocoa
         exit
       end
       builder = new
+      builder.deploy = options[:deploy] == true ? true : false
       builder.secure = config.secure?
       builder.name = config.name
       builder.load_file = config.load
@@ -74,7 +75,12 @@ module HotCocoa
       write_bundle_files
       copy_sources
       copy_resources
+      copy_framework if deploy?
       copy_icon_file if icon
+    end
+    
+    def deploy?
+      @deploy
     end
     
     def overwrite?
@@ -108,6 +114,7 @@ module HotCocoa
       def build_bundle_structure
         Dir.mkdir(bundle_root) unless File.exist?(bundle_root)
         Dir.mkdir(contents_root) unless File.exist?(contents_root)
+        Dir.mkdir(frameworks_root) unless File.exist?(frameworks_root)
         Dir.mkdir(macos_root) unless File.exist?(macos_root)
         Dir.mkdir(resources_root) unless File.exist?(resources_root)
       end
@@ -117,6 +124,11 @@ module HotCocoa
         write_info_plist_file
         build_executable unless File.exist?(File.join(macos_root, objective_c_executable_file))
         write_ruby_main
+      end
+      
+      def copy_framework
+        FileUtils.cp_r macruby_framework_path, frameworks_root
+        `install_name_tool -change #{current_macruby_path}/usr/lib/libmacruby.dylib @executable_path/../Frameworks/MacRuby.framework/Versions/#{current_macruby_version}/usr/lib/libmacruby.dylib #{macos_root}/#{objective_c_executable_file}`
       end
       
       def copy_sources
@@ -211,10 +223,9 @@ module HotCocoa
             require 'hotcocoa/virtual_file_system'
             f.puts VirtualFileSystem.code_to_load(load_file)
           else
-            f.puts %{
-              $:.unshift NSBundle.mainBundle.resourcePath.fileSystemRepresentation
-              load '#{load_file}'
-            }
+            f.puts "$:.map! { |x| x.sub(/^\\/Library\\/Frameworks/, NSBundle.mainBundle.privateFrameworksPath) }" if deploy?
+            f.puts "$:.unshift NSBundle.mainBundle.resourcePath.fileSystemRepresentation"
+            f.puts "load '#{load_file}'"
           end
         end
       end
@@ -225,6 +236,10 @@ module HotCocoa
       
       def contents_root
         File.join(bundle_root, "Contents")
+      end
+
+      def frameworks_root
+        File.join(contents_root, "Frameworks")
       end
       
       def macos_root
@@ -257,6 +272,22 @@ module HotCocoa
       
       def main_ruby_source_file
         File.join(resources_root, "rb_main.rb")
+      end
+      
+      def current_macruby_version
+        NSFileManager.defaultManager.pathContentOfSymbolicLinkAtPath(File.join(macruby_versions_path, "Current"))
+      end
+      
+      def current_macruby_path
+        File.join(macruby_versions_path, current_macruby_version)
+      end
+      
+      def macruby_versions_path
+        File.join(macruby_framework_path, "Versions")
+      end
+      
+      def macruby_framework_path
+        "/Library/Frameworks/MacRuby.framework"
       end
 
   end
