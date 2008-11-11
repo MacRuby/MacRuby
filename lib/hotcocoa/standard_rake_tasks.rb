@@ -9,7 +9,7 @@ task :build do
 end
 
 task :run => [:build] do
-  `/usr/bin/open "#{AppConfig.name}.app"`
+  `"./#{AppConfig.name}.app/Contents/MacOS/#{AppConfig.name.gsub(/ /, '')}"`
 end
 
 task :clean do

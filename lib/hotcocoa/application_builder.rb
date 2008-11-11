@@ -5,6 +5,7 @@ module HotCocoa
   class ApplicationBuilder
     
     class Configuration
+      
       attr_reader :name, :version, :icon, :resources, :sources, :info_string, :load
       
       def initialize(file)
@@ -40,7 +41,7 @@ module HotCocoa
     attr_accessor :name, :load_file, :sources, :overwrite, :icon, :version, :info_string, :secure, :resources, :deploy
     
     def self.build(config, options={:deploy => false})
-      unless config.kind_of?(Configuration)
+      if !config.kind_of?(Configuration) || !$LOADED_FEATURES.detect {|f| f.include?("standard_rake_tasks")}
         require 'rbconfig'
         puts "Your Rakefile needs to be updated.  Please copy the Rakefile from:"
         puts File.expand_path(File.join(Config::CONFIG['datadir'], "hotcocoa_template", "Rakefile"))
