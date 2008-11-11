@@ -404,7 +404,7 @@ rb_objc_newobj(size_t size)
     void *obj;
 
     if (ruby_gc_stress) {
-	objc_collect(OBJC_GENERATIONAL);
+	objc_collect(OBJC_GENERATIONAL_COLLECTION);
     }
 
     obj = auto_zone_allocate_object(__auto_zone, size, AUTO_OBJECT_SCANNED, 
