@@ -1299,6 +1299,12 @@ rb_iseq_build_for_ruby2cext(
     return iseqval;
 }
 
+const char *
+rb_insn_name(int insn)
+{
+    return insn_name(insn);
+}
+
 void
 Init_ISeq(void)
 {

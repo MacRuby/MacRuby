@@ -79,11 +79,38 @@ extern VALUE ruby_vm_redefined_flag;
 
 #else
 
-extern void rb_enter_insn_trace(rb_control_frame_t *);
-extern void rb_end_insn_trace(rb_control_frame_t *);
 #define debugs
-#define DEBUG_ENTER_INSN(insn) do { if (MACRUBY_INSN_ENTRY_ENABLED()) rb_enter_insn_trace(GET_CFP()); } while (0)
-#define DEBUG_END_INSN() do { if (MACRUBY_INSN_RETURN_ENABLED()) rb_end_insn_trace(GET_CFP()); } while (0)
+extern const char *rb_insn_name(int);
+#define DEBUG_ENTER_INSN(insn) \
+    do { \
+	if (MACRUBY_INSN_ENTRY_ENABLED()) { \
+	    rb_control_frame_t *cfp = GET_CFP(); \
+	    rb_iseq_t *iseq = cfp->iseq; \
+	    if (iseq != NULL && VM_FRAME_TYPE(cfp) != FRAME_MAGIC_FINISH) { \
+		VALUE *seq = iseq->iseq; \
+		int pc = cfp->pc - iseq->iseq_encoded; \
+		MACRUBY_INSN_ENTRY((char *)rb_insn_name(seq[pc]), \
+			(char *)rb_sourcefile(), \
+			rb_sourceline()); \
+	    } \
+	} \
+    } \
+    while (0)
+#define DEBUG_END_INSN() \
+    do { \
+	if (MACRUBY_INSN_RETURN_ENABLED()) { \
+	    rb_control_frame_t *cfp = GET_CFP(); \
+	    rb_iseq_t *iseq = cfp->iseq; \
+	    if (iseq != NULL && VM_FRAME_TYPE(cfp) != FRAME_MAGIC_FINISH) { \
+		VALUE *seq = iseq->iseq; \
+		int pc = cfp->pc - iseq->iseq_encoded; \
+		MACRUBY_INSN_RETURN((char *)rb_insn_name(seq[pc]), \
+			(char *)rb_sourcefile(), \
+			rb_sourceline()); \
+	    } \
+	} \
+    } \
+    while (0)
 #endif
 
 #define throwdebug if(0)printf

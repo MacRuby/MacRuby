@@ -4906,9 +4906,9 @@ iseq_build_body(rb_iseq_t *iseq, LINK_ANCHOR *anchor,
     /*
      * index -> LABEL *label
      */
-    static struct st_table *insn_table;
+    static struct st_table *insn_table = NULL;
 
-    if (insn_table == 0) {
+    if (insn_table == NULL) {
 	insn_table = insn_make_insn_table();
 	GC_ROOT(&insn_table);
     }
