@@ -35,76 +35,7 @@
 #if HAVE_AUTO_ZONE_H
 # include <auto_zone.h>
 #else
-# include <malloc/malloc.h>
-typedef malloc_zone_t auto_zone_t;
-#define AUTO_MEMORY_SCANNED   0
-#define AUTO_MEMORY_UNSCANNED 1
-#define AUTO_OBJECT_SCANNED   2
-#define AUTO_OBJECT_UNSCANNED 3 
-#define AUTO_COLLECT_RATIO_COLLECTION (0 << 0)
-#define AUTO_COLLECT_GENERATIONAL_COLLECTION (1 << 0)
-#define AUTO_COLLECT_FULL_COLLECTION (1 << 0)
-#define AUTO_COLLECT_EXHAUSTIVE_COLLECTION (3 << 0)
-#define AUTO_COLLECT_SYNCHRONOUS (1 << 2)
-#define AUTO_COLLECT_IF_NEEDED (1 << 3)
-#define AUTO_LOG_COLLECTIONS (1 << 1)
-#define AUTO_LOG_COLLECT_DECISION (1 << 2)
-#define AUTO_LOG_REGIONS (1 << 4)
-#define AUTO_LOG_UNUSUAL (1 << 5)
-#define AUTO_LOG_WEAK (1 << 6)
-#define AUTO_LOG_ALL (~0u)
-extern void auto_zone_retain(auto_zone_t *, void *);
-extern unsigned int auto_zone_release(auto_zone_t *, void *);
-extern void auto_collector_disable(auto_zone_t *);
-extern void auto_collector_reenable(auto_zone_t *);
-extern boolean_t auto_zone_set_write_barrier(auto_zone_t *, const void *, 
-	const void *);
-extern void auto_zone_add_root(auto_zone_t *, void *, void *);
-extern void auto_zone_register_thread(auto_zone_t *);
-extern void auto_zone_unregister_thread(auto_zone_t *);
-extern void auto_collect(auto_zone_t *, int, void *);
-extern boolean_t auto_zone_is_valid_pointer(auto_zone_t *, const void *);
-typedef int auto_memory_type_t;
-extern auto_memory_type_t auto_zone_get_layout_type(auto_zone_t *, void *);
-extern void *auto_zone_allocate_object(
-        auto_zone_t *, size_t, auto_memory_type_t, boolean_t, boolean_t);
-extern void *auto_zone_write_barrier_memmove(
-        auto_zone_t *, void *, const void *, size_t);
-extern void auto_zone_set_associative_ref(auto_zone_t *, void *, void *, 
-	void *);
-extern void *auto_zone_get_associative_ref(auto_zone_t *, void *, void *);
-extern auto_zone_t *auto_zone(void);
-typedef struct auto_zone_cursor *auto_zone_cursor_t;
-typedef void (*auto_zone_foreach_object_t) (auto_zone_cursor_t cursor, 
-    void (*op) (void *ptr, void *data), void* data);
-typedef struct {
-    uint32_t unused1;
-    void (*batch_invalidate) (auto_zone_t *zone, 
-	auto_zone_foreach_object_t foreach, auto_zone_cursor_t cursor, 
-	size_t cursor_size);
-    void *unused3;
-    void *unused4;
-    void *unused5;
-    void *unused6;
-    uint32_t log;
-    boolean_t unused7;
-    boolean_t unused8;
-    void (*scan_external_callout)(void *context, void (*scanner)(void *context, void *start, void *end));
-    void *unused9;
-    size_t unused10;
-    size_t unused11;
-} auto_collection_control_t;
-extern auto_collection_control_t *auto_collection_parameters(auto_zone_t *);
-typedef struct {
-    malloc_statistics_t malloc_statistics;
-    uint32_t            version;
-    size_t              num_collections[2];
-    boolean_t           last_collection_was_generational;
-    size_t              bytes_in_use_after_last_collection[2];
-    size_t              bytes_allocated_after_last_collection[2];
-    size_t              bytes_freed_during_last_collection[2];
-    // durations not included
-} auto_statistics_t;
+# include "auto_zone.h"
 #endif
 static auto_zone_t *__auto_zone = NULL;
 
@@ -1286,8 +1217,7 @@ Init_PreGC(void)
     control->scan_external_callout = 
 	rb_objc_scan_external_callout;
     if (getenv("GC_DEBUG")) {
-	control->log = AUTO_LOG_COLLECTIONS | AUTO_LOG_REGIONS 
-		       | AUTO_LOG_UNUSUAL | AUTO_LOG_COLLECT_DECISION;
+	control->log = AUTO_LOG_COLLECTIONS | AUTO_LOG_REGIONS | AUTO_LOG_UNUSUAL;
     }
     if (getenv("GC_DISABLE")) {
 	gc_disabled = true;
