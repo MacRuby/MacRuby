@@ -1710,9 +1710,7 @@ rb_objc_method_node3(IMP imp)
     return ((ffi_closure *)imp)->user_data;
 }
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED <= MAC_OS_X_VERSION_10_5
-extern void *_objc_msgForward;
-#endif
+extern id _objc_msgForward(id receiver, SEL sel, ...);
 static void *_objc_msgForward_addr = NULL;
 
 NODE *
