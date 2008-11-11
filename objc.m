@@ -1710,6 +1710,9 @@ rb_objc_method_node3(IMP imp)
     return ((ffi_closure *)imp)->user_data;
 }
 
+extern void *_objc_msgForward;
+static void *_objc_msgForward_addr = NULL;
+
 NODE *
 rb_objc_method_node2(VALUE mod, SEL sel, IMP *pimp)
 {
@@ -1719,8 +1722,7 @@ rb_objc_method_node2(VALUE mod, SEL sel, IMP *pimp)
 	*pimp = NULL;
 
     imp = class_getMethodImplementation((Class)mod, sel);
-    extern void *_objc_msgForward;
-    if (imp == (IMP)&_objc_msgForward)
+    if (imp == (IMP)_objc_msgForward_addr)
 	imp = NULL;
 
     if (pimp != NULL)
@@ -3397,6 +3399,8 @@ Init_ObjC(void)
 	closure = rb_ruby_to_objc_closure("@@:@", 1, body->nd_body);
 	assert(class_addMethod((Class)klass, @selector(new:), (IMP)closure, "@@:@"));
     }
+    
+    _objc_msgForward_addr = &_objc_msgForward;
 }
 
 // for debug in gdb
