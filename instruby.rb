@@ -522,7 +522,7 @@ if ($destdir.empty? and File.exist?(touch_file)) or `sw_vers -productVersion`.st
 else
   puts "fixing bridge support dylibs"
   unless File.exist?('markgc')
-    unless system("gcc markgc.c -std=gnu99 -o markgc")
+    unless system("/usr/bin/gcc markgc.c -std=gnu99 -o markgc -nostdinc -I/usr/include")
       $stderr.puts "cannot build the markgc tool"
       exit 1
     end
