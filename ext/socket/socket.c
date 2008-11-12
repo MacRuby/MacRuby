@@ -1042,8 +1042,8 @@ wait_connectable0(int fd, rb_fdset_t *fds_w, rb_fdset_t *fds_e)
 
 struct wait_connectable_arg {
     int fd;
-    rb_fdset_t fds_w;
-    rb_fdset_t fds_e;
+    rb_fdset_t *fds_w;
+    rb_fdset_t *fds_e;
 };
 
 #ifdef HAVE_RB_FD_INIT
@@ -1051,15 +1051,15 @@ static VALUE
 try_wait_connectable(VALUE arg)
 {
     struct wait_connectable_arg *p = (struct wait_connectable_arg *)arg;
-    return (VALUE)wait_connectable0(p->fd, &p->fds_w, &p->fds_e);
+    return (VALUE)wait_connectable0(p->fd, p->fds_w, p->fds_e);
 }
 
 static VALUE
 wait_connectable_ensure(VALUE arg)
 {
     struct wait_connectable_arg *p = (struct wait_connectable_arg *)arg;
-    rb_fd_term(&p->fds_w);
-    rb_fd_term(&p->fds_e);
+    rb_fd_term(p->fds_w);
+    rb_fd_term(p->fds_e);
     return Qnil;
 }
 #endif
@@ -1067,16 +1067,19 @@ wait_connectable_ensure(VALUE arg)
 static int
 wait_connectable(int fd)
 {
-    struct wait_connectable_arg arg;
+    struct wait_connectable_arg *arg;
 
-    rb_fd_init(&arg.fds_w);
-    rb_fd_init(&arg.fds_e);
+    arg = (void *)xmalloc(sizeof(struct wait_connectable_arg));
+    arg->fds_w = (rb_fdset_t *)xmalloc(sizeof(rb_fdset_t));
+    arg->fds_e = (rb_fdset_t *)xmalloc(sizeof(rb_fdset_t));
+    rb_fd_init(arg->fds_w);
+    rb_fd_init(arg->fds_e);
 #ifdef HAVE_RB_FD_INIT
-    arg.fd = fd;
-    return (int)rb_ensure(try_wait_connectable, (VALUE)&arg,
-			  wait_connectable_ensure,(VALUE)&arg);
+    arg->fd = fd;
+    return (int)rb_ensure(try_wait_connectable, (VALUE)arg,
+			  wait_connectable_ensure,(VALUE)arg);
 #else
-    return wait_connectable0(fd, &arg.fds_w, &arg.fds_e);
+    return wait_connectable0(fd, arg->fds_w, arg->fds_e);
 #endif
 }
 
