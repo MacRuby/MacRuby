@@ -10,6 +10,7 @@
  */
 
 #include "ruby/ruby.h"
+#include "id.h"
 
 VALUE rb_cSet;
 VALUE rb_cNSSet, rb_cNSMutableSet, rb_cCFSet;
@@ -260,6 +261,7 @@ rb_set_each_callback(const void *value, void *context)
 static VALUE
 rb_set_each(VALUE set)
 {
+    RETURN_ENUMERATOR(set, 0, 0);
     CFSetApplyFunction((CFMutableSetRef)set, rb_set_each_callback, NULL);
     return Qnil;
 }
@@ -291,6 +293,33 @@ rb_set_equal(VALUE set, VALUE other)
     return CFEqual((CFTypeRef)set, (CFTypeRef)RB2OC(other)) ? Qtrue : Qfalse;
 }
 
+static VALUE
+initialize_i(VALUE val, VALUE *args)
+{
+    if (rb_block_given_p())
+	val = rb_yield(val);
+    rb_set_add((VALUE)args, val);
+
+    return Qnil;
+}
+
+static VALUE
+rb_set_initialize(int argc, VALUE *argv, VALUE set)
+{
+    VALUE val;
+
+    set = (VALUE)objc_msgSend((id)set, selInit);
+
+    rb_scan_args(argc, argv, "01", &val);
+    if (!NIL_P(val)) {
+	rb_block_call(val, rb_intern("each"), 0, 0, initialize_i, (VALUE)set);
+    } else if (rb_block_given_p()) {
+	rb_warning("given block not used");
+    }
+
+    return set;
+}
+
 void
 Init_Set(void)
 {
@@ -306,6 +335,7 @@ Init_Set(void)
 
     rb_define_method(rb_cSet, "dup", rb_set_dup, 0);
     rb_define_method(rb_cSet, "clone", rb_set_clone, 0);
+    rb_define_method(rb_cSet, "initialize", rb_set_initialize, -1);
 
     rb_define_method(rb_cSet, "to_a", rb_set_to_a, 0);
     rb_define_method(rb_cSet, "==", rb_set_equal, 1);

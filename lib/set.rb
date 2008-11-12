@@ -54,28 +54,6 @@
 class Set
   include Enumerable
 
-  # Creates a new set containing the given objects.
-#  def self.[](*ary)
-#    new(ary)
-#  end
-#
-#  # Creates a new set containing the elements of the given enumerable
-#  # object.
-#  #
-#  # If a block is given, the elements of enum are preprocessed by the
-#  # given block.
-#  def initialize(enum = nil, &block) # :yields: o
-#    @hash ||= Hash.new
-#
-#    enum.nil? and return
-#
-#    if block
-#      enum.each { |o| add(block[o]) }
-#    else
-#      merge(enum)
-#    end
-#  end
-#
 #  # Copy internal hash.
 #  def initialize_copy(orig)
 #    replace(orig)
