@@ -2,7 +2,7 @@
 
 project_name = ARGV.shift
 
-if project_name.empty? or project_name == "--help" or project_name =="-h"
+if project_name.nil? or project_name == "--help" or project_name =="-h"
   puts "Usage: hotcocoa <project name>"
   exit
 end
