@@ -25,11 +25,12 @@ extern st_table *rb_class_tbl;
 void rb_objc_install_array_primitives(Class);
 void rb_objc_install_hash_primitives(Class);
 void rb_objc_install_string_primitives(Class);
+void rb_objc_install_set_primitives(Class);
 
 bool
 rb_objc_install_primitives(Class ocklass, Class ocsuper)
 {
-    if (rb_cArray != 0 && rb_cHash != 0 && rb_cString != 0) {
+    if (rb_cArray != 0 && rb_cHash != 0 && rb_cString != 0 && rb_cSet != 0) {
 	do {
 	    if (ocsuper == (Class)rb_cArray) {
 		rb_objc_install_array_primitives(ocklass);
@@ -44,6 +45,11 @@ rb_objc_install_primitives(Class ocklass, Class ocsuper)
 	    if (ocsuper == (Class)rb_cString) {
 		rb_objc_install_string_primitives(ocklass);
 		RCLASS_SET_VERSION_FLAG(ocklass, RCLASS_IS_STRING_SUBCLASS);
+		return true;
+	    }
+	    if (ocsuper == (Class)rb_cSet) {
+		rb_objc_install_set_primitives(ocklass);
+		RCLASS_SET_VERSION_FLAG(ocklass, RCLASS_IS_SET_SUBCLASS);
 		return true;
 	    }
 	    ocsuper = class_getSuperclass(ocsuper);

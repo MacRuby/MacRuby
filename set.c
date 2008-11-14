@@ -11,6 +11,7 @@
 
 #include "ruby/ruby.h"
 #include "id.h"
+#include "objc.h"
 
 VALUE rb_cSet;
 VALUE rb_cNSSet, rb_cNSMutableSet, rb_cCFSet;
@@ -320,9 +321,83 @@ rb_set_initialize(int argc, VALUE *argv, VALUE set)
     return set;
 }
 
+#define PREPARE_RCV(x) \
+    Class old = *(Class *)x; \
+    *(Class *)x = (Class)rb_cCFSet;
+
+#define RESTORE_RCV(x) \
+    *(Class *)x = old;
+
+bool rb_objc_set_is_pure(VALUE set)
+{
+    return *(Class *)set == (Class)rb_cCFSet;
+}
+
+static CFIndex
+imp_rb_set_count(void *rcv, SEL sel)
+{
+    CFIndex count;
+    PREPARE_RCV(rcv);
+    count = CFSetGetCount((CFSetRef)rcv);
+    RESTORE_RCV(rcv);
+    return count;
+}
+
+static const void *
+imp_rb_set_member(void *rcv, SEL sel, void *obj)
+{
+    void *ret;
+    PREPARE_RCV(rcv);
+    ret = CFSetContainsValue((CFSetRef)rcv, obj) ? obj : NULL;
+    RESTORE_RCV(rcv);
+    return ret;
+}
+
+static const void *
+imp_rb_set_objectEnumerator(void *rcv, SEL sel)
+{
+    void *ret;
+    PREPARE_RCV(rcv);
+    ret = objc_msgSend(rcv, sel);
+    RESTORE_RCV(rcv);
+    return ret;
+}
+
+static void
+imp_rb_set_addOrRemoveObject(void *rcv, SEL sel, void *obj)
+{
+    PREPARE_RCV(rcv);
+    objc_msgSend(rcv, sel, obj);
+    RESTORE_RCV(rcv);
+}
+
+static unsigned long
+imp_rb_set_countByEnumeratingWithStateObjectsCount(void *rcv, SEL sel, void *state, void *objects, unsigned long count)
+{
+    unsigned long ret;
+    PREPARE_RCV(rcv);
+    ret = (unsigned long)objc_msgSend(rcv, sel, state, objects, count);
+    RESTORE_RCV(rcv);
+    return ret;
+}
+
+void
+rb_objc_install_set_primitives(Class klass)
+{
+    rb_objc_install_method2(klass, "count", (IMP)imp_rb_set_count);
+    rb_objc_install_method2(klass, "member:", (IMP)imp_rb_set_member);
+    rb_objc_install_method2(klass, "objectEnumerator", (IMP)imp_rb_set_objectEnumerator);
+    rb_objc_install_method2(klass, "addObject:", (IMP)imp_rb_set_addOrRemoveObject);
+    rb_objc_install_method2(klass, "removeObject:", (IMP)imp_rb_set_addOrRemoveObject);
+    rb_objc_install_method2(klass, "countByEnumeratingWithState:objects:count:", (IMP)imp_rb_set_countByEnumeratingWithStateObjectsCount);
+
+    rb_define_alloc_func((VALUE)klass, set_alloc);
+}
+
 void
 Init_Set(void)
 {
+    rb_cCFSet = (VALUE)objc_getClass("NSCFSet");
     rb_cSet = rb_cNSSet = (VALUE)objc_getClass("NSSet");
     rb_cNSMutableSet = (VALUE)objc_getClass("NSMutableSet");
     rb_cCFSet = (VALUE)objc_getClass("NSCFSet");

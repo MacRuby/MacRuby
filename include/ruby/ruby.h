@@ -510,6 +510,7 @@ struct RClass {
 # define RCLASS_IS_ARRAY_SUBCLASS     0x20000 /* class is a subclass of NSCFArray */
 # define RCLASS_IS_HASH_SUBCLASS      0x40000 /* class is a subclass of NSCFDictionary */
 # define RCLASS_IS_INCLUDED           0x80000 /* module is included */
+# define RCLASS_IS_SET_SUBCLASS       0x100000 /* class is a subclass of NSCFSet */
 # if defined(__LP64__)
 #  define RCLASS_VERSION(m) (class_getVersion((Class)m))
 #  define RCLASS_SET_VERSION(m,f) (class_setVersion((Class)m, f))
@@ -1040,6 +1041,7 @@ RUBY_EXTERN VALUE rb_cRange;
 RUBY_EXTERN VALUE rb_cRational;
 RUBY_EXTERN VALUE rb_cComplex;
 RUBY_EXTERN VALUE rb_cRegexp;
+RUBY_EXTERN VALUE rb_cSet;
 RUBY_EXTERN VALUE rb_cStat;
 RUBY_EXTERN VALUE rb_cString;
 RUBY_EXTERN VALUE rb_cStruct;
