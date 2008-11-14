@@ -1,7 +1,8 @@
 class Object
 
     def self.kvo_array(key, &b)
-        capitalized_key = key.to_s.capitalize
+        key = key.to_s
+        capitalized_key = key[0].capitalize + key[1..-1]
         signatures = { :size      => { selector: :"countOf#{capitalized_key}",                  type_signature: "i@:",   flip: false },
                        :[]        => { selector: :"objectIn#{capitalized_key}AtIndex:",         type_signature: "@@:i",  flip: false },
                        :insert    => { selector: :"insertObject:in#{capitalized_key}AtIndex:",  type_signature: "v@:@i", flip: true  },
@@ -11,7 +12,8 @@ class Object
     end
 
     def self.kvo_set(key, &b)
-        capitalized_key = key.to_s.capitalize
+        key = key.to_s
+        capitalized_key = key[0].capitalize + key[1..-1]
         signatures = { :add       => { selector: :"add#{capitalized_key}Object:",    type_signature: "v@:@", flip: false },
                        :delete    => { selector: :"remove#{capitalized_key}Object:", type_signature: "v@:@", flip: false},
                        :merge     => { selector: :"add#{capitalized_key}:",          type_signature: "v@:@", flip: false },
