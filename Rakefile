@@ -36,6 +36,8 @@ ENABLE_DEBUG_LOGGING = do_option('enable_debug_logging', true) { |x| x == 'true'
 
 # Everything below this comment should *not* be modified.
 
+verbose(true)
+
 if `sw_vers -productVersion`.strip.to_f < 10.5
   $stderr.puts "Sorry, your environment is not supported. MacRuby requires Mac OS X 10.5 or higher." 
   exit 1
