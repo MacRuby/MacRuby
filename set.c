@@ -119,17 +119,16 @@ rb_set_intersect(VALUE set, VALUE other)
 static void
 rb_set_union_callback(const void *value, void *context)
 {
-    CFMutableSetRef *sets = context;
-    if (!CFSetContainsValue(sets[0], RB2OC(value)))
-	CFSetAddValue(sets[1], RB2OC(value));
+    CFMutableSetRef set = context;
+    if (!CFSetContainsValue(set, RB2OC(value)))
+	CFSetAddValue(set, RB2OC(value));
 }
 
 static VALUE
 rb_set_union(VALUE set, VALUE other)
 {
-    VALUE new_set = rb_set_new();
-    CFMutableSetRef sets[2] = { (CFMutableSetRef)other, (CFMutableSetRef)new_set };
-    CFSetApplyFunction((CFMutableSetRef)set, rb_set_union_callback, sets);
+    VALUE new_set = rb_set_dup(set);
+    CFSetApplyFunction((CFMutableSetRef)other, rb_set_union_callback, (void *)new_set);
 
     return new_set;
 }
@@ -139,8 +138,7 @@ rb_set_merge(VALUE set, VALUE other)
 {
     rb_set_modify_check(set);
 
-    CFMutableSetRef sets[2] = { (CFMutableSetRef)other, (CFMutableSetRef)set };
-    CFSetApplyFunction((CFMutableSetRef)set, rb_set_union_callback, sets);
+    CFSetApplyFunction((CFMutableSetRef)other, rb_set_union_callback, (void *)set);
 
     return set;
 }
