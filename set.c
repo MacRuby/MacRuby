@@ -398,7 +398,6 @@ Init_Set(void)
     rb_cCFSet = (VALUE)objc_getClass("NSCFSet");
     rb_cSet = rb_cNSSet = (VALUE)objc_getClass("NSSet");
     rb_cNSMutableSet = (VALUE)objc_getClass("NSMutableSet");
-    rb_cCFSet = (VALUE)objc_getClass("NSCFSet");
     rb_set_class_path(rb_cNSMutableSet, rb_cObject, "NSMutableSet");
     rb_const_set(rb_cObject, rb_intern("Set"), rb_cNSMutableSet);
 
