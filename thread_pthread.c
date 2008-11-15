@@ -169,6 +169,7 @@ thread_start_func_1(void *th_ptr)
 {
 #if WITH_OBJC
     rb_objc_gc_register_thread();
+    rb_objc_release((void *)th_ptr);
 #endif
 #if USE_THREAD_CACHE
   thread_start:
@@ -327,6 +328,7 @@ native_thread_create(rb_thread_t *th)
 	CHECK_ERR(pthread_attr_setinheritsched(&attr, PTHREAD_INHERIT_SCHED));
 	CHECK_ERR(pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED));
 
+	rb_objc_retain((void *)th);
 	err = pthread_create(&th->thread_id, &attr, thread_start_func_1, th);
 	thread_debug("create: %p (%d)", th, err);
 	CHECK_ERR(pthread_attr_destroy(&attr));
