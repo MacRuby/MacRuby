@@ -18,5 +18,6 @@ require 'hotcocoa/data_sources/combo_box_data_source'
 require 'hotcocoa/kernel_ext'
 require 'hotcocoa/plist'
 require 'hotcocoa/kvo_accessors'
+require 'hotcocoa/attributed_string'
 
 HotCocoa::Mappings.reload
