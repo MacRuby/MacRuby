@@ -1,3 +1,39 @@
+module HotCocoa
+    class NSRangedProxyAttributeHash
+	def initialize(proxy)
+	    @proxy = proxy
+	end
+
+	def [](k)
+	    @proxy.string.attribute(k, atIndex:@proxy.range.first, effectiveRange:nil)
+	end
+
+	def []=(k,v)
+	    @proxy.string.removeAttribute(k, range:@proxy.range.to_NSRange(@proxy.string.length - 1))
+	    @proxy.string.addAttribute(k, value:v, range:@proxy.range.to_NSRange(@proxy.string.length - 1))
+	end
+
+	def <<(attributes)
+	    attributes.each_pair do |k, v|
+		self[k] = v
+	    end
+	end
+	alias :merge :<<
+    end
+
+    class NSRangedProxyAttributedString
+	attr_reader :string, :range
+	def initialize(string, range)
+	    @string = string
+	    @range = range
+	end
+
+	def attributes
+	    NSRangedProxyAttributeHash.new(self)
+	end
+    end
+end
+
 class String
     def with_attributes(attributes = {})
 	NSMutableAttributedString.alloc.initWithString(self, :attributes => attributes)
@@ -10,40 +46,6 @@ class Range
 	    last = max
 	end
 	NSRange.new(first, last - first + 1)
-    end
-end
-
-class NSRangedProxyAttributeHash < Hash
-    def initialize(proxy)
-	@proxy = proxy
-    end
-
-    def [](k)
-	@proxy.string.attribute(k, atIndex:@proxy.range.first, effectiveRange:nil)
-    end
-
-    def []=(k,v)
-	@proxy.string.removeAttribute(k, range:@proxy.range.to_NSRange(@proxy.string.length - 1))
-	@proxy.string.addAttribute(k, value:v, range:@proxy.range.to_NSRange(@proxy.string.length - 1))
-    end
-
-    def <<(attributes)
-	attributes.each_pair do |k, v|
-	    self[k] = v
-	end
-    end
-    alias :merge :<<
-end
-
-class NSRangedProxyAttributedString
-    attr_reader :string, :range
-    def initialize(string, range)
-	@string = string
-	@range = range
-    end
-
-    def attributes
-	NSRangedProxyAttributeHash.new(self)
     end
 end
 
@@ -62,11 +64,11 @@ class NSMutableAttributedString
     end
 
     def attributes
-	NSRangedProxyAttributedString.new(self, 0..-1).attributes
+	HotCocoa::NSRangedProxyAttributedString.new(self, 0..-1).attributes
     end
 
     def [](r)
-	NSRangedProxyAttributedString.new(self, r)
+	HotCocoa::NSRangedProxyAttributedString.new(self, r)
     end
 
     def []=(r, s)
