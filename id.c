@@ -94,4 +94,5 @@ Init_id(void)
 
     idIncludedModules = rb_intern("__included_modules__");
     idIncludedInClasses = rb_intern("__included_in_classes__");
+    idAncestors = rb_intern("__ancestors__");
 }

@@ -525,8 +525,10 @@ rb_include_module2(VALUE klass, VALUE module, int check, int add_methods)
 	ary = rb_ary_new();
 	rb_ivar_set(klass, idIncludedModules, ary);
     }
-    if (rb_ary_includes(ary, module))
-	return;
+    else {
+	if (rb_ary_includes(ary, module))
+	    return;
+    }
     rb_ary_insert(ary, 0, module);
 
     long v = RCLASS_VERSION(module) | RCLASS_IS_INCLUDED;
@@ -538,6 +540,13 @@ rb_include_module2(VALUE klass, VALUE module, int check, int add_methods)
 	rb_ivar_set(module, idIncludedInClasses, ary);
     }
     rb_ary_push(ary, klass);
+
+    CFMutableDictionaryRef iv_dict;
+   
+    iv_dict = rb_class_ivar_dict(klass);
+    if (iv_dict != NULL) {
+	CFDictionaryRemoveValue(iv_dict, (const void *)idAncestors);
+    }
 
     DLOG("INCM", "%s <- %s", class_getName((Class)klass), class_getName((Class)module));
 
@@ -662,17 +671,33 @@ rb_mod_include_p(VALUE mod, VALUE mod2)
 static void rb_mod_included_modules_nosuper(VALUE, VALUE);
 
 VALUE
+rb_mod_ancestors_nocopy(VALUE mod)
+{
+    VALUE ary;
+
+    ary = rb_attr_get(mod, idAncestors);
+    if (NIL_P(ary)) {
+	VALUE p;
+
+	ary = rb_ary_new();
+
+	for (p = mod; p; p = RCLASS_SUPER(p)) {
+	    rb_ary_push(ary, p);
+	    rb_mod_included_modules_nosuper(p, ary);
+	    if (RCLASS_MODULE(p))
+		break;
+	}
+
+	rb_ivar_set(mod, idAncestors, ary);	
+    }
+
+    return ary;
+}
+
+VALUE
 rb_mod_ancestors(VALUE mod)
 {
-    VALUE p, ary = rb_ary_new();
-   
-    for (p = mod; p; p = RCLASS_SUPER(p)) {
-	rb_ary_push(ary, p);
-	rb_mod_included_modules_nosuper(p, ary);
-	if (RCLASS_MODULE(p))
-	    break;
-    }
-    return ary;
+    return rb_ary_dup(rb_mod_ancestors_nocopy(mod));
 }
 
 static int

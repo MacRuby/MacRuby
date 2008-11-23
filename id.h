@@ -76,5 +76,6 @@ extern SEL sel_ignored;
 extern SEL sel_zone;
 extern ID idIncludedModules;
 extern ID idIncludedInClasses;
+extern ID idAncestors;
 #endif
 #endif /* RUBY_ID_H */

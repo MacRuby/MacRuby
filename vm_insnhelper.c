@@ -829,23 +829,7 @@ start_method_dispatch:
     }
     else {
 #if WITH_OBJC
-	if (flag & VM_CALL_SUPER_BIT) {
-	    VALUE k;
-	    for (k = CLASS_OF(recv); k != 0; k = RCLASS_SUPER(k)) {
-		VALUE ary = rb_attr_get(k, idIncludedModules);
-		if (ary != Qnil) {
-		    int i, count = RARRAY_LEN(ary);
-		    for (i = 0; i < count; i++) {
-			VALUE imod = RARRAY_AT(ary, i);
-			mn = rb_objc_method_node(imod, id, NULL, NULL);
-			if (mn != NULL) {
-			    goto start_method_dispatch;
-			}
-		    }
-		}
-	    }
-	}
-	else if (mcache != NULL) {
+	if (mcache != NULL) {
 	    struct rb_objc_method_sig sig;
 	    if (rb_objc_fill_sig(recv, (Class)klass, mcache->as.rcall.sel, &sig, NULL)) {
 		/* the class probably implements forwardInvocation: */
@@ -1445,17 +1429,17 @@ vm_method_search(VALUE id, VALUE klass, IC ic)
 static inline VALUE
 vm_search_normal_superclass(VALUE klass, VALUE recv)
 {
-    if (TYPE(klass) == T_CLASS) {
-	klass = RCLASS_SUPER(klass);
-    }
-    else if (TYPE(klass) == T_MODULE) {
-	VALUE k = CLASS_OF(recv);
-	while (k) {
-	    if (TYPE(k) == T_ICLASS && RBASIC(k)->klass == klass) {
-		klass = RCLASS_SUPER(k);
+    VALUE ary;
+    int i, count;
+
+    ary = rb_mod_ancestors_nocopy(CLASS_OF(recv));
+    count = RARRAY_LEN(ary);
+    for (i = 0; i < count; i++) {
+	if (RARRAY_AT(ary, i) == klass) {
+	    if (i < count) {
+		klass = RARRAY_AT(ary, i + 1);
 		break;
 	    }
-	    k = RCLASS_SUPER(k);
 	}
     }
     return klass;
@@ -1466,10 +1450,8 @@ static inline VALUE
 vm_search_normal_superclass2(VALUE klass, VALUE recv, ID mid, NODE **mnp, 
 			     IMP *impp, SEL *selp)
 {
-    static ID idPreviousKlass = 0;
     static ID idNew = 0, idNew2 = 0, idNew3 = 0;
-    CFMutableDictionaryRef iv_dict;
-    VALUE ary, k;
+    VALUE k;
   
     if (idNew == 0) {
 	idNew = rb_intern("new");
@@ -1477,45 +1459,8 @@ vm_search_normal_superclass2(VALUE klass, VALUE recv, ID mid, NODE **mnp,
 	idNew3 = rb_intern("__new__");
     }
 
-    if (idPreviousKlass == 0) {
-	idPreviousKlass = rb_intern("__previous_sklass__");
-    }
-
-    ary = rb_attr_get(klass, idIncludedModules);
-    if (ary != Qnil) {
-	int i, count = RARRAY_LEN(ary);
-	for (i = 0; i < count; i++) {
-	    VALUE saved_imod_super, imod;
-	    NODE *mn;
-	    IMP imp;
-	    SEL sel;
-
-	    imod = RARRAY_AT(ary, i);
-	    saved_imod_super = RCLASS_SUPER(imod);
-	    RCLASS_SUPER(imod) = 0;
-	    mn = rb_objc_method_node(imod, mid, &imp, &sel);
-	    RCLASS_SUPER(imod) = saved_imod_super;
-	    if (imp != NULL) {
-		rb_ivar_set(imod, idPreviousKlass, klass);
-		*mnp = mn;
-		*impp = imp;
-		*selp = sel;
-		return imod;
-	    }
-	}
-    }
-
-    iv_dict = rb_class_ivar_dict(klass);
-    if (iv_dict != NULL 
-	&& CFDictionaryGetValueIfPresent((CFDictionaryRef)iv_dict, 
-					 (const void *)idPreviousKlass, 
-					 (const void **)&k)) {
-	CFDictionaryRemoveValue(iv_dict, (const void *)idPreviousKlass);
-	klass = k;
-    }
-
     k = vm_search_normal_superclass(klass, recv);
-   
+
     /* because #new is added on every new NSObject subclasses, and if overriden
        we should still call our implementation with super */ 
     if ((mid == idNew || mid == idNew2) && k == *(VALUE *)rb_cNSObject) {
