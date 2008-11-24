@@ -133,7 +133,7 @@ vm_call_super(rb_thread_t * const th, const int argc, const VALUE * const argv)
 	klass = RCLASS_SUPER(klass);
 
 	if (klass == 0) {
-	    klass = vm_search_normal_superclass(cfp->method_class, recv);
+	    klass = vm_search_normal_superclass(cfp->method_class, recv, cfp->method_id);
 	}
 
 	id = cfp->method_id;

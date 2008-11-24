@@ -854,7 +854,7 @@ defined
 	      ip = ip->parent_iseq;
 	  }
 	  if (ip) {
-	      VALUE klass = vm_search_normal_superclass(ip->klass, GET_SELF());
+	      VALUE klass = vm_search_normal_superclass(ip->klass, GET_SELF(), 0);
 	      if (rb_method_boundp(klass, ip->defined_method_id, 0)) {
 		  expr_type = "super";
 	      }
