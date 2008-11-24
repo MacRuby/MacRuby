@@ -1115,6 +1115,66 @@ SkipFirstType(const char *type)
     }
 }
 
+static inline void
+rb_method_setTypeEncoding(Method method, const char *types)
+{
+    char **types_p = ((void *)method + sizeof(SEL));
+    free(*types_p);
+    *types_p = strdup(types);
+}
+
+static void *rb_ruby_to_objc_closure(const char *octype, unsigned arity, NODE *node);
+
+static inline void
+rb_overwrite_method_signature(Class klass, SEL sel, const char *types, bool raise_if_error)
+{
+    Method method;
+    IMP imp;
+    NODE *node;
+
+    method = class_getInstanceMethod(klass, sel);
+    if (method == NULL) {
+	if (raise_if_error) {
+	    rb_raise(rb_eArgError, "%c[%s %s] not found",
+		    class_isMetaClass(klass) ? '+' : '-',
+		    class_getName(klass),
+		    sel_getName(sel));
+	}
+	return;
+    }
+
+    if (strcmp(method_getTypeEncoding(method), types) == 0) {
+	return;
+    }
+
+    imp = method_getImplementation(method);
+    node = rb_objc_method_node3(imp);
+    if (node == NULL) {
+	if (raise_if_error) {
+	    rb_raise(rb_eArgError, "%c[%s %s] is a pure Objective-C method",
+		class_isMetaClass(klass) ? '+' : '-',
+		class_getName(klass),
+		sel_getName(sel));
+	}
+	else {
+	    return;
+	}
+    }
+
+    DLOG("OCALL", "overwrite %c[%s %s] type encoding to %s",
+	class_isMetaClass(klass) ? '+' : '-',
+	class_getName(klass),
+	sel_getName(sel),
+	types);
+
+    /* re-generate the FFI closure with the right types */
+    imp = rb_ruby_to_objc_closure(types, method_getNumberOfArguments(method) - 2, node);
+    method_setImplementation(method, imp);
+    
+    /* change the method signature */
+    rb_method_setTypeEncoding(method, types);
+}
+
 VALUE
 rb_objc_call2(VALUE recv, VALUE klass, SEL sel, IMP imp, 
 	      struct rb_objc_method_sig *sig, bs_element_method_t *bs_method, 
@@ -1245,16 +1305,24 @@ rb_objc_call2(VALUE recv, VALUE klass, SEL sel, IMP imp,
     type = SkipStackSize(type);
     type = SkipFirstType(type); /* skip selector */
 
+    bs_element_arg_t *bs_args;
+
+    bs_args = bs_method == NULL ? NULL : bs_method->args;
+
     for (i = 0; i < argc; i++) {
+	bs_element_arg_t *bs_arg;
 	ffi_type *ffi_argtype;
 
+	bs_arg = NULL;
+
 	if (*type == '\0') {
-	    if (bs_method->variadic) {
+	    if (bs_method != NULL && bs_method->variadic) {
 		buf[0] = '@';
 		buf[1] = '\0';
 	    }
 	    else {
-		rb_bug("incomplete method signature `%s' for argc %d", sig->types, argc);
+		rb_bug("incomplete method signature `%s' for argc %d", 
+		       sig->types, argc);
 	    }
 	}
 	else {
@@ -1265,6 +1333,12 @@ rb_objc_call2(VALUE recv, VALUE klass, SEL sel, IMP imp,
 	    strncpy(buf, type, MIN(sizeof buf, type2 - type));
 	    buf[MIN(sizeof buf, type2 - type)] = '\0';
 	    type = type2;
+
+	    if (bs_args != NULL) {
+		while ((bs_arg = bs_args)->index < i) {
+		    bs_args++;
+		}
+	    }
 	}
 
 	ffi_argtypes[i + 2] = rb_objc_octype_to_ffitype(buf);
@@ -1272,6 +1346,35 @@ rb_objc_call2(VALUE recv, VALUE klass, SEL sel, IMP imp,
 	ffi_argtype = ffi_argtypes[i + 2];
 	ffi_args[i + 2] = (void *)alloca(ffi_argtype->size);
 	rb_objc_rval_to_ocval(argv[i], buf, ffi_args[i + 2]);
+
+	if (buf[0] == _C_SEL && bs_arg != NULL && bs_arg->sel_of_type != NULL) {
+	    SEL arg_sel;
+	    int j;
+
+	    arg_sel = *(SEL *)ffi_args[i + 2];
+
+	    /* XXX BridgeSupport tells us that this argument contains a 
+	     * selector of the given type, but we don't have any information
+	     * regarding the target. RubyCocoa and the other ObjC bridges do 
+	     * not really require it since they use the NSObject message 
+	     * forwarding mechanism, but MacRuby registers all methods in the
+	     * runtime.
+	     *
+	     * Therefore, we apply here a naive heuristic by assuming that 
+	     * either the receiver or one of the arguments of this call is the
+	     * future target.
+	     */
+
+	    rb_overwrite_method_signature(*(Class *)ocrcv, arg_sel, 
+					  bs_arg->sel_of_type, false);
+
+	    for (j = 0; j < argc; j++) {
+		if (j != i && !SPECIAL_CONST_P(argv[j])) {
+		    rb_overwrite_method_signature(*(Class *)argv[j], arg_sel,
+						  bs_arg->sel_of_type, false);
+		}
+	    }
+	}
     }
 
     ffi_argtypes[count] = NULL;
@@ -1680,6 +1783,7 @@ rb_ruby_to_objc_closure(const char *octype, unsigned arity, NODE *node)
 
     /* XXX mmap() and mprotect() are 2 expensive calls, maybe we should try to 
      * mmap() and mprotect() a large memory page and reuse it for closures?
+     * XXX currently overwriting a closure leaks the previous one!
      */
 
     if ((closure = mmap(NULL, sizeof(ffi_closure), PROT_READ | PROT_WRITE,
@@ -1961,22 +2065,7 @@ rb_objc_change_ruby_method_signature(VALUE mod, VALUE mid, VALUE sig)
 {
     SEL sel = sel_registerName(rb_id2name(rb_to_id(mid)));
     char *types = StringValuePtr(sig);
-    Class c = (Class)mod;
-    Method m = class_getInstanceMethod(c, sel);
-    if (m == NULL) {
-	rb_raise(rb_eArgError, 
-	    "invalid method %s for given class",
-	    (char *)sel);
-    }
-    IMP imp = method_getImplementation(m);
-    if (rb_objc_method_node3(imp) == NULL) {
-	rb_raise(rb_eArgError, 
-	    "will not replace method signature for method %s because it is a pure Objective-C method", 
-	    (char *)sel);
-    }
-    char **types_p = ((void *)m + sizeof(SEL));
-    free(*types_p);
-    *types_p = strdup(types);
+    rb_overwrite_method_signature((Class)mod, sel, types, true);
 }
 
 static inline bool
