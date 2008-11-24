@@ -1426,48 +1426,66 @@ vm_method_search(VALUE id, VALUE klass, IC ic)
     return mn;
 }
 
+#if WITH_OBJC
 static inline VALUE
-vm_search_normal_superclass(VALUE klass, VALUE recv)
+vm_search_normal_superclass(VALUE klass, VALUE recv, ID mid) 
 {
-    VALUE ary;
+    static ID idNew = 0, idNew2 = 0, idNew3 = 0;
+    VALUE k, ary;
     int i, count;
+    bool klass_located;
 
     ary = rb_mod_ancestors_nocopy(CLASS_OF(recv));
     count = RARRAY_LEN(ary);
-    for (i = 0; i < count; i++) {
-	if (RARRAY_AT(ary, i) == klass) {
+    k = klass;
+    for (i = 0, klass_located = false; i < count; i++) {
+	if (!klass_located && RARRAY_AT(ary, i) == klass) {
+	    klass_located = true;
+	}
+	if (klass_located) {
 	    if (i < count) {
-		klass = RARRAY_AT(ary, i + 1);
+		k = RARRAY_AT(ary, i + 1);
+		if (mid != 0 && TYPE(k) == T_MODULE) {
+		    VALUE tmp;
+		    bool method_defined;
+
+		    tmp = RCLASS_SUPER(k);
+		    RCLASS_SUPER(k) = 0;
+		    method_defined = rb_objc_method_node(k, mid, NULL, NULL) != NULL;
+		    RCLASS_SUPER(k) = tmp;
+		    if (!method_defined) {
+			continue;
+		    }
+		}
 		break;
 	    }
 	}
     }
-    return klass;
-}
+    if (k == klass) {
+	/* XXX this should be an assertion */
+	rb_warn("could not identify the superclass of %s from the ancestors chain!", 
+		class_getName((Class)klass));
+	k = RCLASS_SUPER(klass);
+    }
 
-#if WITH_OBJC
-static inline VALUE
-vm_search_normal_superclass2(VALUE klass, VALUE recv, ID mid, NODE **mnp, 
-			     IMP *impp, SEL *selp)
-{
-    static ID idNew = 0, idNew2 = 0, idNew3 = 0;
-    VALUE k;
-  
+    DLOG("RCALL", "superclass for <%s %p> defined as %s", 
+	    class_getName((Class)klass), 
+	    (void *)recv, 
+	    class_getName((Class)k));
+
     if (idNew == 0) {
 	idNew = rb_intern("new");
 	idNew2 = rb_intern("new:");
 	idNew3 = rb_intern("__new__");
     }
 
-    k = vm_search_normal_superclass(klass, recv);
-
     /* because #new is added on every new NSObject subclasses, and if overriden
        we should still call our implementation with super */ 
     if ((mid == idNew || mid == idNew2) && k == *(VALUE *)rb_cNSObject) {
-	*mnp = rb_objc_method_node(klass, idNew3, impp, selp);
-	if (*mnp == NULL)
+	if (rb_objc_method_node(klass, idNew3, NULL, NULL) == NULL) {
 	    rb_bug("can't look up __new__ in klass `%s'\n", 
 		   class_getName((Class)klass));
+	}
 	k = klass;
     }
 
@@ -1508,7 +1526,7 @@ vm_search_superclass(rb_control_frame_t *reg_cfp, rb_iseq_t *ip,
 	}
 
 	id = lcfp->method_id;
-	klass = vm_search_normal_superclass2(lcfp->method_class, recv, id, mnp, impp, selp);
+	klass = vm_search_normal_superclass(lcfp->method_class, recv, id);
 
 	if (sigval == Qfalse) {
 	    /* zsuper */
@@ -1516,7 +1534,7 @@ vm_search_superclass(rb_control_frame_t *reg_cfp, rb_iseq_t *ip,
 	}
     }
     else {
-	klass = vm_search_normal_superclass2(ip->klass, recv, id, mnp, impp, selp);
+	klass = vm_search_normal_superclass(ip->klass, recv, id);
     }
 
     *idp = id;
