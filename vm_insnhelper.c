@@ -1436,6 +1436,7 @@ vm_search_normal_superclass(VALUE klass, VALUE recv, ID mid)
     bool klass_located;
 
     ary = rb_mod_ancestors_nocopy(CLASS_OF(recv));
+
     count = RARRAY_LEN(ary);
     k = klass;
     for (i = 0, klass_located = false; i < count; i++) {
@@ -1496,7 +1497,7 @@ vm_search_normal_superclass(VALUE klass, VALUE recv, ID mid)
 static void
 vm_search_superclass(rb_control_frame_t *reg_cfp, rb_iseq_t *ip,
 		     VALUE recv, VALUE sigval,
-		     ID *idp, VALUE *klassp, NODE **mnp, IMP *impp, SEL *selp)
+		     ID *idp, VALUE *klassp)
 {
     ID id;
     VALUE klass;

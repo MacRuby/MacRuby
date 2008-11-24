@@ -1251,7 +1251,10 @@ rb_objc_call2(VALUE recv, VALUE klass, SEL sel, IMP imp,
 	    id exception = nil;
 	    //UNLOCK_GIL();
 	    @try {
-		if (klass == RCLASS_SUPER(*(Class *)ocrcv)) {
+		if (klass == *(VALUE *)ocrcv) {
+		    ffi_ret = objc_msgSend(ocrcv, sel);
+		}
+		else {
 		    struct objc_super s;
 		    s.receiver = ocrcv;
 #if defined(__LP64__)
@@ -1260,9 +1263,6 @@ rb_objc_call2(VALUE recv, VALUE klass, SEL sel, IMP imp,
 		    s.class = (Class)klass;
 #endif
 		    ffi_ret = objc_msgSendSuper(&s, sel);
-		}
-		else {
-		    ffi_ret = objc_msgSend(ocrcv, sel);
 		}
 	    }
 	    @catch (id e) {
