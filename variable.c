@@ -1895,13 +1895,14 @@ rb_autoload(VALUE mod, ID id, const char *file)
 	tbl = check_autoload_table(av);
     }
     else {
-	av = Data_Wrap_Struct(0, rb_mark_tbl, st_free_table, 0);
+	av = Data_Wrap_Struct(rb_cData, rb_mark_tbl, st_free_table, 0);
 #if WITH_OBJC
 	rb_ivar_set(mod, autoload, av);
 #else
 	st_add_direct(tbl, autoload, av);
 #endif
-	DATA_PTR(av) = tbl = st_init_numtable();
+	tbl = st_init_numtable();
+	GC_WB(&DATA_PTR(av), tbl);
     }
     fn = rb_str_new2(file);
 #if __LP64__
