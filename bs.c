@@ -570,11 +570,11 @@ bs_parser_parse(bs_parser_t *parser, const char *path,
           enum_name = get_attribute(reader, "name");
           CHECK_ATTRIBUTE(enum_name, "name");
 
-          enum_value = get_attribute(reader, "value");
 #if __LP64__
-          if (enum_value == NULL)
-            enum_value = get_attribute(reader, "value64");
+	  enum_value = get_attribute(reader, "value64");
+	  if (enum_value == NULL)
 #endif
+	    enum_value = get_attribute(reader, "value");
 
 #if BYTE_ORDER == BIG_ENDIAN
 # define BYTE_ORDER_VALUE_ATTR_NAME "be_value"

@@ -2780,6 +2780,26 @@ rb_objc_load_bridge_support(const char *path, int options)
     if (!ok) {
 	rb_raise(rb_eRuntimeError, "%s", error);
     }
+#if defined(__LP64__)
+# if MAC_OS_X_VERSION_MAX_ALLOWED <= 1060
+    /* XXX work around for <rdar://problem/6399046> NSNotFound 64-bit value is incorrect
+     * XXX we should introduce the possibility to write prelude scripts per
+     * frameworks where this kind of changes could be located.
+     */
+    static bool nsnotfound_fixed = false;
+    if (!nsnotfound_fixed) {
+	ID nsnotfound = rb_intern("NSNotFound");
+	VALUE val = 
+	    (VALUE)CFDictionaryGetValue(rb_cObject_dict, (void *)nsnotfound);
+	if ((VALUE)val == INT2FIX(-1)) {
+	    CFDictionarySetValue(rb_cObject_dict, 
+		    (const void *)nsnotfound,
+		    (const void *)ULL2NUM(NSNotFound));
+	    nsnotfound_fixed = true;
+	}
+    }
+# endif
+#endif
 }
 
 static VALUE
