@@ -3196,6 +3196,7 @@ rb_reg_s_union(VALUE self, VALUE args0)
                 }
 		v = rb_reg_s_quote(Qnil, e);
 	    }
+#if !WITH_OBJC
             if (has_ascii_incompat) {
                 if (has_asciionly) {
                     rb_raise(rb_eArgError, "ASCII incompatible encoding: %s",
@@ -3206,6 +3207,7 @@ rb_reg_s_union(VALUE self, VALUE args0)
                         rb_enc_name(has_ascii_incompat), rb_enc_name(has_ascii_compat_fixed));
                 }
             }
+#endif
 
 #if !WITH_OBJC
             if (i == 0) {

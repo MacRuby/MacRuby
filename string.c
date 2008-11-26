@@ -125,8 +125,8 @@ rb_str_bytesync(VALUE str)
 		false,
 		kCFAllocatorNull);
 	if (bytestr != NULL) {
+	    CFStringReplaceAll((CFMutableStringRef)str, (CFStringRef)bytestr);
 	    if (CFStringGetLength(bytestr) == datalen) {
-		CFStringReplaceAll((CFMutableStringRef)str, (CFStringRef)bytestr);
 		rb_str_cfdata_set(str, NULL);
 	    }
 	    CFRelease(bytestr);
@@ -816,6 +816,7 @@ rb_objc_str_cat(VALUE str, const char *ptr, long len, int cfstring_encoding)
     data = (CFMutableDataRef)rb_str_cfdata2(str);
     if (data != NULL) {
 	CFDataAppendBytes(data, (const UInt8 *)ptr, len);
+	RSTRING_SYNC(str);
     }
     else {
 	long slen;
@@ -917,6 +918,7 @@ rb_str_buf_append(VALUE str, VALUE str2)
 		CFDataGetLength(data));
 	}
     }
+    RSTRING_SYNC(str);
 
     return str;
 }
