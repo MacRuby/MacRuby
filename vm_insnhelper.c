@@ -882,9 +882,14 @@ start_method_dispatch:
 			if (method != NULL
 			    && (imp = method_getImplementation(method)) != NULL
 			    && rb_objc_method_node3(imp) == NULL) {
+#if 0
+			    /* XXX this breaks KVO setters since the original implementation
+			     * assumes that _cmd is the original method name.
+			     */
 			    assert(class_addMethod((Class)klass, 
 					mcache->as.rcall.sel, imp,
 					method_getTypeEncoding(method)));
+#endif
 			    mcache->flags = RB_MCACHE_OCALL_FLAG;
 			    mcache->as.rcall.sel = sel;
 			    mcache->as.ocall.klass = klass;
