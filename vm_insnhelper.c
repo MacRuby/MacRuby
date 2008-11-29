@@ -882,14 +882,12 @@ start_method_dispatch:
 			if (method != NULL
 			    && (imp = method_getImplementation(method)) != NULL
 			    && rb_objc_method_node3(imp) == NULL) {
-#if 0
-			    /* XXX this breaks KVO setters since the original implementation
-			     * assumes that _cmd is the original method name.
+			    /* We are caching the original implementation here 
+			     * but we do not create any convenience method on
+			     * the class based on the 'new' selector, because
+			     * this breaks the automatic KVO setters which 
+			     * expect _cmd to remain the original selector.
 			     */
-			    assert(class_addMethod((Class)klass, 
-					mcache->as.rcall.sel, imp,
-					method_getTypeEncoding(method)));
-#endif
 			    mcache->flags = RB_MCACHE_OCALL_FLAG;
 			    mcache->as.rcall.sel = sel;
 			    mcache->as.ocall.klass = klass;
