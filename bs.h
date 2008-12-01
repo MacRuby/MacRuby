@@ -185,6 +185,7 @@ typedef enum {
  *
  * Finds the path of a framework's bridge support file, by looking at the
  * following locations, in order of priority:
+ *  - inside the main executable bundle (if any), in the Resources/BridgeSupport directory ;
  *  - inside the framework bundle, in the Resources/BridgeSupport directory ;
  *  - in ~/Library/BridgeSupport ;
  *  - in /Library/BridgeSupport ;
@@ -232,6 +233,10 @@ typedef enum {
  *
  * parser: the parser object.
  * path: the full path of the bridge support file to parse.
+ * framework_path: the full path of the framework this bridge support file 
+ * comes from. This is only required if options is BS_PARSE_OPTIONS_LOAD_DYLIBS
+ * in order to locate the dylib files. Pass NULL if you are passing the 
+ * default BS_PARSE_OPTIONS_DEFAULT option.
  * options: parsing options.
  * callback: a callback function pointer.
  * context: a contextual data pointer that will be passed to the callback 
@@ -241,8 +246,8 @@ typedef enum {
  * don't need it.  
  */
 bool bs_parser_parse(bs_parser_t *parser, const char *path, 
-  bs_parse_options_t options, bs_parse_callback_t callback, void *context, 
-  char **error);
+  const char *framework_path, bs_parse_options_t options, 
+  bs_parse_callback_t callback, void *context, char **error);
 
 /* bs_element_free()
  *

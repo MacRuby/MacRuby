@@ -2760,7 +2760,8 @@ extern VALUE enable_method_added;
 static bs_parser_t *bs_parser = NULL;
 
 static void
-rb_objc_load_bridge_support(const char *path, int options)
+rb_objc_load_bridge_support(const char *path, const char *framework_path,
+			    int options)
 {
     char *error;
     bool ok;
@@ -2774,7 +2775,7 @@ rb_objc_load_bridge_support(const char *path, int options)
     assert(rb_cObject_dict != NULL);
 
     enable_method_added = Qfalse;
-    ok = bs_parser_parse(bs_parser, path, options,
+    ok = bs_parser_parse(bs_parser, path, framework_path, options,
 			 bs_parse_cb, rb_cObject_dict, &error);
     enable_method_added = Qtrue;
     if (!ok) {
@@ -2827,7 +2828,7 @@ rb_objc_load_bridge_support(const char *path, int options)
 static VALUE
 rb_objc_load_bs(VALUE recv, VALUE path)
 {
-    rb_objc_load_bridge_support(StringValuePtr(path), 0);
+    rb_objc_load_bridge_support(StringValuePtr(path), NULL, 0);
     return recv;
 }
 
@@ -2837,7 +2838,8 @@ rb_objc_search_and_load_bridge_support(const char *framework_path)
     char path[PATH_MAX];
 
     if (bs_find_path(framework_path, path, sizeof path)) {
-	rb_objc_load_bridge_support(path, BS_PARSE_OPTIONS_LOAD_DYLIBS);
+	rb_objc_load_bridge_support(path, framework_path,
+                                    BS_PARSE_OPTIONS_LOAD_DYLIBS);
     }
 }
 
@@ -3640,7 +3642,7 @@ evaluateString_rescue(void)
 
 - (void)loadBridgeSupportFileAtPath:(NSString *)path
 {
-    rb_objc_load_bridge_support([path fileSystemRepresentation], 0);
+    rb_objc_load_bridge_support([path fileSystemRepresentation], NULL, 0);
 }
 
 - (void)loadBridgeSupportFileAtURL:(NSURL *)URL

@@ -65,12 +65,42 @@ get_framework_name(const char *path)
   return name;
 }
 
-bool 
-bs_find_path(const char *framework_path, char *path, const size_t path_len)
+static inline const char *
+_bs_main_bundle_bs_path(void)
 {
+  static bool done = false;
+  static char *path = NULL;
+  /* XXX not thread-safe */
+  if (!done) {
+    CFBundleRef bundle;
+
+    done = true;
+    bundle = CFBundleGetMainBundle();
+    if (bundle != NULL) {
+      CFURLRef url;
+
+      url = CFBundleCopyResourceURL(bundle, CFSTR("BridgeSupport"), 
+                                    NULL, NULL);
+      if (url != NULL) {
+        CFStringRef str = CFURLCopyPath(url);
+        path = (char *)malloc(sizeof(char) * PATH_MAX);
+        CFStringGetFileSystemRepresentation(str, path, PATH_MAX);
+        CFRelease(str);
+        CFRelease(url);
+      }
+    }
+  }
+  return path;
+}
+
+static bool
+_bs_find_path(const char *framework_path, char *path, const size_t path_len,
+              const char *ext)
+{
+  const char *main_bundle_bs_path;
   char *framework_name;
   char *home;
-  
+
   if (framework_path == NULL || *framework_path == '\0' 
       || path == NULL || path_len == 0)
     return false;
@@ -88,29 +118,42 @@ bs_find_path(const char *framework_path, char *path, const size_t path_len)
   if (framework_name == NULL)
     return false;
 
-  snprintf(path, path_len, "%s/Resources/BridgeSupport/%s.bridgesupport",
-           framework_path, framework_name);
+  main_bundle_bs_path = _bs_main_bundle_bs_path();
+  if (main_bundle_bs_path != NULL) {
+    snprintf(path, path_len, "%s/%s.%s", main_bundle_bs_path,
+             framework_name, ext);
+    CHECK_IF_EXISTS();
+  }
+
+  snprintf(path, path_len, "%s/Resources/BridgeSupport/%s.%s",
+           framework_path, framework_name, ext);
   CHECK_IF_EXISTS();
 
   home = getenv("HOME");
   if (home != NULL) {
-    snprintf(path, path_len, "%s/Library/BridgeSupport/%s.bridgesupport",
-      home, framework_name);
+    snprintf(path, path_len, "%s/Library/BridgeSupport/%s.%s",
+      home, framework_name, ext);
     CHECK_IF_EXISTS();
   }
   
-  snprintf(path, path_len, "/Library/BridgeSupport/%s.bridgesupport",
-    framework_name);
+  snprintf(path, path_len, "/Library/BridgeSupport/%s.%s",
+    framework_name, ext);
   CHECK_IF_EXISTS();
 
-  snprintf(path, path_len, "/System/Library/BridgeSupport/%s.bridgesupport",
-    framework_name);
+  snprintf(path, path_len, "/System/Library/BridgeSupport/%s.%s",
+    framework_name, ext);
   CHECK_IF_EXISTS();
 
 #undef CHECK_IF_EXISTS
 
   free(framework_name);
   return false;  
+}
+
+bool 
+bs_find_path(const char *framework_path, char *path, const size_t path_len)
+{
+  return _bs_find_path(framework_path, path, path_len, "bridgesupport");
 }
 
 static inline char *
@@ -383,8 +426,8 @@ bs_parser_free(bs_parser_t *parser)
 
 bool 
 bs_parser_parse(bs_parser_t *parser, const char *path, 
-		bs_parse_options_t options, bs_parse_callback_t callback, 
-		void *context, char **error)
+                const char *framework_path, bs_parse_options_t options, 
+                bs_parse_callback_t callback, void *context, char **error)
 {
   xmlTextReaderPtr reader;
   bs_element_function_t *func;
@@ -501,12 +544,14 @@ bs_parser_parse(bs_parser_t *parser, const char *path,
           
           bs_path_found = bs_find_path(depends_on_path, bs_path, 
                                        sizeof bs_path);
-          free(depends_on_path);
           if (bs_path_found) {
-            if (!bs_parser_parse(parser, bs_path, options, callback, context, 
-                                 error))
+            if (!bs_parser_parse(parser, bs_path, depends_on_path, options, 
+                                 callback, context, error)) {
+              free(depends_on_path);
               return false;
+	    }
           }
+          free(depends_on_path);
           break;
         }
 
@@ -1123,15 +1168,14 @@ bails:
   }
   CFRelease(cf_path);
 
-  if (success && options == BS_PARSE_OPTIONS_LOAD_DYLIBS) {
-    char *p, buf[PATH_MAX];
-    strncpy(buf, path, sizeof buf);
-    p = strrchr(buf, '.');
-    assert(p != NULL);
-    strlcpy(p, ".dylib", p - path - 1);
-    if (access(buf, R_OK) == 0) {
+  if (success && options == BS_PARSE_OPTIONS_LOAD_DYLIBS && framework_path != NULL) {
+    char buf[PATH_MAX];
+
+    if (_bs_find_path(framework_path, buf, sizeof buf, "dylib")) {
       if (dlopen(buf, RTLD_LAZY) == NULL) {
-        *error = dlerror();
+        if (error != NULL) {
+          *error = dlerror();
+        }
         success = false;
       }
     }
