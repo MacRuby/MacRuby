@@ -1433,7 +1433,6 @@ vm_method_search(VALUE id, VALUE klass, IC ic)
 static inline VALUE
 vm_search_normal_superclass(VALUE klass, VALUE recv, ID mid) 
 {
-    static ID idNew = 0, idNew2 = 0, idNew3 = 0;
     VALUE k, ary;
     int i, count;
     bool klass_located;
@@ -1476,22 +1475,6 @@ vm_search_normal_superclass(VALUE klass, VALUE recv, ID mid)
 	    class_getName((Class)klass), 
 	    (void *)recv, 
 	    class_getName((Class)k));
-
-    if (idNew == 0) {
-	idNew = rb_intern("new");
-	idNew2 = rb_intern("new:");
-	idNew3 = rb_intern("__new__");
-    }
-
-    /* because #new is added on every new NSObject subclasses, and if overriden
-       we should still call our implementation with super */ 
-    if ((mid == idNew || mid == idNew2) && k == *(VALUE *)rb_cNSObject) {
-	if (rb_objc_method_node(klass, idNew3, NULL, NULL) == NULL) {
-	    rb_bug("can't look up __new__ in klass `%s'\n", 
-		   class_getName((Class)klass));
-	}
-	k = klass;
-    }
 
     return k;
 }

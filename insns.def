@@ -1090,11 +1090,31 @@ invokesuper
 
     recv = GET_SELF();
     vm_search_superclass(GET_CFP(), GET_ISEQ(), recv, TOPN(num), &id, &klass);
-    mn = rb_objc_method_node(klass, id, NULL, &sel);
 
 #if WITH_OBJC
+    static ID idNew = 0, idNew2 = 0, idNew3 = 0;
     struct rb_method_cache mcache;
     void *mcachep;
+
+    if (idNew == 0) {
+        idNew = rb_intern("new");
+        idNew2 = rb_intern("new:");
+        idNew3 = rb_intern("__new__");
+    }
+
+    /* because #new is added on every new NSObject subclasses, and if overriden
+       we should still call our implementation with super */
+    if ((id == idNew || id == idNew2) && klass == *(VALUE *)rb_cNSObject) {
+	VALUE k = CLASS_OF(recv);
+        if ((mn = rb_objc_method_node(k, idNew3, NULL, &sel)) == NULL) {
+            rb_bug("can't look up __new__ in klass `%s'\n",
+                   class_getName((Class)k));
+        }
+        klass = k;
+    }
+    else {
+	mn = rb_objc_method_node(klass, id, NULL, &sel);
+    }
 
     if (mn != NULL) {
 	mcache.flags = RB_MCACHE_RCALL_FLAG;

@@ -2780,14 +2780,14 @@ rb_objc_load_bridge_support(const char *path, int options)
     if (!ok) {
 	rb_raise(rb_eRuntimeError, "%s", error);
     }
-#if defined(__LP64__)
-# if MAC_OS_X_VERSION_MAX_ALLOWED <= 1060
-    /* XXX work around for <rdar://problem/6399046> NSNotFound 64-bit value is incorrect
-     * XXX we should introduce the possibility to write prelude scripts per
+#if MAC_OS_X_VERSION_MAX_ALLOWED <= 1060
+    /* XXX we should introduce the possibility to write prelude scripts per
      * frameworks where this kind of changes could be located.
      */
-    static bool nsnotfound_fixed = false;
-    if (!nsnotfound_fixed) {
+#if defined(__LP64__)
+    static bool R6399046_fixed = false;
+    /* XXX work around for <rdar://problem/6399046> NSNotFound 64-bit value is incorrect */
+    if (!R6399046_fixed) {
 	ID nsnotfound = rb_intern("NSNotFound");
 	VALUE val = 
 	    (VALUE)CFDictionaryGetValue(rb_cObject_dict, (void *)nsnotfound);
@@ -2795,10 +2795,32 @@ rb_objc_load_bridge_support(const char *path, int options)
 	    CFDictionarySetValue(rb_cObject_dict, 
 		    (const void *)nsnotfound,
 		    (const void *)ULL2NUM(NSNotFound));
-	    nsnotfound_fixed = true;
+	    R6399046_fixed = true;
+	    DLOG("XXX", "applied work-around for rdar://problem/6399046");
 	}
     }
-# endif
+#endif
+    static bool R6401816_fixed = false;
+    /* XXX work around for <rdar://problem/6401816> -[NSObject performSelector:withObject:] has wrong sel_of_type attributes*/
+    if (!R6401816_fixed) {
+	bs_element_method_t *bs_method = 
+	    rb_bs_find_method((Class)rb_cNSObject, 
+			      @selector(performSelector:withObject:));
+	if (bs_method != NULL) {
+	    bs_element_arg_t *arg = bs_method->args;
+	    while (arg != NULL) {
+		if (arg->index == 0 
+		    && arg->sel_of_type != NULL
+		    && arg->sel_of_type[0] != '@') {
+		    arg->sel_of_type[0] = '@';
+		    R6401816_fixed = true;
+		    DLOG("XXX", "applied work-around for rdar://problem/6401816");
+		    break;
+		}
+		arg++;
+	    }
+	}	
+    }
 #endif
 }
 
