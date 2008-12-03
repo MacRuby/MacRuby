@@ -77,6 +77,7 @@ module HotCocoa
       copy_sources
       copy_resources
       copy_framework if deploy?
+      copy_bs_dylibs if deploy?
       copy_icon_file if icon
     end
     
@@ -130,6 +131,15 @@ module HotCocoa
       def copy_framework
         FileUtils.cp_r macruby_framework_path, frameworks_root
         `install_name_tool -change #{current_macruby_path}/usr/lib/libmacruby.dylib @executable_path/../Frameworks/MacRuby.framework/Versions/#{current_macruby_version}/usr/lib/libmacruby.dylib '#{macos_root}/#{objective_c_executable_file}'`
+      end
+
+      def copy_bs_dylibs
+        unless File.exist?(bridgesupport_root)
+          FileUtils.mkdir_p(bridgesupport_root)
+          Dir.glob('/System/Library/Frameworks/**/BridgeSupport/*.dylib').each do |p|
+            FileUtils.cp(p, bridgesupport_root)
+          end
+        end
       end
       
       def copy_sources
@@ -249,6 +259,10 @@ module HotCocoa
       
       def resources_root
         File.join(contents_root, "Resources")
+      end
+
+      def bridgesupport_root
+        File.join(resources_root, "BridgeSupport")
       end
       
       def info_plist_file
