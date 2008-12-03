@@ -1,6 +1,6 @@
 # User customizable variables.
 # These variables can be set from the command line. Example:
-#    $ rake build_as_embeddable=true
+#    $ rake framework_instdir=~/Library/Frameworks sym_instdir=~/bin
 
 def do_option(name, default)
   val = ENV[name]
@@ -28,13 +28,17 @@ FRAMEWORK_NAME = do_option('framework_name', 'MacRuby')
 FRAMEWORK_INSTDIR = do_option('framework_instdir', '/Library/Frameworks')
 SYM_INSTDIR = do_option('sym_instdir', '/usr/local')
 NO_WARN_BUILD = !do_option('allow_build_warnings', false)
-BUILD_AS_EMBEDDABLE = do_option('build_as_embeddable', false)
 ENABLE_STATIC_LIBRARY = do_option('enable_static_library', 'no') { 'yes' }
 ENABLE_DEBUG_LOGGING = do_option('enable_debug_logging', true) { |x| x == 'true' }
 
 # TODO: we should find a way to document these options in rake's --help
 
 # Everything below this comment should *not* be modified.
+
+if ENV['build_as_embeddable']
+  $stderr.puts "The 'build_as_embeddable' build configuration has been removed because it is no longer necessary. To package a full version of MacRuby inside your application, please use `macrake deploy` for HotCocoa apps and the `Embed MacRuby` target for Xcode apps."
+  exit 1
+end
 
 verbose(true)
 
@@ -69,15 +73,7 @@ RUBY_VENDOR_LIB = File.join(FRAMEWORK_USR_LIB_RUBY, 'vendor_ruby')
 RUBY_VENDOR_LIB2 = File.join(RUBY_VENDOR_LIB, NEW_RUBY_VERSION)
 RUBY_VENDOR_ARCHLIB = File.join(RUBY_VENDOR_LIB2, NEW_RUBY_PLATFORM)
 
-INSTALL_NAME = 
-  if BUILD_AS_EMBEDDABLE
-    File.join("@executable_path/../Frameworks", FRAMEWORK_NAME + '.framework',
-	      'Versions', MACRUBY_VERSION, 'usr/lib', 
-	      'lib' + RUBY_SO_NAME + '.dylib')
-  else
-    File.join(FRAMEWORK_USR_LIB, 'lib' + RUBY_SO_NAME + '.dylib')
-  end
-
+INSTALL_NAME = File.join(FRAMEWORK_USR_LIB, 'lib' + RUBY_SO_NAME + '.dylib')
 ARCHFLAGS = ARCHS.map { |a| '-arch ' + a }.join(' ')
 CFLAGS = "-I. -I./include -I/usr/include/libxml2 #{ARCHFLAGS} -fno-common -pipe -O2 -g -Wall"
 CFLAGS << " -Wno-parentheses -Wno-deprecated-declarations -Werror" if NO_WARN_BUILD

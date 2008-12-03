@@ -64,7 +64,18 @@ module HotCocoa
       end
       builder.build
     end
-    
+
+    # Used by the "Embed MacRuby" Xcode target.
+    def self.deploy(path)
+      raise "Given path `#{path}' does not exist" unless File.exist?(path)
+      raise "Given path `#{path}' does not look like an application bundle" unless File.extname(path) == '.app'
+      deployer = new
+      Dir.chdir(File.dirname(path)) do
+        deployer.name = File.basename(path, '.app') 
+        deployer.deploy
+      end
+    end
+
     def initialize
       @sources = []
       @resources = []
@@ -76,11 +87,15 @@ module HotCocoa
       write_bundle_files
       copy_sources
       copy_resources
-      copy_framework if deploy?
-      copy_bs_dylibs if deploy?
+      deploy if deploy?
       copy_icon_file if icon
     end
-    
+   
+    def deploy 
+      copy_framework
+      copy_bs_dylibs
+    end
+
     def deploy?
       @deploy
     end
@@ -129,7 +144,10 @@ module HotCocoa
       end
       
       def copy_framework
-        FileUtils.cp_r macruby_framework_path, frameworks_root
+        unless File.exist?(File.join(frameworks_root, 'MacRuby.framework'))
+          FileUtils.mkdir_p frameworks_root 
+          FileUtils.cp_r macruby_framework_path, frameworks_root
+        end
         `install_name_tool -change #{current_macruby_path}/usr/lib/libmacruby.dylib @executable_path/../Frameworks/MacRuby.framework/Versions/#{current_macruby_version}/usr/lib/libmacruby.dylib '#{macos_root}/#{objective_c_executable_file}'`
       end
 
