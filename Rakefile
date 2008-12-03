@@ -262,8 +262,42 @@ task :dtrace_h do
   end
 end
 
+desc "Create revision.h"
+task :revision_h do
+  revision_h = 'revision.h'
+  current_revision = nil
+  if File.exist?('.svn')
+    info = `sh -c 'LANG=C svn info' 2>&1`
+    md_revision = /^Revision: (\d+)$/.match(info)
+    md_url = /^URL: (.+)$/.match(info)
+    current_revision = "svn revision #{md_revision[1]} from #{md_url[1]}" if md_revision and md_url
+  end
+  if not current_revision and File.exist?('.git/HEAD')
+    md_ref = /^ref: (.+)$/.match(File.read('.git/HEAD'))
+    if md_ref
+      head_file = ".git/#{md_ref[1]}"
+      current_revision = "git commit #{File.read(head_file).strip}" if File.exist?(head_file)
+    end
+  end
+  current_revision = 'unknown revision' unless current_revision
+  
+  new_revision_h = "#define MACRUBY_REVISION \"#{current_revision}\"\n"
+  
+  must_recreate_header = true
+  if File.exist?(revision_h)
+    must_recreate_header = false if File.read(revision_h) == new_revision_h
+  end
+  
+  if must_recreate_header
+    File.open(revision_h, 'w') do |f|
+      f.print new_revision_h
+    end
+  end
+end
+
+
 desc "Build known objects"
-task :objects => [:config_h, :dtrace_h] do
+task :objects => [:config_h, :dtrace_h, :revision_h] do
   sh "/usr/bin/ruby tool/compile_prelude.rb prelude.rb miniprelude.c.new"
   if !File.exist?('miniprelude.c') or File.read('miniprelude.c') != File.read('miniprelude.c.new')
     mv('miniprelude.c.new', 'miniprelude.c')
