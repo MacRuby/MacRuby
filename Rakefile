@@ -652,11 +652,14 @@ namespace :rubycocoa do
   
   desc 'For lack of working RubyGems this is a task that installs the dependencies for the RubyCocoa layer tests'
   task :install_test_spec_and_mocha do
-    get 'http://files.rubyforge.vm.bytemark.co.uk/test-spec/test-spec-0.4.0.tar.gz'
-    install '/tmp/test-spec-0.4.0/lib/test'
+    test_spec = '0.9.0'
+    mocha = '0.9.3'
     
-    get 'http://files.rubyforge.mmmultiworks.com/mocha/mocha-0.5.6.tgz'
-    mocha = '/tmp/mocha-0.5.6'
+    get "http://files.rubyforge.vm.bytemark.co.uk/test-spec/test-spec-#{test_spec}.tar.gz"
+    install "/tmp/test-spec-#{test_spec}/lib/test"
+    
+    get "http://files.rubyforge.mmmultiworks.com/mocha/mocha-#{mocha}.tgz"
+    mocha = "/tmp/mocha-#{mocha}"
     FileList["#{mocha}/lib/*.rb", "#{mocha}/lib/mocha"].each { |f| install f }
   end
   
