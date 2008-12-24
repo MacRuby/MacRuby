@@ -273,11 +273,19 @@ task :revision_h do
     current_revision = "svn revision #{md_revision[1]} from #{md_url[1]}" if md_revision and md_url
   end
   if not current_revision and File.exist?('.git/HEAD')
-    md_ref = /^ref: (.+)$/.match(File.read('.git/HEAD'))
+    commit_sha1 = nil
+    head = File.read('.git/HEAD').strip
+    md_ref = /^ref: (.+)$/.match(head)
     if md_ref
+      # if the HEAD file contains "ref: XXXX", it's the reference to a branch
+      # so we read the file indicating the last commit of the branch
       head_file = ".git/#{md_ref[1]}"
-      current_revision = "git commit #{File.read(head_file).strip}" if File.exist?(head_file)
+      commit_sha1 = File.read(head_file).strip if File.exist?(head_file)
+    else
+      # otherwise, it's a detached head so it should be the SHA1 of the last commit
+      commit_sha1 = head
     end
+    current_revision = "git commit #{commit_sha1}" if commit_sha1 and not commit_sha1.empty?
   end
   current_revision = 'unknown revision' unless current_revision
   
