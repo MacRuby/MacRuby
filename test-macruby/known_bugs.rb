@@ -32,4 +32,29 @@ module KnownBugs
       assert should_be_callable? # causes endless loop
     end
   end
+  
+  class TestDuplicatingInstances < Test::Unit::TestCase
+    # Works
+    
+    class Foo; end
+    
+    def test_dup_on_an_instance_of_a_pure_ruby_class
+      obj = Foo.new
+      assert_not_equal obj, obj.dup.object_id
+    end
+    
+    # Fails
+    
+    def test_dup_on_an_instance_of_Object
+      obj = Object.new
+      assert_nothing_raised(NSException) do
+        # Raises: [NSObject copyWithZone:]: unrecognized selector sent to instance
+        assert_not_equal obj.object_id, obj.dup.object_id
+      end
+    end
+    
+    def test_dup_on_a_class_instance
+      assert_not_equal Foo.object_id, Foo.dup.object_id
+    end
+  end
 end
