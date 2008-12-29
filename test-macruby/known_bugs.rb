@@ -57,4 +57,10 @@ module KnownBugs
       assert_not_equal Foo.object_id, Foo.dup.object_id
     end
   end
+  
+  class TestStringFormatting < Test::Unit::TestCase
+    def test_formatting_with_a_Bignum
+      assert_nothing_raised(RangeError) { "%d" % 68727360256 }
+    end
+  end
 end
