@@ -63,4 +63,18 @@ module KnownBugs
       assert_nothing_raised(RangeError) { "%d" % 68727360256 }
     end
   end
+  
+  class TestIncludingModuleInClass < Test::Unit::TestCase
+    module ClassInstanceMethod
+      def a_class_instance_method; end
+    end
+    
+    class ::Class
+      include ClassInstanceMethod
+    end
+    
+    def test_class_should_respond_to_methods_included_in_Class
+      assert Class.new.respond_to?(:a_class_instance_method)
+    end
+  end
 end
