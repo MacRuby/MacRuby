@@ -87,7 +87,7 @@ module KnownBugs
       include ModuleInstanceMethod
     end
     
-    def test_class_should_respond_to_methods_included_in_Class
+    def test_module_should_respond_to_methods_included_in_Module
       assert Module.new.respond_to?(:a_module_instance_method)
     end
   end
