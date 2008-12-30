@@ -77,4 +77,18 @@ module KnownBugs
       assert Class.new.respond_to?(:a_class_instance_method)
     end
   end
+  
+  class TestIncludingModuleInModule < Test::Unit::TestCase
+    module ModuleInstanceMethod
+      def a_module_instance_method; end
+    end
+    
+    class ::Module
+      include ModuleInstanceMethod
+    end
+    
+    def test_class_should_respond_to_methods_included_in_Class
+      assert Module.new.respond_to?(:a_module_instance_method)
+    end
+  end
 end
