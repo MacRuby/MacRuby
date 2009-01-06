@@ -91,4 +91,19 @@ module KnownBugs
       assert Module.new.respond_to?(:a_module_instance_method)
     end
   end
+  
+  class TestConstantLookup < Test::Unit::TestCase
+    module Namespace
+      NamespacedConstant = nil
+      class NamespacedClass; end
+    end
+    
+    def test_should_not_find_namespaced_constants # works
+      assert_raise(NameError) { NamespacedConstant }
+    end
+    
+    def test_should_not_find_namespaced_classes # fails
+      assert_raise(NameError) { NamespacedClass }
+    end
+  end
 end
