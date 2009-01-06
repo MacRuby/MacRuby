@@ -106,4 +106,18 @@ module KnownBugs
       assert_raise(NameError) { NamespacedClass }
     end
   end
+  
+  class TestRespondTo < Test::Unit::TestCase
+    class RespondTo
+      def respond_to?(method, hidden = false)
+        super
+      end
+    end
+    
+    def test_super_implementation
+      assert_nothing_raised(SystemStackError) do
+        RespondTo.new.respond_to?(:object_id)
+      end
+    end
+  end
 end
