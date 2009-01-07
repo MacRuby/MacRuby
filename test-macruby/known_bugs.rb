@@ -1,6 +1,7 @@
 #!/usr/local/bin/macruby
 
 require "test/unit"
+framework 'Cocoa'
 
 module KnownBugs
   class TestYaml < Test::Unit::TestCase
@@ -118,6 +119,13 @@ module KnownBugs
       assert_nothing_raised(SystemStackError) do
         RespondTo.new.respond_to?(:object_id)
       end
+    end
+  end
+  
+  class TestBooleanComparison < Test::Unit::TestCase
+    def test_NSCFBoolean_comparison_to_Ruby_bool
+      assert_equal true,  NSNumber.numberWithBool(true)
+      assert_equal false, NSNumber.numberWithBool(false)
     end
   end
 end
