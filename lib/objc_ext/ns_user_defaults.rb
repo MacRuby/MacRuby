@@ -1,4 +1,4 @@
-module MacRuby
+class MacRuby
   module ObjcExt
     module NSUserDefaults
       def [](key)
