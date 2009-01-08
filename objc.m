@@ -3124,6 +3124,16 @@ rb_objc_kvo_setter_imp(void *recv, SEL sel, void *value)
     return NULL; /* we explicitely return NULL because otherwise a special constant may stay on the stack and be returned to Objective-C, and do some very nasty crap, especially if called via -[performSelector:]. */
 }
 
+/*
+  Defines an attribute writer method which conforms to Key-Value Coding.
+  (See http://developer.apple.com/documentation/Cocoa/Conceptual/KeyValueCoding/KeyValueCoding.html)
+  
+    attr_accessor :foo
+  
+  Will create the normal accessor methods, plus <tt>setFoo</tt>
+  
+  TODO: Does not handle the case were the user might override #foo=
+*/
 void
 rb_objc_define_kvo_setter(VALUE klass, ID mid)
 {
