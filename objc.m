@@ -118,8 +118,9 @@ __iterate_until(const char *type, char end)
 	    nested++;
 	}
 	else if (*type == end) {
-	    if (nested == 0)
+	    if (nested == 0) {
 		return type;
+	    }
 	    nested--;
 	}
     }
