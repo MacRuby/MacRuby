@@ -186,8 +186,9 @@ fake_ary_ffi_type(size_t size, size_t align)
 	GC_ROOT(&ary_ffi_types);
     }
 
-    if (st_lookup(ary_ffi_types, (st_data_t)size, (st_data_t *)&type))
+    if (st_lookup(ary_ffi_types, (st_data_t)size, (st_data_t *)&type)) {
 	return type;
+    }
 
     type = (ffi_type *)malloc(sizeof(ffi_type));
 
@@ -196,8 +197,9 @@ fake_ary_ffi_type(size_t size, size_t align)
     type->type = FFI_TYPE_STRUCT;
     type->elements = malloc(size * sizeof(ffi_type *));
   
-    for (i = 0; i < size; i++)
+    for (i = 0; i < size; i++) {
 	type->elements[i] = &ffi_type_uchar;
+    }
 
     st_insert(ary_ffi_types, (st_data_t)size, (st_data_t)type);
 
