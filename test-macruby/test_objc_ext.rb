@@ -1,6 +1,6 @@
 #!/usr/bin/env macruby
 
-$: << File.expand_path('../../lib', __FILE__)
+$:.unshift(File.expand_path('../../lib', __FILE__))
 framework 'Cocoa'
 
 require 'test/unit'
@@ -54,6 +54,9 @@ class TestNSRectExtensions < Test::Unit::TestCase
   it "should assign the height to its size instance with #height=" do
     @rect.height = 300
     assert_equal 300, @rect.height
+    
+    @rect.height = NSNumber.numberWithInt(400)
+    assert_equal 400, @rect.height
   end
   
   it "should return its size instance's width with #width" do
@@ -63,6 +66,9 @@ class TestNSRectExtensions < Test::Unit::TestCase
   it "should assign the width to its size instance with #width=" do
     @rect.width = 300
     assert_equal 300, @rect.width
+    
+    @rect.width = NSNumber.numberWithInt(400)
+    assert_equal 400, @rect.width
   end
   
   it "should return its origin instance's x coord with #x" do
@@ -72,6 +78,9 @@ class TestNSRectExtensions < Test::Unit::TestCase
   it "should assign the x coord to its origin instance with #x=" do
     @rect.x = 200
     assert_equal 200, @rect.x
+    
+    @rect.x = NSNumber.numberWithInt(300)
+    assert_equal 300, @rect.x
   end
   
   it "should return its origin instance's y coord with #y" do
@@ -81,5 +90,8 @@ class TestNSRectExtensions < Test::Unit::TestCase
   it "should assign the y coord to its origin instance with #y=" do
     @rect.y = 200
     assert_equal 200, @rect.y
+    
+    @rect.y = NSNumber.numberWithInt(300)
+    assert_equal 300, @rect.y
   end
 end
