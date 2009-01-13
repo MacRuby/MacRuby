@@ -1028,7 +1028,10 @@ VALUE
 syck_const_find(VALUE const_name)
 {
     VALUE tclass = rb_cObject;
-    VALUE tparts = rb_str_split2( const_name, oDoubleColon );
+    // This speed improvement currently leads to a SEGV,
+    // See known_bugs: test_accessing_an_array_created_via_rb_str_split2
+    // VALUE tparts = rb_str_split2( const_name, oDoubleColon );
+    VALUE tparts = rb_str_split( const_name, "::" );
     int i = 0, count;
     for ( i = 0, count = RARRAY_LEN(tparts); i < count; i++ ) {
         VALUE tpart = rb_to_id( rb_ary_entry( tparts, i ) );
@@ -1063,7 +1066,10 @@ syck_resolver_transfer(VALUE self, VALUE type, VALUE val)
         if ( NIL_P( target_class ) )
         {
             VALUE subclass_parts = rb_ary_new();
-            VALUE parts = rb_str_split2( type, oColon );
+            // This speed improvement currently leads to a SEGV,
+            // See known_bugs: test_accessing_an_array_created_via_rb_str_split2
+            //VALUE parts = rb_str_split2( type, oColon );
+            VALUE parts = rb_str_split( type, ":" );
 
             while ( RARRAY_LEN(parts) > 1 )
             {
