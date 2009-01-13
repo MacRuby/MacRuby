@@ -1109,9 +1109,7 @@ syck_resolver_transfer(VALUE self, VALUE type, VALUE val)
                         }
                         else /* workaround for SEGV. real fix please */
                         {
-                            VALUE msg = rb_str_new2( "invalid subclass: " );
-                            rb_str_append( msg, subclass );
-                            rb_raise( rb_eTypeError, RSTRING_PTR(msg) );
+                            rb_raise( rb_eNameError, "uninitialized constant %s found while instantiating classes from YAML", RSTRING_PTR( subclass ) );
                         }
                     }
                     break;
