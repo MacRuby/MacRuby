@@ -155,6 +155,8 @@ class MacRuby::TestPrimitiveTypes < Test::Unit::TestCase
     @pure_objc_instance = PureObjCSubclass.alloc.init
   end
   
+  include TempDirHelper
+  
   it "should be possible to use a Ruby String as dictionary key and pass the dictionary of into Objective-C land" do
     key = String.new("foo")
     value = Object.new

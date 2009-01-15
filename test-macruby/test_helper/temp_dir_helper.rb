@@ -1,6 +1,13 @@
 require "fileutils"
 
 module TempDirHelper
+  def self.included(klass)
+    klass.class_eval do
+      alias_method :setup, :setup_temp_dir! unless instance_methods(false).include?(:setup)
+      alias_method :teardown, :teardown_temp_dir! unless instance_methods(false).include?(:teardown)
+    end
+  end
+  
   def ensure_dir!(path)
     FileUtils.mkdir_p(path) unless File.exist?(path)
   end
