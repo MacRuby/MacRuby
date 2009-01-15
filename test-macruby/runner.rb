@@ -1,2 +1,3 @@
-path = File.dirname(__FILE__)
-Dir.glob(File.join(path, 'test_*.rb')).each { |p| require(p) }
+Dir.glob(File.expand_path('../cases/*_test.rb', __FILE__)).each do |test|
+  require test
+end

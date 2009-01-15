@@ -1,6 +1,6 @@
-# -*- coding: utf-8 -*-
+#!/usr/bin/env macruby
 
-require 'test/unit'
+require File.expand_path('../../test_helper', __FILE__)
 
 class TestString < Test::Unit::TestCase
 

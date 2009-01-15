@@ -1,16 +1,8 @@
 #!/usr/bin/env macruby
 
-$:.unshift(File.expand_path('../../lib', __FILE__))
-framework 'Cocoa'
+require File.expand_path('../../test_helper', __FILE__)
 
-require 'test/unit'
-class Test::Unit::TestCase
-  class << self
-    def it(name, &block)
-      define_method("test_#{name}", &block)
-    end
-  end
-end
+framework 'Cocoa'
 
 # These tests should probably move to the macruby part of rubyspec once we get to that point.
 
