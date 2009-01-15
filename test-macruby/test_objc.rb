@@ -1,4 +1,29 @@
+#!/usr/bin/env macruby
+
 require 'test/unit'
+
+require 'test/unit'
+class Test::Unit::TestCase
+  class << self
+    def it(name, &block)
+      define_method("test_#{name}", &block)
+    end
+  end
+end
+
+class TestClassConstantLookup < Test::Unit::TestCase
+  module Namespace
+    class PureRubyClass; end
+  end
+  
+  it "should not find pure Ruby classes in different namespaces" do
+    assert_raise(NameError) { PureRubyClass }
+  end
+  
+  it "should find pure Ruby class in different namespaces if given the correct path" do
+    assert_nothing_raised(NameError) { Namespace::PureRubyClass }
+  end
+end
 
 class TestSubclass < Test::Unit::TestCase
 

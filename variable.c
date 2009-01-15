@@ -2086,10 +2086,20 @@ rb_const_get_0(VALUE klass, ID id, int exclude, int recurse)
      * rb_objc_resolve_const_value(), but it is still useful to keep the
      * dynamic import facility, because someone in the Objective-C world may
      * dynamically define classes at runtime (like ScriptingBridge.framework).
+     *
+     * Note that objc_getClass does _not_ honor namespaces. Consider:
+     *
+     *  module Namespace
+     *    class RubyClass; end
+     *  end
+     *
+     * In this case objc_getClass will happily return the Namespace::RubyClass
+     * object, which is ok but _not_ when trying to find a Ruby class. So we
+     * test whether or not the found class is a pure Ruby class or not.
      */
     {
 	Class k = (Class)objc_getClass(rb_id2name(id));
-	if (k != NULL)
+	if ((k != NULL) && (RCLASS_VERSION(k) != (RCLASS_IS_OBJECT_SUBCLASS | RCLASS_IS_RUBY_CLASS)))
 	    return (VALUE)k;
     }
 #endif
