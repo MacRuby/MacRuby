@@ -14,14 +14,32 @@ end
 class TestClassConstantLookup < Test::Unit::TestCase
   module Namespace
     class PureRubyClass; end
+    module PureRubyModule; end
+    SINGLETON = (class << self; self; end)
   end
   
   it "should not find pure Ruby classes in different namespaces" do
     assert_raise(NameError) { PureRubyClass }
   end
   
-  it "should find pure Ruby class in different namespaces if given the correct path" do
+  it "should find pure Ruby classes in different namespaces if given the correct path" do
     assert_nothing_raised(NameError) { Namespace::PureRubyClass }
+  end
+  
+  it "should not find pure Ruby modules in different namespaces" do
+    assert_raise(NameError) { PureRubyModule }
+  end
+  
+  it "should find pure Ruby modules in different namespaces if given the correct path" do
+    assert_nothing_raised(NameError) { Namespace::PureRubyModule }
+  end
+  
+  it "should not find pure Ruby class singletons in different namespaces" do
+    assert_raise(NameError) { SINGLETON }
+  end
+  
+  it "should find pure Ruby class singletons in different namespaces if given the correct path" do
+    assert_nothing_raised(NameError) { Namespace::SINGLETON }
   end
 end
 
