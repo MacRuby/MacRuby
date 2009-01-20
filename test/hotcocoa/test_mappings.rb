@@ -72,11 +72,5 @@ class TestMappings < Test::Unit::TestCase
   def test_reload
     flunk 'Pending.'
   end
-  
-  private
-  
-  # Helper methods for test_framework_loaded
-  def self.foo_loaded; @foo_loaded; end
-  def self.foo_loaded=(val); @foo_loaded = val; end
-  
+    
 end
