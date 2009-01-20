@@ -29,7 +29,7 @@ class TestMapper < Test::Unit::TestCase
   end
     
   it "should convert from camelcase to underscore" do
-    assert sample_mapper.underscore("SampleCamelCasedWord"), 'sample_camel_cased_word' 
+    assert sample_mapper.underscore("SampleCamelCasedWord"), 'sample_camel_cased_word'
   end
   
   def test_include_in_class
