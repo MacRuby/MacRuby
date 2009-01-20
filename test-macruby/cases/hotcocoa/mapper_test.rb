@@ -1,5 +1,7 @@
+#!/usr/bin/env macruby
+
+require File.expand_path('../../../test_helper', __FILE__)
 require 'hotcocoa'
-require File.join(File.dirname(__FILE__), 'test_helper')
 
 class SampleClass
 end

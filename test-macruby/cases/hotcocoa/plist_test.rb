@@ -1,4 +1,6 @@
-require 'test/unit'
+#!/usr/bin/env macruby
+
+require File.expand_path('../../../test_helper', __FILE__)
 require 'hotcocoa'
 
 class TestPlist < Test::Unit::TestCase
