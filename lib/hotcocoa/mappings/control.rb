@@ -10,7 +10,7 @@ HotCocoa::Mappings.map :control => :NSControl do
 
   custom_methods do
    
-    include TargetActionConvenience 
+    include HotCocoa::Mappings::TargetActionConvenience 
     
     def text=(text)
       setStringValue(text)

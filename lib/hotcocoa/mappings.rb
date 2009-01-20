@@ -30,15 +30,16 @@ module HotCocoa
       framework = options.delete(:framework)
       mapped_name = options.keys.first
       mapped_value = options.values.first
+      const = Object.full_const_get(mapped_value)
       if mapped_value.kind_of?(Class)
         m = Mapper.map_instances_of(mapped_value, mapped_name, &block)
         mappings[m.builder_method] = m
-      elsif framework.nil? || Object.const_defined?(mapped_value)
-        m = Mapper.map_instances_of(Object.const_get(mapped_value), mapped_name, &block)
+      elsif framework.nil? || const
+        m = Mapper.map_instances_of(const, mapped_name, &block)
         mappings[m.builder_method] = m
       else
         on_framework(framework) do
-          m = Mapper.map_instances_of(Object.const_get(mapped_value), mapped_name, &block)
+          m = Mapper.map_instances_of(const, mapped_name, &block)
           mappings[m.builder_method] = m
         end
       end

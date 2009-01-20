@@ -1,4 +1,4 @@
-Mappings.map :layout_view => :LayoutView do
+HotCocoa::Mappings.map :layout_view => :"HotCocoa::LayoutView" do
 
   defaults :frame => DefaultEmptyRect, :layout => {}
 

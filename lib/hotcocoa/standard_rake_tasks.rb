@@ -1,11 +1,11 @@
-AppConfig = ApplicationBuilder::Configuration.new("config/build.yml")
+AppConfig = HotCocoa::ApplicationBuilder::Configuration.new("config/build.yml")
 
 task :deploy => [:clean] do
-  ApplicationBuilder.build(AppConfig, :deploy => true)
+  HotCocoa::ApplicationBuilder.build(AppConfig, :deploy => true)
 end
 
 task :build do
-  ApplicationBuilder.build(AppConfig)
+  HotCocoa::ApplicationBuilder.build(AppConfig)
 end
 
 task :run => [:build] do

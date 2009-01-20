@@ -21,7 +21,7 @@ HotCocoa::Mappings.map :toolbar_item => :NSToolbarItem do
 
   custom_methods do
     
-    include TargetActionConvenience
+    include HotCocoa::Mappings::TargetActionConvenience
     
     def priority=(value)
       setVisibilityPriority(value)
