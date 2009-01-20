@@ -9,7 +9,7 @@ end
 class TestMapper < Test::Unit::TestCase
   
   include HotCocoa::Mappings
-
+  
   it "should have two hash attributes named #bindings and #delegate" do
     assert Mapper.bindings_modules.is_a?(Hash)
     assert Mapper.delegate_modules.is_a?(Hash)
@@ -33,14 +33,12 @@ class TestMapper < Test::Unit::TestCase
   end
   
   def test_include_in_class
-
     m = sample_mapper(true)
     m.include_in_class
     
     assert_equal m.instance_variable_get('@extension_method'), :include
-
+    
     flunk 'Pending.'
-
   end
   
   def test_each_control_ancestor
