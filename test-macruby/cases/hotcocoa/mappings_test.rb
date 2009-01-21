@@ -28,7 +28,7 @@ class TestMappings < Test::Unit::TestCase
   end
   
   it "should create a mapping to a class with a symbol name of the class given to #map" do
-    Mappings.map(:klass => 'SampleClass') {}
+    Mappings.map(:klass => :SampleClass) {}
     assert_equal SampleClass, Mappings.mappings[:klass].control_class
   end
   
