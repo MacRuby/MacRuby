@@ -4,8 +4,16 @@ require File.expand_path('../../../test_helper', __FILE__)
 require 'hotcocoa'
 
 class SampleClass
-  def self.val; @val || false; end
-  def self.val= (v); @val = v; end
+end
+
+class Mock
+  def call!
+    @called = true
+  end
+  
+  def called?
+    @called
+  end
 end
 
 class TestMappings < Test::Unit::TestCase
@@ -47,7 +55,7 @@ class TestMappings < Test::Unit::TestCase
   end
   
   it "should create a mapping to a class in a framework with #map" do
-    mock = mocked_object
+    mock = Mock.new
     
     Mappings.map(:klass => 'ClassInTheFrameWork', :framework => 'TheFramework') do
       mock.call!
@@ -58,14 +66,14 @@ class TestMappings < Test::Unit::TestCase
   end
   
   it "should execute the framework's callbacks when #framework_loaded is called" do
-    mock1, mock2 = mocked_object, mocked_object
+    mocks = Array.new(2) { Mock.new }
     
-    [mock1, mock2].each do |mock|
+    mocks.each do |mock|
       Mappings.on_framework('TheFramework') { mock.call! }
     end
     Mappings.framework_loaded('TheFramework')
     
-    [mock1, mock2].each { |mock| assert mock.called? }
+    mocks.each { |mock| assert mock.called? }
   end
   
   it "should do nothing if the framework passed to #framework_loaded isn't registered" do
@@ -76,18 +84,5 @@ class TestMappings < Test::Unit::TestCase
   
   def test_reload
     flunk 'Pending.'
-  end
-  
-  private
-  
-  def mocked_object
-    mock = Object.new
-    def mock.call!
-      @called = true
-    end
-    def mock.called?
-      @called
-    end
-    mock
   end
 end
