@@ -19,7 +19,12 @@ end
 class TestMappings < Test::Unit::TestCase
   
   include HotCocoa
-    
+  
+  after do
+    Mappings.mappings[:klass] = nil
+    Mappings.frameworks["theframework"] = nil
+  end
+  
   it "should have two Hash attributes named #mappings and #frameworks" do
     assert Mappings.mappings.is_a?(Hash)
     assert Mappings.frameworks.is_a?(Hash)
@@ -80,6 +85,22 @@ class TestMappings < Test::Unit::TestCase
     assert_nothing_raised do
       Mappings.framework_loaded('FrameworkDoesNotExist')
     end
+  end
+  
+  it "should resolve a constant when a framework, that's registered with #map, is loaded" do
+    assert_nothing_raised(NameError) do
+      Mappings.map(:klass => 'ClassFromFramework', :framework => 'TheFramework') {}
+    end
+    
+    # The mapping should not yet exist
+    assert_nil Mappings.mappings[:klass]
+    
+    # now we actually define the class and fake the loading of the framework
+    eval "class ::ClassFromFramework; end"
+    Mappings.framework_loaded('TheFramework')
+    
+    # It should be loaded by now
+    assert_equal ClassFromFramework, Mappings.mappings[:klass].control_class
   end
   
   def test_reload
