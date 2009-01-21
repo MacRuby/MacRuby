@@ -17,48 +17,60 @@ class TestMappings < Test::Unit::TestCase
     assert Mappings.frameworks.is_a?(Hash)
   end
   
-  it "should register callbacks for the point of time when a framework is loaded with #on_framework" do
-    p = Proc.new {}
-    Mappings.on_framework(:Foo, &p)
-    assert_equal(Mappings.frameworks['foo'].last, p)
+  it "should create a mapping to a class with a Class instance given to #map" do
+    Mappings.map(:klass => SampleClass) {}
+    assert_equal SampleClass, Mappings.mappings[:klass].control_class
   end
   
-  it "should create a mapping to a class with #map" do
-    
-    block = Proc.new do
-      def alloc_with_options(options); options; end
+  it "should create a mapping to a class with a string name of the class given to #map" do
+    Mappings.map(:klass => 'SampleClass') {}
+    assert_equal SampleClass, Mappings.mappings[:klass].control_class
+  end
+  
+  it "should create a mapping to a class with a symbol name of the class given to #map" do
+    Mappings.map(:klass => 'SampleClass') {}
+    assert_equal SampleClass, Mappings.mappings[:klass].control_class
+  end
+  
+  it "should register the key, in the options given to #map, as the builder_method" do
+    Mappings.map(:klass => SampleClass) {}
+    assert_equal Mappings.mappings[:klass].builder_method, :klass
+  end
+  
+  it "should use the block given to #map as the control_module body" do
+    Mappings.map(:klass => SampleClass) do
+      def a_control_module_instance_method; end
     end
     
-    HotCocoa::Mappings.map({:foo => :SampleClass}, &block)
-    
-    m = HotCocoa::Mappings.mappings[:foo]
-    
-    assert_equal(m.control_class, SampleClass)
-    assert_equal(m.builder_method, :foo)
-    assert(m.control_module.instance_methods.include?(:alloc_with_options))
-    
+    assert Mappings.mappings[:klass].control_module.
+            instance_methods.include?(:a_control_module_instance_method)
   end
   
-  it "should create a mapping to a class for a framework with #map" do
-    p = Proc.new {}
-    HotCocoa::Mappings.map({:foo => :SampleClass, :framework => :Anonymous}, &p)
-    # require 'pp'; pp HotCocoa::Mappings
+  it "should create a mapping to a class in a framework with #map" do
+    mock = mocked_object
     
-    # FIXME: This is not really nice. We test that the result exists, but not what it is.
-    assert_equal Mappings.frameworks["anonymous"].size, 1
+    Mappings.map(:klass => 'ClassInTheFrameWork', :framework => 'TheFramework') do
+      mock.call!
+    end
+    Mappings.frameworks["theframework"].last.call
+    
+    assert mock.called?
   end
   
-  it "should call the framework's callbacks if it's passed to #framework_loaded" do
-    p = Proc.new { SampleClass.val = true }
-    Mappings.on_framework(:Foo, &p)
-    Mappings.framework_loaded(:Foo)
+  it "should execute the framework's callbacks when #framework_loaded is called" do
+    mock1, mock2 = mocked_object, mocked_object
     
-    assert_equal SampleClass.val, true
+    [mock1, mock2].each do |mock|
+      Mappings.on_framework('TheFramework') { mock.call! }
+    end
+    Mappings.framework_loaded('TheFramework')
+    
+    [mock1, mock2].each { |mock| assert mock.called? }
   end
   
-  it "should raise nothing if there's no entry for the framework passed to #framework_loaded" do
+  it "should do nothing if the framework passed to #framework_loaded isn't registered" do
     assert_nothing_raised do
-      Mappings.framework_loaded(:FrameworkDoesNotExist)
+      Mappings.framework_loaded('FrameworkDoesNotExist')
     end
   end
   
@@ -66,4 +78,16 @@ class TestMappings < Test::Unit::TestCase
     flunk 'Pending.'
   end
   
+  private
+  
+  def mocked_object
+    mock = Object.new
+    def mock.call!
+      @called = true
+    end
+    def mock.called?
+      @called
+    end
+    mock
+  end
 end
