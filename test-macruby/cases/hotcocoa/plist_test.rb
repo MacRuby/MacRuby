@@ -7,7 +7,7 @@ class TestPlist < Test::Unit::TestCase
   include HotCocoa
 
   def test_to_plist
-    assert_plist(123)
+    assert_plist(123) # fails because atm a Numeric is not based on NSNumber
     assert_plist(true)
     assert_plist(false)
     assert_plist('foo')
