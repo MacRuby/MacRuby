@@ -23,6 +23,7 @@ class TestMappings < Test::Unit::TestCase
   after do
     Mappings.mappings[:klass] = nil
     Mappings.frameworks["theframework"] = nil
+    Mappings.loaded_frameworks.delete('theframework')
   end
   
   it "should have two Hash attributes named #mappings and #frameworks" do
@@ -62,8 +63,7 @@ class TestMappings < Test::Unit::TestCase
   it "should create a mapping to a class in a framework with #map" do
     mock = Mock.new
     
-    eval "class ::ClassInTheFrameWork; end"
-    Mappings.map(:klass => 'ClassInTheFrameWork', :framework => 'TheFramework') do
+    Mappings.map(:klass => 'SampleClass', :framework => 'TheFramework') do
       mock.call!
     end
     Mappings.frameworks["theframework"].last.call
@@ -90,7 +90,7 @@ class TestMappings < Test::Unit::TestCase
   
   it "should resolve a constant when a framework, that's registered with #map, is loaded" do
     assert_nothing_raised(NameError) do
-      Mappings.map(:klass => 'ClassFromFramework', :framework => 'TheFrameworkAfterLoad') {}
+      Mappings.map(:klass => 'ClassFromFramework', :framework => 'TheFramework') {}
     end
     
     # The mapping should not yet exist
@@ -98,7 +98,7 @@ class TestMappings < Test::Unit::TestCase
     
     # now we actually define the class and fake the loading of the framework
     eval "class ::ClassFromFramework; end"
-    Mappings.framework_loaded('TheFrameworkAfterLoad')
+    Mappings.framework_loaded('TheFramework')
     
     # It should be loaded by now
     assert_equal ClassFromFramework, Mappings.mappings[:klass].control_class
