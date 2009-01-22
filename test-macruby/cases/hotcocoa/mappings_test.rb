@@ -104,6 +104,24 @@ class TestMappings < Test::Unit::TestCase
     assert_equal ClassFromFramework, Mappings.mappings[:klass].control_class
   end
   
+  it "should keep a unique list of loaded_frameworks" do
+    assert_difference("Mappings.loaded_frameworks.length", +1) do
+      Mappings.framework_loaded('TheFramework')
+      Mappings.framework_loaded('TheFramework')
+    end
+    
+    assert Mappings.loaded_frameworks.include?('theframework')
+  end
+  
+  it "should return whether or not a framework has been loaded yet" do
+    Mappings.framework_loaded('TheFramework')
+    assert Mappings.loaded_framework?('TheFramework')
+    
+    assert !Mappings.loaded_framework?('IHasNotBeenLoaded')
+    assert !Mappings.loaded_framework?(nil)
+    assert !Mappings.loaded_framework?('')
+  end
+  
   def test_reload
     flunk 'Pending.'
   end
