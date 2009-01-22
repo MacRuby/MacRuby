@@ -12,8 +12,8 @@ class Object
     list.each do |x|
       # This is required because const_get tries to look for constants in the
       # ancestor chain, but we only want constants that are HERE
-      obj = obj.const_defined?(x) ? obj.const_get(x) : nil
-      return false unless obj
+      raise NameError, "uninitialized constant #{self.name}::#{name}" unless obj.const_defined?(x)
+      obj = obj.const_get(x)
     end
     obj
   end

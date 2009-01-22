@@ -62,6 +62,7 @@ class TestMappings < Test::Unit::TestCase
   it "should create a mapping to a class in a framework with #map" do
     mock = Mock.new
     
+    eval "class ::ClassInTheFrameWork; end"
     Mappings.map(:klass => 'ClassInTheFrameWork', :framework => 'TheFramework') do
       mock.call!
     end
@@ -89,7 +90,7 @@ class TestMappings < Test::Unit::TestCase
   
   it "should resolve a constant when a framework, that's registered with #map, is loaded" do
     assert_nothing_raised(NameError) do
-      Mappings.map(:klass => 'ClassFromFramework', :framework => 'TheFramework') {}
+      Mappings.map(:klass => 'ClassFromFramework', :framework => 'TheFrameworkAfterLoad') {}
     end
     
     # The mapping should not yet exist
@@ -97,7 +98,7 @@ class TestMappings < Test::Unit::TestCase
     
     # now we actually define the class and fake the loading of the framework
     eval "class ::ClassFromFramework; end"
-    Mappings.framework_loaded('TheFramework')
+    Mappings.framework_loaded('TheFrameworkAfterLoad')
     
     # It should be loaded by now
     assert_equal ClassFromFramework, Mappings.mappings[:klass].control_class

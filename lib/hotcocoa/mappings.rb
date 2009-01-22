@@ -34,13 +34,9 @@ module HotCocoa
       if mapped_value.kind_of?(Class)
         add_mapping(mapped_name, mapped_value, &block)
       else
-        constant = Object.full_const_get(mapped_value)
-        if framework.nil? || constant
+        on_framework(framework) do
+          constant = Object.full_const_get(mapped_value)
           add_mapping(mapped_name, constant, &block)
-        else
-          on_framework(framework) do
-            add_mapping(mapped_name, constant, &block)
-          end
         end
       end
     end
@@ -57,16 +53,27 @@ module HotCocoa
     end
     
     def self.on_framework(name, &block)
-      (frameworks[name.to_s.downcase] ||= []) << block
+      name = name.nil? ? nil : name.to_s.downcase
+      if name.nil? or loaded_frameworks.include?(name)
+        block.call
+      else
+        (frameworks[name] ||= []) << block
+      end
     end
     
     def self.frameworks
       @frameworks ||= {}
     end
     
+    def self.loaded_frameworks
+      @loaded_frameworks ||= Set.new
+    end
+    
     def self.framework_loaded(name)
-      if frameworks[name.to_s.downcase]
-        frameworks[name.to_s.downcase].each do |mapper|
+      name = name.to_s.downcase
+      loaded_frameworks << name
+      if frameworks[name]
+        frameworks[name].each do |mapper|
           mapper.call
         end
       end
