@@ -11,10 +11,11 @@ class MacRuby
     end
 
     # FIXME: This causes a segfault.
-    it "should not modify an immutable instance" do
+    it "should not modify an immutable instance and raise a RuntimeError" do
       [NSDictionary.new, NSDictionary.alloc.init].each do |hash|
-        assert_raise(RuntimeError) { hash['key'] = 'value' }
         assert_raise(RuntimeError) { hash.clear }
+        assert_raise(RuntimeError) { hash[:key] = :value }
+        assert_nil hash[:key]
       end
     end
 
