@@ -167,6 +167,11 @@ rb_hash_dup(VALUE rcv)
     if (OBJ_TAINTED(rcv))
 	OBJ_TAINT(dup);
     CFMakeCollectable((CFTypeRef)dup);
+
+	struct rb_objc_hash_struct *s = rb_objc_hash_get_struct(rcv);
+	if (s != NULL)
+	    rb_objc_hash_set_struct(dup, s->ifnone, s->has_proc_default);
+
     return dup;
 }
 

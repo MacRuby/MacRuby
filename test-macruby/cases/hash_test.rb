@@ -3,7 +3,6 @@
 require File.expand_path('../../test_helper', __FILE__)
 
 class TestHash < Test::Unit::TestCase
-
   def test_hash_class
     assert(Hash.is_a?(Class))
     assert(Hash.ancestors.include?(NSDictionary))
@@ -88,4 +87,8 @@ class TestHash < Test::Unit::TestCase
     assert_equal(nil, h[1])
   end
 
+  it "should return a duplicate _with_ default proc" do
+    hash = Hash.new { |_,k| k }.dup
+    assert_equal :default, hash[:default]
+  end
 end
