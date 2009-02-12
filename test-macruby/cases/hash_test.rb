@@ -2,93 +2,100 @@
 
 require File.expand_path('../../test_helper', __FILE__)
 
-class TestHash < Test::Unit::TestCase
-  def test_hash_class
-    assert(Hash.is_a?(Class))
-    assert(Hash.ancestors.include?(NSDictionary))
-    assert(Hash.ancestors.include?(NSMutableDictionary))
-  end
+class MacRuby
+  class HashTest < Test::Unit::TestCase
+    class HashSubclass < Hash; end
 
-  def test_hash_create
-    h = {}
-    assert_kind_of(Hash, h)
-    h = {'a' => 100}
-    assert_kind_of(Hash, h)
-    h = Hash.new
-    assert_kind_of(Hash, h)
-    h = Hash.alloc.init
-    assert_kind_of(Hash, h)
-    h = Hash['a', 100, 'b', 200]
-    assert_kind_of(Hash, h)
-    h = Hash['a' => 100, 'b' => 200]
-    assert_kind_of(Hash, h)
-  end
+    it "should initialize as an empty hash with the `{}' shortcut" do
+      assert_kind_of Hash, {}
+    end
 
-  class MyHash < Hash; end
-  def test_hash_create_subclass
-    assert(MyHash.ancestors.include?(Hash))
-    h = MyHash.new
-    assert_kind_of(MyHash, h)
-    h = MyHash.alloc.init
-    assert_kind_of(MyHash, h)
-    h = MyHash['a', 100, 'b', 200]
-    assert_kind_of(MyHash, h)
-    h = MyHash['a' => 100, 'b' => 200]
-    assert_kind_of(MyHash, h)
-  end
+    # FIXME: This causes a segfault.
+    it "should not modify an immutable instance" do
+      [NSDictionary.new, NSDictionary.alloc.init].each do |hash|
+        assert_raise(RuntimeError) { hash['key'] = 'value' }
+        assert_raise(RuntimeError) { hash.clear }
+      end
+    end
 
-  def test_hash_cannot_modify_immutable
-    h = NSDictionary.new
-    assert_raise(RuntimeError) { h[1] = 1 }
-    assert_raise(RuntimeError) { h.clear }
-    h = NSDictionary.alloc.init
-    assert_raise(RuntimeError) { h[1] = 1 }
-    assert_raise(RuntimeError) { h.clear }
-  end
+    [Hash, HashSubclass].each do |klass|
+      it "should be a subclass of NSMutableDictionary `#{klass.name}'" do
+        assert klass.is_a? Class
+        assert klass.ancestors.include? NSDictionary
+        assert klass.ancestors.include? NSMutableDictionary
+      end
 
-  def test_hash_get_set
-    h = {}
-    h[1] = 2
-    assert_equal(2, h[1])
-    h['foo'] = 3
-    assert_equal(3, h['foo'])
-    assert_equal(3, h[String.new('foo')])
-    h[[1,2]] = 4
-    assert_equal(4, h[[1,2]])
-    assert_equal(4, h[Array.new([1,2])])
-    h[:sym] = 5
-    assert_equal(5, h[:sym])
-    assert_equal(5, h['sym'.intern])
-  end
+      it "should initialize as an empty hash `#{klass.name}'" do
+        [klass.new, klass.alloc.init].each do |hash|
+          assert_kind_of klass, hash
+          assert_equal({}, hash)
+        end
+      end
 
-  def test_hash_count
-    h = {}
-    assert_equal(0, h.size)
-    assert_equal(0, h.count)
-    assert(h.empty?)
-    h[1] = 2
-    assert_equal(1, h.size)
-    assert_equal(1, h.count)
-    assert(!h.empty?)
-    h[1] = nil
-    assert_equal(1, h.size)
-    assert_equal(1, h.count)
-    assert(!h.empty?)
-    h.delete(1)
-    assert_equal(0, h.size)
-    assert_equal(0, h.count)
-    assert(h.empty?)
-  end
+      # FIXME: This returns a NSMutableDictionary instead of a HashSubclass.
+      it "should initialize with key-value pairs `#{klass.name}'" do
+        hashes = [
+          { :is_set? => true },
+          klass[:is_set?, true],
+          klass[:is_set? => true]
+        ]
 
-  def test_hash_clear
-    h = {1=>2}
-    h.clear
-    assert(h.empty?)
-    assert_equal(nil, h[1])
-  end
+        hashes.each do |hash|
+          assert_kind_of klass, hash
+          assert_equal true, hash[:is_set?]
+        end
+      end
 
-  it "should return a duplicate _with_ default proc" do
-    hash = Hash.new { |_,k| k }.dup
-    assert_equal :default, hash[:default]
+      it "should assign key-value pairs `#{klass.name}'" do
+        hash = klass.new
+        keys = [1, 'key', :key, %w{ array key }]
+        keys.each { |key| hash[key] = :value }
+
+        keys.each { |key| assert_equal :value, hash[key] }
+      end
+
+      it "should return the number of key-value pairs in the collection `#{klass.name}'" do
+        hash = klass.new
+        assert_empty_and_and_length_of_0(hash)
+
+        hash[:key] = :value
+        assert_not_empty_and_length_of_1(hash)
+
+        hash.delete(:key)
+        assert_empty_and_and_length_of_0(hash)
+      end
+
+      it "should clear its contents `#{klass.name}'" do
+        hash = klass.new
+        hash[:key] = :value
+        assert !hash.empty?
+
+        hash.clear
+        assert hash.empty?
+        assert !hash.has_key?(:key)
+      end
+
+      # FIXME: Fails for subclasses.
+      it "should return a duplicate _with_ default proc `#{klass.name}'" do
+        hash = klass.new { |_,k| k }.dup
+        assert_equal :default, hash[:default]
+      end
+    end
+
+    private
+
+    def assert_empty_and_and_length_of_0(hash)
+      assert hash.empty?
+      assert_equal 0, hash.size
+      assert_equal 0, hash.count
+      assert_equal 0, hash.length
+    end
+
+    def assert_not_empty_and_length_of_1(hash)
+      assert !hash.empty?
+      assert_equal 1, hash.size
+      assert_equal 1, hash.count
+      assert_equal 1, hash.length
+    end
   end
 end
