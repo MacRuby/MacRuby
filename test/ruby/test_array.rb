@@ -1584,4 +1584,13 @@ class TestArray < Test::Unit::TestCase
   def test_array_subclass
     assert_equal(Array2, Array2[1,2,3].uniq.class, "[ruby-dev:34581]")
   end
+
+  def test_array_singleton_class
+    a = [1,2,3]
+    def a.foo; 42; end
+    assert_equal(42, a.foo)
+    assert_equal([1,2,3], a)
+    a.replace([4,5,6])
+    assert_equal([4,5,6], a)
+  end
 end

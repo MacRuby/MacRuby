@@ -173,7 +173,17 @@ VALUE
 rb_objc_create_class(const char *name, VALUE super)
 {
     VALUE klass;
-    
+
+    if (super == rb_cCFString) {
+	super = rb_cNSMutableString;
+    }
+    else if (super == rb_cCFArray) {
+	super = rb_cNSMutableArray;
+    }
+    else if (super == rb_cCFHash) {
+	super = rb_cNSMutableHash;
+    }
+
     klass = rb_objc_alloc_class(name, super, T_CLASS, rb_cClass);
     objc_registerClassPair((Class)klass);
    
