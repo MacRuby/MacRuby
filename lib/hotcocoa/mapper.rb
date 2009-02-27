@@ -49,7 +49,7 @@ module HotCocoa
           Views[guid] = control if guid
           inst.customize(control)
           map.each do |key, value|
-            if control.respond_to?(key) && value == true
+            if control.respond_to?(key) and not control.respond_to?("#{key}=") and value == true
               if control.respond_to?("set#{key.to_s.capitalize}")
                 eval "control.set#{key.to_s.capitalize}(true)"
               else
@@ -71,6 +71,10 @@ module HotCocoa
           end
           control
         end
+        # make the function callable using HotCocoa.xxxx
+        HotCocoa.send(:module_function, builder_method)
+        # module_function makes the instance method private, but we want it to stay public
+        HotCocoa.send(:public, builder_method)
         self
       end
       
