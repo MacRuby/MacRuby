@@ -302,7 +302,7 @@ void rb_objc_root(void *addr);
 	    *(void **)dst = nv; \
 	} \
 	else { \
-	    rb_objc_wb((void *)dst, (void *)newval); \
+	    rb_objc_wb((void *)dst, (void *)nv); \
 	} \
     } \
     while (0)
