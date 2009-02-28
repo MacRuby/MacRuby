@@ -656,7 +656,7 @@ wait_writable(VALUE p)
 int
 rb_io_wait_writable(int f)
 {
-    rb_fdset_t wfds;
+    rb_fdset_t *wfds = xmalloc(sizeof(rb_fdset_t));
 
     switch (errno) {
       case EINTR:
@@ -670,13 +670,13 @@ rb_io_wait_writable(int f)
 #if defined(EWOULDBLOCK) && EWOULDBLOCK != EAGAIN
       case EWOULDBLOCK:
 #endif
-	rb_fd_init(&wfds);
-	rb_fd_set(f, &wfds);
+	rb_fd_init(wfds);
+	rb_fd_set(f, wfds);
 #ifdef HAVE_RB_FD_INIT
-	rb_ensure(wait_writable, (VALUE)&wfds,
-		  (VALUE (*)(VALUE))rb_fd_term, (VALUE)&wfds);
+	rb_ensure(wait_writable, (VALUE)wfds,
+		  (VALUE (*)(VALUE))rb_fd_term, (VALUE)wfds);
 #else
-	rb_thread_select(f + 1, NULL, &wfds, NULL, NULL);
+	rb_thread_select(f + 1, NULL, wfds, NULL, NULL);
 #endif
 	return Qtrue;
 

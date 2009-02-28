@@ -72,7 +72,8 @@ typedef struct rb_io_t {
 	RFILE(obj)->fptr = 0;\
     }\
     fp = 0;\
-    fp = RFILE(obj)->fptr = ALLOC(rb_io_t);\
+    fp = ALLOC(rb_io_t);\
+    GC_WB(&RFILE(obj)->fptr, fp);\
     fp->fd = -1;\
     fp->stdio_file = NULL;\
     fp->mode = 0;\
