@@ -516,35 +516,6 @@ mkdir_p ib_dest
 ln_sfh File.join("../../..", CONFIG['bindir'], 'rb_nibtool'), ib_dest
 install('tool/rb_nibtool.old', ib_dest, :mode => $prog_mode)
 
-touch_file = '/System/Library/Frameworks/.bridgesupport_dylib_gcmarked'
-if ($destdir.empty? and File.exist?(touch_file)) or `sw_vers -productVersion`.strip.to_f >= 10.6
-  puts "bridge support dylibs already fixed"
-else
-  puts "fixing bridge support dylibs"
-  unless File.exist?('markgc')
-    unless system("/usr/bin/gcc markgc.c -std=gnu99 -o markgc -nostdinc -I/usr/include")
-      $stderr.puts "cannot build the markgc tool"
-      exit 1
-    end
-  end
-  Dir.glob('/System/Library/Frameworks/**/BridgeSupport/*.dylib').each do |p|
-    unless File.exist?(touch_file)
-      unless system("./markgc '#{p}' >& /dev/null")
-        $stderr.puts "cannot markgc #{p}"
-        exit 1
-      end
-    end
-    unless $destdir.empty?
-      dirname = File.dirname(p)
-      mkdir_p(dirname)
-      install(p, dirname)
-    end
-  end
-  if $destdir.empty?
-    touch(touch_file)
-  end
-end
-
 end # unless $installing_rdoc
 
 # vi:set sw=2:
