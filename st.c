@@ -454,7 +454,7 @@ rehash(register st_table *table)
 	do {
 	    hash_val = ptr->hash % new_num_bins;
 	    ptr->next = new_bins[hash_val];
-	    new_bins[hash_val] = ptr;
+	    GC_WB(&new_bins[hash_val], ptr);
 	} while ((ptr = ptr->fore) != table->head);
     }
 }
