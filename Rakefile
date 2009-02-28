@@ -42,8 +42,8 @@ end
 
 verbose(true)
 
-if `sw_vers -productVersion`.strip.to_f < 10.5
-  $stderr.puts "Sorry, your environment is not supported. MacRuby requires Mac OS X 10.5 or higher." 
+if `sw_vers -productVersion`.strip < '10.5.6'
+  $stderr.puts "Sorry, your environment is not supported. MacRuby requires Mac OS X 10.5.6 or higher." 
   exit 1
 end
 
