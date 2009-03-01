@@ -3624,9 +3624,11 @@ rb_raise_ruby_exc_in_objc(VALUE ex)
 }
 
 static VALUE
-evaluateString_safe(VALUE expression)
+evaluateString_safe(VALUE context)
 {
-    return rb_eval_string([(NSString *)expression UTF8String]);
+    VALUE *argv = (VALUE *)context;
+    const int argc = NIL_P(argv[2]) ? 2 : 3;
+    return rb_f_eval(argc, argv, rb_vm_top_self());
 }
 
 static VALUE
@@ -3636,19 +3638,31 @@ evaluateString_rescue(void)
     return Qnil; /* not reached */
 }
 
-- (id)evaluateString:(NSString *)expression
+static id
+__evaluate_string_at_path(VALUE string, VALUE path)
 {
     VALUE ret;
+    VALUE args[3];
 
-    ret = rb_rescue2(evaluateString_safe, (VALUE)expression,
+    args[0] = string;
+    args[1] = Qnil;
+    args[2] = path;
+
+    ret = rb_rescue2(evaluateString_safe, (VALUE)args,
 	    	     evaluateString_rescue, Qnil,
 		     rb_eException, (VALUE)0);
     return RB2OC(ret);
 }
 
+- (id)evaluateString:(NSString *)expression
+{
+    return __evaluate_string_at_path((VALUE)expression, Qnil);
+}
+
 - (id)evaluateFileAtPath:(NSString *)path
 {
-    return [self evaluateString:[NSString stringWithContentsOfFile:path usedEncoding:nil error:nil]];
+    VALUE expression = (VALUE)[NSString stringWithContentsOfFile:path usedEncoding:nil error:nil];
+    return __evaluate_string_at_path(expression, (VALUE)path);
 }
 
 - (id)evaluateFileAtURL:(NSURL *)URL
