@@ -4,6 +4,7 @@ require 'rbconfig'
 module HotCocoa
   class Template
     def self.copy_to(directory, app_name)
+      FileUtils.mkdir_p(directory)
       dir = Config::CONFIG['datadir']
       Dir.glob(File.join(dir, "hotcocoa_template", "**/*")).each do |file|
         short_name = file[(dir.length+19)..-1]
