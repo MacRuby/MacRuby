@@ -1,6 +1,8 @@
 #! /usr/local/bin/ruby
 # -*- ruby -*-
 
+GC.disable # XXX for now
+
 $extension = nil
 $extstatic = nil
 $force_static = nil
