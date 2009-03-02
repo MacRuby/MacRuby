@@ -221,6 +221,20 @@ is_socket(int fd, const char *path)
 }
 #endif
 
+static VALUE
+pop_last_hash(int *argc_p, VALUE *argv)
+{
+    VALUE last, tmp;
+    if (*argc_p == 0)
+	return Qnil;
+    last = argv[*argc_p-1];
+    tmp = rb_check_convert_type(last, T_HASH, "Hash", "to_hash");
+    if (NIL_P(tmp))
+	return Qnil;
+    (*argc_p)--;
+    return tmp;
+}
+
 void
 rb_eof_error(void)
 {
@@ -5052,6 +5066,7 @@ rb_io_initialize(int argc, VALUE *argv, VALUE io)
     int fd, fmode, flags = O_RDONLY;
 
     rb_secure(4);
+    pop_last_hash(&argc, argv); // TODb
     rb_scan_args(argc, argv, "11", &fnum, &mode);
     if (argc == 2) {
 	if (FIXNUM_P(mode)) {
@@ -6216,6 +6231,7 @@ rb_io_s_pipe(int argc, VALUE *argv, VALUE klass)
     VALUE r, w, args[3], v1, v2;
     rb_io_t *fptr;
 
+    pop_last_hash(&argc, argv); // TODO
     rb_scan_args(argc, argv, "02", &v1, &v2);
     if (pipe(pipes) == -1)
 	rb_sys_fail(0);
