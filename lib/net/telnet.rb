@@ -164,7 +164,7 @@ module Net
     CR   = "\015"   
     LF   = "\012" 
     EOL  = CR + LF 
-    REVISION = '$Id: telnet.rb 16257 2008-05-01 14:57:40Z jeg2 $'
+    REVISION = '$Id: telnet.rb 17387 2008-06-17 14:04:48Z jeg2 $'
     # :startdoc:
 
     #
@@ -564,8 +564,8 @@ module Net
           @dumplog.log_dump('<', c) if @options.has_key?("Dump_log")
           if @options["Telnetmode"]
             c = rest + c
-            if Integer(c.rindex(/#{IAC}#{SE}/no)) <
-               Integer(c.rindex(/#{IAC}#{SB}/no))
+            if Integer(c.rindex(/#{IAC}#{SE}/no) || 0) <
+               Integer(c.rindex(/#{IAC}#{SB}/no) || 0)
               buf = preprocess(c[0 ... c.rindex(/#{IAC}#{SB}/no)])
               rest = c[c.rindex(/#{IAC}#{SB}/no) .. -1]
             elsif pt = c.rindex(/#{IAC}[^#{IAC}#{AO}#{AYT}#{DM}#{IP}#{NOP}]?\z/no) ||

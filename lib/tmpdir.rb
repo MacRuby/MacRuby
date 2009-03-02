@@ -1,7 +1,7 @@
 #
 # tmpdir - retrieve temporary directory path
 #
-# $Id: tmpdir.rb 13762 2007-10-24 06:03:48Z akr $
+# $Id: tmpdir.rb 19513 2008-09-24 05:39:39Z usa $
 #
 
 require 'fileutils'
@@ -12,16 +12,23 @@ class Dir
 
   begin
     require 'Win32API'
+    CSIDL_LOCAL_APPDATA = 0x001c
     max_pathlen = 260
-    windir = ' '*(max_pathlen+1)
+    windir = "\0"*(max_pathlen+1)
     begin
-      getdir = Win32API.new('kernel32', 'GetSystemWindowsDirectory', 'PL', 'L')
+      getdir = Win32API.new('shell32', 'SHGetFolderPath', 'LLLLP', 'L')
+      raise RuntimeError if getdir.call(0, CSIDL_LOCAL_APPDATA, 0, 0, windir) != 0
+      windir = File.expand_path(windir.rstrip)
     rescue RuntimeError
-      getdir = Win32API.new('kernel32', 'GetWindowsDirectory', 'PL', 'L')
+      begin
+        getdir = Win32API.new('kernel32', 'GetSystemWindowsDirectory', 'PL', 'L')
+      rescue RuntimeError
+        getdir = Win32API.new('kernel32', 'GetWindowsDirectory', 'PL', 'L')
+      end
+      len = getdir.call(windir, windir.size)
+      windir = File.expand_path(windir[0, len])
     end
-    len = getdir.call(windir, windir.size)
-    windir = File.expand_path(windir[0, len])
-    temp = File.join(windir, 'temp')
+    temp = File.join(windir.untaint, 'temp')
     @@systmpdir = temp if File.directory?(temp) and File.writable?(temp)
   rescue LoadError
   end
@@ -41,8 +48,8 @@ class Dir
 	  break
 	end
       end
+      File.expand_path(tmp)
     end
-    File.expand_path(tmp)
   end
 
   # Dir.mktmpdir creates a temporary directory.

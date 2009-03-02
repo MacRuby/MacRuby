@@ -1,7 +1,7 @@
 #
 #   shell/process-controller.rb - 
 #   	$Release Version: 0.7 $
-#   	$Revision: 14912 $
+#   	$Revision: 20880 $
 #   	by Keiju ISHITSUKA(keiju@ruby-lang.org)
 #
 # --
@@ -62,7 +62,7 @@ class Shell
       end
 
       def block_output_synchronize(&b)
-	@BlockOutputMonitor.synchronize &b
+	@BlockOutputMonitor.synchronize(&b)
       end
 
       def wait_to_finish_all_process_controllers
@@ -84,7 +84,7 @@ class Shell
       end
     end
 
-    # for shell-command complete finish at this prosess exit.
+    # for shell-command complete finish at this process exit.
     USING_AT_EXIT_WHEN_PROCESS_EXIT = true
     at_exit do
       wait_to_finish_all_process_controllers unless $@

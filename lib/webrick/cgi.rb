@@ -5,7 +5,7 @@
 # Copyright (c) 2003 Internet Programming with Ruby writers. All rights
 # reserved.
 #
-# $Id: cgi.rb 14260 2007-12-17 07:03:57Z gotoyuzo $
+# $Id: cgi.rb 18678 2008-08-17 17:33:13Z gotoyuzo $
 
 require "webrick/httprequest"
 require "webrick/httpresponse"
@@ -206,6 +206,10 @@ module WEBrick
 
       def each
         input.each{|line| yield(line) }
+      end
+
+      def eof?
+        input.eof?
       end
   
       def <<(data)

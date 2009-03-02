@@ -9,11 +9,12 @@ CONFIG = RbConfig::MAKEFILE_CONFIG
 ORIG_LIBPATH = ENV['LIB']
 
 CXX_EXT = %w[cc cxx cpp]
-if /mswin|bccwin|mingw|msdosdjgpp|human|os2/ !~ CONFIG['build_os']
+if /mswin|bccwin|mingw|os2/ !~ CONFIG['build_os']
   CXX_EXT.concat(%w[C])
 end
 SRC_EXT = %w[c m] << CXX_EXT
-$static = $config_h = nil
+$static = nil
+$config_h = '$(arch_hdrdir)/ruby/config.h'
 $default_static = $static
 
 unless defined? $configure_args
@@ -59,10 +60,10 @@ $mswin = /mswin/ =~ RUBY_PLATFORM
 $bccwin = /bccwin/ =~ RUBY_PLATFORM
 $mingw = /mingw/ =~ RUBY_PLATFORM
 $cygwin = /cygwin/ =~ RUBY_PLATFORM
-$human = /human/ =~ RUBY_PLATFORM
 $netbsd = /netbsd/ =~ RUBY_PLATFORM
 $os2 = /os2/ =~ RUBY_PLATFORM
 $beos = /beos/ =~ RUBY_PLATFORM
+$haiku = /haiku/ =~ RUBY_PLATFORM
 $solaris = /solaris/ =~ RUBY_PLATFORM
 $dest_prefix_pattern = (File::PATH_SEPARATOR == ';' ? /\A([[:alpha:]]:)?/ : /\A/)
 
@@ -158,8 +159,7 @@ if not $extmk and File.exist?(($hdrdir = RbConfig::CONFIG["rubyhdrdir"]) + "/rub
   $topdir = $hdrdir
   $top_srcdir = $hdrdir
   $arch_hdrdir = $hdrdir + "/$(arch)"
-elsif File.exist?(($hdrdir = ($top_srcdir ||= topdir) + "/include")  + "/ruby.h") and
-    File.exist?("#{CONFIG["EXTOUT"]}/include/#{CONFIG["arch"]}/ruby/config.h")
+elsif File.exist?(($hdrdir = ($top_srcdir ||= topdir) + "/include")  + "/ruby.h")
   $topdir ||= RbConfig::CONFIG["topdir"]
   $arch_hdrdir = "$(extout)/include/$(arch)"
 else
@@ -192,6 +192,10 @@ end
 
 def rm_f(*files)
   FileUtils.rm_f(Dir[*files])
+end
+
+def rm_rf(*files)
+  FileUtils.rm_rf(Dir[*files])
 end
 
 # Returns time stamp of the +target+ file if it exists and is newer
@@ -232,9 +236,13 @@ module Logging
   @postpone = 0
   @quiet = $extmk
 
-  def self::open
-    @log ||= File::open(@logfile, 'w')
+  def self::log_open
+    @log ||= File::open(@logfile, 'wb')
     @log.sync = true
+  end
+
+  def self::open
+    log_open
     $stderr.reopen(@log)
     $stdout.reopen(@log)
     yield
@@ -244,8 +252,7 @@ module Logging
   end
 
   def self::message(*s)
-    @log ||= File::open(@logfile, 'w')
-    @log.sync = true
+    log_open
     @log.printf(*s)
   end
 
@@ -320,8 +327,11 @@ EOM
 end
 
 def create_tmpsrc(src)
+  src = "#{COMMON_HEADERS}\n#{src}"
   src = yield(src) if block_given?
-  src = src.gsub(/[ \t]+$/, '').gsub(/\A\n+|^\n+$/, '').sub(/[^\n]\z/, "\\&\n")
+  src.gsub!(/[ \t]+$/, '')
+  src.gsub!(/\A\n+|^\n+$/, '')
+  src.sub!(/[^\n]\z/, "\\&\n")
   count = 0
   begin
     open(CONFTEST_C, "wb") do |cfile|
@@ -336,11 +346,26 @@ def create_tmpsrc(src)
   src
 end
 
+def have_devel?
+  unless defined? $have_devel
+    $have_devel = true
+    $have_devel = try_link(MAIN_DOES_NOTHING)
+  end
+  $have_devel
+end
+
 def try_do(src, command, &b)
+  unless have_devel?
+    raise <<MSG
+The complier failed to generate an executable file.
+You have to install development tools first.
+MSG
+  end
   src = create_tmpsrc(src, &b)
   xsystem(command)
 ensure
   log_src(src)
+  rm_rf 'conftest.dSYM'
 end
 
 def link_command(ldflags, opt="", libpath=$DEFLIBPATH|$LIBPATH)
@@ -372,7 +397,7 @@ def cpp_command(outfile, opt="")
                                 'arch_hdrdir' => "#$arch_hdrdir",
                                 'top_srcdir' => $top_srcdir.quote)
   RbConfig::expand("$(CPP) #$INCFLAGS #$CPPFLAGS #$CFLAGS #{opt} #{CONFTEST_C} #{outfile}",
-		   conf).gsub(/-arch\s+\w+/, '')
+		   conf).gsub(/-arch\s+\w+/,'')
 end
 
 def libpathflag(libpath=$DEFLIBPATH|$LIBPATH)
@@ -444,7 +469,6 @@ end
 def try_static_assert(expr, headers = nil, opt = "", &b)
   headers = cpp_include(headers)
   try_compile(<<SRC, opt, &b)
-#{COMMON_HEADERS}
 #{headers}
 /*top*/
 int conftest_const[(#{expr}) ? 1 : -1];
@@ -483,8 +507,7 @@ def try_constant(const, headers = nil, opt = "", &b)
     upper = -upper if neg
     return upper
   else
-    src = %{#{COMMON_HEADERS}
-#{includes}
+    src = %{#{includes}
 #include <stdio.h>
 /*top*/
 int conftest_const = (int)(#{const});
@@ -501,16 +524,16 @@ end
 
 def try_func(func, libs, headers = nil, &b)
   headers = cpp_include(headers)
-  try_link(<<"SRC", libs, &b) or try_link(<<"SRC", libs, &b)
-#{COMMON_HEADERS}
+  try_link(<<"SRC", libs, &b) or
 #{headers}
 /*top*/
-int main() { return 0; }
+#{MAIN_DOES_NOTHING}
 int t() { void ((*volatile p)()); p = (void ((*)()))#{func}; return 0; }
 SRC
+  try_link(<<"SRC", libs, &b)
 #{headers}
 /*top*/
-int main() { return 0; }
+#{MAIN_DOES_NOTHING}
 int t() { #{func}(); return 0; }
 SRC
 end
@@ -518,10 +541,9 @@ end
 def try_var(var, headers = nil, &b)
   headers = cpp_include(headers)
   try_compile(<<"SRC", &b)
-#{COMMON_HEADERS}
 #{headers}
 /*top*/
-int main() { return 0; }
+#{MAIN_DOES_NOTHING}
 int t() { const volatile void *volatile p; p = &(&#{var})[0]; return 0; }
 SRC
 end
@@ -785,7 +807,7 @@ end
 def have_header(header, &b)
   checking_for header do
     if try_cpp(cpp_include(header), &b)
-      # FIXME: cannot use this in MacRuby yet
+      #FIXME: cannot use this in MacRuby yet
       #$defs.push(format("-DHAVE_%s", header.tr("a-z./\055", "A-Z___")))
       str = header.tr("a-z", "A-Z").tr("./\055", "_")
       $defs.push(format("-DHAVE_%s", str))
@@ -839,10 +861,9 @@ end
 def have_struct_member(type, member, headers = nil, &b)
   checking_for checking_message("#{type}.#{member}", headers) do
     if try_compile(<<"SRC", &b)
-#{COMMON_HEADERS}
 #{cpp_include(headers)}
 /*top*/
-int main() { return 0; }
+#{MAIN_DOES_NOTHING}
 int s = (char *)&((#{type}*)0)->#{member} - (char *)0;
 SRC
       $defs.push(format("-DHAVE_%s_%s", type.tr_cpp, member.tr_cpp))
@@ -856,7 +877,6 @@ end
 
 def try_type(type, headers = nil, opt = "", &b)
   if try_compile(<<"SRC", opt, &b)
-#{COMMON_HEADERS}
 #{cpp_include(headers)}
 /*top*/
 typedef #{type} conftest_type;
@@ -911,7 +931,6 @@ end
 def try_const(const, headers = nil, opt = "", &b)
   const, type = *const
   if try_compile(<<"SRC", opt, &b)
-#{COMMON_HEADERS}
 #{cpp_include(headers)}
 /*top*/
 typedef #{type || 'int'} conftest_type;
@@ -976,11 +995,10 @@ end
 # pointer.
 def scalar_ptr_type?(type, member = nil, headers = nil, &b)
   try_compile(<<"SRC", &b)   # pointer
-#{COMMON_HEADERS}
 #{cpp_include(headers)}
 /*top*/
 volatile #{type} conftestval;
-int main() { return 0; }
+#{MAIN_DOES_NOTHING}
 int t() {return (int)(1-*(conftestval#{member ? ".#{member}" : ""}));}
 SRC
 end
@@ -989,11 +1007,10 @@ end
 # pointer.
 def scalar_type?(type, member = nil, headers = nil, &b)
   try_compile(<<"SRC", &b)   # pointer
-#{COMMON_HEADERS}
 #{cpp_include(headers)}
 /*top*/
 volatile #{type} conftestval;
-int main() { return 0; }
+#{MAIN_DOES_NOTHING}
 int t() {return (int)(1-(conftestval#{member ? ".#{member}" : ""}));}
 SRC
 end
@@ -1171,7 +1188,7 @@ end
 #
 def create_header(header = "extconf.h")
   message "creating %s\n", header
-    # FIXME: cannot use this in MacRuby yet
+    #FIXME: cannot use this in MacRuby yet
     #sym = header.tr("a-z./\055", "A-Z___")
     sym = header.tr("a-z", "A-Z").tr("./\055", "_")
   hdr = ["#ifndef #{sym}\n#define #{sym}\n"]
@@ -1287,6 +1304,29 @@ def winsep(s)
   s.tr('/', '\\')
 end
 
+# Converts native path to format acceptable in Makefile
+#
+# Internal use only.
+#
+if !CROSS_COMPILING
+  case CONFIG['build_os']
+  when 'mingw32'
+    def mkintpath(path)
+      # mingw uses make from msys and it needs special care
+      # converts from C:\some\path to /C/some/path
+      path = path.dup
+      path.tr!('\\', '/')
+      path.sub!(/\A([A-Za-z]):(?=\/)/, '/\1')
+      path
+    end
+  end
+end
+unless defined?(mkintpath)
+  def mkintpath(path)
+    path
+  end
+end
+
 def configuration(srcdir)
   mk = []
   vpath = $VPATH.dup
@@ -1296,8 +1336,6 @@ def configuration(srcdir)
       if CONFIG['target_os'] != 'cygwin'
         vpath = vpath.map {|p| p.sub(/.*/, '$(shell cygpath -u \&)')}
       end
-    when 'msdosdjgpp', 'mingw32'
-      CONFIG['PATH_SEPARATOR'] = ';'
     end
   end
   CONFIG["hdrdir"] ||= $hdrdir
@@ -1305,14 +1343,10 @@ def configuration(srcdir)
 SHELL = /bin/sh
 
 #### Start of system configuration section. ####
-#{
-if $extmk
-  "top_srcdir = " + $top_srcdir.sub(%r"\A#{Regexp.quote($topdir)}/", "$(topdir)/")
-end
-}
-srcdir = #{srcdir.gsub(/\$\((srcdir)\)|\$\{(srcdir)\}/) {CONFIG[$1||$2]}.quote}
-topdir = #{($extmk ? CONFIG["topdir"] : $topdir).quote}
-hdrdir = #{CONFIG["hdrdir"].quote}
+#{"top_srcdir = " + $top_srcdir.sub(%r"\A#{Regexp.quote($topdir)}/", "$(topdir)/") if $extmk}
+srcdir = #{srcdir.gsub(/\$\((srcdir)\)|\$\{(srcdir)\}/) {mkintpath(CONFIG[$1||$2])}.quote}
+topdir = #{mkintpath($extmk ? CONFIG["topdir"] : $topdir).quote}
+hdrdir = #{mkintpath(CONFIG["hdrdir"]).quote}
 arch_hdrdir = #{$arch_hdrdir}
 VPATH = #{vpath.join(CONFIG['PATH_SEPARATOR'])}
 }
@@ -1338,7 +1372,8 @@ VPATH = #{vpath.join(CONFIG['PATH_SEPARATOR'])}
   else
     sep = ""
   end
-  extconf_h = $extconf_h ? "-DRUBY_EXTCONF_H=\\\"$(RUBY_EXTCONF_H)\\\" " : $defs.join(" ")<<" "
+  possible_command = (proc {|s| s if /top_srcdir/ !~ s} unless $extmk)
+  extconf_h = $extconf_h ? "-DRUBY_EXTCONF_H=\\\"$(RUBY_EXTCONF_H)\\\" " : $defs.join(" ") << " "
   mk << %{
 CC = #{CONFIG['CC']}
 CXX = #{CONFIG['CXX']}
@@ -1350,6 +1385,10 @@ OUTFLAG = #{OUTFLAG}
 COUTFLAG = #{COUTFLAG}
 
 RUBY_EXTCONF_H = #{$extconf_h}
+cflags   = #{CONFIG['cflags']}
+optflags = #{CONFIG['optflags']}
+debugflags = #{CONFIG['debugflags']}
+warnflags = #{CONFIG['warnflags']}
 CFLAGS   = #{$static ? '' : CONFIG['CCDLFLAGS']} #$CFLAGS #$ARCH_FLAG
 INCFLAGS = -I. #$INCFLAGS
 DEFS     = #{CONFIG['DEFS']}
@@ -1371,12 +1410,14 @@ sitearch = #{CONFIG['sitearch']}
 ruby_version = #{RbConfig::CONFIG['ruby_version']}
 ruby = #{$ruby}
 RUBY = $(ruby#{sep})
-RM = #{config_string('RM') || '$(RUBY) -run -e rm -- -f'}
-MAKEDIRS = #{config_string('MAKEDIRS') || '@$(RUBY) -run -e mkdir -- -p'}
-INSTALL = #{config_string('INSTALL') || '@$(RUBY) -run -e install -- -vp'}
+RM = #{config_string('RM', &possible_command) || '$(RUBY) -run -e rm -- -f'}
+RM_RF = #{'$(RUBY) -run -e rm -- -rf'}
+RMDIRS = #{config_string('RMDIRS', &possible_command) || '$(RUBY) -run -e rmdir -- -p'}
+MAKEDIRS = #{config_string('MAKEDIRS', &possible_command) || '@$(RUBY) -run -e mkdir -- -p'}
+INSTALL = #{config_string('INSTALL', &possible_command) || '@$(RUBY) -run -e install -- -vp'}
 INSTALL_PROG = #{config_string('INSTALL_PROG') || '$(INSTALL) -m 0755'}
 INSTALL_DATA = #{config_string('INSTALL_DATA') || '$(INSTALL) -m 0644'}
-COPY = #{config_string('CP') || '@$(RUBY) -run -e cp -- -v'}
+COPY = #{config_string('CP', &possible_command) || '@$(RUBY) -run -e cp -- -v'}
 
 #### End of system configuration section. ####
 
@@ -1433,7 +1474,7 @@ def depend_rules(depend)
   end
   depend.each_line do |line|
     line.gsub!(/\.o\b/, ".#{$OBJEXT}")
-    line.gsub!(/\$\((?:hdr|top)dir\)\/config.h/, $config_h) if $config_h
+    line.gsub!(/\$\((?:hdr|top)dir\)\/config.h/, $config_h)
     line.gsub!(%r"\$\(hdrdir\)/(?!ruby(?![^:;/\s]))(?=[-\w]+\.h)", '\&ruby/')
     if $nmake && /\A\s*\$\(RM|COPY\)/ =~ line
       line.gsub!(%r"[-\w\./]{2,}"){$&.tr("/", "\\")}
@@ -1570,6 +1611,11 @@ def create_makefile(target, srcprefix = nil)
   end
   origdef ||= ''
 
+  if $extout and $INSTALLFILES
+    $cleanfiles.concat($INSTALLFILES.collect {|files, dir|File.join(dir, files.sub(/\A\.\//, ''))})
+    $distcleandirs.concat($INSTALLFILES.collect {|files, dir| dir})
+  end
+
   if $extmk and not $extconf_h
     create_header
   end
@@ -1587,6 +1633,7 @@ DEFFILE = #{deffile}
 
 CLEANFILES = #{$cleanfiles.join(' ')}
 DISTCLEANFILES = #{$distcleanfiles.join(' ')}
+DISTCLEANDIRS = #{$distcleandirs.join(' ')}
 
 extout = #{$extout}
 extout_prefix = #{$extout_prefix}
@@ -1603,16 +1650,28 @@ STATIC_LIB = #{staticlib unless $static.nil?}
 " #"
   # TODO: fixme
   install_dirs.each {|d| mfile.print("%-14s= %s\n" % d) if /^[[:upper:]]/ =~ d[0]}
-  n = ($extout ? '$(RUBYARCHDIR)/' : '') + '$(TARGET).'
+  n = ($extout ? '$(RUBYARCHDIR)/' : '') + '$(TARGET)'
   mfile.print "
 TARGET_SO     = #{($extout ? '$(RUBYARCHDIR)/' : '')}$(DLLIB)
-CLEANLIBS     = #{n}#{CONFIG['DLEXT']} #{n}il? #{n}tds #{n}map
-CLEANOBJS     = *.#{$OBJEXT} *.#{$LIBEXT} *.s[ol] *.pdb *.exp *.bak
+CLEANLIBS     = #{n}.#{CONFIG['DLEXT']} #{config_string('cleanlibs') {|t| t.gsub(/\$\*/) {n}}}
+CLEANOBJS     = *.#{$OBJEXT} #{config_string('cleanobjs') {|t| t.gsub(/\$\*/, '$(TARGET)')}} *.bak
 
-all:		#{$extout ? "install" : target ? "$(DLLIB)" : "Makefile"}
-static:		$(STATIC_LIB)#{$extout ? " install-rb" : ""}
+all:    #{$extout ? "install" : target ? "$(DLLIB)" : "Makefile"}
+static: $(STATIC_LIB)#{$extout ? " install-rb" : ""}
 "
   mfile.print CLEANINGS
+  fsep = config_string('BUILD_FILE_SEPARATOR') {|s| s unless s == "/"}
+  if fsep
+    sep = ":/=#{fsep}"
+    fseprepl = proc {|s|
+      s = s.gsub("/", fsep)
+      s = s.gsub(/(\$\(\w+)(\))/) {$1+sep+$2}
+      s = s.gsub(/(\$\{\w+)(\})/) {$1+sep+$2}
+    }
+  else
+    fseprepl = proc {|s| s}
+    sep = ""
+  end
   dirs = []
   mfile.print "install: install-so install-rb\n\n"
   sodir = (dir = "$(RUBYARCHDIR)").dup
@@ -1621,18 +1680,13 @@ static:		$(STATIC_LIB)#{$extout ? " install-rb" : ""}
     f = "$(DLLIB)"
     dest = "#{dir}/#{f}"
     mfile.puts dir, "install-so: #{dest}"
-    unless $extout
+    if $extout
+      mfile.print "clean-so::\n"
+      mfile.print "\t@-$(RM) #{fseprepl[dest]}\n"
+      mfile.print "\t@-$(RMDIRS) #{fseprepl[dir]}\n"
+    else
       mfile.print "#{dest}: #{f}\n"
-      if (sep = config_string('BUILD_FILE_SEPARATOR'))
-        f.gsub!("/", sep)
-        dir.gsub!("/", sep)
-        sep = ":/="+sep
-        f.gsub!(/(\$\(\w+)(\))/) {$1+sep+$2}
-        f.gsub!(/(\$\{\w+)(\})/) {$1+sep+$2}
-        dir.gsub!(/(\$\(\w+)(\))/) {$1+sep+$2}
-        dir.gsub!(/(\$\{\w+)(\})/) {$1+sep+$2}
-      end
-      mfile.print "\t$(INSTALL_PROG) #{f} #{dir}\n"
+      mfile.print "\t$(INSTALL_PROG) #{fseprepl[f]} #{fseprepl[dir]}\n"
       if defined?($installed_list)
 	mfile.print "\t@echo #{dir}/#{File.basename(f)}>>$(INSTALLED_LIST)\n"
       end
@@ -1650,31 +1704,35 @@ static:		$(STATIC_LIB)#{$extout ? " install-rb" : ""}
       unless dirs.include?(dir)
 	dirs << dir
 	mfile.print "pre-install-rb#{sfx}: #{dir}\n"
-      end if $nmake
+      end
       for f in files
 	dest = "#{dir}/#{File.basename(f)}"
 	mfile.print("install-rb#{sfx}: #{dest}\n")
         mfile.print("#{dest}: #{f}\n")
-        mfile.print("\t$(MAKEDIRS) $(@D)\n") unless $nmake
         mfile.print("\t$(#{$extout ? 'COPY' : 'INSTALL_DATA'}) ")
-	sep = config_string('BUILD_FILE_SEPARATOR')
-	if sep
-	  f = f.gsub("/", sep)
-	  sep = ":/="+sep
-	  f = f.gsub(/(\$\(\w+)(\))/) {$1+sep+$2}
-	  f = f.gsub(/(\$\{\w+)(\})/) {$1+sep+$2}
-	else
-	  sep = ""
-	end
-	mfile.print("#{f} $(@D#{sep})\n")
+	mfile.print("#{fseprepl[f]} $(@D#{sep})\n")
 	if defined?($installed_list) and !$extout
 	  mfile.print("\t@echo #{dest}>>$(INSTALLED_LIST)\n")
 	end
+        if $extout
+          mfile.print("clean-rb#{sfx}::\n")
+          mfile.print("\t@-$(RM) #{fseprepl[dest]}\n")
+        end
+      end
+    end
+    if $extout
+      dirs.uniq!
+      dirs.reverse!
+      unless dirs.empty?
+        mfile.print("clean-rb#{sfx}::\n")
+        for dir in dirs
+          mfile.print("\t@-$(RMDIRS) #{fseprepl[dir]}\n")
+        end
       end
     end
   end
   dirs.unshift(sodir) if target and !dirs.include?(sodir)
-  dirs.each {|d| mfile.print "#{d}:\n\t$(MAKEDIRS) $@\n" if $nmake || d == sodir}
+  dirs.each {|d| mfile.print "#{d}:\n\t$(MAKEDIRS) $@\n"}
 
   mfile.print <<-SITEINSTALL
 
@@ -1703,9 +1761,10 @@ site-install-rb: install-rb
     end
   end
 
-  sep = config_string('BUILD_FILE_SEPARATOR') {|s| ":/=#{s}" if s != "/"} || ""
   mfile.print "$(RUBYARCHDIR)/" if $extout
-  mfile.print "$(DLLIB): ", (makedef ? "$(DEFFILE) " : ""), "$(OBJS)\n"
+  mfile.print "$(DLLIB): "
+  mfile.print "$(DEFFILE) " if makedef
+  mfile.print "$(OBJS) Makefile\n"
   mfile.print "\t@-$(RM) $(@#{sep})\n"
   mfile.print "\t@-$(MAKEDIRS) $(@D)\n" if $extout
   link_so = LINK_SO.gsub(/^/, "\t")
@@ -1730,11 +1789,11 @@ site-install-rb: install-rb
   if File.exist?(depend)
     mfile.print("###\n", *depend_rules(File.read(depend)))
   else
-    headers = %w[ruby.h defines.h]
+    headers = %w[$(hdrdir)/ruby.h $(hdrdir)/ruby/defines.h]
     if RULE_SUBST
       headers.each {|h| h.sub!(/.*/, &RULE_SUBST.method(:%))}
     end
-    headers << $config_h if $config_h
+    headers << $config_h
     headers << '$(RUBY_EXTCONF_H)' if $extconf_h
     mfile.print "$(OBJS): ", headers.join(' '), "\n"
   end
@@ -1756,7 +1815,9 @@ def init_mkmf(config = CONFIG)
   $ARCH_FLAG = with_config("arch_flag", arg_config("ARCH_FLAG", config["ARCH_FLAG"])).dup
   $CPPFLAGS = with_config("cppflags", arg_config("CPPFLAGS", config["CPPFLAGS"])).dup
   $LDFLAGS = with_config("ldflags", arg_config("LDFLAGS", config["LDFLAGS"])).dup
-  $INCFLAGS = "-I$(arch_hdrdir) -I$(hdrdir) -I$(srcdir)"
+  $INCFLAGS = "-I$(arch_hdrdir)"
+  $INCFLAGS << " -I$(hdrdir)/ruby/backward" unless $extmk
+  $INCFLAGS << " -I$(hdrdir) -I$(srcdir)"
   $DLDFLAGS = with_config("dldflags", arg_config("DLDFLAGS", config["DLDFLAGS"])).dup
   $LIBEXT = config['LIBEXT'].dup
   $OBJEXT = config["OBJEXT"].dup
@@ -1783,6 +1844,7 @@ def init_mkmf(config = CONFIG)
   $cleanfiles = config_string('CLEANFILES') {|s| Shellwords.shellwords(s)} || []
   $cleanfiles << "mkmf.log"
   $distcleanfiles = config_string('DISTCLEANFILES') {|s| Shellwords.shellwords(s)} || []
+  $distcleandirs = config_string('DISTCLEANDIRS') {|s| Shellwords.shellwords(s)} || []
 
   $extout ||= nil
   $extout_prefix ||= nil
@@ -1844,7 +1906,7 @@ split = Shellwords.method(:shellwords).to_proc
 
 EXPORT_PREFIX = config_string('EXPORT_PREFIX') {|s| s.strip}
 
-hdr = []
+hdr = ['#include "ruby.h"' "\n"]
 config_string('COMMON_MACROS') do |s|
   Shellwords.shellwords(s).each do |w|
     hdr << "#define " + w.split(/=/, 2).join(" ")
@@ -1873,17 +1935,25 @@ LINK_SO = config_string('LINK_SO') ||
 LIBPATHFLAG = config_string('LIBPATHFLAG') || ' -L"%s"'
 RPATHFLAG = config_string('RPATHFLAG') || ''
 LIBARG = config_string('LIBARG') || '-l%s'
+MAIN_DOES_NOTHING = config_string('MAIN_DOES_NOTHING') || 'int main() {return 0;}'
 
 sep = config_string('BUILD_FILE_SEPARATOR') {|s| ":/=#{s}" if sep != "/"} || ""
 CLEANINGS = "
-clean:
-		@-$(RM) $(CLEANLIBS#{sep}) $(CLEANOBJS#{sep}) $(CLEANFILES#{sep})
+clean-rb-default::
+clean-rb::
+clean-so::
+clean: clean-so clean-rb-default clean-rb
+\t\t@-$(RM) $(CLEANLIBS#{sep}) $(CLEANOBJS#{sep}) $(CLEANFILES#{sep})
 
-distclean:	clean
-		@-$(RM) Makefile $(RUBY_EXTCONF_H) conftest.* mkmf.log
-		@-$(RM) core ruby$(EXEEXT) *~ $(DISTCLEANFILES#{sep})
+distclean-rb-default::
+distclean-rb::
+distclean-so::
+distclean: clean distclean-so distclean-rb-default distclean-rb
+\t\t@-$(RM) Makefile $(RUBY_EXTCONF_H) conftest.* mkmf.log
+\t\t@-$(RM) core ruby$(EXEEXT) *~ $(DISTCLEANFILES#{sep})
+\t\t@-$(RMDIRS) $(DISTCLEANDIRS#{sep})
 
-realclean:	distclean
+realclean: distclean
 "
 
 if not $extmk and /\A(extconf|makefile).rb\z/ =~ File.basename($0)

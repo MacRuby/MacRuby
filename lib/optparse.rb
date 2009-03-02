@@ -203,7 +203,7 @@
 #
 class OptionParser
   # :stopdoc:
-  RCSID = %w$Id: optparse.rb 13823 2007-11-04 20:17:06Z nobu $[1..-1].each {|s| s.freeze}.freeze
+  RCSID = %w$Id: optparse.rb 21070 2008-12-26 11:16:16Z yugui $[1..-1].each {|s| s.freeze}.freeze
   Version = (RCSID[1].split('.').collect {|s| s.to_i}.extend(Comparable).freeze if RCSID[1])
   LastModified = (Time.gm(*RCSID[2, 2].join('-').scan(/\d+/).collect {|s| s.to_i}) if RCSID[2])
   Release = RCSID[2]
@@ -301,7 +301,8 @@ class OptionParser
     end
 
     def self.incompatible_argument_styles(arg, t)
-      raise ArgumentError, "#{arg}: incompatible argument styles\n  #{self}, #{t}"
+      raise(ArgumentError, "#{arg}: incompatible argument styles\n  #{self}, #{t}",
+            ParseError.filter_backtrace(caller(2)))
     end
 
     def self.pattern
@@ -529,7 +530,8 @@ class OptionParser
     #
     def accept(t, pat = /.*/nm, &block)
       if pat
-        pat.respond_to?(:match) or raise TypeError, "has no `match'"
+        pat.respond_to?(:match) or
+          raise TypeError, "has no `match'", ParseError.filter_backtrace(caller(2))
       else
         pat = t if t.respond_to?(:match)
       end
@@ -629,17 +631,21 @@ class OptionParser
     # method which is called on every option.
     #
     def summarize(*args, &block)
-      list.each do |opt|
+      sum = []
+      list.reverse_each do |opt|
         if opt.respond_to?(:summarize) # perhaps OptionParser::Switch
-          opt.summarize(*args, &block)
-        elsif !opt
-          yield("")
+          s = []
+          opt.summarize(*args) {|l| s << l}
+          sum.concat(s.reverse)
+        elsif !opt or opt.empty?
+          sum << ""
         elsif opt.respond_to?(:each_line)
-          opt.each_line(&block)
+          sum.concat([*opt.each_line].reverse)
         else
-          opt.each(&block)
+          sum.concat([*opt.each].reverse)
         end
       end
+      sum.reverse_each(&block)
     end
 
     def add_banner(to)  # :nodoc:
@@ -826,7 +832,7 @@ class OptionParser
   #
   # Directs to reject specified class argument.
   #
-  # +t+:: Argument class speficier, any object including Class.
+  # +t+:: Argument class specifier, any object including Class.
   #
   #   reject(t)
   #
@@ -962,7 +968,8 @@ class OptionParser
   # +indent+:: Indentation, defaults to @summary_indent.
   #
   def summarize(to = [], width = @summary_width, max = width - 1, indent = @summary_indent, &blk)
-    visit(:summarize, {}, {}, width, max, indent, &(blk || proc {|l| to << l + $/}))
+    blk ||= proc {|l| to << (l.index($/, -1) ? l : l + $/)}
+    visit(:summarize, {}, {}, width, max, indent, &blk)
     to
   end
 
@@ -987,17 +994,14 @@ class OptionParser
   #
   def notwice(obj, prv, msg)
     unless !prv or prv == obj
-      begin
-        raise ArgumentError, "argument #{msg} given twice: #{obj}"
-      rescue
-        $@[0, 2] = nil
-        raise
-      end
+      raise(ArgumentError, "argument #{msg} given twice: #{obj}",
+            ParseError.filter_backtrace(caller(2)))
     end
     obj
   end
   private :notwice
 
+  SPLAT_PROC = proc {|*a| a.length <= 1 ? a.first : a}
   #
   # Creates an OptionParser::Switch from the parameters. The parsed argument
   # value is passed to the given block, where it can be processed.
@@ -1037,13 +1041,13 @@ class OptionParser
   #     "-x[OPTIONAL]"
   #     "-x"
   #   There is also a special form which matches character range (not full
-  #   set of regural expression):
+  #   set of regular expression):
   #     "-[a-z]MANDATORY"
   #     "-[a-z][OPTIONAL]" 
   #     "-[a-z]"
   #
   # [Argument style and description:]
-  #   Instead of specifying mandatory or optional orguments directly in the
+  #   Instead of specifying mandatory or optional arguments directly in the
   #   switch parameter, this separate parameter can be used.
   #     "=MANDATORY"
   #     "=[OPTIONAL]"
@@ -1076,9 +1080,13 @@ class OptionParser
       end
 
       # directly specified pattern(any object possible to match)
-      if !(String === o) and o.respond_to?(:match)
+      if (!(String === o || Symbol === o)) and o.respond_to?(:match)
         pattern = notwice(o, pattern, 'pattern')
-        conv = pattern.method(:convert).to_proc if pattern.respond_to?(:convert)
+        if pattern.respond_to?(:convert)
+          conv = pattern.method(:convert).to_proc
+        else
+          conv = SPLAT_PROC
+        end
         next
       end
 
@@ -1097,7 +1105,7 @@ class OptionParser
         end
         o.each {|pat, *v| pattern[pat] = v.fetch(0) {pat}}
       when Module
-        raise ArgumentError, "unsupported argument type: #{o}"
+        raise ArgumentError, "unsupported argument type: #{o}", ParseError.filter_backtrace(caller(4))
       when *ArgumentStyle.keys
         style = notwice(ArgumentStyle[o], style, 'style')
       when /^--no-([^\[\]=\s]*)(.+)?/
@@ -1162,7 +1170,9 @@ class OptionParser
       s = (style || default_style).new(pattern || default_pattern,
                                        conv, sdesc, ldesc, arg, desc, block)
     elsif !block
-      raise ArgumentError, "no switch given" if style or pattern
+      if style or pattern
+        raise ArgumentError, "no switch given", ParseError.filter_backtrace(caller)
+      end
       s = desc
     else
       short << pattern
@@ -1474,6 +1484,7 @@ class OptionParser
   #
   def environment(env = File.basename($0, '.*'))
     env = ENV[env] || ENV[env.upcase] or return
+    require 'shellwords'
     parse(*Shellwords.shellwords(env))
   end
 
@@ -1602,6 +1613,17 @@ class OptionParser
     def recover(argv)
       argv[0, 0] = @args
       argv
+    end
+
+    def self.filter_backtrace(array)
+      unless $DEBUG
+        array.delete_if(&%r"\A#{Regexp.quote(__FILE__)}:"o.method(:=~))
+      end
+      array
+    end
+
+    def set_backtrace(array)
+      super(self.class.filter_backtrace(array))
     end
 
     def set_option(opt, eq)

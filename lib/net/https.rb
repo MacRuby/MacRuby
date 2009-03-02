@@ -16,7 +16,7 @@
   You can get it from RAA or Ruby's CVS repository.
 
 == Version
-  $Id: https.rb 14371 2007-12-20 16:21:22Z gotoyuzo $
+  $Id: https.rb 18512 2008-08-12 05:20:09Z aamine $
   
   2001-11-06: Contiributed to Ruby/OpenSSL project.
   2004-03-06: Some code is merged in to net/http.
@@ -65,11 +65,11 @@ It can be replaced by the following code:
 
 : key, key=((|key|))
     Sets an OpenSSL::PKey::RSA or OpenSSL::PKey::DSA object.
-    (This method is appeared in Michal Rokos's OpenSSL extention.)
+    (This method is appeared in Michal Rokos's OpenSSL extension.)
 
 : cert, cert=((|cert|))
     Sets an OpenSSL::X509::Certificate object as client certificate
-    (This method is appeared in Michal Rokos's OpenSSL extention).
+    (This method is appeared in Michal Rokos's OpenSSL extension).
 
 : ca_file, ca_file=((|path|))
     Sets path of a CA certification file in PEM format.
@@ -124,7 +124,7 @@ module Net
       ssl_version key cert ca_file ca_path cert_store ciphers
       verify_mode verify_callback verify_depth ssl_timeout
     )
-    attr_accessor *SSL_ATTRIBUTES
+    attr_accessor(*SSL_ATTRIBUTES)
 
     def peer_cert
       if not use_ssl? or not @socket

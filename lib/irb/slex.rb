@@ -1,7 +1,7 @@
 #
-#   irb/slex.rb - symple lex analizer
+#   irb/slex.rb - simple lex analyzer
 #   	$Release Version: 0.9.5$
-#   	$Revision: 14912 $
+#   	$Revision: 16810 $
 #   	by Keiju ISHITSUKA(keiju@ruby-lang.org)
 #
 # --
@@ -14,7 +14,7 @@ require "irb/notifier"
 
 module IRB
   class SLex
-    @RCS_ID='-$Id: slex.rb 14912 2008-01-06 15:49:38Z akr $-'
+    @RCS_ID='-$Id: slex.rb 16810 2008-06-04 09:37:38Z matz $-'
 
     extend Exception2MessageMapper
     def_exception :ErrNodeNothing, "node nothing"

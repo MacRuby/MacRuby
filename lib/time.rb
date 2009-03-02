@@ -1,37 +1,37 @@
 
 #
 # == Introduction
-# 
+#
 # This library extends the Time class:
 # * conversion between date string and time object.
 #   * date-time defined by RFC 2822
 #   * HTTP-date defined by RFC 2616
 #   * dateTime defined by XML Schema Part 2: Datatypes (ISO 8601)
 #   * various formats handled by Date._parse (string to time only)
-# 
+#
 # == Design Issues
-# 
+#
 # === Specialized interface
-# 
+#
 # This library provides methods dedicated to special purposes:
 # * RFC 2822, RFC 2616 and XML Schema.
 # * They makes usual life easier.
-# 
+#
 # === Doesn't depend on strftime
-# 
+#
 # This library doesn't use +strftime+.  Especially #rfc2822 doesn't depend
 # on +strftime+ because:
-# 
+#
 # * %a and %b are locale sensitive
-# 
+#
 #   Since they are locale sensitive, they may be replaced to
 #   invalid weekday/month name in some locales.
 #   Since ruby-1.6 doesn't invoke setlocale by default,
 #   the problem doesn't arise until some external library invokes setlocale.
 #   Ruby/GTK is the example of such library.
-# 
+#
 # * %z is not portable
-# 
+#
 #   %z is required to generate zone in date-time of RFC 2822
 #   but it is not portable.
 #
@@ -61,9 +61,9 @@ class Time
       'PST' => -8, 'PDT' => -7,
       # Following definition of military zones is original one.
       # See RFC 1123 and RFC 2822 for the error in RFC 822.
-      'A' => +1, 'B' => +2, 'C' => +3, 'D' => +4,  'E' => +5,  'F' => +6, 
+      'A' => +1, 'B' => +2, 'C' => +3, 'D' => +4,  'E' => +5,  'F' => +6,
       'G' => +7, 'H' => +8, 'I' => +9, 'K' => +10, 'L' => +11, 'M' => +12,
-      'N' => -1, 'O' => -2, 'P' => -3, 'Q' => -4,  'R' => -5,  'S' => -6, 
+      'N' => -1, 'O' => -2, 'P' => -3, 'Q' => -4,  'R' => -5,  'S' => -6,
       'T' => -7, 'U' => -8, 'V' => -9, 'W' => -10, 'X' => -11, 'Y' => -12,
     }
     def zone_offset(zone, year=self.now.year)
@@ -84,8 +84,26 @@ class Time
     end
 
     def zone_utc?(zone)
-      # * +0000 means localtime. [RFC 2822]
-      # * GMT is a localtime abbreviation in Europe/London, etc.
+      # * +0000
+      #   In RFC 2822, +0000 indicate a time zone at Universal Time.
+      #   Europe/London is "a time zone at Universal Time" in Winter.
+      #   Europe/Lisbon is "a time zone at Universal Time" in Winter.
+      #   Atlantic/Reykjavik is "a time zone at Universal Time".
+      #   Africa/Dakar is "a time zone at Universal Time".
+      #   So +0000 is a local time such as Europe/London, etc.
+      # * GMT
+      #   GMT is used as a time zone abbreviation in Europe/London,
+      #   Africa/Dakar, etc.
+      #   So it is a local time.
+      #
+      # * -0000, -00:00
+      #   In RFC 2822, -0000 the date-time contains no information about the
+      #   local time zone.
+      #   In RFC 3339, -00:00 is used for the time in UTC is known,
+      #   but the offset to local time is unknown.
+      #   They are not appropriate for specific time zone such as
+      #   Europe/London because time zone neutral, 
+      #   So -00:00 and -0000 are treated as UTC.
       if /\A(?:-00:00|-0000|-00|UTC|Z|UT)\z/i =~ zone
         true
       else
@@ -374,7 +392,7 @@ class Time
           (-?\d+)-(\d\d)-(\d\d)
           T
           (\d\d):(\d\d):(\d\d)
-          (\.\d*)?
+          (\.\d+)?
           (Z|[+-]\d\d:\d\d)?
           \s*\z/ix =~ date
         year = $1.to_i
@@ -384,7 +402,9 @@ class Time
         min = $5.to_i
         sec = $6.to_i
         usec = 0
-        usec = $7.to_f * 1000000 if $7
+        if $7
+          usec = Rational($7) * 1000000
+        end
         if $8
           zone = $8
           year, mon, day, hour, min, sec =
@@ -434,8 +454,8 @@ class Time
 
   #
   # Returns a string which represents the time as rfc1123-date of HTTP-date
-  # defined by RFC 2616: 
-  # 
+  # defined by RFC 2616:
+  #
   #   day-of-week, DD month-name CCYY hh:mm:ss GMT
   #
   # Note that the result is always UTC (GMT).
@@ -622,6 +642,7 @@ if __FILE__ == $0
                    Time.xmlschema("2000-01-12T12:13:14Z"))
       assert_equal(Time.utc(2001, 4, 17, 19, 23, 17, 300000),
                    Time.xmlschema("2001-04-17T19:23:17.3Z"))
+      assert_raise(ArgumentError) { Time.xmlschema("2000-01-01T00:00:00.+00:00") }
     end
 
     def test_encode_xmlschema
@@ -645,6 +666,8 @@ if __FILE__ == $0
         t = Time.utc(1960, 12, 31, 23, 0, 0, 123456)
         assert_equal("1960-12-31T23:00:00.123456Z", t.xmlschema(6))
       end
+
+      assert_equal(249, Time.xmlschema("2008-06-05T23:49:23.000249+09:00").usec)
     end
 
     def test_completion
@@ -736,6 +759,18 @@ if __FILE__ == $0
       assert_equal(true, Time.rfc2822("Sat, 01 Jan 2000 00:00:00 UTC").utc?)
     end
 
+    def test_rfc2822_utc_roundtrip_winter
+      t1 = Time.local(2008,12,1)
+      t2 = Time.rfc2822(t1.rfc2822)
+      assert_equal(t1.utc?, t2.utc?, "[ruby-dev:37126]")
+    end
+
+    def test_rfc2822_utc_roundtrip_summer
+      t1 = Time.local(2008,8,1)
+      t2 = Time.rfc2822(t1.rfc2822)
+      assert_equal(t1.utc?, t2.utc?)
+    end
+
     def test_parse_leap_second
       t = Time.utc(1998,12,31,23,59,59)
       assert_equal(t, Time.parse("Thu Dec 31 23:59:59 UTC 1998"))
@@ -763,21 +798,21 @@ if __FILE__ == $0
     def test_rfc2822_leap_second
       t = Time.utc(1998,12,31,23,59,59)
       assert_equal(t, Time.rfc2822("Thu, 31 Dec 1998 23:59:59 UTC"))
-      assert_equal(t, Time.rfc2822("Fri, 31 Dec 1998 23:59:59 -0000"));t.localtime                                  
+      assert_equal(t, Time.rfc2822("Fri, 31 Dec 1998 23:59:59 -0000"));t.localtime
       assert_equal(t, Time.rfc2822("Fri,  1 Jan 1999 08:59:59 +0900"))
       assert_equal(t, Time.rfc2822("Fri,  1 Jan 1999 00:59:59 +0100"))
       assert_equal(t, Time.rfc2822("Fri, 31 Dec 1998 23:59:59 +0000"))
-      assert_equal(t, Time.rfc2822("Fri, 31 Dec 1998 22:59:59 -0100"));t.utc                                  
+      assert_equal(t, Time.rfc2822("Fri, 31 Dec 1998 22:59:59 -0100"));t.utc
       t += 1
       assert_equal(t, Time.rfc2822("Thu, 31 Dec 1998 23:59:60 UTC"))
-      assert_equal(t, Time.rfc2822("Fri, 31 Dec 1998 23:59:60 -0000"));t.localtime                                  
+      assert_equal(t, Time.rfc2822("Fri, 31 Dec 1998 23:59:60 -0000"));t.localtime
       assert_equal(t, Time.rfc2822("Fri,  1 Jan 1999 08:59:60 +0900"))
       assert_equal(t, Time.rfc2822("Fri,  1 Jan 1999 00:59:60 +0100"))
       assert_equal(t, Time.rfc2822("Fri, 31 Dec 1998 23:59:60 +0000"))
-      assert_equal(t, Time.rfc2822("Fri, 31 Dec 1998 22:59:60 -0100"));t.utc                                  
+      assert_equal(t, Time.rfc2822("Fri, 31 Dec 1998 22:59:60 -0100"));t.utc
       t += 1 if t.sec == 60
       assert_equal(t, Time.rfc2822("Thu,  1 Jan 1999 00:00:00 UTC"))
-      assert_equal(t, Time.rfc2822("Fri,  1 Jan 1999 00:00:00 -0000"));t.localtime                                  
+      assert_equal(t, Time.rfc2822("Fri,  1 Jan 1999 00:00:00 -0000"));t.localtime
       assert_equal(t, Time.rfc2822("Fri,  1 Jan 1999 09:00:00 +0900"))
       assert_equal(t, Time.rfc2822("Fri,  1 Jan 1999 01:00:00 +0100"))
       assert_equal(t, Time.rfc2822("Fri,  1 Jan 1999 00:00:00 +0000"))
@@ -806,6 +841,10 @@ if __FILE__ == $0
       assert_equal(t, Time.xmlschema("1999-01-01T01:00:00+01:00"))
       assert_equal(t, Time.xmlschema("1999-01-01T00:00:00+00:00"))
       assert_equal(t, Time.xmlschema("1998-12-31T23:00:00-01:00"))
+    end
+
+    def test_xmlschema_fraction
+      assert_equal(500000, Time.xmlschema("2000-01-01T00:00:00.5+00:00").tv_usec)
     end
 
     def test_ruby_talk_152866

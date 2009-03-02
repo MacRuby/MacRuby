@@ -287,10 +287,16 @@ module Net
 
     # Disconnects from the server.
     def disconnect
-      if SSL::SSLSocket === @sock
-        @sock.io.shutdown
-      else
-        @sock.shutdown
+      begin
+        begin
+          # try to call SSL::SSLSocket#io.
+          @sock.io.shutdown
+        rescue NoMethodError
+          # @sock is not an SSL::SSLSocket.
+          @sock.shutdown
+        end
+      rescue Errno::ENOTCONN
+        # ignore `Errno::ENOTCONN: Socket is not connected' on some platforms.
       end
       @receiver_thread.join
       @sock.close
@@ -3210,7 +3216,7 @@ module Net
 	    ].join(':')
 	  )
 
-	  return response.keys.map { |k| qdval(k.to_s, response[k]) }.join(',')
+	  return response.keys.map {|key| qdval(key.to_s, response[key]) }.join(',')
 	when STAGE_TWO
 	  @stage = nil
 	  # if at the second stage, return an empty string
@@ -3243,7 +3249,7 @@ module Net
 	return @nc[nonce]
       end
 
-      # some reponses needs quoting
+      # some responses need quoting
       def qdval(k, v)
 	return if k.nil? or v.nil?
 	if %w"username authzid realm nonce cnonce digest-uri qop".include? k

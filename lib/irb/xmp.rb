@@ -1,7 +1,7 @@
 #
 #   xmp.rb - irb version of gotoken xmp
 #   	$Release Version: 0.9$
-#   	$Revision: 14912 $
+#   	$Revision: 21633 $
 #   	by Keiju ISHITSUKA(Nippon Rational Inc.)
 #
 # --
@@ -13,7 +13,7 @@ require "irb"
 require "irb/frame"
 
 class XMP
-  @RCS_ID='-$Id: xmp.rb 14912 2008-01-06 15:49:38Z akr $-'
+  @RCS_ID='-$Id: xmp.rb 21633 2009-01-17 12:19:53Z yugui $-'
 
   def initialize(bind = nil)
     IRB.init_config(nil)
@@ -72,8 +72,20 @@ class XMP
     end
 
     def puts(exps)
+      if @encoding and exps.encoding != @encoding
+	enc = Encoding.compatible?(@exps.join("\n"), exps)
+	if enc.nil?
+	  raise Encoding::CompatibilityError, "Encoding in which the passed exression is encoded is not compatible to the preceding's one"
+	else
+	  @encoding = enc
+	end
+      else
+	@encoding = exps.encoding
+      end
       @exps.concat exps.split(/\n/)
     end
+
+    attr_reader :encoding
   end
 end
 

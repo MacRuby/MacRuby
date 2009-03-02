@@ -43,11 +43,13 @@ module Kernel
   #
   #   GEM_SKIP=libA:libB ruby -I../libA -I../libB ./mycode.rb
 
-  def gem(gem_name, *version_requirements)
+  def gem(gem_name, *version_requirements) # :doc:
     skip_list = (ENV['GEM_SKIP'] || "").split(/:/)
     raise Gem::LoadError, "skipping #{gem_name}" if skip_list.include? gem_name
     Gem.activate(gem_name, *version_requirements)
   end
+
+  private :gem
 
 end
 
@@ -67,11 +69,14 @@ module Gem
     :RUBY_SO_NAME => RbConfig::CONFIG["RUBY_SO_NAME"],
     :arch => RbConfig::CONFIG["arch"],
     :bindir => RbConfig::CONFIG["bindir"],
+    :datadir => RbConfig::CONFIG["datadir"],
     :libdir => RbConfig::CONFIG["libdir"],
     :ruby_install_name => RbConfig::CONFIG["ruby_install_name"],
     :ruby_version => RbConfig::CONFIG["ruby_version"],
     :sitedir => RbConfig::CONFIG["sitedir"],
-    :sitelibdir => RbConfig::CONFIG["sitelibdir"]
+    :sitelibdir => RbConfig::CONFIG["sitelibdir"],
+    :vendordir => RbConfig::CONFIG["vendordir"] ,
+    :vendorlibdir => RbConfig::CONFIG["vendorlibdir"]
   )
 
   DIRECTORIES = %w[cache doc gems specifications] unless defined?(DIRECTORIES)
@@ -100,6 +105,11 @@ module Gem
   @platforms = []
   @ruby = nil
   @sources = []
+
+  @post_install_hooks   ||= []
+  @post_uninstall_hooks ||= []
+  @pre_uninstall_hooks  ||= []
+  @pre_install_hooks    ||= []
 
   ##
   # Activates an installed gem matching +gem+.  The gem must satisfy
@@ -137,7 +147,7 @@ module Gem
 
       unless matches.any? { |spec| spec.version == existing_spec.version } then
         raise Gem::Exception,
-              "can't activate #{gem}, already activated #{existing_spec.full_name}]"
+              "can't activate #{gem}, already activated #{existing_spec.full_name}"
       end
 
       return false
@@ -151,7 +161,7 @@ module Gem
     @loaded_specs[spec.name] = spec
 
     # Load dependent gems first
-    spec.dependencies.each do |dep_gem|
+    spec.runtime_dependencies.each do |dep_gem|
       activate dep_gem
     end
 
@@ -204,6 +214,20 @@ module Gem
   private_class_method :all_partials
 
   ##
+  # See if a given gem is available.
+
+  def self.available?(gem, *requirements)
+    requirements = Gem::Requirement.default if requirements.empty?
+
+    unless gem.respond_to?(:name) and
+           gem.respond_to?(:version_requirements) then
+      gem = Gem::Dependency.new gem, requirements
+    end
+
+    !Gem.source_index.search(gem).empty?
+  end
+
+  ##
   # The mode needed to read a file as straight binary.
 
   def self.binary_mode
@@ -227,7 +251,10 @@ module Gem
   def self.clear_paths
     @gem_home = nil
     @gem_path = nil
+    @user_home = nil
+
     @@source_index = nil
+
     MUTEX.synchronize do
       @searcher = nil
     end
@@ -244,9 +271,7 @@ module Gem
   # The standard configuration object for gems.
 
   def self.configuration
-    return @configuration if @configuration
-    require 'rubygems/config_file'
-    @configuration = Gem::ConfigFile.new []
+    @configuration ||= Gem::ConfigFile.new []
   end
 
   ##
@@ -268,11 +293,19 @@ module Gem
   end
 
   ##
+  # A Zlib::Deflate.deflate wrapper
+
+  def self.deflate(data)
+    require 'zlib'
+    Zlib::Deflate.deflate data
+  end
+
+  ##
   # The path where gems are to be installed.
 
   def self.dir
     @gem_home ||= nil
-    set_home(ENV['GEM_HOME'] || default_dir) unless @gem_home
+    set_home(ENV['GEM_HOME'] || Gem.configuration.home || default_dir) unless @gem_home
     @gem_home
   end
 
@@ -313,6 +346,22 @@ module Gem
   end
 
   ##
+  # Returns a list of paths matching +file+ that can be used by a gem to pick
+  # up features from other gems.  For example:
+  #
+  #   Gem.find_files('rdoc/discover').each do |path| load path end
+  #
+  # find_files does not search $LOAD_PATH for files, only gems.
+
+  def self.find_files(path)
+    specs = searcher.find_all path
+
+    specs.map do |spec|
+      searcher.matching_files spec, path
+    end.flatten
+  end
+
+  ##
   # Finds the user's home directory.
   #--
   # Some comments from the ruby-talk list regarding finding the home
@@ -329,7 +378,7 @@ module Gem
     end
 
     if ENV['HOMEDRIVE'] && ENV['HOMEPATH'] then
-      return "#{ENV['HOMEDRIVE']}:#{ENV['HOMEPATH']}"
+      return "#{ENV['HOMEDRIVE']}#{ENV['HOMEPATH']}"
     end
 
     begin
@@ -344,6 +393,38 @@ module Gem
   end
 
   private_class_method :find_home
+
+  ##
+  # Zlib::GzipReader wrapper that unzips +data+.
+
+  def self.gunzip(data)
+    require 'stringio'
+    require 'zlib'
+    data = StringIO.new data
+
+    Zlib::GzipReader.new(data).read
+  end
+
+  ##
+  # Zlib::GzipWriter wrapper that zips +data+.
+
+  def self.gzip(data)
+    require 'stringio'
+    require 'zlib'
+    zipped = StringIO.new
+
+    Zlib::GzipWriter.wrap zipped do |io| io.write data end
+
+    zipped.string
+  end
+
+  ##
+  # A Zlib::Inflate#inflate wrapper
+
+  def self.inflate(data)
+    require 'zlib'
+    Zlib::Inflate.inflate data
+  end
 
   ##
   # Return a list of all possible load paths for the latest version for all
@@ -406,22 +487,20 @@ module Gem
   # The file name and line number of the caller of the caller of this method.
 
   def self.location_of_caller
-    file, lineno = caller[1].split(':')
-    lineno = lineno.to_i
+    caller[1] =~ /(.*?):(\d+)$/i
+    file = $1
+    lineno = $2.to_i
+
     [file, lineno]
   end
 
-  private_class_method :location_of_caller
-
   ##
   # manage_gems is useless and deprecated.  Don't call it anymore.
-  #--
-  # TODO warn w/ RubyGems 1.2.x release.
 
-  def self.manage_gems
-    #file, lineno = location_of_caller
+  def self.manage_gems # :nodoc:
+    file, lineno = location_of_caller
 
-    #warn "#{file}:#{lineno}:Warning: Gem#manage_gems is deprecated and will be removed on or after September 2008."
+    warn "#{file}:#{lineno}:Warning: Gem::manage_gems is deprecated and will be removed on or after March 2009."
   end
 
   ##
@@ -438,7 +517,7 @@ module Gem
     @gem_path ||= nil
 
     unless @gem_path then
-      paths = [ENV['GEM_PATH']] || [default_path]
+      paths = [ENV['GEM_PATH'] || Gem.configuration.path || default_path]
 
       if defined?(APPLE_GEM_HOME) and not ENV['GEM_PATH'] then
         paths << APPLE_GEM_HOME
@@ -459,13 +538,47 @@ module Gem
 
   ##
   # Array of platforms this RubyGems supports.
-  
+
   def self.platforms
     @platforms ||= []
     if @platforms.empty?
       @platforms = [Gem::Platform::RUBY, Gem::Platform.local]
     end
     @platforms
+  end
+
+  ##
+  # Adds a post-install hook that will be passed an Gem::Installer instance
+  # when Gem::Installer#install is called
+
+  def self.post_install(&hook)
+    @post_install_hooks << hook
+  end
+
+  ##
+  # Adds a post-uninstall hook that will be passed a Gem::Uninstaller instance
+  # and the spec that was uninstalled when Gem::Uninstaller#uninstall is
+  # called
+
+  def self.post_uninstall(&hook)
+    @post_uninstall_hooks << hook
+  end
+
+  ##
+  # Adds a pre-install hook that will be passed an Gem::Installer instance
+  # when Gem::Installer#install is called
+
+  def self.pre_install(&hook)
+    @pre_install_hooks << hook
+  end
+
+  ##
+  # Adds a pre-uninstall hook that will be passed an Gem::Uninstaller instance
+  # and the spec that will be uninstalled when Gem::Uninstaller#uninstall is
+  # called
+
+  def self.pre_uninstall(&hook)
+    @pre_uninstall_hooks << hook
   end
 
   ##
@@ -545,6 +658,9 @@ module Gem
       @ruby = File.join(ConfigMap[:bindir],
                         ConfigMap[:ruby_install_name])
       @ruby << ConfigMap[:EXEEXT]
+
+      # escape string in case path to ruby executable contain spaces.
+      @ruby.sub!(/.*\s.*/m, '"\&"')
     end
 
     @ruby
@@ -586,20 +702,30 @@ module Gem
   def self.set_paths(gpaths)
     if gpaths
       @gem_path = gpaths.split(File::PATH_SEPARATOR)
-      
+
       if File::ALT_SEPARATOR then
         @gem_path.map! do |path|
           path.gsub File::ALT_SEPARATOR, File::SEPARATOR
         end
       end
-      
+
       @gem_path << Gem.dir
     else
+      # TODO: should this be Gem.default_path instead?
       @gem_path = [Gem.dir]
     end
 
     @gem_path.uniq!
-    @gem_path.each do |gp| ensure_gem_subdirectories(gp) end
+    @gem_path.each do |path|
+      if 0 == File.expand_path(path).index(Gem.user_home)
+        next unless File.directory? Gem.user_home
+        unless win_platform? then
+          # only create by matching user
+          next if Etc.getpwuid.uid != File::Stat.new(Gem.user_home).uid
+        end
+      end
+      ensure_gem_subdirectories path
+    end
   end
 
   private_class_method :set_paths
@@ -627,6 +753,14 @@ module Gem
     end
 
     @sources
+  end
+
+  ##
+  # Need to be able to set the sources without calling
+  # Gem.sources.replace since that would cause an infinite loop.
+
+  def self.sources=(new_sources)
+    @sources = new_sources
   end
 
   ##
@@ -675,6 +809,27 @@ module Gem
 
     attr_reader :loaded_specs
 
+    ##
+    # The list of hooks to be run before Gem::Install#install does any work
+
+    attr_reader :post_install_hooks
+
+    ##
+    # The list of hooks to be run before Gem::Uninstall#uninstall does any
+    # work
+
+    attr_reader :post_uninstall_hooks
+
+    ##
+    # The list of hooks to be run after Gem::Install#install is finished
+
+    attr_reader :pre_install_hooks
+
+    ##
+    # The list of hooks to be run after Gem::Uninstall#uninstall is finished
+
+    attr_reader :pre_uninstall_hooks
+
     # :stopdoc:
 
     alias cache source_index # an alias for the old name
@@ -683,24 +838,25 @@ module Gem
 
   end
 
+  MARSHAL_SPEC_DIR = "quick/Marshal.#{Gem.marshal_version}/"
+
+  YAML_SPEC_DIR = 'quick/'
+
 end
 
-# Modify the non-gem version of datadir to handle gem package names.
-
-require 'rbconfig/datadir'
-
-module Config # :nodoc:
+module Config
+  # :stopdoc:
   class << self
-    alias gem_original_datadir datadir
-
     # Return the path to the data directory associated with the named
     # package.  If the package is loaded as a gem, return the gem
     # specific data directory.  Otherwise return a path to the share
     # area as define by "#{ConfigMap[:datadir]}/#{package_name}".
     def datadir(package_name)
-      Gem.datadir(package_name) || Config.gem_original_datadir(package_name)
+      Gem.datadir(package_name) ||
+        File.join(Gem::ConfigMap[:datadir], package_name)
     end
   end
+  # :startdoc:
 end
 
 require 'rubygems/exceptions'
@@ -712,7 +868,22 @@ require 'rubygems/source_index'         # Needed for Kernel#gem
 require 'rubygems/platform'
 require 'rubygems/builder'              # HACK: Needed for rake's package task.
 
+begin
+  require 'rubygems/defaults/operating_system'
+rescue LoadError
+end
+
+if defined?(RUBY_ENGINE) then
+  begin
+    require "rubygems/defaults/#{RUBY_ENGINE}"
+  rescue LoadError
+  end
+end
+
+require 'rubygems/config_file'
+
 if RUBY_VERSION < '1.9' then
   require 'rubygems/custom_require'
 end
 
+Gem.clear_paths

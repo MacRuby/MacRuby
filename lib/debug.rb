@@ -711,9 +711,6 @@ EOHELP
       end
       @frames.shift
 
-    when 'end'
-      @frames.shift
-
     when 'raise' 
       excn_handle(file, line, id, binding)
 
@@ -901,10 +898,10 @@ end
 
 stdout.printf "Debug.rb\n"
 stdout.printf "Emacs support available.\n\n"
+RubyVM::InstructionSequence.compile_option = {
+  trace_instruction: true
+}
 set_trace_func proc { |event, file, line, id, binding, klass, *rest|
   DEBUGGER__.context.trace_func event, file, line, id, binding, klass
-}
-VM::InstructionSequence.compile_option = {
-  trace_instruction: true
 }
 end

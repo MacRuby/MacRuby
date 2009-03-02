@@ -1,7 +1,7 @@
 #
 #   irb/ext/cb.rb - 
 #   	$Release Version: 0.9.5$
-#   	$Revision: 14912 $
+#   	$Revision: 20880 $
 #   	by Keiju ISHITSUKA(keiju@ruby-lang.org)
 #
 # --
@@ -56,6 +56,6 @@ module IRB
 #       end
 #     end
 #     alias change_workspace change_binding
-   end
+  end
 end
 

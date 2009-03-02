@@ -40,6 +40,7 @@ class Gem::Commands::SpecificationCommand < Gem::Command
   def execute
     specs = []
     gem = get_one_gem_name
+    dep = Gem::Dependency.new gem, options[:version]
 
     if local? then
       if File.exist? gem then
@@ -47,14 +48,14 @@ class Gem::Commands::SpecificationCommand < Gem::Command
       end
 
       if specs.empty? then
-        specs.push(*Gem.source_index.search(/\A#{gem}\z/, options[:version]))
+        specs.push(*Gem.source_index.search(dep))
       end
     end
 
     if remote? then
-      Gem::SourceInfoCache.cache_data.each do |_,sice|
-        specs.push(*sice.source_index.search(gem, options[:version]))
-      end
+      found = Gem::SpecFetcher.fetcher.fetch dep
+
+      specs.push(*found.map { |spec,| spec })
     end
 
     if specs.empty? then
