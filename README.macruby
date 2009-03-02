@@ -1,0 +1,8 @@
+For information about Ruby proper, read the README file.
+
+Building instructions:
+
+rake
+sudo rake install
+
+
