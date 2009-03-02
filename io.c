@@ -6961,28 +6961,32 @@ static VALUE
 rb_io_s_copy_stream(int argc, VALUE *argv, VALUE io)
 {
     VALUE src, dst, length, src_offset;
-    struct copy_stream_struct st;
+    struct copy_stream_struct *st;
 
-    MEMZERO(&st, struct copy_stream_struct, 1);
+    st = xmalloc(sizeof(struct copy_stream_struct));
 
     rb_scan_args(argc, argv, "22", &src, &dst, &length, &src_offset);
 
-    st.src = src;
-    st.dst = dst;
+    st->src = src;
+    st->dst = dst;
 
-    if (NIL_P(length))
-        st.copy_length = (off_t)-1;
-    else
-        st.copy_length = NUM2OFFT(length);
+    if (NIL_P(length)) {
+        st->copy_length = (off_t)-1;
+    }
+    else {
+        st->copy_length = NUM2OFFT(length);
+    }
 
-    if (NIL_P(src_offset))
-        st.src_offset = (off_t)-1;
-    else
-        st.src_offset = NUM2OFFT(src_offset);
+    if (NIL_P(src_offset)) {
+        st->src_offset = (off_t)-1;
+    }
+    else {
+        st->src_offset = NUM2OFFT(src_offset);
+    }
 
-    rb_ensure(copy_stream_body, (VALUE)&st, copy_stream_finalize, (VALUE)&st);
+    rb_ensure(copy_stream_body, (VALUE)st, copy_stream_finalize, (VALUE)st);
 
-    return OFFT2NUM(st.total);
+    return OFFT2NUM(st->total);
 }
 
 /*
