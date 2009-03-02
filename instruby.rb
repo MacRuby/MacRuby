@@ -1,7 +1,5 @@
 #!./miniruby
 
-GC.disable # XXX for now
-
 load "./rbconfig.rb"
 include RbConfig
 

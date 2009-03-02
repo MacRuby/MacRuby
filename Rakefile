@@ -584,7 +584,7 @@ INSTRUBY_ARGS = "#{SCRIPT_ARGS} --data-mode=0644 --prog-mode=0755 --installed-li
 
 desc "Build extensions"
 task :extensions => [:miniruby, "macruby:static"] do
-  sh "./miniruby -I./lib -I.ext/common -I./- -r./ext/purelib.rb ext/extmk.rb #{EXTMK_ARGS}"
+  sh "GC_DISABLE=1 ./miniruby -I./lib -I.ext/common -I./- -r./ext/purelib.rb ext/extmk.rb #{EXTMK_ARGS}"
 end
 
 namespace :framework do
@@ -627,7 +627,7 @@ EOS
 
   desc "Install the framework"
   task :install => :info_plist do
-    sh "./miniruby instruby.rb #{INSTRUBY_ARGS}"
+    sh "GC_DISABLE=1 ./miniruby instruby.rb #{INSTRUBY_ARGS}"
   end
 end
 
