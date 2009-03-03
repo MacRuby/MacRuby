@@ -508,4 +508,12 @@ class TestObjC < Test::Unit::TestCase
     assert_equal('i', ms.getArgumentTypeAtIndex(2))
     assert_equal('i', ms.getArgumentTypeAtIndex(3))
   end
+
+  module Kernel
+    def foo; 42; end
+    private :foo
+  end
+  def test_private_kernel_method
+    assert_equal(42, foo)
+  end
 end

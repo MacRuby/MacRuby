@@ -479,8 +479,15 @@ rb_export_method(VALUE klass, ID name, ID noex)
 	    ? rb_cObject : klass;
     }
     else {
-	origin = rb_method_node(RCLASS_SUPER(klass), name) == fbody
-	    ? RCLASS_SUPER(klass) : klass;
+	if (klass == rb_mKernel) {
+	    // This is a special case, since Kernel inherits of NSObject, and that
+	    // Kernel is mixed into NSObject.
+	    origin = rb_mKernel;
+	}
+	else {
+	    origin = rb_method_node(RCLASS_SUPER(klass), name) == fbody
+		? RCLASS_SUPER(klass) : klass;
+	}
     }
     if (fbody == NULL) {
 	rb_print_undef(klass, name, 0);
