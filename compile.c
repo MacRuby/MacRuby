@@ -699,13 +699,12 @@ new_insn_send(rb_iseq_t *iseq, int line_no,
     mcache->flags = RB_MCACHE_RCALL_FLAG;
     mcache->as.rcall.klass = 0;
     mcache->as.rcall.node = NULL;
-    if (FIX2INT(argc) > 0) {
-	char *id_str;
-	size_t id_str_len;
-	char buf[100];
 
-	id_str = (char *)rb_sym2name(id);
-	id_str_len = strlen(id_str);
+    char *id_str = (char *)rb_sym2name(id);
+    size_t id_str_len = strlen(id_str);
+
+    if (FIX2INT(argc) > 0 || id_str[id_str_len - 1] == '=') {
+	char buf[100];
 
 	if (id_str[id_str_len - 1] != ':') {
 	    snprintf(buf, sizeof buf, "%s:", id_str);
@@ -715,11 +714,11 @@ new_insn_send(rb_iseq_t *iseq, int line_no,
 	mcache->as.rcall.sel = sel_registerName(id_str);
     }
     else {
-	mcache->as.rcall.sel = sel_registerName(rb_sym2name(id));
+	mcache->as.rcall.sel = sel_registerName(id_str);
 	if (mcache->as.rcall.sel == sel_ignored
 	    || mcache->as.rcall.sel == sel_zone) {
 	    char buf[100];
-	    snprintf(buf, sizeof buf, "__rb_%s__", rb_sym2name(id));
+	    snprintf(buf, sizeof buf, "__rb_%s__", id_str);
 	    mcache->as.rcall.sel = sel_registerName(buf);
 	}
     }
