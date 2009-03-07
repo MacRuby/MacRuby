@@ -1,6 +1,5 @@
 require 'hotcocoa'
 SOURCE_DIR = File.expand_path(File.dirname(__FILE__))
-require SOURCE_DIR + '/controller'
 require SOURCE_DIR + '/custom_view_behaviors'
 require SOURCE_DIR + '/custom_window_behaviors'
 
