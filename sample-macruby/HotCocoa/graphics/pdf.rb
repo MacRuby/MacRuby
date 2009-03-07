@@ -1,8 +1,6 @@
-#!/usr/bin/env macruby
-
 require 'hotcocoa/graphics'
-require 'test/unit'
-include HotCocoa::Graphics
+include HotCocoa
+include Graphics
 
 
 class TestPdf < Test::Unit::TestCase

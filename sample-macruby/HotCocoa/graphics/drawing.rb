@@ -2,7 +2,8 @@
 
 require 'hotcocoa/graphics'
 require 'test/unit'
-include HotCocoa::Graphics
+include HotCocoa
+include Graphics
 
 class TestDrawing < Test::Unit::TestCase
   
