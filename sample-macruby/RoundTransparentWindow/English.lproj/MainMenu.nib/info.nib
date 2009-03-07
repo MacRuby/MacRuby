@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist SYSTEM "file://localhost/System/Library/DTDs/PropertyList.dtd">
+<plist version="0.9">
+<dict>
+	<key>IBDocumentLocation</key>
+	<string>52 15 458 255 0 4 1280 998 </string>
+	<key>IBMainMenuLocation</key>
+	<string>22 297 227 44 0 4 1280 998 </string>
+	<key>IBUserGuides</key>
+	<dict>
+		<key>MyWindow</key>
+		<dict>
+			<key>guideLocations</key>
+			<array/>
+			<key>guidesLocked</key>
+			<string>NO</string>
+		</dict>
+	</dict>
+</dict>
+</plist>
