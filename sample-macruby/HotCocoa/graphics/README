@@ -1,0 +1,17 @@
+=== HotCocoa::Graphics Examples ===
+
+You will find in this directory several examples that illustrate the 
+graphics layer of HotCocoa.
+
+You can run them from the command line using macruby. 
+
+  $ macruby particle.rb
+
+You should then see an image opening in your default image viewer.
+
+These examples are drawing into PNG images, but it is possible to draw on
+any CoreGraphics context, for example within an NSView's drawRect: method.
+
+== TODO ==
+
+Write a demo HotCocoa app that embeds all the samples and draw in an NSView.
