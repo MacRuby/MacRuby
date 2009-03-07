@@ -43,3 +43,7 @@ $ macrake
 Layout View:
 $ cd layout_view
 $ macrake
+
+Graphics:
+$ cd graphics
+$ open -a textedit README
