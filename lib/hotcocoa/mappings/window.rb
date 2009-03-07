@@ -1,3 +1,17 @@
+# Cocoa Reference: NSWindow
+#
+# Usage example:
+# ==============
+#
+#   window :frame => [100, 100, 604, 500], :title => "My app", :style => [:titled, :closable, :miniaturizable, :resizable] do |win|
+#     win.contentView.margin  = 0
+#     win.background_color    = color(:name => 'white')  
+#     win.will_close { exit }
+#   end
+#
+# Apple Developer Connection url: http://developer.apple.com/documentation/Cocoa/Reference/ApplicationKit/Classes/NSWindow_Class/Reference/Reference.html
+#
+
 HotCocoa::Mappings.map :window => :NSWindow do
     
   defaults  :style => [:titled, :closable, :miniaturizable, :resizable],
