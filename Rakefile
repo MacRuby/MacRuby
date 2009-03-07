@@ -51,6 +51,10 @@ if `arch`.include?('ppc')
   $stderr.puts "Warning: your appear to use a PowerPC machine. MacRuby's PPC support is very basic and may be dropped in a near future. Supported architectures are Intel 32-bit and 64-bit (i386 and x86_64)." 
 end
 
+if ENV['RUBYOPT']
+  $stderr.puts "Warning: It seems that the RUBYOPT environment variable is defined. Defining RUBYOPT while building MacRuby can cause problems. Unless you really know what you're doing, we strongly recommend to undefine the variable when building MacRuby."
+end
+
 version_h = File.read('version.h')
 NEW_RUBY_VERSION = version_h.scan(/#\s*define\s+RUBY_VERSION\s+\"([^"]+)\"/)[0][0]
 MACRUBY_VERSION = version_h.scan(/#\s*define\s+MACRUBY_VERSION\s+(.*)/)[0][0]
