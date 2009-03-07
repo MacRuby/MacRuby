@@ -83,10 +83,14 @@ round(double x)
 #endif
 
 static ID id_coerce, id_to_i, id_eq;
+#if WITH_OBJC
+static ID id_spaceship, id_pow, id_shl, id_shr;
+#endif
 
 VALUE rb_cNumeric;
 #if WITH_OBJC
 VALUE rb_cCFNumber;
+VALUE rb_cNSNumber;
 #endif
 VALUE rb_cFloat;
 VALUE rb_cInteger;
@@ -3185,7 +3189,7 @@ static void
 rb_install_nsnumber_primitives(void)
 {
     Class klass;
-  
+
     klass = (Class)rb_cFloat;
     rb_objc_install_method2(klass, "objCType",
 	    (IMP)imp_rb_float_objCType);
@@ -3203,6 +3207,807 @@ rb_install_nsnumber_primitives(void)
 	    (IMP)imp_rb_fixnum_longValue);
 }
 #endif
+
+static inline double
+nsnum_cdouble(VALUE num)
+{
+    double val; 
+    CFNumberGetValue((CFNumberRef)num, kCFNumberDoubleType, &val);
+    return val;
+}
+
+static inline long long
+nsnum_cLL(VALUE num)
+{
+    long long val; 
+    CFNumberGetValue((CFNumberRef)num, kCFNumberLongLongType, &val);
+    return val;
+}
+
+static VALUE
+nsnum_to_i(VALUE num)
+{
+    return LL2NUM(nsnum_cLL(num));
+}
+
+static VALUE
+nsnum_to_f(VALUE num)
+{
+    return DOUBLE2NUM(nsnum_cdouble(num));
+}
+
+static VALUE
+nsnum_class(VALUE num)
+{
+    CFNumberType t = CFNumberGetType((CFNumberRef)num);
+    switch (t) {
+	case kCFNumberSInt8Type:
+	case kCFNumberSInt16Type:
+	case kCFNumberSInt32Type:
+	case kCFNumberSInt64Type:
+	case kCFNumberCharType:
+	case kCFNumberShortType:
+	case kCFNumberIntType:
+	case kCFNumberLongType:
+	case kCFNumberLongLongType:
+	case kCFNumberCFIndexType:
+	case kCFNumberNSIntegerType:
+	    return rb_cFixnum;
+	case kCFNumberFloat32Type:
+	case kCFNumberFloat64Type:
+	case kCFNumberFloatType:
+	case kCFNumberDoubleType:
+	case kCFNumberMaxType:
+	    return rb_cFloat;
+    }
+    if (CFNumberIsFloatType((CFNumberRef)num)) return rb_cFloat;
+    return rb_cNSNumber; //This could be something exotic like a struct
+}
+
+static VALUE
+nsnum_to_rb(VALUE num)
+{
+    if (FIXNUM_P(num)) {
+	return num;
+    }
+    VALUE c = CLASS_OF(num);
+    if (c != rb_cCFNumber && c != rb_cNSNumber) {
+	return num;
+    }
+    VALUE num_class = nsnum_class(num);
+    if (num_class == rb_cFloat) {
+	return DOUBLE2NUM(nsnum_cdouble(num));
+    }
+    if (num_class == rb_cFixnum) {
+	return LL2NUM(nsnum_cLL(num));
+    }
+    return num;
+}
+
+static void
+nsnum_fail_coerce(VALUE num)
+{
+    VALUE nsn_desc = rb_funcall(num, rb_intern("description"), 0);
+    const char* numdesc = StringValueCStr(nsn_desc);
+    rb_raise(rb_eTypeError, "Cannot coerce NSNumber %s into a ruby number", numdesc);
+}
+
+static VALUE
+nsnum_to_rb_force(VALUE num)
+{
+    if (FIXNUM_P(num)) {
+	return num;
+    }
+    VALUE c = CLASS_OF(num);
+    if (c != rb_cCFNumber && c != rb_cNSNumber) {
+	return num;
+    }
+    VALUE num_class = nsnum_class(num);
+    if (num_class == rb_cFloat) {
+	return DOUBLE2NUM((nsnum_cdouble(num)));
+    }
+    if (num_class == rb_cFixnum) {
+	return LL2NUM((nsnum_cLL(num)));
+    }
+    nsnum_fail_coerce(num);
+    return Qnil;
+}
+
+static VALUE
+nsnum_to_rb_abs(VALUE num)
+{
+    VALUE num_class = nsnum_class(num);
+    if (num_class==rb_cFloat) {
+	return DOUBLE2NUM(fabs(nsnum_cdouble(num)));
+    }
+    if (num_class==rb_cFixnum) {
+	return LL2NUM(llabs(nsnum_cLL(num)));
+    }
+    nsnum_fail_coerce(num);
+    return Qnil;
+}
+
+static VALUE
+nsnum_to_rb_neg(VALUE num)
+{
+    VALUE num_class = nsnum_class(num);
+    if (num_class == rb_cFloat) {
+	return DOUBLE2NUM(-(nsnum_cdouble(num)));
+    }
+    if (num_class == rb_cFixnum) {
+	return LL2NUM(-(nsnum_cLL(num)));
+    }
+    nsnum_fail_coerce(num);
+    return Qnil;
+}
+
+static VALUE
+nsnum_cmp(VALUE l, VALUE r)
+{
+    if (!do_coerce(&l, &r, Qtrue)) {
+	return Qnil;
+    }
+    return rb_funcall(l, id_spaceship, 1, r);
+}
+
+static VALUE
+nsnum_eq(VALUE l, VALUE r)
+{
+    if (!do_coerce(&l, &r, Qtrue)) {
+	return Qnil;
+    }
+    return rb_funcall(l, id_eq, 1, r);
+}
+
+static VALUE
+nsnum_coerce(VALUE num, VALUE b)
+{
+    return num_coerce(nsnum_to_rb_force(num),b);
+}
+
+static VALUE
+nsnum_init_copy(VALUE x)
+{
+    /* Numerics are immutable values, which should not be copied */
+    rb_raise(rb_eTypeError, "can't copy %s",rb_class2name(nsnum_class(x)));
+    return Qnil;		/* not reached */
+}
+
+static VALUE
+nsnum_dup(VALUE x)
+{
+    /* Numerics are immutable values, which should not be copied */
+    rb_raise(rb_eTypeError, "can't dup %s", rb_class2name(nsnum_class(x)));
+    return Qnil;		/* not reached */
+}
+
+/*static VALUE
+  nsnum_missing(int argc, VALUE* argv, VALUE self)
+  {
+  VALUE rb_self = nsnum_to_rb(self);
+  rb_p(rb_self);
+  static ID to_s = Qnil;
+  if (to_s==Qnil) to_s = rb_intern("to_s");
+  printf("to_s: %s\n", rb_id2name(to_s));
+  VALUE sel_name = rb_funcall(argv[0], to_s, 0);
+  rb_p(sel_name);
+  ID sel = rb_to_id(sel_name);
+  printf("sel: %s\n", rb_id2name(sel));
+  if (rb_respond_to(rb_self, sel)) {
+  return rb_self;//rb_funcall2(rb_self, sel, argc-1, argv+1);
+  } else {
+  rb_raise(rb_eNoMethodError, "undefined method `%s' for %s", rb_id2name(sel), rb_obj_classname(rb_self));
+  }
+  return Qnil;
+  }*/
+
+static VALUE
+nsnum_quo(VALUE a, VALUE b)
+{
+    static ID sel = 0;
+    if (!sel) {
+	sel = rb_intern("quo");
+    }
+    do_coerce(&a,&b,Qtrue);
+    return rb_funcall(a, sel, 1, b);
+}
+
+static VALUE
+nsnum_fdiv(VALUE a, VALUE b)
+{
+    static ID sel = 0;
+    if (!sel) {
+	sel = rb_intern("fdiv");
+    }
+    do_coerce(&a,&b,Qtrue);
+    return rb_funcall(a, sel, 1, b);
+}
+
+static VALUE
+nsnum_divmod(VALUE a, VALUE b)
+{
+    static ID sel = 0;
+    if (!sel) {
+	sel = rb_intern("divmod");
+    }
+    do_coerce(&a,&b,Qtrue);
+    return rb_funcall(a, sel, 1, b);
+}
+
+static VALUE
+nsnum_modulo(VALUE a, VALUE b)
+{
+    static ID sel = 0;
+    if (!sel) {
+	sel = rb_intern("modulo");
+    }
+    do_coerce(&a,&b,Qtrue);
+    return rb_funcall(a, sel, 1, b);
+}
+
+static VALUE
+nsnum_remainder(VALUE a, VALUE b)
+{
+    static ID sel = 0;
+    if (!sel) {
+	sel = rb_intern("remainder");
+    }
+    do_coerce(&a,&b,Qtrue);
+    return rb_funcall(a, sel, 1, b);
+}
+
+static VALUE
+nsnum_true(VALUE a)
+{
+    return Qtrue;
+}
+
+static VALUE
+nsnum_integer_p(VALUE a)
+{
+    VALUE num_class = nsnum_class(a);
+    if (num_class == rb_cFloat) {
+	return Qfalse;
+    }
+    if (num_class == rb_cFixnum) {
+	return Qtrue;
+    }
+    nsnum_fail_coerce(a);
+    return Qnil;
+}
+
+static VALUE
+nsnum_zero_p(VALUE num)
+{
+    VALUE num_class = nsnum_class(num);
+    if (num_class == rb_cFloat) {
+	return nsnum_cdouble(num) == 0;
+    }
+    if (num_class == rb_cFixnum) {
+	return nsnum_cLL(num) == 0;
+    }
+    nsnum_fail_coerce(num);
+    return Qnil;
+}
+
+static VALUE
+nsnum_nonzero_p(VALUE num)
+{
+    VALUE num_class = nsnum_class(num);
+    if (num_class == rb_cFloat) {
+	return nsnum_cdouble(num) != 0;
+    }
+    if (num_class == rb_cFixnum) {
+	return nsnum_cLL(num) != 0;
+    }
+    nsnum_fail_coerce(num);
+    return Qnil;
+}
+
+static VALUE
+nsnum_floor(VALUE num)
+{
+    VALUE num_class = nsnum_class(num);
+    if (num_class == rb_cFixnum) {
+	return num;
+    }
+    if (num_class != rb_cFloat) {
+	nsnum_fail_coerce(num);
+	return Qnil;
+    }
+    double v = floor(nsnum_cdouble(num));
+    if (!FIXABLE(v)) {
+	return rb_dbl2big(v);
+    }
+    return LL2NUM((long long)v);
+}
+
+static VALUE
+nsnum_ceil(VALUE num)
+{
+    VALUE num_class = nsnum_class(num);
+    if (num_class == rb_cFixnum) {
+	return num;
+    }
+    if (num_class != rb_cFloat) {
+	nsnum_fail_coerce(num);
+	return Qnil;
+    }
+    double v = ceil(nsnum_cdouble(num));
+    if (!FIXABLE(v)) {
+	return rb_dbl2big(v);
+    }
+    return LL2NUM((long long)v);
+}
+
+static VALUE
+nsnum_round(int argc, VALUE* argv, VALUE self)
+{
+    VALUE num_class = nsnum_class(self);
+    if (num_class == rb_cFloat) {
+	return flo_round(argc, argv, DOUBLE2NUM(nsnum_cdouble(self)));
+    }
+    if (num_class == rb_cFixnum) {
+	return int_round(argc, argv, LL2NUM(nsnum_cLL(self)));
+    }
+    nsnum_fail_coerce(self);
+    return Qnil;
+}
+
+static VALUE
+nsnum_truncate(VALUE self)
+{
+    VALUE num_class = nsnum_class(self);
+    if (num_class == rb_cFloat) {
+	return LL2NUM(nsnum_cdouble(self));
+    }
+    if (num_class == rb_cFixnum) {
+	return self;
+    }
+    nsnum_fail_coerce(self);
+    return Qnil;
+}
+
+static VALUE
+nsnum_step(int argc, VALUE* argv, VALUE self)
+{
+    VALUE num_class = nsnum_class(self);
+    if (num_class == rb_cFloat) {
+	return num_step(argc, argv, DOUBLE2NUM(nsnum_cdouble(self)));
+    }
+    if (num_class == rb_cFixnum) {
+	return num_step(argc, argv, LL2NUM(nsnum_cLL(self)));
+    }
+    nsnum_fail_coerce(self);
+    return Qnil;
+}
+
+static VALUE
+nsnum_numerator(VALUE a)
+{
+    VALUE num_class = nsnum_class(a);
+    if (num_class == rb_cFloat) {
+	return num_numerator(DOUBLE2NUM(nsnum_cdouble(a)));
+    }
+    if (num_class == rb_cFixnum) {
+	return LL2NUM(nsnum_cLL(a));
+    }
+    nsnum_fail_coerce(a);
+    return Qnil;
+}
+
+static VALUE
+nsnum_denominator(VALUE a)
+{
+    VALUE num_class = nsnum_class(a);
+    if (num_class == rb_cFloat) {
+	return num_denominator(DOUBLE2NUM(nsnum_cdouble(a)));
+    }
+    if (num_class == rb_cFixnum) {
+	return LONG2FIX(1);
+    }
+    nsnum_fail_coerce(a);
+    return Qnil;
+}
+
+    static VALUE
+nsnum_even_p(VALUE a)
+{
+    VALUE num_class = nsnum_class(a);
+    if (num_class == rb_cFloat) {
+	//TODO: it will still respond_to the method even if it shouldn't
+	rb_raise(rb_eNoMethodError, "undefined method `even?' for %s", rb_obj_classname(a));
+    }
+    if (num_class == rb_cFixnum) {
+	return (nsnum_cLL(a) & 1) ? Qfalse : Qtrue;
+    }
+    return Qnil;
+}
+
+static VALUE
+nsnum_odd_p(VALUE a)
+{
+    VALUE num_class = nsnum_class(a);
+    if (num_class == rb_cFloat) {
+	//TODO: it will still respond_to the method even if it shouldn't
+	rb_raise(rb_eNoMethodError, "undefined method `odd?' for %s", rb_obj_classname(a));
+    }
+    if (num_class == rb_cFixnum) {
+	return (nsnum_cLL(a) & 1) ? Qtrue : Qfalse;
+    }
+    return Qnil;
+}
+
+static VALUE
+nsnum_upto(VALUE a, VALUE b)
+{
+    if (FIXNUM_P(b)) {
+	long i = nsnum_cLL(a);
+	long j = FIX2LONG(b);
+	while (i <= j) {
+	    rb_yield(LONG2FIX(i));
+	    i++;
+	}
+	return a;
+    }
+    VALUE i = a;
+    VALUE c;
+    while (1) {
+	c = rb_funcall(i, '>', 1, b);
+	if (c == Qnil || c == Qtrue) {
+	    break;
+	}
+	rb_yield(i);
+	i = rb_funcall(i, '+', 1, INT2FIX(1));
+    }
+    if (NIL_P(c)) {
+	rb_cmperr(i, b);
+    }
+    return a;
+}
+
+static VALUE
+nsnum_downto(VALUE a, VALUE b)
+{
+    long long i = nsnum_cLL(a);
+    if (FIXNUM_P(b) && FIXABLE(i)) {
+	long j = FIX2LONG(b);
+	while (i >= j) {
+	    rb_yield(LONG2FIX(i));
+	    i--;
+	}
+	return a;
+    }
+    VALUE ii = a;
+    VALUE c;
+    while (1) {
+	c = rb_funcall(ii, '<', 1, b);
+	if (c == Qnil || c == Qtrue) {
+	    break;
+	}
+	rb_yield(ii);
+	ii = rb_funcall(ii, '-', 1, INT2FIX(1));
+    }
+    if (NIL_P(c)) {
+	rb_cmperr(ii, b);
+    }
+    return a;
+}
+
+static VALUE
+nsnum_dotimes(VALUE a)
+{
+    long long j = nsnum_cLL(a);
+    long long i;
+    for (i = 0; i < j; i++) {
+	rb_yield(LL2NUM(i));
+    }
+    return a;
+}
+
+static VALUE
+nsnum_succ(VALUE a)
+{
+    long long j = nsnum_cLL(a);
+    if (j + 1 < j) {
+	VALUE r = LL2NUM(j);
+	return rb_funcall(r, '+', 1, INT2FIX(1));
+    }
+    return LL2NUM(j + 1);
+}
+
+static VALUE
+nsnum_pred(VALUE a)
+{
+    long long j = nsnum_cLL(a);
+    if (j - 1 > j) {
+	VALUE r = LL2NUM(j);
+	return rb_funcall(r, '-', 1, INT2FIX(1));
+    }
+    return LL2NUM(j - 1);
+}
+
+static VALUE
+nsnum_nan_p(VALUE a)
+{
+    VALUE num_class = nsnum_class(a);
+    if (num_class == rb_cFloat) {
+	return isnan(nsnum_cdouble(a)) ? Qtrue : Qfalse;
+    }
+    if (num_class == rb_cFixnum) {
+	//TODO: it will still respond_to the method even if it shouldn't
+	rb_raise(rb_eNoMethodError, "undefined method `is_nan?' for %s", rb_obj_classname(a));
+    }
+    nsnum_fail_coerce(a);
+    return Qnil;
+}
+
+static VALUE
+nsnum_inf_p(VALUE a)
+{
+    VALUE num_class = nsnum_class(a);
+    if (num_class == rb_cFloat) {
+	return isinf(nsnum_cdouble(a)) ? Qtrue : Qfalse;
+    }
+    if (num_class == rb_cFixnum) {
+	//TODO: it will still respond_to the method even if it shouldn't
+	rb_raise(rb_eNoMethodError, "undefined method `is_nan?' for %s", rb_obj_classname(a));
+    }
+    nsnum_fail_coerce(a);
+    return Qnil;
+}
+
+static VALUE
+nsnum_notinf_p(VALUE a)
+{
+    VALUE num_class = nsnum_class(a);
+    if (num_class == rb_cFloat) {
+	return isinf(nsnum_cdouble(a)) ? Qfalse : Qtrue;
+    }
+    if (num_class == rb_cFixnum) {
+	//TODO: it will still respond_to the method even if it shouldn't
+	rb_raise(rb_eNoMethodError, "undefined method `is_nan?' for %s", rb_obj_classname(a));
+    }
+    nsnum_fail_coerce(a);
+    return Qnil;
+}
+
+static VALUE
+nsnum_pow(VALUE a, VALUE b)
+{
+    VALUE num_class = nsnum_class(a);
+    b = nsnum_to_rb_force(b);
+    if (num_class == rb_cFloat) {
+	return flo_pow(DOUBLE2NUM(nsnum_cdouble(a)), b);
+    }
+    if (num_class == rb_cFixnum) {
+	return fix_pow(LL2NUM(nsnum_cLL(a)), b);
+    }
+    nsnum_fail_coerce(a);
+    return Qnil;
+}
+
+static VALUE
+nsnum_plus(VALUE a, VALUE b)
+{
+    VALUE num_class = nsnum_class(a);
+    b = nsnum_to_rb_force(b);
+    if (num_class == rb_cFloat) {
+	return flo_plus(DOUBLE2NUM(nsnum_cdouble(a)), b);
+    }
+    if (num_class == rb_cFixnum) {
+	return fix_plus(LL2NUM(nsnum_cLL(a)), b);
+    }
+    nsnum_fail_coerce(a);
+    return Qnil;
+}
+
+static VALUE
+nsnum_minus(VALUE a, VALUE b)
+{
+    VALUE num_class = nsnum_class(a);
+    b = nsnum_to_rb_force(b);
+    if (num_class == rb_cFloat) {
+	return flo_minus(DOUBLE2NUM(nsnum_cdouble(a)), b);
+    }
+    if (num_class == rb_cFixnum) {
+	return fix_minus(LL2NUM(nsnum_cLL(a)), b);
+    }
+    nsnum_fail_coerce(a);
+    return Qnil;
+}
+
+static VALUE
+nsnum_times(VALUE a, VALUE b)
+{
+    VALUE num_class = nsnum_class(a);
+    b = nsnum_to_rb_force(b);
+    if (num_class == rb_cFloat) {
+	return flo_mul(DOUBLE2NUM(nsnum_cdouble(a)), b);
+    }
+    if (num_class == rb_cFixnum) {
+	return fix_mul(LL2NUM(nsnum_cLL(a)), b);
+    }
+    nsnum_fail_coerce(a);
+    return Qnil;
+}
+
+static VALUE
+nsnum_div(VALUE a, VALUE b)
+{
+    VALUE num_class = nsnum_class(a);
+    b = nsnum_to_rb_force(b);
+    if (num_class == rb_cFloat) {
+	return flo_div(DOUBLE2NUM(nsnum_cdouble(a)), b);
+    }
+    if (num_class == rb_cFixnum) {
+	return fix_div(LL2NUM(nsnum_cLL(a)), b);
+    }
+    nsnum_fail_coerce(a);
+    return Qnil;
+}
+
+static VALUE
+nsnum_rev(VALUE a)
+{
+    return LONG2FIX(~FIX2LONG(a));
+}
+
+static VALUE
+nsnum_and(VALUE a, VALUE b)
+{
+    b = bit_coerce(nsnum_to_rb_force(b));
+    if (!FIXNUM_P(b)) {
+	return rb_big_and(nsnum_to_rb_force(a), b);
+    }
+    return LONG2NUM(nsnum_cLL(a) & FIX2LONG(b));
+}
+
+static VALUE
+nsnum_or(VALUE a, VALUE b)
+{
+    b = bit_coerce(nsnum_to_rb_force(b));
+    if (!FIXNUM_P(b)) {
+	return rb_big_or(nsnum_to_rb_force(a), b);
+    }
+    return LONG2NUM(nsnum_cLL(a) | FIX2LONG(b));
+}
+
+static VALUE
+nsnum_xor(VALUE a, VALUE b)
+{
+    b = bit_coerce(nsnum_to_rb_force(b));
+    if (!FIXNUM_P(b)) {
+	return rb_big_xor(nsnum_to_rb_force(a), b);
+    }
+    return LONG2NUM(nsnum_cLL(a) ^ FIX2LONG(b));
+}
+
+static VALUE
+nsnum_aref(VALUE l, VALUE idx)
+{
+    long long v = nsnum_cLL(l);
+    idx = rb_to_int(idx);
+    if (!FIXNUM_P(idx)) {
+	idx = rb_big_norm(idx);
+	if (!FIXNUM_P(idx)) {
+	    if (!RBIGNUM_SIGN(idx) || v >= 0) {
+		return INT2FIX(0);
+	    }
+	    return INT2FIX(1);
+	}
+    }
+    long i = FIX2LONG(idx);
+    if (i < 0) return INT2FIX(0);
+    if (SIZEOF_LONG * CHAR_BIT - 1 < i) {
+	if (v < 0) {
+	    return INT2FIX(1);
+	}
+	return INT2FIX(0);
+    }
+    if (v & (1L << i)) {
+	return INT2FIX(1);
+    }
+    return INT2FIX(0);
+}
+
+static VALUE
+nsnum_shl(VALUE v, VALUE amt)
+{
+    VALUE num_class = nsnum_class(v);
+    if (num_class == rb_cFloat) {
+	rb_raise(rb_eNoMethodError, "undefined method `<<' for %s", rb_obj_classname(v));
+    }
+    return rb_funcall(nsnum_to_rb_force(v), id_shl, 1, nsnum_to_rb_force(amt));
+}
+
+static VALUE
+nsnum_shr(VALUE v, VALUE amt)
+{
+    VALUE num_class = nsnum_class(v);
+    if (num_class == rb_cFloat) {
+	rb_raise(rb_eNoMethodError, "undefined method `>>' for %s", rb_obj_classname(v));
+    }
+    return rb_funcall(nsnum_to_rb_force(v), id_shr, 1, nsnum_to_rb_force(amt));
+}
+
+static void
+rb_install_nsnumber_methods() {
+    id_spaceship = rb_intern("<=>");
+    id_shl = rb_intern("<<");
+    id_shr = rb_intern(">>");
+    id_pow = rb_intern("**");
+
+    rb_cNSNumber = (VALUE)objc_getClass("NSNumber");
+    rb_define_method(rb_cNSNumber, "to_i", nsnum_to_i,0);
+    rb_define_method(rb_cNSNumber, "to_f", nsnum_to_f,0);
+    rb_define_method(rb_cNSNumber, "to_rb", nsnum_to_rb,0);
+
+    //rb_define_method(rb_cNSNumber, "class", nsnum_class,0);
+    rb_define_method(rb_cNSNumber, "dup", nsnum_dup,0);
+    rb_define_method(rb_cNSNumber, "initialize_copy", nsnum_init_copy,0);
+    rb_define_method(rb_cNSNumber, "coerce", nsnum_coerce, 1);
+
+    rb_define_method(rb_cNSNumber, "+@", nsnum_to_rb, 0);
+    rb_define_method(rb_cNSNumber, "-@", nsnum_to_rb_neg, 0);
+    rb_define_method(rb_cNSNumber, "<=>", nsnum_cmp, 1);
+    rb_define_method(rb_cNSNumber, "eql?", nsnum_eq, 1);
+    rb_define_method(rb_cNSNumber, "quo", nsnum_quo, 1);
+    rb_define_method(rb_cNSNumber, "fdiv", nsnum_fdiv, 1);
+    rb_define_method(rb_cNSNumber, "div", nsnum_div, 1);
+    rb_define_method(rb_cNSNumber, "divmod", nsnum_divmod, 1);
+    rb_define_method(rb_cNSNumber, "modulo", nsnum_modulo, 1);
+    rb_define_method(rb_cNSNumber, "%", nsnum_modulo, 1);
+    rb_define_method(rb_cNSNumber, "remainder", nsnum_remainder, 1);
+    rb_define_method(rb_cNSNumber, "abs", nsnum_to_rb_abs, 0);
+    rb_define_method(rb_cNSNumber, "to_int", nsnum_to_i, 0);
+
+    rb_define_method(rb_cNSNumber, "scalar?", nsnum_true, 0);
+    rb_define_method(rb_cNSNumber, "integer?", nsnum_integer_p, 0);
+    rb_define_method(rb_cNSNumber, "zero?", nsnum_zero_p, 0);
+    rb_define_method(rb_cNSNumber, "nonzero?", nsnum_nonzero_p, 0);
+
+    rb_define_method(rb_cNSNumber, "floor", nsnum_floor, 0);
+    rb_define_method(rb_cNSNumber, "ceil", nsnum_ceil, 0);
+    rb_define_method(rb_cNSNumber, "round", nsnum_round, -1);
+    rb_define_method(rb_cNSNumber, "truncate", nsnum_truncate, 0);
+    rb_define_method(rb_cNSNumber, "step", nsnum_step, -1);
+
+    rb_define_method(rb_cNSNumber, "numerator", nsnum_numerator, 0);
+    rb_define_method(rb_cNSNumber, "denominator", nsnum_denominator, 0);
+
+    rb_define_method(rb_cNSNumber, "odd?", nsnum_odd_p, 0);
+    rb_define_method(rb_cNSNumber, "even?", nsnum_even_p, 0);
+
+    rb_define_method(rb_cNSNumber, "upto", nsnum_upto, 1);
+    rb_define_method(rb_cNSNumber, "downto", nsnum_downto, 1);
+    rb_define_method(rb_cNSNumber, "times", nsnum_dotimes, 0);	
+
+    rb_define_method(rb_cNSNumber, "succ", nsnum_succ, 0);	
+    rb_define_method(rb_cNSNumber, "next", nsnum_succ, 0);	
+    rb_define_method(rb_cNSNumber, "pred", nsnum_pred, 0);	
+
+    rb_define_method(rb_cNSNumber, "nan?",      nsnum_nan_p, 0);
+    rb_define_method(rb_cNSNumber, "infinite?", nsnum_inf_p, 0);
+    rb_define_method(rb_cNSNumber, "finite?",   nsnum_notinf_p, 0);	
+
+    rb_define_method(rb_cNSNumber, "**", nsnum_pow, 1);
+    rb_define_method(rb_cNSNumber, "+", nsnum_plus, 1);
+    rb_define_method(rb_cNSNumber, "-", nsnum_minus, 1);
+    rb_define_method(rb_cNSNumber, "*", nsnum_times, 1);
+    rb_define_method(rb_cNSNumber, "/", nsnum_div, 1);
+
+    rb_define_method(rb_cNSNumber, "~", nsnum_rev, 0);
+    rb_define_method(rb_cNSNumber, "&", nsnum_and, 1);
+    rb_define_method(rb_cNSNumber, "|", nsnum_or,  1);
+    rb_define_method(rb_cNSNumber, "^", nsnum_xor, 1);
+    rb_define_method(rb_cNSNumber, "[]", nsnum_aref, 1);
+    rb_define_method(rb_cNSNumber, "<<", nsnum_shl, 1);
+    rb_define_method(rb_cNSNumber, ">>", nsnum_shr, 1);
+
+    //rb_define_method(rb_cNSNumber, "method_missing", nsnum_missing, -1);
+    rb_include_module(rb_cNSNumber, rb_mComparable);
+}
 
 void
 Init_Numeric(void)
@@ -3394,5 +4199,6 @@ Init_Numeric(void)
 
 #if WITH_OBJC
     rb_install_nsnumber_primitives();
+    rb_install_nsnumber_methods();
 #endif
 }
