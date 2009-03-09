@@ -64,7 +64,8 @@ class RDoc::Markup::AttributeManager
 
   def copy_string(start_pos, end_pos)
     res = @str[start_pos...end_pos]
-    res.gsub!(/\000/, '')
+    # XXX this doesn't work in MacRuby yet
+    #res.gsub!(/\000/, '')
     res
   end
 
@@ -131,7 +132,8 @@ class RDoc::Markup::AttributeManager
   end
 
   def unmask_protected_sequences
-    @str.gsub!(/(.)#{PROTECT_ATTR}/, "\\1\000")
+    #@str.gsub!(/(.)#{PROTECT_ATTR}/, "\\1\000")
+    @str.gsub!(/(.)#{PROTECT_ATTR}/, "\\1")
   end
 
   def initialize

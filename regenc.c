@@ -880,7 +880,7 @@ resize_property_list(int new_size, const OnigCodePoint*** plist, int* psize)
 
   if (IS_NULL(list)) return ONIGERR_MEMORY;
 
-  *plist = list;
+  GC_WB(plist, list);
   *psize = new_size;
 
   return 0;

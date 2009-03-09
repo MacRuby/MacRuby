@@ -835,8 +835,14 @@ rb_objc_str_cat(VALUE str, const char *ptr, long len, int cfstring_encoding)
 	    CFStringRef substr = CFStringCreateWithBytes(NULL, 
 		(const UInt8 *)ptr,
 		len, cfstring_encoding, false);
-	    CFStringAppend((CFMutableStringRef)str, substr);
-	    CFRelease(substr);
+	    if (substr == NULL) {
+		data = (CFMutableDataRef)rb_str_cfdata(str);
+		CFDataAppendBytes(data, (void *)ptr, len);
+	    }
+	    else {
+		CFStringAppend((CFMutableStringRef)str, substr);
+		CFRelease(substr);
+	    }
 	}
     }
 }
@@ -3726,9 +3732,17 @@ rb_str_split_m(int argc, VALUE *argv, VALUE str)
 	rb_ary_push(result, tmp);
     }
     if (NIL_P(limit) && lim == 0) {
-	while (RARRAY_LEN(result) > 0 &&
-	       RSTRING_LEN(RARRAY_AT(result, RARRAY_LEN(result)-1)) == 0)
-	    rb_ary_pop(result);
+	int count = RARRAY_LEN(result);
+	while (count > 0) {
+	    VALUE s = RARRAY_AT(result, count - 1);
+	    if (s == Qnil || RSTRING_LEN(s) == 0) {
+		rb_ary_pop(result);
+		count--;
+	    }
+	    else {
+		break;
+	    }
+	}
     }
 
     return result;

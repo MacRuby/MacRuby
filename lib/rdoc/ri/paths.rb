@@ -40,7 +40,7 @@ module RDoc::RI::Paths
   end
 
   begin
-    require 'rubygems' unless defined?(Gem)
+    require 'rubygems'# unless defined?(Gem)
 
     # HACK dup'd from Gem.latest_partials and friends
     all_paths = []

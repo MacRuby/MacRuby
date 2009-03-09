@@ -67,6 +67,8 @@ class RDoc::Parser
   # the gem).
 
   def self.binary?(file)
+=begin
+    # XXX: this currently doesn't work in MacRuby
     s = (File.read(file, File.stat(file).blksize, 0, :mode => "rb") || "").split(//)
 
     if s.size > 0 then
@@ -74,6 +76,8 @@ class RDoc::Parser
     else
       false
     end
+=end
+    false
   end
   private_class_method :binary?
 

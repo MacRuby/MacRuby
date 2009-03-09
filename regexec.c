@@ -120,7 +120,7 @@ history_tree_add_child(OnigCaptureTreeNode* parent, OnigCaptureTreeNode* child)
     parent->allocated = n;
   }
 
-  parent->childs[parent->num_childs] = child;
+  GC_WB(&parent->childs[parent->num_childs], child);
   parent->num_childs++;
   return 0;
 }
@@ -2975,7 +2975,7 @@ set_bm_backward_skip(UChar* s, UChar* end, OnigEncoding enc ARG_UNUSED,
   int i, len;
 
   if (IS_NULL(*skip)) {
-    *skip = (int* )xmalloc(sizeof(int) * ONIG_CHAR_TABLE_SIZE);
+    GC_WB(skip, (int* )xmalloc(sizeof(int) * ONIG_CHAR_TABLE_SIZE));
     if (IS_NULL(*skip)) return ONIGERR_MEMORY;
   }
 

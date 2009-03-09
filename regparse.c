@@ -111,7 +111,8 @@ bbuf_clone(BBuf** rto, BBuf* from)
   int r;
   BBuf *to;
 
-  *rto = to = (BBuf* )xmalloc(sizeof(BBuf));
+  to = (BBuf* )xmalloc(sizeof(BBuf));
+  GC_WB(rto, to);
   CHECK_NULL_RETURN_MEMERR(to);
   r = BBUF_INIT(to, from->alloc);
   if (r != 0) return r;
@@ -728,7 +729,7 @@ name_add(regex_t* reg, UChar* name, UChar* name_end, int backref, ScanEnv* env)
     e = (NameEntry* )xmalloc(sizeof(NameEntry));
     CHECK_NULL_RETURN_MEMERR(e);
 
-    e->name = strdup_with_null(reg->enc, name, name_end);
+    GC_WB(&e->name, strdup_with_null(reg->enc, name, name_end));
     if (IS_NULL(e->name)) return ONIGERR_MEMORY;
     onig_st_insert_strend(t, e->name, (e->name + (name_end - name)),
                           (HashDataType )e);
@@ -748,7 +749,7 @@ name_add(regex_t* reg, UChar* name, UChar* name_end, int backref, ScanEnv* env)
       t->alloc = 0;
       t->num   = 0;
 
-      t->e = (NameEntry* )xmalloc(sizeof(NameEntry) * alloc);
+      GC_WB(&t->e, (NameEntry* )xmalloc(sizeof(NameEntry) * alloc));
       if (IS_NULL(t->e)) {
 	xfree(t);
 	return ONIGERR_MEMORY;
@@ -776,7 +777,7 @@ name_add(regex_t* reg, UChar* name, UChar* name_end, int backref, ScanEnv* env)
     }
     e = &(t->e[t->num]);
     t->num++;
-    e->name = strdup_with_null(reg->enc, name, name_end);
+    GC_WB(&e->name, strdup_with_null(reg->enc, name, name_end));
     e->name_len = name_end - name;
 #endif
   }
@@ -795,7 +796,7 @@ name_add(regex_t* reg, UChar* name, UChar* name_end, int backref, ScanEnv* env)
   else {
     if (e->back_num == 2) {
       alloc = INIT_NAME_BACKREFS_ALLOC_NUM;
-      e->back_refs = (int* )xmalloc(sizeof(int) * alloc);
+      GC_WB(&e->back_refs, (int* )xmalloc(sizeof(int) * alloc));
       CHECK_NULL_RETURN_MEMERR(e->back_refs);
       e->back_alloc = alloc;
       e->back_refs[0] = e->back_ref1;
@@ -965,7 +966,7 @@ scan_env_add_mem_entry(ScanEnv* env)
       for (i = env->num_mem + 1; i < alloc; i++)
 	p[i] = NULL_NODE;
 
-      env->mem_nodes_dynamic = p;
+      GC_WB(&env->mem_nodes_dynamic, p);
       env->mem_alloc = alloc;
     }
   }
@@ -1097,7 +1098,7 @@ onig_free_node_list(void)
     }
     FreeNodeList = FreeNodeList->next;
     rb_objc_retain(FreeNodeList);
-    xfree(n);
+//    xfree(n);
   }
   /* THREAD_ATOMIC_END; */
   return 0;
@@ -1113,10 +1114,10 @@ node_new(void)
   THREAD_ATOMIC_START;
   if (IS_NOT_NULL(FreeNodeList)) {
     node = (Node* )FreeNodeList;
-    if (FreeNodeList != NULL) {
-	rb_objc_release(FreeNodeList);
-    }
     FreeNodeList = FreeNodeList->next;
+    if (node != NULL) {
+	rb_objc_release(node);
+    }
     rb_objc_retain(FreeNodeList);
     THREAD_ATOMIC_END;
     return node;
@@ -1194,7 +1195,7 @@ node_new_cclass_by_codepoint_range(int not, OnigCodePoint sb_out,
     bbuf->used  = n + 1;
     bbuf->p     = (UChar* )((void* )ranges);
 
-    cc->mbuf = bbuf;
+    GC_WB(&cc->mbuf, bbuf);
   }
 
   return node;
@@ -1327,7 +1328,7 @@ node_new_backref(int back_num, int* backrefs, int by_name,
       onig_node_free(node);
       return NULL;
     }
-    NBREF(node)->back_dynamic = p;
+    GC_WB(&NBREF(node)->back_dynamic, p);
     for (i = 0; i < back_num; i++)
       p[i] = backrefs[i];
   }
@@ -1446,7 +1447,7 @@ onig_node_str_cat(Node* node, const UChar* s, const UChar* end)
 	  p = strcat_capa(NSTR(node)->s, NSTR(node)->end, s, end, capa);
 
 	CHECK_NULL_RETURN_MEMERR(p);
-	NSTR(node)->s    = p;
+	GC_WB(&NSTR(node)->s, p);
 	NSTR(node)->capa = capa;
       }
     }

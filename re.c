@@ -1361,11 +1361,8 @@ rb_reg_search(VALUE re, VALUE str, int pos, int reverse)
     cstr = range = RSTRING_PTR(str);
     clen = RSTRING_LEN(str);
 #if WITH_OBJC
-    static struct re_registers *regs = NULL;
-    if (regs == NULL) {
-	regs = xmalloc(sizeof(struct re_registers));
-	rb_objc_root(&regs);
-    }
+    struct re_registers *regs = NULL;
+    regs = xmalloc(sizeof(struct re_registers));
     pregs = regs;
 #else
     static struct re_registers regs;
@@ -1397,7 +1394,7 @@ rb_reg_search(VALUE re, VALUE str, int pos, int reverse)
 	}
 	else {
 	    onig_free(reg0);
-	    RREGEXP(re)->ptr = reg;
+	    GC_WB(&RREGEXP(re)->ptr, reg);
 	}
     }
     if (!busy) FL_UNSET(re, REG_BUSY);

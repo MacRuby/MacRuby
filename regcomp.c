@@ -143,7 +143,7 @@ onig_bbuf_init(BBuf* buf, int size)
     buf->p = NULL;
   }
   else {
-    buf->p = (UChar* )xmalloc(size);
+    GC_WB(&buf->p, (UChar* )xmalloc(size));
     if (IS_NULL(buf->p)) return(ONIGERR_MEMORY);
   }
 
@@ -164,7 +164,7 @@ unset_addr_list_init(UnsetAddrList* uslist, int size)
   CHECK_NULL_RETURN_MEMERR(p);
   uslist->num   = 0;
   uslist->alloc = size;
-  uslist->us    = p;
+  GC_WB(&uslist->us, p);
   return 0;
 }
 
@@ -186,7 +186,7 @@ unset_addr_list_add(UnsetAddrList* uslist, int offset, struct _Node* node)
     p = (UnsetAddr* )xrealloc(uslist->us, sizeof(UnsetAddr) * size);
     CHECK_NULL_RETURN_MEMERR(p);
     uslist->alloc = size;
-    uslist->us    = p;
+    GC_WB(&uslist->us, p);
   }
 
   uslist->us[uslist->num].offset = offset;
@@ -656,7 +656,7 @@ entry_repeat_range(regex_t* reg, int id, int lower, int upper)
   if (reg->repeat_range_alloc == 0) {
     p = (OnigRepeatRange* )xmalloc(sizeof(OnigRepeatRange) * REPEAT_RANGE_ALLOC);
     CHECK_NULL_RETURN_MEMERR(p);
-    reg->repeat_range = p;
+    GC_WB(&reg->repeat_range, p);
     reg->repeat_range_alloc = REPEAT_RANGE_ALLOC;
   }
   else if (reg->repeat_range_alloc <= id) {
@@ -665,7 +665,7 @@ entry_repeat_range(regex_t* reg, int id, int lower, int upper)
     p = (OnigRepeatRange* )xrealloc(reg->repeat_range,
                                     sizeof(OnigRepeatRange) * n);
     CHECK_NULL_RETURN_MEMERR(p);
-    reg->repeat_range = p;
+    GC_WB(&reg->repeat_range, p);
     reg->repeat_range_alloc = n;
   }
   else {
@@ -3914,7 +3914,7 @@ set_bm_skip(UChar* s, UChar* end, OnigEncoding enc ARG_UNUSED,
   }
   else {
     if (IS_NULL(*int_skip)) {
-      *int_skip = (int* )xmalloc(sizeof(int) * ONIG_CHAR_TABLE_SIZE);
+      GC_WB(int_skip, (int* )xmalloc(sizeof(int) * ONIG_CHAR_TABLE_SIZE));
       if (IS_NULL(*int_skip)) return ONIGERR_MEMORY;
     }
     for (i = 0; i < ONIG_CHAR_TABLE_SIZE; i++) (*int_skip)[i] = len;
@@ -4887,7 +4887,7 @@ set_optimize_exact_info(regex_t* reg, OptExactInfo* e)
   if (e->len == 0) return 0;
 
   if (e->ignore_case) {
-    reg->exact = (UChar* )xmalloc(e->len);
+    GC_WB(&reg->exact, (UChar* )xmalloc(e->len));
     CHECK_NULL_RETURN_MEMERR(reg->exact);
     xmemcpy(reg->exact, e->s, e->len);
     reg->exact_end = reg->exact + e->len;
@@ -4896,7 +4896,7 @@ set_optimize_exact_info(regex_t* reg, OptExactInfo* e)
   else {
     int allow_reverse;
 
-    reg->exact = str_dup(e->s, e->s + e->len);
+    GC_WB(&reg->exact, str_dup(e->s, e->s + e->len));
     CHECK_NULL_RETURN_MEMERR(reg->exact);
     reg->exact_end = reg->exact + e->len;
  
@@ -5343,10 +5343,7 @@ onig_compile(regex_t* reg, const UChar* pattern, const UChar* pattern_end,
 
   int r, init_size;
   Node*  root;
-  ScanEnv  scan_env;
-#ifdef USE_SUBEXP_CALL
-  UnsetAddrList  uslist;
-#endif
+  ScanEnv  *scan_env;
 
   reg->state = ONIG_STATE_COMPILING;
 
@@ -5372,16 +5369,17 @@ onig_compile(regex_t* reg, const UChar* pattern, const UChar* pattern_end,
   reg->num_comb_exp_check = 0;
 #endif
 
-  r = onig_parse_make_tree(&root, pattern, pattern_end, reg, &scan_env);
+  scan_env = xmalloc(sizeof(ScanEnv));
+  r = onig_parse_make_tree(&root, pattern, pattern_end, reg, scan_env);
   if (r != 0) goto err;
 
 #ifdef USE_NAMED_GROUP
   /* mixed use named group and no-named group */
-  if (scan_env.num_named > 0 &&
-      IS_SYNTAX_BV(scan_env.syntax, ONIG_SYN_CAPTURE_ONLY_NAMED_GROUP) &&
+  if (scan_env->num_named > 0 &&
+      IS_SYNTAX_BV(scan_env->syntax, ONIG_SYN_CAPTURE_ONLY_NAMED_GROUP) &&
       !ONIG_IS_OPTION_ON(reg->options, ONIG_OPTION_CAPTURE_GROUP)) {
-    if (scan_env.num_named != scan_env.num_mem)
-      r = disable_noname_group_capture(&root, reg, &scan_env);
+    if (scan_env->num_named != scan_env->num_mem)
+      r = disable_noname_group_capture(&root, reg, scan_env);
     else
       r = numbered_ref_check(root);
 
@@ -5390,85 +5388,85 @@ onig_compile(regex_t* reg, const UChar* pattern, const UChar* pattern_end,
 #endif
 
 #ifdef USE_SUBEXP_CALL
-  if (scan_env.num_call > 0) {
-    r = unset_addr_list_init(&uslist, scan_env.num_call);
+  if (scan_env->num_call > 0) {
+    GC_WB(&scan_env->unset_addr_list, xmalloc(sizeof(UnsetAddrList)));
+    r = unset_addr_list_init(scan_env->unset_addr_list, scan_env->num_call);
     if (r != 0) goto err;
-    scan_env.unset_addr_list = &uslist;
-    r = setup_subexp_call(root, &scan_env);
+    r = setup_subexp_call(root, scan_env);
     if (r != 0) goto err_unset;
-    r = subexp_recursive_check_trav(root, &scan_env);
+    r = subexp_recursive_check_trav(root, scan_env);
     if (r  < 0) goto err_unset;
-    r = subexp_inf_recursive_check_trav(root, &scan_env);
+    r = subexp_inf_recursive_check_trav(root, scan_env);
     if (r != 0) goto err_unset;
 
-    reg->num_call = scan_env.num_call;
+    reg->num_call = scan_env->num_call;
   }
   else
     reg->num_call = 0;
 #endif
 
-  r = setup_tree(root, reg, 0, &scan_env);
+  r = setup_tree(root, reg, 0, scan_env);
   if (r != 0) goto err_unset;
 
 #ifdef ONIG_DEBUG_PARSE_TREE
   print_tree(stderr, root);
 #endif
 
-  reg->capture_history  = scan_env.capture_history;
-  reg->bt_mem_start     = scan_env.bt_mem_start;
+  reg->capture_history  = scan_env->capture_history;
+  reg->bt_mem_start     = scan_env->bt_mem_start;
   reg->bt_mem_start    |= reg->capture_history;
   if (IS_FIND_CONDITION(reg->options))
     BIT_STATUS_ON_ALL(reg->bt_mem_end);
   else {
-    reg->bt_mem_end  = scan_env.bt_mem_end;
+    reg->bt_mem_end  = scan_env->bt_mem_end;
     reg->bt_mem_end |= reg->capture_history;
   }
 
 #ifdef USE_COMBINATION_EXPLOSION_CHECK
-  if (scan_env.backrefed_mem == 0
+  if (scan_env->backrefed_mem == 0
 #ifdef USE_SUBEXP_CALL
-      || scan_env.num_call == 0
+      || scan_env->num_call == 0
 #endif
       ) {
-    setup_comb_exp_check(root, 0, &scan_env);
+    setup_comb_exp_check(root, 0, scan_env);
 #ifdef USE_SUBEXP_CALL
-    if (scan_env.has_recursion != 0) {
-      scan_env.num_comb_exp_check = 0;
+    if (scan_env->has_recursion != 0) {
+      scan_env->num_comb_exp_check = 0;
     }
     else
 #endif
-    if (scan_env.comb_exp_max_regnum > 0) {
+    if (scan_env->comb_exp_max_regnum > 0) {
       int i;
-      for (i = 1; i <= scan_env.comb_exp_max_regnum; i++) {
-	if (BIT_STATUS_AT(scan_env.backrefed_mem, i) != 0) {
-	  scan_env.num_comb_exp_check = 0;
+      for (i = 1; i <= scan_env->comb_exp_max_regnum; i++) {
+	if (BIT_STATUS_AT(scan_env->backrefed_mem, i) != 0) {
+	  scan_env->num_comb_exp_check = 0;
 	  break;
 	}
       }
     }
   }
 
-  reg->num_comb_exp_check = scan_env.num_comb_exp_check;
+  reg->num_comb_exp_check = scan_env->num_comb_exp_check;
 #endif
 
   clear_optimize_info(reg);
 #ifndef ONIG_DONT_OPTIMIZE
-  r = set_optimize_info_from_tree(root, reg, &scan_env);
+  r = set_optimize_info_from_tree(root, reg, scan_env);
   if (r != 0) goto err_unset;
 #endif
 
-  if (IS_NOT_NULL(scan_env.mem_nodes_dynamic)) {
-    xfree(scan_env.mem_nodes_dynamic);
-    scan_env.mem_nodes_dynamic = (Node** )NULL;
+  if (IS_NOT_NULL(scan_env->mem_nodes_dynamic)) {
+    xfree(scan_env->mem_nodes_dynamic);
+    scan_env->mem_nodes_dynamic = (Node** )NULL;
   }
 
   r = compile_tree(root, reg);
   if (r == 0) {
     r = add_opcode(reg, OP_END);
 #ifdef USE_SUBEXP_CALL
-    if (scan_env.num_call > 0) {
-      r = unset_addr_list_fix(&uslist, reg);
-      unset_addr_list_end(&uslist);
+    if (scan_env->num_call > 0) {
+      r = unset_addr_list_fix(scan_env->unset_addr_list, reg);
+      unset_addr_list_end(scan_env->unset_addr_list);
       if (r) goto err;
     }
 #endif
@@ -5483,8 +5481,8 @@ onig_compile(regex_t* reg, const UChar* pattern, const UChar* pattern_end,
     }
   }
 #ifdef USE_SUBEXP_CALL
-  else if (scan_env.num_call > 0) {
-    unset_addr_list_end(&uslist);
+  else if (scan_env->num_call > 0) {
+    unset_addr_list_end(scan_env->unset_addr_list);
   }
 #endif
   onig_node_free(root);
@@ -5502,22 +5500,22 @@ onig_compile(regex_t* reg, const UChar* pattern, const UChar* pattern_end,
 
  err_unset:
 #ifdef USE_SUBEXP_CALL
-  if (scan_env.num_call > 0) {
-    unset_addr_list_end(&uslist);
+  if (scan_env->num_call > 0) {
+    unset_addr_list_end(scan_env->unset_addr_list);
   }
 #endif
  err:
-  if (IS_NOT_NULL(scan_env.error)) {
+  if (IS_NOT_NULL(scan_env->error)) {
     if (IS_NOT_NULL(einfo)) {
-      einfo->enc     = scan_env.enc;
-      einfo->par     = scan_env.error;
-      einfo->par_end = scan_env.error_end;
+      einfo->enc     = scan_env->enc;
+      einfo->par     = scan_env->error;
+      einfo->par_end = scan_env->error_end;
     }
   }
 
   onig_node_free(root);
-  if (IS_NOT_NULL(scan_env.mem_nodes_dynamic))
-      xfree(scan_env.mem_nodes_dynamic);
+  if (IS_NOT_NULL(scan_env->mem_nodes_dynamic))
+      xfree(scan_env->mem_nodes_dynamic);
   return r;
 }
 

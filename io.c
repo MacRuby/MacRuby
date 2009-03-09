@@ -6280,7 +6280,7 @@ open_key_args(int argc, VALUE *argv, struct foreach_arg *arg)
     arg->argv = argv + 1;
     if (argc == 1) {
       no_key:
-	arg->io = rb_io_open(RSTRING_PTR(argv[0]), "r");
+	GC_WB(&arg->io, rb_io_open(RSTRING_PTR(argv[0]), "r"));
 	return;
     }
     opt = rb_check_convert_type(argv[argc-1], T_HASH, "Hash", "to_hash");
@@ -6306,7 +6306,7 @@ open_key_args(int argc, VALUE *argv, struct foreach_arg *arg)
 	values[0] = argv[0];
 	for (i = 0; i < v_len; i++)
 	    values[i + 1] = RARRAY_AT(v, i);
-	arg->io = rb_io_open_with_args(v_len + 1, values);
+	GC_WB(&arg->io, rb_io_open_with_args(v_len + 1, values));
 #else
 	VALUE args;
 	args = rb_ary_new2(RARRAY_LEN(v)+1);
@@ -6319,10 +6319,10 @@ open_key_args(int argc, VALUE *argv, struct foreach_arg *arg)
     }
     v = rb_hash_aref(opt, mode);
     if (!NIL_P(v)) {
-	arg->io = rb_io_open(RSTRING_PTR(argv[0]), StringValueCStr(v));
+	GC_WB(&arg->io, rb_io_open(RSTRING_PTR(argv[0]), StringValueCStr(v)));
     }
     else {
-	arg->io = rb_io_open(RSTRING_PTR(argv[0]), "r");
+	GC_WB(&arg->io, rb_io_open(RSTRING_PTR(argv[0]), "r"));
     }
 
     v = rb_hash_aref(opt, encoding);
@@ -6370,13 +6370,13 @@ io_s_foreach(struct foreach_arg *arg)
 static VALUE
 rb_io_s_foreach(int argc, VALUE *argv, VALUE self)
 {
-    struct foreach_arg arg;
+    struct foreach_arg *arg = xmalloc(sizeof(struct foreach_arg));
 
     rb_scan_args(argc, argv, "13", NULL, NULL, NULL, NULL);
     RETURN_ENUMERATOR(self, argc, argv);
-    open_key_args(argc, argv, &arg);
-    if (NIL_P(arg.io)) return Qnil;
-    return rb_ensure(io_s_foreach, (VALUE)&arg, rb_io_close, arg.io);
+    open_key_args(argc, argv, arg);
+    if (NIL_P(arg->io)) return Qnil;
+    return rb_ensure(io_s_foreach, (VALUE)arg, rb_io_close, arg->io);
 }
 
 static VALUE
@@ -6406,12 +6406,12 @@ io_s_readlines(struct foreach_arg *arg)
 static VALUE
 rb_io_s_readlines(int argc, VALUE *argv, VALUE io)
 {
-    struct foreach_arg arg;
+    struct foreach_arg *arg = xmalloc(sizeof(struct foreach_arg));
 
     rb_scan_args(argc, argv, "13", NULL, NULL, NULL, NULL);
-    open_key_args(argc, argv, &arg);
-    if (NIL_P(arg.io)) return Qnil;
-    return rb_ensure(io_s_readlines, (VALUE)&arg, rb_io_close, arg.io);
+    open_key_args(argc, argv, arg);
+    if (NIL_P(arg->io)) return Qnil;
+    return rb_ensure(io_s_readlines, (VALUE)arg, rb_io_close, arg->io);
 }
 
 static VALUE
@@ -6456,17 +6456,17 @@ static VALUE
 rb_io_s_read(int argc, VALUE *argv, VALUE io)
 {
     VALUE offset;
-    struct foreach_arg arg;
+    struct foreach_arg *arg = xmalloc(sizeof(struct foreach_arg));
 
     rb_scan_args(argc, argv, "13", NULL, NULL, &offset, NULL);
-    open_key_args(argc, argv, &arg);
-    if (NIL_P(arg.io)) return Qnil;
+    open_key_args(argc, argv, arg);
+    if (NIL_P(arg->io)) return Qnil;
     if (!NIL_P(offset)) {
-	rb_io_binmode(arg.io);
-	rb_io_seek(arg.io, offset, SEEK_SET);
-	if (arg.argc == 2) arg.argc = 1;
+	rb_io_binmode(arg->io);
+	rb_io_seek(arg->io, offset, SEEK_SET);
+	if (arg->argc == 2) arg->argc = 1;
     }
-    return rb_ensure(io_s_read, (VALUE)&arg, rb_io_close, arg.io);
+    return rb_ensure(io_s_read, (VALUE)arg, rb_io_close, arg->io);
 }
 
 struct copy_stream_struct {
