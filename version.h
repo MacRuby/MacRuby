@@ -1,4 +1,4 @@
-#define RUBY_VERSION "1.9.0"
+#define RUBY_VERSION "1.9.1"
 #define RUBY_RELEASE_DATE "2008-06-03"
 #define RUBY_VERSION_CODE 190
 #define RUBY_RELEASE_CODE 20080603
@@ -69,8 +69,7 @@ RUBY_EXTERN const char ruby_copyright[];
 # define RUBY_DESCRIPTION	    \
     "MacRuby version " STRINGIZE(MACRUBY_VERSION) \
     " (ruby "RUBY_VERSION	    \
-    " "RUBY_RELEASE_DATE")"	    \
-    " ["RUBY_PLATFORM", "RUBY_ARCH"]"
+    ") ["RUBY_PLATFORM", "RUBY_ARCH"]"
 #else
 # define RUBY_DESCRIPTION	    \
     "ruby "RUBY_VERSION		    \
