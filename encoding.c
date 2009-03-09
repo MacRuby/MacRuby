@@ -33,7 +33,8 @@ enc_init_db(void)
 {
     const CFStringEncoding *e;
 
-    __encodings = CFDictionaryCreateMutable(NULL, 0, NULL, NULL);
+    __encodings = CFDictionaryCreateMutable(NULL, 0, NULL, 
+	    &kCFTypeDictionaryValueCallBacks);
     
     /* XXX CFStringGetListOfAvailableEncodings() is a costly call and should
      * be called on demand and not by default when the interpreter starts.
@@ -41,9 +42,6 @@ enc_init_db(void)
     e = CFStringGetListOfAvailableEncodings();
     while (e != NULL && *e != kCFStringEncodingInvalidId) {
 	VALUE iana;
-	VALUE encoding;
-
-	encoding = enc_new(e);
 
 	iana = (VALUE)CFStringConvertEncodingToIANACharSetName(*e);
 	if (iana != 0) {
@@ -65,14 +63,23 @@ enc_init_db(void)
 		    }
 		    while (p != NULL);
 		}
-		if (islower(*tmp))
+		if (islower(*tmp)) {
 		    *tmp = toupper(*tmp);
+		}
 		name = tmp;
 	    }
+	    VALUE encoding = enc_new(e);
 	    rb_define_const(rb_cEncoding, name, encoding);
+	    if (strcmp(name, "US_ASCII") == 0) {
+		// TODO in 1.9, ASCII_8BIT means binary
+		// In the meantime we finish the bytestring support let's 
+		// alias this to US_ASCII
+		rb_define_const(rb_cEncoding, "ASCII_8BIT", encoding);
+	    }
+
+	    CFDictionarySetValue(__encodings, (const void *)iana, 
+		    (const void *)encoding);
 	}
-	CFDictionarySetValue(__encodings, (const void *)iana, 
-	    (const void *)encoding);
 	e++;
     }
 
@@ -86,6 +93,9 @@ enc_make(const CFStringEncoding *enc)
 
     assert(enc != NULL);
     iana = (VALUE)CFStringConvertEncodingToIANACharSetName(*enc);
+    if (iana == 0) {
+	return Qnil;
+    }
     v = (VALUE)CFDictionaryGetValue((CFDictionaryRef)__encodings, 
 	(const void *)iana);
     assert(v != 0);
@@ -244,7 +254,10 @@ enc_list(VALUE klass)
     ary = rb_ary_new();
     e = CFStringGetListOfAvailableEncodings();
     while (e != NULL && *e != kCFStringEncodingInvalidId) {
-	rb_ary_push(ary, enc_make(e));
+	VALUE enc = enc_make(e);
+	if (enc != Qnil) {
+	    rb_ary_push(ary, enc);
+	}
 	e++;
     }
     return ary;
