@@ -1,0 +1,2 @@
+fails:String#to_i ignores leading underscores
+fails:String#to_i ignores a leading mix of whitespaces and underscores

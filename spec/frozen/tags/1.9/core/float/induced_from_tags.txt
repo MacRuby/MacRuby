@@ -1,0 +1,5 @@
+fails:Float.induced_from returns the passed argument when passed a Float
+fails:Float.induced_from converts passed Fixnums or Bignums to Floats (using #to_f)
+fails:Float.induced_from does not try to convert non-Integers to Integers using #to_int
+fails:Float.induced_from does not try to convert non-Integers to Floats using #to_f
+fails:Float.induced_from raises a TypeError when passed a non-Integer

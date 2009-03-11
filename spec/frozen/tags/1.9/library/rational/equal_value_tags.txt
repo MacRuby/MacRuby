@@ -1,0 +1,3 @@
+fails:Rational#== when passed [Rational] returns false if self has different numerator/denominator but the same numerical value as the passed argument
+fails:Rational#== when passed [Integer] returns true if self has the passed argument as numerator and a denominator of 1
+fails:Rational#== when passed [Float] converts self to a Float and compares it with the passed argument

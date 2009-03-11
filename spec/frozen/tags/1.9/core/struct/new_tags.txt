@@ -1,0 +1,7 @@
+fails:Struct.new creates a new anonymous class with nil first argument
+fails:Struct.new creates a new anonymous class with symbol arguments
+fails:Struct.new accepts Fixnums as Symbols unless fixnum.to_sym.nil?
+fails:Struct.new raises an ArgumentError if fixnum#to_sym is nil
+fails:Struct.new instance_eval's a passed block
+fails:Struct.new creates reader methods
+fails:Struct.new creates writer methods

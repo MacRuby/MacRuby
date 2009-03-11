@@ -1,0 +1,1 @@
+fails:Rational#initialize turns around the numerators and denominators signs around when the denominator is negative

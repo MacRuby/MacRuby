@@ -1,0 +1,2 @@
+critical:Hash#update does not affect yielded items by removing the current element
+fails:Hash#update raises a TypeError if called on a non-empty, frozen instance

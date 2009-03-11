@@ -1,0 +1,2 @@
+fails:Hash#delete_if processes entries with the same order as each()
+fails:Hash#delete_if raises a TypeError if called on a frozen instance

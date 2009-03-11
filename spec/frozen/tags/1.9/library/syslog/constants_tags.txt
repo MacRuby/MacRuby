@@ -1,0 +1,1 @@
+fails:Syslog::Constants includes the Syslog constants

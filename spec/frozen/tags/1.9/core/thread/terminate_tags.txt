@@ -1,0 +1,1 @@
+critical:Thread#terminate does not deadlock when called from within the thread while being joined from without

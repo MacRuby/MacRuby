@@ -1,0 +1,2 @@
+fails:String#rindex with Fixnum doesn't use fixnum % 256
+fails:String#rindex with Fixnum returns nil if the character isn't found

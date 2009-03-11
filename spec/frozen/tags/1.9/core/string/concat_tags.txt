@@ -1,0 +1,3 @@
+fails:String#concat raises a TypeError when self is frozen
+fails:String#concat with Fixnum raises a TypeError when the given Fixnum is not between 0 and 255
+fails:String#concat with Fixnum raises a TypeError when self is frozen

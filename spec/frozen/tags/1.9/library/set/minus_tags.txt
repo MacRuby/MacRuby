@@ -1,0 +1,1 @@
+fails:Set#- raises an ArgumentError when passed a non-Enumerable

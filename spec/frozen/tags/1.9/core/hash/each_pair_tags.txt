@@ -1,0 +1,1 @@
+fails:Hash#each_pair processes all pairs, yielding two arguments: key and value

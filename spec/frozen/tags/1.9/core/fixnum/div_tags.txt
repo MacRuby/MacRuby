@@ -1,0 +1,1 @@
+fails:Fixnum#div raises a FloatDomainError when the given argument is 0 and a Float

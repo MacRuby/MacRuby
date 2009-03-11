@@ -1,0 +1,2 @@
+fails:Rational#coerce does try to convert the passed argument into a Float (using #to_f)
+fails:Rational#coerce returns the passed argument, self converted to Floats

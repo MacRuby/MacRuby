@@ -1,0 +1,1 @@
+critical:YAML.load fails on invalid keys
