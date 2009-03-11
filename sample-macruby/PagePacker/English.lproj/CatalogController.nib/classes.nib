@@ -1,0 +1,40 @@
+{
+    IBClasses = (
+        {
+            ACTIONS = {changePage = id; }; 
+            CLASS = CatalogController; 
+            LANGUAGE = ObjC; 
+            OUTLETS = {
+                pageField = NSTextField; 
+                pageSlider = NSSlider; 
+                pdfView = PDFView; 
+                tableView = NSTableView; 
+            }; 
+            SUPERCLASS = NSWindowController; 
+        }, 
+        {CLASS = DraggingSourcePDFView; LANGUAGE = ObjC; SUPERCLASS = PDFView; }, 
+        {CLASS = FirstResponder; LANGUAGE = ObjC; SUPERCLASS = NSObject; }, 
+        {CLASS = NSObject; LANGUAGE = ObjC; }, 
+        {
+            ACTIONS = {
+                copy = id; 
+                goBack = id; 
+                goForward = id; 
+                goToFirstPage = id; 
+                goToLastPage = id; 
+                goToNextPage = id; 
+                goToPreviousPage = id; 
+                scrollSelectionToVisible = id; 
+                selectAll = id; 
+                takeBackgroundColorFrom = id; 
+                takePasswordFrom = id; 
+                zoomIn = id; 
+                zoomOut = id; 
+            }; 
+            CLASS = PDFView; 
+            LANGUAGE = ObjC; 
+            SUPERCLASS = NSView; 
+        }
+    ); 
+    IBVersion = 1; 
+}

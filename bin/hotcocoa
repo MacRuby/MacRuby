@@ -1,0 +1,31 @@
+#!/usr/bin/env ruby
+
+project_name = ARGV.shift
+
+if project_name.nil? or project_name == "--help" or project_name =="-h"
+  puts "Usage: hotcocoa <project name>"
+  exit
+end
+
+if File.exist?(project_name)
+  if File.extname(project_name) == ".rb"
+    file_to_copy = project_name
+    project_name = project_name[0..-4]
+  else
+    puts %{Error: "#{project_name}" already exists in this directory.}
+    exit
+  end
+else
+  file_to_copy = nil
+end
+
+require 'hotcocoa/template'
+HotCocoa::Template.copy_to(project_name, project_name.split("_").collect(&:capitalize).join(" "))
+
+if file_to_copy
+  lib_dir     = File.join(project_name, "lib")
+  File.open(File.join(lib_dir, "application.rb"), "w") do |file|
+    file.write File.read(file_to_copy)
+  end
+end
+

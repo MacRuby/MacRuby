@@ -1,0 +1,43 @@
+== MacRuby
+
+MacRuby is a Ruby implementation based on Mac OS X technologies, such as the 
+Objective-C runtime and garbage collector, the CoreFoundation framework and the
+LLVM compiler infrastructure.
+
+It is the goal of MacRuby to enable the creation of full-fledged Mac OS X
+applications which do not sacrifice performance in order to enjoy the benefits
+of using Ruby.
+
+MacRuby is copyrighted free software by Apple Inc and covered by the terms of
+the Ruby license. Please refer to the COPYING file for more information.
+
+The project website contains more documentation, such as tutorials and guides:
+
+  http://macruby.org
+
+=== Requirements
+
+* An Intel machine. PowerPC machines are not supported anymore, but may still
+  work. An Intel 64-bit machine (Intel Core Duo 2) is recommended.
+
+* Mac OS X 10.5.6 or later.
+
+* LLVM 2.5 or later, compiled for both i386 and x86_64.
+
+  At the time of this writing, LLVM 2.5 has not been released yet so you need
+  to install trunk. We recommend revision 64604.
+
+  $ svn co -r 64604 https://llvm.org/svn/llvm-project/llvm/trunk llvm-trunk
+  $ cd llvm-trunk
+  $ ./configure
+  $ UNIVERSAL=1 UNIVERSAL_ARCH="i386 x86_64" ENABLE_OPTIMIZED=1 make
+  $ sudo env UNIVERSAL=1 UNIVERSAL_ARCH="i386 x86_64" ENABLE_OPTIMIZED=1 \
+      make install
+
+=== Installation
+
+  $ rake
+  $ sudo rake install
+
+Then you should be all set! Please report us any problem you will find (the
+http://macruby.org website has pointers). Thanks!

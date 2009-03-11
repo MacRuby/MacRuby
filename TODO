@@ -1,0 +1,64 @@
+[X] implement super dispatch
+[X] implement blocks
+[X] implement dynamic strings
+[X] implement exceptions
+[X] implement 64-bit support
+[/] optimized arithmetic operations
+  [X] fixnums
+  [ ] floats
+  [ ] bignums (vectorization)
+[X] method dispatch cache
+[X] optimized recursive method dispatch
+[ ] block inlining
+[X] constant caching
+[X] fast ivar access
+[X] zero-cost exceptions
+[X] fast eval (inlining)
+[X] fast #send
+[ ] fast regexp =~
+[X] fast break
+[ ] Array and Hash subclasses to hold immediate Ruby objects without boxing
+[/] implement backtracing/symbolication
+[/] port all rb_define_method() calls to rb_objc_define_method()
+
+    - replace calls to rb_define_method() with a call to
+      rb_objc_define_method() and rewrite the function to 
+      conform to the following signatures:
+
+      // if arity -2
+      VALUE foo(VALUE recv, SEL sel, VALUE args);
+
+      // if arity -1
+      VALUE foo(VALUE recv, SEL sel, int argc, VALUE *argv);
+
+      // if arity 0
+      VALUE foo(VALUE recv, SEL sel);
+
+      // if arity 1
+      VALUE foo(VALUE recv, SEL sel, VALUE arg1);
+
+      // if arity 2
+      VALUE foo(VALUE recv, SEL sel, VALUE arg1, VALUE arg2);
+
+      // etc.
+
+      In the case of rb_define_global_function(), replace it by
+      rb_objc_define_method(rb_mKernel, ...)
+
+      In the case of rb_define_singleton_method(), replace it by
+      rb_objc_define_method(*(VALUE *)klass, ...)
+
+      In the case of rb_define_alloc_func(), replace it by
+      rb_objc_define_method(*(VALUE *)klass, "alloc", ..., 0)
+
+[/] port all rb_funcall() calls to rb_vm_call()
+[X] remove the YARV code from the project
+[ ] refactor the VM sources
+[ ] clean objc.m
+[/] implement eval/binding (irb)
+[ ] implement the BridgeSupport plumbing
+[ ] implement threading
+[ ] rspec
+  [ ] integrate
+  [ ] pass the 1.9 specs
+[/] all core-features benchmarks should run faster than yarv

@@ -1,0 +1,26 @@
+{
+    IBClasses = (
+        {
+            ACTIONS = {moveButtonAction = id; numberSliderAction = id; speedSliderAction = id; }; 
+            CLASS = Controller; 
+            LANGUAGE = ObjC; 
+            OUTLETS = {
+                mySuperview = id; 
+                numberSlider = id; 
+                numberText = id; 
+                speedSlider = id; 
+                speedText = id; 
+            }; 
+            SUPERCLASS = NSObject; 
+        }, 
+        {CLASS = FirstResponder; LANGUAGE = ObjC; SUPERCLASS = NSObject; }, 
+        {
+            ACTIONS = {shadowSwitchAction = id; }; 
+            CLASS = MySuperview; 
+            LANGUAGE = ObjC; 
+            OUTLETS = {controller = id; moveToTopSwitch = id; shadowSwitch = id; }; 
+            SUPERCLASS = NSView; 
+        }
+    ); 
+    IBVersion = 1; 
+}

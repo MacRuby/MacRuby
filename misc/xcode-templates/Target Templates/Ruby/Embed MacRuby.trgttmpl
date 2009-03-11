@@ -1,0 +1,13 @@
+{
+    Class = Aggregate;
+    Description = "Target that embeds MacRuby.framework inside the current application bundle.";
+    CustomBuildSettings = {
+    };
+	BuildPhases = (
+        {
+			Class = ShellScript;
+			ShellPath = "/bin/sh";
+			ShellScript = "PATH=\"$PATH:/usr/local/bin\" /usr/bin/env macruby -r hotcocoa/application_builder -e \"HotCocoa::ApplicationBuilder.deploy(ARGV[0])\" $TARGET_BUILD_DIR/$PROJECT_NAME.app";
+        },
+    );
+}

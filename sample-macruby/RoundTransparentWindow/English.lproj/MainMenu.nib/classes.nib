@@ -1,0 +1,22 @@
+{
+    IBClasses = (
+        {
+            ACTIONS = {changeTransparency = id; }; 
+            CLASS = Controller; 
+            LANGUAGE = ObjC; 
+            OUTLETS = {itsWindow = id; }; 
+            SUPERCLASS = NSObject; 
+        }, 
+        {CLASS = CustomView; LANGUAGE = ObjC; SUPERCLASS = NSView; }, 
+        {CLASS = CustomWindow; LANGUAGE = ObjC; SUPERCLASS = NSWindow; }, 
+        {
+            ACTIONS = {showHelp = id; }; 
+            CLASS = FirstResponder; 
+            LANGUAGE = ObjC; 
+            SUPERCLASS = NSObject; 
+        }, 
+        {CLASS = MyView; LANGUAGE = ObjC; SUPERCLASS = NSView; }, 
+        {CLASS = MyWindow; LANGUAGE = ObjC; SUPERCLASS = NSWindow; }
+    ); 
+    IBVersion = 1; 
+}

@@ -1,0 +1,429 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 42;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		4D8566530E64FBD7006724D6 /* Scriptability.rb in Resources */ = {isa = PBXBuildFile; fileRef = 4D8566520E64FBD7006724D6 /* Scriptability.rb */; };
+		4D8566640E64FFC8006724D6 /* PreferenceController.rb in Resources */ = {isa = PBXBuildFile; fileRef = 4D8566630E64FFC8006724D6 /* PreferenceController.rb */; };
+		4D8566660E6504A5006724D6 /* MyDocument.rb in Resources */ = {isa = PBXBuildFile; fileRef = 4D8566650E6504A5006724D6 /* MyDocument.rb */; };
+		4D8566890E6505EA006724D6 /* GeometryUtilities.rb in Resources */ = {isa = PBXBuildFile; fileRef = 4D8566880E6505EA006724D6 /* GeometryUtilities.rb */; };
+		4D85668B0E650653006724D6 /* PackerView.rb in Resources */ = {isa = PBXBuildFile; fileRef = 4D85668A0E650653006724D6 /* PackerView.rb */; };
+		4D8566910E653347006724D6 /* TextDisplayView.rb in Resources */ = {isa = PBXBuildFile; fileRef = 4D8566900E653347006724D6 /* TextDisplayView.rb */; };
+		4D8566930E6534E5006724D6 /* PDFUtility.rb in Resources */ = {isa = PBXBuildFile; fileRef = 4D8566920E6534E5006724D6 /* PDFUtility.rb */; };
+		4D8566950E65353D006724D6 /* PackModel.rb in Resources */ = {isa = PBXBuildFile; fileRef = 4D8566940E65353D006724D6 /* PackModel.rb */; };
+		4D8566970E653F54006724D6 /* PageInfo.rb in Resources */ = {isa = PBXBuildFile; fileRef = 4D8566960E653F54006724D6 /* PageInfo.rb */; };
+		4D8566990E65406C006724D6 /* RoundCloseButtonCell.rb in Resources */ = {isa = PBXBuildFile; fileRef = 4D8566980E65406C006724D6 /* RoundCloseButtonCell.rb */; };
+		4D85669C0E6542E8006724D6 /* CatalogController.rb in Resources */ = {isa = PBXBuildFile; fileRef = 4D85669B0E6542E8006724D6 /* CatalogController.rb */; };
+		4D85669E0E654584006724D6 /* DraggingSourcePDFView.rb in Resources */ = {isa = PBXBuildFile; fileRef = 4D85669D0E654584006724D6 /* DraggingSourcePDFView.rb */; };
+		4D8566A00E654708006724D6 /* AppController.rb in Resources */ = {isa = PBXBuildFile; fileRef = 4D85669F0E654708006724D6 /* AppController.rb */; };
+		4D8566A20E654751006724D6 /* MacRuby.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4D8566A10E654751006724D6 /* MacRuby.framework */; };
+		4D85694F0E654786006724D6 /* rb_main.rb in Resources */ = {isa = PBXBuildFile; fileRef = 4D85694E0E654786006724D6 /* rb_main.rb */; };
+		8D15AC2C0486D014006FF6A4 /* Credits.rtf in Resources */ = {isa = PBXBuildFile; fileRef = 2A37F4B9FDCFA73011CA2CEA /* Credits.rtf */; };
+		8D15AC2D0486D014006FF6A4 /* MainMenu.nib in Resources */ = {isa = PBXBuildFile; fileRef = 2A37F4B6FDCFA73011CA2CEA /* MainMenu.nib */; };
+		8D15AC2E0486D014006FF6A4 /* MyDocument.nib in Resources */ = {isa = PBXBuildFile; fileRef = 2A37F4B4FDCFA73011CA2CEA /* MyDocument.nib */; };
+		8D15AC2F0486D014006FF6A4 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 089C165FFE840EACC02AAC07 /* InfoPlist.strings */; };
+		8D15AC320486D014006FF6A4 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 2A37F4B0FDCFA73011CA2CEA /* main.m */; settings = {ATTRIBUTES = (); }; };
+		8D15AC340486D014006FF6A4 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1058C7A7FEA54F5311CA2CBB /* Cocoa.framework */; };
+		9308F54D0B503BF8006E5260 /* Generic.icns in Resources */ = {isa = PBXBuildFile; fileRef = 9308F54A0B503BF8006E5260 /* Generic.icns */; };
+		9308F5520B503C56006E5260 /* CatalogController.nib in Resources */ = {isa = PBXBuildFile; fileRef = 9308F5500B503C56006E5260 /* CatalogController.nib */; };
+		9308F62C0B50439B006E5260 /* PagePackerHelp in Resources */ = {isa = PBXBuildFile; fileRef = 9308F6150B50439B006E5260 /* PagePackerHelp */; };
+		9308FC4B0B527BA6006E5260 /* PPApp.icns in Resources */ = {isa = PBXBuildFile; fileRef = 9308FC4A0B527BA6006E5260 /* PPApp.icns */; };
+		9308FCFA0B5441B4006E5260 /* PreferenceController.nib in Resources */ = {isa = PBXBuildFile; fileRef = 9308FCF80B5441B4006E5260 /* PreferenceController.nib */; };
+		933B08A90B572176002BAEA4 /* PagePacker.sdef in Resources */ = {isa = PBXBuildFile; fileRef = 933B08A80B572176002BAEA4 /* PagePacker.sdef */; };
+		93E2BA2B0D84C14C00B41D2A /* pages.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 93E2BA2A0D84C14C00B41D2A /* pages.pdf */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		089C1660FE840EACC02AAC07 /* English */ = {isa = PBXFileReference; fileEncoding = 10; lastKnownFileType = text.plist.strings; name = English; path = English.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		1058C7A7FEA54F5311CA2CBB /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = /System/Library/Frameworks/Cocoa.framework; sourceTree = "<absolute>"; };
+		2A37F4B0FDCFA73011CA2CEA /* main.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
+		2A37F4B5FDCFA73011CA2CEA /* English */ = {isa = PBXFileReference; lastKnownFileType = wrapper.nib; name = English; path = English.lproj/MyDocument.nib; sourceTree = "<group>"; };
+		2A37F4B7FDCFA73011CA2CEA /* English */ = {isa = PBXFileReference; lastKnownFileType = wrapper.nib; name = English; path = English.lproj/MainMenu.nib; sourceTree = "<group>"; };
+		2A37F4BAFDCFA73011CA2CEA /* English */ = {isa = PBXFileReference; lastKnownFileType = text.rtf; name = English; path = English.lproj/Credits.rtf; sourceTree = "<group>"; };
+		32DBCF750370BD2300C91783 /* PagePacker_Prefix.pch */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = PagePacker_Prefix.pch; sourceTree = "<group>"; };
+		4D8566520E64FBD7006724D6 /* Scriptability.rb */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.ruby; path = Scriptability.rb; sourceTree = "<group>"; };
+		4D8566630E64FFC8006724D6 /* PreferenceController.rb */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.ruby; path = PreferenceController.rb; sourceTree = "<group>"; };
+		4D8566650E6504A5006724D6 /* MyDocument.rb */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.ruby; path = MyDocument.rb; sourceTree = "<group>"; };
+		4D8566880E6505EA006724D6 /* GeometryUtilities.rb */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.ruby; path = GeometryUtilities.rb; sourceTree = "<group>"; };
+		4D85668A0E650653006724D6 /* PackerView.rb */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.ruby; path = PackerView.rb; sourceTree = "<group>"; };
+		4D8566900E653347006724D6 /* TextDisplayView.rb */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.ruby; path = TextDisplayView.rb; sourceTree = "<group>"; };
+		4D8566920E6534E5006724D6 /* PDFUtility.rb */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.ruby; path = PDFUtility.rb; sourceTree = "<group>"; };
+		4D8566940E65353D006724D6 /* PackModel.rb */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.ruby; path = PackModel.rb; sourceTree = "<group>"; };
+		4D8566960E653F54006724D6 /* PageInfo.rb */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.ruby; path = PageInfo.rb; sourceTree = "<group>"; };
+		4D8566980E65406C006724D6 /* RoundCloseButtonCell.rb */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.ruby; path = RoundCloseButtonCell.rb; sourceTree = "<group>"; };
+		4D85669B0E6542E8006724D6 /* CatalogController.rb */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.ruby; path = CatalogController.rb; sourceTree = "<group>"; };
+		4D85669D0E654584006724D6 /* DraggingSourcePDFView.rb */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.ruby; path = DraggingSourcePDFView.rb; sourceTree = "<group>"; };
+		4D85669F0E654708006724D6 /* AppController.rb */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.ruby; path = AppController.rb; sourceTree = "<group>"; };
+		4D8566A10E654751006724D6 /* MacRuby.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MacRuby.framework; path = /Library/Frameworks/MacRuby.framework; sourceTree = "<absolute>"; };
+		4D85694E0E654786006724D6 /* rb_main.rb */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.ruby; path = rb_main.rb; sourceTree = "<group>"; };
+		8D15AC360486D014006FF6A4 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		8D15AC370486D014006FF6A4 /* PagePacker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PagePacker.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		9308F54A0B503BF8006E5260 /* Generic.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = Generic.icns; sourceTree = "<group>"; };
+		9308F5510B503C56006E5260 /* English */ = {isa = PBXFileReference; lastKnownFileType = wrapper.nib; name = English; path = English.lproj/CatalogController.nib; sourceTree = "<group>"; };
+		9308F6160B50439B006E5260 /* English */ = {isa = PBXFileReference; lastKnownFileType = folder; name = English; path = English.lproj/PagePackerHelp; sourceTree = "<group>"; };
+		9308FC4A0B527BA6006E5260 /* PPApp.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = PPApp.icns; sourceTree = "<group>"; };
+		9308FCF90B5441B4006E5260 /* English */ = {isa = PBXFileReference; lastKnownFileType = wrapper.nib; name = English; path = English.lproj/PreferenceController.nib; sourceTree = "<group>"; };
+		933B08A80B572176002BAEA4 /* PagePacker.sdef */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = text.sdef; path = PagePacker.sdef; sourceTree = "<group>"; };
+		93E2BA2A0D84C14C00B41D2A /* pages.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = pages.pdf; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		8D15AC330486D014006FF6A4 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8D15AC340486D014006FF6A4 /* Cocoa.framework in Frameworks */,
+				4D8566A20E654751006724D6 /* MacRuby.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		1058C7A6FEA54F5311CA2CBB /* Linked Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				4D8566A10E654751006724D6 /* MacRuby.framework */,
+				1058C7A7FEA54F5311CA2CBB /* Cocoa.framework */,
+			);
+			name = "Linked Frameworks";
+			sourceTree = "<group>";
+		};
+		19C28FB0FE9D524F11CA2CBB /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				8D15AC370486D014006FF6A4 /* PagePacker.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		2A37F4AAFDCFA73011CA2CEA /* PagePacker */ = {
+			isa = PBXGroup;
+			children = (
+				933B08BE0B572191002BAEA4 /* Scriptability */,
+				9308FCEF0B544106006E5260 /* Preference */,
+				9308F5D30B5042B1006E5260 /* Document */,
+				9308F5900B503FAF006E5260 /* Catalog */,
+				2A37F4ABFDCFA73011CA2CEA /* Main */,
+				2A37F4AFFDCFA73011CA2CEA /* Other Sources */,
+				2A37F4B8FDCFA73011CA2CEA /* Resources */,
+				2A37F4C3FDCFA73011CA2CEA /* Frameworks */,
+				19C28FB0FE9D524F11CA2CBB /* Products */,
+			);
+			name = PagePacker;
+			sourceTree = "<group>";
+		};
+		2A37F4ABFDCFA73011CA2CEA /* Main */ = {
+			isa = PBXGroup;
+			children = (
+				4D85669F0E654708006724D6 /* AppController.rb */,
+				2A37F4B6FDCFA73011CA2CEA /* MainMenu.nib */,
+			);
+			name = Main;
+			sourceTree = "<group>";
+		};
+		2A37F4AFFDCFA73011CA2CEA /* Other Sources */ = {
+			isa = PBXGroup;
+			children = (
+				4D85694E0E654786006724D6 /* rb_main.rb */,
+				32DBCF750370BD2300C91783 /* PagePacker_Prefix.pch */,
+				2A37F4B0FDCFA73011CA2CEA /* main.m */,
+			);
+			name = "Other Sources";
+			sourceTree = "<group>";
+		};
+		2A37F4B8FDCFA73011CA2CEA /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				9308FC4A0B527BA6006E5260 /* PPApp.icns */,
+				9308F6150B50439B006E5260 /* PagePackerHelp */,
+				9308F54A0B503BF8006E5260 /* Generic.icns */,
+				2A37F4B9FDCFA73011CA2CEA /* Credits.rtf */,
+				8D15AC360486D014006FF6A4 /* Info.plist */,
+				089C165FFE840EACC02AAC07 /* InfoPlist.strings */,
+			);
+			name = Resources;
+			sourceTree = "<group>";
+		};
+		2A37F4C3FDCFA73011CA2CEA /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				1058C7A6FEA54F5311CA2CBB /* Linked Frameworks */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		9308F5900B503FAF006E5260 /* Catalog */ = {
+			isa = PBXGroup;
+			children = (
+				93E2BA2A0D84C14C00B41D2A /* pages.pdf */,
+				4D85669B0E6542E8006724D6 /* CatalogController.rb */,
+				4D85669D0E654584006724D6 /* DraggingSourcePDFView.rb */,
+				9308F5500B503C56006E5260 /* CatalogController.nib */,
+			);
+			name = Catalog;
+			sourceTree = "<group>";
+		};
+		9308F5D30B5042B1006E5260 /* Document */ = {
+			isa = PBXGroup;
+			children = (
+				4D8566650E6504A5006724D6 /* MyDocument.rb */,
+				4D8566880E6505EA006724D6 /* GeometryUtilities.rb */,
+				4D85668A0E650653006724D6 /* PackerView.rb */,
+				4D8566900E653347006724D6 /* TextDisplayView.rb */,
+				4D8566920E6534E5006724D6 /* PDFUtility.rb */,
+				4D8566940E65353D006724D6 /* PackModel.rb */,
+				4D8566960E653F54006724D6 /* PageInfo.rb */,
+				4D8566980E65406C006724D6 /* RoundCloseButtonCell.rb */,
+				2A37F4B4FDCFA73011CA2CEA /* MyDocument.nib */,
+			);
+			name = Document;
+			sourceTree = "<group>";
+		};
+		9308FCEF0B544106006E5260 /* Preference */ = {
+			isa = PBXGroup;
+			children = (
+				9308FCF80B5441B4006E5260 /* PreferenceController.nib */,
+				4D8566630E64FFC8006724D6 /* PreferenceController.rb */,
+			);
+			name = Preference;
+			sourceTree = "<group>";
+		};
+		933B08BE0B572191002BAEA4 /* Scriptability */ = {
+			isa = PBXGroup;
+			children = (
+				933B08A80B572176002BAEA4 /* PagePacker.sdef */,
+				4D8566520E64FBD7006724D6 /* Scriptability.rb */,
+			);
+			name = Scriptability;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		8D15AC270486D014006FF6A4 /* PagePacker */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C05733C708A9546B00998B17 /* Build configuration list for PBXNativeTarget "PagePacker" */;
+			buildPhases = (
+				8D15AC2B0486D014006FF6A4 /* Resources */,
+				8D15AC300486D014006FF6A4 /* Sources */,
+				8D15AC330486D014006FF6A4 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = PagePacker;
+			productInstallPath = "$(HOME)/Applications";
+			productName = PagePacker;
+			productReference = 8D15AC370486D014006FF6A4 /* PagePacker.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		2A37F4A9FDCFA73011CA2CEA /* Project object */ = {
+			isa = PBXProject;
+			buildConfigurationList = C05733CB08A9546B00998B17 /* Build configuration list for PBXProject "PagePacker" */;
+			compatibilityVersion = "Xcode 2.4";
+			hasScannedForEncodings = 1;
+			mainGroup = 2A37F4AAFDCFA73011CA2CEA /* PagePacker */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				8D15AC270486D014006FF6A4 /* PagePacker */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		8D15AC2B0486D014006FF6A4 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8D15AC2C0486D014006FF6A4 /* Credits.rtf in Resources */,
+				8D15AC2D0486D014006FF6A4 /* MainMenu.nib in Resources */,
+				8D15AC2E0486D014006FF6A4 /* MyDocument.nib in Resources */,
+				8D15AC2F0486D014006FF6A4 /* InfoPlist.strings in Resources */,
+				9308F54D0B503BF8006E5260 /* Generic.icns in Resources */,
+				9308F5520B503C56006E5260 /* CatalogController.nib in Resources */,
+				9308F62C0B50439B006E5260 /* PagePackerHelp in Resources */,
+				9308FC4B0B527BA6006E5260 /* PPApp.icns in Resources */,
+				9308FCFA0B5441B4006E5260 /* PreferenceController.nib in Resources */,
+				933B08A90B572176002BAEA4 /* PagePacker.sdef in Resources */,
+				93E2BA2B0D84C14C00B41D2A /* pages.pdf in Resources */,
+				4D8566530E64FBD7006724D6 /* Scriptability.rb in Resources */,
+				4D8566640E64FFC8006724D6 /* PreferenceController.rb in Resources */,
+				4D8566660E6504A5006724D6 /* MyDocument.rb in Resources */,
+				4D8566890E6505EA006724D6 /* GeometryUtilities.rb in Resources */,
+				4D85668B0E650653006724D6 /* PackerView.rb in Resources */,
+				4D8566910E653347006724D6 /* TextDisplayView.rb in Resources */,
+				4D8566930E6534E5006724D6 /* PDFUtility.rb in Resources */,
+				4D8566950E65353D006724D6 /* PackModel.rb in Resources */,
+				4D8566970E653F54006724D6 /* PageInfo.rb in Resources */,
+				4D8566990E65406C006724D6 /* RoundCloseButtonCell.rb in Resources */,
+				4D85669C0E6542E8006724D6 /* CatalogController.rb in Resources */,
+				4D85669E0E654584006724D6 /* DraggingSourcePDFView.rb in Resources */,
+				4D8566A00E654708006724D6 /* AppController.rb in Resources */,
+				4D85694F0E654786006724D6 /* rb_main.rb in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		8D15AC300486D014006FF6A4 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8D15AC320486D014006FF6A4 /* main.m in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXVariantGroup section */
+		089C165FFE840EACC02AAC07 /* InfoPlist.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				089C1660FE840EACC02AAC07 /* English */,
+			);
+			name = InfoPlist.strings;
+			sourceTree = "<group>";
+		};
+		2A37F4B4FDCFA73011CA2CEA /* MyDocument.nib */ = {
+			isa = PBXVariantGroup;
+			children = (
+				2A37F4B5FDCFA73011CA2CEA /* English */,
+			);
+			name = MyDocument.nib;
+			sourceTree = "<group>";
+		};
+		2A37F4B6FDCFA73011CA2CEA /* MainMenu.nib */ = {
+			isa = PBXVariantGroup;
+			children = (
+				2A37F4B7FDCFA73011CA2CEA /* English */,
+			);
+			name = MainMenu.nib;
+			sourceTree = "<group>";
+		};
+		2A37F4B9FDCFA73011CA2CEA /* Credits.rtf */ = {
+			isa = PBXVariantGroup;
+			children = (
+				2A37F4BAFDCFA73011CA2CEA /* English */,
+			);
+			name = Credits.rtf;
+			sourceTree = "<group>";
+		};
+		9308F5500B503C56006E5260 /* CatalogController.nib */ = {
+			isa = PBXVariantGroup;
+			children = (
+				9308F5510B503C56006E5260 /* English */,
+			);
+			name = CatalogController.nib;
+			sourceTree = "<group>";
+		};
+		9308F6150B50439B006E5260 /* PagePackerHelp */ = {
+			isa = PBXVariantGroup;
+			children = (
+				9308F6160B50439B006E5260 /* English */,
+			);
+			name = PagePackerHelp;
+			sourceTree = "<group>";
+		};
+		9308FCF80B5441B4006E5260 /* PreferenceController.nib */ = {
+			isa = PBXVariantGroup;
+			children = (
+				9308FCF90B5441B4006E5260 /* English */,
+			);
+			name = PreferenceController.nib;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
+
+/* Begin XCBuildConfiguration section */
+		C05733C808A9546B00998B17 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COPY_PHASE_STRIP = NO;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_ENABLE_FIX_AND_CONTINUE = YES;
+				GCC_MODEL_TUNING = G5;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				INFOPLIST_FILE = Info.plist;
+				INSTALL_PATH = "$(HOME)/Applications";
+				PRODUCT_NAME = PagePacker;
+				WRAPPER_EXTENSION = app;
+				ZERO_LINK = YES;
+			};
+			name = Debug;
+		};
+		C05733C908A9546B00998B17 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = (
+					ppc,
+					i386,
+				);
+				GCC_GENERATE_DEBUGGING_SYMBOLS = NO;
+				GCC_MODEL_TUNING = G5;
+				INFOPLIST_FILE = Info.plist;
+				INSTALL_PATH = "$(HOME)/Applications";
+				PRODUCT_NAME = PagePacker;
+				WRAPPER_EXTENSION = app;
+			};
+			name = Release;
+		};
+		C05733CC08A9546B00998B17 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = "$(NATIVE_ARCH_ACTUAL)";
+				GCC_ENABLE_OBJC_GC = required;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				PREBINDING = NO;
+				VALID_ARCHS = "i386 x86_64";
+			};
+			name = Debug;
+		};
+		C05733CD08A9546B00998B17 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = "$(NATIVE_ARCH_ACTUAL)";
+				GCC_ENABLE_OBJC_GC = required;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				PREBINDING = NO;
+				VALID_ARCHS = "i386 x86_64";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		C05733C708A9546B00998B17 /* Build configuration list for PBXNativeTarget "PagePacker" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C05733C808A9546B00998B17 /* Debug */,
+				C05733C908A9546B00998B17 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C05733CB08A9546B00998B17 /* Build configuration list for PBXProject "PagePacker" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C05733CC08A9546B00998B17 /* Debug */,
+				C05733CD08A9546B00998B17 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 2A37F4A9FDCFA73011CA2CEA /* Project object */;
+}

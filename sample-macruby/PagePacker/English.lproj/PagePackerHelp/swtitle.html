@@ -1,0 +1,131 @@
+<html>
+<head>
+<META NAME="AppleTitle" CONTENT="PagePacker Help">
+<META NAME="AppleIcon" CONTENT="PagePackerHelp/ppicon16.png">
+<link rel="stylesheet" type="text/css" href="html/style.css" />
+<title>PagePacker Help</title>
+</head>
+<body>
+<div id="wrap">
+<div id="header">
+<img id="frontphoto" src="graphics/noword.gif" width="128" height="108" alt="hat" />
+<h1><a href="http://weblog.bignerdranch.com">PagePacker Help</a></h1>
+<p><strong>Making little books out of 8.5" x 11" paper</strong></p>
+</div>
+
+<div id="content">
+
+<p>This program is a Cocoa implementation of Chad Adam's PocketMod Flash application.  You can use that program at <a href="http://www.pocketmod.com/">http://www.pocketmod.com/</a>.</p>
+
+<p>The <a href="http://www.diyplanner.com/docs/official/hpda">D*I*Y
+Planner forms</a> are released by Douglas Johnston under a <a
+href="http://creativecommons.org/licenses/by-nc-nd/2.0/">Creative
+Commons Attribution Non-Commercial No-Derivatives license</a>, which
+means that they are free for personal and non-commercial use. Use
+within a business setting is fine as long as they are not
+mass-produced (i.e., in numbers greater than 50). "Getting Things
+Done" and its related concepts are copyright <a
+href="http://www.davidco.com">David Allen</a>, All Rights Reserved.</p>
+
+<p>I have time to do stuff like this because I work for <a href="http://www.bignerdranch.com/">Big Nerd Ranch, Inc.</a>  Big Nerd Ranch, Inc. does training, consulting, and books on topics like Cocoa Programming, PostgreSQL, OpenGL, Ruby on Rails, Python, Django, PHP, and Asterisk. Come to class. Rent a nerd.  Buy a book.</p>
+
+<p>The rest of this document is devoted to how to use PagePacker to create a tiny eight-page book out of a standard 8.5" x 11" (or A4) piece of paper.</p>
+
+<h3>Step 1: Generate PDFs of stuff you want from your data</h3>
+
+<p>Here are my recipes, but you may get better results some other way.</p>
+
+<h4>To get your phone numbers from Address Book:</h4> 
+<p>Choose a group of a reasonable size (You will get about 20 names/phone numbers per page if you follow these directions), and select the Print menu item.  Make the print panel look like this:</p>
+<img src="graphics/abprint.png" />
+
+<p>That is: List style, A5, Landscape, just phone, Regular font.</p>
+
+<p>Instead of clicking print,  use the PDF pop up to create a PDF.</p>
+
+<h4>To get your calendar from iCal:</h4>
+
+<p>Choose the print menu item.  Make the Print panel look like this:</p>
+<img src="graphics/iCal.png" />
+<p>That is, put it on A5 paper and get rid of the stuff you don't need.  I use medium size text.
+
+<p>Click "Continue" and save it as a PDF.</p>
+
+<h4>To print a PDF of directions from GoogleMaps, MapQuest, YahooMaps, etc.  (Or any other web page)</h4>
+
+<p>Get to the directions, and choose the Page Setup... menu item.  Pretend that you are going to be printing onto A5 paper:</p>
+<img src="graphics/webpage.png" />
+
+<p>Now, click the "Print" or "Printable Version" link which will get you a nice simple view of the directions.  The print panel may automatically appear.  If it doesn't,  use the Print.. menu item to get the print panel to appear.  Once again,  use the PDF popup to save the directions to a PDF.</p>
+
+<h3>Step 2: Add your pages to the book</h3>
+
+<p>Start PagePacker drop any sort of PDF or image file on the page where you want it to appear. (It will also take plain text files.)</p>
+<p>Drag from the catalog window to add standard, static pages to the book.</p>
+<img src="graphics/catalog.png">
+
+<p>When you have eight pages in the book all the rectangles will be full:</p>
+<img src="graphics/ready2print.png">
+
+<p>To move a page, just drag it to the desired space.  To duplicate a page, option-drag it.</p>
+
+<h3>Step 3: Print it.</h3>
+
+<p>Use the "Print..." menu item and print the page on an 8.5" x 11" (or A4) piece of paper.  With such small print,  the more DPI you can get, the better the text will look.</p>
+
+<h3>Step 4: Fold the paper lengthwise along the line</h3>
+<p>The inky parts should be on the outside:</p>
+<img src="graphics/fold1.jpg">
+
+<h3>Step 5: Unfold it.  In the other direction,  fold it on the three lines like a fan</h3>
+
+<p>The inky parts end up inside the fan:</p>
+<img src="graphics/fold2.jpg">
+
+<h3>Step 6: Open the outer two flaps of the fan,  and cut along the black line</h3>
+<img src="graphics/cut.jpg" />
+
+<h3>Step 7: Fold the first fold again</h3>
+
+<p>With the outer flaps open and the inner flap cut,  you can now refold the paper lengthwise.</p>
+<img src="graphics/fold3.jpg" />
+
+<h3>Final: Put the front cover in front and the back in back.</h3>
+<p>Voila! A little book!</p>
+<img src="graphics/voila.jpg" />
+
+<h2>AppleScript</h2>
+<p>PagePacker is fully AppleScriptable. The AppleScript dictionary is self-documenting,  so you can look there for more information.</p>
+
+<p>Here is a sample script that assumes that you have a test.pdf file on your desktop:
+<pre>
+set f to (path to desktop as string) &amp; "test.pdf"
+tell application "PagePacker"
+	set page size to letter
+	make new document
+	tell document 1
+		set catalog source page of page 1 to 27
+		set file source of page 2 to alias f
+		clear page 1
+		set myPage to page 3
+		tell myPage
+			set catalog source page to 30
+		end tell
+	end tell
+end tell
+</pre>
+
+<h2>Paper</h2>
+<p>PagePacker supports both 8.5" x 11" and A4 paper.  
+Go to the preferences to set your preferred paper size</p>
+
+<h2>License</h2>
+
+<p>PagePacker and its source code are released under the BSD License.</p>
+
+
+</div>
+</body>
+</html>
+
+

@@ -1,0 +1,5077 @@
+/* ROXOR: the new MacRuby VM that rocks! */
+
+#define ROXOR_DEBUG	0
+
+#include <llvm/Module.h>
+#include <llvm/DerivedTypes.h>
+#include <llvm/Constants.h>
+#include <llvm/CallingConv.h>
+#include <llvm/Instructions.h>
+#include <llvm/ModuleProvider.h>
+#include <llvm/PassManager.h>
+#include <llvm/Analysis/Verifier.h>
+#include <llvm/Target/TargetData.h>
+#include <llvm/ExecutionEngine/JIT.h>
+#include <llvm/ExecutionEngine/JITMemoryManager.h>
+#include <llvm/Transforms/Scalar.h>
+#include <llvm/Support/raw_ostream.h>
+#include <llvm/Support/IRBuilder.h>
+#include <llvm/Intrinsics.h>
+using namespace llvm;
+
+#include <stack>
+
+#if ROXOR_DEBUG
+# include <mach/mach.h>
+# include <mach/mach_time.h>
+#endif
+
+#include "ruby/ruby.h"
+#include "ruby/node.h"
+#include "id.h"
+#include "objc.h"
+#include "roxor.h"
+#include <execinfo.h>
+
+extern "C" const char *ruby_node_name(int node);
+
+static VALUE rb_cTopLevel = 0;
+
+struct RoxorFunction
+{
+    Function *f;
+    unsigned char *start;
+    unsigned char *end;
+    void *imp;
+    ID mid;
+
+    RoxorFunction (Function *_f, unsigned char *_start, unsigned char *_end) {
+	f = _f;
+	start = _start;
+	end = _end;
+	imp = NULL; 	// lazy
+	mid = 0;	// lazy
+    }
+};
+
+class RoxorJITManager : public JITMemoryManager
+{
+    private:
+        JITMemoryManager *mm;
+	std::vector<struct RoxorFunction *> functions;
+
+    public:
+	RoxorJITManager() : JITMemoryManager() { 
+	    mm = CreateDefaultMemManager(); 
+	}
+
+	struct RoxorFunction *find_function(unsigned char *addr) {
+	     // TODO optimize me!
+	     RoxorFunction *front = functions.front();
+	     RoxorFunction *back = functions.back();
+	     if (addr < front->start || addr > back->end) {
+		return NULL;
+	     }
+	     std::vector<struct RoxorFunction *>::iterator iter = 
+		 functions.begin();
+	     while (iter != functions.end()) {
+		RoxorFunction *f = *iter;
+		if (addr >= f->start && addr <= f->end) {
+		    return f;
+		}
+		++iter;
+	     }
+	     return NULL;
+	}
+
+	void setMemoryWritable(void) { 
+	    mm->setMemoryWritable(); 
+	}
+
+	void setMemoryExecutable(void) { 
+	    mm->setMemoryExecutable(); 
+	}
+
+	unsigned char *allocateSpace(intptr_t Size, unsigned Alignment) { 
+	    return mm->allocateSpace(Size, Alignment); 
+	}
+
+	void AllocateGOT(void) {
+	    mm->AllocateGOT();
+	}
+
+	unsigned char *getGOTBase() const {
+	    return mm->getGOTBase();
+	}
+
+#if 0 // required when building with LLVM trunk, not useful today since trunk
+      // is b0rked.
+	void SetDlsymTable(void *ptr) {
+	    mm->SetDlsymTable(ptr);
+	}
+
+	void *getDlsymTable() const {
+	    return mm->getDlsymTable();
+	}
+#endif
+
+	unsigned char *startFunctionBody(const Function *F, 
+					 uintptr_t &ActualSize) {
+	    return mm->startFunctionBody(F, ActualSize);
+	}
+
+	unsigned char *allocateStub(const GlobalValue* F, 
+				    unsigned StubSize, 
+				    unsigned Alignment) {
+	    return mm->allocateStub(F, StubSize, Alignment);
+	}
+
+	void endFunctionBody(const Function *F, unsigned char *FunctionStart, 
+			     unsigned char *FunctionEnd) {
+	    mm->endFunctionBody(F, FunctionStart, FunctionEnd);
+	    functions.push_back(new RoxorFunction(const_cast<Function *>(F), 
+			FunctionStart, FunctionEnd));
+	}
+
+	void deallocateMemForFunction(const Function *F) {
+	    mm->deallocateMemForFunction(F);
+	}
+
+	unsigned char* startExceptionTable(const Function* F, 
+					   uintptr_t &ActualSize) {
+	    return mm->startExceptionTable(F, ActualSize);
+	}
+
+	void endExceptionTable(const Function *F, unsigned char *TableStart, 
+			       unsigned char *TableEnd, 
+			       unsigned char* FrameRegister) {
+	    mm->endExceptionTable(F, TableStart, TableEnd, FrameRegister);
+	}
+};
+
+#define SPLAT_ARG_FOLLOWS 0xdeadbeef
+
+class RoxorCompiler
+{
+    public:
+	static llvm::Module *module;
+
+	RoxorCompiler(const char *fname);
+
+	Value *compile_node(NODE *node);
+
+	Function *compile_main_function(NODE *node) {
+	    rb_objc_retain((void *)node);
+
+	    current_instance_method = true;
+
+	    Value *val = compile_node(node);
+	    assert(Function::classof(val));
+	    Function *function = cast<Function>(val);
+
+	    Value *klass = ConstantInt::get(RubyObjTy, (long)rb_cTopLevel);
+	    BasicBlock::InstListType &list = 
+		function->getEntryBlock().getInstList();
+	    compile_ivar_slots(klass, list, list.begin());
+
+	    return function;
+	}
+
+	Function *compile_read_attr(ID name);
+	Function *compile_write_attr(ID name);
+
+    private:
+	const char *fname;
+
+	std::map<ID, Value *> lvars;
+	std::map<ID, Value *> dvars;
+	std::map<ID, int *> ivar_slots_cache;
+
+#if ROXOR_DEBUG
+	int level;
+# define DEBUG_LEVEL_INC() (level++)
+# define DEBUG_LEVEL_DEC() (level--)
+#else
+# define DEBUG_LEVEL_INC()
+# define DEBUG_LEVEL_DEC()
+#endif
+
+	BasicBlock *bb;
+	ID current_mid;
+	bool current_instance_method;
+	ID self_id;
+	Value *current_self;
+	bool current_block;
+	BasicBlock *rescue_bb;
+	NODE *current_block_node;
+	Function *current_block_func;
+        GlobalVariable *current_opened_class;
+	BasicBlock *current_loop_begin_bb;
+	BasicBlock *current_loop_end_bb;
+	Value *current_loop_exit_val;
+
+	Function *dispatcherFunc;
+	Function *whenSplatFunc;
+	Function *blockCreateFunc;
+	Function *getBlockFunc;
+	Function *currentBlockObjectFunc;
+	Function *getConstFunc;
+	Function *setConstFunc;
+	Function *prepareMethodFunc;
+	Function *defineClassFunc;
+	Function *prepareIvarSlotFunc;
+	Function *getIvarFunc;
+	Function *setIvarFunc;
+	Function *definedFunc;
+	Function *aliasFunc;
+	Function *valiasFunc;
+	Function *newHashFunc;
+	Function *newArrayFunc;
+	Function *newRangeFunc;
+	Function *newRegexpFunc;
+	Function *aryGetFunc;
+	Function *newStringFunc;
+	Function *yieldFunc;
+	Function *gvarSetFunc;
+	Function *gvarGetFunc;
+	Function *popExceptionFunc;
+	Function *getSpecialFunc;
+	Function *breakFunc;
+
+	VALUE defined_nil;
+	VALUE defined_self;
+	VALUE defined_true;
+	VALUE defined_false;
+	VALUE defined_expression;
+	VALUE defined_lvar;
+	VALUE defined_assignment;
+
+	Constant *zeroVal;
+	Constant *oneVal;
+	Constant *twoVal;
+	Constant *nilVal;
+	Constant *trueVal;
+	Constant *falseVal;
+	Constant *splatArgFollowsVal;
+	const Type *RubyObjTy; 
+	const Type *RubyObjPtrTy; 
+	const Type *PtrTy;
+	const Type *IntTy;
+
+	void compile_node_error(const char *msg, NODE *node) {
+	    int t = nd_type(node);
+	    printf("%s: %d (%s)", msg, t, ruby_node_name(t));
+	    abort();
+	}
+
+	Instruction *compile_const_pointer(void *ptr, bool insert_to_bb=true) {
+	    Value *ptrint = ConstantInt::get(IntTy, (long)ptr);
+	    return insert_to_bb
+		? new IntToPtrInst(ptrint, PtrTy, "", bb)
+		: new IntToPtrInst(ptrint, PtrTy, "");
+	}
+
+	Value *compile_protected_call(Function *func, std::vector<Value *> &params);
+	void compile_dispatch_arguments(NODE *args, std::vector<Value *> &arguments, int *pargc);
+	Function::ArgumentListType::iterator
+	    compile_optional_arguments(Function::ArgumentListType::iterator iter,
+		    NODE *node);
+	void compile_boolean_test(Value *condVal, BasicBlock *ifTrueBB, BasicBlock *ifFalseBB);
+	void compile_when_arguments(NODE *args, Value *comparedToVal, BasicBlock *thenBB);
+	void compile_one_when_argument(NODE *arg, Value *comparedToVal, BasicBlock *thenBB);
+	Value *compile_dispatch_call(std::vector<Value *> &params);
+	Value *compile_when_splat_call(std::vector<Value *> &params);
+	Value *compile_attribute_assign(NODE *node, Value *extra_val);
+	Value *compile_block_create(NODE *node=NULL);
+	Value *compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Value *> &params);
+	Value *compile_ivar_read(ID vid);
+	Value *compile_ivar_assignment(ID vid, Value *val);
+	Value *compile_current_class(void);
+	Value *compile_const(ID id, Value *outer);
+	Value *compile_defined_expression(NODE *node);
+	Value *compile_dstr(NODE *node);
+
+	Value *get_var(ID name, std::map<ID, Value *> &container, 
+		       bool do_assert) {
+	    std::map<ID, Value *>::iterator iter = container.find(name);
+	    if (do_assert) {
+		assert(iter != container.end());
+		return iter->second;
+	    }
+	    else {
+		return iter != container.end() ? iter->second : NULL;
+	    }
+	}
+
+	Value *get_lvar(ID name, bool do_assert=true) {
+	    return get_var(name, lvars, do_assert);
+	}
+
+	int *get_slot_cache(ID id) {
+	    if (current_block || !current_instance_method) {
+		// TODO should also return NULL if we are inside a module
+		return NULL;
+	    }
+	    std::map<ID, int *>::iterator iter = ivar_slots_cache.find(id);
+	    if (iter == ivar_slots_cache.end()) {
+		int *slot = (int *)malloc(sizeof(int));
+		*slot = -1;
+		ivar_slots_cache[id] = slot;
+		return slot;
+	    }
+	    return iter->second;
+	}
+
+	ICmpInst *is_value_a_fixnum(Value *val);
+	void compile_ivar_slots(Value *klass, BasicBlock::InstListType &list, 
+				BasicBlock::InstListType::iterator iter);
+	bool unbox_fixnum_constant(Value *val, long *lval);
+	SEL mid_to_sel(ID mid, int arity);
+};
+
+llvm::Module *RoxorCompiler::module = NULL;
+
+struct ccache {
+    VALUE outer;
+    VALUE val;
+};
+
+struct ocall_helper {
+    struct rb_objc_method_sig sig;
+    bs_element_method_t *bs_method;
+};
+
+struct mcache {
+#define MCACHE_RCALL 0x1
+#define MCACHE_OCALL 0x2
+#define MCACHE_BCALL 0x4 
+    uint8_t flag;
+    union {
+	struct {
+	    Class klass;
+	    IMP imp;
+	    NODE *node;
+	} rcall;
+	struct {
+	    Class klass;
+	    IMP imp;
+	    struct ocall_helper *helper;
+	} ocall;
+    } as;
+};
+
+extern "C" void *__cxa_allocate_exception(size_t);
+extern "C" void __cxa_throw(void *, void *, void *);
+
+struct RoxorFunctionIMP
+{
+    NODE *node;
+    SEL sel; 
+
+    RoxorFunctionIMP(NODE *_node, SEL _sel) { 
+	node = _node;
+	sel = _sel;
+    }
+};
+
+class RoxorVM
+{
+    private:
+	ExistingModuleProvider *emp;
+	RoxorJITManager *jmm;
+	ExecutionEngine *ee;
+	FunctionPassManager *fpm;
+	bool running;
+
+	std::map<IMP, struct RoxorFunctionIMP *> ruby_imps;
+	std::map<SEL, struct mcache *> mcache;
+	std::map<ID, struct ccache *> ccache;
+	std::map<Class, std::map<ID, int> *> ivar_slots;
+	std::map<SEL, GlobalVariable *> redefined_ops_gvars;
+	std::stack<rb_vm_block_t *> current_blocks;
+
+#define MAX_SPECIAL_CONSTS 13
+	VALUE special_consts[MAX_SPECIAL_CONSTS];
+
+    public:
+	static RoxorVM *current;
+
+	Class current_opened_class;
+	VALUE current_top_object;
+	VALUE current_exception;
+	VALUE loaded_features;
+	VALUE load_path;
+	VALUE backref;
+	VALUE broken_with;
+	int safe_level;
+	std::map<NODE *, rb_vm_block_t *> blocks;
+	std::map<double, struct rb_float_cache *> float_cache;
+	int method_missing_reason;
+
+	RoxorVM(void);
+
+	rb_vm_block_t *top_block(void) { return current_blocks.top(); }
+	bool block_given(void) { return !current_blocks.empty(); }
+	void push_block(rb_vm_block_t *b) { current_blocks.push(b); }
+	void pop_block(void) { current_blocks.pop(); }
+
+	ExecutionEngine *execution_engine(void) { return ee; }
+
+	IMP compile(Function *func, bool optimize=true) {
+	    if (optimize) {
+		fpm->run(*func);
+	    }
+	    return (IMP)ee->getPointerToFunction(func);
+	}
+
+	bool symbolize_call_address(void *addr, void **startp, unsigned long *ln,
+				    char *name, size_t name_len) {
+	    void *start = NULL;
+
+	    RoxorFunction *f = jmm->find_function((unsigned char *)addr);
+	    if (f != NULL) {
+		if (f->imp == NULL) {
+		    f->imp = ee->getPointerToFunctionOrStub(f->f);
+		}
+		start = f->imp;
+	    }
+	    else {
+		if (!rb_objc_symbolize_address(addr, &start, NULL, 0)) {
+		    return false;
+		}
+	    }
+
+	    assert(start != NULL);
+	    if (startp != NULL) {
+		*startp = start;
+	    }
+
+	    if (name != NULL || ln != NULL) {
+		std::map<IMP, struct RoxorFunctionIMP *>::iterator iter = 
+		    ruby_imps.find((IMP)start);
+		if (iter == ruby_imps.end()) {
+		    // TODO symbolize objc selectors
+		    return false;
+		}
+
+		struct RoxorFunctionIMP *fi = iter->second;
+		if (ln != NULL) {
+		    *ln = nd_line(fi->node);
+		}
+		if (name != NULL) {
+		    strncpy(name, sel_getName(fi->sel), name_len);
+		}
+	    }
+
+	    return true;
+	}
+
+	bool is_running(void) { return running; }
+	void set_running(bool flag) { running = flag; }
+
+	struct mcache *method_cache_get(SEL sel, bool super);
+	NODE *method_node_get(IMP imp);
+	void add_method(Class klass, SEL sel, IMP imp, NODE *node, const char *types);
+
+	GlobalVariable *redefined_op_gvar(SEL sel, bool create);
+
+	struct ccache *constant_cache_get(ID path);
+	void const_defined(ID path);
+	
+	std::map<ID, int> *get_ivar_slots(Class klass) {
+	    std::map<Class, std::map<ID, int> *>::iterator iter = 
+		ivar_slots.find(klass);
+	    if (iter == ivar_slots.end()) {
+		std::map<ID, int> *map = new std::map<ID, int>;
+		ivar_slots[klass] = map;
+		return map;
+	    }
+	    return iter->second;
+	}
+	int find_ivar_slot(VALUE klass, ID name, bool create);
+	bool class_can_have_ivar_slots(VALUE klass);
+
+	VALUE get_special(int index) {
+	    assert(index >= 0 && index < MAX_SPECIAL_CONSTS);
+	    return special_consts[index];
+	}
+};
+
+RoxorVM *RoxorVM::current = NULL;
+
+#define GET_VM() (RoxorVM::current)
+
+RoxorCompiler::RoxorCompiler(const char *_fname)
+{
+    fname = _fname;
+
+    bb = NULL;
+    rescue_bb = NULL;
+    current_mid = 0;
+    current_instance_method = false;
+    self_id = rb_intern("self");
+    current_self = NULL;
+    current_block = false;
+    current_block_node = NULL;
+    current_block_func = NULL;
+    current_opened_class = NULL;
+    current_loop_begin_bb = NULL;
+    current_loop_end_bb = NULL;
+    current_loop_exit_val = NULL;
+
+    defined_nil = 0;
+    defined_self = 0;
+    defined_true = 0;
+    defined_false = 0;
+    defined_expression = 0;
+    defined_lvar = 0;
+    defined_assignment = 0;
+
+    dispatcherFunc = NULL;
+    whenSplatFunc = NULL;
+    blockCreateFunc = NULL;
+    getBlockFunc = NULL;
+    currentBlockObjectFunc = NULL;
+    getConstFunc = NULL;
+    setConstFunc = NULL;
+    prepareMethodFunc = NULL;
+    defineClassFunc = NULL;
+    prepareIvarSlotFunc = NULL;
+    getIvarFunc = NULL;
+    setIvarFunc = NULL;
+    definedFunc = NULL;
+    aliasFunc = NULL;
+    valiasFunc = NULL;
+    newHashFunc = NULL;
+    newArrayFunc = NULL;
+    newRangeFunc = NULL;
+    newRegexpFunc = NULL;
+    aryGetFunc = NULL;
+    newStringFunc = NULL;
+    yieldFunc = NULL;
+    gvarSetFunc = NULL;
+    gvarGetFunc = NULL;
+    popExceptionFunc = NULL;
+    getSpecialFunc = NULL;
+    breakFunc = NULL;
+
+#if __LP64__
+    RubyObjTy = IntTy = Type::Int64Ty;
+#else
+    RubyObjTy = IntTy = Type::Int32Ty;
+#endif
+
+    zeroVal = ConstantInt::get(IntTy, 0);
+    oneVal = ConstantInt::get(IntTy, 1);
+    twoVal = ConstantInt::get(IntTy, 2);
+
+    RubyObjPtrTy = PointerType::getUnqual(RubyObjTy);
+    nilVal = ConstantInt::get(RubyObjTy, Qnil);
+    trueVal = ConstantInt::get(RubyObjTy, Qtrue);
+    falseVal = ConstantInt::get(RubyObjTy, Qfalse);
+    splatArgFollowsVal = ConstantInt::get(RubyObjTy, SPLAT_ARG_FOLLOWS);
+    PtrTy = PointerType::getUnqual(Type::Int8Ty);
+
+#if ROXOR_DEBUG
+    level = 0;
+#endif
+}
+
+inline SEL
+RoxorCompiler::mid_to_sel(ID mid, int arity)
+{
+    SEL sel;
+    const char *mid_str = rb_id2name(mid);
+    if (mid_str[strlen(mid_str) - 1] != ':' && arity > 0) {
+	char buf[100];
+	snprintf(buf, sizeof buf, "%s:", mid_str);
+	sel = sel_registerName(buf);
+    }
+    else {
+	sel = sel_registerName(mid_str);
+    }
+    return sel;
+}
+
+inline bool
+RoxorCompiler::unbox_fixnum_constant(Value *val, long *lval)
+{
+    if (ConstantInt::classof(val)) {
+	long tmp = cast<ConstantInt>(val)->getZExtValue();
+	if (FIXNUM_P(tmp)) {
+	    *lval = FIX2LONG(tmp);
+	    return true;
+	}
+    }
+    return false;
+}
+
+inline ICmpInst *
+RoxorCompiler::is_value_a_fixnum(Value *val)
+{
+    Value *andOp = BinaryOperator::CreateAnd(val, oneVal, "", bb);
+    return new ICmpInst(ICmpInst::ICMP_EQ, andOp, oneVal, "", bb); 
+}
+
+Value *
+RoxorCompiler::compile_protected_call(Function *func, std::vector<Value *> &params)
+{
+    if (rescue_bb == NULL) {
+	CallInst *dispatch = CallInst::Create(func, 
+		params.begin(), 
+		params.end(), 
+		"", 
+		bb);
+	return cast<Value>(dispatch);
+    }
+    else {
+	BasicBlock *normal_bb = BasicBlock::Create("normal", bb->getParent());
+
+	InvokeInst *dispatch = InvokeInst::Create(func,
+		normal_bb, 
+		rescue_bb, 
+		params.begin(), 
+		params.end(), 
+		"", 
+		bb);
+
+	bb = normal_bb;
+
+	return cast<Value>(dispatch); 
+    }
+}
+
+void
+RoxorCompiler::compile_one_when_argument(NODE *arg, Value *comparedToVal, BasicBlock *thenBB)
+{
+    Value *subnodeVal = compile_node(arg);
+    Value *condVal;
+    if (comparedToVal != NULL) {
+	std::vector<Value *> params;
+	void *eqq_cache = GET_VM()->method_cache_get(selEqq, false);
+	params.push_back(compile_const_pointer(eqq_cache));
+	params.push_back(subnodeVal);
+	params.push_back(compile_const_pointer((void *)selEqq));
+	params.push_back(compile_const_pointer(NULL));
+	params.push_back(ConstantInt::get(Type::Int8Ty, 0));
+	params.push_back(ConstantInt::get(Type::Int32Ty, 1));
+	params.push_back(comparedToVal);
+
+	condVal = compile_optimized_dispatch_call(selEqq, 1, params);
+	if (condVal == NULL) {
+	    condVal = compile_dispatch_call(params);
+	}
+    }
+    else {
+	condVal = subnodeVal;
+    }
+
+    Function *f = bb->getParent();
+    BasicBlock *nextTestBB = BasicBlock::Create("next_test", f);
+
+    compile_boolean_test(condVal, thenBB, nextTestBB);
+
+    bb = nextTestBB;
+}
+
+void RoxorCompiler::compile_boolean_test(Value *condVal, BasicBlock *ifTrueBB, BasicBlock *ifFalseBB)
+{
+    Function *f = bb->getParent();
+    BasicBlock *notFalseBB = BasicBlock::Create("not_false", f);
+
+    Value *notFalseCond = new ICmpInst(ICmpInst::ICMP_NE, condVal, falseVal, "", bb);
+    BranchInst::Create(notFalseBB, ifFalseBB, notFalseCond, bb);
+    Value *notNilCond = new ICmpInst(ICmpInst::ICMP_NE, condVal, nilVal, "", notFalseBB);
+    BranchInst::Create(ifTrueBB, ifFalseBB, notNilCond, notFalseBB);
+}
+
+void
+RoxorCompiler::compile_when_arguments(NODE *args, Value *comparedToVal, BasicBlock *thenBB)
+{
+    switch (nd_type(args)) {
+	case NODE_ARRAY:
+	    while (args != NULL) {
+		compile_one_when_argument(args->nd_head, comparedToVal, thenBB);
+		args = args->nd_next;
+	    }
+	    break;
+
+	case NODE_ARGSCAT:
+	    compile_when_arguments(args->nd_head, comparedToVal, thenBB);
+	    args = args->nd_body;
+
+	case NODE_SPLAT:
+	    {
+		void *eqq_cache = GET_VM()->method_cache_get(selEqq, false);
+		std::vector<Value *> params;
+		params.push_back(compile_const_pointer(eqq_cache));
+		params.push_back(comparedToVal);
+		params.push_back(compile_node(args->nd_head));
+		Value *condVal = compile_when_splat_call(params);
+
+		BasicBlock *nextTestBB = BasicBlock::Create("next_test", bb->getParent());
+		compile_boolean_test(condVal, thenBB, nextTestBB);
+
+		bb = nextTestBB;
+	    }
+	    break;
+
+	case NODE_ARGSPUSH:
+	    compile_when_arguments(args->nd_head, comparedToVal, thenBB);
+	    compile_one_when_argument(args->nd_body, comparedToVal, thenBB);
+	    break;
+
+	default:
+	    compile_node_error("unrecognized when arg node", args);
+    }
+}
+
+Function::ArgumentListType::iterator
+RoxorCompiler::compile_optional_arguments(Function::ArgumentListType::iterator iter,
+					  NODE *node)
+{
+    assert(nd_type(node) == NODE_OPT_ARG);
+
+    do {
+	assert(node->nd_value != NULL);
+
+	Value *isNilInst = new ICmpInst(ICmpInst::ICMP_EQ, iter, nilVal, "", bb);
+
+	Function *f = bb->getParent();
+	BasicBlock *arg_nil = BasicBlock::Create("arg_nil", f);
+	BasicBlock *next_bb = BasicBlock::Create("", f);
+
+	BranchInst::Create(arg_nil, next_bb, isNilInst, bb);
+
+	bb = arg_nil;
+	compile_node(node->nd_value);
+	BranchInst::Create(next_bb, bb);
+
+	bb = next_bb;
+	++iter;
+    }
+    while ((node = node->nd_next) != NULL);
+
+    return iter;
+}
+
+void
+RoxorCompiler::compile_dispatch_arguments(NODE *args, std::vector<Value *> &arguments, int *pargc)
+{
+    int argc = 0;
+
+    switch (nd_type(args)) {
+	case NODE_ARRAY:
+	    for (NODE *n = args; n != NULL; n = n->nd_next) {
+		arguments.push_back(compile_node(n->nd_head));
+		argc++;
+	    }
+	    break;
+
+	case NODE_SPLAT:
+	    assert(args->nd_head != NULL);
+	    arguments.push_back(splatArgFollowsVal);
+	    arguments.push_back(compile_node(args->nd_head));
+	    argc++;
+	    break;
+
+	case NODE_ARGSCAT:
+	    assert(args->nd_head != NULL);
+	    compile_dispatch_arguments(args->nd_head, arguments, &argc);
+	    assert(args->nd_body != NULL);
+	    arguments.push_back(splatArgFollowsVal);
+	    arguments.push_back(compile_node(args->nd_body));
+	    argc++;
+	    break;
+
+	case NODE_ARGSPUSH:
+	    assert(args->nd_head != NULL);
+	    compile_dispatch_arguments(args->nd_head, arguments, &argc);
+	    assert(args->nd_body != NULL);
+	    arguments.push_back(compile_node(args->nd_body));
+	    argc++;
+	    break;
+
+	default:
+	    compile_node_error("unrecognized dispatch arg node", args);
+    }
+    *pargc = argc;
+}
+
+Value *
+RoxorCompiler::compile_when_splat_call(std::vector<Value *> &params)
+{
+    if (whenSplatFunc == NULL) {
+	// VALUE rb_vm_when_splat(struct mcache *cache, VALUE comparedTo, VALUE splat)
+	whenSplatFunc = cast<Function>
+	    (module->getOrInsertFunction("rb_vm_when_splat",
+					 RubyObjTy, PtrTy, RubyObjTy, RubyObjTy, NULL));
+    }
+
+    return compile_protected_call(whenSplatFunc, params);
+}
+
+Value *
+RoxorCompiler::compile_dispatch_call(std::vector<Value *> &params)
+{
+    if (dispatcherFunc == NULL) {
+	// VALUE rb_vm_dispatch(struct mcache *cache, VALUE self, SEL sel, void *block, unsigned char super, int argc, ...);
+	std::vector<const Type *> types;
+	types.push_back(PtrTy);
+	types.push_back(RubyObjTy);
+	types.push_back(PtrTy);
+	types.push_back(PtrTy);
+	types.push_back(Type::Int8Ty);
+	types.push_back(Type::Int32Ty);
+	FunctionType *ft = FunctionType::get(RubyObjTy, types, true);
+	dispatcherFunc = cast<Function>
+	    (module->getOrInsertFunction("rb_vm_dispatch", ft));
+    }
+
+    return compile_protected_call(dispatcherFunc, params);
+}
+
+Value *
+RoxorCompiler::compile_attribute_assign(NODE *node, Value *extra_val)
+{
+    Value *recv = node->nd_recv == (NODE *)1
+	? current_self
+	: compile_node(node->nd_recv);
+
+    ID mid = node->nd_mid;
+    assert(mid > 0);
+    const bool id_set_op = mid == idASET;
+ 
+    long argc;
+    Value *attr;
+    if (id_set_op) {
+	argc = 2;
+	assert(nd_type(node->nd_args) == NODE_ARRAY);
+	if (extra_val == NULL) {
+	    assert(node->nd_args->nd_alen == 2);
+	    attr = compile_node(node->nd_args->nd_head);
+	    extra_val = compile_node(node->nd_args->nd_next->nd_head);
+	}
+	else {
+	    assert(node->nd_args->nd_alen == 1);
+	    attr = compile_node(node->nd_args->nd_head);
+	}
+    }
+    else {
+	argc = 1;
+	if (extra_val == NULL) {
+	    assert(nd_type(node->nd_args) == NODE_ARRAY);
+	    assert(node->nd_args->nd_alen == 1);
+	    attr = compile_node(node->nd_args->nd_head);
+	}
+	else {
+	    attr = extra_val;
+	}
+    }
+
+    std::vector<Value *> params;
+    const SEL sel = mid_to_sel(mid, argc);
+    void *cache = GET_VM()->method_cache_get(sel, false);
+    params.push_back(compile_const_pointer(cache));
+    params.push_back(recv);
+    params.push_back(compile_const_pointer((void *)sel));
+    params.push_back(compile_const_pointer(NULL));
+    params.push_back(ConstantInt::get(Type::Int8Ty, 0));
+    params.push_back(ConstantInt::get(Type::Int32Ty, argc));
+    if (id_set_op) {
+	params.push_back(attr);
+	params.push_back(extra_val);
+    }
+    else {
+	params.push_back(attr);
+    }
+
+    return compile_dispatch_call(params);
+}
+
+Value *
+RoxorCompiler::compile_block_create(NODE *node)
+{
+    if (node != NULL) {
+	if (getBlockFunc == NULL) {
+	    // void *rb_vm_get_block(VALUE obj);
+	    getBlockFunc = cast<Function>
+		(module->getOrInsertFunction("rb_vm_get_block",
+					     PtrTy, RubyObjTy, NULL));
+	}
+
+	std::vector<Value *> params;
+	params.push_back(compile_node(node->nd_body));
+	return compile_protected_call(getBlockFunc, params);
+    }
+
+    assert(current_block_func != NULL && current_block_node != NULL);
+
+    if (blockCreateFunc == NULL) {
+	// void *rb_vm_block_create(IMP imp, NODE *node, VALUE self, int dvars_size, ...);
+	std::vector<const Type *> types;
+	types.push_back(PtrTy);
+	types.push_back(PtrTy);
+	types.push_back(RubyObjTy);
+	types.push_back(Type::Int32Ty);
+	FunctionType *ft = FunctionType::get(PtrTy, types, true);
+	blockCreateFunc = cast<Function>
+	    (module->getOrInsertFunction("rb_vm_block_create", ft));
+    }
+
+    std::vector<Value *> params;
+    params.push_back(new BitCastInst(current_block_func, PtrTy, "", bb));
+    params.push_back(compile_const_pointer(current_block_node));
+    params.push_back(current_self);
+
+    params.push_back(ConstantInt::get(Type::Int32Ty, (long)dvars.size()));
+
+    std::map<ID, Value *>::iterator iter = dvars.begin();
+    while (iter != dvars.end()) {
+	std::map<ID, Value *>::iterator iter2 = lvars.find(iter->first);
+	assert(iter2 != lvars.end());
+	params.push_back(iter2->second);
+	++iter;
+    }
+
+    return CallInst::Create(blockCreateFunc, params.begin(), params.end(), "", bb);
+}
+
+Value *
+RoxorCompiler::compile_ivar_read(ID vid)
+{
+    if (getIvarFunc == NULL) {
+	// VALUE rb_vm_ivar_get(VALUE obj, ID name, void *slot_cache);
+	getIvarFunc = cast<Function>(module->getOrInsertFunction("rb_vm_ivar_get",
+		    RubyObjTy, RubyObjTy, IntTy, PtrTy, NULL)); 
+    }
+
+    std::vector<Value *> params;
+    Value *val;
+
+    params.push_back(current_self);
+
+    val = ConstantInt::get(IntTy, vid);
+    params.push_back(val);
+
+    int *slot_cache = get_slot_cache(vid);
+    params.push_back(compile_const_pointer(slot_cache));
+
+    return CallInst::Create(getIvarFunc, params.begin(), params.end(), "", bb);
+}
+
+Value *
+RoxorCompiler::compile_ivar_assignment(ID vid, Value *val)
+{
+    if (setIvarFunc == NULL) {
+	// void rb_vm_ivar_set(VALUE obj, ID name, VALUE val, int *slot_cache);
+	setIvarFunc = 
+	    cast<Function>(module->getOrInsertFunction("rb_vm_ivar_set",
+			Type::VoidTy, RubyObjTy, IntTy, RubyObjTy, PtrTy, NULL)); 
+    }
+
+    std::vector<Value *> params;
+
+    params.push_back(current_self);
+    params.push_back(ConstantInt::get(IntTy, (long)vid));
+    params.push_back(val);
+
+    int *slot_cache = get_slot_cache(vid);
+    params.push_back(compile_const_pointer(slot_cache));
+
+    CallInst::Create(setIvarFunc, params.begin(), params.end(), "", bb);
+
+    return val;
+}
+
+Value *
+RoxorCompiler::compile_current_class(void)
+{
+    if (current_opened_class == NULL) {
+	return ConstantInt::get(RubyObjTy, (long)rb_cObject);
+    }
+    return new LoadInst(current_opened_class, "", bb);
+}
+
+Value *
+RoxorCompiler::compile_const(ID id, Value *outer)
+{
+    if (getConstFunc == NULL) {
+	// VALUE rb_vm_get_const(VALUE mod, struct ccache *cache, ID id);
+	getConstFunc = cast<Function>(module->getOrInsertFunction("rb_vm_get_const", 
+		    RubyObjTy, RubyObjTy, PtrTy, IntTy, NULL));
+    }
+
+    std::vector<Value *> params;
+
+    struct ccache *cache = GET_VM()->constant_cache_get(id);
+    params.push_back(outer);
+    params.push_back(compile_const_pointer(cache));
+    params.push_back(ConstantInt::get(IntTy, id));
+
+    return compile_protected_call(getConstFunc, params);
+}
+
+#define DEFINED_IVAR 	1
+#define DEFINED_GVAR 	2
+#define DEFINED_CVAR 	3
+#define DEFINED_CONST	4
+
+Value *
+RoxorCompiler::compile_defined_expression(NODE *node)
+{
+    VALUE str = 0;
+    int defined_mode = -1;
+    VALUE defined_what = 0;
+
+    switch (nd_type(node)) {
+	case NODE_NIL:
+	    if (defined_nil == 0) {
+		defined_nil = rb_str_new2("nil");
+		rb_objc_retain((void *)defined_nil);
+	    }
+	    str = defined_nil;
+	    break;
+
+	case NODE_SELF:
+	    if (defined_self == 0) {
+		defined_self = rb_str_new2("self");
+		rb_objc_retain((void *)defined_self);
+	    }
+	    str = defined_self;
+	    break;
+
+	case NODE_TRUE:
+	    if (defined_true == 0) {
+		defined_true = rb_str_new2("true");
+		rb_objc_retain((void *)defined_true);
+	    }
+	    str = defined_true;
+	    break;
+
+	case NODE_FALSE:
+	    if (defined_false == 0) {
+		defined_false = rb_str_new2("false");
+		rb_objc_retain((void *)defined_false);
+	    }
+	    str = defined_false;
+	    break;
+
+	case NODE_ARRAY:
+	case NODE_STR:
+	case NODE_LIT:
+	case NODE_ZARRAY:
+	    if (defined_expression == 0) {
+		defined_expression = rb_str_new2("expression");
+		rb_objc_retain((void *)defined_expression);
+	    }
+	    str = defined_expression;
+	    break;
+
+	case NODE_LVAR:
+	case NODE_DVAR:
+	    if (defined_lvar == 0) {
+		defined_lvar = rb_str_new2("local-variable");
+		rb_objc_retain((void *)defined_lvar);
+	    }
+	    str = defined_lvar;
+	    break;
+
+	case NODE_OP_ASGN1:
+	case NODE_OP_ASGN2:
+	case NODE_OP_ASGN_OR:
+	case NODE_OP_ASGN_AND:
+	case NODE_MASGN:
+	case NODE_LASGN:
+	case NODE_DASGN:
+	case NODE_DASGN_CURR:
+	case NODE_GASGN:
+	case NODE_IASGN:
+	case NODE_CDECL:
+	case NODE_CVDECL:
+	case NODE_CVASGN:
+	    if (defined_assignment == 0) {
+		defined_assignment = rb_str_new2("assignment");
+		rb_objc_retain((void *)defined_assignment);
+	    }
+	    str = defined_assignment;
+	    break;
+
+	case NODE_IVAR:
+	    defined_mode = DEFINED_IVAR;
+	    defined_what = (VALUE)node->nd_vid;
+	    break;
+
+	case NODE_GVAR:
+	    defined_mode = DEFINED_GVAR;
+	    defined_what = (VALUE)node->nd_entry;
+	    break;
+
+	case NODE_CVAR:
+	    defined_mode = DEFINED_CVAR;
+	    defined_what = (VALUE)node->nd_vid;
+	    break;
+
+	case NODE_CONST:
+	    defined_mode = DEFINED_CONST;
+	    defined_what = (VALUE)node->nd_vid;
+	    break;
+
+	default:
+	    compile_node_error("unimplemented defined? argument", node);
+    }
+
+    if (str != 0) {
+	return ConstantInt::get(RubyObjTy, (long)str);
+    }
+    else {
+	assert(defined_mode != -1);
+	assert(defined_what != 0);
+    
+	if (definedFunc == NULL) {
+	    // VALUE rb_vm_defined(VALUE self, int mode, VALUE what);
+	    definedFunc = 
+		cast<Function>(module->getOrInsertFunction("rb_vm_defined",
+			    RubyObjTy, RubyObjTy, Type::Int32Ty, RubyObjTy, 
+			    NULL)); 
+	}
+
+	std::vector<Value *> params;
+
+	params.push_back(current_self);
+	params.push_back(ConstantInt::get(Type::Int32Ty, defined_mode));
+	params.push_back(ConstantInt::get(RubyObjTy, defined_what));
+
+	return CallInst::Create(definedFunc, params.begin(), params.end(), "", 
+		bb);
+    }
+}
+
+Value *
+RoxorCompiler::compile_dstr(NODE *node)
+{
+    std::vector<Value *> params;
+
+    if (node->nd_lit != 0) {
+	params.push_back(ConstantInt::get(RubyObjTy, node->nd_lit));
+    }
+
+    NODE *n = node->nd_next;
+    assert(n != NULL);
+    while (n != NULL) {
+	params.push_back(compile_node(n->nd_head));
+	n = n->nd_next;
+    }
+
+    const int count = params.size();
+
+    params.insert(params.begin(), ConstantInt::get(Type::Int32Ty, count));
+
+    if (newStringFunc == NULL) {
+	// VALUE rb_str_new_fast(int argc, ...)
+	std::vector<const Type *> types;
+	types.push_back(Type::Int32Ty);
+	FunctionType *ft = FunctionType::get(RubyObjTy, types, true);
+	newStringFunc = cast<Function>(module->getOrInsertFunction(
+		    "rb_str_new_fast", ft));
+    }
+
+    return CallInst::Create(newStringFunc, params.begin(), params.end(), "", bb);
+}
+
+Value *
+RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Value *> &params)
+{
+    // The not operator (!).
+    if (sel == selNot) {
+	
+	if (current_block_func != NULL || argc != 0) {
+	    return NULL;
+	}
+	
+	Value *val = params[1]; // self
+
+	Function *f = bb->getParent();
+
+	BasicBlock *falseBB = BasicBlock::Create("", f);
+	BasicBlock *trueBB = BasicBlock::Create("", f);
+	BasicBlock *mergeBB = BasicBlock::Create("", f);
+
+	compile_boolean_test(val, trueBB, falseBB);
+
+	BranchInst::Create(mergeBB, falseBB);
+	BranchInst::Create(mergeBB, trueBB);
+
+	bb = mergeBB;	
+
+	PHINode *pn = PHINode::Create(RubyObjTy, "", bb);
+	pn->addIncoming(trueVal, falseBB);
+	pn->addIncoming(falseVal, trueBB);
+
+	return pn;
+    }
+    // Pure arithmetic operations.
+    else if (sel == selPLUS || sel == selMINUS || sel == selDIV 
+	     || sel == selMULT || sel == selLT || sel == selLE 
+	     || sel == selGT || sel == selGE || sel == selEq
+	     || sel == selNeq || sel == selEqq) {
+
+	if (current_block_func != NULL || argc != 1) {
+	    return NULL;
+	}
+
+	GlobalVariable *is_redefined = GET_VM()->redefined_op_gvar(sel, true);
+	
+	Value *leftVal = params[1]; // self
+	Value *rightVal = params.back();
+
+	long leftLong = 0, rightLong = 0;
+	const bool leftIsConst = unbox_fixnum_constant(leftVal, &leftLong);
+	const bool rightIsConst = unbox_fixnum_constant(rightVal, &rightLong);
+
+	if (leftIsConst && rightIsConst) {
+	    // Both operands are fixnum constants.
+	    bool result_is_fixnum = true;
+	    long res;
+
+	    if (sel == selPLUS) {
+		res = leftLong + rightLong;
+	    }
+	    else if (sel == selMINUS) {
+		res = leftLong - rightLong;
+	    }
+	    else if (sel == selDIV) {
+		res = leftLong / rightLong;
+	    }
+	    else if (sel == selMULT) {
+		res = leftLong * rightLong;
+	    }
+	    else {
+		result_is_fixnum = false;
+		if (sel == selLT) {
+		    res = leftLong < rightLong;
+		}
+		else if (sel == selLE) {
+		    res = leftLong <= rightLong;
+		}
+		else if (sel == selGT) {
+		    res = leftLong > rightLong;
+		}
+		else if (sel == selGE) {
+		    res = leftLong >= rightLong;
+		}
+		else if ((sel == selEq) || (sel == selEqq)) {
+		    res = leftLong == rightLong;
+		}
+		else if (sel == selNeq) {
+		    res = leftLong != rightLong;
+		}
+		else {
+		    abort();		
+		}
+	    }
+	    if (!result_is_fixnum || FIXABLE(res)) {
+		Value *is_redefined_val = new LoadInst(is_redefined, "", bb);
+		Value *isOpRedefined = new ICmpInst(ICmpInst::ICMP_EQ, 
+			is_redefined_val, ConstantInt::getFalse(), "", bb);
+
+		Function *f = bb->getParent();
+
+		BasicBlock *thenBB = BasicBlock::Create("op_not_redefined", f);
+		BasicBlock *elseBB  = BasicBlock::Create("op_dispatch", f);
+		BasicBlock *mergeBB = BasicBlock::Create("op_merge", f);
+
+		BranchInst::Create(thenBB, elseBB, isOpRedefined, bb);
+		Value *thenVal = result_is_fixnum
+		    ? ConstantInt::get(RubyObjTy, LONG2FIX(res)) 
+		    : (res == 1 ? trueVal : falseVal);
+		BranchInst::Create(mergeBB, thenBB);
+
+		bb = elseBB;
+		Value *elseVal = compile_dispatch_call(params);
+		elseBB = bb;
+		BranchInst::Create(mergeBB, elseBB);
+
+		PHINode *pn = PHINode::Create(RubyObjTy, "op_tmp", mergeBB);
+		pn->addIncoming(thenVal, thenBB);
+		pn->addIncoming(elseVal, elseBB);
+		bb = mergeBB;
+
+		return pn;
+	    }
+	    // Non fixable (bignum), call the dispatcher.
+	    return NULL;
+	}
+	else {
+	    // Either one or both is not a constant fixnum.
+	    Value *is_redefined_val = new LoadInst(is_redefined, "", bb);
+	    Value *isOpRedefined = new ICmpInst(ICmpInst::ICMP_EQ, 
+		    is_redefined_val, ConstantInt::getFalse(), "", bb);
+
+	    Function *f = bb->getParent();
+
+	    BasicBlock *then1BB = BasicBlock::Create("op_not_redefined", f);
+	    BasicBlock *then2BB = BasicBlock::Create("op_optimize", f);
+	    BasicBlock *elseBB  = BasicBlock::Create("op_dispatch", f);
+	    BasicBlock *mergeBB = BasicBlock::Create("op_merge", f);
+
+	    BranchInst::Create(then1BB, elseBB, isOpRedefined, bb);
+
+ 	    bb = then1BB;
+
+	    Value *leftAndOp = NULL;
+	    if (!leftIsConst) {
+		leftAndOp = BinaryOperator::CreateAnd(leftVal, oneVal, "", 
+			bb);
+	    }
+
+	    Value *rightAndOp = NULL;
+	    if (!rightIsConst) {
+		rightAndOp = BinaryOperator::CreateAnd(rightVal, oneVal, "", 
+			bb);
+	    }
+
+	    Value *areFixnums = NULL;
+	    if (leftAndOp != NULL && rightAndOp != NULL) {
+		Value *foo = BinaryOperator::CreateAdd(leftAndOp, rightAndOp, 
+			"", bb);
+		areFixnums = new ICmpInst(ICmpInst::ICMP_EQ, foo, twoVal, "", bb);
+	    }
+	    else if (leftAndOp != NULL) {
+		areFixnums = new ICmpInst(ICmpInst::ICMP_EQ, leftAndOp, oneVal, "", bb);
+	    }
+	    else {
+		areFixnums = new ICmpInst(ICmpInst::ICMP_EQ, rightAndOp, oneVal, "", bb);
+	    }
+
+	    BranchInst::Create(then2BB, elseBB, areFixnums, bb);
+
+	    bb = then2BB;
+
+	    Value *unboxedLeft;
+	    if (leftIsConst) {
+		unboxedLeft = ConstantInt::get(RubyObjTy, leftLong);
+	    }
+	    else {
+		unboxedLeft = BinaryOperator::CreateAShr(leftVal, oneVal, "", bb);
+	    }
+
+	    Value *unboxedRight;
+	    if (rightIsConst) {
+		unboxedRight = ConstantInt::get(RubyObjTy, rightLong);
+	    }
+	    else {
+		unboxedRight = BinaryOperator::CreateAShr(rightVal, oneVal, "", bb);
+	    }
+
+	    Value *opVal;
+	    bool result_is_fixnum = true;
+	    if (sel == selPLUS) {
+		opVal = BinaryOperator::CreateAdd(unboxedLeft, unboxedRight, "", bb);
+	    }
+	    else if (sel == selMINUS) {
+		opVal = BinaryOperator::CreateSub(unboxedLeft, unboxedRight, "", bb);
+	    }
+	    else if (sel == selDIV) {
+		opVal = BinaryOperator::CreateSDiv(unboxedLeft, unboxedRight, "", bb);
+	    }
+	    else if (sel == selMULT) {
+		opVal = BinaryOperator::CreateMul(unboxedLeft, unboxedRight, "", bb);
+	    }
+	    else {
+		result_is_fixnum = false;
+
+		CmpInst::Predicate predicate;
+
+		if (sel == selLT) {
+		    predicate = ICmpInst::ICMP_SLT;
+		}
+		else if (sel == selLE) {
+		    predicate = ICmpInst::ICMP_SLE;
+		}
+		else if (sel == selGT) {
+		    predicate = ICmpInst::ICMP_SGT;
+		}
+		else if (sel == selGE) {
+		    predicate = ICmpInst::ICMP_SGE;
+		}
+		else if ((sel == selEq) || (sel == selEqq)) {
+		    predicate = ICmpInst::ICMP_EQ;
+		}
+		else if (sel == selNeq) {
+		    predicate = ICmpInst::ICMP_NE;
+		}
+		else {
+		    abort();
+		}
+
+		opVal = new ICmpInst(predicate, unboxedLeft, unboxedRight, "", bb);
+		opVal = SelectInst::Create(opVal, trueVal, falseVal, "", bb);
+	    }
+
+	    Value *thenVal;
+	    BasicBlock *then3BB;
+
+	    if (result_is_fixnum) { 
+		Value *shift = BinaryOperator::CreateShl(opVal, oneVal, "", bb);
+		thenVal = BinaryOperator::CreateOr(shift, oneVal, "", bb);
+
+		// Is result fixable?
+		Value *fixnumMax = ConstantInt::get(IntTy, FIXNUM_MAX + 1);
+		Value *isFixnumMaxOk = new ICmpInst(ICmpInst::ICMP_SLT, opVal, fixnumMax, "", bb);
+
+		then3BB = BasicBlock::Create("op_fixable_max", f);
+
+		BranchInst::Create(then3BB, elseBB, isFixnumMaxOk, bb);
+
+		bb = then3BB;
+		Value *fixnumMin = ConstantInt::get(IntTy, FIXNUM_MIN);
+		Value *isFixnumMinOk = new ICmpInst(ICmpInst::ICMP_SGE, opVal, fixnumMin, "", bb);
+
+		BranchInst::Create(mergeBB, elseBB, isFixnumMinOk, bb);
+	    }
+	    else {
+		thenVal = opVal;
+		then3BB = then2BB;
+		BranchInst::Create(mergeBB, then3BB);
+	    }
+
+	    bb = elseBB;
+	    Value *elseVal = compile_dispatch_call(params);
+	    elseBB = bb;
+	    BranchInst::Create(mergeBB, elseBB);
+
+	    bb = mergeBB;
+	    PHINode *pn = PHINode::Create(RubyObjTy, "op_tmp", mergeBB);
+	    pn->addIncoming(thenVal, then3BB);
+	    pn->addIncoming(elseVal, elseBB);
+
+	    return pn;
+	}
+    }
+    // Other operators (#<< or #[] or #[]=)
+    else if (sel == selLTLT || sel == selAREF || sel == selASET) {
+
+	const int expected_argc = sel == selASET ? 2 : 1;
+	if (current_block_func != NULL || argc != expected_argc) {
+	    return NULL;
+	}
+
+	Function *opt_func = NULL;
+
+	if (sel == selLTLT) {
+	    opt_func = cast<Function>(module->getOrInsertFunction("rb_vm_fast_shift",
+			RubyObjTy, RubyObjTy, RubyObjTy, PtrTy, Type::Int1Ty, NULL));
+	}
+	else if (sel == selAREF) {
+	    opt_func = cast<Function>(module->getOrInsertFunction("rb_vm_fast_aref",
+			RubyObjTy, RubyObjTy, RubyObjTy, PtrTy, Type::Int1Ty, NULL));
+	}
+	else if (sel == selASET) {
+	    opt_func = cast<Function>(module->getOrInsertFunction("rb_vm_fast_aset",
+			RubyObjTy, RubyObjTy, RubyObjTy, RubyObjTy, PtrTy, Type::Int1Ty, NULL));
+	}
+	else {
+	    abort();
+	}
+
+	std::vector<Value *> new_params;
+	new_params.push_back(params[1]);		// self
+	if (argc == 1) {
+	    new_params.push_back(params.back());	// other
+	}
+	else {
+	    // Damn I hate the STL.
+	    std::vector<Value *>::iterator iter = params.end();
+	    --iter;
+	    --iter;
+	    new_params.push_back(*iter);		// other1
+	    ++iter;
+	    new_params.push_back(*iter);		// other2
+	}
+	new_params.push_back(params[0]);		// cache
+
+	GlobalVariable *is_redefined = GET_VM()->redefined_op_gvar(sel, true);
+	new_params.push_back(new LoadInst(is_redefined, "", bb));
+
+	return CallInst::Create(opt_func, new_params.begin(), new_params.end(), "", bb);
+    }
+    // #send or #__send__
+    else if (sel == selSend || sel == sel__send__) {
+
+	if (current_block_func != NULL || argc == 0) {
+	    return NULL;
+	}
+	Value *symVal = params[params.size() - argc];
+	if (!ConstantInt::classof(symVal)) {
+	    return NULL;
+	}
+	VALUE sym = cast<ConstantInt>(symVal)->getZExtValue();
+	if (!SYMBOL_P(sym)) {
+	    return NULL;
+	}
+	SEL new_sel = mid_to_sel(SYM2ID(sym), argc - 1);
+
+	GlobalVariable *is_redefined = GET_VM()->redefined_op_gvar(sel, true);
+
+	Value *is_redefined_val = new LoadInst(is_redefined, "", bb);
+	Value *isOpRedefined = new ICmpInst(ICmpInst::ICMP_EQ, 
+		is_redefined_val, ConstantInt::getFalse(), "", bb);
+
+	Function *f = bb->getParent();
+
+	BasicBlock *thenBB = BasicBlock::Create("op_not_redefined", f);
+	BasicBlock *elseBB = BasicBlock::Create("op_dispatch", f);
+	BasicBlock *mergeBB = BasicBlock::Create("op_merge", f);
+
+	BranchInst::Create(thenBB, elseBB, isOpRedefined, bb);
+
+	bb = thenBB;
+	std::vector<Value *> new_params;
+	void *cache = GET_VM()->method_cache_get(new_sel, false);
+	new_params.push_back(compile_const_pointer(cache));
+	new_params.push_back(params[1]);
+	new_params.push_back(compile_const_pointer((void *)new_sel));
+	new_params.push_back(params[3]);
+	new_params.push_back(params[4]);
+	new_params.push_back(ConstantInt::get(Type::Int32Ty, argc - 1));
+	for (int i = 0; i < argc - 1; i++) {
+	    new_params.push_back(params[7 + i]);
+	}
+	Value *thenVal = compile_dispatch_call(new_params);
+	BranchInst::Create(mergeBB, thenBB);
+
+	bb = elseBB;
+	Value *elseVal = compile_dispatch_call(params);
+	BranchInst::Create(mergeBB, elseBB);
+
+	bb = mergeBB;
+	PHINode *pn = PHINode::Create(RubyObjTy, "op_tmp", mergeBB);
+	pn->addIncoming(thenVal, thenBB);
+	pn->addIncoming(elseVal, elseBB);
+
+	return pn;
+    }
+    // #eval
+    else if (sel == selEval) {
+
+	if (current_block_func != NULL || argc != 1) {
+	    return NULL;
+	}
+	Value *strVal = params.back();
+	if (!ConstantInt::classof(strVal)) {
+	    return NULL;
+	}
+	VALUE str = cast<ConstantInt>(strVal)->getZExtValue();
+	if (TYPE(str) != T_STRING) {
+	    return NULL;
+	}
+	// FIXME: 
+	// - pass the real file/line arguments
+	// - catch potential parsing exceptions
+	NODE *new_node = rb_compile_string("", str, 0);
+	if (new_node == NULL) {
+	    return NULL;
+	}
+	if (nd_type(new_node) != NODE_SCOPE || new_node->nd_body == NULL) {
+	    return NULL;
+	}
+
+	GlobalVariable *is_redefined = GET_VM()->redefined_op_gvar(sel, true);
+
+	Value *is_redefined_val = new LoadInst(is_redefined, "", bb);
+	Value *isOpRedefined = new ICmpInst(ICmpInst::ICMP_EQ, 
+		is_redefined_val, ConstantInt::getFalse(), "", bb);
+
+	Function *f = bb->getParent();
+
+	BasicBlock *thenBB = BasicBlock::Create("op_not_redefined", f);
+	BasicBlock *elseBB = BasicBlock::Create("op_dispatch", f);
+	BasicBlock *mergeBB = BasicBlock::Create("op_merge", f);
+
+	BranchInst::Create(thenBB, elseBB, isOpRedefined, bb);
+
+	bb = thenBB;
+	Value *thenVal = compile_node(new_node->nd_body);
+	thenBB = bb;
+	BranchInst::Create(mergeBB, thenBB);
+
+	bb = elseBB;
+	Value *elseVal = compile_dispatch_call(params);
+	BranchInst::Create(mergeBB, elseBB);
+
+	bb = mergeBB;
+	PHINode *pn = PHINode::Create(RubyObjTy, "op_tmp", mergeBB);
+	pn->addIncoming(thenVal, thenBB);
+	pn->addIncoming(elseVal, elseBB);
+
+	return pn;
+
+    }
+#if 0
+    // TODO: block inlining optimization
+    else if (current_block_func != NULL) {
+	static SEL selTimes = 0;
+	if (selTimes == 0) {
+	    selTimes = rb_intern("times");
+	}
+
+	if (sel == selTimes && argc == 0) {
+	    Value *val = params[1]; // self
+
+	    long valLong;
+	    if (unbox_fixnum_constant(val, &valLong)) {
+		GlobalVariable *is_redefined = redefined_op_gvar(sel, true);
+
+		Value *is_redefined_val = new LoadInst(is_redefined, "", bb);
+		Value *isOpRedefined = new ICmpInst(ICmpInst::ICMP_EQ, is_redefined_val, ConstantInt::getFalse(), "", bb);
+
+		Function *f = bb->getParent();
+
+		BasicBlock *thenBB = BasicBlock::Create("op_not_redefined", f);
+		BasicBlock *elseBB  = BasicBlock::Create("op_dispatch", f);
+		BasicBlock *mergeBB = BasicBlock::Create("op_merge", f);
+
+		BranchInst::Create(thenBB, elseBB, isOpRedefined, bb);
+		bb = thenBB;
+
+
+
+//		Val *mem = new AllocaInst(RubyObjTy, "", bb);
+//		new StoreInst(zeroVal, mem, "", bb);
+//		Val *i = LoadInst(mem, "", bb);
+		
+
+
+		Value *thenVal = val;
+		BranchInst::Create(mergeBB, thenBB);
+
+		Value *elseVal = dispatchCall;
+		elseBB->getInstList().push_back(dispatchCall);
+		BranchInst::Create(mergeBB, elseBB);
+
+		PHINode *pn = PHINode::Create(Type::Int32Ty, "op_tmp", mergeBB);
+		pn->addIncoming(thenVal, thenBB);
+		pn->addIncoming(elseVal, elseBB);
+		bb = mergeBB;
+
+		return pn;
+	    }
+	}
+    }
+#endif
+    return NULL;
+}
+
+static inline int
+rb_vm_node_arity(NODE *node, bool negative_arity=true)
+{
+    const int type = nd_type(node);
+
+    if (type == NODE_SCOPE) {
+	NODE *n = node->nd_args;
+	int arity = 0;
+	bool default_args = false;
+	if (n != NULL) {
+	    arity = n->nd_frml;
+	    NODE *n_opt = n->nd_opt;
+	    if (n_opt != NULL) {
+		NODE *ni = n_opt;
+		default_args = true;
+		while (ni != NULL) {
+		    arity++;
+		    ni = ni->nd_next;
+		}
+	    }
+	}
+	return default_args && negative_arity ? -arity : arity;
+    }
+
+    if (type == NODE_FBODY) {
+	assert(node->nd_body != NULL);
+	assert(node->nd_body->nd_body != NULL);
+	return node->nd_body->nd_body->nd_argc; 
+    }
+
+    printf("invalid node %p type %d\n", node, type);
+    abort();
+}
+
+RoxorVM::RoxorVM(void)
+{
+    running = false;
+    current_top_object = Qnil;
+    current_exception = Qnil;
+    safe_level = 0;
+
+    for (int i = 0; i < MAX_SPECIAL_CONSTS; i++) {
+	special_consts[i] = Qnil;
+    }
+
+    backref = Qnil;
+    broken_with = 0;
+
+    load_path = rb_ary_new();
+    rb_objc_retain((void *)load_path);
+    loaded_features = rb_ary_new();
+    rb_objc_retain((void *)loaded_features);
+
+    emp = new ExistingModuleProvider(RoxorCompiler::module);
+    jmm = new RoxorJITManager;
+    ee = ExecutionEngine::createJIT(emp, 0, jmm, true);
+
+    fpm = new FunctionPassManager(emp);
+    fpm->add(new TargetData(*ee->getTargetData()));
+
+    // Eliminate unnecessary alloca.
+    fpm->add(createPromoteMemoryToRegisterPass());
+    // Do simple "peephole" optimizations and bit-twiddling optzns.
+    fpm->add(createInstructionCombiningPass());
+    // Reassociate expressions.
+    fpm->add(createReassociatePass());
+    // Eliminate Common SubExpressions.
+    fpm->add(createGVNPass());
+    // Simplify the control flow graph (deleting unreachable blocks, etc).
+    fpm->add(createCFGSimplificationPass());
+}
+
+struct ccache *
+RoxorVM::constant_cache_get(ID path)
+{
+    std::map<ID, struct ccache *>::iterator iter = ccache.find(path);
+    if (iter == ccache.end()) {
+	struct ccache *cache = (struct ccache *)malloc(sizeof(struct ccache));
+	cache->outer = 0;
+	cache->val = Qundef;
+	ccache[path] = cache;
+	return cache;
+    }
+    return iter->second;
+}
+
+struct mcache *
+RoxorVM::method_cache_get(SEL sel, bool super)
+{
+    if (super) {
+	struct mcache *cache = (struct mcache *)malloc(sizeof(struct mcache));
+	cache->flag = 0;
+	// TODO store the cache somewhere and invalidate it appropriately.
+	return cache;
+    }
+    std::map<SEL, struct mcache *>::iterator iter = mcache.find(sel);
+    if (iter == mcache.end()) {
+	struct mcache *cache = (struct mcache *)malloc(sizeof(struct mcache));
+	cache->flag = 0;
+	mcache[sel] = cache;
+	return cache;
+    }
+    return iter->second;
+}
+
+NODE *
+RoxorVM::method_node_get(IMP imp)
+{
+    std::map<IMP, struct RoxorFunctionIMP *>::iterator iter = ruby_imps.find(imp);
+    if (iter == ruby_imps.end()) {
+	return NULL;
+    }
+    return iter->second->node;
+}
+
+inline GlobalVariable *
+RoxorVM::redefined_op_gvar(SEL sel, bool create)
+{
+    std::map <SEL, GlobalVariable *>::iterator iter = redefined_ops_gvars.find(sel);
+    GlobalVariable *gvar = NULL;
+    if (iter == redefined_ops_gvars.end()) {
+	if (create) {
+	    gvar = new GlobalVariable(
+		    Type::Int1Ty,
+		    false,
+		    GlobalValue::InternalLinkage,
+		    ConstantInt::getFalse(),
+		    "redefined",
+		    RoxorCompiler::module);
+	    assert(gvar != NULL);
+	    redefined_ops_gvars[sel] = gvar;
+	}
+    }
+    else {
+	gvar = iter->second;
+    }
+    return gvar;
+}
+
+void
+RoxorVM::add_method(Class klass, SEL sel, IMP imp, NODE *node, const char *types)
+{
+#if ROXOR_DEBUG
+    printf("defining %c[%s %s] with imp %p node %p types %s\n",
+	    class_isMetaClass(klass) ? '+' : '-',
+	    class_getName(klass),
+	    sel_getName(sel),
+	    imp,
+	    node,
+	    types);
+#endif
+
+    // Register the implementation into the runtime.
+    class_replaceMethod(klass, sel, imp, types);
+
+    // Cache the method node.
+    NODE *old_node = method_node_get(imp);
+    if (old_node == NULL) {
+	ruby_imps[imp] = new RoxorFunctionIMP(node, sel);
+    }
+//    else {
+//	assert(old_node == node);
+//    }
+
+    // Invalidate dispatch cache.
+    std::map<SEL, struct mcache *>::iterator iter = mcache.find(sel);
+    if (iter != mcache.end()) {
+	iter->second->flag = 0;
+    }
+
+    // Invalidate inline operations.
+    if (running) {
+	GlobalVariable *gvar = redefined_op_gvar(sel, false);
+	if (gvar != NULL) {
+	    void *val = ee->getOrEmitGlobalVariable(gvar);
+#if ROXOR_DEBUG
+	    printf("change redefined global for [%s %s] to true\n",
+		    class_getName(klass),
+		    sel_getName(sel));
+#endif
+	    assert(val != NULL);
+	    *(bool *)val = true;
+	}
+    }
+
+    // If alloc is redefined, mark the class as such.
+    if (sel == selAlloc
+	&& (RCLASS_VERSION(klass) & RCLASS_HAS_ROBJECT_ALLOC) 
+	== RCLASS_HAS_ROBJECT_ALLOC) {
+	RCLASS_SET_VERSION(klass, (RCLASS_VERSION(klass) ^ 
+		    RCLASS_HAS_ROBJECT_ALLOC));
+    }
+
+    if (is_running()) {
+	// Call method_added: or singleton_method_added:.
+	VALUE sym = ID2SYM(rb_intern(sel_getName(sel)));
+        if (RCLASS_SINGLETON(klass)) {
+	    VALUE sk = rb_iv_get((VALUE)klass, "__attached__");
+	    rb_vm_call(sk, selSingletonMethodAdded, 1, &sym, false);
+        }
+        else {
+	    rb_vm_call((VALUE)klass, selMethodAdded, 1, &sym, false);
+        }
+    }
+
+    // Forward method definition to the included classes.
+    if (RCLASS_VERSION(klass) & RCLASS_IS_INCLUDED) {
+	VALUE included_in_classes = rb_attr_get((VALUE)klass, 
+		idIncludedInClasses);
+	if (included_in_classes != Qnil) {
+	    int i, count = RARRAY_LEN(included_in_classes);
+	    for (i = 0; i < count; i++) {
+		VALUE mod = RARRAY_AT(included_in_classes, i);
+		class_replaceMethod((Class)mod, sel, imp, types);
+#if ROXOR_DEBUG
+		printf("forward %c[%s %s] with imp %p node %p types %s\n",
+			class_isMetaClass((Class)mod) ? '+' : '-',
+			class_getName((Class)mod),
+			sel_getName(sel),
+			imp,
+			node,
+			types);
+#endif
+	    }
+	}
+    }
+}
+
+void
+RoxorVM::const_defined(ID path)
+{
+    // Invalidate constant cache.
+    std::map<ID, struct ccache *>::iterator iter = ccache.find(path);
+    if (iter != ccache.end()) {
+	iter->second->val = Qundef;
+    }
+}
+
+inline int
+RoxorVM::find_ivar_slot(VALUE klass, ID name, bool create)
+{
+    VALUE k = klass;
+    int slot = 0;
+
+    while (k != 0) {
+	std::map <ID, int> *slots = GET_VM()->get_ivar_slots((Class)k);
+	std::map <ID, int>::iterator iter = slots->find(name);
+	if (iter != slots->end()) {
+#if ROXOR_DEBUG
+	    printf("prepare ivar %s slot as %d (already prepared in class %s)\n",
+		    rb_id2name(name), iter->second, class_getName((Class)k));
+#endif
+	    return iter->second;
+	}
+	slot += slots->size();
+	k = RCLASS_SUPER(k);
+    }
+
+    if (create) {
+#if ROXOR_DEBUG
+	printf("prepare ivar %s slot as %d (new in class %s)\n",
+		rb_id2name(name), slot, class_getName((Class)klass));
+#endif
+	get_ivar_slots((Class)klass)->insert(std::pair<ID, int>(name, slot));
+	return slot;
+    }
+    else {
+	return -1;
+    }
+}
+
+inline bool
+RoxorVM::class_can_have_ivar_slots(VALUE klass)
+{
+    const long klass_version = RCLASS_VERSION(klass);
+    if ((klass_version & RCLASS_IS_RUBY_CLASS) != RCLASS_IS_RUBY_CLASS
+	|| (klass_version & RCLASS_IS_OBJECT_SUBCLASS) != RCLASS_IS_OBJECT_SUBCLASS) {
+	return false;
+    }
+    return true;
+}
+
+void
+RoxorCompiler::compile_ivar_slots(Value *klass,
+				  BasicBlock::InstListType &list, 
+				  BasicBlock::InstListType::iterator list_iter)
+{
+    if (ivar_slots_cache.size() > 0) {
+	if (prepareIvarSlotFunc == NULL) {
+	    // void rb_vm_prepare_class_ivar_slot(VALUE klass, ID name, int *slot_cache);
+	    prepareIvarSlotFunc = cast<Function>(
+		    module->getOrInsertFunction("rb_vm_prepare_class_ivar_slot", 
+			Type::VoidTy, RubyObjTy, IntTy, PtrTy, NULL));
+	}
+	for (std::map<ID, int *>::iterator iter = ivar_slots_cache.begin();
+		iter != ivar_slots_cache.end();
+		++iter) {
+
+	    std::vector<Value *> params;
+	    params.push_back(klass);
+	    params.push_back(ConstantInt::get(IntTy, iter->first));
+	    Instruction *ptr = compile_const_pointer(iter->second, false);
+	    list.insert(list_iter, ptr);
+	    params.push_back(ptr);
+
+	    CallInst *call = CallInst::Create(prepareIvarSlotFunc, 
+		    params.begin(), params.end(), "");
+
+	    list.insert(list_iter, call);
+	}
+    }
+}
+
+Value *
+RoxorCompiler::compile_node(NODE *node)
+{
+#if ROXOR_DEBUG
+    printf("%s:%ld ", fname, nd_line(node));
+    for (int i = 0; i < level; i++) {
+	printf("...");
+    }
+    printf("... %s\n", ruby_node_name(nd_type(node)));
+#endif
+
+    switch (nd_type(node)) {
+	case NODE_SCOPE:
+	    {
+		const int nargs = bb == NULL ? 0 : rb_vm_node_arity(node, false);
+
+		// Get dynamic vars.
+		if (current_block && node->nd_tbl != NULL) {
+		    int args_count = (int)node->nd_tbl[0];
+		    assert(args_count == nargs);
+		    int lvar_count = (int)node->nd_tbl[args_count + 1];
+		    for (int i = 0; i < lvar_count; i++) {
+			ID id = node->nd_tbl[i + args_count + 2];
+			if (lvars.find(id) != lvars.end()) {
+			    dvars[id] = NULL;
+			}
+		    }
+		}
+
+		// Create function type.
+		std::vector<const Type *> types;
+		types.push_back(RubyObjTy);	// self
+		types.push_back(PtrTy);		// sel
+		for (int i = 0, count = dvars.size(); i < count; i++) {
+		    types.push_back(RubyObjPtrTy);
+		}
+		for (int i = 0; i < nargs; ++i) {
+		    types.push_back(RubyObjTy);
+		}
+		FunctionType *ft = FunctionType::get(RubyObjTy, types, false);
+		Function *f = cast<Function>(module->getOrInsertFunction("", ft));
+
+		BasicBlock *old_rescue_bb = rescue_bb;
+		rescue_bb = NULL;
+		BasicBlock *old_bb = bb;
+		bb = BasicBlock::Create("EntryBlock", f);
+
+		std::map<ID, Value *> old_lvars = lvars;
+		lvars.clear();
+		Value *old_self = current_self;
+
+		Function::arg_iterator arg;
+
+		arg = f->arg_begin();
+		Value *self = arg++;
+		self->setName("self");
+		current_self = self;
+
+		Value *sel = arg++;
+		sel->setName("sel");
+
+		for (std::map<ID, Value *>::iterator iter = dvars.begin();
+		     iter != dvars.end(); 
+		     ++iter) {
+
+		    ID id = iter->first;
+		    assert(iter->second == NULL);	
+	
+		    Value *val = arg++;
+		    val->setName(std::string("dyna_") + rb_id2name(id));
+#if ROXOR_DEBUG
+		    printf("dvar %s\n", rb_id2name(id));
+#endif
+		    lvars[id] = val;
+		}
+
+		if (node->nd_tbl != NULL) {
+		    int i, args_count = (int)node->nd_tbl[0];
+		    assert(args_count == nargs || args_count == nargs + 1 /* optional block */);
+		    for (i = 0; i < args_count; i++) {
+			ID id = node->nd_tbl[i + 1];
+#if ROXOR_DEBUG
+			printf("arg %s\n", rb_id2name(id));
+#endif
+
+			Value *val = NULL;
+			if (i < nargs) {
+			    val = arg++;
+			    val->setName(rb_id2name(id));
+			}
+			else {
+			    // Optional block.
+			    if (currentBlockObjectFunc == NULL) {
+				// VALUE rb_vm_current_block_object(void);
+				currentBlockObjectFunc = cast<Function>(
+					module->getOrInsertFunction("rb_vm_current_block_object", 
+					    RubyObjTy, NULL));
+			    }
+			    val = CallInst::Create(currentBlockObjectFunc, "", bb);
+			}
+			Value *slot = new AllocaInst(RubyObjTy, "", bb);
+			new StoreInst(val, slot, bb);
+			lvars[id] = slot;
+		    }
+
+		    // Compile optional arguments.
+		    NODE *n = node->nd_args;
+		    Function::ArgumentListType::iterator iter = f->arg_begin();
+		    ++iter; // skip self
+		    ++iter; // skip sel
+		    while (n != NULL) {
+			if (nd_type(n) == NODE_ARGS) {
+			    for (i = 0; i < n->nd_frml; i++) {
+				++iter;  // skip mandatory argument
+			    }
+			    if (n->nd_head != NULL) {
+				iter = compile_optional_arguments(iter, n->nd_head);
+			    }
+			}
+			n = n->nd_next;
+		    }
+
+		    int lvar_count = (int)node->nd_tbl[args_count + 1];
+		    for (i = 0; i < lvar_count; i++) {
+			ID id = node->nd_tbl[i + args_count + 2];
+			if (lvars.find(id) != lvars.end()) {
+			    continue;
+			}
+#if ROXOR_DEBUG
+			printf("var %s\n", rb_id2name(id));
+#endif
+			Value *store = new AllocaInst(RubyObjTy, "", bb);
+			new StoreInst(nilVal, store, bb);
+			lvars[id] = store;
+		    }
+		}
+
+		Value *val = NULL;
+		if (node->nd_body != NULL) {
+		    DEBUG_LEVEL_INC();
+		    val = compile_node(node->nd_body);
+		    DEBUG_LEVEL_DEC();
+		}
+		if (val == NULL) {
+		    val = nilVal;
+		}
+		ReturnInst::Create(val, bb);
+
+		bb = old_bb;
+		lvars = old_lvars;
+		current_self = old_self;
+		rescue_bb = old_rescue_bb;
+
+		return cast<Value>(f);
+	    }
+	    break;
+
+	case NODE_DVAR:
+	case NODE_LVAR:
+	    {
+		assert(node->nd_vid > 0);
+		
+		return new LoadInst(get_lvar(node->nd_vid), "", bb);
+	    }
+	    break;
+
+	case NODE_GVAR:
+	    {
+		assert(node->nd_vid > 0);
+		assert(node->nd_entry != NULL);
+
+		if (gvarGetFunc == NULL) {
+		    // VALUE rb_gvar_get(struct global_entry *entry);
+		    gvarGetFunc = cast<Function>(module->getOrInsertFunction("rb_gvar_get", RubyObjTy, PtrTy, NULL));
+		}
+
+		std::vector<Value *> params;
+
+		params.push_back(compile_const_pointer(node->nd_entry));
+
+		return CallInst::Create(gvarGetFunc, params.begin(), params.end(), "", bb);
+	    }
+	    break;
+
+	case NODE_GASGN:
+	    {
+		assert(node->nd_vid > 0);
+		assert(node->nd_value != NULL);
+		assert(node->nd_entry != NULL);
+
+		if (gvarSetFunc == NULL) {
+		    // VALUE rb_gvar_set(struct global_entry *entry, VALUE val);
+		    gvarSetFunc = cast<Function>(module->getOrInsertFunction("rb_gvar_set", RubyObjTy, PtrTy, RubyObjTy, NULL));
+		}
+
+		std::vector<Value *> params;
+
+		params.push_back(compile_const_pointer(node->nd_entry));
+		params.push_back(compile_node(node->nd_value));
+
+		return CallInst::Create(gvarSetFunc, params.begin(), params.end(), "", bb);
+	    }
+	    break;
+
+	case NODE_MASGN:
+	    {
+		NODE *rhsn = node->nd_value;
+		assert(rhsn != NULL);
+
+		NODE *splatn = node->nd_args;
+		assert(splatn == NULL); // TODO
+
+		NODE *lhsn = node->nd_head;
+		assert(lhsn != NULL);
+		assert(nd_type(lhsn) == NODE_ARRAY);
+
+		Value *ary = compile_node(rhsn); // XXX should always build as an array
+		NODE *l = lhsn;
+
+		if (aryGetFunc == NULL) {
+		    // VALUE rb_ary_get_fast(VALUE ary, int offset);
+		    aryGetFunc = cast<Function>(module->getOrInsertFunction("rb_ary_get_fast", 
+				RubyObjTy, RubyObjTy, Type::Int32Ty, NULL));
+		}
+
+		int i = 0;
+		while (l != NULL) {
+		    NODE *ln = l->nd_head;
+
+		    std::vector<Value *> params;
+		    params.push_back(ary);
+		    params.push_back(ConstantInt::get(Type::Int32Ty, i++));
+		    Value *elt = CallInst::Create(aryGetFunc, params.begin(), params.end(), "", bb);
+
+		    switch (nd_type(ln)) {
+			case NODE_LASGN:
+			case NODE_DASGN:
+			case NODE_DASGN_CURR:
+			    {			    
+				Value *slot = get_lvar(ln->nd_vid);
+				new StoreInst(elt, slot, bb);
+			    }
+			    break;
+
+			case NODE_IASGN:
+			case NODE_IASGN2:
+			    compile_ivar_assignment(ln->nd_vid, elt);
+			    break;
+
+			case NODE_ATTRASGN:
+			    compile_attribute_assign(ln, elt);
+			    break;
+
+			default:
+			    compile_node_error("unimplemented MASGN subnode", ln);
+		    }
+		    l = l->nd_next;
+		}
+
+		return ary;
+	    }
+	    break;
+
+	case NODE_DASGN:
+	case NODE_DASGN_CURR:
+	case NODE_LASGN:
+	    {
+		assert(node->nd_vid > 0);
+		assert(node->nd_value != NULL);
+
+		Value *slot = get_lvar(node->nd_vid);
+
+		Value *new_val = compile_node(node->nd_value);
+
+		new StoreInst(new_val, slot, bb);
+
+		return new_val;
+	    }
+	    break;
+
+	case NODE_OP_ASGN_OR:
+	    {
+		assert(node->nd_recv != NULL);
+		assert(node->nd_value != NULL);
+		
+		Value *recvVal = compile_node(node->nd_recv);
+
+		Value *falseCond = new ICmpInst(ICmpInst::ICMP_EQ, recvVal, falseVal, "", bb);
+
+		Function *f = bb->getParent();
+
+		BasicBlock *falseBB = BasicBlock::Create("", f);
+		BasicBlock *elseBB  = BasicBlock::Create("", f);
+		BasicBlock *trueBB = BasicBlock::Create("", f);
+		BasicBlock *mergeBB = BasicBlock::Create("", f);
+
+		BranchInst::Create(falseBB, trueBB, falseCond, bb);
+
+		bb = trueBB;
+		Value *nilCond = new ICmpInst(ICmpInst::ICMP_EQ, recvVal, nilVal, "", bb);
+		BranchInst::Create(falseBB, elseBB, nilCond, bb);
+
+		bb = falseBB;
+		Value *newRecvVal = compile_node(node->nd_value);
+		falseBB = bb;
+		BranchInst::Create(mergeBB, bb);
+
+		BranchInst::Create(mergeBB, elseBB);
+
+		bb = mergeBB;	
+		PHINode *pn = PHINode::Create(RubyObjTy, "", bb);
+		pn->addIncoming(newRecvVal, falseBB);
+		pn->addIncoming(recvVal, elseBB);
+
+		return pn;
+	    }
+	    break;
+
+	case NODE_OP_ASGN_AND:
+	    {
+		assert(node->nd_recv != NULL);
+		assert(node->nd_value != NULL);
+		
+		Value *recvVal = compile_node(node->nd_recv);
+
+		Function *f = bb->getParent();
+
+		BasicBlock *notNilBB = BasicBlock::Create("", f);
+		BasicBlock *elseBB  = BasicBlock::Create("", f);
+		BasicBlock *mergeBB = BasicBlock::Create("", f);
+
+		compile_boolean_test(recvVal, notNilBB, elseBB);
+
+		bb = notNilBB;
+		Value *newRecvVal = compile_node(node->nd_value);
+		notNilBB = bb;
+		BranchInst::Create(mergeBB, bb);
+
+		BranchInst::Create(mergeBB, elseBB);
+
+		bb = mergeBB;	
+		PHINode *pn = PHINode::Create(RubyObjTy, "", bb);
+		pn->addIncoming(newRecvVal, notNilBB);
+		pn->addIncoming(recvVal, elseBB);
+
+		return pn;
+	    }
+	    break;
+
+	case NODE_OP_ASGN1:
+	    {
+		assert(node->nd_recv != NULL);
+		Value *recv = compile_node(node->nd_recv);
+
+		assert(node->nd_mid >= 0);
+		ID mid = node->nd_mid;
+
+		// a=[0] += 42
+		//
+		// tmp = a.send(:[], 0)
+		// tmp = tmp + 42
+		// a.send(:[]=, 0, tmp)
+
+		assert(node->nd_args != NULL);
+		assert(node->nd_args->nd_head != NULL);
+		assert(node->nd_args->nd_body != NULL);
+
+		// tmp = a.send(:[], 0)
+
+		std::vector<Value *> params;
+		void *cache = GET_VM()->method_cache_get(selAREF, false);
+		params.push_back(compile_const_pointer(cache));
+		params.push_back(recv);
+		params.push_back(compile_const_pointer((void *)selAREF));
+		params.push_back(compile_const_pointer(NULL));
+		params.push_back(ConstantInt::get(Type::Int8Ty, 0));
+
+		std::vector<Value *> arguments;
+		int argc;
+		compile_dispatch_arguments(node->nd_args->nd_body, arguments, &argc);
+		params.push_back(ConstantInt::get(Type::Int32Ty, argc));
+		for (std::vector<Value *>::iterator i = arguments.begin();
+		     i != arguments.end(); ++i) {
+		    params.push_back(*i);
+		}
+
+		Value *tmp = compile_optimized_dispatch_call(selAREF, argc, params);
+		if (tmp == NULL) {
+		    tmp = compile_dispatch_call(params);
+		}
+
+		// tmp = tmp + 42
+
+		BasicBlock *mergeBB = NULL;
+		BasicBlock *touchedBB = NULL;
+		BasicBlock *untouchedBB = NULL;
+		Value *tmp2;
+		if (mid == 0 || mid == 1) {
+		    // 0 means OR, 1 means AND
+		    Function *f = bb->getParent();
+
+		    touchedBB = BasicBlock::Create("", f);
+		    untouchedBB  = BasicBlock::Create("", f);
+		    mergeBB = BasicBlock::Create("merge", f);
+
+		    if (mid == 0) {
+			compile_boolean_test(tmp, untouchedBB, touchedBB);
+		    }
+		    else {
+			compile_boolean_test(tmp, touchedBB, untouchedBB);
+		    }
+
+		    BranchInst::Create(mergeBB, untouchedBB);
+		    bb = touchedBB;
+
+		    tmp2 = compile_node(node->nd_args->nd_head);
+		}
+		else {
+		    const SEL sel = mid_to_sel(mid, 1);
+		    cache = GET_VM()->method_cache_get(sel, false);
+		    params.clear();
+		    params.push_back(compile_const_pointer(cache));
+		    params.push_back(tmp);
+		    params.push_back(compile_const_pointer((void *)sel));
+		    params.push_back(compile_const_pointer(NULL));
+		    params.push_back(ConstantInt::get(Type::Int8Ty, 0));
+		    params.push_back(ConstantInt::get(Type::Int32Ty, 1));
+		    params.push_back(compile_node(node->nd_args->nd_head));
+
+		    tmp2 = compile_optimized_dispatch_call(sel, 1, params);
+		    if (tmp2 == NULL) {
+			tmp2 = compile_dispatch_call(params);
+		    }
+		}
+
+		// a.send(:[]=, 0, tmp)
+
+		cache = GET_VM()->method_cache_get(selASET, false);
+		params.clear();
+		params.push_back(compile_const_pointer(cache));
+		params.push_back(recv);
+		params.push_back(compile_const_pointer((void *)selASET));
+		params.push_back(compile_const_pointer(NULL));
+		params.push_back(ConstantInt::get(Type::Int8Ty, 0));
+		argc++;
+		params.push_back(ConstantInt::get(Type::Int32Ty, argc));
+		for (std::vector<Value *>::iterator i = arguments.begin();
+		     i != arguments.end(); ++i) {
+		    params.push_back(*i);
+		}
+		params.push_back(tmp2);
+
+		Value *ret = compile_optimized_dispatch_call(selASET, argc, params);
+		if (ret == NULL) {
+		    ret = compile_dispatch_call(params);
+		}
+
+		if (mergeBB == NULL) {
+		    return ret;
+		}
+
+		BranchInst::Create(mergeBB, touchedBB);
+
+		bb = mergeBB;	
+
+		PHINode *pn = PHINode::Create(RubyObjTy, "", bb);
+		pn->addIncoming(tmp, untouchedBB);
+		pn->addIncoming(ret, touchedBB);
+
+		return pn;
+	    }
+	    break;
+
+	case NODE_XSTR:
+	case NODE_DXSTR:
+	    {
+		Value *str;
+		if (nd_type(node) == NODE_DXSTR) {
+		    str = compile_dstr(node);
+		}
+		else {
+		    assert(node->nd_lit != 0);
+		    str = ConstantInt::get(RubyObjTy, node->nd_lit);
+		}
+
+		std::vector<Value *> params;
+		void *cache = GET_VM()->method_cache_get(selBackquote, false);
+		params.push_back(compile_const_pointer(cache));
+		params.push_back(nilVal);
+		params.push_back(compile_const_pointer((void *)selBackquote));
+		params.push_back(compile_const_pointer(NULL));
+		params.push_back(ConstantInt::get(Type::Int8Ty, 0));
+		params.push_back(ConstantInt::get(Type::Int32Ty, 1));
+		params.push_back(str);
+
+		return compile_dispatch_call(params);
+	    }
+	    break;
+
+	case NODE_DSTR:
+	    return compile_dstr(node);
+
+	case NODE_DREGX:
+	    {
+		Value *val  = compile_dstr(node);
+		const int flag = node->nd_cflag;
+
+		if (newRegexpFunc == NULL) {
+		    newRegexpFunc = cast<Function>(module->getOrInsertFunction("rb_reg_new_str",
+				RubyObjTy, RubyObjTy, Type::Int32Ty, NULL));
+		}
+
+		std::vector<Value *> params;
+		params.push_back(val);
+		params.push_back(ConstantInt::get(Type::Int32Ty, flag));
+
+		return compile_protected_call(newRegexpFunc, params);
+	    }
+	    break;
+
+	case NODE_EVSTR:
+	    {
+		assert(node->nd_body != NULL);
+		return compile_node(node->nd_body);
+	    }
+	    break;
+
+	case NODE_OR:
+	    {
+		NODE *left = node->nd_1st;
+		assert(left != NULL);
+
+		NODE *right = node->nd_2nd;
+		assert(right != NULL);
+
+		Function *f = bb->getParent();
+
+		BasicBlock *leftNotFalseBB = BasicBlock::Create("left_not_false", f);
+		BasicBlock *leftNotTrueBB = BasicBlock::Create("left_not_true", f);
+		BasicBlock *leftTrueBB = BasicBlock::Create("left_is_true", f);
+		BasicBlock *rightNotFalseBB = BasicBlock::Create("right_not_false", f);
+		BasicBlock *rightTrueBB = BasicBlock::Create("right_is_true", f);
+		BasicBlock *failBB = BasicBlock::Create("fail", f);
+		BasicBlock *mergeBB = BasicBlock::Create("merge", f);
+
+		Value *leftVal = compile_node(left);
+		Value *leftNotFalseCond = new ICmpInst(ICmpInst::ICMP_NE, leftVal, falseVal, "", bb);
+		BranchInst::Create(leftNotFalseBB, leftNotTrueBB, leftNotFalseCond, bb);
+
+		bb = leftNotFalseBB;
+		Value *leftNotNilCond = new ICmpInst(ICmpInst::ICMP_NE, leftVal, nilVal, "", bb);
+		BranchInst::Create(leftTrueBB, leftNotTrueBB, leftNotNilCond, bb);
+
+		bb = leftNotTrueBB;
+		Value *rightVal = compile_node(right);
+		Value *rightNotFalseCond = new ICmpInst(ICmpInst::ICMP_NE, rightVal, falseVal, "", bb);
+		BranchInst::Create(rightNotFalseBB, failBB, rightNotFalseCond, bb);
+
+		bb = rightNotFalseBB;
+		Value *rightNotNilCond = new ICmpInst(ICmpInst::ICMP_NE, rightVal, nilVal, "", bb);
+		BranchInst::Create(rightTrueBB, failBB, rightNotNilCond, bb);
+
+		BranchInst::Create(mergeBB, leftTrueBB);
+		BranchInst::Create(mergeBB, rightTrueBB);
+		BranchInst::Create(mergeBB, failBB);
+
+		bb = mergeBB;
+		PHINode *pn = PHINode::Create(RubyObjTy, "", mergeBB);
+		pn->addIncoming(leftVal, leftTrueBB);
+		pn->addIncoming(rightVal, rightTrueBB);
+		pn->addIncoming(rightVal, failBB);
+
+		return pn;
+	    }
+	    break;
+
+	case NODE_AND:
+	    {
+		NODE *left = node->nd_1st;
+		assert(left != NULL);
+
+		NODE *right = node->nd_2nd;
+		assert(right != NULL);
+
+		Function *f = bb->getParent();
+
+		BasicBlock *leftNotFalseBB = BasicBlock::Create("left_not_false", f);
+		BasicBlock *leftTrueBB = BasicBlock::Create("left_is_true", f);
+		BasicBlock *rightNotFalseBB = BasicBlock::Create("right_not_false", f);
+		BasicBlock *leftFailBB = BasicBlock::Create("left_fail", f);
+		BasicBlock *rightFailBB = BasicBlock::Create("right_fail", f);
+		BasicBlock *successBB = BasicBlock::Create("success", f);
+		BasicBlock *mergeBB = BasicBlock::Create("merge", f);
+
+		Value *leftVal = compile_node(left);
+		Value *leftNotFalseCond = new ICmpInst(ICmpInst::ICMP_NE, leftVal, falseVal, "", bb);
+		BranchInst::Create(leftNotFalseBB, leftFailBB, leftNotFalseCond, bb);
+
+		bb = leftNotFalseBB;
+		Value *leftNotNilCond = new ICmpInst(ICmpInst::ICMP_NE, leftVal, nilVal, "", bb);
+		BranchInst::Create(leftTrueBB, leftFailBB, leftNotNilCond, bb);
+
+		bb = leftTrueBB;
+		Value *rightVal = compile_node(right);
+		Value *rightNotFalseCond = new ICmpInst(ICmpInst::ICMP_NE, rightVal, falseVal, "", bb);
+
+		BranchInst::Create(rightNotFalseBB, rightFailBB, rightNotFalseCond, bb);
+
+		bb = rightNotFalseBB;
+		Value *rightNotNilCond = new ICmpInst(ICmpInst::ICMP_NE, rightVal, nilVal, "", bb);
+		BranchInst::Create(successBB, rightFailBB, rightNotNilCond, bb);
+
+		BranchInst::Create(mergeBB, successBB);
+		BranchInst::Create(mergeBB, leftFailBB);
+		BranchInst::Create(mergeBB, rightFailBB);
+
+		bb = mergeBB;
+		PHINode *pn = PHINode::Create(RubyObjTy, "", mergeBB);
+		pn->addIncoming(leftVal, leftFailBB);
+		pn->addIncoming(rightVal, rightFailBB);
+		pn->addIncoming(rightVal, successBB);
+
+		return pn;
+	    }
+	    break;
+
+	case NODE_IF:
+	    {
+		Value *condVal = compile_node(node->nd_cond);
+
+		Function *f = bb->getParent();
+
+		BasicBlock *thenBB = BasicBlock::Create("then", f);
+		BasicBlock *elseBB  = BasicBlock::Create("else", f);
+		BasicBlock *mergeBB = BasicBlock::Create("merge", f);
+
+		compile_boolean_test(condVal, thenBB, elseBB);
+
+		bb = thenBB;
+		DEBUG_LEVEL_INC();
+		Value *thenVal = node->nd_body != NULL ? compile_node(node->nd_body) : trueVal;
+		DEBUG_LEVEL_DEC();
+		thenBB = bb;
+		BranchInst::Create(mergeBB, thenBB);
+
+		bb = elseBB;
+		DEBUG_LEVEL_INC();
+		Value *elseVal = node->nd_else != NULL ? compile_node(node->nd_else) : nilVal;
+		DEBUG_LEVEL_DEC();
+		elseBB = bb;
+		BranchInst::Create(mergeBB, elseBB);
+		
+		bb = mergeBB;
+		PHINode *pn = PHINode::Create(RubyObjTy, "iftmp", mergeBB);
+		pn->addIncoming(thenVal, thenBB);
+		pn->addIncoming(elseVal, elseBB);
+
+		return pn;
+	    }
+	    break;
+
+	case NODE_CLASS:
+	case NODE_MODULE:
+	    {
+		assert(node->nd_cpath != NULL);
+		assert(node->nd_cpath->nd_mid > 0);
+		ID path = node->nd_cpath->nd_mid;
+
+		NODE *super = node->nd_super;
+
+		if (defineClassFunc == NULL) {
+		    // VALUE rb_vm_define_class(ID path, VALUE outer, VALUE super, unsigned char is_module);
+		    std::vector<const Type *> types;
+		    types.push_back(IntTy);
+		    types.push_back(RubyObjTy);
+		    types.push_back(RubyObjTy);
+		    types.push_back(Type::Int8Ty);
+		    FunctionType *ft = FunctionType::get(RubyObjTy, types, false);
+		    defineClassFunc = cast<Function>(module->getOrInsertFunction("rb_vm_define_class", ft));
+		}
+
+		std::vector<Value *> params;
+
+		params.push_back(ConstantInt::get(IntTy, (long)path));
+		params.push_back(compile_current_class());
+		params.push_back(super == NULL ? zeroVal : compile_node(super));
+		params.push_back(ConstantInt::get(Type::Int8Ty, nd_type(node) == NODE_MODULE ? 1 : 0));
+		Value *classVal = CallInst::Create(defineClassFunc, params.begin(), params.end(), "", bb);
+
+		NODE *body = node->nd_body;
+		if (body != NULL) {
+		    assert(nd_type(body) == NODE_SCOPE);
+		    if (body->nd_body != NULL) {	
+			Value *old_self = current_self;
+			current_self = classVal;
+
+			GlobalVariable *old_class = current_opened_class;
+			current_opened_class = new GlobalVariable(
+				RubyObjTy,
+				false,
+				GlobalValue::InternalLinkage,
+				nilVal,
+				"current_opened_class",
+				RoxorCompiler::module);
+			new StoreInst(classVal, current_opened_class, bb);
+
+			std::map<ID, int *> old_ivar_slots_cache = ivar_slots_cache;
+			ivar_slots_cache.clear();
+
+			compile_node(body->nd_body);
+
+			BasicBlock::InstListType &list = bb->getInstList();
+			compile_ivar_slots(classVal, list, list.end());
+
+			current_self = old_self;
+			current_opened_class = old_class;
+
+			ivar_slots_cache = old_ivar_slots_cache;
+		    }
+		}
+
+		return classVal;
+	    }
+	    break;
+
+	case NODE_SUPER:
+	case NODE_ZSUPER:
+	case NODE_CALL:
+	case NODE_FCALL:
+	case NODE_VCALL:
+	    {
+		NODE *recv;
+		NODE *args;
+		ID mid;
+
+		recv = node->nd_recv;
+		args = node->nd_args;
+		mid = node->nd_mid;
+
+		if (nd_type(node) == NODE_CALL) {
+		    assert(recv != NULL);
+		}
+		else {
+		    assert(recv == NULL);
+		}
+
+		const bool block_given = current_block_func != NULL && current_block_node != NULL;
+		const bool super_call = nd_type(node) == NODE_SUPER || nd_type(node) == NODE_ZSUPER;
+
+		if (super_call) {
+		    mid = current_mid;
+		}
+		assert(mid > 0);
+
+		Function::ArgumentListType &fargs = bb->getParent()->getArgumentList();
+		const int fargs_arity = fargs.size() - 2;
+
+		bool splat_args = false;
+		bool positive_arity = false;
+		if (nd_type(node) == NODE_ZSUPER) {
+		    assert(args == NULL);
+		    positive_arity = fargs_arity > 0;
+		}
+		else {
+		    NODE *n = args;
+rescan_args:
+		    if (n != NULL) {
+			switch (nd_type(n)) {
+			    case NODE_ARRAY:
+				positive_arity = n->nd_alen > 0;
+				break;
+
+			    case NODE_SPLAT:
+			    case NODE_ARGSPUSH:
+			    case NODE_ARGSCAT:
+				splat_args = true;
+				positive_arity = true;
+				break;
+
+			    case NODE_BLOCK_PASS:
+				n = n->nd_head;
+				if (n != NULL) {
+				    goto rescan_args;
+				}
+				positive_arity = false;
+				break;
+
+			    default:
+				compile_node_error("invalid call args", n);
+			}
+		    }
+		}
+
+		// Recursive method call optimization.
+		if (!block_given && !super_call && !splat_args 
+		    && mid == current_mid && recv == NULL) {
+
+		    // TODO check if both functions have the same arity (paranoid?)
+
+		    Function *f = bb->getParent();
+		    std::vector<Value *> params;
+
+		    Function::arg_iterator arg = f->arg_begin();
+
+		    params.push_back(arg++); // self
+		    params.push_back(arg++); // sel 
+
+		    for (NODE *n = args; n != NULL; n = n->nd_next) {
+			params.push_back(compile_node(n->nd_head));
+		    }
+
+		   return cast<Value>(CallInst::Create(f, params.begin(), params.end(), "", bb));
+		}
+
+		// Prepare the dispatcher parameters
+		std::vector<Value *> params;
+
+		const SEL sel = mid_to_sel(mid, positive_arity ? 1 : 0);
+		void *cache = GET_VM()->method_cache_get(sel, super_call);
+		params.push_back(compile_const_pointer(cache));
+
+		params.push_back(recv == NULL ? current_self : compile_node(recv));
+		params.push_back(compile_const_pointer((void *)sel));
+		Value *blockVal;
+		if (args != NULL && nd_type(args) == NODE_BLOCK_PASS) {
+		    assert(!block_given);
+		    blockVal = compile_block_create(args);
+		    args = args->nd_head;
+		}
+		else {
+		    blockVal = block_given ? compile_block_create() : compile_const_pointer(NULL);
+		}
+		params.push_back(blockVal);
+		params.push_back(ConstantInt::get(Type::Int8Ty, super_call ? 1 : 0));
+
+		int argc = 0;
+		if (nd_type(node) == NODE_ZSUPER) {
+		    params.push_back(ConstantInt::get(Type::Int32Ty, fargs_arity));
+		    Function::ArgumentListType::iterator iter = fargs.begin();
+		    iter++; // skip self
+		    iter++; // skip sel
+		    while (iter != fargs.end()) {
+			params.push_back(iter);
+			++iter;
+		    }
+		    argc = fargs_arity;
+		}
+		else if (args != NULL) {
+		    std::vector<Value *> arguments;
+		    compile_dispatch_arguments(args, arguments, &argc);
+		    params.push_back(ConstantInt::get(Type::Int32Ty, argc));
+		    for (std::vector<Value *>::iterator i = arguments.begin(); i != arguments.end(); ++i) {
+			params.push_back(*i);
+		    }
+		}
+		else {
+		    params.push_back(ConstantInt::get(Type::Int32Ty, 0));
+		}
+
+		// Can we optimize the call?
+		if (!super_call && !splat_args) {
+		    Value *optimizedCall = compile_optimized_dispatch_call(sel, argc, params);
+		    if (optimizedCall != NULL) {
+			return optimizedCall;
+		    }
+		}
+
+		// Looks like we can't, just do a regular dispatch then.
+		return compile_dispatch_call(params);
+	    }
+	    break;
+
+	case NODE_ATTRASGN:
+	    return compile_attribute_assign(node, NULL);
+
+	case NODE_BREAK:
+	case NODE_NEXT:
+	case NODE_RETURN:
+	    {
+		const bool within_loop = current_loop_begin_bb != NULL
+		    && current_loop_end_bb != NULL;
+
+		if (!current_block && !within_loop) {
+		    if (nd_type(node) == NODE_BREAK) {
+			rb_raise(rb_eLocalJumpError, "unexpected break");
+		    }
+		    if (nd_type(node) == NODE_NEXT) {
+			rb_raise(rb_eLocalJumpError, "unexpected next");
+		    }
+		}
+
+		Value *val = node->nd_head != NULL
+		    ? compile_node(node->nd_head) : nilVal;
+
+		if (within_loop) {
+		    if (nd_type(node) == NODE_BREAK) {
+			current_loop_exit_val = val;
+			BranchInst::Create(current_loop_end_bb, bb);
+		    }
+		    else if (nd_type(node) == NODE_NEXT) {
+			BranchInst::Create(current_loop_begin_bb, bb);
+		    }
+		    else {
+			ReturnInst::Create(val, bb);
+		    }
+		}
+		else {
+		    if (nd_type(node) == NODE_BREAK) {
+			if (breakFunc == NULL) {
+			    // void rb_vm_break(VALUE val);
+			    breakFunc = cast<Function>(module->getOrInsertFunction("rb_vm_break", 
+					Type::VoidTy, RubyObjTy, NULL));
+			}
+			std::vector<Value *> params;
+			params.push_back(val);
+			CallInst::Create(breakFunc, params.begin(), params.end(), "", bb);
+		    }
+
+		    ReturnInst::Create(val, bb);
+		}
+
+		// To not complicate the compiler even more, let's be very lazy here and
+		// continue on a dead branch. Hopefully LLVM will be smart enough to eliminate
+		// it at compilation time.
+		bb = BasicBlock::Create("DEAD", bb->getParent());
+		return val;
+	    }
+	    break;
+
+	case NODE_CONST:
+	    assert(node->nd_vid > 0);
+	    return compile_const(node->nd_vid, compile_current_class());
+
+	case NODE_CDECL:
+	    {
+		if (setConstFunc == NULL) {
+		    // VALUE rb_vm_set_const(VALUE mod, ID id, VALUE obj);
+		    setConstFunc = cast<Function>(module->getOrInsertFunction("rb_vm_set_const", 
+				Type::VoidTy, RubyObjTy, IntTy, RubyObjTy, NULL));
+		}
+
+		assert(node->nd_vid > 0);
+		assert(node->nd_value != NULL);
+
+		std::vector<Value *> params;
+	
+		params.push_back(compile_current_class());
+		params.push_back(ConstantInt::get(IntTy, (long)node->nd_vid));
+		
+		Value *val = compile_node(node->nd_value);
+		params.push_back(val);
+
+		CallInst::Create(setConstFunc, params.begin(), params.end(), "", bb);
+
+		return val;
+	    }
+	    break;
+
+	case NODE_IASGN:
+	case NODE_IASGN2:
+	    {
+		assert(node->nd_vid > 0);
+		assert(node->nd_value != NULL);
+		return compile_ivar_assignment(node->nd_vid, compile_node(node->nd_value));
+	    }
+	    break;
+
+	case NODE_IVAR:
+	    {
+		assert(node->nd_vid > 0);
+		return compile_ivar_read(node->nd_vid);
+	    }
+	    break;
+
+	case NODE_LIT:
+	case NODE_STR:
+	    {
+		assert(node->nd_lit != 0);
+		return ConstantInt::get(RubyObjTy, (long)node->nd_lit);
+	    }
+	    break;
+
+	case NODE_ARRAY:
+	case NODE_ZARRAY:
+	case NODE_VALUES:
+	    {
+		if (newArrayFunc == NULL) {
+		    // VALUE rb_ary_new_fast(int argc, ...);
+		    std::vector<const Type *> types;
+		    types.push_back(Type::Int32Ty);
+		    FunctionType *ft = FunctionType::get(RubyObjTy, types, true);
+		    newArrayFunc = cast<Function>(module->getOrInsertFunction("rb_ary_new_fast", ft));
+		}
+
+		std::vector<Value *>params;
+
+		if (nd_type(node) == NODE_ZARRAY) {
+		    params.push_back(ConstantInt::get(Type::Int32Ty, 0));
+		}
+		else {
+		    const int count = node->nd_alen;
+		    NODE *n = node;
+		    
+		    params.push_back(ConstantInt::get(Type::Int32Ty, count));
+
+		    for (int i = 0; i < count; i++) {
+			assert(n->nd_head != NULL);
+			params.push_back(compile_node(n->nd_head));
+			n = n->nd_next;
+		    }
+		}
+
+		return cast<Value>(CallInst::Create(newArrayFunc, params.begin(), params.end(), "", bb));
+	    }
+	    break;
+
+	case NODE_HASH:
+	    {
+		if (newHashFunc == NULL) {
+		    // VALUE rb_hash_new_fast(int argc, ...);
+		    std::vector<const Type *> types;
+		    types.push_back(Type::Int32Ty);
+		    FunctionType *ft = FunctionType::get(RubyObjTy, types, true);
+		    newHashFunc = cast<Function>(module->getOrInsertFunction("rb_hash_new_fast", ft));
+		}
+
+		std::vector<Value *> params;
+
+		if (node->nd_head != NULL) {
+		    assert(nd_type(node->nd_head) == NODE_ARRAY);
+		    const int count = node->nd_head->nd_alen;
+		    assert(count % 2 == 0);
+		    NODE *n = node->nd_head;
+
+		    params.push_back(ConstantInt::get(Type::Int32Ty, count));
+
+		    for (int i = 0; i < count; i += 2) {
+			Value *key = compile_node(n->nd_head);
+			n = n->nd_next;
+			Value *val = compile_node(n->nd_head);
+			n = n->nd_next;
+
+			params.push_back(key);
+			params.push_back(val);
+		    }
+		}
+		else {
+		    params.push_back(ConstantInt::get(Type::Int32Ty, 0));
+		}
+
+		return cast<Value>(CallInst::Create(newHashFunc, 
+			    params.begin(), params.end(), "", bb));
+	    }
+	    break;
+
+	case NODE_DOT2:
+	case NODE_DOT3:
+	    {
+		if (newRangeFunc == NULL) {
+		    // VALUE rb_range_new(VALUE beg, VALUE end, int exclude_end);
+		    newRangeFunc = cast<Function>(module->getOrInsertFunction("rb_range_new",
+			RubyObjTy, RubyObjTy, RubyObjTy, RubyObjTy, NULL));
+		}
+
+		assert(node->nd_beg != NULL);
+		assert(node->nd_end != NULL);
+
+		std::vector<Value *> params;
+		params.push_back(compile_node(node->nd_beg));
+		params.push_back(compile_node(node->nd_end));
+		params.push_back(nd_type(node) == NODE_DOT2 ? falseVal : trueVal);
+
+		return cast<Value>(CallInst::Create(newRangeFunc,
+			    params.begin(), params.end(), "", bb));
+	    }
+	    break;
+
+	case NODE_BLOCK:
+	    {
+		NODE *n = node;
+		Value *val = NULL;
+
+		while (n != NULL && nd_type(n) == NODE_BLOCK) {
+		    val = n->nd_head == NULL ? nilVal : compile_node(n->nd_head);
+		    n = n->nd_next;
+		}
+
+		return val;
+	    }
+	    break;
+
+	case NODE_MATCH2:
+	case NODE_MATCH3:
+	    {
+		assert(node->nd_recv);
+		assert(node->nd_value);
+
+		Value *reSource = compile_node(node->nd_recv);
+		Value *reTarget = compile_node(node->nd_value);
+
+		std::vector<Value *> params;
+		void *cache = GET_VM()->method_cache_get(selEqTilde, false);
+		params.push_back(compile_const_pointer(cache));
+		params.push_back(reTarget);
+		params.push_back(compile_const_pointer((void *)selEqTilde));
+		params.push_back(compile_const_pointer(NULL));
+		params.push_back(ConstantInt::get(Type::Int8Ty, 0));
+		params.push_back(ConstantInt::get(Type::Int32Ty, 1));
+		params.push_back(reSource);
+
+		return compile_dispatch_call(params);
+	    }
+	    break;
+
+#if 0 // TODO
+	case NODE_CFUNC:
+	    {
+	    }
+#endif
+
+	case NODE_VALIAS:
+	    {
+		if (valiasFunc == NULL) {
+		    // void rb_alias_variable(ID from, ID to);
+		    valiasFunc = cast<Function>(module->getOrInsertFunction("rb_alias_variable",
+				Type::VoidTy, IntTy, IntTy, NULL));
+		}
+
+		std::vector<Value *> params;
+
+		assert(node->u1.id > 0 && node->u2.id > 0);
+		params.push_back(ConstantInt::get(IntTy, node->u1.id));
+		params.push_back(ConstantInt::get(IntTy, node->u2.id));
+
+		CallInst::Create(valiasFunc, params.begin(), params.end(), "", bb);
+
+		return nilVal;
+	    }
+	    break;
+
+	case NODE_ALIAS:
+	    {
+		if (aliasFunc == NULL) {
+		    // void rb_vm_alias(VALUE outer, ID from, ID to, unsigned char is_var);
+		    aliasFunc = cast<Function>(module->getOrInsertFunction("rb_vm_alias",
+				Type::VoidTy, RubyObjTy, IntTy, IntTy, NULL));
+		}
+
+		std::vector<Value *> params;
+
+		params.push_back(compile_current_class());
+		params.push_back(ConstantInt::get(IntTy, node->u1.node->u1.node->u2.id));
+		params.push_back(ConstantInt::get(IntTy, node->u2.node->u1.node->u2.id));
+
+		compile_protected_call(aliasFunc, params);
+
+		return nilVal;
+	    }
+	    break;
+
+	case NODE_DEFINED:
+	    {
+		assert(node->nd_head != NULL);
+
+		return compile_defined_expression(node->nd_head);
+	    }
+	    break;
+
+	case NODE_DEFN:
+	case NODE_DEFS:
+	    {
+		ID mid = node->nd_mid;
+		assert(mid > 0);
+
+		NODE *body = node->nd_defn;
+		assert(body != NULL);
+
+		const bool class_method = nd_type(node) == NODE_DEFS;
+
+		current_mid = mid;
+		current_instance_method = !class_method;
+
+		DEBUG_LEVEL_INC();
+		Value *val = compile_node(body);
+		assert(Function::classof(val));
+		Function *new_function = cast<Function>(val);
+		DEBUG_LEVEL_DEC();
+
+		current_mid = 0;
+		current_instance_method = false;
+
+		if (prepareMethodFunc == NULL) {
+		    // void rb_vm_prepare_method(Class klass, SEL sel, Function *f,
+		    //				 NODE *node, unsigned char class_method)
+		    prepareMethodFunc = 
+			cast<Function>(module->getOrInsertFunction("rb_vm_prepare_method",
+				       Type::VoidTy, RubyObjTy, PtrTy, PtrTy, 
+				       PtrTy, Type::Int8Ty, NULL));
+		}
+
+		std::vector<Value *> params;
+
+		params.push_back(compile_current_class());
+
+		const SEL sel = mid_to_sel(mid, rb_vm_node_arity(body));
+		params.push_back(compile_const_pointer((void *)sel));
+
+		params.push_back(compile_const_pointer(new_function));
+		rb_objc_retain((void *)body);
+		params.push_back(compile_const_pointer(body));
+
+		val = ConstantInt::get(Type::Int8Ty, class_method ? 1 : 0);
+		params.push_back(val);
+
+		CallInst::Create(prepareMethodFunc, params.begin(), params.end(), "", bb);
+
+		return nilVal;
+	    }
+	    break;
+
+	case NODE_TRUE:
+	    return trueVal;
+
+	case NODE_FALSE:
+	    return falseVal;
+
+	case NODE_NIL:
+	    return nilVal;
+
+	case NODE_SELF:
+	    return current_self;
+
+	case NODE_NTH_REF:
+	case NODE_BACK_REF:
+	    {
+		char code = (char)node->nd_nth;
+		int index;
+
+		switch (code) {
+		    case 1: case 2: case 3:
+		    case 4: case 5: case 6:
+		    case 7: case 8: case 9:
+			index = code - 1;
+			break;
+		    case '&':
+			index = 9;
+			break;
+		    case '`':
+			index = 10;
+			break;
+		    case '\'':
+			index = 11;
+			break;
+		    case '+':
+			index = 12;
+			break;
+		    default:
+			printf("incorrect %s code %d\n", ruby_node_name(nd_type(node)), code);
+			abort();
+		}
+
+		assert(index >= 0 && index < MAX_SPECIAL_CONSTS);
+
+		if (getSpecialFunc == NULL) {
+		    // VALUE rb_vm_get_special(int index);
+		    getSpecialFunc =
+			cast<Function>(module->getOrInsertFunction("rb_vm_get_special",
+				RubyObjTy, Type::Int32Ty, NULL));
+		}
+
+		std::vector<Value *> params;
+		params.push_back(ConstantInt::get(Type::Int32Ty, index));
+
+		return CallInst::Create(getSpecialFunc, params.begin(), params.end(), "", bb);
+	    }
+	    break;
+
+	case NODE_BEGIN:
+	    if (node->nd_body != NULL) {
+		return compile_node(node->nd_body);
+	    }
+	    return nilVal;
+
+	case NODE_RESCUE:
+	    {
+		assert(node->nd_head != NULL);
+		assert(node->nd_resq != NULL);
+
+		Function *f = bb->getParent();
+
+		BasicBlock *old_rescue_bb = rescue_bb;
+		BasicBlock *new_rescue_bb = BasicBlock::Create("rescue", f);
+		BasicBlock *merge_bb = BasicBlock::Create("merge", f);
+
+		// Begin code.
+		rescue_bb = new_rescue_bb;
+		Value *begin_val = compile_node(node->nd_head);
+		BasicBlock *begin_bb = bb;
+		rescue_bb = old_rescue_bb;
+		BranchInst::Create(merge_bb, bb);
+		
+		// Landing pad header.
+		bb = new_rescue_bb;
+		Function *eh_exception_f = Intrinsic::getDeclaration(module, Intrinsic::eh_exception);
+		Value *eh_ptr = CallInst::Create(eh_exception_f, "", bb);
+
+#if __LP64__
+		Function *eh_selector_f = Intrinsic::getDeclaration(module, Intrinsic::eh_selector_i64);
+#else
+		Function *eh_selector_f = Intrinsic::getDeclaration(module, Intrinsic::eh_selector_i32);
+#endif
+
+		std::vector<Value *> params;
+		params.push_back(eh_ptr);
+		Function *__gxx_personality_v0_func = NULL;
+		if (__gxx_personality_v0_func == NULL) {
+		    __gxx_personality_v0_func = cast<Function>(
+			    module->getOrInsertFunction("__gxx_personality_v0",
+				PtrTy, NULL));
+		}
+		params.push_back(new BitCastInst(__gxx_personality_v0_func, PtrTy, "", bb));
+		params.push_back(compile_const_pointer(NULL));
+
+		CallInst::Create(eh_selector_f, params.begin(), params.end(), "", bb);
+
+		Function *beginCatchFunc = NULL;
+		if (beginCatchFunc == NULL) {
+		    // void *__cxa_begin_catch(void *);
+		    beginCatchFunc = cast<Function>(
+			    module->getOrInsertFunction("__cxa_begin_catch",
+				Type::VoidTy, PtrTy, NULL));
+		}
+		params.clear();
+		params.push_back(eh_ptr);
+		CallInst::Create(beginCatchFunc, params.begin(), params.end(), "", bb);
+
+		// Landing pad code.
+		Value *rescue_val = compile_node(node->nd_resq);
+		new_rescue_bb = bb;
+
+		// Landing pad footer.
+		Function *endCatchFunc = NULL;
+		if (endCatchFunc == NULL) {
+		    // void __cxa_end_catch(void);
+		    endCatchFunc = cast<Function>(
+			    module->getOrInsertFunction("__cxa_end_catch",
+				Type::VoidTy, NULL));
+		}
+		CallInst::Create(endCatchFunc, "", bb);
+
+		BranchInst::Create(merge_bb, bb);
+
+		PHINode *pn = PHINode::Create(RubyObjTy, "rescue_result", merge_bb);
+		pn->addIncoming(begin_val, begin_bb);
+		pn->addIncoming(rescue_val, new_rescue_bb);
+		bb = merge_bb;
+
+		return pn;
+	    }
+	    break;
+
+	case NODE_RESBODY:
+	    {
+		NODE *n = node;
+
+		Function *f = bb->getParent();
+		BasicBlock *merge_bb = BasicBlock::Create("merge", f);
+		BasicBlock *handler_bb = NULL;
+
+		std::vector<std::pair<Value *, BasicBlock *> > handlers;
+
+		while (n != NULL) {
+		    std::vector<Value *> exceptions_to_catch;
+
+		    if (n->nd_args == NULL) {
+			// catch StandardError exceptions by default
+			exceptions_to_catch.push_back(ConstantInt::get(RubyObjTy, (long)rb_eStandardError));
+		    }
+		    else {
+			NODE *n2 = n->nd_args;
+			assert(nd_type(n2) == NODE_ARRAY);
+			while (n2 != NULL) {
+			    exceptions_to_catch.push_back(compile_node(n2->nd_head));
+			    n2 = n2->nd_next;
+			}
+		    }
+
+		    Function *isEHActiveFunc = NULL;
+		    if (isEHActiveFunc == NULL) {
+			// bool rb_vm_is_eh_active(int argc, ...);
+			std::vector<const Type *> types;
+			types.push_back(Type::Int32Ty);
+			FunctionType *ft = FunctionType::get(Type::Int8Ty, types, true);
+			isEHActiveFunc = cast<Function>(
+				module->getOrInsertFunction("rb_vm_is_eh_active", ft));
+		    }
+
+		    const int size = exceptions_to_catch.size();
+		    exceptions_to_catch.insert(exceptions_to_catch.begin(), 
+			    ConstantInt::get(Type::Int32Ty, size));
+
+		    Value *handler_active = CallInst::Create(isEHActiveFunc, 
+			    exceptions_to_catch.begin(), 
+			    exceptions_to_catch.end(), "", bb);
+
+		    Value *is_handler_active = new ICmpInst(ICmpInst::ICMP_EQ, handler_active, 
+			    ConstantInt::get(Type::Int8Ty, 1), "", bb);
+		    
+		    handler_bb = BasicBlock::Create("handler", f);
+		    BasicBlock *next_handler_bb = BasicBlock::Create("handler", f);
+
+		    BranchInst::Create(handler_bb, next_handler_bb, is_handler_active, bb);
+
+		    bb = handler_bb;
+		    assert(n->nd_body != NULL);
+		    Value *header_val = compile_node(n->nd_body);
+		    handler_bb = bb;
+		    BranchInst::Create(merge_bb, bb);
+
+		    handlers.push_back(std::pair<Value *, BasicBlock *>(header_val, handler_bb));
+
+		    bb = handler_bb = next_handler_bb;
+
+		    n = n->nd_head;
+		}
+
+		bb = handler_bb;
+		Function *rethrowFunc = NULL;
+		if (rethrowFunc == NULL) {
+		    // void __cxa_rethrow(void);
+		    rethrowFunc = cast<Function>(
+			    module->getOrInsertFunction("__cxa_rethrow",
+				Type::VoidTy, NULL));
+		}
+		CallInst::Create(rethrowFunc, "", bb);
+		new UnreachableInst(bb);
+
+		bb = merge_bb;
+		assert(handlers.size() > 0);
+		if (handlers.size() == 1) {
+		    return handlers.front().first;
+		}
+		else {
+		    PHINode *pn = PHINode::Create(RubyObjTy, "op_tmp", bb);
+		    std::vector<std::pair<Value *, BasicBlock *> >::iterator iter = handlers.begin();
+		    while (iter != handlers.end()) {
+			pn->addIncoming(iter->first, iter->second);
+			++iter;
+		    }
+		    return pn;
+		}
+	    }
+	    break;
+
+	case NODE_ERRINFO:
+	    {
+		if (popExceptionFunc == NULL) {
+		    // VALUE rb_vm_pop_exception(void);
+		    popExceptionFunc = cast<Function>(
+			    module->getOrInsertFunction("rb_vm_pop_exception", 
+				RubyObjTy, NULL));
+		}
+		return CallInst::Create(popExceptionFunc, "", bb);
+	    }
+	    break;
+
+	case NODE_ENSURE:
+	    {
+		assert(node->nd_head != NULL);
+		assert(node->nd_ensr != NULL);
+
+		Function *f = bb->getParent();
+		BasicBlock *ensure_bb = BasicBlock::Create("ensure", f);
+
+		compile_node(node->nd_head);
+		BranchInst::Create(ensure_bb, bb);
+
+		bb = ensure_bb;
+		return compile_node(node->nd_ensr);
+	    }
+	    break;
+
+	case NODE_WHILE:
+	    {
+		assert(node->nd_body != NULL);
+		assert(node->nd_cond != NULL);
+
+		Function *f = bb->getParent();
+
+		BasicBlock *whileBB = BasicBlock::Create("while", f);
+		BasicBlock *bodyBB = BasicBlock::Create("body", f);
+		BasicBlock *afterBB = BasicBlock::Create("after", f);
+
+		BranchInst::Create(whileBB, bb);
+
+		bb = whileBB;
+		Value *condVal = compile_node(node->nd_cond);
+
+		compile_boolean_test(condVal, bodyBB, afterBB);
+
+		BasicBlock *old_current_loop_begin_bb = current_loop_begin_bb;
+		BasicBlock *old_current_loop_end_bb = current_loop_end_bb;
+		Value *old_current_loop_exit_val = current_loop_exit_val;
+
+		current_loop_begin_bb = whileBB;
+		current_loop_end_bb = afterBB;
+		current_loop_exit_val = NULL;
+
+		bb = bodyBB;
+		compile_node(node->nd_body);	
+		bodyBB = bb;
+
+		BranchInst::Create(whileBB, bb);
+
+		bb = afterBB;
+
+		Value *retval = current_loop_exit_val;
+		if (retval == NULL) {
+		    retval = nilVal;
+		}
+
+		current_loop_begin_bb = old_current_loop_begin_bb;
+		current_loop_end_bb = old_current_loop_end_bb;
+		current_loop_exit_val = old_current_loop_exit_val;
+
+		return retval;
+	    }
+	    break;
+
+	case NODE_FOR:
+	case NODE_ITER:
+	    {
+		std::map<ID, Value *> old_dvars = dvars;
+
+		current_block = true;
+		BasicBlock *old_current_loop_begin_bb = current_loop_begin_bb;
+		BasicBlock *old_current_loop_end_bb = current_loop_end_bb;
+		current_loop_begin_bb = current_loop_end_bb = NULL;
+
+		assert(node->nd_body != NULL);
+		Value *block = compile_node(node->nd_body);	
+		assert(Function::classof(block));
+
+		current_loop_begin_bb = old_current_loop_begin_bb;
+		current_loop_end_bb = old_current_loop_end_bb;
+		current_block = false;
+
+		current_block_func = cast<Function>(block);
+		current_block_node = node->nd_body;
+		rb_objc_retain((void *)current_block_node);
+
+		Value *caller;
+		assert(node->nd_iter != NULL);
+		if (nd_type(node) == NODE_ITER) {
+		    caller = compile_node(node->nd_iter);
+		}
+		else {
+		    // dispatch #each on the receiver
+		    std::vector<Value *> params;
+
+		    void *cache = GET_VM()->method_cache_get(selEach, false);
+		    params.push_back(compile_const_pointer(cache));
+		    params.push_back(compile_node(node->nd_iter));
+		    params.push_back(compile_const_pointer((void *)selEach));
+		    params.push_back(compile_block_create());
+		    params.push_back(ConstantInt::get(Type::Int8Ty, 0));
+		    params.push_back(ConstantInt::get(Type::Int32Ty, 0));
+
+		    caller = compile_dispatch_call(params);
+		}
+
+		current_block_func = NULL;
+		current_block_node = NULL;
+		dvars = old_dvars;
+
+		return caller;
+	    }
+	    break;
+
+	case NODE_YIELD:
+	    {
+		if (yieldFunc == NULL) {
+		    // VALUE rb_vm_yield_args(int argc, ...)
+		    std::vector<const Type *> types;
+		    types.push_back(Type::Int32Ty);
+		    FunctionType *ft = FunctionType::get(RubyObjTy, types, true);
+		    yieldFunc = cast<Function>(module->getOrInsertFunction("rb_vm_yield_args", ft));
+		}
+
+		std::vector<Value *>params;
+
+		if (node->nd_head == NULL) {
+		    params.push_back(ConstantInt::get(Type::Int32Ty, 0));
+		}
+		else {
+		    NODE *args = node->nd_head;
+		    const int argc = args->nd_alen;
+    		    params.push_back(ConstantInt::get(Type::Int32Ty, argc));
+		    for (int i = 0; i < argc; i++) {
+			params.push_back(compile_node(args->nd_head));
+			args = args->nd_next;
+		    }
+		}
+
+		return CallInst::Create(yieldFunc, params.begin(), params.end(), "", bb);
+
+	    }
+	    break;
+
+	case NODE_COLON2:
+	    {
+		assert(node->nd_mid > 0);
+		if (rb_is_const_id(node->nd_mid)) {
+		    // Constant
+		    assert(node->nd_head != NULL);
+		    return compile_const(node->nd_mid, compile_node(node->nd_head));
+		}
+		else {
+		    // Method call
+		    abort(); // TODO
+		}
+	    }
+	    break;
+
+	case NODE_CASE:
+	    {
+		Function *f = bb->getParent();
+		BasicBlock *caseMergeBB = BasicBlock::Create("case_merge", f);
+
+		PHINode *pn = PHINode::Create(RubyObjTy, "case_tmp", caseMergeBB);
+
+		Value *comparedToVal = NULL;
+
+		if (node->nd_head != NULL) {
+		    comparedToVal = compile_node(node->nd_head);
+                }
+
+		NODE *subnode = node->nd_body;
+
+		assert(subnode != NULL);
+		assert(nd_type(subnode) == NODE_WHEN);
+		while ((subnode != NULL) && (nd_type(subnode) == NODE_WHEN)) {
+		    NODE *valueNode = subnode->nd_head;
+		    BasicBlock *thenBB = BasicBlock::Create("then", f);
+
+		    assert(valueNode);
+		    compile_when_arguments(valueNode, comparedToVal, thenBB);
+		    BasicBlock *nextWhenBB = bb;
+
+		    bb = thenBB;
+		    Value *thenVal = subnode->nd_body != NULL ? compile_node(subnode->nd_body) : nilVal;
+		    thenBB = bb;
+
+		    BranchInst::Create(caseMergeBB, thenBB);
+		    pn->addIncoming(thenVal, thenBB);
+
+		    bb = nextWhenBB;
+
+		    subnode = subnode->nd_next;
+		}
+
+		Value *elseVal = nilVal;
+		if (subnode != NULL) { // else
+		    elseVal = compile_node(subnode);
+		}
+		BranchInst::Create(caseMergeBB, bb);
+		pn->addIncoming(elseVal, bb);
+
+		bb = caseMergeBB;
+
+		return pn;
+	    }
+	    break;
+
+	default:
+	    compile_node_error("not implemented", node);
+    }
+
+    return NULL;
+}
+
+Function *
+RoxorCompiler::compile_read_attr(ID name)
+{
+    Function *f = cast<Function>(module->getOrInsertFunction("",
+		RubyObjTy, RubyObjTy, PtrTy, NULL));
+
+    Function::arg_iterator arg = f->arg_begin();
+    current_self = arg++;
+
+    bb = BasicBlock::Create("EntryBlock", f);
+
+    Value *val = compile_ivar_read(name);
+
+    ReturnInst::Create(val, bb);
+
+    return f;
+}
+
+Function *
+RoxorCompiler::compile_write_attr(ID name)
+{
+    Function *f = cast<Function>(module->getOrInsertFunction("",
+		RubyObjTy, RubyObjTy, PtrTy, RubyObjTy, NULL));
+
+    Function::arg_iterator arg = f->arg_begin();
+    current_self = arg++;
+    arg++; // sel
+    Value *new_val = arg++; // 1st argument
+
+    bb = BasicBlock::Create("EntryBlock", f);
+
+    Value *val = compile_ivar_assignment(name, new_val);
+
+    ReturnInst::Create(val, bb);
+
+    return f;
+}
+
+// VM primitives
+
+#define MAX_ARITY 20
+
+extern "C"
+bool
+rb_vm_running(void)
+{
+    return GET_VM()->is_running();
+}
+
+extern "C"
+void
+rb_vm_set_running(bool flag)
+{
+    GET_VM()->set_running(flag); 
+}
+
+extern "C"
+void 
+rb_vm_set_const(VALUE outer, ID id, VALUE obj)
+{
+    if (outer == 0) {
+	outer = (VALUE)GET_VM()->current_opened_class;
+    }
+    rb_const_set(outer, id, obj);
+    GET_VM()->const_defined(id);
+}
+
+extern "C"
+VALUE
+rb_vm_get_const(VALUE outer, struct ccache *cache, ID path)
+{
+    // TODO if called within module_eval, we should update outer 
+    assert(cache != NULL);
+    if (cache->outer == outer && cache->val != Qundef) {
+	return cache->val;
+    }
+    cache->outer = outer;
+    return cache->val = rb_const_get(outer, path);
+}
+
+extern "C"
+void
+rb_vm_const_defined(ID path)
+{
+    GET_VM()->const_defined(path);
+}
+
+extern "C"
+VALUE
+rb_vm_define_class(ID path, VALUE outer, VALUE super, unsigned char is_module)
+{
+    assert(path > 0);
+
+    if (outer == 0) {
+	outer = (VALUE)GET_VM()->current_opened_class;
+    }
+
+    VALUE klass;
+    if (rb_const_defined_at(outer, path)) {
+	klass = rb_const_get_at(outer, path);
+	if (!is_module && super != 0) {
+	    assert(RCLASS_SUPER(klass) == super);
+	}
+    }
+    else {
+	if (is_module) {
+	    assert(super == 0);
+	    klass = rb_define_module_id(path);
+	    rb_set_class_path(klass, outer, rb_id2name(path));
+	    rb_const_set(outer, path, klass);
+	}
+	else {
+	    if (super == 0) {
+		super = rb_cObject;
+	    }
+	    klass = rb_define_class_id(path, super);
+	    rb_set_class_path(klass, outer, rb_id2name(path));
+	    rb_const_set(outer, path, klass);
+	    rb_class_inherited(super, klass);
+	}
+    }
+
+#if ROXOR_DEBUG
+    if (is_module) {
+	printf("define module %s::%s\n", 
+		class_getName((Class)outer), 
+		rb_id2name(path));
+    }
+    else {
+	printf("define class %s::%s < %s\n", 
+		class_getName((Class)outer), 
+		rb_id2name(path), 
+		class_getName((Class)super));
+    }
+#endif
+
+    return klass;
+}
+
+extern "C"
+VALUE
+rb_vm_ivar_get(VALUE obj, ID name, int *slot_cache)
+{
+    if (slot_cache == NULL || *slot_cache == -1) {
+	return rb_ivar_get(obj, name);
+    }
+    else {
+	VALUE val = rb_vm_get_ivar_from_slot(obj, *slot_cache);
+	return val == Qundef ? Qnil : val;
+    }
+}
+
+extern "C"
+void
+rb_vm_ivar_set(VALUE obj, ID name, VALUE val, int *slot_cache)
+{
+    if (slot_cache == NULL || *slot_cache == -1) {
+	rb_ivar_set(obj, name, val);
+    }
+    else {
+	rb_vm_set_ivar_from_slot(obj, val, *slot_cache);
+    }
+}
+
+extern "C" void rb_print_undef(VALUE, ID, int);
+
+extern "C"
+void rb_vm_alias(VALUE outer, ID name, ID def)
+{
+    // TODO reassign klass if called within module_eval
+
+    rb_frozen_class_p(outer);
+    if (outer == rb_cObject) {
+        rb_secure(4);
+    }
+    Class klass = (Class)outer;
+
+    // Find the implementation of the original method first.
+    const char *def_str = rb_id2name(def);
+    SEL def_sel = sel_registerName(def_str);
+    Method def_method = class_getInstanceMethod(klass, def_sel);
+    bool def_qualified = false;
+    if (def_method == NULL  && def_str[strlen(def_str) - 1] != ':') {
+	char tmp[100];
+	snprintf(tmp, sizeof tmp, "%s:", def_str);
+	def_sel = sel_registerName(tmp);
+ 	def_method = class_getInstanceMethod(klass, def_sel);
+	def_qualified = true;
+    }
+    if (def_method == NULL) {
+	rb_print_undef((VALUE)klass, def, 0);
+    }
+    IMP def_imp = method_getImplementation(def_method);
+    const char *def_types = method_getTypeEncoding(def_method);
+
+    // Get the NODE*.
+    NODE *node = GET_VM()->method_node_get(def_imp);
+    if (node == NULL) {
+	rb_raise(rb_eArgError, "cannot alias non-Ruby method `%s'", sel_getName(def_sel));
+    }
+
+    // Do the method aliasing.
+    const char *new_str = rb_id2name(name);
+    SEL new_sel;
+    if (def_qualified && new_str[strlen(new_str) - 1] != ':') {
+	char tmp[100];
+	snprintf(tmp, sizeof tmp, "%s:", new_str);
+	new_sel = sel_registerName(tmp);
+    }
+    else {
+	new_sel = sel_registerName(new_str);
+    }
+    GET_VM()->add_method(klass, new_sel, def_imp, node, def_types);
+}
+
+extern "C"
+VALUE
+rb_vm_defined(VALUE self, int mode, VALUE what)
+{
+    const char *str = NULL;
+
+    switch (mode) {
+	case DEFINED_IVAR:
+	    if (rb_ivar_defined(self, (ID)what)) {
+		str = "instance-variable";
+	    }
+	    break;
+
+//	case DEFINED_CVAR:
+//		TODO
+
+	case DEFINED_GVAR:
+	    if (rb_gvar_defined((struct global_entry *)what)) {
+		str = "global-variable";
+	    }
+	    break;
+
+	case DEFINED_CONST:
+	    if (rb_const_defined(CLASS_OF(self), (ID)what)) {
+		str = "constant";
+	    }
+	    break;
+
+	default:
+	    printf("unrecognized defined? mode %d\n", mode);
+	    abort();
+    }
+
+    return str == NULL ? Qnil : rb_str_new2(str);
+}
+
+extern "C"
+void
+rb_vm_prepare_class_ivar_slot(VALUE klass, ID name, int *slot_cache)
+{
+    assert(slot_cache != NULL);
+    assert(*slot_cache == -1);
+
+    RoxorVM *vm = GET_VM();
+    if (vm->class_can_have_ivar_slots(klass)) {
+	*slot_cache = vm->find_ivar_slot(klass, name, true);
+    }
+}
+
+extern "C"
+int
+rb_vm_find_class_ivar_slot(VALUE klass, ID name)
+{
+    RoxorVM *vm = GET_VM();
+    if (vm->class_can_have_ivar_slots(klass)) {
+	return vm->find_ivar_slot(klass, name, false);
+    }
+    return -1;
+}
+
+extern "C"
+void
+rb_vm_prepare_method(Class klass, SEL sel, Function *func, NODE *node, unsigned char class_method)
+{
+    if (klass == NULL) {
+	klass = GET_VM()->current_opened_class;
+    }
+
+    if (class_method) {
+	klass = *(Class *)klass;
+    }
+
+    IMP imp = GET_VM()->compile(func);
+
+    rb_vm_define_method(klass, sel, imp, node);
+}
+
+extern "C"
+bool
+rb_vm_lookup_method2(Class klass, ID mid, SEL *psel, IMP *pimp, NODE **pnode)
+{
+    const char *idstr = rb_id2name(mid);
+    SEL sel = sel_registerName(idstr);
+
+    if (!rb_vm_lookup_method(klass, sel, pimp, pnode)) {
+	char buf[100];
+	snprintf(buf, sizeof buf, "%s:", idstr);
+	sel = sel_registerName(buf);
+	if (!rb_vm_lookup_method(klass, sel, pimp, pnode)) {
+	    return false;
+	}
+    }
+
+    if (psel != NULL) {
+	*psel = sel;
+    }
+    return true;
+}
+
+extern "C"
+bool
+rb_vm_lookup_method(Class klass, SEL sel, IMP *pimp, NODE **pnode)
+{
+    Method m = class_getInstanceMethod(klass, sel);
+    if (m == NULL) {
+	return false;
+    }
+    IMP imp = method_getImplementation(m);
+    if (pimp != NULL) {
+	*pimp = imp;
+    }
+    if (pnode != NULL) {
+	*pnode = GET_VM()->method_node_get(imp);
+    }
+    return true;
+}
+
+extern "C"
+void
+rb_vm_define_attr(Class klass, const char *name, bool read, bool write, int noex)
+{
+    assert(klass != NULL);
+    assert(read || write);
+
+    RoxorCompiler *compiler = new RoxorCompiler("");
+
+    char buf[100];
+    snprintf(buf, sizeof buf, "@%s", name);
+    ID iname = rb_intern(buf);
+
+    if (read) {
+	Function *f = compiler->compile_read_attr(iname);
+	IMP imp = GET_VM()->compile(f);
+
+	NODE *node = NEW_CFUNC(imp, 0);
+	NODE *body = NEW_FBODY(NEW_METHOD(node, klass, noex), 0);
+	rb_objc_retain(body);
+
+	rb_vm_define_method(klass, sel_registerName(name), imp, body);
+    }
+
+    if (write) {
+	Function *f = compiler->compile_write_attr(iname);
+	IMP imp = GET_VM()->compile(f);
+
+	NODE *node = NEW_CFUNC(imp, 1);
+	NODE *body = NEW_FBODY(NEW_METHOD(node, klass, noex), 0);
+	rb_objc_retain(body);
+
+	snprintf(buf, sizeof buf, "%s=:", name);
+	rb_vm_define_method(klass, sel_registerName(buf), imp, body);
+    }
+
+    delete compiler;
+}
+
+extern "C"
+void 
+rb_vm_define_method(Class klass, SEL sel, IMP imp, NODE *node)
+{
+    assert(node != NULL);
+
+    const int arity = rb_vm_node_arity(node);
+    assert(arity < MAX_ARITY);
+
+    assert(klass != NULL);
+
+    const char *sel_name = sel_getName(sel);
+    const bool genuine_selector = sel_name[strlen(sel_name) - 1] == ':';
+
+    int oc_arity = genuine_selector ? (arity < 0 ? -arity : arity) : 0;
+    bool redefined = false;
+
+define_method:
+
+    char *types;
+    Method method = class_getInstanceMethod(klass, sel);
+    if (method != NULL) {
+	types = (char *)method_getTypeEncoding(method);
+    }
+    else {
+	// TODO look at informal protocols list
+	types = (char *)alloca(oc_arity + 4);
+	types[0] = '@';
+	types[1] = '@';
+	types[2] = ':';
+	for (int i = 0; i < oc_arity; i++) {
+	    types[3 + i] = '@';
+	}
+	types[3 + oc_arity] = '\0';
+    }
+
+    GET_VM()->add_method(klass, sel, imp, node, types);
+
+    if (!redefined && !genuine_selector && arity < 0) {
+	char buf[100];
+	snprintf(buf, sizeof buf, "%s:", sel_name);
+	sel = sel_registerName(buf);
+	oc_arity = 1;
+	redefined = true;
+
+	goto define_method;
+    }
+}
+
+extern "C"
+VALUE
+rb_ary_get_fast(VALUE ary, int offset)
+{
+    return OC2RB(CFArrayGetValueAtIndex((CFArrayRef)ary, offset));
+}
+
+static inline VALUE
+__rb_vm_rcall(VALUE self, NODE *node, IMP pimp, int arity, int argc, const VALUE *argv)
+{
+    if (arity < 0 && -arity != argc) {
+	VALUE *new_argv = (VALUE *)alloca(sizeof(VALUE) * -arity);
+	assert(node->nd_args != NULL);
+	assert(node->nd_args->nd_frml < -arity);
+	if (node->nd_args->nd_frml > argc) {
+	    // TODO this should be an exception
+	    printf("bad arity\n");
+	    abort();
+	}
+	for (int i = 0; i < -arity; i++) {
+	    if (i < argc) {
+		new_argv[i] = argv[i];
+	    }
+	    else {
+		new_argv[i] = Qnil;
+	    }
+	}
+	return __rb_vm_rcall(self, node, pimp, -arity, -arity, new_argv);
+    }
+
+    assert(pimp != NULL);
+
+    VALUE (*imp)(VALUE, SEL, ...) = (VALUE (*)(VALUE, SEL, ...))pimp;
+
+    switch (argc) {
+	case 0:
+	    return (*imp)(self, 0);
+	case 1:
+	    return (*imp)(self, 0, argv[0]);
+	case 2:
+	    return (*imp)(self, 0, argv[0], argv[1]);		
+	case 3:
+	    return (*imp)(self, 0, argv[0], argv[1], argv[2]);
+	case 4:
+	    return (*imp)(self, 0, argv[0], argv[1], argv[2], argv[3]);
+	case 5:
+	    return (*imp)(self, 0, argv[0], argv[1], argv[2], argv[3], argv[4]);
+	case 6:
+	    return (*imp)(self, 0, argv[0], argv[1], argv[2], argv[3], argv[4], argv[5]);
+	case 7:
+	    return (*imp)(self, 0, argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6]);
+	case 8:
+	    return (*imp)(self, 0, argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6], argv[7]);
+	case 9:
+	    return (*imp)(self, 0, argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6], argv[7], argv[8]);
+    }	
+    printf("invalid arity %d\n", arity);
+    abort();
+    return Qnil;
+}
+
+static inline Method
+rb_vm_super_lookup(VALUE klass, SEL sel, VALUE *klassp)
+{
+    VALUE k, ary;
+    int i, count;
+    bool klass_located;
+
+    ary = rb_mod_ancestors_nocopy(klass);
+
+    void *callstack[128];
+    int callstack_n = backtrace(callstack, 128);
+
+#if ROXOR_DEBUG
+    printf("locating super method %s of class %s in ancestor chain %s\n", 
+	    sel_getName(sel), rb_class2name(klass), RSTRING_PTR(rb_inspect(ary)));
+    printf("callstack: ");
+    for (i = callstack_n - 1; i >= 0; i--) {
+	printf("%p ", callstack[i]);
+    }
+    printf("\n");
+#endif
+
+    count = RARRAY_LEN(ary);
+    k = klass;
+    klass_located = false;
+
+    for (i = 0; i < count; i++) {
+        if (!klass_located && RARRAY_AT(ary, i) == klass) {
+            klass_located = true;
+        }
+        if (klass_located) {
+            if (i < count - 1) {
+		VALUE tmp;
+		Method method;
+
+                k = RARRAY_AT(ary, i + 1);
+
+		tmp = RCLASS_SUPER(k);
+		RCLASS_SUPER(k) = 0;
+		method = class_getInstanceMethod((Class)k, sel);
+		RCLASS_SUPER(k) = tmp;
+
+		if (method != NULL) {
+		    IMP imp = method_getImplementation(method);
+
+		    bool on_stack = false;
+		    for (int j = callstack_n - 1; j >= 0; j--) {
+			void *start = NULL;
+			if (GET_VM()->symbolize_call_address(callstack[j], &start, NULL, NULL, 0)) {
+			    if (start == (void *)imp) {
+				on_stack = true;
+				break;
+			    }
+			}
+		    }
+
+		    if (!on_stack) {
+#if ROXOR_DEBUG
+			printf("returning method implementation from class/module %s\n", rb_class2name(k));
+#endif
+			return method;
+		    }
+		}
+            }
+        }
+    }
+
+    printf("could not identify the superclass of %s from the ancestors chain %s\n",
+                class_getName((Class)klass), RSTRING_PTR(rb_inspect(ary)));
+    abort();
+}
+
+extern "C"
+VALUE
+rb_vm_method_missing(VALUE obj, int argc, const VALUE *argv)
+{
+    if (argc == 0 || !SYMBOL_P(argv[0])) {
+        rb_raise(rb_eArgError, "no id given");
+    }
+
+    const int last_call_status = GET_VM()->method_missing_reason;
+
+    VALUE exc = rb_eNoMethodError;
+    const char *format = NULL;
+
+    if (last_call_status & NOEX_PRIVATE) {
+        format = "private method `%s' called for %s";
+    }
+    else if (last_call_status & NOEX_PROTECTED) {
+        format = "protected method `%s' called for %s";
+    }
+    else if (last_call_status & NOEX_VCALL) {
+        format = "undefined local variable or method `%s' for %s";
+        exc = rb_eNameError;
+    }
+    else if (last_call_status & NOEX_SUPER) {
+        format = "super: no superclass method `%s' for %s";
+    }
+    else {
+        format = "undefined method `%s' for %s";
+    }
+
+    int n = 0;
+    VALUE args[3];
+    args[n++] = rb_funcall(rb_const_get(exc, rb_intern("message")), '!',
+	    3, rb_str_new2(format), obj, argv[0]);
+    args[n++] = argv[0];
+    if (exc == rb_eNoMethodError) {
+	args[n++] = rb_ary_new4(argc - 1, argv + 1);
+    }
+
+    exc = rb_class_new_instance(n, args, exc);
+    rb_exc_raise(exc);
+
+    abort(); // never reached
+}
+
+static inline VALUE
+method_missing(VALUE obj, SEL sel, int argc, const VALUE *argv, int call_status)
+{
+    GET_VM()->method_missing_reason = call_status;
+
+    if (sel == selMethodMissing) {
+	rb_vm_method_missing(obj, argc, argv);
+    }
+    else if (sel == selAlloc) {
+        rb_raise(rb_eTypeError, "allocator undefined for %s",
+                 rb_class2name(obj));
+    }
+
+    VALUE *new_argv = (VALUE *)alloca(sizeof(VALUE) * (argc + 1));
+
+    char buf[100];
+    int n = snprintf(buf, sizeof buf, "%s", sel_getName(sel));
+    if (argc == 0 && buf[n - 1] == ':') {
+	buf[n - 1] = '\0';
+    }
+    new_argv[0] = ID2SYM(rb_intern(buf));
+    MEMCPY(new_argv + 1, argv, VALUE, argc);
+
+    return rb_vm_call(obj, selMethodMissing, argc + 1, new_argv, false);
+}
+
+static inline VALUE
+__rb_vm_dispatch(struct mcache *cache, VALUE self, SEL sel, bool super, 
+		 int argc, const VALUE *argv)
+{
+    assert(cache != NULL);
+
+    Class klass = (Class)CLASS_OF(self);
+
+#if ROXOR_DEBUG
+    const bool cached = cache->flag != 0;
+#endif
+
+    if (cache->flag == 0) {
+recache:
+	Method method;
+	if (super) {
+	    method = rb_vm_super_lookup((VALUE)klass, sel, NULL);
+	}
+	else {
+	    method = class_getInstanceMethod(klass, sel);
+	}
+
+	if (method != NULL) {
+	    IMP imp = method_getImplementation(method);
+	    NODE *node = GET_VM()->method_node_get(imp);
+
+	    if (node != NULL) {
+		// ruby call
+		cache->flag = MCACHE_RCALL;
+		cache->as.rcall.klass = klass;
+		cache->as.rcall.imp = imp;
+		cache->as.rcall.node = node;
+	    }
+	    else {
+		// objc call
+		cache->flag = MCACHE_OCALL;
+		cache->as.ocall.klass = klass;
+		cache->as.ocall.imp = imp;
+		cache->as.ocall.helper = (struct ocall_helper *)malloc(sizeof(struct ocall_helper));
+		cache->as.ocall.helper->bs_method = rb_bs_find_method(klass, sel);
+		assert(rb_objc_fill_sig(self, klass, sel, 
+			    &cache->as.ocall.helper->sig, 
+			    cache->as.ocall.helper->bs_method));
+	    }
+	}
+	else {
+	    // TODO bridgesupport C call?
+	    return method_missing((VALUE)self, sel, argc, argv, super);
+	}
+    }
+
+    if (cache->flag == MCACHE_RCALL) {
+	if (cache->as.rcall.klass != klass) {
+	    goto recache;
+	}
+
+	// TODO we should cache the arity
+	const int arity = rb_vm_node_arity(cache->as.rcall.node);
+	if (arity >= 0 && argc != arity) {
+	    // TODO this should be an exception
+	    printf("bad arity given %d expected %d\n", argc, arity);
+	    abort();
+	}
+
+#if ROXOR_DEBUG
+	printf("ruby dispatch %c[<%s %p> %s] (imp=%p, cached=%s)\n",
+		class_isMetaClass(klass) ? '+' : '-',
+		class_getName(klass),
+		(void *)self,
+		sel_getName(sel),
+		cache->as.rcall.imp,
+		cached ? "true" : "false");
+#endif
+
+	assert(cache->as.rcall.node != NULL);
+	const int node_type = nd_type(cache->as.rcall.node);
+
+	if (node_type == NODE_SCOPE && cache->as.rcall.node->nd_body == NULL) {
+	    // Calling an empty method, let's just return nil!
+	    return Qnil;
+	}
+	if (node_type == NODE_FBODY && arity < 0) {
+	    // Calling a function defined with rb_objc_define_method with
+	    // a negative arity, which means a different calling convention.
+	    if (arity == -1) {
+		return ((VALUE (*)(VALUE, SEL, int, const VALUE *))cache->as.rcall.imp)(self, 0, argc, argv);
+	    }
+	    if (arity == -2) {
+		return ((VALUE (*)(VALUE, SEL, ...))cache->as.rcall.imp)(self, 0, rb_ary_new4(argc, argv));
+	    }
+	    printf("invalid negative arity for C function %d\n", arity);
+	    abort();
+	}
+
+	return __rb_vm_rcall(self, cache->as.rcall.node, cache->as.rcall.imp, arity, argc, argv);
+    }
+    else if (cache->flag == MCACHE_OCALL) {
+	if (cache->as.ocall.klass != klass) {
+	    free(cache->as.ocall.helper);
+	    goto recache;
+	}
+
+#if ROXOR_DEBUG
+	printf("objc dispatch %c[<%s %p> %s] (cached=%s)\n",
+		class_isMetaClass(klass) ? '+' : '-',
+		class_getName(klass),
+		(void *)self,
+		sel_getName(sel),
+		cached ? "true" : "false");
+#endif
+
+	return rb_objc_call2((VALUE)self, 
+		(VALUE)klass, 
+		sel, 
+		cache->as.ocall.imp, 
+		&cache->as.ocall.helper->sig, 
+		cache->as.ocall.helper->bs_method, 
+		argc, 
+		(VALUE *)argv);
+    }
+
+printf("BOUH %s\n", (char *)sel);
+    abort();
+    return NULL;
+}
+
+extern "C"
+VALUE
+rb_vm_dispatch(struct mcache *cache, VALUE self, SEL sel, void *block, 
+	       unsigned char super, int argc, ...)
+{
+#define MAX_DISPATCH_ARGS 100
+    VALUE argv[MAX_DISPATCH_ARGS];
+    if (argc > 0) {
+	va_list ar;
+	va_start(ar, argc);
+	int i, real_argc = 0;
+	bool splat_arg_follows = false;
+	for (i = 0; i < argc; i++) {
+	    VALUE arg = va_arg(ar, VALUE);
+	    if (arg == SPLAT_ARG_FOLLOWS) {
+		splat_arg_follows = true;
+		i--;
+	    }
+	    else {
+		if (splat_arg_follows) {
+		    VALUE ary = rb_check_convert_type(arg, T_ARRAY, "Array", "to_a");
+		    if (NIL_P(ary)) {
+			ary = rb_ary_new3(1, arg);
+		    }
+		    int j, count = RARRAY_LEN(ary);
+		    assert(real_argc + count < MAX_DISPATCH_ARGS);
+		    for (j = 0; j < count; j++) {
+			argv[real_argc++] = RARRAY_AT(ary, j);
+		    }
+		    splat_arg_follows = false;
+		}
+		else {
+		    assert(real_argc < MAX_DISPATCH_ARGS);
+		    argv[real_argc++] = arg;
+		}
+	    }
+	}
+	va_end(ar);
+	argc = real_argc;
+    }
+
+    if (block != NULL) {
+	GET_VM()->push_block((rb_vm_block_t *)block);
+	VALUE retval = __rb_vm_dispatch(cache, self, sel, super, argc, argv);
+	GET_VM()->pop_block();
+	return retval;
+    }
+
+    return __rb_vm_dispatch(cache, self, sel, super, argc, argv);
+}
+
+extern "C"
+VALUE
+rb_vm_fast_eqq(struct mcache *cache, VALUE left, VALUE right)
+{
+    // TODO: manual dispatch for Fixnum, Regexp, Range if === not redefined
+    return rb_vm_dispatch(cache, left, selEqq, NULL, 0, 1, right);
+}
+
+extern "C"
+VALUE
+rb_vm_when_splat(struct mcache *cache, VALUE comparedTo, VALUE splat)
+{
+    VALUE ary = rb_check_convert_type(splat, T_ARRAY, "Array", "to_a");
+    if (NIL_P(ary)) {
+	ary = rb_ary_new3(1, splat);
+    }
+    int count = RARRAY_LEN(ary);
+    for (int i = 0; i < count; ++i) {
+	if (RTEST(rb_vm_fast_eqq(cache, comparedTo, RARRAY_AT(ary, i)))) {
+	    return Qtrue;
+	}
+    }
+    return Qfalse;
+}
+
+extern "C"
+VALUE
+rb_vm_fast_shift(VALUE obj, VALUE other, struct mcache *cache, unsigned char overriden)
+{
+    if (overriden == 0 && TYPE(obj) == T_ARRAY) {
+	rb_ary_push(obj, other);
+	return other;
+    }
+    return __rb_vm_dispatch(cache, obj, selLTLT, false, 1, &other);
+}
+
+extern "C"
+VALUE
+rb_vm_fast_aref(VALUE obj, VALUE other, struct mcache *cache, unsigned char overriden)
+{
+    // TODO what about T_HASH?
+    if (overriden == 0 && TYPE(obj) == T_ARRAY) {
+	if (TYPE(other) == T_FIXNUM) {
+	    return rb_ary_elt(obj, FIX2INT(other));
+	}
+	extern VALUE rb_ary_aref(VALUE ary, SEL sel, int argc, VALUE *argv);
+	return rb_ary_aref(obj, 0, 1, &other);
+    }
+    return __rb_vm_dispatch(cache, obj, selAREF, false, 1, &other);
+}
+
+extern "C"
+VALUE
+rb_vm_fast_aset(VALUE obj, VALUE other1, VALUE other2, struct mcache *cache, unsigned char overriden)
+{
+    // TODO what about T_HASH?
+    if (overriden == 0 && TYPE(obj) == T_ARRAY) {
+	if (TYPE(other1) == T_FIXNUM) {
+	    rb_ary_store(obj, FIX2INT(other1), other2);
+	    return other2;
+	}
+    }
+    VALUE args[2];
+    args[0] = other1;
+    args[1] = other2;
+    return __rb_vm_dispatch(cache, obj, selASET, false, 2, args);
+}
+
+extern "C"
+void *
+rb_vm_get_block(VALUE obj)
+{
+    VALUE proc = rb_check_convert_type(obj, T_DATA, "Proc", "to_proc");
+    if (NIL_P(proc)) {
+	rb_raise(rb_eTypeError,
+		"wrong argument type %s (expected Proc)",
+		rb_obj_classname(obj));
+    }
+    return rb_proc_get_block(proc);
+}
+
+extern "C"
+void *
+rb_vm_block_create(IMP imp, NODE *node, VALUE self, int dvars_size, ...)
+{
+    std::map<NODE *, rb_vm_block_t *>::iterator iter = 
+	GET_VM()->blocks.find(node);
+    if (iter == GET_VM()->blocks.end()) {
+	VALUE **dvars = NULL;
+	if (dvars_size > 0) {
+	    va_list ar;
+	    va_start(ar, dvars_size);
+	    dvars = (VALUE **)malloc(sizeof(VALUE *) * dvars_size);
+	    for (int i = 0; i < dvars_size; ++i) {
+		dvars[i] = va_arg(ar, VALUE *);
+	    }
+	    va_end(ar);
+	}
+	rb_vm_block_t *b = (rb_vm_block_t *)malloc(sizeof(rb_vm_block_t));
+	b->imp = imp;
+	b->node = node;
+	b->self = self;
+	b->dvars_size = dvars_size;
+	b->dvars = dvars;
+	b->is_lambda = true;
+	GET_VM()->blocks[node] = b;
+	return b;
+    }
+    return iter->second;
+}
+
+extern "C"
+VALUE
+rb_vm_call(VALUE self, SEL sel, int argc, const VALUE *argv, bool super)
+{
+    if (super) {
+	struct mcache cache; 
+	cache.flag = 0;
+	VALUE retval = __rb_vm_dispatch(&cache, self, sel, true, argc, argv);
+	if (cache.flag == MCACHE_OCALL) {
+	    free(cache.as.ocall.helper);
+	}
+	return retval;
+    }
+    else {
+	struct mcache *cache = GET_VM()->method_cache_get(sel, false);
+	return __rb_vm_dispatch(cache, self, sel, false, argc, argv);
+    }
+}
+
+extern "C"
+VALUE
+rb_vm_call_with_cache(void *cache, VALUE self, SEL sel, int argc, 
+		      const VALUE *argv)
+{
+    return __rb_vm_dispatch((struct mcache *)cache, self, sel, false, argc, 
+	    argv);
+}
+
+extern "C"
+void *
+rb_vm_get_call_cache(SEL sel)
+{
+    return GET_VM()->method_cache_get(sel, false);
+}
+
+extern "C"
+int
+rb_block_given_p(void)
+{
+    return GET_VM()->block_given() ? Qtrue : Qfalse;
+}
+
+extern "C"
+rb_vm_block_t *
+rb_vm_current_block(void)
+{
+    return GET_VM()->top_block();
+}
+
+extern "C" VALUE rb_proc_alloc_with_block(VALUE klass, rb_vm_block_t *proc);
+
+extern "C"
+VALUE
+rb_vm_current_block_object(void)
+{
+    if (GET_VM()->block_given()) {
+	return rb_proc_alloc_with_block(rb_cProc, GET_VM()->top_block());
+    }
+    return Qnil;
+}
+
+extern "C"
+VALUE
+rb_vm_block_eval(rb_vm_block_t *b, int argc, const VALUE *argv)
+{
+    if (nd_type(b->node) == NODE_SCOPE && b->node->nd_body == NULL) {
+	// Trying to call an empty block!
+	return Qnil;
+    }
+    int arity = rb_vm_node_arity(b->node);
+    if (arity != argc || b->dvars_size > 0) {
+	VALUE *new_argv = (VALUE *)alloca(sizeof(VALUE) * (arity + b->dvars_size));
+	for (int i = 0; i < b->dvars_size; i++) {
+	    new_argv[i] = (VALUE)b->dvars[i];
+	}
+	if (argc == 1 && TYPE(argv[0]) == T_ARRAY && arity > 1) {
+	    // Expand the array
+	    long ary_len = RARRAY_LEN(argv[0]);
+	    for (int i = 0; i < arity; i++) {
+		new_argv[b->dvars_size + i] = i < ary_len ? RARRAY_AT(argv[0], i) : Qnil;
+	    }
+	}
+	else {
+	    for (int i = 0; i < arity; i++) {
+		new_argv[b->dvars_size + i] = i < argc ? argv[i] : Qnil;
+	    }
+	}
+	argc = b->dvars_size + arity;
+	argv = new_argv;
+	arity = argc;
+    }
+#if ROXOR_DEBUG
+    printf("yield block %p argc %d arity %d dvars %d\n", b, argc, arity, b->dvars_size);
+#endif
+    return __rb_vm_rcall(b->self, b->node, b->imp, arity, argc, argv);
+}
+
+extern "C"
+VALUE
+rb_vm_yield(int argc, const VALUE *argv)
+{
+    rb_vm_block_t *b = GET_VM()->top_block();
+
+    GET_VM()->pop_block();
+    VALUE retval = rb_vm_block_eval(b, argc, argv);
+    GET_VM()->push_block(b);
+
+    return retval;
+}
+
+extern "C"
+VALUE 
+rb_vm_yield_args(int argc, ...)
+{
+    VALUE *argv = NULL;
+    if (argc > 0) {
+	va_list ar;
+	va_start(ar, argc);
+	argv = (VALUE *)alloca(sizeof(VALUE) * argc);
+	for (int i = 0; i < argc; ++i) {
+	    argv[i] = va_arg(ar, VALUE);
+	}
+	va_end(ar);
+    }
+    return rb_vm_yield(argc, argv);
+}
+
+extern "C"
+struct rb_float_cache *
+rb_vm_float_cache(double d)
+{
+    std::map<double, struct rb_float_cache *>::iterator iter = 
+	GET_VM()->float_cache.find(d);
+    if (iter == GET_VM()->float_cache.end()) {
+	struct rb_float_cache *fc = (struct rb_float_cache *)malloc(
+		sizeof(struct rb_float_cache));
+	assert(fc != NULL);
+
+	fc->count = 0;
+	fc->obj = Qnil;
+	GET_VM()->float_cache[d] = fc;
+
+	return fc;
+    }
+
+    return iter->second;
+}
+
+extern IMP basic_respond_to_imp; // vm_method.c
+
+extern "C"
+bool
+rb_vm_respond_to(VALUE obj, SEL sel, bool priv)
+{
+    VALUE klass = CLASS_OF(obj);
+
+    IMP respond_to_imp = class_getMethodImplementation((Class)klass, selRespondTo);
+
+    if (respond_to_imp == basic_respond_to_imp) {
+	IMP obj_imp = class_getMethodImplementation((Class)klass, sel);
+	if (obj_imp == NULL) {
+	    return false;
+	}
+        NODE *node = GET_VM()->method_node_get(obj_imp);
+	return node != NULL && (!priv || !(node->nd_noex & NOEX_PRIVATE));
+    }
+    else {
+        VALUE args[2];
+        int n = 0;
+        args[n++] = ID2SYM(rb_intern(sel_getName(sel)));
+        if (priv) {
+            args[n++] = Qtrue;
+	}
+        return rb_vm_call(obj, selRespondTo, n, args, false) == Qtrue;
+    }
+}
+
+extern "C"
+VALUE
+rb_vm_get_special(int index)
+{
+    return GET_VM()->get_special(index);
+}
+
+extern "C"
+VALUE
+rb_iseq_compile(VALUE src, VALUE file, VALUE line)
+{
+    // TODO
+    return NULL;
+}
+
+extern "C"
+VALUE
+rb_iseq_eval(VALUE iseq)
+{
+    // TODO
+    return Qnil;
+}
+
+extern "C"
+VALUE
+rb_iseq_new(NODE *node, VALUE filename)
+{
+    // TODO
+    return Qnil;
+}
+
+extern "C"
+void
+rb_vm_raise(VALUE exception)
+{
+    GET_VM()->current_exception = exception;
+    void *exc = __cxa_allocate_exception(0);
+    __cxa_throw(exc, NULL, NULL);
+}
+
+extern "C"
+void
+rb_vm_break(VALUE val)
+{
+    GET_VM()->broken_with = val;
+}
+
+extern "C"
+VALUE
+rb_vm_pop_broken_value(void)
+{
+    VALUE val = GET_VM()->broken_with;
+    GET_VM()->broken_with = 0;
+    return val;
+}
+
+extern "C"
+VALUE
+rb_vm_backtrace(int level)
+{
+    void *callstack[128];
+    int callstack_n = backtrace(callstack, 128);
+
+    // TODO should honor level
+
+    VALUE ary = rb_ary_new();
+
+    for (int i = 0; i < callstack_n; i++) {
+	char name[100];
+	unsigned long ln = 0;
+
+	if (GET_VM()->symbolize_call_address(callstack[i], NULL, &ln, name, sizeof name)) {
+	    char entry[100];
+	    snprintf(entry, sizeof entry, "%ld:in `%s'", ln, name);
+	    rb_ary_push(ary, rb_str_new2(entry));
+	}
+    }
+
+    return ary;
+}
+
+extern "C"
+void
+rb_vm_rethrow(void)
+{
+    void *exc = __cxa_allocate_exception(0);
+    __cxa_throw(exc, NULL, NULL);
+}
+
+extern "C"
+unsigned char
+rb_vm_is_eh_active(int argc, ...)
+{
+    assert(argc > 0);
+    assert(GET_VM()->current_exception != Qnil);
+
+    va_list ar;
+    unsigned char active = 0;
+
+    va_start(ar, argc);
+    for (int i = 0; i < argc; ++i) {
+	VALUE klass = va_arg(ar, VALUE);
+	if (rb_obj_is_kind_of(GET_VM()->current_exception, klass)) {
+	    active = 1;
+	    break;
+	}
+    }
+    va_end(ar);
+
+    return active;
+}
+
+extern "C"
+VALUE
+rb_vm_pop_exception(void)
+{
+    VALUE exc = GET_VM()->current_exception;
+    assert(exc != Qnil);
+    GET_VM()->current_exception = Qnil;
+    return exc; 
+}
+
+extern "C"
+void 
+rb_vm_debug(void)
+{
+    printf("rb_vm_debug\n");
+}
+
+// END OF VM primitives
+
+#include <llvm/Target/TargetData.h>
+#include <llvm/Target/TargetMachine.h>
+#include <llvm/Target/TargetOptions.h>
+
+static void
+rb_vm_print_exception(VALUE exc)
+{
+    static SEL sel_message = 0;
+    if (sel_message == 0) {
+	sel_message = sel_registerName("message");
+    }
+
+    VALUE message = rb_vm_call(exc, sel_message, 0, NULL, false);
+
+    printf("%s (%s)\n", RSTRING_PTR(message), rb_class2name(*(VALUE *)exc));
+}
+
+extern "C"
+IMP
+rb_vm_compile_imp(const char *fname, NODE *node)
+{
+    assert(node != NULL);
+
+    RoxorCompiler *compiler = new RoxorCompiler(fname);
+
+    Function *function = compiler->compile_main_function(node);
+
+#if ROXOR_DEBUG
+    if (verifyModule(*RoxorCompiler::module)) {
+	printf("Error during module verification\n");
+	exit(1);
+    }
+#endif
+
+#if ROXOR_DEBUG
+    uint64_t start = mach_absolute_time();
+#endif
+
+    IMP imp = GET_VM()->compile(function);
+
+#if ROXOR_DEBUG
+    uint64_t elapsed = mach_absolute_time() - start;
+
+    static mach_timebase_info_data_t sTimebaseInfo;
+
+    if (sTimebaseInfo.denom == 0) {
+	(void) mach_timebase_info(&sTimebaseInfo);
+    }
+
+    uint64_t elapsedNano = elapsed * sTimebaseInfo.numer / sTimebaseInfo.denom;
+
+    printf("compilation/optimization done, took %lld ns\n",  elapsedNano);
+    printf("IR dump ----------------------------------------------\n");
+    RoxorCompiler::module->dump();
+    printf("------------------------------------------------------\n");
+#endif
+
+    delete compiler;
+
+    return imp;
+}
+
+extern "C"
+VALUE
+rb_vm_run_node(const char *fname, NODE *node)
+{
+    IMP imp = rb_vm_compile_imp(fname, node);
+
+    try {
+	return ((VALUE(*)(VALUE, SEL))imp)(GET_VM()->current_top_object, 0);
+    }
+    catch (...) {
+	VALUE exc = GET_VM()->current_exception;
+	if (exc != Qnil) {
+	    rb_vm_print_exception(exc);
+	}
+	else {
+	    printf("uncatched C++/Objective-C exception...\n");
+	}
+	exit(1);
+    }
+}
+
+extern "C"
+VALUE
+rb_vm_top_self(void)
+{
+    return GET_VM()->current_top_object;
+}
+
+extern "C"
+VALUE
+rb_vm_loaded_features(void)
+{
+    return GET_VM()->loaded_features;
+}
+
+extern "C"
+VALUE
+rb_vm_load_path(void)
+{
+    return GET_VM()->load_path;
+}
+
+extern "C"
+int
+rb_vm_safe_level(void)
+{
+    return GET_VM()->safe_level;
+}
+
+extern "C"
+void 
+rb_vm_set_safe_level(int level)
+{
+    GET_VM()->safe_level = level;
+}
+
+extern "C"
+const char *
+rb_sourcefile(void)
+{
+    // TODO
+    return "unknown";
+}
+
+extern "C"
+int
+rb_sourceline(void)
+{
+    // TODO
+    return 0;
+}
+
+extern "C"
+VALUE
+rb_lastline_get(void)
+{
+    // TODO
+    return Qnil;
+}
+
+extern "C"
+void
+rb_lastline_set(VALUE val)
+{
+    // TODO
+}
+
+extern "C"
+void
+rb_iter_break(void)
+{
+    // TODO
+    abort();
+}
+
+extern "C"
+VALUE
+rb_backref_get(void)
+{
+    return GET_VM()->backref;
+}
+
+extern "C"
+void
+rb_backref_set(VALUE val)
+{
+    VALUE old = GET_VM()->backref;
+    if (old != val) {
+	rb_objc_release((void *)old);
+	GET_VM()->backref = val;
+	rb_objc_retain((void *)val);
+    }
+}
+
+extern "C"
+void 
+Init_PreVM(void)
+{
+    llvm::ExceptionHandling = true; // required!
+
+    RoxorCompiler::module = new llvm::Module("Roxor");
+    RoxorVM::current = new RoxorVM();
+}
+
+extern "C"
+void
+Init_VM(void)
+{
+    rb_cTopLevel = rb_define_class("TopLevel", rb_cObject);
+
+    GET_VM()->current_opened_class = (Class)rb_cObject;
+
+    VALUE top_self = rb_obj_alloc(rb_cTopLevel);
+    rb_objc_retain((void *)top_self);
+    GET_VM()->current_top_object = top_self;
+}
