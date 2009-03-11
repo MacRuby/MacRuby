@@ -1,5 +1,5 @@
 /* 
- * MacRuby implementation of Ruby 1.9's array.c.
+ * MacRuby implementation of Ruby 1.9's proc.c.
  *
  * This file is covered by the Ruby license. See COPYING for more details.
  * 
