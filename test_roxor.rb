@@ -572,6 +572,9 @@ test "dispatch" do
   assert "42", "def foo(x,y,z); x+y+z; end; a=[20]; b=[10]; c=[12]; p foo(*a, *b, *c)"
   assert "42", "def foo(x); x; end; a=42; p foo(*a)"
 
+  assert ":ok", "def foo(*args); :ok; end; foo"
+  assert ":ok", "def foo(&block); :ok; end; foo"
+  assert ":ok", "def foo(*args, &block); :ok; end; foo"
 end
 
 test "blocks" do
