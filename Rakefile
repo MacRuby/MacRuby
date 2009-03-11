@@ -687,6 +687,16 @@ namespace :rubycocoa do
   end
 end
 
+namespace :spec do
+  desc "Run continuous integration examples for Ruby 1.9 including stdlib"
+  task :ci do
+    sh "./mspec/bin/mspec ci -t ./miniruby -B spec/frozen/macruby.mspec"
+  end
+end
+
+# desc "Run all 'known good' specs (task alias for spec:ci)"
+# task :spec => 'spec:ci'
+
 desc "Same as framework:install"
 task :install => 'framework:install'
 
