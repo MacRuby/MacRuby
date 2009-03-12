@@ -815,6 +815,7 @@ io_read(VALUE io, SEL sel, int argc, VALUE *argv)
     CFDataIncreaseLength(data, FIX2LONG(len)); // sentinel byte?
     CFReadStreamRead(io_struct->readStream, CFDataGetMutableBytePtr(data),
 	    FIX2LONG(len));
+    // TODO check the return value of CFReadStreamRead() for errors/eof
     return outbuf;
 }
 
@@ -1116,7 +1117,20 @@ rb_io_readchar(VALUE io, SEL sel)
 VALUE
 rb_io_getbyte(VALUE io, SEL sel)
 {
-    rb_notimplement();
+    rb_io_t *io_struct = ExtractIOStruct(io);
+    
+    UInt8 byte;
+    int code = CFReadStreamRead(io_struct->readStream, &byte, 1);
+    if (code != 1) {
+	if (code == 0) {
+	    // EOF
+	    return Qnil;
+	}
+	// TODO raise an exception
+	abort();
+    }
+
+    return INT2FIX(byte);
 }
 
 /*
@@ -1130,7 +1144,12 @@ rb_io_getbyte(VALUE io, SEL sel)
 static VALUE
 rb_io_readbyte(VALUE io, SEL sel)
 {
-    rb_notimplement();
+    VALUE c = rb_io_getbyte(io, 0);
+
+    if (NIL_P(c)) {
+	rb_eof_error();
+    }
+    return c;
 }
 
 /*
