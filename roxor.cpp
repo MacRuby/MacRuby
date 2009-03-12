@@ -4282,12 +4282,14 @@ method_missing(VALUE obj, SEL sel, int argc, const VALUE *argv, int call_status)
 }
 
 static inline VALUE
-__rb_vm_dispatch(struct mcache *cache, VALUE self, SEL sel, bool super, 
-		 int argc, const VALUE *argv)
+__rb_vm_dispatch(struct mcache *cache, VALUE self, Class klass, SEL sel, 
+		 bool super, int argc, const VALUE *argv)
 {
     assert(cache != NULL);
 
-    Class klass = (Class)CLASS_OF(self);
+    if (klass == NULL) {
+	klass = (Class)CLASS_OF(self);
+    }
 
 #if ROXOR_DEBUG
     const bool cached = cache->flag != 0;
@@ -4450,12 +4452,12 @@ rb_vm_dispatch(struct mcache *cache, VALUE self, SEL sel, void *block,
 
     if (block != NULL) {
 	GET_VM()->push_block((rb_vm_block_t *)block);
-	VALUE retval = __rb_vm_dispatch(cache, self, sel, super, argc, argv);
+	VALUE retval = __rb_vm_dispatch(cache, self, NULL, sel, super, argc, argv);
 	GET_VM()->pop_block();
 	return retval;
     }
 
-    return __rb_vm_dispatch(cache, self, sel, super, argc, argv);
+    return __rb_vm_dispatch(cache, self, NULL, sel, super, argc, argv);
 }
 
 extern "C"
@@ -4491,7 +4493,7 @@ rb_vm_fast_shift(VALUE obj, VALUE other, struct mcache *cache, unsigned char ove
 	rb_ary_push(obj, other);
 	return other;
     }
-    return __rb_vm_dispatch(cache, obj, selLTLT, false, 1, &other);
+    return __rb_vm_dispatch(cache, obj, NULL, selLTLT, false, 1, &other);
 }
 
 extern "C"
@@ -4506,7 +4508,7 @@ rb_vm_fast_aref(VALUE obj, VALUE other, struct mcache *cache, unsigned char over
 	extern VALUE rb_ary_aref(VALUE ary, SEL sel, int argc, VALUE *argv);
 	return rb_ary_aref(obj, 0, 1, &other);
     }
-    return __rb_vm_dispatch(cache, obj, selAREF, false, 1, &other);
+    return __rb_vm_dispatch(cache, obj, NULL, selAREF, false, 1, &other);
 }
 
 extern "C"
@@ -4523,7 +4525,7 @@ rb_vm_fast_aset(VALUE obj, VALUE other1, VALUE other2, struct mcache *cache, uns
     VALUE args[2];
     args[0] = other1;
     args[1] = other2;
-    return __rb_vm_dispatch(cache, obj, selASET, false, 2, args);
+    return __rb_vm_dispatch(cache, obj, NULL, selASET, false, 2, args);
 }
 
 extern "C"
@@ -4576,7 +4578,7 @@ rb_vm_call(VALUE self, SEL sel, int argc, const VALUE *argv, bool super)
     if (super) {
 	struct mcache cache; 
 	cache.flag = 0;
-	VALUE retval = __rb_vm_dispatch(&cache, self, sel, true, argc, argv);
+	VALUE retval = __rb_vm_dispatch(&cache, self, NULL, sel, true, argc, argv);
 	if (cache.flag == MCACHE_OCALL) {
 	    free(cache.as.ocall.helper);
 	}
@@ -4584,7 +4586,7 @@ rb_vm_call(VALUE self, SEL sel, int argc, const VALUE *argv, bool super)
     }
     else {
 	struct mcache *cache = GET_VM()->method_cache_get(sel, false);
-	return __rb_vm_dispatch(cache, self, sel, false, argc, argv);
+	return __rb_vm_dispatch(cache, self, NULL, sel, false, argc, argv);
     }
 }
 
@@ -4593,8 +4595,17 @@ VALUE
 rb_vm_call_with_cache(void *cache, VALUE self, SEL sel, int argc, 
 		      const VALUE *argv)
 {
-    return __rb_vm_dispatch((struct mcache *)cache, self, sel, false, argc, 
-	    argv);
+    return __rb_vm_dispatch((struct mcache *)cache, self, NULL, sel, false,
+	    argc, argv);
+}
+
+extern "C"
+VALUE
+rb_vm_call_with_cache2(void *cache, VALUE self, VALUE klass, SEL sel, int argc, 
+		       const VALUE *argv)
+{
+    return __rb_vm_dispatch((struct mcache *)cache, self, (Class)klass, sel,
+	    false, argc, argv);
 }
 
 extern "C"
@@ -4646,13 +4657,12 @@ rb_vm_get_method(VALUE klass, VALUE obj, ID mid, int scope)
 	rb_print_undef(klass, mid, 0);
     }
 
-    Class k, oklass;
-    k = oklass = (Class)klass;
-    while ((k = class_getSuperclass(k)) != NULL) {
+    Class k, oklass = (Class)klass;
+    while ((k = class_getSuperclass(oklass)) != NULL) {
 	if (!rb_vm_lookup_method(k, sel, NULL, NULL)) {
-	    oklass = k;
 	    break;
 	}
+	oklass = k;
     }
 
     int arity;

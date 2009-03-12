@@ -23,6 +23,7 @@ void rb_vm_define_attr(Class klass, const char *name, bool read, bool write, int
 void rb_vm_alias(VALUE klass, ID name, ID def);
 VALUE rb_vm_call(VALUE self, SEL sel, int argc, const VALUE *args, bool super);
 VALUE rb_vm_call_with_cache(void *cache, VALUE self, SEL sel, int argc, const VALUE *argv);
+VALUE rb_vm_call_with_cache2(void *cache, VALUE self, VALUE klass, SEL sel, int argc, const VALUE *argv);
 void *rb_vm_get_call_cache(SEL sel);
 VALUE rb_vm_yield(int argc, const VALUE *argv);
 bool rb_vm_respond_to(VALUE obj, SEL sel, bool priv);

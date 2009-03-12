@@ -960,3 +960,33 @@ test "require" do
   }
 
 end
+
+test "method" do
+
+  assert ":ok", %{
+    def foo; :ok; end
+    p method(:foo).call
+  }
+
+  assert "42", %{
+    def foo(x); x; end
+    p method(:foo).call(42)
+  }
+
+  assert ":ok", %{
+    begin
+      method(:does_not_exist)
+    rescue NameError
+      p :ok
+    end
+  }
+
+  assert ":b\n:a", %{
+    class A; def foo() :a end end
+    class B < A; def foo() :b end end
+    m = A.instance_method(:foo)
+    b = B.new
+    p b.foo, m.bind(b).call
+  }
+
+end

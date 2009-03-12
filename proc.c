@@ -1119,8 +1119,8 @@ rb_method_call(VALUE method, SEL sel, int argc, VALUE *argv)
 	}
     }
 
-    VALUE result = rb_vm_call_with_cache(data->cache, data->recv, data->sel,
-	    argc, argv);
+    VALUE result = rb_vm_call_with_cache2(data->cache, data->recv, 
+	    data->oclass, data->sel, argc, argv);
 
     if (safe >= 0) {
 	rb_set_safe_level_force(safe);
