@@ -5637,12 +5637,12 @@ Init_String(void)
     rb_objc_define_method(rb_cSymbol, "<=>", sym_cmp, 1);
     rb_objc_define_method(rb_cSymbol, "inspect", sym_inspect, 0);
     rb_objc_define_method(rb_cSymbol, "description", sym_inspect, 0);
-    rb_define_method(rb_cSymbol, "dup", rb_obj_dup, 0);
-    rb_define_method(rb_cSymbol, "to_proc", sym_to_proc, 0);
-    rb_define_method(rb_cSymbol, "to_s", rb_sym_to_s, 0);
-    rb_define_method(rb_cSymbol, "id2name", rb_sym_to_s, 0);
-    rb_define_method(rb_cSymbol, "intern", sym_to_sym, 0);
-    rb_define_method(rb_cSymbol, "to_sym", sym_to_sym, 0);
+    rb_objc_define_method(rb_cSymbol, "dup", rb_obj_dup, 0);
+    rb_objc_define_method(rb_cSymbol, "to_proc", sym_to_proc, 0);
+    rb_objc_define_method(rb_cSymbol, "to_s", rb_sym_to_s_imp, 0);
+    rb_objc_define_method(rb_cSymbol, "id2name", rb_sym_to_s_imp, 0);
+    rb_objc_define_method(rb_cSymbol, "intern", sym_to_sym, 0);
+    rb_objc_define_method(rb_cSymbol, "to_sym", sym_to_sym, 0);
     
         
     rb_cByteString = (VALUE)objc_allocateClassPair((Class)objc_getClass("NSMutableString"), "ByteString", 0);
