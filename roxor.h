@@ -66,6 +66,18 @@ rb_vm_set_ivar_from_slot(VALUE obj, VALUE val, int slot)
 }
 
 typedef struct {
+    VALUE oclass;
+    VALUE rclass;
+    VALUE recv;
+    SEL sel;
+    int arity;
+    NODE *node;			// can be NULL (if pure Objective-C)
+    void *cache;
+} rb_vm_method_t;
+
+rb_vm_method_t *rb_vm_get_method(VALUE klass, VALUE obj, ID mid, int scope);
+
+typedef struct {
     VALUE self;
     NODE *node;
     IMP imp;

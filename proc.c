@@ -17,14 +17,6 @@
 
 #define GetProcPtr(obj, ptr) GetCoreDataFromValue(obj, rb_vm_block_t, ptr)
 
-struct METHOD {
-    VALUE oclass;		/* class that holds the method */
-    VALUE rclass;		/* class of the receiver */
-    VALUE recv;
-    ID id, oid;
-    NODE *body;
-};
-
 typedef struct {
     // TODO
 } rb_binding_t;
@@ -33,10 +25,6 @@ VALUE rb_cUnboundMethod;
 VALUE rb_cMethod;
 VALUE rb_cBinding;
 VALUE rb_cProc;
-
-//static VALUE bmcall(VALUE, VALUE);
-static int method_arity(VALUE);
-static VALUE rb_obj_is_method(VALUE m);
 
 /* Proc */
 
@@ -362,6 +350,7 @@ proc_new(VALUE klass, int is_lambda)
 	rb_raise(rb_eArgError,
 		"tried to create Proc object without a block");
     }
+    // FIXME current_block is not from autozone
     return rb_proc_alloc_with_block(klass, current_block);
 }
 
@@ -531,6 +520,14 @@ rb_proc_call(VALUE self, VALUE args)
  *     Proc.new {|a,*b|}.arity    #=> -2
  *     Proc.new {|a,*b, c|}.arity    #=> -3
  */
+
+static inline int
+method_arity(VALUE method)
+{
+    rb_vm_method_t *data;
+    Data_Get_Struct(method, rb_vm_method_t, data);
+    return data->arity;
+}
 
 static VALUE
 proc_arity(VALUE self, SEL sel)
@@ -711,70 +708,17 @@ proc_to_proc(VALUE self, SEL sel)
     return self;
 }
 
-NODE *
-rb_method_body(VALUE method)
-{
-    struct METHOD *data;
-
-    if (TYPE(method) == T_DATA /*&&
-	RDATA(method)->dmark == (RUBY_DATA_FUNC) bm_mark*/) {
-	Data_Get_Struct(method, struct METHOD, data);
-	return data->body;
-    }
-    else {
-	return 0;
-    }
-}
-
 NODE *rb_get_method_body(VALUE klass, ID id, ID *idp);
 void rb_print_undef(VALUE klass, ID id, int scope);
 
-static VALUE
+static inline VALUE
 mnew(VALUE klass, VALUE obj, ID id, VALUE mclass, int scope)
 {
-    VALUE method;
-    NODE *body;
-    struct METHOD *data;
-    VALUE rclass = klass;
-    ID oid = id;
+    rb_vm_method_t *m = rb_vm_get_method(klass, obj, id, scope);
+    assert(m != NULL);
 
-  again:
-    if ((body = rb_get_method_body(klass, id, 0)) == 0) {
-	rb_print_undef(rclass, oid, 0);
-    }
-    if (scope && (body->nd_noex & NOEX_MASK) != NOEX_PUBLIC) {
-	rb_print_undef(rclass, oid, (body->nd_noex & NOEX_MASK));
-    }
-
-    klass = body->nd_clss;
-    body = body->nd_body;
-
-    if (nd_type(body) == NODE_ZSUPER) {
-	klass = RCLASS_SUPER(klass);
-	goto again;
-    }
-
-    while (rclass != klass &&
-	   (RCLASS_SINGLETON(rclass) || TYPE(rclass) == T_ICLASS)) {
-	rclass = RCLASS_SUPER(rclass);
-    }
-    if (TYPE(klass) == T_ICLASS)
-	klass = RBASIC(klass)->klass;
-    method = Data_Make_Struct(mclass, struct METHOD, NULL, -1, data);
-    data->oclass = klass;
-    GC_WB(&data->recv, obj);
-
-    data->id = id;
-    data->body = body;
-    data->rclass = rclass;
-    data->oid = oid;
-#if !WITH_OBJC
-    OBJ_INFECT(method, klass);
-#endif
-
-    return method;
+    return Data_Wrap_Struct(mclass, NULL, NULL, m);
 }
-
 
 /**********************************************************************
  *
@@ -810,22 +754,20 @@ mnew(VALUE klass, VALUE obj, ID id, VALUE mclass, int scope)
 
 
 static VALUE
-method_eq(VALUE method, VALUE other)
+method_eq(VALUE method, SEL sel, VALUE other)
 {
-    struct METHOD *m1, *m2;
+    rb_vm_method_t *m1, *m2;
 
-    if (TYPE(other) != T_DATA /*
-	|| RDATA(other)->dmark != (RUBY_DATA_FUNC) bm_mark*/)
-	return Qfalse;
     if (CLASS_OF(method) != CLASS_OF(other))
 	return Qfalse;
 
-    Data_Get_Struct(method, struct METHOD, m1);
-    Data_Get_Struct(other, struct METHOD, m2);
+    Data_Get_Struct(method, rb_vm_method_t, m1);
+    Data_Get_Struct(other, rb_vm_method_t, m2);
 
     if (m1->oclass != m2->oclass || m1->rclass != m2->rclass ||
-	m1->recv != m2->recv || m1->body != m2->body)
+	m1->recv != m2->recv || m1->node != m2->node) {
 	return Qfalse;
+    }
 
     return Qtrue;
 }
@@ -838,16 +780,16 @@ method_eq(VALUE method, VALUE other)
  */
 
 static VALUE
-method_hash(VALUE method)
+method_hash(VALUE method, SEL sel)
 {
-    struct METHOD *m;
+    rb_vm_method_t *m;
     long hash;
 
-    Data_Get_Struct(method, struct METHOD, m);
+    Data_Get_Struct(method, rb_vm_method_t, m);
     hash = (long)m->oclass;
     hash ^= (long)m->rclass;
     hash ^= (long)m->recv;
-    hash ^= (long)m->body;
+    hash ^= (long)m->node;
 
     return INT2FIX(hash);
 }
@@ -862,23 +804,21 @@ method_hash(VALUE method)
  */
 
 static VALUE
-method_unbind(VALUE obj)
+method_unbind(VALUE obj, SEL sel)
 {
     VALUE method;
-    struct METHOD *orig, *data;
+    rb_vm_method_t *orig, *data;
 
-    Data_Get_Struct(obj, struct METHOD, orig);
+    Data_Get_Struct(obj, rb_vm_method_t, orig);
     method =
-	Data_Make_Struct(rb_cUnboundMethod, struct METHOD, NULL, NULL, data);
+	Data_Make_Struct(rb_cUnboundMethod, rb_vm_method_t, NULL, NULL, data);
     data->oclass = orig->oclass;
     data->recv = Qundef;
-    data->id = orig->id;
-    data->body = orig->body;
+    data->node = orig->node;
     data->rclass = orig->rclass;
-    data->oid = orig->oid;
-#if !WITH_OBJC
-    OBJ_INFECT(method, obj);
-#endif
+    data->sel = orig->sel;
+    data->cache = orig->cache;
+    data->arity = orig->arity;
 
     return method;
 }
@@ -891,11 +831,10 @@ method_unbind(VALUE obj)
  */
 
 static VALUE
-method_receiver(VALUE obj)
+method_receiver(VALUE obj, SEL sel)
 {
-    struct METHOD *data;
-
-    Data_Get_Struct(obj, struct METHOD, data);
+    rb_vm_method_t *data;
+    Data_Get_Struct(obj, rb_vm_method_t, data);
     return data->recv;
 }
 
@@ -907,12 +846,12 @@ method_receiver(VALUE obj)
  */
 
 static VALUE
-method_name(VALUE obj)
+method_name(VALUE obj, SEL sel)
 {
-    struct METHOD *data;
-
-    Data_Get_Struct(obj, struct METHOD, data);
-    return ID2SYM(data->id);
+    rb_vm_method_t *data;
+    Data_Get_Struct(obj, rb_vm_method_t, data);
+    ID mid = rb_intern(sel_getName(data->sel));
+    return ID2SYM(mid);
 }
 
 /*
@@ -923,11 +862,10 @@ method_name(VALUE obj)
  */
 
 static VALUE
-method_owner(VALUE obj)
+method_owner(VALUE obj, SEL sel)
 {
-    struct METHOD *data;
-
-    Data_Get_Struct(obj, struct METHOD, data);
+    rb_vm_method_t *data;
+    Data_Get_Struct(obj, rb_vm_method_t, data);
     return data->oclass;
 }
 
@@ -959,14 +897,14 @@ method_owner(VALUE obj)
  *     m.call   #=> "Hello, @iv = Fred"
  */
 
-VALUE
-rb_obj_method(VALUE obj, VALUE vid)
+static VALUE
+rb_obj_method(VALUE obj, SEL sel, VALUE vid)
 {
     return mnew(CLASS_OF(obj), obj, rb_to_id(vid), rb_cMethod, Qfalse);
 }
 
-VALUE
-rb_obj_public_method(VALUE obj, VALUE vid)
+static VALUE
+rb_obj_public_method(VALUE obj, SEL sel, VALUE vid)
 {
     return mnew(CLASS_OF(obj), obj, rb_to_id(vid), rb_cMethod, Qtrue);
 }
@@ -1004,13 +942,13 @@ rb_obj_public_method(VALUE obj, VALUE vid)
  */
 
 static VALUE
-rb_mod_instance_method(VALUE mod, VALUE vid)
+rb_mod_instance_method(VALUE mod, SEL sel, VALUE vid)
 {
     return mnew(mod, Qundef, rb_to_id(vid), rb_cUnboundMethod, Qfalse);
 }
 
 static VALUE
-rb_mod_public_instance_method(VALUE mod, VALUE vid)
+rb_mod_public_instance_method(VALUE mod, SEL sel, VALUE vid)
 {
     return mnew(mod, Qundef, rb_to_id(vid), rb_cUnboundMethod, Qtrue);
 }
@@ -1053,8 +991,9 @@ rb_mod_public_instance_method(VALUE mod, VALUE vid)
  */
 
 static VALUE
-rb_mod_define_method(int argc, VALUE *argv, VALUE mod)
+rb_mod_define_method(VALUE mod, SEL sel, int argc, VALUE *argv)
 {
+#if 0 // TODO
     ID id;
     VALUE body;
     NODE *node;
@@ -1116,25 +1055,16 @@ rb_mod_define_method(int argc, VALUE *argv, VALUE mod)
 
     rb_add_method(mod, id, node, noex);
     return body;
-}
-
-#if WITH_OBJC
-static VALUE
-rb_mod_objc_ib_action(VALUE recv, VALUE sym)
-{
-    rb_warn("ib_action has been deprecated, please define methods with only one argument instead. If you want IB support, the argument must be named 'sender' to appear in IB.");
-    if (rb_block_given_p())
-	return rb_mod_define_method(1, &sym, recv);	
-    return recv;
-}
 #endif
+    return Qnil;
+}
 
 static VALUE
-rb_obj_define_method(int argc, VALUE *argv, VALUE obj)
+rb_obj_define_method(VALUE obj, SEL sel, int argc, VALUE *argv)
 {
     VALUE klass = rb_singleton_class(obj);
 
-    return rb_mod_define_method(argc, argv, klass);
+    return rb_mod_define_method(klass, 0, argc, argv);
 }
 
 
@@ -1143,16 +1073,17 @@ rb_obj_define_method(int argc, VALUE *argv, VALUE obj)
  */
 
 static VALUE
-method_clone(VALUE self)
+method_clone(VALUE self, SEL sel)
 {
     VALUE clone;
-    struct METHOD *orig, *data;
+    rb_vm_method_t *orig, *data;
 
-    Data_Get_Struct(self, struct METHOD, orig);
+    Data_Get_Struct(self, rb_vm_method_t, orig);
     clone =
-	Data_Make_Struct(CLASS_OF(self), struct METHOD, NULL, NULL, data);
+	Data_Make_Struct(CLASS_OF(self), rb_vm_method_t, NULL, NULL, data);
     CLONESETUP(clone, self);
     *data = *orig;
+    GC_WB(&data->recv, orig->recv);
 
     return clone;
 }
@@ -1171,36 +1102,31 @@ method_clone(VALUE self)
  */
 
 VALUE
-rb_method_call(int argc, VALUE *argv, VALUE method)
+rb_method_call(VALUE method, SEL sel, int argc, VALUE *argv)
 {
-#if 0 // TODO
-    VALUE result = Qnil;	/* OK */
-    struct METHOD *data;
-    int state;
-    volatile int safe = -1;
+    rb_vm_method_t *data;
 
-    Data_Get_Struct(method, struct METHOD, data);
+    Data_Get_Struct(method, rb_vm_method_t, data);
     if (data->recv == Qundef) {
 	rb_raise(rb_eTypeError, "can't call unbound method; bind first");
     }
+    
+    int safe = 1;
     if (OBJ_TAINTED(method)) {
 	safe = rb_safe_level();
 	if (rb_safe_level() < 4) {
 	    rb_set_safe_level_force(4);
 	}
     }
-    VALUE rb_vm_call(rb_thread_t * th, VALUE klass, VALUE recv, VALUE id, ID oid,
-	    int argc, const VALUE *argv, const NODE *body, int nosuper);
 
-    PASS_PASSED_BLOCK();
-    result = rb_vm_call(GET_THREAD(), data->oclass, data->recv, data->id, data->oid,
-	    argc, argv, data->body, 0);
+    VALUE result = rb_vm_call_with_cache(data->cache, data->recv, data->sel,
+	    argc, argv);
+
     if (safe >= 0) {
 	rb_set_safe_level_force(safe);
     }
+
     return result;
-#endif
-    return Qnil;
 }
 
 /**********************************************************************
@@ -1295,11 +1221,11 @@ rb_method_call(int argc, VALUE *argv, VALUE method)
  */
 
 static VALUE
-umethod_bind(VALUE method, VALUE recv)
+umethod_bind(VALUE method, SEL sel, VALUE recv)
 {
-    struct METHOD *data, *bound;
+    rb_vm_method_t *data, *bound;
 
-    Data_Get_Struct(method, struct METHOD, data);
+    Data_Get_Struct(method, rb_vm_method_t, data);
     if (data->rclass != CLASS_OF(recv)) {
 	if (RCLASS_SINGLETON(data->rclass)) {
 	    rb_raise(rb_eTypeError,
@@ -1311,7 +1237,7 @@ umethod_bind(VALUE method, VALUE recv)
 	}
     }
 
-    method = Data_Make_Struct(rb_cMethod, struct METHOD, NULL, NULL, bound);
+    method = Data_Make_Struct(rb_cMethod, rb_vm_method_t, NULL, NULL, bound);
     *bound = *data;
     GC_WB(&bound->recv, recv);
     bound->rclass = CLASS_OF(recv);
@@ -1376,19 +1302,10 @@ rb_node_arity(NODE* body)
  */
 
 static VALUE
-method_arity_m(VALUE method)
+method_arity_m(VALUE method, SEL sel)
 {
     int n = method_arity(method);
     return INT2FIX(n);
-}
-
-static int
-method_arity(VALUE method)
-{
-    struct METHOD *data;
-
-    Data_Get_Struct(method, struct METHOD, data);
-    return rb_node_arity(data->body);
 }
 
 int
@@ -1415,14 +1332,14 @@ rb_obj_method_arity(VALUE obj, ID id)
  */
 
 static VALUE
-method_inspect(VALUE method)
+method_inspect(VALUE method, SEL sel)
 {
-    struct METHOD *data;
+    rb_vm_method_t *data;
     VALUE str;
     const char *s;
     const char *sharp = "#";
 
-    Data_Get_Struct(method, struct METHOD, data);
+    Data_Get_Struct(method, rb_vm_method_t, data);
     str = rb_str_buf_new2("#<");
     s = rb_obj_classname(method);
     rb_str_buf_cat2(str, s);
@@ -1455,7 +1372,7 @@ method_inspect(VALUE method)
 	}
     }
     rb_str_buf_cat2(str, sharp);
-    rb_str_append(str, rb_id2str(data->oid));
+    rb_str_buf_cat2(str, sel_getName(data->sel));
     rb_str_buf_cat2(str, ">");
 
     return str;
@@ -1514,7 +1431,7 @@ rb_proc_new(
  */
 
 static VALUE
-method_proc(VALUE method)
+method_proc(VALUE method, SEL sel)
 {
 #if 0 // TODO
     VALUE procval;
@@ -1536,15 +1453,6 @@ method_proc(VALUE method)
     return Qnil;
 }
 
-static VALUE
-rb_obj_is_method(VALUE m)
-{
-    if (TYPE(m) == T_DATA /*&& RDATA(m)->dmark == (RUBY_DATA_FUNC) bm_mark*/) {
-	return Qtrue;
-    }
-    return Qfalse;
-}
-
 /*
  * call_seq:
  *   local_jump_error.exit_value  => obj
@@ -1552,7 +1460,7 @@ rb_obj_is_method(VALUE m)
  * Returns the exit value associated with this +LocalJumpError+.
  */
 static VALUE
-localjump_xvalue(VALUE exc)
+localjump_xvalue(VALUE exc, SEL sel)
 {
     return rb_iv_get(exc, "@exit_value");
 }
@@ -1566,7 +1474,7 @@ localjump_xvalue(VALUE exc)
  */
 
 static VALUE
-localjump_reason(VALUE exc)
+localjump_reason(VALUE exc, SEL sel)
 {
     return rb_iv_get(exc, "@reason");
 }
@@ -1755,13 +1663,12 @@ Init_Proc(void)
 
     /* Exceptions */
     rb_eLocalJumpError = rb_define_class("LocalJumpError", rb_eStandardError);
-    rb_define_method(rb_eLocalJumpError, "exit_value", localjump_xvalue, 0);
-    rb_define_method(rb_eLocalJumpError, "reason", localjump_reason, 0);
+    rb_objc_define_method(rb_eLocalJumpError, "exit_value", localjump_xvalue, 0);
+    rb_objc_define_method(rb_eLocalJumpError, "reason", localjump_reason, 0);
 
     rb_eSysStackError = rb_define_class("SystemStackError", rb_eException);
     sysstack_error = rb_exc_new2(rb_eSysStackError, "stack level too deep");
     OBJ_TAINT(sysstack_error);
-    rb_register_mark_object(sysstack_error);
     rb_objc_retain((void *)sysstack_error);
 
     /* utility functions */
@@ -1772,49 +1679,46 @@ Init_Proc(void)
     rb_cMethod = rb_define_class("Method", rb_cObject);
     rb_undef_alloc_func(rb_cMethod);
     rb_undef_method(CLASS_OF(rb_cMethod), "new");
-    rb_define_method(rb_cMethod, "==", method_eq, 1);
-    rb_define_method(rb_cMethod, "eql?", method_eq, 1);
-    rb_define_method(rb_cMethod, "hash", method_hash, 0);
-    rb_define_method(rb_cMethod, "clone", method_clone, 0);
-    rb_define_method(rb_cMethod, "call", rb_method_call, -1);
-    rb_define_method(rb_cMethod, "[]", rb_method_call, -1);
-    rb_define_method(rb_cMethod, "arity", method_arity_m, 0);
-    rb_define_method(rb_cMethod, "inspect", method_inspect, 0);
-    rb_define_method(rb_cMethod, "to_s", method_inspect, 0);
-    rb_define_method(rb_cMethod, "to_proc", method_proc, 0);
-    rb_define_method(rb_cMethod, "receiver", method_receiver, 0);
-    rb_define_method(rb_cMethod, "name", method_name, 0);
-    rb_define_method(rb_cMethod, "owner", method_owner, 0);
-    rb_define_method(rb_cMethod, "unbind", method_unbind, 0);
-    rb_define_method(rb_mKernel, "method", rb_obj_method, 1);
-    rb_define_method(rb_mKernel, "public_method", rb_obj_public_method, 1);
+    rb_objc_define_method(rb_cMethod, "==", method_eq, 1);
+    rb_objc_define_method(rb_cMethod, "eql?", method_eq, 1);
+    rb_objc_define_method(rb_cMethod, "hash", method_hash, 0);
+    rb_objc_define_method(rb_cMethod, "clone", method_clone, 0);
+    rb_objc_define_method(rb_cMethod, "call", rb_method_call, -1);
+    rb_objc_define_method(rb_cMethod, "[]", rb_method_call, -1);
+    rb_objc_define_method(rb_cMethod, "arity", method_arity_m, 0);
+    rb_objc_define_method(rb_cMethod, "inspect", method_inspect, 0);
+    rb_objc_define_method(rb_cMethod, "to_s", method_inspect, 0);
+    rb_objc_define_method(rb_cMethod, "to_proc", method_proc, 0);
+    rb_objc_define_method(rb_cMethod, "receiver", method_receiver, 0);
+    rb_objc_define_method(rb_cMethod, "name", method_name, 0);
+    rb_objc_define_method(rb_cMethod, "owner", method_owner, 0);
+    rb_objc_define_method(rb_cMethod, "unbind", method_unbind, 0);
+
+    rb_objc_define_method(rb_mKernel, "method", rb_obj_method, 1);
+    rb_objc_define_method(rb_mKernel, "public_method", rb_obj_public_method, 1);
 
     /* UnboundMethod */
     rb_cUnboundMethod = rb_define_class("UnboundMethod", rb_cObject);
     rb_undef_alloc_func(rb_cUnboundMethod);
     rb_undef_method(CLASS_OF(rb_cUnboundMethod), "new");
-    rb_define_method(rb_cUnboundMethod, "==", method_eq, 1);
-    rb_define_method(rb_cUnboundMethod, "eql?", method_eq, 1);
-    rb_define_method(rb_cUnboundMethod, "hash", method_hash, 0);
-    rb_define_method(rb_cUnboundMethod, "clone", method_clone, 0);
-    rb_define_method(rb_cUnboundMethod, "arity", method_arity_m, 0);
-    rb_define_method(rb_cUnboundMethod, "inspect", method_inspect, 0);
-    rb_define_method(rb_cUnboundMethod, "to_s", method_inspect, 0);
-    rb_define_method(rb_cUnboundMethod, "name", method_name, 0);
-    rb_define_method(rb_cUnboundMethod, "owner", method_owner, 0);
-    rb_define_method(rb_cUnboundMethod, "bind", umethod_bind, 1);
+    rb_objc_define_method(rb_cUnboundMethod, "==", method_eq, 1);
+    rb_objc_define_method(rb_cUnboundMethod, "eql?", method_eq, 1);
+    rb_objc_define_method(rb_cUnboundMethod, "hash", method_hash, 0);
+    rb_objc_define_method(rb_cUnboundMethod, "clone", method_clone, 0);
+    rb_objc_define_method(rb_cUnboundMethod, "arity", method_arity_m, 0);
+    rb_objc_define_method(rb_cUnboundMethod, "inspect", method_inspect, 0);
+    rb_objc_define_method(rb_cUnboundMethod, "to_s", method_inspect, 0);
+    rb_objc_define_method(rb_cUnboundMethod, "name", method_name, 0);
+    rb_objc_define_method(rb_cUnboundMethod, "owner", method_owner, 0);
+    rb_objc_define_method(rb_cUnboundMethod, "bind", umethod_bind, 1);
 
     /* Module#*_method */
-    rb_define_method(rb_cModule, "instance_method", rb_mod_instance_method, 1);
-    rb_define_method(rb_cModule, "public_instance_method", rb_mod_public_instance_method, 1);
-    rb_define_private_method(rb_cModule, "define_method", rb_mod_define_method, -1);
-
-#if WITH_OBJC
-    rb_define_private_method(rb_cModule, "ib_action", rb_mod_objc_ib_action, 1);
-#endif
+    rb_objc_define_method(rb_cModule, "instance_method", rb_mod_instance_method, 1);
+    rb_objc_define_method(rb_cModule, "public_instance_method", rb_mod_public_instance_method, 1);
+    rb_objc_define_private_method(rb_cModule, "define_method", rb_mod_define_method, -1);
 
     /* Kernel */
-    rb_define_method(rb_mKernel, "define_singleton_method", rb_obj_define_method, -1);
+    rb_objc_define_method(rb_mKernel, "define_singleton_method", rb_obj_define_method, -1);
 }
 
 /*

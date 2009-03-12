@@ -4630,6 +4630,54 @@ rb_vm_current_block_object(void)
     return Qnil;
 }
 
+void rb_print_undef(VALUE klass, ID id, int scope);
+
+extern "C"
+rb_vm_method_t *
+rb_vm_get_method(VALUE klass, VALUE obj, ID mid, int scope)
+{
+    SEL sel;
+    IMP imp;
+    NODE *node;
+
+    // TODO honor scope
+
+    if (!rb_vm_lookup_method2((Class)klass, mid, &sel, &imp, &node)) {
+	rb_print_undef(klass, mid, 0);
+    }
+
+    Class k, oklass;
+    k = oklass = (Class)klass;
+    while ((k = class_getSuperclass(k)) != NULL) {
+	if (!rb_vm_lookup_method(k, sel, NULL, NULL)) {
+	    oklass = k;
+	    break;
+	}
+    }
+
+    int arity;
+    if (node == NULL) {
+	Method m = class_getInstanceMethod((Class)klass, sel);
+	assert(m != NULL);
+	arity = method_getNumberOfArguments(m) - 2;
+    }
+    else {
+	arity = rb_vm_node_arity(node);
+    }
+
+    rb_vm_method_t *m = (rb_vm_method_t *)xmalloc(sizeof(rb_vm_method_t));
+
+    m->oclass = (VALUE)oklass;
+    m->rclass = klass;
+    GC_WB(&m->recv, obj);
+    m->sel = sel;
+    m->arity = arity;
+    m->node = node;
+    m->cache = rb_vm_get_call_cache(sel);
+
+    return m;
+}
+
 extern "C"
 VALUE
 rb_vm_block_eval(rb_vm_block_t *b, int argc, const VALUE *argv)
