@@ -192,8 +192,8 @@ static VALUE
 rb_warn_m(VALUE self, VALUE mesg)
 {
     if (!NIL_P(ruby_verbose)) {
-	rb_io_write(rb_stderr, mesg);
-	rb_io_write(rb_stderr, rb_default_rs);
+	rb_io_write(rb_stderr, (SEL)0, mesg);
+	rb_io_write(rb_stderr, (SEL)0, rb_default_rs);
     }
     return Qnil;
 }
