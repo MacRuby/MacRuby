@@ -32,6 +32,9 @@ VALUE rb_cCFString;
 VALUE rb_cNSString;
 VALUE rb_cNSMutableString;
 VALUE rb_cSymbol;
+VALUE rb_cByteString;
+
+static ptrdiff_t wrappedDataOffset;
 
 static void *rb_str_cfdata_key;
 
@@ -5374,6 +5377,96 @@ install_symbol_primitives(void)
 
 #undef INSTALL_METHOD
 
+CFMutableDataRef 
+rb_bytestring_wrapped_data(VALUE bstr)
+{
+    void **data = (void **)((char *)bstr + wrappedDataOffset);
+    return (CFMutableDataRef)(*data); 
+}
+
+inline
+UInt8 *rb_bytestring_byte_pointer(VALUE bstr)
+{
+    return CFDataGetMutableBytePtr(rb_bytestring_wrapped_data(bstr));
+}
+
+
+static VALUE
+rb_bytestring_alloc(VALUE klass, SEL sel)
+{
+    VALUE bstr = (VALUE)class_createInstance((Class)rb_cByteString, 0);
+    CFMutableDataRef data = CFDataCreateMutable(NULL, 0);
+    CFDataIncreaseLength(data, 1);
+    // TODO: Maybe we should access this with wrappedDataOffset...
+    object_setInstanceVariable((id)bstr, "wrappedData", (void*)CFMakeCollectable(data));
+    return bstr;
+}
+
+
+VALUE 
+rb_bytestring_new() 
+{
+    VALUE bs = rb_bytestring_alloc(0, (SEL)"");
+    bs = (VALUE)objc_msgSend((id)bs, selInit); // [recv init];
+    return bs;
+}
+
+static VALUE
+rb_bytestring_initialize(VALUE recv, SEL sel, int argc, VALUE *argv)
+{
+    VALUE orig;
+    recv = (VALUE)objc_msgSend((id)recv, selInit); // [recv init];
+    if(argc == 1) {
+        rb_scan_args(argc, argv, "01", &orig);
+        const UniChar *toCopy = (const UniChar*)CFStringGetCStringPtr((CFStringRef)orig, kCFStringEncodingUTF8);
+        CFDataAppendBytes(rb_bytestring_wrapped_data(recv), (UInt8*)toCopy, CFStringGetLength((CFStringRef)orig));
+    }
+    return orig;
+}
+
+VALUE
+rb_coerce_to_bytestring(VALUE str)
+{
+    VALUE new = rb_bytestring_alloc(0, 0);
+    const UniChar *toCopy = (const UniChar*)CFStringGetCStringPtr((CFStringRef)str, kCFStringEncodingUTF8);
+    CFDataAppendBytes(rb_bytestring_wrapped_data(new), (UInt8*)toCopy, CFStringGetLength((CFStringRef)str));
+    return new;
+}
+
+long 
+rb_bytestring_length(VALUE str)
+{
+    return CFDataGetLength(rb_bytestring_wrapped_data(str))-1;
+}
+
+static CFIndex
+imp_rb_bytestring_length(void *rcv, SEL sel) 
+{
+    return CFDataGetLength(rb_bytestring_wrapped_data((VALUE)rcv))-1;
+}
+
+// There has GOT to be some character encoding issues with this.
+static UniChar
+imp_rb_bytestring_characterAtIndex(void *rcv, SEL sel, CFIndex idx)
+{
+    return rb_bytestring_byte_pointer((VALUE)rcv)[idx];
+}
+
+static void
+imp_rb_bytestring_replaceCharactersInRange_withString(void *rcv, SEL sel, CFRange range, void *str)
+{
+    const UniChar *toCopy = (const UniChar*)CFStringGetCStringPtr((CFStringRef)str, kCFStringEncodingUTF8);
+    // TODO: Add a call to CFStringGetCString to catch if this fails.
+    assert(toCopy != NULL);
+    size_t length = strlen((const char*)toCopy);
+    CFMutableDataRef data = rb_bytestring_wrapped_data((VALUE)rcv);
+    // TODO: Have a more robust check than merely an assert(),
+    // and find out whether CFDataReplaceBytes complains if you give it
+    // a range outside the length of the wrapped data..
+    assert((length + range.location) < CFDataGetLength(data));
+    CFDataReplaceBytes(data, range, (const UInt8*)toCopy, length);
+}
+
 /*
  *  A <code>String</code> object holds and manipulates an arbitrary sequence of
  *  bytes, typically representing characters. String objects may be created
@@ -5544,12 +5637,25 @@ Init_String(void)
     rb_objc_define_method(rb_cSymbol, "<=>", sym_cmp, 1);
     rb_objc_define_method(rb_cSymbol, "inspect", sym_inspect, 0);
     rb_objc_define_method(rb_cSymbol, "description", sym_inspect, 0);
-    rb_objc_define_method(rb_cSymbol, "dup", rb_obj_dup, 0);
-    rb_objc_define_method(rb_cSymbol, "to_proc", sym_to_proc, 0);
-    rb_objc_define_method(rb_cSymbol, "to_s", rb_sym_to_s, 0);
-    rb_objc_define_method(rb_cSymbol, "id2name", rb_sym_to_s, 0);
-    rb_objc_define_method(rb_cSymbol, "intern", sym_to_sym, 0);
-    rb_objc_define_method(rb_cSymbol, "to_sym", sym_to_sym, 0);
+    rb_define_method(rb_cSymbol, "dup", rb_obj_dup, 0);
+    rb_define_method(rb_cSymbol, "to_proc", sym_to_proc, 0);
+    rb_define_method(rb_cSymbol, "to_s", rb_sym_to_s, 0);
+    rb_define_method(rb_cSymbol, "id2name", rb_sym_to_s, 0);
+    rb_define_method(rb_cSymbol, "intern", sym_to_sym, 0);
+    rb_define_method(rb_cSymbol, "to_sym", sym_to_sym, 0);
+    
+        
+    rb_cByteString = (VALUE)objc_allocateClassPair((Class)objc_getClass("NSMutableString"), "ByteString", 0);
+    class_addIvar((Class)rb_cByteString, "wrappedData", sizeof(id), 0, "@");
+    rb_objc_install_method2((Class)rb_cByteString, "length", (IMP)imp_rb_bytestring_length);
+    rb_objc_install_method2((Class)rb_cByteString, "characterAtIndex:", (IMP)imp_rb_bytestring_characterAtIndex);
+    rb_objc_install_method2((Class)rb_cByteString, "replaceCharactersInRange:withString:", (IMP)imp_rb_bytestring_replaceCharactersInRange_withString);
+    objc_registerClassPair((Class)rb_cByteString);
+    rb_objc_define_method(rb_cByteString, "initialize", rb_bytestring_initialize, -1);
+    rb_objc_define_method(*(VALUE *)rb_cByteString, "alloc", rb_bytestring_alloc, 0);
+
+    
+    wrappedDataOffset = ivar_getOffset(class_getInstanceVariable((Class)rb_cByteString, "wrappedData"));
 
     install_symbol_primitives();
 }

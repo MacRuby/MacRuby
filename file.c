@@ -167,12 +167,13 @@ apply2files(void (*func)(const char *, void *), VALUE vargs, void *arg)
 static VALUE
 rb_file_path(VALUE obj, SEL sel)
 {
-    rb_io_t *fptr;
-
-    fptr = RFILE(rb_io_taint_check(obj))->fptr;
-    rb_io_check_initialized(fptr);
-    if (!fptr->path) return Qnil;
-    return rb_tainted_str_new2(fptr->path);
+    // rb_io_t *fptr;
+    // 
+    // fptr = RFILE(rb_io_taint_check(obj))->fptr;
+    // rb_io_check_initialized(fptr);
+    // if (!fptr->path) return Qnil;
+    // return rb_tainted_str_new2(fptr->path);
+    rb_notimplement();
 }
 
 static VALUE
@@ -712,18 +713,19 @@ rb_stat_inspect(VALUE self, SEL sel)
 static int
 rb_stat(VALUE file, struct stat *st)
 {
-    VALUE tmp;
-
-    rb_secure(2);
-    tmp = rb_check_convert_type(file, T_FILE, "IO", "to_io");
-    if (!NIL_P(tmp)) {
-	rb_io_t *fptr;
-
-	GetOpenFile(tmp, fptr);
-	return fstat(fptr->fd, st);
-    }
-    FilePathValue(file);
-    return stat(StringValueCStr(file), st);
+    //     VALUE tmp;
+    // 
+    //     rb_secure(2);
+    //     tmp = rb_check_convert_type(file, T_FILE, "IO", "to_io");
+    //     if (!NIL_P(tmp)) {
+    // rb_io_t *fptr;
+    // 
+    // GetOpenFile(tmp, fptr);
+    // return fstat(fptr->fd, st);
+    //     }
+    //     FilePathValue(file);
+    //     return stat(StringValueCStr(file), st);
+    rb_notimplement();
 }
 
 #ifdef _WIN32
@@ -800,14 +802,15 @@ rb_file_s_stat(VALUE klass, SEL sel, VALUE fname)
 static VALUE
 rb_io_stat(VALUE obj, SEL sel)
 {
-    rb_io_t *fptr;
-    struct stat st;
-
-    GetOpenFile(obj, fptr);
-    if (fstat(fptr->fd, &st) == -1) {
-	rb_sys_fail(fptr->path);
-    }
-    return stat_new(&st);
+    //     rb_io_t *fptr;
+    //     struct stat st;
+    // 
+    //     GetOpenFile(obj, fptr);
+    //     if (fstat(fptr->fd, &st) == -1) {
+    // rb_sys_fail(fptr->path);
+    //     }
+    //     return stat_new(&st);
+    rb_notimplement();
 }
 
 /*
@@ -859,20 +862,21 @@ rb_file_s_lstat(VALUE klass, SEL sel, VALUE fname)
 static VALUE
 rb_file_lstat(VALUE obj, SEL sel)
 {
-#ifdef HAVE_LSTAT
-    rb_io_t *fptr;
-    struct stat st;
-
-    rb_secure(2);
-    GetOpenFile(obj, fptr);
-    if (!fptr->path) return Qnil;
-    if (lstat(fptr->path, &st) == -1) {
-	rb_sys_fail(fptr->path);
-    }
-    return stat_new(&st);
-#else
-    return rb_io_stat(obj, 0);
-#endif
+// #ifdef HAVE_LSTAT
+//     rb_io_t *fptr;
+//     struct stat st;
+// 
+//     rb_secure(2);
+//     GetOpenFile(obj, fptr);
+//     if (!fptr->path) return Qnil;
+//     if (lstat(fptr->path, &st) == -1) {
+//  rb_sys_fail(fptr->path);
+//     }
+//     return stat_new(&st);
+// #else
+//     return rb_io_stat(obj, 0);
+// #endif
+    rb_notimplement();
 }
 
 #ifndef HAVE_GROUP_MEMBER
@@ -1702,14 +1706,15 @@ rb_file_s_atime(VALUE klass, SEL sel, VALUE fname)
 static VALUE
 rb_file_atime(VALUE obj, SEL sel)
 {
-    rb_io_t *fptr;
-    struct stat st;
-
-    GetOpenFile(obj, fptr);
-    if (fstat(fptr->fd, &st) == -1) {
-	rb_sys_fail(fptr->path);
-    }
-    return stat_atime(&st);
+    //     rb_io_t *fptr;
+    //     struct stat st;
+    // 
+    //     GetOpenFile(obj, fptr);
+    //     if (fstat(fptr->fd, &st) == -1) {
+    // rb_sys_fail(fptr->path);
+    //     }
+    //     return stat_atime(&st);
+        rb_notimplement();
 }
 
 /*
@@ -1745,14 +1750,15 @@ rb_file_s_mtime(VALUE klass, SEL sel, VALUE fname)
 static VALUE
 rb_file_mtime(VALUE obj, SEL sel)
 {
-    rb_io_t *fptr;
-    struct stat st;
-
-    GetOpenFile(obj, fptr);
-    if (fstat(fptr->fd, &st) == -1) {
-	rb_sys_fail(fptr->path);
-    }
-    return stat_mtime(&st);
+    //     rb_io_t *fptr;
+    //     struct stat st;
+    // 
+    //     GetOpenFile(obj, fptr);
+    //     if (fstat(fptr->fd, &st) == -1) {
+    // rb_sys_fail(fptr->path);
+    //     }
+    //     return stat_mtime(&st);
+    rb_notimplement();
 }
 
 /*
@@ -1791,14 +1797,15 @@ rb_file_s_ctime(VALUE klass, SEL sel, VALUE fname)
 static VALUE
 rb_file_ctime(VALUE obj, SEL sel)
 {
-    rb_io_t *fptr;
-    struct stat st;
-
-    GetOpenFile(obj, fptr);
-    if (fstat(fptr->fd, &st) == -1) {
-	rb_sys_fail(fptr->path);
-    }
-    return stat_ctime(&st);
+    //     rb_io_t *fptr;
+    //     struct stat st;
+    // 
+    //     GetOpenFile(obj, fptr);
+    //     if (fstat(fptr->fd, &st) == -1) {
+    // rb_sys_fail(fptr->path);
+    //     }
+    //     return stat_ctime(&st);
+    rb_notimplement();
 }
 
 static void
@@ -1853,23 +1860,24 @@ rb_file_s_chmod(VALUE rcv, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_file_chmod(VALUE obj, SEL sel, VALUE vmode)
 {
-    rb_io_t *fptr;
-    int mode;
-
-    rb_secure(2);
-    mode = NUM2INT(vmode);
-
-    GetOpenFile(obj, fptr);
-#ifdef HAVE_FCHMOD
-    if (fchmod(fptr->fd, mode) == -1)
-	rb_sys_fail(fptr->path);
-#else
-    if (!fptr->path) return Qnil;
-    if (chmod(fptr->path, mode) == -1)
-	rb_sys_fail(fptr->path);
-#endif
-
-    return INT2FIX(0);
+//     rb_io_t *fptr;
+//     int mode;
+// 
+//     rb_secure(2);
+//     mode = NUM2INT(vmode);
+// 
+//     GetOpenFile(obj, fptr);
+// #ifdef HAVE_FCHMOD
+//     if (fchmod(fptr->fd, mode) == -1)
+//  rb_sys_fail(fptr->path);
+// #else
+//     if (!fptr->path) return Qnil;
+//     if (chmod(fptr->path, mode) == -1)
+//  rb_sys_fail(fptr->path);
+// #endif
+// 
+//     return INT2FIX(0);
+    rb_notimplement();
 }
 
 #if defined(HAVE_LCHMOD)
@@ -1985,23 +1993,24 @@ rb_file_s_chown(VALUE rcv, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_file_chown(VALUE obj, SEL sel, VALUE owner, VALUE group)
 {
-    rb_io_t *fptr;
-    int o, g;
-
-    rb_secure(2);
-    o = NIL_P(owner) ? -1 : NUM2INT(owner);
-    g = NIL_P(group) ? -1 : NUM2INT(group);
-    GetOpenFile(obj, fptr);
-#if defined(DJGPP) || defined(__CYGWIN32__) || defined(_WIN32) || defined(__EMX__)
-    if (!fptr->path) return Qnil;
-    if (chown(fptr->path, o, g) == -1)
-	rb_sys_fail(fptr->path);
-#else
-    if (fchown(fptr->fd, o, g) == -1)
-	rb_sys_fail(fptr->path);
-#endif
-
-    return INT2FIX(0);
+//     rb_io_t *fptr;
+//     int o, g;
+// 
+//     rb_secure(2);
+//     o = NIL_P(owner) ? -1 : NUM2INT(owner);
+//     g = NIL_P(group) ? -1 : NUM2INT(group);
+//     GetOpenFile(obj, fptr);
+// #if defined(DJGPP) || defined(__CYGWIN32__) || defined(_WIN32) || defined(__EMX__)
+//     if (!fptr->path) return Qnil;
+//     if (chown(fptr->path, o, g) == -1)
+//  rb_sys_fail(fptr->path);
+// #else
+//     if (fchown(fptr->fd, o, g) == -1)
+//  rb_sys_fail(fptr->path);
+// #endif
+    
+//    return INT2FIX(0);
+    rb_notimplement();
 }
 
 #if defined(HAVE_LCHOWN) && !defined(__CHECKER__)
@@ -3392,28 +3401,29 @@ rb_file_s_truncate(VALUE klass, SEL sel, VALUE path, VALUE len)
 static VALUE
 rb_file_truncate(VALUE obj, SEL sel, VALUE len)
 {
-    rb_io_t *fptr;
-    off_t pos;
-
-    rb_secure(2);
-    pos = NUM2OFFT(len);
-    GetOpenFile(obj, fptr);
-    if (!(fptr->mode & FMODE_WRITABLE)) {
-	rb_raise(rb_eIOError, "not opened for writing");
-    }
-    rb_io_flush(obj);
-#ifdef HAVE_FTRUNCATE
-    if (ftruncate(fptr->fd, pos) < 0)
-	rb_sys_fail(fptr->path);
-#else
-# ifdef HAVE_CHSIZE
-    if (chsize(fptr->fd, pos) < 0)
-	rb_sys_fail(fptr->path);
-# else
+//     rb_io_t *fptr;
+//     off_t pos;
+// 
+//     rb_secure(2);
+//     pos = NUM2OFFT(len);
+//     GetOpenFile(obj, fptr);
+//     if (!(fptr->mode & FMODE_WRITABLE)) {
+//  rb_raise(rb_eIOError, "not opened for writing");
+//     }
+//     rb_io_flush(obj);
+// #ifdef HAVE_FTRUNCATE
+//     if (ftruncate(fptr->fd, pos) < 0)
+//  rb_sys_fail(fptr->path);
+// #else
+// # ifdef HAVE_CHSIZE
+//     if (chsize(fptr->fd, pos) < 0)
+//  rb_sys_fail(fptr->path);
+// # else
+//     rb_notimplement();
+// # endif
+// #endif
+//     return INT2FIX(0);
     rb_notimplement();
-# endif
-#endif
-    return INT2FIX(0);
 }
 
 # ifndef LOCK_SH
@@ -3462,7 +3472,7 @@ extern unsigned long __attribute__((stdcall)) GetLastError(void);
  *     File.new("testfile").flock(File::LOCK_UN)   #=> 0
  *     
  */
-
+#if 0
 static VALUE
 rb_file_flock(VALUE obj, SEL sel, VALUE operation)
 {
@@ -3506,6 +3516,7 @@ rb_file_flock(VALUE obj, SEL sel, VALUE operation)
     return INT2FIX(0);
 }
 #undef flock
+#endif
 
 static void
 test_check(int n, int argc, VALUE *argv)
@@ -4761,7 +4772,7 @@ Init_File(void)
     rb_objc_define_method(rb_cFile, "chown", rb_file_chown, 2);
     rb_objc_define_method(rb_cFile, "truncate", rb_file_truncate, 1);
 
-    rb_objc_define_method(rb_cFile, "flock", rb_file_flock, 1);
+    //rb_objc_define_method(rb_cFile, "flock", rb_file_flock, 1);
 
     rb_mFConst = rb_define_module_under(rb_cFile, "Constants");
     rb_include_module(rb_cIO, rb_mFConst);

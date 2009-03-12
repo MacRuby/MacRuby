@@ -629,6 +629,22 @@ dump_option(const char *str, int len, void *arg)
     rb_warn("don't know how to dump `%.*s', (insns)", len, str);
 }
 
+void
+rb_exit(int status)
+{
+#if 0 // XXX should we call pthread_exit()
+    if (GET_THREAD()->tag) {
+	VALUE args[2];
+
+	args[0] = INT2NUM(status);
+	args[1] = rb_str_new2("exit");
+	rb_exc_raise(rb_class_new_instance(2, args, rb_eSystemExit));
+    }
+#endif
+    ruby_finalize();
+    exit(status);
+}
+
 static int
 proc_options(int argc, char **argv, struct cmdline_options *opt)
 {
@@ -1114,7 +1130,7 @@ process_options(VALUE arg)
 #endif
     GC_WB(&opt->script_name, rb_str_new4(rb_progname));
     opt->script = RSTRING_PTR(opt->script_name);
-    ruby_set_argv(argc, argv);
+    //ruby_set_argv(argc, argv);
     process_sflag(opt);
 
     ruby_init_loadpath();
@@ -1277,7 +1293,7 @@ load_file(VALUE parser, const char *fname, int script, struct cmdline_options *o
 	if (opt->xflag) {
 	    forbid_setid("-x");
 	    opt->xflag = Qfalse;
-	    while (!NIL_P(line = rb_io_gets(f))) {
+	    while (!NIL_P(line = rb_io_gets(f, (SEL)"gets"))) {
 		line_start++;
 		const char *lineptr = RSTRING_PTR(line);
 		if (RSTRING_LEN(line) > 2
@@ -1291,11 +1307,11 @@ load_file(VALUE parser, const char *fname, int script, struct cmdline_options *o
 	    rb_raise(rb_eLoadError, "no Ruby script found in input");
 	}
 
-	c = rb_io_getbyte(f);
+	c = rb_io_getbyte(f, (SEL)"getbyte");
 	if (c == INT2FIX('#')) {
-	    c = rb_io_getbyte(f);
+	    c = rb_io_getbyte(f, (SEL)"getbyte");
 	    if (c == INT2FIX('!')) {
-		line = rb_io_gets(f);
+		line = rb_io_gets(f, (SEL)"gets");
 		if (NIL_P(line))
 		    return 0;
 
@@ -1344,12 +1360,12 @@ load_file(VALUE parser, const char *fname, int script, struct cmdline_options *o
 		}
 
 		/* push back shebang for pragma may exist in next line */
-		rb_io_ungetc(f, rb_str_new2("!\n"));
+		rb_io_ungetc(f, (SEL)"ungetc:", rb_str_new2("!\n"));
 	    }
 	    else if (!NIL_P(c)) {
-		rb_io_ungetc(f, c);
+		rb_io_ungetc(f, (SEL)"ungetc:", c);
 	    }
-	    rb_io_ungetc(f, INT2FIX('#'));
+	    rb_io_ungetc(f, (SEL)"ungetc:", INT2FIX('#'));
 	    if (no_src_enc && opt->src.enc.name) {
 #if WITH_OBJC
 		opt->src.enc.enc = opt_enc_find(opt->src.enc.name);
@@ -1368,7 +1384,7 @@ load_file(VALUE parser, const char *fname, int script, struct cmdline_options *o
 	    }
 	}
 	else if (!NIL_P(c)) {
-	    rb_io_ungetc(f, c);
+	    rb_io_ungetc(f, (SEL)"ungetc", c);
 	}
 	require_libraries();	/* Why here? unnatural */
     }
@@ -1401,7 +1417,7 @@ load_file(VALUE parser, const char *fname, int script, struct cmdline_options *o
 	rb_define_global_const("DATA", f);
     }
     else if (f != rb_stdin) {
-	rb_io_close(f);
+	rb_io_close(f, (SEL)"close");
     }
     return tree;
 }
@@ -1583,8 +1599,8 @@ ruby_prog_init(void)
     rb_define_hooked_variable("$PROGRAM_NAME", &rb_progname, 0, set_arg0);
     GC_ROOT(&rb_progname);
 
-    rb_define_global_const("ARGV", rb_argv);
-    rb_global_variable(&rb_argv0);
+    //rb_define_global_const("ARGV", rb_argv);
+    //rb_global_variable(&rb_argv0);
 
 #ifdef MSDOS
     /*

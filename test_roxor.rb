@@ -5,7 +5,7 @@
 # use the rubyspec directory instead.
 
 $test_ruby = File.join(Dir.pwd, 'miniruby')
-$test_ruby_archs = ['i386', 'x86_64']
+$test_ruby_archs = ['i386']
 $test_only = ARGV
 $problems = []
 $assertions_count = 0

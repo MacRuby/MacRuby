@@ -5032,7 +5032,7 @@ rb_parser_compile_cstr(volatile VALUE vparser, const char *f, const char *s, int
 static VALUE
 lex_io_gets(struct parser_params *parser, VALUE io)
 {
-    return rb_io_gets(io);
+    return rb_io_gets(io, (SEL)0);
 }
 
 NODE*

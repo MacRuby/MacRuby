@@ -92,13 +92,14 @@ LDFLAGS = `#{LLVM_CONFIG} --ldflags --libs #{LLVM_MODULES}`.strip.gsub(/\n/, '')
 LDFLAGS << " -lpthread -ldl -lxml2 -lobjc -lffi -lauto -framework Foundation"
 DLDFLAGS = "-dynamiclib -undefined suppress -flat_namespace -install_name #{INSTALL_NAME} -current_version #{MACRUBY_VERSION} -compatibility_version #{MACRUBY_VERSION}"
 
+# removed: marshal, file, process
 OBJS = %w{ 
-  array bignum class compar complex dir enum enumerator error eval load proc 
-  file gc hash inits io marshal math numeric object pack parse process prec 
+  array bignum class compar complex enum enumerator error eval file load proc 
+  gc hash inits io math numeric object pack parse prec  
   random range rational re regcomp regenc regerror regexec regparse regsyntax
   ruby set signal sprintf st string struct time transcode util variable version
-  thread id objc bs encoding main dln dmyext enc/ascii vm_eval prelude miniprelude
-  gc-stub roxor
+  thread id objc bs encoding main dln dmyext enc/ascii 
+  vm_eval prelude miniprelude gc-stub roxor
 }
 
 class Builder

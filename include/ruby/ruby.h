@@ -355,6 +355,11 @@ char *rb_string_value_cstr(volatile VALUE*);
 #define StringValuePtr(v) rb_string_value_ptr(&(v))
 #define StringValueCStr(v) rb_string_value_cstr(&(v))
 
+VALUE rb_bytestring_new();
+CFMutableDataRef rb_bytestring_wrapped_data(VALUE);
+UInt8 *rb_bytestring_byte_pointer(VALUE);
+VALUE rb_coerce_to_bytestring(VALUE);
+
 void rb_check_safe_obj(VALUE);
 void rb_check_safe_str(VALUE);
 #define SafeStringValue(v) do {\
@@ -666,6 +671,8 @@ struct RData {
     void *data;
 };
 
+#define ExtractIOStruct(obj) RFILE(rb_io_taint_check(obj))->fptr
+
 #define DATA_PTR(dta) (RDATA(dta)->data)
 
 /*
@@ -917,7 +924,7 @@ const char *rb_id2name(ID);
 const char *rb_class2name(VALUE);
 const char *rb_obj_classname(VALUE);
 
-void rb_p(VALUE);
+void rb_p(VALUE, SEL);
 
 VALUE rb_eval_string(const char*);
 VALUE rb_eval_string_protect(const char*, int*);
@@ -973,6 +980,8 @@ void rb_throw(const char*,VALUE);
 void rb_throw_obj(VALUE,VALUE);
 
 VALUE rb_require(const char*);
+
+void rb_objc_keep_for_exit_finalize(VALUE);
 
 #ifdef __ia64
 void ruby_init_stack(VALUE*, void*);
@@ -1035,6 +1044,7 @@ RUBY_EXTERN VALUE rb_cRegexp;
 RUBY_EXTERN VALUE rb_cSet;
 RUBY_EXTERN VALUE rb_cStat;
 RUBY_EXTERN VALUE rb_cString;
+RUBY_EXTERN VALUE rb_cByteString;
 RUBY_EXTERN VALUE rb_cStruct;
 RUBY_EXTERN VALUE rb_cSymbol;
 RUBY_EXTERN VALUE rb_cThread;
@@ -1103,6 +1113,8 @@ rb_is_native(VALUE obj) {
 }
 #define NATIVE(obj) (rb_is_native((VALUE)obj))
 
+#define CONDITION_TO_BOOLEAN(c) (c ? Qtrue : Qfalse)
+
 VALUE rb_box_fixnum(VALUE);
 
 static inline id
@@ -1166,6 +1178,7 @@ rb_ary_elt_fast(CFArrayRef ary, long i)
 }
 #define RARRAY_AT(a,i) (rb_ary_elt_fast((CFArrayRef)a, (long)i))
 #endif
+
 
 static inline VALUE
 rb_class_of(VALUE obj)
