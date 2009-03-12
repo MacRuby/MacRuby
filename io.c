@@ -204,7 +204,7 @@ io_alloc(VALUE klass, SEL sel)
 {
     struct RFile *io = ALLOC(struct RFile);
     OBJSETUP(io, klass, T_FILE);
-    io->fptr = ALLOC(rb_io_t);
+    GC_WB(&io->fptr, ALLOC(rb_io_t));
     MEMZERO(io->fptr, rb_io_t, 1);
     return (VALUE)io;
 }
@@ -219,8 +219,8 @@ prep_io(int fd, int mode, VALUE klass, const char *path)
     CFReadStreamOpen(r);
     CFWriteStreamOpen(w);
     // Do I need to use GC_WB?
-    RFILE(io)->fptr->readStream = r;
-    RFILE(io)->fptr->writeStream = w;
+    GC_WB(&RFILE(io)->fptr->readStream, r);
+    GC_WB(&RFILE(io)->fptr->writeStream, w);
     rb_objc_keep_for_exit_finalize((VALUE)io);
     
     return io;
