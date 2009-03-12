@@ -172,6 +172,37 @@ int rb_io_get_read_stream_fd(rb_io_t *io_struct)
 #define IS_PREP_STDIO(f) ((f)->mode & FMODE_PREP)
 #define PREP_STDIO_NAME(f) ((f)->path)
 
+static inline int
+rb_io_modenum_flags(int mode)
+{
+    int flags = 0;
+
+    switch (mode & (O_RDONLY|O_WRONLY|O_RDWR)) {
+	case O_RDONLY:
+	    flags = FMODE_READABLE;
+	    break;
+	case O_WRONLY:
+	    flags = FMODE_WRITABLE;
+	    break;
+	case O_RDWR:
+	    flags = FMODE_READWRITE;
+	    break;
+    }
+
+    if (mode & O_APPEND) {
+	flags |= FMODE_APPEND;
+    }
+    if (mode & O_CREAT) {
+	flags |= FMODE_CREATE;
+    }
+#ifdef O_BINARY
+    if (mode & O_BINARY) {
+	flags |= FMODE_BINMODE;
+    }
+#endif
+
+    return flags;
+}
 
 /*
  *  call-seq:
@@ -218,11 +249,11 @@ prep_io(int fd, int mode, VALUE klass, const char *path)
     CFStreamCreatePairWithSocket(NULL, fd, &r, &w);
     CFReadStreamOpen(r);
     CFWriteStreamOpen(w);
-    // Do I need to use GC_WB?
     GC_WB(&RFILE(io)->fptr->readStream, r);
     GC_WB(&RFILE(io)->fptr->writeStream, w);
+    CFMakeCollectable(r);
+    CFMakeCollectable(w);
     rb_objc_keep_for_exit_finalize((VALUE)io);
-    
     return io;
 }
 
@@ -1282,12 +1313,19 @@ rb_io_close(VALUE io, SEL sel)
     rb_notimplement();
 }
 
-VALUE rb_io_fdopen(int a, int b, const char* c)
+VALUE
+rb_io_fdopen(int fd, int mode, const char *path)
 {
-    rb_notimplement();
+    VALUE klass = rb_cIO;
+
+    if (path != NULL && strcmp(path, "-")) {
+	klass = rb_cFile;
+    }
+    return prep_io(fd, rb_io_modenum_flags(mode), klass, path);
 }
 
-VALUE rb_io_gets(VALUE v, SEL s)
+VALUE
+rb_io_gets(VALUE v, SEL s)
 {
     rb_notimplement();
 }
