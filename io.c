@@ -373,7 +373,8 @@ rb_io_tell(VALUE io, SEL sel)
     CFNumberRef pos = CFReadStreamCopyProperty(io_struct->readStream, kCFStreamPropertyFileCurrentOffset);
     long result = 0L;
     CFNumberGetValue(pos, kCFNumberSInt32Type, &result);
-    
+    CFRelease(pos);
+
     return LONG2FIX(result);
     
 }
@@ -390,6 +391,7 @@ rb_io_seek(VALUE io, VALUE offset, int whence)
     // TODO: make this work with IO::SEEK_CUR, SEEK_END, etc.
     CFNumberRef pos_property = CFNumberCreate(NULL, kCFNumberSInt32Type, &position);
     CFReadStreamSetProperty(io_struct->readStream, kCFStreamPropertyFileCurrentOffset, pos_property);
+    CFRelease(pos_property);
     return INT2FIX(0); // is this right?
 }
 
@@ -623,13 +625,15 @@ static VALUE
 rb_io_inspect(VALUE io, SEL sel)
 {
     rb_io_t *io_struct = ExtractIOStruct(io);
-    if((io_struct == NULL) || (io_struct->path == NULL)) {
+    if ((io_struct == NULL) || (io_struct->path == NULL)) {
         return rb_any_to_s(io);
     }
     const char *status = (rb_io_is_open(io_struct) ? "" : " (closed)");
-    // CFStringCreateWithFormat can handle formatting CFStringRefs, so I chose it
-    // pretty much arbitrarily here.
-    return OC2RB(CFStringCreateWithFormat(NULL, NULL, CFSTR("#<%s:%@%s>"), rb_obj_classname(io), io_struct->path, status));
+
+    CFStringRef s = CFStringCreateWithFormat(NULL, NULL, CFSTR("#<%s:%@%s>"),
+	    rb_obj_classname(io), io_struct->path, status);
+    CFMakeCollectable(s);
+    return (VALUE)s;
 }
 
 /*
@@ -707,27 +711,8 @@ rb_io_to_io(VALUE io, SEL sel)
 static VALUE
 io_readpartial(VALUE io, SEL sel, int argc, VALUE *argv)
 {
-    VALUE len, outbuf;
-    rb_io_t *io_struct;
-    // NONE OF THIS RDOC IS ACCURATE REGARDING BLOCKING AND WHATNOT.
-    // FOR THE LOVE OF GOD, FIX ME.
-    if((argc == 0) || (argc > 2)) {
-        rb_raise(rb_eArgError, "wrong number of parameters"); // FIXME: be more informative.
-    }
-    rb_scan_args(argc, argv, "11", &len, &outbuf);
-    io_struct = ExtractIOStruct(io);
-    // this is wrong, i think.
-    // i want to dereference outbuf and make it into a bytestring...
-    if(NIL_P(outbuf)) {
-        outbuf = rb_bytestring_new();
-    } else {
-        outbuf = rb_coerce_to_bytestring(outbuf);
-    }
-    CFMutableDataRef data = rb_bytestring_wrapped_data(outbuf);
-    // we need to tell the data how much we read
-    CFDataIncreaseLength(data, FIX2LONG(len)); // sentinel byte?
-    CFReadStreamRead(io_struct->readStream, CFDataGetMutableBytePtr(data), FIX2LONG(len));
-    return outbuf; 
+    // TODO factorize code from io_read()
+    rb_notimplement();
 }
 
 /*
@@ -810,24 +795,26 @@ io_read(VALUE io, SEL sel, int argc, VALUE *argv)
 {
     VALUE len, outbuf;
     rb_io_t *io_struct;
-    // NONE OF THIS RDOC IS ACCURATE REGARDING BLOCKING AND WHATNOT.
-    // FOR THE LOVE OF GOD, FIX ME.
-    if((argc == 0) || (argc > 2)) {
-        rb_raise(rb_eArgError, "wrong number of parameters"); // FIXME: be more informative.
-    }
+
     rb_scan_args(argc, argv, "11", &len, &outbuf);
     io_struct = ExtractIOStruct(io);
-    // this is wrong, i think.
-    // i want to dereference outbuf and make it into a bytestring...
-    if(NIL_P(outbuf)) {
+
+    if (NIL_P(outbuf)) {
         outbuf = rb_bytestring_new();
-    } else {
-        outbuf = rb_coerce_to_bytestring(outbuf);
+    } 
+    else {
+	// TODO
+	// if outbuf is a bytestring, let's get a pointer to its mutable storage
+	// if outbuf is a string, we need to allocate a new buffer and then copy
+	// it into the string.
+        //outbuf = rb_coerce_to_bytestring(outbuf);
+	abort();
     }
     CFMutableDataRef data = rb_bytestring_wrapped_data(outbuf);
     // we need to tell the data how much we read
     CFDataIncreaseLength(data, FIX2LONG(len)); // sentinel byte?
-    CFReadStreamRead(io_struct->readStream, CFDataGetMutableBytePtr(data), FIX2LONG(len));
+    CFReadStreamRead(io_struct->readStream, CFDataGetMutableBytePtr(data),
+	    FIX2LONG(len));
     return outbuf;
 }
 
