@@ -2745,7 +2745,7 @@ rb_reg_match(VALUE re, VALUE str)
  *     Upper case
  */
 
-static VALUE
+VALUE
 rb_reg_eqq(VALUE re, SEL sel, VALUE str)
 {
     long start;

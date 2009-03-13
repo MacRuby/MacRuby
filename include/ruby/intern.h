@@ -507,6 +507,7 @@ VALUE rb_reg_new_str(VALUE, int);
 VALUE rb_reg_new(const char *, long, int);
 VALUE rb_reg_match(VALUE, VALUE);
 int rb_reg_options(VALUE);
+VALUE rb_reg_eqq(VALUE, SEL, VALUE);
 void rb_set_kcode(const char*);
 const char* rb_get_kcode(void);
 /* ruby.c */

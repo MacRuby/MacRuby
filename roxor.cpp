@@ -211,6 +211,7 @@ class RoxorCompiler
 	Value *current_loop_exit_val;
 
 	Function *dispatcherFunc;
+	Function *fastEqqFunc;
 	Function *whenSplatFunc;
 	Function *blockCreateFunc;
 	Function *getBlockFunc;
@@ -278,9 +279,10 @@ class RoxorCompiler
 		    NODE *node);
 	void compile_boolean_test(Value *condVal, BasicBlock *ifTrueBB, BasicBlock *ifFalseBB);
 	void compile_when_arguments(NODE *args, Value *comparedToVal, BasicBlock *thenBB);
-	void compile_one_when_argument(NODE *arg, Value *comparedToVal, BasicBlock *thenBB);
+	void compile_single_when_argument(NODE *arg, Value *comparedToVal, BasicBlock *thenBB);
 	Value *compile_dispatch_call(std::vector<Value *> &params);
-	Value *compile_when_splat_call(std::vector<Value *> &params);
+	Value *compile_when_splat(Value *comparedToVal, Value *splatVal);
+	Value *compile_fast_eqq_call(Value *selfVal, Value *comparedToVal);
 	Value *compile_attribute_assign(NODE *node, Value *extra_val);
 	Value *compile_block_create(NODE *node=NULL);
 	Value *compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Value *> &params);
@@ -642,7 +644,7 @@ RoxorCompiler::compile_protected_call(Function *func, std::vector<Value *> &para
 }
 
 void
-RoxorCompiler::compile_one_when_argument(NODE *arg, Value *comparedToVal, BasicBlock *thenBB)
+RoxorCompiler::compile_single_when_argument(NODE *arg, Value *comparedToVal, BasicBlock *thenBB)
 {
     Value *subnodeVal = compile_node(arg);
     Value *condVal;
@@ -691,23 +693,14 @@ RoxorCompiler::compile_when_arguments(NODE *args, Value *comparedToVal, BasicBlo
     switch (nd_type(args)) {
 	case NODE_ARRAY:
 	    while (args != NULL) {
-		compile_one_when_argument(args->nd_head, comparedToVal, thenBB);
+		compile_single_when_argument(args->nd_head, comparedToVal, thenBB);
 		args = args->nd_next;
 	    }
 	    break;
 
-	case NODE_ARGSCAT:
-	    compile_when_arguments(args->nd_head, comparedToVal, thenBB);
-	    args = args->nd_body;
-
 	case NODE_SPLAT:
 	    {
-		void *eqq_cache = GET_VM()->method_cache_get(selEqq, false);
-		std::vector<Value *> params;
-		params.push_back(compile_const_pointer(eqq_cache));
-		params.push_back(comparedToVal);
-		params.push_back(compile_node(args->nd_head));
-		Value *condVal = compile_when_splat_call(params);
+		Value *condVal = compile_when_splat(comparedToVal, compile_node(args->nd_head));
 
 		BasicBlock *nextTestBB = BasicBlock::Create("next_test", bb->getParent());
 		compile_boolean_test(condVal, thenBB, nextTestBB);
@@ -718,7 +711,12 @@ RoxorCompiler::compile_when_arguments(NODE *args, Value *comparedToVal, BasicBlo
 
 	case NODE_ARGSPUSH:
 	    compile_when_arguments(args->nd_head, comparedToVal, thenBB);
-	    compile_one_when_argument(args->nd_body, comparedToVal, thenBB);
+	    compile_single_when_argument(args->nd_body, comparedToVal, thenBB);
+	    break;
+
+	case NODE_ARGSCAT:
+	    compile_when_arguments(args->nd_head, comparedToVal, thenBB);
+	    compile_when_arguments(args->nd_body, comparedToVal, thenBB);
 	    break;
 
 	default:
@@ -799,7 +797,27 @@ RoxorCompiler::compile_dispatch_arguments(NODE *args, std::vector<Value *> &argu
 }
 
 Value *
-RoxorCompiler::compile_when_splat_call(std::vector<Value *> &params)
+RoxorCompiler::compile_fast_eqq_call(Value *selfVal, Value *comparedToVal)
+{
+    if (fastEqqFunc == NULL) {
+	// VALUE rb_vm_fast_eqq(struct mcache *cache, VALUE left, VALUE right)
+	fastEqqFunc = cast<Function>
+	    (module->getOrInsertFunction("rb_vm_fast_eqq",
+					 RubyObjTy, PtrTy, RubyObjTy, RubyObjTy, NULL));
+    }
+
+    void *eqq_cache = GET_VM()->method_cache_get(selEqq, false);
+
+    std::vector<Value *> params;
+    params.push_back(compile_const_pointer(eqq_cache));
+    params.push_back(selfVal);
+    params.push_back(comparedToVal);
+
+    return compile_protected_call(fastEqqFunc, params);
+}
+
+Value *
+RoxorCompiler::compile_when_splat(Value *comparedToVal, Value *splatVal)
 {
     if (whenSplatFunc == NULL) {
 	// VALUE rb_vm_when_splat(struct mcache *cache, VALUE comparedTo, VALUE splat)
@@ -807,6 +825,12 @@ RoxorCompiler::compile_when_splat_call(std::vector<Value *> &params)
 	    (module->getOrInsertFunction("rb_vm_when_splat",
 					 RubyObjTy, PtrTy, RubyObjTy, RubyObjTy, NULL));
     }
+
+    void *eqq_cache = GET_VM()->method_cache_get(selEqq, false);
+    std::vector<Value *> params;
+    params.push_back(compile_const_pointer(eqq_cache));
+    params.push_back(comparedToVal);
+    params.push_back(splatVal);
 
     return compile_protected_call(whenSplatFunc, params);
 }
@@ -1343,9 +1367,21 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Va
 	    else {
 		areFixnums = new ICmpInst(ICmpInst::ICMP_EQ, rightAndOp, oneVal, "", bb);
 	    }
-
-	    BranchInst::Create(then2BB, elseBB, areFixnums, bb);
-
+	
+	    Value *fastEqqVal = NULL;
+	    BasicBlock *fastEqqBB = NULL;
+	    if (sel == selEqq) {
+		// compile_fast_eqq_call won't be called if #=== has been redefined
+		// fixnum optimizations are done separately
+		fastEqqBB = BasicBlock::Create("fast_eqq", f);
+		BranchInst::Create(then2BB, fastEqqBB, areFixnums, bb);
+		bb = fastEqqBB;
+		fastEqqVal = compile_fast_eqq_call(leftVal, rightVal);
+		BranchInst::Create(mergeBB, bb);
+	    }
+	    else {
+		BranchInst::Create(then2BB, elseBB, areFixnums, bb);
+	    }
 	    bb = then2BB;
 
 	    Value *unboxedLeft;
@@ -1445,6 +1481,10 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Va
 	    PHINode *pn = PHINode::Create(RubyObjTy, "op_tmp", mergeBB);
 	    pn->addIncoming(thenVal, then3BB);
 	    pn->addIncoming(elseVal, elseBB);
+
+	    if (sel == selEqq) {
+		pn->addIncoming(fastEqqVal, fastEqqBB);
+	    }
 
 	    return pn;
 	}
@@ -4469,10 +4509,31 @@ rb_vm_dispatch(struct mcache *cache, VALUE self, SEL sel, void *block,
 
 extern "C"
 VALUE
-rb_vm_fast_eqq(struct mcache *cache, VALUE left, VALUE right)
+rb_vm_fast_eqq(struct mcache *cache, VALUE self, VALUE comparedTo)
 {
-    // TODO: manual dispatch for Fixnum, Regexp, Range if === not redefined
-    return rb_vm_dispatch(cache, left, selEqq, NULL, 0, 1, right);
+    // This function does not check if === has been or not redefined
+    // so it should only been called by code generated by compile_optimized_dispatch_call.
+    // Fixnums are already tested in compile_optimized_dispatch_call
+    switch (TYPE(self)) {
+	// TODO: Range
+	case T_STRING:
+	    if (self == comparedTo)
+		return Qtrue;
+	    return rb_str_equal(self, comparedTo);
+
+	case T_REGEXP:
+	    return rb_reg_eqq(self, selEqq, comparedTo);
+
+	case T_SYMBOL:
+	    return (self == comparedTo ? Qtrue : Qfalse);
+	
+	case T_MODULE:
+	case T_CLASS:
+	    return rb_obj_is_kind_of(comparedTo, self);
+
+	default:
+	    return rb_vm_dispatch(cache, self, selEqq, NULL, 0, 1, comparedTo);
+    }
 }
 
 extern "C"
