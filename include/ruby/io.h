@@ -24,14 +24,20 @@ extern "C" {
 #include "ruby/encoding.h"
 
 typedef struct rb_io_t {
+    // The streams.
     CFReadStreamRef readStream;
     CFWriteStreamRef writeStream;
+
+    // Additional information.
     CFStringRef path;
     pid_t pid;
     int lineno;
     int fd;
+
+    // For ungetc.
     UInt8 *ungetc_buf;
     long ungetc_buf_len;
+    long ungetc_buf_pos;
 } rb_io_t;
 
 #define HAVE_RB_IO_T 1
