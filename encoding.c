@@ -33,7 +33,7 @@ enc_init_db(void)
 {
     const CFStringEncoding *e;
 
-    __encodings = CFDictionaryCreateMutable(NULL, 0, NULL, NULL);
+    __encodings = CFDictionaryCreateMutable(NULL, 0, NULL, &kCFTypeDictionaryValueCallBacks);
     
     /* XXX CFStringGetListOfAvailableEncodings() is a costly call and should
      * be called on demand and not by default when the interpreter starts.

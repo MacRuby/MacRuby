@@ -90,7 +90,6 @@ struct argf {
         UPDATE_MAXFD((filedes)[1]); \
     } while (0)
 
-
 #define argf_of(obj) (*(struct argf *)DATA_PTR(obj))
 #define ARGF argf_of(argf)
 
@@ -112,61 +111,79 @@ rb_eof_error(void)
 VALUE
 rb_io_taint_check(VALUE io)
 {
-    if (!OBJ_TAINTED(io) && rb_safe_level() >= 4)
+    if (!OBJ_TAINTED(io) && rb_safe_level() >= 4) {
 	rb_raise(rb_eSecurityError, "Insecure: operation on untainted IO");
+    }
     rb_check_frozen(io);
     return io;
 }
 
-void
+static void
 rb_io_check_initialized(rb_io_t *fptr)
 {
-    if (!fptr) {
-	    rb_raise(rb_eIOError, "uninitialized stream");
+    if (fptr == NULL) {
+	rb_raise(rb_eIOError, "uninitialized stream");
     }
 }
 
-void rb_io_assert_writable(rb_io_t *io_struct) {
+static void 
+rb_io_assert_writable(rb_io_t *io_struct)
+{
     rb_io_check_initialized(io_struct);
-    if(CFWriteStreamGetStatus(io_struct->writeStream) != kCFStreamStatusOpen) {
+    if (io_struct->writeStream == NULL
+	|| CFWriteStreamGetStatus(io_struct->writeStream) != kCFStreamStatusOpen) {
         rb_raise(rb_eIOError, "unable to read stream");
     }
 }
 
-void rb_io_assert_readable(rb_io_t *io_struct) {
+static void
+rb_io_assert_readable(rb_io_t *io_struct)
+{
     rb_io_check_initialized(io_struct);
-    if(CFReadStreamGetStatus(io_struct->readStream) != kCFStreamStatusOpen) {
+    if (io_struct->readStream == NULL
+	|| CFReadStreamGetStatus(io_struct->readStream) != kCFStreamStatusOpen) {
         rb_raise(rb_eIOError, "unable to read stream");
     }
 }
 
-bool rb_io_is_open(rb_io_t *io_struct) {
-    return ((CFReadStreamGetStatus(io_struct->readStream) == kCFStreamStatusOpen) &&
-            (CFWriteStreamGetStatus(io_struct->writeStream) == kCFStreamStatusOpen));
-}
-
-FILE* rb_io_get_write_stream_file_struct(rb_io_t *io_struct)
+static bool
+rb_io_is_open(rb_io_t *io_struct) 
 {
-    return (FILE*)CFWriteStreamCopyProperty(io_struct->writeStream, 
-        kCFStreamPropertySocketNativeHandle);
+    return (io_struct->readStream == NULL
+	    || CFReadStreamGetStatus(io_struct->readStream) == kCFStreamStatusOpen)
+	&& (io_struct->writeStream == NULL
+	    || CFWriteStreamGetStatus(io_struct->writeStream) == kCFStreamStatusOpen);
 }
 
-
-FILE* rb_io_get_read_stream_file_struct(rb_io_t *io_struct)
+#if 0
+// These methods are not used yet.
+static int
+rb_io_get_fd_from_data(CFDataRef data)
 {
-    return (FILE*)CFReadStreamCopyProperty(io_struct->readStream, 
-        kCFStreamPropertySocketNativeHandle);
+    assert(data != NULL);
+    int fd;
+    assert(CFDataGetLength(data) == sizeof(fd));
+    CFDataGetBytes(data, CFRangeMake(0, sizeof(fd)), (UInt8 *)&fd);
+    CFRelease(data);
+    return fd;
 }
 
-int rb_io_get_write_stream_fd(rb_io_t *io_struct)
+static int
+rb_io_get_read_stream_fd(rb_io_t *io_struct)
 {
-    return fileno(rb_io_get_write_stream_file_struct(io_struct));
+    CFDataRef data = CFReadStreamCopyProperty(io_struct->readStream, 
+	    kCFStreamPropertySocketNativeHandle);
+    return rb_io_get_fd_from_data(data);
 }
 
-int rb_io_get_read_stream_fd(rb_io_t *io_struct)
+static int
+rb_io_get_write_stream_fd(rb_io_t *io_struct)
 {
-    return fileno(rb_io_get_read_stream_file_struct(io_struct));
+    CFDataRef data = CFWriteStreamCopyProperty(io_struct->writeStream, 
+	    kCFStreamPropertySocketNativeHandle);
+    return rb_io_get_fd_from_data(data);
 }
+#endif
 
 #define FMODE_PREP (1<<16)
 #define IS_PREP_STDIO(f) ((f)->mode & FMODE_PREP)
@@ -236,24 +253,57 @@ io_alloc(VALUE klass, SEL sel)
     struct RFile *io = ALLOC(struct RFile);
     OBJSETUP(io, klass, T_FILE);
     GC_WB(&io->fptr, ALLOC(rb_io_t));
-    MEMZERO(io->fptr, rb_io_t, 1);
     return (VALUE)io;
 }
 
 static VALUE
 prep_io(int fd, int mode, VALUE klass, const char *path)
 {
+    // TODO honor mode
+
     VALUE io = io_alloc(rb_cIO, 0);
-    CFReadStreamRef r;
-    CFWriteStreamRef w;
-    CFStreamCreatePairWithSocket(NULL, fd, &r, &w);
-    CFReadStreamOpen(r);
-    CFWriteStreamOpen(w);
+
+    CFReadStreamRef r = NULL;
+    CFWriteStreamRef w = NULL;
+    
+    if (path != NULL) {
+	CFURLRef url = CFURLCreateFromFileSystemRepresentation(NULL,
+		(const UInt8 *)path, strlen(path), false);
+	assert(url != NULL);
+	if (mode & FMODE_READABLE) {
+	    r = CFReadStreamCreateWithFile(NULL, url);
+	    assert(r != NULL);
+	}
+	if (mode & FMODE_WRITABLE) {
+	    w = CFWriteStreamCreateWithFile(NULL, url);
+	    assert(w != NULL);
+	}
+	CFRelease(url);	
+    }
+    else {
+	// TODO
+	//CFStreamCreatePairWithSocket(NULL, fd, &r, &w);
+	abort();
+    }
+
+    assert(r != NULL || w != NULL);
+
+    if (r != NULL && !CFReadStreamOpen(r)) {
+	rb_raise(rb_eRuntimeError, "cannot open read stream");
+    }
+    if (w != NULL && !CFWriteStreamOpen(w)) {
+	rb_raise(rb_eRuntimeError, "cannot open write stream");
+    }
+
     GC_WB(&RFILE(io)->fptr->readStream, r);
     GC_WB(&RFILE(io)->fptr->writeStream, w);
-    CFMakeCollectable(r);
-    CFMakeCollectable(w);
+    
+    //CFMakeCollectable(r);
+    //CFMakeCollectable(w);
+    
+    RFILE(io)->fptr->fd = fd;
     rb_objc_keep_for_exit_finalize((VALUE)io);
+
     return io;
 }
 
@@ -294,15 +344,32 @@ io_write(VALUE io, SEL sel, VALUE to_write)
     
     io_struct = ExtractIOStruct(io);
     rb_io_assert_writable(io_struct);
+
     // TODO: Account for the port not being IO, use funcall to call .write()
     // instead.
+
     to_write = rb_obj_as_string(to_write);
-    buffer = (UInt8*)rb_str_byteptr(to_write);
-    length = (CFIndex)rb_str_bytelen(to_write);
-    
-    if(length == 0) {
+
+    if (CLASS_OF(to_write) == rb_cByteString) {
+	CFMutableDataRef data = rb_bytestring_wrapped_data(to_write);
+	buffer = CFDataGetMutableBytePtr(data);
+	length = CFDataGetLength(data);
+    }
+    else {
+	buffer = (UInt8 *)CFStringGetCStringPtr((CFStringRef)to_write, kCFStringEncodingUTF8);
+	if (buffer != NULL) {
+	    length = CFStringGetLength((CFStringRef)to_write);
+	}
+	else {
+	    buffer = (UInt8 *)rb_str_byteptr(to_write);
+	    length = (CFIndex)rb_str_bytelen(to_write);
+	}
+    }
+
+    if (length == 0) {
         return INT2FIX(0);
     }
+
     return LONG2FIX(CFWriteStreamWrite(io_struct->writeStream, buffer, length));
 }
 
@@ -583,7 +650,7 @@ static VALUE
 rb_io_fileno(VALUE io, SEL sel)
 {
     rb_io_t *io_struct = ExtractIOStruct(io);
-    return INT2FIX(rb_io_get_read_stream_fd(io_struct));
+    return INT2FIX(io_struct->fd);
 }
 
 
@@ -1977,11 +2044,11 @@ rb_notimplement();
  *     f = File.new("newfile", File::CREAT|File::TRUNC|File::RDWR, 0644)
  */
 
-// static VALUE
-// rb_file_initialize(VALUE io, SEL sel, int argc, VALUE *argv)
-// {
-// rb_notimplement();
-// }
+static VALUE
+rb_file_initialize(VALUE io, SEL sel, int argc, VALUE *argv)
+{
+    rb_notimplement();
+}
 
 /*
  *  call-seq:
@@ -2076,17 +2143,19 @@ rb_notimplement();
 // rb_notimplement();
 // }
 
+#if 0
 static VALUE
 argf_lineno_getter(ID id, VALUE *var)
 {
-rb_notimplement();
+    rb_notimplement();
 }
 
 static void
 argf_lineno_setter(VALUE val, ID id, VALUE *var)
 {
-rb_notimplement();
+    rb_notimplement();
 }
+#endif
 
 /*
  *  call-seq:
@@ -2649,16 +2718,18 @@ argf_filename(VALUE argf, SEL sel)
 rb_notimplement();
 }
 
+#if 0
 static VALUE
 argf_filename_getter(ID id, VALUE *var)
 {
-rb_notimplement();
+    rb_notimplement();
 }
+#endif
 
 static VALUE
 argf_file(VALUE argf, SEL sel)
 {
-rb_notimplement();
+    rb_notimplement();
 }
 
 static VALUE
@@ -2697,23 +2768,27 @@ argf_inplace_mode_get(VALUE argf)
 rb_notimplement();
 }
 
+#if 0
 static VALUE
 opt_i_get(ID id, VALUE *var)
 {
-rb_notimplement();
+    rb_notimplement();
 }
+#endif
 
 static VALUE
 argf_inplace_mode_set(VALUE argf, VALUE val)
 {
-rb_notimplement();
+    rb_notimplement();
 }
 
+#if 0
 static void
 opt_i_set(VALUE val, ID id, VALUE *var)
 {
-rb_notimplement();
+    rb_notimplement();
 }
+#endif
 
 const char *
 ruby_get_inplace_mode(void)
@@ -2733,16 +2808,19 @@ argf_argv(VALUE argf)
 rb_notimplement();
 }
 
+#if 0
 static VALUE
 argf_argv_getter(ID id, VALUE *var)
 {
-rb_notimplement();
+    rb_notimplement();
 }
+#endif
 
 VALUE
 rb_get_argv(void)
 {
-rb_notimplement();
+    // TODO
+    return Qnil;
 }
 
 /*
@@ -2825,13 +2903,18 @@ rb_notimplement();
 void
 rb_write_error2(const char *mesg, long len)
 {
-    rb_notimplement();
+    if (rb_stderr == orig_stderr || RFILE(orig_stderr)->fptr->fd < 0) {
+	fwrite(mesg, sizeof(char), len, stderr);
+    }
+    else {
+	rb_io_write(rb_stderr, 0, rb_str_new(mesg, len));
+    }
 }
 
 void
 rb_write_error(const char *mesg)
 {
-    rb_notimplement();
+    rb_write_error2(mesg, strlen(mesg));
 }
 
 static void
@@ -2996,25 +3079,22 @@ Init_IO(void)
     rb_objc_define_method(rb_cIO, "internal_encoding", rb_io_internal_encoding, 0);
     rb_objc_define_method(rb_cIO, "set_encoding", rb_io_set_encoding, -1);
 
-
     // TODO: Replace these with their real equivalents - they're nil now.
-    rb_stdin = prep_stdio(stdin, FMODE_READABLE, rb_cIO, "<STDIN>");
+    rb_stdin = prep_stdio(stdin, FMODE_READABLE, rb_cIO, "/dev/stdin");
     rb_define_variable("$stdin", &rb_stdin);
     rb_define_global_const("STDIN", rb_stdin);
     
-    rb_stdout = prep_stdio(stdout, FMODE_WRITABLE, rb_cIO, "<STDOUT>");
+    rb_stdout = prep_stdio(stdout, FMODE_WRITABLE, rb_cIO, "/dev/stdout");
     rb_define_hooked_variable("$stdout", &rb_stdout, 0, stdout_setter);
     rb_define_hooked_variable("$>", &rb_stdout, 0, stdout_setter);
     rb_define_global_const("STDOUT", rb_stdout);
     
-    rb_stderr = prep_stdio(stderr, FMODE_WRITABLE|FMODE_SYNC, rb_cIO, "<STDERR>");
+    rb_stderr = prep_stdio(stderr, FMODE_WRITABLE|FMODE_SYNC, rb_cIO, "/dev/stderr");
     rb_define_hooked_variable("$stderr", &rb_stderr, 0, stdout_setter);
     rb_define_global_const("STDERR", rb_stderr);
-    
-
+ 
     orig_stdout = rb_stdout;
     rb_deferr = orig_stderr = rb_stderr;
-
 
     rb_cARGF = rb_class_new(rb_cObject);
     rb_set_class_path(rb_cARGF, rb_cObject, "ARGF.class");
@@ -3076,6 +3156,7 @@ Init_IO(void)
 
     argf = Qnil;
 
+#if 0 // TODO
     rb_define_readonly_variable("$<", &argf);
     rb_define_global_const("ARGF", argf);
 
@@ -3085,34 +3166,35 @@ Init_IO(void)
 
     rb_define_hooked_variable("$-i", &argf, opt_i_get, opt_i_set);
     rb_define_hooked_variable("$*", &argf, argf_argv_getter, 0);
-    
-    //Init_File();
+#endif
 
-    //rb_objc_define_method(rb_cFile, "initialize",  rb_file_initialize, -1);
-// 
-//     rb_file_const("RDONLY", INT2FIX(O_RDONLY));
-//     rb_file_const("WRONLY", INT2FIX(O_WRONLY));
-//     rb_file_const("RDWR", INT2FIX(O_RDWR));
-//     rb_file_const("APPEND", INT2FIX(O_APPEND));
-//     rb_file_const("CREAT", INT2FIX(O_CREAT));
-//     rb_file_const("EXCL", INT2FIX(O_EXCL));
-// #if defined(O_NDELAY) || defined(O_NONBLOCK)
-// #   ifdef O_NONBLOCK
-//     rb_file_const("NONBLOCK", INT2FIX(O_NONBLOCK));
-// #   else
-//     rb_file_const("NONBLOCK", INT2FIX(O_NDELAY));
-// #   endif
-// #endif
-//     rb_file_const("TRUNC", INT2FIX(O_TRUNC));
-// #ifdef O_NOCTTY
-//     rb_file_const("NOCTTY", INT2FIX(O_NOCTTY));
-// #endif
-// #ifdef O_BINARY
-//     rb_file_const("BINARY", INT2FIX(O_BINARY));
-// #else
-//     rb_file_const("BINARY", INT2FIX(0));
-// #endif
-// #ifdef O_SYNC
-//     rb_file_const("SYNC", INT2FIX(O_SYNC));
-// #endif
+    Init_File();
+
+    rb_objc_define_method(rb_cFile, "initialize",  rb_file_initialize, -1);
+
+    rb_file_const("RDONLY", INT2FIX(O_RDONLY));
+    rb_file_const("WRONLY", INT2FIX(O_WRONLY));
+    rb_file_const("RDWR", INT2FIX(O_RDWR));
+    rb_file_const("APPEND", INT2FIX(O_APPEND));
+    rb_file_const("CREAT", INT2FIX(O_CREAT));
+    rb_file_const("EXCL", INT2FIX(O_EXCL));
+#if defined(O_NDELAY) || defined(O_NONBLOCK)
+# ifdef O_NONBLOCK
+    rb_file_const("NONBLOCK", INT2FIX(O_NONBLOCK));
+# else
+    rb_file_const("NONBLOCK", INT2FIX(O_NDELAY));
+# endif
+#endif
+    rb_file_const("TRUNC", INT2FIX(O_TRUNC));
+#ifdef O_NOCTTY
+    rb_file_const("NOCTTY", INT2FIX(O_NOCTTY));
+#endif
+#ifdef O_BINARY
+    rb_file_const("BINARY", INT2FIX(O_BINARY));
+#else
+    rb_file_const("BINARY", INT2FIX(0));
+#endif
+#ifdef O_SYNC
+    rb_file_const("SYNC", INT2FIX(O_SYNC));
+#endif
 }

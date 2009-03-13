@@ -1261,6 +1261,7 @@ enum {
 static VALUE
 check_exec_redirect_fd(VALUE v)
 {
+#if 0 // TODO
     VALUE tmp;
     int fd;
     if (FIXNUM_P(v)) {
@@ -1280,6 +1281,8 @@ check_exec_redirect_fd(VALUE v)
         rb_raise(rb_eArgError, "negative file descriptor");
     }
     return INT2FIX(fd);
+#endif
+    abort();
 }
 
 static void
@@ -1319,7 +1322,7 @@ check_exec_redirect(VALUE key, VALUE val, VALUE options)
         if (NIL_P(flags))
             flags = INT2NUM(O_RDONLY);
         else if (TYPE(flags) == T_STRING)
-            flags = INT2NUM(rb_io_mode_modenum(StringValueCStr(flags)));
+            flags = INT2FIX(0);//TODO INT2NUM(rb_io_mode_modenum(StringValueCStr(flags)));
         else
             flags = rb_to_int(flags);
         perm = rb_ary_entry(val, 2);
@@ -2159,7 +2162,7 @@ rb_run_exec_options(const struct rb_exec_arg *e, struct rb_exec_arg *s)
 #ifdef HAVE_FORK
     obj = rb_ary_entry(options, EXEC_OPTION_CLOSE_OTHERS);
     if (obj != Qfalse) {
-        rb_close_before_exec(3, FIX2LONG(obj), e->redirect_fds);
+        // TODO rb_close_before_exec(3, FIX2LONG(obj), e->redirect_fds);
     }
 #endif
 
@@ -2212,6 +2215,7 @@ rb_exec_atfork(void* arg)
 #if SIZEOF_INT == SIZEOF_LONG
 #define proc_syswait (VALUE (*)(VALUE))rb_syswait
 #else
+#if 0 // not used
 static VALUE
 proc_syswait(VALUE pid)
 {
@@ -2220,7 +2224,9 @@ proc_syswait(VALUE pid)
 }
 #endif
 #endif
+#endif
 
+#if 0 // not used
 static int
 move_fds_to_avoid_crash(int *fdp, int n, VALUE fds)
 {
@@ -2242,7 +2248,9 @@ move_fds_to_avoid_crash(int *fdp, int n, VALUE fds)
     }
     return 0;
 }
+#endif
 
+#if 0 // not used
 static int
 pipe_nocrash(int filedes[2], VALUE fds)
 {
@@ -2261,6 +2269,7 @@ pipe_nocrash(int filedes[2], VALUE fds)
     }
     return ret;
 }
+#endif
 
 /*
  * Forks child process, and returns the process ID in the parent
@@ -2288,6 +2297,7 @@ pipe_nocrash(int filedes[2], VALUE fds)
 rb_pid_t
 rb_fork(int *status, int (*chfunc)(void*), void *charg, VALUE fds)
 {
+#if 0 // TODO
     rb_pid_t pid;
     int err, state = 0;
 #ifdef FD_CLOEXEC
@@ -2378,6 +2388,8 @@ rb_fork(int *status, int (*chfunc)(void*), void *charg, VALUE fds)
     }
 #endif
     return pid;
+#endif
+    abort();
 }
 #endif
 

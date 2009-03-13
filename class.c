@@ -112,8 +112,9 @@ rb_define_object_special_methods(VALUE klass)
     rb_objc_define_method(klass, "initialize_copy", rb_obj_init_copy, 1);
 
     static SEL sel_isEqual = 0;
-    if (sel_isEqual == 0)
+    if (sel_isEqual == 0) {
 	sel_isEqual = sel_registerName("isEqual:");
+    }
     class_addMethod((Class)klass, sel_isEqual, (IMP)rb_obj_imp_isEqual, "c@:@");
 
     class_addMethod((Class)klass, selInit, (IMP)rb_obj_imp_init, "@@:");

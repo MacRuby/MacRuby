@@ -1671,20 +1671,27 @@ rb_vm_node_arity(NODE *node, bool negative_arity=true)
     if (type == NODE_SCOPE) {
 	NODE *n = node->nd_args;
 	int arity = 0;
-	bool default_args = false;
+	bool opt_or_splat = false;
 	if (n != NULL) {
 	    arity = n->nd_frml;
 	    NODE *n_opt = n->nd_opt;
 	    if (n_opt != NULL) {
 		NODE *ni = n_opt;
-		default_args = true;
+		opt_or_splat = true;
 		while (ni != NULL) {
 		    arity++;
 		    ni = ni->nd_next;
 		}
 	    }
+#if 0
+	    NODE *n_aux = n->nd_next;
+	    if (n_aux != NULL) {
+		opt_or_splat = true;
+		arity++;
+	    }
+#endif
 	}
-	return default_args && negative_arity ? -arity : arity;
+	return opt_or_splat && negative_arity ? -arity : arity;
     }
 
     if (type == NODE_FBODY) {

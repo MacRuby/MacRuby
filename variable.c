@@ -858,7 +858,8 @@ generic_ivar_set(VALUE obj, ID id, VALUE val)
 	    rb_error_frozen("object");
     }
     if (generic_iv_dict == NULL) {
-	generic_iv_dict = CFDictionaryCreateMutable(kCFAllocatorMalloc, 0, NULL, &rb_cfdictionary_value_cb);
+	generic_iv_dict = CFDictionaryCreateMutable(NULL, 0, NULL, &rb_cfdictionary_value_cb);
+	rb_objc_retain(generic_iv_dict);
 	obj_dict = NULL;
     }
     else {
@@ -866,7 +867,7 @@ generic_ivar_set(VALUE obj, ID id, VALUE val)
 	    (CFDictionaryRef)generic_iv_dict, (const void *)obj);
     }
     if (obj_dict == NULL) {
-	obj_dict = CFDictionaryCreateMutable(kCFAllocatorMalloc, 0, NULL, &rb_cfdictionary_value_cb);
+	obj_dict = CFDictionaryCreateMutable(NULL, 0, NULL, &rb_cfdictionary_value_cb);
 	CFDictionarySetValue(generic_iv_dict, (const void *)obj, 
 	    (const void *)obj_dict);
 	CFMakeCollectable(obj_dict);
@@ -939,7 +940,7 @@ rb_copy_generic_ivar(VALUE clone, VALUE obj)
 	&& clone_dict != NULL)
 	CFDictionaryRemoveValue(generic_iv_dict, (const void *)clone);
 
-    clone_dict = CFDictionaryCreateMutableCopy(kCFAllocatorMalloc, 0, obj_dict);
+    clone_dict = CFDictionaryCreateMutableCopy(NULL, 0, obj_dict);
     CFDictionarySetValue(generic_iv_dict, (const void *)clone, 
 	(const void *)clone_dict);
     CFMakeCollectable(clone_dict);
@@ -982,7 +983,8 @@ rb_class_ivar_set_dict(VALUE mod, CFMutableDictionaryRef dict)
     }
     else {
 	if (generic_iv_dict == NULL) {
-	    generic_iv_dict = CFDictionaryCreateMutable(kCFAllocatorMalloc, 0, NULL, &rb_cfdictionary_value_cb);
+	    generic_iv_dict = CFDictionaryCreateMutable(NULL, 0, NULL, &rb_cfdictionary_value_cb);
+	    rb_objc_retain(generic_iv_dict);
 	}
 	CFDictionarySetValue(generic_iv_dict, (const void *)mod, (const void *)dict);
     }
@@ -995,7 +997,7 @@ rb_class_ivar_dict_or_create(VALUE mod)
 
     dict = rb_class_ivar_dict(mod);
     if (dict == NULL) {
-	dict = CFDictionaryCreateMutable(kCFAllocatorMalloc, 0, NULL, &rb_cfdictionary_value_cb);
+	dict = CFDictionaryCreateMutable(NULL, 0, NULL, &rb_cfdictionary_value_cb);
 	rb_class_ivar_set_dict(mod, dict);
 	CFMakeCollectable(dict);
     }
@@ -1092,7 +1094,7 @@ rb_ivar_set(VALUE obj, ID id, VALUE val)
 		    if (ROBJECT(obj)->tbl == NULL) {
 			CFMutableDictionaryRef tbl;
 
-			tbl = CFDictionaryCreateMutable(kCFAllocatorMalloc, 0, NULL, 
+			tbl = CFDictionaryCreateMutable(NULL, 0, NULL, 
 				&rb_cfdictionary_value_cb);
 
 			GC_WB(&ROBJECT(obj)->tbl, tbl);

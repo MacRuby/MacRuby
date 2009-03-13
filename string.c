@@ -5644,7 +5644,8 @@ Init_String(void)
     rb_objc_define_method(rb_cSymbol, "intern", sym_to_sym, 0);
     rb_objc_define_method(rb_cSymbol, "to_sym", sym_to_sym, 0);
     
-        
+    install_symbol_primitives();
+
     rb_cByteString = (VALUE)objc_allocateClassPair((Class)objc_getClass("NSMutableString"), "ByteString", 0);
     class_addIvar((Class)rb_cByteString, "wrappedData", sizeof(id), 0, "@");
     rb_objc_install_method2((Class)rb_cByteString, "length", (IMP)imp_rb_bytestring_length);
@@ -5654,8 +5655,5 @@ Init_String(void)
     rb_objc_define_method(rb_cByteString, "initialize", rb_bytestring_initialize, -1);
     rb_objc_define_method(*(VALUE *)rb_cByteString, "alloc", rb_bytestring_alloc, 0);
 
-    
     wrappedDataOffset = ivar_getOffset(class_getInstanceVariable((Class)rb_cByteString, "wrappedData"));
-
-    install_symbol_primitives();
 }

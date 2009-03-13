@@ -29,37 +29,8 @@ typedef struct rb_io_t {
     CFStringRef path;
     pid_t pid;
     int lineno;
+    int fd;
 } rb_io_t;
-
-
-#define CreateIOStruct(obj, fp) do {\
-    if (RFILE(obj)->fptr) {\
-	rb_io_close(obj);\
-	free(RFILE(obj)->fptr);\
-	RFILE(obj)->fptr = 0;\
-    }\
-    fp = 0;\
-    fp = RFILE(obj)->fptr = ALLOC(rb_io_t);\
-    fp->fd = -1;\
-    fp->stdio_file = NULL;\
-    fp->mode = 0;\
-    fp->pid = 0;\
-    fp->lineno = 0;\
-    fp->path = NULL;\
-    fp->finalize = 0;\
-    fp->refcnt = 1;\
-    fp->wbuf = NULL;\
-    fp->wbuf_off = 0;\
-    fp->wbuf_len = 0;\
-    fp->wbuf_capa = 0;\
-    fp->rbuf = NULL;\
-    fp->rbuf_off = 0;\
-    fp->rbuf_len = 0;\
-    fp->rbuf_capa = 0;\
-    fp->tied_io_for_writing = 0;\
-    fp->enc = 0;\
-    fp->enc2 = 0;\
-} while (0)
 
 #define HAVE_RB_IO_T 1
 

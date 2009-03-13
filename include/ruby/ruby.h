@@ -671,7 +671,8 @@ struct RData {
     void *data;
 };
 
-#define ExtractIOStruct(obj) RFILE(rb_io_taint_check(obj))->fptr
+#define ExtractIOStruct(obj) RFILE(obj)->fptr
+//#define ExtractIOStruct(obj) RFILE(rb_io_taint_check(obj))->fptr
 
 #define DATA_PTR(dta) (RDATA(dta)->data)
 

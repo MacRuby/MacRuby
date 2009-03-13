@@ -11,14 +11,6 @@
 
 **********************************************************************/
 
-#ifdef _WIN32
-#include "missing/file.h"
-#endif
-#ifdef __CYGWIN__
-#include <windows.h>
-#include <sys/cygwin.h>
-#endif
-
 #include "ruby/ruby.h"
 #include "ruby/io.h"
 #include "ruby/signal.h"

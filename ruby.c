@@ -629,22 +629,6 @@ dump_option(const char *str, int len, void *arg)
     rb_warn("don't know how to dump `%.*s', (insns)", len, str);
 }
 
-void
-rb_exit(int status)
-{
-#if 0 // XXX should we call pthread_exit()
-    if (GET_THREAD()->tag) {
-	VALUE args[2];
-
-	args[0] = INT2NUM(status);
-	args[1] = rb_str_new2("exit");
-	rb_exc_raise(rb_class_new_instance(2, args, rb_eSystemExit));
-    }
-#endif
-    ruby_finalize();
-    exit(status);
-}
-
 static int
 proc_options(int argc, char **argv, struct cmdline_options *opt)
 {
@@ -1130,7 +1114,7 @@ process_options(VALUE arg)
 #endif
     GC_WB(&opt->script_name, rb_str_new4(rb_progname));
     opt->script = RSTRING_PTR(opt->script_name);
-    //ruby_set_argv(argc, argv);
+    ruby_set_argv(argc, argv);
     process_sflag(opt);
 
     ruby_init_loadpath();
@@ -1599,8 +1583,8 @@ ruby_prog_init(void)
     rb_define_hooked_variable("$PROGRAM_NAME", &rb_progname, 0, set_arg0);
     GC_ROOT(&rb_progname);
 
-    //rb_define_global_const("ARGV", rb_argv);
-    //rb_global_variable(&rb_argv0);
+    rb_define_global_const("ARGV", rb_argv);
+    rb_global_variable(&rb_argv0);
 
 #ifdef MSDOS
     /*
@@ -1615,6 +1599,7 @@ ruby_prog_init(void)
 void
 ruby_set_argv(int argc, char **argv)
 {
+#if 0 // TODO
     int i;
     VALUE av = rb_argv;
 
@@ -1631,6 +1616,7 @@ ruby_set_argv(int argc, char **argv)
 	OBJ_FREEZE(arg);
 	rb_ary_push(av, arg);
     }
+#endif
 }
 
 static VALUE
