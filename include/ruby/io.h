@@ -30,6 +30,8 @@ typedef struct rb_io_t {
     pid_t pid;
     int lineno;
     int fd;
+    UInt8 *ungetc_buf;
+    long ungetc_buf_len;
 } rb_io_t;
 
 #define HAVE_RB_IO_T 1

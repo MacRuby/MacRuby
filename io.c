@@ -295,13 +295,28 @@ prep_io(int fd, int mode, VALUE klass, const char *path)
 	rb_raise(rb_eRuntimeError, "cannot open write stream");
     }
 
-    GC_WB(&RFILE(io)->fptr->readStream, r);
-    GC_WB(&RFILE(io)->fptr->writeStream, w);
+    rb_io_t *io_struct = RFILE(io)->fptr;
+
+    if (r != NULL) {
+	GC_WB(&io_struct->readStream, r);
+	CFMakeCollectable(r);
+    }
+    else {
+	io_struct->readStream = NULL;
+    }
+
+    if (w != NULL) {
+	GC_WB(&io_struct->writeStream, w);
+	CFMakeCollectable(w);
+    }
+    else {
+	io_struct->writeStream = NULL;
+    }
     
-    //CFMakeCollectable(r);
-    //CFMakeCollectable(w);
-    
-    RFILE(io)->fptr->fd = fd;
+    io_struct->fd = fd;
+    io_struct->ungetc_buf = NULL;
+    io_struct->ungetc_buf_len = 0;
+
     rb_objc_keep_for_exit_finalize((VALUE)io);
 
     return io;
@@ -392,7 +407,7 @@ io_write(VALUE io, SEL sel, VALUE to_write)
 VALUE
 rb_io_addstr(VALUE io, SEL sel, VALUE str)
 {
-    io_write(io, sel, str);
+    io_write(io, 0, str);
     return io;
 }
 
@@ -437,7 +452,8 @@ rb_io_tell(VALUE io, SEL sel)
     rb_io_t *io_struct = ExtractIOStruct(io);
     rb_io_assert_readable(io_struct);
     
-    CFNumberRef pos = CFReadStreamCopyProperty(io_struct->readStream, kCFStreamPropertyFileCurrentOffset);
+    CFNumberRef pos = CFReadStreamCopyProperty(io_struct->readStream,
+	    kCFStreamPropertyFileCurrentOffset);
     long result = 0L;
     CFNumberGetValue(pos, kCFNumberSInt32Type, &result);
     CFRelease(pos);
@@ -457,7 +473,8 @@ rb_io_seek(VALUE io, VALUE offset, int whence)
     
     // TODO: make this work with IO::SEEK_CUR, SEEK_END, etc.
     CFNumberRef pos_property = CFNumberCreate(NULL, kCFNumberSInt32Type, &position);
-    CFReadStreamSetProperty(io_struct->readStream, kCFStreamPropertyFileCurrentOffset, pos_property);
+    CFReadStreamSetProperty(io_struct->readStream, kCFStreamPropertyFileCurrentOffset,
+	    pos_property);
     CFRelease(pos_property);
     return INT2FIX(0); // is this right?
 }
@@ -573,7 +590,8 @@ rb_io_eof(VALUE io, SEL sel)
 {
     rb_io_t *io_struct = ExtractIOStruct(io);
     rb_io_assert_readable(io_struct);
-    return CONDITION_TO_BOOLEAN((CFReadStreamGetStatus(io_struct->readStream) == kCFStreamStatusAtEnd));
+    return CONDITION_TO_BOOLEAN(
+	    CFReadStreamGetStatus(io_struct->readStream) == kCFStreamStatusAtEnd);
 }
 
 /*
@@ -716,7 +734,43 @@ rb_io_to_io(VALUE io, SEL sel)
     return io;
 }
 
-#define SMALLBUF 100
+static bool
+rb_io_read_internal(rb_io_t *io_struct, UInt8 *buffer, long len)
+{
+    assert(io_struct->readStream != NULL);
+
+    long data_read = 0;
+
+    // First let's check if there is something to read in our ungets buffer.
+    if (io_struct->ungetc_buf_len > 0) {
+	data_read = MIN(io_struct->ungetc_buf_len, len);
+	memcpy(buffer, io_struct->ungetc_buf, data_read);
+	io_struct->ungetc_buf_len -= len;
+	if (io_struct->ungetc_buf_len == 0) {
+	    xfree(io_struct->ungetc_buf);
+	    io_struct->ungetc_buf = NULL;
+	    return true;
+	}
+    }
+
+    // We still need to read.
+    while (data_read < len) {
+	int code = CFReadStreamRead(io_struct->readStream, &buffer[data_read],
+		len - data_read);
+
+	if (code == 0) {
+	    // EOF
+	    return false;
+	}
+	else if (code == -1) {
+	    rb_raise(rb_eRuntimeError, "internal error while reading stream");
+	}
+
+	data_read += code;
+    }
+
+    return true;
+}
 
 /*
  *  call-seq:
@@ -864,7 +918,14 @@ io_read(VALUE io, SEL sel, int argc, VALUE *argv)
     rb_io_t *io_struct;
 
     rb_scan_args(argc, argv, "11", &len, &outbuf);
+
     io_struct = ExtractIOStruct(io);
+    rb_io_assert_readable(io_struct);
+
+    long size = FIX2LONG(len);
+    if (size == 0) {
+	return rb_str_new2("");
+    }
 
     if (NIL_P(outbuf)) {
         outbuf = rb_bytestring_new();
@@ -877,12 +938,15 @@ io_read(VALUE io, SEL sel, int argc, VALUE *argv)
         //outbuf = rb_coerce_to_bytestring(outbuf);
 	abort();
     }
+
     CFMutableDataRef data = rb_bytestring_wrapped_data(outbuf);
-    // we need to tell the data how much we read
-    CFDataIncreaseLength(data, FIX2LONG(len)); // sentinel byte?
-    CFReadStreamRead(io_struct->readStream, CFDataGetMutableBytePtr(data),
-	    FIX2LONG(len));
-    // TODO check the return value of CFReadStreamRead() for errors/eof
+    CFDataIncreaseLength(data, size);
+    UInt8 *buf = CFDataGetMutableBytePtr(data);
+
+    if (!rb_io_read_internal(io_struct, buf, len)) {
+	rb_eof_error();
+    }
+
     return outbuf;
 }
 
@@ -1185,16 +1249,11 @@ VALUE
 rb_io_getbyte(VALUE io, SEL sel)
 {
     rb_io_t *io_struct = ExtractIOStruct(io);
+    rb_io_assert_readable(io_struct);
     
     UInt8 byte;
-    int code = CFReadStreamRead(io_struct->readStream, &byte, 1);
-    if (code != 1) {
-	if (code == 0) {
-	    // EOF
-	    return Qnil;
-	}
-	// TODO raise an exception
-	abort();
+    if (!rb_io_read_internal(io_struct, &byte, 1)) {
+	return Qnil;
     }
 
     return INT2FIX(byte);
@@ -1238,7 +1297,39 @@ rb_io_readbyte(VALUE io, SEL sel)
 VALUE
 rb_io_ungetc(VALUE io, SEL sel, VALUE c)
 {
-    rb_notimplement();
+    rb_io_t *io_struct = ExtractIOStruct(io);
+
+    rb_io_assert_readable(io_struct);
+
+    if (NIL_P(c)) {
+	return Qnil;
+    }
+
+    UInt8 *bytes;
+    size_t len;
+
+    if (FIXNUM_P(c)) {
+        UInt8 cc = (UInt8)FIX2INT(c);
+
+	bytes = (UInt8 *)alloca(2);
+        bytes[0] = cc;
+        bytes[1] = '\0';
+	len = 1;
+    }
+    else {
+        SafeStringValue(c);
+	bytes = (UInt8 *)RSTRING_PTR(c);
+	len = RSTRING_LEN(c);
+    }
+
+    GC_WB(&io_struct->ungetc_buf, xrealloc(io_struct->ungetc_buf,
+		io_struct->ungetc_buf_len + len));
+
+    memcpy(&io_struct->ungetc_buf[io_struct->ungetc_buf_len], bytes, len);
+
+    io_struct->ungetc_buf_len += len;
+
+    return Qnil;
 }
 
 /*
@@ -1294,15 +1385,26 @@ rb_notimplement();
 static VALUE
 rb_io_set_close_on_exec(VALUE io, SEL sel, VALUE arg)
 {
-rb_notimplement();
+    rb_notimplement();
+}
+
+static inline void
+io_close(VALUE io, bool close_read, bool close_write)
+{
+    rb_io_t *io_struct = ExtractIOStruct(io);
+
+    if (close_read && io_struct->readStream != NULL) {
+	CFReadStreamClose(io_struct->readStream);
+    }
+    if (close_write && io_struct->writeStream != NULL) {
+	CFWriteStreamClose(io_struct->writeStream);
+    }
 }
 
 static VALUE
 rb_io_close_m(VALUE io, SEL sel)
 {
-    rb_io_t *io_struct = ExtractIOStruct(io);
-    CFReadStreamClose(io_struct->readStream);
-    CFWriteStreamClose(io_struct->writeStream);
+    io_close(io, true, true);
     return Qnil;
 }
 
@@ -1352,7 +1454,8 @@ rb_io_closed(VALUE io, SEL sel)
 static VALUE
 rb_io_close_read(VALUE io, SEL sel)
 {
-rb_notimplement();
+    io_close(io, true, false);
+    return Qnil;
 }
 
 /*
@@ -1377,13 +1480,15 @@ rb_notimplement();
 static VALUE
 rb_io_close_write(VALUE io, SEL sel)
 {
-rb_notimplement();
+    io_close(io, false, true);
+    return Qnil;
 }
 
 VALUE
 rb_io_close(VALUE io, SEL sel)
 {
-    rb_notimplement();
+    io_close(io, true, true);
+    return Qnil;
 }
 
 VALUE
@@ -1391,16 +1496,53 @@ rb_io_fdopen(int fd, int mode, const char *path)
 {
     VALUE klass = rb_cIO;
 
-    if (path != NULL && strcmp(path, "-")) {
+    if (path != NULL && strcmp(path, "-") != 0) {
 	klass = rb_cFile;
     }
     return prep_io(fd, rb_io_modenum_flags(mode), klass, path);
 }
 
 VALUE
-rb_io_gets(VALUE v, SEL s)
+rb_io_gets(VALUE io, SEL sel)
 {
-    rb_notimplement();
+    rb_io_t *io_struct = ExtractIOStruct(io);
+    rb_io_assert_readable(io_struct);
+
+    VALUE outbuf = rb_bytestring_new();
+    CFMutableDataRef data = rb_bytestring_wrapped_data(outbuf);
+
+    long s = 128;
+    CFDataIncreaseLength(data, s);
+    UInt8 *buf = CFDataGetMutableBytePtr(data);
+
+    // FIXME this is a very naive implementation
+
+    long data_read = 0;
+    while (true) {
+	UInt8 byte;
+	if (!rb_io_read_internal(io_struct, &byte, 1)) {
+	    break;
+	}
+
+	if (data_read > s) {
+	    s += s;
+	    CFDataIncreaseLength(data, s);
+	    buf = CFDataGetMutableBytePtr(data);
+	}
+	buf[data_read++] = byte;
+
+	if (byte == '\n') {
+	    break;    
+	}
+    }
+
+    if (data_read == 0) {
+	return Qnil;
+    }
+
+    CFDataSetLength(data, data_read + 1);
+
+    return outbuf;
 }
 
 /*
@@ -1780,13 +1922,13 @@ rb_io_print(VALUE io, SEL sel, int argc, VALUE *argv)
         argv = &line;
     }
     while(argc--) {
-        rb_io_write(rb_stdout, sel, *argv++);
+        rb_io_write(rb_stdout, 0, *argv++);
         if(!NIL_P(rb_output_fs)) {
-            rb_io_write(rb_stdout, sel, rb_output_fs);
+            rb_io_write(rb_stdout, 0, rb_output_fs);
         }
     }
     if(!NIL_P(rb_output_rs)) {
-        rb_io_write(rb_stdout, sel, rb_output_rs);
+        rb_io_write(rb_stdout, 0, rb_output_rs);
     }
     return Qnil;
 }
@@ -1819,7 +1961,7 @@ rb_io_print(VALUE io, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_f_print(VALUE recv, SEL sel, int argc, VALUE *argv)
 {
-    rb_io_print(rb_stdout, sel, argc, argv);
+    rb_io_print(rb_stdout, 0, argc, argv);
     return Qnil;
 }
 
@@ -1898,9 +2040,9 @@ rb_notimplement();
 static VALUE
 rb_f_puts(VALUE recv, SEL sel, int argc, VALUE *argv)
 {
-    while(argc--) {
-        rb_io_write(rb_stdout, sel, *argv++);
-        rb_io_write(rb_stdout, sel, rb_default_rs);
+    while (argc--) {
+        rb_io_write(rb_stdout, 0, *argv++);
+        rb_io_write(rb_stdout, 0, rb_default_rs);
     }
     return Qnil;
 }
@@ -1908,13 +2050,13 @@ rb_f_puts(VALUE recv, SEL sel, int argc, VALUE *argv)
 void
 rb_p(VALUE obj, SEL sel) /* for debug print within C code */
 {
-    rb_io_write(rb_stdout, sel, rb_obj_as_string(rb_inspect(obj)));
-    rb_io_write(rb_stdout, sel, rb_default_rs);
+    rb_io_write(rb_stdout, 0, rb_obj_as_string(rb_inspect(obj)));
+    rb_io_write(rb_stdout, 0, rb_default_rs);
 }
 
 VALUE rb_io_write(VALUE v, SEL sel, VALUE i)
 {
-    io_write(v, sel, i);
+    io_write(v, 0, i);
     return Qnil;
 }
 

@@ -1277,7 +1277,7 @@ load_file(VALUE parser, const char *fname, int script, struct cmdline_options *o
 	if (opt->xflag) {
 	    forbid_setid("-x");
 	    opt->xflag = Qfalse;
-	    while (!NIL_P(line = rb_io_gets(f, (SEL)"gets"))) {
+	    while (!NIL_P(line = rb_io_gets(f, 0))) {
 		line_start++;
 		const char *lineptr = RSTRING_PTR(line);
 		if (RSTRING_LEN(line) > 2
@@ -1291,11 +1291,11 @@ load_file(VALUE parser, const char *fname, int script, struct cmdline_options *o
 	    rb_raise(rb_eLoadError, "no Ruby script found in input");
 	}
 
-	c = rb_io_getbyte(f, (SEL)"getbyte");
+	c = rb_io_getbyte(f, 0);
 	if (c == INT2FIX('#')) {
-	    c = rb_io_getbyte(f, (SEL)"getbyte");
+	    c = rb_io_getbyte(f, 0);
 	    if (c == INT2FIX('!')) {
-		line = rb_io_gets(f, (SEL)"gets");
+		line = rb_io_gets(f, 0);
 		if (NIL_P(line))
 		    return 0;
 
@@ -1344,12 +1344,12 @@ load_file(VALUE parser, const char *fname, int script, struct cmdline_options *o
 		}
 
 		/* push back shebang for pragma may exist in next line */
-		rb_io_ungetc(f, (SEL)"ungetc:", rb_str_new2("!\n"));
+		rb_io_ungetc(f, 0, rb_str_new2("!\n"));
 	    }
 	    else if (!NIL_P(c)) {
-		rb_io_ungetc(f, (SEL)"ungetc:", c);
+		rb_io_ungetc(f, 0, c);
 	    }
-	    rb_io_ungetc(f, (SEL)"ungetc:", INT2FIX('#'));
+	    rb_io_ungetc(f, 0, INT2FIX('#'));
 	    if (no_src_enc && opt->src.enc.name) {
 #if WITH_OBJC
 		opt->src.enc.enc = opt_enc_find(opt->src.enc.name);
@@ -1368,7 +1368,7 @@ load_file(VALUE parser, const char *fname, int script, struct cmdline_options *o
 	    }
 	}
 	else if (!NIL_P(c)) {
-	    rb_io_ungetc(f, (SEL)"ungetc", c);
+	    rb_io_ungetc(f, 0, c);
 	}
 	require_libraries();	/* Why here? unnatural */
     }
@@ -1401,7 +1401,7 @@ load_file(VALUE parser, const char *fname, int script, struct cmdline_options *o
 	rb_define_global_const("DATA", f);
     }
     else if (f != rb_stdin) {
-	rb_io_close(f, (SEL)"close");
+	rb_io_close(f, 0);
     }
     return tree;
 }
