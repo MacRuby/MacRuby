@@ -742,7 +742,7 @@ rb_io_read_internal(rb_io_t *io_struct, UInt8 *buffer, long len)
 
     long data_read = 0;
 
-    // First let's check if there is something to read in our ungets buffer.
+    // First let's check if there is something to read in our ungetc buffer.
     if (io_struct->ungetc_buf_len > 0) {
 	data_read = MIN(io_struct->ungetc_buf_len, len);
 	memcpy(buffer, &io_struct->ungetc_buf[io_struct->ungetc_buf_pos], 
@@ -1522,6 +1522,19 @@ rb_io_fdopen(int fd, int mode, const char *path)
     return prep_io(fd, rb_io_modenum_flags(mode), klass, path);
 }
 
+static VALUE
+rb_io_getline(int argc, VALUE *argv, VALUE io)
+{
+#if 0 // TODO
+    VALUE rs;
+    long limit;
+
+    prepare_getline_args(argc, argv, &rs, &limit, io);
+    return rb_io_getline_1(rs, limit, io);
+#endif
+    abort();
+}
+
 VALUE
 rb_io_gets(VALUE io, SEL sel)
 {
@@ -1625,6 +1638,20 @@ rb_io_sysread(VALUE io, SEL sel, int argc, VALUE *argv)
 rb_notimplement();
 }
 
+VALUE
+rb_io_binmode(VALUE io, SEL sel)
+{
+    // TODO
+#if 0
+    rb_io_t *fptr;
+
+    GetOpenFile(io, fptr);
+    fptr->mode |= FMODE_BINMODE;
+    return io;
+#endif
+    abort();
+}
+
 /*
  *  call-seq:
  *     ios.binmode    => ios
@@ -1637,7 +1664,8 @@ rb_notimplement();
 static VALUE
 rb_io_binmode_m(VALUE io, SEL sel)
 {
-rb_notimplement();
+    rb_io_binmode(io, 0);
+    return io;
 }
 
 /*
@@ -2178,12 +2206,19 @@ rb_notimplement();
  *     World
  */
 
+/*
+ *  call-seq:
+ *     IO.for_fd(fd, mode)    => io
+ *
+ *  Synonym for <code>IO::new</code>.
+ *
+ */
+
 static VALUE
 rb_io_initialize(VALUE io, SEL sel, int argc, VALUE *argv)
 {
-rb_notimplement();
+    rb_notimplement();
 }
-
 
 /*
  *  call-seq:
@@ -2237,87 +2272,284 @@ rb_io_s_new(VALUE klass, SEL sel, VALUE fd, VALUE mode)
 }
 
 
-/*
- *  call-seq:
- *     IO.for_fd(fd, mode)    => io
- *
- *  Synonym for <code>IO::new</code>.
- *
- */
-
-// removed.
-
+static inline void
+argf_init(struct argf *p, VALUE v)
+{
+    p->filename = Qnil;
+    p->current_file = Qnil;
+    p->lineno = Qnil;
+    GC_WB(&p->argv, v);
+}
 
 static VALUE
 argf_alloc(VALUE klass)
 {
-rb_notimplement();
+    struct argf *p;
+
+    VALUE argf = Data_Make_Struct(klass, struct argf, NULL, NULL, p);
+    argf_init(p, Qnil);
+
+    return argf;
 }
 
 #undef rb_argv
+#define filename          ARGF.filename
+#define current_file      ARGF.current_file
+#define gets_lineno       ARGF.gets_lineno
+#define init_p            ARGF.init_p
+#define next_p            ARGF.next_p
+#define lineno            ARGF.lineno
+#define ruby_inplace_mode ARGF.inplace
+#define argf_binmode      ARGF.binmode
+#define argf_enc          ARGF.enc
+#define argf_enc2         ARGF.enc2
 #define rb_argv           ARGF.argv
 
 static VALUE
 argf_initialize(VALUE argf, SEL sel, VALUE argv)
 {
-rb_notimplement();
+    memset(&ARGF, 0, sizeof(ARGF));
+    argf_init(&ARGF, argv);
+
+    return argf;
 }
 
 static VALUE
 argf_initialize_copy(VALUE argf, SEL sel, VALUE orig)
 {
-    rb_notimplement();
+    ARGF = argf_of(orig);
+    GC_WB(&rb_argv, rb_obj_dup(rb_argv));
+    if (ARGF.inplace) {
+	const char *inplace = ARGF.inplace;
+	ARGF.inplace = 0;
+	GC_WB(&ARGF.inplace, ruby_strdup(inplace));
+    }
+    return argf;
 }
 
 static VALUE
 argf_set_lineno(VALUE argf, SEL sel, VALUE val)
 {
-rb_notimplement();
+    gets_lineno = NUM2INT(val);
+    lineno = INT2FIX(gets_lineno);
+    return Qnil;
 }
 
 static VALUE
 argf_lineno(VALUE argf, SEL sel)
 {
-rb_notimplement();
+    return lineno;
 }
 
-// static VALUE
-// argf_forward(VALUE argf, SEL sel, int argc, VALUE *argv)
-// {
-//     rb_notimplement();
-// }
-// 
-// static void
-// argf_close(VALUE file, SEL sel)
-// {
-//     rb_notimplement();
-// }
-// 
-// static int
-// argf_next_argv(VALUE argf, SEL sel)
-// {
-// rb_notimplement();
-// }
-// 
-// static VALUE
-// argf_getline(VALUE argf, SEL sel, int argc, VALUE *argv)
-// {
-// rb_notimplement();
-// }
+static VALUE
+argf_forward(VALUE argf, SEL sel, int argc, VALUE *argv)
+{
+    // TODO
+    //return rb_funcall3(current_file, rb_frame_this_func(), argc, argv);
+    abort();
+}
 
-#if 0
+#define next_argv() argf_next_argv(argf)
+#define ARGF_GENERIC_INPUT_P() \
+    (current_file == rb_stdin && TYPE(current_file) != T_FILE)
+
+#define ARGF_FORWARD(argc, argv) do {\
+    if (ARGF_GENERIC_INPUT_P())\
+	return argf_forward(argf, 0, argc, argv);\
+} while (0)
+
+#define NEXT_ARGF_FORWARD(argc, argv) do {\
+    if (!next_argv()) return Qnil;\
+    ARGF_FORWARD(argc, argv);\
+} while (0)
+
+static void
+argf_close(VALUE file, SEL sel)
+{
+    rb_funcall3(file, rb_intern("close"), 0, 0);
+}
+
+static int
+argf_next_argv(VALUE argf)
+{
+#if 0 // TODO
+    char *fn;
+    rb_io_t *fptr;
+    int stdout_binmode = 0;
+
+    if (TYPE(rb_stdout) == T_FILE) {
+	GetOpenFile(rb_stdout, fptr);
+	if (fptr->mode & FMODE_BINMODE)
+	    stdout_binmode = 1;
+    }
+
+    if (init_p == 0) {
+	if (!NIL_P(rb_argv) && RARRAY_LEN(rb_argv) > 0) {
+	    next_p = 1;
+	}
+	else {
+	    next_p = -1;
+	}
+	init_p = 1;
+	gets_lineno = 0;
+    }
+
+    if (next_p == 1) {
+	next_p = 0;
+retry:
+	if (RARRAY_LEN(rb_argv) > 0) {
+	    filename = rb_ary_shift(rb_argv);
+	    fn = StringValueCStr(filename);
+	    if (strlen(fn) == 1 && fn[0] == '-') {
+		current_file = rb_stdin;
+		if (ruby_inplace_mode) {
+		    rb_warn("Can't do inplace edit for stdio; skipping");
+		    goto retry;
+		}
+	    }
+	    else {
+		int fr = rb_sysopen(fn, O_RDONLY, 0);
+
+		if (ruby_inplace_mode) {
+		    struct stat st;
+#ifndef NO_SAFE_RENAME
+		    struct stat st2;
+#endif
+		    VALUE str;
+		    int fw;
+
+		    if (TYPE(rb_stdout) == T_FILE && rb_stdout != orig_stdout) {
+			rb_io_close(rb_stdout);
+		    }
+		    fstat(fr, &st);
+		    if (*ruby_inplace_mode) {
+			str = rb_str_new2(fn);
+#ifdef NO_LONG_FNAME
+			ruby_add_suffix(str, ruby_inplace_mode);
+#else
+			rb_str_cat2(str, ruby_inplace_mode);
+#endif
+#ifdef NO_SAFE_RENAME
+			(void)close(fr);
+			(void)unlink(RSTRING_PTR(str));
+			(void)rename(fn, RSTRING_PTR(str));
+			fr = rb_sysopen(RSTRING_PTR(str), O_RDONLY, 0);
+#else
+			if (rename(fn, RSTRING_PTR(str)) < 0) {
+			    rb_warn("Can't rename %s to %s: %s, skipping file",
+				    fn, RSTRING_PTR(str), strerror(errno));
+			    close(fr);
+			    goto retry;
+			}
+#endif
+		    }
+		    else {
+#ifdef NO_SAFE_RENAME
+			rb_fatal("Can't do inplace edit without backup");
+#else
+			if (unlink(fn) < 0) {
+			    rb_warn("Can't remove %s: %s, skipping file",
+				    fn, strerror(errno));
+			    close(fr);
+			    goto retry;
+			}
+#endif
+		    }
+		    fw = rb_sysopen(fn, O_WRONLY|O_CREAT|O_TRUNC, 0666);
+#ifndef NO_SAFE_RENAME
+		    fstat(fw, &st2);
+#ifdef HAVE_FCHMOD
+		    fchmod(fw, st.st_mode);
+#else
+		    chmod(fn, st.st_mode);
+#endif
+		    if (st.st_uid!=st2.st_uid || st.st_gid!=st2.st_gid) {
+			fchown(fw, st.st_uid, st.st_gid);
+		    }
+#endif
+		    rb_stdout = prep_io(fw, FMODE_WRITABLE, rb_cFile, fn);
+		    if (stdout_binmode) {
+			rb_io_binmode(rb_stdout, 0);
+		    }
+		}
+		current_file = prep_io(fr, FMODE_READABLE, rb_cFile, fn);
+	    }
+	    if (argf_binmode) {
+		rb_io_binmode(current_file);
+	    }
+	    if (argf_enc) {
+		rb_io_t *fptr;
+
+		GetOpenFile(current_file, fptr);
+		fptr->enc = argf_enc;
+		fptr->enc2 = argf_enc2;
+	    }
+	}
+	else {
+	    next_p = 1;
+	    return Qfalse;
+	}
+    }
+    else if (next_p == -1) {
+	current_file = rb_stdin;
+	filename = rb_str_new2("-");
+	if (ruby_inplace_mode) {
+	    rb_warn("Can't do inplace edit for stdio");
+	    rb_stdout = orig_stdout;
+	}
+    }
+    return Qtrue;
+#endif
+    abort();
+}
+
+static VALUE
+argf_getline(VALUE argf, SEL sel, int argc, VALUE *argv)
+{
+    VALUE line;
+
+retry:
+    if (!next_argv()) {
+	return Qnil;
+    }
+    if (ARGF_GENERIC_INPUT_P()) {
+	line = rb_funcall3(current_file, rb_intern("gets"), argc, argv);
+    }
+    else {
+	if (argc == 0 && rb_rs == rb_default_rs) {
+	    line = rb_io_gets(current_file, 0);
+	}
+	else {
+	    line = rb_io_getline(argc, argv, current_file);
+	}
+	if (NIL_P(line) && next_p != -1) {
+	    argf_close(current_file, 0);
+	    next_p = 1;
+	    goto retry;
+	}
+    }
+    if (!NIL_P(line)) {
+	gets_lineno++;
+	lineno = INT2FIX(gets_lineno);
+    }
+    return line;
+}
+
 static VALUE
 argf_lineno_getter(ID id, VALUE *var)
 {
-    rb_notimplement();
+    VALUE argf = *var;
+    return lineno;
 }
 
 static void
 argf_lineno_setter(VALUE val, ID id, VALUE *var)
 {
-    rb_notimplement();
+    VALUE argf = *var;
+    int n = NUM2INT(val);
+    gets_lineno = n;
+    lineno = INT2FIX(n);    
 }
-#endif
 
 /*
  *  call-seq:
@@ -2352,16 +2584,25 @@ argf_lineno_setter(VALUE val, ID id, VALUE *var)
  *  parameter is gradually losing favor in the Ruby community.
  */
 
+static VALUE argf_gets(VALUE, SEL, int, VALUE *);
+
 static VALUE
 rb_f_gets(VALUE recv, SEL sel, int argc, VALUE *argv)
 {
-rb_notimplement();
+    if (recv == argf) {
+	return argf_gets(argf, 0, argc, argv);
+    }
+    return rb_funcall2(argf, rb_intern("gets"), argc, argv);
 }
 
 static VALUE
 argf_gets(VALUE recv, SEL sel, int argc, VALUE *argv)
 {
-rb_notimplement();
+    VALUE line;
+
+    line = argf_getline(argf, 0, argc, argv);
+    rb_lastline_set(line);
+    return line;
 }
 
 /*
@@ -2877,80 +3118,108 @@ rb_notimplement();
 static VALUE
 argf_filename(VALUE argf, SEL sel)
 {
-rb_notimplement();
+    next_argv();
+    return filename;
 }
 
-#if 0
 static VALUE
 argf_filename_getter(ID id, VALUE *var)
 {
-    rb_notimplement();
+    return argf_filename(*var, 0);
 }
-#endif
 
 static VALUE
 argf_file(VALUE argf, SEL sel)
 {
-    rb_notimplement();
+    next_argv();
+    return current_file;
 }
 
 static VALUE
 argf_binmode_m(VALUE argf, SEL sel)
 {
-rb_notimplement();
+    argf_binmode = 1;
+    next_argv();
+    ARGF_FORWARD(0, 0);
+    rb_io_binmode(current_file, 0);
+    return argf;
 }
 
 static VALUE
 argf_skip(VALUE argf, SEL sel)
 {
-rb_notimplement();
+    if (next_p != -1) {
+	argf_close(current_file, 0);
+	next_p = 1;
+    }
+    return argf;
 }
 
 static VALUE
 argf_close_m(VALUE argf, SEL sel)
 {
-rb_notimplement();
+    next_argv();
+    argf_close(current_file, 0);
+    if (next_p != -1) {
+	next_p = 1;
+    }
+    gets_lineno = 0;
+    return argf;
 }
 
 static VALUE
 argf_closed(VALUE argf, SEL sel)
 {
-rb_notimplement();
+    next_argv();
+    ARGF_FORWARD(0, 0);
+    return rb_io_closed(current_file, 0);
 }
 
 static VALUE
 argf_to_s(VALUE argf, SEL sel)
 {
-rb_notimplement();
+    return rb_str_new2("ARGF");
 }
 
 static VALUE
-argf_inplace_mode_get(VALUE argf)
+argf_inplace_mode_get(VALUE argf, SEL sel)
 {
-rb_notimplement();
+    if (ruby_inplace_mode == NULL) {
+	return Qnil;
+    }
+    return rb_str_new2(ruby_inplace_mode);
 }
 
-#if 0
 static VALUE
 opt_i_get(ID id, VALUE *var)
 {
-    rb_notimplement();
+    return argf_inplace_mode_get(*var, 0);
 }
-#endif
 
 static VALUE
-argf_inplace_mode_set(VALUE argf, VALUE val)
+argf_inplace_mode_set(VALUE argf, SEL sel, VALUE val)
 {
-    rb_notimplement();
+    if (!RTEST(val)) {
+	if (ruby_inplace_mode != NULL) {
+	    free(ruby_inplace_mode);
+	}
+	ruby_inplace_mode = NULL;
+    }
+    else {
+	StringValue(val);
+	if (ruby_inplace_mode != NULL) {
+	    free(ruby_inplace_mode);
+	}
+	ruby_inplace_mode = strdup(RSTRING_BYTEPTR(val));
+    }
+    return argf;
 }
 
-#if 0
 static void
 opt_i_set(VALUE val, ID id, VALUE *var)
 {
-    rb_notimplement();
+    argf_inplace_mode_set(*var, 0, val);
 }
-#endif
 
 const char *
 ruby_get_inplace_mode(void)
@@ -2965,24 +3234,21 @@ rb_notimplement();
 }
 
 static VALUE
-argf_argv(VALUE argf)
+argf_argv(VALUE argf, SEL sel)
 {
-rb_notimplement();
+    return rb_argv;
 }
 
-#if 0
 static VALUE
 argf_argv_getter(ID id, VALUE *var)
 {
-    rb_notimplement();
+    return argf_argv(*var, 0);
 }
-#endif
 
 VALUE
 rb_get_argv(void)
 {
-    // TODO
-    return Qnil;
+    return rb_argv;
 }
 
 /*
@@ -3316,19 +3582,17 @@ Init_IO(void)
     rb_objc_define_method(rb_cARGF, "internal_encoding", argf_internal_encoding, 0);
     rb_objc_define_method(rb_cARGF, "set_encoding", argf_set_encoding, -1);
 
-    argf = Qnil;
+    argf = rb_class_new_instance(0, 0, rb_cARGF);
 
-#if 0 // TODO
     rb_define_readonly_variable("$<", &argf);
     rb_define_global_const("ARGF", argf);
 
     rb_define_hooked_variable("$.", &argf, argf_lineno_getter, argf_lineno_setter);
     rb_define_hooked_variable("$FILENAME", &argf, argf_filename_getter, 0);
-    //GC_WB(&filename, rb_str_new2("-"));
+    GC_WB(&filename, rb_str_new2("-"));
 
     rb_define_hooked_variable("$-i", &argf, opt_i_get, opt_i_set);
     rb_define_hooked_variable("$*", &argf, argf_argv_getter, 0);
-#endif
 
     Init_File();
 
