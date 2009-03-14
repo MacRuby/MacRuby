@@ -3018,6 +3018,9 @@ rb_io_s_read(VALUE recv, SEL sel, int argc, VALUE *argv)
 
     CFDataSetLength(data, data_read + 1);
 
+    CFReadStreamClose(readStream);
+    CFRelease(readStream);
+
     return outbuf;
 }
 
