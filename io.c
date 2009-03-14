@@ -256,13 +256,51 @@ io_alloc(VALUE klass, SEL sel)
     return (VALUE)io;
 }
 
-static VALUE
-prep_io(int fd, int mode, VALUE klass, const char *path)
+static inline CFReadStreamRef
+rb_io_open_read_stream(int fd, CFURLRef url)
 {
-    // TODO honor mode
+    CFReadStreamRef r;
 
-    VALUE io = io_alloc(rb_cIO, 0);
+    if (url != NULL) {
+	r = CFReadStreamCreateWithFile(NULL, url);
+	assert(r != NULL);
+    }
+    else {
+	// TODO
+	abort();
+    }
 
+    if (!CFReadStreamOpen(r)) {
+	rb_raise(rb_eRuntimeError, "cannot open read stream");
+    }
+
+    return r;
+}
+
+static inline CFWriteStreamRef
+rb_io_open_write_stream(int fd, CFURLRef url)
+{
+    CFWriteStreamRef w;
+
+    if (url != NULL) {
+	w = CFWriteStreamCreateWithFile(NULL, url);
+	assert(w != NULL);
+    }
+    else {
+	// TODO
+	abort();
+    }
+
+    if (!CFWriteStreamOpen(w)) {
+	rb_raise(rb_eRuntimeError, "cannot open read stream");
+    }
+
+    return w;
+}
+
+static inline void
+prep_io_struct(rb_io_t *io_struct, int fd, int mode, const char *path)
+{
     CFReadStreamRef r = NULL;
     CFWriteStreamRef w = NULL;
     
@@ -271,12 +309,10 @@ prep_io(int fd, int mode, VALUE klass, const char *path)
 		(const UInt8 *)path, strlen(path), false);
 	assert(url != NULL);
 	if (mode & FMODE_READABLE) {
-	    r = CFReadStreamCreateWithFile(NULL, url);
-	    assert(r != NULL);
+	    r = rb_io_open_read_stream(fd, url);
 	}
 	if (mode & FMODE_WRITABLE) {
-	    w = CFWriteStreamCreateWithFile(NULL, url);
-	    assert(w != NULL);
+	    w = rb_io_open_write_stream(fd, url);
 	}
 	CFRelease(url);	
     }
@@ -287,15 +323,6 @@ prep_io(int fd, int mode, VALUE klass, const char *path)
     }
 
     assert(r != NULL || w != NULL);
-
-    if (r != NULL && !CFReadStreamOpen(r)) {
-	rb_raise(rb_eRuntimeError, "cannot open read stream");
-    }
-    if (w != NULL && !CFWriteStreamOpen(w)) {
-	rb_raise(rb_eRuntimeError, "cannot open write stream");
-    }
-
-    rb_io_t *io_struct = RFILE(io)->fptr;
 
     if (r != NULL) {
 	GC_WB(&io_struct->readStream, r);
@@ -317,6 +344,16 @@ prep_io(int fd, int mode, VALUE klass, const char *path)
     io_struct->ungetc_buf = NULL;
     io_struct->ungetc_buf_len = 0;
     io_struct->ungetc_buf_pos = 0;
+}
+
+static VALUE
+prep_io(int fd, int mode, VALUE klass, const char *path)
+{
+    VALUE io = io_alloc(rb_cIO, 0);
+
+    rb_io_t *io_struct = RFILE(io)->fptr;
+
+    prep_io_struct(io_struct, fd, mode, path);
 
     rb_objc_keep_for_exit_finalize((VALUE)io);
 
@@ -372,7 +409,8 @@ io_write(VALUE io, SEL sel, VALUE to_write)
 	length = CFDataGetLength(data);
     }
     else {
-	buffer = (UInt8 *)CFStringGetCStringPtr((CFStringRef)to_write, kCFStringEncodingUTF8);
+	buffer = (UInt8 *)CFStringGetCStringPtr((CFStringRef)to_write,
+		kCFStringEncodingUTF8);
 	if (buffer != NULL) {
 	    length = CFStringGetLength((CFStringRef)to_write);
 	}
@@ -447,20 +485,34 @@ rb_io_flush(VALUE io, SEL sel)
  *     f.pos    #=> 17
  */
 
+static inline long
+rb_io_read_stream_get_offset(CFReadStreamRef stream)
+{
+    long result = 0L;
+
+    CFNumberRef pos = CFReadStreamCopyProperty(stream,
+	    kCFStreamPropertyFileCurrentOffset);
+    CFNumberGetValue(pos, kCFNumberSInt32Type, &result);
+    CFRelease(pos);
+
+    return result;
+}
+
+static inline void
+rb_io_read_stream_set_offset(CFReadStreamRef stream, long offset)
+{
+    CFNumberRef pos = CFNumberCreate(NULL, kCFNumberSInt32Type, &offset);
+    CFReadStreamSetProperty(stream, kCFStreamPropertyFileCurrentOffset, pos);
+    CFRelease(pos);
+}
+
 static VALUE
 rb_io_tell(VALUE io, SEL sel)
 {
     rb_io_t *io_struct = ExtractIOStruct(io);
     rb_io_assert_readable(io_struct);
-    
-    CFNumberRef pos = CFReadStreamCopyProperty(io_struct->readStream,
-	    kCFStreamPropertyFileCurrentOffset);
-    long result = 0L;
-    CFNumberGetValue(pos, kCFNumberSInt32Type, &result);
-    CFRelease(pos);
 
-    return LONG2FIX(result);
-    
+    return LONG2FIX(rb_io_read_stream_get_offset(io_struct->readStream)); 
 }
 
 static VALUE
@@ -469,14 +521,10 @@ rb_io_seek(VALUE io, VALUE offset, int whence)
     rb_io_t *io_struct = ExtractIOStruct(io);
     rb_io_assert_readable(io_struct); 
     rb_io_assert_writable(io_struct);
-    
-    long position = FIX2LONG(offset);
-    
+
     // TODO: make this work with IO::SEEK_CUR, SEEK_END, etc.
-    CFNumberRef pos_property = CFNumberCreate(NULL, kCFNumberSInt32Type, &position);
-    CFReadStreamSetProperty(io_struct->readStream, kCFStreamPropertyFileCurrentOffset,
-	    pos_property);
-    CFRelease(pos_property);
+    rb_io_read_stream_set_offset(io_struct->readStream, FIX2LONG(offset));
+
     return INT2FIX(0); // is this right?
 }
 
@@ -735,7 +783,30 @@ rb_io_to_io(VALUE io, SEL sel)
     return io;
 }
 
-static bool
+static inline long
+rb_io_stream_read_internal(CFReadStreamRef readStream, UInt8 *buffer, long len)
+{
+    long data_read = 0;
+
+    while (data_read < len) {
+	int code = CFReadStreamRead(readStream, &buffer[data_read],
+		len - data_read);
+
+	if (code == 0) {
+	    // EOF
+	    break;
+	}
+	else if (code == -1) {
+	    rb_raise(rb_eRuntimeError, "internal error while reading stream");
+	}
+
+	data_read += code;
+    }
+
+    return data_read;
+}
+
+static inline long
 rb_io_read_internal(rb_io_t *io_struct, UInt8 *buffer, long len)
 {
     assert(io_struct->readStream != NULL);
@@ -753,25 +824,16 @@ rb_io_read_internal(rb_io_t *io_struct, UInt8 *buffer, long len)
 	    xfree(io_struct->ungetc_buf);
 	    io_struct->ungetc_buf = NULL;
 	}
+	if (data_read == len) {
+	    return data_read;
+	}
     }
 
-    // We still need to read.
-    while (data_read < len) {
-	int code = CFReadStreamRead(io_struct->readStream, &buffer[data_read],
-		len - data_read);
+    // Read from the stream.
+    data_read += rb_io_stream_read_internal(io_struct->readStream,
+	    &buffer[data_read], len - data_read);
 
-	if (code == 0) {
-	    // EOF
-	    return false;
-	}
-	else if (code == -1) {
-	    rb_raise(rb_eRuntimeError, "internal error while reading stream");
-	}
-
-	data_read += code;
-    }
-
-    return true;
+    return data_read;
 }
 
 /*
@@ -945,9 +1007,11 @@ io_read(VALUE io, SEL sel, int argc, VALUE *argv)
     CFDataIncreaseLength(data, size);
     UInt8 *buf = CFDataGetMutableBytePtr(data);
 
-    if (!rb_io_read_internal(io_struct, buf, size)) {
+    long data_read = rb_io_read_internal(io_struct, buf, size);
+    if (data_read < size) {
 	rb_eof_error();
     }
+    CFDataSetLength(data, data_read + 1);
 
     return outbuf;
 }
@@ -1252,9 +1316,9 @@ rb_io_getbyte(VALUE io, SEL sel)
 {
     rb_io_t *io_struct = ExtractIOStruct(io);
     rb_io_assert_readable(io_struct);
-    
+
     UInt8 byte;
-    if (!rb_io_read_internal(io_struct, &byte, 1)) {
+    if (rb_io_read_internal(io_struct, &byte, 1) != 1) {
 	return Qnil;
     }
 
@@ -1553,7 +1617,7 @@ rb_io_gets(VALUE io, SEL sel)
     long data_read = 0;
     while (true) {
 	UInt8 byte;
-	if (!rb_io_read_internal(io_struct, &byte, 1)) {
+	if (rb_io_read_internal(io_struct, &byte, 1) != 1) {
 	    break;
 	}
 
@@ -2903,7 +2967,58 @@ rb_notimplement();
 static VALUE
 rb_io_s_read(VALUE recv, SEL sel, int argc, VALUE *argv)
 {
-rb_notimplement();
+    VALUE fname, length, offset, opt;
+
+    rb_scan_args(argc, argv, "13", &fname, &length, &offset, &opt);
+
+    // TODO honor opt
+
+    StringValue(fname);
+
+    CFURLRef url = CFURLCreateFromFileSystemRepresentation(NULL,
+	    (const UInt8 *)RSTRING_PTR(fname), RSTRING_LEN(fname), false);
+    assert(url != NULL);
+
+    CFReadStreamRef readStream = rb_io_open_read_stream(-1, url);
+
+    CFRelease(url);
+
+    if (!NIL_P(offset)) {
+	long o = FIX2LONG(offset);
+	rb_io_read_stream_set_offset(readStream, o);
+    }
+
+    VALUE outbuf = rb_bytestring_new();
+    CFMutableDataRef data = rb_bytestring_wrapped_data(outbuf);
+    long data_read = 0;
+
+    if (NIL_P(length)) {
+	// Read all
+	long size = 128;
+	CFDataIncreaseLength(data, size);
+	UInt8 *buf = CFDataGetMutableBytePtr(data);
+	while (true) {
+	    const long fragment = rb_io_stream_read_internal(readStream,
+		    &buf[data_read], size);
+	    data_read += fragment;
+	    if (fragment < size) {
+		break;
+	    }
+	    size += size;
+	    CFDataIncreaseLength(data, size);
+	    buf = CFDataGetMutableBytePtr(data);
+	}
+    }
+    else {
+	const long size = FIX2LONG(length);
+	CFDataIncreaseLength(data, size);
+	UInt8 *buf = CFDataGetMutableBytePtr(data);
+	data_read = rb_io_stream_read_internal(readStream, buf, size);
+    }
+
+    CFDataSetLength(data, data_read + 1);
+
+    return outbuf;
 }
 
 /*
