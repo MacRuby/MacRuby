@@ -356,6 +356,7 @@ char *rb_string_value_cstr(volatile VALUE*);
 #define StringValueCStr(v) rb_string_value_cstr(&(v))
 
 VALUE rb_bytestring_new();
+VALUE rb_bytestring_new_with_data(UInt8 *buf, long size);
 CFMutableDataRef rb_bytestring_wrapped_data(VALUE);
 UInt8 *rb_bytestring_byte_pointer(VALUE);
 VALUE rb_coerce_to_bytestring(VALUE);

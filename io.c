@@ -1011,7 +1011,7 @@ io_read(VALUE io, SEL sel, int argc, VALUE *argv)
     if (data_read < size) {
 	rb_eof_error();
     }
-    CFDataSetLength(data, data_read + 1);
+    CFDataSetLength(data, data_read);
 
     return outbuf;
 }
@@ -1637,7 +1637,7 @@ rb_io_gets(VALUE io, SEL sel)
 	return Qnil;
     }
 
-    CFDataSetLength(data, data_read + 1);
+    CFDataSetLength(data, data_read);
 
     return outbuf;
 }
@@ -2992,7 +2992,7 @@ rb_io_s_read(VALUE recv, SEL sel, int argc, VALUE *argv)
 	data_read = rb_io_stream_read_internal(readStream, buf, size);
     }
 
-    CFDataSetLength(data, data_read + 1);
+    CFDataSetLength(data, data_read);
 
     CFReadStreamClose(readStream);
     CFRelease(readStream);
