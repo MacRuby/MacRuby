@@ -1278,7 +1278,21 @@ rb_notimplement();
 static VALUE
 rb_io_getc(VALUE io, SEL sel)
 {
-    rb_notimplement();
+    rb_io_t *io_struct = ExtractIOStruct(io);
+    rb_io_assert_readable(io_struct);
+
+    // TODO should be encoding aware
+
+    UInt8 byte;
+    if (rb_io_read_internal(io_struct, &byte, 1) != 1) {
+	return Qnil;
+    }
+
+    char buf[2];
+    buf[0] = byte;
+    buf[1] = '\0';
+
+    return rb_str_new2(buf);
 }
 
 /*
@@ -1296,7 +1310,12 @@ rb_io_getc(VALUE io, SEL sel)
 static VALUE
 rb_io_readchar(VALUE io, SEL sel)
 {
-    rb_notimplement();
+    VALUE c = rb_io_getc(io, 0);
+
+    if (NIL_P(c)) {
+	rb_eof_error();
+    }
+    return c;
 }
 
 /*
