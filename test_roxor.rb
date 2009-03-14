@@ -599,6 +599,7 @@ test "dispatch" do
     p f(1, 2, 3, 4, 5, 6)
     p f(1, 2, 3, 4, 5, 6, 7)    
   }
+  assert "42", "def f((a, b)); a end; p f([42, 53])"
 end
 
 test "blocks" do
