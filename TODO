@@ -55,6 +55,9 @@
 [X] remove the YARV code from the project
 [ ] refactor the VM sources
 [ ] clean objc.m
+[ ] new IO
+  [/] reimplement all IOs using CFStreams
+  [ ] clean string.c (remove previous bytestring stuff)
 [/] implement eval/binding (irb)
 [ ] implement the BridgeSupport plumbing
 [ ] implement threading
