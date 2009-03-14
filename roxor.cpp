@@ -253,7 +253,6 @@ class RoxorCompiler
 	Constant *nilVal;
 	Constant *trueVal;
 	Constant *falseVal;
-	Constant *undefVal;
 	Constant *splatArgFollowsVal;
 	const Type *RubyObjTy; 
 	const Type *RubyObjPtrTy; 
@@ -572,7 +571,6 @@ RoxorCompiler::RoxorCompiler(const char *_fname)
     nilVal = ConstantInt::get(RubyObjTy, Qnil);
     trueVal = ConstantInt::get(RubyObjTy, Qtrue);
     falseVal = ConstantInt::get(RubyObjTy, Qfalse);
-    undefVal = ConstantInt::get(RubyObjTy, Qundef);
     splatArgFollowsVal = ConstantInt::get(RubyObjTy, SPLAT_ARG_FOLLOWS);
     PtrTy = PointerType::getUnqual(Type::Int8Ty);
 
@@ -735,7 +733,7 @@ RoxorCompiler::compile_optional_arguments(Function::ArgumentListType::iterator i
     do {
 	assert(node->nd_value != NULL);
 
-	Value *isNilInst = new ICmpInst(ICmpInst::ICMP_EQ, iter, undefVal, "", bb);
+	Value *isNilInst = new ICmpInst(ICmpInst::ICMP_EQ, iter, nilVal, "", bb);
 
 	Function *f = bb->getParent();
 	BasicBlock *arg_nil = BasicBlock::Create("arg_nil", f);
@@ -4150,7 +4148,7 @@ __rb_vm_rcall(VALUE self, NODE *node, IMP pimp, int arity, int argc, const VALUE
 		new_argv[i] = argv[i];
 	    }
 	    else {
-		new_argv[i] = Qundef;
+		new_argv[i] = Qnil;
 	    }
 	}
 	return __rb_vm_rcall(self, node, pimp, -arity, -arity, new_argv);
