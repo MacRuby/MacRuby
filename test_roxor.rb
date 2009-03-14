@@ -577,6 +577,28 @@ test "dispatch" do
   assert ":ok", "def foo(&block); :ok; end; p foo"
   assert ":ok", "def foo(*args, &block); :ok; end; p foo"
   assert ":ok", "def foo(x, *args, &block); x; end; p foo(:ok)"
+  
+  assert "[1, nil, :c]", "def f(a, b = :b, c = :c) [a, b, c] end; p f(1, nil)"
+  assert "[1, :b, :c, 2]\n[1, 2, :c, 3]\n[1, 2, 3, 4]", %{
+    def f(a, b = :b, c = :c, d) [a, b, c, d] end
+    p f(1, 2)
+    p f(1, 2, 3)
+    p f(1, 2, 3, 4)
+  }
+  assert "[1, :b, :c, 2]\n[1, 2, :c, 3]\n[1, 2, 3, 4]", %{
+    def f(a, b = :b, c = :c, d) [a, b, c, d] end
+    p f(1, 2)
+    p f(1, 2, 3)
+    p f(1, 2, 3, 4)
+  }
+  assert "[1, :b, :c, [], 2, 3]\n[1, 2, :c, [], 3, 4]\n[1, 2, 3, [], 4, 5]\n[1, 2, 3, [4], 5, 6]\n[1, 2, 3, [4, 5], 6, 7]", %{
+    def f(a, b = :b, c = :c, *args, d, e) [a, b, c, args, d, e] end
+    p f(1, 2, 3)
+    p f(1, 2, 3, 4)
+    p f(1, 2, 3, 4, 5)
+    p f(1, 2, 3, 4, 5, 6)
+    p f(1, 2, 3, 4, 5, 6, 7)    
+  }
 end
 
 test "blocks" do
