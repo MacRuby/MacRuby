@@ -3064,20 +3064,11 @@ rb_io_s_readlines(VALUE recv, SEL sel, int argc, VALUE *argv)
 
 	long pos = 0;
 	void *ptr;
-	do {
-	    ptr = memchr(&buf[pos], byte, length - pos);
-	    long s;
-	    if (ptr == NULL) {
-		// Remaining data.
-		s = length - pos;
-	    }
-	    else {
-		s =  (long)ptr - (long)&buf[pos] + 1;
-	    }
+	while ((ptr = memchr(&buf[pos], byte, length - pos)) != NULL) {
+	    const long s =  (long)ptr - (long)&buf[pos] + 1;
 	    rb_ary_push(ary, rb_bytestring_new_with_data(&buf[pos], s));
 	    pos += s; 
 	}
-	while (ptr != NULL);
     }
     else {
 	// TODO
