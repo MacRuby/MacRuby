@@ -5395,10 +5395,14 @@ static VALUE
 rb_bytestring_alloc(VALUE klass, SEL sel)
 {
     VALUE bstr = (VALUE)class_createInstance((Class)rb_cByteString, 0);
+
     CFMutableDataRef data = CFDataCreateMutable(NULL, 0);
-    CFDataIncreaseLength(data, 1);
+    //CFDataIncreaseLength(data, 1);
+
     // TODO: Maybe we should access this with wrappedDataOffset...
-    object_setInstanceVariable((id)bstr, "wrappedData", (void*)CFMakeCollectable(data));
+    object_setInstanceVariable((id)bstr, "wrappedData", (void *)data);
+    
+    CFMakeCollectable(data);
     return bstr;
 }
 
@@ -5409,6 +5413,14 @@ rb_bytestring_new()
     VALUE bs = rb_bytestring_alloc(0, (SEL)"");
     bs = (VALUE)objc_msgSend((id)bs, selInit); // [recv init];
     return bs;
+}
+
+VALUE
+rb_bytestring_new_with_data(UInt8 *buf, long size)
+{
+    VALUE v = rb_bytestring_new();
+    CFDataAppendBytes(rb_bytestring_wrapped_data(v), buf, size);
+    return v;
 }
 
 static VALUE

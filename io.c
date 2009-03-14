@@ -2910,30 +2910,6 @@ rb_notimplement();
 
 /*
  *  call-seq:
- *     IO.readlines(name, sep=$/)     => array
- *     IO.readlines(name, limit)      => array
- *     IO.readlines(name, sep, limit) => array
- *
- *  Reads the entire file specified by <i>name</i> as individual
- *  lines, and returns those lines in an array. Lines are separated by
- *  <i>sep</i>.
- *
- *     a = IO.readlines("testfile")
- *     a[0]   #=> "This is line one\n"
- *
- *  If the last argument is a hash, it's the keyword argument to open.
- *  See <code>IO.read</code> for detail.
- *
- */
-
-static VALUE
-rb_io_s_readlines(VALUE recv, SEL sel, int argc, VALUE *argv)
-{
-rb_notimplement();
-}
-
-/*
- *  call-seq:
  *     IO.read(name, [length [, offset]] )   => string
  *     IO.read(name, [length [, offset]], opt)   => string
  *
@@ -3022,6 +2998,93 @@ rb_io_s_read(VALUE recv, SEL sel, int argc, VALUE *argv)
     CFRelease(readStream);
 
     return outbuf;
+}
+
+/*
+ *  call-seq:
+ *     IO.readlines(name, sep=$/)     => array
+ *     IO.readlines(name, limit)      => array
+ *     IO.readlines(name, sep, limit) => array
+ *
+ *  Reads the entire file specified by <i>name</i> as individual
+ *  lines, and returns those lines in an array. Lines are separated by
+ *  <i>sep</i>.
+ *
+ *     a = IO.readlines("testfile")
+ *     a[0]   #=> "This is line one\n"
+ *
+ *  If the last argument is a hash, it's the keyword argument to open.
+ *  See <code>IO.read</code> for detail.
+ *
+ */
+
+static VALUE
+rb_io_s_readlines(VALUE recv, SEL sel, int argc, VALUE *argv)
+{
+    VALUE fname, arg2, arg3, opt;
+
+    rb_scan_args(argc, argv, "13", &fname, &arg2, &arg3, &opt);
+
+    // Read everything.
+    VALUE io_s_read_args[] = { fname, Qnil, Qnil, opt };
+    VALUE outbuf = rb_io_s_read(recv, 0, 4, io_s_read_args);
+
+    // Prepare arguments.
+    VALUE rs, limit;
+    if (argc == 1) {
+	rs = rb_rs;
+	limit = Qnil;
+    }
+    else {
+	if (!NIL_P(arg2) && NIL_P(arg3)) {
+	    if (TYPE(arg2) == T_STRING) {
+		rs = arg2;
+		limit = Qnil;
+	    }
+	    else {
+		limit = arg2;
+		rs = rb_rs;
+	    }
+	}
+	else {
+	    StringValue(arg2);
+	    rs = arg2;
+	    limit = arg3;
+	}
+    }
+
+    CFMutableDataRef data = rb_bytestring_wrapped_data(outbuf);
+    UInt8 *buf = CFDataGetMutableBytePtr(data);
+    const long length = CFDataGetLength(data);
+
+    VALUE ary = rb_ary_new();
+
+    if (RSTRING_LEN(rs) == 1) {
+	UInt8 byte = RSTRING_PTR(rs)[0];
+
+	long pos = 0;
+	void *ptr;
+	do {
+	    ptr = memchr(&buf[pos], byte, length - pos);
+	    long s;
+	    if (ptr == NULL) {
+		// Remaining data.
+		s = length - pos;
+	    }
+	    else {
+		s =  (long)ptr - (long)&buf[pos] + 1;
+	    }
+	    rb_ary_push(ary, rb_bytestring_new_with_data(&buf[pos], s));
+	    pos += s; 
+	}
+	while (ptr != NULL);
+    }
+    else {
+	// TODO
+	abort();
+    }	
+
+    return ary;
 }
 
 /*
@@ -3538,6 +3601,7 @@ Init_IO(void)
 
     rb_global_variable(&rb_default_rs);
     rb_rs = rb_default_rs = rb_str_new2("\n");
+    rb_objc_retain((void *)rb_rs);
     rb_output_rs = Qnil;
     OBJ_FREEZE(rb_default_rs);	/* avoid modifying RS_default */
     rb_define_hooked_variable("$/", &rb_rs, 0, rb_str_setter);
