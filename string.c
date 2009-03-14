@@ -5377,19 +5377,31 @@ install_symbol_primitives(void)
 
 #undef INSTALL_METHOD
 
-CFMutableDataRef 
-rb_bytestring_wrapped_data(VALUE bstr)
+static inline void **
+rb_bytestring_ivar_addr(VALUE bstr)
 {
-    void **data = (void **)((char *)bstr + wrappedDataOffset);
-    return (CFMutableDataRef)(*data); 
+    return (void **)((char *)bstr + wrappedDataOffset);
 }
 
-inline
-UInt8 *rb_bytestring_byte_pointer(VALUE bstr)
+inline CFMutableDataRef 
+rb_bytestring_wrapped_data(VALUE bstr)
+{
+    void **addr = rb_bytestring_ivar_addr(bstr);
+    return (CFMutableDataRef)(*addr); 
+}
+
+inline void
+rb_bytestring_set_wrapped_data(VALUE bstr, CFMutableDataRef data)
+{
+    void **addr = rb_bytestring_ivar_addr(bstr);
+    *addr = (void *)data;
+}
+
+inline UInt8 *
+rb_bytestring_byte_pointer(VALUE bstr)
 {
     return CFDataGetMutableBytePtr(rb_bytestring_wrapped_data(bstr));
 }
-
 
 static VALUE
 rb_bytestring_alloc(VALUE klass, SEL sel)
@@ -5397,15 +5409,11 @@ rb_bytestring_alloc(VALUE klass, SEL sel)
     VALUE bstr = (VALUE)class_createInstance((Class)rb_cByteString, 0);
 
     CFMutableDataRef data = CFDataCreateMutable(NULL, 0);
-    //CFDataIncreaseLength(data, 1);
-
-    // TODO: Maybe we should access this with wrappedDataOffset...
-    object_setInstanceVariable((id)bstr, "wrappedData", (void *)data);
-    
+    rb_bytestring_set_wrapped_data(bstr, data);
     CFMakeCollectable(data);
+
     return bstr;
 }
-
 
 VALUE 
 rb_bytestring_new() 
@@ -5423,15 +5431,28 @@ rb_bytestring_new_with_data(UInt8 *buf, long size)
     return v;
 }
 
+static void inline
+rb_bytestring_copy_cfstring_content(VALUE bstr, CFStringRef str)
+{
+    const char *cptr = CFStringGetCStringPtr(str, kCFStringEncodingUTF8);
+    assert(cptr != NULL); // TODO handle UTF-16 strings
+
+    CFDataAppendBytes(rb_bytestring_wrapped_data(bstr), (UInt8 *)cptr, 
+	    CFStringGetLength(str));
+}
+
 static VALUE
 rb_bytestring_initialize(VALUE recv, SEL sel, int argc, VALUE *argv)
 {
     VALUE orig;
+
+    rb_scan_args(argc, argv, "01", &orig);
+
     recv = (VALUE)objc_msgSend((id)recv, selInit); // [recv init];
-    if(argc == 1) {
-        rb_scan_args(argc, argv, "01", &orig);
-        const UniChar *toCopy = (const UniChar*)CFStringGetCStringPtr((CFStringRef)orig, kCFStringEncodingUTF8);
-        CFDataAppendBytes(rb_bytestring_wrapped_data(recv), (UInt8*)toCopy, CFStringGetLength((CFStringRef)orig));
+
+    if (!NIL_P(orig)) {
+	StringValue(orig);
+	rb_bytestring_copy_cfstring_content(recv, (CFStringRef)orig);
     }
     return orig;
 }
@@ -5440,43 +5461,45 @@ VALUE
 rb_coerce_to_bytestring(VALUE str)
 {
     VALUE new = rb_bytestring_alloc(0, 0);
-    const UniChar *toCopy = (const UniChar*)CFStringGetCStringPtr((CFStringRef)str, kCFStringEncodingUTF8);
-    CFDataAppendBytes(rb_bytestring_wrapped_data(new), (UInt8*)toCopy, CFStringGetLength((CFStringRef)str));
+    rb_bytestring_copy_cfstring_content(new, (CFStringRef)str);
     return new;
 }
 
 long 
 rb_bytestring_length(VALUE str)
 {
-    return CFDataGetLength(rb_bytestring_wrapped_data(str))-1;
+    return CFDataGetLength(rb_bytestring_wrapped_data(str));
 }
 
 static CFIndex
 imp_rb_bytestring_length(void *rcv, SEL sel) 
 {
-    return CFDataGetLength(rb_bytestring_wrapped_data((VALUE)rcv))-1;
+    return rb_bytestring_length((VALUE)rcv);
 }
 
-// There has GOT to be some character encoding issues with this.
 static UniChar
 imp_rb_bytestring_characterAtIndex(void *rcv, SEL sel, CFIndex idx)
 {
+    // XXX should be encoding aware
     return rb_bytestring_byte_pointer((VALUE)rcv)[idx];
 }
 
 static void
-imp_rb_bytestring_replaceCharactersInRange_withString(void *rcv, SEL sel, CFRange range, void *str)
+imp_rb_bytestring_replaceCharactersInRange_withString(void *rcv, SEL sel,
+	CFRange range, void *str)
 {
-    const UniChar *toCopy = (const UniChar*)CFStringGetCStringPtr((CFStringRef)str, kCFStringEncodingUTF8);
-    // TODO: Add a call to CFStringGetCString to catch if this fails.
-    assert(toCopy != NULL);
-    size_t length = strlen((const char*)toCopy);
+    const char *cstr = CFStringGetCStringPtr((CFStringRef)str,
+	    kCFStringEncodingUTF8);
+    assert(cstr != NULL); // TODO handle UTF-16 strings
+    const long length = CFStringGetLength((CFStringRef)str);
+
     CFMutableDataRef data = rb_bytestring_wrapped_data((VALUE)rcv);
+
     // TODO: Have a more robust check than merely an assert(),
     // and find out whether CFDataReplaceBytes complains if you give it
     // a range outside the length of the wrapped data..
     assert((length + range.location) < CFDataGetLength(data));
-    CFDataReplaceBytes(data, range, (const UInt8*)toCopy, length);
+    CFDataReplaceBytes(data, range, (const UInt8 *)cstr, length);
 }
 
 /*
@@ -5502,7 +5525,8 @@ Init_String(void)
     rb_const_set(rb_cObject, rb_intern("String"), rb_cNSMutableString);
     rb_set_class_path(rb_cNSMutableString, rb_cObject, "NSMutableString");
 
-    rb_objc_define_method(*(VALUE *)rb_cString, "__new_bytestring__", rb_str_new_bytestring_m, 1);
+    rb_objc_define_method(*(VALUE *)rb_cString, "__new_bytestring__",
+	    rb_str_new_bytestring_m, 1);
     rb_objc_define_method(rb_cString, "__bytestring__?", rb_str_bytestring_m, 0);
 
     rb_include_module(rb_cString, rb_mComparable);
