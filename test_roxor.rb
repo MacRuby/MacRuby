@@ -1012,4 +1012,8 @@ test "method" do
     p b.foo, m.bind(b).call
   }
 
+  assert '-5', "def f(a, b, d, g, c=1, e=2, f=3, *args); end; p method(:f).arity"
+  assert '-5', "def f(a, b, d, g, c=1, e=2, f=3); end; p method(:f).arity"
+  assert '-5', "def f(a, b, d, g, *args); end; p method(:f).arity"
+  assert '4', "def f(a, b, d, g); end; p method(:f).arity"
 end
