@@ -124,7 +124,8 @@ class MSpecMain < MSpecScript
       name = tmp "mspec-ci-multi-#{list.size}"
 
       rest = argv + ["-o", name, item]
-      fork { system [config[:target], *rest].join(" ") }
+      #fork { system [config[:target], *rest].join(" ") }
+      fork { system ([config[:target]] + rest).join(" ") }
 
       list << name
     end
