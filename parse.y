@@ -2892,7 +2892,6 @@ primary		: literal
 			// passed to 'for'.
 
 			args = new_args(m, 0, id, 0, 0);
-			args->nd_alen = 1;
 
 			NODE *block = $8;
 			if (nd_type(block) != NODE_BLOCK) {

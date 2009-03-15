@@ -1705,41 +1705,80 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Va
     return NULL;
 }
 
-static inline int
-rb_vm_node_arity(NODE *node, bool negative_arity=true)
+struct node_arity {
+  short min;
+  short max;
+  short left_req;
+  short real;
+};
+
+static inline node_arity
+rb_vm_node_arity(NODE *node)
 {
     const int type = nd_type(node);
+    struct node_arity arity;
 
     if (type == NODE_SCOPE) {
 	NODE *n = node->nd_args;
-	int arity = 0;
-	bool opt_or_splat = false;
-	if (n != NULL) {
-	    arity = n->nd_frml;
+	short opt_args = 0, req_args = 0;
+	bool has_rest = false;
+	if (n == NULL) {
+	    arity.left_req = 0;
+	}
+	else {
+	    req_args = n->nd_frml;
+	    arity.left_req = req_args;
 	    NODE *n_opt = n->nd_opt;
 	    if (n_opt != NULL) {
 		NODE *ni = n_opt;
-		opt_or_splat = true;
 		while (ni != NULL) {
-		    arity++;
+		    opt_args++;
 		    ni = ni->nd_next;
 		}
 	    }
-#if 0
-	    NODE *n_aux = n->nd_next;
-	    if (n_aux != NULL) {
-		opt_or_splat = true;
-		arity++;
+	    if (n->nd_next != NULL) {
+		NODE *rest_node = n->nd_next;
+		if (rest_node->nd_rest) {
+		    has_rest = true;
+		}
+		if (rest_node->nd_next) {
+		    req_args += rest_node->nd_next->nd_frml;
+		}
 	    }
-#endif
 	}
-	return opt_or_splat && negative_arity ? -arity : arity;
+	arity.min = req_args;
+	if (has_rest) {
+	    arity.max = -1;
+	    arity.real = req_args + opt_args + 1;
+	}
+	else {
+	    arity.max = arity.real = req_args + opt_args;
+	}
+	return arity;
     }
 
     if (type == NODE_FBODY) {
 	assert(node->nd_body != NULL);
 	assert(node->nd_body->nd_body != NULL);
-	return node->nd_body->nd_body->nd_argc; 
+	int argc = node->nd_body->nd_body->nd_argc;
+	if (argc >= 0) {
+	    arity.left_req = arity.real = arity.min = arity.max = argc;
+	}
+	else {
+	    arity.left_req = arity.min = 0;
+	    arity.max = -1;
+	    if (argc == -1) {
+		arity.real = 2;
+	    }
+	    else if (argc == -2) {
+		arity.real = 1;
+	    }
+	    else {
+		printf("invalid FBODY arity: %d\n", argc);
+		abort();
+	    }
+	}
+	return arity; 
     }
 
     printf("invalid node %p type %d\n", node, type);
@@ -2039,7 +2078,8 @@ RoxorCompiler::compile_node(NODE *node)
     switch (nd_type(node)) {
 	case NODE_SCOPE:
 	    {
-		const int nargs = bb == NULL ? 0 : rb_vm_node_arity(node, false);
+		node_arity arity = rb_vm_node_arity(node);
+		const int nargs = bb == NULL ? 0 : arity.real;
 
 		// Get dynamic vars.
 		if (current_block && node->nd_tbl != NULL) {
@@ -3229,7 +3269,8 @@ rescan_args:
 
 		params.push_back(compile_current_class());
 
-		const SEL sel = mid_to_sel(mid, rb_vm_node_arity(body));
+		node_arity arity = rb_vm_node_arity(body);
+		const SEL sel = mid_to_sel(mid, arity.real);
 		params.push_back(compile_const_pointer((void *)sel));
 
 		params.push_back(compile_const_pointer(new_function));
@@ -4083,19 +4124,18 @@ rb_vm_define_method(Class klass, SEL sel, IMP imp, NODE *node)
 {
     assert(node != NULL);
 
-    const int arity = rb_vm_node_arity(node);
-    assert(arity < MAX_ARITY);
+    const node_arity arity = rb_vm_node_arity(node);
+    assert(arity.real < MAX_ARITY);
 
     assert(klass != NULL);
 
     const char *sel_name = sel_getName(sel);
     const bool genuine_selector = sel_name[strlen(sel_name) - 1] == ':';
 
-    int oc_arity = genuine_selector ? (arity < 0 ? -arity : arity) : 0;
+    int oc_arity = genuine_selector ? arity.real : 0;
     bool redefined = false;
 
 define_method:
-
     char *types;
     Method method = class_getInstanceMethod(klass, sel);
     if (method != NULL) {
@@ -4115,14 +4155,26 @@ define_method:
 
     GET_VM()->add_method(klass, sel, imp, node, types);
 
-    if (!redefined && !genuine_selector && arity < 0) {
-	char buf[100];
-	snprintf(buf, sizeof buf, "%s:", sel_name);
-	sel = sel_registerName(buf);
-	oc_arity = 1;
-	redefined = true;
+    if (!redefined) {
+	if (!genuine_selector && arity.max != arity.min) {
+	    char buf[100];
+	    snprintf(buf, sizeof buf, "%s:", sel_name);
+	    sel = sel_registerName(buf);
+	    oc_arity = arity.real;
+	    redefined = true;
 
-	goto define_method;
+	    goto define_method;
+	}
+	else if (genuine_selector && arity.min == 0) {
+	    char buf[100];
+	    strlcpy(buf, sel_name, sizeof buf);
+	    buf[strlen(buf) - 1] = 0; // remove the ending ':'
+	    sel = sel_registerName(buf);
+	    oc_arity = 0;
+	    redefined = true;
+
+	    goto define_method;
+	}
     }
 }
 
@@ -4134,26 +4186,54 @@ rb_ary_get_fast(VALUE ary, int offset)
 }
 
 static inline VALUE
-__rb_vm_rcall(VALUE self, NODE *node, IMP pimp, int arity, int argc, const VALUE *argv)
+__rb_vm_rcall(VALUE self, NODE *node, IMP pimp, const node_arity &arity, int argc, const VALUE *argv)
 {
-    if (arity < 0 && -arity != argc) {
-	VALUE *new_argv = (VALUE *)alloca(sizeof(VALUE) * -arity);
-	assert(node->nd_args != NULL);
-	assert(node->nd_args->nd_frml < -arity);
-	if (node->nd_args->nd_frml > argc) {
-	    // TODO this should be an exception
-	    printf("bad arity\n");
-	    abort();
+    if ((arity.real != argc) || (arity.max == -1)) {
+	VALUE *new_argv = (VALUE *)alloca(sizeof(VALUE) * arity.real);
+	assert(argc >= arity.min);
+	assert((arity.max == -1) || (argc <= arity.max));
+	int used_opt_args = argc - arity.min;
+	int opt_args, rest_pos;
+	if (arity.max == -1) {
+	    opt_args = arity.real - arity.min - 1;
+	    rest_pos = arity.left_req + opt_args;
 	}
-	for (int i = 0; i < -arity; i++) {
-	    if (i < argc) {
+	else {
+	    opt_args = arity.real - arity.min;
+	    rest_pos = -1;
+	}
+	for (int i = 0; i < arity.real; ++i) {
+	    if (i < arity.left_req) {
+		// required args before optional args
 		new_argv[i] = argv[i];
 	    }
+	    else if (i < arity.left_req + opt_args) {
+		// optional args
+		int opt_arg_index = i - arity.left_req;
+		if (opt_arg_index >= used_opt_args) {
+		    new_argv[i] = Qundef;
+		}
+		else {
+		    new_argv[i] = argv[i];
+		}
+	    }
+	    else if (i == rest_pos) {
+		// rest
+		int rest_size = argc - arity.real + 1;
+		if (rest_size <= 0) {
+		    new_argv[i] = rb_ary_new();
+		}
+		else {
+		    new_argv[i] = rb_ary_new4(rest_size, &argv[i]);
+		}
+	    }
 	    else {
-		new_argv[i] = Qundef;
+		// required args after optional args
+		new_argv[i] = argv[argc-(arity.real - i)];
 	    }
 	}
-	return __rb_vm_rcall(self, node, pimp, -arity, -arity, new_argv);
+	argv = new_argv;
+	argc = arity.real;
     }
 
     assert(pimp != NULL);
@@ -4182,7 +4262,7 @@ __rb_vm_rcall(VALUE self, NODE *node, IMP pimp, int arity, int argc, const VALUE
 	case 9:
 	    return (*imp)(self, 0, argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6], argv[7], argv[8]);
     }	
-    printf("invalid arity %d\n", arity);
+    printf("invalid argc %d\n", argc);
     abort();
     return Qnil;
 }
@@ -4389,10 +4469,10 @@ recache:
 	}
 
 	// TODO we should cache the arity
-	const int arity = rb_vm_node_arity(cache->as.rcall.node);
-	if (arity >= 0 && argc != arity) {
+	const node_arity arity = rb_vm_node_arity(cache->as.rcall.node);
+	if ((argc < arity.min) || ((arity.max != -1) && (argc > arity.max))) {
 	    // TODO this should be an exception
-	    printf("bad arity given %d expected %d\n", argc, arity);
+	    printf("bad arity given %d expected %d\n", argc, arity.min);
 	    abort();
 	}
 
@@ -4413,17 +4493,19 @@ recache:
 	    // Calling an empty method, let's just return nil!
 	    return Qnil;
 	}
-	if (node_type == NODE_FBODY && arity < 0) {
+	if (node_type == NODE_FBODY && arity.max != arity.min) {
 	    // Calling a function defined with rb_objc_define_method with
 	    // a negative arity, which means a different calling convention.
-	    if (arity == -1) {
+	    if (arity.real == 2) {
 		return ((VALUE (*)(VALUE, SEL, int, const VALUE *))cache->as.rcall.imp)(self, 0, argc, argv);
 	    }
-	    if (arity == -2) {
+	    else if (arity.real == 1) {
 		return ((VALUE (*)(VALUE, SEL, ...))cache->as.rcall.imp)(self, 0, rb_ary_new4(argc, argv));
 	    }
-	    printf("invalid negative arity for C function %d\n", arity);
-	    abort();
+	    else {
+		printf("invalid negative arity for C function %d\n", arity.real);
+		abort();
+	    }
 	}
 
 	return __rb_vm_rcall(self, cache->as.rcall.node, cache->as.rcall.imp, arity, argc, argv);
@@ -4742,7 +4824,11 @@ rb_vm_get_method(VALUE klass, VALUE obj, ID mid, int scope)
 	arity = method_getNumberOfArguments(m) - 2;
     }
     else {
-	arity = rb_vm_node_arity(node);
+	node_arity n_arity = rb_vm_node_arity(node);
+	arity = n_arity.min;
+	if (n_arity.min != n_arity.max) {
+	    arity = -arity - 1;
+	}
     }
 
     rb_vm_method_t *m = (rb_vm_method_t *)xmalloc(sizeof(rb_vm_method_t));
@@ -4766,30 +4852,30 @@ rb_vm_block_eval(rb_vm_block_t *b, int argc, const VALUE *argv)
 	// Trying to call an empty block!
 	return Qnil;
     }
-    int arity = rb_vm_node_arity(b->node);
-    if (arity != argc || b->dvars_size > 0) {
-	VALUE *new_argv = (VALUE *)alloca(sizeof(VALUE) * (arity + b->dvars_size));
+    node_arity arity = rb_vm_node_arity(b->node);
+    if (arity.real != argc || b->dvars_size > 0) {
+	VALUE *new_argv = (VALUE *)alloca(sizeof(VALUE) * (arity.real + b->dvars_size));
 	for (int i = 0; i < b->dvars_size; i++) {
 	    new_argv[i] = (VALUE)b->dvars[i];
 	}
-	if (argc == 1 && TYPE(argv[0]) == T_ARRAY && arity > 1) {
+	if (argc == 1 && TYPE(argv[0]) == T_ARRAY && arity.real > 1) {
 	    // Expand the array
 	    long ary_len = RARRAY_LEN(argv[0]);
-	    for (int i = 0; i < arity; i++) {
+	    for (int i = 0; i < arity.real; i++) {
 		new_argv[b->dvars_size + i] = i < ary_len ? RARRAY_AT(argv[0], i) : Qnil;
 	    }
 	}
 	else {
-	    for (int i = 0; i < arity; i++) {
+	    for (int i = 0; i < arity.real; i++) {
 		new_argv[b->dvars_size + i] = i < argc ? argv[i] : Qnil;
 	    }
 	}
-	argc = b->dvars_size + arity;
+	argc = b->dvars_size + arity.real;
 	argv = new_argv;
-	arity = argc;
+	arity.real = argc;
     }
 #if ROXOR_DEBUG
-    printf("yield block %p argc %d arity %d dvars %d\n", b, argc, arity, b->dvars_size);
+    printf("yield block %p argc %d arity %d dvars %d\n", b, argc, arity.real, b->dvars_size);
 #endif
     return __rb_vm_rcall(b->self, b->node, b->imp, arity, argc, argv);
 }
