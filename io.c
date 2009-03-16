@@ -126,24 +126,34 @@ rb_io_check_initialized(rb_io_t *fptr)
     }
 }
 
+static inline void
+rb_io_assert_usable(CFStreamStatus status)
+{
+    if (status == kCFStreamStatusNotOpen
+	|| status == kCFStreamStatusClosed
+	|| status == kCFStreamStatusError) {
+	rb_raise(rb_eIOError, "stream is not usable");
+    }
+}
+
 static void 
 rb_io_assert_writable(rb_io_t *io_struct)
 {
     rb_io_check_initialized(io_struct);
-    if (io_struct->writeStream == NULL
-	|| CFWriteStreamGetStatus(io_struct->writeStream) != kCFStreamStatusOpen) {
-        rb_raise(rb_eIOError, "unable to read stream");
+    if (io_struct->writeStream == NULL) {
+	rb_raise(rb_eIOError, "not opened for writing");
     }
+    rb_io_assert_usable(CFWriteStreamGetStatus(io_struct->writeStream));
 }
 
 static void
 rb_io_assert_readable(rb_io_t *io_struct)
 {
     rb_io_check_initialized(io_struct);
-    if (io_struct->readStream == NULL
-	|| CFReadStreamGetStatus(io_struct->readStream) != kCFStreamStatusOpen) {
-        rb_raise(rb_eIOError, "unable to read stream");
+    if (io_struct->readStream == NULL) {
+	rb_raise(rb_eIOError, "not opened for reading");
     }
+    rb_io_assert_usable(CFReadStreamGetStatus(io_struct->readStream));
 }
 
 static bool
