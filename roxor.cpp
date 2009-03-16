@@ -4348,7 +4348,7 @@ rb_vm_method_missing(VALUE obj, int argc, const VALUE *argv)
     abort(); // never reached
 }
 
-static inline VALUE
+static VALUE
 method_missing(VALUE obj, SEL sel, int argc, const VALUE *argv, int call_status)
 {
     GET_VM()->method_missing_reason = call_status;
@@ -4369,7 +4369,7 @@ method_missing(VALUE obj, SEL sel, int argc, const VALUE *argv, int call_status)
 	buf[n - 1] = '\0';
     }
     new_argv[0] = ID2SYM(rb_intern(buf));
-    MEMCPY(new_argv + 1, argv, VALUE, argc);
+    MEMCPY(&new_argv[1], argv, VALUE, argc);
 
     return rb_vm_call(obj, selMethodMissing, argc + 1, new_argv, false);
 }
@@ -4960,7 +4960,7 @@ rb_vm_get_special(char code)
 	    {
 		int index = (int)code;
 		assert(index > 0 && index < 10);
-		val = rb_reg_nth_match(index, backref);
+		val = rb_reg_nth_match(index - 1, backref);
 	    }
 	    break;
     }
@@ -4996,6 +4996,9 @@ extern "C"
 void
 rb_vm_raise(VALUE exception)
 {
+    VALUE current_exception = GET_VM()->current_exception;
+    assert(current_exception == Qnil);
+    rb_objc_retain((void *)exception);
     GET_VM()->current_exception = exception;
     void *exc = __cxa_allocate_exception(0);
     __cxa_throw(exc, NULL, NULL);
@@ -5079,6 +5082,7 @@ rb_vm_pop_exception(void)
 {
     VALUE exc = GET_VM()->current_exception;
     assert(exc != Qnil);
+    rb_objc_release((void *)exc);
     GET_VM()->current_exception = Qnil;
     return exc; 
 }
