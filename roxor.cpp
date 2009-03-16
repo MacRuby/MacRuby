@@ -4148,8 +4148,10 @@ rb_ary_get_fast(VALUE ary, int offset)
 }
 
 static inline VALUE
-__rb_vm_rcall(VALUE self, NODE *node, IMP pimp, const node_arity &arity, int argc, const VALUE *argv)
+__rb_vm_rcall(VALUE self, NODE *node, IMP pimp, const node_arity &arity,
+	      int argc, const VALUE *argv)
 {
+    // TODO investigate why this function is not inlined!
     if ((arity.real != argc) || (arity.max == -1)) {
 	VALUE *new_argv = (VALUE *)alloca(sizeof(VALUE) * arity.real);
 	assert(argc >= arity.min);
@@ -4507,9 +4509,14 @@ VALUE
 rb_vm_dispatch(struct mcache *cache, VALUE self, SEL sel, void *block, 
 	       unsigned char super, int argc, ...)
 {
-#define MAX_DISPATCH_ARGS 100
+#define MAX_DISPATCH_ARGS 200
     VALUE argv[MAX_DISPATCH_ARGS];
     if (argc > 0) {
+	// TODO we should only determine the real argc here (by taking into
+	// account the length splat arguments) and do the real unpacking of
+	// splat arguments in __rb_vm_rcall(). This way we can optimize more
+	// things (for ex. no need to unpack splats that are passed as a splat
+	// argument in the method being called!).
 	va_list ar;
 	va_start(ar, argc);
 	int i, real_argc = 0;
@@ -4522,7 +4529,8 @@ rb_vm_dispatch(struct mcache *cache, VALUE self, SEL sel, void *block,
 	    }
 	    else {
 		if (splat_arg_follows) {
-		    VALUE ary = rb_check_convert_type(arg, T_ARRAY, "Array", "to_a");
+		    VALUE ary = rb_check_convert_type(arg, T_ARRAY, "Array",
+			    			      "to_a");
 		    if (NIL_P(ary)) {
 			ary = rb_ary_new3(1, arg);
 		    }
