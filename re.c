@@ -1504,7 +1504,7 @@ rb_reg_last_match(VALUE match)
  *     m.pre_match   #=> "T"
  */
 
-static VALUE
+VALUE
 rb_reg_match_pre(VALUE match, SEL sel)
 {
     VALUE str;
@@ -1531,7 +1531,7 @@ rb_reg_match_pre(VALUE match, SEL sel)
  *     m.post_match   #=> ": The Movie"
  */
 
-static VALUE
+VALUE
 rb_reg_match_post(VALUE match, SEL sel)
 {
     VALUE str;

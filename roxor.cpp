@@ -393,9 +393,6 @@ class RoxorVM
 	std::map<SEL, GlobalVariable *> redefined_ops_gvars;
 	std::stack<rb_vm_block_t *> current_blocks;
 
-#define MAX_SPECIAL_CONSTS 13
-	VALUE special_consts[MAX_SPECIAL_CONSTS];
-
     public:
 	static RoxorVM *current;
 
@@ -493,11 +490,6 @@ class RoxorVM
 	}
 	int find_ivar_slot(VALUE klass, ID name, bool create);
 	bool class_can_have_ivar_slots(VALUE klass);
-
-	VALUE get_special(int index) {
-	    assert(index >= 0 && index < MAX_SPECIAL_CONSTS);
-	    return special_consts[index];
-	}
 };
 
 RoxorVM *RoxorVM::current = NULL;
@@ -1791,10 +1783,6 @@ RoxorVM::RoxorVM(void)
     current_top_object = Qnil;
     current_exception = Qnil;
     safe_level = 0;
-
-    for (int i = 0; i < MAX_SPECIAL_CONSTS; i++) {
-	special_consts[i] = Qnil;
-    }
 
     backref = Qnil;
     broken_with = 0;
@@ -3302,42 +3290,16 @@ rescan_args:
 	case NODE_BACK_REF:
 	    {
 		char code = (char)node->nd_nth;
-		int index;
-
-		switch (code) {
-		    case 1: case 2: case 3:
-		    case 4: case 5: case 6:
-		    case 7: case 8: case 9:
-			index = code - 1;
-			break;
-		    case '&':
-			index = 9;
-			break;
-		    case '`':
-			index = 10;
-			break;
-		    case '\'':
-			index = 11;
-			break;
-		    case '+':
-			index = 12;
-			break;
-		    default:
-			printf("incorrect %s code %d\n", ruby_node_name(nd_type(node)), code);
-			abort();
-		}
-
-		assert(index >= 0 && index < MAX_SPECIAL_CONSTS);
 
 		if (getSpecialFunc == NULL) {
-		    // VALUE rb_vm_get_special(int index);
+		    // VALUE rb_vm_get_special(char code);
 		    getSpecialFunc =
 			cast<Function>(module->getOrInsertFunction("rb_vm_get_special",
-				RubyObjTy, Type::Int32Ty, NULL));
+				RubyObjTy, Type::Int8Ty, NULL));
 		}
 
 		std::vector<Value *> params;
-		params.push_back(ConstantInt::get(Type::Int32Ty, index));
+		params.push_back(ConstantInt::get(Type::Int8Ty, code));
 
 		return CallInst::Create(getSpecialFunc, params.begin(), params.end(), "", bb);
 	    }
@@ -4960,11 +4922,42 @@ rb_vm_respond_to(VALUE obj, SEL sel, bool priv)
     }
 }
 
+extern "C" VALUE rb_reg_match_pre(VALUE match, SEL sel);
+extern "C" VALUE rb_reg_match_post(VALUE match, SEL sel);
+
 extern "C"
 VALUE
-rb_vm_get_special(int index)
+rb_vm_get_special(char code)
 {
-    return GET_VM()->get_special(index);
+    VALUE backref = rb_backref_get();
+    if (backref == Qnil) {
+	return Qnil;
+    }
+
+    VALUE val;
+    switch (code) {
+	case '&':
+	    val = rb_reg_last_match(backref);
+	    break;
+	case '`':
+	    val = rb_reg_match_pre(backref, 0);
+	    break;
+	case '\'':
+	    val = rb_reg_match_post(backref, 0);
+	    break;
+	case '+':
+	    val = rb_reg_match_last(backref);
+	    break;
+	default:
+	    {
+		int index = (int)code;
+		assert(index > 0 && index < 10);
+		val = rb_reg_nth_match(index, backref);
+	    }
+	    break;
+    }
+
+    return val;
 }
 
 extern "C"
