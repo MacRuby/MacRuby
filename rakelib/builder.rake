@@ -8,7 +8,7 @@ module Rake
     def formatted_macruby_options
       $builder_options.sort_by { |name, _| name }.map do |name, default|
         default = default.join(',') if default.is_a?(Array)
-        "        #{name.ljust(38)} \"#{default}\""
+        "        #{name.ljust(30)} \"#{default}\""
       end.join("\n")
     end
     
