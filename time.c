@@ -2241,8 +2241,10 @@ time_mload(VALUE time, VALUE str)
     rb_copy_generic_ivar(time, str);
 
     StringValue(str);
-    buf = (unsigned char *)RSTRING_BYTEPTR(str); /* ok */
-    if (RSTRING_BYTELEN(str) != 8) {
+    assert(*(VALUE *)str == rb_cByteString);
+
+    buf = (unsigned char *)rb_bytestring_byte_pointer(str);
+    if (rb_bytestring_length(str) != 8) {
 	rb_raise(rb_eTypeError, "marshaled time format differ");
     }
 
@@ -2280,7 +2282,7 @@ time_mload(VALUE time, VALUE str)
             long len;
             int digit;
             ptr = (unsigned char*)StringValuePtr(submicro);
-            len = RSTRING_BYTELEN(submicro);
+            len = RSTRING_LEN(submicro);
             if (0 < len) {
                 if (10 <= (digit = ptr[0] >> 4)) goto end_submicro;
                 nsec += digit * 100;

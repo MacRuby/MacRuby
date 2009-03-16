@@ -409,14 +409,22 @@ io_write(VALUE io, SEL sel, VALUE to_write)
 	length = CFDataGetLength(data);
     }
     else {
-	buffer = (UInt8 *)CFStringGetCStringPtr((CFStringRef)to_write,
-		kCFStringEncodingUTF8);
+	buffer = (UInt8 *)RSTRING_PTR(to_write);
 	if (buffer != NULL) {
-	    length = CFStringGetLength((CFStringRef)to_write);
+	    length = RSTRING_LEN(to_write);
 	}
 	else {
-	    buffer = (UInt8 *)rb_str_byteptr(to_write);
-	    length = (CFIndex)rb_str_bytelen(to_write);
+	    const long max = CFStringGetMaximumSizeForEncoding(
+		    CFStringGetLength((CFStringRef)to_write),
+		    kCFStringEncodingUTF8);
+
+	    buffer = (UInt8 *)alloca(max + 1);
+	    if (!CFStringGetCString((CFStringRef)to_write, (char *)buffer, 
+			max, kCFStringEncodingUTF8)) {
+		// XXX what could we do?
+		abort();
+	    }
+	    length = strlen((char *)buffer);
 	}
     }
 
@@ -2211,18 +2219,19 @@ VALUE rb_io_write(VALUE v, SEL sel, VALUE i)
  */
 
 static VALUE
-rb_f_p(VALUE self, SEL sel, int argc, VALUE *argv) {
+rb_f_p(VALUE self, SEL sel, int argc, VALUE *argv)
+{
     int i;
     VALUE ret = Qnil;
 
-    for (i=0; i<argc; i++) {
-	    rb_p(argv[i], (SEL)0);
+    for (i = 0; i < argc; i++) {
+	rb_p(argv[i], 0);
     }
     if (argc == 1) {
-	    ret = argv[0];
+	ret = argv[0];
     }
     else if (argc > 1) {
-	    ret = rb_ary_new4(argc, argv);
+	ret = rb_ary_new4(argc, argv);
     }
 
     return ret;
@@ -3401,7 +3410,7 @@ argf_inplace_mode_set(VALUE argf, SEL sel, VALUE val)
 	if (ruby_inplace_mode != NULL) {
 	    free(ruby_inplace_mode);
 	}
-	ruby_inplace_mode = strdup(RSTRING_BYTEPTR(val));
+	ruby_inplace_mode = strdup(RSTRING_PTR(val));
     }
     return argf;
 }

@@ -1299,8 +1299,8 @@ rb_reg_prepare_re(VALUE re, VALUE str)
     enc = (rb_encoding *)ONIG_ENCODING_ASCII;
 #endif
 
-    r = onig_new(&reg, (UChar* )RSTRING_BYTEPTR(unescaped),
-		 (UChar* )(RSTRING_BYTEPTR(unescaped) + RSTRING_BYTELEN(unescaped)),
+    r = onig_new(&reg, (UChar* )RSTRING_PTR(unescaped),
+		 (UChar* )(RSTRING_PTR(unescaped) + RSTRING_LEN(unescaped)),
 		 reg->options, (OnigEncoding)enc,
 		 OnigDefaultSyntax, &einfo);
     if (r) {
@@ -2943,7 +2943,6 @@ rb_reg_quote(VALUE str)
 #endif
     const char *s, *send;
     char *t;
-    VALUE tmp;
     int c, clen;
 #if WITH_OBJC
     int ascii_only = 0;
@@ -2985,35 +2984,18 @@ rb_reg_quote(VALUE str)
     }
     return str;
 
+    char *t_beg;
+
   meta_found:
-    tmp = rb_str_new(0, RSTRING_LEN(str)*2);
-#if !WITH_OBJC
-    if (ascii_only) {
-        rb_enc_associate(tmp, rb_usascii_encoding());
-    }
-    else {
-        rb_enc_copy(tmp, str);
-    }
-#endif
-    t = RSTRING_BYTEPTR(tmp);
+    t_beg = (char *)alloca(RSTRING_LEN(str) * 2);
+    t = t_beg;
     /* copy upto metacharacter */
     memcpy(t, RSTRING_PTR(str), s - RSTRING_PTR(str));
     t += s - RSTRING_PTR(str);
 
     while (s < send) {
-#if WITH_OBJC
 	c = *s;
 	clen = 1;
-#else
-        c = rb_enc_ascget(s, send, &clen, enc);
-	if (c == -1) {
-	    int n = mbclen(s, send, enc);
-
-	    while (n--)
-		*t++ = *s++;
-	    continue;
-	}
-#endif
         s += clen;
 	switch (c) {
 	  case '[': case ']': case '{': case '}':
@@ -3050,12 +3032,8 @@ rb_reg_quote(VALUE str)
 	}
 	*t++ = c;
     }
-    rb_str_resize(tmp, t - RSTRING_BYTEPTR(tmp));
-    RSTRING_SYNC(tmp);
-#if !WITH_OBJC
-    OBJ_INFECT(tmp, str);
-#endif
-    return tmp;
+
+    return rb_str_new(t, t - t_beg);
 }
 
 

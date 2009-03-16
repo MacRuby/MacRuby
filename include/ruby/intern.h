@@ -322,9 +322,7 @@ VALUE rb_file_expand_path(VALUE, VALUE);
 void rb_file_const(const char*, VALUE);
 int rb_find_file_ext(VALUE*, const char* const*);
 VALUE rb_find_file(VALUE);
-char *rb_path_next(const char *);
-char *rb_path_skip_prefix(const char *);
-char *rb_path_last_separator(const char *);
+#define rb_path_skip_prefix(path) (path)
 char *rb_path_end(const char *);
 VALUE rb_file_directory_p(VALUE,SEL,VALUE);
 /* gc.c */

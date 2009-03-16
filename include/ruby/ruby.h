@@ -360,6 +360,8 @@ VALUE rb_bytestring_new_with_data(UInt8 *buf, long size);
 CFMutableDataRef rb_bytestring_wrapped_data(VALUE);
 UInt8 *rb_bytestring_byte_pointer(VALUE);
 VALUE rb_coerce_to_bytestring(VALUE);
+long rb_bytestring_length(VALUE str);
+void rb_bytestring_resize(VALUE str, long newsize);
 
 void rb_check_safe_obj(VALUE);
 void rb_check_safe_str(VALUE);
@@ -581,21 +583,8 @@ struct RString {
      RSTRING(str)->as.ary : \
      RSTRING(str)->as.heap.ptr)
 #else
-/* IMPORTANT: try to avoid using RSTRING_PTR/RSTRING_LEN if necessary, 
- * because they can be slow operations in non-8bit strings. 
- * If you modify RSTRING_BYTEPTR, you need to call RSTRING_SYNC in order to
- * synchronize its content with the real string storage.
- * RSTRING_BYTEPTR/RSTRING_BYTELEN deal with bytes. If you want to access a C string
- * pointer, please use RSTRING_PTR/RSTRING/LEN instead which are faster.
- */
-char *rb_str_byteptr(VALUE);
-long rb_str_bytelen(VALUE);
-void rb_str_bytesync(VALUE);
 const char *rb_str_cstr(VALUE);
 long rb_str_clen(VALUE);
-# define RSTRING_BYTEPTR(str) (rb_str_byteptr((VALUE)str))
-# define RSTRING_BYTELEN(str) (rb_str_bytelen((VALUE)str))
-# define RSTRING_SYNC(str) (rb_str_bytesync((VALUE)str))
 # define RSTRING_PTR(str) (rb_str_cstr((VALUE)str))
 # define RSTRING_LEN(str) (rb_str_clen((VALUE)str))
 #endif
@@ -814,7 +803,7 @@ struct RBignum {
 
 #define SPECIAL_CONST_P(x) (IMMEDIATE_P(x) || !RTEST(x))
 
-#define FL_ABLE(x) (!SPECIAL_CONST_P(x) && BUILTIN_TYPE(x) != T_NODE)
+#define FL_ABLE(x) (!SPECIAL_CONST_P(x) && !NATIVE(x) && BUILTIN_TYPE(x) != T_NODE)
 #define FL_TEST(x,f) (FL_ABLE(x)?(RBASIC(x)->flags&(f)):0)
 #define FL_ANY(x,f) FL_TEST(x,f)
 #define FL_ALL(x,f) (FL_TEST(x,f) == (f))

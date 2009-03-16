@@ -65,6 +65,7 @@ Init_id(void)
     selRespondTo = sel_registerName("respond_to?:");
     selMethodMissing = sel_registerName("method_missing:");
     selCopy = sel_registerName("copy");
+    selMutableCopy = sel_registerName("mutableCopy");
     sel_ignored = sel_registerName("retain");
     assert(sel_ignored == sel_registerName("release"));
     sel_zone = sel_registerName("zone");

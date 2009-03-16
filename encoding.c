@@ -288,8 +288,9 @@ static VALUE
 enc_find(VALUE klass, SEL sel, VALUE enc)
 {
     VALUE e = enc_find2(enc);
-    if (e == Qnil)
-	rb_raise(rb_eArgError, "unknown encoding name - %s", RSTRING_BYTEPTR(enc));
+    if (e == Qnil) {
+	rb_raise(rb_eArgError, "unknown encoding name - %s", RSTRING_PTR(enc));
+    }
     return e;
 }
 

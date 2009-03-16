@@ -96,9 +96,13 @@ rb_get_path_check(VALUE obj, int check)
     VALUE tmp;
     static ID to_path;
 
-    if (check) rb_check_safe_obj(obj);
+    if (check) {
+	rb_check_safe_obj(obj);
+    }
     tmp = rb_check_string_type(obj);
-    if (!NIL_P(tmp)) goto exit;
+    if (!NIL_P(tmp)) {
+	goto exit;
+    }
 
     if (!to_path) {
 	to_path = rb_intern("to_path");
@@ -918,35 +922,40 @@ eaccess(const char *path, int mode)
     struct stat st;
     rb_uid_t euid;
 
-    if (stat(path, &st) < 0) return -1;
+    if (stat(path, &st) < 0) {
+	return -1;
+    }
 
     euid = geteuid();
 
     if (euid == 0) {
 	/* Root can read or write any file. */
-	if (!(mode & X_OK))
+	if (!(mode & X_OK)) {
 	    return 0;
+	}
 
 	/* Root can execute any file that has any one of the execute
 	   bits set. */
-	if (st.st_mode & S_IXUGO)
+	if (st.st_mode & S_IXUGO) {
 	    return 0;
+	}
 
 	return -1;
     }
 
-    if (st.st_uid == euid)        /* owner */
+    if (st.st_uid == euid) {       /* owner */
 	mode <<= 6;
-    else if (group_member(st.st_gid))
+    }
+    else if (group_member(st.st_gid)) {
 	mode <<= 3;
+    }
 
-    if ((st.st_mode & mode) == mode) return 0;
+    if ((st.st_mode & mode) == mode) {
+	return 0;
+    }
 
     return -1;
 #else
-# if defined(_MSC_VER) || defined(__MINGW32__)
-    mode &= ~1;
-# endif
     return access(path, mode);
 #endif
 }
@@ -1533,47 +1542,12 @@ rb_file_sticky_p(VALUE obj, SEL sel, VALUE fname)
 static VALUE
 rb_file_identical_p(VALUE obj, SEL sel, VALUE fname1, VALUE fname2)
 {
-#ifndef DOSISH
     struct stat st1, st2;
 
     if (rb_stat(fname1, &st1) < 0) return Qfalse;
     if (rb_stat(fname2, &st2) < 0) return Qfalse;
     if (st1.st_dev != st2.st_dev) return Qfalse;
     if (st1.st_ino != st2.st_ino) return Qfalse;
-#else
-#ifdef _WIN32
-    BY_HANDLE_FILE_INFORMATION st1, st2;
-    HANDLE f1 = 0, f2 = 0;
-#endif
-
-    rb_secure(2);
-#ifdef _WIN32
-    f1 = w32_io_info(&fname1, &st1);
-    if (f1 == INVALID_HANDLE_VALUE) return Qfalse;
-    f2 = w32_io_info(&fname2, &st2);
-    if (f1) CloseHandle(f1);
-    if (f2 == INVALID_HANDLE_VALUE) return Qfalse;
-    if (f2) CloseHandle(f2);
-
-    if (st1.dwVolumeSerialNumber == st2.dwVolumeSerialNumber &&
-	st1.nFileIndexHigh == st2.nFileIndexHigh &&
-	st1.nFileIndexLow == st2.nFileIndexLow)
-	return Qtrue;
-    if (!f1 || !f2) return Qfalse;
-    if (rb_w32_iswin95()) return Qfalse;
-#else
-    FilePathValue(fname1);
-    fname1 = rb_str_new4(fname1);
-    FilePathValue(fname2);
-    if (access(RSTRING_PTR(fname1), 0)) return Qfalse;
-    if (access(RSTRING_PTR(fname2), 0)) return Qfalse;
-#endif
-    fname1 = rb_file_expand_path(fname1, Qnil);
-    fname2 = rb_file_expand_path(fname2, Qnil);
-    if (RSTRING_LEN(fname1) != RSTRING_LEN(fname2)) return Qfalse;
-    if (rb_memcicmp(RSTRING_PTR(fname1), RSTRING_PTR(fname2), RSTRING_LEN(fname1)))
-	return Qfalse;
-#endif
     return Qtrue;
 }
 
@@ -2337,22 +2311,7 @@ rb_file_s_rename(VALUE klass, SEL sel, VALUE from, VALUE to)
     FilePathValue(to);
     src = StringValueCStr(from);
     dst = StringValueCStr(to);
-#if defined __CYGWIN__
-    errno = 0;
-#endif
     if (rename(src, dst) < 0) {
-#if defined DOSISH && !defined _WIN32
-	switch (errno) {
-	  case EEXIST:
-#if defined (__EMX__)
-	  case EACCES:
-#endif
-	    if (chmod(dst, 0666) == 0 &&
-		unlink(dst) == 0 &&
-		rename(src, dst) == 0)
-		return INT2FIX(0);
-	}
-#endif
 	sys_fail2(from, to);
     }
 
@@ -2393,89 +2352,23 @@ rb_file_s_umask(VALUE rcv, SEL sel, int argc, VALUE *argv)
     return INT2FIX(omask);
 }
 
-#ifdef __CYGWIN__
-#undef DOSISH
-#endif
-#if defined __CYGWIN__ || defined DOSISH
-#define DOSISH_UNC
-#define DOSISH_DRIVE_LETTER
-#define isdirsep(x) ((x) == '/' || (x) == '\\')
-#else
 #define isdirsep(x) ((x) == '/')
-#endif
 
-#if defined _WIN32 || defined __CYGWIN__
-#define USE_NTFS 1
-#else
-#define USE_NTFS 0
-#endif
-
-#if USE_NTFS
-#define istrailinggabage(x) ((x) == '.' || (x) == ' ')
-#else
 #define istrailinggabage(x) 0
-#endif
 
-#ifndef CharNext		/* defined as CharNext[AW] on Windows. */
-# if defined(DJGPP)
-#   define CharNext(p) ((p) + mblen(p, RUBY_MBCHAR_MAXSIZE))
-# else
-#   define CharNext(p) ((p) + 1)
-# endif
-#endif
-
-#ifdef DOSISH_DRIVE_LETTER
-static inline int
-has_drive_letter(const char *buf)
-{
-    if (ISALPHA(buf[0]) && buf[1] == ':') {
-	return 1;
-    }
-    else {
-	return 0;
-    }
-}
-
-static char*
-getcwdofdrv(int drv)
-{
-    char drive[4];
-    char *drvcwd, *oldcwd;
-
-    drive[0] = drv;
-    drive[1] = ':';
-    drive[2] = '\0';
-
-    /* the only way that I know to get the current directory
-       of a particular drive is to change chdir() to that drive,
-       so save the old cwd before chdir()
-    */
-    oldcwd = my_getcwd();
-    if (chdir(drive) == 0) {
-	drvcwd = my_getcwd();
-	chdir(oldcwd);
-	free(oldcwd);
-    }
-    else {
-	/* perhaps the drive is not exist. we return only drive letter */
-	drvcwd = strdup(drive);
-    }
-    return drvcwd;
-}
+#ifndef CharNext
+# define CharNext(p) ((p) + 1)
 #endif
 
 static inline char *
 skiproot(const char *path)
 {
-#ifdef DOSISH_DRIVE_LETTER
-    if (has_drive_letter(path)) path += 2;
-#endif
     while (isdirsep(*path)) path++;
     return (char *)path;
 }
 
 #define nextdirsep rb_path_next
-char *
+static char *
 rb_path_next(const char *s)
 {
     while (*s && !isdirsep(*s)) {
@@ -2484,34 +2377,10 @@ rb_path_next(const char *s)
     return (char *)s;
 }
 
-#if defined(DOSISH_UNC) || defined(DOSISH_DRIVE_LETTER) 
-#define skipprefix rb_path_skip_prefix
-#else
 #define skipprefix(path) (path)
-#endif
-char *
-rb_path_skip_prefix(const char *path)
-{
-#if defined(DOSISH_UNC) || defined(DOSISH_DRIVE_LETTER) 
-#ifdef DOSISH_UNC
-    if (isdirsep(path[0]) && isdirsep(path[1])) {
-	path += 2;
-	while (isdirsep(*path)) path++;
-	if (*(path = nextdirsep(path)) && path[1] && !isdirsep(path[1]))
-	    path = nextdirsep(path + 1);
-	return (char *)path;
-    }
-#endif
-#ifdef DOSISH_DRIVE_LETTER
-    if (has_drive_letter(path))
-	return (char *)(path + 2);
-#endif
-#endif
-    return (char *)path;
-}
 
 #define strrdirsep rb_path_last_separator
-char *
+static char *
 rb_path_last_separator(const char *path)
 {
     char *last = NULL;
@@ -2552,54 +2421,23 @@ rb_path_end(const char *path)
     return chompdirsep(path);
 }
 
-#if USE_NTFS
-static char *
-ntfs_tail(const char *path)
-{
-    while (*path == '.') path++;
-    while (*path && *path != ':') {
-	if (istrailinggabage(*path)) {
-	    const char *last = path++;
-	    while (istrailinggabage(*path)) path++;
-	    if (!*path || *path == ':') return (char *)last;
-	}
-	else if (isdirsep(*path)) {
-	    const char *last = path++;
-	    while (isdirsep(*path)) path++;
-	    if (!*path) return (char *)last;
-	    if (*path == ':') path++;
-	}
-	else {
-	    path = CharNext(path);
-	}
-    }
-    return (char *)path;
-}
-#endif
-
 #define BUFCHECK(cond) do {\
     long bdiff = p - buf;\
     if (cond) {\
 	do {buflen *= 2;} while (cond);\
-	rb_str_resize(result, buflen);\
-	buf = RSTRING_BYTEPTR(result);\
+	rb_bytestring_resize(result, buflen);\
+	buf = (char *)rb_bytestring_byte_pointer(result);\
 	p = buf + bdiff;\
 	pend = buf + buflen;\
     }\
 } while (0)
 
 #define BUFINIT() (\
-    p = buf = RSTRING_BYTEPTR(result),\
-    buflen = RSTRING_BYTELEN(result),\
+    p = buf = (char *)rb_bytestring_byte_pointer(result),\
+    buflen = rb_bytestring_length(result),\
     pend = p + buflen)
 
-#if WITH_OBJC
-# define SET_EXTERNAL_ENCODING()
-#else
-# define SET_EXTERNAL_ENCODING() (\
-    (void)(extenc || (extenc = rb_default_external_encoding())),\
-    rb_enc_associate(result, extenc))
-#endif
+#define SET_EXTERNAL_ENCODING()
 
 static int is_absolute_path(const char*);
 
@@ -2610,9 +2448,6 @@ file_expand_path(VALUE fname, VALUE dname, VALUE result)
     char *buf, *p, *pend, *root;
     long buflen, dirlen;
     int tainted;
-#if !WITH_OBJC
-    rb_encoding *extenc = 0;
-#endif
 
     FilePathValue(fname);
     s = StringValuePtr(fname);
@@ -2629,15 +2464,7 @@ file_expand_path(VALUE fname, VALUE dname, VALUE result)
 	    dirlen = strlen(dir);
 	    BUFCHECK(dirlen > buflen);
 	    strcpy(buf, dir);
-#if defined DOSISH || defined __CYGWIN__
-	    for (p = buf; *p; p = CharNext(p)) {
-		if (*p == '\\') {
-		    *p = '/';
-		}
-	    }
-#else
 	    p = buf + strlen(dir);
-#endif
 	    s++;
 	    tainted = 1;
 	    SET_EXTERNAL_ENCODING();
@@ -2666,52 +2493,13 @@ file_expand_path(VALUE fname, VALUE dname, VALUE result)
 #endif
 	}
     }
-#ifdef DOSISH_DRIVE_LETTER
-    /* skip drive letter */
-    else if (has_drive_letter(s)) {
-	if (isdirsep(s[2])) {
-	    /* specified drive letter, and full path */
-	    /* skip drive letter */
-	    BUFCHECK(bdiff + 2 >= buflen);
-	    memcpy(p, s, 2);
-	    p += 2;
-	    s += 2;
-	}
-	else {
-	    /* specified drive, but not full path */
-	    int same = 0;
-	    if (!NIL_P(dname)) {
-		file_expand_path(dname, Qnil, result);
-		BUFINIT();
-		if (has_drive_letter(p) && TOLOWER(p[0]) == TOLOWER(s[0])) {
-		    /* ok, same drive */
-		    same = 1;
-		}
-	    }
-	    if (!same) {
-		char *dir = getcwdofdrv(*s);
-
-		tainted = 1;
-		dirlen = strlen(dir);
-		BUFCHECK(dirlen > buflen);
-		strcpy(buf, dir);
-		free(dir);
-		SET_EXTERNAL_ENCODING();
-	    }
-	    p = chompdirsep(skiproot(buf));
-	    s += 2;
-	}
-    }
-#endif
     else if (!is_absolute_path(s)) {
 	if (!NIL_P(dname)) {
 	    long n;
 	    file_expand_path(dname, Qnil, result);
 	    BUFINIT();
-#if WITH_OBJC
 	    n = RSTRING_LEN(result);
 	    BUFCHECK(n + 2 > buflen);
-#endif
 	}
 	else {
 	    char *dir = my_getcwd();
@@ -2723,15 +2511,7 @@ file_expand_path(VALUE fname, VALUE dname, VALUE result)
 	    xfree(dir);
 	    SET_EXTERNAL_ENCODING();
 	}
-#if defined DOSISH || defined __CYGWIN__
-	if (isdirsep(*s)) {
-	    /* specified full path, but not drive letter nor UNC */
-	    /* we need to get the drive letter or UNC share name */
-	    p = skipprefix(buf);
-	}
-	else
-#endif
-	    p = chompdirsep(skiproot(buf));
+	p = chompdirsep(skiproot(buf));
     }
     else {
 	b = s;
@@ -2773,16 +2553,8 @@ file_expand_path(VALUE fname, VALUE dname, VALUE result)
 			}
 			b = ++s;
 		    }
-#if USE_NTFS
-		    else {
-			do *++s; while (istrailinggabage(*s));
-		    }
-#endif
 		    break;
 		  case '/':
-#if defined DOSISH || defined __CYGWIN__
-		  case '\\':
-#endif
 		    b = ++s;
 		    break;
 		  default:
@@ -2790,24 +2562,8 @@ file_expand_path(VALUE fname, VALUE dname, VALUE result)
 		    break;
 		}
 	    }
-#if USE_NTFS
-	    else {
-		--s;
-	      case ' ': {
-		const char *e = s;
-		while (istrailinggabage(*s)) s++;
-		if (!*s) {
-		    s = e;
-		    goto endpath;
-		}
-	      }
-	    }
-#endif
 	    break;
 	  case '/':
-#if defined DOSISH || defined __CYGWIN__
-	  case '\\':
-#endif
 	    if (s > b) {
 		long rootdiff = root - buf;
 		BUFCHECK(bdiff + (s-b+1) >= buflen);
@@ -2825,90 +2581,25 @@ file_expand_path(VALUE fname, VALUE dname, VALUE result)
     }
 
     if (s > b) {
-#if USE_NTFS
-      endpath:
-	if (s > b + 6 && strncasecmp(s - 6, ":$DATA", 6) == 0) {
-	    /* alias of stream */
-	    /* get rid of a bug of x64 VC++ */
-	    if (*(s-7) == ':') s -= 7;			/* prime */
-	    else if (memchr(b, ':', s - 6 - b)) s -= 6; /* alternative */
-	}
-#endif
 	BUFCHECK(bdiff + (s-b) >= buflen);
 	memcpy(++p, b, s-b);
 	p += s-b;
     }
     if (p == skiproot(buf) - 1) p++;
 
-#if USE_NTFS
-    *p = '\0';
-    if (1 &&
-#ifdef __CYGWIN__
-	!(buf[0] == '/' && !buf[1]) &&
-#endif
-	!strpbrk(b = buf, "*?")) {
-	size_t len;
-	WIN32_FIND_DATA wfd;
-#ifdef __CYGWIN__
-	int lnk_added = 0, is_symlink = 0;
-	struct stat st;
-	char w32buf[MAXPATHLEN], sep = 0;
-	p = 0;
-	if (lstat(buf, &st) == 0 && S_ISLNK(st.st_mode)) {
-	    is_symlink = 1;
-	    p = strrdirsep(buf);
-	    if (!p) p = skipprefix(buf);
-	    if (p) {
-		sep = *p;
-		*p = '\0';
-	    }
-	}
-	if (cygwin_conv_to_win32_path(buf, w32buf) == 0) {
-	    b = w32buf;
-	}
-	if (p) *p = sep;
-	else p = buf;
-	if (is_symlink && b == w32buf) {
-	    len = strlen(p);
-	    if (len > 4 && STRCASECMP(p + len - 4, ".lnk") != 0) {
-		lnk_added = 1;
-		strlcat(w32buf, ".lnk", sizeof(w32buf));
-	    }
-	}
-#endif
-	HANDLE h = FindFirstFile(b, &wfd);
-	if (h != INVALID_HANDLE_VALUE) {
-	    FindClose(h);
-	    p = strrdirsep(buf);
-	    len = strlen(wfd.cFileName);
-#ifdef __CYGWIN__
-	    if (lnk_added && len > 4 &&
-		STRCASECMP(wfd.cFileName + len - 4, ".lnk") == 0) {
-		wfd.cFileName[len -= 4] = '\0';
-	    }
-#endif
-	    if (!p) p = buf;
-	    else ++p;
-	    BUFCHECK(bdiff + len >= buflen);
-	    memcpy(p, wfd.cFileName, len + 1);
-	    p += len;
-	}
+    if (tainted) {
+	OBJ_TAINT(result);
     }
-#endif
-
-    if (tainted) OBJ_TAINT(result);
-    rb_str_set_len(result, p - buf);
-#if !WITH_OBJC
-    rb_enc_check(fname, result);
-#endif
-    RSTRING_SYNC(result);
+    rb_bytestring_resize(result, p - buf);
     return result;
 }
 
 VALUE
 rb_file_expand_path(VALUE fname, VALUE dname)
 {
-    return file_expand_path(fname, dname, rb_usascii_str_new(0, MAXPATHLEN + 2));
+    VALUE bstr = rb_bytestring_new();
+    rb_bytestring_resize(bstr, MAXPATHLEN + 2);
+    return file_expand_path(fname, dname, bstr);
 }
 
 /*
@@ -2989,42 +2680,21 @@ rb_file_s_basename(VALUE rcv, SEL sel, int argc, VALUE *argv)
 {
     VALUE fname, fext, basename;
     const char *name, *p;
-#if defined DOSISH_DRIVE_LETTER || defined DOSISH_UNC
-    char *root;
-#endif
     int f, n;
 
     if (rb_scan_args(argc, argv, "11", &fname, &fext) == 2) {
 	StringValue(fext);
     }
     FilePathStringValue(fname);
-    if (RSTRING_LEN(fname) == 0 || !*(name = RSTRING_PTR(fname)))
+    if (RSTRING_LEN(fname) == 0 || !*(name = RSTRING_PTR(fname))) {
 	return fname;
+    }
     name = skipprefix(name);
-#if defined DOSISH_DRIVE_LETTER || defined DOSISH_UNC
-    root = name;
-#endif
     while (isdirsep(*name))
 	name++;
     if (!*name) {
 	p = name - 1;
 	f = 1;
-#if defined DOSISH_DRIVE_LETTER || defined DOSISH_UNC
-	if (name != root) {
-	    /* has slashes */
-	}
-#ifdef DOSISH_DRIVE_LETTER
-	else if (*p == ':') {
-	    p++;
-	    f = 0;
-	}
-#endif
-#ifdef DOSISH_UNC
-	else {
-	    p = "/";
-	}
-#endif
-#endif
     }
     else {
 	if (!(p = strrdirsep(name))) {
@@ -3033,20 +2703,13 @@ rb_file_s_basename(VALUE rcv, SEL sel, int argc, VALUE *argv)
 	else {
 	    while (isdirsep(*p)) p++; /* skip last / */
 	}
-#if USE_NTFS
-	n = ntfs_tail(p) - p;
-#else
 	n = chompdirsep(p) - p;
-#endif
 	if (NIL_P(fext) || !(f = rmext(p, n, StringValueCStr(fext)))) {
 	    f = n;
 	}
 	if (f == RSTRING_LEN(fname)) return fname;
     }
     basename = rb_str_new(p, f);
-#if !WITH_OBJC
-    rb_enc_copy(basename, fname);
-#endif
     OBJ_INFECT(basename, fname);
     return basename;
 }
@@ -3072,35 +2735,16 @@ rb_file_s_dirname(VALUE klass, SEL sel, VALUE fname)
     FilePathStringValue(fname);
     name = StringValueCStr(fname);
     root = skiproot(name);
-#ifdef DOSISH_UNC
-    if (root > name + 1 && isdirsep(*name))
-	root = skipprefix(name = root - 2);
-#else
-    if (root > name + 1)
+    if (root > name + 1) {
 	name = root - 1;
-#endif
+    }
     p = strrdirsep(root);
     if (!p) {
 	p = root;
     }
     if (p == name)
 	return rb_usascii_str_new2(".");
-#ifdef DOSISH_DRIVE_LETTER
-    if (has_drive_letter(name) && isdirsep(*(name + 2))) {
-	const char *top = skiproot(name + 2);
-	dirname = rb_str_new(name, 3);
-	rb_str_cat(dirname, top, p - top);
-    }
-    else
-#endif
     dirname = rb_str_new(name, p - name);
-#ifdef DOSISH_DRIVE_LETTER
-    if (has_drive_letter(name) && root == name + 2 && p - name == 2)
-	rb_str_cat(dirname, ".", 1);
-#endif
-#if !WITH_OBJC
-    rb_enc_copy(dirname, fname);
-#endif
     OBJ_INFECT(dirname, fname);
     return dirname;
 }
@@ -3136,27 +2780,8 @@ rb_file_s_extname(VALUE klass, SEL sel, VALUE fname)
     e = 0;
     while (*p) {
 	if (*p == '.' || istrailinggabage(*p)) {
-#if USE_NTFS
-	    const char *last = p++, *dot = last;
-	    while (istrailinggabage(*p)) {
-		if (*p == '.') dot = p;
-		p++;
-	    }
-	    if (!*p || *p == ':') {
-		p = last;
-		break;
-	    }
-	    e = dot;
-	    continue;
-#else
 	    e = p;	  /* get the last dot of the last component */
-#endif
 	}
-#if USE_NTFS
-	else if (*p == ':') {
-	    break;
-	}
-#endif
 	else if (isdirsep(*p))
 	    break;
 	p = CharNext(p);
@@ -3164,9 +2789,6 @@ rb_file_s_extname(VALUE klass, SEL sel, VALUE fname)
     if (!e || e == name || e+1 == p)	/* no dot, or the only dot is first or end? */
 	return rb_str_new(0, 0);
     extname = rb_str_new(e, p - e);	/* keep the dot, too! */
-#if !WITH_OBJC
-    rb_enc_copy(extname, fname);
-#endif
     OBJ_INFECT(extname, fname);
     return extname;
 }
@@ -3210,24 +2832,12 @@ static VALUE separator;
 
 static VALUE rb_file_join(VALUE ary, VALUE sep);
 
-#if !WITH_OBJC
-static VALUE
-file_inspect_join(VALUE ary, VALUE argp, int recur)
-{
-    VALUE *arg = (VALUE *)argp;
-    if (recur) return rb_usascii_str_new2("[...]");
-    return rb_file_join(arg[0], arg[1]);
-}
-#endif
-
 static VALUE
 rb_file_join(VALUE ary, VALUE sep)
 {
-#if WITH_OBJC
-    CFMutableStringRef mstr;
     long count;
 
-    mstr = CFStringCreateMutable(NULL, 0);
+    CFMutableStringRef mstr = CFStringCreateMutable(NULL, 0);
 
     count = RARRAY_LEN(ary);
     if (count > 0) {
@@ -3249,61 +2859,8 @@ rb_file_join(VALUE ary, VALUE sep)
 	}
     }
     CFMakeCollectable(mstr);
+
     return (VALUE)mstr;
-#else
-    long len, i, count;
-    VALUE result, tmp;
-    char *name, *tail;
-
-    if (RARRAY_LEN(ary) == 0) return rb_str_new(0, 0);
-
-    len = 1;
-    for (i=0, count=RARRAY_LEN(ary); i<count; i++) {
-	if (TYPE(RARRAY_AT(ary, i)) == T_STRING) {
-	    len += RSTRING_BYTELEN(RARRAY_AT(ary, i));
-	}
-	else {
-	    len += 10;
-	}
-    }
-    if (!NIL_P(sep)) {
-	StringValue(sep);
-	len += RSTRING_BYTELEN(sep) * RARRAY_LEN(ary) - 1;
-    }
-    result = rb_str_buf_new(len);
-    OBJ_INFECT(result, ary);
-    for (i=0; i<RARRAY_LEN(ary); i++) {
-	tmp = RARRAY_AT(ary, i);
-	switch (TYPE(tmp)) {
-	  case T_STRING:
-	    break;
-	  case T_ARRAY:
-	    {
-		VALUE args[2];
-
-		args[0] = tmp;
-		args[1] = sep;
-		tmp = rb_exec_recursive(file_inspect_join, ary, (VALUE)args);
-	    }
-	    break;
-	  default:
-	    FilePathStringValue(tmp);
-	}
-	name = StringValueCStr(result);
-	if (i > 0 && !NIL_P(sep)) {
-	    tail = chompdirsep(name);
-	    if (RSTRING_BYTEPTR(tmp) && isdirsep(RSTRING_BYTEPTR(tmp)[0])) {
-		rb_str_set_len(result, tail - name);
-	    }
-	    else if (!*tail) {
-		rb_str_buf_append(result, sep);
-	    }
-	}
-	rb_str_buf_append(result, tmp);
-    }
-
-    return result;
-#endif
 }
 
 /*
@@ -4382,24 +3939,11 @@ rb_file_const(const char *name, VALUE value)
 static int
 is_absolute_path(const char *path)
 {
-#ifdef DOSISH_DRIVE_LETTER
-    if (has_drive_letter(path) && isdirsep(path[2])) return 1;
-#endif
-#ifdef DOSISH_UNC
-    if (isdirsep(path[0]) && isdirsep(path[1])) return 1;
-#endif
-#ifndef DOSISH
-    if (path[0] == '/') return 1;
-#endif
-    return 0;
+    return path[0] == '/';
 }
 
 #ifndef ENABLE_PATH_CHECK
-# if defined DOSISH || defined __CYGWIN__
-#   define ENABLE_PATH_CHECK 0
-# else
-#   define ENABLE_PATH_CHECK 1
-# endif
+#  define ENABLE_PATH_CHECK 1
 #endif
 
 #if ENABLE_PATH_CHECK
@@ -4482,15 +4026,6 @@ rb_path_check(const char *path)
     return 1;
 }
 
-#if defined(__MACOS__) || defined(riscos)
-static int
-is_macos_native_path(const char *path)
-{
-    if (strchr(path, ':')) return 1;
-    return 0;
-}
-#endif
-
 static int
 file_load_ok(const char *path)
 {
@@ -4571,15 +4106,6 @@ rb_find_file(VALUE path)
 	OBJ_FREEZE(path);
 	f = StringValueCStr(path);
     }
-
-#if defined(__MACOS__) || defined(riscos)
-    if (is_macos_native_path(f)) {
-	if (rb_safe_level() >= 1 && !fpath_check(f)) {
-	    rb_raise(rb_eSecurityError, "loading from unsafe file %s", f);
-	}
-	if (file_load_ok(f)) return path;
-    }
-#endif
 
     if (is_absolute_path(f)) {
 	if (rb_safe_level() >= 1 && !fpath_check(f)) {
@@ -4746,11 +4272,7 @@ Init_File(void)
     rb_objc_define_method(rb_ccFile, "split",  rb_file_s_split, 1);
     rb_objc_define_method(rb_ccFile, "join",   rb_file_s_join, -2);
 
-#ifdef DOSISH
-    rb_define_const(rb_cFile, "ALT_SEPARATOR", rb_obj_freeze(rb_usascii_str_new2("\\")));
-#else
     rb_define_const(rb_cFile, "ALT_SEPARATOR", Qnil);
-#endif
     rb_define_const(rb_cFile, "PATH_SEPARATOR", rb_obj_freeze(rb_str_new2(PATH_SEP)));
 
     rb_objc_define_method(rb_cIO, "stat",  rb_io_stat, 0); /* this is IO's method */

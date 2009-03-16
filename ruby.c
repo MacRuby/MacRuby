@@ -1053,26 +1053,34 @@ load_file(VALUE parser, const char *fname, int script, struct cmdline_options *o
 	    c = rb_io_getbyte(f, 0);
 	    if (c == INT2FIX('!')) {
 		line = rb_io_gets(f, 0);
-		if (NIL_P(line))
+		if (NIL_P(line)) {
 		    return 0;
+		}
+		assert(*(VALUE *)line == rb_cByteString);
 
 		if ((p = strstr(RSTRING_PTR(line), "ruby")) == 0) {
 		    /* not ruby script, kick the program */
 		    char **argv;
 		    char *path;
-		    char *pend = RSTRING_BYTEPTR(line) + RSTRING_BYTELEN(line);
+		    char *pend;
 
-		    p = RSTRING_BYTEPTR(line);	/* skip `#!' */
-		    if (pend[-1] == '\n')
+		    p = (char *)rb_bytestring_byte_pointer(line);
+		    pend = p + rb_bytestring_length(line);
+
+		    if (pend[-1] == '\n') {
 			pend--;	/* chomp line */
-		    if (pend[-1] == '\r')
+		    }
+		    if (pend[-1] == '\r') {
 			pend--;
+		    }
 		    *pend = '\0';
-		    while (p < pend && ISSPACE(*p))
+		    while (p < pend && ISSPACE(*p)) {
 			p++;
+		    }
 		    path = p;	/* interpreter path */
-		    while (p < pend && !ISSPACE(*p))
+		    while (p < pend && !ISSPACE(*p)) {
 			p++;
+		    }
 		    *p++ = '\0';
 		    if (p < pend) {
 			argv = ALLOCA_N(char *, origarg.argc + 3);
@@ -1090,9 +1098,14 @@ load_file(VALUE parser, const char *fname, int script, struct cmdline_options *o
 
 	      start_read:
 		p += 4;
-		RSTRING_BYTEPTR(line)[RSTRING_BYTELEN(line) - 1] = '\0';
-		if (RSTRING_BYTEPTR(line)[RSTRING_BYTELEN(line) - 2] == '\r')
-		    RSTRING_BYTEPTR(line)[RSTRING_BYTELEN(line) - 2] = '\0';
+
+		char *linebuf = (char *)rb_bytestring_byte_pointer(line);
+		long linebuflen = rb_bytestring_length(line);
+
+		linebuf[linebuflen - 1] = '\0';
+		if (linebuf[linebuflen - 2] == '\r') {
+		    linebuf[linebuflen - 2] = '\0';
+		}
 		if ((p = strstr(p, " -")) != 0) {
 		    p++;	/* skip space before `-' */
 		    while (*p == '-') {

@@ -464,10 +464,10 @@ dir_inspect(VALUE dir, SEL sel)
     if (dirp->path) {
 	const char *c = rb_obj_classname(dir);
 	int len = strlen(c) + strlen(dirp->path) + 4;
-	VALUE s = rb_str_new(0, len);
-	snprintf(RSTRING_BYTEPTR(s), len+1, "#<%s:%s>", c, dirp->path);
-	RSTRING_SYNC(s);
-	return s;
+	
+	char *buf = (char *)alloca(len);
+	snprintf(buf, len,  "#<%s:%s>", c, dirp->path);
+	return rb_str_new2(buf);
     }
     return rb_funcall(dir, rb_intern("to_s"), 0, 0);
 }

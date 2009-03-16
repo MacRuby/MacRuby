@@ -45,13 +45,16 @@ rb_ary_modify_check(VALUE ary)
 #endif
     if (mask == 0) {
 	bool _CFArrayIsMutable(void *);
-	if (!_CFArrayIsMutable((void *)ary))
+	if (!_CFArrayIsMutable((void *)ary)) {
 	    mask |= FL_FREEZE;
+	}
     }
-    if ((mask & FL_FREEZE) == FL_FREEZE)
+    if ((mask & FL_FREEZE) == FL_FREEZE) {
 	rb_raise(rb_eRuntimeError, "can't modify frozen/immutable array");
-    if ((mask & FL_TAINT) == FL_TAINT && rb_safe_level() >= 4)
+    }
+    if ((mask & FL_TAINT) == FL_TAINT && rb_safe_level() >= 4) {
 	rb_raise(rb_eSecurityError, "Insecure: can't modify array");
+    }
 }
 #define rb_ary_modify rb_ary_modify_check
 
@@ -594,9 +597,10 @@ rb_ary_unshift_m(VALUE ary, SEL sel, int argc, VALUE *argv)
 	return ary;
     }
     rb_ary_modify(ary);
-    for (i = argc - 1; i >= 0; i--)
+    for (i = argc - 1; i >= 0; i--) {
 	CFArrayInsertValueAtIndex((CFMutableArrayRef)ary,
 	    0, (const void *)RB2OC(argv[i]));
+    }
 
     return ary;
 }
@@ -3033,8 +3037,6 @@ rb_ary_cycle(VALUE ary, SEL sel, int argc, VALUE *argv)
     return Qnil;
 }
 
-#define tmpbuf(n, size) rb_str_tmp_new((n)*(size))
-
 /*
  * Recursively compute permutations of r elements of the set [0..n-1].
  * When we have a complete permutation of array indexes, copy the values
@@ -3124,10 +3126,8 @@ rb_ary_permutation(VALUE ary, SEL sel, int argc, VALUE *argv)
 	}
     }
     else {             /* this is the general case */
-	volatile VALUE t0 = tmpbuf(n,sizeof(long));
-	long *p = (long*)RSTRING_BYTEPTR(t0);
-	volatile VALUE t1 = tmpbuf(n,sizeof(int));
-	int *used = (int*)RSTRING_BYTEPTR(t1);
+	long *p = (long *)alloca(n * sizeof(long));
+	int *used = (int *)alloca(n * sizeof(int));
 	VALUE ary0 = rb_ary_dup(ary);
 
 	for (i = 0; i < n; i++) used[i] = 0; /* initialize array */
@@ -3202,8 +3202,7 @@ rb_ary_combination(VALUE ary, SEL sel, VALUE num)
 	}
     }
     else {
-	volatile VALUE t0 = tmpbuf(n+1, sizeof(long));
-	long *stack = (long*)RSTRING_BYTEPTR(t0);
+	long *stack = (long *)alloca((n + 1) * sizeof(long));
 	long nlen = combi_len(len, n);
 	volatile VALUE cc = rb_ary_new2(n);
 	long lev = 0;
@@ -3246,10 +3245,8 @@ static VALUE
 rb_ary_product(VALUE ary, SEL sel, int argc, VALUE *argv)
 {
     int n = argc+1;    /* How many arrays we're operating on */
-    volatile VALUE t0 = tmpbuf(n, sizeof(VALUE));
-    volatile VALUE t1 = tmpbuf(n, sizeof(int));
-    VALUE *arrays = (VALUE*)RSTRING_BYTEPTR(t0); /* The arrays we're computing the product of */
-    int *counters = (int*)RSTRING_BYTEPTR(t1); /* The current position in each one */
+    VALUE *arrays = (VALUE *)alloca(n * sizeof(VALUE));; /* The arrays we're computing the product of */
+    int *counters = (int *)alloca(n * sizeof(int)); /* The current position in each one */
     VALUE result;      /* The array we'll be returning */
     long i,j;
     long resultlen = 1;

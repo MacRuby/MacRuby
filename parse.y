@@ -4927,7 +4927,6 @@ yycompile(struct parser_params *parser, const char *f, int line)
 static VALUE
 lex_get_str(struct parser_params *parser, VALUE s)
 {
-#if WITH_OBJC
     long beg, len, n;
     CFRange search_range;  
     VALUE v;
@@ -4935,15 +4934,16 @@ lex_get_str(struct parser_params *parser, VALUE s)
     beg = 0; 
     n = CFStringGetLength((CFStringRef)s);
     if (lex_gets_ptr > 0) {
-	if (n == lex_gets_ptr)
+	if (n == lex_gets_ptr) {
 	    return Qnil;
+	}
 	beg += lex_gets_ptr;
     }
     if (CFStringFindCharacterFromSet((CFStringRef)s, 
-	CFCharacterSetGetPredefined(kCFCharacterSetNewline),
-	CFRangeMake(beg, n - beg),
-	0,
-	&search_range)) {
+		CFCharacterSetGetPredefined(kCFCharacterSetNewline),
+		CFRangeMake(beg, n - beg),
+		0,
+		&search_range)) {
 	lex_gets_ptr = search_range.location + 1;
 	len = search_range.location - beg;
     }
@@ -4955,24 +4955,6 @@ lex_get_str(struct parser_params *parser, VALUE s)
 	CFRangeMake(beg, lex_gets_ptr - beg));
     CFMakeCollectable((CFTypeRef)v);
     return v;
-#else
-    const char *cptr, *beg, *end, *pend;
-    long clen;
-
-    cptr = beg = RSTRING_BYTEPTR(s);
-    clen = RSTRING_BYTELEN(s);
-    if (lex_gets_ptr) {
-	if (clen == lex_gets_ptr) return Qnil;
-	beg += lex_gets_ptr;
-    }
-    pend = cptr + clen;
-    end = beg;
-    while (end < pend) {
-	if (*end++ == '\n') break;
-    }
-    lex_gets_ptr = end - cptr;
-    return rb_enc_str_new(beg, end - beg, rb_enc_get(s));
-#endif
 }
 
 static VALUE
@@ -5549,10 +5531,6 @@ static void
 dispose_string(VALUE str)
 {
     /* TODO: should use another API? */
-#if !WITH_OBJC
-    if (RBASIC(str)->flags & RSTRING_NOEMBED)
-	xfree(RSTRING_BYTEPTR(str));
-#endif
     rb_gc_force_recycle(str);
 }
 
@@ -5844,8 +5822,8 @@ parser_heredoc_restore(struct parser_params *parser, NODE *here)
 #endif
     line = here->nd_orig;
     lex_lastline = line;
-    lex_pbeg = RSTRING_BYTEPTR(line);
-    lex_pend = lex_pbeg + RSTRING_BYTELEN(line);
+    lex_pbeg = RSTRING_PTR(line);
+    lex_pend = lex_pbeg + RSTRING_LEN(line);
     lex_p = lex_pbeg + here->nd_nth;
     heredoc_end = ruby_sourceline;
     ruby_sourceline = nd_line(here);
@@ -6093,16 +6071,9 @@ parser_magic_comment(struct parser_params *parser, const char *str, int len)
 {
     VALUE name = 0, val = 0;
     const char *beg, *end, *vbeg, *vend;
-#if WITH_OBJC
-# define str_copy(_s, _p, _n) ((_s) \
+#define str_copy(_s, _p, _n) ((_s) \
 	? CFStringPad((CFMutableStringRef)_s, CFMakeCollectable(CFStringCreateWithCString(NULL, _p, kCFStringEncodingUTF8)), _n, 0) \
 	: ((_s) = STR_NEW((_p), (_n)))) 
-#else
-# define str_copy(_s, _p, _n) ((_s) \
-	? (rb_str_resize((_s), (_n)), \
-	   MEMCPY(RSTRING_BYTEPTR(_s), (_p), char, (_n)), (_s)) \
-	: ((_s) = STR_NEW((_p), (_n))))
-#endif
 
     if (len <= 7) return Qfalse;
     if (!(beg = magic_comment_marker(str, len))) return Qfalse;
@@ -7739,17 +7710,6 @@ list_concat_gen(struct parser_params *parser, NODE *head, NODE *tail)
 static int
 literal_concat0(struct parser_params *parser, VALUE head, VALUE tail)
 {
-#if !WITH_OBJC
-    if (!rb_enc_compatible(head, tail)) {
-	compile_error(PARSER_ARG "string literal encodings differ (%s / %s)",
-		      rb_enc_name(rb_enc_get(head)),
-		      rb_enc_name(rb_enc_get(tail)));
-	rb_str_resize(head, 0);
-	rb_str_resize(tail, 0);
-	return 0;
-    }
-#endif
-    RSTRING_SYNC(head);
     rb_str_buf_append(head, tail);
     return 1;
 }
@@ -9573,24 +9533,8 @@ rb_intern(const char *name)
 ID
 rb_intern_str(VALUE str)
 {
-    ID id;
-
-#if WITH_OBJC
     const char *s = RSTRING_PTR(str);
-    id = rb_intern3(s, strlen(s), NULL);
-#else
-    rb_encoding *enc;
-    enc = rb_enc_get(str);
-    if (rb_enc_str_coderange(str) == ENC_CODERANGE_7BIT) {
-	enc = rb_usascii_encoding();
-    }
-    else {
-	enc = rb_enc_get(str);
-    }
-    id = rb_intern3(RSTRING_PTR(str), RSTRING_LEN(str), enc);
-    RB_GC_GUARD(str);
-#endif
-    return id;
+    return rb_intern3(s, strlen(s), NULL);
 }
 
 VALUE
@@ -9605,12 +9549,7 @@ rb_id2str(ID id)
 	    if (op_tbl[i].token == id) {
 		VALUE str = global_symbols.op_sym[i];
 		if (!str) {
-#if WITH_OBJC
 		    str = rsymbol_new(op_tbl[i].name, strlen(op_tbl[i].name), op_tbl[i].token);
-#else
-		    str = rb_usascii_str_new2(op_tbl[i].name);
-		    OBJ_FREEZE(str);
-#endif
 		    global_symbols.op_sym[i] = str;
 		}
 		return str;
@@ -9618,20 +9557,12 @@ rb_id2str(ID id)
 	}
     }
 
-#if WITH_OBJC
     data = (VALUE)CFDictionaryGetValue(
 	(CFDictionaryRef)global_symbols.id_str,
 	(const void *)id);
-    if (data != 0)
+    if (data != 0) {
 	return data;
-#else
-    if (st_lookup(global_symbols.id_str, id, &data)) {
-        VALUE str = (VALUE)data;
-        if (RBASIC(str)->klass == 0)
-            RBASIC(str)->klass = rb_cString;
-	return str;
     }
-#endif
 
     if (is_attrset_id(id)) {
 	ID id2 = (id & ~ID_SCOPE_MASK) | ID_LOCAL;
@@ -9644,34 +9575,15 @@ rb_id2str(ID id)
 	str = rb_str_dup(str);
 	rb_str_cat(str, "=", 1);
 	rb_intern_str(str);
-#if WITH_OBJC
 	data = (VALUE)CFDictionaryGetValue(
 	    (CFDictionaryRef)global_symbols.id_str,
 	    (const void *)id);
-	if (data != 0)
+	if (data != 0) {
 	    return data;
-#else
-	if (st_lookup(global_symbols.id_str, id, &data)) {
-            VALUE str = (VALUE)data;
-            if (RBASIC(str)->klass == 0)
-                RBASIC(str)->klass = rb_cString;
-            return str;
-        }
-#endif
+	}
     }
     return 0;
 }
-
-#if !WITH_OBJC
-const char *
-rb_id2name(ID id)
-{
-    VALUE str = rb_id2str(id);
-
-    if (!str) return 0;
-    return RSTRING_PTR(str);
-}
-#endif
 
 const char *
 ruby_node_name(int node)
@@ -9684,15 +9596,6 @@ ruby_node_name(int node)
     }
 }
  
-#if !WITH_OBJC
-static int
-symbols_i(VALUE sym, ID value, VALUE ary)
-{
-    rb_ary_push(ary, ID2SYM(value));
-    return ST_CONTINUE;
-}
-#endif
-
 /*
  *  call-seq:
  *     Symbol.all_symbols    => array
@@ -9712,23 +9615,18 @@ symbols_i(VALUE sym, ID value, VALUE ary)
 VALUE
 rb_sym_all_symbols(void)
 {
-#if WITH_OBJC
     const void **values;
     long count;
     VALUE ary;
 
     ary = rb_ary_new();
     count = CFDictionaryGetCount(global_symbols.id_str);
-    if (count == 0)
+    if (count == 0) {
 	return ary;
+    }
     values = alloca(sizeof(void *) * count);
     CFDictionaryGetKeysAndValues(global_symbols.id_str, NULL, values);
     CFArrayReplaceValues((CFMutableArrayRef)ary, CFRangeMake(0, 0), values, count);   
-#else
-    VALUE ary = rb_ary_new2(global_symbols.sym_id->num_entries);
-
-    st_foreach(global_symbols.sym_id, symbols_i, ary);
-#endif
     return ary;
 }
 

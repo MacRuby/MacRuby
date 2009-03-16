@@ -939,7 +939,7 @@ VALUE
 rb_big2str0(VALUE x, int base, int trim)
 {
     int off;
-    VALUE ss, xx;
+    VALUE xx;
     long n1, n2, len, hbase;
     char* ptr;
 
@@ -955,8 +955,7 @@ rb_big2str0(VALUE x, int base, int trim)
 
     n2 = big2str_find_n1(x, base);
     n1 = (n2 + 1) / 2;
-    ss = rb_usascii_str_new(0, n2 + 1); /* plus one for sign */
-    ptr = RSTRING_BYTEPTR(ss); /* ok */
+    ptr = (char *)alloca(n2 + 1); /* plus one for sign */
     ptr[0] = RBIGNUM_SIGN(x) ? '+' : '-';
 
     hbase = base*base;
@@ -975,10 +974,8 @@ rb_big2str0(VALUE x, int base, int trim)
     }
 
     ptr[len] = '\0';
-    rb_str_resize(ss, len);
-    RSTRING_SYNC(ss);
 
-    return ss;
+    return rb_str_new2(ptr);
 }
 
 VALUE

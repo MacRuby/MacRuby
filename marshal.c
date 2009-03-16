@@ -945,7 +945,8 @@ marshal_dump(int argc, VALUE *argv)
 	GC_WB(&arg->str, port);
     }
 
-    RSTRING_BYTEPTR(arg->str); /* force bytestring creation */
+    // TODO should create ByteString
+    //RSTRING_BYTEPTR(arg->str); /* force bytestring creation */
 
     GC_WB(&arg->symbols, st_init_numtable());
     GC_WB(&arg->data, st_init_numtable());

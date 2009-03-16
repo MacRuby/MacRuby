@@ -77,6 +77,7 @@ extern SEL selInitialize2;
 extern SEL selRespondTo;
 extern SEL selMethodMissing;
 extern SEL selCopy;
+extern SEL selMutableCopy;
 extern SEL selToS;
 extern SEL sel_ignored;
 extern SEL sel_zone;

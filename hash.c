@@ -1144,7 +1144,9 @@ inspect_i(VALUE key, VALUE value, VALUE str)
 {
     VALUE str2;
 
-    if (key == Qundef) return ST_CONTINUE;
+    if (key == Qundef) {
+	return ST_CONTINUE;
+    }
     if (RSTRING_LEN(str) > 1) {
 	rb_str_cat2(str, ", ");
     }
@@ -1162,7 +1164,9 @@ inspect_hash(VALUE hash, VALUE dummy, int recur)
 {
     VALUE str;
 
-    if (recur) return rb_usascii_str_new2("{...}");
+    if (recur) {
+	return rb_usascii_str_new2("{...}");
+    }
     str = rb_str_buf_new2("{");
     rb_hash_foreach(hash, inspect_i, str);
     rb_str_buf_cat2(str, "}");

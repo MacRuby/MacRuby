@@ -19,10 +19,6 @@
 #include <ruby/node.h>
 #include "roxor.h"
 
-#if defined(__FreeBSD__) && __FreeBSD__ < 4
-#include <floatingpoint.h>
-#endif
-
 #ifdef HAVE_FLOAT_H
 #include <float.h>
 #endif
@@ -87,9 +83,7 @@ round(double x)
 static ID id_coerce, id_to_i, id_eq;
 
 VALUE rb_cNumeric;
-#if WITH_OBJC
 VALUE rb_cCFNumber;
-#endif
 VALUE rb_cFloat;
 VALUE rb_cInteger;
 VALUE rb_cFixnum;
@@ -97,7 +91,6 @@ VALUE rb_cFixnum;
 VALUE rb_eZeroDivError;
 VALUE rb_eFloatDomainError;
 
-#if WITH_OBJC
 static CFMutableDictionaryRef fixnum_dict = NULL;
 static struct RFixnum *fixnum_cache = NULL;
 
@@ -134,7 +127,6 @@ rb_box_fixnum(VALUE fixnum)
 
     return (VALUE)val;
 }
-#endif
 
 void
 rb_num_zerodiv(void)
@@ -180,7 +172,7 @@ coerce_rescue(VALUE *x)
 
     rb_raise(rb_eTypeError, "%s can't be coerced into %s",
 	     rb_special_const_p(x[1])?
-	     RSTRING_BYTEPTR(v):
+	     RSTRING_PTR(v):
 	     rb_obj_classname(x[1]),
 	     rb_obj_classname(x[0]));
     return Qnil;		/* dummy */
@@ -1940,9 +1932,6 @@ static VALUE
 int_chr(VALUE num, SEL sel, int argc, VALUE *argv)
 {
     char c;
-#if !WITH_OBJC
-    int n;
-#endif
     long i = NUM2LONG(num);
     rb_encoding *enc;
     VALUE str;
@@ -1950,9 +1939,6 @@ int_chr(VALUE num, SEL sel, int argc, VALUE *argv)
     switch (argc) {
       case 0:
 	if (i < 0 || 0xff < i) {
-#if !WITH_OBJC
-	  out_of_range:
-#endif
 	    rb_raise(rb_eRangeError, "%"PRIdVALUE " out of char range", i);
 	}
 	c = i;
@@ -1968,16 +1954,8 @@ int_chr(VALUE num, SEL sel, int argc, VALUE *argv)
 	rb_raise(rb_eArgError, "wrong number of arguments (%d for 0 or 1)", argc);
 	break;
     }
-#if WITH_OBJC
     enc = rb_to_encoding(argv[0]);
     str = rb_enc_str_new(&c, 1, enc);
-#else
-    enc = rb_to_encoding(argv[0]);
-    if (!enc) enc = rb_ascii8bit_encoding();
-    if (i < 0 || (n = rb_enc_codelen(i, enc)) <= 0) goto out_of_range;
-    str = rb_enc_str_new(0, n, enc);
-    rb_enc_mbcput(i, RSTRING_BYTEPTR(str), enc);
-#endif
     return str;
 }
 
@@ -3176,7 +3154,6 @@ fix_even_p(VALUE num, SEL sel)
     return Qtrue;
 }
 
-#if WITH_OBJC
 static const char *
 imp_rb_float_objCType(void *rcv, SEL sel)
 {
@@ -3236,7 +3213,6 @@ rb_install_nsnumber_primitives(void)
     rb_objc_install_method2(klass, "longValue",
 	    (IMP)imp_rb_fixnum_longValue);
 }
-#endif
 
 void
 Init_Numeric(void)
@@ -3247,7 +3223,6 @@ Init_Numeric(void)
 
     rb_eZeroDivError = rb_define_class("ZeroDivisionError", rb_eStandardError);
     rb_eFloatDomainError = rb_define_class("FloatDomainError", rb_eRangeError);
-#if WITH_OBJC
     rb_cCFNumber = (VALUE)objc_getClass("NSCFNumber");
     rb_cNumeric = rb_define_class("Numeric", (VALUE)objc_getClass("NSNumber"));
     RCLASS_SET_VERSION_FLAG(rb_cNumeric, RCLASS_IS_OBJECT_SUBCLASS);
@@ -3255,9 +3230,6 @@ Init_Numeric(void)
     /* overriding NSObject methods */
     rb_objc_define_method(rb_cNumeric, "class", rb_obj_class, 0);
     rb_objc_define_method(rb_cNumeric, "dup", rb_obj_dup, 0);
-#else
-    rb_cNumeric = rb_define_class("Numeric", rb_cObject);
-#endif
 
     rb_objc_define_method(rb_cNumeric, "singleton_method_added", num_sadded, 1);
     rb_include_module(rb_cNumeric, rb_mComparable);
@@ -3416,7 +3388,5 @@ Init_Numeric(void)
     rb_objc_define_method(rb_cFloat, "infinite?", flo_is_infinite_p, 0);
     rb_objc_define_method(rb_cFloat, "finite?",   flo_is_finite_p, 0);
 
-#if WITH_OBJC
     rb_install_nsnumber_primitives();
-#endif
 }

@@ -771,6 +771,11 @@ rb_obj_tainted(VALUE obj)
     if (!SPECIAL_CONST_P(obj) && NATIVE(obj)) {
 	switch (TYPE(obj)) {
 	    case T_STRING:
+		if (*(VALUE *)obj == rb_cByteString) {
+		    // TODO
+		    return Qfalse;
+		}
+		// fall through
 	    case T_ARRAY:
 	    case T_HASH:
 #ifdef __LP64__
@@ -780,8 +785,9 @@ rb_obj_tainted(VALUE obj)
 		return rb_objc_flag_check((const void *)obj, FL_TAINT) ? Qtrue : Qfalse;
 	}
     }
-    if (FL_TEST(obj, FL_TAINT))
+    if (FL_TEST(obj, FL_TAINT)) {
 	return Qtrue;
+    }
     return Qfalse;
 }
 
@@ -801,6 +807,11 @@ rb_obj_taint(VALUE obj)
     if (!SPECIAL_CONST_P(obj) && NATIVE(obj)) {
 	switch (TYPE(obj)) {
 	    case T_STRING:
+		if (*(VALUE *)obj == rb_cByteString) {
+		    // TODO
+		    return obj;
+		}
+		// fall through
 	    case T_ARRAY:
 	    case T_HASH:
 #ifdef __LP64__
@@ -836,6 +847,11 @@ rb_obj_untaint(VALUE obj)
     if (!SPECIAL_CONST_P(obj) && NATIVE(obj)) {
 	switch (TYPE(obj)) {
 	    case T_STRING:
+		if (*(VALUE *)obj == rb_cByteString) {
+		    // TODO
+		    return obj;
+		}
+		// fall through
 	    case T_ARRAY:
 	    case T_HASH:
 #ifdef __LP64__
@@ -901,6 +917,11 @@ rb_obj_freeze(VALUE obj)
 	else if (NATIVE(obj)) {
 	    switch(TYPE(obj)) {
 		case T_STRING:
+		if (*(VALUE *)obj == rb_cByteString) {
+		    // TODO
+		    return obj;
+		}
+		// fall through
 		case T_ARRAY:
 		case T_HASH:
 #ifdef __LP64__
@@ -942,6 +963,11 @@ rb_obj_frozen_p(VALUE obj)
     }
     switch (TYPE(obj)) {
 	case T_STRING:
+	    if (*(VALUE *)obj == rb_cByteString) {
+		// TODO
+		return Qfalse;
+	    }
+	    // fall through
 	case T_ARRAY:
 	case T_HASH:
 #ifdef __LP64__
