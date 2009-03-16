@@ -2,7 +2,11 @@
 # These variables can be set from the command line. Example:
 #    $ rake framework_instdir=~/Library/Frameworks sym_instdir=~/bin
 
+$builder_options = {}
+
 def do_option(name, default)
+  $builder_options[name] = default
+  
   val = ENV[name]
   if val
     if block_given?
@@ -30,8 +34,6 @@ SYM_INSTDIR = do_option('sym_instdir', '/usr/local')
 NO_WARN_BUILD = !do_option('allow_build_warnings', false)
 ENABLE_STATIC_LIBRARY = do_option('enable_static_library', 'no') { 'yes' }
 ENABLE_DEBUG_LOGGING = do_option('enable_debug_logging', true) { |x| x == 'true' }
-
-# TODO: we should find a way to document these options in rake's --help
 
 # Everything below this comment should *not* be modified.
 
