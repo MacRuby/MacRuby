@@ -5137,7 +5137,7 @@ parser_nextc(struct parser_params *parser)
 #ifdef RIPPER
 	    ripper_flush(parser);
 #endif
-	    lex_lastline = v;
+	    GC_WB(&lex_lastline, v);
 	}
     }
     c = (unsigned char)*lex_p++;
@@ -5821,7 +5821,7 @@ parser_heredoc_restore(struct parser_params *parser, NODE *here)
     ripper_dispatch_scan_event(parser, tHEREDOC_END);
 #endif
     line = here->nd_orig;
-    lex_lastline = line;
+    GC_WB(&lex_lastline, line);
     lex_pbeg = RSTRING_PTR(line);
     lex_pend = lex_pbeg + RSTRING_LEN(line);
     lex_p = lex_pbeg + here->nd_nth;
@@ -6340,7 +6340,7 @@ parser_yylex(struct parser_params *parser)
 	      }
 	      default:
 		--ruby_sourceline;
-		lex_nextline = lex_lastline;
+		GC_WB(&lex_nextline, lex_lastline);
 	      case -1:		/* EOF no decrement*/
 		lex_goto_eol(parser);
 #ifdef RIPPER
