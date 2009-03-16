@@ -983,7 +983,7 @@ test "require" do
     end
   }
 
-  assert ":ok", "$:.unshift('test_roxor_fixtures/lib'); require 'foo'"
+  assert ":ok", "\\$:.unshift('test_roxor_fixtures/lib'); require 'foo'"
 
 end
 
