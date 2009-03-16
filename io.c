@@ -1645,8 +1645,8 @@ rb_io_gets(VALUE io, SEL sel)
     VALUE outbuf = rb_bytestring_new();
     CFMutableDataRef data = rb_bytestring_wrapped_data(outbuf);
 
-    long s = 128;
-    CFDataIncreaseLength(data, s);
+    long s = 512;
+    CFDataSetLength(data, s);
     UInt8 *buf = CFDataGetMutableBytePtr(data);
 
     // FIXME this is a very naive implementation
@@ -1658,9 +1658,9 @@ rb_io_gets(VALUE io, SEL sel)
 	    break;
 	}
 
-	if (data_read > s) {
+	if (data_read >= s) {
 	    s += s;
-	    CFDataIncreaseLength(data, s);
+	    CFDataSetLength(data, s);
 	    buf = CFDataGetMutableBytePtr(data);
 	}
 	buf[data_read++] = byte;
