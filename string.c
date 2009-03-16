@@ -119,14 +119,11 @@ str_new(VALUE klass, const char *ptr, long len)
 	    CFStringAppendCString((CFMutableStringRef)str, ptr, 
 		    kCFStringEncodingUTF8);
 	    if (CFStringGetLength((CFStringRef)str) != len) {
-		// XXX could this happen?
-		abort();
+		str = rb_bytestring_new_with_data((const UInt8 *)ptr, len);
 	    }
 	}
 	else {
-	    str = rb_bytestring_new();
-	    CFMutableDataRef data = rb_bytestring_wrapped_data(str);
-	    CFDataAppendBytes(data, (const UInt8 *)ptr, len);
+	    str = rb_bytestring_new_with_data((const UInt8 *)ptr, len);
 	}
     }
     else {
@@ -5254,7 +5251,7 @@ rb_bytestring_new()
 }
 
 VALUE
-rb_bytestring_new_with_data(UInt8 *buf, long size)
+rb_bytestring_new_with_data(const UInt8 *buf, long size)
 {
     VALUE v = rb_bytestring_new();
     CFDataAppendBytes(rb_bytestring_wrapped_data(v), buf, size);
