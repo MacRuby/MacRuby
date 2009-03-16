@@ -125,7 +125,7 @@ class MSpecMain < MSpecScript
 
       rest = argv + ["-o", name, item]
       #fork { system [config[:target], *rest].join(" ") }
-      fork { system ([config[:target]] + rest).join(" ") }
+      fork { system([config[:target]] + rest).join(" ") }
 
       list << name
     end
