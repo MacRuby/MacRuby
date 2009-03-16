@@ -657,37 +657,6 @@ namespace :clean do
   end
 end
 
-namespace :rubycocoa do
-  def get(url)
-    file = File.basename(url)
-    sh "curl #{url} -o /tmp/#{file}"
-    # for some reason mocha extracts with some junk...
-    puts `cd /tmp && tar -zxvf #{file}`
-  end
-  
-  def install(path)
-    cp_r path, '/Library/Frameworks/MacRuby.framework/Versions/Current/usr/lib/ruby/site_ruby/'
-  end
-  
-  desc 'For lack of working RubyGems this is a task that installs the dependencies for the RubyCocoa layer tests'
-  task :install_test_spec_and_mocha do
-    test_spec = '0.9.0'
-    mocha = '0.9.3'
-    
-    get "http://files.rubyforge.vm.bytemark.co.uk/test-spec/test-spec-#{test_spec}.tar.gz"
-    install "/tmp/test-spec-#{test_spec}/lib/test"
-    
-    get "http://files.rubyforge.mmmultiworks.com/mocha/mocha-#{mocha}.tgz"
-    mocha = "/tmp/mocha-#{mocha}"
-    FileList["#{mocha}/lib/*.rb", "#{mocha}/lib/mocha"].each { |f| install f }
-  end
-  
-  desc 'Run the RubyCocoa layer tests'
-  task :test do
-    sh 'macruby test-macruby/rubycocoa_test.rb'
-  end
-end
-
 namespace :spec do
   desc "Run continuous integration examples for Ruby 1.9 including stdlib"
   task :ci do
