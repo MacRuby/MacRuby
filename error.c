@@ -692,7 +692,9 @@ name_err_to_s(VALUE exc, SEL sel)
     VALUE mesg = rb_attr_get(exc, rb_intern("mesg"));
     VALUE str = mesg;
 
-    if (NIL_P(mesg)) return rb_class_name(CLASS_OF(exc));
+    if (NIL_P(mesg)) {
+	return rb_class_name(CLASS_OF(exc));
+    }
     StringValue(str);
     if (str != mesg) {
 	rb_iv_set(exc, "mesg", mesg = str);
@@ -731,9 +733,9 @@ name_err_mesg_new(VALUE obj, SEL sel, VALUE mesg, VALUE recv, VALUE method)
 {
     VALUE *ptr = ALLOC_N(VALUE, 3);
 
-    ptr[0] = mesg;
-    ptr[1] = recv;
-    ptr[2] = method;
+    GC_WB(&ptr[0], mesg);
+    GC_WB(&ptr[1], recv);
+    GC_WB(&ptr[2], method);
 
     return Data_Wrap_Struct(rb_cNameErrorMesg, NULL, -1, ptr);
 }
@@ -802,7 +804,9 @@ name_err_mesg_to_str(VALUE obj, SEL sel)
 	args[2] = d;
 	mesg = rb_f_sprintf(3, args);
     }
-    if (OBJ_TAINTED(obj)) OBJ_TAINT(mesg);
+    if (OBJ_TAINTED(obj)) {
+	OBJ_TAINT(mesg);
+    }
     return mesg;
 }
 
