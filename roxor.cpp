@@ -523,6 +523,7 @@ RoxorCompiler::RoxorCompiler(const char *_fname)
     defined_assignment = 0;
 
     dispatcherFunc = NULL;
+    fastEqqFunc = NULL;
     whenSplatFunc = NULL;
     blockCreateFunc = NULL;
     getBlockFunc = NULL;
