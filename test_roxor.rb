@@ -351,7 +351,7 @@ test "constants" do
       FOO = 42
       class Y < X; def foo; FOO; end; end
     end
-    p Z::Y.foo
+    p Z::Y.new.foo
   }
 
 end
