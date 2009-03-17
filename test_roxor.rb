@@ -740,6 +740,8 @@ test "blocks" do
   assert "42", "p proc { next 42 }.call"
   assert "42", "p proc { break 42 }.call"
 
+  assert "42", "puts [42].map { |x| x }.map { |y| y }"
+
 end
 
 test "exception" do
