@@ -742,6 +742,8 @@ test "blocks" do
 
   assert "42", "puts [42].map { |x| x }.map { |y| y }"
 
+  assert ":ok", "proc { retry }; p :ok"
+
 end
 
 test "exception" do
