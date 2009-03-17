@@ -331,6 +331,29 @@ test "constants" do
     end
   }
 
+  assert '42', %q{
+    class X
+      FOO = 42
+      class Y; def foo; FOO; end; end
+    end
+    p X::Y.new.foo
+  }
+
+  assert '42', %q{
+    class X; FOO = 42; end
+    class Y < X; def foo; FOO; end; end
+    p Y.new.foo
+  }
+
+  assert '42', %q{
+    class X; FOO = 123; end
+    class Z
+      FOO = 42
+      class Y < X; def foo; FOO; end; end
+    end
+    p Z::Y.foo
+  }
+
 end
 
 test "ranges" do
