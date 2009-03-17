@@ -596,6 +596,8 @@ test "dispatch" do
   assert "42", "def foo=(x); @x = x + 1; end; self.foo=41; p @x"
   assert "42", "def []=(x, y); @x = x + y; end; self[40]=2; p @x"
 
+  assert "nil", "def foo; return *[]; end; p foo"
+
   assert "42", "def foo(x,y,z); x+y+z; end; a=[20,10,12]; p foo(*a)"
   assert "42", "def foo(x,y,z); x+y+z; end; a=[20,10]; p foo(*a, 12)"
   assert "42", "def foo(x,y,z); x+y+z; end; a=[20,10]; p foo(12, *a)"
