@@ -415,6 +415,13 @@ test "loops" do
     p x
   }
 
+  assert "42", %q{
+    foo = [42]
+    until (x = foo.pop).nil?
+      p x
+    end
+  }
+
 end
 
 test "class" do
