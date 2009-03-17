@@ -102,6 +102,20 @@ struct argf {
 //     return S_ISSOCK(sbuf.st_mode);
 // }
 
+
+static int extract_mode_flags(VALUE mode_string) {
+    int result = 0;
+    const char *path = RSTRING_PTR(mode_string);
+    if (strchr(path, 'r')) {
+        result |= FMODE_READABLE;
+    }
+    if (strchr(path, 'w')) {
+        result |= FMODE_WRITABLE;
+    }
+    return result;
+}
+
+
 void
 rb_eof_error(void)
 {
@@ -164,36 +178,6 @@ rb_io_is_open(rb_io_t *io_struct)
 	&& (io_struct->writeStream == NULL
 	    || CFWriteStreamGetStatus(io_struct->writeStream) == kCFStreamStatusOpen);
 }
-
-#if 0
-// These methods are not used yet.
-static int
-rb_io_get_fd_from_data(CFDataRef data)
-{
-    assert(data != NULL);
-    int fd;
-    assert(CFDataGetLength(data) == sizeof(fd));
-    CFDataGetBytes(data, CFRangeMake(0, sizeof(fd)), (UInt8 *)&fd);
-    CFRelease(data);
-    return fd;
-}
-
-static int
-rb_io_get_read_stream_fd(rb_io_t *io_struct)
-{
-    CFDataRef data = CFReadStreamCopyProperty(io_struct->readStream, 
-	    kCFStreamPropertySocketNativeHandle);
-    return rb_io_get_fd_from_data(data);
-}
-
-static int
-rb_io_get_write_stream_fd(rb_io_t *io_struct)
-{
-    CFDataRef data = CFWriteStreamCopyProperty(io_struct->writeStream, 
-	    kCFStreamPropertySocketNativeHandle);
-    return rb_io_get_fd_from_data(data);
-}
-#endif
 
 #define FMODE_PREP (1<<16)
 #define IS_PREP_STDIO(f) ((f)->mode & FMODE_PREP)
@@ -266,90 +250,43 @@ io_alloc(VALUE klass, SEL sel)
     return (VALUE)io;
 }
 
-static inline CFReadStreamRef
-rb_io_open_read_stream(int fd, CFURLRef url)
-{
-    CFReadStreamRef r;
 
-    if (url != NULL) {
-	r = CFReadStreamCreateWithFile(NULL, url);
-	assert(r != NULL);
-    }
-    else {
-	// TODO
-	abort();
-    }
+CFReadStreamRef _CFReadStreamCreateFromFileDescriptor(CFAllocatorRef alloc, int fd);
+CFWriteStreamRef _CFWriteStreamCreateFromFileDescriptor(CFAllocatorRef alloc, int fd);
 
-    if (!CFReadStreamOpen(r)) {
-	rb_raise(rb_eRuntimeError, "cannot open read stream");
-    }
-
-    return r;
-}
-
-static inline CFWriteStreamRef
-rb_io_open_write_stream(int fd, CFURLRef url)
-{
-    CFWriteStreamRef w;
-
-    if (url != NULL) {
-	w = CFWriteStreamCreateWithFile(NULL, url);
-	assert(w != NULL);
-    }
-    else {
-	// TODO
-	abort();
-    }
-
-    if (!CFWriteStreamOpen(w)) {
-	rb_raise(rb_eRuntimeError, "cannot open read stream");
-    }
-
-    return w;
-}
-
-static inline void
-prep_io_struct(rb_io_t *io_struct, int fd, int mode, const char *path)
+static inline void 
+prepare_io_from_fd(rb_io_t *io_struct, int fd, int mode)
 {
     CFReadStreamRef r = NULL;
     CFWriteStreamRef w = NULL;
     
-    if (path != NULL) {
-	CFURLRef url = CFURLCreateFromFileSystemRepresentation(NULL,
-		(const UInt8 *)path, strlen(path), false);
-	assert(url != NULL);
-	if (mode & FMODE_READABLE) {
-	    r = rb_io_open_read_stream(fd, url);
-	}
-	if (mode & FMODE_WRITABLE) {
-	    w = rb_io_open_write_stream(fd, url);
-	}
-	CFRelease(url);	
-    }
-    else {
-	// TODO
-	//CFStreamCreatePairWithSocket(NULL, fd, &r, &w);
-	abort();
-    }
-
-    assert(r != NULL || w != NULL);
-
-    if (r != NULL) {
-	GC_WB(&io_struct->readStream, r);
-	CFMakeCollectable(r);
-    }
-    else {
-	io_struct->readStream = NULL;
-    }
-
-    if (w != NULL) {
-	GC_WB(&io_struct->writeStream, w);
-	CFMakeCollectable(w);
-    }
-    else {
-	io_struct->writeStream = NULL;
+    if (mode & FMODE_READABLE) {
+    	r = _CFReadStreamCreateFromFileDescriptor(NULL, fd);
     }
     
+    if (mode & FMODE_WRITABLE) {
+    	w = _CFWriteStreamCreateFromFileDescriptor(NULL, fd);
+    }
+    
+    assert(r != NULL || w != NULL);
+    
+    if (r != NULL) {
+    	CFReadStreamOpen(r);
+    	GC_WB(&io_struct->readStream, r);
+    	CFMakeCollectable(r);
+    } 
+	else {
+    	io_struct->readStream = NULL;
+    }
+    
+    if (w != NULL) {
+    	CFWriteStreamOpen(w);
+    	GC_WB(&io_struct->writeStream, w);
+    	CFMakeCollectable(w);
+    } else {
+    	io_struct->writeStream = NULL;
+    }
+    // TODO: Eventually make the ungetc_buf a ByteString
     io_struct->fd = fd;
     io_struct->ungetc_buf = NULL;
     io_struct->ungetc_buf_len = 0;
@@ -357,23 +294,12 @@ prep_io_struct(rb_io_t *io_struct, int fd, int mode, const char *path)
 }
 
 static VALUE
-prep_io(int fd, int mode, VALUE klass, const char *path)
+prep_io(int fd, int mode, VALUE klass)
 {
     VALUE io = io_alloc(rb_cIO, 0);
-
-    rb_io_t *io_struct = RFILE(io)->fptr;
-
-    prep_io_struct(io_struct, fd, mode, path);
-
+	rb_io_t *io_struct = ExtractIOStruct(io);
+    prepare_io_from_fd(io_struct, fd, mode);
     rb_objc_keep_for_exit_finalize((VALUE)io);
-
-    return io;
-}
-
-static VALUE
-prep_stdio(FILE *f, int mode, VALUE klass, const char *path)
-{
-    VALUE io = prep_io(fileno(f), mode|FMODE_PREP, klass, path);
     return io;
 }
 
@@ -1083,7 +1009,8 @@ rb_io_gets_m(VALUE io, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_io_lineno(VALUE io, SEL sel)
 {
-rb_notimplement();
+    rb_io_t *io_s = ExtractIOStruct(io);
+    return INT2FIX(io_s->lineno);
 }
 
 /*
@@ -1104,9 +1031,11 @@ rb_notimplement();
  */
 
 static VALUE
-rb_io_set_lineno(VALUE io, SEL sel, VALUE lineno)
+rb_io_set_lineno(VALUE io, SEL sel, VALUE line_no)
 {
-rb_notimplement();
+    rb_io_t *io_s = ExtractIOStruct(io);
+    io_s->lineno = FIX2INT(line_no);
+    return line_no;
 }
 
 /*
@@ -1468,7 +1397,8 @@ rb_io_ungetc(VALUE io, SEL sel, VALUE c)
 static VALUE
 rb_io_isatty(VALUE io, SEL sel)
 {
-    rb_notimplement();
+    rb_io_t *io_s = ExtractIOStruct(io);
+    return CONDITION_TO_BOOLEAN(isatty(io_s->fd));
 }
 
 /*
@@ -1620,7 +1550,7 @@ rb_io_fdopen(int fd, int mode, const char *path)
     if (path != NULL && strcmp(path, "-") != 0) {
 	klass = rb_cFile;
     }
-    return prep_io(fd, rb_io_modenum_flags(mode), klass, path);
+    return prep_io(fd, rb_io_modenum_flags(mode), klass);
 }
 
 static VALUE
@@ -1843,10 +1773,18 @@ rb_notimplement();
  *
  */
 
+static VALUE rb_io_s_new(VALUE klass, SEL sel, int argc, VALUE *argv);
+
 static VALUE
 rb_io_s_open(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
-rb_notimplement();
+    VALUE io = rb_io_s_new(klass, sel, argc, argv);
+    if (rb_block_given_p()) {
+        VALUE ret = rb_vm_yield(1, &io);
+        rb_io_close_m(io, 0);
+        return ret;
+    }
+    return io;
 }
 
 /*
@@ -1972,11 +1910,27 @@ rb_notimplement();
  *
  *     Got: in Child
  */
+ 
+int extract_oflags(VALUE str) {
+    // TODO maybe use a switch statement here, I dunno.
+    return O_RDONLY;
+}
 
 static VALUE
 rb_f_open(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
-rb_notimplement();
+    // FIX THE HELL OUT OF ME!!!!
+    // TODO: Handle the pipes, subprocess, etc.
+    // TODO: Take into account the provided file permissions.
+    // TODO: Handle files that don't exist.
+    VALUE path, modes, permissions;
+    rb_scan_args(argc, argv, "12", &path, &modes, &permissions);
+    
+    StringValue(path);
+    int mode = (NIL_P(modes) ? O_RDONLY : rb_io_modenum_flags(modes));
+    const char *filepath = RSTRING_PTR(path);
+    int fd = open(filepath, mode);
+    return prep_io(fd, FMODE_READWRITE, klass);
 }
 
 /*
@@ -2020,7 +1974,7 @@ rb_notimplement();
 VALUE
 rb_io_printf(VALUE out, SEL sel, int argc, VALUE *argv)
 {
-    rb_notimplement();
+    return rb_io_write(out, sel, rb_f_sprintf(argc, argv));
 }
 
 /*
@@ -2037,7 +1991,21 @@ rb_io_printf(VALUE out, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_f_printf(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
-rb_notimplement();
+    VALUE io;
+    if (argc == 0) {
+        return Qnil;
+    }
+    
+    if (TYPE(argv[0]) == T_STRING) {
+        io = rb_stdout;
+    } 
+    else {
+        io = argv[0];
+        argv++;
+        argc--;
+    }
+    
+    return rb_io_printf(io, sel, argc, argv);
 }
 
 /*
@@ -2060,11 +2028,13 @@ rb_notimplement();
  *     This is 100 percent.
  */
 
+
+
 VALUE
 rb_io_print(VALUE io, SEL sel, int argc, VALUE *argv)
 {
     VALUE line;
-    if(argc == 0) {
+    if (argc == 0) {
         // No arguments? Bloody Perlisms...
         argc = 1;
         line = rb_lastline_get();
@@ -2072,11 +2042,11 @@ rb_io_print(VALUE io, SEL sel, int argc, VALUE *argv)
     }
     while(argc--) {
         rb_io_write(rb_stdout, 0, *argv++);
-        if(!NIL_P(rb_output_fs)) {
+        if (!NIL_P(rb_output_fs)) {
             rb_io_write(rb_stdout, 0, rb_output_fs);
         }
     }
-    if(!NIL_P(rb_output_rs)) {
+    if (!NIL_P(rb_output_rs)) {
         rb_io_write(rb_stdout, 0, rb_output_rs);
     }
     return Qnil;
@@ -2133,7 +2103,9 @@ rb_f_print(VALUE recv, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_io_putc(VALUE io, SEL sel, VALUE ch)
 {
-rb_notimplement();
+    char c = NUM2CHR(ch);
+    rb_io_write(io, sel, rb_str_new(&c, 1));
+    return ch;
 }
 
 /*
@@ -2148,7 +2120,7 @@ rb_notimplement();
 static VALUE
 rb_f_putc(VALUE recv, SEL sel, VALUE ch)
 {
-rb_notimplement();
+    return rb_io_putc(rb_stdout, sel, ch);
 }
 
 /*
@@ -2286,6 +2258,7 @@ rb_notimplement();
 //     }
 // }
 
+// TODO: Fix this; the documentation is wrong.
 
 /*
  *  call-seq:
@@ -2319,7 +2292,13 @@ rb_notimplement();
 static VALUE
 rb_io_initialize(VALUE io, SEL sel, int argc, VALUE *argv)
 {
-    rb_notimplement();
+    VALUE file_descriptor, mode;
+    int mode_flags;
+    rb_io_t *io_struct = ExtractIOStruct(io);
+    rb_scan_args(argc, argv, "11", &file_descriptor, &mode);
+    mode_flags = (NIL_P(mode) ? FMODE_READABLE : extract_mode_flags(mode));
+    prepare_io_from_fd(io_struct, FIX2INT(file_descriptor), mode_flags);
+    return io;
 }
 
 /*
@@ -2346,6 +2325,14 @@ rb_io_initialize(VALUE io, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_file_initialize(VALUE io, SEL sel, int argc, VALUE *argv)
 {
+	// VALUE path, mode, permissions, io;
+	// rb_io_t *io_s;
+	// rb_scan_args(argc, argv, "12", &path, &mode, &permissions);
+	// // TODO: I completely ignore the mode and permissions here. Fix that.
+	// io = io_alloc(klass, sel);
+	// io_s = ExtractIOStruct(io);
+	// prepare_io_from_path(io_s, path, O_RDONLY | O_WRONLY);
+	// return io;
     rb_notimplement();
 }
 
@@ -2368,9 +2355,10 @@ rb_file_initialize(VALUE io, SEL sel, int argc, VALUE *argv)
  */
 
 static VALUE
-rb_io_s_new(VALUE klass, SEL sel, VALUE fd, VALUE mode)
+rb_io_s_new(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
-    rb_notimplement();
+    VALUE io = io_alloc(klass, sel);
+    return rb_io_initialize(io, sel, argc, argv);
 }
 
 
@@ -2982,20 +2970,16 @@ static VALUE
 rb_io_s_read(VALUE recv, SEL sel, int argc, VALUE *argv)
 {
     VALUE fname, length, offset, opt;
-
     rb_scan_args(argc, argv, "13", &fname, &length, &offset, &opt);
 
     // TODO honor opt
 
     StringValue(fname);
 
-    CFURLRef url = CFURLCreateFromFileSystemRepresentation(NULL,
-	    (const UInt8 *)RSTRING_PTR(fname), RSTRING_LEN(fname), false);
-    assert(url != NULL);
-
-    CFReadStreamRef readStream = rb_io_open_read_stream(-1, url);
-
-    CFRelease(url);
+	const char *path = RSTRING_PTR(fname);
+	int fd = open(path, O_RDONLY);
+    CFReadStreamRef readStream = _CFReadStreamCreateFromFileDescriptor(NULL, fd);
+	CFReadStreamOpen(readStream);
 
     if (!NIL_P(offset)) {
 	long o = FIX2LONG(offset);
@@ -3034,6 +3018,7 @@ rb_io_s_read(VALUE recv, SEL sel, int argc, VALUE *argv)
 
     CFReadStreamClose(readStream);
     CFRelease(readStream);
+    close(fd);
 
     return outbuf;
 }
@@ -3718,17 +3703,16 @@ Init_IO(void)
     rb_objc_define_method(rb_cIO, "internal_encoding", rb_io_internal_encoding, 0);
     rb_objc_define_method(rb_cIO, "set_encoding", rb_io_set_encoding, -1);
 
-    // TODO: Replace these with their real equivalents - they're nil now.
-    rb_stdin = prep_stdio(stdin, FMODE_READABLE, rb_cIO, "/dev/stdin");
+    rb_stdin = prep_io(fileno(stdin), FMODE_READABLE, rb_cIO);
     rb_define_variable("$stdin", &rb_stdin);
     rb_define_global_const("STDIN", rb_stdin);
     
-    rb_stdout = prep_stdio(stdout, FMODE_WRITABLE, rb_cIO, "/dev/stdout");
+    rb_stdout = prep_io(fileno(stdout), FMODE_WRITABLE, rb_cIO);
     rb_define_hooked_variable("$stdout", &rb_stdout, 0, stdout_setter);
     rb_define_hooked_variable("$>", &rb_stdout, 0, stdout_setter);
     rb_define_global_const("STDOUT", rb_stdout);
     
-    rb_stderr = prep_stdio(stderr, FMODE_WRITABLE|FMODE_SYNC, rb_cIO, "/dev/stderr");
+    rb_stderr = prep_io(fileno(stderr), FMODE_WRITABLE|FMODE_SYNC, rb_cIO);
     rb_define_hooked_variable("$stderr", &rb_stderr, 0, stdout_setter);
     rb_define_global_const("STDERR", rb_stderr);
  
