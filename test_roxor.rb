@@ -624,6 +624,13 @@ test "dispatch" do
     p f(1, 2, 3, 4, 5, 6, 7)    
   }
   assert "42", "def f((a, b)); a end; p f([42, 53])"
+
+  assert ":ok", "def f(x = 1) :ko; end; def f() end; begin p f(1); rescue ArgumentError; p :ok; end"
+  assert ":ok", "def f(x) :ko; end; def f() end; begin p f(1); rescue ArgumentError; p :ok; end"
+  assert ":ok", "def f() :ko; end; def f(x) end; begin p f(); rescue ArgumentError; p :ok; end"
+
+  assert ":ok", "def f(); end; begin f(1); rescue ArgumentError; p :ok; rescue; p :ko; end"
+  assert ":ok", "def f(a); end; begin f; rescue ArgumentError; p :ok; rescue; p :ko; end"
 end
 
 test "blocks" do
