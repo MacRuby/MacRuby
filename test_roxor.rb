@@ -631,6 +631,13 @@ test "dispatch" do
 
   assert ":ok", "def f(); end; begin f(1); rescue ArgumentError; p :ok; rescue; p :ko; end"
   assert ":ok", "def f(a); end; begin f; rescue ArgumentError; p :ok; rescue; p :ko; end"
+  
+  assert ":ok", %{
+    def func()
+      1.times { |func| func() }
+    end
+    p :ok
+  }
 end
 
 test "blocks" do
