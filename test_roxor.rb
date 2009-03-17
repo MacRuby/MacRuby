@@ -415,6 +415,10 @@ test "loops" do
     p x
   }
 
+  assert 'nil', "x = until 123; 42; end; p x"
+  assert '42', 'x = nil; until x; x = 42; end; p x'
+  assert '42', "x = until nil; break 42; end; p x"
+  assert "nil", "x = until nil; break; end; p x"
 
   assert "42", %q{
     foo = [42]
@@ -813,7 +817,7 @@ test "exception" do
 
   assert ":ok", %q{
     begin
-      self.foo
+      foo
     rescue => e
       p :ok if e.is_a?(NameError)
     end

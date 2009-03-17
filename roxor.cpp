@@ -3521,28 +3521,34 @@ rescan_args:
 	    break;
 
 	case NODE_WHILE:
+	case NODE_UNTIL:
 	    {
 		assert(node->nd_body != NULL);
 		assert(node->nd_cond != NULL);
 
 		Function *f = bb->getParent();
 
-		BasicBlock *whileBB = BasicBlock::Create("while", f);
+		BasicBlock *loopBB = BasicBlock::Create("loop", f);
 		BasicBlock *bodyBB = BasicBlock::Create("body", f);
 		BasicBlock *afterBB = BasicBlock::Create("after", f);
 
-		BranchInst::Create(whileBB, bb);
+		BranchInst::Create(loopBB, bb);
 
-		bb = whileBB;
+		bb = loopBB;
 		Value *condVal = compile_node(node->nd_cond);
 
-		compile_boolean_test(condVal, bodyBB, afterBB);
+		if (nd_type(node) == NODE_WHILE) {
+		    compile_boolean_test(condVal, bodyBB, afterBB);
+		}
+		else {
+		    compile_boolean_test(condVal, afterBB, bodyBB);
+		}
 
 		BasicBlock *old_current_loop_begin_bb = current_loop_begin_bb;
 		BasicBlock *old_current_loop_end_bb = current_loop_end_bb;
 		Value *old_current_loop_exit_val = current_loop_exit_val;
 
-		current_loop_begin_bb = whileBB;
+		current_loop_begin_bb = loopBB;
 		current_loop_end_bb = afterBB;
 		current_loop_exit_val = NULL;
 
@@ -3550,7 +3556,7 @@ rescan_args:
 		compile_node(node->nd_body);	
 		bodyBB = bb;
 
-		BranchInst::Create(whileBB, bb);
+		BranchInst::Create(loopBB, bb);
 
 		bb = afterBB;
 
