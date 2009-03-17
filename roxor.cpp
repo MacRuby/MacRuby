@@ -2848,8 +2848,8 @@ rescan_args:
 		}
 
 		// Recursive method call optimization.
-		if (!block_given && !super_call && !splat_args 
-		    && mid == current_mid && recv == NULL) {
+		if (!block_given && !super_call && !splat_args
+		    && positive_arity && mid == current_mid && recv == NULL) {
 
 		    // TODO check if both functions have the same arity (paranoid?)
 
@@ -3567,6 +3567,8 @@ rescan_args:
 		BasicBlock *old_current_loop_begin_bb = current_loop_begin_bb;
 		BasicBlock *old_current_loop_end_bb = current_loop_end_bb;
 		current_loop_begin_bb = current_loop_end_bb = NULL;
+		ID old_current_mid = current_mid;
+		current_mid = 0;
 
 		assert(node->nd_body != NULL);
 		Value *block = compile_node(node->nd_body);	
@@ -3575,6 +3577,7 @@ rescan_args:
 		current_loop_begin_bb = old_current_loop_begin_bb;
 		current_loop_end_bb = old_current_loop_end_bb;
 		current_block = false;
+		current_mid = old_current_mid;
 
 		current_block_func = cast<Function>(block);
 		current_block_node = node->nd_body;

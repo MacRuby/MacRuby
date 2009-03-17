@@ -638,6 +638,19 @@ test "dispatch" do
     end
     p :ok
   }
+
+  assert "1\n2\n2", %q{
+    def func
+      p 1
+      def func
+        p 2
+      end
+      func
+    end
+    func
+    func
+  }
+
 end
 
 test "blocks" do
