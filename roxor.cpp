@@ -233,6 +233,7 @@ class RoxorCompiler
 	Function *newArrayFunc;
 	Function *newRangeFunc;
 	Function *newRegexpFunc;
+	Function *strInternFunc;
 	Function *aryGetFunc;
 	Function *newStringFunc;
 	Function *yieldFunc;
@@ -545,6 +546,7 @@ RoxorCompiler::RoxorCompiler(const char *_fname)
     newArrayFunc = NULL;
     newRangeFunc = NULL;
     newRegexpFunc = NULL;
+    strInternFunc = NULL;
     aryGetFunc = NULL;
     newStringFunc = NULL;
     yieldFunc = NULL;
@@ -2575,6 +2577,22 @@ RoxorCompiler::compile_node(NODE *node)
 		params.push_back(ConstantInt::get(Type::Int32Ty, flag));
 
 		return compile_protected_call(newRegexpFunc, params);
+	    }
+	    break;
+
+	case NODE_DSYM:
+	    {
+		Value *val = compile_dstr(node);
+
+		if (strInternFunc == NULL) {
+		    strInternFunc = cast<Function>(module->getOrInsertFunction("rb_str_intern_fast",
+				RubyObjTy, RubyObjTy, NULL));
+		}
+
+		std::vector<Value *> params;
+		params.push_back(val);
+
+		return compile_protected_call(strInternFunc, params);
 	    }
 	    break;
 

@@ -4400,17 +4400,19 @@ rb_str_crypt(VALUE str, SEL sel, VALUE salt)
  *     'cat and dog'.to_sym   #=> :"cat and dog"
  */
 
-static VALUE
-rb_str_intern(VALUE s, SEL sel)
+VALUE
+rb_str_intern_fast(VALUE s)
 {
-    VALUE str = s;
-    ID id;
+    return ID2SYM(rb_intern_str(s));
+}
 
+static VALUE
+rb_str_intern(VALUE str, SEL sel)
+{
     if (OBJ_TAINTED(str) && rb_safe_level() >= 1) {
 	rb_raise(rb_eSecurityError, "Insecure: can't intern tainted string");
     }
-    id = rb_intern_str(str);
-    return ID2SYM(id);
+    return rb_str_intern_fast(str);
 }
 
 /*
