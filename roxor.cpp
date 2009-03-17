@@ -35,6 +35,9 @@ using namespace llvm;
 
 extern "C" const char *ruby_node_name(int node);
 
+#define DISPATCH_VCALL 1
+#define DISPATCH_SUPER 2
+
 static VALUE rb_cTopLevel = 0;
 
 struct RoxorFunction
@@ -406,7 +409,7 @@ class RoxorVM
 	int safe_level;
 	std::map<NODE *, rb_vm_block_t *> blocks;
 	std::map<double, struct rb_float_cache *> float_cache;
-	int method_missing_reason;
+	unsigned char method_missing_reason;
 
 	RoxorVM(void);
 
@@ -834,7 +837,8 @@ Value *
 RoxorCompiler::compile_dispatch_call(std::vector<Value *> &params)
 {
     if (dispatcherFunc == NULL) {
-	// VALUE rb_vm_dispatch(struct mcache *cache, VALUE self, SEL sel, void *block, unsigned char super, int argc, ...);
+	// VALUE rb_vm_dispatch(struct mcache *cache, VALUE self, SEL sel,
+	//		        void *block, unsigned char opt, int argc, ...);
 	std::vector<const Type *> types;
 	types.push_back(PtrTy);
 	types.push_back(RubyObjTy);
@@ -2887,7 +2891,12 @@ rescan_args:
 		    blockVal = block_given ? compile_block_create() : compile_const_pointer(NULL);
 		}
 		params.push_back(blockVal);
-		params.push_back(ConstantInt::get(Type::Int8Ty, super_call ? 1 : 0));
+		const unsigned char call_opt = super_call 
+		    ? DISPATCH_SUPER
+		    : (nd_type(node) == NODE_VCALL)
+			? DISPATCH_VCALL
+			: 0;
+		params.push_back(ConstantInt::get(Type::Int8Ty, call_opt));
 
 		int argc = 0;
 		if (nd_type(node) == NODE_ZSUPER) {
@@ -4315,32 +4324,39 @@ rb_vm_method_missing(VALUE obj, int argc, const VALUE *argv)
         rb_raise(rb_eArgError, "no id given");
     }
 
-    const int last_call_status = GET_VM()->method_missing_reason;
-
-    VALUE exc = rb_eNoMethodError;
+    const unsigned char last_call_status = GET_VM()->method_missing_reason;
     const char *format = NULL;
+    VALUE exc = rb_eNoMethodError;
 
-    if (last_call_status & NOEX_PRIVATE) {
-        format = "private method `%s' called for %s";
-    }
-    else if (last_call_status & NOEX_PROTECTED) {
-        format = "protected method `%s' called for %s";
-    }
-    else if (last_call_status & NOEX_VCALL) {
-        format = "undefined local variable or method `%s' for %s";
-        exc = rb_eNameError;
-    }
-    else if (last_call_status & NOEX_SUPER) {
-        format = "super: no superclass method `%s' for %s";
-    }
-    else {
-        format = "undefined method `%s' for %s";
+    switch (last_call_status) {
+#if 0 // TODO
+	case NOEX_PRIVATE:
+	    format = "private method `%s' called for %s";
+	    break;
+
+	case NOEX_PROTECTED:
+	    format = "protected method `%s' called for %s";
+	    break;
+#endif
+
+	case DISPATCH_VCALL:
+	    format = "undefined local variable or method `%s' for %s";
+	    exc = rb_eNameError;
+	    break;
+
+	case DISPATCH_SUPER:
+	    format = "super: no superclass method `%s' for %s";
+	    break;
+
+	default:
+	    format = "undefined method `%s' for %s";
+	    break;
     }
 
     int n = 0;
     VALUE args[3];
-    args[n++] = rb_funcall(rb_const_get(exc, rb_intern("message")), '!',
-	    3, rb_str_new2(format), obj, argv[0]);
+    VALUE message = rb_const_get(exc, rb_intern("message"));
+    args[n++] = rb_funcall(message, '!', 3, rb_str_new2(format), obj, argv[0]);
     args[n++] = argv[0];
     if (exc == rb_eNoMethodError) {
 	args[n++] = rb_ary_new4(argc - 1, argv + 1);
@@ -4353,7 +4369,7 @@ rb_vm_method_missing(VALUE obj, int argc, const VALUE *argv)
 }
 
 static VALUE
-method_missing(VALUE obj, SEL sel, int argc, const VALUE *argv, int call_status)
+method_missing(VALUE obj, SEL sel, int argc, const VALUE *argv, unsigned char call_status)
 {
     GET_VM()->method_missing_reason = call_status;
 
@@ -4380,7 +4396,7 @@ method_missing(VALUE obj, SEL sel, int argc, const VALUE *argv, int call_status)
 
 static inline VALUE
 __rb_vm_dispatch(struct mcache *cache, VALUE self, Class klass, SEL sel, 
-		 bool super, int argc, const VALUE *argv)
+		 unsigned char opt, int argc, const VALUE *argv)
 {
     assert(cache != NULL);
 
@@ -4395,7 +4411,7 @@ __rb_vm_dispatch(struct mcache *cache, VALUE self, Class klass, SEL sel,
     if (cache->flag == 0) {
 recache:
 	Method method;
-	if (super) {
+	if (opt == DISPATCH_SUPER) {
 	    method = rb_vm_super_lookup((VALUE)klass, sel, NULL);
 	}
 	else {
@@ -4427,7 +4443,7 @@ recache:
 	}
 	else {
 	    // TODO bridgesupport C call?
-	    return method_missing((VALUE)self, sel, argc, argv, super);
+	    return method_missing((VALUE)self, sel, argc, argv, opt);
 	}
     }
 
@@ -4439,9 +4455,7 @@ recache:
 	// TODO we should cache the arity
 	const node_arity arity = rb_vm_node_arity(cache->as.rcall.node);
 	if ((argc < arity.min) || ((arity.max != -1) && (argc > arity.max))) {
-	    // TODO this should be an exception
-	    printf("bad arity given %d expected %d\n", argc, arity.min);
-	    abort();
+	    rb_raise(rb_eArgError, "wrong number of arguments (%d for %d)", argc, arity.min);
 	}
 
 #if ROXOR_DEBUG
@@ -4511,7 +4525,7 @@ printf("BOUH %s\n", (char *)sel);
 extern "C"
 VALUE
 rb_vm_dispatch(struct mcache *cache, VALUE self, SEL sel, void *block, 
-	       unsigned char super, int argc, ...)
+	       unsigned char opt, int argc, ...)
 {
 #define MAX_DISPATCH_ARGS 200
     VALUE argv[MAX_DISPATCH_ARGS];
@@ -4557,12 +4571,13 @@ rb_vm_dispatch(struct mcache *cache, VALUE self, SEL sel, void *block,
 
     if (block != NULL) {
 	GET_VM()->push_block((rb_vm_block_t *)block);
-	VALUE retval = __rb_vm_dispatch(cache, self, NULL, sel, super, argc, argv);
+	VALUE retval = 
+	    __rb_vm_dispatch(cache, self, NULL, sel, opt, argc, argv);
 	GET_VM()->pop_block();
 	return retval;
     }
 
-    return __rb_vm_dispatch(cache, self, NULL, sel, super, argc, argv);
+    return __rb_vm_dispatch(cache, self, NULL, sel, opt, argc, argv);
 }
 
 extern "C"
@@ -4619,7 +4634,7 @@ rb_vm_fast_shift(VALUE obj, VALUE other, struct mcache *cache, unsigned char ove
 	rb_ary_push(obj, other);
 	return other;
     }
-    return __rb_vm_dispatch(cache, obj, NULL, selLTLT, false, 1, &other);
+    return __rb_vm_dispatch(cache, obj, NULL, selLTLT, 0, 1, &other);
 }
 
 extern "C"
@@ -4634,7 +4649,7 @@ rb_vm_fast_aref(VALUE obj, VALUE other, struct mcache *cache, unsigned char over
 	extern VALUE rb_ary_aref(VALUE ary, SEL sel, int argc, VALUE *argv);
 	return rb_ary_aref(obj, 0, 1, &other);
     }
-    return __rb_vm_dispatch(cache, obj, NULL, selAREF, false, 1, &other);
+    return __rb_vm_dispatch(cache, obj, NULL, selAREF, 0, 1, &other);
 }
 
 extern "C"
@@ -4651,7 +4666,7 @@ rb_vm_fast_aset(VALUE obj, VALUE other1, VALUE other2, struct mcache *cache, uns
     VALUE args[2];
     args[0] = other1;
     args[1] = other2;
-    return __rb_vm_dispatch(cache, obj, NULL, selASET, false, 2, args);
+    return __rb_vm_dispatch(cache, obj, NULL, selASET, 0, 2, args);
 }
 
 extern "C"
@@ -4704,7 +4719,8 @@ rb_vm_call(VALUE self, SEL sel, int argc, const VALUE *argv, bool super)
     if (super) {
 	struct mcache cache; 
 	cache.flag = 0;
-	VALUE retval = __rb_vm_dispatch(&cache, self, NULL, sel, true, argc, argv);
+	VALUE retval = __rb_vm_dispatch(&cache, self, NULL, sel, 
+					DISPATCH_SUPER, argc, argv);
 	if (cache.flag == MCACHE_OCALL) {
 	    free(cache.as.ocall.helper);
 	}
@@ -4712,7 +4728,7 @@ rb_vm_call(VALUE self, SEL sel, int argc, const VALUE *argv, bool super)
     }
     else {
 	struct mcache *cache = GET_VM()->method_cache_get(sel, false);
-	return __rb_vm_dispatch(cache, self, NULL, sel, false, argc, argv);
+	return __rb_vm_dispatch(cache, self, NULL, sel, 0, argc, argv);
     }
 }
 
@@ -4721,7 +4737,7 @@ VALUE
 rb_vm_call_with_cache(void *cache, VALUE self, SEL sel, int argc, 
 		      const VALUE *argv)
 {
-    return __rb_vm_dispatch((struct mcache *)cache, self, NULL, sel, false,
+    return __rb_vm_dispatch((struct mcache *)cache, self, NULL, sel, 0,
 	    argc, argv);
 }
 
@@ -4731,7 +4747,7 @@ rb_vm_call_with_cache2(void *cache, VALUE self, VALUE klass, SEL sel, int argc,
 		       const VALUE *argv)
 {
     return __rb_vm_dispatch((struct mcache *)cache, self, (Class)klass, sel,
-	    false, argc, argv);
+	    0, argc, argv);
 }
 
 extern "C"

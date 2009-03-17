@@ -631,7 +631,13 @@ test "dispatch" do
 
   assert ":ok", "def f(); end; begin f(1); rescue ArgumentError; p :ok; rescue; p :ko; end"
   assert ":ok", "def f(a); end; begin f; rescue ArgumentError; p :ok; rescue; p :ko; end"
+  assert ":ok", "def f(a); end; begin f(1, 2); rescue ArgumentError; p :ok; rescue; p :ko; end"
+  assert ':ok', "def f(a, b); end; begin; f; rescue ArgumentError; p :ok; rescue; p :ko; end"
+  assert ':ok', "def f(a, b); end; begin; f(1, 2, 3); rescue ArgumentError; p :ok; rescue; p :ko; end"
   
+  assert ':ok', "def f(a, b); end; begin; a=[1]; f(*a); rescue ArgumentError; p :ok; rescue; p :ko; end"
+  assert ':ok', "def f(a, b); end; begin; a=[1,2,3]; f(*a); rescue ArgumentError; p :ok; rescue; p :ko; end"
+
   assert ":ok", %{
     def func()
       1.times { |x| func() }
@@ -791,9 +797,17 @@ test "exception" do
 
   assert ":ok", %q{
     begin
-      foo
+      self.foo
     rescue => e
       p :ok if e.is_a?(NoMethodError)
+    end
+  }
+
+  assert ":ok", %q{
+    begin
+      self.foo
+    rescue => e
+      p :ok if e.is_a?(NameError)
     end
   }
 
