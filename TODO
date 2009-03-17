@@ -57,10 +57,12 @@
 [ ] clean objc.m
 [ ] new IO
   [/] reimplement all IOs using CFStreams
-  [ ] clean string.c (remove previous bytestring stuff)
+  [X] clean string.c (remove previous bytestring stuff)
 [/] implement eval/binding (irb)
 [ ] implement the BridgeSupport plumbing
 [ ] implement threading
+  [ ] Thread
+  [ ] light threading
 [ ] rubyspec
   [/] integrate
   [ ] pass the 1.9 specs
