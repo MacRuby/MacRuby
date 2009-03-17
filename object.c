@@ -2768,7 +2768,7 @@ Init_Object(void)
     rb_objc_define_method(rb_cNilClass, "|", false_or, 1);
     rb_objc_define_method(rb_cNilClass, "^", false_xor, 1);
 
-    rb_define_method(rb_cNilClass, "nil?", rb_true, 0);
+    rb_objc_define_method(rb_cNilClass, "nil?", rb_true, 0);
     rb_undef_method(*(VALUE *)rb_cNilClass, "alloc");
     rb_undef_method(*(VALUE *)rb_cNilClass, "new");
     rb_define_global_const("NIL", Qnil);
