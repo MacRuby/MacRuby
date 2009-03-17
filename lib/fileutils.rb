@@ -196,7 +196,7 @@ module FileUtils
     fu_check_options options, OPT_TABLE['mkdir_p']
     list = fu_list(list)
     fu_output_message "mkdir -p #{options[:mode] ? ('-m %03o ' % options[:mode]) : ''}#{list.join ' '}" if options[:verbose]
-    return list if options[:noop]
+    return *list if options[:noop]
 
     list.map {|path| path.sub(%r</\z>, '') }.each do |path|
       # optimize for the most common case
@@ -208,7 +208,7 @@ module FileUtils
       end
 
       stack = []
-      while path != stack.last   # dirname("/")=="/", dirname("C:/")=="C:/"
+      until path == stack.last   # dirname("/")=="/", dirname("C:/")=="C:/"
         stack.push path
         path = File.dirname(path)
       end
