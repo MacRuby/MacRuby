@@ -16,6 +16,7 @@
 #include "ruby/signal.h"
 #include "ruby/util.h"
 #include "dln.h"
+#include "objc.h"
 
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
@@ -2367,16 +2368,6 @@ skiproot(const char *path)
     return (char *)path;
 }
 
-#define nextdirsep rb_path_next
-static char *
-rb_path_next(const char *s)
-{
-    while (*s && !isdirsep(*s)) {
-	s = CharNext(s);
-    }
-    return (char *)s;
-}
-
 #define skipprefix(path) (path)
 
 #define strrdirsep rb_path_last_separator
@@ -2421,186 +2412,7 @@ rb_path_end(const char *path)
     return chompdirsep(path);
 }
 
-#define BUFCHECK(cond) do {\
-    long bdiff = p - buf;\
-    if (cond) {\
-	do {buflen *= 2;} while (cond);\
-	rb_bytestring_resize(result, buflen);\
-	buf = (char *)rb_bytestring_byte_pointer(result);\
-	p = buf + bdiff;\
-	pend = buf + buflen;\
-    }\
-} while (0)
-
-#define BUFINIT() (\
-    p = buf = (char *)rb_bytestring_byte_pointer(result),\
-    buflen = rb_bytestring_length(result),\
-    pend = p + buflen)
-
-#define SET_EXTERNAL_ENCODING()
-
 static int is_absolute_path(const char*);
-
-static VALUE
-file_expand_path(VALUE fname, VALUE dname, VALUE result)
-{
-    const char *s, *b;
-    char *buf, *p, *pend, *root;
-    long buflen, dirlen;
-    int tainted;
-
-    FilePathValue(fname);
-    s = StringValuePtr(fname);
-    BUFINIT();
-    tainted = OBJ_TAINTED(fname);
-
-    if (s[0] == '~') {
-	if (isdirsep(s[1]) || s[1] == '\0') {
-	    char *dir = getenv("HOME");
-
-	    if (!dir) {
-		rb_raise(rb_eArgError, "couldn't find HOME environment -- expanding `%s'", s);
-	    }
-	    dirlen = strlen(dir);
-	    BUFCHECK(dirlen > buflen);
-	    strcpy(buf, dir);
-	    p = buf + strlen(dir);
-	    s++;
-	    tainted = 1;
-	    SET_EXTERNAL_ENCODING();
-	}
-	else {
-#ifdef HAVE_PWD_H
-	    struct passwd *pwPtr;
-	    s++;
-#endif
-	    s = nextdirsep(b = s);
-	    BUFCHECK(bdiff + (s-b) >= buflen);
-	    memcpy(p, b, s-b);
-	    p += s-b;
-	    *p = '\0';
-#ifdef HAVE_PWD_H
-	    pwPtr = getpwnam(buf);
-	    if (!pwPtr) {
-		endpwent();
-		rb_raise(rb_eArgError, "user %s doesn't exist", buf);
-	    }
-	    dirlen = strlen(pwPtr->pw_dir);
-	    BUFCHECK(dirlen > buflen);
-	    strcpy(buf, pwPtr->pw_dir);
-	    p = buf + strlen(pwPtr->pw_dir);
-	    endpwent();
-#endif
-	}
-    }
-    else if (!is_absolute_path(s)) {
-	if (!NIL_P(dname)) {
-	    long n;
-	    file_expand_path(dname, Qnil, result);
-	    BUFINIT();
-	    n = RSTRING_LEN(result);
-	    BUFCHECK(n + 2 > buflen);
-	}
-	else {
-	    char *dir = my_getcwd();
-
-	    tainted = 1;
-	    dirlen = strlen(dir);
-	    BUFCHECK(dirlen > buflen);
-	    strcpy(buf, dir);
-	    xfree(dir);
-	    SET_EXTERNAL_ENCODING();
-	}
-	p = chompdirsep(skiproot(buf));
-    }
-    else {
-	b = s;
-	do s++; while (isdirsep(*s));
-	p = buf + (s - b);
-	BUFCHECK(bdiff >= buflen);
-	memset(buf, '/', p - buf);
-    }
-    if (p > buf && p[-1] == '/')
-	--p;
-    else {
-	++buflen;
-	BUFCHECK(bdiff >= buflen);
-	*p = '/';
-    }
-
-    p[1] = 0;
-    root = skipprefix(buf);
-
-    b = s;
-    while (*s) {
-	switch (*s) {
-	  case '.':
-	    if (b == s++) {	/* beginning of path element */
-		switch (*s) {
-		  case '\0':
-		    b = s;
-		    break;
-		  case '.':
-		    if (*(s+1) == '\0' || isdirsep(*(s+1))) {
-			/* We must go back to the parent */
-			char *n;
-			*p = '\0';
-			if (!(n = strrdirsep(root))) {
-			    *p = '/';
-			}
-			else {
-			    p = n;
-			}
-			b = ++s;
-		    }
-		    break;
-		  case '/':
-		    b = ++s;
-		    break;
-		  default:
-		    /* ordinary path element, beginning don't move */
-		    break;
-		}
-	    }
-	    break;
-	  case '/':
-	    if (s > b) {
-		long rootdiff = root - buf;
-		BUFCHECK(bdiff + (s-b+1) >= buflen);
-		root = buf + rootdiff;
-		memcpy(++p, b, s-b);
-		p += s-b;
-		*p = '/';
-	    }
-	    b = ++s;
-	    break;
-	  default:
-	    s = CharNext(s);
-	    break;
-	}
-    }
-
-    if (s > b) {
-	BUFCHECK(bdiff + (s-b) >= buflen);
-	memcpy(++p, b, s-b);
-	p += s-b;
-    }
-    if (p == skiproot(buf) - 1) p++;
-
-    if (tainted) {
-	OBJ_TAINT(result);
-    }
-    rb_bytestring_resize(result, p - buf);
-    return result;
-}
-
-VALUE
-rb_file_expand_path(VALUE fname, VALUE dname)
-{
-    VALUE bstr = rb_bytestring_new();
-    rb_bytestring_resize(bstr, MAXPATHLEN + 2);
-    return file_expand_path(fname, dname, bstr);
-}
 
 /*
  *  call-seq:

@@ -1581,6 +1581,19 @@ rb_objc_symbolize_address(void *addr, void **start, char *name, size_t name_len)
     return true;
 }
 
+VALUE
+rb_file_expand_path(VALUE fname, VALUE dname)
+{
+    NSString *res = [(NSString *)fname stringByExpandingTildeInPath];
+    if (![res isAbsolutePath]) {
+	NSString *dir = dname != Qnil
+	    	? (NSString *)dname
+		: [[NSFileManager defaultManager] currentDirectoryPath];
+	res = [dir stringByAppendingPathComponent:res];
+    }
+    return (VALUE)[res mutableCopy];
+}
+
 void
 rb_objc_alias(VALUE klass, ID name, ID def)
 {
