@@ -4997,8 +4997,6 @@ extern "C"
 void
 rb_vm_raise(VALUE exception)
 {
-    VALUE current_exception = GET_VM()->current_exception;
-    assert(current_exception == Qnil);
     rb_objc_retain((void *)exception);
     GET_VM()->current_exception = exception;
     void *exc = __cxa_allocate_exception(0);
