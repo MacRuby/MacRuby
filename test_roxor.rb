@@ -634,7 +634,7 @@ test "dispatch" do
   
   assert ":ok", %{
     def func()
-      1.times { |func| func() }
+      1.times { |x| func() }
     end
     p :ok
   }
