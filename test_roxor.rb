@@ -741,7 +741,7 @@ test "blocks" do
   assert "42", "p proc { next 42 }.call"
   assert "42", "p proc { break 42 }.call"
 
-  assert "42", "puts [42].map { |x| x }.map { |y| y }"
+  assert "42", "p [42].map { |x| x }.map { |y| y }[0]"
 
   assert ":ok", "proc { retry }; p :ok"
 
