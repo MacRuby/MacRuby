@@ -53,6 +53,8 @@ typedef struct rb_io_t {
 #define FMODE_DUPLEX   32
 #define FMODE_WSPLIT  0x200
 #define FMODE_WSPLIT_INITIALIZED  0x400
+#define FMODE_TRUNC                 0x00000800
+#define FMODE_TEXTMODE              0x00001000
 
 VALUE rb_io_taint_check(VALUE);
 NORETURN(void rb_eof_error(void));

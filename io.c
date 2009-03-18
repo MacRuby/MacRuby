@@ -102,18 +102,90 @@ struct argf {
 //     return S_ISSOCK(sbuf.st_mode);
 // }
 
+int convert_mode_string_to_fmode(VALUE rstr)
+{
+    int fmode = 0;
+    const char *m = RSTRING_PTR(rstr);
 
-static int extract_mode_flags(VALUE mode_string) {
-    int result = 0;
-    const char *path = RSTRING_PTR(mode_string);
-    if (strchr(path, 'r')) {
-        result |= FMODE_READABLE;
+    switch (*m++) {
+        case 'r':
+            fmode |= FMODE_READABLE;
+            break;
+        case 'w':
+            fmode |= FMODE_WRITABLE | FMODE_TRUNC | FMODE_CREATE;
+            break;
+        case 'a':
+            fmode |= FMODE_WRITABLE | FMODE_APPEND | FMODE_CREATE;	
+            break;
+        default:
+            error:
+            rb_raise(rb_eArgError, "invalid access mode %s", m);
     }
-    if (strchr(path, 'w')) {
-        result |= FMODE_WRITABLE;
+
+    while (*m) {
+        switch (*m++) {
+            case 'b':
+                fmode |= FMODE_BINMODE;
+                break;
+            case 't':
+                fmode |= FMODE_TEXTMODE;
+                break;
+            case '+':
+                fmode |= FMODE_READWRITE;
+                break;
+            case ':':
+                goto finished;
+            default:
+                rb_raise(rb_eArgError, "invalid access mode %s", m);
+        }
     }
-    return result;
+
+    finished:
+    if ((fmode & FMODE_BINMODE) && (fmode & FMODE_TEXTMODE))
+        goto error;
+
+    return fmode;
 }
+
+static int
+convert_fmode_to_oflags(int fmode)
+{
+    int oflags = 0;
+
+    switch (fmode & FMODE_READWRITE) {
+      case FMODE_READABLE:
+        oflags |= O_RDONLY;
+        break;
+      case FMODE_WRITABLE:
+        oflags |= O_WRONLY;
+        break;
+      case FMODE_READWRITE:
+        oflags |= O_RDWR;
+        break;
+    }
+
+    if (fmode & FMODE_APPEND) {
+        oflags |= O_APPEND;
+    }
+    if (fmode & FMODE_TRUNC) {
+        oflags |= O_TRUNC;
+    }
+    if (fmode & FMODE_CREATE) {
+        oflags |= O_CREAT;
+    }
+#ifdef O_BINARY
+    if (fmode & FMODE_BINMODE) {
+        oflags |= O_BINARY;
+    }
+#endif
+
+    return oflags;
+}
+
+static int convert_mode_string_to_oflags(VALUE s) {
+    return convert_fmode_to_oflags(convert_mode_string_to_fmode(s));
+}
+
 
 
 void
@@ -179,7 +251,7 @@ rb_io_is_open(rb_io_t *io_struct)
 	    || CFWriteStreamGetStatus(io_struct->writeStream) == kCFStreamStatusOpen);
 }
 
-#define FMODE_PREP (1<<16)
+#define FMODE_PREP (1<<16)  
 #define IS_PREP_STDIO(f) ((f)->mode & FMODE_PREP)
 #define PREP_STDIO_NAME(f) ((f)->path)
 
@@ -1910,16 +1982,11 @@ rb_notimplement();
  *
  *     Got: in Child
  */
- 
-int extract_oflags(VALUE str) {
-    // TODO maybe use a switch statement here, I dunno.
-    return O_RDONLY;
-}
 
 static VALUE
 rb_f_open(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
-    // FIX THE HELL OUT OF ME!!!!
+    // FIX THE HECK OUT OF ME!!!!
     // TODO: Handle the pipes, subprocess, etc.
     // TODO: Take into account the provided file permissions.
     // TODO: Handle files that don't exist.
@@ -1927,10 +1994,9 @@ rb_f_open(VALUE klass, SEL sel, int argc, VALUE *argv)
     rb_scan_args(argc, argv, "12", &path, &modes, &permissions);
     
     StringValue(path);
-    int mode = (NIL_P(modes) ? O_RDONLY : rb_io_modenum_flags(modes));
     const char *filepath = RSTRING_PTR(path);
-    int fd = open(filepath, mode);
-    return prep_io(fd, FMODE_READWRITE, klass);
+    int fd = open(filepath, convert_mode_string_to_oflags(modes));
+    return prep_io(fd, convert_mode_string_to_fmode(modes), klass);
 }
 
 /*
@@ -2296,7 +2362,7 @@ rb_io_initialize(VALUE io, SEL sel, int argc, VALUE *argv)
     int mode_flags;
     rb_io_t *io_struct = ExtractIOStruct(io);
     rb_scan_args(argc, argv, "11", &file_descriptor, &mode);
-    mode_flags = (NIL_P(mode) ? FMODE_READABLE : extract_mode_flags(mode));
+    mode_flags = (NIL_P(mode) ? FMODE_READABLE : convert_mode_string_to_fmode(mode));
     prepare_io_from_fd(io_struct, FIX2INT(file_descriptor), mode_flags);
     return io;
 }
