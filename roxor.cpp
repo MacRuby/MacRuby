@@ -205,6 +205,7 @@ class RoxorCompiler
 	ID self_id;
 	Value *current_self;
 	bool current_block;
+	BasicBlock *begin_bb;
 	BasicBlock *rescue_bb;
 	NODE *current_block_node;
 	Function *current_block_func;
@@ -299,6 +300,7 @@ class RoxorCompiler
 	Value *compile_const(ID id, Value *outer);
 	Value *compile_defined_expression(NODE *node);
 	Value *compile_dstr(NODE *node);
+	void compile_dead_branch(void);
 
 	Value *get_var(ID name, std::map<ID, Value *> &container, 
 		       bool do_assert) {
@@ -507,6 +509,7 @@ RoxorCompiler::RoxorCompiler(const char *_fname)
     fname = _fname;
 
     bb = NULL;
+    begin_bb = NULL;
     rescue_bb = NULL;
     current_mid = 0;
     current_instance_method = false;
@@ -1206,6 +1209,15 @@ RoxorCompiler::compile_dstr(NODE *node)
     }
 
     return CallInst::Create(newStringFunc, params.begin(), params.end(), "", bb);
+}
+
+void
+RoxorCompiler::compile_dead_branch(void)
+{
+    // To not complicate the compiler even more, let's be very lazy here and
+    // continue on a dead branch. Hopefully LLVM will be smart enough to eliminate
+    // it at compilation time.
+    bb = BasicBlock::Create("DEAD", bb->getParent());
 }
 
 Value *
@@ -3005,12 +3017,21 @@ rescan_args:
 
 		    ReturnInst::Create(val, bb);
 		}
-
-		// To not complicate the compiler even more, let's be very lazy here and
-		// continue on a dead branch. Hopefully LLVM will be smart enough to eliminate
-		// it at compilation time.
-		bb = BasicBlock::Create("DEAD", bb->getParent());
+		compile_dead_branch();
 		return val;
+	    }
+	    break;
+
+	case NODE_RETRY:
+	    {
+		if (begin_bb == NULL) {
+		    rb_raise(rb_eSyntaxError, "unexpected retry");
+		}
+		// TODO raise a SyntaxError if called outside of a "rescue"
+		// block.
+		BranchInst::Create(begin_bb, bb);
+		compile_dead_branch();
+		return nilVal;
 	    }
 	    break;
 
@@ -3213,10 +3234,12 @@ rescan_args:
 		NODE *n = node;
 		Value *val = NULL;
 
+		DEBUG_LEVEL_INC();
 		while (n != NULL && nd_type(n) == NODE_BLOCK) {
 		    val = n->nd_head == NULL ? nilVal : compile_node(n->nd_head);
 		    n = n->nd_next;
 		}
+		DEBUG_LEVEL_DEC();
 
 		return val;
 	    }
@@ -3384,10 +3407,7 @@ rescan_args:
 	    break;
 
 	case NODE_BEGIN:
-	    if (node->nd_body != NULL) {
-		return compile_node(node->nd_body);
-	    }
-	    return nilVal;
+	    return node->nd_body == NULL ? nilVal : compile_node(node->nd_body);
 
 	case NODE_RESCUE:
 	    {
@@ -3396,14 +3416,19 @@ rescan_args:
 
 		Function *f = bb->getParent();
 
+		BasicBlock *old_begin_bb = begin_bb;
+		begin_bb = BasicBlock::Create("begin", f);
+
 		BasicBlock *old_rescue_bb = rescue_bb;
 		BasicBlock *new_rescue_bb = BasicBlock::Create("rescue", f);
 		BasicBlock *merge_bb = BasicBlock::Create("merge", f);
 
 		// Begin code.
+		BranchInst::Create(begin_bb, bb);
+		bb = begin_bb;
 		rescue_bb = new_rescue_bb;
 		Value *begin_val = compile_node(node->nd_head);
-		BasicBlock *begin_bb = bb;
+		BasicBlock *real_begin_bb = bb;
 		rescue_bb = old_rescue_bb;
 		BranchInst::Create(merge_bb, bb);
 		
@@ -3459,9 +3484,11 @@ rescan_args:
 		BranchInst::Create(merge_bb, bb);
 
 		PHINode *pn = PHINode::Create(RubyObjTy, "rescue_result", merge_bb);
-		pn->addIncoming(begin_val, begin_bb);
+		pn->addIncoming(begin_val, real_begin_bb);
 		pn->addIncoming(rescue_val, new_rescue_bb);
 		bb = merge_bb;
+
+		begin_bb = old_begin_bb;
 
 		return pn;
 	    }
