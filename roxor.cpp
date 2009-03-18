@@ -3768,6 +3768,10 @@ rescan_args:
 	    }
 	    break;
 
+	case NODE_COLON3:
+	    assert(node->nd_mid > 0);
+	    return compile_const(node->nd_mid, ConstantInt::get(RubyObjTy, (long)rb_cObject));
+
 	case NODE_CASE:
 	    {
 		Function *f = bb->getParent();

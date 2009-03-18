@@ -365,6 +365,8 @@ test "constants" do
     p Z::Y.new.foo
   }
 
+  assert 'true', 'p ::String == String'
+
 end
 
 test "ranges" do
