@@ -4925,15 +4925,24 @@ sym_cmp(VALUE sym1, VALUE sym2)
 static VALUE
 sym_inspect(VALUE sym, SEL sel)
 {
-    VALUE str;
+    assert(RSTRING_LEN(sym) > 0);
 
-#if 0
-    if (!rb_enc_symname_p(RSTRING_PTR(sym), NULL)) {
-	sym = rb_str_inspect(sym);
+    CFCharacterSetRef letters =
+	CFCharacterSetGetPredefined(kCFCharacterSetLetter);
+    const bool should_be_quoted = 
+	!CFCharacterSetIsCharacterMember(letters,
+		CFStringGetCharacterAtIndex((CFStringRef)sym, 0));
+
+    VALUE str = rb_str_new2(":");
+
+    if (should_be_quoted) {
+	rb_str_buf_cat2(str, "\"");
     }
-#endif
-    str = rb_str_new2(":");
     rb_str_buf_append(str, sym);
+    if (should_be_quoted) {
+	rb_str_buf_cat2(str, "\"");
+    }
+
     return str;
 }
 

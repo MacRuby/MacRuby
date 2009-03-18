@@ -244,9 +244,10 @@ test "literals" do
   assert '"foo246bar"', "p \"foo#{1+1}#{2+2}#{3+3}bar\""
 
   assert ":ok", 'p :ok'
-  assert ":\"foo\"", 'p :"foo"'
+  assert ":ok", 'p :"ok"'
   assert ":ok", 'p :"#{:ok}"'
   assert ":\"42\"", 'p :"#{40+2}"'
+  assert ":foo42", 'p :"foo#{40+2}"'
 
 end
 
