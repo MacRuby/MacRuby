@@ -115,25 +115,25 @@ rb_struct_getmember(VALUE obj, ID id)
 }
 
 static VALUE
-rb_struct_ref(VALUE obj)
+rb_struct_ref(VALUE obj, SEL sel)
 {
     return rb_struct_getmember(obj, rb_frame_this_func());
 }
 
-static VALUE rb_struct_ref0(VALUE obj) {return RSTRUCT_PTR(obj)[0];}
-static VALUE rb_struct_ref1(VALUE obj) {return RSTRUCT_PTR(obj)[1];}
-static VALUE rb_struct_ref2(VALUE obj) {return RSTRUCT_PTR(obj)[2];}
-static VALUE rb_struct_ref3(VALUE obj) {return RSTRUCT_PTR(obj)[3];}
-static VALUE rb_struct_ref4(VALUE obj) {return RSTRUCT_PTR(obj)[4];}
-static VALUE rb_struct_ref5(VALUE obj) {return RSTRUCT_PTR(obj)[5];}
-static VALUE rb_struct_ref6(VALUE obj) {return RSTRUCT_PTR(obj)[6];}
-static VALUE rb_struct_ref7(VALUE obj) {return RSTRUCT_PTR(obj)[7];}
-static VALUE rb_struct_ref8(VALUE obj) {return RSTRUCT_PTR(obj)[8];}
-static VALUE rb_struct_ref9(VALUE obj) {return RSTRUCT_PTR(obj)[9];}
+static VALUE rb_struct_ref0(VALUE obj, SEL sel) {return RSTRUCT_PTR(obj)[0];}
+static VALUE rb_struct_ref1(VALUE obj, SEL sel) {return RSTRUCT_PTR(obj)[1];}
+static VALUE rb_struct_ref2(VALUE obj, SEL sel) {return RSTRUCT_PTR(obj)[2];}
+static VALUE rb_struct_ref3(VALUE obj, SEL sel) {return RSTRUCT_PTR(obj)[3];}
+static VALUE rb_struct_ref4(VALUE obj, SEL sel) {return RSTRUCT_PTR(obj)[4];}
+static VALUE rb_struct_ref5(VALUE obj, SEL sel) {return RSTRUCT_PTR(obj)[5];}
+static VALUE rb_struct_ref6(VALUE obj, SEL sel) {return RSTRUCT_PTR(obj)[6];}
+static VALUE rb_struct_ref7(VALUE obj, SEL sel) {return RSTRUCT_PTR(obj)[7];}
+static VALUE rb_struct_ref8(VALUE obj, SEL sel) {return RSTRUCT_PTR(obj)[8];}
+static VALUE rb_struct_ref9(VALUE obj, SEL sel) {return RSTRUCT_PTR(obj)[9];}
 
 #define N_REF_FUNC (sizeof(ref_func) / sizeof(ref_func[0]))
 
-static VALUE (*const ref_func[])(VALUE) = {
+static VALUE (*const ref_func[])(VALUE,SEL) = {
     rb_struct_ref0,
     rb_struct_ref1,
     rb_struct_ref2,
@@ -155,7 +155,7 @@ rb_struct_modify(VALUE s)
 }
 
 static VALUE
-rb_struct_set(VALUE obj, VALUE val)
+rb_struct_set(VALUE obj, SEL sel, VALUE val)
 {
     VALUE members, slot;
     long i;
@@ -204,20 +204,20 @@ make_struct(VALUE name, VALUE members, VALUE klass)
     rb_iv_set(nstr, "__size__", LONG2NUM(RARRAY_LEN(members)));
     rb_iv_set(nstr, "__members__", members);
 
-    rb_define_alloc_func(nstr, struct_alloc);
-    rb_define_singleton_method(nstr, "new", rb_class_new_instance, -1);
-    rb_define_singleton_method(nstr, "[]", rb_class_new_instance, -1);
-    rb_define_singleton_method(nstr, "members", rb_struct_s_members_m, 0);
+    rb_objc_define_method(*(VALUE *)nstr, "alloc", struct_alloc, 0);
+    rb_objc_define_method(*(VALUE *)nstr, "new", rb_class_new_instance, -1);
+    rb_objc_define_method(*(VALUE *)nstr, "[]", rb_class_new_instance, -1);
+    rb_objc_define_method(*(VALUE *)nstr, "members", rb_struct_s_members_m, 0);
     for (i=0; i< RARRAY_LEN(members); i++) {
 	ID id = SYM2ID(RARRAY_AT(members, i));
 	if (rb_is_local_id(id) || rb_is_const_id(id)) {
 	    if (i < N_REF_FUNC) {
-		rb_define_method_id(nstr, id, ref_func[i], 0);
+		rb_objc_define_method(nstr, rb_id2name(id), ref_func[i], 0);
 	    }
 	    else {
-		rb_define_method_id(nstr, id, rb_struct_ref, 0);
+		rb_objc_define_method(nstr, rb_id2name(id), rb_struct_ref, 0);
 	    }
-	    rb_define_method_id(nstr, rb_id_attrset(id), rb_struct_set, 1);
+	    rb_objc_define_method(nstr, rb_id2name(rb_id_attrset(id)), rb_struct_set, 1);
 	}
     }
 
@@ -260,10 +260,9 @@ rb_struct_define_without_accessor(const char *class_name, VALUE super, rb_alloc_
     rb_iv_set(klass, "__size__", LONG2NUM(RARRAY_LEN(members)));
     rb_iv_set(klass, "__members__", members);
 
-    if (alloc)
-        rb_define_alloc_func(klass, alloc);
-    else
-        rb_define_alloc_func(klass, struct_alloc);
+    rb_objc_define_method(*(VALUE *)klass, "alloc",
+	    alloc != NULL ? alloc : struct_alloc,
+	    0);
 
     return klass;
 }
