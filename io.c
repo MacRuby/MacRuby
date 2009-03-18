@@ -2199,11 +2199,50 @@ rb_f_putc(VALUE recv, SEL sel, VALUE ch)
  *     a
  *     test
  */
+ 
+VALUE rb_io_puts(VALUE out, SEL sel, int argc, VALUE *argv);
+ 
+static VALUE
+io_puts_ary(VALUE ary, SEL sel, VALUE out, int recur)
+{
+    VALUE tmp;
+    long i;
+
+    if (recur) {
+	    tmp = rb_str_new2("[...]");
+	    rb_io_puts(out, sel, 1, &tmp);
+	    return Qnil;
+    }
+    for (i=0; i<RARRAY_LEN(ary); i++) {
+	    tmp = RARRAY_PTR(ary)[i];
+	    rb_io_puts(out, sel, 1, &tmp);
+    }
+    return Qnil;
+}
 
 VALUE
 rb_io_puts(VALUE out, SEL sel, int argc, VALUE *argv)
 {
-rb_notimplement();
+    VALUE line;
+    int i;
+    if (argc == 0) {
+        rb_io_write(out, sel, rb_default_rs);
+        return Qnil;
+    }
+    for (i=0; i<argc; i++) {
+        line = rb_check_array_type(argv[i]);
+        if (!NIL_P(line)) {
+            io_puts_ary(line, sel, out, 0);
+            continue;
+        }
+        line = rb_obj_as_string(argv[i]);
+        rb_io_write(out, sel, line);
+        if (RSTRING_LEN(line) == 0 || RSTRING_PTR(line)[RSTRING_LEN(line)-1] != '\n') {
+            // If the last character of line was a newline, there's no reason to write another.
+            rb_io_write(out, sel, rb_default_rs);
+        }
+    }
+    return Qnil;
 }
 
 /*
@@ -2218,11 +2257,7 @@ rb_notimplement();
 static VALUE
 rb_f_puts(VALUE recv, SEL sel, int argc, VALUE *argv)
 {
-    while (argc--) {
-        rb_io_write(rb_stdout, 0, *argv++);
-        rb_io_write(rb_stdout, 0, rb_default_rs);
-    }
-    return Qnil;
+    return rb_io_puts(rb_stdout, sel, argc, argv);
 }
 
 void
