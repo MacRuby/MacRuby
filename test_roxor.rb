@@ -268,6 +268,11 @@ test "assign" do
   assert '42', "def foo=(x); @x=x; end; x,self.foo = 1,41; p @x+x"
   assert '42', "def []=(x,y); @x=x+y; end; x,self[40] = 1,1; p @x+x"
 
+  assert '[1, 2, 3]', "a=[1,2,3]; x=*a; p x"
+  assert '[1, 2, 3]', "a=[2,3]; x=1,*a; p x"
+  assert '[1, 2, 3]', "a=[1,2]; x=*a,3; p x"
+  assert '[1, 2, 3]', "a=[2]; x=1,*a,3; p x"
+
   # TODO add more multiple assignments test
 
   assert '42', "a=[20]; a[0] += 22; p a[0]"

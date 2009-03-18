@@ -230,6 +230,8 @@ class RoxorCompiler
 	Function *aliasFunc;
 	Function *valiasFunc;
 	Function *newHashFunc;
+	Function *toArrayFunc;
+	Function *catArrayFunc;
 	Function *newArrayFunc;
 	Function *newRangeFunc;
 	Function *newRegexpFunc;
@@ -543,6 +545,8 @@ RoxorCompiler::RoxorCompiler(const char *_fname)
     aliasFunc = NULL;
     valiasFunc = NULL;
     newHashFunc = NULL;
+    toArrayFunc = NULL;
+    catArrayFunc = NULL;
     newArrayFunc = NULL;
     newRangeFunc = NULL;
     newRegexpFunc = NULL;
@@ -3063,6 +3067,52 @@ rescan_args:
 	    }
 	    break;
 
+	case NODE_ARGSCAT:
+	case NODE_ARGSPUSH:
+	    {
+		assert(node->nd_head != NULL);
+		Value *ary = compile_node(node->nd_head);
+
+		assert(node->nd_body != NULL);
+		Value *other = compile_node(node->nd_body);
+
+		if (catArrayFunc == NULL) {
+		    // VALUE rb_vm_ary_cat(VALUE obj);
+		    catArrayFunc = cast<Function>(
+			    module->getOrInsertFunction("rb_vm_ary_cat",
+				RubyObjTy, RubyObjTy, RubyObjTy, NULL));
+		}
+
+		std::vector<Value *> params;
+		params.push_back(ary);
+		params.push_back(other);
+
+		return compile_protected_call(catArrayFunc, params);
+	    }
+	    break;
+
+	case NODE_SPLAT:
+	    {
+		assert(node->nd_head != NULL);
+		Value *val = compile_node(node->nd_head);
+
+		if (nd_type(node->nd_head) != NODE_ARRAY) {
+		    if (toArrayFunc == NULL) {
+			// VALUE rb_vm_to_a(VALUE obj);
+			toArrayFunc = cast<Function>(
+				module->getOrInsertFunction("rb_vm_to_a",
+				    RubyObjTy, RubyObjTy, NULL));
+		    }
+
+		    std::vector<Value *> params;
+		    params.push_back(val);
+		    val = compile_protected_call(toArrayFunc, params);
+		}
+
+		return val;
+	    }
+	    break;
+
 	case NODE_ARRAY:
 	case NODE_ZARRAY:
 	case NODE_VALUES:
@@ -3075,7 +3125,7 @@ rescan_args:
 		    newArrayFunc = cast<Function>(module->getOrInsertFunction("rb_ary_new_fast", ft));
 		}
 
-		std::vector<Value *>params;
+		std::vector<Value *> params;
 
 		if (nd_type(node) == NODE_ZARRAY) {
 		    params.push_back(ConstantInt::get(Type::Int32Ty, 0));
@@ -3912,10 +3962,35 @@ rb_vm_ivar_set(VALUE obj, ID name, VALUE val, int *slot_cache)
     }
 }
 
+extern "C"
+VALUE
+rb_vm_ary_cat(VALUE ary, VALUE obj)
+{
+    if (TYPE(obj) == T_ARRAY) {
+	rb_ary_concat(ary, obj);
+    }
+    else {
+	rb_ary_push(ary, obj);
+    }
+    return ary;
+}
+
+extern "C"
+VALUE
+rb_vm_to_a(VALUE obj)
+{
+    VALUE ary = rb_check_convert_type(obj, T_ARRAY, "Array", "to_a");
+    if (NIL_P(ary)) {
+	ary = rb_ary_new3(1, obj);
+    }
+    return ary;
+}
+
 extern "C" void rb_print_undef(VALUE, ID, int);
 
 extern "C"
-void rb_vm_alias(VALUE outer, ID name, ID def)
+void
+rb_vm_alias(VALUE outer, ID name, ID def)
 {
     // TODO reassign klass if called within module_eval
 
