@@ -33,6 +33,7 @@ typedef struct rb_io_t {
     pid_t pid;
     int lineno;
     int fd;
+    bool sync;
 
     // For ungetc.
     UInt8 *ungetc_buf;

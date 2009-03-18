@@ -79,17 +79,6 @@ struct argf {
     rb_encoding *enc, *enc2;
 };
 
-//static int max_file_descriptor = NOFILE;
-#define UPDATE_MAXFD(fd) \
-    do { \
-        if (max_file_descriptor < (fd)) max_file_descriptor = (fd); \
-    } while (0)
-#define UPDATE_MAXFD_PIPE(filedes) \
-    do { \
-        UPDATE_MAXFD((filedes)[0]); \
-        UPDATE_MAXFD((filedes)[1]); \
-    } while (0)
-
 #define argf_of(obj) (*(struct argf *)DATA_PTR(obj))
 #define ARGF argf_of(argf)
 
@@ -108,41 +97,41 @@ int convert_mode_string_to_fmode(VALUE rstr)
     const char *m = RSTRING_PTR(rstr);
 
     switch (*m++) {
-        case 'r':
-            fmode |= FMODE_READABLE;
-            break;
-        case 'w':
-            fmode |= FMODE_WRITABLE | FMODE_TRUNC | FMODE_CREATE;
-            break;
-        case 'a':
-            fmode |= FMODE_WRITABLE | FMODE_APPEND | FMODE_CREATE;	
-            break;
-        default:
-            error:
-            rb_raise(rb_eArgError, "invalid access mode %s", m);
+	case 'r':
+	    fmode |= FMODE_READABLE;
+	    break;
+	case 'w':
+	    fmode |= FMODE_WRITABLE | FMODE_TRUNC | FMODE_CREATE;
+	    break;
+	case 'a':
+	    fmode |= FMODE_WRITABLE | FMODE_APPEND | FMODE_CREATE;	
+	    break;
+	default:
+error:
+	    rb_raise(rb_eArgError, "invalid access mode %s", m);
     }
 
     while (*m) {
-        switch (*m++) {
-            case 'b':
-                fmode |= FMODE_BINMODE;
-                break;
-            case 't':
-                fmode |= FMODE_TEXTMODE;
-                break;
-            case '+':
-                fmode |= FMODE_READWRITE;
-                break;
-            case ':':
-                goto finished;
-            default:
-                rb_raise(rb_eArgError, "invalid access mode %s", m);
-        }
+	switch (*m++) {
+	    case 'b':
+		fmode |= FMODE_BINMODE;
+		break;
+	    case 't':
+		fmode |= FMODE_TEXTMODE;
+		break;
+	    case '+':
+		fmode |= FMODE_READWRITE;
+		break;
+	    case ':':
+		goto finished;
+	    default:
+		rb_raise(rb_eArgError, "invalid access mode %s", m);
+	}
     }
 
-    finished:
+finished:
     if ((fmode & FMODE_BINMODE) && (fmode & FMODE_TEXTMODE))
-        goto error;
+	goto error;
 
     return fmode;
 }
@@ -153,34 +142,35 @@ convert_fmode_to_oflags(int fmode)
     int oflags = 0;
 
     switch (fmode & FMODE_READWRITE) {
-      case FMODE_READABLE:
-        oflags |= O_RDONLY;
-        break;
-      case FMODE_WRITABLE:
-        oflags |= O_WRONLY;
-        break;
-      case FMODE_READWRITE:
-        oflags |= O_RDWR;
-        break;
+	case FMODE_READABLE:
+	    oflags |= O_RDONLY;
+	    break;
+	case FMODE_WRITABLE:
+	    oflags |= O_WRONLY;
+	    break;
+	case FMODE_READWRITE:
+	    oflags |= O_RDWR;
+	    break;
     }
 
     if (fmode & FMODE_APPEND) {
-        oflags |= O_APPEND;
+	oflags |= O_APPEND;
     }
     if (fmode & FMODE_TRUNC) {
-        oflags |= O_TRUNC;
+	oflags |= O_TRUNC;
     }
     if (fmode & FMODE_CREATE) {
-        oflags |= O_CREAT;
+	oflags |= O_CREAT;
     }
+
     return oflags;
 }
 
-static int convert_mode_string_to_oflags(VALUE s) {
+static int
+convert_mode_string_to_oflags(VALUE s) 
+{
     return convert_fmode_to_oflags(convert_mode_string_to_fmode(s));
 }
-
-
 
 void
 rb_eof_error(void)
@@ -198,7 +188,7 @@ rb_io_taint_check(VALUE io)
     return io;
 }
 
-static void
+static inline void
 rb_io_check_initialized(rb_io_t *fptr)
 {
     if (fptr == NULL) {
@@ -306,7 +296,6 @@ rb_notimplement();
 
 #define FMODE_SYNCWRITE (FMODE_SYNC|FMODE_WRITABLE)
 
-
 static VALUE
 io_alloc(VALUE klass, SEL sel)
 {
@@ -325,45 +314,49 @@ prepare_io_from_fd(rb_io_t *io_struct, int fd, int mode)
 {
     CFReadStreamRef r = NULL;
     CFWriteStreamRef w = NULL;
-    
+
     if (mode & FMODE_READABLE) {
-    	r = _CFReadStreamCreateFromFileDescriptor(NULL, fd);
+	r = _CFReadStreamCreateFromFileDescriptor(NULL, fd);
     }
-    
+
     if (mode & FMODE_WRITABLE) {
-    	w = _CFWriteStreamCreateFromFileDescriptor(NULL, fd);
+	w = _CFWriteStreamCreateFromFileDescriptor(NULL, fd);
     }
-    
+
     assert(r != NULL || w != NULL);
-    
+
     if (r != NULL) {
-    	CFReadStreamOpen(r);
-    	GC_WB(&io_struct->readStream, r);
-    	CFMakeCollectable(r);
+	CFReadStreamOpen(r);
+	GC_WB(&io_struct->readStream, r);
+	CFMakeCollectable(r);
     } 
-	else {
-    	io_struct->readStream = NULL;
+    else {
+	io_struct->readStream = NULL;
     }
     
     if (w != NULL) {
-    	CFWriteStreamOpen(w);
-    	GC_WB(&io_struct->writeStream, w);
-    	CFMakeCollectable(w);
-    } else {
-    	io_struct->writeStream = NULL;
+	CFWriteStreamOpen(w);
+	GC_WB(&io_struct->writeStream, w);
+	CFMakeCollectable(w);
+    } 
+    else {
+	io_struct->writeStream = NULL;
     }
+
     // TODO: Eventually make the ungetc_buf a ByteString
     io_struct->fd = fd;
     io_struct->ungetc_buf = NULL;
     io_struct->ungetc_buf_len = 0;
     io_struct->ungetc_buf_pos = 0;
+    
+    io_struct->sync = mode & FMODE_SYNC;
 }
 
 static VALUE
 prep_io(int fd, int mode, VALUE klass)
 {
     VALUE io = io_alloc(rb_cIO, 0);
-	rb_io_t *io_struct = ExtractIOStruct(io);
+    rb_io_t *io_struct = ExtractIOStruct(io);
     prepare_io_from_fd(io_struct, fd, mode);
     rb_objc_keep_for_exit_finalize((VALUE)io);
     return io;
@@ -402,6 +395,7 @@ io_write(VALUE io, SEL sel, VALUE to_write)
 
     // TODO: Account for the port not being IO, use funcall to call .write()
     // instead.
+    // TODO: Honor io_struct->sync
 
     to_write = rb_obj_as_string(to_write);
 
@@ -669,7 +663,8 @@ rb_io_eof(VALUE io, SEL sel)
 static VALUE
 rb_io_sync(VALUE io, SEL sel)
 {
-    rb_notimplement();
+    rb_io_t *io_struct = ExtractIOStruct(io);
+    return io_struct->sync ? Qtrue : Qfalse;
 }
 
 /*
@@ -690,7 +685,9 @@ rb_io_sync(VALUE io, SEL sel)
 static VALUE
 rb_io_set_sync(VALUE io, SEL sel, VALUE mode)
 {
-    rb_notimplement();
+    rb_io_t *io_struct = ExtractIOStruct(io);
+    io_struct->sync = RTEST(mode);
+    return mode;
 }
 
 /*
