@@ -748,8 +748,6 @@ test "blocks" do
 
   assert "42", "p [42].map { |x| x }.map { |y| y }[0]"
 
-  assert ":ok", "proc { retry }; p :ok"
-
 end
 
 test "exception" do
