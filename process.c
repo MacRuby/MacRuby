@@ -5035,8 +5035,8 @@ p_gid_switch(VALUE obj)
  *     [ t.utime, t.stime ]   #=> [0.0, 0.02]
  */
 
-VALUE
-rb_proc_times(VALUE obj)
+static VALUE
+rb_proc_times(VALUE obj, SEL sel)
 {
 #if defined(HAVE_TIMES) && !defined(__CHECKER__)
     const double hertz =
@@ -5226,7 +5226,7 @@ Init_process(void)
 
     rb_define_module_function(rb_mProcess, "daemon", proc_daemon, -1);
 
-    rb_define_module_function(rb_mProcess, "times", rb_proc_times, 0);
+    rb_objc_define_method(*(VALUE *)rb_mProcess, "times", rb_proc_times, 0);
 
 #if defined(HAVE_TIMES) || defined(_WIN32)
     rb_cProcessTms = rb_struct_define("Tms", "utime", "stime", "cutime", "cstime", NULL);
