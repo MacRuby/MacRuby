@@ -1492,7 +1492,7 @@ format_error:
 		}
                 rb_ary_push(values, r_object(arg));
 	    }
-            rb_struct_initialize(v, values);
+            rb_struct_initialize(v, 0, values);
             v = r_leave(v, arg);
 	}
 	break;

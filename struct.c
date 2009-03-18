@@ -92,7 +92,7 @@ rb_struct_s_members_m(VALUE klass)
  */
 
 static VALUE
-rb_struct_members_m(VALUE obj)
+rb_struct_members_m(VALUE obj, SEL sel)
 {
     return rb_struct_s_members_m(rb_obj_class(obj));
 }
@@ -326,7 +326,7 @@ rb_struct_define(const char *name, ...)
 VALUE rb_mod_module_eval(VALUE mod, SEL sel, int argc, VALUE *argv);
 
 static VALUE
-rb_struct_s_def(int argc, VALUE *argv, VALUE klass)
+rb_struct_s_def(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
     VALUE name, rest;
     long i;
@@ -354,7 +354,7 @@ rb_struct_s_def(int argc, VALUE *argv, VALUE klass)
  */
 
 VALUE
-rb_struct_initialize(VALUE self, VALUE values)
+rb_struct_initialize(VALUE self, SEL sel, VALUE values)
 {
     VALUE klass = rb_obj_class(self);
     VALUE size;
@@ -443,7 +443,7 @@ rb_struct_new(VALUE klass, ...)
  */
 
 static VALUE
-rb_struct_each(VALUE s)
+rb_struct_each(VALUE s, SEL sel)
 {
     long i;
 
@@ -474,7 +474,7 @@ rb_struct_each(VALUE s)
  */
 
 static VALUE
-rb_struct_each_pair(VALUE s)
+rb_struct_each_pair(VALUE s, SEL sel)
 {
     VALUE members;
     long i;
@@ -539,7 +539,7 @@ inspect_struct(VALUE s, VALUE dummy, int recur)
  */
 
 static VALUE
-rb_struct_inspect(VALUE s)
+rb_struct_inspect(VALUE s, SEL sel)
 {
     return rb_exec_recursive(inspect_struct, s, 0);
 }
@@ -557,14 +557,14 @@ rb_struct_inspect(VALUE s)
  */
 
 static VALUE
-rb_struct_to_a(VALUE s)
+rb_struct_to_a(VALUE s, SEL sel)
 {
     return rb_ary_new4(RSTRUCT_LEN(s), RSTRUCT_PTR(s));
 }
 
 /* :nodoc: */
 static VALUE
-rb_struct_init_copy(VALUE copy, VALUE s)
+rb_struct_init_copy(VALUE copy, SEL sel, VALUE s)
 {
     if (copy == s) return copy;
     rb_check_frozen(copy);
@@ -615,8 +615,8 @@ rb_struct_aref_id(VALUE s, ID id)
  *     joe[0]        #=> "Joe Smith"
  */
 
-VALUE
-rb_struct_aref(VALUE s, VALUE idx)
+static VALUE
+rb_struct_aref_imp(VALUE s, SEL sel, VALUE idx)
 {
     long i;
 
@@ -633,6 +633,12 @@ rb_struct_aref(VALUE s, VALUE idx)
         rb_raise(rb_eIndexError, "offset %ld too large for struct(size:%ld)",
 		 i, RSTRUCT_LEN(s));
     return RSTRUCT_PTR(s)[i];
+}
+
+VALUE
+rb_struct_aref(VALUE s, VALUE idx)
+{
+    return rb_struct_aref_imp(s, 0, idx);
 }
 
 static VALUE
@@ -678,8 +684,8 @@ rb_struct_aset_id(VALUE s, ID id, VALUE val)
  *     joe.zip    #=> "90210"
  */
 
-VALUE
-rb_struct_aset(VALUE s, VALUE idx, VALUE val)
+static VALUE
+rb_struct_aset_imp(VALUE s, SEL sel, VALUE idx, VALUE val)
 {
     long i;
 
@@ -699,6 +705,12 @@ rb_struct_aset(VALUE s, VALUE idx, VALUE val)
     }
     rb_struct_modify(s);
     return RSTRUCT_PTR(s)[i] = val;
+}
+
+VALUE
+rb_struct_aset(VALUE s, VALUE idx, VALUE val)
+{
+    return rb_struct_aset_imp(s, 0, idx, val);
 }
 
 static VALUE
@@ -724,7 +736,7 @@ struct_entry(VALUE s, long n)
  */
 
 static VALUE
-rb_struct_values_at(int argc, VALUE *argv, VALUE s)
+rb_struct_values_at(VALUE s, SEL sel, int argc, VALUE *argv)
 {
     return rb_get_values_at(s, RSTRUCT_LEN(s), argc, argv, struct_entry);
 }
@@ -744,7 +756,7 @@ rb_struct_values_at(int argc, VALUE *argv, VALUE s)
  */
 
 static VALUE
-rb_struct_select(int argc, VALUE *argv, VALUE s)
+rb_struct_select(VALUE s, SEL sel, int argc, VALUE *argv)
 {
     VALUE result;
     long i;
@@ -782,7 +794,7 @@ rb_struct_select(int argc, VALUE *argv, VALUE s)
  */
 
 static VALUE
-rb_struct_equal(VALUE s, VALUE s2)
+rb_struct_equal(VALUE s, SEL sel, VALUE s2)
 {
     long i;
 
@@ -807,7 +819,7 @@ rb_struct_equal(VALUE s, VALUE s2)
  */
 
 static VALUE
-rb_struct_hash(VALUE s)
+rb_struct_hash(VALUE s, SEL sel)
 {
     long i, h;
     VALUE n;
@@ -830,7 +842,7 @@ rb_struct_hash(VALUE s)
  */
 
 static VALUE
-rb_struct_eql(VALUE s, VALUE s2)
+rb_struct_eql(VALUE s, SEL sel, VALUE s2)
 {
     long i;
 
@@ -860,7 +872,7 @@ rb_struct_eql(VALUE s, VALUE s2)
  */
 
 static VALUE
-rb_struct_size(VALUE s)
+rb_struct_size(VALUE s, SEL sel)
 {
     return LONG2FIX(RSTRUCT_LEN(s));
 }
@@ -887,28 +899,28 @@ Init_Struct(void)
     rb_include_module(rb_cStruct, rb_mEnumerable);
 
     rb_undef_alloc_func(rb_cStruct);
-    rb_define_singleton_method(rb_cStruct, "new", rb_struct_s_def, -1);
+    rb_objc_define_method(*(VALUE *)rb_cStruct, "new", rb_struct_s_def, -1);
 
-    rb_define_method(rb_cStruct, "initialize", rb_struct_initialize, -2);
-    rb_define_method(rb_cStruct, "initialize_copy", rb_struct_init_copy, 1);
+    rb_objc_define_method(rb_cStruct, "initialize", rb_struct_initialize, -2);
+    rb_objc_define_method(rb_cStruct, "initialize_copy", rb_struct_init_copy, 1);
 
-    rb_define_method(rb_cStruct, "==", rb_struct_equal, 1);
-    rb_define_method(rb_cStruct, "eql?", rb_struct_eql, 1);
-    rb_define_method(rb_cStruct, "hash", rb_struct_hash, 0);
+    rb_objc_define_method(rb_cStruct, "==", rb_struct_equal, 1);
+    rb_objc_define_method(rb_cStruct, "eql?", rb_struct_eql, 1);
+    rb_objc_define_method(rb_cStruct, "hash", rb_struct_hash, 0);
 
-    rb_define_method(rb_cStruct, "to_s", rb_struct_inspect, 0);
-    rb_define_method(rb_cStruct, "inspect", rb_struct_inspect, 0);
-    rb_define_method(rb_cStruct, "to_a", rb_struct_to_a, 0);
-    rb_define_method(rb_cStruct, "values", rb_struct_to_a, 0);
-    rb_define_method(rb_cStruct, "size", rb_struct_size, 0);
-    rb_define_method(rb_cStruct, "length", rb_struct_size, 0);
+    rb_objc_define_method(rb_cStruct, "to_s", rb_struct_inspect, 0);
+    rb_objc_define_method(rb_cStruct, "inspect", rb_struct_inspect, 0);
+    rb_objc_define_method(rb_cStruct, "to_a", rb_struct_to_a, 0);
+    rb_objc_define_method(rb_cStruct, "values", rb_struct_to_a, 0);
+    rb_objc_define_method(rb_cStruct, "size", rb_struct_size, 0);
+    rb_objc_define_method(rb_cStruct, "length", rb_struct_size, 0);
 
-    rb_define_method(rb_cStruct, "each", rb_struct_each, 0);
-    rb_define_method(rb_cStruct, "each_pair", rb_struct_each_pair, 0);
-    rb_define_method(rb_cStruct, "[]", rb_struct_aref, 1);
-    rb_define_method(rb_cStruct, "[]=", rb_struct_aset, 2);
-    rb_define_method(rb_cStruct, "select", rb_struct_select, -1);
-    rb_define_method(rb_cStruct, "values_at", rb_struct_values_at, -1);
+    rb_objc_define_method(rb_cStruct, "each", rb_struct_each, 0);
+    rb_objc_define_method(rb_cStruct, "each_pair", rb_struct_each_pair, 0);
+    rb_objc_define_method(rb_cStruct, "[]", rb_struct_aref, 1);
+    rb_objc_define_method(rb_cStruct, "[]=", rb_struct_aset, 2);
+    rb_objc_define_method(rb_cStruct, "select", rb_struct_select, -1);
+    rb_objc_define_method(rb_cStruct, "values_at", rb_struct_values_at, -1);
 
-    rb_define_method(rb_cStruct, "members", rb_struct_members_m, 0);
+    rb_objc_define_method(rb_cStruct, "members", rb_struct_members_m, 0);
 }

@@ -485,7 +485,6 @@ VALUE rb_f_exec(int,VALUE*);
 rb_pid_t rb_waitpid(rb_pid_t pid, int *status, int flags);
 void rb_syswait(rb_pid_t pid);
 rb_pid_t rb_spawn(int, VALUE*);
-VALUE rb_proc_times(VALUE);
 VALUE rb_detach_process(rb_pid_t pid);
 /* range.c */
 VALUE rb_range_new(VALUE, VALUE, int);
@@ -592,7 +591,7 @@ bool rb_objc_str_is_pure(VALUE);
 VALUE rb_struct_new(VALUE, ...);
 VALUE rb_struct_define(const char*, ...);
 VALUE rb_struct_alloc(VALUE, VALUE);
-VALUE rb_struct_initialize(VALUE, VALUE);
+VALUE rb_struct_initialize(VALUE, SEL, VALUE);
 VALUE rb_struct_aref(VALUE, VALUE);
 VALUE rb_struct_aset(VALUE, VALUE, VALUE);
 VALUE rb_struct_getmember(VALUE, ID);
