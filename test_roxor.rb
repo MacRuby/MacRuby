@@ -759,6 +759,8 @@ test "exception" do
   assert "42", "x = begin; nil; rescue; nil; ensure; 42; end; p x"
   assert "42", "x = begin; raise; nil; rescue; nil; ensure; 42; end; p x"
 
+  assert "42", "x = 40; begin; x += 1; raise; rescue; retry if x < 42; end; p x"
+
   assert ":ok", %q{
     begin
       raise
