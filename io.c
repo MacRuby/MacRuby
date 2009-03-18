@@ -173,12 +173,6 @@ convert_fmode_to_oflags(int fmode)
     if (fmode & FMODE_CREATE) {
         oflags |= O_CREAT;
     }
-#ifdef O_BINARY
-    if (fmode & FMODE_BINMODE) {
-        oflags |= O_BINARY;
-    }
-#endif
-
     return oflags;
 }
 
