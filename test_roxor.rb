@@ -463,6 +463,15 @@ test "class" do
     o.foo
   }
 
+  assert "42", %q{
+    class X
+      class << self
+        def foo; 42; end
+      end
+    end
+    p X.foo
+  }
+
 end
 
 test "module" do
