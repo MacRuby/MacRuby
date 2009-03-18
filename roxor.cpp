@@ -107,8 +107,6 @@ class RoxorJITManager : public JITMemoryManager
 	    return mm->getGOTBase();
 	}
 
-#if 0 // required when building with LLVM trunk, not useful today since trunk
-      // is b0rked.
 	void SetDlsymTable(void *ptr) {
 	    mm->SetDlsymTable(ptr);
 	}
@@ -116,7 +114,6 @@ class RoxorJITManager : public JITMemoryManager
 	void *getDlsymTable() const {
 	    return mm->getDlsymTable();
 	}
-#endif
 
 	unsigned char *startFunctionBody(const Function *F, 
 					 uintptr_t &ActualSize) {

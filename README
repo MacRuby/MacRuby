@@ -22,12 +22,11 @@ The project website contains more documentation, such as tutorials and guides:
 
 * Mac OS X 10.5.6 or later.
 
-* LLVM 2.5 or later, compiled for both i386 and x86_64.
+* LLVM trunk, compiled for both i386 and x86_64.
 
-  At the time of this writing, LLVM 2.5 has not been released yet so you need
-  to install trunk. We recommend revision 64604.
+  In case trunk reveals to be unstable we recommend revision 67244.
 
-  $ svn co -r 64604 https://llvm.org/svn/llvm-project/llvm/trunk llvm-trunk
+  $ svn co -r 67244 https://llvm.org/svn/llvm-project/llvm/trunk llvm-trunk
   $ cd llvm-trunk
   $ ./configure
   $ UNIVERSAL=1 UNIVERSAL_ARCH="i386 x86_64" ENABLE_OPTIMIZED=1 make
