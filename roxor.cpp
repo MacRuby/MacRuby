@@ -3600,6 +3600,8 @@ rescan_args:
 		BasicBlock *old_current_loop_begin_bb = current_loop_begin_bb;
 		BasicBlock *old_current_loop_end_bb = current_loop_end_bb;
 		current_loop_begin_bb = current_loop_end_bb = NULL;
+		Function *old_current_block_func = current_block_func;
+		NODE *old_current_block_node = current_block_node;
 		ID old_current_mid = current_mid;
 		current_mid = 0;
 
@@ -3636,8 +3638,8 @@ rescan_args:
 		    caller = compile_dispatch_call(params);
 		}
 
-		current_block_func = NULL;
-		current_block_node = NULL;
+		current_block_func = old_current_block_func;
+		current_block_node = old_current_block_node;
 		dvars = old_dvars;
 
 		return caller;
