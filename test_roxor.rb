@@ -204,6 +204,10 @@ test "fixnums" do
   assert 'true', "p -1073741824.class == Fixnum", :archs => ['i386']
   assert 'true', "x =  1073741823; x += 1; p x.class == Bignum", :archs => ['i386']
   assert 'true', "x = -1073741824; x -= 1; p x.class == Bignum", :archs => ['i386']
+  assert 'true', "p  4611686018427387903.class == Fixnum", :archs => ['x86_64']
+  assert 'true', "p -4611686018427387904.class == Fixnum", :archs => ['x86_64']
+  assert 'true', "x =  4611686018427387903; x += 1; p x.class == Bignum", :archs => ['x86_64']
+  assert 'true', "x = -4611686018427387904; x -= 1; p x.class == Bignum", :archs => ['x86_64']
 
   assert "6765\n75025\n832040", %q{
     def fib(n)
