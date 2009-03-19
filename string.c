@@ -2018,6 +2018,7 @@ str_gsub(int argc, VALUE *argv, VALUE str, int bang)
 	    }
 	    if (iter) {
 		rb_backref_set(match);
+		RETURN_IF_BROKEN();
 	    }
 	}
 	else {
