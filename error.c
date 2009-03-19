@@ -737,7 +737,7 @@ name_err_mesg_new(VALUE obj, SEL sel, VALUE mesg, VALUE recv, VALUE method)
     GC_WB(&ptr[1], recv);
     GC_WB(&ptr[2], method);
 
-    return Data_Wrap_Struct(rb_cNameErrorMesg, NULL, -1, ptr);
+    return Data_Wrap_Struct(rb_cNameErrorMesg, NULL, NULL, ptr);
 }
 
 /* :nodoc: */

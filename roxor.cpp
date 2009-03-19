@@ -1550,7 +1550,7 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Va
 	GlobalVariable *is_redefined = GET_VM()->redefined_op_gvar(sel, true);
 	new_params.push_back(new LoadInst(is_redefined, "", bb));
 
-	return CallInst::Create(opt_func, new_params.begin(), new_params.end(), "", bb);
+	return compile_protected_call(opt_func, new_params);
     }
     // #send or #__send__
     else if (sel == selSend || sel == sel__send__) {
@@ -5125,7 +5125,7 @@ rb_vm_get_special(char code)
 	    {
 		int index = (int)code;
 		assert(index > 0 && index < 10);
-		val = rb_reg_nth_match(index - 1, backref);
+		val = rb_reg_nth_match(index, backref);
 	    }
 	    break;
     }
