@@ -4,21 +4,50 @@
 # Please do not contribute tests that cover any higher level features here, 
 # use the rubyspec directory instead.
 
-$test_ruby = File.join(Dir.pwd, 'miniruby')
-$test_ruby_archs = ['i386']
-$test_ruby_archs << 'x86_64' if system("arch -x86_64 ./miniruby -e ''")
-$test_only = ARGV
+$test_only = []
+test_commands = []
+ARGV.each do |arg|
+  if md = /--ruby=(([^"'].*)|(".+")|('.*'))/.match(arg)
+    test_commands << md[1]
+  else
+    $test_only << arg
+  end
+end
+if test_commands.empty?
+  miniruby_path = File.join(Dir.pwd, 'miniruby')
+  test_commands << "arch -i386 #{miniruby_path}"
+  test_commands << "arch -x86_64 #{miniruby_path}" if system("arch -x86_64 #{miniruby_path} -e '' 2> /dev/null")
+end
+$test_archs = {}
+test_commands.each do |command|
+  if md = /\barch -([^\s]+)/.match(command)
+    arch_name = md[1]
+  elsif md = /1\.?9\z/.match(command)
+    arch_name = '1.9'
+  else
+    arch_name = File.basename(command.gsub(/\s.+/, ''))
+  end
+  $test_archs[arch_name] = command
+end
 $problems = []
 $assertions_count = 0
 
 module Runner
   def self.assert(expectation, code, options={})
     return if options[:known_bug]
-    code = "\"" + code.gsub(/"/, '\"') + "\""
-    archs = (options[:archs] or $test_ruby_archs)
-    archs.each do |arch|
-      output = `arch -#{arch} #{$test_ruby} -e #{code}`
-      result = if $?.exitstatus == 0
+    if options[:archs]
+      archs = $test_archs.select {|arch, command| options[:archs].include?(arch) }
+    else
+      archs = $test_archs
+    end
+    archs.each do |arch, command|
+      output = nil
+      IO.popen(command, 'r+') do |io|
+        io.puts(code)
+        io.close_write
+        output = io.read
+      end
+      result = if $? and $?.exitstatus == 0
         output.chomp == expectation ? '.' : 'F'
       else
         output = "ERROR CODE #{$?.exitstatus}"
@@ -1010,7 +1039,7 @@ test "defined" do
   assert '"expression"', "p defined? []"
 
   assert '"assignment"', "p defined? a=1"
-  assert '"assignment"', "p defined? \\$a=1"
+  assert '"assignment"', "p defined? $a=1"
   assert '"assignment"', "p defined? @a=1"
   assert '"assignment"', "p defined? A=1"
   assert '"assignment"', "p defined? a||=1"
@@ -1023,8 +1052,8 @@ test "defined" do
   assert 'nil', "p defined? @a"
   assert '"instance-variable"', "@a = 123; p defined? @a"
 
-  assert 'nil', "p defined? \\$a"
-  assert '"global-variable"', "\\$a = 123; p defined? \\$a"
+  assert 'nil', "p defined? $a"
+  assert '"global-variable"', "$a = 123; p defined? $a"
 
   assert 'nil', "p defined? A"
   assert '"constant"', "A = 123; p defined? A"
@@ -1067,15 +1096,15 @@ end
 
 test "backquote" do
 
-  assert '"foo\\n"', 'p \`echo foo\`'
-  assert '"foo\\n"', 'def x; "foo"; end; p \`echo #{x}\`'
+  assert '"foo\\n"', 'p `echo foo`'
+  assert '"foo\\n"', 'def x; "foo"; end; p `echo #{x}`'
 
 end
 
 test "alias" do
 
-  assert "42", "\\$foo = 42; alias \\$bar \\$foo; p \\$bar"
-  assert "nil", "alias \\$bar \\$foo; p \\$bar"
+  assert "42", "$foo = 42; alias $bar $foo; p $bar"
+  assert "nil", "alias $bar $foo; p $bar"
 
   assert "42", "def foo; 42; end; alias :bar :foo; p bar"
 
@@ -1091,7 +1120,7 @@ test "require" do
     end
   }
 
-  assert ":ok", "\\$:.unshift('test_roxor_fixtures/lib'); require 'foo'"
+  assert ":ok", "$:.unshift('test_roxor_fixtures/lib'); require 'foo'"
 
 end
 
