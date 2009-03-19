@@ -344,6 +344,8 @@ test "assign" do
   assert ':ok', "@a = false; @a &&= 42; p :ok if @a == false"
   assert '42',  "@c = 123; @a = 40; @b = 2; @c &&= @a + @b; p @c"
 
+  assert ':ok', "x = ':  '; x[1,2] = 'ok'; puts x"
+
 end
 
 test "constants" do
