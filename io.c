@@ -2333,11 +2333,16 @@ rb_f_p(VALUE self, SEL sel, int argc, VALUE *argv)
  *
  *     1cat456
  */
+ 
+// TODO: The output doesn't match the documentation here; why is that?
 
 static VALUE
 rb_obj_display(VALUE self, SEL sel, int argc, VALUE *argv)
 {
-rb_notimplement();
+    VALUE port;
+    rb_scan_args(argc, argv, "01", &port);
+    if(NIL_P(port)) port = rb_stdout;
+    return rb_io_write(port, 0, self);
 }
 
 // static void
