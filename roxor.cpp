@@ -410,7 +410,7 @@ class RoxorVM
 	VALUE backref;
 	VALUE broken_with;
 	int safe_level;
-	std::map<NODE *, rb_vm_block_t *> blocks;
+	std::map<IMP, rb_vm_block_t *> blocks;
 	std::map<double, struct rb_float_cache *> float_cache;
 	unsigned char method_missing_reason;
 
@@ -4831,30 +4831,47 @@ extern "C"
 void *
 rb_vm_block_create(IMP imp, NODE *node, VALUE self, int dvars_size, ...)
 {
-    std::map<NODE *, rb_vm_block_t *>::iterator iter = 
-	GET_VM()->blocks.find(node);
+    std::map<IMP, rb_vm_block_t *>::iterator iter =
+	GET_VM()->blocks.find(imp);
+
+    rb_vm_block_t *b;
+
     if (iter == GET_VM()->blocks.end()) {
+	b = (rb_vm_block_t *)xmalloc(sizeof(rb_vm_block_t));
+
 	VALUE **dvars = NULL;
 	if (dvars_size > 0) {
-	    va_list ar;
-	    va_start(ar, dvars_size);
-	    dvars = (VALUE **)malloc(sizeof(VALUE *) * dvars_size);
-	    for (int i = 0; i < dvars_size; ++i) {
-		dvars[i] = va_arg(ar, VALUE *);
-	    }
-	    va_end(ar);
+	    dvars = (VALUE **)xmalloc(sizeof(VALUE *) * (dvars_size + 10));
+	    GC_WB(&b->dvars, dvars);
 	}
-	rb_vm_block_t *b = (rb_vm_block_t *)malloc(sizeof(rb_vm_block_t));
+	else {
+	    b->dvars = NULL;
+	}
+
 	b->imp = imp;
 	b->node = node;
 	b->self = self;
 	b->dvars_size = dvars_size;
-	b->dvars = dvars;
 	b->is_lambda = true;
-	GET_VM()->blocks[node] = b;
-	return b;
+
+	rb_objc_retain(b);
+	GET_VM()->blocks[imp] = b;
     }
-    return iter->second;
+    else {
+	b = iter->second;
+	assert(b->dvars_size == dvars_size);
+    }
+
+    if (dvars_size) {
+	va_list ar;
+	va_start(ar, dvars_size);
+	for (int i = 0; i < dvars_size; ++i) {
+	    b->dvars[i] = va_arg(ar, VALUE *);
+	}
+	va_end(ar);
+    }
+
+    return b;
 }
 
 extern "C"
