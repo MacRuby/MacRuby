@@ -82,9 +82,9 @@ typedef struct {
     VALUE self;
     NODE *node;
     IMP imp;
-    VALUE **dvars;
-    int dvars_size;
     bool is_lambda;
+    int dvars_size;
+    VALUE *dvars[1];
 } rb_vm_block_t;
 
 static inline rb_vm_block_t *

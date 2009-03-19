@@ -480,6 +480,7 @@ class RoxorVM
 	void add_method(Class klass, SEL sel, IMP imp, NODE *node, const char *types);
 
 	GlobalVariable *redefined_op_gvar(SEL sel, bool create);
+	bool should_invalidate_inline_op(SEL sel, Class klass);
 
 	struct ccache *constant_cache_get(ID path);
 	void const_defined(ID path);
@@ -1900,6 +1901,29 @@ RoxorVM::redefined_op_gvar(SEL sel, bool create)
     return gvar;
 }
 
+inline bool
+RoxorVM::should_invalidate_inline_op(SEL sel, Class klass)
+{
+    if (sel == selPLUS || sel == selMINUS || sel == selDIV 
+	|| sel == selMULT || sel == selLT || sel == selLE 
+	|| sel == selGT || sel == selGE || sel == selEq
+	|| sel == selNeq || sel == selEqq) {
+	return klass == (Class)rb_cFixnum;
+    }
+
+    if (sel == selLTLT || sel == selAREF || sel == selASET) {
+	return klass == (Class)rb_cNSArray || klass == (Class)rb_cNSMutableArray;
+    }
+
+    if (sel == selSend || sel == sel__send__ || sel == selEval) {
+	// Matches any class, since these are Kernel methods.
+	return true;
+    }
+
+    printf("invalid inline op `%s' to invalidate!\n", sel_getName(sel));
+    abort();
+}
+
 void
 RoxorVM::add_method(Class klass, SEL sel, IMP imp, NODE *node, const char *types)
 {
@@ -1934,7 +1958,7 @@ RoxorVM::add_method(Class klass, SEL sel, IMP imp, NODE *node, const char *types
     // Invalidate inline operations.
     if (running) {
 	GlobalVariable *gvar = redefined_op_gvar(sel, false);
-	if (gvar != NULL) {
+	if (gvar != NULL && should_invalidate_inline_op(sel, klass)) {
 	    void *val = ee->getOrEmitGlobalVariable(gvar);
 #if ROXOR_DEBUG
 	    printf("change redefined global for [%s %s] to true\n",
@@ -4831,45 +4855,36 @@ extern "C"
 void *
 rb_vm_block_create(IMP imp, NODE *node, VALUE self, int dvars_size, ...)
 {
-    std::map<IMP, rb_vm_block_t *>::iterator iter =
-	GET_VM()->blocks.find(imp);
+//    std::map<IMP, rb_vm_block_t *>::iterator iter =
+//	GET_VM()->blocks.find(imp);
 
     rb_vm_block_t *b;
 
-    if (iter == GET_VM()->blocks.end()) {
-	b = (rb_vm_block_t *)xmalloc(sizeof(rb_vm_block_t));
-
-	VALUE **dvars = NULL;
-	if (dvars_size > 0) {
-	    dvars = (VALUE **)xmalloc(sizeof(VALUE *) * (dvars_size + 10));
-	    GC_WB(&b->dvars, dvars);
-	}
-	else {
-	    b->dvars = NULL;
-	}
+ //   if (iter == GET_VM()->blocks.end()) {
+	b = (rb_vm_block_t *)xmalloc(sizeof(rb_vm_block_t) + (sizeof(VALUE *) * dvars_size));
 
 	b->imp = imp;
 	b->node = node;
 	b->self = self;
-	b->dvars_size = dvars_size;
 	b->is_lambda = true;
+	b->dvars_size = dvars_size;
 
-	rb_objc_retain(b);
-	GET_VM()->blocks[imp] = b;
-    }
-    else {
-	b = iter->second;
-	assert(b->dvars_size == dvars_size);
-    }
-
-    if (dvars_size) {
-	va_list ar;
-	va_start(ar, dvars_size);
-	for (int i = 0; i < dvars_size; ++i) {
-	    b->dvars[i] = va_arg(ar, VALUE *);
+	if (dvars_size) {
+	    va_list ar;
+	    va_start(ar, dvars_size);
+	    for (int i = 0; i < dvars_size; ++i) {
+		b->dvars[i] = va_arg(ar, VALUE *);
+	    }
+	    va_end(ar);
 	}
-	va_end(ar);
-    }
+
+//	rb_objc_retain(b);
+//	GET_VM()->blocks[imp] = b;
+//    }
+//    else {
+//	b = iter->second;
+//	assert(b->dvars_size == dvars_size);
+//    }
 
     return b;
 }
