@@ -22,12 +22,11 @@ $test_archs = {}
 test_commands.each do |command|
   if md = /\barch -([^\s]+)/.match(command)
     arch_name = md[1]
-  elsif md = /1\.?9\z/.match(command)
-    arch_name = '1.9'
   else
-    arch_name = File.basename(command.gsub(/\s.+/, ''))
+    arch_name = 'default'
   end
-  $test_archs[arch_name] = command
+  $test_archs[arch_name] ||= []
+  $test_archs[arch_name] << command
 end
 $problems = []
 $assertions_count = 0
@@ -40,25 +39,27 @@ module Runner
     else
       archs = $test_archs
     end
-    archs.each do |arch, command|
-      output = nil
-      IO.popen(command, 'r+') do |io|
-        io.puts(code)
-        io.close_write
-        output = io.read
+    archs.each do |arch, commands|
+      commands.each do |command|
+        output = nil
+        IO.popen(command, 'r+') do |io|
+          io.puts(code)
+          io.close_write
+          output = io.read
+        end
+        result = if $? and $?.exitstatus == 0
+          output.chomp == expectation ? '.' : 'F'
+        else
+          output = "ERROR CODE #{$?.exitstatus}"
+          'E'
+        end
+        print result
+        $stdout.flush
+        if result != '.'
+          $problems << [code, expectation, arch, command, output]
+        end
+        $assertions_count += 1
       end
-      result = if $? and $?.exitstatus == 0
-        output.chomp == expectation ? '.' : 'F'
-      else
-        output = "ERROR CODE #{$?.exitstatus}"
-        'E'
-      end
-      print result
-      $stdout.flush
-      if result != '.'
-        $problems << [code, expectation, arch, output]
-      end
-      $assertions_count += 1
     end
   end
 end
@@ -80,11 +81,12 @@ at_exit do
     puts ''
     puts "#{$problems.size} assertion#{$problems.size > 1 ? 's' : ''} over #{$assertions_count} failed:"
     n = 0
-    $problems.each do |code, expectation, arch, output|
+    $problems.each do |code, expectation, arch, command, output|
       puts ''
       puts "Problem #{n += 1}:"
       puts "Code: #{code}"
       puts "Arch: #{arch}"
+      puts "Command: #{command}"
       puts "Expectation: #{expectation}"
       puts "Output: #{output}"
     end
