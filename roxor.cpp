@@ -4739,7 +4739,8 @@ rb_vm_dispatch(struct mcache *cache, VALUE self, SEL sel, void *block,
     }
 
     if (block != NULL) {
-	GET_VM()->push_block((rb_vm_block_t *)block);
+	rb_vm_block_t *b = (rb_vm_block_t *)block;
+	GET_VM()->push_block(b);
 	VALUE retval = 
 	    __rb_vm_dispatch(cache, self, NULL, sel, opt, argc, argv);
 	GET_VM()->pop_block();
@@ -4855,13 +4856,13 @@ extern "C"
 void *
 rb_vm_block_create(IMP imp, NODE *node, VALUE self, int dvars_size, ...)
 {
-//    std::map<IMP, rb_vm_block_t *>::iterator iter =
-//	GET_VM()->blocks.find(imp);
+    std::map<IMP, rb_vm_block_t *>::iterator iter =
+	GET_VM()->blocks.find(imp);
 
     rb_vm_block_t *b;
 
- //   if (iter == GET_VM()->blocks.end()) {
-	b = (rb_vm_block_t *)xmalloc(sizeof(rb_vm_block_t) + (sizeof(VALUE *) * dvars_size));
+    if (iter == GET_VM()->blocks.end()) {
+	b = (rb_vm_block_t *)xmalloc(sizeof(rb_vm_block_t) + (sizeof(VALUE) * dvars_size));
 
 	b->imp = imp;
 	b->node = node;
@@ -4869,22 +4870,22 @@ rb_vm_block_create(IMP imp, NODE *node, VALUE self, int dvars_size, ...)
 	b->is_lambda = true;
 	b->dvars_size = dvars_size;
 
-	if (dvars_size) {
-	    va_list ar;
-	    va_start(ar, dvars_size);
-	    for (int i = 0; i < dvars_size; ++i) {
-		b->dvars[i] = va_arg(ar, VALUE *);
-	    }
-	    va_end(ar);
-	}
+	rb_objc_retain(b);
+	GET_VM()->blocks[imp] = b;
+    }
+    else {
+	b = iter->second;
+	assert(b->dvars_size == dvars_size);
+    }
 
-//	rb_objc_retain(b);
-//	GET_VM()->blocks[imp] = b;
-//    }
-//    else {
-//	b = iter->second;
-//	assert(b->dvars_size == dvars_size);
-//    }
+    if (dvars_size > 0) {
+	va_list ar;
+	va_start(ar, dvars_size);
+	for (int i = 0; i < dvars_size; ++i) {
+	    b->dvars[i] = va_arg(ar, VALUE *);
+	}
+	va_end(ar);
+    }
 
     return b;
 }
@@ -5068,7 +5069,29 @@ rb_vm_block_eval(rb_vm_block_t *b, int argc, const VALUE *argv)
 #if ROXOR_DEBUG
     printf("yield block %p argc %d arity %d dvars %d\n", b, argc, arity.real, b->dvars_size);
 #endif
-    return __rb_vm_rcall(b->self, b->node, b->imp, arity, argc, argv);
+
+    VALUE **old_dvars;
+    if (b->dvars_size > 0) {
+	old_dvars = (VALUE **)alloca(sizeof(VALUE *) * b->dvars_size);
+	for (int i = 0; i < b->dvars_size; i++) {
+	    old_dvars[i] = b->dvars[i];
+	}
+	//memcpy(old_dvars, b->dvars, sizeof(VALUE) * b->dvars_size);
+    }
+    else {
+	old_dvars = NULL;
+    }
+
+    VALUE v = __rb_vm_rcall(b->self, b->node, b->imp, arity, argc, argv);
+
+    if (old_dvars != NULL) {
+	for (int i = 0; i < b->dvars_size; i++) {
+	    b->dvars[i] = old_dvars[i];
+	}
+	//memcpy(b->dvars, old_dvars, sizeof(VALUE) * b->dvars_size);
+    }
+
+    return v;
 }
 
 extern "C"

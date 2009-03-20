@@ -837,6 +837,9 @@ test "blocks" do
   }
   assert "42", "def foo; yield; end; begin; foo(&Object.new); rescue TypeError; p 42; end"
 
+  assert "42", "x = 0; proc { x = 42 }.call; p x"
+  assert "42", "x = 0; p = proc { x += 40 }; x = 2; p.call; p x"
+
   assert "42", "n = 0; 100.times { |i| n += 1; break if n == 42 }; p n"
   assert "42", "n = 0; 100.times { |i| next if i % 2 == 0; n += 1; }; p n - 8"
   assert "42", "p 100.times { break 42 }"
@@ -844,6 +847,19 @@ test "blocks" do
   assert "42", "p proc { break 42 }.call"
 
   assert "42", "p [42].map { |x| x }.map { |y| y }[0]"
+
+  assert '1302', %q{
+    $count = 0
+    def foo(v, x)
+      x.times {
+        x -= 1
+        foo(v, x)
+        $count += v
+      }
+    end
+    foo(42, 5)
+    p $count
+  }
 
 end
 
