@@ -278,7 +278,7 @@ rb_objc_block_call(VALUE obj, SEL sel, int argc, VALUE *argv,
 		   VALUE (*bl_proc) (ANYARGS), VALUE data2)
 {
     NODE *node = NEW_IFUNC(bl_proc, data2);
-    rb_vm_block_t *b = rb_vm_block_create((IMP)bl_proc, node, obj, 0);
+    rb_vm_block_t *b = rb_vm_prepare_block(NULL, node, obj, 0);
 
     rb_vm_push_block(b);
     VALUE val = rb_vm_call(obj, sel, argc, argv, false);

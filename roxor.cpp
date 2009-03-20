@@ -1,6 +1,7 @@
 /* ROXOR: the new MacRuby VM that rocks! */
 
-#define ROXOR_DEBUG	0
+#define ROXOR_COMPILER_DEBUG	0
+#define ROXOR_VM_DEBUG		0
 
 #include <llvm/Module.h>
 #include <llvm/DerivedTypes.h>
@@ -21,7 +22,7 @@ using namespace llvm;
 
 #include <stack>
 
-#if ROXOR_DEBUG
+#if ROXOR_COMPILER_DEBUG
 # include <mach/mach.h>
 # include <mach/mach_time.h>
 #endif
@@ -171,7 +172,7 @@ class RoxorCompiler
 	std::map<ID, Value *> dvars;
 	std::map<ID, int *> ivar_slots_cache;
 
-#if ROXOR_DEBUG
+#if ROXOR_COMPILER_DEBUG
 	int level;
 # define DEBUG_LEVEL_INC() (level++)
 # define DEBUG_LEVEL_DEC() (level--)
@@ -198,7 +199,7 @@ class RoxorCompiler
 	Function *dispatcherFunc;
 	Function *fastEqqFunc;
 	Function *whenSplatFunc;
-	Function *blockCreateFunc;
+	Function *prepareBlockFunc;
 	Function *getBlockFunc;
 	Function *currentBlockObjectFunc;
 	Function *getConstFunc;
@@ -394,7 +395,7 @@ class RoxorVM
 	VALUE backref;
 	VALUE broken_with;
 	int safe_level;
-	std::map<IMP, rb_vm_block_t *> blocks;
+	std::map<NODE *, rb_vm_block_t *> blocks;
 	std::map<double, struct rb_float_cache *> float_cache;
 	unsigned char method_missing_reason;
 
@@ -517,7 +518,7 @@ RoxorCompiler::RoxorCompiler(const char *_fname)
     dispatcherFunc = NULL;
     fastEqqFunc = NULL;
     whenSplatFunc = NULL;
-    blockCreateFunc = NULL;
+    prepareBlockFunc = NULL;
     getBlockFunc = NULL;
     currentBlockObjectFunc = NULL;
     getConstFunc = NULL;
@@ -565,7 +566,7 @@ RoxorCompiler::RoxorCompiler(const char *_fname)
     splatArgFollowsVal = ConstantInt::get(RubyObjTy, SPLAT_ARG_FOLLOWS);
     PtrTy = PointerType::getUnqual(Type::Int8Ty);
 
-#if ROXOR_DEBUG
+#if ROXOR_COMPILER_DEBUG
     level = 0;
 #endif
 }
@@ -923,20 +924,20 @@ RoxorCompiler::compile_block_create(NODE *node)
 
     assert(current_block_func != NULL && current_block_node != NULL);
 
-    if (blockCreateFunc == NULL) {
-	// void *rb_vm_block_create(IMP imp, NODE *node, VALUE self, int dvars_size, ...);
+    if (prepareBlockFunc == NULL) {
+	// void *rb_vm_prepare_block(Function *func, NODE *node, VALUE self, int dvars_size, ...);
 	std::vector<const Type *> types;
 	types.push_back(PtrTy);
 	types.push_back(PtrTy);
 	types.push_back(RubyObjTy);
 	types.push_back(Type::Int32Ty);
 	FunctionType *ft = FunctionType::get(PtrTy, types, true);
-	blockCreateFunc = cast<Function>
-	    (module->getOrInsertFunction("rb_vm_block_create", ft));
+	prepareBlockFunc = cast<Function>
+	    (module->getOrInsertFunction("rb_vm_prepare_block", ft));
     }
 
     std::vector<Value *> params;
-    params.push_back(new BitCastInst(current_block_func, PtrTy, "", bb));
+    params.push_back(compile_const_pointer(current_block_func));
     params.push_back(compile_const_pointer(current_block_node));
     params.push_back(current_self);
 
@@ -950,7 +951,7 @@ RoxorCompiler::compile_block_create(NODE *node)
 	++iter;
     }
 
-    return CallInst::Create(blockCreateFunc, params.begin(), params.end(), "", bb);
+    return CallInst::Create(prepareBlockFunc, params.begin(), params.end(), "", bb);
 }
 
 Value *
@@ -1911,7 +1912,7 @@ RoxorVM::should_invalidate_inline_op(SEL sel, Class klass)
 void
 RoxorVM::add_method(Class klass, SEL sel, IMP imp, NODE *node, const char *types)
 {
-#if ROXOR_DEBUG
+#if ROXOR_VM_DEBUG
     printf("defining %c[%s %s] with imp %p node %p types %s\n",
 	    class_isMetaClass(klass) ? '+' : '-',
 	    class_getName(klass),
@@ -1944,7 +1945,7 @@ RoxorVM::add_method(Class klass, SEL sel, IMP imp, NODE *node, const char *types
 	GlobalVariable *gvar = redefined_op_gvar(sel, false);
 	if (gvar != NULL && should_invalidate_inline_op(sel, klass)) {
 	    void *val = ee->getOrEmitGlobalVariable(gvar);
-#if ROXOR_DEBUG
+#if ROXOR_VM_DEBUG
 	    printf("change redefined global for [%s %s] to true\n",
 		    class_getName(klass),
 		    sel_getName(sel));
@@ -1983,7 +1984,7 @@ RoxorVM::add_method(Class klass, SEL sel, IMP imp, NODE *node, const char *types
 	    for (i = 0; i < count; i++) {
 		VALUE mod = RARRAY_AT(included_in_classes, i);
 		class_replaceMethod((Class)mod, sel, imp, types);
-#if ROXOR_DEBUG
+#if ROXOR_VM_DEBUG
 		printf("forward %c[%s %s] with imp %p node %p types %s\n",
 			class_isMetaClass((Class)mod) ? '+' : '-',
 			class_getName((Class)mod),
@@ -2017,7 +2018,7 @@ RoxorVM::find_ivar_slot(VALUE klass, ID name, bool create)
 	std::map <ID, int> *slots = GET_VM()->get_ivar_slots((Class)k);
 	std::map <ID, int>::iterator iter = slots->find(name);
 	if (iter != slots->end()) {
-#if ROXOR_DEBUG
+#if ROXOR_VM_DEBUG
 	    printf("prepare ivar %s slot as %d (already prepared in class %s)\n",
 		    rb_id2name(name), iter->second, class_getName((Class)k));
 #endif
@@ -2028,7 +2029,7 @@ RoxorVM::find_ivar_slot(VALUE klass, ID name, bool create)
     }
 
     if (create) {
-#if ROXOR_DEBUG
+#if ROXOR_VM_DEBUG
 	printf("prepare ivar %s slot as %d (new in class %s)\n",
 		rb_id2name(name), slot, class_getName((Class)klass));
 #endif
@@ -2085,7 +2086,7 @@ RoxorCompiler::compile_ivar_slots(Value *klass,
 Value *
 RoxorCompiler::compile_node(NODE *node)
 {
-#if ROXOR_DEBUG
+#if ROXOR_COMPILER_DEBUG
     printf("%s:%ld ", fname, nd_line(node));
     for (int i = 0; i < level; i++) {
 	printf("...");
@@ -2153,7 +2154,7 @@ RoxorCompiler::compile_node(NODE *node)
 	
 		    Value *val = arg++;
 		    val->setName(std::string("dyna_") + rb_id2name(id));
-#if ROXOR_DEBUG
+#if ROXOR_COMPILER_DEBUG
 		    printf("dvar %s\n", rb_id2name(id));
 #endif
 		    lvars[id] = val;
@@ -2164,7 +2165,7 @@ RoxorCompiler::compile_node(NODE *node)
 		    assert(args_count == nargs || args_count == nargs + 1 /* optional block */);
 		    for (i = 0; i < args_count; i++) {
 			ID id = node->nd_tbl[i + 1];
-#if ROXOR_DEBUG
+#if ROXOR_COMPILER_DEBUG
 			printf("arg %s\n", rb_id2name(id));
 #endif
 
@@ -2211,7 +2212,7 @@ RoxorCompiler::compile_node(NODE *node)
 			if (lvars.find(id) != lvars.end()) {
 			    continue;
 			}
-#if ROXOR_DEBUG
+#if ROXOR_COMPILER_DEBUG
 			printf("var %s\n", rb_id2name(id));
 #endif
 			Value *store = new AllocaInst(RubyObjTy, "", bb);
@@ -3993,7 +3994,7 @@ rb_vm_define_class(ID path, VALUE outer, VALUE super, unsigned char is_module)
 	}
     }
 
-#if ROXOR_DEBUG
+#if ROXOR_VM_DEBUG
     if (is_module) {
 	printf("define module %s::%s\n", 
 		class_getName((Class)outer), 
@@ -4438,7 +4439,7 @@ rb_vm_super_lookup(VALUE klass, SEL sel, VALUE *klassp)
     void *callstack[128];
     int callstack_n = backtrace(callstack, 128);
 
-#if ROXOR_DEBUG
+#if ROXOR_VM_DEBUG
     printf("locating super method %s of class %s in ancestor chain %s\n", 
 	    sel_getName(sel), rb_class2name(klass), RSTRING_PTR(rb_inspect(ary)));
     printf("callstack: ");
@@ -4483,7 +4484,7 @@ rb_vm_super_lookup(VALUE klass, SEL sel, VALUE *klassp)
 		    }
 
 		    if (!on_stack) {
-#if ROXOR_DEBUG
+#if ROXOR_VM_DEBUG
 			printf("returning method implementation from class/module %s\n", rb_class2name(k));
 #endif
 			return method;
@@ -4586,7 +4587,7 @@ __rb_vm_dispatch(struct mcache *cache, VALUE self, Class klass, SEL sel,
 	klass = (Class)CLASS_OF(self);
     }
 
-#if ROXOR_DEBUG
+#if ROXOR_VM_DEBUG
     const bool cached = cache->flag != 0;
 #endif
 
@@ -4640,7 +4641,7 @@ recache:
 	    rb_raise(rb_eArgError, "wrong number of arguments (%d for %d)", argc, arity.min);
 	}
 
-#if ROXOR_DEBUG
+#if ROXOR_VM_DEBUG
 	printf("ruby dispatch %c[<%s %p> %s] (imp=%p, cached=%s)\n",
 		class_isMetaClass(klass) ? '+' : '-',
 		class_getName(klass),
@@ -4680,7 +4681,7 @@ recache:
 	    goto recache;
 	}
 
-#if ROXOR_DEBUG
+#if ROXOR_VM_DEBUG
 	printf("objc dispatch %c[<%s %p> %s] (cached=%s)\n",
 		class_isMetaClass(klass) ? '+' : '-',
 		class_getName(klass),
@@ -4867,22 +4868,41 @@ rb_vm_get_block(VALUE obj)
 
 extern "C"
 rb_vm_block_t *
-rb_vm_block_create(IMP imp, NODE *node, VALUE self, int dvars_size, ...)
+rb_vm_prepare_block(void *llvm_function, NODE *node, VALUE self,
+		    int dvars_size, ...)
 {
-    std::map<IMP, rb_vm_block_t *>::iterator iter =
-	GET_VM()->blocks.find(imp);
+    NODE *cache_key;
+    if (nd_type(node) == NODE_IFUNC) {
+	// In this case, node is dynamic but fortunately u1.node is always
+	// unique (it contains the IMP)
+	cache_key = node->u1.node;
+    }
+    else {
+	cache_key = node;
+    }
+
+    std::map<NODE *, rb_vm_block_t *>::iterator iter =
+	GET_VM()->blocks.find(node);
 
     rb_vm_block_t *b;
 
     if (iter == GET_VM()->blocks.end()) {
-	b = (rb_vm_block_t *)xmalloc(sizeof(rb_vm_block_t) + (sizeof(VALUE) * dvars_size));
+	b = (rb_vm_block_t *)xmalloc(sizeof(rb_vm_block_t)
+		+ (sizeof(VALUE) * dvars_size));
 
-	b->imp = imp;
+	if (nd_type(node) == NODE_IFUNC) {
+	    assert(llvm_function == NULL);
+	    b->imp = (IMP)node->u1.node;
+	}
+	else {
+	    assert(llvm_function != NULL);
+	    b->imp = GET_VM()->compile((Function *)llvm_function);
+	}
 	b->is_lambda = true;
 	b->dvars_size = dvars_size;
 
 	rb_objc_retain(b);
-	GET_VM()->blocks[imp] = b;
+	GET_VM()->blocks[cache_key] = b;
     }
     else {
 	b = iter->second;
@@ -5106,7 +5126,7 @@ rb_vm_block_eval(rb_vm_block_t *b, int argc, const VALUE *argv)
 	    arity.left_req += dvars_size;
 	}
     }
-#if ROXOR_DEBUG
+#if ROXOR_VM_DEBUG
     printf("yield block %p argc %d arity %d dvars %d\n", b, argc, arity.real,
 	    b->dvars_size);
 #endif
@@ -5405,20 +5425,18 @@ rb_vm_compile_imp(const char *fname, NODE *node)
 
     Function *function = compiler->compile_main_function(node);
 
-#if ROXOR_DEBUG
+#if ROXOR_COMPILER_DEBUG
     if (verifyModule(*RoxorCompiler::module)) {
 	printf("Error during module verification\n");
 	exit(1);
     }
-#endif
 
-#if ROXOR_DEBUG
     uint64_t start = mach_absolute_time();
 #endif
 
     IMP imp = GET_VM()->compile(function);
 
-#if ROXOR_DEBUG
+#if ROXOR_COMPILER_DEBUG
     uint64_t elapsed = mach_absolute_time() - start;
 
     static mach_timebase_info_data_t sTimebaseInfo;
