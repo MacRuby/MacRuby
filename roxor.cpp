@@ -5077,6 +5077,7 @@ rb_vm_block_eval(rb_vm_block_t *b, int argc, const VALUE *argv)
 
     VALUE **old_dvars;
     if (b->dvars_size > 0) {
+	old_dvars = (VALUE **)alloca(sizeof(VALUE *) * b->dvars_size);
 	memcpy(old_dvars, b->dvars, sizeof(VALUE) * b->dvars_size);
     }
     else {
