@@ -27,12 +27,15 @@ typedef struct rb_io_t {
     // The streams.
     CFReadStreamRef readStream;
     CFWriteStreamRef writeStream;
+    
+    // The Unixy low-level file handles.
+    int fd; // You can expect this to be what the above CFStreams point to.
+    FILE *fp; // NOTE: Only used by #popen. Don't depend on it!
 
     // Additional information.
     CFStringRef path;
     pid_t pid;
     int lineno;
-    int fd;
     bool sync;
 
     // For ungetc.

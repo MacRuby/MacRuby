@@ -342,6 +342,9 @@ prepare_io_from_fd(rb_io_t *io_struct, int fd, int mode)
     else {
 	io_struct->writeStream = NULL;
     }
+    
+    io_struct->fp = NULL; 
+    io_struct->pid = -1;
 
     // TODO: Eventually make the ungetc_buf a ByteString
     io_struct->fd = fd;
@@ -1834,7 +1837,20 @@ rb_io_binmode_m(VALUE io, SEL sel)
 static VALUE
 rb_io_s_popen(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
-rb_notimplement();
+    VALUE process_name, mode;
+    rb_scan_args(argc, argv, "11", &process_name, &mode);
+    if (NIL_P(mode)) {
+        mode = (VALUE)CFSTR("r");
+    }
+    
+    FILE *process = popen(StringValueCStr(process_name), RSTRING_PTR(mode));
+    if (process) {
+        rb_raise(rb_eIOError, "system call to popen() failed");
+    }
+    
+    VALUE io = prep_io(fileno(process), convert_mode_string_to_fmode(mode), klass);
+    ExtractIOStruct(io)->fp = process;
+    return io;
 }
 
 /*
