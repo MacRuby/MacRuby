@@ -812,7 +812,7 @@ test "blocks" do
     def foo; yield(1, 2); end
     foo { |*rest| p rest }
   }
-  assert "[1, 2]", %q{
+  assert "[[1, 2]]", %q{
     def foo; yield([1, 2]); end
     foo { |*rest| p rest }
   }
