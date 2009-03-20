@@ -5070,13 +5070,14 @@ rb_vm_block_eval(rb_vm_block_t *b, int argc, const VALUE *argv)
     printf("yield block %p argc %d arity %d dvars %d\n", b, argc, arity.real, b->dvars_size);
 #endif
 
+    // We need to preserve dynamic variable slots here because our block may
+    // call the parent method which may call the block again, and since dvars
+    // are currently implemented using alloca() we will painfully die if the 
+    // previous slots are not restored.
+
     VALUE **old_dvars;
     if (b->dvars_size > 0) {
-	old_dvars = (VALUE **)alloca(sizeof(VALUE *) * b->dvars_size);
-	for (int i = 0; i < b->dvars_size; i++) {
-	    old_dvars[i] = b->dvars[i];
-	}
-	//memcpy(old_dvars, b->dvars, sizeof(VALUE) * b->dvars_size);
+	memcpy(old_dvars, b->dvars, sizeof(VALUE) * b->dvars_size);
     }
     else {
 	old_dvars = NULL;
@@ -5085,10 +5086,7 @@ rb_vm_block_eval(rb_vm_block_t *b, int argc, const VALUE *argv)
     VALUE v = __rb_vm_rcall(b->self, b->node, b->imp, arity, argc, argv);
 
     if (old_dvars != NULL) {
-	for (int i = 0; i < b->dvars_size; i++) {
-	    b->dvars[i] = old_dvars[i];
-	}
-	//memcpy(b->dvars, old_dvars, sizeof(VALUE) * b->dvars_size);
+	memcpy(b->dvars, old_dvars, sizeof(VALUE) * b->dvars_size);
     }
 
     return v;
