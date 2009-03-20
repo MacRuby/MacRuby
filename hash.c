@@ -1674,7 +1674,7 @@ env_delete(VALUE obj, VALUE name)
 }
 
 static VALUE
-env_delete_m(VALUE obj, VALUE name)
+env_delete_m(VALUE obj, SEL sel, VALUE name)
 {
     VALUE val;
 
@@ -1684,7 +1684,7 @@ env_delete_m(VALUE obj, VALUE name)
 }
 
 static VALUE
-rb_f_getenv(VALUE obj, VALUE name)
+rb_f_getenv(VALUE obj, SEL sel, VALUE name)
 {
     const char *nam, *env;
 
@@ -1713,7 +1713,7 @@ rb_f_getenv(VALUE obj, VALUE name)
 }
 
 static VALUE
-env_fetch(int argc, VALUE *argv)
+env_fetch(VALUE rcv, SEL sel, int argc, VALUE *argv)
 {
     VALUE key, if_none;
     long block_given;
@@ -1780,7 +1780,7 @@ ruby_unsetenv(const char *name)
 }
 
 static VALUE
-env_aset(VALUE obj, VALUE nm, VALUE val)
+env_aset(VALUE obj, SEL sel, VALUE nm, VALUE val)
 {
     const char *name, *value;
 
@@ -1819,7 +1819,7 @@ env_aset(VALUE obj, VALUE nm, VALUE val)
 }
 
 static VALUE
-env_keys(void)
+env_keys(VALUE rcv, SEL sel)
 {
     char **env;
     VALUE ary;
@@ -1839,13 +1839,13 @@ env_keys(void)
 }
 
 static VALUE
-env_each_key(VALUE ehash)
+env_each_key(VALUE ehash, SEL sel)
 {
     VALUE keys;
     long i;
 
     RETURN_ENUMERATOR(ehash, 0, 0);
-    keys = env_keys();	/* rb_secure(4); */
+    keys = env_keys(Qnil, 0);	/* rb_secure(4); */
     for (i=0; i<RARRAY_LEN(keys); i++) {
 	rb_yield(RARRAY_AT(keys, i));
 	RETURN_IF_BROKEN();
@@ -1854,7 +1854,7 @@ env_each_key(VALUE ehash)
 }
 
 static VALUE
-env_values(void)
+env_values(VALUE rcv, SEL sel)
 {
     VALUE ary;
     char **env;
@@ -1874,13 +1874,13 @@ env_values(void)
 }
 
 static VALUE
-env_each_value(VALUE ehash)
+env_each_value(VALUE ehash, SEL sel)
 {
     VALUE values;
     long i;
 
     RETURN_ENUMERATOR(ehash, 0, 0);
-    values = env_values();	/* rb_secure(4); */
+    values = env_values(Qnil, 0);	/* rb_secure(4); */
     for (i=0; i<RARRAY_LEN(values); i++) {
 	rb_yield(RARRAY_AT(values, i));
 	RETURN_IF_BROKEN();
@@ -1889,7 +1889,7 @@ env_each_value(VALUE ehash)
 }
 
 static VALUE
-env_each_pair(VALUE ehash)
+env_each_pair(VALUE ehash, SEL sel)
 {
     char **env;
     VALUE ary;
@@ -1918,16 +1918,16 @@ env_each_pair(VALUE ehash)
 }
 
 static VALUE
-env_reject_bang(VALUE ehash)
+env_reject_bang(VALUE ehash, SEL sel)
 {
     volatile VALUE keys;
     long i;
     int del = 0;
 
     RETURN_ENUMERATOR(ehash, 0, 0);
-    keys = env_keys();	/* rb_secure(4); */
+    keys = env_keys(Qnil, 0);	/* rb_secure(4); */
     for (i=0; i<RARRAY_LEN(keys); i++) {
-	VALUE val = rb_f_getenv(Qnil, RARRAY_AT(keys, i));
+	VALUE val = rb_f_getenv(Qnil, 0, RARRAY_AT(keys, i));
 	if (!NIL_P(val)) {
 	    VALUE v = rb_yield_values(2, RARRAY_AT(keys, i), val);
 	    RETURN_IF_BROKEN();
@@ -1943,15 +1943,15 @@ env_reject_bang(VALUE ehash)
 }
 
 static VALUE
-env_delete_if(VALUE ehash)
+env_delete_if(VALUE ehash, SEL sel)
 {
     RETURN_ENUMERATOR(ehash, 0, 0);
-    env_reject_bang(ehash);
+    env_reject_bang(ehash, 0);
     return envtbl;
 }
 
 static VALUE
-env_values_at(int argc, VALUE *argv)
+env_values_at(VALUE rcv, SEL sel, int argc, VALUE *argv)
 {
     VALUE result;
     long i;
@@ -1959,13 +1959,13 @@ env_values_at(int argc, VALUE *argv)
     rb_secure(4);
     result = rb_ary_new();
     for (i=0; i<argc; i++) {
-	rb_ary_push(result, rb_f_getenv(Qnil, argv[i]));
+	rb_ary_push(result, rb_f_getenv(Qnil, 0, argv[i]));
     }
     return result;
 }
 
 static VALUE
-env_select(VALUE ehash)
+env_select(VALUE ehash, SEL sel)
 {
     VALUE result;
     char **env;
@@ -1992,15 +1992,15 @@ env_select(VALUE ehash)
     return result;
 }
 
-VALUE
-rb_env_clear(void)
+static VALUE
+rb_env_clear_imp(VALUE rcv, SEL sel)
 {
-    volatile VALUE keys;
+    VALUE keys;
     long i;
 
-    keys = env_keys();	/* rb_secure(4); */
+    keys = env_keys(Qnil, 0);	/* rb_secure(4); */
     for (i=0; i<RARRAY_LEN(keys); i++) {
-	VALUE val = rb_f_getenv(Qnil, RARRAY_AT(keys, i));
+	VALUE val = rb_f_getenv(Qnil, 0, RARRAY_AT(keys, i));
 	if (!NIL_P(val)) {
 	    env_delete(Qnil, RARRAY_AT(keys, i));
 	}
@@ -2008,14 +2008,20 @@ rb_env_clear(void)
     return envtbl;
 }
 
+VALUE
+rb_env_clear(void)
+{
+    return rb_env_clear_imp(Qnil, 0);
+}
+
 static VALUE
-env_to_s(void)
+env_to_s(VALUE rcv, SEL sel)
 {
     return rb_usascii_str_new2("ENV");
 }
 
 static VALUE
-env_inspect(void)
+env_inspect(VALUE rcv, SEL sel)
 {
     char **env;
     VALUE str, i;
@@ -2046,7 +2052,7 @@ env_inspect(void)
 }
 
 static VALUE
-env_to_a(void)
+env_to_a(VALUE rcv, SEL sel)
 {
     char **env;
     VALUE ary;
@@ -2067,13 +2073,13 @@ env_to_a(void)
 }
 
 static VALUE
-env_none(void)
+env_none(VALUE rcv, SEL sel)
 {
     return Qnil;
 }
 
 static VALUE
-env_size(void)
+env_size(VALUE rcv, SEL sel)
 {
     int i;
     char **env;
@@ -2087,7 +2093,7 @@ env_size(void)
 }
 
 static VALUE
-env_empty_p(void)
+env_empty_p(VALUE rcv, SEL sel)
 {
     char **env;
 
@@ -2102,7 +2108,7 @@ env_empty_p(void)
 }
 
 static VALUE
-env_has_key(VALUE env, VALUE key)
+env_has_key(VALUE env, SEL sel, VALUE key)
 {
     char *s;
 
@@ -2115,7 +2121,7 @@ env_has_key(VALUE env, VALUE key)
 }
 
 static VALUE
-env_assoc(VALUE env, VALUE key)
+env_assoc(VALUE env, SEL sel, VALUE key)
 {
     char *s, *e;
 
@@ -2129,7 +2135,7 @@ env_assoc(VALUE env, VALUE key)
 }
 
 static VALUE
-env_has_value(VALUE dmy, VALUE obj)
+env_has_value(VALUE dmy, SEL sel, VALUE obj)
 {
     char **env;
 
@@ -2178,7 +2184,7 @@ env_rassoc(VALUE dmy, VALUE obj)
 }
 
 static VALUE
-env_key(VALUE dmy, VALUE value)
+env_key(VALUE dmy, SEL sel, VALUE value)
 {
     char **env;
     VALUE str;
@@ -2203,14 +2209,14 @@ env_key(VALUE dmy, VALUE value)
 }
 
 static VALUE
-env_index(VALUE dmy, VALUE value)
+env_index(VALUE dmy, SEL sel, VALUE value)
 {
     rb_warn("ENV.index is deprecated; use ENV.key");
-    return env_key(dmy, value);
+    return env_key(dmy, 0, value);
 }
 
 static VALUE
-env_to_hash(void)
+env_to_hash(VALUE rcv, SEL sel)
 {
     char **env;
     VALUE hash;
@@ -2231,13 +2237,13 @@ env_to_hash(void)
 }
 
 static VALUE
-env_reject(void)
+env_reject(VALUE rcv, SEL sel)
 {
-    return rb_hash_delete_if(env_to_hash(), 0);
+    return rb_hash_delete_if(env_to_hash(Qnil, 0), 0);
 }
 
 static VALUE
-env_shift(void)
+env_shift(VALUE rcv, SEL sel)
 {
     char **env;
 
@@ -2257,16 +2263,16 @@ env_shift(void)
 }
 
 static VALUE
-env_invert(void)
+env_invert(VALUE rcv, SEL sel)
 {
-    return rb_hash_invert(env_to_hash(), 0);
+    return rb_hash_invert(env_to_hash(Qnil, 0), 0);
 }
 
 static int
 env_replace_i(VALUE key, VALUE val, VALUE keys)
 {
     if (key != Qundef) {
-	env_aset(Qnil, key, val);
+	env_aset(Qnil, 0, key, val);
 	if (rb_ary_includes(keys, key)) {
 	    rb_ary_delete(keys, key);
 	}
@@ -2275,12 +2281,12 @@ env_replace_i(VALUE key, VALUE val, VALUE keys)
 }
 
 static VALUE
-env_replace(VALUE env, VALUE hash)
+env_replace(VALUE env, SEL sel, VALUE hash)
 {
     volatile VALUE keys;
     long i;
 
-    keys = env_keys();	/* rb_secure(4); */
+    keys = env_keys(Qnil, 0);	/* rb_secure(4); */
     if (env == hash) return env;
     hash = to_hash(hash);
     rb_hash_foreach(hash, env_replace_i, keys);
@@ -2296,16 +2302,16 @@ env_update_i(VALUE key, VALUE val)
 {
     if (key != Qundef) {
 	if (rb_block_given_p()) {
-	    val = rb_yield_values(3, key, rb_f_getenv(Qnil, key), val);
+	    val = rb_yield_values(3, key, rb_f_getenv(Qnil, 0, key), val);
 	    RETURN_IF_BROKEN();
 	}
-	env_aset(Qnil, key, val);
+	env_aset(Qnil, 0, key, val);
     }
     return ST_CONTINUE;
 }
 
 static VALUE
-env_update(VALUE env, VALUE hash)
+env_update(VALUE env, SEL sel, VALUE hash)
 {
     rb_secure(4);
     if (env == hash) return env;
@@ -2535,45 +2541,45 @@ Init_Hash(void)
     envtbl = rb_obj_alloc(rb_cObject);
     rb_extend_object(envtbl, rb_mEnumerable);
 
-    rb_define_singleton_method(envtbl, "[]", rb_f_getenv, 1);
-    rb_define_singleton_method(envtbl, "fetch", env_fetch, -1);
-    rb_define_singleton_method(envtbl, "[]=", env_aset, 2);
-    rb_define_singleton_method(envtbl, "store", env_aset, 2);
-    rb_define_singleton_method(envtbl, "each", env_each_pair, 0);
-    rb_define_singleton_method(envtbl, "each_pair", env_each_pair, 0);
-    rb_define_singleton_method(envtbl, "each_key", env_each_key, 0);
-    rb_define_singleton_method(envtbl, "each_value", env_each_value, 0);
-    rb_define_singleton_method(envtbl, "delete", env_delete_m, 1);
-    rb_define_singleton_method(envtbl, "delete_if", env_delete_if, 0);
-    rb_define_singleton_method(envtbl, "clear", rb_env_clear, 0);
-    rb_define_singleton_method(envtbl, "reject", env_reject, 0);
-    rb_define_singleton_method(envtbl, "reject!", env_reject_bang, 0);
-    rb_define_singleton_method(envtbl, "select", env_select, 0);
-    rb_define_singleton_method(envtbl, "shift", env_shift, 0);
-    rb_define_singleton_method(envtbl, "invert", env_invert, 0);
-    rb_define_singleton_method(envtbl, "replace", env_replace, 1);
-    rb_define_singleton_method(envtbl, "update", env_update, 1);
-    rb_define_singleton_method(envtbl, "inspect", env_inspect, 0);
-    rb_define_singleton_method(envtbl, "rehash", env_none, 0);
-    rb_define_singleton_method(envtbl, "to_a", env_to_a, 0);
-    rb_define_singleton_method(envtbl, "to_s", env_to_s, 0);
-    rb_define_singleton_method(envtbl, "key", env_key, 1);
-    rb_define_singleton_method(envtbl, "index", env_index, 1);
-    rb_define_singleton_method(envtbl, "size", env_size, 0);
-    rb_define_singleton_method(envtbl, "length", env_size, 0);
-    rb_define_singleton_method(envtbl, "empty?", env_empty_p, 0);
-    rb_define_singleton_method(envtbl, "keys", env_keys, 0);
-    rb_define_singleton_method(envtbl, "values", env_values, 0);
-    rb_define_singleton_method(envtbl, "values_at", env_values_at, -1);
-    rb_define_singleton_method(envtbl, "include?", env_has_key, 1);
-    rb_define_singleton_method(envtbl, "member?", env_has_key, 1);
-    rb_define_singleton_method(envtbl, "has_key?", env_has_key, 1);
-    rb_define_singleton_method(envtbl, "has_value?", env_has_value, 1);
-    rb_define_singleton_method(envtbl, "key?", env_has_key, 1);
-    rb_define_singleton_method(envtbl, "value?", env_has_value, 1);
-    rb_define_singleton_method(envtbl, "to_hash", env_to_hash, 0);
-    rb_define_singleton_method(envtbl, "assoc", env_assoc, 1);
-    rb_define_singleton_method(envtbl, "rassoc", env_rassoc, 1);
+    rb_objc_define_method(*(VALUE *)envtbl, "[]", rb_f_getenv, 1);
+    rb_objc_define_method(*(VALUE *)envtbl, "fetch", env_fetch, -1);
+    rb_objc_define_method(*(VALUE *)envtbl, "[]=", env_aset, 2);
+    rb_objc_define_method(*(VALUE *)envtbl, "store", env_aset, 2);
+    rb_objc_define_method(*(VALUE *)envtbl, "each", env_each_pair, 0);
+    rb_objc_define_method(*(VALUE *)envtbl, "each_pair", env_each_pair, 0);
+    rb_objc_define_method(*(VALUE *)envtbl, "each_key", env_each_key, 0);
+    rb_objc_define_method(*(VALUE *)envtbl, "each_value", env_each_value, 0);
+    rb_objc_define_method(*(VALUE *)envtbl, "delete", env_delete_m, 1);
+    rb_objc_define_method(*(VALUE *)envtbl, "delete_if", env_delete_if, 0);
+    rb_objc_define_method(*(VALUE *)envtbl, "clear", rb_env_clear_imp, 0);
+    rb_objc_define_method(*(VALUE *)envtbl, "reject", env_reject, 0);
+    rb_objc_define_method(*(VALUE *)envtbl, "reject!", env_reject_bang, 0);
+    rb_objc_define_method(*(VALUE *)envtbl, "select", env_select, 0);
+    rb_objc_define_method(*(VALUE *)envtbl, "shift", env_shift, 0);
+    rb_objc_define_method(*(VALUE *)envtbl, "invert", env_invert, 0);
+    rb_objc_define_method(*(VALUE *)envtbl, "replace", env_replace, 1);
+    rb_objc_define_method(*(VALUE *)envtbl, "update", env_update, 1);
+    rb_objc_define_method(*(VALUE *)envtbl, "inspect", env_inspect, 0);
+    rb_objc_define_method(*(VALUE *)envtbl, "rehash", env_none, 0);
+    rb_objc_define_method(*(VALUE *)envtbl, "to_a", env_to_a, 0);
+    rb_objc_define_method(*(VALUE *)envtbl, "to_s", env_to_s, 0);
+    rb_objc_define_method(*(VALUE *)envtbl, "key", env_key, 1);
+    rb_objc_define_method(*(VALUE *)envtbl, "index", env_index, 1);
+    rb_objc_define_method(*(VALUE *)envtbl, "size", env_size, 0);
+    rb_objc_define_method(*(VALUE *)envtbl, "length", env_size, 0);
+    rb_objc_define_method(*(VALUE *)envtbl, "empty?", env_empty_p, 0);
+    rb_objc_define_method(*(VALUE *)envtbl, "keys", env_keys, 0);
+    rb_objc_define_method(*(VALUE *)envtbl, "values", env_values, 0);
+    rb_objc_define_method(*(VALUE *)envtbl, "values_at", env_values_at, -1);
+    rb_objc_define_method(*(VALUE *)envtbl, "include?", env_has_key, 1);
+    rb_objc_define_method(*(VALUE *)envtbl, "member?", env_has_key, 1);
+    rb_objc_define_method(*(VALUE *)envtbl, "has_key?", env_has_key, 1);
+    rb_objc_define_method(*(VALUE *)envtbl, "has_value?", env_has_value, 1);
+    rb_objc_define_method(*(VALUE *)envtbl, "key?", env_has_key, 1);
+    rb_objc_define_method(*(VALUE *)envtbl, "value?", env_has_value, 1);
+    rb_objc_define_method(*(VALUE *)envtbl, "to_hash", env_to_hash, 0);
+    rb_objc_define_method(*(VALUE *)envtbl, "assoc", env_assoc, 1);
+    rb_objc_define_method(*(VALUE *)envtbl, "rassoc", env_rassoc, 1);
 
     rb_define_global_const("ENV", envtbl);
 }
