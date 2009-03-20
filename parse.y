@@ -710,6 +710,7 @@ static void ripper_compile_error(struct parser_params*, const char *fmt, ...);
 %type <node> open_args paren_args opt_paren_args
 %type <node> command_args aref_args opt_block_arg block_arg var_ref var_lhs
 %type <node> mrhs superclass block_call block_command
+%type <node> f_block_optarg f_block_opt
 %type <node> f_arglist f_args f_arg f_arg_item f_optarg f_marg f_marg_list f_margs
 %type <node> assoc_list assocs assoc undef_list backref string_dvar for_var
 %type <node> block_param opt_block_param block_param_def f_opt
@@ -2520,6 +2521,10 @@ opt_block_arg	: ',' block_arg
 		    {
 			$$ = $2;
 		    }
+		| ','
+		    {
+			$$ = 0;
+		    }
 		| none
 		    {
 			$$ = 0;
@@ -3291,7 +3296,39 @@ f_margs		: f_marg_list
 		    }
 		;
 
-block_param	: f_arg ',' f_rest_arg opt_f_block_arg
+block_param	: f_arg ',' f_block_optarg ',' f_rest_arg opt_f_block_arg
+		    {
+		    /*%%%*/
+			$$ = new_args($1, $3, $5, 0, $6);
+		    /*%
+			$$ = params_new($1, $3, $5, Qnil, escape_Qundef($6));
+		    %*/
+		    }
+		| f_arg ',' f_block_optarg ',' f_rest_arg ',' f_arg opt_f_block_arg
+		    {
+		    /*%%%*/
+			$$ = new_args($1, $3, $5, $7, $8);
+		    /*%
+			$$ = params_new($1, $3, $5, $7, escape_Qundef($8));
+		    %*/
+		    }
+		| f_arg ',' f_block_optarg opt_f_block_arg
+		    {
+		    /*%%%*/
+			$$ = new_args($1, $3, 0, 0, $4);
+		    /*%
+			$$ = params_new($1, $3, Qnil, Qnil, escape_Qundef($4));
+		    %*/
+		    }
+		| f_arg ',' f_block_optarg ',' f_arg opt_f_block_arg
+		    {
+		    /*%%%*/
+			$$ = new_args($1, $3, 0, $5, $6);
+		    /*%
+			$$ = params_new($1, $3, Qnil, $5, escape_Qundef($6));
+		    %*/
+		    }
+                | f_arg ',' f_rest_arg opt_f_block_arg
 		    {
 		    /*%%%*/
 			$$ = new_args($1, 0, $3, 0, $4);
@@ -3322,6 +3359,38 @@ block_param	: f_arg ',' f_rest_arg opt_f_block_arg
 			$$ = new_args($1, 0, 0, 0, $2);
 		    /*%
 			$$ = params_new($1, Qnil,Qnil, Qnil, escape_Qundef($2));
+		    %*/
+		    }
+		| f_block_optarg ',' f_rest_arg opt_f_block_arg
+		    {
+		    /*%%%*/
+			$$ = new_args(0, $1, $3, 0, $4);
+		    /*%
+			$$ = params_new(Qnil, $1, $3, Qnil, escape_Qundef($4));
+		    %*/
+		    }
+		| f_block_optarg ',' f_rest_arg ',' f_arg opt_f_block_arg
+		    {
+		    /*%%%*/
+			$$ = new_args(0, $1, $3, $5, $6);
+		    /*%
+			$$ = params_new(Qnil, $1, $3, $5, escape_Qundef($6));
+		    %*/
+		    }
+		| f_block_optarg opt_f_block_arg
+		    {
+		    /*%%%*/
+			$$ = new_args(0, $1, 0, 0, $2);
+		    /*%
+			$$ = params_new(Qnil, $1, Qnil, Qnil,escape_Qundef($2));
+		    %*/
+		    }
+		| f_block_optarg ',' f_arg opt_f_block_arg
+		    {
+		    /*%%%*/
+			$$ = new_args(0, $1, 0, $3, $4);
+		    /*%
+			$$ = params_new(Qnil, $1, Qnil, $3, escape_Qundef($4));
 		    %*/
 		    }
 		| f_rest_arg opt_f_block_arg
@@ -4434,6 +4503,44 @@ f_opt		: tIDENTIFIER '=' arg_value
 			$$ = NEW_OPT_ARG(0, assignable($1, $3));
 		    /*%
 			$$ = rb_assoc_new($1, $3);
+		    %*/
+		    }
+		;
+
+f_block_opt	: tIDENTIFIER '=' primary_value
+		    {
+		    /*%%%*/
+			if (!is_local_id($1))
+			    yyerror("formal argument must be local variable");
+			shadowing_lvar($1);
+			arg_var($1);
+			$$ = NEW_OPT_ARG(0, assignable($1, $3));
+		    /*%
+			$$ = rb_assoc_new($1, $3);
+		    %*/
+		    }
+		;
+
+f_block_optarg	: f_block_opt
+		    {
+		    /*%%%*/
+			$$ = $1;
+		    /*%
+			$$ = rb_ary_new3(1, $1);
+		    %*/
+		    }
+		| f_block_optarg ',' f_block_opt
+		    {
+		    /*%%%*/
+			NODE *opts = $1;
+
+			while (opts->nd_next) {
+			    opts = opts->nd_next;
+			}
+			opts->nd_next = $3;
+			$$ = $1;
+		    /*%
+			$$ = rb_ary_push($1, $3);
 		    %*/
 		    }
 		;
