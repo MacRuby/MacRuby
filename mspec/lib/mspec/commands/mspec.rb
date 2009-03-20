@@ -8,8 +8,6 @@ require 'mspec/utils/script'
 require 'mspec/helpers/tmp'
 require 'mspec/runner/actions/timer'
 
-require 'mspec/utils/roxor_helper'
-
 class MSpecMain < MSpecScript
   def initialize
     config[:includes] = []
