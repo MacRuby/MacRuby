@@ -13,6 +13,9 @@ namespace :spec do
   
   desc "Run language examples"
   task :language do
-    sh "#{MSPEC} spec/frozen/language/**/*_spec.rb"
+    #sh "#{MSPEC} spec/frozen/language/**/*_spec.rb"
+    Dir.glob('spec/frozen/language/**/*_spec.rb').each do |spec|
+      sh "#{MSPEC}-run #{spec}"
+    end
   end
 end
