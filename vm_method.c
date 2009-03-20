@@ -82,6 +82,8 @@ rb_get_method_body(VALUE klass, ID id, ID *idp)
 NODE *
 rb_method_node(VALUE klass, ID id)
 {
+    return NULL;
+#if 0 // TODO
     NODE *node = rb_objc_method_node(klass, id, NULL, NULL);
     if (node == NULL && id != ID_ALLOCATOR) {
 	const char *id_str = rb_id2name(id);
@@ -106,6 +108,7 @@ rb_method_node(VALUE klass, ID id)
 	}
     }
     return node;
+#endif
 }
 
 static void
