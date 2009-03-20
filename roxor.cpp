@@ -160,23 +160,7 @@ class RoxorCompiler
 
 	Value *compile_node(NODE *node);
 
-	Function *compile_main_function(NODE *node) {
-	    rb_objc_retain((void *)node);
-
-	    current_instance_method = true;
-
-	    Value *val = compile_node(node);
-	    assert(Function::classof(val));
-	    Function *function = cast<Function>(val);
-
-	    Value *klass = ConstantInt::get(RubyObjTy, (long)rb_cTopLevel);
-	    BasicBlock::InstListType &list = 
-		function->getEntryBlock().getInstList();
-	    compile_ivar_slots(klass, list, list.begin());
-
-	    return function;
-	}
-
+	Function *compile_main_function(NODE *node);
 	Function *compile_read_attr(ID name);
 	Function *compile_write_attr(ID name);
 
@@ -3869,6 +3853,25 @@ rescan_args:
 }
 
 Function *
+RoxorCompiler::compile_main_function(NODE *node)
+{
+    rb_objc_retain((void *)node);
+
+    current_instance_method = true;
+
+    Value *val = compile_node(node);
+    assert(Function::classof(val));
+    Function *function = cast<Function>(val);
+
+    Value *klass = ConstantInt::get(RubyObjTy, (long)rb_cTopLevel);
+    BasicBlock::InstListType &list = 
+	function->getEntryBlock().getInstList();
+    compile_ivar_slots(klass, list, list.begin());
+
+    return function;
+}
+
+Function *
 RoxorCompiler::compile_read_attr(ID name)
 {
     Function *f = cast<Function>(module->getOrInsertFunction("",
@@ -4863,7 +4866,7 @@ rb_vm_get_block(VALUE obj)
 }
 
 extern "C"
-void *
+rb_vm_block_t *
 rb_vm_block_create(IMP imp, NODE *node, VALUE self, int dvars_size, ...)
 {
     std::map<IMP, rb_vm_block_t *>::iterator iter =
@@ -4875,7 +4878,6 @@ rb_vm_block_create(IMP imp, NODE *node, VALUE self, int dvars_size, ...)
 	b = (rb_vm_block_t *)xmalloc(sizeof(rb_vm_block_t) + (sizeof(VALUE) * dvars_size));
 
 	b->imp = imp;
-	b->node = node;
 	b->is_lambda = true;
 	b->dvars_size = dvars_size;
 
@@ -4888,6 +4890,8 @@ rb_vm_block_create(IMP imp, NODE *node, VALUE self, int dvars_size, ...)
     }
 
     b->self = self;
+    b->node = node;
+
     if (dvars_size > 0) {
 	va_list ar;
 	va_start(ar, dvars_size);
@@ -4959,6 +4963,20 @@ rb_vm_current_block(void)
     return GET_VM()->top_block();
 }
 
+extern "C"
+void
+rb_vm_push_block(rb_vm_block_t *block)
+{
+    GET_VM()->push_block(block);
+}
+
+extern "C"
+void
+rb_vm_pop_block(void)
+{
+    GET_VM()->pop_block();
+}
+
 extern "C" VALUE rb_proc_alloc_with_block(VALUE klass, rb_vm_block_t *proc);
 
 extern "C"
@@ -5026,7 +5044,17 @@ extern "C"
 VALUE
 rb_vm_block_eval(rb_vm_block_t *b, int argc, const VALUE *argv)
 {
-    if (nd_type(b->node) == NODE_SCOPE && b->node->nd_body == NULL) {
+    if (nd_type(b->node) == NODE_IFUNC) {
+	// Special case for blocks passed with rb_objc_block_call(), to
+	// preserve API compatibility.
+	VALUE data = (VALUE)b->node->u2.node;
+	
+	VALUE (*pimp)(VALUE, VALUE, int, const VALUE *) =
+	    (VALUE (*)(VALUE, VALUE, int, const VALUE *))b->imp;
+
+	return (*pimp)(argc == 0 ? Qnil : argv[0], data, argc, argv);
+    }
+    else if (nd_type(b->node) == NODE_SCOPE && b->node->nd_body == NULL) {
 	// Trying to call an empty block!
 	return Qnil;
     }
@@ -5044,8 +5072,10 @@ rb_vm_block_eval(rb_vm_block_t *b, int argc, const VALUE *argv)
 	    }
 	    argv = new_argv;
 	    argc = ary_len;
-	    if (dvars_size == 0 && argc >= arity.min && (argc <= arity.max || arity.max == -1)) {
-		return __rb_vm_rcall(b->self, b->node, b->imp, arity, argc, argv);
+	    if (dvars_size == 0 && argc >= arity.min
+		&& (argc <= arity.max || arity.max == -1)) {
+		return __rb_vm_rcall(b->self, b->node, b->imp, arity, argc,
+				     argv);
 	    }
 	}
 	int new_argc;
@@ -5077,7 +5107,8 @@ rb_vm_block_eval(rb_vm_block_t *b, int argc, const VALUE *argv)
 	}
     }
 #if ROXOR_DEBUG
-    printf("yield block %p argc %d arity %d dvars %d\n", b, argc, arity.real, b->dvars_size);
+    printf("yield block %p argc %d arity %d dvars %d\n", b, argc, arity.real,
+	    b->dvars_size);
 #endif
 
     // We need to preserve dynamic variable slots here because our block may
@@ -5500,7 +5531,7 @@ extern "C"
 void
 rb_iter_break(void)
 {
-    // TODO
+    // TODO should be a #define that calls return
     abort();
 }
 

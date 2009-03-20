@@ -518,7 +518,9 @@ enum_inject(VALUE obj, SEL sel, int argc, VALUE *argv)
 	break;
     }
     rb_block_call(obj, id_each, 0, 0, iter, (VALUE)memo);
-    if (memo[0] == Qundef) return Qnil;
+    if (memo[0] == Qundef) {
+	return Qnil;
+    }
     return memo[0];
 }
 
@@ -799,31 +801,15 @@ enum_sort_by(VALUE obj, SEL sel)
     else {
 	ary = rb_ary_new();
     }
-#if !WITH_OBJC
-    RBASIC(ary)->klass = 0;
-#endif
     rb_block_call(obj, id_each, 0, 0, sort_by_i, ary);
     if (RARRAY_LEN(ary) > 1) {
-#if WITH_OBJC
 	CFArraySortValues((CFMutableArrayRef)ary, 
 	    CFRangeMake(0, RARRAY_LEN(ary)),
 	    (CFComparatorFunction)sort_by_cmp, (void *)ary);
-#else
-	ruby_qsort(RARRAY_PTR(ary), RARRAY_LEN(ary), sizeof(VALUE),
-		   sort_by_cmp, (void *)ary);
-#endif
     }
-#if !WITH_OBJC
-    if (RBASIC(ary)->klass) {
-	rb_raise(rb_eRuntimeError, "sort_by reentered");
-    }
-#endif
     for (i=0; i<RARRAY_LEN(ary); i++) {
 	rb_ary_store(ary, i, RNODE(RARRAY_AT(ary, i))->u2.value);
     }
-#if !WITH_OBJC
-    RBASIC(ary)->klass = rb_cArray;
-#endif
     return ary;
 }
 

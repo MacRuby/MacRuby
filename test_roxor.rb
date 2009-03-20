@@ -830,7 +830,19 @@ test "blocks" do
       end
     end
     p trans([1,2,3,4,5])
-  }
+  }, :archs => ['i386']
+
+  assert "[[1, 0, 1, 0, 1], [0, 1, 1, 0, 0], [0, 0, 0, 1, 1], [0, 0, 0, 0, 0], [0, 0, 0, 0, 0], [0, 0, 0, 0, 0], [0, 0, 0, 0, 0], [0, 0, 0, 0, 0]]", %q{
+    def trans(xs)
+      (0..xs[0].size - 1).collect do |i|
+        xs.collect{ |x| x[i] }
+      end
+    end
+    p trans([1,2,3,4,5])
+  }, :archs => ['x86_64']
+
+  assert '45', "p (5..10).inject {|sum, n| sum + n }"
+  assert '151200', "p (5..10).inject(1) {|product, n| product * n }" 
 
   assert "42", "def foo(x); yield x; end; p = proc { |x| p x }; foo(42, &p)"
   assert "42", %q{

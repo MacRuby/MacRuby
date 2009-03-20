@@ -274,12 +274,33 @@ rb_f_loop(VALUE klass, SEL sel)
 }
 
 VALUE
-rb_block_call(VALUE obj, ID mid, int argc, VALUE * argv,
+rb_objc_block_call(VALUE obj, SEL sel, int argc, VALUE *argv, 
+		   VALUE (*bl_proc) (ANYARGS), VALUE data2)
+{
+    NODE *node = NEW_IFUNC(bl_proc, data2);
+    rb_vm_block_t *b = rb_vm_block_create((IMP)bl_proc, node, obj, 0);
+
+    rb_vm_push_block(b);
+    VALUE val = rb_vm_call(obj, sel, argc, argv, false);
+    rb_vm_pop_block();
+
+    return val;
+}
+
+VALUE
+rb_block_call(VALUE obj, ID mid, int argc, VALUE *argv,
 	      VALUE (*bl_proc) (ANYARGS), VALUE data2)
 {
-    // Prototype is: Value foo(VALUE i, VALUE data2, int argc, VALUE *argv)
-    // TODO
-    return Qnil;
+    SEL sel;
+    if (argc == 0) {
+	sel = sel_registerName(rb_id2name(mid));
+    }
+    else {
+	char buf[100];
+	snprintf(buf, sizeof buf, "%s:", rb_id2name(mid));
+	sel = sel_registerName(buf);
+    }
+    return rb_objc_block_call(obj, sel, argc, argv, bl_proc, data2);
 }
 
 VALUE

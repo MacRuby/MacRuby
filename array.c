@@ -1963,8 +1963,12 @@ rb_ary_delete_if(VALUE ary, SEL sel)
 static VALUE
 take_i(VALUE val, VALUE *args, int argc, VALUE *argv)
 {
-    if (args[1]-- == 0) rb_iter_break();
-    if (argc > 1) val = rb_ary_new4(argc, argv);
+    if (args[1]-- == 0) {
+	rb_iter_break();
+    }
+    if (argc > 1) {
+	val = rb_ary_new4(argc, argv);
+    }
     rb_ary_push(args[0], val);
     return Qnil;
 }
