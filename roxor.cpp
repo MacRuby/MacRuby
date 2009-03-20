@@ -235,7 +235,7 @@ class RoxorCompiler
 	Function *newRangeFunc;
 	Function *newRegexpFunc;
 	Function *strInternFunc;
-	Function *aryGetFunc;
+	Function *rhsnGetFunc;
 	Function *newStringFunc;
 	Function *yieldFunc;
 	Function *gvarSetFunc;
@@ -554,7 +554,7 @@ RoxorCompiler::RoxorCompiler(const char *_fname)
     newRangeFunc = NULL;
     newRegexpFunc = NULL;
     strInternFunc = NULL;
-    aryGetFunc = NULL;
+    rhsnGetFunc = NULL;
     newStringFunc = NULL;
     yieldFunc = NULL;
     gvarSetFunc = NULL;
@@ -2318,9 +2318,9 @@ RoxorCompiler::compile_node(NODE *node)
 		Value *ary = compile_node(rhsn); // XXX should always build as an array
 		NODE *l = lhsn;
 
-		if (aryGetFunc == NULL) {
-		    // VALUE rb_ary_get_fast(VALUE ary, int offset);
-		    aryGetFunc = cast<Function>(module->getOrInsertFunction("rb_ary_get_fast", 
+		if (rhsnGetFunc == NULL) {
+		    // VALUE rb_vm_rhsn_get(VALUE ary, int offset);
+		    rhsnGetFunc = cast<Function>(module->getOrInsertFunction("rb_vm_rhsn_get", 
 				RubyObjTy, RubyObjTy, Type::Int32Ty, NULL));
 		}
 
@@ -2331,7 +2331,7 @@ RoxorCompiler::compile_node(NODE *node)
 		    std::vector<Value *> params;
 		    params.push_back(ary);
 		    params.push_back(ConstantInt::get(Type::Int32Ty, i++));
-		    Value *elt = CallInst::Create(aryGetFunc, params.begin(), params.end(), "", bb);
+		    Value *elt = CallInst::Create(rhsnGetFunc, params.begin(), params.end(), "", bb);
 
 		    switch (nd_type(ln)) {
 			case NODE_LASGN:
@@ -4324,9 +4324,17 @@ define_method:
 
 extern "C"
 VALUE
-rb_ary_get_fast(VALUE ary, int offset)
+rb_vm_rhsn_get(VALUE obj, int offset)
 {
-    return OC2RB(CFArrayGetValueAtIndex((CFArrayRef)ary, offset));
+    if (TYPE(obj) == T_ARRAY) {
+	if (offset < RARRAY_LEN(obj)) {
+	    return OC2RB(CFArrayGetValueAtIndex((CFArrayRef)obj, offset));
+	}
+    }
+    else if (offset == 0) {
+	return obj;
+    }
+    return Qnil;
 }
 
 static inline VALUE

@@ -309,6 +309,11 @@ test "assign" do
   assert '[1, 2, 3]', "a=[1,2]; x=*a,3; p x"
   assert '[1, 2, 3]', "a=[2]; x=1,*a,3; p x"
 
+  assert ':ok', "a, b, c = 42; p :ok if a == 42 and b == nil and c == nil"
+  assert ':ok', "a, b, c = [1, 2, 3, 4]; p :ok if a == 1 and b == 2 and c == 3"
+  assert ':ok', "a, b, c = [1, 2]; p :ok if a == 1 and b == 2 and c == nil"
+  assert ':ok', "a, b, c = nil; p :ok if a == nil and b == nil and c == nil"
+
   # TODO add more multiple assignments test
 
   assert '42', "a=[20]; a[0] += 22; p a[0]"
