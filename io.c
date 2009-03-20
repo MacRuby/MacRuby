@@ -865,6 +865,24 @@ rb_io_read_internal(rb_io_t *io_struct, UInt8 *buffer, long len)
     return data_read;
 }
 
+static VALUE 
+rb_io_read_all(rb_io_t *io_struct, VALUE bytestring_buffer) 
+{
+    long BUFSIZE = 512;
+    CFMutableDataRef data = rb_bytestring_wrapped_data(bytestring_buffer);
+    long bytes_read = 0;
+    long original_position = (long)CFDataGetLength(data);
+    for(;;) {
+        CFDataIncreaseLength(data, BUFSIZE);
+        UInt8 *b = CFDataGetMutableBytePtr(data) + original_position + bytes_read;
+        long last_read = rb_io_read_internal(io_struct, b, BUFSIZE);
+        bytes_read += last_read;
+        if(last_read < BUFSIZE) break;
+    }
+    CFDataSetLength(data, original_position + bytes_read);
+    return bytestring_buffer; 
+}
+
 /*
  *  call-seq:
  *     ios.readpartial(maxlen)              => string
@@ -1008,29 +1026,28 @@ static VALUE
 io_read(VALUE io, SEL sel, int argc, VALUE *argv)
 {
     VALUE len, outbuf;
-    rb_io_t *io_struct;
+    rb_scan_args(argc, argv, "02", &len, &outbuf);
 
-    rb_scan_args(argc, argv, "11", &len, &outbuf);
-
-    io_struct = ExtractIOStruct(io);
+    rb_io_t *io_struct = ExtractIOStruct(io);
     rb_io_assert_readable(io_struct);
+    
+    if (NIL_P(outbuf)) {
+        outbuf = rb_bytestring_new();
+    } else {
+        // TODO: Promote outbuf to a ByteString
+        abort();
+    }
+    
+    if(NIL_P(len)) {
+        return rb_io_read_all(io_struct, outbuf);
+    }
 
     long size = FIX2LONG(len);
     if (size == 0) {
 	return rb_str_new2("");
     }
+    
 
-    if (NIL_P(outbuf)) {
-        outbuf = rb_bytestring_new();
-    } 
-    else {
-	// TODO
-	// if outbuf is a bytestring, let's get a pointer to its mutable storage
-	// if outbuf is a string, we need to allocate a new buffer and then copy
-	// it into the string.
-        //outbuf = rb_coerce_to_bytestring(outbuf);
-	abort();
-    }
 
     CFMutableDataRef data = rb_bytestring_wrapped_data(outbuf);
     CFDataIncreaseLength(data, size);
@@ -1811,7 +1828,7 @@ rb_io_binmode_m(VALUE io, SEL sel)
  *  object as a parameter to the block, the child version of the block
  *  will be passed <code>nil</code>, and the child's standard in and
  *  standard out will be connected to the parent through the pipe. Not
- *  available on all platforms.s
+ *  available on all platforms.
  *
  *     f = IO.popen("uname")
  *     p f.readlines
@@ -2013,7 +2030,9 @@ rb_f_open(VALUE klass, SEL sel, int argc, VALUE *argv)
     // TODO: Handle files that don't exist.
     VALUE path, modes, permissions;
     rb_scan_args(argc, argv, "12", &path, &modes, &permissions);
-    
+    if(NIL_P(modes)) {
+        modes = (VALUE)CFSTR("r");
+    }
     StringValue(path);
     const char *filepath = RSTRING_PTR(path);
     int fd = open(filepath, convert_mode_string_to_oflags(modes));
