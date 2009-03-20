@@ -3644,11 +3644,13 @@ rescan_args:
 		Function *f = bb->getParent();
 		BasicBlock *ensure_bb = BasicBlock::Create("ensure", f);
 
-		compile_node(node->nd_head);
+		Value *val = compile_node(node->nd_head);
 		BranchInst::Create(ensure_bb, bb);
 
 		bb = ensure_bb;
-		return compile_node(node->nd_ensr);
+		compile_node(node->nd_ensr);
+
+		return val;
 	    }
 	    break;
 
