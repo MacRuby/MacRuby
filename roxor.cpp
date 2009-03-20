@@ -5020,26 +5020,50 @@ rb_vm_block_eval(rb_vm_block_t *b, int argc, const VALUE *argv)
 	return Qnil;
     }
     node_arity arity = rb_vm_node_arity(b->node);
-    if (arity.real != argc || b->dvars_size > 0) {
-	VALUE *new_argv = (VALUE *)alloca(sizeof(VALUE) * (arity.real + b->dvars_size));
-	for (int i = 0; i < b->dvars_size; i++) {
-	    new_argv[i] = (VALUE)b->dvars[i];
-	}
-	if (argc == 1 && TYPE(argv[0]) == T_ARRAY && arity.real > 1) {
+    int dvars_size = b->dvars_size;
+
+    if (dvars_size > 0 || argc < arity.min || argc > arity.max) {
+	VALUE *new_argv;
+	if (argc == 1 && TYPE(argv[0]) == T_ARRAY && (arity.max == -1 || arity.max > 1)) {
 	    // Expand the array
 	    long ary_len = RARRAY_LEN(argv[0]);
-	    for (int i = 0; i < arity.real; i++) {
-		new_argv[b->dvars_size + i] = i < ary_len ? RARRAY_AT(argv[0], i) : Qnil;
+	    new_argv = (VALUE *)alloca(sizeof(VALUE) * ary_len);
+	    for (int i = 0; i < ary_len; i++) {
+		new_argv[i] = RARRAY_AT(argv[0], i);
 	    }
+	    argv = new_argv;
+	    argc = ary_len;
+	    if (dvars_size == 0 && argc >= arity.min && (argc <= arity.max || arity.max == -1)) {
+		return __rb_vm_rcall(b->self, b->node, b->imp, arity, argc, argv);
+	    }
+	}
+	int new_argc;
+	if (argc <= arity.min) {
+	    new_argc = dvars_size + arity.min;
+	}
+	else if (argc > arity.max && arity.max != -1) {
+	    new_argc = dvars_size + arity.max;
 	}
 	else {
-	    for (int i = 0; i < arity.real; i++) {
-		new_argv[b->dvars_size + i] = i < argc ? argv[i] : Qnil;
-	    }
+	    new_argc = dvars_size + argc;
 	}
-	argc = b->dvars_size + arity.real;
+	new_argv = (VALUE *)alloca(sizeof(VALUE) * new_argc);
+	for (int i = 0; i < dvars_size; i++) {
+	    new_argv[i] = (VALUE)b->dvars[i];
+	}
+	for (int i = 0; i < new_argc - dvars_size; i++) {
+	    new_argv[dvars_size + i] = i < argc ? argv[i] : Qnil;
+	}
+	argc = new_argc;
 	argv = new_argv;
-	arity.real = argc;
+	if (dvars_size > 0) {
+	    arity.min += dvars_size;
+	    if (arity.max != -1) {
+		arity.max += dvars_size;
+	    }
+	    arity.real += dvars_size;
+	    arity.left_req += dvars_size;
+	}
     }
 #if ROXOR_DEBUG
     printf("yield block %p argc %d arity %d dvars %d\n", b, argc, arity.real, b->dvars_size);

@@ -1,3 +1,4 @@
+#!/usr/bin/ruby
 # Preliminary test suite for the MacRuby VM.
 # Aimed at testing critical features of the VM.
 #
@@ -7,7 +8,7 @@
 $test_only = []
 test_commands = []
 ARGV.each do |arg|
-  if md = /--ruby=(([^"'].*)|(".+")|('.*'))/.match(arg)
+  if md = /--ruby=(.*)/.match(arg)
     test_commands << md[1]
   else
     $test_only << arg
@@ -732,6 +733,13 @@ test "dispatch" do
     func
     func
   }
+  
+  assert "[1, 2]", %{
+    def f
+      yield 1, 2
+    end
+    f {|*args| p args}
+  }
 
 end
 
@@ -764,6 +772,44 @@ test "blocks" do
     foo do |x, y, z| 
       p :ok if x == 1 and y == 2 and z == nil
     end
+  }
+  assert ":ok", %q{
+    def foo; yield(1, 2); end
+    foo do |x| 
+      p :ok if x == 1
+    end
+  }
+  assert ":ok", %q{
+    def foo; yield(1, 2); end
+    foo do |x, y = :y, z|
+      p :ok if x == 1 and y == :y and z == 2
+    end
+  }
+  assert ":ok", %q{
+    def foo; yield(1); end
+    foo do |x, y = :y, z|
+      p :ok if x == 1 and y == :y and z == nil
+    end
+  }
+  assert ":ok", %q{
+    def foo; yield(1, 2, 3, 4); end
+    foo do |x, y = :y, *rest, z|
+      p :ok if x == 1 and y == 2 and rest == [3] and z == 4
+    end
+  }
+  assert ":ok", %q{
+    def foo; yield([1, 2]); end
+    foo do |x, y = :y, z|
+      p :ok if x == 1 and y == :y and z == 2
+    end
+  }
+  assert "[1, 2]", %q{
+    def foo; yield(1, 2); end
+    foo { |*rest| p rest }
+  }
+  assert "[1, 2]", %q{
+    def foo; yield([1, 2]); end
+    foo { |*rest| p rest }
   }
 
   assert ":ok", "def foo; p :ok if block_given?;     end; foo {}"
