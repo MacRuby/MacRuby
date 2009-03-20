@@ -52,6 +52,7 @@
       rb_objc_define_method(*(VALUE *)klass, "alloc", ..., 0)
 
 [/] port all rb_funcall() calls to rb_vm_call()
+[ ] port all rb_block_call() calls to rb_objc_block_call()
 [X] remove the YARV code from the project
 [ ] refactor the VM sources
 [ ] clean objc.m
