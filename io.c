@@ -1811,7 +1811,7 @@ rb_io_binmode_m(VALUE io, SEL sel)
  *  object as a parameter to the block, the child version of the block
  *  will be passed <code>nil</code>, and the child's standard in and
  *  standard out will be connected to the parent through the pipe. Not
- *  available on all platforms.
+ *  available on all platforms.s
  *
  *     f = IO.popen("uname")
  *     p f.readlines
@@ -1844,7 +1844,7 @@ rb_io_s_popen(VALUE klass, SEL sel, int argc, VALUE *argv)
     }
     
     FILE *process = popen(StringValueCStr(process_name), RSTRING_PTR(mode));
-    if (process) {
+    if (process == NULL) {
         rb_raise(rb_eIOError, "system call to popen() failed");
     }
     
