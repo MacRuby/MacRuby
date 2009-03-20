@@ -1713,8 +1713,8 @@ rb_exec_arg_fixup(struct rb_exec_arg *e)
  *     # never get here
  */
 
-VALUE
-rb_f_exec(int argc, VALUE *argv)
+static VALUE
+rb_f_exec(VALUE rcv, SEL sel, int argc, VALUE *argv)
 {
     struct rb_exec_arg earg;
 
@@ -2415,18 +2415,14 @@ rb_fork(int *status, int (*chfunc)(void*), void *charg, VALUE fds)
  */
 
 static VALUE
-rb_f_fork(VALUE obj)
+rb_f_fork(VALUE obj, SEL sel)
 {
-#if defined(HAVE_FORK) && !defined(__NetBSD__)
     rb_pid_t pid;
 
     rb_secure(2);
 
     switch (pid = rb_fork(0, 0, 0, Qnil)) {
       case 0:
-#ifdef linux
-	after_exec();
-#endif
 	//rb_thread_atfork();
 	if (rb_block_given_p()) {
 	    int status;
@@ -2443,9 +2439,6 @@ rb_f_fork(VALUE obj)
       default:
 	return PIDT2NUM(pid);
     }
-#else
-    rb_notimplement();
-#endif
 }
 
 
@@ -2461,7 +2454,7 @@ rb_f_fork(VALUE obj)
  */
 
 static VALUE
-rb_f_exit_bang(int argc, VALUE *argv, VALUE obj)
+rb_f_exit_bang(VALUE obj, SEL sel, int argc, VALUE *argv)
 {
     VALUE status;
     int istatus;
@@ -2543,8 +2536,8 @@ rb_exit(int status)
  *     in finalizer
  */
 
-VALUE
-rb_f_exit(int argc, VALUE *argv)
+static VALUE
+rb_f_exit(VALUE obj, SEL sel, int argc, VALUE *argv)
 {
     VALUE status;
     int istatus;
@@ -2588,8 +2581,8 @@ rb_f_exit(int argc, VALUE *argv)
 
 VALUE rb_io_puts(VALUE out, SEL sel, int argc, VALUE *argv);
 
-VALUE
-rb_f_abort(int argc, VALUE *argv)
+static VALUE
+rb_f_abort(VALUE obj, SEL sel, int argc, VALUE *argv)
 {
     extern void ruby_error_print(void);
 
@@ -2749,7 +2742,7 @@ rb_spawn(int argc, VALUE *argv)
  */
 
 static VALUE
-rb_f_system(int argc, VALUE *argv)
+rb_f_system(VALUE obj, SEL sel, int argc, VALUE *argv)
 {
     int status;
 
@@ -2921,17 +2914,13 @@ rb_f_system(int argc, VALUE *argv)
  */
 
 static VALUE
-rb_f_spawn(int argc, VALUE *argv)
+rb_f_spawn(VALUE obj, SEL sel, int argc, VALUE *argv)
 {
     rb_pid_t pid;
 
     pid = rb_spawn(argc, argv);
     if (pid == -1) rb_sys_fail(RSTRING_PTR(argv[0]));
-#if defined(HAVE_FORK) || defined(HAVE_SPAWNV)
     return PIDT2NUM(pid);
-#else
-    return Qnil;
-#endif
 }
 
 /*
@@ -5082,14 +5071,14 @@ Init_process(void)
 {
     rb_define_virtual_variable("$?", rb_last_status_get, 0);
     rb_define_virtual_variable("$$", get_pid, 0);
-    rb_define_global_function("exec", rb_f_exec, -1);
-    rb_define_global_function("fork", rb_f_fork, 0);
-    rb_define_global_function("exit!", rb_f_exit_bang, -1);
-    rb_define_global_function("system", rb_f_system, -1);
-    rb_define_global_function("spawn", rb_f_spawn, -1);
+    rb_objc_define_method(rb_mKernel, "exec", rb_f_exec, -1);
+    rb_objc_define_method(rb_mKernel, "fork", rb_f_fork, 0);
+    rb_objc_define_method(rb_mKernel, "exit!", rb_f_exit_bang, -1);
+    rb_objc_define_method(rb_mKernel, "system", rb_f_system, -1);
+    rb_objc_define_method(rb_mKernel, "spawn", rb_f_spawn, -1);
     rb_objc_define_method(rb_mKernel, "sleep", rb_f_sleep, -1);
-    rb_define_global_function("exit", rb_f_exit, -1);
-    rb_define_global_function("abort", rb_f_abort, -1);
+    rb_objc_define_method(rb_mKernel, "exit", rb_f_exit, -1);
+    rb_objc_define_method(rb_mKernel, "abort", rb_f_abort, -1);
 
     rb_mProcess = rb_define_module("Process");
 
@@ -5104,12 +5093,12 @@ Init_process(void)
     rb_define_const(rb_mProcess, "WUNTRACED", INT2FIX(0));
 #endif
 
-    rb_define_singleton_method(rb_mProcess, "exec", rb_f_exec, -1);
-    rb_define_singleton_method(rb_mProcess, "fork", rb_f_fork, 0);
-    rb_define_singleton_method(rb_mProcess, "spawn", rb_f_spawn, -1);
-    rb_define_singleton_method(rb_mProcess, "exit!", rb_f_exit_bang, -1);
-    rb_define_singleton_method(rb_mProcess, "exit", rb_f_exit, -1);
-    rb_define_singleton_method(rb_mProcess, "abort", rb_f_abort, -1);
+    rb_objc_define_method(*(VALUE *)rb_mProcess, "exec", rb_f_exec, -1);
+    rb_objc_define_method(*(VALUE *)rb_mProcess, "fork", rb_f_fork, 0);
+    rb_objc_define_method(*(VALUE *)rb_mProcess, "spawn", rb_f_spawn, -1);
+    rb_objc_define_method(*(VALUE *)rb_mProcess, "exit!", rb_f_exit_bang, -1);
+    rb_objc_define_method(*(VALUE *)rb_mProcess, "exit", rb_f_exit, -1);
+    rb_objc_define_method(*(VALUE *)rb_mProcess, "abort", rb_f_abort, -1);
 
     rb_define_module_function(rb_mProcess, "kill", rb_f_kill, -1); /* in signal.c */
     rb_define_module_function(rb_mProcess, "wait", proc_wait, -1);

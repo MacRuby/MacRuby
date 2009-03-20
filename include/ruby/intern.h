@@ -244,8 +244,6 @@ typedef fd_set rb_fdset_t;
 
 NORETURN(void rb_exc_raise(VALUE));
 NORETURN(void rb_exc_fatal(VALUE));
-VALUE rb_f_exit(int,VALUE*);
-VALUE rb_f_abort(int,VALUE*);
 void rb_remove_method(VALUE, const char*);
 #define rb_disable_super(klass, name) ((void)0)
 #define rb_enable_super(klass, name) ((void)0)
@@ -481,7 +479,6 @@ void rb_exec_arg_fixup(struct rb_exec_arg *e);
 int rb_run_exec_options(const struct rb_exec_arg *e, struct rb_exec_arg *s);
 int rb_exec(const struct rb_exec_arg*);
 rb_pid_t rb_fork(int*, int (*)(void*), void*, VALUE);
-VALUE rb_f_exec(int,VALUE*);
 rb_pid_t rb_waitpid(rb_pid_t pid, int *status, int flags);
 void rb_syswait(rb_pid_t pid);
 rb_pid_t rb_spawn(int, VALUE*);
