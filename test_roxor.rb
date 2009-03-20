@@ -866,6 +866,8 @@ test "blocks" do
     p $count
   }
 
+  assert '42', "x=42; 1.times { 1.times { 1.times { p x } } }"
+
 end
 
 test "exception" do
