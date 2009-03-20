@@ -213,7 +213,7 @@ ruby_signal_name(int no)
  */
 
 static VALUE
-esignal_init(int argc, VALUE *argv, VALUE self)
+esignal_init(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     int argnum = 1;
     VALUE sig = Qnil;
@@ -271,13 +271,13 @@ esignal_init(int argc, VALUE *argv, VALUE self)
  */
 
 static VALUE
-esignal_signo(VALUE self)
+esignal_signo(VALUE self, SEL sel)
 {
     return rb_iv_get(self, "signo");
 }
 
 static VALUE
-interrupt_init(int argc, VALUE *argv, VALUE self)
+interrupt_init(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     VALUE args[2];
 
@@ -914,7 +914,7 @@ rb_trap_restore_mask(void)
  *     Terminating: 27460
  */
 static VALUE
-sig_trap(int argc, VALUE *argv)
+sig_trap(VALUE rcv, SEL sel, int argc, VALUE *argv)
 {
     struct trap_arg arg;
 
@@ -961,7 +961,7 @@ sig_trap(int argc, VALUE *argv)
  * Signal.list   #=> {"ABRT"=>6, "ALRM"=>14, "BUS"=>7, "CHLD"=>17, "CLD"=>17, "CONT"=>18, "FPE"=>8, "HUP"=>1, "ILL"=>4, "INT"=>2, "IO"=>29, "IOT"=>6, "KILL"=>9, "PIPE"=>13, "POLL"=>29, "PROF"=>27, "PWR"=>30, "QUIT"=>3, "SEGV"=>11, "STOP"=>19, "SYS"=>31, "TERM"=>15, "TRAP"=>5, "TSTP"=>20, "TTIN"=>21, "TTOU"=>22, "URG"=>23, "USR1"=>10, "USR2"=>12, "VTALRM"=>26, "WINCH"=>28, "XCPU"=>24, "XFSZ"=>25}
  */
 static VALUE
-sig_list(void)
+sig_list(VALUE rcv, SEL sel)
 {
     VALUE h = rb_hash_new();
     const struct signals *sigs;
@@ -1085,14 +1085,14 @@ Init_signal(void)
 #ifndef MACOS_UNUSE_SIGNAL
     VALUE mSignal = rb_define_module("Signal");
 
-    rb_define_global_function("trap", sig_trap, -1);
-    rb_define_module_function(mSignal, "trap", sig_trap, -1);
-    rb_define_module_function(mSignal, "list", sig_list, 0);
+    rb_objc_define_method(rb_mKernel, "trap", sig_trap, -1);
+    rb_objc_define_method(*(VALUE *)mSignal, "trap", sig_trap, -1);
+    rb_objc_define_method(*(VALUE *)mSignal, "list", sig_list, 0);
 
-    rb_define_method(rb_eSignal, "initialize", esignal_init, -1);
-    rb_define_method(rb_eSignal, "signo", esignal_signo, 0);
+    rb_objc_define_method(rb_eSignal, "initialize", esignal_init, -1);
+    rb_objc_define_method(rb_eSignal, "signo", esignal_signo, 0);
     rb_alias(rb_eSignal, rb_intern("signm"), rb_intern("message"));
-    rb_define_method(rb_eInterrupt, "initialize", interrupt_init, -1);
+    rb_objc_define_method(rb_eInterrupt, "initialize", interrupt_init, -1);
 
     install_sighandler(SIGINT, sighandler);
 #ifdef SIGHUP
