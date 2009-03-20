@@ -956,7 +956,7 @@ RoxorCompiler::compile_block_create(NODE *node)
     params.push_back(compile_const_pointer(current_block_node));
     params.push_back(current_self);
 
-    params.push_back(ConstantInt::get(Type::Int32Ty, (long)dvars.size()));
+    params.push_back(ConstantInt::get(Type::Int32Ty, (int)dvars.size()));
 
     std::map<ID, Value *>::iterator iter = dvars.begin();
     while (iter != dvars.end()) {
