@@ -2323,7 +2323,7 @@ rb_Integer(VALUE val)
  */
 
 static VALUE
-rb_f_integer(VALUE obj, VALUE arg)
+rb_f_integer(VALUE obj, SEL sel, VALUE arg)
 {
     return rb_Integer(arg);
 }
@@ -2461,7 +2461,7 @@ rb_Float(VALUE val)
  */
 
 static VALUE
-rb_f_float(VALUE obj, VALUE arg)
+rb_f_float(VALUE obj, SEL sel, VALUE arg)
 {
     return rb_Float(arg);
 }
@@ -2519,7 +2519,7 @@ rb_String(VALUE val)
  */
 
 static VALUE
-rb_f_string(VALUE obj, VALUE arg)
+rb_f_string(VALUE obj, SEL sel, VALUE arg)
 {
     return rb_String(arg);
 }
@@ -2549,7 +2549,7 @@ rb_Array(VALUE val)
  */
 
 static VALUE
-rb_f_array(VALUE obj, VALUE arg)
+rb_f_array(VALUE obj, SEL sel, VALUE arg)
 {
     return rb_Array(arg);
 }
@@ -2750,11 +2750,11 @@ Init_Object(void)
     rb_objc_define_method(rb_mKernel, "sprintf", rb_f_sprintf_imp, -1); /* in sprintf.c */
     rb_objc_define_method(rb_mKernel, "format", rb_f_sprintf_imp, -1);  /* in sprintf.c */
 
-    rb_define_global_function("Integer", rb_f_integer, 1);
-    rb_define_global_function("Float", rb_f_float, 1);
+    rb_objc_define_method(rb_mKernel, "Integer", rb_f_integer, 1);
+    rb_objc_define_method(rb_mKernel, "Float", rb_f_float, 1);
 
-    rb_define_global_function("String", rb_f_string, 1);
-    rb_define_global_function("Array", rb_f_array, 1);
+    rb_objc_define_method(rb_mKernel, "String", rb_f_string, 1);
+    rb_objc_define_method(rb_mKernel, "Array", rb_f_array, 1);
 
     rb_const_set(rb_cObject, rb_intern("NSNull"), (VALUE)objc_getClass("NSNull"));
 
