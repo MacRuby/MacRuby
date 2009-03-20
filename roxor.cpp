@@ -4876,7 +4876,6 @@ rb_vm_block_create(IMP imp, NODE *node, VALUE self, int dvars_size, ...)
 
 	b->imp = imp;
 	b->node = node;
-	b->self = self;
 	b->is_lambda = true;
 	b->dvars_size = dvars_size;
 
@@ -4888,6 +4887,7 @@ rb_vm_block_create(IMP imp, NODE *node, VALUE self, int dvars_size, ...)
 	assert(b->dvars_size == dvars_size);
     }
 
+    b->self = self;
     if (dvars_size > 0) {
 	va_list ar;
 	va_start(ar, dvars_size);
