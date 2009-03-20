@@ -38,10 +38,7 @@
 #endif
 static auto_zone_t *__auto_zone = NULL;
 
-int rb_io_fptr_finalize(struct rb_io_t* t)
-{
-    rb_notimplement();
-}
+int rb_io_fptr_finalize(struct rb_io_t *io_struct);
 
 static VALUE nomem_error;
 

@@ -352,6 +352,24 @@ prepare_io_from_fd(rb_io_t *io_struct, int fd, int mode)
     io_struct->sync = mode & FMODE_SYNC;
 }
 
+static void
+io_struct_close(rb_io_t *io_struct, bool close_read, bool close_write)
+{
+    if (close_read && io_struct->readStream != NULL) {
+	CFReadStreamClose(io_struct->readStream);
+    }
+    if (close_write && io_struct->writeStream != NULL) {
+	CFWriteStreamClose(io_struct->writeStream);
+    }
+}
+
+int
+rb_io_fptr_finalize(rb_io_t *io_struct)
+{
+    io_struct_close(io_struct, true, true);
+    return 1;
+}
+
 static VALUE
 prep_io(int fd, int mode, VALUE klass)
 {
@@ -473,7 +491,8 @@ rb_io_addstr(VALUE io, SEL sel, VALUE str)
 VALUE
 rb_io_flush(VALUE io, SEL sel)
 {
-    rb_notimplement();
+    // TODO investigate how to flush a CFStream...
+    return io;
 }
 
 /*
@@ -1507,12 +1526,7 @@ io_close(VALUE io, bool close_read, bool close_write)
 {
     rb_io_t *io_struct = ExtractIOStruct(io);
 
-    if (close_read && io_struct->readStream != NULL) {
-	CFReadStreamClose(io_struct->readStream);
-    }
-    if (close_write && io_struct->writeStream != NULL) {
-	CFWriteStreamClose(io_struct->writeStream);
-    }
+    io_struct_close(io_struct, close_read, close_write);
 }
 
 static VALUE
