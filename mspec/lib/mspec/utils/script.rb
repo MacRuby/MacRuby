@@ -192,9 +192,9 @@ class MSpecScript
   def files(list)
     list.inject([]) do |files, item|
       case item[0]
-      when ?^
+      when '^'
         files -= entries(item[1..-1])
-      when ?:
+      when ':'
         key = item[1..-1].to_sym
         files += files(Array(config[key]))
       else
