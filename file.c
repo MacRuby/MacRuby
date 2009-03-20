@@ -710,19 +710,16 @@ rb_stat_inspect(VALUE self, SEL sel)
 static int
 rb_stat(VALUE file, struct stat *st)
 {
-    //     VALUE tmp;
-    // 
-    //     rb_secure(2);
-    //     tmp = rb_check_convert_type(file, T_FILE, "IO", "to_io");
-    //     if (!NIL_P(tmp)) {
-    // rb_io_t *fptr;
-    // 
-    // GetOpenFile(tmp, fptr);
-    // return fstat(fptr->fd, st);
-    //     }
-    //     FilePathValue(file);
-    //     return stat(StringValueCStr(file), st);
-    rb_notimplement();
+    VALUE tmp;
+
+    rb_secure(2);
+    tmp = rb_check_convert_type(file, T_FILE, "IO", "to_io");
+    if (!NIL_P(tmp)) {
+	rb_io_t *io_struct = ExtractIOStruct(tmp);
+	return fstat(io_struct->fd, st);
+    }
+    FilePathValue(file);
+    return stat(StringValueCStr(file), st);
 }
 
 #ifdef _WIN32
