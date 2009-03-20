@@ -989,6 +989,8 @@ test "exception" do
     end
   }
 
+  assert ":ok", "1.times { x = foo rescue nil; }; p :ok"
+
 end
 
 test "ivar" do
