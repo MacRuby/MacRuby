@@ -13,7 +13,7 @@ namespace :spec do
   
   desc "Run language examples"
   task :language do
-    sh "./mspec/bin/mspec ci -B spec/frozen/macruby.mspec spec/frozen/language"
+    sh "./mspec/bin/mspec ci -B ./spec/frozen/macruby.mspec ./spec/frozen/language"
   end
   
   namespace :workaround do
