@@ -1096,6 +1096,8 @@ test "eval" do
     p Foo.new.bar('p foo', binding)
   }
 
+  assert "42", "class A; def foo; @x; end; end; x = A.new; x.instance_eval { @x = 42 }; p x.foo"
+
   assert ":ok", "module M; module_eval 'p :ok'; end"
   assert ":ok", "module M; module_eval 'def self.foo; :ok; end'; end; p M.foo"
 
