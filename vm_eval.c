@@ -324,6 +324,21 @@ eval_string(VALUE self, VALUE src, VALUE scope, const char *file, int line)
     return eval_string_with_cref(self, src, scope, 0, file, line);
 }
 
+static VALUE
+specific_eval(int argc, VALUE *argv, VALUE klass, VALUE self)
+{
+    if (rb_block_given_p()) {
+        if (argc > 0) {
+            rb_raise(rb_eArgError, "wrong number of arguments (%d for 0)", argc);
+        }
+        return rb_vm_yield_under(klass, self, 0, NULL);
+    }
+    else {
+	// TODO
+	abort();
+    }
+}
+
 /*
  *  call-seq:
  *     eval(string [, binding [, filename [,lineno]]])  => obj
@@ -435,11 +450,9 @@ rb_obj_instance_eval(VALUE self, SEL sel, int argc, VALUE *argv)
 	klass = Qnil;
     }
     else {
-	klass = rb_singleton_class(self);
+	klass = CLASS_OF(self);
     }
-    // TODO
-    abort();
-    return Qnil;
+    return specific_eval(argc, argv, klass, self);
 }
 
 /*
@@ -471,9 +484,7 @@ rb_obj_instance_exec(VALUE self, SEL sel, int argc, VALUE *argv)
     else {
 	klass = rb_singleton_class(self);
     }
-    // TODO
-    abort();
-    return Qnil;
+    return rb_vm_yield_under(klass, self, argc, argv);
 }
 
 /*
@@ -503,9 +514,7 @@ rb_obj_instance_exec(VALUE self, SEL sel, int argc, VALUE *argv)
 VALUE
 rb_mod_module_eval(VALUE mod, SEL sel, int argc, VALUE *argv)
 {
-    // TODO
-    abort();
-    return Qnil;
+    return specific_eval(argc, argv, mod, mod);
 }
 
 /*
@@ -529,11 +538,9 @@ rb_mod_module_eval(VALUE mod, SEL sel, int argc, VALUE *argv)
  */
 
 VALUE
-rb_mod_module_exec(VALUE recv, SEL sel, int argc, VALUE *argv)
+rb_mod_module_exec(VALUE mod, SEL sel, int argc, VALUE *argv)
 {
-    // TODO
-    abort();
-    return Qnil;
+    return rb_vm_yield_under(mod, mod, argc, argv);
 }
 
 /*

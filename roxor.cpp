@@ -5175,6 +5175,26 @@ rb_vm_yield(int argc, const VALUE *argv)
 }
 
 extern "C"
+VALUE
+rb_vm_yield_under(VALUE klass, VALUE self, int argc, const VALUE *argv)
+{
+    rb_vm_block_t *b = GET_VM()->top_block();
+
+    GET_VM()->pop_block();
+    VALUE old_self = b->self;
+    b->self = self;
+
+    // TODO set klass as the default outer!
+
+    VALUE retval = rb_vm_block_eval0(b, argc, argv);
+
+    b->self = old_self;
+    GET_VM()->push_block(b);
+
+    return retval;
+}
+
+extern "C"
 VALUE 
 rb_vm_yield_args(int argc, ...)
 {

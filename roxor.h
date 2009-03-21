@@ -26,6 +26,7 @@ VALUE rb_vm_call_with_cache(void *cache, VALUE self, SEL sel, int argc, const VA
 VALUE rb_vm_call_with_cache2(void *cache, VALUE self, VALUE klass, SEL sel, int argc, const VALUE *argv);
 void *rb_vm_get_call_cache(SEL sel);
 VALUE rb_vm_yield(int argc, const VALUE *argv);
+VALUE rb_vm_yield_under(VALUE klass, VALUE self, int argc, const VALUE *argv);
 bool rb_vm_respond_to(VALUE obj, SEL sel, bool priv);
 VALUE rb_vm_method_missing(VALUE obj, int argc, const VALUE *argv);
 int rb_vm_find_class_ivar_slot(VALUE klass, ID name);
