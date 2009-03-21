@@ -1304,3 +1304,9 @@ test "method" do
   assert '4', "def f(a, b, d, g); end; p method(:f).arity"
 
 end
+
+test "io" do
+
+  assert ":ok", "File.open('#{__FILE__}', 'r') { p :ok }"
+
+end
