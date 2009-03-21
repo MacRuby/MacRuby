@@ -5075,9 +5075,9 @@ rb_vm_block_eval0(rb_vm_block_t *b, int argc, const VALUE *argv)
     int dvars_size = b->dvars_size;
     rb_vm_arity_t arity = b->arity;    
 
-    if (dvars_size > 0 || argc < arity.min || argc > b->arity.max) {
+    if (dvars_size > 0 || argc < arity.min || argc > arity.max) {
 	VALUE *new_argv;
-	if (argc == 1 && TYPE(argv[0]) == T_ARRAY && arity.max > 1) {
+	if (argc == 1 && TYPE(argv[0]) == T_ARRAY && (arity.min > 1 || (arity.min == 1 && arity.min != arity.max))) {
 	    // Expand the array
 	    long ary_len = RARRAY_LEN(argv[0]);
 	    new_argv = (VALUE *)alloca(sizeof(VALUE) * ary_len);

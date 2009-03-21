@@ -891,7 +891,7 @@ test "blocks" do
   assert "42", "n = 0; 100.times { |i| next if i % 2 == 0; n += 1; }; p n - 8"
   assert "42", "p 100.times { break 42 }"
   assert "42", "p proc { next 42 }.call"
-  assert "42", "p proc { break 42 }.call"
+  assert "42", "begin p proc { break 24 }.call rescue LocalJumpError; p 42 end"
 
   assert "42", "p [42].map { |x| x }.map { |y| y }[0]"
 
