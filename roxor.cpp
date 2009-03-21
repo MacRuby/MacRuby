@@ -345,6 +345,7 @@ struct mcache {
 	    Class klass;
 	    IMP imp;
 	    NODE *node;
+	    rb_vm_arity_t arity;
 	} rcall;
 	struct {
 	    Class klass;
@@ -1705,18 +1706,11 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Va
     return NULL;
 }
 
-struct node_arity {
-  short min;
-  short max;
-  short left_req;
-  short real;
-};
-
-static inline node_arity
+static inline rb_vm_arity_t
 rb_vm_node_arity(NODE *node)
 {
     const int type = nd_type(node);
-    struct node_arity arity;
+    rb_vm_arity_t arity;
 
     if (type == NODE_SCOPE) {
 	NODE *n = node->nd_args;
@@ -2097,7 +2091,7 @@ RoxorCompiler::compile_node(NODE *node)
     switch (nd_type(node)) {
 	case NODE_SCOPE:
 	    {
-		node_arity arity = rb_vm_node_arity(node);
+		rb_vm_arity_t arity = rb_vm_node_arity(node);
 		const int nargs = bb == NULL ? 0 : arity.real;
 
 		// Get dynamic vars.
@@ -3380,7 +3374,7 @@ rescan_args:
 
 		params.push_back(compile_current_class());
 
-		node_arity arity = rb_vm_node_arity(body);
+		rb_vm_arity_t arity = rb_vm_node_arity(body);
 		const SEL sel = mid_to_sel(mid, arity.real);
 		params.push_back(compile_const_pointer((void *)sel));
 
@@ -4274,7 +4268,7 @@ rb_vm_define_method(Class klass, SEL sel, IMP imp, NODE *node)
 {
     assert(node != NULL);
 
-    const node_arity arity = rb_vm_node_arity(node);
+    const rb_vm_arity_t arity = rb_vm_node_arity(node);
     assert(arity.real < MAX_ARITY);
 
     assert(klass != NULL);
@@ -4344,7 +4338,7 @@ rb_vm_rhsn_get(VALUE obj, int offset)
 }
 
 static inline VALUE
-__rb_vm_rcall(VALUE self, NODE *node, IMP pimp, const node_arity &arity,
+__rb_vm_rcall(VALUE self, NODE *node, IMP pimp, const rb_vm_arity_t &arity,
 	      int argc, const VALUE *argv)
 {
     // TODO investigate why this function is not inlined!
@@ -4552,7 +4546,8 @@ rb_vm_method_missing(VALUE obj, int argc, const VALUE *argv)
 }
 
 static VALUE
-method_missing(VALUE obj, SEL sel, int argc, const VALUE *argv, unsigned char call_status)
+method_missing(VALUE obj, SEL sel, int argc, const VALUE *argv,
+	       unsigned char call_status)
 {
     GET_VM()->method_missing_reason = call_status;
 
@@ -4601,6 +4596,9 @@ recache:
 	    method = class_getInstanceMethod(klass, sel);
 	}
 
+#define rcache cache->as.rcall
+#define ocache cache->as.ocall
+
 	if (method != NULL) {
 	    IMP imp = method_getImplementation(method);
 	    NODE *node = GET_VM()->method_node_get(imp);
@@ -4608,20 +4606,21 @@ recache:
 	    if (node != NULL) {
 		// ruby call
 		cache->flag = MCACHE_RCALL;
-		cache->as.rcall.klass = klass;
-		cache->as.rcall.imp = imp;
-		cache->as.rcall.node = node;
+		rcache.klass = klass;
+		rcache.imp = imp;
+		rcache.node = node;
+		rcache.arity = rb_vm_node_arity(node);
 	    }
 	    else {
 		// objc call
 		cache->flag = MCACHE_OCALL;
-		cache->as.ocall.klass = klass;
-		cache->as.ocall.imp = imp;
-		cache->as.ocall.helper = (struct ocall_helper *)malloc(sizeof(struct ocall_helper));
-		cache->as.ocall.helper->bs_method = rb_bs_find_method(klass, sel);
+		ocache.klass = klass;
+		ocache.imp = imp;
+		ocache.helper = (struct ocall_helper *)malloc(
+			sizeof(struct ocall_helper));
+		ocache.helper->bs_method = rb_bs_find_method(klass, sel);
 		assert(rb_objc_fill_sig(self, klass, sel, 
-			    &cache->as.ocall.helper->sig, 
-			    cache->as.ocall.helper->bs_method));
+			    &ocache.helper->sig, ocache.helper->bs_method));
 	    }
 	}
 	else {
@@ -4631,14 +4630,14 @@ recache:
     }
 
     if (cache->flag == MCACHE_RCALL) {
-	if (cache->as.rcall.klass != klass) {
+	if (rcache.klass != klass) {
 	    goto recache;
 	}
 
-	// TODO we should cache the arity
-	const node_arity arity = rb_vm_node_arity(cache->as.rcall.node);
-	if ((argc < arity.min) || ((arity.max != -1) && (argc > arity.max))) {
-	    rb_raise(rb_eArgError, "wrong number of arguments (%d for %d)", argc, arity.min);
+	if ((argc < rcache.arity.min)
+	    || ((rcache.arity.max != -1) && (argc > rcache.arity.max))) {
+	    rb_raise(rb_eArgError, "wrong number of arguments (%d for %d)",
+		    argc, rcache.arity.min);
 	}
 
 #if ROXOR_VM_DEBUG
@@ -4647,37 +4646,42 @@ recache:
 		class_getName(klass),
 		(void *)self,
 		sel_getName(sel),
-		cache->as.rcall.imp,
+		rcache.imp,
 		cached ? "true" : "false");
 #endif
 
-	assert(cache->as.rcall.node != NULL);
-	const int node_type = nd_type(cache->as.rcall.node);
+	assert(rcache.node != NULL);
+	const int node_type = nd_type(rcache.node);
 
-	if (node_type == NODE_SCOPE && cache->as.rcall.node->nd_body == NULL) {
+	if (node_type == NODE_SCOPE && rcache.node->nd_body == NULL) {
 	    // Calling an empty method, let's just return nil!
 	    return Qnil;
 	}
-	if (node_type == NODE_FBODY && arity.max != arity.min) {
+	if (node_type == NODE_FBODY
+	    && rcache.arity.max != rcache.arity.min) {
 	    // Calling a function defined with rb_objc_define_method with
 	    // a negative arity, which means a different calling convention.
-	    if (arity.real == 2) {
-		return ((VALUE (*)(VALUE, SEL, int, const VALUE *))cache->as.rcall.imp)(self, 0, argc, argv);
+	    if (rcache.arity.real == 2) {
+		return ((VALUE (*)(VALUE, SEL, int, const VALUE *))rcache.imp)
+		    (self, 0, argc, argv);
 	    }
-	    else if (arity.real == 1) {
-		return ((VALUE (*)(VALUE, SEL, ...))cache->as.rcall.imp)(self, 0, rb_ary_new4(argc, argv));
+	    else if (rcache.arity.real == 1) {
+		return ((VALUE (*)(VALUE, SEL, ...))rcache.imp)
+		    (self, 0, rb_ary_new4(argc, argv));
 	    }
 	    else {
-		printf("invalid negative arity for C function %d\n", arity.real);
+		printf("invalid negative arity for C function %d\n",
+		       rcache.arity.real);
 		abort();
 	    }
 	}
 
-	return __rb_vm_rcall(self, cache->as.rcall.node, cache->as.rcall.imp, arity, argc, argv);
+	return __rb_vm_rcall(self, rcache.node, rcache.imp, rcache.arity,
+			     argc, argv);
     }
     else if (cache->flag == MCACHE_OCALL) {
-	if (cache->as.ocall.klass != klass) {
-	    free(cache->as.ocall.helper);
+	if (ocache.klass != klass) {
+	    free(ocache.helper);
 	    goto recache;
 	}
 
@@ -4693,16 +4697,15 @@ recache:
 	return rb_objc_call2((VALUE)self, 
 		(VALUE)klass, 
 		sel, 
-		cache->as.ocall.imp, 
-		&cache->as.ocall.helper->sig, 
-		cache->as.ocall.helper->bs_method, 
+		ocache.imp, 
+		&ocache.helper->sig, 
+		ocache.helper->bs_method, 
 		argc, 
 		(VALUE *)argv);
     }
 
-printf("BOUH %s\n", (char *)sel);
+    printf("BOUH %s\n", (char *)sel);
     abort();
-    return NULL;
 }
 
 extern "C"
@@ -4893,10 +4896,12 @@ rb_vm_prepare_block(void *llvm_function, NODE *node, VALUE self,
 	if (nd_type(node) == NODE_IFUNC) {
 	    assert(llvm_function == NULL);
 	    b->imp = (IMP)node->u1.node;
+	    memset(&b->arity, 0, sizeof(rb_vm_arity_t)); // not used
 	}
 	else {
 	    assert(llvm_function != NULL);
 	    b->imp = GET_VM()->compile((Function *)llvm_function);
+	    b->arity = rb_vm_node_arity(node);
 	}
 	b->is_lambda = true;
 	b->dvars_size = dvars_size;
@@ -5040,7 +5045,7 @@ rb_vm_get_method(VALUE klass, VALUE obj, ID mid, int scope)
 	arity = method_getNumberOfArguments(m) - 2;
     }
     else {
-	node_arity n_arity = rb_vm_node_arity(node);
+	rb_vm_arity_t n_arity = rb_vm_node_arity(node);
 	arity = n_arity.min;
 	if (n_arity.min != n_arity.max) {
 	    arity = -arity - 1;
@@ -5060,28 +5065,30 @@ rb_vm_get_method(VALUE klass, VALUE obj, ID mid, int scope)
     return m;
 }
 
-extern "C"
-VALUE
-rb_vm_block_eval(rb_vm_block_t *b, int argc, const VALUE *argv)
+static inline VALUE
+rb_vm_block_eval0(rb_vm_block_t *b, int argc, const VALUE *argv)
 {
     if (nd_type(b->node) == NODE_IFUNC) {
 	// Special case for blocks passed with rb_objc_block_call(), to
 	// preserve API compatibility.
 	VALUE data = (VALUE)b->node->u2.node;
-	
+
 	VALUE (*pimp)(VALUE, VALUE, int, const VALUE *) =
 	    (VALUE (*)(VALUE, VALUE, int, const VALUE *))b->imp;
 
 	return (*pimp)(argc == 0 ? Qnil : argv[0], data, argc, argv);
     }
-    else if (nd_type(b->node) == NODE_SCOPE && b->node->nd_body == NULL) {
-	// Trying to call an empty block!
-	return Qnil;
+    else if (nd_type(b->node) == NODE_SCOPE) {
+	if (b->node->nd_body == NULL) {
+	    // Trying to call an empty block!
+	    return Qnil;
+	}
     }
-    node_arity arity = rb_vm_node_arity(b->node);
-    int dvars_size = b->dvars_size;
 
-    if (dvars_size > 0 || argc < arity.min || argc > arity.max) {
+    int dvars_size = b->dvars_size;
+    rb_vm_arity_t arity = b->arity;    
+
+    if (dvars_size > 0 || argc < arity.min || argc > b->arity.max) {
 	VALUE *new_argv;
 	if (argc == 1 && TYPE(argv[0]) == T_ARRAY && arity.max > 1) {
 	    // Expand the array
@@ -5093,7 +5100,7 @@ rb_vm_block_eval(rb_vm_block_t *b, int argc, const VALUE *argv)
 	    argv = new_argv;
 	    argc = ary_len;
 	    if (dvars_size == 0 && argc >= arity.min
-		&& (argc <= arity.max || arity.max == -1)) {
+		&& (argc <= arity.max || b->arity.max == -1)) {
 		return __rb_vm_rcall(b->self, b->node, b->imp, arity, argc,
 				     argv);
 	    }
@@ -5102,7 +5109,7 @@ rb_vm_block_eval(rb_vm_block_t *b, int argc, const VALUE *argv)
 	if (argc <= arity.min) {
 	    new_argc = dvars_size + arity.min;
 	}
-	else if (argc > arity.max && arity.max != -1) {
+	else if (argc > arity.max && b->arity.max != -1) {
 	    new_argc = dvars_size + arity.max;
 	}
 	else {
@@ -5127,8 +5134,8 @@ rb_vm_block_eval(rb_vm_block_t *b, int argc, const VALUE *argv)
 	}
     }
 #if ROXOR_VM_DEBUG
-    printf("yield block %p argc %d arity %d dvars %d\n", b, argc, arity.real,
-	    b->dvars_size);
+    printf("yield block %p argc %d arity %d dvars %d\n", b, argc,
+	    arity.real, b->dvars_size);
 #endif
 
     // We need to preserve dynamic variable slots here because our block may
@@ -5137,9 +5144,9 @@ rb_vm_block_eval(rb_vm_block_t *b, int argc, const VALUE *argv)
     // previous slots are not restored.
 
     VALUE **old_dvars;
-    if (b->dvars_size > 0) {
-	old_dvars = (VALUE **)alloca(sizeof(VALUE *) * b->dvars_size);
-	memcpy(old_dvars, b->dvars, sizeof(VALUE) * b->dvars_size);
+    if (dvars_size > 0) {
+	old_dvars = (VALUE **)alloca(sizeof(VALUE *) * dvars_size);
+	memcpy(old_dvars, b->dvars, sizeof(VALUE) * dvars_size);
     }
     else {
 	old_dvars = NULL;
@@ -5148,7 +5155,7 @@ rb_vm_block_eval(rb_vm_block_t *b, int argc, const VALUE *argv)
     VALUE v = __rb_vm_rcall(b->self, b->node, b->imp, arity, argc, argv);
 
     if (old_dvars != NULL) {
-	memcpy(b->dvars, old_dvars, sizeof(VALUE) * b->dvars_size);
+	memcpy(b->dvars, old_dvars, sizeof(VALUE) * dvars_size);
     }
 
     return v;
@@ -5156,15 +5163,28 @@ rb_vm_block_eval(rb_vm_block_t *b, int argc, const VALUE *argv)
 
 extern "C"
 VALUE
-rb_vm_yield(int argc, const VALUE *argv)
+rb_vm_block_eval(rb_vm_block_t *b, int argc, const VALUE *argv)
+{
+    return rb_vm_block_eval0(b, argc, argv);
+}
+
+static inline VALUE
+rb_vm_yield0(int argc, const VALUE *argv)
 {
     rb_vm_block_t *b = GET_VM()->top_block();
 
     GET_VM()->pop_block();
-    VALUE retval = rb_vm_block_eval(b, argc, argv);
+    VALUE retval = rb_vm_block_eval0(b, argc, argv);
     GET_VM()->push_block(b);
 
     return retval;
+}
+
+extern "C"
+VALUE
+rb_vm_yield(int argc, const VALUE *argv)
+{
+    return rb_vm_yield0(argc, argv);
 }
 
 extern "C"
@@ -5181,7 +5201,7 @@ rb_vm_yield_args(int argc, ...)
 	}
 	va_end(ar);
     }
-    return rb_vm_yield(argc, argv);
+    return rb_vm_yield0(argc, argv);
 }
 
 extern "C"
