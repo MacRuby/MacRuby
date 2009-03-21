@@ -314,7 +314,9 @@ eval_string_with_cref(VALUE self, VALUE src, VALUE scope, NODE *cref, const char
 {
     // TODO honor scope
     NODE *node = rb_compile_string(file, src, line);
-    assert(node != NULL);
+    if (node == NULL) {
+	rb_raise(rb_eSyntaxError, "compile error");
+    }
     return rb_vm_run_node(file, node);
 }
 

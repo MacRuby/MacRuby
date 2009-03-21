@@ -267,7 +267,9 @@ rb_load(VALUE fname, int wrap)
     // Load it.
     const char *fname_str = RSTRING_PTR(fname);
     NODE *node = (NODE *)rb_load_file(fname_str);
-    assert(node != NULL);
+    if (node == NULL) {
+	rb_raise(rb_eSyntaxError, "compile error");
+    }
     rb_vm_run_node(fname_str, node);
 }
 
