@@ -1,7 +1,7 @@
 /* ROXOR: the new MacRuby VM that rocks! */
 
 #define ROXOR_COMPILER_DEBUG	0
-#define ROXOR_VM_DEBUG		1
+#define ROXOR_VM_DEBUG		0
 
 #include <llvm/Module.h>
 #include <llvm/DerivedTypes.h>
