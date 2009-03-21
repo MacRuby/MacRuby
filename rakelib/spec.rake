@@ -18,4 +18,11 @@ namespace :spec do
       sh "#{MSPEC}-run #{spec}"
     end
   end
+  
+  namespace :"1.9" do
+    desc "Run Ruby 1.9 language examples"
+    task :language do
+      sh "./mspec/bin/mspec ci -B spec/frozen/ruby.1.9.mspec spec/frozen/language"
+    end
+  end
 end
