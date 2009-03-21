@@ -684,6 +684,12 @@ test "dispatch" do
   assert ":ok", "def foo(*args, &block); :ok; end; p foo"
   assert ":ok", "def foo(x, *args, &block); x; end; p foo(:ok)"
   
+  assert ":ok", %{
+    def foo(&block) p(block ? :ko : :ok) end
+    def bar(&block) block.call() end
+    bar { foo }
+  }
+  
   assert "[1, nil, :c]", "def f(a, b = :b, c = :c) [a, b, c] end; p f(1, nil)"
   assert "[1, :b, :c, 2]\n[1, 2, :c, 3]\n[1, 2, 3, 4]", %{
     def f(a, b = :b, c = :c, d) [a, b, c, d] end
@@ -815,6 +821,30 @@ test "blocks" do
   assert "[[1, 2]]", %q{
     def foo; yield([1, 2]); end
     foo { |*rest| p rest }
+  }
+  assert "[1, [2]]", %q{
+    def foo; yield([1, 2]); end
+    foo { |a, *rest| p [a, rest] }
+  }
+  assert "[[1, 2], []]", %q{
+    def foo; yield([1, 2]); end
+    foo { |a = 42, *rest| p [a, rest] }
+  }
+  assert "[1, 2, []]", %q{
+    def foo; yield([1, 2]); end
+    foo { |a = 42, *rest, b| p [a, b, rest] }
+  }
+  assert "[1, 2, []]", %q{
+    def foo; yield([1, 2]); end
+    foo { |a, b = 42, *rest| p [a, b, rest] }
+  }
+  assert "[[1, 2], 42, []]", %q{
+    def foo; yield([1, 2]); end
+    foo { |a = 42, b = 42, *rest| p [a, b, rest] }
+  }
+  assert "[[1, 2], []]", %q{
+    def foo; yield([1, 2]); end
+    foo { |a = 42, *rest| p [a, rest] }
   }
 
   assert ":ok", "def foo; p :ok if block_given?;     end; foo {}"
