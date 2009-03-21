@@ -1050,6 +1050,27 @@ test "ivar" do
     p Foo.foo
   }
 
+  assert '231', %q{
+    class Foo
+      def initialize
+        @v1 = 1;   @v2 = 2;   @v3 = 3
+        @v4 = 4;   @v5 = 5;   @v6 = 6
+        @v7 = 7;   @v8 = 8;   @v9 = 9
+        @v10 = 10; @v11 = 11; @v12 = 12
+        @v13 = 13; @v14 = 14; @v15 = 15
+        @v16 = 16; @v17 = 17; @v18 = 18
+        @v19 = 19; @v20 = 20; @v21 = 21
+      end
+      def foo
+        @v1 + @v2 + @v3 + @v4 + @v5 + @v6 +
+        @v7 + @v8 + @v9 + @v10 + @v11 + @v12 +
+        @v13 + @v14 + @v15 + @v16 + @v17 + @v18 +
+        @v19 + @v20 + @v21
+      end
+    end
+    p Foo.new.foo
+  }
+
 end
 
 =begin
