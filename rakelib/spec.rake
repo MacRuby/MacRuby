@@ -8,14 +8,20 @@ namespace :spec do
     # TODO: Still fails at another require statment.
     # It seems to spawns yet another process which also needs the proper laod path.
     # Anyways load paths are currently broken on roxor. Will find out a tmp workaround tonight.
-    sh "#{MSPEC}-ci -B spec/frozen/macruby.mspec"
+    sh "#{MSPEC} ci -B spec/frozen/macruby.mspec spec/frozen/language"
   end
   
   desc "Run language examples"
   task :language do
-    #sh "#{MSPEC} spec/frozen/language/**/*_spec.rb"
-    Dir.glob('spec/frozen/language/**/*_spec.rb').each do |spec|
-      sh "#{MSPEC}-run #{spec}"
+    sh "./mspec/bin/mspec ci -B spec/frozen/macruby.mspec spec/frozen/language"
+  end
+  
+  namespace :workaround do
+    desc "Run language examples with a workaround which uses mspec-run on each individual spec"
+    task :language do
+      Dir.glob('spec/frozen/language/**/*_spec.rb').each do |spec|
+        sh "#{MSPEC}-run #{spec}"
+      end
     end
   end
   
