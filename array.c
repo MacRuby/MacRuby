@@ -3602,7 +3602,7 @@ Init_Array(void)
     rb_objc_define_method(rb_cArray, "assoc", rb_ary_assoc, 1);
     rb_objc_define_method(rb_cArray, "rassoc", rb_ary_rassoc, 1);
 
-    rb_objc_define_method(rb_cArray, "+", rb_ary_plus, 1);
+    rb_objc_define_method(rb_cArray, "+", rb_ary_plus_imp, 1);
     rb_objc_define_method(rb_cArray, "*", rb_ary_times, 1);
 
     rb_objc_define_method(rb_cArray, "-", rb_ary_diff, 1);
