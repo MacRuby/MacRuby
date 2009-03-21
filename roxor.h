@@ -152,7 +152,7 @@ VALUE rb_vm_pop_broken_value(void);
 #define RETURN_IF_BROKEN() \
     do { \
 	VALUE __v = rb_vm_pop_broken_value(); \
-	if (__v != 0) { \
+	if (__v != Qundef) { \
 	    return __v; \
 	} \
     } \

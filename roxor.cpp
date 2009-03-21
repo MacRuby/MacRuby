@@ -1774,7 +1774,7 @@ RoxorVM::RoxorVM(void)
     safe_level = 0;
 
     backref = Qnil;
-    broken_with = 0;
+    broken_with = Qundef;
 
     load_path = rb_ary_new();
     rb_objc_retain((void *)load_path);
@@ -5345,7 +5345,7 @@ VALUE
 rb_vm_pop_broken_value(void)
 {
     VALUE val = GET_VM()->broken_with;
-    GET_VM()->broken_with = 0;
+    GET_VM()->broken_with = Qundef;
     return val;
 }
 
@@ -5576,8 +5576,7 @@ extern "C"
 void
 rb_iter_break(void)
 {
-    // TODO should be a #define that calls return
-    abort();
+    GET_VM()->broken_with = Qnil;
 }
 
 extern "C"
