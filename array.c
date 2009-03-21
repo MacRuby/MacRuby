@@ -3593,7 +3593,7 @@ Init_Array(void)
     rb_objc_define_method(rb_cArray, "replace", rb_ary_replace_imp, 1);
     rb_objc_define_method(rb_cArray, "clear", rb_ary_clear, 0);
     rb_objc_define_method(rb_cArray, "fill", rb_ary_fill, -1);
-    rb_objc_define_method(rb_cArray, "include?", rb_ary_includes, 1);
+    rb_objc_define_method(rb_cArray, "include?", rb_ary_includes_imp, 1);
     rb_objc_define_method(rb_cArray, "<=>", rb_ary_cmp, 1);
 
     rb_objc_define_method(rb_cArray, "slice", rb_ary_aref, -1);
