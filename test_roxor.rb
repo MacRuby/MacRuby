@@ -352,6 +352,9 @@ test "assign" do
 
   assert ':ok', "x = ':  '; x[1,2] = 'ok'; puts x"
 
+  assert '42', "a=[4]; a += [2]; puts a.join"
+  assert '42', "a=[4,3,2]; a -= [3]; puts a.join"
+
 end
 
 test "constants" do
