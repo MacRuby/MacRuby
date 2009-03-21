@@ -525,9 +525,6 @@ test "module" do
   assert "M", "module M; end; p M"
   assert "Module", "module M; end; p M.class"
 
-  assert ":ok", "module M; module_eval 'p :ok'; end"
-  assert ":ok", "module M; module_eval 'def self.foo; :ok; end'; end; p M.foo"
-
 end
 
 test "attr" do
@@ -1098,6 +1095,9 @@ test "eval" do
     def foo; 42; end
     p Foo.new.bar('p foo', binding)
   }
+
+  assert ":ok", "module M; module_eval 'p :ok'; end"
+  assert ":ok", "module M; module_eval 'def self.foo; :ok; end'; end; p M.foo"
 
 end
 =end
