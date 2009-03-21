@@ -468,7 +468,7 @@ struct RObject {
     struct RBasic basic;
     CFMutableDictionaryRef tbl;   /* dynamic ivars (runtime) */
     unsigned int num_slots;
-    VALUE slots[1];            /* static ivars (compilation) */
+    VALUE *slots;                 /* static ivars (compilation) */
 };
 
 #if !WITH_OBJC

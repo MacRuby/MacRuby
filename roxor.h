@@ -32,13 +32,21 @@ VALUE rb_vm_method_missing(VALUE obj, int argc, const VALUE *argv);
 int rb_vm_find_class_ivar_slot(VALUE klass, ID name);
 
 static inline void
-rb_vm_regrow_robject_slots(struct RObject *obj, int new_num_slot)
+rb_vm_regrow_robject_slots(struct RObject *obj, unsigned int new_num_slot)
 {
+    unsigned int i;
+#if 0
     VALUE *new_slots = (VALUE *)xrealloc(obj->slots, sizeof(VALUE) * new_num_slot);
     if (obj->slots != new_slots) {
 	GC_WB(&obj->slots, new_slots);
     }
-    int i;
+#else
+    VALUE *new_slots = (VALUE *)xmalloc(sizeof(VALUE) * new_num_slot);
+    for (i = 0; i < obj->num_slots; i++) {
+	GC_WB(&new_slots[i], obj->slots[i]);
+    }
+    GC_WB(&obj->slots, new_slots);
+#endif
     for (i = obj->num_slots; i < new_num_slot; i++) {
 	obj->slots[i] = Qundef;
     }
@@ -62,7 +70,7 @@ rb_vm_set_ivar_from_slot(VALUE obj, VALUE val, int slot)
     struct RObject *robj = (struct RObject *)obj;
     assert(slot >= 0);
     if (robj->num_slots < (unsigned int)slot) {
-	rb_vm_regrow_robject_slots(robj, slot);
+	rb_vm_regrow_robject_slots(robj, (unsigned int)slot);
     }
     robj->slots[slot] = val;
 }
@@ -121,7 +129,9 @@ rb_robject_allocate_instance(VALUE klass)
     struct RObject *obj;
     int num_slots = 10;
 
-    obj = (struct RObject *)xmalloc(sizeof(struct RObject) + (num_slots * sizeof(VALUE)));
+    obj = (struct RObject *)xmalloc(sizeof(struct RObject));
+    GC_WB(&obj->slots, xmalloc(num_slots * sizeof(VALUE)));
+
     OBJSETUP(obj, klass, T_OBJECT);
 
     ROBJECT(obj)->tbl = NULL;
