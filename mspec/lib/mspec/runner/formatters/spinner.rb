@@ -56,11 +56,8 @@ class SpinnerFormatter < DottedFormatter
     @percent = @loaded * 100 / @total
     bar = ("=" * (@percent / @ratio)).ljust @length
     label = "%d%%" % @percent
-    first_part = bar[0,@position]
-    last_part = bar[@position + label.size, -1]
-    "#{first_part}#{label}#{last_part}"
-    # bar[@position, label.size] = label
-    # bar
+    bar[@position, label.size] = label
+    bar
   end
 
   def spin
