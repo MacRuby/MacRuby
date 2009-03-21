@@ -858,50 +858,37 @@ RoxorCompiler::compile_attribute_assign(NODE *node, Value *extra_val)
 
     ID mid = node->nd_mid;
     assert(mid > 0);
-    const bool id_set_op = mid == idASET;
- 
-    long argc;
-    Value *attr;
-    if (id_set_op) {
-	argc = 2;
-	assert(nd_type(node->nd_args) == NODE_ARRAY);
-	if (extra_val == NULL) {
-	    assert(node->nd_args->nd_alen == 2);
-	    attr = compile_node(node->nd_args->nd_head);
-	    extra_val = compile_node(node->nd_args->nd_next->nd_head);
-	}
-	else {
-	    assert(node->nd_args->nd_alen == 1);
-	    attr = compile_node(node->nd_args->nd_head);
+
+    std::vector<Value *> args;
+    NODE *n = node->nd_args;
+    if (n != NULL) {
+	assert(nd_type(n) == NODE_ARRAY);
+	for (; n != NULL; n = n->nd_next) {
+	    args.push_back(compile_node(n->nd_head));
 	}
     }
-    else {
-	argc = 1;
-	if (extra_val == NULL) {
-	    assert(nd_type(node->nd_args) == NODE_ARRAY);
-	    assert(node->nd_args->nd_alen == 1);
-	    attr = compile_node(node->nd_args->nd_head);
-	}
-	else {
-	    attr = extra_val;
-	}
+    if (extra_val != NULL) {
+	args.push_back(extra_val);
+    }
+
+    if (mid != idASET) {
+	// A regular attribute assignment (obj.foo = 42)
+	assert(args.size() == 1);
     }
 
     std::vector<Value *> params;
-    const SEL sel = mid_to_sel(mid, argc);
+    const SEL sel = mid_to_sel(mid, args.size());
     void *cache = GET_VM()->method_cache_get(sel, false);
     params.push_back(compile_const_pointer(cache));
     params.push_back(recv);
     params.push_back(compile_const_pointer((void *)sel));
     params.push_back(compile_const_pointer(NULL));
     params.push_back(ConstantInt::get(Type::Int8Ty, 0));
-    params.push_back(ConstantInt::get(Type::Int32Ty, argc));
-    if (id_set_op) {
-	params.push_back(attr);
-	params.push_back(extra_val);
-    }
-    else {
-	params.push_back(attr);
+    params.push_back(ConstantInt::get(Type::Int32Ty, args.size()));
+    for (std::vector<Value *>::iterator i = args.begin();
+	 i != args.end();
+	 ++i) {
+	params.push_back(*i);
     }
 
     return compile_dispatch_call(params);
