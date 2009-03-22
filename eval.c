@@ -448,7 +448,7 @@ rb_iterator_p()
 static VALUE
 rb_f_block_given_p(VALUE self, SEL sel)
 {
-    return rb_block_given_p() ? Qtrue : Qfalse;
+    return rb_vm_block_saved() ? Qtrue : Qfalse;
 }
 
 VALUE rb_eThreadError;

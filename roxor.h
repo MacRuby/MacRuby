@@ -112,6 +112,7 @@ rb_proc_get_block(VALUE proc)
 
 rb_vm_block_t *rb_vm_prepare_block(void *llvm_function, NODE *node, VALUE self, int dvars_size, ...);
 rb_vm_block_t *rb_vm_current_block(void);
+bool rb_vm_block_saved(void);
 void rb_vm_change_current_block(rb_vm_block_t *block);
 void rb_vm_restore_current_block(void);
 VALUE rb_vm_block_eval(rb_vm_block_t *block, int argc, const VALUE *argv);

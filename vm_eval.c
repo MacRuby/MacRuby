@@ -283,7 +283,7 @@ rb_objc_block_call(VALUE obj, SEL sel, void *cache, int argc, VALUE *argv,
     if (cache == NULL) {
 	cache = rb_vm_get_call_cache(sel);
     }
-    VALUE val =  rb_vm_call_with_cache2(cache, obj, 0, sel, argc, argv);
+    VALUE val = rb_vm_call_with_cache2(cache, obj, 0, sel, argc, argv);
     rb_vm_restore_current_block();
     return val;
 }

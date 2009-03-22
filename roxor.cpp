@@ -400,6 +400,7 @@ class RoxorVM
 	unsigned char method_missing_reason;
 	rb_vm_block_t *current_block;
 	rb_vm_block_t *previous_block; // only used for non-Ruby created blocks
+	bool block_saved; // used by block_given?
 
 	RoxorVM(void);
 
@@ -1774,6 +1775,7 @@ RoxorVM::RoxorVM(void)
 
     current_block = NULL;
     previous_block = NULL;
+    block_saved = false;
 
     load_path = rb_ary_new();
     rb_objc_retain((void *)load_path);
@@ -4696,7 +4698,7 @@ recache:
 
 extern "C"
 VALUE
-rb_vm_dispatch(struct mcache *cache, VALUE self, SEL sel, void *block, 
+rb_vm_dispatch(struct mcache *cache, VALUE self, SEL sel, rb_vm_block_t *block, 
 	       unsigned char opt, int argc, ...)
 {
 #define MAX_DISPATCH_ARGS 200
@@ -4741,17 +4743,17 @@ rb_vm_dispatch(struct mcache *cache, VALUE self, SEL sel, void *block,
 	argc = real_argc;
     }
 
-    if (block != NULL) {
-	rb_vm_block_t *b = (rb_vm_block_t *)block;
-	rb_vm_block_t *old_b = GET_VM()->current_block;
-	GET_VM()->current_block = b;
-	VALUE retval = 
-	    __rb_vm_dispatch(cache, self, NULL, sel, opt, argc, argv);
-	GET_VM()->current_block = old_b;
-	return retval;
-    }
+    rb_vm_block_t *b = (rb_vm_block_t *)block;
+    rb_vm_block_t *old_b = GET_VM()->current_block;
+    bool old_block_saved = GET_VM()->block_saved;
+    GET_VM()->block_saved = old_b != NULL;
+    GET_VM()->current_block = b;
 
-    return __rb_vm_dispatch(cache, self, NULL, sel, opt, argc, argv);
+    VALUE retval = __rb_vm_dispatch(cache, self, NULL, sel, opt, argc, argv);
+
+    GET_VM()->current_block = old_b;
+    GET_VM()->block_saved = old_block_saved;
+    return retval;
 }
 
 extern "C"
@@ -4961,11 +4963,20 @@ rb_vm_get_call_cache(SEL sel)
     return GET_VM()->method_cache_get(sel, false);
 }
 
+// Should be used inside a method implementation.
 extern "C"
 int
 rb_block_given_p(void)
 {
     return GET_VM()->current_block != NULL ? Qtrue : Qfalse;
+}
+
+// Should only be used by #block_given?.
+extern "C"
+bool
+rb_vm_block_saved(void)
+{
+    return GET_VM()->block_saved;
 }
 
 extern "C"
