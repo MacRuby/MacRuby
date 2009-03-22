@@ -240,38 +240,6 @@ rb_io_is_open(rb_io_t *io_struct)
 #define IS_PREP_STDIO(f) ((f)->mode & FMODE_PREP)
 #define PREP_STDIO_NAME(f) ((f)->path)
 
-static inline int
-rb_io_modenum_flags(int mode)
-{
-    int flags = 0;
-
-    switch (mode & (O_RDONLY|O_WRONLY|O_RDWR)) {
-	case O_RDONLY:
-	    flags = FMODE_READABLE;
-	    break;
-	case O_WRONLY:
-	    flags = FMODE_WRITABLE;
-	    break;
-	case O_RDWR:
-	    flags = FMODE_READWRITE;
-	    break;
-    }
-
-    if (mode & O_APPEND) {
-	flags |= FMODE_APPEND;
-    }
-    if (mode & O_CREAT) {
-	flags |= FMODE_CREATE;
-    }
-#ifdef O_BINARY
-    if (mode & O_BINARY) {
-	flags |= FMODE_BINMODE;
-    }
-#endif
-
-    return flags;
-}
-
 /*
  *  call-seq:
  *     IO.try_convert(obj) -> io or nil
@@ -373,6 +341,7 @@ int
 rb_io_fptr_finalize(rb_io_t *io_struct)
 {
     io_struct_close(io_struct, true, true);
+    if(io_struct->fp != NULL) pclose(io_struct->fp);
     return 1;
 }
 
@@ -1089,7 +1058,12 @@ io_read(VALUE io, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_io_gets_m(VALUE io, SEL sel, int argc, VALUE *argv)
 {
-    rb_notimplement();
+	VALUE separator, limit;
+	rb_scan_args(argc, argv, "02", &separator, &limit);
+	// TODO: Actually take the separator into account.
+	VALUE result = rb_io_gets(io, sel);
+	rb_lastline_set(result); // TODO: Implement this in roxor
+	return result;
 }
 
 /*
@@ -1650,7 +1624,7 @@ rb_io_fdopen(int fd, int mode, const char *path)
     if (path != NULL && strcmp(path, "-") != 0) {
 	klass = rb_cFile;
     }
-    return prep_io(fd, rb_io_modenum_flags(mode), klass);
+    return prep_io(fd, convert_fmode_to_oflags(mode), klass);
 }
 
 static VALUE
