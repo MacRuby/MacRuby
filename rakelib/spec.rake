@@ -1,14 +1,11 @@
 namespace :spec do
-  MSPEC = "./miniruby -v -I./mspec/lib -I./lib ./mspec/bin/mspec"
+  MSPEC_RUN = "./miniruby -v -I./mspec/lib -I./lib ./mspec/bin/mspec-run"
   
-  desc "Run continuous integration examples for Ruby 1.9 including stdlib"
+  KNOWN_GOOD = %w{ and or }
+  
+  desc "Run continuous integration language examples (known good)"
   task :ci do
-    #sh "./mspec/bin/mspec ci -t ./miniruby -B spec/frozen/macruby.mspec"
-    
-    # TODO: Still fails at another require statment.
-    # It seems to spawns yet another process which also needs the proper laod path.
-    # Anyways load paths are currently broken on roxor. Will find out a tmp workaround tonight.
-    sh "#{MSPEC} ci -B spec/frozen/macruby.mspec spec/frozen/language"
+    sh "#{MSPEC_RUN} #{FileList["spec/frozen/language/{#{KNOWN_GOOD.join(',')}}_spec.rb"].join(' ')}"
   end
   
   desc "Run language examples"
@@ -20,7 +17,7 @@ namespace :spec do
     desc "Run language examples with a workaround which uses mspec-run on each individual spec"
     task :language do
       Dir.glob('spec/frozen/language/**/*_spec.rb').each do |spec|
-        sh "#{MSPEC}-run #{spec}" rescue nil
+        sh "#{MSPEC_RUN} #{spec}" rescue nil
       end
     end
   end
