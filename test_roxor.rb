@@ -849,7 +849,7 @@ test "blocks" do
 
   assert "true", "def foo; p block_given?; end; foo {}"
   assert "false", "def foo; p block_given?; end; foo"
-  assert "true", "def foo; p block_given?; end; def bar; foo; end; bar {}"
+  assert "false", "def foo; p block_given?; end; def bar; foo; end; bar {}"
 
   assert ':ok', "def foo; yield; end; begin; foo; rescue LocalJumpError; p :ok; end"
 
