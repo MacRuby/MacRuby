@@ -849,6 +849,7 @@ test "blocks" do
 
   assert ":ok", "def foo; p :ok if block_given?;     end; foo {}"
   assert ":ok", "def foo; p :ok unless block_given?; end; foo"
+  assert ":ok", "def foo; p block_given?; end; def bar; foo; end; bar {}"
 
   assert ":ok", "def foo(&m); m.call; end; foo { p :ok }"
   assert ":ok", "def foo(&m); p :ok if m == nil; end; foo"
