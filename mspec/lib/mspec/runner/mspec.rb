@@ -265,13 +265,20 @@ module MSpec
     tags = []
     file = tags_file
     if File.exist? file
-      File.open(file, "r") do |f|
-        f.each_line do |line|
-          line.chomp!
-          next if line.empty?
-          tag = SpecTag.new line.chomp
-          tags << tag if keys.include? tag.tag
-        end
+      # TODO: roxor workaround, or should mspec just use File.read anyways?
+      # File.open(file, "r") do |f|
+      #   f.each_line do |line|
+      #     line.chomp!
+      #     next if line.empty?
+      #     tag = SpecTag.new line.chomp
+      #     tags << tag if keys.include? tag.tag
+      #   end
+      # end
+      File.read(file).each_line do |line|
+        line.chomp!
+        next if line.empty?
+        tag = SpecTag.new line.chomp
+        tags << tag if keys.include? tag.tag
       end
     end
     tags
