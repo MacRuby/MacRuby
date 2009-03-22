@@ -274,16 +274,17 @@ rb_f_loop(VALUE klass, SEL sel)
 }
 
 VALUE
-rb_objc_block_call(VALUE obj, SEL sel, int argc, VALUE *argv, 
+rb_objc_block_call(VALUE obj, SEL sel, void *cache, int argc, VALUE *argv, 
 		   VALUE (*bl_proc) (ANYARGS), VALUE data2)
 {
     NODE *node = NEW_IFUNC(bl_proc, data2);
     rb_vm_block_t *b = rb_vm_prepare_block(NULL, node, obj, 0);
-
-    rb_vm_push_block(b);
-    VALUE val = rb_vm_call(obj, sel, argc, argv, false);
-    rb_vm_pop_block();
-
+    rb_vm_change_current_block(b);
+    if (cache == NULL) {
+	cache = rb_vm_get_call_cache(sel);
+    }
+    VALUE val =  rb_vm_call_with_cache2(cache, obj, 0, sel, argc, argv);
+    rb_vm_restore_current_block();
     return val;
 }
 
@@ -300,7 +301,7 @@ rb_block_call(VALUE obj, ID mid, int argc, VALUE *argv,
 	snprintf(buf, sizeof buf, "%s:", rb_id2name(mid));
 	sel = sel_registerName(buf);
     }
-    return rb_objc_block_call(obj, sel, argc, argv, bl_proc, data2);
+    return rb_objc_block_call(obj, sel, NULL, argc, argv, bl_proc, data2);
 }
 
 VALUE

@@ -962,8 +962,8 @@ int rb_block_given_p(void);
 void rb_need_block(void);
 VALUE rb_iterate(VALUE(*)(VALUE),VALUE,VALUE(*)(ANYARGS),VALUE);
 VALUE rb_block_call(VALUE,ID,int,VALUE*,VALUE(*)(ANYARGS),VALUE);
-VALUE rb_objc_block_call(VALUE obj, SEL sel, int argc, VALUE *argv,
-	VALUE (*bl_proc) (ANYARGS), VALUE data2);
+VALUE rb_objc_block_call(VALUE obj, SEL sel, void *cache, int argc,
+	VALUE *argv, VALUE (*bl_proc) (ANYARGS), VALUE data2);
 VALUE rb_rescue(VALUE(*)(ANYARGS),VALUE,VALUE(*)(ANYARGS),VALUE);
 VALUE rb_rescue2(VALUE(*)(ANYARGS),VALUE,VALUE(*)(ANYARGS),VALUE,...);
 VALUE rb_ensure(VALUE(*)(ANYARGS),VALUE,VALUE(*)(ANYARGS),VALUE);

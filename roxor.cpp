@@ -383,7 +383,6 @@ class RoxorVM
 	std::map<ID, struct ccache *> ccache;
 	std::map<Class, std::map<ID, int> *> ivar_slots;
 	std::map<SEL, GlobalVariable *> redefined_ops_gvars;
-	std::stack<rb_vm_block_t *> current_blocks;
 
     public:
 	static RoxorVM *current;
@@ -399,13 +398,10 @@ class RoxorVM
 	std::map<NODE *, rb_vm_block_t *> blocks;
 	std::map<double, struct rb_float_cache *> float_cache;
 	unsigned char method_missing_reason;
+	rb_vm_block_t *current_block;
+	rb_vm_block_t *previous_block; // only used for non-Ruby created blocks
 
 	RoxorVM(void);
-
-	rb_vm_block_t *top_block(void) { return current_blocks.top(); }
-	bool block_given(void) { return !current_blocks.empty(); }
-	void push_block(rb_vm_block_t *b) { current_blocks.push(b); }
-	void pop_block(void) { current_blocks.pop(); }
 
 	ExecutionEngine *execution_engine(void) { return ee; }
 
@@ -1775,6 +1771,9 @@ RoxorVM::RoxorVM(void)
 
     backref = Qnil;
     broken_with = Qundef;
+
+    current_block = NULL;
+    previous_block = NULL;
 
     load_path = rb_ary_new();
     rb_objc_retain((void *)load_path);
@@ -4744,10 +4743,11 @@ rb_vm_dispatch(struct mcache *cache, VALUE self, SEL sel, void *block,
 
     if (block != NULL) {
 	rb_vm_block_t *b = (rb_vm_block_t *)block;
-	GET_VM()->push_block(b);
+	rb_vm_block_t *old_b = GET_VM()->current_block;
+	GET_VM()->current_block = b;
 	VALUE retval = 
 	    __rb_vm_dispatch(cache, self, NULL, sel, opt, argc, argv);
-	GET_VM()->pop_block();
+	GET_VM()->current_block = old_b;
 	return retval;
     }
 
@@ -4947,8 +4947,8 @@ rb_vm_call_with_cache(void *cache, VALUE self, SEL sel, int argc,
 
 extern "C"
 VALUE
-rb_vm_call_with_cache2(void *cache, VALUE self, VALUE klass, SEL sel, int argc, 
-		       const VALUE *argv)
+rb_vm_call_with_cache2(void *cache, VALUE self, VALUE klass, SEL sel,
+		       int argc, const VALUE *argv)
 {
     return __rb_vm_dispatch((struct mcache *)cache, self, (Class)klass, sel,
 	    0, argc, argv);
@@ -4965,28 +4965,30 @@ extern "C"
 int
 rb_block_given_p(void)
 {
-    return GET_VM()->block_given() ? Qtrue : Qfalse;
+    return GET_VM()->current_block != NULL ? Qtrue : Qfalse;
 }
 
 extern "C"
 rb_vm_block_t *
 rb_vm_current_block(void)
 {
-    return GET_VM()->top_block();
+    return GET_VM()->current_block;
 }
 
 extern "C"
 void
-rb_vm_push_block(rb_vm_block_t *block)
+rb_vm_change_current_block(rb_vm_block_t *block)
 {
-    GET_VM()->push_block(block);
+    GET_VM()->previous_block = GET_VM()->current_block;
+    GET_VM()->current_block = block;
 }
 
 extern "C"
 void
-rb_vm_pop_block(void)
+rb_vm_restore_current_block(void)
 {
-    GET_VM()->pop_block();
+    GET_VM()->current_block = GET_VM()->previous_block;
+    GET_VM()->previous_block = NULL;
 }
 
 extern "C" VALUE rb_proc_alloc_with_block(VALUE klass, rb_vm_block_t *proc);
@@ -4995,8 +4997,8 @@ extern "C"
 VALUE
 rb_vm_current_block_object(void)
 {
-    if (GET_VM()->block_given()) {
-	return rb_proc_alloc_with_block(rb_cProc, GET_VM()->top_block());
+    if (GET_VM()->current_block != NULL) {
+	return rb_proc_alloc_with_block(rb_cProc, GET_VM()->current_block);
     }
     return Qnil;
 }
@@ -5158,11 +5160,15 @@ rb_vm_block_eval(rb_vm_block_t *b, int argc, const VALUE *argv)
 static inline VALUE
 rb_vm_yield0(int argc, const VALUE *argv)
 {
-    rb_vm_block_t *b = GET_VM()->top_block();
+    rb_vm_block_t *b = GET_VM()->current_block;
 
-    GET_VM()->pop_block();
+    if (b == NULL) {
+	rb_raise(rb_eLocalJumpError, "no block given");
+    }
+
+    GET_VM()->current_block = GET_VM()->previous_block;
     VALUE retval = rb_vm_block_eval0(b, argc, argv);
-    GET_VM()->push_block(b);
+    GET_VM()->current_block = b;
 
     return retval;
 }
@@ -5178,9 +5184,9 @@ extern "C"
 VALUE
 rb_vm_yield_under(VALUE klass, VALUE self, int argc, const VALUE *argv)
 {
-    rb_vm_block_t *b = GET_VM()->top_block();
+    rb_vm_block_t *b = GET_VM()->current_block;
 
-    GET_VM()->pop_block();
+    GET_VM()->current_block = NULL;
     VALUE old_self = b->self;
     b->self = self;
 
@@ -5189,7 +5195,7 @@ rb_vm_yield_under(VALUE klass, VALUE self, int argc, const VALUE *argv)
     VALUE retval = rb_vm_block_eval0(b, argc, argv);
 
     b->self = old_self;
-    GET_VM()->push_block(b);
+    GET_VM()->current_block = b;
 
     return retval;
 }

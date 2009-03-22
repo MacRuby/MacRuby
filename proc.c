@@ -1119,7 +1119,7 @@ rb_method_call(VALUE method, SEL sel, int argc, VALUE *argv)
 	}
     }
 
-    VALUE result = rb_vm_call_with_cache2(data->cache, data->recv, 
+    VALUE result = rb_vm_call_with_cache2(data->cache, data->recv,
 	    data->oclass, data->sel, argc, argv);
 
     if (safe >= 0) {

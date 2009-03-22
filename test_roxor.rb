@@ -847,9 +847,11 @@ test "blocks" do
     foo { |a = 42, *rest| p [a, rest] }
   }
 
-  assert ":ok", "def foo; p :ok if block_given?;     end; foo {}"
-  assert ":ok", "def foo; p :ok unless block_given?; end; foo"
-  assert ":ok", "def foo; p block_given?; end; def bar; foo; end; bar {}"
+  assert "true", "def foo; p block_given?; end; foo {}"
+  assert "false", "def foo; p block_given?; end; foo"
+  assert "true", "def foo; p block_given?; end; def bar; foo; end; bar {}"
+
+  assert ':ok', "def foo; yield; end; begin; foo; rescue LocalJumpError; p :ok; end"
 
   assert ":ok", "def foo(&m); m.call; end; foo { p :ok }"
   assert ":ok", "def foo(&m); p :ok if m == nil; end; foo"
