@@ -1556,7 +1556,7 @@ rb_class_s_alloc(VALUE klass, SEL sel)
 VALUE rb_mod_module_exec(VALUE mod, SEL sel, int argc, VALUE *argv);
 
 VALUE
-rb_mod_initialize(VALUE module)
+rb_mod_initialize(VALUE module, SEL sel)
 {
     if (rb_block_given_p()) {
 	rb_mod_module_exec(module, 0, 1, &module);
@@ -1614,7 +1614,7 @@ rb_class_initialize(int argc, VALUE *argv, VALUE klass)
 	rb_define_object_special_methods(klass);
 
     rb_class_inherited(super, klass);
-    rb_mod_initialize(klass);
+    rb_mod_initialize(klass, 0);
 
     return klass;
 }

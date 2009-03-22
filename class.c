@@ -464,6 +464,8 @@ rb_module_new(void)
     return rb_define_module_id(0);
 }
 
+VALUE rb_mod_initialize(VALUE, SEL);
+
 VALUE
 rb_define_module_id(ID id)
 {
@@ -474,8 +476,7 @@ rb_define_module_id(ID id)
 
     if (rb_mKernel != 0) {
 	/* because Module#initialize can accept a block */
-	extern VALUE rb_mod_initialize(VALUE);
-	rb_define_method(*(VALUE *)mdl, "initialize", rb_mod_initialize, 0);
+	rb_objc_define_method(*(VALUE *)mdl, "initialize", rb_mod_initialize, 0);
     }
 
     return mdl;

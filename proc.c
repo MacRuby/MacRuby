@@ -43,6 +43,7 @@ rb_proc_alloc_with_block(VALUE klass, rb_vm_block_t *proc)
 {
     VALUE obj;
     obj = Data_Wrap_Struct(klass, NULL, NULL, proc);
+    proc->flags |= VM_BLOCK_PROC;
     return obj;
 }
 
@@ -192,7 +193,7 @@ proc_lambda_p(VALUE procval, SEL sel)
     rb_vm_block_t *proc;
     GetProcPtr(procval, proc);
 
-    return proc->is_lambda ? Qtrue : Qfalse;
+    return proc->flags & VM_BLOCK_LAMBDA ? Qtrue : Qfalse;
 }
 
 /* Binding */
@@ -350,7 +351,6 @@ proc_new(VALUE klass, int is_lambda)
 	rb_raise(rb_eArgError,
 		"tried to create Proc object without a block");
     }
-    // FIXME current_block is not from autozone
     return rb_proc_alloc_with_block(klass, current_block);
 }
 

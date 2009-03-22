@@ -94,12 +94,15 @@ typedef struct {
     short real;
 } rb_vm_arity_t;
 
+#define VM_BLOCK_PROC	0x0001	// block is a Proc object
+#define VM_BLOCK_LAMBDA 0x0002	// block is a lambda
+
 typedef struct {
     VALUE self;
     NODE *node;
     rb_vm_arity_t arity;
     IMP imp;
-    bool is_lambda;
+    int flags;
     int dvars_size;
     VALUE *dvars[1];
 } rb_vm_block_t;

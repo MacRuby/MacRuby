@@ -3558,7 +3558,7 @@ Init_Regexp(void)
     rb_objc_define_method(rb_cRegexp, "source", rb_reg_source, 0);
     rb_objc_define_method(rb_cRegexp, "casefold?", rb_reg_casefold_p, 0);
     rb_objc_define_method(rb_cRegexp, "options", rb_reg_options_m, 0);
-    rb_define_method(rb_cRegexp, "encoding", rb_obj_encoding, 0); /* in encoding.c */
+    rb_objc_define_method(rb_cRegexp, "encoding", rb_obj_encoding, 0); /* in encoding.c */
     rb_objc_define_method(rb_cRegexp, "fixed_encoding?", rb_reg_fixed_encoding_p, 0);
     rb_objc_define_method(rb_cRegexp, "names", rb_reg_names, 0);
     rb_objc_define_method(rb_cRegexp, "named_captures", rb_reg_named_captures, 0);

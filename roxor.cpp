@@ -2275,15 +2275,17 @@ RoxorCompiler::compile_node(NODE *node)
 		NODE *rhsn = node->nd_value;
 		assert(rhsn != NULL);
 
-		NODE *splatn = node->nd_args;
-		assert(splatn == NULL); // TODO
+		Value *ary = compile_node(rhsn);
 
 		NODE *lhsn = node->nd_head;
+
+		if (lhsn == NULL) {
+		    // * = 1, 2
+		    return ary;
+		}
+
 		assert(lhsn != NULL);
 		assert(nd_type(lhsn) == NODE_ARRAY);
-
-		Value *ary = compile_node(rhsn); // XXX should always build as an array
-		NODE *l = lhsn;
 
 		if (rhsnGetFunc == NULL) {
 		    // VALUE rb_vm_rhsn_get(VALUE ary, int offset);
@@ -2292,6 +2294,7 @@ RoxorCompiler::compile_node(NODE *node)
 		}
 
 		int i = 0;
+		NODE *l = lhsn;
 		while (l != NULL) {
 		    NODE *ln = l->nd_head;
 
@@ -4892,7 +4895,7 @@ rb_vm_prepare_block(void *llvm_function, NODE *node, VALUE self,
 	    b->imp = GET_VM()->compile((Function *)llvm_function);
 	    b->arity = rb_vm_node_arity(node);
 	}
-	b->is_lambda = true;
+	b->flags = 0;
 	b->dvars_size = dvars_size;
 
 	rb_objc_retain(b);
@@ -5354,6 +5357,16 @@ extern "C"
 void
 rb_vm_break(VALUE val)
 {
+#if 0
+    // XXX this doesn't work yet since break is called inside the block and
+    // we do not have a reference to it. This isn't very important though,
+    // but since 1.9 doesn't support break without Proc objects we should also
+    // raise a similar exception.
+    assert(GET_VM()->current_block != NULL);
+    if (GET_VM()->current_block->flags & VM_BLOCK_PROC) {
+	rb_raise(rb_eLocalJumpError, "break from proc-closure");
+    }
+#endif
     GET_VM()->broken_with = val;
 }
 

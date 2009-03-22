@@ -5507,7 +5507,7 @@ Init_String(void)
     rb_objc_define_method(rb_cString, "partition", rb_str_partition, 1);
     rb_objc_define_method(rb_cString, "rpartition", rb_str_rpartition, 1);
 
-    rb_define_method(rb_cString, "encoding", rb_obj_encoding, 0); /* in encoding.c */
+    rb_objc_define_method(rb_cString, "encoding", rb_obj_encoding, 0); /* in encoding.c */
     rb_objc_define_method(rb_cString, "force_encoding", rb_str_force_encoding, 1);
     rb_objc_define_method(rb_cString, "valid_encoding?", rb_str_valid_encoding_p, 0);
     rb_objc_define_method(rb_cString, "ascii_only?", rb_str_is_ascii_only_p, 0);

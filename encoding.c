@@ -164,7 +164,7 @@ rb_enc_compatible(VALUE str1, VALUE str2)
  */
 
 VALUE
-rb_obj_encoding(VALUE obj)
+rb_obj_encoding(VALUE obj, SEL sel)
 {
     rb_encoding *enc = rb_enc_get(obj);
     if (!enc) {

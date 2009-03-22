@@ -317,6 +317,7 @@ test "assign" do
   assert ':ok', "a, b, c = nil; p :ok if a == nil and b == nil and c == nil"
 
   assert ':ok', '* = 1,2; p :ok'
+  assert '[1, 2]', 'x = (* = 1,2); p x'
 
   # TODO add more multiple assignments test
 
