@@ -367,6 +367,12 @@ io_struct_close(rb_io_t *io_struct, bool close_read, bool close_write)
     if (close_write && io_struct->writeStream != NULL) {
 	CFWriteStreamClose(io_struct->writeStream);
     }
+    if (io_struct->fp != NULL) {
+	const int status = pclose(io_struct->fp);
+	io_struct->fp = NULL;
+	// TODO find out the real pid instead of passing -1
+	rb_last_status_set(status, -1);
+    }
 }
 
 int
@@ -1548,7 +1554,6 @@ static inline void
 io_close(VALUE io, bool close_read, bool close_write)
 {
     rb_io_t *io_struct = ExtractIOStruct(io);
-
     io_struct_close(io_struct, close_read, close_write);
 }
 
@@ -2903,7 +2908,12 @@ rb_notimplement();
 static VALUE
 rb_f_backquote(VALUE obj, SEL sel, VALUE str)
 {
-rb_notimplement();
+    VALUE io = rb_io_s_popen(rb_cIO, 0, 1, &str);
+    VALUE bstr = rb_bytestring_new();
+    rb_io_read_all(ExtractIOStruct(io), bstr);
+    rb_io_close(io, 0);
+
+    return bstr;
 }
 
 
