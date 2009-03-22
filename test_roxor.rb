@@ -766,6 +766,15 @@ test "dispatch" do
     f {|*args| p args}
   }
 
+  assert ':ok', %{
+    1.times do
+      def foo(&a)
+        a.call
+      end
+      foo { p :ok }
+    end
+  }
+
 end
 
 test "blocks" do
