@@ -91,7 +91,8 @@ struct argf {
 //     return S_ISSOCK(sbuf.st_mode);
 // }
 
-int convert_mode_string_to_fmode(VALUE rstr)
+static int
+convert_mode_string_to_fmode(VALUE rstr)
 {
     int fmode = 0;
     const char *m = RSTRING_PTR(rstr);
@@ -312,6 +313,8 @@ CFWriteStreamRef _CFWriteStreamCreateFromFileDescriptor(CFAllocatorRef alloc, in
 static inline void 
 prepare_io_from_fd(rb_io_t *io_struct, int fd, int mode)
 {
+    // TODO we should really get rid of these FMODE_* constants and instead always
+    // use the POSIX ones.
     CFReadStreamRef r = NULL;
     CFWriteStreamRef w = NULL;
 
@@ -376,7 +379,7 @@ rb_io_fptr_finalize(rb_io_t *io_struct)
 static VALUE
 prep_io(int fd, int mode, VALUE klass)
 {
-    VALUE io = io_alloc(rb_cIO, 0);
+    VALUE io = io_alloc(klass, 0);
     rb_io_t *io_struct = ExtractIOStruct(io);
     prepare_io_from_fd(io_struct, fd, mode);
     rb_objc_keep_for_exit_finalize((VALUE)io);
@@ -2022,21 +2025,29 @@ rb_notimplement();
  */
 
 static VALUE
-rb_f_open(VALUE klass, SEL sel, int argc, VALUE *argv)
+rb_file_open(VALUE io, int argc, VALUE *argv)
 {
-    // FIX THE HECK OUT OF ME!!!!
-    // TODO: Handle the pipes, subprocess, etc.
     // TODO: Take into account the provided file permissions.
-    // TODO: Handle files that don't exist.
     VALUE path, modes, permissions;
     rb_scan_args(argc, argv, "12", &path, &modes, &permissions);
-    if(NIL_P(modes)) {
-        modes = (VALUE)CFSTR("r");
+    if (NIL_P(modes)) {
+	modes = (VALUE)CFSTR("r");
     }
     StringValue(path);
     const char *filepath = RSTRING_PTR(path);
     int fd = open(filepath, convert_mode_string_to_oflags(modes));
-    return prep_io(fd, convert_mode_string_to_fmode(modes), klass);
+    if (fd == -1) {
+	rb_sys_fail(NULL);
+    }
+    prepare_io_from_fd(ExtractIOStruct(io), fd, convert_mode_string_to_fmode(modes));
+    return io;
+}
+
+static VALUE
+rb_f_open(VALUE klass, SEL sel, int argc, VALUE *argv)
+{
+    VALUE io = rb_class_new_instance(argc, argv, rb_cFile);
+    return rb_file_open(io, argc, argv);
 }
 
 /*
@@ -2471,15 +2482,7 @@ rb_io_initialize(VALUE io, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_file_initialize(VALUE io, SEL sel, int argc, VALUE *argv)
 {
-	// VALUE path, mode, permissions, io;
-	// rb_io_t *io_s;
-	// rb_scan_args(argc, argv, "12", &path, &mode, &permissions);
-	// // TODO: I completely ignore the mode and permissions here. Fix that.
-	// io = io_alloc(klass, sel);
-	// io_s = ExtractIOStruct(io);
-	// prepare_io_from_path(io_s, path, O_RDONLY | O_WRONLY);
-	// return io;
-    rb_notimplement();
+    return rb_file_open(io, argc, argv);
 }
 
 /*
@@ -2503,10 +2506,8 @@ rb_file_initialize(VALUE io, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_io_s_new(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
-    VALUE io = io_alloc(klass, sel);
-    return rb_io_initialize(io, sel, argc, argv);
+    return rb_class_new_instance(argc, argv, klass);
 }
-
 
 static inline void
 argf_init(struct argf *p, VALUE v)
@@ -3122,10 +3123,10 @@ rb_io_s_read(VALUE recv, SEL sel, int argc, VALUE *argv)
 
     StringValue(fname);
 
-	const char *path = RSTRING_PTR(fname);
-	int fd = open(path, O_RDONLY);
+    const char *path = RSTRING_PTR(fname);
+    int fd = open(path, O_RDONLY);
     CFReadStreamRef readStream = _CFReadStreamCreateFromFileDescriptor(NULL, fd);
-	CFReadStreamOpen(readStream);
+    CFReadStreamOpen(readStream);
 
     if (!NIL_P(offset)) {
 	long o = FIX2LONG(offset);
