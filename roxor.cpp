@@ -2722,7 +2722,7 @@ RoxorCompiler::compile_node(NODE *node)
 
 		bb = thenBB;
 		DEBUG_LEVEL_INC();
-		Value *thenVal = node->nd_body != NULL ? compile_node(node->nd_body) : trueVal;
+		Value *thenVal = node->nd_body != NULL ? compile_node(node->nd_body) : nilVal;
 		DEBUG_LEVEL_DEC();
 		thenBB = bb;
 		BranchInst::Create(mergeBB, thenBB);
