@@ -712,6 +712,20 @@ test "dispatch" do
     p f(1, 2, 3, 4, 5, 6, 7)    
   }
   assert "42", "def f((a, b)); a end; p f([42, 53])"
+  assert "42", "def f((a, b)); a end; p f([42, 53, 64])" # ignore additional elements in the array
+  assert "[42, nil]", "def f((a, b)); [a, b] end; p f([42])" # not used args are set to nil
+  assert "[1, 2, [], 3, nil]\n[1, 2, [], 3, 4]\n[1, 2, [3], 4, 5]", %{
+    def f((x, y, *a, b, c)); [x, y, a, b, c] end
+    p f([1, 2, 3])
+    p f([1, 2, 3, 4])
+    p f([1, 2, 3, 4, 5])
+  }
+  assert "true", %{
+    class A; def to_ary; [42]; end; end
+    def f((*a)); a; end;
+    p f(A.new) == [42]
+  } # to_ary (not to_a) is called on non-Array objects
+  assert "true", %{def f((*a)); a; end; o = Object.new; p f(o) == [o]} # objects without to_ary are just passed in a one element array
 
   assert ":ok", "def f(x = 1) :ko; end; def f() end; begin p f(1); rescue ArgumentError; p :ok; end"
   assert ":ok", "def f(x) :ko; end; def f() end; begin p f(1); rescue ArgumentError; p :ok; end"
