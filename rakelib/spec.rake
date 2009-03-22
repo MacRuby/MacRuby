@@ -20,7 +20,7 @@ namespace :spec do
     desc "Run language examples with a workaround which uses mspec-run on each individual spec"
     task :language do
       Dir.glob('spec/frozen/language/**/*_spec.rb').each do |spec|
-        sh "#{MSPEC}-run #{spec}"
+        sh "#{MSPEC}-run #{spec}" rescue nil
       end
     end
   end
