@@ -145,6 +145,8 @@ test "conditionals" do
   assert 'false', 'p (not true)'
   assert 'true', 'p !false'
   assert 'true', 'p (not false)'
+  
+  assert '42', 'puts "4#{:dummy unless true}2"'
 
   assert '42', "def foo; 42; end; def bar; p :nok; end; x = (foo || bar); p x"
   assert ":ok\n42", "def foo; p :ok; nil; end; def bar; 42; end; x = (foo || bar); p x"
