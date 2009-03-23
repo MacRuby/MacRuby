@@ -13,10 +13,9 @@ describe "module" do
   end
 
   it "gets a name when assigned to a constant" do
-    m = Module.new
     LangModuleSpec::Anon = Module.new
-
-    m.name.should == ""
     LangModuleSpec::Anon.name.should == "LangModuleSpec::Anon"
   end
 end
+
+language_version __FILE__, "module"
