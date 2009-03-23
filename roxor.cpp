@@ -2084,9 +2084,8 @@ RoxorCompiler::compile_node(NODE *node)
 
 		// Get dynamic vars.
 		if (current_block && node->nd_tbl != NULL) {
-		    int args_count = (int)node->nd_tbl[0];
-		    assert(args_count == nargs);
-		    int lvar_count = (int)node->nd_tbl[args_count + 1];
+		    const int args_count = (int)node->nd_tbl[0];
+		    const int lvar_count = (int)node->nd_tbl[args_count + 1];
 		    for (int i = 0; i < lvar_count; i++) {
 			ID id = node->nd_tbl[i + args_count + 2];
 			if (lvars.find(id) != lvars.end()) {
