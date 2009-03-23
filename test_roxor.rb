@@ -497,7 +497,7 @@ test "class" do
 
   assert "X", "class X; end; p X"
   assert "Class", "class X; end; p X.class"
-  assert "NSObject", "class X; end; p X.superclass"
+  assert "true", "class X; end; p X.superclass == Object"
   assert "Y", "class X; end; class Y < X; end; p Y"
   assert "X", "class X; end; class Y < X; end; p Y.superclass"
 
