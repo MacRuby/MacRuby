@@ -281,6 +281,7 @@ class RoxorCompiler
 	Value *compile_ivar_assignment(ID vid, Value *val);
 	Value *compile_current_class(void);
 	Value *compile_const(ID id, Value *outer);
+	Value *compile_singleton_class(Value *obj);
 	Value *compile_defined_expression(NODE *node);
 	Value *compile_dstr(NODE *node);
 	void compile_dead_branch(void);
@@ -1012,6 +1013,22 @@ RoxorCompiler::compile_const(ID id, Value *outer)
     params.push_back(ConstantInt::get(IntTy, id));
 
     return compile_protected_call(getConstFunc, params);
+}
+
+Value *
+RoxorCompiler::compile_singleton_class(Value *obj)
+{
+    if (singletonClassFunc == NULL) {
+	// VALUE rb_singleton_class(VALUE klass);
+	singletonClassFunc = cast<Function>(module->getOrInsertFunction(
+		    "rb_singleton_class",
+		    RubyObjTy, RubyObjTy, NULL));
+    }
+
+    std::vector<Value *> params;
+    params.push_back(obj);
+
+    return compile_protected_call(singletonClassFunc, params);
 }
 
 #define DEFINED_IVAR 	1
@@ -2753,17 +2770,7 @@ RoxorCompiler::compile_node(NODE *node)
 
 		Value *classVal;
 		if (nd_type(node) == NODE_SCLASS) {
-		    if (singletonClassFunc == NULL) {
-			// VALUE rb_singleton_class(VALUE klass);
-			singletonClassFunc = cast<Function>(module->getOrInsertFunction("rb_singleton_class",
-				RubyObjTy, RubyObjTy, NULL));
-		    }
-
-		    std::vector<Value *> params;
-
-		    params.push_back(compile_current_class());
-
-		    classVal = CallInst::Create(singletonClassFunc, params.begin(), params.end(), "", bb);
+		    classVal = compile_singleton_class(compile_current_class());
 		}
 		else {
 		    assert(node->nd_cpath->nd_mid > 0);
@@ -3337,10 +3344,10 @@ rescan_args:
 		NODE *body = node->nd_defn;
 		assert(body != NULL);
 
-		const bool class_method = nd_type(node) == NODE_DEFS;
+		const bool singleton_method = nd_type(node) == NODE_DEFS;
 
 		current_mid = mid;
-		current_instance_method = !class_method;
+		current_instance_method = !singleton_method;
 
 		DEBUG_LEVEL_INC();
 		Value *val = compile_node(body);
@@ -3351,18 +3358,28 @@ rescan_args:
 		current_mid = 0;
 		current_instance_method = false;
 
+		Value *classVal;
+		if (singleton_method) {
+		    assert(node->nd_recv != NULL);
+		    classVal = compile_singleton_class(compile_node(node->nd_recv));
+		}
+		else {
+		    classVal = compile_current_class();
+		}
+
 		if (prepareMethodFunc == NULL) {
-		    // void rb_vm_prepare_method(Class klass, SEL sel, Function *f,
-		    //				 NODE *node, unsigned char class_method)
+		    // void rb_vm_prepare_method(Class klass, SEL sel,
+		    //				 Function *f, NODE *node);
 		    prepareMethodFunc = 
-			cast<Function>(module->getOrInsertFunction("rb_vm_prepare_method",
-				       Type::VoidTy, RubyObjTy, PtrTy, PtrTy, 
-				       PtrTy, Type::Int8Ty, NULL));
+			cast<Function>(module->getOrInsertFunction(
+				    "rb_vm_prepare_method",
+				    Type::VoidTy, RubyObjTy, PtrTy, PtrTy,
+				    PtrTy, NULL));
 		}
 
 		std::vector<Value *> params;
 
-		params.push_back(compile_current_class());
+		params.push_back(classVal);
 
 		rb_vm_arity_t arity = rb_vm_node_arity(body);
 		const SEL sel = mid_to_sel(mid, arity.real);
@@ -3372,10 +3389,8 @@ rescan_args:
 		rb_objc_retain((void *)body);
 		params.push_back(compile_const_pointer(body));
 
-		val = ConstantInt::get(Type::Int8Ty, class_method ? 1 : 0);
-		params.push_back(val);
-
-		CallInst::Create(prepareMethodFunc, params.begin(), params.end(), "", bb);
+		CallInst::Create(prepareMethodFunc, params.begin(),
+			params.end(), "", bb);
 
 		return nilVal;
 	    }
@@ -4158,14 +4173,10 @@ rb_vm_find_class_ivar_slot(VALUE klass, ID name)
 
 extern "C"
 void
-rb_vm_prepare_method(Class klass, SEL sel, Function *func, NODE *node, unsigned char class_method)
+rb_vm_prepare_method(Class klass, SEL sel, Function *func, NODE *node)
 {
     if (klass == NULL) {
 	klass = GET_VM()->current_opened_class;
-    }
-
-    if (class_method) {
-	klass = *(Class *)klass;
     }
 
     IMP imp = GET_VM()->compile(func);

@@ -780,6 +780,38 @@ test "dispatch" do
     end
   }
 
+  assert '42', %{
+    class Foo
+      def self.foo; 42; end
+    end
+    p Foo.foo
+  }
+  assert '42', %{
+    class Foo
+      class << self
+        def foo; 42; end
+      end
+    end
+    p Foo.foo
+  }
+  assert '42', %{
+    class Foo; end
+    def Foo.foo; 42; end
+    p Foo.foo
+  }
+  assert '42', %{
+    o = Object.new
+    def o.foo; 42; end
+    p o.foo
+  }
+  assert '42', %{
+    o = Object.new
+    class << o
+      def foo; 42; end
+    end
+    p o.foo
+  }
+
 end
 
 test "blocks" do

@@ -1131,12 +1131,15 @@ rb_singleton_class(VALUE obj)
 	rb_bug("unknown immediate %ld", obj);
     }
 
+#if 0
     DEFER_INTS;
     if (RCLASS_SINGLETON(RBASIC(obj)->klass) &&
 	rb_iv_get(RBASIC(obj)->klass, "__attached__") == obj) {
 	klass = RBASIC(obj)->klass;
     }
-    else {
+    else
+#endif	
+    {
 	switch (TYPE(obj)) {
 	    case T_CLASS:
 	    case T_MODULE:
@@ -1155,8 +1158,10 @@ rb_singleton_class(VALUE obj)
 	OBJ_UNTAINT(klass);
     }
 #endif
-    if (OBJ_FROZEN(obj)) OBJ_FREEZE(klass);
-    ALLOW_INTS;
+    if (OBJ_FROZEN(obj)) {
+	OBJ_FREEZE(klass);
+    }
+//    ALLOW_INTS;
 
     return klass;
 }
