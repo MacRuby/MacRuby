@@ -1,5 +1,5 @@
 module Kernel
-  def pretty_inspect(obj)
-    puts obj.inspect
+  def pretty_inspect
+    self.inspect
   end
 end
