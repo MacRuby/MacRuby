@@ -2,6 +2,7 @@
 
 #define ROXOR_COMPILER_DEBUG	0
 #define ROXOR_VM_DEBUG		0
+#define ROXOR_DUMP_IR		0
 
 #include <llvm/Module.h>
 #include <llvm/DerivedTypes.h>
@@ -858,30 +859,29 @@ RoxorCompiler::compile_attribute_assign(NODE *node, Value *extra_val)
 
     std::vector<Value *> args;
     NODE *n = node->nd_args;
+    int argc = 0;
     if (n != NULL) {
-	assert(nd_type(n) == NODE_ARRAY);
-	for (; n != NULL; n = n->nd_next) {
-	    args.push_back(compile_node(n->nd_head));
-	}
+	compile_dispatch_arguments(n, args, &argc);
     }
     if (extra_val != NULL) {
 	args.push_back(extra_val);
+	argc++;
     }
 
     if (mid != idASET) {
 	// A regular attribute assignment (obj.foo = 42)
-	assert(args.size() == 1);
+	assert(argc == 1);
     }
 
     std::vector<Value *> params;
-    const SEL sel = mid_to_sel(mid, args.size());
+    const SEL sel = mid_to_sel(mid, argc);
     void *cache = GET_VM()->method_cache_get(sel, false);
     params.push_back(compile_const_pointer(cache));
     params.push_back(recv);
     params.push_back(compile_const_pointer((void *)sel));
     params.push_back(compile_const_pointer(NULL));
     params.push_back(ConstantInt::get(Type::Int8Ty, 0));
-    params.push_back(ConstantInt::get(Type::Int32Ty, args.size()));
+    params.push_back(ConstantInt::get(Type::Int32Ty, argc));
     for (std::vector<Value *>::iterator i = args.begin();
 	 i != args.end();
 	 ++i) {
@@ -5586,6 +5586,9 @@ rb_vm_compile(const char *fname, NODE *node)
     uint64_t elapsedNano = elapsed * sTimebaseInfo.numer / sTimebaseInfo.denom;
 
     printf("compilation/optimization done, took %lld ns\n",  elapsedNano);
+#endif
+
+#if ROXOR_DUMP_IR
     printf("IR dump ----------------------------------------------\n");
     RoxorCompiler::module->dump();
     printf("------------------------------------------------------\n");
