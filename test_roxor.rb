@@ -689,6 +689,7 @@ test "dispatch" do
   assert ":ok", "def foo(&block); :ok; end; p foo"
   assert ":ok", "def foo(*args, &block); :ok; end; p foo"
   assert ":ok", "def foo(x, *args, &block); x; end; p foo(:ok)"
+  assert ":ok", "def f(&proc) p :ok; end; f(&nil)"
   
   assert ":ok", %{
     def foo(&block) p(block ? :ko : :ok) end
