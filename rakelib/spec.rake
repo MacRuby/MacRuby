@@ -8,18 +8,18 @@ namespace :spec do
     sh "#{MSPEC_RUN} #{FileList["spec/frozen/language/{#{KNOWN_GOOD.join(',')}}_spec.rb"].join(' ')}"
   end
   
+  desc "Run language examples that are known to fail"
+  task :fails do
+    files = FileList["spec/frozen/language/*_spec.rb"]
+    files -= files.grep(/\/(#{KNOWN_GOOD.join('|')})_spec\.rb$/)
+    files.each do |spec|
+      sh "#{MSPEC_RUN} #{spec}" rescue nil
+    end
+  end
+  
   desc "Run language examples"
   task :language do
     sh "./mspec/bin/mspec ci -B ./spec/frozen/macruby.mspec spec/frozen/language/*_spec.rb"
-  end
-  
-  namespace :workaround do
-    desc "Run language examples with a workaround which uses mspec-run on each individual spec"
-    task :language do
-      Dir.glob('spec/frozen/language/**/*_spec.rb').each do |spec|
-        sh "#{MSPEC_RUN} #{spec}" rescue nil
-      end
-    end
   end
   
   namespace :"1.9" do
