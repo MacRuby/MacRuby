@@ -281,6 +281,7 @@ class RoxorCompiler
 	Value *compile_ivar_read(ID vid);
 	Value *compile_ivar_assignment(ID vid, Value *val);
 	Value *compile_current_class(void);
+	Value *compile_class_path(NODE *node);
 	Value *compile_const(ID id, Value *outer);
 	Value *compile_singleton_class(Value *obj);
 	Value *compile_defined_expression(NODE *node);
@@ -1198,6 +1199,22 @@ RoxorCompiler::compile_dstr(NODE *node)
     }
 
     return CallInst::Create(newStringFunc, params.begin(), params.end(), "", bb);
+}
+
+Value *
+RoxorCompiler::compile_class_path(NODE *node)
+{
+    if (nd_type(node) == NODE_COLON3) {
+	// ::Foo
+	return ConstantInt::get(RubyObjTy, (long)rb_cObject);
+    }
+    else if (node->nd_head != NULL) {
+	// Bar::Foo
+	return compile_node(node->nd_head);
+    }
+
+    // XXX not sure about that...
+    return compile_current_class();
 }
 
 void
@@ -3088,17 +3105,25 @@ rescan_args:
 	    {
 		if (setConstFunc == NULL) {
 		    // VALUE rb_vm_set_const(VALUE mod, ID id, VALUE obj);
-		    setConstFunc = cast<Function>(module->getOrInsertFunction("rb_vm_set_const", 
+		    setConstFunc = cast<Function>(module->getOrInsertFunction(
+				"rb_vm_set_const", 
 				Type::VoidTy, RubyObjTy, IntTy, RubyObjTy, NULL));
 		}
 
-		assert(node->nd_vid > 0);
 		assert(node->nd_value != NULL);
 
 		std::vector<Value *> params;
 	
-		params.push_back(compile_current_class());
-		params.push_back(ConstantInt::get(IntTy, (long)node->nd_vid));
+		if (node->nd_vid > 0) {
+		    params.push_back(compile_current_class());
+		    params.push_back(ConstantInt::get(IntTy, (long)node->nd_vid));
+		}
+		else {
+		    assert(node->nd_else != NULL);
+		    params.push_back(compile_class_path(node->nd_else));
+		    assert(node->nd_else->nd_mid > 0);
+		    params.push_back(ConstantInt::get(IntTy, (long)node->nd_else->nd_mid));
+		}
 		
 		Value *val = compile_node(node->nd_value);
 		params.push_back(val);

@@ -367,6 +367,7 @@ test "constants" do
   assert '42', "FOO=42; p FOO"
   assert '42', "FOO=42; p Object::FOO"
   assert '42', "class X; FOO=42; end; p X::FOO"
+  assert '42', "class X; end; X::FOO=42; p X::FOO"
 
   assert ':ok', %q{
     class X; FOO=123; end
