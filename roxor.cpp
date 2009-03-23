@@ -2919,25 +2919,29 @@ rescan_args:
 		   return cast<Value>(CallInst::Create(f, params.begin(), params.end(), "", bb));
 		}
 
-		// Prepare the dispatcher parameters
+		// Prepare the dispatcher parameters.
 		std::vector<Value *> params;
 
+		// Method cache.
 		const SEL sel = mid_to_sel(mid, positive_arity ? 1 : 0);
 		void *cache = GET_VM()->method_cache_get(sel, super_call);
 		params.push_back(compile_const_pointer(cache));
 
+		// Self.
 		params.push_back(recv == NULL ? current_self : compile_node(recv));
+
+		// Selector.
 		params.push_back(compile_const_pointer((void *)sel));
-		Value *blockVal;
-		if (args != NULL && nd_type(args) == NODE_BLOCK_PASS) {
-		    assert(!block_given);
-		    blockVal = compile_block_create(args);
-		    args = args->nd_head;
+
+		// RubySpec requires that we compile the block *after* the arguments, so we
+		// do pass NULL as the block for the moment...
+		params.push_back(compile_const_pointer(NULL));
+		NODE *real_args = args;
+		if (real_args != NULL && nd_type(real_args) == NODE_BLOCK_PASS) {
+		    real_args = args->nd_head;
 		}
-		else {
-		    blockVal = block_given ? compile_block_create() : compile_const_pointer(NULL);
-		}
-		params.push_back(blockVal);
+
+		// Call option.
 		const unsigned char call_opt = super_call 
 		    ? DISPATCH_SUPER
 		    : (nd_type(node) == NODE_VCALL)
@@ -2945,6 +2949,7 @@ rescan_args:
 			: 0;
 		params.push_back(ConstantInt::get(Type::Int8Ty, call_opt));
 
+		// Arguments.
 		int argc = 0;
 		if (nd_type(node) == NODE_ZSUPER) {
 		    params.push_back(ConstantInt::get(Type::Int32Ty, fargs_arity));
@@ -2957,17 +2962,30 @@ rescan_args:
 		    }
 		    argc = fargs_arity;
 		}
-		else if (args != NULL) {
+		else if (real_args != NULL) {
 		    std::vector<Value *> arguments;
-		    compile_dispatch_arguments(args, arguments, &argc);
+		    compile_dispatch_arguments(real_args, arguments, &argc);
 		    params.push_back(ConstantInt::get(Type::Int32Ty, argc));
-		    for (std::vector<Value *>::iterator i = arguments.begin(); i != arguments.end(); ++i) {
+		    for (std::vector<Value *>::iterator i = arguments.begin();
+			 i != arguments.end(); ++i) {
 			params.push_back(*i);
 		    }
 		}
 		else {
 		    params.push_back(ConstantInt::get(Type::Int32Ty, 0));
 		}
+
+		// Now compile the block and insert it in the params list!
+		Value *blockVal;
+		if (args != NULL && nd_type(args) == NODE_BLOCK_PASS) {
+		    assert(!block_given);
+		    blockVal = compile_block_create(args);
+		}
+		else {
+		    blockVal = block_given
+			? compile_block_create() : compile_const_pointer(NULL);
+		}
+		params[3] = blockVal;
 
 		// Can we optimize the call?
 		if (!super_call && !splat_args) {
