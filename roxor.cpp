@@ -2798,19 +2798,23 @@ RoxorCompiler::compile_node(NODE *node)
 		    NODE *super = node->nd_super;
 
 		    if (defineClassFunc == NULL) {
-			// VALUE rb_vm_define_class(ID path, VALUE outer, VALUE super, unsigned char is_module);
-			defineClassFunc = cast<Function>(module->getOrInsertFunction("rb_vm_define_class",
-				RubyObjTy, IntTy, RubyObjTy, RubyObjTy, Type::Int8Ty, NULL));
+			// VALUE rb_vm_define_class(ID path, VALUE outer, VALUE super,
+			//			    unsigned char is_module);
+			defineClassFunc = cast<Function>(module->getOrInsertFunction(
+				    "rb_vm_define_class",
+				    RubyObjTy, IntTy, RubyObjTy, RubyObjTy,
+				    Type::Int8Ty, NULL));
 		    }
 
 		    std::vector<Value *> params;
 
 		    params.push_back(ConstantInt::get(IntTy, (long)path));
-		    params.push_back(compile_current_class());
+		    params.push_back(compile_class_path(node->nd_cpath));
 		    params.push_back(super == NULL ? zeroVal : compile_node(super));
-		    params.push_back(ConstantInt::get(Type::Int8Ty, nd_type(node) == NODE_MODULE ? 1 : 0));
+		    params.push_back(ConstantInt::get(Type::Int8Ty,
+				nd_type(node) == NODE_MODULE ? 1 : 0));
 
-		    classVal = CallInst::Create(defineClassFunc, params.begin(), params.end(), "", bb);
+		    classVal = compile_protected_call(defineClassFunc, params);
 		}
 
 		NODE *body = node->nd_body;

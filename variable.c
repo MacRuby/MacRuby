@@ -1,4 +1,3 @@
-/* 
  * This file is covered by the Ruby license. See COPYING for more details.
  * 
  * Copyright (C) 2007-2008, Apple Inc. All rights reserved.
@@ -225,7 +224,9 @@ rb_mod_name(VALUE mod, SEL sel)
 {
     VALUE path = classname(mod);
 
-    if (!NIL_P(path)) return rb_str_dup(path);
+    if (!NIL_P(path)) {
+	return rb_str_dup(path);
+    }
     return path;
 }
 
