@@ -4926,6 +4926,9 @@ extern "C"
 void *
 rb_vm_get_block(VALUE obj)
 {
+    if (obj == Qnil) {
+	return NULL;
+    }
     VALUE proc = rb_check_convert_type(obj, T_DATA, "Proc", "to_proc");
     if (NIL_P(proc)) {
 	rb_raise(rb_eTypeError,
