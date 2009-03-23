@@ -270,7 +270,7 @@ rb_load(VALUE fname, int wrap)
     if (node == NULL) {
 	rb_raise(rb_eSyntaxError, "compile error");
     }
-    rb_vm_run_node(fname_str, node);
+    rb_vm_run(fname_str, node);
 }
 
 void

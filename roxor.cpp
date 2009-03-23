@@ -1611,6 +1611,9 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Va
 
 	return pn;
     }
+#if 0
+    // XXX this optimization is disabled because it's buggy and not really
+    // interesting
     // #eval
     else if (sel == selEval) {
 
@@ -1667,6 +1670,7 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Va
 	return pn;
 
     }
+#endif
 #if 0
     // TODO: block inlining optimization
     else if (current_block_func != NULL) {
@@ -5551,7 +5555,7 @@ rb_vm_print_exception(VALUE exc)
 
 extern "C"
 IMP
-rb_vm_compile_imp(const char *fname, NODE *node)
+rb_vm_compile(const char *fname, NODE *node)
 {
     assert(node != NULL);
 
@@ -5594,9 +5598,9 @@ rb_vm_compile_imp(const char *fname, NODE *node)
 
 extern "C"
 VALUE
-rb_vm_run_node(const char *fname, NODE *node)
+rb_vm_run(const char *fname, NODE *node)
 {
-    IMP imp = rb_vm_compile_imp(fname, node);
+    IMP imp = rb_vm_compile(fname, node);
 
     try {
 	return ((VALUE(*)(VALUE, SEL))imp)(GET_VM()->current_top_object, 0);
@@ -5611,6 +5615,21 @@ rb_vm_run_node(const char *fname, NODE *node)
 	}
 	exit(1);
     }
+}
+
+extern "C"
+VALUE
+rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node)
+{
+    // TODO honor klass
+    VALUE old_top_object = GET_VM()->current_top_object;
+    GET_VM()->current_top_object = self;
+
+    VALUE val = rb_vm_run(fname, node);
+
+    GET_VM()->current_top_object = old_top_object;
+
+    return val;
 }
 
 extern "C"

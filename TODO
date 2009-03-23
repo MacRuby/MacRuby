@@ -13,7 +13,6 @@
 [X] constant caching
 [X] fast ivar access
 [X] zero-cost exceptions
-[X] fast eval (inlining)
 [X] fast #send
 [ ] fast regexp =~
 [X] fast break

@@ -5,8 +5,9 @@
 extern "C" {
 #endif
 
-VALUE rb_vm_run_node(const char *fname, NODE *node);
-IMP rb_vm_compile_imp(const char *fname, NODE *node);
+VALUE rb_vm_run(const char *fname, NODE *node);
+VALUE rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node);
+IMP rb_vm_compile(const char *fname, NODE *node);
 
 bool rb_vm_running(void);
 void rb_vm_set_running(bool flag);

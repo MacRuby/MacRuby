@@ -311,20 +311,14 @@ rb_each(VALUE obj)
 }
 
 static VALUE
-eval_string_with_cref(VALUE self, VALUE src, VALUE scope, NODE *cref, const char *file, int line)
+eval_string(VALUE self, VALUE klass, VALUE src, VALUE scope, const char *file, int line)
 {
     // TODO honor scope
     NODE *node = rb_compile_string(file, src, line);
     if (node == NULL) {
 	rb_raise(rb_eSyntaxError, "compile error");
     }
-    return rb_vm_run_node(file, node);
-}
-
-static VALUE
-eval_string(VALUE self, VALUE src, VALUE scope, const char *file, int line)
-{
-    return eval_string_with_cref(self, src, scope, 0, file, line);
+    return rb_vm_run_under(klass, self, file, node);
 }
 
 static VALUE
@@ -337,8 +331,31 @@ specific_eval(int argc, VALUE *argv, VALUE klass, VALUE self)
         return rb_vm_yield_under(klass, self, 0, NULL);
     }
     else {
-	// TODO
-	abort();
+	const char *file = "(eval)";
+	int line = 1;
+
+        if (argc == 0) {
+            rb_raise(rb_eArgError, "block not supplied");
+        }
+	if (rb_safe_level() >= 4) {
+	    StringValue(argv[0]);
+	}
+	else {
+	    SafeStringValue(argv[0]);
+	}
+	if (argc > 3) {
+	    const char *name = rb_id2name(rb_frame_callee());
+	    rb_raise(rb_eArgError,
+		    "wrong number of arguments: %s(src) or %s{..}",
+		    name, name);
+	}
+	if (argc > 2) {
+	    line = NUM2INT(argv[2]);
+	}
+	if (argc > 1) {
+	    file = StringValuePtr(argv[1]);
+	}
+	return eval_string(self, klass, argv[0], Qnil, file, line);
     }
 }
 
@@ -385,17 +402,16 @@ rb_f_eval(VALUE self, SEL sel, int argc, VALUE *argv)
     if (argc >= 4) {
 	line = NUM2INT(vline);
     }
-
     if (!NIL_P(vfile)) {
 	file = RSTRING_PTR(vfile);
     }
-    return eval_string(self, src, scope, file, line);
+    return eval_string(0, self, src, scope, file, line);
 }
 
 VALUE
 rb_eval_string(const char *str)
 {
-    return eval_string(rb_vm_top_self(), rb_str_new2(str), Qnil, "(eval)", 1);
+    return eval_string(0, rb_vm_top_self(), rb_str_new2(str), Qnil, "(eval)", 1);
 }
 
 VALUE
@@ -416,7 +432,7 @@ rb_eval_cmd(VALUE cmd, VALUE arg, int level)
 	return val;
     }
 
-    val = eval_string(rb_vm_top_self(), cmd, Qnil, 0, 0);
+    val = eval_string(0, rb_vm_top_self(), cmd, Qnil, 0, 0);
     rb_set_safe_level_force(safe);
     return val;
 }

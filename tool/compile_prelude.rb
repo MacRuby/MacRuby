@@ -77,7 +77,7 @@ void
 Init_<%=init_name%>(void)
 {
 % lines_list.each_with_index {|(setup_lines, lines), i|
-  rb_vm_run_node(prelude_name<%=i%>, rb_compile_string(
+  rb_vm_run(prelude_name<%=i%>, rb_compile_string(
     prelude_name<%=i%>,
     rb_str_new(prelude_code<%=i%>, sizeof(prelude_code<%=i%>) - 1),
     1));

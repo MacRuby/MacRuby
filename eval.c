@@ -195,7 +195,7 @@ ruby_run_node(void *n)
 	return FIX2INT(n);
     }
     rb_vm_set_running(true);
-    rb_vm_run_node(RSTRING_PTR(rb_progname), (NODE *)n);
+    rb_vm_run(RSTRING_PTR(rb_progname), (NODE *)n);
     return ruby_cleanup(0);
 }
 
