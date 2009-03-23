@@ -3682,7 +3682,9 @@ rescan_args:
 		BasicBlock *bodyBB = BasicBlock::Create("body", f);
 		BasicBlock *afterBB = BasicBlock::Create("after", f);
 
-		BranchInst::Create(loopBB, bb);
+		const bool first_pass_free = node->nd_state == 0;
+
+		BranchInst::Create(first_pass_free ? bodyBB : loopBB, bb);
 
 		bb = loopBB;
 		Value *condVal = compile_node(node->nd_cond);
