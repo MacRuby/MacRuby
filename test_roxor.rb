@@ -875,6 +875,12 @@ test "blocks" do
     foo { |a = 42, *rest| p [a, rest] }
   }
 
+  assert 'nil', 'p = proc { |x,| p x }; p.call'
+  assert '42', 'p = proc { |x,| p x }; p.call(42)'
+  assert '42', 'p = proc { |x,| p x }; p.call(42,1,2,3)'
+  assert '42', 'p = proc { |x,| p x }; p.call([42])'
+  assert '42', 'p = proc { |x,| p x }; p.call([42,1,2,3])'
+
   assert "true", "def foo; p block_given?; end; foo {}"
   assert "false", "def foo; p block_given?; end; foo"
   assert "false", "def foo; p block_given?; end; def bar; foo; end; bar {}"
