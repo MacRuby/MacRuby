@@ -18,4 +18,18 @@ describe "module" do
   end
 end
 
-language_version __FILE__, "module"
+describe "An anonymous module" do
+  ruby_version_is "" ... "1.9" do
+    it "returns an empty string for its name" do
+      m = Module.new
+      m.name.should == ""
+    end
+  end
+
+  ruby_version_is "1.9" do
+    it "returns nil for its name" do
+      m = Module.new
+      m.name.should == nil
+    end
+  end
+end
