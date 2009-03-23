@@ -1,7 +1,7 @@
 namespace :spec do
   MSPEC_RUN = "./miniruby -v -I./mspec/lib -I./lib ./mspec/bin/mspec-run"
   
-  KNOWN_GOOD = %w{ and or order }
+  KNOWN_GOOD = %w{ and or order until while }
   
   desc "Run continuous integration language examples (known good)"
   task :ci do
