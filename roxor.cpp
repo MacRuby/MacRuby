@@ -704,13 +704,9 @@ RoxorCompiler::compile_when_arguments(NODE *args, Value *comparedToVal, BasicBlo
 	    break;
 
 	case NODE_ARGSPUSH:
-	    compile_when_arguments(args->nd_head, comparedToVal, thenBB);
-	    compile_single_when_argument(args->nd_body, comparedToVal, thenBB);
-	    break;
-
 	case NODE_ARGSCAT:
 	    compile_when_arguments(args->nd_head, comparedToVal, thenBB);
-	    compile_when_arguments(args->nd_body, comparedToVal, thenBB);
+	    compile_single_when_argument(args->nd_body, comparedToVal, thenBB);
 	    break;
 
 	default:
