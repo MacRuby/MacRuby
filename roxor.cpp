@@ -193,6 +193,7 @@ class RoxorCompiler
 	Function *current_block_func;
         GlobalVariable *current_opened_class;
 	BasicBlock *current_loop_begin_bb;
+	BasicBlock *current_loop_body_bb;
 	BasicBlock *current_loop_end_bb;
 	Value *current_loop_exit_val;
 
@@ -503,6 +504,7 @@ RoxorCompiler::RoxorCompiler(const char *_fname)
     current_block_func = NULL;
     current_opened_class = NULL;
     current_loop_begin_bb = NULL;
+    current_loop_body_bb = NULL;
     current_loop_end_bb = NULL;
     current_loop_exit_val = NULL;
 
@@ -3005,9 +3007,11 @@ rescan_args:
 
 	case NODE_BREAK:
 	case NODE_NEXT:
+	case NODE_REDO:
 	case NODE_RETURN:
 	    {
 		const bool within_loop = current_loop_begin_bb != NULL
+		    && current_loop_body_bb != NULL
 		    && current_loop_end_bb != NULL;
 
 		if (!current_block && !within_loop) {
@@ -3016,6 +3020,9 @@ rescan_args:
 		    }
 		    if (nd_type(node) == NODE_NEXT) {
 			rb_raise(rb_eLocalJumpError, "unexpected next");
+		    }
+		    if (nd_type(node) == NODE_REDO) {
+			rb_raise(rb_eLocalJumpError, "unexpected redo");
 		    }
 		}
 
@@ -3029,6 +3036,9 @@ rescan_args:
 		    }
 		    else if (nd_type(node) == NODE_NEXT) {
 			BranchInst::Create(current_loop_begin_bb, bb);
+		    }
+		    else if (nd_type(node) == NODE_REDO) {
+			BranchInst::Create(current_loop_body_bb, bb);
 		    }
 		    else {
 			ReturnInst::Create(val, bb);
@@ -3044,6 +3054,10 @@ rescan_args:
 			std::vector<Value *> params;
 			params.push_back(val);
 			CallInst::Create(breakFunc, params.begin(), params.end(), "", bb);
+		    }
+		    else if (nd_type(node) == NODE_REDO) {
+			// TODO
+			abort();
 		    }
 
 		    ReturnInst::Create(val, bb);
@@ -3681,10 +3695,12 @@ rescan_args:
 		}
 
 		BasicBlock *old_current_loop_begin_bb = current_loop_begin_bb;
+		BasicBlock *old_current_loop_body_bb = current_loop_body_bb;
 		BasicBlock *old_current_loop_end_bb = current_loop_end_bb;
 		Value *old_current_loop_exit_val = current_loop_exit_val;
 
 		current_loop_begin_bb = loopBB;
+		current_loop_body_bb = bodyBB;
 		current_loop_end_bb = afterBB;
 		current_loop_exit_val = NULL;
 
@@ -3702,6 +3718,7 @@ rescan_args:
 		}
 
 		current_loop_begin_bb = old_current_loop_begin_bb;
+		current_loop_body_bb = old_current_loop_body_bb;
 		current_loop_end_bb = old_current_loop_end_bb;
 		current_loop_exit_val = old_current_loop_exit_val;
 
@@ -3716,6 +3733,7 @@ rescan_args:
 
 		current_block = true;
 		BasicBlock *old_current_loop_begin_bb = current_loop_begin_bb;
+		BasicBlock *old_current_loop_body_bb = current_loop_body_bb;
 		BasicBlock *old_current_loop_end_bb = current_loop_end_bb;
 		current_loop_begin_bb = current_loop_end_bb = NULL;
 		Function *old_current_block_func = current_block_func;
@@ -3728,6 +3746,7 @@ rescan_args:
 		assert(Function::classof(block));
 
 		current_loop_begin_bb = old_current_loop_begin_bb;
+		current_loop_body_bb = old_current_loop_body_bb;
 		current_loop_end_bb = old_current_loop_end_bb;
 		current_block = false;
 		current_mid = old_current_mid;
