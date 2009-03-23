@@ -27,6 +27,7 @@ describe "Assignment via yield" do
     def f; yield *[*[1]]; end;  f {|a| a.should == 1 }
   end
 
+  # MR: critical
   it "assigns objects followed by splatted objects to block variables" do
     def f; yield 1, *nil; end;     f {|a, b| b.should == nil }
     def f; yield 1, *1; end;       f {|a, b| b.should == 1 }
