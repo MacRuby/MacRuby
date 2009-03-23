@@ -177,7 +177,7 @@ describe "The 'case'-construct" do
       case 4
         else
           true
-        when 4: false
+        when 4; false
       end
       CODE
     }.should raise_error(SyntaxError)
