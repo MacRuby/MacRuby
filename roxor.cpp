@@ -218,6 +218,7 @@ class RoxorCompiler
 	Function *newHashFunc;
 	Function *toArrayFunc;
 	Function *catArrayFunc;
+	Function *dupArrayFunc;
 	Function *newArrayFunc;
 	Function *newRangeFunc;
 	Function *newRegexpFunc;
@@ -538,6 +539,7 @@ RoxorCompiler::RoxorCompiler(const char *_fname)
     newHashFunc = NULL;
     toArrayFunc = NULL;
     catArrayFunc = NULL;
+    dupArrayFunc = NULL;
     newArrayFunc = NULL;
     newRangeFunc = NULL;
     newRegexpFunc = NULL;
@@ -3168,6 +3170,17 @@ rescan_args:
 		assert(node->nd_head != NULL);
 		Value *ary = compile_node(node->nd_head);
 
+		if (dupArrayFunc == NULL) {
+		    dupArrayFunc = cast<Function>(
+			    module->getOrInsertFunction("rb_ary_dup",
+				RubyObjTy, RubyObjTy, NULL));
+		}
+
+		std::vector<Value *> params;
+		params.push_back(ary);
+
+		ary = compile_protected_call(dupArrayFunc, params);
+
 		assert(node->nd_body != NULL);
 		Value *other = compile_node(node->nd_body);
 
@@ -3178,7 +3191,7 @@ rescan_args:
 				RubyObjTy, RubyObjTy, RubyObjTy, NULL));
 		}
 
-		std::vector<Value *> params;
+		params.clear();
 		params.push_back(ary);
 		params.push_back(other);
 
