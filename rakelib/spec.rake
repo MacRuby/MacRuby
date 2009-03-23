@@ -1,7 +1,7 @@
 namespace :spec do
   MSPEC_RUN = "./miniruby -v -I./mspec/lib -I./lib ./mspec/bin/mspec-run"
   
-  KNOWN_GOOD = %w{ and execution hash if module or order unless until while }
+  KNOWN_GOOD = %w{ and execution hash if module numbers or order unless until while }
   
   desc "Run continuous integration language examples (known good)"
   task :ci do
