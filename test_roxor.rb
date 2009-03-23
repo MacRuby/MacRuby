@@ -300,7 +300,7 @@ test "assign" do
     p :ok if foo.is_a?(Array)
   }
 
-  assert '42', "a = [30,10,2]; x,y,z = a; p x+y+z"
+  assert '42', "a = [30, 10,  2]; x,y,z = a; p x+y+z"
   assert '42', "a = [30, 10, *2]; x,y,z = a; p x+y+z"
 
   assert '42', "def foo=(x); @x=x; end; x,self.foo = 1,41; p @x+x"
@@ -318,6 +318,8 @@ test "assign" do
 
   assert ':ok', '* = 1,2; p :ok'
   assert '[1, 2]', 'x = (* = 1,2); p x'
+
+  assert '[42]', "a=[1,2,3]; b=[0,3]; a[*b]=42; p a"
 
   # TODO add more multiple assignments test
 
