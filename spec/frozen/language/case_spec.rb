@@ -28,7 +28,7 @@ describe "The 'case'-construct" do
       when "b"
     end.should == nil
   end
-  
+
   it "evaluates the 'else'-body when no other expression matches" do
     case "c"
       when "a"; 'foo'
@@ -36,7 +36,7 @@ describe "The 'case'-construct" do
       else 'zzz'
     end.should == 'zzz'
   end
-  
+
   it "returns nil when no expression matches and 'else'-body is empty" do
     case "c"
       when "a"; "a"
@@ -89,7 +89,7 @@ describe "The 'case'-construct" do
         "foo"
     end.should == "foo"
   end
-  
+
   it "takes lists of values" do
     case 'z'
       when 'a', 'b', 'c', 'd'
@@ -131,10 +131,11 @@ describe "The 'case'-construct" do
     end.should == "foo"
   end
 
+  # MR: critical
   it "concats arrays before expanding them" do
     a = ['a', 'b', 'c', 'd']
     b = ['f']
-  
+
     case 'f'
       when 'f', *a|b
         "foo" 
@@ -142,14 +143,14 @@ describe "The 'case'-construct" do
         "bar" 
     end.should == "foo"
   end
-  
+
   it "never matches when clauses with no values" do
     case nil
       when *[]
         "foo"
     end.should == nil
   end
-  
+
   it "lets you define a method after the case statement" do
     case (def foo; 'foo'; end; 'f')
       when 'a'
@@ -158,7 +159,7 @@ describe "The 'case'-construct" do
         'bar'
     end.should == 'bar'
   end
-  
+
   it "raises a SyntaxError when 'else' is used when no 'when' is given" do
     lambda {
       eval <<-CODE
