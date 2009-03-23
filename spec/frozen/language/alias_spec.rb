@@ -28,7 +28,7 @@ describe "The alias keyword" do
     @meta.class_eval do
       alias __value value
     end
-    (@obj.methods - original_methods).should == ["__value"]
+    (@obj.methods - original_methods).map {|m| m.to_s }.should == ["__value"]
   end
 
   it "adds the new method to the list of public methods" do
@@ -36,7 +36,7 @@ describe "The alias keyword" do
     @meta.class_eval do
       alias __value value
     end
-    (@obj.public_methods - original_methods).should == ["__value"]
+    (@obj.public_methods - original_methods).map {|m| m.to_s }.should == ["__value"]
   end
 
   it "overwrites an existing method with the target name" do
