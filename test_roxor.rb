@@ -1391,4 +1391,6 @@ test "io" do
 
   assert ":ok", "File.open('#{__FILE__}', 'r') { p :ok }"
 
+  assert "true", "p(Dir['*.c'].length > 1)"
+  assert "true", "p(Dir.glob('*.c').length > 1)"
 end
