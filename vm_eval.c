@@ -318,6 +318,9 @@ eval_string(VALUE self, VALUE klass, VALUE src, VALUE scope, const char *file, i
     if (node == NULL) {
 	rb_raise(rb_eSyntaxError, "compile error");
     }
+    if (klass == 0) {
+	klass = rb_cObject;
+    }
     return rb_vm_run_under(klass, self, file, node);
 }
 
@@ -498,7 +501,7 @@ rb_obj_instance_exec(VALUE self, SEL sel, int argc, VALUE *argv)
     VALUE klass;
 
     if (SPECIAL_CONST_P(self)) {
-	klass = Qnil;
+	klass = 0;
     }
     else {
 	klass = rb_singleton_class(self);

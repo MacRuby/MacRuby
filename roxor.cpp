@@ -392,7 +392,7 @@ class RoxorVM
     public:
 	static RoxorVM *current;
 
-	Class current_opened_class;
+	Class current_class;
 	VALUE current_top_object;
 	VALUE current_exception;
 	VALUE loaded_features;
@@ -2791,7 +2791,7 @@ RoxorCompiler::compile_node(NODE *node)
 
 		Value *classVal;
 		if (nd_type(node) == NODE_SCLASS) {
-		    classVal = compile_singleton_class(compile_current_class());
+		    classVal = compile_singleton_class(compile_node(node->nd_recv));
 		}
 		else {
 		    assert(node->nd_cpath->nd_mid > 0);
@@ -4012,8 +4012,8 @@ extern "C"
 void 
 rb_vm_set_const(VALUE outer, ID id, VALUE obj)
 {
-    if (outer == 0) {
-	outer = (VALUE)GET_VM()->current_opened_class;
+    if (GET_VM()->current_class != NULL) {
+	outer = (VALUE)GET_VM()->current_class;
     }
     rb_const_set(outer, id, obj);
     GET_VM()->const_defined(id);
@@ -4045,8 +4045,8 @@ rb_vm_define_class(ID path, VALUE outer, VALUE super, unsigned char is_module)
 {
     assert(path > 0);
 
-    if (outer == 0) {
-	outer = (VALUE)GET_VM()->current_opened_class;
+    if (GET_VM()->current_class != NULL) {
+	outer = (VALUE)GET_VM()->current_class;
     }
 
     VALUE klass;
@@ -4124,7 +4124,13 @@ rb_vm_ary_cat(VALUE ary, VALUE obj)
 	rb_ary_concat(ary, obj);
     }
     else {
-	rb_ary_push(ary, obj);
+	VALUE ary2 = rb_check_convert_type(obj, T_ARRAY, "Array", "to_a");
+	if (!NIL_P(ary2)) {
+	    rb_ary_concat(ary, ary2);
+	}
+	else {
+	    rb_ary_push(ary, obj);
+	}
     }
     return ary;
 }
@@ -4256,8 +4262,8 @@ extern "C"
 void
 rb_vm_prepare_method(Class klass, SEL sel, Function *func, NODE *node)
 {
-    if (klass == NULL) {
-	klass = GET_VM()->current_opened_class;
+    if (GET_VM()->current_class != NULL) {
+	klass = GET_VM()->current_class;
     }
 
     IMP imp = GET_VM()->compile(func);
@@ -5297,13 +5303,14 @@ rb_vm_yield_under(VALUE klass, VALUE self, int argc, const VALUE *argv)
     GET_VM()->current_block = NULL;
     VALUE old_self = b->self;
     b->self = self;
-
-    // TODO set klass as the default outer!
+    //Class old_class = GET_VM()->current_class;
+    //GET_VM()->current_class = (Class)klass;
 
     VALUE retval = rb_vm_block_eval0(b, argc, argv);
 
     b->self = old_self;
     GET_VM()->current_block = b;
+    //GET_VM()->current_class = old_class;
 
     return retval;
 }
@@ -5637,13 +5644,19 @@ extern "C"
 VALUE
 rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node)
 {
-    // TODO honor klass
+    assert(klass != 0);
+    assert(self != 0);
+
     VALUE old_top_object = GET_VM()->current_top_object;
     GET_VM()->current_top_object = self;
+
+    Class old_class = GET_VM()->current_class;
+    GET_VM()->current_class = (Class)klass;
 
     VALUE val = rb_vm_run(fname, node);
 
     GET_VM()->current_top_object = old_top_object;
+    GET_VM()->current_class = old_class;
 
     return val;
 }
@@ -5756,7 +5769,7 @@ Init_VM(void)
 {
     rb_cTopLevel = rb_define_class("TopLevel", rb_cObject);
 
-    GET_VM()->current_opened_class = (Class)rb_cObject;
+    GET_VM()->current_class = NULL;
 
     VALUE top_self = rb_obj_alloc(rb_cTopLevel);
     rb_objc_retain((void *)top_self);
