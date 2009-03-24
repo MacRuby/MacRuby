@@ -1350,6 +1350,8 @@ test "require" do
 
   assert ":ok", "$:.unshift('test_roxor_fixtures/lib'); require 'foo'"
 
+  assert ":ok", "begin; require 'test_roxor_fixtures/lib/raise'; rescue NameError; p :ok; end"
+
 end
 
 test "method" do
