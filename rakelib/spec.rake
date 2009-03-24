@@ -10,6 +10,7 @@ namespace :spec do
     if
     module
     numbers
+    not
     or
     order
     unless
