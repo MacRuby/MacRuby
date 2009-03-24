@@ -419,6 +419,20 @@ test "constants" do
     p Z::Y.new.foo
   }
 
+  assert '42', %q{
+    class A
+      module B
+        def foo
+          42
+        end
+      end
+      module C
+        extend B
+      end
+    end
+    p A::C.foo
+  }
+
   assert 'true', 'p ::String == String'
 
 end
