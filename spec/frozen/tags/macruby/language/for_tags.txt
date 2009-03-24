@@ -1,0 +1,4 @@
+critical:The for expression iterates over an Hash passing each key-value pair to the block
+critical:The for expression allows an instance variable as an iterator name
+critical:The for expression returns expr
+critical:The for expression repeats current iteration with 'redo'

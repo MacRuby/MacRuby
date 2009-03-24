@@ -1,0 +1,2 @@
+critical:An ensure block inside a method is executed when an exception is raised in the method
+critical:An ensure block inside a method is executed even when a symbol is thrown in the method

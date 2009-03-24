@@ -1,0 +1,1 @@
+critical:A constant on an eigenclass cannot be accessed via object::CONST
