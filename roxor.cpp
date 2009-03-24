@@ -406,6 +406,7 @@ class RoxorVM
 	rb_vm_block_t *current_block;
 	rb_vm_block_t *previous_block; // only used for non-Ruby created blocks
 	bool block_saved; // used by block_given?
+	bool parse_in_eval;
 
 	RoxorVM(void);
 
@@ -1814,6 +1815,8 @@ RoxorVM::RoxorVM(void)
     current_block = NULL;
     previous_block = NULL;
     block_saved = false;
+
+    parse_in_eval = false;
 
     load_path = rb_ary_new();
     rb_objc_retain((void *)load_path);
@@ -5548,6 +5551,26 @@ rb_vm_pop_exception(void)
 }
 
 extern "C"
+VALUE
+rb_vm_current_exception(void)
+{
+    return GET_VM()->current_exception;
+}
+
+extern "C"
+void
+rb_vm_set_current_exception(VALUE exception)
+{
+    if (GET_VM()->current_exception != exception) {
+	if (GET_VM()->current_exception != Qnil) {
+	    rb_objc_release((void *)GET_VM()->current_exception);
+	}
+	rb_objc_retain((void *)exception);
+	GET_VM()->current_exception = exception;
+    }
+}
+
+extern "C"
 void 
 rb_vm_debug(void)
 {
@@ -5571,6 +5594,20 @@ rb_vm_print_exception(VALUE exc)
     VALUE message = rb_vm_call(exc, sel_message, 0, NULL, false);
 
     printf("%s (%s)\n", RSTRING_PTR(message), rb_class2name(*(VALUE *)exc));
+}
+
+extern "C"
+bool
+rb_vm_parse_in_eval(void)
+{
+    return GET_VM()->parse_in_eval;
+}
+
+extern "C"
+void
+rb_vm_set_parse_in_eval(bool flag)
+{
+    GET_VM()->parse_in_eval = flag;
 }
 
 extern "C"
@@ -5649,7 +5686,6 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node)
 
     VALUE old_top_object = GET_VM()->current_top_object;
     GET_VM()->current_top_object = self;
-
     Class old_class = GET_VM()->current_class;
     GET_VM()->current_class = (Class)klass;
 

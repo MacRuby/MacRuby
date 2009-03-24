@@ -1566,33 +1566,27 @@ Init_syserr(void)
 static void
 err_append(const char *s)
 {
-    // TODO
-    rb_write_error(s);
-    rb_write_error("\n");
-#if 0
-    rb_thread_t *th = GET_THREAD();
-    VALUE err = th->errinfo;
+    VALUE err = rb_vm_current_exception();
 
-    if (th->parse_in_eval) {
-	if (!RTEST(err)) {
+    if (rb_vm_parse_in_eval()) {
+	if (err == Qnil) {
 	    err = rb_exc_new2(rb_eSyntaxError, s);
-	    GC_WB(&th->errinfo, err);
+	    rb_vm_set_current_exception(err);
 	}
 	else {
 	    VALUE str = rb_obj_as_string(err);
 
 	    rb_str_cat2(str, "\n");
 	    rb_str_cat2(str, s);
-	    GC_WB(&th->errinfo, rb_exc_new3(rb_eSyntaxError, str));
+	    rb_vm_set_current_exception(rb_exc_new3(rb_eSyntaxError, str));
 	}
     }
     else {
-	if (!RTEST(err)) {
+	if (err == Qnil) {
 	    err = rb_exc_new2(rb_eSyntaxError, "compile error");
-	    GC_WB(&th->errinfo, err);
+	    rb_vm_set_current_exception(err);
 	}
 	rb_write_error(s);
 	rb_write_error("\n");
     }
-#endif
 }

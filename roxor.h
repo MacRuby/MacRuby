@@ -11,6 +11,8 @@ IMP rb_vm_compile(const char *fname, NODE *node);
 
 bool rb_vm_running(void);
 void rb_vm_set_running(bool flag);
+bool rb_vm_parse_in_eval(void);
+void rb_vm_set_parse_in_eval(bool flag);
 VALUE rb_vm_load_path(void);
 VALUE rb_vm_loaded_features(void);
 int rb_vm_safe_level(void);
@@ -151,6 +153,8 @@ rb_robject_allocate_instance(VALUE klass)
 }
 
 void rb_vm_raise(VALUE exception);
+VALUE rb_vm_current_exception(void);
+void rb_vm_set_current_exception(VALUE exception);
 VALUE rb_vm_backtrace(int level);
 
 VALUE rb_vm_pop_broken_value(void);

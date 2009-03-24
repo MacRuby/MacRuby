@@ -314,9 +314,18 @@ static VALUE
 eval_string(VALUE self, VALUE klass, VALUE src, VALUE scope, const char *file, int line)
 {
     // TODO honor scope
+    bool old_parse_in_eval = rb_vm_parse_in_eval();
+    rb_vm_set_parse_in_eval(true);
     NODE *node = rb_compile_string(file, src, line);
+    rb_vm_set_parse_in_eval(old_parse_in_eval);
     if (node == NULL) {
-	rb_raise(rb_eSyntaxError, "compile error");
+	VALUE exc = rb_vm_current_exception();
+	if (exc != Qnil) {
+	    rb_exc_raise(exc);
+	}
+	else {
+	    rb_raise(rb_eSyntaxError, "compile error");
+	}
     }
     if (klass == 0) {
 	klass = rb_cObject;
