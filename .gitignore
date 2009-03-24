@@ -1,0 +1,12 @@
+*.o
+.ext
+dtrace.h
+lex.c
+miniprelude.c
+miniruby
+node_name.inc
+parse.c
+prelude.c
+revision.h
+y.tab.c
+include/ruby/config.h
