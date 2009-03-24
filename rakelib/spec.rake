@@ -30,13 +30,13 @@ namespace :spec do
     files = FileList["spec/frozen/language/*_spec.rb"]
     files -= files.grep(/\/(#{KNOWN_GOOD.join('|')})_spec\.rb$/)
     files.each do |spec|
-      sh "#{MSPEC_RUN} #{spec}" rescue nil
+      sh "#{MSPEC_RUN} --format spec #{spec}" rescue nil
     end
   end
   
   desc "Run language examples"
   task :language do
-    sh "./mspec/bin/mspec ci -B ./spec/frozen/macruby.mspec spec/frozen/language/*_spec.rb"
+    sh "./mspec/bin/mspec ci --format spec -B ./spec/frozen/macruby.mspec spec/frozen/language/*_spec.rb"
   end
   
   namespace :"1.9" do
