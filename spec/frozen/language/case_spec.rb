@@ -15,6 +15,18 @@ describe "The 'case'-construct" do
     end.should == true
   end
 
+  it "evaluates the body of the when clause in left-to-right order if it's an array expression" do
+    @calls = []
+    def foo; @calls << :foo; end
+    def bar; @calls << :bar; end
+
+    case true
+      when foo, bar;
+    end
+
+    @calls.should == [:foo, :bar]
+  end
+
   it "evaluates the body of the when clause whose range expression includes the case target expression" do
     case 5
       when 21..30; false
