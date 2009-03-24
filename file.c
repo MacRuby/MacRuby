@@ -3920,7 +3920,9 @@ rb_find_file(VALUE path)
 	if (rb_safe_level() >= 1 && !fpath_check(f)) {
 	    rb_raise(rb_eSecurityError, "loading from unsafe file %s", f);
 	}
-	if (file_load_ok(f)) return path;
+	if (file_load_ok(f)) {
+	    return path;
+	}
     }
 
     if (rb_safe_level() >= 4) {

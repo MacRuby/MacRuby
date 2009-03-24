@@ -1290,34 +1290,43 @@ rb_ary_join(VALUE ary, VALUE sep)
     int taint = Qfalse;
     VALUE result, tmp;
 
-    if (RARRAY_LEN(ary) == 0) return rb_str_new(0, 0);
-    if (OBJ_TAINTED(ary) || OBJ_TAINTED(sep)) taint = Qtrue;
-    result = rb_str_buf_new(0);
+    if (RARRAY_LEN(ary) == 0) {
+	return rb_str_new(0, 0);
+    }
+    if (OBJ_TAINTED(ary) || OBJ_TAINTED(sep)) {
+	taint = Qtrue;
+    }
+    result = rb_str_new(0, 0);
 
-    for (i=0, count=RARRAY_LEN(ary); i<count; i++) {
+    for (i = 0, count = RARRAY_LEN(ary); i < count; i++) {
 	tmp = RARRAY_AT(ary, i);
 	switch (TYPE(tmp)) {
-	  case T_STRING:
-	    break;
-	  case T_ARRAY:
-	    {
-		VALUE args[2];
+	    case T_STRING:
+		break;
+	    case T_ARRAY:
+		{
+		    VALUE args[2];
 
-		args[0] = tmp;
-		args[1] = sep;
-		tmp = rb_exec_recursive(recursive_join, ary, (VALUE)args);
-	    }
-	    break;
-	  default:
-	    tmp = rb_obj_as_string(tmp);
+		    args[0] = tmp;
+		    args[1] = sep;
+		    tmp = rb_exec_recursive(recursive_join, ary, (VALUE)args);
+		}
+		break;
+	    default:
+		tmp = rb_obj_as_string(tmp);
 	}
-	if (i > 0 && !NIL_P(sep))
+	if (i > 0 && !NIL_P(sep)) {
 	    rb_str_buf_append(result, sep);
+	}
 	rb_str_buf_append(result, tmp);
-	if (OBJ_TAINTED(tmp)) taint = Qtrue;
+	if (OBJ_TAINTED(tmp)) {
+	    taint = Qtrue;
+	}
     }
 
-    if (taint) OBJ_TAINT(result);
+    if (taint) {
+	OBJ_TAINT(result);
+    }
     return result;
 }
 

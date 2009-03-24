@@ -20,9 +20,7 @@ namespace :spec do
   
   desc "Run continuous integration language examples (known good)"
   task :ci do
-    ENV['GC_DISABLE'] = '1'
     sh "#{MSPEC_RUN} #{FileList["spec/frozen/language/{#{KNOWN_GOOD.join(',')}}_spec.rb"].join(' ')}"
-    ENV['GC_DISABLE'] = nil
   end
   
   desc "Run language examples that are known to fail"
