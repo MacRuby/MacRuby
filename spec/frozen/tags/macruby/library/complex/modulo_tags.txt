@@ -1,0 +1,3 @@
+fails:Complex#% with Complex returns the remainder from complex division
+fails:Complex#% with Integer returns the remainder from dividing both parts of self by the given Integer
+fails:Complex#% with Object tries to coerce self into other

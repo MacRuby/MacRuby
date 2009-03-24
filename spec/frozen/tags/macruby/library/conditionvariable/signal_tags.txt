@@ -1,0 +1,2 @@
+fails:ConditionVariable#signal should return self if nothing to signal
+fails:ConditionVariable#signal should return self if something is waiting for a signal

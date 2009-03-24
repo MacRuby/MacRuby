@@ -1,0 +1,2 @@
+fails:String#initialize is a private method
+fails:String#initialize raises a TypeError if self is frozen

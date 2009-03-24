@@ -1,0 +1,2 @@
+fails:Math#acos! raises a TypeError when passed a Complex number
+fails:Math.acos! raises a TypeError when passed a Complex number

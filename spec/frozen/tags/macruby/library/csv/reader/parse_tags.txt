@@ -1,0 +1,2 @@
+fails:CSV::Reader.parse processes empty input without calling block
+fails:CSV::Reader.parse calls block once for one row of input

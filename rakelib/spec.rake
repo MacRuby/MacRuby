@@ -36,7 +36,7 @@ namespace :spec do
   
   desc "Run language examples"
   task :language do
-    sh "./mspec/bin/mspec ci --format spec -B ./spec/frozen/macruby.mspec spec/frozen/language/*_spec.rb"
+    sh "./mspec/bin/mspec ci --format spec -B ./spec/frozen/macruby.mspec spec/frozen/language"
   end
   
   namespace :"1.9" do

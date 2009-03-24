@@ -1,0 +1,9 @@
+fails:Kernel#eval accepts a Proc object as a binding
+fails:Kernel#eval does not make Proc locals visible to evaluated code
+fails:Kernel#eval allows a binding to be captured inside an eval
+fails:Kernel#eval allows Proc and binding to be nested in horrible ways
+fails:Kernel#eval allows creating a new class in a binding
+fails:Kernel#eval allows creating a new class in a binding created by #eval
+fails:Kernel#eval allows creating a new class in a binding returned by a method defined with #eval
+fails:Kernel#eval should perform top level evaluations from inside a block
+fails:Kernel#eval uses the filename of the binding if none is provided

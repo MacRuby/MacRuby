@@ -1,0 +1,1 @@
+fails:CGI::Html4Tr#doctype returns the doctype declaration for the Transitional version of HTML4

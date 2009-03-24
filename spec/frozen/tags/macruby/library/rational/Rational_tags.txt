@@ -1,0 +1,3 @@
+fails:Rational when passed Integer, Integer returns a new Rational number
+fails:Rational when passed Integer, Integer automatically reduces the Rational
+fails:Rational when passed Integer returns a new Rational number with 1 as the denominator

@@ -1,0 +1,1 @@
+fails:StringIO#initialize_copy is private

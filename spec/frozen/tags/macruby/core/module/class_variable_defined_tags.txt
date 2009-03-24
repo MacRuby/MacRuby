@@ -1,0 +1,1 @@
+fails:Module#class_variable_defined? accepts Fixnums for class variables

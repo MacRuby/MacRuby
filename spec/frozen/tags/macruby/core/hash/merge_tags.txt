@@ -1,0 +1,3 @@
+critical:Hash#merge! does not affect yielded items by removing the current element
+fails:Hash#merge processes entries with same order as each()
+fails:Hash#merge! raises a TypeError if called on a non-empty, frozen instance

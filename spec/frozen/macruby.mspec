@@ -50,9 +50,9 @@ class MSpecScript
   set :target, './miniruby'
 
   set :tags_patterns, [
-                        [%r(language/), 'tags/1.9/language/'],
-                        [%r(core/),     'tags/1.9/core/'],
-                        [%r(library/),  'tags/1.9/library/'],
+                        [%r(language/), 'tags/macruby/language/'],
+                        [%r(core/),     'tags/macruby/core/'],
+                        [%r(library/),  'tags/macruby/library/'],
                         [/_spec.rb$/,   '_tags.txt']
                       ]
 end

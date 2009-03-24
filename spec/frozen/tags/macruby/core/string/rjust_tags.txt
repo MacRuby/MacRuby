@@ -1,0 +1,1 @@
+fails:String#rjust with length, padding raises a TypeError when padstr can't be converted

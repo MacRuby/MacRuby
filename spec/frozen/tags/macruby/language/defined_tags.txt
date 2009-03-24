@@ -1,0 +1,3 @@
+fails:The defined? keyword returns 'super' when Subclass#no_args uses defined?
+fails:The defined? keyword returns 'super' when Subclass#args uses defined?
+fails:The defined? keyword returns 'local-variable' when defined? is called on a block var

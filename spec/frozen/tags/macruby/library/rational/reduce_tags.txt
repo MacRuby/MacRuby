@@ -1,0 +1,2 @@
+fails:Rational.reduce when Unify is defined returns an Integer when the reduced denominator is 1
+fails:Rational.reduce raises a ZeroDivisionError when the passed denominator is 0
