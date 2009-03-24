@@ -22,4 +22,14 @@ describe "The `!' keyword" do
     (!false).should be_true
     (!nil).should be_true
   end
+
+  it "turns a truthful object into `true'" do
+    (!!true).should be_true
+    (!!'true').should be_true
+  end
+
+  it "turns a not truthful object into `false'" do
+    (!!false).should be_false
+    (!!nil).should be_false
+  end
 end
