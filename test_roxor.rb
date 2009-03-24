@@ -674,6 +674,8 @@ test "dispatch" do
 
   assert "[]", "def foo; return *[]; end; p foo"
 
+  assert '42', "def foo; 1.times { return 42 }; p :nok; end; p foo"
+
   assert "42", "def foo(x,y,z); x+y+z; end; a=[20,10,12]; p foo(*a)"
   assert "42", "def foo(x,y,z); x+y+z; end; a=[20,10]; p foo(*a, 12)"
   assert "42", "def foo(x,y,z); x+y+z; end; a=[20,10]; p foo(12, *a)"
