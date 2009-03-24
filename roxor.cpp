@@ -228,6 +228,8 @@ class RoxorCompiler
 	Function *yieldFunc;
 	Function *gvarSetFunc;
 	Function *gvarGetFunc;
+	Function *cvarSetFunc;
+	Function *cvarGetFunc;
 	Function *popExceptionFunc;
 	Function *getSpecialFunc;
 	Function *breakFunc;
@@ -550,6 +552,8 @@ RoxorCompiler::RoxorCompiler(const char *_fname)
     yieldFunc = NULL;
     gvarSetFunc = NULL;
     gvarGetFunc = NULL;
+    cvarSetFunc = NULL;
+    cvarGetFunc = NULL;
     popExceptionFunc = NULL;
     getSpecialFunc = NULL;
     breakFunc = NULL;
@@ -2298,7 +2302,9 @@ RoxorCompiler::compile_node(NODE *node)
 
 		if (gvarSetFunc == NULL) {
 		    // VALUE rb_gvar_set(struct global_entry *entry, VALUE val);
-		    gvarSetFunc = cast<Function>(module->getOrInsertFunction("rb_gvar_set", RubyObjTy, PtrTy, RubyObjTy, NULL));
+		    gvarSetFunc = cast<Function>(module->getOrInsertFunction(
+				"rb_gvar_set", 
+				RubyObjTy, PtrTy, RubyObjTy, NULL));
 		}
 
 		std::vector<Value *> params;
@@ -2306,7 +2312,51 @@ RoxorCompiler::compile_node(NODE *node)
 		params.push_back(compile_const_pointer(node->nd_entry));
 		params.push_back(compile_node(node->nd_value));
 
-		return CallInst::Create(gvarSetFunc, params.begin(), params.end(), "", bb);
+		return CallInst::Create(gvarSetFunc, params.begin(),
+			params.end(), "", bb);
+	    }
+	    break;
+
+	case NODE_CVAR:
+	    {
+		assert(node->nd_vid > 0);
+
+		if (cvarGetFunc == NULL) {
+		    // VALUE rb_vm_cvar_get(VALUE klass, ID id);
+		    cvarGetFunc = cast<Function>(module->getOrInsertFunction(
+				"rb_vm_cvar_get", 
+				RubyObjTy, RubyObjTy, IntTy, NULL));
+		}
+
+		std::vector<Value *> params;
+
+		params.push_back(compile_current_class());
+		params.push_back(ConstantInt::get(IntTy, (long)node->nd_vid));
+
+		return compile_protected_call(cvarGetFunc, params);
+	    }
+	    break;
+
+	case NODE_CVASGN:
+	    {
+		assert(node->nd_vid > 0);
+		assert(node->nd_value != NULL);
+
+		if (cvarSetFunc == NULL) {
+		    // VALUE rb_vm_cvar_set(VALUE klass, ID id, VALUE val);
+		    cvarSetFunc = cast<Function>(module->getOrInsertFunction(
+				"rb_vm_cvar_set", 
+				RubyObjTy, RubyObjTy, IntTy, RubyObjTy, NULL));
+		}
+
+		std::vector<Value *> params;
+
+		params.push_back(compile_current_class());
+		params.push_back(ConstantInt::get(IntTy, (long)node->nd_vid));
+		params.push_back(compile_node(node->nd_value));
+
+		return CallInst::Create(cvarSetFunc, params.begin(),
+			params.end(), "", bb);
 	    }
 	    break;
 
@@ -3148,7 +3198,8 @@ rescan_args:
 	    {
 		assert(node->nd_vid > 0);
 		assert(node->nd_value != NULL);
-		return compile_ivar_assignment(node->nd_vid, compile_node(node->nd_value));
+		return compile_ivar_assignment(node->nd_vid,
+			compile_node(node->nd_value));
 	    }
 	    break;
 
@@ -4117,6 +4168,27 @@ rb_vm_ivar_set(VALUE obj, ID name, VALUE val, int *slot_cache)
     else {
 	rb_vm_set_ivar_from_slot(obj, val, *slot_cache);
     }
+}
+
+extern "C"
+VALUE
+rb_vm_cvar_get(VALUE klass, ID id)
+{
+    if (GET_VM()->current_class != NULL) {
+	klass = (VALUE)GET_VM()->current_class;
+    }
+    return rb_cvar_get(klass, id);
+}
+
+extern "C"
+VALUE
+rb_vm_cvar_set(VALUE klass, ID id, VALUE val)
+{
+    if (GET_VM()->current_class != NULL) {
+	klass = (VALUE)GET_VM()->current_class;
+    }
+    rb_cvar_set(klass, id, val);
+    return val;
 }
 
 extern "C"
