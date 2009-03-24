@@ -13,6 +13,7 @@ namespace :spec do
     not
     or
     order
+    string
     unless
     until
     while
