@@ -1,14 +1,6 @@
 require 'mspec/guards/guard'
 require 'mspec/runner/formatters/dotted'
 
-# MR Hack: Dir[]/Dir.glob only return the first entry, use ls in backticks.
-# I know I feel dirty too ;)
-class Dir
-  def self.[](pattern)
-    `ls #{pattern}`.split("\n")
-  end
-end
-
 # MSpecScript provides a skeleton for all the MSpec runner scripts.
 
 class MSpecScript
@@ -195,10 +187,7 @@ class MSpecScript
       if File.file?(expanded)
         res = [pattern]
       elsif File.directory?(expanded)
-        # MR Hack: Atm we only really care about those in spec/frozen/language,
-        # and using backticks doesn't handle the same glob pattern.
-        #specs = File.join(pattern, "/**/*_spec.rb")
-        specs = File.join(pattern, "/*_spec.rb")
+        specs = File.join(pattern, "/**/*_spec.rb")
         specs = File.expand_path(specs) rescue specs
         res = Dir[specs].sort
       end
