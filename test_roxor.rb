@@ -1393,4 +1393,13 @@ test "io" do
 
   assert "true", "p(Dir['*.c'].length > 1)"
   assert "true", "p(Dir.glob('*.c').length > 1)"
+
+end
+
+test "encoding" do
+
+  assert "US-ASCII", "File.open('Rakefile', 'r:US-ASCII') {|f| puts f.read.encoding.name }"
+
+  assert ":ok", "puts ':ok'.encode('US-ASCII')"
+
 end

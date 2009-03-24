@@ -1,3 +1,5 @@
+# encoding: utf-8
+
 # See ./rakelib/*.rake for all tasks.
 
 desc "Same as all"
