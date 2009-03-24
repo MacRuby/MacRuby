@@ -1,6 +1,14 @@
 require 'mspec/guards/guard'
 require 'mspec/runner/formatters/dotted'
 
+# MR Hack: Dir[]/Dir.glob only return the first entry, use ls in backticks.
+# I know I feel dirty too ;)
+class Dir
+  def self.[](pattern)
+    `ls #{pattern}`.split("\n")
+  end
+end
+
 # MSpecScript provides a skeleton for all the MSpec runner scripts.
 
 class MSpecScript
@@ -169,16 +177,35 @@ class MSpecScript
       patterns << File.join(config[:prefix], file)
     end
 
+    # patterns.each do |pattern|
+    #   expanded = File.expand_path(pattern)
+    #   return [pattern] if File.file?(expanded)
+    # 
+    #   specs = File.join(pattern, "/**/*_spec.rb")
+    #   specs = File.expand_path(specs) rescue specs
+    #   return Dir[specs].sort if File.directory?(expanded)
+    # end
+    # 
+    # Dir[partial]
+
+    # MR Hack: workaround return from block problem.
+    res = nil
     patterns.each do |pattern|
       expanded = File.expand_path(pattern)
-      return [pattern] if File.file?(expanded)
-
-      specs = File.join(pattern, "/**/*_spec.rb")
-      specs = File.expand_path(specs) rescue specs
-      return Dir[specs].sort if File.directory?(expanded)
+      if File.file?(expanded)
+        res = [pattern]
+      elsif File.directory?(expanded)
+        # MR Hack: Atm we only really care about those in spec/frozen/language,
+        # and using backticks doesn't handle the same glob pattern.
+        #specs = File.join(pattern, "/**/*_spec.rb")
+        specs = File.join(pattern, "/*_spec.rb")
+        specs = File.expand_path(specs) rescue specs
+        res = Dir[specs].sort
+      end
+      break if res
     end
 
-    Dir[partial]
+    res || Dir[partial]
   end
 
   # Resolves each entry in +list+ to a set of files.
