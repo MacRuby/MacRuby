@@ -13,60 +13,17 @@
 
 #include "ruby/ruby.h"
 #include "ruby/node.h"
+#include "ruby/util.h"
 #include "roxor.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
-
-#ifdef HAVE_UNISTD_H
 #include <unistd.h>
-#endif
-
-#if defined HAVE_DIRENT_H && !defined _WIN32
-# include <dirent.h>
-# define NAMLEN(dirent) strlen((dirent)->d_name)
-#elif defined HAVE_DIRECT_H && !defined _WIN32
-# include <direct.h>
-# define NAMLEN(dirent) strlen((dirent)->d_name)
-#else
-# define dirent direct
-# if !defined __NeXT__
-#  define NAMLEN(dirent) (dirent)->d_namlen
-# else
-#  /* On some versions of NextStep, d_namlen is always zero, so avoid it. */
-#  define NAMLEN(dirent) strlen((dirent)->d_name)
-# endif
-# if HAVE_SYS_NDIR_H
-#  include <sys/ndir.h>
-# endif
-# if HAVE_SYS_DIR_H
-#  include <sys/dir.h>
-# endif
-# if HAVE_NDIR_H
-#  include <ndir.h>
-# endif
-# ifdef _WIN32
-#  include "win32/dir.h"
-# endif
-#endif
-
+#include <dirent.h>
 #include <errno.h>
-
-#ifndef HAVE_STDLIB_H
-char *getenv();
-#endif
-
-#ifndef HAVE_STRING_H
-char *strchr(char*,char);
-#endif
-
 #include <ctype.h>
 
-#include "ruby/util.h"
-
-#if !defined HAVE_LSTAT && !defined lstat
-#define lstat stat
-#endif
+#define NAMLEN(dirent) strlen((dirent)->d_name)
 
 #define FNM_NOESCAPE	0x01
 #define FNM_PATHNAME	0x02
@@ -1285,14 +1242,10 @@ glob_helper(
 	    }
 	    if (recursive && strcmp(dp->d_name, ".") != 0 && strcmp(dp->d_name, "..") != 0
 		&& fnmatch("*", dp->d_name, flags) == 0) {
-#ifndef _WIN32
 		if (do_lstat(buf, &st, flags) == 0)
 		    new_isdir = S_ISDIR(st.st_mode) ? DIR_YES : S_ISLNK(st.st_mode) ? DIR_UNKNOWN : DIR_NO;
 		else
 		    new_isdir = DIR_NO;
-#else
-		new_isdir = dp->d_isdir ? (!dp->d_isrep ? DIR_YES : DIR_UNKNOWN) : DIR_NO;
-#endif
 	    }
 
 	    new_beg = new_end = GLOB_ALLOC_N(struct glob_pattern *, (end - beg) * 2);
@@ -1387,9 +1340,6 @@ ruby_glob0(const char *path, int flags, ruby_glob_func *func, VALUE arg)
 
     start = root = path;
     flags |= FNM_SYSCASE;
-#if defined DOSISH
-    root = rb_path_skip_prefix(root);
-#endif
 
     if (root && *root == '/') root++;
 
@@ -1707,10 +1657,12 @@ dir_s_glob(VALUE obj, SEL sel, int argc, VALUE *argv)
     VALUE str, rflags, ary;
     int flags;
 
-    if (rb_scan_args(argc, argv, "11", &str, &rflags) == 2)
+    if (rb_scan_args(argc, argv, "11", &str, &rflags) == 2) {
 	flags = NUM2INT(rflags);
-    else
+    }
+    else {
 	flags = 0;
+    }
 
     ary = rb_check_array_type(str);
     if (NIL_P(ary)) {

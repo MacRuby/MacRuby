@@ -483,6 +483,9 @@ VALUE
 rb_protect(VALUE (* proc) (VALUE), VALUE data, int * state)
 {
     // TODO
+    if (state != NULL) {
+	*state = 0;
+    }
     return (*proc)(data);
 }
 
