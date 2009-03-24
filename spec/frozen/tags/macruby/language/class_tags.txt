@@ -6,3 +6,7 @@ fails:A class definition allows the declaration of class variables in a class me
 fails:A class definition allows the definition of class-level instance variables in a class method
 fails:A class definition allows the declaration of class variables in an instance method
 fails:An outer class definition contains the inner classes
+critical:A class definition raises TypeError if the constant qualifying the class is nil
+critical:A class definition allows using self as the superclass if self is a class
+critical:A Class Definitions extending an object raises a TypeError when trying to extend numbers
+critical:Reopening a class raises a TypeError when superclasses mismatch
