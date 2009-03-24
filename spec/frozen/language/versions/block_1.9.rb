@@ -15,17 +15,3 @@ describe "Block parameters" do
     var.should == nil
   end
 end
-
-describe "Block parameters (to be removed from MRI)" do
-  it "raises a SyntaxError when using a global variable" do
-    lambda do
-      instance_eval "[].each {|$global_for_block_assignment| ;}"
-    end.should raise_error(SyntaxError)
-  end
-  
-  it "raises a SyntaxError when making a method call" do
-    lambda do
-      instance_eval "o = Object.new; [].each {|o.id| }"
-    end.should raise_error(SyntaxError)
-  end
-end
