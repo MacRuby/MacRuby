@@ -620,6 +620,8 @@ test "dispatch" do
   assert "42", "def foo(x, y=20, z=2); x+y+z; end; p foo(20)"
   assert "42", "def foo(x, y=123, z=2); x+y+z; end; p foo(30, 10)"
 
+  assert "126", "def foo(a=b=c=42); a+b+c; end; p foo"
+
   assert "42", "def foo; 1; end; i = 0; while i < 42; i += foo; end; p i"
   assert "42", %q{
     class X; def foo; 15; end; end
