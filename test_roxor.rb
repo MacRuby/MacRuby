@@ -840,6 +840,13 @@ test "dispatch" do
     def bar(a = foo); end
     bar
   }
+
+  assert '42', %{
+    def foo() yield 1, 2 end
+    x = 1
+    w = 42
+    foo { |x, y = :y| p w }
+  }
 end
 
 test "blocks" do
