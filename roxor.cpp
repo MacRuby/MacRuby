@@ -710,40 +710,10 @@ RoxorCompiler::compile_when_arguments(NODE *args, Value *comparedToVal, BasicBlo
 
 Function::ArgumentListType::iterator
 RoxorCompiler::compile_optional_arguments(Function::ArgumentListType::iterator iter,
-					  NODE *start_node)
+					  NODE *node)
 {
-    NODE *node = start_node;
     assert(nd_type(node) == NODE_OPT_ARG);
 
-    // we have to handle the case def f(a = b = c = 1) and create those b and c
-    // and this before we compile the assignments themselves
-    do {
-	assert(node->nd_value != NULL);
-
-	assert(nd_type(node->nd_value) == NODE_LASGN || nd_type(node->nd_value) == NODE_DASGN_CURR);
-	NODE *assign_node = node->nd_value->nd_value;
-	while (assign_node != NULL) {
-	    switch (nd_type(assign_node)) {
-		case NODE_LASGN:
-		case NODE_DASGN_CURR:
-		    Value *slot = new AllocaInst(RubyObjTy, "", bb);
-		    new StoreInst(nilVal, slot, bb);
-		    lvars[assign_node->nd_vid] = slot;
-		case NODE_IASGN:
-		case NODE_GASGN:
-		    assign_node = assign_node->nd_value;
-		    break;
-
-		// TODO: NODE_ATTRASGN
-
-		default:
-		    assign_node = NULL;
-	    }
-	}
-    }
-    while ((node = node->nd_next) != NULL);
-
-    node = start_node;
     do {
 	assert(node->nd_value != NULL);
 
@@ -2321,6 +2291,22 @@ RoxorCompiler::compile_node(NODE *node)
 			lvars[id] = slot;
 		    }
 
+		    // local vars must be created before the optional arguments
+		    // because they can be used in them, for instance with def f(a=b=c=1)
+		    int lvar_count = (int)node->nd_tbl[args_count + 1];
+		    for (i = 0; i < lvar_count; i++) {
+			ID id = node->nd_tbl[i + args_count + 2];
+			if (lvars.find(id) != lvars.end()) {
+			    continue;
+			}
+#if ROXOR_COMPILER_DEBUG
+			printf("var %s\n", rb_id2name(id));
+#endif
+			Value *store = new AllocaInst(RubyObjTy, "", bb);
+			new StoreInst(nilVal, store, bb);
+			lvars[id] = store;
+		    }
+
 		    // Compile optional arguments.
 		    NODE *n = node->nd_args;
 		    Function::ArgumentListType::iterator iter = f->arg_begin();
@@ -2336,20 +2322,6 @@ RoxorCompiler::compile_node(NODE *node)
 			    }
 			}
 			n = n->nd_next;
-		    }
-
-		    int lvar_count = (int)node->nd_tbl[args_count + 1];
-		    for (i = 0; i < lvar_count; i++) {
-			ID id = node->nd_tbl[i + args_count + 2];
-			if (lvars.find(id) != lvars.end()) {
-			    continue;
-			}
-#if ROXOR_COMPILER_DEBUG
-			printf("var %s\n", rb_id2name(id));
-#endif
-			Value *store = new AllocaInst(RubyObjTy, "", bb);
-			new StoreInst(nilVal, store, bb);
-			lvars[id] = store;
 		    }
 		}
 
