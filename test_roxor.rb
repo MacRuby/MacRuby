@@ -621,6 +621,7 @@ test "dispatch" do
   assert "42", "def foo(x, y=123, z=2); x+y+z; end; p foo(30, 10)"
 
   assert "126", "def foo(a=b=c=42); a+b+c; end; p foo"
+  assert "[42, nil]", "def f(a=X::x=b=1) p [a, b] end; f(42)"
 
   assert "42", "def foo; 1; end; i = 0; while i < 42; i += foo; end; p i"
   assert "42", %q{
