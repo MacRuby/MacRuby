@@ -234,14 +234,6 @@ class RoxorCompiler
 	Function *getSpecialFunc;
 	Function *breakFunc;
 
-	VALUE defined_nil;
-	VALUE defined_self;
-	VALUE defined_true;
-	VALUE defined_false;
-	VALUE defined_expression;
-	VALUE defined_lvar;
-	VALUE defined_assignment;
-
 	Constant *zeroVal;
 	Constant *oneVal;
 	Constant *twoVal;
@@ -291,6 +283,8 @@ class RoxorCompiler
 	Value *compile_defined_expression(NODE *node);
 	Value *compile_dstr(NODE *node);
 	void compile_dead_branch(void);
+	void compile_landing_pad_header(void);
+	void compile_landing_pad_footer(void);
 
 	Value *get_var(ID name, std::map<ID, Value *> &container, 
 		       bool do_assert) {
@@ -513,14 +507,6 @@ RoxorCompiler::RoxorCompiler(const char *_fname)
     current_loop_body_bb = NULL;
     current_loop_end_bb = NULL;
     current_loop_exit_val = NULL;
-
-    defined_nil = 0;
-    defined_self = 0;
-    defined_true = 0;
-    defined_false = 0;
-    defined_expression = 0;
-    defined_lvar = 0;
-    defined_assignment = 0;
 
     dispatcherFunc = NULL;
     fastEqqFunc = NULL;
@@ -1041,65 +1027,41 @@ RoxorCompiler::compile_singleton_class(Value *obj)
 #define DEFINED_GVAR 	2
 #define DEFINED_CVAR 	3
 #define DEFINED_CONST	4
+#define DEFINED_SUPER	5
+#define DEFINED_METHOD	6
 
 Value *
 RoxorCompiler::compile_defined_expression(NODE *node)
 {
+    // Easy cases first.
     VALUE str = 0;
-    int defined_mode = -1;
-    VALUE defined_what = 0;
-
     switch (nd_type(node)) {
 	case NODE_NIL:
-	    if (defined_nil == 0) {
-		defined_nil = rb_str_new2("nil");
-		rb_objc_retain((void *)defined_nil);
-	    }
-	    str = defined_nil;
+	    str = (VALUE)CFSTR("nil");
 	    break;
 
 	case NODE_SELF:
-	    if (defined_self == 0) {
-		defined_self = rb_str_new2("self");
-		rb_objc_retain((void *)defined_self);
-	    }
-	    str = defined_self;
+	    str = (VALUE)CFSTR("self");
 	    break;
 
 	case NODE_TRUE:
-	    if (defined_true == 0) {
-		defined_true = rb_str_new2("true");
-		rb_objc_retain((void *)defined_true);
-	    }
-	    str = defined_true;
+	    str = (VALUE)CFSTR("true");
 	    break;
 
 	case NODE_FALSE:
-	    if (defined_false == 0) {
-		defined_false = rb_str_new2("false");
-		rb_objc_retain((void *)defined_false);
-	    }
-	    str = defined_false;
+	    str = (VALUE)CFSTR("false");
 	    break;
 
 	case NODE_ARRAY:
+	case NODE_ZARRAY:
 	case NODE_STR:
 	case NODE_LIT:
-	case NODE_ZARRAY:
-	    if (defined_expression == 0) {
-		defined_expression = rb_str_new2("expression");
-		rb_objc_retain((void *)defined_expression);
-	    }
-	    str = defined_expression;
+	    str = (VALUE)CFSTR("expression");
 	    break;
 
 	case NODE_LVAR:
 	case NODE_DVAR:
-	    if (defined_lvar == 0) {
-		defined_lvar = rb_str_new2("local-variable");
-		rb_objc_retain((void *)defined_lvar);
-	    }
-	    str = defined_lvar;
+	    str = (VALUE)CFSTR("local-variable");
 	    break;
 
 	case NODE_OP_ASGN1:
@@ -1115,61 +1077,120 @@ RoxorCompiler::compile_defined_expression(NODE *node)
 	case NODE_CDECL:
 	case NODE_CVDECL:
 	case NODE_CVASGN:
-	    if (defined_assignment == 0) {
-		defined_assignment = rb_str_new2("assignment");
-		rb_objc_retain((void *)defined_assignment);
-	    }
-	    str = defined_assignment;
+	    str = (VALUE)CFSTR("assignment");
 	    break;
-
-	case NODE_IVAR:
-	    defined_mode = DEFINED_IVAR;
-	    defined_what = (VALUE)node->nd_vid;
-	    break;
-
-	case NODE_GVAR:
-	    defined_mode = DEFINED_GVAR;
-	    defined_what = (VALUE)node->nd_entry;
-	    break;
-
-	case NODE_CVAR:
-	    defined_mode = DEFINED_CVAR;
-	    defined_what = (VALUE)node->nd_vid;
-	    break;
-
-	case NODE_CONST:
-	    defined_mode = DEFINED_CONST;
-	    defined_what = (VALUE)node->nd_vid;
-	    break;
-
-	default:
-	    compile_node_error("unimplemented defined? argument", node);
     }
-
     if (str != 0) {
 	return ConstantInt::get(RubyObjTy, (long)str);
     }
-    else {
-	assert(defined_mode != -1);
-	assert(defined_what != 0);
-    
-	if (definedFunc == NULL) {
-	    // VALUE rb_vm_defined(VALUE self, int mode, VALUE what);
-	    definedFunc = 
-		cast<Function>(module->getOrInsertFunction("rb_vm_defined",
-			    RubyObjTy, RubyObjTy, Type::Int32Ty, RubyObjTy, 
-			    NULL)); 
-	}
 
-	std::vector<Value *> params;
+    // Now the less easy ones... let's set up an exception handler first
+    // because we might need to evalute things that will result in an
+    // exception.
+    Function *f = bb->getParent(); 
+    BasicBlock *old_rescue_bb = rescue_bb;
+    BasicBlock *new_rescue_bb = BasicBlock::Create("rescue", f);
+    BasicBlock *merge_bb = BasicBlock::Create("merge", f);
+    rescue_bb = new_rescue_bb;
 
-	params.push_back(current_self);
-	params.push_back(ConstantInt::get(Type::Int32Ty, defined_mode));
-	params.push_back(ConstantInt::get(RubyObjTy, defined_what));
+    // Prepare arguments for the runtime.
+    Value *self = current_self;
+    VALUE what1 = 0;
+    Value *what2 = NULL;
+    int type = 0;
 
-	return CallInst::Create(definedFunc, params.begin(), params.end(), "", 
-		bb);
+    switch (nd_type(node)) {
+	case NODE_IVAR:
+	    type = DEFINED_IVAR;
+	    what1 = (VALUE)node->nd_vid;
+	    break;
+
+	case NODE_GVAR:
+	    type = DEFINED_GVAR;
+	    what1 = (VALUE)node->nd_entry;
+	    break;
+
+	case NODE_CVAR:
+	    type = DEFINED_CVAR;
+	    what1 = (VALUE)node->nd_vid;
+	    break;
+
+	case NODE_CONST:
+	    type = DEFINED_CONST;
+	    what1 = (VALUE)node->nd_vid;
+	    break;
+
+	case NODE_SUPER:
+	case NODE_ZSUPER:
+	    type = DEFINED_SUPER;
+	    what1 = (VALUE)current_mid;
+	    break;
+
+	case NODE_COLON2:
+	    what2 = compile_node(node->nd_head);	
+	    if (rb_is_const_id(node->nd_mid)) {
+		type = DEFINED_CONST;
+		what1 = (VALUE)node->nd_mid;
+	    }
+	    else {
+		type = DEFINED_METHOD;
+		what1 = (VALUE)node->nd_mid;
+	    }
+	    break;
+
+      case NODE_CALL:
+      case NODE_VCALL:
+      case NODE_FCALL:
+      case NODE_ATTRASGN:
+	    if (nd_type(node) == NODE_CALL
+		|| (nd_type(node) == NODE_ATTRASGN
+		    && node->nd_recv != (NODE *)1)) {
+		self = compile_node(node->nd_recv);
+	    }
+	    type = DEFINED_METHOD;
+	    what1 = (VALUE)node->nd_mid;
+	    break;
     }
+
+    if (type == 0) {
+	compile_node_error("unrecognized defined? arg", node);
+    }
+
+    if (definedFunc == NULL) {
+	// VALUE rb_vm_defined(VALUE self, int type, VALUE what, VALUE what2);
+	definedFunc = cast<Function>(module->getOrInsertFunction(
+		    "rb_vm_defined",
+		    RubyObjTy, RubyObjTy, Type::Int32Ty, RubyObjTy, RubyObjTy,
+		    NULL));
+    }
+
+    std::vector<Value *> params;
+
+    params.push_back(self);
+    params.push_back(ConstantInt::get(Type::Int32Ty, type));
+    params.push_back(ConstantInt::get(RubyObjTy, what1));
+    params.push_back(what2 == NULL ? nilVal : what2);
+
+    // Call the runtime.
+    Value *val = compile_protected_call(definedFunc, params);
+    BasicBlock *normal_bb = bb;
+    BranchInst::Create(merge_bb, bb);
+
+    // The rescue block - here we simply do nothing.
+    bb = new_rescue_bb;
+    compile_landing_pad_header();
+    compile_landing_pad_footer();
+    BranchInst::Create(merge_bb, bb);
+
+    // Now merging.
+    bb = merge_bb;
+    PHINode *pn = PHINode::Create(RubyObjTy, "", bb);
+    pn->addIncoming(val, normal_bb);
+    pn->addIncoming(nilVal, new_rescue_bb);
+
+    rescue_bb = old_rescue_bb;
+
+    return pn;
 }
 
 Value *
@@ -1216,7 +1237,6 @@ RoxorCompiler::compile_class_path(NODE *node)
 	return compile_node(node->nd_head);
     }
 
-    // XXX not sure about that...
     return compile_current_class();
 }
 
@@ -1224,9 +1244,65 @@ void
 RoxorCompiler::compile_dead_branch(void)
 {
     // To not complicate the compiler even more, let's be very lazy here and
-    // continue on a dead branch. Hopefully LLVM will be smart enough to eliminate
+    // continue on a dead branch. Hopefully LLVM is smart enough to eliminate
     // it at compilation time.
     bb = BasicBlock::Create("DEAD", bb->getParent());
+}
+
+void
+RoxorCompiler::compile_landing_pad_header(void)
+{
+    Function *eh_exception_f = Intrinsic::getDeclaration(module,
+	    Intrinsic::eh_exception);
+    Value *eh_ptr = CallInst::Create(eh_exception_f, "", bb);
+
+#if __LP64__
+    Function *eh_selector_f = Intrinsic::getDeclaration(module,
+	    Intrinsic::eh_selector_i64);
+#else
+    Function *eh_selector_f = Intrinsic::getDeclaration(module,
+	    Intrinsic::eh_selector_i32);
+#endif
+
+    std::vector<Value *> params;
+    params.push_back(eh_ptr);
+    Function *__gxx_personality_v0_func = NULL;
+    if (__gxx_personality_v0_func == NULL) {
+	__gxx_personality_v0_func = cast<Function>(
+		module->getOrInsertFunction("__gxx_personality_v0",
+		    PtrTy, NULL));
+    }
+    params.push_back(new BitCastInst(__gxx_personality_v0_func,
+		PtrTy, "", bb));
+    params.push_back(compile_const_pointer(NULL));
+
+    CallInst::Create(eh_selector_f, params.begin(), params.end(),
+	    "", bb);
+
+    Function *beginCatchFunc = NULL;
+    if (beginCatchFunc == NULL) {
+	// void *__cxa_begin_catch(void *);
+	beginCatchFunc = cast<Function>(
+		module->getOrInsertFunction("__cxa_begin_catch",
+		    Type::VoidTy, PtrTy, NULL));
+    }
+    params.clear();
+    params.push_back(eh_ptr);
+    CallInst::Create(beginCatchFunc, params.begin(), params.end(),
+	    "", bb);
+}
+
+void
+RoxorCompiler::compile_landing_pad_footer(void)
+{
+    Function *endCatchFunc = NULL;
+    if (endCatchFunc == NULL) {
+	// void __cxa_end_catch(void);
+	endCatchFunc = cast<Function>(
+		module->getOrInsertFunction("__cxa_end_catch",
+		    Type::VoidTy, NULL));
+    }
+    CallInst::Create(endCatchFunc, "", bb);
 }
 
 Value *
@@ -3583,56 +3659,19 @@ rescan_args:
 		
 		// Landing pad header.
 		bb = new_rescue_bb;
-		Function *eh_exception_f = Intrinsic::getDeclaration(module, Intrinsic::eh_exception);
-		Value *eh_ptr = CallInst::Create(eh_exception_f, "", bb);
-
-#if __LP64__
-		Function *eh_selector_f = Intrinsic::getDeclaration(module, Intrinsic::eh_selector_i64);
-#else
-		Function *eh_selector_f = Intrinsic::getDeclaration(module, Intrinsic::eh_selector_i32);
-#endif
-
-		std::vector<Value *> params;
-		params.push_back(eh_ptr);
-		Function *__gxx_personality_v0_func = NULL;
-		if (__gxx_personality_v0_func == NULL) {
-		    __gxx_personality_v0_func = cast<Function>(
-			    module->getOrInsertFunction("__gxx_personality_v0",
-				PtrTy, NULL));
-		}
-		params.push_back(new BitCastInst(__gxx_personality_v0_func, PtrTy, "", bb));
-		params.push_back(compile_const_pointer(NULL));
-
-		CallInst::Create(eh_selector_f, params.begin(), params.end(), "", bb);
-
-		Function *beginCatchFunc = NULL;
-		if (beginCatchFunc == NULL) {
-		    // void *__cxa_begin_catch(void *);
-		    beginCatchFunc = cast<Function>(
-			    module->getOrInsertFunction("__cxa_begin_catch",
-				Type::VoidTy, PtrTy, NULL));
-		}
-		params.clear();
-		params.push_back(eh_ptr);
-		CallInst::Create(beginCatchFunc, params.begin(), params.end(), "", bb);
+		compile_landing_pad_header();
 
 		// Landing pad code.
 		Value *rescue_val = compile_node(node->nd_resq);
 		new_rescue_bb = bb;
 
 		// Landing pad footer.
-		Function *endCatchFunc = NULL;
-		if (endCatchFunc == NULL) {
-		    // void __cxa_end_catch(void);
-		    endCatchFunc = cast<Function>(
-			    module->getOrInsertFunction("__cxa_end_catch",
-				Type::VoidTy, NULL));
-		}
-		CallInst::Create(endCatchFunc, "", bb);
+		compile_landing_pad_footer();
 
 		BranchInst::Create(merge_bb, bb);
 
-		PHINode *pn = PHINode::Create(RubyObjTy, "rescue_result", merge_bb);
+		PHINode *pn = PHINode::Create(RubyObjTy, "rescue_result",
+			merge_bb);
 		pn->addIncoming(begin_val, real_begin_bb);
 		pn->addIncoming(rescue_val, new_rescue_bb);
 		bb = merge_bb;
@@ -4275,19 +4314,16 @@ rb_vm_alias(VALUE outer, ID name, ID def)
 
 extern "C"
 VALUE
-rb_vm_defined(VALUE self, int mode, VALUE what)
+rb_vm_defined(VALUE self, int type, VALUE what, VALUE what2)
 {
     const char *str = NULL;
 
-    switch (mode) {
+    switch (type) {
 	case DEFINED_IVAR:
 	    if (rb_ivar_defined(self, (ID)what)) {
 		str = "instance-variable";
 	    }
 	    break;
-
-//	case DEFINED_CVAR:
-//		TODO
 
 	case DEFINED_GVAR:
 	    if (rb_gvar_defined((struct global_entry *)what)) {
@@ -4295,14 +4331,50 @@ rb_vm_defined(VALUE self, int mode, VALUE what)
 	    }
 	    break;
 
+	case DEFINED_CVAR:
+	    if (rb_cvar_defined(CLASS_OF(self), (ID)what)) {
+		str = "class variable";
+	    }
+	    break;
+
 	case DEFINED_CONST:
-	    if (rb_const_defined(CLASS_OF(self), (ID)what)) {
-		str = "constant";
+	    {
+		VALUE outer = what2;
+		if (NIL_P(outer)) {
+		    outer = CLASS_OF(self);
+		}
+		if (rb_const_defined(outer, (ID)what)) {
+		    str = "constant";
+		}
+	    }
+	    break;
+
+	case DEFINED_SUPER:
+	case DEFINED_METHOD:
+	    {
+		VALUE klass = CLASS_OF(self);
+		if (type == DEFINED_SUPER) {
+		    klass = RCLASS_SUPER(klass);
+		}
+		const char *idname = rb_id2name((ID)what);
+		SEL sel = sel_registerName(idname);
+
+		bool ok = class_getInstanceMethod((Class)klass, sel) != NULL;
+		if (!ok && idname[strlen(idname) - 1] != ':') {
+		    char buf[100];
+		    snprintf(buf, sizeof buf, "%s:", idname);
+		    sel = sel_registerName(buf);
+		    ok = class_getInstanceMethod((Class)klass, sel) != NULL;
+		}
+
+		if (ok) {
+		    str = type == DEFINED_SUPER ? "super" : "method";
+		}
 	    }
 	    break;
 
 	default:
-	    printf("unrecognized defined? mode %d\n", mode);
+	    printf("unknown defined? type %d", type);
 	    abort();
     }
 
