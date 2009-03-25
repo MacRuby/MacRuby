@@ -834,6 +834,11 @@ test "dispatch" do
     p o.foo
   }
 
+  assert '42', %{
+    def foo; p 42; end
+    def bar(a = foo); end
+    bar
+  }
 end
 
 test "blocks" do

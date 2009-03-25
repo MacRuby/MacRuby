@@ -717,15 +717,15 @@ RoxorCompiler::compile_optional_arguments(Function::ArgumentListType::iterator i
     do {
 	assert(node->nd_value != NULL);
 
-	Value *isNilInst = new ICmpInst(ICmpInst::ICMP_EQ, iter, undefVal, "", bb);
+	Value *isUndefInst = new ICmpInst(ICmpInst::ICMP_EQ, iter, undefVal, "", bb);
 
 	Function *f = bb->getParent();
-	BasicBlock *arg_nil = BasicBlock::Create("arg_nil", f);
+	BasicBlock *arg_undef = BasicBlock::Create("arg_undef", f);
 	BasicBlock *next_bb = BasicBlock::Create("", f);
 
-	BranchInst::Create(arg_nil, next_bb, isNilInst, bb);
+	BranchInst::Create(arg_undef, next_bb, isUndefInst, bb);
 
-	bb = arg_nil;
+	bb = arg_undef;
 	compile_node(node->nd_value);
 	BranchInst::Create(next_bb, bb);
 
@@ -4938,6 +4938,8 @@ recache:
 		argc, 
 		(VALUE *)argv);
     }
+#undef rcache
+#undef ocache
 
     printf("BOUH %s\n", (char *)sel);
     abort();
