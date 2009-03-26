@@ -309,6 +309,9 @@ class RoxorCompiler
 	    }
 	    std::map<ID, int *>::iterator iter = ivar_slots_cache.find(id);
 	    if (iter == ivar_slots_cache.end()) {
+#if ROXOR_COMPILER_DEBUG
+		printf("allocating a new slot for ivar %s\n", rb_id2name(id));
+#endif
 		int *slot = (int *)malloc(sizeof(int));
 		*slot = -1;
 		ivar_slots_cache[id] = slot;
@@ -3902,7 +3905,6 @@ rescan_args:
 	    {
 		std::map<ID, Value *> old_dvars = dvars;
 
-		current_block = true;
 		BasicBlock *old_current_loop_begin_bb = current_loop_begin_bb;
 		BasicBlock *old_current_loop_body_bb = current_loop_body_bb;
 		BasicBlock *old_current_loop_end_bb = current_loop_end_bb;
@@ -3910,7 +3912,9 @@ rescan_args:
 		Function *old_current_block_func = current_block_func;
 		NODE *old_current_block_node = current_block_node;
 		ID old_current_mid = current_mid;
+		bool old_current_block = current_block;
 		current_mid = 0;
+		current_block = true;
 
 		assert(node->nd_body != NULL);
 		Value *block = compile_node(node->nd_body);	
@@ -3919,8 +3923,8 @@ rescan_args:
 		current_loop_begin_bb = old_current_loop_begin_bb;
 		current_loop_body_bb = old_current_loop_body_bb;
 		current_loop_end_bb = old_current_loop_end_bb;
-		current_block = false;
 		current_mid = old_current_mid;
+		current_block = old_current_block;
 
 		current_block_func = cast<Function>(block);
 		current_block_node = node->nd_body;
@@ -4149,6 +4153,7 @@ rb_vm_set_const(VALUE outer, ID id, VALUE obj)
 static inline VALUE
 rb_const_get_direct(VALUE klass, ID id)
 {
+    // Search the given class.
     CFDictionaryRef iv_dict = rb_class_ivar_dict(klass);
     if (iv_dict != NULL) {
 	VALUE value;
@@ -4157,6 +4162,7 @@ rb_const_get_direct(VALUE klass, ID id)
 	    return value;
 	}
     }
+    // Search the included modules.
     VALUE mods = rb_attr_get(klass, idIncludedModules);
     if (mods != Qnil) {
 	int i, count = RARRAY_LEN(mods);
@@ -4174,6 +4180,8 @@ static VALUE
 rb_vm_const_lookup(VALUE outer, ID path, bool lexical, bool defined)
 {
     if (lexical) {
+	// Let's do a lexical lookup before a hierarchical one, by looking for
+	// the given constant in all modules under the given outer.
 	struct rb_vm_outer *o = GET_VM()->get_outer((Class)outer);
 	while (o != NULL && o->klass != (Class)rb_cNSObject) {
 	    VALUE val = rb_const_get_direct((VALUE)o->klass, path);
@@ -4184,6 +4192,7 @@ rb_vm_const_lookup(VALUE outer, ID path, bool lexical, bool defined)
 	}
     }
 
+    // Nothing was found earlier so here we do a hierarchical lookup.
     return defined ? rb_const_defined(outer, path) : rb_const_get(outer, path);
 }
 
