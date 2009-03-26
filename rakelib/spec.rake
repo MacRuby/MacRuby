@@ -39,6 +39,7 @@ namespace :spec do
     next
     precedence
     predefined
+    private
   }
   
   MSPEC_RUN = "./miniruby -v -I./mspec/lib -I./lib ./mspec/bin/mspec-run"
