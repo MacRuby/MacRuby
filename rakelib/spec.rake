@@ -5,6 +5,7 @@ namespace :spec do
     block
     break
     case
+    class
     class_variable
     defined
     else
