@@ -1,0 +1,2 @@
+critical:Operators + - are left-associative
+fails:Operators <= < > >= have higher precedence than <=> == === != =~ !~
