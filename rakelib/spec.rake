@@ -34,11 +34,12 @@ namespace :spec do
     encoding
     ensure
     loop
+    magic_comment
   }
   
   MSPEC_RUN = "./miniruby -v -I./mspec/lib -I./lib ./mspec/bin/mspec-run"
   
-  desc "Run all spec files should be fully green (known good)"
+  desc "Run all spec files that should be fully green (known good)"
   task :green do
     sh "#{MSPEC_RUN} #{FileList["spec/frozen/language/{#{KNOWN_GOOD.join(',')}}_spec.rb"].join(' ')}"
   end
