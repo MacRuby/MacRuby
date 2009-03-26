@@ -2299,7 +2299,9 @@ RoxorCompiler::compile_node(NODE *node)
 
 		if (node->nd_tbl != NULL) {
 		    int i, args_count = (int)node->nd_tbl[0];
-		    assert(args_count == nargs || args_count == nargs + 1 /* optional block */);
+		    assert(args_count == nargs
+			    || args_count == nargs + 1 /* optional block */
+			    || args_count == nargs - 1 /* unnamed param (|x,|) */);
 		    for (i = 0; i < args_count; i++) {
 			ID id = node->nd_tbl[i + 1];
 #if ROXOR_COMPILER_DEBUG
