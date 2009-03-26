@@ -285,6 +285,7 @@ class RoxorCompiler
 	void compile_dead_branch(void);
 	void compile_landing_pad_header(void);
 	void compile_landing_pad_footer(void);
+	void compile_rethrow_exception(void);
 
 	Value *get_var(ID name, std::map<ID, Value *> &container, 
 		       bool do_assert) {
@@ -1340,6 +1341,20 @@ RoxorCompiler::compile_landing_pad_footer(void)
     CallInst::Create(endCatchFunc, "", bb);
 }
 
+void
+RoxorCompiler::compile_rethrow_exception(void)
+{
+    Function *rethrowFunc = NULL;
+    if (rethrowFunc == NULL) {
+	// void __cxa_rethrow(void);
+	rethrowFunc = cast<Function>(
+		module->getOrInsertFunction("__cxa_rethrow",
+		    Type::VoidTy, NULL));
+    }
+    CallInst::Create(rethrowFunc, "", bb);
+    new UnreachableInst(bb);
+}
+
 Value *
 RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Value *> &params)
 {
@@ -1514,6 +1529,7 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Va
 		BranchInst::Create(then2BB, fastEqqBB, areFixnums, bb);
 		bb = fastEqqBB;
 		fastEqqVal = compile_fast_eqq_call(leftVal, rightVal);
+		fastEqqBB = bb;
 		BranchInst::Create(mergeBB, bb);
 	    }
 	    else {
@@ -3756,13 +3772,16 @@ rescan_args:
 
 		    if (n->nd_args == NULL) {
 			// catch StandardError exceptions by default
-			exceptions_to_catch.push_back(ConstantInt::get(RubyObjTy, (long)rb_eStandardError));
+			exceptions_to_catch.push_back(
+				ConstantInt::get(RubyObjTy, 
+				    (long)rb_eStandardError));
 		    }
 		    else {
 			NODE *n2 = n->nd_args;
 			assert(nd_type(n2) == NODE_ARRAY);
 			while (n2 != NULL) {
-			    exceptions_to_catch.push_back(compile_node(n2->nd_head));
+			    exceptions_to_catch.push_back(compile_node(
+					n2->nd_head));
 			    n2 = n2->nd_next;
 			}
 		    }
@@ -3772,9 +3791,11 @@ rescan_args:
 			// bool rb_vm_is_eh_active(int argc, ...);
 			std::vector<const Type *> types;
 			types.push_back(Type::Int32Ty);
-			FunctionType *ft = FunctionType::get(Type::Int8Ty, types, true);
+			FunctionType *ft = FunctionType::get(Type::Int8Ty,
+				types, true);
 			isEHActiveFunc = cast<Function>(
-				module->getOrInsertFunction("rb_vm_is_eh_active", ft));
+				module->getOrInsertFunction(
+				    "rb_vm_is_eh_active", ft));
 		    }
 
 		    const int size = exceptions_to_catch.size();
@@ -3785,13 +3806,16 @@ rescan_args:
 			    exceptions_to_catch.begin(), 
 			    exceptions_to_catch.end(), "", bb);
 
-		    Value *is_handler_active = new ICmpInst(ICmpInst::ICMP_EQ, handler_active, 
+		    Value *is_handler_active = new ICmpInst(ICmpInst::ICMP_EQ,
+			    handler_active,
 			    ConstantInt::get(Type::Int8Ty, 1), "", bb);
 		    
 		    handler_bb = BasicBlock::Create("handler", f);
-		    BasicBlock *next_handler_bb = BasicBlock::Create("handler", f);
+		    BasicBlock *next_handler_bb =
+			BasicBlock::Create("handler", f);
 
-		    BranchInst::Create(handler_bb, next_handler_bb, is_handler_active, bb);
+		    BranchInst::Create(handler_bb, next_handler_bb,
+			    is_handler_active, bb);
 
 		    bb = handler_bb;
 		    assert(n->nd_body != NULL);
@@ -3799,7 +3823,8 @@ rescan_args:
 		    handler_bb = bb;
 		    BranchInst::Create(merge_bb, bb);
 
-		    handlers.push_back(std::pair<Value *, BasicBlock *>(header_val, handler_bb));
+		    handlers.push_back(std::pair<Value *, BasicBlock *>
+			    (header_val, handler_bb));
 
 		    bb = handler_bb = next_handler_bb;
 
@@ -3807,15 +3832,7 @@ rescan_args:
 		}
 
 		bb = handler_bb;
-		Function *rethrowFunc = NULL;
-		if (rethrowFunc == NULL) {
-		    // void __cxa_rethrow(void);
-		    rethrowFunc = cast<Function>(
-			    module->getOrInsertFunction("__cxa_rethrow",
-				Type::VoidTy, NULL));
-		}
-		CallInst::Create(rethrowFunc, "", bb);
-		new UnreachableInst(bb);
+		compile_rethrow_exception();
 
 		bb = merge_bb;
 		assert(handlers.size() > 0);
@@ -3824,7 +3841,8 @@ rescan_args:
 		}
 		else {
 		    PHINode *pn = PHINode::Create(RubyObjTy, "op_tmp", bb);
-		    std::vector<std::pair<Value *, BasicBlock *> >::iterator iter = handlers.begin();
+		    std::vector<std::pair<Value *, BasicBlock *> >::iterator
+			iter = handlers.begin();
 		    while (iter != handlers.end()) {
 			pn->addIncoming(iter->first, iter->second);
 			++iter;
@@ -3853,14 +3871,41 @@ rescan_args:
 
 		Function *f = bb->getParent();
 		BasicBlock *ensure_bb = BasicBlock::Create("ensure", f);
+		Value *val;
 
-		Value *val = compile_node(node->nd_head);
-		BranchInst::Create(ensure_bb, bb);
+		if (nd_type(node->nd_head) != NODE_RESCUE) {
+		    // An ensure without a rescue (Ex. begin; ...; ensure; end)
+		    // we must call the head within an exception handler, then
+		    // branch on the ensure block, then re-raise the potential
+		    // exception.
+		    BasicBlock *new_rescue_bb = BasicBlock::Create("rescue", f);
+		    BasicBlock *old_rescue_bb = rescue_bb;
 
-		bb = ensure_bb;
-		compile_node(node->nd_ensr);
+		    rescue_bb = new_rescue_bb;
+		    DEBUG_LEVEL_INC();
+		    val = compile_node(node->nd_head);
+		    DEBUG_LEVEL_DEC();
+		    rescue_bb = old_rescue_bb;
+		    BranchInst::Create(ensure_bb, bb);
 
-		return val;
+		    bb = new_rescue_bb;
+		    compile_landing_pad_header();
+		    compile_node(node->nd_ensr);
+		    compile_rethrow_exception();
+		    //compile_landing_pad_footer();
+
+		    bb = ensure_bb;
+		    compile_node(node->nd_ensr);
+		}
+		else {
+		    val = compile_node(node->nd_head);
+		    BranchInst::Create(ensure_bb, bb);
+
+		    bb = ensure_bb;
+		    compile_node(node->nd_ensr);
+		}
+
+		return val;//nilVal;
 	    }
 	    break;
 
@@ -4027,14 +4072,16 @@ rescan_args:
 
 	case NODE_COLON3:
 	    assert(node->nd_mid > 0);
-	    return compile_const(node->nd_mid, ConstantInt::get(RubyObjTy, (long)rb_cObject));
+	    return compile_const(node->nd_mid,
+		    ConstantInt::get(RubyObjTy, (long)rb_cObject));
 
 	case NODE_CASE:
 	    {
 		Function *f = bb->getParent();
 		BasicBlock *caseMergeBB = BasicBlock::Create("case_merge", f);
 
-		PHINode *pn = PHINode::Create(RubyObjTy, "case_tmp", caseMergeBB);
+		PHINode *pn = PHINode::Create(RubyObjTy, "case_tmp",
+			caseMergeBB);
 
 		Value *comparedToVal = NULL;
 
@@ -4048,14 +4095,16 @@ rescan_args:
 		assert(nd_type(subnode) == NODE_WHEN);
 		while ((subnode != NULL) && (nd_type(subnode) == NODE_WHEN)) {
 		    NODE *valueNode = subnode->nd_head;
+		    assert(valueNode != NULL);
+
 		    BasicBlock *thenBB = BasicBlock::Create("then", f);
 
-		    assert(valueNode);
 		    compile_when_arguments(valueNode, comparedToVal, thenBB);
 		    BasicBlock *nextWhenBB = bb;
 
 		    bb = thenBB;
-		    Value *thenVal = subnode->nd_body != NULL ? compile_node(subnode->nd_body) : nilVal;
+		    Value *thenVal = subnode->nd_body != NULL
+			? compile_node(subnode->nd_body) : nilVal;
 		    thenBB = bb;
 
 		    BranchInst::Create(caseMergeBB, thenBB);

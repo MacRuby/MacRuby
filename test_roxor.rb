@@ -1044,7 +1044,10 @@ test "exception" do
 
   assert ":ok", "begin; p :ok; rescue; end"
   assert ":ok", "begin; raise; p :nok; rescue; p :ok; end"
-  assert ":ok", "begin; raise; p :nok; ensure; p :ok; end"
+  assert ":ok", %q{
+    def m; begin; raise; ensure; p :ok; end; end
+    begin; m; rescue; end
+  }
 
   assert "42", "x = 40; begin; x += 1; rescue; ensure; x += 1; end; p x"
   assert "42", "x = 40; begin; raise; x = nil; rescue; x += 1; ensure; x += 1; end; p x"
