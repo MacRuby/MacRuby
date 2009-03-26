@@ -4923,27 +4923,37 @@ sym_cmp(VALUE sym1, VALUE sym2)
  *     :fred.inspect   #=> ":fred"
  */
 
+static inline bool
+sym_printable(const char *str, long len)
+{
+    // TODO multibyte symbols
+    long i;
+    for (i = 0; i < len; i++) {
+	if (!isprint(str[i])) {
+	    return false;
+	}
+    }
+    return true;
+}
+
 static VALUE
 sym_inspect(VALUE sym, SEL sel)
 {
-    if (RSTRING_LEN(sym) == 0) {
+    const char *symstr = RSYMBOL(sym)->str;
+
+    long len = strlen(symstr);
+    if (len == 0) {
 	return rb_str_new2(":\"\"");
     }
 
-    CFCharacterSetRef letters =
-	CFCharacterSetGetPredefined(kCFCharacterSetLetter);
-    const bool should_be_quoted = 
-	!CFCharacterSetIsCharacterMember(letters,
-		CFStringGetCharacterAtIndex((CFStringRef)sym, 0));
-
     VALUE str = rb_str_new2(":");
-
-    if (should_be_quoted) {
+    if (!rb_symname_p(symstr) || !sym_printable(symstr, len)) {
+	rb_str_buf_cat2(str, "\"");
+	rb_str_buf_append(str, sym);
 	rb_str_buf_cat2(str, "\"");
     }
-    rb_str_buf_append(str, sym);
-    if (should_be_quoted) {
-	rb_str_buf_cat2(str, "\"");
+    else {
+	rb_str_buf_append(str, sym);
     }
 
     return str;
