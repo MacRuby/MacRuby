@@ -450,6 +450,15 @@ test "constants" do
     p o.baz.bar
   }
 
+  assert '42', %q{
+    module M
+      FOO = 42
+      class X
+        class << self; p FOO; end
+      end
+    end
+  }
+    
 end
 
 test "ranges" do
