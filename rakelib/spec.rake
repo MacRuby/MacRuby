@@ -38,6 +38,7 @@ namespace :spec do
     metaclass
     next
     precedence
+    predefined
   }
   
   MSPEC_RUN = "./miniruby -v -I./mspec/lib -I./lib ./mspec/bin/mspec-run"

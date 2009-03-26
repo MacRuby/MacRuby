@@ -1,5 +1,7 @@
 require File.dirname(__FILE__) + '/../spec_helper'
-require 'stringio'
+
+# MacRuby TODO: We need StringIO for one spec: Predefined global $_ is set to the last line read by e.g. StringIO#gets
+# require 'stringio'
 
 # The following tables are excerpted from Programming Ruby: The Pragmatic Programmer's Guide'
 # Second Edition by Dave Thomas, Chad Fowler, and Andy Hunt, page 319-22.
