@@ -5,6 +5,7 @@ namespace :spec do
     block
     break
     case
+    catch
     class
     class_variable
     defined
