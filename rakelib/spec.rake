@@ -10,6 +10,7 @@ namespace :spec do
     class_variable
     def
     defined
+    eigenclass
     else
     execution
     file
