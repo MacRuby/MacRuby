@@ -1,5 +1,0 @@
-fails:The private keyword is overridden when a new class is opened
-fails:The private keyword is no longer in effect when the class is closed
-fails:The private keyword changes visibility of previously called method
-fails:The private keyword changes visiblity of previously called methods with same send/call site
-fails:The private keyword changes the visibility of the existing method in the subclass

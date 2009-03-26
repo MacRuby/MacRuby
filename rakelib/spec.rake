@@ -1,6 +1,4 @@
 namespace :spec do
-  MSPEC_RUN = "./miniruby -v -I./mspec/lib -I./lib ./mspec/bin/mspec-run"
-  
   KNOWN_GOOD = %w{
     and
     array
@@ -28,7 +26,8 @@ namespace :spec do
   
   desc "Run continuous integration language examples (known good)"
   task :ci do
-    sh "#{MSPEC_RUN} #{FileList["spec/frozen/language/{#{KNOWN_GOOD.join(',')}}_spec.rb"].join(' ')}"
+    files = FileList["spec/frozen/language/{#{KNOWN_GOOD.join(',')}}_spec.rb"]
+    sh "./mspec/bin/mspec ci -B ./spec/frozen/macruby.mspec #{files.join(' ')}"
   end
   
   desc "Run language examples that are known to fail"
@@ -36,7 +35,7 @@ namespace :spec do
     files = FileList["spec/frozen/language/*_spec.rb"]
     files -= files.grep(/\/(#{KNOWN_GOOD.join('|')})_spec\.rb$/)
     files.each do |spec|
-      sh "#{MSPEC_RUN} --format spec #{spec}" rescue nil
+      sh "./miniruby -v -I./mspec/lib -I./lib ./mspec/bin/mspec-run --format spec #{spec}" rescue nil
     end
   end
   

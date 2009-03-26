@@ -1,9 +1,0 @@
-fails:Basic assignment assigns nil to lhs when rhs is an empty expression
-fails:Basic assignment allows the assignment of the rhs to the lhs using the rhs splat operator
-fails:Basic assignment allows the assignment of the rhs to the lhs using the lhs splat operator
-fails:Basic assignment allows the assignment of rhs to the lhs using the lhs and rhs splat operators simultaneously
-fails:Assignment using expansion succeeds without conversion
-fails:Assigning multiple values calls #to_ary on rhs arg if rhs has only a single arg
-fails:Operator assignment 'obj[idx] op= expr' returns result of rhs not result of []=
-fails:Multiple assignments with splats * on the lhs has to be applied to the last parameter
-fails:Multiple assignments with splats * on the lhs collects all parameters from its position onwards as an Array or an empty Array

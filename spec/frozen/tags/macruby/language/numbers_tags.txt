@@ -1,2 +1,0 @@
-fails:Ruby numbers in various ways character to numeric shortcut
-fails:Ruby numbers in various ways character with control character to numeric shortcut
