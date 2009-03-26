@@ -2342,8 +2342,31 @@ RoxorCompiler::compile_node(NODE *node)
 			lvars[id] = store;
 		    }
 
-		    // Compile optional arguments.
+		    // compile multiple assignment arguments (def f((a, b, v)))
+		    // (this must also be done after the creation of local variables)
 		    NODE *n = node->nd_args;
+		    if (n != NULL) {
+			NODE *rest_node = n->nd_next;
+			if (rest_node != NULL) {
+			    NODE *right_req_node = rest_node->nd_next;
+			    if (right_req_node != NULL) {
+				NODE *last_node = right_req_node->nd_next;
+				if (last_node != NULL) {
+				    assert(nd_type(last_node) == NODE_AND);
+				    // multiple assignment for the left-side required arguments
+				    if (last_node->nd_1st != NULL) {
+					compile_node(last_node->nd_1st);
+				    }
+				    // multiple assignment for the right-side required arguments
+				    if (last_node->nd_2nd != NULL) {
+					compile_node(last_node->nd_2nd);
+				    }
+				}
+			    }
+			}
+		    }
+
+		    // Compile optional arguments.
 		    Function::ArgumentListType::iterator iter = f->arg_begin();
 		    ++iter; // skip self
 		    ++iter; // skip sel
