@@ -5,17 +5,20 @@ namespace :spec do
     and
     array
     case
+    class_variable
     defined
     else
     execution
     file
     hash
     if
+    line
     module
     numbers
     not
     or
     order
+    retry
     string
     symbol
     unless
