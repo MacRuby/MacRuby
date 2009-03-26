@@ -42,6 +42,7 @@ namespace :spec do
     private
     return
     throw
+    yield
   }
   
   MSPEC_RUN = "./miniruby -v -I./mspec/lib -I./lib ./mspec/bin/mspec-run"
