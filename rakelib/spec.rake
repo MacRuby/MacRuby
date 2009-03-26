@@ -36,6 +36,7 @@ namespace :spec do
     loop
     magic_comment
     metaclass
+    next
   }
   
   MSPEC_RUN = "./miniruby -v -I./mspec/lib -I./lib ./mspec/bin/mspec-run"
