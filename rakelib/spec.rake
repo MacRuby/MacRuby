@@ -2,24 +2,15 @@ namespace :spec do
   KNOWN_GOOD = %w{
     and
     array
-    block
-    break
     case
-    catch
-    class
     class_variable
-    def
     defined
-    eigenclass
     else
-    encoding
-    ensure
     execution
     file
     hash
     if
     line
-    loop
     module
     numbers
     not
@@ -33,9 +24,28 @@ namespace :spec do
     while
   }
   
-  desc "Run continuous integration language examples (known good)"
+  KNOWN_PARTIALLY_GOOD = %w{
+    block
+    break
+    catch
+    class
+    def
+    eigenclass
+    encoding
+    ensure
+    loop
+  }
+  
+  MSPEC_RUN = "./miniruby -v -I./mspec/lib -I./lib ./mspec/bin/mspec-run"
+  
+  desc "Run all spec files should be fully green (known good)"
+  task :green do
+    sh "#{MSPEC_RUN} #{FileList["spec/frozen/language/{#{KNOWN_GOOD.join(',')}}_spec.rb"].join(' ')}"
+  end
+  
+  desc "Run continuous integration language examples (all known good examples)"
   task :ci do
-    files = FileList["spec/frozen/language/{#{KNOWN_GOOD.join(',')}}_spec.rb"]
+    files = FileList["spec/frozen/language/{#{(KNOWN_GOOD + KNOWN_PARTIALLY_GOOD).join(',')}}_spec.rb"]
     sh "./mspec/bin/mspec ci -B ./spec/frozen/macruby.mspec #{files.join(' ')}"
   end
   
