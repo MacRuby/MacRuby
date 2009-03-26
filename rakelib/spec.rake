@@ -2,6 +2,8 @@ namespace :spec do
   KNOWN_GOOD = %w{
     and
     array
+    block
+    break
     case
     class_variable
     defined

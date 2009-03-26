@@ -1,1 +1,12 @@
-critical:The break statement raises a SyntaxError if used not within block or while/for loop
+fails:Executing break from within a block returns from the invoking singleton method
+fails:Executing break from within a block returns from the invoking method with the argument to break
+fails:Executing break from within a block returns from the original invoking method even in case of chained calls
+fails:Breaking out of a loop with a value assigns objects
+fails:Breaking out of a loop with a value assigns splatted objects
+fails:Breaking out of a loop with a value assigns to a splatted reference
+fails:Breaking out of a loop with a value assigns splatted objects to a splatted reference
+fails:Breaking out of a loop with a value assigns splatted objects to a splatted reference from a splatted loop
+fails:Breaking out of a loop with a value assigns objects to multiple block variables
+fails:Breaking out of a loop with a value assigns splatted objects to multiple block variables
+fails:Breaking out of a loop with a value stops any loop type at the correct spot
+fails:Breaking out of a loop with a value stops a yielded method at the correct spot
