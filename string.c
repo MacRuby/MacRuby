@@ -5546,6 +5546,7 @@ Init_String(void)
     rb_define_singleton_method(rb_cSymbol, "all_symbols", rb_sym_all_symbols, 0); /* in parse.y */
 
     rb_objc_define_method(rb_cSymbol, "==", sym_equal, 1);
+    rb_objc_define_method(rb_cSymbol, "eql?", sym_equal, 1);
     rb_objc_define_method(rb_cSymbol, "<=>", sym_cmp, 1);
     rb_objc_define_method(rb_cSymbol, "inspect", sym_inspect, 0);
     rb_objc_define_method(rb_cSymbol, "description", sym_inspect, 0);
