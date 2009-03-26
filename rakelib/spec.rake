@@ -5,6 +5,7 @@ namespace :spec do
     and
     array
     case
+    defined
     else
     execution
     hash
