@@ -2287,7 +2287,7 @@ RoxorCompiler::compile_node(NODE *node)
 		     ++iter) {
 
 		    ID id = iter->first;
-		    assert(iter->second == NULL);	
+		    assert(iter->second == NULL);
 	
 		    Value *val = arg++;
 		    val->setName(std::string("dyna_") + rb_id2name(id));
@@ -2342,11 +2342,11 @@ RoxorCompiler::compile_node(NODE *node)
 			lvars[id] = store;
 		    }
 
-		    // compile multiple assignment arguments (def f((a, b, v)))
-		    // (this must also be done after the creation of local variables)
-		    NODE *n = node->nd_args;
-		    if (n != NULL) {
-			NODE *rest_node = n->nd_next;
+		    NODE *args_node = node->nd_args;
+		    if (args_node != NULL) {
+			// compile multiple assignment arguments (def f((a, b, v)))
+			// (this must also be done after the creation of local variables)
+			NODE *rest_node = args_node->nd_next;
 			if (rest_node != NULL) {
 			    NODE *right_req_node = rest_node->nd_next;
 			    if (right_req_node != NULL) {
@@ -2364,22 +2364,19 @@ RoxorCompiler::compile_node(NODE *node)
 				}
 			    }
 			}
-		    }
 
-		    // Compile optional arguments.
-		    Function::ArgumentListType::iterator iter = f->arg_begin();
-		    ++iter; // skip self
-		    ++iter; // skip sel
-		    while (n != NULL) {
-			if (nd_type(n) == NODE_ARGS) {
-			    for (i = 0; i < n->nd_frml; i++) {
-				++iter;  // skip mandatory argument
+			// Compile optional arguments.
+			Function::ArgumentListType::iterator iter = f->arg_begin();
+			++iter; // skip self
+			++iter; // skip sel
+			NODE *opt_node = args_node->nd_opt;
+			if (opt_node != NULL) {
+			    int to_skip = dvars.size() + args_node->nd_frml;
+			    for (i = 0; i < to_skip; i++) {
+				++iter;  // skip dvars and args required on the left-side
 			    }
-			    if (n->nd_head != NULL) {
-				iter = compile_optional_arguments(iter, n->nd_head);
-			    }
+			    iter = compile_optional_arguments(iter, opt_node);
 			}
-			n = n->nd_next;
 		    }
 		}
 
