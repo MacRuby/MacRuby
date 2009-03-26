@@ -19,6 +19,7 @@ namespace :spec do
     hash
     if
     line
+    loop
     module
     numbers
     not

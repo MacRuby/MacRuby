@@ -1,0 +1,3 @@
+critical:The loop expression restarts the current iteration with redo
+critical:The loop expression uses a spaghetti nightmare of redo, next and break
+fails:The loop expression returns the value passed to break if interrupted by break
