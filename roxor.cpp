@@ -4977,7 +4977,8 @@ recache:
 	assert(rcache.node != NULL);
 	const int node_type = nd_type(rcache.node);
 
-	if (node_type == NODE_SCOPE && rcache.node->nd_body == NULL) {
+	if (node_type == NODE_SCOPE && rcache.node->nd_body == NULL
+	    && rcache.arity.max == rcache.arity.min) {
 	    // Calling an empty method, let's just return nil!
 	    return Qnil;
 	}
