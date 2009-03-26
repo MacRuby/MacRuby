@@ -18,7 +18,7 @@ VALUE rb_vm_loaded_features(void);
 int rb_vm_safe_level(void);
 void rb_vm_set_safe_level(int level);
 VALUE rb_vm_top_self(void);
-void rb_vm_const_defined(ID path);
+void rb_vm_const_is_defined(ID path);
 bool rb_vm_lookup_method(Class klass, SEL sel, IMP *pimp, NODE **pnode);
 bool rb_vm_lookup_method2(Class klass, ID mid, SEL *psel, IMP *pimp, NODE **pnode);
 void rb_vm_define_method(Class klass, SEL sel, IMP imp, NODE *node);
@@ -33,6 +33,7 @@ VALUE rb_vm_yield_under(VALUE klass, VALUE self, int argc, const VALUE *argv);
 bool rb_vm_respond_to(VALUE obj, SEL sel, bool priv);
 VALUE rb_vm_method_missing(VALUE obj, int argc, const VALUE *argv);
 int rb_vm_find_class_ivar_slot(VALUE klass, ID name);
+void rb_vm_set_outer(VALUE klass, VALUE under);
 
 static inline void
 rb_vm_regrow_robject_slots(struct RObject *obj, unsigned int new_num_slot)

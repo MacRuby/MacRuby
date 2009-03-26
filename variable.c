@@ -273,6 +273,8 @@ rb_set_class_path(VALUE klass, VALUE under, const char *name)
     }
     OBJ_FREEZE(str);
     rb_ivar_set(klass, classpath, str);
+
+    rb_vm_set_outer(klass, under);
 }
 
 VALUE
@@ -1831,7 +1833,7 @@ mod_av_set(VALUE klass, ID id, VALUE val, int isconst)
 
     DLOG("CONS", "%s::%s <- %p", class_getName((Class)klass), rb_id2name(id), (void *)val);
     CFDictionarySetValue(iv_dict, (const void *)id, (const void *)val);
-    rb_vm_const_defined(id);
+    rb_vm_const_is_defined(id);
 }
 
 void

@@ -370,6 +370,11 @@ struct RoxorFunctionIMP
     }
 };
 
+struct rb_vm_outer {
+    Class klass;
+    struct rb_vm_outer *outer;
+};
+
 class RoxorVM
 {
     private:
@@ -384,6 +389,7 @@ class RoxorVM
 	std::map<ID, struct ccache *> ccache;
 	std::map<Class, std::map<ID, int> *> ivar_slots;
 	std::map<SEL, GlobalVariable *> redefined_ops_gvars;
+	std::map<Class, struct rb_vm_outer *> outers;
 
     public:
 	static RoxorVM *current;
@@ -482,6 +488,21 @@ class RoxorVM
 	}
 	int find_ivar_slot(VALUE klass, ID name, bool create);
 	bool class_can_have_ivar_slots(VALUE klass);
+
+	struct rb_vm_outer *get_outer(Class klass) {
+	    std::map<Class, struct rb_vm_outer *>::iterator iter =
+		outers.find(klass);
+	    return iter == outers.end() ? NULL : iter->second;
+	}
+
+	void set_outer(Class klass, Class mod) {
+	    struct rb_vm_outer *mod_outer = get_outer(mod);
+	    struct rb_vm_outer *class_outer = (struct rb_vm_outer *)
+		malloc(sizeof(struct rb_vm_outer));
+	    class_outer->klass = klass;
+	    class_outer->outer = mod_outer;
+	    outers[klass] = class_outer;
+	}
 };
 
 RoxorVM *RoxorVM::current = NULL;
@@ -991,16 +1012,25 @@ RoxorCompiler::compile_current_class(void)
 Value *
 RoxorCompiler::compile_const(ID id, Value *outer)
 {
+    bool outer_given = true;
+    if (outer == NULL) {
+	outer = compile_current_class();
+	outer_given = false;
+    }
+
     if (getConstFunc == NULL) {
-	// VALUE rb_vm_get_const(VALUE mod, struct ccache *cache, ID id);
-	getConstFunc = cast<Function>(module->getOrInsertFunction("rb_vm_get_const", 
-		    RubyObjTy, RubyObjTy, PtrTy, IntTy, NULL));
+	// VALUE rb_vm_get_const(VALUE mod, unsigned char lexical_lookup,
+	//			 struct ccache *cache, ID id);
+	getConstFunc = cast<Function>(module->getOrInsertFunction(
+		    "rb_vm_get_const", 
+		    RubyObjTy, RubyObjTy, Type::Int8Ty, PtrTy, IntTy, NULL));
     }
 
     std::vector<Value *> params;
 
     struct ccache *cache = GET_VM()->constant_cache_get(id);
     params.push_back(outer);
+    params.push_back(ConstantInt::get(Type::Int8Ty, outer_given ? 0 : 1));
     params.push_back(compile_const_pointer(cache));
     params.push_back(ConstantInt::get(IntTy, id));
 
@@ -1027,8 +1057,9 @@ RoxorCompiler::compile_singleton_class(Value *obj)
 #define DEFINED_GVAR 	2
 #define DEFINED_CVAR 	3
 #define DEFINED_CONST	4
-#define DEFINED_SUPER	5
-#define DEFINED_METHOD	6
+#define DEFINED_LCONST	5
+#define DEFINED_SUPER	6
+#define DEFINED_METHOD	7
 
 Value *
 RoxorCompiler::compile_defined_expression(NODE *node)
@@ -1116,8 +1147,9 @@ RoxorCompiler::compile_defined_expression(NODE *node)
 	    break;
 
 	case NODE_CONST:
-	    type = DEFINED_CONST;
+	    type = DEFINED_LCONST;
 	    what1 = (VALUE)node->nd_vid;
+	    what2 = compile_current_class();
 	    break;
 
 	case NODE_SUPER:
@@ -3236,7 +3268,7 @@ rescan_args:
 
 	case NODE_CONST:
 	    assert(node->nd_vid > 0);
-	    return compile_const(node->nd_vid, compile_current_class());
+	    return compile_const(node->nd_vid, NULL);
 
 	case NODE_CDECL:
 	    {
@@ -4114,24 +4146,81 @@ rb_vm_set_const(VALUE outer, ID id, VALUE obj)
     GET_VM()->const_defined(id);
 }
 
+static inline VALUE
+rb_const_get_direct(VALUE klass, ID id)
+{
+    CFDictionaryRef iv_dict = rb_class_ivar_dict(klass);
+    if (iv_dict != NULL) {
+	VALUE value;
+	if (CFDictionaryGetValueIfPresent(iv_dict, (const void *)id,
+		    (const void **)&value)) {
+	    return value;
+	}
+    }
+    VALUE mods = rb_attr_get(klass, idIncludedModules);
+    if (mods != Qnil) {
+	int i, count = RARRAY_LEN(mods);
+	for (i = 0; i < count; i++) {
+	    VALUE val = rb_const_get_direct(RARRAY_AT(mods, i), id);
+	    if (val != Qundef) {
+		return val;
+	    }
+	}
+    }
+    return Qundef;
+}
+
+static VALUE
+rb_vm_const_lookup(VALUE outer, ID path, bool lexical, bool defined)
+{
+    if (lexical) {
+	struct rb_vm_outer *o = GET_VM()->get_outer((Class)outer);
+	while (o != NULL && o->klass != (Class)rb_cNSObject) {
+	    VALUE val = rb_const_get_direct((VALUE)o->klass, path);
+	    if (val != Qundef) {
+		return defined ? Qtrue : val;
+	    }
+	    o = o->outer;
+	}
+    }
+
+    return defined ? rb_const_defined(outer, path) : rb_const_get(outer, path);
+}
+
 extern "C"
 VALUE
-rb_vm_get_const(VALUE outer, struct ccache *cache, ID path)
+rb_vm_get_const(VALUE outer, unsigned char lexical_lookup,
+		struct ccache *cache, ID path)
 {
-    // TODO if called within module_eval, we should update outer 
+    if (GET_VM()->current_class != NULL && lexical_lookup) {
+	outer = (VALUE)GET_VM()->current_class;
+    }
+
     assert(cache != NULL);
     if (cache->outer == outer && cache->val != Qundef) {
 	return cache->val;
     }
+
+    VALUE val = rb_vm_const_lookup(outer, path, lexical_lookup, false);
+
     cache->outer = outer;
-    return cache->val = rb_const_get(outer, path);
+    cache->val = val;
+
+    return val;
 }
 
 extern "C"
 void
-rb_vm_const_defined(ID path)
+rb_vm_const_is_defined(ID path)
 {
     GET_VM()->const_defined(path);
+}
+
+extern "C"
+void
+rb_vm_set_outer(VALUE klass, VALUE under)
+{
+    GET_VM()->set_outer((Class)klass, (Class)under);
 }
 
 extern "C"
@@ -4340,12 +4429,10 @@ rb_vm_defined(VALUE self, int type, VALUE what, VALUE what2)
 	    break;
 
 	case DEFINED_CONST:
+	case DEFINED_LCONST:
 	    {
-		VALUE outer = what2;
-		if (NIL_P(outer)) {
-		    outer = CLASS_OF(self);
-		}
-		if (rb_const_defined(outer, (ID)what)) {
+		if (rb_vm_const_lookup(what2, (ID)what,
+				       type == DEFINED_LCONST, true)) {
 		    str = "constant";
 		}
 	    }

@@ -372,6 +372,7 @@ rb_make_metaclass(VALUE obj, VALUE super)
 	    RCLASS_SET_VERSION(klass, v);
 	}
 	RCLASS_SET_VERSION_FLAG(klass, RCLASS_IS_SINGLETON);
+	rb_vm_set_outer(klass, rb_cNSObject);
 
 	rb_singleton_class_attached(klass, obj);
 

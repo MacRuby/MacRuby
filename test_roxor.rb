@@ -435,6 +435,21 @@ test "constants" do
 
   assert 'true', 'p ::String == String'
 
+  assert '42', %q{
+    o = Object.new
+    class << o
+      module Foo
+        Bar = 42
+      end
+      class Baz; include Foo; end
+      class Baz;
+        def self.bar; Bar; end
+      end
+      def baz; Baz; end
+    end
+    p o.baz.bar
+  }
+
 end
 
 test "ranges" do
