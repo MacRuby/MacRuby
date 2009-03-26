@@ -4926,7 +4926,9 @@ sym_cmp(VALUE sym1, VALUE sym2)
 static VALUE
 sym_inspect(VALUE sym, SEL sel)
 {
-    assert(RSTRING_LEN(sym) > 0);
+    if (RSTRING_LEN(sym) == 0) {
+	return rb_str_new2(":\"\"");
+    }
 
     CFCharacterSetRef letters =
 	CFCharacterSetGetPredefined(kCFCharacterSetLetter);
