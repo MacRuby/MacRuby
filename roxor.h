@@ -92,10 +92,10 @@ typedef struct {
 rb_vm_method_t *rb_vm_get_method(VALUE klass, VALUE obj, ID mid, int scope);
 
 typedef struct {
-    short min;
-    short max;
-    short left_req;
-    short real;
+    short min;		// min number of args that we accept
+    short max;		// max number of args that we accept (-1 if rest)
+    short left_req;	// number of args required on the left side
+    short real;		// number of args of the low level function
 } rb_vm_arity_t;
 
 #define VM_BLOCK_PROC	0x0001	// block is a Proc object
