@@ -12,6 +12,7 @@ namespace :spec do
     defined
     eigenclass
     else
+    encoding
     execution
     file
     hash
