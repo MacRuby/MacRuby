@@ -1,0 +1,7 @@
+fails:The throw keyword abandons processing
+fails:The throw keyword supports a second parameter
+fails:The throw keyword only allows symbols and strings as it's argument
+fails:The throw keyword unwinds stack from within a method
+fails:The throw keyword unwinds stack from within a lambda
+fails:The throw keyword raises a name error if outside of scope of a matching catch
+fails:The throw keyword raises a ThreadError if used to exit a thread
