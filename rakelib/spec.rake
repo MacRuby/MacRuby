@@ -17,6 +17,7 @@ namespace :spec do
     or
     order
     string
+    symbol
     unless
     until
     while
