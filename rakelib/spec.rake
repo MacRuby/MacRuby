@@ -8,6 +8,7 @@ namespace :spec do
     defined
     else
     execution
+    file
     hash
     if
     module
