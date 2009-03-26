@@ -782,7 +782,8 @@ rb_io_fileno(VALUE io, SEL sel)
 static VALUE
 rb_io_pid(VALUE io, SEL sel)
 {
-    rb_notimplement();
+	rb_io_t *io_struct = ExtractIOStruct(io);
+	return ((io_struct->pid == -1) ? Qnil : INT2FIX(io_struct->pid));
 }
 
 
@@ -3059,7 +3060,7 @@ rb_f_syscall(VALUE recv, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_io_s_pipe(VALUE recv, SEL sel, int argc, VALUE *argv)
 {
-rb_notimplement();
+	rb_notimplement();
 }
 
 /*
