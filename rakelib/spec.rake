@@ -8,6 +8,7 @@ namespace :spec do
     catch
     class
     class_variable
+    def
     defined
     else
     execution

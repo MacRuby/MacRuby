@@ -1,0 +1,12 @@
+fails:Defining an 'initialize' method should make it private
+fails:Defining an 'initialize_copy' method should make it private
+fails:An instance method with a default argument evaluates the default when required arguments precede it
+fails:An instance method with a default argument prefers to assign to a default argument before a splat argument
+fails:Redefining a singleton method does not inherit a previously set visibility 
+fails:Redefining a singleton method does not inherit a previously set visibility 
+fails:A nested method definition creates an instance method when evaluated in an instance method
+fails:A method definition inside an instance_eval creates a singleton method
+fails:A method definition inside an instance_eval creates a class method when the receiver is a class
+fails:A method definition in an eval creates an instance method
+fails:A method definition in an eval creates a class method
+fails:A method definition in an eval creates a singleton method
