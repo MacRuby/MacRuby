@@ -183,6 +183,7 @@ class RoxorCompiler
 #endif
 
 	BasicBlock *bb;
+	BasicBlock *entry_bb;
 	ID current_mid;
 	bool current_instance_method;
 	ID self_id;
@@ -518,6 +519,7 @@ RoxorCompiler::RoxorCompiler(const char *_fname)
     fname = _fname;
 
     bb = NULL;
+    entry_bb = NULL;
     begin_bb = NULL;
     rescue_bb = NULL;
     current_mid = 0;
@@ -2280,9 +2282,10 @@ RoxorCompiler::compile_node(NODE *node)
 		Function *f = cast<Function>(module->getOrInsertFunction("", ft));
 
 		BasicBlock *old_rescue_bb = rescue_bb;
-		rescue_bb = NULL;
+		BasicBlock *old_entry_bb = entry_bb;
 		BasicBlock *old_bb = bb;
-		bb = BasicBlock::Create("EntryBlock", f);
+		rescue_bb = NULL;
+		bb = BasicBlock::Create("MainBlock", f);
 
 		std::map<ID, Value *> old_lvars = lvars;
 		lvars.clear();
@@ -2400,6 +2403,10 @@ RoxorCompiler::compile_node(NODE *node)
 
 		Value *val = NULL;
 		if (node->nd_body != NULL) {
+		    entry_bb = BasicBlock::Create("entry_point", f); 
+		    BranchInst::Create(entry_bb, bb);
+		    bb = entry_bb;
+
 		    DEBUG_LEVEL_INC();
 		    val = compile_node(node->nd_body);
 		    DEBUG_LEVEL_DEC();
@@ -2410,6 +2417,7 @@ RoxorCompiler::compile_node(NODE *node)
 		ReturnInst::Create(val, bb);
 
 		bb = old_bb;
+		entry_bb = old_entry_bb;
 		lvars = old_lvars;
 		current_self = old_self;
 		rescue_bb = old_rescue_bb;
@@ -3275,19 +3283,23 @@ rescan_args:
 		    if (nd_type(node) == NODE_BREAK) {
 			if (breakFunc == NULL) {
 			    // void rb_vm_break(VALUE val);
-			    breakFunc = cast<Function>(module->getOrInsertFunction("rb_vm_break", 
+			    breakFunc = cast<Function>(
+				    module->getOrInsertFunction("rb_vm_break", 
 					Type::VoidTy, RubyObjTy, NULL));
 			}
 			std::vector<Value *> params;
 			params.push_back(val);
-			CallInst::Create(breakFunc, params.begin(), params.end(), "", bb);
+			CallInst::Create(breakFunc, params.begin(),
+					 params.end(), "", bb);
+			ReturnInst::Create(val, bb);
 		    }
 		    else if (nd_type(node) == NODE_REDO) {
-			// TODO
-			abort();
+			assert(entry_bb != NULL);
+			BranchInst::Create(entry_bb, bb);
 		    }
-
-		    ReturnInst::Create(val, bb);
+		    else {
+			ReturnInst::Create(val, bb);
+		    }
 		}
 		compile_dead_branch();
 		return val;
