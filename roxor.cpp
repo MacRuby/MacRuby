@@ -407,6 +407,7 @@ class RoxorVM
 	VALUE load_path;
 	VALUE backref;
 	VALUE broken_with;
+	VALUE last_status;
 	int safe_level;
 	std::map<NODE *, rb_vm_block_t *> blocks;
 	std::map<double, struct rb_float_cache *> float_cache;
@@ -1949,6 +1950,7 @@ RoxorVM::RoxorVM(void)
 
     backref = Qnil;
     broken_with = Qundef;
+    last_status = Qnil;
 
     current_block = NULL;
     previous_block = NULL;
@@ -6146,6 +6148,33 @@ void
 rb_vm_set_safe_level(int level)
 {
     GET_VM()->safe_level = level;
+}
+
+extern "C"
+VALUE
+rb_last_status_get(void)
+{
+    return GET_VM()->last_status;
+}
+
+extern "C"
+void
+rb_last_status_set(int status, rb_pid_t pid)
+{
+    if (GET_VM()->last_status != Qnil) {
+	rb_objc_release((void *)GET_VM()->last_status);
+    }
+    VALUE last_status;
+    if (pid == -1) {
+	last_status = Qnil;
+    }
+    else {
+	last_status = rb_obj_alloc(rb_cProcessStatus);
+	rb_iv_set(last_status, "status", INT2FIX(status));
+	rb_iv_set(last_status, "pid", PIDT2NUM(pid));
+	rb_objc_retain((void *)last_status);
+    }
+    GET_VM()->last_status = last_status;
 }
 
 extern "C"

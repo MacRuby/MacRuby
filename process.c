@@ -216,29 +216,12 @@ get_ppid(void)
  *  _stat_, we're referring to this 16 bit value.
  */
 
-static VALUE rb_cProcessStatus;
-
-VALUE
-rb_last_status_get(void)
-{
-    // TODO
-    return Qnil;
-}
-
-void
-rb_last_status_set(int status, rb_pid_t pid)
-{
-#if 0 // TODO
-    VALUE last_status = rb_obj_alloc(rb_cProcessStatus);
-    rb_iv_set(vm->last_status, "status", INT2FIX(status));
-    rb_iv_set(vm->last_status, "pid", PIDT2NUM(pid));
-#endif
-}
+VALUE rb_cProcessStatus;
 
 static void
 rb_last_status_clear(void)
 {
-    // TODO
+    rb_last_status_set(0, -1);
 }
 
 /*
