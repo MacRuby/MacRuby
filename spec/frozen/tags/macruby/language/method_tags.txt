@@ -1,1 +1,5 @@
-fails:Calling a method allows any number of args beyond required to method with a splat
+critical:Calling a method allows any number of args beyond required to method with a splat
+fails:Calling a method with block argument converts the block to proc
+fails:Calling a method with invalid argument count raises an ArgumentError
+fails:Calling a private getter method does not permit self as a receiver
+fails:Calling a method expands an array to arguments grouped in parentheses which in turn takes rest arguments
