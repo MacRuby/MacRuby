@@ -38,6 +38,7 @@ namespace :spec do
     loop
     magic_comment
     metaclass
+    method
     next
     predefined
     private
