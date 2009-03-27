@@ -2541,7 +2541,8 @@ RoxorCompiler::compile_node(NODE *node)
 
 		if (rhsnGetFunc == NULL) {
 		    // VALUE rb_vm_rhsn_get(VALUE ary, int offset);
-		    rhsnGetFunc = cast<Function>(module->getOrInsertFunction("rb_vm_rhsn_get", 
+		    rhsnGetFunc = cast<Function>(module->getOrInsertFunction(
+				"rb_vm_rhsn_get", 
 				RubyObjTy, RubyObjTy, Type::Int32Ty, NULL));
 		}
 
@@ -2553,7 +2554,8 @@ RoxorCompiler::compile_node(NODE *node)
 		    std::vector<Value *> params;
 		    params.push_back(ary);
 		    params.push_back(ConstantInt::get(Type::Int32Ty, i++));
-		    Value *elt = CallInst::Create(rhsnGetFunc, params.begin(), params.end(), "", bb);
+		    Value *elt = CallInst::Create(rhsnGetFunc, params.begin(),
+			    params.end(), "", bb);
 
 		    switch (nd_type(ln)) {
 			case NODE_LASGN:
@@ -2574,8 +2576,16 @@ RoxorCompiler::compile_node(NODE *node)
 			    compile_attribute_assign(ln, elt);
 			    break;
 
+			case NODE_MASGN:
+			    // a,(*b),c = 1, 2, 3; b #=> [2]
+			    // This is a strange case but covered by the
+			    // RubySpecs.
+			    // TODO
+			    break; 
+
 			default:
-			    compile_node_error("unimplemented MASGN subnode", ln);
+			    compile_node_error("unimplemented MASGN subnode",
+					       ln);
 		    }
 		    l = l->nd_next;
 		}
