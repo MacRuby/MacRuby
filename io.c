@@ -210,7 +210,7 @@ macruby_pclose(FILE *iop)
 	} while (pid == -1 && errno == EINTR);
 
 	/* Remove the entry from the linked list. */
-	if (last == NULL
+	if (last == NULL)
 		pidlist = cur->next;
 	else
 		last->next = cur->next;
