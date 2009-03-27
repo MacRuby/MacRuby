@@ -4514,54 +4514,64 @@ rb_vm_to_a(VALUE obj)
 
 extern "C" void rb_print_undef(VALUE, ID, int);
 
+static void
+rb_vm_alias_method(Class klass, Method method, ID name, int arity)
+{
+    IMP imp = method_getImplementation(method);
+    const char *types = method_getTypeEncoding(method);
+    NODE *node = GET_VM()->method_node_get(imp);
+    if (node == NULL) {
+	rb_raise(rb_eArgError, "cannot alias non-Ruby method `%s'",
+		sel_getName(method_getName(method)));
+    }
+
+    const char *name_str = rb_id2name(name);
+    SEL sel;
+    if (arity == 0) {
+	sel = sel_registerName(name_str);
+    }
+    else {
+	char tmp[100];
+	snprintf(tmp, sizeof tmp, "%s:", name_str);
+	sel = sel_registerName(tmp);
+    }
+
+    GET_VM()->add_method(klass, sel, imp, node, types);
+}
+
 extern "C"
 void
 rb_vm_alias(VALUE outer, ID name, ID def)
 {
-    // TODO reassign klass if called within module_eval
-
+    if (GET_VM()->current_class != NULL) {
+	outer = (VALUE)GET_VM()->current_class;
+    }
     rb_frozen_class_p(outer);
     if (outer == rb_cObject) {
         rb_secure(4);
     }
     Class klass = (Class)outer;
 
-    // Find the implementation of the original method first.
     const char *def_str = rb_id2name(def);
-    SEL def_sel = sel_registerName(def_str);
-    Method def_method = class_getInstanceMethod(klass, def_sel);
-    bool def_qualified = false;
-    if (def_method == NULL  && def_str[strlen(def_str) - 1] != ':') {
+    SEL sel = sel_registerName(def_str);
+    Method def_method1 = class_getInstanceMethod(klass, sel);
+    Method def_method2 = NULL;
+    if (def_str[strlen(def_str) - 1] != ':') {
 	char tmp[100];
 	snprintf(tmp, sizeof tmp, "%s:", def_str);
-	def_sel = sel_registerName(tmp);
- 	def_method = class_getInstanceMethod(klass, def_sel);
-	def_qualified = true;
+	sel = sel_registerName(tmp);
+ 	def_method2 = class_getInstanceMethod(klass, sel);
     }
-    if (def_method == NULL) {
+
+    if (def_method1 == NULL && def_method2 == NULL) {
 	rb_print_undef((VALUE)klass, def, 0);
     }
-    IMP def_imp = method_getImplementation(def_method);
-    const char *def_types = method_getTypeEncoding(def_method);
-
-    // Get the NODE*.
-    NODE *node = GET_VM()->method_node_get(def_imp);
-    if (node == NULL) {
-	rb_raise(rb_eArgError, "cannot alias non-Ruby method `%s'", sel_getName(def_sel));
+    if (def_method1 != NULL) {
+	rb_vm_alias_method(klass, def_method1, name, 0);
     }
-
-    // Do the method aliasing.
-    const char *new_str = rb_id2name(name);
-    SEL new_sel;
-    if (def_qualified && new_str[strlen(new_str) - 1] != ':') {
-	char tmp[100];
-	snprintf(tmp, sizeof tmp, "%s:", new_str);
-	new_sel = sel_registerName(tmp);
+    if (def_method2 != NULL) {
+	rb_vm_alias_method(klass, def_method2, name, 1);
     }
-    else {
-	new_sel = sel_registerName(new_str);
-    }
-    GET_VM()->add_method(klass, new_sel, def_imp, node, def_types);
 }
 
 extern "C"
