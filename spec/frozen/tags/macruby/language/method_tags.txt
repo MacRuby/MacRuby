@@ -1,0 +1,1 @@
+fails:Calling a method allows any number of args beyond required to method with a splat
