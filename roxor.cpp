@@ -1419,6 +1419,9 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Va
 		res = leftLong - rightLong;
 	    }
 	    else if (sel == selDIV) {
+		if (rightLong == 0) {
+		    return NULL;
+		}
 		res = leftLong / rightLong;
 	    }
 	    else if (sel == selMULT) {
