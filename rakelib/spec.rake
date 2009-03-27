@@ -41,6 +41,7 @@ namespace :spec do
     precedence
     predefined
     private
+    rescue
     return
     throw
     yield
