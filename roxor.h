@@ -21,7 +21,7 @@ VALUE rb_vm_top_self(void);
 void rb_vm_const_is_defined(ID path);
 bool rb_vm_lookup_method(Class klass, SEL sel, IMP *pimp, NODE **pnode);
 bool rb_vm_lookup_method2(Class klass, ID mid, SEL *psel, IMP *pimp, NODE **pnode);
-void rb_vm_define_method(Class klass, SEL sel, IMP imp, NODE *node);
+void rb_vm_define_method(Class klass, SEL sel, IMP imp, NODE *node, bool direct);
 void rb_vm_define_attr(Class klass, const char *name, bool read, bool write, int noex);
 void rb_vm_alias(VALUE klass, ID name, ID def);
 VALUE rb_vm_call(VALUE self, SEL sel, int argc, const VALUE *args, bool super);

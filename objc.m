@@ -3595,6 +3595,7 @@ Init_ObjC(void)
     old_imp_isaForAutonotifying = method_getImplementation(m);
     method_setImplementation(m, (IMP)rb_obj_imp_isaForAutonotifying);
 
+#if 0
     {
 	VALUE klass;
 	NODE *node, *body;
@@ -3606,6 +3607,7 @@ Init_ObjC(void)
 	closure = rb_ruby_to_objc_closure("@@:@", 1, body->nd_body);
 	assert(class_addMethod((Class)klass, @selector(new:), (IMP)closure, "@@:@"));
     }
+#endif
     
     _objc_msgForward_addr = &_objc_msgForward;
         

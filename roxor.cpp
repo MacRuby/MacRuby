@@ -4603,7 +4603,7 @@ rb_vm_prepare_method(Class klass, SEL sel, Function *func, NODE *node)
 
     IMP imp = GET_VM()->compile(func);
 
-    rb_vm_define_method(klass, sel, imp, node);
+    rb_vm_define_method(klass, sel, imp, node, false);
 }
 
 extern "C"
@@ -4667,7 +4667,7 @@ rb_vm_define_attr(Class klass, const char *name, bool read, bool write, int noex
 	NODE *body = NEW_FBODY(NEW_METHOD(node, klass, noex), 0);
 	rb_objc_retain(body);
 
-	rb_vm_define_method(klass, sel_registerName(name), imp, body);
+	rb_vm_define_method(klass, sel_registerName(name), imp, body, false);
     }
 
     if (write) {
@@ -4679,7 +4679,7 @@ rb_vm_define_attr(Class klass, const char *name, bool read, bool write, int noex
 	rb_objc_retain(body);
 
 	snprintf(buf, sizeof buf, "%s=:", name);
-	rb_vm_define_method(klass, sel_registerName(buf), imp, body);
+	rb_vm_define_method(klass, sel_registerName(buf), imp, body, false);
     }
 
     delete compiler;
@@ -4687,20 +4687,19 @@ rb_vm_define_attr(Class klass, const char *name, bool read, bool write, int noex
 
 extern "C"
 void 
-rb_vm_define_method(Class klass, SEL sel, IMP imp, NODE *node)
+rb_vm_define_method(Class klass, SEL sel, IMP imp, NODE *node, bool direct)
 {
+    assert(klass != NULL);
     assert(node != NULL);
 
     const rb_vm_arity_t arity = rb_vm_node_arity(node);
     assert(arity.real < MAX_ARITY);
 
-    assert(klass != NULL);
-
     const char *sel_name = sel_getName(sel);
     const bool genuine_selector = sel_name[strlen(sel_name) - 1] == ':';
 
     int oc_arity = genuine_selector ? arity.real : 0;
-    bool redefined = false;
+    bool redefined = direct;
 
 define_method:
     char *types;
@@ -5110,11 +5109,12 @@ recache:
 	}
 
 #if ROXOR_VM_DEBUG
-	printf("objc dispatch %c[<%s %p> %s] (cached=%s)\n",
+	printf("objc dispatch %c[<%s %p> %s] imp=%p (cached=%s)\n",
 		class_isMetaClass(klass) ? '+' : '-',
 		class_getName(klass),
 		(void *)self,
 		sel_getName(sel),
+		ocache.imp,
 		cached ? "true" : "false");
 #endif
 

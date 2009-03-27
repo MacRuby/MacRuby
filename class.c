@@ -99,12 +99,13 @@ rb_objc_init(VALUE rcv, SEL sel)
 
 VALUE rb_obj_init_copy(VALUE, SEL, VALUE);
 
+VALUE rb_class_new_instance_imp(VALUE klass, SEL sel, int argc, VALUE *argv);
+
 void
 rb_define_object_special_methods(VALUE klass)
 {
     rb_objc_define_method(*(VALUE *)klass, "alloc", rb_class_allocate_instance, 0);
     RCLASS_SET_VERSION(*(VALUE *)klass, (RCLASS_VERSION(*(VALUE *)klass) | RCLASS_HAS_ROBJECT_ALLOC));
-    VALUE rb_class_new_instance_imp(VALUE klass, SEL sel, int argc, VALUE *argv);
     rb_objc_define_method(*(VALUE *)klass, "new", rb_class_new_instance_imp, -1);
     rb_objc_define_method(*(VALUE *)klass, "__new__", rb_class_new_instance_imp, -1);
     rb_objc_define_method(klass, "dup", rb_obj_dup, 0);
@@ -166,8 +167,9 @@ rb_objc_alloc_class(const char *name, VALUE super, VALUE flags, VALUE klass)
 
     DLOG("DEFC", "%s < %s (version=%d)", ocname, class_getName(class_getSuperclass((Class)ocklass)), version_flag);
 
-    if (klass != 0)
+    if (klass != 0) {
 	rb_objc_install_primitives(ocklass, (Class)super);
+    }
 
     return (VALUE)ocklass;
 }
@@ -1050,28 +1052,39 @@ name_to_sel(const char *name, const int arity)
     return sel_registerName(name);
 }
 
-void
-rb_objc_add_method(VALUE klass, const char *name, void *imp, const int arity, const int noex)
+static void
+rb_objc_add_method(VALUE klass, const char *name, void *imp, const int arity,
+		   const int noex, bool direct)
 {
-    assert(name[strlen(name) - 1] != ':');
+    if (!direct) {
+	assert(name[strlen(name) - 1] != ':');
+    }
 
     NODE *node = NEW_CFUNC(imp, arity);
     NODE *body = NEW_FBODY(NEW_METHOD(node, klass, noex), 0);
     rb_objc_retain(body);
 
-    rb_vm_define_method((Class)klass, name_to_sel(name, arity), (IMP)imp, body);
+    rb_vm_define_method((Class)klass, name_to_sel(name, arity), (IMP)imp,				body, direct);
+}
+
+void
+rb_objc_define_direct_method(VALUE klass, const char *name, void *imp,
+			     const int arity)
+{
+    rb_objc_add_method(klass, name, imp, arity, NOEX_PUBLIC, true);
 }
 
 void
 rb_objc_define_method(VALUE klass, const char *name, void *imp, const int arity)
 {
-    rb_objc_add_method(klass, name, imp, arity, NOEX_PUBLIC);
+    rb_objc_add_method(klass, name, imp, arity, NOEX_PUBLIC, false);
 }
 
 void
-rb_objc_define_private_method(VALUE klass, const char *name, void *imp, const int arity)
+rb_objc_define_private_method(VALUE klass, const char *name, void *imp,
+			      const int arity)
 {
-    rb_objc_add_method(klass, name, imp, arity, NOEX_PRIVATE);
+    rb_objc_add_method(klass, name, imp, arity, NOEX_PRIVATE, false);
 }
 
 void

@@ -873,6 +873,7 @@ void rb_define_alias(VALUE,const char*,const char*);
 void rb_define_attr(VALUE,const char*,int,int);
 
 void rb_objc_define_method(VALUE klass, const char *name, void *imp, const int arity);
+void rb_objc_define_direct_method(VALUE klass, const char *name, void *imp, const int arity);
 void rb_objc_define_private_method(VALUE klass, const char *name, void *imp, const int arity);
 void rb_objc_undef_method(VALUE klass, const char *name);
 

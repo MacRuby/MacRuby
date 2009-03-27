@@ -5156,7 +5156,7 @@ rb_objc_install_string_primitives(Class klass)
 	(IMP)imp_rb_str_fastestEncodingInCFStringEncoding);
     rb_objc_install_method2(klass, "isEqual:", (IMP)imp_rb_str_isEqual);
     
-    rb_define_alloc_func((VALUE)klass, str_alloc);
+    rb_objc_define_method(*(VALUE *)klass, "alloc", str_alloc, 0);
 }
 
 static CFIndex

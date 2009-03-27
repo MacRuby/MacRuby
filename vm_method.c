@@ -789,7 +789,7 @@ rb_mod_modfunc(VALUE module, SEL sel, int argc, VALUE *argv)
 	    rb_bug("undefined method `%s'; can't happen", rb_id2name(id));
 	}
 
-	rb_vm_define_method(*(Class *)module, sel, imp, node);
+	rb_vm_define_method(*(Class *)module, sel, imp, node, false);
     }
 
     return module;
