@@ -3790,11 +3790,15 @@ rescan_args:
 		    }
 		    else {
 			NODE *n2 = n->nd_args;
-			assert(nd_type(n2) == NODE_ARRAY);
-			while (n2 != NULL) {
-			    exceptions_to_catch.push_back(compile_node(
-					n2->nd_head));
-			    n2 = n2->nd_next;
+			if (nd_type(n2) == NODE_ARRAY) {
+			    while (n2 != NULL) {
+				exceptions_to_catch.push_back(compile_node(
+					    n2->nd_head));
+				n2 = n2->nd_next;
+			    }
+			}
+			else {
+			    exceptions_to_catch.push_back(compile_node(n2));
 			}
 		    }
 
@@ -5855,11 +5859,20 @@ rb_vm_is_eh_active(int argc, ...)
     unsigned char active = 0;
 
     va_start(ar, argc);
-    for (int i = 0; i < argc; ++i) {
-	VALUE klass = va_arg(ar, VALUE);
-	if (rb_obj_is_kind_of(GET_VM()->current_exception, klass)) {
-	    active = 1;
-	    break;
+    for (int i = 0; i < argc && active == 0; ++i) {
+	VALUE obj = va_arg(ar, VALUE);
+	if (TYPE(obj) == T_ARRAY) {
+	    for (int j = 0, count = RARRAY_LEN(obj); j < count; ++j) {
+		VALUE obj2 = RARRAY_AT(obj, j);
+		if (rb_obj_is_kind_of(GET_VM()->current_exception, obj2)) {
+		    active = 1;
+		}
+	    }
+	}
+	else {
+	    if (rb_obj_is_kind_of(GET_VM()->current_exception, obj)) {
+		active = 1;
+	    }
 	}
     }
     va_end(ar);
