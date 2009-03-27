@@ -16,6 +16,7 @@ namespace :spec do
     not
     or
     order
+    redo
     retry
     string
     symbol
