@@ -45,37 +45,40 @@ namespace :spec do
     yield
   }
   
-  MSPEC_RUN = "./miniruby -v -I./mspec/lib -I./lib ./mspec/bin/mspec-run"
+  KNOWN_GOOD_AND_PARTIALLY_GOOD_FILES =
+    FileList["spec/frozen/language/{#{(KNOWN_GOOD + KNOWN_PARTIALLY_GOOD).join(',')}}_spec.rb"]
   
-  desc "Run all spec files that should be fully green (known good)"
+  desc "Run all language known good spec files which should be fully green"
   task :green do
-    sh "#{MSPEC_RUN} #{FileList["spec/frozen/language/{#{KNOWN_GOOD.join(',')}}_spec.rb"].join(' ')}"
+    files = FileList["spec/frozen/language/{#{KNOWN_GOOD.join(',')}}_spec.rb"]
+    sh "./miniruby -v -I./mspec/lib -I./lib ./mspec/bin/mspec-run #{files.join(' ')}"
   end
   
   desc "Run continuous integration language examples (all known good examples)"
   task :ci do
-    files = FileList["spec/frozen/language/{#{(KNOWN_GOOD + KNOWN_PARTIALLY_GOOD).join(',')}}_spec.rb"]
-    sh "./mspec/bin/mspec ci -B ./spec/frozen/macruby.mspec #{files.join(' ')}"
+    sh "./mspec/bin/mspec ci -B ./spec/frozen/macruby.mspec #{KNOWN_GOOD_AND_PARTIALLY_GOOD_FILES.join(' ')}"
   end
   
   desc "Run language examples that are known to fail"
   task :fails do
-    files = FileList["spec/frozen/language/*_spec.rb"]
-    files -= files.grep(/\/(#{KNOWN_GOOD.join('|')})_spec\.rb$/)
-    files.each do |spec|
-      sh "./miniruby -v -I./mspec/lib -I./lib ./mspec/bin/mspec-run --format spec #{spec}" rescue nil
+    sh "./mspec/bin/mspec run -g fails -B ./spec/frozen/macruby.mspec #{KNOWN_GOOD_AND_PARTIALLY_GOOD_FILES.join(' ')}"
+  end
+  
+  %w{ fails critical }.each do |tag|
+    namespace :list do
+      # We cheat by using the fact that currently the ruby.1.9.mspec script uses the macruby tags,
+      # otherwise macruby fails halfway because apperantly the spec files are loaded when listing tagged specs...
+      desc "List all specs that are tagged as `#{tag}'"
+      task tag do
+        sh "./mspec/bin/mspec tag --list #{tag} -B ./spec/frozen/ruby.1.9.mspec spec/frozen/language"
+      end
     end
-  end
-  
-  desc "Run language examples"
-  task :language do
-    sh "./mspec/bin/mspec ci --format spec -B ./spec/frozen/macruby.mspec spec/frozen/language"
-  end
-  
-  namespace :"1.9" do
-    desc "Run Ruby 1.9 language examples"
-    task :language do
-      sh "./mspec/bin/mspec ci -B spec/frozen/ruby.1.9.mspec spec/frozen/language"
+    
+    namespace :"1.9" do
+      desc "Run roxor language specs tagged `#{tag}' against Ruby 1.9 (use this to look for possible 1.8/1.9 incompatibility bugs)"
+      task tag do
+        sh "./mspec/bin/mspec run -g #{tag} -B ./spec/frozen/ruby.1.9.mspec #{KNOWN_GOOD_AND_PARTIALLY_GOOD_FILES.join(' ')}"
+      end
     end
   end
 end

@@ -49,10 +49,19 @@ class MSpecScript
   # executable is not consistently named.
   set :target, 'ruby1.9'
 
+  # MacRuby TODO: For now we run the macruby tags.
+  #
+  # set :tags_patterns, [
+  #                       [%r(language/), 'tags/1.9/language/'],
+  #                       [%r(core/),     'tags/1.9/core/'],
+  #                       [%r(library/),  'tags/1.9/library/'],
+  #                       [/_spec.rb$/,   '_tags.txt']
+  #                     ]
+
   set :tags_patterns, [
-                        [%r(language/), 'tags/1.9/language/'],
-                        [%r(core/),     'tags/1.9/core/'],
-                        [%r(library/),  'tags/1.9/library/'],
+                        [%r(language/), 'tags/macruby/language/'],
+                        [%r(core/),     'tags/macruby/core/'],
+                        [%r(library/),  'tags/macruby/library/'],
                         [/_spec.rb$/,   '_tags.txt']
                       ]
 end
