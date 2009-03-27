@@ -1,0 +1,16 @@
+fails:Basic assignment allows the assignment of the rhs to the lhs using the lhs splat operator
+fails:Basic assignment allows the assignment of rhs to the lhs using the lhs and rhs splat operators simultaneously
+fails:Basic assignment allows multiple values to be assigned
+fails:Basic assignment supports the {|r,| } form of block assignment
+fails:Assignment using expansion succeeds without conversion
+fails:Assigning multiple values bundles remaining values to an array when using the splat operator
+fails:Assigning multiple values calls #to_ary on rhs arg if rhs has only a single arg
+fails:Assigning multiple values allows complex parallel assignment
+fails:Conditional assignment checks for class variable definition before fetching its value
+fails:Operator assignment 'obj[idx] op= expr' returns result of rhs not result of []=
+fails:Multiple assignments with splats * on the lhs has to be applied to the last parameter
+fails:Multiple assignments with splats * on the lhs collects all parameters from its position onwards as an Array or an empty Array
+fails:Multiple assignments with grouping A group on the lhs is considered one position and treats its corresponding rhs position like an Array
+fails:Multiple assignments with grouping supports multiple levels of nested groupings
+fails:Multiple assignment has the proper return value
+fails:Multiple assignment, array-style returns an array of all rhs values

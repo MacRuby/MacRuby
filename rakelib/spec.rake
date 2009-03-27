@@ -45,6 +45,7 @@ namespace :spec do
     rescue
     return
     throw
+    variables
     yield
   }
   
