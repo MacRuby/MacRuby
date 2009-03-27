@@ -238,7 +238,7 @@ rb_last_status_clear(void)
  */
 
 static VALUE
-pst_to_i(VALUE st)
+pst_to_i(VALUE st, SEL sel)
 {
     return rb_iv_get(st, "status");
 }
@@ -256,7 +256,7 @@ pst_to_i(VALUE st)
  */
 
 static VALUE
-pst_pid(VALUE st)
+pst_pid(VALUE st, SEL sel)
 {
     return rb_iv_get(st, "pid");
 }
@@ -309,14 +309,14 @@ pst_message(VALUE str, rb_pid_t pid, int status)
  */
 
 static VALUE
-pst_to_s(VALUE st)
+pst_to_s(VALUE st, SEL sel)
 {
     rb_pid_t pid;
     int status;
     VALUE str;
 
-    pid = NUM2LONG(pst_pid(st));
-    status = NUM2INT(pst_to_i(st));
+    pid = NUM2LONG(pst_pid(st, 0));
+    status = NUM2INT(pst_to_i(st, 0));
 
     str = rb_str_buf_new(0);
     pst_message(str, pid, status);
@@ -332,14 +332,14 @@ pst_to_s(VALUE st)
  */
 
 static VALUE
-pst_inspect(VALUE st)
+pst_inspect(VALUE st, SEL sel)
 {
     rb_pid_t pid;
     int status;
     VALUE str;
 
-    pid = NUM2LONG(pst_pid(st));
-    status = NUM2INT(pst_to_i(st));
+    pid = NUM2LONG(pst_pid(st, 0));
+    status = NUM2INT(pst_to_i(st, 0));
 
     str = rb_sprintf("#<%s: ", rb_class2name(CLASS_OF(st)));
     pst_message(str, pid, status);
@@ -357,10 +357,12 @@ pst_inspect(VALUE st)
  */
 
 static VALUE
-pst_equal(VALUE st1, VALUE st2)
+pst_equal(VALUE st1, SEL sel, VALUE st2)
 {
-    if (st1 == st2) return Qtrue;
-    return rb_equal(pst_to_i(st1), st2);
+    if (st1 == st2) {
+	return Qtrue;
+    }
+    return rb_equal(pst_to_i(st1, 0), st2);
 }
 
 
@@ -377,7 +379,7 @@ pst_equal(VALUE st1, VALUE st2)
  */
 
 static VALUE
-pst_bitand(VALUE st1, VALUE st2)
+pst_bitand(VALUE st1, SEL sel, VALUE st2)
 {
     int status = NUM2INT(st1) & NUM2INT(st2);
 
@@ -398,7 +400,7 @@ pst_bitand(VALUE st1, VALUE st2)
  */
 
 static VALUE
-pst_rshift(VALUE st1, VALUE st2)
+pst_rshift(VALUE st1, SEL sel, VALUE st2)
 {
     int status = NUM2INT(st1) >> NUM2INT(st2);
 
@@ -416,7 +418,7 @@ pst_rshift(VALUE st1, VALUE st2)
  */
 
 static VALUE
-pst_wifstopped(VALUE st)
+pst_wifstopped(VALUE st, SEL sel)
 {
     int status = NUM2INT(st);
 
@@ -436,7 +438,7 @@ pst_wifstopped(VALUE st)
  */
 
 static VALUE
-pst_wstopsig(VALUE st)
+pst_wstopsig(VALUE st, SEL sel)
 {
     int status = NUM2INT(st);
 
@@ -455,7 +457,7 @@ pst_wstopsig(VALUE st)
  */
 
 static VALUE
-pst_wifsignaled(VALUE st)
+pst_wifsignaled(VALUE st, SEL sel)
 {
     int status = NUM2INT(st);
 
@@ -476,7 +478,7 @@ pst_wifsignaled(VALUE st)
  */
 
 static VALUE
-pst_wtermsig(VALUE st)
+pst_wtermsig(VALUE st, SEL sel)
 {
     int status = NUM2INT(st);
 
@@ -496,7 +498,7 @@ pst_wtermsig(VALUE st)
  */
 
 static VALUE
-pst_wifexited(VALUE st)
+pst_wifexited(VALUE st, SEL sel)
 {
     int status = NUM2INT(st);
 
@@ -527,7 +529,7 @@ pst_wifexited(VALUE st)
  */
 
 static VALUE
-pst_wexitstatus(VALUE st)
+pst_wexitstatus(VALUE st, SEL sel)
 {
     int status = NUM2INT(st);
 
@@ -546,7 +548,7 @@ pst_wexitstatus(VALUE st)
  */
 
 static VALUE
-pst_success_p(VALUE st)
+pst_success_p(VALUE st, SEL sel)
 {
     int status = NUM2INT(st);
 
@@ -565,7 +567,7 @@ pst_success_p(VALUE st)
  */
 
 static VALUE
-pst_wcoredump(VALUE st)
+pst_wcoredump(VALUE st, SEL sel)
 {
 #ifdef WCOREDUMP
     int status = NUM2INT(st);
@@ -5094,24 +5096,24 @@ Init_process(void)
     rb_cProcessStatus = rb_define_class_under(rb_mProcess, "Status", rb_cObject);
     rb_undef_method(CLASS_OF(rb_cProcessStatus), "new");
 
-    rb_define_method(rb_cProcessStatus, "==", pst_equal, 1);
-    rb_define_method(rb_cProcessStatus, "&", pst_bitand, 1);
-    rb_define_method(rb_cProcessStatus, ">>", pst_rshift, 1);
-    rb_define_method(rb_cProcessStatus, "to_i", pst_to_i, 0);
-    rb_define_method(rb_cProcessStatus, "to_int", pst_to_i, 0);
-    rb_define_method(rb_cProcessStatus, "to_s", pst_to_s, 0);
-    rb_define_method(rb_cProcessStatus, "inspect", pst_inspect, 0);
+    rb_objc_define_method(rb_cProcessStatus, "==", pst_equal, 1);
+    rb_objc_define_method(rb_cProcessStatus, "&", pst_bitand, 1);
+    rb_objc_define_method(rb_cProcessStatus, ">>", pst_rshift, 1);
+    rb_objc_define_method(rb_cProcessStatus, "to_i", pst_to_i, 0);
+    rb_objc_define_method(rb_cProcessStatus, "to_int", pst_to_i, 0);
+    rb_objc_define_method(rb_cProcessStatus, "to_s", pst_to_s, 0);
+    rb_objc_define_method(rb_cProcessStatus, "inspect", pst_inspect, 0);
 
-    rb_define_method(rb_cProcessStatus, "pid", pst_pid, 0);
+    rb_objc_define_method(rb_cProcessStatus, "pid", pst_pid, 0);
 
-    rb_define_method(rb_cProcessStatus, "stopped?", pst_wifstopped, 0);
-    rb_define_method(rb_cProcessStatus, "stopsig", pst_wstopsig, 0);
-    rb_define_method(rb_cProcessStatus, "signaled?", pst_wifsignaled, 0);
-    rb_define_method(rb_cProcessStatus, "termsig", pst_wtermsig, 0);
-    rb_define_method(rb_cProcessStatus, "exited?", pst_wifexited, 0);
-    rb_define_method(rb_cProcessStatus, "exitstatus", pst_wexitstatus, 0);
-    rb_define_method(rb_cProcessStatus, "success?", pst_success_p, 0);
-    rb_define_method(rb_cProcessStatus, "coredump?", pst_wcoredump, 0);
+    rb_objc_define_method(rb_cProcessStatus, "stopped?", pst_wifstopped, 0);
+    rb_objc_define_method(rb_cProcessStatus, "stopsig", pst_wstopsig, 0);
+    rb_objc_define_method(rb_cProcessStatus, "signaled?", pst_wifsignaled, 0);
+    rb_objc_define_method(rb_cProcessStatus, "termsig", pst_wtermsig, 0);
+    rb_objc_define_method(rb_cProcessStatus, "exited?", pst_wifexited, 0);
+    rb_objc_define_method(rb_cProcessStatus, "exitstatus", pst_wexitstatus, 0);
+    rb_objc_define_method(rb_cProcessStatus, "success?", pst_success_p, 0);
+    rb_objc_define_method(rb_cProcessStatus, "coredump?", pst_wcoredump, 0);
 
     rb_define_module_function(rb_mProcess, "pid", get_pid, 0);
     rb_define_module_function(rb_mProcess, "ppid", get_ppid, 0);
