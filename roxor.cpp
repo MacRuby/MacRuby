@@ -214,6 +214,7 @@ class RoxorCompiler
 	Function *getIvarFunc;
 	Function *setIvarFunc;
 	Function *definedFunc;
+	Function *undefFunc;
 	Function *aliasFunc;
 	Function *valiasFunc;
 	Function *newHashFunc;
@@ -550,6 +551,7 @@ RoxorCompiler::RoxorCompiler(const char *_fname)
     getIvarFunc = NULL;
     setIvarFunc = NULL;
     definedFunc = NULL;
+    undefFunc = NULL;
     aliasFunc = NULL;
     valiasFunc = NULL;
     newHashFunc = NULL;
@@ -3725,6 +3727,29 @@ rescan_args:
 	    }
 	    break;
 
+	case NODE_UNDEF:
+	    {
+		if (undefFunc == NULL) {
+		    // VALUE rb_vm_undef(VALUE klass, ID name);
+		    undefFunc =
+			cast<Function>(module->getOrInsertFunction(
+				"rb_vm_undef",
+				Type::VoidTy, RubyObjTy, IntTy, NULL));
+		}
+
+		assert(node->u2.node != NULL);
+		ID name = node->u2.node->u1.id;
+
+		std::vector<Value *> params;
+		params.push_back(compile_current_class());
+		params.push_back(ConstantInt::get(IntTy, name));
+
+		compile_protected_call(undefFunc, params);
+
+		return nilVal;
+	    }
+	    break;
+
 	case NODE_TRUE:
 	    return trueVal;
 
@@ -4535,6 +4560,17 @@ rb_vm_alias(VALUE outer, ID name, ID def)
 	new_sel = sel_registerName(new_str);
     }
     GET_VM()->add_method(klass, new_sel, def_imp, node, def_types);
+}
+
+extern "C"
+void
+rb_vm_undef(VALUE klass, ID name)
+{
+    if (GET_VM()->current_class != NULL) {
+	klass = (VALUE)GET_VM()->current_class;
+    }
+
+    rb_undef(klass, name);
 }
 
 extern "C"
