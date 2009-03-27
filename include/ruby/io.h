@@ -60,6 +60,16 @@ typedef struct rb_io_t {
 #define FMODE_TRUNC                 0x00000800
 #define FMODE_TEXTMODE              0x00001000
 
+
+#ifndef SEEK_CUR
+# define SEEK_SET 0
+# define SEEK_CUR 1
+# define SEEK_END 2
+#endif
+
+#define FMODE_SYNCWRITE (FMODE_SYNC|FMODE_WRITABLE)
+
+
 VALUE rb_io_taint_check(VALUE);
 NORETURN(void rb_eof_error(void));
 

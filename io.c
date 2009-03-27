@@ -1,4 +1,4 @@
-/**********************************************************************
+	/**********************************************************************
 
   io.c -
 
@@ -300,6 +300,33 @@ convert_mode_string_to_oflags(VALUE s)
     return convert_fmode_to_oflags(convert_mode_string_to_fmode(s));
 }
 
+static inline int
+convert_oflags_to_fmode(int mode)
+{
+    int flags = 0;
+
+    switch (mode & (O_RDONLY|O_WRONLY|O_RDWR)) {
+	case O_RDONLY:
+	    flags = FMODE_READABLE;
+	    break;
+	case O_WRONLY:
+	    flags = FMODE_WRITABLE;
+	    break;
+	case O_RDWR:
+	    flags = FMODE_READWRITE;
+	    break;
+    }
+
+    if (mode & O_APPEND) {
+	flags |= FMODE_APPEND;
+    }
+    if (mode & O_CREAT) {
+	flags |= FMODE_CREATE;
+    }
+
+    return flags;
+}
+
 void
 rb_eof_error(void)
 {
@@ -363,42 +390,6 @@ rb_io_is_open(rb_io_t *io_struct)
 	    || CFWriteStreamGetStatus(io_struct->writeStream) == kCFStreamStatusOpen);
 }
 
-#define FMODE_PREP (1<<16)  
-#define IS_PREP_STDIO(f) ((f)->mode & FMODE_PREP)
-#define PREP_STDIO_NAME(f) ((f)->path)
-
-static inline int
-rb_io_modenum_flags(int mode)
-{
-    int flags = 0;
-
-    switch (mode & (O_RDONLY|O_WRONLY|O_RDWR)) {
-	case O_RDONLY:
-	    flags = FMODE_READABLE;
-	    break;
-	case O_WRONLY:
-	    flags = FMODE_WRITABLE;
-	    break;
-	case O_RDWR:
-	    flags = FMODE_READWRITE;
-	    break;
-    }
-
-    if (mode & O_APPEND) {
-	flags |= FMODE_APPEND;
-    }
-    if (mode & O_CREAT) {
-	flags |= FMODE_CREATE;
-    }
-#ifdef O_BINARY
-    if (mode & O_BINARY) {
-	flags |= FMODE_BINMODE;
-    }
-#endif
-
-    return flags;
-}
-
 /*
  *  call-seq:
  *     IO.try_convert(obj) -> io or nil
@@ -415,14 +406,6 @@ rb_io_s_try_convert(VALUE dummy, SEL sel, VALUE io)
 {
 rb_notimplement();
 }
-
-#ifndef SEEK_CUR
-# define SEEK_SET 0
-# define SEEK_CUR 1
-# define SEEK_END 2
-#endif
-
-#define FMODE_SYNCWRITE (FMODE_SYNC|FMODE_WRITABLE)
 
 static VALUE
 io_alloc(VALUE klass, SEL sel)
@@ -485,8 +468,6 @@ prepare_io_from_fd(rb_io_t *io_struct, int fd, int mode)
     io_struct->sync = mode & FMODE_SYNC;
 }
 
-int macruby_pclose(FILE *iop);
-
 static void
 io_struct_close(rb_io_t *io_struct, bool close_read, bool close_write)
 {
@@ -497,10 +478,10 @@ io_struct_close(rb_io_t *io_struct, bool close_read, bool close_write)
 	CFWriteStreamClose(io_struct->writeStream);
     }
     if (io_struct->fp != NULL) {
-	const int status = macruby_pclose(io_struct->fp);
-	io_struct->fp = NULL;
-	// TODO find out the real pid instead of passing -1
-	rb_last_status_set(status, -1);
+		const int status = macruby_pclose(io_struct->fp);
+		io_struct->fp = NULL;
+		rb_last_status_set(status, io_struct->pid);
+		io_struct->pid = -1;
     }
 }
 
@@ -1785,7 +1766,7 @@ rb_io_fdopen(int fd, int mode, const char *path)
     if (path != NULL && strcmp(path, "-") != 0) {
 	klass = rb_cFile;
     }
-    return prep_io(fd, rb_io_modenum_flags(mode), klass);
+    return prep_io(fd, convert_oflags_to_fmode(mode), klass);
 }
 
 static VALUE
