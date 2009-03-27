@@ -24,6 +24,7 @@
 #include <sys/select.h>
 #include <sys/types.h>
 #include <sys/ioctl.h>
+#include <paths.h>
 #include <fcntl.h>
 
 #include <sys/stat.h>
@@ -90,6 +91,132 @@ struct argf {
 //         rb_sys_fail(path);
 //     return S_ISSOCK(sbuf.st_mode);
 // }
+
+// This was copied wholesale from an implementation of unistd I found.
+// I am not sure that the usage of vfork here is correct, as on some systems
+// vfork is not at all thread-safe.
+
+static struct pid {
+	struct pid *next;
+	FILE *fp;
+	pid_t pid;
+} *pidlist;
+
+FILE *
+macruby_popen(const char *program, const char *type, pid_t *new_pid)
+{
+	struct pid * volatile cur;
+	FILE *iop;
+	int pdes[2];
+	pid_t pid;
+
+	if ((*type != 'r' && *type != 'w') || type[1] != '\0') {
+		errno = EINVAL;
+		return (NULL);
+	}
+
+	if ((cur = malloc(sizeof(struct pid))) == NULL)
+		return (NULL);
+
+	if (pipe(pdes) < 0) {
+		free(cur);
+		return (NULL);
+	}
+
+	switch (pid = vfork()) {
+		case -1:                        /* Error. */
+		(void)close(pdes[0]);
+		(void)close(pdes[1]);
+		free(cur);
+		return (NULL);
+				/* NOTREACHED */
+		case 0:                         /* Child. */
+		{
+			struct pid *pcur;
+				/*
+			* because vfork() instead of fork(), must leak FILE *,
+				* but luckily we are terminally headed for an execl()
+				*/
+				for (pcur = pidlist; pcur; pcur = pcur->next)
+				close(fileno(pcur->fp));
+
+			if (*type == 'r') {
+				int tpdes1 = pdes[1];
+
+				(void) close(pdes[0]);
+						/*
+				* We must NOT modify pdes, due to the
+					* semantics of vfork.
+						*/
+				if (tpdes1 != STDOUT_FILENO) {
+					(void)dup2(tpdes1, STDOUT_FILENO);
+					(void)close(tpdes1);
+					tpdes1 = STDOUT_FILENO;
+				}
+			} else {
+				(void)close(pdes[1]);
+				if (pdes[0] != STDIN_FILENO) {
+					(void)dup2(pdes[0], STDIN_FILENO);
+					(void)close(pdes[0]);
+				}
+			}
+			execl(_PATH_BSHELL, "sh", "-c", program, (char *)NULL);
+			_exit(127);
+				/* NOTREACHED */
+		}
+	}
+
+		/* Parent; assume fdopen can't fail. */
+	if (*type == 'r') {
+		iop = fdopen(pdes[0], type);
+		(void)close(pdes[1]);
+	} else {
+		iop = fdopen(pdes[1], type);
+		(void)close(pdes[0]);
+	}
+
+		/* Link into list of file descriptors. */
+	cur->fp = iop;
+	cur->pid =  pid;
+	cur->next = pidlist;
+	pidlist = cur;
+	
+	if (new_pid != NULL) {
+		*new_pid = pid;
+	}
+	
+	return iop;
+}
+
+int 
+macruby_pclose(FILE *iop)
+{
+	struct pid *cur, *last;
+	int pstat;
+	pid_t pid;
+
+	/* Find the appropriate file pointer. */
+	for (last = NULL, cur = pidlist; cur; last = cur, cur = cur->next)
+		if (cur->fp == iop)
+		break;
+
+	if (cur == NULL)
+		return (-1);
+
+	(void)fclose(iop);
+
+	do {
+		pid = waitpid(cur->pid, &pstat, 0);
+	} while (pid == -1 && errno == EINTR);
+
+	/* Remove the entry from the linked list. */
+	if (last == NULL
+		pidlist = cur->next;
+	else
+		last->next = cur->next;
+	free(cur);
+	return (pid == -1 ? -1 : pstat);
+}
 
 static int
 convert_mode_string_to_fmode(VALUE rstr)
@@ -358,6 +485,8 @@ prepare_io_from_fd(rb_io_t *io_struct, int fd, int mode)
     io_struct->sync = mode & FMODE_SYNC;
 }
 
+int macruby_pclose(FILE *iop);
+
 static void
 io_struct_close(rb_io_t *io_struct, bool close_read, bool close_write)
 {
@@ -368,7 +497,7 @@ io_struct_close(rb_io_t *io_struct, bool close_read, bool close_write)
 	CFWriteStreamClose(io_struct->writeStream);
     }
     if (io_struct->fp != NULL) {
-	const int status = pclose(io_struct->fp);
+	const int status = macruby_pclose(io_struct->fp);
 	io_struct->fp = NULL;
 	// TODO find out the real pid instead of passing -1
 	rb_last_status_set(status, -1);
@@ -1864,18 +1993,20 @@ static VALUE
 rb_io_s_popen(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
     VALUE process_name, mode;
+	pid_t popen_pid;
     rb_scan_args(argc, argv, "11", &process_name, &mode);
     if (NIL_P(mode)) {
         mode = (VALUE)CFSTR("r");
     }
     
-    FILE *process = popen(StringValueCStr(process_name), RSTRING_PTR(mode));
+    FILE *process = macruby_popen(StringValueCStr(process_name), RSTRING_PTR(mode), &popen_pid);
     if (process == NULL) {
         rb_raise(rb_eIOError, "system call to popen() failed");
     }
     
     VALUE io = prep_io(fileno(process), convert_mode_string_to_fmode(mode), klass);
     ExtractIOStruct(io)->fp = process;
+	ExtractIOStruct(io)->pid = popen_pid;
     return io;
 }
 
