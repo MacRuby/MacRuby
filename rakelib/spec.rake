@@ -16,6 +16,7 @@ namespace :spec do
     not
     or
     order
+    precedence
     redo
     retry
     string
@@ -38,7 +39,6 @@ namespace :spec do
     magic_comment
     metaclass
     next
-    precedence
     predefined
     private
     rescue
