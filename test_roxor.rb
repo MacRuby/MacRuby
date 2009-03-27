@@ -333,6 +333,20 @@ test "assign" do
   assert '42', "a=[123]; a[0] &&= 42; p a[0]"
   assert 'nil', "a=[]; a[0] &&= 123; p a[0]"
 
+  assert '42', %q{
+    class Foo; attr_accessor :x; end
+    o = Foo.new
+    o.x ||= 42
+    p o.x
+  }
+  assert '42', %q{
+    class Foo; attr_accessor :x; end
+    o = Foo.new
+    o.x = 2
+    o.x += 40
+    p o.x
+  }
+
   assert '42', "a ||= 42; p a"
   assert '42', "a = nil;   a ||= 42; p a"
   assert '42', "a = false; a ||= 42; p a"

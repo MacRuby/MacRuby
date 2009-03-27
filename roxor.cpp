@@ -2681,12 +2681,13 @@ RoxorCompiler::compile_node(NODE *node)
 	    break;
 
 	case NODE_OP_ASGN1:
+	case NODE_OP_ASGN2:
 	    {
 		assert(node->nd_recv != NULL);
 		Value *recv = compile_node(node->nd_recv);
 
-		assert(node->nd_mid >= 0);
-		ID mid = node->nd_mid;
+		long type = nd_type(node) == NODE_OP_ASGN1
+		    ? node->nd_mid : node->nd_next->nd_mid;
 
 		// a=[0] += 42
 		//
@@ -2696,28 +2697,40 @@ RoxorCompiler::compile_node(NODE *node)
 
 		assert(node->nd_args != NULL);
 		assert(node->nd_args->nd_head != NULL);
-		assert(node->nd_args->nd_body != NULL);
 
 		// tmp = a.send(:[], 0)
 
 		std::vector<Value *> params;
-		void *cache = GET_VM()->method_cache_get(selAREF, false);
+		SEL sel;
+		if (nd_type(node) == NODE_OP_ASGN1) {
+		    sel = selAREF;
+		}
+		else {
+		    assert(node->nd_next->nd_vid > 0);
+		    sel = mid_to_sel(node->nd_next->nd_vid, 0);
+		}
+		void *cache = GET_VM()->method_cache_get(sel, false);
 		params.push_back(compile_const_pointer(cache));
 		params.push_back(recv);
-		params.push_back(compile_const_pointer((void *)selAREF));
+		params.push_back(compile_const_pointer((void *)sel));
 		params.push_back(compile_const_pointer(NULL));
 		params.push_back(ConstantInt::get(Type::Int8Ty, 0));
 
+		int argc = 0;
 		std::vector<Value *> arguments;
-		int argc;
-		compile_dispatch_arguments(node->nd_args->nd_body, arguments, &argc);
+		if (nd_type(node) == NODE_OP_ASGN1) {
+		    assert(node->nd_args->nd_body != NULL);
+		    compile_dispatch_arguments(node->nd_args->nd_body,
+			    arguments,
+			    &argc);
+		}
 		params.push_back(ConstantInt::get(Type::Int32Ty, argc));
 		for (std::vector<Value *>::iterator i = arguments.begin();
-		     i != arguments.end(); ++i) {
+			i != arguments.end(); ++i) {
 		    params.push_back(*i);
 		}
 
-		Value *tmp = compile_optimized_dispatch_call(selAREF, argc, params);
+		Value *tmp = compile_optimized_dispatch_call(sel, argc, params);
 		if (tmp == NULL) {
 		    tmp = compile_dispatch_call(params);
 		}
@@ -2728,7 +2741,10 @@ RoxorCompiler::compile_node(NODE *node)
 		BasicBlock *touchedBB = NULL;
 		BasicBlock *untouchedBB = NULL;
 		Value *tmp2;
-		if (mid == 0 || mid == 1) {
+		NODE *value = nd_type(node) == NODE_OP_ASGN1
+		    ? node->nd_args->nd_head : node->nd_value;
+		assert(value != NULL);
+		if (type == 0 || type == 1) {
 		    // 0 means OR, 1 means AND
 		    Function *f = bb->getParent();
 
@@ -2736,7 +2752,7 @@ RoxorCompiler::compile_node(NODE *node)
 		    untouchedBB  = BasicBlock::Create("", f);
 		    mergeBB = BasicBlock::Create("merge", f);
 
-		    if (mid == 0) {
+		    if (type == 0) {
 			compile_boolean_test(tmp, untouchedBB, touchedBB);
 		    }
 		    else {
@@ -2746,10 +2762,12 @@ RoxorCompiler::compile_node(NODE *node)
 		    BranchInst::Create(mergeBB, untouchedBB);
 		    bb = touchedBB;
 
-		    tmp2 = compile_node(node->nd_args->nd_head);
+		    tmp2 = compile_node(value);
 		}
 		else {
-		    const SEL sel = mid_to_sel(mid, 1);
+		    ID mid = nd_type(node) == NODE_OP_ASGN1
+			? node->nd_mid : node->nd_next->nd_mid;
+		    sel = mid_to_sel(mid, 1);
 		    cache = GET_VM()->method_cache_get(sel, false);
 		    params.clear();
 		    params.push_back(compile_const_pointer(cache));
@@ -2758,7 +2776,7 @@ RoxorCompiler::compile_node(NODE *node)
 		    params.push_back(compile_const_pointer(NULL));
 		    params.push_back(ConstantInt::get(Type::Int8Ty, 0));
 		    params.push_back(ConstantInt::get(Type::Int32Ty, 1));
-		    params.push_back(compile_node(node->nd_args->nd_head));
+		    params.push_back(compile_node(value));
 
 		    tmp2 = compile_optimized_dispatch_call(sel, 1, params);
 		    if (tmp2 == NULL) {
@@ -2767,12 +2785,19 @@ RoxorCompiler::compile_node(NODE *node)
 		}
 
 		// a.send(:[]=, 0, tmp)
-
-		cache = GET_VM()->method_cache_get(selASET, false);
+ 
+		if (nd_type(node) == NODE_OP_ASGN1) {
+		    sel = selASET;
+		}
+		else {
+		    assert(node->nd_next->nd_aid > 0);
+		    sel = mid_to_sel(node->nd_next->nd_aid, 1);
+		}
+		cache = GET_VM()->method_cache_get(sel, false);
 		params.clear();
 		params.push_back(compile_const_pointer(cache));
 		params.push_back(recv);
-		params.push_back(compile_const_pointer((void *)selASET));
+		params.push_back(compile_const_pointer((void *)sel));
 		params.push_back(compile_const_pointer(NULL));
 		params.push_back(ConstantInt::get(Type::Int8Ty, 0));
 		argc++;
@@ -2783,7 +2808,7 @@ RoxorCompiler::compile_node(NODE *node)
 		}
 		params.push_back(tmp2);
 
-		Value *ret = compile_optimized_dispatch_call(selASET, argc, params);
+		Value *ret = compile_optimized_dispatch_call(sel, argc, params);
 		if (ret == NULL) {
 		    ret = compile_dispatch_call(params);
 		}
