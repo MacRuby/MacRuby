@@ -20,6 +20,14 @@ end
 desc "Same as macruby:build"
 task :macruby => 'macruby:build'
 
+# The old test tasks are now commented since we are switching to RubySpec
+# for regression testing. We still add a task to run the VM regression test
+# suite, though.
+desc "Run the VM regression test suite"
+task :test_vm do
+  sh "/usr/bin/ruby test_roxor.rb"
+end
+=begin
 desc "Run the sample tests"
 task :sample_test do
   sh "./miniruby rubytest.rb"
@@ -30,14 +38,15 @@ task :unit_tests do
   sh "./miniruby test/macruby_runner.rb"
 end
 
+desc "Run all tests"
+task :test => [:sample_test, :unit_tests]
+=end
+
 desc "Clean local and extension build files"
 task :clean => ['clean:local', 'clean:ext']
 
 desc "Build MacRuby and extensions"
 task :all => [:macruby, :extensions]
-
-desc "Run all tests"
-task :test => [:sample_test, :unit_tests]
 
 desc "Create an archive (GIT only)"
 task :git_archive do
