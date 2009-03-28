@@ -316,12 +316,17 @@ test "assign" do
   assert ':ok', "a, b, c = [1, 2]; p :ok if a == 1 and b == 2 and c == nil"
   assert ':ok', "a, b, c = nil; p :ok if a == nil and b == nil and c == nil"
 
+  assert '[nil, [], nil]', "a, *b, c = nil; p [a, b, c]"
+  assert '[1, [], 2]', "a, *b, c = 1, 2; p [a, b, c]"
+  assert '[1, [2, 3], 4]', "a, *b, c = 1, 2, 3, 4; p [a, b, c]"
+  assert '[[1, 2, 3], 4]', "*a, b = 1, 2, 3, 4; p [a, b]"
+  assert '4', "*, a = 1, 2, 3, 4; p a"
+  assert '[1, [2, 3], 4]', "(a, *b), c = [1, 2, 3], 4; p [a, b, c]"
+
   assert ':ok', '* = 1,2; p :ok'
   assert '[1, 2]', 'x = (* = 1,2); p x'
 
   assert '[42]', "a=[1,2,3]; b=[0,3]; a[*b]=42; p a"
-
-  # TODO add more multiple assignments test
 
   assert '42', "a=[20]; a[0] += 22; p a[0]"
   assert '42', "a=[80]; a[0] -= 38; p a[0]"
