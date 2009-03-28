@@ -33,10 +33,24 @@ The project website contains more documentation, such as tutorials and guides:
   $ sudo env UNIVERSAL=1 UNIVERSAL_ARCH="i386 x86_64" ENABLE_OPTIMIZED=1 \
       make install
 
-=== Installation
+=== Build Instructions
+
+You can build MacRuby by doing the following command:
 
   $ rake
+
+Once done, you can run the RubySpec-based regression tests as well as the
+performance suite:
+
+  $ rake spec:ci
+  $ rake bench:ci
+
+To install MacRuby on your machine:
+
   $ sudo rake install
+
+WARNING: This version of MacRuby is still under development and cannot be
+installed yet.
 
 Then you should be all set! Please report us any problem you will find (the
 http://macruby.org website has pointers). Thanks!
