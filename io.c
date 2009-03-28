@@ -1248,15 +1248,17 @@ rb_io_gets_m(VALUE io, SEL sel, int argc, VALUE *argv)
 			CFDataSetLength(data, r.location);
 		}
 	} else {
-		// this is kind of a stupid implementation...
+		// Though this isn't the worst possible implementation, it could
+		// certainly use a little work. If it causes problems we'll take a look at it.
 		long string_offset = 0;
+		int seplen = RSTRING_LEN(sep);
 		for(;;) {
-			CFDataIncreaseLength(data, 1);
+			CFDataIncreaseLength(data, seplen);
 			UInt8 *b = CFDataGetMutableBytePtr(data) + string_offset;
-			long read = rb_io_read_internal(io_struct, b, 1);
+			long read = rb_io_read_internal(io_struct, b, seplen);
 			CFRange r = CFStringFind((CFStringRef)bstr, (CFStringRef)sep, 0);
-			if (r.location != kCFNotFound) {
-				CFDataSetLength(data, r.location + RSTRING_LEN(sep));
+			if ((r.location != kCFNotFound) || (rb_io_eof(io, 0) == Qtrue)) {
+				CFDataSetLength(data, r.location + (seplen));
 				break;
 			} else {
 				string_offset += read;
@@ -1331,7 +1333,9 @@ rb_io_set_lineno(VALUE io, SEL sel, VALUE line_no)
 static VALUE
 rb_io_readline(VALUE io, SEL sel, int argc, VALUE *argv)
 {
-rb_notimplement();
+	VALUE ret = rb_io_gets_m(io, sel, argc, argv);
+	if(NIL_P(ret)) rb_eof_error();
+	return ret;
 }
 
 /*
@@ -1843,44 +1847,7 @@ rb_io_getline(int argc, VALUE *argv, VALUE io)
 VALUE
 rb_io_gets(VALUE io, SEL sel)
 {
-    rb_io_t *io_struct = ExtractIOStruct(io);
-    rb_io_assert_readable(io_struct);
-
-    VALUE outbuf = rb_bytestring_new();
-    CFMutableDataRef data = rb_bytestring_wrapped_data(outbuf);
-
-    long s = 512;
-    CFDataSetLength(data, s);
-    UInt8 *buf = CFDataGetMutableBytePtr(data);
-
-    // FIXME this is a very naive implementation
-
-    long data_read = 0;
-    while (true) {
-	UInt8 byte;
-	if (rb_io_read_internal(io_struct, &byte, 1) != 1) {
-	    break;
-	}
-
-	if (data_read >= s) {
-	    s += s;
-	    CFDataSetLength(data, s);
-	    buf = CFDataGetMutableBytePtr(data);
-	}
-	buf[data_read++] = byte;
-
-	if (byte == '\n') {
-	    break;    
-	}
-    }
-
-    if (data_read == 0) {
-	return Qnil;
-    }
-
-    CFDataSetLength(data, data_read);
-
-    return outbuf;
+	return rb_io_gets_m(io, sel, 0, NULL);
 }
 
 /*
