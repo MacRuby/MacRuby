@@ -1265,7 +1265,7 @@ rb_io_gets_m(VALUE io, SEL sel, int argc, VALUE *argv)
 			}
 		}
 	}
-	
+	if ((rb_io_eof(io, 0) == Qtrue) && (RSTRING_LEN(bstr) == 0)) return Qnil;
     return bstr; 
 }
 
