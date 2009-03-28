@@ -273,6 +273,9 @@ end
 namespace :macruby do
   desc "Build dynamic libraries for MacRuby"
   task :dylib => [:rbconfig, :miniruby] do
+    $stderr.puts "Warning: this version of MacRuby is still under development and can only build the \"miniruby\" target."
+    system("ls -l ./miniruby")
+    exit 0
     sh("./miniruby -I. -I./lib -rrbconfig tool/compile_prelude.rb prelude.rb gem_prelude.rb prelude.c.new")
     if !File.exist?('prelude.c') or File.read('prelude.c') != File.read('prelude.c.new')
       mv('prelude.c.new', 'prelude.c')
@@ -354,6 +357,8 @@ EOS
 
   desc "Install the framework"
   task :install => :info_plist do
+    $stderr.puts "This version of MacRuby is under development and cannot be installed yet. Please retry later."
+    exit 1
     sh "./miniruby instruby.rb #{INSTRUBY_ARGS}"
   end
 end
