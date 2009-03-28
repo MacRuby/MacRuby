@@ -82,7 +82,10 @@ Benchmark.bm(30) do |bm|
   end
   bm.report('tak') { tak(18,9,0) }
   bm.report('tarai') { tarai(12,6,0) }
-  bm.report('ackermann') { ack(3,9) }
+  if RUBY_VERSION.to_f > 1.8
+    # Ruby 1.8 is too weak for this benchmark.
+    bm.report('ackermann') { ack(3,9) }
+  end
 
   # Loops.
   bm.report('10000000 times loop') do
@@ -99,19 +102,19 @@ Benchmark.bm(30) do |bm|
   end
 
   # Messages.
-  bm.report('30000000 0 arg msg') do
+  bm.report('30000000 msg w/ 0 arg') do
     o = Class1.new
     i=0; while i<10000000; o.method1; o.method1; o.method1; i+=1; end 
   end
-  bm.report('30000000 1 arg msg') do
+  bm.report('30000000 msg w/ 1 arg') do
     o = Class1.new
     i=0; while i<10000000; o.method2(i); o.method2(i); o.method2(i); i+=1; end 
   end
-  bm.report('10000000 0 arg super msg') do
+  bm.report('10000000 super w/ 0 arg') do
     o = Class2.new
     i=0; while i<10000000; o.method1; i+=1; end
   end
-  bm.report('10000000 1 arg super msg') do
+  bm.report('10000000 super w/ 1 arg') do
     o = Class2.new
     i=0; while i<10000000; o.method2(i); i+=1; end
   end
