@@ -34,6 +34,16 @@ def tarai(x, y, z)
   end
 end
 
+def ack(m, n)
+  if m == 0 then
+    n + 1
+  elsif n == 0 then
+    ack(m - 1, 1)
+  else
+    ack(m - 1, ack(m, n - 1))
+  end
+end
+
 class Class1
   def method1; end
   def method2(x); x; end
@@ -61,7 +71,7 @@ ConstantOne = 1
 
 require 'benchmark'
 
-Benchmark.bm(3) do |bm|
+Benchmark.bm(30) do |bm|
 
   # Fixnum arithmetic.
   bm.report('10 fib(30)') do
@@ -72,6 +82,7 @@ Benchmark.bm(3) do |bm|
   end
   bm.report('tak') { tak(18,9,0) }
   bm.report('tarai') { tarai(12,6,0) }
+  bm.report('ackermann') { ack(3,9) }
 
   # Loops.
   bm.report('10000000 times loop') do
