@@ -1206,7 +1206,65 @@ io_read(VALUE io, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_io_gets_m(VALUE io, SEL sel, int argc, VALUE *argv)
 {
-    rb_notimplement();
+	VALUE sep, limit;
+	rb_scan_args(argc, argv, "02", &sep, &limit);
+	rb_io_t *io_struct = ExtractIOStruct(io);
+	
+	if (rb_io_eof(io, 0) == Qtrue) {
+		return Qnil;
+	}
+	
+	if (NIL_P(rb_rs)) {
+		// TODO: Get rid of this when the fix comes in for the $\ variable.
+		rb_rs = (VALUE)CFSTR("\n");
+	}
+	
+	if (NIL_P(sep)) {
+		// no arguments were passed at all.
+		// FIXME: if you pass nil, it's suppose to read everything. that sucks.
+		sep = rb_rs;
+		limit = Qnil;
+	} else {
+		if (TYPE(sep) != T_STRING) {
+			// sep wasn't given, limit was.
+			limit = sep;
+			sep = rb_rs;
+		} else if (RSTRING_LEN(sep) == 0) {
+			sep = (VALUE)CFSTR("\n\n");
+		}
+	}
+	long line_limit = (NIL_P(limit) ? -1 : FIX2LONG(limit));
+	// now that we've got our parameters, let's get down to business.
+	
+	VALUE bstr = rb_bytestring_new();
+	CFMutableDataRef data = rb_bytestring_wrapped_data(bstr);
+	// this is not the best code i've ever written, but it'll do.
+	if(line_limit != -1) {
+		CFDataIncreaseLength(data, line_limit);
+		UInt8 *b = CFDataGetMutableBytePtr(data);
+		rb_io_read_internal(io_struct, b, line_limit);
+		CFRange r = CFStringFind((CFStringRef)bstr, (CFStringRef)sep, 0);
+		if (r.location != kCFNotFound) {
+			CFDataSetLength(data, r.location);
+		}
+	} else {
+		// this is kind of a stupid implementation...
+		long string_offset = 0;
+		for(;;) {
+			CFDataIncreaseLength(data, 1);
+			UInt8 *b = CFDataGetMutableBytePtr(data) + string_offset;
+			long read = rb_io_read_internal(io_struct, b, 1);
+			CFRange r = CFStringFind((CFStringRef)bstr, (CFStringRef)sep, 0);
+			if (r.location != kCFNotFound) {
+				CFDataSetLength(data, r.location + RSTRING_LEN(sep));
+				break;
+			} else {
+				string_offset += read;
+			}
+		}
+	}
+	
+    return bstr; 
 }
 
 /*
