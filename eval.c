@@ -693,22 +693,6 @@ errinfo_getter(ID id)
 }
 
 VALUE
-rb_errinfo(void)
-{
-    // TODO
-    return Qnil;
-}
-
-void
-rb_set_errinfo(VALUE err)
-{
-    if (!NIL_P(err) && !rb_obj_is_kind_of(err, rb_eException)) {
-	rb_raise(rb_eTypeError, "assigning non-exception to $!");
-    }
-    // TODO
-}
-
-VALUE
 rb_rubylevel_errinfo(void)
 {
     return get_errinfo();

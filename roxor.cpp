@@ -408,6 +408,7 @@ class RoxorVM
 	VALUE backref;
 	VALUE broken_with;
 	VALUE last_status;
+	VALUE errinfo;
 	int safe_level;
 	std::map<NODE *, rb_vm_block_t *> blocks;
 	std::map<double, struct rb_float_cache *> float_cache;
@@ -1957,6 +1958,7 @@ RoxorVM::RoxorVM(void)
     backref = Qnil;
     broken_with = Qundef;
     last_status = Qnil;
+    errinfo = Qnil;
 
     current_block = NULL;
     previous_block = NULL;
@@ -2869,12 +2871,14 @@ RoxorCompiler::compile_node(NODE *node)
 	    return compile_dstr(node);
 
 	case NODE_DREGX:
+	case NODE_DREGX_ONCE: // TODO optimize NODE_DREGX_ONCE
 	    {
 		Value *val  = compile_dstr(node);
 		const int flag = node->nd_cflag;
 
 		if (newRegexpFunc == NULL) {
-		    newRegexpFunc = cast<Function>(module->getOrInsertFunction("rb_reg_new_str",
+		    newRegexpFunc = cast<Function>(module->getOrInsertFunction(
+				"rb_reg_new_str",
 				RubyObjTy, RubyObjTy, Type::Int32Ty, NULL));
 		}
 
@@ -3597,14 +3601,30 @@ rescan_args:
 	    }
 	    break;
 
+	case NODE_MATCH:
 	case NODE_MATCH2:
 	case NODE_MATCH3:
 	    {
-		assert(node->nd_recv);
-		assert(node->nd_value);
+		Value *reTarget;
+		Value *reSource;
 
-		Value *reSource = compile_node(node->nd_recv);
-		Value *reTarget = compile_node(node->nd_value);
+		if (nd_type(node) == NODE_MATCH) {
+		    assert(node->nd_lit != 0);
+		    reTarget = ConstantInt::get(RubyObjTy, node->nd_lit);
+		    reSource = nilVal; // TODO this should get $_
+		}
+		else {
+		    assert(node->nd_recv);
+		    assert(node->nd_value);
+		    if (nd_type(node) == NODE_MATCH2) {
+			reTarget = compile_node(node->nd_recv);
+			reSource = compile_node(node->nd_value);
+		    }
+		    else {
+			reTarget = compile_node(node->nd_value);
+			reSource = compile_node(node->nd_recv);
+		    }
+		}
 
 		std::vector<Value *> params;
 		void *cache = GET_VM()->method_cache_get(selEqTilde, false);
@@ -6190,6 +6210,27 @@ rb_last_status_set(int status, rb_pid_t pid)
     }
     GET_VM()->last_status = last_status;
 }
+
+extern "C"
+VALUE
+rb_errinfo(void)
+{
+    return GET_VM()->errinfo;
+}
+
+void
+rb_set_errinfo(VALUE err)
+{
+    if (!NIL_P(err) && !rb_obj_is_kind_of(err, rb_eException)) {
+        rb_raise(rb_eTypeError, "assigning non-exception to $!");
+    }
+    if (GET_VM()->errinfo != Qnil) {
+	rb_objc_release((void *)GET_VM()->errinfo);
+    }
+    GET_VM()->errinfo = err;
+    rb_objc_retain((void *)err);
+}
+
 
 extern "C"
 const char *
