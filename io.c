@@ -1204,66 +1204,83 @@ io_read(VALUE io, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_io_gets_m(VALUE io, SEL sel, int argc, VALUE *argv)
 {
-	VALUE sep, limit;
-	rb_scan_args(argc, argv, "02", &sep, &limit);
-	rb_io_t *io_struct = ExtractIOStruct(io);
-	
-	if (rb_io_eof(io, 0) == Qtrue) {
-		return Qnil;
+    VALUE sep, limit;
+    rb_scan_args(argc, argv, "02", &sep, &limit);
+    rb_io_t *io_struct = ExtractIOStruct(io);
+
+    if (rb_io_eof(io, 0) == Qtrue) {
+	return Qnil;
+    }
+
+    if (NIL_P(rb_rs)) {
+	// TODO: Get rid of this when the fix comes in for the $\ variable.
+	rb_rs = (VALUE)CFSTR("\n");
+    }
+
+    if (NIL_P(sep)) {
+	// no arguments were passed at all.
+	// FIXME: if you pass nil, it's suppose to read everything. that sucks.
+	sep = rb_rs;
+	limit = Qnil;
+    } 
+    else {
+	if (TYPE(sep) != T_STRING) {
+	    // sep wasn't given, limit was.
+	    limit = sep;
+	    sep = rb_rs;
+	} 
+	else if (RSTRING_LEN(sep) == 0) {
+	    sep = (VALUE)CFSTR("\n\n");
 	}
-	
-	if (NIL_P(rb_rs)) {
-		// TODO: Get rid of this when the fix comes in for the $\ variable.
-		rb_rs = (VALUE)CFSTR("\n");
+    }
+    long line_limit = (NIL_P(limit) ? -1 : FIX2LONG(limit));
+    // now that we've got our parameters, let's get down to business.
+
+    VALUE bstr = rb_bytestring_new();
+    CFMutableDataRef data = rb_bytestring_wrapped_data(bstr);
+    if (line_limit != -1) {
+	CFDataIncreaseLength(data, line_limit);
+	UInt8 *b = CFDataGetMutableBytePtr(data);
+	rb_io_read_internal(io_struct, b, line_limit);
+	CFRange r = CFStringFind((CFStringRef)bstr, (CFStringRef)sep, 0);
+	if (r.location != kCFNotFound) {
+	    CFDataSetLength(data, r.location);
 	}
-	
-	if (NIL_P(sep)) {
-		// no arguments were passed at all.
-		// FIXME: if you pass nil, it's suppose to read everything. that sucks.
-		sep = rb_rs;
-		limit = Qnil;
-	} else {
-		if (TYPE(sep) != T_STRING) {
-			// sep wasn't given, limit was.
-			limit = sep;
-			sep = rb_rs;
-		} else if (RSTRING_LEN(sep) == 0) {
-			sep = (VALUE)CFSTR("\n\n");
-		}
+    }
+    else {
+	long s = 512;
+	CFDataSetLength(data, s);
+
+	const char *sepstr = RSTRING_PTR(sep);
+	const int seplen = RSTRING_LEN(sep);
+	assert(seplen > 0);
+	UInt8 *buf = CFDataGetMutableBytePtr(data);
+	UInt8 *tmp_buf = alloca(seplen);
+	long data_read = 0;
+
+	while (true) {
+	    if (rb_io_read_internal(io_struct, tmp_buf, seplen) != seplen) {
+		break;
+	    }
+	    if (data_read >= s) {
+		s += s;
+		CFDataSetLength(data, s);
+		buf = CFDataGetMutableBytePtr(data);
+	    }
+	    memcpy(&buf[data_read], tmp_buf, seplen);
+	    data_read += seplen;
+
+	    if (memcmp(tmp_buf, sepstr, seplen) == 0) {
+		break;
+	    }
 	}
-	long line_limit = (NIL_P(limit) ? -1 : FIX2LONG(limit));
-	// now that we've got our parameters, let's get down to business.
-	
-	VALUE bstr = rb_bytestring_new();
-	CFMutableDataRef data = rb_bytestring_wrapped_data(bstr);
-	// this is not the best code i've ever written, but it'll do.
-	if(line_limit != -1) {
-		CFDataIncreaseLength(data, line_limit);
-		UInt8 *b = CFDataGetMutableBytePtr(data);
-		rb_io_read_internal(io_struct, b, line_limit);
-		CFRange r = CFStringFind((CFStringRef)bstr, (CFStringRef)sep, 0);
-		if (r.location != kCFNotFound) {
-			CFDataSetLength(data, r.location);
-		}
-	} else {
-		// Though this isn't the worst possible implementation, it could
-		// certainly use a little work. If it causes problems we'll take a look at it.
-		long string_offset = 0;
-		int seplen = RSTRING_LEN(sep);
-		for(;;) {
-			CFDataIncreaseLength(data, seplen);
-			UInt8 *b = CFDataGetMutableBytePtr(data) + string_offset;
-			long read = rb_io_read_internal(io_struct, b, seplen);
-			CFRange r = CFStringFind((CFStringRef)bstr, (CFStringRef)sep, 0);
-			if ((r.location != kCFNotFound) || (rb_io_eof(io, 0) == Qtrue)) {
-				CFDataSetLength(data, r.location + (seplen));
-				break;
-			} else {
-				string_offset += read;
-			}
-		}
+
+	if (data_read == 0) {
+	    return Qnil;
 	}
-	
+	CFDataSetLength(data, data_read);
+    }
+
     return bstr; 
 }
 
@@ -1331,9 +1348,11 @@ rb_io_set_lineno(VALUE io, SEL sel, VALUE line_no)
 static VALUE
 rb_io_readline(VALUE io, SEL sel, int argc, VALUE *argv)
 {
-	VALUE ret = rb_io_gets_m(io, sel, argc, argv);
-	if(NIL_P(ret)) rb_eof_error();
-	return ret;
+    VALUE ret = rb_io_gets_m(io, sel, argc, argv);
+    if (NIL_P(ret)) {
+	rb_eof_error();
+    }
+    return ret;
 }
 
 /*
@@ -1845,7 +1864,7 @@ rb_io_getline(int argc, VALUE *argv, VALUE io)
 VALUE
 rb_io_gets(VALUE io, SEL sel)
 {
-	return rb_io_gets_m(io, sel, 0, NULL);
+    return rb_io_gets_m(io, 0, 0, NULL);
 }
 
 /*
