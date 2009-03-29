@@ -351,8 +351,9 @@ rb_singleton_class_attached(VALUE klass, VALUE obj)
 {
     if (RCLASS_SINGLETON(klass)) {
 	static ID attachedId = 0;
-	if (attachedId == 0)
+	if (attachedId == 0) {
 	    attachedId = rb_intern("__attached__");
+	}
 	rb_ivar_set(klass, attachedId, obj);
     }
 }
@@ -1158,7 +1159,9 @@ rb_singleton_class(VALUE obj)
 	    case T_CLASS:
 	    case T_MODULE:
 		klass = *(VALUE *)obj;
+		rb_vm_set_outer(klass, obj);
 		break;
+
 	    default:
 		klass = rb_make_metaclass(obj, RBASIC(obj)->klass);
 		break;

@@ -504,11 +504,17 @@ class RoxorVM
 
 	void set_outer(Class klass, Class mod) {
 	    struct rb_vm_outer *mod_outer = get_outer(mod);
-	    struct rb_vm_outer *class_outer = (struct rb_vm_outer *)
-		malloc(sizeof(struct rb_vm_outer));
-	    class_outer->klass = klass;
-	    class_outer->outer = mod_outer;
-	    outers[klass] = class_outer;
+	    struct rb_vm_outer *class_outer = get_outer(klass);
+	    if (class_outer == NULL || class_outer->outer != mod_outer) {
+		if (class_outer != NULL) {
+		    free(class_outer);
+		}
+		class_outer = (struct rb_vm_outer *)
+		    malloc(sizeof(struct rb_vm_outer));
+		class_outer->klass = klass;
+		class_outer->outer = mod_outer;
+		outers[klass] = class_outer;
+	    }
 	}
 };
 
