@@ -642,29 +642,31 @@ describe "Literal Regexps" do
     2.times { /#{o}/o }
     ScratchPad.recorded.should == [:to_s_callback]
   end
-  
-  it 'does not do thread synchronization for /o' do
-    ScratchPad.record []
-    
-    to_s_callback2 = Proc.new do
-      ScratchPad << :to_s_callback2
-      "class_with_to_s2"
-    end
-
-    to_s_callback1 = Proc.new do
-      ScratchPad << :to_s_callback1
-      t2 = Thread.new do
-        o2 = LanguageSpecs::ClassWith_to_s.new(to_s_callback2)
-        ScratchPad << LanguageSpecs.get_regexp_with_substitution(o2)
+ 
+  ruby_version_is "" ... "1.9" do 
+    it 'does not do thread synchronization for /o' do
+      ScratchPad.record []
+      
+      to_s_callback2 = Proc.new do
+        ScratchPad << :to_s_callback2
+        "class_with_to_s2"
       end
-      t2.join
-      "class_with_to_s1"
+  
+      to_s_callback1 = Proc.new do
+        ScratchPad << :to_s_callback1
+        t2 = Thread.new do
+          o2 = LanguageSpecs::ClassWith_to_s.new(to_s_callback2)
+          ScratchPad << LanguageSpecs.get_regexp_with_substitution(o2)
+        end
+        t2.join
+        "class_with_to_s1"
+      end
+      
+      o1 = LanguageSpecs::ClassWith_to_s.new(to_s_callback1)
+      ScratchPad << LanguageSpecs.get_regexp_with_substitution(o1)
+  
+      ScratchPad.recorded.should == [:to_s_callback1, :to_s_callback2, /class_with_to_s2/, /class_with_to_s2/]
     end
-    
-    o1 = LanguageSpecs::ClassWith_to_s.new(to_s_callback1)
-    ScratchPad << LanguageSpecs.get_regexp_with_substitution(o1)
-
-    ScratchPad.recorded.should == [:to_s_callback1, :to_s_callback2, /class_with_to_s2/, /class_with_to_s2/]
   end
   
   it 'supports modifier combinations' do
@@ -678,7 +680,10 @@ describe "Literal Regexps" do
   # Encodings
   #############################################################################
 
-  not_compliant_on :ruby19 do
+  # These specs won't run on MacRuby too, and this #not_compliant_on method doesn't
+  # seem to work. Eloy?
+  #not_compliant_on :ruby19 do
+  ruby_version_is "" ... "1.9" do
     it 'supports /e (EUC encoding)' do
       /./e.match("\303\251").to_a.should == ["\303\251"]
     end
