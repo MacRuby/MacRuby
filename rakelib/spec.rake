@@ -43,6 +43,7 @@ namespace :spec do
     next
     predefined
     private
+    regexp
     rescue
     return
     throw

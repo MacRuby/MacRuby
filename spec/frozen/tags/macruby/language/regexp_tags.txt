@@ -1,0 +1,8 @@
+fails:Literal Regexps matches against $_ (last input) in a conditional if no explicit matchee provided
+fails:Literal Regexps allow substitution of literal regexps
+fails:Literal Regexps throws NoMethodError on missing to_s
+fails:Literal Regexps allows substitution which mixes modifiers
+fails:Literal Regexps supports \b (word boundary)
+fails:Literal Regexps supports \B (non-word-boundary)
+fails:Literal Regexps supports /o (once)
+fails:Literal Regexps invokes substitutions for /o only once
