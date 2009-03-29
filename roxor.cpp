@@ -4999,9 +4999,7 @@ rb_vm_super_lookup(VALUE klass, SEL sel, VALUE *klassp)
         }
     }
 
-    printf("could not identify the superclass of %s from the ancestors chain %s\n",
-                class_getName((Class)klass), RSTRING_PTR(rb_inspect(ary)));
-    abort();
+    return NULL;
 }
 
 extern "C"
