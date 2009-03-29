@@ -46,6 +46,7 @@ namespace :spec do
     rescue
     return
     throw
+    undef
     variables
     yield
   }
