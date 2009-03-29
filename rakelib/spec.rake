@@ -71,6 +71,13 @@ namespace :spec do
     sh "./mspec/bin/mspec run -g fails -B ./spec/frozen/macruby.mspec #{KNOWN_GOOD_AND_PARTIALLY_GOOD_FILES.join(' ')}"
   end
   
+  namespace :list do
+    desc "List all spec language spec files which do not load yet"
+    task :unloadable do
+      puts((Dir['spec/frozen/language/*_spec.rb'] - KNOWN_GOOD_AND_PARTIALLY_GOOD_FILES).join("\n"))
+    end
+  end
+  
   %w{ fails critical }.each do |tag|
     namespace :list do
       # We cheat by using the fact that currently the ruby.1.9.mspec script uses the macruby tags,
