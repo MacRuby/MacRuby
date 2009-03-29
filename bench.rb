@@ -198,4 +198,14 @@ Benchmark.bm(30) do |bm|
     end
   end
 
+  # Eval
+  bm.report('1000 eval') do
+    i=0
+    s = "#{1+1}+#{20+20}"
+    while i<1000
+      eval(s)
+      i+=1
+    end
+  end
+
 end
