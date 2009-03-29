@@ -20,6 +20,7 @@ namespace :spec do
     redo
     retry
     string
+    super
     symbol
     unless
     until
