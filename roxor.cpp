@@ -5333,7 +5333,7 @@ rb_vm_fast_shift(VALUE obj, VALUE other, struct mcache *cache, unsigned char ove
 {
     if (overriden == 0 && TYPE(obj) == T_ARRAY) {
 	rb_ary_push(obj, other);
-	return other;
+	return obj;
     }
     return __rb_vm_dispatch(cache, obj, NULL, selLTLT, 0, 1, &other);
 }
