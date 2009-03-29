@@ -28,6 +28,7 @@ namespace :spec do
   }
   
   KNOWN_PARTIALLY_GOOD = %w{
+    alias
     block
     break
     catch
