@@ -1,4 +1,8 @@
-critical:The for expression iterates over an Hash passing each key-value pair to the block
-critical:The for expression allows an instance variable as an iterator name
-critical:The for expression returns expr
-critical:The for expression repeats current iteration with 'redo'
+fails:The for expression iterates over an Enumerable passing each element to the block
+fails:The for expression iterates over any object responding to 'each'
+fails:The for expression splats multiple arguments together if there are fewer arguments than values
+fails:The for expression optionally takes a 'do' after the expression
+fails:The for expression allows body begin on the same line if do is used
+fails:The for expression breaks out of a loop upon 'break', returning nil
+fails:The for expression allows 'break' to have an argument which becomes the value of the for expression
+fails:The for expression starts the next iteration with 'next'

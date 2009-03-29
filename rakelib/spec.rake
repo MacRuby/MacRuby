@@ -37,6 +37,7 @@ namespace :spec do
     eigenclass
     encoding
     ensure
+    for
     loop
     magic_comment
     metaclass
