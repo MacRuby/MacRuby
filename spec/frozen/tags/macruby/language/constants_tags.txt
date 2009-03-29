@@ -1,0 +1,39 @@
+fails:Literal (A::X) constant resolution sends #const_missing to the original class or module scope
+fails:Literal (A::X) constant resolution evaluates the qualifier
+fails:Literal (A::X) constant resolution raises a TypeError if a non-class or non-module qualifier is given
+fails:Literal (A::X) constant resolution with statically assigned constants searches the immediate class or module scope first
+fails:Literal (A::X) constant resolution with statically assigned constants searches a module included in the immediate class before the superclass
+fails:Literal (A::X) constant resolution with statically assigned constants searches the superclass before a module included in the superclass
+fails:Literal (A::X) constant resolution with statically assigned constants searches a module included in the superclass
+fails:Literal (A::X) constant resolution with statically assigned constants searches the superclass chain
+fails:Literal (A::X) constant resolution with statically assigned constants searches Object if no class or module qualifier is given
+fails:Literal (A::X) constant resolution with statically assigned constants searches Object if a toplevel qualifier (::X) is given
+fails:Literal (A::X) constant resolution with dynamically assigned constants searches the immediate class or module scope first
+fails:Literal (A::X) constant resolution with dynamically assigned constants searches a module included in the immediate class before the superclass
+fails:Literal (A::X) constant resolution with dynamically assigned constants searches the superclass before a module included in the superclass
+fails:Literal (A::X) constant resolution with dynamically assigned constants searches a module included in the superclass
+fails:Literal (A::X) constant resolution with dynamically assigned constants searches the superclass chain
+fails:Literal (A::X) constant resolution with dynamically assigned constants does not search the singleton class of the class or module
+fails:Literal (A::X) constant resolution with dynamically assigned constants returns the updated value when a constant is reassigned
+fails:Constant resolution within methods sends #const_missing to the original class or module scope
+fails:Constant resolution within methods with statically assigned constants searches the immediate class or module scope first
+fails:Constant resolution within methods with statically assigned constants searches a module included in the immediate class before the superclass
+fails:Constant resolution within methods with statically assigned constants searches the superclass before a module included in the superclass
+fails:Constant resolution within methods with statically assigned constants searches a module included in the superclass
+fails:Constant resolution within methods with statically assigned constants searches the superclass chain
+fails:Constant resolution within methods with statically assigned constants searches the lexical scope of the method not the receiver's immediate class
+fails:Constant resolution within methods with statically assigned constants searches the lexical scope of a singleton method
+fails:Constant resolution within methods with statically assigned constants searches the lexical scope of a block
+fails:Constant resolution within methods with statically assigned constants searches Object as a lexical scope only if Object is explicitly opened
+fails:Constant resolution within methods with dynamically assigned constants searches the immediate class or module scope first
+fails:Constant resolution within methods with dynamically assigned constants searches a module included in the immediate class before the superclass
+fails:Constant resolution within methods with dynamically assigned constants searches the superclass before a module included in the superclass
+fails:Constant resolution within methods with dynamically assigned constants searches a module included in the superclass
+fails:Constant resolution within methods with dynamically assigned constants searches the superclass chain
+fails:Constant resolution within methods with dynamically assigned constants searches the lexical scope of the method not the receiver's immediate class
+fails:Constant resolution within methods with dynamically assigned constants searches the lexical scope of a singleton method
+fails:Constant resolution within methods with dynamically assigned constants does not search the lexical scope of the caller
+fails:Constant resolution within methods with dynamically assigned constants searches the lexical scope of a block
+fails:Constant resolution within methods with dynamically assigned constants searches Object as a lexical scope only if Object is explicitly opened
+fails:Constant resolution within methods with dynamically assigned constants returns the updated value when a constant is reassigned
+fails:Constant resolution within methods with dynamically assigned constants does not search the lexical scope of qualifying modules

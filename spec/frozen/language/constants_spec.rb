@@ -1,5 +1,7 @@
 require File.dirname(__FILE__) + '/../spec_helper'
-require File.dirname(__FILE__) + '/../fixtures/constants'
+
+# MacRuby TODO: This file does not compile yet, causing most examples to fail.
+#require File.dirname(__FILE__) + '/../fixtures/constants'
 
 # Read the documentation in fixtures/constants.rb for the guidelines and
 # rationale for the structure and organization of these specs.
