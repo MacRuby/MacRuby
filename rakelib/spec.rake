@@ -74,7 +74,7 @@ namespace :spec do
   
   namespace :list do
     desc "List all spec language spec files which do not load yet"
-    task :unloadable do
+    task :not_loadable do
       puts((Dir['spec/frozen/language/*_spec.rb'] - KNOWN_GOOD_AND_PARTIALLY_GOOD_FILES).join("\n"))
     end
   end
