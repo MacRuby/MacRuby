@@ -31,6 +31,7 @@ namespace :spec do
     closed
     to_i
     to_io
+    initialize
   }
   
   desc "Run all language known good spec files which should be fully green (does not use tags)"
@@ -59,7 +60,7 @@ namespace :spec do
   desc "Try to run IO tests"
   task :io do
     files = FileList["spec/frozen/core/io/{#{KNOWN_GOOD_CORE_IO.join(',')}}_spec.rb"]
-    sh "./miniruby -v -I./mspec/lib -I./lib ./mspec/bin/mspec-run #{files.join(' ')}"
+    sh "./miniruby -v -I./mspec/lib -I./lib ./mspec/bin/mspec-run -f s #{files.join(' ')}"
   end
   
   desc "Run language examples that are known to fail"

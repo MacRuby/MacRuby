@@ -2620,11 +2620,23 @@ static VALUE
 rb_io_initialize(VALUE io, SEL sel, int argc, VALUE *argv)
 {
     VALUE file_descriptor, mode;
-    int mode_flags;
-    rb_io_t *io_struct = ExtractIOStruct(io);
+    int mode_flags, fd;
+	struct stat st;
     rb_scan_args(argc, argv, "11", &file_descriptor, &mode);
+
+	rb_io_t *io_struct = ExtractIOStruct(io);
+	file_descriptor = rb_check_to_integer(file_descriptor, "to_int");
+	if (NIL_P(file_descriptor)) {
+		rb_raise(rb_eTypeError, "can't convert %s into Integer", rb_obj_classname(file_descriptor));
+	}
+	fd = FIX2INT(file_descriptor);
+	
+	if (fstat(fd, &st) < 0) {
+		rb_sys_fail(0);
+	}
+	
     mode_flags = (NIL_P(mode) ? FMODE_READABLE : convert_mode_string_to_fmode(mode));
-    prepare_io_from_fd(io_struct, FIX2INT(file_descriptor), mode_flags);
+    prepare_io_from_fd(io_struct, fd, mode_flags);
     return io;
 }
 
