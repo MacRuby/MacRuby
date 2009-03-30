@@ -29,6 +29,8 @@ namespace :spec do
   
   KNOWN_GOOD_CORE_IO = %w{
     closed
+    to_i
+    to_io
   }
   
   desc "Run all language known good spec files which should be fully green (does not use tags)"

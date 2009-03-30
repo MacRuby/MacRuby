@@ -366,10 +366,10 @@ rb_io_assert_readable(rb_io_t *io_struct)
 static bool
 rb_io_is_open(rb_io_t *io_struct) 
 {
-    return (io_struct->readStream == NULL
-	    || CFReadStreamGetStatus(io_struct->readStream) == kCFStreamStatusOpen)
-	&& (io_struct->writeStream == NULL
-	    || CFWriteStreamGetStatus(io_struct->writeStream) == kCFStreamStatusOpen);
+	// Either the readStream or the writeStream must be not null and open.
+	return ((io_struct->readStream == NULL) ?
+			(io_struct->writeStream != NULL && CFWriteStreamGetStatus(io_struct->writeStream) == kCFStreamStatusOpen) :
+			(CFReadStreamGetStatus(io_struct->readStream) == kCFStreamStatusOpen));
 }
 
 static bool
@@ -863,6 +863,9 @@ static VALUE
 rb_io_fileno(VALUE io, SEL sel)
 {
     rb_io_t *io_struct = ExtractIOStruct(io);
+	if(!rb_io_is_open(io_struct)) {
+		rb_raise(rb_eIOError, "closed stream");
+	}
     return INT2FIX(io_struct->fd);
 }
 
