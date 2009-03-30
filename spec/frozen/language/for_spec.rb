@@ -141,18 +141,16 @@ describe "The for expression" do
     j.should == 13
   end
 
-  # MacRuby TODO: This does not compile yet.
-  #
-  # it "repeats current iteration with 'redo'" do
-  #   j = 0
-  #   for i in 1..3
-  #     j += i
-  #     
-  #     redo if i == 2 && j < 4
-  #   end
-  #   
-  #   j.should == 8
-  # end
+  it "repeats current iteration with 'redo'" do
+    j = 0
+    for i in 1..3
+      j += i
+      
+      redo if i == 2 && j < 4
+    end
+    
+    j.should == 8
+  end
 end
 
 language_version __FILE__, "for"
