@@ -12,20 +12,18 @@ describe "The for expression" do
     j.should == 6
   end
 
-  # MacRuby TODO: This does not compile yet.
-  #
-  # it "iterates over an Hash passing each key-value pair to the block" do
-  #   k = 0
-  #   l = 0
-  #   
-  #   for i, j in { 1 => 10, 2 => 20 }
-  #     k += i
-  #     l += j
-  #   end
-  #   
-  #   k.should == 3
-  #   l.should == 30
-  # end
+  it "iterates over an Hash passing each key-value pair to the block" do
+    k = 0
+    l = 0
+    
+    for i, j in { 1 => 10, 2 => 20 }
+      k += i
+      l += j
+    end
+    
+    k.should == 3
+    l.should == 30
+  end
   
   it "iterates over any object responding to 'each'" do
     class XYZ
@@ -41,17 +39,15 @@ describe "The for expression" do
     j.should == 55
   end
 
-  # MacRuby TODO: This does not compile yet.
-  #
-  # it "allows an instance variable as an iterator name" do
-  #   m = [1,2,3]
-  #   n = 0
-  #   for @var in m
-  #     n += 1
-  #   end
-  #   @var.should == 3
-  #   n.should == 3
-  # end
+  it "allows an instance variable as an iterator name" do
+    m = [1,2,3]
+    n = 0
+    for @var in m
+      n += 1
+    end
+    @var.should == 3
+    n.should == 3
+  end
   
   # TODO: commented out due to a compiler error
   #it "allows a class variable as an iterator name" do
@@ -112,12 +108,10 @@ describe "The for expression" do
     a.should == 123
   end
 
-  # MacRuby TODO: This does not compile yet.
-  #
-  # it "returns expr" do
-  #   for i in 1..3; end.should == (1..3)
-  #   for i,j in { 1 => 10, 2 => 20 }; end.should == { 1 => 10, 2 => 20 }
-  # end
+  it "returns expr" do
+    for i in 1..3; end.should == (1..3)
+    for i,j in { 1 => 10, 2 => 20 }; end.should == { 1 => 10, 2 => 20 }
+  end
 
   it "breaks out of a loop upon 'break', returning nil" do
     j = 0

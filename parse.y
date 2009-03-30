@@ -2863,11 +2863,11 @@ primary		: literal
 			 *  #=>
 			 *  e.each{|x| a, = x}
 			 */
-			ID id = rb_intern("__i__"); //internal_id();
+			ID id = internal_id();
+			ID *tbl;
 			NODE *m = NEW_ARGS_AUX(0, 0);
 			NODE *args, *scope;
 
-#if 0
 			if (nd_type($2) == NODE_MASGN) {
 			    /* if args.length == 1 && args[0].kind_of?(Array)
 			     *   args = args[0]
@@ -2883,36 +2883,32 @@ primary		: literal
 					     NEW_CALL(NEW_CALL(NEW_DVAR(id), rb_intern("[]"), zero),
 						      rb_intern("kind_of?"), NEW_LIST(NEW_LIT(rb_cArray))),
 					     0),
-					NEW_DASGN_CURR(id,
-						       NEW_CALL(NEW_DVAR(id), rb_intern("[]"), zero)),
-					0),
+				    NEW_DASGN_CURR(id,
+						   NEW_CALL(NEW_DVAR(id), rb_intern("[]"), zero)),
+				    0),
 				node_assign($2, NEW_DVAR(id))));
+
+			    args = new_args(m, 0, id, 0, 0);
 			}
 			else {
-			    GC_WB(&m->nd_next, node_assign(NEW_MASGN(NEW_LIST($2), 0), NEW_DVAR(id)));
+			    if (nd_type($2) == NODE_LASGN ||
+				nd_type($2) == NODE_DASGN ||
+				nd_type($2) == NODE_DASGN_CURR) {
+				GC_WB(&$2->nd_value, NEW_DVAR(id));
+				m->nd_plen = 1;
+				GC_WB(&m->nd_next, $2);
+				args = new_args(m, 0, 0, 0, 0);
+			    }
+			    else {
+				GC_WB(&m->nd_next, node_assign(NEW_MASGN(NEW_LIST($2), 0), NEW_DVAR(id)));
+				args = new_args(m, 0, id, 0, 0);
+			    }
 			}
-#endif
 
-			// TODO this doesn't work in multiple iterator variables are
-			// passed to 'for'.
-
-			args = new_args(m, 0, id, 0, 0);
-
-			NODE *block = $8;
-			if (nd_type(block) != NODE_BLOCK) {
-			    block = NEW_BLOCK(block);
-			}
-			NODE *new_block = NEW_BLOCK(NEW_DASGN($2->nd_vid, NEW_DVAR(id)));
-			GC_WB(&new_block->nd_next, block);
-			$8 = new_block;
-
-			int cnt = vtable_size(lvtbl->args) + 1 + vtable_size(lvtbl->vars);
-			ID *tbl = ALLOC_N(ID, cnt + 2);
-			tbl[0] = vtable_size(lvtbl->args) + 1;
-			tbl[1] = id;
-			vtable_tblcpy(tbl+2, lvtbl->args);
-			tbl[vtable_size(lvtbl->args) + 2] = vtable_size(lvtbl->vars);
-			vtable_tblcpy(tbl+vtable_size(lvtbl->args)+3, lvtbl->vars);
+			tbl = ALLOC_N(ID, vtable_size(lvtbl->vars) + 3);
+			tbl[0] = 1; tbl[1] = id;
+			tbl[2] = vtable_size(lvtbl->vars);
+			vtable_tblcpy(tbl+3, lvtbl->vars);
 
 			scope = NEW_NODE(NODE_SCOPE, tbl, $8, args);
 			$$ = NEW_FOR(0, $5, scope);

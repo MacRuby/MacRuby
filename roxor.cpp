@@ -293,6 +293,9 @@ class RoxorCompiler
 		       bool do_assert) {
 	    std::map<ID, Value *>::iterator iter = container.find(name);
 	    if (do_assert) {
+#if ROXOR_COMPILER_DEBUG
+		printf("get_var %s\n", rb_id2name(name));
+#endif
 		assert(iter != container.end());
 		return iter->second;
 	    }
