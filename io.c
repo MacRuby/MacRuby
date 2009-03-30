@@ -372,6 +372,22 @@ rb_io_is_open(rb_io_t *io_struct)
 	    || CFWriteStreamGetStatus(io_struct->writeStream) == kCFStreamStatusOpen);
 }
 
+static bool
+rb_io_is_closed_for_reading(rb_io_t *io_struct) 
+{
+	if (io_struct->readStream == NULL) return true;
+	CFStreamStatus s = CFReadStreamGetStatus(io_struct->readStream);
+	return ((s == kCFStreamStatusNotOpen) || (s == kCFStreamStatusClosed));
+}
+
+static bool
+rb_io_is_closed_for_writing(rb_io_t *io_struct) 
+{
+	if (io_struct->writeStream == NULL) return true;
+	CFStreamStatus s = CFWriteStreamGetStatus(io_struct->writeStream);
+	return ((s == kCFStreamStatusNotOpen) || (s == kCFStreamStatusClosed));
+}
+
 /*
  *  call-seq:
  *     IO.try_convert(obj) -> io or nil
@@ -1760,7 +1776,8 @@ rb_io_close_m(VALUE io, SEL sel)
 static VALUE
 rb_io_closed(VALUE io, SEL sel)
 {
-    rb_notimplement();
+	rb_io_t *ios = ExtractIOStruct(io);
+	return CONDITION_TO_BOOLEAN(rb_io_is_closed_for_writing(ios) && rb_io_is_closed_for_reading(ios));
 }
 
 /*
@@ -2191,7 +2208,13 @@ static VALUE
 rb_f_open(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
     VALUE io = rb_class_new_instance(argc, argv, rb_cFile);
-    return rb_file_open(io, argc, argv);
+    io = rb_file_open(io, argc, argv);
+    if (rb_block_given_p()) {
+        VALUE ret = rb_vm_yield(1, &io);
+        rb_io_close_m(io, 0);
+        return ret;
+    }
+	return io;
 }
 
 /*

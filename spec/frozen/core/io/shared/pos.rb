@@ -1,4 +1,4 @@
-describe :io_pos, :shared => true do
+describe(:io_pos, {:shared => true}) do
   before :each do
     @fname = 'test.txt'
     File.open @fname, 'w' do |f| f.write "123" end

@@ -27,6 +27,11 @@ namespace :spec do
     while
   }
   
+  KNOWN_GOOD_CORE_IO = %w{
+    closed
+    tell
+  }
+  
   desc "Run all language known good spec files which should be fully green (does not use tags)"
   task :green do
     files = FileList["spec/frozen/language/{#{KNOWN_GOOD.join(',')}}_spec.rb"]
@@ -42,6 +47,18 @@ namespace :spec do
   desc "Run continuous integration language examples (all known good examples)"
   task :ci do
     sh "./mspec/bin/mspec ci -B ./spec/frozen/macruby.mspec spec/frozen/language"
+  end
+  
+  desc "Try to run IO tests"
+  task :gdbio do
+    files = FileList["spec/frozen/core/io/{#{KNOWN_GOOD_CORE_IO.join(',')}}_spec.rb"]
+    sh "gdb --args ./miniruby -v -I./mspec/lib -I./lib ./mspec/bin/mspec-run #{files.join(' ')}"
+  end
+  
+  desc "Try to run IO tests"
+  task :io do
+    files = FileList["spec/frozen/core/io/{#{KNOWN_GOOD_CORE_IO.join(',')}}_spec.rb"]
+    sh "./miniruby -v -I./mspec/lib -I./lib ./mspec/bin/mspec-run #{files.join(' ')}"
   end
   
   desc "Run language examples that are known to fail"

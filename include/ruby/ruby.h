@@ -1108,7 +1108,7 @@ rb_is_native(VALUE obj) {
 }
 #define NATIVE(obj) (rb_is_native((VALUE)obj))
 
-#define CONDITION_TO_BOOLEAN(c) (c ? Qtrue : Qfalse)
+#define CONDITION_TO_BOOLEAN(c) ((c) ? Qtrue : Qfalse)
 
 VALUE rb_box_fixnum(VALUE);
 
