@@ -30,8 +30,11 @@ namespace :spec do
   KNOWN_GOOD_CORE_IO = %w{
     closed
     fileno
+    io
     inspect
+    putc
     readchar
+    readline
     to_i
     to_io
     initialize
@@ -56,12 +59,12 @@ namespace :spec do
     sh "./mspec/bin/mspec ci -B ./spec/frozen/macruby.mspec spec/frozen/language #{KNOWN_GOOD_CORE_IO_FILES.join(' ')}"
   end
   
-  desc "Try to run IO tests"
+  desc "Run IO test with GDB enabled"
   task :gdbio do
     sh "gdb --args ./miniruby -v -I./mspec/lib -I./lib ./mspec/bin/mspec-run #{KNOWN_GOOD_CORE_IO_FILES.join(' ')}"
   end
   
-  desc "Try to run IO tests"
+  desc "Run the IO tests that pass"
   task :io do
     sh "./miniruby -v -I./mspec/lib -I./lib ./mspec/bin/mspec-run -f s #{KNOWN_GOOD_CORE_IO_FILES.join(' ')}"
   end

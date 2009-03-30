@@ -31,7 +31,7 @@ describe "IO#readline" do
   it "raises EOFError on end of stream" do
     testfile = File.dirname(__FILE__) + '/fixtures/gets.txt'
     File.open(testfile, 'r') do |f|
-      lambda { loop { f.readline } }.should raise_error(EOFError)
+      lambda { while true; f.readline; end }.should raise_error(EOFError)
     end
 
   end

@@ -663,7 +663,6 @@ rb_io_seek(VALUE io, VALUE offset, int whence)
 {
     rb_io_t *io_struct = ExtractIOStruct(io);
     rb_io_assert_readable(io_struct); 
-    rb_io_assert_writable(io_struct);
 
     // TODO: make this work with IO::SEEK_CUR, SEEK_END, etc.
     rb_io_read_stream_set_offset(io_struct->readStream, FIX2LONG(offset));
@@ -1210,7 +1209,7 @@ rb_io_gets_m(VALUE io, SEL sel, int argc, VALUE *argv)
     VALUE sep, limit;
     rb_scan_args(argc, argv, "02", &sep, &limit);
     rb_io_t *io_struct = ExtractIOStruct(io);
-
+	rb_io_assert_readable(io_struct);
     if (rb_io_eof(io, 0) == Qtrue) {
 	return Qnil;
     }
@@ -2028,7 +2027,7 @@ rb_io_s_popen(VALUE klass, SEL sel, int argc, VALUE *argv)
     
     FILE *process = macruby_popen(StringValueCStr(process_name), RSTRING_PTR(mode), &popen_pid);
     if (process == NULL) {
-        rb_raise(rb_eIOError, "system call to popen() failed");
+		rb_sys_fail("call to popen() failed.");
     }
     
     VALUE io = prep_io(fileno(process), convert_mode_string_to_fmode(mode), klass);

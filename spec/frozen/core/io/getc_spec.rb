@@ -12,12 +12,12 @@ describe "IO#getc" do
   end
 
   it "returns the next byte from the stream" do
-    @file.getc.should == 86
-    @file.getc.should == 111
-    @file.getc.should == 105
+    @file.getc.should == 'V'
+    @file.getc.should == 'o'
+    @file.getc.should == 'i'
     # read the rest of line
     @file.readline.should == "ci la ligne une.\n"
-    @file.getc.should == 81
+    @file.getc.should == 'Q'
   end
 
   it "returns nil when invoked at the end of the stream" do
