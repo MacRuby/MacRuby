@@ -1105,7 +1105,7 @@ Init_GC(void)
     rb_global_variable(&nomem_error);
     nomem_error = rb_exc_new2(rb_eNoMemError, "failed to allocate memory");
 
-    //rb_define_method(rb_mKernel, "hash", rb_obj_id, 0);
+    rb_objc_define_method(rb_mKernel, "hash", rb_obj_id, 0);
     rb_objc_define_method(rb_mKernel, "__id__", rb_obj_id, 0);
     rb_objc_define_method(rb_mKernel, "object_id", rb_obj_id, 0);
 

@@ -209,7 +209,7 @@ binding_alloc(VALUE klass)
 }
 
 static VALUE
-binding_dup(VALUE self)
+binding_dup(VALUE self, SEL sel)
 {
     VALUE bindval = binding_alloc(rb_cBinding);
 #if 0 // TODO
@@ -222,9 +222,9 @@ binding_dup(VALUE self)
 }
 
 static VALUE
-binding_clone(VALUE self)
+binding_clone(VALUE self, SEL sel)
 {
-    VALUE bindval = binding_dup(self);
+    VALUE bindval = binding_dup(self, 0);
     CLONESETUP(bindval, self);
     return bindval;
 }
@@ -262,7 +262,7 @@ rb_binding_new(void)
  */
 
 static VALUE
-rb_f_binding(VALUE self)
+rb_f_binding(VALUE self, SEL sel)
 {
     return rb_binding_new();
 }
@@ -286,7 +286,7 @@ rb_f_binding(VALUE self)
 VALUE rb_f_eval(VALUE self, SEL sel, int argc, VALUE *argv);
 
 static VALUE
-bind_eval(int argc, VALUE *argv, VALUE bindval)
+bind_eval(VALUE bindval, SEL sel, int argc, VALUE *argv)
 {
     VALUE args[4];
 
@@ -1762,9 +1762,9 @@ Init_Binding(void)
     rb_cBinding = rb_define_class("Binding", rb_cObject);
     rb_undef_alloc_func(rb_cBinding);
     rb_undef_method(CLASS_OF(rb_cBinding), "new");
-    rb_define_method(rb_cBinding, "clone", binding_clone, 0);
-    rb_define_method(rb_cBinding, "dup", binding_dup, 0);
-    rb_define_method(rb_cBinding, "eval", bind_eval, -1);
-    rb_define_global_function("binding", rb_f_binding, 0);
+    rb_objc_define_method(rb_cBinding, "clone", binding_clone, 0);
+    rb_objc_define_method(rb_cBinding, "dup", binding_dup, 0);
+    rb_objc_define_method(rb_cBinding, "eval", bind_eval, -1);
+    rb_objc_define_method(rb_mKernel, "binding", rb_f_binding, 0);
 }
 

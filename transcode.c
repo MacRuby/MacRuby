@@ -400,7 +400,7 @@ str_transcode(int argc, VALUE *argv, VALUE *self)
  */
 
 static VALUE
-str_encode_bang(int argc, VALUE *argv, VALUE str)
+str_encode_bang(VALUE str, SEL sel, int argc, VALUE *argv)
 {
     VALUE newstr = str;
     int encidx = str_transcode(argc, argv, &newstr);
@@ -437,7 +437,7 @@ str_encode_bang(int argc, VALUE *argv, VALUE str)
 #else // WITH_OBJC
 
 static VALUE
-str_encode_bang(int argc, VALUE *argv, VALUE self)
+str_encode_bang(VALUE str, SEL sel, int argc, VALUE *argv)
 {
     /* TODO */
     return self;
@@ -446,7 +446,7 @@ str_encode_bang(int argc, VALUE *argv, VALUE self)
 #endif
 
 static VALUE
-str_encode(int argc, VALUE *argv, VALUE str)
+str_encode(VALUE str, SEL sel, int argc, VALUE *argv)
 {
     str = rb_str_dup(str);
     return str_encode_bang(argc, argv, str);
@@ -469,6 +469,6 @@ Init_transcode(void)
     sym_ignore = ID2SYM(rb_intern("ignore"));
 #endif
 
-    rb_define_method(rb_cString, "encode", str_encode, -1);
-    rb_define_method(rb_cString, "encode!", str_encode_bang, -1);
+    rb_objc_define_method(rb_cString, "encode", str_encode, -1);
+    rb_objc_define_method(rb_cString, "encode!", str_encode_bang, -1);
 }

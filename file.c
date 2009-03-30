@@ -4163,7 +4163,7 @@ Init_File(void)
     rb_objc_define_method(rb_cStat, "blockdev?",  rb_stat_b, 0);
     rb_objc_define_method(rb_cStat, "chardev?",  rb_stat_c, 0);
 
-    rb_define_method(rb_cStat, "setuid?",  rb_stat_suid, 0);
-    rb_define_method(rb_cStat, "setgid?",  rb_stat_sgid, 0);
-    rb_define_method(rb_cStat, "sticky?",  rb_stat_sticky, 0);
+    rb_objc_define_method(rb_cStat, "setuid?",  rb_stat_suid, 0);
+    rb_objc_define_method(rb_cStat, "setgid?",  rb_stat_sgid, 0);
+    rb_objc_define_method(rb_cStat, "sticky?",  rb_stat_sticky, 0);
 }
