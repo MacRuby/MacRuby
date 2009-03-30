@@ -11,38 +11,22 @@
 
 #include "ruby/ruby.h"
 #include "ruby/io.h"
-#include "ruby/signal.h"
+#include "ruby/util.h"
 #include "ruby/node.h"
 #include "roxor.h"
-#include <ctype.h>
-#include <errno.h>
 
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/select.h>
-#include <sys/types.h>
-#include <sys/ioctl.h>
+#include <errno.h>
 #include <paths.h>
 #include <fcntl.h>
-
-#include <sys/stat.h>
-
-#include <sys/param.h>
-
-#if !defined NOFILE
-# define NOFILE 64
-#endif
-
 #include <unistd.h>
+
+#include <sys/select.h>
+#include <sys/ioctl.h>
+#include <sys/stat.h>
+#include <sys/param.h>
 #include <sys/syscall.h>
 
 extern void Init_File(void);
-
-#include "ruby/util.h"
-
-#ifndef O_ACCMODE
-#define O_ACCMODE (O_RDONLY | O_WRONLY | O_RDWR)
-#endif
 
 #if SIZEOF_OFF_T > SIZEOF_LONG && !defined(HAVE_LONG_LONG)
 # error off_t is bigger than long, but you have no long long...
@@ -1883,7 +1867,7 @@ rb_io_gets(VALUE io, SEL sel)
 static VALUE
 rb_io_sysseek(VALUE io, SEL sel, int argc, VALUE *argv)
 {
-rb_notimplement();
+rb_notimplement(); 
 }
 
 /*

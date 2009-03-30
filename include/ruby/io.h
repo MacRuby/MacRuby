@@ -59,7 +59,7 @@ typedef struct rb_io_t {
 #define FMODE_WSPLIT_INITIALIZED  0x400
 #define FMODE_TRUNC                 0x00000800
 #define FMODE_TEXTMODE              0x00001000
-
+#define FMODE_SYNCWRITE (FMODE_SYNC|FMODE_WRITABLE)
 
 #ifndef SEEK_CUR
 # define SEEK_SET 0
@@ -67,8 +67,9 @@ typedef struct rb_io_t {
 # define SEEK_END 2
 #endif
 
-#define FMODE_SYNCWRITE (FMODE_SYNC|FMODE_WRITABLE)
-
+#ifndef O_ACCMODE
+#define O_ACCMODE (O_RDONLY | O_WRONLY | O_RDWR)
+#endif
 
 VALUE rb_io_taint_check(VALUE);
 NORETURN(void rb_eof_error(void));
