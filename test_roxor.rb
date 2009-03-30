@@ -1270,14 +1270,14 @@ test "cvar" do
 
 end
 
-=begin
 test "eval" do
 
   assert "42", "p eval('40 + 2')"
   assert "42", "def foo; 42; end; p eval('foo')"
   assert "42", "x = 40; p eval('x + 2')"
   assert "42", "x = 0; eval('x = 42'); p x"
-  assert "42", "eval('x = 42'); p x"
+
+  assert ":ok", "eval('x = 42'); begin; p x; rescue NameError; p :ok; end"
 
   assert "42", %q{
     def foo(b); x = 42; eval('x', b); end
@@ -1298,11 +1298,18 @@ test "eval" do
   }
 
   assert "42", %q{
+    def foo; x = 123; bar {}; x; end
+    def bar(&b); eval('x = 42', b.binding); end
+    p foo
+  }
+
+  assert "42", %q{
     class Foo;
       def foo; 42; end;
       def bar(s, b); eval(s, b); end;
     end
-    p Foo.new.bar('p foo', nil)
+    def foo; 123; end
+    Foo.new.bar('p foo', nil)
   }
 
   assert "42", %q{
@@ -1311,7 +1318,7 @@ test "eval" do
       def bar(s, b); eval(s, b); end;
     end
     def foo; 42; end
-    p Foo.new.bar('p foo', binding)
+    Foo.new.bar('p foo', binding)
   }
 
   assert "42", "class A; def foo; @x; end; end; x = A.new; x.instance_eval { @x = 42 }; p x.foo"
@@ -1320,7 +1327,6 @@ test "eval" do
   assert ":ok", "module M; module_eval 'def self.foo; :ok; end'; end; p M.foo"
 
 end
-=end
 
 test "regexp" do
 
