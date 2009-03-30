@@ -514,6 +514,14 @@ test "loops" do
 
   assert "42", "a=[20,10,5,5,1,1]; n = 0; for i in a; n+=i; end; p n"
   assert "42", "a=[1,1,1,42]; for i in a; end; p i"
+  assert '42', %{
+    def f(x)
+      for y in 1..1
+        p x
+      end
+    end
+    f(42)
+  }
 
   assert "42", "x = while true; break 42; end; p x"
   assert "nil", "x = while true; break; end; p x"
