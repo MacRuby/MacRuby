@@ -440,7 +440,7 @@ static VALUE
 str_encode_bang(VALUE str, SEL sel, int argc, VALUE *argv)
 {
     /* TODO */
-    return self;
+    return str;
 }
 
 #endif
@@ -449,13 +449,13 @@ static VALUE
 str_encode(VALUE str, SEL sel, int argc, VALUE *argv)
 {
     str = rb_str_dup(str);
-    return str_encode_bang(argc, argv, str);
+    return str_encode_bang(str, 0, argc, argv);
 }
 
 VALUE
 rb_str_transcode(VALUE str, VALUE to)
 {
-    return str_encode(1, &to, str);
+    return str_encode(str, 0, 1, &to);
 }
 
 void
