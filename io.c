@@ -2203,7 +2203,9 @@ rb_file_open(VALUE io, int argc, VALUE *argv)
     if (fd == -1) {
 	rb_sys_fail(NULL);
     }
-    prepare_io_from_fd(ExtractIOStruct(io), fd, convert_mode_string_to_fmode(modes));
+	rb_io_t *io_struct = ExtractIOStruct(io);
+    prepare_io_from_fd(io_struct, fd, convert_mode_string_to_fmode(modes));
+	GC_WB(&io_struct->path, path); 
     return io;
 }
 

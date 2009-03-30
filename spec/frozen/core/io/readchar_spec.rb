@@ -12,12 +12,12 @@ describe "IO#readchar" do
   end
 
   it "returns the next byte from the stream" do
-    @file.readchar.should == 86
-    @file.readchar.should == 111
-    @file.readchar.should == 105
+    @file.readchar.should == 'V'
+    @file.readchar.should == 'o'
+    @file.readchar.should == 'i'
     # read the rest of line
     @file.readline.should == "ci la ligne une.\n"
-    @file.readchar.should == 81
+    @file.readchar.should == 'Q'
   end
 
   it "raises EOFError when invoked at the end of the stream" do

@@ -29,10 +29,15 @@ namespace :spec do
   
   KNOWN_GOOD_CORE_IO = %w{
     closed
+    fileno
+    inspect
+    readchar
     to_i
     to_io
     initialize
   }
+  
+  # 
   
   desc "Run all language known good spec files which should be fully green (does not use tags)"
   task :green do
