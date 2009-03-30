@@ -2905,10 +2905,13 @@ primary		: literal
 			    }
 			}
 
-			tbl = ALLOC_N(ID, vtable_size(lvtbl->vars) + 3);
+			int args_count = vtable_size(lvtbl->args);
+			int vars_count = vtable_size(lvtbl->vars);
+			tbl = ALLOC_N(ID, args_count + vars_count + 3);
 			tbl[0] = 1; tbl[1] = id;
-			tbl[2] = vtable_size(lvtbl->vars);
-			vtable_tblcpy(tbl+3, lvtbl->vars);
+			tbl[2] = args_count + vars_count;
+			vtable_tblcpy(tbl+3, lvtbl->args);
+			vtable_tblcpy(tbl+3+args_count, lvtbl->vars);
 
 			scope = NEW_NODE(NODE_SCOPE, tbl, $8, args);
 			$$ = NEW_FOR(0, $5, scope);
