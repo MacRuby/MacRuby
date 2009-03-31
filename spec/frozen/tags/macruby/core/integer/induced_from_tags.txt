@@ -1,6 +1,0 @@
-fails:Integer.induced_from with [Float] returns a Fixnum when the passed Float is in Fixnum's range
-fails:Integer.induced_from with [Float] returns a Bignum when the passed Float is out of Fixnum's range
-fails:Integer.induced_from returns the passed argument when passed a Bignum or Fixnum
-fails:Integer.induced_from does not try to convert non-Integers to Integers using #to_int
-fails:Integer.induced_from does not try to convert non-Integers to Integers using #to_i
-fails:Integer.induced_from raises a TypeError when passed a non-Integer

@@ -1,3 +1,0 @@
-fails:Kernel#instance_variable_get when passed Fixnum tries to convert the passed Integer to a Symbol and returns the instance variable that is referred by the Symbol
-fails:Kernel#instance_variable_get when passed Fixnum outputs a warning
-fails:Kernel#instance_variable_get when passed Fixnum raises an ArgumentError when the passed Fixnum can't be converted to a Symbol

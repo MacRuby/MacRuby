@@ -1,2 +1,0 @@
-fails:Module#autoload with constant enumeration or removal doesn't trigger file load
-fails:Module#autoload autoloaded constants are removed on the first access

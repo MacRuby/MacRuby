@@ -1,4 +1,0 @@
-fails:Float#prec returns the same Float when given the class Float
-fails:Float#prec converts the Float to an Integer when given the class Integer
-fails:Integer#prec returns the same Integer when given the class Integer
-fails:Integer#prec converts the Integer to Float when given the class Float

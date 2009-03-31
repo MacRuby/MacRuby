@@ -1,1 +1,0 @@
-fails:Kernel#singleton_method_removed is a private method

@@ -1,2 +1,0 @@
-fails:Kernel.catch raises ArgumentError if the number of arguments is not one
-fails:Kernel.catch raises TypeError if the argument is not a symbol

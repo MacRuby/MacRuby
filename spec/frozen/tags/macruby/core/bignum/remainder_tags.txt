@@ -1,1 +1,0 @@
-fails:Bignum#remainder does NOT raise ZeroDivisionError if other is zero and is a Float

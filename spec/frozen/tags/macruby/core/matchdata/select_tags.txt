@@ -1,1 +1,0 @@
-fails:MatchData#select yields the contents of the match array to a block

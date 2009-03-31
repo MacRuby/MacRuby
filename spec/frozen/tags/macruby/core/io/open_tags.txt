@@ -1,2 +1,0 @@
-fails:IO.open raises EINVAL if mode is not compatible with the descriptor's current mode
-fails:IO.open cannot open an IO with incompatible flags

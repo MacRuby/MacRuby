@@ -1,2 +1,0 @@
-fails:Math.ldexp raises an ArgumentError if the first argument cannot be coerced with Float()
-fails:Math.ldexp accepts any first argument that can be coerced with Float()

@@ -1,1 +1,0 @@
-fails:Symbol#to_int returns Symbol#to_i

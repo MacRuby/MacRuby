@@ -1,3 +1,0 @@
-fails:Kernel.warn calls #write on $stderr if $VERBOSE is true
-fails:Kernel.warn calls #write on $stderr if $VERBOSE is false
-fails:Kernel.warn writes the default record separator and NOT $/ to $stderr after the warning message

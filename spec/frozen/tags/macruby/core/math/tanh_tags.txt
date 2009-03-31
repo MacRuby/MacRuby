@@ -1,2 +1,0 @@
-fails:Math.tanh raises an ArgumentError if the argument cannot be coerced with Float()
-fails:Math.tanh accepts any argument that can be coerced with Float()

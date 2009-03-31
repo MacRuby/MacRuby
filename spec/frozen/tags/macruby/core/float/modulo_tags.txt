@@ -1,2 +1,0 @@
-fails:Float#% does NOT raise ZeroDivisionError if other is zero
-fails:Float#modulo does NOT raise ZeroDivisionError if other is zero

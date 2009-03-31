@@ -1,3 +1,0 @@
-fails:IO#print writes obj.to_s followed by $\ (if any) to the stream when given one object
-fails:IO#print does not call obj.to_str
-fails:IO#print writes each obj.to_s to the stream and appends $\ (if any) given multiple objects

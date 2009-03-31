@@ -1,2 +1,0 @@
-fails:String#to_a returns an empty array for empty strings
-fails:String#to_a returns an array containing the string for non-empty strings

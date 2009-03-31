@@ -1,5 +1,0 @@
-fails:String#gsub with pattern and replacement raises a TypeError when pattern can't be converted to a string
-fails:String#gsub with pattern and replacement raises a TypeError when replacement can't be converted to a string
-fails:String#gsub with pattern and block restores $~ after leaving the block
-fails:String#gsub with pattern and block raises a RuntimeError if the string is modified while substituting
-fails:String#gsub! with pattern and replacement raises a TypeError when self is frozen

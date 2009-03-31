@@ -1,1 +1,0 @@
-critical:Thread.stop resets Thread.critical to false

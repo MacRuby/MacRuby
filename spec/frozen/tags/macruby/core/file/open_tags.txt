@@ -1,2 +1,0 @@
-fails:File.open raises an IO exception when read in a block opened with File::RDONLY|File::APPEND mode
-fails:File.open raises an Errorno::EEXIST if the file exists when open with File::RDONLY|File::APPEND

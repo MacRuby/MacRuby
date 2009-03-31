@@ -1,2 +1,0 @@
-fails:Bignum#| returns self bitwise OR other
-fails:Bignum#| tries to convert the given argument to an Integer using to_int
