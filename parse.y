@@ -8899,12 +8899,41 @@ static void
 dyna_pop_gen(struct parser_params *parser)
 {
     struct vtable *tmp;
+    struct vtable *prev_vars = NULL, *prev_args = NULL;
+
+    prev_vars = lvtbl->vars->prev;
+    prev_args = lvtbl->args->prev;
+
+    if ((prev_vars != NULL) && (prev_vars->prev != NULL)) {
+	// copy vars in the outer block if they are not already there
+	// and if they are in an even outer scope
+	int i;
+	for (i = 0; i < lvtbl->vars->pos; ++i) {
+	    struct vtable *pprev_vars = NULL, *pprev_args = NULL;
+	    ID id = lvtbl->vars->tbl[i];
+
+	    if (vtable_included(prev_vars, id) || vtable_included(prev_args, id)) {
+		continue;
+	    }
+
+	    pprev_vars = prev_vars->prev;
+	    pprev_args = prev_args->prev;
+	    while (pprev_vars != NULL) {
+		if (vtable_included(pprev_vars, id) || vtable_included(pprev_args, id)) {
+		    vtable_add(prev_vars, id);
+		    break;
+		}
+		pprev_vars = pprev_vars->prev;
+		pprev_args = pprev_args->prev;
+	    }
+	}
+    }
 
     tmp = lvtbl->args;
-    GC_WB(&lvtbl->args, lvtbl->args->prev);
+    GC_WB(&lvtbl->args, prev_args);
     vtable_free(tmp);
     tmp = lvtbl->vars;
-    GC_WB(&lvtbl->vars, lvtbl->vars->prev);
+    GC_WB(&lvtbl->vars, prev_vars);
     vtable_free(tmp);
 }
 
