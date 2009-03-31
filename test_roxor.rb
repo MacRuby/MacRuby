@@ -1064,8 +1064,9 @@ test "blocks" do
   }
 
   assert '42', "x=42; 1.times { 1.times { 1.times { p x } } }"
-
   assert '42', "def f; 1.times { yield 42 }; end; f {|x| p x}"
+  assert '42', "def foo; x = 42; proc { x }; end; p foo.call"
+
 end
 
 test "exception" do
