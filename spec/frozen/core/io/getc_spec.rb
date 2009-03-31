@@ -11,13 +11,26 @@ describe "IO#getc" do
     @file.close unless @file.closed?
   end
 
-  it "returns the next byte from the stream" do
-    @file.getc.should == 'V'
-    @file.getc.should == 'o'
-    @file.getc.should == 'i'
-    # read the rest of line
-    @file.readline.should == "ci la ligne une.\n"
-    @file.getc.should == 'Q'
+  ruby_version_is "" ... "1.9" do
+    it "returns the next byte from the stream" do
+      @file.getc.should == 86
+      @file.getc.should == 111
+      @file.getc.should == 105
+      # read the rest of line
+      @file.readline.should == "ci la ligne une.\n"
+      @file.getc.should == 81
+    end
+  end
+
+  ruby_version_is "1.9" do
+    it "returns the next character from the stream" do
+      @file.getc.should == 'V'
+      @file.getc.should == 'o'
+      @file.getc.should == 'i'
+      # read the rest of line
+      @file.readline.should == "ci la ligne une.\n"
+      @file.getc.should == 'Q'
+    end
   end
 
   it "returns nil when invoked at the end of the stream" do
