@@ -157,6 +157,13 @@ describe "Kernel#eval" do
     eval("eval '__FILE__', binding", binding).should == __FILE__
     eval("eval '__FILE__', binding", binding, 'success').should == 'success'
   end
+
+  it "can be aliased" do
+    alias aliased_eval eval
+    x = 2
+    aliased_eval('x += 40')
+    x.should == 42
+  end
 end
 
 describe "Kernel.eval" do
