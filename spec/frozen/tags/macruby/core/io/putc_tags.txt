@@ -1,0 +1,4 @@
+fails:IO#putc writes Numerics that fit in a C char
+fails:IO#putc writes the first byte of a String
+fails:IO#putc writes the first byte of an object's string representation
+fails:IO#putc write the first byte of Numerics that don't fit in a C char
