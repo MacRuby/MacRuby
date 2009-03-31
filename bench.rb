@@ -208,4 +208,24 @@ Benchmark.bm(30) do |bm|
     end
   end
 
+  # Method
+  bm.report('3000000 Method#call w/ 0 arg') do
+    o = Class1.new
+    m = o.method(:method1)
+    i=0
+    while i<3000000
+      m.call
+      i+=1
+    end
+  end
+  bm.report('3000000 Method#call w/ 1 arg') do
+    o = Class1.new
+    m = o.method(:method2)
+    i=0
+    while i<3000000
+      m.call(i)
+      i+=1
+    end
+  end
+
 end
