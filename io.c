@@ -967,8 +967,8 @@ rb_io_read_internal(rb_io_t *io_struct, UInt8 *buffer, long len)
 	data_read = MIN(io_struct->ungetc_buf_len, len);
 	memcpy(buffer, &io_struct->ungetc_buf[io_struct->ungetc_buf_pos], 
 		data_read);
-	io_struct->ungetc_buf_len -= len;
-	io_struct->ungetc_buf_pos += len;
+	io_struct->ungetc_buf_len -= data_read;
+	io_struct->ungetc_buf_pos += data_read;
 	if (io_struct->ungetc_buf_len == 0) {
 	    xfree(io_struct->ungetc_buf);
 	    io_struct->ungetc_buf = NULL;
@@ -1658,29 +1658,26 @@ rb_io_ungetc(VALUE io, SEL sel, VALUE c)
     }
 
     if (len > io_struct->ungetc_buf_pos) {
-    	const long delta = io_struct->ungetc_buf_len
-	    - io_struct->ungetc_buf_pos;
-
 	// Reallocate the buffer.
 	GC_WB(&io_struct->ungetc_buf, xrealloc(io_struct->ungetc_buf,
-		    delta + len));
+		    io_struct->ungetc_buf_len + len));
 
 	// Shift the buffer.
-	memmove(&io_struct->ungetc_buf[delta], 
-		&io_struct->ungetc_buf[io_struct->ungetc_buf_pos], delta);
+	memmove(&io_struct->ungetc_buf[len],
+		&io_struct->ungetc_buf[io_struct->ungetc_buf_pos], io_struct->ungetc_buf_len);
+
+	io_struct->ungetc_buf_pos = len;
     }
 
     // Update position.
     io_struct->ungetc_buf_pos -= len;
-    if (io_struct->ungetc_buf_pos < 0) {
-	io_struct->ungetc_buf_pos = 0;
-    }
+    assert(io_struct->ungetc_buf_pos >= 0);
 
-    // Copy the bytes at the position.
+    // Copy the bytes at the new position.
     memcpy(&io_struct->ungetc_buf[io_struct->ungetc_buf_pos], bytes, len);
 
     // Update buffer size.
-    io_struct->ungetc_buf_len += len - io_struct->ungetc_buf_pos;
+    io_struct->ungetc_buf_len += len;
 
     return Qnil;
 }
