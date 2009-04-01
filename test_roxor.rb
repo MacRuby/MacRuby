@@ -1065,7 +1065,14 @@ test "blocks" do
 
   assert '42', "x=42; 1.times { 1.times { 1.times { p x } } }"
   assert '42', "def f; 1.times { yield 42 }; end; f {|x| p x}"
+
   assert '42', "def foo; x = 42; proc { x }; end; p foo.call"
+  assert '42', %q{
+    def foo() x=1; [proc { x }, proc {|z| x = z}]; end
+    a, b = foo
+    b.call(42)
+    p a.call
+  }
 
 end
 
@@ -1302,6 +1309,11 @@ test "eval" do
     def foo; x = 123; bar {}; x; end
     def bar(&b); eval('x = 42', b.binding); end
     p foo
+  }
+
+  assert '42', %q{
+    def foo; x = 42; proc {}; end
+    p = foo; eval('p x', p.binding)
   }
 
   assert "42", %q{
