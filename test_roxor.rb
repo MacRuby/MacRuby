@@ -1499,6 +1499,7 @@ test "io" do
 
   assert "true", "p(Dir['*.c'].length > 1)"
   assert "true", "p(Dir.glob('*.c').length > 1)"
+  assert '', "#!ruby\n;" # fails because of a bug in ungetc that makes ruby read "!\n;"
 
 end
 
