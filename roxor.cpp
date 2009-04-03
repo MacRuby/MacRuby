@@ -6382,8 +6382,6 @@ VALUE
 rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
 		rb_vm_binding_t *binding)
 {
-    assert(klass != 0);
-
     VALUE old_top_object = GET_VM()->current_top_object;
     if (binding != NULL) {
 	self = binding->self;
@@ -6392,7 +6390,9 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
 	GET_VM()->current_top_object = self;
     }
     Class old_class = GET_VM()->current_class;
-    GET_VM()->current_class = (Class)klass;
+    if (klass != 0) {
+	GET_VM()->current_class = (Class)klass;
+    }
 
     VALUE val = rb_vm_run(fname, node, binding);
 

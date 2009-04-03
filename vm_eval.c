@@ -349,9 +349,6 @@ eval_string(VALUE self, VALUE klass, VALUE src, VALUE scope, const char *file,
 	}
     }
 
-    if (klass == 0) {
-	klass = rb_cObject;
-    }
     return rb_vm_run_under(klass, self, file, node, b);
 }
 
