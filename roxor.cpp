@@ -1219,7 +1219,10 @@ RoxorCompiler::compile_defined_expression(NODE *node)
 	    break;
 
 	case NODE_COLON2:
-	    what2 = compile_node(node->nd_head);	
+	case NODE_COLON3:
+	    what2 = nd_type(node) == NODE_COLON2
+		? compile_node(node->nd_head)
+		: ConstantInt::get(RubyObjTy, (long)rb_cObject);
 	    if (rb_is_const_id(node->nd_mid)) {
 		type = DEFINED_CONST;
 		what1 = (VALUE)node->nd_mid;
