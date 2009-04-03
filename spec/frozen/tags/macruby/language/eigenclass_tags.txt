@@ -19,3 +19,15 @@ fails:Instance methods of an eigenclass does not include class methods of the me
 fails:Class methods of an eigenclass does not include instance methods of the object's class
 fails:Class methods of an eigenclass does not include class mtehods of Class
 fails:Class methods of an eigenclass does not include class methods of the metaclass of Class, for a class
+fails:self in an eigenclass body (class << obj) has the class's metaclass's metaclass as superclass for metaclasses
+fails:Instance methods of an eigenclass includes ones of the object's class
+fails:Instance methods of an eigenclass includes instance methods of Object
+fails:Instance methods of an eigenclass includes instance methods of Class, for a class
+fails:Instance methods of an eigenclass includes instance methods of the metaclass of Class, for a metaclass
+fails:Class methods of an eigenclass includes ones of the object's class
+fails:Class methods of an eigenclass includes instance methods of Class
+fails:Class methods of an eigenclass includes instance methods of Class, for a class
+fails:Class methods of an eigenclass includes class methods of Class, for a class
+fails:Class methods of an eigenclass includes instance methods of the metaclass of Class, for a class
+fails:Class methods of an eigenclass includes instance methods of the metaclass of Class, for a metaclass
+fails:Class methods of an eigenclass includes class methods of the metaclass of Class, for a metaclass
