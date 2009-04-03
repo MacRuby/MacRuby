@@ -23,6 +23,7 @@ succeeded, failed = [], []
 
 Dir.glob('*/**/*.xcodeproj').each do |sampleDir|
   name = File.dirname(sampleDir)
+  puts "Building #{name}..."
   Dir.chdir name do
     ary = system("xcodebuild SYMROOT=#{tmp_dir} >& /dev/null") ? succeeded : failed
     ary << name
@@ -31,6 +32,9 @@ end
 
 Dir.glob(File.join(tmp_dir, '**/*.app')).each do |app|
   cp_r app, out_dir
+  app_name = File.basename(app)
+  executable_name = app_name.gsub('.app', '')
+  chmod 0755, File.join(out_dir, app_name, 'Contents', 'MacOS', executable_name)
 end
 
 [succeeded, failed].each { |a| a << 'None' if a.empty? }
