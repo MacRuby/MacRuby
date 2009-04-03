@@ -94,7 +94,6 @@ module Mock
 
     key = replaced_key obj, sym
     proxies = mocks[key] + stubs[key]
-    res_ok = false; res = nil # MR hack
     proxies.each do |proxy|
       pass = case proxy.arguments
       when :any_args
@@ -127,12 +126,9 @@ module Mock
 
       if pass
         proxy.called
-        #return proxy.returning
-        res_ok = true; res = proxy.returning # MR hack
+        return proxy.returning
       end
     end
-
-    return res if res_ok # MR hack
 
     if sym.to_sym == :respond_to?
       return obj.__send__(replaced_name(obj, sym), compare)
