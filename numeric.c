@@ -532,29 +532,10 @@ num_to_int(VALUE num, SEL sel)
 VALUE
 rb_float_new(double d)
 {
-#if 0
-    //printf("double %f\n", d);
-    struct rb_float_cache *cache = rb_vm_float_cache(d);
-
-    if (cache->obj != Qnil) {
-	//printf("cached\n");
-	return cache->obj;
-    }
-
-    cache->count++;
-#endif
-
     NEWOBJ(flt, struct RFloat);
     OBJSETUP(flt, rb_cFloat, T_FLOAT);
 
     flt->float_value = d;
-
-#if 0
-    rb_objc_retain((void *)flt);
-    //if (cache->count == 10) {
-        cache->obj = (VALUE)flt;
-    //}
-#endif
 
     return (VALUE)flt;
 }

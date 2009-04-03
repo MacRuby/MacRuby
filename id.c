@@ -74,6 +74,11 @@ Init_id(void)
     sel__send__ = sel_registerName("__send__:");
     selEqTilde = sel_registerName("=~:");
     selEval = sel_registerName("eval:");
+    selInstanceEval = sel_registerName("instance_eval:");
+    selClassEval = sel_registerName("class_eval:");
+    selModuleEval = sel_registerName("module_eval:");
+    selLocalVariables = sel_registerName("local_variables");
+    selBinding = sel_registerName("binding");
     selEach = sel_registerName("each");
     selEqq = sel_registerName("===:");
     selBackquote = sel_registerName("`:");

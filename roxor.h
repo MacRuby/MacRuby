@@ -5,8 +5,52 @@
 extern "C" {
 #endif
 
-VALUE rb_vm_run(const char *fname, NODE *node);
-VALUE rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node);
+typedef struct {
+    short min;		// min number of args that we accept
+    short max;		// max number of args that we accept (-1 if rest)
+    short left_req;	// number of args required on the left side
+    short real;		// number of args of the low level function
+} rb_vm_arity_t;
+
+struct rb_vm_local {
+    ID name;
+    VALUE *value;
+    struct rb_vm_local *next;
+};
+typedef struct rb_vm_local rb_vm_local_t;
+
+#define VM_BLOCK_PROC	0x0001	// block is a Proc object
+#define VM_BLOCK_LAMBDA 0x0002	// block is a lambda
+
+typedef struct {
+    VALUE self;
+    NODE *node;
+    rb_vm_arity_t arity;
+    IMP imp;
+    int flags;
+    rb_vm_local_t *locals;
+    int dvars_size;
+    VALUE *dvars[1];
+} rb_vm_block_t;
+
+typedef struct {
+    VALUE self;
+    rb_vm_local_t *locals;
+} rb_vm_binding_t;
+
+typedef struct {
+    VALUE oclass;
+    VALUE rclass;
+    VALUE recv;
+    SEL sel;
+    int arity;
+    NODE *node;			// can be NULL (if pure Objective-C)
+    void *cache;
+} rb_vm_method_t;
+
+VALUE rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding);
+VALUE rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
+		      rb_vm_binding_t *binding);
 IMP rb_vm_compile(const char *fname, NODE *node);
 
 bool rb_vm_running(void);
@@ -79,37 +123,7 @@ rb_vm_set_ivar_from_slot(VALUE obj, VALUE val, int slot)
     GC_WB(&robj->slots[slot], val);
 }
 
-typedef struct {
-    VALUE oclass;
-    VALUE rclass;
-    VALUE recv;
-    SEL sel;
-    int arity;
-    NODE *node;			// can be NULL (if pure Objective-C)
-    void *cache;
-} rb_vm_method_t;
-
 rb_vm_method_t *rb_vm_get_method(VALUE klass, VALUE obj, ID mid, int scope);
-
-typedef struct {
-    short min;		// min number of args that we accept
-    short max;		// max number of args that we accept (-1 if rest)
-    short left_req;	// number of args required on the left side
-    short real;		// number of args of the low level function
-} rb_vm_arity_t;
-
-#define VM_BLOCK_PROC	0x0001	// block is a Proc object
-#define VM_BLOCK_LAMBDA 0x0002	// block is a lambda
-
-typedef struct {
-    VALUE self;
-    NODE *node;
-    rb_vm_arity_t arity;
-    IMP imp;
-    int flags;
-    int dvars_size;
-    VALUE *dvars[1];
-} rb_vm_block_t;
 
 static inline rb_vm_block_t *
 rb_proc_get_block(VALUE proc)
@@ -124,12 +138,9 @@ void rb_vm_change_current_block(rb_vm_block_t *block);
 void rb_vm_restore_current_block(void);
 VALUE rb_vm_block_eval(rb_vm_block_t *block, int argc, const VALUE *argv);
 
-struct rb_float_cache {
-    unsigned int count;
-    VALUE obj;
-};
-
-struct rb_float_cache *rb_vm_float_cache(double d);
+rb_vm_binding_t *rb_vm_current_binding(void);
+void rb_vm_add_binding(rb_vm_binding_t *binding);
+void rb_vm_pop_binding();
 
 static inline VALUE
 rb_robject_allocate_instance(VALUE klass)
@@ -167,6 +178,8 @@ VALUE rb_vm_pop_broken_value(void);
 	} \
     } \
     while (0)
+
+void rb_vm_finalize(void);
 
 VALUE rb_iseq_compile(VALUE src, VALUE file, VALUE line);
 VALUE rb_iseq_eval(VALUE iseq);

@@ -147,6 +147,24 @@ Benchmark.bm(30) do |bm|
     o = proc {}
     i=0; while i<30000000; o.call; i+=1; end
   end
+  bm.report('30000000 dvar write') do
+    i=0
+    30000000.times { i=1 }
+  end
+
+  # Eval
+  bm.report('1000 eval') do
+    i=0
+    s = "#{1+1}+#{20+20}"
+    while i<1000
+      eval(s)
+      i+=1
+    end
+  end
+  bm.report('30000000 binding-var write') do
+    i=0
+    eval('while i<30000000; i+=1; end')
+  end
 
   # Break
   bm.report('30000000 while break') do
@@ -195,16 +213,6 @@ Benchmark.bm(30) do |bm|
       rescue
         i+=1
       end
-    end
-  end
-
-  # Eval
-  bm.report('1000 eval') do
-    i=0
-    s = "#{1+1}+#{20+20}"
-    while i<1000
-      eval(s)
-      i+=1
     end
   end
 

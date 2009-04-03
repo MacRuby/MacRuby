@@ -1,8 +1,8 @@
 /* ROXOR: the new MacRuby VM that rocks! */
 
-#define ROXOR_COMPILER_DEBUG	0
-#define ROXOR_VM_DEBUG		0
-#define ROXOR_DUMP_IR		0
+#define ROXOR_COMPILER_DEBUG		0
+#define ROXOR_VM_DEBUG			0
+#define ROXOR_DUMP_IR_BEFORE_EXIT	0
 
 #include <llvm/Module.h>
 #include <llvm/DerivedTypes.h>
@@ -170,7 +170,7 @@ class RoxorCompiler
 	const char *fname;
 
 	std::map<ID, Value *> lvars;
-	std::map<ID, Value *> dvars;
+	std::vector<ID> dvars;
 	std::map<ID, int *> ivar_slots_cache;
 
 #if ROXOR_COMPILER_DEBUG
@@ -203,6 +203,7 @@ class RoxorCompiler
 	Function *fastEqqFunc;
 	Function *whenSplatFunc;
 	Function *prepareBlockFunc;
+	Function *pushBindingFunc;
 	Function *getBlockFunc;
 	Function *currentBlockObjectFunc;
 	Function *getConstFunc;
@@ -245,7 +246,8 @@ class RoxorCompiler
 	Constant *undefVal;
 	Constant *splatArgFollowsVal;
 	const Type *RubyObjTy; 
-	const Type *RubyObjPtrTy; 
+	const Type *RubyObjPtrTy;
+	const Type *RubyObjPtrPtrTy;
 	const Type *PtrTy;
 	const Type *IntTy;
 
@@ -275,6 +277,7 @@ class RoxorCompiler
 	Value *compile_fast_eqq_call(Value *selfVal, Value *comparedToVal);
 	Value *compile_attribute_assign(NODE *node, Value *extra_val);
 	Value *compile_block_create(NODE *node=NULL);
+	Value *compile_binding(void);
 	Value *compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Value *> &params);
 	Value *compile_ivar_read(ID vid);
 	Value *compile_ivar_assignment(ID vid, Value *val);
@@ -284,29 +287,13 @@ class RoxorCompiler
 	Value *compile_singleton_class(Value *obj);
 	Value *compile_defined_expression(NODE *node);
 	Value *compile_dstr(NODE *node);
+	Value *compile_dvar_slot(ID name);
+
 	void compile_dead_branch(void);
 	void compile_landing_pad_header(void);
 	void compile_landing_pad_footer(void);
 	void compile_rethrow_exception(void);
-
-	Value *get_var(ID name, std::map<ID, Value *> &container, 
-		       bool do_assert) {
-	    std::map<ID, Value *>::iterator iter = container.find(name);
-	    if (do_assert) {
-#if ROXOR_COMPILER_DEBUG
-		printf("get_var %s\n", rb_id2name(name));
-#endif
-		assert(iter != container.end());
-		return iter->second;
-	    }
-	    else {
-		return iter != container.end() ? iter->second : NULL;
-	    }
-	}
-
-	Value *get_lvar(ID name, bool do_assert=true) {
-	    return get_var(name, lvars, do_assert);
-	}
+	Value *compile_lvar_slot(ID name);
 
 	int *get_slot_cache(ID id) {
 	    if (current_block || !current_instance_method) {
@@ -413,6 +400,7 @@ class RoxorVM
 	VALUE last_status;
 	VALUE errinfo;
 	int safe_level;
+	std::vector<rb_vm_binding_t *> bindings;
 	std::map<NODE *, rb_vm_block_t *> blocks;
 	std::map<double, struct rb_float_cache *> float_cache;
 	unsigned char method_missing_reason;
@@ -520,6 +508,18 @@ class RoxorVM
 		outers[klass] = class_outer;
 	    }
 	}
+
+	VALUE *get_binding_lvar(ID name) {
+	    if (!bindings.empty()) {
+		rb_vm_binding_t *b = bindings.back();
+		for (rb_vm_local_t *l = b->locals; l != NULL; l = l->next) {
+		    if (l->name == name) {
+			return l->value;
+		    }
+		}
+	    }
+	    return NULL;
+	}
 };
 
 RoxorVM *RoxorVM::current = NULL;
@@ -551,6 +551,7 @@ RoxorCompiler::RoxorCompiler(const char *_fname)
     fastEqqFunc = NULL;
     whenSplatFunc = NULL;
     prepareBlockFunc = NULL;
+    pushBindingFunc = NULL;
     getBlockFunc = NULL;
     currentBlockObjectFunc = NULL;
     getConstFunc = NULL;
@@ -595,6 +596,7 @@ RoxorCompiler::RoxorCompiler(const char *_fname)
     twoVal = ConstantInt::get(IntTy, 2);
 
     RubyObjPtrTy = PointerType::getUnqual(RubyObjTy);
+    RubyObjPtrPtrTy = PointerType::getUnqual(RubyObjPtrTy);
     nilVal = ConstantInt::get(RubyObjTy, Qnil);
     trueVal = ConstantInt::get(RubyObjTy, Qtrue);
     falseVal = ConstantInt::get(RubyObjTy, Qfalse);
@@ -943,7 +945,8 @@ RoxorCompiler::compile_block_create(NODE *node)
     assert(current_block_func != NULL && current_block_node != NULL);
 
     if (prepareBlockFunc == NULL) {
-	// void *rb_vm_prepare_block(Function *func, NODE *node, VALUE self, int dvars_size, ...);
+	// void *rb_vm_prepare_block(Function *func, NODE *node, VALUE self,
+	//			     int dvars_size, ...);
 	std::vector<const Type *> types;
 	types.push_back(PtrTy);
 	types.push_back(PtrTy);
@@ -959,17 +962,55 @@ RoxorCompiler::compile_block_create(NODE *node)
     params.push_back(compile_const_pointer(current_block_node));
     params.push_back(current_self);
 
+    // Dvars.
     params.push_back(ConstantInt::get(Type::Int32Ty, (int)dvars.size()));
-
-    std::map<ID, Value *>::iterator iter = dvars.begin();
-    while (iter != dvars.end()) {
-	std::map<ID, Value *>::iterator iter2 = lvars.find(iter->first);
-	assert(iter2 != lvars.end());
-	params.push_back(iter2->second);
-	++iter;
+    for (std::vector<ID>::iterator iter = dvars.begin();
+	 iter != dvars.end(); ++iter) {
+	params.push_back(compile_lvar_slot(*iter));
     }
 
-    return CallInst::Create(prepareBlockFunc, params.begin(), params.end(), "", bb);
+    // Lvars.
+    params.push_back(ConstantInt::get(Type::Int32Ty, (int)lvars.size()));
+    for (std::map<ID, Value *>::iterator iter = lvars.begin();
+	 iter != lvars.end(); ++iter) {
+	ID name = iter->first;
+	Value *slot = iter->second;
+	if (std::find(dvars.begin(), dvars.end(), name) == dvars.end()) {
+	    params.push_back(ConstantInt::get(IntTy, (long)name));
+	    params.push_back(slot);
+	}
+    }
+
+    return CallInst::Create(prepareBlockFunc, params.begin(), params.end(),
+	    "", bb);
+}
+
+Value *
+RoxorCompiler::compile_binding(void)
+{
+    if (pushBindingFunc == NULL) {
+	// void rb_vm_push_binding(VALUE self, int lvars_size, ...);
+	std::vector<const Type *> types;
+	types.push_back(RubyObjTy);
+	types.push_back(Type::Int32Ty);
+	FunctionType *ft = FunctionType::get(Type::VoidTy, types, true);
+	pushBindingFunc = cast<Function>
+	    (module->getOrInsertFunction("rb_vm_push_binding", ft));
+    }
+
+    std::vector<Value *> params;
+    params.push_back(current_self);
+
+    // Lvars.
+    params.push_back(ConstantInt::get(Type::Int32Ty, (int)lvars.size()));
+    for (std::map<ID, Value *>::iterator iter = lvars.begin();
+	 iter != lvars.end(); ++iter) {
+	params.push_back(ConstantInt::get(IntTy, (long)iter->first));
+	params.push_back(iter->second);
+    }
+
+    return CallInst::Create(pushBindingFunc, params.begin(), params.end(),
+	    "", bb);
 }
 
 Value *
@@ -1274,6 +1315,34 @@ RoxorCompiler::compile_dstr(NODE *node)
     }
 
     return CallInst::Create(newStringFunc, params.begin(), params.end(), "", bb);
+}
+
+Value *
+RoxorCompiler::compile_dvar_slot(ID name)
+{
+    // TODO we should cache this
+    int i = 0, idx = -1;
+    for (std::vector<ID>::iterator iter = dvars.begin();
+	 iter != dvars.end(); ++iter) {
+	if (*iter == name) {
+	    idx = i;
+	    break;
+	}
+	i++;
+    }
+    if (idx == -1) {
+	return NULL;
+    }
+
+    Function::ArgumentListType::iterator fargs_i =
+	bb->getParent()->getArgumentList().begin();
+    ++fargs_i; // skip self
+    ++fargs_i; // skip sel
+    Value *dvars_ary = fargs_i;
+
+    Value *index = ConstantInt::get(Type::Int32Ty, idx);
+    Value *slot = GetElementPtrInst::Create(dvars_ary, index, rb_id2name(name), bb);
+    return new LoadInst(slot, "", bb);
 }
 
 Value *
@@ -2273,15 +2342,22 @@ RoxorCompiler::compile_node(NODE *node)
 	    {
 		rb_vm_arity_t arity = rb_vm_node_arity(node);
 		const int nargs = bb == NULL ? 0 : arity.real;
+		const bool has_dvars = current_block && current_mid == 0;
 
 		// Get dynamic vars.
-		if (current_block && node->nd_tbl != NULL) {
+		if (has_dvars && node->nd_tbl != NULL) {
 		    const int args_count = (int)node->nd_tbl[0];
 		    const int lvar_count = (int)node->nd_tbl[args_count + 1];
 		    for (int i = 0; i < lvar_count; i++) {
 			ID id = node->nd_tbl[i + args_count + 2];
 			if (lvars.find(id) != lvars.end()) {
-			    dvars[id] = NULL;
+			    std::vector<ID>::iterator iter = std::find(dvars.begin(), dvars.end(), id);
+			    if (iter == dvars.end()) {
+#if ROXOR_COMPILER_DEBUG
+				printf("dvar %s\n", rb_id2name(id));
+#endif
+				dvars.push_back(id);
+			    }
 			}
 		    }
 		}
@@ -2290,8 +2366,8 @@ RoxorCompiler::compile_node(NODE *node)
 		std::vector<const Type *> types;
 		types.push_back(RubyObjTy);	// self
 		types.push_back(PtrTy);		// sel
-		for (int i = 0, count = dvars.size(); i < count; i++) {
-		    types.push_back(RubyObjPtrTy);
+		if (has_dvars) {
+		    types.push_back(RubyObjPtrPtrTy); // dvars array
 		}
 		for (int i = 0; i < nargs; ++i) {
 		    types.push_back(RubyObjTy);
@@ -2319,19 +2395,9 @@ RoxorCompiler::compile_node(NODE *node)
 		Value *sel = arg++;
 		sel->setName("sel");
 
-		for (std::map<ID, Value *>::iterator iter = dvars.begin();
-		     iter != dvars.end(); 
-		     ++iter) {
-
-		    ID id = iter->first;
-		    assert(iter->second == NULL);
-	
-		    Value *val = arg++;
-		    val->setName(std::string("dyna_") + rb_id2name(id));
-#if ROXOR_COMPILER_DEBUG
-		    printf("dvar %s\n", rb_id2name(id));
-#endif
-		    lvars[id] = val;
+		if (has_dvars) {
+		    Value *dvars_arg = arg++;
+		    dvars_arg->setName("dvars");
 		}
 
 		if (node->nd_tbl != NULL) {
@@ -2373,12 +2439,14 @@ RoxorCompiler::compile_node(NODE *node)
 			if (lvars.find(id) != lvars.end()) {
 			    continue;
 			}
+			if (std::find(dvars.begin(), dvars.end(), id) == dvars.end()) {
 #if ROXOR_COMPILER_DEBUG
-			printf("var %s\n", rb_id2name(id));
+			    printf("lvar %s\n", rb_id2name(id));
 #endif
-			Value *store = new AllocaInst(RubyObjTy, "", bb);
-			new StoreInst(nilVal, store, bb);
-			lvars[id] = store;
+			    Value *store = new AllocaInst(RubyObjTy, "", bb);
+			    new StoreInst(nilVal, store, bb);
+			    lvars[id] = store;
+			}
 		    }
 
 		    NODE *args_node = node->nd_args;
@@ -2410,9 +2478,12 @@ RoxorCompiler::compile_node(NODE *node)
 			++iter; // skip sel
 			NODE *opt_node = args_node->nd_opt;
 			if (opt_node != NULL) {
-			    int to_skip = dvars.size() + args_node->nd_frml;
+			    int to_skip = args_node->nd_frml;
+			    if (has_dvars) {
+				to_skip++; // dvars array
+			    }
 			    for (i = 0; i < to_skip; i++) {
-				++iter;  // skip dvars and args required on the left-side
+				++iter; // skip dvars and args required on the left-side
 			    }
 			    iter = compile_optional_arguments(iter, opt_node);
 			}
@@ -2448,8 +2519,8 @@ RoxorCompiler::compile_node(NODE *node)
 	case NODE_LVAR:
 	    {
 		assert(node->nd_vid > 0);
-		
-		return new LoadInst(get_lvar(node->nd_vid), "", bb);
+
+		return new LoadInst(compile_lvar_slot(node->nd_vid), "", bb);
 	    }
 	    break;
 
@@ -2577,7 +2648,7 @@ RoxorCompiler::compile_node(NODE *node)
 			case NODE_DASGN:
 			case NODE_DASGN_CURR:
 			    {			    
-				Value *slot = get_lvar(ln->nd_vid);
+				Value *slot = compile_lvar_slot(ln->nd_vid);
 				new StoreInst(elt, slot, bb);
 			    }
 			    break;
@@ -2616,11 +2687,8 @@ RoxorCompiler::compile_node(NODE *node)
 		assert(node->nd_vid > 0);
 		assert(node->nd_value != NULL);
 
-		Value *slot = get_lvar(node->nd_vid);
-
 		Value *new_val = compile_node(node->nd_value);
-
-		new StoreInst(new_val, slot, bb);
+		new StoreInst(new_val, compile_lvar_slot(node->nd_vid), bb);
 
 		return new_val;
 	    }
@@ -3279,9 +3347,23 @@ rescan_args:
 		}
 		params[3] = blockVal;
 
+		// If we are calling a method that needs a top-level binding
+		// object, let's create it.
+		// (Note: this won't work if the method is aliased, but we can
+		//  live with that for now)
+		if (sel == selEval
+		    || sel == selInstanceEval
+		    || sel == selClassEval
+		    || sel == selModuleEval
+		    || sel == selLocalVariables
+		    || sel == selBinding) {
+		    compile_binding();
+		}
+
 		// Can we optimize the call?
 		if (!super_call && !splat_args) {
-		    Value *optimizedCall = compile_optimized_dispatch_call(sel, argc, params);
+		    Value *optimizedCall =
+			compile_optimized_dispatch_call(sel, argc, params);
 		    if (optimizedCall != NULL) {
 			return optimizedCall;
 		    }
@@ -4080,7 +4162,7 @@ rescan_args:
 	case NODE_FOR:
 	case NODE_ITER:
 	    {
-		std::map<ID, Value *> old_dvars = dvars;
+		std::vector<ID> old_dvars = dvars;
 
 		BasicBlock *old_current_loop_begin_bb = current_loop_begin_bb;
 		BasicBlock *old_current_loop_body_bb = current_loop_body_bb;
@@ -4300,6 +4382,33 @@ RoxorCompiler::compile_write_attr(ID name)
     ReturnInst::Create(val, bb);
 
     return f;
+}
+
+Value *
+RoxorCompiler::compile_lvar_slot(ID name)
+{
+    std::map<ID, Value *>::iterator iter = lvars.find(name);
+    if (iter != lvars.end()) {
+#if ROXOR_COMPILER_DEBUG
+	printf("get_lvar %s\n", rb_id2name(name));
+#endif
+	return iter->second;
+    }
+    VALUE *var = GET_VM()->get_binding_lvar(name);
+    if (var != NULL) {
+#if ROXOR_COMPILER_DEBUG
+	printf("get_binding_lvar %s (%p)\n", rb_id2name(name), *(void **)var);
+#endif
+	Value *int_val = ConstantInt::get(IntTy, (long)var);
+	return new IntToPtrInst(int_val, RubyObjPtrTy, "", bb);
+    }
+    assert(current_block);
+    Value *slot = compile_dvar_slot(name);
+    assert(slot != NULL);
+#if ROXOR_COMPILER_DEBUG
+    printf("get_dvar %s\n", rb_id2name(name));
+#endif
+    return slot;
 }
 
 // VM primitives
@@ -4872,6 +4981,87 @@ rb_vm_rhsn_get(VALUE obj, int offset)
 }
 
 static inline VALUE
+__rb_vm_bcall(VALUE self, VALUE dvars, IMP pimp, const rb_vm_arity_t &arity, int argc, const VALUE *argv)
+{
+    if ((arity.real != argc) || (arity.max == -1)) {
+	VALUE *new_argv = (VALUE *)alloca(sizeof(VALUE) * arity.real);
+	assert(argc >= arity.min);
+	assert((arity.max == -1) || (argc <= arity.max));
+	int used_opt_args = argc - arity.min;
+	int opt_args, rest_pos;
+	if (arity.max == -1) {
+	    opt_args = arity.real - arity.min - 1;
+	    rest_pos = arity.left_req + opt_args;
+	}
+	else {
+	    opt_args = arity.real - arity.min;
+	    rest_pos = -1;
+	}
+	for (int i = 0; i < arity.real; ++i) {
+	    if (i < arity.left_req) {
+		// required args before optional args
+		new_argv[i] = argv[i];
+	    }
+	    else if (i < arity.left_req + opt_args) {
+		// optional args
+		int opt_arg_index = i - arity.left_req;
+		if (opt_arg_index >= used_opt_args) {
+		    new_argv[i] = Qundef;
+		}
+		else {
+		    new_argv[i] = argv[i];
+		}
+	    }
+	    else if (i == rest_pos) {
+		// rest
+		int rest_size = argc - arity.real + 1;
+		if (rest_size <= 0) {
+		    new_argv[i] = rb_ary_new();
+		}
+		else {
+		    new_argv[i] = rb_ary_new4(rest_size, &argv[i]);
+		}
+	    }
+	    else {
+		// required args after optional args
+		new_argv[i] = argv[argc-(arity.real - i)];
+	    }
+	}
+	argv = new_argv;
+	argc = arity.real;
+    }
+
+    assert(pimp != NULL);
+
+    VALUE (*imp)(VALUE, SEL, VALUE, ...) = (VALUE (*)(VALUE, SEL, VALUE, ...))pimp;
+
+    switch (argc) {
+	case 0:
+	    return (*imp)(self, 0, dvars);
+	case 1:
+	    return (*imp)(self, 0, dvars, argv[0]);
+	case 2:
+	    return (*imp)(self, 0, dvars, argv[0], argv[1]);		
+	case 3:
+	    return (*imp)(self, 0, dvars, argv[0], argv[1], argv[2]);
+	case 4:
+	    return (*imp)(self, 0, dvars, argv[0], argv[1], argv[2], argv[3]);
+	case 5:
+	    return (*imp)(self, 0, dvars, argv[0], argv[1], argv[2], argv[3], argv[4]);
+	case 6:
+	    return (*imp)(self, 0, dvars, argv[0], argv[1], argv[2], argv[3], argv[4], argv[5]);
+	case 7:
+	    return (*imp)(self, 0, dvars, argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6]);
+	case 8:
+	    return (*imp)(self, 0, dvars, argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6], argv[7]);
+	case 9:
+	    return (*imp)(self, 0, dvars, argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6], argv[7], argv[8]);
+    }	
+    printf("invalid argc %d\n", argc);
+    abort();
+}
+
+static inline VALUE
 __rb_vm_rcall(VALUE self, NODE *node, IMP pimp, const rb_vm_arity_t &arity,
 	      int argc, const VALUE *argv)
 {
@@ -4952,7 +5142,6 @@ __rb_vm_rcall(VALUE self, NODE *node, IMP pimp, const rb_vm_arity_t &arity,
     }	
     printf("invalid argc %d\n", argc);
     abort();
-    return Qnil;
 }
 
 static inline Method
@@ -5151,8 +5340,11 @@ recache:
 		ocache.helper = (struct ocall_helper *)malloc(
 			sizeof(struct ocall_helper));
 		ocache.helper->bs_method = rb_bs_find_method(klass, sel);
-		assert(rb_objc_fill_sig(self, klass, sel, 
-			    &ocache.helper->sig, ocache.helper->bs_method));
+		const bool ok = rb_objc_fill_sig(self, klass, sel, 
+			    &ocache.helper->sig, ocache.helper->bs_method);
+		if (!ok) {
+		    abort();
+		}
 	    }
 	}
 	else {
@@ -5301,6 +5493,12 @@ rb_vm_dispatch(struct mcache *cache, VALUE self, SEL sel, rb_vm_block_t *block,
 
     GET_VM()->current_block = old_b;
     GET_VM()->block_saved = old_block_saved;
+
+    if (!GET_VM()->bindings.empty()) {
+	rb_objc_release(GET_VM()->bindings.back());	
+	GET_VM()->bindings.pop_back();
+    }
+
     return retval;
 }
 
@@ -5428,10 +5626,11 @@ rb_vm_prepare_block(void *llvm_function, NODE *node, VALUE self,
 	GET_VM()->blocks.find(node);
 
     rb_vm_block_t *b;
+    bool cached = false;
 
     if (iter == GET_VM()->blocks.end()) {
 	b = (rb_vm_block_t *)xmalloc(sizeof(rb_vm_block_t)
-		+ (sizeof(VALUE) * dvars_size));
+		+ (sizeof(VALUE *) * dvars_size));
 
 	if (nd_type(node) == NODE_IFUNC) {
 	    assert(llvm_function == NULL);
@@ -5452,22 +5651,83 @@ rb_vm_prepare_block(void *llvm_function, NODE *node, VALUE self,
     else {
 	b = iter->second;
 	assert(b->dvars_size == dvars_size);
+	cached = true;
     }
 
     b->self = self;
     b->node = node;
 
-    if (dvars_size > 0) {
-	va_list ar;
-	va_start(ar, dvars_size);
-	for (int i = 0; i < dvars_size; ++i) {
-	    b->dvars[i] = va_arg(ar, VALUE *);
-	}
-	va_end(ar);
+    va_list ar;
+    va_start(ar, dvars_size);
+    for (int i = 0; i < dvars_size; ++i) {
+	b->dvars[i] = va_arg(ar, VALUE *);
     }
+    int lvars_size = va_arg(ar, int);
+    if (lvars_size > 0) {
+	if (!cached) {
+	    rb_vm_local_t **l = &b->locals;
+	    for (int i = 0; i < lvars_size; i++) {
+		GC_WB(l, xmalloc(sizeof(rb_vm_local_t)));
+		l = &(*l)->next;
+	    }
+	}
+	rb_vm_local_t *l = b->locals;
+	for (int i = 0; i < lvars_size; ++i) {
+	    assert(l != NULL);
+	    l->name = va_arg(ar, ID);
+	    l->value = va_arg(ar, VALUE *);
+	    l = l->next;
+	}
+    }
+    va_end(ar);
 
     return b;
 }
+
+extern "C"
+void
+rb_vm_push_binding(VALUE self, int lvars_size, ...)
+{
+    rb_vm_binding_t *b = (rb_vm_binding_t *)xmalloc(sizeof(rb_vm_binding_t));
+    GC_WB(&b->self, self);
+
+    va_list ar;
+    va_start(ar, lvars_size);
+    rb_vm_local_t **l = &b->locals;
+    for (int i = 0; i < lvars_size; ++i) {
+	GC_WB(l, xmalloc(sizeof(rb_vm_local_t)));
+	(*l)->name = va_arg(ar, ID);
+	(*l)->value = va_arg(ar, VALUE *);
+	(*l)->next = NULL;
+	l = &(*l)->next;
+    }
+    va_end(ar);
+
+    rb_objc_retain(b);
+    GET_VM()->bindings.push_back(b);
+}
+
+extern "C"
+rb_vm_binding_t *
+rb_vm_current_binding(void)
+{
+   return GET_VM()->bindings.empty() ? NULL : GET_VM()->bindings.back();
+}
+
+extern "C"
+void
+rb_vm_add_binding(rb_vm_binding_t *binding)
+{
+    GET_VM()->bindings.push_back(binding);
+}
+
+extern "C"
+void
+rb_vm_pop_binding(void)
+{
+    GET_VM()->bindings.pop_back();
+}
+
 
 extern "C"
 VALUE
@@ -5636,10 +5896,9 @@ rb_vm_block_eval0(rb_vm_block_t *b, int argc, const VALUE *argv)
 	}
     }
 
-    int dvars_size = b->dvars_size;
     rb_vm_arity_t arity = b->arity;    
 
-    if (dvars_size > 0 || argc < arity.min || argc > arity.max) {
+    if (argc < arity.min || argc > arity.max) {
 	VALUE *new_argv;
 	if (argc == 1 && TYPE(argv[0]) == T_ARRAY && (arity.min > 1 || (arity.min == 1 && arity.min != arity.max))) {
 	    // Expand the array
@@ -5650,63 +5909,47 @@ rb_vm_block_eval0(rb_vm_block_t *b, int argc, const VALUE *argv)
 	    }
 	    argv = new_argv;
 	    argc = ary_len;
-	    if (dvars_size == 0 && argc >= arity.min
-		&& (argc <= arity.max || b->arity.max == -1)) {
-		return __rb_vm_rcall(b->self, b->node, b->imp, arity, argc,
-				     argv);
+	    if (argc >= arity.min && (argc <= arity.max || b->arity.max == -1)) {
+		goto block_call;
 	    }
 	}
 	int new_argc;
 	if (argc <= arity.min) {
-	    new_argc = dvars_size + arity.min;
+	    new_argc = arity.min;
 	}
 	else if (argc > arity.max && b->arity.max != -1) {
-	    new_argc = dvars_size + arity.max;
+	    new_argc = arity.max;
 	}
 	else {
-	    new_argc = dvars_size + argc;
+	    new_argc = argc;
 	}
 	new_argv = (VALUE *)alloca(sizeof(VALUE) * new_argc);
-	for (int i = 0; i < dvars_size; i++) {
-	    new_argv[i] = (VALUE)b->dvars[i];
-	}
-	for (int i = 0; i < new_argc - dvars_size; i++) {
-	    new_argv[dvars_size + i] = i < argc ? argv[i] : Qnil;
+	for (int i = 0; i < new_argc; i++) {
+	    new_argv[i] = i < argc ? argv[i] : Qnil;
 	}
 	argc = new_argc;
 	argv = new_argv;
-	if (dvars_size > 0) {
-	    arity.min += dvars_size;
-	    if (arity.max != -1) {
-		arity.max += dvars_size;
-	    }
-	    arity.real += dvars_size;
-	    arity.left_req += dvars_size;
-	}
     }
 #if ROXOR_VM_DEBUG
-    printf("yield block %p argc %d arity %d dvars %d\n", b, argc,
-	    arity.real, b->dvars_size);
+    printf("yield block %p argc %d arity %d\n", b, argc, arity.real);
 #endif
+
+block_call:
 
     // We need to preserve dynamic variable slots here because our block may
     // call the parent method which may call the block again, and since dvars
     // are currently implemented using alloca() we will painfully die if the 
     // previous slots are not restored.
-
-    VALUE **old_dvars;
-    if (dvars_size > 0) {
-	old_dvars = (VALUE **)alloca(sizeof(VALUE *) * dvars_size);
-	memcpy(old_dvars, b->dvars, sizeof(VALUE) * dvars_size);
-    }
-    else {
-	old_dvars = NULL;
+    VALUE *old_dvars[100];
+    assert(b->dvars_size < 100);
+    for (int i = 0; i < b->dvars_size; i++) {
+	old_dvars[i] = b->dvars[i];
     }
 
-    VALUE v = __rb_vm_rcall(b->self, b->node, b->imp, arity, argc, argv);
+    VALUE v = __rb_vm_bcall(b->self, (VALUE)b->dvars, b->imp, b->arity, argc, argv);
 
-    if (old_dvars != NULL) {
-	memcpy(b->dvars, old_dvars, sizeof(VALUE) * dvars_size);
+    for (int i = 0; i < b->dvars_size; i++) {
+	b->dvars[i] = old_dvars[i];
     }
 
     return v;
@@ -5778,27 +6021,6 @@ rb_vm_yield_args(int argc, ...)
 	va_end(ar);
     }
     return rb_vm_yield0(argc, argv);
-}
-
-extern "C"
-struct rb_float_cache *
-rb_vm_float_cache(double d)
-{
-    std::map<double, struct rb_float_cache *>::iterator iter = 
-	GET_VM()->float_cache.find(d);
-    if (iter == GET_VM()->float_cache.end()) {
-	struct rb_float_cache *fc = (struct rb_float_cache *)malloc(
-		sizeof(struct rb_float_cache));
-	assert(fc != NULL);
-
-	fc->count = 0;
-	fc->obj = Qnil;
-	GET_VM()->float_cache[d] = fc;
-
-	return fc;
-    }
-
-    return iter->second;
 }
 
 extern IMP basic_respond_to_imp; // vm_method.c
@@ -6065,6 +6287,28 @@ rb_vm_set_parse_in_eval(bool flag)
 }
 
 extern "C"
+int
+rb_parse_in_eval(void)
+{
+    return rb_vm_parse_in_eval() ? 1 : 0;
+}
+
+extern "C"
+int
+rb_local_defined(ID id)
+{
+    return GET_VM()->get_binding_lvar(id) != NULL ? 1 : 0;
+}
+
+extern "C"
+int
+rb_dvar_defined(ID id)
+{
+    // TODO
+    return 0;
+}
+
+extern "C"
 IMP
 rb_vm_compile(const char *fname, NODE *node)
 {
@@ -6099,12 +6343,6 @@ rb_vm_compile(const char *fname, NODE *node)
     printf("compilation/optimization done, took %lld ns\n",  elapsedNano);
 #endif
 
-#if ROXOR_DUMP_IR
-    printf("IR dump ----------------------------------------------\n");
-    RoxorCompiler::module->dump();
-    printf("------------------------------------------------------\n");
-#endif
-
     delete compiler;
 
     return imp;
@@ -6112,9 +6350,17 @@ rb_vm_compile(const char *fname, NODE *node)
 
 extern "C"
 VALUE
-rb_vm_run(const char *fname, NODE *node)
+rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding)
 {
+    if (binding != NULL) {
+	GET_VM()->bindings.push_back(binding);
+    }
+
     IMP imp = rb_vm_compile(fname, node);
+
+    if (binding != NULL) {
+	GET_VM()->bindings.pop_back();
+    }
 
     try {
 	return ((VALUE(*)(VALUE, SEL))imp)(GET_VM()->current_top_object, 0);
@@ -6133,18 +6379,22 @@ rb_vm_run(const char *fname, NODE *node)
 
 extern "C"
 VALUE
-rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node)
+rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
+		rb_vm_binding_t *binding)
 {
     assert(klass != 0);
 
     VALUE old_top_object = GET_VM()->current_top_object;
+    if (binding != NULL) {
+	self = binding->self;
+    }
     if (self != 0) {
 	GET_VM()->current_top_object = self;
     }
     Class old_class = GET_VM()->current_class;
     GET_VM()->current_class = (Class)klass;
 
-    VALUE val = rb_vm_run(fname, node);
+    VALUE val = rb_vm_run(fname, node, binding);
 
     GET_VM()->current_top_object = old_top_object;
     GET_VM()->current_class = old_class;
@@ -6313,4 +6563,15 @@ Init_VM(void)
     VALUE top_self = rb_obj_alloc(rb_cTopLevel);
     rb_objc_retain((void *)top_self);
     GET_VM()->current_top_object = top_self;
+}
+
+extern "C"
+void
+rb_vm_finalize(void)
+{
+#if ROXOR_DUMP_IR_BEFORE_EXIT
+    printf("IR dump ----------------------------------------------\n");
+    RoxorCompiler::module->dump();
+    printf("------------------------------------------------------\n");
+#endif
 }

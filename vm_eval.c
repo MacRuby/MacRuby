@@ -278,7 +278,7 @@ rb_objc_block_call(VALUE obj, SEL sel, void *cache, int argc, VALUE *argv,
 		   VALUE (*bl_proc) (ANYARGS), VALUE data2)
 {
     NODE *node = NEW_IFUNC(bl_proc, data2);
-    rb_vm_block_t *b = rb_vm_prepare_block(NULL, node, obj, 0);
+    rb_vm_block_t *b = rb_vm_prepare_block(NULL, node, obj, 0, 0);
     rb_vm_change_current_block(b);
     if (cache == NULL) {
 	cache = rb_vm_get_call_cache(sel);
@@ -311,13 +311,34 @@ rb_each(VALUE obj)
 }
 
 static VALUE
-eval_string(VALUE self, VALUE klass, VALUE src, VALUE scope, const char *file, int line)
+eval_string(VALUE self, VALUE klass, VALUE src, VALUE scope, const char *file,
+	    const int line)
 {
-    // TODO honor scope
+    rb_vm_binding_t *b = NULL;
+    if (scope != Qnil) {
+	if (!rb_obj_is_kind_of(scope, rb_cBinding)) {
+	    rb_raise(rb_eTypeError, "wrong argument type %s (expected Binding)",
+		     rb_obj_classname(scope));
+	}
+	b = (rb_vm_binding_t *)DATA_PTR(scope);
+    }
+
     bool old_parse_in_eval = rb_vm_parse_in_eval();
     rb_vm_set_parse_in_eval(true);
+    if (b != NULL) {
+	// Binding must be added because the parser needs it.
+	rb_vm_add_binding(b);
+    }
+
     NODE *node = rb_compile_string(file, src, line);
+
+    if (b != NULL) {
+	// We remove the binding now but we still pass it to the VM, which
+	// will use it for compilation.
+	rb_vm_pop_binding();
+    }
     rb_vm_set_parse_in_eval(old_parse_in_eval);
+
     if (node == NULL) {
 	VALUE exc = rb_vm_current_exception();
 	if (exc != Qnil) {
@@ -327,10 +348,11 @@ eval_string(VALUE self, VALUE klass, VALUE src, VALUE scope, const char *file, i
 	    rb_raise(rb_eSyntaxError, "compile error");
 	}
     }
+
     if (klass == 0) {
 	klass = rb_cObject;
     }
-    return rb_vm_run_under(klass, self, file, node);
+    return rb_vm_run_under(klass, self, file, node, b);
 }
 
 static VALUE
@@ -417,13 +439,13 @@ rb_f_eval(VALUE self, SEL sel, int argc, VALUE *argv)
     if (!NIL_P(vfile)) {
 	file = RSTRING_PTR(vfile);
     }
-    return eval_string(0, self, src, scope, file, line);
+    return eval_string(self, 0, src, scope, file, line);
 }
 
 VALUE
 rb_eval_string(const char *str)
 {
-    return eval_string(0, rb_vm_top_self(), rb_str_new2(str), Qnil, "(eval)", 1);
+    return eval_string(rb_vm_top_self(), 0, rb_str_new2(str), Qnil, "(eval)", 1);
 }
 
 VALUE

@@ -30,6 +30,6 @@ main(int argc, char **argv, char **envp)
     ruby_sysinit(&argc, &argv);
     {
 	ruby_init();
-	return ruby_run_node(ruby_options(argc, argv));
+	rb_exit(ruby_run_node(ruby_options(argc, argv)));
     }
 }

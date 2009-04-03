@@ -97,6 +97,7 @@ ruby_finalize_0(void)
 static void
 ruby_finalize_1(void)
 {
+    rb_vm_finalize();
     ruby_sig_finalize();
     //GET_THREAD()->errinfo = Qnil;
     rb_gc_call_finalizer_at_exit();
@@ -195,7 +196,7 @@ ruby_run_node(void *n)
 	return FIX2INT(n);
     }
     rb_vm_set_running(true);
-    rb_vm_run(RSTRING_PTR(rb_progname), (NODE *)n);
+    rb_vm_run(RSTRING_PTR(rb_progname), (NODE *)n, NULL);
     return ruby_cleanup(0);
 }
 
@@ -736,8 +737,17 @@ errat_setter(VALUE val, ID id, VALUE *var)
 static VALUE
 rb_f_local_variables(VALUE rcv, SEL sel)
 {
-    // TODO
-    return Qnil;
+    rb_vm_binding_t *binding = rb_vm_current_binding();
+    assert(binding != NULL);
+
+    VALUE ary = rb_ary_new();
+    rb_vm_local_t *l;
+   
+    for (l = binding->locals; l != NULL; l = l->next) {
+	rb_ary_push(ary, ID2SYM(l->name));
+    }
+
+    return ary;
 }
 
 
@@ -819,28 +829,4 @@ Init_eval(void)
     exception_error = rb_exc_new2(rb_eFatal, "exception reentered");
     //rb_ivar_set(exception_error, idThrowState, INT2FIX(TAG_FATAL));
     rb_objc_retain((void *)exception_error);
-}
-
-
-/* for parser */
-
-int
-rb_dvar_defined(ID id)
-{
-    // TODO
-    return 0;
-}
-
-int
-rb_local_defined(ID id)
-{
-    // TODO
-    return 0;
-}
-
-int
-rb_parse_in_eval(void)
-{
-    // TODO
-    return 0;
 }

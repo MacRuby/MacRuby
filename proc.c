@@ -17,10 +17,6 @@
 
 #define GetProcPtr(obj, ptr) GetCoreDataFromValue(obj, rb_vm_block_t, ptr)
 
-typedef struct {
-    // TODO
-} rb_binding_t;
-
 VALUE rb_cUnboundMethod;
 VALUE rb_cMethod;
 VALUE rb_cBinding;
@@ -202,8 +198,8 @@ static VALUE
 binding_alloc(VALUE klass)
 {
     VALUE obj;
-    rb_binding_t *bind;
-    obj = Data_Make_Struct(klass, rb_binding_t,
+    rb_vm_binding_t *bind;
+    obj = Data_Make_Struct(klass, rb_vm_binding_t,
 			   NULL, NULL, bind);
     return obj;
 }
@@ -232,17 +228,9 @@ binding_clone(VALUE self, SEL sel)
 VALUE
 rb_binding_new(void)
 {
-#if 0 // TODO
-    rb_thread_t *th = GET_THREAD();
-    rb_control_frame_t *cfp = vm_get_ruby_level_cfp(th, th->cfp);
-    VALUE bindval = binding_alloc(rb_cBinding);
-    rb_binding_t *bind;
-
-    GetBindingPtr(bindval, bind);
-    GC_WB(&bind->env, vm_make_env_object(th, cfp));
-    return bindval;
-#endif
-    return Qnil;
+    rb_vm_binding_t *bind = rb_vm_current_binding();
+    assert(bind != NULL);
+    return Data_Wrap_Struct(rb_cBinding, NULL, NULL, bind);
 }
 
 /*
@@ -1497,22 +1485,16 @@ localjump_reason(VALUE exc, SEL sel)
 static VALUE
 proc_binding(VALUE self, SEL sel)
 {
-#if 0 // TODO
-    rb_proc_t *proc;
-    VALUE bindval = binding_alloc(rb_cBinding);
-    rb_binding_t *bind;
+    rb_vm_block_t *block;
+    GetProcPtr(self, block);
 
-    GetProcPtr(self, proc);
-    GetBindingPtr(bindval, bind);
+    rb_vm_binding_t *binding = (rb_vm_binding_t *)xmalloc(
+	    sizeof(rb_vm_binding_t));
 
-    if (TYPE(proc->block.iseq) == T_NODE) {
-	rb_raise(rb_eArgError, "Can't create Binding from C level Proc");
-    }
+    GC_WB(&binding->self, self);
+    GC_WB(&binding->locals, block->locals);
 
-    bind->env = proc->envval;
-    return bindval;
-#endif
-    return Qnil;
+    return Data_Wrap_Struct(rb_cBinding, NULL, NULL, binding);
 }
 
 static VALUE curry(VALUE dummy, VALUE args, int argc, VALUE *argv);
