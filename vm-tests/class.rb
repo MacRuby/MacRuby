@@ -25,3 +25,6 @@ assert "42", %q{
   end
   p X.foo
 }
+
+assert "42", "x = class Foo; 42; end; p x"
+assert "nil", "x = class Foo; end; p x"

@@ -3298,7 +3298,7 @@ RoxorCompiler::compile_node(NODE *node)
 			std::map<ID, int *> old_ivar_slots_cache = ivar_slots_cache;
 			ivar_slots_cache.clear();
 
-			compile_node(body->nd_body);
+			Value *val = compile_node(body->nd_body);
 
 			BasicBlock::InstListType &list = bb->getInstList();
 			compile_ivar_slots(classVal, list, list.end());
@@ -3307,10 +3307,12 @@ RoxorCompiler::compile_node(NODE *node)
 			current_opened_class = old_class;
 
 			ivar_slots_cache = old_ivar_slots_cache;
+
+			return val;
 		    }
 		}
 
-		return classVal;
+		return nilVal;
 	    }
 	    break;
 
