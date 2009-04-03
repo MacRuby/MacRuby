@@ -281,6 +281,7 @@ class RoxorCompiler
 	Value *compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Value *> &params);
 	Value *compile_ivar_read(ID vid);
 	Value *compile_ivar_assignment(ID vid, Value *val);
+	Value *compile_cvar_assignment(ID vid, Value *val);
 	Value *compile_current_class(void);
 	Value *compile_class_path(NODE *node);
 	Value *compile_const(ID id, Value *outer);
@@ -1043,7 +1044,8 @@ RoxorCompiler::compile_ivar_assignment(ID vid, Value *val)
 	// void rb_vm_ivar_set(VALUE obj, ID name, VALUE val, int *slot_cache);
 	setIvarFunc = 
 	    cast<Function>(module->getOrInsertFunction("rb_vm_ivar_set",
-			Type::VoidTy, RubyObjTy, IntTy, RubyObjTy, PtrTy, NULL)); 
+			Type::VoidTy, RubyObjTy, IntTy, RubyObjTy, PtrTy,
+			NULL)); 
     }
 
     std::vector<Value *> params;
@@ -1058,6 +1060,26 @@ RoxorCompiler::compile_ivar_assignment(ID vid, Value *val)
     CallInst::Create(setIvarFunc, params.begin(), params.end(), "", bb);
 
     return val;
+}
+
+Value *
+RoxorCompiler::compile_cvar_assignment(ID name, Value *val)
+{
+    if (cvarSetFunc == NULL) {
+	// VALUE rb_vm_cvar_set(VALUE klass, ID id, VALUE val);
+	cvarSetFunc = cast<Function>(module->getOrInsertFunction(
+		    "rb_vm_cvar_set", 
+		    RubyObjTy, RubyObjTy, IntTy, RubyObjTy, NULL));
+    }
+
+    std::vector<Value *> params;
+
+    params.push_back(compile_current_class());
+    params.push_back(ConstantInt::get(IntTy, (long)name));
+    params.push_back(val);
+
+    return CallInst::Create(cvarSetFunc, params.begin(),
+	    params.end(), "", bb);
 }
 
 Value *
@@ -2589,27 +2611,10 @@ RoxorCompiler::compile_node(NODE *node)
 	    break;
 
 	case NODE_CVASGN:
-	    {
-		assert(node->nd_vid > 0);
-		assert(node->nd_value != NULL);
-
-		if (cvarSetFunc == NULL) {
-		    // VALUE rb_vm_cvar_set(VALUE klass, ID id, VALUE val);
-		    cvarSetFunc = cast<Function>(module->getOrInsertFunction(
-				"rb_vm_cvar_set", 
-				RubyObjTy, RubyObjTy, IntTy, RubyObjTy, NULL));
-		}
-
-		std::vector<Value *> params;
-
-		params.push_back(compile_current_class());
-		params.push_back(ConstantInt::get(IntTy, (long)node->nd_vid));
-		params.push_back(compile_node(node->nd_value));
-
-		return CallInst::Create(cvarSetFunc, params.begin(),
-			params.end(), "", bb);
-	    }
-	    break;
+	    assert(node->nd_vid > 0);
+	    assert(node->nd_value != NULL);
+	    return compile_cvar_assignment(node->nd_vid,
+		    compile_node(node->nd_value));
 
 	case NODE_MASGN:
 	    {
@@ -2659,6 +2664,10 @@ RoxorCompiler::compile_node(NODE *node)
 			case NODE_IASGN:
 			case NODE_IASGN2:
 			    compile_ivar_assignment(ln->nd_vid, elt);
+			    break;
+
+			case NODE_CVASGN:
+			    compile_cvar_assignment(ln->nd_vid, elt);
 			    break;
 
 			case NODE_ATTRASGN:
