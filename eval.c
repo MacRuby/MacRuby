@@ -18,7 +18,6 @@
 #include "id.h"
 
 VALUE proc_invoke(VALUE, VALUE, VALUE, VALUE);
-VALUE rb_binding_new(void);
 
 ID rb_frame_callee(void);
 VALUE rb_eLocalJumpError;

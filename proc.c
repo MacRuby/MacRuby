@@ -233,6 +233,12 @@ rb_binding_new(void)
     return Data_Wrap_Struct(rb_cBinding, NULL, NULL, bind);
 }
 
+static VALUE
+rb_binding_new_from_binding(rb_vm_binding_t *bind)
+{
+    return Data_Wrap_Struct(rb_cBinding, NULL, NULL, bind);
+}
+
 /*
  *  call-seq:
  *     binding -> a_binding
@@ -1748,5 +1754,11 @@ Init_Binding(void)
     rb_objc_define_method(rb_cBinding, "dup", binding_dup, 0);
     rb_objc_define_method(rb_cBinding, "eval", bind_eval, -1);
     rb_objc_define_method(rb_mKernel, "binding", rb_f_binding, 0);
+
+    rb_vm_binding_t *binding = (rb_vm_binding_t *)xmalloc(
+	    sizeof(rb_vm_binding_t));
+    GC_WB(&binding->self, rb_vm_top_self());
+    rb_define_global_const("TOPLEVEL_BINDING",
+	    rb_binding_new_from_binding(binding));
 }
 
