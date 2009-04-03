@@ -4235,8 +4235,10 @@ rescan_args:
 		    // VALUE rb_vm_yield_args(int argc, ...)
 		    std::vector<const Type *> types;
 		    types.push_back(Type::Int32Ty);
-		    FunctionType *ft = FunctionType::get(RubyObjTy, types, true);
-		    yieldFunc = cast<Function>(module->getOrInsertFunction("rb_vm_yield_args", ft));
+		    FunctionType *ft =
+			FunctionType::get(RubyObjTy, types, true);
+		    yieldFunc = cast<Function>(module->getOrInsertFunction(
+				"rb_vm_yield_args", ft));
 		}
 
 		std::vector<Value *>params;
@@ -4253,8 +4255,16 @@ rescan_args:
 			args = args->nd_next;
 		    }
 		}
+#if 0 // TODO
+		else {
+		    params.push_back(ConstantInt::get(Type::Int32Ty, 1));
+		    params.push_back(splatArgFollowsVal);
+		    params.push_back(compile_node(args->nd_head));
+		}
+#endif
 
-		return CallInst::Create(yieldFunc, params.begin(), params.end(), "", bb);
+		return CallInst::Create(yieldFunc, params.begin(),
+			params.end(), "", bb);
 
 	    }
 	    break;
@@ -6265,15 +6275,16 @@ rb_vm_debug(void)
     printf("rb_vm_debug\n");
 }
 
-// END OF VM primitives
-
-#include <llvm/Target/TargetData.h>
-#include <llvm/Target/TargetMachine.h>
-#include <llvm/Target/TargetOptions.h>
-
-static void
-rb_vm_print_exception(VALUE exc)
+extern "C"
+void
+rb_vm_print_current_exception(void)
 {
+    VALUE exc = GET_VM()->current_exception;
+    if (exc == Qnil) {
+	printf("uncatched Objective-C/C++ exception...");
+	return;
+    }
+
     static SEL sel_message = 0;
     if (sel_message == 0) {
 	sel_message = sel_registerName("message");
@@ -6283,6 +6294,12 @@ rb_vm_print_exception(VALUE exc)
 
     printf("%s (%s)\n", RSTRING_PTR(message), rb_class2name(*(VALUE *)exc));
 }
+
+// END OF VM primitives
+
+#include <llvm/Target/TargetData.h>
+#include <llvm/Target/TargetMachine.h>
+#include <llvm/Target/TargetOptions.h>
 
 extern "C"
 bool
@@ -6374,19 +6391,7 @@ rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding)
 	GET_VM()->bindings.pop_back();
     }
 
-    try {
-	return ((VALUE(*)(VALUE, SEL))imp)(GET_VM()->current_top_object, 0);
-    }
-    catch (...) {
-	VALUE exc = GET_VM()->current_exception;
-	if (exc != Qnil) {
-	    rb_vm_print_exception(exc);
-	}
-	else {
-	    printf("uncatched C++/Objective-C exception...\n");
-	}
-	exit(1);
-    }
+    return ((VALUE(*)(VALUE, SEL))imp)(GET_VM()->current_top_object, 0);
 }
 
 extern "C"
