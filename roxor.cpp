@@ -193,6 +193,7 @@ class RoxorCompiler
 	BasicBlock *rescue_bb;
 	NODE *current_block_node;
 	Function *current_block_func;
+	jmp_buf *return_from_block_jmpbuf;
         GlobalVariable *current_opened_class;
 	BasicBlock *current_loop_begin_bb;
 	BasicBlock *current_loop_body_bb;
@@ -236,6 +237,9 @@ class RoxorCompiler
 	Function *popExceptionFunc;
 	Function *getSpecialFunc;
 	Function *breakFunc;
+	Function *longjmpFunc;
+	Function *setjmpFunc;
+	Function *brokenWithFunc;
 
 	Constant *zeroVal;
 	Constant *oneVal;
@@ -289,6 +293,7 @@ class RoxorCompiler
 	Value *compile_defined_expression(NODE *node);
 	Value *compile_dstr(NODE *node);
 	Value *compile_dvar_slot(ID name);
+	Value *compile_jump(NODE *node);
 
 	void compile_dead_branch(void);
 	void compile_landing_pad_header(void);
@@ -409,6 +414,8 @@ class RoxorVM
 	rb_vm_block_t *previous_block; // only used for non-Ruby created blocks
 	bool block_saved; // used by block_given?
 	bool parse_in_eval;
+
+	std::vector<jmp_buf *> return_from_block_jmp_bufs;
 
 	RoxorVM(void);
 
@@ -547,6 +554,7 @@ RoxorCompiler::RoxorCompiler(const char *_fname)
     current_loop_body_bb = NULL;
     current_loop_end_bb = NULL;
     current_loop_exit_val = NULL;
+    return_from_block_jmpbuf = NULL;
 
     dispatcherFunc = NULL;
     fastEqqFunc = NULL;
@@ -585,6 +593,9 @@ RoxorCompiler::RoxorCompiler(const char *_fname)
     popExceptionFunc = NULL;
     getSpecialFunc = NULL;
     breakFunc = NULL;
+    longjmpFunc = NULL;
+    setjmpFunc = NULL;
+    brokenWithFunc = NULL;
 
 #if __LP64__
     RubyObjTy = IntTy = Type::Int64Ty;
@@ -1371,6 +1382,108 @@ RoxorCompiler::compile_dvar_slot(ID name)
 }
 
 Value *
+RoxorCompiler::compile_jump(NODE *node)
+{
+    if (nd_type(node) == NODE_RETRY) {
+	// Simply jump to the nearest begin label.
+	if (begin_bb == NULL) {
+	    rb_raise(rb_eSyntaxError, "unexpected retry");
+	}
+	// TODO raise a SyntaxError if called outside of a "rescue"
+	// block.
+	BranchInst::Create(begin_bb, bb);
+	compile_dead_branch();
+	return nilVal;
+    }
+
+    const bool within_loop = current_loop_begin_bb != NULL
+	&& current_loop_body_bb != NULL
+	&& current_loop_end_bb != NULL;
+
+    // These cases should never happen.
+    if (!current_block && !within_loop) {
+	if (nd_type(node) == NODE_BREAK) {
+	    rb_raise(rb_eLocalJumpError, "unexpected break");
+	}
+	if (nd_type(node) == NODE_NEXT) {
+	    rb_raise(rb_eLocalJumpError, "unexpected next");
+	}
+	if (nd_type(node) == NODE_REDO) {
+	    rb_raise(rb_eLocalJumpError, "unexpected redo");
+	}
+    }
+
+    // The return value of the jump.
+    Value *val = node->nd_head != NULL
+	? compile_node(node->nd_head) : nilVal;
+
+    if (within_loop) {
+	// Simple branching.
+	if (nd_type(node) == NODE_BREAK) {
+	    current_loop_exit_val = val;
+	    BranchInst::Create(current_loop_end_bb, bb);
+	}
+	else if (nd_type(node) == NODE_NEXT) {
+	    BranchInst::Create(current_loop_begin_bb, bb);
+	}
+	else if (nd_type(node) == NODE_REDO) {
+	    BranchInst::Create(current_loop_body_bb, bb);
+	}
+	else {
+	    ReturnInst::Create(val, bb);
+	}
+    }
+    else {
+	if (nd_type(node) == NODE_BREAK
+	    || (current_block && current_mid == 0
+		&& nd_type(node) == NODE_RETURN)) {
+	    // First let's save the return value in the VM.
+	    if (breakFunc == NULL) {
+		// void rb_vm_break(VALUE val);
+		breakFunc = cast<Function>(
+			module->getOrInsertFunction("rb_vm_break", 
+			    Type::VoidTy, RubyObjTy, NULL));
+	    }
+	    std::vector<Value *> params;
+	    params.push_back(val);
+	    CallInst::Create(breakFunc, params.begin(),
+		    params.end(), "", bb);
+	    if (nd_type(node) == NODE_RETURN) {
+		// Return-from-block is implemented using a setjmp() call.
+		if (longjmpFunc == NULL) {
+		    // void longjmp(jmp_buf, int);
+		    longjmpFunc = cast<Function>(
+			module->getOrInsertFunction("longjmp", 
+			    Type::VoidTy, PtrTy, Type::Int32Ty, NULL));
+		}
+		params.clear();
+		if (return_from_block_jmpbuf == NULL) {
+		    return_from_block_jmpbuf = 
+			(jmp_buf *)malloc(sizeof(jmp_buf));
+		    GET_VM()->return_from_block_jmp_bufs.push_back(
+			    return_from_block_jmpbuf);
+		}
+		params.push_back(compile_const_pointer(
+			    return_from_block_jmpbuf));
+		params.push_back(ConstantInt::get(Type::Int32Ty, 1));
+		CallInst::Create(longjmpFunc, params.begin(), params.end(), "",
+				 bb);
+	    }
+	    ReturnInst::Create(val, bb);
+	}
+	else if (nd_type(node) == NODE_REDO) {
+	    assert(entry_bb != NULL);
+	    BranchInst::Create(entry_bb, bb);
+	}
+	else {
+	    ReturnInst::Create(val, bb);
+	}
+    }
+    compile_dead_branch();
+    return val;
+}
+
+Value *
 RoxorCompiler::compile_class_path(NODE *node)
 {
     if (nd_type(node) == NODE_COLON3) {
@@ -2060,7 +2173,6 @@ RoxorVM::RoxorVM(void)
     current_block = NULL;
     previous_block = NULL;
     block_saved = false;
-
     parse_in_eval = false;
 
     load_path = rb_ary_new();
@@ -3393,80 +3505,8 @@ rescan_args:
 	case NODE_NEXT:
 	case NODE_REDO:
 	case NODE_RETURN:
-	    {
-		const bool within_loop = current_loop_begin_bb != NULL
-		    && current_loop_body_bb != NULL
-		    && current_loop_end_bb != NULL;
-
-		if (!current_block && !within_loop) {
-		    if (nd_type(node) == NODE_BREAK) {
-			rb_raise(rb_eLocalJumpError, "unexpected break");
-		    }
-		    if (nd_type(node) == NODE_NEXT) {
-			rb_raise(rb_eLocalJumpError, "unexpected next");
-		    }
-		    if (nd_type(node) == NODE_REDO) {
-			rb_raise(rb_eLocalJumpError, "unexpected redo");
-		    }
-		}
-
-		Value *val = node->nd_head != NULL
-		    ? compile_node(node->nd_head) : nilVal;
-
-		if (within_loop) {
-		    if (nd_type(node) == NODE_BREAK) {
-			current_loop_exit_val = val;
-			BranchInst::Create(current_loop_end_bb, bb);
-		    }
-		    else if (nd_type(node) == NODE_NEXT) {
-			BranchInst::Create(current_loop_begin_bb, bb);
-		    }
-		    else if (nd_type(node) == NODE_REDO) {
-			BranchInst::Create(current_loop_body_bb, bb);
-		    }
-		    else {
-			ReturnInst::Create(val, bb);
-		    }
-		}
-		else {
-		    if (nd_type(node) == NODE_BREAK) {
-			if (breakFunc == NULL) {
-			    // void rb_vm_break(VALUE val);
-			    breakFunc = cast<Function>(
-				    module->getOrInsertFunction("rb_vm_break", 
-					Type::VoidTy, RubyObjTy, NULL));
-			}
-			std::vector<Value *> params;
-			params.push_back(val);
-			CallInst::Create(breakFunc, params.begin(),
-					 params.end(), "", bb);
-			ReturnInst::Create(val, bb);
-		    }
-		    else if (nd_type(node) == NODE_REDO) {
-			assert(entry_bb != NULL);
-			BranchInst::Create(entry_bb, bb);
-		    }
-		    else {
-			ReturnInst::Create(val, bb);
-		    }
-		}
-		compile_dead_branch();
-		return val;
-	    }
-	    break;
-
 	case NODE_RETRY:
-	    {
-		if (begin_bb == NULL) {
-		    rb_raise(rb_eSyntaxError, "unexpected retry");
-		}
-		// TODO raise a SyntaxError if called outside of a "rescue"
-		// block.
-		BranchInst::Create(begin_bb, bb);
-		compile_dead_branch();
-		return nilVal;
-	    }
-	    break;
+	    return compile_jump(node);
 
 	case NODE_CONST:
 	    assert(node->nd_vid > 0);
@@ -4184,12 +4224,57 @@ rescan_args:
 		NODE *old_current_block_node = current_block_node;
 		ID old_current_mid = current_mid;
 		bool old_current_block = current_block;
+		jmp_buf *old_return_from_block_jmpbuf =
+		    return_from_block_jmpbuf;
+
 		current_mid = 0;
 		current_block = true;
+		return_from_block_jmpbuf = NULL;
 
 		assert(node->nd_body != NULL);
 		Value *block = compile_node(node->nd_body);	
 		assert(Function::classof(block));
+
+		if (return_from_block_jmpbuf != NULL) {
+		    // The block we just compiled contains one (or more)
+		    // return expressions and provided us a longjmp buffer.
+		    // Let's compile a call to setjmp() and make sure to
+		    // return if its return value is non-zero.
+		    if (setjmpFunc == NULL) {
+			// int setjmp(jmp_buf);
+			setjmpFunc = cast<Function>(
+				module->getOrInsertFunction("setjmp", 
+				    Type::Int32Ty, PtrTy, NULL));
+		    }
+		    std::vector<Value *> params;
+		    params.push_back(compile_const_pointer(
+				return_from_block_jmpbuf));
+		    Value *retval = CallInst::Create(setjmpFunc,
+			    params.begin(), params.end(), "", bb);
+
+		    Function *f = bb->getParent();
+		    BasicBlock *ret_bb = BasicBlock::Create("ret", f);
+		    BasicBlock *no_ret_bb  = BasicBlock::Create("no_ret", f);
+		    Value *need_ret = new ICmpInst(ICmpInst::ICMP_NE, 
+			    retval, ConstantInt::get(Type::Int32Ty, 0), 
+			    "", bb);
+		    BranchInst::Create(ret_bb, no_ret_bb, need_ret, bb);
+		
+		    bb = ret_bb;
+		    if (brokenWithFunc == NULL) {
+			// VALUE rb_vm_pop_broken_value(void);
+			brokenWithFunc = cast<Function>(
+				module->getOrInsertFunction(
+				    "rb_vm_pop_broken_value", 
+				    RubyObjTy, NULL));
+		    }
+		    params.clear();
+		    Value *val = CallInst::Create(brokenWithFunc,
+			    params.begin(), params.end(), "", bb);
+		    ReturnInst::Create(val, bb);	
+
+		    bb = no_ret_bb;
+		}
 
 		current_loop_begin_bb = old_current_loop_begin_bb;
 		current_loop_body_bb = old_current_loop_body_bb;
@@ -4223,6 +4308,7 @@ rescan_args:
 
 		current_block_func = old_current_block_func;
 		current_block_node = old_current_block_node;
+		return_from_block_jmpbuf = old_return_from_block_jmpbuf;
 		dvars = old_dvars;
 
 		return caller;
