@@ -72,7 +72,7 @@ def assert(expectation, code, options={})
   end
 end
 
-Dir.chdir("#{File.dirname(__FILE__)}/vm-tests")
+Dir.chdir("#{File.dirname(__FILE__)}/test_vm")
 $tests = Dir.glob('*.rb').map {|filename| File.basename(filename, '.rb')}.sort
 
 $test_only = $tests if $test_only.empty?

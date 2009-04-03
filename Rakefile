@@ -25,7 +25,7 @@ task :macruby => 'macruby:build'
 # suite, though.
 desc "Run the VM regression test suite"
 task :test_vm do
-  sh "/usr/bin/ruby test-vm.rb"
+  sh "/usr/bin/ruby test_vm.rb"
 end
 =begin
 desc "Run the sample tests"
