@@ -138,6 +138,11 @@ describe "The defined? keyword" do
     ret.should == "constant"
   end
 
+  it "returns 'constant' when defined?(::File) is sent" do
+    ret = defined?(::File)
+    ret.should == "constant"
+  end
+
   it "returns 'constant' when defined?(File::SEPARATOR) is sent" do
     ret = defined?(File::SEPARATOR)
     ret.should == "constant"
