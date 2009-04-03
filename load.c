@@ -539,7 +539,7 @@ rb_mod_autoload_p(VALUE mod, VALUE sym)
  */
 
 static VALUE
-rb_f_autoload(VALUE obj, VALUE sym, VALUE file)
+rb_f_autoload(VALUE obj, SEL sel, VALUE sym, VALUE file)
 {
 #if 0
     VALUE klass = rb_vm_cbase();
@@ -588,8 +588,8 @@ Init_load()
     rb_objc_define_method(rb_mKernel, "require", rb_f_require_imp, 1);
     rb_objc_define_method(rb_cModule, "autoload", rb_mod_autoload, 2);
     rb_objc_define_method(rb_cModule, "autoload?", rb_mod_autoload_p, 1);
-    rb_define_global_function("autoload", rb_f_autoload, 2);
-    rb_define_global_function("autoload?", rb_f_autoload_p, 1);
+    rb_objc_define_method(rb_mKernel, "autoload", rb_f_autoload, 2);
+    rb_objc_define_method(rb_mKernel, "autoload?", rb_f_autoload_p, 1);
 
     rb_objc_define_method(rb_mKernel, "framework", rb_require_framework, -1);
 
