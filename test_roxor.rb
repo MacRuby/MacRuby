@@ -1074,6 +1074,15 @@ test "blocks" do
     p a.call
   }
 
+  assert "2\n1", %{
+    def f(x, y)
+      1.times {
+        f(2, false) if y
+        p x
+      }
+    end
+    f(1, true)
+  }
 end
 
 test "exception" do
