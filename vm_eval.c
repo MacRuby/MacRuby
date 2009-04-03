@@ -269,8 +269,7 @@ loop_i(void)
 static VALUE
 rb_f_loop(VALUE klass, SEL sel)
 {
-    rb_rescue2(loop_i, (VALUE)0, 0, 0, rb_eStopIteration, (VALUE)0);
-    return Qnil;		/* dummy */
+    return rb_rescue2(loop_i, (VALUE)0, 0, 0, rb_eStopIteration, (VALUE)0);
 }
 
 VALUE
