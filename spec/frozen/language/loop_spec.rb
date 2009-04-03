@@ -42,29 +42,27 @@ describe "The loop expression" do
     a.should == [1, 2, 4]
   end
   
-  # MacRuby TODO: These do not compile yet.
-  #
-  # it "restarts the current iteration with redo" do
-  #   a = []
-  #   loop do
-  #     a << 1
-  #     redo if a.size < 2
-  #     a << 2
-  #     break if a.size == 3 
-  #   end
-  #   a.should == [1, 1, 2]
-  # end
-  # 
-  # it "uses a spaghetti nightmare of redo, next and break" do
-  #   a = []
-  #   loop do
-  #     a << 1
-  #     redo if a.size == 1
-  #     a << 2
-  #     next if a.size == 3
-  #     a << 3
-  #     break if a.size > 6
-  #   end
-  #   a.should == [1, 1, 2, 1, 2, 3, 1, 2, 3]
-  # end
+  it "restarts the current iteration with redo" do
+    a = []
+    loop do
+      a << 1
+      redo if a.size < 2
+      a << 2
+      break if a.size == 3 
+    end
+    a.should == [1, 1, 2]
+  end
+  
+  it "uses a spaghetti nightmare of redo, next and break" do
+    a = []
+    loop do
+      a << 1
+      redo if a.size == 1
+      a << 2
+      next if a.size == 3
+      a << 3
+      break if a.size > 6
+    end
+    a.should == [1, 1, 2, 1, 2, 3, 1, 2, 3]
+  end
 end
