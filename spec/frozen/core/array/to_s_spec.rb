@@ -17,9 +17,9 @@ describe "Array#to_s" do
   end
 
   ruby_version_is "1.9" do
-    it "is the array, with commas and brackets" do
+    it "is equivalent to Array#inspect" do
       a = [1, 2, 3, 4]
-      a.to_s.should == "[1, 2, 3, 4]"
+      a.to_s.should == a.inspect
     end
   end
 
