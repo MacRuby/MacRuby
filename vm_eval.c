@@ -666,6 +666,7 @@ static VALUE
 rb_f_catch(VALUE rcv, SEL sel, int argc, VALUE *argv)
 {
     // TODO
+    rb_yield(Qundef);
     return Qnil;
 }
 
