@@ -680,10 +680,7 @@ describe "Literal Regexps" do
   # Encodings
   #############################################################################
 
-  # These specs won't run on MacRuby too, and this #not_compliant_on method doesn't
-  # seem to work. Eloy?
-  #not_compliant_on :ruby19 do
-  ruby_version_is "" ... "1.9" do
+  not_compliant_on :ruby19, :macruby do
     it 'supports /e (EUC encoding)' do
       /./e.match("\303\251").to_a.should == ["\303\251"]
     end
