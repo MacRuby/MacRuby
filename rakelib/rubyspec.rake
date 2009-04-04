@@ -51,6 +51,10 @@ namespace :rubyspec do
   end
 
   namespace :sync do
+    def upstream_rev
+      @upstream_rev ||= ENV['REV'] || File.read('spec/frozen/upstream')
+    end
+    
     UPSTREAM_OPTIONS = {
       :branch => "merge_upstream",
       :exclude => %w{ upstream macruby.mspec tags/macruby },
@@ -59,9 +63,8 @@ namespace :rubyspec do
 
     desc "Synchronize a checkout with spec/frozen (upstream)"
     task :upstream do
-      rev = ENV['REV'] || File.read('spec/frozen/upstream')
-      puts "\nSwitching to a `#{UPSTREAM_OPTIONS[:branch]}' branch with current revision of spec/frozen: #{rev}"
-      Dir.chdir(spec_ruby) { git_checkout(rev, UPSTREAM_OPTIONS[:branch]) }
+      puts "\nSwitching to a `#{UPSTREAM_OPTIONS[:branch]}' branch with current revision of spec/frozen: #{upstream_rev}"
+      Dir.chdir(spec_ruby) { git_checkout(upstream_rev, UPSTREAM_OPTIONS[:branch]) }
 
       dir = ENV['DIR'] || spec_ruby
       sh "rm -rf #{dir}/**"
@@ -73,6 +76,19 @@ namespace :rubyspec do
       Dir.chdir(spec_ruby) do
         sh "git checkout #{UPSTREAM_OPTIONS[:revert].join(' ')}"
         sh "git status"
+      end
+    end
+
+    namespace :upstream do
+      desc "Creates all individual patches in spec/frozen/upstream_patches since upstream revision of spec/frozen: #{upstream_rev}"
+      task :patches do
+        patch_dir = File.expand_path('spec/frozen/upstream_patches')
+        create_patches = "git format-patch --numbered --output-directory #{patch_dir} #{upstream_rev}"
+
+        Dir.chdir(spec_ruby) do
+          git_checkout('master')
+          sh create_patches
+        end
       end
     end
 

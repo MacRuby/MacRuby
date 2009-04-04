@@ -11,3 +11,4 @@ revision.h
 y.tab.c
 include/ruby/config.h
 spec/ruby
+spec/frozen/upstream_patches
