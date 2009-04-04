@@ -90,16 +90,16 @@ namespace :rubyspec do
           sh create_patches
         end
       end
-    end
 
-    desc "Remove the `#{UPSTREAM_OPTIONS[:branch]}' branch and switch to the `master' branch (cleans all untracked files!)"
-    task :remove_upstream do
-      puts "\nRemoving the `#{UPSTREAM_OPTIONS[:branch]}' branch and all untracked files!"
-      Dir.chdir spec_ruby do
-        sh "git clean -f"
-        sh "git checkout ."
-        git_checkout('master')
-        sh "git branch -D #{UPSTREAM_OPTIONS[:branch]}"
+      desc "Remove the `#{UPSTREAM_OPTIONS[:branch]}' branch and switch to the `master' branch (cleans all untracked files!)"
+      task :remove do
+        puts "\nRemoving the `#{UPSTREAM_OPTIONS[:branch]}' branch and all untracked files!"
+        Dir.chdir spec_ruby do
+          sh "git clean -f"
+          sh "git checkout ."
+          git_checkout('master')
+          sh "git branch -D #{UPSTREAM_OPTIONS[:branch]}"
+        end
       end
     end
 
