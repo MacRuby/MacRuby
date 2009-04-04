@@ -107,6 +107,17 @@ loaded_feature_path_i(st_data_t v, st_data_t b, st_data_t f)
 }
 #endif
 
+static VALUE
+get_loading_table(void)
+{
+    static VALUE loading_table = 0;
+    if (loading_table == 0) {
+	loading_table = rb_ary_new();
+	rb_objc_retain((void *)loading_table);
+    }
+    return loading_table;
+}
+
 static int
 rb_feature_p(const char *feature, const char *ext, int rb, int expanded, const char **fn)
 {
@@ -163,6 +174,12 @@ rb_feature_p(const char *feature, const char *ext, int rb, int expanded, const c
 	    return 'r';
 	}
     }
+    VALUE feature_str = rb_str_new2(feature);
+    if (rb_ary_includes(get_loading_table(), feature_str)) {
+	if (!ext) return 'u';
+	return !IS_RBEXT(ext) ? 's' : 'r';
+    }
+    rb_ary_push(get_loading_table(), feature_str);
 #if 0
     loading_tbl = get_loading_table();
     if (loading_tbl) {
