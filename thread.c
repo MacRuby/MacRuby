@@ -1196,7 +1196,7 @@ Init_Thread(void)
     rb_define_singleton_method(rb_cThread, "start", thread_start, -2);
     rb_define_singleton_method(rb_cThread, "fork", thread_start, -2);
     rb_define_singleton_method(rb_cThread, "main", rb_thread_s_main, 0);
-    rb_define_singleton_method(rb_cThread, "current", thread_s_current, 0);
+    rb_objc_define_method(*(VALUE *)rb_cThread, "current", thread_s_current, 0);
     rb_define_singleton_method(rb_cThread, "stop", rb_thread_stop, 0);
     rb_define_singleton_method(rb_cThread, "kill", rb_thread_s_kill, 1);
     rb_define_singleton_method(rb_cThread, "exit", rb_thread_exit, 0);
