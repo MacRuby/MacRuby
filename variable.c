@@ -2040,8 +2040,10 @@ cv_i(ID key, VALUE value, VALUE ary)
 VALUE
 rb_mod_class_variables(VALUE obj, SEL sel)
 {
+    if (!RCLASS_META(obj)) {
+	obj = *(VALUE *)obj;
+    }
     VALUE ary = rb_ary_new();
-
     CFMutableDictionaryRef iv_dict = rb_class_ivar_dict(obj);
     if (iv_dict != NULL) {
 	ivar_dict_foreach((VALUE)iv_dict, cv_i, (VALUE)ary);
