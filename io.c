@@ -3305,54 +3305,15 @@ rb_io_s_read(VALUE recv, SEL sel, int argc, VALUE *argv)
     rb_scan_args(argc, argv, "13", &fname, &length, &offset, &opt);
 
     // TODO honor opt
-
-    StringValue(fname);
-
-    const char *path = RSTRING_PTR(fname);
-    int fd = open(path, O_RDONLY);
-    CFReadStreamRef readStream = _CFReadStreamCreateFromFileDescriptor(NULL, fd);
-    CFReadStreamOpen(readStream);
+    SafeStringValue(fname);
+	VALUE io = rb_file_open(io_alloc(recv, 0), 1, &fname);
 
     if (!NIL_P(offset)) {
-	long o = FIX2LONG(offset);
-	rb_io_read_stream_set_offset(readStream, o);
+		rb_io_seek(io, offset, 0);
     }
-
-    VALUE outbuf = rb_bytestring_new();
-    CFMutableDataRef data = rb_bytestring_wrapped_data(outbuf);
-    long data_read = 0;
-
-    if (NIL_P(length)) {
-	// Read all
-	long size = 128;
-	CFDataIncreaseLength(data, size);
-	UInt8 *buf = CFDataGetMutableBytePtr(data);
-	while (true) {
-	    const long fragment = rb_io_stream_read_internal(readStream,
-		    &buf[data_read], size);
-	    data_read += fragment;
-	    if (fragment < size) {
-		break;
-	    }
-	    size += size;
-	    CFDataIncreaseLength(data, size);
-	    buf = CFDataGetMutableBytePtr(data);
-	}
-    }
-    else {
-	const long size = FIX2LONG(length);
-	CFDataIncreaseLength(data, size);
-	UInt8 *buf = CFDataGetMutableBytePtr(data);
-	data_read = rb_io_stream_read_internal(readStream, buf, size);
-    }
-
-    CFDataSetLength(data, data_read);
-
-    CFReadStreamClose(readStream);
-    CFRelease(readStream);
-    close(fd);
-
-    return outbuf;
+	VALUE result = io_read(io, 0, 1, &length);
+	rb_io_close_m(io, 0);
+	return result;
 }
 
 /*
