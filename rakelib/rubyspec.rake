@@ -50,66 +50,71 @@ namespace :rubyspec do
     end
   end
 
-  MERGE_OPTIONS = {
-    :exclude => %w{ upstream macruby.mspec tags/macruby },
-    :revert => %w{ ruby.1.9.mspec }
-  }
+  namespace :sync do
+    UPSTREAM_OPTIONS = {
+      :branch => "merge_upstream",
+      :exclude => %w{ upstream macruby.mspec tags/macruby },
+      :revert => %w{ ruby.1.9.mspec }
+    }
 
-  desc "Synchronize a checkout with spec/frozen (upstream)"
-  task :merge do
-    rev = ENV['REV'] || File.read('spec/frozen/upstream')
-    puts "\nSwitching to a `merge' branch with current revision of spec/frozen: #{rev}"
-    Dir.chdir(spec_ruby) { git_checkout(rev, 'merge') }
-    
-    dir = ENV['DIR'] || spec_ruby
-    sh "rm -rf #{dir}/**"
-    
-    rsync_options = Rsync_options.sub("--exclude 'tags'", '')
-    rsync_options += MERGE_OPTIONS[:exclude].map { |f| "--exclude '#{f}'" }.join(' ')
-    rsync "spec/frozen/*", dir, rsync_options
-    
-    Dir.chdir(spec_ruby) do
-      sh "git checkout #{MERGE_OPTIONS[:revert].join(' ')}"
-      sh "git status"
+    desc "Synchronize a checkout with spec/frozen (upstream)"
+    task :upstream do
+      rev = ENV['REV'] || File.read('spec/frozen/upstream')
+      puts "\nSwitching to a `#{UPSTREAM_OPTIONS[:branch]}' branch with current revision of spec/frozen: #{rev}"
+      Dir.chdir(spec_ruby) { git_checkout(rev, UPSTREAM_OPTIONS[:branch]) }
+
+      dir = ENV['DIR'] || spec_ruby
+      sh "rm -rf #{dir}/**"
+
+      rsync_options = Rsync_options.sub("--exclude 'tags'", '')
+      rsync_options += UPSTREAM_OPTIONS[:exclude].map { |f| "--exclude '#{f}'" }.join(' ')
+      rsync "spec/frozen/*", dir, rsync_options
+
+      Dir.chdir(spec_ruby) do
+        sh "git checkout #{UPSTREAM_OPTIONS[:revert].join(' ')}"
+        sh "git status"
+      end
+    end
+
+    desc "Remove the `#{UPSTREAM_OPTIONS[:branch]}' branch and switch to the `master' branch (cleans all untracked files!)"
+    task :remove_upstream do
+      puts "\nRemoving the `#{UPSTREAM_OPTIONS[:branch]}' branch and all untracked files!"
+      Dir.chdir spec_ruby do
+        sh "git clean -f"
+        sh "git checkout ."
+        git_checkout('master')
+        sh "git branch -D #{UPSTREAM_OPTIONS[:branch]}"
+      end
+    end
+
+    desc "Synchronize spec/frozen with a current checkout (downstream)"
+    task :downstream => 'rubyspec:update' do
+      dir = ENV['DIR'] || spec_ruby
+
+      rm_rf "spec/frozen"
+      rsync dir + "/*", "spec/frozen"
+
+      version = Dir.chdir(dir) { `git log --pretty=oneline -1`[0..7] }
+      sh "git add spec/frozen/"
+      sh "git commit -m 'Updated CI frozen specs to RubySpec #{version}.' spec/frozen"
     end
   end
 
-  desc "Remove the `merge' branch and switch to the `master' branch (cleans all untracked files!)"
-  task :remove_merge do
-    puts "\nRemoving the `merge' branch and all untracked files!"
-    Dir.chdir spec_ruby do
-      sh "git clean -f"
-      sh "git checkout ."
-      git_checkout('master')
-      sh "git branch -D merge"
+  namespace :url do
+    desc "Switch to the rubyspec commiter URL"
+    task :committer do
+      Dir.chdir spec_ruby do
+        sh "git config remote.origin.url git@github.com:rubyspec/rubyspec.git"
+      end
+      puts "\nYou're now accessing rubyspec via the committer URL."
     end
-  end
 
-  desc "Synchronize spec/frozen with a current checkout (downstream)"
-  task :sync => :update do
-    dir = ENV['DIR'] || spec_ruby
-
-    rm_rf "spec/frozen"
-    rsync dir + "/*", "spec/frozen"
-
-    version = Dir.chdir(dir) { `git log --pretty=oneline -1`[0..7] }
-    sh "git add spec/frozen/"
-    sh "git commit -m 'Updated CI frozen specs to RubySpec #{version}.' spec/frozen"
-  end
-
-  desc "Switch to the rubyspec commiter URL"
-  task :committer do
-    Dir.chdir spec_ruby do
-      sh "git config remote.origin.url git@github.com:rubyspec/rubyspec.git"
+    desc "Switch to the rubyspec anonymous URL"
+    task :anon do
+      Dir.chdir spec_ruby do
+        sh "git config remote.origin.url git://github.com/rubyspec/rubyspec.git"
+      end
+      puts "\nYou're now accessing rubyspec via the anonymous URL."
     end
-    puts "\nYou're now accessing rubyspec via the committer URL."
-  end
-
-  desc "Switch to the rubyspec anonymous URL"
-  task :anon do
-    Dir.chdir spec_ruby do
-      sh "git config remote.origin.url git://github.com/rubyspec/rubyspec.git"
-    end
-    puts "\nYou're now accessing rubyspec via the anonymous URL."
   end
 end
