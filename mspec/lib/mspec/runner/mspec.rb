@@ -163,11 +163,11 @@ module MSpec
   end
 
   def self.retrieve(symbol)
-    instance_variable_get "@#{symbol}"
+    instance_variable_get :"@#{symbol}"
   end
 
   def self.store(symbol, value)
-    instance_variable_set "@#{symbol}", value
+    instance_variable_set :"@#{symbol}", value
   end
 
   # This method is used for registering actions that are
