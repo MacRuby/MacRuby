@@ -17,11 +17,13 @@ describe "A class definition" do
     ClassSpecs::A.class_variables.should == []
   end
 
-  it "raises TypeError if constant given as class name exists and is not a Module" do
-    lambda {
-      class ClassSpecsNumber
-      end
-    }.should raise_error(TypeError)
+  ruby_version_is "" ... "1.9" do
+    it "raises TypeError if constant given as class name exists and is not a Module" do
+      lambda {
+        class ClassSpecsNumber
+        end
+      }.should raise_error(TypeError)
+    end
   end
 
   # test case known to be detecting bugs (JRuby, MRI 1.9)
@@ -58,31 +60,58 @@ describe "A class definition" do
 #  end
 
   it "allows the declaration of class variables in the body" do
-    ClassSpecs::B.class_variables.should == ["@@cvar"]
+    ruby_version_is "" ... "1.9" do
+      ClassSpecs::B.class_variables.should == ["@@cvar"]
+    end
+    ruby_version_is "1.9" do
+      ClassSpecs::B.class_variables.should == [:@@cvar]
+    end
     ClassSpecs::B.send(:class_variable_get, :@@cvar).should == :cvar
   end
   
   it "stores instance variables defined in the class body in the class object" do
-    ClassSpecs::B.instance_variables.include?("@ivar").should == true
+    ruby_version_is "" ... "1.9" do
+      ClassSpecs::B.instance_variables.include?("@ivar").should == true
+    end
+    ruby_version_is "1.9" do
+      ClassSpecs::B.instance_variables.include?(:@ivar).should == true
+    end
     ClassSpecs::B.instance_variable_get(:@ivar).should == :ivar
   end
 
   it "allows the declaration of class variables in a class method" do
     ClassSpecs::C.class_variables.should == []
     ClassSpecs::C.make_class_variable
-    ClassSpecs::C.class_variables.should == ["@@cvar"]
+    ruby_version_is "" ... "1.9" do
+      ClassSpecs::C.class_variables.should == ["@@cvar"]
+    end
+    ruby_version_is "1.9" do
+      ClassSpecs::C.class_variables.should == [:@@cvar]
+    end
   end
 
   it "allows the definition of class-level instance variables in a class method" do
-    ClassSpecs::C.instance_variables.include?("@civ").should == false
-    ClassSpecs::C.make_class_instance_variable
-    ClassSpecs::C.instance_variables.include?("@civ").should == true
+    ruby_version_is "" ... "1.9" do
+      ClassSpecs::C.instance_variables.include?("@civ").should == false
+      ClassSpecs::C.make_class_instance_variable
+      ClassSpecs::C.instance_variables.include?("@civ").should == true
+    end
+    ruby_version_is "1.9" do
+      ClassSpecs::C.instance_variables.include?(:@civ).should == false
+      ClassSpecs::C.make_class_instance_variable
+      ClassSpecs::C.instance_variables.include?(:@civ).should == true
+    end
   end
   
   it "allows the declaration of class variables in an instance method" do
     ClassSpecs::D.class_variables.should == []
     ClassSpecs::D.new.make_class_variable
-    ClassSpecs::D.class_variables.should == ["@@cvar"]
+    ruby_version_is "" ... "1.9" do
+      ClassSpecs::D.class_variables.should == ["@@cvar"]
+    end
+    ruby_version_is "1.9" do
+      ClassSpecs::D.class_variables.should == [:@@cvar]
+    end
   end
   
   it "allows the definition of instance methods" do
@@ -113,7 +142,12 @@ end
 
 describe "An outer class definition" do
   it "contains the inner classes" do
-    ClassSpecs::Container.constants.should include('A', 'B')
+    ruby_version_is "" ... "1.9" do
+      ClassSpecs::Container.constants.should include('A', 'B')
+    end
+    ruby_version_is "1.9" do
+      ClassSpecs::Container.constants.should include(:A, :B)
+    end
   end
 end
 
