@@ -43,8 +43,8 @@ describe BeAnInstanceOfMatcher do
 
   it "provides a useful negative failure message" do
     matcher = BeAnInstanceOfMatcher.new(Numeric)
-    matcher.matches?(4.2)
+    matcher.matches?(4.0)
     matcher.negative_failure_message.should == [
-      "Expected 4.2 (Float)", "not to be an instance of Numeric"]
+      "Expected 4.0 (Float)", "not to be an instance of Numeric"]
   end
 end

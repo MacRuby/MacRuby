@@ -356,9 +356,9 @@ describe MSpecScript, "#entries" do
   end
 
   it "returns the pattern in an array if it is a file" do
-    File.should_receive(:expand_path).with("file").and_return("file")
-    File.should_receive(:file?).with("file").and_return(true)
-    @script.entries("file").should == ["file"]
+    File.should_receive(:expand_path).with("file").and_return("file/expanded")
+    File.should_receive(:file?).with("file/expanded").and_return(true)
+    @script.entries("file").should == ["file/expanded"]
   end
 
   it "returns Dir['pattern/**/*_spec.rb'] if pattern is a directory" do
@@ -434,10 +434,10 @@ describe MSpecScript, "#files" do
 
   it "looks up items with leading ':' in the config object" do
     @script.should_receive(:entries).and_return(["file1"], ["file2"])
-    @script.files(":files").should == ["file1", "file2"]
+    @script.files([":files"]).should == ["file1", "file2"]
   end
 
   it "returns an empty list if the config key is not set" do
-    @script.files(":all_files").should == []
+    @script.files([":all_files"]).should == []
   end
 end
