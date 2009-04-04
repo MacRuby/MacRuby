@@ -25,6 +25,8 @@
 #include <sys/stat.h>
 #include <sys/param.h>
 #include <sys/syscall.h>
+#include <spawn.h>
+#include <crt_externs.h>
 
 extern void Init_File(void);
 
@@ -73,132 +75,6 @@ struct argf {
 //         rb_sys_fail(path);
 //     return S_ISSOCK(sbuf.st_mode);
 // }
-
-// This was copied wholesale from an implementation of unistd I found.
-// I am not sure that the usage of vfork here is correct, as on some systems
-// vfork is not at all thread-safe.
-
-static struct pid {
-	struct pid *next;
-	FILE *fp;
-	pid_t pid;
-} *pidlist;
-
-FILE *
-macruby_popen(const char *program, const char *type, pid_t *new_pid)
-{
-	struct pid * volatile cur;
-	FILE *iop;
-	int pdes[2];
-	pid_t pid;
-
-	if ((*type != 'r' && *type != 'w') || type[1] != '\0') {
-		errno = EINVAL;
-		return (NULL);
-	}
-
-	if ((cur = malloc(sizeof(struct pid))) == NULL)
-		return (NULL);
-
-	if (pipe(pdes) < 0) {
-		free(cur);
-		return (NULL);
-	}
-
-	switch (pid = vfork()) {
-		case -1:                        /* Error. */
-		(void)close(pdes[0]);
-		(void)close(pdes[1]);
-		free(cur);
-		return (NULL);
-				/* NOTREACHED */
-		case 0:                         /* Child. */
-		{
-			struct pid *pcur;
-				/*
-			* because vfork() instead of fork(), must leak FILE *,
-				* but luckily we are terminally headed for an execl()
-				*/
-				for (pcur = pidlist; pcur; pcur = pcur->next)
-				close(fileno(pcur->fp));
-
-			if (*type == 'r') {
-				int tpdes1 = pdes[1];
-
-				(void) close(pdes[0]);
-						/*
-				* We must NOT modify pdes, due to the
-					* semantics of vfork.
-						*/
-				if (tpdes1 != STDOUT_FILENO) {
-					(void)dup2(tpdes1, STDOUT_FILENO);
-					(void)close(tpdes1);
-					tpdes1 = STDOUT_FILENO;
-				}
-			} else {
-				(void)close(pdes[1]);
-				if (pdes[0] != STDIN_FILENO) {
-					(void)dup2(pdes[0], STDIN_FILENO);
-					(void)close(pdes[0]);
-				}
-			}
-			execl(_PATH_BSHELL, "sh", "-c", program, (char *)NULL);
-			_exit(127);
-				/* NOTREACHED */
-		}
-	}
-
-		/* Parent; assume fdopen can't fail. */
-	if (*type == 'r') {
-		iop = fdopen(pdes[0], type);
-		(void)close(pdes[1]);
-	} else {
-		iop = fdopen(pdes[1], type);
-		(void)close(pdes[0]);
-	}
-
-		/* Link into list of file descriptors. */
-	cur->fp = iop;
-	cur->pid =  pid;
-	cur->next = pidlist;
-	pidlist = cur;
-	
-	if (new_pid != NULL) {
-		*new_pid = pid;
-	}
-	
-	return iop;
-}
-
-int 
-macruby_pclose(FILE *iop)
-{
-	struct pid *cur, *last;
-	int pstat;
-	pid_t pid;
-
-	/* Find the appropriate file pointer. */
-	for (last = NULL, cur = pidlist; cur; last = cur, cur = cur->next)
-		if (cur->fp == iop)
-		break;
-
-	if (cur == NULL)
-		return (-1);
-
-	(void)fclose(iop);
-
-	do {
-		pid = waitpid(cur->pid, &pstat, 0);
-	} while (pid == -1 && errno == EINTR);
-
-	/* Remove the entry from the linked list. */
-	if (last == NULL)
-		pidlist = cur->next;
-	else
-		last->next = cur->next;
-	free(cur);
-	return (pid == -1 ? -1 : pstat);
-}
 
 static int
 convert_mode_string_to_fmode(VALUE rstr)
@@ -454,14 +330,16 @@ prepare_io_from_fd(rb_io_t *io_struct, int fd, int mode)
 	io_struct->writeStream = NULL;
     }
     
-    io_struct->fp = NULL; 
     io_struct->pid = -1;
 
     // TODO: Eventually make the ungetc_buf a ByteString
     io_struct->fd = fd;
+	io_struct->pipe = -1;
     io_struct->ungetc_buf = NULL;
     io_struct->ungetc_buf_len = 0;
     io_struct->ungetc_buf_pos = 0;
+
+	
     
     io_struct->sync = mode & FMODE_SYNC;
 }
@@ -475,12 +353,12 @@ io_struct_close(rb_io_t *io_struct, bool close_read, bool close_write)
     if (close_write && io_struct->writeStream != NULL) {
 	CFWriteStreamClose(io_struct->writeStream);
     }
-    if (io_struct->fp != NULL) {
-		const int status = macruby_pclose(io_struct->fp);
-		io_struct->fp = NULL;
-		rb_last_status_set(status, io_struct->pid);
-		io_struct->pid = -1;
-    }
+	if(io_struct->pipe != -1) {
+		write(io_struct->pipe, "\0", 1);
+		close(io_struct->pipe);
+	}
+	rb_last_status_set(0, io_struct->pid);
+	io_struct->pid = -1;
 }
 
 int
@@ -936,7 +814,7 @@ static inline long
 rb_io_stream_read_internal(CFReadStreamRef readStream, UInt8 *buffer, long len)
 {
     long data_read = 0;
-
+	
     while (data_read < len) {
 	int code = CFReadStreamRead(readStream, &buffer[data_read],
 		len - data_read);
@@ -946,7 +824,9 @@ rb_io_stream_read_internal(CFReadStreamRef readStream, UInt8 *buffer, long len)
 	    break;
 	}
 	else if (code == -1) {
-	    rb_raise(rb_eRuntimeError, "internal error while reading stream");
+		//CFErrorRef er = CFReadStreamCopyError(readStream);
+		//CFShow(CFErrorCopyDescription(er));
+		rb_raise(rb_eRuntimeError, "internal error while reading stream");
 	}
 
 	data_read += code;
@@ -959,7 +839,7 @@ static inline long
 rb_io_read_internal(rb_io_t *io_struct, UInt8 *buffer, long len)
 {
     assert(io_struct->readStream != NULL);
-
+	
     long data_read = 0;
 
     // First let's check if there is something to read in our ungetc buffer.
@@ -977,11 +857,17 @@ rb_io_read_internal(rb_io_t *io_struct, UInt8 *buffer, long len)
 	    return data_read;
 	}
     }
+	
+	if (io_struct->pipe != -1) {
+		int status;
+		waitpid(io_struct->pid, &status, 0);
+		close(io_struct->pipe);
+		io_struct->pipe = -1;
+	}
 
     // Read from the stream.
     data_read += rb_io_stream_read_internal(io_struct->readStream,
 	    &buffer[data_read], len - data_read);
-
     return data_read;
 }
 
@@ -2012,25 +1898,94 @@ rb_io_binmode_m(VALUE io, SEL sel)
  *     <foo>bar;zot;
  */
 
+// just set errno, you bastards
+#define rb_sys_fail_unless(action, msg) do { \
+	errno = action;\
+	if (errno != 0) { \
+		rb_sys_fail(msg);\
+	}\
+} while(0)
+
+
+VALUE 
+io_from_spawning_new_process(VALUE prog, VALUE mode)
+{
+	VALUE io = io_alloc(rb_cIO, 0);
+    rb_io_t *io_struct = ExtractIOStruct(io);
+	CFReadStreamRef r = NULL;
+    CFWriteStreamRef w = NULL;
+	pid_t pid;
+	int fd[2];
+	// TODO: Split the process_name up into char* components?
+	char *spawnedArgs[] = {(char*)_PATH_BSHELL, "-c", (char*)RSTRING_PTR(prog), NULL};
+	posix_spawn_file_actions_t actions;
+	
+	int fmode = convert_mode_string_to_fmode(mode);
+	int readable = ((fmode & FMODE_READABLE) || (fmode & FMODE_READWRITE));
+	int writable = ((fmode & FMODE_WRITABLE) || (fmode & FMODE_READWRITE));
+	assert(readable || writable);
+	
+	if (pipe(fd) < 0) {
+		posix_spawn_file_actions_destroy(&actions);
+		rb_sys_fail("pipe() failed.");
+	}
+	if (readable) {
+		r = _CFReadStreamCreateFromFileDescriptor(NULL, fd[0]);
+		if (r != NULL) {
+			CFReadStreamOpen(r);
+			GC_WB(&io_struct->readStream, r);
+			CFMakeCollectable(r);
+		} else {
+			io_struct->readStream = NULL;
+		}
+    }
+	if (writable) {
+		w = _CFWriteStreamCreateFromFileDescriptor(NULL, fd[0]);
+		if (w != NULL) {
+			CFWriteStreamOpen(w);
+			GC_WB(&io_struct->writeStream, w);
+			CFMakeCollectable(w);
+    	} else {
+			io_struct->writeStream = NULL;
+    	}
+	}
+	
+	rb_sys_fail_unless(posix_spawn_file_actions_init(&actions), "could not init file actions");
+	rb_sys_fail_unless(posix_spawn_file_actions_adddup2(&actions, fd[1], STDOUT_FILENO), "could not add dup2() to stdout");
+	rb_sys_fail_unless(posix_spawn_file_actions_addclose(&actions, fd[1]), "could not add a close() to stdout");
+	
+	errno = posix_spawn(&pid, spawnedArgs[0], &actions, NULL, spawnedArgs, *(_NSGetEnviron()));
+	if(errno != 0) {
+		int err = errno;
+		close(fd[0]);
+		close(fd[1]);
+		errno = err;
+		rb_sys_fail("posix_spawn failed.");
+	}
+	posix_spawn_file_actions_destroy(&actions);
+	
+    // TODO: Eventually make the ungetc_buf a ByteString
+    io_struct->fd = fd[0];
+	io_struct->pipe = fd[1];
+    io_struct->ungetc_buf = NULL;
+    io_struct->ungetc_buf_len = 0;
+    io_struct->ungetc_buf_pos = 0;
+	io_struct->pid = pid;
+    io_struct->sync = mode & FMODE_SYNC;
+	
+    rb_objc_keep_for_exit_finalize((VALUE)io);
+    return io;
+}
+
+
 static VALUE
 rb_io_s_popen(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
     VALUE process_name, mode;
-	pid_t popen_pid;
     rb_scan_args(argc, argv, "11", &process_name, &mode);
-    if (NIL_P(mode)) {
-        mode = (VALUE)CFSTR("r");
-    }
-    
-    FILE *process = macruby_popen(StringValueCStr(process_name), RSTRING_PTR(mode), &popen_pid);
-    if (process == NULL) {
-		rb_sys_fail("call to popen() failed.");
-    }
-    
-    VALUE io = prep_io(fileno(process), convert_mode_string_to_fmode(mode), klass);
-    ExtractIOStruct(io)->fp = process;
-	ExtractIOStruct(io)->pid = popen_pid;
-    return io;
+	if (NIL_P(mode)) mode = (VALUE)CFSTR("r");
+	StringValue(process_name);
+	return io_from_spawning_new_process(process_name, mode);
 }
 
 /*
@@ -2195,7 +2150,8 @@ rb_file_open(VALUE io, int argc, VALUE *argv)
     }
     StringValue(path);
     const char *filepath = RSTRING_PTR(path);
-    int fd = open(filepath, convert_mode_string_to_oflags(modes));
+	convert_mode_string_to_oflags(modes);
+    int fd = open(filepath, O_RDWR | O_CREAT, 0644);
     if (fd == -1) {
 	rb_sys_fail(NULL);
     }

@@ -35,7 +35,6 @@ namespace :spec do
     inspect
     putc
     readchar
-    readline
     to_i
     to_io
     initialize
@@ -67,7 +66,7 @@ namespace :spec do
   
   desc "Run the IO tests that pass"
   task :io do
-    sh "./miniruby -v -I./mspec/lib -I./lib ./mspec/bin/mspec-run -f s #{KNOWN_GOOD_CORE_IO_FILES.join(' ')}"
+    sh "./miniruby -v -I./mspec/lib -I./lib ./mspec/bin/mspec-run #{KNOWN_GOOD_CORE_IO_FILES.join(' ')}"
   end
   
   desc "Run language examples that are known to fail"

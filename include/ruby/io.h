@@ -21,6 +21,7 @@ extern "C" {
 
 #include <stdio.h>
 #include <errno.h>
+#include <spawn.h>
 #include "ruby/encoding.h"
 
 typedef struct rb_io_t {
@@ -30,14 +31,14 @@ typedef struct rb_io_t {
     
     // The Unixy low-level file handles.
     int fd; // You can expect this to be what the above CFStreams point to.
-    FILE *fp; // NOTE: Only used by #popen. Don't depend on it!
+    int pipe;
 
     // Additional information.
     CFStringRef path;
     pid_t pid;
     int lineno;
     bool sync;
-
+    
     // For ungetc.
     UInt8 *ungetc_buf;
     long ungetc_buf_len;
