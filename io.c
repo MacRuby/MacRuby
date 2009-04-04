@@ -264,23 +264,6 @@ rb_io_is_closed_for_writing(rb_io_t *io_struct)
 	return ((s == kCFStreamStatusNotOpen) || (s == kCFStreamStatusClosed));
 }
 
-/*
- *  call-seq:
- *     IO.try_convert(obj) -> io or nil
- *
- *  Try to convert <i>obj</i> into an IO, using to_io method.
- *  Returns converted IO or nil if <i>obj</i> cannot be converted
- *  for any reason.
- *
- *     IO.try_convert(STDOUT)     # => STDOUT
- *     IO.try_convert("STDOUT")   # => nil
- */
-static VALUE
-rb_io_s_try_convert(VALUE dummy, SEL sel, VALUE io)
-{
-rb_notimplement();
-}
-
 static VALUE
 io_alloc(VALUE klass, SEL sel)
 {
@@ -3021,6 +3004,27 @@ argf_readlines(VALUE recv, SEL sel, int argc, VALUE *argv)
 {
 rb_notimplement();
 }
+
+
+/*
+ *  call-seq:
+ *     IO.try_convert(obj) -> io or nil
+ *
+ *  Try to convert <i>obj</i> into an IO, using to_io method.
+ *  Returns converted IO or nil if <i>obj</i> cannot be converted
+ *  for any reason.
+ *
+ *     IO.try_convert(STDOUT)     # => STDOUT
+ *     IO.try_convert("STDOUT")   # => nil
+ */
+static VALUE
+rb_io_s_try_convert(VALUE dummy, SEL sel, VALUE obj)
+{
+	return (rb_respond_to(obj, rb_intern("to_io")) ? 
+			rb_funcall3(obj, rb_intern("to_io"), 0, 0) :
+			Qnil);
+}
+
 
 /*
  *  call-seq:
