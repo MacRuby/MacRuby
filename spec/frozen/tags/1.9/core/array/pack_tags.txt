@@ -266,3 +266,23 @@ fails:Array#pack with format 'p' returns a pointer which is able to dereferenced
 fails:Array#pack with format 'p' returns a pointer which is able to dereferenced into a right value
 fails:Array#pack with format 'P' returns a pointer which is able to dereferenced into NUL terminated byte sequence
 fails:Array#pack with format 'P' returns a pointer which is able to dereferenced into a right value
+fails:Array#pack returns a string in encoding of common to the concatenated results
+fails:Array#pack with the empty format returns an ASCII-8BIT
+fails:Array#pack with format 'A' raises a TypeError if array item is not String with ('A<count>')
+fails:Array#pack with format 'A' keeps encoding of source strings
+fails:Array#pack with format 'A' cuts byte sequence even if it breaks a multibyte character
+fails:Array#pack with format 'a' raises a TypeError if array item is not String with ('A<count>')
+fails:Array#pack with format 'a' keeps encoding of source strings
+fails:Array#pack with format 'a' cuts byte sequence even if it breaks a multibyte character
+fails:Array#pack with format 'Z' raises a TypeError if array item is not String with ('A<count>')
+fails:Array#pack with format 'Z' keeps encoding of source strings
+fails:Array#pack with format 'Z' cuts byte sequence even if it breaks a multibyte character
+fails:Array#pack with format 'B' raises a TypeError if corresponding array item is not String
+fails:Array#pack with format 'b' raises a TypeError if corresponding array item is not String
+fails:Array#pack with format 'm' raises a TypeError if corresponding array item is not string
+fails:Array#pack with format 'u' raises a TypeError if corresponding array item is not string
+fails:Array#pack with format 'X' doesn't change encoding of the result string
+fails:Array#pack with format 'X' doesn't care even if breaks a character
+fails:Array#pack with '@' doesn't change encoding of the result string
+fails:Array#pack with '@' doesn't care even if breaks a character
+fails:String#unpack with 'w' directive produces a BER-compressed integer

@@ -1,0 +1,1 @@
+fails:Range#inspect provides a printable form, using #inspect to convert the start and end objects

@@ -1,1 +1,2 @@
 fails:String#replace raises a TypeError if self is frozen
+fails:String#replace raises a TypeError if other can't be converted to string

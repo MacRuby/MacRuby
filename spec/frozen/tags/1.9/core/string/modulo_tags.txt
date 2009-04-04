@@ -15,3 +15,4 @@ fails:String#% behaves as if calling Kernel#Integer for %o argument, if it does 
 fails:String#% behaves as if calling Kernel#Integer for %u argument, if it does not respond to #to_ary
 fails:String#% behaves as if calling Kernel#Integer for %x argument, if it does not respond to #to_ary
 fails:String#% behaves as if calling Kernel#Integer for %X argument, if it does not respond to #to_ary
+fails:String#% supports negative bignums by prefixing the value with dots
