@@ -1,3 +1,4 @@
+# -*- encoding: utf-8 -*-
 describe :stringio_each_char, :shared => true do
   before(:each) do
     old_kcode, $KCODE = "UTF-8", $KCODE
