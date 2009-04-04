@@ -1,12 +1,11 @@
 describe :file_grpowned, :shared => true do
   before :each do
     @file = tmp('i_exist')
-    File.open(@file,'w'){|f| f.write 'rubinius'; @fh = f}
+    @fh = File.open(@file,'w') { |f| f.write 'rubinius' }
     File.chown(nil, Process.gid, @file) rescue nil
   end
 
   after :each do
-    @fh.close
     File.delete(@file) if File.exist?(@file)
   end
 
