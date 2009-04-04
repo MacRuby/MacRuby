@@ -169,32 +169,16 @@ class MSpecScript
       patterns << File.join(config[:prefix], file)
     end
 
-    # patterns.each do |pattern|
-    #   expanded = File.expand_path(pattern)
-    #   return [pattern] if File.file?(expanded)
-    # 
-    #   specs = File.join(pattern, "/**/*_spec.rb")
-    #   specs = File.expand_path(specs) rescue specs
-    #   return Dir[specs].sort if File.directory?(expanded)
-    # end
-    # 
-    # Dir[partial]
-
-    # MR Hack: workaround return from block problem.
-    res = nil
     patterns.each do |pattern|
       expanded = File.expand_path(pattern)
-      if File.file?(expanded)
-        res = [pattern]
-      elsif File.directory?(expanded)
-        specs = File.join(pattern, "/**/*_spec.rb")
-        specs = File.expand_path(specs) rescue specs
-        res = Dir[specs].sort
-      end
-      break if res
+      return [pattern] if File.file?(expanded)
+
+      specs = File.join(pattern, "/**/*_spec.rb")
+      specs = File.expand_path(specs) rescue specs
+      return Dir[specs].sort if File.directory?(expanded)
     end
 
-    res || Dir[partial]
+    Dir[partial]
   end
 
   # Resolves each entry in +list+ to a set of files.
