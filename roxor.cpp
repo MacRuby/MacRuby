@@ -6691,10 +6691,18 @@ Init_PreVM(void)
 }
 
 extern "C"
+static VALUE
+rb_toplevel_to_s(VALUE rcv, SEL sel)
+{
+    return rb_str_new2("main");
+}
+
+extern "C"
 void
 Init_VM(void)
 {
     rb_cTopLevel = rb_define_class("TopLevel", rb_cObject);
+    rb_objc_define_method(rb_cTopLevel, "to_s", (void *)rb_toplevel_to_s, 0);
 
     GET_VM()->current_class = NULL;
 
