@@ -3,6 +3,7 @@ namespace :spec do
     and
     array
     case
+    class
     class_variable
     defined
     else
