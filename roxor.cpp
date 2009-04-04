@@ -4643,11 +4643,26 @@ rb_vm_set_outer(VALUE klass, VALUE under)
     GET_VM()->set_outer((Class)klass, (Class)under);
 }
 
+static inline void
+check_if_module(VALUE mod)
+{
+    switch (TYPE(mod)) {
+	case T_CLASS:
+	case T_MODULE:
+	    break;
+
+	default:
+	    rb_raise(rb_eTypeError, "%s is not a class/module",
+		    RSTRING_PTR(rb_inspect(mod)));
+    }
+}
+
 extern "C"
 VALUE
 rb_vm_define_class(ID path, VALUE outer, VALUE super, unsigned char is_module)
 {
     assert(path > 0);
+    check_if_module(outer);
 
     if (GET_VM()->current_class != NULL) {
 	outer = (VALUE)GET_VM()->current_class;
@@ -4657,7 +4672,11 @@ rb_vm_define_class(ID path, VALUE outer, VALUE super, unsigned char is_module)
     if (rb_const_defined_at(outer, path)) {
 	klass = rb_const_get_at(outer, path);
 	if (!is_module && super != 0) {
-	    assert(RCLASS_SUPER(klass) == super);
+	    check_if_module(klass);
+	    if (RCLASS_SUPER(klass) != super) {
+		rb_raise(rb_eTypeError, "superclass mismatch for class %s",
+			rb_class2name(klass));
+	    }
 	}
     }
     else {
@@ -4670,6 +4689,9 @@ rb_vm_define_class(ID path, VALUE outer, VALUE super, unsigned char is_module)
 	else {
 	    if (super == 0) {
 		super = rb_cObject;
+	    }
+	    else {
+		check_if_module(super);
 	    }
 	    klass = rb_define_class_id(path, super);
 	    rb_set_class_path(klass, outer, rb_id2name(path));
