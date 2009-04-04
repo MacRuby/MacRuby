@@ -111,15 +111,28 @@ describe "Breaking out of a loop with a value" do
   end
 
   it "assigns splatted objects" do
-    a = loop do break *nil; end;      a.should == nil
-    a = loop do break *1; end;        a.should == 1
-    a = loop do break *[]; end;       a.should == nil
-    a = loop do break *[1]; end;      a.should == 1
-    a = loop do break *[nil]; end;    a.should == nil
-    a = loop do break *[[]]; end;     a.should == []
-    a = loop do break *[*[]]; end;    a.should == nil
-    a = loop do break *[1]; end;      a.should == 1
-    a = loop do break *[*[1]]; end;   a.should == 1
+    ruby_version_is "" ... "1.9" do
+      a = loop do break *nil; end;      a.should == nil
+      a = loop do break *[]; end;       a.should == nil
+      a = loop do break *1; end;        a.should == 1
+      a = loop do break *[1]; end;      a.should == 1
+      a = loop do break *[nil]; end;    a.should == nil
+      a = loop do break *[[]]; end;     a.should == []
+      a = loop do break *[*[]]; end;    a.should == nil
+      a = loop do break *[1]; end;      a.should == 1
+      a = loop do break *[*[1]]; end;   a.should == 1
+    end
+    ruby_version_is "1.9" do
+      a = loop do break *nil; end;      a.should == []
+      a = loop do break *[]; end;       a.should == []
+      a = loop do break *1; end;        a.should == [1]
+      a = loop do break *[1]; end;      a.should == [1]
+      a = loop do break *[nil]; end;    a.should == [nil]
+      a = loop do break *[[]]; end;     a.should == [[]]
+      a = loop do break *[*[]]; end;    a.should == []
+      a = loop do break *[1]; end;      a.should == [1]
+      a = loop do break *[*[1]]; end;   a.should == [1]
+    end
     a = loop do break *[1,2]; end;    a.should == [1,2]
     a = loop do break *[*[1,2]]; end; a.should == [1,2]
   end
@@ -128,38 +141,67 @@ describe "Breaking out of a loop with a value" do
     *a = loop do break; end;          a.should == [nil]
     *a = loop do break nil; end;      a.should == [nil]
     *a = loop do break 1; end;        a.should == [1]
-    *a = loop do break []; end;       a.should == [[]]
-    *a = loop do break [1]; end;      a.should == [[1]]
-    *a = loop do break [nil]; end;    a.should == [[nil]]
-    *a = loop do break [[]]; end;     a.should == [[[]]]
-    *a = loop do break [1,2]; end;    a.should == [[1,2]]
-    *a = loop do break [*[]]; end;    a.should == [[]]
-    *a = loop do break [*[1]]; end;   a.should == [[1]]
-    *a = loop do break [*[1,2]]; end; a.should == [[1,2]]
+    ruby_version_is "" ... "1.9" do
+      *a = loop do break []; end;       a.should == [[]]
+      *a = loop do break [1]; end;      a.should == [[1]]
+      *a = loop do break [nil]; end;    a.should == [[nil]]
+      *a = loop do break [[]]; end;     a.should == [[[]]]
+      *a = loop do break [1,2]; end;    a.should == [[1,2]]
+      *a = loop do break [*[]]; end;    a.should == [[]]
+      *a = loop do break [*[1]]; end;   a.should == [[1]]
+      *a = loop do break [*[1,2]]; end; a.should == [[1,2]]
+    end
+    ruby_version_is "1.9" do
+      *a = loop do break []; end;       a.should == []
+      *a = loop do break [1]; end;      a.should == [1]
+      *a = loop do break [nil]; end;    a.should == [nil]
+      *a = loop do break [[]]; end;     a.should == [[]]
+      *a = loop do break [1,2]; end;    a.should == [1,2]
+      *a = loop do break [*[]]; end;    a.should == []
+      *a = loop do break [*[1]]; end;   a.should == [1]
+      *a = loop do break [*[1,2]]; end; a.should == [1,2]
+    end
   end
 
   it "assigns splatted objects to a splatted reference" do
-    *a = loop do break *nil; end;      a.should == [nil]
+    ruby_version_is "" ... "1.9" do
+      *a = loop do break *nil; end;      a.should == [nil]
+      *a = loop do break *[]; end;       a.should == [nil]
+      *a = loop do break *[1,2]; end;    a.should == [[1,2]]
+      *a = loop do break *[*[]]; end;    a.should == [nil]
+      *a = loop do break *[*[1,2]]; end; a.should == [[1,2]]
+    end
+    ruby_version_is "1.9" do
+      *a = loop do break *nil; end;      a.should == []
+      *a = loop do break *[]; end;       a.should == []
+      *a = loop do break *[1,2]; end;    a.should == [1,2]
+      *a = loop do break *[*[]]; end;    a.should == []
+      *a = loop do break *[*[1,2]]; end; a.should == [1,2]
+    end
     *a = loop do break *1; end;        a.should == [1]
-    *a = loop do break *[]; end;       a.should == [nil]
     *a = loop do break *[1]; end;      a.should == [1]
     *a = loop do break *[nil]; end;    a.should == [nil]
     *a = loop do break *[[]]; end;     a.should == [[]]
-    *a = loop do break *[1,2]; end;    a.should == [[1,2]]
-    *a = loop do break *[*[]]; end;    a.should == [nil]
     *a = loop do break *[*[1]]; end;   a.should == [1]
-    *a = loop do break *[*[1,2]]; end; a.should == [[1,2]]
   end
 
   it "assigns splatted objects to a splatted reference from a splatted loop" do
-    *a = *loop do break *nil; end;      a.should == [nil]
+    ruby_version_is "" ... "1.9" do
+      *a = *loop do break *nil; end;      a.should == [nil]
+      *a = *loop do break *[]; end;       a.should == [nil]
+      *a = *loop do break *[[]]; end;     a.should == []
+      *a = *loop do break *[*[]]; end;    a.should == [nil]
+    end
+    ruby_version_is "1.9" do
+      *a = *loop do break *nil; end;      a.should == []
+      *a = *loop do break *[]; end;       a.should == []
+      *a = *loop do break *[[]]; end;     a.should == [[]]
+      *a = *loop do break *[*[]]; end;    a.should == []
+    end
     *a = *loop do break *1; end;        a.should == [1]
-    *a = *loop do break *[]; end;       a.should == [nil]
     *a = *loop do break *[1]; end;      a.should == [1]
     *a = *loop do break *[nil]; end;    a.should == [nil]
-    *a = *loop do break *[[]]; end;     a.should == []
     *a = *loop do break *[1,2]; end;    a.should == [1,2]
-    *a = *loop do break *[*[]]; end;    a.should == [nil]
     *a = *loop do break *[*[1]]; end;   a.should == [1]
     *a = *loop do break *[*[1,2]]; end; a.should == [1,2]
   end
@@ -184,7 +226,12 @@ describe "Breaking out of a loop with a value" do
     a,b,*c = loop do break *[]; end;       [a,b,c].should == [nil,nil,[]]
     a,b,*c = loop do break *[1]; end;      [a,b,c].should == [1,nil,[]]
     a,b,*c = loop do break *[nil]; end;    [a,b,c].should == [nil,nil,[]]
-    a,b,*c = loop do break *[[]]; end;     [a,b,c].should == [nil,nil,[]]
+    ruby_version_is "" ... "1.9" do
+      a,b,*c = loop do break *[[]]; end;     [a,b,c].should == [nil,nil,[]]
+    end
+    ruby_version_is "1.9" do
+      a,b,*c = loop do break *[[]]; end;     [a,b,c].should == [[],nil,[]]
+    end
     a,b,*c = loop do break *[1,2]; end;    [a,b,c].should == [1,2,[]]
     a,b,*c = loop do break *[*[]]; end;    [a,b,c].should == [nil,nil,[]]
     a,b,*c = loop do break *[*[1]]; end;   [a,b,c].should == [1,nil,[]]
@@ -195,7 +242,12 @@ describe "Breaking out of a loop with a value" do
     i = 0; loop do break i if i == 2; i+=1; end.should == 2
     i = 0; loop do break if i == 3; i+=1; end; i.should == 3
     i = 0; 0.upto(5) {|i| break i if i == 2 }.should == 2
-    i = 0; 0.upto(5) {|i| break if i == 3 }; i.should == 3
+    ruby_version_is "" ... "1.9" do
+      i = 0; 0.upto(5) {|i| break if i == 3 }; i.should == 3
+    end
+    ruby_version_is "1.9" do
+      i = 0; 0.upto(5) {|i| break if i == 3 }; i.should == 0
+    end
     i = 0; while (i < 5) do break i if i == 2 ; i+=1; end.should == 2
     i = 0; while (i < 5) do break if i == 3 ; i+=1; end; i.should == 3
   end
@@ -209,7 +261,12 @@ describe "Breaking out of a loop with a value" do
     break_test {|i| break i if i == 2 }.should == 2
     i = 0
     break_test {|i| break i if i == 1 }
-    i.should == 1
+    ruby_version_is "" ... "1.9" do
+      i.should == 1
+    end
+    ruby_version_is "1.9" do
+      i.should == 0
+    end
   end
 
 end
