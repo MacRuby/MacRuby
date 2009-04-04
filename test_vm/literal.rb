@@ -15,3 +15,5 @@ assert ":ok", 'p :"ok"'
 assert ":ok", 'p :"#{:ok}"'
 assert ":\"42\"", 'p :"#{40+2}"'
 assert ":foo42", 'p :"foo#{40+2}"'
+
+assert "false", "p ['foo'] == [:foo]"
