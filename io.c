@@ -248,6 +248,14 @@ rb_io_is_open(rb_io_t *io_struct)
 			(CFReadStreamGetStatus(io_struct->readStream) == kCFStreamStatusOpen));
 }
 
+static void
+rb_io_assert_open(rb_io_t *io_struct)
+{
+	if (!rb_io_is_open(io_struct)) {
+		rb_raise(rb_eIOError, "cannot perform that operation on a closed stream");
+	}
+}
+
 static bool
 rb_io_is_closed_for_reading(rb_io_t *io_struct) 
 {
@@ -472,7 +480,9 @@ rb_io_addstr(VALUE io, SEL sel, VALUE str)
 VALUE
 rb_io_flush(VALUE io, SEL sel)
 {
-    // TODO investigate how to flush a CFStream...
+	rb_io_t *io_struct = ExtractIOStruct(io);
+	rb_io_assert_open(io_struct);
+	// rb_warn("IO#flush on MacRuby is a no-op, as MacRuby does not buffer its IO streams internally");
     return io;
 }
 
@@ -663,6 +673,7 @@ static VALUE
 rb_io_sync(VALUE io, SEL sel)
 {
     rb_io_t *io_struct = ExtractIOStruct(io);
+	rb_io_assert_open(io_struct);
     return io_struct->sync ? Qtrue : Qfalse;
 }
 
@@ -685,7 +696,9 @@ static VALUE
 rb_io_set_sync(VALUE io, SEL sel, VALUE mode)
 {
     rb_io_t *io_struct = ExtractIOStruct(io);
+	rb_io_assert_open(io_struct);
     io_struct->sync = RTEST(mode);
+	//if (io_struct->sync) rb_warn("The IO sync property is ignored, MacRuby does not buffer its IO streams internally");
     return mode;
 }
 
@@ -704,7 +717,10 @@ rb_io_set_sync(VALUE io, SEL sel, VALUE mode)
 static VALUE
 rb_io_fsync(VALUE io, SEL sel)
 {
-     rb_notimplement();   
+	rb_io_t *io_struct = ExtractIOStruct(io);
+	rb_io_assert_writable(io_struct);
+	if(fsync(io_struct->fd) < 0) rb_sys_fail("fsync() failed.");
+	return INT2FIX(0);
 }
 
 /*
@@ -723,9 +739,7 @@ static VALUE
 rb_io_fileno(VALUE io, SEL sel)
 {
     rb_io_t *io_struct = ExtractIOStruct(io);
-	if(!rb_io_is_open(io_struct)) {
-		rb_raise(rb_eIOError, "closed stream");
-	}
+	rb_io_assert_open(io_struct);
     return INT2FIX(io_struct->fd);
 }
 
