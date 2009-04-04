@@ -31,3 +31,4 @@ fails:Class methods of an eigenclass includes class methods of Class, for a clas
 fails:Class methods of an eigenclass includes instance methods of the metaclass of Class, for a class
 fails:Class methods of an eigenclass includes instance methods of the metaclass of Class, for a metaclass
 fails:Class methods of an eigenclass includes class methods of the metaclass of Class, for a metaclass
+fails:Defining instance methods on an eigenclass define public methods
