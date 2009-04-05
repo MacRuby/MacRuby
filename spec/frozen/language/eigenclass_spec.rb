@@ -148,22 +148,13 @@ describe "A constant on an eigenclass" do
     end.should raise_error(NameError)
   end
 
-  ruby_version_is "" ... "1.9" do
-    it "appears in the eigenclass constant list" do
-      constants = class << @object; constants; end 
-      constants.should include("CONST")
-    end
-  end
-
-  ruby_version_is "1.9" do
-    it "appears in the eigenclass constant list" do
-      constants = class << @object; constants; end 
-      constants.should include(:CONST)
-    end
+  it "appears in the eigenclass constant list" do
+    constants = class << @object; constants; end 
+    constants.should include_variable('CONST')
   end
 
   it "does not appear in the object's class constant list" do
-    @object.class.constants.should_not include(:CONST)
+    @object.class.constants.should_not include_variable('CONST')
   end
 
   it "is not preserved when the object is duped" do
