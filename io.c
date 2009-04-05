@@ -1796,15 +1796,8 @@ rb_io_gets(VALUE io, SEL sel)
 VALUE
 rb_io_binmode(VALUE io, SEL sel)
 {
-    // TODO
-#if 0
-    rb_io_t *fptr;
-
-    GetOpenFile(io, fptr);
-    fptr->mode |= FMODE_BINMODE;
-    return io;
-#endif
-    abort();
+	// rb_warn("binmode does nothing on Mac OS X");
+	return io;
 }
 
 /*

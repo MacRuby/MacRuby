@@ -29,6 +29,7 @@ namespace :spec do
   }
   
   KNOWN_GOOD_CORE_IO = %w{
+    binmode
     closed
     constants
     fileno
@@ -37,8 +38,7 @@ namespace :spec do
     getc
     io
     inspect
-    pid
-    putc
+    initialize_copy
     readchar
     sync
     syswrite
