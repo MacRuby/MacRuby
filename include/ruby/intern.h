@@ -186,11 +186,10 @@ VALUE rb_fiber_current(void);
 VALUE rb_fiber_alive_p(VALUE);
 /* enum.c */
 /* enumerator.c */
-VALUE rb_enumeratorize(VALUE, VALUE, int, VALUE *);
+VALUE rb_enumeratorize(VALUE, SEL, int, VALUE *);
 #define RETURN_ENUMERATOR(obj, argc, argv) do {				\
 	if (!rb_block_given_p())					\
-	    return rb_enumeratorize(obj, ID2SYM(rb_frame_this_func()),	\
-				    argc, argv);			\
+	    return rb_enumeratorize(obj, sel, argc, argv);		\
     } while (0)
 /* error.c */
 VALUE rb_exc_new(VALUE, const char*, long);

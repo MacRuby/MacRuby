@@ -1950,7 +1950,7 @@ rb_str_sub(VALUE str, SEL sel, int argc, VALUE *argv)
 }
 
 static VALUE
-str_gsub(int argc, VALUE *argv, VALUE str, int bang)
+str_gsub(SEL sel, int argc, VALUE *argv, VALUE str, int bang)
 {
     VALUE pat, val, repl, match, dest, hash = Qnil;
     struct re_registers *regs;
@@ -2086,7 +2086,7 @@ str_gsub(int argc, VALUE *argv, VALUE str, int bang)
 static VALUE
 rb_str_gsub_bang(VALUE str, SEL sel, int argc, VALUE *argv)
 {
-    return str_gsub(argc, argv, str, 1);
+    return str_gsub(sel, argc, argv, str, 1);
 }
 
 
@@ -2126,7 +2126,7 @@ rb_str_gsub_bang(VALUE str, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_str_gsub(VALUE str, SEL sel, int argc, VALUE *argv)
 {
-    return str_gsub(argc, argv, str, 0);
+    return str_gsub(sel, argc, argv, str, 0);
 }
 
 

@@ -179,3 +179,6 @@ assert "2\n1", %{
   end
   f(1, true)
 }
+
+# Enumerator 
+assert "[\"f\", \"o\", \"o\"]", "p 'foo'.chars.to_a"

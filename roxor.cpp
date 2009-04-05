@@ -5205,8 +5205,8 @@ __rb_vm_bcall(VALUE self, VALUE dvars, IMP pimp, const rb_vm_arity_t &arity, int
 }
 
 static inline VALUE
-__rb_vm_rcall(VALUE self, NODE *node, IMP pimp, const rb_vm_arity_t &arity,
-	      int argc, const VALUE *argv)
+__rb_vm_rcall(VALUE self, SEL sel, NODE *node, IMP pimp,
+	      const rb_vm_arity_t &arity, int argc, const VALUE *argv)
 {
     // TODO investigate why this function is not inlined!
     if ((arity.real != argc) || (arity.max == -1)) {
@@ -5263,25 +5263,25 @@ __rb_vm_rcall(VALUE self, NODE *node, IMP pimp, const rb_vm_arity_t &arity,
 
     switch (argc) {
 	case 0:
-	    return (*imp)(self, 0);
+	    return (*imp)(self, sel);
 	case 1:
-	    return (*imp)(self, 0, argv[0]);
+	    return (*imp)(self, sel, argv[0]);
 	case 2:
-	    return (*imp)(self, 0, argv[0], argv[1]);		
+	    return (*imp)(self, sel, argv[0], argv[1]);		
 	case 3:
-	    return (*imp)(self, 0, argv[0], argv[1], argv[2]);
+	    return (*imp)(self, sel, argv[0], argv[1], argv[2]);
 	case 4:
-	    return (*imp)(self, 0, argv[0], argv[1], argv[2], argv[3]);
+	    return (*imp)(self, sel, argv[0], argv[1], argv[2], argv[3]);
 	case 5:
-	    return (*imp)(self, 0, argv[0], argv[1], argv[2], argv[3], argv[4]);
+	    return (*imp)(self, sel, argv[0], argv[1], argv[2], argv[3], argv[4]);
 	case 6:
-	    return (*imp)(self, 0, argv[0], argv[1], argv[2], argv[3], argv[4], argv[5]);
+	    return (*imp)(self, sel, argv[0], argv[1], argv[2], argv[3], argv[4], argv[5]);
 	case 7:
-	    return (*imp)(self, 0, argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6]);
+	    return (*imp)(self, sel, argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6]);
 	case 8:
-	    return (*imp)(self, 0, argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6], argv[7]);
+	    return (*imp)(self, sel, argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6], argv[7]);
 	case 9:
-	    return (*imp)(self, 0, argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6], argv[7], argv[8]);
+	    return (*imp)(self, sel, argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6], argv[7], argv[8]);
     }	
     printf("invalid argc %d\n", argc);
     abort();
@@ -5544,7 +5544,7 @@ recache:
 	    }
 	}
 
-	return __rb_vm_rcall(self, rcache.node, rcache.imp, rcache.arity,
+	return __rb_vm_rcall(self, sel, rcache.node, rcache.imp, rcache.arity,
 			     argc, argv);
     }
     else if (cache->flag == MCACHE_OCALL) {
