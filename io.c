@@ -851,9 +851,10 @@ rb_io_stream_read_internal(CFReadStreamRef readStream, UInt8 *buffer, long len)
 		CFErrorRef er = CFReadStreamCopyError(readStream);
 		CFStringRef failure_reason = CFErrorCopyFailureReason(er);
 		if(failure_reason != NULL) {
-			CFStringRef pretty = CFStringCreateWithFormat(NULL, NULL, 
+			CFStringRef pretty = CFStringCreateWithFormat(NULL, NULL,
 				CFSTR("Internal error while reading stream: %@"), failure_reason);
-			rb_raise(rb_eRuntimeError, (char*)CFStringGetCharactersPtr(pretty));
+			if(pretty != NULL)
+				rb_raise(rb_eRuntimeError, (char*)CFStringGetCharactersPtr(pretty));
 		}
 		rb_raise(rb_eRuntimeError, "internal error while reading stream:");
 	}
@@ -1996,7 +1997,6 @@ static VALUE rb_io_s_new(VALUE klass, SEL sel, int argc, VALUE *argv);
 static VALUE
 rb_io_s_open(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
-	printf("Beginning the opening lol.");
     VALUE io = rb_io_s_new(klass, sel, argc, argv);
     if (rb_block_given_p()) {
         VALUE ret = rb_vm_yield(1, &io);

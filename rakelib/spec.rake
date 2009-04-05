@@ -40,6 +40,7 @@ namespace :spec do
     io
     inspect
     initialize_copy
+    putc
     readchar
     sync
     syswrite
