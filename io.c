@@ -794,6 +794,7 @@ static VALUE
 rb_io_pid(VALUE io, SEL sel)
 {
 	rb_io_t *io_struct = ExtractIOStruct(io);
+	rb_io_assert_open(io_struct);
 	return ((io_struct->pid == -1) ? Qnil : INT2FIX(io_struct->pid));
 }
 
@@ -1964,7 +1965,13 @@ rb_io_s_popen(VALUE klass, SEL sel, int argc, VALUE *argv)
     rb_scan_args(argc, argv, "11", &process_name, &mode);
 	if (NIL_P(mode)) mode = (VALUE)CFSTR("r");
 	StringValue(process_name);
-	return io_from_spawning_new_process(process_name, mode);
+	VALUE io = io_from_spawning_new_process(process_name, mode);
+	if (rb_block_given_p()) {
+        VALUE ret = rb_vm_yield(1, &io);
+        rb_io_close_m(io, 0);
+        return ret;
+	}
+	return io;
 }
 
 /*

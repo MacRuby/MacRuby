@@ -30,15 +30,19 @@ namespace :spec do
   
   KNOWN_GOOD_CORE_IO = %w{
     closed
+    constants
     fileno
     fsync
     flush
+    getc
     io
     inspect
+    pid
     putc
     readchar
     sync
     syswrite
+    tell
     to_i
     to_io
     initialize
