@@ -32,6 +32,7 @@ namespace :spec do
     binmode
     closed
     constants
+    each_byte
     fileno
     fsync
     flush

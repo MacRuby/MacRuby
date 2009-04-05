@@ -202,7 +202,7 @@ rb_io_taint_check(VALUE io)
 }
 
 static inline void
-rb_io_check_initialized(rb_io_t *fptr)
+rb_io_assert_initialized(rb_io_t *fptr)
 {
     if (fptr == NULL) {
 	rb_raise(rb_eIOError, "uninitialized stream");
@@ -222,7 +222,7 @@ rb_io_assert_usable(CFStreamStatus status)
 static void 
 rb_io_assert_writable(rb_io_t *io_struct)
 {
-    rb_io_check_initialized(io_struct);
+    rb_io_assert_initialized(io_struct);
     if (io_struct->writeStream == NULL) {
 	rb_raise(rb_eIOError, "not opened for writing");
     }
@@ -232,7 +232,7 @@ rb_io_assert_writable(rb_io_t *io_struct)
 static void
 rb_io_assert_readable(rb_io_t *io_struct)
 {
-    rb_io_check_initialized(io_struct);
+    rb_io_assert_initialized(io_struct);
     if (io_struct->readStream == NULL) {
 	rb_raise(rb_eIOError, "not opened for reading");
     }
@@ -436,8 +436,8 @@ io_write(VALUE io, SEL sel, VALUE to_write)
 	    buffer = (UInt8 *)alloca(max + 1);
 	    if (!CFStringGetCString((CFStringRef)to_write, (char *)buffer, 
 			max, kCFStringEncodingUTF8)) {
-		// XXX what could we do?
-		abort();
+		
+			rb_raise(rb_eRuntimeError, "could not extract a string from the read data.");
 	    }
 	    length = strlen((char *)buffer);
 	}
@@ -848,9 +848,14 @@ rb_io_stream_read_internal(CFReadStreamRef readStream, UInt8 *buffer, long len)
 	    break;
 	}
 	else if (code == -1) {
-		//CFErrorRef er = CFReadStreamCopyError(readStream);
-		//CFShow(CFErrorCopyDescription(er));
-		rb_raise(rb_eRuntimeError, "internal error while reading stream");
+		CFErrorRef er = CFReadStreamCopyError(readStream);
+		CFStringRef failure_reason = CFErrorCopyFailureReason(er);
+		if(failure_reason != NULL) {
+			CFStringRef pretty = CFStringCreateWithFormat(NULL, NULL, 
+				CFSTR("Internal error while reading stream: %@"), failure_reason);
+			rb_raise(rb_eRuntimeError, (char*)CFStringGetCharactersPtr(pretty));
+		}
+		rb_raise(rb_eRuntimeError, "internal error while reading stream:");
 	}
 
 	data_read += code;
@@ -1354,7 +1359,13 @@ rb_notimplement();
 static VALUE
 rb_io_each_byte(VALUE io, SEL sel)
 {
-    rb_notimplement();
+    VALUE b = rb_io_getbyte(io, 0);
+
+	while (!NIL_P(b)) {
+		rb_vm_yield(1, &b);
+		b = rb_io_getbyte(io, 0);
+	}
+	return io;
 }
 
 /*
@@ -1784,7 +1795,7 @@ rb_io_getline(int argc, VALUE *argv, VALUE io)
     prepare_getline_args(argc, argv, &rs, &limit, io);
     return rb_io_getline_1(rs, limit, io);
 #endif
-    abort();
+	rb_notimplement();
 }
 
 VALUE
@@ -1985,6 +1996,7 @@ static VALUE rb_io_s_new(VALUE klass, SEL sel, int argc, VALUE *argv);
 static VALUE
 rb_io_s_open(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
+	printf("Beginning the opening lol.");
     VALUE io = rb_io_s_new(klass, sel, argc, argv);
     if (rb_block_given_p()) {
         VALUE ret = rb_vm_yield(1, &io);
@@ -2698,7 +2710,7 @@ argf_forward(VALUE argf, SEL sel, int argc, VALUE *argv)
 {
     // TODO
     //return rb_funcall3(current_file, rb_frame_this_func(), argc, argv);
-    abort();
+	rb_notimplement();
 }
 
 #define next_argv() argf_next_argv(argf)
@@ -2852,7 +2864,7 @@ retry:
     }
     return Qtrue;
 #endif
-    abort();
+	rb_notimplement();
 }
 
 static VALUE
@@ -3343,8 +3355,8 @@ rb_io_s_readlines(VALUE recv, SEL sel, int argc, VALUE *argv)
 	}
     }
     else {
-	// TODO
-	abort();
+		// TODO
+		rb_raise(rb_eIOError, "multi-character separators aren't supported yet.");
     }	
 
     return ary;

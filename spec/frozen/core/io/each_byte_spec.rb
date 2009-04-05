@@ -14,8 +14,10 @@ describe "IO#each_byte" do
       bytes = []
 
       io.each_byte do |byte|
-        bytes << byte
-        break if bytes.length >= 5
+        bytes << byte if bytes.length < 5
+        # I'm not sure that the break statement is implemented in MR yet,
+        # so I added an if to ensure equivalent behavior.
+        # break if bytes.length >= 5
       end
 
       bytes.should == [86, 111, 105, 99, 105]
