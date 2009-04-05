@@ -371,6 +371,19 @@ prep_io(int fd, int mode, VALUE klass)
 
 /*
  *  call-seq:
+ *     ios.syswrite(string)   => integer
+ *
+ *  Writes the given string to <em>ios</em> using a low-level write.
+ *  Returns the number of bytes written. Do not mix with other methods
+ *  that write to <em>ios</em> or you may get unpredictable results.
+ *  Raises <code>SystemCallError</code> on error.
+ *
+ *     f = File.new("out", "w")
+ *     f.syswrite("ABCDEF")   #=> 6
+ */
+
+/*
+ *  call-seq:
  *     ios.write(string)    => integer
  *
  *  Writes the given string to <em>ios</em>. The stream must be opened
@@ -402,7 +415,6 @@ io_write(VALUE io, SEL sel, VALUE to_write)
 
     // TODO: Account for the port not being IO, use funcall to call .write()
     // instead.
-    // TODO: Honor io_struct->sync
 
     to_write = rb_obj_as_string(to_write);
 
@@ -540,6 +552,20 @@ rb_io_seek(VALUE io, VALUE offset, int whence)
 
     return INT2FIX(0); // is this right?
 }
+
+/*
+ *  call-seq:
+ *     ios.sysseek(offset, whence=SEEK_SET)   => integer
+ *
+ *  Seeks to a given <i>offset</i> in the stream according to the value
+ *  of <i>whence</i> (see <code>IO#seek</code> for values of
+ *  <i>whence</i>). Returns the new offset into the file.
+ *
+ *     f = File.new("testfile")
+ *     f.sysseek(-13, IO::SEEK_END)   #=> 53
+ *     f.sysread(10)                  #=> "And so on."
+ */
+
 
 /*
  *  call-seq:
@@ -1005,6 +1031,22 @@ rb_io_write_nonblock(VALUE io, SEL sel, VALUE str)
 
 /*
  *  call-seq:
+ *     ios.sysread(integer[, outbuf])    => string
+ *
+ *  Reads <i>integer</i> bytes from <em>ios</em> using a low-level
+ *  read and returns them as a string. Do not mix with other methods
+ *  that read from <em>ios</em> or you may get unpredictable results.
+ *  If the optional <i>outbuf</i> argument is present, it must reference
+ *  a String, which will receive the data.
+ *  Raises <code>SystemCallError</code> on error and
+ *  <code>EOFError</code> at end of file.
+ *
+ *     f = File.new("testfile")
+ *     f.sysread(16)   #=> "This is line one"
+ */
+
+/*
+ *  call-seq:
  *     ios.read([length [, buffer]])    => string, buffer, or nil
  *
  *  Reads at most <i>length</i> bytes from the I/O stream, or to the
@@ -1036,9 +1078,9 @@ io_read(VALUE io, SEL sel, int argc, VALUE *argv)
     
     if (NIL_P(outbuf)) {
         outbuf = rb_bytestring_new();
-    } else {
-        // TODO: Promote outbuf to a ByteString
-        abort();
+    } else if(CLASS_OF(outbuf) != rb_cByteString) {
+		// TODO: Get the magical pointer incantations right.
+		rb_raise(rb_eIOError, "writing to non-bytestrings is not supported at this time.");
     }
     
     if(NIL_P(len)) {
@@ -1748,66 +1790,6 @@ VALUE
 rb_io_gets(VALUE io, SEL sel)
 {
     return rb_io_gets_m(io, 0, 0, NULL);
-}
-
-/*
- *  call-seq:
- *     ios.sysseek(offset, whence=SEEK_SET)   => integer
- *
- *  Seeks to a given <i>offset</i> in the stream according to the value
- *  of <i>whence</i> (see <code>IO#seek</code> for values of
- *  <i>whence</i>). Returns the new offset into the file.
- *
- *     f = File.new("testfile")
- *     f.sysseek(-13, IO::SEEK_END)   #=> 53
- *     f.sysread(10)                  #=> "And so on."
- */
-
-static VALUE
-rb_io_sysseek(VALUE io, SEL sel, int argc, VALUE *argv)
-{
-rb_notimplement(); 
-}
-
-/*
- *  call-seq:
- *     ios.syswrite(string)   => integer
- *
- *  Writes the given string to <em>ios</em> using a low-level write.
- *  Returns the number of bytes written. Do not mix with other methods
- *  that write to <em>ios</em> or you may get unpredictable results.
- *  Raises <code>SystemCallError</code> on error.
- *
- *     f = File.new("out", "w")
- *     f.syswrite("ABCDEF")   #=> 6
- */
-
-static VALUE
-rb_io_syswrite(VALUE io, SEL sel, VALUE str)
-{
-rb_notimplement();
-}
-
-/*
- *  call-seq:
- *     ios.sysread(integer[, outbuf])    => string
- *
- *  Reads <i>integer</i> bytes from <em>ios</em> using a low-level
- *  read and returns them as a string. Do not mix with other methods
- *  that read from <em>ios</em> or you may get unpredictable results.
- *  If the optional <i>outbuf</i> argument is present, it must reference
- *  a String, which will receive the data.
- *  Raises <code>SystemCallError</code> on error and
- *  <code>EOFError</code> at end of file.
- *
- *     f = File.new("testfile")
- *     f.sysread(16)   #=> "This is line one"
- */
-
-static VALUE
-rb_io_sysread(VALUE io, SEL sel, int argc, VALUE *argv)
-{
-rb_notimplement();
 }
 
 VALUE
@@ -3907,8 +3889,8 @@ Init_IO(void)
     rb_objc_define_method(rb_cIO, "bytes",  rb_io_bytes, 0);
     rb_objc_define_method(rb_cIO, "chars",  rb_io_chars, 0);
 
-    rb_objc_define_method(rb_cIO, "syswrite", rb_io_syswrite, 1);
-    rb_objc_define_method(rb_cIO, "sysread",  rb_io_sysread, -1);
+    rb_objc_define_method(rb_cIO, "syswrite", io_write, 1);
+    rb_objc_define_method(rb_cIO, "sysread",  io_read, -1);
 
     rb_objc_define_method(rb_cIO, "fileno", rb_io_fileno, 0);
     rb_define_alias(rb_cIO, "to_i", "fileno");
@@ -3959,7 +3941,7 @@ Init_IO(void)
     rb_objc_define_method(rb_cIO, "isatty", rb_io_isatty, 0);
     rb_objc_define_method(rb_cIO, "tty?", rb_io_isatty, 0);
     rb_objc_define_method(rb_cIO, "binmode",  rb_io_binmode_m, 0);
-    rb_objc_define_method(rb_cIO, "sysseek", rb_io_sysseek, -1);
+    rb_objc_define_method(rb_cIO, "sysseek", rb_io_seek, -1);
 
     rb_objc_define_method(rb_cIO, "ioctl", rb_io_ioctl, -1);
     rb_objc_define_method(rb_cIO, "fcntl", rb_io_fcntl, -1);

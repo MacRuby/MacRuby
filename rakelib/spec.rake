@@ -38,6 +38,7 @@ namespace :spec do
     putc
     readchar
     sync
+    syswrite
     to_i
     to_io
     initialize

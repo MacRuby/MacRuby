@@ -5285,6 +5285,7 @@ rb_bytestring_new_with_data(const UInt8 *buf, long size)
 static void inline
 rb_bytestring_copy_cfstring_content(VALUE bstr, CFStringRef str)
 {
+	if (CFStringGetLength(str) == 0) return;
     const char *cptr = CFStringGetCStringPtr(str, kCFStringEncodingUTF8);
     assert(cptr != NULL); // TODO handle UTF-16 strings
 
