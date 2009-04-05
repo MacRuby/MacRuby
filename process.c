@@ -15,6 +15,7 @@
 #include "ruby/signal.h"
 #include "ruby/io.h"
 #include "ruby/util.h"
+#include "id.h"
 
 #include <stdio.h>
 #include <errno.h>
@@ -1818,7 +1819,7 @@ save_env(VALUE save)
         VALUE env = rb_const_get(rb_cObject, rb_intern("ENV"));
         if (RTEST(env)) {
             VALUE ary = hide_obj(rb_ary_new());
-            rb_block_call(env, rb_intern("each"), 0, 0, save_env_i,
+            rb_objc_block_call(env, selEach, cacheEach, 0, 0, save_env_i,
                           (VALUE)ary);
             rb_ary_store(save, EXEC_OPTION_ENV, ary);
         }

@@ -13,6 +13,7 @@
 ************************************************/
 
 #include "ruby/ruby.h"
+#include "id.h"
 
 /*
  * Document-class: Enumerable::Enumerator
@@ -130,7 +131,7 @@ enum_each_slice(VALUE obj, SEL sel, VALUE n)
     args[0] = rb_ary_new2(size);
     args[1] = (VALUE)size;
 
-    rb_block_call(obj, SYM2ID(sym_each), 0, 0, each_slice_i, (VALUE)args);
+    rb_objc_block_call(obj, selEach, cacheEach, 0, 0, each_slice_i, (VALUE)args);
 
     ary = args[0];
     if (RARRAY_LEN(ary) > 0) rb_yield(ary);
@@ -187,7 +188,7 @@ enum_each_cons(VALUE obj, SEL sel, VALUE n)
     args[0] = rb_ary_new2(size);
     args[1] = (VALUE)size;
 
-    rb_block_call(obj, SYM2ID(sym_each), 0, 0, each_cons_i, (VALUE)args);
+    rb_objc_block_call(obj, selEach, cacheEach, 0, 0, each_cons_i, (VALUE)args);
 
     return Qnil;
 }

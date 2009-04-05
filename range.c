@@ -13,9 +13,12 @@
 #include "ruby/encoding.h"
 #include "ruby/node.h"
 #include "roxor.h"
+#include "id.h"
 
 VALUE rb_cRange;
 static ID id_cmp, id_succ, id_beg, id_end, id_excl;
+static SEL selUpto = 0;
+static void *cacheUpto = NULL;
 
 #define RANGE_BEG(r) (RSTRUCT(r)->as.ary[0])
 #define RANGE_END(r) (RSTRUCT(r)->as.ary[1])
@@ -356,7 +359,7 @@ range_step(VALUE range, SEL sel, int argc, VALUE *argv)
 	    args[1] = EXCL(range) ? Qtrue : Qfalse;
 	    iter[0] = INT2FIX(1);
 	    iter[1] = step;
-	    rb_block_call(b, rb_intern("upto"), 2, args, step_i, (VALUE)iter);
+	    rb_objc_block_call(b, selUpto, cacheUpto, 2, args, step_i, (VALUE)iter);
 	}
 	else {
 	    VALUE args[2];
@@ -428,7 +431,7 @@ range_each(VALUE range, SEL sel)
 
 	args[0] = end;
 	args[1] = EXCL(range) ? Qtrue : Qfalse;
-	rb_block_call(beg, rb_intern("upto"), 2, args, rb_yield, 0);
+	rb_objc_block_call(beg, selUpto, cacheUpto, 2, args, rb_yield, 0);
     }
     else {
 	range_each_func(range, each_i, NULL);
@@ -500,7 +503,7 @@ range_first(VALUE range, SEL sel, int argc, VALUE *argv)
     rb_scan_args(argc, argv, "1", &n);
     ary[0] = n;
     ary[1] = rb_ary_new2(NUM2LONG(n));
-    rb_block_call(range, rb_intern("each"), 0, 0, first_i, (VALUE)ary);
+    rb_objc_block_call(range, selEach, cacheEach, 0, 0, first_i, (VALUE)ary);
 
     return ary[1];
 }
@@ -948,4 +951,7 @@ Init_Range(void)
     rb_objc_define_method(rb_cRange, "member?", range_include, 1);
     rb_objc_define_method(rb_cRange, "include?", range_include, 1);
     rb_objc_define_method(rb_cRange, "cover?", range_cover, 1);
+
+    selUpto = sel_registerName("upto:");
+    cacheUpto = rb_vm_get_call_cache(selUpto);
 }

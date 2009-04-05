@@ -1989,10 +1989,9 @@ take_items(VALUE obj, long n)
     VALUE args[2];
 
     args[0] = result; args[1] = (VALUE)n;
-    rb_block_call(obj, rb_intern("each"), 0, 0, take_i, (VALUE)args);
+    rb_objc_block_call(obj, selEach, cacheEach, 0, 0, take_i, (VALUE)args);
     return result;
 }
-
 
 /*
  *  call-seq:

@@ -98,5 +98,6 @@ extern SEL selSingletonMethodAdded;
 extern ID idIncludedModules;
 extern ID idIncludedInClasses;
 extern ID idAncestors;
+extern void *cacheEach;
 #endif
 #endif /* RUBY_ID_H */

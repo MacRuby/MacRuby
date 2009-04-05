@@ -314,7 +314,7 @@ rb_set_initialize(VALUE set, SEL sel, int argc, VALUE *argv)
 
     rb_scan_args(argc, argv, "01", &val);
     if (!NIL_P(val)) {
-	rb_block_call(val, rb_intern("each"), 0, 0, initialize_i, (VALUE)set);
+	rb_objc_block_call(val, selEach, cacheEach, 0, 0, initialize_i, (VALUE)set);
     } 
     else if (rb_block_given_p()) {
 	rb_warning("given block not used");

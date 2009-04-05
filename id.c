@@ -10,6 +10,8 @@
 **********************************************************************/
 
 #include "ruby/ruby.h"
+#include "ruby/node.h"
+#include "roxor.h"
 
 #define extern
 #include "id.h"
@@ -84,6 +86,8 @@ Init_id(void)
     selBackquote = sel_registerName("`:");
     selMethodAdded = sel_registerName("method_added:");
     selSingletonMethodAdded = sel_registerName("singleton_method_added:");
+
+    cacheEach = rb_vm_get_call_cache(selEach);
 #endif
 
     idAREF = rb_intern("[]");
