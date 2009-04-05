@@ -96,8 +96,8 @@ describe "A constant on a metaclass" do
   end
 
   it "appears in the metaclass constant list" do
-    constants = class << @object; constants; end
-    constants.should include_variable('CONST')
+    klass = (class << @object; self; end)
+    klass.should have_constant(:CONST)
   end
 
   it "does not appear in the object's class constant list" do
