@@ -1,14 +1,18 @@
 namespace :execute do
+  class NoCommandError < StandardError; end
+  
   def command
     if ENV['e']
       ENV['e']
     else
-      raise ArgumentError, 'To execute a command do: rake execute:all e="p :foo"'
+      raise NoCommandError, 'To execute a command do: rake execute:all e="p :foo"'
     end
   end
   
   def run(bin)
-    sh "#{bin} -e '#{command}'" rescue nil
+    sh "#{bin} -e '#{command}'"
+  rescue Exception => e
+    raise e if e.is_a?(NoCommandError)
   end
   
   desc "Run command (ENV['e']) with miniruby (MacRuby)"
