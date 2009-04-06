@@ -415,8 +415,7 @@ class RoxorVM
 	std::map<double, struct rb_float_cache *> float_cache;
 	unsigned char method_missing_reason;
 	rb_vm_block_t *current_block;
-	rb_vm_block_t *previous_block; // only used for non-Ruby created blocks
-	bool block_saved; // used by block_given?
+	rb_vm_block_t *previous_block;
 	bool parse_in_eval;
 
 	std::vector<jmp_buf *> return_from_block_jmp_bufs;
@@ -2183,7 +2182,6 @@ RoxorVM::RoxorVM(void)
 
     current_block = NULL;
     previous_block = NULL;
-    block_saved = false;
     parse_in_eval = false;
 
     load_path = rb_ary_new();
@@ -5664,15 +5662,14 @@ rb_vm_dispatch(struct mcache *cache, VALUE self, SEL sel, rb_vm_block_t *block,
     }
 
     rb_vm_block_t *b = (rb_vm_block_t *)block;
-    rb_vm_block_t *old_b = GET_VM()->current_block;
-    bool old_block_saved = GET_VM()->block_saved;
-    GET_VM()->block_saved = old_b != NULL;
+    rb_vm_block_t *old_b = GET_VM()->previous_block;
+    GET_VM()->previous_block = GET_VM()->current_block;
     GET_VM()->current_block = b;
 
     VALUE retval = __rb_vm_dispatch(cache, self, NULL, sel, opt, argc, argv);
 
-    GET_VM()->current_block = old_b;
-    GET_VM()->block_saved = old_block_saved;
+    GET_VM()->current_block = GET_VM()->previous_block;
+    GET_VM()->previous_block = old_b;
 
     if (!GET_VM()->bindings.empty()) {
 	rb_objc_release(GET_VM()->bindings.back());	
@@ -5972,7 +5969,7 @@ extern "C"
 bool
 rb_vm_block_saved(void)
 {
-    return GET_VM()->block_saved;
+    return GET_VM()->previous_block != NULL ? Qtrue : Qfalse;
 }
 
 extern "C"
