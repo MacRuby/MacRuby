@@ -78,6 +78,8 @@ bool rb_vm_respond_to(VALUE obj, SEL sel, bool priv);
 VALUE rb_vm_method_missing(VALUE obj, int argc, const VALUE *argv);
 int rb_vm_find_class_ivar_slot(VALUE klass, ID name);
 void rb_vm_set_outer(VALUE klass, VALUE under);
+VALUE rb_vm_catch(VALUE tag);
+VALUE rb_vm_throw(VALUE tag, VALUE value);
 
 static inline void
 rb_vm_regrow_robject_slots(struct RObject *obj, unsigned int new_num_slot)
