@@ -54,5 +54,7 @@ assert "42", %q{
 
 assert "42", "class A; def foo; @x; end; end; x = A.new; x.instance_eval { @x = 42 }; p x.foo"
 
+assert "42", "b = binding; eval('x = 42', b); eval('p x', b)"
+
 assert ":ok", "module M; module_eval 'p :ok'; end"
 assert ":ok", "module M; module_eval 'def self.foo; :ok; end'; end; p M.foo"
