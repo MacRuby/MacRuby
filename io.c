@@ -1310,7 +1310,13 @@ rb_io_readline(VALUE io, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_io_readlines(VALUE io, SEL sel, int argc, VALUE *argv)
 {
-rb_notimplement();
+	VALUE array = rb_ary_new();
+	VALUE line = rb_io_gets_m(io, sel, argc, argv);
+	while (!NIL_P(line)) {
+		rb_ary_push(array, line);
+		line = rb_io_gets_m(io, sel, argc, argv);
+	}
+	return array;
 }
 
 /*
@@ -1340,7 +1346,12 @@ rb_notimplement();
 static VALUE
 rb_io_each_line(VALUE io, SEL sel, int argc, VALUE *argv)
 {
-rb_notimplement();
+	VALUE line = rb_io_gets_m(io, sel, argc, argv);
+	while (!NIL_P(line)) {
+		rb_vm_yield(1, &line);
+		line = rb_io_gets_m(io, sel, argc, argv);
+	}
+	return io;
 }
 
 /*
@@ -1381,10 +1392,18 @@ rb_io_each_byte(VALUE io, SEL sel)
  *     f.each_char {|c| print c, ' ' }   #=> #<File:testfile>
  */
 
+static VALUE rb_io_getc(VALUE io, SEL sel);
+
 static VALUE
 rb_io_each_char(VALUE io, SEL sel)
 {
-rb_notimplement();
+	VALUE c = rb_io_getc(io, 0);
+	
+	while (!NIL_P(c)) {
+		rb_vm_yield(1, &c);
+		c = rb_io_getc(io, 0);
+	}
+	return io;
 }
 
 
