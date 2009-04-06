@@ -3,6 +3,7 @@ namespace :spec do
     and
     array
     case
+    catch
     class
     class_variable
     defined
