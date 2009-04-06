@@ -53,5 +53,10 @@ task :git_archive do
   sh "git archive --format=tar --prefix=MacRuby-HEAD/ HEAD | gzip >MacRuby-HEAD.tar.gz"
 end
 
-# desc "Run all 'known good' specs (task alias for spec:ci)"
-# task :spec => 'spec:ci'
+desc "Run all 'known good' specs (task alias for spec:ci)"
+task :spec => 'spec:ci'
+
+desc "Run IRB"
+task :irb do
+  exec './miniruby -I./lib ./bin/irb'
+end
