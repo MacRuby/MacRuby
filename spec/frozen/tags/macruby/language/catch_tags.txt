@@ -1,5 +1,4 @@
-fails:The catch keyword only allows symbols and strings
 fails:The catch keyword returns the last value of the block if it nothing is thrown
-fails:The catch keyword requires a block
+fails:The catch keyword does not match objects that are not exactly the same
 fails:The catch keyword supports nesting
 fails:The catch keyword supports nesting with the same name
