@@ -381,6 +381,12 @@ struct rb_vm_outer {
     struct rb_vm_outer *outer;
 };
 
+typedef struct {
+    jmp_buf buf;
+    VALUE throw_value;
+    int nested;
+} rb_vm_catch_t;
+
 class RoxorVM
 {
     private:
@@ -418,7 +424,7 @@ class RoxorVM
 	rb_vm_block_t *previous_block;
 	bool parse_in_eval;
 
-	CFMutableDictionaryRef catch_jmp_bufs;
+	std::map<VALUE, rb_vm_catch_t *> catch_jmp_bufs;
 	std::vector<jmp_buf *> return_from_block_jmp_bufs;
 
 	RoxorVM(void);
@@ -2184,8 +2190,6 @@ RoxorVM::RoxorVM(void)
     current_block = NULL;
     previous_block = NULL;
     parse_in_eval = false;
-
-    catch_jmp_bufs = NULL;
 
     load_path = rb_ary_new();
     rb_objc_retain((void *)load_path);
@@ -6697,42 +6701,44 @@ rb_backref_set(VALUE val)
     }
 }
 
-typedef struct {
-    jmp_buf *buf;
-    VALUE throw_value;
-} rb_vm_catch_t;
-
 extern "C"
 VALUE
 rb_vm_catch(VALUE tag)
 {
-    CFMutableDictionaryRef dict = GET_VM()->catch_jmp_bufs;
-    if (dict == NULL) {
-	dict = CFDictionaryCreateMutable(NULL, 0,
-		&kCFTypeDictionaryKeyCallBacks, NULL);
-	GET_VM()->catch_jmp_bufs = dict;
-    }
-    
-    void *key = RB2OC(tag);
+    std::map<VALUE, rb_vm_catch_t *>::iterator iter =
+	GET_VM()->catch_jmp_bufs.find(tag);
     rb_vm_catch_t *s = NULL;
-    if (!CFDictionaryGetValueIfPresent(dict, (void *)key, (const void **)&s)) {
+    if (iter == GET_VM()->catch_jmp_bufs.end()) {
 	s = (rb_vm_catch_t *)malloc(sizeof(rb_vm_catch_t));
-	s->buf = (jmp_buf *)malloc(sizeof(jmp_buf));
 	s->throw_value = Qnil;
-	CFDictionarySetValue(dict, (void *)key, (void *)s);
+	s->nested = 1;
+	GET_VM()->catch_jmp_bufs[tag] = s;
+	rb_objc_retain((void *)tag);
+    }
+    else {
+	s = iter->second;
+	s->nested++;
     }
 
-    if (setjmp(*s->buf) == 0) {
-        return rb_vm_yield(1, &tag);
+    VALUE retval;
+    if (setjmp(s->buf) == 0) {
+	retval = rb_vm_yield(1, &tag);
+    }
+    else {
+	retval = s->throw_value;
+	rb_objc_release((void *)retval);
+	s->throw_value = Qnil;
     }
 
-    VALUE retval = s->throw_value;
-    rb_objc_release((void *)retval);
-
-    // FIXME this crashes for a strange reason - to investigate
-    //CFDictionaryRemoveValue(GET_VM()->catch_jmp_bufs, key); 
-    //free(s->buf);
-    //free(s);
+    iter = GET_VM()->catch_jmp_bufs.find(tag);
+    assert(iter != GET_VM()->catch_jmp_bufs.end());
+    s->nested--;
+    if (s->nested == 0) {
+	s = iter->second;
+	free(s);
+	GET_VM()->catch_jmp_bufs.erase(iter);
+	rb_objc_release((void *)tag);
+    }
 
     return retval;
 }
@@ -6741,20 +6747,18 @@ extern "C"
 VALUE
 rb_vm_throw(VALUE tag, VALUE value)
 {
-    CFMutableDictionaryRef dict = GET_VM()->catch_jmp_bufs;
-    rb_vm_catch_t *s = NULL;
-    void *key = RB2OC(tag);
-    if (dict != NULL) {
-	CFDictionaryGetValueIfPresent(dict, (void *)key, (const void **)&s);
-    }
-    if (s == NULL) {
+    std::map<VALUE, rb_vm_catch_t *>::iterator iter =
+	GET_VM()->catch_jmp_bufs.find(tag);
+    if (iter == GET_VM()->catch_jmp_bufs.end()) {
         VALUE desc = rb_inspect(tag);
         rb_raise(rb_eArgError, "uncaught throw %s", RSTRING_PTR(desc));
     }
+    rb_vm_catch_t *s = iter->second;
 
     rb_objc_retain((void *)value);
     s->throw_value = value;
-    longjmp(*s->buf, 1);
+
+    longjmp(s->buf, 1);
 
     return Qnil; // never reached
 }
