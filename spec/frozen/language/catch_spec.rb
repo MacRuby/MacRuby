@@ -1,11 +1,23 @@
 require File.dirname(__FILE__) + '/../spec_helper'
 
-describe "The catch keyword" do  
-  it "only allows symbols and strings" do
-    lambda { catch(:foo) {} }.should_not raise_error
-    lambda { catch("foo") {} }.should_not raise_error
-    lambda { catch 1 }.should raise_error(ArgumentError)    
-    lambda { catch Object.new }.should raise_error(TypeError)    
+describe "The catch keyword" do
+
+  ruby_version_is "" ... "1.9" do
+    it "only allows symbols and strings" do
+      lambda { catch(:foo) {} }.should_not raise_error
+      lambda { catch("foo") {} }.should_not raise_error
+      lambda { catch 1 }.should raise_error(ArgumentError)    
+      lambda { catch Object.new }.should raise_error(TypeError)    
+    end
+  end
+
+  ruby_version_is "1.9" do
+    it "allows any object" do
+      lambda { catch(:foo) {} }.should_not raise_error
+      lambda { catch("foo") {} }.should_not raise_error
+      lambda { catch(1) {} }.should_not raise_error
+      lambda { catch(Object.new) {} }.should_not raise_error
+    end
   end
 
   it "returns the last value of the block if it nothing is thrown" do
@@ -14,9 +26,17 @@ describe "The catch keyword" do
     end.should == :noexit
   end
   
-  it "matches strings as symbols" do
-    lambda { catch("exit") { throw :exit } }.should_not raise_error
-    lambda { catch("exit") { throw "exit" } }.should_not raise_error
+  ruby_version_is "" ... "1.9" do
+    it "matches strings as symbols" do
+      lambda { catch("exit") { throw :exit } }.should_not raise_error
+      lambda { catch("exit") { throw "exit" } }.should_not raise_error
+    end
+  end
+
+  ruby_version_is "1.9" do
+    it "does not match strings as symbols" do
+      lambda { catch("exit") { throw :exit } }.should raise_error(ArgumentError)
+    end
   end
 
   it "requires a block" do
