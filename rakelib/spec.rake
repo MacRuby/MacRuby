@@ -70,6 +70,11 @@ namespace :spec do
     sh "./mspec/bin/mspec ci -B ./spec/frozen/macruby.mspec spec/frozen/language #{KNOWN_GOOD_CORE_IO_FILES.join(' ')}"
   end
   
+  desc "Run continuous integration language examples (all known good examples) (32 bit mode)"
+  task :ci32 do
+    sh "./miniruby32 ./mspec/bin/mspec-ci -B ./spec/frozen/macruby.mspec spec/frozen/language #{KNOWN_GOOD_CORE_IO_FILES.join(' ')}"
+  end
+  
   desc "Run IO test with GDB enabled"
   task :gdbio do
     sh "gdb --args ./miniruby -v -I./mspec/lib -I./lib ./mspec/bin/mspec-run #{KNOWN_GOOD_CORE_IO_FILES.join(' ')}"

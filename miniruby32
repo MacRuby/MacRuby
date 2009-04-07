@@ -1,0 +1,3 @@
+#!/usr/bin/env ruby
+
+exec "/usr/bin/arch -arch i386 ./miniruby #{ARGV.map { |a| a.inspect }.join(' ')}"
