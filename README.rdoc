@@ -12,8 +12,7 @@ MacRuby is copyrighted free software by Apple Inc and covered by the terms of
 the Ruby license. Please refer to the COPYING file for more information.
 
 The project website contains more documentation, such as tutorials and guides:
-
-  http://macruby.org
+http://macruby.org
 
 === Requirements
 
