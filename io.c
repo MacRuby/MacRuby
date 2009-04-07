@@ -854,7 +854,7 @@ rb_io_stream_read_internal(CFReadStreamRef readStream, UInt8 *buffer, long len)
 			CFStringRef pretty = CFStringCreateWithFormat(NULL, NULL,
 				CFSTR("Internal error while reading stream: %@"), failure_reason);
 			if(pretty != NULL)
-				rb_raise(rb_eRuntimeError, (char*)CFStringGetCharactersPtr(pretty));
+				rb_raise(rb_eRuntimeError, "%s", (char*)CFStringGetCharactersPtr(pretty));
 		}
 		rb_raise(rb_eRuntimeError, "internal error while reading stream:");
 	}

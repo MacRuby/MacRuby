@@ -6774,7 +6774,6 @@ Init_PreVM(void)
     RoxorVM::current = new RoxorVM();
 }
 
-extern "C"
 static VALUE
 rb_toplevel_to_s(VALUE rcv, SEL sel)
 {
