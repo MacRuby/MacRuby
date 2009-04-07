@@ -6311,6 +6311,7 @@ void
 rb_vm_raise(VALUE exception)
 {
     rb_objc_retain((void *)exception);
+    rb_iv_set(exception, "bt", rb_vm_backtrace(100));
     GET_VM()->current_exception = exception;
     void *exc = __cxa_allocate_exception(0);
     __cxa_throw(exc, NULL, NULL);
