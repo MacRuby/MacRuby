@@ -1,0 +1,223 @@
+= RubySpec
+
+One of the goals of MacRuby is to be compatible with MRI 1.9. To achieve, and
+maintain, this the RubySpec project has been merged in the MacRuby source. And
+used as a specification and regression test suite. Find them in ./spec/frozen/
+
+Originally the specs were written for MRI 1.8, this means that there currently
+are specs which are incompatible with _and_ invalid for MRI 1.9. Since MacRuby
+is based on MRI 1.9 this poses a problem. And thus getting the specs up-to-date
+with 1.9 is a high priority.
+
+For general info see: http://rubyspec.org/projects/show/rubyspec
+
+== MSpec quickie
+
+To run the specs you'll need MSpec (which you can find in ./mspec/). MSpec
+comes with a variety of `runners', but for now the ones of interest are
+`mspec-run' and `mspec-ci'. These will be ran by the wrapper `mspec' depending
+on the options given. In short; `mspec-run' will run _all_ specs, whereas
+`mspec-ci' will omit all specs tagged as failing. The specs ran by `mspec-ci'
+are the ones that _should_ be good and will be used for continuous integration
+testing to prevent regression.
+
+Normally you'd use the `run' variant while developing and `ci' before
+committing. Use the -B option with ./spec/frozen/macruby.mspec to run with
+MacRuby and the correct set of tags.
+
+For more info on the options see:
+* ./mspec/bin/mspec -h
+* ./mspec/bin/mspec ci -h
+* ./mspec/bin/mspec run -h
+
+For general info on MSpec see:
+* http://rubyspec.org/projects/show/mspec
+* http://github.com/rubyspec/mspec/tree/master
+
+== Running and updating specs
+
+Note: This README focusses on the language specs, but currently the `spec:ci'
+rake task also runs some IO specs. See ./rakelib/spec.rake for more info.
+
+First things first. Let's run the specs that should all pass:
+
+  $ ./mspec/bin/mspec ci -B ./spec/frozen/macruby.mspec ./spec/frozen/language
+  MacRuby version 0.5 (ruby 1.9.0) [universal-darwin9.0, x86_64]
+  ..................................................
+
+  Finished in 8.614058 seconds
+
+  50 files, 610 examples, 1511 expectations, 0 failures, 0 errors
+
+If this fails, a regression was introduced and should be fixed or reported. If
+not, good carry on.
+
+=== Tags
+
+Now run the ones that are tagged as `fails' (notice the usage of `run' vs `ci'):
+
+  $ ./mspec/bin/mspec run -B ./spec/frozen/macruby.mspec ./spec/frozen/language -g fails
+  MacRuby version 0.5 (ruby 1.9.0) [universal-darwin9.0, x86_64]
+  E..FE....EF.E.EF..F....EEF.F.....EF.EF.F...FF..E.F
+  
+  [SNIP]
+  
+  50 files, 187 examples, 211 expectations, 101 failures, 64 errors
+
+From this we can inflect a few things. First of all it appears there specs
+tagged as `fails' but actually pass. This is good because it means some specs
+were fixed but went unnoticed. To see which ones are passing add `-f s':
+
+  $ ./mspec/bin/mspec run -B ./spec/frozen/macruby.mspec ./spec/frozen/language -g fails -f s
+  MacRuby version 0.5 (ruby 1.9.0) [universal-darwin9.0, x86_64]
+  
+  [SNIP]
+  
+  The catch keyword
+  - returns the last value of the block if it nothing is thrown
+  - does not match objects that are not exactly the same
+  - supports nesting
+  - supports nesting with the same name
+  - only allows symbols and strings (FAILED - 1)
+  
+  [SNIP]
+
+You can see that there were 6 specs tagged as `fails' for the `catch' keyword.
+However, only one actually fails. Remove the ones that are passing from:
+
+  $ cat ./spec/frozen/tags/macruby/language/catch_tags.txt 
+  fails:The catch keyword returns the last value of the block if it nothing is thrown
+  fails:The catch keyword does not match objects that are not exactly the same
+  fails:The catch keyword supports nesting
+  fails:The catch keyword supports nesting with the same name
+  fails:The catch keyword only allows symbols and strings
+
+Now verify that the `ci' variant passes:
+
+  $ ./mspec/bin/mspec ci -B ./spec/frozen/macruby.mspec ./spec/frozen/language
+  MacRuby version 0.5 (ruby 1.9.0) [universal-darwin9.0, x86_64]
+  ..................................................
+
+  Finished in 8.641299 seconds
+
+  50 files, 614 examples, 1518 expectations, 0 failures, 0 errors
+
+Nice, time to commit/make a patch! :)
+
+=== Update
+
+The last remaining `catch' spec tagged as `fails' is due to it being invalid
+for MRI 1.9:
+
+  $ cat ./spec/frozen/language/catch_spec.rb
+  require File.dirname(__FILE__) + '/../spec_helper'
+
+  describe "The catch keyword" do
+    it "only allows symbols and strings" do
+      lambda { catch(:foo) {} }.should_not raise_error
+      lambda { catch("foo") {} }.should_not raise_error
+      lambda { catch 1 }.should raise_error(ArgumentError)
+      lambda { catch Object.new }.should raise_error(TypeError)
+    end
+    
+    [SNIP]
+  end
+
+On MRI 1.9 _any_ object is allowed for the `catch' keyword:
+
+  $ ruby19 -e 'lambda { catch(Object.new) {} }.call; p :ok'
+  => :ok
+
+After updating the spec it looks like this:
+
+  $ cat ./spec/frozen/language/catch_spec.rb
+  require File.dirname(__FILE__) + '/../spec_helper'
+
+  describe "The catch keyword" do
+    ruby_version_is "" ... "1.9" do
+      it "only allows symbols and strings" do
+        lambda { catch(:foo) {} }.should_not raise_error
+        lambda { catch("foo") {} }.should_not raise_error
+        lambda { catch(1) {} }.should raise_error(ArgumentError)
+        lambda { catch(Object.new) {} }.should raise_error(TypeError)
+      end
+    end
+
+    ruby_version_is "1.9" do
+      it "allows any object" do
+        lambda { catch(:foo) {} }.should_not raise_error
+        lambda { catch("foo") {} }.should_not raise_error
+        lambda { catch(1) {} }.should_not raise_error
+        lambda { catch(Object.new) {} }.should_not raise_error
+      end
+    end
+    
+    [SNIP]
+  end
+
+The `ruby_version_is' guard makes sure the spec is only ran on the correct MRI
+version. In this case, any version up to 1.9, and all versions from 1.9 up.
+Also the specs were adjusted to specify the correct 1.9 behaviour.
+
+Verify that it runs on MacRuby:
+
+  $ ./mspec/bin/mspec run -B ./spec/frozen/macruby.mspec ./spec/frozen/language/catch_spec.rb
+  MacRuby version 0.5 (ruby 1.9.0) [universal-darwin9.0, x86_64]
+  .......
+
+  Finished in 0.204007 seconds
+
+  1 file, 7 examples, 14 expectations, 0 failures, 0 errors
+
+Verify that it runs on MRI 1.9:
+
+  $ ./mspec/bin/mspec run -B ./spec/frozen/ruby.1.9.mspec ./spec/frozen/language/catch_spec.rb
+  ruby 1.9.1p0 (2009-01-30 revision 21907) [i386-darwin9.6.0]
+  .......
+
+  Finished in 0.003267 seconds
+
+  1 file, 7 examples, 14 expectations, 0 failures, 0 errors
+
+And verify that it still runs on MRI 1.8:
+
+  $ ./mspec/bin/mspec run -B ./spec/frozen/ruby.1.8.mspec ./spec/frozen/language/catch_spec.rb
+  ruby 1.8.6 (2008-03-03 patchlevel 114) [universal-darwin9.0]
+  .......
+
+  Finished in 0.005413 seconds
+
+  1 file, 7 examples, 12 expectations, 0 failures, 0 errors
+
+Finally run the `spec:ci' rake task to make sure that we didn't introduce a
+regression for some reason:
+
+  $ rake spec:ci
+
+Commit/patch time again! :)
+
+== Final notes
+
+Obviously all specs should be updated for MRI 1.9, not only the language ones.
+Ask on the mailing list which specs would be best to work on because someone
+might start working on a new part in the near future. At the moment help on the
+IO specs (./spec/frozen/core/io/) is appreciated.
+
+Next to specs being invalid for MRI 1.9 there are probably lots of areas in
+which spec coverage is lacking, work on this is also very much appreciated.
+
+=== Resources
+
+These are some resources which have been invaluable while working on this:
+* http://rubyspec.org/wiki/rubyspec
+* http://svn.ruby-lang.org/repos/ruby/tags/v1_9_1_0/NEWS
+* http://svn.ruby-lang.org/repos/ruby/tags/v1_9_1_0/ChangeLog
+* http://eigenclass.org/hiki/Changes+in+Ruby+1.9
+* The #rubyspec channel on the freenode IRC network
+
+=== Ruby versions
+
+The versions that you should use to test against are:
+* MacRuby experimental branch
+* MRI Ruby 1.9.1 release
+* MRI Ruby 1.8.6 release
