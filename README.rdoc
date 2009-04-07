@@ -26,12 +26,11 @@ The project website contains more documentation, such as tutorials and guides:
 
   In case trunk reveals to be unstable we recommend revision 67244.
 
-  $ svn co -r 67244 https://llvm.org/svn/llvm-project/llvm/trunk llvm-trunk
-  $ cd llvm-trunk
-  $ ./configure
-  $ UNIVERSAL=1 UNIVERSAL_ARCH="i386 x86_64" ENABLE_OPTIMIZED=1 make
-  $ sudo env UNIVERSAL=1 UNIVERSAL_ARCH="i386 x86_64" ENABLE_OPTIMIZED=1 \
-      make install
+    $ svn co -r 67244 https://llvm.org/svn/llvm-project/llvm/trunk llvm-trunk
+    $ cd llvm-trunk
+    $ ./configure
+    $ UNIVERSAL=1 UNIVERSAL_ARCH="i386 x86_64" ENABLE_OPTIMIZED=1 make
+    $ sudo env UNIVERSAL=1 UNIVERSAL_ARCH="i386 x86_64" ENABLE_OPTIMIZED=1 make install
 
 === Build Instructions
 
