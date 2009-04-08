@@ -862,15 +862,20 @@ Value *
 RoxorCompiler::compile_when_splat(Value *comparedToVal, Value *splatVal)
 {
     if (whenSplatFunc == NULL) {
-	// VALUE rb_vm_when_splat(struct mcache *cache, VALUE comparedTo, VALUE splat)
+	// VALUE rb_vm_when_splat(struct mcache *cache,
+	//			  unsigned char overriden,
+	//			  VALUE comparedTo, VALUE splat)
 	whenSplatFunc = cast<Function>
 	    (module->getOrInsertFunction("rb_vm_when_splat",
-					 RubyObjTy, PtrTy, RubyObjTy, RubyObjTy, NULL));
+					 RubyObjTy, PtrTy, Type::Int1Ty,
+					 RubyObjTy, RubyObjTy, NULL));
     }
 
     void *eqq_cache = GET_VM()->method_cache_get(selEqq, false);
     std::vector<Value *> params;
     params.push_back(compile_const_pointer(eqq_cache));
+    GlobalVariable *is_redefined = GET_VM()->redefined_op_gvar(selEqq, true);
+    params.push_back(new LoadInst(is_redefined, "", bb));
     params.push_back(comparedToVal);
     params.push_back(splatVal);
 
@@ -5775,16 +5780,27 @@ rb_vm_fast_eqq(struct mcache *cache, VALUE self, VALUE comparedTo)
 
 extern "C"
 VALUE
-rb_vm_when_splat(struct mcache *cache, VALUE comparedTo, VALUE splat)
+rb_vm_when_splat(struct mcache *cache, unsigned char overriden,
+		 VALUE comparedTo, VALUE splat)
 {
     VALUE ary = rb_check_convert_type(splat, T_ARRAY, "Array", "to_a");
     if (NIL_P(ary)) {
 	ary = rb_ary_new3(1, splat);
     }
     int count = RARRAY_LEN(ary);
-    for (int i = 0; i < count; ++i) {
-	if (RTEST(rb_vm_fast_eqq(cache, comparedTo, RARRAY_AT(ary, i)))) {
-	    return Qtrue;
+    if (overriden == 0) {
+	for (int i = 0; i < count; ++i) {
+	    if (RTEST(rb_vm_fast_eqq(cache, comparedTo, RARRAY_AT(ary, i)))) {
+		return Qtrue;
+	    }
+	}
+    }
+    else {
+	for (int i = 0; i < count; ++i) {
+	    VALUE o = RARRAY_AT(ary, i);
+	    if (RTEST(rb_vm_dispatch(cache, comparedTo, selEqq, NULL, 0, 1, &o))) {
+		return Qtrue;
+	    }
 	}
     }
     return Qfalse;
