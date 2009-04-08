@@ -326,7 +326,7 @@ class RoxorCompiler
 	ICmpInst *is_value_a_fixnum(Value *val);
 	void compile_ivar_slots(Value *klass, BasicBlock::InstListType &list, 
 				BasicBlock::InstListType::iterator iter);
-	bool unbox_fixnum_constant(Value *val, long *lval);
+	bool unbox_ruby_constant(Value *val, VALUE *rval);
 	SEL mid_to_sel(ID mid, int arity);
 };
 
@@ -644,14 +644,12 @@ RoxorCompiler::mid_to_sel(ID mid, int arity)
 }
 
 inline bool
-RoxorCompiler::unbox_fixnum_constant(Value *val, long *lval)
+RoxorCompiler::unbox_ruby_constant(Value *val, VALUE *rval)
 {
     if (ConstantInt::classof(val)) {
 	long tmp = cast<ConstantInt>(val)->getZExtValue();
-	if (FIXNUM_P(tmp)) {
-	    *lval = FIX2LONG(tmp);
-	    return true;
-	}
+	*rval = tmp;
+	return true;
     }
     return false;
 }
@@ -1640,11 +1638,61 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Va
 	Value *leftVal = params[1]; // self
 	Value *rightVal = params.back();
 
-	long leftLong = 0, rightLong = 0;
-	const bool leftIsConst = unbox_fixnum_constant(leftVal, &leftLong);
-	const bool rightIsConst = unbox_fixnum_constant(rightVal, &rightLong);
+	VALUE leftRVal = 0, rightRVal = 0;
+	const bool leftIsConstant = unbox_ruby_constant(leftVal, &leftRVal);
+	const bool rightIsConst = unbox_ruby_constant(rightVal, &rightRVal);
 
-	if (leftIsConst && rightIsConst) {
+	if (leftIsConstant && rightIsConst
+	    && TYPE(leftRVal) == T_SYMBOL && TYPE(rightRVal) == T_SYMBOL) {
+	    // Both operands are symbol constants.
+	    if (sel == selEq || sel == selEqq || sel == selNeq) {
+		Value *is_redefined_val = new LoadInst(is_redefined, "", bb);
+		Value *isOpRedefined = new ICmpInst(ICmpInst::ICMP_EQ, 
+			is_redefined_val, ConstantInt::getFalse(), "", bb);
+
+		Function *f = bb->getParent();
+
+		BasicBlock *thenBB = BasicBlock::Create("op_not_redefined", f);
+		BasicBlock *elseBB  = BasicBlock::Create("op_dispatch", f);
+		BasicBlock *mergeBB = BasicBlock::Create("op_merge", f);
+
+		BranchInst::Create(thenBB, elseBB, isOpRedefined, bb);
+		Value *thenVal = NULL;
+		if (sel == selEq || sel == selEqq) {
+		    thenVal = leftRVal == rightRVal ? trueVal : falseVal;
+		}
+		else if (sel == selNeq) {
+		    thenVal = leftRVal != rightRVal ? trueVal : falseVal;
+		}
+		else {
+		    abort();
+		}
+		BranchInst::Create(mergeBB, thenBB);
+
+		bb = elseBB;
+		Value *elseVal = compile_dispatch_call(params);
+		elseBB = bb;
+		BranchInst::Create(mergeBB, elseBB);
+
+		PHINode *pn = PHINode::Create(RubyObjTy, "op_tmp", mergeBB);
+		pn->addIncoming(thenVal, thenBB);
+		pn->addIncoming(elseVal, elseBB);
+		bb = mergeBB;
+
+		return pn;
+	    }
+	    else {
+		return NULL;
+	    }
+	}
+
+	const bool leftIsFixnumConstant = FIXNUM_P(leftRVal);
+	const bool rightIsFixnumConstant = FIXNUM_P(rightRVal);
+
+	long leftLong = leftIsFixnumConstant ? FIX2LONG(leftRVal) : 0;
+	long rightLong = rightIsFixnumConstant ? FIX2LONG(rightRVal) : 0;
+
+	if (leftIsFixnumConstant && rightIsFixnumConstant) {
 	    // Both operands are fixnum constants.
 	    bool result_is_fixnum = true;
 	    long res;
@@ -1738,13 +1786,13 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Va
  	    bb = then1BB;
 
 	    Value *leftAndOp = NULL;
-	    if (!leftIsConst) {
+	    if (!leftIsFixnumConstant) {
 		leftAndOp = BinaryOperator::CreateAnd(leftVal, oneVal, "", 
 			bb);
 	    }
 
 	    Value *rightAndOp = NULL;
-	    if (!rightIsConst) {
+	    if (!rightIsFixnumConstant) {
 		rightAndOp = BinaryOperator::CreateAnd(rightVal, oneVal, "", 
 			bb);
 	    }
@@ -1780,7 +1828,7 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Va
 	    bb = then2BB;
 
 	    Value *unboxedLeft;
-	    if (leftIsConst) {
+	    if (leftIsFixnumConstant) {
 		unboxedLeft = ConstantInt::get(RubyObjTy, leftLong);
 	    }
 	    else {
@@ -1788,7 +1836,7 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Va
 	    }
 
 	    Value *unboxedRight;
-	    if (rightIsConst) {
+	    if (rightIsFixnumConstant) {
 		unboxedRight = ConstantInt::get(RubyObjTy, rightLong);
 	    }
 	    else {
@@ -2324,10 +2372,13 @@ RoxorVM::redefined_op_gvar(SEL sel, bool create)
 inline bool
 RoxorVM::should_invalidate_inline_op(SEL sel, Class klass)
 {
+    if (sel == selEq || sel == selEqq || sel == selNeq) {
+	return klass == (Class)rb_cFixnum
+	    || klass == (Class)rb_cSymbol;
+    }
     if (sel == selPLUS || sel == selMINUS || sel == selDIV 
 	|| sel == selMULT || sel == selLT || sel == selLE 
-	|| sel == selGT || sel == selGE || sel == selEq
-	|| sel == selNeq || sel == selEqq) {
+	|| sel == selGT || sel == selGE) {
 	return klass == (Class)rb_cFixnum;
     }
 
