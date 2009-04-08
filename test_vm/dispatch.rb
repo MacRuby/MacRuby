@@ -241,3 +241,10 @@ assert '42', %{
   w = 42
   foo { |x, y = :y| p w }
 }
+
+# Tail-call elimination
+assert '42', %{
+  def foo(n); return if n == 0; foo(n-1); end
+  foo(30000000)
+  p 42
+}

@@ -2213,6 +2213,8 @@ RoxorVM::RoxorVM(void)
     fpm->add(createGVNPass());
     // Simplify the control flow graph (deleting unreachable blocks, etc).
     fpm->add(createCFGSimplificationPass());
+    // Eliminate tail calls.
+    fpm->add(createTailCallEliminationPass());
 }
 
 IMP
@@ -3343,15 +3345,16 @@ RoxorCompiler::compile_node(NODE *node)
 			GlobalVariable *old_class = current_opened_class;
 			current_opened_class = new GlobalVariable(
 				RubyObjTy,
-				false,
+				true,
 				GlobalValue::InternalLinkage,
 				nilVal,
 				"current_opened_class",
 				RoxorCompiler::module);
-			new StoreInst(classVal, current_opened_class, bb);
 
 			std::map<ID, int *> old_ivar_slots_cache = ivar_slots_cache;
 			ivar_slots_cache.clear();
+
+			new StoreInst(classVal, current_opened_class, bb);
 
 			Value *val = compile_node(body->nd_body);
 
@@ -3457,7 +3460,9 @@ rescan_args:
 			params.push_back(compile_node(n->nd_head));
 		    }
 
-		   return cast<Value>(CallInst::Create(f, params.begin(), params.end(), "", bb));
+		    CallInst *inst = CallInst::Create(f, params.begin(), params.end(), "", bb);
+		    inst->setTailCall(true);
+		    return cast<Value>(inst);
 		}
 
 		// Prepare the dispatcher parameters.

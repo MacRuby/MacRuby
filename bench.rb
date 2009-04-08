@@ -44,6 +44,11 @@ def ack(m, n)
   end
 end
 
+def tail(n)
+  return if n == 0
+  tail(n-1)
+end
+
 class Class1
   def method1; end
   def method2(x); x; end
@@ -121,6 +126,9 @@ Benchmark.bm(30) do |bm|
   bm.report('10000000 #send') do
     o = Class1.new
     i=0; while i<10000000; o.send(:method1); i+=1; end
+  end
+  bm.report('30000000 tail calls') do
+    tail(30000000) 
   end
 
   # Instance variables.
