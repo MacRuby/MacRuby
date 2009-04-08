@@ -3345,7 +3345,7 @@ RoxorCompiler::compile_node(NODE *node)
 			GlobalVariable *old_class = current_opened_class;
 			current_opened_class = new GlobalVariable(
 				RubyObjTy,
-				true,
+				false,
 				GlobalValue::InternalLinkage,
 				nilVal,
 				"current_opened_class",
