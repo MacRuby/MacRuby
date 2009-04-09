@@ -80,7 +80,7 @@ Init_<%=init_name%>(void)
   rb_vm_run(prelude_name<%=i%>, rb_compile_string(
     prelude_name<%=i%>,
     rb_str_new(prelude_code<%=i%>, sizeof(prelude_code<%=i%>) - 1),
-    1), NULL);
+    1), NULL, false);
 
 % }
 }

@@ -3,7 +3,7 @@
 #define ROXOR_COMPILER_DEBUG		0
 #define ROXOR_VM_DEBUG			0
 #define ROXOR_DUMP_IR_BEFORE_EXIT	0
-#define ROXOR_ULTRA_LAZY_JIT		0
+#define ROXOR_ULTRA_LAZY_JIT		1
 
 #include <llvm/Module.h>
 #include <llvm/DerivedTypes.h>
@@ -16,6 +16,7 @@
 #include <llvm/Target/TargetData.h>
 #include <llvm/ExecutionEngine/JIT.h>
 #include <llvm/ExecutionEngine/JITMemoryManager.h>
+#include <llvm/ExecutionEngine/GenericValue.h>
 #include <llvm/Target/TargetData.h>
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Target/TargetOptions.h>
@@ -399,6 +400,7 @@ class RoxorVM
 	ExistingModuleProvider *emp;
 	RoxorJITManager *jmm;
 	ExecutionEngine *ee;
+	ExecutionEngine *iee;
 	FunctionPassManager *fpm;
 	bool running;
 
@@ -441,6 +443,7 @@ class RoxorVM
 	RoxorVM(void);
 
 	IMP compile(Function *func);
+	VALUE interpret(Function *func);
 
 	bool symbolize_call_address(void *addr, void **startp,
 		unsigned long *ln, char *name, size_t name_len);
@@ -2223,6 +2226,7 @@ RoxorVM::RoxorVM(void)
     emp = new ExistingModuleProvider(RoxorCompiler::module);
     jmm = new RoxorJITManager;
     ee = ExecutionEngine::createJIT(emp, 0, jmm, true);
+    assert(ee != NULL);
 
     fpm = new FunctionPassManager(emp);
     fpm->add(new TargetData(*ee->getTargetData()));
@@ -2239,6 +2243,9 @@ RoxorVM::RoxorVM(void)
     fpm->add(createCFGSimplificationPass());
     // Eliminate tail calls.
     fpm->add(createTailCallEliminationPass());
+
+    iee = ExecutionEngine::create(emp, true);
+    assert(iee != NULL);
 }
 
 IMP
@@ -2275,6 +2282,15 @@ RoxorVM::compile(Function *func)
 #endif
 
     return imp;
+}
+
+VALUE
+RoxorVM::interpret(Function *func)
+{
+    std::vector<GenericValue> args;
+    args.push_back(PTOGV((void *)GET_VM()->current_top_object));
+    args.push_back(PTOGV(NULL));
+    return (VALUE)iee->runFunction(func, args).IntVal.getZExtValue();
 }
 
 bool
@@ -6811,41 +6827,41 @@ rb_dvar_defined(ID id)
 }
 
 extern "C"
-IMP
-rb_vm_compile(const char *fname, NODE *node)
-{
-    assert(node != NULL);
-
-    RoxorCompiler *compiler = new RoxorCompiler(fname);
-
-    Function *function = compiler->compile_main_function(node);
-
-    delete compiler;
-
-    return GET_VM()->compile(function);
-}
-
-extern "C"
 VALUE
-rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding)
+rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding,
+	  bool try_interpreter)
 {
     if (binding != NULL) {
 	GET_VM()->bindings.push_back(binding);
     }
 
-    IMP imp = rb_vm_compile(fname, node);
+    RoxorCompiler *compiler = new RoxorCompiler(fname);
+    Function *function = compiler->compile_main_function(node);
+    delete compiler;
 
     if (binding != NULL) {
 	GET_VM()->bindings.pop_back();
     }
 
+#if 0
+    // TODO the LLVM interpreter is not ready yet
+    if (try_interpreter) {
+	return GET_VM()->interpret(function);
+    }
+    else {
+	IMP imp = GET_VM()->compile(function);
+	return ((VALUE(*)(VALUE, SEL))imp)(GET_VM()->current_top_object, 0);
+    }
+#else
+    IMP imp = GET_VM()->compile(function);
     return ((VALUE(*)(VALUE, SEL))imp)(GET_VM()->current_top_object, 0);
+#endif
 }
 
 extern "C"
 VALUE
 rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
-		rb_vm_binding_t *binding)
+		rb_vm_binding_t *binding, bool try_interpreter)
 {
     VALUE old_top_object = GET_VM()->current_top_object;
     if (binding != NULL) {
@@ -6859,7 +6875,7 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
 	GET_VM()->current_class = (Class)klass;
     }
 
-    VALUE val = rb_vm_run(fname, node, binding);
+    VALUE val = rb_vm_run(fname, node, binding, try_interpreter);
 
     GET_VM()->current_top_object = old_top_object;
     GET_VM()->current_class = old_class;

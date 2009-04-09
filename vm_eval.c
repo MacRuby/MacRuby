@@ -348,7 +348,7 @@ eval_string(VALUE self, VALUE klass, VALUE src, VALUE scope, const char *file,
 	}
     }
 
-    return rb_vm_run_under(klass, self, file, node, b);
+    return rb_vm_run_under(klass, self, file, node, b, true);
 }
 
 static VALUE

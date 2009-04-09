@@ -48,10 +48,10 @@ typedef struct {
     void *cache;
 } rb_vm_method_t;
 
-VALUE rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding);
+VALUE rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding,
+		bool try_interpreter);
 VALUE rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
-		      rb_vm_binding_t *binding);
-IMP rb_vm_compile(const char *fname, NODE *node);
+		      rb_vm_binding_t *binding, bool try_interpreter);
 
 bool rb_vm_running(void);
 void rb_vm_set_running(bool flag);
