@@ -50,7 +50,7 @@ if `sw_vers -productVersion`.strip < '10.5.6'
 end
 
 if `arch`.include?('ppc')
-  $stderr.puts "Warning: your appear to use a PowerPC machine. MacRuby's PPC support is very basic and may be dropped in a near future. Supported architectures are Intel 32-bit and 64-bit (i386 and x86_64)." 
+  $stderr.puts "You appear to be using a PowerPC machine. MacRuby's primary architectures are Intel 32-bit and 64-bit (i386 and x86_64). Consequently, PowerPC support may be lacking some features."
 end
 
 LLVM_CONFIG = `which llvm-config`.strip
