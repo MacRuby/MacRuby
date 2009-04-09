@@ -572,28 +572,7 @@ rb_include_module2(VALUE klass, VALUE module, int check, int add_methods)
     DLOG("INCM", "%s <- %s", class_getName((Class)klass), class_getName((Class)module));
 
     if (add_methods) {
-	Method *methods;
-	unsigned int i, methods_count;
-
-	methods = class_copyMethodList((Class)module, &methods_count);
-	if (methods != NULL) {
-	    for (i = 0; i < methods_count; i++) {
-		Method method = methods[i], method2;
-		DLOG("DEFI", "-[%s %s]", class_getName((Class)klass), (char *)method_getName(method));
-
-		method2 = class_getInstanceMethod((Class)klass, method_getName(method));
-		if (method2 != NULL && method2 != class_getInstanceMethod((Class)RCLASS_SUPER(klass), method_getName(method))) {
-		    method_setImplementation(method2, method_getImplementation(method));
-		}
-		else {
-		    assert(class_addMethod((Class)klass, 
-				method_getName(method), 
-				method_getImplementation(method), 
-				method_getTypeEncoding(method)));
-		}
-	    }
-	    free(methods);
-	}
+	rb_vm_copy_methods((Class)module, (Class)klass);
     }
 }
 

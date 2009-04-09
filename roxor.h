@@ -68,6 +68,7 @@ bool rb_vm_lookup_method2(Class klass, ID mid, SEL *psel, IMP *pimp, NODE **pnod
 void rb_vm_define_method(Class klass, SEL sel, IMP imp, NODE *node, bool direct);
 void rb_vm_define_attr(Class klass, const char *name, bool read, bool write, int noex);
 void rb_vm_alias(VALUE klass, ID name, ID def);
+void rb_vm_copy_methods(Class from_class, Class to_class);
 VALUE rb_vm_call(VALUE self, SEL sel, int argc, const VALUE *args, bool super);
 VALUE rb_vm_call_with_cache(void *cache, VALUE self, SEL sel, int argc, const VALUE *argv);
 VALUE rb_vm_call_with_cache2(void *cache, VALUE self, VALUE klass, SEL sel, int argc, const VALUE *argv);

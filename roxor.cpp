@@ -3,6 +3,7 @@
 #define ROXOR_COMPILER_DEBUG		0
 #define ROXOR_VM_DEBUG			0
 #define ROXOR_DUMP_IR_BEFORE_EXIT	0
+#define ROXOR_ULTRA_LAZY_JIT		0
 
 #include <llvm/Module.h>
 #include <llvm/DerivedTypes.h>
@@ -387,6 +388,11 @@ typedef struct {
     int nested;
 } rb_vm_catch_t;
 
+typedef struct {
+    Function *func;
+    NODE *node;
+} rb_vm_method_source_t;
+
 class RoxorVM
 {
     private:
@@ -427,60 +433,25 @@ class RoxorVM
 	std::map<VALUE, rb_vm_catch_t *> catch_jmp_bufs;
 	std::vector<jmp_buf *> return_from_block_jmp_bufs;
 
-	RoxorVM(void);
+#if ROXOR_ULTRA_LAZY_JIT
+	std::map<Class, std::map<SEL, rb_vm_method_source_t *> *>
+	    method_sources;
+#endif
 
-	ExecutionEngine *execution_engine(void) { return ee; }
+	RoxorVM(void);
 
 	IMP compile(Function *func);
 
-	bool symbolize_call_address(void *addr, void **startp, unsigned long *ln,
-				    char *name, size_t name_len) {
-	    void *start = NULL;
-
-	    RoxorFunction *f = jmm->find_function((unsigned char *)addr);
-	    if (f != NULL) {
-		if (f->imp == NULL) {
-		    f->imp = ee->getPointerToFunctionOrStub(f->f);
-		}
-		start = f->imp;
-	    }
-	    else {
-		if (!rb_objc_symbolize_address(addr, &start, NULL, 0)) {
-		    return false;
-		}
-	    }
-
-	    assert(start != NULL);
-	    if (startp != NULL) {
-		*startp = start;
-	    }
-
-	    if (name != NULL || ln != NULL) {
-		std::map<IMP, struct RoxorFunctionIMP *>::iterator iter = 
-		    ruby_imps.find((IMP)start);
-		if (iter == ruby_imps.end()) {
-		    // TODO symbolize objc selectors
-		    return false;
-		}
-
-		struct RoxorFunctionIMP *fi = iter->second;
-		if (ln != NULL) {
-		    *ln = nd_line(fi->node);
-		}
-		if (name != NULL) {
-		    strncpy(name, sel_getName(fi->sel), name_len);
-		}
-	    }
-
-	    return true;
-	}
+	bool symbolize_call_address(void *addr, void **startp,
+		unsigned long *ln, char *name, size_t name_len);
 
 	bool is_running(void) { return running; }
 	void set_running(bool flag) { running = flag; }
 
 	struct mcache *method_cache_get(SEL sel, bool super);
 	NODE *method_node_get(IMP imp);
-	void add_method(Class klass, SEL sel, IMP imp, NODE *node, const char *types);
+	void add_method(Class klass, SEL sel, IMP imp, NODE *node,
+		const char *types);
 
 	GlobalVariable *redefined_op_gvar(SEL sel, bool create);
 	bool should_invalidate_inline_op(SEL sel, Class klass);
@@ -2299,10 +2270,55 @@ RoxorVM::compile(Function *func)
 
     uint64_t elapsedNano = elapsed * sTimebaseInfo.numer / sTimebaseInfo.denom;
 
-    printf("compilation done, took %lld ns\n",  elapsedNano);
+    printf("compilation of LLVM function %p done, took %lld ns\n",
+	func, elapsedNano);
 #endif
 
     return imp;
+}
+
+bool
+RoxorVM::symbolize_call_address(void *addr, void **startp, unsigned long *ln,
+				char *name, size_t name_len)
+{
+    void *start = NULL;
+
+    RoxorFunction *f = jmm->find_function((unsigned char *)addr);
+    if (f != NULL) {
+	if (f->imp == NULL) {
+	    f->imp = ee->getPointerToFunctionOrStub(f->f);
+	}
+	start = f->imp;
+    }
+    else {
+	if (!rb_objc_symbolize_address(addr, &start, NULL, 0)) {
+	    return false;
+	}
+    }
+
+    assert(start != NULL);
+    if (startp != NULL) {
+	*startp = start;
+    }
+
+    if (name != NULL || ln != NULL) {
+	std::map<IMP, struct RoxorFunctionIMP *>::iterator iter = 
+	    ruby_imps.find((IMP)start);
+	if (iter == ruby_imps.end()) {
+	    // TODO symbolize objc selectors
+	    return false;
+	}
+
+	struct RoxorFunctionIMP *fi = iter->second;
+	if (ln != NULL) {
+	    *ln = nd_line(fi->node);
+	}
+	if (name != NULL) {
+	    strncpy(name, sel_getName(fi->sel), name_len);
+	}
+    }
+
+    return true;
 }
 
 struct ccache *
@@ -4637,8 +4653,6 @@ RoxorCompiler::compile_lvar_slot(ID name)
 
 // VM primitives
 
-#define MAX_ARITY 20
-
 extern "C"
 bool
 rb_vm_running(void)
@@ -4824,6 +4838,10 @@ extern "C"
 VALUE
 rb_vm_ivar_get(VALUE obj, ID name, int *slot_cache)
 {
+#if ROXOR_VM_DEBUG
+    printf("get ivar %p.%s slot %d\n", (void *)obj, rb_id2name(name), 
+	    slot_cache == NULL ? -1 : *slot_cache);
+#endif
     if (slot_cache == NULL || *slot_cache == -1) {
 	return rb_ivar_get(obj, name);
     }
@@ -4837,6 +4855,12 @@ extern "C"
 void
 rb_vm_ivar_set(VALUE obj, ID name, VALUE val, int *slot_cache)
 {
+#if ROXOR_VM_DEBUG
+    printf("set ivar %p.%s slot %d new_val %p\n", (void *)obj, 
+	    rb_id2name(name), 
+	    slot_cache == NULL ? -1 : *slot_cache,
+	    (void *)val);
+#endif
     if (slot_cache == NULL || *slot_cache == -1) {
 	rb_ivar_set(obj, name, val);
     }
@@ -5060,6 +5084,58 @@ rb_vm_find_class_ivar_slot(VALUE klass, ID name)
     return -1;
 }
 
+#if ROXOR_ULTRA_LAZY_JIT
+static bool
+rb_vm_resolve_method(Class klass, SEL sel)
+{
+    //printf("rb_vm_resolve_method %s (%p) %s\n",class_getName(klass),klass,(char*)sel);
+    rb_vm_method_source_t *m = NULL;
+    std::map<SEL, rb_vm_method_source_t *> *dict = NULL;
+
+    while (true) {
+	std::map<Class, std::map<SEL, rb_vm_method_source_t *> *>::iterator
+	    iter = GET_VM()->method_sources.find(klass);
+
+	if (iter != GET_VM()->method_sources.end()) {
+	    dict = iter->second;
+	    std::map<SEL, rb_vm_method_source_t *>::iterator iter2 =
+		dict->find(sel);
+
+	    if (iter2 != dict->end()) {
+		m = iter2->second;
+		break;
+	    }
+	}
+	klass = class_getSuperclass(klass);
+	if (klass == NULL) {
+	    return false;
+	}
+    }
+
+    //printf("LLVM func %p\n",m->func);
+
+    IMP imp = GET_VM()->compile(m->func);
+
+    const int oc_arity = rb_vm_node_arity(m->node).real;
+
+    char *types = (char *)alloca(oc_arity + 4);
+    types[0] = '@';
+    types[1] = '@';
+    types[2] = ':';
+    for (int i = 0; i < oc_arity; i++) {
+	types[3 + i] = '@';
+    }
+    types[3 + oc_arity] = '\0';
+
+    GET_VM()->add_method(klass, sel, imp, m->node, types);
+
+    dict->erase(sel);
+    free(m);
+
+    return true;
+}
+#endif
+
 extern "C"
 void
 rb_vm_prepare_method(Class klass, SEL sel, Function *func, NODE *node)
@@ -5068,9 +5144,150 @@ rb_vm_prepare_method(Class klass, SEL sel, Function *func, NODE *node)
 	klass = GET_VM()->current_class;
     }
 
-    IMP imp = GET_VM()->compile(func);
+#if ROXOR_ULTRA_LAZY_JIT
 
+    // Let's keep the LLVM function and JIT it later.
+    std::map<Class, std::map<SEL, rb_vm_method_source_t *> *>::iterator iter = 
+	GET_VM()->method_sources.find(klass);
+    std::map<SEL, rb_vm_method_source_t *> *dict;
+
+    if (iter == GET_VM()->method_sources.end()) {
+	dict = new std::map< SEL, rb_vm_method_source_t *>();
+	GET_VM()->method_sources[klass] = dict;
+    }
+    else {
+	dict = iter->second;
+    }
+
+    const rb_vm_arity_t arity = rb_vm_node_arity(node);
+    const char *sel_name = sel_getName(sel);
+    const bool genuine_selector = sel_name[strlen(sel_name) - 1] == ':';
+    bool redefined = false;
+    SEL orig_sel = sel;
+    IMP imp = NULL;
+
+prepare_method:
+
+    if (class_getInstanceMethod(klass, sel) != NULL) {
+	if (imp == NULL) {
+	    imp = GET_VM()->compile(func);
+	}
+	rb_vm_define_method(klass, sel, imp, node, true);
+    }
+    else {
+#if ROXOR_VM_DEBUG
+	printf("preparing %c[%s %s] with LLVM func %p node %p\n",
+		class_isMetaClass(klass) ? '+' : '-',
+		class_getName(klass),
+		sel_getName(sel),
+		func,
+		node);
+#endif
+
+	std::map<SEL, rb_vm_method_source_t *>::iterator iter2 =
+	    dict->find(sel);
+	rb_vm_method_source_t *m = NULL;
+	if (iter2 == dict->end()) {
+	    m = (rb_vm_method_source_t *)malloc(sizeof(rb_vm_method_source_t));
+	    dict->insert(std::make_pair(sel, m));
+	}
+	else {
+	    m = iter2->second;
+	}
+
+	m->func = func;
+	m->node = node;
+    }
+    
+    if (!redefined) {
+	if (!genuine_selector && arity.max != arity.min) {
+	    char buf[100];
+	    snprintf(buf, sizeof buf, "%s:", sel_name);
+	    sel = sel_registerName(buf);
+	    redefined = true;
+
+	    goto prepare_method;
+	}
+	else if (genuine_selector && arity.min == 0) {
+	    char buf[100];
+	    strlcpy(buf, sel_name, sizeof buf);
+	    buf[strlen(buf) - 1] = 0; // remove the ending ':'
+	    sel = sel_registerName(buf);
+	    redefined = true;
+
+	    goto prepare_method;
+	}
+    }
+
+    if (RCLASS_VERSION(klass) & RCLASS_IS_INCLUDED) {
+	VALUE included_in_classes = rb_attr_get((VALUE)klass, 
+		idIncludedInClasses);
+	if (included_in_classes != Qnil) {
+	    int i, count = RARRAY_LEN(included_in_classes);
+	    for (i = 0; i < count; i++) {
+		VALUE mod = RARRAY_AT(included_in_classes, i);
+		rb_vm_prepare_method((Class)mod, orig_sel, func, node);
+	    }
+	}
+    }
+
+#else // !ROXOR_ULTRA_LAZY_JIT
+
+    IMP imp = GET_VM()->compile(func);
     rb_vm_define_method(klass, sel, imp, node, false);
+
+#endif
+}
+
+extern "C"
+void
+rb_vm_copy_methods(Class from_class, Class to_class)
+{
+    Method *methods;
+    unsigned int i, methods_count;
+
+    methods = class_copyMethodList(from_class, &methods_count);
+    if (methods != NULL) {
+	for (i = 0; i < methods_count; i++) {
+	    Method method = methods[i];
+
+	    class_replaceMethod(to_class,
+		    method_getName(method),
+		    method_getImplementation(method),
+		    method_getTypeEncoding(method));
+	}
+	free(methods);
+    }
+
+#if ROXOR_ULTRA_LAZY_JIT
+    std::map<Class, std::map<SEL, rb_vm_method_source_t *> *>::iterator
+	iter = GET_VM()->method_sources.find(from_class);
+
+    if (iter != GET_VM()->method_sources.end()) {
+	std::map<SEL, rb_vm_method_source_t *> *from_dict = iter->second;
+
+	std::map<Class, std::map<SEL, rb_vm_method_source_t *> *>::iterator
+	    iter2 = GET_VM()->method_sources.find(to_class);
+	
+	std::map<SEL, rb_vm_method_source_t *> *to_dict;
+	if (iter2 == GET_VM()->method_sources.end()) {
+	    to_dict = new std::map< SEL, rb_vm_method_source_t *>();
+	    GET_VM()->method_sources[to_class] = to_dict;
+	}
+	else {
+	    to_dict = iter2->second;	
+	}
+
+	for (std::map<SEL, rb_vm_method_source_t *>::iterator i = 
+		from_dict->begin(); i != from_dict->end(); ++i) {
+	    rb_vm_method_source_t *m = (rb_vm_method_source_t *)malloc(
+		    sizeof(rb_vm_method_source_t));
+	    m->func = i->second->func;
+	    m->node = i->second->node;
+	    to_dict->insert(std::make_pair(i->first, m));
+	}
+    }
+#endif
 }
 
 extern "C"
@@ -5115,7 +5332,8 @@ rb_vm_lookup_method(Class klass, SEL sel, IMP *pimp, NODE **pnode)
 
 extern "C"
 void
-rb_vm_define_attr(Class klass, const char *name, bool read, bool write, int noex)
+rb_vm_define_attr(Class klass, const char *name, bool read, bool write,
+		  int noex)
 {
     assert(klass != NULL);
     assert(read || write);
@@ -5128,25 +5346,41 @@ rb_vm_define_attr(Class klass, const char *name, bool read, bool write, int noex
 
     if (read) {
 	Function *f = compiler->compile_read_attr(iname);
-	IMP imp = GET_VM()->compile(f);
+	SEL sel = sel_registerName(name);
+#if ROXOR_ULTRA_LAZY_JIT
+	NODE *node = NEW_CFUNC(NULL, 0);
+	NODE *body = NEW_FBODY(NEW_METHOD(node, klass, noex), 0);
+	rb_objc_retain(body);
 
+	rb_vm_prepare_method(klass, sel, f, body);
+#else
+	IMP imp = GET_VM()->compile(f);
 	NODE *node = NEW_CFUNC(imp, 0);
 	NODE *body = NEW_FBODY(NEW_METHOD(node, klass, noex), 0);
 	rb_objc_retain(body);
 
-	rb_vm_define_method(klass, sel_registerName(name), imp, body, false);
+	rb_vm_define_method(klass, sel, imp, body, false);
+#endif
     }
 
     if (write) {
 	Function *f = compiler->compile_write_attr(iname);
-	IMP imp = GET_VM()->compile(f);
+	snprintf(buf, sizeof buf, "%s=:", name);
+	SEL sel = sel_registerName(buf);
+#if ROXOR_ULTRA_LAZY_JIT
+	NODE *node = NEW_CFUNC(NULL, 1);
+	NODE *body = NEW_FBODY(NEW_METHOD(node, klass, noex), 0);
+	rb_objc_retain(body);
 
+	rb_vm_prepare_method(klass, sel, f, body);
+#else
+	IMP imp = GET_VM()->compile(f);
 	NODE *node = NEW_CFUNC(imp, 1);
 	NODE *body = NEW_FBODY(NEW_METHOD(node, klass, noex), 0);
 	rb_objc_retain(body);
 
-	snprintf(buf, sizeof buf, "%s=:", name);
-	rb_vm_define_method(klass, sel_registerName(buf), imp, body, false);
+	rb_vm_define_method(klass, sel, imp, body, false);
+#endif
     }
 
     delete compiler;
@@ -5160,8 +5394,6 @@ rb_vm_define_method(Class klass, SEL sel, IMP imp, NODE *node, bool direct)
     assert(node != NULL);
 
     const rb_vm_arity_t arity = rb_vm_node_arity(node);
-    assert(arity.real < MAX_ARITY);
-
     const char *sel_name = sel_getName(sel);
     const bool genuine_selector = sel_name[strlen(sel_name) - 1] == ':';
 
@@ -5438,7 +5670,8 @@ rb_vm_super_lookup(VALUE klass, SEL sel, VALUE *klassp)
 		    bool on_stack = false;
 		    for (int j = callstack_n - 1; j >= 0; j--) {
 			void *start = NULL;
-			if (GET_VM()->symbolize_call_address(callstack[j], &start, NULL, NULL, 0)) {
+			if (GET_VM()->symbolize_call_address(callstack[j],
+				    &start, NULL, NULL, 0)) {
 			    if (start == (void *)imp) {
 				on_stack = true;
 				break;
@@ -6836,6 +7069,29 @@ rb_vm_throw(VALUE tag, VALUE value)
     return Qnil; // never reached
 }
 
+#if ROXOR_ULTRA_LAZY_JIT
+static IMP old_resolveClassMethod_imp = NULL;
+static IMP old_resolveInstanceMethod_imp = NULL;
+
+static BOOL
+resolveClassMethod_imp(void *self, SEL sel, SEL name)
+{
+    if (rb_vm_resolve_method(*(Class *)self, name)) {
+	return YES;
+    }
+    return NO; // TODO call old IMP
+}
+
+static BOOL
+resolveInstanceMethod_imp(void *self, SEL sel, SEL name)
+{
+    if (rb_vm_resolve_method((Class)self, name)) {
+	return YES;
+    }
+    return NO; // TODO call old IMP
+}
+#endif
+
 extern "C"
 void 
 Init_PreVM(void)
@@ -6844,6 +7100,22 @@ Init_PreVM(void)
 
     RoxorCompiler::module = new llvm::Module("Roxor");
     RoxorVM::current = new RoxorVM();
+
+#if ROXOR_ULTRA_LAZY_JIT
+    Method m;
+    Class ns_object = (Class)objc_getClass("NSObject");
+    m = class_getInstanceMethod(*(Class *)ns_object,
+	sel_registerName("resolveClassMethod:"));
+    assert(m != NULL);
+    old_resolveClassMethod_imp = method_getImplementation(m);
+    method_setImplementation(m, (IMP)resolveClassMethod_imp);
+
+    m = class_getInstanceMethod(*(Class *)ns_object,
+	sel_registerName("resolveInstanceMethod:"));
+    assert(m != NULL);
+    old_resolveInstanceMethod_imp = method_getImplementation(m);
+    method_setImplementation(m, (IMP)resolveInstanceMethod_imp);
+#endif
 }
 
 static VALUE
