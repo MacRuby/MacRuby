@@ -231,9 +231,9 @@ rb_hash_modify_check(VALUE hash)
     mask = rb_objc_flag_get_mask((const void *)hash);
 #endif
     if (mask == 0) {
-	bool _CFDictionaryIsMutable(void *);
-	if (!_CFDictionaryIsMutable((void *)hash))
+	if (RHASH_IMMUTABLE(hash)) {
 	    mask |= FL_FREEZE;
+	}
     }
     if ((mask & FL_FREEZE) == FL_FREEZE)
 	rb_raise(rb_eRuntimeError, "can't modify frozen/immutable hash");

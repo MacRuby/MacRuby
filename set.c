@@ -22,9 +22,9 @@ rb_set_modify_check(VALUE set)
     long mask;
     mask = rb_objc_flag_get_mask((void *)set);
     if (mask == 0) {
-	bool _CFSetIsMutable(void *);
-	if (!_CFSetIsMutable((void *)set))
+	if (RSET_IMMUTABLE(set)) {
 	    mask |= FL_FREEZE;
+	}
     }
     if ((mask & FL_FREEZE) == FL_FREEZE)
 	rb_raise(rb_eRuntimeError, "can't modify frozen/immutable set");

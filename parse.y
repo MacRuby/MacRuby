@@ -9531,6 +9531,9 @@ rb_intern3(const char *name, long len, rb_encoding *enc)
 	else if (strcmp(name, "release") == 0) {
 	    name_hash = (SEL)0x2000;
 	}
+	else if (strcmp(name, "retainCount") == 0) {
+	    name_hash = (SEL)0x4000;
+	}
 	else {
 	    assert(1==0);
 	}

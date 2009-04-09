@@ -19,7 +19,8 @@ http://macruby.org
 * An Intel machine. PowerPC machines are not supported anymore, but may still
   work. An Intel 64-bit machine (Intel Core Duo 2) is recommended.
 
-* Mac OS X 10.5.6 or later.
+* Mac OS X 10.5.6 or later. If you are building on Mac OS X 10.6 please get in
+  touch with lsansonetti@apple.com to be able to correctly build the project.
 
 * LLVM trunk, compiled for both i386 and x86_64.
 

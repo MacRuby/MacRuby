@@ -44,8 +44,7 @@ rb_ary_modify_check(VALUE ary)
     mask = rb_objc_flag_get_mask((void *)ary);
 #endif
     if (mask == 0) {
-	bool _CFArrayIsMutable(void *);
-	if (!_CFArrayIsMutable((void *)ary)) {
+	if (RARRAY_IMMUTABLE(ary)) {
 	    mask |= FL_FREEZE;
 	}
     }

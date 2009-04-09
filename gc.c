@@ -282,13 +282,13 @@ rb_objc_release(const void *addr)
 void
 rb_objc_set_associative_ref(void *obj, void *key, void *val)
 {
-     auto_zone_set_associative_ref(__auto_zone, obj, key, val);
+    auto_zone_set_associative_ref(__auto_zone, obj, key, val);
 }
 
 void *
 rb_objc_get_associative_ref(void *obj, void *key)
 {
-     return auto_zone_get_associative_ref(__auto_zone, obj, key);
+    return auto_zone_get_associative_ref(__auto_zone, obj, key);
 }
 
 void

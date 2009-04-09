@@ -1153,10 +1153,10 @@ rb_singleton_class(VALUE obj)
     else {
 	OBJ_UNTAINT(klass);
     }
-#endif
     if (OBJ_FROZEN(obj)) {
 	OBJ_FREEZE(klass);
     }
+#endif
 //    ALLOW_INTS;
 
     return klass;

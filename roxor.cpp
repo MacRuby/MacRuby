@@ -3,7 +3,7 @@
 #define ROXOR_COMPILER_DEBUG		0
 #define ROXOR_VM_DEBUG			0
 #define ROXOR_DUMP_IR_BEFORE_EXIT	0
-#define ROXOR_ULTRA_LAZY_JIT		1
+#define ROXOR_ULTRA_LAZY_JIT		0
 
 #include <llvm/Module.h>
 #include <llvm/DerivedTypes.h>
@@ -200,7 +200,8 @@ class RoxorCompiler
 	NODE *current_block_node;
 	Function *current_block_func;
 	jmp_buf *return_from_block_jmpbuf;
-        GlobalVariable *current_opened_class;
+	GlobalVariable *current_opened_class;
+	bool current_module;
 	BasicBlock *current_loop_begin_bb;
 	BasicBlock *current_loop_body_bb;
 	BasicBlock *current_loop_end_bb;
@@ -308,8 +309,7 @@ class RoxorCompiler
 	Value *compile_lvar_slot(ID name);
 
 	int *get_slot_cache(ID id) {
-	    if (current_block || !current_instance_method) {
-		// TODO should also return NULL if we are inside a module
+	    if (current_block || !current_instance_method || current_module) {
 		return NULL;
 	    }
 	    std::map<ID, int *>::iterator iter = ivar_slots_cache.find(id);
@@ -530,6 +530,7 @@ RoxorCompiler::RoxorCompiler(const char *_fname)
     current_block_node = NULL;
     current_block_func = NULL;
     current_opened_class = NULL;
+    current_module = false;
     current_loop_begin_bb = NULL;
     current_loop_body_bb = NULL;
     current_loop_end_bb = NULL;
@@ -3439,10 +3440,14 @@ RoxorCompiler::compile_node(NODE *node)
 				"current_opened_class",
 				RoxorCompiler::module);
 
+			bool old_current_module = current_module;
+
 			std::map<ID, int *> old_ivar_slots_cache = ivar_slots_cache;
 			ivar_slots_cache.clear();
 
 			new StoreInst(classVal, current_opened_class, bb);
+
+			current_module = nd_type(node) == NODE_MODULE;
 
 			Value *val = compile_node(body->nd_body);
 
@@ -3451,6 +3456,7 @@ RoxorCompiler::compile_node(NODE *node)
 
 			current_self = old_self;
 			current_opened_class = old_class;
+			current_module = old_current_module;
 
 			ivar_slots_cache = old_ivar_slots_cache;
 

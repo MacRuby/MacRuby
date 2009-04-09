@@ -487,8 +487,7 @@ static inline void
 str_modifiable(VALUE str)
 {
     if (*(VALUE *)str == rb_cCFString) {
-	bool __CFStringIsMutable(void *);
-	if (!__CFStringIsMutable((void *)str)) {
+	if (RSTRING_IMMUTABLE(str)) {
 	    rb_raise(rb_eRuntimeError, "can't modify immutable string");
 	}
     }
