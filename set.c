@@ -128,12 +128,14 @@ rb_set_union_callback(const void *value, void *context)
 }
 
 static VALUE
-rb_set_union(VALUE set, SEL sel, VALUE other)
+merge_i(VALUE val, VALUE *args)
 {
-    VALUE new_set = rb_set_dup(set, 0);
-    CFSetApplyFunction((CFMutableSetRef)other, rb_set_union_callback, (void *)new_set);
+    VALUE set = (VALUE)args;
+    if (!CFSetContainsValue((CFMutableSetRef)set, (const void *)RB2OC(val))) {
+	CFSetAddValue((CFMutableSetRef)set, (const void *)RB2OC(val));
+    }
 
-    return new_set;
+    return Qnil;
 }
 
 static VALUE
@@ -141,9 +143,22 @@ rb_set_merge(VALUE set, SEL sel, VALUE other)
 {
     rb_set_modify_check(set);
 
-    CFSetApplyFunction((CFMutableSetRef)other, rb_set_union_callback, (void *)set);
+    VALUE klass = *(VALUE *)other;
+    if (klass == rb_cCFSet || klass == rb_cNSSet || klass == rb_cNSMutableSet)
+	CFSetApplyFunction((CFMutableSetRef)other, rb_set_union_callback, (void *)set);	
+    else
+	rb_block_call(other, rb_intern("each"), 0, 0, merge_i, (VALUE)set);
 
     return set;
+}
+
+static VALUE
+rb_set_union(VALUE set, SEL sel, VALUE other)
+{
+    VALUE new_set = rb_set_dup(set, 0);
+    rb_set_merge(new_set, 0, other);
+
+    return new_set;
 }
 
 static void
