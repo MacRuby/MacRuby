@@ -436,8 +436,33 @@ class RoxorVM
 	std::vector<jmp_buf *> return_from_block_jmp_bufs;
 
 #if ROXOR_ULTRA_LAZY_JIT
-	std::map<Class, std::map<SEL, rb_vm_method_source_t *> *>
+	std::map<SEL, std::map<Class, rb_vm_method_source_t *> *>
 	    method_sources;
+	std::multimap<Class, SEL> method_source_sels;
+
+	std::map<Class, rb_vm_method_source_t *> *
+	method_sources_for_sel(SEL sel, bool create)
+	{
+	    std::map<SEL, std::map<Class, rb_vm_method_source_t *> *>::iterator
+		iter = method_sources.find(sel);
+		
+	    std::map<Class, rb_vm_method_source_t *> *map = NULL;
+	    if (iter == method_sources.end()) {
+		if (!create) {
+		    return NULL;
+		}
+		map = new std::map<Class, rb_vm_method_source_t *>();
+		method_sources[sel] = map;
+	    }
+	    else {
+		map = iter->second;
+	    }
+	    return map;
+	}
+#endif
+
+#if ROXOR_VM_DEBUG
+	long functions_compiled;
 #endif
 
 	RoxorVM(void);
@@ -2219,6 +2244,10 @@ RoxorVM::RoxorVM(void)
     previous_block = NULL;
     parse_in_eval = false;
 
+#if ROXOR_VM_DEBUG
+    functions_compiled = 0;
+#endif
+
     load_path = rb_ary_new();
     rb_objc_retain((void *)load_path);
     loaded_features = rb_ary_new();
@@ -2280,6 +2309,10 @@ RoxorVM::compile(Function *func)
 
     printf("compilation of LLVM function %p done, took %lld ns\n",
 	func, elapsedNano);
+#endif
+
+#if ROXOR_VM_DEBUG
+    functions_compiled++;
 #endif
 
     return imp;
@@ -5107,35 +5140,9 @@ rb_vm_find_class_ivar_slot(VALUE klass, ID name)
 }
 
 #if ROXOR_ULTRA_LAZY_JIT
-static bool
-rb_vm_resolve_method(Class klass, SEL sel)
+static void
+resolve_method(Class klass, SEL sel, rb_vm_method_source_t *m)
 {
-    //printf("rb_vm_resolve_method %s (%p) %s\n",class_getName(klass),klass,(char*)sel);
-    rb_vm_method_source_t *m = NULL;
-    std::map<SEL, rb_vm_method_source_t *> *dict = NULL;
-
-    while (true) {
-	std::map<Class, std::map<SEL, rb_vm_method_source_t *> *>::iterator
-	    iter = GET_VM()->method_sources.find(klass);
-
-	if (iter != GET_VM()->method_sources.end()) {
-	    dict = iter->second;
-	    std::map<SEL, rb_vm_method_source_t *>::iterator iter2 =
-		dict->find(sel);
-
-	    if (iter2 != dict->end()) {
-		m = iter2->second;
-		break;
-	    }
-	}
-	klass = class_getSuperclass(klass);
-	if (klass == NULL) {
-	    return false;
-	}
-    }
-
-    //printf("LLVM func %p\n",m->func);
-
     IMP imp = GET_VM()->compile(m->func);
 
     const int oc_arity = rb_vm_node_arity(m->node).real;
@@ -5150,11 +5157,59 @@ rb_vm_resolve_method(Class klass, SEL sel)
     types[3 + oc_arity] = '\0';
 
     GET_VM()->add_method(klass, sel, imp, m->node, types);
+} 
 
-    dict->erase(sel);
-    free(m);
+static bool
+rb_vm_resolve_method(Class klass, SEL sel)
+{
+    if (!GET_VM()->is_running()) {
+	return false;
+    }
 
-    return true;
+#if ROXOR_VM_DEBUG
+    printf("resolving %c[%s %s]\n",
+	class_isMetaClass(klass) ? '+' : '-',
+	class_getName(klass),
+	sel_getName(sel));
+#endif
+
+    std::map<Class, rb_vm_method_source_t *> *map =
+	GET_VM()->method_sources_for_sel(sel, false);
+    if (map == NULL) {
+	return false;
+    }
+
+    // Find the class where the method should be defined.
+    while (map->find(klass) == map->end() && klass != NULL) {
+	klass = class_getSuperclass(klass);
+    }
+    if (klass == NULL) {
+	return false;
+    }
+
+    // Now let's resolve all methods of the given name on the given class
+    // and superclasses.
+    bool did_something = false;
+    std::map<Class, rb_vm_method_source_t *>::iterator iter = map->begin();
+    while (iter != map->end()) {
+	Class k = iter->first;
+	while (k != klass && k != NULL) {
+	    k = class_getSuperclass(k);
+	}
+
+	if (k != NULL) {
+	    rb_vm_method_source_t *m = iter->second;
+	    resolve_method(iter->first, sel, m);
+	    map->erase(iter++);
+	    free(m);
+	    did_something = true;
+	}
+	else {
+	    ++iter;
+	}
+    }
+
+    return did_something;
 }
 #endif
 
@@ -5168,19 +5223,6 @@ rb_vm_prepare_method(Class klass, SEL sel, Function *func, NODE *node)
 
 #if ROXOR_ULTRA_LAZY_JIT
 
-    // Let's keep the LLVM function and JIT it later.
-    std::map<Class, std::map<SEL, rb_vm_method_source_t *> *>::iterator iter = 
-	GET_VM()->method_sources.find(klass);
-    std::map<SEL, rb_vm_method_source_t *> *dict;
-
-    if (iter == GET_VM()->method_sources.end()) {
-	dict = new std::map< SEL, rb_vm_method_source_t *>();
-	GET_VM()->method_sources[klass] = dict;
-    }
-    else {
-	dict = iter->second;
-    }
-
     const rb_vm_arity_t arity = rb_vm_node_arity(node);
     const char *sel_name = sel_getName(sel);
     const bool genuine_selector = sel_name[strlen(sel_name) - 1] == ':';
@@ -5191,12 +5233,14 @@ rb_vm_prepare_method(Class klass, SEL sel, Function *func, NODE *node)
 prepare_method:
 
     if (class_getInstanceMethod(klass, sel) != NULL) {
+	// The method already exists - we need to JIT it.
 	if (imp == NULL) {
 	    imp = GET_VM()->compile(func);
 	}
 	rb_vm_define_method(klass, sel, imp, node, true);
     }
     else {
+	// Let's keep the method and JIT it later on demand.
 #if ROXOR_VM_DEBUG
 	printf("preparing %c[%s %s] with LLVM func %p node %p\n",
 		class_isMetaClass(klass) ? '+' : '-',
@@ -5206,21 +5250,26 @@ prepare_method:
 		node);
 #endif
 
-	std::map<SEL, rb_vm_method_source_t *>::iterator iter2 =
-	    dict->find(sel);
+	std::map<Class, rb_vm_method_source_t *> *map =
+	    GET_VM()->method_sources_for_sel(sel, true);
+
+	std::map<Class, rb_vm_method_source_t *>::iterator iter =
+	    map->find(klass);
+
 	rb_vm_method_source_t *m = NULL;
-	if (iter2 == dict->end()) {
+	if (iter == map->end()) {
 	    m = (rb_vm_method_source_t *)malloc(sizeof(rb_vm_method_source_t));
-	    dict->insert(std::make_pair(sel, m));
+	    map->insert(std::make_pair(klass, m));
+	    GET_VM()->method_source_sels.insert(std::make_pair(klass, sel));
 	}
 	else {
-	    m = iter2->second;
+	    m = iter->second;
 	}
 
 	m->func = func;
 	m->node = node;
     }
-    
+
     if (!redefined) {
 	if (!genuine_selector && arity.max != arity.min) {
 	    char buf[100];
@@ -5282,33 +5331,35 @@ rb_vm_copy_methods(Class from_class, Class to_class)
     }
 
 #if ROXOR_ULTRA_LAZY_JIT
-    std::map<Class, std::map<SEL, rb_vm_method_source_t *> *>::iterator
-	iter = GET_VM()->method_sources.find(from_class);
+    std::multimap<Class, SEL>::iterator iter =
+	GET_VM()->method_source_sels.find(from_class);
 
-    if (iter != GET_VM()->method_sources.end()) {
-	std::map<SEL, rb_vm_method_source_t *> *from_dict = iter->second;
-
-	std::map<Class, std::map<SEL, rb_vm_method_source_t *> *>::iterator
-	    iter2 = GET_VM()->method_sources.find(to_class);
+    if (iter != GET_VM()->method_source_sels.end()) {
+	std::multimap<Class, SEL>::iterator last =
+	    GET_VM()->method_source_sels.upper_bound(from_class);
+	for (; iter != last; ++iter) {
+	    SEL sel = iter->second;
 	
-	std::map<SEL, rb_vm_method_source_t *> *to_dict;
-	if (iter2 == GET_VM()->method_sources.end()) {
-	    to_dict = new std::map< SEL, rb_vm_method_source_t *>();
-	    GET_VM()->method_sources[to_class] = to_dict;
-	}
-	else {
-	    to_dict = iter2->second;	
-	}
+	    std::map<Class, rb_vm_method_source_t *> *dict =
+		GET_VM()->method_sources_for_sel(sel, false);
 
-	for (std::map<SEL, rb_vm_method_source_t *>::iterator i = 
-		from_dict->begin(); i != from_dict->end(); ++i) {
-	    rb_vm_method_source_t *m = (rb_vm_method_source_t *)malloc(
-		    sizeof(rb_vm_method_source_t));
-	    m->func = i->second->func;
-	    m->node = i->second->node;
-	    to_dict->insert(std::make_pair(i->first, m));
+	    if (dict == NULL) {
+		continue;
+	    }
+
+	    std::map<Class, rb_vm_method_source_t *>::iterator
+		iter2 = dict->find(from_class);
+	    if (iter2 == dict->end()) {
+		continue;
+	    }
+
+	    rb_vm_method_source_t *m = (rb_vm_method_source_t *)
+		malloc(sizeof(rb_vm_method_source_t));
+	    m->func = iter2->second->func;
+	    m->node = iter2->second->node;
+	    dict->insert(std::make_pair(to_class, m));
 	}
-    }
+    } 
 #endif
 }
 
@@ -5658,7 +5709,8 @@ rb_vm_super_lookup(VALUE klass, SEL sel, VALUE *klassp)
 
 #if ROXOR_VM_DEBUG
     printf("locating super method %s of class %s in ancestor chain %s\n", 
-	    sel_getName(sel), rb_class2name(klass), RSTRING_PTR(rb_inspect(ary)));
+	    sel_getName(sel), rb_class2name(klass),
+	    RSTRING_PTR(rb_inspect(ary)));
     printf("callstack: ");
     for (i = callstack_n - 1; i >= 0; i--) {
 	printf("%p ", callstack[i]);
@@ -5676,37 +5728,35 @@ rb_vm_super_lookup(VALUE klass, SEL sel, VALUE *klassp)
         }
         if (klass_located) {
             if (i < count - 1) {
-		VALUE tmp;
-		Method method;
-
                 k = RARRAY_AT(ary, i + 1);
 
-		tmp = RCLASS_SUPER(k);
-		RCLASS_SUPER(k) = 0;
-		method = class_getInstanceMethod((Class)k, sel);
-		RCLASS_SUPER(k) = tmp;
+		Method method = class_getInstanceMethod((Class)k, sel);
+		VALUE super = RCLASS_SUPER(k);
 
-		if (method != NULL) {
-		    IMP imp = method_getImplementation(method);
+		if (method == NULL || (super != 0
+		    && class_getInstanceMethod((Class)super, sel) == method)) {
+		    continue;
+		}
 
-		    bool on_stack = false;
-		    for (int j = callstack_n - 1; j >= 0; j--) {
-			void *start = NULL;
-			if (GET_VM()->symbolize_call_address(callstack[j],
-				    &start, NULL, NULL, 0)) {
-			    if (start == (void *)imp) {
-				on_stack = true;
-				break;
-			    }
+		IMP imp = method_getImplementation(method);
+
+		bool on_stack = false;
+		for (int j = callstack_n - 1; j >= 0; j--) {
+		    void *start = NULL;
+		    if (GET_VM()->symbolize_call_address(callstack[j],
+				&start, NULL, NULL, 0)) {
+			if (start == (void *)imp) {
+			    on_stack = true;
+			    break;
 			}
 		    }
+		}
 
-		    if (!on_stack) {
+		if (!on_stack) {
 #if ROXOR_VM_DEBUG
-			printf("returning method implementation from class/module %s\n", rb_class2name(k));
+		    printf("returning method implementation from class/module %s\n", rb_class2name(k));
 #endif
-			return method;
-		    }
+		    return method;
 		}
             }
         }
@@ -5866,12 +5916,13 @@ recache:
 	}
 
 #if ROXOR_VM_DEBUG
-	printf("ruby dispatch %c[<%s %p> %s] (imp=%p, cached=%s)\n",
+	printf("ruby dispatch %c[<%s %p> %s] (imp=%p, node=%p, cached=%s)\n",
 		class_isMetaClass(klass) ? '+' : '-',
 		class_getName(klass),
 		(void *)self,
 		sel_getName(sel),
 		rcache.imp,
+		rcache.node,
 		cached ? "true" : "false");
 #endif
 
@@ -7168,5 +7219,9 @@ rb_vm_finalize(void)
     printf("IR dump ----------------------------------------------\n");
     RoxorCompiler::module->dump();
     printf("------------------------------------------------------\n");
+#endif
+#if ROXOR_VM_DEBUG
+    printf("functions all=%ld compiled=%ld\n", RoxorCompiler::module->size(),
+	    GET_VM()->functions_compiled);
 #endif
 }
