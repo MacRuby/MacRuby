@@ -919,6 +919,22 @@ rb_io_read_all(rb_io_t *io_struct, VALUE bytestring_buffer)
     return bytestring_buffer; 
 }
 
+UInt8 *
+rb_io_read_all_file(VALUE io, size_t *buflen)
+{
+    rb_io_t *io_struct = ExtractIOStruct(io);
+    struct stat buf;
+    if (fstat(io_struct->fd, &buf) == -1) {
+	return NULL;
+    }
+    UInt8 *str = (UInt8 *)xmalloc(buf.st_size);
+    rb_io_read_internal(io_struct, str, buf.st_size);
+    if (buflen != NULL) {
+	*buflen = buf.st_size;
+    }
+    return str; 
+}
+
 /*
  *  call-seq:
  *     ios.readpartial(maxlen)              => string
@@ -1139,9 +1155,12 @@ static VALUE
 rb_io_gets_m(VALUE io, SEL sel, int argc, VALUE *argv)
 {
     VALUE sep, limit;
-    rb_scan_args(argc, argv, "02", &sep, &limit);
+    sep = limit = Qnil;
+    if (argc != 0) {
+	rb_scan_args(argc, argv, "02", &sep, &limit);
+    }
     rb_io_t *io_struct = ExtractIOStruct(io);
-	rb_io_assert_readable(io_struct);
+    rb_io_assert_readable(io_struct);
     if (rb_io_eof(io, 0) == Qtrue) {
 	return Qnil;
     }

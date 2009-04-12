@@ -5116,10 +5116,37 @@ rb_parser_compile_cstr(volatile VALUE vparser, const char *f, const char *s, int
     return rb_parser_compile_string(vparser, f, rb_str_new(s, len), line);
 }
 
+struct lex_io_gets_data {
+    UInt8 *buf;
+    size_t buflen;
+};
+
 static VALUE
-lex_io_gets(struct parser_params *parser, VALUE io)
+lex_io_gets(struct parser_params *parser, VALUE udata)
 {
-    return rb_io_gets(io, 0);
+    struct lex_io_gets_data *data = (struct lex_io_gets_data *)udata;
+
+    long beg = 0; 
+    if (lex_gets_ptr > 0) {
+	if (data->buflen == lex_gets_ptr) {
+	    return Qnil;
+	}
+	beg = lex_gets_ptr;
+    }
+
+    char *p = strchr((char *)data->buf + beg, '\n');
+    if (p != NULL) {
+	const long location = p - (char *)data->buf;
+	lex_gets_ptr = location + 1;
+    }
+    else {
+	lex_gets_ptr = data->buflen;
+    }
+
+    CFStringRef v = CFStringCreateWithBytes(NULL, data->buf + beg,
+	    lex_gets_ptr - beg, kCFStringEncodingUTF8, false);
+    CFMakeCollectable(v);
+    return (VALUE)v;
 }
 
 NODE*
@@ -5130,6 +5157,8 @@ rb_compile_file(const char *f, VALUE file, int start)
     return rb_parser_compile_file(vparser, f, file, start);
 }
 
+UInt8 *rb_io_read_all_file(VALUE io, size_t *buflen);
+
 NODE*
 rb_parser_compile_file(volatile VALUE vparser, const char *f, VALUE file, int start)
 {
@@ -5138,12 +5167,25 @@ rb_parser_compile_file(volatile VALUE vparser, const char *f, VALUE file, int st
     NODE *node;
 
     Data_Get_Struct(vparser, struct parser_params, parser);
+
+    size_t buflen = 0;
+    UInt8 *buf = rb_io_read_all_file(file, &buflen);
+    if (buf == NULL || buflen == 0) {
+	return NULL;
+    }
+
+    struct lex_io_gets_data data;
+    data.buf = buf;
+    data.buflen = buflen;
+
     lex_gets = lex_io_gets;
-    lex_input = file;
+    lex_input = (VALUE)&data;
     lex_pbeg = lex_p = lex_pend = 0;
 
     node = yycompile(parser, f, start);
     tmp = vparser; /* prohibit tail call optimization */
+
+    xfree(buf); 
 
     return node;
 }
