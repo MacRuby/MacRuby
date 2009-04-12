@@ -1566,6 +1566,9 @@ rb_objc_symbolize_address(void *addr, void **start, char *name, size_t name_len)
 	return true;
     }
 
+#if 1
+    return false;
+#else
     id symbolicator = rb_objc_symbolicator();
     id symbol = [symbolicator symbolForAddress:(NSUInteger)addr];
     if (symbol == nil) {
@@ -1579,6 +1582,7 @@ rb_objc_symbolize_address(void *addr, void **start, char *name, size_t name_len)
 	strncpy(name, [[symbol name] UTF8String], name_len);
     }
     return true;
+#endif
 }
 
 VALUE
