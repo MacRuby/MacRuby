@@ -888,12 +888,12 @@ rb_io_read_internal(rb_io_t *io_struct, UInt8 *buffer, long len)
 	}
     }
 	
-	if (io_struct->pipe != -1) {
-		int status;
-		waitpid(io_struct->pid, &status, 0);
-		close(io_struct->pipe);
-		io_struct->pipe = -1;
-	}
+    if (io_struct->pipe != -1) {
+	int status;
+	waitpid(io_struct->pid, &status, 0);
+	close(io_struct->pipe);
+	io_struct->pipe = -1;
+    }
 
     // Read from the stream.
     data_read += rb_io_stream_read_internal(io_struct->readStream,
@@ -919,20 +919,23 @@ rb_io_read_all(rb_io_t *io_struct, VALUE bytestring_buffer)
     return bytestring_buffer; 
 }
 
-UInt8 *
-rb_io_read_all_file(VALUE io, size_t *buflen)
+// Called by parse.y
+size_t rb_io_file_size(VALUE io)
 {
     rb_io_t *io_struct = ExtractIOStruct(io);
     struct stat buf;
     if (fstat(io_struct->fd, &buf) == -1) {
-	return NULL;
+	return 0;
     }
-    UInt8 *str = (UInt8 *)xmalloc(buf.st_size);
-    rb_io_read_internal(io_struct, str, buf.st_size);
-    if (buflen != NULL) {
-	*buflen = buf.st_size;
-    }
-    return str; 
+    return buf.st_size;
+}
+
+// Called by parse.y
+bool
+rb_io_read_all_file(VALUE io, UInt8 *buffer, size_t buffer_len)
+{
+    rb_io_t *io_struct = ExtractIOStruct(io);
+    return rb_io_read_internal(io_struct, buffer, buffer_len) > 0;
 }
 
 /*

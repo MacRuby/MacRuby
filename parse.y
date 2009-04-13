@@ -5157,7 +5157,8 @@ rb_compile_file(const char *f, VALUE file, int start)
     return rb_parser_compile_file(vparser, f, file, start);
 }
 
-UInt8 *rb_io_read_all_file(VALUE io, size_t *buflen);
+size_t rb_io_file_size(VALUE io);
+bool rb_io_read_all_file(VALUE io, UInt8 *buf, size_t buflen);
 
 NODE*
 rb_parser_compile_file(volatile VALUE vparser, const char *f, VALUE file, int start)
@@ -5168,9 +5169,13 @@ rb_parser_compile_file(volatile VALUE vparser, const char *f, VALUE file, int st
 
     Data_Get_Struct(vparser, struct parser_params, parser);
 
-    size_t buflen = 0;
-    UInt8 *buf = rb_io_read_all_file(file, &buflen);
-    if (buf == NULL || buflen == 0) {
+    size_t buflen = rb_io_file_size(file);
+    if (buflen == 0) {
+	return NULL;
+    }
+    // TODO use mmap() if the file is too big
+    UInt8 *buf = (UInt8 *)xmalloc(buflen);
+    if (!rb_io_read_all_file(file, buf, buflen)) {
 	return NULL;
     }
 
