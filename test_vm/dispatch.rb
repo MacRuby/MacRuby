@@ -248,3 +248,12 @@ assert '42', %{
   foo(30000000)
   p 42
 }
+
+assert 'true', 'p Object.new.methods.include?(:object_id)'
+assert "false\ntrue", %{
+  obj = Object.new
+  meta = class << obj; self; end
+  p obj.respond_to?(:bar) # without this call to respond_to it works fine
+  meta.class_eval { def bar; end }
+  p obj.respond_to?(:bar)
+}
