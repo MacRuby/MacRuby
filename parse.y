@@ -5122,7 +5122,7 @@ struct lex_io_gets_data {
 };
 
 static VALUE
-lex_io_gets(struct parser_params *parser, VALUE udata)
+lex_io_gets_fast(struct parser_params *parser, VALUE udata)
 {
     struct lex_io_gets_data *data = (struct lex_io_gets_data *)udata;
 
@@ -5149,6 +5149,12 @@ lex_io_gets(struct parser_params *parser, VALUE udata)
     return (VALUE)v;
 }
 
+static VALUE
+lex_io_gets(struct parser_params *parser, VALUE io)
+{
+    return rb_io_gets(io, 0);
+}
+
 NODE*
 rb_compile_file(const char *f, VALUE file, int start)
 {
@@ -5166,31 +5172,38 @@ rb_parser_compile_file(volatile VALUE vparser, const char *f, VALUE file, int st
     struct parser_params *parser;
     volatile VALUE tmp;
     NODE *node;
+    UInt8 *buf = NULL;
+    struct lex_io_gets_data data;
 
     Data_Get_Struct(vparser, struct parser_params, parser);
 
     size_t buflen = rb_io_file_size(file);
     if (buflen == 0) {
-	return NULL;
+	// may be a pipe or something, use the less-efficient code path.
+	lex_gets = lex_io_gets;
+	lex_input = file;
     }
-    // TODO use mmap() if the file is too big
-    UInt8 *buf = (UInt8 *)xmalloc(buflen);
-    if (!rb_io_read_all_file(file, buf, buflen)) {
-	return NULL;
+    else {
+	// TODO use mmap() if the file is too big
+	buf = (UInt8 *)xmalloc(buflen);
+	if (!rb_io_read_all_file(file, buf, buflen)) {
+	    return NULL;
+	}
+
+	data.buf = buf;
+	data.buflen = buflen;
+
+	lex_gets = lex_io_gets_fast;
+	lex_input = (VALUE)&data;
     }
 
-    struct lex_io_gets_data data;
-    data.buf = buf;
-    data.buflen = buflen;
-
-    lex_gets = lex_io_gets;
-    lex_input = (VALUE)&data;
     lex_pbeg = lex_p = lex_pend = 0;
-
     node = yycompile(parser, f, start);
     tmp = vparser; /* prohibit tail call optimization */
 
-    xfree(buf); 
+    if (buf != NULL) {
+	xfree(buf);
+    }
 
     return node;
 }
