@@ -162,6 +162,7 @@ class RoxorCompiler
 {
     public:
 	static llvm::Module *module;
+	static RoxorCompiler *shared;
 
 	RoxorCompiler(const char *fname);
 
@@ -256,6 +257,7 @@ class RoxorCompiler
 	Constant *falseVal;
 	Constant *undefVal;
 	Constant *splatArgFollowsVal;
+	Constant *cObject;
 	const Type *RubyObjTy; 
 	const Type *RubyObjPtrTy;
 	const Type *RubyObjPtrPtrTy;
@@ -333,6 +335,7 @@ class RoxorCompiler
 };
 
 llvm::Module *RoxorCompiler::module = NULL;
+RoxorCompiler *RoxorCompiler::shared = NULL;
 
 struct ccache {
     VALUE outer;
@@ -620,6 +623,7 @@ RoxorCompiler::RoxorCompiler(const char *_fname)
     falseVal = ConstantInt::get(RubyObjTy, Qfalse);
     undefVal = ConstantInt::get(RubyObjTy, Qundef);
     splatArgFollowsVal = ConstantInt::get(RubyObjTy, SPLAT_ARG_FOLLOWS);
+    cObject = ConstantInt::get(RubyObjTy, (long)rb_cObject);
     PtrTy = PointerType::getUnqual(Type::Int8Ty);
 
 #if ROXOR_COMPILER_DEBUG
@@ -1102,11 +1106,11 @@ RoxorCompiler::compile_cvar_assignment(ID name, Value *val)
 	    params.end(), "", bb);
 }
 
-Value *
+inline Value *
 RoxorCompiler::compile_current_class(void)
 {
     if (current_opened_class == NULL) {
-	return ConstantInt::get(RubyObjTy, (long)rb_cObject);
+	return cObject;
     }
     return new LoadInst(current_opened_class, "", bb);
 }
@@ -1264,7 +1268,7 @@ RoxorCompiler::compile_defined_expression(NODE *node)
 	case NODE_COLON3:
 	    what2 = nd_type(node) == NODE_COLON2
 		? compile_node(node->nd_head)
-		: ConstantInt::get(RubyObjTy, (long)rb_cObject);
+		: cObject;
 	    if (rb_is_const_id(node->nd_mid)) {
 		type = DEFINED_CONST;
 		what1 = (VALUE)node->nd_mid;
@@ -1517,7 +1521,7 @@ RoxorCompiler::compile_class_path(NODE *node)
 {
     if (nd_type(node) == NODE_COLON3) {
 	// ::Foo
-	return ConstantInt::get(RubyObjTy, (long)rb_cObject);
+	return cObject;
     }
     else if (node->nd_head != NULL) {
 	// Bar::Foo
@@ -4559,8 +4563,7 @@ rescan_args:
 
 	case NODE_COLON3:
 	    assert(node->nd_mid > 0);
-	    return compile_const(node->nd_mid,
-		    ConstantInt::get(RubyObjTy, (long)rb_cObject));
+	    return compile_const(node->nd_mid, cObject);
 
 	case NODE_CASE:
 	    {
@@ -4637,6 +4640,7 @@ RoxorCompiler::compile_main_function(NODE *node)
     BasicBlock::InstListType &list = 
 	function->getEntryBlock().getInstList();
     compile_ivar_slots(klass, list, list.begin());
+    ivar_slots_cache.clear();
 
     return function;
 }
@@ -5411,14 +5415,12 @@ rb_vm_define_attr(Class klass, const char *name, bool read, bool write,
     assert(klass != NULL);
     assert(read || write);
 
-    RoxorCompiler *compiler = new RoxorCompiler("");
-
     char buf[100];
     snprintf(buf, sizeof buf, "@%s", name);
     ID iname = rb_intern(buf);
 
     if (read) {
-	Function *f = compiler->compile_read_attr(iname);
+	Function *f = RoxorCompiler::shared->compile_read_attr(iname);
 	SEL sel = sel_registerName(name);
 #if ROXOR_ULTRA_LAZY_JIT
 	NODE *node = NEW_CFUNC(NULL, 0);
@@ -5437,7 +5439,7 @@ rb_vm_define_attr(Class klass, const char *name, bool read, bool write,
     }
 
     if (write) {
-	Function *f = compiler->compile_write_attr(iname);
+	Function *f = RoxorCompiler::shared->compile_write_attr(iname);
 	snprintf(buf, sizeof buf, "%s=:", name);
 	SEL sel = sel_registerName(buf);
 #if ROXOR_ULTRA_LAZY_JIT
@@ -5455,8 +5457,6 @@ rb_vm_define_attr(Class klass, const char *name, bool read, bool write,
 	rb_vm_define_method(klass, sel, imp, body, false);
 #endif
     }
-
-    delete compiler;
 }
 
 extern "C"
@@ -6892,9 +6892,7 @@ rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding,
 	GET_VM()->bindings.push_back(binding);
     }
 
-    RoxorCompiler *compiler = new RoxorCompiler(fname);
-    Function *function = compiler->compile_main_function(node);
-    delete compiler;
+    Function *function = RoxorCompiler::shared->compile_main_function(node);
 
     if (binding != NULL) {
 	GET_VM()->bindings.pop_back();
@@ -7201,6 +7199,8 @@ extern "C"
 void
 Init_VM(void)
 {
+    RoxorCompiler::shared = new RoxorCompiler("");
+
     rb_cTopLevel = rb_define_class("TopLevel", rb_cObject);
     rb_objc_define_method(rb_cTopLevel, "to_s", (void *)rb_toplevel_to_s, 0);
 
