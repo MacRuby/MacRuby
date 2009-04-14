@@ -75,6 +75,7 @@ Init_id(void)
     selSend = sel_registerName("send:");
     sel__send__ = sel_registerName("__send__:");
     selEqTilde = sel_registerName("=~:");
+    selClass = sel_registerName("class");
     selEval = sel_registerName("eval:");
     selInstanceEval = sel_registerName("instance_eval:");
     selClassEval = sel_registerName("class_eval:");

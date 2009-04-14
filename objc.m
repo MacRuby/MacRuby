@@ -1086,18 +1086,17 @@ SubtypeUntil(const char *type, char end)
 static inline const char *
 SkipStackSize(const char *type)
 {
-    while ((*type >= '0') && (*type <= '9'))
+    while ((*type >= '0') && (*type <= '9')) {
 	type += 1;
+    }
     return type;
 }
 
 static inline const char *
 SkipFirstType(const char *type)
 {
-    while (1)
-    {
-        switch (*type++)
-        {
+    while (1) {
+        switch (*type++) {
             case 'O':   /* bycopy */
             case 'n':   /* in */
             case 'o':   /* out */
@@ -1418,6 +1417,7 @@ rb_objc_call2(VALUE recv, VALUE klass, SEL sel, IMP imp,
     }
 }
 
+#if 0
 VALUE
 rb_objc_call(VALUE recv, SEL sel, int argc, VALUE *argv)
 {
@@ -1432,6 +1432,7 @@ rb_objc_call(VALUE recv, SEL sel, int argc, VALUE *argv)
     return rb_objc_call2(recv, klass, sel, method_getImplementation(method), 
 	    &sig, NULL, argc, argv);
 }
+#endif
 
 static inline const char *
 rb_get_bs_method_type(bs_element_method_t *bs_method, int arg)
@@ -1453,65 +1454,75 @@ rb_get_bs_method_type(bs_element_method_t *bs_method, int arg)
 }
 
 bool
-rb_objc_fill_sig(VALUE recv, Class klass, SEL sel, struct rb_objc_method_sig *sig, bs_element_method_t *bs_method)
+rb_objc_get_types(VALUE recv, Class klass, SEL sel,
+		  bs_element_method_t *bs_method, char *buf, size_t buflen)
 {
     Method method;
     const char *type;
-    char buf[100];
     unsigned i;
 
     method = class_getInstanceMethod(klass, sel);
     if (method != NULL) {
 	if (bs_method == NULL) {
-	    sig->types = method_getTypeEncoding(method);
-	    sig->argc = method_getNumberOfArguments(method);
+	    type = method_getTypeEncoding(method);
+	    assert(strlen(type) < buflen);
+	    buf[0] = '\0';
+	    do {
+		const char *type2 = SkipFirstType(type);
+		strncat(buf, type, type2 - type);
+		type = SkipStackSize(type2);
+	    }
+	    while (*type != '\0');
+	    //strlcpy(buf, method_getTypeEncoding(method), buflen);
+	    //sig->argc = method_getNumberOfArguments(method);
 	}
 	else {
 	    char buf2[100];
 	    type = rb_get_bs_method_type(bs_method, -1);
 	    if (type != NULL) {
-		strlcpy(buf, type, sizeof buf);
+		strlcpy(buf, type, buflen);
 	    }
 	    else {
 		method_getReturnType(method, buf2, sizeof buf2);
-		strlcpy(buf, buf2, sizeof buf);
+		strlcpy(buf, buf2, buflen);
 	    }
 
-	    sig->argc = method_getNumberOfArguments(method);
-	    for (i = 0; i < sig->argc; i++) {
-		if (i >= 2 && (type = rb_get_bs_method_type(bs_method, i - 2)) != NULL) {
-		    strlcat(buf, type, sizeof buf);
+	    //sig->argc = method_getNumberOfArguments(method);
+	    int argc = method_getNumberOfArguments(method);
+	    for (i = 0; i < argc; i++) {
+		if (i >= 2 && (type = rb_get_bs_method_type(bs_method, i - 2))
+			!= NULL) {
+		    strlcat(buf, type, buflen);
 		}
 		else {
 		    method_getArgumentType(method, i, buf2, sizeof(buf2));
-		    strlcat(buf, buf2, sizeof buf);
+		    strlcat(buf, buf2, buflen);
 		}
 	    }
-
-	    sig->types = (char *)sel_registerName(buf); /* unify the string */
 	}
 	return true;
     }
     else if (!SPECIAL_CONST_P(recv)) {
 	NSMethodSignature *msig = [(id)recv methodSignatureForSelector:sel];
 	if (msig != NULL) {
-	    char buf[100];
 	    unsigned i;
 
 	    type = rb_get_bs_method_type(bs_method, -1);
-	    if (type == NULL)
+	    if (type == NULL) {
 		type = [msig methodReturnType];
-	    strlcpy(buf, type, sizeof buf);
+	    }
+	    strlcpy(buf, type, buflen);
 
-	    sig->argc = [msig numberOfArguments];
-	    for (i = 0; i < sig->argc; i++) {
-		if (i < 2 || (type = rb_get_bs_method_type(bs_method, i - 2)) == NULL) {
+	    //sig->argc = [msig numberOfArguments];
+	    int argc = [msig numberOfArguments];
+	    for (i = 0; i < argc; i++) {
+		if (i < 2 || (type = rb_get_bs_method_type(bs_method, i - 2))
+			== NULL) {
 		    type = [msig getArgumentTypeAtIndex:i];
 		}
-		strlcat(buf, type, sizeof buf);
+		strlcat(buf, type, buflen);
 	    }
 
-	    sig->types = (char *)sel_registerName(buf); /* unify the string */
 	    return true;
 	}
     }

@@ -84,6 +84,7 @@ extern SEL sel_zone;
 extern SEL selSend;
 extern SEL sel__send__;
 extern SEL selEqTilde;
+extern SEL selClass;
 extern SEL selEval;
 extern SEL selInstanceEval;
 extern SEL selClassEval;

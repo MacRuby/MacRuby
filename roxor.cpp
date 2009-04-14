@@ -342,10 +342,8 @@ struct ccache {
     VALUE val;
 };
 
-struct ocall_helper {
-    struct rb_objc_method_sig sig;
-    bs_element_method_t *bs_method;
-};
+typedef VALUE rb_vm_objc_stub_t(IMP imp, VALUE self, SEL sel, int argc,
+				const VALUE *argv);
 
 struct mcache {
 #define MCACHE_RCALL 0x1
@@ -362,7 +360,8 @@ struct mcache {
 	struct {
 	    Class klass;
 	    IMP imp;
-	    struct ocall_helper *helper;
+	    bs_element_method_t *bs_method;	
+	    rb_vm_objc_stub_t *stub;
 	} ocall;
     } as;
 };
@@ -437,6 +436,8 @@ class RoxorVM
 
 	std::map<VALUE, rb_vm_catch_t *> catch_jmp_bufs;
 	std::vector<jmp_buf *> return_from_block_jmp_bufs;
+
+	std::map<std::string, void *> stubs;
 
 #if ROXOR_ULTRA_LAZY_JIT
 	std::map<SEL, std::map<Class, rb_vm_method_source_t *> *>
@@ -5531,7 +5532,8 @@ rb_vm_rhsn_get(VALUE obj, int offset)
     return Qnil;
 }
 
-static inline VALUE
+__attribute__((always_inline))
+static VALUE
 __rb_vm_bcall(VALUE self, VALUE dvars, IMP pimp, const rb_vm_arity_t &arity, int argc, const VALUE *argv)
 {
     if ((arity.real != argc) || (arity.max == -1)) {
@@ -5612,11 +5614,11 @@ __rb_vm_bcall(VALUE self, VALUE dvars, IMP pimp, const rb_vm_arity_t &arity, int
     abort();
 }
 
-static inline VALUE
+__attribute__((always_inline))
+static VALUE
 __rb_vm_rcall(VALUE self, SEL sel, NODE *node, IMP pimp,
 	      const rb_vm_arity_t &arity, int argc, const VALUE *argv)
 {
-    // TODO investigate why this function is not inlined!
     if ((arity.real != argc) || (arity.max == -1)) {
 	VALUE *new_argv = (VALUE *)alloca(sizeof(VALUE) * arity.real);
 	assert(argc >= arity.min);
@@ -5844,7 +5846,19 @@ method_missing(VALUE obj, SEL sel, int argc, const VALUE *argv,
     return rb_vm_call(obj, selMethodMissing, argc + 1, new_argv, false);
 }
 
-static inline VALUE
+static void *
+vm_gen_stub(std::string types, int argc, bool is_objc)
+{
+    std::map<std::string, void *>::iterator iter = GET_VM()->stubs.find(types);
+    if (iter != GET_VM()->stubs.end()) {
+	return iter->second;
+    }
+printf("vm_gen_stub %s\n", types.c_str());
+    return NULL;
+}
+
+__attribute__((always_inline))
+static VALUE
 __rb_vm_dispatch(struct mcache *cache, VALUE self, Class klass, SEL sel, 
 		 unsigned char opt, int argc, const VALUE *argv)
 {
@@ -5888,14 +5902,19 @@ recache:
 		cache->flag = MCACHE_OCALL;
 		ocache.klass = klass;
 		ocache.imp = imp;
-		ocache.helper = (struct ocall_helper *)malloc(
-			sizeof(struct ocall_helper));
-		ocache.helper->bs_method = rb_bs_find_method(klass, sel);
-		const bool ok = rb_objc_fill_sig(self, klass, sel, 
-			    &ocache.helper->sig, ocache.helper->bs_method);
-		if (!ok) {
+		ocache.bs_method = rb_bs_find_method(klass, sel);
+
+		char types[200];
+		if (!rb_objc_get_types(self, klass, sel, ocache.bs_method,
+				       types, sizeof types)) {
+		    printf("cannot get encoding types for %c[%s %s]\n",
+			    class_isMetaClass(klass) ? '+' : '-',
+			    class_getName(klass),
+			    sel_getName(sel));
 		    abort();
 		}
+		ocache.stub = (rb_vm_objc_stub_t *)vm_gen_stub(types, argc,
+			true);
 	    }
 	}
 	else {
@@ -5958,8 +5977,31 @@ recache:
     }
     else if (cache->flag == MCACHE_OCALL) {
 	if (ocache.klass != klass) {
-	    free(ocache.helper);
 	    goto recache;
+	}
+
+	if (sel == selClass) {
+	    if (RCLASS_META(klass)) {
+		// Because +[NSObject class] returns self.
+		return RCLASS_MODULE(self) ? rb_cModule : rb_cClass;
+	    }
+	    // Because the CF classes should be hidden, for Ruby compat.
+	    if (klass == (Class)rb_cCFString) {
+		return RSTRING_IMMUTABLE(self)
+		    ? rb_cNSString : rb_cNSMutableString;
+	    }
+	    if (klass == (Class)rb_cCFArray) {
+		return RARRAY_IMMUTABLE(self)
+		    ? rb_cNSArray : rb_cNSMutableArray;
+	    }
+	    if (klass == (Class)rb_cCFHash) {
+		return RHASH_IMMUTABLE(self)
+		    ? rb_cNSHash : rb_cNSMutableHash;
+	    }
+	    if (klass == (Class)rb_cCFSet) {
+		return RSET_IMMUTABLE(self)
+		    ? rb_cNSSet : rb_cNSMutableSet;
+	    }
 	}
 
 #if ROXOR_VM_DEBUG
@@ -5972,6 +6014,7 @@ recache:
 		cached ? "true" : "false");
 #endif
 
+#if 0
 	return rb_objc_call2((VALUE)self, 
 		(VALUE)klass, 
 		sel, 
@@ -5980,6 +6023,8 @@ recache:
 		ocache.helper->bs_method, 
 		argc, 
 		(VALUE *)argv);
+#endif
+	return (*ocache.stub)(ocache.imp, self, sel, argc, argv);
     }
 #undef rcache
 #undef ocache
@@ -6303,12 +6348,8 @@ rb_vm_call(VALUE self, SEL sel, int argc, const VALUE *argv, bool super)
     if (super) {
 	struct mcache cache; 
 	cache.flag = 0;
-	VALUE retval = __rb_vm_dispatch(&cache, self, NULL, sel, 
-					DISPATCH_SUPER, argc, argv);
-	if (cache.flag == MCACHE_OCALL) {
-	    free(cache.as.ocall.helper);
-	}
-	return retval;
+	return  __rb_vm_dispatch(&cache, self, NULL, sel, 
+				 DISPATCH_SUPER, argc, argv);
     }
     else {
 	struct mcache *cache = GET_VM()->method_cache_get(sel, false);
@@ -7140,6 +7181,19 @@ rb_vm_throw(VALUE tag, VALUE value)
     return Qnil; // never reached
 }
 
+static VALUE
+builtin_stub1(IMP imp, VALUE self, SEL sel, int argc, VALUE *argv)
+{
+    return ((VALUE (*)(VALUE, SEL))*imp)(self, sel);
+}
+
+static void
+setup_builtin_stubs(void)
+{
+    GET_VM()->stubs.insert(std::make_pair("@@:", (void *)builtin_stub1));
+    GET_VM()->stubs.insert(std::make_pair("#@:", (void *)builtin_stub1));
+}
+
 #if ROXOR_ULTRA_LAZY_JIT
 static IMP old_resolveClassMethod_imp = NULL;
 static IMP old_resolveInstanceMethod_imp = NULL;
@@ -7171,6 +7225,8 @@ Init_PreVM(void)
 
     RoxorCompiler::module = new llvm::Module("Roxor");
     RoxorVM::current = new RoxorVM();
+
+    setup_builtin_stubs();
 
 #if ROXOR_ULTRA_LAZY_JIT
     Method m;
