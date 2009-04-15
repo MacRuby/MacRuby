@@ -4,6 +4,7 @@
 #define ROXOR_VM_DEBUG			0
 #define ROXOR_DUMP_IR_BEFORE_EXIT	0
 #define ROXOR_ULTRA_LAZY_JIT		0
+#define ROXOR_INTERPRET_EVAL		0
 
 #include <llvm/Module.h>
 #include <llvm/DerivedTypes.h>
@@ -39,6 +40,20 @@ using namespace llvm;
 #include "objc.h"
 #include "roxor.h"
 #include <execinfo.h>
+
+#define FROM_GV(gv,t) ((t)(gv.IntVal.getZExtValue()))
+static GenericValue
+value2gv(VALUE v)
+{
+    GenericValue GV;
+#if __LP64__
+    GV.IntVal = APInt(64, v);
+#else
+    GV.IntVal = APInt(32, v);
+#endif
+    return GV;
+}
+#define VALUE_TO_GV(v) (value2gv((VALUE)v))
 
 extern "C" const char *ruby_node_name(int node);
 
@@ -4895,6 +4910,21 @@ rb_vm_define_class(ID path, VALUE outer, VALUE super, unsigned char is_module)
 }
 
 extern "C"
+GenericValue
+lle_X_rb_vm_define_class(const FunctionType *FT,
+			 const std::vector<GenericValue> &Args)
+{
+    assert(Args.size() == 4);
+
+    return VALUE_TO_GV(
+	    rb_vm_define_class(
+		FROM_GV(Args[0], ID),
+		FROM_GV(Args[1], VALUE),
+		FROM_GV(Args[2], VALUE),
+		FROM_GV(Args[3], unsigned char)));
+}
+
+extern "C"
 VALUE
 rb_vm_ivar_get(VALUE obj, ID name, int *slot_cache)
 {
@@ -5313,6 +5343,24 @@ prepare_method:
     rb_vm_define_method(klass, sel, imp, node, false);
 
 #endif
+}
+
+extern "C"
+GenericValue
+lle_X_rb_vm_prepare_method(const FunctionType *FT,
+			   const std::vector<GenericValue> &Args)
+{
+    assert(Args.size() == 4);
+
+    rb_vm_prepare_method(
+	    FROM_GV(Args[0], Class),
+	    (SEL)GVTOP(Args[1]),
+	    (Function *)GVTOP(Args[2]),
+	    (NODE *)GVTOP(Args[3]));
+
+    GenericValue GV;
+    GV.IntVal = 0;
+    return GV;
 }
 
 extern "C"
@@ -6939,8 +6987,7 @@ rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding,
 	GET_VM()->bindings.pop_back();
     }
 
-#if 0
-    // TODO the LLVM interpreter is not ready yet
+#if ROXOR_INTERPRET_EVAL
     if (try_interpreter) {
 	return GET_VM()->interpret(function);
     }
