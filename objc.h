@@ -74,6 +74,72 @@ rb_objc_is_placeholder(id obj)
 
 bool rb_objc_symbolize_address(void *addr, void **start, char *name, size_t name_len);
 
+static inline int
+SubtypeUntil(const char *type, char end)
+{
+    int level = 0;
+    const char *head = type;
+
+    while (*type)
+    {
+	if (!*type || (!level && (*type == end)))
+	    return (int)(type - head);
+
+	switch (*type)
+	{
+	    case ']': case '}': case ')': level--; break;
+	    case '[': case '{': case '(': level += 1; break;
+	}
+
+	type += 1;
+    }
+
+    rb_bug ("Object: SubtypeUntil: end of type encountered prematurely\n");
+    return 0;
+}
+
+static inline const char *
+SkipStackSize(const char *type)
+{
+    while ((*type >= '0') && (*type <= '9')) {
+	type += 1;
+    }
+    return type;
+}
+
+static inline const char *
+SkipFirstType(const char *type)
+{
+    while (1) {
+        switch (*type++) {
+            case 'O':   /* bycopy */
+            case 'n':   /* in */
+            case 'o':   /* out */
+            case 'N':   /* inout */
+            case 'r':   /* const */
+            case 'V':   /* oneway */
+            case '^':   /* pointers */
+                break;
+
+                /* arrays */
+            case '[':
+                return type + SubtypeUntil (type, ']') + 1;
+
+                /* structures */
+            case '{':
+                return type + SubtypeUntil (type, '}') + 1;
+
+                /* unions */
+            case '(':
+                return type + SubtypeUntil (type, ')') + 1;
+
+                /* basic types */
+            default:
+                return type;
+        }
+    }
+}
+
 #if defined(__cplusplus)
 }
 #endif

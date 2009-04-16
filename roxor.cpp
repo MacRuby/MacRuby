@@ -186,6 +186,7 @@ class RoxorCompiler
 	Function *compile_main_function(NODE *node);
 	Function *compile_read_attr(ID name);
 	Function *compile_write_attr(ID name);
+	Function *compile_stub(const char *types, int argc, bool is_objc);
 
     private:
 	const char *fname;
@@ -325,6 +326,9 @@ class RoxorCompiler
 	void compile_rethrow_exception(void);
 	Value *compile_lvar_slot(ID name);
 
+	Value *compile_conversion_to_c(const char *type, Value *val, Value *slot);
+	Value *compile_conversion_to_ruby(const char *type, Value *val);
+
 	int *get_slot_cache(ID id) {
 	    if (current_block || !current_instance_method || current_module) {
 		return NULL;
@@ -347,6 +351,7 @@ class RoxorCompiler
 				BasicBlock::InstListType::iterator iter);
 	bool unbox_ruby_constant(Value *val, VALUE *rval);
 	SEL mid_to_sel(ID mid, int arity);
+	const Type *convert_type(const char *type);
 };
 
 llvm::Module *RoxorCompiler::module = NULL;
@@ -452,7 +457,7 @@ class RoxorVM
 	std::map<VALUE, rb_vm_catch_t *> catch_jmp_bufs;
 	std::vector<jmp_buf *> return_from_block_jmp_bufs;
 
-	std::map<std::string, void *> stubs;
+	std::map<std::string, void *> c_stubs, objc_stubs;
 
 #if ROXOR_ULTRA_LAZY_JIT
 	std::map<SEL, std::map<Class, rb_vm_method_source_t *> *>
@@ -4699,6 +4704,209 @@ RoxorCompiler::compile_write_attr(ID name)
     return f;
 }
 
+static inline const char *
+GetFirstType(const char *p, char *buf, size_t buflen)
+{
+    const char *p2 = SkipFirstType(p);
+    const size_t len = p2 - p;
+    assert(len < buflen);
+    strncpy(buf, p, len);
+    buf[len] = '\0';
+    return p2;
+}
+
+static inline void
+convert_error(const char type, VALUE val)
+{
+    rb_raise(rb_eTypeError,
+	     "cannot convert object `%s' (%s) to Objective-C type `%c'",
+	     RSTRING_PTR(rb_inspect(val)),
+	     rb_obj_classname(val),
+	     type); 
+}
+
+extern "C"
+void
+rb_vm_rval_to_ocval(VALUE val, void **ocval)
+{
+    *(id *)ocval = val == Qnil ? NULL : RB2OC(val);
+}
+
+extern "C"
+void
+rb_vm_rval_to_ocsel(VALUE rval, void **ocval)
+{
+    if (NIL_P(rval)) {
+	*(SEL *)ocval = NULL;
+    }
+    else {
+	const char *cstr;
+
+	switch (TYPE(rval)) {
+	    case T_STRING:
+		cstr = StringValuePtr(rval);
+		break;
+
+	    case T_SYMBOL:
+		cstr = rb_sym2name(rval);
+		break;
+
+	    default:
+		convert_error(_C_SEL, rval);
+	}
+	*(SEL *)ocval = sel_registerName(cstr);
+    }
+}
+
+Value *
+RoxorCompiler::compile_conversion_to_c(const char *type, Value *val, Value *slot)
+{
+    const char *func_name = NULL;
+
+    switch (*type) {
+	case _C_ID:
+	case _C_CLASS:
+	    func_name = "rb_vm_rval_to_ocval";
+	    break;
+
+	case _C_SEL:
+	    func_name = "rb_vm_rval_to_ocsel";
+	    break;
+
+	default:
+	    printf("unrecognized compile type `%s' to C - aborting\n", type);
+	    abort();
+    }
+ 
+    std::vector<Value *> params;
+    params.push_back(val);
+    params.push_back(new BitCastInst(slot, PtrTy, "", bb));
+
+    Function *func = cast<Function>(module->getOrInsertFunction(
+		func_name, Type::VoidTy, RubyObjTy, PtrTy, NULL));
+
+    CallInst::Create(func, params.begin(), params.end(), "", bb);
+    return new LoadInst(slot, "", bb);
+}
+
+Value *
+RoxorCompiler::compile_conversion_to_ruby(const char *type, Value *val)
+{
+    // TODO
+    return val;
+}
+
+inline const Type *
+RoxorCompiler::convert_type(const char *type)
+{
+    switch (*type) {
+	case _C_ID:
+	case _C_CLASS:
+	    return RubyObjTy;
+
+	case _C_SEL:
+	case _C_CHARPTR:
+	case _C_PTR:
+	    return PtrTy;
+
+	case _C_BOOL:
+	case _C_UCHR:
+	case _C_CHR:
+	    return Type::Int8Ty;
+
+	case _C_SHT:
+	case _C_USHT:
+	    return Type::Int16Ty;
+
+	case _C_INT:
+	case _C_UINT:
+	    return Type::Int32Ty;
+
+	case _C_LNG:
+#if __LP64__
+	    return Type::Int64Ty;
+#else
+	    return Type::Int32Ty;
+#endif
+
+	case _C_FLT:
+	    return Type::FloatTy;
+
+	case _C_DBL:
+	    return Type::DoubleTy;
+    }
+
+    printf("unrecognized runtime type `%s' - aborting\n", type);
+    abort();
+}
+
+Function *
+RoxorCompiler::compile_stub(const char *types, int argc, bool is_objc)
+{
+    assert(is_objc); // for now
+
+    // VALUE stub(IMP imp, VALUE self, SEL sel, int argc, VALUE *argv)
+    // {
+    //     return (*imp)(self, sel, argv[0], argv[1], ...);
+    // }
+    Function *f = cast<Function>(module->getOrInsertFunction("",
+		RubyObjTy, PtrTy, RubyObjTy, PtrTy, Type::Int32Ty, RubyObjPtrTy,
+		NULL));
+
+    bb = BasicBlock::Create("EntryBlock", f);
+
+    Function::arg_iterator arg = f->arg_begin();
+    Value *imp_arg = arg++;
+    Value *self_arg = arg++;
+    Value *sel_arg = arg++;
+    /*Value *argc_arg =*/ arg++; // XXX do we really need this argument?
+    Value *argv_arg = arg++;
+
+    std::vector<const Type *> f_types;
+    std::vector<Value *> params;
+
+    char buf[100];
+    const char *p = SkipFirstType(types); // skip retval
+
+    // self
+    p = SkipFirstType(p);
+    f_types.push_back(RubyObjTy);
+    params.push_back(self_arg);
+    // sel
+    p = SkipFirstType(p);
+    f_types.push_back(PtrTy);
+    params.push_back(sel_arg);
+
+    // Arguments.
+    for (int i = 0; i < argc; i++) {
+	p = GetFirstType(p, buf, sizeof buf);
+	//printf("arg[%d] type `%s'\n", i, buf);
+
+	f_types.push_back(convert_type(buf));
+
+	Value *index = ConstantInt::get(Type::Int32Ty, i);
+	Value *slot = GetElementPtrInst::Create(argv_arg, index, "", bb);
+	Value *arg_val = new LoadInst(slot, "", bb);
+	Value *new_val_slot = new AllocaInst(f_types[i + 2], "", bb);
+
+	params.push_back(compile_conversion_to_c(buf, arg_val, new_val_slot));
+    }
+
+    // Appropriately cast the IMP argument.
+    FunctionType *ft = FunctionType::get(RubyObjTy, f_types, false);
+    Value *imp = new BitCastInst(imp_arg, PointerType::getUnqual(ft), "", bb);
+
+    // Compile call.
+    CallInst *imp_call = CallInst::Create(imp, params.begin(), params.end(), "", bb); 
+
+    // Compile retval.
+    GetFirstType(types, buf, sizeof buf);
+    Value *retval = compile_conversion_to_ruby(buf, imp_call);
+    ReturnInst::Create(retval, bb);
+
+    return f;
+}
+
 Value *
 RoxorCompiler::compile_lvar_slot(ID name)
 {
@@ -5895,14 +6103,22 @@ method_missing(VALUE obj, SEL sel, int argc, const VALUE *argv,
 }
 
 static void *
-vm_gen_stub(std::string types, int argc, bool is_objc)
+vm_gen_stub(const char *types, int argc, bool is_objc)
 {
-    std::map<std::string, void *>::iterator iter = GET_VM()->stubs.find(types);
-    if (iter != GET_VM()->stubs.end()) {
+    std::map<std::string, void *> &stubs = 
+	is_objc ? GET_VM()->objc_stubs : GET_VM()->c_stubs;
+    std::map<std::string, void *>::iterator iter = stubs.find(types);
+    if (iter != stubs.end()) {
 	return iter->second;
     }
-printf("vm_gen_stub %s\n", types.c_str());
-    return NULL;
+
+    //printf("generating %s stub %s argc %d\n", is_objc ? "objc" : "c", types, argc);
+
+    Function *f = RoxorCompiler::shared->compile_stub(types, argc, is_objc);
+    void *stub = (void *)GET_VM()->compile(f);
+    stubs.insert(std::make_pair(types, stub));
+
+    return stub;
 }
 
 __attribute__((always_inline))
@@ -7229,7 +7445,7 @@ rb_vm_throw(VALUE tag, VALUE value)
 }
 
 static VALUE
-builtin_stub1(IMP imp, VALUE self, SEL sel, int argc, VALUE *argv)
+builtin_ostub1(IMP imp, VALUE self, SEL sel, int argc, VALUE *argv)
 {
     return ((VALUE (*)(VALUE, SEL))*imp)(self, sel);
 }
@@ -7237,8 +7453,8 @@ builtin_stub1(IMP imp, VALUE self, SEL sel, int argc, VALUE *argv)
 static void
 setup_builtin_stubs(void)
 {
-    GET_VM()->stubs.insert(std::make_pair("@@:", (void *)builtin_stub1));
-    GET_VM()->stubs.insert(std::make_pair("#@:", (void *)builtin_stub1));
+    GET_VM()->objc_stubs.insert(std::make_pair("@@:", (void *)builtin_ostub1));
+    GET_VM()->objc_stubs.insert(std::make_pair("#@:", (void *)builtin_ostub1));
 }
 
 #if ROXOR_ULTRA_LAZY_JIT
