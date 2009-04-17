@@ -2440,6 +2440,13 @@ RoxorVM::method_node_get(IMP imp)
     return iter->second->node;
 }
 
+extern "C"
+NODE *
+rb_vm_get_method_node(IMP imp)
+{
+    return GET_VM()->method_node_get(imp);
+}
+
 inline GlobalVariable *
 RoxorVM::redefined_op_gvar(SEL sel, bool create)
 {
@@ -4789,11 +4796,36 @@ RoxorCompiler::compile_conversion_to_c(const char *type, Value *val, Value *slot
     return new LoadInst(slot, "", bb);
 }
 
+extern "C"
+VALUE
+rb_vm_ocval_to_rval(void *ocval)
+{
+    return SPECIAL_CONST_P(ocval) ? (VALUE)ocval : OC2RB(ocval);
+}
+
 Value *
 RoxorCompiler::compile_conversion_to_ruby(const char *type, Value *val)
 {
-    // TODO
-    return val;
+    const char *func_name = NULL;
+
+    switch (*type) {
+	case _C_ID:
+	case _C_CLASS:
+	    func_name = "rb_vm_ocval_to_rval";
+	    break;
+
+	default:
+	    printf("unrecognized compile type `%s' to Ruby - aborting\n", type);
+	    abort();
+    }
+ 
+    std::vector<Value *> params;
+    params.push_back(val);
+
+    Function *func = cast<Function>(module->getOrInsertFunction(
+		func_name, RubyObjTy, convert_type(type), NULL));
+
+    return CallInst::Create(func, params.begin(), params.end(), "", bb);
 }
 
 inline const Type *
@@ -4872,6 +4904,7 @@ RoxorCompiler::compile_stub(const char *types, int argc, bool is_objc)
     p = SkipFirstType(p);
     f_types.push_back(RubyObjTy);
     params.push_back(self_arg);
+
     // sel
     p = SkipFirstType(p);
     f_types.push_back(PtrTy);
@@ -6121,6 +6154,33 @@ vm_gen_stub(const char *types, int argc, bool is_objc)
     return stub;
 }
 
+static inline SEL
+helper_sel(SEL sel)
+{
+    const char *p = sel_getName(sel);
+    long len = strlen(p);
+    SEL new_sel = 0;
+    char buf[100];
+
+    if (len >= 3 && isalpha(p[len - 3]) && p[len - 2] == '=' && p[len - 1] == ':') {
+	/* foo=: -> setFoo: shortcut */
+	snprintf(buf, sizeof buf, "set%s", p);
+	buf[3] = toupper(buf[3]);
+	buf[len + 1] = ':';
+	buf[len + 2] = '\0';
+	new_sel = sel_registerName(buf);
+    }
+    else if (isalpha(p[len - 2]) && p[len - 1] == '?') {
+	/* foo?: -> isFoo: shortcut */
+	snprintf(buf, sizeof buf, "is%s", p);
+	buf[2] = toupper(buf[2]);
+	buf[len + 1] = '\0';
+	new_sel = sel_registerName(buf);
+    }
+
+    return new_sel;
+}
+
 __attribute__((always_inline))
 static VALUE
 __rb_vm_dispatch(struct mcache *cache, VALUE self, Class klass, SEL sel, 
@@ -6182,6 +6242,19 @@ recache:
 	    }
 	}
 	else {
+	    SEL new_sel = helper_sel(sel);
+	    if (new_sel != NULL) {
+		Method m = class_getInstanceMethod(klass, new_sel);
+		if (m != NULL) {
+		    IMP imp = method_getImplementation(m);
+		    if (GET_VM()->method_node_get(imp) == NULL) {
+			sel = new_sel;
+			method = m;
+			goto recache;	
+		    }
+		}
+	    }
+
 	    // TODO bridgesupport C call?
 	    return method_missing((VALUE)self, sel, argc, argv, opt);
 	}
@@ -6909,12 +6982,23 @@ rb_vm_respond_to(VALUE obj, SEL sel, bool priv)
 	    selRespondTo);
 
     if (respond_to_imp == basic_respond_to_imp) {
-	IMP obj_imp = class_getMethodImplementation((Class)klass, sel);
-	if (obj_imp == NULL) {
+	Method m = class_getInstanceMethod((Class)klass, sel);
+	if (m == NULL) {
+	    sel = helper_sel(sel);
+	    if (sel != NULL) {
+		m = class_getInstanceMethod((Class)klass, sel);
+	    }
+	    if (m == NULL) {
+		return false;
+	    }
+	}
+	IMP obj_imp = method_getImplementation(m);
+        NODE *node = GET_VM()->method_node_get(obj_imp);
+
+	if (node != NULL && priv == 0 && (node->nd_noex & NOEX_PRIVATE)) {
 	    return false;
 	}
-        NODE *node = GET_VM()->method_node_get(obj_imp);
-	return node != NULL && (!priv || !(node->nd_noex & NOEX_PRIVATE));
+        return obj_imp != NULL;
     }
     else {
         VALUE args[2];

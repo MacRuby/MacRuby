@@ -746,7 +746,8 @@ ins_methods_pub_i(VALUE name, ID type, VALUE ary)
 }
 
 static void
-rb_objc_push_methods(VALUE ary, VALUE mod, VALUE objc_methods, int (*func) (VALUE, ID, VALUE))
+rb_objc_push_methods(VALUE ary, VALUE mod, VALUE objc_methods,
+		     int (*func) (VALUE, ID, VALUE))
 {
     Method *methods;
     unsigned int i, count;
@@ -770,17 +771,20 @@ rb_objc_push_methods(VALUE ary, VALUE mod, VALUE objc_methods, int (*func) (VALU
 	    method = methods[i];
 
 	    sel = method_getName(method);
-	    if (sel == sel_ignored)
+	    if (sel == sel_ignored) {
 		continue; 
+	    }
 
 	    imp = method_getImplementation(method);
-	    if (imp == NULL)
+	    if (imp == NULL) {
 		continue;
+	    }
 
-	    mn = rb_objc_method_node3(imp);
+	    mn = rb_vm_get_method_node(imp);
 	    is_ruby_method = mn != NULL;
-	    if (!is_ruby_method && objc_methods == Qfalse)
+	    if (!is_ruby_method && objc_methods == Qfalse) {
 		continue;
+	    }
 
 	    sel_name = (char *)sel;
 	    len = strlen(sel_name);
@@ -803,7 +807,7 @@ rb_objc_push_methods(VALUE ary, VALUE mod, VALUE objc_methods, int (*func) (VALU
 			buf[len + 2] = '\0';
 
 			method = class_getInstanceMethod((Class)mod, sel_registerName(buf));
-			if (method != NULL && rb_objc_method_node3(method_getImplementation(method)) == NULL)
+			if (method != NULL && rb_vm_get_method_node(method_getImplementation(method)) == NULL)
 			    continue;
 		    }
 		    else if (sel_name[len - 2] == '?') {
@@ -814,7 +818,7 @@ rb_objc_push_methods(VALUE ary, VALUE mod, VALUE objc_methods, int (*func) (VALU
 			buf[len + 1] = '\0';
 
 			method = class_getInstanceMethod((Class)mod, sel_registerName(buf));
-			if (method != NULL && rb_objc_method_node3(method_getImplementation(method)) == NULL)
+			if (method != NULL && rb_vm_get_method_node(method_getImplementation(method)) == NULL)
 			    continue;
 		    }
 		}
@@ -860,16 +864,19 @@ class_instance_method_list(int argc, VALUE *argv, VALUE mod, int (*func) (VALUE,
     }
     else {
 	rb_scan_args(argc, argv, "02", &recur, &objc_methods);
-	if (NIL_P(recur))
+	if (NIL_P(recur)) {
 	    recur = Qtrue;
-	if (NIL_P(objc_methods))
+	}
+	if (NIL_P(objc_methods)) {
 	    objc_methods = Qfalse;
+	}
     }
 
     while (mod != 0) {
 	rb_objc_push_methods(ary, mod, objc_methods, func);
-	if (recur == Qfalse)
+	if (recur == Qfalse) {
 	   break;	   
+	}
 	mod = (VALUE)class_getSuperclass((Class)mod); 
     } 
 

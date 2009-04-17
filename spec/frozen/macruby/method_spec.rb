@@ -19,8 +19,10 @@ describe "A MacRuby method" do
     o = Object.new
     def o.foo(x); x; end
     def o.foo(x, withObject:y); x + y; end
+    def o.foo(x, withObject:y, andObject:z); x + y + z; end
     o.respond_to?(:'foo').should == true
     o.respond_to?(:'foo:withObject:').should == true
+    o.respond_to?(:'foo:withObject:andObject:').should == true
   end
 
   it "must start by a regular argument variable then followed by argument-names" do
@@ -71,6 +73,20 @@ describe "A MacRuby method" do
     o.performSelector(:'doSomething:withObject:',
                       withObject:40, withObject:2).should == 42
   end
+
+  it "named using the setFoo pattern cannot be called using #foo=" do
+    o = Object.new
+    def o.setFoo(x); end
+    o.respond_to?(:'foo=').should == false
+    lambda { o.foo = 42 }.should raise_error(NoMethodError)
+  end
+
+  it "named using the isFoo pattern cannot be called using #foo?" do
+    o = Object.new
+    def o.isFoo; end
+    o.respond_to?(:'foo?').should == false
+    lambda { o.foo? }.should raise_error(NoMethodError)
+  end
 end
 
 describe "An Objective-C method" do
@@ -91,10 +107,10 @@ describe "An Objective-C method" do
 
   it "is only exposed in #methods if the second argument is true" do
     o = Object.new
-    o.methods.include?(:'performSelector:').should == false
-    o.methods(true).include?(:'performSelector:').should == false
-    o.methods(false).include?(:'performSelector:').should == false
-    o.methods(true, true).include?(:'performSelector:').should == true
-    o.methods(false, true).include?(:'performSelector:').should == true
+    o.methods.include?(:'performSelector').should == false
+    o.methods(true).include?(:'performSelector').should == false
+    o.methods(false).include?(:'performSelector').should == false
+    o.methods(true, true).include?(:'performSelector').should == true
+    o.methods(false, true).include?(:'performSelector').should == true
   end
 end

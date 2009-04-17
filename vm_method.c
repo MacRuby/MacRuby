@@ -815,7 +815,7 @@ rb_obj_respond_to(VALUE obj, ID id, int priv)
 	char buf[100];
 	snprintf(buf, sizeof buf, "%s:", id_name);
 	sel = sel_registerName(buf);
-	return rb_vm_respond_to(obj, sel, priv) == true;
+	return rb_vm_respond_to(obj, sel, priv) == true ? 1 : 0;
     }
     return 1;
 }
