@@ -1,5 +1,7 @@
 require File.dirname(__FILE__) + '/../spec_helper'
 
+framework 'Foundation'
+
 describe "A MacRuby method" do
   it "uses argument-names + colon + variable syntax to form the method name" do
     o = Object.new

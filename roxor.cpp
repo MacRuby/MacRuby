@@ -327,7 +327,8 @@ class RoxorCompiler
 	Value *compile_lvar_slot(ID name);
 
 	Value *compile_conversion_to_c(const char *type, Value *val, Value *slot);
-	Value *compile_conversion_to_ruby(const char *type, Value *val);
+	Value *compile_conversion_to_ruby(const char *type, const Type *llvm_type, 
+		Value *val);
 
 	int *get_slot_cache(ID id) {
 	    if (current_block || !current_instance_method || current_module) {
@@ -4804,11 +4805,20 @@ rb_vm_ocval_to_rval(void *ocval)
 }
 
 Value *
-RoxorCompiler::compile_conversion_to_ruby(const char *type, Value *val)
+RoxorCompiler::compile_conversion_to_ruby(const char *type, const Type *llvm_type,
+					  Value *val)
 {
     const char *func_name = NULL;
 
     switch (*type) {
+	case _C_VOID:
+	    return nilVal;
+
+	case _C_BOOL:
+	    Value *is_true = new ICmpInst(ICmpInst::ICMP_EQ, val,
+		    ConstantInt::get(Type::Int8Ty, 1), "", bb);
+	    return SelectInst::Create(is_true, trueVal, falseVal, "", bb);
+
 	case _C_ID:
 	case _C_CLASS:
 	    func_name = "rb_vm_ocval_to_rval";
@@ -4823,7 +4833,7 @@ RoxorCompiler::compile_conversion_to_ruby(const char *type, Value *val)
     params.push_back(val);
 
     Function *func = cast<Function>(module->getOrInsertFunction(
-		func_name, RubyObjTy, convert_type(type), NULL));
+		func_name, RubyObjTy, llvm_type, NULL));
 
     return CallInst::Create(func, params.begin(), params.end(), "", bb);
 }
@@ -4832,6 +4842,9 @@ inline const Type *
 RoxorCompiler::convert_type(const char *type)
 {
     switch (*type) {
+	case _C_VOID:
+	    return Type::VoidTy;
+
 	case _C_ID:
 	case _C_CLASS:
 	    return RubyObjTy;
@@ -4897,8 +4910,10 @@ RoxorCompiler::compile_stub(const char *types, int argc, bool is_objc)
     std::vector<const Type *> f_types;
     std::vector<Value *> params;
 
+    // retval
     char buf[100];
-    const char *p = SkipFirstType(types); // skip retval
+    const char *p = GetFirstType(types, buf, sizeof buf);
+    const Type *ret_type = convert_type(buf);
 
     // self
     p = SkipFirstType(p);
@@ -4926,7 +4941,7 @@ RoxorCompiler::compile_stub(const char *types, int argc, bool is_objc)
     }
 
     // Appropriately cast the IMP argument.
-    FunctionType *ft = FunctionType::get(RubyObjTy, f_types, false);
+    FunctionType *ft = FunctionType::get(ret_type, f_types, false);
     Value *imp = new BitCastInst(imp_arg, PointerType::getUnqual(ft), "", bb);
 
     // Compile call.
@@ -4934,7 +4949,7 @@ RoxorCompiler::compile_stub(const char *types, int argc, bool is_objc)
 
     // Compile retval.
     GetFirstType(types, buf, sizeof buf);
-    Value *retval = compile_conversion_to_ruby(buf, imp_call);
+    Value *retval = compile_conversion_to_ruby(buf, ret_type, imp_call);
     ReturnInst::Create(retval, bb);
 
     return f;
@@ -6983,31 +6998,35 @@ rb_vm_respond_to(VALUE obj, SEL sel, bool priv)
 
     if (respond_to_imp == basic_respond_to_imp) {
 	Method m = class_getInstanceMethod((Class)klass, sel);
+	bool reject_pure_ruby_methods = false;
 	if (m == NULL) {
 	    sel = helper_sel(sel);
 	    if (sel != NULL) {
 		m = class_getInstanceMethod((Class)klass, sel);
-	    }
-	    if (m == NULL) {
-		return false;
+		if (m == NULL) {
+		    return false;
+		}
+		reject_pure_ruby_methods = true;
 	    }
 	}
 	IMP obj_imp = method_getImplementation(m);
-        NODE *node = GET_VM()->method_node_get(obj_imp);
+	NODE *node = GET_VM()->method_node_get(obj_imp);
 
-	if (node != NULL && priv == 0 && (node->nd_noex & NOEX_PRIVATE)) {
+	if (node != NULL
+		&& (reject_pure_ruby_methods
+		    || (priv == 0 && (node->nd_noex & NOEX_PRIVATE)))) {
 	    return false;
 	}
         return obj_imp != NULL;
     }
     else {
-        VALUE args[2];
-        int n = 0;
-        args[n++] = ID2SYM(rb_intern(sel_getName(sel)));
-        if (priv) {
-            args[n++] = Qtrue;
+	VALUE args[2];
+	int n = 0;
+	args[n++] = ID2SYM(rb_intern(sel_getName(sel)));
+	if (priv) {
+	    args[n++] = Qtrue;
 	}
-        return rb_vm_call(obj, selRespondTo, n, args, false) == Qtrue;
+	return rb_vm_call(obj, selRespondTo, n, args, false) == Qtrue;
     }
 }
 
