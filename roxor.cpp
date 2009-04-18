@@ -363,7 +363,7 @@ struct ccache {
     VALUE val;
 };
 
-typedef VALUE rb_vm_objc_stub_t(IMP imp, VALUE self, SEL sel, int argc,
+typedef VALUE rb_vm_objc_stub_t(IMP imp, id self, SEL sel, int argc,
 				const VALUE *argv);
 
 struct mcache {
@@ -4799,9 +4799,37 @@ RoxorCompiler::compile_conversion_to_c(const char *type, Value *val, Value *slot
 
 extern "C"
 VALUE
-rb_vm_ocval_to_rval(void *ocval)
+rb_vm_ocval_to_rval(id ocval)
 {
     return SPECIAL_CONST_P(ocval) ? (VALUE)ocval : OC2RB(ocval);
+}
+
+extern "C"
+VALUE
+rb_vm_long_long_to_rval(long long l)
+{
+    return LL2NUM(l);
+}
+
+extern "C"
+VALUE
+rb_vm_ulong_long_to_rval(unsigned long long l)
+{
+    return ULL2NUM(l);
+}
+
+extern "C"
+VALUE
+rb_vm_int_to_rval(int val)
+{
+    return INT2NUM(val);
+}
+
+extern "C"
+VALUE
+rb_vm_uint_to_rval(unsigned int val)
+{
+    return UINT2NUM(val);
 }
 
 Value *
@@ -4822,6 +4850,22 @@ RoxorCompiler::compile_conversion_to_ruby(const char *type, const Type *llvm_typ
 	case _C_ID:
 	case _C_CLASS:
 	    func_name = "rb_vm_ocval_to_rval";
+	    break;
+
+	case _C_INT:
+	    func_name = "rb_vm_int_to_rval";
+	    break;
+
+	case _C_UINT:
+	    func_name = "rb_vm_uint_to_rval";
+	    break;
+
+	case _C_LNG_LNG:
+	    func_name = "rb_vm_long_long_to_rval";
+	    break;
+
+	case _C_ULNG_LNG:
+	    func_name = "rb_vm_ulong_long_to_rval";
 	    break;
 
 	default:
@@ -4879,6 +4923,10 @@ RoxorCompiler::convert_type(const char *type)
 
 	case _C_DBL:
 	    return Type::DoubleTy;
+
+	case _C_LNG_LNG:
+	case _C_ULNG_LNG:
+	    return Type::Int64Ty;
     }
 
     printf("unrecognized runtime type `%s' - aborting\n", type);
@@ -6376,7 +6424,7 @@ recache:
 		argc, 
 		(VALUE *)argv);
 #endif
-	return (*ocache.stub)(ocache.imp, self, sel, argc, argv);
+	return (*ocache.stub)(ocache.imp, RB2OC(self), sel, argc, argv);
     }
 #undef rcache
 #undef ocache
@@ -7548,9 +7596,9 @@ rb_vm_throw(VALUE tag, VALUE value)
 }
 
 static VALUE
-builtin_ostub1(IMP imp, VALUE self, SEL sel, int argc, VALUE *argv)
+builtin_ostub1(IMP imp, id self, SEL sel, int argc, VALUE *argv)
 {
-    return ((VALUE (*)(VALUE, SEL))*imp)(self, sel);
+    return ((VALUE (*)(id, SEL))*imp)(self, sel);
 }
 
 static void
