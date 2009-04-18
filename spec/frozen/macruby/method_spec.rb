@@ -1,7 +1,5 @@
 require File.dirname(__FILE__) + '/../spec_helper'
 
-framework 'Foundation'
-
 describe "A MacRuby method" do
   it "uses argument-names + colon + variable syntax to form the method name" do
     o = Object.new
@@ -91,6 +89,22 @@ describe "A MacRuby method" do
   end
 end
 
+framework 'Foundation'
+
+fixture_source = File.dirname(__FILE__) + '/fixtures/method.m'
+fixture_ext = '/tmp/method.bundle'
+if !File.exist?(fixture_ext) or File.mtime(fixture_source) > File.mtime(fixture_ext)
+=begin
+  # #system is currently broken
+  unless system("/usr/bin/gcc #{fixture_source} -o #{fixture_ext} -g -framework Foundation -dynamiclib -fobjc-gc -arch i386 -arch x86_64 -arch ppc")
+    $stderr.puts "cannot compile fixture source file `#{fixture_source}' - aborting"
+    exit 1
+  end
+=end
+  `/usr/bin/gcc #{fixture_source} -o #{fixture_ext} -g -framework Foundation -dynamiclib -fobjc-gc -arch i386 -arch x86_64 -arch ppc`
+end
+require '/tmp/method'
+
 describe "An Objective-C method" do
   it "named using the setFoo pattern can be called using #foo=" do
     o = []
@@ -114,5 +128,29 @@ describe "An Objective-C method" do
     o.methods(false).include?(:'performSelector').should == false
     o.methods(true, true).include?(:'performSelector').should == true
     o.methods(false, true).include?(:'performSelector').should == true
+  end
+
+  it "returning self returns the same receiver object" do
+    o = TestMethod.new
+    o.methodReturningSelf.should == o
+    o.methodReturningSelf.object_id == o.object_id
+  end
+
+  it "returning kCFBooleanTrue returns true in Ruby" do
+    o = TestMethod.new
+    o.methodReturningCFTrue.should == true
+    o.methodReturningCFTrue.class.should == TrueClass
+  end
+
+  it "returning kCFBooleanFalse returns false in Ruby" do
+    o = TestMethod.new
+    o.methodReturningCFFalse.should == false
+    o.methodReturningCFFalse.class.should == FalseClass
+  end
+
+  it "returning kCFNull returns nil in Ruby" do
+    o = TestMethod.new
+    o.methodReturningCFNull.should == nil
+    o.methodReturningCFNull.class.should == NilClass
   end
 end

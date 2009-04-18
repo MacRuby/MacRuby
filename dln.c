@@ -20,7 +20,7 @@
 #include <sys/param.h>
 #include <unistd.h>
 
-#define FUNCNAME_PATTERN "_Init_%s"
+#define FUNCNAME_PATTERN "Init_%s"
 
 static int
 init_funcname_len(char **buf, const char *file)

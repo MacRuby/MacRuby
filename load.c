@@ -5,8 +5,7 @@
 #include "ruby/ruby.h"
 #include "ruby/node.h"
 #include "roxor.h"
-
-VALUE ruby_dln_librefs;
+#include "dln.h"
 
 #define IS_RBEXT(e) (strcmp(e, ".rb") == 0)
 #define IS_SOEXT(e) (strcmp(e, ".so") == 0 || strcmp(e, ".o") == 0)
@@ -119,7 +118,8 @@ get_loading_table(void)
 }
 
 static int
-rb_feature_p(const char *feature, const char *ext, int rb, int expanded, const char **fn)
+rb_feature_p(const char *feature, const char *ext, int rb, int expanded,
+	     const char **fn)
 {
     VALUE v, features, p, load_path = 0;
     const char *f, *e;
@@ -486,8 +486,7 @@ rb_require_safe(VALUE fname, int safe)
 		    break;
 
 		case 's':
-		    // TODO
-		    abort();
+		    dln_load(RSTRING_PTR(path));
 		    break;
 	    }
 	    rb_provide_feature(path);
@@ -609,8 +608,4 @@ Init_load()
     rb_objc_define_method(rb_mKernel, "autoload?", rb_f_autoload_p, 1);
 
     rb_objc_define_method(rb_mKernel, "framework", rb_require_framework, -1);
-
-    ruby_dln_librefs = rb_ary_new();
-    GC_ROOT(&ruby_dln_librefs);
-    rb_register_mark_object(ruby_dln_librefs);
 }

@@ -6381,11 +6381,20 @@ recache:
 	}
 
 	if (sel == selClass) {
+	    // Because +[NSObject class] returns self.
 	    if (RCLASS_META(klass)) {
-		// Because +[NSObject class] returns self.
 		return RCLASS_MODULE(self) ? rb_cModule : rb_cClass;
 	    }
 	    // Because the CF classes should be hidden, for Ruby compat.
+	    if (self == Qnil) {
+		return rb_cNilClass;
+	    }
+	    if (self == Qtrue) {
+		return rb_cTrueClass;
+	    }
+	    if (self == Qfalse) {
+		return rb_cFalseClass;
+	    }
 	    if (klass == (Class)rb_cCFString) {
 		return RSTRING_IMMUTABLE(self)
 		    ? rb_cNSString : rb_cNSMutableString;
@@ -7598,7 +7607,7 @@ rb_vm_throw(VALUE tag, VALUE value)
 static VALUE
 builtin_ostub1(IMP imp, id self, SEL sel, int argc, VALUE *argv)
 {
-    return ((VALUE (*)(id, SEL))*imp)(self, sel);
+    return OC2RB(((id (*)(id, SEL))*imp)(self, sel));
 }
 
 static void
