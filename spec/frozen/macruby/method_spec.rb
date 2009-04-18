@@ -130,6 +130,23 @@ describe "An Objective-C method" do
     o.methods(false, true).include?(:'performSelector').should == true
   end
 
+  it "can be called on an immediate object" do
+    123.self.should == 123
+    true.self.should == true
+    false.self.should == false
+    nil.self.should == nil
+  end
+
+  it "returning void returns nil in Ruby" do
+    o = TestMethod.new
+    o.methodReturningVoid.should == nil
+  end
+
+  it "returning nil returns nil in Ruby" do
+    o = TestMethod.new
+    o.methodReturningNil.should == nil
+  end
+
   it "returning self returns the same receiver object" do
     o = TestMethod.new
     o.methodReturningSelf.should == o
@@ -152,5 +169,38 @@ describe "An Objective-C method" do
     o = TestMethod.new
     o.methodReturningCFNull.should == nil
     o.methodReturningCFNull.class.should == NilClass
+  end
+
+  it "returning 'char' returns a fixnum in Ruby" do
+    o = TestMethod.new
+    o.methodReturningChar.should == 42
+    o.methodReturningChar2.should == -42
+  end
+ 
+  it "returning 'unsigned char' returns a fixnum in Ruby" do
+    o = TestMethod.new
+    o.methodReturningUnsignedChar.should == 42
+  end
+
+  it "returning 'short' returns a fixnum in Ruby" do
+    o = TestMethod.new
+    o.methodReturningShort.should == 42
+    o.methodReturningShort2.should == -42
+  end
+
+  it "returning 'unsigned short' returns a fixnum in Ruby" do
+    o = TestMethod.new
+    o.methodReturningUnsignedShort.should == 42
+  end
+
+  it "returning 'int' returns a fixnum in Ruby" do
+    o = TestMethod.new
+    o.methodReturningInt.should == 42
+    o.methodReturningInt2.should == -42
+  end
+
+  it "returning 'unsigned int' returns a fixnum in Ruby" do
+    o = TestMethod.new
+    o.methodReturningUnsignedInt.should == 42
   end
 end

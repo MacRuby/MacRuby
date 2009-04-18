@@ -1154,7 +1154,7 @@ rb_ocid_to_rval(id obj)
     if (obj == (id)kCFBooleanFalse) {
 	return Qfalse;
     }
-    if (obj == (id)kCFNull) {
+    if (obj == (id)kCFNull || obj == nil) {
 	return Qnil;
     }
     if (*(Class *)obj == (Class)rb_cFixnum) {

@@ -4852,13 +4852,21 @@ RoxorCompiler::compile_conversion_to_ruby(const char *type, const Type *llvm_typ
 	    func_name = "rb_vm_ocval_to_rval";
 	    break;
 
+	case _C_CHR:
+	case _C_SHT:
 	case _C_INT:
-	    func_name = "rb_vm_int_to_rval";
-	    break;
+	    val = new SExtInst(val, RubyObjTy, "", bb);
+	    val = BinaryOperator::CreateShl(val, oneVal, "", bb);
+	    val = BinaryOperator::CreateOr(val, oneVal, "", bb);
+	    return val;
 
+	case _C_UCHR:
+	case _C_USHT:
 	case _C_UINT:
-	    func_name = "rb_vm_uint_to_rval";
-	    break;
+	    val = new ZExtInst(val, RubyObjTy, "", bb);
+	    val = BinaryOperator::CreateShl(val, oneVal, "", bb);
+	    val = BinaryOperator::CreateOr(val, oneVal, "", bb);
+	    return val;
 
 	case _C_LNG_LNG:
 	    func_name = "rb_vm_long_long_to_rval";
