@@ -104,6 +104,7 @@ if !File.exist?(fixture_ext) or File.mtime(fixture_source) > File.mtime(fixture_
   `/usr/bin/gcc #{fixture_source} -o #{fixture_ext} -g -framework Foundation -dynamiclib -fobjc-gc -arch i386 -arch x86_64 -arch ppc`
 end
 require '/tmp/method'
+load_bridge_support_file File.dirname(__FILE__) + '/fixtures/method.bridgesupport'
 
 describe "An Objective-C method" do
   it "named using the setFoo pattern can be called using #foo=" do
@@ -171,36 +172,81 @@ describe "An Objective-C method" do
     o.methodReturningCFNull.class.should == NilClass
   end
 
-  it "returning 'char' returns a fixnum in Ruby" do
+  it "returning YES returns true in Ruby" do
+    o = TestMethod.new
+    o.methodReturningYES.should == true
+  end
+
+  it "returning NO returns true in Ruby" do
+    o = TestMethod.new
+    o.methodReturningNO.should == false
+  end
+
+  it "returning 'char' returns a Fixnum in Ruby" do
     o = TestMethod.new
     o.methodReturningChar.should == 42
     o.methodReturningChar2.should == -42
   end
  
-  it "returning 'unsigned char' returns a fixnum in Ruby" do
+  it "returning 'unsigned char' returns a Fixnum in Ruby" do
     o = TestMethod.new
     o.methodReturningUnsignedChar.should == 42
   end
 
-  it "returning 'short' returns a fixnum in Ruby" do
+  it "returning 'short' returns a Fixnum in Ruby" do
     o = TestMethod.new
     o.methodReturningShort.should == 42
     o.methodReturningShort2.should == -42
   end
 
-  it "returning 'unsigned short' returns a fixnum in Ruby" do
+  it "returning 'unsigned short' returns a Fixnum in Ruby" do
     o = TestMethod.new
     o.methodReturningUnsignedShort.should == 42
   end
 
-  it "returning 'int' returns a fixnum in Ruby" do
+  it "returning 'int' returns a Fixnum in Ruby" do
     o = TestMethod.new
     o.methodReturningInt.should == 42
     o.methodReturningInt2.should == -42
   end
 
-  it "returning 'unsigned int' returns a fixnum in Ruby" do
+  it "returning 'unsigned int' returns a Fixnum in Ruby" do
     o = TestMethod.new
     o.methodReturningUnsignedInt.should == 42
+  end
+
+  it "returning 'long' returns a Fixnum if possible in Ruby" do
+    o = TestMethod.new
+    o.methodReturningLong.should == 42
+    o.methodReturningLong2.should == -42
+  end
+
+  it "returning 'long' returns a Bignum if it cannot fix in a Fixnum in Ruby" do
+    o = TestMethod.new
+    o.methodReturningLong3.should ==
+      (RUBY_ARCH == 'x86_64' ? 4611686018427387904 : 1073741824)
+    o.methodReturningLong4.should ==
+      (RUBY_ARCH == 'x86_64' ? -4611686018427387905 : -1073741825)
+  end
+
+  it "returning 'unsigned long' returns a Fixnum if possible in Ruby" do
+    o = TestMethod.new
+    o.methodReturningUnsignedLong.should == 42
+  end
+
+  it "returning 'unsigned long' returns a Bignum if it cannot fix in a Fixnum in Ruby" do
+    o = TestMethod.new
+    o.methodReturningUnsignedLong2.should ==
+      (RUBY_ARCH == 'x86_64' ? 4611686018427387904 : 1073741824)
+  end
+
+  it "returning 'float' returns a Float in Ruby" do
+    o = TestMethod.new
+    o.methodReturningFloat.should be_close(3.1415, 0.0001)
+  end
+
+  it "returning 'double' returns a Float in Ruby" do
+    o = TestMethod.new
+    o.methodReturningDouble.should be_close(3.1415, 0.0001)
   end
 end

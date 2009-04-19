@@ -4806,6 +4806,20 @@ rb_vm_ocval_to_rval(id ocval)
 
 extern "C"
 VALUE
+rb_vm_long_to_rval(long l)
+{
+    return INT2NUM(l);
+}
+
+extern "C"
+VALUE
+rb_vm_ulong_to_rval(long l)
+{
+    return UINT2NUM(l);
+}
+
+extern "C"
+VALUE
 rb_vm_long_long_to_rval(long long l)
 {
     return LL2NUM(l);
@@ -4816,20 +4830,6 @@ VALUE
 rb_vm_ulong_long_to_rval(unsigned long long l)
 {
     return ULL2NUM(l);
-}
-
-extern "C"
-VALUE
-rb_vm_int_to_rval(int val)
-{
-    return INT2NUM(val);
-}
-
-extern "C"
-VALUE
-rb_vm_uint_to_rval(unsigned int val)
-{
-    return UINT2NUM(val);
 }
 
 Value *
@@ -4868,12 +4868,32 @@ RoxorCompiler::compile_conversion_to_ruby(const char *type, const Type *llvm_typ
 	    val = BinaryOperator::CreateOr(val, oneVal, "", bb);
 	    return val;
 
+	case _C_LNG:
+	    func_name = "rb_vm_long_to_rval";
+	    break;
+
+	case _C_ULNG:
+	    func_name = "rb_vm_ulong_to_rval";
+	    break;
+
 	case _C_LNG_LNG:
 	    func_name = "rb_vm_long_long_to_rval";
 	    break;
 
 	case _C_ULNG_LNG:
 	    func_name = "rb_vm_ulong_long_to_rval";
+	    break;
+
+	case _C_FLT:
+	    {
+		char buf = _C_DBL;
+		const Type *dbl_type = convert_type(&buf); 
+		val = new FPExtInst(val, dbl_type, "", bb);
+		llvm_type = dbl_type;
+	    }
+	    // fall through	
+	case _C_DBL:
+	    func_name = "rb_float_new";
 	    break;
 
 	default:

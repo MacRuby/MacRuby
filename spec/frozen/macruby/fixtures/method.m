@@ -34,6 +34,16 @@
     return (id)kCFNull;
 }
 
+- (BOOL)methodReturningYES
+{
+    return YES;
+}
+
+- (BOOL)methodReturningNO
+{
+    return NO;
+}
+
 - (char)methodReturningChar
 {
     return (char)42;
@@ -77,6 +87,58 @@
 - (unsigned int)methodReturningUnsignedInt
 {
     return 42;
+}
+
+- (long)methodReturningLong
+{
+    return 42;
+}
+ 
+- (long)methodReturningLong2
+{
+    return -42;
+}
+
+- (long)methodReturningLong3
+{
+#if __LP64__
+    return 4611686018427387904;
+#else
+    return 1073741824;
+#endif
+}
+
+- (long)methodReturningLong4
+{
+#if __LP64__
+    return -4611686018427387905;
+#else
+    return -1073741825;
+#endif
+}
+
+- (unsigned long)methodReturningUnsignedLong
+{
+    return 42;
+}
+
+- (unsigned long)methodReturningUnsignedLong2
+{
+#if __LP64__
+    return 4611686018427387904;
+#else
+    return 1073741824;
+#endif
+}
+
+- (float)methodReturningFloat
+{
+    return 3.1415;
+}
+
+- (double)methodReturningDouble
+{
+    return 3.1415;
 }
 
 @end
