@@ -312,6 +312,7 @@ class RoxorCompiler
 	Value *compile_ivar_assignment(ID vid, Value *val);
 	Value *compile_cvar_assignment(ID vid, Value *val);
 	Value *compile_multiple_assignment(NODE *node, Value *val);
+	void compile_multiple_assignment_element(NODE *node, Value *val);
 	Value *compile_current_class(void);
 	Value *compile_class_path(NODE *node);
 	Value *compile_const(ID id, Value *outer);
@@ -974,64 +975,108 @@ RoxorCompiler::compile_attribute_assign(NODE *node, Value *extra_val)
     return compile_dispatch_call(params);
 }
 
+void
+RoxorCompiler::compile_multiple_assignment_element(NODE *node, Value *val)
+{
+    switch (nd_type(node)) {
+	case NODE_LASGN:
+	case NODE_DASGN:
+	case NODE_DASGN_CURR:
+	    {
+		Value *slot = compile_lvar_slot(node->nd_vid);
+		new StoreInst(val, slot, bb);
+	    }
+	    break;
+
+	case NODE_IASGN:
+	case NODE_IASGN2:
+	    compile_ivar_assignment(node->nd_vid, val);
+	    break;
+
+	case NODE_CVASGN:
+	    compile_cvar_assignment(node->nd_vid, val);
+	    break;
+
+	case NODE_ATTRASGN:
+	    compile_attribute_assign(node, val);
+	    break;
+
+	case NODE_MASGN:
+	    compile_multiple_assignment(node, val);
+	    break;
+
+	default:
+	    compile_node_error("unimplemented MASGN subnode",
+			       node);
+    }
+}
+
 Value *
 RoxorCompiler::compile_multiple_assignment(NODE *node, Value *val)
 {
     assert(nd_type(node) == NODE_MASGN);
     if (rhsnGetFunc == NULL) {
-	// VALUE rb_vm_rhsn_get(VALUE ary, int offset);
+	// VALUE rb_vm_rhsn_get(VALUE obj, int offset, int min_offset, unsigned char is_first);
 	rhsnGetFunc = cast<Function>(module->getOrInsertFunction(
-		    "rb_vm_rhsn_get", 
-		    RubyObjTy, RubyObjTy, Type::Int32Ty, NULL));
+		    "rb_vm_rhsn_get",
+		    RubyObjTy, RubyObjTy, Type::Int32Ty, Type::Int32Ty, Type::Int8Ty, NULL));
     }
 
-    NODE *lhsn = node->nd_head;
-    assert((lhsn == NULL) || (nd_type(lhsn) == NODE_ARRAY));
-    NODE *l = lhsn;
-    for (int i = 0; l != NULL; ++i) {
-	NODE *ln = l->nd_head;
+    NODE *before_splat = node->nd_head, *after_splat = NULL, *splat = NULL;
 
+    assert((before_splat == NULL) || (nd_type(before_splat) == NODE_ARRAY));
+
+    // if the splat has no name (a, *, b = 1, 2, 3), its node value is -1
+    if ((node->nd_next == (NODE *)-1) || (node->nd_next == NULL) || (nd_type(node->nd_next) != NODE_POSTARG)) {
+	splat = node->nd_next;
+    }
+    else {
+	NODE *post_arg = node->nd_next;
+	splat = post_arg->nd_1st;
+	after_splat = post_arg->nd_2nd;
+    }
+
+    assert((after_splat == NULL) || (nd_type(after_splat) == NODE_ARRAY));
+
+    int before_splat_count = 0, after_splat_count = 0;
+    for (NODE *l = before_splat; l != NULL; l = l->nd_next) {
+	++before_splat_count;
+    }
+    for (NODE *l = after_splat; l != NULL; l = l->nd_next) {
+	++after_splat_count;
+    }
+
+    NODE *l = before_splat;
+    for (int i = 0; l != NULL; ++i) {
 	std::vector<Value *> params;
 	params.push_back(val);
 	params.push_back(ConstantInt::get(Type::Int32Ty, i));
+	params.push_back(ConstantInt::get(Type::Int32Ty, 0));
+	params.push_back(ConstantInt::get(Type::Int8Ty, i == 0 ? TRUE : FALSE));
 	Value *elt = CallInst::Create(rhsnGetFunc, params.begin(),
 		params.end(), "", bb);
 
-	switch (nd_type(ln)) {
-	    case NODE_LASGN:
-	    case NODE_DASGN:
-	    case NODE_DASGN_CURR:
-		{
-		    Value *slot = compile_lvar_slot(ln->nd_vid);
-		    new StoreInst(elt, slot, bb);
-		}
-		break;
+	compile_multiple_assignment_element(l->nd_head, elt);
 
-	    case NODE_IASGN:
-	    case NODE_IASGN2:
-		compile_ivar_assignment(ln->nd_vid, elt);
-		break;
-
-	    case NODE_CVASGN:
-		compile_cvar_assignment(ln->nd_vid, elt);
-		break;
-
-	    case NODE_ATTRASGN:
-		compile_attribute_assign(ln, elt);
-		break;
-
-	    case NODE_MASGN:
-		compile_multiple_assignment(ln, elt);
-		break; 
-
-	    default:
-		compile_node_error("unimplemented MASGN subnode",
-				   ln);
-	}
 	l = l->nd_next;
     }
 
-    // TODO: splat and what's after the splat
+    // TODO: splat
+
+    l = after_splat;
+    for (int i = 0; l != NULL; ++i) {
+	std::vector<Value *> params;
+	params.push_back(val);
+	params.push_back(ConstantInt::get(Type::Int32Ty, -(after_splat_count - i)));
+	params.push_back(ConstantInt::get(Type::Int32Ty, before_splat_count + i));
+	params.push_back(ConstantInt::get(Type::Int8Ty, (before_splat_count == 0 && i == 0) ? TRUE : FALSE));
+	Value *elt = CallInst::Create(rhsnGetFunc, params.begin(),
+		params.end(), "", bb);
+
+	compile_multiple_assignment_element(l->nd_head, elt);
+
+	l = l->nd_next;
+    }
 
     return val;
 }
@@ -5897,14 +5942,22 @@ define_method:
 
 extern "C"
 VALUE
-rb_vm_rhsn_get(VALUE obj, int offset)
+rb_vm_rhsn_get(VALUE obj, int offset, int min_offset, unsigned char is_first)
 {
     if (TYPE(obj) == T_ARRAY) {
-	if (offset < RARRAY_LEN(obj)) {
-	    return OC2RB(CFArrayGetValueAtIndex((CFArrayRef)obj, offset));
+	if (offset >= 0) {
+	    if (offset < RARRAY_LEN(obj)) {
+		return OC2RB(CFArrayGetValueAtIndex((CFArrayRef)obj, offset));
+	    }
+	}
+	else {
+	    offset += RARRAY_LEN(obj);
+	    if (offset >= min_offset && offset < RARRAY_LEN(obj)) {
+		return OC2RB(CFArrayGetValueAtIndex((CFArrayRef)obj, offset));
+	    }
 	}
     }
-    else if (offset == 0) {
+    else if (is_first) {
 	return obj;
     }
     return Qnil;
