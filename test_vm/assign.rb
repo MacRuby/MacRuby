@@ -87,3 +87,9 @@ assert ':ok', "x = ':  '; x[1,2] = 'ok'; puts x"
 
 assert '42', "a=[4]; a += [2]; puts a.join"
 assert '42', "a=[4,3,2]; a -= [3]; puts a.join"
+
+assert '[1, 2, 4]', %{
+  class A; def to_ary; [1, 2, 3, 4]; end; end
+  a, b, *, c = A.new
+  p [a, b, c]
+}
