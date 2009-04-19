@@ -311,6 +311,7 @@ class RoxorCompiler
 	Value *compile_ivar_read(ID vid);
 	Value *compile_ivar_assignment(ID vid, Value *val);
 	Value *compile_cvar_assignment(ID vid, Value *val);
+	Value *compile_multiple_assignment(NODE *node, Value *val);
 	Value *compile_current_class(void);
 	Value *compile_class_path(NODE *node);
 	Value *compile_const(ID id, Value *outer);
@@ -971,6 +972,68 @@ RoxorCompiler::compile_attribute_assign(NODE *node, Value *extra_val)
     }
 
     return compile_dispatch_call(params);
+}
+
+Value *
+RoxorCompiler::compile_multiple_assignment(NODE *node, Value *val)
+{
+    assert(nd_type(node) == NODE_MASGN);
+    if (rhsnGetFunc == NULL) {
+	// VALUE rb_vm_rhsn_get(VALUE ary, int offset);
+	rhsnGetFunc = cast<Function>(module->getOrInsertFunction(
+		    "rb_vm_rhsn_get", 
+		    RubyObjTy, RubyObjTy, Type::Int32Ty, NULL));
+    }
+
+    NODE *lhsn = node->nd_head;
+    assert((lhsn == NULL) || (nd_type(lhsn) == NODE_ARRAY));
+    NODE *l = lhsn;
+    for (int i = 0; l != NULL; ++i) {
+	NODE *ln = l->nd_head;
+
+	std::vector<Value *> params;
+	params.push_back(val);
+	params.push_back(ConstantInt::get(Type::Int32Ty, i));
+	Value *elt = CallInst::Create(rhsnGetFunc, params.begin(),
+		params.end(), "", bb);
+
+	switch (nd_type(ln)) {
+	    case NODE_LASGN:
+	    case NODE_DASGN:
+	    case NODE_DASGN_CURR:
+		{
+		    Value *slot = compile_lvar_slot(ln->nd_vid);
+		    new StoreInst(elt, slot, bb);
+		}
+		break;
+
+	    case NODE_IASGN:
+	    case NODE_IASGN2:
+		compile_ivar_assignment(ln->nd_vid, elt);
+		break;
+
+	    case NODE_CVASGN:
+		compile_cvar_assignment(ln->nd_vid, elt);
+		break;
+
+	    case NODE_ATTRASGN:
+		compile_attribute_assign(ln, elt);
+		break;
+
+	    case NODE_MASGN:
+		compile_multiple_assignment(ln, elt);
+		break; 
+
+	    default:
+		compile_node_error("unimplemented MASGN subnode",
+				   ln);
+	}
+	l = l->nd_next;
+    }
+
+    // TODO: splat and what's after the splat
+
+    return val;
 }
 
 Value *
@@ -2947,72 +3010,7 @@ RoxorCompiler::compile_node(NODE *node)
 
 		Value *ary = compile_node(rhsn);
 
-		NODE *lhsn = node->nd_head;
-
-		if (lhsn == NULL) {
-		    // * = 1, 2
-		    return ary;
-		}
-
-		assert(lhsn != NULL);
-		assert(nd_type(lhsn) == NODE_ARRAY);
-
-		if (rhsnGetFunc == NULL) {
-		    // VALUE rb_vm_rhsn_get(VALUE ary, int offset);
-		    rhsnGetFunc = cast<Function>(module->getOrInsertFunction(
-				"rb_vm_rhsn_get", 
-				RubyObjTy, RubyObjTy, Type::Int32Ty, NULL));
-		}
-
-		int i = 0;
-		NODE *l = lhsn;
-		while (l != NULL) {
-		    NODE *ln = l->nd_head;
-
-		    std::vector<Value *> params;
-		    params.push_back(ary);
-		    params.push_back(ConstantInt::get(Type::Int32Ty, i++));
-		    Value *elt = CallInst::Create(rhsnGetFunc, params.begin(),
-			    params.end(), "", bb);
-
-		    switch (nd_type(ln)) {
-			case NODE_LASGN:
-			case NODE_DASGN:
-			case NODE_DASGN_CURR:
-			    {			    
-				Value *slot = compile_lvar_slot(ln->nd_vid);
-				new StoreInst(elt, slot, bb);
-			    }
-			    break;
-
-			case NODE_IASGN:
-			case NODE_IASGN2:
-			    compile_ivar_assignment(ln->nd_vid, elt);
-			    break;
-
-			case NODE_CVASGN:
-			    compile_cvar_assignment(ln->nd_vid, elt);
-			    break;
-
-			case NODE_ATTRASGN:
-			    compile_attribute_assign(ln, elt);
-			    break;
-
-			case NODE_MASGN:
-			    // a,(*b),c = 1, 2, 3; b #=> [2]
-			    // This is a strange case but covered by the
-			    // RubySpecs.
-			    // TODO
-			    break; 
-
-			default:
-			    compile_node_error("unimplemented MASGN subnode",
-					       ln);
-		    }
-		    l = l->nd_next;
-		}
-
-		return ary;
+		return compile_multiple_assignment(node, ary);
 	    }
 	    break;
 
