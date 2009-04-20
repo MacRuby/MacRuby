@@ -244,7 +244,8 @@ class RoxorCompiler
 	Function *aliasFunc;
 	Function *valiasFunc;
 	Function *newHashFunc;
-	Function *toArrayFunc;
+	Function *toAFunc;
+	Function *toAryFunc;
 	Function *catArrayFunc;
 	Function *dupArrayFunc;
 	Function *newArrayFunc;
@@ -611,7 +612,8 @@ RoxorCompiler::RoxorCompiler(const char *_fname)
     aliasFunc = NULL;
     valiasFunc = NULL;
     newHashFunc = NULL;
-    toArrayFunc = NULL;
+    toAFunc = NULL;
+    toAryFunc = NULL;
     catArrayFunc = NULL;
     dupArrayFunc = NULL;
     newArrayFunc = NULL;
@@ -1019,20 +1021,26 @@ Value *
 RoxorCompiler::compile_multiple_assignment(NODE *node, Value *val)
 {
     assert(nd_type(node) == NODE_MASGN);
+    if (toAryFunc == NULL) {
+	// VALUE rb_vm_to_ary(VALUE ary);
+	toAryFunc = cast<Function>(module->getOrInsertFunction(
+		    "rb_vm_to_ary",
+		    RubyObjTy, RubyObjTy, NULL));
+    }
     if (masgnGetElemBeforeSplatFunc == NULL) {
-	// VALUE rb_vm_masgn_get_elem_before_splat(VALUE obj, int offset);
+	// VALUE rb_vm_masgn_get_elem_before_splat(VALUE ary, int offset);
 	masgnGetElemBeforeSplatFunc = cast<Function>(module->getOrInsertFunction(
 		    "rb_vm_masgn_get_elem_before_splat",
 		    RubyObjTy, RubyObjTy, Type::Int32Ty, NULL));
     }
     if (masgnGetElemAfterSplatFunc == NULL) {
-	// VALUE rb_vm_masgn_get_elem_after_splat(VALUE obj, int before_splat_count, int after_splat_count, int offset);
+	// VALUE rb_vm_masgn_get_elem_after_splat(VALUE ary, int before_splat_count, int after_splat_count, int offset);
 	masgnGetElemAfterSplatFunc = cast<Function>(module->getOrInsertFunction(
 		    "rb_vm_masgn_get_elem_after_splat",
 		    RubyObjTy, RubyObjTy, Type::Int32Ty, Type::Int32Ty, Type::Int32Ty, NULL));
     }
     if (masgnGetSplatFunc == NULL) {
-	// VALUE rb_vm_masgn_get_splat(VALUE obj, int before_splat_count, int after_splat_count);
+	// VALUE rb_vm_masgn_get_splat(VALUE ary, int before_splat_count, int after_splat_count);
 	masgnGetSplatFunc = cast<Function>(module->getOrInsertFunction(
 		    "rb_vm_masgn_get_splat",
 		    RubyObjTy, RubyObjTy, Type::Int32Ty, Type::Int32Ty, NULL));
@@ -1060,6 +1068,13 @@ RoxorCompiler::compile_multiple_assignment(NODE *node, Value *val)
     }
     for (NODE *l = after_splat; l != NULL; l = l->nd_next) {
 	++after_splat_count;
+    }
+
+    {
+	std::vector<Value *> params;
+	params.push_back(val);
+	val = CallInst::Create(toAryFunc, params.begin(),
+	    params.end(), "", bb);
     }
 
     NODE *l = before_splat;
@@ -3899,16 +3914,16 @@ rescan_args:
 		Value *val = compile_node(node->nd_head);
 
 		if (nd_type(node->nd_head) != NODE_ARRAY) {
-		    if (toArrayFunc == NULL) {
+		    if (toAFunc == NULL) {
 			// VALUE rb_vm_to_a(VALUE obj);
-			toArrayFunc = cast<Function>(
+			toAFunc = cast<Function>(
 				module->getOrInsertFunction("rb_vm_to_a",
 				    RubyObjTy, RubyObjTy, NULL));
 		    }
 
 		    std::vector<Value *> params;
 		    params.push_back(val);
-		    val = compile_protected_call(toArrayFunc, params);
+		    val = compile_protected_call(toAFunc, params);
 		}
 
 		return val;
@@ -5408,6 +5423,17 @@ rb_vm_to_a(VALUE obj)
     return ary;
 }
 
+extern "C"
+VALUE
+rb_vm_to_ary(VALUE obj)
+{
+    VALUE ary = rb_check_convert_type(obj, T_ARRAY, "Array", "to_ary");
+    if (NIL_P(ary)) {
+	ary = rb_ary_new3(1, obj);
+    }
+    return ary;
+}
+
 extern "C" void rb_print_undef(VALUE, ID, int);
 
 static void
@@ -5965,61 +5991,41 @@ define_method:
 
 extern "C"
 VALUE
-rb_vm_masgn_get_elem_before_splat(VALUE obj, int offset)
+rb_vm_masgn_get_elem_before_splat(VALUE ary, int offset)
 {
-    if (TYPE(obj) == T_ARRAY) {
-	if (offset < RARRAY_LEN(obj)) {
-	    return OC2RB(CFArrayGetValueAtIndex((CFArrayRef)obj, offset));
-	}
-    }
-    else if (offset == 0) {
-	return obj;
+    if (offset < RARRAY_LEN(ary)) {
+	return OC2RB(CFArrayGetValueAtIndex((CFArrayRef)ary, offset));
     }
     return Qnil;
 }
 
 extern "C"
 VALUE
-rb_vm_masgn_get_elem_after_splat(VALUE obj, int before_splat_count, int after_splat_count, int offset)
+rb_vm_masgn_get_elem_after_splat(VALUE ary, int before_splat_count, int after_splat_count, int offset)
 {
-    if (TYPE(obj) == T_ARRAY) {
-	int len = RARRAY_LEN(obj);
-	if (len < before_splat_count + after_splat_count) {
-	    offset += before_splat_count;
-	    if (offset < len) {
-		return OC2RB(CFArrayGetValueAtIndex((CFArrayRef)obj, offset));
-	    }
-	}
-	else {
-	    offset += len - after_splat_count;
-	    return OC2RB(CFArrayGetValueAtIndex((CFArrayRef)obj, offset));
-	}
-    }
-    else if (offset == 0 && before_splat_count == 0) {
-	return obj;
-    }
-    return Qnil;
-}
-
-extern "C"
-VALUE
-rb_vm_masgn_get_splat(VALUE obj, int before_splat_count, int after_splat_count) {
-    if (TYPE(obj) == T_ARRAY) {
-	int len = RARRAY_LEN(obj);
-	if (len > before_splat_count + after_splat_count) {
-	    return rb_ary_subseq(obj, before_splat_count, len - before_splat_count - after_splat_count);
-	}
-	else {
-	    return rb_ary_new();
+    int len = RARRAY_LEN(ary);
+    if (len < before_splat_count + after_splat_count) {
+	offset += before_splat_count;
+	if (offset < len) {
+	    return OC2RB(CFArrayGetValueAtIndex((CFArrayRef)ary, offset));
 	}
     }
     else {
-	if (before_splat_count == 0 && after_splat_count == 0) {
-	    return rb_ary_new3(1, obj);
-	}
-	else {
-	    return rb_ary_new();
-	}
+	offset += len - after_splat_count;
+	return OC2RB(CFArrayGetValueAtIndex((CFArrayRef)ary, offset));
+    }
+    return Qnil;
+}
+
+extern "C"
+VALUE
+rb_vm_masgn_get_splat(VALUE ary, int before_splat_count, int after_splat_count) {
+    int len = RARRAY_LEN(ary);
+    if (len > before_splat_count + after_splat_count) {
+	return rb_ary_subseq(ary, before_splat_count, len - before_splat_count - after_splat_count);
+    }
+    else {
+	return rb_ary_new();
     }
 }
 
