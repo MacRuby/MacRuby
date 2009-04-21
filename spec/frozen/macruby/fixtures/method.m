@@ -156,6 +156,11 @@
     return NSMakeRect(1, 2, 3, 4);
 }
 
+- (NSRange)methodReturningNSRange
+{
+    return NSMakeRange(0, 42);
+}
+
 @end
 
 void

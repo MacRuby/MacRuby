@@ -286,4 +286,14 @@ describe "An Objective-C method" do
     b.size.width.should == 3.0
     b.size.height.should == 4.0
   end
+
+  it "returning 'NSRange' returns an NSRange boxed object in Ruby" do
+    o = TestMethod.new
+    b = o.methodReturningNSRange
+    b.class.should == NSRange
+    b.location.class.should == Fixnum
+    b.location.should == 0
+    b.length.class.should == Fixnum
+    b.length.should == 42
+  end
 end
