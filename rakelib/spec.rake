@@ -85,6 +85,11 @@ namespace :spec do
     sh "./miniruby -v -I./mspec/lib -I./lib ./mspec/bin/mspec-run #{KNOWN_GOOD_CORE_IO_FILES.join(' ')}"
   end
   
+  desc "Run all MacRuby-only specs"
+  task :macruby do
+    sh "./miniruby -v -I./mspec/lib -I./lib ./mspec/bin/mspec-run spec/frozen/macruby"
+  end
+  
   desc "Run language examples that are known to fail"
   task :fails do
     sh "./mspec/bin/mspec run -g fails -B ./spec/frozen/macruby.mspec spec/frozen/language"
