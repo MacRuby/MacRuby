@@ -4996,9 +4996,11 @@ RoxorCompiler::compile_conversion_to_ruby(const char *type,
 	    return nilVal;
 
 	case _C_BOOL:
-	    Value *is_true = new ICmpInst(ICmpInst::ICMP_EQ, val,
-		    ConstantInt::get(Type::Int8Ty, 1), "", bb);
-	    return SelectInst::Create(is_true, trueVal, falseVal, "", bb);
+	    {
+		Value *is_true = new ICmpInst(ICmpInst::ICMP_EQ, val,
+			ConstantInt::get(Type::Int8Ty, 1), "", bb);
+		return SelectInst::Create(is_true, trueVal, falseVal, "", bb);
+	    }
 
 	case _C_ID:
 	case _C_CLASS:
