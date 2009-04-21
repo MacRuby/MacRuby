@@ -254,4 +254,36 @@ describe "An Objective-C method" do
     o.methodReturningDouble.should be_close(3.1415, 0.0001)
     o.methodReturningDouble.class.should == Float
   end
+
+  it "returning 'NSPoint' returns an NSPoint boxed object in Ruby" do
+    o = TestMethod.new
+    b = o.methodReturningNSPoint
+    b.class.should == NSPoint
+    b.x.class.should == Float
+    b.x.should == 1.0
+    b.y.class.should == Float
+    b.y.should == 2.0
+  end
+
+  it "returning 'NSSize' returns an NSSize boxed object in Ruby" do
+    o = TestMethod.new
+    b = o.methodReturningNSSize
+    b.class.should == NSSize
+    b.width.class.should == Float
+    b.width.should == 3.0
+    b.height.class.should == Float
+    b.height.should == 4.0
+  end
+
+  it "returning 'NSRect' returns an NSRect boxed object in Ruby" do
+    o = TestMethod.new
+    b = o.methodReturningNSRect
+    b.class.should == NSRect
+    b.origin.class.should == NSPoint
+    b.origin.x.should == 1.0
+    b.origin.y.should == 2.0
+    b.size.class.should == NSSize
+    b.size.width.should == 3.0
+    b.size.height.should == 4.0
+  end
 end

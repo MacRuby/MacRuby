@@ -588,6 +588,10 @@ class RoxorVM
 	    }
 	    return NULL;
 	}
+
+	size_t get_type_size(const Type *type) {
+	    return ee->getTargetData()->getTypeSizeInBits(type);
+	}
 };
 
 RoxorVM *RoxorVM::current = NULL;
@@ -5179,6 +5183,20 @@ RoxorCompiler::compile_stub(const char *types, int argc, bool is_objc)
     const char *p = GetFirstType(types, buf, sizeof buf);
     const Type *ret_type = convert_type(buf);
 
+    Value *sret = NULL;
+
+    if (ret_type->getTypeID() == Type::StructTyID
+	&& GET_VM()->get_type_size(ret_type) > 128) {
+
+	// We are returning a large struct, we need to pass a pointer as the
+	// first argument to the structure data and return void to conform to
+	// the ABI (at least x86_64).
+	f_types.push_back(PointerType::getUnqual(ret_type));
+	sret = new AllocaInst(ret_type, "", bb);
+	params.push_back(sret);
+	ret_type = Type::VoidTy;
+    }
+
     // self
     p = SkipFirstType(p);
     f_types.push_back(RubyObjTy);
@@ -5213,8 +5231,15 @@ RoxorCompiler::compile_stub(const char *types, int argc, bool is_objc)
 	    "", bb); 
 
     // Compile retval.
+    Value *retval;
+    if (sret != NULL) {
+	retval = new LoadInst(sret, "", bb);
+    }
+    else {
+	retval = imp_call;
+    }
     GetFirstType(types, buf, sizeof buf);
-    Value *retval = compile_conversion_to_ruby(buf, ret_type, imp_call);
+    retval = compile_conversion_to_ruby(buf, convert_type(buf), retval);
     ReturnInst::Create(retval, bb);
 
     return f;
