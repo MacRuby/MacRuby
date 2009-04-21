@@ -1064,6 +1064,7 @@ RUBY_EXTERN VALUE rb_cCFSet;
 RUBY_EXTERN VALUE rb_cNSSet;
 RUBY_EXTERN VALUE rb_cNSMutableSet;
 RUBY_EXTERN VALUE rb_cCFNumber;
+RUBY_EXTERN VALUE rb_cBoxed;
 
 bool _CFArrayIsMutable(void *);
 #define RARRAY_IMMUTABLE(o) (*(VALUE *)o == rb_cCFArray && !_CFArrayIsMutable((void *)o))

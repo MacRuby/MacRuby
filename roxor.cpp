@@ -40,6 +40,7 @@ using namespace llvm;
 #include "objc.h"
 #include "roxor.h"
 #include <execinfo.h>
+#include <dlfcn.h>
 
 #define FROM_GV(gv,t) ((t)(gv.IntVal.getZExtValue()))
 static GenericValue
@@ -249,6 +250,7 @@ class RoxorCompiler
 	Function *catArrayFunc;
 	Function *dupArrayFunc;
 	Function *newArrayFunc;
+	Function *newStructFunc;
 	Function *newRangeFunc;
 	Function *newRegexpFunc;
 	Function *strInternFunc;
@@ -330,10 +332,12 @@ class RoxorCompiler
 	void compile_landing_pad_footer(void);
 	void compile_rethrow_exception(void);
 	Value *compile_lvar_slot(ID name);
+	Value *compile_new_struct(VALUE klass, std::vector<Value *> &fields);
 
-	Value *compile_conversion_to_c(const char *type, Value *val, Value *slot);
-	Value *compile_conversion_to_ruby(const char *type, const Type *llvm_type, 
-		Value *val);
+	Value *compile_conversion_to_c(const char *type, Value *val,
+				       Value *slot);
+	Value *compile_conversion_to_ruby(const char *type,
+					  const Type *llvm_type, Value *val);
 
 	int *get_slot_cache(ID id) {
 	    if (current_block || !current_instance_method || current_module) {
@@ -422,6 +426,18 @@ typedef struct {
     NODE *node;
 } rb_vm_method_source_t;
 
+typedef struct {
+    bs_element_type_t bs_type;
+    bool is_struct(void) { return bs_type == BS_ELEMENT_STRUCT; }
+    union {
+	bs_element_struct_t *s;
+	bs_element_opaque_t *o;
+	void *v;
+    } as;
+    Type *type;
+    VALUE klass;
+} rb_vm_bs_boxed_t;
+
 class RoxorVM
 {
     private:
@@ -464,6 +480,16 @@ class RoxorVM
 	std::vector<jmp_buf *> return_from_block_jmp_bufs;
 
 	std::map<std::string, void *> c_stubs, objc_stubs;
+
+	bs_parser_t *bs_parser;
+	std::map<std::string, rb_vm_bs_boxed_t *> bs_boxed;
+	std::map<ID, bs_element_function_t *> bs_funcs;
+	std::map<ID, bs_element_constant_t *> bs_consts;
+	std::map<std::string, std::map<SEL, bs_element_method_t *> *>
+	    bs_classes_class_methods, bs_classes_instance_methods;
+
+	bs_element_method_t *find_bs_method(Class klass, SEL sel);
+	rb_vm_bs_boxed_t *find_bs_struct(std::string type);
 
 #if ROXOR_ULTRA_LAZY_JIT
 	std::map<SEL, std::map<Class, rb_vm_method_source_t *> *>
@@ -617,6 +643,7 @@ RoxorCompiler::RoxorCompiler(const char *_fname)
     catArrayFunc = NULL;
     dupArrayFunc = NULL;
     newArrayFunc = NULL;
+    newStructFunc = NULL;
     newRangeFunc = NULL;
     newRegexpFunc = NULL;
     strInternFunc = NULL;
@@ -2424,6 +2451,8 @@ RoxorVM::RoxorVM(void)
     rb_objc_retain((void *)load_path);
     loaded_features = rb_ary_new();
     rb_objc_retain((void *)loaded_features);
+
+    bs_parser = NULL;
 
     emp = new ExistingModuleProvider(RoxorCompiler::module);
     jmm = new RoxorJITManager;
@@ -4913,9 +4942,48 @@ rb_vm_ulong_long_to_rval(unsigned long long l)
     return ULL2NUM(l);
 }
 
+extern "C"
+VALUE
+rb_vm_new_struct(VALUE klass, int argc, ...)
+{
+    assert(argc > 0);
+
+    va_list ar;
+    va_start(ar, argc);
+    VALUE *data = (VALUE *)xmalloc(argc * sizeof(VALUE));
+    for (int i = 0; i < argc; ++i) {
+	VALUE field = va_arg(ar, VALUE);
+	GC_WB(&data[i], field);
+    }
+    va_end(ar);
+
+    return Data_Wrap_Struct(klass, NULL, NULL, data);
+}
+
 Value *
-RoxorCompiler::compile_conversion_to_ruby(const char *type, const Type *llvm_type,
-					  Value *val)
+RoxorCompiler::compile_new_struct(VALUE klass, std::vector<Value *> &fields)
+{
+    if (newStructFunc == NULL) {
+	std::vector<const Type *> types;
+	types.push_back(RubyObjTy);
+	types.push_back(Type::Int32Ty);
+	FunctionType *ft = FunctionType::get(RubyObjTy, types, true);
+
+	newStructFunc = cast<Function>(module->getOrInsertFunction(
+		    "rb_vm_new_struct", ft));
+    }
+
+    fields.insert(fields.begin(),
+	    ConstantInt::get(Type::Int32Ty, fields.size()));
+    fields.insert(fields.begin(), ConstantInt::get(RubyObjTy, klass));
+
+    return CallInst::Create(newStructFunc, fields.begin(), fields.end(),
+	    "", bb); 
+}
+
+Value *
+RoxorCompiler::compile_conversion_to_ruby(const char *type,
+					  const Type *llvm_type, Value *val)
 {
     const char *func_name = NULL;
 
@@ -4977,9 +5045,30 @@ RoxorCompiler::compile_conversion_to_ruby(const char *type, const Type *llvm_typ
 	    func_name = "rb_float_new";
 	    break;
 
-	default:
-	    printf("unrecognized compile type `%s' to Ruby - aborting\n", type);
-	    abort();
+	case _C_STRUCT_B:
+	    rb_vm_bs_boxed_t *bs_boxed = GET_VM()->find_bs_struct(type);
+	    if (bs_boxed != NULL) {
+		std::vector<Value *> params;
+
+		for (unsigned i = 0; i < bs_boxed->as.s->fields_count;
+			i++) {
+			
+		    const char *ftype = bs_boxed->as.s->fields[i].type;
+		    const Type *llvm_ftype = convert_type(ftype);
+		    Value *fval = ExtractValueInst::Create(val, i, "", bb);
+
+		    params.push_back(compile_conversion_to_ruby(ftype,
+				llvm_ftype, fval));
+		}
+
+		return compile_new_struct(bs_boxed->klass, params);
+	    }
+	    break;
+    }
+
+    if (func_name == NULL) {
+	printf("unrecognized compile type `%s' to Ruby - aborting\n", type);
+	abort();
     }
  
     std::vector<Value *> params;
@@ -5036,6 +5125,24 @@ RoxorCompiler::convert_type(const char *type)
 	case _C_LNG_LNG:
 	case _C_ULNG_LNG:
 	    return Type::Int64Ty;
+
+	case _C_STRUCT_B:
+	    rb_vm_bs_boxed_t *bs_boxed = GET_VM()->find_bs_struct(type);
+	    if (bs_boxed != NULL) {
+		if (bs_boxed->type == NULL) {
+		    std::vector<const Type *> s_types;
+		    for (unsigned i = 0; i < bs_boxed->as.s->fields_count;
+			 i++) {
+
+			const char *ftype = bs_boxed->as.s->fields[i].type;
+			s_types.push_back(convert_type(ftype));
+		    }
+		    bs_boxed->type = StructType::get(s_types);
+		    assert(bs_boxed->type != NULL);
+		}
+		return bs_boxed->type;
+	    }
+	    break;
     }
 
     printf("unrecognized runtime type `%s' - aborting\n", type);
@@ -5102,7 +5209,8 @@ RoxorCompiler::compile_stub(const char *types, int argc, bool is_objc)
     Value *imp = new BitCastInst(imp_arg, PointerType::getUnqual(ft), "", bb);
 
     // Compile call.
-    CallInst *imp_call = CallInst::Create(imp, params.begin(), params.end(), "", bb); 
+    CallInst *imp_call = CallInst::Create(imp, params.begin(), params.end(),
+	    "", bb); 
 
     // Compile retval.
     GetFirstType(types, buf, sizeof buf);
@@ -6434,7 +6542,7 @@ recache:
 		cache->flag = MCACHE_OCALL;
 		ocache.klass = klass;
 		ocache.imp = imp;
-		ocache.bs_method = rb_bs_find_method(klass, sel);
+		ocache.bs_method = GET_VM()->find_bs_method(klass, sel);
 
 		char types[200];
 		if (!rb_objc_get_types(self, klass, sel, ocache.bs_method,
@@ -7749,6 +7857,439 @@ rb_vm_throw(VALUE tag, VALUE value)
     return Qnil; // never reached
 }
 
+// BridgeSupport implementation
+
+static inline ID
+generate_const_name(char *name)
+{
+    ID id;
+    if (islower(name[0])) {
+	name[0] = toupper(name[0]);
+	id = rb_intern(name);
+	name[0] = tolower(name[0]);
+	return id;
+    }
+    else {
+	return rb_intern(name);
+    }
+}
+
+static VALUE bs_const_magic_cookie = Qnil;
+
+extern "C"
+VALUE
+rb_vm_resolve_const_value(VALUE v, VALUE klass, ID id)
+{
+    void *sym;
+    bs_element_constant_t *bs_const;
+
+    if (v == bs_const_magic_cookie) {
+	std::map<ID, bs_element_constant_t *>::iterator iter =
+	    GET_VM()->bs_consts.find(id);
+	if (iter == GET_VM()->bs_consts.end()) {
+	    rb_bug("unresolved BridgeSupport constant `%s'",
+		    rb_id2name(id));
+	}
+	bs_const = iter->second;
+
+	sym = dlsym(RTLD_DEFAULT, bs_const->name);
+	if (sym == NULL) {
+	    rb_bug("cannot locate symbol for BridgeSupport constant `%s'",
+		    bs_const->name);
+	}
+
+	// TODO
+	//rb_objc_ocval_to_rval(sym, bs_const->type, &v);
+	v = INT2FIX(42);
+
+	CFMutableDictionaryRef iv_dict = rb_class_ivar_dict(rb_cObject);
+	assert(iv_dict != NULL);
+	CFDictionarySetValue(iv_dict, (const void *)id, (const void *)v);
+    }
+
+    return v;
+}
+
+#define GEN_STRUCT_READER(idx) \
+    static VALUE rb_vm_struct_reader_##idx (VALUE self, SEL sel) { \
+	VALUE *data; \
+	Data_Get_Struct(self, VALUE, data); \
+	return data[idx]; \
+    } \
+
+GEN_STRUCT_READER(0);  GEN_STRUCT_READER(1);  GEN_STRUCT_READER(2);
+GEN_STRUCT_READER(3);  GEN_STRUCT_READER(4);  GEN_STRUCT_READER(5);
+GEN_STRUCT_READER(6);  GEN_STRUCT_READER(7);  GEN_STRUCT_READER(8);
+GEN_STRUCT_READER(9);  GEN_STRUCT_READER(10); GEN_STRUCT_READER(11);
+GEN_STRUCT_READER(12); GEN_STRUCT_READER(13); GEN_STRUCT_READER(14);
+GEN_STRUCT_READER(15); GEN_STRUCT_READER(16); GEN_STRUCT_READER(17);
+GEN_STRUCT_READER(18); GEN_STRUCT_READER(19);
+
+#define BS_STRUCT_MAX_FIELDS 20
+typedef VALUE rb_vm_struct_reader_t(VALUE, SEL);
+static rb_vm_struct_reader_t *struct_readers[] = {
+    rb_vm_struct_reader_0,  rb_vm_struct_reader_1,  rb_vm_struct_reader_2,
+    rb_vm_struct_reader_3,  rb_vm_struct_reader_4,  rb_vm_struct_reader_5,
+    rb_vm_struct_reader_6,  rb_vm_struct_reader_7,  rb_vm_struct_reader_8,
+    rb_vm_struct_reader_9,  rb_vm_struct_reader_10, rb_vm_struct_reader_11,
+    rb_vm_struct_reader_12, rb_vm_struct_reader_13, rb_vm_struct_reader_14,
+    rb_vm_struct_reader_15, rb_vm_struct_reader_16, rb_vm_struct_reader_17,
+    rb_vm_struct_reader_18, rb_vm_struct_reader_19
+};
+
+static bool
+register_bs_boxed(bs_element_type_t type, void *value)
+{
+    std::string octype(((bs_element_opaque_t *)value)->type);
+
+    std::map<std::string, rb_vm_bs_boxed_t *>::iterator iter =
+	GET_VM()->bs_boxed.find(octype);
+
+    if (iter != GET_VM()->bs_boxed.end()) {
+	return false;
+    }
+
+    rb_vm_bs_boxed_t *boxed = (rb_vm_bs_boxed_t *)malloc(
+	    sizeof(rb_vm_bs_boxed_t));
+
+    boxed->bs_type = type;
+    boxed->as.v = value;
+    boxed->type = NULL; // lazy
+    boxed->klass = rb_define_class(((bs_element_opaque_t *)value)->name,
+	    rb_cBoxed);
+
+    if (type == BS_ELEMENT_STRUCT) {
+	assert(boxed->as.s->fields_count < BS_STRUCT_MAX_FIELDS);
+	for (unsigned i = 0; i < boxed->as.s->fields_count; i++) {
+	    rb_objc_define_method(boxed->klass, boxed->as.s->fields[i].name,
+		    (void *)struct_readers[i], 0);
+	}
+    }
+
+    GET_VM()->bs_boxed[octype] = boxed;
+
+    return true;
+}
+
+static inline void
+index_bs_class_methods(const char *name,
+	std::map<std::string, std::map<SEL, bs_element_method_t *> *> &map,
+	bs_element_method_t *methods,
+	unsigned method_count)
+{
+    std::map<std::string, std::map<SEL, bs_element_method_t *> *>::iterator
+	iter = map.find(name);
+
+    std::map<SEL, bs_element_method_t *> *methods_map = NULL;	
+    if (iter == map.end()) {
+	methods_map = new std::map<SEL, bs_element_method_t *>();
+	map[name] = methods_map;
+    }
+    else {
+	methods_map = iter->second;
+    }
+
+    for (unsigned i = 0; i < method_count; i++) {
+	bs_element_method_t *m = &methods[i];
+	methods_map->insert(std::make_pair(m->name, m));
+    }
+} 
+
+inline bs_element_method_t *
+RoxorVM::find_bs_method(Class klass, SEL sel)
+{
+    std::map<std::string, std::map<SEL, bs_element_method_t *> *> &map =
+	class_isMetaClass(klass) ? bs_classes_class_methods
+	: bs_classes_instance_methods;
+
+    std::map<std::string, std::map<SEL, bs_element_method_t *> *>::iterator
+	iter = map.find(class_getName(klass));
+
+    if (iter == map.end()) {
+	return NULL;
+    }
+
+    std::map<SEL, bs_element_method_t *> *map2 = iter->second;
+    std::map<SEL, bs_element_method_t *>::iterator iter2 = map2->find(sel);
+
+    if (iter2 == map2->end()) {
+	return NULL;
+    }
+
+    return iter2->second;
+}
+
+inline rb_vm_bs_boxed_t *
+RoxorVM::find_bs_struct(std::string type)
+{
+    std::map<std::string, rb_vm_bs_boxed_t *>::iterator iter =
+	bs_boxed.find(type);
+
+    if (iter == bs_boxed.end()) {
+	return NULL;
+    }
+
+    rb_vm_bs_boxed_t *boxed = iter->second;
+    return boxed->is_struct() ? boxed : NULL; 
+}
+
+static inline void
+register_bs_class(bs_element_class_t *bs_class)
+{
+    if (bs_class->class_methods_count > 0) {
+	index_bs_class_methods(bs_class->name,
+		GET_VM()->bs_classes_class_methods,
+		bs_class->class_methods,
+		bs_class->class_methods_count);
+    }
+    if (bs_class->instance_methods_count > 0) {
+	index_bs_class_methods(bs_class->name,
+		GET_VM()->bs_classes_instance_methods,
+		bs_class->instance_methods,
+		bs_class->instance_methods_count);
+    }
+}
+
+static void
+bs_parse_cb(bs_parser_t *parser, const char *path, bs_element_type_t type, 
+            void *value, void *ctx)
+{
+    bool do_not_free = false;
+    CFMutableDictionaryRef rb_cObject_dict = (CFMutableDictionaryRef)ctx;
+
+    switch (type) {
+	case BS_ELEMENT_ENUM:
+	{
+	    bs_element_enum_t *bs_enum = (bs_element_enum_t *)value;
+	    ID name = generate_const_name(bs_enum->name);
+	    if (!CFDictionaryGetValueIfPresent(rb_cObject_dict,
+			(const void *)name, NULL)) {
+
+		VALUE val = strchr(bs_enum->value, '.') != NULL
+		    ? rb_float_new(rb_cstr_to_dbl(bs_enum->value, 1))
+		    : rb_cstr_to_inum(bs_enum->value, 10, 1);
+		CFDictionarySetValue(rb_cObject_dict, (const void *)name, 
+			(const void *)val);
+	    }
+	    else {
+		rb_warning("bs: enum `%s' already defined", rb_id2name(name));
+	    }
+	    break;
+	}
+
+	case BS_ELEMENT_CONSTANT:
+	{
+	    bs_element_constant_t *bs_const = (bs_element_constant_t *)value;
+	    ID name = generate_const_name(bs_const->name);
+	    if (!CFDictionaryGetValueIfPresent(rb_cObject_dict,
+			(const void *)name, NULL)) {
+
+		GET_VM()->bs_consts[name] = bs_const;
+		CFDictionarySetValue(rb_cObject_dict, (const void *)name, 
+			(const void *)bs_const_magic_cookie);
+		do_not_free = true;
+	    }
+	    else {
+		rb_warning("bs: constant `%s' already defined", 
+			   rb_id2name(name));
+	    }
+	    break;
+	}
+
+	case BS_ELEMENT_STRING_CONSTANT:
+	{
+	    bs_element_string_constant_t *bs_strconst = 
+		(bs_element_string_constant_t *)value;
+	    ID name = generate_const_name(bs_strconst->name);
+	    if (!CFDictionaryGetValueIfPresent(rb_cObject_dict,
+			(const void *)name, NULL)) {
+
+		VALUE val;
+#if 0 // this is likely not needed anymore
+	    	if (bs_strconst->nsstring) {
+		    CFStringRef string = CFStringCreateWithCString(NULL,
+			    bs_strconst->value, kCFStringEncodingUTF8);
+		    val = (VALUE)string;
+	    	}
+	    	else {
+#endif
+		    val = rb_str_new2(bs_strconst->value);
+//	    	}
+		CFDictionarySetValue(rb_cObject_dict, (const void *)name, 
+			(const void *)val);
+	    }
+	    else {
+		rb_warning("bs: string constant `%s' already defined", 
+			   rb_id2name(name));
+	    }
+	    break;
+	}
+
+	case BS_ELEMENT_FUNCTION:
+	{
+	    bs_element_function_t *bs_func = (bs_element_function_t *)value;
+	    ID name = rb_intern(bs_func->name);
+
+	    std::map<ID, bs_element_function_t *>::iterator iter =
+		GET_VM()->bs_funcs.find(name);
+	    if (iter == GET_VM()->bs_funcs.end()) {
+		GET_VM()->bs_funcs[name] = bs_func;
+		do_not_free = true;
+	    }
+	    else {
+		rb_warning("bs: function `%s' already defined", bs_func->name);
+	    }
+	    break;
+	}
+
+	case BS_ELEMENT_FUNCTION_ALIAS:
+	{
+#if 0 // TODO
+	    bs_element_function_alias_t *bs_func_alias = 
+		(bs_element_function_alias_t *)value;
+	    bs_element_function_t *bs_func_original;
+	    if (st_lookup(bs_functions, 
+			(st_data_t)rb_intern(bs_func_alias->original), 
+			(st_data_t *)&bs_func_original)) {
+		st_insert(bs_functions, 
+			(st_data_t)rb_intern(bs_func_alias->name), 
+			(st_data_t)bs_func_original);
+	    }
+	    else {
+		rb_raise(rb_eRuntimeError, 
+			"cannot alias '%s' to '%s' because it doesn't exist", 
+			bs_func_alias->name, bs_func_alias->original);
+	    }
+#endif
+	    break;
+	}
+
+	case BS_ELEMENT_OPAQUE:
+	case BS_ELEMENT_STRUCT:
+	{
+	    if (register_bs_boxed(type, value)) {
+		do_not_free = true;
+	    }
+	    else {
+		rb_warning("bs: boxed `%s' already defined",
+			((bs_element_opaque_t *)value)->name);
+	    }
+	    break;
+	}
+
+	case BS_ELEMENT_CLASS:
+	{
+	    bs_element_class_t *bs_class = (bs_element_class_t *)value;
+	    register_bs_class(bs_class);
+	    free(bs_class);
+	    do_not_free = true;
+	    break;
+	}
+
+	case BS_ELEMENT_INFORMAL_PROTOCOL_METHOD:
+	{
+#if 0
+	    bs_element_informal_protocol_method_t *bs_inf_prot_method = 
+		(bs_element_informal_protocol_method_t *)value;
+	    struct st_table *t = bs_inf_prot_method->class_method
+		? bs_inf_prot_cmethods
+		: bs_inf_prot_imethods;
+
+	    st_insert(t, (st_data_t)bs_inf_prot_method->name,
+		(st_data_t)bs_inf_prot_method->type);
+
+	    free(bs_inf_prot_method->protocol_name);
+	    free(bs_inf_prot_method);
+	    do_not_free = true;
+#endif
+	    break;
+	}
+
+	case BS_ELEMENT_CFTYPE:
+	{
+#if 0
+	    bs_element_cftype_t *bs_cftype = (bs_element_cftype_t *)value;
+	    st_insert(bs_cftypes, (st_data_t)bs_cftype->type, 
+		    (st_data_t)bs_cftype);
+	    do_not_free = true;
+#endif
+	    break;
+	}
+    }
+
+    if (!do_not_free) {
+	bs_element_free(type, value);
+    }
+}
+
+extern "C"
+void
+rb_vm_load_bridge_support(const char *path, const char *framework_path,
+			  int options)
+{
+    char *error;
+    bool ok;
+    CFMutableDictionaryRef rb_cObject_dict;  
+
+    if (GET_VM()->bs_parser == NULL) {
+	GET_VM()->bs_parser = bs_parser_new();
+    }
+
+    rb_cObject_dict = rb_class_ivar_dict(rb_cObject);
+    assert(rb_cObject_dict != NULL);
+
+    ok = bs_parser_parse(GET_VM()->bs_parser, path, framework_path,
+			 (bs_parse_options_t)options,
+			 bs_parse_cb, rb_cObject_dict, &error);
+    if (!ok) {
+	rb_raise(rb_eRuntimeError, "%s", error);
+    }
+#if 0 //TODO //MAC_OS_X_VERSION_MAX_ALLOWED <= 1060
+    /* XXX we should introduce the possibility to write prelude scripts per
+     * frameworks where this kind of changes could be located.
+     */
+#if defined(__LP64__)
+    static bool R6399046_fixed = false;
+    /* XXX work around for <rdar://problem/6399046> NSNotFound 64-bit value is incorrect */
+    if (!R6399046_fixed) {
+	ID nsnotfound = rb_intern("NSNotFound");
+	VALUE val = 
+	    (VALUE)CFDictionaryGetValue(rb_cObject_dict, (void *)nsnotfound);
+	if ((VALUE)val == INT2FIX(-1)) {
+	    CFDictionarySetValue(rb_cObject_dict, 
+		    (const void *)nsnotfound,
+		    (const void *)ULL2NUM(NSNotFound));
+	    R6399046_fixed = true;
+	    DLOG("XXX", "applied work-around for rdar://problem/6399046");
+	}
+    }
+#endif
+    static bool R6401816_fixed = false;
+    /* XXX work around for <rdar://problem/6401816> -[NSObject performSelector:withObject:] has wrong sel_of_type attributes*/
+    if (!R6401816_fixed) {
+	bs_element_method_t *bs_method = 
+	    rb_bs_find_method((Class)rb_cNSObject, 
+			      @selector(performSelector:withObject:));
+	if (bs_method != NULL) {
+	    bs_element_arg_t *arg = bs_method->args;
+	    while (arg != NULL) {
+		if (arg->index == 0 
+		    && arg->sel_of_type != NULL
+		    && arg->sel_of_type[0] != '@') {
+		    arg->sel_of_type[0] = '@';
+		    R6401816_fixed = true;
+		    DLOG("XXX", "applied work-around for rdar://problem/6401816");
+		    break;
+		}
+		arg++;
+	    }
+	}	
+    }
+#endif
+}
+
+// stubs
+
 static VALUE
 builtin_ostub1(IMP imp, id self, SEL sel, int argc, VALUE *argv)
 {
@@ -7833,6 +8374,9 @@ Init_VM(void)
     VALUE top_self = rb_obj_alloc(rb_cTopLevel);
     rb_objc_retain((void *)top_self);
     GET_VM()->current_top_object = top_self;
+
+    bs_const_magic_cookie = rb_str_new2("bs_const_magic_cookie");
+    rb_objc_retain((void *)bs_const_magic_cookie);
 }
 
 extern "C"

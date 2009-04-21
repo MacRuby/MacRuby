@@ -62,7 +62,7 @@ typedef struct {
     struct st_table *imethods;
 } bs_element_indexed_class_t;
 
-static VALUE rb_cBoxed;
+VALUE rb_cBoxed;
 static ID rb_ivar_type;
 
 static VALUE bs_const_magic_cookie = Qnil;
@@ -2203,6 +2203,7 @@ rb_klass_get_bs_boxed(VALUE recv)
     return NULL;
 }
 
+#if 0
 static VALUE
 rb_bs_struct_new(int argc, VALUE *argv, VALUE recv)
 {
@@ -2341,6 +2342,7 @@ rb_bs_struct_inspect(VALUE recv)
 
     return str;
 }
+#endif
 
 static VALUE
 rb_boxed_objc_type(VALUE recv, SEL sel)
@@ -2389,14 +2391,17 @@ rb_boxed_fields(VALUE recv, SEL sel)
     return ary;
 }
 
+#if 0
 static ffi_cif *struct_reader_cif = NULL;
 static ffi_cif *struct_writer_cif = NULL;
+#endif
 
 struct rb_struct_accessor_context {
     bs_element_struct_field_t *field;
     int num;
 };
 
+#if 0
 static void
 rb_struct_reader_closure_handler(ffi_cif *cif, void *resp, void **args,
 				 void *userdata)
@@ -2438,7 +2443,9 @@ rb_struct_writer_closure_handler(ffi_cif *cif, void *resp, void **args,
 
     *(VALUE *)resp = fval;
 }
+#endif
 
+#if 0
 static void
 rb_struct_gen_accessors(VALUE klass, bs_element_struct_field_t *field, int num)
 {
@@ -2503,7 +2510,9 @@ rb_struct_gen_accessors(VALUE klass, bs_element_struct_field_t *field, int num)
     snprintf(buf, sizeof buf, "%s=", field->name);
     rb_define_method(klass, buf, (VALUE(*)(ANYARGS))closure, 1);
 }
+#endif
 
+#if 0
 static void
 setup_bs_boxed_type(bs_element_type_t type, void *value)
 {
@@ -2559,282 +2568,12 @@ setup_bs_boxed_type(bs_element_type_t type, void *value)
 
     st_insert(bs_boxeds, (st_data_t)p->type, (st_data_t)bs_boxed);
 }
-
-static inline ID
-generate_const_name(char *name)
-{
-    ID id;
-    if (islower(name[0])) {
-	name[0] = toupper(name[0]);
-	id = rb_intern(name);
-	name[0] = tolower(name[0]);
-	return id;
-    }
-    else {
-	return rb_intern(name);
-    }
-}
-
-static void
-bs_parse_cb(bs_parser_t *parser, const char *path, bs_element_type_t type, 
-            void *value, void *ctx)
-{
-    bool do_not_free = false;
-    CFMutableDictionaryRef rb_cObject_dict = (CFMutableDictionaryRef)ctx;
-
-    switch (type) {
-	case BS_ELEMENT_ENUM:
-	{
-	    bs_element_enum_t *bs_enum = (bs_element_enum_t *)value;
-	    ID name = generate_const_name(bs_enum->name);
-	    if (!CFDictionaryGetValueIfPresent(
-		(CFDictionaryRef)rb_cObject_dict, (const void *)name, NULL)) {
-		VALUE val = strchr(bs_enum->value, '.') != NULL
-		    ? rb_float_new(rb_cstr_to_dbl(bs_enum->value, 1))
-		    : rb_cstr_to_inum(bs_enum->value, 10, 1);
-		CFDictionarySetValue(rb_cObject_dict, (const void *)name, 
-			(const void *)val);
-	    }
-	    else {
-		rb_warning("bs: enum `%s' already defined", rb_id2name(name));
-	    }
-	    break;
-	}
-
-	case BS_ELEMENT_CONSTANT:
-	{
-	    bs_element_constant_t *bs_const = (bs_element_constant_t *)value;
-	    ID name = generate_const_name(bs_const->name);
-	    if (!CFDictionaryGetValueIfPresent(
-		(CFDictionaryRef)rb_cObject_dict, (const void *)name, NULL)) {
-		st_insert(bs_constants, (st_data_t)name, (st_data_t)bs_const);
-		CFDictionarySetValue(rb_cObject_dict, (const void *)name, 
-			(const void *)bs_const_magic_cookie);
-		do_not_free = true;
-	    }
-	    else {
-		rb_warning("bs: constant `%s' already defined", 
-			   rb_id2name(name));
-	    }
-	    break;
-	}
-
-	case BS_ELEMENT_STRING_CONSTANT:
-	{
-	    bs_element_string_constant_t *bs_strconst = 
-		(bs_element_string_constant_t *)value;
-	    ID name = generate_const_name(bs_strconst->name);
-	    if (!CFDictionaryGetValueIfPresent(
-		(CFDictionaryRef)rb_cObject_dict, (const void *)name, NULL)) {
-		VALUE val;
-	    	if (bs_strconst->nsstring) {
-		    CFStringRef string;
-		    string = CFStringCreateWithCString(
-			NULL, bs_strconst->value, kCFStringEncodingUTF8);
-		    val = (VALUE)string;
-	    	}
-	    	else {
-		    val = rb_str_new2(bs_strconst->value);
-	    	}
-		CFDictionarySetValue(rb_cObject_dict, (const void *)name, 
-			(const void *)val);
-	    }
-	    else {
-		rb_warning("bs: string constant `%s' already defined", 
-			   rb_id2name(name));
-	    }
-	    break;
-	}
-
-	case BS_ELEMENT_FUNCTION:
-	{
-	    bs_element_function_t *bs_func = (bs_element_function_t *)value;
-	    ID name = rb_intern(bs_func->name);
-	    if (!st_lookup(bs_functions, (st_data_t)name, NULL)) {
-		st_insert(bs_functions, (st_data_t)name, (st_data_t)bs_func);
-		do_not_free = true;
-	    }
-	    else {
-		rb_warning("bs: function `%s' already defined", bs_func->name);
-	    }
-	    break;
-	}
-
-	case BS_ELEMENT_FUNCTION_ALIAS:
-	{
-	    bs_element_function_alias_t *bs_func_alias = 
-		(bs_element_function_alias_t *)value;
-	    bs_element_function_t *bs_func_original;
-	    if (st_lookup(bs_functions, 
-		(st_data_t)rb_intern(bs_func_alias->original), 
-		(st_data_t *)&bs_func_original)) {
-		st_insert(bs_functions, 
-			(st_data_t)rb_intern(bs_func_alias->name), 
-			(st_data_t)bs_func_original);
-	    }
-	    else {
-		rb_raise(rb_eRuntimeError, 
-			"cannot alias '%s' to '%s' because it doesn't exist", 
-			bs_func_alias->name, bs_func_alias->original);
-	    }
-	    break;
-	}
-
-	case BS_ELEMENT_OPAQUE:
-	case BS_ELEMENT_STRUCT:
-	{
-	    setup_bs_boxed_type(type, value);
-	    do_not_free = true;
-	    break;
-	}
-
-	case BS_ELEMENT_CLASS:
-	{
-	    bs_element_class_t *bs_class = (bs_element_class_t *)value;
-	    bs_element_indexed_class_t *bs_class_new;
-	    unsigned i;
-
-	    if (!st_lookup(bs_classes, (st_data_t)bs_class->name, 
-		(st_data_t *)&bs_class_new)) {
-		bs_class_new = (bs_element_indexed_class_t *)
-		    malloc(sizeof(bs_element_indexed_class_t));
-
-		bs_class_new->name = bs_class->name;
-		bs_class_new->cmethods = bs_class_new->imethods = NULL;
-
-		st_insert(bs_classes, (st_data_t)bs_class_new->name, 
-		    (st_data_t)bs_class_new);
-	    }
-
-#define INDEX_METHODS(table, ary, len) \
-    do { \
-	if (len > 0) { \
-	    if (table == NULL) { \
-	        table = st_init_numtable(); \
-		rb_objc_retain(table); \
-	    } \
-	    for (i = 0; i < len; i++) { \
-		bs_element_method_t *method = &ary[i]; \
-		st_insert(table, (st_data_t)method->name, (st_data_t)method); \
-	    } \
-	} \
-    } \
-    while (0)
-
-	    INDEX_METHODS(bs_class_new->cmethods, bs_class->class_methods,
-		bs_class->class_methods_count);
-
-	    INDEX_METHODS(bs_class_new->imethods, bs_class->instance_methods,
-		bs_class->instance_methods_count);
-
-#undef INDEX_METHODS
-
-	    free(bs_class);
-	    do_not_free = true;
-	    break;
-	}
-
-	case BS_ELEMENT_INFORMAL_PROTOCOL_METHOD:
-	{
-	    bs_element_informal_protocol_method_t *bs_inf_prot_method = 
-		(bs_element_informal_protocol_method_t *)value;
-	    struct st_table *t = bs_inf_prot_method->class_method
-		? bs_inf_prot_cmethods
-		: bs_inf_prot_imethods;
-
-	    st_insert(t, (st_data_t)bs_inf_prot_method->name,
-		(st_data_t)bs_inf_prot_method->type);
-
-	    free(bs_inf_prot_method->protocol_name);
-	    free(bs_inf_prot_method);
-	    do_not_free = true;
-	    break;
-	}
-
-	case BS_ELEMENT_CFTYPE:
-	{
-	    bs_element_cftype_t *bs_cftype = (bs_element_cftype_t *)value;
-	    st_insert(bs_cftypes, (st_data_t)bs_cftype->type, 
-		    (st_data_t)bs_cftype);
-	    do_not_free = true;
-	    break;
-	}
-    }
-
-    if (!do_not_free)
-	bs_element_free(type, value);
-}
-
-static bs_parser_t *bs_parser = NULL;
-
-static void
-rb_objc_load_bridge_support(const char *path, const char *framework_path,
-			    int options)
-{
-    char *error;
-    bool ok;
-    CFMutableDictionaryRef rb_cObject_dict;  
-
-    if (bs_parser == NULL) {
-	bs_parser = bs_parser_new();
-    }
-
-    rb_cObject_dict = rb_class_ivar_dict(rb_cObject);
-    assert(rb_cObject_dict != NULL);
-
-    ok = bs_parser_parse(bs_parser, path, framework_path, options,
-			 bs_parse_cb, rb_cObject_dict, &error);
-    if (!ok) {
-	rb_raise(rb_eRuntimeError, "%s", error);
-    }
-#if MAC_OS_X_VERSION_MAX_ALLOWED <= 1060
-    /* XXX we should introduce the possibility to write prelude scripts per
-     * frameworks where this kind of changes could be located.
-     */
-#if defined(__LP64__)
-    static bool R6399046_fixed = false;
-    /* XXX work around for <rdar://problem/6399046> NSNotFound 64-bit value is incorrect */
-    if (!R6399046_fixed) {
-	ID nsnotfound = rb_intern("NSNotFound");
-	VALUE val = 
-	    (VALUE)CFDictionaryGetValue(rb_cObject_dict, (void *)nsnotfound);
-	if ((VALUE)val == INT2FIX(-1)) {
-	    CFDictionarySetValue(rb_cObject_dict, 
-		    (const void *)nsnotfound,
-		    (const void *)ULL2NUM(NSNotFound));
-	    R6399046_fixed = true;
-	    DLOG("XXX", "applied work-around for rdar://problem/6399046");
-	}
-    }
 #endif
-    static bool R6401816_fixed = false;
-    /* XXX work around for <rdar://problem/6401816> -[NSObject performSelector:withObject:] has wrong sel_of_type attributes*/
-    if (!R6401816_fixed) {
-	bs_element_method_t *bs_method = 
-	    rb_bs_find_method((Class)rb_cNSObject, 
-			      @selector(performSelector:withObject:));
-	if (bs_method != NULL) {
-	    bs_element_arg_t *arg = bs_method->args;
-	    while (arg != NULL) {
-		if (arg->index == 0 
-		    && arg->sel_of_type != NULL
-		    && arg->sel_of_type[0] != '@') {
-		    arg->sel_of_type[0] = '@';
-		    R6401816_fixed = true;
-		    DLOG("XXX", "applied work-around for rdar://problem/6401816");
-		    break;
-		}
-		arg++;
-	    }
-	}	
-    }
-#endif
-}
 
 static VALUE
 rb_objc_load_bs(VALUE recv, SEL sel, VALUE path)
 {
-    rb_objc_load_bridge_support(StringValuePtr(path), NULL, 0);
+    rb_vm_load_bridge_support(StringValuePtr(path), NULL, 0);
     return recv;
 }
 
@@ -2844,7 +2583,7 @@ rb_objc_search_and_load_bridge_support(const char *framework_path)
     char path[PATH_MAX];
 
     if (bs_find_path(framework_path, path, sizeof path)) {
-	rb_objc_load_bridge_support(path, framework_path,
+	rb_vm_load_bridge_support(path, framework_path,
                                     BS_PARSE_OPTIONS_LOAD_DYLIBS);
     }
 }
@@ -3670,7 +3409,7 @@ evaluateString_rescue(void)
 
 - (void)loadBridgeSupportFileAtPath:(NSString *)path
 {
-    rb_objc_load_bridge_support([path fileSystemRepresentation], NULL, 0);
+    rb_vm_load_bridge_support([path fileSystemRepresentation], NULL, 0);
 }
 
 - (void)loadBridgeSupportFileAtURL:(NSURL *)URL

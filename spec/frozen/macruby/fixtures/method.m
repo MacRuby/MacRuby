@@ -141,6 +141,21 @@
     return 3.1415;
 }
 
+- (NSPoint)methodReturningNSPoint
+{
+    return NSMakePoint(1, 2);
+}
+
+- (NSSize)methodReturningNSSize
+{
+    return NSMakeSize(3, 4);
+}
+
+- (NSRect)methodReturningNSRect
+{
+    return NSMakeRect(1, 2, 3, 4);
+}
+
 @end
 
 void

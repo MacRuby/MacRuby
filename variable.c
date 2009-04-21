@@ -1547,7 +1547,7 @@ rb_const_get_0(VALUE klass, ID id, int exclude, int recurse)
 		rb_warn("toplevel constant %s referenced by %s::%s",
 			rb_id2name(id), rb_class2name(klass), rb_id2name(id));
 	    }
-	    value = rb_objc_resolve_const_value(value, klass, id);
+	    value = rb_vm_resolve_const_value(value, klass, id);
 	    return value;
 	}
 	if (!recurse && klass != rb_cObject) break;
@@ -1557,7 +1557,7 @@ rb_const_get_0(VALUE klass, ID id, int exclude, int recurse)
 	    for (i = 0; i < count; i++) {
 		iv_dict = rb_class_ivar_dict(RARRAY_AT(inc_mods, i));
 		if (CFDictionaryGetValueIfPresent(iv_dict, (const void *)id, (const void **)&value))
-		    return rb_objc_resolve_const_value(value, klass, id);
+		    return rb_vm_resolve_const_value(value, klass, id);
 	    }
 	}
 	tmp = RCLASS_SUPER(tmp);
@@ -1568,10 +1568,10 @@ rb_const_get_0(VALUE klass, ID id, int exclude, int recurse)
 	goto retry;
     }
 
-    /* Classes are typically pre-loaded by Kernel#framework and imported by
-     * rb_objc_resolve_const_value(), but it is still useful to keep the
-     * dynamic import facility, because someone in the Objective-C world may
-     * dynamically define classes at runtime (like ScriptingBridge.framework).
+    /* Classes are typically pre-loaded by Kernel#framework but it is still
+     * useful to keep the dynamic import facility, because someone in the
+     * Objective-C world may dynamically define classes at runtime (like
+     * ScriptingBridge.framework).
      *
      * Note that objc_getClass does _not_ honor namespaces. Consider:
      *

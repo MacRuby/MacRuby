@@ -225,8 +225,10 @@ describe "An Objective-C method" do
     o = TestMethod.new
     o.methodReturningLong3.should ==
       (RUBY_ARCH == 'x86_64' ? 4611686018427387904 : 1073741824)
+    o.methodReturningLong3.class.should == Bignum
     o.methodReturningLong4.should ==
       (RUBY_ARCH == 'x86_64' ? -4611686018427387905 : -1073741825)
+    o.methodReturningLong4.class.should == Bignum
   end
 
   it "returning 'unsigned long' returns a Fixnum if possible in Ruby" do
@@ -238,15 +240,18 @@ describe "An Objective-C method" do
     o = TestMethod.new
     o.methodReturningUnsignedLong2.should ==
       (RUBY_ARCH == 'x86_64' ? 4611686018427387904 : 1073741824)
+    o.methodReturningUnsignedLong2.class.should == Bignum
   end
 
   it "returning 'float' returns a Float in Ruby" do
     o = TestMethod.new
     o.methodReturningFloat.should be_close(3.1415, 0.0001)
+    o.methodReturningFloat.class.should == Float
   end
 
   it "returning 'double' returns a Float in Ruby" do
     o = TestMethod.new
     o.methodReturningDouble.should be_close(3.1415, 0.0001)
+    o.methodReturningDouble.class.should == Float
   end
 end

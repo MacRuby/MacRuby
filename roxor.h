@@ -63,6 +63,7 @@ int rb_vm_safe_level(void);
 void rb_vm_set_safe_level(int level);
 VALUE rb_vm_top_self(void);
 void rb_vm_const_is_defined(ID path);
+VALUE rb_vm_resolve_const_value(VALUE val, VALUE klass, ID name);
 bool rb_vm_lookup_method(Class klass, SEL sel, IMP *pimp, NODE **pnode);
 bool rb_vm_lookup_method2(Class klass, ID mid, SEL *psel, IMP *pimp, NODE **pnode);
 NODE *rb_vm_get_method_node(IMP imp);
@@ -184,6 +185,9 @@ VALUE rb_vm_pop_broken_value(void);
     while (0)
 
 void rb_vm_finalize(void);
+
+void rb_vm_load_bridge_support(const char *path, const char *framework_path,
+	int options);
 
 VALUE rb_iseq_compile(VALUE src, VALUE file, VALUE line);
 VALUE rb_iseq_eval(VALUE iseq);
