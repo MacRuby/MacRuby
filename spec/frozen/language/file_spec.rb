@@ -16,6 +16,12 @@ describe "The __FILE__ constant" do
     require path
     ScratchPad.recorded.should == File.join(".",path)
   end
+  
+  it "equals the full path when required using a full path" do
+    path = fixture(__FILE__, "file.rb")
+    require path
+    ScratchPad.recorded.should == path
+  end
 end
 
 
