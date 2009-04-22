@@ -6,3 +6,4 @@ fails:Literal Regexps supports \b (word boundary)
 fails:Literal Regexps supports \B (non-word-boundary)
 fails:Literal Regexps supports /o (once)
 fails:Literal Regexps invokes substitutions for /o only once
+fails:Literal Regexps will not clobber capture variables across threads
