@@ -53,6 +53,8 @@ namespace :spec do
   
   KNOWN_GOOD_CORE_IO_FILES = FileList["spec/frozen/core/io/{#{KNOWN_GOOD_CORE_IO.join(',')}}_spec.rb"]
   
+  MACRUBY_MSPEC = "./spec/macruby.mspec"
+  
   desc "Run all language known good spec files which should be fully green (does not use tags)"
   task :green do
     files = FileList["spec/frozen/language/{#{KNOWN_GOOD.join(',')}}_spec.rb"]
@@ -67,12 +69,12 @@ namespace :spec do
   
   desc "Run continuous integration language examples (all known good examples)"
   task :ci do
-    sh "./mspec/bin/mspec ci -B ./spec/frozen/macruby.mspec spec/frozen/language #{KNOWN_GOOD_CORE_IO_FILES.join(' ')}"
+    sh "./mspec/bin/mspec ci -B #{MACRUBY_MSPEC} spec/macruby spec/frozen/language #{KNOWN_GOOD_CORE_IO_FILES.join(' ')}"
   end
   
   desc "Run continuous integration language examples (all known good examples) (32 bit mode)"
   task :ci32 do
-    sh "/usr/bin/arch -arch i386 ./miniruby ./mspec/bin/mspec-ci -B ./spec/frozen/macruby.mspec spec/frozen/language #{KNOWN_GOOD_CORE_IO_FILES.join(' ')}"
+    sh "/usr/bin/arch -arch i386 ./miniruby ./mspec/bin/mspec-ci -B #{MACRUBY_MSPEC} spec/frozen/language #{KNOWN_GOOD_CORE_IO_FILES.join(' ')}"
   end
   
   desc "Run IO test with GDB enabled"
@@ -87,12 +89,12 @@ namespace :spec do
   
   desc "Run all MacRuby-only specs"
   task :macruby do
-    sh "./mspec/bin/mspec run -t ./miniruby ./spec/macruby"
+    sh "./mspec/bin/mspec run -B #{MACRUBY_MSPEC} ./spec/macruby"
   end
   
   desc "Run language examples that are known to fail"
   task :fails do
-    sh "./mspec/bin/mspec run -g fails -B ./spec/frozen/macruby.mspec spec/frozen/language"
+    sh "./mspec/bin/mspec run -g fails -B #{MACRUBY_MSPEC} spec/frozen/language"
   end
   
   %w{ fails critical }.each do |tag|
