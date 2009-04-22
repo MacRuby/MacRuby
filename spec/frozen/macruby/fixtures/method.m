@@ -271,6 +271,28 @@
     return d > 3.1414 && d < 3.1416;
 }
 
+- (BOOL)methodAcceptingNSPoint:(NSPoint)p
+{
+NSLog(@" -> %@", NSStringFromPoint(p));
+    return p.x == 1 && p.y == 2;
+}
+
+- (BOOL)methodAcceptingNSSize:(NSSize)s
+{
+    return s.width == 3 && s.height == 4;
+}
+
+- (BOOL)methodAcceptingNSRect:(NSRect)r
+{
+    return r.origin.x == 1 && r.origin.y == 2 && r.size.width == 3
+	&& r.size.height == 4;
+}
+
+- (BOOL)methodAcceptingNSRange:(NSRange)r
+{
+    return r.location == 0 && r.length == 42;
+}
+
 @end
 
 void

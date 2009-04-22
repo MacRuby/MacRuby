@@ -410,4 +410,35 @@ describe "An Objective-C method" do
     lambda { o.methodAcceptingFloat(Object.new) }.should raise_error(TypeError) 
     lambda { o.methodAcceptingDouble(Object.new) }.should raise_error(TypeError) 
   end
+
+=begin
+  it "accepting an NSPoint, NSSize, NSRange or NSRect object as 'NSPoint', 'NSSize', 'NSRange' or 'NSRect' should receive the C structure" do
+    o = TestMethod.new
+    p = o.methodReturningNSPoint
+    o.methodAcceptingNSPoint(p).should == 1
+    p = o.methodReturningNSSize
+    o.methodAcceptingNSSize(p).should == 1
+    p = o.methodReturningNSRect
+    o.methodAcceptingNSRect(p).should == 1
+    p = o.methodReturningNSRange
+    o.methodAcceptingNSRange(p).should == 1
+
+    lambda { o.methodAcceptingNSPoint(nil) }.should raise_error(TypeError)
+    lambda { o.methodAcceptingNSPoint(123) }.should raise_error(TypeError)
+    lambda { o.methodAcceptingNSPoint(Object.new) }.should raise_error(TypeError)
+    lambda { o.methodAcceptingNSPoint(o.methodAcceptingNSSize) }.should raise_error(TypeError)
+    lambda { o.methodAcceptingNSSize(nil) }.should raise_error(TypeError)
+    lambda { o.methodAcceptingNSSize(123) }.should raise_error(TypeError)
+    lambda { o.methodAcceptingNSSize(Object.new) }.should raise_error(TypeError)
+    lambda { o.methodAcceptingNSSize(o.methodAcceptingNSPoint) }.should raise_error(TypeError)
+    lambda { o.methodAcceptingNSRect(nil) }.should raise_error(TypeError)
+    lambda { o.methodAcceptingNSRect(123) }.should raise_error(TypeError)
+    lambda { o.methodAcceptingNSRect(Object.new) }.should raise_error(TypeError)
+    lambda { o.methodAcceptingNSRect(o.methodAcceptingNSPoint) }.should raise_error(TypeError)
+    lambda { o.methodAcceptingNSRange(nil) }.should raise_error(TypeError)
+    lambda { o.methodAcceptingNSRange(123) }.should raise_error(TypeError)
+    lambda { o.methodAcceptingNSRange(Object.new) }.should raise_error(TypeError)
+    lambda { o.methodAcceptingNSRange(o.methodAcceptingNSPoint) }.should raise_error(TypeError)
+  end
+=end
 end

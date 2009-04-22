@@ -172,6 +172,18 @@ class RoxorJITManager : public JITMemoryManager
 	}
 };
 
+typedef struct {
+    bs_element_type_t bs_type;
+    bool is_struct(void) { return bs_type == BS_ELEMENT_STRUCT; }
+    union {
+	bs_element_struct_t *s;
+	bs_element_opaque_t *o;
+	void *v;
+    } as;
+    Type *type;
+    VALUE klass;
+} rb_vm_bs_boxed_t;
+
 #define SPLAT_ARG_FOLLOWS 0xdeadbeef
 
 class RoxorCompiler
@@ -251,6 +263,7 @@ class RoxorCompiler
 	Function *dupArrayFunc;
 	Function *newArrayFunc;
 	Function *newStructFunc;
+	Function *getStructFieldsFunc;
 	Function *newRangeFunc;
 	Function *newRegexpFunc;
 	Function *strInternFunc;
@@ -333,6 +346,8 @@ class RoxorCompiler
 	void compile_rethrow_exception(void);
 	Value *compile_lvar_slot(ID name);
 	Value *compile_new_struct(VALUE klass, std::vector<Value *> &fields);
+	void compile_get_struct_fields(Value *val, Value *buf,
+		rb_vm_bs_boxed_t *bs_boxed);
 
 	Value *compile_conversion_to_c(const char *type, Value *val,
 				       Value *slot);
@@ -425,18 +440,6 @@ typedef struct {
     Function *func;
     NODE *node;
 } rb_vm_method_source_t;
-
-typedef struct {
-    bs_element_type_t bs_type;
-    bool is_struct(void) { return bs_type == BS_ELEMENT_STRUCT; }
-    union {
-	bs_element_struct_t *s;
-	bs_element_opaque_t *o;
-	void *v;
-    } as;
-    Type *type;
-    VALUE klass;
-} rb_vm_bs_boxed_t;
 
 class RoxorVM
 {
@@ -648,6 +651,7 @@ RoxorCompiler::RoxorCompiler(const char *_fname)
     dupArrayFunc = NULL;
     newArrayFunc = NULL;
     newStructFunc = NULL;
+    getStructFieldsFunc = NULL;
     newRangeFunc = NULL;
     newRegexpFunc = NULL;
     strInternFunc = NULL;
@@ -5010,6 +5014,110 @@ rb_vm_rval_to_float(VALUE rval, float *ocval)
     *ocval = (float)rval_to_double(rval);
 }
 
+static inline long
+rebuild_new_struct_ary(const StructType *type, VALUE orig, VALUE new_ary)
+{
+    long n = 0;
+
+    for (StructType::element_iterator iter = type->element_begin();
+	 iter != type->element_end();
+	 ++iter) {
+
+	const Type *ftype = *iter;
+	
+	if (ftype->getTypeID() == Type::StructTyID) {
+            long i, n2;
+            VALUE tmp;
+
+            n2 = rebuild_new_struct_ary(cast<StructType>(ftype), orig, new_ary);
+            tmp = rb_ary_new();
+            for (i = 0; i < n2; i++) {
+                if (RARRAY_LEN(orig) == 0) {
+                    return 0;
+		}
+                rb_ary_push(tmp, rb_ary_shift(orig));
+            }
+            rb_ary_push(new_ary, tmp);
+        }
+        n++;
+    }
+
+    return n;
+}
+
+extern "C"
+void
+rb_vm_get_struct_fields(VALUE rval, VALUE *buf, rb_vm_bs_boxed_t *bs_boxed)
+{
+    if (TYPE(rval) == T_ARRAY) {
+	unsigned n = RARRAY_LEN(rval);
+	if (n < bs_boxed->as.s->fields_count) {
+	    rb_raise(rb_eArgError,
+		    "not enough elements in array `%s' to create " \
+		    "structure `%s' (%d for %d)",
+		    RSTRING_PTR(rb_inspect(rval)), bs_boxed->as.s->name, n,
+		    bs_boxed->as.s->fields_count);
+	}
+
+	if (n > bs_boxed->as.s->fields_count) {
+	    VALUE new_rval = rb_ary_new();
+	    VALUE orig = rval;
+	    rval = rb_ary_dup(rval);
+	    rebuild_new_struct_ary(cast<StructType>(bs_boxed->type), rval,
+		    new_rval);
+	    n = RARRAY_LEN(new_rval);
+	    if (RARRAY_LEN(rval) != 0 || n != bs_boxed->as.s->fields_count) {
+		rb_raise(rb_eArgError,
+			"too much elements in array `%s' to create " \
+			"structure `%s' (%ld for %d)",
+			RSTRING_PTR(rb_inspect(orig)),
+			bs_boxed->as.s->name, RARRAY_LEN(orig),
+			bs_boxed->as.s->fields_count);
+	    }
+	    rval = new_rval;
+	}
+
+	for (unsigned i = 0; i < n; i++) {
+	    buf[i] = RARRAY_AT(rval, i);
+	}
+    }
+    else {
+	if (!rb_obj_is_kind_of(rval, bs_boxed->klass)) {
+	    rb_raise(rb_eTypeError, 
+		    "expected instance of `%s', got `%s' (%s)",
+		    rb_class2name(bs_boxed->klass),
+		    RSTRING_PTR(rb_inspect(rval)),
+		    rb_obj_classname(rval));
+	}
+
+	VALUE *data;
+	Data_Get_Struct(rval, VALUE, data);
+
+	for (unsigned i = 0; i < bs_boxed->as.s->fields_count; i++) {
+	    buf[i] = data[i];
+printf("buf[%d] = %p\n", i, (void *)data[i]);
+	}	
+    }
+}
+
+void
+RoxorCompiler::compile_get_struct_fields(Value *val, Value *buf,
+					 rb_vm_bs_boxed_t *bs_boxed)
+{
+    if (getStructFieldsFunc == NULL) {
+	getStructFieldsFunc = cast<Function>(module->getOrInsertFunction(
+		    "rb_vm_get_struct_fields",
+		    Type::VoidTy, RubyObjTy, RubyObjPtrTy, PtrTy, NULL));
+    }
+
+    std::vector<Value *> params;
+    params.push_back(val);
+    params.push_back(buf);
+    params.push_back(compile_const_pointer(bs_boxed));
+
+    CallInst::Create(getStructFieldsFunc, params.begin(), params.end(), "", bb);
+}
+
 Value *
 RoxorCompiler::compile_conversion_to_c(const char *type, Value *val,
 				       Value *slot)
@@ -5078,17 +5186,58 @@ RoxorCompiler::compile_conversion_to_c(const char *type, Value *val,
 	    func_name = "rb_vm_rval_to_ocsel";
 	    break;
 
-	default:
-	    printf("unrecognized compile type `%s' to C - aborting\n", type);
-	    abort();
+	case _C_STRUCT_B:
+	    {
+		rb_vm_bs_boxed_t *bs_boxed = GET_VM()->find_bs_struct(type);
+		if (bs_boxed != NULL) {
+		    Value *fields = new AllocaInst(RubyObjTy,
+			    ConstantInt::get(Type::Int32Ty,
+				bs_boxed->as.s->fields_count), "", bb);
+
+		    compile_get_struct_fields(val, fields, bs_boxed);
+
+		    //Value *struct_val = new LoadInst(slot, "", bb);
+
+		    for (unsigned i = 0; i < bs_boxed->as.s->fields_count;
+			    i++) {
+
+			const char *ftype = bs_boxed->as.s->fields[i].type;
+			//const Type *llvm_ftype = convert_type(ftype);
+
+			Value *fval = GetElementPtrInst::Create(fields,
+				ConstantInt::get(Type::Int32Ty, i), "", bb);
+			fval = new LoadInst(fval, "", bb);
+
+			//Value *fslot = new AllocaInst(llvm_ftype, "", bb);
+
+			Value *fslot = GetElementPtrInst::Create(slot,
+				ConstantInt::get(Type::Int32Ty, i), "", bb);
+
+			/*Value *fcval =*/ RoxorCompiler::compile_conversion_to_c(
+				ftype, fval, fslot);
+
+			//InsertValueInst::Create(struct_val, fcval, i, "", bb);
+		    }
+
+		    return new LoadInst(slot, "", bb);
+		    //return struct_val;
+		}
+	    }
+	    break;
+    }
+
+    if (func_name == NULL) {
+	printf("unrecognized compile type `%s' to C - aborting\n", type);
+	abort();
     }
  
     std::vector<Value *> params;
     params.push_back(val);
-    params.push_back(new BitCastInst(slot, PtrTy, "", bb));
+    params.push_back(slot);
 
     Function *func = cast<Function>(module->getOrInsertFunction(
-		func_name, Type::VoidTy, RubyObjTy, PtrTy, NULL));
+		func_name, Type::VoidTy, RubyObjTy,
+		PointerType::getUnqual(convert_type(type)), NULL));
 
     CallInst::Create(func, params.begin(), params.end(), "", bb);
     return new LoadInst(slot, "", bb);
