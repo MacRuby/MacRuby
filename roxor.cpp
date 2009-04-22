@@ -4849,17 +4849,35 @@ convert_error(const char type, VALUE val)
 
 extern "C"
 void
-rb_vm_rval_to_ocval(VALUE val, void **ocval)
+rb_vm_rval_to_ocval(VALUE rval, id *ocval)
 {
-    *(id *)ocval = val == Qnil ? NULL : RB2OC(val);
+    *ocval = rval == Qnil ? NULL : RB2OC(rval);
 }
 
 extern "C"
 void
-rb_vm_rval_to_ocsel(VALUE rval, void **ocval)
+rb_vm_rval_to_bool(VALUE rval, BOOL *ocval)
+{
+    switch (TYPE(rval)) {
+	case T_FALSE:
+	case T_NIL:
+	    *ocval = NO;
+	    break;
+
+	default:
+	    // All other types should be converted as true, to follow the Ruby
+	    // semantics (where for example any integer is always true, even 0).
+	    *ocval = YES;
+	    break;
+    }
+}
+
+extern "C"
+void
+rb_vm_rval_to_ocsel(VALUE rval, SEL *ocval)
 {
     if (NIL_P(rval)) {
-	*(SEL *)ocval = NULL;
+	*ocval = NULL;
     }
     else {
 	const char *cstr;
@@ -4876,12 +4894,125 @@ rb_vm_rval_to_ocsel(VALUE rval, void **ocval)
 	    default:
 		convert_error(_C_SEL, rval);
 	}
-	*(SEL *)ocval = sel_registerName(cstr);
+	*ocval = sel_registerName(cstr);
     }
 }
 
+static inline long
+rval_to_long(VALUE rval)
+{
+   return NUM2LONG(rb_Integer(rval)); 
+}
+
+static inline long long
+rval_to_long_long(VALUE rval)
+{
+    return NUM2LL(rb_Integer(rval));
+}
+
+static inline double
+rval_to_double(VALUE rval)
+{
+    return RFLOAT_VALUE(rb_Float(rval));
+}
+
+extern "C"
+void
+rb_vm_rval_to_chr(VALUE rval, char *ocval)
+{
+    if (TYPE(rval) == T_STRING && RSTRING_LEN(rval) == 1) {
+	*ocval = (char)RSTRING_PTR(rval)[0];
+    }
+    else {
+	*ocval = (char)rval_to_long(rval);
+    }
+}
+
+extern "C"
+void
+rb_vm_rval_to_uchr(VALUE rval, unsigned char *ocval)
+{
+    if (TYPE(rval) == T_STRING && RSTRING_LEN(rval) == 1) {
+	*ocval = (unsigned char)RSTRING_PTR(rval)[0];
+    }
+    else {
+	*ocval = (unsigned char)rval_to_long(rval);
+    }
+}
+
+extern "C"
+void
+rb_vm_rval_to_short(VALUE rval, short *ocval)
+{
+    *ocval = (short)rval_to_long(rval);
+}
+
+extern "C"
+void
+rb_vm_rval_to_ushort(VALUE rval, unsigned short *ocval)
+{
+    *ocval = (unsigned short)rval_to_long(rval);
+}
+
+extern "C"
+void
+rb_vm_rval_to_int(VALUE rval, int *ocval)
+{
+    *ocval = (int)rval_to_long(rval);
+}
+
+extern "C"
+void
+rb_vm_rval_to_uint(VALUE rval, unsigned int *ocval)
+{
+    *ocval = (unsigned int)rval_to_long(rval);
+}
+
+extern "C"
+void
+rb_vm_rval_to_long(VALUE rval, long *ocval)
+{
+    *ocval = (long)rval_to_long(rval);
+}
+
+extern "C"
+void
+rb_vm_rval_to_ulong(VALUE rval, unsigned long *ocval)
+{
+    *ocval = (unsigned long)rval_to_long(rval);
+}
+
+extern "C"
+void
+rb_vm_rval_to_long_long(VALUE rval, long long *ocval)
+{
+    *ocval = (long long)rval_to_long_long(rval);
+}
+
+extern "C"
+void
+rb_vm_rval_to_ulong_long(VALUE rval, unsigned long long *ocval)
+{
+    *ocval = (unsigned long long)rval_to_long_long(rval);
+}
+
+extern "C"
+void
+rb_vm_rval_to_double(VALUE rval, double *ocval)
+{
+    *ocval = (double)rval_to_double(rval);
+}
+
+extern "C"
+void
+rb_vm_rval_to_float(VALUE rval, float *ocval)
+{
+    *ocval = (float)rval_to_double(rval);
+}
+
 Value *
-RoxorCompiler::compile_conversion_to_c(const char *type, Value *val, Value *slot)
+RoxorCompiler::compile_conversion_to_c(const char *type, Value *val,
+				       Value *slot)
 {
     const char *func_name = NULL;
 
@@ -4889,6 +5020,58 @@ RoxorCompiler::compile_conversion_to_c(const char *type, Value *val, Value *slot
 	case _C_ID:
 	case _C_CLASS:
 	    func_name = "rb_vm_rval_to_ocval";
+	    break;
+
+	case _C_BOOL:
+	    func_name = "rb_vm_rval_to_bool";
+	    break;
+
+	case _C_CHR:
+	    func_name = "rb_vm_rval_to_chr";
+	    break;
+
+	case _C_UCHR:
+	    func_name = "rb_vm_rval_to_uchr";
+	    break;
+
+	case _C_SHT:
+	    func_name = "rb_vm_rval_to_short";
+	    break;
+
+	case _C_USHT:
+	    func_name = "rb_vm_rval_to_ushort";
+	    break;
+
+	case _C_INT:
+	    func_name = "rb_vm_rval_to_int";
+	    break;
+
+	case _C_UINT:
+	    func_name = "rb_vm_rval_to_uint";
+	    break;
+
+	case _C_LNG:
+	    func_name = "rb_vm_rval_to_long";
+	    break;
+
+	case _C_ULNG:
+	    func_name = "rb_vm_rval_to_ulong";
+	    break;
+
+	case _C_LNG_LNG:
+	    func_name = "rb_vm_rval_to_long_long";
+	    break;
+
+	case _C_ULNG_LNG:
+	    func_name = "rb_vm_rval_to_ulong_long";
+	    break;
+
+	case _C_FLT:
+	    func_name = "rb_vm_rval_to_float";
+	    break;
+
+	case _C_DBL:
+	    func_name = "rb_vm_rval_to_double";
 	    break;
 
 	case _C_SEL:
@@ -4944,6 +5127,13 @@ VALUE
 rb_vm_ulong_long_to_rval(unsigned long long l)
 {
     return ULL2NUM(l);
+}
+
+extern "C"
+VALUE
+rb_vm_sel_to_rval(SEL sel)
+{
+    return sel == 0 ? Qnil : ID2SYM(rb_intern(sel_getName(sel)));
 }
 
 extern "C"
@@ -5049,6 +5239,10 @@ RoxorCompiler::compile_conversion_to_ruby(const char *type,
 	    // fall through	
 	case _C_DBL:
 	    func_name = "rb_float_new";
+	    break;
+
+	case _C_SEL:
+	    func_name = "rb_vm_sel_to_rval";
 	    break;
 
 	case _C_STRUCT_B:

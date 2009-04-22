@@ -141,6 +141,16 @@
     return 3.1415;
 }
 
+- (SEL)methodReturningSEL
+{
+    return @selector(foo:with:with:);
+}
+
+- (SEL)methodReturningSEL2
+{
+    return 0;
+}
+
 - (NSPoint)methodReturningNSPoint
 {
     return NSMakePoint(1, 2);
@@ -159,6 +169,106 @@
 - (NSRange)methodReturningNSRange
 {
     return NSMakeRange(0, 42);
+}
+
+- (BOOL)methodAcceptingSelf:(id)obj
+{
+    return obj == self;
+}
+
+- (BOOL)methodAcceptingSelfClass:(id)obj
+{
+    return obj == [self class];
+}
+
+- (BOOL)methodAcceptingNil:(id)obj
+{
+    return obj == nil;
+}
+
+- (BOOL)methodAcceptingTrue:(id)obj
+{
+    return obj == (id)kCFBooleanTrue;
+}
+
+- (BOOL)methodAcceptingFalse:(id)obj
+{
+    return obj == (id)kCFBooleanFalse;
+}
+
+- (BOOL)methodAcceptingFixnum:(id)obj
+{
+    return [obj intValue] == 42;
+}
+
+- (BOOL)methodAcceptingChar:(char)c
+{
+    return c == 42;
+}
+
+- (BOOL)methodAcceptingUnsignedChar:(unsigned char)c
+{
+    return c == 42;
+}
+
+- (BOOL)methodAcceptingShort:(short)c
+{
+    return c == 42;
+}
+
+- (BOOL)methodAcceptingUnsignedShort:(unsigned short)c
+{
+    return c == 42;
+}
+
+- (BOOL)methodAcceptingInt:(int)c
+{
+    return c == 42;
+}
+
+- (BOOL)methodAcceptingUnsignedInt:(unsigned int)c
+{
+    return c == 42;
+}
+
+- (BOOL)methodAcceptingLong:(long)c
+{
+    return c == 42;
+}
+
+- (BOOL)methodAcceptingUnsignedLong:(unsigned long)c
+{
+    return c == 42;
+}
+
+- (BOOL)methodAcceptingTrueBOOL:(BOOL)b
+{
+    return b == YES;
+}
+
+- (BOOL)methodAcceptingFalseBOOL:(BOOL)b
+{
+    return b == NO;
+}
+
+- (BOOL)methodAcceptingSEL:(SEL)sel
+{
+    return sel == @selector(foo:with:with:);
+}
+
+- (BOOL)methodAcceptingSEL2:(SEL)sel
+{
+    return sel == 0;
+}
+
+- (BOOL)methodAcceptingFloat:(float)f
+{
+    return f > 3.1414 && f < 3.1416;
+}
+
+- (BOOL)methodAcceptingDouble:(double)d
+{
+    return d > 3.1414 && d < 3.1416;
 }
 
 @end

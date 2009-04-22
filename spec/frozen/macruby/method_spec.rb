@@ -182,46 +182,35 @@ describe "An Objective-C method" do
     o.methodReturningNO.should == false
   end
 
-  it "returning 'char' returns a Fixnum in Ruby" do
+  it "returning 'char' or 'unsigned char' returns a Fixnum in Ruby" do
     o = TestMethod.new
     o.methodReturningChar.should == 42
     o.methodReturningChar2.should == -42
-  end
- 
-  it "returning 'unsigned char' returns a Fixnum in Ruby" do
-    o = TestMethod.new
     o.methodReturningUnsignedChar.should == 42
   end
-
-  it "returning 'short' returns a Fixnum in Ruby" do
+ 
+  it "returning 'short' or 'unsigned short' returns a Fixnum in Ruby" do
     o = TestMethod.new
     o.methodReturningShort.should == 42
     o.methodReturningShort2.should == -42
-  end
-
-  it "returning 'unsigned short' returns a Fixnum in Ruby" do
-    o = TestMethod.new
     o.methodReturningUnsignedShort.should == 42
   end
 
-  it "returning 'int' returns a Fixnum in Ruby" do
+  it "returning 'int' or 'unsigned int' returns a Fixnum in Ruby" do
     o = TestMethod.new
     o.methodReturningInt.should == 42
     o.methodReturningInt2.should == -42
-  end
-
-  it "returning 'unsigned int' returns a Fixnum in Ruby" do
-    o = TestMethod.new
     o.methodReturningUnsignedInt.should == 42
   end
 
-  it "returning 'long' returns a Fixnum if possible in Ruby" do
+  it "returning 'long' or 'unsigned long' returns a Fixnum if possible in Ruby" do
     o = TestMethod.new
     o.methodReturningLong.should == 42
     o.methodReturningLong2.should == -42
+    o.methodReturningUnsignedLong.should == 42
   end
 
-  it "returning 'long' returns a Bignum if it cannot fix in a Fixnum in Ruby" do
+  it "returning 'long' or 'unsigned long' returns a Bignum if it cannot fix in a Fixnum in Ruby" do
     o = TestMethod.new
     o.methodReturningLong3.should ==
       (RUBY_ARCH == 'x86_64' ? 4611686018427387904 : 1073741824)
@@ -229,15 +218,6 @@ describe "An Objective-C method" do
     o.methodReturningLong4.should ==
       (RUBY_ARCH == 'x86_64' ? -4611686018427387905 : -1073741825)
     o.methodReturningLong4.class.should == Bignum
-  end
-
-  it "returning 'unsigned long' returns a Fixnum if possible in Ruby" do
-    o = TestMethod.new
-    o.methodReturningUnsignedLong.should == 42
-  end
-
-  it "returning 'unsigned long' returns a Bignum if it cannot fix in a Fixnum in Ruby" do
-    o = TestMethod.new
     o.methodReturningUnsignedLong2.should ==
       (RUBY_ARCH == 'x86_64' ? 4611686018427387904 : 1073741824)
     o.methodReturningUnsignedLong2.class.should == Bignum
@@ -253,6 +233,14 @@ describe "An Objective-C method" do
     o = TestMethod.new
     o.methodReturningDouble.should be_close(3.1415, 0.0001)
     o.methodReturningDouble.class.should == Float
+  end
+
+  it "returning 'SEL' returns a Symbol or nil in Ruby" do
+    o = TestMethod.new
+    o.methodReturningSEL.class.should == Symbol
+    o.methodReturningSEL.should == :'foo:with:with:'
+    o.methodReturningSEL2.class.should == NilClass
+    o.methodReturningSEL2.should == nil
   end
 
   it "returning 'NSPoint' returns an NSPoint boxed object in Ruby" do
@@ -295,5 +283,131 @@ describe "An Objective-C method" do
     b.location.should == 0
     b.length.class.should == Fixnum
     b.length.should == 42
+  end
+
+  it "accepting the receiver as 'id' should receive the exact same object" do
+    o = TestMethod.new
+    o.methodAcceptingSelf(o).should == 1
+  end
+
+  it "accepting the receiver's class as 'id' should receive the exact same object" do
+    o = TestMethod.new
+    o.methodAcceptingSelfClass(o.class).should == 1
+  end
+
+  it "accepting 'nil' as 'id' should receive Objective-C's nil" do
+    o = TestMethod.new
+    o.methodAcceptingNil(nil).should == 1
+  end
+
+  it "accepting 'true' as 'id; should receive CF's kCFBooleanTrue" do
+    o = TestMethod.new
+    o.methodAcceptingTrue(true).should == 1
+  end
+
+  it "accepting 'false' as 'id' should receive CF's kCFBooleanFalse" do
+    o = TestMethod.new
+    o.methodAcceptingFalse(false).should == 1
+  end
+
+  it "accepting a Fixnum as 'id' should receive a Fixnum boxed object" do
+    o = TestMethod.new
+    o.methodAcceptingFixnum(42).should == 1
+  end
+
+  it "accepting nil or false as 'BOOL' should receive NO, any other object should receive YES" do
+    o = TestMethod.new
+    o.methodAcceptingFalseBOOL(nil).should == 1
+    o.methodAcceptingFalseBOOL(false).should == 1
+
+    o.methodAcceptingTrueBOOL(true).should == 1
+    o.methodAcceptingTrueBOOL(0).should == 1
+    o.methodAcceptingTrueBOOL(123).should == 1
+    o.methodAcceptingTrueBOOL('foo').should == 1
+    o.methodAcceptingTrueBOOL(Object.new).should == 1
+  end
+
+  it "accepting a Fixnum-compatible object as 'char', 'unsigned char', 'short', 'unsigned short', 'int', 'unsigned int', 'long', 'unsigned long' should receive the converted data, or raise an exception" do
+    o = TestMethod.new
+    o.methodAcceptingChar(42).should == 1
+    o.methodAcceptingUnsignedChar(42).should == 1
+    o.methodAcceptingShort(42).should == 1
+    o.methodAcceptingUnsignedShort(42).should == 1
+    o.methodAcceptingInt(42).should == 1
+    o.methodAcceptingUnsignedInt(42).should == 1
+    o.methodAcceptingLong(42).should == 1
+    o.methodAcceptingUnsignedLong(42).should == 1
+
+    o.methodAcceptingChar(42.0).should == 1
+    o.methodAcceptingUnsignedChar(42.0).should == 1
+    o.methodAcceptingShort(42.0).should == 1
+    o.methodAcceptingUnsignedShort(42.0).should == 1
+    o.methodAcceptingInt(42.0).should == 1
+    o.methodAcceptingUnsignedInt(42.0).should == 1
+    o.methodAcceptingLong(42.0).should == 1
+    o.methodAcceptingUnsignedLong(42.0).should == 1
+
+    o2 = Object.new
+    def o2.to_i; 42; end
+
+    o.methodAcceptingChar(o2).should == 1
+    o.methodAcceptingUnsignedChar(o2).should == 1
+    o.methodAcceptingShort(o2).should == 1
+    o.methodAcceptingUnsignedShort(o2).should == 1
+    o.methodAcceptingInt(o2).should == 1
+    o.methodAcceptingUnsignedInt(o2).should == 1
+    o.methodAcceptingLong(o2).should == 1
+    o.methodAcceptingUnsignedLong(o2).should == 1
+
+    lambda { o.methodAcceptingChar(nil) }.should raise_error(TypeError)
+    lambda { o.methodAcceptingUnsignedChar(nil) }.should raise_error(TypeError)
+    lambda { o.methodAcceptingShort(nil) }.should raise_error(TypeError)
+    lambda { o.methodAcceptingUnsignedShort(nil) }.should raise_error(TypeError)
+    lambda { o.methodAcceptingInt(nil) }.should raise_error(TypeError)
+    lambda { o.methodAcceptingUnsignedInt(nil) }.should raise_error(TypeError)
+    lambda { o.methodAcceptingLong(nil) }.should raise_error(TypeError)
+    lambda { o.methodAcceptingUnsignedLong(nil) }.should raise_error(TypeError)
+
+    lambda { o.methodAcceptingChar(Object.new) }.should raise_error(TypeError)
+    lambda { o.methodAcceptingUnsignedChar(Object.new) }.should raise_error(TypeError)
+    lambda { o.methodAcceptingShort(Object.new) }.should raise_error(TypeError)
+    lambda { o.methodAcceptingUnsignedShort(Object.new) }.should raise_error(TypeError)
+    lambda { o.methodAcceptingInt(Object.new) }.should raise_error(TypeError)
+    lambda { o.methodAcceptingUnsignedInt(Object.new) }.should raise_error(TypeError)
+    lambda { o.methodAcceptingLong(Object.new) }.should raise_error(TypeError)
+    lambda { o.methodAcceptingUnsignedLong(Object.new) }.should raise_error(TypeError)
+  end
+
+  it "accepting a one-character string as 'char' or 'unsigned char' should receive the first character" do
+    o = TestMethod.new
+    o.methodAcceptingChar('*').should == 1
+    o.methodAcceptingUnsignedChar('*').should == 1
+  end
+
+  it "accepting a String, Symbol or nil as 'SEL' should receive the appropriate selector" do
+    o = TestMethod.new
+    o.methodAcceptingSEL(:'foo:with:with:').should == 1
+    o.methodAcceptingSEL('foo:with:with:').should == 1
+    o.methodAcceptingSEL2(nil).should == 1
+
+    lambda { o.methodAcceptingSEL(123) }.should raise_error(TypeError)
+    lambda { o.methodAcceptingSEL(Object.new) }.should raise_error(TypeError)
+  end
+
+  it "accepting a Float-compatible object as 'float' or 'double' should receive the appropriate data" do
+    o = TestMethod.new
+    o.methodAcceptingFloat(3.1415).should == 1 
+    o.methodAcceptingDouble(3.1415).should == 1
+
+    o2 = Object.new
+    def o2.to_f; 3.1415; end
+
+    o.methodAcceptingFloat(o2).should == 1 
+    o.methodAcceptingDouble(o2).should == 1
+
+    lambda { o.methodAcceptingFloat(nil) }.should raise_error(TypeError) 
+    lambda { o.methodAcceptingDouble(nil) }.should raise_error(TypeError) 
+    lambda { o.methodAcceptingFloat(Object.new) }.should raise_error(TypeError) 
+    lambda { o.methodAcceptingDouble(Object.new) }.should raise_error(TypeError) 
   end
 end

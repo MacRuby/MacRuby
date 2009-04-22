@@ -8,5 +8,11 @@
     <method selector='methodReturningNO'>
       <retval type='B'/>
     </method>
+    <method selector='methodAcceptingTrueBOOL:'>
+      <arg index='0' type='B'/>
+    </method>
+    <method selector='methodAcceptingFalseBOOL:'>
+      <arg index='0' type='B'/>
+    </method>
   </class>
 </signatures>
