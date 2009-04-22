@@ -1,2 +1,1 @@
-fails:The for expression iterates over any object responding to 'each'
 fails:The for expression splats multiple arguments together if there are fewer arguments than values

@@ -10,15 +10,6 @@ fails:A constant on an eigenclass can be accessed via const_get
 fails:A constant on an eigenclass is not defined on the object's class
 fails:A constant on an eigenclass does not appear in the object's class constant list
 fails:A constant on an eigenclass is not preserved when the object is duped
-fails:Instance methods of an eigenclass does not include class methods of the object's class
-fails:Instance methods of an eigenclass does not include class methods of Object
-fails:Instance methods of an eigenclass does not include class methods of Class, for a class
-fails:Instance methods of an eigenclass does not include instance methods of the metaclass of Class, for a class
-fails:Instance methods of an eigenclass does not include class methods of the metaclass of Class, for a class
-fails:Instance methods of an eigenclass does not include class methods of the metaclass of Class, for a metaclass
-fails:Class methods of an eigenclass does not include instance methods of the object's class
-fails:Class methods of an eigenclass does not include class mtehods of Class
-fails:Class methods of an eigenclass does not include class methods of the metaclass of Class, for a class
 fails:self in an eigenclass body (class << obj) has the class's metaclass's metaclass as superclass for metaclasses
 fails:Instance methods of an eigenclass includes ones of the object's class
 fails:Instance methods of an eigenclass includes instance methods of Object
@@ -31,4 +22,3 @@ fails:Class methods of an eigenclass includes class methods of Class, for a clas
 fails:Class methods of an eigenclass includes instance methods of the metaclass of Class, for a class
 fails:Class methods of an eigenclass includes instance methods of the metaclass of Class, for a metaclass
 fails:Class methods of an eigenclass includes class methods of the metaclass of Class, for a metaclass
-fails:Defining instance methods on an eigenclass define public methods
