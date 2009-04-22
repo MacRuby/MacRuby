@@ -1,91 +1,84 @@
 require File.dirname(__FILE__) + '/../spec_helper'
 
-describe "A MacRuby method" do
+describe "A pure MacRuby method" do
+  before :each do
+    @o = Object.new
+  end
+
   it "uses argument-names + colon + variable syntax to form the method name" do
-    o = Object.new
-    def o.doSomething(x, withObject:y); x + y; end
-    o.respond_to?(:'doSomething:withObject:').should == true
-    o.respond_to?(:'doSomething').should == false
+    def @o.doSomething(x, withObject:y); x + y; end
+
+    @o.should have_method(:'doSomething:withObject:')
+    @o.should_not have_method(:'doSomething')
   end
 
   it "can have multiple arguments with the same name" do
-    o = Object.new
-    def o.doSomething(x, withObject:y, withObject:z); x + y + z; end
-    o.respond_to?(:'doSomething:withObject:withObject:').should == true
-    o.respond_to?(:'doSomething').should == false
+    def @o.doSomething(x, withObject:y, withObject:z); x + y + z; end
+
+    @o.should have_method(:'doSomething:withObject:withObject:')
+    @o.should_not have_method(:'doSomething')
   end
 
-  it "can coexist with other selectors whose first part is similar" do
-    o = Object.new
-    def o.foo(x); x; end
-    def o.foo(x, withObject:y); x + y; end
-    def o.foo(x, withObject:y, andObject:z); x + y + z; end
-    o.respond_to?(:'foo').should == true
-    o.respond_to?(:'foo:withObject:').should == true
-    o.respond_to?(:'foo:withObject:andObject:').should == true
+  it "can coexist with other selectors whose first named argument(s) is/are the same" do
+    def @o.foo(x); x; end
+    def @o.foo(x, withObject:y); x + y; end
+    def @o.foo(x, withObject:y, withObject:z); x + y + z; end
+
+    @o.should have_method(:'foo')
+    @o.should have_method(:'foo:withObject:')
+    @o.should have_method(:'foo:withObject:withObject:')
   end
 
-  it "must start by a regular argument variable then followed by argument-names" do
+  it "must start with a regular argument variable followed by argument-names" do
     lambda { eval("def foo(x:y); end") }.should raise_error(SyntaxError)
     lambda { eval("def foo(x, y, with:z); end") }.should raise_error(SyntaxError)
     lambda { eval("def foo(x, with:y, z); end") }.should raise_error(SyntaxError)
   end
 
   it "can be called using argument-names + colon + variable syntax" do
-    o = Object.new
-    def o.doSomething(x, withObject:y, withObject:z); x + y + z; end
-    o.doSomething(30, withObject:10, withObject:2).should == 42
+    def @o.doSomething(x, withObject:y, withObject:z); x + y + z; end
+    @o.doSomething(30, withObject:10, withObject:2).should == 42
   end
 
   it "can be called using argument-name-as-symbols + => + variable syntax" do
-    o = Object.new
-    def o.doSomething(x, withObject:y, withObject:z); x + y + z; end
-    o.doSomething(30, :withObject => 10, :withObject => 2).should == 42
+    def @o.doSomething(x, withObject:y, withObject:z); x + y + z; end
+    @o.doSomething(30, :withObject => 10, :withObject => 2).should == 42
   end
 
   it "can be called mixing both syntaxes" do
-    o = Object.new
-    def o.doSomething(x, withObject:y, withObject:z); x + y + z; end
-    o.doSomething(30, withObject:10, :withObject => 2).should == 42
+    def @o.doSomething(x, withObject:y, withObject:z); x + y + z; end
+    @o.doSomething(30, withObject:10, :withObject => 2).should == 42
   end
 
   it "can be called using #send" do
-    o = Object.new
-    def o.doSomething(x, withObject:y, withObject:z); x + y + z; end
-    o.send(:'doSomething:withObject:withObject:', 30, 10, 2).should == 42
+    def @o.doSomething(x, withObject:y, withObject:z); x + y + z; end
+    @o.send(:'doSomething:withObject:withObject:', 30, 10, 2).should == 42
   end
 
   it "can be called using -[NSObject performSelector:]" do
-    o = Object.new
-    def o.doSomething; 42; end
-    o.performSelector(:'doSomething').should == 42
+    def @o.doSomething; 42; end
+    @o.performSelector(:'doSomething').should == 42
   end
 
   it "can be called using -[NSObject performSelector:withObject:]" do
-    o = Object.new
-    def o.doSomething(x); x; end
-    o.performSelector(:'doSomething:', withObject:42).should == 42
+    def @o.doSomething(x); x; end
+    @o.performSelector(:'doSomething:', withObject:42).should == 42
   end
 
   it "can be called using -[NSObject performSelector:withObject:withObject:]" do
-    o = Object.new
-    def o.doSomething(x, withObject:y); x + y; end
-    o.performSelector(:'doSomething:withObject:',
-                      withObject:40, withObject:2).should == 42
+    def @o.doSomething(x, withObject:y); x + y; end
+    @o.performSelector(:'doSomething:withObject:',
+                       withObject:40, withObject:2).should == 42
   end
 
-  it "named using the setFoo pattern cannot be called using #foo=" do
-    o = Object.new
-    def o.setFoo(x); end
-    o.respond_to?(:'foo=').should == false
-    lambda { o.foo = 42 }.should raise_error(NoMethodError)
+  it "cannot be called with #foo=, even if it matches the Objective-C #setFoo pattern" do
+    def @o.setFoo(x); end
+    @o.should_not have_method(:'foo=')
   end
 
-  it "named using the isFoo pattern cannot be called using #foo?" do
-    o = Object.new
-    def o.isFoo; end
-    o.respond_to?(:'foo?').should == false
-    lambda { o.foo? }.should raise_error(NoMethodError)
+  it "cannot be called with #foo?, even if it matches the Objective-C #isFoo pattern" do
+    def @o.isFoo; end
+    @o.should_not have_method(:'foo?')
   end
 end
 
@@ -106,16 +99,21 @@ end
 require '/tmp/method'
 load_bridge_support_file File.dirname(__FILE__) + '/fixtures/method.bridgesupport'
 
-describe "An Objective-C method" do
-  it "named using the setFoo pattern can be called using #foo=" do
+describe "A pure Objective-C method" do
+  it "can be called with #foo= if it matches the #setFoo pattern" do
     o = []
+
+    # TODO Stopped here: This should be sufficient, but doesn't work.
+    # o.should have_method(:'setArray', true)
+    # o.should have_method(:'array=', true)
+
     o.respond_to?(:'setArray').should == true
     o.respond_to?(:'array=').should == true
     o.array = [1, 2, 3]
     o.should == [1, 2, 3]
   end
 
-  it "named using the isFoo pattern can be called using #foo?" do
+  it "can be called with #foo? if it matches the #isFoo pattern" do
     o = NSBundle.mainBundle
     o.respond_to?(:'isLoaded').should == true
     o.respond_to?(:'loaded?').should == true
