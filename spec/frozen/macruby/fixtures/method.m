@@ -273,7 +273,6 @@
 
 - (BOOL)methodAcceptingNSPoint:(NSPoint)p
 {
-NSLog(@" -> %@", NSStringFromPoint(p));
     return p.x == 1 && p.y == 2;
 }
 

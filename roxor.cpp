@@ -5095,7 +5095,6 @@ rb_vm_get_struct_fields(VALUE rval, VALUE *buf, rb_vm_bs_boxed_t *bs_boxed)
 
 	for (unsigned i = 0; i < bs_boxed->as.s->fields_count; i++) {
 	    buf[i] = data[i];
-printf("buf[%d] = %p\n", i, (void *)data[i]);
 	}	
     }
 }
@@ -5196,31 +5195,30 @@ RoxorCompiler::compile_conversion_to_c(const char *type, Value *val,
 
 		    compile_get_struct_fields(val, fields, bs_boxed);
 
-		    //Value *struct_val = new LoadInst(slot, "", bb);
-
 		    for (unsigned i = 0; i < bs_boxed->as.s->fields_count;
 			    i++) {
 
 			const char *ftype = bs_boxed->as.s->fields[i].type;
-			//const Type *llvm_ftype = convert_type(ftype);
 
+			// Load field VALUE.
 			Value *fval = GetElementPtrInst::Create(fields,
 				ConstantInt::get(Type::Int32Ty, i), "", bb);
 			fval = new LoadInst(fval, "", bb);
 
-			//Value *fslot = new AllocaInst(llvm_ftype, "", bb);
-
+			// Get a pointer to the struct field. The extra 0 is
+			// needed because we are dealing with a pointer to the
+			// structure.
+			std::vector<Value *> slot_idx;
+			slot_idx.push_back(ConstantInt::get(Type::Int32Ty, 0));
+			slot_idx.push_back(ConstantInt::get(Type::Int32Ty, i));
 			Value *fslot = GetElementPtrInst::Create(slot,
-				ConstantInt::get(Type::Int32Ty, i), "", bb);
+				slot_idx.begin(), slot_idx.end(), "", bb);
 
-			/*Value *fcval =*/ RoxorCompiler::compile_conversion_to_c(
-				ftype, fval, fslot);
-
-			//InsertValueInst::Create(struct_val, fcval, i, "", bb);
+			RoxorCompiler::compile_conversion_to_c(ftype, fval,
+				fslot);
 		    }
 
 		    return new LoadInst(slot, "", bb);
-		    //return struct_val;
 		}
 	    }
 	    break;
