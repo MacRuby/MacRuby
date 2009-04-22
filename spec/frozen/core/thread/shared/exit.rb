@@ -35,17 +35,21 @@ describe :thread_exit, :shared => true do
       begin
         inner = Thread.new do
           begin
+            sleep
           ensure
             ScratchPad << :inner_ensure_clause
           end
         end
-        Thread.current.send(@method)
+        sleep
       ensure
         ScratchPad << :outer_ensure_clause
+        Thread.pass until inner.status == "sleep"
         inner.send(@method)
         inner.join
       end
     end
+    Thread.pass until outer.status == "sleep"
+    outer.send(@method)
     outer.join
     ScratchPad.recorded.should include(:inner_ensure_clause)
     ScratchPad.recorded.should include(:outer_ensure_clause)
