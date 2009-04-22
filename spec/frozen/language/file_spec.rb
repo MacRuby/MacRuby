@@ -12,9 +12,12 @@ describe "The __FILE__ constant" do
   end
   
   it "equals a relative path when required using a relative path" do
-    path = "language/fixtures/file.rb"
-    require path
-    ScratchPad.recorded.should == File.join(".",path)
+    base_path = File.dirname(File.dirname(fixture(__FILE__, "file.rb")))
+    path = "fixtures/file.rb"
+    Dir.chdir(base_path) do
+      require path
+      ScratchPad.recorded.should == File.join(".",path)
+    end
   end
   
   it "equals the full path when required using a full path" do
