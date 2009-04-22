@@ -417,10 +417,8 @@ describe "An Objective-C method" do
     o.methodAcceptingNSPoint(p).should == 1
     p = o.methodReturningNSSize
     o.methodAcceptingNSSize(p).should == 1
-=begin
     p = o.methodReturningNSRect
     o.methodAcceptingNSRect(p).should == 1
-=end
     p = o.methodReturningNSRange
     o.methodAcceptingNSRange(p).should == 1
 
@@ -432,12 +430,10 @@ describe "An Objective-C method" do
     lambda { o.methodAcceptingNSSize(123) }.should raise_error(TypeError)
     lambda { o.methodAcceptingNSSize(Object.new) }.should raise_error(TypeError)
     lambda { o.methodAcceptingNSSize(o.methodReturningNSPoint) }.should raise_error(TypeError)
-=begin
     lambda { o.methodAcceptingNSRect(nil) }.should raise_error(TypeError)
     lambda { o.methodAcceptingNSRect(123) }.should raise_error(TypeError)
     lambda { o.methodAcceptingNSRect(Object.new) }.should raise_error(TypeError)
     lambda { o.methodAcceptingNSRect(o.methodReturningNSPoint) }.should raise_error(TypeError)
-=end
     lambda { o.methodAcceptingNSRange(nil) }.should raise_error(TypeError)
     lambda { o.methodAcceptingNSRange(123) }.should raise_error(TypeError)
     lambda { o.methodAcceptingNSRange(Object.new) }.should raise_error(TypeError)

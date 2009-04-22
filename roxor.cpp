@@ -592,8 +592,9 @@ class RoxorVM
 	    return NULL;
 	}
 
-	size_t get_type_size(const Type *type) {
-	    return ee->getTargetData()->getTypeSizeInBits(type);
+	bool is_large_struct_type(const Type *type) {
+	    return type->getTypeID() == Type::StructTyID
+		&& ee->getTargetData()->getTypeSizeInBits(type) > 128;
 	}
 };
 
@@ -5218,6 +5219,11 @@ RoxorCompiler::compile_conversion_to_c(const char *type, Value *val,
 				fslot);
 		    }
 
+		    if (GET_VM()->is_large_struct_type(bs_boxed->type)) {
+			// If this structure is too large, we need to pass its
+			// address and not its value, to conform to the ABI.
+			return slot;
+		    }
 		    return new LoadInst(slot, "", bb);
 		}
 	    }
@@ -5528,12 +5534,10 @@ RoxorCompiler::compile_stub(const char *types, int argc, bool is_objc)
 
     Value *sret = NULL;
 
-    if (ret_type->getTypeID() == Type::StructTyID
-	&& GET_VM()->get_type_size(ret_type) > 128) {
-
+    if (GET_VM()->is_large_struct_type(ret_type)) {
 	// We are returning a large struct, we need to pass a pointer as the
 	// first argument to the structure data and return void to conform to
-	// the ABI (at least x86_64).
+	// the ABI.
 	f_types.push_back(PointerType::getUnqual(ret_type));
 	sret = new AllocaInst(ret_type, "", bb);
 	params.push_back(sret);
@@ -5551,16 +5555,26 @@ RoxorCompiler::compile_stub(const char *types, int argc, bool is_objc)
     params.push_back(sel_arg);
 
     // Arguments.
+    std::vector<int> byval_args;
     for (int i = 0; i < argc; i++) {
 	p = GetFirstType(p, buf, sizeof buf);
-	//printf("arg[%d] type `%s'\n", i, buf);
-
-	f_types.push_back(convert_type(buf));
+	const Type *llvm_type = convert_type(buf);
+	if (GET_VM()->is_large_struct_type(llvm_type)) {
+	    // We are passing a large struct, we need to mark this argument
+	    // with the byval attribute and configure the internal stub
+	    // call to pass a pointer to the structure, to conform to the
+	    // ABI.
+	    f_types.push_back(PointerType::getUnqual(llvm_type));
+	    byval_args.push_back(i + 3);
+	}
+	else {
+	    f_types.push_back(llvm_type);
+	}
 
 	Value *index = ConstantInt::get(Type::Int32Ty, i);
 	Value *slot = GetElementPtrInst::Create(argv_arg, index, "", bb);
 	Value *arg_val = new LoadInst(slot, "", bb);
-	Value *new_val_slot = new AllocaInst(f_types[i + 2], "", bb);
+	Value *new_val_slot = new AllocaInst(llvm_type, "", bb);
 
 	params.push_back(compile_conversion_to_c(buf, arg_val, new_val_slot));
     }
@@ -5572,6 +5586,12 @@ RoxorCompiler::compile_stub(const char *types, int argc, bool is_objc)
     // Compile call.
     CallInst *imp_call = CallInst::Create(imp, params.begin(), params.end(),
 	    "", bb); 
+
+    for (std::vector<int>::iterator iter = byval_args.begin();
+	 iter != byval_args.end(); ++iter) {
+	
+	imp_call->addAttribute(*iter, Attribute::ByVal);
+    }
 
     // Compile retval.
     Value *retval;
