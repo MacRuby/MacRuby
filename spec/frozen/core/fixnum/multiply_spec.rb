@@ -20,16 +20,18 @@ describe "Fixnum#*" do
   end
 
   it "overflows to Bignum when the result does not fit in Fixnum" do
-    # 32-bit fixnums
-    y = 0x4000
-    result = y * y * y
-    result.should == 0x40000000000
-    result.class.should == Bignum
-
-    # 64-bit fixnums
-    y = 0x40000000
-    result = y * y * y
-    result.should == 0x40000000000000000000000
-    result.class.should == Bignum
+    if 1.size == 4
+      # 32-bit fixnums
+      y = 0x4000
+      result = y * y * y
+      result.should == 0x40000000000
+      result.class.should == Bignum
+    elsif 1.size == 8
+      # 64-bit fixnums
+      y = 0x40000000
+      result = y * y * y
+      result.should == 0x40000000000000000000000
+      result.class.should == Bignum
+    end
   end
 end
