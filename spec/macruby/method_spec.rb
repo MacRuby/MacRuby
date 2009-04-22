@@ -439,4 +439,20 @@ describe "An Objective-C method" do
     lambda { o.methodAcceptingNSRange(Object.new) }.should raise_error(TypeError)
     lambda { o.methodAcceptingNSRange(o.methodReturningNSPoint) }.should raise_error(TypeError)
   end
+
+  it "accepting an Array of valid objects as a structure type should receive the C structure" do
+    o = TestMethod.new
+    o.methodAcceptingNSPoint([1, 2]).should == 1
+    o.methodAcceptingNSSize([3, 4]).should == 1
+    o.methodAcceptingNSRect([[1, 2], [3, 4]]).should == 1
+    o.methodAcceptingNSRect([1, 2, 3, 4]).should == 1
+    o.methodAcceptingNSRange([0, 42]).should == 1
+
+    lambda { o.methodAcceptingNSPoint([1]) }.should raise_error(ArgumentError)
+    lambda { o.methodAcceptingNSPoint([1, 2, 3]) }.should raise_error(ArgumentError)
+    lambda { o.methodAcceptingNSRect([1, 2, 3]) }.should raise_error(ArgumentError)
+    lambda { o.methodAcceptingNSRect([1, 2, 3, 4, 5]) }.should raise_error(ArgumentError)
+    lambda { o.methodAcceptingNSRect([[1, 2], [3]]) }.should raise_error(ArgumentError)
+    lambda { o.methodAcceptingNSRect([[1, 2], [3, 4, 5]]) }.should raise_error(ArgumentError)
+  end
 end
