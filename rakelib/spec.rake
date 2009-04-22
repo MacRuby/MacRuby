@@ -87,7 +87,7 @@ namespace :spec do
   
   desc "Run all MacRuby-only specs"
   task :macruby do
-    sh "./miniruby -v -I./mspec/lib -I./lib ./mspec/bin/mspec-run spec/frozen/macruby"
+    sh "./mspec/bin/mspec run -t ./miniruby ./spec/macruby"
   end
   
   desc "Run language examples that are known to fail"
