@@ -14,7 +14,7 @@ describe "The __FILE__ constant" do
   it "equals a relative path when required using a relative path" do
     path = "language/fixtures/file.rb"
     require path
-    ScratchPad.recorded.should == "./#{path}"
+    ScratchPad.recorded.should == File.join(".",path)
   end
 end
 
