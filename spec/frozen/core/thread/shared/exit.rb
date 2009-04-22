@@ -28,6 +28,28 @@ describe :thread_exit, :shared => true do
     thread.join
     ScratchPad.recorded.should == :in_ensure_clause
   end
+
+  it "runs nested ensure clauses" do
+    ScratchPad.record []
+    outer = Thread.new do
+      begin
+        inner = Thread.new do
+          begin
+          ensure
+            ScratchPad << :inner_ensure_clause
+          end
+        end
+        Thread.current.send(@method)
+      ensure
+        ScratchPad << :outer_ensure_clause
+        inner.send(@method)
+        inner.join
+      end
+    end
+    outer.join
+    ScratchPad.recorded.should include(:inner_ensure_clause)
+    ScratchPad.recorded.should include(:outer_ensure_clause)
+  end
   
   it "does not set $!" do
     thread = ThreadSpecs.dying_thread_ensures(@method) { ScratchPad.record $! }
