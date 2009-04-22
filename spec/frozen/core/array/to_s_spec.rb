@@ -23,9 +23,27 @@ describe "Array#to_s" do
     end
   end
 
-  it "properly handles recursive arrays" do
-    ArraySpecs.empty_recursive_array.to_s.should == "[...]"
-    a = [1, 2, 3]; a << a
-    a.to_s.should == "123123[...]"
+  ruby_version_is "" .. "1.8.6.319" do
+    it "properly handles recursive arrays" do
+      ArraySpecs.empty_recursive_array.to_s.should == "[...]"
+      a = [1, 2, 3]; a << a
+      a.to_s.should == "123123[...]"
+    end
+  end
+
+  ruby_version_is "1.8.6.320" ... "1.9" do
+    it "properly handles recursive arrays" do
+      ArraySpecs.empty_recursive_array.to_s.should == "[...]"
+      a = [1, 2, 3]; a << a
+      a.to_s.should == "123[...]"
+    end
+  end
+
+  ruby_version_is "1.9" do
+    it "properly handles recursive arrays" do
+      ArraySpecs.empty_recursive_array.to_s.should == "[...]"
+      a = [1, 2, 3]; a << a
+      a.to_s.should == "123123[...]"
+    end
   end
 end
