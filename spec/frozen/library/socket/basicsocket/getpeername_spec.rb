@@ -13,17 +13,9 @@ describe "Socket::BasicSocket#getpeername" do
     @client.close unless @client.closed?
   end
 
-  not_compliant_on :jruby do
-    it "returns the sockaddr of the other end of the connection" do
-      server_sockaddr = Socket.pack_sockaddr_in(SocketSpecs.port, "127.0.0.1")
-      @client.getpeername.should == server_sockaddr
-    end
-  end
-
-  deviates_on :jruby do
-    it "returns the sockaddr of the other end of the connection" do
-      @client.getpeername.should == "/127.0.0.1:#{SocketSpecs.port}"
-    end
+  it "returns the sockaddr of the other end of the connection" do
+    server_sockaddr = Socket.pack_sockaddr_in(SocketSpecs.port, "127.0.0.1")
+    @client.getpeername.should == server_sockaddr
   end
 
   # Catch general exceptions to prevent NotImplementedError
