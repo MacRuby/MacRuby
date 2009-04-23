@@ -201,6 +201,8 @@ class RoxorCompiler
 	Function *compile_write_attr(ID name);
 	Function *compile_stub(const char *types, int argc, bool is_objc);
 	Function *compile_bs_struct_new(rb_vm_bs_boxed_t *bs_boxed);
+	Function *compile_bs_struct_writer(rb_vm_bs_boxed_t *bs_boxed,
+		int field);
 
     private:
 	const char *fname;
@@ -266,6 +268,7 @@ class RoxorCompiler
 	Function *newStructFunc;
 	Function *getStructFieldsFunc;
 	Function *checkArityFunc;
+	Function *setStructFunc;
 	Function *newRangeFunc;
 	Function *newRegexpFunc;
 	Function *strInternFunc;
@@ -351,6 +354,7 @@ class RoxorCompiler
 	void compile_get_struct_fields(Value *val, Value *buf,
 		rb_vm_bs_boxed_t *bs_boxed);
 	void compile_check_arity(Value *given, Value *requested);
+	void compile_set_struct(Value *rcv, int field, Value *val);
 
 	Value *compile_conversion_to_c(const char *type, Value *val,
 				       Value *slot);
@@ -661,6 +665,7 @@ RoxorCompiler::RoxorCompiler(const char *_fname)
     newStructFunc = NULL;
     getStructFieldsFunc = NULL;
     checkArityFunc = NULL;
+    setStructFunc = NULL;
     newRangeFunc = NULL;
     newRegexpFunc = NULL;
     strInternFunc = NULL;
@@ -8334,9 +8339,65 @@ RoxorCompiler::compile_check_arity(Value *given, Value *requested)
     compile_protected_call(checkArityFunc, params);
 }
 
+extern "C"
+void
+rb_vm_set_struct(VALUE rcv, int field, VALUE val)
+{
+    VALUE *data;
+    Data_Get_Struct(rcv, VALUE, data);
+    GC_WB(&data[field], val);    
+}
+
+void
+RoxorCompiler::compile_set_struct(Value *rcv, int field, Value *val)
+{
+    if (setStructFunc == NULL) {
+	// void rb_vm_set_struct(VALUE rcv, int field, VALUE val);
+	setStructFunc = cast<Function>(module->getOrInsertFunction(
+		    "rb_vm_set_struct",
+		    Type::VoidTy, RubyObjTy, Type::Int32Ty, RubyObjTy, NULL));
+    }
+
+    std::vector<Value *> params;
+    params.push_back(rcv);
+    params.push_back(ConstantInt::get(Type::Int32Ty, field));
+    params.push_back(val);
+
+    CallInst::Create(setStructFunc, params.begin(), params.end(), "", bb);
+}
+
+Function *
+RoxorCompiler::compile_bs_struct_writer(rb_vm_bs_boxed_t *bs_boxed, int field)
+{
+    // VALUE foo(VALUE self, SEL sel, VALUE val);
+    Function *f = cast<Function>(module->getOrInsertFunction("",
+		RubyObjTy, RubyObjTy, PtrTy, RubyObjTy, NULL));
+    Function::arg_iterator arg = f->arg_begin();
+    Value *self = arg++; 	// self
+    arg++;			// sel
+    Value *val = arg++; 	// val
+
+    bb = BasicBlock::Create("EntryBlock", f);
+
+    assert((unsigned)field < bs_boxed->as.s->fields_count);
+    const char *ftype = bs_boxed->as.s->fields[field].type;
+    const Type *llvm_type = convert_type(ftype);
+
+    Value *fval = new AllocaInst(llvm_type, "", bb);
+    val = compile_conversion_to_c(ftype, val, fval);
+    val = compile_conversion_to_ruby(ftype, llvm_type, val);
+
+    compile_set_struct(self, field, val);
+
+    ReturnInst::Create(val, bb);
+
+    return f;
+}
+
 Function *
 RoxorCompiler::compile_bs_struct_new(rb_vm_bs_boxed_t *bs_boxed)
 {
+    // VALUE foo(VALUE self, SEL sel, int argc, VALUE *argv);
     Function *f = cast<Function>(module->getOrInsertFunction("",
 		RubyObjTy, RubyObjTy, PtrTy, Type::Int32Ty, RubyObjPtrTy,
 		NULL));
@@ -8415,16 +8476,21 @@ RoxorCompiler::compile_bs_struct_new(rb_vm_bs_boxed_t *bs_boxed)
 
 static ID boxed_ivar_type = 0;
 
-static VALUE
-rb_vm_struct_fake_new(VALUE rcv, SEL sel, int argc, VALUE *argv)
+static inline rb_vm_bs_boxed_t *
+locate_bs_boxed(VALUE klass)
 {
-    // Locate the boxed structure.
-    VALUE type = rb_ivar_get(rcv, boxed_ivar_type);
+    VALUE type = rb_ivar_get(klass, boxed_ivar_type);
     assert(type != Qnil);
     rb_vm_bs_boxed_t *bs_boxed = GET_VM()->find_bs_struct(RSTRING_PTR(type));
     assert(bs_boxed != NULL);
+    return bs_boxed;
+}
 
+static VALUE
+rb_vm_struct_fake_new(VALUE rcv, SEL sel, int argc, VALUE *argv)
+{
     // Generate the real #new method.
+    rb_vm_bs_boxed_t *bs_boxed = locate_bs_boxed(rcv);
     Function *f = RoxorCompiler::shared->compile_bs_struct_new(bs_boxed);
     IMP imp = GET_VM()->compile(f);
 
@@ -8433,6 +8499,43 @@ rb_vm_struct_fake_new(VALUE rcv, SEL sel, int argc, VALUE *argv)
 
     // Call the new method.
     return ((VALUE (*)(VALUE, SEL, int, VALUE *))imp)(rcv, sel, argc, argv);
+}
+
+static VALUE
+rb_vm_struct_fake_set(VALUE rcv, SEL sel, VALUE val)
+{
+    // Locate the given field.
+    char buf[100];
+    const char *selname = sel_getName(sel);
+    size_t s = strlcpy(buf, selname, sizeof buf);
+    if (buf[s - 1] == ':') {
+	s--;
+    }
+    assert(buf[s - 1] == '=');
+    buf[s - 1] = '\0';
+    rb_vm_bs_boxed_t *bs_boxed = locate_bs_boxed(CLASS_OF(rcv));
+    int field = -1;
+    for (unsigned i = 0; i < bs_boxed->as.s->fields_count; i++) {
+	const char *fname = bs_boxed->as.s->fields[i].name;
+	if (strcmp(fname, buf) == 0) {
+	    field = i;
+	    break;
+	}
+    }
+    assert(field != -1); 
+
+    // Generate the new setter method.
+    Function *f = RoxorCompiler::shared->compile_bs_struct_writer(
+	    bs_boxed, field);
+    IMP imp = GET_VM()->compile(f);
+
+    // Replace the fake method with the new one in the runtime.
+    buf[s - 1] = '=';
+    buf[s] = '\0';
+    rb_objc_define_method(*(VALUE *)rcv, buf, (void *)imp, 1); 
+
+    // Call the new method.
+    return ((VALUE (*)(VALUE, SEL, VALUE))imp)(rcv, sel, val);
 }
 
 // Readers are statically generated.
@@ -8472,7 +8575,11 @@ register_bs_boxed(bs_element_type_t type, void *value)
 	    // Readers.
 	    rb_objc_define_method(boxed->klass, boxed->as.s->fields[i].name,
 		    (void *)struct_readers[i], 0);
-	    // Writers. (TODO)
+	    // Writers.
+	    char buf[100];
+	    snprintf(buf, sizeof buf, "%s=", boxed->as.s->fields[i].name);
+	    rb_objc_define_method(boxed->klass, buf,
+		    (void *)rb_vm_struct_fake_set, 1);
 	}
     }
 
