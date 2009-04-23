@@ -8567,6 +8567,27 @@ rb_vm_struct_equal(VALUE rcv, SEL sel, VALUE val)
     return Qtrue;
 }
 
+static VALUE
+rb_vm_struct_inspect(VALUE rcv, SEL sel)
+{
+    VALUE str = rb_str_new2("#<");
+    rb_str_cat2(str, rb_obj_classname(rcv));
+
+    VALUE *rcv_data;
+    Data_Get_Struct(rcv, VALUE, rcv_data);
+    rb_vm_bs_boxed_t *bs_boxed = locate_bs_boxed(CLASS_OF(rcv));
+    for (unsigned i = 0; i < bs_boxed->as.s->fields_count; i++) {
+	rb_str_cat2(str, " ");
+	rb_str_cat2(str, bs_boxed->as.s->fields[i].name);
+	rb_str_cat2(str, "=");
+	rb_str_append(str, rb_inspect(rcv_data[i]));
+    }
+
+    rb_str_cat2(str, ">");
+
+    return str;
+}
+
 static bool
 register_bs_boxed(bs_element_type_t type, void *value)
 {
@@ -8611,6 +8632,8 @@ register_bs_boxed(bs_element_type_t type, void *value)
 	// Define other utility methods.
 	rb_objc_define_method(boxed->klass, "==",
 		(void *)rb_vm_struct_equal, 1);
+	rb_objc_define_method(boxed->klass, "inspect",
+		(void *)rb_vm_struct_inspect, 0);
     }
 
     GET_VM()->bs_boxed[octype] = boxed;

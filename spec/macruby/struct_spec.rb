@@ -144,4 +144,22 @@ describe "A BridgeSupport structure" do
     NSPoint.new.should_not == [0.0, 0.0]
     NSPoint.new.should_not == NSSize.new
   end
+
+  it "has a nice #inspect message that lists the fields" do
+    p = NSPoint.new
+    p.inspect.should == "#<NSPoint x=0.0 y=0.0>"
+    p.x = 1
+    p.y = 2
+    p.inspect.should == "#<NSPoint x=1.0 y=2.0>"
+
+    s = NSSize.new(3, 4)
+    s.inspect.should == "#<NSSize width=3.0 height=4.0>"
+
+    r = NSRect.new
+    r.inspect.should == "#<NSRect origin=#<NSPoint x=0.0 y=0.0> size=#<NSSize width=0.0 height=0.0>>"
+    r.origin = p
+    r.inspect.should == "#<NSRect origin=#<NSPoint x=1.0 y=2.0> size=#<NSSize width=0.0 height=0.0>>"
+    r.size = s
+    r.inspect.should == "#<NSRect origin=#<NSPoint x=1.0 y=2.0> size=#<NSSize width=3.0 height=4.0>>"
+  end
 end
