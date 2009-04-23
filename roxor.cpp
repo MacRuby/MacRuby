@@ -200,6 +200,7 @@ class RoxorCompiler
 	Function *compile_read_attr(ID name);
 	Function *compile_write_attr(ID name);
 	Function *compile_stub(const char *types, int argc, bool is_objc);
+	Function *compile_bs_struct_new(rb_vm_bs_boxed_t *bs_boxed);
 
     private:
 	const char *fname;
@@ -8298,6 +8299,48 @@ rb_vm_resolve_const_value(VALUE v, VALUE klass, ID id)
     return v;
 }
 
+Function *
+RoxorCompiler::compile_bs_struct_new(rb_vm_bs_boxed_t *bs_boxed)
+{
+    Function *f = cast<Function>(module->getOrInsertFunction("",
+		RubyObjTy, RubyObjTy, PtrTy, Type::Int32Ty, RubyObjPtrTy,
+		NULL));
+    Function::arg_iterator arg = f->arg_begin();
+    ++arg; // skip recv
+    ++arg; // skip sel
+    //Value *argv = arg;
+
+    bb = BasicBlock::Create("EntryBlock", f);
+
+    // TODO
+
+    ReturnInst::Create(nilVal, bb);
+
+    return f;
+}
+
+static ID boxed_ivar_type = 0;
+
+static VALUE
+rb_vm_struct_fake_new(VALUE rcv, SEL sel, int argc, VALUE *argv)
+{
+    // Locate the boxed structure.
+    VALUE type = rb_ivar_get(rcv, boxed_ivar_type);
+    assert(type != Qnil);
+    rb_vm_bs_boxed_t *bs_boxed = GET_VM()->find_bs_struct(RSTRING_PTR(type));
+    assert(bs_boxed != NULL);
+
+    // Generate the real #new method.
+    Function *f = RoxorCompiler::shared->compile_bs_struct_new(bs_boxed);
+    IMP imp = GET_VM()->compile(f);
+
+    // Replace the fake method with the new one in the runtime.
+    rb_objc_define_method(*(VALUE *)rcv, "new", (void *)imp, -1); 
+
+    // Call the new method.
+    return ((VALUE (*)(VALUE, SEL, int, VALUE *))imp)(rcv, sel, argc, argv);
+}
+
 // Readers are statically generated.
 #include "bs_struct_readers.c"
 
@@ -8322,11 +8365,20 @@ register_bs_boxed(bs_element_type_t type, void *value)
     boxed->klass = rb_define_class(((bs_element_opaque_t *)value)->name,
 	    rb_cBoxed);
 
+    rb_ivar_set(boxed->klass, boxed_ivar_type, rb_str_new2(octype.c_str()));
+
     if (type == BS_ELEMENT_STRUCT) {
+	// Define the fake #new method.
+	rb_objc_define_method(*(VALUE *)boxed->klass, "new",
+		(void *)rb_vm_struct_fake_new, -1);
+
+	// Define accessors.
 	assert(boxed->as.s->fields_count <= BS_STRUCT_MAX_FIELDS);
 	for (unsigned i = 0; i < boxed->as.s->fields_count; i++) {
+	    // Readers.
 	    rb_objc_define_method(boxed->klass, boxed->as.s->fields[i].name,
 		    (void *)struct_readers[i], 0);
+	    // Writers. (TODO)
 	}
     }
 
@@ -8741,6 +8793,8 @@ Init_VM(void)
 
     bs_const_magic_cookie = rb_str_new2("bs_const_magic_cookie");
     rb_objc_retain((void *)bs_const_magic_cookie);
+
+    boxed_ivar_type = rb_intern("__octype__");
 }
 
 extern "C"
