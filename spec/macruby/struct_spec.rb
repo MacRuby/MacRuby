@@ -137,5 +137,11 @@ describe "A BridgeSupport structure" do
 
     r2.size.height = 4
     r1.should == r2
+
+    NSPoint.new.should_not == nil
+    NSPoint.new.should_not == 123
+    NSPoint.new.should_not == [0, 0]
+    NSPoint.new.should_not == [0.0, 0.0]
+    NSPoint.new.should_not == NSSize.new
   end
 end
