@@ -43,8 +43,8 @@ describe "A BridgeSupport structure" do
     o.y.class.should == Float
     o.y.should == 2.0
 
-    fix1 = Object.new; def fix1.to_i; 1; end
-    fix2 = Object.new; def fix2.to_i; 2; end
+    fix1 = Object.new; def fix1.to_f; 1.0; end
+    fix2 = Object.new; def fix2.to_f; 2.0; end
 
     o = NSPoint.new(fix1, fix2)
     o.x.class.should == Float

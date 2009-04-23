@@ -265,6 +265,7 @@ class RoxorCompiler
 	Function *newArrayFunc;
 	Function *newStructFunc;
 	Function *getStructFieldsFunc;
+	Function *checkArityFunc;
 	Function *newRangeFunc;
 	Function *newRegexpFunc;
 	Function *strInternFunc;
@@ -346,9 +347,10 @@ class RoxorCompiler
 	void compile_landing_pad_footer(void);
 	void compile_rethrow_exception(void);
 	Value *compile_lvar_slot(ID name);
-	Value *compile_new_struct(VALUE klass, std::vector<Value *> &fields);
+	Value *compile_new_struct(Value *klass, std::vector<Value *> &fields);
 	void compile_get_struct_fields(Value *val, Value *buf,
 		rb_vm_bs_boxed_t *bs_boxed);
+	void compile_check_arity(Value *given, Value *requested);
 
 	Value *compile_conversion_to_c(const char *type, Value *val,
 				       Value *slot);
@@ -593,6 +595,10 @@ class RoxorVM
 	    return NULL;
 	}
 
+	size_t get_sizeof(const Type *type) {
+	    return ee->getTargetData()->getTypeSizeInBits(type) / 8;
+	}
+
 	bool is_large_struct_type(const Type *type) {
 	    return type->getTypeID() == Type::StructTyID
 		&& ee->getTargetData()->getTypeSizeInBits(type) > 128;
@@ -654,6 +660,7 @@ RoxorCompiler::RoxorCompiler(const char *_fname)
     newArrayFunc = NULL;
     newStructFunc = NULL;
     getStructFieldsFunc = NULL;
+    checkArityFunc = NULL;
     newRangeFunc = NULL;
     newRegexpFunc = NULL;
     strInternFunc = NULL;
@@ -5309,7 +5316,7 @@ rb_vm_new_struct(VALUE klass, int argc, ...)
 }
 
 Value *
-RoxorCompiler::compile_new_struct(VALUE klass, std::vector<Value *> &fields)
+RoxorCompiler::compile_new_struct(Value *klass, std::vector<Value *> &fields)
 {
     if (newStructFunc == NULL) {
 	std::vector<const Type *> types;
@@ -5321,9 +5328,9 @@ RoxorCompiler::compile_new_struct(VALUE klass, std::vector<Value *> &fields)
 		    "rb_vm_new_struct", ft));
     }
 
-    fields.insert(fields.begin(),
-	    ConstantInt::get(Type::Int32Ty, fields.size()));
-    fields.insert(fields.begin(), ConstantInt::get(RubyObjTy, klass));
+    Value *argc = ConstantInt::get(Type::Int32Ty, fields.size());
+    fields.insert(fields.begin(), argc);
+    fields.insert(fields.begin(), klass);
 
     return CallInst::Create(newStructFunc, fields.begin(), fields.end(),
 	    "", bb); 
@@ -5415,7 +5422,8 @@ RoxorCompiler::compile_conversion_to_ruby(const char *type,
 				llvm_ftype, fval));
 		}
 
-		return compile_new_struct(bs_boxed->klass, params);
+		Value *klass = ConstantInt::get(RubyObjTy, bs_boxed->klass);
+		return compile_new_struct(klass, params);
 	    }
 	    break;
     }
@@ -8299,6 +8307,33 @@ rb_vm_resolve_const_value(VALUE v, VALUE klass, ID id)
     return v;
 }
 
+extern "C"
+void
+rb_vm_check_arity(int given, int requested)
+{
+    if (given != requested) {
+	rb_raise(rb_eArgError, "wrong number of arguments (%d for %d)",
+		given, requested);
+    }
+}
+
+void
+RoxorCompiler::compile_check_arity(Value *given, Value *requested)
+{
+    if (checkArityFunc == NULL) {
+	// void rb_vm_check_arity(int given, int requested);
+	checkArityFunc = cast<Function>(module->getOrInsertFunction(
+		    "rb_vm_check_arity",
+		    Type::VoidTy, Type::Int32Ty, Type::Int32Ty, NULL));
+    }
+
+    std::vector<Value *> params;
+    params.push_back(given);
+    params.push_back(requested);
+
+    compile_protected_call(checkArityFunc, params);
+}
+
 Function *
 RoxorCompiler::compile_bs_struct_new(rb_vm_bs_boxed_t *bs_boxed)
 {
@@ -8306,15 +8341,74 @@ RoxorCompiler::compile_bs_struct_new(rb_vm_bs_boxed_t *bs_boxed)
 		RubyObjTy, RubyObjTy, PtrTy, Type::Int32Ty, RubyObjPtrTy,
 		NULL));
     Function::arg_iterator arg = f->arg_begin();
-    ++arg; // skip recv
-    ++arg; // skip sel
-    //Value *argv = arg;
+    Value *klass = arg++; 	// self
+    arg++;			// sel
+    Value *argc = arg++; 	// argc
+    Value *argv = arg++; 	// argv
 
     bb = BasicBlock::Create("EntryBlock", f);
 
-    // TODO
+    BasicBlock *no_args_bb = BasicBlock::Create("no_args", f);
+    BasicBlock *args_bb  = BasicBlock::Create("args", f);
+    Value *has_args = new ICmpInst(ICmpInst::ICMP_EQ, argc,
+	    ConstantInt::get(Type::Int32Ty, 0), "", bb);
 
-    ReturnInst::Create(nilVal, bb);
+    BranchInst::Create(no_args_bb, args_bb, has_args, bb);
+
+    // No arguments are given, let's create Ruby field objects based on a
+    // zero-filled memory slot.
+    bb = no_args_bb;
+    std::vector<Value *> fields;
+
+    for (unsigned i = 0; i < bs_boxed->as.s->fields_count; i++) {
+	const char *ftype = bs_boxed->as.s->fields[i].type;
+	const Type *llvm_type = convert_type(ftype);
+	Value *fval = new AllocaInst(llvm_type, "", bb);
+
+	const Type *Tys[] = { IntTy };
+	Function *memset_func = Intrinsic::getDeclaration(module,
+		Intrinsic::memset, Tys, 1);
+	assert(memset_func != NULL);
+
+	std::vector<Value *> params;
+	params.push_back(new BitCastInst(fval, PtrTy, "", bb));
+	params.push_back(ConstantInt::get(Type::Int8Ty, 0));
+	params.push_back(ConstantInt::get(IntTy,
+		    GET_VM()->get_sizeof(llvm_type)));
+	params.push_back(ConstantInt::get(Type::Int32Ty, 0));
+	CallInst::Create(memset_func, params.begin(), params.end(), "", bb);
+
+	fval = new LoadInst(fval, "", bb);
+	fval = compile_conversion_to_ruby(ftype, llvm_type, fval);
+
+	fields.push_back(fval);
+    }
+
+    ReturnInst::Create(compile_new_struct(klass, fields), bb);
+
+    // Arguments are given. Need to check given arity, then convert the given
+    // Ruby values into the requested struct field types.
+    bb = args_bb;
+    fields.clear();
+
+    compile_check_arity(argc,
+	    ConstantInt::get(Type::Int32Ty, bs_boxed->as.s->fields_count));
+
+    for (unsigned i = 0; i < bs_boxed->as.s->fields_count; i++) {
+	const char *ftype = bs_boxed->as.s->fields[i].type;
+	const Type *llvm_type = convert_type(ftype);
+	Value *fval = new AllocaInst(llvm_type, "", bb);
+
+	Value *index = ConstantInt::get(Type::Int32Ty, i);
+	Value *arg = GetElementPtrInst::Create(argv, index, "", bb);
+	arg = new LoadInst(arg, "", bb);
+	arg = compile_conversion_to_c(ftype, arg, fval);
+	arg = compile_conversion_to_ruby(ftype, llvm_type, arg);
+
+	fields.push_back(arg);
+    }
+
+    ReturnInst::Create(compile_new_struct(klass, fields), bb);
 
     return f;
 }
