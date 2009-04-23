@@ -8298,32 +8298,8 @@ rb_vm_resolve_const_value(VALUE v, VALUE klass, ID id)
     return v;
 }
 
-#define GEN_STRUCT_READER(idx) \
-    static VALUE rb_vm_struct_reader_##idx (VALUE self, SEL sel) { \
-	VALUE *data; \
-	Data_Get_Struct(self, VALUE, data); \
-	return data[idx]; \
-    } \
-
-GEN_STRUCT_READER(0);  GEN_STRUCT_READER(1);  GEN_STRUCT_READER(2);
-GEN_STRUCT_READER(3);  GEN_STRUCT_READER(4);  GEN_STRUCT_READER(5);
-GEN_STRUCT_READER(6);  GEN_STRUCT_READER(7);  GEN_STRUCT_READER(8);
-GEN_STRUCT_READER(9);  GEN_STRUCT_READER(10); GEN_STRUCT_READER(11);
-GEN_STRUCT_READER(12); GEN_STRUCT_READER(13); GEN_STRUCT_READER(14);
-GEN_STRUCT_READER(15); GEN_STRUCT_READER(16); GEN_STRUCT_READER(17);
-GEN_STRUCT_READER(18); GEN_STRUCT_READER(19);
-
-#define BS_STRUCT_MAX_FIELDS 20
-typedef VALUE rb_vm_struct_reader_t(VALUE, SEL);
-static rb_vm_struct_reader_t *struct_readers[] = {
-    rb_vm_struct_reader_0,  rb_vm_struct_reader_1,  rb_vm_struct_reader_2,
-    rb_vm_struct_reader_3,  rb_vm_struct_reader_4,  rb_vm_struct_reader_5,
-    rb_vm_struct_reader_6,  rb_vm_struct_reader_7,  rb_vm_struct_reader_8,
-    rb_vm_struct_reader_9,  rb_vm_struct_reader_10, rb_vm_struct_reader_11,
-    rb_vm_struct_reader_12, rb_vm_struct_reader_13, rb_vm_struct_reader_14,
-    rb_vm_struct_reader_15, rb_vm_struct_reader_16, rb_vm_struct_reader_17,
-    rb_vm_struct_reader_18, rb_vm_struct_reader_19
-};
+// Readers are statically generated.
+#include "bs_struct_readers.c"
 
 static bool
 register_bs_boxed(bs_element_type_t type, void *value)
@@ -8347,7 +8323,7 @@ register_bs_boxed(bs_element_type_t type, void *value)
 	    rb_cBoxed);
 
     if (type == BS_ELEMENT_STRUCT) {
-	assert(boxed->as.s->fields_count < BS_STRUCT_MAX_FIELDS);
+	assert(boxed->as.s->fields_count <= BS_STRUCT_MAX_FIELDS);
 	for (unsigned i = 0; i < boxed->as.s->fields_count; i++) {
 	    rb_objc_define_method(boxed->klass, boxed->as.s->fields[i].name,
 		    (void *)struct_readers[i], 0);
