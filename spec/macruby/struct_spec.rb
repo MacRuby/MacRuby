@@ -115,4 +115,27 @@ describe "A BridgeSupport structure" do
     r.size.width.should == 789.0
     r.size.height.should == 100.0
   end
+
+  it "can be compared to another similar object using #==" do
+    p1 = NSPoint.new(1, 2)
+    p2 = NSPoint.new(3, 4)
+    p1.should_not == p2
+
+    p2.x = 1
+    p2.y = 2
+    p1.should == p2
+
+    r1 = NSRect.new
+    r2 = NSRect.new
+    r1.should == r2
+
+    r1.origin = NSPoint.new(1, 2)
+    r1.size = NSSize.new(3, 4)
+    r2.origin = NSPoint.new(1, 2)
+    r2.size = NSSize.new(3, 42)
+    r1.should_not == r2
+
+    r2.size.height = 4
+    r1.should == r2
+  end
 end

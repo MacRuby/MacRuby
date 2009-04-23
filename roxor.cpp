@@ -8541,6 +8541,32 @@ rb_vm_struct_fake_set(VALUE rcv, SEL sel, VALUE val)
 // Readers are statically generated.
 #include "bs_struct_readers.c"
 
+static VALUE
+rb_vm_struct_equal(VALUE rcv, SEL sel, VALUE val)
+{
+    if (rcv == val) {
+	return Qtrue;
+    }
+    VALUE klass = CLASS_OF(rcv);
+    if (!rb_obj_is_kind_of(val, klass)) {
+	return Qfalse;
+    }
+
+    rb_vm_bs_boxed_t *bs_boxed = locate_bs_boxed(klass);
+
+    VALUE *rcv_data;
+    VALUE *val_data;
+    Data_Get_Struct(rcv, VALUE, rcv_data);
+    Data_Get_Struct(val, VALUE, val_data);
+
+    for (unsigned i = 0; i < bs_boxed->as.s->fields_count; i++) {
+	if (!rb_equal(rcv_data[i], val_data[i])) {
+	    return Qfalse;
+	}
+    }
+    return Qtrue;
+}
+
 static bool
 register_bs_boxed(bs_element_type_t type, void *value)
 {
@@ -8581,6 +8607,10 @@ register_bs_boxed(bs_element_type_t type, void *value)
 	    rb_objc_define_method(boxed->klass, buf,
 		    (void *)rb_vm_struct_fake_set, 1);
 	}
+
+	// Define other utility methods.
+	rb_objc_define_method(boxed->klass, "==",
+		(void *)rb_vm_struct_equal, 1);
     }
 
     GET_VM()->bs_boxed[octype] = boxed;
