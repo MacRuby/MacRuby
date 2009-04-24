@@ -266,7 +266,9 @@ class RoxorCompiler
 	Function *dupArrayFunc;
 	Function *newArrayFunc;
 	Function *newStructFunc;
+	Function *newOpaqueFunc;
 	Function *getStructFieldsFunc;
+	Function *getOpaqueDataFunc;
 	Function *checkArityFunc;
 	Function *setStructFunc;
 	Function *newRangeFunc;
@@ -301,6 +303,7 @@ class RoxorCompiler
 	const Type *RubyObjPtrTy;
 	const Type *RubyObjPtrPtrTy;
 	const Type *PtrTy;
+	const Type *PtrPtrTy;
 	const Type *IntTy;
 
 	void compile_node_error(const char *msg, NODE *node) {
@@ -351,8 +354,11 @@ class RoxorCompiler
 	void compile_rethrow_exception(void);
 	Value *compile_lvar_slot(ID name);
 	Value *compile_new_struct(Value *klass, std::vector<Value *> &fields);
+	Value *compile_new_opaque(Value *klass, Value *val);
 	void compile_get_struct_fields(Value *val, Value *buf,
 		rb_vm_bs_boxed_t *bs_boxed);
+	Value *compile_get_opaque_data(Value *val, rb_vm_bs_boxed_t *bs_boxed,
+		Value *slot);
 	void compile_check_arity(Value *given, Value *requested);
 	void compile_set_struct(Value *rcv, int field, Value *val);
 
@@ -501,6 +507,7 @@ class RoxorVM
 	bs_element_method_t *find_bs_method(Class klass, SEL sel);
 	rb_vm_bs_boxed_t *find_bs_boxed(std::string type);
 	rb_vm_bs_boxed_t *find_bs_struct(std::string type);
+	rb_vm_bs_boxed_t *find_bs_opaque(std::string type);
 
 #if ROXOR_ULTRA_LAZY_JIT
 	std::map<SEL, std::map<Class, rb_vm_method_source_t *> *>
@@ -664,7 +671,9 @@ RoxorCompiler::RoxorCompiler(const char *_fname)
     dupArrayFunc = NULL;
     newArrayFunc = NULL;
     newStructFunc = NULL;
+    newOpaqueFunc = NULL;
     getStructFieldsFunc = NULL;
+    getOpaqueDataFunc = NULL;
     checkArityFunc = NULL;
     setStructFunc = NULL;
     newRangeFunc = NULL;
@@ -705,6 +714,7 @@ RoxorCompiler::RoxorCompiler(const char *_fname)
     splatArgFollowsVal = ConstantInt::get(RubyObjTy, SPLAT_ARG_FOLLOWS);
     cObject = ConstantInt::get(RubyObjTy, (long)rb_cObject);
     PtrTy = PointerType::getUnqual(Type::Int8Ty);
+    PtrPtrTy = PointerType::getUnqual(PtrTy);
 
 #if ROXOR_COMPILER_DEBUG
     level = 0;
@@ -5132,6 +5142,46 @@ RoxorCompiler::compile_get_struct_fields(Value *val, Value *buf,
     CallInst::Create(getStructFieldsFunc, params.begin(), params.end(), "", bb);
 }
 
+extern "C"
+void *
+rb_vm_get_opaque_data(VALUE rval, rb_vm_bs_boxed_t *bs_boxed, void **ocval)
+{
+    if (rval == Qnil) {
+	return *ocval = NULL;
+    }
+    else {
+	if (!rb_obj_is_kind_of(rval, bs_boxed->klass)) {
+	    rb_raise(rb_eTypeError,
+		    "cannot convert `%s' (%s) to opaque type %s",
+		    RSTRING_PTR(rb_inspect(rval)),
+		    rb_obj_classname(rval),
+		    rb_class2name(bs_boxed->klass));
+	}
+	VALUE *data;
+	Data_Get_Struct(rval, VALUE, data);
+	return *ocval = (void *)data;
+    }
+}
+
+Value *
+RoxorCompiler::compile_get_opaque_data(Value *val, rb_vm_bs_boxed_t *bs_boxed,
+				       Value *slot)
+{
+    if (getOpaqueDataFunc == NULL) {
+	getOpaqueDataFunc = cast<Function>(module->getOrInsertFunction(
+		    "rb_vm_get_opaque_data",
+		    PtrTy, RubyObjTy, PtrTy, PtrPtrTy, NULL));
+    }
+
+    std::vector<Value *> params;
+    params.push_back(val);
+    params.push_back(compile_const_pointer(bs_boxed));
+    params.push_back(slot);
+
+    return CallInst::Create(getOpaqueDataFunc, params.begin(), params.end(),
+	    "", bb);
+}
+
 Value *
 RoxorCompiler::compile_conversion_to_c(const char *type, Value *val,
 				       Value *slot)
@@ -5242,6 +5292,15 @@ RoxorCompiler::compile_conversion_to_c(const char *type, Value *val,
 		}
 	    }
 	    break;
+
+	case _C_PTR:
+	    {
+		rb_vm_bs_boxed_t *bs_boxed = GET_VM()->find_bs_opaque(type);
+		if (bs_boxed != NULL) {
+		    return compile_get_opaque_data(val, bs_boxed, slot);
+		}
+	    }
+	    break;
     }
 
     if (func_name == NULL) {
@@ -5321,6 +5380,13 @@ rb_vm_new_struct(VALUE klass, int argc, ...)
     return Data_Wrap_Struct(klass, NULL, NULL, data);
 }
 
+extern "C"
+VALUE
+rb_vm_new_opaque(VALUE klass, void *val)
+{
+    return Data_Wrap_Struct(klass, NULL, NULL, val);
+}
+
 Value *
 RoxorCompiler::compile_new_struct(Value *klass, std::vector<Value *> &fields)
 {
@@ -5339,6 +5405,22 @@ RoxorCompiler::compile_new_struct(Value *klass, std::vector<Value *> &fields)
     fields.insert(fields.begin(), klass);
 
     return CallInst::Create(newStructFunc, fields.begin(), fields.end(),
+	    "", bb); 
+}
+
+Value *
+RoxorCompiler::compile_new_opaque(Value *klass, Value *val)
+{
+    if (newOpaqueFunc == NULL) {
+	newOpaqueFunc = cast<Function>(module->getOrInsertFunction(
+		    "rb_vm_new_opaque", RubyObjTy, RubyObjTy, PtrTy, NULL));
+    }
+
+    std::vector<Value *> params;
+    params.push_back(klass);
+    params.push_back(val);
+
+    return CallInst::Create(newOpaqueFunc, params.begin(), params.end(),
 	    "", bb); 
 }
 
@@ -5413,25 +5495,37 @@ RoxorCompiler::compile_conversion_to_ruby(const char *type,
 	    break;
 
 	case _C_STRUCT_B:
-	    rb_vm_bs_boxed_t *bs_boxed = GET_VM()->find_bs_struct(type);
-	    if (bs_boxed != NULL) {
-		std::vector<Value *> params;
+	    {
+		rb_vm_bs_boxed_t *bs_boxed = GET_VM()->find_bs_struct(type);
+		if (bs_boxed != NULL) {
+		    std::vector<Value *> params;
 
-		for (unsigned i = 0; i < bs_boxed->as.s->fields_count;
-			i++) {
-			
-		    const char *ftype = bs_boxed->as.s->fields[i].type;
-		    const Type *llvm_ftype = convert_type(ftype);
-		    Value *fval = ExtractValueInst::Create(val, i, "", bb);
+		    for (unsigned i = 0; i < bs_boxed->as.s->fields_count;
+			    i++) {
 
-		    params.push_back(compile_conversion_to_ruby(ftype,
-				llvm_ftype, fval));
+			const char *ftype = bs_boxed->as.s->fields[i].type;
+			const Type *llvm_ftype = convert_type(ftype);
+			Value *fval = ExtractValueInst::Create(val, i, "", bb);
+
+			params.push_back(compile_conversion_to_ruby(ftype,
+				    llvm_ftype, fval));
+		    }
+
+		    Value *klass = ConstantInt::get(RubyObjTy, bs_boxed->klass);
+		    return compile_new_struct(klass, params);
 		}
-
-		Value *klass = ConstantInt::get(RubyObjTy, bs_boxed->klass);
-		return compile_new_struct(klass, params);
 	    }
 	    break;
+
+	case _C_PTR:
+	    {
+		rb_vm_bs_boxed_t *bs_boxed = GET_VM()->find_bs_opaque(type);
+		if (bs_boxed != NULL) {
+		    Value *klass = ConstantInt::get(RubyObjTy, bs_boxed->klass);
+		    return compile_new_opaque(klass, val);
+		}
+	    }
+	    break; 
     }
 
     if (func_name == NULL) {
@@ -8546,7 +8640,7 @@ rb_vm_struct_fake_set(VALUE rcv, SEL sel, VALUE val)
 #include "bs_struct_readers.c"
 
 static VALUE
-rb_vm_struct_equal(VALUE rcv, SEL sel, VALUE val)
+rb_vm_boxed_equal(VALUE rcv, SEL sel, VALUE val)
 {
     if (rcv == val) {
 	return Qtrue;
@@ -8556,19 +8650,21 @@ rb_vm_struct_equal(VALUE rcv, SEL sel, VALUE val)
 	return Qfalse;
     }
 
-    rb_vm_bs_boxed_t *bs_boxed = locate_bs_boxed(klass, true);
+    rb_vm_bs_boxed_t *bs_boxed = locate_bs_boxed(klass);
 
-    VALUE *rcv_data;
-    VALUE *val_data;
-    Data_Get_Struct(rcv, VALUE, rcv_data);
-    Data_Get_Struct(val, VALUE, val_data);
+    VALUE *rcv_data; Data_Get_Struct(rcv, VALUE, rcv_data);
+    VALUE *val_data; Data_Get_Struct(val, VALUE, val_data);
 
-    for (unsigned i = 0; i < bs_boxed->as.s->fields_count; i++) {
-	if (!rb_equal(rcv_data[i], val_data[i])) {
-	    return Qfalse;
+    if (bs_boxed->bs_type == BS_ELEMENT_STRUCT) {
+	for (unsigned i = 0; i < bs_boxed->as.s->fields_count; i++) {
+	    if (!rb_equal(rcv_data[i], val_data[i])) {
+		return Qfalse;
+	    }
 	}
+	return Qtrue;
     }
-    return Qtrue;
+
+    return rcv_data == val_data ? Qtrue : Qfalse;
 }
 
 static VALUE
@@ -8614,6 +8710,29 @@ rb_vm_struct_dup(VALUE rcv, SEL sel)
     return Data_Wrap_Struct(klass, NULL, NULL, new_data);
 }
 
+static VALUE
+rb_boxed_fields(VALUE rcv, SEL sel)
+{
+    rb_vm_bs_boxed_t *bs_boxed = locate_bs_boxed(rcv);
+    VALUE ary = rb_ary_new();
+    if (bs_boxed->bs_type == BS_ELEMENT_STRUCT) {
+	for (unsigned i = 0; i < bs_boxed->as.s->fields_count; i++) {
+	    VALUE field = ID2SYM(rb_intern(bs_boxed->as.s->fields[i].name));
+	    rb_ary_push(ary, field);
+	}
+    }
+    return ary;
+}
+
+static VALUE
+rb_vm_opaque_new(VALUE rcv, SEL sel)
+{
+    // XXX instead of doing this, we should perhaps simply delete the new
+    // method on the class...
+    rb_raise(rb_eRuntimeError, "can't allocate opaque type `%s'",
+	    rb_class2name(rcv)); 
+}
+
 static bool
 register_bs_boxed(bs_element_type_t type, void *value)
 {
@@ -8656,8 +8775,8 @@ register_bs_boxed(bs_element_type_t type, void *value)
 	}
 
 	// Define other utility methods.
-	rb_objc_define_method(boxed->klass, "==",
-		(void *)rb_vm_struct_equal, 1);
+	rb_objc_define_method(*(VALUE *)boxed->klass, "fields",
+		(void *)rb_boxed_fields, 0);
 	rb_objc_define_method(boxed->klass, "dup",
 		(void *)rb_vm_struct_dup, 0);
 	rb_objc_define_method(boxed->klass, "clone",
@@ -8665,6 +8784,13 @@ register_bs_boxed(bs_element_type_t type, void *value)
 	rb_objc_define_method(boxed->klass, "inspect",
 		(void *)rb_vm_struct_inspect, 0);
     }
+    else {
+	// Opaque methods.
+	rb_objc_define_method(*(VALUE *)boxed->klass, "new",
+		(void *)rb_vm_opaque_new, -1);
+    }
+    // Common methods.
+    rb_objc_define_method(boxed->klass, "==", (void *)rb_vm_boxed_equal, 1);
 
     GET_VM()->bs_boxed[octype] = boxed;
 
@@ -8684,20 +8810,6 @@ rb_boxed_is_opaque(VALUE rcv, SEL sel)
     return bs_boxed->bs_type == BS_ELEMENT_OPAQUE ? Qtrue : Qfalse;
 }
 
-static VALUE
-rb_boxed_fields(VALUE rcv, SEL sel)
-{
-    rb_vm_bs_boxed_t *bs_boxed = locate_bs_boxed(rcv);
-    VALUE ary = rb_ary_new();
-    if (bs_boxed->bs_type == BS_ELEMENT_STRUCT) {
-	for (unsigned i = 0; i < bs_boxed->as.s->fields_count; i++) {
-	    VALUE field = ID2SYM(rb_intern(bs_boxed->as.s->fields[i].name));
-	    rb_ary_push(ary, field);
-	}
-    }
-    return ary;
-}
-
 VALUE rb_cBoxed;
 
 static void
@@ -8710,8 +8822,6 @@ Init_Boxed(void)
 	    (void *)rb_boxed_objc_type, 0);
     rb_objc_define_method(*(VALUE *)rb_cBoxed, "opaque?",
 	    (void *)rb_boxed_is_opaque, 0);
-    rb_objc_define_method(*(VALUE *)rb_cBoxed, "fields",
-	    (void *)rb_boxed_fields, 0);
 }
 
 static inline void
@@ -8785,6 +8895,13 @@ RoxorVM::find_bs_struct(std::string type)
 {
     rb_vm_bs_boxed_t *boxed = find_bs_boxed(type);
     return boxed->is_struct() ? boxed : NULL;
+}
+
+inline rb_vm_bs_boxed_t *
+RoxorVM::find_bs_opaque(std::string type)
+{
+    rb_vm_bs_boxed_t *boxed = find_bs_boxed(type);
+    return boxed->is_struct() ? NULL : boxed;
 }
 
 static inline void
