@@ -8672,21 +8672,26 @@ RoxorVM::find_bs_method(Class klass, SEL sel)
 	class_isMetaClass(klass) ? bs_classes_class_methods
 	: bs_classes_instance_methods;
 
-    std::map<std::string, std::map<SEL, bs_element_method_t *> *>::iterator
-	iter = map.find(class_getName(klass));
+    do {
+	std::map<std::string,
+		 std::map<SEL, bs_element_method_t *> *>::iterator iter =
+		     map.find(class_getName(klass));
 
-    if (iter == map.end()) {
-	return NULL;
+	if (iter != map.end()) {
+	    std::map<SEL, bs_element_method_t *> *map2 = iter->second;
+	    std::map<SEL, bs_element_method_t *>::iterator iter2 =
+		map2->find(sel);
+
+	    if (iter2 != map2->end()) {
+		return iter2->second;
+	    }
+	}
+
+	klass = class_getSuperclass(klass);
     }
+    while (klass != NULL);
 
-    std::map<SEL, bs_element_method_t *> *map2 = iter->second;
-    std::map<SEL, bs_element_method_t *>::iterator iter2 = map2->find(sel);
-
-    if (iter2 == map2->end()) {
-	return NULL;
-    }
-
-    return iter2->second;
+    return NULL;
 }
 
 inline rb_vm_bs_boxed_t *
