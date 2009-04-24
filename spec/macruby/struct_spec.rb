@@ -181,4 +181,28 @@ describe "A BridgeSupport structure" do
     r2.size = NSSize.new(3, 4)
     r.should == r2
   end
+
+  it "returns the list of fields when the #fields class method is called" do
+    NSPoint.fields.should == [:x, :y]
+    NSSize.fields.should == [:width, :height]
+    NSRect.fields.should == [:origin, :size]
+  end
+
+  it "returns false when the #opaque? class method is called" do
+    NSPoint.opaque?.should == false
+    NSSize.opaque?.should == false
+    NSRect.opaque?.should == false
+  end
+
+  it "returns its Objective-C encoding type when then #type class method is called" do
+    if RUBY_ARCH == 'x86_64'
+      NSPoint.type.should == '{CGPoint=dd}'
+      NSSize.type.should == '{CGSize=dd}'
+      NSRect.type.should == '{CGRect={CGPoint=dd}{CGSize=dd}}'
+    else
+      NSPoint.type.should == '{_NSPoint=ff}'
+      NSSize.type.should == '{_NSSize=ff}'
+      NSRect.type.should == '{_NSRect={_NSPoint=ff}{_NSSize=ff}}'
+    end
+  end
 end

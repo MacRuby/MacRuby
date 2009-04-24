@@ -62,7 +62,7 @@ typedef struct {
     struct st_table *imethods;
 } bs_element_indexed_class_t;
 
-VALUE rb_cBoxed;
+//VALUE rb_cBoxed;
 static ID rb_ivar_type;
 
 static VALUE bs_const_magic_cookie = Qnil;
@@ -2182,6 +2182,7 @@ rb_objc_resolve_const_value(VALUE v, VALUE klass, ID id)
     return v;
 }
 
+#if 0
 static bs_element_boxed_t *
 rb_klass_get_bs_boxed(VALUE recv)
 {
@@ -2202,6 +2203,7 @@ rb_klass_get_bs_boxed(VALUE recv)
     }
     return NULL;
 }
+#endif
 
 #if 0
 static VALUE
@@ -2342,7 +2344,6 @@ rb_bs_struct_inspect(VALUE recv)
 
     return str;
 }
-#endif
 
 static VALUE
 rb_boxed_objc_type(VALUE recv, SEL sel)
@@ -2358,7 +2359,9 @@ rb_boxed_objc_type(VALUE recv, SEL sel)
 
     return rb_str_new2(type);
 }
+#endif
 
+#if 0
 static VALUE
 rb_boxed_is_opaque(VALUE recv, SEL sel)
 {
@@ -2390,6 +2393,7 @@ rb_boxed_fields(VALUE recv, SEL sel)
     }
     return ary;
 }
+#endif
 
 #if 0
 static ffi_cif *struct_reader_cif = NULL;
@@ -2757,6 +2761,7 @@ success:
     return Qtrue;
 }
 
+#if 0
 static const char *
 imp_rb_boxed_objCType(void *rcv, SEL sel)
 {
@@ -2776,7 +2781,9 @@ imp_rb_boxed_getValue(void *rcv, SEL sel, void *buffer)
     bs_boxed = rb_klass_get_bs_boxed(CLASS_OF(rcv));
     assert(rb_objc_rval_copy_boxed_data((VALUE)rcv, bs_boxed, buffer));
 }
+#endif
 
+#if 0
 static void
 rb_install_boxed_primitives(void)
 {
@@ -2789,6 +2796,7 @@ rb_install_boxed_primitives(void)
     rb_objc_install_method(klass, @selector(getValue:), 
 	(IMP)imp_rb_boxed_getValue);
 }
+#endif
 
 static const char *
 resources_path(char *path, size_t len)
@@ -3247,12 +3255,14 @@ Init_ObjC(void)
     rb_objc_retain((const void *)(
 	bs_const_magic_cookie = rb_str_new2("bs_const_magic_cookie")));
 
+#if 0
     rb_cBoxed = rb_define_class("Boxed", (VALUE)objc_getClass("NSValue"));
     RCLASS_SET_VERSION_FLAG(rb_cBoxed, RCLASS_IS_OBJECT_SUBCLASS);
     rb_objc_define_method(*(VALUE *)rb_cBoxed, "type", rb_boxed_objc_type, 0);
     rb_objc_define_method(*(VALUE *)rb_cBoxed, "opaque?", rb_boxed_is_opaque, 0);
     rb_objc_define_method(*(VALUE *)rb_cBoxed, "fields", rb_boxed_fields, 0);
     rb_install_boxed_primitives();
+#endif
 
     rb_cPointer = rb_define_class("Pointer", rb_cObject);
     rb_undef_alloc_func(rb_cPointer);

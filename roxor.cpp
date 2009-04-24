@@ -499,6 +499,7 @@ class RoxorVM
 	    bs_classes_class_methods, bs_classes_instance_methods;
 
 	bs_element_method_t *find_bs_method(Class klass, SEL sel);
+	rb_vm_bs_boxed_t *find_bs_boxed(std::string type);
 	rb_vm_bs_boxed_t *find_bs_struct(std::string type);
 
 #if ROXOR_ULTRA_LAZY_JIT
@@ -8477,12 +8478,15 @@ RoxorCompiler::compile_bs_struct_new(rb_vm_bs_boxed_t *bs_boxed)
 static ID boxed_ivar_type = 0;
 
 static inline rb_vm_bs_boxed_t *
-locate_bs_boxed(VALUE klass)
+locate_bs_boxed(VALUE klass, const bool struct_only=false)
 {
     VALUE type = rb_ivar_get(klass, boxed_ivar_type);
     assert(type != Qnil);
-    rb_vm_bs_boxed_t *bs_boxed = GET_VM()->find_bs_struct(RSTRING_PTR(type));
+    rb_vm_bs_boxed_t *bs_boxed = GET_VM()->find_bs_boxed(RSTRING_PTR(type));
     assert(bs_boxed != NULL);
+    if (struct_only) {
+	assert(bs_boxed->is_struct());
+    }
     return bs_boxed;
 }
 
@@ -8490,7 +8494,7 @@ static VALUE
 rb_vm_struct_fake_new(VALUE rcv, SEL sel, int argc, VALUE *argv)
 {
     // Generate the real #new method.
-    rb_vm_bs_boxed_t *bs_boxed = locate_bs_boxed(rcv);
+    rb_vm_bs_boxed_t *bs_boxed = locate_bs_boxed(rcv, true);
     Function *f = RoxorCompiler::shared->compile_bs_struct_new(bs_boxed);
     IMP imp = GET_VM()->compile(f);
 
@@ -8513,7 +8517,7 @@ rb_vm_struct_fake_set(VALUE rcv, SEL sel, VALUE val)
     }
     assert(buf[s - 1] == '=');
     buf[s - 1] = '\0';
-    rb_vm_bs_boxed_t *bs_boxed = locate_bs_boxed(CLASS_OF(rcv));
+    rb_vm_bs_boxed_t *bs_boxed = locate_bs_boxed(CLASS_OF(rcv), true);
     int field = -1;
     for (unsigned i = 0; i < bs_boxed->as.s->fields_count; i++) {
 	const char *fname = bs_boxed->as.s->fields[i].name;
@@ -8552,7 +8556,7 @@ rb_vm_struct_equal(VALUE rcv, SEL sel, VALUE val)
 	return Qfalse;
     }
 
-    rb_vm_bs_boxed_t *bs_boxed = locate_bs_boxed(klass);
+    rb_vm_bs_boxed_t *bs_boxed = locate_bs_boxed(klass, true);
 
     VALUE *rcv_data;
     VALUE *val_data;
@@ -8575,7 +8579,7 @@ rb_vm_struct_inspect(VALUE rcv, SEL sel)
 
     VALUE *rcv_data;
     Data_Get_Struct(rcv, VALUE, rcv_data);
-    rb_vm_bs_boxed_t *bs_boxed = locate_bs_boxed(CLASS_OF(rcv));
+    rb_vm_bs_boxed_t *bs_boxed = locate_bs_boxed(CLASS_OF(rcv), true);
     for (unsigned i = 0; i < bs_boxed->as.s->fields_count; i++) {
 	rb_str_cat2(str, " ");
 	rb_str_cat2(str, bs_boxed->as.s->fields[i].name);
@@ -8592,7 +8596,7 @@ static VALUE
 rb_vm_struct_dup(VALUE rcv, SEL sel)
 {
     VALUE klass = CLASS_OF(rcv);
-    rb_vm_bs_boxed_t *bs_boxed = locate_bs_boxed(klass);
+    rb_vm_bs_boxed_t *bs_boxed = locate_bs_boxed(klass, true);
 
     VALUE *rcv_data;
     Data_Get_Struct(rcv, VALUE, rcv_data);
@@ -8667,6 +8671,49 @@ register_bs_boxed(bs_element_type_t type, void *value)
     return true;
 }
 
+static VALUE
+rb_boxed_objc_type(VALUE rcv, SEL sel)
+{
+    return rb_ivar_get(rcv, boxed_ivar_type);
+}
+
+static VALUE
+rb_boxed_is_opaque(VALUE rcv, SEL sel)
+{
+    rb_vm_bs_boxed_t *bs_boxed = locate_bs_boxed(rcv);
+    return bs_boxed->bs_type == BS_ELEMENT_OPAQUE ? Qtrue : Qfalse;
+}
+
+static VALUE
+rb_boxed_fields(VALUE rcv, SEL sel)
+{
+    rb_vm_bs_boxed_t *bs_boxed = locate_bs_boxed(rcv);
+    VALUE ary = rb_ary_new();
+    if (bs_boxed->bs_type == BS_ELEMENT_STRUCT) {
+	for (unsigned i = 0; i < bs_boxed->as.s->fields_count; i++) {
+	    VALUE field = ID2SYM(rb_intern(bs_boxed->as.s->fields[i].name));
+	    rb_ary_push(ary, field);
+	}
+    }
+    return ary;
+}
+
+VALUE rb_cBoxed;
+
+static void
+Init_Boxed(void)
+{
+    boxed_ivar_type = rb_intern("__octype__");
+
+    rb_cBoxed = rb_define_class("Boxed", rb_cObject);
+    rb_objc_define_method(*(VALUE *)rb_cBoxed, "type",
+	    (void *)rb_boxed_objc_type, 0);
+    rb_objc_define_method(*(VALUE *)rb_cBoxed, "opaque?",
+	    (void *)rb_boxed_is_opaque, 0);
+    rb_objc_define_method(*(VALUE *)rb_cBoxed, "fields",
+	    (void *)rb_boxed_fields, 0);
+}
+
 static inline void
 index_bs_class_methods(const char *name,
 	std::map<std::string, std::map<SEL, bs_element_method_t *> *> &map,
@@ -8721,7 +8768,7 @@ RoxorVM::find_bs_method(Class klass, SEL sel)
 }
 
 inline rb_vm_bs_boxed_t *
-RoxorVM::find_bs_struct(std::string type)
+RoxorVM::find_bs_boxed(std::string type)
 {
     std::map<std::string, rb_vm_bs_boxed_t *>::iterator iter =
 	bs_boxed.find(type);
@@ -8730,8 +8777,14 @@ RoxorVM::find_bs_struct(std::string type)
 	return NULL;
     }
 
-    rb_vm_bs_boxed_t *boxed = iter->second;
-    return boxed->is_struct() ? boxed : NULL; 
+    return iter->second;
+}
+
+inline rb_vm_bs_boxed_t *
+RoxorVM::find_bs_struct(std::string type)
+{
+    rb_vm_bs_boxed_t *boxed = find_bs_boxed(type);
+    return boxed->is_struct() ? boxed : NULL;
 }
 
 static inline void
@@ -9079,7 +9132,7 @@ Init_VM(void)
     bs_const_magic_cookie = rb_str_new2("bs_const_magic_cookie");
     rb_objc_retain((void *)bs_const_magic_cookie);
 
-    boxed_ivar_type = rb_intern("__octype__");
+    Init_Boxed();
 }
 
 extern "C"
