@@ -292,6 +292,16 @@
     return r.location == 0 && r.length == 42;
 }
 
+- (BOOL)methodAcceptingInt:(int)a1 float:(float)a2 double:(double)a3
+	short:(short)a4 NSPoint:(NSPoint)a5 NSRect:(NSRect)a6 char:(char)a7
+{
+    return a1 == 42 && a2 == 42.0 && a3 == 42.0 && a4 == 42
+	&& a5.x == 42.0 && a5.y == 42.0
+	&& a6.origin.x == 42.0 && a6.origin.y == 42.0
+	&& a6.size.width == 42.0 && a6.size.height == 42.0
+	&& a7 == 42;
+}
+
 @end
 
 void

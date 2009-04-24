@@ -424,4 +424,9 @@ describe "A pure Objective-C method" do
     lambda { @o.methodAcceptingNSRect([[1, 2], [3]]) }.should raise_error(ArgumentError)
     lambda { @o.methodAcceptingNSRect([[1, 2], [3, 4, 5]]) }.should raise_error(ArgumentError)
   end
+
+  it "accepting various C types should receive these types as expected" do
+    @o.methodAcceptingInt(42, float:42, double:42, short:42, NSPoint:[42, 42],
+                          NSRect:[42, 42, 42, 42], char:42).should == 1
+  end
 end
