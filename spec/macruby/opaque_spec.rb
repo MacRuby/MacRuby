@@ -15,6 +15,9 @@ describe "A BridgeSupport opaque type" do
     z = 123.zone
     z.class.should == NSZone
     lambda { Object.allocWithZone(z).init }.should_not raise_error
+    lambda { Object.allocWithZone(nil).init }.should_not raise_error
+    lambda { Object.allocWithZone(123).init }.should raise_error(TypeError)
+    lambda { Object.allocWithZone(NSPoint.new).init }.should raise_error(TypeError)
   end
 
   it "can be compared to an exact same instance using #==" do
