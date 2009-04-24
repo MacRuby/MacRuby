@@ -162,4 +162,23 @@ describe "A BridgeSupport structure" do
     r.size = s
     r.inspect.should == "#<NSRect origin=#<NSPoint x=1.0 y=2.0> size=#<NSSize width=3.0 height=4.0>>"
   end
+
+  it "can be duplicated using #dup or #clone" do
+    p = NSPoint.new(1, 2)
+    p.should == p.dup
+    p.should == p.clone
+
+    p2 = p.dup
+    p2.x = 42
+    p2.should_not == p
+
+    r = NSRect.new
+    r.origin.x = 1
+    r.origin.y = 2
+    r2 = r.dup
+    r.size.width = 3.0
+    r.size.height = 4.0
+    r2.size = NSSize.new(3, 4)
+    r.should == r2
+  end
 end

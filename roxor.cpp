@@ -8588,6 +8588,28 @@ rb_vm_struct_inspect(VALUE rcv, SEL sel)
     return str;
 }
 
+static VALUE
+rb_vm_struct_dup(VALUE rcv, SEL sel)
+{
+    VALUE klass = CLASS_OF(rcv);
+    rb_vm_bs_boxed_t *bs_boxed = locate_bs_boxed(klass);
+
+    VALUE *rcv_data;
+    Data_Get_Struct(rcv, VALUE, rcv_data);
+    VALUE *new_data = (VALUE *)xmalloc(
+	    bs_boxed->as.s->fields_count * sizeof(VALUE));
+    for (unsigned i = 0; i < bs_boxed->as.s->fields_count; i++) {
+	VALUE field = rcv_data[i];
+	// Numeric values cannot be duplicated.
+	if (!rb_obj_is_kind_of(field, rb_cNumeric)) {
+	    field = rb_send_dup(field);
+	}
+	GC_WB(&new_data[i], field);
+    }
+
+    return Data_Wrap_Struct(klass, NULL, NULL, new_data);
+}
+
 static bool
 register_bs_boxed(bs_element_type_t type, void *value)
 {
@@ -8632,6 +8654,10 @@ register_bs_boxed(bs_element_type_t type, void *value)
 	// Define other utility methods.
 	rb_objc_define_method(boxed->klass, "==",
 		(void *)rb_vm_struct_equal, 1);
+	rb_objc_define_method(boxed->klass, "dup",
+		(void *)rb_vm_struct_dup, 0);
+	rb_objc_define_method(boxed->klass, "clone",
+		(void *)rb_vm_struct_dup, 0);
 	rb_objc_define_method(boxed->klass, "inspect",
 		(void *)rb_vm_struct_inspect, 0);
     }

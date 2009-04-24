@@ -93,6 +93,7 @@ extern SEL selLocalVariables;
 extern SEL selBinding;
 extern SEL selEach;
 extern SEL selEqq;
+extern SEL selDup;
 extern SEL selBackquote;
 extern SEL selMethodAdded;
 extern SEL selSingletonMethodAdded;

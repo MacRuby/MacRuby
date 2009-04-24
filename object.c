@@ -40,6 +40,13 @@ static void *allocCache = NULL;
 static void *initializeCache = NULL;
 static void *initialize2Cache = NULL;
 static void *eqCache = NULL;
+static void *dupCache = NULL;
+
+inline VALUE
+rb_send_dup(VALUE obj)
+{
+    return rb_vm_call_with_cache(dupCache, obj, selDup, 0, NULL);
+}
 
 /*
  *  call-seq:
@@ -2672,6 +2679,7 @@ Init_Object(void)
     initializeCache = rb_vm_get_call_cache(selInitialize);
     initialize2Cache = rb_vm_get_call_cache(selInitialize2);
     eqCache = rb_vm_get_call_cache(selEq);
+    dupCache = rb_vm_get_call_cache(selDup);
 
     rb_objc_define_method(*(VALUE *)rb_cModule, "alloc", rb_module_s_alloc, 0);
     rb_objc_define_method(*(VALUE *)rb_cClass, "alloc", rb_class_s_alloc, 0);

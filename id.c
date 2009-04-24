@@ -84,6 +84,7 @@ Init_id(void)
     selBinding = sel_registerName("binding");
     selEach = sel_registerName("each");
     selEqq = sel_registerName("===:");
+    selDup = sel_registerName("dup");
     selBackquote = sel_registerName("`:");
     selMethodAdded = sel_registerName("method_added:");
     selSingletonMethodAdded = sel_registerName("singleton_method_added:");
