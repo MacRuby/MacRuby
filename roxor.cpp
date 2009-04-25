@@ -403,10 +403,12 @@ struct ccache {
 typedef VALUE rb_vm_objc_stub_t(IMP imp, id self, SEL sel, int argc,
 				const VALUE *argv);
 
+typedef VALUE rb_vm_c_stub_t(IMP imp, int argc, const VALUE *argv);
+
 struct mcache {
-#define MCACHE_RCALL 0x1
-#define MCACHE_OCALL 0x2
-#define MCACHE_BCALL 0x4 
+#define MCACHE_RCALL 0x1 // Ruby call
+#define MCACHE_OCALL 0x2 // Objective-C call
+#define MCACHE_FCALL 0x4 // C call
     uint8_t flag;
     union {
 	struct {
@@ -421,6 +423,11 @@ struct mcache {
 	    bs_element_method_t *bs_method;	
 	    rb_vm_objc_stub_t *stub;
 	} ocall;
+	struct {
+	    IMP imp;
+	    bs_element_function_t *bs_function;
+	    rb_vm_c_stub_t *stub;
+	} fcall;
     } as;
 };
 
@@ -499,7 +506,7 @@ class RoxorVM
 
 	bs_parser_t *bs_parser;
 	std::map<std::string, rb_vm_bs_boxed_t *> bs_boxed;
-	std::map<ID, bs_element_function_t *> bs_funcs;
+	std::map<std::string, bs_element_function_t *> bs_funcs;
 	std::map<ID, bs_element_constant_t *> bs_consts;
 	std::map<std::string, std::map<SEL, bs_element_method_t *> *>
 	    bs_classes_class_methods, bs_classes_instance_methods;
@@ -2727,7 +2734,7 @@ RoxorVM::add_method(Class klass, SEL sel, IMP imp, NODE *node,
 
     // Cache the method node.
     NODE *old_node = method_node_get(imp);
-    if (old_node == NULL) {
+    if (old_node == NULL && old_node != node) {
 	ruby_imps[imp] = new RoxorFunctionIMP(node, sel);
     }
 //    else {
@@ -5614,24 +5621,33 @@ RoxorCompiler::convert_type(const char *type)
 Function *
 RoxorCompiler::compile_stub(const char *types, int argc, bool is_objc)
 {
-    assert(is_objc); // for now
+    Function *f;
 
-    // VALUE stub(IMP imp, VALUE self, SEL sel, int argc, VALUE *argv)
-    // {
-    //     return (*imp)(self, sel, argv[0], argv[1], ...);
-    // }
-    Function *f = cast<Function>(module->getOrInsertFunction("",
-		RubyObjTy, PtrTy, RubyObjTy, PtrTy, Type::Int32Ty, RubyObjPtrTy,
-		NULL));
+    if (is_objc) {
+	// VALUE stub(IMP imp, VALUE self, SEL sel, int argc, VALUE *argv)
+	// {
+	//     return (*imp)(self, sel, argv[0], argv[1], ...);
+	// }
+	f = cast<Function>(module->getOrInsertFunction("",
+		    RubyObjTy,
+		    PtrTy, RubyObjTy, PtrTy, Type::Int32Ty, RubyObjPtrTy,
+		    NULL));
+    }
+    else {
+	// VALUE stub(IMP imp, int argc, VALUE *argv)
+	// {
+	//     return (*imp)(argv[0], argv[1], ...);
+	// }
+	f = cast<Function>(module->getOrInsertFunction("",
+		    RubyObjTy,
+		    PtrTy, Type::Int32Ty, RubyObjPtrTy,
+		    NULL));
+    }
 
     bb = BasicBlock::Create("EntryBlock", f);
 
     Function::arg_iterator arg = f->arg_begin();
     Value *imp_arg = arg++;
-    Value *self_arg = arg++;
-    Value *sel_arg = arg++;
-    /*Value *argc_arg =*/ arg++; // XXX do we really need this argument?
-    Value *argv_arg = arg++;
 
     std::vector<const Type *> f_types;
     std::vector<Value *> params;
@@ -5642,7 +5658,6 @@ RoxorCompiler::compile_stub(const char *types, int argc, bool is_objc)
     const Type *ret_type = convert_type(buf);
 
     Value *sret = NULL;
-
     if (GET_VM()->is_large_struct_type(ret_type)) {
 	// We are returning a large struct, we need to pass a pointer as the
 	// first argument to the structure data and return void to conform to
@@ -5653,15 +5668,22 @@ RoxorCompiler::compile_stub(const char *types, int argc, bool is_objc)
 	ret_type = Type::VoidTy;
     }
 
-    // self
-    p = SkipFirstType(p);
-    f_types.push_back(RubyObjTy);
-    params.push_back(self_arg);
+    if (is_objc) {
+	// self
+	p = SkipFirstType(p);
+	f_types.push_back(RubyObjTy);
+	Value *self_arg = arg++;
+	params.push_back(self_arg);
 
-    // sel
-    p = SkipFirstType(p);
-    f_types.push_back(PtrTy);
-    params.push_back(sel_arg);
+	// sel
+	p = SkipFirstType(p);
+	f_types.push_back(PtrTy);
+	Value *sel_arg = arg++;
+	params.push_back(sel_arg);
+    }
+
+    /*Value *argc_arg =*/ arg++; // XXX do we really need this argument?
+    Value *argv_arg = arg++;
 
     // Arguments.
     std::vector<int> byval_args;
@@ -7033,7 +7055,7 @@ method_missing(VALUE obj, SEL sel, int argc, const VALUE *argv,
 }
 
 static void *
-vm_gen_stub(const char *types, int argc, bool is_objc)
+vm_gen_stub(std::string types, int argc, bool is_objc)
 {
     std::map<std::string, void *> &stubs = 
 	is_objc ? GET_VM()->objc_stubs : GET_VM()->c_stubs;
@@ -7044,11 +7066,21 @@ vm_gen_stub(const char *types, int argc, bool is_objc)
 
     //printf("generating %s stub %s argc %d\n", is_objc ? "objc" : "c", types, argc);
 
-    Function *f = RoxorCompiler::shared->compile_stub(types, argc, is_objc);
+    Function *f = RoxorCompiler::shared->compile_stub(types.c_str(), argc,
+	    is_objc);
     void *stub = (void *)GET_VM()->compile(f);
     stubs.insert(std::make_pair(types, stub));
 
     return stub;
+}
+
+static inline void
+vm_gen_bs_func_types(bs_element_function_t *bs_func, std::string &types)
+{
+    types.append(bs_func->retval == NULL ? "v" : bs_func->retval->type);
+    for (unsigned i = 0; i < bs_func->args_count; i++) {
+	types.append(bs_func->args[i].type);
+    }
 }
 
 static inline SEL
@@ -7105,6 +7137,7 @@ recache:
 
 #define rcache cache->as.rcall
 #define ocache cache->as.ocall
+#define fcache cache->as.fcall
 
 	if (method != NULL) {
 	    IMP imp = method_getImplementation(method);
@@ -7139,6 +7172,8 @@ recache:
 	    }
 	}
 	else {
+	    // Method is not found... let's try to see if we are not given a
+	    // helper selector.
 	    SEL new_sel = helper_sel(sel);
 	    if (new_sel != NULL) {
 		Method m = class_getInstanceMethod(klass, new_sel);
@@ -7152,8 +7187,32 @@ recache:
 		}
 	    }
 
-	    // TODO bridgesupport C call?
-	    return method_missing((VALUE)self, sel, argc, argv, opt);
+	    // Then let's see if we are not trying to call a not-yet-JITed
+	    // BridgeSupport function.
+	    const char *selname = (const char *)sel;
+	    size_t selnamelen = strlen(selname);
+	    if (selname[selnamelen - 1] == ':') {
+		selnamelen--;
+	    }
+	    std::string name(selname, selnamelen);
+	    std::map<std::string, bs_element_function_t *>::iterator iter =
+		GET_VM()->bs_funcs.find(name);
+	    if (iter != GET_VM()->bs_funcs.end()) {
+		bs_element_function_t *bs_func = iter->second;
+		std::string types;
+		vm_gen_bs_func_types(bs_func, types);
+
+		cache->flag = MCACHE_FCALL;
+		fcache.bs_function = bs_func;
+		fcache.imp = (IMP)dlsym(RTLD_DEFAULT, bs_func->name);
+		assert(fcache.imp != NULL);
+		fcache.stub = (rb_vm_c_stub_t *)vm_gen_stub(types, argc,
+			false);
+	    }
+	    else {
+		// Still nothing, then let's call #method_missing.
+		return method_missing((VALUE)self, sel, argc, argv, opt);
+	    }
 	}
     }
 
@@ -7257,20 +7316,21 @@ recache:
 		cached ? "true" : "false");
 #endif
 
-#if 0
-	return rb_objc_call2((VALUE)self, 
-		(VALUE)klass, 
-		sel, 
-		ocache.imp, 
-		&ocache.helper->sig, 
-		ocache.helper->bs_method, 
-		argc, 
-		(VALUE *)argv);
-#endif
 	return (*ocache.stub)(ocache.imp, RB2OC(self), sel, argc, argv);
     }
+    else if (cache->flag == MCACHE_FCALL) {
+#if ROXOR_VM_DEBUG
+	printf("C dispatch %s() imp=%p (cached=%s)\n",
+		fcache.bs_function->name,
+		fcache.imp,
+		cached ? "true" : "false");
+#endif
+	return (*fcache.stub)(fcache.imp, argc, argv);
+    }
+
 #undef rcache
 #undef ocache
+#undef fcache
 
     printf("BOUH %s\n", (char *)sel);
     abort();
@@ -9085,9 +9145,9 @@ bs_parse_cb(bs_parser_t *parser, const char *path, bs_element_type_t type,
 	case BS_ELEMENT_FUNCTION:
 	{
 	    bs_element_function_t *bs_func = (bs_element_function_t *)value;
-	    ID name = rb_intern(bs_func->name);
+	    std::string name(bs_func->name);
 
-	    std::map<ID, bs_element_function_t *>::iterator iter =
+	    std::map<std::string, bs_element_function_t *>::iterator iter =
 		GET_VM()->bs_funcs.find(name);
 	    if (iter == GET_VM()->bs_funcs.end()) {
 		GET_VM()->bs_funcs[name] = bs_func;
