@@ -2,7 +2,6 @@
 
 #define ROXOR_COMPILER_DEBUG		0
 #define ROXOR_VM_DEBUG			0
-#define ROXOR_DUMP_IR_BEFORE_EXIT	0
 #define ROXOR_ULTRA_LAZY_JIT		1
 #define ROXOR_INTERPRET_EVAL		0
 
@@ -5727,6 +5726,7 @@ RoxorCompiler::compile_stub(const char *types, int argc, bool is_objc)
     // Compile retval.
     Value *retval;
     if (sret != NULL) {
+	imp_call->addAttribute(0, Attribute::StructRet);
 	retval = new LoadInst(sret, "", bb);
     }
     else {
@@ -9403,11 +9403,11 @@ extern "C"
 void
 rb_vm_finalize(void)
 {
-#if ROXOR_DUMP_IR_BEFORE_EXIT
-    printf("IR dump ----------------------------------------------\n");
-    RoxorCompiler::module->dump();
-    printf("------------------------------------------------------\n");
-#endif
+    if (getenv("VM_DUMP_IR") != NULL) {
+	printf("IR dump ----------------------------------------------\n");
+	RoxorCompiler::module->dump();
+	printf("------------------------------------------------------\n");
+    }
 #if ROXOR_VM_DEBUG
     printf("functions all=%ld compiled=%ld\n", RoxorCompiler::module->size(),
 	    GET_VM()->functions_compiled);
