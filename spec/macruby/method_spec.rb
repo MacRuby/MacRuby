@@ -55,6 +55,7 @@ describe "A pure MacRuby method" do
     @o.send(:'doSomething:withObject:withObject:', 30, 10, 2).should == 42
   end
 
+=begin # TODO
   it "can be called using -[NSObject performSelector:]" do
     def @o.doSomething; 42; end
     @o.performSelector(:'doSomething').should == 42
@@ -70,6 +71,7 @@ describe "A pure MacRuby method" do
     @o.performSelector(:'doSomething:withObject:',
                        withObject:40, withObject:2).should == 42
   end
+=end
 
   it "cannot be called with #foo=, even if it matches the Objective-C #setFoo pattern" do
     def @o.setFoo(x); end

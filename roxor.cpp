@@ -3,7 +3,7 @@
 #define ROXOR_COMPILER_DEBUG		0
 #define ROXOR_VM_DEBUG			0
 #define ROXOR_DUMP_IR_BEFORE_EXIT	0
-#define ROXOR_ULTRA_LAZY_JIT		0
+#define ROXOR_ULTRA_LAZY_JIT		1
 #define ROXOR_INTERPRET_EVAL		0
 
 #include <llvm/Module.h>
@@ -5324,7 +5324,7 @@ extern "C"
 VALUE
 rb_vm_ocval_to_rval(id ocval)
 {
-    return SPECIAL_CONST_P(ocval) ? (VALUE)ocval : OC2RB(ocval);
+    return OC2RB(ocval);
 }
 
 extern "C"
@@ -6371,6 +6371,90 @@ prepare_method:
     IMP imp = GET_VM()->compile(func);
     rb_vm_define_method(klass, sel, imp, node, false);
 
+#endif
+}
+
+#define VISI(x) ((x)&NOEX_MASK)
+#define VISI_CHECK(x,f) (VISI(x) == (f))
+
+static void
+push_method(VALUE ary, VALUE mod, SEL sel, NODE *node,
+	    int (*filter) (VALUE, ID, VALUE))
+{
+    if (sel == sel_ignored) {
+	return; 
+    }
+
+    const char *selname = sel_getName(sel);
+    const size_t len = strlen(selname);
+    char buf[100];
+
+    const char *p = strchr(selname, ':');
+    if (p != NULL && strchr(p + 1, ':') == NULL) {
+	// remove trailing ':' for methods with arity 1
+	assert(len < sizeof(buf));
+	strncpy(buf, selname, len);
+	buf[len - 1] = '\0';
+	selname = buf;
+    }
+ 
+    ID mid = rb_intern(selname);
+    VALUE sym = ID2SYM(mid);
+
+    if (rb_ary_includes(ary, sym) == Qfalse) {
+	if (node != NULL) {
+	    const int type = node->nd_body == NULL ? -1 : VISI(node->nd_noex);
+	    (*filter)(sym, type, ary);
+	}
+	else {
+	    rb_ary_push(ary, sym);
+	}
+    }
+} 
+
+extern "C"
+void
+rb_vm_push_methods(VALUE ary, VALUE mod, bool include_objc_methods,
+		   int (*filter) (VALUE, ID, VALUE))
+{
+    // TODO take into account undefined methods
+
+    unsigned int count;
+    Method *methods = class_copyMethodList((Class)mod, &count); 
+    if (methods != NULL) {
+	for (unsigned int i = 0; i < count; i++) {
+	    Method m = methods[i];
+	    SEL sel = method_getName(m);
+	    IMP imp = method_getImplementation(m);
+	    NODE *node = rb_vm_get_method_node(imp);
+	    if (node == NULL && !include_objc_methods) {
+		continue;
+	    }
+	    push_method(ary, mod, sel, node, filter);
+	}
+	free(methods);
+    }
+
+#if ROXOR_ULTRA_LAZY_JIT
+    Class k = (Class)mod;
+    do {
+	std::multimap<Class, SEL>::iterator iter =
+	    GET_VM()->method_source_sels.find(k);
+
+	if (iter != GET_VM()->method_source_sels.end()) {
+	    std::multimap<Class, SEL>::iterator last =
+		GET_VM()->method_source_sels.upper_bound(k);
+
+	    for (; iter != last; ++iter) {
+		SEL sel = iter->second;
+		// TODO retrieve method NODE*
+		push_method(ary, mod, sel, NULL, filter);
+	    }
+	}
+
+	k = class_getSuperclass(k);
+    }
+    while (k != NULL);
 #endif
 }
 
@@ -8810,18 +8894,20 @@ rb_boxed_is_opaque(VALUE rcv, SEL sel)
     return bs_boxed->bs_type == BS_ELEMENT_OPAQUE ? Qtrue : Qfalse;
 }
 
+static VALUE rb_mVM;
 VALUE rb_cBoxed;
 
 static void
-Init_Boxed(void)
+Init_BridgeSupport(void)
 {
-    boxed_ivar_type = rb_intern("__octype__");
-
     rb_cBoxed = rb_define_class("Boxed", rb_cObject);
     rb_objc_define_method(*(VALUE *)rb_cBoxed, "type",
 	    (void *)rb_boxed_objc_type, 0);
     rb_objc_define_method(*(VALUE *)rb_cBoxed, "opaque?",
 	    (void *)rb_boxed_is_opaque, 0);
+    boxed_ivar_type = rb_intern("__octype__");
+
+    //VALUE rb_mBS = rb_define_module_under(rb_mVM, "BridgeSupport");
 }
 
 static inline void
@@ -9249,7 +9335,8 @@ Init_VM(void)
     bs_const_magic_cookie = rb_str_new2("bs_const_magic_cookie");
     rb_objc_retain((void *)bs_const_magic_cookie);
 
-    Init_Boxed();
+    rb_mVM = rb_define_module("RubyVM");
+    Init_BridgeSupport();
 }
 
 extern "C"

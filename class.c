@@ -19,9 +19,6 @@
 
 extern st_table *rb_class_tbl;
 
-#define VISI(x) ((x)&NOEX_MASK)
-#define VISI_CHECK(x,f) (VISI(x) == (f))
-
 void rb_objc_install_array_primitives(Class);
 void rb_objc_install_hash_primitives(Class);
 void rb_objc_install_string_primitives(Class);
@@ -745,111 +742,6 @@ ins_methods_pub_i(VALUE name, ID type, VALUE ary)
     return ins_methods_push(name, type, ary, NOEX_PUBLIC);
 }
 
-static void
-rb_objc_push_methods(VALUE ary, VALUE mod, VALUE objc_methods,
-		     int (*func) (VALUE, ID, VALUE))
-{
-    Method *methods;
-    unsigned int i, count;
-
-    /* XXX fails to ignore undefined methods (#undef_method) */
-
-    methods = class_copyMethodList((Class)mod, &count); 
-    if (methods != NULL) {  
-	for (i = 0; i < count; i++) {
-	    Method method;
-	    SEL sel;
-	    char *sel_name, *p;
-	    ID mid;
-	    char buf[100];
-	    BOOL is_ruby_method;
-	    size_t len;
-	    IMP imp;
-	    VALUE sym;
-	    NODE *mn;
-	   
-	    method = methods[i];
-
-	    sel = method_getName(method);
-	    if (sel == sel_ignored) {
-		continue; 
-	    }
-
-	    imp = method_getImplementation(method);
-	    if (imp == NULL) {
-		continue;
-	    }
-
-	    mn = rb_vm_get_method_node(imp);
-	    is_ruby_method = mn != NULL;
-	    if (!is_ruby_method && objc_methods == Qfalse) {
-		continue;
-	    }
-
-	    sel_name = (char *)sel;
-	    len = strlen(sel_name);
-
-	    if (is_ruby_method && len > 8 && sel_name[0] == '_' && sel_name[1] == '_' && sel_name[2] == 'r' && sel_name[3] == 'b' && sel_name[4] == '_' && sel_name[len - 1] == '_' && sel_name[len - 2] == '_') {
-		/* retransform ignored selectors, __rb_%s__ -> %s */
-		assert(sizeof buf > len - 7);
-		strncpy(buf, &sel_name[5], len - 7);
-		buf[len - 7] = '\0';
-		sel_name = buf;
-	    }
-	    else {
-		if (is_ruby_method && len >= 3 && sel_name[len - 1] == ':' && isalpha(sel_name[len - 3])) {
-		    assert(len + 3 < sizeof(buf));
-		    if (sel_name[len - 2] == '=') {
-			/* skip foo=: (ruby) -> setFoo: (objc) shortcuts */
-			snprintf(buf, sizeof buf, "set%s", sel_name);
-			buf[4] = toupper(buf[4]);
-			buf[len + 1] = ':';
-			buf[len + 2] = '\0';
-
-			method = class_getInstanceMethod((Class)mod, sel_registerName(buf));
-			if (method != NULL && rb_vm_get_method_node(method_getImplementation(method)) == NULL)
-			    continue;
-		    }
-		    else if (sel_name[len - 2] == '?') {
-			/* skip foo?: (ruby) -> isFoo: (objc) shortcuts */
-			snprintf(buf, sizeof buf, "is%s", sel_name);
-			buf[3] = toupper(buf[3]);
-			buf[len] = ':';
-			buf[len + 1] = '\0';
-
-			method = class_getInstanceMethod((Class)mod, sel_registerName(buf));
-			if (method != NULL && rb_vm_get_method_node(method_getImplementation(method)) == NULL)
-			    continue;
-		    }
-		}
-		p = strchr(sel_name, ':');
-		if (p != NULL && strchr(p + 1, ':') == NULL) {
-		    /* remove trailing ':' for methods with arity 1 */
-		    assert(len < sizeof(buf));
-		    strncpy(buf, sel_name, len);
-		    buf[len - 1] = '\0';
-		    sel_name = buf;
-		}
-	    }
-	    mid = rb_intern(sel_name);
-	    sym = ID2SYM(mid);
-
-	    if (rb_ary_includes(ary, sym) == Qfalse) {
-		if (is_ruby_method) {
-		    int type;
-
-		    type = mn->nd_body == NULL ? -1 : VISI(mn->nd_noex);
-		    (*func)(sym, type, ary);
-		}
-		else {
-		    rb_ary_push(ary, sym);
-		}
-	    }
-	} 
-	free(methods); 
-    }
-}
-
 static VALUE
 class_instance_method_list(int argc, VALUE *argv, VALUE mod, int (*func) (VALUE, ID, VALUE))
 {
@@ -873,7 +765,7 @@ class_instance_method_list(int argc, VALUE *argv, VALUE mod, int (*func) (VALUE,
     }
 
     while (mod != 0) {
-	rb_objc_push_methods(ary, mod, objc_methods, func);
+	rb_vm_push_methods(ary, mod, RTEST(objc_methods), func);
 	if (recur == Qfalse) {
 	   break;	   
 	}
@@ -1019,7 +911,7 @@ rb_obj_singleton_methods(VALUE obj, SEL sel, int argc, VALUE *argv)
 
     do {
 	if (RCLASS_SINGLETON(klass)) {
-	    rb_objc_push_methods(ary, klass, objc_methods, ins_methods_i);
+	    rb_vm_push_methods(ary, klass, RTEST(objc_methods), ins_methods_i);
 	}
 	klass = RCLASS_SUPER(klass);
     }
