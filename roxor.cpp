@@ -202,6 +202,7 @@ class RoxorCompiler
 	Function *compile_bs_struct_new(rb_vm_bs_boxed_t *bs_boxed);
 	Function *compile_bs_struct_writer(rb_vm_bs_boxed_t *bs_boxed,
 		int field);
+	Function *compile_ffi_function(void *stub, void *imp, int argc);
 
     private:
 	const char *fname;
@@ -8954,10 +8955,10 @@ rb_boxed_is_opaque(VALUE rcv, SEL sel)
     return bs_boxed->bs_type == BS_ELEMENT_OPAQUE ? Qtrue : Qfalse;
 }
 
-static VALUE rb_mVM;
 VALUE rb_cBoxed;
 
-static void
+extern "C"
+void
 Init_BridgeSupport(void)
 {
     rb_cBoxed = rb_define_class("Boxed", rb_cObject);
@@ -8967,7 +8968,8 @@ Init_BridgeSupport(void)
 	    (void *)rb_boxed_is_opaque, 0);
     boxed_ivar_type = rb_intern("__octype__");
 
-    //VALUE rb_mBS = rb_define_module_under(rb_mVM, "BridgeSupport");
+    bs_const_magic_cookie = rb_str_new2("bs_const_magic_cookie");
+    rb_objc_retain((void *)bs_const_magic_cookie);
 }
 
 static inline void
@@ -9305,6 +9307,143 @@ rb_vm_load_bridge_support(const char *path, const char *framework_path,
 #endif
 }
 
+// FFI
+
+static const char *
+convert_ffi_type(VALUE type)
+{
+    const char *typestr = StringValueCStr(type);
+    assert(typestr != NULL);
+
+    // Converting Ruby-FFI types to Objective-C runtime types.
+    if (strcmp(typestr, "char") == 0) {
+	return "c";
+    }
+    if (strcmp(typestr, "uchar") == 0) {
+	return "C";
+    }
+    if (strcmp(typestr, "short") == 0) {
+	return "s";
+    }
+    if (strcmp(typestr, "ushort") == 0) {
+	return "S";
+    }
+    if (strcmp(typestr, "int") == 0) {
+	return "i";
+    }
+    if (strcmp(typestr, "uint") == 0) {
+	return "I";
+    }
+    if (strcmp(typestr, "long") == 0) {
+	return "l";
+    }
+    if (strcmp(typestr, "ulong") == 0) {
+	return "L";
+    }
+    if (strcmp(typestr, "long_long") == 0) {
+	return "q";
+    }
+    if (strcmp(typestr, "ulong_long") == 0) {
+	return "Q";
+    }
+    if (strcmp(typestr, "string") == 0) {
+	return "*";
+    }
+    if (strcmp(typestr, "pointer") == 0) {
+	return "^";
+    }
+
+    rb_raise(rb_eArgError, "unrecognized string `%s' given as FFI type",
+	typestr);
+}
+
+Function *
+RoxorCompiler::compile_ffi_function(void *stub, void *imp, int argc)
+{
+    // VALUE func(VALUE rcv, SEL sel, VALUE arg1, VALUE arg2, ...) {
+    //     return stub(imp, arg2, arg1, ...);
+    // }
+    std::vector<const Type *> f_types;
+    f_types.push_back(RubyObjTy);
+    f_types.push_back(PtrTy);
+    for (int i = 0; i < argc; i++) {
+	f_types.push_back(RubyObjTy);
+    }
+    FunctionType *ft = FunctionType::get(RubyObjTy, f_types, false);
+    Function *f = cast<Function>(module->getOrInsertFunction("", ft));
+
+    bb = BasicBlock::Create("EntryBlock", f);
+
+    Function::arg_iterator arg = f->arg_begin();
+    arg++; // skip self
+    arg++; // skip sel
+
+    std::vector<Value *> params;
+    std::vector<const Type *> stub_types;
+
+    // First argument is the function implementation. 
+    params.push_back(compile_const_pointer(imp));
+    stub_types.push_back(PtrTy);
+
+    // Following arguments are the given arguments.
+    for (int i = 0; i < argc; i++) {
+	params.push_back(arg++);
+	stub_types.push_back(RubyObjTy);
+    }
+
+    // Cast the given stub using the correct function signature.
+    FunctionType *stub_ft = FunctionType::get(RubyObjTy, stub_types, false);
+    Value *stub_val = new BitCastInst(compile_const_pointer(stub),
+	    PointerType::getUnqual(stub_ft), "", bb);
+
+    // Call the stub and return its return value.
+    CallInst *stub_call = CallInst::Create(stub_val, params.begin(),
+	    params.end(), "", bb); 
+    ReturnInst::Create(stub_call, bb);
+
+    return f;
+}
+
+static VALUE
+rb_ffi_attach_function(VALUE rcv, SEL sel, VALUE name, VALUE args, VALUE ret)
+{
+    const char *symname = StringValueCStr(name);
+    void *sym = dlsym(RTLD_DEFAULT, symname);
+    if (sym == NULL) {
+	rb_raise(rb_eArgError, "given function `%s' could not be located",
+		symname);
+    }
+
+    std::string types;
+    types.append(convert_ffi_type(ret));
+
+    Check_Type(args, T_ARRAY);
+    const int argc = RARRAY_LEN(args);
+    for (int i = 0; i < argc; i++) {
+	types.append(convert_ffi_type(ret));
+    } 
+
+    rb_vm_c_stub_t *stub = (rb_vm_c_stub_t *)vm_gen_stub(types, argc, false);
+    Function *f = RoxorCompiler::shared->compile_ffi_function((void *)stub,
+	    sym, argc);
+    IMP imp = GET_VM()->compile(f);
+
+    VALUE klass = rb_singleton_class(rcv);
+    rb_objc_define_method(klass, symname, (void *)imp, argc);
+
+    return Qnil;
+}
+
+extern "C"
+void
+Init_FFI(void)
+{
+    VALUE mFFI = rb_define_module("FFI");
+    VALUE mFFILib = rb_define_module_under(mFFI, "Library");
+    rb_objc_define_method(mFFILib, "attach_function",
+	    (void *)rb_ffi_attach_function, 3);
+}
+
 // stubs
 
 static VALUE
@@ -9391,12 +9530,6 @@ Init_VM(void)
     VALUE top_self = rb_obj_alloc(rb_cTopLevel);
     rb_objc_retain((void *)top_self);
     GET_VM()->current_top_object = top_self;
-
-    bs_const_magic_cookie = rb_str_new2("bs_const_magic_cookie");
-    rb_objc_retain((void *)bs_const_magic_cookie);
-
-    rb_mVM = rb_define_module("RubyVM");
-    Init_BridgeSupport();
 }
 
 extern "C"

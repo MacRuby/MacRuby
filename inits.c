@@ -55,6 +55,8 @@ void Init_Thread(void);
 void Init_Encoding(void);
 void Init_PostGC(void);
 void Init_ObjC(void);
+void Init_BridgeSupport(void);
+void Init_FFI(void);
 
 void
 rb_call_inits()
@@ -103,4 +105,6 @@ rb_call_inits()
     Init_version();
     Init_PostGC();
     Init_ObjC();
+    Init_BridgeSupport();
+    Init_FFI();
 }
