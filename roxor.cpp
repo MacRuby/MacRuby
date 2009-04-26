@@ -9346,6 +9346,12 @@ convert_ffi_type(VALUE type)
     if (strcmp(typestr, "ulong_long") == 0) {
 	return "Q";
     }
+    if (strcmp(typestr, "float") == 0) {
+	return "f";
+    }
+    if (strcmp(typestr, "double") == 0) {
+	return "d";
+    }
     if (strcmp(typestr, "string") == 0) {
 	return "*";
     }
@@ -9361,7 +9367,8 @@ Function *
 RoxorCompiler::compile_ffi_function(void *stub, void *imp, int argc)
 {
     // VALUE func(VALUE rcv, SEL sel, VALUE arg1, VALUE arg2, ...) {
-    //     return stub(imp, arg2, arg1, ...);
+    //     VALUE *argv = alloca(...);
+    //     return stub(imp, argc, argv);
     // }
     std::vector<const Type *> f_types;
     f_types.push_back(RubyObjTy);
@@ -9385,11 +9392,26 @@ RoxorCompiler::compile_ffi_function(void *stub, void *imp, int argc)
     params.push_back(compile_const_pointer(imp));
     stub_types.push_back(PtrTy);
 
-    // Following arguments are the given arguments.
-    for (int i = 0; i < argc; i++) {
-	params.push_back(arg++);
-	stub_types.push_back(RubyObjTy);
+    // Second argument is arity;
+    params.push_back(ConstantInt::get(Type::Int32Ty, argc));
+    stub_types.push_back(Type::Int32Ty);
+
+    // Third is an array of arguments.
+    Value *argv;
+    if (argc == 0) {
+	argv = compile_const_pointer(NULL);
     }
+    else {
+	argv = new AllocaInst(RubyObjTy, ConstantInt::get(Type::Int32Ty, argc),
+		"", bb);
+	for (int i = 0; i < argc; i++) {
+	    Value *index = ConstantInt::get(Type::Int32Ty, i);
+	    Value *slot = GetElementPtrInst::Create(argv, index, "", bb);
+	    new StoreInst(arg++, slot, "", bb);
+	}
+    }
+    params.push_back(argv);
+    stub_types.push_back(RubyObjPtrTy);
 
     // Cast the given stub using the correct function signature.
     FunctionType *stub_ft = FunctionType::get(RubyObjTy, stub_types, false);
