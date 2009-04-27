@@ -9399,7 +9399,8 @@ RoxorCompiler::compile_ffi_function(void *stub, void *imp, int argc)
     // Third is an array of arguments.
     Value *argv;
     if (argc == 0) {
-	argv = compile_const_pointer(NULL);
+	argv = new BitCastInst(compile_const_pointer(NULL), RubyObjPtrTy,
+		"", bb);
     }
     else {
 	argv = new AllocaInst(RubyObjTy, ConstantInt::get(Type::Int32Ty, argc),
