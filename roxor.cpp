@@ -4934,6 +4934,13 @@ rb_vm_rval_to_ocsel(VALUE rval, SEL *ocval)
     }
 }
 
+extern "C"
+void
+rb_vm_rval_to_charptr(VALUE rval, const char **ocval)
+{
+    *ocval = NIL_P(rval) ? NULL : StringValueCStr(rval);
+}
+
 static inline long
 rval_to_long(VALUE rval)
 {
@@ -5195,6 +5202,8 @@ RoxorCompiler::compile_conversion_to_c(const char *type, Value *val,
 {
     const char *func_name = NULL;
 
+    type = SkipTypeModifiers(type);
+
     switch (*type) {
 	case _C_ID:
 	case _C_CLASS:
@@ -5255,6 +5264,10 @@ RoxorCompiler::compile_conversion_to_c(const char *type, Value *val,
 
 	case _C_SEL:
 	    func_name = "rb_vm_rval_to_ocsel";
+	    break;
+
+	case _C_CHARPTR:
+	    func_name = "rb_vm_rval_to_charptr";
 	    break;
 
 	case _C_STRUCT_B:
@@ -5371,6 +5384,13 @@ rb_vm_sel_to_rval(SEL sel)
 
 extern "C"
 VALUE
+rb_vm_charptr_to_rval(const char *ptr)
+{
+    return ptr == NULL ? Qnil : rb_str_new2(ptr);
+}
+
+extern "C"
+VALUE
 rb_vm_new_struct(VALUE klass, int argc, ...)
 {
     assert(argc > 0);
@@ -5437,6 +5457,8 @@ RoxorCompiler::compile_conversion_to_ruby(const char *type,
 {
     const char *func_name = NULL;
 
+    type = SkipTypeModifiers(type);
+
     switch (*type) {
 	case _C_VOID:
 	    return nilVal;
@@ -5501,6 +5523,10 @@ RoxorCompiler::compile_conversion_to_ruby(const char *type,
 	    func_name = "rb_vm_sel_to_rval";
 	    break;
 
+	case _C_CHARPTR:
+	    func_name = "rb_vm_charptr_to_rval";
+	    break;
+
 	case _C_STRUCT_B:
 	    {
 		rb_vm_bs_boxed_t *bs_boxed = GET_VM()->find_bs_struct(type);
@@ -5552,6 +5578,8 @@ RoxorCompiler::compile_conversion_to_ruby(const char *type,
 inline const Type *
 RoxorCompiler::convert_type(const char *type)
 {
+    type = SkipTypeModifiers(type);
+
     switch (*type) {
 	case _C_VOID:
 	    return Type::VoidTy;
@@ -9316,6 +9344,7 @@ convert_ffi_type(VALUE type)
     assert(typestr != NULL);
 
     // Converting Ruby-FFI types to Objective-C runtime types.
+
     if (strcmp(typestr, "char") == 0) {
 	return "c";
     }
@@ -9443,7 +9472,7 @@ rb_ffi_attach_function(VALUE rcv, SEL sel, VALUE name, VALUE args, VALUE ret)
     Check_Type(args, T_ARRAY);
     const int argc = RARRAY_LEN(args);
     for (int i = 0; i < argc; i++) {
-	types.append(convert_ffi_type(ret));
+	types.append(convert_ffi_type(RARRAY_AT(args, i)));
     } 
 
     rb_vm_c_stub_t *stub = (rb_vm_c_stub_t *)vm_gen_stub(types, argc, false);

@@ -231,6 +231,13 @@ describe "A pure Objective-C method" do
     @o.methodReturningSEL2.should == nil
   end
 
+  it "returning 'char *' returns a String or nil in Ruby" do
+    @o.methodReturningCharPtr.class.should == String
+    @o.methodReturningCharPtr.should == 'foo'
+    @o.methodReturningCharPtr2.class.should == NilClass
+    @o.methodReturningCharPtr2.should == nil
+  end
+
   it "returning 'NSPoint' returns an NSPoint boxed object in Ruby" do
     b = @o.methodReturningNSPoint
     b.class.should == NSPoint
@@ -382,6 +389,21 @@ describe "A pure Objective-C method" do
     lambda { @o.methodAcceptingDouble(nil) }.should raise_error(TypeError) 
     lambda { @o.methodAcceptingFloat(Object.new) }.should raise_error(TypeError) 
     lambda { @o.methodAcceptingDouble(Object.new) }.should raise_error(TypeError) 
+  end
+
+  it "accepting a String-compatible object as 'char *' should receive the appropriate data" do
+    @o.methodAcceptingCharPtr('foo').should == 1
+
+    o2 = Object.new
+    def o2.to_str; 'foo' end
+
+    @o.methodAcceptingCharPtr(o2).should == 1
+
+    lambda { @o.methodAcceptingCharPtr(123) }.should raise_error(TypeError) 
+    lambda { @o.methodAcceptingCharPtr([]) }.should raise_error(TypeError) 
+    lambda { @o.methodAcceptingCharPtr(Object.new) }.should raise_error(TypeError) 
+
+    @o.methodAcceptingCharPtr2(nil).should == 1
   end
 
   it "accepting an NSPoint, NSSize, NSRange or NSRect object as 'NSPoint', 'NSSize', 'NSRange' or 'NSRect' should receive the C structure" do

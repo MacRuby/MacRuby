@@ -108,6 +108,26 @@ SkipStackSize(const char *type)
 }
 
 static inline const char *
+SkipTypeModifiers(const char *type)
+{
+    while (true) {
+	switch (*type) {
+	    case _C_CONST:
+	    case 'O': /* bycopy */
+	    case 'n': /* in */
+	    case 'o': /* out */
+	    case 'N': /* inout */
+	    case 'V': /* oneway */
+		type++;
+		break;
+
+	    default:
+		return type;
+	}
+    }
+}
+
+static inline const char *
 SkipFirstType(const char *type)
 {
     while (1) {

@@ -151,6 +151,16 @@
     return 0;
 }
 
+- (const char *)methodReturningCharPtr
+{
+    return "foo";
+}
+
+- (const char *)methodReturningCharPtr2
+{
+    return NULL;
+}
+
 - (NSPoint)methodReturningNSPoint
 {
     return NSMakePoint(1, 2);
@@ -259,6 +269,16 @@
 - (BOOL)methodAcceptingSEL2:(SEL)sel
 {
     return sel == 0;
+}
+
+- (BOOL)methodAcceptingCharPtr:(const char *)s
+{
+    return strcmp(s, "foo") == 0;
+}
+
+- (BOOL)methodAcceptingCharPtr2:(const char *)s
+{
+    return s == NULL;
 }
 
 - (BOOL)methodAcceptingFloat:(float)f
