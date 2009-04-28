@@ -75,7 +75,7 @@ static struct st_table *bs_inf_prot_cmethods;
 static struct st_table *bs_inf_prot_imethods;
 static struct st_table *bs_cftypes;
 
-VALUE rb_cPointer;
+static VALUE rb_cPointer;
 
 struct RPointer
 {
@@ -517,6 +517,7 @@ rb_pointer_create(void *ptr, const char *type)
 
 static void rb_objc_rval_to_ocval(VALUE, const char *, void **);
 
+#if 0
 static VALUE
 rb_pointer_new_with_type(VALUE recv, SEL sel, VALUE type)
 {
@@ -572,6 +573,7 @@ rb_pointer_aref(VALUE recv, SEL sel, VALUE i)
 
     return ret;
 }
+#endif
 
 static bool
 rb_objc_rval_copy_boxed_data(VALUE rval, bs_element_boxed_t *bs_boxed, void *ocval)
@@ -3264,11 +3266,13 @@ Init_ObjC(void)
     rb_install_boxed_primitives();
 #endif
 
+#if 0
     rb_cPointer = rb_define_class("Pointer", rb_cObject);
     rb_undef_alloc_func(rb_cPointer);
     rb_objc_define_method(*(VALUE *)rb_cPointer, "new_with_type", rb_pointer_new_with_type, 1);
     rb_objc_define_method(rb_cPointer, "assign", rb_pointer_assign, 1);
     rb_objc_define_method(rb_cPointer, "[]", rb_pointer_aref, 1);
+#endif
 
     rb_ivar_type = rb_intern("@__objc_type__");
 

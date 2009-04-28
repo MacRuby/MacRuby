@@ -203,6 +203,8 @@ class RoxorCompiler
 	Function *compile_bs_struct_writer(rb_vm_bs_boxed_t *bs_boxed,
 		int field);
 	Function *compile_ffi_function(void *stub, void *imp, int argc);
+	Function *compile_to_rval_convertor(const char *type);
+	Function *compile_to_ocval_convertor(const char *type);
 
     private:
 	const char *fname;
@@ -477,6 +479,8 @@ class RoxorVM
 	std::map<Class, std::map<ID, int> *> ivar_slots;
 	std::map<SEL, GlobalVariable *> redefined_ops_gvars;
 	std::map<Class, struct rb_vm_outer *> outers;
+	std::map<std::string, void *> c_stubs, objc_stubs,
+	    to_rval_convertors, to_ocval_convertors;
 
     public:
 	static RoxorVM *current;
@@ -502,8 +506,6 @@ class RoxorVM
 	std::map<VALUE, rb_vm_catch_t *> catch_jmp_bufs;
 	std::vector<jmp_buf *> return_from_block_jmp_bufs;
 
-	std::map<std::string, void *> c_stubs, objc_stubs;
-
 	bs_parser_t *bs_parser;
 	std::map<std::string, rb_vm_bs_boxed_t *> bs_boxed;
 	std::map<std::string, bs_element_function_t *> bs_funcs;
@@ -515,6 +517,16 @@ class RoxorVM
 	rb_vm_bs_boxed_t *find_bs_boxed(std::string type);
 	rb_vm_bs_boxed_t *find_bs_struct(std::string type);
 	rb_vm_bs_boxed_t *find_bs_opaque(std::string type);
+
+	void *gen_stub(std::string types, int argc, bool is_objc);
+	void *gen_to_rval_convertor(std::string type);
+	void *gen_to_ocval_convertor(std::string type);
+
+	void insert_stub(const char *types, void *stub, bool is_objc) {
+	    std::map<std::string, void *> &m =
+		is_objc ? objc_stubs : c_stubs;
+	    m.insert(std::make_pair(types, stub));
+	}
 
 #if ROXOR_ULTRA_LAZY_JIT
 	std::map<SEL, std::map<Class, rb_vm_method_source_t *> *>
@@ -7083,24 +7095,98 @@ method_missing(VALUE obj, SEL sel, int argc, const VALUE *argv,
     return rb_vm_call(obj, selMethodMissing, argc + 1, new_argv, false);
 }
 
-static void *
-vm_gen_stub(std::string types, int argc, bool is_objc)
+inline void *
+RoxorVM::gen_stub(std::string types, int argc, bool is_objc)
 {
-    std::map<std::string, void *> &stubs = 
-	is_objc ? GET_VM()->objc_stubs : GET_VM()->c_stubs;
+    std::map<std::string, void *> &stubs = is_objc ? objc_stubs : c_stubs;
     std::map<std::string, void *>::iterator iter = stubs.find(types);
     if (iter != stubs.end()) {
 	return iter->second;
     }
 
-    //printf("generating %s stub %s argc %d\n", is_objc ? "objc" : "c", types, argc);
-
     Function *f = RoxorCompiler::shared->compile_stub(types.c_str(), argc,
 	    is_objc);
-    void *stub = (void *)GET_VM()->compile(f);
+    void *stub = (void *)compile(f);
     stubs.insert(std::make_pair(types, stub));
 
     return stub;
+}
+
+Function *
+RoxorCompiler::compile_to_rval_convertor(const char *type)
+{
+    // VALUE foo(void *ocval);
+    Function *f = cast<Function>(module->getOrInsertFunction("",
+		Type::VoidTy, PtrTy, NULL));
+    Function::arg_iterator arg = f->arg_begin();
+    Value *ocval = arg++;
+
+    bb = BasicBlock::Create("EntryBlock", f);
+
+    const Type *llvm_type = convert_type(type); 
+    ocval = new BitCastInst(ocval, PointerType::getUnqual(llvm_type), "", bb);
+    ocval = new LoadInst(ocval, "", bb);
+
+    Value *rval = compile_conversion_to_ruby(type, llvm_type, ocval);
+
+    ReturnInst::Create(rval, bb);
+
+    return f;
+}
+
+inline void *
+RoxorVM::gen_to_rval_convertor(std::string type)
+{
+    std::map<std::string, void *>::iterator iter =
+	to_rval_convertors.find(type);
+    if (iter != to_rval_convertors.end()) {
+	return iter->second;
+    }
+
+    Function *f = RoxorCompiler::shared->compile_to_rval_convertor(
+	    type.c_str());
+    void *convertor = (void *)compile(f);
+    to_rval_convertors.insert(std::make_pair(type, convertor));
+    
+    return convertor; 
+}
+
+Function *
+RoxorCompiler::compile_to_ocval_convertor(const char *type)
+{
+    // void foo(VALUE rval, void **ocval);
+    Function *f = cast<Function>(module->getOrInsertFunction("",
+		Type::VoidTy, RubyObjTy, PtrTy, NULL));
+    Function::arg_iterator arg = f->arg_begin();
+    Value *rval = arg++;
+    Value *ocval = arg++;
+
+    bb = BasicBlock::Create("EntryBlock", f);
+
+    const Type *llvm_type = convert_type(type);
+    ocval = new BitCastInst(ocval, PointerType::getUnqual(llvm_type), "", bb);
+    compile_conversion_to_c(type, rval, ocval);
+
+    ReturnInst::Create(bb);
+
+    return f;
+}
+
+inline void *
+RoxorVM::gen_to_ocval_convertor(std::string type)
+{
+    std::map<std::string, void *>::iterator iter =
+	to_ocval_convertors.find(type);
+    if (iter != to_ocval_convertors.end()) {
+	return iter->second;
+    }
+
+    Function *f = RoxorCompiler::shared->compile_to_ocval_convertor(
+	    type.c_str());
+    void *convertor = (void *)compile(f);
+    to_ocval_convertors.insert(std::make_pair(type, convertor));
+    
+    return convertor; 
 }
 
 static inline void
@@ -7196,8 +7282,8 @@ recache:
 			    sel_getName(sel));
 		    abort();
 		}
-		ocache.stub = (rb_vm_objc_stub_t *)vm_gen_stub(types, argc,
-			true);
+		ocache.stub = (rb_vm_objc_stub_t *)GET_VM()->gen_stub(types, 
+			argc, true);
 	    }
 	}
 	else {
@@ -7235,8 +7321,8 @@ recache:
 		fcache.bs_function = bs_func;
 		fcache.imp = (IMP)dlsym(RTLD_DEFAULT, bs_func->name);
 		assert(fcache.imp != NULL);
-		fcache.stub = (rb_vm_c_stub_t *)vm_gen_stub(types, argc,
-			false);
+		fcache.stub = (rb_vm_c_stub_t *)GET_VM()->gen_stub(types,
+			argc, false);
 	    }
 	    else {
 		// Still nothing, then let's call #method_missing.
@@ -8568,9 +8654,8 @@ rb_vm_resolve_const_value(VALUE v, VALUE klass, ID id)
 		    bs_const->name);
 	}
 
-	// TODO
-	//rb_objc_ocval_to_rval(sym, bs_const->type, &v);
-	v = INT2FIX(42);
+	void *convertor = GET_VM()->gen_to_rval_convertor(bs_const->type);
+	v = ((VALUE (*)(void *))convertor)(sym);
 
 	CFMutableDictionaryRef iv_dict = rb_class_ivar_dict(rb_cObject);
 	assert(iv_dict != NULL);
@@ -8579,6 +8664,8 @@ rb_vm_resolve_const_value(VALUE v, VALUE klass, ID id)
 
     return v;
 }
+
+VALUE rb_cBoxed;
 
 extern "C"
 void
@@ -8983,7 +9070,60 @@ rb_boxed_is_opaque(VALUE rcv, SEL sel)
     return bs_boxed->bs_type == BS_ELEMENT_OPAQUE ? Qtrue : Qfalse;
 }
 
-VALUE rb_cBoxed;
+VALUE rb_cPointer;
+
+typedef struct {
+    VALUE type;
+    VALUE (*convert_to_rval)(void *);
+    void (*convert_to_ocval)(VALUE rval, void **);
+    void *val;
+} rb_vm_pointer_t;
+
+static VALUE
+rb_pointer_new(VALUE rcv, SEL sel, VALUE type)
+{
+    StringValuePtr(type);
+
+    rb_vm_pointer_t *ptr = (rb_vm_pointer_t *)xmalloc(sizeof(rb_vm_pointer_t));
+    GC_WB(&ptr->type, type);
+
+    const char *type_str = RSTRING_PTR(type);
+    ptr->convert_to_rval =
+	(VALUE (*)(void *))GET_VM()->gen_to_rval_convertor(type_str);
+    ptr->convert_to_ocval =
+	(void (*)(VALUE, void **))GET_VM()->gen_to_ocval_convertor(type_str);
+    ptr->val = NULL; // TODO
+
+    return Data_Wrap_Struct(rb_cPointer, NULL, NULL, ptr);
+}
+
+static VALUE
+rb_pointer_aref(VALUE rcv, SEL sel, VALUE idx)
+{
+    return Qnil;
+}
+
+static VALUE
+rb_pointer_asef(VALUE rcv, SEL sel, VALUE idx, VALUE val)
+{
+    return Qnil;
+}
+
+static VALUE
+rb_pointer_assign(VALUE rcv, SEL sel, VALUE val)
+{
+    return rb_pointer_asef(rcv, 0, FIX2INT(0), val);
+}
+
+static VALUE
+rb_pointer_type(VALUE rcv, SEL sel)
+{
+    rb_vm_pointer_t *ptr;
+
+    Data_Get_Struct(rcv, rb_vm_pointer_t, ptr);
+
+    return ptr->type;
+}
 
 extern "C"
 void
@@ -8995,6 +9135,20 @@ Init_BridgeSupport(void)
     rb_objc_define_method(*(VALUE *)rb_cBoxed, "opaque?",
 	    (void *)rb_boxed_is_opaque, 0);
     boxed_ivar_type = rb_intern("__octype__");
+
+    rb_cPointer = rb_define_class("Pointer", rb_cObject);
+    rb_objc_define_method(*(VALUE *)rb_cPointer, "new",
+	    (void *)rb_pointer_new, 1);
+    rb_objc_define_method(*(VALUE *)rb_cPointer, "new_with_type",
+	    (void *)rb_pointer_new, 1);
+    rb_objc_define_method(rb_cPointer, "[]",
+	    (void *)rb_pointer_aref, 1);
+    rb_objc_define_method(rb_cPointer, "[]=",
+	    (void *)rb_pointer_asef, 2);
+    rb_objc_define_method(rb_cPointer, "assign",
+	    (void *)rb_pointer_assign, 1);
+    rb_objc_define_method(rb_cPointer, "type",
+	    (void *)rb_pointer_type, 0);
 
     bs_const_magic_cookie = rb_str_new2("bs_const_magic_cookie");
     rb_objc_retain((void *)bs_const_magic_cookie);
@@ -9475,7 +9629,8 @@ rb_ffi_attach_function(VALUE rcv, SEL sel, VALUE name, VALUE args, VALUE ret)
 	types.append(convert_ffi_type(RARRAY_AT(args, i)));
     } 
 
-    rb_vm_c_stub_t *stub = (rb_vm_c_stub_t *)vm_gen_stub(types, argc, false);
+    rb_vm_c_stub_t *stub = (rb_vm_c_stub_t *)GET_VM()->gen_stub(types, argc,
+	    false);
     Function *f = RoxorCompiler::shared->compile_ffi_function((void *)stub,
 	    sym, argc);
     IMP imp = GET_VM()->compile(f);
@@ -9507,8 +9662,8 @@ builtin_ostub1(IMP imp, id self, SEL sel, int argc, VALUE *argv)
 static void
 setup_builtin_stubs(void)
 {
-    GET_VM()->objc_stubs.insert(std::make_pair("@@:", (void *)builtin_ostub1));
-    GET_VM()->objc_stubs.insert(std::make_pair("#@:", (void *)builtin_ostub1));
+    GET_VM()->insert_stub("@@:", (void *)builtin_ostub1, true);
+    GET_VM()->insert_stub("#@:", (void *)builtin_ostub1, true);
 }
 
 #if ROXOR_ULTRA_LAZY_JIT
