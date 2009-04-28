@@ -5,13 +5,6 @@ framework 'Foundation'
 fixture_source = File.dirname(__FILE__) + '/fixtures/method.m'
 fixture_ext = '/tmp/method.bundle'
 if !File.exist?(fixture_ext) or File.mtime(fixture_source) > File.mtime(fixture_ext)
-=begin
-  # #system is currently broken
-  unless system("/usr/bin/gcc #{fixture_source} -o #{fixture_ext} -g -framework Foundation -dynamiclib -fobjc-gc -arch i386 -arch x86_64 -arch ppc")
-    $stderr.puts "cannot compile fixture source file `#{fixture_source}' - aborting"
-    exit 1
-  end
-=end
   `/usr/bin/gcc #{fixture_source} -o #{fixture_ext} -g -framework Foundation -dynamiclib -fobjc-gc -arch i386 -arch x86_64 -arch ppc`
 end
 require '/tmp/method'
