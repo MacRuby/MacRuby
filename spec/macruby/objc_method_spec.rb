@@ -372,4 +372,40 @@ describe "A pure Objective-C method" do
     @o.methodAcceptingInt(42, float:42, double:42, short:42, NSPoint:[42, 42],
                           NSRect:[42, 42, 42, 42], char:42).should == 1
   end
+
+  it "accepting an 'int *' should be given a Pointer object and receive the pointer as expected" do
+    p = Pointer.new(:int)
+    p[0] = 42
+    @o.methodAcceptingIntPtr(p).should == 1
+    p[0].should == 43
+
+    lambda { @o.methodAcceptingIntPtr(123) }.should raise_error(TypeError)
+
+    @o.methodAcceptingIntPtr2(nil).should == 1
+  end
+
+  it "accepting an 'id *' should be given a Pointer object and receive the pointer as expected" do
+    p = Pointer.new(:object)
+    p[0] = @o
+    @o.methodAcceptingObjectPtr(p).should == 1
+    p[0].should == NSObject
+
+    lambda { @o.methodAcceptingObjectPtr(123) }.should raise_error(TypeError)
+
+    @o.methodAcceptingObjectPtr2(nil).should == 1
+  end
+
+  it "accepting an 'NSRect *' should be given a Pointer object and receive the pointer as expected" do
+    p = Pointer.new(NSRect.type)
+    p[0] = [1, 2, 3, 4]
+    @o.methodAcceptingNSRectPtr(p).should == 1
+    p[0].origin.x.should == 42
+    p[0].origin.y.should == 43
+    p[0].size.width.should == 44
+    p[0].size.height.should == 45
+
+    lambda { @o.methodAcceptingNSRectPtr(123) }.should raise_error(TypeError)
+
+    @o.methodAcceptingNSRectPtr2(nil).should == 1
+  end
 end

@@ -75,7 +75,7 @@ static struct st_table *bs_inf_prot_cmethods;
 static struct st_table *bs_inf_prot_imethods;
 static struct st_table *bs_cftypes;
 
-static VALUE rb_cPointer;
+//static VALUE rb_cPointer;
 
 struct RPointer
 {
@@ -503,6 +503,7 @@ rebuild_new_struct_ary(ffi_type **elements, VALUE orig, VALUE new)
     return n;
 }
 
+#if 0
 static VALUE
 rb_pointer_create(void *ptr, const char *type)
 {
@@ -514,6 +515,7 @@ rb_pointer_create(void *ptr, const char *type)
 
     return Data_Wrap_Struct(rb_cPointer, NULL, NULL, data);
 }
+#endif
 
 static void rb_objc_rval_to_ocval(VALUE, const char *, void **);
 
@@ -720,12 +722,14 @@ rb_objc_rval_to_ocval(VALUE rval, const char *octype, void **ocval)
 		    if (SPECIAL_CONST_P(rval)) {
 			ok = false;
 		    }
+#if 0
 		    else if (*(VALUE *)rval == rb_cPointer) {
 			struct RPointer *data;
 
 			Data_Get_Struct(rval, struct RPointer, data);
 			*(void **)ocval = data->ptr;
 		    }
+#endif
 		    else if (strcmp(octype, "^v") == 0) {
 			*(void **)ocval = (void *)rval;
 		    }
@@ -972,7 +976,7 @@ rb_objc_ocval_to_rval(void **ocval, const char *octype, VALUE *rbval)
 		*rbval = Qnil;
 	    }
 	    else {
-		*rbval = rb_pointer_create(*(void **)ocval, octype + 1);
+		//*rbval = rb_pointer_create(*(void **)ocval, octype + 1);
 	    }
 	    break;
 

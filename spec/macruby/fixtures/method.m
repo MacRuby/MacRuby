@@ -345,6 +345,43 @@
 	&& a7 == 42;
 }
 
+- (BOOL)methodAcceptingIntPtr:(int *)ptr
+{
+    BOOL ok = ptr[0] == 42;
+    ptr[0] = 43;
+    return ok;
+}
+
+- (BOOL)methodAcceptingIntPtr2:(int *)ptr
+{
+    return ptr == NULL;
+}
+
+- (BOOL)methodAcceptingObjectPtr:(id *)ptr
+{
+    BOOL ok = ptr[0] == self;
+    ptr[0] = (id)[NSObject class];
+    return ok;
+}
+
+- (BOOL)methodAcceptingObjectPtr2:(id *)ptr
+{
+    return ptr == NULL;
+}
+
+- (BOOL)methodAcceptingNSRectPtr:(NSRect *)ptr
+{
+    BOOL ok = ptr->origin.x == 1 && ptr->origin.y == 2
+	&& ptr->size.width == 3 && ptr->size.height == 4;
+    *ptr = NSMakeRect(42, 43, 44, 45);
+    return ok;
+}
+
+- (BOOL)methodAcceptingNSRectPtr2:(NSRect *)ptr
+{
+    return ptr == NULL;
+}
+
 @end
 
 void

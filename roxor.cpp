@@ -5070,6 +5070,26 @@ rb_vm_rval_to_float(VALUE rval, float *ocval)
     *ocval = (float)rval_to_double(rval);
 }
 
+static void *rb_pointer_get_data(VALUE rcv);
+
+extern "C"
+void
+rb_vm_rval_to_cptr(VALUE rval, void **cptr)
+{
+    if (NIL_P(rval)) {
+	*cptr = NULL;
+    }
+    else {
+	if (!rb_obj_is_kind_of(rval, rb_cPointer)) {
+	    rb_raise(rb_eTypeError,
+		    "expected instance of Pointer, got `%s' (%s)",
+		    RSTRING_PTR(rb_inspect(rval)),
+		    rb_obj_classname(rval));
+	}
+	*cptr = rb_pointer_get_data(rval);
+    }
+}
+
 static inline long
 rebuild_new_struct_ary(const StructType *type, VALUE orig, VALUE new_ary)
 {
@@ -5336,13 +5356,14 @@ RoxorCompiler::compile_conversion_to_c(const char *type, Value *val,
 		if (bs_boxed != NULL) {
 		    return compile_get_opaque_data(val, bs_boxed, slot);
 		}
+
+		func_name = "rb_vm_rval_to_cptr";
 	    }
 	    break;
     }
 
     if (func_name == NULL) {
-	printf("unrecognized compile type `%s' to C - aborting\n", type);
-	abort();
+	rb_raise(rb_eTypeError, "unrecognized compile type `%s' to C", type);
     }
  
     std::vector<Value *> params;
@@ -5579,7 +5600,7 @@ RoxorCompiler::compile_conversion_to_ruby(const char *type,
     }
 
     if (func_name == NULL) {
-	printf("unrecognized compile type `%s' to Ruby - aborting\n", type);
+	rb_raise(rb_eTypeError, "unrecognized compile type `%s' to Ruby", type);
 	abort();
     }
  
@@ -5660,7 +5681,7 @@ RoxorCompiler::convert_type(const char *type)
 	    break;
     }
 
-    rb_raise(rb_eTypeError, "unrecognized runtime type `%s'\n", type);
+    rb_raise(rb_eTypeError, "unrecognized runtime type `%s'", type);
 }
 
 Function *
@@ -9115,6 +9136,15 @@ rb_pointer_new(VALUE rcv, SEL sel, int argc, VALUE *argv)
     return Data_Wrap_Struct(rb_cPointer, NULL, NULL, ptr);
 }
 
+static void *
+rb_pointer_get_data(VALUE rcv)
+{
+    rb_vm_pointer_t *ptr;
+    Data_Get_Struct(rcv, rb_vm_pointer_t, ptr);
+
+    return ptr->val;
+}
+
 #define POINTER_VAL(ptr, idx) \
     (void *)((char *)ptr->val + (FIX2INT(idx) * ptr->type_size))
 
@@ -9258,14 +9288,14 @@ inline rb_vm_bs_boxed_t *
 RoxorVM::find_bs_struct(std::string type)
 {
     rb_vm_bs_boxed_t *boxed = find_bs_boxed(type);
-    return boxed->is_struct() ? boxed : NULL;
+    return boxed == NULL ? NULL : boxed->is_struct() ? boxed : NULL;
 }
 
 inline rb_vm_bs_boxed_t *
 RoxorVM::find_bs_opaque(std::string type)
 {
     rb_vm_bs_boxed_t *boxed = find_bs_boxed(type);
-    return boxed->is_struct() ? NULL : boxed;
+    return boxed == NULL ? NULL : boxed->is_struct() ? NULL : boxed;
 }
 
 static inline void
