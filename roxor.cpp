@@ -5624,6 +5624,7 @@ RoxorCompiler::convert_type(const char *type)
 	    return Type::Int32Ty;
 
 	case _C_LNG:
+	case _C_ULNG:
 #if __LP64__
 	    return Type::Int64Ty;
 #else
@@ -5659,8 +5660,7 @@ RoxorCompiler::convert_type(const char *type)
 	    break;
     }
 
-    printf("unrecognized runtime type `%s' - aborting\n", type);
-    abort();
+    rb_raise(rb_eTypeError, "unrecognized runtime type `%s'\n", type);
 }
 
 Function *
@@ -9085,15 +9085,22 @@ typedef struct {
     void *val;
 } rb_vm_pointer_t;
 
+static const char *convert_ffi_type(VALUE type,
+	bool raise_exception_if_unknown);
+
 static VALUE
-rb_pointer_new(VALUE rcv, SEL sel, VALUE type)
+rb_pointer_new(VALUE rcv, SEL sel, int argc, VALUE *argv)
 {
+    VALUE type, len;
+    rb_scan_args(argc, argv, "11", &type, &len);
+    const size_t rlen = NIL_P(len) ? 1 : FIX2LONG(len);
+
     StringValuePtr(type);
+    const char *type_str = convert_ffi_type(type, false);
 
     rb_vm_pointer_t *ptr = (rb_vm_pointer_t *)xmalloc(sizeof(rb_vm_pointer_t));
-    GC_WB(&ptr->type, type);
+    GC_WB(&ptr->type, rb_str_new2(type_str));
 
-    const char *type_str = RSTRING_PTR(type);
     ptr->convert_to_rval =
 	(VALUE (*)(void *))GET_VM()->gen_to_rval_convertor(type_str);
     ptr->convert_to_ocval =
@@ -9101,7 +9108,7 @@ rb_pointer_new(VALUE rcv, SEL sel, VALUE type)
 
     ptr->type_size = GET_VM()->get_sizeof(type_str);
     assert(ptr->type_size > 0);
-    GC_WB(&ptr->val, xmalloc(ptr->type_size));
+    GC_WB(&ptr->val, xmalloc(ptr->type_size * rlen));
 
     return Data_Wrap_Struct(rb_cPointer, NULL, NULL, ptr);
 }
@@ -9152,6 +9159,7 @@ extern "C"
 void
 Init_BridgeSupport(void)
 {
+    // Boxed
     rb_cBoxed = rb_define_class("Boxed", rb_cObject);
     rb_objc_define_method(*(VALUE *)rb_cBoxed, "type",
 	    (void *)rb_boxed_objc_type, 0);
@@ -9159,11 +9167,12 @@ Init_BridgeSupport(void)
 	    (void *)rb_boxed_is_opaque, 0);
     boxed_ivar_type = rb_intern("__octype__");
 
+    // Pointer
     rb_cPointer = rb_define_class("Pointer", rb_cObject);
     rb_objc_define_method(*(VALUE *)rb_cPointer, "new",
-	    (void *)rb_pointer_new, 1);
+	    (void *)rb_pointer_new, -1);
     rb_objc_define_method(*(VALUE *)rb_cPointer, "new_with_type",
-	    (void *)rb_pointer_new, 1);
+	    (void *)rb_pointer_new, -1);
     rb_objc_define_method(rb_cPointer, "[]",
 	    (void *)rb_pointer_aref, 1);
     rb_objc_define_method(rb_cPointer, "[]=",
@@ -9515,12 +9524,12 @@ rb_vm_load_bridge_support(const char *path, const char *framework_path,
 // FFI
 
 static const char *
-convert_ffi_type(VALUE type)
+convert_ffi_type(VALUE type, bool raise_exception_if_unknown)
 {
     const char *typestr = StringValueCStr(type);
     assert(typestr != NULL);
 
-    // Converting Ruby-FFI types to Objective-C runtime types.
+    // Ruby-FFI types.
 
     if (strcmp(typestr, "char") == 0) {
 	return "c";
@@ -9565,8 +9574,17 @@ convert_ffi_type(VALUE type)
 	return "^";
     }
 
-    rb_raise(rb_eArgError, "unrecognized string `%s' given as FFI type",
-	typestr);
+    // MacRuby extensions.
+
+    if (strcmp(typestr, "object") == 0) {
+	return "@";
+    }
+
+    if (raise_exception_if_unknown) {
+	rb_raise(rb_eTypeError, "unrecognized string `%s' given as FFI type",
+		typestr);
+    }
+    return typestr;
 }
 
 Function *
@@ -9644,12 +9662,12 @@ rb_ffi_attach_function(VALUE rcv, SEL sel, VALUE name, VALUE args, VALUE ret)
     }
 
     std::string types;
-    types.append(convert_ffi_type(ret));
+    types.append(convert_ffi_type(ret, true));
 
     Check_Type(args, T_ARRAY);
     const int argc = RARRAY_LEN(args);
     for (int i = 0; i < argc; i++) {
-	types.append(convert_ffi_type(RARRAY_AT(args, i)));
+	types.append(convert_ffi_type(RARRAY_AT(args, i), true));
     } 
 
     rb_vm_c_stub_t *stub = (rb_vm_c_stub_t *)GET_VM()->gen_stub(types, argc,
