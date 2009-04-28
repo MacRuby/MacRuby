@@ -273,6 +273,7 @@ class RoxorCompiler
 	Function *newOpaqueFunc;
 	Function *getStructFieldsFunc;
 	Function *getOpaqueDataFunc;
+	Function *getPointerPtrFunc;
 	Function *checkArityFunc;
 	Function *setStructFunc;
 	Function *newRangeFunc;
@@ -363,6 +364,7 @@ class RoxorCompiler
 		rb_vm_bs_boxed_t *bs_boxed);
 	Value *compile_get_opaque_data(Value *val, rb_vm_bs_boxed_t *bs_boxed,
 		Value *slot);
+	Value *compile_get_cptr(Value *val, const char *type, Value *slot);
 	void compile_check_arity(Value *given, Value *requested);
 	void compile_set_struct(Value *rcv, int field, Value *val);
 
@@ -698,6 +700,7 @@ RoxorCompiler::RoxorCompiler(const char *_fname)
     newOpaqueFunc = NULL;
     getStructFieldsFunc = NULL;
     getOpaqueDataFunc = NULL;
+    getPointerPtrFunc = NULL;
     checkArityFunc = NULL;
     setStructFunc = NULL;
     newRangeFunc = NULL;
@@ -5070,24 +5073,19 @@ rb_vm_rval_to_float(VALUE rval, float *ocval)
     *ocval = (float)rval_to_double(rval);
 }
 
-static void *rb_pointer_get_data(VALUE rcv);
+static void *rb_pointer_get_data(VALUE rcv, const char *type);
 
 extern "C"
-void
-rb_vm_rval_to_cptr(VALUE rval, void **cptr)
+void *
+rb_vm_rval_to_cptr(VALUE rval, const char *type, void **cptr)
 {
     if (NIL_P(rval)) {
 	*cptr = NULL;
     }
     else {
-	if (!rb_obj_is_kind_of(rval, rb_cPointer)) {
-	    rb_raise(rb_eTypeError,
-		    "expected instance of Pointer, got `%s' (%s)",
-		    RSTRING_PTR(rb_inspect(rval)),
-		    rb_obj_classname(rval));
-	}
-	*cptr = rb_pointer_get_data(rval);
+	*cptr = rb_pointer_get_data(rval, type);
     }
+    return *cptr;
 }
 
 static inline long
@@ -5229,8 +5227,24 @@ RoxorCompiler::compile_get_opaque_data(Value *val, rb_vm_bs_boxed_t *bs_boxed,
     params.push_back(compile_const_pointer(bs_boxed));
     params.push_back(slot);
 
-    return CallInst::Create(getOpaqueDataFunc, params.begin(), params.end(),
-	    "", bb);
+    return compile_protected_call(getOpaqueDataFunc, params);
+}
+
+Value *
+RoxorCompiler::compile_get_cptr(Value *val, const char *type, Value *slot)
+{
+    if (getPointerPtrFunc == NULL) {
+	getPointerPtrFunc = cast<Function>(module->getOrInsertFunction(
+		    "rb_vm_rval_to_cptr",
+		    PtrTy, RubyObjTy, PtrTy, PtrPtrTy, NULL));
+    }
+
+    std::vector<Value *> params;
+    params.push_back(val);
+    params.push_back(compile_const_pointer(sel_registerName(type)));
+    params.push_back(new BitCastInst(slot, PtrPtrTy, "", bb));
+
+    return compile_protected_call(getPointerPtrFunc, params);
 }
 
 Value *
@@ -5357,7 +5371,7 @@ RoxorCompiler::compile_conversion_to_c(const char *type, Value *val,
 		    return compile_get_opaque_data(val, bs_boxed, slot);
 		}
 
-		func_name = "rb_vm_rval_to_cptr";
+		return compile_get_cptr(val, type, slot);
 	    }
 	    break;
     }
@@ -9137,10 +9151,25 @@ rb_pointer_new(VALUE rcv, SEL sel, int argc, VALUE *argv)
 }
 
 static void *
-rb_pointer_get_data(VALUE rcv)
+rb_pointer_get_data(VALUE rcv, const char *type)
 {
+    if (!rb_obj_is_kind_of(rcv, rb_cPointer)) {
+	rb_raise(rb_eTypeError,
+		"expected instance of Pointer, got `%s' (%s)",
+		RSTRING_PTR(rb_inspect(rcv)),
+		rb_obj_classname(rcv));
+    }
+
     rb_vm_pointer_t *ptr;
     Data_Get_Struct(rcv, rb_vm_pointer_t, ptr);
+
+    assert(*type == _C_PTR);
+    if (strcmp(RSTRING_PTR(ptr->type), type + 1) != 0) {
+	rb_raise(rb_eTypeError,
+		"expected instance of Pointer of type `%s', got `%s'",
+		RSTRING_PTR(ptr->type),
+		type + 1);
+    }
 
     return ptr->val;
 }
