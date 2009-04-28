@@ -1,9 +1,32 @@
 #import <Foundation/Foundation.h>
 
 @interface TestMethod : NSObject
+{
+    id _foo;
+}
 @end
 
 @implementation TestMethod
+
+- (BOOL)isFoo
+{
+    return YES;
+}
+
+- (BOOL)isFoo2
+{
+    return NO;
+}
+
+- (void)setFoo:(id)foo
+{
+    _foo = foo;
+}
+
+- (id)foo
+{
+    return _foo;
+}
 
 - (void)methodReturningVoid
 {

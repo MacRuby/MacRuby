@@ -2,6 +2,12 @@
 <!DOCTYPE signatures SYSTEM "file://localhost/System/Library/DTDs/BridgeSupport.dtd">
 <signatures version='0.9'>
   <class name='TestMethod'>
+    <method selector='isFoo'>
+      <retval type='B'/>
+    </method>
+    <method selector='isFoo2'>
+      <retval type='B'/>
+    </method>
     <method selector='methodReturningYES'>
       <retval type='B'/>
     </method>

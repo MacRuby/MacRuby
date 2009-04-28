@@ -7207,9 +7207,11 @@ static inline SEL
 helper_sel(SEL sel)
 {
     const char *p = sel_getName(sel);
-    long len = strlen(p);
+    size_t len = strlen(p);
     SEL new_sel = 0;
     char buf[100];
+
+    assert(len < sizeof(buf));
 
     if (len >= 3 && isalpha(p[len - 3]) && p[len - 2] == '=' && p[len - 1] == ':') {
 	/* foo=: -> setFoo: shortcut */
@@ -7219,7 +7221,7 @@ helper_sel(SEL sel)
 	buf[len + 2] = '\0';
 	new_sel = sel_registerName(buf);
     }
-    else if (isalpha(p[len - 2]) && p[len - 1] == '?') {
+    else if (len > 1 && p[len - 1] == '?') {
 	/* foo?: -> isFoo: shortcut */
 	snprintf(buf, sizeof buf, "is%s", p);
 	buf[2] = toupper(buf[2]);

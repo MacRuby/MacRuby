@@ -23,23 +23,26 @@ describe "A pure Objective-C method" do
   end
 
   it "can be called with #foo= if it matches the #setFoo pattern" do
-    o = []
+    # Note: we cannot use #have_method here because pure Objective-C
+    # methods as well as convenience shortcuts are not exposed in #methods.
+    @o.respond_to?(:'setFoo').should == true
+    @o.respond_to?(:'foo=').should == true
+    @o.respond_to?(:'foo').should == true
 
-    # TODO Stopped here: This should be sufficient, but doesn't work.
-    # o.should have_method(:'setArray', true)
-    # o.should have_method(:'array=', true)
-
-    o.respond_to?(:'setArray').should == true
-    o.respond_to?(:'array=').should == true
-    o.array = [1, 2, 3]
-    o.should == [1, 2, 3]
+    @o.setFoo(123)
+    @o.foo.should == 123
+    @o.foo = 456
+    @o.foo.should == 456
   end
 
   it "can be called with #foo? if it matches the #isFoo pattern" do
-    o = NSBundle.mainBundle
-    o.respond_to?(:'isLoaded').should == true
-    o.respond_to?(:'loaded?').should == true
-    o.loaded?.should == true
+    @o.respond_to?(:'isFoo').should == true
+    @o.respond_to?(:'foo?').should == true
+    @o.foo?.should == true
+
+    @o.respond_to?(:'isFoo2').should == true
+    @o.respond_to?(:'foo2?').should == true
+    @o.foo2?.should == false
   end
 
   it "is only exposed in #methods if the second argument is true" do
