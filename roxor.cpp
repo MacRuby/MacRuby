@@ -206,6 +206,8 @@ class RoxorCompiler
 	Function *compile_to_rval_convertor(const char *type);
 	Function *compile_to_ocval_convertor(const char *type);
 
+	const Type *convert_type(const char *type);
+
     private:
 	const char *fname;
 
@@ -391,7 +393,6 @@ class RoxorCompiler
 				BasicBlock::InstListType::iterator iter);
 	bool unbox_ruby_constant(Value *val, VALUE *rval);
 	SEL mid_to_sel(ID mid, int arity);
-	const Type *convert_type(const char *type);
 };
 
 llvm::Module *RoxorCompiler::module = NULL;
@@ -628,6 +629,10 @@ class RoxorVM
 
 	size_t get_sizeof(const Type *type) {
 	    return ee->getTargetData()->getTypeSizeInBits(type) / 8;
+	}
+
+	size_t get_sizeof(const char *type) {
+	    return get_sizeof(RoxorCompiler::shared->convert_type(type));
 	}
 
 	bool is_large_struct_type(const Type *type) {
@@ -9074,8 +9079,9 @@ VALUE rb_cPointer;
 
 typedef struct {
     VALUE type;
+    size_t type_size;
     VALUE (*convert_to_rval)(void *);
-    void (*convert_to_ocval)(VALUE rval, void **);
+    void (*convert_to_ocval)(VALUE rval, void *);
     void *val;
 } rb_vm_pointer_t;
 
@@ -9091,35 +9097,52 @@ rb_pointer_new(VALUE rcv, SEL sel, VALUE type)
     ptr->convert_to_rval =
 	(VALUE (*)(void *))GET_VM()->gen_to_rval_convertor(type_str);
     ptr->convert_to_ocval =
-	(void (*)(VALUE, void **))GET_VM()->gen_to_ocval_convertor(type_str);
-    ptr->val = NULL; // TODO
+	(void (*)(VALUE, void *))GET_VM()->gen_to_ocval_convertor(type_str);
+
+    ptr->type_size = GET_VM()->get_sizeof(type_str);
+    assert(ptr->type_size > 0);
+    GC_WB(&ptr->val, xmalloc(ptr->type_size));
 
     return Data_Wrap_Struct(rb_cPointer, NULL, NULL, ptr);
 }
 
+#define POINTER_VAL(ptr, idx) \
+    (void *)((char *)ptr->val + (FIX2INT(idx) * ptr->type_size))
+
 static VALUE
 rb_pointer_aref(VALUE rcv, SEL sel, VALUE idx)
 {
-    return Qnil;
+    Check_Type(idx, T_FIXNUM);
+
+    rb_vm_pointer_t *ptr;
+    Data_Get_Struct(rcv, rb_vm_pointer_t, ptr);
+
+    return ptr->convert_to_rval(POINTER_VAL(ptr, idx));
 }
 
 static VALUE
-rb_pointer_asef(VALUE rcv, SEL sel, VALUE idx, VALUE val)
+rb_pointer_aset(VALUE rcv, SEL sel, VALUE idx, VALUE val)
 {
-    return Qnil;
+    Check_Type(idx, T_FIXNUM);
+
+    rb_vm_pointer_t *ptr;
+    Data_Get_Struct(rcv, rb_vm_pointer_t, ptr);
+
+    ptr->convert_to_ocval(val, POINTER_VAL(ptr, idx));
+
+    return val;
 }
 
 static VALUE
 rb_pointer_assign(VALUE rcv, SEL sel, VALUE val)
 {
-    return rb_pointer_asef(rcv, 0, FIX2INT(0), val);
+    return rb_pointer_aset(rcv, 0, FIX2INT(0), val);
 }
 
 static VALUE
 rb_pointer_type(VALUE rcv, SEL sel)
 {
     rb_vm_pointer_t *ptr;
-
     Data_Get_Struct(rcv, rb_vm_pointer_t, ptr);
 
     return ptr->type;
@@ -9144,7 +9167,7 @@ Init_BridgeSupport(void)
     rb_objc_define_method(rb_cPointer, "[]",
 	    (void *)rb_pointer_aref, 1);
     rb_objc_define_method(rb_cPointer, "[]=",
-	    (void *)rb_pointer_asef, 2);
+	    (void *)rb_pointer_aset, 2);
     rb_objc_define_method(rb_cPointer, "assign",
 	    (void *)rb_pointer_assign, 1);
     rb_objc_define_method(rb_cPointer, "type",
