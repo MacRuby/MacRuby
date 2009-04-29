@@ -8005,6 +8005,7 @@ rb_vm_block_eval0(rb_vm_block_t *b, int argc, const VALUE *argv)
 
 block_call:
 
+    assert(!(b->flags & VM_BLOCK_ACTIVE));
     b->flags |= VM_BLOCK_ACTIVE;
     VALUE v = __rb_vm_bcall(b->self, (VALUE)b->dvars, b->imp, b->arity, argc,
 			    argv);
