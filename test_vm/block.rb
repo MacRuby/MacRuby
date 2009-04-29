@@ -180,5 +180,53 @@ assert "2\n1", %{
   f(1, true)
 }
 
+assert "42", %{
+  def f()
+    a = nil
+    1.times do
+      x = 42
+      a = proc { x }
+    end
+    a
+  end
+  p f.call
+}
+
+assert "42", %{
+  def f()
+    x = 42
+    a = nil
+    1.times do
+      a = proc { x }
+    end
+    a
+  end
+  p f.call
+}
+
+assert "42", %{
+  def f()
+    a = nil
+    b = proc do
+      x = 42
+      a = proc { x }
+    end
+    b.call
+  end
+  p f.call
+}
+
+assert "42", %{
+  def f()
+    x = 42
+    a = nil
+    b = proc do
+      a = proc { x }
+    end
+    b.call
+  end
+  p f.call
+}
+
 # Enumerator 
 assert "[\"f\", \"o\", \"o\"]", "p 'foo'.chars.to_a"
