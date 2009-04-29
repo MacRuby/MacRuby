@@ -21,6 +21,7 @@ typedef struct rb_vm_local rb_vm_local_t;
 
 #define VM_BLOCK_PROC	0x0001	// block is a Proc object
 #define VM_BLOCK_LAMBDA 0x0002	// block is a lambda
+#define VM_BLOCK_ACTIVE 0x0004	// block is active (being executed)
 
 typedef struct {
     VALUE self;

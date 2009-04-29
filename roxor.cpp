@@ -7700,7 +7700,7 @@ rb_vm_prepare_block(void *llvm_function, NODE *node, VALUE self,
     rb_vm_block_t *b;
     bool cached = false;
 
-    if (iter == GET_VM()->blocks.end()) {
+    if ((iter == GET_VM()->blocks.end()) || (iter->second->flags & (VM_BLOCK_ACTIVE | VM_BLOCK_PROC))) {
 	b = (rb_vm_block_t *)xmalloc(sizeof(rb_vm_block_t)
 		+ (sizeof(VALUE *) * dvars_size));
 
@@ -8005,22 +8005,10 @@ rb_vm_block_eval0(rb_vm_block_t *b, int argc, const VALUE *argv)
 
 block_call:
 
-    // We need to preserve dynamic variable slots here because our block may
-    // call the parent method which may call the block again, and since dvars
-    // are currently implemented using alloca() we will painfully die if the 
-    // previous slots are not restored.
-    VALUE *old_dvars[100];
-    assert(b->dvars_size < 100);
-    for (int i = 0; i < b->dvars_size; i++) {
-	old_dvars[i] = b->dvars[i];
-    }
-
+    b->flags |= VM_BLOCK_ACTIVE;
     VALUE v = __rb_vm_bcall(b->self, (VALUE)b->dvars, b->imp, b->arity, argc,
 			    argv);
-
-    for (int i = 0; i < b->dvars_size; i++) {
-	b->dvars[i] = old_dvars[i];
-    }
+    b->flags &= ~VM_BLOCK_ACTIVE;
 
     return v;
 }
