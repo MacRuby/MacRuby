@@ -228,5 +228,84 @@ assert "42", %{
   p f.call
 }
 
+assert "42", %{
+  def f()
+    a = nil
+    b = false
+    x = 42
+    while true
+      return a if b
+      b = true
+      a = proc { x }
+    end
+  end
+  p f.call
+}
+
+assert "42", %{
+  def f()
+    x = 42
+    $a = proc { x }
+    raise 'w'
+  end
+  begin
+    f
+  rescue
+    p $a.call
+  end
+}
+
+assert "42", %{
+  def g()
+    raise 'w'
+  end
+  def f()
+    x = 42
+    $a = proc { x }
+    g
+  end
+  begin
+    f
+  rescue
+    p $a.call
+  end
+}
+
+assert "42", %{
+  def f()
+    x = 42
+    $a = proc { x }
+    throw :w
+  end
+  catch(:w) do
+    f
+  end
+  p $a.call
+}
+
+assert "42", %{
+  def g()
+    throw :w
+  end
+  def f()
+    x = 42
+    $a = proc { x }
+    g()
+  end
+  catch(:w) do
+    f
+  end
+  p $a.call
+}
+
+assert "42", %{
+  def f()
+    x = 42
+    a = proc { x }
+    1.times { return a }
+  end
+  p f.call
+}
+
 # Enumerator 
 assert "[\"f\", \"o\", \"o\"]", "p 'foo'.chars.to_a"
