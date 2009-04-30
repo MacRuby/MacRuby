@@ -307,5 +307,29 @@ assert "42", %{
   p f.call
 }
 
+assert ":ok", %{
+  def f()
+    2.times do
+      begin
+        yield
+      rescue
+      end
+    end
+  end
+  f { raise 'a' }
+  p :ok
+}
+
+assert ":ok", %{
+  def f()
+    2.times do
+      catch(:a) do
+        yield
+      end
+    end
+  end
+  f { throw :a }
+  p :ok
+}
 # Enumerator 
 assert "[\"f\", \"o\", \"o\"]", "p 'foo'.chars.to_a"
