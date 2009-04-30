@@ -108,3 +108,28 @@ assert ":ok", %q{
 }
 
 assert ":ok", "1.times { x = foo rescue nil; }; p :ok"
+
+# the code inside an ensure is even executed
+# if we leave the ensure block with a throw
+assert ':ok', %{
+  catch(:a) do
+    begin
+      throw :a
+    ensure
+      p :ok
+    end
+  end  
+}
+
+# the code inside an ensure is even executed
+# if we leave the ensure block with a return
+assert ':ok', %{
+  def foo
+    begin
+      return
+    ensure
+      p :ok
+    end
+  end
+  foo
+}
