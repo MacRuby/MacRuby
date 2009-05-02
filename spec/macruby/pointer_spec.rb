@@ -1,8 +1,8 @@
 require File.dirname(__FILE__) + "/spec_helper"
 
-describe "A Pointer object" do
-  it "can be created using the #new class method and with a valid Objective-C type or a valid Symbol object" do
-    types = {
+describe "A Pointer object, when initializing" do
+  before :all do
+    @types = {
       :object     => '@',
       :char       => 'c',
       :uchar      => 'C',
@@ -17,81 +17,98 @@ describe "A Pointer object" do
       :float      => 'f',
       :double     => 'd'
     }
+  end
 
-    types.each do |sym, typestr|
-      p = nil
-      lambda { p = Pointer.new(sym) }.should_not raise_error
-      p.type.should == typestr
-
-      lambda { p = Pointer.new(typestr) }.should_not raise_error
-      p.type.should == typestr
+  it "accepts a valid Objective-C type string" do
+    @types.values.each do |type|
+      lambda { @pointer = Pointer.new(type) }.should_not raise_error
+      @pointer.type.should == type
     end
+  end
 
+  it "accepts a Symbol argument which responds to a valid Objective-C type" do
+    @types.each do |symbol, type|
+      lambda { @pointer = Pointer.new(symbol) }.should_not raise_error
+      @pointer.type.should == type
+    end
+  end
+
+  it "raises an ArgumentError when no argument is given" do
     lambda { Pointer.new }.should raise_error(ArgumentError)
+  end
+
+  it "raises a TypeError when a incompatible object is given" do
     lambda { Pointer.new(nil) }.should raise_error(TypeError)
     lambda { Pointer.new(123) }.should raise_error(TypeError)
     lambda { Pointer.new('x') }.should raise_error(TypeError)
-
-    p = Pointer.new(NSRect.type)
-    p.type.should == NSRect.type
   end
 
-  it "can be assigned an object of the given type and retrieve it later, using #[] and #[]=" do
-    p = Pointer.new('object')
-    o = Object.new
-    p[0] = o
-    p[0].object_id.should == o.object_id
-    p[0].should == o
+  it "accepts the type returned by NSRect" do
+    Pointer.new(NSRect.type).type.should == NSRect.type
+  end
+end
 
-    p[0] = 123
-    p[0].class.should == Fixnum
-    p[0].should == 123
+describe "Pointer, through #[] and #[]=" do
+  integer_types = %w{ char uchar short ushort int uint long ulong long_long ulong_long }
+  float_types   = %w{ float double }
 
-    int_types = %w{ char uchar short ushort int uint long ulong
-                    long_long ulong_long }
-    int_types.each do |t|
-      p = Pointer.new(t)
-      p[0] = 42
-      p[0].class.should == Fixnum
-      p[0].should == 42
+  structs       = [NSPoint.new(1, 2), NSSize.new(3, 4), NSRect.new(NSPoint.new(1, 2), NSSize.new(3, 4))]
+  struct_types  = structs.map { |x| x.class.type }
+  structs       = structs.zip(struct_types)
 
-      o = Object.new
-      def o.to_i; 42; end
-
-      p[0] = o
-      p[0].class.should == Fixnum
-      p[0].should == 42
-
-      lambda { p[0] = Object.new }.should raise_error(TypeError)
+  it "can assign and retrieve any object with type `object'" do
+    pointer = Pointer.new('object')
+    [Object.new, 123].each do |object|
+      pointer[0] = object
+      pointer[0].should == object
+      pointer[0].should be_kind_of(object.class)
     end
+  end
 
-    float_types = %w{ float double }
-    float_types.each do |t|
-      p = Pointer.new(t)
-      p[0] = 42
-      p[0].class.should == Float
-      p[0].should == 42.0
+  integer_types.each do |type|
+    it "can assign and retrieve Fixnum compatible objects for type `#{type}'" do
+      pointer = Pointer.new(type)
 
-      o = Object.new
-      def o.to_f; 42.0; end
+      coercable_object = Object.new
+      def coercable_object.to_i; 42; end
 
-      p[0] = o
-      p[0].class.should == Float
-      p[0].should == 42.0
-
-      lambda { p[0] = Object.new }.should raise_error(TypeError)
+      [42, coercable_object].each do |object|
+        pointer[0] = object
+        pointer[0].should == 42
+        pointer[0].should be_kind_of(Fixnum)
+      end
     end
+  end
+  
+  float_types.each do |type|
+    it "can assign and retrieve Float compatible objects for type `#{type}'" do
+      pointer = Pointer.new(type)
 
-    struct_types = [[NSPoint, NSPoint.new(1, 2)],
-                    [NSSize, NSSize.new(3, 4)],
-                    [NSRect, NSRect.new(NSPoint.new(1, 2), NSSize.new(3, 4))]]
-    struct_types.each do |k, o|
-      p = Pointer.new(k.type)
-      p[0] = o
-      p[0].class.should == k
-      p[0].should == o
+      coercable_object = Object.new
+      def coercable_object.to_f; 42.0; end
 
-      lambda { p[0] = Object.new }.should raise_error(TypeError)
+      [42, coercable_object].each do |object|
+        pointer[0] = object
+        pointer[0].should == 42.0
+        pointer[0].should be_kind_of(Float)
+      end
+    end
+  end
+
+  structs.each do |struct, type|
+    it "can assign and retrieve #{struct.class.name} objects for type `#{type}'" do
+      pointer = Pointer.new(type)
+
+      pointer[0] = struct
+      pointer[0].should == struct
+      pointer[0].should be_kind_of(struct.class)
+    end
+  end
+
+  (integer_types + float_types + struct_types).each do |type|
+    it "raises a TypeError when assigned an object not of type `#{type}'" do
+      pointer = Pointer.new(type)
+      lambda { pointer[0] = Object.new }.should raise_error(TypeError)
     end
   end
 end
