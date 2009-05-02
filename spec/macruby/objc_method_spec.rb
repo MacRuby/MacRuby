@@ -214,7 +214,7 @@ describe "A pure Objective-C method" do
     @o.methodAcceptingTrueBOOL(Object.new).should == 1
   end
 
-  it "accepting a Fixnum-compatible object as 'char', 'unsigned char', 'short', 'unsigned short', 'int', 'unsigned int', 'long', 'unsigned long' should receive the converted data, or raise an exception" do
+  it "accepts a Fixnum-compatible object for an argument of types: 'char', 'unsigned char', 'short', 'unsigned short', 'int', 'unsigned int', 'long', 'unsigned long'" do
     @o.methodAcceptingChar(42).should == 1
     @o.methodAcceptingUnsignedChar(42).should == 1
     @o.methodAcceptingShort(42).should == 1
@@ -232,7 +232,29 @@ describe "A pure Objective-C method" do
     @o.methodAcceptingUnsignedInt(42.0).should == 1
     @o.methodAcceptingLong(42.0).should == 1
     @o.methodAcceptingUnsignedLong(42.0).should == 1
+  end
 
+  it "raises a TypeError if an object is given which cannot be coerced to a Fixnum-compatible object for an argument of types: 'char', 'unsigned char', 'short', 'unsigned short', 'int', 'unsigned int', 'long', 'unsigned long'" do
+    lambda { @o.methodAcceptingChar(nil) }.should raise_error(TypeError)
+    lambda { @o.methodAcceptingUnsignedChar(nil) }.should raise_error(TypeError)
+    lambda { @o.methodAcceptingShort(nil) }.should raise_error(TypeError)
+    lambda { @o.methodAcceptingUnsignedShort(nil) }.should raise_error(TypeError)
+    lambda { @o.methodAcceptingInt(nil) }.should raise_error(TypeError)
+    lambda { @o.methodAcceptingUnsignedInt(nil) }.should raise_error(TypeError)
+    lambda { @o.methodAcceptingLong(nil) }.should raise_error(TypeError)
+    lambda { @o.methodAcceptingUnsignedLong(nil) }.should raise_error(TypeError)
+    
+    lambda { @o.methodAcceptingChar(Object.new) }.should raise_error(TypeError)
+    lambda { @o.methodAcceptingUnsignedChar(Object.new) }.should raise_error(TypeError)
+    lambda { @o.methodAcceptingShort(Object.new) }.should raise_error(TypeError)
+    lambda { @o.methodAcceptingUnsignedShort(Object.new) }.should raise_error(TypeError)
+    lambda { @o.methodAcceptingInt(Object.new) }.should raise_error(TypeError)
+    lambda { @o.methodAcceptingUnsignedInt(Object.new) }.should raise_error(TypeError)
+    lambda { @o.methodAcceptingLong(Object.new) }.should raise_error(TypeError)
+    lambda { @o.methodAcceptingUnsignedLong(Object.new) }.should raise_error(TypeError)
+  end
+
+  it "automatically coerces an object with #to_i for an argument of types: 'char', 'unsigned char', 'short', 'unsigned short', 'int', 'unsigned int', 'long', 'unsigned long'" do
     o2 = Object.new
     def o2.to_i; 42; end
 
@@ -244,24 +266,6 @@ describe "A pure Objective-C method" do
     @o.methodAcceptingUnsignedInt(o2).should == 1
     @o.methodAcceptingLong(o2).should == 1
     @o.methodAcceptingUnsignedLong(o2).should == 1
-
-    lambda { @o.methodAcceptingChar(nil) }.should raise_error(TypeError)
-    lambda { @o.methodAcceptingUnsignedChar(nil) }.should raise_error(TypeError)
-    lambda { @o.methodAcceptingShort(nil) }.should raise_error(TypeError)
-    lambda { @o.methodAcceptingUnsignedShort(nil) }.should raise_error(TypeError)
-    lambda { @o.methodAcceptingInt(nil) }.should raise_error(TypeError)
-    lambda { @o.methodAcceptingUnsignedInt(nil) }.should raise_error(TypeError)
-    lambda { @o.methodAcceptingLong(nil) }.should raise_error(TypeError)
-    lambda { @o.methodAcceptingUnsignedLong(nil) }.should raise_error(TypeError)
-
-    lambda { @o.methodAcceptingChar(Object.new) }.should raise_error(TypeError)
-    lambda { @o.methodAcceptingUnsignedChar(Object.new) }.should raise_error(TypeError)
-    lambda { @o.methodAcceptingShort(Object.new) }.should raise_error(TypeError)
-    lambda { @o.methodAcceptingUnsignedShort(Object.new) }.should raise_error(TypeError)
-    lambda { @o.methodAcceptingInt(Object.new) }.should raise_error(TypeError)
-    lambda { @o.methodAcceptingUnsignedInt(Object.new) }.should raise_error(TypeError)
-    lambda { @o.methodAcceptingLong(Object.new) }.should raise_error(TypeError)
-    lambda { @o.methodAcceptingUnsignedLong(Object.new) }.should raise_error(TypeError)
   end
 
   it "accepting a one-character string as 'char' or 'unsigned char' should receive the first character" do
