@@ -331,5 +331,17 @@ assert ":ok", %{
   f { throw :a }
   p :ok
 }
+
+assert ':ok', %{
+  def f()
+    a = :ok
+    b = true
+    x = proc { a }
+    1.times {
+      return x
+    }
+  end
+  p f.call
+}
 # Enumerator 
 assert "[\"f\", \"o\", \"o\"]", "p 'foo'.chars.to_a"
