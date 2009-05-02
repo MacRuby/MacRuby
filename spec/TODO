@@ -1,0 +1,5 @@
+* Merge eigenclass spec into metaclass spec
+* Cleanup MacRuby specs
+* Write more 1.9/MacRuby encoding specs
+* Merge Ruby-FFI specs (?)
+* Move/update existing MacRuby test cases (./test)
