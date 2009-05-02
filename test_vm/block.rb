@@ -343,5 +343,18 @@ assert ':ok', %{
   end
   p f.call
 }
+
+assert ':ok', %{
+  def f()
+    a = :ok
+    b = false
+    while true
+      return x = proc { a } if b
+      b = true
+    end
+  end
+  p f.call
+}
+
 # Enumerator 
 assert "[\"f\", \"o\", \"o\"]", "p 'foo'.chars.to_a"
