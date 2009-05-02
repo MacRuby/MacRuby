@@ -32,9 +32,20 @@
 {
 }
 
++ (BOOL)testMethodReturningVoid:(TestMethod *)o
+{
+    [o methodReturningVoid];
+    return YES;
+}
+
 - (id)methodReturningSelf
 {
     return self;
+}
+
++ (BOOL)testMethodReturningSelf:(TestMethod *)o
+{
+    return [o methodReturningSelf] == o;
 }
 
 - (id)methodReturningNil
@@ -42,14 +53,29 @@
     return nil;
 }
 
++ (BOOL)testMethodReturningNil:(TestMethod *)o
+{
+    return [o methodReturningNil] == nil;
+}
+
 - (id)methodReturningCFTrue
 {
     return (id)kCFBooleanTrue;
 }
 
++ (BOOL)testMethodReturningCFTrue:(TestMethod *)o
+{
+    return [o methodReturningCFTrue] == (id)kCFBooleanTrue;
+}
+
 - (id)methodReturningCFFalse
 {
     return (id)kCFBooleanFalse;
+}
+
++ (BOOL)testMethodReturningCFFalse:(TestMethod *)o
+{
+    return [o methodReturningCFFalse] == (id)kCFBooleanFalse;
 }
 
 - (id)methodReturningCFNull
@@ -62,9 +88,19 @@
     return YES;
 }
 
++ (BOOL)testMethodReturningYES:(TestMethod *)o
+{
+    return [o methodReturningYES] == YES;
+}
+
 - (BOOL)methodReturningNO
 {
     return NO;
+}
+
++ (BOOL)testMethodReturningNO:(TestMethod *)o
+{
+    return [o methodReturningNO] == NO;
 }
 
 - (char)methodReturningChar
@@ -72,9 +108,19 @@
     return (char)42;
 }
 
++ (BOOL)testMethodReturningChar:(TestMethod *)o
+{
+    return [o methodReturningChar] == (char)42;
+}
+
 - (char)methodReturningChar2
 {
     return (char)-42;
+}
+
++ (BOOL)testMethodReturningChar2:(TestMethod *)o
+{
+    return [o methodReturningChar2] == (char)-42;
 }
 
 - (unsigned char)methodReturningUnsignedChar
@@ -82,9 +128,19 @@
     return (unsigned char)42;
 }
 
++ (BOOL)testMethodReturningUnsignedChar:(TestMethod *)o
+{
+    return [o methodReturningUnsignedChar] == (unsigned char)42;
+}
+
 - (short)methodReturningShort
 {
     return (short)42;
+}
+
++ (BOOL)testMethodReturningShort:(TestMethod *)o
+{
+    return [o methodReturningShort] == (short)42;
 }
 
 - (short)methodReturningShort2
@@ -92,9 +148,19 @@
     return (short)-42;
 }
 
++ (BOOL)testMethodReturningShort2:(TestMethod *)o
+{
+    return [o methodReturningShort2] == (short)-42;
+}
+
 - (unsigned short)methodReturningUnsignedShort
 {
     return (unsigned short)42;
+}
+
++ (BOOL)testMethodReturningUnsignedShort:(TestMethod *)o
+{
+    return [o methodReturningUnsignedShort] == (unsigned short)42;
 }
 
 - (int)methodReturningInt
@@ -102,9 +168,19 @@
     return 42;
 }
 
++ (BOOL)testMethodReturningInt:(TestMethod *)o
+{
+    return [o methodReturningInt] == (int)42;
+}
+
 - (int)methodReturningInt2
 {
     return -42;
+}
+
++ (BOOL)testMethodReturningInt2:(TestMethod *)o
+{
+    return [o methodReturningInt2] == (int)-42;
 }
 
 - (unsigned int)methodReturningUnsignedInt
@@ -112,14 +188,29 @@
     return 42;
 }
 
++ (BOOL)testMethodReturningUnsignedInt:(TestMethod *)o
+{
+    return [o methodReturningUnsignedInt] == (int)42;
+}
+
 - (long)methodReturningLong
 {
     return 42;
+}
+
++ (BOOL)testMethodReturningLong:(TestMethod *)o
+{
+    return [o methodReturningLong] == (long)42;
 }
  
 - (long)methodReturningLong2
 {
     return -42;
+}
+
++ (BOOL)testMethodReturningLong2:(TestMethod *)o
+{
+    return [o methodReturningLong2] == (long)-42;
 }
 
 - (long)methodReturningLong3
@@ -143,6 +234,11 @@
 - (unsigned long)methodReturningUnsignedLong
 {
     return 42;
+}
+
++ (BOOL)testMethodReturningUnsignedLong:(TestMethod *)o
+{
+    return [o methodReturningUnsignedLong] == (unsigned long)42;
 }
 
 - (unsigned long)methodReturningUnsignedLong2

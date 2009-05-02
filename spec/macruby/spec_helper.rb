@@ -32,7 +32,7 @@ class FixtureCompiler
   private
   
   def needs_update?
-    !File.exist?(bundle) or File.mtime(fixture) > File.mtime(fixture)
+    !File.exist?(bundle) or File.mtime(fixture) > File.mtime(bundle)
   end
   
   def compile!

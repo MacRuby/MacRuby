@@ -1,6 +1,8 @@
 require File.dirname(__FILE__) + "/spec_helper"
 FixtureCompiler.require! "method"
 
+require File.dirname(__FILE__) + '/fixtures/method'
+
 describe "A pure Objective-C method" do
   before :each do
     @o = TestMethod.new
@@ -395,5 +397,82 @@ describe "A pure Objective-C method" do
     @o.methodAcceptingNSRectPtr2(nil).should == 1
 
     lambda { @o.methodAcceptingNSRectPtr2(Pointer.new(NSPoint.type)) }.should raise_error(TypeError)
+  end
+end
+
+describe "A pure MacRuby method" do
+  before :each do
+    @o = TestMethodOverride.new
+  end
+
+  it "can overwrite an Objective-C method returning void" do
+    @o.methodReturningVoid.should == 42
+    TestMethodOverride.testMethodReturningVoid(@o).should == 1
+  end
+
+  it "can overwrite an Objective-C method returning self" do
+    @o.methodReturningSelf.should == @o
+    TestMethodOverride.testMethodReturningSelf(@o).should == 1
+  end
+
+  it "can overwrite an Objective-C method returning nil as 'id'" do
+    @o.methodReturningNil.should == nil
+    TestMethodOverride.testMethodReturningNil(@o).should == 1
+  end
+
+  it "can overwrite an Objective-C method returning kCFBooleanTrue as 'id'" do
+    @o.methodReturningCFTrue.should == true
+    TestMethodOverride.testMethodReturningCFTrue(@o).should == 1
+  end
+
+  it "can overwrite an Objective-C method returning kCFBooleanFalse as 'id'" do
+    @o.methodReturningCFFalse.should == false
+    TestMethodOverride.testMethodReturningCFFalse(@o).should == 1
+  end
+
+  it "can overwrite an Objective-C method returning YES as 'BOOL'" do
+    @o.methodReturningYES.should == true
+    TestMethodOverride.testMethodReturningYES(@o).should == 1
+  end
+
+  it "can overwrite an Objective-C method returning NO as 'BOOL'" do
+    @o.methodReturningNO.should == false
+    TestMethodOverride.testMethodReturningNO(@o).should == 1
+  end
+
+  it "can overwrite an Objective-C method returning 'unsigned char' or 'char'" do
+    @o.methodReturningChar.should == 42
+    @o.methodReturningChar2.should == -42
+    @o.methodReturningUnsignedChar.should == 42
+    TestMethodOverride.testMethodReturningChar(@o).should == 1
+    TestMethodOverride.testMethodReturningChar2(@o).should == 1
+    TestMethodOverride.testMethodReturningUnsignedChar(@o).should == 1
+  end
+
+  it "can overwrite an Objective-C method returning 'unsigned short' or 'short'" do
+    @o.methodReturningShort.should == 42
+    @o.methodReturningShort2.should == -42
+    @o.methodReturningUnsignedShort.should == 42
+    TestMethodOverride.testMethodReturningShort(@o).should == 1
+    TestMethodOverride.testMethodReturningShort2(@o).should == 1
+    TestMethodOverride.testMethodReturningUnsignedShort(@o).should == 1
+  end
+
+  it "can overwrite an Objective-C method returning 'unsigned int' or 'int'" do
+    @o.methodReturningInt.should == 42
+    @o.methodReturningInt2.should == -42
+    @o.methodReturningUnsignedInt.should == 42
+    TestMethodOverride.testMethodReturningInt(@o).should == 1
+    TestMethodOverride.testMethodReturningInt2(@o).should == 1
+    TestMethodOverride.testMethodReturningUnsignedInt(@o).should == 1
+  end
+
+  it "can overwrite an Objective-C method returning 'unsigned long' or 'long'" do
+    @o.methodReturningLong.should == 42
+    @o.methodReturningLong2.should == -42
+    @o.methodReturningUnsignedLong.should == 42
+    TestMethodOverride.testMethodReturningLong(@o).should == 1
+    TestMethodOverride.testMethodReturningLong2(@o).should == 1
+    TestMethodOverride.testMethodReturningUnsignedLong(@o).should == 1
   end
 end
