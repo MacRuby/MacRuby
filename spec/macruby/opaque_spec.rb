@@ -1,6 +1,4 @@
-require File.dirname(__FILE__) + '/../spec_helper'
-
-framework 'Foundation'
+require File.dirname(__FILE__) + "/spec_helper"
 
 describe "A BridgeSupport opaque type" do
   it "is an instance of Boxed" do

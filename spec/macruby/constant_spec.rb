@@ -1,14 +1,5 @@
-require File.dirname(__FILE__) + '/../spec_helper'
-
-framework 'Foundation'
-
-fixture_source = File.dirname(__FILE__) + '/fixtures/constant.m'
-fixture_ext = '/tmp/constant.bundle'
-if !File.exist?(fixture_ext) or File.mtime(fixture_source) > File.mtime(fixture_ext)
-  `/usr/bin/gcc #{fixture_source} -o #{fixture_ext} -g -framework Foundation -dynamiclib -fobjc-gc -arch i386 -arch x86_64 -arch ppc`
-end
-require '/tmp/constant'
-load_bridge_support_file File.dirname(__FILE__) + '/fixtures/constant.bridgesupport'
+require File.dirname(__FILE__) + "/spec_helper"
+FixtureCompiler.require! "constant"
 
 describe "A BridgeSupport constant" do
   it "of type 'id' is available as an Object in Ruby" do

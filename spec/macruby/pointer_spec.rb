@@ -1,6 +1,4 @@
-require File.dirname(__FILE__) + '/../spec_helper'
-
-framework 'Foundation'
+require File.dirname(__FILE__) + "/spec_helper"
 
 describe "A Pointer object" do
   it "can be created using the #new class method and with a valid Objective-C type or a valid Symbol object" do
