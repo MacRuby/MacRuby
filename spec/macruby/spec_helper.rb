@@ -1,11 +1,12 @@
 framework 'Foundation'
 
+SPEC_ROOT = File.dirname(__FILE__)
+FIXTURES = File.join(SPEC_ROOT, "fixtures")
+
 class FixtureCompiler
   def self.require!(fixture)
     new(fixture).require!
   end
-  
-  FIXTURES = File.join(File.dirname(__FILE__), "fixtures")
   
   FRAMEWORKS = %w{ Foundation }
   ARCHS      = %w{ i386 x86_64 ppc }

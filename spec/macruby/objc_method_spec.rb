@@ -7,11 +7,8 @@ describe "A pure Objective-C method" do
   end
 
   it "can be called with #foo= if it matches the #setFoo pattern" do
-    # Note: we cannot use #have_method here because pure Objective-C
-    # methods as well as convenience shortcuts are not exposed in #methods.
-    @o.respond_to?(:'setFoo').should == true
-    @o.respond_to?(:'foo=').should == true
-    @o.respond_to?(:'foo').should == true
+    @o.should respond_to(:'setFoo')
+    @o.should respond_to(:'foo=')
 
     @o.setFoo(123)
     @o.foo.should == 123
@@ -20,22 +17,16 @@ describe "A pure Objective-C method" do
   end
 
   it "can be called with #foo? if it matches the #isFoo pattern" do
-    @o.respond_to?(:'isFoo').should == true
-    @o.respond_to?(:'foo?').should == true
-    @o.foo?.should == true
+    @o.should respond_to(:'isFoo')
+    @o.should respond_to(:'foo?')
 
-    @o.respond_to?(:'isFoo2').should == true
-    @o.respond_to?(:'foo2?').should == true
-    @o.foo2?.should == false
+    @o.foo?.should equal(@o.isFoo)
   end
 
   it "is only exposed in #methods if the second argument is true" do
-    o = Object.new
-    o.methods.include?(:'performSelector').should == false
-    o.methods(true).include?(:'performSelector').should == false
-    o.methods(false).include?(:'performSelector').should == false
-    o.methods(true, true).include?(:'performSelector').should == true
-    o.methods(false, true).include?(:'performSelector').should == true
+    @o.methods.should_not include(:'performSelector')
+    @o.methods(true).should_not include(:'performSelector')
+    @o.methods(true, true).should include(:'performSelector')
   end
 
   it "can be called on an immediate object" do
