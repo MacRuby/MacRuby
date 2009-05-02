@@ -34,12 +34,28 @@ rb_proc_alloc(VALUE klass)
     return obj;
 }
 
+void rb_gc_assign_weak_ref(const void *value, void *const*location);
+
 VALUE
 rb_proc_alloc_with_block(VALUE klass, rb_vm_block_t *proc)
 {
     VALUE obj;
     obj = Data_Wrap_Struct(klass, NULL, NULL, proc);
-    proc->flags |= VM_BLOCK_PROC;
+    if (!(proc->flags & VM_BLOCK_PROC)) {
+	proc->flags |= VM_BLOCK_PROC;
+	if (proc->parent_lvar_uses != NULL) {
+	    rb_vm_lvar_uses_t** parent_lvar_uses = proc->parent_lvar_uses;
+	    if ((*parent_lvar_uses == NULL) || ((*parent_lvar_uses)->uses_count == VM_LVAR_USES_SIZE)) {
+		rb_vm_lvar_uses_t* new_uses = malloc(sizeof(rb_vm_lvar_uses_t));
+		new_uses->next = *parent_lvar_uses;
+		new_uses->uses_count = 0;
+		*parent_lvar_uses = new_uses;
+	    }
+	    int current_index = (*parent_lvar_uses)->uses_count;
+	    rb_gc_assign_weak_ref(proc, &(*parent_lvar_uses)->uses[current_index]);
+	    ++(*parent_lvar_uses)->uses_count;
+	}
+    }
     return obj;
 }
 

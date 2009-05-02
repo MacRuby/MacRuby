@@ -231,6 +231,7 @@ class RoxorCompiler
 	ID self_id;
 	Value *current_self;
 	bool current_block;
+	Value *current_lvar_uses;
 	BasicBlock *begin_bb;
 	BasicBlock *rescue_bb;
 	BasicBlock *ensure_bb;
@@ -279,6 +280,7 @@ class RoxorCompiler
 	Function *newRangeFunc;
 	Function *newRegexpFunc;
 	Function *strInternFunc;
+	Function *keepVarsFunc;
 	Function *masgnGetElemBeforeSplatFunc;
 	Function *masgnGetElemAfterSplatFunc;
 	Function *masgnGetSplatFunc;
@@ -322,6 +324,13 @@ class RoxorCompiler
 	    return insert_to_bb
 		? new IntToPtrInst(ptrint, PtrTy, "", bb)
 		: new IntToPtrInst(ptrint, PtrTy, "");
+	}
+
+	Instruction *compile_const_pointer_to_pointer(void *ptr, bool insert_to_bb=true) {
+	    Value *ptrint = ConstantInt::get(IntTy, (long)ptr);
+	    return insert_to_bb
+		? new IntToPtrInst(ptrint, PtrPtrTy, "", bb)
+		: new IntToPtrInst(ptrint, PtrPtrTy, "");
 	}
 
 	Value *compile_protected_call(Function *func, std::vector<Value *> &params);
@@ -660,6 +669,7 @@ RoxorCompiler::RoxorCompiler(const char *_fname)
     current_instance_method = false;
     self_id = rb_intern("self");
     current_self = NULL;
+    current_lvar_uses = NULL;
     current_block = false;
     current_block_node = NULL;
     current_block_func = NULL;
@@ -706,6 +716,7 @@ RoxorCompiler::RoxorCompiler(const char *_fname)
     newRangeFunc = NULL;
     newRegexpFunc = NULL;
     strInternFunc = NULL;
+    keepVarsFunc = NULL;
     masgnGetElemBeforeSplatFunc = NULL;
     masgnGetElemAfterSplatFunc = NULL;
     masgnGetSplatFunc = NULL;
@@ -1226,11 +1237,13 @@ RoxorCompiler::compile_block_create(NODE *node)
 
     if (prepareBlockFunc == NULL) {
 	// void *rb_vm_prepare_block(Function *func, NODE *node, VALUE self,
+	//			     rb_vm_lvar_uses_t **parent_lvar_uses,
 	//			     int dvars_size, ...);
 	std::vector<const Type *> types;
 	types.push_back(PtrTy);
 	types.push_back(PtrTy);
 	types.push_back(RubyObjTy);
+	types.push_back(PtrPtrTy);
 	types.push_back(Type::Int32Ty);
 	FunctionType *ft = FunctionType::get(PtrTy, types, true);
 	prepareBlockFunc = cast<Function>
@@ -1241,6 +1254,12 @@ RoxorCompiler::compile_block_create(NODE *node)
     params.push_back(compile_const_pointer(current_block_func));
     params.push_back(compile_const_pointer(current_block_node));
     params.push_back(current_self);
+    if (current_lvar_uses == NULL) {
+	params.push_back(compile_const_pointer_to_pointer(NULL));
+    }
+    else {
+	params.push_back(current_lvar_uses);
+    }
 
     // Dvars.
     params.push_back(ConstantInt::get(Type::Int32Ty, (int)dvars.size()));
@@ -2984,7 +3003,15 @@ RoxorCompiler::compile_node(NODE *node)
 		    dvars_arg->setName("dvars");
 		}
 
-		if (node->nd_tbl != NULL) {
+		Value *old_current_lvar_uses = current_lvar_uses;
+
+		if (node->nd_tbl == NULL) {
+		    current_lvar_uses = NULL;
+		}
+		else {
+		    current_lvar_uses = new AllocaInst(PtrTy, "", bb);
+		    new StoreInst(compile_const_pointer(NULL), current_lvar_uses, bb);
+
 		    int i, args_count = (int)node->nd_tbl[0];
 		    assert(args_count == nargs
 			    || args_count == nargs + 1 /* optional block */
@@ -3087,6 +3114,39 @@ RoxorCompiler::compile_node(NODE *node)
 		if (val == NULL) {
 		    val = nilVal;
 		}
+
+		// current_lvar_uses has 2 uses or more if it is really used
+		// (there is always a StoreInst in which we assign it NULL)
+		if (current_lvar_uses != NULL && current_lvar_uses->hasNUsesOrMore(2)) {
+		    // TODO: only call the function is current_use is not NULL
+		    if (keepVarsFunc == NULL) {
+			// void rb_vm_keep_vars(rb_vm_lvar_uses_t *uses, int lvars_size, ...);
+			std::vector<const Type *> types;
+			types.push_back(PtrTy);
+			types.push_back(Type::Int32Ty);
+			FunctionType *ft = FunctionType::get(Type::VoidTy, types, true);
+			keepVarsFunc = cast<Function>
+			    (module->getOrInsertFunction("rb_vm_keep_vars", ft));
+		    }
+
+		    std::vector<Value *> params;
+
+		    params.push_back(new LoadInst(current_lvar_uses, "", bb));
+
+		    params.push_back(ConstantInt::get(Type::Int32Ty, (int)lvars.size()));
+		    for (std::map<ID, Value *>::iterator iter = lvars.begin();
+			 iter != lvars.end(); ++iter) {
+			ID name = iter->first;
+			Value *slot = iter->second;
+			if (std::find(dvars.begin(), dvars.end(), name) == dvars.end()) {
+			    params.push_back(ConstantInt::get(IntTy, (long)name));
+			    params.push_back(slot);
+			}
+		    }
+
+		    CallInst::Create(keepVarsFunc, params.begin(), params.end(), "", bb);
+		}
+
 		ReturnInst::Create(val, bb);
 
 		bb = old_bb;
@@ -3094,6 +3154,7 @@ RoxorCompiler::compile_node(NODE *node)
 		lvars = old_lvars;
 		current_self = old_self;
 		rescue_bb = old_rescue_bb;
+		current_lvar_uses = old_current_lvar_uses;
 
 		return cast<Value>(f);
 	    }
@@ -7681,7 +7742,7 @@ rb_vm_get_block(VALUE obj)
 
 extern "C"
 rb_vm_block_t *
-rb_vm_prepare_block(void *llvm_function, NODE *node, VALUE self,
+rb_vm_prepare_block(void *llvm_function, NODE *node, VALUE self, rb_vm_lvar_uses_t **parent_lvar_uses,
 		    int dvars_size, ...)
 {
     NODE *cache_key;
@@ -7716,6 +7777,7 @@ rb_vm_prepare_block(void *llvm_function, NODE *node, VALUE self,
 	}
 	b->flags = 0;
 	b->dvars_size = dvars_size;
+	b->parent_lvar_uses = NULL;
 
 	rb_objc_retain(b);
 	GET_VM()->blocks[cache_key] = b;
@@ -7728,6 +7790,7 @@ rb_vm_prepare_block(void *llvm_function, NODE *node, VALUE self,
 
     b->self = self;
     b->node = node;
+    b->parent_lvar_uses = parent_lvar_uses;
 
     va_list ar;
     va_start(ar, dvars_size);
@@ -7754,6 +7817,71 @@ rb_vm_prepare_block(void *llvm_function, NODE *node, VALUE self,
     va_end(ar);
 
     return b;
+}
+
+extern "C"
+void*
+rb_gc_read_weak_ref(void **referrer);
+
+struct rb_vm_kept_local {
+    ID name;
+    VALUE *stack_address;
+    VALUE *new_address;
+};
+
+extern "C"
+void
+rb_vm_keep_vars(rb_vm_lvar_uses_t *uses, int lvars_size, ...)
+{
+    rb_vm_lvar_uses_t *current = uses;
+    int use_index;
+
+    while (current != NULL) {
+	for (use_index = 0; use_index < current->uses_count; ++use_index) {
+	    if (rb_gc_read_weak_ref(&current->uses[use_index]) != NULL) {
+		goto use_found;
+	    }
+	}
+
+	void *old_current = current;
+	current = current->next;
+	free(old_current);
+    }
+    // no use still alive so nothing to do
+    return;
+
+use_found:
+    rb_vm_kept_local *locals = (rb_vm_kept_local *)alloca(sizeof(rb_vm_kept_local)*lvars_size);
+
+    va_list ar;
+    va_start(ar, lvars_size);
+    for (int i = 0; i < lvars_size; ++i) {
+	locals[i].name = va_arg(ar, ID);
+	locals[i].stack_address = va_arg(ar, VALUE *);
+	locals[i].new_address = (VALUE *)xmalloc(sizeof(VALUE));
+	GC_WB(locals[i].new_address, *locals[i].stack_address);
+    }
+    va_end(ar);
+
+    while (current != NULL) {
+	for (; use_index < current->uses_count; ++use_index) {
+	    rb_vm_block_t *block = (rb_vm_block_t *)rb_gc_read_weak_ref(&current->uses[use_index]);
+	    if (block != NULL) {
+		for (int dvar_index=0; dvar_index<block->dvars_size; ++dvar_index) {
+		    for (int lvar_index=0; lvar_index<lvars_size; ++lvar_index) {
+			if (block->dvars[dvar_index] == locals[lvar_index].stack_address) {
+			    GC_WB(&block->dvars[dvar_index], locals[lvar_index].new_address);
+			    break;
+			}
+		    }
+		}
+	    }
+	}
+	void *old_current = current;
+	current = current->next;
+	use_index = 0;
+	free(old_current);
+    }
 }
 
 extern "C"
