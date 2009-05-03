@@ -3140,10 +3140,11 @@ RoxorCompiler::compile_node(NODE *node)
 		    val = nilVal;
 		}
 
+		ReturnInst::Create(val, bb);
+
 		// current_lvar_uses has 2 uses or more if it is really used
 		// (there is always a StoreInst in which we assign it NULL)
 		if (current_lvar_uses != NULL && current_lvar_uses->hasNUsesOrMore(2)) {
-		    // TODO: only call the function is current_use is not NULL
 		    if (keepVarsFunc == NULL) {
 			// void rb_vm_keep_vars(rb_vm_lvar_uses_t *uses, int lvars_size, ...);
 			std::vector<const Type *> types;
@@ -3156,7 +3157,7 @@ RoxorCompiler::compile_node(NODE *node)
 
 		    std::vector<Value *> params;
 
-		    params.push_back(new LoadInst(current_lvar_uses, "", bb));
+		    params.push_back(NULL); // will be filled later
 
 		    params.push_back(ConstantInt::get(Type::Int32Ty, (int)lvars.size()));
 		    for (std::map<ID, Value *>::iterator iter = lvars.begin();
@@ -3169,10 +3170,22 @@ RoxorCompiler::compile_node(NODE *node)
 			}
 		    }
 
-		    CallInst::Create(keepVarsFunc, params.begin(), params.end(), "", bb);
+		    // searches all ReturnInst in the function we just created and add before
+		    // a call to the function to save the local variables if necessary
+		    // (we can't do this before finishing compiling the whole function
+		    // because we can't be sure if a block is there or not before)
+		    for (Function::iterator block_it = f->begin(); block_it != f->end(); ++block_it) {
+			for (BasicBlock::iterator inst_it = block_it->begin(); inst_it != block_it->end(); ++inst_it) {
+			    if (dyn_cast<ReturnInst>(inst_it)) {
+				// LoadInst needs to be inserted in a BasicBlock
+				// so we has to wait before putting it in params
+				params[0] = new LoadInst(current_lvar_uses, "", inst_it);
+				// TODO: only call the function is current_use is not NULL
+				CallInst::Create(keepVarsFunc, params.begin(), params.end(), "", inst_it);
+			    }
+			}
+		    }
 		}
-
-		ReturnInst::Create(val, bb);
 
 		bb = old_bb;
 		entry_bb = old_entry_bb;
@@ -8006,7 +8019,7 @@ rb_vm_keep_vars(rb_vm_lvar_uses_t *uses, int lvars_size, ...)
 	current = current->next;
 	free(old_current);
     }
-    // no use still alive so nothing to do
+    // there's no use alive anymore so nothing to do
     return;
 
 use_found:

@@ -19,7 +19,7 @@ struct rb_vm_local {
 };
 typedef struct rb_vm_local rb_vm_local_t;
 
-#define VM_LVAR_USES_SIZE 128
+#define VM_LVAR_USES_SIZE 8
 typedef struct rb_vm_lvar_uses {
     int uses_count;
     void *uses[VM_LVAR_USES_SIZE];
