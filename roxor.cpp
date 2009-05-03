@@ -527,6 +527,7 @@ class RoxorVM
 	std::map<ID, bs_element_constant_t *> bs_consts;
 	std::map<std::string, std::map<SEL, bs_element_method_t *> *>
 	    bs_classes_class_methods, bs_classes_instance_methods;
+	std::map<std::string, bs_element_cftype_t *> bs_cftypes;
 
 	bs_element_method_t *find_bs_method(Class klass, SEL sel);
 	rb_vm_bs_boxed_t *find_bs_boxed(std::string type);
@@ -5340,6 +5341,11 @@ RoxorCompiler::compile_conversion_to_c(const char *type, Value *val,
 
     type = SkipTypeModifiers(type);
 
+    if (*type == _C_PTR
+	&& GET_VM()->bs_cftypes.find(type) != GET_VM()->bs_cftypes.end()) {
+	type = "@";
+    }
+
     switch (*type) {
 	case _C_ID:
 	case _C_CLASS:
@@ -5596,6 +5602,11 @@ RoxorCompiler::compile_conversion_to_ruby(const char *type,
 
     type = SkipTypeModifiers(type);
 
+    if (*type == _C_PTR
+	&& GET_VM()->bs_cftypes.find(type) != GET_VM()->bs_cftypes.end()) {
+	type = "@";
+    }
+
     switch (*type) {
 	case _C_VOID:
 	    return nilVal;
@@ -5723,7 +5734,7 @@ RoxorCompiler::convert_type(const char *type)
 
 	case _C_ID:
 	case _C_CLASS:
-	    return RubyObjTy;
+	    return PtrTy;
 
 	case _C_SEL:
 	case _C_CHARPTR:
@@ -9766,12 +9777,18 @@ bs_parse_cb(bs_parser_t *parser, const char *path, bs_element_type_t type,
 
 	case BS_ELEMENT_CFTYPE:
 	{
-#if 0
+	    
 	    bs_element_cftype_t *bs_cftype = (bs_element_cftype_t *)value;
-	    st_insert(bs_cftypes, (st_data_t)bs_cftype->type, 
-		    (st_data_t)bs_cftype);
-	    do_not_free = true;
-#endif
+	    std::map<std::string, bs_element_cftype_t *>::iterator
+		iter = GET_VM()->bs_cftypes.find(bs_cftype->type);
+	    if (iter == GET_VM()->bs_cftypes.end()) {
+		GET_VM()->bs_cftypes[bs_cftype->type] = bs_cftype;
+		do_not_free = true;
+	    }
+	    else {
+		rb_warning("bs: CF type `%s' already defined",
+			bs_cftype->type);
+	    }
 	    break;
 	}
     }
