@@ -110,6 +110,19 @@ class Rake::UpstreamGitRepoTasks
             end
           end
 
+          namespace :patches do
+            desc "Applies all patches in #{@local_dir}/upstream_patches"
+            task :apply do
+              Dir.chdir(@local_dir) do
+                patches = Dir.glob("upstream_patches/*.patch")
+                patches.sort_by { |name| File.basename(name)[0,4] }.each do |patch|
+                  puts "\nApplying patch: #{File.basename(patch)}"
+                  sh "/usr/bin/patch -p1 < #{patch}"
+                end
+              end
+            end
+          end
+
           desc "Remove the `#{@upstream_options[:branch]}' branch and switch to the `master' branch (cleans all untracked files!)"
           task :remove do
             puts "\nRemoving the `#{@upstream_options[:branch]}' branch and all untracked files!"
