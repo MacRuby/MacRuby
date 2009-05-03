@@ -1,4 +1,4 @@
-framework 'Foundation'
+framework 'Cocoa'
 
 SPEC_ROOT = File.dirname(__FILE__)
 FIXTURES = File.join(SPEC_ROOT, "fixtures")

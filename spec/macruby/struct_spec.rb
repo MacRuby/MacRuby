@@ -145,20 +145,20 @@ describe "A BridgeSupport structure" do
 
   it "has a nice #inspect message that lists the fields" do
     p = NSPoint.new
-    p.inspect.should == "#<NSPoint x=0.0 y=0.0>"
+    p.inspect.should == "#<CGPoint x=0.0 y=0.0>"
     p.x = 1
     p.y = 2
-    p.inspect.should == "#<NSPoint x=1.0 y=2.0>"
+    p.inspect.should == "#<CGPoint x=1.0 y=2.0>"
 
     s = NSSize.new(3, 4)
-    s.inspect.should == "#<NSSize width=3.0 height=4.0>"
+    s.inspect.should == "#<CGSize width=3.0 height=4.0>"
 
     r = NSRect.new
-    r.inspect.should == "#<NSRect origin=#<NSPoint x=0.0 y=0.0> size=#<NSSize width=0.0 height=0.0>>"
+    r.inspect.should == "#<CGRect origin=#<CGPoint x=0.0 y=0.0> size=#<CGSize width=0.0 height=0.0>>"
     r.origin = p
-    r.inspect.should == "#<NSRect origin=#<NSPoint x=1.0 y=2.0> size=#<NSSize width=0.0 height=0.0>>"
+    r.inspect.should == "#<CGRect origin=#<CGPoint x=1.0 y=2.0> size=#<CGSize width=0.0 height=0.0>>"
     r.size = s
-    r.inspect.should == "#<NSRect origin=#<NSPoint x=1.0 y=2.0> size=#<NSSize width=3.0 height=4.0>>"
+    r.inspect.should == "#<CGRect origin=#<CGPoint x=1.0 y=2.0> size=#<CGSize width=3.0 height=4.0>>"
   end
 
   it "can be duplicated using #dup or #clone" do
@@ -202,5 +202,14 @@ describe "A BridgeSupport structure" do
       NSSize.type.should == '{_NSSize=ff}'
       NSRect.type.should == '{_NSRect={_NSPoint=ff}{_NSSize=ff}}'
     end
+  end
+
+  it "defined after a structure which has the same type is an alias to the other structure class" do
+    NSPoint.should == CGPoint
+    NSSize.should == CGSize
+    NSRect.should == CGRect
+    NSPoint.object_id.should == CGPoint.object_id
+    NSSize.object_id.should == CGSize.object_id
+    NSRect.object_id.should == CGRect.object_id
   end
 end

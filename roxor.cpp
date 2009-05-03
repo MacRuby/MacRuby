@@ -9320,6 +9320,11 @@ register_bs_boxed(bs_element_type_t type, void *value)
 	GET_VM()->bs_boxed.find(octype);
 
     if (iter != GET_VM()->bs_boxed.end()) {
+	// A boxed class of this type already exists, so let's create an
+	// alias to it.
+	rb_vm_bs_boxed_t *boxed = iter->second;
+	const ID name = rb_intern(((bs_element_opaque_t *)value)->name);
+	rb_const_set(rb_cObject, name, boxed->klass);
 	return false;
     }
 
