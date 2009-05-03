@@ -6398,18 +6398,29 @@ RoxorCompiler::compile_objc_stub(Function *ruby_func, const char *types)
 {
     char buf[100];
     const char *p = types;
+    std::vector<const Type *> f_types;
 
+    // Return value.
     p = GetFirstType(p, buf, sizeof buf);
     std::string ret_type(buf);
     const Type *f_ret_type = convert_type(buf);
+    const Type *f_sret_type = NULL;
+    if (GET_VM()->is_large_struct_type(f_ret_type)) {
+	// We are returning a large struct, we need to pass a pointer as the
+	// first argument to the structure data and return void to conform to
+	// the ABI.
+	f_types.push_back(PointerType::getUnqual(f_ret_type));
+	f_sret_type = f_ret_type;
+	f_ret_type = Type::VoidTy;
+    }
 
-    std::vector<const Type *> f_types;
     // self
     f_types.push_back(RubyObjTy);
     p = SkipFirstType(p);
     // sel
     f_types.push_back(PtrTy);
     p = SkipFirstType(p);
+    // Arguments.
     std::vector<std::string> arg_types;
     for (unsigned int i = 0; i < ruby_func->arg_size() - 2; i++) {
 	p = GetFirstType(p, buf, sizeof buf);
@@ -6417,30 +6428,43 @@ RoxorCompiler::compile_objc_stub(Function *ruby_func, const char *types)
 	arg_types.push_back(buf);
     }
 
+    // Create the function.
     FunctionType *ft = FunctionType::get(f_ret_type, f_types, false);
     Function *f = cast<Function>(module->getOrInsertFunction("", ft));
     Function::arg_iterator arg = f->arg_begin();
 
     bb = BasicBlock::Create("EntryBlock", f);
 
+    Value *sret = NULL;
+    if (f_sret_type != NULL) {
+	sret = arg++;
+	f->addAttribute(0, Attribute::StructRet);
+    }
+
     std::vector<Value *> params;
     params.push_back(arg++); // self
     params.push_back(arg++); // sel
 
+    // Convert every incoming argument into Ruby type.
     for (unsigned int i = 0; i < ruby_func->arg_size() - 2; i++) {
 	Value *ruby_arg = compile_conversion_to_ruby(arg_types[i].c_str(),
 		f_types[i + 2], arg++);
 	params.push_back(ruby_arg);
     }
 
+    // Call the Ruby implementation.
     Value *ret_val = CallInst::Create(ruby_func, params.begin(),
 	    params.end(), "", bb);
 
+    // Convert the return value into Objective-C type (if any).
     if (f_ret_type != Type::VoidTy) {
 	ret_val = compile_conversion_to_c(ret_type.c_str(), ret_val,
 		new AllocaInst(f_ret_type, "", bb));
-
 	ReturnInst::Create(ret_val, bb);
+    }
+    else if (sret != NULL) {
+	compile_conversion_to_c(ret_type.c_str(), ret_val, sret);
+	ReturnInst::Create(bb);
     }
     else {
 	ReturnInst::Create(bb);

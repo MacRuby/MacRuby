@@ -255,9 +255,19 @@
     return 3.1415;
 }
 
++ (BOOL)testMethodReturningFloat:(TestMethod *)o
+{
+    return [o methodReturningFloat] == (float)3.1415;
+}
+
 - (double)methodReturningDouble
 {
     return 3.1415;
+}
+
++ (BOOL)testMethodReturningDouble:(TestMethod *)o
+{
+    return [o methodReturningDouble] == (double)3.1415;
 }
 
 - (SEL)methodReturningSEL
@@ -265,9 +275,19 @@
     return @selector(foo:with:with:);
 }
 
++ (BOOL)testMethodReturningSEL:(TestMethod *)o
+{
+    return [o methodReturningSEL] == @selector(foo:with:with:);
+}
+
 - (SEL)methodReturningSEL2
 {
     return 0;
+}
+
++ (BOOL)testMethodReturningSEL2:(TestMethod *)o
+{
+    return [o methodReturningSEL2] == NULL;
 }
 
 - (const char *)methodReturningCharPtr
@@ -275,9 +295,19 @@
     return "foo";
 }
 
++ (BOOL)testMethodReturningCharPtr:(TestMethod *)o
+{
+    return strcmp([o methodReturningCharPtr], "foo") == 0;
+}
+
 - (const char *)methodReturningCharPtr2
 {
     return NULL;
+}
+
++ (BOOL)testMethodReturningCharPtr2:(TestMethod *)o
+{
+    return [o methodReturningCharPtr2] == NULL;
 }
 
 - (NSPoint)methodReturningNSPoint
@@ -285,9 +315,19 @@
     return NSMakePoint(1, 2);
 }
 
++ (BOOL)testMethodReturningNSPoint:(TestMethod *)o
+{
+    return NSEqualPoints([o methodReturningNSPoint], NSMakePoint(1, 2));
+}
+
 - (NSSize)methodReturningNSSize
 {
     return NSMakeSize(3, 4);
+}
+
++ (BOOL)testMethodReturningNSSize:(TestMethod *)o
+{
+    return NSEqualSizes([o methodReturningNSSize], NSMakeSize(3, 4));
 }
 
 - (NSRect)methodReturningNSRect
@@ -295,9 +335,19 @@
     return NSMakeRect(1, 2, 3, 4);
 }
 
++ (BOOL)testMethodReturningNSRect:(TestMethod *)o
+{
+    return NSEqualRects([o methodReturningNSRect], NSMakeRect(1, 2, 3, 4));
+}
+
 - (NSRange)methodReturningNSRange
 {
     return NSMakeRange(0, 42);
+}
+
++ (BOOL)testMethodReturningNSRange:(TestMethod *)o
+{
+    return NSEqualRanges([o methodReturningNSRange], NSMakeRange(0, 42));
 }
 
 - (BOOL)methodAcceptingSelf:(id)obj

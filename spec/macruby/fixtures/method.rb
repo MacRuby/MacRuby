@@ -18,4 +18,14 @@ class TestMethodOverride < TestMethod
   def methodReturningLong; 42; end
   def methodReturningLong2; -42; end
   def methodReturningUnsignedLong; 42; end
+  def methodReturningFloat; 3.1415; end
+  def methodReturningDouble; 3.1415; end
+  def methodReturningSEL; :'foo:with:with:'; end
+  def methodReturningSEL2; nil; end
+  def methodReturningCharPtr; 'foo'; end
+  def methodReturningCharPtr2; nil; end
+  def methodReturningNSPoint; NSPoint.new(1, 2); end
+  def methodReturningNSSize; NSSize.new(3, 4); end
+  def methodReturningNSRect; NSRect.new(NSPoint.new(1, 2), NSSize.new(3, 4)); end
+  def methodReturningNSRange; NSRange.new(0, 42); end
 end

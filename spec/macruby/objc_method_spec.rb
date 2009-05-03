@@ -475,4 +475,45 @@ describe "A pure MacRuby method" do
     TestMethodOverride.testMethodReturningLong2(@o).should == 1
     TestMethodOverride.testMethodReturningUnsignedLong(@o).should == 1
   end
+
+  it "can overwrite an Objective-C method returning 'float' or 'double'" do
+    @o.methodReturningFloat.should == 3.1415
+    @o.methodReturningDouble.should == 3.1415
+    TestMethodOverride.testMethodReturningFloat(@o).should == 1
+    TestMethodOverride.testMethodReturningDouble(@o).should == 1
+  end
+
+  it "can overwrite an Objective-C method returning 'SEL'" do
+    @o.methodReturningSEL.should == :'foo:with:with:'
+    @o.methodReturningSEL2.should == nil
+    TestMethodOverride.testMethodReturningSEL(@o).should == 1
+    TestMethodOverride.testMethodReturningSEL2(@o).should == 1
+  end
+
+  it "can overwrite an Objective-C method returning 'char *'" do
+    @o.methodReturningCharPtr.should == 'foo'
+    @o.methodReturningCharPtr2.should == nil
+    TestMethodOverride.testMethodReturningCharPtr(@o).should == 1
+    TestMethodOverride.testMethodReturningCharPtr2(@o).should == 1
+  end
+
+  it "can overwrite an Objective-C method returning 'NSPoint'" do
+    @o.methodReturningNSPoint.should == NSPoint.new(1, 2)
+    TestMethodOverride.testMethodReturningNSPoint(@o).should == 1
+  end
+
+  it "can overwrite an Objective-C method returning 'NSSize'" do
+    @o.methodReturningNSSize.should == NSSize.new(3, 4)
+    TestMethodOverride.testMethodReturningNSSize(@o).should == 1
+  end
+
+  it "can overwrite an Objective-C method returning 'NSRect'" do
+    @o.methodReturningNSRect.should == NSRect.new(NSPoint.new(1, 2), NSSize.new(3, 4))
+    TestMethodOverride.testMethodReturningNSRect(@o).should == 1
+  end
+
+  it "can overwrite an Objective-C method returning 'NSRange'" do
+    @o.methodReturningNSRange.should == NSRange.new(0, 42)
+    TestMethodOverride.testMethodReturningNSRange(@o).should == 1
+  end
 end
