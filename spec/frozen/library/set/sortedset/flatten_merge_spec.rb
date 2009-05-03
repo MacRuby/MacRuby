@@ -3,7 +3,7 @@ require 'set'
 
 describe "SortedSet#flatten_merge" do
   it "is protected" do
-    SortedSet[].protected_methods.should include("flatten_merge")
+    SortedSet.should have_protected_instance_method("flatten_merge")
   end
   
   ruby_bug "http://redmine.ruby-lang.org/projects/ruby-18/issues/show?id=117", "1.8.7" do

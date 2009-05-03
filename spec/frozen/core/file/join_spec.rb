@@ -65,51 +65,14 @@ describe "File.join" do
     File.join("usr",   "", "/bin").should == "usr/bin"
     File.join("usr/",  "", "/bin").should == "usr/bin"
   end
-  
-  # TODO: Repeating items in recursive array seems like a bug.
-  it "handles recursive arrays" do
-    parts = []
-    parts << parts
-    File.join(parts).should == '[...]'
 
-    parts = ["one", "two"]
-    parts << parts
-    File.join(parts).should == 'one/two/one/two/[...]'
-
-    parts << "three"
-    parts << "four"
-    File.join(parts).should == 'one/two/one/two/[...]/three/four/three/four'
-
-    parts = [["one", "two"], ["three", "four"]]
-    parts << parts
-    File.join(parts).should == 'one/two/three/four/one/two/three/four/[...]'
-
-    a = ['a']
-    a << a
-    File.join(a).should == 'a/a/[...]'
-    File.join([a]).should == 'a/a/[...]'
-
-    a = ['a']
-    b = ['b']
-    a << b
-    b << a
-    File.join(a).should == "a/b/[...]"
-
-    a = []
-    b = []
-    a << b
-    b << a
-    File.join(a).should == '[...]'
-
-    a = ['a']
-    a << a
-    File.join(  a  ).should      == "a/a/[...]"
-    File.join( [a] ).should      == "a/a/[...]"
-    File.join([[a]]).should      == "a/a/[...]"
-    File.join(  a, 'b'  ).should == "a/a/[...]/b"
-    File.join( [a, 'b'] ).should == "a/a/[...]/b"
-    File.join([[a, 'b']]).should == "a/a/[...]/b"
-    File.join([[a], 'b']).should == "a/a/[...]/b"
+  # TODO: See MRI svn r23306. Add patchlevel when there is a release.
+  ruby_bug "redmine #1418", "1.8.8" do
+    it "raises an ArgumentError if passed a recursive array" do
+      a = ["a"]
+      a << a
+      lambda { File.join a }.should raise_error(ArgumentError)
+    end
   end
 
   it "doesn't remove File::SEPARATOR from the middle of arguments" do

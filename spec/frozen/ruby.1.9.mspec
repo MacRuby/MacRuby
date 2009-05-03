@@ -16,6 +16,7 @@ class MSpecScript
     # obsolete libraries
     '^library/cgi-lib',
     '^library/date2',
+    '^library/enumerator',
     '^library/eregex',
     '^library/finalize',
     '^library/ftools',

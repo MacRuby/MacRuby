@@ -8,7 +8,7 @@ describe :thread_exit, :shared => true do
       sleep
       ScratchPad.record :after_sleep
     end
-    Thread.pass while sleeping_thread.status != "sleep"
+    Thread.pass while sleeping_thread.status and sleeping_thread.status != "sleep"
     sleeping_thread.send(@method)
     sleeping_thread.join
     ScratchPad.recorded.should == nil
@@ -43,12 +43,12 @@ describe :thread_exit, :shared => true do
         sleep
       ensure
         ScratchPad << :outer_ensure_clause
-        Thread.pass until inner.status == "sleep"
+        Thread.pass while inner.status and inner.status != "sleep"
         inner.send(@method)
         inner.join
       end
     end
-    Thread.pass until outer.status == "sleep"
+    Thread.pass while outer.status and outer.status != "sleep"
     outer.send(@method)
     outer.join
     ScratchPad.recorded.should include(:inner_ensure_clause)
@@ -77,7 +77,7 @@ describe :thread_exit, :shared => true do
   
   it "killing dying sleeping thread wakes up thread" do
     t = ThreadSpecs.dying_thread_ensures { Thread.stop; ScratchPad.record :after_stop }
-    Thread.pass until t.status == "sleep"
+    Thread.pass while t.status and t.status != "sleep"
     t.send(@method)
     t.join
     ScratchPad.recorded.should == :after_stop
@@ -157,7 +157,7 @@ describe :thread_exit, :shared => true do
   it "does not deadlock when called from within the thread while being joined from without" do
     100.times do
       t = Thread.new { Thread.stop; Thread.current.send(@method) }
-      Thread.pass until t.status == "sleep"
+      Thread.pass while t.status and t.status != "sleep"
       t.wakeup.should == t
       t.join.should == t
     end

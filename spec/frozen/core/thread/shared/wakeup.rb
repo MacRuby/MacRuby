@@ -21,12 +21,12 @@ describe :thread_wakeup, :shared => true do
 
     exit_loop = true
     
-    Thread.pass while t.status != "sleep"
+    Thread.pass while t.status and t.status != "sleep"
     after_sleep1.should == false # t should be blocked on the first sleep
     t.send(@method)
 
     Thread.pass while after_sleep1 != true
-    Thread.pass while t.status != "sleep"
+    Thread.pass while t.status and t.status != "sleep"
     after_sleep2.should == false # t should be blocked on the second sleep
     t.send(@method)
     Thread.pass while after_sleep2 != true

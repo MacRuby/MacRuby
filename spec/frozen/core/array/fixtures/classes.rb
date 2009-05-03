@@ -20,9 +20,9 @@ module ArraySpecs
   end
 
   def self.frozen_array
-    @frozen_array ||= [1,2,3]
-    @frozen_array.freeze
-    @frozen_array
+    frozen_array = [1,2,3]
+    frozen_array.freeze
+    frozen_array
   end
 
   def self.recursive_array

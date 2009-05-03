@@ -81,4 +81,66 @@ describe "The alias keyword" do
     @obj.baz = 5
     @obj.abaz.should == 5
   end
+  
+  it "operates on methods with splat arguments" do
+    class AliasObject2;end
+    AliasObject2.class_eval do
+      def test(*args)
+        4
+      end
+      def test_with_check(*args)
+        test_without_check(*args)
+      end
+      alias test_without_check test
+      alias test test_with_check
+    end
+    AliasObject2.new.test(1,2,3,4,5).should == 4
+  end
+  
+  it "operates on methods with splat arguments on eigenclasses" do
+    @meta.class_eval do
+      def test(*args)
+        4
+      end
+      def test_with_check(*args)
+        test_without_check(*args)
+      end
+      alias test_without_check test
+      alias test test_with_check
+    end
+    @obj.test(1,2,3,4,5).should == 4
+  end
+
+  it "operates on methods with splat arguments defined in a superclass" do
+    class AliasObject3;end
+    class Sub3 < AliasObject3;end
+    AliasObject3.class_eval do
+      def test(*args)
+        4
+      end
+      def test_with_check(*args)
+        test_without_check(*args)
+      end
+    end
+    Sub3.class_eval do
+      alias test_without_check test
+      alias test test_with_check
+    end
+    Sub3.new.test(1,2,3,4,5).should == 4
+  end
+
+  it "operates on methods with splat arguments defined in a superclass using text block for class eval" do
+    class Sub < AliasObject;end
+    AliasObject.class_eval <<-code
+      def test(*args)
+        4
+      end
+      def test_with_check(*args)
+        test_without_check(*args)
+      end
+      alias test_without_check test
+      alias test test_with_check
+    code
+    Sub.new.test("testing").should == 4
+  end
 end

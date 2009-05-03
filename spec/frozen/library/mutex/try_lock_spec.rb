@@ -2,12 +2,12 @@ require File.dirname(__FILE__) + '/../../spec_helper'
 require 'thread'
 
 describe "Mutex#try_lock" do
-  it "should return true if lock can be aquired immediately" do
+  it "returns true if lock can be aquired immediately" do
     m = Mutex.new
     m.try_lock.should be_true
   end
 
-  it "should return false if lock can not be aquired immediately" do
+  it "returns false if lock can not be aquired immediately" do
     m1 = Mutex.new
     m2 = Mutex.new
 
@@ -17,7 +17,7 @@ describe "Mutex#try_lock" do
       m2.lock
     end
 
-    Thread.pass until th.status == "sleep"
+    Thread.pass while th.status and th.status != "sleep"
 
     # th owns m1 so try_lock should return false
     m1.try_lock.should be_false

@@ -16,8 +16,8 @@ describe "ThreadGroup#list" do
     tg.add(th2)    
     (tg.list & [th1, th2]).should include(th1, th2)
 
-    Thread.pass until th1.status == 'sleep' || !th1.alive?
-    Thread.pass until th2.status == 'sleep' || !th2.alive?
+    Thread.pass while th1.status and th1.status != 'sleep'
+    Thread.pass while th2.status and th2.status != 'sleep'
     th1.run; th1.join
     th2.run; th2.join
   end

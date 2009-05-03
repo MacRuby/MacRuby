@@ -1,7 +1,8 @@
 require File::join( File::dirname(__FILE__), %w{ .. .. spec_helper } )
-require File::join( File::dirname(__FILE__), %w{ shared behavior } )
 
-ruby_version_is "1.9".."1.9.9" do
+ruby_version_is "1.9" do
+  require File::join( File::dirname(__FILE__), %w{ shared behavior } )
+
   MyBO = Class::new BasicObject
 
   describe "BasicObject's subclasses behave" do

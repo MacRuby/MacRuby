@@ -4,6 +4,12 @@ require File.dirname(__FILE__) + '/shared/add'
 
 describe "SortedSet#add" do
   it_behaves_like :sorted_set_add, :add
+
+  ruby_bug "redmine #118", "1.9" do
+    it "takes only comparable values" do
+      lambda { SortedSet[3, 4].add(SortedSet[5, 6]) }.should raise_error(ArgumentError)
+    end
+  end
 end
 
 describe "SortedSet#add?" do

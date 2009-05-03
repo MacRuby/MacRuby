@@ -32,7 +32,7 @@ describe "Thread.critical=" do
 
   it "does not change status of other existing threads" do
     t = ThreadSpecs.create_critical_thread { ScratchPad.record Thread.main.status }
-    Thread.pass while t.status != false
+    Thread.pass while t.status and t.status != false
     ScratchPad.recorded.should == "run"
   end
 
@@ -71,20 +71,20 @@ describe "Thread.critical=" do
 
   it "defers exit" do
     critical_thread = ThreadSpecs.create_and_kill_critical_thread()
-    Thread.pass while critical_thread.status != false
+    Thread.pass while critical_thread.status
     ScratchPad.recorded.should == "status=aborting"
   end
 
   it "defers exit until Thread.pass" do
     critical_thread = ThreadSpecs.create_and_kill_critical_thread(true)
-    Thread.pass while critical_thread.status != false
+    Thread.pass while critical_thread.status
     ScratchPad.recorded.should == nil
   end
 
   not_compliant_on(:ironruby) do # requires green threads so that another thread can be scheduled when the critical thread is killed
     it "is not reset if the critical thread is killed" do
       critical_thread = ThreadSpecs.create_and_kill_critical_thread(true)
-      Thread.pass while critical_thread.status != false
+      Thread.pass while critical_thread.status
       Thread.critical.should == true
 
       Thread.critical = false
