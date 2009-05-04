@@ -143,11 +143,10 @@ remove_method(VALUE klass, ID mid)
 	rb_name_error(mid, "method `%s' not defined in %s",
 		      rb_id2name(mid), rb_class2name(klass));
     }
-    if (rb_objc_method_node3(method_getImplementation(m)) == NULL) {
+    if (rb_vm_get_method_node(method_getImplementation(m)) == NULL) {
 	rb_warn("removing pure Objective-C method `%s' may cause serious problem", rb_id2name(mid));
     }
     method_setImplementation(m, NULL);
-
 
     if (RCLASS_SINGLETON(klass)) {
 	rb_funcall(rb_iv_get(klass, "__attached__"), singleton_removed, 1,

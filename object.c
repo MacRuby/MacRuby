@@ -1585,7 +1585,8 @@ rb_mod_initialize(VALUE module, SEL sel)
 static VALUE
 rb_mod_method_signature(VALUE module, SEL sel, VALUE mid, VALUE sim)
 {
-    rb_objc_change_ruby_method_signature(module, mid, sim);
+    // TODO
+    abort();
     return Qnil;
 }
 
