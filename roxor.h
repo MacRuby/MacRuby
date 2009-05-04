@@ -19,13 +19,6 @@ struct rb_vm_local {
 };
 typedef struct rb_vm_local rb_vm_local_t;
 
-#define VM_LVAR_USES_SIZE 8
-typedef struct rb_vm_lvar_uses {
-    int uses_count;
-    void *uses[VM_LVAR_USES_SIZE];
-    struct rb_vm_lvar_uses *next;
-} rb_vm_lvar_uses_t;
-
 #define VM_BLOCK_PROC	0x0001	// block is a Proc object
 #define VM_BLOCK_LAMBDA 0x0002	// block is a lambda
 #define VM_BLOCK_ACTIVE 0x0004	// block is active (being executed)
@@ -37,7 +30,7 @@ typedef struct {
     IMP imp;
     int flags;
     rb_vm_local_t *locals;
-    rb_vm_lvar_uses_t **parent_lvar_uses;
+    struct rb_vm_var_uses **parent_var_uses;
     int dvars_size;
     VALUE *dvars[1];
 } rb_vm_block_t;
@@ -147,8 +140,10 @@ rb_proc_get_block(VALUE proc)
    return (rb_vm_block_t *)DATA_PTR(proc);
 }
 
+void rb_vm_add_var_use(struct rb_vm_var_uses **uses, rb_vm_block_t *proc);
 rb_vm_block_t *rb_vm_prepare_block(void *llvm_function, NODE *node, VALUE self,
-       rb_vm_lvar_uses_t **parent_lvar_uses, int dvars_size, ...);
+       struct rb_vm_var_uses **parent_lvar_uses,
+       int dvars_size, ...);
 rb_vm_block_t *rb_vm_current_block(void);
 bool rb_vm_block_saved(void);
 void rb_vm_change_current_block(rb_vm_block_t *block);

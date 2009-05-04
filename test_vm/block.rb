@@ -206,6 +206,21 @@ assert "42", %{
 
 assert "42", %{
   def f()
+    x = 40
+    a = nil
+    1.times do
+      1.times do
+        y = 2
+        a = proc { x + y }
+      end
+    end
+    a
+  end
+  p f.call
+}
+
+assert "42", %{
+  def f()
     a = nil
     b = proc do
       x = 42

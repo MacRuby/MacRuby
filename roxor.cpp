@@ -230,7 +230,7 @@ class RoxorCompiler
 	ID self_id;
 	Value *current_self;
 	bool current_block;
-	Value *current_lvar_uses;
+	Value *current_var_uses;
 	BasicBlock *begin_bb;
 	BasicBlock *rescue_bb;
 	BasicBlock *ensure_bb;
@@ -676,7 +676,7 @@ RoxorCompiler::RoxorCompiler(const char *_fname)
     current_instance_method = false;
     self_id = rb_intern("self");
     current_self = NULL;
-    current_lvar_uses = NULL;
+    current_var_uses = NULL;
     current_block = false;
     current_block_node = NULL;
     current_block_func = NULL;
@@ -1244,7 +1244,7 @@ RoxorCompiler::compile_block_create(NODE *node)
 
     if (prepareBlockFunc == NULL) {
 	// void *rb_vm_prepare_block(Function *func, NODE *node, VALUE self,
-	//			     rb_vm_lvar_uses_t **parent_lvar_uses,
+	//			     rb_vm_var_uses **parent_var_uses,
 	//			     int dvars_size, ...);
 	std::vector<const Type *> types;
 	types.push_back(PtrTy);
@@ -1261,11 +1261,12 @@ RoxorCompiler::compile_block_create(NODE *node)
     params.push_back(compile_const_pointer(current_block_func));
     params.push_back(compile_const_pointer(current_block_node));
     params.push_back(current_self);
-    if (current_lvar_uses == NULL) {
+    if (current_var_uses == NULL) {
+	// there is no local variables in this scope
 	params.push_back(compile_const_pointer_to_pointer(NULL));
     }
     else {
-	params.push_back(current_lvar_uses);
+	params.push_back(current_var_uses);
     }
 
     // Dvars.
@@ -3023,19 +3024,19 @@ RoxorCompiler::compile_node(NODE *node)
 		Value *sel = arg++;
 		sel->setName("sel");
 
+		Value *old_current_var_uses = current_var_uses;
+
 		if (has_dvars) {
 		    Value *dvars_arg = arg++;
 		    dvars_arg->setName("dvars");
 		}
 
-		Value *old_current_lvar_uses = current_lvar_uses;
-
 		if (node->nd_tbl == NULL) {
-		    current_lvar_uses = NULL;
+		    current_var_uses = NULL;
 		}
 		else {
-		    current_lvar_uses = new AllocaInst(PtrTy, "", bb);
-		    new StoreInst(compile_const_pointer(NULL), current_lvar_uses, bb);
+		    current_var_uses = new AllocaInst(PtrTy, "", bb);
+		    new StoreInst(compile_const_pointer(NULL), current_var_uses, bb);
 
 		    int i, args_count = (int)node->nd_tbl[0];
 		    assert(args_count == nargs
@@ -3144,9 +3145,9 @@ RoxorCompiler::compile_node(NODE *node)
 
 		// current_lvar_uses has 2 uses or more if it is really used
 		// (there is always a StoreInst in which we assign it NULL)
-		if (current_lvar_uses != NULL && current_lvar_uses->hasNUsesOrMore(2)) {
+		if (current_var_uses != NULL && current_var_uses->hasNUsesOrMore(2)) {
 		    if (keepVarsFunc == NULL) {
-			// void rb_vm_keep_vars(rb_vm_lvar_uses_t *uses, int lvars_size, ...);
+			// void rb_vm_keep_vars(rb_vm_var_uses *uses, int lvars_size, ...)
 			std::vector<const Type *> types;
 			types.push_back(PtrTy);
 			types.push_back(Type::Int32Ty);
@@ -3179,8 +3180,9 @@ RoxorCompiler::compile_node(NODE *node)
 			    if (dyn_cast<ReturnInst>(inst_it)) {
 				// LoadInst needs to be inserted in a BasicBlock
 				// so we has to wait before putting it in params
-				params[0] = new LoadInst(current_lvar_uses, "", inst_it);
-				// TODO: only call the function is current_use is not NULL
+				params[0] = new LoadInst(current_var_uses, "", inst_it);
+
+				// TODO: only call the function if current_use is not NULL
 				CallInst::Create(keepVarsFunc, params.begin(), params.end(), "", inst_it);
 			    }
 			}
@@ -3192,7 +3194,7 @@ RoxorCompiler::compile_node(NODE *node)
 		lvars = old_lvars;
 		current_self = old_self;
 		rescue_bb = old_rescue_bb;
-		current_lvar_uses = old_current_lvar_uses;
+		current_var_uses = old_current_var_uses;
 
 		return cast<Value>(f);
 	    }
@@ -7048,7 +7050,8 @@ rb_vm_masgn_get_splat(VALUE ary, int before_splat_count, int after_splat_count) 
 
 __attribute__((always_inline))
 static VALUE
-__rb_vm_bcall(VALUE self, VALUE dvars, IMP pimp, const rb_vm_arity_t &arity, int argc, const VALUE *argv)
+__rb_vm_bcall(VALUE self, VALUE dvars,
+	      IMP pimp, const rb_vm_arity_t &arity, int argc, const VALUE *argv)
 {
     if ((arity.real != argc) || (arity.max == -1)) {
 	VALUE *new_argv = (VALUE *)alloca(sizeof(VALUE) * arity.real);
@@ -7914,7 +7917,8 @@ rb_vm_get_block(VALUE obj)
 
 extern "C"
 rb_vm_block_t *
-rb_vm_prepare_block(void *llvm_function, NODE *node, VALUE self, rb_vm_lvar_uses_t **parent_lvar_uses,
+rb_vm_prepare_block(void *llvm_function, NODE *node, VALUE self,
+		    rb_vm_var_uses **parent_var_uses,
 		    int dvars_size, ...)
 {
     NODE *cache_key;
@@ -7949,7 +7953,7 @@ rb_vm_prepare_block(void *llvm_function, NODE *node, VALUE self, rb_vm_lvar_uses
 	}
 	b->flags = 0;
 	b->dvars_size = dvars_size;
-	b->parent_lvar_uses = NULL;
+	b->parent_var_uses = NULL;
 
 	rb_objc_retain(b);
 	GET_VM()->blocks[cache_key] = b;
@@ -7962,7 +7966,7 @@ rb_vm_prepare_block(void *llvm_function, NODE *node, VALUE self, rb_vm_lvar_uses
 
     b->self = self;
     b->node = node;
-    b->parent_lvar_uses = parent_lvar_uses;
+    b->parent_var_uses = parent_var_uses;
 
     va_list ar;
     va_start(ar, dvars_size);
@@ -7995,6 +7999,33 @@ extern "C"
 void*
 rb_gc_read_weak_ref(void **referrer);
 
+extern "C"
+void
+rb_gc_assign_weak_ref(const void *value, void *const*location);
+
+static const int VM_LVAR_USES_SIZE = 8;
+struct rb_vm_var_uses {
+    int uses_count;
+    void *uses[VM_LVAR_USES_SIZE];
+    struct rb_vm_var_uses *next;
+};
+
+extern "C"
+void
+rb_vm_add_var_use(rb_vm_var_uses **var_uses, rb_vm_block_t *proc)
+{
+    assert(var_uses != NULL);
+    if ((*var_uses == NULL) || ((*var_uses)->uses_count == VM_LVAR_USES_SIZE)) {
+	rb_vm_var_uses* new_uses = (rb_vm_var_uses*)malloc(sizeof(rb_vm_var_uses));
+	new_uses->next = *var_uses;
+	new_uses->uses_count = 0;
+	*var_uses = new_uses;
+    }
+    int current_index = (*var_uses)->uses_count;
+    rb_gc_assign_weak_ref(proc, &(*var_uses)->uses[current_index]);
+    ++(*var_uses)->uses_count;
+}
+
 struct rb_vm_kept_local {
     ID name;
     VALUE *stack_address;
@@ -8003,9 +8034,9 @@ struct rb_vm_kept_local {
 
 extern "C"
 void
-rb_vm_keep_vars(rb_vm_lvar_uses_t *uses, int lvars_size, ...)
+rb_vm_keep_vars(rb_vm_var_uses *uses, int lvars_size, ...)
 {
-    rb_vm_lvar_uses_t *current = uses;
+    rb_vm_var_uses *current = uses;
     int use_index;
 
     while (current != NULL) {
@@ -8307,8 +8338,8 @@ block_call:
 
     assert(!(b->flags & VM_BLOCK_ACTIVE));
     b->flags |= VM_BLOCK_ACTIVE;
-    VALUE v = __rb_vm_bcall(b->self, (VALUE)b->dvars, b->imp, b->arity, argc,
-			    argv);
+    VALUE v = __rb_vm_bcall(b->self, (VALUE)b->dvars,
+			    b->imp, b->arity, argc, argv);
     b->flags &= ~VM_BLOCK_ACTIVE;
 
     return v;
