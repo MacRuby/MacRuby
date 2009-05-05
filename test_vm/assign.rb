@@ -93,3 +93,5 @@ assert '[1, 2, 4]', %{
   a, b, *, c = A.new
   p [a, b, c]
 }
+
+assert ':ok', '$a, x = :ok, :ko; p $a'

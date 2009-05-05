@@ -350,6 +350,7 @@ class RoxorCompiler
 	Value *compile_ivar_read(ID vid);
 	Value *compile_ivar_assignment(ID vid, Value *val);
 	Value *compile_cvar_assignment(ID vid, Value *val);
+	Value *compile_gvar_assignment(struct global_entry *entry, Value *val);
 	Value *compile_multiple_assignment(NODE *node, Value *val);
 	void compile_multiple_assignment_element(NODE *node, Value *val);
 	Value *compile_current_class(void);
@@ -1108,6 +1109,10 @@ RoxorCompiler::compile_multiple_assignment_element(NODE *node, Value *val)
 	    compile_cvar_assignment(node->nd_vid, val);
 	    break;
 
+	case NODE_GASGN:
+	    compile_gvar_assignment(node->nd_entry, val);
+	    break;
+
 	case NODE_ATTRASGN:
 	    compile_attribute_assign(node, val);
 	    break;
@@ -1385,6 +1390,25 @@ RoxorCompiler::compile_cvar_assignment(ID name, Value *val)
     params.push_back(val);
 
     return CallInst::Create(cvarSetFunc, params.begin(),
+	    params.end(), "", bb);
+}
+
+Value *
+RoxorCompiler::compile_gvar_assignment(struct global_entry *entry, Value *val)
+{
+    if (gvarSetFunc == NULL) {
+	// VALUE rb_gvar_set(struct global_entry *entry, VALUE val);
+	gvarSetFunc = cast<Function>(module->getOrInsertFunction(
+		    "rb_gvar_set",
+		    RubyObjTy, PtrTy, RubyObjTy, NULL));
+    }
+
+    std::vector<Value *> params;
+
+    params.push_back(compile_const_pointer(entry));
+    params.push_back(val);
+
+    return CallInst::Create(gvarSetFunc, params.begin(),
 	    params.end(), "", bb);
 }
 
@@ -3233,20 +3257,9 @@ RoxorCompiler::compile_node(NODE *node)
 		assert(node->nd_value != NULL);
 		assert(node->nd_entry != NULL);
 
-		if (gvarSetFunc == NULL) {
-		    // VALUE rb_gvar_set(struct global_entry *entry, VALUE val);
-		    gvarSetFunc = cast<Function>(module->getOrInsertFunction(
-				"rb_gvar_set", 
-				RubyObjTy, PtrTy, RubyObjTy, NULL));
-		}
-
-		std::vector<Value *> params;
-
-		params.push_back(compile_const_pointer(node->nd_entry));
-		params.push_back(compile_node(node->nd_value));
-
-		return CallInst::Create(gvarSetFunc, params.begin(),
-			params.end(), "", bb);
+		return compile_gvar_assignment(
+			node->nd_entry,
+			compile_node(node->nd_value));
 	    }
 	    break;
 
