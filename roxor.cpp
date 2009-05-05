@@ -10060,6 +10060,10 @@ get_types_for_format_str(std::string &octypes, const unsigned int len,
 VALUE
 rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 {
+    if (argc == 0) {
+	return fmt;
+    }
+
     char *new_fmt = NULL;
     std::string types("@@@@");
     get_types_for_format_str(types, (unsigned int)argc, (VALUE *)argv, 
