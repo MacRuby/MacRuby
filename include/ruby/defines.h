@@ -286,11 +286,6 @@ void rb_ia64_flushrs(void);
 # include <objc/message.h>
 # include <objc/objc-auto.h>
 # include <assert.h>
-# if !defined(MACOSX)
-   /* required for fficonfig.h */
-#  define MACOSX
-# endif
-# include <ffi/ffi.h>
 # include <CoreFoundation/CoreFoundation.h>
 # define ASSERT_NO_OBJC() (assert(1 == 0))
 void rb_objc_wb(void *dst, void *newval);

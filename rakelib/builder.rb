@@ -91,7 +91,7 @@ CXXFLAGS = `#{LLVM_CONFIG} --cxxflags #{LLVM_MODULES}`.strip
 CXXFLAGS << " -I. -I./include -g -Wall #{ARCHFLAGS}"
 CXXFLAGS << " -Wno-parentheses -Wno-deprecated-declarations -Werror" if NO_WARN_BUILD
 LDFLAGS = `#{LLVM_CONFIG} --ldflags --libs #{LLVM_MODULES}`.strip.gsub(/\n/, '')
-LDFLAGS << " -lpthread -ldl -lxml2 -lobjc -lffi -lauto -framework Foundation"
+LDFLAGS << " -lpthread -ldl -lxml2 -lobjc -lauto -framework Foundation"
 DLDFLAGS = "-dynamiclib -undefined suppress -flat_namespace -install_name #{INSTALL_NAME} -current_version #{MACRUBY_VERSION} -compatibility_version #{MACRUBY_VERSION}"
 
 # removed: marshal
