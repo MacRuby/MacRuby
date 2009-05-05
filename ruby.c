@@ -1326,6 +1326,8 @@ ruby_prog_init(void)
 
     rb_define_global_const("ARGV", rb_argv);
     rb_global_variable(&rb_argv0);
+
+    rb_vm_set_running(true);
 }
 
 void

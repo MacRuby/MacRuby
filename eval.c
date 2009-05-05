@@ -194,7 +194,6 @@ ruby_run_node(void *n)
     else if (FIXNUM_P(n)) {
 	return FIX2INT(n);
     }
-    rb_vm_set_running(true);
     rb_vm_run(RSTRING_PTR(rb_progname), (NODE *)n, NULL, false);
     return ruby_cleanup(0);
 }
