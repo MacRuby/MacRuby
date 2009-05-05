@@ -4,7 +4,12 @@ FixtureCompiler.require! "method"
 describe "A CoreFoundation type" do
   it "behaves like a regular Objective-C/Ruby object" do
     o = CFBundleGetMainBundle()
-    o.class.should == NSCFType
+    if MACOSX_VERSION <= 10.5
+      o.class.should == NSCFType
+    else
+      # __NSCFType isn't a constant in Ruby so we have to cheat.
+      o.class.should == NSClassFromString('__NSCFType')
+    end
     o.inspect.class.should == String
   end
 

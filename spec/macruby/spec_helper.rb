@@ -52,3 +52,5 @@ class FixtureCompiler
     load_bridge_support_file bridge_support
   end
 end
+
+MACOSX_VERSION = `sw_vers -productVersion`.to_f
