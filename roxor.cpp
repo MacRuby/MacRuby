@@ -368,6 +368,7 @@ class RoxorCompiler
 	void compile_landing_pad_footer(void);
 	void compile_rethrow_exception(void);
 	Value *compile_lvar_slot(ID name);
+	bool compile_lvars(ID *tbl);
 	Value *compile_new_struct(Value *klass, std::vector<Value *> &fields);
 	Value *compile_new_opaque(Value *klass, Value *val);
 	void compile_get_struct_fields(Value *val, Value *buf,
@@ -3108,21 +3109,8 @@ RoxorCompiler::compile_node(NODE *node)
 
 		    // local vars must be created before the optional arguments
 		    // because they can be used in them, for instance with def f(a=b=c=1)
-		    int lvar_count = (int)node->nd_tbl[args_count + 1];
-		    for (i = 0; i < lvar_count; i++) {
-			ID id = node->nd_tbl[i + args_count + 2];
-			if (lvars.find(id) != lvars.end()) {
-			    continue;
-			}
-			if (std::find(dvars.begin(), dvars.end(), id) == dvars.end()) {
-#if ROXOR_COMPILER_DEBUG
-			    printf("lvar %s\n", rb_id2name(id));
-#endif
-			    Value *store = new AllocaInst(RubyObjTy, "", bb);
-			    new StoreInst(nilVal, store, bb);
-			    lvars[id] = store;
-			    has_vars_to_save = true;
-			}
+		    if (compile_lvars(&node->nd_tbl[args_count + 1])) {
+			has_vars_to_save = true;
 		    }
 
 		    if (has_vars_to_save) {
@@ -3798,6 +3786,11 @@ RoxorCompiler::compile_node(NODE *node)
 		NODE *body = node->nd_body;
 		if (body != NULL) {
 		    assert(nd_type(body) == NODE_SCOPE);
+		    ID *tbl = body->nd_tbl;
+		    if (tbl != NULL) {
+			const int args_count = (int)tbl[0];
+			compile_lvars(&tbl[args_count + 1]);
+		    }
 		    if (body->nd_body != NULL) {	
 			Value *old_self = current_self;
 			current_self = classVal;
@@ -5975,6 +5968,27 @@ RoxorCompiler::compile_stub(const char *types, int argc, bool is_objc)
     ReturnInst::Create(retval, bb);
 
     return f;
+}
+
+bool
+RoxorCompiler::compile_lvars(ID *tbl)
+{
+    int lvar_count = (int)tbl[0];
+    for (int i = 0; i < lvar_count; i++) {
+	ID id = tbl[i + 1];
+	if (lvars.find(id) != lvars.end()) {
+	    continue;
+	}
+	if (std::find(dvars.begin(), dvars.end(), id) == dvars.end()) {
+#if ROXOR_COMPILER_DEBUG
+	    printf("lvar %s\n", rb_id2name(id));
+#endif
+	    Value *store = new AllocaInst(RubyObjTy, "", bb);
+	    new StoreInst(nilVal, store, bb);
+	    lvars[id] = store;
+	}
+    }
+    return lvar_count > 0;
 }
 
 Value *
