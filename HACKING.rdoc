@@ -1,0 +1,108 @@
+== Hacking MacRuby
+
+Please read this file if you are considering hacking MacRuby. It provides
+tips in order to better hack MacRuby and also suggestions on how to submit a
+patch.
+
+=== Coding Style
+
+You need to conform to the following coding style in order to get a patch
+accepted:
+
+* Indentation starts with 4 space characters, then 1 tabulation (hard), then
+  1 tabulation (hard) followed by 4 space characters, then 2 tabulations
+  (hard), etc.
+
+  This is the indentation style that was inherited from the original Ruby source
+  code, so we are preserving it.
+
+* Insert a new line between the type and the name of a function during its
+  definition and start the opening parenthesis on a new line too.
+
+    static void
+    do_something(void)
+    {
+        ...
+    }
+
+* A space must be inserted between keywords and their operand and branches must
+  be written so that an ending parenthesis is always at the end of a line.
+
+    if (some_boolean) {
+        ...
+    }
+    else {
+        ...
+    }
+
+* Branches with only one expression must still be covered by parenthesis, even
+  if it's not mandatory in the C language. Also, do not write one-liner
+  branches.
+
+    if (some_boolean)
+        do_something(); /* bad */
+    if (some_boolean) do_something(); /* bad */
+
+    if (some_boolean) {
+        /* good */
+        do_something();
+    }
+
+* A space must be inserted between operators operands.
+
+    int i, x = 40 + 2;
+    for (i = 0; i < x; i++) {
+        ...
+    }
+
+* Do not insert a space between a function call and its first parenthesis.
+
+    do_something();
+
+* A space must be inserted after every argument in a function call.
+
+    do_something(x, y, z);
+
+* Never pass a non-boolean value as it is to a conditional expression.
+
+    void *ptr = do_something();
+    if (!ptr) {
+        /* bad */
+    }
+
+    if (ptr != NULL) {
+        /* good */
+    }
+
+* Respect the 80 columns rule when possible. You can violate this rule in case
+  the line contains a long string.
+
+* In case you need to split multiple conditional expressions into multiple
+  lines, make sure there is a new line before the operator(s).
+
+    if (do_something ||
+        do_something2()) {
+        /* bad */
+        do_something3();
+    }
+
+    if (do_something()
+        || do_something2()) {
+        /* good */
+        do_something3();
+    }
+
+=== Environment variables
+
+The following environment variables might help you debug easy bugs.
+
+* GC_DISABLE: set it to any value to disable the GC.
+
+* GC_DEBUG: set it to any value to enable GC debugging on $stderr.
+
+* VM_DUMP_IR: set it to any value to dump the LLVM IR on $stderr before the
+  interpreter quits.
+
+=== GDB tricks
+
+* Break on rb_exc_raise to intercept pure Ruby exceptions.
