@@ -41,9 +41,7 @@ rb_proc_alloc_with_block(VALUE klass, rb_vm_block_t *proc)
     obj = Data_Wrap_Struct(klass, NULL, NULL, proc);
     if (!(proc->flags & VM_BLOCK_PROC)) {
 	proc->flags |= VM_BLOCK_PROC;
-	if (proc->parent_var_uses != NULL) {
-	    rb_vm_add_var_use(proc->parent_var_uses, proc);
-	}
+	rb_vm_add_var_use(proc);
     }
     return obj;
 }

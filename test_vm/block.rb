@@ -371,5 +371,21 @@ assert ':ok', %{
   p f.call
 }
 
+assert ':ok', %{
+  $a = []
+  
+  def foo(what, &block)
+    $a << block
+  end
+  
+  [:ok].each do |type|
+    foo type do
+      p type
+    end
+  end
+  
+  $a.each do |b| b.call end
+}
+
 # Enumerator 
 assert "[\"f\", \"o\", \"o\"]", "p 'foo'.chars.to_a"

@@ -23,7 +23,7 @@ typedef struct rb_vm_local rb_vm_local_t;
 #define VM_BLOCK_LAMBDA 0x0002	// block is a lambda
 #define VM_BLOCK_ACTIVE 0x0004	// block is active (being executed)
 
-typedef struct {
+typedef struct rb_vm_block {
     VALUE self;
     NODE *node;
     rb_vm_arity_t arity;
@@ -31,6 +31,7 @@ typedef struct {
     int flags;
     rb_vm_local_t *locals;
     struct rb_vm_var_uses **parent_var_uses;
+    struct rb_vm_block *parent_block;
     int dvars_size;
     VALUE *dvars[1];
 } rb_vm_block_t;
@@ -140,9 +141,10 @@ rb_proc_get_block(VALUE proc)
    return (rb_vm_block_t *)DATA_PTR(proc);
 }
 
-void rb_vm_add_var_use(struct rb_vm_var_uses **uses, rb_vm_block_t *proc);
+void rb_vm_add_var_use(rb_vm_block_t *proc);
 rb_vm_block_t *rb_vm_prepare_block(void *llvm_function, NODE *node, VALUE self,
        struct rb_vm_var_uses **parent_lvar_uses,
+       rb_vm_block_t *parent_block,
        int dvars_size, ...);
 rb_vm_block_t *rb_vm_current_block(void);
 bool rb_vm_block_saved(void);
