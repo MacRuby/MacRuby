@@ -360,8 +360,6 @@ EOS
 
   desc "Install the framework"
   task :install => :info_plist do
-    $stderr.puts "This version of MacRuby is under development and cannot be installed yet. Please retry later."
-    exit 1
     sh "./miniruby instruby.rb #{INSTRUBY_ARGS}"
   end
 end
