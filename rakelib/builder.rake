@@ -273,9 +273,7 @@ end
 namespace :macruby do
   desc "Build dynamic libraries for MacRuby"
   task :dylib => [:rbconfig, :miniruby] do
-    $stderr.puts "Warning: this version of MacRuby is still under development and can only build the \"miniruby\" target."
-    system("ls -l ./miniruby")
-    exit 0
+=begin
     sh("./miniruby -I. -I./lib -rrbconfig tool/compile_prelude.rb prelude.rb gem_prelude.rb prelude.c.new")
     if !File.exist?('prelude.c') or File.read('prelude.c') != File.read('prelude.c.new')
       mv('prelude.c.new', 'prelude.c')
@@ -283,6 +281,8 @@ namespace :macruby do
     else
       rm('prelude.c.new')
     end
+=end
+    cp('miniprelude.c', 'prelude.c')
     dylib = "lib#{RUBY_SO_NAME}.#{NEW_RUBY_VERSION}.dylib"
     $builder.link_dylib(dylib, $builder.objs - ['main', 'gc-stub', 'miniprelude'])
     major, minor, teeny = NEW_RUBY_VERSION.scan(/\d+/)
@@ -314,7 +314,10 @@ INSTRUBY_ARGS = "#{SCRIPT_ARGS} --data-mode=0644 --prog-mode=0755 --installed-li
 
 desc "Build extensions"
 task :extensions => [:miniruby, "macruby:static"] do
+=begin
   sh "./miniruby -I./lib -I.ext/common -I./- -r./ext/purelib.rb ext/extmk.rb #{EXTMK_ARGS}"
+=end
+  $stderr.puts "Skipping extensions build (for now)..."
 end
 
 namespace :framework do
@@ -372,8 +375,10 @@ namespace :clean do
 
   desc "Clean extension build files"
   task :ext do
+=begin
     if File.exist?('./miniruby') 
       sh "./miniruby -I./lib -I.ext/common -I./- -r./ext/purelib.rb ext/extmk.rb #{EXTMK_ARGS} -- clean"
     end
+=end
   end
 end
