@@ -5983,6 +5983,7 @@ bool
 RoxorCompiler::compile_lvars(ID *tbl)
 {
     int lvar_count = (int)tbl[0];
+    int has_real_lvars = false;
     for (int i = 0; i < lvar_count; i++) {
 	ID id = tbl[i + 1];
 	if (lvars.find(id) != lvars.end()) {
@@ -5995,9 +5996,10 @@ RoxorCompiler::compile_lvars(ID *tbl)
 	    Value *store = new AllocaInst(RubyObjTy, "", bb);
 	    new StoreInst(nilVal, store, bb);
 	    lvars[id] = store;
+	    has_real_lvars = true;
 	}
     }
-    return lvar_count > 0;
+    return has_real_lvars;
 }
 
 Value *
