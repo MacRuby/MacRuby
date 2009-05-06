@@ -352,6 +352,7 @@ class RoxorCompiler
 	Value *compile_ivar_assignment(ID vid, Value *val);
 	Value *compile_cvar_assignment(ID vid, Value *val);
 	Value *compile_gvar_assignment(struct global_entry *entry, Value *val);
+	Value *compile_constant_declaration(NODE *node, Value *val);
 	Value *compile_multiple_assignment(NODE *node, Value *val);
 	void compile_multiple_assignment_element(NODE *node, Value *val);
 	Value *compile_current_class(void);
@@ -1124,6 +1125,10 @@ RoxorCompiler::compile_multiple_assignment_element(NODE *node, Value *val)
 	    compile_multiple_assignment(node, val);
 	    break;
 
+	case NODE_CDECL:
+	    compile_constant_declaration(node, val);
+	    break;
+
 	default:
 	    compile_node_error("unimplemented MASGN subnode",
 			       node);
@@ -1421,6 +1426,36 @@ RoxorCompiler::compile_gvar_assignment(struct global_entry *entry, Value *val)
 
     return CallInst::Create(gvarSetFunc, params.begin(),
 	    params.end(), "", bb);
+}
+
+Value *
+RoxorCompiler::compile_constant_declaration(NODE *node, Value *val)
+{
+    if (setConstFunc == NULL) {
+	// VALUE rb_vm_set_const(VALUE mod, ID id, VALUE obj);
+	setConstFunc = cast<Function>(module->getOrInsertFunction(
+		    "rb_vm_set_const",
+		    Type::VoidTy, RubyObjTy, IntTy, RubyObjTy, NULL));
+    }
+
+    std::vector<Value *> params;
+
+    if (node->nd_vid > 0) {
+	params.push_back(compile_current_class());
+	params.push_back(ConstantInt::get(IntTy, (long)node->nd_vid));
+    }
+    else {
+	assert(node->nd_else != NULL);
+	params.push_back(compile_class_path(node->nd_else));
+	assert(node->nd_else->nd_mid > 0);
+	params.push_back(ConstantInt::get(IntTy, (long)node->nd_else->nd_mid));
+    }
+
+    params.push_back(val);
+
+    CallInst::Create(setConstFunc, params.begin(), params.end(), "", bb);
+
+    return val;
 }
 
 inline Value *
@@ -4034,34 +4069,8 @@ rescan_args:
 
 	case NODE_CDECL:
 	    {
-		if (setConstFunc == NULL) {
-		    // VALUE rb_vm_set_const(VALUE mod, ID id, VALUE obj);
-		    setConstFunc = cast<Function>(module->getOrInsertFunction(
-				"rb_vm_set_const", 
-				Type::VoidTy, RubyObjTy, IntTy, RubyObjTy, NULL));
-		}
-
 		assert(node->nd_value != NULL);
-
-		std::vector<Value *> params;
-	
-		if (node->nd_vid > 0) {
-		    params.push_back(compile_current_class());
-		    params.push_back(ConstantInt::get(IntTy, (long)node->nd_vid));
-		}
-		else {
-		    assert(node->nd_else != NULL);
-		    params.push_back(compile_class_path(node->nd_else));
-		    assert(node->nd_else->nd_mid > 0);
-		    params.push_back(ConstantInt::get(IntTy, (long)node->nd_else->nd_mid));
-		}
-		
-		Value *val = compile_node(node->nd_value);
-		params.push_back(val);
-
-		CallInst::Create(setConstFunc, params.begin(), params.end(), "", bb);
-
-		return val;
+		return compile_constant_declaration(node, compile_node(node->nd_value));
 	    }
 	    break;
 

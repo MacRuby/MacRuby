@@ -95,3 +95,6 @@ assert '[1, 2, 4]', %{
 }
 
 assert ':ok', '$a, x = :ok, :ko; p $a'
+assert ':ok', 'A, b = :ok, :ko; p A'
+assert ':ok', 'class C; end; C::A, b = :ok, :ko; p C::A'
+assert ':ok', 'class C; A, $b = :ok, :ko; end; p C::A'
