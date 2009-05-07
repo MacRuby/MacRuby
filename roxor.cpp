@@ -3888,15 +3888,18 @@ RoxorCompiler::compile_node(NODE *node)
 		    assert(recv == NULL);
 		}
 
-		const bool block_given = current_block_func != NULL && current_block_node != NULL;
-		const bool super_call = nd_type(node) == NODE_SUPER || nd_type(node) == NODE_ZSUPER;
+		const bool block_given = current_block_func != NULL
+		    && current_block_node != NULL;
+		const bool super_call = nd_type(node) == NODE_SUPER
+		    || nd_type(node) == NODE_ZSUPER;
 
 		if (super_call) {
 		    mid = current_mid;
 		}
 		assert(mid > 0);
 
-		Function::ArgumentListType &fargs = bb->getParent()->getArgumentList();
+		Function::ArgumentListType &fargs =
+		    bb->getParent()->getArgumentList();
 		const int fargs_arity = fargs.size() - 2;
 
 		bool splat_args = false;
@@ -3939,7 +3942,8 @@ rescan_args:
 		if (!block_given && !super_call && !splat_args
 		    && positive_arity && mid == current_mid && recv == NULL) {
 
-		    // TODO check if both functions have the same arity (paranoid?)
+		    // TODO check if both functions have the same arity
+		    // (paranoid?)
 
 		    Function *f = bb->getParent();
 		    std::vector<Value *> params;
@@ -3953,10 +3957,18 @@ rescan_args:
 			params.push_back(compile_node(n->nd_head));
 		    }
 
-		    CallInst *inst = CallInst::Create(f, params.begin(), params.end(), "", bb);
+		    CallInst *inst = CallInst::Create(f, params.begin(),
+			    params.end(), "", bb);
 		    inst->setTailCall(true);
 		    return cast<Value>(inst);
 		}
+
+		// Let's set the block state as NULL temporarily, when we
+		// compile the receiver and the arguments. 
+		Function *old_current_block_func = current_block_func;
+		NODE *old_current_block_node = current_block_node;
+		current_block_func = NULL;
+		current_block_node = NULL;
 
 		// Prepare the dispatcher parameters.
 		std::vector<Value *> params;
@@ -3967,16 +3979,18 @@ rescan_args:
 		params.push_back(compile_const_pointer(cache));
 
 		// Self.
-		params.push_back(recv == NULL ? current_self : compile_node(recv));
+		params.push_back(recv == NULL ? current_self
+			: compile_node(recv));
 
 		// Selector.
 		params.push_back(compile_const_pointer((void *)sel));
 
-		// RubySpec requires that we compile the block *after* the arguments, so we
-		// do pass NULL as the block for the moment...
+		// RubySpec requires that we compile the block *after* the
+		// arguments, so we do pass NULL as the block for the moment.
 		params.push_back(compile_const_pointer(NULL));
 		NODE *real_args = args;
-		if (real_args != NULL && nd_type(real_args) == NODE_BLOCK_PASS) {
+		if (real_args != NULL
+		    && nd_type(real_args) == NODE_BLOCK_PASS) {
 		    real_args = args->nd_head;
 		}
 
@@ -3991,7 +4005,8 @@ rescan_args:
 		// Arguments.
 		int argc = 0;
 		if (nd_type(node) == NODE_ZSUPER) {
-		    params.push_back(ConstantInt::get(Type::Int32Ty, fargs_arity));
+		    params.push_back(ConstantInt::get(Type::Int32Ty,
+				fargs_arity));
 		    Function::ArgumentListType::iterator iter = fargs.begin();
 		    iter++; // skip self
 		    iter++; // skip sel
@@ -4013,6 +4028,10 @@ rescan_args:
 		else {
 		    params.push_back(ConstantInt::get(Type::Int32Ty, 0));
 		}
+
+		// Restore the block state.
+		current_block_func = old_current_block_func;
+		current_block_node = old_current_block_node;
 
 		// Now compile the block and insert it in the params list!
 		Value *blockVal;

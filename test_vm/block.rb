@@ -389,3 +389,15 @@ assert ':ok', %{
 
 # Enumerator 
 assert "[\"f\", \"o\", \"o\"]", "p 'foo'.chars.to_a"
+
+assert ':ok', %{
+  def foo(x); p :ok if block_given?; end
+  def bar; p :ok if block_given?; end
+  foo(bar) {}
+}
+
+assert ':ok', %{
+  def foo; p :ok if block_given?; self; end
+  def bar; p :ok if block_given?; self; end
+  foo.bar {}
+}
