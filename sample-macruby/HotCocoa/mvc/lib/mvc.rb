@@ -29,10 +29,10 @@ class HotCocoaApplication
   end
   
   def initialize
+    HotCocoaApplication.instance = self
     @controllers = {}
     @shared_application = application
     @application_controller = controller(:application_controller)
-    HotCocoaApplication.instance = self
     shared_application.delegate = application_controller
   end
   
@@ -42,8 +42,17 @@ class HotCocoaApplication
   
   def controller(controller_name)
     controller_class = Object.const_get(controller_name.to_s.camel_case)
-    @controllers[controller_name] ||= controller_class.new(self)
+    @controllers[controller_name] || create_controller_instance(controller_name, controller_class)
   end
+  
+  private
+  
+    def create_controller_instance(controller_name, controller_class)
+      controller_instance = controller_class.new(self)
+      @controllers[controller_name] = controller_instance
+      controller_instance.application_window
+      controller_instance
+    end
   
 end
 
@@ -59,8 +68,8 @@ class HotCocoaController
     @application = application
   end
   
-  def main_window
-    @application.application_controller.main_window
+  def application_window
+    @application.application_controller.application_window
   end
 
 end
@@ -69,11 +78,10 @@ class HotCocoaApplicationController < HotCocoaController
   
   def initialize(application)
     super(application)
-    @main_window = ApplicationWindow.new(self)
   end
   
-  def main_window
-    @main_window
+  def application_window
+    @application_window ||= ApplicationWindow.new(self).application_window
   end
   
   # help menu item
@@ -96,9 +104,7 @@ end
 
 class HotCocoaWindow
   
-  attr_reader :application_controller, :main_window
-  
-  include HotCocoa
+  attr_reader :application_controller, :application_window
   
   def initialize(application_controller)
     @application_controller = application_controller
@@ -106,7 +112,8 @@ class HotCocoaWindow
   end
   
   def render
-    @main_window = window(:title => title, :view => application_controller.application_view)
+    @application_window = HotCocoa.window(:title => title)
+    @application_window.view << application_controller.application_view
   end
   
   def title
@@ -116,6 +123,8 @@ class HotCocoaWindow
 end
 
 class HotCocoaView < NSView
+  
+  DefaultLayoutOptions = {:expand => [:width, :height]}
   
   module ClassMethods
     def controller(name=nil)
@@ -137,7 +146,7 @@ class HotCocoaView < NSView
     HotCocoaController.class_eval %{
       def #{class_name}
         view = HotCocoaController.view_instances[:#{class_name}] ||= #{klass.name}.alloc.initWithFrame([0,0,0,0])
-        puts view.inspect
+        view.setup_view
         view
       end
     }, __FILE__, __LINE__
@@ -145,11 +154,29 @@ class HotCocoaView < NSView
   
   attr_reader :controller
 
-  def initialize
-    @controller = HotCocoaApplication.instance.controller(self.class.controller)
+  def setup_view
+    @controller = class_controller
+    self.layout = layout_options
     render
   end
   
+  private
+  
+    def class_controller
+      HotCocoaApplication.instance.controller(self.class.controller)
+    end
+  
+    def layout_options
+      options = if self.class.options && self.class.options[:layout]
+        self.class.options[:layout]
+      else
+        DefaultLayoutOptions
+      end
+    end
+
 end
 
+class ApplicationWindow < HotCocoaWindow
+  
+end
 
