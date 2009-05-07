@@ -26,6 +26,7 @@ namespace :spec do
     symbol
     unless
     until
+    yield
     while
   }
   

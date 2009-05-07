@@ -4854,31 +4854,15 @@ rescan_args:
 				"rb_vm_yield_args", ft));
 		}
 
-		std::vector<Value *>params;
-
-		if (node->nd_head == NULL) {
-		    params.push_back(ConstantInt::get(Type::Int32Ty, 0));
+		std::vector<Value *> params;
+		int argc = 0;
+		if (node->nd_head != NULL) {
+		    compile_dispatch_arguments(node->nd_head, params, &argc);
 		}
-		else {
-		    NODE *args = node->nd_head;
-		    const int argc = args->nd_alen;
-    		    params.push_back(ConstantInt::get(Type::Int32Ty, argc));
-		    for (int i = 0; i < argc; i++) {
-			params.push_back(compile_node(args->nd_head));
-			args = args->nd_next;
-		    }
-		}
-#if 0 // TODO
-		else {
-		    params.push_back(ConstantInt::get(Type::Int32Ty, 1));
-		    params.push_back(splatArgFollowsVal);
-		    params.push_back(compile_node(args->nd_head));
-		}
-#endif
+		params.insert(params.begin(), ConstantInt::get(Type::Int32Ty, argc));
 
 		return CallInst::Create(yieldFunc, params.begin(),
 			params.end(), "", bb);
-
 	    }
 	    break;
 
@@ -7120,54 +7104,61 @@ rb_vm_masgn_get_splat(VALUE ary, int before_splat_count, int after_splat_count) 
 }
 
 __attribute__((always_inline))
+static void
+__rb_vm_fix_args(const VALUE *argv, VALUE *new_argv, const rb_vm_arity_t &arity, int argc)
+{
+    assert(argc >= arity.min);
+    assert((arity.max == -1) || (argc <= arity.max));
+    int used_opt_args = argc - arity.min;
+    int opt_args, rest_pos;
+    if (arity.max == -1) {
+	opt_args = arity.real - arity.min - 1;
+	rest_pos = arity.left_req + opt_args;
+    }
+    else {
+	opt_args = arity.real - arity.min;
+	rest_pos = -1;
+    }
+    for (int i = 0; i < arity.real; ++i) {
+	if (i < arity.left_req) {
+	    // required args before optional args
+	    new_argv[i] = argv[i];
+	}
+	else if (i < arity.left_req + opt_args) {
+	    // optional args
+	    int opt_arg_index = i - arity.left_req;
+	    if (opt_arg_index >= used_opt_args) {
+		new_argv[i] = Qundef;
+	    }
+	    else {
+		new_argv[i] = argv[i];
+	    }
+	}
+	else if (i == rest_pos) {
+	    // rest
+	    int rest_size = argc - arity.real + 1;
+	    if (rest_size <= 0) {
+		new_argv[i] = rb_ary_new();
+	    }
+	    else {
+		new_argv[i] = rb_ary_new4(rest_size, &argv[i]);
+	    }
+	}
+	else {
+	    // required args after optional args
+	    new_argv[i] = argv[argc-(arity.real - i)];
+	}
+    }
+}
+
+__attribute__((always_inline))
 static VALUE
 __rb_vm_bcall(VALUE self, VALUE dvars, rb_vm_block_t *b,
 	      IMP pimp, const rb_vm_arity_t &arity, int argc, const VALUE *argv)
 {
     if ((arity.real != argc) || (arity.max == -1)) {
 	VALUE *new_argv = (VALUE *)alloca(sizeof(VALUE) * arity.real);
-	assert(argc >= arity.min);
-	assert((arity.max == -1) || (argc <= arity.max));
-	int used_opt_args = argc - arity.min;
-	int opt_args, rest_pos;
-	if (arity.max == -1) {
-	    opt_args = arity.real - arity.min - 1;
-	    rest_pos = arity.left_req + opt_args;
-	}
-	else {
-	    opt_args = arity.real - arity.min;
-	    rest_pos = -1;
-	}
-	for (int i = 0; i < arity.real; ++i) {
-	    if (i < arity.left_req) {
-		// required args before optional args
-		new_argv[i] = argv[i];
-	    }
-	    else if (i < arity.left_req + opt_args) {
-		// optional args
-		int opt_arg_index = i - arity.left_req;
-		if (opt_arg_index >= used_opt_args) {
-		    new_argv[i] = Qundef;
-		}
-		else {
-		    new_argv[i] = argv[i];
-		}
-	    }
-	    else if (i == rest_pos) {
-		// rest
-		int rest_size = argc - arity.real + 1;
-		if (rest_size <= 0) {
-		    new_argv[i] = rb_ary_new();
-		}
-		else {
-		    new_argv[i] = rb_ary_new4(rest_size, &argv[i]);
-		}
-	    }
-	    else {
-		// required args after optional args
-		new_argv[i] = argv[argc-(arity.real - i)];
-	    }
-	}
+	__rb_vm_fix_args(argv, new_argv, arity, argc);
 	argv = new_argv;
 	argc = arity.real;
     }
@@ -7209,48 +7200,7 @@ __rb_vm_rcall(VALUE self, SEL sel, NODE *node, IMP pimp,
 {
     if ((arity.real != argc) || (arity.max == -1)) {
 	VALUE *new_argv = (VALUE *)alloca(sizeof(VALUE) * arity.real);
-	assert(argc >= arity.min);
-	assert((arity.max == -1) || (argc <= arity.max));
-	int used_opt_args = argc - arity.min;
-	int opt_args, rest_pos;
-	if (arity.max == -1) {
-	    opt_args = arity.real - arity.min - 1;
-	    rest_pos = arity.left_req + opt_args;
-	}
-	else {
-	    opt_args = arity.real - arity.min;
-	    rest_pos = -1;
-	}
-	for (int i = 0; i < arity.real; ++i) {
-	    if (i < arity.left_req) {
-		// required args before optional args
-		new_argv[i] = argv[i];
-	    }
-	    else if (i < arity.left_req + opt_args) {
-		// optional args
-		int opt_arg_index = i - arity.left_req;
-		if (opt_arg_index >= used_opt_args) {
-		    new_argv[i] = Qundef;
-		}
-		else {
-		    new_argv[i] = argv[i];
-		}
-	    }
-	    else if (i == rest_pos) {
-		// rest
-		int rest_size = argc - arity.real + 1;
-		if (rest_size <= 0) {
-		    new_argv[i] = rb_ary_new();
-		}
-		else {
-		    new_argv[i] = rb_ary_new4(rest_size, &argv[i]);
-		}
-	    }
-	    else {
-		// required args after optional args
-		new_argv[i] = argv[argc-(arity.real - i)];
-	    }
-	}
+	__rb_vm_fix_args(argv, new_argv, arity, argc);
 	argv = new_argv;
 	argc = arity.real;
     }
@@ -7800,51 +7750,60 @@ recache:
     abort();
 }
 
+#define MAX_DISPATCH_ARGS 200
+
+__attribute__((always_inline))
+static int
+__rb_vm_resolve_args(VALUE *argv, int argc, va_list ar)
+{
+    // TODO we should only determine the real argc here (by taking into
+    // account the length splat arguments) and do the real unpacking of
+    // splat arguments in __rb_vm_rcall(). This way we can optimize more
+    // things (for ex. no need to unpack splats that are passed as a splat
+    // argument in the method being called!).
+    int i, real_argc = 0;
+    bool splat_arg_follows = false;
+    for (i = 0; i < argc; i++) {
+	VALUE arg = va_arg(ar, VALUE);
+	if (arg == SPLAT_ARG_FOLLOWS) {
+	    splat_arg_follows = true;
+	    i--;
+	}
+	else {
+	    if (splat_arg_follows) {
+		VALUE ary = rb_check_convert_type(arg, T_ARRAY, "Array",
+			"to_a");
+		if (NIL_P(ary)) {
+		    ary = rb_ary_new3(1, arg);
+		}
+		int j, count = RARRAY_LEN(ary);
+		assert(real_argc + count < MAX_DISPATCH_ARGS);
+		for (j = 0; j < count; j++) {
+		    argv[real_argc++] = RARRAY_AT(ary, j);
+		}
+		splat_arg_follows = false;
+	    }
+	    else {
+		assert(real_argc < MAX_DISPATCH_ARGS);
+		argv[real_argc++] = arg;
+	    }
+	}
+    }
+
+    return real_argc;
+}
+
 extern "C"
 VALUE
 rb_vm_dispatch(struct mcache *cache, VALUE self, SEL sel, rb_vm_block_t *block, 
 	       unsigned char opt, int argc, ...)
 {
-#define MAX_DISPATCH_ARGS 200
     VALUE argv[MAX_DISPATCH_ARGS];
     if (argc > 0) {
-	// TODO we should only determine the real argc here (by taking into
-	// account the length splat arguments) and do the real unpacking of
-	// splat arguments in __rb_vm_rcall(). This way we can optimize more
-	// things (for ex. no need to unpack splats that are passed as a splat
-	// argument in the method being called!).
 	va_list ar;
 	va_start(ar, argc);
-	int i, real_argc = 0;
-	bool splat_arg_follows = false;
-	for (i = 0; i < argc; i++) {
-	    VALUE arg = va_arg(ar, VALUE);
-	    if (arg == SPLAT_ARG_FOLLOWS) {
-		splat_arg_follows = true;
-		i--;
-	    }
-	    else {
-		if (splat_arg_follows) {
-		    VALUE ary = rb_check_convert_type(arg, T_ARRAY, "Array",
-			    			      "to_a");
-		    if (NIL_P(ary)) {
-			ary = rb_ary_new3(1, arg);
-		    }
-		    int j, count = RARRAY_LEN(ary);
-		    assert(real_argc + count < MAX_DISPATCH_ARGS);
-		    for (j = 0; j < count; j++) {
-			argv[real_argc++] = RARRAY_AT(ary, j);
-		    }
-		    splat_arg_follows = false;
-		}
-		else {
-		    assert(real_argc < MAX_DISPATCH_ARGS);
-		    argv[real_argc++] = arg;
-		}
-	    }
-	}
+	argc = __rb_vm_resolve_args(argv, argc, ar);
 	va_end(ar);
-	argc = real_argc;
     }
 
     rb_vm_block_t *b = (rb_vm_block_t *)block;
@@ -8480,14 +8439,11 @@ extern "C"
 VALUE 
 rb_vm_yield_args(int argc, ...)
 {
-    VALUE *argv = NULL;
+    VALUE argv[MAX_DISPATCH_ARGS];
     if (argc > 0) {
 	va_list ar;
 	va_start(ar, argc);
-	argv = (VALUE *)alloca(sizeof(VALUE) * argc);
-	for (int i = 0; i < argc; ++i) {
-	    argv[i] = va_arg(ar, VALUE);
-	}
+	argc = __rb_vm_resolve_args(argv, argc, ar);
 	va_end(ar);
     }
     return rb_vm_yield0(argc, argv);
