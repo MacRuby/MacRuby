@@ -3487,6 +3487,7 @@ imp_rb_array_addObject(void *rcv, SEL sel, void *obj)
     RESTORE_RCV(rcv);
 }
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1060
 static CFIndex
 imp_rb_array_cfindexOfObjectInRange(void *rcv, SEL sel, void *obj, 
     CFRange range)
@@ -3497,6 +3498,7 @@ imp_rb_array_cfindexOfObjectInRange(void *rcv, SEL sel, void *obj,
     RESTORE_RCV(rcv);
     return i;
 }
+#endif
 
 void
 rb_objc_install_array_primitives(Class klass)
@@ -3511,6 +3513,7 @@ rb_objc_install_array_primitives(Class klass)
 	(IMP)imp_rb_array_replaceObjectsInRangeWithObjectsCount);
     rb_objc_install_method2(klass, "addObject:", (IMP)imp_rb_array_addObject);
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1060
     /* This is to work around a bug where CF will try to call an non-existing 
      * method. 
      */
@@ -3520,7 +3523,8 @@ rb_objc_install_array_primitives(Class klass)
 	    sel_registerName("_cfindexOfObject:range:"));
     class_addMethod(klass, sel_registerName("_cfindexOfObject:inRange:"), 
 	    method_getImplementation(m), method_getTypeEncoding(m));
-    
+#endif
+
     rb_define_alloc_func((VALUE)klass, ary_alloc);
 }
 

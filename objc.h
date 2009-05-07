@@ -32,6 +32,10 @@ rb_objc_install_method(Class klass, SEL sel, IMP imp)
     Method method, method2;
 
     method = class_getInstanceMethod(klass, sel);
+    if (method == NULL) {
+	printf("method %s not found on class %p - aborting\n", sel_getName(sel), klass);
+	abort();
+    }
     assert(method != NULL);
  
     method2 = class_getInstanceMethod((Class)RCLASS_SUPER(klass), sel);
