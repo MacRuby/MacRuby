@@ -295,60 +295,23 @@ bind_eval(VALUE bindval, SEL sel, int argc, VALUE *argv)
 static VALUE
 proc_new(VALUE klass, int is_lambda)
 {
-#if 0
-    VALUE procval = Qnil;
-    rb_thread_t *th = GET_THREAD();
-    rb_control_frame_t *cfp = th->cfp;
-    rb_block_t *block;
-
-    if ((GC_GUARDED_PTR_REF(cfp->lfp[0])) != 0 &&
-	!RUBY_VM_CLASS_SPECIAL_P(cfp->lfp[0])) {
-
-	block = GC_GUARDED_PTR_REF(cfp->lfp[0]);
-	cfp = RUBY_VM_PREVIOUS_CONTROL_FRAME(cfp);
-    }
-    else {
-	cfp = RUBY_VM_PREVIOUS_CONTROL_FRAME(cfp);
-
-	if ((GC_GUARDED_PTR_REF(cfp->lfp[0])) != 0 &&
-	    !RUBY_VM_CLASS_SPECIAL_P(cfp->lfp[0])) {
-
-	    block = GC_GUARDED_PTR_REF(cfp->lfp[0]);
-
-	    /* TODO: check more (cfp limit, called via cfunc, etc) */
-	    while (cfp->dfp != block->dfp) {
-		cfp = RUBY_VM_PREVIOUS_CONTROL_FRAME(cfp);
-	    }
-
-	    if (is_lambda) {
-		rb_warn("tried to create Proc object without a block");
-	    }
-	}
-	else {
-	    rb_raise(rb_eArgError,
-		     "tried to create Proc object without a block");
-	}
+    rb_vm_block_t *block = rb_vm_current_block();
+    if (block == NULL) {
+	/* If the current block is NULL, let's check if there is a previous
+	 * block. This is to conform to some dark Ruby behaviors, such as:
+	 *
+	 *  def foo; Proc.new; end; foo { p 42 }.call
+	 *
+	 *  def foo(x=Proc.new); x.call; end; foo { p 42 }
+	 */
+	block = rb_vm_previous_block();
     }
 
-    if (block->proc) {
-	return block->proc;
-    }
-
-    procval = vm_make_proc(th, cfp, block);
-
-    if (is_lambda) {
-	rb_proc_t *proc;
-	GetProcPtr(procval, proc);
-	proc->is_lambda = Qtrue;
-    }
-    return procval;
-#endif
-    rb_vm_block_t *current_block = rb_vm_current_block();
-    if (current_block == NULL) {
+    if (block == NULL) {
 	rb_raise(rb_eArgError,
 		"tried to create Proc object without a block");
     }
-    return rb_proc_alloc_with_block(klass, current_block);
+    return rb_proc_alloc_with_block(klass, block);
 }
 
 /*

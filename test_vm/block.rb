@@ -401,3 +401,11 @@ assert ':ok', %{
   def bar; p :ok if block_given?; self; end
   foo.bar {}
 }
+
+assert ':ok', %{
+  def foo; Proc.new; end; foo { p :ok }.call
+}
+
+assert ':ok', %{
+  def foo(x=Proc.new); x.call; end; foo { p :ok }
+}

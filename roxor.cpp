@@ -8255,6 +8255,13 @@ rb_vm_current_block(void)
 }
 
 extern "C"
+rb_vm_block_t *
+rb_vm_previous_block(void)
+{
+    return GET_VM()->previous_block;
+}
+
+extern "C"
 void
 rb_vm_change_current_block(rb_vm_block_t *block)
 {

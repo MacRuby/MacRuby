@@ -147,6 +147,7 @@ rb_vm_block_t *rb_vm_prepare_block(void *llvm_function, NODE *node, VALUE self,
        rb_vm_block_t *parent_block,
        int dvars_size, ...);
 rb_vm_block_t *rb_vm_current_block(void);
+rb_vm_block_t *rb_vm_previous_block(void);
 bool rb_vm_block_saved(void);
 void rb_vm_change_current_block(rb_vm_block_t *block);
 void rb_vm_restore_current_block(void);
