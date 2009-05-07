@@ -164,6 +164,8 @@ rb_objc_alloc_class(const char *name, VALUE super, VALUE flags, VALUE klass)
 
     DLOG("DEFC", "%s < %s (version=%d)", ocname, class_getName(class_getSuperclass((Class)ocklass)), version_flag);
 
+    objc_registerClassPair(ocklass);
+
     if (klass != 0) {
 	rb_objc_install_primitives(ocklass, (Class)super);
     }
@@ -187,7 +189,6 @@ rb_objc_create_class(const char *name, VALUE super)
     }
 
     klass = rb_objc_alloc_class(name, super, T_CLASS, rb_cClass);
-    objc_registerClassPair((Class)klass);
    
     if (super == rb_cNSObject) {
 	rb_define_object_special_methods(klass);
@@ -473,7 +474,6 @@ rb_define_module_id(ID id)
     VALUE mdl;
 
     mdl = rb_objc_alloc_class(id == 0 ? NULL : rb_id2name(id), rb_cObject, T_MODULE, rb_cModule);
-    objc_registerClassPair((Class)mdl);
 
     if (rb_mKernel != 0) {
 	/* because Module#initialize can accept a block */
