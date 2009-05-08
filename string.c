@@ -486,16 +486,21 @@ rb_str_format_m(VALUE str, SEL sel, VALUE arg)
 static inline void
 str_modifiable(VALUE str)
 {
-    if (*(VALUE *)str == rb_cCFString) {
-	if (RSTRING_IMMUTABLE(str)) {
-	    rb_raise(rb_eRuntimeError, "can't modify immutable string");
-	}
+    long mask;
+#ifdef __LP64__
+    mask = RCLASS_RC_FLAGS(str);
+#else
+    mask = rb_objc_flag_get_mask((void *)str);
+#endif
+    if (RSTRING_IMMUTABLE(str)) {
+	mask |= FL_FREEZE;
     }
-    if (OBJ_FROZEN(str)) {
-	rb_error_frozen("string");
+    if ((mask & FL_FREEZE) == FL_FREEZE) {
+	rb_raise(rb_eRuntimeError, "can't modify frozen/immutable string");
     }
-    if (!OBJ_TAINTED(str) && rb_safe_level() >= 4)
+    if ((mask & FL_TAINT) == FL_TAINT && rb_safe_level() >= 4) {
 	rb_raise(rb_eSecurityError, "Insecure: can't modify string");
+    }
 }
 
 void
@@ -703,6 +708,7 @@ rb_str_resize(VALUE str, long len)
     return str;
 }
 
+__attribute__((always_inline))
 static void
 rb_objc_str_cat(VALUE str, const char *ptr, long len, int cfstring_encoding)
 {
@@ -785,8 +791,8 @@ rb_str_buf_cat_ascii(VALUE str, const char *ptr)
     return str;
 }
 
-VALUE
-rb_str_buf_append(VALUE str, VALUE str2)
+static inline VALUE
+rb_str_buf_append0(VALUE str, VALUE str2)
 {
     if (TYPE(str2) != T_SYMBOL) {
 	Check_Type(str2, T_STRING);
@@ -804,11 +810,17 @@ rb_str_buf_append(VALUE str, VALUE str2)
 }
 
 VALUE
+rb_str_buf_append(VALUE str, VALUE str2)
+{
+   return rb_str_buf_append0(str, str2);
+}
+
+VALUE
 rb_str_append(VALUE str, VALUE str2)
 {
     StringValue(str2);
     rb_str_modify(str);
-    return rb_str_buf_append(str, str2);
+    return rb_str_buf_append0(str, str2);
 }
 
 
