@@ -7825,15 +7825,21 @@ rb_vm_dispatch(struct mcache *cache, VALUE self, SEL sel, rb_vm_block_t *block,
 	va_end(ar);
     }
 
-    rb_vm_block_t *b = (rb_vm_block_t *)block;
-    rb_vm_block_t *old_b = GET_VM()->previous_block;
-    GET_VM()->previous_block = GET_VM()->current_block;
-    GET_VM()->current_block = b;
+    const bool swap_blocks = block == NULL || block != GET_VM()->current_block;
+
+    rb_vm_block_t *old_block = NULL;
+    if (swap_blocks) {
+	old_block = GET_VM()->previous_block;
+	GET_VM()->previous_block = GET_VM()->current_block;
+	GET_VM()->current_block = block;
+    }
 
     VALUE retval = __rb_vm_dispatch(cache, self, NULL, sel, opt, argc, argv);
 
-    GET_VM()->current_block = GET_VM()->previous_block;
-    GET_VM()->previous_block = old_b;
+    if (swap_blocks) {
+	GET_VM()->current_block = GET_VM()->previous_block;
+	GET_VM()->previous_block = old_block;
+    }
 
     if (!GET_VM()->bindings.empty()) {
 	rb_objc_release(GET_VM()->bindings.back());
