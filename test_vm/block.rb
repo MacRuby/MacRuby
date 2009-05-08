@@ -397,9 +397,11 @@ assert ':ok', %{
 }
 
 assert ':ok', %{
-  def foo; p :ok if block_given?; self; end
-  def bar; p :ok if block_given?; self; end
-  foo.bar {}
+  class X
+    def foo; p :ko if block_given?; self; end
+    def bar; p :ok if block_given?; self; end
+  end
+  X.new.foo.bar {}
 }
 
 assert ':ok', %{
