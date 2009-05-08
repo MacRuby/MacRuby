@@ -43,10 +43,8 @@ rb_ary_modify_check(VALUE ary)
 #else
     mask = rb_objc_flag_get_mask((void *)ary);
 #endif
-    if (mask == 0) {
-	if (RARRAY_IMMUTABLE(ary)) {
-	    mask |= FL_FREEZE;
-	}
+    if (RARRAY_IMMUTABLE(ary)) {
+	mask |= FL_FREEZE;
     }
     if ((mask & FL_FREEZE) == FL_FREEZE) {
 	rb_raise(rb_eRuntimeError, "can't modify frozen/immutable array");
@@ -3504,9 +3502,12 @@ void
 rb_objc_install_array_primitives(Class klass)
 {
     rb_objc_install_method2(klass, "count", (IMP)imp_rb_array_count);
-    rb_objc_install_method2(klass, "objectAtIndex:", (IMP)imp_rb_array_objectAtIndex);
-    rb_objc_install_method2(klass, "insertObject:atIndex:", (IMP)imp_rb_array_insertObjectAtIndex);
-    rb_objc_install_method2(klass, "removeObjectAtIndex:", (IMP)imp_rb_array_removeObjectAtIndex);
+    rb_objc_install_method2(klass, "objectAtIndex:",
+	    (IMP)imp_rb_array_objectAtIndex);
+    rb_objc_install_method2(klass, "insertObject:atIndex:",
+	    (IMP)imp_rb_array_insertObjectAtIndex);
+    rb_objc_install_method2(klass, "removeObjectAtIndex:",
+	    (IMP)imp_rb_array_removeObjectAtIndex);
     rb_objc_install_method2(klass, "replaceObjectAtIndex:withObject:", 
 	(IMP)imp_rb_array_replaceObjectAtIndexWithObject);
     rb_objc_install_method2(klass, "replaceObjectsInRange:withObjects:count:",
@@ -3525,7 +3526,7 @@ rb_objc_install_array_primitives(Class klass)
 	    method_getImplementation(m), method_getTypeEncoding(m));
 #endif
 
-    rb_define_alloc_func((VALUE)klass, ary_alloc);
+    rb_objc_define_method(*(VALUE *)klass, "alloc", ary_alloc, 0);
 }
 
 /* Arrays are ordered, integer-indexed collections of any object. 

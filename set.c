@@ -21,15 +21,15 @@ rb_set_modify_check(VALUE set)
 {
     long mask;
     mask = rb_objc_flag_get_mask((void *)set);
-    if (mask == 0) {
-	if (RSET_IMMUTABLE(set)) {
-	    mask |= FL_FREEZE;
-	}
+    if (RSET_IMMUTABLE(set)) {
+	mask |= FL_FREEZE;
     }
-    if ((mask & FL_FREEZE) == FL_FREEZE)
+    if ((mask & FL_FREEZE) == FL_FREEZE) {
 	rb_raise(rb_eRuntimeError, "can't modify frozen/immutable set");
-    if ((mask & FL_TAINT) == FL_TAINT && rb_safe_level() >= 4)
+    }
+    if ((mask & FL_TAINT) == FL_TAINT && rb_safe_level() >= 4) {
 	rb_raise(rb_eSecurityError, "Insecure: can't modify set");
+    }
 }
 
 static VALUE

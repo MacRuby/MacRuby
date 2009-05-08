@@ -230,15 +230,15 @@ rb_hash_modify_check(VALUE hash)
 #else
     mask = rb_objc_flag_get_mask((const void *)hash);
 #endif
-    if (mask == 0) {
-	if (RHASH_IMMUTABLE(hash)) {
-	    mask |= FL_FREEZE;
-	}
+    if (RHASH_IMMUTABLE(hash)) {
+	mask |= FL_FREEZE;
     }
-    if ((mask & FL_FREEZE) == FL_FREEZE)
+    if ((mask & FL_FREEZE) == FL_FREEZE) {
 	rb_raise(rb_eRuntimeError, "can't modify frozen/immutable hash");
-    if ((mask & FL_TAINT) == FL_TAINT && rb_safe_level() >= 4)
+    }
+    if ((mask & FL_TAINT) == FL_TAINT && rb_safe_level() >= 4) {
 	rb_raise(rb_eSecurityError, "Insecure: can't modify hash");
+    }
 }
 
 #define rb_hash_modify rb_hash_modify_check
@@ -2436,7 +2436,7 @@ rb_objc_install_hash_primitives(Class klass)
     rb_objc_install_method2(klass, "isEqual:", (IMP)imp_rb_hash_isEqual);
     rb_objc_install_method2(klass, "containsObject:", (IMP)imp_rb_hash_containsObject);
 
-    rb_define_alloc_func((VALUE)klass, hash_alloc);
+    rb_objc_define_method(*(VALUE *)klass, "alloc", hash_alloc, 0);
 }
 
 /*

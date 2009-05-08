@@ -807,6 +807,7 @@ VALUE
 rb_str_append(VALUE str, VALUE str2)
 {
     StringValue(str2);
+    rb_str_modify(str);
     return rb_str_buf_append(str, str2);
 }
 
