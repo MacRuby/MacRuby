@@ -409,3 +409,18 @@ assert ':ok', %{
 assert ':ok', %{
   def foo(x=Proc.new); x.call; end; foo { p :ok }
 }
+
+assert ':ok', %{
+  def a
+    yield
+  end
+  def b(&block)
+    a(&block)
+  end
+  def c
+    b do
+      yield
+    end
+  end
+  c { p :ok }
+}
