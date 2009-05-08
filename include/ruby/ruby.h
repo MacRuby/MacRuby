@@ -1212,38 +1212,63 @@ rb_type(VALUE obj)
 {
     Class k;
     if (IMMEDIATE_P(obj)) {
-	if (FIXNUM_P(obj)) return T_FIXNUM;
-	if (obj == Qtrue) return T_TRUE;
+	if (FIXNUM_P(obj)) {
+	    return T_FIXNUM;
+	}
+	if (obj == Qtrue) {
+	    return T_TRUE;
+	}
 #if !WITH_OBJC
-	if (SYMBOL_P(obj)) return T_SYMBOL;
+	if (SYMBOL_P(obj)) {
+	    return T_SYMBOL;
+	}
 #endif
-	if (obj == Qundef) return T_UNDEF;
+	if (obj == Qundef) {
+	    return T_UNDEF;
+	}
     }
     else if (!RTEST(obj)) {
-	if (obj == Qnil) return T_NIL;
-	if (obj == Qfalse) return T_FALSE;
+	if (obj == Qnil) {
+	    return T_NIL;
+	}
+	if (obj == Qfalse) {
+	    return T_FALSE;
+	}
     }
 #if WITH_OBJC
     else if ((k = *(Class *)obj) != NULL) {
-	if (RCLASS_META(k)) {
-	    if (RCLASS_MODULE(obj)) return T_MODULE;
-	    else return T_CLASS;
-	}
-	if (k == (Class)rb_cSymbol) return T_SYMBOL;
 	if (k == (Class)rb_cCFString
 	    || (RCLASS_VERSION(k) & RCLASS_IS_STRING_SUBCLASS) 
-		== RCLASS_IS_STRING_SUBCLASS) 
+		== RCLASS_IS_STRING_SUBCLASS) {
 	    return T_STRING;
+	}
 	if (k == (Class)rb_cCFArray
 	    || (RCLASS_VERSION(k) & RCLASS_IS_ARRAY_SUBCLASS) 
-		== RCLASS_IS_ARRAY_SUBCLASS) 
+		== RCLASS_IS_ARRAY_SUBCLASS) {
 	    return T_ARRAY;
+	}
 	if (k == (Class)rb_cCFHash
 	    || (RCLASS_VERSION(k) & RCLASS_IS_HASH_SUBCLASS) 
-		== RCLASS_IS_HASH_SUBCLASS)
+	        == RCLASS_IS_HASH_SUBCLASS) {
 	    return T_HASH;
-	if (k == (Class)rb_cFixnum) return T_FIXNUM;
-	if (NATIVE(obj)) return T_NATIVE;
+	}
+	if (RCLASS_META(k)) {
+	    if (RCLASS_MODULE(obj)) {
+		return T_MODULE;
+	    }
+	    else {
+		return T_CLASS;
+	    }
+	}
+	if (k == (Class)rb_cSymbol) {
+	    return T_SYMBOL;
+	}
+	if (k == (Class)rb_cFixnum) {
+	    return T_FIXNUM;
+	}
+	if (NATIVE(obj)) {
+	    return T_NATIVE;
+	}
     }
 #endif
     return BUILTIN_TYPE(obj);
