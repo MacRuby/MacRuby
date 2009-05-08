@@ -426,3 +426,18 @@ assert ':ok', %{
   end
   c { p :ok }
 }
+
+assert ':ok', %{
+  def a
+    1.times do yield end
+  end
+  def b(&block)
+    a(&block)
+  end
+  def c
+    b do
+      yield
+    end
+  end
+  c { p :ok }
+}
