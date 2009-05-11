@@ -290,6 +290,7 @@ class RoxorCompiler
 	Function *gvarGetFunc;
 	Function *cvarSetFunc;
 	Function *cvarGetFunc;
+	Function *currentExceptionFunc;
 	Function *popExceptionFunc;
 	Function *getSpecialFunc;
 	Function *breakFunc;
@@ -776,6 +777,7 @@ RoxorCompiler::RoxorCompiler(const char *_fname)
     gvarGetFunc = NULL;
     cvarSetFunc = NULL;
     cvarGetFunc = NULL;
+    currentExceptionFunc = NULL;
     popExceptionFunc = NULL;
     getSpecialFunc = NULL;
     breakFunc = NULL;
@@ -1967,6 +1969,14 @@ RoxorCompiler::compile_landing_pad_header(void)
 void
 RoxorCompiler::compile_landing_pad_footer(void)
 {
+    if (popExceptionFunc == NULL) {
+	// void rb_vm_pop_exception(void);
+	popExceptionFunc = cast<Function>(
+		module->getOrInsertFunction("rb_vm_pop_exception", 
+		    Type::VoidTy, NULL));
+    }
+    CallInst::Create(popExceptionFunc, "", bb);
+
     Function *endCatchFunc = NULL;
     if (endCatchFunc == NULL) {
 	// void __cxa_end_catch(void);
@@ -4704,13 +4714,14 @@ rescan_args:
 
 	case NODE_ERRINFO:
 	    {
-		if (popExceptionFunc == NULL) {
-		    // VALUE rb_vm_pop_exception(void);
-		    popExceptionFunc = cast<Function>(
-			    module->getOrInsertFunction("rb_vm_pop_exception", 
+		if (currentExceptionFunc == NULL) {
+		    // VALUE rb_vm_current_exception(void);
+		    currentExceptionFunc = cast<Function>(
+			    module->getOrInsertFunction(
+				"rb_vm_current_exception", 
 				RubyObjTy, NULL));
 		}
-		return CallInst::Create(popExceptionFunc, "", bb);
+		return CallInst::Create(currentExceptionFunc, "", bb);
 	    }
 	    break;
 
@@ -8786,14 +8797,13 @@ rb_vm_is_eh_active(int argc, ...)
 }
 
 extern "C"
-VALUE
+void
 rb_vm_pop_exception(void)
 {
     VALUE exc = GET_VM()->current_exception;
     assert(exc != Qnil);
     rb_objc_release((void *)exc);
     GET_VM()->current_exception = Qnil;
-    return exc; 
 }
 
 extern "C"
@@ -9016,7 +9026,6 @@ rb_set_errinfo(VALUE err)
     GET_VM()->errinfo = err;
     rb_objc_retain((void *)err);
 }
-
 
 extern "C"
 const char *

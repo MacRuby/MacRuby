@@ -1,15 +1,13 @@
-/**********************************************************************
-
-  eval.c -
-
-  $Author: nobu $
-  created at: Thu Jun 10 14:22:17 JST 1993
-
-  Copyright (C) 1993-2007 Yukihiro Matsumoto
-  Copyright (C) 2000  Network Applied Communication Laboratory, Inc.
-  Copyright (C) 2000  Information-technology Promotion Agency, Japan
-
-**********************************************************************/
+/* 
+ * MacRuby implementation of Ruby 1.9's eval.c.
+ *
+ * This file is covered by the Ruby license. See COPYING for more details.
+ * 
+ * Copyright (C) 2007-2008, Apple Inc. All rights reserved.
+ * Copyright (C) 1993-2007 Yukihiro Matsumoto
+ * Copyright (C) 2000 Network Applied Communication Laboratory, Inc.
+ * Copyright (C) 2000 Information-technology Promotion Agency, Japan
+ */
 
 #include "ruby/ruby.h"
 #include "ruby/node.h"
@@ -680,15 +678,17 @@ VALUE rb_f_untrace_var();
 static VALUE
 get_errinfo(void)
 {
-    // TODO
-    return Qnil;
+    VALUE exc = rb_vm_current_exception();
+    if (NIL_P(exc)) {
+	exc = rb_errinfo();
+    }
+    return exc;
 }
 
 static VALUE
 errinfo_getter(ID id)
 {
-    // TODO
-    return Qnil;
+    return get_errinfo();
 }
 
 VALUE

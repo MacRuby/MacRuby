@@ -133,3 +133,48 @@ assert ':ok', %{
   end
   foo
 }
+
+assert ':ok', %{
+  p :ok if $!.nil?
+}
+
+assert ':ok', %{
+  begin
+    p :ok if $!.nil?
+    raise
+  rescue
+  end
+}
+
+assert ':ok', %{
+  begin
+    raise 'foo'
+  rescue
+  end
+  p :ok if $!.nil?
+}
+
+assert ':ok', %{
+  begin
+    raise 'foo'
+  rescue => e
+  end
+  p :ok if $!.nil?
+}
+
+assert ':ok', %{
+  e = RuntimeError.new('foo')
+  begin
+    raise e
+  rescue
+    p :ok if $! == e
+  end
+}
+
+assert ':ok', %{
+  begin
+    raise 'foo'
+  rescue => e
+    p :ok if $! == e
+  end
+}
