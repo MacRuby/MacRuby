@@ -1699,11 +1699,15 @@ rb_class_new_instance0(int argc, VALUE *argv, VALUE klass)
     }
 
     //init_obj = rb_obj_call_init(obj, argc, argv);
+
+    rb_vm_block_t *block = rb_vm_current_block();
     if (argc == 0) {
-	init_obj = rb_vm_call_with_cache(initializeCache, obj, selInitialize, argc, argv);
+	init_obj = rb_vm_call_with_cache2(initializeCache, block, obj,
+		CLASS_OF(obj), selInitialize, argc, argv);
     }
     else {
-	init_obj = rb_vm_call_with_cache(initialize2Cache, obj, selInitialize2, argc, argv);
+	init_obj = rb_vm_call_with_cache2(initialize2Cache, block, obj,
+		CLASS_OF(obj), selInitialize2, argc, argv);
     }
 
     if (init_obj != Qnil) {
@@ -2190,15 +2194,15 @@ convert_type(VALUE val, const char *tname, const char *method, int raise)
 //    m = rb_intern(method);
 //    if (!rb_obj_respond_to(val, m, Qtrue)) {
 
-      SEL sel = sel_registerName(method);
-      if (!rb_vm_respond_to(val, sel, true)) {
-        if (raise) {
+    SEL sel = sel_registerName(method);
+    if (!rb_vm_respond_to(val, sel, true)) {
+	if (raise) {
 	    rb_raise(rb_eTypeError, "can't convert %s into %s",
-		     NIL_P(val) ? "nil" :
-		     val == Qtrue ? "true" :
-		     val == Qfalse ? "false" :
-		     rb_obj_classname(val), 
-		     tname);
+		    NIL_P(val) ? "nil" :
+		    val == Qtrue ? "true" :
+		    val == Qfalse ? "false" :
+		    rb_obj_classname(val), 
+		    tname);
 	}
 	else {
 	    return Qnil;

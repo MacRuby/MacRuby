@@ -501,6 +501,8 @@ class RoxorVM
 	std::map<std::string, void *> c_stubs, objc_stubs,
 	    to_rval_convertors, to_ocval_convertors;
 
+	std::vector<rb_vm_block_t *> current_blocks;
+
     public:
 	static RoxorVM *current;
 
@@ -518,9 +520,45 @@ class RoxorVM
 	std::map<NODE *, rb_vm_block_t *> blocks;
 	std::map<double, struct rb_float_cache *> float_cache;
 	unsigned char method_missing_reason;
-	rb_vm_block_t *current_block;
-	rb_vm_block_t *previous_block;
 	bool parse_in_eval;
+
+	std::string debug_blocks(void);
+
+	bool is_block_current(rb_vm_block_t *b) {
+	    return b == NULL
+		? false
+		: current_blocks.empty()
+		? false
+		: current_blocks.back() == b;
+	}
+
+	void add_current_block(rb_vm_block_t *b) {
+	    current_blocks.push_back(b);
+	}
+
+	void pop_current_block(void) {
+	    assert(!current_blocks.empty());
+	    current_blocks.pop_back();
+	}
+
+	rb_vm_block_t *current_block(void) {
+	    return current_blocks.empty() ? NULL : current_blocks.back();
+	}
+
+	rb_vm_block_t *previous_block(void) {
+	    if (current_blocks.size() > 1) {
+		return current_blocks[current_blocks.size() - 2];
+	    }
+	    return NULL;
+	}
+
+	rb_vm_block_t *first_block(void) {
+	    rb_vm_block_t *b = current_block();
+	    if (b == NULL) {
+		b = previous_block();
+	    }
+	    return b;
+	}
 
 	std::map<VALUE, rb_vm_catch_t *> catch_jmp_bufs;
 	std::vector<jmp_buf *> return_from_block_jmp_bufs;
@@ -2596,8 +2634,6 @@ RoxorVM::RoxorVM(void)
     last_status = Qnil;
     errinfo = Qnil;
 
-    current_block = NULL;
-    previous_block = NULL;
     parse_in_eval = false;
 
 #if ROXOR_VM_DEBUG
@@ -2634,6 +2670,28 @@ RoxorVM::RoxorVM(void)
 
     iee = ExecutionEngine::create(emp, true);
     assert(iee != NULL);
+}
+
+
+std::string
+RoxorVM::debug_blocks(void)
+{
+    std::string s;
+    if (current_blocks.empty()) {
+	s.append(" empty");
+    }
+    else {
+	for (std::vector<rb_vm_block_t *>::iterator i =
+		current_blocks.begin();
+		i != current_blocks.end();
+		++i) {
+	    char buf[100];
+	    snprintf(buf, sizeof buf, "%p", *i);
+	    s.append(" ");
+	    s.append(buf);
+	}
+    }
+    return s;
 }
 
 IMP
@@ -7544,8 +7602,49 @@ helper_sel(SEL sel)
 
 __attribute__((always_inline))
 static VALUE
-__rb_vm_dispatch(struct mcache *cache, VALUE self, Class klass, SEL sel, 
-		 unsigned char opt, int argc, const VALUE *argv)
+__rb_vm_ruby_dispatch(VALUE self, SEL sel, NODE *node, IMP imp,
+		      rb_vm_arity_t &arity, int argc, const VALUE *argv)
+{
+    if ((argc < arity.min) || ((arity.max != -1) && (argc > arity.max))) {
+	rb_raise(rb_eArgError, "wrong number of arguments (%d for %d)",
+		argc, arity.min);
+    }
+
+    assert(node != NULL);
+    const int node_type = nd_type(node);
+
+    if (node_type == NODE_SCOPE && node->nd_body == NULL
+	&& arity.max == arity.min) {
+	// Calling an empty method, let's just return nil!
+	return Qnil;
+    }
+    if (node_type == NODE_FBODY && arity.max != arity.min) {
+	// Calling a function defined with rb_objc_define_method with
+	// a negative arity, which means a different calling convention.
+	if (arity.real == 2) {
+	    return ((VALUE (*)(VALUE, SEL, int, const VALUE *))imp)
+		(self, 0, argc, argv);
+	}
+	else if (arity.real == 1) {
+	    return ((VALUE (*)(VALUE, SEL, ...))imp)
+		(self, 0, rb_ary_new4(argc, argv));
+	}
+	else {
+	    printf("invalid negative arity for C function %d\n",
+		    arity.real);
+	    abort();
+	}
+    }
+
+    return __rb_vm_rcall(self, sel, node, imp, arity,
+	    argc, argv);
+}
+
+__attribute__((always_inline))
+static VALUE
+__rb_vm_dispatch(struct mcache *cache, VALUE self, Class klass, SEL sel,
+		 rb_vm_block_t *block, unsigned char opt, int argc,
+		 const VALUE *argv)
 {
     assert(cache != NULL);
 
@@ -7654,52 +7753,38 @@ recache:
 	    goto recache;
 	}
 
-	if ((argc < rcache.arity.min)
-	    || ((rcache.arity.max != -1) && (argc > rcache.arity.max))) {
-	    rb_raise(rb_eArgError, "wrong number of arguments (%d for %d)",
-		    argc, rcache.arity.min);
-	}
-
 #if ROXOR_VM_DEBUG
-	printf("ruby dispatch %c[<%s %p> %s] (imp=%p, node=%p, cached=%s)\n",
+	printf("ruby dispatch %c[<%s %p> %s] (imp=%p, node=%p, block=%p, cached=%s)\n",
 		class_isMetaClass(klass) ? '+' : '-',
 		class_getName(klass),
 		(void *)self,
 		sel_getName(sel),
 		rcache.imp,
 		rcache.node,
+		block,
 		cached ? "true" : "false");
 #endif
 
-	assert(rcache.node != NULL);
-	const int node_type = nd_type(rcache.node);
-
-	if (node_type == NODE_SCOPE && rcache.node->nd_body == NULL
-	    && rcache.arity.max == rcache.arity.min) {
-	    // Calling an empty method, let's just return nil!
-	    return Qnil;
-	}
-	if (node_type == NODE_FBODY
-	    && rcache.arity.max != rcache.arity.min) {
-	    // Calling a function defined with rb_objc_define_method with
-	    // a negative arity, which means a different calling convention.
-	    if (rcache.arity.real == 2) {
-		return ((VALUE (*)(VALUE, SEL, int, const VALUE *))rcache.imp)
-		    (self, 0, argc, argv);
-	    }
-	    else if (rcache.arity.real == 1) {
-		return ((VALUE (*)(VALUE, SEL, ...))rcache.imp)
-		    (self, 0, rb_ary_new4(argc, argv));
-	    }
-	    else {
-		printf("invalid negative arity for C function %d\n",
-		       rcache.arity.real);
-		abort();
-	    }
+	bool block_already_current = GET_VM()->is_block_current(block);
+	if (!block_already_current) {
+	    GET_VM()->add_current_block(block);
 	}
 
-	return __rb_vm_rcall(self, sel, rcache.node, rcache.imp, rcache.arity,
-			     argc, argv);
+	VALUE ret = Qnil;
+	try {
+	    ret = __rb_vm_ruby_dispatch(self, sel, rcache.node, rcache.imp,
+		    rcache.arity, argc, argv);
+	}
+	catch (...) {
+	    if (!block_already_current) {
+		GET_VM()->pop_current_block();
+	    }
+	    throw;
+	}
+	if (!block_already_current) {
+	    GET_VM()->pop_current_block();
+	}
+	return ret;
     }
     else if (cache->flag == MCACHE_OCALL) {
 	if (ocache.klass != klass) {
@@ -7813,9 +7898,9 @@ __rb_vm_resolve_args(VALUE *argv, int argc, va_list ar)
 }
 
 extern "C"
-VALUE
+    VALUE
 rb_vm_dispatch(struct mcache *cache, VALUE self, SEL sel, rb_vm_block_t *block, 
-	       unsigned char opt, int argc, ...)
+	unsigned char opt, int argc, ...)
 {
     VALUE argv[MAX_DISPATCH_ARGS];
     if (argc > 0) {
@@ -7825,21 +7910,7 @@ rb_vm_dispatch(struct mcache *cache, VALUE self, SEL sel, rb_vm_block_t *block,
 	va_end(ar);
     }
 
-    const bool swap_blocks = block == NULL || block != GET_VM()->current_block;
-
-    rb_vm_block_t *old_block = NULL;
-    if (swap_blocks) {
-	old_block = GET_VM()->previous_block;
-	GET_VM()->previous_block = GET_VM()->current_block;
-	GET_VM()->current_block = block;
-    }
-
-    VALUE retval = __rb_vm_dispatch(cache, self, NULL, sel, opt, argc, argv);
-
-    if (swap_blocks) {
-	GET_VM()->current_block = GET_VM()->previous_block;
-	GET_VM()->previous_block = old_block;
-    }
+    VALUE retval = __rb_vm_dispatch(cache, self, NULL, sel, block, opt, argc, argv);
 
     if (!GET_VM()->bindings.empty()) {
 	rb_objc_release(GET_VM()->bindings.back());
@@ -7924,7 +7995,7 @@ rb_vm_fast_shift(VALUE obj, VALUE other, struct mcache *cache,
 		return obj;
 	}
     }
-    return __rb_vm_dispatch(cache, obj, NULL, selLTLT, 0, 1, &other);
+    return __rb_vm_dispatch(cache, obj, NULL, selLTLT, NULL, 0, 1, &other);
 }
 
 extern "C"
@@ -7940,7 +8011,7 @@ rb_vm_fast_aref(VALUE obj, VALUE other, struct mcache *cache,
 	extern VALUE rb_ary_aref(VALUE ary, SEL sel, int argc, VALUE *argv);
 	return rb_ary_aref(obj, 0, 1, &other);
     }
-    return __rb_vm_dispatch(cache, obj, NULL, selAREF, 0, 1, &other);
+    return __rb_vm_dispatch(cache, obj, NULL, selAREF, NULL, 0, 1, &other);
 }
 
 extern "C"
@@ -7958,7 +8029,7 @@ rb_vm_fast_aset(VALUE obj, VALUE other1, VALUE other2, struct mcache *cache,
     VALUE args[2];
     args[0] = other1;
     args[1] = other2;
-    return __rb_vm_dispatch(cache, obj, NULL, selASET, 0, 2, args);
+    return __rb_vm_dispatch(cache, obj, NULL, selASET, NULL, 0, 2, args);
 }
 
 extern "C"
@@ -7968,6 +8039,7 @@ rb_vm_get_block(VALUE obj)
     if (obj == Qnil) {
 	return NULL;
     }
+
     VALUE proc = rb_check_convert_type(obj, T_DATA, "Proc", "to_proc");
     if (NIL_P(proc)) {
 	rb_raise(rb_eTypeError,
@@ -8207,16 +8279,18 @@ extern "C"
 VALUE
 rb_vm_call(VALUE self, SEL sel, int argc, const VALUE *argv, bool super)
 {
+    struct mcache *cache;
+    unsigned char flg = 0;
     if (super) {
-	struct mcache cache; 
-	cache.flag = 0;
-	return  __rb_vm_dispatch(&cache, self, NULL, sel, 
-				 DISPATCH_SUPER, argc, argv);
+	cache = (struct mcache *)alloca(sizeof(struct mcache));
+	cache->flag = 0;
+	flg = DISPATCH_SUPER;
     }
     else {
-	struct mcache *cache = GET_VM()->method_cache_get(sel, false);
-	return __rb_vm_dispatch(cache, self, NULL, sel, 0, argc, argv);
+	cache = GET_VM()->method_cache_get(sel, false);
     }
+
+    return __rb_vm_dispatch(cache, self, NULL, sel, NULL, flg, argc, argv);
 }
 
 extern "C"
@@ -8224,17 +8298,17 @@ VALUE
 rb_vm_call_with_cache(void *cache, VALUE self, SEL sel, int argc, 
 		      const VALUE *argv)
 {
-    return __rb_vm_dispatch((struct mcache *)cache, self, NULL, sel, 0,
+    return __rb_vm_dispatch((struct mcache *)cache, self, NULL, sel, NULL, 0,
 	    argc, argv);
 }
 
 extern "C"
 VALUE
-rb_vm_call_with_cache2(void *cache, VALUE self, VALUE klass, SEL sel,
-		       int argc, const VALUE *argv)
+rb_vm_call_with_cache2(void *cache, rb_vm_block_t *block, VALUE self, VALUE klass,
+		       SEL sel, int argc, const VALUE *argv)
 {
     return __rb_vm_dispatch((struct mcache *)cache, self, (Class)klass, sel,
-	    0, argc, argv);
+	    block, 0, argc, argv);
 }
 
 extern "C"
@@ -8249,45 +8323,30 @@ extern "C"
 int
 rb_block_given_p(void)
 {
-    return GET_VM()->current_block != NULL ? Qtrue : Qfalse;
+    return GET_VM()->current_block() != NULL ? Qtrue : Qfalse;
 }
 
-// Should only be used by #block_given?.
+// Should only be used by Proc.new.
+extern "C"
+rb_vm_block_t *
+rb_vm_first_block(void)
+{
+    return GET_VM()->first_block();
+}
+
+// Should only be used by #block_given?
 extern "C"
 bool
 rb_vm_block_saved(void)
 {
-    return GET_VM()->previous_block != NULL ? Qtrue : Qfalse;
+    return GET_VM()->previous_block() != NULL;
 }
 
 extern "C"
 rb_vm_block_t *
 rb_vm_current_block(void)
 {
-    return GET_VM()->current_block;
-}
-
-extern "C"
-rb_vm_block_t *
-rb_vm_previous_block(void)
-{
-    return GET_VM()->previous_block;
-}
-
-extern "C"
-void
-rb_vm_change_current_block(rb_vm_block_t *block)
-{
-    GET_VM()->previous_block = GET_VM()->current_block;
-    GET_VM()->current_block = block;
-}
-
-extern "C"
-void
-rb_vm_restore_current_block(void)
-{
-    GET_VM()->current_block = GET_VM()->previous_block;
-    GET_VM()->previous_block = NULL;
+    return GET_VM()->current_block();
 }
 
 extern "C" VALUE rb_proc_alloc_with_block(VALUE klass, rb_vm_block_t *proc);
@@ -8296,8 +8355,12 @@ extern "C"
 VALUE
 rb_vm_current_block_object(void)
 {
-    if (GET_VM()->current_block != NULL) {
-	return rb_proc_alloc_with_block(rb_cProc, GET_VM()->current_block);
+    rb_vm_block_t *b = GET_VM()->current_block();
+    if (b != NULL) {
+#if ROXOR_VM_DEBUG
+	printf("create Proc object based on block %p\n", b);
+#endif
+	return rb_proc_alloc_with_block(rb_cProc, b);
     }
     return Qnil;
 }
@@ -8416,8 +8479,15 @@ block_call:
 
     assert(!(b->flags & VM_BLOCK_ACTIVE));
     b->flags |= VM_BLOCK_ACTIVE;
-    VALUE v = __rb_vm_bcall(b->self, (VALUE)b->dvars, b,
-			    b->imp, b->arity, argc, argv);
+    VALUE v = Qnil;
+    try {
+	v = __rb_vm_bcall(b->self, (VALUE)b->dvars, b, b->imp, b->arity,
+		argc, argv);
+    }
+    catch (...) {
+	b->flags &= ~VM_BLOCK_ACTIVE;
+	throw;
+    }
     b->flags &= ~VM_BLOCK_ACTIVE;
 
     return v;
@@ -8433,15 +8503,23 @@ rb_vm_block_eval(rb_vm_block_t *b, int argc, const VALUE *argv)
 static inline VALUE
 rb_vm_yield0(int argc, const VALUE *argv)
 {
-    rb_vm_block_t *b = GET_VM()->current_block;
-
+    rb_vm_block_t *b = GET_VM()->current_block();
     if (b == NULL) {
 	rb_raise(rb_eLocalJumpError, "no block given");
     }
 
-    GET_VM()->current_block = GET_VM()->previous_block;
-    VALUE retval = rb_vm_block_eval0(b, argc, argv);
-    GET_VM()->current_block = b;
+    GET_VM()->pop_current_block();
+
+    VALUE retval = Qnil;
+    try {
+	retval = rb_vm_block_eval0(b, argc, argv);
+    }
+    catch (...) {
+	GET_VM()->add_current_block(b);
+	throw;
+    }
+
+    GET_VM()->add_current_block(b);
 
     return retval;
 }
@@ -8457,19 +8535,28 @@ extern "C"
 VALUE
 rb_vm_yield_under(VALUE klass, VALUE self, int argc, const VALUE *argv)
 {
-    rb_vm_block_t *b = GET_VM()->current_block;
+    rb_vm_block_t *b = GET_VM()->current_block();
+    GET_VM()->pop_current_block();
 
-    GET_VM()->current_block = NULL;
     VALUE old_self = b->self;
     b->self = self;
     //Class old_class = GET_VM()->current_class;
     //GET_VM()->current_class = (Class)klass;
 
-    VALUE retval = rb_vm_block_eval0(b, argc, argv);
+    VALUE retval = Qnil;
+    try {
+	retval = rb_vm_block_eval0(b, argc, argv);
+    }
+    catch (...) {
+	b->self = old_self;
+	//GET_VM()->current_class = old_class;
+	GET_VM()->add_current_block(b);
+	throw;
+    }
 
     b->self = old_self;
-    GET_VM()->current_block = b;
     //GET_VM()->current_class = old_class;
+    GET_VM()->add_current_block(b);
 
     return retval;
 }

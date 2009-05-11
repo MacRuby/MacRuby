@@ -7,6 +7,43 @@ assert "",    "0.times { p :nok }"
 assert ":ok", "def foo; yield; end; foo { p :ok }"
 assert "42",  "def foo; yield 42; end; foo { |x| p x }"
 assert "",    "def foo; end; foo { p :nok }" 
+
+assert ":ok", "def foo; yield; end; send(:foo) { p :ok }"
+assert ":ok", "def foo; yield; end; send(:foo, &proc { p :ok })"
+
+assert ":ok", %{
+  class X; def initialize; yield ;end; end
+  X.new { p :ok }
+}
+
+assert ":ok", %{
+  def foo; raise; end
+  def bar; p :ok unless block_given?; end
+  begin
+    foo { p :nok }
+  rescue
+    bar
+  end
+}
+
+assert ":ok", %{
+  def foo; yield; end
+  begin
+    foo { raise }
+  rescue
+    1.times { p :ok }
+  end
+}
+
+assert ":ok", "def foo(&b); b.call; end; foo { p :ok }"
+assert "42",  "def foo(&b); b.call(42); end; foo { |x| p x }"
+assert ":ok", "def foo(&b); p :ok if b.nil?; end; foo"
+
+assert ":ok", %{
+  class X; def initialize(&b); b.call ;end; end
+  X.new { p :ok }
+}
+
 assert "42", %q{
   def foo; yield 20, 1, 20, 1; end
   foo do |a, b, c, d|
@@ -392,13 +429,19 @@ assert "[\"f\", \"o\", \"o\"]", "p 'foo'.chars.to_a"
 
 assert ':ok', %{
   def foo(x); p :ok if block_given?; end
-  def bar; p :ok if block_given?; end
+  def bar; p :nok if block_given?; end
   foo(bar) {}
 }
 
 assert ':ok', %{
+  def foo(x=bar); p :ok if block_given?; end
+  def bar; p :nok if block_given?; end
+  foo {}
+}
+
+assert ':ok', %{
   class X
-    def foo; p :ko if block_given?; self; end
+    def foo; p :nok if block_given?; self; end
     def bar; p :ok if block_given?; self; end
   end
   X.new.foo.bar {}
@@ -410,6 +453,32 @@ assert ':ok', %{
 
 assert ':ok', %{
   def foo(x=Proc.new); x.call; end; foo { p :ok }
+}
+
+assert ':ok', %{
+  class X
+    def initialize(x=Proc.new); x.call; end
+  end
+  X.new { p :ok }
+}
+
+assert '3', %{
+  def foo(a=Proc.new, b=Proc.new, c=Proc.new)
+    a.call; b.call; c.call
+  end
+  i = 0
+  foo { i+=1 }
+  p i
+}
+
+assert ':ok', %{
+  def foo(x=Proc.new); x.call; end
+  def bar; foo; end
+  begin
+    bar { p :nok }
+  rescue ArgumentError
+    p :ok
+  end
 }
 
 assert ':ok', %{

@@ -76,7 +76,7 @@ void rb_vm_alias(VALUE klass, ID name, ID def);
 void rb_vm_copy_methods(Class from_class, Class to_class);
 VALUE rb_vm_call(VALUE self, SEL sel, int argc, const VALUE *args, bool super);
 VALUE rb_vm_call_with_cache(void *cache, VALUE self, SEL sel, int argc, const VALUE *argv);
-VALUE rb_vm_call_with_cache2(void *cache, VALUE self, VALUE klass, SEL sel, int argc, const VALUE *argv);
+VALUE rb_vm_call_with_cache2(void *cache, rb_vm_block_t *block, VALUE self, VALUE klass, SEL sel, int argc, const VALUE *argv);
 void *rb_vm_get_call_cache(SEL sel);
 VALUE rb_vm_yield(int argc, const VALUE *argv);
 VALUE rb_vm_yield_under(VALUE klass, VALUE self, int argc, const VALUE *argv);
@@ -147,10 +147,8 @@ rb_vm_block_t *rb_vm_prepare_block(void *llvm_function, NODE *node, VALUE self,
        rb_vm_block_t *parent_block,
        int dvars_size, ...);
 rb_vm_block_t *rb_vm_current_block(void);
-rb_vm_block_t *rb_vm_previous_block(void);
+rb_vm_block_t *rb_vm_first_block(void);
 bool rb_vm_block_saved(void);
-void rb_vm_change_current_block(rb_vm_block_t *block);
-void rb_vm_restore_current_block(void);
 VALUE rb_vm_block_eval(rb_vm_block_t *block, int argc, const VALUE *argv);
 
 rb_vm_binding_t *rb_vm_current_binding(void);

@@ -21,7 +21,8 @@
 #include "vm_method.c"
 
 static inline VALUE
-rb_call(VALUE recv, ID mid, int argc, const VALUE *argv, int scope)
+rb_call(VALUE recv, ID mid, int argc, const VALUE *argv, int scope,
+	bool pass_current_block)
 {
     SEL sel;
     if (mid == ID_ALLOCATOR) {
@@ -38,7 +39,11 @@ rb_call(VALUE recv, ID mid, int argc, const VALUE *argv, int scope)
 	    sel = sel_registerName(midstr);
 	}
     }
-    return rb_vm_call(recv, sel, argc, argv, false);
+
+    void *cache = rb_vm_get_call_cache(sel);
+    rb_vm_block_t *block = pass_current_block ? rb_vm_current_block() : NULL;
+    return rb_vm_call_with_cache2(cache, block, recv, CLASS_OF(recv),
+	    sel, argc, argv);
 }
 
 /*
@@ -89,7 +94,7 @@ rb_apply(VALUE recv, ID mid, VALUE args)
     argc = RARRAY_LEN(args);	/* Assigns LONG, but argc is INT */
     argv = ALLOCA_N(VALUE, argc);
     MEMCPY(argv, RARRAY_PTR(args), VALUE, argc);
-    return rb_call(/*CLASS_OF(recv),*/ recv, mid, argc, argv, CALL_FCALL);
+    return rb_call(recv, mid, argc, argv, CALL_FCALL, false);
 }
 
 VALUE
@@ -112,19 +117,19 @@ rb_funcall(VALUE recv, ID mid, int n, ...)
     else {
 	argv = 0;
     }
-    return rb_call(recv, mid, n, argv, CALL_FCALL);
+    return rb_call(recv, mid, n, argv, CALL_FCALL, false);
 }
 
 VALUE
 rb_funcall2(VALUE recv, ID mid, int argc, const VALUE *argv)
 {
-    return rb_call(recv, mid, argc, argv, CALL_FCALL);
+    return rb_call(recv, mid, argc, argv, CALL_FCALL, false);
 }
 
 VALUE
 rb_funcall3(VALUE recv, ID mid, int argc, const VALUE *argv)
 {
-    return rb_call(recv, mid, argc, argv, CALL_PUBLIC);
+    return rb_call(recv, mid, argc, argv, CALL_PUBLIC, false);
 }
 
 static VALUE
@@ -137,7 +142,7 @@ send_internal(int argc, VALUE *argv, VALUE recv, int scope)
     }
 
     vid = *argv++; argc--;
-    return rb_call(recv, rb_to_id(vid), argc, argv, scope);
+    return rb_call(recv, rb_to_id(vid), argc, argv, scope, true);
 }
 
 /*
@@ -278,13 +283,10 @@ rb_objc_block_call(VALUE obj, SEL sel, void *cache, int argc, VALUE *argv,
 {
     NODE *node = NEW_IFUNC(bl_proc, data2);
     rb_vm_block_t *b = rb_vm_prepare_block(NULL, node, obj, NULL, NULL, 0, 0);
-    rb_vm_change_current_block(b);
     if (cache == NULL) {
 	cache = rb_vm_get_call_cache(sel);
     }
-    VALUE val = rb_vm_call_with_cache2(cache, obj, 0, sel, argc, argv);
-    rb_vm_restore_current_block();
-    return val;
+    return rb_vm_call_with_cache2(cache, b, obj, 0, sel, argc, argv);
 }
 
 VALUE
@@ -306,7 +308,7 @@ rb_block_call(VALUE obj, ID mid, int argc, VALUE *argv,
 VALUE
 rb_each(VALUE obj)
 {
-    return rb_call(obj, idEach, 0, 0, CALL_FCALL);
+    return rb_call(obj, idEach, 0, 0, CALL_FCALL, false);
 }
 
 static VALUE

@@ -295,18 +295,7 @@ bind_eval(VALUE bindval, SEL sel, int argc, VALUE *argv)
 static VALUE
 proc_new(VALUE klass, int is_lambda)
 {
-    rb_vm_block_t *block = rb_vm_current_block();
-    if (block == NULL) {
-	/* If the current block is NULL, let's check if there is a previous
-	 * block. This is to conform to some dark Ruby behaviors, such as:
-	 *
-	 *  def foo; Proc.new; end; foo { p 42 }.call
-	 *
-	 *  def foo(x=Proc.new); x.call; end; foo { p 42 }
-	 */
-	block = rb_vm_previous_block();
-    }
-
+    rb_vm_block_t *block = rb_vm_first_block();
     if (block == NULL) {
 	rb_raise(rb_eArgError,
 		"tried to create Proc object without a block");
@@ -1079,7 +1068,7 @@ rb_method_call(VALUE method, SEL sel, int argc, VALUE *argv)
 	}
     }
 
-    VALUE result = rb_vm_call_with_cache2(data->cache, data->recv,
+    VALUE result = rb_vm_call_with_cache2(data->cache, NULL, data->recv,
 	    data->oclass, data->sel, argc, argv);
 
     if (safe >= 0) {
