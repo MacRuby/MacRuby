@@ -106,3 +106,12 @@ The following environment variables might help you debug easy bugs.
 === GDB tricks
 
 * Break on rb_exc_raise to intercept pure Ruby exceptions.
+
+* To dump the LLVM IR:
+  (gdb) p RoxorCompiler::shared->module->dump()
+
+* To print the list of current active blocks:
+  (gdb) p (char *)RoxorVM::current->debug_blocks()
+
+* To print the list of current active exceptions:
+  (gdb) p (char *)RoxorVM::current->debug_exceptions()
