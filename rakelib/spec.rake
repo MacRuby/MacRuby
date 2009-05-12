@@ -95,7 +95,7 @@ namespace :spec do
   
   desc "Run language examples that are known to fail"
   task :fails do
-    sh "./mspec/bin/mspec run -g fails -B #{MACRUBY_MSPEC} spec/frozen/language"
+    sh "./mspec/bin/mspec run -V -f s -g fails -B #{MACRUBY_MSPEC} spec/frozen/language"
   end
   
   %w{ fails critical }.each do |tag|
