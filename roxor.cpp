@@ -235,6 +235,7 @@ class RoxorCompiler
 	BasicBlock *begin_bb;
 	BasicBlock *rescue_bb;
 	BasicBlock *ensure_bb;
+	bool current_rescue;
 	NODE *current_block_node;
 	Function *current_block_func;
 	jmp_buf *return_from_block_jmpbuf;
@@ -562,6 +563,8 @@ class RoxorVM
 	    return b;
 	}
 
+	std::string debug_exceptions(void);
+
 	VALUE current_exception(void) {
 	    return current_exceptions.empty()
 		? Qnil : current_exceptions.back();
@@ -750,6 +753,7 @@ RoxorCompiler::RoxorCompiler(const char *_fname)
     current_loop_body_bb = NULL;
     current_loop_end_bb = NULL;
     current_loop_exit_val = NULL;
+    current_rescue = false;
     return_from_block_jmpbuf = NULL;
 
     dispatcherFunc = NULL;
@@ -1888,14 +1892,17 @@ RoxorCompiler::compile_jump(NODE *node)
 	    break;
 
 	case NODE_RETURN:
-	   if (within_block) {
+	    if (current_rescue) {
+		compile_pop_exception();
+	    }
+	    if (within_block) {
 		compile_break_val(val);
 		// Return-from-block is implemented using a setjmp() call.
 		if (longjmpFunc == NULL) {
 		    // void longjmp(jmp_buf, int);
 		    longjmpFunc = cast<Function>(
-			module->getOrInsertFunction("longjmp", 
-			    Type::VoidTy, PtrTy, Type::Int32Ty, NULL));
+			    module->getOrInsertFunction("longjmp", 
+				Type::VoidTy, PtrTy, Type::Int32Ty, NULL));
 		}
 		std::vector<Value *> params;
 		if (return_from_block_jmpbuf == NULL) {
@@ -1908,18 +1915,18 @@ RoxorCompiler::compile_jump(NODE *node)
 			    return_from_block_jmpbuf));
 		params.push_back(ConstantInt::get(Type::Int32Ty, 1));
 		CallInst::Create(longjmpFunc, params.begin(), params.end(), "",
-				 bb);
+			bb);
 		ReturnInst::Create(val, bb);
-	   }
-	   else {
-	       if (ensure_bb != NULL) {
-		   BranchInst::Create(ensure_bb, bb);
-	       }
-	       else {
-		   ReturnInst::Create(val, bb);
-	       }
-	   }
-	   break;
+	    }
+	    else {
+		if (ensure_bb != NULL) {
+		    BranchInst::Create(ensure_bb, bb);
+		}
+		else {
+		    ReturnInst::Create(val, bb);
+		}
+	    }
+	    break;
     }
 
     // To not complicate the compiler even more, let's be very lazy here and
@@ -2709,23 +2716,46 @@ RoxorVM::RoxorVM(void)
     assert(iee != NULL);
 }
 
+static void
+append_ptr_address(std::string &s, void *ptr)
+{
+    char buf[100];
+    snprintf(buf, sizeof buf, "%p", ptr);
+    s.append(buf);
+}
 
 std::string
 RoxorVM::debug_blocks(void)
 {
     std::string s;
     if (current_blocks.empty()) {
-	s.append(" empty");
+	s.append("empty");
     }
     else {
 	for (std::vector<rb_vm_block_t *>::iterator i =
 		current_blocks.begin();
 		i != current_blocks.end();
 		++i) {
-	    char buf[100];
-	    snprintf(buf, sizeof buf, "%p", *i);
+	    append_ptr_address(s, *i);
 	    s.append(" ");
-	    s.append(buf);
+	}
+    }
+    return s;
+}
+
+std::string
+RoxorVM::debug_exceptions(void)
+{
+    std::string s;
+    if (current_exceptions.empty()) {
+	s.append("empty");
+    }
+    else {
+	for (std::vector<VALUE>::iterator i = current_exceptions.begin();
+	     i != current_exceptions.end();
+	     ++i) {
+	    append_ptr_address(s, (void *)*i);
+	    s.append(" ");
 	}
     }
     return s;
@@ -4620,7 +4650,10 @@ rescan_args:
 		compile_landing_pad_header();
 
 		// Landing pad code.
+		bool old_current_rescue = current_rescue;
+		current_rescue = true;
 		Value *rescue_val = compile_node(node->nd_resq);
+		current_rescue = old_current_rescue;
 		new_rescue_bb = bb;
 
 		// Landing pad footer.

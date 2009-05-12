@@ -510,3 +510,14 @@ assert ':ok', %{
   end
   c { p :ok }
 }
+
+assert ":ok\n:ok", %{
+  def foo
+    raise
+  rescue
+    return 42
+    omgwtf
+  end
+  p :ok if foo == 42
+  p :ok if $!.nil?
+}
