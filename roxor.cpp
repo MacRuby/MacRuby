@@ -369,6 +369,7 @@ class RoxorCompiler
 	void compile_landing_pad_header(void);
 	void compile_landing_pad_footer(void);
 	void compile_rethrow_exception(void);
+	void compile_pop_exception(void);
 	Value *compile_lvar_slot(ID name);
 	bool compile_lvars(ID *tbl);
 	Value *compile_new_struct(Value *klass, std::vector<Value *> &fields);
@@ -503,13 +504,13 @@ class RoxorVM
 	    to_rval_convertors, to_ocval_convertors;
 
 	std::vector<rb_vm_block_t *> current_blocks;
+	std::vector<VALUE> current_exceptions;
 
     public:
 	static RoxorVM *current;
 
 	Class current_class;
 	VALUE current_top_object;
-	VALUE current_exception;
 	VALUE loaded_features;
 	VALUE load_path;
 	VALUE backref;
@@ -559,6 +560,25 @@ class RoxorVM
 		b = previous_block();
 	    }
 	    return b;
+	}
+
+	VALUE current_exception(void) {
+	    return current_exceptions.empty()
+		? Qnil : current_exceptions.back();
+	}
+
+	void push_current_exception(VALUE exc) {
+	    assert(!NIL_P(exc));
+	    rb_objc_retain((void *)exc);
+	    current_exceptions.push_back(exc);
+	}
+
+	VALUE pop_current_exception(void) {
+	    assert(!current_exceptions.empty());
+	    VALUE exc = current_exceptions.back();
+	    rb_objc_release((void *)exc);
+	    current_exceptions.pop_back();
+	    return exc;
 	}
 
 	std::map<VALUE, rb_vm_catch_t *> catch_jmp_bufs;
@@ -1817,7 +1837,9 @@ RoxorCompiler::compile_jump(NODE *node)
 
     switch (nd_type(node)) {
 	case NODE_RETRY:
-	    // Simply jump to the nearest begin label.
+	    // Simply jump to the nearest begin label, after poping the
+	    // current exception.
+	    compile_pop_exception();
 	    if (begin_bb == NULL) {
 		rb_raise(rb_eSyntaxError, "unexpected retry");
 	    }
@@ -1967,7 +1989,7 @@ RoxorCompiler::compile_landing_pad_header(void)
 }
 
 void
-RoxorCompiler::compile_landing_pad_footer(void)
+RoxorCompiler::compile_pop_exception(void)
 {
     if (popExceptionFunc == NULL) {
 	// void rb_vm_pop_exception(void);
@@ -1976,6 +1998,12 @@ RoxorCompiler::compile_landing_pad_footer(void)
 		    Type::VoidTy, NULL));
     }
     CallInst::Create(popExceptionFunc, "", bb);
+}
+
+void
+RoxorCompiler::compile_landing_pad_footer(void)
+{
+    compile_pop_exception();
 
     Function *endCatchFunc = NULL;
     if (endCatchFunc == NULL) {
@@ -2636,7 +2664,6 @@ RoxorVM::RoxorVM(void)
 {
     running = false;
     current_top_object = Qnil;
-    current_exception = Qnil;
     safe_level = 0;
 
     backref = Qnil;
@@ -8697,9 +8724,11 @@ extern "C"
 void
 rb_vm_raise(VALUE exception)
 {
-    rb_objc_retain((void *)exception);
     rb_iv_set(exception, "bt", rb_vm_backtrace(100));
-    GET_VM()->current_exception = exception;
+    if (exception != GET_VM()->current_exception()) {
+	rb_objc_retain((void *)exception);
+	GET_VM()->push_current_exception(exception);
+    }
     void *exc = __cxa_allocate_exception(0);
     __cxa_throw(exc, NULL, NULL);
 }
@@ -8769,7 +8798,9 @@ unsigned char
 rb_vm_is_eh_active(int argc, ...)
 {
     assert(argc > 0);
-    assert(GET_VM()->current_exception != Qnil);
+
+    VALUE current_exception = GET_VM()->current_exception();
+    assert(current_exception != Qnil);
 
     va_list ar;
     unsigned char active = 0;
@@ -8780,13 +8811,13 @@ rb_vm_is_eh_active(int argc, ...)
 	if (TYPE(obj) == T_ARRAY) {
 	    for (int j = 0, count = RARRAY_LEN(obj); j < count; ++j) {
 		VALUE obj2 = RARRAY_AT(obj, j);
-		if (rb_obj_is_kind_of(GET_VM()->current_exception, obj2)) {
+		if (rb_obj_is_kind_of(current_exception, obj2)) {
 		    active = 1;
 		}
 	    }
 	}
 	else {
-	    if (rb_obj_is_kind_of(GET_VM()->current_exception, obj)) {
+	    if (rb_obj_is_kind_of(current_exception, obj)) {
 		active = 1;
 	    }
 	}
@@ -8800,30 +8831,28 @@ extern "C"
 void
 rb_vm_pop_exception(void)
 {
-    VALUE exc = GET_VM()->current_exception;
-    assert(exc != Qnil);
-    rb_objc_release((void *)exc);
-    GET_VM()->current_exception = Qnil;
+    GET_VM()->pop_current_exception();
 }
 
 extern "C"
 VALUE
 rb_vm_current_exception(void)
 {
-    return GET_VM()->current_exception;
+    return GET_VM()->current_exception();
 }
 
 extern "C"
 void
 rb_vm_set_current_exception(VALUE exception)
 {
-    if (GET_VM()->current_exception != exception) {
-	if (GET_VM()->current_exception != Qnil) {
-	    rb_objc_release((void *)GET_VM()->current_exception);
-	}
-	rb_objc_retain((void *)exception);
-	GET_VM()->current_exception = exception;
+    assert(!NIL_P(exception));
+
+    VALUE current = GET_VM()->current_exception();
+    assert(exception != current);
+    if (!NIL_P(current)) {
+	GET_VM()->pop_current_exception();
     }
+    GET_VM()->push_current_exception(exception);
 }
 
 extern "C"
@@ -8837,7 +8866,7 @@ extern "C"
 void
 rb_vm_print_current_exception(void)
 {
-    VALUE exc = GET_VM()->current_exception;
+    VALUE exc = GET_VM()->current_exception();
     if (exc == Qnil) {
 	printf("uncatched Objective-C/C++ exception...");
 	return;

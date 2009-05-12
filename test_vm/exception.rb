@@ -178,3 +178,45 @@ assert ':ok', %{
     p :ok if $! == e
   end
 }
+
+assert ":ok\n:ok\n:ok", %{
+  e1 = RuntimeError.new('e1')
+  e2 = RuntimeError.new('e2')
+  e3 = RuntimeError.new('e3')
+  begin
+    raise e1
+  rescue
+    begin
+      raise e2
+    rescue
+      begin
+        raise e3
+      rescue
+        p :ok if $! == e3
+      end
+      p :ok if $! == e2
+    end
+    p :ok if $! == e1
+  end
+}
+
+assert ":ok\n:ok\n:ok\n:ok", %{
+  x = 0
+  e = RuntimeError.new('foo')
+  begin
+    p :ok if $!.nil?
+    x += 1
+    raise e
+  rescue
+    p :ok if $! == e
+    retry if x < 2
+  end
+}
+
+assert ":ok", %{
+  begin
+    eval("1==2==3")
+  rescue Exception
+  end
+  p :ok if $!.nil?
+}
