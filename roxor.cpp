@@ -8720,17 +8720,29 @@ rb_iseq_new(NODE *node, VALUE filename)
     return Qnil;
 }
 
+static inline void
+__vm_raise(void)
+{
+    void *exc = __cxa_allocate_exception(0);
+    __cxa_throw(exc, NULL, NULL);
+}
+
+extern "C"
+void
+rb_vm_raise_current_exception(void)
+{
+    assert(GET_VM()->current_exception() != Qnil);
+    __vm_raise(); 
+}
+
 extern "C"
 void
 rb_vm_raise(VALUE exception)
 {
     rb_iv_set(exception, "bt", rb_vm_backtrace(100));
-    if (exception != GET_VM()->current_exception()) {
-	rb_objc_retain((void *)exception);
-	GET_VM()->push_current_exception(exception);
-    }
-    void *exc = __cxa_allocate_exception(0);
-    __cxa_throw(exc, NULL, NULL);
+    rb_objc_retain((void *)exception);
+    GET_VM()->push_current_exception(exception);
+    __vm_raise();
 }
 
 extern "C"

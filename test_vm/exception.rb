@@ -167,7 +167,7 @@ assert ':ok', %{
   begin
     raise e
   rescue
-    p :ok if $! == e
+    p :ok if $!.eql?(e)
   end
 }
 
@@ -175,7 +175,7 @@ assert ':ok', %{
   begin
     raise 'foo'
   rescue => e
-    p :ok if $! == e
+    p :ok if $!.eql?(e)
   end
 }
 
@@ -192,11 +192,11 @@ assert ":ok\n:ok\n:ok", %{
       begin
         raise e3
       rescue
-        p :ok if $! == e3
+        p :ok if $!.eql?(e3)
       end
-      p :ok if $! == e2
+      p :ok if $!.eql?(e2)
     end
-    p :ok if $! == e1
+    p :ok if $!.eql?(e1)
   end
 }
 
@@ -208,7 +208,7 @@ assert ":ok\n:ok\n:ok\n:ok", %{
     x += 1
     raise e
   rescue
-    p :ok if $! == e
+    p :ok if $!.eql?(e)
     retry if x < 2
   end
 }
@@ -219,4 +219,17 @@ assert ":ok", %{
   rescue Exception
   end
   p :ok if $!.nil?
+}
+
+assert ":ok", %{
+  e = RuntimeError.new('foo')
+  begin
+    raise e
+  rescue
+    begin
+      raise
+    rescue => e2
+      p :ok if e.eql?(e2)
+    end
+  end
 }

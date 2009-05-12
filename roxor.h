@@ -178,6 +178,7 @@ rb_robject_allocate_instance(VALUE klass)
 }
 
 void rb_vm_raise(VALUE exception);
+void rb_vm_raise_current_exception(void);
 VALUE rb_vm_current_exception(void);
 void rb_vm_set_current_exception(VALUE exception);
 VALUE rb_vm_backtrace(int level);

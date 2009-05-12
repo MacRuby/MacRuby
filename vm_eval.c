@@ -343,7 +343,7 @@ eval_string(VALUE self, VALUE klass, VALUE src, VALUE scope, const char *file,
     if (node == NULL) {
 	VALUE exc = rb_vm_current_exception();
 	if (exc != Qnil) {
-	    rb_exc_raise(exc);
+	    rb_vm_raise_current_exception();
 	}
 	else {
 	    rb_raise(rb_eSyntaxError, "compile error");
