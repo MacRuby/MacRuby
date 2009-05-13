@@ -41,7 +41,9 @@ rb_proc_alloc_with_block(VALUE klass, rb_vm_block_t *proc)
     obj = Data_Wrap_Struct(klass, NULL, NULL, proc);
     if (!(proc->flags & VM_BLOCK_PROC)) {
 	proc->flags |= VM_BLOCK_PROC;
-	rb_vm_add_var_use(proc);
+	if (!(proc->flags & VM_BLOCK_METHOD)) {
+	    rb_vm_add_var_use(proc);
+	}
     }
     return obj;
 }
@@ -1382,22 +1384,12 @@ rb_proc_new(
 static VALUE
 method_proc(VALUE method, SEL sel)
 {
-#if 0 // TODO
-    VALUE procval;
-    rb_proc_t *proc;
-    /*
-     * class Method
-     *   def to_proc
-     *     proc{|*args|
-     *       self.call(*args)
-     *     }
-     *   end
-     * end
-     */
-    procval = rb_iterate(mlambda, 0, bmcall, method);
-    GetProcPtr(procval, proc);
-    proc->is_from_method = 1;
-    return procval;
+#if 0
+    // TODO
+    rb_vm_method_t *data;
+    Data_Get_Struct(method, rb_vm_method_t, data);
+    rb_vm_block_t *block = rb_vm_create_block_from_method(data);
+    return rb_proc_alloc_with_block(rb_cProc, block);
 #endif
     return Qnil;
 }

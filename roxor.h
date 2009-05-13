@@ -22,6 +22,7 @@ typedef struct rb_vm_local rb_vm_local_t;
 #define VM_BLOCK_PROC	0x0001	// block is a Proc object
 #define VM_BLOCK_LAMBDA 0x0002	// block is a lambda
 #define VM_BLOCK_ACTIVE 0x0004	// block is active (being executed)
+#define VM_BLOCK_METHOD 0x0008	// block is created from Method
 
 typedef struct rb_vm_block {
     VALUE self;
@@ -134,6 +135,7 @@ rb_vm_set_ivar_from_slot(VALUE obj, VALUE val, int slot)
 }
 
 rb_vm_method_t *rb_vm_get_method(VALUE klass, VALUE obj, ID mid, int scope);
+rb_vm_block_t *rb_vm_create_block_from_method(rb_vm_method_t *method);
 
 static inline rb_vm_block_t *
 rb_proc_get_block(VALUE proc)

@@ -41,6 +41,8 @@ using namespace llvm;
 #include <execinfo.h>
 #include <dlfcn.h>
 
+#define force_inline __attribute__((always_inline))
+
 #define FROM_GV(gv,t) ((t)(gv.IntVal.getZExtValue()))
 static GenericValue
 value2gv(VALUE v)
@@ -449,6 +451,9 @@ struct mcache {
 	    rb_vm_c_stub_t *stub;
 	} fcall;
     } as;
+#define rcache cache->as.rcall
+#define ocache cache->as.ocall
+#define fcache cache->as.fcall
 };
 
 extern "C" void *__cxa_allocate_exception(size_t);
@@ -2592,6 +2597,14 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Va
     }
 #endif
     return NULL;
+}
+
+static inline rb_vm_arity_t
+rb_vm_arity(int argc)
+{
+    rb_vm_arity_t arity;
+    arity.left_req = arity.min = arity.max = arity.real = argc;
+    return arity;
 }
 
 static inline rb_vm_arity_t
@@ -7251,8 +7264,7 @@ rb_vm_masgn_get_splat(VALUE ary, int before_splat_count, int after_splat_count) 
     }
 }
 
-__attribute__((always_inline))
-static void
+static force_inline void
 __rb_vm_fix_args(const VALUE *argv, VALUE *new_argv, const rb_vm_arity_t &arity, int argc)
 {
     assert(argc >= arity.min);
@@ -7299,8 +7311,7 @@ __rb_vm_fix_args(const VALUE *argv, VALUE *new_argv, const rb_vm_arity_t &arity,
     }
 }
 
-__attribute__((always_inline))
-static VALUE
+static force_inline VALUE
 __rb_vm_bcall(VALUE self, VALUE dvars, rb_vm_block_t *b,
 	      IMP pimp, const rb_vm_arity_t &arity, int argc, const VALUE *argv)
 {
@@ -7341,8 +7352,7 @@ __rb_vm_bcall(VALUE self, VALUE dvars, rb_vm_block_t *b,
     abort();
 }
 
-__attribute__((always_inline))
-static VALUE
+static force_inline VALUE
 __rb_vm_rcall(VALUE self, SEL sel, NODE *node, IMP pimp,
 	      const rb_vm_arity_t &arity, int argc, const VALUE *argv)
 {
@@ -7671,8 +7681,7 @@ helper_sel(SEL sel)
     return new_sel;
 }
 
-__attribute__((always_inline))
-static VALUE
+static force_inline VALUE
 __rb_vm_ruby_dispatch(VALUE self, SEL sel, NODE *node, IMP imp,
 		      rb_vm_arity_t &arity, int argc, const VALUE *argv)
 {
@@ -7707,12 +7716,43 @@ __rb_vm_ruby_dispatch(VALUE self, SEL sel, NODE *node, IMP imp,
 	}
     }
 
-    return __rb_vm_rcall(self, sel, node, imp, arity,
-	    argc, argv);
+    return __rb_vm_rcall(self, sel, node, imp, arity, argc, argv);
 }
 
-__attribute__((always_inline))
-static VALUE
+static force_inline void
+fill_rcache(struct mcache *cache, Class klass, IMP imp, NODE *node,
+	    const rb_vm_arity_t &arity)
+{ 
+    cache->flag = MCACHE_RCALL;
+    rcache.klass = klass;
+    rcache.imp = imp;
+    rcache.node = node;
+    rcache.arity = arity;
+}
+
+static force_inline void
+fill_ocache(struct mcache *cache, VALUE self, Class klass, IMP imp, SEL sel,
+	    int argc)
+{
+    cache->flag = MCACHE_OCALL;
+    ocache.klass = klass;
+    ocache.imp = imp;
+    ocache.bs_method = GET_VM()->find_bs_method(klass, sel);
+
+    char types[200];
+    if (!rb_objc_get_types(self, klass, sel, ocache.bs_method,
+		types, sizeof types)) {
+	printf("cannot get encoding types for %c[%s %s]\n",
+		class_isMetaClass(klass) ? '+' : '-',
+		class_getName(klass),
+		sel_getName(sel));
+	abort();
+    }
+    ocache.stub = (rb_vm_objc_stub_t *)GET_VM()->gen_stub(types, 
+	    argc, true);
+}
+
+static force_inline VALUE
 __rb_vm_dispatch(struct mcache *cache, VALUE self, Class klass, SEL sel,
 		 rb_vm_block_t *block, unsigned char opt, int argc,
 		 const VALUE *argv)
@@ -7737,10 +7777,6 @@ recache:
 	    method = class_getInstanceMethod(klass, sel);
 	}
 
-#define rcache cache->as.rcall
-#define ocache cache->as.ocall
-#define fcache cache->as.fcall
-
 	if (method != NULL) {
 	    IMP imp = method_getImplementation(method);
 	    struct RoxorFunctionIMP *func_imp =
@@ -7748,30 +7784,12 @@ recache:
 
 	    if (func_imp != NULL) {
 		// ruby call
-		cache->flag = MCACHE_RCALL;
-		rcache.klass = klass;
-		rcache.imp = func_imp->ruby_imp;
-		rcache.node = func_imp->node;
-		rcache.arity = rb_vm_node_arity(func_imp->node);
+		fill_rcache(cache, klass, func_imp->ruby_imp, func_imp->node,
+			rb_vm_node_arity(func_imp->node));
 	    }
 	    else {
 		// objc call
-		cache->flag = MCACHE_OCALL;
-		ocache.klass = klass;
-		ocache.imp = imp;
-		ocache.bs_method = GET_VM()->find_bs_method(klass, sel);
-
-		char types[200];
-		if (!rb_objc_get_types(self, klass, sel, ocache.bs_method,
-				       types, sizeof types)) {
-		    printf("cannot get encoding types for %c[%s %s]\n",
-			    class_isMetaClass(klass) ? '+' : '-',
-			    class_getName(klass),
-			    sel_getName(sel));
-		    abort();
-		}
-		ocache.stub = (rb_vm_objc_stub_t *)GET_VM()->gen_stub(types, 
-			argc, true);
+		fill_ocache(cache, self, klass, imp, sel, argc);
 	    }
 	}
 	else {
@@ -7917,18 +7935,13 @@ recache:
 	return (*fcache.stub)(fcache.imp, argc, argv);
     }
 
-#undef rcache
-#undef ocache
-#undef fcache
-
     printf("BOUH %s\n", (char *)sel);
     abort();
 }
 
 #define MAX_DISPATCH_ARGS 200
 
-__attribute__((always_inline))
-static int
+static force_inline int
 __rb_vm_resolve_args(VALUE *argv, int argc, va_list ar)
 {
     // TODO we should only determine the real argc here (by taking into
@@ -7969,9 +7982,9 @@ __rb_vm_resolve_args(VALUE *argv, int argc, va_list ar)
 }
 
 extern "C"
-    VALUE
+VALUE
 rb_vm_dispatch(struct mcache *cache, VALUE self, SEL sel, rb_vm_block_t *block, 
-	unsigned char opt, int argc, ...)
+	       unsigned char opt, int argc, ...)
 {
     VALUE argv[MAX_DISPATCH_ARGS];
     if (argc > 0) {
@@ -7981,7 +7994,8 @@ rb_vm_dispatch(struct mcache *cache, VALUE self, SEL sel, rb_vm_block_t *block,
 	va_end(ar);
     }
 
-    VALUE retval = __rb_vm_dispatch(cache, self, NULL, sel, block, opt, argc, argv);
+    VALUE retval = __rb_vm_dispatch(cache, self, NULL, sel, block, opt, argc,
+	    argv);
 
     if (!GET_VM()->bindings.empty()) {
 	rb_objc_release(GET_VM()->bindings.back());
@@ -8143,7 +8157,9 @@ rb_vm_prepare_block(void *llvm_function, NODE *node, VALUE self,
     rb_vm_block_t *b;
     bool cached = false;
 
-    if ((iter == GET_VM()->blocks.end()) || (iter->second->flags & (VM_BLOCK_ACTIVE | VM_BLOCK_PROC))) {
+    if ((iter == GET_VM()->blocks.end())
+	|| (iter->second->flags & (VM_BLOCK_ACTIVE | VM_BLOCK_PROC))) {
+
 	b = (rb_vm_block_t *)xmalloc(sizeof(rb_vm_block_t)
 		+ (sizeof(VALUE *) * dvars_size));
 
@@ -8222,13 +8238,19 @@ extern "C"
 void
 rb_vm_add_var_use(rb_vm_block_t *block)
 {
-    for (rb_vm_block_t *block_for_uses = block; block_for_uses != NULL; block_for_uses = block_for_uses->parent_block) {
+    for (rb_vm_block_t *block_for_uses = block;
+	 block_for_uses != NULL;
+	 block_for_uses = block_for_uses->parent_block) {
+
 	rb_vm_var_uses **var_uses = block_for_uses->parent_var_uses;
 	if (var_uses == NULL) {
 	    continue;
 	}
-	if ((*var_uses == NULL) || ((*var_uses)->uses_count == VM_LVAR_USES_SIZE)) {
-	    rb_vm_var_uses* new_uses = (rb_vm_var_uses*)malloc(sizeof(rb_vm_var_uses));
+	if ((*var_uses == NULL)
+	    || ((*var_uses)->uses_count == VM_LVAR_USES_SIZE)) {
+
+	    rb_vm_var_uses* new_uses =
+		(rb_vm_var_uses*)malloc(sizeof(rb_vm_var_uses));
 	    new_uses->next = *var_uses;
 	    new_uses->uses_count = 0;
 	    *var_uses = new_uses;
@@ -8237,7 +8259,9 @@ rb_vm_add_var_use(rb_vm_block_t *block)
 	rb_gc_assign_weak_ref(block, &(*var_uses)->uses[current_index]);
 	++(*var_uses)->uses_count;
     }
-    block->parent_block = NULL; // we should not keep references that won't be used
+
+    // we should not keep references that won't be used
+    block->parent_block = NULL;
 }
 
 struct rb_vm_kept_local {
@@ -8345,7 +8369,6 @@ rb_vm_pop_binding(void)
     GET_VM()->bindings.pop_back();
 }
 
-
 extern "C"
 VALUE
 rb_vm_call(VALUE self, SEL sel, int argc, const VALUE *argv, bool super)
@@ -8375,8 +8398,8 @@ rb_vm_call_with_cache(void *cache, VALUE self, SEL sel, int argc,
 
 extern "C"
 VALUE
-rb_vm_call_with_cache2(void *cache, rb_vm_block_t *block, VALUE self, VALUE klass,
-		       SEL sel, int argc, const VALUE *argv)
+rb_vm_call_with_cache2(void *cache, rb_vm_block_t *block, VALUE self,
+		       VALUE klass, SEL sel, int argc, const VALUE *argv)
 {
     return __rb_vm_dispatch((struct mcache *)cache, self, (Class)klass, sel,
 	    block, 0, argc, argv);
@@ -8482,9 +8505,42 @@ rb_vm_get_method(VALUE klass, VALUE obj, ID mid, int scope)
     m->sel = sel;
     m->arity = arity;
     m->node = node;
-    m->cache = rb_vm_get_call_cache(sel);
+
+    // Let's allocate a static cache here, since a rb_vm_method_t must always
+    // point to the method it was created from.
+    struct mcache *c = (struct mcache *)xmalloc(sizeof(struct mcache));
+    if (node == NULL) {
+	fill_ocache(c, obj, oklass, imp, sel, arity);
+    }
+    else {
+	struct RoxorFunctionIMP *func_imp =
+	    GET_VM()->method_func_imp_get(imp);
+	assert(func_imp != NULL);
+	imp = func_imp->ruby_imp;
+	fill_rcache(c, oklass, imp, node, rb_vm_node_arity(node));
+    }
+    GC_WB(&m->cache, c);
 
     return m;
+}
+
+extern "C"
+rb_vm_block_t *
+rb_vm_create_block_from_method(rb_vm_method_t *method)
+{
+    rb_vm_block_t *b = (rb_vm_block_t *)xmalloc(sizeof(rb_vm_block_t));
+
+    GC_WB(&b->self, method->recv);
+    b->node = method->node;
+    b->arity = rb_vm_node_arity(method->node);
+    b->imp = NULL; // TODO
+    b->flags = VM_BLOCK_PROC | VM_BLOCK_METHOD;
+    b->locals = NULL;
+    b->parent_var_uses = NULL;
+    b->parent_block = NULL;
+    b->dvars_size = 0;
+
+    return b;
 }
 
 static inline VALUE
