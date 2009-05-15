@@ -1384,14 +1384,10 @@ rb_proc_new(
 static VALUE
 method_proc(VALUE method, SEL sel)
 {
-#if 0
-    // TODO
     rb_vm_method_t *data;
     Data_Get_Struct(method, rb_vm_method_t, data);
     rb_vm_block_t *block = rb_vm_create_block_from_method(data);
     return rb_proc_alloc_with_block(rb_cProc, block);
-#endif
-    return Qnil;
 }
 
 /*

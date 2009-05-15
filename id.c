@@ -64,6 +64,7 @@ Init_id(void)
     selInit = sel_registerName("init");
     selInitialize = sel_registerName("initialize");
     selInitialize2 = sel_registerName("initialize:");
+    selNew = sel_registerName("new");
     selRespondTo = sel_registerName("respond_to?:");
     selMethodMissing = sel_registerName("method_missing:");
     selCopy = sel_registerName("copy");

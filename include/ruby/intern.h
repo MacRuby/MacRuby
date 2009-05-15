@@ -361,6 +361,7 @@ void st_foreach_safe(struct st_table *, int (*)(ANYARGS), st_data_t);
 void rb_hash_foreach(VALUE, int (*)(ANYARGS), VALUE);
 VALUE rb_hash(VALUE);
 VALUE rb_hash_new(void);
+VALUE rb_hash_new2(int argc, const VALUE *argv);
 VALUE rb_hash_dup(VALUE);
 VALUE rb_hash_freeze(VALUE);
 VALUE rb_hash_aref(VALUE, VALUE);

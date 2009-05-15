@@ -7880,7 +7880,25 @@ recache:
 	    goto recache;
 	}
 
-	if (sel == selClass) {
+	if (block != NULL) {
+	    if (self == rb_cNSMutableHash && sel == selNew) {
+		// Because Hash.new can accept a block.
+		GET_VM()->add_current_block(block);
+		VALUE h = Qnil;
+		try {
+		    h = rb_hash_new2(argc, argv);
+		}
+		catch (...) {
+		    GET_VM()->pop_current_block();
+		    throw;
+		}
+		GET_VM()->pop_current_block();
+		return h;
+	    }
+	    rb_warn("passing a block to an Objective-C method - " \
+		    "will be ignored");
+	}
+	else if (sel == selClass) {
 	    // Because +[NSObject class] returns self.
 	    if (RCLASS_META(klass)) {
 		return RCLASS_MODULE(self) ? rb_cModule : rb_cClass;
@@ -8152,7 +8170,7 @@ rb_vm_prepare_block(void *llvm_function, NODE *node, VALUE self,
     }
 
     std::map<NODE *, rb_vm_block_t *>::iterator iter =
-	GET_VM()->blocks.find(node);
+	GET_VM()->blocks.find(cache_key);
 
     rb_vm_block_t *b;
     bool cached = false;
@@ -8532,8 +8550,9 @@ rb_vm_create_block_from_method(rb_vm_method_t *method)
 
     GC_WB(&b->self, method->recv);
     b->node = method->node;
-    b->arity = rb_vm_node_arity(method->node);
-    b->imp = NULL; // TODO
+    b->arity = method->node == NULL
+	? rb_vm_arity(method->arity) : rb_vm_node_arity(method->node);
+    b->imp = (IMP)method;
     b->flags = VM_BLOCK_PROC | VM_BLOCK_METHOD;
     b->locals = NULL;
     b->parent_var_uses = NULL;
@@ -8608,8 +8627,15 @@ block_call:
     b->flags |= VM_BLOCK_ACTIVE;
     VALUE v = Qnil;
     try {
-	v = __rb_vm_bcall(b->self, (VALUE)b->dvars, b, b->imp, b->arity,
-		argc, argv);
+	if (b->flags & VM_BLOCK_METHOD) {
+	    rb_vm_method_t *m = (rb_vm_method_t *)b->imp;
+	    v = rb_vm_call_with_cache2(m->cache, NULL, m->recv, m->oclass,
+		    m->sel, argc, argv);
+	}
+	else {
+	    v = __rb_vm_bcall(b->self, (VALUE)b->dvars, b, b->imp, b->arity,
+		    argc, argv);
+	}
     }
     catch (...) {
 	b->flags &= ~VM_BLOCK_ACTIVE;

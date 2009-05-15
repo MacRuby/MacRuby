@@ -279,7 +279,7 @@ rb_hash_modify_check(VALUE hash)
  */
 
 static VALUE
-rb_hash_initialize(VALUE hash, SEL sel, int argc, VALUE *argv)
+rb_hash_initialize(VALUE hash, SEL sel, int argc, const VALUE *argv)
 {
     VALUE ifnone;
 
@@ -298,6 +298,14 @@ rb_hash_initialize(VALUE hash, SEL sel, int argc, VALUE *argv)
     }
 
     return hash;
+}
+
+VALUE
+rb_hash_new2(int argc, const VALUE *argv)
+{
+    VALUE h = hash_alloc(0);
+    rb_hash_initialize(h, 0, argc, argv);
+    return h;
 }
 
 /*
