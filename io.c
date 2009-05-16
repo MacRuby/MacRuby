@@ -2766,139 +2766,91 @@ argf_close(VALUE file, SEL sel)
 static int
 argf_next_argv(VALUE argf)
 {
-#if 0 // TODO
-    char *fn;
-    rb_io_t *fptr;
-    // get rid of this, too
-    int stdout_binmode = 0;
-    // okay, I guess people could reassign to stdout.
-    // if stdout is a file, extract its io struct.
+    rb_io_t *io = NULL;
+    char *fn = NULL;
     if (TYPE(rb_stdout) == T_FILE) {
-	GetOpenFile(rb_stdout, fptr);
-	// remove the next two lines.
-	if (fptr->mode & FMODE_BINMODE)
-	    stdout_binmode = 1;
+        io = ExtractIOStruct(rb_stdout);
     }
-    // have we been initialized?
-    if (init_p == 0) {
-        // do we have more files to read from 
-	if (!NIL_P(rb_argv) && RARRAY_LEN(rb_argv) > 0) {
-	    next_p = 1;
-	}
-	else {
-	    next_p = -1;
-	}
-	init_p = 1;
-	gets_lineno = 0;
+    if (ARGF.init_p == 0) {
+        if(!NIL_P(ARGF.argv) && RARRAY_LEN(ARGF.argv) > 0) {
+            ARGF.next_p = 1;
+        } else {
+            ARGF.next_p = -1;
+        }
+        ARGF.init_p = 1;
+        ARGF.gets_lineno = 0;
     }
-
-    if (next_p == 1) {
-	next_p = 0;
-retry:
-	if (RARRAY_LEN(rb_argv) > 0) {
-	    filename = rb_ary_shift(rb_argv);
-	    fn = StringValueCStr(filename);
-	    if (strlen(fn) == 1 && fn[0] == '-') {
-		current_file = rb_stdin;
-		if (ruby_inplace_mode) {
-		    rb_warn("Can't do inplace edit for stdio; skipping");
-		    goto retry;
-		}
-	    }
-	    else {
-		int fr = rb_sysopen(fn, O_RDONLY, 0);
-
-		if (ruby_inplace_mode) {
-		    struct stat st;
-#ifndef NO_SAFE_RENAME
-		    struct stat st2;
-#endif
-		    VALUE str;
-		    int fw;
-
-		    if (TYPE(rb_stdout) == T_FILE && rb_stdout != orig_stdout) {
-			rb_io_close(rb_stdout);
-		    }
-		    fstat(fr, &st);
-		    if (*ruby_inplace_mode) {
-			str = rb_str_new2(fn);
-#ifdef NO_LONG_FNAME
-			ruby_add_suffix(str, ruby_inplace_mode);
-#else
-			rb_str_cat2(str, ruby_inplace_mode);
-#endif
-#ifdef NO_SAFE_RENAME
-			(void)close(fr);
-			(void)unlink(RSTRING_PTR(str));
-			(void)rename(fn, RSTRING_PTR(str));
-			fr = rb_sysopen(RSTRING_PTR(str), O_RDONLY, 0);
-#else
-			if (rename(fn, RSTRING_PTR(str)) < 0) {
-			    rb_warn("Can't rename %s to %s: %s, skipping file",
-				    fn, RSTRING_PTR(str), strerror(errno));
-			    close(fr);
-			    goto retry;
-			}
-#endif
-		    }
-		    else {
-#ifdef NO_SAFE_RENAME
-			rb_fatal("Can't do inplace edit without backup");
-#else
-			if (unlink(fn) < 0) {
-			    rb_warn("Can't remove %s: %s, skipping file",
-				    fn, strerror(errno));
-			    close(fr);
-			    goto retry;
-			}
-#endif
-		    }
-		    fw = rb_sysopen(fn, O_WRONLY|O_CREAT|O_TRUNC, 0666);
-#ifndef NO_SAFE_RENAME
-		    fstat(fw, &st2);
-#ifdef HAVE_FCHMOD
-		    fchmod(fw, st.st_mode);
-#else
-		    chmod(fn, st.st_mode);
-#endif
-		    if (st.st_uid!=st2.st_uid || st.st_gid!=st2.st_gid) {
-			fchown(fw, st.st_uid, st.st_gid);
-		    }
-#endif
-		    rb_stdout = prep_io(fw, FMODE_WRITABLE, rb_cFile, fn);
-		    if (stdout_binmode) {
-			rb_io_binmode(rb_stdout, 0);
-		    }
-		}
-		current_file = prep_io(fr, FMODE_READABLE, rb_cFile, fn);
-	    }
-	    if (argf_binmode) {
-		rb_io_binmode(current_file);
-	    }
-	    if (argf_enc) {
-		rb_io_t *fptr;
-
-		GetOpenFile(current_file, fptr);
-		fptr->enc = argf_enc;
-		fptr->enc2 = argf_enc2;
-	    }
-	}
-	else {
-	    next_p = 1;
-	    return Qfalse;
-	}
+    if(ARGF.next_p == 1) {
+        // we need to shift ARGV and read it into ARGF.
+        ARGF.next_p = 0;
+retry:  
+        if (RARRAY_LEN(ARGF.argv) > 0) {
+            ARGF.filename = rb_ary_shift(ARGF.argv);
+            fn = StringValueCStr(ARGF.filename);
+            if(strlen(fn) == 1 && fn[0] == '-') {
+                // - means read from standard input, obviously.
+                ARGF.current_file = rb_stdin;
+                if (ARGF.inplace) {
+                    rb_warn("Can't do inplace edit for stdio; skipping");
+                    goto retry;
+                }
+            } else {
+                int fr = open(fn, O_RDONLY);
+                if (ARGF.inplace) {
+                    // we need to rename and create new files for inplace mode
+                    struct stat st, st2;
+                    VALUE str;
+                    int fw;
+                    if (TYPE(rb_stdout) == T_FILE && rb_stdout != orig_stdout) {
+			            rb_io_close(rb_stdout, 0);
+		            }
+                    fstat(fr, &st);
+                    if (*ARGF.inplace) {
+                        // AFAICT, we create a new string here because we need to modify it
+                        // and we don't want to mess around with ARGF.filename.
+                        str = rb_str_new2(fn);
+                        rb_str_cat2(str, ARGF.inplace);
+                        if (rename(fn, RSTRING_PTR(str)) < 0) {
+                            rb_warn("Can't rename %s to %s: %s, skipping file", fn, RSTRING_PTR(str), strerror(errno));
+                            close(fr);
+                            goto retry;
+                        }
+                    } else {
+                        if (unlink(fn) < 0) {
+                            rb_warn("Can't remove %s: %s, skipping file", fn, strerror(errno));
+                            close(fr);
+                            goto retry;
+                        }
+                    }
+                    fw = open(fn, O_WRONLY|O_CREAT|O_TRUNC, 0666);
+                    fstat(fw, &st2); // pull out its filestats
+                    fchmod(fw, st.st_mode); // copy the permissions
+                    if ((st.st_uid != st2.st_uid) || (st.st_gid != st2.st_gid)) {
+                        fchown(fw, st.st_uid, st.st_gid); // copy the groups and owners
+                    }
+                    rb_stdout = prep_io(fw, FMODE_WRITABLE, rb_cFile);
+                }
+                ARGF.current_file = prep_io(fr, FMODE_READABLE, rb_cFile);
+            }
+            #if 0 // TODO once we get encodings sorted out.
+            if (ARGF.encs.enc) {
+                rb_io_t *fptr;
+                GetOpenFile(ARGF.current_file, fptr);
+                fptr->encs = ARGF.encs;
+                clear_codeconv(fptr);
+	        }
+            #endif
+        } else {
+            ARGF.next_p = 1;
+            return Qfalse;
+        }
     }
-    else if (next_p == -1) {
-	current_file = rb_stdin;
-	filename = rb_str_new2("-");
-	if (ruby_inplace_mode) {
-	    rb_warn("Can't do inplace edit for stdio");
-	    rb_stdout = orig_stdout;
-	}
+    else if (ARGF.next_p == -1) {
+        ARGF.current_file = rb_stdin;
+        ARGF.filename = rb_str_new2("-");
     }
     return Qtrue;
-#endif
-	rb_notimplement();
+    
 }
 
 static VALUE
@@ -3500,49 +3452,65 @@ rb_notimplement();
 static VALUE
 argf_tell(VALUE argf, SEL sel)
 {
-rb_notimplement();
+    next_argv();
+    ARGF_FORWARD(0, 0);
+    return rb_io_tell(ARGF.current_file, 0);
 }
 
 static VALUE
-argf_seek_m(VALUE id, SEL sel, int argc, VALUE *argv)
+argf_seek_m(VALUE argf, SEL sel, int argc, VALUE *argv)
 {
-rb_notimplement();
+    next_argv();
+    ARGF_FORWARD(0, 0);
+    return rb_io_seek_m(ARGF.current_file, sel, argc, argv);
 }
 
 static VALUE
 argf_set_pos(VALUE argf, SEL sel, VALUE offset)
 {
-rb_notimplement();
+    next_argv();
+    ARGF_FORWARD(0, 0);
+    return rb_io_set_pos(ARGF.current_file, sel, offset);
 }
 
 static VALUE
 argf_rewind(VALUE argf, SEL sel)
 {
-rb_notimplement();
+    next_argv();
+    ARGF_FORWARD(0, 0);
+    return rb_io_rewind(ARGF.current_file, 0);
 }
 
 static VALUE
 argf_fileno(VALUE argf, SEL sel)
 {
-rb_notimplement();
+    next_argv();
+    ARGF_FORWARD(0, 0);
+    return rb_io_fileno(ARGF.current_file, 0);
 }
 
 static VALUE
 argf_to_io(VALUE argf, SEL sel)
 {
-rb_notimplement();
+    next_argv();
+    ARGF_FORWARD(0, 0);
+    return argf;
 }
 
 static VALUE 
 argf_eof(VALUE argf, SEL sel)
 {
-rb_notimplement();
+    next_argv();
+    ARGF_FORWARD(0, 0);
+    return rb_io_eof(ARGF.current_file, 0);
 }
 
 static VALUE
-argf_read(VALUE id, SEL sel, int argc, VALUE *argv)
+argf_read(VALUE argf, SEL sel, int argc, VALUE *argv)
 {
-rb_notimplement();
+    next_argv();
+    ARGF_FORWARD(0, 0);
+    return io_read(ARGF.current_file, sel, argc, argv);
 }
 
 struct argf_call_arg {
@@ -3566,25 +3534,33 @@ rb_notimplement();
 static VALUE
 argf_getc(VALUE argf, SEL sel)
 {
-rb_notimplement();
+    next_argv();
+    ARGF_FORWARD(0, 0);
+    return rb_io_getc(ARGF.current_file, 0);
 }
 
 static VALUE
 argf_getbyte(VALUE argf, SEL sel)
 {
-rb_notimplement();
+    next_argv();
+    ARGF_FORWARD(0, 0);
+    return rb_io_getbyte(ARGF.current_file, 0);
 }
 
 static VALUE
 argf_readchar(VALUE argf, SEL sel)
 {
-rb_notimplement();
+    next_argv();
+    ARGF_FORWARD(0, 0);
+    return rb_io_readchar(ARGF.current_file, 0);
 }
 
 static VALUE
 argf_readbyte(VALUE argf)
 {
-rb_notimplement();
+    next_argv();
+    ARGF_FORWARD(0, 0);
+    return rb_io_readbyte(ARGF.current_file, 0);
 }
 
 static VALUE
