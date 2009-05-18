@@ -126,16 +126,25 @@ module HotCocoa
         unless Mapper.delegate_modules.has_key?(control_class)
           delegate_module = Module.new
           required_methods = []
-          inherited_delegate_methods.each do |delegate_method, mapping|
-            required_methods << delegate_method if mapping[:required]
-          end
-          inherited_delegate_methods.each do |delegate_method, mapping|
-            parameters = mapping[:parameters] ? ", "+mapping[:parameters].map {|param| %{"#{param}"} }.join(",") : ""
+          delegate_methods = inherited_delegate_methods
+          if delegate_methods.size > 0
+            delegate_methods.each do |delegate_method, mapping|
+              required_methods << delegate_method if mapping[:required]
+            end
+            delegate_methods.each do |delegate_method, mapping|
+              parameters = mapping[:parameters] ? ", "+mapping[:parameters].map {|param| %{"#{param}"} }.join(",") : ""
+              delegate_module.module_eval %{
+                def #{mapping[:to]}(&block)
+                  raise "Must pass in a block to use this delegate method" unless block_given?
+                  @_delegate_builder ||= HotCocoa::DelegateBuilder.new(self, #{required_methods.inspect})
+                  @_delegate_builder.add_delegated_method(block, "#{delegate_method}" #{parameters})
+                end
+              }
+            end
             delegate_module.module_eval %{
-              def #{mapping[:to]}(&block)
-                raise "Must pass in a block to use this delegate method" unless block_given?
+              def delegate_to(object)
                 @_delegate_builder ||= HotCocoa::DelegateBuilder.new(self, #{required_methods.inspect})
-                @_delegate_builder.add_delegated_method(block, "#{delegate_method}" #{parameters})
+                @_delegate_builder.delegate_to(object, #{delegate_methods.values.map {|method| ":#{method[:to]}"}.join(', ')})
               end
             }
           end

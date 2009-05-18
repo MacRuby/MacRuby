@@ -3,7 +3,7 @@ module HotCocoa
     
     def self.reload
       Dir.glob(File.join(File.dirname(__FILE__), "mappings", "*.rb")).each do |mapping|
-        load mapping
+        require mapping
       end
     end
     

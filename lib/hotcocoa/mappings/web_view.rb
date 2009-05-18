@@ -5,7 +5,7 @@ HotCocoa::Mappings.map :web_view => :WebView , :framework => :WebKit do
   def init_with_options(web_view, options)
     web_view.initWithFrame(options.delete(:frame))
   end
-
+  
   custom_methods do
     
     def url=(url)

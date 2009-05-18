@@ -291,7 +291,7 @@ class LayoutView < NSView
     raise ArgumentError, "#{subview} is not a subview of #{self} and cannot be removed." unless subview.superview == self
     options[:needs_display] == false ? subview.removeFromSuperviewWithoutNeedingDisplay : subview.removeFromSuperview
   end
-    
+  
   def addSubview(view)
     super
     if view.respond_to?(:layout)

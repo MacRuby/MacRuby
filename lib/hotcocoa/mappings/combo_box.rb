@@ -16,4 +16,9 @@ HotCocoa::Mappings.map :combo_box => :NSComboBox do
     
   end
   
+  delegating "comboBoxSelectionDidChange:",   :to => :selection_did_change
+  delegating "comboBoxSelectionIsChanging:",  :to => :selection_is_changing
+  delegating "comboBoxWillDismiss:",          :to => :will_dismiss
+  delegating "comboBoxWillPopUp:",            :to => :will_pop_up
+  
 end
