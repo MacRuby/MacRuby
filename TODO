@@ -69,3 +69,9 @@
   [/] integrate
   [ ] pass the 1.9 specs
 [/] all core-features benchmarks should run faster than yarv
+[ ] Integration
+  [ ] Get basic test frameworks to run
+    [ ] test/unit
+    [ ] test/spec
+    [ ] mocha
+  [ ] known_bugs
