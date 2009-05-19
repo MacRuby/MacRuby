@@ -2977,6 +2977,8 @@ argf_readline(VALUE recv, SEL sel, int argc, VALUE *argv)
 rb_notimplement();
 }
 
+static VALUE rb_io_s_readlines(VALUE recv, SEL sel, int argc, VALUE *argv);
+
 /*
  *  call-seq:
  *     readlines(sep=$/)    => array
@@ -2988,15 +2990,17 @@ rb_notimplement();
  */
 
 static VALUE
-rb_f_readlines(VALUE recv, SEL sel, int argc, VALUE *argv)
+argf_readlines(VALUE recv, SEL sel, int argc, VALUE *argv)
 {
-rb_notimplement();
+    next_argv();
+    ARGF_FORWARD(0, 0);
+	return rb_io_readlines(ARGF.current_file, sel, argc, argv);
 }
 
 static VALUE
-argf_readlines(VALUE recv, SEL sel, int argc, VALUE *argv)
+rb_f_readlines(VALUE recv, SEL sel, int argc, VALUE *argv)
 {
-rb_notimplement();
+	return argf_readlines(recv, sel, argc, argv);
 }
 
 
@@ -3075,6 +3079,23 @@ rb_f_select(VALUE recv, SEL sel, int argc, VALUE *argv)
 rb_notimplement();
 }
 
+
+// Here be dragons.
+static VALUE
+rb_io_ctl(VALUE io, VALUE req, VALUE arg, int is_io)
+{
+	rb_io_t *io_s = ExtractIOStruct(io);
+	if (TYPE(req) == T_STRING) {
+		rb_bug("ioctl doesn't support strings yet...\n");
+		return INT2FIX(0);
+	}
+	unsigned long cmd = NUM2ULONG(req);
+	
+	int retval = is_io ? ioctl(io_s->fd, cmd) : fcntl(io_s->fd, cmd);
+	
+	return retval;
+}
+
 /*
  *  call-seq:
  *     ios.ioctl(integer_cmd, arg)    => integer
@@ -3090,7 +3111,8 @@ rb_notimplement();
 static VALUE
 rb_io_ioctl(VALUE recv, SEL sel, VALUE integer_cmd, VALUE arg)
 {
-rb_notimplement();
+	rb_io_assert_open(ExtractIOStruct(recv));
+	return rb_io_ctl(recv, integer_cmd, arg, 1);
 }
 
 /*
@@ -3109,7 +3131,8 @@ rb_notimplement();
 static VALUE
 rb_io_fcntl(VALUE recv, SEL sel, VALUE integer_cmd, VALUE arg)
 {
-rb_notimplement();
+	rb_io_assert_open(ExtractIOStruct(recv));
+	return rb_io_ctl(recv, integer_cmd, arg, 0);
 }
 
 /*
