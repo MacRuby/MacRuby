@@ -61,7 +61,7 @@
   [/] reimplement all IOs using CFStreams
   [X] clean string.c (remove previous bytestring stuff)
 [/] implement eval/binding (irb)
-[ ] implement the BridgeSupport plumbing
+[X] implement the BridgeSupport plumbing
 [ ] implement threading
   [ ] Thread
   [ ] light threading

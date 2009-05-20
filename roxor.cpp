@@ -24,9 +24,12 @@
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Support/IRBuilder.h>
 #include <llvm/Intrinsics.h>
+#include <llvm/Bitcode/ReaderWriter.h>
 using namespace llvm;
 
 #include <stack>
+#include <iostream>
+#include <fstream>
 
 #if ROXOR_COMPILER_DEBUG
 # include <mach/mach.h>
@@ -192,10 +195,11 @@ class RoxorCompiler
 	static RoxorCompiler *shared;
 
 	RoxorCompiler(const char *fname);
+	virtual ~RoxorCompiler(void) { }
 
 	Value *compile_node(NODE *node);
 
-	Function *compile_main_function(NODE *node);
+	virtual Function *compile_main_function(NODE *node);
 	Function *compile_read_attr(ID name);
 	Function *compile_write_attr(ID name);
 	Function *compile_stub(const char *types, int argc, bool is_objc);
@@ -209,12 +213,13 @@ class RoxorCompiler
 
 	const Type *convert_type(const char *type);
 
-    private:
+    protected:
 	const char *fname;
 
 	std::map<ID, Value *> lvars;
 	std::vector<ID> dvars;
 	std::map<ID, int *> ivar_slots_cache;
+	std::map<std::string, GlobalVariable *> static_strings;
 
 #if ROXOR_COMPILER_DEBUG
 	int level;
@@ -323,14 +328,16 @@ class RoxorCompiler
 	    abort();
 	}
 
-	Instruction *compile_const_pointer(void *ptr, bool insert_to_bb=true) {
+	virtual Instruction *
+	compile_const_pointer(void *ptr, bool insert_to_bb=true) {
 	    Value *ptrint = ConstantInt::get(IntTy, (long)ptr);
 	    return insert_to_bb
 		? new IntToPtrInst(ptrint, PtrTy, "", bb)
 		: new IntToPtrInst(ptrint, PtrTy, "");
 	}
 
-	Instruction *compile_const_pointer_to_pointer(void *ptr, bool insert_to_bb=true) {
+	Instruction *
+        compile_const_pointer_to_pointer(void *ptr, bool insert_to_bb=true) {
 	    Value *ptrint = ConstantInt::get(IntTy, (long)ptr);
 	    return insert_to_bb
 		? new IntToPtrInst(ptrint, PtrPtrTy, "", bb)
@@ -368,6 +375,11 @@ class RoxorCompiler
 	Value *compile_dvar_slot(ID name);
 	void compile_break_val(Value *val);
 	Value *compile_jump(NODE *node);
+	virtual Value *compile_mcache(SEL sel, bool super);
+	virtual Instruction *compile_sel(SEL sel, bool add_to_bb=true) {
+	    return compile_const_pointer(sel, add_to_bb);
+	}
+	GlobalVariable *compile_const_global_string(const char *str);
 
 	void compile_landing_pad_header(void);
 	void compile_landing_pad_footer(void);
@@ -412,6 +424,31 @@ class RoxorCompiler
 				BasicBlock::InstListType::iterator iter);
 	bool unbox_ruby_constant(Value *val, VALUE *rval);
 	SEL mid_to_sel(ID mid, int arity);
+};
+
+class RoxorAOTCompiler : public RoxorCompiler
+{
+    public:
+	RoxorAOTCompiler(const char *fname) : RoxorCompiler(fname) { }
+
+	Function *compile_main_function(NODE *node);
+
+    private:
+	std::map<SEL, GlobalVariable *> mcaches;
+	std::map<SEL, GlobalVariable *> sels;
+
+	Value *compile_mcache(SEL sel, bool super);
+	Instruction *compile_sel(SEL sel, bool add_to_bb=true);
+
+	Instruction *
+        compile_const_pointer(void *ptr, bool insert_to_bb=true) {
+	    if (ptr == NULL) {
+		return RoxorCompiler::compile_const_pointer(ptr, insert_to_bb);
+	    }
+	    printf("compile_const_pointer() called with a non-NULL pointer " \
+		   "on the AOT compiler - leaving the ship!\n");
+	    abort();
+	}
 };
 
 llvm::Module *RoxorCompiler::module = NULL;
@@ -649,6 +686,7 @@ class RoxorVM
 
 	RoxorVM(void);
 
+	void optimize(Function *func);
 	IMP compile(Function *func);
 	VALUE interpret(Function *func);
 
@@ -909,10 +947,9 @@ RoxorCompiler::compile_single_when_argument(NODE *arg, Value *comparedToVal, Bas
     Value *condVal;
     if (comparedToVal != NULL) {
 	std::vector<Value *> params;
-	void *eqq_cache = GET_VM()->method_cache_get(selEqq, false);
-	params.push_back(compile_const_pointer(eqq_cache));
+	params.push_back(compile_mcache(selEqq, false));
 	params.push_back(subnodeVal);
-	params.push_back(compile_const_pointer((void *)selEqq));
+	params.push_back(compile_sel(selEqq));
 	params.push_back(compile_const_pointer(NULL));
 	params.push_back(ConstantInt::get(Type::Int8Ty, 0));
 	params.push_back(ConstantInt::get(Type::Int32Ty, 1));
@@ -1061,10 +1098,8 @@ RoxorCompiler::compile_fast_eqq_call(Value *selfVal, Value *comparedToVal)
 					 RubyObjTy, PtrTy, RubyObjTy, RubyObjTy, NULL));
     }
 
-    void *eqq_cache = GET_VM()->method_cache_get(selEqq, false);
-
     std::vector<Value *> params;
-    params.push_back(compile_const_pointer(eqq_cache));
+    params.push_back(compile_mcache(selEqq, false));
     params.push_back(selfVal);
     params.push_back(comparedToVal);
 
@@ -1084,15 +1119,109 @@ RoxorCompiler::compile_when_splat(Value *comparedToVal, Value *splatVal)
 					 RubyObjTy, RubyObjTy, NULL));
     }
 
-    void *eqq_cache = GET_VM()->method_cache_get(selEqq, false);
     std::vector<Value *> params;
-    params.push_back(compile_const_pointer(eqq_cache));
+    params.push_back(compile_mcache(selEqq, false));
     GlobalVariable *is_redefined = GET_VM()->redefined_op_gvar(selEqq, true);
     params.push_back(new LoadInst(is_redefined, "", bb));
     params.push_back(comparedToVal);
     params.push_back(splatVal);
 
     return compile_protected_call(whenSplatFunc, params);
+}
+
+GlobalVariable *
+RoxorCompiler::compile_const_global_string(const char *str)
+{
+    std::string s(str);
+    std::map<std::string, GlobalVariable *>::iterator iter =
+	static_strings.find(s);
+    GlobalVariable *gvar;
+    if (iter == static_strings.end()) {
+	const size_t str_len = strlen(str);
+	assert(str_len > 0);
+
+	const ArrayType *str_type = ArrayType::get(Type::Int8Ty, str_len + 1);
+
+	std::vector<Constant *> ary_elements;
+	for (unsigned int i = 0; i < str_len; i++) {
+	    ary_elements.push_back(ConstantInt::get(Type::Int8Ty, str[i]));
+	}
+	ary_elements.push_back(ConstantInt::get(Type::Int8Ty, 0));
+	
+	gvar = new GlobalVariable(
+		str_type,
+		true,
+		GlobalValue::InternalLinkage,
+		ConstantArray::get(str_type, ary_elements),
+		std::string("global_string.") + str,
+		RoxorCompiler::module);
+
+	static_strings[s] = gvar;
+    }
+    else {
+	gvar = iter->second;
+    }
+
+    return gvar;
+}
+
+Value *
+RoxorCompiler::compile_mcache(SEL sel, bool super)
+{
+    struct mcache *cache = GET_VM()->method_cache_get(sel, super);
+    return compile_const_pointer(cache);
+}
+
+Value *
+RoxorAOTCompiler::compile_mcache(SEL sel, bool super)
+{
+    GlobalVariable *gvar;
+    if (super) {
+	abort(); // TODO
+    }
+    else {
+	std::map<SEL, GlobalVariable *>::iterator iter =
+	    mcaches.find(sel);
+	if (iter == mcaches.end()) {
+	    gvar = new GlobalVariable(
+		    PtrTy,
+		    false,
+		    GlobalValue::InternalLinkage,
+		    Constant::getNullValue(PtrTy),
+		    std::string("mcache_") + sel_getName(sel),
+		    RoxorCompiler::module);
+	    assert(gvar != NULL);
+	    mcaches[sel] = gvar;
+	}
+	else {
+	    gvar = iter->second;
+	}
+    }
+    return new LoadInst(gvar, "", bb);
+}
+
+Instruction *
+RoxorAOTCompiler::compile_sel(SEL sel, bool add_to_bb)
+{
+    std::map<SEL, GlobalVariable *>::iterator iter = sels.find(sel);
+    GlobalVariable *gvar;
+    if (iter == sels.end()) {
+	gvar = new GlobalVariable(
+		PtrTy,
+		false,
+		GlobalValue::InternalLinkage,
+		Constant::getNullValue(PtrTy),
+		std::string("sel_") + sel_getName(sel),
+		RoxorCompiler::module);
+	assert(gvar != NULL);
+	sels[sel] = gvar;
+    }
+    else {
+	gvar = iter->second;
+    }
+    return add_to_bb
+	? new LoadInst(gvar, "", bb)
+	: new LoadInst(gvar, "");
 }
 
 Value *
@@ -1144,10 +1273,9 @@ RoxorCompiler::compile_attribute_assign(NODE *node, Value *extra_val)
 
     std::vector<Value *> params;
     const SEL sel = mid_to_sel(mid, argc);
-    void *cache = GET_VM()->method_cache_get(sel, false);
-    params.push_back(compile_const_pointer(cache));
+    params.push_back(compile_mcache(sel, false));
     params.push_back(recv);
-    params.push_back(compile_const_pointer((void *)sel));
+    params.push_back(compile_sel(sel));
     params.push_back(compile_const_pointer(NULL));
     params.push_back(ConstantInt::get(Type::Int8Ty, 0));
     params.push_back(ConstantInt::get(Type::Int32Ty, argc));
@@ -2460,10 +2588,9 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Va
 
 	bb = thenBB;
 	std::vector<Value *> new_params;
-	void *cache = GET_VM()->method_cache_get(new_sel, false);
-	new_params.push_back(compile_const_pointer(cache));
+	new_params.push_back(compile_mcache(new_sel, false));
 	new_params.push_back(params[1]);
-	new_params.push_back(compile_const_pointer((void *)new_sel));
+	new_params.push_back(compile_sel(new_sel));
 	new_params.push_back(params[3]);
 	new_params.push_back(params[4]);
 	new_params.push_back(ConstantInt::get(Type::Int32Ty, argc - 1));
@@ -2774,6 +2901,12 @@ RoxorVM::debug_exceptions(void)
     return s;
 }
 
+inline void
+RoxorVM::optimize(Function *func)
+{
+    fpm->run(*func);
+}
+
 IMP
 RoxorVM::compile(Function *func)
 {
@@ -2786,10 +2919,8 @@ RoxorVM::compile(Function *func)
     uint64_t start = mach_absolute_time();
 #endif
 
-    // Optimize.
-    fpm->run(*func);
-
-    // Compile.
+    // Optimize & compile.
+    optimize(func);
     IMP imp = (IMP)ee->getPointerToFunction(func);
 
 #if ROXOR_COMPILER_DEBUG
@@ -2898,6 +3029,13 @@ RoxorVM::method_cache_get(SEL sel, bool super)
 	return cache;
     }
     return iter->second;
+}
+
+extern "C"
+void *
+rb_vm_get_method_cache(SEL sel)
+{
+    return GET_VM()->method_cache_get(sel, false); 
 }
 
 inline struct RoxorFunctionIMP *
@@ -3594,10 +3732,9 @@ RoxorCompiler::compile_node(NODE *node)
 		    assert(node->nd_next->nd_vid > 0);
 		    sel = mid_to_sel(node->nd_next->nd_vid, 0);
 		}
-		void *cache = GET_VM()->method_cache_get(sel, false);
-		params.push_back(compile_const_pointer(cache));
+		params.push_back(compile_mcache(sel, false));
 		params.push_back(recv);
-		params.push_back(compile_const_pointer((void *)sel));
+		params.push_back(compile_sel(sel));
 		params.push_back(compile_const_pointer(NULL));
 		params.push_back(ConstantInt::get(Type::Int8Ty, 0));
 
@@ -3653,11 +3790,10 @@ RoxorCompiler::compile_node(NODE *node)
 		    ID mid = nd_type(node) == NODE_OP_ASGN1
 			? node->nd_mid : node->nd_next->nd_mid;
 		    sel = mid_to_sel(mid, 1);
-		    cache = GET_VM()->method_cache_get(sel, false);
 		    params.clear();
-		    params.push_back(compile_const_pointer(cache));
+		    params.push_back(compile_mcache(sel, false));
 		    params.push_back(tmp);
-		    params.push_back(compile_const_pointer((void *)sel));
+		    params.push_back(compile_sel(sel));
 		    params.push_back(compile_const_pointer(NULL));
 		    params.push_back(ConstantInt::get(Type::Int8Ty, 0));
 		    params.push_back(ConstantInt::get(Type::Int32Ty, 1));
@@ -3678,11 +3814,10 @@ RoxorCompiler::compile_node(NODE *node)
 		    assert(node->nd_next->nd_aid > 0);
 		    sel = mid_to_sel(node->nd_next->nd_aid, 1);
 		}
-		cache = GET_VM()->method_cache_get(sel, false);
 		params.clear();
-		params.push_back(compile_const_pointer(cache));
+		params.push_back(compile_mcache(sel, false));
 		params.push_back(recv);
-		params.push_back(compile_const_pointer((void *)sel));
+		params.push_back(compile_sel(sel));
 		params.push_back(compile_const_pointer(NULL));
 		params.push_back(ConstantInt::get(Type::Int8Ty, 0));
 		argc++;
@@ -3727,10 +3862,9 @@ RoxorCompiler::compile_node(NODE *node)
 		}
 
 		std::vector<Value *> params;
-		void *cache = GET_VM()->method_cache_get(selBackquote, false);
-		params.push_back(compile_const_pointer(cache));
+		params.push_back(compile_mcache(selBackquote, false));
 		params.push_back(nilVal);
-		params.push_back(compile_const_pointer((void *)selBackquote));
+		params.push_back(compile_sel(selBackquote));
 		params.push_back(compile_const_pointer(NULL));
 		params.push_back(ConstantInt::get(Type::Int8Ty, 0));
 		params.push_back(ConstantInt::get(Type::Int32Ty, 1));
@@ -4113,15 +4247,14 @@ rescan_args:
 
 		// Method cache.
 		const SEL sel = mid_to_sel(mid, positive_arity ? 1 : 0);
-		void *cache = GET_VM()->method_cache_get(sel, super_call);
-		params.push_back(compile_const_pointer(cache));
+		params.push_back(compile_mcache(sel, super_call));
 
 		// Self.
 		params.push_back(recv == NULL ? current_self
 			: compile_node(recv));
 
 		// Selector.
-		params.push_back(compile_const_pointer((void *)sel));
+		params.push_back(compile_sel(sel));
 
 		// RubySpec requires that we compile the block *after* the
 		// arguments, so we do pass NULL as the block for the moment.
@@ -4450,10 +4583,9 @@ rescan_args:
 		}
 
 		std::vector<Value *> params;
-		void *cache = GET_VM()->method_cache_get(selEqTilde, false);
-		params.push_back(compile_const_pointer(cache));
+		params.push_back(compile_mcache(selEqTilde, false));
 		params.push_back(reTarget);
-		params.push_back(compile_const_pointer((void *)selEqTilde));
+		params.push_back(compile_sel(selEqTilde));
 		params.push_back(compile_const_pointer(NULL));
 		params.push_back(ConstantInt::get(Type::Int8Ty, 0));
 		params.push_back(ConstantInt::get(Type::Int32Ty, 1));
@@ -4565,7 +4697,7 @@ rescan_args:
 
 		rb_vm_arity_t arity = rb_vm_node_arity(body);
 		const SEL sel = mid_to_sel(mid, arity.real);
-		params.push_back(compile_const_pointer((void *)sel));
+		params.push_back(compile_sel(sel));
 
 		params.push_back(compile_const_pointer(new_function));
 		rb_objc_retain((void *)body);
@@ -4983,10 +5115,9 @@ rescan_args:
 		    // dispatch #each on the receiver
 		    std::vector<Value *> params;
 
-		    void *cache = GET_VM()->method_cache_get(selEach, false);
-		    params.push_back(compile_const_pointer(cache));
+		    params.push_back(compile_mcache(selEach, false));
 		    params.push_back(compile_node(node->nd_iter));
-		    params.push_back(compile_const_pointer((void *)selEach));
+		    params.push_back(compile_sel(selEach));
 		    params.push_back(compile_block_create());
 		    params.push_back(ConstantInt::get(Type::Int8Ty, 0));
 		    params.push_back(ConstantInt::get(Type::Int32Ty, 0));
@@ -5122,6 +5253,79 @@ RoxorCompiler::compile_main_function(NODE *node)
 	function->getEntryBlock().getInstList();
     compile_ivar_slots(klass, list, list.begin());
     ivar_slots_cache.clear();
+
+    return function;
+}
+
+Function *
+RoxorAOTCompiler::compile_main_function(NODE *node)
+{
+    Function *function = RoxorCompiler::compile_main_function(node);
+
+    BasicBlock::InstListType &list = 
+	function->getEntryBlock().getInstList();
+
+    // Compile method caches.
+
+    Function *getCacheFunc = cast<Function>(module->getOrInsertFunction(
+		"rb_vm_get_method_cache",
+		PtrTy, PtrTy, NULL));
+
+    for (std::map<SEL, GlobalVariable *>::iterator i = mcaches.begin();
+	 i != mcaches.end();
+	 ++i) {
+
+	SEL sel = i->first;
+	GlobalVariable *gvar = i->second;
+
+	std::vector<Value *> params;
+	Instruction *load = compile_sel(sel, false);
+	params.push_back(load);
+
+	Instruction *call = CallInst::Create(getCacheFunc, params.begin(),
+		params.end(), "");
+
+	Instruction *assign = new StoreInst(call, gvar, "");
+
+	list.insert(list.begin(), assign);
+	list.insert(list.begin(), call);
+	list.insert(list.begin(), load);
+    }
+
+    // Compile selectors.
+
+    Function *registerSelFunc = cast<Function>(module->getOrInsertFunction(
+		"sel_registerName",
+		PtrTy, PtrTy, NULL));
+
+    for (std::map<SEL, GlobalVariable *>::iterator i = sels.begin();
+	 i != sels.end();
+	 ++i) {
+
+	SEL sel = i->first;
+	GlobalVariable *gvar = i->second;
+
+	GlobalVariable *sel_gvar =
+	    compile_const_global_string(sel_getName(sel));
+
+	std::vector<Value *> idxs;
+	idxs.push_back(ConstantInt::get(Type::Int32Ty, 0));
+	idxs.push_back(ConstantInt::get(Type::Int32Ty, 0));
+	Instruction *load = GetElementPtrInst::Create(sel_gvar,
+		idxs.begin(), idxs.end(), "");
+
+	std::vector<Value *> params;
+	params.push_back(load);
+
+	Instruction *call = CallInst::Create(registerSelFunc, params.begin(),
+		params.end(), "");
+
+	Instruction *assign = new StoreInst(call, gvar, "");
+ 
+	list.insert(list.begin(), assign);
+	list.insert(list.begin(), call);
+	list.insert(list.begin(), load);
+    }
 
     return function;
 }
@@ -9047,6 +9251,16 @@ rb_dvar_defined(ID id)
     return 0;
 }
 
+static inline void
+__init_shared_compiler(void)
+{
+    if (RoxorCompiler::shared == NULL) {
+	RoxorCompiler::shared = ruby_aot_compile
+	    ? new RoxorAOTCompiler("")
+	    : new RoxorCompiler("");
+    }
+}
+
 extern "C"
 VALUE
 rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding,
@@ -9056,6 +9270,7 @@ rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding,
 	GET_VM()->bindings.push_back(binding);
     }
 
+    __init_shared_compiler();
     Function *function = RoxorCompiler::shared->compile_main_function(node);
 
     if (binding != NULL) {
@@ -9099,6 +9314,108 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
     GET_VM()->current_class = old_class;
 
     return val;
+}
+
+extern "C"
+void
+rb_vm_aot_compile(NODE *node)
+{
+    assert(ruby_aot_compile);
+
+    // Compile the program as IR.
+    __init_shared_compiler();
+    Function *f = RoxorCompiler::shared->compile_main_function(node);
+    f->setName("rb_main");
+    GET_VM()->optimize(f);
+
+    // Save the bitcode into a temporary file.
+    const char *tmpdir = getenv("TMPDIR");
+    assert(tmpdir != NULL);
+    std::string bc_path(tmpdir);
+    bc_path.append("ruby.bc");
+    std::ofstream out(bc_path.c_str());
+    WriteBitcodeToFile(RoxorCompiler::module, out);
+    out.close();
+
+    // Compile the bitcode as assembly.
+    std::string llc_line("llc -f ");
+    llc_line.append(bc_path);
+    llc_line.append(" -o=");
+    std::string as_path(tmpdir);
+    as_path.append("ruby.s");
+    llc_line.append(as_path);
+    if (system(llc_line.c_str()) != 0) {
+	printf("error when compiling bitcode as assembly\n" \
+	       "line was: %s", llc_line.c_str());
+	exit(1);
+    }
+
+    // Compile the assembly.
+    std::string gcc_line("gcc -c -arch x86_64 ");
+    gcc_line.append(as_path);
+    std::string o_path(tmpdir);
+    o_path.append("ruby.o");
+    gcc_line.append(" -o ");
+    gcc_line.append(o_path);
+    if (system(gcc_line.c_str()) != 0) {
+	printf("error when compiling assembly as machine code\n" \
+	       "line was: %s", gcc_line.c_str());
+	exit(1);
+    }
+
+    // Compile main function.
+    std::string main_path(tmpdir);
+    main_path.append("main.c");
+    std::ofstream main_file(main_path.c_str());
+    std::string main_content(
+"extern void ruby_sysinit(int *, char ***);\n"
+"extern void ruby_init(void);\n"
+"extern void ruby_set_argv(int, char **);\n"
+"extern void *rb_vm_top_self(void);\n"
+"extern void *rb_main(void *, void *);\n"
+"\n"
+"int main(int argc, char **argv)\n"
+"{\n"
+"    ruby_sysinit(&argc, &argv);\n"
+"    ruby_init();\n"
+"    ruby_set_argv(argc, argv);\n"
+"    rb_main(rb_vm_top_self(), 0);\n"
+"    return 1;\n"
+"}\n"
+);
+    main_file.write(main_content.c_str(), main_content.size());
+    main_file.close();
+    gcc_line.clear();
+    gcc_line.append("gcc ");
+    gcc_line.append(main_path);
+    gcc_line.append(" -c -arch x86_64 -o ");
+    std::string main_o_path(tmpdir);
+    main_o_path.append("main.o");
+    gcc_line.append(main_o_path);
+    if (system(gcc_line.c_str()) != 0) {
+	printf("error when compiling main function as machine code\n" \
+	       "line was: %s", gcc_line.c_str());
+	exit(1);
+    }
+
+    // Link everything!
+    std::string out_path("a.out");
+    gcc_line.clear();
+    gcc_line.append("g++ ");
+    gcc_line.append(o_path);
+    gcc_line.append(" -o ");
+    gcc_line.append(out_path);
+    // XXX -L. should be removed later
+    gcc_line.append(" -L. -lmacruby-static -arch x86_64 -framework Foundation -lobjc -lauto -I/usr/include/libxml2 -lxml2 `llvm-config --ldflags --libs core jit nativecodegen interpreter bitwriter` ");
+    gcc_line.append(main_o_path);
+    if (system(gcc_line.c_str()) != 0) {
+	printf("error when compiling main function as machine code\n" \
+	       "line was: %s", gcc_line.c_str());
+	exit(1);
+    }
+ 
+    // TODO: dump IR -> llvm-as -> llc -> gcc
+//    RoxorCompiler::module->dump();
 }
 
 extern "C"
@@ -10651,8 +10968,6 @@ extern "C"
 void
 Init_VM(void)
 {
-    RoxorCompiler::shared = new RoxorCompiler("");
-
     rb_cTopLevel = rb_define_class("TopLevel", rb_cObject);
     rb_objc_define_method(rb_cTopLevel, "to_s", (void *)rb_toplevel_to_s, 0);
 

@@ -7,6 +7,8 @@
 
 #undef RUBY_EXPORT
 #include "ruby.h"
+#include "ruby/node.h"
+#include "roxor.h"
 #ifdef HAVE_LOCALE_H
 #include <locale.h>
 #endif
@@ -23,7 +25,15 @@ main(int argc, char **argv, char **envp)
     try {
 	ruby_sysinit(&argc, &argv);
 	ruby_init();
-	rb_exit(ruby_run_node(ruby_options(argc, argv)));
+	void *node = ruby_options(argc, argv);
+	assert(node != NULL);
+	if (ruby_aot_compile) {
+	    rb_vm_aot_compile((NODE *)node);
+	    rb_exit(0);
+	}
+	else {	
+	    rb_exit(ruby_run_node(node));
+	}
     }
     catch (...) {
 	rb_vm_print_current_exception();

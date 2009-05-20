@@ -44,6 +44,7 @@ char *getenv();
 /* TODO: move to VM */
 VALUE ruby_debug = Qfalse;
 VALUE ruby_verbose = Qfalse;
+VALUE ruby_aot_compile = Qfalse;
 VALUE rb_parser_get_yydebug(VALUE);
 VALUE rb_parser_set_yydebug(VALUE, VALUE);
 
@@ -131,6 +132,7 @@ usage(const char *name)
 	"-x[directory]   strip off text before #!ruby line and perhaps cd to directory",
 	"--copyright     print the copyright",
 	"--version       print the version",
+	"--compile       ahead-of-time (AOT) compile the script",
 	NULL
     };
     const char *const *p = usage_msg;
@@ -696,8 +698,9 @@ proc_options(int argc, char **argv, struct cmdline_options *opt)
 		goto switch_end;
 	    }
 	    s++;
-	    if (strcmp("copyright", s) == 0)
+	    if (strcmp("copyright", s) == 0) {
 		opt->copyright = 1;
+	    }
 	    else if (strcmp("debug", s) == 0) {
 		ruby_debug = Qtrue;
                 ruby_verbose = Qtrue;
@@ -727,14 +730,16 @@ proc_options(int argc, char **argv, struct cmdline_options *opt)
 	      encoding:
 		opt->ext.enc.name = rb_str_new2(s);
 	    }
-	    else if (strcmp("version", s) == 0)
+	    else if (strcmp("version", s) == 0) {
 		opt->version = 1;
+	    }
 	    else if (strcmp("verbose", s) == 0) {
 		opt->verbose = 1;
 		ruby_verbose = Qtrue;
 	    }
-	    else if (strcmp("yydebug", s) == 0)
+	    else if (strcmp("yydebug", s) == 0) {
 		opt->yydebug = 1;
+	    }
 	    else if (strncmp("dump", s, n = 4) == 0 && (!s[n] || s[n] == '=')) {
 		if (!(s += n + 1)[-1] && (!--argc || !(s = *++argv)) && *s != '-') break;
 		ruby_each_words(s, dump_option, &opt->dump);
@@ -742,6 +747,9 @@ proc_options(int argc, char **argv, struct cmdline_options *opt)
 	    else if (strcmp("help", s) == 0) {
 		usage(origarg.argv[0]);
 		rb_exit(EXIT_SUCCESS);
+	    }
+	    else if (strcmp("compile", s) == 0) {
+		ruby_aot_compile = Qtrue;
 	    }
 	    else {
 		rb_raise(rb_eRuntimeError,
