@@ -2966,15 +2966,17 @@ argf_gets(VALUE recv, SEL sel, int argc, VALUE *argv)
  */
 
 static VALUE
-rb_f_readline(VALUE recv, SEL sel, int argc, VALUE *argv)
+argf_readline(VALUE argf, SEL sel, int argc, VALUE *argv)
 {
-rb_notimplement();
+	next_argv();
+    ARGF_FORWARD(0, 0);
+	return rb_io_readline(ARGF.current_file, sel, argc, argv);
 }
 
 static VALUE
-argf_readline(VALUE recv, SEL sel, int argc, VALUE *argv)
+rb_f_readline(VALUE recv, SEL sel, int argc, VALUE *argv)
 {
-rb_notimplement();
+	return argf_readline(recv, sel, argc, argv);
 }
 
 static VALUE rb_io_s_readlines(VALUE recv, SEL sel, int argc, VALUE *argv);
@@ -2990,7 +2992,7 @@ static VALUE rb_io_s_readlines(VALUE recv, SEL sel, int argc, VALUE *argv);
  */
 
 static VALUE
-argf_readlines(VALUE recv, SEL sel, int argc, VALUE *argv)
+argf_readlines(VALUE argf, SEL sel, int argc, VALUE *argv)
 {
     next_argv();
     ARGF_FORWARD(0, 0);
