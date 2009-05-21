@@ -511,23 +511,23 @@ rb_io_flush(VALUE io, SEL sel)
  *     f.pos    #=> 17
  */
 
-static inline long
+static inline long long
 rb_io_read_stream_get_offset(CFReadStreamRef stream)
 {
-    long result = 0L;
+    long long result = 0LL;
 
     CFNumberRef pos = CFReadStreamCopyProperty(stream,
 	    kCFStreamPropertyFileCurrentOffset);
-    CFNumberGetValue(pos, kCFNumberSInt32Type, &result);
+    CFNumberGetValue(pos, kCFNumberLongLongType, &result);
     CFRelease(pos);
 
     return result;
 }
 
 static inline void
-rb_io_read_stream_set_offset(CFReadStreamRef stream, long offset)
+rb_io_read_stream_set_offset(CFReadStreamRef stream, long long offset)
 {
-    CFNumberRef pos = CFNumberCreate(NULL, kCFNumberSInt32Type, &offset);
+    CFNumberRef pos = CFNumberCreate(NULL, kCFNumberLongLongType, &offset);
     CFReadStreamSetProperty(stream, kCFStreamPropertyFileCurrentOffset, pos);
     CFRelease(pos);
 }
@@ -538,7 +538,7 @@ rb_io_tell(VALUE io, SEL sel)
     rb_io_t *io_struct = ExtractIOStruct(io);
     rb_io_assert_readable(io_struct);
 
-    return LONG2FIX(rb_io_read_stream_get_offset(io_struct->readStream)); 
+    return LL2NUM(rb_io_read_stream_get_offset(io_struct->readStream)); 
 }
 
 static VALUE
@@ -548,7 +548,7 @@ rb_io_seek(VALUE io, VALUE offset, int whence)
     rb_io_assert_readable(io_struct); 
 
     // TODO: make this work with IO::SEEK_CUR, SEEK_END, etc.
-    rb_io_read_stream_set_offset(io_struct->readStream, FIX2LONG(offset));
+    rb_io_read_stream_set_offset(io_struct->readStream, NUM2LL(offset));
 
     return INT2FIX(0); // is this right?
 }
