@@ -12,3 +12,6 @@ assert '"abcdef"', %{
   f.ungetc("ab")
   p f.gets.strip
 }
+
+assert ":ok", "p File.expand_path('../fixtures/foo', '#{__FILE__}').include?('..') ? :fail : :ok"
+assert ":ok", "require File.expand_path('../fixtures/foo', '#{__FILE__}')"

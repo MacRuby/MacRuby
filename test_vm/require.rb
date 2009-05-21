@@ -9,3 +9,5 @@ assert ":ok", %q{
 assert ":ok", "$:.unshift('fixtures'); require 'foo'"
 
 assert ":ok", "begin; require 'fixtures/raise'; rescue NameError; p :ok; end"
+
+assert ":ok", "begin; require '/doesnotexist'; rescue NameError; p :ok; end"
