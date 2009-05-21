@@ -14,7 +14,6 @@ describe "The String class" do
   end
 end
 
-=begin
 describe "The NSString class" do
   it "can be subclassed and later instantiated" do
     k = Class.new(NSString)
@@ -24,7 +23,6 @@ describe "The NSString class" do
     lambda { a << 'foo' }.should raise_error(RuntimeError)
   end
 end
-=end
 
 describe "An String object" do
   it "is an instance of the String/NSMutableString class" do
@@ -60,12 +58,10 @@ describe "An NSString object" do
     lambda { a << 'foo' }.should raise_error(RuntimeError)
   end
 
-=begin
   it "can have a singleton class" do
     a = NSString.string
     def a.foo; 42; end
     a.foo.should == 42
     lambda { a << 'foo' }.should raise_error(RuntimeError)
   end
-=end
 end

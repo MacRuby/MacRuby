@@ -14,7 +14,6 @@ describe "The Hash class" do
   end
 end
 
-=begin
 describe "The NSDictionary class" do
   it "can be subclassed and later instantiated" do
     k = Class.new(NSDictionary)
@@ -24,7 +23,6 @@ describe "The NSDictionary class" do
     lambda { a[42] = 123 }.should raise_error(RuntimeError)
   end
 end
-=end
 
 describe "An Hash object" do
   it "is an instance of the Hash/NSMutableDictionary class" do
@@ -60,12 +58,10 @@ describe "An NSDictionary object" do
     lambda { a[42] = 123 }.should raise_error(RuntimeError)
   end
 
-=begin
   it "can have a singleton class" do
     a = NSDictionary.array
     def a.foo; 42; end
     a.foo.should == 42
     lambda { a[42] = 123 }.should raise_error(RuntimeError)
   end
-=end
 end

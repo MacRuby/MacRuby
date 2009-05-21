@@ -14,7 +14,6 @@ describe "The Array class" do
   end
 end
 
-=begin
 describe "The NSArray class" do
   it "can be subclassed and later instantiated" do
     k = Class.new(NSArray)
@@ -24,7 +23,6 @@ describe "The NSArray class" do
     lambda { a << 42 }.should raise_error(RuntimeError)
   end
 end
-=end
 
 describe "An Array object" do
   it "is an instance of the Array/NSMutableArray class" do
