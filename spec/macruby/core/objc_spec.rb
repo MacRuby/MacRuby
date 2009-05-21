@@ -1,4 +1,4 @@
-require File.dirname(__FILE__) + "/spec_helper"
+require File.dirname(__FILE__) + "/../spec_helper"
 # TODO: the MacRuby class should also be tested from Objective-C.
 #FixtureCompiler.require! "objc"
 
@@ -22,8 +22,8 @@ describe "-[MacRuby sharedRuntime]" do
   end
 
   it "can evaluate a given Ruby file using a path or an URL" do
-    p1 = File.dirname(__FILE__) + '/fixtures/test_objc1.rb'
-    p2 = File.dirname(__FILE__) + '/fixtures/test_objc2.rb'
+    p1 = File.join(FIXTURES, 'test_objc1.rb')
+    p2 = File.join(FIXTURES, 'test_objc2.rb')
 
     o = @r.evaluateFileAtPath(p1)
     o.class.should == Fixnum

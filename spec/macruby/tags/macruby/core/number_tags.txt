@@ -1,0 +1,1 @@
+fails:An NSNumber boolean object can be compared against a true/false Ruby type

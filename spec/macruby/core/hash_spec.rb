@@ -1,4 +1,4 @@
-require File.dirname(__FILE__) + "/spec_helper"
+require File.dirname(__FILE__) + "/../spec_helper"
 
 describe "The Hash class" do
   it "is an alias to NSMutableDictionary" do

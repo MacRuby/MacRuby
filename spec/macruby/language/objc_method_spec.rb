@@ -1,7 +1,7 @@
-require File.dirname(__FILE__) + "/spec_helper"
+require File.dirname(__FILE__) + "/../spec_helper"
 FixtureCompiler.require! "method"
 
-require File.dirname(__FILE__) + '/fixtures/method'
+require File.join(FIXTURES, 'method')
 
 describe "A pure Objective-C method" do
   before :each do

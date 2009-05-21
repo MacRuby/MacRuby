@@ -90,7 +90,7 @@ namespace :spec do
   
   desc "Run all MacRuby-only specs"
   task :macruby do
-    sh "./mspec/bin/mspec run -B #{MACRUBY_MSPEC} ./spec/macruby"
+    sh "./mspec/bin/mspec ci -B #{MACRUBY_MSPEC} ./spec/macruby"
   end
   
   desc "Run language examples that are known to fail"

@@ -1,4 +1,4 @@
-require File.dirname(__FILE__) + "/spec_helper"
+require File.dirname(__FILE__) + "/../spec_helper"
 
 describe "An NSNumber boolean object" do
   it "can be compared against a true/false Ruby type" do
