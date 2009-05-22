@@ -26,7 +26,6 @@ main(int argc, char **argv, char **envp)
 	ruby_sysinit(&argc, &argv);
 	ruby_init();
 	void *node = ruby_options(argc, argv);
-	assert(node != NULL);
 	if (ruby_aot_compile) {
 	    rb_vm_aot_compile((NODE *)node);
 	    rb_exit(0);

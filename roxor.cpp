@@ -3260,6 +3260,7 @@ RoxorVM::add_method(Class klass, SEL sel, IMP imp, IMP ruby_imp,
     }
     else {
 	node = iter->second;
+	assert(node->objc_imp == imp);
     }
     node->arity = arity;
     node->flags = flags;
@@ -4741,7 +4742,7 @@ rescan_args:
 	case NODE_ALIAS:
 	    {
 		if (aliasFunc == NULL) {
-		    // void rb_vm_alias(VALUE outer, ID from, ID to, unsigned char is_var);
+		    // void rb_vm_alias(VALUE outer, ID from, ID to);
 		    aliasFunc = cast<Function>(module->getOrInsertFunction("rb_vm_alias",
 				Type::VoidTy, RubyObjTy, IntTy, IntTy, NULL));
 		}
@@ -6809,7 +6810,7 @@ rb_vm_to_ary(VALUE obj)
 extern "C" void rb_print_undef(VALUE, ID, int);
 
 static void
-rb_vm_alias_method(Class klass, Method method, ID name, int arity)
+rb_vm_alias_method(Class klass, Method method, ID name, bool noargs)
 {
     IMP imp = method_getImplementation(method);
     const char *types = method_getTypeEncoding(method);
@@ -6822,7 +6823,7 @@ rb_vm_alias_method(Class klass, Method method, ID name, int arity)
 
     const char *name_str = rb_id2name(name);
     SEL sel;
-    if (arity == 0) {
+    if (noargs) {
 	sel = sel_registerName(name_str);
     }
     else {
@@ -6863,10 +6864,10 @@ rb_vm_alias(VALUE outer, ID name, ID def)
 	rb_print_undef((VALUE)klass, def, 0);
     }
     if (def_method1 != NULL) {
-	rb_vm_alias_method(klass, def_method1, name, 0);
+	rb_vm_alias_method(klass, def_method1, name, true);
     }
     if (def_method2 != NULL) {
-	rb_vm_alias_method(klass, def_method2, name, 1);
+	rb_vm_alias_method(klass, def_method2, name, false);
     }
 }
 
@@ -7586,11 +7587,11 @@ rb_vm_define_method(Class klass, SEL sel, IMP imp, NODE *node, bool direct)
 
 extern "C"
 void 
-rb_vm_define_method2(Class klass, rb_vm_method_node_t *node, bool direct)
+rb_vm_define_method2(Class klass, SEL sel, rb_vm_method_node_t *node, bool direct)
 {
     assert(node != NULL);
 
-    __rb_vm_define_method(klass, node->sel, node->objc_imp, node->arity,
+    __rb_vm_define_method(klass, sel, node->objc_imp, node->arity,
 	    node->flags, direct);
 }
 
