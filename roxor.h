@@ -43,12 +43,20 @@ typedef struct {
 } rb_vm_binding_t;
 
 typedef struct {
+    rb_vm_arity_t arity;
+    SEL sel;
+    IMP objc_imp;
+    IMP ruby_imp;
+    int flags;
+} rb_vm_method_node_t;
+
+typedef struct {
     VALUE oclass;
     VALUE rclass;
     VALUE recv;
     SEL sel;
     int arity;
-    NODE *node;			// can be NULL (if pure Objective-C)
+    rb_vm_method_node_t *node;	// NULL in case the method is ObjC
     void *cache;
 } rb_vm_method_t;
 
@@ -69,16 +77,23 @@ void rb_vm_set_safe_level(int level);
 VALUE rb_vm_top_self(void);
 void rb_vm_const_is_defined(ID path);
 VALUE rb_vm_resolve_const_value(VALUE val, VALUE klass, ID name);
-bool rb_vm_lookup_method(Class klass, SEL sel, IMP *pimp, NODE **pnode);
-bool rb_vm_lookup_method2(Class klass, ID mid, SEL *psel, IMP *pimp, NODE **pnode);
-NODE *rb_vm_get_method_node(IMP imp);
-void rb_vm_define_method(Class klass, SEL sel, IMP imp, NODE *node, bool direct);
-void rb_vm_define_attr(Class klass, const char *name, bool read, bool write, int noex);
+bool rb_vm_lookup_method(Class klass, SEL sel, IMP *pimp,
+	rb_vm_method_node_t **pnode);
+bool rb_vm_lookup_method2(Class klass, ID mid, SEL *psel, IMP *pimp,
+	rb_vm_method_node_t **pnode);
+rb_vm_method_node_t *rb_vm_get_method_node(IMP imp);
+void rb_vm_define_method(Class klass, SEL sel, IMP imp, NODE *node,
+	bool direct);
+void rb_vm_define_method2(Class klass, rb_vm_method_node_t *node, bool direct);
+void rb_vm_define_attr(Class klass, const char *name, bool read, bool write,
+	int noex);
 void rb_vm_alias(VALUE klass, ID name, ID def);
 void rb_vm_copy_methods(Class from_class, Class to_class);
 VALUE rb_vm_call(VALUE self, SEL sel, int argc, const VALUE *args, bool super);
-VALUE rb_vm_call_with_cache(void *cache, VALUE self, SEL sel, int argc, const VALUE *argv);
-VALUE rb_vm_call_with_cache2(void *cache, rb_vm_block_t *block, VALUE self, VALUE klass, SEL sel, int argc, const VALUE *argv);
+VALUE rb_vm_call_with_cache(void *cache, VALUE self, SEL sel, int argc,
+	const VALUE *argv);
+VALUE rb_vm_call_with_cache2(void *cache, rb_vm_block_t *block, VALUE self,
+	VALUE klass, SEL sel, int argc, const VALUE *argv);
 void *rb_vm_get_call_cache(SEL sel);
 VALUE rb_vm_yield(int argc, const VALUE *argv);
 VALUE rb_vm_yield_under(VALUE klass, VALUE self, int argc, const VALUE *argv);

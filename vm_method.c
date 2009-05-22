@@ -144,7 +144,8 @@ remove_method(VALUE klass, ID mid)
 		      rb_id2name(mid), rb_class2name(klass));
     }
     if (rb_vm_get_method_node(method_getImplementation(m)) == NULL) {
-	rb_warn("removing pure Objective-C method `%s' may cause serious problem", rb_id2name(mid));
+	rb_warn("removing pure Objective-C method `%s' may cause serious " \
+		"problem", rb_id2name(mid));
     }
     method_setImplementation(m, NULL);
 
@@ -202,7 +203,7 @@ void rb_print_undef(VALUE, ID, int);
 static void
 rb_export_method(VALUE klass, ID name, ID noex)
 {
-    NODE *node;
+    rb_vm_method_node_t *node;
     SEL sel;
 
     if (klass == rb_cObject) {
@@ -780,7 +781,7 @@ rb_mod_modfunc(VALUE module, SEL sel, int argc, VALUE *argv)
     for (i = 0; i < argc; i++) {
 	ID id = rb_to_id(argv[i]);
 	IMP imp;
-	NODE *node;
+	rb_vm_method_node_t *node;
 	SEL sel;
 
 	if (!rb_vm_lookup_method2((Class)module, id, &sel, &imp, &node)) {
@@ -788,7 +789,7 @@ rb_mod_modfunc(VALUE module, SEL sel, int argc, VALUE *argv)
 	    rb_bug("undefined method `%s'; can't happen", rb_id2name(id));
 	}
 
-	rb_vm_define_method(*(Class *)module, sel, imp, node, false);
+	rb_vm_define_method2(*(Class *)module, node, false);
     }
 
     return module;
