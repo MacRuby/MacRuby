@@ -8537,6 +8537,10 @@ rb_vm_prepare_block(void *llvm_function, NODE *node, VALUE self,
     if ((iter == GET_VM()->blocks.end())
 	|| (iter->second->flags & (VM_BLOCK_ACTIVE | VM_BLOCK_PROC))) {
 
+	if (iter != GET_VM()->blocks.end()) {
+	    rb_objc_release(iter->second);
+	}
+
 	b = (rb_vm_block_t *)xmalloc(sizeof(rb_vm_block_t)
 		+ (sizeof(VALUE *) * dvars_size));
 
@@ -8693,6 +8697,8 @@ use_found:
 			}
 		    }
 		}
+		// indicate to the GC that we do not have a reference here anymore
+		rb_gc_assign_weak_ref(NULL, &current->uses[use_index]);
 	    }
 	}
 	void *old_current = current;
