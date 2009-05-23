@@ -2,7 +2,7 @@
 #include "ruby/ruby.h"
 #include "ruby/node.h"
 #include "ruby/objc.h"
-#include "roxor.h"
+#include "vm.h"
 
 @implementation MacRuby
 

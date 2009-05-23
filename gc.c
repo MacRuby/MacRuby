@@ -17,7 +17,7 @@
 #include "ruby/io.h"
 #include "ruby/util.h"
 #include "objc.h"
-#include "roxor.h"
+#include "vm.h"
 #include <stdio.h>
 #include <setjmp.h>
 #include <sys/types.h>

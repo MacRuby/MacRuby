@@ -14,7 +14,7 @@
 #include "ruby/ruby.h"
 #include "ruby/node.h"
 #include "ruby/st.h"
-#include "roxor.h"
+#include "vm.h"
 #include "objc.h"
 #include "id.h"
 

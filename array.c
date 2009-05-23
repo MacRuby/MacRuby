@@ -15,7 +15,7 @@
 #include "id.h"
 #include "objc.h"
 #include "ruby/node.h"
-#include "roxor.h"
+#include "vm.h"
 
 VALUE rb_cArray;
 VALUE rb_cCFArray;

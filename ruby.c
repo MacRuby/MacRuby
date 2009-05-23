@@ -18,7 +18,7 @@
 #include <stdio.h>
 #include <sys/types.h>
 #include <ctype.h>
-#include "roxor.h"
+#include "vm.h"
 
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>

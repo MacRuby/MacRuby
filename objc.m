@@ -31,7 +31,7 @@
 #include "ruby/node.h"
 #include "ruby/encoding.h"
 #include "ruby/objc.h"
-#include "roxor.h"
+#include "vm.h"
 #include "objc.h"
 #include "id.h"
 

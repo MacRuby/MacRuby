@@ -12,7 +12,7 @@
 #include "ruby/ruby.h"
 #include "ruby/st.h"
 #include "ruby/node.h"
-#include "roxor.h"
+#include "vm.h"
 #include "id.h"
 
 #include <stdio.h>

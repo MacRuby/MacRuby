@@ -11,7 +11,7 @@
 #include "ruby/st.h"
 #include "ruby/util.h"
 #include "id.h"
-#include "roxor.h"
+#include "vm.h"
 
 st_table *rb_global_tbl;
 st_table *rb_class_tbl;

@@ -15,7 +15,7 @@
 #include "ruby/signal.h"
 #include "ruby/node.h"
 #include "id.h"
-#include "roxor.h"
+#include "vm.h"
 #include <signal.h>
 #include <stdio.h>
 

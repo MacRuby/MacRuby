@@ -11,7 +11,7 @@
 
 #include "ruby/ruby.h"
 #include "ruby/node.h"
-#include "roxor.h"
+#include "vm.h"
 #include <sys/types.h>
 #include <ctype.h>
 #include <errno.h>

@@ -15,7 +15,7 @@
 #include "id.h"
 #include "objc.h"
 #include "ruby/node.h"
-#include "roxor.h"
+#include "vm.h"
 
 #define BEG(no) regs->beg[no]
 #define END(no) regs->end[no]

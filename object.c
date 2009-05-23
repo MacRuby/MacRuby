@@ -20,7 +20,7 @@
 #include <math.h>
 #include <float.h>
 #include "objc.h"
-#include "roxor.h"
+#include "vm.h"
 
 VALUE rb_cBasicObject;
 VALUE rb_mKernel;

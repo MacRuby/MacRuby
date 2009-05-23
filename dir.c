@@ -14,7 +14,7 @@
 #include "ruby/ruby.h"
 #include "ruby/node.h"
 #include "ruby/util.h"
-#include "roxor.h"
+#include "vm.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>

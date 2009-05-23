@@ -13,7 +13,7 @@
 #include "ruby/io.h"
 #include "ruby/util.h"
 #include "ruby/node.h"
-#include "roxor.h"
+#include "vm.h"
 
 #include <errno.h>
 #include <paths.h>

@@ -101,7 +101,7 @@ OBJS = %w{
   random range rational re regcomp regenc regerror regexec regparse regsyntax
   ruby set signal sprintf st string struct time transcode util variable version
   thread id objc bs encoding main dln dmyext enc/ascii 
-  vm_eval prelude miniprelude gc-stub roxor MacRuby
+  vm_eval prelude miniprelude gc-stub bridgesupport compiler vm MacRuby
 }
 
 class Builder

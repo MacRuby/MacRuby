@@ -1066,18 +1066,19 @@ RUBY_EXTERN VALUE rb_cNSMutableSet;
 RUBY_EXTERN VALUE rb_cCFNumber;
 RUBY_EXTERN VALUE rb_cBoxed;
 RUBY_EXTERN VALUE rb_cPointer;
+RUBY_EXTERN VALUE rb_cTopLevel;
 
 bool _CFArrayIsMutable(void *);
-#define RARRAY_IMMUTABLE(o) (*(VALUE *)o == rb_cCFArray && !_CFArrayIsMutable((void *)o))
+#define RARRAY_IMMUTABLE(o) (!_CFArrayIsMutable((void *)o))
 
 bool _CFDictionaryIsMutable(void *);
-#define RHASH_IMMUTABLE(o) (*(VALUE *)o == rb_cCFHash && !_CFDictionaryIsMutable((void *)o))
+#define RHASH_IMMUTABLE(o) (!_CFDictionaryIsMutable((void *)o))
 
 bool __CFStringIsMutable(void *);
-#define RSTRING_IMMUTABLE(o) (*(VALUE *)o == rb_cCFString && !__CFStringIsMutable((void *)o))
+#define RSTRING_IMMUTABLE(o) (!__CFStringIsMutable((void *)o))
 
 bool _CFSetIsMutable(void *);
-#define RSET_IMMUTABLE(o) (*(VALUE *)o == rb_cCFSet && !_CFSetIsMutable((void *)o))
+#define RSET_IMMUTABLE(o) (!_CFSetIsMutable((void *)o))
 
 #endif
 

@@ -9,9 +9,25 @@
  * Copyright (C) 2000  Information-technology Promotion Agency, Japan
  */
 
-#include "ruby/ruby.h"
-#include "ruby/encoding.h"
+#include <llvm/Module.h>
+#include <llvm/DerivedTypes.h>
+#include <llvm/Constants.h>
+#include <llvm/CallingConv.h>
+#include <llvm/Instructions.h>
+#include <llvm/ModuleProvider.h>
+#include <llvm/Intrinsics.h>
+#include <llvm/ExecutionEngine/JIT.h>
+#include <llvm/PassManager.h>
+#include <llvm/Target/TargetData.h>
+using namespace llvm;
+
 #include <stdarg.h>
+
+#include "ruby/ruby.h"
+#include "ruby/node.h"
+#include "ruby/encoding.h"
+#include "vm.h"
+#include "compiler.h"
 
 /*
  *  call-seq:
@@ -263,6 +279,8 @@
 #define GETNTHARG(nth) \
      ((nth >= argc) ? (rb_raise(rb_eArgError, "too few arguments"), 0) : argv[nth])
 
+extern "C" {
+
 VALUE
 rb_f_sprintf_imp(VALUE recv, SEL sel, int argc, VALUE *argv)
 {
@@ -315,3 +333,167 @@ rb_sprintf(const char *format, ...)
 
     return result;
 }
+
+static void
+get_types_for_format_str(std::string &octypes, const unsigned int len,
+			 VALUE *args, const char *format_str, char **new_fmt)
+{
+    size_t format_str_len = strlen(format_str);
+    unsigned int i = 0, j = 0;
+
+    while (i < format_str_len) {
+	bool sharp_modifier = false;
+	bool star_modifier = false;
+	if (format_str[i++] != '%') {
+	    continue;
+	}
+	if (i < format_str_len && format_str[i] == '%') {
+	    i++;
+	    continue;
+	}
+	while (i < format_str_len) {
+	    char type = 0;
+	    switch (format_str[i]) {
+		case '#':
+		    sharp_modifier = true;
+		    break;
+
+		case '*':
+		    star_modifier = true;
+		    type = _C_INT;
+		    break;
+
+		case 'd':
+		case 'i':
+		case 'o':
+		case 'u':
+		case 'x':
+		case 'X':
+		    type = _C_INT;
+		    break;
+
+		case 'c':
+		case 'C':
+		    type = _C_CHR;
+		    break;
+
+		case 'D':
+		case 'O':
+		case 'U':
+		    type = _C_LNG;
+		    break;
+
+		case 'f':       
+		case 'F':
+		case 'e':       
+		case 'E':
+		case 'g':       
+		case 'G':
+		case 'a':
+		case 'A':
+		    type = _C_DBL;
+		    break;
+
+		case 's':
+		case 'S':
+		    {
+			if (i - 1 > 0) {
+			    unsigned long k = i - 1;
+			    while (k > 0 && format_str[k] == '0') {
+				k--;
+			    }
+			    if (k < i && format_str[k] == '.') {
+				args[j] = (VALUE)CFSTR("");
+			    }
+			}
+			type = _C_CHARPTR;
+		    }
+		    break;
+
+		case 'p':
+		    type = _C_PTR;
+		    break;
+
+		case '@':
+		    type = _C_ID;
+		    break;
+
+		case 'B':
+		case 'b':
+		    {
+			VALUE arg = args[j];
+			switch (TYPE(arg)) {
+			    case T_STRING:
+				arg = rb_str_to_inum(arg, 0, Qtrue);
+				break;
+			}
+			arg = rb_big2str(arg, 2);
+			if (sharp_modifier) {
+			    VALUE prefix = format_str[i] == 'B'
+				? (VALUE)CFSTR("0B") : (VALUE)CFSTR("0b");
+			    rb_str_update(arg, 0, 0, prefix);
+			}
+			if (*new_fmt == NULL) {
+			    *new_fmt = strdup(format_str);
+			}
+			(*new_fmt)[i] = '@';
+			args[j] = arg;
+			type = _C_ID;
+		    }
+		    break;
+	    }
+
+	    i++;
+
+	    if (type != 0) {
+		if (len == 0 || j >= len) {
+		    rb_raise(rb_eArgError, 
+			    "Too much tokens in the format string `%s' "\
+			    "for the given %d argument(s)", format_str, len);
+		}
+		octypes.push_back(type);
+		j++;
+		if (!star_modifier) {
+		    break;
+		}
+	    }
+	}
+    }
+    for (; j < len; j++) {
+	octypes.push_back(_C_ID);
+    }
+}
+
+VALUE
+rb_str_format(int argc, const VALUE *argv, VALUE fmt)
+{
+    if (argc == 0) {
+	return fmt;
+    }
+
+    char *new_fmt = NULL;
+    std::string types("@@@@");
+    get_types_for_format_str(types, (unsigned int)argc, (VALUE *)argv, 
+	    RSTRING_PTR(fmt), &new_fmt);
+
+    if (new_fmt != NULL) {
+	fmt = rb_str_new2(new_fmt);
+    }  
+
+    VALUE *stub_args = (VALUE *)alloca(sizeof(VALUE) * argc + 4);
+    stub_args[0] = Qnil; // allocator
+    stub_args[1] = Qnil; // format options
+    stub_args[2] = fmt;  // format string
+    for (int i = 0; i < argc; i++) {
+	stub_args[3 + i] = argv[i];
+    }
+
+    rb_vm_c_stub_t *stub = (rb_vm_c_stub_t *)GET_VM()->gen_stub(types,
+	    3, false);
+
+    VALUE str = (*stub)((IMP)&CFStringCreateWithFormat, argc + 3, stub_args);
+    CFMakeCollectable((void *)str);
+    return str;
+}
+
+} // extern "C"

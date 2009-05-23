@@ -15,7 +15,7 @@
 #include "ruby/st.h"
 #include "id.h"
 #include <ctype.h>
-#include "roxor.h"
+#include "vm.h"
 
 extern st_table *rb_class_tbl;
 

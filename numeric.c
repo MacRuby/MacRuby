@@ -17,7 +17,7 @@
 
 #include "objc.h"
 #include <ruby/node.h>
-#include "roxor.h"
+#include "vm.h"
 
 #ifdef HAVE_FLOAT_H
 #include <float.h>

@@ -8,12 +8,12 @@
 #undef RUBY_EXPORT
 #include "ruby.h"
 #include "ruby/node.h"
-#include "roxor.h"
 #ifdef HAVE_LOCALE_H
 #include <locale.h>
 #endif
 
 extern "C" void rb_vm_print_current_exception(void);
+extern "C" void rb_vm_aot_compile(NODE *);
 
 int
 main(int argc, char **argv, char **envp)

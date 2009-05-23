@@ -11,7 +11,7 @@
 
 #include "ruby/ruby.h"
 #include "ruby/node.h"
-#include "roxor.h"
+#include "vm.h"
 
 #define extern
 #include "id.h"

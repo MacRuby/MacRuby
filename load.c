@@ -4,7 +4,7 @@
 
 #include "ruby/ruby.h"
 #include "ruby/node.h"
-#include "roxor.h"
+#include "vm.h"
 #include "dln.h"
 
 #define IS_RBEXT(e) (strcmp(e, ".rb") == 0)

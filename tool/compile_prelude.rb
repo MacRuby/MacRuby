@@ -62,7 +62,7 @@ require 'erb'
 tmp = ERB.new(<<'EOS', nil, '%').result(binding)
 #include "ruby/ruby.h"
 #include "ruby/node.h"
-#include "roxor.h"
+#include "vm.h"
 
 % preludes.zip(lines_list).each_with_index {|(prelude, (setup_lines, lines)), i|
 static const char prelude_name<%=i%>[] = <%=c_esc(File.basename(prelude))%>;

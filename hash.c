@@ -16,7 +16,7 @@
 #include "ruby/node.h"
 #include "id.h"
 #include "objc.h"
-#include "roxor.h"
+#include "vm.h"
 
 #include <crt_externs.h>
 

@@ -12,6 +12,10 @@
 #ifndef RUBY_ENCODING_H
 #define RUBY_ENCODING_H 1
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 #ifdef HAVE_STDARG_PROTOTYPES
 # include <stdarg.h>
 #else
@@ -239,5 +243,9 @@ rb_enc_dummy_p(rb_encoding *enc)
 #endif
 
 VALUE rb_str_transcode(VALUE str, VALUE to);
+
+#if defined(__cplusplus)
+}
+#endif
 
 #endif /* RUBY_ENCODING_H */
