@@ -1,3 +1,11 @@
+/*
+ * MacRuby BridgeSupport implementation.
+ *
+ * This file is covered by the Ruby license. See COPYING for more details.
+ * 
+ * Copyright (C) 2007-2009, Apple Inc. All rights reserved.
+ */
+
 #include <llvm/Module.h>
 #include <llvm/DerivedTypes.h>
 #include <llvm/Constants.h>

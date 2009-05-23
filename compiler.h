@@ -1,3 +1,11 @@
+/*
+ * MacRuby compiler.
+ *
+ * This file is covered by the Ruby license. See COPYING for more details.
+ * 
+ * Copyright (C) 2008-2009, Apple Inc. All rights reserved.
+ */
+
 #ifndef __COMPILER_H_
 #define __COMPILER_H_
 

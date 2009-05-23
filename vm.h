@@ -1,3 +1,11 @@
+/*
+ * MacRuby VM.
+ *
+ * This file is covered by the Ruby license. See COPYING for more details.
+ * 
+ * Copyright (C) 2008-2009, Apple Inc. All rights reserved.
+ */
+
 #ifndef __VM_H_
 #define __VM_H_
 

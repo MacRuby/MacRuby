@@ -1,5 +1,13 @@
-#ifndef __BOXED_H_
-#define __BOXED_H_
+/*
+ * MacRuby BridgeSupport implementation.
+ *
+ * This file is covered by the Ruby license. See COPYING for more details.
+ * 
+ * Copyright (C) 2007-2009, Apple Inc. All rights reserved.
+ */
+
+#ifndef __BRIDGESUPPORT_H_
+#define __BRIDGESUPPORT_H_
 
 #if defined(__cplusplus)
 
@@ -19,4 +27,4 @@ typedef struct rb_vm_bs_boxed {
 
 #endif /* __cplusplus */
 
-#endif /* __BOXED_H_ */
+#endif /* __BRIDGESUPPORT_H_ */
