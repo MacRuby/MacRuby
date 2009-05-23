@@ -55,8 +55,8 @@
 [/] port all rb_funcall() calls to rb_vm_call()
 [X] port all rb_block_call() calls to rb_objc_block_call()
 [X] remove the YARV code from the project
-[ ] refactor the VM sources
-[ ] clean objc.m
+[X] refactor the VM sources
+[X] clean objc.m
 [ ] new IO
   [/] reimplement all IOs using CFStreams
   [X] clean string.c (remove previous bytestring stuff)
@@ -74,4 +74,4 @@
     [ ] test/unit
     [ ] test/spec
     [ ] mocha
-  [ ] known_bugs
+  [X] known_bugs
