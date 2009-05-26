@@ -114,10 +114,13 @@ str_new(VALUE klass, const char *ptr, long len)
     if (ptr != NULL && len > 0) {
 	const long slen = strlen(ptr);
 
-	if (slen == len) {
+	if (len <= slen) {
 	    str = str_alloc(klass);
 	    CFStringAppendCString((CFMutableStringRef)str, ptr, 
 		    kCFStringEncodingUTF8);
+	    if (len < slen) {
+		CFStringPad((CFMutableStringRef)str, NULL, len, 0);
+	    }
 	    if (CFStringGetLength((CFStringRef)str) != len) {
 		str = rb_bytestring_new_with_data((const UInt8 *)ptr, len);
 	    }
