@@ -10,6 +10,13 @@ HotCocoa::Mappings.map :table_view => :NSTableView do
     :last_column_only   => NSTableViewLastColumnOnlyAutoresizingStyle,
     :first_column_only  => NSTableViewFirstColumnOnlyAutoresizingStyle
   }
+  
+  constant :grid_style, { 
+    :none               => NSTableViewGridNone, 
+    :vertical           => NSTableViewSolidVerticalGridLineMask, 
+    :horizontal         => NSTableViewSolidHorizontalGridLineMask, 
+  	:both               => NSTableViewSolidVerticalGridLineMask | NSTableViewSolidHorizontalGridLineMask 
+  }
 
   def init_with_options(table_view, options)
     table_view.initWithFrame(options.delete(:frame))
@@ -20,6 +27,10 @@ HotCocoa::Mappings.map :table_view => :NSTableView do
     def data=(data_source)
       data_source = TableDataSource.new(data_source) if data_source.kind_of?(Array)
       setDataSource(data_source)
+    end
+    
+    def data_source
+      dataSource
     end
     
     def columns=(columns)
@@ -39,6 +50,18 @@ HotCocoa::Mappings.map :table_view => :NSTableView do
     def column_resize=(style)
       setColumnAutoresizingStyle(style)
     end
+
+    def reload 
+   	  reloadData 
+   	end 
+   	
+   	def alternating_row_background_colors=(value) 
+   	  setUsesAlternatingRowBackgroundColors(value) 
+   	end 
+   	
+   	def grid_style=(value) 
+   	  setGridStyleMask(value) 
+   	end
     
   end
 
