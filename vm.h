@@ -411,9 +411,6 @@ struct ccache {
 class RoxorCompiler;
 class RoxorJITManager;
 
-#define ROXOR_VM_DEBUG		0
-#define ROXOR_INTERPRET_EVAL	0
-
 class RoxorVM {
     private:
 	ExistingModuleProvider *emp;

@@ -6,6 +6,9 @@
  * Copyright (C) 2008-2009, Apple Inc. All rights reserved.
  */
 
+#define ROXOR_VM_DEBUG		0
+#define ROXOR_INTERPRET_EVAL	0
+
 #include <llvm/Module.h>
 #include <llvm/DerivedTypes.h>
 #include <llvm/Constants.h>
@@ -2010,10 +2013,8 @@ vm_gen_bs_func_types(bs_element_function_t *bs_func, std::string &types)
 }
 
 static inline SEL
-helper_sel(SEL sel)
+helper_sel(const char *p, size_t len)
 {
-    const char *p = sel_getName(sel);
-    size_t len = strlen(p);
     SEL new_sel = 0;
     char buf[100];
 
@@ -2144,9 +2145,49 @@ recache:
 	    }
 	}
 	else {
-	    // Method is not found... let's try to see if we are not given a
-	    // helper selector.
-	    SEL new_sel = helper_sel(sel);
+	    // Method is not found...
+	    const char *selname = (const char *)sel;
+	    size_t selname_len = strlen(selname);
+
+	    // Let's see if are not trying to call a Ruby method that accepts
+	    // a regular argument then a optional Hash argument, to be
+	    // compatible with the Ruby specification.
+	    if (argc > 1) {
+		const char *p = strchr(selname, ':');
+		if (p != NULL && p + 1 != '\0') {
+		    char *tmp = (char *)alloca(selname_len);
+		    strncpy(tmp, selname, p - selname + 1);
+		    tmp[p - selname + 1] = '\0';
+		    SEL new_sel = sel_registerName(tmp);
+		    Method m = class_getInstanceMethod(klass, new_sel);
+		    if (m != NULL) {
+			VALUE h = rb_hash_new();
+			bool ok = true;
+			p += 1;
+			for (int i = 1; i < argc; i++) {
+			    const char *p2 = strchr(p, ':');
+			    if (p2 == NULL) {
+				ok = false;
+				break;
+			    }
+			    strlcpy(tmp, p, selname_len);
+			    tmp[p2 - p] = '\0';
+			    p = p2 + 1; 
+			    rb_hash_aset(h, ID2SYM(rb_intern(tmp)), argv[i]);
+			}
+			if (ok) {
+			    argc = 2;
+			    ((VALUE *)argv)[1] = h; // bad, I know...
+			    sel = new_sel;
+			    method = m;
+			    goto recache;
+			}
+		    }
+		}
+	    }
+
+	    // Let's try to see if we are not given a helper selector.
+	    SEL new_sel = helper_sel(selname, selname_len);
 	    if (new_sel != NULL) {
 		Method m = class_getInstanceMethod(klass, new_sel);
 		if (m != NULL) {
@@ -2159,14 +2200,11 @@ recache:
 		}
 	    }
 
-	    // Then let's see if we are not trying to call a not-yet-JITed
-	    // BridgeSupport function.
-	    const char *selname = (const char *)sel;
-	    size_t selnamelen = strlen(selname);
-	    if (selname[selnamelen - 1] == ':') {
-		selnamelen--;
+	    // Let's see if we are not trying to call a BridgeSupport function.
+	    if (selname[selname_len - 1] == ':') {
+		selname_len--;
 	    }
-	    std::string name(selname, selnamelen);
+	    std::string name(selname, selname_len);
 	    std::map<std::string, bs_element_function_t *>::iterator iter =
 		GET_VM()->bs_funcs.find(name);
 	    if (iter != GET_VM()->bs_funcs.end()) {
@@ -2199,7 +2237,7 @@ recache:
 		class_getName(klass),
 		(void *)self,
 		sel_getName(sel),
-		rcache.imp->imp,
+		rcache.node->ruby_imp,
 		block,
 		cached ? "true" : "false");
 #endif
@@ -3097,7 +3135,8 @@ rb_vm_respond_to(VALUE obj, SEL sel, bool priv)
 	Method m = class_getInstanceMethod((Class)klass, sel);
 	bool reject_pure_ruby_methods = false;
 	if (m == NULL) {
-	    sel = helper_sel(sel);
+	    const char *selname = sel_getName(sel);
+	    sel = helper_sel(selname, strlen(selname));
 	    if (sel != NULL) {
 		m = class_getInstanceMethod((Class)klass, sel);
 		if (m == NULL) {

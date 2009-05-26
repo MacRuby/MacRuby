@@ -11,8 +11,6 @@
 
 #if defined(__cplusplus)
 
-#define ROXOR_COMPILER_DEBUG 	0
-
 // For the dispatcher.
 #define DISPATCH_VCALL 		1
 #define DISPATCH_SUPER 		2
