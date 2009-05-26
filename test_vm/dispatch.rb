@@ -257,3 +257,17 @@ assert "false\ntrue", %{
   meta.class_eval { def bar; end }
   p obj.respond_to?(:bar)
 }
+
+assert '42', %{
+  module M; def foo; 42; end; end
+  module M2; include M; end
+  class X; include M2; end
+  p X.new.foo
+}
+
+assert '42', %{
+  module M; def foo; 42; end; end
+  module M2; def bar; foo; end; include M; end
+  class X; include M2; end
+  p X.new.bar
+}
