@@ -1431,6 +1431,7 @@ rb_vm_copy_methods(Class from_class, Class to_class)
     Method *methods;
     unsigned int i, methods_count;
 
+    // Copy existing Objective-C methods.
     methods = class_copyMethodList(from_class, &methods_count);
     if (methods != NULL) {
 	for (i = 0; i < methods_count; i++) {
@@ -1444,18 +1445,20 @@ rb_vm_copy_methods(Class from_class, Class to_class)
 	free(methods);
     }
 
+    // Copy methods that have not been JIT'ed yet.
     std::multimap<Class, SEL>::iterator iter =
 	GET_VM()->method_source_sels.find(from_class);
 
     if (iter != GET_VM()->method_source_sels.end()) {
 	std::multimap<Class, SEL>::iterator last =
 	    GET_VM()->method_source_sels.upper_bound(from_class);
+	std::vector<SEL> sels_to_add;
+
 	for (; iter != last; ++iter) {
 	    SEL sel = iter->second;
-	
+
 	    std::map<Class, rb_vm_method_source_t *> *dict =
 		GET_VM()->method_sources_for_sel(sel, false);
-
 	    if (dict == NULL) {
 		continue;
 	    }
@@ -1471,6 +1474,13 @@ rb_vm_copy_methods(Class from_class, Class to_class)
 	    m->func = iter2->second->func;
 	    m->node = iter2->second->node;
 	    dict->insert(std::make_pair(to_class, m));
+	    sels_to_add.push_back(sel);
+	}
+
+	for (std::vector<SEL>::iterator i = sels_to_add.begin();
+	     i != sels_to_add.end();
+	     ++i) {
+	    GET_VM()->method_source_sels.insert(std::make_pair(to_class, *i));
 	}
     } 
 }
