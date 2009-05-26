@@ -15,7 +15,19 @@ HotCocoa::Mappings.map :column => :NSTableColumn do
     def title=(newTitle)
       headerCell.stringValue = newTitle
     end
-    
+
+    def data_cell=(cell) 
+      setDataCell(cell) 
+    end 
+  
+    def max_width=(val) 
+      setMaxWidth(val) 
+    end 
+   
+    def min_width=(val) 
+      setMinWidth(val) 
+    end
+  
   end
 
 end
