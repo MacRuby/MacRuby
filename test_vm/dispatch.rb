@@ -271,3 +271,13 @@ assert '42', %{
   class X; include M2; end
   p X.new.bar
 }
+
+assert '42', %{
+  module M
+    def foo; 123; end
+    module_function :foo
+  end
+  class X; def foo; 42; end; end
+  include M
+  p X.new.foo
+}
