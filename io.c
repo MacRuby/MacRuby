@@ -2029,23 +2029,6 @@ rb_io_s_open(VALUE klass, SEL sel, int argc, VALUE *argv)
 
 /*
  *  call-seq:
- *     IO.sysopen(path, [mode, [perm]])  => fixnum
- *
- *  Opens the given path, returning the underlying file descriptor as a
- *  <code>Fixnum</code>.
- *
- *     IO.sysopen("testfile")   #=> 3
- *
- */
-
-static VALUE
-rb_io_s_sysopen(VALUE klass, SEL sel, int argc, VALUE *argv)
-{
-rb_notimplement();
-}
-
-/*
- *  call-seq:
  *     open(path [, mode_enc [, perm]] )                => io or nil
  *     open(path [, mode_enc [, perm]] ) {|io| block }  => obj
  *
@@ -2184,6 +2167,25 @@ rb_f_open(VALUE klass, SEL sel, int argc, VALUE *argv)
         return ret;
     }
 	return io;
+}
+
+
+/*
+ *  call-seq:
+ *     IO.sysopen(path, [mode, [perm]])  => fixnum
+ *
+ *  Opens the given path, returning the underlying file descriptor as a
+ *  <code>Fixnum</code>.
+ *
+ *     IO.sysopen("testfile")   #=> 3
+ *
+ */
+
+static VALUE
+rb_io_s_sysopen(VALUE klass, SEL sel, int argc, VALUE *argv)
+{
+	VALUE f = rb_f_open(klass, sel, argc, argv);
+	return INT2FIX(ExtractIOStruct(f)->fd);
 }
 
 /*
