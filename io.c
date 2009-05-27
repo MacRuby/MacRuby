@@ -2358,8 +2358,8 @@ rb_f_print(VALUE recv, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_io_putc(VALUE io, SEL sel, VALUE ch)
 {
-	char mystr[2] = {NUM2CHR(ch), '\0'};
-    rb_io_write(io, sel, rb_str_new(mystr, 1));
+    char c = NUM2CHR(ch);
+    rb_io_write(io, sel, rb_str_new(&c, 1));
     return ch;
 }
 

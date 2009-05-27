@@ -112,8 +112,10 @@ str_new(VALUE klass, const char *ptr, long len)
     }
 
     if (ptr != NULL && len > 0) {
-	// What in the name of all that is holy is this?!
-	const long slen = strlen(ptr);
+	const long slen = len == 1
+	    ? 1 /* XXX in the case ptr is actually a pointer to a single char
+		   character, which is not NULL-terminated. */
+	    : strlen(ptr);
 
 	if (len <= slen) {
 	    str = str_alloc(klass);
