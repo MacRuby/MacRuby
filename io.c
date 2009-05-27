@@ -619,8 +619,6 @@ rb_io_set_pos(VALUE io, SEL sel, VALUE offset)
 static VALUE
 rb_io_rewind(VALUE io, SEL sel)
 {
-    // minor inefficiency here in that i'm creating and then destroying
-    // a Fixnum containing zero.
     return rb_io_seek(io, INT2FIX(0), SEEK_SET);
 }
 
@@ -3234,7 +3232,13 @@ rb_io_s_pipe(VALUE recv, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_io_s_foreach(VALUE recv, SEL sel, int argc, VALUE *argv)
 {
-rb_notimplement();
+	VALUE arr = rb_io_s_readlines(recv, sel, argc, argv);
+	int ii;
+	for (ii=0; ii<RARRAY_LEN(arr); ii++) {
+		VALUE at = RARRAY_AT(arr, ii);
+		rb_vm_yield(1, &at);
+	}
+	return Qnil;
 }
 
 /*
