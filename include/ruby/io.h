@@ -29,9 +29,7 @@ typedef struct rb_io_t {
     CFReadStreamRef readStream;
     CFWriteStreamRef writeStream;
     
-    // The Unixy low-level file handles.
     int fd; // You can expect this to be what the above CFStreams point to.
-    int pipe;
 
     // Additional information.
     CFStringRef path;

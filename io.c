@@ -25,14 +25,11 @@
 #include <sys/stat.h>
 #include <sys/param.h>
 #include <sys/syscall.h>
+#include <sys/socket.h>
 #include <spawn.h>
 #include <crt_externs.h>
 
 extern void Init_File(void);
-
-#if SIZEOF_OFF_T > SIZEOF_LONG && !defined(HAVE_LONG_LONG)
-# error off_t is bigger than long, but you have no long long...
-#endif
 
 VALUE rb_cIO;
 VALUE rb_eEOFError;
@@ -51,8 +48,6 @@ static VALUE argf;
 
 static ID id_write, id_read, id_getc, id_flush, id_encode, id_readpartial;
 
-struct timeval rb_time_interval(VALUE);
-
 struct argf {
     VALUE filename, current_file;
     int gets_lineno;
@@ -66,15 +61,6 @@ struct argf {
 
 #define argf_of(obj) (*(struct argf *)DATA_PTR(obj))
 #define ARGF argf_of(argf)
-
-// static int
-// is_socket(int fd, const char *path)
-// {
-//     struct stat sbuf;
-//     if (fstat(fd, &sbuf) < 0)
-//         rb_sys_fail(path);
-//     return S_ISSOCK(sbuf.st_mode);
-// }
 
 static int
 convert_mode_string_to_fmode(VALUE rstr)
@@ -325,12 +311,9 @@ prepare_io_from_fd(rb_io_t *io_struct, int fd, int mode)
 
     // TODO: Eventually make the ungetc_buf a ByteString
     io_struct->fd = fd;
-	io_struct->pipe = -1;
     io_struct->ungetc_buf = NULL;
     io_struct->ungetc_buf_len = 0;
     io_struct->ungetc_buf_pos = 0;
-
-	
     
     io_struct->sync = mode & FMODE_SYNC;
 }
@@ -344,10 +327,6 @@ io_struct_close(rb_io_t *io_struct, bool close_read, bool close_write)
     if (close_write && io_struct->writeStream != NULL) {
 	CFWriteStreamClose(io_struct->writeStream);
     }
-	if(io_struct->pipe != -1) {
-		write(io_struct->pipe, "\0", 1);
-		close(io_struct->pipe);
-	}
 	rb_last_status_set(0, io_struct->pid);
 	io_struct->pid = -1;
 }
@@ -680,8 +659,7 @@ rb_io_eof(VALUE io, SEL sel)
 {
     rb_io_t *io_struct = ExtractIOStruct(io);
     rb_io_assert_readable(io_struct);
-    return CONDITION_TO_BOOLEAN(
-	    CFReadStreamGetStatus(io_struct->readStream) == kCFStreamStatusAtEnd);
+    return CONDITION_TO_BOOLEAN(CFReadStreamGetStatus(io_struct->readStream) == kCFStreamStatusAtEnd);
 }
 
 /*
@@ -888,13 +866,6 @@ rb_io_read_internal(rb_io_t *io_struct, UInt8 *buffer, long len)
 	if (data_read == len) {
 	    return data_read;
 	}
-    }
-	
-    if (io_struct->pipe != -1) {
-	int status;
-	waitpid(io_struct->pid, &status, 0);
-	close(io_struct->pipe);
-	io_struct->pipe = -1;
     }
 
     // Read from the stream.
@@ -1781,6 +1752,7 @@ rb_io_closed(VALUE io, SEL sel)
 static VALUE
 rb_io_close_read(VALUE io, SEL sel)
 {
+	rb_io_assert_readable(ExtractIOStruct(io));
     io_close(io, true, false);
     return Qnil;
 }
@@ -1926,94 +1898,76 @@ rb_io_binmode_m(VALUE io, SEL sel)
  *     <foo>bar;zot;
  */
 
-// just set errno, you bastards
-#define rb_sys_fail_unless(action, msg) do { \
-	errno = action;\
-	if (errno != 0) { \
-		rb_sys_fail(msg);\
-	}\
-} while(0)
-
-
 VALUE 
 io_from_spawning_new_process(VALUE prog, VALUE mode)
 {
+	// Allocate space for a new IO struct.
 	VALUE io = io_alloc(rb_cIO, 0);
     rb_io_t *io_struct = ExtractIOStruct(io);
-	CFReadStreamRef r = NULL;
-    CFWriteStreamRef w = NULL;
-	pid_t pid;
-	int fd[2];
-	// TODO: Split the process_name up into char* components?
-	char *spawnedArgs[] = {(char*)_PATH_BSHELL, "-c", (char*)RSTRING_PTR(prog), NULL};
+	io_struct->readStream = NULL;
+	io_struct->writeStream = NULL;
 	posix_spawn_file_actions_t actions;
+
+	// Streams for reading and writing.
+	CFReadStreamRef r;
+    CFWriteStreamRef w;
+
+	// Required variables for pipe() and posix_spawn().
+	pid_t pid;
+	int comms[2] = {};
 	
-	int fmode = convert_mode_string_to_fmode(mode);
-	int readable = ((fmode & FMODE_READABLE) || (fmode & FMODE_READWRITE));
-	int writable = ((fmode & FMODE_WRITABLE) || (fmode & FMODE_READWRITE));
-	assert(readable || writable);
+	socketpair(PF_LOCAL, SOCK_STREAM, 0, comms);
 	
-	if (pipe(fd) < 0) {
-		posix_spawn_file_actions_destroy(&actions);
-		rb_sys_fail("pipe() failed.");
-	}
-	if (readable) {
-		r = _CFReadStreamCreateFromFileDescriptor(NULL, fd[0]);
+	posix_spawn_file_actions_init(&actions);
+	posix_spawn_file_actions_adddup2(&actions, comms[1], STDOUT_FILENO);
+	posix_spawn_file_actions_adddup2(&actions, STDOUT_FILENO, STDERR_FILENO);
+	posix_spawn_file_actions_addclose(&actions, comms[0]);
+	posix_spawn_file_actions_addclose(&actions, comms[1]);
+	
+	char *spawnedArgs[] = {(char*)_PATH_BSHELL, "-c", (char*)RSTRING_PTR(prog), NULL};
+	int error = posix_spawn(&pid, spawnedArgs[0], &actions, NULL, spawnedArgs, *(_NSGetEnviron()));
+
+	if (error != 0) {
+		close(comms[0]);
+		close(comms[1]);
+		rb_bug("posix_spawn failed.");
+	} 
+	else {
+		r = _CFReadStreamCreateFromFileDescriptor(NULL, comms[0]);
 		if (r != NULL) {
-			CFReadStreamOpen(r);
-			GC_WB(&io_struct->readStream, r);
+			CFReadStreamOpen(r); 
 			CFMakeCollectable(r);
-		} else {
-			io_struct->readStream = NULL;
+			GC_WB(&io_struct->readStream, r);
 		}
-    }
-	if (writable) {
-		w = _CFWriteStreamCreateFromFileDescriptor(NULL, fd[0]);
+
+		w = _CFWriteStreamCreateFromFileDescriptor(NULL, comms[1]);
 		if (w != NULL) {
 			CFWriteStreamOpen(w);
-			GC_WB(&io_struct->writeStream, w);
 			CFMakeCollectable(w);
-    	} else {
-			io_struct->writeStream = NULL;
-    	}
+			GC_WB(&io_struct->writeStream, w);
+		}
+		io_struct->fd = comms[0];
+		io_struct->pid = pid;
+		io_struct->ungetc_buf = NULL;
+		io_struct->ungetc_buf_len = 0;
+		io_struct->ungetc_buf_pos = 0;
+		posix_spawn_file_actions_destroy(&actions);
 	}
-	
-	rb_sys_fail_unless(posix_spawn_file_actions_init(&actions), "could not init file actions");
-	rb_sys_fail_unless(posix_spawn_file_actions_adddup2(&actions, fd[1], STDOUT_FILENO), "could not add dup2() to stdout");
-	rb_sys_fail_unless(posix_spawn_file_actions_addclose(&actions, fd[1]), "could not add a close() to stdout");
-	
-	errno = posix_spawn(&pid, spawnedArgs[0], &actions, NULL, spawnedArgs, *(_NSGetEnviron()));
-	if(errno != 0) {
-		int err = errno;
-		close(fd[0]);
-		close(fd[1]);
-		errno = err;
-		rb_sys_fail("posix_spawn failed.");
-	}
-	posix_spawn_file_actions_destroy(&actions);
-	
-    // TODO: Eventually make the ungetc_buf a ByteString
-    io_struct->fd = fd[0];
-	io_struct->pipe = fd[1];
-    io_struct->ungetc_buf = NULL;
-    io_struct->ungetc_buf_len = 0;
-    io_struct->ungetc_buf_pos = 0;
-	io_struct->pid = pid;
-    io_struct->sync = mode & FMODE_SYNC;
-	
-    rb_objc_keep_for_exit_finalize((VALUE)io);
-    return io;
-}
 
+	return io;
+}
 
 static VALUE
 rb_io_s_popen(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
     VALUE process_name, mode;
+
     rb_scan_args(argc, argv, "11", &process_name, &mode);
 	if (NIL_P(mode)) mode = (VALUE)CFSTR("r");
+	
 	StringValue(process_name);
 	VALUE io = io_from_spawning_new_process(process_name, mode);
+	
 	if (rb_block_given_p()) {
         VALUE ret = rb_vm_yield(1, &io);
         rb_io_close_m(io, 0);
@@ -2047,23 +2001,6 @@ rb_io_s_open(VALUE klass, SEL sel, int argc, VALUE *argv)
         return ret;
     }
     return io;
-}
-
-/*
- *  call-seq:
- *     IO.sysopen(path, [mode, [perm]])  => fixnum
- *
- *  Opens the given path, returning the underlying file descriptor as a
- *  <code>Fixnum</code>.
- *
- *     IO.sysopen("testfile")   #=> 3
- *
- */
-
-static VALUE
-rb_io_s_sysopen(VALUE klass, SEL sel, int argc, VALUE *argv)
-{
-rb_notimplement();
 }
 
 /*
@@ -2207,6 +2144,27 @@ rb_f_open(VALUE klass, SEL sel, int argc, VALUE *argv)
     }
 	return io;
 }
+
+
+/*
+ *  call-seq:
+ *     IO.sysopen(path, [mode, [perm]])  => fixnum
+ *
+ *  Opens the given path, returning the underlying file descriptor as a
+ *  <code>Fixnum</code>.
+ *
+ *     IO.sysopen("testfile")   #=> 3
+ *
+ */
+
+static VALUE
+rb_io_s_sysopen(VALUE klass, SEL sel, int argc, VALUE *argv)
+{
+    VALUE io = rb_class_new_instance(argc, argv, rb_cFile);
+    io = rb_file_open(io, argc, argv);
+	return INT2FIX(ExtractIOStruct(io)->fd);
+}
+
 
 /*
  *  call-seq:
