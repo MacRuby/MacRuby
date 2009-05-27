@@ -402,9 +402,6 @@ io_write(VALUE io, SEL sel, VALUE to_write)
     io_struct = ExtractIOStruct(io);
     rb_io_assert_writable(io_struct);
 
-    // TODO: Account for the port not being IO, use funcall to call .write()
-    // instead.
-
     to_write = rb_obj_as_string(to_write);
 
     if (CLASS_OF(to_write) == rb_cByteString) {
@@ -2365,8 +2362,8 @@ rb_f_print(VALUE recv, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_io_putc(VALUE io, SEL sel, VALUE ch)
 {
-    char c = NUM2CHR(ch);
-    rb_io_write(io, sel, rb_str_new(&c, 1));
+	char mystr[2] = {NUM2CHR(ch), '\0'};
+    rb_io_write(io, sel, rb_str_new(mystr, 1));
     return ch;
 }
 

@@ -45,7 +45,6 @@ namespace :spec do
     putc
     readchar
     sync
-    syswrite
     tell
     to_i
     to_io

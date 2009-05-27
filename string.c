@@ -112,6 +112,7 @@ str_new(VALUE klass, const char *ptr, long len)
     }
 
     if (ptr != NULL && len > 0) {
+	// What in the name of all that is holy is this?!
 	const long slen = strlen(ptr);
 
 	if (len <= slen) {
