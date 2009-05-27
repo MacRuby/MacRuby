@@ -1447,10 +1447,12 @@ rb_notimplement();
  *     f.bytes.sort  #=> [101, 104, 108, 108, 111]
  */
 
+static SEL sel_each_byte = 0;
+
 static VALUE
 rb_io_bytes(VALUE io, SEL sel)
 {
-rb_notimplement();
+    return rb_enumeratorize(io, sel_each_byte, 0, NULL);
 }
 
 /*
@@ -4104,4 +4106,6 @@ Init_IO(void)
     rb_file_const("NOCTTY", INT2FIX(O_NOCTTY));
     rb_file_const("BINARY", INT2FIX(0));
     rb_file_const("SYNC", INT2FIX(O_SYNC));
+
+    sel_each_byte = sel_registerName("each_byte");
 }
