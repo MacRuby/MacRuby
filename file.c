@@ -796,15 +796,12 @@ rb_file_s_stat(VALUE klass, SEL sel, VALUE fname)
 static VALUE
 rb_io_stat(VALUE obj, SEL sel)
 {
-    //     rb_io_t *fptr;
-    //     struct stat st;
-    // 
-    //     GetOpenFile(obj, fptr);
-    //     if (fstat(fptr->fd, &st) == -1) {
-    // rb_sys_fail(fptr->path);
-    //     }
-    //     return stat_new(&st);
-    rb_notimplement();
+    struct stat st;
+    struct rb_io_t *io = ExtractIOStruct(obj);
+    if (fstat(io->fd, &st) == -1) {
+	rb_sys_fail(RSTRING_PTR(io->path));
+    }
+    return stat_new(&st);
 }
 
 /*
