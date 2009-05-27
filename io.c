@@ -30,10 +30,6 @@
 
 extern void Init_File(void);
 
-#if SIZEOF_OFF_T > SIZEOF_LONG && !defined(HAVE_LONG_LONG)
-# error off_t is bigger than long, but you have no long long...
-#endif
-
 VALUE rb_cIO;
 VALUE rb_eEOFError;
 VALUE rb_eIOError;
@@ -282,11 +278,11 @@ prepare_io_from_fd(rb_io_t *io_struct, int fd, int mode)
     CFReadStreamRef r = NULL;
     CFWriteStreamRef w = NULL;
 
-    if (mode & FMODE_READABLE) {
+    if (mode != FMODE_WRITABLE) {
 	r = _CFReadStreamCreateFromFileDescriptor(NULL, fd);
     }
 
-    if (mode & FMODE_WRITABLE) {
+    if (mode != FMODE_READABLE) {
 	w = _CFWriteStreamCreateFromFileDescriptor(NULL, fd);
     }
 
@@ -3199,7 +3195,17 @@ rb_f_syscall(VALUE recv, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_io_s_pipe(VALUE recv, SEL sel, int argc, VALUE *argv)
 {
-	rb_notimplement();
+	VALUE ext_enc = Qnil, int_enc = Qnil;
+	VALUE rd, wr;
+	rb_scan_args(argc, argv, "02", &ext_enc, &int_enc);
+	
+	int fd[2] = {-1, -1};
+	pipe(fd);
+	
+	rd = prep_io(fd[0], FMODE_READABLE, rb_cIO);
+	wr = prep_io(fd[1], FMODE_WRITABLE, rb_cIO);
+	
+	return rb_assoc_new(rd, wr);
 }
 
 /*
@@ -4081,23 +4087,9 @@ Init_IO(void)
     rb_file_const("APPEND", INT2FIX(O_APPEND));
     rb_file_const("CREAT", INT2FIX(O_CREAT));
     rb_file_const("EXCL", INT2FIX(O_EXCL));
-#if defined(O_NDELAY) || defined(O_NONBLOCK)
-# ifdef O_NONBLOCK
     rb_file_const("NONBLOCK", INT2FIX(O_NONBLOCK));
-# else
-    rb_file_const("NONBLOCK", INT2FIX(O_NDELAY));
-# endif
-#endif
     rb_file_const("TRUNC", INT2FIX(O_TRUNC));
-#ifdef O_NOCTTY
     rb_file_const("NOCTTY", INT2FIX(O_NOCTTY));
-#endif
-#ifdef O_BINARY
-    rb_file_const("BINARY", INT2FIX(O_BINARY));
-#else
     rb_file_const("BINARY", INT2FIX(0));
-#endif
-#ifdef O_SYNC
     rb_file_const("SYNC", INT2FIX(O_SYNC));
-#endif
 }
