@@ -1427,10 +1427,12 @@ rb_io_each_char(VALUE io, SEL sel)
  *     f.lines.sort  #=> ["bar\n", "foo\n"]
  */
 
+static SEL sel_each_line = 0;
+
 static VALUE
 rb_io_lines(VALUE io, SEL sel, int argc, VALUE *argv)
 {
-rb_notimplement();
+    return rb_enumeratorize(io, sel_each_line, 0, NULL);
 }
 
 /*
@@ -1469,10 +1471,12 @@ rb_io_bytes(VALUE io, SEL sel)
  *     f.chars.sort  #=> ["e", "h", "l", "l", "o"]
  */
 
+static SEL sel_each_char = 0;
+
 static VALUE
 rb_io_chars(VALUE io, SEL sel)
 {
-rb_notimplement();
+	return rb_enumeratorize(io, sel_each_char, 0, NULL);
 }
 
 /*
@@ -3595,7 +3599,6 @@ argf_each_line(VALUE argf, SEL sel, int argc, VALUE *argv)
 	ARGF_FORWARD(0, 0);
 	return rb_io_each_line(ARGF.current_file, sel, argc, argv);
 }
-
 static VALUE
 argf_each_byte(VALUE argf, SEL sel)
 {
@@ -3611,6 +3614,31 @@ argf_each_char(VALUE argf, SEL sel)
 	ARGF_FORWARD(0, 0);
 	return rb_io_each_char(ARGF.current_file, sel);
 }
+
+static VALUE
+argf_lines(VALUE argf, SEL sel, int argc, VALUE *argv)
+{
+	next_argv();
+	ARGF_FORWARD(0, 0);
+	return rb_io_lines(ARGF.current_file, sel, argc, argv);
+}
+
+static VALUE
+argf_chars(VALUE argf, SEL sel)
+{
+	next_argv();
+	ARGF_FORWARD(0, 0);
+	return rb_io_chars(ARGF.current_file, sel);
+}
+
+static VALUE
+argf_bytes(VALUE argf, SEL sel)
+{
+	next_argv();
+	ARGF_FORWARD(0, 0);
+	return rb_io_bytes(ARGF.current_file, sel);
+}
+
 
 static VALUE
 argf_filename(VALUE argf, SEL sel)
@@ -4039,9 +4067,9 @@ Init_IO(void)
     rb_objc_define_method(rb_cARGF, "each_line",  argf_each_line, -1);
     rb_objc_define_method(rb_cARGF, "each_byte",  argf_each_byte, 0);
     rb_objc_define_method(rb_cARGF, "each_char",  argf_each_char, 0);
-    rb_objc_define_method(rb_cARGF, "lines", argf_each_line, -1);
-    rb_objc_define_method(rb_cARGF, "bytes", argf_each_byte, 0);
-    rb_objc_define_method(rb_cARGF, "chars", argf_each_char, 0);
+    rb_objc_define_method(rb_cARGF, "lines", argf_lines, -1);
+    rb_objc_define_method(rb_cARGF, "bytes", argf_bytes, 0);
+    rb_objc_define_method(rb_cARGF, "chars", argf_chars, 0);
 
     rb_objc_define_method(rb_cARGF, "read",  argf_read, -1);
     rb_objc_define_method(rb_cARGF, "readpartial",  argf_readpartial, -1);
@@ -4108,4 +4136,7 @@ Init_IO(void)
     rb_file_const("SYNC", INT2FIX(O_SYNC));
 
     sel_each_byte = sel_registerName("each_byte");
+	sel_each_char = sel_registerName("each_char");
+	sel_each_line = sel_registerName("each_line");
+	
 }
