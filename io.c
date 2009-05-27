@@ -396,7 +396,6 @@ io_write(VALUE io, SEL sel, VALUE to_write)
     rb_secure(4);
     
     io_struct = ExtractIOStruct(io);
-    rb_io_assert_writable(io_struct);
 
     to_write = rb_obj_as_string(to_write);
 
@@ -428,7 +427,8 @@ io_write(VALUE io, SEL sel, VALUE to_write)
     if (length == 0) {
         return INT2FIX(0);
     }
-
+	
+    rb_io_assert_writable(io_struct);
     return LONG2FIX(CFWriteStreamWrite(io_struct->writeStream, buffer, length));
 }
 
@@ -3147,7 +3147,64 @@ rb_io_fcntl(VALUE recv, SEL sel, VALUE integer_cmd, VALUE arg)
 static VALUE
 rb_f_syscall(VALUE recv, SEL sel, int argc, VALUE *argv)
 {
-    rb_notimplement();
+	unsigned long arg[8];
+	
+	int ii = 1;
+	int retval = -1;
+	int items = argc - 1;
+	
+	rb_secure(2);
+	if (argc == 0)
+		rb_raise(rb_eArgError, "too few arguments to syscall()");
+	if (argc > 9)
+		rb_raise(rb_eArgError, "too many arguments to syscall()");
+	
+	
+	arg[0] = NUM2LONG(argv[0]); argv++;
+	
+	while (items--) {
+		VALUE v = rb_check_string_type(*argv);
+		if (!NIL_P(v)) {
+			StringValue(v);
+			arg[ii] = (unsigned long)StringValueCStr(v);
+		} else {
+			arg[ii] = (unsigned long)NUM2LONG(*argv);
+		}
+		argv++;
+		ii++;
+	}
+	
+	
+    switch (argc) {
+	      case 1:
+		retval = syscall(arg[0]);
+		break;
+	      case 2:
+		retval = syscall(arg[0],arg[1]);
+		break;
+	      case 3:
+		retval = syscall(arg[0],arg[1],arg[2]);
+		break;
+	      case 4:
+		retval = syscall(arg[0],arg[1],arg[2],arg[3]);
+		break;
+	      case 5:
+		retval = syscall(arg[0],arg[1],arg[2],arg[3],arg[4]);
+		break;
+	      case 6:
+		retval = syscall(arg[0],arg[1],arg[2],arg[3],arg[4],arg[5]);
+		break;
+	      case 7:
+		retval = syscall(arg[0],arg[1],arg[2],arg[3],arg[4],arg[5],arg[6]);
+		break;
+	      case 8:
+		retval = syscall(arg[0],arg[1],arg[2],arg[3],arg[4],arg[5],arg[6],
+		  arg[7]);
+		break;
+	}
+	
+	if (retval < 0) rb_sys_fail("call to syscall() failed.");
+	return INT2NUM(retval);
 }
 /*
  *  call-seq:
@@ -3201,8 +3258,7 @@ rb_f_syscall(VALUE recv, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_io_s_pipe(VALUE recv, SEL sel, int argc, VALUE *argv)
 {
-	VALUE ext_enc = Qnil, int_enc = Qnil;
-	VALUE rd, wr;
+	VALUE rd, wr, ext_enc = Qnil, int_enc = Qnil;
 	rb_scan_args(argc, argv, "02", &ext_enc, &int_enc);
 	
 	int fd[2] = {-1, -1};

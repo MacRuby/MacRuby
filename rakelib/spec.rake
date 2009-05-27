@@ -48,6 +48,7 @@ namespace :spec do
     tell
     to_i
     to_io
+    write
     initialize
   }
   
