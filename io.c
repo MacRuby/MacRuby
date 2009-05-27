@@ -51,8 +51,6 @@ static VALUE argf;
 
 static ID id_write, id_read, id_getc, id_flush, id_encode, id_readpartial;
 
-struct timeval rb_time_interval(VALUE);
-
 struct argf {
     VALUE filename, current_file;
     int gets_lineno;
@@ -66,15 +64,6 @@ struct argf {
 
 #define argf_of(obj) (*(struct argf *)DATA_PTR(obj))
 #define ARGF argf_of(argf)
-
-// static int
-// is_socket(int fd, const char *path)
-// {
-//     struct stat sbuf;
-//     if (fstat(fd, &sbuf) < 0)
-//         rb_sys_fail(path);
-//     return S_ISSOCK(sbuf.st_mode);
-// }
 
 static int
 convert_mode_string_to_fmode(VALUE rstr)
@@ -1241,7 +1230,7 @@ rb_io_gets_m(VALUE io, SEL sel, int argc, VALUE *argv)
     return bstr; 
 }
 
-/*
+/* 
  *  call-seq:
  *     ios.lineno    => integer
  *
@@ -1948,15 +1937,14 @@ io_from_spawning_new_process(VALUE prog, VALUE mode)
 	posix_spawn_file_actions_t actions;
 	
 	int fmode = convert_mode_string_to_fmode(mode);
-	int readable = ((fmode & FMODE_READABLE) || (fmode & FMODE_READWRITE));
-	int writable = ((fmode & FMODE_WRITABLE) || (fmode & FMODE_READWRITE));
-	assert(readable || writable);
 	
 	if (pipe(fd) < 0) {
 		posix_spawn_file_actions_destroy(&actions);
 		rb_sys_fail("pipe() failed.");
 	}
-	if (readable) {
+	// Confusingly enough, FMODE_WRITABLE means 'write-only'
+	// and FMODE_READABLE means 'read-only'.
+	if (fmode != FMODE_WRITABLE) {
 		r = _CFReadStreamCreateFromFileDescriptor(NULL, fd[0]);
 		if (r != NULL) {
 			CFReadStreamOpen(r);
@@ -1966,7 +1954,7 @@ io_from_spawning_new_process(VALUE prog, VALUE mode)
 			io_struct->readStream = NULL;
 		}
     }
-	if (writable) {
+	if (fmode != FMODE_READABLE) {
 		w = _CFWriteStreamCreateFromFileDescriptor(NULL, fd[0]);
 		if (w != NULL) {
 			CFWriteStreamOpen(w);
