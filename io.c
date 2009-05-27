@@ -1105,13 +1105,14 @@ io_read(VALUE io, SEL sel, int argc, VALUE *argv)
     rb_io_assert_readable(io_struct);
     
     if (NIL_P(outbuf)) {
-        outbuf = rb_bytestring_new();
-    } else if(CLASS_OF(outbuf) != rb_cByteString) {
-		// TODO: Get the magical pointer incantations right.
-		rb_raise(rb_eIOError, "writing to non-bytestrings is not supported at this time.");
+	outbuf = rb_bytestring_new();
     }
-    
-    if(NIL_P(len)) {
+    else if (CLASS_OF(outbuf) != rb_cByteString) {
+	// TODO: Get the magical pointer incantations right.
+	rb_raise(rb_eIOError, "writing to non-bytestrings is not supported at this time.");
+    }
+
+    if (NIL_P(len)) {
         return rb_io_read_all(io_struct, outbuf);
     }
 
@@ -1119,16 +1120,14 @@ io_read(VALUE io, SEL sel, int argc, VALUE *argv)
     if (size == 0) {
 	return rb_str_new2("");
     }
-    
-
 
     CFMutableDataRef data = rb_bytestring_wrapped_data(outbuf);
     CFDataIncreaseLength(data, size);
     UInt8 *buf = CFDataGetMutableBytePtr(data);
 
     long data_read = rb_io_read_internal(io_struct, buf, size);
-    if (data_read < size) {
-	rb_eof_error();
+    if (data_read == 0) {
+	return Qnil;
     }
     CFDataSetLength(data, data_read);
 
