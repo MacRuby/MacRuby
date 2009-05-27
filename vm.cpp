@@ -1171,6 +1171,33 @@ resolve_method(Class klass, SEL sel, Function *func, NODE *node, IMP imp,
 }
 
 static bool
+__rb_vm_resolve_method(std::map<Class, rb_vm_method_source_t *> *map,
+		       Class klass, SEL sel)
+{
+    bool did_something = false;
+    std::map<Class, rb_vm_method_source_t *>::iterator iter = map->begin();
+    while (iter != map->end()) {
+	Class k = iter->first;
+	while (k != klass && k != NULL) {
+	    k = class_getSuperclass(k);
+	}
+
+	if (k != NULL) {
+	    rb_vm_method_source_t *m = iter->second;
+	    resolve_method(iter->first, sel, m->func, m->node, NULL, NULL);
+	    map->erase(iter++);
+	    free(m);
+	    did_something = true;
+	}
+	else {
+	    ++iter;
+	}
+    }
+
+    return did_something;
+}
+
+static bool
 rb_vm_resolve_method(Class klass, SEL sel)
 {
     if (!GET_VM()->is_running()) {
@@ -1200,27 +1227,7 @@ rb_vm_resolve_method(Class klass, SEL sel)
 
     // Now let's resolve all methods of the given name on the given class
     // and superclasses.
-    bool did_something = false;
-    std::map<Class, rb_vm_method_source_t *>::iterator iter = map->begin();
-    while (iter != map->end()) {
-	Class k = iter->first;
-	while (k != klass && k != NULL) {
-	    k = class_getSuperclass(k);
-	}
-
-	if (k != NULL) {
-	    rb_vm_method_source_t *m = iter->second;
-	    resolve_method(iter->first, sel, m->func, m->node, NULL, NULL);
-	    map->erase(iter++);
-	    free(m);
-	    did_something = true;
-	}
-	else {
-	    ++iter;
-	}
-    }
-
-    return did_something;
+    return __rb_vm_resolve_method(map, klass, sel);
 }
 
 extern "C"
@@ -1436,11 +1443,27 @@ rb_vm_copy_methods(Class from_class, Class to_class)
     if (methods != NULL) {
 	for (i = 0; i < methods_count; i++) {
 	    Method method = methods[i];
+	    SEL sel = method_getName(method);
+
+#if ROXOR_VM_DEBUG
+	    printf("copy %c[%s %s] to %s\n",
+		    class_isMetaClass(from_class) ? '+' : '-',
+		    class_getName(from_class),
+		    sel_getName(sel),
+		    class_getName(to_class));
+#endif
 
 	    class_replaceMethod(to_class,
-		    method_getName(method),
+		    sel,
 		    method_getImplementation(method),
 		    method_getTypeEncoding(method));
+
+	    std::map<Class, rb_vm_method_source_t *> *map =
+		GET_VM()->method_sources_for_sel(sel, false);
+	    if (map != NULL) {
+		// There might be some non-JIT'ed yet methods on subclasses.
+		__rb_vm_resolve_method(map, to_class, sel);
+	    }
 	}
 	free(methods);
     }
@@ -1468,6 +1491,14 @@ rb_vm_copy_methods(Class from_class, Class to_class)
 	    if (iter2 == dict->end()) {
 		continue;
 	    }
+
+#if ROXOR_DEBUG_VM
+	    printf("lazy copy %c[%s %s] to %s\n",
+		    class_isMetaClass(from_class) ? '+' : '-',
+		    class_getName(from_class),
+		    sel_getName(method_getName(method)),
+		    class_getName(to_class));
+#endif
 
 	    rb_vm_method_source_t *m = (rb_vm_method_source_t *)
 		malloc(sizeof(rb_vm_method_source_t));
