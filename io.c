@@ -3585,21 +3585,27 @@ argf_readbyte(VALUE argf)
 }
 
 static VALUE
-argf_each_line(VALUE id, SEL sel, int argc, VALUE *argv)
+argf_each_line(VALUE argf, SEL sel, int argc, VALUE *argv)
 {
-rb_notimplement();
+	next_argv();
+	ARGF_FORWARD(0, 0);
+	return rb_io_each_line(ARGF.current_file, sel, argc, argv);
 }
 
 static VALUE
 argf_each_byte(VALUE argf, SEL sel)
 {
-rb_notimplement();
+	next_argv();
+	ARGF_FORWARD(0, 0);
+	return rb_io_each_byte(ARGF.current_file, sel);
 }
 
 static VALUE
 argf_each_char(VALUE argf, SEL sel)
 {
-rb_notimplement();
+	next_argv();
+	ARGF_FORWARD(0, 0);
+	return rb_io_each_char(ARGF.current_file, sel);
 }
 
 static VALUE
