@@ -64,7 +64,7 @@ domain_check(double x, const char *msg)
  */
 
 VALUE
-math_atan2(VALUE obj, VALUE y, VALUE x)
+math_atan2(VALUE obj, SEL sel, VALUE y, VALUE x)
 {
     Need_Float2(y, x);
     return DOUBLE2NUM(atan2(RFLOAT_VALUE(y), RFLOAT_VALUE(x)));
@@ -80,7 +80,7 @@ math_atan2(VALUE obj, VALUE y, VALUE x)
  */
 
 VALUE
-math_cos(VALUE obj, VALUE x)
+math_cos(VALUE obj, SEL sel, VALUE x)
 {
     Need_Float(x);
     return DOUBLE2NUM(cos(RFLOAT_VALUE(x)));
@@ -95,7 +95,7 @@ math_cos(VALUE obj, VALUE x)
  */
 
 VALUE
-math_sin(VALUE obj, VALUE x)
+math_sin(VALUE obj, SEL sel, VALUE x)
 {
     Need_Float(x);
 
@@ -111,7 +111,7 @@ math_sin(VALUE obj, VALUE x)
  */
 
 static VALUE
-math_tan(VALUE obj, VALUE x)
+math_tan(VALUE obj, SEL sel, VALUE x)
 {
     Need_Float(x);
 
@@ -126,7 +126,7 @@ math_tan(VALUE obj, VALUE x)
  */
 
 static VALUE
-math_acos(VALUE obj, VALUE x)
+math_acos(VALUE obj, SEL sel, VALUE x)
 {
     double d;
 
@@ -145,7 +145,7 @@ math_acos(VALUE obj, VALUE x)
  */
 
 static VALUE
-math_asin(VALUE obj, VALUE x)
+math_asin(VALUE obj, SEL sel, VALUE x)
 {
     double d;
 
@@ -164,7 +164,7 @@ math_asin(VALUE obj, VALUE x)
  */
 
 static VALUE
-math_atan(VALUE obj, VALUE x)
+math_atan(VALUE obj, SEL sel, VALUE x)
 {
     Need_Float(x);
     return DOUBLE2NUM(atan(RFLOAT_VALUE(x)));
@@ -186,7 +186,7 @@ cosh(double x)
  */
 
 VALUE
-math_cosh(VALUE obj, VALUE x)
+math_cosh(VALUE obj, SEL sel, VALUE x)
 {
     Need_Float(x);
     
@@ -210,7 +210,7 @@ sinh(double x)
  */
 
 VALUE
-math_sinh(VALUE obj, VALUE x)
+math_sinh(VALUE obj, SEL sel, VALUE x)
 {
     Need_Float(x);
     return DOUBLE2NUM(sinh(RFLOAT_VALUE(x)));
@@ -233,7 +233,7 @@ tanh(double x)
  */
 
 static VALUE
-math_tanh(VALUE obj, VALUE x)
+math_tanh(VALUE obj, SEL sel, VALUE x)
 {
     Need_Float(x);
     return DOUBLE2NUM(tanh(RFLOAT_VALUE(x)));
@@ -247,7 +247,7 @@ math_tanh(VALUE obj, VALUE x)
  */
 
 static VALUE
-math_acosh(VALUE obj, VALUE x)
+math_acosh(VALUE obj, SEL sel, VALUE x)
 {
     double d;
 
@@ -266,7 +266,7 @@ math_acosh(VALUE obj, VALUE x)
  */
 
 static VALUE
-math_asinh(VALUE obj, VALUE x)
+math_asinh(VALUE obj, SEL sel, VALUE x)
 {
     Need_Float(x);
     return DOUBLE2NUM(asinh(RFLOAT_VALUE(x)));
@@ -280,7 +280,7 @@ math_asinh(VALUE obj, VALUE x)
  */
 
 static VALUE
-math_atanh(VALUE obj, VALUE x)
+math_atanh(VALUE obj, SEL sel, VALUE x)
 {
     double d;
 
@@ -299,7 +299,7 @@ math_atanh(VALUE obj, VALUE x)
  */
 
 VALUE
-math_exp(VALUE obj, VALUE x)
+math_exp(VALUE obj, SEL sel, VALUE x)
 {
     Need_Float(x);
     return DOUBLE2NUM(exp(RFLOAT_VALUE(x)));
@@ -325,7 +325,7 @@ math_exp(VALUE obj, VALUE x)
  */
 
 VALUE
-math_log(int argc, VALUE *argv)
+math_log(VALUE rcv, SEL sel, int argc, VALUE *argv)
 {
     VALUE x, base;
     double d;
@@ -362,7 +362,7 @@ extern double log2(double);
  */
 
 static VALUE
-math_log2(VALUE obj, VALUE x)
+math_log2(VALUE obj, SEL sel, VALUE x)
 {
     double d;
 
@@ -383,7 +383,7 @@ math_log2(VALUE obj, VALUE x)
  */
 
 static VALUE
-math_log10(VALUE obj, VALUE x)
+math_log10(VALUE obj, SEL sel, VALUE x)
 {
     double d;
 
@@ -402,7 +402,7 @@ math_log10(VALUE obj, VALUE x)
  */
 
 VALUE
-math_sqrt(VALUE obj, VALUE x)
+math_sqrt(VALUE obj, SEL sel, VALUE x)
 {
     double d;
 
@@ -421,7 +421,7 @@ math_sqrt(VALUE obj, VALUE x)
  */
 
 static VALUE
-math_cbrt(VALUE obj, VALUE x)
+math_cbrt(VALUE obj, SEL sel, VALUE x)
 {
     Need_Float(x);
     return DOUBLE2NUM(cbrt(RFLOAT_VALUE(x)));
@@ -440,7 +440,7 @@ math_cbrt(VALUE obj, VALUE x)
  */
 
 static VALUE
-math_frexp(VALUE obj, VALUE x)
+math_frexp(VALUE obj, SEL sel, VALUE x)
 {
     double d;
     int exp;
@@ -462,7 +462,7 @@ math_frexp(VALUE obj, VALUE x)
  */
 
 static VALUE
-math_ldexp(VALUE obj, VALUE x, VALUE n)
+math_ldexp(VALUE obj, SEL sel, VALUE x, VALUE n)
 {
     Need_Float(x);
     return DOUBLE2NUM(ldexp(RFLOAT_VALUE(x), NUM2INT(n)));
@@ -479,7 +479,7 @@ math_ldexp(VALUE obj, VALUE x, VALUE n)
  */
 
 VALUE
-math_hypot(VALUE obj, VALUE x, VALUE y)
+math_hypot(VALUE obj, SEL sel, VALUE x, VALUE y)
 {
     Need_Float2(x, y);
     return DOUBLE2NUM(hypot(RFLOAT_VALUE(x), RFLOAT_VALUE(y)));
@@ -493,7 +493,7 @@ math_hypot(VALUE obj, VALUE x, VALUE y)
  */
 
 static VALUE
-math_erf(VALUE obj, VALUE x)
+math_erf(VALUE obj, SEL sel, VALUE x)
 {
     Need_Float(x);
     return DOUBLE2NUM(erf(RFLOAT_VALUE(x)));
@@ -507,7 +507,7 @@ math_erf(VALUE obj, VALUE x)
  */
 
 static VALUE
-math_erfc(VALUE obj, VALUE x)
+math_erfc(VALUE obj, SEL sel, VALUE x)
 {
     Need_Float(x);
     return DOUBLE2NUM(erfc(RFLOAT_VALUE(x)));
@@ -555,7 +555,7 @@ math_erfc(VALUE obj, VALUE x)
  */
 
 static VALUE
-math_gamma(VALUE obj, VALUE x)
+math_gamma(VALUE obj, SEL sel, VALUE x)
 {
     double d;
     Need_Float(x);
@@ -580,7 +580,7 @@ math_gamma(VALUE obj, VALUE x)
 #include "lgamma_r.c"
 
 static VALUE
-math_lgamma(VALUE obj, VALUE x)
+math_lgamma(VALUE obj, SEL sel, VALUE x)
 {
     double d;
     int sign;
@@ -618,38 +618,39 @@ Init_Math(void)
     rb_define_const(rb_mMath, "E", DOUBLE2NUM(exp(1.0)));
 #endif
 
-    rb_define_module_function(rb_mMath, "atan2", math_atan2, 2);
-    rb_define_module_function(rb_mMath, "cos", math_cos, 1);
-    rb_define_module_function(rb_mMath, "sin", math_sin, 1);
-    rb_define_module_function(rb_mMath, "tan", math_tan, 1);
+    VALUE rb_cmMath = *(VALUE *)rb_mMath;
+    rb_objc_define_method(rb_cmMath, "atan2", math_atan2, 2);
+    rb_objc_define_method(rb_cmMath, "cos", math_cos, 1);
+    rb_objc_define_method(rb_cmMath, "sin", math_sin, 1);
+    rb_objc_define_method(rb_cmMath, "tan", math_tan, 1);
 
-    rb_define_module_function(rb_mMath, "acos", math_acos, 1);
-    rb_define_module_function(rb_mMath, "asin", math_asin, 1);
-    rb_define_module_function(rb_mMath, "atan", math_atan, 1);
+    rb_objc_define_method(rb_cmMath, "acos", math_acos, 1);
+    rb_objc_define_method(rb_cmMath, "asin", math_asin, 1);
+    rb_objc_define_method(rb_cmMath, "atan", math_atan, 1);
 
-    rb_define_module_function(rb_mMath, "cosh", math_cosh, 1);
-    rb_define_module_function(rb_mMath, "sinh", math_sinh, 1);
-    rb_define_module_function(rb_mMath, "tanh", math_tanh, 1);
+    rb_objc_define_method(rb_cmMath, "cosh", math_cosh, 1);
+    rb_objc_define_method(rb_cmMath, "sinh", math_sinh, 1);
+    rb_objc_define_method(rb_cmMath, "tanh", math_tanh, 1);
 
-    rb_define_module_function(rb_mMath, "acosh", math_acosh, 1);
-    rb_define_module_function(rb_mMath, "asinh", math_asinh, 1);
-    rb_define_module_function(rb_mMath, "atanh", math_atanh, 1);
+    rb_objc_define_method(rb_cmMath, "acosh", math_acosh, 1);
+    rb_objc_define_method(rb_cmMath, "asinh", math_asinh, 1);
+    rb_objc_define_method(rb_cmMath, "atanh", math_atanh, 1);
 
-    rb_define_module_function(rb_mMath, "exp", math_exp, 1);
-    rb_define_module_function(rb_mMath, "log", math_log, -1);
-    rb_define_module_function(rb_mMath, "log2", math_log2, 1);
-    rb_define_module_function(rb_mMath, "log10", math_log10, 1);
-    rb_define_module_function(rb_mMath, "sqrt", math_sqrt, 1);
-    rb_define_module_function(rb_mMath, "cbrt", math_cbrt, 1);
+    rb_objc_define_method(rb_cmMath, "exp", math_exp, 1);
+    rb_objc_define_method(rb_cmMath, "log", math_log, -1);
+    rb_objc_define_method(rb_cmMath, "log2", math_log2, 1);
+    rb_objc_define_method(rb_cmMath, "log10", math_log10, 1);
+    rb_objc_define_method(rb_cmMath, "sqrt", math_sqrt, 1);
+    rb_objc_define_method(rb_cmMath, "cbrt", math_cbrt, 1);
 
-    rb_define_module_function(rb_mMath, "frexp", math_frexp, 1);
-    rb_define_module_function(rb_mMath, "ldexp", math_ldexp, 2);
+    rb_objc_define_method(rb_cmMath, "frexp", math_frexp, 1);
+    rb_objc_define_method(rb_cmMath, "ldexp", math_ldexp, 2);
 
-    rb_define_module_function(rb_mMath, "hypot", math_hypot, 2);
+    rb_objc_define_method(rb_cmMath, "hypot", math_hypot, 2);
 
-    rb_define_module_function(rb_mMath, "erf",  math_erf,  1);
-    rb_define_module_function(rb_mMath, "erfc", math_erfc, 1);
+    rb_objc_define_method(rb_cmMath, "erf",  math_erf,  1);
+    rb_objc_define_method(rb_cmMath, "erfc", math_erfc, 1);
 
-    rb_define_module_function(rb_mMath, "gamma", math_gamma, 1);
-    rb_define_module_function(rb_mMath, "lgamma", math_lgamma, 1);
+    rb_objc_define_method(rb_cmMath, "gamma", math_gamma, 1);
+    rb_objc_define_method(rb_cmMath, "lgamma", math_lgamma, 1);
 }
