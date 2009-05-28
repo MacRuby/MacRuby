@@ -5070,12 +5070,14 @@ RoxorCompiler::compile_stub(const char *types, int argc, bool is_objc)
     if (is_objc) {
 	// self
 	p = SkipFirstType(p);
+	p = SkipStackSize(p);
 	f_types.push_back(RubyObjTy);
 	Value *self_arg = arg++;
 	params.push_back(self_arg);
 
 	// sel
 	p = SkipFirstType(p);
+	p = SkipStackSize(p);
 	f_types.push_back(PtrTy);
 	Value *sel_arg = arg++;
 	params.push_back(sel_arg);
@@ -5224,9 +5226,11 @@ RoxorCompiler::compile_objc_stub(Function *ruby_func, const char *types)
     // self
     f_types.push_back(RubyObjTy);
     p = SkipFirstType(p);
+    p = SkipStackSize(p);
     // sel
     f_types.push_back(PtrTy);
     p = SkipFirstType(p);
+    p = SkipStackSize(p);
     // Arguments.
     std::vector<std::string> arg_types;
     std::vector<unsigned int> byval_args;
