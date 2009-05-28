@@ -1134,7 +1134,7 @@ resolve_method_type(char *buf, const size_t buflen, Class klass, Method m,
 
 	std::map<SEL, std::string>::iterator iter = map.find(sel);	
 	if (iter != map.end()) {
-	    strncpy(buf, iter->second.c_str(), sizeof buf);
+	    strncpy(buf, iter->second.c_str(), buflen);
 	}
 	else {
 	    assert(oc_arity < buflen);

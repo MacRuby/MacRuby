@@ -4199,7 +4199,7 @@ GetFirstType(const char *p, char *buf, size_t buflen)
     assert(len < buflen);
     strncpy(buf, p, len);
     buf[len] = '\0';
-    return p2;
+    return SkipStackSize(p2);
 }
 
 static inline void
