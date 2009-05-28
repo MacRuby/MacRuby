@@ -97,7 +97,7 @@ extern int ruby_initialized;
 
 	argc = 1;
 	va_start(args, firstArg);
-	while (va_arg(args, id)) {
+	while (va_arg(args, id) != NULL) {
 	    argc++;
 	}
 	va_end(args);
