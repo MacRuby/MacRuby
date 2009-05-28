@@ -831,20 +831,12 @@ rb_io_stream_read_internal(CFReadStreamRef readStream, UInt8 *buffer, long len)
 	}
 	else if (code == -1) {
 	    CFErrorRef er = CFReadStreamCopyError(readStream);
-	    CFStringRef failure_reason = CFErrorCopyFailureReason(er);
+	    CFStringRef desc = CFErrorCopyDescription(er);
 	    CFRelease(er);
-	    if (failure_reason != NULL) {
-		CFShow(failure_reason);
-		CFStringRef pretty = CFStringCreateWithFormat(NULL, NULL,
-			CFSTR("Internal error while reading stream: %@"),
-			failure_reason);
-		CFRelease(failure_reason);
-		if (pretty != NULL) {
-		    rb_raise(rb_eRuntimeError, "%s",
-			    (char*)CFStringGetCharactersPtr(pretty));
-		}
-	    }
-	    rb_raise(rb_eRuntimeError, "internal error while reading stream:");
+	    CFMakeCollectable(desc);
+	    rb_raise(rb_eRuntimeError,
+		    "internal error while reading stream: %s",
+		    RSTRING_PTR(desc));
 	}
 
 	data_read += code;
