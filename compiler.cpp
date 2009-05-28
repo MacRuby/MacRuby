@@ -5085,7 +5085,7 @@ RoxorCompiler::compile_stub(const char *types, int argc, bool is_objc)
     Value *argv_arg = arg++;
 
     // Arguments.
-    std::vector<int> byval_args;
+    std::vector<unsigned int> byval_args;
     int given_argc = 0;
     bool variadic = false;
     while ((p = GetFirstType(p, buf, sizeof buf)) != NULL && buf[0] != '\0') {
@@ -5105,9 +5105,9 @@ RoxorCompiler::compile_stub(const char *types, int argc, bool is_objc)
 	}
 
 	if (!variadic) {
-	    // In order to conform to the ABI, we must stop providing types once we
-	    // start dealing with variable arguments and instead mark the function as
-	    // variadic.
+	    // In order to conform to the ABI, we must stop providing types
+	    // once we start dealing with variable arguments and instead mark
+	    // the function as variadic.
 	    f_types.push_back(f_type);
 	}
 
@@ -5129,9 +5129,8 @@ RoxorCompiler::compile_stub(const char *types, int argc, bool is_objc)
     CallInst *imp_call = CallInst::Create(imp, params.begin(), params.end(),
 	    "", bb); 
 
-    for (std::vector<int>::iterator iter = byval_args.begin();
+    for (std::vector<unsigned int>::iterator iter = byval_args.begin();
 	 iter != byval_args.end(); ++iter) {
-	
 	imp_call->addAttribute(*iter, Attribute::ByVal);
     }
 
@@ -5230,9 +5229,18 @@ RoxorCompiler::compile_objc_stub(Function *ruby_func, const char *types)
     p = SkipFirstType(p);
     // Arguments.
     std::vector<std::string> arg_types;
+    std::vector<unsigned int> byval_args;
     for (unsigned int i = 0; i < ruby_func->arg_size() - 2; i++) {
 	p = GetFirstType(p, buf, sizeof buf);
-	f_types.push_back(convert_type(buf));
+	const Type *t = convert_type(buf);
+	if (GET_VM()->is_large_struct_type(t)) {
+	    // We are passing a large struct, we need to mark this argument
+	    // with the byval attribute and configure the internal stub
+	    // call to pass a pointer to the structure, to conform to the ABI.
+	    t = PointerType::getUnqual(t);
+	    byval_args.push_back(f_types.size() + 1 /* retval */);
+	}
+	f_types.push_back(t);
 	arg_types.push_back(buf);
     }
 
@@ -5248,6 +5256,10 @@ RoxorCompiler::compile_objc_stub(Function *ruby_func, const char *types)
 	sret = arg++;
 	f->addAttribute(0, Attribute::StructRet);
     }
+    for (std::vector<unsigned int>::iterator iter = byval_args.begin();
+	 iter != byval_args.end(); ++iter) {
+	f->addAttribute(*iter, Attribute::ByVal);
+    }
 
     std::vector<Value *> params;
     params.push_back(arg++); // self
@@ -5255,8 +5267,13 @@ RoxorCompiler::compile_objc_stub(Function *ruby_func, const char *types)
 
     // Convert every incoming argument into Ruby type.
     for (unsigned int i = 0; i < ruby_func->arg_size() - 2; i++) {
+	Value *a = arg++;
+	if (std::find(byval_args.begin(), byval_args.end(), i + 3)
+	    != byval_args.end()) {
+	     a = new LoadInst(a, "", bb);
+	}
 	Value *ruby_arg = compile_conversion_to_ruby(arg_types[i].c_str(),
-		f_types[i + 2], arg++);
+		f_types[i + 2], a);
 	params.push_back(ruby_arg);
     }
 

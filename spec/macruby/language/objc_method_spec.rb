@@ -516,4 +516,115 @@ describe "A pure MacRuby method" do
     @o.methodReturningNSRange.should == NSRange.new(0, 42)
     TestMethodOverride.testMethodReturningNSRange(@o).should == 1
   end
+
+  it "can overwrite an Objective-C method accepting self" do
+    @o.methodAcceptingSelf(@o).should == 1
+    TestMethodOverride.testMethodAcceptingSelf(@o).should == 1
+  end
+
+  it "can overwrite an Objective-C method accepting self class" do
+    @o.methodAcceptingSelfClass(@o.class).should == 1
+    TestMethodOverride.testMethodAcceptingSelfClass(@o).should == 1
+  end
+
+  it "can overwrite an Objective-C method accepting nil" do
+    @o.methodAcceptingNil(nil).should == 1
+    TestMethodOverride.testMethodAcceptingNil(@o).should == 1
+  end
+
+  it "can overwrite an Objective-C method accepting true/false (as id)" do
+    @o.methodAcceptingTrue(true).should == 1
+    @o.methodAcceptingFalse(false).should == 1
+    TestMethodOverride.testMethodAcceptingTrue(@o).should == 1
+    TestMethodOverride.testMethodAcceptingFalse(@o).should == 1
+  end
+
+  it "can overwrite an Objective-C method accepting a fixnum (as id)" do
+    @o.methodAcceptingFixnum(42).should == 1
+    TestMethodOverride.testMethodAcceptingFixnum(@o).should == 1
+  end
+
+  it "can overwrite an Objective-C method accepting 'char' or 'unsigned char'" do
+    @o.methodAcceptingChar(42).should == 1
+    @o.methodAcceptingUnsignedChar(42).should == 1
+    TestMethodOverride.testMethodAcceptingChar(@o).should == 1
+    TestMethodOverride.testMethodAcceptingUnsignedChar(@o).should == 1
+  end
+
+  it "can overwrite an Objective-C method accepting 'short' or 'unsigned short'" do
+    @o.methodAcceptingShort(42).should == 1
+    @o.methodAcceptingUnsignedShort(42).should == 1
+    TestMethodOverride.testMethodAcceptingShort(@o).should == 1
+    TestMethodOverride.testMethodAcceptingUnsignedShort(@o).should == 1
+  end
+
+  it "can overwrite an Objective-C method accepting 'int' or 'unsigned int'" do
+    @o.methodAcceptingInt(42).should == 1
+    @o.methodAcceptingUnsignedInt(42).should == 1
+    TestMethodOverride.testMethodAcceptingInt(@o).should == 1
+    TestMethodOverride.testMethodAcceptingUnsignedInt(@o).should == 1
+  end
+
+  it "can overwrite an Objective-C method accepting 'long' or 'unsigned long'" do
+    @o.methodAcceptingLong(42).should == 1
+    @o.methodAcceptingUnsignedLong(42).should == 1
+    TestMethodOverride.testMethodAcceptingLong(@o).should == 1
+    TestMethodOverride.testMethodAcceptingUnsignedLong(@o).should == 1
+  end
+
+  it "can overwrite an Objective-C method accepting true/false (as BOOL)" do
+    @o.methodAcceptingTrueBOOL(true).should == 1
+    @o.methodAcceptingFalseBOOL(false).should == 1
+    TestMethodOverride.testMethodAcceptingTrueBOOL(@o).should == 1
+    TestMethodOverride.testMethodAcceptingFalseBOOL(@o).should == 1
+  end
+
+  it "can overwrite an Objective-C method accepting 'SEL'" do
+    @o.methodAcceptingSEL(:'foo:with:with:').should == 1
+    @o.methodAcceptingSEL2(nil).should == 1
+    TestMethodOverride.testMethodAcceptingSEL(@o).should == 1
+    TestMethodOverride.testMethodAcceptingSEL2(@o).should == 1
+  end
+
+  it "can overwrite an Objective-C method accepting 'char *'" do
+    @o.methodAcceptingCharPtr('foo').should == 1
+    @o.methodAcceptingCharPtr2(nil).should == 1
+    TestMethodOverride.testMethodAcceptingCharPtr(@o).should == 1
+    TestMethodOverride.testMethodAcceptingCharPtr2(@o).should == 1
+  end
+
+  it "can overwrite an Objective-C method accepting 'float'" do
+    @o.methodAcceptingFloat(3.1415).should == 1
+    TestMethodOverride.testMethodAcceptingFloat(@o).should == 1
+  end
+
+  it "can overwrite an Objective-C method accepting 'double'" do
+    @o.methodAcceptingDouble(3.1415).should == 1
+    TestMethodOverride.testMethodAcceptingDouble(@o).should == 1
+  end
+
+  it "can overwrite an Objective-C method accepting 'NSPoint'" do
+    @o.methodAcceptingNSPoint(NSPoint.new(1, 2)).should == 1
+    TestMethodOverride.testMethodAcceptingNSPoint(@o).should == 1
+  end
+
+  it "can overwrite an Objective-C method accepting 'NSSize'" do
+    @o.methodAcceptingNSSize(NSSize.new(3, 4)).should == 1
+    TestMethodOverride.testMethodAcceptingNSSize(@o).should == 1
+  end
+
+  it "can overwrite an Objective-C method accepting 'NSRect'" do
+    @o.methodAcceptingNSRect(NSRect.new(NSPoint.new(1, 2), NSSize.new(3, 4))).should == 1
+    TestMethodOverride.testMethodAcceptingNSRect(@o).should == 1
+  end
+
+  it "can overwrite an Objective-C method accepting 'NSRange'" do
+    @o.methodAcceptingNSRange(NSRange.new(0, 42)).should == 1
+    TestMethodOverride.testMethodAcceptingNSRange(@o).should == 1
+  end
+
+  it "can overwrite a complex Objective-C method" do
+    @o.methodAcceptingInt(42, float:42, double:42, short:42, NSPoint:NSPoint.new(42, 42), NSRect:NSRect.new(NSPoint.new(42, 42), NSSize.new(42, 42)), char:42).should == 1
+    TestMethodOverride.testMethodAcceptingComplexTypes(@o).should == 1
+  end
 end

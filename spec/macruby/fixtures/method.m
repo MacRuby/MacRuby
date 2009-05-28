@@ -355,9 +355,19 @@
     return obj == self;
 }
 
++ (BOOL)testMethodAcceptingSelf:(TestMethod *)o
+{
+    return [o methodAcceptingSelf:o];
+}
+
 - (BOOL)methodAcceptingSelfClass:(id)obj
 {
     return obj == [self class];
+}
+
++ (BOOL)testMethodAcceptingSelfClass:(TestMethod *)o
+{
+    return [o methodAcceptingSelfClass:[o class]];
 }
 
 - (BOOL)methodAcceptingNil:(id)obj
@@ -365,9 +375,19 @@
     return obj == nil;
 }
 
++ (BOOL)testMethodAcceptingNil:(TestMethod *)o
+{
+    return [o methodAcceptingNil:nil];
+}
+
 - (BOOL)methodAcceptingTrue:(id)obj
 {
     return obj == (id)kCFBooleanTrue;
+}
+
++ (BOOL)testMethodAcceptingTrue:(TestMethod *)o
+{
+    return [o methodAcceptingTrue:(id)kCFBooleanTrue];
 }
 
 - (BOOL)methodAcceptingFalse:(id)obj
@@ -375,9 +395,19 @@
     return obj == (id)kCFBooleanFalse;
 }
 
++ (BOOL)testMethodAcceptingFalse:(TestMethod *)o
+{
+    return [o methodAcceptingFalse:(id)kCFBooleanFalse];
+}
+
 - (BOOL)methodAcceptingFixnum:(id)obj
 {
     return [obj intValue] == 42;
+}
+
++ (BOOL)testMethodAcceptingFixnum:(TestMethod *)o
+{
+    return [o methodAcceptingFixnum:[NSNumber numberWithInt:42]];
 }
 
 - (BOOL)methodAcceptingChar:(char)c
@@ -385,9 +415,19 @@
     return c == 42;
 }
 
++ (BOOL)testMethodAcceptingChar:(TestMethod *)o
+{
+    return [o methodAcceptingChar:42];
+}
+
 - (BOOL)methodAcceptingUnsignedChar:(unsigned char)c
 {
     return c == 42;
+}
+
++ (BOOL)testMethodAcceptingUnsignedChar:(TestMethod *)o
+{
+    return [o methodAcceptingUnsignedChar:42];
 }
 
 - (BOOL)methodAcceptingShort:(short)c
@@ -395,9 +435,19 @@
     return c == 42;
 }
 
++ (BOOL)testMethodAcceptingShort:(TestMethod *)o
+{
+    return [o methodAcceptingShort:42];
+}
+
 - (BOOL)methodAcceptingUnsignedShort:(unsigned short)c
 {
     return c == 42;
+}
+
++ (BOOL)testMethodAcceptingUnsignedShort:(TestMethod *)o
+{
+    return [o methodAcceptingUnsignedShort:42];
 }
 
 - (BOOL)methodAcceptingInt:(int)c
@@ -405,9 +455,19 @@
     return c == 42;
 }
 
++ (BOOL)testMethodAcceptingInt:(TestMethod *)o
+{
+    return [o methodAcceptingInt:42];
+}
+
 - (BOOL)methodAcceptingUnsignedInt:(unsigned int)c
 {
     return c == 42;
+}
+
++ (BOOL)testMethodAcceptingUnsignedInt:(TestMethod *)o
+{
+    return [o methodAcceptingUnsignedInt:42];
 }
 
 - (BOOL)methodAcceptingLong:(long)c
@@ -415,9 +475,19 @@
     return c == 42;
 }
 
++ (BOOL)testMethodAcceptingLong:(TestMethod *)o
+{
+    return [o methodAcceptingLong:42];
+}
+
 - (BOOL)methodAcceptingUnsignedLong:(unsigned long)c
 {
     return c == 42;
+}
+
++ (BOOL)testMethodAcceptingUnsignedLong:(TestMethod *)o
+{
+    return [o methodAcceptingUnsignedLong:42];
 }
 
 - (BOOL)methodAcceptingTrueBOOL:(BOOL)b
@@ -425,9 +495,19 @@
     return b == YES;
 }
 
++ (BOOL)testMethodAcceptingTrueBOOL:(TestMethod *)o
+{
+    return [o methodAcceptingTrueBOOL:YES];
+}
+
 - (BOOL)methodAcceptingFalseBOOL:(BOOL)b
 {
     return b == NO;
+}
+
++ (BOOL)testMethodAcceptingFalseBOOL:(TestMethod *)o
+{
+    return [o methodAcceptingFalseBOOL:NO];
 }
 
 - (BOOL)methodAcceptingSEL:(SEL)sel
@@ -435,9 +515,19 @@
     return sel == @selector(foo:with:with:);
 }
 
++ (BOOL)testMethodAcceptingSEL:(TestMethod *)o
+{
+    return [o methodAcceptingSEL:@selector(foo:with:with:)];
+}
+
 - (BOOL)methodAcceptingSEL2:(SEL)sel
 {
     return sel == 0;
+}
+
++ (BOOL)testMethodAcceptingSEL2:(TestMethod *)o
+{
+    return [o methodAcceptingSEL2:0];
 }
 
 - (BOOL)methodAcceptingCharPtr:(const char *)s
@@ -445,9 +535,19 @@
     return strcmp(s, "foo") == 0;
 }
 
++ (BOOL)testMethodAcceptingCharPtr:(TestMethod *)o
+{
+    return [o methodAcceptingCharPtr:"foo"];
+}
+
 - (BOOL)methodAcceptingCharPtr2:(const char *)s
 {
     return s == NULL;
+}
+
++ (BOOL)testMethodAcceptingCharPtr2:(TestMethod *)o
+{
+    return [o methodAcceptingCharPtr2:NULL];
 }
 
 - (BOOL)methodAcceptingFloat:(float)f
@@ -455,9 +555,19 @@
     return f > 3.1414 && f < 3.1416;
 }
 
++ (BOOL)testMethodAcceptingFloat:(TestMethod *)o
+{
+    return [o methodAcceptingFloat:3.1415];
+}
+
 - (BOOL)methodAcceptingDouble:(double)d
 {
     return d > 3.1414 && d < 3.1416;
+}
+
++ (BOOL)testMethodAcceptingDouble:(TestMethod *)o
+{
+    return [o methodAcceptingDouble:3.1415];
 }
 
 - (BOOL)methodAcceptingNSPoint:(NSPoint)p
@@ -465,9 +575,19 @@
     return p.x == 1 && p.y == 2;
 }
 
++ (BOOL)testMethodAcceptingNSPoint:(TestMethod *)o
+{
+    return [o methodAcceptingNSPoint:NSMakePoint(1, 2)];
+}
+
 - (BOOL)methodAcceptingNSSize:(NSSize)s
 {
     return s.width == 3 && s.height == 4;
+}
+
++ (BOOL)testMethodAcceptingNSSize:(TestMethod *)o
+{
+    return [o methodAcceptingNSSize:NSMakeSize(3, 4)];
 }
 
 - (BOOL)methodAcceptingNSRect:(NSRect)r
@@ -476,9 +596,19 @@
 	&& r.size.height == 4;
 }
 
++ (BOOL)testMethodAcceptingNSRect:(TestMethod *)o
+{
+    return [o methodAcceptingNSRect:NSMakeRect(1, 2, 3, 4)];
+}
+
 - (BOOL)methodAcceptingNSRange:(NSRange)r
 {
     return r.location == 0 && r.length == 42;
+}
+
++ (BOOL)testMethodAcceptingNSRange:(TestMethod *)o
+{
+    return [o methodAcceptingNSRange:NSMakeRange(0, 42)];
 }
 
 - (BOOL)methodAcceptingInt:(int)a1 float:(float)a2 double:(double)a3
@@ -489,6 +619,13 @@
 	&& a6.origin.x == 42.0 && a6.origin.y == 42.0
 	&& a6.size.width == 42.0 && a6.size.height == 42.0
 	&& a7 == 42;
+}
+
++ (BOOL)testMethodAcceptingComplexTypes:(TestMethod *)o
+{
+    return [o methodAcceptingInt:42 float:42 double:42.0 short:42
+	NSPoint:NSMakePoint(42, 42) NSRect:NSMakeRect(42, 42, 42, 42)
+	char:42];
 }
 
 - (BOOL)methodAcceptingIntPtr:(int *)ptr
