@@ -5256,8 +5256,10 @@ RoxorCompiler::compile_objc_stub(Function *ruby_func, const char *types)
     bb = BasicBlock::Create("EntryBlock", f);
 
     Value *sret = NULL;
+    int sret_i = 0;
     if (f_sret_type != NULL) {
 	sret = arg++;
+	sret_i = 1;
 	f->addAttribute(0, Attribute::StructRet);
     }
     for (std::vector<unsigned int>::iterator iter = byval_args.begin();
@@ -5272,12 +5274,12 @@ RoxorCompiler::compile_objc_stub(Function *ruby_func, const char *types)
     // Convert every incoming argument into Ruby type.
     for (unsigned int i = 0; i < ruby_func->arg_size() - 2; i++) {
 	Value *a = arg++;
-	if (std::find(byval_args.begin(), byval_args.end(), i + 3)
+	if (std::find(byval_args.begin(), byval_args.end(), i + 3 + sret_i)
 	    != byval_args.end()) {
 	     a = new LoadInst(a, "", bb);
 	}
 	Value *ruby_arg = compile_conversion_to_ruby(arg_types[i].c_str(),
-		f_types[i + 2], a);
+		f_types[i + 2 + sret_i], a);
 	params.push_back(ruby_arg);
     }
 
