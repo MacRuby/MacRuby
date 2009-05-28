@@ -1,5 +1,12 @@
 #import <Foundation/Foundation.h>
 
+@interface NSObject (TestInformalProtocolMethod)
+
+- (int)informalProtocolMethod1:(int)arg;
+- (BOOL)informalProtocolMethod2:(int)arg1 withValue:(int)arg2;
+
+@end
+
 @interface TestMethod : NSObject
 {
     id _foo;
@@ -663,6 +670,16 @@
 - (BOOL)methodAcceptingNSRectPtr2:(NSRect *)ptr
 {
     return ptr == NULL;
+}
+
++ (BOOL)testInformalProtocolMethod1:(id)o
+{
+    return [o informalProtocolMethod1:41] == 42;
+}
+
++ (BOOL)testInformalProtocolMethod2:(id)o
+{
+    return [o informalProtocolMethod2:40 withValue:2];
 }
 
 @end

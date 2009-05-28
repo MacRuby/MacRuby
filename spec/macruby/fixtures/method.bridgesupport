@@ -21,4 +21,8 @@
       <arg index='0' type='B'/>
     </method>
   </class>
+  <informal_protocol name='Foo'>
+    <method type="i@:i" selector="informalProtocolMethod1:"/>
+    <method type="B@:ii" selector="informalProtocolMethod2:withValue:"/>
+  </informal_protocol>
 </signatures>

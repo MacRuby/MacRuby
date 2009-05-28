@@ -519,6 +519,8 @@ class RoxorVM {
 	std::map<std::string, std::map<SEL, bs_element_method_t *> *>
 	    bs_classes_class_methods, bs_classes_instance_methods;
 	std::map<std::string, bs_element_cftype_t *> bs_cftypes;
+	std::map<SEL, std::string> bs_informal_protocol_imethods,
+	    bs_informal_protocol_cmethods;
 
 	bs_element_method_t *find_bs_method(Class klass, SEL sel);
 	rb_vm_bs_boxed_t *find_bs_boxed(std::string type);

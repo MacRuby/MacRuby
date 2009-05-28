@@ -827,20 +827,15 @@ bs_parse_cb(bs_parser_t *parser, const char *path, bs_element_type_t type,
 
 	case BS_ELEMENT_INFORMAL_PROTOCOL_METHOD:
 	{
-#if 0
 	    bs_element_informal_protocol_method_t *bs_inf_prot_method = 
 		(bs_element_informal_protocol_method_t *)value;
-	    struct st_table *t = bs_inf_prot_method->class_method
-		? bs_inf_prot_cmethods
-		: bs_inf_prot_imethods;
 
-	    st_insert(t, (st_data_t)bs_inf_prot_method->name,
-		(st_data_t)bs_inf_prot_method->type);
+	    std::map<SEL, std::string> &map =
+		bs_inf_prot_method->class_method
+		? GET_VM()->bs_informal_protocol_cmethods
+		: GET_VM()->bs_informal_protocol_imethods;
 
-	    free(bs_inf_prot_method->protocol_name);
-	    free(bs_inf_prot_method);
-	    do_not_free = true;
-#endif
+	    map[bs_inf_prot_method->name] = bs_inf_prot_method->type;
 	    break;
 	}
 

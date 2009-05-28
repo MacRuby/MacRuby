@@ -58,3 +58,12 @@ class TestMethodOverride < TestMethod
   def methodAcceptingInt(a, float:a2, double:a3, short:a4, NSPoint:a5,
                          NSRect:a6, char:a7); super; end
 end
+
+class TestInformalProtocolMethod
+  def informalProtocolMethod1(x)
+    x + 1
+  end
+  def informalProtocolMethod2(x, withValue:x2)
+    x + x2 == 42
+  end
+end

@@ -1119,6 +1119,44 @@ rb_vm_find_class_ivar_slot(VALUE klass, ID name)
     return -1;
 }
 
+static inline void 
+resolve_method_type(char *buf, const size_t buflen, Class klass, Method m,
+		    SEL sel, const unsigned int oc_arity)
+{
+    bs_element_method_t *bs_method = GET_VM()->find_bs_method(klass, sel);
+
+    if (m == NULL
+	|| !rb_objc_get_types(Qnil, klass, sel, m, bs_method, buf, buflen)) {
+
+	std::map<SEL, std::string> &map = class_isMetaClass(klass)
+	    ? GET_VM()->bs_informal_protocol_cmethods
+	    : GET_VM()->bs_informal_protocol_imethods;
+
+	std::map<SEL, std::string>::iterator iter = map.find(sel);	
+	if (iter != map.end()) {
+	    strncpy(buf, iter->second.c_str(), sizeof buf);
+	}
+	else {
+	    assert(oc_arity < buflen);
+	    buf[0] = '@';
+	    buf[1] = '@';
+	    buf[2] = ':';
+	    for (unsigned int i = 3; i < oc_arity; i++) {
+		buf[i] = '@';
+	    }
+	    buf[oc_arity] = '\0';
+	}
+    }
+    else {
+	const unsigned int m_argc = method_getNumberOfArguments(m);
+	if (m_argc < oc_arity) {
+	    for (unsigned int i = m_argc; i < oc_arity; i++) {
+		strcat(buf, "@");
+	    }
+	}
+    }
+}
+
 static void
 resolve_method(Class klass, SEL sel, Function *func, NODE *node, IMP imp,
 	       Method m)
@@ -1126,27 +1164,7 @@ resolve_method(Class klass, SEL sel, Function *func, NODE *node, IMP imp,
     const int oc_arity = rb_vm_node_arity(node).real + 3;
 
     char types[100];
-    bs_element_method_t *bs_method = GET_VM()->find_bs_method(klass, sel);
-
-    if (m == NULL || !rb_objc_get_types(Qnil, klass, sel, bs_method, types,
-					sizeof types)) {
-	assert((unsigned int)oc_arity < sizeof(types));
-	types[0] = '@';
-	types[1] = '@';
-	types[2] = ':';
-	for (int i = 3; i < oc_arity; i++) {
-	    types[i] = '@';
-	}
-	types[oc_arity] = '\0';
-    }
-    else {
-	const int m_argc = method_getNumberOfArguments(m);
-	if (m_argc < oc_arity) {
-	    for (int i = m_argc; i < oc_arity; i++) {
-		strcat(types, "@");
-	    }
-	}
-    }
+    resolve_method_type(types, sizeof types, klass, m, sel, oc_arity);
 
     std::map<Function *, IMP>::iterator iter =
 	GET_VM()->objc_to_ruby_stubs.find(func);
@@ -1607,22 +1625,10 @@ __rb_vm_define_method(Class klass, SEL sel, IMP imp,
     IMP ruby_imp = node == NULL ? imp : node->ruby_imp;
 
 define_method:
-    char *types;
     Method method = class_getInstanceMethod(klass, sel);
-    if (method != NULL) {
-	types = (char *)method_getTypeEncoding(method);
-    }
-    else {
-	// TODO look at informal protocols list
-	types = (char *)alloca(oc_arity + 4);
-	types[0] = '@';
-	types[1] = '@';
-	types[2] = ':';
-	for (int i = 0; i < oc_arity; i++) {
-	    types[3 + i] = '@';
-	}
-	types[3 + oc_arity] = '\0';
-    }
+
+    char types[100];
+    resolve_method_type(types, sizeof types, klass, method, sel, oc_arity);
 
     GET_VM()->add_method(klass, sel, imp, ruby_imp, arity, flags, types);
 
@@ -1661,7 +1667,8 @@ rb_vm_define_method(Class klass, SEL sel, IMP imp, NODE *node, bool direct)
 
 extern "C"
 void 
-rb_vm_define_method2(Class klass, SEL sel, rb_vm_method_node_t *node, bool direct)
+rb_vm_define_method2(Class klass, SEL sel, rb_vm_method_node_t *node,
+		     bool direct)
 {
     assert(node != NULL);
 
@@ -2127,7 +2134,7 @@ fill_rcache(struct mcache *cache, Class klass, rb_vm_method_node_t *node)
 
 static force_inline void
 fill_ocache(struct mcache *cache, VALUE self, Class klass, IMP imp, SEL sel,
-	    int argc)
+	    Method method, int argc)
 {
     cache->flag = MCACHE_OCALL;
     ocache.klass = klass;
@@ -2135,7 +2142,7 @@ fill_ocache(struct mcache *cache, VALUE self, Class klass, IMP imp, SEL sel,
     ocache.bs_method = GET_VM()->find_bs_method(klass, sel);
 
     char types[200];
-    if (!rb_objc_get_types(self, klass, sel, ocache.bs_method,
+    if (!rb_objc_get_types(self, klass, sel, method, ocache.bs_method,
 		types, sizeof types)) {
 	printf("cannot get encoding types for %c[%s %s]\n",
 		class_isMetaClass(klass) ? '+' : '-',
@@ -2184,7 +2191,7 @@ recache2:
 	    }
 	    else {
 		// objc call
-		fill_ocache(cache, self, klass, imp, sel, argc);
+		fill_ocache(cache, self, klass, imp, sel, method, argc);
 	    }
 	}
 	else {
@@ -2941,11 +2948,12 @@ rb_vm_get_method(VALUE klass, VALUE obj, ID mid, int scope)
 	oklass = k;
     }
 
+    Method method = class_getInstanceMethod((Class)klass, sel);
+    assert(method != NULL);
+
     int arity;
     if (node == NULL) {
-	Method m = class_getInstanceMethod((Class)klass, sel);
-	assert(m != NULL);
-	arity = method_getNumberOfArguments(m) - 2;
+	arity = method_getNumberOfArguments(method) - 2;
     }
     else {
 	arity = node->arity.min;
@@ -2967,7 +2975,7 @@ rb_vm_get_method(VALUE klass, VALUE obj, ID mid, int scope)
     // point to the method it was created from.
     struct mcache *c = (struct mcache *)xmalloc(sizeof(struct mcache));
     if (node == NULL) {
-	fill_ocache(c, obj, oklass, imp, sel, arity);
+	fill_ocache(c, obj, oklass, imp, sel, method, arity);
     }
     else {
 	rb_vm_method_node_t *node = GET_VM()->method_node_get(imp);

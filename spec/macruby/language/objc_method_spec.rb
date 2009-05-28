@@ -628,3 +628,14 @@ describe "A pure MacRuby method" do
     TestMethodOverride.testMethodAcceptingComplexTypes(@o).should == 1
   end
 end
+
+describe "A pure MacRuby method" do
+  before :each do
+    @o = TestInformalProtocolMethod.new
+  end
+  
+  it "whose selector matches an informal protocol is defined on the Objective-C side with the correct type encoding" do
+    TestMethod.testInformalProtocolMethod1(@o).should == 1 
+    TestMethod.testInformalProtocolMethod2(@o).should == 1 
+  end
+end

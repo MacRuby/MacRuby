@@ -1,3 +1,11 @@
+/*
+ * MacRuby ObjC helpers.
+ *
+ * This file is covered by the Ruby license. See COPYING for more details.
+ * 
+ * Copyright (C) 2007-2009, Apple Inc. All rights reserved.
+ */
+
 #ifndef __OBJC_H_
 #define __OBJC_H_
 
@@ -12,16 +20,14 @@ struct rb_objc_method_sig {
   unsigned int argc;
 };
 
-bs_element_method_t * rb_bs_find_method(Class klass, SEL sel);
-
-bool rb_objc_get_types(VALUE recv, Class klass, SEL sel,
+bool rb_objc_get_types(VALUE recv, Class klass, SEL sel, Method m,
 	bs_element_method_t *bs_method, char *buf, size_t buflen);
 
 VALUE rb_objc_call(VALUE recv, SEL sel, int argc, VALUE *argv);
 
 VALUE rb_objc_call2(VALUE recv, VALUE klass, SEL sel, IMP imp, 
-	struct rb_objc_method_sig *sig, bs_element_method_t *bs_method, int argc, 
-	VALUE *argv);
+	struct rb_objc_method_sig *sig, bs_element_method_t *bs_method,
+	int argc, VALUE *argv);
 
 void rb_objc_define_kvo_setter(VALUE klass, ID mid);
 void rb_objc_change_ruby_method_signature(VALUE mod, ID mid, VALUE sig);
@@ -33,14 +39,16 @@ rb_objc_install_method(Class klass, SEL sel, IMP imp)
 
     method = class_getInstanceMethod(klass, sel);
     if (method == NULL) {
-	printf("method %s not found on class %p - aborting\n", sel_getName(sel), klass);
+	printf("method %s not found on class %p - aborting\n",
+		sel_getName(sel), klass);
 	abort();
     }
     assert(method != NULL);
  
     method2 = class_getInstanceMethod((Class)RCLASS_SUPER(klass), sel);
     if (method == method2)  {
-	assert(class_addMethod(klass, sel, imp, method_getTypeEncoding(method)));
+	assert(class_addMethod(klass, sel, imp,
+		    method_getTypeEncoding(method)));
     }
     else {
 	method_setImplementation(method, imp);
@@ -73,10 +81,12 @@ static inline bool
 rb_objc_is_placeholder(id obj)
 {
     void *klass = *(void **)obj;
-    return klass == placeholder_String || klass == placeholder_Dictionary || klass == placeholder_Array;
+    return klass == placeholder_String || klass == placeholder_Dictionary
+	|| klass == placeholder_Array;
 }
 
-bool rb_objc_symbolize_address(void *addr, void **start, char *name, size_t name_len);
+bool rb_objc_symbolize_address(void *addr, void **start, char *name,
+	size_t name_len);
 
 static inline int
 SubtypeUntil(const char *type, char end)
