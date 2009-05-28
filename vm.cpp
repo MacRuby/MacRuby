@@ -2161,6 +2161,7 @@ __rb_vm_dispatch(struct mcache *cache, VALUE self, Class klass, SEL sel,
 #if ROXOR_VM_DEBUG
     const bool cached = cache->flag != 0;
 #endif
+    bool do_rcache = true;
 
     if (cache->flag == 0) {
 recache:
@@ -2173,6 +2174,7 @@ recache:
 	}
 
 	if (method != NULL) {
+recache2:
 	    IMP imp = method_getImplementation(method);
 	    rb_vm_method_node_t *node = GET_VM()->method_node_get(imp);
 
@@ -2221,7 +2223,8 @@ recache:
 			    ((VALUE *)argv)[1] = h; // bad, I know...
 			    sel = new_sel;
 			    method = m;
-			    goto recache;
+			    do_rcache = false;
+			    goto recache2;
 			}
 		    }
 		}
@@ -2236,7 +2239,7 @@ recache:
 		    if (rb_vm_get_method_node(imp) == NULL) {
 			sel = new_sel;
 			method = m;
-			goto recache;	
+			goto recache2;
 		    }
 		}
 	    }
@@ -2270,6 +2273,9 @@ recache:
     if (cache->flag == MCACHE_RCALL) {
 	if (rcache.klass != klass) {
 	    goto recache;
+	}
+	if (!do_rcache) {
+	    cache->flag = 0;
 	}
 
 #if ROXOR_VM_DEBUG
