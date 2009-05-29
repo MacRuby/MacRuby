@@ -1473,7 +1473,11 @@ static VALUE cParser_initialize(int argc, VALUE *argv, VALUE self)
             rb_raise(rb_eArgError, "opts needs to be like a hash");
         } else {
             VALUE tmp = ID2SYM(i_max_nesting);
+#if WITH_OBJC
+            if (CFDictionaryGetValueIfPresent((CFDictionaryRef)opts, (const void *)RB2OC(tmp), 0)) {
+#else
             if (st_lookup(RHASH_TBL(opts), tmp, 0)) {
+#endif
                 VALUE max_nesting = rb_hash_aref(opts, tmp);
                 if (RTEST(max_nesting)) {
                     Check_Type(max_nesting, T_FIXNUM);
@@ -1485,14 +1489,22 @@ static VALUE cParser_initialize(int argc, VALUE *argv, VALUE self)
                 json->max_nesting = 19;
             }
             tmp = ID2SYM(i_allow_nan);
+#if WITH_OBJC
+            if (CFDictionaryGetValueIfPresent((CFDictionaryRef)opts, (const void *)RB2OC(tmp), 0)) {
+#else
             if (st_lookup(RHASH_TBL(opts), tmp, 0)) {
+#endif
                 VALUE allow_nan = rb_hash_aref(opts, tmp);
                 json->allow_nan = RTEST(allow_nan) ? 1 : 0;
             } else {
                 json->allow_nan = 0;
             }
             tmp = ID2SYM(i_create_additions);
+#if WITH_OBJC
+            if (CFDictionaryGetValueIfPresent((CFDictionaryRef)opts, (const void *)RB2OC(tmp), 0)) {
+#else
             if (st_lookup(RHASH_TBL(opts), tmp, 0)) {
+#endif
                 VALUE create_additions = rb_hash_aref(opts, tmp);
                 if (RTEST(create_additions)) {
                     json->create_id = rb_funcall(mJSON, i_create_id, 0);
