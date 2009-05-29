@@ -22,7 +22,7 @@ are the ones that _should_ be good and will be used for continuous integration
 testing to prevent regression.
 
 Normally you'd use the `run' variant while developing and `ci' before
-committing. Use the -B option with ./spec/frozen/macruby.mspec to run with
+committing. Use the -B option with ./spec/macruby.mspec to run with
 MacRuby and the correct set of tags.
 
 For more info on the options see:
@@ -41,7 +41,7 @@ rake task also runs some IO specs. See ./rakelib/spec.rake for more info.
 
 First things first. Let's run the specs that should all pass:
 
-  $ ./mspec/bin/mspec ci -B ./spec/frozen/macruby.mspec ./spec/frozen/language
+  $ ./mspec/bin/mspec ci -B ./spec/macruby.mspec ./spec/frozen/language
   MacRuby version 0.5 (ruby 1.9.0) [universal-darwin9.0, x86_64]
   ..................................................
 
@@ -56,7 +56,7 @@ not, good carry on.
 
 Now run the ones that are tagged as `fails' (notice the usage of `run' vs `ci'):
 
-  $ ./mspec/bin/mspec run -B ./spec/frozen/macruby.mspec ./spec/frozen/language -g fails
+  $ ./mspec/bin/mspec run -B ./spec/macruby.mspec ./spec/frozen/language -g fails
   MacRuby version 0.5 (ruby 1.9.0) [universal-darwin9.0, x86_64]
   E..FE....EF.E.EF..F....EEF.F.....EF.EF.F...FF..E.F
   
@@ -68,7 +68,7 @@ From this we can inflect a few things. First of all it appears there specs
 tagged as `fails' but actually pass. This is good because it means some specs
 were fixed but went unnoticed. To see which ones are passing add `-f s':
 
-  $ ./mspec/bin/mspec run -B ./spec/frozen/macruby.mspec ./spec/frozen/language -g fails -f s
+  $ ./mspec/bin/mspec run -B ./spec/macruby.mspec ./spec/frozen/language -g fails -f s
   MacRuby version 0.5 (ruby 1.9.0) [universal-darwin9.0, x86_64]
   
   [SNIP]
@@ -92,9 +92,11 @@ However, only one actually fails. Remove the ones that are passing from:
   fails:The catch keyword supports nesting with the same name
   fails:The catch keyword only allows symbols and strings
 
+(Note that the catch spec has been fixed on trunk in the meantime.)
+
 Now verify that the `ci' variant passes:
 
-  $ ./mspec/bin/mspec ci -B ./spec/frozen/macruby.mspec ./spec/frozen/language
+  $ ./mspec/bin/mspec ci -B ./spec/macruby.mspec ./spec/frozen/language
   MacRuby version 0.5 (ruby 1.9.0) [universal-darwin9.0, x86_64]
   ..................................................
 
@@ -161,7 +163,7 @@ Also the specs were adjusted to specify the correct 1.9 behaviour.
 
 Verify that it runs on MacRuby:
 
-  $ ./mspec/bin/mspec run -B ./spec/frozen/macruby.mspec ./spec/frozen/language/catch_spec.rb
+  $ ./mspec/bin/mspec run -B ./spec/macruby.mspec ./spec/frozen/language/catch_spec.rb
   MacRuby version 0.5 (ruby 1.9.0) [universal-darwin9.0, x86_64]
   .......
 
