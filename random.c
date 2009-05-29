@@ -327,7 +327,7 @@ random_seed(void)
  */
 
 static VALUE
-rb_f_srand(int argc, VALUE *argv, VALUE obj)
+rb_f_srand(VALUE obj, SEL sel, int argc, VALUE *argv)
 {
     VALUE seed, old;
 
@@ -447,7 +447,7 @@ limited_big_rand(struct RBignum *limit)
  */
 
 static VALUE
-rb_f_rand(int argc, VALUE *argv, VALUE obj)
+rb_f_rand(VALUE obj, SEL sel, int argc, VALUE *argv)
 {
     VALUE vmax;
     long val, max;
@@ -503,7 +503,7 @@ void
 Init_Random(void)
 {
     rand_init(random_seed());
-    rb_define_global_function("srand", rb_f_srand, -1);
-    rb_define_global_function("rand", rb_f_rand, -1);
+    rb_objc_define_method(rb_mKernel, "srand", rb_f_srand, -1);
+    rb_objc_define_method(rb_mKernel, "rand", rb_f_rand, -1);
     rb_global_variable(&saved_seed);
 }
