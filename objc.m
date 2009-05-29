@@ -606,6 +606,16 @@ rb_obj_imp_isaForAutonotifying(void *rcv, SEL sel)
     return ret;
 }
 
+id
+rb_objc_create_exception(VALUE exc)
+{
+    NSString *name = [NSString stringWithUTF8String:rb_obj_classname(exc)];
+    NSString *reason = [(id)exc performSelector:@selector(message)];
+    NSDictionary *dict = [NSDictionary dictionaryWithObject:(id)exc
+	forKey:@"RubyException"];
+    return [NSException exceptionWithName:name reason:reason userInfo:dict];
+}
+
 void *placeholder_String = NULL;
 void *placeholder_Dictionary = NULL;
 void *placeholder_Array = NULL;

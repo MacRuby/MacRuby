@@ -37,6 +37,8 @@ using namespace llvm;
 #include "compiler.h"
 #include "objc.h"
 
+#include <objc/objc-exception.h>
+
 #if ROXOR_COMPILER_DEBUG
 # include <mach/mach.h>
 # include <mach/mach_time.h>
@@ -3287,8 +3289,13 @@ rb_iseq_new(NODE *node, VALUE filename)
 static inline void
 __vm_raise(void)
 {
+#if 1
+    id exc = rb_objc_create_exception(GET_VM()->current_exception());
+    objc_exception_throw(exc);
+#else
     void *exc = __cxa_allocate_exception(0);
     __cxa_throw(exc, NULL, NULL);
+#endif
 }
 
 extern "C"

@@ -49,7 +49,9 @@ class FixtureCompiler
   
   def load!
     require bundle[0..-8]
-    load_bridge_support_file bridge_support
+    if File.exist? bridge_support
+      load_bridge_support_file bridge_support
+    end
   end
 end
 
