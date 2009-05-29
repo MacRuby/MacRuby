@@ -4271,21 +4271,33 @@ rb_vm_rval_to_charptr(VALUE rval, const char **ocval)
 }
 
 static inline long
+bool_to_fix(VALUE rval)
+{
+    if (rval == Qtrue) {
+	return INT2FIX(1);
+    }
+    if (rval == Qfalse) {
+	return INT2FIX(0);
+    }
+    return rval;
+}
+
+static inline long
 rval_to_long(VALUE rval)
 {
-   return NUM2LONG(rb_Integer(rval)); 
+   return NUM2LONG(rb_Integer(bool_to_fix(rval))); 
 }
 
 static inline long long
 rval_to_long_long(VALUE rval)
 {
-    return NUM2LL(rb_Integer(rval));
+    return NUM2LL(rb_Integer(bool_to_fix(rval)));
 }
 
 static inline double
 rval_to_double(VALUE rval)
 {
-    return RFLOAT_VALUE(rb_Float(rval));
+    return RFLOAT_VALUE(rb_Float(bool_to_fix(rval)));
 }
 
 extern "C"
