@@ -82,6 +82,9 @@ class RoxorJITManager : public JITMemoryManager {
 
 	struct RoxorFunction *find_function(unsigned char *addr) {
 	     // TODO optimize me!
+	     if (functions.empty()) {
+		return NULL;
+	     }
 	     RoxorFunction *front = functions.front();
 	     RoxorFunction *back = functions.back();
 	     if (addr < front->start || addr > back->end) {
