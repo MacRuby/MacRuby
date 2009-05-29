@@ -490,7 +490,12 @@ static inline VALUE cState_configure(VALUE self, VALUE opts)
         state->object_nl = tmp;
     }
     tmp = ID2SYM(i_check_circular);
+
+#if WITH_OBJC
+    if (CFDictionaryGetValueIfPresent((CFDictionaryRef)opts, (const void *)RB2OC(tmp), 0)) {
+#else
     if (st_lookup(RHASH_TBL(opts), tmp, 0)) {
+#endif
         tmp = rb_hash_aref(opts, ID2SYM(i_check_circular));
         state->check_circular = RTEST(tmp);
     } else {
@@ -498,7 +503,11 @@ static inline VALUE cState_configure(VALUE self, VALUE opts)
     }
     tmp = ID2SYM(i_max_nesting);
     state->max_nesting = 19;
+#if WITH_OBJC
+    if (CFDictionaryGetValueIfPresent((CFDictionaryRef)opts, (const void *)RB2OC(tmp), 0)) {
+#else
     if (st_lookup(RHASH_TBL(opts), tmp, 0)) {
+#endif
         VALUE max_nesting = rb_hash_aref(opts, tmp);
         if (RTEST(max_nesting)) {
             Check_Type(max_nesting, T_FIXNUM);
