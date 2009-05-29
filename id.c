@@ -61,6 +61,7 @@ Init_id(void)
     selSucc = sel_registerName("succ");
     selNot = sel_registerName("!");
     selAlloc = sel_registerName("alloc");
+    selAllocWithZone = sel_registerName("allocWithZone:");
     selInit = sel_registerName("init");
     selInitialize = sel_registerName("initialize");
     selInitialize2 = sel_registerName("initialize:");
@@ -89,6 +90,7 @@ Init_id(void)
     selBackquote = sel_registerName("`:");
     selMethodAdded = sel_registerName("method_added:");
     selSingletonMethodAdded = sel_registerName("singleton_method_added:");
+    selIsEqual = sel_registerName("isEqual:");
 
     cacheEach = rb_vm_get_call_cache(selEach);
 #endif

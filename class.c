@@ -13,9 +13,10 @@
 #include "ruby/signal.h"
 #include "ruby/node.h"
 #include "ruby/st.h"
-#include "id.h"
 #include <ctype.h>
+#include "id.h"
 #include "vm.h"
+#include "objc.h"
 
 extern st_table *rb_class_tbl;
 
@@ -56,10 +57,10 @@ rb_objc_install_primitives(Class ocklass, Class ocsuper)
     return false;
 }
 
-static VALUE
-rb_class_allocate_instance(VALUE klass, SEL sel)
+static void *
+rb_obj_imp_allocWithZone(void *rcv, SEL sel, void *zone)
 {
-    return rb_robject_allocate_instance(klass);
+    return (void *)rb_robject_allocate_instance((VALUE)rcv);
 }
 
 static BOOL
@@ -101,21 +102,21 @@ VALUE rb_class_new_instance_imp(VALUE klass, SEL sel, int argc, VALUE *argv);
 void
 rb_define_object_special_methods(VALUE klass)
 {
-    rb_objc_define_method(*(VALUE *)klass, "alloc", rb_class_allocate_instance, 0);
-    RCLASS_SET_VERSION(*(VALUE *)klass, (RCLASS_VERSION(*(VALUE *)klass) | RCLASS_HAS_ROBJECT_ALLOC));
-    rb_objc_define_method(*(VALUE *)klass, "new", rb_class_new_instance_imp, -1);
-    rb_objc_define_method(*(VALUE *)klass, "__new__", rb_class_new_instance_imp, -1);
+    RCLASS_SET_VERSION(*(VALUE *)klass,
+	    (RCLASS_VERSION(*(VALUE *)klass) | RCLASS_HAS_ROBJECT_ALLOC));
+
+    rb_objc_define_method(*(VALUE *)klass, "new",
+	    rb_class_new_instance_imp, -1);
+    rb_objc_define_method(*(VALUE *)klass, "__new__",
+	    rb_class_new_instance_imp, -1);
     rb_objc_define_method(klass, "dup", rb_obj_dup, 0);
     rb_objc_define_method(klass, "initialize", rb_objc_init, 0);
     rb_objc_define_method(klass, "initialize_copy", rb_obj_init_copy, 1);
 
-    static SEL sel_isEqual = 0;
-    if (sel_isEqual == 0) {
-	sel_isEqual = sel_registerName("isEqual:");
-    }
-    class_addMethod((Class)klass, sel_isEqual, (IMP)rb_obj_imp_isEqual, "c@:@");
-
-    class_addMethod((Class)klass, selInit, (IMP)rb_obj_imp_init, "@@:");
+    rb_objc_install_method(*(Class *)klass, selAllocWithZone,
+	    (IMP)rb_obj_imp_allocWithZone);
+    rb_objc_install_method((Class)klass, selIsEqual, (IMP)rb_obj_imp_isEqual);
+    rb_objc_install_method((Class)klass, selInit, (IMP)rb_obj_imp_init);
 }
 
 static VALUE

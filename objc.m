@@ -417,7 +417,7 @@ macruby_main(const char *path, int argc, char **argv)
     }
 }
 
-static void *
+static void
 rb_objc_kvo_setter_imp(void *recv, SEL sel, void *value)
 {
     const char *selname;
@@ -432,8 +432,6 @@ rb_objc_kvo_setter_imp(void *recv, SEL sel, void *value)
 
     rb_ivar_set((VALUE)recv, rb_intern(buf), value == NULL
 	    ? Qnil : OC2RB(value));
-
-    return NULL; /* we explicitely return NULL because otherwise a special constant may stay on the stack and be returned to Objective-C, and do some very nasty crap, especially if called via -[performSelector:]. */
 }
 
 /*
