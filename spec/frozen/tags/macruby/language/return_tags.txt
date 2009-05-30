@@ -2,3 +2,5 @@ fails:The return keyword in a Thread raises a LocalJumpError if used to exit a t
 fails:The return keyword within a block causes lambda to return nil if invoked without any arguments
 fails:The return keyword within a block causes lambda to return nil if invoked with an empty expression
 fails:The return keyword within a block causes lambda to return the value passed to return
+fails:The return keyword within a block returns from the lexically enclosing method even in case of chained calls(in yield)
+fails:The return keyword within two blocks causes the method that lexically encloses the block to return
