@@ -57,6 +57,7 @@ namespace :spec do
   CI_DIRS = %w{
     spec/frozen/language
     spec/frozen/core/array
+    spec/frozen/core/hash
   }.join(' ')
   
   MACRUBY_MSPEC = "./spec/macruby.mspec"
@@ -103,16 +104,17 @@ namespace :spec do
     sh "./mspec/bin/mspec run -V -f s -g fails -B #{MACRUBY_MSPEC} #{CI_DIRS}"
   end
   
+  desc "Tags failing examples in spec/core, specify the class to tag with the env variable `class'"
   task :tag_failing do
     klass = ENV['class']
     puts "Tagging failing examples of class `#{klass}'"
     
+    tag_base = "./spec/frozen/tags/macruby/core/#{klass}"
+    mkdir_p tag_base
+    
     Dir.glob("./spec/frozen/core/#{klass}/*_spec.rb").each do |spec_file|
       cmd = "./mspec/bin/mspec ci -f s -B ./spec/macruby.mspec #{spec_file}"
       out = `#{cmd}`
-      
-      tag_base = "./spec/frozen/tags/macruby/core/#{klass}"
-      mkdir_p tag_base
       
       if out.match(/^1\)(.+?)(FAILED|ERROR)/m)
         failures = $1.strip.split("\n")

@@ -1,0 +1,3 @@
+fails:Hash#merge returns subclass instance for subclasses
+fails:Hash#merge processes entries with same order as each()
+fails:Hash#merge! raises a TypeError if called on a non-empty, frozen instance

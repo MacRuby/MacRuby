@@ -1,0 +1,3 @@
+critical:Hash#eql? computes equality for complex recursive hashes
+critical:Hash#eql? computes equality for recursive hashes & arrays
+fails:Hash#eql? compares keys with matching hash codes via eql?

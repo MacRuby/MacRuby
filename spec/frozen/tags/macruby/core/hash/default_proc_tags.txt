@@ -1,0 +1,4 @@
+fails:Hash#default_proc= replaces the block passed to Hash.new
+fails:Hash#default_proc= uses :to_proc on its argument
+fails:Hash#default_proc= overrides the static default
+fails:Hash#default_proc= raise an error if passed stuff not convertible to procs
