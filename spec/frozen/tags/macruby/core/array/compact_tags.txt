@@ -1,0 +1,2 @@
+fails:Array#compact keeps untrusted status even if all elements are removed
+fails:Array#compact! keeps untrusted status even if all elements are removed

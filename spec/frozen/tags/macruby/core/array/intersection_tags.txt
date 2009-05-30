@@ -1,0 +1,2 @@
+critical:Array#& properly handles recursive arrays
+fails:Array#& determines equivalence between elements in the sense of eql?

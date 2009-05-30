@@ -1,0 +1,3 @@
+fails:Array#dup copies taint status from the original
+fails:Array#dup copies untrusted status from the original
+fails:Array#dup does not copy singleton methods

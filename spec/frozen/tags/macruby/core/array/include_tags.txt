@@ -1,0 +1,1 @@
+fails:Array#include? determines presence by using element == obj

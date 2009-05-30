@@ -1,0 +1,6 @@
+fails:Array#key returns the index of the first element == to object
+fails:Array#key returns 0 if first element == to object
+fails:Array#key returns size-1 if only last element == to object
+fails:Array#key returns nil if no element == to object
+fails:Array#key accepts a block instead of an argument
+fails:Array#key ignore the block if there is an argument

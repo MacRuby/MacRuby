@@ -1,0 +1,1 @@
+fails:Array#flatten! returns nil when the level of recursion is 0

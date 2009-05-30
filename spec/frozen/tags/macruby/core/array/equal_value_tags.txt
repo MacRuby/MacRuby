@@ -1,0 +1,2 @@
+critical:Array#== handles well recursive arrays
+fails:Array#== returns true if corresponding elements are #==

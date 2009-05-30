@@ -1,0 +1,5 @@
+fails:Array#initialize is private
+fails:Array#initialize preserves the object's identity even when changing its value
+fails:Array#initialize raises a RuntimeError on frozen arrays even if the array would not be modified
+fails:Array#initialize with no arguments makes the array empty
+fails:Array#initialize with (size, object=nil) sets the array to the values returned by the block before break is executed

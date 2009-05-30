@@ -1,0 +1,1 @@
+fails:Array#[]= with [index, count] pads the Array with nils if the span is past the end

@@ -1,0 +1,1 @@
+fails:Array#initialize_copy is private
