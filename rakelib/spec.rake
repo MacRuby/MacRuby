@@ -59,6 +59,7 @@ namespace :spec do
     spec/frozen/core/array
     spec/frozen/core/hash
     spec/frozen/core/numeric
+    spec/frozen/core/symbol
   }.join(' ')
   
   MACRUBY_MSPEC = "./spec/macruby.mspec"
