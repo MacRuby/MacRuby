@@ -281,3 +281,11 @@ assert '42', %{
   include M
   p X.new.foo
 }
+
+assert '42', %{
+  def foo(x,y,z=42)
+    return z if z == 42
+    foo(1,2)
+  end
+  p foo(1,2,3)
+}
