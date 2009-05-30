@@ -3021,25 +3021,27 @@ rescan_args:
 		if (!block_given && !super_call && !splat_args
 		    && positive_arity && mid == current_mid && recv == NULL) {
 
-		    // TODO check if both functions have the same arity
-		    // (paranoid?)
-
 		    Function *f = bb->getParent();
-		    std::vector<Value *> params;
+		    const unsigned long argc =
+			args == NULL ? 0 : args->nd_alen;
 
-		    Function::arg_iterator arg = f->arg_begin();
+		    if (f->arg_size() - 2 == argc) {
+			std::vector<Value *> params;
 
-		    params.push_back(arg++); // self
-		    params.push_back(arg++); // sel 
+			Function::arg_iterator arg = f->arg_begin();
 
-		    for (NODE *n = args; n != NULL; n = n->nd_next) {
-			params.push_back(compile_node(n->nd_head));
+			params.push_back(arg++); // self
+			params.push_back(arg++); // sel 
+
+			for (NODE *n = args; n != NULL; n = n->nd_next) {
+			    params.push_back(compile_node(n->nd_head));
+			}
+
+			CallInst *inst = CallInst::Create(f, params.begin(),
+				params.end(), "", bb);
+			inst->setTailCall(true);
+			return cast<Value>(inst);
 		    }
-
-		    CallInst *inst = CallInst::Create(f, params.begin(),
-			    params.end(), "", bb);
-		    inst->setTailCall(true);
-		    return cast<Value>(inst);
 		}
 
 		// Let's set the block state as NULL temporarily, when we
