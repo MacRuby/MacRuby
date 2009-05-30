@@ -1,0 +1,3 @@
+fails:Math.asin raises an ArgumentError if the argument cannot be coerced with Float()
+fails:Math.asin accepts any argument that can be coerced with Float()
+fails:Math#asin is accessible as a private instance method
