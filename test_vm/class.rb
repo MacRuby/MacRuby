@@ -28,3 +28,17 @@ assert "42", %q{
 
 assert "42", "x = class Foo; 42; end; p x"
 assert "nil", "x = class Foo; end; p x"
+
+assert "42", %q{
+  class X
+    def foo
+      42
+    end
+  end
+  class Y < X
+    define_method(:foo) do
+      super()
+    end
+  end
+  p Y.new.foo
+}
