@@ -92,7 +92,9 @@ accepted:
         do_something3();
     }
 
-=== Environment variables
+=== Debugging
+
+==== Environment variables
 
 The following environment variables might help you debug easy bugs.
 
@@ -103,7 +105,11 @@ The following environment variables might help you debug easy bugs.
 * VM_DUMP_IR: set it to any value to dump the LLVM IR on $stderr before the
   interpreter quits.
 
-=== GDB tricks
+* DYLD_LIBRARY_PATH: in case you are debugging a Cocoa application, set this 
+  variable to "." before starting gdb, and you won't have to re-install MacRuby
+  every time you re-compile it.
+
+==== GDB tricks
 
 * Break on rb_exc_raise to intercept pure Ruby exceptions.
 
