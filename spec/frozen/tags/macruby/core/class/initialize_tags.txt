@@ -1,0 +1,1 @@
+fails:Class#new invokes #initialize on the new instance with the given args

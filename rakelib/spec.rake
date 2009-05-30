@@ -58,6 +58,7 @@ namespace :spec do
     spec/frozen/language
     spec/frozen/core/array
     spec/frozen/core/basicobject
+    spec/frozen/core/class
     spec/frozen/core/hash
     spec/frozen/core/numeric
     spec/frozen/core/symbol
