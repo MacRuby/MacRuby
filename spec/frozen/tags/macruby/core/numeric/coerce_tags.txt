@@ -1,0 +1,2 @@
+critical:Numeric#coerce returns [other.to_f, self.to_f] if self and other are instances of different classes
+fails:Numeric#coerce raises a TypeError when passed a Symbol

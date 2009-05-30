@@ -1,0 +1,1 @@
+critical:Numeric#<=> returns nil if self does not equal other
