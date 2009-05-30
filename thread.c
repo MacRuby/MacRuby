@@ -1168,6 +1168,14 @@ mutex_sleep(int argc, VALUE *argv, VALUE self)
  * completes.  See the example under +Mutex+.
  */
 
+static VALUE
+mutex_synchronize(VALUE self, SEL sel)
+{
+    // TODO
+    rb_yield(Qundef);
+    return Qnil;
+}
+
 VALUE
 rb_thread_synchronize(VALUE mutex, VALUE (*func)(VALUE arg), VALUE arg)
 {
@@ -1243,6 +1251,7 @@ Init_Thread(void)
     rb_define_method(rb_cMutex, "lock", rb_mutex_lock, 0);
     rb_define_method(rb_cMutex, "unlock", rb_mutex_unlock, 0);
     rb_define_method(rb_cMutex, "sleep", mutex_sleep, -1);
+    rb_objc_define_method(rb_cMutex, "synchronize", mutex_synchronize, 0);
 
     rb_eThreadError = rb_define_class("ThreadError", rb_eStandardError);
 }
