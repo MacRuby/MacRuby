@@ -37,14 +37,14 @@ describe "Numeric#step with [stop, step]" do
       @stop = mock("Stop value")
       @step = mock("Step value")
       
-      @obj.step(@stop, @step).should be_kind_of(Enumerable::Enumerator)
+      @obj.step(@stop, @step).should be_kind_of(enumerator_class)
     end
 
     it "returns an Enumerator when passed no block and self < stop" do
       @stop = mock("Stop value")
       @step = mock("Step value")
       
-      @obj.step(@stop, @step).should be_kind_of(Enumerable::Enumerator)
+      @obj.step(@stop, @step).should be_kind_of(enumerator_class)
     end
   end
   
@@ -187,5 +187,12 @@ describe "Numeric#step with [stop, -step] when self, stop or step is a Float" do
     result = []
     1.step(5, -1.5) { |x| result << x }
     result.should == []
+  end
+end
+
+describe "Numeric#step" do
+  it "doesn't catch errors" do
+    lambda{ 1.step(2) { raise ArgumentError, "oups" }}.should raise_error(ArgumentError, "oups")
+    lambda{ 1.step(2) { raise TypeError, "oups" }    }.should raise_error(TypeError, "oups")
   end
 end

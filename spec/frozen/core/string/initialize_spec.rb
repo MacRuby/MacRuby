@@ -50,10 +50,9 @@ describe "String#initialize" do
     String.new obj
   end
 
-  # Rubinius String makes a String of 5 NULs.  This behavior may need to be
-  # removed from many places.
   it "raises TypeError on inconvertible object" do
     lambda { String.new 5 }.should raise_error(TypeError)
+    lambda { String.new nil }.should raise_error(TypeError)
   end
 
   it "raises a TypeError if self is frozen" do

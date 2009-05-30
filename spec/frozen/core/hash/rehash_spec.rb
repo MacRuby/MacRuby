@@ -5,7 +5,7 @@ describe "Hash#rehash" do
   it "reorganizes the hash by recomputing all key hash codes" do
     k1 = [1]
     k2 = [2]
-    h = {}
+    h = new_hash
     h[k1] = 0
     h[k2] = 1
 
@@ -26,7 +26,7 @@ describe "Hash#rehash" do
     def v1.hash() raise("values shouldn't be rehashed"); end
     def v2.hash() raise("values shouldn't be rehashed"); end
 
-    h = { k1 => v1, k2 => v2 }
+    h = new_hash(k1 => v1, k2 => v2)
 
     def k1.hash() 0 end
     def k2.hash() 0 end
@@ -36,23 +36,16 @@ describe "Hash#rehash" do
     h[k2].should == v2
   end
 
-  compliant_on :rubinius do
-    it "gives precedence to keys coming later in keys() on collisions" do
-      k1 = [1]
-      k2 = [2]
-      h = {}
-      h[k1] = 0
-      h[k2] = 1
-
-      k1.replace(k2)
-      override_val = h[h.keys.last]
-      h.rehash
-      h[k1].should == override_val
-    end
-  end
-
   it "raises a TypeError if called on a frozen instance" do
     lambda { HashSpecs.frozen_hash.rehash  }.should raise_error(TypeError)
     lambda { HashSpecs.empty_frozen_hash.rehash }.should raise_error(TypeError)
   end
+
+  it "causes a RuntimeError to be raised if called inside an iterator block" do
+    [:delete_if, :each, :each_pair, :each_value, 
+     :reject!, :select, :sort_by].each do |method|
+      h = new_hash(:foo => :bar)
+      lambda { h.send(method) { h.rehash } }.should raise_error(RuntimeError)
+    end  
+  end  
 end

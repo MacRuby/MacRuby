@@ -1,4 +1,5 @@
 require File.dirname(__FILE__) + '/../spec_helper'
+require File.dirname(__FILE__) + '/fixtures/return'
 
 describe "The return keyword" do
   it "returns any object directly" do
@@ -35,7 +36,6 @@ describe "The return keyword" do
       end
     end
   end
-
 
   describe "when passed a splat" do
     ruby_version_is "" ... "1.9" do
@@ -235,6 +235,10 @@ describe "The return keyword" do
 
 
   describe "within a block" do
+    before :each do
+      ScratchPad.clear
+    end
+
     ruby_version_is "" ... "1.9" do
       it "raises a LocalJumpError if there is no lexicaly enclosing method" do
         def f; yield; end
@@ -255,42 +259,28 @@ describe "The return keyword" do
     end
 
     it "causes the method that lexically encloses the block to return" do
-      def meth_with_yield
-        yield
-        fail("return returned to wrong location")
-      end
-
-      def enclosing_method
-        meth_with_yield do
-          return :return_value
-          fail("return didn't, well, return")
-        end
-        fail("return should not behave like break")
-      end
-
-      enclosing_method.should == :return_value
+      ReturnSpecs::Blocks.new.enclosing_method.should == :return_value
+      ScratchPad.recorded.should == :before_return
     end
 
     it "returns from the lexically enclosing method even in case of chained calls" do
-      class ChainedReturnTest
-        def self.meth_with_yield(&b)
-          yield
-          fail("returned from yield to wrong place")
-        end
-        def self.invoking_method(&b)
-          meth_with_yield(&b)
-          fail("returned from 'meth_with_yield' method to wrong place")
-        end
-        def self.enclosing_method
-          invoking_method do
-            return :return_value
-            fail("return didn't, well, return")
-          end
-          fail("return should not behave like break")
-        end
-      end
+      ReturnSpecs::NestedCalls.new.enclosing_method.should == :return_value
+      ScratchPad.recorded.should == :before_return
+    end
 
-      ChainedReturnTest.enclosing_method.should == :return_value
+    it "returns from the lexically enclosing method even in case of chained calls(in yield)" do
+      ReturnSpecs::NestedBlocks.new.enclosing_method.should == :return_value
+      ScratchPad.recorded.should == :before_return
     end
   end
+
+  describe "within two blocks" do
+    it "causes the method that lexically encloses the block to return" do
+      def f
+        1.times { 1.times {return true}; false}; false
+      end
+      f.should be_true
+    end
+  end
+
 end

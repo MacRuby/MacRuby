@@ -3,33 +3,30 @@ require File.dirname(__FILE__) + '/fixtures/classes'
 
 describe "IO#getc" do
   before :each do
+    @original = $KCODE
+    $KCODE = "UTF-8"
     @file_name = File.dirname(__FILE__) + '/fixtures/readlines.txt'
     @file = File.open(@file_name, 'r')
   end
 
   after :each do
     @file.close unless @file.closed?
+    $KCODE = @original
   end
 
-  ruby_version_is "" ... "1.9" do
+  ruby_version_is ''...'1.9' do
     it "returns the next byte from the stream" do
-      @file.getc.should == 86
-      @file.getc.should == 111
-      @file.getc.should == 105
-      # read the rest of line
-      @file.readline.should == "ci la ligne une.\n"
-      @file.getc.should == 81
+      @file.readline.should == "Voici la ligne une.\n"
+      letters = @file.getc, @file.getc, @file.getc, @file.getc, @file.getc
+      letters.should == [81, 117, 105, 32, 195]
     end
   end
 
-  ruby_version_is "1.9" do
+  ruby_version_is '1.9' do
     it "returns the next character from the stream" do
-      @file.getc.should == 'V'
-      @file.getc.should == 'o'
-      @file.getc.should == 'i'
-      # read the rest of line
-      @file.readline.should == "ci la ligne une.\n"
-      @file.getc.should == 'Q'
+      @file.readline.should == "Voici la ligne une.\n"
+      letters = @file.getc, @file.getc, @file.getc, @file.getc, @file.getc
+      letters.should == ["Q", "u", "i", " ", "è"]
     end
   end
 

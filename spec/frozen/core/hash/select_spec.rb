@@ -4,23 +4,34 @@ require File.dirname(__FILE__) + '/shared/iteration'
 
 describe "Hash#select" do
   before(:each) do
-    @hsh = {1 => 2, 3 => 4, 5 => 6}
-    @empty = {}
+    @hsh = new_hash(1 => 2, 3 => 4, 5 => 6)
+    @empty = new_hash
   end
 
   it "yields two arguments: key and value" do
     all_args = []
-    {1 => 2, 3 => 4}.select { |*args| all_args << args }
+    new_hash(1 => 2, 3 => 4).select { |*args| all_args << args }
     all_args.sort.should == [[1, 2], [3, 4]]
   end
 
-  it "returns an array of entries for which block is true" do
-    a_pairs = { 'a' => 9, 'c' => 4, 'b' => 5, 'd' => 2 }.select { |k,v| v % 2 == 0 }
-    a_pairs.sort.should == [['c', 4], ['d', 2]]
+  ruby_version_is ""..."1.9" do
+    it "returns an Array of entries for which block is true" do
+      a_pairs = new_hash('a' => 9, 'c' => 4, 'b' => 5, 'd' => 2).select { |k,v| v % 2 == 0 }
+      a_pairs.should be_an_instance_of(Array)
+      a_pairs.sort.should == [['c', 4], ['d', 2]]
+    end
+  end
+
+  ruby_version_is "1.9" do
+    it "returns a Hash of entries for which block is true" do
+      a_pairs = new_hash('a' => 9, 'c' => 4, 'b' => 5, 'd' => 2).select { |k,v| v % 2 == 0 }
+      a_pairs.should be_an_instance_of(Hash)
+      a_pairs.sort.should == [['c', 4], ['d', 2]]
+    end
   end
 
   it "processes entries with the same order as reject" do
-    h = { :a => 9, :c => 4, :b => 5, :d => 2 }
+    h = new_hash(:a => 9, :c => 4, :b => 5, :d => 2)
 
     select_pairs = []
     reject_pairs = []
@@ -42,14 +53,13 @@ describe "Hash#select" do
 
   ruby_version_is "1.8.7" do
     it "returns an Enumerator when called on a non-empty hash without a block" do
-      @hsh.select.should be_kind_of(Enumerable::Enumerator)
+      @hsh.select.should be_kind_of(enumerator_class)
     end
 
     it "returns an Enumerator when called on an empty hash without a block" do
-      @empty.select.should be_kind_of(Enumerable::Enumerator)
+      @empty.select.should be_kind_of(enumerator_class)
     end
   end
 
-  it_behaves_like(:hash_iteration_method, :select)
   it_behaves_like(:hash_iteration_modifying, :select)
 end

@@ -159,6 +159,7 @@ describe "String#sub with pattern, replacement" do
   it "raises a TypeError when pattern can't be converted to a string" do
     lambda { "hello".sub(:woot, "x") }.should raise_error(TypeError)
     lambda { "hello".sub(?e, "x")    }.should raise_error(TypeError)
+    lambda { "hello".sub(?e, nil)    }.should raise_error(TypeError)
   end
 
   it "tries to convert replacement to a string using to_str" do

@@ -189,6 +189,7 @@ describe "String#gsub with pattern and replacement" do
   it "raises a TypeError when pattern can't be converted to a string" do
     lambda { "hello".gsub(:woot, "x") }.should raise_error(TypeError)
     lambda { "hello".gsub(?e, "x")    }.should raise_error(TypeError)
+    lambda { "hello".gsub(nil, "x")   }.should raise_error(TypeError)
   end
   
   it "tries to convert replacement to a string using to_str" do
@@ -201,6 +202,7 @@ describe "String#gsub with pattern and replacement" do
   it "raises a TypeError when replacement can't be converted to a string" do
     lambda { "hello".gsub(/[aeiou]/, :woot) }.should raise_error(TypeError)
     lambda { "hello".gsub(/[aeiou]/, ?f)    }.should raise_error(TypeError)
+    lambda { "hello".gsub(/[aeiou]/, nil)   }.should raise_error(TypeError)
   end
   
   it "returns subclass instances when called on a subclass" do
