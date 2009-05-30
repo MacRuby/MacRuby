@@ -103,6 +103,32 @@ namespace :spec do
     sh "./mspec/bin/mspec run -V -f s -g fails -B #{MACRUBY_MSPEC} #{CI_DIRS}"
   end
   
+  task :tag_failing do
+    klass = ENV['class']
+    puts "Tagging failing examples of class `#{klass}'"
+    
+    Dir.glob("./spec/frozen/core/#{klass}/*_spec.rb").each do |spec_file|
+      cmd = "./mspec/bin/mspec ci -f s -B ./spec/macruby.mspec #{spec_file}"
+      out = `#{cmd}`
+      
+      tag_base = "./spec/frozen/tags/macruby/core/#{klass}"
+      mkdir_p tag_base
+      
+      if out.match(/^1\)(.+?)(FAILED|ERROR)/m)
+        failures = $1.strip.split("\n")
+        
+        tag_file = "#{tag_base}/#{spec_file.match(/\/(\w+)_spec\.rb$/)[1]}_tags.txt"
+        puts "Writing tags file: #{tag_file}"
+        
+        File.open(tag_file, 'a+') do |f|
+          failures.each do |failure|
+            f << "fails:#{failure}\n"
+          end
+        end
+      end
+    end
+  end
+  
   %w{ fails critical }.each do |tag|
     namespace :list do
       # We cheat by using the fact that currently the ruby.1.9.mspec script uses the macruby tags,

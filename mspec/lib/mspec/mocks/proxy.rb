@@ -88,7 +88,7 @@ class MockProxy
   def with(*args)
     raise ArgumentError, "you must specify the expected arguments" if args.empty?
     @arguments = *args
-    if RUBY_VERSION >= '1.9'
+    if (behaves_like_ruby_1_9 = *[])
       @arguments = @arguments.first if @arguments.length <= 1
     end
     self
