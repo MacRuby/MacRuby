@@ -1,2 +1,0 @@
-fails:A block with a 'rest' arg collects all of the arguments passed to yield
-critical:A block whose arguments are splatted yields the correct arguments in a nested block

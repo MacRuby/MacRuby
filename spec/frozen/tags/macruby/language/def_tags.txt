@@ -1,5 +1,4 @@
 fails:Defining an 'initialize' method should make it private
-fails:Defining an 'initialize_copy' method should make it private
 fails:An instance method with a default argument evaluates the default when required arguments precede it
 fails:An instance method with a default argument prefers to assign to a default argument before a splat argument
 fails:Redefining a singleton method does not inherit a previously set visibility 
