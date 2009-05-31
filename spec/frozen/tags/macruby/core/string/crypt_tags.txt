@@ -1,0 +1,2 @@
+fails:String#crypt taints the result if either salt or self is tainted
+fails:String#crypt doesn't return subclass instances

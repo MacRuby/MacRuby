@@ -1,0 +1,8 @@
+fails:String#[]= with index sets the code of the character at idx to char modulo 256
+fails:String#[]= with index raises an IndexError without changing self if idx is outside of self
+fails:String#[]= with index sets the code to char % 256
+fails:String#[]= with index raises a TypeError when self is frozen
+fails:String#[]= with String raises an IndexError without changing self if idx is outside of self
+fails:String#[]= with String raises a TypeError when self is frozen
+fails:String#[]= with String raises a TypeError if other_str can't be converted to a String
+fails:String#[]= with index, count raises a TypeError if other_str is a type other than String

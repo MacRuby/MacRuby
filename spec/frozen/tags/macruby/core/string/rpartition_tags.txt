@@ -1,0 +1,3 @@
+critical:String#rpartition with String converts its argument using :to_str
+fails:String#rpartition with String returns an array of substrings based on splitting on the given string
+fails:String#rpartition with String accepts regexp

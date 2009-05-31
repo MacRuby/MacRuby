@@ -1,0 +1,2 @@
+fails:String#lstrip! modifies self in place and returns self
+fails:String#lstrip! raises a TypeError if self is frozen

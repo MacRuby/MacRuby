@@ -1,0 +1,2 @@
+fails:String#insert with index, other raises a TypeError if other can't be converted to string
+fails:String#insert with index, other raises a TypeError if self is frozen

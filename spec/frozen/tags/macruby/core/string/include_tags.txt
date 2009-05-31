@@ -1,0 +1,4 @@
+fails:String#include? with String ignores subclass differences
+fails:String#include? with String raises a TypeError if other can't be converted to string
+fails:String#include? with Fixnum returns true if self contains the given char
+fails:String#include? with Fixnum uses fixnum % 256

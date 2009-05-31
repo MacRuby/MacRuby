@@ -1,0 +1,5 @@
+fails:String#tr_s accepts c1-c2 notation to denote ranges of characters
+fails:String#tr_s translates chars not in from_string when it starts with a ^
+fails:String#tr_s returns subclass instances when called on a subclass
+fails:String#tr_s taints the result when self is tainted
+fails:String#tr_s! raises a TypeError if self is frozen

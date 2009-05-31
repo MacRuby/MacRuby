@@ -1,0 +1,57 @@
+critical:String#% supports binary formats using %B with same behaviour as %b except for using 0B instead of 0b for #
+critical:String#% supports negative bignums by prefixing the value with dots
+critical:String#% behaves as if calling Kernel#Integer for %b argument, if it does not respond to #to_ary
+fails:String#% formats multiple expressions
+fails:String#% formats single % characters before a newline or NULL as literal %s
+fails:String#% raises an error if single % appears anywhere else
+fails:String#% raises an error if NULL or 
+fails: appear anywhere else in the format string
+fails:String#% ignores unused arguments when $DEBUG is false
+fails:String#% raises an ArgumentError for unused arguments when $DEBUG is true
+fails:String#% always allows unused arguments when positional argument style is used
+fails:String#% replaces trailing absolute argument specifier without type with percent sign
+fails:String#% raises an ArgumentError when given invalid argument specifiers
+fails:String#% raises an ArgumentError when multiple positional argument tokens are given for one format specifier
+fails:String#% raises an ArgumentError when multiple width star tokens are given for one format specifier
+fails:String#% raises an ArgumentError when a width star token is seen after a width token
+fails:String#% raises an ArgumentError when multiple precision tokens are given
+fails:String#% raises an ArgumentError when there are less arguments than format specifiers
+fails:String#% raises an ArgumentError when absolute and relative argument numbers are mixed
+fails:String#% allows reuse of the one argument multiple via absolute argument numbers
+fails:String#% always interprets an array argument as a list of argument parameters
+fails:String#% always interprets an array subclass argument as a list of argument parameters
+fails:String#% tries to convert the argument to Array by calling #to_ary
+fails:String#% doesn't return subclass instances when called on a subclass
+fails:String#% always taints the result when the format string is tainted
+fails:String#% supports binary formats using %b
+fails:String#% supports character formats using %c
+fails:String#% supports octal formats using %o
+fails:String#% supports inspect formats using %p
+fails:String#% calls inspect on arguments for %p format
+fails:String#% taints result for %p when argument.inspect is tainted
+fails:String#% supports string formats using %s
+fails:String#% calls to_s on arguments for %s format
+fails:String#% taints result for %s when argument is tainted
+fails:String#% raises an ArgumentError for huge precisions for %s
+fails:String#% supports unsigned formats using %u
+fails:String#% formats negative values with a leading sign using %u
+fails:String#% supports hex formats using %x
+fails:String#% supports hex formats using %X
+fails:String#% doesn't taint the result for %b when argument is tainted
+fails:String#% behaves as if calling Kernel#Integer for %d argument, if it does not respond to #to_ary
+fails:String#% behaves as if calling Kernel#Integer for %i argument, if it does not respond to #to_ary
+fails:String#% behaves as if calling Kernel#Integer for %o argument, if it does not respond to #to_ary
+fails:String#% behaves as if calling Kernel#Integer for %u argument, if it does not respond to #to_ary
+fails:String#% behaves as if calling Kernel#Integer for %x argument, if it does not respond to #to_ary
+fails:String#% behaves as if calling Kernel#Integer for %X argument, if it does not respond to #to_ary
+fails:String#% behaves as if calling Kernel#Float for %e arguments, when the passed argument does not respond to #to_ary
+fails:String#% doesn't taint the result for %e when argument is tainted
+fails:String#% behaves as if calling Kernel#Float for %E arguments, when the passed argument does not respond to #to_ary
+fails:String#% doesn't taint the result for %E when argument is tainted
+fails:String#% behaves as if calling Kernel#Float for %f arguments, when the passed argument does not respond to #to_ary
+fails:String#% doesn't taint the result for %f when argument is tainted
+fails:String#% behaves as if calling Kernel#Float for %g arguments, when the passed argument does not respond to #to_ary
+fails:String#% behaves as if calling Kernel#Float for %G arguments, when the passed argument does not respond to #to_ary
+fails:String#% calls #to_int on argument for %c formats, if the argument does not respond to #to_ary
+fails:String#% calls to_int on width star and precision star tokens
+fails:String#% raises an error if NULL or \n appear anywhere else in the format string

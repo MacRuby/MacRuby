@@ -1,0 +1,6 @@
+critical:String#each_line accept string-like separator
+fails:String#each_line taints substrings that are passed to the block if self is tainted
+fails:String#each_line appends multiple successive newlines together when the separator is an empty string
+fails:String#each_line yields subclass instances for subclasses
+fails:String#each_line not care if the string is modified while substituting
+fails:String#each_line returns an enumerator when no block given

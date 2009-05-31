@@ -1,0 +1,3 @@
+fails:String#each_char returns an enumerator when no block given
+fails:String#each_char is unicode aware
+fails:String#each_char returns self

@@ -1,0 +1,2 @@
+fails:String#upto works with symbols to
+fails:String#upto returns an enumerator when no block given

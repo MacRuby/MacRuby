@@ -1,0 +1,14 @@
+fails:String#gsub with pattern and replacement doesn't interpret regexp metacharacters if pattern is a string
+fails:String#gsub with pattern and replacement taints the result if the original string or replacement is tainted
+fails:String#gsub with pattern and replacement untrusts the result if the original string or replacement is untrusted
+fails:String#gsub with pattern and replacement tries to convert pattern to a string using to_str
+fails:String#gsub with pattern and replacement raises a TypeError when pattern can't be converted to a string
+fails:String#gsub with pattern and replacement raises a TypeError when replacement can't be converted to a string
+fails:String#gsub with pattern and replacement returns subclass instances when called on a subclass
+fails:String#gsub with pattern and block raises a RuntimeError if the string is modified while substituting
+fails:String#gsub with pattern and block untrusts the result if the original string or replacement is untrusted
+fails:String#gsub! with pattern and replacement taints self if replacement is tainted
+fails:String#gsub! with pattern and replacement untrusts self if replacement is untrusted
+fails:String#gsub! with pattern and replacement raises a TypeError when self is frozen
+fails:String#gsub! with pattern and block taints self if block's result is tainted
+fails:String#gsub! with pattern and block untrusts self if block's result is untrusted

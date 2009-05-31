@@ -74,6 +74,7 @@ namespace :spec do
     spec/frozen/core/object
     spec/frozen/core/range
     spec/frozen/core/regexp
+    spec/frozen/core/string
     spec/frozen/core/symbol
     spec/frozen/core/true
     spec/frozen/core/unboundmethod

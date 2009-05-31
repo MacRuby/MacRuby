@@ -1,0 +1,28 @@
+critical:String#slice! with index calls to_int on index
+fails:String#slice! with index raises a TypeError if self is frozen
+fails:String#slice! with index doesn't raise a TypeError if self is frozen and idx is outside of self
+fails:String#slice! with index, length deletes and returns the substring at idx and the given length
+fails:String#slice! with index, length returns nil if the length is negative
+fails:String#slice! with index, length raises a TypeError if self is frozen
+fails:String#slice! with index, length doesn't raise a TypeError if self is frozen but the given position is out of self
+fails:String#slice! with index, length doesn't raise a TypeError if self is frozen but length is negative
+fails:String#slice! with index, length calls to_int on idx and length
+fails:String#slice! with index, length returns subclass instances
+fails:String#slice! Range returns subclass instances
+fails:String#slice! Range calls to_int on range arguments
+fails:String#slice! Range works with Range subclasses
+fails:String#slice! Range raises a TypeError if self is frozen
+fails:String#slice! Range doesn't raise a TypeError if self is frozen but the given range is out of self
+fails:String#slice! with Regexp doesn't taint self when regexp is tainted
+fails:String#slice! with Regexp returns subclass instances
+fails:String#slice! with Regexp raises a TypeError if self is frozen
+fails:String#slice! with Regexp doesn't raise a TypeError if self is frozen but there is no match
+fails:String#slice! with Regexp, index doesn't taint self when regexp is tainted
+fails:String#slice! with Regexp, index calls to_int on idx
+fails:String#slice! with Regexp, index returns subclass instances
+fails:String#slice! with Regexp, index raises a TypeError if self is frozen
+fails:String#slice! with Regexp, index doesn't raise a TypeError if self is frozen but there is no match
+fails:String#slice! with Regexp, index doesn't raise a TypeError if self is frozen but there is no capture for idx
+fails:String#slice! with String returns a subclass instance when given a subclass instance
+fails:String#slice! with String raises a TypeError if self is frozen
+fails:String#slice! with String doesn't raise a TypeError if self is frozen but self does not contain other
