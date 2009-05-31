@@ -61,6 +61,7 @@ namespace :spec do
     spec/frozen/core/class
     spec/frozen/core/false
     spec/frozen/core/hash
+    spec/frozen/core/nil
     spec/frozen/core/numeric
     spec/frozen/core/math
     spec/frozen/core/symbol
