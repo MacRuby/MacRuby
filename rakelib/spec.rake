@@ -68,6 +68,7 @@ namespace :spec do
     spec/frozen/core/object
     spec/frozen/core/symbol
     spec/frozen/core/true
+    spec/frozen/core/unboundmethod
   }.join(' ')
   
   MACRUBY_MSPEC = "./spec/macruby.mspec"
