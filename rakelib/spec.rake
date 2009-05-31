@@ -49,7 +49,6 @@ namespace :spec do
     to_i
     to_io
     write
-    initialize
   }
   
   KNOWN_GOOD_CORE_IO_FILES = FileList["spec/frozen/core/io/{#{KNOWN_GOOD_CORE_IO.join(',')}}_spec.rb"]
@@ -72,6 +71,7 @@ namespace :spec do
     spec/frozen/core/nil
     spec/frozen/core/numeric
     spec/frozen/core/object
+    spec/frozen/core/send
     spec/frozen/core/symbol
     spec/frozen/core/true
     spec/frozen/core/unboundmethod
