@@ -1,0 +1,1 @@
+fails:Regexp#~ matches against the contents of $_
