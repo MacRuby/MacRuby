@@ -2246,7 +2246,7 @@ rb_file_s_readlink(VALUE klass, SEL sel, VALUE path)
 	buf = xrealloc(buf, size);
     }
     if (rv < 0) {
-	free(buf);
+	xfree(buf);
 	rb_sys_fail(RSTRING_PTR(path));
     }
     v = rb_tainted_str_new(buf, rv);
