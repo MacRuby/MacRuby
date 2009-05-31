@@ -13,5 +13,8 @@ assert '"abcdef"', %{
   p f.gets.strip
 }
 
+assert Process.uid, "p Process.uid"
+assert Process.euid, "p Process.euid"
+
 assert ":ok", "p File.expand_path('../fixtures/foo', '#{__FILE__}').include?('..') ? :fail : :ok"
 assert ":ok", "require File.expand_path('../fixtures/foo', '#{__FILE__}')"
