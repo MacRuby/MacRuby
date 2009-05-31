@@ -73,6 +73,14 @@ assert "42", %q{
   p send(:foo)
 }
 
+assert ":ok", %{
+  begin
+    send(:does_not_exist)
+  rescue NoMethodError
+    p :ok
+  end
+}
+
 assert "42", "def foo; return 42; end; p foo"
 assert "42", "def foo(x); if x; return 42; end; end; p foo(true)"
 assert "42", "def foo(x); if x; x += 2; return x; end; end; p foo(40)"
