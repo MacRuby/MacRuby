@@ -59,6 +59,7 @@ namespace :spec do
     spec/frozen/core/array
     spec/frozen/core/basicobject
     spec/frozen/core/class
+    spec/frozen/core/comparable
     spec/frozen/core/false
     spec/frozen/core/hash
     spec/frozen/core/math
