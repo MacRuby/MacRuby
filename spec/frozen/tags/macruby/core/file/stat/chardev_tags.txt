@@ -1,0 +1,1 @@
+fails:File::Stat#chardev? returns true/false depending if the named file is a char device

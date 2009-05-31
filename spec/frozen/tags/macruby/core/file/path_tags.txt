@@ -1,0 +1,1 @@
+fails:File#path returns the pathname used to create file as a string

@@ -1,0 +1,4 @@
+critical:File.join raises an ArgumentError if passed a recursive array
+fails:File.join handles leading parts edge cases
+fails:File.join handles trailing parts edge cases
+fails:File.join handles middle parts edge cases

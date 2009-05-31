@@ -1,0 +1,1 @@
+fails:File::Stat#blockdev? returns true/false depending if the named file is a block device

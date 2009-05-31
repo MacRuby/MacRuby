@@ -1,0 +1,47 @@
+critical:File.open opens a file with mode num
+critical:File.open opens the file when passed mode, num and permissions
+critical:File.open opens a file that no exists when use File::WRONLY mode
+critical:File.open opens a file that no exists when use File::RDONLY mode
+critical:File.open opens a file that no exists when use File::EXCL mode
+critical:File.open opens a file that no exists when use File::NONBLOCK mode
+critical:File.open opens a file that no exists when use File::TRUNC mode
+critical:File.open opens a file that no exists when use File::NOCTTY mode
+critical:File.open opens a file that no exists when use File::CREAT mode
+critical:File.open can read in a block when call open with RDONLY mode
+critical:File.open raises an IO exception when write in a block opened with RDONLY mode
+critical:File.open can't write in a block when call open with File::WRONLY||File::RDONLY mode
+critical:File.open can't read in a block when call open with File::WRONLY||File::RDONLY mode
+critical:File.open can write in a block when call open with WRONLY mode
+critical:File.open raises an IOError when read in a block opened with WRONLY mode
+critical:File.open raises an IOError when read in a block opened with 'a' mode
+critical:File.open raises an IOError when read in a block opened with File::WRONLY|File::APPEND mode
+critical:File.open raises an IOError when read in a block opened with File::RDONLY|File::APPEND mode
+critical:File.open can read and write in a block when call open with RDWR mode
+critical:File.open can't read in a block when call open with File::EXCL mode
+critical:File.open can read in a block when call open with File::EXCL mode
+critical:File.open can read and write in a block when call open with File::RDWR|File::EXCL mode
+critical:File.open raises an Errorno::EEXIST if the file exists when open with File::CREAT|File::EXCL
+critical:File.open create a new file when use File::WRONLY|File::APPEND mode
+critical:File.open opens a file when use File::WRONLY|File::APPEND mode
+critical:File.open raises an IOError if the file exists when open with File::RDONLY|File::APPEND
+critical:File.open truncates the file when passed File::TRUNC mode
+critical:File.open can't read in a block when call open with File::TRUNC mode
+critical:File.open opens a file when use File::WRONLY|File::TRUNC mode
+critical:File.open can't write in a block when call open with File::TRUNC mode
+critical:File.open raises an Errorno::EEXIST if the file exists when open with File::RDONLY|File::TRUNC
+fails:File.open with a block invokes close on opened file when exiting the block
+fails:File.open with a block propagates non-StandardErrors produced by close
+fails:File.open opens file when call with a block (basic case)
+fails:File.open opens a file with mode string and block
+fails:File.open opens a file with mode num and block
+fails:File.open opens the file when passed mode, num, permissions and block
+fails:File.open creates a new write-only file when invoked with 'w' and '0222'
+fails:File.open opens the file when call with fd
+fails:File.open opens a file with a file descriptor d and a block
+fails:File.open opens a file that no exists when use 'r' mode
+fails:File.open raises an IOError when read in a block opened with 'w' mode
+fails:File.open raises an Errno::EACCES when opening non-permitted file
+fails:File.open raises an Errno::EACCES when opening read-only file
+fails:File.open opens a file for read-write and truncate the file
+fails:File.open opens a file for binary read-write and truncate the file
+fails:File.open raises a SystemCallError if passed an invalid Integer type

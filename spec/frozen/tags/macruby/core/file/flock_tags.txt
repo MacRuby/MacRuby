@@ -1,0 +1,1 @@
+critical:File#flock should lock a file
