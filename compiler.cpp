@@ -1941,10 +1941,12 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Va
 	    new_params.push_back(params[7 + i]);
 	}
 	Value *thenVal = compile_dispatch_call(new_params);
+	thenBB = bb;
 	BranchInst::Create(mergeBB, thenBB);
 
 	bb = elseBB;
 	Value *elseVal = compile_dispatch_call(params);
+	elseBB = bb;
 	BranchInst::Create(mergeBB, elseBB);
 
 	bb = mergeBB;
