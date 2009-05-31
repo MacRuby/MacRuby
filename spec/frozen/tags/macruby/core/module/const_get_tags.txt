@@ -1,0 +1,2 @@
+fails:Module#const_get with statically assigned constants searches the superclass chain
+fails:Module#const_get with dynamically assigned constants searches the superclass chain
