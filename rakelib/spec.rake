@@ -71,7 +71,6 @@ namespace :spec do
     spec/frozen/core/nil
     spec/frozen/core/numeric
     spec/frozen/core/object
-    spec/frozen/core/send
     spec/frozen/core/symbol
     spec/frozen/core/true
     spec/frozen/core/unboundmethod
