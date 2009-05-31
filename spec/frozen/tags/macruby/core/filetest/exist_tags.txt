@@ -1,0 +1,1 @@
+fails:FileTest.exist? raises an ArgumentError if not passed one argument

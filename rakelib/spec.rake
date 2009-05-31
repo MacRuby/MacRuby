@@ -64,6 +64,7 @@ namespace :spec do
     spec/frozen/core/exception
     spec/frozen/core/false
     spec/frozen/core/file
+    spec/frozen/core/filetest
     spec/frozen/core/hash
     spec/frozen/core/math
     spec/frozen/core/method
