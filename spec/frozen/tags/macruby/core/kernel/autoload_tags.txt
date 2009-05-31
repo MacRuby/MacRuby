@@ -1,0 +1,11 @@
+critical:Kernel#autoload registers a file to load the first time the named constant is accessed
+critical:Kernel.autoload registers a file to load the first time the toplevel constant is accessed
+critical:Kernel.autoload? returns the name of the file that will be autoloaded
+critical:Kernel.autoload? returns nil if no file has been registered for a constant
+fails:Kernel#autoload is a private method
+fails:Kernel#autoload sets the autoload constant in Object's constant table
+fails:Kernel#autoload loads the file when the constant is accessed
+fails:Kernel#autoload does not call Kernel.require or Kernel.load to load the file
+fails:Kernel#autoload? is a private method
+fails:Kernel#autoload? returns the name of the file that will be autoloaded
+fails:Kernel.autoload sets the autoload constant in Object's metaclass's constant table

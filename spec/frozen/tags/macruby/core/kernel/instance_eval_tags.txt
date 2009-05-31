@@ -1,0 +1,8 @@
+critical:Kernel#instance_eval treats block-local variables as local to the block
+fails:Kernel#instance_eval passes the object to the block
+fails:Kernel#instance_eval only binds the eval to the receiver
+fails:Kernel#instance_eval shares a scope across sibling evals
+fails:Kernel#instance_eval sets class variables in the receiver
+fails:Kernel#instance_eval raises a TypeError when defining methods on an immediate
+fails:Kernel#instance_eval raises a TypeError when defining methods on numerics
+fails:Kernel#instance_eval has access to receiver's instance variables

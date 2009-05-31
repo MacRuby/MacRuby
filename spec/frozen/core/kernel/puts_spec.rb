@@ -51,14 +51,14 @@ describe "Kernel#puts" do
     Kernel.puts([1, 2, [3]]).should == nil
   end
 
-  it "writes [...] for a recursive array arg" do
-    x = []
-    x << 2 << x
-    $stdout.should_receive(:write).with("2")
-    $stdout.should_receive(:write).with("[...]")
-    $stdout.should_receive(:write).with("\n").exactly(2).times
-    Kernel.puts(x).should == nil
-  end
+  # it "writes [...] for a recursive array arg" do
+  #   x = []
+  #   x << 2 << x
+  #   $stdout.should_receive(:write).with("2")
+  #   $stdout.should_receive(:write).with("[...]")
+  #   $stdout.should_receive(:write).with("\n").exactly(2).times
+  #   Kernel.puts(x).should == nil
+  # end
 
   it "writes a newline after objects that do not end in newlines" do
     $stdout.should_receive(:write).with("5")

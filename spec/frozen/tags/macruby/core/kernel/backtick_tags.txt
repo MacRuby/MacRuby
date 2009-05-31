@@ -1,0 +1,2 @@
+fails:Kernel#` is a private method
+fails:Kernel#` sets $? to the exit status of the executed sub-process

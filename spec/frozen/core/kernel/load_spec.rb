@@ -1,5 +1,7 @@
 require File.dirname(__FILE__) + '/../../spec_helper'
 
+require 'fileutils'
+
 $load_fixture_dir = (File.dirname(__FILE__) + '/../../fixtures/load')
 $LOAD_PATH << $load_fixture_dir
 

@@ -66,6 +66,7 @@ namespace :spec do
     spec/frozen/core/file
     spec/frozen/core/filetest
     spec/frozen/core/hash
+    spec/frozen/core/kernel
     spec/frozen/core/math
     spec/frozen/core/method
     spec/frozen/core/nil
@@ -92,12 +93,12 @@ namespace :spec do
   
   desc "Run continuous integration language examples (all known good examples)"
   task :ci do
-    sh "./mspec/bin/mspec ci -B #{MACRUBY_MSPEC} spec/macruby #{CI_DIRS} #{KNOWN_GOOD_CORE_IO_FILES.join(' ')}"
+    sh "./mspec/bin/mspec ci -I./lib -B #{MACRUBY_MSPEC} spec/macruby #{CI_DIRS} #{KNOWN_GOOD_CORE_IO_FILES.join(' ')}"
   end
   
   desc "Run continuous integration language examples (all known good examples) (32 bit mode)"
   task :ci32 do
-    sh "/usr/bin/arch -arch i386 ./miniruby ./mspec/bin/mspec-ci -B #{MACRUBY_MSPEC} #{CI_DIRS} #{KNOWN_GOOD_CORE_IO_FILES.join(' ')}"
+    sh "/usr/bin/arch -arch i386 ./miniruby ./mspec/bin/mspec-ci -I./lib -B #{MACRUBY_MSPEC} #{CI_DIRS} #{KNOWN_GOOD_CORE_IO_FILES.join(' ')}"
   end
   
   desc "Run IO test with GDB enabled"
@@ -129,7 +130,8 @@ namespace :spec do
     mkdir_p tag_base
     
     Dir.glob("./spec/frozen/core/#{klass}/*_spec.rb").each do |spec_file|
-      cmd = "./mspec/bin/mspec ci -f s -B ./spec/macruby.mspec #{spec_file}"
+      puts "Running spec: #{spec_file}"
+      cmd = "./mspec/bin/mspec ci -I./lib -f s -B ./spec/macruby.mspec #{spec_file}"
       out = `#{cmd}`
       
       if out.match(/^1\)(.+?)(FAILED|ERROR)/m)
@@ -139,6 +141,7 @@ namespace :spec do
         puts "Writing tags file: #{tag_file}"
         
         File.open(tag_file, 'a+') do |f|
+          f << "\n" unless f.read.empty?
           failures.each do |failure|
             f << "fails:#{failure}\n"
           end

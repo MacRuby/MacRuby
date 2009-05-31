@@ -1,0 +1,1 @@
+fails:Kernel#taint has no effect on immediate values

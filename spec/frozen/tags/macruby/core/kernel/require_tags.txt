@@ -1,0 +1,13 @@
+fails:Shell expansion in Kernel#require expands a preceding ~/ to the user's home directory for building the path to search
+fails:Shell expansion in Kernel#require adds the path to $LOADED_FEATURES
+fails:Kernel#require is a private method
+fails:Kernel#require loads a .rb from an absolute path and returns true
+fails:Kernel#require prefers to use .rb over .<ext> if given non-extensioned file and both exist
+fails:Kernel#require will load file.rb when given 'file' if it exists even if file.<ext> is loaded
+fails:Kernel#require produces __FILE__ as the given filename and __LINE__ as the source line number
+fails:Kernel#require stores the loaded file in $LOADED_FEATURES
+fails:Kernel#require stores a non-extensioned file with its located suffix
+fails:Kernel#require bases the filename in $LOADED_FEATURES on the path given, not just basename
+fails:Kernel#require will not load the same file twice, returns false instead
+fails:Kernel#require checks $LOADED_FEATURES to see whether file is already loaded
+fails:Kernel#require does not infinite loop on an rb file that requires itself
