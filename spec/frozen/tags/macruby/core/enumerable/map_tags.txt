@@ -1,0 +1,1 @@
+fails:Enumerable#map returns an enumerator when no block given

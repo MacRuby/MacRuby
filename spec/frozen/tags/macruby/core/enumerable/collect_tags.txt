@@ -1,0 +1,1 @@
+fails:Enumerable#collect returns an enumerator when no block given

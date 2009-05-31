@@ -1,0 +1,2 @@
+critical:Enumerable#each_with_index passes extra parameters to each
+fails:Enumerable#each_with_index returns an enumerator if no block
