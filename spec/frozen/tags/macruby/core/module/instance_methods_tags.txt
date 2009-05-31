@@ -1,0 +1,1 @@
+fails:Module#instance_methods does not return undefined methods

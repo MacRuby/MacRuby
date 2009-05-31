@@ -1,0 +1,8 @@
+fails:Module#include adds all ancestor modules when a previously included module is included again
+fails:Module#include imports constants to modules and classes
+fails:Module#include imports instance methods to modules and classes
+fails:Module#include does not import methods to modules and classes
+fails:Module#include doesn't include module if it is included in a super class
+fails:Module#include recursively includes new mixins
+fails:Module#include detects cyclic includes
+fails:Module#include? raises a TypeError when no module was given

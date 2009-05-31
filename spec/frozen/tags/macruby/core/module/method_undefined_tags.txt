@@ -1,0 +1,1 @@
+fails:Module#method_undefined is called when a method is undefined from self

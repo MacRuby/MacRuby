@@ -1,0 +1,2 @@
+fails:Module#class_eval shares a scope across sibling evals
+fails:Module#class_eval does not add defined methods to other classes

@@ -1,0 +1,1 @@
+fails:Module#public_instance_methods when passed false as a parameter, should return only methods defined in that module

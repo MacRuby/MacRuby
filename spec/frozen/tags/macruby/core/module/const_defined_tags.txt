@@ -1,0 +1,1 @@
+fails:Module#const_defined? returns false if the constant is not defined in the receiver

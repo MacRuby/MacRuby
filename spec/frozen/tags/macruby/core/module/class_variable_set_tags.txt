@@ -1,0 +1,2 @@
+fails:Module#class_variable_set accepts Fixnums for class variables
+fails:Module#class_variable_set raises a TypeError when self is frozen

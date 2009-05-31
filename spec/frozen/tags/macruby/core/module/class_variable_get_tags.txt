@@ -1,0 +1,3 @@
+fails:Module#class_variable_get returns the value of a class variable with the given name defined in an included module
+fails:Module#class_variable_get accepts Fixnums for class variables
+fails:Module#class_variable_get raises a NameError when a Fixnum for an uninitialized class variable is given

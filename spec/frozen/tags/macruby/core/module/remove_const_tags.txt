@@ -1,0 +1,3 @@
+fails:Module#remove_const removes the constant specified by a String or Symbol from the receiver's constant table
+fails:Module#remove_const raises a NameError if the constant is not defined directly in the module
+fails:Module#remove_const is a private method

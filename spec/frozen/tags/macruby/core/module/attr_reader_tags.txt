@@ -1,0 +1,2 @@
+fails:Module#attr_reader creates a getter for each given attribute name
+fails:Module#attr_reader applies current visibility to methods created

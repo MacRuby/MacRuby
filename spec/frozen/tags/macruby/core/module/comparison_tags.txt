@@ -1,0 +1,2 @@
+fails:Module#<=> returns -1 if self is a subclass of or includes the given module
+fails:Module#<=> returns +1 if self is a superclas of or included by the given module

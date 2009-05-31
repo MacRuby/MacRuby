@@ -68,6 +68,7 @@ namespace :spec do
     spec/frozen/core/kernel
     spec/frozen/core/math
     spec/frozen/core/method
+    spec/frozen/core/module
     spec/frozen/core/nil
     spec/frozen/core/numeric
     spec/frozen/core/object
