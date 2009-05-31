@@ -61,6 +61,7 @@ namespace :spec do
     spec/frozen/core/class
     spec/frozen/core/comparable
     spec/frozen/core/enumerable
+    spec/frozen/core/exception
     spec/frozen/core/false
     spec/frozen/core/hash
     spec/frozen/core/math
