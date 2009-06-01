@@ -78,8 +78,8 @@ describe "String#chomp with separator" do
   end
   
   it "raises a TypeError if separator can't be converted to a string" do
-    lambda { "hello".chomp(?o)        }.should raise_error(TypeError)
-    lambda { "hello".chomp(:llo)      }.should raise_error(TypeError)
+    lambda { "hello".chomp(30.3)      }.should raise_error(TypeError)
+    lambda { "hello".chomp([])        }.should raise_error(TypeError)
     lambda { "hello".chomp(mock('x')) }.should raise_error(TypeError)
   end
   

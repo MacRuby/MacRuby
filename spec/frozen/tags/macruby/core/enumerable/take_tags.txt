@@ -3,3 +3,4 @@ fails:Enumerable#take when passed an argument returns the first count elements i
 fails:Enumerable#take when passed an argument returns an empty array when passed count == 0
 fails:Enumerable#take when passed an argument returns an array containing the first element when passed count == 1
 fails:Enumerable#take when passed an argument tries to convert the passed argument to an Integer using #to_int
+fails:Enumerable#take when passed an argument consumes only what is needed
