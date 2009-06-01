@@ -1,0 +1,1 @@
+critical:Integer#round returns self

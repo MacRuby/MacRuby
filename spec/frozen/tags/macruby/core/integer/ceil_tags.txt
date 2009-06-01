@@ -1,0 +1,1 @@
+critical:Integer#ceil returns self

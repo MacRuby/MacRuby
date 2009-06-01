@@ -1,0 +1,1 @@
+critical:Integer#to_int returns self

@@ -1,0 +1,1 @@
+critical:Integer#succ returns the Integer equal to self + 1

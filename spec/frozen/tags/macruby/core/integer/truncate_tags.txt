@@ -1,0 +1,1 @@
+critical:Integer#truncate returns self

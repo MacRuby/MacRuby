@@ -1,0 +1,1 @@
+critical:Integer#chr raises a RangeError if self is out of the ASCII character range

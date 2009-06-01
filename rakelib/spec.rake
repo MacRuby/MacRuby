@@ -66,6 +66,7 @@ namespace :spec do
     spec/frozen/core/file
     spec/frozen/core/filetest
     spec/frozen/core/hash
+    spec/frozen/core/integer
     spec/frozen/core/kernel
     spec/frozen/core/matchdata
     spec/frozen/core/math
