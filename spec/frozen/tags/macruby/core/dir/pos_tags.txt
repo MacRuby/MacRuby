@@ -1,0 +1,4 @@
+critical:Dir#pos= moves the read position to a previously obtained position
+critical:Dir#pos raises an IOError when called on a closed Dir instance
+critical:Dir#pos returns a different Integer if moved from previous position
+critical:Dir#pos returns an Integer representing the current position in the directory

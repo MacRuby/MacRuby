@@ -59,6 +59,7 @@ namespace :spec do
     spec/frozen/core/basicobject
     spec/frozen/core/class
     spec/frozen/core/comparable
+    spec/frozen/core/dir
     spec/frozen/core/enumerable
     spec/frozen/core/exception
     spec/frozen/core/false

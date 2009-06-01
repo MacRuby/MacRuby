@@ -1,1 +1,2 @@
 fails:Kernel.fail is a private method
+fails:Kernel.fail raises a RuntimeError
