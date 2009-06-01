@@ -98,12 +98,11 @@ DLDFLAGS = "-dynamiclib -undefined suppress -flat_namespace -install_name #{INST
 OBJS = %w{ 
   array bignum class compar complex enum enumerator error eval file load proc 
   gc hash inits io math numeric object pack parse prec dir process
-  random range rational re 
-  onig/regcomp onig/regext onig/regposix onig/regenc onig/reggnu onig/regsyntax
-  onig/regerror onig/regparse onig/regtrav
-  onig/regexec onig/regposerr onig/regversion
-  onig/enc/ascii onig/enc/unicode onig/enc/utf8 onig/enc/euc_jp onig/enc/sjis
-  onig/enc/iso8859_1 onig/enc/utf16_be onig/enc/utf16_le onig/enc/utf32_be onig/enc/utf32_le
+  random range rational re onig/regcomp onig/regext onig/regposix onig/regenc
+  onig/reggnu onig/regsyntax onig/regerror onig/regparse onig/regtrav
+  onig/regexec onig/regposerr onig/regversion onig/enc/ascii onig/enc/unicode
+  onig/enc/utf8 onig/enc/euc_jp onig/enc/sjis onig/enc/iso8859_1
+  onig/enc/utf16_be onig/enc/utf16_le onig/enc/utf32_be onig/enc/utf32_le
   ruby set signal sprintf st string struct time transcode util variable version
   thread id objc bs encoding main dln dmyext
   vm_eval prelude miniprelude gc-stub bridgesupport compiler vm MacRuby
