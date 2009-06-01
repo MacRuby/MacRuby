@@ -523,7 +523,7 @@ describe "String#slice! with String" do
       lambda { "hello hello".freeze.slice!('llo') }.should raise_error(RuntimeError)
     end
 
-    ruby_bug "#1551" do
+    ruby_bug "#1551", "1.9" do
       it "doesn't raise a RuntimeError if self is frozen but self does not contain other" do
         "this is a string".freeze.slice!('zzz').should == nil
       end

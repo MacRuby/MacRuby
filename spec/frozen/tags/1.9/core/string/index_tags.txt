@@ -1,4 +1,0 @@
-fails:String#index with Fixnum character values over 255 (256th ASCII character) always result in nil
-fails:String#index with Fixnum negative character values always result in nil
-fails:String#index with Fixnum returns nil if the character isn't found
-fails:String#index with Regexp behaves the same as String#index(string) for escaped string regexps

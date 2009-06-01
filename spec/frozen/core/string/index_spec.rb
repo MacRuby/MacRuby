@@ -212,23 +212,27 @@ describe "String#index with String" do
 end
 
 describe "String#index with Regexp" do
-  it "behaves the same as String#index(string) for escaped string regexps" do
-    ["blablabla", "hello cruel world...!"].each do |str|
-      ["", "b", "bla", "lab", "o c", "d."].each do |needle|
-        regexp = Regexp.new(Regexp.escape(needle))
-        str.index(regexp).should == str.index(needle)
-        
-        0.upto(str.size + 1) do |start|
-          str.index(regexp, start).should == str.index(needle, start)
-        end
-        
-        (-str.size - 1).upto(-1) do |start|
-          str.index(regexp, start).should == str.index(needle, start)
+  # This test fails on 1.9.2 because it handles empty regexps wrongly, i.e.
+  # when the regexp is //, the expectation isn't met.
+  ruby_bug "#1553", "1.9.2" do
+    it "behaves the same as String#index(string) for escaped string regexps" do
+      ["blablabla", "hello cruel world...!"].each do |str|
+        ["", "b", "bla", "lab", "o c", "d."].each do |needle|
+          regexp = Regexp.new(Regexp.escape(needle))
+          str.index(regexp).should == str.index(needle)
+          
+          0.upto(str.size + 1) do |start|
+            str.index(regexp, start).should == str.index(needle, start)
+          end
+          
+          (-str.size - 1).upto(-1) do |start|
+            str.index(regexp, start).should == str.index(needle, start)
+          end
         end
       end
     end
   end
-  
+
   it "returns the index of the first match of regexp" do
     "blablabla".index(/bla/).should == 0
     "blablabla".index(/BLA/i).should == 0
@@ -306,6 +310,12 @@ describe "String#index with Regexp" do
     "blablabla".index(/.{10}/).should == nil
     "blaxbla".index(/.x/, 3).should == nil
     "blaxbla".index(/..x/, 2).should == nil
+  end
+
+  ruby_bug "#1553", "1.9.2" do
+    it "returns nil if the Regexp matches the empty string and the offset is out of range" do
+      "ruby".index(//,12).should be_nil
+    end
   end
 
   it "supports \\G which matches at the given start offset" do
