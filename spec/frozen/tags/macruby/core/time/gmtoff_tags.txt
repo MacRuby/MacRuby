@@ -1,0 +1,1 @@
+fails:Time#gmtoff returns the offset in seconds between the timezone of time and UTC

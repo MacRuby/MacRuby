@@ -1,0 +1,2 @@
+fails:Time#strftime formats time according to the directives in the given format string
+fails:Time#strftime supports timezone formatting with %z

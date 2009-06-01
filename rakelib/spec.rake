@@ -78,6 +78,7 @@ namespace :spec do
     spec/frozen/core/string
     spec/frozen/core/symbol
     spec/frozen/core/systemexit
+    spec/frozen/core/time
     spec/frozen/core/true
     spec/frozen/core/unboundmethod
   }.join(' ')
