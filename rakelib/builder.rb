@@ -84,7 +84,7 @@ RUBY_VENDOR_ARCHLIB = File.join(RUBY_VENDOR_LIB2, NEW_RUBY_PLATFORM)
 INSTALL_NAME = File.join(FRAMEWORK_USR_LIB, 'lib' + RUBY_SO_NAME + '.dylib')
 ARCHFLAGS = ARCHS.map { |a| '-arch ' + a }.join(' ')
 LLVM_MODULES = "core jit nativecodegen interpreter bitwriter"
-CFLAGS = "-I. -I./include -I/usr/include/libxml2 #{ARCHFLAGS} -fno-common -pipe -O3 -g -Wall -fexceptions"
+CFLAGS = "-I. -I./include -I./onig -I/usr/include/libxml2 #{ARCHFLAGS} -fno-common -pipe -O3 -g -Wall -fexceptions"
 CFLAGS << " -Wno-parentheses -Wno-deprecated-declarations -Werror" if NO_WARN_BUILD
 OBJC_CFLAGS = CFLAGS + " -fobjc-gc-only"
 CXXFLAGS = `#{LLVM_CONFIG} --cxxflags #{LLVM_MODULES}`.strip
@@ -98,9 +98,14 @@ DLDFLAGS = "-dynamiclib -undefined suppress -flat_namespace -install_name #{INST
 OBJS = %w{ 
   array bignum class compar complex enum enumerator error eval file load proc 
   gc hash inits io math numeric object pack parse prec dir process
-  random range rational re regcomp regenc regerror regexec regparse regsyntax
+  random range rational re 
+  onig/regcomp onig/regext onig/regposix onig/regenc onig/reggnu onig/regsyntax
+  onig/regerror onig/regparse onig/regtrav
+  onig/regexec onig/regposerr onig/regversion
+  onig/enc/ascii onig/enc/unicode onig/enc/utf8 onig/enc/euc_jp onig/enc/sjis
+  onig/enc/iso8859_1 onig/enc/utf16_be onig/enc/utf16_le onig/enc/utf32_be onig/enc/utf32_le
   ruby set signal sprintf st string struct time transcode util variable version
-  thread id objc bs encoding main dln dmyext enc/ascii 
+  thread id objc bs encoding main dln dmyext
   vm_eval prelude miniprelude gc-stub bridgesupport compiler vm MacRuby
 }
 

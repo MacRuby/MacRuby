@@ -18,11 +18,7 @@ extern "C" {
 #endif
 #endif
 
-#ifdef RUBY
-#include "ruby/oniguruma.h"
-#else
 #include "oniguruma.h"
-#endif
 
 #ifndef ONIG_RUBY_M17N
 
