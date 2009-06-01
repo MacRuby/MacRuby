@@ -324,14 +324,27 @@ describe "String#sub! with pattern, replacement" do
     a.should == "hello"
   end
 
-  it "raises a TypeError when self is frozen" do
-    s = "hello"
-    s.freeze
+  ruby_version_is ""..."1.9" do
+    it "raises a TypeError when self is frozen" do
+      s = "hello"
+      s.freeze
 
-    s.sub!(/ROAR/, "x") # ok
-    lambda { s.sub!(/e/, "e")       }.should raise_error(TypeError)
-    lambda { s.sub!(/[aeiou]/, '*') }.should raise_error(TypeError)
+      s.sub!(/ROAR/, "x") # ok
+      lambda { s.sub!(/e/, "e")       }.should raise_error(TypeError)
+      lambda { s.sub!(/[aeiou]/, '*') }.should raise_error(TypeError)
+    end
   end
+
+  ruby_version_is "1.9" do    
+    it "raises a RuntimeError when self is frozen" do
+      s = "hello"
+      s.freeze
+
+      s.sub!(/ROAR/, "x") # ok
+      lambda { s.sub!(/e/, "e")       }.should raise_error(RuntimeError)
+      lambda { s.sub!(/[aeiou]/, '*') }.should raise_error(RuntimeError)
+    end
+  end    
 end
 
 describe "String#sub! with pattern and block" do

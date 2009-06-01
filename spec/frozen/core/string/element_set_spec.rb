@@ -74,11 +74,22 @@ describe "String#[]= with index" do
     lambda { "hi"[0] = obj }.should raise_error(TypeError)
   end
 
-  it "raises a TypeError when self is frozen" do
-    a = "hello"
-    a.freeze
+  ruby_version_is ""..."1.9" do
+    it "raises a TypeError when self is frozen" do
+      a = "hello"
+      a.freeze
 
-    lambda { a[0] = ?b }.should raise_error(TypeError)
+      lambda { a[0] = ?b }.should raise_error(TypeError)
+    end
+  end
+
+  ruby_version_is "1.9" do
+    it "raises a RuntimeError when self is frozen" do
+      a = "hello"
+      a.freeze
+
+      lambda { a[0] = ?b }.should raise_error(RuntimeError)
+    end
   end
 end
 
@@ -126,11 +137,22 @@ describe "String#[]= with String" do
     str.should == "hello"
   end
 
-  it "raises a TypeError when self is frozen" do
-    a = "hello"
-    a.freeze
+  ruby_version_is ""..."1.9" do
+    it "raises a TypeError when self is frozen" do
+      a = "hello"
+      a.freeze
 
-    lambda { a[0] = "bam" }.should raise_error(TypeError)
+      lambda { a[0] = "bam" }.should raise_error(TypeError)
+    end
+  end
+
+  ruby_version_is "1.9" do
+    it "raises a RuntimeError when self is frozen" do
+      a = "hello"
+      a.freeze
+
+      lambda { a[0] = "bam" }.should raise_error(RuntimeError)
+    end
   end
 
   it "calls to_int on index" do

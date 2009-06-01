@@ -17,12 +17,23 @@ describe :string_concat, :shared => true do
     lambda { a = 'hello '.send(@method, mock('x')) }.should raise_error(TypeError)
   end
 
-  it "raises a TypeError when self is frozen" do
-    a = "hello"
-    a.freeze
+  ruby_version_is ""..."1.9" do
+    it "raises a TypeError when self is frozen" do
+      a = "hello"
+      a.freeze
 
-    lambda { a.send(@method, "")     }.should raise_error(TypeError)
-    lambda { a.send(@method, "test") }.should raise_error(TypeError)
+      lambda { a.send(@method, "")     }.should raise_error(TypeError)
+      lambda { a.send(@method, "test") }.should raise_error(TypeError)
+    end
+  end
+  ruby_version_is "1.9" do
+    it "raises a RuntimeError when self is frozen" do
+      a = "hello"
+      a.freeze
+
+      lambda { a.send(@method, "")     }.should raise_error(RuntimeError)
+      lambda { a.send(@method, "test") }.should raise_error(RuntimeError)
+    end
   end
 
   it "works when given a subclass instance" do
@@ -61,11 +72,23 @@ describe :string_concat_fixnum, :shared => true do
     lambda { "".send(@method, x) }.should raise_error(TypeError)
   end
 
-  it "raises a TypeError when self is frozen" do
-    a = "hello"
-    a.freeze
+  ruby_version_is ""..."1.9" do
+    it "raises a TypeError when self is frozen" do
+      a = "hello"
+      a.freeze
 
-    lambda { a.send(@method, 0)  }.should raise_error(TypeError)
-    lambda { a.send(@method, 33) }.should raise_error(TypeError)
+      lambda { a.send(@method, 0)  }.should raise_error(TypeError)
+      lambda { a.send(@method, 33) }.should raise_error(TypeError)
+    end
   end
+
+  ruby_version_is "1.9" do
+    it "raises a RuntimeError when self is frozen" do
+      a = "hello"
+      a.freeze
+
+      lambda { a.send(@method, 0)  }.should raise_error(RuntimeError)
+      lambda { a.send(@method, 33) }.should raise_error(RuntimeError)
+    end
+  end    
 end

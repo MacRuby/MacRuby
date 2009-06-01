@@ -1,2 +1,2 @@
 fails:String#strip returns a new string with leading and trailing whitespace removed
-fails:String#strip! raises a TypeError if self is frozen
+fails:String#strip! raises a RuntimeError if self is frozen

@@ -27,11 +27,22 @@ describe "String#replace" do
     lambda { "hello".replace(mock('x')) }.should raise_error(TypeError)
   end
 
-  it "raises a TypeError if self is frozen" do
-    a = "hello".freeze
+  ruby_version_is ""..."1.9" do
+    it "raises a TypeError if self is frozen" do
+      a = "hello".freeze
 
-    a.replace(a) # ok, no change
-    lambda { a.replace("")      }.should raise_error(TypeError)
-    lambda { a.replace("world") }.should raise_error(TypeError)
+      a.replace(a) # ok, no change
+      lambda { a.replace("")      }.should raise_error(TypeError)
+      lambda { a.replace("world") }.should raise_error(TypeError)
+    end
+  end
+  ruby_version_is ""..."1.9" do
+    it "raises a RuntimeError if self is frozen" do
+      a = "hello".freeze
+
+      a.replace(a) # ok, no change
+      lambda { a.replace("")      }.should raise_error(RuntimeError)
+      lambda { a.replace("world") }.should raise_error(RuntimeError)
+    end
   end
 end

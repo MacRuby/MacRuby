@@ -90,11 +90,23 @@ describe "String#squeeze!" do
     a.should == "squeeze"
   end
 
-  it "raises a TypeError when self is frozen" do
-    a = "yellow moon"
-    a.freeze
+  ruby_version_is ""..."1.9" do
+    it "raises a TypeError when self is frozen" do
+      a = "yellow moon"
+      a.freeze
 
-    lambda { a.squeeze!("") }.should raise_error(TypeError)
-    lambda { a.squeeze!     }.should raise_error(TypeError)
+      lambda { a.squeeze!("") }.should raise_error(TypeError)
+      lambda { a.squeeze!     }.should raise_error(TypeError)
+    end
+  end
+
+  ruby_version_is "1.9" do
+    it "raises a RuntimeError when self is frozen" do
+      a = "yellow moon"
+      a.freeze
+
+      lambda { a.squeeze!("") }.should raise_error(RuntimeError)
+      lambda { a.squeeze!     }.should raise_error(RuntimeError)
+    end
   end
 end

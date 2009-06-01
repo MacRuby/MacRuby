@@ -53,7 +53,6 @@ describe "Hash#merge" do
     merge_pairs.should == each_pairs
   end
 
-  it_behaves_like(:hash_iteration_modifying, :merge)
 end
 
 describe "Hash#merge!" do
@@ -71,9 +70,5 @@ describe "Hash#merge!" do
         hash.each { hash.merge!(big_hash) }
       }.should_not raise_error(RuntimeError)
     end
-  end
-
-  compliant_on :rubinius do
-    it_behaves_like(:hash_iteration_modifying, :merge!)
   end
 end

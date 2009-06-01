@@ -1,2 +1,2 @@
 fails:String#rstrip returns a copy of self with trailing whitespace removed
-fails:String#rstrip! raises a TypeError if self is frozen
+fails:String#rstrip! raises a RuntimeError if self is frozen

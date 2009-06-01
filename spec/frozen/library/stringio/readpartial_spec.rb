@@ -31,18 +31,22 @@ ruby_version_is "1.9" do
       @string.readpartial(3).should == ", l"
     end
 
-  #  it "reads after ungetc without data in the buffer" do
-  #    @string = StringIO.new
-  #    @string.write("f")
-  #    c = @string.getc
-  #    @string.ungetc(c)
-  #    @string.readpartial(2).should == "f"
-  #
-  #    # now, also check that the ungot char is cleared and
-  #    # not returned again
-  #    @string.write("b")
-  #    @string.readpartial(2).should == "b"
-  #  end
+    it "reads after ungetc without data in the buffer" do
+      @string = StringIO.new
+      @string.write("f").should == 1
+      @string.rewind
+      c = @string.getc
+      c.should == 'f'
+      @string.ungetc(c).should == nil
+      
+      @string.readpartial(2).should == "f"
+      @string.rewind 
+      # now, also check that the ungot char is cleared and
+      # not returned again
+      @string.write("b").should == 1
+      @string.rewind
+      @string.readpartial(2).should == "b"
+    end
 
     it "discards the existing buffer content upon successful read" do
       buffer = "existing"

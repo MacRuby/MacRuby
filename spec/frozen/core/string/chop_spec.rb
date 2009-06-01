@@ -63,13 +63,27 @@ describe "String#chop!" do
     "".chop!.should == nil
   end
   
-  it "raises a TypeError when self is frozen" do
-    a = "string\n\r"
-    a.freeze
-    lambda { a.chop! }.should raise_error(TypeError)
+  ruby_version_is ""..."1.9" do
+    it "raises a TypeError when self is frozen" do
+      a = "string\n\r"
+      a.freeze
+      lambda { a.chop! }.should raise_error(TypeError)
 
-    a = ""
-    a.freeze
-    a.chop! # ok, no change
+      a = ""
+      a.freeze
+      a.chop! # ok, no change
+    end
+  end
+
+  ruby_version_is "1.9" do
+    it "raises a RuntimeError when self is frozen" do
+      a = "string\n\r"
+      a.freeze
+      lambda { a.chop! }.should raise_error(RuntimeError)
+
+      a = ""
+      a.freeze
+      a.chop! # ok, no change
+    end
   end
 end

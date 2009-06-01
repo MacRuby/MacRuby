@@ -101,25 +101,15 @@ class Rake::UpstreamGitRepoTasks
         end
 
         namespace :upstream do
-          desc "Creates all individual patches in #{@local_dir}/upstream_patches since upstream revision: #{upstream_rev}"
-          task :patches do
-            create_patches = "git format-patch --numbered --output-directory #{File.join(@local_dir, 'upstream_patches')} #{upstream_rev}"
+          desc "Creates patch since upstream revision `#{upstream_rev}' and applies it"
+          task :patch do
+            patch = File.join(@local_dir, 'upstream_patch.diff')
             Dir.chdir(@upstream_dir) do
               git_checkout('master')
-              sh create_patches
+              sh "git diff #{upstream_rev} > #{patch}"
             end
-          end
-
-          namespace :patches do
-            desc "Applies all patches in #{@local_dir}/upstream_patches"
-            task :apply do
-              Dir.chdir(@local_dir) do
-                patches = Dir.glob("upstream_patches/*.patch")
-                patches.sort_by { |name| File.basename(name)[0,4] }.each do |patch|
-                  puts "\nApplying patch: #{File.basename(patch)}"
-                  sh "/usr/bin/patch -p1 < #{patch}"
-                end
-              end
+            Dir.chdir(@local_dir) do
+              sh "/usr/bin/patch -p1 < #{patch}"
             end
           end
 
