@@ -66,6 +66,7 @@ namespace :spec do
     spec/frozen/core/filetest
     spec/frozen/core/hash
     spec/frozen/core/kernel
+    spec/frozen/core/matchdata
     spec/frozen/core/math
     spec/frozen/core/method
     spec/frozen/core/module
@@ -76,6 +77,7 @@ namespace :spec do
     spec/frozen/core/regexp
     spec/frozen/core/string
     spec/frozen/core/symbol
+    spec/frozen/core/systemexit
     spec/frozen/core/true
     spec/frozen/core/unboundmethod
   }.join(' ')
