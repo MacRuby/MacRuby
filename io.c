@@ -227,34 +227,38 @@ rb_io_assert_readable(rb_io_t *io_struct)
 static bool
 rb_io_is_open(rb_io_t *io_struct) 
 {
-	// Either the readStream or the writeStream must be not null and open.
-	return ((io_struct->readStream == NULL) ?
-			(io_struct->writeStream != NULL && CFWriteStreamGetStatus(io_struct->writeStream) == kCFStreamStatusOpen) :
-			(CFReadStreamGetStatus(io_struct->readStream) == kCFStreamStatusOpen));
+    // Either the readStream or the writeStream must be not null and open.
+    return ((io_struct->readStream == NULL) ?
+	    (io_struct->writeStream != NULL && CFWriteStreamGetStatus(io_struct->writeStream) == kCFStreamStatusOpen) :
+	    (CFReadStreamGetStatus(io_struct->readStream) == kCFStreamStatusOpen));
 }
 
 static void
 rb_io_assert_open(rb_io_t *io_struct)
 {
-	if (!rb_io_is_open(io_struct)) {
-		rb_raise(rb_eIOError, "cannot perform that operation on a closed stream");
-	}
+    if (!rb_io_is_open(io_struct)) {
+	rb_raise(rb_eIOError, "cannot perform that operation on a closed stream");
+    }
 }
 
 static bool
 rb_io_is_closed_for_reading(rb_io_t *io_struct) 
 {
-	if (io_struct->readStream == NULL) return true;
-	CFStreamStatus s = CFReadStreamGetStatus(io_struct->readStream);
-	return ((s == kCFStreamStatusNotOpen) || (s == kCFStreamStatusClosed));
+    if (io_struct->readStream == NULL) {
+	return true;
+    }	
+    CFStreamStatus s = CFReadStreamGetStatus(io_struct->readStream);
+    return ((s == kCFStreamStatusNotOpen) || (s == kCFStreamStatusClosed));
 }
 
 static bool
 rb_io_is_closed_for_writing(rb_io_t *io_struct) 
 {
-	if (io_struct->writeStream == NULL) return true;
-	CFStreamStatus s = CFWriteStreamGetStatus(io_struct->writeStream);
-	return ((s == kCFStreamStatusNotOpen) || (s == kCFStreamStatusClosed));
+    if (io_struct->writeStream == NULL) {
+	return true;
+    }
+    CFStreamStatus s = CFWriteStreamGetStatus(io_struct->writeStream);
+    return ((s == kCFStreamStatusNotOpen) || (s == kCFStreamStatusClosed));
 }
 
 static VALUE
@@ -273,50 +277,57 @@ CFWriteStreamRef _CFWriteStreamCreateFromFileDescriptor(CFAllocatorRef alloc, in
 static inline void 
 prepare_io_from_fd(rb_io_t *io_struct, int fd, int mode)
 {
-    // TODO we should really get rid of these FMODE_* constants and instead always
-    // use the POSIX ones.
-    CFReadStreamRef r = NULL;
-    CFWriteStreamRef w = NULL;
+    // TODO we should really get rid of these FMODE_* constants and instead
+    // always use the POSIX ones.
 
-    if (mode != FMODE_WRITABLE) {
-	r = _CFReadStreamCreateFromFileDescriptor(NULL, fd);
+    bool read = false, write = false;
+    switch (mode & FMODE_READWRITE) {
+	case FMODE_READABLE:
+	    read = true;
+	    break;
+
+	case FMODE_WRITABLE:
+	    write = true;
+	    break;
+
+	case FMODE_READWRITE:
+	    read = write = true;
+	    break;
+    }
+    assert(read || write);
+
+    if (read) {
+	CFReadStreamRef r = _CFReadStreamCreateFromFileDescriptor(NULL, fd);
+	if (r != NULL) {
+	    CFReadStreamOpen(r);
+	    GC_WB(&io_struct->readStream, r);
+	    CFMakeCollectable(r);
+	} 
+	else {
+	    io_struct->readStream = NULL;
+	}
     }
 
-    if (mode != FMODE_READABLE) {
-	w = _CFWriteStreamCreateFromFileDescriptor(NULL, fd);
+    if (write) {
+	CFWriteStreamRef w = _CFWriteStreamCreateFromFileDescriptor(NULL, fd);
+	if (w != NULL) {
+	    CFWriteStreamOpen(w);
+	    GC_WB(&io_struct->writeStream, w);
+	    CFMakeCollectable(w);
+	} 
+	else {
+	    io_struct->writeStream = NULL;
+	}
     }
-
-    assert(r != NULL || w != NULL);
-
-    if (r != NULL) {
-	CFReadStreamOpen(r);
-	GC_WB(&io_struct->readStream, r);
-	CFMakeCollectable(r);
-    } 
-    else {
-	io_struct->readStream = NULL;
-    }
-    
-    if (w != NULL) {
-	CFWriteStreamOpen(w);
-	GC_WB(&io_struct->writeStream, w);
-	CFMakeCollectable(w);
-    } 
-    else {
-	io_struct->writeStream = NULL;
-    }
-    
+ 
     io_struct->pid = -1;
 
     // TODO: Eventually make the ungetc_buf a ByteString
     io_struct->fd = fd;
-	io_struct->pipe = -1;
+    io_struct->pipe = -1;
     io_struct->ungetc_buf = NULL;
     io_struct->ungetc_buf_len = 0;
     io_struct->ungetc_buf_pos = 0;
-
-	
-    
     io_struct->sync = mode & FMODE_SYNC;
 }
 
@@ -325,16 +336,24 @@ io_struct_close(rb_io_t *io_struct, bool close_read, bool close_write)
 {
     if (close_read && io_struct->readStream != NULL) {
 	CFReadStreamClose(io_struct->readStream);
+	io_struct->readStream = NULL;
     }
     if (close_write && io_struct->writeStream != NULL) {
 	CFWriteStreamClose(io_struct->writeStream);
+	io_struct->writeStream = NULL;
     }
-	if(io_struct->pipe != -1) {
-		write(io_struct->pipe, "\0", 1);
-		close(io_struct->pipe);
-	}
-	rb_last_status_set(0, io_struct->pid);
-	io_struct->pid = -1;
+    if (io_struct->pipe != -1) {
+	write(io_struct->pipe, "\0", 1);
+	close(io_struct->pipe);
+    }
+    rb_last_status_set(0, io_struct->pid);
+    io_struct->pid = -1;
+}
+
+int XXX_read(int fd)
+{
+    char foo[10];
+    return read(fd, foo, 1);
 }
 
 int
@@ -417,8 +436,8 @@ io_write(VALUE io, SEL sel, VALUE to_write)
 	    buffer = (UInt8 *)alloca(max + 1);
 	    if (!CFStringGetCString((CFStringRef)to_write, (char *)buffer, 
 			max, kCFStringEncodingUTF8)) {
-		
-			rb_raise(rb_eRuntimeError, "could not extract a string from the read data.");
+		rb_raise(rb_eRuntimeError,
+			"could not extract a string from the read data.");
 	    }
 	    length = strlen((char *)buffer);
 	}
@@ -429,7 +448,19 @@ io_write(VALUE io, SEL sel, VALUE to_write)
     }
 	
     rb_io_assert_writable(io_struct);
-    return LONG2FIX(CFWriteStreamWrite(io_struct->writeStream, buffer, length));
+
+    CFIndex code = CFWriteStreamWrite(io_struct->writeStream, buffer, length);
+    if (code == -1) {
+	CFErrorRef er = CFWriteStreamCopyError(io_struct->writeStream);
+	CFStringRef desc = CFErrorCopyDescription(er);
+	CFRelease(er);
+	CFMakeCollectable(desc);
+	rb_raise(rb_eRuntimeError,
+		"internal error while writing to stream: %s",
+		RSTRING_PTR(desc));
+    }
+
+    return LONG2FIX(code);
 }
 
 /*
@@ -474,9 +505,10 @@ rb_io_addstr(VALUE io, SEL sel, VALUE str)
 VALUE
 rb_io_flush(VALUE io, SEL sel)
 {
-	rb_io_t *io_struct = ExtractIOStruct(io);
-	rb_io_assert_open(io_struct);
-	// rb_warn("IO#flush on MacRuby is a no-op, as MacRuby does not buffer its IO streams internally");
+    rb_io_t *io_struct = ExtractIOStruct(io);
+    rb_io_assert_open(io_struct);
+    // IO#flush on MacRuby is a no-op, as MacRuby does not buffer its IO
+    // streams internally
     return io;
 }
 
@@ -509,7 +541,8 @@ rb_io_read_stream_get_offset(CFReadStreamRef stream)
 static inline void
 rb_io_read_stream_set_offset(CFReadStreamRef stream, off_t offset)
 {
-    CFNumberRef pos = CFNumberCreate(NULL, kCFNumberSInt64Type, (const void*)&offset);
+    CFNumberRef pos = CFNumberCreate(NULL, kCFNumberSInt64Type,
+	    (const void*)&offset);
     CFReadStreamSetProperty(stream, kCFStreamPropertyFileCurrentOffset, pos);
     CFRelease(pos);
 }
@@ -528,9 +561,9 @@ rb_io_seek(VALUE io, VALUE offset, int whence)
 {
     rb_io_t *io_struct = ExtractIOStruct(io);
     rb_io_assert_readable(io_struct); 
-	if (whence == SEEK_CUR) {
-		offset += rb_io_read_stream_get_offset(io_struct->readStream);
-	}
+    if (whence == SEEK_CUR) {
+	offset += rb_io_read_stream_get_offset(io_struct->readStream);
+    }
     // TODO: make this work with IO::SEEK_CUR, SEEK_END, etc.
     rb_io_read_stream_set_offset(io_struct->readStream, NUM2OFFT(offset));
 	
@@ -681,7 +714,7 @@ static VALUE
 rb_io_sync(VALUE io, SEL sel)
 {
     rb_io_t *io_struct = ExtractIOStruct(io);
-	rb_io_assert_open(io_struct);
+    rb_io_assert_open(io_struct);
     return io_struct->sync ? Qtrue : Qfalse;
 }
 
@@ -704,9 +737,8 @@ static VALUE
 rb_io_set_sync(VALUE io, SEL sel, VALUE mode)
 {
     rb_io_t *io_struct = ExtractIOStruct(io);
-	rb_io_assert_open(io_struct);
+    rb_io_assert_open(io_struct);
     io_struct->sync = RTEST(mode);
-	//if (io_struct->sync) rb_warn("The IO sync property is ignored, MacRuby does not buffer its IO streams internally");
     return mode;
 }
 
@@ -725,10 +757,12 @@ rb_io_set_sync(VALUE io, SEL sel, VALUE mode)
 static VALUE
 rb_io_fsync(VALUE io, SEL sel)
 {
-	rb_io_t *io_struct = ExtractIOStruct(io);
-	rb_io_assert_writable(io_struct);
-	if(fsync(io_struct->fd) < 0) rb_sys_fail("fsync() failed.");
-	return INT2FIX(0);
+    rb_io_t *io_struct = ExtractIOStruct(io);
+    rb_io_assert_writable(io_struct);
+    if (fsync(io_struct->fd) < 0) {
+	rb_sys_fail("fsync() failed.");
+    }
+    return INT2FIX(0);
 }
 
 /*
@@ -747,7 +781,7 @@ static VALUE
 rb_io_fileno(VALUE io, SEL sel)
 {
     rb_io_t *io_struct = ExtractIOStruct(io);
-	rb_io_assert_open(io_struct);
+    rb_io_assert_open(io_struct);
     return INT2FIX(io_struct->fd);
 }
 
@@ -775,9 +809,9 @@ rb_io_fileno(VALUE io, SEL sel)
 static VALUE
 rb_io_pid(VALUE io, SEL sel)
 {
-	rb_io_t *io_struct = ExtractIOStruct(io);
-	rb_io_assert_open(io_struct);
-	return ((io_struct->pid == -1) ? Qnil : INT2FIX(io_struct->pid));
+    rb_io_t *io_struct = ExtractIOStruct(io);
+    rb_io_assert_open(io_struct);
+    return ((io_struct->pid == -1) ? Qnil : INT2FIX(io_struct->pid));
 }
 
 
@@ -822,7 +856,7 @@ rb_io_stream_read_internal(CFReadStreamRef readStream, UInt8 *buffer, long len)
     long data_read = 0;
 	
     while (data_read < len) {
-	int code = CFReadStreamRead(readStream, &buffer[data_read],
+	CFIndex code = CFReadStreamRead(readStream, &buffer[data_read],
 		len - data_read);
 
 	if (code == 0) {
@@ -890,10 +924,13 @@ rb_io_read_all(rb_io_t *io_struct, VALUE bytestring_buffer)
     long original_position = (long)CFDataGetLength(data);
     for(;;) {
         CFDataIncreaseLength(data, BUFSIZE);
-        UInt8 *b = CFDataGetMutableBytePtr(data) + original_position + bytes_read;
+        UInt8 *b = CFDataGetMutableBytePtr(data) + original_position
+	    + bytes_read;
         long last_read = rb_io_read_internal(io_struct, b, BUFSIZE);
         bytes_read += last_read;
-        if(last_read < BUFSIZE) break;
+	if (last_read < BUFSIZE) {
+	    break;
+	}
     }
     CFDataSetLength(data, original_position + bytes_read);
     return bytestring_buffer; 
@@ -1081,13 +1118,14 @@ io_read(VALUE io, SEL sel, int argc, VALUE *argv)
 
     rb_io_t *io_struct = ExtractIOStruct(io);
     rb_io_assert_readable(io_struct);
-    
+
     if (NIL_P(outbuf)) {
 	outbuf = rb_bytestring_new();
     }
     else if (CLASS_OF(outbuf) != rb_cByteString) {
 	// TODO: Get the magical pointer incantations right.
-	rb_raise(rb_eIOError, "writing to non-bytestrings is not supported at this time.");
+	rb_raise(rb_eIOError,
+		"writing to non-bytestrings is not supported at this time.");
     }
 
     if (NIL_P(len)) {
@@ -1311,13 +1349,13 @@ rb_io_readline(VALUE io, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_io_readlines(VALUE io, SEL sel, int argc, VALUE *argv)
 {
-	VALUE array = rb_ary_new();
-	VALUE line = rb_io_gets_m(io, sel, argc, argv);
-	while (!NIL_P(line)) {
-		rb_ary_push(array, line);
-		line = rb_io_gets_m(io, sel, argc, argv);
-	}
-	return array;
+    VALUE array = rb_ary_new();
+    VALUE line = rb_io_gets_m(io, sel, argc, argv);
+    while (!NIL_P(line)) {
+	rb_ary_push(array, line);
+	line = rb_io_gets_m(io, sel, argc, argv);
+    }
+    return array;
 }
 
 /*
@@ -1347,12 +1385,12 @@ rb_io_readlines(VALUE io, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_io_each_line(VALUE io, SEL sel, int argc, VALUE *argv)
 {
-	VALUE line = rb_io_gets_m(io, sel, argc, argv);
-	while (!NIL_P(line)) {
-		rb_vm_yield(1, &line);
-		line = rb_io_gets_m(io, sel, argc, argv);
-	}
-	return io;
+    VALUE line = rb_io_gets_m(io, sel, argc, argv);
+    while (!NIL_P(line)) {
+	rb_vm_yield(1, &line);
+	line = rb_io_gets_m(io, sel, argc, argv);
+    }
+    return io;
 }
 
 /*
@@ -1374,11 +1412,11 @@ rb_io_each_byte(VALUE io, SEL sel)
 {
     VALUE b = rb_io_getbyte(io, 0);
 
-	while (!NIL_P(b)) {
-		rb_vm_yield(1, &b);
-		b = rb_io_getbyte(io, 0);
-	}
-	return io;
+    while (!NIL_P(b)) {
+	rb_vm_yield(1, &b);
+	b = rb_io_getbyte(io, 0);
+    }
+    return io;
 }
 
 /*
@@ -1398,13 +1436,13 @@ static VALUE rb_io_getc(VALUE io, SEL sel);
 static VALUE
 rb_io_each_char(VALUE io, SEL sel)
 {
-	VALUE c = rb_io_getc(io, 0);
-	
-	while (!NIL_P(c)) {
-		rb_vm_yield(1, &c);
-		c = rb_io_getc(io, 0);
-	}
-	return io;
+    VALUE c = rb_io_getc(io, 0);
+
+    while (!NIL_P(c)) {
+	rb_vm_yield(1, &c);
+	c = rb_io_getc(io, 0);
+    }
+    return io;
 }
 
 
@@ -1474,7 +1512,7 @@ static SEL sel_each_char = 0;
 static VALUE
 rb_io_chars(VALUE io, SEL sel)
 {
-	return rb_enumeratorize(io, sel_each_char, 0, NULL);
+    return rb_enumeratorize(io, sel_each_char, 0, NULL);
 }
 
 /*
@@ -1628,7 +1666,8 @@ rb_io_ungetc(VALUE io, SEL sel, VALUE c)
 
 	// Shift the buffer.
 	memmove(&io_struct->ungetc_buf[len],
-		&io_struct->ungetc_buf[io_struct->ungetc_buf_pos], io_struct->ungetc_buf_len);
+		&io_struct->ungetc_buf[io_struct->ungetc_buf_pos],
+		io_struct->ungetc_buf_len);
 
 	io_struct->ungetc_buf_pos = len;
     }
@@ -1682,7 +1721,7 @@ rb_io_isatty(VALUE io, SEL sel)
 static VALUE
 rb_io_close_on_exec_p(VALUE io, SEL sel)
 {
-rb_notimplement();
+    rb_notimplement();
 }
 
 /*
@@ -1739,8 +1778,9 @@ rb_io_close_m(VALUE io, SEL sel)
 static VALUE
 rb_io_closed(VALUE io, SEL sel)
 {
-	rb_io_t *ios = ExtractIOStruct(io);
-	return CONDITION_TO_BOOLEAN(rb_io_is_closed_for_writing(ios) && rb_io_is_closed_for_reading(ios));
+    rb_io_t *ios = ExtractIOStruct(io);
+    return CONDITION_TO_BOOLEAN(rb_io_is_closed_for_writing(ios)
+	    && rb_io_is_closed_for_reading(ios));
 }
 
 /*
@@ -1834,8 +1874,8 @@ rb_io_gets(VALUE io, SEL sel)
 VALUE
 rb_io_binmode(VALUE io, SEL sel)
 {
-	// rb_warn("binmode does nothing on Mac OS X");
-	return io;
+    // binmode does nothing on Mac OS X
+    return io;
 }
 
 /*
@@ -1909,99 +1949,105 @@ rb_io_binmode_m(VALUE io, SEL sel)
  *     <foo>bar;zot;
  */
 
-// just set errno, you bastards
 #define rb_sys_fail_unless(action, msg) do { \
-	errno = action;\
-	if (errno != 0) { \
-		rb_sys_fail(msg);\
-	}\
+    errno = action; \
+    if (errno != 0) { \
+	rb_sys_fail(msg); \
+    } \
 } while(0)
-
 
 VALUE 
 io_from_spawning_new_process(VALUE prog, VALUE mode)
 {
-	VALUE io = io_alloc(rb_cIO, 0);
+    VALUE io = io_alloc(rb_cIO, 0);
     rb_io_t *io_struct = ExtractIOStruct(io);
-	CFReadStreamRef r = NULL;
+    CFReadStreamRef r = NULL;
     CFWriteStreamRef w = NULL;
-	pid_t pid;
-	int fd[2];
-	// TODO: Split the process_name up into char* components?
-	char *spawnedArgs[] = {(char*)_PATH_BSHELL, "-c", (char*)RSTRING_PTR(prog), NULL};
-	posix_spawn_file_actions_t actions;
-	
-	int fmode = convert_mode_string_to_fmode(mode);
-	
-	if (pipe(fd) < 0) {
-		posix_spawn_file_actions_destroy(&actions);
-		rb_sys_fail("pipe() failed.");
-	}
-	// Confusingly enough, FMODE_WRITABLE means 'write-only'
-	// and FMODE_READABLE means 'read-only'.
-	if (fmode != FMODE_WRITABLE) {
-		r = _CFReadStreamCreateFromFileDescriptor(NULL, fd[0]);
-		if (r != NULL) {
-			CFReadStreamOpen(r);
-			GC_WB(&io_struct->readStream, r);
-			CFMakeCollectable(r);
-		} else {
-			io_struct->readStream = NULL;
-		}
-    }
-	if (fmode != FMODE_READABLE) {
-		w = _CFWriteStreamCreateFromFileDescriptor(NULL, fd[0]);
-		if (w != NULL) {
-			CFWriteStreamOpen(w);
-			GC_WB(&io_struct->writeStream, w);
-			CFMakeCollectable(w);
-    	} else {
-			io_struct->writeStream = NULL;
-    	}
-	}
-	
-	rb_sys_fail_unless(posix_spawn_file_actions_init(&actions), "could not init file actions");
-	rb_sys_fail_unless(posix_spawn_file_actions_adddup2(&actions, fd[1], STDOUT_FILENO), "could not add dup2() to stdout");
-	rb_sys_fail_unless(posix_spawn_file_actions_addclose(&actions, fd[1]), "could not add a close() to stdout");
-	
-	errno = posix_spawn(&pid, spawnedArgs[0], &actions, NULL, spawnedArgs, *(_NSGetEnviron()));
-	if(errno != 0) {
-		int err = errno;
-		close(fd[0]);
-		close(fd[1]);
-		errno = err;
-		rb_sys_fail("posix_spawn failed.");
-	}
+    pid_t pid;
+    int fd[2];
+    // TODO: Split the process_name up into char* components?
+    char *spawnedArgs[] = {(char*)_PATH_BSHELL, "-c",
+	(char*)RSTRING_PTR(prog), NULL};
+    posix_spawn_file_actions_t actions;
+
+    int fmode = convert_mode_string_to_fmode(mode);
+
+    if (pipe(fd) < 0) {
 	posix_spawn_file_actions_destroy(&actions);
-	
+	rb_sys_fail("pipe() failed.");
+    }
+    // Confusingly enough, FMODE_WRITABLE means 'write-only'
+    // and FMODE_READABLE means 'read-only'.
+    if (fmode != FMODE_WRITABLE) {
+	r = _CFReadStreamCreateFromFileDescriptor(NULL, fd[0]);
+	if (r != NULL) {
+	    CFReadStreamOpen(r);
+	    GC_WB(&io_struct->readStream, r);
+	    CFMakeCollectable(r);
+	}
+	else {
+	    io_struct->readStream = NULL;
+	}
+    }
+    if (fmode != FMODE_READABLE) {
+	w = _CFWriteStreamCreateFromFileDescriptor(NULL, fd[0]);
+	if (w != NULL) {
+	    CFWriteStreamOpen(w);
+	    GC_WB(&io_struct->writeStream, w);
+	    CFMakeCollectable(w);
+	}
+	else {
+	    io_struct->writeStream = NULL;
+	}
+    }
+
+    rb_sys_fail_unless(posix_spawn_file_actions_init(&actions),
+	    "could not init file actions");
+    rb_sys_fail_unless(posix_spawn_file_actions_adddup2(&actions, fd[1],
+		STDOUT_FILENO), "could not add dup2() to stdout");
+    rb_sys_fail_unless(posix_spawn_file_actions_addclose(&actions, fd[1]),
+	    "could not add a close() to stdout");
+
+    errno = posix_spawn(&pid, spawnedArgs[0], &actions, NULL, spawnedArgs,
+	    *(_NSGetEnviron()));
+    if(errno != 0) {
+	int err = errno;
+	close(fd[0]);
+	close(fd[1]);
+	errno = err;
+	rb_sys_fail("posix_spawn failed.");
+    }
+    posix_spawn_file_actions_destroy(&actions);
+
     // TODO: Eventually make the ungetc_buf a ByteString
     io_struct->fd = fd[0];
-	io_struct->pipe = fd[1];
+    io_struct->pipe = fd[1];
     io_struct->ungetc_buf = NULL;
     io_struct->ungetc_buf_len = 0;
     io_struct->ungetc_buf_pos = 0;
-	io_struct->pid = pid;
+    io_struct->pid = pid;
     io_struct->sync = mode & FMODE_SYNC;
-	
+
     rb_objc_keep_for_exit_finalize((VALUE)io);
     return io;
 }
-
 
 static VALUE
 rb_io_s_popen(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
     VALUE process_name, mode;
     rb_scan_args(argc, argv, "11", &process_name, &mode);
-	if (NIL_P(mode)) mode = (VALUE)CFSTR("r");
-	StringValue(process_name);
-	VALUE io = io_from_spawning_new_process(process_name, mode);
-	if (rb_block_given_p()) {
-        VALUE ret = rb_vm_yield(1, &io);
-        rb_io_close_m(io, 0);
-        return ret;
-	}
-	return io;
+    if (NIL_P(mode)) {
+	mode = (VALUE)CFSTR("r");
+    }
+    StringValue(process_name);
+    VALUE io = io_from_spawning_new_process(process_name, mode);
+    if (rb_block_given_p()) {
+	VALUE ret = rb_vm_yield(1, &io);
+	rb_io_close_m(io, 0);
+	return ret;
+    }
+    return io;
 }
 
 /*
@@ -2149,12 +2195,12 @@ rb_file_open(VALUE io, int argc, VALUE *argv)
     }
     StringValue(path);
     const char *filepath = RSTRING_PTR(path);
-	convert_mode_string_to_oflags(modes);
-    int fd = open(filepath, O_RDWR | O_CREAT, 0644);
+    const int flags = convert_mode_string_to_oflags(modes);
+    int fd = open(filepath, flags, 0644);
     if (fd == -1) {
 	rb_sys_fail(NULL);
     }
-	rb_io_t *io_struct = ExtractIOStruct(io);
+    rb_io_t *io_struct = ExtractIOStruct(io);
     prepare_io_from_fd(io_struct, fd, convert_mode_string_to_fmode(modes));
 	GC_WB(&io_struct->path, path); 
     return io;
@@ -2166,11 +2212,11 @@ rb_f_open(VALUE klass, SEL sel, int argc, VALUE *argv)
     VALUE io = rb_class_new_instance(argc, argv, rb_cFile);
     io = rb_file_open(io, argc, argv);
     if (rb_block_given_p()) {
-        VALUE ret = rb_vm_yield(1, &io);
-        rb_io_close_m(io, 0);
-        return ret;
+	VALUE ret = rb_vm_yield(1, &io);
+	rb_io_close_m(io, 0);
+	return ret;
     }
-	return io;
+    return io;
 }
 
 
@@ -2188,8 +2234,8 @@ rb_f_open(VALUE klass, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_io_s_sysopen(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
-	VALUE f = rb_f_open(klass, sel, argc, argv);
-	return INT2FIX(ExtractIOStruct(f)->fd);
+    VALUE f = rb_f_open(klass, sel, argc, argv);
+    return INT2FIX(ExtractIOStruct(f)->fd);
 }
 
 /*
@@ -2211,14 +2257,14 @@ rb_io_s_sysopen(VALUE klass, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_io_reopen(VALUE io, SEL sel, int argc, VALUE *argv)
 {
-rb_notimplement();
+    rb_notimplement();
 }
 
 /* :nodoc: */
 static VALUE
 rb_io_init_copy(VALUE dest, VALUE io)
 {
-rb_notimplement();
+    rb_notimplement();
 }
 
 /*
@@ -2286,8 +2332,6 @@ rb_f_printf(VALUE klass, SEL sel, int argc, VALUE *argv)
  *
  *     This is 100 percent.
  */
-
-
 
 VALUE
 rb_io_print(VALUE io, SEL sel, int argc, VALUE *argv)
@@ -2408,16 +2452,16 @@ static VALUE
 io_puts_ary(VALUE ary, SEL sel, VALUE out, int recur)
 {
     VALUE tmp;
-    long i;
+    long i, count;
 
     if (recur) {
-	    tmp = rb_str_new2("[...]");
-	    rb_io_puts(out, sel, 1, &tmp);
-	    return Qnil;
+	tmp = rb_str_new2("[...]");
+	rb_io_puts(out, sel, 1, &tmp);
+	return Qnil;
     }
-    for (i=0; i<RARRAY_LEN(ary); i++) {
-	    tmp = RARRAY_PTR(ary)[i];
-	    rb_io_puts(out, sel, 1, &tmp);
+    for (i = 0, count = RARRAY_LEN(ary); i < count; i++) {
+	tmp = RARRAY_AT(ary, i);
+	rb_io_puts(out, sel, 1, &tmp);
     }
     return Qnil;
 }
@@ -2431,7 +2475,7 @@ rb_io_puts(VALUE out, SEL sel, int argc, VALUE *argv)
         rb_io_write(out, sel, rb_default_rs);
         return Qnil;
     }
-    for (i=0; i<argc; i++) {
+    for (i = 0; i < argc; i++) {
         line = rb_check_array_type(argv[i]);
         if (!NIL_P(line)) {
             io_puts_ary(line, sel, out, 0);
@@ -2439,8 +2483,10 @@ rb_io_puts(VALUE out, SEL sel, int argc, VALUE *argv)
         }
         line = rb_obj_as_string(argv[i]);
         rb_io_write(out, sel, line);
-        if (RSTRING_LEN(line) == 0 || RSTRING_PTR(line)[RSTRING_LEN(line)-1] != '\n') {
-            // If the last character of line was a newline, there's no reason to write another.
+        if (RSTRING_LEN(line) == 0
+		|| RSTRING_PTR(line)[RSTRING_LEN(line)-1] != '\n') {
+            // If the last character of line was a newline, there's no reason
+	    // to write another.
             rb_io_write(out, sel, rb_default_rs);
         }
     }
@@ -2543,7 +2589,9 @@ rb_obj_display(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     VALUE port;
     rb_scan_args(argc, argv, "01", &port);
-    if(NIL_P(port)) port = rb_stdout;
+    if (NIL_P(port)) {
+	port = rb_stdout;
+    }
     return rb_io_write(port, 0, self);
 }
 
@@ -2593,21 +2641,23 @@ rb_io_initialize(VALUE io, SEL sel, int argc, VALUE *argv)
 {
     VALUE file_descriptor, mode;
     int mode_flags, fd;
-	struct stat st;
+    struct stat st;
     rb_scan_args(argc, argv, "11", &file_descriptor, &mode);
 
-	rb_io_t *io_struct = ExtractIOStruct(io);
-	file_descriptor = rb_check_to_integer(file_descriptor, "to_int");
-	if (NIL_P(file_descriptor)) {
-		rb_raise(rb_eTypeError, "can't convert %s into Integer", rb_obj_classname(file_descriptor));
-	}
-	fd = FIX2INT(file_descriptor);
-	
-	if (fstat(fd, &st) < 0) {
-		rb_sys_fail(0);
-	}
-	
-    mode_flags = (NIL_P(mode) ? FMODE_READABLE : convert_mode_string_to_fmode(mode));
+    rb_io_t *io_struct = ExtractIOStruct(io);
+    file_descriptor = rb_check_to_integer(file_descriptor, "to_int");
+    if (NIL_P(file_descriptor)) {
+	rb_raise(rb_eTypeError, "can't convert %s into Integer",
+		rb_obj_classname(file_descriptor));
+    }
+    fd = FIX2INT(file_descriptor);
+
+    if (fstat(fd, &st) < 0) {
+	rb_sys_fail(0);
+    }
+
+    mode_flags = (NIL_P(mode) ? FMODE_READABLE
+	    : convert_mode_string_to_fmode(mode));
     prepare_io_from_fd(io_struct, fd, mode_flags);
     return io;
 }
@@ -2758,85 +2808,92 @@ argf_next_argv(VALUE argf)
         io = ExtractIOStruct(rb_stdout);
     }
     if (ARGF.init_p == 0) {
-        if(!NIL_P(ARGF.argv) && RARRAY_LEN(ARGF.argv) > 0) {
-            ARGF.next_p = 1;
-        } else {
-            ARGF.next_p = -1;
-        }
-        ARGF.init_p = 1;
-        ARGF.gets_lineno = 0;
+	if (!NIL_P(ARGF.argv) && RARRAY_LEN(ARGF.argv) > 0) {
+	    ARGF.next_p = 1;
+	}
+	else {
+	    ARGF.next_p = -1;
+	}
+	ARGF.init_p = 1;
+	ARGF.gets_lineno = 0;
     }
-    if(ARGF.next_p == 1) {
-        // we need to shift ARGV and read it into ARGF.
-        ARGF.next_p = 0;
+    if (ARGF.next_p == 1) {
+	// we need to shift ARGV and read it into ARGF.
+	ARGF.next_p = 0;
 retry:  
-        if (RARRAY_LEN(ARGF.argv) > 0) {
-            ARGF.filename = rb_ary_shift(ARGF.argv);
-            fn = StringValueCStr(ARGF.filename);
-            if(strlen(fn) == 1 && fn[0] == '-') {
-                // - means read from standard input, obviously.
-                ARGF.current_file = rb_stdin;
-                if (ARGF.inplace) {
-                    rb_warn("Can't do inplace edit for stdio; skipping");
-                    goto retry;
-                }
-            } else {
-                int fr = open(fn, O_RDONLY);
-                if (ARGF.inplace) {
-                    // we need to rename and create new files for inplace mode
-                    struct stat st, st2;
-                    VALUE str;
-                    int fw;
-                    if (TYPE(rb_stdout) == T_FILE && rb_stdout != orig_stdout) {
-			            rb_io_close(rb_stdout, 0);
-		            }
-                    fstat(fr, &st);
-                    if (*ARGF.inplace) {
-                        // AFAICT, we create a new string here because we need to modify it
-                        // and we don't want to mess around with ARGF.filename.
-                        str = rb_str_new2(fn);
-                        rb_str_cat2(str, ARGF.inplace);
-                        if (rename(fn, RSTRING_PTR(str)) < 0) {
-                            rb_warn("Can't rename %s to %s: %s, skipping file", fn, RSTRING_PTR(str), strerror(errno));
-                            close(fr);
-                            goto retry;
-                        }
-                    } else {
-                        if (unlink(fn) < 0) {
-                            rb_warn("Can't remove %s: %s, skipping file", fn, strerror(errno));
-                            close(fr);
-                            goto retry;
-                        }
-                    }
-                    fw = open(fn, O_WRONLY|O_CREAT|O_TRUNC, 0666);
-                    fstat(fw, &st2); // pull out its filestats
-                    fchmod(fw, st.st_mode); // copy the permissions
-                    if ((st.st_uid != st2.st_uid) || (st.st_gid != st2.st_gid)) {
-                        fchown(fw, st.st_uid, st.st_gid); // copy the groups and owners
-                    }
-                    rb_stdout = prep_io(fw, FMODE_WRITABLE, rb_cFile);
-                }
-                ARGF.current_file = prep_io(fr, FMODE_READABLE, rb_cFile);
-            }
-            #if 0 // TODO once we get encodings sorted out.
-            if (ARGF.encs.enc) {
-                rb_io_t *fptr;
-                GetOpenFile(ARGF.current_file, fptr);
-                fptr->encs = ARGF.encs;
-                clear_codeconv(fptr);
-	        }
-            #endif
-        } else {
-            ARGF.next_p = 1;
-            return Qfalse;
-        }
+	if (RARRAY_LEN(ARGF.argv) > 0) {
+	    ARGF.filename = rb_ary_shift(ARGF.argv);
+	    fn = StringValueCStr(ARGF.filename);
+	    if (strlen(fn) == 1 && fn[0] == '-') {
+		// - means read from standard input, obviously.
+		ARGF.current_file = rb_stdin;
+		if (ARGF.inplace) {
+		    rb_warn("Can't do inplace edit for stdio; skipping");
+		    goto retry;
+		}
+	    }
+	    else {
+		int fr = open(fn, O_RDONLY);
+		if (ARGF.inplace) {
+		    // we need to rename and create new files for inplace mode
+		    struct stat st, st2;
+		    VALUE str;
+		    int fw;
+		    if (TYPE(rb_stdout) == T_FILE && rb_stdout != orig_stdout) {
+			rb_io_close(rb_stdout, 0);
+		    }
+		    fstat(fr, &st);
+		    if (*ARGF.inplace) {
+			// AFAICT, we create a new string here because we need to modify it
+			// and we don't want to mess around with ARGF.filename.
+			str = rb_str_new2(fn);
+			rb_str_cat2(str, ARGF.inplace);
+			if (rename(fn, RSTRING_PTR(str)) < 0) {
+			    rb_warn("Can't rename %s to %s: %s, skipping file",
+				   fn, RSTRING_PTR(str), strerror(errno));
+			    close(fr);
+			    goto retry;
+			}
+		    } 
+		    else {
+			if (unlink(fn) < 0) {
+			    rb_warn("Can't remove %s: %s, skipping file",
+				    fn, strerror(errno));
+			    close(fr);
+			    goto retry;
+			}
+		    }
+		    fw = open(fn, O_WRONLY|O_CREAT|O_TRUNC, 0666);
+		    fstat(fw, &st2); // pull out its filestats
+		    fchmod(fw, st.st_mode); // copy the permissions
+		    if ((st.st_uid != st2.st_uid) || (st.st_gid != st2.st_gid)) {
+			// copy the groups and owners
+			fchown(fw, st.st_uid, st.st_gid);
+		    }
+		    rb_stdout = prep_io(fw, FMODE_WRITABLE, rb_cFile);
+		}
+		ARGF.current_file = prep_io(fr, FMODE_READABLE, rb_cFile);
+	    }
+#if 0 // TODO once we get encodings sorted out.
+	    if (ARGF.encs.enc) {
+		rb_io_t *fptr;
+		GetOpenFile(ARGF.current_file, fptr);
+		fptr->encs = ARGF.encs;
+		clear_codeconv(fptr);
+	    }
+#endif
+	}
+	else {
+	    ARGF.next_p = 1;
+	    return Qfalse;
+	}
     }
     else if (ARGF.next_p == -1) {
-        ARGF.current_file = rb_stdin;
-        ARGF.filename = rb_str_new2("-");
+	ARGF.current_file = rb_stdin;
+	ARGF.filename = rb_str_new2("-");
     }
     return Qtrue;
-    
+
 }
 
 static VALUE
@@ -2954,15 +3011,15 @@ argf_gets(VALUE recv, SEL sel, int argc, VALUE *argv)
 static VALUE
 argf_readline(VALUE argf, SEL sel, int argc, VALUE *argv)
 {
-	next_argv();
+    next_argv();
     ARGF_FORWARD(0, 0);
-	return rb_io_readline(ARGF.current_file, sel, argc, argv);
+    return rb_io_readline(ARGF.current_file, sel, argc, argv);
 }
 
 static VALUE
 rb_f_readline(VALUE recv, SEL sel, int argc, VALUE *argv)
 {
-	return argf_readline(recv, sel, argc, argv);
+    return argf_readline(recv, sel, argc, argv);
 }
 
 static VALUE rb_io_s_readlines(VALUE recv, SEL sel, int argc, VALUE *argv);
@@ -2982,15 +3039,14 @@ argf_readlines(VALUE argf, SEL sel, int argc, VALUE *argv)
 {
     next_argv();
     ARGF_FORWARD(0, 0);
-	return rb_io_readlines(ARGF.current_file, sel, argc, argv);
+    return rb_io_readlines(ARGF.current_file, sel, argc, argv);
 }
 
 static VALUE
 rb_f_readlines(VALUE recv, SEL sel, int argc, VALUE *argv)
 {
-	return argf_readlines(recv, sel, argc, argv);
+    return argf_readlines(recv, sel, argc, argv);
 }
-
 
 /*
  *  call-seq:
@@ -3006,11 +3062,10 @@ rb_f_readlines(VALUE recv, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_io_s_try_convert(VALUE dummy, SEL sel, VALUE obj)
 {
-	return (rb_respond_to(obj, rb_intern("to_io")) ? 
-			rb_funcall3(obj, rb_intern("to_io"), 0, 0) :
-			Qnil);
+    return rb_respond_to(obj, rb_intern("to_io"))
+	?  rb_funcall3(obj, rb_intern("to_io"), 0, 0)
+	: Qnil;
 }
-
 
 /*
  *  call-seq:
@@ -3037,7 +3092,6 @@ rb_f_backquote(VALUE obj, SEL sel, VALUE str)
     return bstr;
 }
 
-
 // static VALUE
 // select_call(VALUE arg)
 // {
@@ -3049,7 +3103,6 @@ rb_f_backquote(VALUE obj, SEL sel, VALUE str)
 // {
 // rb_notimplement();
 // }
-
 
 /*
  *  call-seq:
@@ -3064,7 +3117,7 @@ rb_f_backquote(VALUE obj, SEL sel, VALUE str)
 static VALUE
 rb_f_select(VALUE recv, SEL sel, int argc, VALUE *argv)
 {
-rb_notimplement();
+    rb_notimplement();
 }
 
 
@@ -3072,16 +3125,16 @@ rb_notimplement();
 static VALUE
 rb_io_ctl(VALUE io, VALUE req, VALUE arg, int is_io)
 {
-	rb_io_t *io_s = ExtractIOStruct(io);
-	if (TYPE(req) == T_STRING) {
-		rb_bug("ioctl doesn't support strings yet...\n");
-		return INT2FIX(0);
-	}
-	unsigned long cmd = NUM2ULONG(req);
-	
-	int retval = is_io ? ioctl(io_s->fd, cmd) : fcntl(io_s->fd, cmd);
-	
-	return retval;
+    rb_io_t *io_s = ExtractIOStruct(io);
+    if (TYPE(req) == T_STRING) {
+	rb_bug("ioctl doesn't support strings yet...\n");
+	return INT2FIX(0);
+    }
+    unsigned long cmd = NUM2ULONG(req);
+
+    int retval = is_io ? ioctl(io_s->fd, cmd) : fcntl(io_s->fd, cmd);
+
+    return retval;
 }
 
 /*
@@ -3099,8 +3152,8 @@ rb_io_ctl(VALUE io, VALUE req, VALUE arg, int is_io)
 static VALUE
 rb_io_ioctl(VALUE recv, SEL sel, VALUE integer_cmd, VALUE arg)
 {
-	rb_io_assert_open(ExtractIOStruct(recv));
-	return rb_io_ctl(recv, integer_cmd, arg, 1);
+    rb_io_assert_open(ExtractIOStruct(recv));
+    return rb_io_ctl(recv, integer_cmd, arg, 1);
 }
 
 /*
@@ -3119,8 +3172,8 @@ rb_io_ioctl(VALUE recv, SEL sel, VALUE integer_cmd, VALUE arg)
 static VALUE
 rb_io_fcntl(VALUE recv, SEL sel, VALUE integer_cmd, VALUE arg)
 {
-	rb_io_assert_open(ExtractIOStruct(recv));
-	return rb_io_ctl(recv, integer_cmd, arg, 0);
+    rb_io_assert_open(ExtractIOStruct(recv));
+    return rb_io_ctl(recv, integer_cmd, arg, 0);
 }
 
 /*
@@ -3145,64 +3198,68 @@ rb_io_fcntl(VALUE recv, SEL sel, VALUE integer_cmd, VALUE arg)
 static VALUE
 rb_f_syscall(VALUE recv, SEL sel, int argc, VALUE *argv)
 {
-	unsigned long arg[8];
-	
-	int ii = 1;
-	int retval = -1;
-	int items = argc - 1;
-	
-	rb_secure(2);
-	if (argc == 0)
-		rb_raise(rb_eArgError, "too few arguments to syscall()");
-	if (argc > 9)
-		rb_raise(rb_eArgError, "too many arguments to syscall()");
-	
-	
-	arg[0] = NUM2LONG(argv[0]); argv++;
-	
-	while (items--) {
-		VALUE v = rb_check_string_type(*argv);
-		if (!NIL_P(v)) {
-			StringValue(v);
-			arg[ii] = (unsigned long)StringValueCStr(v);
-		} else {
-			arg[ii] = (unsigned long)NUM2LONG(*argv);
-		}
-		argv++;
-		ii++;
+    unsigned long arg[8];
+
+    int ii = 1;
+    int retval = -1;
+    int items = argc - 1;
+
+    rb_secure(2);
+    if (argc == 0) {
+	rb_raise(rb_eArgError, "too few arguments to syscall()");
+    }
+    if (argc > 9) {
+	rb_raise(rb_eArgError, "too many arguments to syscall()");
+    }
+
+    arg[0] = NUM2LONG(argv[0]); argv++;
+
+    while (items--) {
+	VALUE v = rb_check_string_type(*argv);
+	if (!NIL_P(v)) {
+	    StringValue(v);
+	    arg[ii] = (unsigned long)StringValueCStr(v);
 	}
-	
-	
+	else {
+	    arg[ii] = (unsigned long)NUM2LONG(*argv);
+	}
+	argv++;
+	ii++;
+    }
+
+
     switch (argc) {
-	      case 1:
-		retval = syscall(arg[0]);
-		break;
-	      case 2:
-		retval = syscall(arg[0],arg[1]);
-		break;
-	      case 3:
-		retval = syscall(arg[0],arg[1],arg[2]);
-		break;
-	      case 4:
-		retval = syscall(arg[0],arg[1],arg[2],arg[3]);
-		break;
-	      case 5:
-		retval = syscall(arg[0],arg[1],arg[2],arg[3],arg[4]);
-		break;
-	      case 6:
-		retval = syscall(arg[0],arg[1],arg[2],arg[3],arg[4],arg[5]);
-		break;
-	      case 7:
-		retval = syscall(arg[0],arg[1],arg[2],arg[3],arg[4],arg[5],arg[6]);
-		break;
-	      case 8:
-		retval = syscall(arg[0],arg[1],arg[2],arg[3],arg[4],arg[5],arg[6],
-		  arg[7]);
-		break;
-	}
-	
-	if (retval < 0) rb_sys_fail("call to syscall() failed.");
-	return INT2NUM(retval);
+	case 1:
+	    retval = syscall(arg[0]);
+	    break;
+	case 2:
+	    retval = syscall(arg[0],arg[1]);
+	    break;
+	case 3:
+	    retval = syscall(arg[0],arg[1],arg[2]);
+	    break;
+	case 4:
+	    retval = syscall(arg[0],arg[1],arg[2],arg[3]);
+	    break;
+	case 5:
+	    retval = syscall(arg[0],arg[1],arg[2],arg[3],arg[4]);
+	    break;
+	case 6:
+	    retval = syscall(arg[0],arg[1],arg[2],arg[3],arg[4],arg[5]);
+	    break;
+	case 7:
+	    retval = syscall(arg[0],arg[1],arg[2],arg[3],arg[4],arg[5],arg[6]);
+	    break;
+	case 8:
+	    retval = syscall(arg[0],arg[1],arg[2],arg[3],arg[4],arg[5],arg[6],
+		    arg[7]);
+	    break;
+    }
+
+    if (retval < 0) {
+	rb_sys_fail("call to syscall() failed.");
+    }
+    return INT2NUM(retval);
 }
 /*
  *  call-seq:
@@ -3256,16 +3313,16 @@ rb_f_syscall(VALUE recv, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_io_s_pipe(VALUE recv, SEL sel, int argc, VALUE *argv)
 {
-	VALUE rd, wr, ext_enc = Qnil, int_enc = Qnil;
-	rb_scan_args(argc, argv, "02", &ext_enc, &int_enc);
-	
-	int fd[2] = {-1, -1};
-	pipe(fd);
-	
-	rd = prep_io(fd[0], FMODE_READABLE, rb_cIO);
-	wr = prep_io(fd[1], FMODE_WRITABLE, rb_cIO);
-	
-	return rb_assoc_new(rd, wr);
+    VALUE rd, wr, ext_enc = Qnil, int_enc = Qnil;
+    rb_scan_args(argc, argv, "02", &ext_enc, &int_enc);
+
+    int fd[2] = {-1, -1};
+    pipe(fd);
+
+    rd = prep_io(fd[0], FMODE_READABLE, rb_cIO);
+    wr = prep_io(fd[1], FMODE_WRITABLE, rb_cIO);
+
+    return rb_assoc_new(rd, wr);
 }
 
 /*
@@ -3294,13 +3351,13 @@ rb_io_s_pipe(VALUE recv, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_io_s_foreach(VALUE recv, SEL sel, int argc, VALUE *argv)
 {
-	VALUE arr = rb_io_s_readlines(recv, sel, argc, argv);
-	int ii;
-	for (ii=0; ii<RARRAY_LEN(arr); ii++) {
-		VALUE at = RARRAY_AT(arr, ii);
-		rb_vm_yield(1, &at);
-	}
-	return Qnil;
+    VALUE arr = rb_io_s_readlines(recv, sel, argc, argv);
+    long i, count;
+    for (i = 0, count = RARRAY_LEN(arr); i < count; i++) {
+	VALUE at = RARRAY_AT(arr, i);
+	rb_vm_yield(1, &at);
+    }
+    return Qnil;
 }
 
 /*
@@ -3343,14 +3400,14 @@ rb_io_s_read(VALUE recv, SEL sel, int argc, VALUE *argv)
 
     // TODO honor opt
     SafeStringValue(fname);
-	VALUE io = rb_file_open(io_alloc(recv, 0), 1, &fname);
+    VALUE io = rb_file_open(io_alloc(recv, 0), 1, &fname);
 
     if (!NIL_P(offset)) {
-		rb_io_seek(io, offset, 0);
+	rb_io_seek(io, offset, 0);
     }
-	VALUE result = io_read(io, 0, 1, &length);
-	rb_io_close_m(io, 0);
-	return result;
+    VALUE result = io_read(io, 0, 1, &length);
+    rb_io_close_m(io, 0);
+    return result;
 }
 
 /*
@@ -3424,8 +3481,9 @@ rb_io_s_readlines(VALUE recv, SEL sel, int argc, VALUE *argv)
 	}
     }
     else {
-		// TODO
-		rb_raise(rb_eIOError, "multi-character separators aren't supported yet.");
+	// TODO
+	rb_raise(rb_eIOError,
+		"multi-character separators aren't supported yet.");
     }	
 
     return ary;
@@ -3462,7 +3520,7 @@ rb_io_s_readlines(VALUE recv, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_io_s_copy_stream(VALUE id, SEL sel, int argc, VALUE *argv)
 {
-rb_notimplement();
+    rb_notimplement();
 }
 
 /*
@@ -3476,7 +3534,7 @@ rb_notimplement();
 static VALUE
 rb_io_external_encoding(VALUE io, SEL sel)
 {
-rb_notimplement();
+    rb_notimplement();
 }
 
 /*
@@ -3490,7 +3548,7 @@ rb_notimplement();
 static VALUE
 rb_io_internal_encoding(VALUE io, SEL sel)
 {
-rb_notimplement();
+    rb_notimplement();
 }
 
 /*
@@ -3511,25 +3569,25 @@ rb_notimplement();
 static VALUE
 rb_io_set_encoding(VALUE id, SEL sel, int argc, VALUE *argv)
 {
-rb_notimplement();
+    rb_notimplement();
 }
 
 static VALUE
 argf_external_encoding(VALUE argf, SEL sel)
 {
-rb_notimplement();
+    rb_notimplement();
 }
 
 static VALUE
 argf_internal_encoding(VALUE argf, SEL sel)
 {
-rb_notimplement();
+    rb_notimplement();
 }
 
 static VALUE
 argf_set_encoding(VALUE id, SEL sel, int argc, VALUE *argv)
 {
-rb_notimplement();
+    rb_notimplement();
 }
 
 static VALUE
@@ -3611,7 +3669,7 @@ struct argf_call_arg {
 static VALUE
 argf_readpartial(VALUE id, SEL sel, int argc, VALUE *argv)
 {
-rb_notimplement();
+    rb_notimplement();
 }
 
 static VALUE
@@ -3649,48 +3707,49 @@ argf_readbyte(VALUE argf)
 static VALUE
 argf_each_line(VALUE argf, SEL sel, int argc, VALUE *argv)
 {
-	next_argv();
-	ARGF_FORWARD(0, 0);
-	return rb_io_each_line(ARGF.current_file, sel, argc, argv);
+    next_argv();
+    ARGF_FORWARD(0, 0);
+    return rb_io_each_line(ARGF.current_file, sel, argc, argv);
 }
+
 static VALUE
 argf_each_byte(VALUE argf, SEL sel)
 {
-	next_argv();
-	ARGF_FORWARD(0, 0);
-	return rb_io_each_byte(ARGF.current_file, sel);
+    next_argv();
+    ARGF_FORWARD(0, 0);
+    return rb_io_each_byte(ARGF.current_file, sel);
 }
 
 static VALUE
 argf_each_char(VALUE argf, SEL sel)
 {
-	next_argv();
-	ARGF_FORWARD(0, 0);
-	return rb_io_each_char(ARGF.current_file, sel);
+    next_argv();
+    ARGF_FORWARD(0, 0);
+    return rb_io_each_char(ARGF.current_file, sel);
 }
 
 static VALUE
 argf_lines(VALUE argf, SEL sel, int argc, VALUE *argv)
 {
-	next_argv();
-	ARGF_FORWARD(0, 0);
-	return rb_io_lines(ARGF.current_file, sel, argc, argv);
+    next_argv();
+    ARGF_FORWARD(0, 0);
+    return rb_io_lines(ARGF.current_file, sel, argc, argv);
 }
 
 static VALUE
 argf_chars(VALUE argf, SEL sel)
 {
-	next_argv();
-	ARGF_FORWARD(0, 0);
-	return rb_io_chars(ARGF.current_file, sel);
+    next_argv();
+    ARGF_FORWARD(0, 0);
+    return rb_io_chars(ARGF.current_file, sel);
 }
 
 static VALUE
 argf_bytes(VALUE argf, SEL sel)
 {
-	next_argv();
-	ARGF_FORWARD(0, 0);
-	return rb_io_bytes(ARGF.current_file, sel);
+    next_argv();
+    ARGF_FORWARD(0, 0);
+    return rb_io_bytes(ARGF.current_file, sel);
 }
 
 
@@ -3803,13 +3862,13 @@ opt_i_set(VALUE val, ID id, VALUE *var)
 const char *
 ruby_get_inplace_mode(void)
 {
-rb_notimplement();
+    rb_notimplement();
 }
 
 void
 ruby_set_inplace_mode(const char *suffix)
 {
-rb_notimplement();
+    rb_notimplement();
 }
 
 static VALUE
@@ -4190,7 +4249,6 @@ Init_IO(void)
     rb_file_const("SYNC", INT2FIX(O_SYNC));
 
     sel_each_byte = sel_registerName("each_byte");
-	sel_each_char = sel_registerName("each_char");
-	sel_each_line = sel_registerName("each_line");
-	
+    sel_each_char = sel_registerName("each_char");
+    sel_each_line = sel_registerName("each_line");
 }
