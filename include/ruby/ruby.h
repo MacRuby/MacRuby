@@ -1055,9 +1055,15 @@ RUBY_EXTERN VALUE rb_cCFString;
 RUBY_EXTERN VALUE rb_cNSString;
 RUBY_EXTERN VALUE rb_cNSMutableString;
 RUBY_EXTERN VALUE rb_cCFArray;
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
+RUBY_EXTERN VALUE rb_cNSArray0; 
+#endif
 RUBY_EXTERN VALUE rb_cNSArray;
 RUBY_EXTERN VALUE rb_cNSMutableArray;
 RUBY_EXTERN VALUE rb_cCFHash;
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
+RUBY_EXTERN VALUE rb_cNSHash0; 
+#endif
 RUBY_EXTERN VALUE rb_cNSHash;
 RUBY_EXTERN VALUE rb_cNSMutableHash;
 RUBY_EXTERN VALUE rb_cCFSet;
@@ -1069,12 +1075,24 @@ RUBY_EXTERN VALUE rb_cPointer;
 RUBY_EXTERN VALUE rb_cTopLevel;
 
 bool _CFArrayIsMutable(void *);
-#define RARRAY_IMMUTABLE(o) \
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
+# define RARRAY_IMMUTABLE(o) \
+    (*(VALUE *)o == rb_cCFArray \
+	? !_CFArrayIsMutable((void *)o) : *(VALUE *)o == rb_cNSArray0)
+#else
+# define RARRAY_IMMUTABLE(o) \
     (*(VALUE *)o == rb_cCFArray ? !_CFArrayIsMutable((void *)o) : false)
+#endif
 
 bool _CFDictionaryIsMutable(void *);
-#define RHASH_IMMUTABLE(o) \
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
+# define RHASH_IMMUTABLE(o) \
+    (*(VALUE *)o == rb_cCFHash \
+	? !_CFDictionaryIsMutable((void *)o) : *(VALUE *)o == rb_cNSHash0)
+#else
+# define RHASH_IMMUTABLE(o) \
     (*(VALUE *)o == rb_cCFHash ? !_CFDictionaryIsMutable((void *)o) : false)
+#endif
 
 bool __CFStringIsMutable(void *);
 #define RSTRING_IMMUTABLE(o) \

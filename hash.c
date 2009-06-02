@@ -30,6 +30,9 @@ rb_hash_freeze(VALUE hash)
 
 VALUE rb_cHash;
 VALUE rb_cCFHash;
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
+VALUE rb_cNSHash0;
+#endif
 VALUE rb_cNSHash;
 VALUE rb_cNSMutableHash;
 
@@ -2468,6 +2471,9 @@ Init_Hash(void)
     id_default = rb_intern("default");
 
     rb_cCFHash = (VALUE)objc_getClass("NSCFDictionary");
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
+    rb_cNSHash0 = (VALUE)objc_getClass("__NSDictionary0");
+#endif
     rb_const_set(rb_cObject, rb_intern("NSCFDictionary"), rb_cCFHash);
     rb_cHash = rb_cNSHash = (VALUE)objc_getClass("NSDictionary");
     rb_cNSMutableHash = (VALUE)objc_getClass("NSMutableDictionary");

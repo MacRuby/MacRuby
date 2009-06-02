@@ -2363,11 +2363,19 @@ recache2:
 		return RSTRING_IMMUTABLE(self)
 		    ? rb_cNSString : rb_cNSMutableString;
 	    }
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
+	    if (klass == (Class)rb_cCFArray || klass == (Class)rb_cNSArray0) {
+#else
 	    if (klass == (Class)rb_cCFArray) {
+#endif
 		return RARRAY_IMMUTABLE(self)
 		    ? rb_cNSArray : rb_cNSMutableArray;
 	    }
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
+	    if (klass == (Class)rb_cCFHash || klass == (Class)rb_cNSHash0) {
+#else
 	    if (klass == (Class)rb_cCFHash) {
+#endif
 		return RHASH_IMMUTABLE(self)
 		    ? rb_cNSHash : rb_cNSMutableHash;
 	    }

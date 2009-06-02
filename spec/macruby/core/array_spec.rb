@@ -50,6 +50,8 @@ describe "An NSArray object" do
   it "is an instance of the NSArray class" do
     a = NSArray.array
     a.class.should == NSArray
+    a = NSArray.arrayWithObject(42)
+    a.class.should == NSArray
   end
 
   it "is immutable" do

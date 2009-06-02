@@ -19,6 +19,9 @@
 
 VALUE rb_cArray;
 VALUE rb_cCFArray;
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
+VALUE rb_cNSArray0;
+#endif
 VALUE rb_cNSArray;
 VALUE rb_cNSMutableArray;
 
@@ -3540,6 +3543,9 @@ void
 Init_Array(void)
 {
     rb_cCFArray = (VALUE)objc_getClass("NSCFArray");
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
+    rb_cNSArray0 = (VALUE)objc_getClass("__NSArray0");
+#endif
     rb_const_set(rb_cObject, rb_intern("NSCFArray"), rb_cCFArray);
     rb_cArray = rb_cNSArray = (VALUE)objc_getClass("NSArray");
     rb_cNSMutableArray = (VALUE)objc_getClass("NSMutableArray");

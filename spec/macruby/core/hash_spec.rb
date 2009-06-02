@@ -50,6 +50,8 @@ describe "An NSDictionary object" do
   it "is an instance of the NSDictionary class" do
     a = NSDictionary.dictionary
     a.class.should == NSDictionary
+    a = NSDictionary.dictionaryWithObject(42, forKey:42)
+    a.class.should == NSDictionary
   end
 
   it "is immutable" do
