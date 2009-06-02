@@ -786,7 +786,7 @@ rb_obj_tainted(VALUE obj)
 	    case T_ARRAY:
 	    case T_HASH:
 #ifdef __LP64__
-		return (RCLASS_RC_FLAGS(obj) & FL_TAINT == FL_TAINT) ? Qtrue : Qfalse;
+		return (RCLASS_RC_FLAGS(obj) & FL_TAINT) == FL_TAINT ? Qtrue : Qfalse;
 #endif
 	    default:
 		return rb_objc_flag_check((const void *)obj, FL_TAINT) ? Qtrue : Qfalse;
