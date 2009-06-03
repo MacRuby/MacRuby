@@ -5175,16 +5175,26 @@ void
 rb_objc_install_string_primitives(Class klass)
 {
     rb_objc_install_method2(klass, "length", (IMP)imp_rb_str_length);
-    rb_objc_install_method2(klass, "characterAtIndex:", (IMP)imp_rb_str_characterAtIndex);
-    rb_objc_install_method2(klass, "getCharacters:range:", (IMP)imp_rb_str_getCharactersRange);
-    rb_objc_install_method2(klass, "replaceCharactersInRange:withString:", 
-	(IMP)imp_rb_str_replaceCharactersInRangeWithString);
-    rb_objc_install_method2(klass, "_fastCharacterContents", (IMP)imp_rb_str_fastCharacterContents);
-    rb_objc_install_method2(klass, "_fastCStringContents:", (IMP)imp_rb_str_fastCStringContents);
+    rb_objc_install_method2(klass, "characterAtIndex:",
+	    (IMP)imp_rb_str_characterAtIndex);
+    rb_objc_install_method2(klass, "getCharacters:range:",
+	    (IMP)imp_rb_str_getCharactersRange);
+    rb_objc_install_method2(klass, "_fastCharacterContents",
+	    (IMP)imp_rb_str_fastCharacterContents);
+    rb_objc_install_method2(klass, "_fastCStringContents:",
+	    (IMP)imp_rb_str_fastCStringContents);
     rb_objc_install_method2(klass, "_fastestEncodingInCFStringEncoding",
 	(IMP)imp_rb_str_fastestEncodingInCFStringEncoding);
     rb_objc_install_method2(klass, "isEqual:", (IMP)imp_rb_str_isEqual);
-    
+
+    const bool mutable = class_getSuperclass(klass)
+	== (Class)rb_cNSMutableString;
+
+    if (mutable) {
+	rb_objc_install_method2(klass, "replaceCharactersInRange:withString:", 
+		(IMP)imp_rb_str_replaceCharactersInRangeWithString);
+    }
+
     rb_objc_define_method(*(VALUE *)klass, "alloc", str_alloc, 0);
 }
 

@@ -3515,15 +3515,23 @@ rb_objc_install_array_primitives(Class klass)
     rb_objc_install_method2(klass, "count", (IMP)imp_rb_array_count);
     rb_objc_install_method2(klass, "objectAtIndex:",
 	    (IMP)imp_rb_array_objectAtIndex);
-    rb_objc_install_method2(klass, "insertObject:atIndex:",
-	    (IMP)imp_rb_array_insertObjectAtIndex);
-    rb_objc_install_method2(klass, "removeObjectAtIndex:",
-	    (IMP)imp_rb_array_removeObjectAtIndex);
-    rb_objc_install_method2(klass, "replaceObjectAtIndex:withObject:", 
-	(IMP)imp_rb_array_replaceObjectAtIndexWithObject);
-    rb_objc_install_method2(klass, "replaceObjectsInRange:withObjects:count:",
-	(IMP)imp_rb_array_replaceObjectsInRangeWithObjectsCount);
-    rb_objc_install_method2(klass, "addObject:", (IMP)imp_rb_array_addObject);
+
+    const bool mutable = class_getSuperclass(klass)
+	== (Class)rb_cNSMutableArray;
+
+    if (mutable) {
+	rb_objc_install_method2(klass, "insertObject:atIndex:",
+		(IMP)imp_rb_array_insertObjectAtIndex);
+	rb_objc_install_method2(klass, "removeObjectAtIndex:",
+		(IMP)imp_rb_array_removeObjectAtIndex);
+	rb_objc_install_method2(klass, "replaceObjectAtIndex:withObject:", 
+		(IMP)imp_rb_array_replaceObjectAtIndexWithObject);
+	rb_objc_install_method2(klass,
+		"replaceObjectsInRange:withObjects:count:",
+		(IMP)imp_rb_array_replaceObjectsInRangeWithObjectsCount);
+	rb_objc_install_method2(klass, "addObject:",
+		(IMP)imp_rb_array_addObject);
+    }
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 1060
     /* This is to work around a bug where CF will try to call an non-existing 

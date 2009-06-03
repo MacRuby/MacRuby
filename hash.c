@@ -2438,14 +2438,27 @@ void
 rb_objc_install_hash_primitives(Class klass)
 {
     rb_objc_install_method2(klass, "count", (IMP)imp_rb_hash_count);
-    rb_objc_install_method2(klass, "keyEnumerator", (IMP)imp_rb_hash_keyEnumerator);
-    rb_objc_install_method2(klass, "objectForKey:", (IMP)imp_rb_hash_objectForKey);
-    rb_objc_install_method2(klass, "getObjects:andKeys:", (IMP)imp_rb_hash_getObjectsAndKeys);
-    rb_objc_install_method2(klass, "setObject:forKey:", (IMP)imp_rb_hash_setObjectForKey);
-    rb_objc_install_method2(klass, "removeObjectForKey:", (IMP)imp_rb_hash_removeObjectForKey);
-    rb_objc_install_method2(klass, "removeAllObjects", (IMP)imp_rb_hash_removeAllObjects);
+    rb_objc_install_method2(klass, "keyEnumerator",
+	    (IMP)imp_rb_hash_keyEnumerator);
+    rb_objc_install_method2(klass, "objectForKey:",
+	    (IMP)imp_rb_hash_objectForKey);
+    rb_objc_install_method2(klass, "getObjects:andKeys:",
+	    (IMP)imp_rb_hash_getObjectsAndKeys);
     rb_objc_install_method2(klass, "isEqual:", (IMP)imp_rb_hash_isEqual);
-    rb_objc_install_method2(klass, "containsObject:", (IMP)imp_rb_hash_containsObject);
+    rb_objc_install_method2(klass, "containsObject:",
+	    (IMP)imp_rb_hash_containsObject);
+
+    const bool mutable = class_getSuperclass(klass)
+	== (Class)rb_cNSMutableHash; 
+
+    if (mutable) {
+	rb_objc_install_method2(klass, "setObject:forKey:",
+		(IMP)imp_rb_hash_setObjectForKey);
+	rb_objc_install_method2(klass, "removeObjectForKey:",
+		(IMP)imp_rb_hash_removeObjectForKey);
+	rb_objc_install_method2(klass, "removeAllObjects",
+		(IMP)imp_rb_hash_removeAllObjects);
+    }
 
     rb_objc_define_method(*(VALUE *)klass, "alloc", hash_alloc, 0);
 }

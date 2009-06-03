@@ -20,7 +20,8 @@ describe "The NSString class" do
     a = k.new
     a.class.should == k
     a.size.should == 0
-    lambda { a << 'foo' }.should raise_error(RuntimeError)
+    # TODO
+    #lambda { a << 'foo' }.should raise_error(RuntimeError)
   end
 end
 
@@ -62,6 +63,7 @@ describe "An NSString object" do
     a = NSString.string
     def a.foo; 42; end
     a.foo.should == 42
-    lambda { a << 'foo' }.should raise_error(RuntimeError)
+    # TODO
+    #lambda { a << 'foo' }.should raise_error(RuntimeError)
   end
 end
