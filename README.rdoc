@@ -19,14 +19,13 @@ http://macruby.org
 * An Intel machine. PowerPC machines are not supported anymore, but may still
   work. An Intel 64-bit machine (Intel Core Duo 2) is recommended.
 
-* Mac OS X 10.5.6 or later. If you are building on Mac OS X 10.6 please get in
-  touch with lsansonetti@apple.com to be able to correctly build the project.
+* Mac OS X 10.5.6 or later.
 
 * LLVM trunk, compiled for both i386 and x86_64.
 
-  In case trunk reveals to be unstable we recommend revision 67244.
+  In case trunk reveals to be unstable we recommend revision 72741.
 
-    $ svn co -r 67244 https://llvm.org/svn/llvm-project/llvm/trunk llvm-trunk
+    $ svn co -r 72741 https://llvm.org/svn/llvm-project/llvm/trunk llvm-trunk
     $ cd llvm-trunk
     $ ./configure
     $ UNIVERSAL=1 UNIVERSAL_ARCH="i386 x86_64" ENABLE_OPTIMIZED=1 make
@@ -47,9 +46,6 @@ performance suite:
 To install MacRuby on your machine:
 
   $ sudo rake install
-
-WARNING: This version of MacRuby is still under development and cannot be
-installed yet.
 
 Then you should be all set! Please report us any problem you will find (the
 http://macruby.org website has pointers). Thanks!

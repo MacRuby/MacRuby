@@ -207,7 +207,7 @@ RoxorVM::RoxorVM(void)
 
     emp = new ExistingModuleProvider(RoxorCompiler::module);
     jmm = new RoxorJITManager;
-    ee = ExecutionEngine::createJIT(emp, 0, jmm, true);
+    ee = ExecutionEngine::createJIT(emp, 0, jmm, CodeGenOpt::None);
     assert(ee != NULL);
 
     fpm = new FunctionPassManager(emp);
