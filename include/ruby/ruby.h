@@ -233,25 +233,12 @@ VALUE rb_ull2inum(unsigned LONG_LONG);
 
 #define IMMEDIATE_P(x) ((VALUE)(x) & IMMEDIATE_MASK)
 
-// We can't directly cast a void* to a double, so we cast it to a union
-// and then extract its double member. Hacky, but effective.
-// This doesn't work in C++, though. I need suggestions on how to do it there.
-typedef union {VALUE val; void* vd; double d;} hack_t;
-
-static inline double coerce_ptr_to_double(hack_t h)
-{
-	h.val ^= 3; // unset the last two bits.
-	return h.d;
-}
-
 
 #define VOODOO_DOUBLE(d) (*(VALUE*)(&d))
 #define DBL2FIXFLOAT(d) (VOODOO_DOUBLE(d) | FIXFLOAT_FLAG)
 #define FIXABLE_DBL(d) (!(VOODOO_DOUBLE(d) & FIXFLOAT_FLAG))
 #define FIXFLOAT_P(v)  (((VALUE)v & FIXFLOAT_FLAG) == FIXFLOAT_FLAG)
-#define FIXFLOAT2DBL(v) coerce_ptr_to_double((hack_t)v)
-
-
+#define FIXFLOAT2DBL(v) coerce_ptr_to_double((__coerced_value_double_t)v)
 
 #if WITH_OBJC
 # define SYMBOL_P(x) (TYPE(x) == T_SYMBOL)
@@ -278,6 +265,18 @@ enum ruby_special_consts {
 #endif
     RUBY_SPECIAL_SHIFT  = 8,
 };
+
+// We can't directly cast a void* to a double, so we cast it to a union
+// and then extract its double member. Hacky, but effective.
+// This doesn't work in C++, though. I need suggestions on how to do it there.
+typedef union {VALUE val; void* vd; double d;} __coerced_value_double_t;
+
+static inline double coerce_ptr_to_double(__coerced_value_double_t h)
+{
+	h.val ^= RUBY_FIXFLOAT_FLAG; // unset the last two bits.
+	return h.d;
+}
+
 
 #define Qfalse ((VALUE)RUBY_Qfalse)
 #define Qtrue  ((VALUE)RUBY_Qtrue)
@@ -1044,7 +1043,6 @@ RUBY_EXTERN VALUE rb_cFalseClass;
 RUBY_EXTERN VALUE rb_cEnumerator;
 RUBY_EXTERN VALUE rb_cFile;
 RUBY_EXTERN VALUE rb_cFixnum;
-RUBY_EXTERN VALUE rb_cFixFloat;
 RUBY_EXTERN VALUE rb_cFloat;
 RUBY_EXTERN VALUE rb_cHash;
 RUBY_EXTERN VALUE rb_cInteger;
@@ -1214,7 +1212,7 @@ rb_ocid_to_rval(id obj)
     if (*(Class *)obj == (Class)rb_cFixnum) {
 	return LONG2FIX(RFIXNUM(obj)->value);
     }
-	if (*(Class *)obj == (Class)rb_cFixFloat) {
+	if (*(Class *)obj == (Class)rb_cFloat) {
 		extern VALUE rb_float_new(double);
 		return rb_float_new(RFLOAT(obj)->float_value);
 	}
@@ -1251,7 +1249,7 @@ rb_class_of(VALUE obj)
 {
     if (IMMEDIATE_P(obj)) {
 	if (FIXNUM_P(obj)) return rb_cFixnum;
-	if (FIXFLOAT_P(obj)) return rb_cFixFloat;
+	if (FIXFLOAT_P(obj)) return rb_cFloat;
 	if (obj == Qtrue)  return rb_cTrueClass;
 #if !WITH_OBJC
 	if (SYMBOL_P(obj)) return rb_cSymbol;
@@ -1325,9 +1323,6 @@ rb_type(VALUE obj)
 	}
 	if (k == (Class)rb_cFixnum) {
 	    return T_FIXNUM;
-	}
-	if (k == (Class)rb_cFixFloat) {
-		return T_FLOAT;
 	}
 	if (NATIVE(obj)) {
 	    return T_NATIVE;

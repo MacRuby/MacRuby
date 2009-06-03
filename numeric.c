@@ -87,7 +87,6 @@ VALUE rb_cCFNumber;
 VALUE rb_cFloat;
 VALUE rb_cInteger;
 VALUE rb_cFixnum;
-VALUE rb_cFixFloat;
 
 VALUE rb_eZeroDivError;
 VALUE rb_eFloatDomainError;
@@ -99,7 +98,7 @@ VALUE
 rb_box_fixfloat(VALUE fixfloat)
 {
 	struct RFloat *val = malloc(sizeof(struct RFloat));
-	(val->basic).klass = rb_cFixFloat;
+	(val->basic).klass = rb_cFloat;
 	val->float_value = NUM2DBL(fixfloat);
 	return (VALUE)val;
 }
@@ -1389,6 +1388,18 @@ flo_truncate(VALUE num, SEL sel)
     return LONG2FIX(val);
 }
 
+/*
+ *  call-seq:
+ *     flt.__immediate__? -> true or false
+ *
+ *  Returns <code>true</code> if <i>fix</i> is an even number.
+ */
+
+static VALUE
+flo_immediate_p(VALUE num, SEL sel)
+{
+	return (FIXFLOAT_P(num) ? Qtrue : Qfalse);
+}
 
 /*
  *  call-seq:
@@ -3146,6 +3157,8 @@ fix_even_p(VALUE num, SEL sel)
     return Qtrue;
 }
 
+
+
 static const char *
 imp_rb_float_objCType(void *rcv, SEL sel)
 {
@@ -3379,9 +3392,7 @@ Init_Numeric(void)
     rb_objc_define_method(rb_cFloat, "nan?",      flo_is_nan_p, 0);
     rb_objc_define_method(rb_cFloat, "infinite?", flo_is_infinite_p, 0);
     rb_objc_define_method(rb_cFloat, "finite?",   flo_is_finite_p, 0);
-	
-	rb_cFixFloat  = rb_define_class("FixFloat", rb_cFloat);
-	rb_undef_method(CLASS_OF(rb_cFixFloat), "new");
+	rb_objc_define_method(rb_cFloat, "__immediate__?", flo_immediate_p, 0);
 	
     rb_install_nsnumber_primitives();
 }
