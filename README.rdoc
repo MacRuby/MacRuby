@@ -31,6 +31,15 @@ http://macruby.org
     $ UNIVERSAL=1 UNIVERSAL_ARCH="i386 x86_64" ENABLE_OPTIMIZED=1 make
     $ sudo env UNIVERSAL=1 UNIVERSAL_ARCH="i386 x86_64" ENABLE_OPTIMIZED=1 make install
 
+  Note that compiling LLVM can take quite a while. If you have a machine with
+  multiple cores, which is quite likely, you might want to speed up the process
+  by using all/more cores. However, doing this can make your machine
+  unresponsive during compilation. To use multiple cores pass the `-j N'
+  option, where `N' stands for the number of cores you'd like to use. So for a
+  Dore Duo the command would look like:
+  
+    $ UNIVERSAL=1 UNIVERSAL_ARCH="i386 x86_64" ENABLE_OPTIMIZED=1 make -j2
+  
 === Build Instructions
 
 You can build MacRuby by doing the following command:
