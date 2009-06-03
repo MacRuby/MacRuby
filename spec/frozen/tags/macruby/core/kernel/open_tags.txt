@@ -1,6 +1,5 @@
 fails:Kernel#open is a private method
 fails:Kernel#open calls #to_open on argument
-fails:An exception occurred during: before :each
 fails:Kernel#open opens a file when given a valid filename
 fails:Kernel#open opens an io when path starts with a pipe
 fails:Kernel#open opens an io when called with a block

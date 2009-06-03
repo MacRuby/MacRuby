@@ -1,0 +1,5 @@
+fails:IO.open associates new IO with the old descriptor so each IO directly affects the other
+fails:IO.open raises EINVAL if mode is not compatible with the descriptor's current mode
+fails:IO.open cannot open an IO with incompatible flags
+fails:IO.open with a block invokes close on opened IO object when exiting the block
+fails:IO.open with a block propagates non-StandardErrors produced by close

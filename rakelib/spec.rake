@@ -67,6 +67,7 @@ namespace :spec do
     spec/frozen/core/filetest
     spec/frozen/core/hash
     spec/frozen/core/integer
+    spec/frozen/core/io
     spec/frozen/core/kernel
     spec/frozen/core/matchdata
     spec/frozen/core/math
@@ -102,12 +103,12 @@ namespace :spec do
   
   desc "Run continuous integration language examples (all known good examples)"
   task :ci do
-    sh "./mspec/bin/mspec ci -I./lib -B #{MACRUBY_MSPEC} spec/macruby #{CI_DIRS} #{KNOWN_GOOD_CORE_IO_FILES.join(' ')}"
+    sh "./mspec/bin/mspec ci -I./lib -B #{MACRUBY_MSPEC} spec/macruby #{CI_DIRS}"
   end
   
   desc "Run continuous integration language examples (all known good examples) (32 bit mode)"
   task :ci32 do
-    sh "/usr/bin/arch -arch i386 ./miniruby ./mspec/bin/mspec-ci -I./lib -B #{MACRUBY_MSPEC} #{CI_DIRS} #{KNOWN_GOOD_CORE_IO_FILES.join(' ')}"
+    sh "/usr/bin/arch -arch i386 ./miniruby ./mspec/bin/mspec-ci -I./lib -B #{MACRUBY_MSPEC} #{CI_DIRS}"
   end
   
   desc "Run IO test with GDB enabled"

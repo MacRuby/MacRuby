@@ -1,0 +1,5 @@
+fails:IO#lineno raises IOError on closed stream
+fails:IO#lineno returns the current line number
+fails:IO#lineno= raises IOError on closed stream
+fails:IO#lineno= sets the current line number to the given value
+fails:IO#lineno= does not change $. until next read

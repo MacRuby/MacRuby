@@ -1,0 +1,4 @@
+fails:IO#close raises an IOError on subsequent invocations
+fails:IO#close raises when a file descriptor is closed twice
+fails:IO#close on an IO.popen stream sets $?
+fails:IO#close on an IO.popen stream waits for the child to exit
