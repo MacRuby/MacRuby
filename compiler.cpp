@@ -4301,12 +4301,7 @@ rval_to_long_long(VALUE rval)
 static inline double
 rval_to_double(VALUE rval)
 {
-	// workaround for C++'s refusal to cast union types.
-	VALUE r = rb_Float(bool_to_fix(rval));
-	if (FIXFLOAT_P(r)) {
-		return *(double*)(&r);
-	}
-	return RFLOAT(r)->float_value;
+	return RFLOAT_VALUE(rb_Float(bool_to_fix(rval)));
 }
 
 extern "C"

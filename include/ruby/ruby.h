@@ -238,7 +238,7 @@ VALUE rb_ull2inum(unsigned LONG_LONG);
 #define DBL2FIXFLOAT(d) (VOODOO_DOUBLE(d) | FIXFLOAT_FLAG)
 #define FIXABLE_DBL(d) (!(VOODOO_DOUBLE(d) & FIXFLOAT_FLAG))
 #define FIXFLOAT_P(v)  (((VALUE)v & FIXFLOAT_FLAG) == FIXFLOAT_FLAG)
-#define FIXFLOAT2DBL(v) coerce_ptr_to_double((__coerced_value_double_t)v)
+#define FIXFLOAT2DBL(v) coerce_ptr_to_double((VALUE)v)
 
 #if WITH_OBJC
 # define SYMBOL_P(x) (TYPE(x) == T_SYMBOL)
@@ -268,13 +268,11 @@ enum ruby_special_consts {
 
 // We can't directly cast a void* to a double, so we cast it to a union
 // and then extract its double member. Hacky, but effective.
-// This doesn't work in C++, though. I need suggestions on how to do it there.
-typedef union {VALUE val; void* vd; double d;} __coerced_value_double_t;
-
-static inline double coerce_ptr_to_double(__coerced_value_double_t h)
+static inline double coerce_ptr_to_double(VALUE v)
 {
-	h.val ^= RUBY_FIXFLOAT_FLAG; // unset the last two bits.
-	return h.d;
+	union {VALUE val; double d;} coerced_value;
+	coerced_value.val = v ^ RUBY_FIXFLOAT_FLAG; // unset the last two bits.
+	return coerced_value.d;
 }
 
 
