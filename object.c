@@ -2484,7 +2484,6 @@ rb_num2dbl(VALUE val)
     switch (TYPE(val)) {
       case T_FLOAT:
 	return RFLOAT_VALUE(val);
-
       case T_STRING:
 	rb_raise(rb_eTypeError, "no implicit conversion to float from string");
 	break;

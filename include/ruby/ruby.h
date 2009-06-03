@@ -167,10 +167,10 @@ typedef unsigned LONG_LONG ID;
 # endif
 #endif
 
-#define FIXNUM_MAX (LONG_MAX>>1)
-#define FIXNUM_MIN RSHIFT((long)LONG_MIN,1)
+#define FIXNUM_MAX (LONG_MAX>>2)
+#define FIXNUM_MIN RSHIFT((long)LONG_MIN,2)
 
-#define INT2FIX(i) ((VALUE)(((SIGNED_VALUE)(i))<<1 | FIXNUM_FLAG))
+#define INT2FIX(i) ((VALUE)(((SIGNED_VALUE)(i))<<2 | FIXNUM_FLAG))
 #define LONG2FIX(i) INT2FIX(i)
 #define rb_fix_new(v) INT2FIX(v)
 VALUE rb_int2inum(SIGNED_VALUE);
@@ -224,14 +224,34 @@ VALUE rb_ull2inum(unsigned LONG_LONG);
 #define NUM2GIDT(v) NUM2LONG(v)
 #endif
 
-#define FIX2LONG(x) RSHIFT((SIGNED_VALUE)x,1)
-#define FIX2ULONG(x) ((((VALUE)(x))>>1)&LONG_MAX)
-#define FIXNUM_P(f) (((SIGNED_VALUE)(f))&FIXNUM_FLAG)
+#define FIX2LONG(x) RSHIFT((SIGNED_VALUE)x,2)
+#define FIX2ULONG(x) ((((VALUE)(x))>>2)&LONG_MAX)
+#define FIXNUM_P(f) ((((SIGNED_VALUE)(f)) & IMMEDIATE_MASK) == FIXNUM_FLAG)
 #define POSFIXABLE(f) ((f) < FIXNUM_MAX+1)
 #define NEGFIXABLE(f) ((f) >= FIXNUM_MIN)
 #define FIXABLE(f) (POSFIXABLE(f) && NEGFIXABLE(f))
 
 #define IMMEDIATE_P(x) ((VALUE)(x) & IMMEDIATE_MASK)
+
+// We can't directly cast a void* to a double, so we cast it to a union
+// and then extract its double member. Hacky, but effective.
+// This doesn't work in C++, though. I need suggestions on how to do it there.
+typedef union {VALUE val; void* vd; double d;} hack_t;
+
+static inline double coerce_ptr_to_double(hack_t h)
+{
+	h.val ^= 3; // unset the last two bits.
+	return h.d;
+}
+
+
+#define VOODOO_DOUBLE(d) (*(VALUE*)(&d))
+#define DBL2FIXFLOAT(d) (VOODOO_DOUBLE(d) | FIXFLOAT_FLAG)
+#define FIXABLE_DBL(d) (!(VOODOO_DOUBLE(d) & FIXFLOAT_FLAG))
+#define FIXFLOAT_P(v)  (((VALUE)v & FIXFLOAT_FLAG) == FIXFLOAT_FLAG)
+#define FIXFLOAT2DBL(v) coerce_ptr_to_double((hack_t)v)
+
+
 
 #if WITH_OBJC
 # define SYMBOL_P(x) (TYPE(x) == T_SYMBOL)
@@ -252,6 +272,7 @@ enum ruby_special_consts {
 
     RUBY_IMMEDIATE_MASK = 0x03,
     RUBY_FIXNUM_FLAG    = 0x01,
+	RUBY_FIXFLOAT_FLAG	= 0x03,
 #if !WITH_OBJC
     RUBY_SYMBOL_FLAG    = 0x0e,
 #endif
@@ -264,6 +285,7 @@ enum ruby_special_consts {
 #define Qundef ((VALUE)RUBY_Qundef)	/* undefined value for placeholder */
 #define IMMEDIATE_MASK RUBY_IMMEDIATE_MASK
 #define FIXNUM_FLAG RUBY_FIXNUM_FLAG
+#define FIXFLOAT_FLAG RUBY_FIXFLOAT_FLAG
 #if !WITH_OBJC
 # define SYMBOL_FLAG RUBY_SYMBOL_FLAG
 #endif
@@ -300,6 +322,7 @@ enum ruby_value_type {
 #if WITH_OBJC
     RUBY_T_NATIVE = 0x16,
 #endif
+	RUBY_T_FIXFLOAT = 0x17,
 
     RUBY_T_UNDEF  = 0x1b,
     RUBY_T_NODE   = 0x1c,
@@ -323,6 +346,7 @@ enum ruby_value_type {
 #define T_BIGNUM RUBY_T_BIGNUM
 #define T_FILE   RUBY_T_FILE
 #define T_FIXNUM RUBY_T_FIXNUM
+#define T_FIXFLOAT RUBY_T_FIXFLOAT
 #if WITH_OBJC
 # define T_NATIVE RUBY_T_NATIVE
 #endif
@@ -535,7 +559,7 @@ struct RFloat {
     struct RBasic basic;
     double float_value;
 };
-#define RFLOAT_VALUE(v) (RFLOAT(v)->float_value)
+#define RFLOAT_VALUE(v) (FIXFLOAT_P(v) ? FIXFLOAT2DBL(v) : RFLOAT(v)->float_value)
 #define DOUBLE2NUM(dbl)  rb_float_new(dbl)
 
 #if WITH_OBJC
@@ -1020,6 +1044,7 @@ RUBY_EXTERN VALUE rb_cFalseClass;
 RUBY_EXTERN VALUE rb_cEnumerator;
 RUBY_EXTERN VALUE rb_cFile;
 RUBY_EXTERN VALUE rb_cFixnum;
+RUBY_EXTERN VALUE rb_cFixFloat;
 RUBY_EXTERN VALUE rb_cFloat;
 RUBY_EXTERN VALUE rb_cHash;
 RUBY_EXTERN VALUE rb_cInteger;
@@ -1149,6 +1174,7 @@ rb_is_native(VALUE obj) {
 #define CONDITION_TO_BOOLEAN(c) ((c) ? Qtrue : Qfalse)
 
 VALUE rb_box_fixnum(VALUE);
+VALUE rb_box_fixfloat(VALUE);
 
 static inline id
 rb_rval_to_ocid(VALUE obj)
@@ -1165,7 +1191,10 @@ rb_rval_to_ocid(VALUE obj)
         }
         if (FIXNUM_P(obj)) {
 	    return (id)rb_box_fixnum(obj);
-	}
+		}
+		if (FIXFLOAT_P(obj)) {
+		return (id)rb_box_fixfloat(obj);
+		}
     }
     return (id)obj;
 }
@@ -1185,6 +1214,10 @@ rb_ocid_to_rval(id obj)
     if (*(Class *)obj == (Class)rb_cFixnum) {
 	return LONG2FIX(RFIXNUM(obj)->value);
     }
+	if (*(Class *)obj == (Class)rb_cFixFloat) {
+		extern VALUE rb_float_new(double);
+		return rb_float_new(RFLOAT(obj)->float_value);
+	}
     if (*(Class *)obj == (Class)rb_cCFNumber) {
 	/* TODO NSNumber should implement the Numeric primitive methods */
 	if (CFNumberIsFloatType((CFNumberRef)obj)) {
@@ -1218,6 +1251,7 @@ rb_class_of(VALUE obj)
 {
     if (IMMEDIATE_P(obj)) {
 	if (FIXNUM_P(obj)) return rb_cFixnum;
+	if (FIXFLOAT_P(obj)) return rb_cFixFloat;
 	if (obj == Qtrue)  return rb_cTrueClass;
 #if !WITH_OBJC
 	if (SYMBOL_P(obj)) return rb_cSymbol;
@@ -1237,6 +1271,9 @@ rb_type(VALUE obj)
     if (IMMEDIATE_P(obj)) {
 	if (FIXNUM_P(obj)) {
 	    return T_FIXNUM;
+	}
+	if (FIXFLOAT_P(obj)) {
+		return T_FLOAT;
 	}
 	if (obj == Qtrue) {
 	    return T_TRUE;
@@ -1288,6 +1325,9 @@ rb_type(VALUE obj)
 	}
 	if (k == (Class)rb_cFixnum) {
 	    return T_FIXNUM;
+	}
+	if (k == (Class)rb_cFixFloat) {
+		return T_FLOAT;
 	}
 	if (NATIVE(obj)) {
 	    return T_NATIVE;
