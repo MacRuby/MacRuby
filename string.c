@@ -1616,14 +1616,16 @@ rb_str_splice(VALUE str, long beg, long len, VALUE val)
 {
     long slen;
 
-    if (len < 0) rb_raise(rb_eIndexError, "negative length %ld", len);
+    if (len < 0) {
+	rb_raise(rb_eIndexError, "negative length %ld", len);
+    }
 
     StringValue(val);
     rb_str_modify(str);
     slen = CFStringGetLength((CFStringRef)str);
 
     if (slen < beg) {
-      out_of_range:
+out_of_range:
 	rb_raise(rb_eIndexError, "index %ld out of string", beg);
     }
     if (beg < 0) {
@@ -1636,6 +1638,10 @@ rb_str_splice(VALUE str, long beg, long len, VALUE val)
 	len = slen - beg;
     }
     rb_str_splice_0(str, beg, len, val);
+
+    if (OBJ_TAINTED(val)) {
+	OBJ_TAINT(str);
+    }
 }
 
 void
@@ -1683,36 +1689,36 @@ rb_str_aset(VALUE str, VALUE indx, VALUE val)
     long idx, beg;
 
     switch (TYPE(indx)) {
-      case T_FIXNUM:
-	idx = FIX2LONG(indx);
-      num_index:
-	rb_str_splice(str, idx, 1, val);
-	return val;
+	case T_FIXNUM:
+	    idx = FIX2LONG(indx);
+num_index:
+	    rb_str_splice(str, idx, 1, val);
+	    return val;
 
-      case T_REGEXP:
-	rb_str_subpat_set(str, indx, 0, val);
-	return val;
+	case T_REGEXP:
+	    rb_str_subpat_set(str, indx, 0, val);
+	    return val;
 
-      case T_STRING:
-	beg = rb_str_index(str, indx, 0);
-	if (beg < 0) {
-	    rb_raise(rb_eIndexError, "string not matched");
-	}
-	beg = rb_str_sublen(str, beg);
-	rb_str_splice(str, beg, str_strlen(indx, 0), val);
-	return val;
-
-      default:
-	/* check if indx is Range */
-	{
-	    long beg, len;
-	    if (rb_range_beg_len(indx, &beg, &len, str_strlen(str, 0), 2)) {
-		rb_str_splice(str, beg, len, val);
-		return val;
+	case T_STRING:
+	    beg = rb_str_index(str, indx, 0);
+	    if (beg < 0) {
+		rb_raise(rb_eIndexError, "string not matched");
 	    }
-	}
-	idx = NUM2LONG(indx);
-	goto num_index;
+	    beg = rb_str_sublen(str, beg);
+	    rb_str_splice(str, beg, str_strlen(indx, 0), val);
+	    return val;
+
+	default:
+	    /* check if indx is Range */
+	    {
+		long beg, len;
+		if (rb_range_beg_len(indx, &beg, &len, str_strlen(str, 0), 2)) {
+		    rb_str_splice(str, beg, len, val);
+		    return val;
+		}
+	    }
+	    idx = NUM2LONG(indx);
+	    goto num_index;
     }
 }
 
@@ -4540,9 +4546,10 @@ rb_str_justify(int argc, VALUE *argv, VALUE str, char jflag)
     width = NUM2LONG(w);
     n = CFStringGetLength((CFStringRef)str);
    
-    str =  rb_str_dup(str);
-    if (width < 0 || width <= n)
+    str = rb_str_dup(str);
+    if (width < 0 || width <= n) {
 	return str;
+    }
     width -= n;
 
     if (NIL_P(pad)) {
@@ -4566,6 +4573,10 @@ rb_str_justify(int argc, VALUE *argv, VALUE str, char jflag)
     }
     else {
 	rb_bug("invalid jflag");
+    }
+
+    if (OBJ_TAINTED(pad)) {
+	OBJ_TAINT(str);
     }
 
     return str;

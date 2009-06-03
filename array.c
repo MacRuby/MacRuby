@@ -2310,19 +2310,27 @@ rb_ary_times(VALUE ary, SEL sel, VALUE times)
     }
 
     len = NUM2LONG(times);
-    if (len == 0) return ary_new(rb_obj_class(ary), 0);
-    if (len < 0) {
-	rb_raise(rb_eArgError, "negative argument");
+    if (len == 0) {
+	ary2 = ary_new(rb_obj_class(ary), 0);
     }
-    n = RARRAY_LEN(ary);
-    if (LONG_MAX/len < n) {
-	rb_raise(rb_eArgError, "argument too big");
+    else {
+	if (len < 0) {
+	    rb_raise(rb_eArgError, "negative argument");
+	}
+	n = RARRAY_LEN(ary);
+	if (LONG_MAX/len < n) {
+	    rb_raise(rb_eArgError, "argument too big");
+	}
+	ary2 = ary_new(rb_obj_class(ary), 0);
+	for (i = 0; i < len; i++) {
+	    CFArrayAppendArray((CFMutableArrayRef)ary2,
+		    (CFArrayRef)ary,
+		    CFRangeMake(0, n));
+	}
     }
-    ary2 = ary_new(rb_obj_class(ary), 0);
-    for (i = 0; i < len; i++) {
-	CFArrayAppendArray((CFMutableArrayRef)ary2,
-		(CFArrayRef)ary,
-		CFRangeMake(0, n));
+
+    if (OBJ_TAINTED(ary)) {
+	OBJ_TAINT(ary2);
     }
 
     return ary2;
