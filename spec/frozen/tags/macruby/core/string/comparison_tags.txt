@@ -1,1 +1,2 @@
 fails:String#<=> with String ignores subclass differences
+fails:String#<=> with String compares individual characters based on their ascii value
