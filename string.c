@@ -5308,7 +5308,8 @@ rb_bytestring_byte_pointer(VALUE bstr)
 static VALUE
 rb_bytestring_alloc(VALUE klass, SEL sel)
 {
-    VALUE bstr = (VALUE)class_createInstance((Class)rb_cByteString, sizeof(void *));
+    VALUE bstr = (VALUE)class_createInstance((Class)rb_cByteString,
+	    sizeof(void *));
 
     CFMutableDataRef data = CFDataCreateMutable(NULL, 0);
     rb_bytestring_set_wrapped_data(bstr, data);
@@ -5608,7 +5609,9 @@ Init_String(void)
     rb_objc_define_method(rb_cSymbol, "id2name", rb_sym_to_s_imp, 0);
     rb_objc_define_method(rb_cSymbol, "intern", sym_to_sym, 0);
     rb_objc_define_method(rb_cSymbol, "to_sym", sym_to_sym, 0);
-    
+ 
+    rb_undef_method(rb_cSymbol, "to_str");
+
     install_symbol_primitives();
 
     rb_cByteString = (VALUE)objc_allocateClassPair((Class)rb_cNSMutableString,
