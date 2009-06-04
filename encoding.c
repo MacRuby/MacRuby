@@ -77,6 +77,10 @@ enc_init_db(void)
     }
 
     assert(CFDictionaryGetCount((CFDictionaryRef)__encodings) > 0);
+
+    // Define shortcuts.
+    rb_define_const(rb_cEncoding, "ASCII_8BIT",
+	    rb_const_get(rb_cEncoding, rb_intern("US_ASCII")));
 }
 
 static VALUE
