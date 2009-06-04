@@ -1503,8 +1503,8 @@ bigadd(VALUE x, VALUE y, int sign)
  *  Adds big and other, returning the result.
  */
 
-VALUE
-rb_big_plus(VALUE x, VALUE y)
+static VALUE
+rb_big_plus_imp(VALUE x, SEL sel, VALUE y)
 {
     switch (TYPE(y)) {
       case T_FIXNUM:
@@ -1519,6 +1519,12 @@ rb_big_plus(VALUE x, VALUE y)
       default:
 	return rb_num_coerce_bin(x, y, '+');
     }
+}
+
+VALUE
+rb_big_plus(VALUE x, VALUE y)
+{
+    return rb_big_plus_imp(x, 0, y);
 }
 
 /*
@@ -2816,7 +2822,7 @@ Init_Bignum(void)
     rb_objc_define_method(rb_cBignum, "to_s", rb_big_to_s, -1);
     rb_objc_define_method(rb_cBignum, "coerce", rb_big_coerce, 1);
     rb_objc_define_method(rb_cBignum, "-@", rb_big_uminus, 0);
-    rb_objc_define_method(rb_cBignum, "+", rb_big_plus, 1);
+    rb_objc_define_method(rb_cBignum, "+", rb_big_plus_imp, 1);
     rb_objc_define_method(rb_cBignum, "-", rb_big_minus_imp, 1);
     rb_objc_define_method(rb_cBignum, "*", rb_big_mul_imp, 1);
     rb_objc_define_method(rb_cBignum, "/", rb_big_div_imp, 1);
