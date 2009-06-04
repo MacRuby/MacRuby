@@ -2113,11 +2113,11 @@ __rb_vm_ruby_dispatch(VALUE self, SEL sel, rb_vm_method_node_t *node,
 	// a negative arity, which means a different calling convention.
 	if (arity.real == 2) {
 	    return ((VALUE (*)(VALUE, SEL, int, const VALUE *))node->ruby_imp)
-		(self, 0, argc, argv);
+		(self, sel, argc, argv);
 	}
 	else if (arity.real == 1) {
 	    return ((VALUE (*)(VALUE, SEL, ...))node->ruby_imp)
-		(self, 0, rb_ary_new4(argc, argv));
+		(self, sel, rb_ary_new4(argc, argv));
 	}
 	else {
 	    printf("invalid negative arity for C function %d\n",
@@ -2154,6 +2154,17 @@ fill_ocache(struct mcache *cache, VALUE self, Class klass, IMP imp, SEL sel,
 		class_getName(klass),
 		sel_getName(sel));
 	abort();
+    }
+    if (ocache.bs_method != NULL && ocache.bs_method->variadic) {
+	const int real_argc = method_getNumberOfArguments(method) - 2;
+	if (real_argc < argc) {
+	    const size_t s = strlen(types);
+	    assert(s + argc - real_argc < sizeof types);
+	    for (int i = real_argc; i < argc; i++) {
+		strlcat(types, "@", sizeof types);
+	    }
+	    argc = real_argc;
+	}
     }
     ocache.stub = (rb_vm_objc_stub_t *)GET_VM()->gen_stub(types, 
 	    argc, true);

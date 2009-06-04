@@ -3128,9 +3128,9 @@ rb_ary_permutation(VALUE ary, SEL sel, int argc, VALUE *argv)
     VALUE num;
     long r, n, i;
 
-    n = RARRAY_LEN(ary);                  /* Array length */
     RETURN_ENUMERATOR(ary, argc, argv);   /* Return enumerator if no block */
     rb_scan_args(argc, argv, "01", &num);
+    n = RARRAY_LEN(ary);                  /* Array length */
     r = NIL_P(num) ? n : NUM2LONG(num);   /* Permutation size from argument */
 
     if (r < 0 || n < r) { 
