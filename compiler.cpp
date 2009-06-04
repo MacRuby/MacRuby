@@ -1617,11 +1617,20 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Va
 	long leftLong = leftIsFixnumConstant ? FIX2LONG(leftRVal) : 0;
 	long rightLong = rightIsFixnumConstant ? FIX2LONG(rightRVal) : 0;
 	
-	const bool leftIsFixFloatConstant = FIXFLOAT_P(leftRVal);
-	const bool rightIsFixFloatConstant = FIXFLOAT_P(rightRVal);
+	bool leftIsFixFloatConstant = FIXFLOAT_P(leftRVal);
+	bool rightIsFixFloatConstant = FIXFLOAT_P(rightRVal);
 	
 	double leftDouble = leftIsFixFloatConstant ? FIXFLOAT2DBL(leftRVal) : 0;
 	double rightDouble = rightIsFixFloatConstant ? FIXFLOAT2DBL(rightRVal) : 0;
+	
+	if (leftIsFixFloatConstant && rightIsFixnumConstant) {
+		rightIsFixFloatConstant = true;
+		rightDouble = (double)rightLong;
+	}
+	else if (leftIsFixnumConstant && rightIsFixFloatConstant) {
+		leftIsFixFloatConstant = true;
+		leftDouble = (double)leftLong;
+	}
 
 	if (leftIsFixnumConstant && rightIsFixnumConstant) {
 	    // Both operands are fixnum constants.
@@ -1771,151 +1780,8 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Va
 			return pn;
 		}
 	}
-	else if (leftIsFixFloatConstant && rightIsFixnumConstant) {
-		bool result_is_fixfloat = true;
-		double res;
-		// TODO: put checks in here for NaN, +/- infinity
-		if (sel == selPLUS) {
-			res = leftDouble + rightLong;
-		}
-		else if (sel == selMINUS) {
-			res = leftDouble - rightLong;
-		}
-		else if (sel == selMULT) {
-			res = leftDouble * rightLong;
-		}
-		else if (sel == selDIV) {
-			if (rightLong == 0) {
-				return NULL;
-			}
-			res = leftDouble / rightDouble;
-		} else {
-			result_is_fixfloat = false;
-			if (sel == selLT) {
-			    res = leftDouble < rightLong;
-			}
-			else if (sel == selLE) {
-			    res = leftDouble <= rightLong;
-			}
-			else if (sel == selGT) {
-			    res = leftDouble > rightLong;
-			}
-			else if (sel == selGE) {
-			    res = leftDouble >= rightLong;
-			}
-			else if ((sel == selEq) || (sel == selEqq)) {
-			    res = leftDouble == rightLong;
-			}
-			else if (sel == selNeq) {
-			    res = leftDouble != rightLong;
-			}
-			else {
-			    abort();		
-			}
-		}
-		if (!result_is_fixfloat || FIXABLE_DBL(res)) {
-			Value *is_redefined_val = new LoadInst(is_redefined, "", bb);
-			Value *isOpRedefined = new ICmpInst(ICmpInst::ICMP_EQ, 
-				is_redefined_val, ConstantInt::getFalse(), "", bb);
-
-			Function *f = bb->getParent();
-
-			BasicBlock *thenBB = BasicBlock::Create("op_not_redefined", f);
-			BasicBlock *elseBB  = BasicBlock::Create("op_dispatch", f);
-			BasicBlock *mergeBB = BasicBlock::Create("op_merge", f);
-
-			BranchInst::Create(thenBB, elseBB, isOpRedefined, bb);
-			Value *thenVal = result_is_fixfloat
-			    ? ConstantInt::get(RubyObjTy, DBL2FIXFLOAT(res)) 
-			    : (res == 1 ? trueVal : falseVal);
-			BranchInst::Create(mergeBB, thenBB);
-
-			bb = elseBB;
-			Value *elseVal = compile_dispatch_call(params);
-			elseBB = bb;
-			BranchInst::Create(mergeBB, elseBB);
-
-			PHINode *pn = PHINode::Create(RubyObjTy, "op_tmp", mergeBB);
-			pn->addIncoming(thenVal, thenBB);
-			pn->addIncoming(elseVal, elseBB);
-			bb = mergeBB;
-
-			return pn;
-		}
-	}
-	else if (leftIsFixnumConstant && rightIsFixFloatConstant) {
-		bool result_is_fixfloat = true;
-		double res;
-		// TODO: put checks in here for NaN, +/- infinity
-		if (sel == selPLUS) {
-			res = leftLong + rightDouble;
-		}
-		else if (sel == selMINUS) {
-			res = leftLong - rightDouble;
-		}
-		else if (sel == selMULT) {
-			res = leftLong * rightDouble;
-		}
-		else if (sel == selDIV) {
-			if (rightDouble == 0.0) {
-				return NULL;
-			}
-			res = leftLong / rightDouble;
-		} else {
-			result_is_fixfloat = false;
-			if (sel == selLT) {
-			    res = leftLong < rightDouble;
-			}
-			else if (sel == selLE) {
-			    res = leftLong <= rightDouble;
-			}
-			else if (sel == selGT) {
-			    res = leftLong > rightDouble;
-			}
-			else if (sel == selGE) {
-			    res = leftLong >= rightDouble;
-			}
-			else if ((sel == selEq) || (sel == selEqq)) {
-			    res = leftLong == rightDouble;
-			}
-			else if (sel == selNeq) {
-			    res = leftLong != rightDouble;
-			}
-			else {
-			    abort();		
-			}
-		}
-		if (!result_is_fixfloat || FIXABLE_DBL(res)) {
-			Value *is_redefined_val = new LoadInst(is_redefined, "", bb);
-			Value *isOpRedefined = new ICmpInst(ICmpInst::ICMP_EQ, 
-				is_redefined_val, ConstantInt::getFalse(), "", bb);
-
-			Function *f = bb->getParent();
-
-			BasicBlock *thenBB = BasicBlock::Create("op_not_redefined", f);
-			BasicBlock *elseBB  = BasicBlock::Create("op_dispatch", f);
-			BasicBlock *mergeBB = BasicBlock::Create("op_merge", f);
-
-			BranchInst::Create(thenBB, elseBB, isOpRedefined, bb);
-			Value *thenVal = result_is_fixfloat
-			    ? ConstantInt::get(RubyObjTy, DBL2FIXFLOAT(res)) 
-			    : (res == 1 ? trueVal : falseVal);
-			BranchInst::Create(mergeBB, thenBB);
-
-			bb = elseBB;
-			Value *elseVal = compile_dispatch_call(params);
-			elseBB = bb;
-			BranchInst::Create(mergeBB, elseBB);
-
-			PHINode *pn = PHINode::Create(RubyObjTy, "op_tmp", mergeBB);
-			pn->addIncoming(thenVal, thenBB);
-			pn->addIncoming(elseVal, elseBB);
-			bb = mergeBB;
-
-			return pn;
-		}
-	}
 	else {
+		// Either one or both of the operands was not a fixable constant.
 	    Value *is_redefined_val = new LoadInst(is_redefined, "", bb);
 	    Value *isOpRedefined = new ICmpInst(ICmpInst::ICMP_EQ, 
 		    is_redefined_val, ConstantInt::getFalse(), "", bb);
