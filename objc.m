@@ -221,6 +221,33 @@ rb_objc_search_and_load_bridge_support(const char *framework_path)
 }
 
 static void
+reload_class_constants(void)
+{
+    static int class_count = 0;
+    int i, count;
+    Class *buf;
+
+    count = objc_getClassList(NULL, 0);
+    if (count == class_count)
+	return;
+
+    buf = (Class *)alloca(sizeof(Class) * count);
+    objc_getClassList(buf, count);
+
+    for (i = 0; i < count; i++) {
+	const char *name = class_getName(buf[i]);
+	if (name[0] != '_') {
+	    ID name_id = rb_intern(name);
+	    if (!rb_const_defined(rb_cObject, name_id)) {
+		rb_const_set(rb_cObject, name_id, (VALUE)buf[i]);
+	    }
+	}
+    }
+
+    class_count = count;
+}
+
+static void
 reload_protocols(void)
 {
 #if 0
@@ -357,6 +384,7 @@ success:
     }
 
     rb_objc_search_and_load_bridge_support(cstr);
+    reload_class_constants();
     reload_protocols();
 
     return Qtrue;
