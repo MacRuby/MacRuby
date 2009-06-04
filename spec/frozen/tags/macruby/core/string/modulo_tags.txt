@@ -55,3 +55,13 @@ fails:String#% behaves as if calling Kernel#Float for %G arguments, when the pas
 fails:String#% calls #to_int on argument for %c formats, if the argument does not respond to #to_ary
 fails:String#% calls to_int on width star and precision star tokens
 fails:String#% raises an error if NULL or \n appear anywhere else in the format string
+fails:String#% supports binary formats using %b for positive numbers
+fails:String#% supports binary formats using %b for negative numbers
+fails:String#% pads with zeros using %E with Inf, -Inf, and NaN
+fails:String#% supports octal formats using %o for positive numbers
+fails:String#% supports octal formats using %o for negative numbers
+fails:String#% supports negative bignums with %u or %d
+fails:String#% supports hex formats using %x for positive numbers
+fails:String#% supports hex formats using %x for negative numbers
+fails:String#% supports hex formats using %X for positive numbers
+fails:String#% supports hex formats using %X for negative numbers

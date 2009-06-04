@@ -1,5 +1,1 @@
-fails:String#sub with pattern, replacement raises a TypeError when pattern can't be converted to a string
-fails:String#sub with pattern, replacement raises a TypeError when replacement can't be converted to a string
-fails:String#sub with pattern and block returns a copy of self with the first occurrences of pattern replaced with the block's return value
 fails:String#sub with pattern and block restores $~ after leaving the block
-fails:String#sub! with pattern, replacement raises a TypeError when self is frozen

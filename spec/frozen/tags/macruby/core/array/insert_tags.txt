@@ -1,1 +1,2 @@
 fails:Array#insert inserts objects before the element at index for non-negative index
+fails:Array#insert raises a RuntimeError on frozen arrays

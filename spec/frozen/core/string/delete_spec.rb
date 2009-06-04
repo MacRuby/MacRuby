@@ -69,7 +69,7 @@ describe "String#delete" do
 
   it "raises a TypeError when one set arg can't be converted to a string" do
     lambda { "hello world".delete(100)       }.should raise_error(TypeError)
-    lambda { "hello world".delete(:o)        }.should raise_error(TypeError)
+    lambda { "hello world".delete([])        }.should raise_error(TypeError)
     lambda { "hello world".delete(mock('x')) }.should raise_error(TypeError)
   end
 

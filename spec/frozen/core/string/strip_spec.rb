@@ -41,9 +41,8 @@ describe "String#strip!" do
   ruby_version_is "1.9" do
     ruby_bug "#1552", "1.9.2" do
       it "raises a RuntimeError if self is frozen" do
-        "hello".freeze.strip! # ok, nothing changed
-        "".freeze.strip! # ok, nothing changed
-
+        lambda {"hello".freeze.strip!      }.should raise_error(RuntimeError)
+        lambda {"".freeze.strip!           }.should raise_error(RuntimeError)
         lambda { "  hello  ".freeze.strip! }.should raise_error(RuntimeError)
       end
     end

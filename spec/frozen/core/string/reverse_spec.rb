@@ -32,10 +32,12 @@ describe "String#reverse!" do
   end
 
   ruby_version_is "1.9" do
-    it "raises a RuntimeError if self is frozen" do
-      "".freeze.reverse! # ok, no change
-      lambda { "anna".freeze.reverse!  }.should raise_error(RuntimeError)
-      lambda { "hello".freeze.reverse! }.should raise_error(RuntimeError)
+    ruby_bug "[ruby-core:23666]", "1.9.2" do
+      it "raises a RuntimeError if self is frozen" do
+        lambda { "".freeze.reverse!      }.should raise_error(RuntimeError)
+        lambda { "anna".freeze.reverse!  }.should raise_error(RuntimeError)
+        lambda { "hello".freeze.reverse! }.should raise_error(RuntimeError)
+      end
     end
   end  
 end

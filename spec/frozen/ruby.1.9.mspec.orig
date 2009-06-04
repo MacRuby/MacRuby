@@ -70,8 +70,6 @@ class MSpecScript
   #                       [/_spec.rb$/,       '_tags.txt']
   #                     ]
 
-  set :backtrace_filter, /mspec\//
-
   set :tags_patterns, [
                         [%r(language/),     'tags/macruby/language/'],
                         [%r(core/),         'tags/macruby/core/'],

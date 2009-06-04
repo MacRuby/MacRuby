@@ -12,3 +12,5 @@ fails:String#gsub! with pattern and replacement untrusts self if replacement is 
 fails:String#gsub! with pattern and replacement raises a TypeError when self is frozen
 fails:String#gsub! with pattern and block taints self if block's result is tainted
 fails:String#gsub! with pattern and block untrusts self if block's result is untrusted
+fails:String#gsub! with pattern and replacement raises a RuntimeError when self is frozen
+fails:String#gsub! with pattern and block raises a RuntimeError when self is frozen

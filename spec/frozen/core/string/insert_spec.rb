@@ -50,8 +50,8 @@ describe "String#insert with index, other" do
   end
 
   it "raises a TypeError if other can't be converted to string" do
-    lambda { "abcd".insert(-6, ?e)        }.should raise_error(TypeError)
-    lambda { "abcd".insert(-6, :sym)      }.should raise_error(TypeError)
+    lambda { "abcd".insert(-6, Object.new)}.should raise_error(TypeError)
+    lambda { "abcd".insert(-6, [])        }.should raise_error(TypeError)
     lambda { "abcd".insert(-6, mock('x')) }.should raise_error(TypeError)
   end
 

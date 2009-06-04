@@ -48,7 +48,7 @@ describe "Hash#merge" do
     h = new_hash(1 => 2, 3 => 4, 5 => 6, "x" => nil, nil => 5, [] => [])
     merge_pairs = []
     each_pairs = []
-    h.each_pair { |*pair| each_pairs << pair }
+    h.each_pair { |k, v| each_pairs << [k, v] }
     h.merge(h) { |k, v1, v2| merge_pairs << [k, v1] }
     merge_pairs.should == each_pairs
   end

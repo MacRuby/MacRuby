@@ -1,2 +1,0 @@
-fails:String#chop returns a new string with the last character removed
-fails:String#chop! raises a TypeError when self is frozen

@@ -147,14 +147,15 @@ describe "String#chomp! with separator" do
   end
 
   ruby_version_is "1.9" do 
-    it "raises a RuntimeError when self is frozen" do
-      a = "string\n\r"
-      a.freeze
+    ruby_bug "[ruby-core:23666]", "1.9.2" do
+      it "raises a RuntimeError when self is frozen" do
+        a = "string\n\r"
+        a.freeze
 
-      lambda { a.chomp! }.should raise_error(RuntimeError)
-
-      a.chomp!(nil) # ok, no change
-      a.chomp!("x") # ok, no change
+        lambda { a.chomp! }.should raise_error(RuntimeError)
+        lambda { a.chomp!(nil) }.should raise_error(RuntimeError)
+        lambda { a.chomp!("x") }.should raise_error(RuntimeError)
+      end
     end
   end  
 end

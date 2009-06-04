@@ -1,2 +1,0 @@
-fails:String#dump ignores the $KCODE setting
-fails:String#dump returns a string with nonprinting charaters replaced by escaped-numeric notation

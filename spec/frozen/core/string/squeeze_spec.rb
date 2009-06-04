@@ -66,8 +66,8 @@ describe "String#squeeze" do
   end
 
   it "raises a TypeError when one set arg can't be converted to a string" do
-    lambda { "hello world".squeeze(?o)        }.should raise_error(TypeError)
-    lambda { "hello world".squeeze(:o)        }.should raise_error(TypeError)
+    lambda { "hello world".squeeze([])        }.should raise_error(TypeError)
+    lambda { "hello world".squeeze(Object.new)}.should raise_error(TypeError)
     lambda { "hello world".squeeze(mock('x')) }.should raise_error(TypeError)
   end
 
