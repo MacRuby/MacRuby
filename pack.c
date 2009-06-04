@@ -453,6 +453,9 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
     pend = p + RSTRING_LEN(fmt);
 
     VALUE bres = rb_bytestring_new();
+    if (OBJ_TAINTED(fmt)) {
+	OBJ_TAINT(bres);
+    }
     CFMutableDataRef data = rb_bytestring_wrapped_data(bres);
 
     items = RARRAY_LEN(ary);
