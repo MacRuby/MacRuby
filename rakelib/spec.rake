@@ -55,6 +55,7 @@ namespace :spec do
   
   CI_DIRS = %w{
     spec/frozen/language
+    spec/frozen/core/argf
     spec/frozen/core/array
     spec/frozen/core/basicobject
     spec/frozen/core/class

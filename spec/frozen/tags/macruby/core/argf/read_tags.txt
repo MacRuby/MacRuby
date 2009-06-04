@@ -1,0 +1,6 @@
+fails:ARGF.read treats second argument as an output buffer
+fails:ARGF.read reads the contents of two files
+fails:ARGF.read reads the contents of one file and some characters from the second
+fails:ARGF.read reads across two files consecutively
+fails:ARGF.read reads the contents of one file and stdin
+fails:ARGF.read reads the contents of the same file twice

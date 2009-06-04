@@ -1,0 +1,1 @@
+fails:ARGF.rewind raises an ArgumentError when end of stream reached
