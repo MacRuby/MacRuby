@@ -779,8 +779,8 @@ rb_obj_tainted(VALUE obj)
 	switch (TYPE(obj)) {
 	    case T_STRING:
 		if (*(VALUE *)obj == rb_cByteString) {
-		    // TODO
-		    return Qfalse;
+		    return rb_objc_flag_check((const void *)obj, FL_TAINT)
+			? Qtrue : Qfalse;
 		}
 		// fall through
 	    case T_ARRAY:
@@ -815,8 +815,8 @@ rb_obj_taint(VALUE obj)
 	switch (TYPE(obj)) {
 	    case T_STRING:
 		if (*(VALUE *)obj == rb_cByteString) {
-		    // TODO
-		    return obj;
+		    rb_objc_flag_set((const void *)obj, FL_TAINT, true);
+		    break;
 		}
 		// fall through
 	    case T_ARRAY:
@@ -925,8 +925,8 @@ rb_obj_freeze(VALUE obj)
 	    switch(TYPE(obj)) {
 		case T_STRING:
 		if (*(VALUE *)obj == rb_cByteString) {
-		    // TODO
-		    return obj;
+		    rb_objc_flag_set((const void *)obj, FL_FREEZE, true);
+		    break;
 		}
 		// fall through
 		case T_ARRAY:
@@ -971,8 +971,8 @@ rb_obj_frozen_p(VALUE obj)
     switch (TYPE(obj)) {
 	case T_STRING:
 	    if (*(VALUE *)obj == rb_cByteString) {
-		// TODO
-		return Qfalse;
+		return rb_objc_flag_check((const void *)obj, FL_FREEZE)
+		    ? Qtrue : Qfalse;
 	    }
 	    // fall through
 	case T_ARRAY:
