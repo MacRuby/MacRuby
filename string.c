@@ -390,8 +390,10 @@ rb_str_length(VALUE str)
 static VALUE
 rb_str_bytesize(VALUE str, SEL sel)
 {
-    // TODO
-    abort();
+    // TODO Not super accurate...
+    CFStringEncoding encoding = CFStringGetSmallestEncoding((CFStringRef)str);
+    long size = CFStringGetMaximumSizeForEncoding(RSTRING_LEN(str), encoding);
+    return LONG2NUM(size);
 }
 
 /*
@@ -3837,21 +3839,34 @@ rb_str_each_line(VALUE str, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_str_each_byte(VALUE str, SEL sel)
 {
-#if 0 // TODO
-    long n, i;
-    char *ptr;
-
     RETURN_ENUMERATOR(str, 0, 0);
 
-    n = RSTRING_BYTELEN(str);
-    ptr = RSTRING_BYTEPTR(str);
-    for (i=0; i<n; i++) {
-	rb_yield(INT2FIX(ptr[i] & 0xff));
+    long n = RSTRING_LEN(str);
+    if (n == 0) {
+	return str;
+    }
+
+    CFStringEncoding encoding = CFStringGetSmallestEncoding((CFStringRef)str);
+    const long buflen = CFStringGetMaximumSizeForEncoding(n, encoding);
+    UInt8 *buffer = (UInt8 *)alloca(buflen + 1);
+    long used_buflen = 0;
+
+    CFStringGetBytes((CFStringRef)str,
+	    CFRangeMake(0, n),
+	    encoding,
+	    0,
+	    false,
+	    buffer,
+	    sizeof buffer,
+	    &used_buflen);
+
+    long i;
+    for (i = 0; i < used_buflen; i++) {
+	rb_yield(INT2FIX(buffer[i]));
 	RETURN_IF_BROKEN();
     }
+
     return str;
-#endif
-    abort();
 }
 
 
