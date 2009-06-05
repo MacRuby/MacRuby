@@ -498,17 +498,20 @@ rb_enc_find2(VALUE name)
 rb_encoding *
 rb_enc_get(VALUE obj)
 {
-    int type = TYPE(obj);
-    if (type == T_STRING) {
-	CFStringEncoding enc = CFStringGetFastestEncoding((CFStringRef)obj);
-	if (enc == kCFStringEncodingInvalidId)
-	    return NULL;
-	return rb_enc_to_enc_ptr(enc_make(&enc));
+    CFStringEncoding enc = kCFStringEncodingInvalidId;
+
+    switch (TYPE(obj)) {
+	case T_STRING:
+	    enc = *(VALUE *)obj == rb_cByteString
+		? kCFStringEncodingASCII
+		: CFStringGetFastestEncoding((CFStringRef)obj);
+	    break;
     }
-    else {
-	/* TODO */
+
+    if (enc == kCFStringEncodingInvalidId) {
 	return NULL;
     }
+    return rb_enc_to_enc_ptr(enc_make(&enc));
 }
 
 rb_encoding *
