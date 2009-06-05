@@ -2830,9 +2830,11 @@ rb_str_swapcase_bang(VALUE str, SEL sel)
     UniChar *buffer;
     bool changed;
 
+    rb_str_modify(str);
+
     n = CFStringGetLength((CFStringRef)str);
     if (n == 0) {
-	return rb_str_dup(str);
+	return Qnil;
     }
    
     buffer = (UniChar *)CFStringGetCharactersPtr((CFStringRef)str);
@@ -2858,7 +2860,8 @@ rb_str_swapcase_bang(VALUE str, SEL sel)
 	return Qnil;
     }
     CFStringDelete((CFMutableStringRef)str, CFRangeMake(0, n));
-    CFStringAppendCharacters((CFMutableStringRef)str, (const UniChar *)buffer, n);
+    CFStringAppendCharacters((CFMutableStringRef)str,
+	    (const UniChar *)buffer, n);
     return str;
 }
 
