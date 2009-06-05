@@ -1,1 +1,0 @@
-fails:Hash#to_s returns a string by calling Hash#to_a and using Array#join with default separator

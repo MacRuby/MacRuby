@@ -4,3 +4,4 @@ fails:IO::foreach yields a sequence of paragraphs when the separator is an empty
 fails:IO::foreach updates $. with each yield
 fails:IO::foreach can handle non-ASCII data as separator
 fails:IO::foreach converts second parameter to string and uses as separator
+fails:IO::foreach converts second parameter to string and uses as separator, with each to_str calling for each lines of the IOs

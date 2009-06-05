@@ -27,7 +27,7 @@ describe :to_s, :shared => true do
   # There is an inconsistency in the behaviour of #to_s/#inspect on 1.9.1.
   # ujihisa fixed it and we're waiting for his patch to be committed. See
   # http://redmine.ruby-lang.org/issues/show/1533 for details. 
-  ruby_bug "1533", "1.9.1.129" do
+  ruby_bug "1533", "1.9.1.154" do
     it "handles recursive hashes" do
       x = new_hash
       x[0] = x

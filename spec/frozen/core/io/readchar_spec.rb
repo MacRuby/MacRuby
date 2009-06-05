@@ -23,7 +23,7 @@ describe "IO#readchar" do
   end
 
   ruby_version_is "1.9" do
-    it "returns the next character from the stream" do
+    it "returns the next string from the stream" do
       @file.readchar.should == 'V'
       @file.readchar.should == 'o'
       @file.readchar.should == 'i'
