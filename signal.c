@@ -321,7 +321,7 @@ ruby_default_signal(int sig)
  */
 
 VALUE
-rb_f_kill(int argc, VALUE *argv)
+rb_f_kill(VALUE self, SEL sel, int argc, VALUE *argv)
 {
 #ifndef HAS_KILLPG
 #define killpg(pg, sig) kill(-(pg), sig)

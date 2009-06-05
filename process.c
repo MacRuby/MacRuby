@@ -152,7 +152,7 @@ static VALUE rb_cProcessTms;
  */
 
 static VALUE
-get_pid(void)
+get_pid(VALUE rcv, SEL sel)
 {
     rb_secure(2);
     return PIDT2NUM(getpid());
@@ -176,7 +176,7 @@ get_pid(void)
  */
 
 static VALUE
-get_ppid(void)
+get_ppid(VALUE rcv, SEL sel)
 {
     rb_secure(2);
 #ifdef _WIN32
@@ -756,7 +756,7 @@ waitall_each(rb_pid_t pid, int status, VALUE ary)
  */
 
 static VALUE
-proc_wait(int argc, VALUE *argv)
+proc_wait(VALUE rcv, SEL sel, int argc, VALUE *argv)
 {
     VALUE vpid, vflags;
     rb_pid_t pid;
@@ -802,9 +802,9 @@ proc_wait(int argc, VALUE *argv)
  */
 
 static VALUE
-proc_wait2(int argc, VALUE *argv)
+proc_wait2(VALUE rcv, SEL sel, int argc, VALUE *argv)
 {
-    VALUE pid = proc_wait(argc, argv);
+    VALUE pid = proc_wait(rcv, 0, argc, argv);
     if (NIL_P(pid)) return Qnil;
     return rb_assoc_new(pid, rb_last_status_get());
 }
@@ -831,7 +831,7 @@ proc_wait2(int argc, VALUE *argv)
  */
 
 static VALUE
-proc_waitall(void)
+proc_waitall(VALUE rcv, SEL sel)
 {
     VALUE result;
     rb_pid_t pid;
@@ -937,7 +937,7 @@ rb_detach_process(rb_pid_t pid)
  */
 
 static VALUE
-proc_detach(VALUE obj, VALUE pid)
+proc_detach(VALUE obj, SEL sel, VALUE pid)
 {
     rb_secure(2);
     return rb_detach_process(NUM2PIDT(pid));
@@ -2960,7 +2960,7 @@ rb_f_sleep(VALUE recv, SEL sel, int argc, VALUE *argv)
  */
 
 static VALUE
-proc_getpgrp(void)
+proc_getpgrp(VALUE rcv, SEL sel)
 {
 #if defined(HAVE_GETPGRP) && defined(GETPGRP_VOID) || defined(HAVE_GETPGID)
     rb_pid_t pgrp;
@@ -2992,7 +2992,7 @@ proc_getpgrp(void)
  */
 
 static VALUE
-proc_setpgrp(void)
+proc_setpgrp(VALUE rcv, SEL sel)
 {
     rb_secure(2);
   /* check for posix setpgid() first; this matches the posix */
@@ -3021,7 +3021,7 @@ proc_setpgrp(void)
  */
 
 static VALUE
-proc_getpgid(VALUE obj, VALUE pid)
+proc_getpgid(VALUE obj, SEL sel, VALUE pid)
 {
 #if defined(HAVE_GETPGID) && !defined(__CHECKER__)
     rb_pid_t i;
@@ -3045,7 +3045,7 @@ proc_getpgid(VALUE obj, VALUE pid)
  */
 
 static VALUE
-proc_setpgid(VALUE obj, VALUE pid, VALUE pgrp)
+proc_setpgid(VALUE obj, SEL sel, VALUE pid, VALUE pgrp)
 {
 #ifdef HAVE_SETPGID
     rb_pid_t ipid, ipgrp;
@@ -3074,7 +3074,7 @@ proc_setpgid(VALUE obj, VALUE pid, VALUE pgrp)
  */
 
 static VALUE
-proc_setsid(void)
+proc_setsid(VALUE rcv, SEL sel)
 {
 #if defined(HAVE_SETSID)
     rb_pid_t pid;
@@ -3128,7 +3128,7 @@ proc_setsid(void)
  */
 
 static VALUE
-proc_getpriority(VALUE obj, VALUE which, VALUE who)
+proc_getpriority(VALUE obj, SEL sel, VALUE which, VALUE who)
 {
 #ifdef HAVE_GETPRIORITY
     int prio, iwhich, iwho;
@@ -3160,7 +3160,7 @@ proc_getpriority(VALUE obj, VALUE which, VALUE who)
  */
 
 static VALUE
-proc_setpriority(VALUE obj, VALUE which, VALUE who, VALUE prio)
+proc_setpriority(VALUE obj, SEL sel, VALUE which, VALUE who, VALUE prio)
 {
 #ifdef HAVE_GETPRIORITY
     int iwhich, iwho, iprio;
@@ -3363,7 +3363,7 @@ rlimit_resource_value(VALUE rval)
  */
 
 static VALUE
-proc_getrlimit(VALUE obj, VALUE resource)
+proc_getrlimit(VALUE obj, SEL sel, VALUE resource)
 {
 #if defined(HAVE_GETRLIMIT) && defined(RLIM2NUM)
     struct rlimit rlim;
@@ -3426,7 +3426,7 @@ proc_getrlimit(VALUE obj, VALUE resource)
  */
 
 static VALUE
-proc_setrlimit(int argc, VALUE *argv, VALUE obj)
+proc_setrlimit(VALUE obj, SEL sel, int argc, VALUE *argv)
 {
 #if defined(HAVE_SETRLIMIT) && defined(NUM2RLIM)
     VALUE resource, rlim_cur, rlim_max;
@@ -3492,7 +3492,7 @@ check_gid_switch(void)
  */
 
 static VALUE
-p_sys_setuid(VALUE obj, VALUE id)
+p_sys_setuid(VALUE obj, SEL sel, VALUE id)
 {
 #if defined HAVE_SETUID
     check_uid_switch();
@@ -3515,7 +3515,7 @@ p_sys_setuid(VALUE obj, VALUE id)
  */
 
 static VALUE
-p_sys_setruid(VALUE obj, VALUE id)
+p_sys_setruid(VALUE obj, SEL sel, VALUE id)
 {
 #if defined HAVE_SETRUID
     check_uid_switch();
@@ -3537,7 +3537,7 @@ p_sys_setruid(VALUE obj, VALUE id)
  */
 
 static VALUE
-p_sys_seteuid(VALUE obj, VALUE id)
+p_sys_seteuid(VALUE obj, SEL sel, VALUE id)
 {
 #if defined HAVE_SETEUID
     check_uid_switch();
@@ -3561,7 +3561,7 @@ p_sys_seteuid(VALUE obj, VALUE id)
  */
 
 static VALUE
-p_sys_setreuid(VALUE obj, VALUE rid, VALUE eid)
+p_sys_setreuid(VALUE obj, SEL sel, VALUE rid, VALUE eid)
 {
 #if defined HAVE_SETREUID
     check_uid_switch();
@@ -3585,7 +3585,7 @@ p_sys_setreuid(VALUE obj, VALUE rid, VALUE eid)
  */
 
 static VALUE
-p_sys_setresuid(VALUE obj, VALUE rid, VALUE eid, VALUE sid)
+p_sys_setresuid(VALUE obj, SEL sel, VALUE rid, VALUE eid, VALUE sid)
 {
 #if defined HAVE_SETRESUID
     check_uid_switch();
@@ -3609,7 +3609,7 @@ p_sys_setresuid(VALUE obj, VALUE rid, VALUE eid, VALUE sid)
  */
 
 static VALUE
-proc_getuid(VALUE obj)
+proc_getuid(VALUE obj, SEL sel)
 {
     rb_uid_t uid = getuid();
     return UIDT2NUM(uid);
@@ -3625,7 +3625,7 @@ proc_getuid(VALUE obj)
  */
 
 static VALUE
-proc_setuid(VALUE obj, VALUE id)
+proc_setuid(VALUE obj, SEL sel, VALUE id)
 {
     rb_uid_t uid;
 
@@ -3695,7 +3695,7 @@ setreuid(rb_uid_t ruid, rb_uid_t euid)
  */
 
 static VALUE
-p_uid_change_privilege(VALUE obj, VALUE id)
+p_uid_change_privilege(VALUE obj, SEL sel, VALUE id)
 {
     rb_uid_t uid;
 
@@ -3844,7 +3844,7 @@ p_uid_change_privilege(VALUE obj, VALUE id)
  */
 
 static VALUE
-p_sys_setgid(VALUE obj, VALUE id)
+p_sys_setgid(VALUE obj, SEL sel, VALUE id)
 {
 #if defined HAVE_SETGID
     check_gid_switch();
@@ -3866,7 +3866,7 @@ p_sys_setgid(VALUE obj, VALUE id)
  */
 
 static VALUE
-p_sys_setrgid(VALUE obj, VALUE id)
+p_sys_setrgid(VALUE obj, SEL sel, VALUE id)
 {
 #if defined HAVE_SETRGID
     check_gid_switch();
@@ -3889,7 +3889,7 @@ p_sys_setrgid(VALUE obj, VALUE id)
  */
 
 static VALUE
-p_sys_setegid(VALUE obj, VALUE id)
+p_sys_setegid(VALUE obj, SEL sel, VALUE id)
 {
 #if defined HAVE_SETEGID
     check_gid_switch();
@@ -3913,7 +3913,7 @@ p_sys_setegid(VALUE obj, VALUE id)
  */
 
 static VALUE
-p_sys_setregid(VALUE obj, VALUE rid, VALUE eid)
+p_sys_setregid(VALUE obj, SEL sel, VALUE rid, VALUE eid)
 {
 #if defined HAVE_SETREGID
     check_gid_switch();
@@ -3936,7 +3936,7 @@ p_sys_setregid(VALUE obj, VALUE rid, VALUE eid)
  */
 
 static VALUE
-p_sys_setresgid(VALUE obj, VALUE rid, VALUE eid, VALUE sid)
+p_sys_setresgid(VALUE obj, SEL sel, VALUE rid, VALUE eid, VALUE sid)
 {
 #if defined HAVE_SETRESGID
     check_gid_switch();
@@ -3961,7 +3961,7 @@ p_sys_setresgid(VALUE obj, VALUE rid, VALUE eid, VALUE sid)
  */
 
 static VALUE
-p_sys_issetugid(VALUE obj)
+p_sys_issetugid(VALUE obj, SEL sel)
 {
 #if defined HAVE_ISSETUGID
     rb_secure(2);
@@ -3989,7 +3989,7 @@ p_sys_issetugid(VALUE obj)
  */
 
 static VALUE
-proc_getgid(VALUE obj)
+proc_getgid(VALUE obj, SEL sel)
 {
     rb_gid_t gid = getgid();
     return GIDT2NUM(gid);
@@ -4004,7 +4004,7 @@ proc_getgid(VALUE obj)
  */
 
 static VALUE
-proc_setgid(VALUE obj, VALUE id)
+proc_setgid(VALUE obj, SEL sel, VALUE id)
 {
     rb_gid_t gid;
 
@@ -4048,7 +4048,7 @@ static size_t maxgroups = 32;
  */
 
 static VALUE
-proc_getgroups(VALUE obj)
+proc_getgroups(VALUE obj, SEL sel)
 {
 #ifdef HAVE_GETGROUPS
     VALUE ary;
@@ -4088,7 +4088,7 @@ proc_getgroups(VALUE obj)
  */
 
 static VALUE
-proc_setgroups(VALUE obj, VALUE ary)
+proc_setgroups(VALUE obj, SEL sel, VALUE ary)
 {
 #ifdef HAVE_SETGROUPS
     size_t ngroups;
@@ -4130,7 +4130,7 @@ proc_setgroups(VALUE obj, VALUE ary)
     if (i == -1)
 	rb_sys_fail(0);
 
-    return proc_getgroups(obj);
+    return proc_getgroups(obj, 0);
 #else
     rb_notimplement();
     return Qnil;
@@ -4156,13 +4156,13 @@ proc_setgroups(VALUE obj, VALUE ary)
  */
 
 static VALUE
-proc_initgroups(VALUE obj, VALUE uname, VALUE base_grp)
+proc_initgroups(VALUE obj, SEL sel, VALUE uname, VALUE base_grp)
 {
 #ifdef HAVE_INITGROUPS
     if (initgroups(StringValuePtr(uname), NUM2GIDT(base_grp)) != 0) {
 	rb_sys_fail(0);
     }
-    return proc_getgroups(obj);
+    return proc_getgroups(obj, 0);
 #else
     rb_notimplement();
     return Qnil;
@@ -4181,7 +4181,7 @@ proc_initgroups(VALUE obj, VALUE uname, VALUE base_grp)
  */
 
 static VALUE
-proc_getmaxgroups(VALUE obj)
+proc_getmaxgroups(VALUE obj, SEL sel)
 {
     return INT2FIX(maxgroups);
 }
@@ -4196,7 +4196,7 @@ proc_getmaxgroups(VALUE obj)
  */
 
 static VALUE
-proc_setmaxgroups(VALUE obj, VALUE val)
+proc_setmaxgroups(VALUE obj, SEL sel, VALUE val)
 {
     size_t  ngroups = FIX2INT(val);
 
@@ -4222,7 +4222,7 @@ proc_setmaxgroups(VALUE obj, VALUE val)
  */
 
 static VALUE
-proc_daemon(int argc, VALUE *argv)
+proc_daemon(VALUE rcv, SEL sel, int argc, VALUE *argv)
 {
     VALUE nochdir, noclose;
 #if defined(HAVE_DAEMON) || defined(HAVE_FORK)
@@ -4246,7 +4246,7 @@ proc_daemon(int argc, VALUE *argv)
 	_exit(0);
     }
 
-    proc_setsid();
+    proc_setsid(0, 0);
 
     if (!RTEST(nochdir))
 	(void)chdir("/");
@@ -4305,7 +4305,7 @@ setregid(rb_gid_t rgid, rb_gid_t egid)
  */
 
 static VALUE
-p_gid_change_privilege(VALUE obj, VALUE id)
+p_gid_change_privilege(VALUE obj, SEL sel, VALUE id)
 {
     rb_gid_t gid;
 
@@ -4456,7 +4456,7 @@ p_gid_change_privilege(VALUE obj, VALUE id)
  */
 
 static VALUE
-proc_geteuid(VALUE obj)
+proc_geteuid(VALUE obj, SEL sel)
 {
     rb_uid_t euid = geteuid();
     return UIDT2NUM(euid);
@@ -4472,7 +4472,7 @@ proc_geteuid(VALUE obj)
  */
 
 static VALUE
-proc_seteuid(VALUE obj, VALUE euid)
+proc_seteuid(VALUE obj, SEL sel, VALUE euid)
 {
     rb_uid_t uid;
 
@@ -4568,7 +4568,7 @@ p_uid_grant_privilege(VALUE obj, SEL sel, VALUE id)
  */
 
 static VALUE
-proc_getegid(VALUE obj)
+proc_getegid(VALUE obj, SEL sel)
 {
     rb_gid_t egid = getegid();
 
@@ -4585,7 +4585,7 @@ proc_getegid(VALUE obj)
  */
 
 static VALUE
-proc_setegid(VALUE obj, VALUE egid)
+proc_setegid(VALUE obj, SEL sel, VALUE egid)
 {
     rb_gid_t gid;
 
@@ -4678,7 +4678,7 @@ p_gid_grant_privilege(VALUE obj, SEL sel, VALUE id)
  */
 
 static VALUE
-p_uid_exchangeable(void)
+p_uid_exchangeable(VALUE rcv, SEL sel)
 {
 #if defined(HAVE_SETRESUID) &&  !defined(__CHECKER__)
     return Qtrue;
@@ -4703,7 +4703,7 @@ p_uid_exchangeable(void)
  */
 
 static VALUE
-p_uid_exchange(VALUE obj)
+p_uid_exchange(VALUE obj, SEL sel)
 {
     rb_uid_t uid, euid;
 
@@ -4735,7 +4735,7 @@ p_uid_exchange(VALUE obj)
  */
 
 static VALUE
-p_gid_exchangeable(void)
+p_gid_exchangeable(VALUE rcv, SEL sel)
 {
 #if defined(HAVE_SETRESGID) &&  !defined(__CHECKER__)
     return Qtrue;
@@ -4760,7 +4760,7 @@ p_gid_exchangeable(void)
  */
 
 static VALUE
-p_gid_exchange(VALUE obj)
+p_gid_exchange(VALUE obj, SEL sel)
 {
     rb_gid_t gid, egid;
 
@@ -4793,7 +4793,7 @@ p_gid_exchange(VALUE obj)
  */
 
 static VALUE
-p_uid_have_saved_id(void)
+p_uid_have_saved_id(VALUE rcv, SEL sel)
 {
 #if defined(HAVE_SETRESUID) || defined(HAVE_SETEUID) || defined(_POSIX_SAVED_IDS)
     return Qtrue;
@@ -4827,7 +4827,7 @@ p_uid_sw_ensure(rb_uid_t id)
  */
 
 static VALUE
-p_uid_switch(VALUE obj)
+p_uid_switch(VALUE obj, SEL sel)
 {
     rb_uid_t uid, euid;
 
@@ -4837,7 +4837,7 @@ p_uid_switch(VALUE obj)
     euid = geteuid();
 
     if (uid != euid) {
-	proc_seteuid(obj, UIDT2NUM(uid));
+	proc_seteuid(obj, 0, UIDT2NUM(uid));
 	if (rb_block_given_p()) {
 	    under_uid_switch = 1;
 	    return rb_ensure(rb_yield, Qnil, p_uid_sw_ensure, SAVED_USER_ID);
@@ -4845,7 +4845,7 @@ p_uid_switch(VALUE obj)
 	    return UIDT2NUM(euid);
 	}
     } else if (euid != SAVED_USER_ID) {
-	proc_seteuid(obj, UIDT2NUM(SAVED_USER_ID));
+	proc_seteuid(obj, 0, UIDT2NUM(SAVED_USER_ID));
 	if (rb_block_given_p()) {
 	    under_uid_switch = 1;
 	    return rb_ensure(rb_yield, Qnil, p_uid_sw_ensure, euid);
@@ -4862,11 +4862,11 @@ static VALUE
 p_uid_sw_ensure(VALUE obj)
 {
     under_uid_switch = 0;
-    return p_uid_exchange(obj);
+    return p_uid_exchange(obj, 0);
 }
 
 static VALUE
-p_uid_switch(VALUE obj)
+p_uid_switch(VALUE obj, SEL sel)
 {
     rb_uid_t uid, euid;
 
@@ -4879,7 +4879,7 @@ p_uid_switch(VALUE obj)
 	errno = EPERM;
 	rb_sys_fail(0);
     }
-    p_uid_exchange(obj);
+    p_uid_exchange(obj, 0);
     if (rb_block_given_p()) {
 	under_uid_switch = 1;
 	return rb_ensure(rb_yield, Qnil, p_uid_sw_ensure, obj);
@@ -4902,7 +4902,7 @@ p_uid_switch(VALUE obj)
  */
 
 static VALUE
-p_gid_have_saved_id(void)
+p_gid_have_saved_id(VALUE rcv, SEL sel)
 {
 #if defined(HAVE_SETRESGID) || defined(HAVE_SETEGID) || defined(_POSIX_SAVED_IDS)
     return Qtrue;
@@ -4935,7 +4935,7 @@ p_gid_sw_ensure(rb_gid_t id)
  */
 
 static VALUE
-p_gid_switch(VALUE obj)
+p_gid_switch(VALUE obj, SEL sel)
 {
     int gid, egid;
 
@@ -4945,7 +4945,7 @@ p_gid_switch(VALUE obj)
     egid = getegid();
 
     if (gid != egid) {
-	proc_setegid(obj, GIDT2NUM(gid));
+	proc_setegid(obj, 0, GIDT2NUM(gid));
 	if (rb_block_given_p()) {
 	    under_gid_switch = 1;
 	    return rb_ensure(rb_yield, Qnil, p_gid_sw_ensure, SAVED_GROUP_ID);
@@ -4953,7 +4953,7 @@ p_gid_switch(VALUE obj)
 	    return GIDT2NUM(egid);
 	}
     } else if (egid != SAVED_GROUP_ID) {
-	proc_setegid(obj, GIDT2NUM(SAVED_GROUP_ID));
+	proc_setegid(obj, 0, GIDT2NUM(SAVED_GROUP_ID));
 	if (rb_block_given_p()) {
 	    under_gid_switch = 1;
 	    return rb_ensure(rb_yield, Qnil, p_gid_sw_ensure, egid);
@@ -4970,11 +4970,11 @@ static VALUE
 p_gid_sw_ensure(VALUE obj)
 {
     under_gid_switch = 0;
-    return p_gid_exchange(obj);
+    return p_gid_exchange(obj, 0);
 }
 
 static VALUE
-p_gid_switch(VALUE obj)
+p_gid_switch(VALUE obj, SEL sel)
 {
     rb_gid_t gid, egid;
 
@@ -4987,7 +4987,7 @@ p_gid_switch(VALUE obj)
 	errno = EPERM;
 	rb_sys_fail(0);
     }
-    p_gid_exchange(obj);
+    p_gid_exchange(obj, 0);
     if (rb_block_given_p()) {
 	under_gid_switch = 1;
 	return rb_ensure(rb_yield, Qnil, p_gid_sw_ensure, obj);
@@ -5086,13 +5086,13 @@ Init_process(void)
     rb_objc_define_method(*(VALUE *)rb_mProcess, "exit", rb_f_exit, -1);
     rb_objc_define_method(*(VALUE *)rb_mProcess, "abort", rb_f_abort, -1);
 
-    rb_define_module_function(rb_mProcess, "kill", rb_f_kill, -1); /* in signal.c */
-    rb_define_module_function(rb_mProcess, "wait", proc_wait, -1);
-    rb_define_module_function(rb_mProcess, "wait2", proc_wait2, -1);
-    rb_define_module_function(rb_mProcess, "waitpid", proc_wait, -1);
-    rb_define_module_function(rb_mProcess, "waitpid2", proc_wait2, -1);
-    rb_define_module_function(rb_mProcess, "waitall", proc_waitall, 0);
-    rb_define_module_function(rb_mProcess, "detach", proc_detach, 1);
+    rb_objc_define_method(*(VALUE *)rb_mProcess, "kill", rb_f_kill, -1); /* in signal.c */
+    rb_objc_define_method(rb_mProcess, "wait", proc_wait, -1);
+    rb_objc_define_method(rb_mProcess, "wait2", proc_wait2, -1);
+    rb_objc_define_method(rb_mProcess, "waitpid", proc_wait, -1);
+    rb_objc_define_method(rb_mProcess, "waitpid2", proc_wait2, -1);
+    rb_objc_define_method(rb_mProcess, "waitall", proc_waitall, 0);
+    rb_objc_define_method(rb_mProcess, "detach", proc_detach, 1);
 
     rb_cProcessStatus = rb_define_class_under(rb_mProcess, "Status", rb_cObject);
     rb_undef_method(CLASS_OF(rb_cProcessStatus), "new");
@@ -5116,18 +5116,18 @@ Init_process(void)
     rb_objc_define_method(rb_cProcessStatus, "success?", pst_success_p, 0);
     rb_objc_define_method(rb_cProcessStatus, "coredump?", pst_wcoredump, 0);
 
-    rb_define_module_function(rb_mProcess, "pid", get_pid, 0);
-    rb_define_module_function(rb_mProcess, "ppid", get_ppid, 0);
+    rb_objc_define_method(*(VALUE *)rb_mProcess, "pid", get_pid, 0);
+    rb_objc_define_method(*(VALUE *)rb_mProcess, "ppid", get_ppid, 0);
 
-    rb_define_module_function(rb_mProcess, "getpgrp", proc_getpgrp, 0);
-    rb_define_module_function(rb_mProcess, "setpgrp", proc_setpgrp, 0);
-    rb_define_module_function(rb_mProcess, "getpgid", proc_getpgid, 1);
-    rb_define_module_function(rb_mProcess, "setpgid", proc_setpgid, 2);
+    rb_objc_define_method(*(VALUE *)rb_mProcess, "getpgrp", proc_getpgrp, 0);
+    rb_objc_define_method(*(VALUE *)rb_mProcess, "setpgrp", proc_setpgrp, 0);
+    rb_objc_define_method(*(VALUE *)rb_mProcess, "getpgid", proc_getpgid, 1);
+    rb_objc_define_method(*(VALUE *)rb_mProcess, "setpgid", proc_setpgid, 2);
 
-    rb_define_module_function(rb_mProcess, "setsid", proc_setsid, 0);
+    rb_objc_define_method(*(VALUE *)rb_mProcess, "setsid", proc_setsid, 0);
 
-    rb_define_module_function(rb_mProcess, "getpriority", proc_getpriority, 2);
-    rb_define_module_function(rb_mProcess, "setpriority", proc_setpriority, 3);
+    rb_objc_define_method(*(VALUE *)rb_mProcess, "getpriority", proc_getpriority, 2);
+    rb_objc_define_method(*(VALUE *)rb_mProcess, "setpriority", proc_setpriority, 3);
 
 #ifdef HAVE_GETPRIORITY
     rb_define_const(rb_mProcess, "PRIO_PROCESS", INT2FIX(PRIO_PROCESS));
@@ -5135,8 +5135,8 @@ Init_process(void)
     rb_define_const(rb_mProcess, "PRIO_USER", INT2FIX(PRIO_USER));
 #endif
 
-    rb_define_module_function(rb_mProcess, "getrlimit", proc_getrlimit, 1);
-    rb_define_module_function(rb_mProcess, "setrlimit", proc_setrlimit, -1);
+    rb_objc_define_method(*(VALUE *)rb_mProcess, "getrlimit", proc_getrlimit, 1);
+    rb_objc_define_method(*(VALUE *)rb_mProcess, "setrlimit", proc_setrlimit, -1);
 #ifdef RLIM2NUM
     {
         VALUE inf = RLIM2NUM(RLIM_INFINITY), v;
@@ -5185,21 +5185,21 @@ Init_process(void)
 #endif
 #endif
 
-    rb_define_module_function(rb_mProcess, "uid", proc_getuid, 0);
-    rb_define_module_function(rb_mProcess, "uid=", proc_setuid, 1);
-    rb_define_module_function(rb_mProcess, "gid", proc_getgid, 0);
-    rb_define_module_function(rb_mProcess, "gid=", proc_setgid, 1);
-    rb_define_module_function(rb_mProcess, "euid", proc_geteuid, 0);
-    rb_define_module_function(rb_mProcess, "euid=", proc_seteuid, 1);
-    rb_define_module_function(rb_mProcess, "egid", proc_getegid, 0);
-    rb_define_module_function(rb_mProcess, "egid=", proc_setegid, 1);
-    rb_define_module_function(rb_mProcess, "initgroups", proc_initgroups, 2);
-    rb_define_module_function(rb_mProcess, "groups", proc_getgroups, 0);
-    rb_define_module_function(rb_mProcess, "groups=", proc_setgroups, 1);
-    rb_define_module_function(rb_mProcess, "maxgroups", proc_getmaxgroups, 0);
-    rb_define_module_function(rb_mProcess, "maxgroups=", proc_setmaxgroups, 1);
+    rb_objc_define_method(*(VALUE *)rb_mProcess, "uid", proc_getuid, 0);
+    rb_objc_define_method(*(VALUE *)rb_mProcess, "uid=", proc_setuid, 1);
+    rb_objc_define_method(*(VALUE *)rb_mProcess, "gid", proc_getgid, 0);
+    rb_objc_define_method(*(VALUE *)rb_mProcess, "gid=", proc_setgid, 1);
+    rb_objc_define_method(*(VALUE *)rb_mProcess, "euid", proc_geteuid, 0);
+    rb_objc_define_method(*(VALUE *)rb_mProcess, "euid=", proc_seteuid, 1);
+    rb_objc_define_method(*(VALUE *)rb_mProcess, "egid", proc_getegid, 0);
+    rb_objc_define_method(*(VALUE *)rb_mProcess, "egid=", proc_setegid, 1);
+    rb_objc_define_method(*(VALUE *)rb_mProcess, "initgroups", proc_initgroups, 2);
+    rb_objc_define_method(*(VALUE *)rb_mProcess, "groups", proc_getgroups, 0);
+    rb_objc_define_method(*(VALUE *)rb_mProcess, "groups=", proc_setgroups, 1);
+    rb_objc_define_method(*(VALUE *)rb_mProcess, "maxgroups", proc_getmaxgroups, 0);
+    rb_objc_define_method(*(VALUE *)rb_mProcess, "maxgroups=", proc_setmaxgroups, 1);
 
-    rb_define_module_function(rb_mProcess, "daemon", proc_daemon, -1);
+    rb_objc_define_method(*(VALUE *)rb_mProcess, "daemon", proc_daemon, -1);
 
     rb_objc_define_method(*(VALUE *)rb_mProcess, "times", rb_proc_times, 0);
 
@@ -5213,45 +5213,45 @@ Init_process(void)
     rb_mProcUID = rb_define_module_under(rb_mProcess, "UID");
     rb_mProcGID = rb_define_module_under(rb_mProcess, "GID");
 
-    rb_define_module_function(rb_mProcUID, "rid", proc_getuid, 0);
-    rb_define_module_function(rb_mProcGID, "rid", proc_getgid, 0);
-    rb_define_module_function(rb_mProcUID, "eid", proc_geteuid, 0);
-    rb_define_module_function(rb_mProcGID, "eid", proc_getegid, 0);
-    rb_define_module_function(rb_mProcUID, "change_privilege", p_uid_change_privilege, 1);
-    rb_define_module_function(rb_mProcGID, "change_privilege", p_gid_change_privilege, 1);
+    rb_objc_define_method(*(VALUE *)rb_mProcUID, "rid", proc_getuid, 0);
+    rb_objc_define_method(*(VALUE *)rb_mProcGID, "rid", proc_getgid, 0);
+    rb_objc_define_method(*(VALUE *)rb_mProcUID, "eid", proc_geteuid, 0);
+    rb_objc_define_method(*(VALUE *)rb_mProcGID, "eid", proc_getegid, 0);
+    rb_objc_define_method(*(VALUE *)rb_mProcUID, "change_privilege", p_uid_change_privilege, 1);
+    rb_objc_define_method(*(VALUE *)rb_mProcGID, "change_privilege", p_gid_change_privilege, 1);
     rb_objc_define_method(*(VALUE *)rb_mProcUID, "grant_privilege", p_uid_grant_privilege, 1);
     rb_objc_define_method(*(VALUE *)rb_mProcGID, "grant_privilege", p_gid_grant_privilege, 1);
     rb_define_alias(*(VALUE *)rb_mProcUID, "eid=", "grant_privilege");
     rb_define_alias(*(VALUE *)rb_mProcGID, "eid=", "grant_privilege");
-    rb_define_module_function(rb_mProcUID, "re_exchange", p_uid_exchange, 0);
-    rb_define_module_function(rb_mProcGID, "re_exchange", p_gid_exchange, 0);
-    rb_define_module_function(rb_mProcUID, "re_exchangeable?", p_uid_exchangeable, 0);
-    rb_define_module_function(rb_mProcGID, "re_exchangeable?", p_gid_exchangeable, 0);
-    rb_define_module_function(rb_mProcUID, "sid_available?", p_uid_have_saved_id, 0);
-    rb_define_module_function(rb_mProcGID, "sid_available?", p_gid_have_saved_id, 0);
-    rb_define_module_function(rb_mProcUID, "switch", p_uid_switch, 0);
-    rb_define_module_function(rb_mProcGID, "switch", p_gid_switch, 0);
+    rb_objc_define_method(*(VALUE *)rb_mProcUID, "re_exchange", p_uid_exchange, 0);
+    rb_objc_define_method(*(VALUE *)rb_mProcGID, "re_exchange", p_gid_exchange, 0);
+    rb_objc_define_method(*(VALUE *)rb_mProcUID, "re_exchangeable?", p_uid_exchangeable, 0);
+    rb_objc_define_method(*(VALUE *)rb_mProcGID, "re_exchangeable?", p_gid_exchangeable, 0);
+    rb_objc_define_method(*(VALUE *)rb_mProcUID, "sid_available?", p_uid_have_saved_id, 0);
+    rb_objc_define_method(*(VALUE *)rb_mProcGID, "sid_available?", p_gid_have_saved_id, 0);
+    rb_objc_define_method(*(VALUE *)rb_mProcUID, "switch", p_uid_switch, 0);
+    rb_objc_define_method(*(VALUE *)rb_mProcGID, "switch", p_gid_switch, 0);
 
     rb_mProcID_Syscall = rb_define_module_under(rb_mProcess, "Sys");
 
-    rb_define_module_function(rb_mProcID_Syscall, "getuid", proc_getuid, 0);
-    rb_define_module_function(rb_mProcID_Syscall, "geteuid", proc_geteuid, 0);
-    rb_define_module_function(rb_mProcID_Syscall, "getgid", proc_getgid, 0);
-    rb_define_module_function(rb_mProcID_Syscall, "getegid", proc_getegid, 0);
+    rb_objc_define_method(*(VALUE *)rb_mProcID_Syscall, "getuid", proc_getuid, 0);
+    rb_objc_define_method(*(VALUE *)rb_mProcID_Syscall, "geteuid", proc_geteuid, 0);
+    rb_objc_define_method(*(VALUE *)rb_mProcID_Syscall, "getgid", proc_getgid, 0);
+    rb_objc_define_method(*(VALUE *)rb_mProcID_Syscall, "getegid", proc_getegid, 0);
 
-    rb_define_module_function(rb_mProcID_Syscall, "setuid", p_sys_setuid, 1);
-    rb_define_module_function(rb_mProcID_Syscall, "setgid", p_sys_setgid, 1);
+    rb_objc_define_method(*(VALUE *)rb_mProcID_Syscall, "setuid", p_sys_setuid, 1);
+    rb_objc_define_method(*(VALUE *)rb_mProcID_Syscall, "setgid", p_sys_setgid, 1);
 
-    rb_define_module_function(rb_mProcID_Syscall, "setruid", p_sys_setruid, 1);
-    rb_define_module_function(rb_mProcID_Syscall, "setrgid", p_sys_setrgid, 1);
+    rb_objc_define_method(*(VALUE *)rb_mProcID_Syscall, "setruid", p_sys_setruid, 1);
+    rb_objc_define_method(*(VALUE *)rb_mProcID_Syscall, "setrgid", p_sys_setrgid, 1);
 
-    rb_define_module_function(rb_mProcID_Syscall, "seteuid", p_sys_seteuid, 1);
-    rb_define_module_function(rb_mProcID_Syscall, "setegid", p_sys_setegid, 1);
+    rb_objc_define_method(*(VALUE *)rb_mProcID_Syscall, "seteuid", p_sys_seteuid, 1);
+    rb_objc_define_method(*(VALUE *)rb_mProcID_Syscall, "setegid", p_sys_setegid, 1);
 
-    rb_define_module_function(rb_mProcID_Syscall, "setreuid", p_sys_setreuid, 2);
-    rb_define_module_function(rb_mProcID_Syscall, "setregid", p_sys_setregid, 2);
+    rb_objc_define_method(*(VALUE *)rb_mProcID_Syscall, "setreuid", p_sys_setreuid, 2);
+    rb_objc_define_method(*(VALUE *)rb_mProcID_Syscall, "setregid", p_sys_setregid, 2);
 
-    rb_define_module_function(rb_mProcID_Syscall, "setresuid", p_sys_setresuid, 3);
-    rb_define_module_function(rb_mProcID_Syscall, "setresgid", p_sys_setresgid, 3);
-    rb_define_module_function(rb_mProcID_Syscall, "issetugid", p_sys_issetugid, 0);
+    rb_objc_define_method(*(VALUE *)rb_mProcID_Syscall, "setresuid", p_sys_setresuid, 3);
+    rb_objc_define_method(*(VALUE *)rb_mProcID_Syscall, "setresgid", p_sys_setresgid, 3);
+    rb_objc_define_method(*(VALUE *)rb_mProcID_Syscall, "issetugid", p_sys_issetugid, 0);
 }
