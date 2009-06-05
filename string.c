@@ -2844,6 +2844,9 @@ rb_str_swapcase_bang(VALUE str, SEL sel)
     }
     for (i = 0, changed = false; i < n; i++) {
 	UniChar c = buffer[i];
+	if (!iswascii(c)) {
+	    continue;
+	}
 	if (iswlower(c)) {
 	    c = towupper(c);
 	}
