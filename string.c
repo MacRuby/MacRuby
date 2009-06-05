@@ -4586,6 +4586,10 @@ rb_str_justify(int argc, VALUE *argv, VALUE str, char jflag)
 	padwidth = CFStringGetLength((CFStringRef)pad);
     }
 
+    if (padwidth == 0) {
+	rb_raise(rb_eArgError, "zero width padding");
+    }
+
     if (jflag == 'c') {
 	rb_str_justify0(str, pad, ceil(width / 2.0), padwidth, n);
 	rb_str_justify0(str, pad, floor(width / 2.0), padwidth, 0);
