@@ -507,7 +507,6 @@ rb_pointer_new(VALUE rcv, SEL sel, int argc, VALUE *argv)
     rb_scan_args(argc, argv, "11", &type, &len);
     const size_t rlen = NIL_P(len) ? 1 : FIX2LONG(len);
 
-    StringValuePtr(type);
     const char *type_str = convert_ffi_type(type, false);
 
     rb_vm_pointer_t *ptr = (rb_vm_pointer_t *)xmalloc(sizeof(rb_vm_pointer_t));
@@ -964,7 +963,10 @@ Init_BridgeSupport(void)
 static const char *
 convert_ffi_type(VALUE type, bool raise_exception_if_unknown)
 {
-    const char *typestr = StringValueCStr(type);
+    const char *typestr = TYPE(type) == T_SYMBOL
+	? rb_sym2name(type)
+	: StringValueCStr(type);
+
     assert(typestr != NULL);
 
     // Ruby-FFI types.
