@@ -1780,7 +1780,7 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Va
 			return pn;
 		}
 	}
-	else {
+	else if (!(leftIsFixFloatConstant || rightIsFixFloatConstant)){
 		// Either one or both of the operands was not a fixable constant.
 	    Value *is_redefined_val = new LoadInst(is_redefined, "", bb);
 	    Value *isOpRedefined = new ICmpInst(ICmpInst::ICMP_EQ, 
@@ -1844,7 +1844,7 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Va
 		unboxedLeft = ConstantInt::get(RubyObjTy, leftLong);
 	    }
 	    else {
-		unboxedLeft = BinaryOperator::CreateAShr(leftVal, oneVal, "", bb);
+		unboxedLeft = BinaryOperator::CreateAShr(leftVal, twoVal, "", bb);
 	    }
 
 	    Value *unboxedRight;
@@ -1852,7 +1852,7 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Va
 		unboxedRight = ConstantInt::get(RubyObjTy, rightLong);
 	    }
 	    else {
-		unboxedRight = BinaryOperator::CreateAShr(rightVal, oneVal, "", bb);
+		unboxedRight = BinaryOperator::CreateAShr(rightVal, twoVal, "", bb);
 	    }
 
 	    Value *opVal;
@@ -1904,7 +1904,7 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Va
 	    BasicBlock *then3BB;
 
 	    if (result_is_fixnum) { 
-		Value *shift = BinaryOperator::CreateShl(opVal, oneVal, "", bb);
+		Value *shift = BinaryOperator::CreateShl(opVal, twoVal, "", bb);
 		thenVal = BinaryOperator::CreateOr(shift, oneVal, "", bb);
 
 		// Is result fixable?
