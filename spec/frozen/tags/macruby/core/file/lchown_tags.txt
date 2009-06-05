@@ -1,1 +1,0 @@
-fails:An exception occurred during: loading /Users/eloy/Documents/DEVELOPMENT/MacRuby/git-svn-roxor/./spec/frozen/core/file/lchown_spec.rb
