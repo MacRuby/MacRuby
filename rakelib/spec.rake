@@ -58,7 +58,16 @@ namespace :spec do
   
   desc "Run language examples that are known to fail"
   task :fails do
-    mspec :run, "-V -f s -g fails #{CI_DIRS}"
+    mspec :run, "-g fails #{CI_DIRS}"
+  end
+  
+  namespace :fails do
+    task :verbose do
+      desc "Run language examples that are known to fail with spec and verbose output"
+      task :fails do
+        mspec :run, "-V -f s -g fails #{CI_DIRS}"
+      end
+    end
   end
   
   %w{ fails critical }.each do |tag|
