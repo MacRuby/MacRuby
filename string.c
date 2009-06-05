@@ -2656,7 +2656,11 @@ rb_str_dump(VALUE str, SEL sel)
 
     /* result from dump is ASCII */
 
-    return rb_str_new2(q_beg);
+    VALUE res = rb_str_new5(str, q_beg, strlen(q_beg));
+    if (OBJ_TAINTED(str)) {
+	OBJ_TAINT(res);
+    }
+    return res;
 }
 
 
