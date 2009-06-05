@@ -4241,37 +4241,34 @@ rb_vm_rval_to_bool(VALUE rval, BOOL *ocval)
     }
 }
 
+static inline const char *
+rval_to_c_str(VALUE rval)
+{
+    if (NIL_P(rval)) {
+	return NULL;
+    }
+    else {
+	switch (TYPE(rval)) {
+	    case T_SYMBOL:
+		return rb_sym2name(rval);
+	}
+	return StringValueCStr(rval);
+    }
+}
+
 extern "C"
 void
 rb_vm_rval_to_ocsel(VALUE rval, SEL *ocval)
 {
-    if (NIL_P(rval)) {
-	*ocval = NULL;
-    }
-    else {
-	const char *cstr;
-
-	switch (TYPE(rval)) {
-	    case T_STRING:
-		cstr = StringValuePtr(rval);
-		break;
-
-	    case T_SYMBOL:
-		cstr = rb_sym2name(rval);
-		break;
-
-	    default:
-		convert_error(_C_SEL, rval);
-	}
-	*ocval = sel_registerName(cstr);
-    }
+    const char *cstr = rval_to_c_str(rval);
+    *ocval = cstr == NULL ? NULL : sel_registerName(cstr);
 }
 
 extern "C"
 void
 rb_vm_rval_to_charptr(VALUE rval, const char **ocval)
 {
-    *ocval = NIL_P(rval) ? NULL : StringValueCStr(rval);
+    *ocval = rval_to_c_str(rval);
 }
 
 static inline long
