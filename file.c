@@ -1954,24 +1954,17 @@ rb_file_s_chown(VALUE rcv, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_file_chown(VALUE obj, SEL sel, VALUE owner, VALUE group)
 {
-//     rb_io_t *fptr;
-//     int o, g;
-// 
-//     rb_secure(2);
-//     o = NIL_P(owner) ? -1 : NUM2INT(owner);
-//     g = NIL_P(group) ? -1 : NUM2INT(group);
-//     GetOpenFile(obj, fptr);
-// #if defined(DJGPP) || defined(__CYGWIN32__) || defined(_WIN32) || defined(__EMX__)
-//     if (!fptr->path) return Qnil;
-//     if (chown(fptr->path, o, g) == -1)
-//  rb_sys_fail(fptr->path);
-// #else
-//     if (fchown(fptr->fd, o, g) == -1)
-//  rb_sys_fail(fptr->path);
-// #endif
-    
-//    return INT2FIX(0);
-    rb_notimplement();
+    rb_secure(2);
+
+    const int o = NIL_P(owner) ? -1 : NUM2INT(owner);
+    const int g = NIL_P(group) ? -1 : NUM2INT(group);
+    rb_io_t *io_struct = ExtractIOStruct(obj);
+
+    if (fchown(io_struct->fd, o, g) == -1) {
+	rb_sys_fail(RSTRING_PTR(io_struct->path));
+    }
+
+    return INT2FIX(0);
 }
 
 #if defined(HAVE_LCHOWN) && !defined(__CHECKER__)
