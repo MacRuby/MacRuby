@@ -944,7 +944,8 @@ rb_objc_add_method(VALUE klass, const char *name, void *imp, const int arity,
     NODE *body = NEW_FBODY(NEW_METHOD(node, klass, noex), 0);
     rb_objc_retain(body);
 
-    rb_vm_define_method((Class)klass, name_to_sel(name, arity), (IMP)imp,				body, direct);
+    rb_vm_define_method((Class)klass, name_to_sel(name, arity), (IMP)imp,
+	    body, direct);
 }
 
 void
@@ -965,12 +966,6 @@ rb_objc_define_private_method(VALUE klass, const char *name, void *imp,
 			      const int arity)
 {
     rb_objc_add_method(klass, name, imp, arity, NOEX_PRIVATE, false);
-}
-
-void
-rb_objc_undef_method(VALUE klass, const char *name)
-{
-    // TODO
 }
 
 void
@@ -1000,8 +995,7 @@ rb_define_private_method(VALUE klass, const char *name, VALUE (*func)(ANYARGS), 
 void
 rb_undef_method(VALUE klass, const char *name)
 {
-    rb_objc_undef_method(klass, name);
-    //rb_add_method(klass, rb_intern(name), 0, NOEX_UNDEF);
+    rb_vm_undef_method((Class)klass, name, false);
 }
 
 #define SPECIAL_SINGLETON(x,c) do {\

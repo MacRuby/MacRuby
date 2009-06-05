@@ -1682,6 +1682,38 @@ rb_vm_define_method2(Class klass, SEL sel, rb_vm_method_node_t *node,
 }
 
 extern "C"
+void
+rb_vm_undef_method(Class klass, const char *name, bool must_exist)
+{
+    rb_vm_method_node_t *node = NULL;
+    SEL sel = sel_registerName(name);
+
+    if (!rb_vm_lookup_method((Class)klass, sel, NULL, &node)) {
+	if (must_exist) {
+	    rb_raise(rb_eNameError, "undefined method `%s' for %s `%s'",
+		    name, TYPE(klass) == T_MODULE ? "module" : "class",
+		    name);
+	}
+	assert(name[strlen(name) - 1] != ':');
+	class_replaceMethod((Class)klass, sel, NULL, "@@:");
+    }
+
+    if (node == NULL) {
+	if (must_exist) {
+	    rb_raise(rb_eRuntimeError,
+		    "cannot undefine method `%s' because it is a native method",
+		    name);
+	}
+	return; // Do nothing.
+    }
+
+    Method m = class_getInstanceMethod((Class)klass, node->sel);
+    assert(m != NULL);
+    class_replaceMethod((Class)klass, node->sel, NULL,
+	    method_getTypeEncoding(m));
+}
+
+extern "C"
 VALUE
 rb_vm_masgn_get_elem_before_splat(VALUE ary, int offset)
 {
@@ -1850,7 +1882,7 @@ __rb_vm_rcall(VALUE self, SEL sel, IMP pimp, const rb_vm_arity_t &arity,
     abort();
 }
 
-static /*inline*/ Method
+static inline Method
 rb_vm_super_lookup(VALUE klass, SEL sel, VALUE *klassp)
 {
     VALUE k, ary;
@@ -2199,6 +2231,12 @@ recache:
 	if (method != NULL) {
 recache2:
 	    IMP imp = method_getImplementation(method);
+
+	    if (imp == NULL) {
+		// Method was undefined.
+		return method_missing((VALUE)self, sel, argc, argv, opt);
+	    }
+
 	    rb_vm_method_node_t *node = GET_VM()->method_node_get(imp);
 
 	    if (node != NULL) {
@@ -3225,7 +3263,8 @@ rb_vm_respond_to(VALUE obj, SEL sel, bool priv)
 	    }
 	}
 	IMP obj_imp = method_getImplementation(m);
-	rb_vm_method_node_t *node = GET_VM()->method_node_get(obj_imp);
+	rb_vm_method_node_t *node = obj_imp == NULL
+	    ? NULL : GET_VM()->method_node_get(obj_imp);
 
 	if (node != NULL
 		&& (reject_pure_ruby_methods
