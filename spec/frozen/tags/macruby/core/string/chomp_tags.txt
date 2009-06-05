@@ -2,6 +2,5 @@ critical:String#chomp with separator calls #to_str to convert separator to a Str
 fails:String#chomp with separator removes carriage return (except \r) chars multiple times when separator is an empty string
 fails:String#chomp with separator taints result when self is tainted
 fails:String#chomp with separator raises a TypeError if separator can't be converted to a string
-fails:String#chomp with separator returns subclass instances when called on a subclass
 fails:String#chomp! with separator modifies self in place and returns self
 fails:String#chomp! with separator raises a RuntimeError when self is frozen

@@ -2,5 +2,4 @@ fails:String#delete negates sets starting with ^
 fails:String#delete deletes all chars in a sequence
 fails:String#delete taints result when self is tainted
 fails:String#delete raises a TypeError when one set arg can't be converted to a string
-fails:String#delete returns subclass instances when called on a subclass
 fails:String#delete! raises a TypeError when self is frozen

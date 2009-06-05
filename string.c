@@ -59,19 +59,23 @@ str_frozen_check(VALUE s)
     }
 }
 
-static inline VALUE
-str_alloc(VALUE klass)
+static inline void
+str_change_class(VALUE str, VALUE klass)
 {
-    VALUE str;
-
-    str = (VALUE)CFStringCreateMutable(NULL, 0);
     if (klass != 0 
 	&& klass != rb_cNSString 
 	&& klass != rb_cNSMutableString
 	&& klass != rb_cSymbol
 	&& klass != rb_cByteString) {
-	*(Class *)str = (Class)klass;
+	*(VALUE *)str = (VALUE)klass;
     }
+}
+
+static inline VALUE
+str_alloc(VALUE klass)
+{
+    VALUE str = (VALUE)CFStringCreateMutable(NULL, 0);
+    str_change_class(str, klass);
     CFMakeCollectable((CFTypeRef)str);
 
     return (VALUE)str;
@@ -203,18 +207,18 @@ rb_tainted_str_new2(const char *ptr)
     return str;
 }
 
-static VALUE
+static inline VALUE
 str_new3(VALUE klass, VALUE str)
 {
-    return rb_str_dup(str);
+    VALUE str2 = rb_str_dup(str);
+    str_change_class(str2, klass);
+    return str2;
 }
 
 VALUE
 rb_str_new3(VALUE str)
 {
-    VALUE str2 = str_new3(rb_obj_class(str), str);
-
-    return str2;
+    return str_new3(rb_obj_class(str), str);
 }
 
 VALUE
@@ -1970,7 +1974,7 @@ rb_str_sub_bang(VALUE str, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_str_sub(VALUE str, SEL sel, int argc, VALUE *argv)
 {
-    str = rb_str_dup(str);
+    str = rb_str_new3(str);
     rb_str_sub_bang(str, 0, argc, argv);
     return str;
 }
@@ -2013,7 +2017,7 @@ str_gsub(SEL sel, int argc, VALUE *argv, VALUE str, int bang)
 	if (bang) {
 	    return Qnil;	/* no match, no substitution */
 	}
-	return rb_str_dup(str);
+	return rb_str_new3(str);
     }
 
     dest = rb_str_new5(str, NULL, 0);
@@ -2694,7 +2698,7 @@ rb_str_upcase_bang(VALUE str, SEL sel)
 static VALUE
 rb_str_upcase(VALUE str, SEL sel)
 {
-    str = rb_str_dup(str);
+    str = rb_str_new3(str);
     rb_str_upcase_bang(str, 0);
     return str;
 }
@@ -2738,7 +2742,7 @@ rb_str_downcase_bang(VALUE str, SEL sel)
 static VALUE
 rb_str_downcase(VALUE str, SEL sel)
 {
-    str = rb_str_dup(str);
+    str = rb_str_new3(str);
     rb_str_downcase_bang(str, 0);
     return str;
 }
@@ -2884,7 +2888,7 @@ rb_str_swapcase_bang(VALUE str, SEL sel)
 static VALUE
 rb_str_swapcase(VALUE str, SEL sel)
 {
-    str = rb_str_dup(str);
+    str = rb_str_new3(str);
     rb_str_swapcase_bang(str, 0);
     return str;
 }
@@ -3273,7 +3277,7 @@ rb_str_tr_bang(VALUE str, SEL sel, VALUE src, VALUE repl)
 static VALUE
 rb_str_tr(VALUE str, SEL sel, VALUE src, VALUE repl)
 {
-    str = rb_str_dup(str);
+    str = rb_str_new3(str);
     rb_str_tr_bang(str, 0, src, repl);
     return str;
 }
@@ -3331,7 +3335,7 @@ rb_str_delete_bang(VALUE str, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_str_delete(VALUE str, SEL sel, int argc, VALUE *argv)
 {
-    str = rb_str_dup(str);
+    str = rb_str_new3(str);
     rb_str_delete_bang(str, 0, argc, argv);
     return str;
 }
@@ -3398,7 +3402,7 @@ rb_str_squeeze_bang(VALUE str, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_str_squeeze(VALUE str, SEL sel, int argc, VALUE *argv)
 {
-    str = rb_str_dup(str);
+    str = rb_str_new3(str);
     rb_str_squeeze_bang(str, 0, argc, argv);
     return str;
 }
@@ -3435,7 +3439,7 @@ rb_str_tr_s_bang(VALUE str, SEL sel, VALUE src, VALUE repl)
 static VALUE
 rb_str_tr_s(VALUE str, SEL sel, VALUE src, VALUE repl)
 {
-    str = rb_str_dup(str);
+    str = rb_str_new3(str);
     rb_str_tr_s_bang(str, 0, src, repl);
     return str;
 }
@@ -3978,7 +3982,7 @@ rb_str_chop_bang(VALUE str, SEL sel)
 static VALUE
 rb_str_chop(VALUE str, SEL sel)
 {
-    VALUE str2 = rb_str_dup(str);
+    VALUE str2 = rb_str_new3(str);
     rb_str_chop_bang(str2, 0);
     return str2;
 }
@@ -4063,7 +4067,7 @@ rb_str_chomp_bang(VALUE str, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_str_chomp(VALUE str, SEL sel, int argc, VALUE *argv)
 {
-    str = rb_str_dup(str);
+    str = rb_str_new3(str);
     rb_str_chomp_bang(str, 0, argc, argv);
     return str;
 }
@@ -4567,7 +4571,7 @@ rb_str_justify(int argc, VALUE *argv, VALUE str, char jflag)
     width = NUM2LONG(w);
     n = CFStringGetLength((CFStringRef)str);
    
-    str = rb_str_dup(str);
+    str = rb_str_new3(str);
     if (width < 0 || width <= n) {
 	return str;
     }

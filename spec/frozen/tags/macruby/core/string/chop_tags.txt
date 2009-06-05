@@ -1,4 +1,3 @@
 fails:String#chop returns a new string with the last character removed
-fails:String#chop returns subclass instances when called on a subclass
 fails:String#chop! raises a TypeError when self is frozen
 fails:String#chop! raises a RuntimeError when self is frozen
