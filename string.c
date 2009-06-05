@@ -4556,7 +4556,8 @@ rb_str_justify0(VALUE str, VALUE pad, long width, long padwidth, long index)
 	    CFMakeCollectable((CFTypeRef)pad);
 	}
 	CFStringInsert((CFMutableStringRef)str, index, (CFStringRef)pad);
-	width -= padwidth;	
+	width -= padwidth;
+	index += padwidth;
     }
     while (width > 0);
 }
@@ -4569,13 +4570,6 @@ rb_str_justify(int argc, VALUE *argv, VALUE str, char jflag)
 
     rb_scan_args(argc, argv, "11", &w, &pad);
     width = NUM2LONG(w);
-    n = CFStringGetLength((CFStringRef)str);
-   
-    str = rb_str_new3(str);
-    if (width < 0 || width <= n) {
-	return str;
-    }
-    width -= n;
 
     if (NIL_P(pad)) {
 	pad = rb_str_new(" ", 1);
@@ -4589,6 +4583,14 @@ rb_str_justify(int argc, VALUE *argv, VALUE str, char jflag)
     if (padwidth == 0) {
 	rb_raise(rb_eArgError, "zero width padding");
     }
+
+    n = CFStringGetLength((CFStringRef)str);
+   
+    str = rb_str_new3(str);
+    if (width < 0 || width <= n) {
+	return str;
+    }
+    width -= n;
 
     if (jflag == 'c') {
 	rb_str_justify0(str, pad, ceil(width / 2.0), padwidth, n);
