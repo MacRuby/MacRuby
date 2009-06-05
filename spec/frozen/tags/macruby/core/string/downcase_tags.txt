@@ -1,0 +1,2 @@
+fails:String#downcase is locale insensitive (only replaces A-Z)
+fails:String#downcase returns a subclass instance for subclasses
