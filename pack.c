@@ -453,13 +453,24 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
     pend = p + RSTRING_LEN(fmt);
 
     VALUE bres = rb_bytestring_new();
-    if (OBJ_TAINTED(fmt)) {
-	OBJ_TAINT(bres);
-    }
     CFMutableDataRef data = rb_bytestring_wrapped_data(bres);
 
     items = RARRAY_LEN(ary);
     idx = 0;
+
+    // Taint the ByteString accordingly.
+    if (OBJ_TAINTED(fmt)) {
+	OBJ_TAINT(bres);
+    }
+    else {
+	long i;
+	for (i = 0; i < items; i++) {
+	    if (OBJ_TAINTED(RARRAY_AT(ary, i))) {
+		OBJ_TAINT(bres);
+		break;
+	    }
+	}
+    }
 
 #define TOO_FEW (rb_raise(rb_eArgError, toofew), 0)
 #define THISFROM (items > 0 ? RARRAY_AT(ary, idx) : TOO_FEW)
