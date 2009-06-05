@@ -5143,10 +5143,21 @@ lex_io_gets_fast(struct parser_params *parser, VALUE udata)
 	lex_gets_ptr = data->buflen;
     }
 
+    // XXX In order to deal with files containing non-ASCII characters, 
+    // returning a ByteString object seems to be better with the existing
+    // parsing infrastructure, notably because we deal with raw bytes
+#if 0
     CFStringRef v = CFStringCreateWithBytes(NULL, data->buf + beg,
 	    lex_gets_ptr - beg, kCFStringEncodingUTF8, false);
     CFMakeCollectable(v);
     return (VALUE)v;
+#else
+    CFDataRef cfdata = CFDataCreateWithBytesNoCopy(NULL, data->buf + beg,
+	lex_gets_ptr - beg, kCFAllocatorNull);
+    VALUE v = rb_bytestring_new_with_cfdata((CFMutableDataRef)cfdata);
+    CFMakeCollectable(cfdata);
+    return v;
+#endif
 }
 
 static VALUE

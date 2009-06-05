@@ -5305,11 +5305,16 @@ rb_bytestring_byte_pointer(VALUE bstr)
     return CFDataGetMutableBytePtr(rb_bytestring_wrapped_data(bstr));
 }
 
+static inline VALUE
+bytestring_alloc(void)
+{
+    return (VALUE)class_createInstance((Class)rb_cByteString, sizeof(void *));
+}
+
 static VALUE
 rb_bytestring_alloc(VALUE klass, SEL sel)
 {
-    VALUE bstr = (VALUE)class_createInstance((Class)rb_cByteString,
-	    sizeof(void *));
+    VALUE bstr = bytestring_alloc();
 
     CFMutableDataRef data = CFDataCreateMutable(NULL, 0);
     rb_bytestring_set_wrapped_data(bstr, data);
@@ -5331,6 +5336,14 @@ rb_bytestring_new_with_data(const UInt8 *buf, long size)
 {
     VALUE v = rb_bytestring_new();
     CFDataAppendBytes(rb_bytestring_wrapped_data(v), buf, size);
+    return v;
+}
+
+VALUE
+rb_bytestring_new_with_cfdata(CFMutableDataRef data)
+{
+    VALUE v = bytestring_alloc();
+    rb_bytestring_set_wrapped_data(v, data);
     return v;
 }
 
