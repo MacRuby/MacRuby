@@ -2772,23 +2772,25 @@ rb_str_capitalize_bang(VALUE str, SEL sel)
 
     rb_str_modify(str);
     n = CFStringGetLength((CFStringRef)str);
-    if (n == 0)
+    if (n == 0) {
 	return Qnil;
+    }
     buffer = (UniChar *)alloca(sizeof(UniChar) * n);
     CFStringGetCharacters((CFStringRef)str, CFRangeMake(0, n), buffer);
     changed = false;
-    if (iswlower(buffer[0])) {
+    if (iswascii(buffer[0]) && iswlower(buffer[0])) {
 	buffer[0] = towupper(buffer[0]);
 	changed = true;
     }
     for (i = 1; i < n; i++) {
-	if (iswupper(buffer[i])) {
+	if (iswascii(buffer[0]) && iswupper(buffer[i])) {
 	    buffer[i] = towlower(buffer[i]);
 	    changed = true;
 	}
     }
-    if (!changed)
+    if (!changed) {
 	return Qnil;
+    }
     tmp = CFStringCreateWithCharacters(NULL, buffer, n);
     CFStringReplaceAll((CFMutableStringRef)str, tmp);
     CFRelease(tmp);
@@ -2812,7 +2814,7 @@ rb_str_capitalize_bang(VALUE str, SEL sel)
 static VALUE
 rb_str_capitalize(VALUE str, SEL sel)
 {
-    str = rb_str_dup(str);
+    str = rb_str_new3(str);
     rb_str_capitalize_bang(str, 0);
     return str;
 }
