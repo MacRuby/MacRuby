@@ -117,7 +117,7 @@ get_loading_table(void)
     return loading_table;
 }
 
-static int
+int
 rb_feature_p(const char *feature, const char *ext, int rb, int expanded,
 	     const char **fn)
 {
@@ -153,7 +153,8 @@ rb_feature_p(const char *feature, const char *ext, int rb, int expanded,
 	    if (!load_path) {
 		load_path = rb_get_load_path();
 	    }
-	    if (!(p = loaded_feature_path(f, n, feature, len, type, load_path))) {
+	    if (!(p = loaded_feature_path(f, n, feature, len, type,
+			    load_path))) {
 		continue;
 	    }
 	    f += RSTRING_LEN(p) + 1;
@@ -176,7 +177,9 @@ rb_feature_p(const char *feature, const char *ext, int rb, int expanded,
     }
     VALUE feature_str = rb_str_new2(feature);
     if (rb_ary_includes(get_loading_table(), feature_str)) {
-	if (!ext) return 'u';
+	if (!ext) {
+	    return 'u';
+	}
 	return !IS_RBEXT(ext) ? 's' : 'r';
     }
     rb_ary_push(get_loading_table(), feature_str);
@@ -377,9 +380,9 @@ search_required(VALUE fname, volatile VALUE *path)
 	    if ((tmp = rb_find_file(fname)) != 0) {
 		tmp = rb_file_expand_path(tmp, Qnil);
 		ext = strrchr(ftptr = RSTRING_PTR(tmp), '.');
-		if (!rb_feature_p(ftptr, ext, Qtrue, Qtrue, 0)) {
+//		if (!rb_feature_p(ftptr, ext, Qtrue, Qtrue, 0)) {
 		    *path = tmp;
-		}
+//		}
 		return 'r';
 	    }
 	    return 0;
