@@ -2234,7 +2234,7 @@ recache2:
 
 	    if (imp == NULL) {
 		// Method was undefined.
-		return method_missing((VALUE)self, sel, argc, argv, opt);
+		goto call_method_missing;
 	    }
 
 	    rb_vm_method_node_t *node = GET_VM()->method_node_get(imp);
@@ -2326,7 +2326,7 @@ recache2:
 	    }
 	    else {
 		// Still nothing, then let's call #method_missing.
-		return method_missing((VALUE)self, sel, argc, argv, opt);
+		goto call_method_missing;
 	    }
 	}
     }
@@ -2456,8 +2456,33 @@ recache2:
 	return (*fcache.stub)(fcache.imp, argc, argv);
     }
 
-    printf("BOUH %s\n", (char *)sel);
+    printf("method dispatch is b0rked\n");
     abort();
+
+call_method_missing:
+    // Before calling method_missing, let's check if we tried to call a method
+    // that accepts one argument, and see if there isn't a method with the same
+    // Ruby name but no argument. If yes, we need to raise an ArgumentError
+    // exception instead.
+    if (argc > 0) {
+	const char *selname = sel_getName(sel);
+	const size_t selname_len = strlen(selname);
+	if (selname[selname_len - 1] == ':') {
+	    char buf[100];
+	    assert(sizeof buf > selname_len - 1);
+	    strlcpy(buf, selname, sizeof buf);
+	    buf[selname_len - 1] = '\0';
+	    SEL new_sel = sel_registerName(buf);
+	    Method m = class_getInstanceMethod(klass, new_sel);
+	    if (m != NULL
+		&& GET_VM()->method_node_get(method_getImplementation(m))
+			!= NULL) {
+		rb_raise(rb_eArgError, "wrong number of arguments (%d for %d)",
+			argc, 0);
+	    }
+	}
+    }
+    return method_missing((VALUE)self, sel, argc, argv, opt);
 }
 
 #define MAX_DISPATCH_ARGS 200
