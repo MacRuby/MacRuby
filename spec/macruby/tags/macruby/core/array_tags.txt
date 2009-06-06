@@ -1,1 +1,0 @@
-critical:The NSArray class can be subclassed and later instantiated

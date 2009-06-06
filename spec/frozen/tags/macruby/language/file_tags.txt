@@ -1,3 +1,2 @@
 fails:The __FILE__ constant equals a relative path when required using a relative path
 fails:The __FILE__ constant equals the full path when required using a full path
-fails:The __FILE__ constant equals the full path to the file when required
