@@ -1,2 +1,1 @@
-fails:Array#clear does not accept any arguments
 fails:Array#clear keeps untrusted status

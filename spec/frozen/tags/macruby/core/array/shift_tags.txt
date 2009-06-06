@@ -1,1 +1,0 @@
-fails:Array#shift passed a number n as an argument returns an untainted array even if the array is tainted

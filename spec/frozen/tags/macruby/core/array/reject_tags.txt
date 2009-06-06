@@ -1,2 +1,0 @@
-fails:Array#reject returns an Enumerator if no block given
-fails:Array#reject! returns an Enumerator if no block given
