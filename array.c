@@ -603,11 +603,13 @@ rb_ary_shift_m(VALUE ary, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_ary_unshift_m(VALUE ary, SEL sel, int argc, VALUE *argv)
 {
-    int i;
+    rb_ary_modify(ary);
+
     if (argc == 0) {
 	return ary;
     }
-    rb_ary_modify(ary);
+
+    int i;
     for (i = argc - 1; i >= 0; i--) {
 	CFArrayInsertValueAtIndex((CFMutableArrayRef)ary,
 	    0, (const void *)RB2OC(argv[i]));
