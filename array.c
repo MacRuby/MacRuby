@@ -2020,11 +2020,18 @@ take_i(VALUE val, VALUE *args, int argc, VALUE *argv)
 static VALUE
 take_items(VALUE obj, long n)
 {
-    VALUE result = rb_ary_new2(n);
+    VALUE result = rb_check_array_type(obj);
     VALUE args[2];
 
-    args[0] = result; args[1] = (VALUE)n;
+    if (!NIL_P(result)) {
+	return rb_ary_subseq(result, 0, n);
+    }
+    result = rb_ary_new2(n);
+    args[0] = result;
+    args[1] = (VALUE)n;
+    
     rb_objc_block_call(obj, selEach, cacheEach, 0, 0, take_i, (VALUE)args);
+
     return result;
 }
 
