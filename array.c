@@ -2997,21 +2997,99 @@ rb_ary_shuffle(VALUE ary, SEL sel)
 
 /*
  *  call-seq:
- *     array.choice        -> obj
+ *     array.sample        -> obj
+ *     array.sample(n)     -> an_array
  *  
- *  Choose a random element from an array.
+ *  Choose a random element, or the random +n+ elements, from the array.
+ *  If the array is empty, the first form returns <code>nil</code>, and the
+ *  second form returns an empty array.
  */
 
 
 static VALUE
-rb_ary_choice(VALUE ary, SEL sel)
+rb_ary_sample(VALUE ary, SEL sel, int argc, VALUE *argv)
 {
-    long i, j;
+    VALUE nv, result;
+    long n, len, i, j, k, idx[10];
 
-    i = RARRAY_LEN(ary);
-    if (i == 0) return Qnil;
-    j = rb_genrand_real()*i;
-    return RARRAY_AT(ary, j);
+    len = RARRAY_LEN(ary); 
+    if (argc == 0) {
+	if (len == 0) {
+	    return Qnil;
+	}
+	i = len == 1 ? 0 : rb_genrand_real() * len;
+	return RARRAY_AT(ary, i);
+    }
+    rb_scan_args(argc, argv, "1", &nv);
+    n = NUM2LONG(nv);
+    len = RARRAY_LEN(ary); 
+    if (n > len) {
+	n = len;
+    }
+    switch (n) {
+	case 0:
+	    return rb_ary_new2(0);
+
+	case 1:
+	    nv = RARRAY_AT(ary, (long)(rb_genrand_real() * len));
+	    return rb_ary_new4(1, &nv);
+
+	case 2:
+	    i = rb_genrand_real() * len;
+	    j = rb_genrand_real() * (len - 1);
+	    if (j >= i) {
+		j++;
+	    }
+	    return rb_ary_new3(2, RARRAY_AT(ary, i), RARRAY_AT(ary, j));
+
+	case 3:
+	    i = rb_genrand_real() * len;
+	    j = rb_genrand_real() * (len - 1);
+	    k = rb_genrand_real() * (len - 2);
+	    {
+		long l = j, g = i;
+		if (j >= i) {
+		    l = i;
+		    g = ++j;
+		}
+		if (k >= l && (++k >= g)) {
+		    ++k;
+		}
+	    }
+	    return rb_ary_new3(3, RARRAY_AT(ary, i), RARRAY_AT(ary, j),
+		    RARRAY_AT(ary, k));
+    }
+    if (n < sizeof(idx) / sizeof(idx[0])) {
+	long sorted[sizeof(idx) / sizeof(idx[0])];
+	sorted[0] = idx[0] = rb_genrand_real()*len;
+	for (i = 1; i < n; i++) {
+	    k = rb_genrand_real() * --len;
+	    for (j = 0; j < i; ++j) {
+		if (k < sorted[j]) {
+		    break;
+		}
+		++k;
+	    }
+	    memmove(&sorted[j+1], &sorted[j], sizeof(sorted[0])*(i-j));
+	    sorted[j] = idx[i] = k;
+	}
+	VALUE *elems = (VALUE *)alloca(sizeof(VALUE) * n);
+	for (i = 0; i < n; i++) {
+	    elems[i] = RARRAY_AT(ary, idx[i]);
+	}
+	result = rb_ary_new4(n, elems);
+    }
+    else {
+	VALUE *elems = (VALUE *)alloca(sizeof(VALUE) * n);
+	for (i = 0; i < n; i++) {
+	    j = (long)(rb_genrand_real() * (len - i)) + i;
+	    nv = RARRAY_AT(ary, j);
+	    elems[i] = nv;
+	}
+	result = rb_ary_new4(n, elems);
+    }
+
+    return result;
 }
 
 
@@ -3658,7 +3736,7 @@ Init_Array(void)
 
     rb_objc_define_method(rb_cArray, "shuffle!", rb_ary_shuffle_bang, 0);
     rb_objc_define_method(rb_cArray, "shuffle", rb_ary_shuffle, 0);
-    rb_objc_define_method(rb_cArray, "choice", rb_ary_choice, 0);
+    rb_objc_define_method(rb_cArray, "sample", rb_ary_sample, -1);
     rb_objc_define_method(rb_cArray, "cycle", rb_ary_cycle, -1);
     rb_objc_define_method(rb_cArray, "permutation", rb_ary_permutation, -1);
     rb_objc_define_method(rb_cArray, "combination", rb_ary_combination, 1);
