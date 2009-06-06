@@ -1,1 +1,14 @@
+critical:Kernel.Integer raises an ArgumentError if the number cannot be parsed as hex
+critical:Kernel.Integer raises an ArgumentError if the number cannot be parsed as binary
+critical:Kernel.Integer raises an ArgumentError if the number cannot be parsed as octal
+critical:Kernel.Integer raises an ArgumentError if the number cannot be parsed as decimal
+critical:Kernel#Integer raises an ArgumentError if the number cannot be parsed as hex
+critical:Kernel#Integer raises an ArgumentError if the number cannot be parsed as binary
+critical:Kernel#Integer raises an ArgumentError if the number cannot be parsed as octal
+critical:Kernel#Integer raises an ArgumentError if the number cannot be parsed as decimal
 fails:Kernel.Integer is a private method
+fails:Kernel#Integer is a private method
+fails:Kernel.Integer calls to_i on Rationals
+fails:Kernel.Integer raises an ArgumentError if the String ends with a null byte
+fails:Kernel#Integer calls to_i on Rationals
+fails:Kernel#Integer raises an ArgumentError if the String ends with a null byte

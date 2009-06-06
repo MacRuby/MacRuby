@@ -1,1 +1,0 @@
-fails:Time#hash returns a unique integer for each time

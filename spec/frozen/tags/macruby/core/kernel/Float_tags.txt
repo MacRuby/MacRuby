@@ -1,1 +1,28 @@
+critical:Kernel.Float raises an ArgumentError if e is the trailing character
+critical:Kernel.Float raises an ArgumentError if e is the leading character
+critical:Kernel.Float raises an exception if a space is embedded on either side of the 'e'
+critical:Kernel.Float raises an exception if there's a leading _ on either side of the 'e'
+critical:Kernel.Float raises an exception if there's a trailing _ on either side of the 'e'
+critical:Kernel.Float raises an ArgumentError if there's a decimal point on the right side of the 'e'
+critical:Kernel.Float raises an ArgumentError if E is the trailing character
+critical:Kernel.Float raises an ArgumentError if E is the leading character
+critical:Kernel.Float raises an exception if a space is embedded on either side of the 'E'
+critical:Kernel.Float raises an exception if there's a leading _ on either side of the 'E'
+critical:Kernel.Float raises an exception if there's a trailing _ on either side of the 'E'
+critical:Kernel.Float raises an ArgumentError if there's a decimal point on the right side of the 'E'
+critical:Kernel#Float raises an ArgumentError if e is the trailing character
+critical:Kernel#Float raises an ArgumentError if e is the leading character
+critical:Kernel#Float raises an exception if a space is embedded on either side of the 'e'
+critical:Kernel#Float raises an exception if there's a leading _ on either side of the 'e'
+critical:Kernel#Float raises an exception if there's a trailing _ on either side of the 'e'
+critical:Kernel#Float raises an ArgumentError if there's a decimal point on the right side of the 'e'
+critical:Kernel#Float raises an ArgumentError if E is the trailing character
+critical:Kernel#Float raises an ArgumentError if E is the leading character
+critical:Kernel#Float raises an exception if a space is embedded on either side of the 'E'
+critical:Kernel#Float raises an exception if there's a leading _ on either side of the 'E'
+critical:Kernel#Float raises an exception if there's a trailing _ on either side of the 'E'
+critical:Kernel#Float raises an ArgumentError if there's a decimal point on the right side of the 'E'
 fails:Kernel.Float is a private method
+fails:Kernel#Float is a private method
+fails:Kernel.Float raises a TypeError if #to_f is not provided
+fails:Kernel#Float raises a TypeError if #to_f is not provided

@@ -1,2 +1,8 @@
 fails:Kernel.String is a private method
 fails:Kernel.String converts the given argument to a String by calling #to_s
+fails:Kernel.String raises a TypeError if #to_s is not provided
+fails:Kernel.String tries to call the to_s method if respond_to? returns true for to_s
+fails:Kernel#String converts the given argument to a String by calling #to_s
+fails:Kernel#String raises a TypeError if #to_s is not provided
+fails:Kernel#String tries to call the to_s method if respond_to? returns true for to_s
+fails:Kernel#String is a private method

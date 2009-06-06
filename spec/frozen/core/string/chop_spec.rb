@@ -14,7 +14,6 @@ describe "String#chop" do
       str = ori_str
       256.times do |i|
         str = str.chop
-        p str
         str.should == ori_str[0, 255 - i]
       end
     end

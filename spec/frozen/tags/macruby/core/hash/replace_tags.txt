@@ -1,2 +1,2 @@
 fails:Hash#replace does not transfer default values
-fails:Hash#replace raises a TypeError if called on a frozen instance
+fails:Hash#replace raises a RuntimeError if called on a frozen instance
