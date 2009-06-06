@@ -1,3 +1,2 @@
-fails:Array#delete returns false on a frozen array if a modification does not take place
 fails:Array#delete keeps untrusted status
 fails:Array#delete removes elements that are #== to object

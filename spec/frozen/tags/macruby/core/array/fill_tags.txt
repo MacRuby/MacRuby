@@ -1,1 +1,0 @@
-fails:Array#fill with (filler, index, length) makes no modifications if the given length <= 0
