@@ -1513,12 +1513,22 @@ rb_ary_reverse_m(VALUE ary, SEL sel)
 static int
 sort_1(const void *ap, const void *bp, void *dummy)
 {
-    VALUE a = (VALUE)ap, b = (VALUE)bp;
-    VALUE retval = rb_yield_values(2, a, b);
-    int n;
+    if (*(VALUE *)dummy == 0) {
+	VALUE a = (VALUE)ap, b = (VALUE)bp;
+	VALUE retval = rb_yield_values(2, a, b);
 
-    n = rb_cmpint(retval, a, b);
-    return n;
+	VALUE v = rb_vm_pop_broken_value();
+	if (v != Qundef) {
+	    // break was performed, we marked the dummy variable with its
+	    // value and we will make sure further calls are ignored.
+	    *(VALUE *)dummy = v;
+	    return 0;
+	}
+	return rb_cmpint(retval, a, b);
+    }
+    else {
+	return 0;
+    }
 }
 
 static int
@@ -1555,19 +1565,24 @@ sort_2(const void *ap, const void *bp, void *dummy)
  *     a.sort {|x,y| y <=> x }   #=> ["e", "d", "c", "b", "a"]
  */
 
-static void
+static VALUE
 rb_ary_sort_bang1(VALUE ary, bool is_dup)
 {
     long n = RARRAY_LEN(ary);
     if (n > 1) {
 	if (rb_block_given_p()) {
 	    VALUE tmp = is_dup ? ary : rb_ary_dup(ary);
+	    VALUE break_val = 0;
 	    CFArraySortValues((CFMutableArrayRef)tmp,
 		    CFRangeMake(0, n),
 		    (CFComparatorFunction)sort_1,
-		    NULL);
-	    if (!is_dup)
+		    &break_val);
+	    if (break_val != 0) {
+		return break_val;
+	    }
+	    if (!is_dup) {
 		rb_ary_replace(ary, tmp);
+	    }
 	}
 	else {
 	    CFArraySortValues((CFMutableArrayRef)ary,
@@ -1576,14 +1591,14 @@ rb_ary_sort_bang1(VALUE ary, bool is_dup)
 		    NULL);
 	}
     }
+    return ary;
 }
 
 static VALUE
 rb_ary_sort_bang_imp(VALUE ary, SEL sel)
 {
     rb_ary_modify(ary);
-    rb_ary_sort_bang1(ary, false);
-    return ary;
+    return rb_ary_sort_bang1(ary, false);
 }
 
 VALUE
@@ -1612,8 +1627,7 @@ static VALUE
 rb_ary_sort_imp(VALUE ary, SEL sel)
 {
     ary = rb_ary_dup(ary);
-    rb_ary_sort_bang1(ary, true);
-    return ary;
+    return rb_ary_sort_bang1(ary, true);
 }
 
 VALUE
