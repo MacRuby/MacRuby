@@ -15,6 +15,7 @@ namespace :spec do
     spec/frozen/core/env
     spec/frozen/core/exception
     spec/frozen/core/false
+    spec/frozen/core/fiber
     spec/frozen/core/file
     spec/frozen/core/filetest
     spec/frozen/core/gc
