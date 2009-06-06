@@ -2107,7 +2107,9 @@ rb_ary_replace(VALUE copy, VALUE orig)
 {
     orig = to_ary(orig);
     rb_ary_modify_check(copy);
-    if (copy == orig) return copy;
+    if (copy == orig) {
+	return copy;
+    }
     CFArrayRemoveAllValues((CFMutableArrayRef)copy);
     CFArrayAppendArray((CFMutableArrayRef)copy,
 	(CFArrayRef)orig,
@@ -2921,11 +2923,18 @@ rb_ary_flatten_bang(VALUE ary, SEL sel, int argc, VALUE *argv)
     VALUE result, lv;
 
     rb_scan_args(argc, argv, "01", &lv);
-    if (!NIL_P(lv)) level = NUM2INT(lv);
-    if (level == 0) return ary;
+    rb_ary_modify(ary);
+    if (!NIL_P(lv)) {
+	level = NUM2INT(lv);
+    }
+    if (level == 0) {
+	return ary;
+    }
 
     result = flatten(ary, level, &mod);
-    if (mod == 0) return Qnil;
+    if (mod == 0) {
+	return Qnil;
+    }
     rb_ary_replace(ary, result);
 
     return ary;
@@ -2956,11 +2965,17 @@ rb_ary_flatten(VALUE ary, SEL sel, int argc, VALUE *argv)
     VALUE result, lv;
 
     rb_scan_args(argc, argv, "01", &lv);
-    if (!NIL_P(lv)) level = NUM2INT(lv);
-    if (level == 0) return ary;
+    if (!NIL_P(lv)) {
+	level = NUM2INT(lv);
+    }
+    if (level == 0) {
+	return ary;
+    }
 
     result = flatten(ary, level, &mod);
-    if (OBJ_TAINTED(ary)) OBJ_TAINT(result);
+    if (OBJ_TAINTED(ary)) {
+	OBJ_TAINT(result);
+    }
 
     return result;
 }
