@@ -478,8 +478,15 @@ rb_ary_push_imp(VALUE ary, SEL sel, VALUE item)
 static VALUE
 rb_ary_push_m(VALUE ary, SEL sel, int argc, VALUE *argv)
 {
-    while (argc--) {
-	rb_ary_push(ary, *argv++);
+    if (argc == 0) {
+	// Even if there is nothing to push, we still need to check if the
+	// receiver can be modified, to conform to RubySpec.
+	rb_ary_modify(ary);
+    }
+    else {
+	while (argc--) {
+	    rb_ary_push(ary, *argv++);
+	}
     }
     return ary;
 }
