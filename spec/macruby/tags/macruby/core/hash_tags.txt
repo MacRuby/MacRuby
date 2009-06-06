@@ -1,2 +1,1 @@
 critical:The NSDictionary class can be subclassed and later instantiated
-fails:An NSDictionary object can have a singleton class
