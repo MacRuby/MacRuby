@@ -1,0 +1,2 @@
+fails:Bignum#divmod raises a FloatDomainError when the given argument is 0 and a Float
+fails:Bignum#divmod raises a TypeError when the given argument is not an Integer

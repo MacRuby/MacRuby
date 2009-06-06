@@ -1,0 +1,1 @@
+fails:Bignum#<=> returns nil when the given argument is not an Integer

@@ -4,6 +4,7 @@ namespace :spec do
     spec/frozen/core/argf
     spec/frozen/core/array
     spec/frozen/core/basicobject
+    spec/frozen/core/bignum
     spec/frozen/core/builtin_constants
     spec/frozen/core/class
     spec/frozen/core/comparable
