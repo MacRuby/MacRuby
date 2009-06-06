@@ -1,0 +1,2 @@
+fails:Encoding#dummy? returns `false' if an encoding can be handled correctly
+fails:Encoding#dummy? returns `true' if an encoding is a placeholder which can't be handled correctly

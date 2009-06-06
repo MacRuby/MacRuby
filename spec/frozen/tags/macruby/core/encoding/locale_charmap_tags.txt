@@ -1,0 +1,1 @@
+fails:Encoding.locale_charmap returns the name of the charmap of the current environment's locale

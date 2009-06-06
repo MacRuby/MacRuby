@@ -4,15 +4,18 @@ namespace :spec do
     spec/frozen/core/argf
     spec/frozen/core/array
     spec/frozen/core/basicobject
+    spec/frozen/core/builtin_constants
     spec/frozen/core/class
     spec/frozen/core/comparable
     spec/frozen/core/dir
+    spec/frozen/core/encoding
     spec/frozen/core/enumerable
     spec/frozen/core/env
     spec/frozen/core/exception
     spec/frozen/core/false
     spec/frozen/core/file
     spec/frozen/core/filetest
+    spec/frozen/core/gc
     spec/frozen/core/hash
     spec/frozen/core/integer
     spec/frozen/core/io
