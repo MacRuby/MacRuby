@@ -444,7 +444,7 @@ Init_Enumerator(void)
     rb_objc_define_method(rb_mEnumerable, "each_slice", enum_each_slice, 1);
     rb_objc_define_method(rb_mEnumerable, "each_cons", enum_each_cons, 1);
 
-    rb_cEnumerator = rb_define_class_under(rb_mEnumerable, "Enumerator", rb_cObject);
+    rb_cEnumerator = rb_define_class("Enumerator", rb_cObject);
     rb_include_module(rb_cEnumerator, rb_mEnumerable);
 
     rb_objc_define_method(*(VALUE *)rb_cEnumerator, "alloc", enumerator_allocate, 0);
