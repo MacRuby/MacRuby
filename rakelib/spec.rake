@@ -8,6 +8,7 @@ namespace :spec do
     spec/frozen/core/comparable
     spec/frozen/core/dir
     spec/frozen/core/enumerable
+    spec/frozen/core/env
     spec/frozen/core/exception
     spec/frozen/core/false
     spec/frozen/core/file
@@ -54,6 +55,10 @@ namespace :spec do
   desc "Run all MacRuby-only specs"
   task :macruby do
     mspec :ci, "./spec/macruby"
+  end
+  
+  task :todo do
+    p(Dir.glob('spec/frozen/core/*') - CI_DIRS.split(' '))
   end
   
   desc "Run language examples that are known to fail"
