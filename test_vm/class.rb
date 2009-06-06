@@ -7,6 +7,8 @@ assert "X", "class X; end; class Y < X; end; p Y.superclass"
 assert "42", "class X; def initialize; p 42; end; end; X.new"
 assert "42", "class X; def initialize(x); p x; end; end; X.new(42)"
 
+assert "42", "class X; def initialize; yield; end; end; p X.new { break 42 }"
+
 assert "42", %q{
   class X
   end
