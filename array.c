@@ -980,7 +980,9 @@ rb_ary_splice(VALUE ary, long beg, long len, VALUE rpl)
     long n, rlen;
 
     n = RARRAY_LEN(ary);
-    if (len < 0) rb_raise(rb_eIndexError, "negative length (%ld)", len);
+    if (len < 0) {
+	rb_raise(rb_eIndexError, "negative length (%ld)", len);
+    }
     if (beg < 0) {
 	beg += n;
 	if (beg < 0) {
@@ -1242,8 +1244,9 @@ rb_ary_dup(VALUE ary)
     if (*(Class *)ary != (Class)rb_cCFArray) {
 	*(Class *)dup = *(Class *)ary;
     }
-    if (OBJ_TAINTED(ary))
+    if (OBJ_TAINTED(ary)) {
 	OBJ_TAINT(dup);
+    }
 
     CFMakeCollectable((CFTypeRef)dup);
     return dup;
@@ -1259,8 +1262,9 @@ static VALUE
 rb_ary_clone(VALUE ary, SEL sel)
 {
     VALUE clone = rb_ary_dup(ary);
-    if (OBJ_FROZEN(ary))
+    if (OBJ_FROZEN(ary)) {
 	OBJ_FREEZE(clone);
+    }
     return clone;
 }
 
@@ -1625,7 +1629,7 @@ rb_ary_collect(VALUE ary, SEL sel)
     VALUE collect;
 
     RETURN_ENUMERATOR(ary, 0, 0);
-    collect = rb_ary_new2(RARRAY_LEN(ary));
+    collect = rb_ary_new();
     for (i = 0; i < RARRAY_LEN(ary); i++) {
 	VALUE v = rb_yield(RARRAY_AT(ary, i));
 	RETURN_IF_BROKEN();
@@ -2273,6 +2277,11 @@ rb_ary_concat_imp(VALUE x, SEL sel, VALUE y)
     y = to_ary(y);
     if (RARRAY_LEN(y) > 0) {
 	rb_ary_splice(x, RARRAY_LEN(x), 0, y);
+    }
+    else {
+	// Even if we do nothing since the given array is empty, we still need
+	// to check if the receiver is modifiable, for RubySpec compliance.
+	rb_ary_modify(x);
     }
     return x;
 }
