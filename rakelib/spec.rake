@@ -70,6 +70,42 @@ namespace :spec do
     end
   end
   
+  namespace :tag do
+    desc "Removed fail tags for examples which actually pass. (FIXME)"
+    task :remove do
+      mspec :tag, "-g fails --del fails #{CI_DIRS}"
+    end
+    
+    desc "Tags failing examples in spec/core, specify the class to tag with the env variable `class'"
+    task :add do
+      klass = ENV['class']
+      puts "Tagging failing examples of class `#{klass}'"
+      
+      tag_base = "./spec/frozen/tags/macruby/core/#{klass}"
+      mkdir_p tag_base
+      
+      Dir.glob("./spec/frozen/core/#{klass}/*_spec.rb").each do |spec_file|
+        puts "Running spec: #{spec_file}"
+        cmd = "./mspec/bin/mspec ci -I./lib -f s -B ./spec/macruby.mspec #{spec_file}"
+        out = `#{cmd}`
+        
+        if out.match(/^1\)(.+?)(FAILED|ERROR)/m)
+          failures = $1.strip.split("\n")
+          
+          tag_file = "#{tag_base}/#{spec_file.match(/\/(\w+)_spec\.rb$/)[1]}_tags.txt"
+          puts "Writing tags file: #{tag_file}"
+          
+          File.open(tag_file, 'a+') do |f|
+            f << "\n" unless f.read.empty?
+            failures.each do |failure|
+              f << "fails:#{failure}\n"
+            end
+          end
+        end
+      end
+    end
+  end
+  
   %w{ fails critical }.each do |tag|
     namespace :list do
       # We cheat by using the fact that currently the ruby.1.9.mspec script uses the macruby tags,
@@ -84,35 +120,6 @@ namespace :spec do
       desc "Run roxor language specs tagged `#{tag}' against Ruby 1.9 (use this to look for possible 1.8/1.9 incompatibility bugs)"
       task tag do
         sh "./mspec/bin/mspec run -g #{tag} -B ./spec/frozen/ruby.1.9.mspec #{CI_DIRS}"
-      end
-    end
-  end
-  
-  desc "Tags failing examples in spec/core, specify the class to tag with the env variable `class'"
-  task :tag_failing do
-    klass = ENV['class']
-    puts "Tagging failing examples of class `#{klass}'"
-    
-    tag_base = "./spec/frozen/tags/macruby/core/#{klass}"
-    mkdir_p tag_base
-    
-    Dir.glob("./spec/frozen/core/#{klass}/*_spec.rb").each do |spec_file|
-      puts "Running spec: #{spec_file}"
-      cmd = "./mspec/bin/mspec ci -I./lib -f s -B ./spec/macruby.mspec #{spec_file}"
-      out = `#{cmd}`
-      
-      if out.match(/^1\)(.+?)(FAILED|ERROR)/m)
-        failures = $1.strip.split("\n")
-        
-        tag_file = "#{tag_base}/#{spec_file.match(/\/(\w+)_spec\.rb$/)[1]}_tags.txt"
-        puts "Writing tags file: #{tag_file}"
-        
-        File.open(tag_file, 'a+') do |f|
-          f << "\n" unless f.read.empty?
-          failures.each do |failure|
-            f << "fails:#{failure}\n"
-          end
-        end
       end
     end
   end
