@@ -1008,12 +1008,13 @@ rb_ary_splice(VALUE ary, long beg, long len, VALUE rpl)
     rb_ary_modify(ary);
     if (beg >= n) {
 	long i;
-	for (i = n; i < beg - n; i++) {
+	for (i = n; i < beg; i++) {
 	    CFArrayAppendValue((CFMutableArrayRef)ary, (const void *)kCFNull);
 	}
-	if (rlen > 0) 
+	if (rlen > 0)  {
 	    CFArrayAppendArray((CFMutableArrayRef)ary, (CFArrayRef)rpl,
 		    CFRangeMake(0, rlen));
+	}
     }
     else {
 	const void **values;
@@ -1104,7 +1105,10 @@ rb_ary_insert_m(VALUE ary, SEL sel, int argc, VALUE *argv)
 {
     long pos;
 
-    if (argc == 1) return ary;
+    if (argc == 1) {
+	rb_ary_modify(ary);
+	return ary;
+    }
     if (argc < 1) {
 	rb_raise(rb_eArgError, "wrong number of arguments (at least 1)");
     }
