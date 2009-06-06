@@ -2204,10 +2204,12 @@ rb_ary_fill(VALUE ary, SEL sel, int argc, VALUE *argv)
 	    if (beg < 0) beg = 0;
 	}
 	len = NIL_P(arg2) ? n - beg : NUM2LONG(arg2);
-	if (len < 0) rb_raise(rb_eIndexError, "negative length (%ld)", len);
 	break;
     }
     rb_ary_modify(ary);
+    if (len < 0) {
+	return ary;
+    }
     end = beg + len;
     if (end < 0) {
 	rb_raise(rb_eArgError, "argument too big");
