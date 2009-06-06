@@ -280,6 +280,7 @@ rb_ary_initialize(VALUE ary, SEL sel, int argc, VALUE *argv)
 	if (rb_block_given_p()) {
 	    rb_warning("given block not used");
 	}
+	rb_ary_clear(ary);
 	return ary;
     }
     rb_scan_args(argc, argv, "02", &size, &val);
@@ -298,14 +299,14 @@ rb_ary_initialize(VALUE ary, SEL sel, int argc, VALUE *argv)
     if (len > LONG_MAX / sizeof(VALUE)) {
 	rb_raise(rb_eArgError, "array size too big");
     }
-    rb_ary_modify(ary);
     if (rb_block_given_p()) {
 	long i;
 
 	if (argc == 2) {
 	    rb_warn("block supersedes default value argument");
 	}
-	for (i=0; i<len; i++) {
+	rb_ary_clear(ary);
+	for (i = 0; i < len; i++) {
 	    VALUE v = rb_yield(LONG2NUM(i));
 	    RETURN_IF_BROKEN();
 	    rb_ary_store(ary, i, v);
@@ -316,10 +317,13 @@ rb_ary_initialize(VALUE ary, SEL sel, int argc, VALUE *argv)
 	const void **values = alloca(sizeof(void *) * len);
 	void *ocval = RB2OC(val);
 
-	for (i=0; i<len; i++)
+	rb_ary_modify(ary);
+	for (i = 0; i < len; i++) {
 	    values[i] = ocval;
+	}
 
-	CFArrayReplaceValues((CFMutableArrayRef)ary, CFRangeMake(0, 0), values, len); 
+	CFArrayReplaceValues((CFMutableArrayRef)ary, CFRangeMake(0, 0),
+		values, len); 
     }
     return ary;
 }
