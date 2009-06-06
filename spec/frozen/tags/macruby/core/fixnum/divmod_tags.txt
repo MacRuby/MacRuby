@@ -1,0 +1,2 @@
+fails:Fixnum#divmod raises a FloatDomainError when the given argument is 0 and a Float
+fails:Fixnum#divmod raises a TypeError when given a non-Integer

@@ -18,6 +18,7 @@ namespace :spec do
     spec/frozen/core/fiber
     spec/frozen/core/file
     spec/frozen/core/filetest
+    spec/frozen/core/fixnum
     spec/frozen/core/gc
     spec/frozen/core/hash
     spec/frozen/core/integer

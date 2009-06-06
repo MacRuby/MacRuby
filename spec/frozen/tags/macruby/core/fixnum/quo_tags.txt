@@ -1,0 +1,4 @@
+fails:Fixnum#quo returns the result of self divided by the given Integer as a Float
+fails:Fixnum#quo does not raise a ZeroDivisionError when the given Integer is 0
+fails:Fixnum#quo does not raise a FloatDomainError when the given Integer is 0 and a Float
+fails:Fixnum#quo raises a TypeError when given a non-Integer
