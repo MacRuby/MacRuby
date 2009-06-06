@@ -1,3 +1,0 @@
-fails:Array#push raises a TypeError on a frozen array if modification takes place
-fails:Array#push Raise a RuntimeError on a frozen array if no modification is made too
-fails:Array#push raises a RuntimeError on a frozen array
