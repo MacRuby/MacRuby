@@ -66,6 +66,7 @@
   [ ] Thread
   [ ] light threading
 [ ] rubyspec
+  [ ] make regexp specs pass so mspec tools work
   [/] integrate
   [ ] pass the 1.9 specs
 [/] all core-features benchmarks should run faster than yarv

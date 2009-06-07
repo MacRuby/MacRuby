@@ -322,7 +322,9 @@ module MSpec
       lines = IO.readlines(file)
       File.open(file, "w") do |f|
         lines.each do |line|
-          unless pattern =~ line.chomp
+          # unless pattern =~ line.chomp
+          # FIXME: This is temporary until the regexp specs are passing
+          unless "#{tag.tag}:#{tag.description}" == line.chomp
             f.puts line unless line.empty?
           else
             deleted = true
