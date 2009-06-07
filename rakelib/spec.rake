@@ -36,6 +36,7 @@ namespace :spec do
     spec/frozen/core/regexp
     spec/frozen/core/signal
     spec/frozen/core/string
+    spec/frozen/core/struct
     spec/frozen/core/symbol
     spec/frozen/core/systemexit
     spec/frozen/core/time
