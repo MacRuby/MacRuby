@@ -20,7 +20,7 @@ module Rake
   To change any of the default build options, use the rake build task
   of choice with any of these following option-value pairs:
 
-    Usage: $ rake [task] [option=value, …]
+    Usage: $ rake [task] [option=value, ...]
 
       #{'Option:'.ljust(30)} Default value:
 

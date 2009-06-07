@@ -1,49 +1,4 @@
 namespace :spec do
-  CI_DIRS = %w{
-    spec/frozen/language
-    spec/frozen/core/argf
-    spec/frozen/core/array
-    spec/frozen/core/basicobject
-    spec/frozen/core/bignum
-    spec/frozen/core/binding
-    spec/frozen/core/builtin_constants
-    spec/frozen/core/class
-    spec/frozen/core/comparable
-    spec/frozen/core/dir
-    spec/frozen/core/encoding
-    spec/frozen/core/enumerable
-    spec/frozen/core/env
-    spec/frozen/core/exception
-    spec/frozen/core/false
-    spec/frozen/core/fiber
-    spec/frozen/core/file
-    spec/frozen/core/filetest
-    spec/frozen/core/fixnum
-    spec/frozen/core/float
-    spec/frozen/core/gc
-    spec/frozen/core/hash
-    spec/frozen/core/integer
-    spec/frozen/core/io
-    spec/frozen/core/kernel
-    spec/frozen/core/matchdata
-    spec/frozen/core/math
-    spec/frozen/core/method
-    spec/frozen/core/module
-    spec/frozen/core/nil
-    spec/frozen/core/numeric
-    spec/frozen/core/object
-    spec/frozen/core/range
-    spec/frozen/core/regexp
-    spec/frozen/core/signal
-    spec/frozen/core/string
-    spec/frozen/core/struct
-    spec/frozen/core/symbol
-    spec/frozen/core/systemexit
-    spec/frozen/core/time
-    spec/frozen/core/true
-    spec/frozen/core/unboundmethod
-  }.join(' ')
-  
   MACRUBY_MSPEC = "./spec/macruby.mspec"
   DEFAULT_OPTIONS = "-I./lib -B #{MACRUBY_MSPEC}"
   
@@ -53,33 +8,29 @@ namespace :spec do
   
   desc "Run continuous integration language examples (all known good examples)"
   task :ci do
-    mspec :ci, "./spec/macruby #{CI_DIRS}"
+    mspec :ci, ":full"
   end
   
   desc "Run continuous integration language examples (all known good examples) (32 bit mode)"
   task :ci32 do
-    sh "/usr/bin/arch -arch i386 ./miniruby ./mspec/bin/mspec-ci #{DEFAULT_OPTIONS} #{CI_DIRS}"
+    sh "/usr/bin/arch -arch i386 ./miniruby ./mspec/bin/mspec-ci #{DEFAULT_OPTIONS} :full"
   end
   
   desc "Run all MacRuby-only specs"
   task :macruby do
-    mspec :ci, "./spec/macruby"
-  end
-  
-  task :todo do
-    p(Dir.glob('spec/frozen/core/*') - CI_DIRS.split(' '))
+    mspec :ci, ":macruby"
   end
   
   desc "Run language examples that are known to fail"
   task :fails do
-    mspec :run, "-g fails #{CI_DIRS}"
+    mspec :run, "-g fails :full"
   end
   
   namespace :fails do
     task :verbose do
       desc "Run language examples that are known to fail with spec and verbose output"
       task :fails do
-        mspec :run, "-V -f s -g fails #{CI_DIRS}"
+        mspec :run, "-V -f s -g fails :full"
       end
     end
   end
@@ -87,7 +38,7 @@ namespace :spec do
   namespace :tag do
     desc "Removed fail tags for examples which actually pass. (FIXME)"
     task :remove do
-      mspec :tag, "-g fails --del fails #{CI_DIRS}"
+      mspec :tag, "-g fails --del fails :full"
     end
     
     desc "Tags failing examples in spec/core, specify the class to tag with the env variable `class'"
@@ -126,14 +77,14 @@ namespace :spec do
       # otherwise macruby fails halfway because apperantly the spec files are loaded when listing tagged specs...
       desc "List all specs that are tagged as `#{tag}'"
       task tag do
-        sh "./mspec/bin/mspec tag --list #{tag} -B ./spec/frozen/ruby.1.9.mspec #{CI_DIRS}"
+        sh "./mspec/bin/mspec tag --list #{tag} -B ./spec/frozen/ruby.1.9.mspec :full"
       end
     end
     
     namespace :"1.9" do
       desc "Run roxor language specs tagged `#{tag}' against Ruby 1.9 (use this to look for possible 1.8/1.9 incompatibility bugs)"
       task tag do
-        sh "./mspec/bin/mspec run -g #{tag} -B ./spec/frozen/ruby.1.9.mspec #{CI_DIRS}"
+        sh "./mspec/bin/mspec run -g #{tag} -B ./spec/frozen/ruby.1.9.mspec :full"
       end
     end
   end
