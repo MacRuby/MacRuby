@@ -26,11 +26,22 @@ describe "Struct.new" do
     struct.name.should == "Struct::Foo"
   end
 
-  it "creates a new anonymous class with nil first argument" do
-    struct = Struct.new(nil, :foo)
-    struct.new("bar").foo.should == "bar"
-    struct.class.should == Class
-    struct.name.should == ""
+  ruby_version_is "" ... "1.9" do
+    it "creates a new anonymous class with nil first argument" do
+      struct = Struct.new(nil, :foo)
+      struct.new("bar").foo.should == "bar"
+      struct.class.should == Class
+      struct.name.should == ""
+    end
+  end
+
+  ruby_version_is "1.9" do
+    it "creates a new anonymous class with nil first argument" do
+      struct = Struct.new(nil, :foo)
+      struct.new("bar").foo.should == "bar"
+      struct.class.should == Class
+      struct.name.should == nil
+    end
   end
 
   it "does not create a constant with symbol as first argument" do
@@ -38,10 +49,20 @@ describe "Struct.new" do
     struct.should_not == Struct::Animal
   end
 
-  it "creates a new anonymous class with symbol arguments" do
-    struct = Struct.new(:make, :model)
-    struct.class.should == Class
-    struct.name.should == ""
+  ruby_version_is "" ... "1.9" do
+    it "creates a new anonymous class with symbol arguments" do
+      struct = Struct.new(:make, :model)
+      struct.class.should == Class
+      struct.name.should == ""
+    end
+  end
+
+  ruby_version_is "1.9" do
+    it "creates a new anonymous class with symbol arguments" do
+      struct = Struct.new(:make, :model)
+      struct.class.should == Class
+      struct.name.should == nil
+    end
   end
 
   it "fails with invalid constant name as first argument" do
@@ -66,6 +87,7 @@ describe "Struct.new" do
   end
 
   not_compliant_on :rubinius do
+    # XXX these 2 specs do not work as expected on 1.9 either
     it "accepts Fixnums as Symbols unless fixnum.to_sym.nil?" do
       num = :foo.to_i
       Struct.new(nil, num).new("bar").foo.should == "bar"
@@ -78,9 +100,18 @@ describe "Struct.new" do
     end
   end
 
-  it "instance_eval's a passed block" do
-    klass = Struct.new(:something) { @something_else = 'something else entirely!' }
-    klass.instance_variables.should include('@something_else')
+  ruby_version_is "" ... "1.9" do
+    it "instance_eval's a passed block" do
+      klass = Struct.new(:something) { @something_else = 'something else entirely!' }
+      klass.instance_variables.should include('@something_else')
+    end
+  end
+
+  ruby_version_is "1.9" do
+    it "instance_eval's a passed block" do
+      klass = Struct.new(:something) { @something_else = 'something else entirely!' }
+      klass.instance_variables.should include(:@something_else)
+    end
   end
 
   it "creates a constant in subclass' namespace" do

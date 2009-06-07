@@ -1,0 +1,2 @@
+fails:Struct.new accepts Fixnums as Symbols unless fixnum.to_sym.nil?
+fails:Struct.new raises an ArgumentError if fixnum#to_sym is nil
