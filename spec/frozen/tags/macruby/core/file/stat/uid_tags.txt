@@ -1,1 +1,0 @@
-fails:File::Stat#uid should be able to determine the owner through a File::Stat object

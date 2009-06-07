@@ -1,2 +1,1 @@
 critical:Enumerable#find passes the ifnone proc to the enumerator
-fails:Enumerable#find returns an enumerator when no block given

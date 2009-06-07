@@ -38,8 +38,6 @@ fails:File.open opens the file when passed mode, num, permissions and block
 fails:File.open creates a new write-only file when invoked with 'w' and '0222'
 fails:File.open opens the file when call with fd
 fails:File.open opens a file with a file descriptor d and a block
-fails:File.open opens a file that no exists when use 'r' mode
-fails:File.open raises an IOError when read in a block opened with 'w' mode
 fails:File.open raises an Errno::EACCES when opening non-permitted file
 fails:File.open raises an Errno::EACCES when opening read-only file
 fails:File.open opens a file for read-write and truncate the file

@@ -1,2 +1,1 @@
 fails:An exception occurred during: before :each
-fails:File::Stat#gid should be able to determine the group owner through a File::Stat object

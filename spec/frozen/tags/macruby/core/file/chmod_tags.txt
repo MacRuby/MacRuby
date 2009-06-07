@@ -6,4 +6,3 @@ fails:File#chmod with '0444' makes file readable but not writable or executable
 fails:File#chmod with '0666' makes file readable and writable but not executable
 fails:File#chmod with '0111' makes file executable but not readable or writable
 fails:File#chmod modifies the permission bits of the files specified
-fails:File.chmod throws a TypeError if the given path is not coercable into a string
