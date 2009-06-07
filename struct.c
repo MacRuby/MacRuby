@@ -160,25 +160,33 @@ rb_struct_set(VALUE obj, SEL sel, VALUE val)
     VALUE members, slot;
     long i;
 
+    // foo=: -> foo
+    char buf[100];
+    const size_t s = strlcpy(buf, sel_getName(sel), sizeof buf);
+    buf[s - 2] = '\0';
+    ID field = rb_intern(buf);
+
     members = rb_struct_members(obj);
     rb_struct_modify(obj);
     for (i=0; i<RARRAY_LEN(members); i++) {
 	slot = RARRAY_AT(members, i);
-	if (rb_id_attrset(SYM2ID(slot)) == rb_frame_this_func()) {
+	if (SYM2ID(slot) == field) {
 	    return RSTRUCT_PTR(obj)[i] = val;
 	}
     }
     rb_name_error(rb_frame_this_func(), "`%s' is not a struct member",
-		  rb_id2name(rb_frame_this_func()));
+		  rb_id2name(field));
     return Qnil;		/* not reached */
 }
+
+VALUE rb_class_new_instance_imp(VALUE klass, SEL sel, int argc, VALUE *argv);
 
 static VALUE
 make_struct(VALUE name, VALUE members, VALUE klass)
 {
     VALUE nstr;
     ID id;
-    long i;
+    long i, count;
 
     OBJ_FREEZE(members);
     if (NIL_P(name)) {
@@ -193,7 +201,8 @@ make_struct(VALUE name, VALUE members, VALUE klass)
 	name = rb_str_to_str(name);
 	id = rb_to_id(name);
 	if (!rb_is_const_id(id)) {
-	    rb_name_error(id, "identifier %s needs to be constant", StringValuePtr(name));
+	    rb_name_error(id, "identifier %s needs to be constant",
+		    StringValuePtr(name));
 	}
 	if (rb_const_defined_at(klass, id)) {
 	    rb_warn("redefining constant Struct::%s", StringValuePtr(name));
@@ -205,10 +214,10 @@ make_struct(VALUE name, VALUE members, VALUE klass)
     rb_iv_set(nstr, "__members__", members);
 
     rb_objc_define_method(*(VALUE *)nstr, "alloc", struct_alloc, 0);
-    rb_objc_define_method(*(VALUE *)nstr, "new", rb_class_new_instance, -1);
-    rb_objc_define_method(*(VALUE *)nstr, "[]", rb_class_new_instance, -1);
+    rb_objc_define_method(*(VALUE *)nstr, "new", rb_class_new_instance_imp, -1);
+    rb_objc_define_method(*(VALUE *)nstr, "[]", rb_class_new_instance_imp, -1);
     rb_objc_define_method(*(VALUE *)nstr, "members", rb_struct_s_members_m, 0);
-    for (i=0; i< RARRAY_LEN(members); i++) {
+    for (i = 0, count = RARRAY_LEN(members); i < count; i++) {
 	ID id = SYM2ID(RARRAY_AT(members, i));
 	if (rb_is_local_id(id) || rb_is_const_id(id)) {
 	    if (i < N_REF_FUNC) {
@@ -217,7 +226,8 @@ make_struct(VALUE name, VALUE members, VALUE klass)
 	    else {
 		rb_objc_define_method(nstr, rb_id2name(id), rb_struct_ref, 0);
 	    }
-	    rb_objc_define_method(nstr, rb_id2name(rb_id_attrset(id)), rb_struct_set, 1);
+	    rb_objc_define_method(nstr, rb_id2name(rb_id_attrset(id)),
+		    rb_struct_set, 1);
 	}
     }
 
@@ -328,7 +338,7 @@ static VALUE
 rb_struct_s_def(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
     VALUE name, rest;
-    long i;
+    long i, count;
     VALUE st;
     ID id;
 
@@ -337,7 +347,7 @@ rb_struct_s_def(VALUE klass, SEL sel, int argc, VALUE *argv)
 	rb_ary_unshift(rest, name);
 	name = Qnil;
     }
-    for (i=0; i<RARRAY_LEN(rest); i++) {
+    for (i = 0, count = RARRAY_LEN(rest); i < count; i++) {
 	id = rb_to_id(RARRAY_AT(rest, i));
 	rb_ary_store(rest, i, ID2SYM(id));
     }
@@ -515,13 +525,13 @@ inspect_struct(VALUE s, VALUE dummy, int recur)
 	slot = RARRAY_AT(members, i);
 	id = SYM2ID(slot);
 	if (rb_is_local_id(id) || rb_is_const_id(id)) {
-	    rb_str_append(str, rb_id2str(id));
+	    rb_str_buf_append(str, rb_id2str(id));
 	}
 	else {
-	    rb_str_append(str, rb_inspect(slot));
+	    rb_str_buf_append(str, rb_inspect(slot));
 	}
 	rb_str_cat2(str, "=");
-	rb_str_append(str, rb_inspect(RSTRUCT_PTR(s)[i]));
+	rb_str_buf_append(str, rb_inspect(RSTRUCT_PTR(s)[i]));
     }
     rb_str_cat2(str, ">");
     OBJ_INFECT(str, s);
@@ -916,8 +926,8 @@ Init_Struct(void)
 
     rb_objc_define_method(rb_cStruct, "each", rb_struct_each, 0);
     rb_objc_define_method(rb_cStruct, "each_pair", rb_struct_each_pair, 0);
-    rb_objc_define_method(rb_cStruct, "[]", rb_struct_aref, 1);
-    rb_objc_define_method(rb_cStruct, "[]=", rb_struct_aset, 2);
+    rb_objc_define_method(rb_cStruct, "[]", rb_struct_aref_imp, 1);
+    rb_objc_define_method(rb_cStruct, "[]=", rb_struct_aset_imp, 2);
     rb_objc_define_method(rb_cStruct, "select", rb_struct_select, -1);
     rb_objc_define_method(rb_cStruct, "values_at", rb_struct_values_at, -1);
 
