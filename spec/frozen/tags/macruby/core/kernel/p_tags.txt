@@ -1,4 +1,3 @@
 fails:Kernel#p is a private method
 fails:Kernel#p prints obj.inspect followed by system record separator for each argument given
 fails:Kernel#p is not affected by setting $\, $/ or $,
-fails:Kernel#p flushes output if receiver is a File
