@@ -1,7 +1,7 @@
 require 'mspec/runner/context'
 require 'mspec/runner/exception'
 require 'mspec/runner/tag'
-#require 'fileutils'
+require 'fileutils'
 
 module MSpec
 

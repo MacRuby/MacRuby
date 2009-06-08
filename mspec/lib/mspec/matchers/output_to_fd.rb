@@ -1,5 +1,5 @@
 require 'mspec/helpers/tmp'
-#require 'fileutils'
+require 'fileutils'
 
 # Lower-level output speccing mechanism for a single
 # output stream. Unlike OutputMatcher which provides

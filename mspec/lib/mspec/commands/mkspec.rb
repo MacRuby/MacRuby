@@ -2,7 +2,7 @@
 
 MSPEC_HOME = File.expand_path(File.dirname(__FILE__) + '/../../..')
 
-#require 'fileutils'
+require 'fileutils'
 require 'rbconfig'
 require 'mspec/version'
 require 'mspec/utils/options'
