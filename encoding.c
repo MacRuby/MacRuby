@@ -48,28 +48,34 @@ enc_init_db(void)
 	iana = (VALUE)CFStringConvertEncodingToIANACharSetName(*e);
 	if (iana != 0) {
 	    const char *name;
-	    char *p;
 
 	    name = RSTRING_PTR(iana);
-	    p = strchr(name, '-');
-	    if ((p = strchr(name, '-')) != NULL
-		|| islower(*name)) {
-		char *tmp = alloca(strlen(name));
-		strcpy(tmp, name);
-		if (p != NULL) {
-		    p = tmp + (p - name);
-		    do {
-			*p = '_';
-			p++;
-			p = strchr(p, '-');	
-		    }
-		    while (p != NULL);
+
+	    // new_name = name.gsub(/-/, '_').upcase
+	    char *new_name = alloca(strlen(name));
+	    strcpy(new_name, name);
+	    char *p = strchr(name, '-');
+	    if (p != NULL) {
+		p = new_name + (p - name);
+		do {
+		    *p = '_';
+		    p++;
+		    p = strchr(p, '-');	
 		}
-		if (islower(*tmp))
-		    *tmp = toupper(*tmp);
-		name = tmp;
+		while (p != NULL);
 	    }
-	    rb_define_const(rb_cEncoding, name, encoding);
+	    p = new_name;
+	    while (*p != '\0') {
+		if (islower(*p)) {
+		    *p = toupper(*p);
+		}
+		p++;
+	    }
+
+	    ID encoding_id = rb_intern(new_name);
+	    if (!rb_const_defined(rb_cEncoding, encoding_id)) {
+		rb_const_set(rb_cEncoding, encoding_id, encoding);
+	    }
 	}
 	CFDictionarySetValue(__encodings, (const void *)iana, 
 	    (const void *)encoding);
