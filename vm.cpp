@@ -3537,7 +3537,7 @@ rb_vm_print_current_exception(void)
 {
     VALUE exc = GET_VM()->current_exception();
     if (exc == Qnil) {
-	printf("uncatched Objective-C/C++ exception...");
+	printf("uncatched Objective-C/C++ exception...\n");
 	return;
     }
 
