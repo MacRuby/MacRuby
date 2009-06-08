@@ -218,7 +218,7 @@ enc_inspect(VALUE self, SEL sel)
 static VALUE
 enc_name(VALUE self, SEL sel)
 {
-    return (VALUE)CFStringConvertEncodingToIANACharSetName(rb_enc_to_enc(self));
+    return rb_enc_name2(rb_enc_to_enc_ptr(self));
 }
 
 static VALUE
@@ -461,10 +461,14 @@ rb_enc_aliases(VALUE klass, SEL sel)
 VALUE
 rb_enc_name2(rb_encoding *enc)
 {
-    CFStringRef str;
-    if (enc != NULL 
-	&& (str = CFStringConvertEncodingToIANACharSetName(*enc)) != NULL)
-	return (VALUE)str;
+    if (enc != NULL) {
+	CFStringRef str = CFStringConvertEncodingToIANACharSetName(*enc);
+	if (str != NULL) {
+	    VALUE name = rb_str_dup((VALUE)str);
+	    CFStringUppercase((CFMutableStringRef)name, NULL);
+	    return name;
+	}
+    }
     return Qnil;
 }
 
