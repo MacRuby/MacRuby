@@ -17,7 +17,7 @@ class Application
         # Setup a scroll view containing a text view which will display the downloaded data
         @scroll_view = scroll_view(:frame => [0,0,495,300], :layout => {:expand => [:height, :width]})
         @text_view = text_view(:frame => [0,0,490,300])
-        @scroll_view.document_view = @text_view
+        @scroll_view.documentView = @text_view
         
         win << @scroll_view 
         
