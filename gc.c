@@ -329,7 +329,8 @@ rb_objc_newobj(size_t size)
 {
     void *obj;
 
-    obj = auto_zone_allocate_object(__auto_zone, size, AUTO_OBJECT_SCANNED, 0, 0);
+    obj = auto_zone_allocate_object(__auto_zone, size, AUTO_OBJECT_SCANNED,
+	    0, 0);
     assert(obj != NULL);
     RBASIC(obj)->klass = (VALUE)__nsobject;
     return obj;
@@ -503,37 +504,43 @@ rb_objc_recorder(task_t task, void *context, unsigned type_mask,
     ctx = (struct rb_objc_recorder_context *)context;
 
     for (r = ranges, end = ranges + range_count; r < end; r++) {
-	Class c;
-	auto_memory_type_t type =
-	    auto_zone_get_layout_type(__auto_zone, (void *)r->address);
-	if (type != AUTO_OBJECT_SCANNED && type != AUTO_OBJECT_UNSCANNED)
+	auto_memory_type_t type = auto_zone_get_layout_type(__auto_zone,
+		(void *)r->address);
+	if (type != AUTO_OBJECT_SCANNED && type != AUTO_OBJECT_UNSCANNED) {
 	    continue;
-	if (*(Class *)r->address == NULL)
+	}
+	if (*(Class *)r->address == NULL) {
 	    continue;
+	}
 	if (ctx->class_of != 0) {
+	    Class c;
 	    bool ok = false;
-	    for (c = *(Class *)r->address; c != NULL; 
-		    c = class_getSuperclass(c)) {
-		if (c ==(Class)ctx->class_of) {
+	    for (c = *(Class *)r->address; c != NULL;
+		 c = class_getSuperclass(c)) {
+		if (c == (Class)ctx->class_of) {
 		    ok = true;
 		    break;
 		}
 	    }
-	    if (!ok)
+	    if (!ok) {
 		continue;
+	    }
 	}
 	switch (TYPE(r->address)) {
 	    case T_NONE: 
 	    case T_NODE:
 		continue;
+
 	    case T_ICLASS: 
 	    case T_CLASS:
 	    case T_MODULE:
 		rb_bug("object %p of type %d should not be recorded", 
 		       (void *)r->address, TYPE(r->address));
+
 	    case T_NATIVE:
-		if (rb_objc_is_placeholder((void *)r->address))
+		if (rb_objc_is_placeholder((void *)r->address)) {
 		    continue;
+		}
 	}
 	rb_yield((VALUE)r->address);
 	ctx->break_value = rb_vm_pop_broken_value();
@@ -590,16 +597,21 @@ os_each_obj(VALUE os, SEL sel, int argc, VALUE *argv)
     RETURN_ENUMERATOR(os, 1, &of);
 
     /* Class/Module are a special case, because they are not auto objects */
-    count = rb_objc_yield_classes(of);
+    if (of == rb_cClass || of == rb_cModule) {
+	count = rb_objc_yield_classes(of);
+    }
+    else {
+	struct rb_objc_recorder_context ctx = {of, 0, Qundef};
 
-    if (of != rb_cClass && of != rb_cModule) {
-	struct rb_objc_recorder_context ctx = {of, count, 0};
+	auto_collector_disable(__auto_zone);
 
 	(((malloc_zone_t *)__auto_zone)->introspect->enumerator)(
 	    mach_task_self(), (void *)&ctx, MALLOC_PTR_IN_USE_RANGE_TYPE,
 	    (vm_address_t)__auto_zone, NULL, rb_objc_recorder);
 
-	if (ctx.break_value != 0) {
+	auto_collector_reenable(__auto_zone);
+
+	if (ctx.break_value != Qundef) {
 	    return ctx.break_value;
 	}
 
