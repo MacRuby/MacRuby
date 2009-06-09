@@ -38,6 +38,16 @@ HotCocoa::Mappings.map :button => :NSButton do
     :off                  => NSOffState,
     :mixed                => NSMixedState
   }
+
+  constant :image_position, {
+    :text_only            => NSNoImage,
+    :image_only           => NSImageOnly,
+    :overlaps             => NSImageOverlaps,
+    :left                 => NSImageLeft,
+    :right                => NSImageRight,
+    :below                => NSImageBelow,
+    :above                => NSImageAbove
+  }
   
   def init_with_options(button, options)
     button.initWithFrame options.delete(:frame)
