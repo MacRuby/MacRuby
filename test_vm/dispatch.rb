@@ -297,3 +297,21 @@ assert '42', %{
   end
   p foo(1,2,3)
 }
+
+assert ':ok', %{
+  class X
+    def method_missing(x, *args)
+      p :ok if x == :foo
+    end
+  end
+  X.new.foo
+}
+
+assert ':ok', %{
+  class X
+    def method_missing(x, *args)
+      p :ok if x == :foo and args == [42]
+    end
+  end
+  X.new.foo(42)
+}
