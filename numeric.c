@@ -2016,7 +2016,7 @@ rb_int_induced_from(VALUE klass, SEL sel, VALUE x)
  */
 
 static VALUE
-rb_flo_induced_from(VALUE klass, VALUE x)
+rb_flo_induced_from(VALUE klass, SEL sel, VALUE x)
 {
     switch (TYPE(x)) {
       case T_FIXNUM:
