@@ -17,15 +17,18 @@ describe "ObjectSpace.each_object" do
     new_obj.should_not == nil
   end
 
-  # TODO: This really generates a whole lot of expectations (~5000 thousand).
-  # Can't we define our own class like above?
   it "calls the block once for each class, module in the Ruby process" do
-    [Class, Module].each do |k|
+    class ObjectSpaceSpecEachClass; end
+    module ObjectSpaceSpecEachModule; end
+
+    [ObjectSpaceSpecEachClass, ObjectSpaceSpecEachModule].each do |k|
       yields = 0
-      count = ObjectSpace.each_object(k) do |obj|
-        obj.kind_of?(Class).should == true
+      got_it = false
+      count = ObjectSpace.each_object(k.class) do |obj|
+        got_it = true if obj == k
         yields += 1
       end
+      got_it.should == true
       count.should == yields
     end
   end
