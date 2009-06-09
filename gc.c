@@ -782,7 +782,7 @@ rb_gc_call_finalizer_at_exit(void)
  */
 
 static VALUE
-id2ref(VALUE obj, VALUE objid)
+id2ref(VALUE obj, SEL sel, VALUE objid)
 {
 #if SIZEOF_LONG == SIZEOF_VOIDP
 #define NUM2PTR(x) NUM2ULONG(x)
