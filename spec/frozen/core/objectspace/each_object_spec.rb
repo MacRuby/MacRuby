@@ -5,10 +5,26 @@ describe "ObjectSpace.each_object" do
     class ObjectSpaceSpecEachObject; end
     new_obj = ObjectSpaceSpecEachObject.new
 
-    count = ObjectSpace.each_object(ObjectSpaceSpecEachObject) {}
+    yields = 0
+    count = ObjectSpace.each_object(ObjectSpaceSpecEachObject) do |obj|
+      obj.should == new_obj
+      yields += 1
+    end
     count.should == 1
+    yields.should == 1
     # this is needed to prevent the new_obj from being GC'd too early
     new_obj.should_not == nil
+  end
+
+  it "calls the block once for each class, module in the Ruby process" do
+    [Class, Module].each do |k|
+      yields = 0
+      count = ObjectSpace.each_object(k) do |obj|
+        obj.kind_of?(Class).should == true
+        yields += 1
+      end
+      count.should == yields
+    end
   end
   
   ruby_version_is '1.8.7' do
