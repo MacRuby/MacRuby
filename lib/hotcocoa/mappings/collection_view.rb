@@ -8,10 +8,6 @@ HotCocoa::Mappings.map :collection_view => :NSCollectionView do
   
   custom_methods do
     
-    def item_prototype=(item)
-      setItemPrototype(item)
-    end
-    
     def item_prototype
       itemPrototype
     end

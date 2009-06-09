@@ -82,20 +82,8 @@ HotCocoa::Mappings.map :window => :NSWindow do
       orderFrontRegardless
     end
     
-    def background_color=(color)
-      setBackgroundColor(color)
-    end
-    
-    def background_color
-      backgroundColor
-    end
-    
     def has_shadow?
       hasShadow
-    end
-    
-    def has_shadow=(value)
-      setHasShadow(value)
     end
     
   end

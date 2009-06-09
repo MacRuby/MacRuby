@@ -4,7 +4,7 @@ module Kernel
   
   def framework(name)
     if default_framework(name)
-      HotCocoa::Mappings.framework_loaded(name)
+      HotCocoa::Mappings.framework_loaded
       true
     else
       false

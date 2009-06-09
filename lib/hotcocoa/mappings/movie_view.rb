@@ -22,10 +22,6 @@ HotCocoa::Mappings.map :movie_view => :QTMovieView, :framework => :QTKit do
       setZoomButtonsVisible(buttons.include?(:zoom))
     end
     
-    def fill_color=(color)
-      setFillColor(color)
-    end
-
   end
 
 end

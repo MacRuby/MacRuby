@@ -10,16 +10,8 @@ HotCocoa::Mappings.map :array_controller => :NSArrayController do
 
   custom_methods do
     
-    def avoids_empty_selection=(value)
-      setAvoidsEmptySelection(value)
-    end
-    
     def avoids_empty_selection?
       avoidsEmptySelection
-    end
-    
-    def preserves_selection=(value)
-      setPreservesSelection(value)
     end
     
     def preserves_selection?

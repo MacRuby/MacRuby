@@ -29,10 +29,6 @@ HotCocoa::Mappings.map :table_view => :NSTableView do
       setDataSource(data_source)
     end
     
-    def data_source
-      dataSource
-    end
-    
     def columns=(columns)
       columns.each do |column|
         addTableColumn(column)
@@ -55,14 +51,36 @@ HotCocoa::Mappings.map :table_view => :NSTableView do
    	  reloadData 
    	end 
    	
-   	def alternating_row_background_colors=(value) 
-   	  setUsesAlternatingRowBackgroundColors(value) 
-   	end 
-   	
    	def grid_style=(value) 
    	  setGridStyleMask(value) 
    	end
-    
+
+    def row_height=(value) 
+      setRowHeight(value) 
+    end
+
+    def on_double_action=(behavior)
+      if target && (
+        target.instance_variable_get("@action_behavior") || 
+        target.instance_variable_get("@double_action_behavior"))
+          object.instance_variable_set("@double_action_behavior", behavior)
+          object = target
+      else
+        object = Object.new
+        object.instance_variable_set("@double_action_behavior", behavior)
+        setTarget(object)
+      end
+      def object.perform_double_action(sender)
+        @double_action_behavior.call(sender)
+      end
+      setDoubleAction("perform_double_action:")
+    end
+   
+    def on_double_action(&behavior)
+      self.on_double_action = behavior
+      self
+    end
+
   end
 
 end

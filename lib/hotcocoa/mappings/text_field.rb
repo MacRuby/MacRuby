@@ -29,10 +29,6 @@ HotCocoa::Mappings.map :text_field => :NSTextField do
       setAlignment(value)
     end
     
-    def text_color=(value)
-      setTextColor(value)
-    end
-
   end
   
   delegating "control:textShouldBeginEditing:", :to => :should_begin_editing?, :parameters => [:textShouldBeginEditing]
