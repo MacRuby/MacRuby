@@ -305,7 +305,7 @@ rb_robject_allocate_instance(VALUE klass)
     struct RObject *obj;
     int num_slots = 10;
 
-    obj = (struct RObject *)xmalloc(sizeof(struct RObject));
+    obj = (struct RObject *)rb_objc_newobj(sizeof(struct RObject));
     GC_WB(&obj->slots, xmalloc(num_slots * sizeof(VALUE)));
 
     OBJSETUP(obj, klass, T_OBJECT);
