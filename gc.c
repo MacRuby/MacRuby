@@ -678,7 +678,10 @@ define_final(VALUE os, SEL sel, int argc, VALUE *argv)
     else {
 	FL_SET(obj, FL_FINALIZE);
     }
-    return block;
+
+    VALUE ret = rb_ary_new3(2, INT2FIX(rb_safe_level()), block);
+    OBJ_FREEZE(ret);
+    return ret;
 }
 
 void
