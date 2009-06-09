@@ -2460,28 +2460,42 @@ recache2:
     abort();
 
 call_method_missing:
-    // Before calling method_missing, let's check if we tried to call a method
-    // that accepts one argument, and see if there isn't a method with the same
-    // Ruby name but no argument. If yes, we need to raise an ArgumentError
-    // exception instead.
-    if (argc > 0) {
-	const char *selname = sel_getName(sel);
-	const size_t selname_len = strlen(selname);
-	if (selname[selname_len - 1] == ':') {
-	    char buf[100];
-	    assert(sizeof buf > selname_len - 1);
-	    strlcpy(buf, selname, sizeof buf);
-	    buf[selname_len - 1] = '\0';
-	    SEL new_sel = sel_registerName(buf);
-	    Method m = class_getInstanceMethod(klass, new_sel);
-	    if (m != NULL
-		&& GET_VM()->method_node_get(method_getImplementation(m))
-			!= NULL) {
-		rb_raise(rb_eArgError, "wrong number of arguments (%d for %d)",
-			argc, 0);
-	    }
+    // Before calling method_missing, let's check if we are not in the following
+    // cases:
+    //
+    //    def foo; end; foo(42)
+    //    def foo(x); end; foo
+    //
+    // If yes, we need to raise an ArgumentError exception instead.
+    const char *selname = sel_getName(sel);
+    const size_t selname_len = strlen(selname);
+    SEL new_sel = 0;
+    int argc_expected;
+
+    if (argc > 0 && selname[selname_len - 1] == ':') {
+	char buf[100];
+	assert(sizeof buf > selname_len - 1);
+	strlcpy(buf, selname, sizeof buf);
+	buf[selname_len - 1] = '\0';
+	new_sel = sel_registerName(buf);
+	argc_expected = 0;
+    }
+    else if (argc == 0) {
+	char buf[100];
+	snprintf(buf, sizeof buf, "%s:", selname);
+	new_sel = sel_registerName(buf);
+	argc_expected = 1;
+    }
+    if (new_sel != 0) {
+	Method m = class_getInstanceMethod(klass, new_sel);
+	if (m != NULL
+	    && GET_VM()->method_node_get(method_getImplementation(m))
+	    != NULL) {
+	    rb_raise(rb_eArgError, "wrong number of arguments (%d for %d)",
+		    argc, argc_expected);
 	}
     }
+
     return method_missing((VALUE)self, sel, argc, argv, opt);
 }
 
