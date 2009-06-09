@@ -2028,7 +2028,7 @@ method_missing(VALUE obj, SEL sel, int argc, const VALUE *argv,
 
     char buf[100];
     int n = snprintf(buf, sizeof buf, "%s", sel_getName(sel));
-    if (argc == 0 && buf[n - 1] == ':') {
+    if (argc <= 1 && buf[n - 1] == ':') {
 	buf[n - 1] = '\0';
     }
     new_argv[0] = ID2SYM(rb_intern(buf));
