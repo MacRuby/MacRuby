@@ -14,7 +14,6 @@ class MSpecScript
     
     # Currently not working on MacRuby
     '^core/marshal',
-    '^core/objectspace',
     '^core/precision',
     '^core/proc',
     '^core/process',
