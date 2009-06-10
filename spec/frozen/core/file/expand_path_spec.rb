@@ -79,6 +79,10 @@ describe "File.expand_path" do
       File.expand_path("~#{ENV['USER']}").should == ENV['HOME']
       File.expand_path("~#{ENV['USER']}/a").should == "#{ENV['HOME']}/a"
     end
+
+    it "expands ../foo with ~/dir as base dir to /path/to/user/home/foo" do
+      File.expand_path('../foo', '~/dir').should == "#{ENV['HOME']}/foo"
+    end
   end
 
   it "raises an ArgumentError is not passed one or two arguments" do
