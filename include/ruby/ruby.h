@@ -976,8 +976,6 @@ void rb_throw_obj(VALUE,VALUE);
 
 VALUE rb_require(const char*);
 
-void rb_objc_keep_for_exit_finalize(VALUE);
-
 #ifdef __ia64
 void ruby_init_stack(VALUE*, void*);
 #define ruby_init_stack(addr) ruby_init_stack(addr, rb_ia64_bsp())

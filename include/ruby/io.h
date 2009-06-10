@@ -38,6 +38,7 @@ typedef struct rb_io_t {
     pid_t pid;
     int lineno;
     bool sync;
+    bool should_close_streams;
     
     // For ungetc.
     UInt8 *ungetc_buf;

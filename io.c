@@ -14,6 +14,7 @@
 #include "ruby/util.h"
 #include "ruby/node.h"
 #include "vm.h"
+#include "objc.h"
 
 #include <errno.h>
 #include <paths.h>
@@ -34,7 +35,7 @@ VALUE rb_cIO;
 VALUE rb_eEOFError;
 VALUE rb_eIOError;
 
-VALUE rb_stdin, rb_stdout, rb_stderr;
+VALUE rb_stdin = 0, rb_stdout = 0, rb_stderr = 0;
 VALUE rb_deferr;		/* rescue VIM plugin */
 static VALUE orig_stdout, orig_stderr;
 
@@ -264,7 +265,7 @@ rb_io_is_closed_for_writing(rb_io_t *io_struct)
 static VALUE
 io_alloc(VALUE klass, SEL sel)
 {
-    struct RFile *io = ALLOC(struct RFile);
+    NEWOBJ(io, struct RFile);
     OBJSETUP(io, klass, T_FILE);
     GC_WB(&io->fptr, ALLOC(rb_io_t));
     return (VALUE)io;
@@ -275,7 +276,7 @@ CFReadStreamRef _CFReadStreamCreateFromFileDescriptor(CFAllocatorRef alloc, int 
 CFWriteStreamRef _CFWriteStreamCreateFromFileDescriptor(CFAllocatorRef alloc, int fd);
 
 static inline void 
-prepare_io_from_fd(rb_io_t *io_struct, int fd, int mode)
+prepare_io_from_fd(rb_io_t *io_struct, int fd, int mode, bool should_close_streams)
 {
     // TODO we should really get rid of these FMODE_* constants and instead
     // always use the POSIX ones.
@@ -296,80 +297,97 @@ prepare_io_from_fd(rb_io_t *io_struct, int fd, int mode)
     }
     assert(read || write);
 
+    VALUE stdio = 0;
+    switch (fd) {
+	case 0:
+	    stdio = rb_stdin;
+	    break;
+
+	case 1:
+	    stdio = rb_stdout;
+	    break;
+
+	case 2:
+	    stdio = rb_stderr;
+	    break;
+    }
+
     if (read) {
-	CFReadStreamRef r = _CFReadStreamCreateFromFileDescriptor(NULL, fd);
-	if (r != NULL) {
-	    CFReadStreamOpen(r);
-	    GC_WB(&io_struct->readStream, r);
-	    CFMakeCollectable(r);
-	} 
+	if (stdio != 0) {
+	    GC_WB(&io_struct->readStream, ExtractIOStruct(stdio)->readStream);
+	}
 	else {
-	    io_struct->readStream = NULL;
+	    CFReadStreamRef r = _CFReadStreamCreateFromFileDescriptor(NULL, fd);
+	    if (r != NULL) {
+		CFReadStreamOpen(r);
+		GC_WB(&io_struct->readStream, r);
+		CFMakeCollectable(r);
+	    } 
+	    else {
+		io_struct->readStream = NULL;
+	    }
 	}
     }
 
     if (write) {
-	CFWriteStreamRef w = _CFWriteStreamCreateFromFileDescriptor(NULL, fd);
-	if (w != NULL) {
-	    CFWriteStreamOpen(w);
-	    GC_WB(&io_struct->writeStream, w);
-	    CFMakeCollectable(w);
-	} 
+	if (stdio != 0) {
+	    GC_WB(&io_struct->writeStream, ExtractIOStruct(stdio)->writeStream);
+	}
 	else {
-	    io_struct->writeStream = NULL;
+	    CFWriteStreamRef w = _CFWriteStreamCreateFromFileDescriptor(NULL, fd);
+	    if (w != NULL) {
+		CFWriteStreamOpen(w);
+		GC_WB(&io_struct->writeStream, w);
+		CFMakeCollectable(w);
+	    } 
+	    else {
+		io_struct->writeStream = NULL;
+	    }
 	}
     }
  
-    io_struct->pid = -1;
-
-    // TODO: Eventually make the ungetc_buf a ByteString
     io_struct->fd = fd;
+    io_struct->pid = -1;
     io_struct->pipe = -1;
     io_struct->ungetc_buf = NULL;
     io_struct->ungetc_buf_len = 0;
     io_struct->ungetc_buf_pos = 0;
     io_struct->sync = mode & FMODE_SYNC;
+    io_struct->should_close_streams = should_close_streams;
 }
 
 static void
 io_struct_close(rb_io_t *io_struct, bool close_read, bool close_write)
 {
     if (close_read && io_struct->readStream != NULL) {
-	CFReadStreamClose(io_struct->readStream);
+	if (io_struct->should_close_streams) {
+	    CFReadStreamClose(io_struct->readStream);
+	}
 	io_struct->readStream = NULL;
     }
     if (close_write && io_struct->writeStream != NULL) {
-	CFWriteStreamClose(io_struct->writeStream);
+	if (io_struct->should_close_streams) {
+	    CFWriteStreamClose(io_struct->writeStream);
+	}
 	io_struct->writeStream = NULL;
     }
-    if (io_struct->pipe != -1) {
-	write(io_struct->pipe, "\0", 1);
-	close(io_struct->pipe);
+    if (io_struct->pid != -1) {
+	// Don't commit sepuku!
+	if (io_struct->pid != 0 && io_struct->pid != getpid()) {
+	    kill(io_struct->pid, SIGTERM);
+	}
+	io_struct->pid = -1;
     }
     rb_last_status_set(0, io_struct->pid);
-    io_struct->pid = -1;
-}
-
-int XXX_read(int fd)
-{
-    char foo[10];
-    return read(fd, foo, 1);
-}
-
-int
-rb_io_fptr_finalize(rb_io_t *io_struct)
-{
-    io_struct_close(io_struct, true, true);
-    return 1;
+    io_struct->fd = -1;
 }
 
 static VALUE
-prep_io(int fd, int mode, VALUE klass)
+prep_io(int fd, int mode, VALUE klass, bool should_close_streams)
 {
     VALUE io = io_alloc(klass, 0);
     rb_io_t *io_struct = ExtractIOStruct(io);
-    prepare_io_from_fd(io_struct, fd, mode);
-    rb_objc_keep_for_exit_finalize((VALUE)io);
+    prepare_io_from_fd(io_struct, fd, mode, should_close_streams);
     return io;
 }
 
@@ -918,11 +936,11 @@ rb_io_read_internal(rb_io_t *io_struct, UInt8 *buffer, long len)
 static VALUE 
 rb_io_read_all(rb_io_t *io_struct, VALUE bytestring_buffer) 
 {
-    long BUFSIZE = 512;
+    const long BUFSIZE = 512;
     CFMutableDataRef data = rb_bytestring_wrapped_data(bytestring_buffer);
     long bytes_read = 0;
-    long original_position = (long)CFDataGetLength(data);
-    for(;;) {
+    const long original_position = (long)CFDataGetLength(data);
+    for (;;) {
         CFDataIncreaseLength(data, BUFSIZE);
         UInt8 *b = CFDataGetMutableBytePtr(data) + original_position
 	    + bytes_read;
@@ -1849,7 +1867,7 @@ rb_io_fdopen(int fd, int mode, const char *path)
     if (path != NULL && strcmp(path, "-") != 0) {
 	klass = rb_cFile;
     }
-    return prep_io(fd, convert_oflags_to_fmode(mode), klass);
+    return prep_io(fd, convert_oflags_to_fmode(mode), klass, true);
 }
 
 static VALUE
@@ -1956,7 +1974,7 @@ rb_io_binmode_m(VALUE io, SEL sel)
     } \
 } while(0)
 
-VALUE 
+static VALUE 
 io_from_spawning_new_process(VALUE prog, VALUE mode)
 {
     VALUE io = io_alloc(rb_cIO, 0);
@@ -1990,7 +2008,7 @@ io_from_spawning_new_process(VALUE prog, VALUE mode)
 	}
     }
     if (fmode != FMODE_READABLE) {
-	w = _CFWriteStreamCreateFromFileDescriptor(NULL, fd[0]);
+	w = _CFWriteStreamCreateFromFileDescriptor(NULL, fd[1]);
 	if (w != NULL) {
 	    CFWriteStreamOpen(w);
 	    GC_WB(&io_struct->writeStream, w);
@@ -2010,7 +2028,7 @@ io_from_spawning_new_process(VALUE prog, VALUE mode)
 
     errno = posix_spawn(&pid, spawnedArgs[0], &actions, NULL, spawnedArgs,
 	    *(_NSGetEnviron()));
-    if(errno != 0) {
+    if (errno != 0) {
 	int err = errno;
 	close(fd[0]);
 	close(fd[1]);
@@ -2019,7 +2037,6 @@ io_from_spawning_new_process(VALUE prog, VALUE mode)
     }
     posix_spawn_file_actions_destroy(&actions);
 
-    // TODO: Eventually make the ungetc_buf a ByteString
     io_struct->fd = fd[0];
     io_struct->pipe = fd[1];
     io_struct->ungetc_buf = NULL;
@@ -2028,7 +2045,6 @@ io_from_spawning_new_process(VALUE prog, VALUE mode)
     io_struct->pid = pid;
     io_struct->sync = mode & FMODE_SYNC;
 
-    rb_objc_keep_for_exit_finalize((VALUE)io);
     return io;
 }
 
@@ -2201,8 +2217,8 @@ rb_file_open(VALUE io, int argc, VALUE *argv)
 	rb_sys_fail(NULL);
     }
     rb_io_t *io_struct = ExtractIOStruct(io);
-    prepare_io_from_fd(io_struct, fd, convert_mode_string_to_fmode(modes));
-	GC_WB(&io_struct->path, path); 
+    prepare_io_from_fd(io_struct, fd, convert_mode_string_to_fmode(modes), true);
+    GC_WB(&io_struct->path, path); 
     return io;
 }
 
@@ -2658,8 +2674,19 @@ rb_io_initialize(VALUE io, SEL sel, int argc, VALUE *argv)
 
     mode_flags = (NIL_P(mode) ? FMODE_READABLE
 	    : convert_mode_string_to_fmode(mode));
-    prepare_io_from_fd(io_struct, fd, mode_flags);
+    prepare_io_from_fd(io_struct, fd, mode_flags, false);
     return io;
+}
+
+static IMP rb_objc_io_finalize_super = NULL; 
+
+static void
+rb_objc_io_finalize(void *rcv, SEL sel)
+{
+    rb_io_close((VALUE)rcv, 0);
+    if (rb_objc_io_finalize_super != NULL) {
+	((void(*)(void *, SEL))rb_objc_io_finalize_super)(rcv, sel);
+    }
 }
 
 /*
@@ -2870,9 +2897,9 @@ retry:
 			// copy the groups and owners
 			fchown(fw, st.st_uid, st.st_gid);
 		    }
-		    rb_stdout = prep_io(fw, FMODE_WRITABLE, rb_cFile);
+		    rb_stdout = prep_io(fw, FMODE_WRITABLE, rb_cFile, true);
 		}
-		ARGF.current_file = prep_io(fr, FMODE_READABLE, rb_cFile);
+		ARGF.current_file = prep_io(fr, FMODE_READABLE, rb_cFile, true);
 	    }
 #if 0 // TODO once we get encodings sorted out.
 	    if (ARGF.encs.enc) {
@@ -3317,10 +3344,12 @@ rb_io_s_pipe(VALUE recv, SEL sel, int argc, VALUE *argv)
     rb_scan_args(argc, argv, "02", &ext_enc, &int_enc);
 
     int fd[2] = {-1, -1};
-    pipe(fd);
+    if (pipe(fd) == -1) {
+	rb_sys_fail("pipe() failed");
+    }
 
-    rd = prep_io(fd[0], FMODE_READABLE, rb_cIO);
-    wr = prep_io(fd[1], FMODE_WRITABLE, rb_cIO);
+    rd = prep_io(fd[0], FMODE_READABLE, rb_cIO, true);
+    wr = prep_io(fd[1], FMODE_WRITABLE, rb_cIO, true);
 
     return rb_assoc_new(rd, wr);
 }
@@ -4053,6 +4082,9 @@ Init_IO(void)
 
     rb_objc_define_method(rb_cIO, "initialize", rb_io_initialize, -1);
 
+    rb_objc_io_finalize_super = rb_objc_install_method2((Class)rb_cIO, "finalize",
+	    (IMP)rb_objc_io_finalize);
+
     rb_output_fs = Qnil;
     rb_define_hooked_variable("$,", &rb_output_fs, 0, rb_str_setter);
 
@@ -4146,16 +4178,16 @@ Init_IO(void)
     rb_objc_define_method(rb_cIO, "internal_encoding", rb_io_internal_encoding, 0);
     rb_objc_define_method(rb_cIO, "set_encoding", rb_io_set_encoding, -1);
 
-    rb_stdin = prep_io(fileno(stdin), FMODE_READABLE, rb_cIO);
+    rb_stdin = prep_io(fileno(stdin), FMODE_READABLE, rb_cIO, false);
     rb_define_variable("$stdin", &rb_stdin);
     rb_define_global_const("STDIN", rb_stdin);
     
-    rb_stdout = prep_io(fileno(stdout), FMODE_WRITABLE, rb_cIO);
+    rb_stdout = prep_io(fileno(stdout), FMODE_WRITABLE, rb_cIO, false);
     rb_define_hooked_variable("$stdout", &rb_stdout, 0, stdout_setter);
     rb_define_hooked_variable("$>", &rb_stdout, 0, stdout_setter);
     rb_define_global_const("STDOUT", rb_stdout);
     
-    rb_stderr = prep_io(fileno(stderr), FMODE_WRITABLE|FMODE_SYNC, rb_cIO);
+    rb_stderr = prep_io(fileno(stderr), FMODE_WRITABLE|FMODE_SYNC, rb_cIO, false);
     rb_define_hooked_variable("$stderr", &rb_stderr, 0, stdout_setter);
     rb_define_global_const("STDERR", rb_stderr);
  

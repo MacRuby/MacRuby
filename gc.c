@@ -38,8 +38,6 @@
 #endif
 static auto_zone_t *__auto_zone = NULL;
 
-int rb_io_fptr_finalize(struct rb_io_t *io_struct);
-
 static VALUE nomem_error;
 
 static bool dont_gc = false;
@@ -725,30 +723,6 @@ rb_gc_copy_finalizer(VALUE dest, VALUE obj)
     }
 }
 
-static CFMutableArrayRef __exit_finalize = NULL;
-
-static void
-rb_objc_finalize_pure_ruby_obj(VALUE obj)
-{
-    switch (RBASIC(obj)->flags & T_MASK) {
-	case T_FILE:
-	    if (RFILE(obj)->fptr != NULL) {
-		rb_io_fptr_finalize(RFILE(obj)->fptr);
-	    }
-	    break;
-    }
-}
-
-void
-rb_objc_keep_for_exit_finalize(VALUE v)
-{
-    if (__exit_finalize == NULL) {
-	__exit_finalize = CFArrayCreateMutable(NULL, 0, 
-	    &kCFTypeArrayCallBacks);
-    }
-    CFArrayAppendValue(__exit_finalize, (void *)v);
-}
-
 static void rb_call_os_finalizer2(VALUE, VALUE);
 
 static void
@@ -760,19 +734,6 @@ os_finalize_cb(const void *key, const void *val, void *context)
 void
 rb_gc_call_finalizer_at_exit(void)
 {
-    if (__exit_finalize != NULL) {
-	long i, count;
-	for (i = 0, count = CFArrayGetCount((CFArrayRef)__exit_finalize); 
-	     i < count; 
-	     i++) {
-	    VALUE v;
-	    v = (VALUE)CFArrayGetValueAtIndex((CFArrayRef)__exit_finalize, i);
-	    rb_objc_finalize_pure_ruby_obj(v);
-	}
-	CFArrayRemoveAllValues(__exit_finalize);
-	CFRelease(__exit_finalize);
-    }
-
     if (__os_finalizers != NULL) {
 	CFDictionaryApplyFunction((CFDictionaryRef)__os_finalizers,
     	    os_finalize_cb, NULL);
@@ -1094,7 +1055,7 @@ Init_PreGC(void)
     Method m = class_getInstanceMethod((Class)objc_getClass("NSObject"), sel_registerName("finalize"));
     assert(m != NULL);
     method_setImplementation(m, (IMP)rb_obj_imp_finalize);
-    
+
     auto_collector_disable(__auto_zone);
 }
 

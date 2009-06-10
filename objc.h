@@ -32,33 +32,22 @@ VALUE rb_objc_call2(VALUE recv, VALUE klass, SEL sel, IMP imp,
 void rb_objc_define_kvo_setter(VALUE klass, ID mid);
 void rb_objc_change_ruby_method_signature(VALUE mod, ID mid, VALUE sig);
 
-static inline void
+static inline IMP
 rb_objc_install_method(Class klass, SEL sel, IMP imp)
 {
-    Method method, method2;
-
-    method = class_getInstanceMethod(klass, sel);
+    Method method = class_getInstanceMethod(klass, sel);
     if (method == NULL) {
 	printf("method %s not found on class %p - aborting\n",
 		sel_getName(sel), klass);
 	abort();
     }
-    assert(method != NULL);
- 
-    method2 = class_getInstanceMethod((Class)RCLASS_SUPER(klass), sel);
-    if (method == method2)  {
-	assert(class_addMethod(klass, sel, imp,
-		    method_getTypeEncoding(method)));
-    }
-    else {
-	method_setImplementation(method, imp);
-    }
+    return class_replaceMethod(klass, sel, imp, method_getTypeEncoding(method));
 }
 
-static inline void
+static inline IMP
 rb_objc_install_method2(Class klass, const char *selname, IMP imp)
 {
-    rb_objc_install_method(klass, sel_registerName(selname), imp);
+    return rb_objc_install_method(klass, sel_registerName(selname), imp);
 }
 
 static inline bool
