@@ -372,7 +372,7 @@ io_struct_close(rb_io_t *io_struct, bool close_read, bool close_write)
 	io_struct->writeStream = NULL;
     }
     if (io_struct->pid != -1) {
-	// Don't commit sepuku!
+	// Don't commit seppuku!
 	if (io_struct->pid != 0 && io_struct->pid != getpid()) {
 	    kill(io_struct->pid, SIGTERM);
 	}
@@ -2284,7 +2284,29 @@ rb_io_s_sysopen(VALUE klass, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_io_reopen(VALUE io, SEL sel, int argc, VALUE *argv)
 {
-    rb_notimplement();
+	VALUE path_or_io, mode_string;
+	rb_scan_args(argc, argv, "11", &path_or_io, &mode_string);
+	rb_io_t *io_s = ExtractIOStruct(io);
+	rb_io_assert_open(io_s);
+	
+	if (TYPE(path_or_io) == T_STRING) {
+		// Reassociate it with the stream opened on the given path
+		if (NIL_P(mode_string)) {
+			mode_string = (VALUE)CFSTR("r");
+		}
+		FilePathValue(path_or_io); // Sanitize the name
+		const char *filepath = RSTRING_PTR(path_or_io);
+		int fd = open(filepath, convert_mode_string_to_oflags(mode_string), 0644);
+		prepare_io_from_fd(io_s, fd, convert_mode_string_to_fmode(mode_string), true);
+		GC_WB(&io_s->path, path_or_io);
+		return io;
+	} else {
+		// reassociate it with the stream given in the other io
+		rb_io_t *other = ExtractIOStruct(path_or_io);
+		rb_io_assert_open(other);
+		RFILE(io)->fptr = other;
+		return io;
+	}
 }
 
 /* :nodoc: */
