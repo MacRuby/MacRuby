@@ -3595,7 +3595,19 @@ rb_io_s_readlines(VALUE recv, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_io_s_copy_stream(VALUE id, SEL sel, int argc, VALUE *argv)
 {
-    rb_notimplement();
+	VALUE src, dst, len, offset;
+	rb_scan_args(argc, argv, "22", &src, &dst, &len, &offset);
+	VALUE old_offset = rb_io_tell(src, 0); // save the old offset
+	if(!NIL_P(offset)) {
+		// seek if necessary
+		rb_io_seek(src, 0, offset);
+	}
+	VALUE data_read = (NIL_P(len) ? io_read(src, 0, 0, NULL) : io_read(src, 0, 1, &len));
+	VALUE copied = io_write(dst, 0, data_read);
+	if(!NIL_P(offset)) {
+		rb_io_seek(src, 0, old_offset); // restore the old offset
+	}
+	return copied;
 }
 
 /*
