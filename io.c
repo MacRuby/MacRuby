@@ -433,7 +433,7 @@ io_write(VALUE io, SEL sel, VALUE to_write)
     rb_secure(4);
     
     io_struct = ExtractIOStruct(io);
-
+	rb_io_assert_writable(io_struct);
     to_write = rb_obj_as_string(to_write);
 
     if (CLASS_OF(to_write) == rb_cByteString) {
@@ -1731,6 +1731,7 @@ static VALUE
 rb_io_isatty(VALUE io, SEL sel)
 {
     rb_io_t *io_s = ExtractIOStruct(io);
+	rb_io_assert_open(io_s);
     return CONDITION_TO_BOOLEAN(isatty(io_s->fd));
 }
 
@@ -3662,19 +3663,25 @@ rb_io_set_encoding(VALUE id, SEL sel, int argc, VALUE *argv)
 static VALUE
 argf_external_encoding(VALUE argf, SEL sel)
 {
-    rb_notimplement();
+    next_argv();
+    ARGF_FORWARD(0, 0);
+	return rb_io_external_encoding(ARGF.current_file, sel);
 }
 
 static VALUE
 argf_internal_encoding(VALUE argf, SEL sel)
 {
-    rb_notimplement();
+    next_argv();
+    ARGF_FORWARD(0, 0);
+	return rb_io_internal_encoding(ARGF.current_file, sel);
 }
 
 static VALUE
 argf_set_encoding(VALUE id, SEL sel, int argc, VALUE *argv)
 {
-    rb_notimplement();
+    next_argv();
+    ARGF_FORWARD(0, 0);
+	return rb_io_set_encoding(ARGF.current_file, sel, argc, argv);
 }
 
 static VALUE
@@ -3949,13 +3956,15 @@ opt_i_set(VALUE val, ID id, VALUE *var)
 const char *
 ruby_get_inplace_mode(void)
 {
-    rb_notimplement();
+	return ARGF.inplace;
 }
 
 void
 ruby_set_inplace_mode(const char *suffix)
 {
-    rb_notimplement();
+    if (ARGF.inplace) free(ARGF.inplace);
+    ARGF.inplace = 0;
+    if (suffix) ARGF.inplace = strdup(suffix);
 }
 
 static VALUE
