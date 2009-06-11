@@ -1739,7 +1739,9 @@ rb_io_isatty(VALUE io, SEL sel)
 static VALUE
 rb_io_close_on_exec_p(VALUE io, SEL sel)
 {
-    rb_notimplement();
+    rb_io_t *io_s = ExtractIOStruct(io);
+	int flags = fcntl(io_s->fd, F_GETFD, 0);
+	return ((flags & FD_CLOEXEC) ? Qtrue : Qfalse);
 }
 
 /*
@@ -1757,7 +1759,16 @@ rb_io_close_on_exec_p(VALUE io, SEL sel)
 static VALUE
 rb_io_set_close_on_exec(VALUE io, SEL sel, VALUE arg)
 {
-    rb_notimplement();
+	rb_io_t *io_s = ExtractIOStruct(io);
+	int flags = fcntl(io_s->fd, F_GETFD, 0);
+	if (arg == Qtrue) {		
+		flags |= FD_CLOEXEC;
+	}
+	else {
+		flags &= ~FD_CLOEXEC;
+	}
+	fcntl(io_s->fd, F_SETFD, flags);
+	return arg;
 }
 
 static inline void
