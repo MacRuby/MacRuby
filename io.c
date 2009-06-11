@@ -975,70 +975,6 @@ rb_io_read_all_file(VALUE io, UInt8 *buffer, size_t buffer_len)
 
 /*
  *  call-seq:
- *     ios.readpartial(maxlen)              => string
- *     ios.readpartial(maxlen, outbuf)      => outbuf
- *
- *  Reads at most <i>maxlen</i> bytes from the I/O stream.
- *  It blocks only if <em>ios</em> has no data immediately available.
- *  It doesn't block if some data available.
- *  If the optional <i>outbuf</i> argument is present,
- *  it must reference a String, which will receive the data.
- *  It raises <code>EOFError</code> on end of file.
- *
- *  readpartial is designed for streams such as pipe, socket, tty, etc.
- *  It blocks only when no data immediately available.
- *  This means that it blocks only when following all conditions hold.
- *  * the buffer in the IO object is empty.
- *  * the content of the stream is empty.
- *  * the stream is not reached to EOF.
- *
- *  When readpartial blocks, it waits data or EOF on the stream.
- *  If some data is reached, readpartial returns with the data.
- *  If EOF is reached, readpartial raises EOFError.
- *
- *  When readpartial doesn't blocks, it returns or raises immediately.
- *  If the buffer is not empty, it returns the data in the buffer.
- *  Otherwise if the stream has some content,
- *  it returns the data in the stream.
- *  Otherwise if the stream is reached to EOF, it raises EOFError.
- *
- *     r, w = IO.pipe           #               buffer          pipe content
- *     w << "abc"               #               ""              "abc".
- *     r.readpartial(4096)      #=> "abc"       ""              ""
- *     r.readpartial(4096)      # blocks because buffer and pipe is empty.
- *
- *     r, w = IO.pipe           #               buffer          pipe content
- *     w << "abc"               #               ""              "abc"
- *     w.close                  #               ""              "abc" EOF
- *     r.readpartial(4096)      #=> "abc"       ""              EOF
- *     r.readpartial(4096)      # raises EOFError
- *
- *     r, w = IO.pipe           #               buffer          pipe content
- *     w << "abc\ndef\n"        #               ""              "abc\ndef\n"
- *     r.gets                   #=> "abc\n"     "def\n"         ""
- *     w << "ghi\n"             #               "def\n"         "ghi\n"
- *     r.readpartial(4096)      #=> "def\n"     ""              "ghi\n"
- *     r.readpartial(4096)      #=> "ghi\n"     ""              ""
- *
- *  Note that readpartial behaves similar to sysread.
- *  The differences are:
- *  * If the buffer is not empty, read from the buffer instead of "sysread for buffered IO (IOError)".
- *  * It doesn't cause Errno::EAGAIN and Errno::EINTR.  When readpartial meets EAGAIN and EINTR by read system call, readpartial retry the system call.
- *
- *  The later means that readpartial is nonblocking-flag insensitive.
- *  It blocks on the situation IO#sysread causes Errno::EAGAIN as if the fd is blocking mode.
- *
- */
-
-static VALUE
-io_readpartial(VALUE io, SEL sel, int argc, VALUE *argv)
-{
-    // TODO factorize code from io_read()
-    rb_notimplement();
-}
-
-/*
- *  call-seq:
  *     ios.read_nonblock(maxlen)              => string
  *     ios.read_nonblock(maxlen, outbuf)      => outbuf
  *
@@ -1167,6 +1103,82 @@ io_read(VALUE io, SEL sel, int argc, VALUE *argv)
 
     return outbuf;
 }
+
+/*
+ *  call-seq:
+ *     ios.readpartial(maxlen)              => string
+ *     ios.readpartial(maxlen, outbuf)      => outbuf
+ *
+ *  Reads at most <i>maxlen</i> bytes from the I/O stream.
+ *  It blocks only if <em>ios</em> has no data immediately available.
+ *  It doesn't block if some data available.
+ *  If the optional <i>outbuf</i> argument is present,
+ *  it must reference a String, which will receive the data.
+ *  It raises <code>EOFError</code> on end of file.
+ *
+ *  readpartial is designed for streams such as pipe, socket, tty, etc.
+ *  It blocks only when no data immediately available.
+ *  This means that it blocks only when following all conditions hold.
+ *  * the buffer in the IO object is empty.
+ *  * the content of the stream is empty.
+ *  * the stream is not reached to EOF.
+ *
+ *  When readpartial blocks, it waits data or EOF on the stream.
+ *  If some data is reached, readpartial returns with the data.
+ *  If EOF is reached, readpartial raises EOFError.
+ *
+ *  When readpartial doesn't blocks, it returns or raises immediately.
+ *  If the buffer is not empty, it returns the data in the buffer.
+ *  Otherwise if the stream has some content,
+ *  it returns the data in the stream.
+ *  Otherwise if the stream is reached to EOF, it raises EOFError.
+ *
+ *     r, w = IO.pipe           #               buffer          pipe content
+ *     w << "abc"               #               ""              "abc".
+ *     r.readpartial(4096)      #=> "abc"       ""              ""
+ *     r.readpartial(4096)      # blocks because buffer and pipe is empty.
+ *
+ *     r, w = IO.pipe           #               buffer          pipe content
+ *     w << "abc"               #               ""              "abc"
+ *     w.close                  #               ""              "abc" EOF
+ *     r.readpartial(4096)      #=> "abc"       ""              EOF
+ *     r.readpartial(4096)      # raises EOFError
+ *
+ *     r, w = IO.pipe           #               buffer          pipe content
+ *     w << "abc\ndef\n"        #               ""              "abc\ndef\n"
+ *     r.gets                   #=> "abc\n"     "def\n"         ""
+ *     w << "ghi\n"             #               "def\n"         "ghi\n"
+ *     r.readpartial(4096)      #=> "def\n"     ""              "ghi\n"
+ *     r.readpartial(4096)      #=> "ghi\n"     ""              ""
+ *
+ *  Note that readpartial behaves similar to sysread.
+ *  The differences are:
+ *  * If the buffer is not empty, read from the buffer instead of "sysread for buffered IO (IOError)".
+ *  * It doesn't cause Errno::EAGAIN and Errno::EINTR.  When readpartial meets EAGAIN and EINTR by read system call, readpartial retry the system call.
+ *
+ *  The later means that readpartial is nonblocking-flag insensitive.
+ *  It blocks on the situation IO#sysread causes Errno::EAGAIN as if the fd is blocking mode.
+ *
+ */
+
+static VALUE
+io_readpartial(VALUE io, SEL sel, int argc, VALUE *argv)
+{
+	VALUE maxlen, buffer;
+	rb_scan_args(argc, argv, "11", &maxlen, &buffer);
+	if (FIX2INT(maxlen) == 0) {
+		return (VALUE)CFSTR("");
+	}
+	else if (FIX2INT(maxlen) < 0) {
+		rb_raise(rb_eArgError, "negative numbers not valid");
+	}
+	VALUE read_data = io_read(io, sel, argc, argv);
+	if (NIL_P(read_data)) {
+		rb_eof_error();
+	}
+	return read_data;
+}
+
 
 /*
  *  call-seq:
@@ -2302,6 +2314,7 @@ rb_io_reopen(VALUE io, SEL sel, int argc, VALUE *argv)
 		return io;
 	} else {
 		// reassociate it with the stream given in the other io
+		// This is too simplistic.
 		rb_io_t *other = ExtractIOStruct(path_or_io);
 		rb_io_assert_open(other);
 		RFILE(io)->fptr = other;
