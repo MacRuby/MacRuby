@@ -1904,7 +1904,7 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Va
 	    BasicBlock *then3BB;
 
 	    if (result_is_fixnum) { 
-		Value *shift = BinaryOperator::CreateShl(opVal, twoVal, "", bb);
+		Value *shift = BinaryOperator::CreateShl(opVal, oneVal, "", bb);
 		thenVal = BinaryOperator::CreateOr(shift, oneVal, "", bb);
 
 		// Is result fixable?
@@ -1943,7 +1943,7 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Va
 
 	    return pn;
 	}
-    }
+	}
     // Other operators (#<< or #[] or #[]=)
     else if (sel == selLTLT || sel == selAREF || sel == selASET) {
 
