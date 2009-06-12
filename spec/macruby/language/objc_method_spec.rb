@@ -649,3 +649,37 @@ describe "A pure MacRuby method" do
     TestMethod.testInformalProtocolMethod2(@o).should == 1 
   end
 end
+
+describe "A pure MacRuby method" do
+  before :each do
+    @um = NSUndoManager.new
+    @o = Object.new
+    @o.instance_variable_set(:'@a', [])
+    def @o.foo(x)
+       @a << x
+    end
+    def @o.a
+      @a
+    end
+  end
+
+  it "can be forwarded by NSUndoManager" do
+    @um.canUndo.should == false
+    @um.prepareWithInvocationTarget(@o)
+    @um.foo(42)
+    @um.canUndo.should == true
+
+    @o.a.should == []
+    @um.undo
+    @o.a.should == [42]
+
+    @um.canUndo.should == false
+    @um.prepareWithInvocationTarget(@o)
+    @um.foo(42)
+    @um.canUndo.should == true
+
+    @um.undo
+    @o.a.should == [42, 42]
+    @um.canUndo.should == false
+  end
+end
