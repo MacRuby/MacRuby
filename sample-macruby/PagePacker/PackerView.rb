@@ -144,7 +144,10 @@ class PackerView < NSView
     @foldLines.lineToPoint NSMakePoint(midV, bottom)
         
     @cutLine = NSBezierPath.new
-    @cutLine.setLineDash [7.0, 3.0], count:2, phase:0
+    p = Pointer.new(:double, 2)
+    p[0] = 7.0
+    p[1] = 3.0
+    @cutLine.setLineDash p, count:2, phase:0
     @cutLine.moveToPoint NSMakePoint(midV, upperH)
     @cutLine.lineToPoint NSMakePoint(midV, lowerH)
     @cutLine.lineWidth = 1.0
