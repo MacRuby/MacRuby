@@ -665,8 +665,7 @@ describe "A pure MacRuby method" do
 
   it "can be forwarded by NSUndoManager" do
     @um.canUndo.should == false
-    @um.prepareWithInvocationTarget(@o)
-    @um.foo(42)
+    @um.prepareWithInvocationTarget(@o).foo(42)
     @um.canUndo.should == true
 
     @o.a.should == []
@@ -674,8 +673,7 @@ describe "A pure MacRuby method" do
     @o.a.should == [42]
 
     @um.canUndo.should == false
-    @um.prepareWithInvocationTarget(@o)
-    @um.foo(42)
+    @um.prepareWithInvocationTarget(@o).foo(42)
     @um.canUndo.should == true
 
     @um.undo
