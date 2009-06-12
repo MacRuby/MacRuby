@@ -25,6 +25,8 @@ typedef struct rb_vm_bs_boxed {
     VALUE klass;
 } rb_vm_bs_boxed_t;
 
+VALUE rb_pointer_new(const char *type_str, void *val);
+
 #endif /* __cplusplus */
 
 #endif /* __BRIDGESUPPORT_H_ */

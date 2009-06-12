@@ -618,6 +618,26 @@
     return [o methodAcceptingNSRange:NSMakeRange(0, 42)];
 }
 
+- (BOOL)methodAcceptingObjPtr:(id *)p
+{
+    return *p == self;
+}
+
++ (BOOL)testMethodAcceptingObjPtr:(TestMethod *)o
+{
+    return [o methodAcceptingObjPtr:&o]; 
+}
+
+- (BOOL)methodAcceptingObjPtr2:(id *)p
+{
+    return p == NULL;
+}
+
++ (BOOL)testMethodAcceptingObjPtr2:(TestMethod *)o
+{
+    return [o methodAcceptingObjPtr2:NULL]; 
+}
+
 - (BOOL)methodAcceptingInt:(int)a1 float:(float)a2 double:(double)a3
 	short:(short)a4 NSPoint:(NSPoint)a5 NSRect:(NSRect)a6 char:(char)a7
 {

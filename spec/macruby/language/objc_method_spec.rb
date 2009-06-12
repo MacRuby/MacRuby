@@ -623,6 +623,16 @@ describe "A pure MacRuby method" do
     TestMethodOverride.testMethodAcceptingNSRange(@o).should == 1
   end
 
+  it "can overwrite an Objective-C method accepting a Pointer to an Object" do
+    p = Pointer.new(:object)
+    p[0] = @o
+    @o.methodAcceptingObjPtr(p).should == 1
+    TestMethodOverride.testMethodAcceptingObjPtr(@o).should == 1
+
+    @o.methodAcceptingObjPtr2(nil).should == 1
+    TestMethodOverride.testMethodAcceptingObjPtr2(@o).should == 1
+  end
+
   it "can overwrite a complex Objective-C method" do
     @o.methodAcceptingInt(42, float:42, double:42, short:42, NSPoint:NSPoint.new(42, 42), NSRect:NSRect.new(NSPoint.new(42, 42), NSSize.new(42, 42)), char:42).should == 1
     TestMethodOverride.testMethodAcceptingComplexTypes(@o).should == 1

@@ -500,15 +500,9 @@ typedef struct {
 static const char *convert_ffi_type(VALUE type,
 	bool raise_exception_if_unknown);
 
-static VALUE
-rb_pointer_new(VALUE rcv, SEL sel, int argc, VALUE *argv)
+VALUE
+rb_pointer_new(const char *type_str, void *val)
 {
-    VALUE type, len;
-    rb_scan_args(argc, argv, "11", &type, &len);
-    const size_t rlen = NIL_P(len) ? 1 : FIX2LONG(len);
-
-    const char *type_str = convert_ffi_type(type, false);
-
     rb_vm_pointer_t *ptr = (rb_vm_pointer_t *)xmalloc(sizeof(rb_vm_pointer_t));
     GC_WB(&ptr->type, rb_str_new2(type_str));
 
@@ -519,9 +513,24 @@ rb_pointer_new(VALUE rcv, SEL sel, int argc, VALUE *argv)
 
     ptr->type_size = GET_VM()->get_sizeof(type_str);
     assert(ptr->type_size > 0);
-    GC_WB(&ptr->val, xmalloc(ptr->type_size * rlen));
+
+    GC_WB(&ptr->val, val);
 
     return Data_Wrap_Struct(rb_cPointer, NULL, NULL, ptr);
+}
+
+static VALUE
+rb_pointer_s_new(VALUE rcv, SEL sel, int argc, VALUE *argv)
+{
+    VALUE type, len;
+
+    rb_scan_args(argc, argv, "11", &type, &len);
+
+    const size_t rlen = NIL_P(len) ? 1 : FIX2LONG(len);
+    const char *type_str = convert_ffi_type(type, false);
+
+    return rb_pointer_new(type_str,
+	    xmalloc(GET_VM()->get_sizeof(type_str) * rlen));
 }
 
 extern "C"
@@ -942,9 +951,9 @@ Init_BridgeSupport(void)
     // Pointer
     rb_cPointer = rb_define_class("Pointer", rb_cObject);
     rb_objc_define_method(*(VALUE *)rb_cPointer, "new",
-	    (void *)rb_pointer_new, -1);
+	    (void *)rb_pointer_s_new, -1);
     rb_objc_define_method(*(VALUE *)rb_cPointer, "new_with_type",
-	    (void *)rb_pointer_new, -1);
+	    (void *)rb_pointer_s_new, -1);
     rb_objc_define_method(rb_cPointer, "[]",
 	    (void *)rb_pointer_aref, 1);
     rb_objc_define_method(rb_cPointer, "[]=",
@@ -1016,7 +1025,7 @@ convert_ffi_type(VALUE type, bool raise_exception_if_unknown)
 
     // MacRuby extensions.
 
-    if (strcmp(typestr, "object") == 0) {
+    if (strcmp(typestr, "object") == 0 || strcmp(typestr, "id") == 0) {
 	return "@";
     }
 

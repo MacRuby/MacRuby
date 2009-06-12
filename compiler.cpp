@@ -86,6 +86,7 @@ RoxorCompiler::RoxorCompiler(const char *_fname)
     newArrayFunc = NULL;
     newStructFunc = NULL;
     newOpaqueFunc = NULL;
+    newPointerFunc = NULL;
     getStructFieldsFunc = NULL;
     getOpaqueDataFunc = NULL;
     getPointerPtrFunc = NULL;
@@ -4793,6 +4794,13 @@ rb_vm_new_opaque(VALUE klass, void *val)
     return Data_Wrap_Struct(klass, NULL, NULL, val);
 }
 
+extern "C"
+VALUE
+rb_vm_new_pointer(const char *type, void *val)
+{
+    return val == NULL ? Qnil : rb_pointer_new(type, val);
+}
+
 Value *
 RoxorCompiler::compile_new_struct(Value *klass, std::vector<Value *> &fields)
 {
@@ -4827,6 +4835,30 @@ RoxorCompiler::compile_new_opaque(Value *klass, Value *val)
     params.push_back(val);
 
     return CallInst::Create(newOpaqueFunc, params.begin(), params.end(),
+	    "", bb); 
+}
+
+Value *
+RoxorCompiler::compile_new_pointer(const char *type, Value *val)
+{
+    if (newPointerFunc == NULL) {
+	newPointerFunc = cast<Function>(module->getOrInsertFunction(
+		    "rb_vm_new_pointer", RubyObjTy, PtrTy, PtrTy, NULL));
+    }
+
+    std::vector<Value *> params;
+
+    GlobalVariable *gvar = compile_const_global_string(type);
+    std::vector<Value *> idxs;
+    idxs.push_back(ConstantInt::get(Type::Int32Ty, 0));
+    idxs.push_back(ConstantInt::get(Type::Int32Ty, 0));
+    Instruction *load = GetElementPtrInst::Create(gvar,
+	    idxs.begin(), idxs.end(), "", bb);
+    params.push_back(load);
+
+    params.push_back(val);
+
+    return CallInst::Create(newPointerFunc, params.begin(), params.end(),
 	    "", bb); 
 }
 
@@ -4941,6 +4973,8 @@ RoxorCompiler::compile_conversion_to_ruby(const char *type,
 		    Value *klass = ConstantInt::get(RubyObjTy, bs_boxed->klass);
 		    return compile_new_opaque(klass, val);
 		}
+
+		return compile_new_pointer(type + 1, val);
 	    }
 	    break; 
     }

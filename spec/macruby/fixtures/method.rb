@@ -55,6 +55,8 @@ class TestMethodOverride < TestMethod
   def methodAcceptingNSSize(a); super; end
   def methodAcceptingNSRect(a); super; end
   def methodAcceptingNSRange(a); super; end
+  def methodAcceptingObjPtr(a); super; end
+  def methodAcceptingObjPtr2(a); super; end
   def methodAcceptingInt(a, float:a2, double:a3, short:a4, NSPoint:a5,
                          NSRect:a6, char:a7); super; end
 end

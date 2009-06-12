@@ -116,6 +116,7 @@ class RoxorCompiler {
 	Function *newArrayFunc;
 	Function *newStructFunc;
 	Function *newOpaqueFunc;
+	Function *newPointerFunc;
 	Function *getStructFieldsFunc;
 	Function *getOpaqueDataFunc;
 	Function *getPointerPtrFunc;
@@ -229,6 +230,7 @@ class RoxorCompiler {
 	bool compile_lvars(ID *tbl);
 	Value *compile_new_struct(Value *klass, std::vector<Value *> &fields);
 	Value *compile_new_opaque(Value *klass, Value *val);
+	Value *compile_new_pointer(const char *type, Value *val);
 	void compile_get_struct_fields(Value *val, Value *buf,
 		rb_vm_bs_boxed_t *bs_boxed);
 	Value *compile_get_opaque_data(Value *val, rb_vm_bs_boxed_t *bs_boxed,
