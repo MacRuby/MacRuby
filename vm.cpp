@@ -2169,6 +2169,21 @@ fill_rcache(struct mcache *cache, Class klass, rb_vm_method_node_t *node)
     rcache.node = node;
 }
 
+static force_inline bool
+can_forwardInvocation(VALUE recv, SEL sel)
+{
+    if (!SPECIAL_CONST_P(recv)) {
+	static SEL methodSignatureForSelector = 0;
+	if (methodSignatureForSelector == 0) {
+	    methodSignatureForSelector =
+		sel_registerName("methodSignatureForSelector:");	
+	}
+	return objc_msgSend((id)recv, methodSignatureForSelector, (id)sel)
+	    != nil;
+    }
+    return false;
+}
+
 static force_inline void
 fill_ocache(struct mcache *cache, VALUE self, Class klass, IMP imp, SEL sel,
 	    Method method, int argc)
@@ -2187,7 +2202,8 @@ fill_ocache(struct mcache *cache, VALUE self, Class klass, IMP imp, SEL sel,
 		sel_getName(sel));
 	abort();
     }
-    if (ocache.bs_method != NULL && ocache.bs_method->variadic) {
+    if (ocache.bs_method != NULL && ocache.bs_method->variadic
+	&& method != NULL) {
 	const int real_argc = method_getNumberOfArguments(method) - 2;
 	if (real_argc < argc) {
 	    const size_t s = strlen(types);
@@ -2250,12 +2266,19 @@ recache2:
 	}
 	else {
 	    // Method is not found...
-	    const char *selname = (const char *)sel;
-	    size_t selname_len = strlen(selname);
+
+	    // Does the receiver implements -forwardInvocation:?
+	    if (can_forwardInvocation(self, sel)) {
+		fill_ocache(cache, self, klass, (IMP)objc_msgSend, sel, NULL,
+			argc);
+		goto dispatch;
+	    }
 
 	    // Let's see if are not trying to call a Ruby method that accepts
 	    // a regular argument then a optional Hash argument, to be
 	    // compatible with the Ruby specification.
+	    const char *selname = (const char *)sel;
+	    size_t selname_len = strlen(selname);
 	    if (argc > 1) {
 		const char *p = strchr(selname, ':');
 		if (p != NULL && p + 1 != '\0') {
@@ -2331,6 +2354,7 @@ recache2:
 	}
     }
 
+dispatch:
     if (cache->flag == MCACHE_RCALL) {
 	if (rcache.klass != klass) {
 	    goto recache;
