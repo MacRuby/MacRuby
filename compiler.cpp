@@ -121,6 +121,7 @@ RoxorCompiler::RoxorCompiler(const char *_fname)
     zeroVal = ConstantInt::get(IntTy, 0);
     oneVal = ConstantInt::get(IntTy, 1);
     twoVal = ConstantInt::get(IntTy, 2);
+	threeVal = ConstantInt::get(IntTy, 3);
 
     RubyObjPtrTy = PointerType::getUnqual(RubyObjTy);
     RubyObjPtrPtrTy = PointerType::getUnqual(RubyObjPtrTy);
@@ -1517,37 +1518,79 @@ RoxorCompiler::compile_rethrow_exception(void)
     new UnreachableInst(bb);
 }
 
+PHINode *
+RoxorCompiler::compile_negation_node(int argc, Value *val) {
+	if (current_block_func != NULL || argc != 0) {
+	    return NULL;
+	}
+	
+	Function *f = bb->getParent();
+	
+	BasicBlock *falseBB = BasicBlock::Create("", f);
+	BasicBlock *trueBB = BasicBlock::Create("", f);
+	BasicBlock *mergeBB = BasicBlock::Create("", f);
+	
+	compile_boolean_test(val, trueBB, falseBB);
+	
+	BranchInst::Create(mergeBB, falseBB);
+	BranchInst::Create(mergeBB, trueBB);
+	
+	bb = mergeBB;	
+	
+	PHINode *pn = PHINode::Create(RubyObjTy, "", bb);
+	pn->addIncoming(trueVal, falseBB);
+	pn->addIncoming(falseVal, trueBB);
+	
+	return pn;
+}
+
+PHINode *
+RoxorCompiler::compile_symbol_equality_node(SEL sel, VALUE leftRVal, VALUE rightRVal, int argc, std::vector<Value *> &params)
+{
+	GlobalVariable *is_redefined = GET_VM()->redefined_op_gvar(sel, true);
+	Value *is_redefined_val = new LoadInst(is_redefined, "", bb);
+	Value *isOpRedefined = new ICmpInst(ICmpInst::ICMP_EQ, 
+										is_redefined_val, ConstantInt::getFalse(), "", bb);
+	
+	Function *f = bb->getParent();
+	
+	BasicBlock *thenBB = BasicBlock::Create("op_not_redefined", f);
+	BasicBlock *elseBB  = BasicBlock::Create("op_dispatch", f);
+	BasicBlock *mergeBB = BasicBlock::Create("op_merge", f);
+	
+	BranchInst::Create(thenBB, elseBB, isOpRedefined, bb);
+	Value *thenVal = NULL;
+	if (sel == selEq || sel == selEqq) {
+		thenVal = leftRVal == rightRVal ? trueVal : falseVal;
+	}
+	else if (sel == selNeq) {
+		thenVal = leftRVal != rightRVal ? trueVal : falseVal;
+	}
+	else {
+		abort();
+	}
+	BranchInst::Create(mergeBB, thenBB);
+	
+	bb = elseBB;
+	Value *elseVal = compile_dispatch_call(params);
+	elseBB = bb;
+	BranchInst::Create(mergeBB, elseBB);
+	
+	PHINode *pn = PHINode::Create(RubyObjTy, "op_tmp", mergeBB);
+	pn->addIncoming(thenVal, thenBB);
+	pn->addIncoming(elseVal, elseBB);
+	bb = mergeBB;
+	
+	return pn;
+}
+
 Value *
 RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Value *> &params)
 {
     // The not operator (!).
     if (sel == selNot) {
-	
-	if (current_block_func != NULL || argc != 0) {
-	    return NULL;
+		return compile_negation_node(argc, params[1]);
 	}
-	
-	Value *val = params[1]; // self
-
-	Function *f = bb->getParent();
-
-	BasicBlock *falseBB = BasicBlock::Create("", f);
-	BasicBlock *trueBB = BasicBlock::Create("", f);
-	BasicBlock *mergeBB = BasicBlock::Create("", f);
-
-	compile_boolean_test(val, trueBB, falseBB);
-
-	BranchInst::Create(mergeBB, falseBB);
-	BranchInst::Create(mergeBB, trueBB);
-
-	bb = mergeBB;	
-
-	PHINode *pn = PHINode::Create(RubyObjTy, "", bb);
-	pn->addIncoming(trueVal, falseBB);
-	pn->addIncoming(falseVal, trueBB);
-
-	return pn;
-    }
     // Pure arithmetic operations.
     else if (sel == selPLUS || sel == selMINUS || sel == selDIV 
 	     || sel == selMULT || sel == selLT || sel == selLE 
@@ -1567,47 +1610,13 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Va
 	const bool leftIsConstant = unbox_ruby_constant(leftVal, &leftRVal);
 	const bool rightIsConst = unbox_ruby_constant(rightVal, &rightRVal);
 
-	if (leftIsConstant && rightIsConst
-	    && TYPE(leftRVal) == T_SYMBOL && TYPE(rightRVal) == T_SYMBOL) {
+	if (leftIsConstant && rightIsConst && TYPE(leftRVal) == T_SYMBOL && TYPE(rightRVal) == T_SYMBOL) {
 	    // Both operands are symbol constants.
 	    if (sel == selEq || sel == selEqq || sel == selNeq) {
-		Value *is_redefined_val = new LoadInst(is_redefined, "", bb);
-		Value *isOpRedefined = new ICmpInst(ICmpInst::ICMP_EQ, 
-			is_redefined_val, ConstantInt::getFalse(), "", bb);
-
-		Function *f = bb->getParent();
-
-		BasicBlock *thenBB = BasicBlock::Create("op_not_redefined", f);
-		BasicBlock *elseBB  = BasicBlock::Create("op_dispatch", f);
-		BasicBlock *mergeBB = BasicBlock::Create("op_merge", f);
-
-		BranchInst::Create(thenBB, elseBB, isOpRedefined, bb);
-		Value *thenVal = NULL;
-		if (sel == selEq || sel == selEqq) {
-		    thenVal = leftRVal == rightRVal ? trueVal : falseVal;
-		}
-		else if (sel == selNeq) {
-		    thenVal = leftRVal != rightRVal ? trueVal : falseVal;
-		}
-		else {
-		    abort();
-		}
-		BranchInst::Create(mergeBB, thenBB);
-
-		bb = elseBB;
-		Value *elseVal = compile_dispatch_call(params);
-		elseBB = bb;
-		BranchInst::Create(mergeBB, elseBB);
-
-		PHINode *pn = PHINode::Create(RubyObjTy, "op_tmp", mergeBB);
-		pn->addIncoming(thenVal, thenBB);
-		pn->addIncoming(elseVal, elseBB);
-		bb = mergeBB;
-
-		return pn;
+			return compile_symbol_equality_node(sel, leftRVal, rightRVal, argc, params);
 	    }
 	    else {
-		return NULL;
+			return NULL;
 	    }
 	}
 
@@ -1799,13 +1808,13 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Va
 
 	    Value *leftAndOp = NULL;
 	    if (!leftIsFixnumConstant) {
-		leftAndOp = BinaryOperator::CreateAnd(leftVal, oneVal, "", 
+		leftAndOp = BinaryOperator::CreateAnd(leftVal, threeVal, "", 
 			bb);
 	    }
 
 	    Value *rightAndOp = NULL;
 	    if (!rightIsFixnumConstant) {
-		rightAndOp = BinaryOperator::CreateAnd(rightVal, oneVal, "", 
+		rightAndOp = BinaryOperator::CreateAnd(rightVal, threeVal, "", 
 			bb);
 	    }
 
@@ -1904,7 +1913,7 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Va
 	    BasicBlock *then3BB;
 
 	    if (result_is_fixnum) { 
-		Value *shift = BinaryOperator::CreateShl(opVal, oneVal, "", bb);
+		Value *shift = BinaryOperator::CreateShl(opVal, twoVal, "", bb);
 		thenVal = BinaryOperator::CreateOr(shift, oneVal, "", bb);
 
 		// Is result fixable?
@@ -4958,7 +4967,7 @@ RoxorCompiler::compile_conversion_to_ruby(const char *type,
 	case _C_SHT:
 	case _C_INT:
 	    val = new SExtInst(val, RubyObjTy, "", bb);
-	    val = BinaryOperator::CreateShl(val, oneVal, "", bb);
+	    val = BinaryOperator::CreateShl(val, twoVal, "", bb);
 	    val = BinaryOperator::CreateOr(val, oneVal, "", bb);
 	    return val;
 
@@ -4966,7 +4975,7 @@ RoxorCompiler::compile_conversion_to_ruby(const char *type,
 	case _C_USHT:
 	case _C_UINT:
 	    val = new ZExtInst(val, RubyObjTy, "", bb);
-	    val = BinaryOperator::CreateShl(val, oneVal, "", bb);
+	    val = BinaryOperator::CreateShl(val, twoVal, "", bb);
 	    val = BinaryOperator::CreateOr(val, oneVal, "", bb);
 	    return val;
 

@@ -145,6 +145,7 @@ class RoxorCompiler {
 	Constant *zeroVal;
 	Constant *oneVal;
 	Constant *twoVal;
+	Constant *threeVal;
 	Constant *nilVal;
 	Constant *trueVal;
 	Constant *falseVal;
@@ -175,6 +176,10 @@ class RoxorCompiler {
 		? new IntToPtrInst(ptrint, PtrPtrTy, "", bb)
 		: new IntToPtrInst(ptrint, PtrPtrTy, "");
 	}
+	
+	PHINode *compile_negation_node(int argc, Value *val);
+	PHINode *compile_symbol_equality_node(SEL sel, VALUE leftRVal, VALUE rightRVal, int argc, std::vector<Value *> &params);
+
 
 	Value *compile_protected_call(Function *func,
 		std::vector<Value *> &params);
