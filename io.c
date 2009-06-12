@@ -583,8 +583,14 @@ rb_io_seek(VALUE io, VALUE offset, int whence)
 	offset += rb_io_read_stream_get_offset(io_struct->readStream);
     }
     // TODO: make this work with IO::SEEK_CUR, SEEK_END, etc.
+	if (CFReadStreamGetStatus(io_struct->readStream) == kCFStreamStatusAtEnd) {
+		// Terrible hack to work around the fact that CFReadStreams, once they
+		// reach EOF, are permanently exhausted even if we set the offset.
+		GC_WB(&io_struct->readStream, _CFReadStreamCreateFromFileDescriptor(NULL, io_struct->fd));
+		CFReadStreamOpen(io_struct->readStream);
+		CFMakeCollectable(io_struct->readStream);
+	}
     rb_io_read_stream_set_offset(io_struct->readStream, NUM2OFFT(offset));
-	
     return INT2FIX(0); // is this right?
 }
 
@@ -670,6 +676,7 @@ rb_io_set_pos(VALUE io, SEL sel, VALUE offset)
 static VALUE
 rb_io_rewind(VALUE io, SEL sel)
 {
+	ExtractIOStruct(io)->lineno = 0;
     return rb_io_seek(io, INT2FIX(0), SEEK_SET);
 }
 
@@ -1167,7 +1174,7 @@ io_readpartial(VALUE io, SEL sel, int argc, VALUE *argv)
 	VALUE maxlen, buffer;
 	rb_scan_args(argc, argv, "11", &maxlen, &buffer);
 	if (FIX2INT(maxlen) == 0) {
-		return (VALUE)CFSTR("");
+		return rb_str_new2("");
 	}
 	else if (FIX2INT(maxlen) < 0) {
 		rb_raise(rb_eArgError, "negative numbers not valid");
@@ -1283,7 +1290,8 @@ rb_io_gets_m(VALUE io, SEL sel, int argc, VALUE *argv)
 	}
 	CFDataSetLength(data, data_read);
     }
-
+	io_struct->lineno += 1;
+	ARGF.lineno = INT2FIX(io_struct->lineno);
     return bstr; 
 }
 
@@ -1310,6 +1318,7 @@ static VALUE
 rb_io_lineno(VALUE io, SEL sel)
 {
     rb_io_t *io_s = ExtractIOStruct(io);
+	rb_io_assert_open(io_s);
     return INT2FIX(io_s->lineno);
 }
 
@@ -1334,6 +1343,7 @@ static VALUE
 rb_io_set_lineno(VALUE io, SEL sel, VALUE line_no)
 {
     rb_io_t *io_s = ExtractIOStruct(io);
+	rb_io_assert_open(io_s);
     io_s->lineno = FIX2INT(line_no);
     return line_no;
 }
@@ -2318,7 +2328,7 @@ rb_io_reopen(VALUE io, SEL sel, int argc, VALUE *argv)
 		// This is too simplistic.
 		rb_io_t *other = ExtractIOStruct(path_or_io);
 		rb_io_assert_open(other);
-		RFILE(io)->fptr = other;
+		GC_WB(&RFILE(io)->fptr, other);
 		return io;
 	}
 }
@@ -2399,6 +2409,7 @@ rb_f_printf(VALUE klass, SEL sel, int argc, VALUE *argv)
 VALUE
 rb_io_print(VALUE io, SEL sel, int argc, VALUE *argv)
 {
+	rb_io_assert_writable(ExtractIOStruct(io));
     VALUE line;
     if (argc == 0) {
         // No arguments? Bloody Perlisms...
