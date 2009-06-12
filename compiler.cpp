@@ -1584,6 +1584,162 @@ RoxorCompiler::compile_symbol_equality_node(SEL sel, VALUE leftRVal, VALUE right
 	return pn;
 }
 
+PHINode *
+RoxorCompiler::precompile_floating_arith_node(SEL sel, double leftDouble, long rightDouble, int argc, std::vector<Value *> &params)
+{
+	GlobalVariable *is_redefined = GET_VM()->redefined_op_gvar(sel, true);
+	bool result_is_fixfloat = true;
+	double res;
+	// TODO: put checks in here for NaN, +/- infinity
+	if (sel == selPLUS) {
+		res = leftDouble + rightDouble;
+	}
+	else if (sel == selMINUS) {
+		res = leftDouble - rightDouble;
+	}
+	else if (sel == selMULT) {
+		res = leftDouble * rightDouble;
+	}
+	else if (sel == selDIV) {
+		if (rightDouble == 0.0) {
+			return NULL;
+		}
+		res = leftDouble / rightDouble;
+	} else {
+		result_is_fixfloat = false;
+		if (sel == selLT) {
+			res = leftDouble < rightDouble;
+		}
+		else if (sel == selLE) {
+			res = leftDouble <= rightDouble;
+		}
+		else if (sel == selGT) {
+			res = leftDouble > rightDouble;
+		}
+		else if (sel == selGE) {
+			res = leftDouble >= rightDouble;
+		}
+		else if ((sel == selEq) || (sel == selEqq)) {
+			res = leftDouble == rightDouble;
+		}
+		else if (sel == selNeq) {
+			res = leftDouble != rightDouble;
+		}
+		else {
+			abort();		
+		}
+	}
+	if (!result_is_fixfloat || FIXABLE_DBL(res)) {
+		Value *is_redefined_val = new LoadInst(is_redefined, "", bb);
+		Value *isOpRedefined = new ICmpInst(ICmpInst::ICMP_EQ, 
+											is_redefined_val, ConstantInt::getFalse(), "", bb);
+		
+		Function *f = bb->getParent();
+		
+		BasicBlock *thenBB = BasicBlock::Create("op_not_redefined", f);
+		BasicBlock *elseBB  = BasicBlock::Create("op_dispatch", f);
+		BasicBlock *mergeBB = BasicBlock::Create("op_merge", f);
+		
+		BranchInst::Create(thenBB, elseBB, isOpRedefined, bb);
+		Value *thenVal = result_is_fixfloat
+		? ConstantInt::get(RubyObjTy, DBL2FIXFLOAT(res)) 
+		: (res == 1 ? trueVal : falseVal);
+		BranchInst::Create(mergeBB, thenBB);
+		
+		bb = elseBB;
+		Value *elseVal = compile_dispatch_call(params);
+		elseBB = bb;
+		BranchInst::Create(mergeBB, elseBB);
+		
+		PHINode *pn = PHINode::Create(RubyObjTy, "op_tmp", mergeBB);
+		pn->addIncoming(thenVal, thenBB);
+		pn->addIncoming(elseVal, elseBB);
+		bb = mergeBB;
+		
+		return pn;
+	}
+	return NULL; // loss of precision, call the dispatcher.
+}
+
+PHINode *
+RoxorCompiler::precompile_integral_arith_node(SEL sel, long leftLong, long rightLong, int argc, std::vector<Value *> &params)
+{
+	GlobalVariable *is_redefined = GET_VM()->redefined_op_gvar(sel, true);
+	bool result_is_fixnum = true;
+	long res;
+	
+	if (sel == selPLUS) {
+		res = leftLong + rightLong;
+	}
+	else if (sel == selMINUS) {
+		res = leftLong - rightLong;
+	}
+	else if (sel == selDIV) {
+		if (rightLong == 0) {
+		    return NULL;
+		}
+		res = leftLong / rightLong;
+	}
+	else if (sel == selMULT) {
+		res = leftLong * rightLong;
+	}
+	else {
+		result_is_fixnum = false;
+		if (sel == selLT) {
+		    res = leftLong < rightLong;
+		}
+		else if (sel == selLE) {
+		    res = leftLong <= rightLong;
+		}
+		else if (sel == selGT) {
+		    res = leftLong > rightLong;
+		}
+		else if (sel == selGE) {
+		    res = leftLong >= rightLong;
+		}
+		else if ((sel == selEq) || (sel == selEqq)) {
+		    res = leftLong == rightLong;
+		}
+		else if (sel == selNeq) {
+		    res = leftLong != rightLong;
+		}
+		else {
+		    abort();		
+		}
+	}
+	if (!result_is_fixnum || FIXABLE(res)) {
+		Value *is_redefined_val = new LoadInst(is_redefined, "", bb);
+		Value *isOpRedefined = new ICmpInst(ICmpInst::ICMP_EQ, 
+											is_redefined_val, ConstantInt::getFalse(), "", bb);
+		
+		Function *f = bb->getParent();
+		
+		BasicBlock *thenBB = BasicBlock::Create("op_not_redefined", f);
+		BasicBlock *elseBB  = BasicBlock::Create("op_dispatch", f);
+		BasicBlock *mergeBB = BasicBlock::Create("op_merge", f);
+		
+		BranchInst::Create(thenBB, elseBB, isOpRedefined, bb);
+		Value *thenVal = result_is_fixnum
+		? ConstantInt::get(RubyObjTy, LONG2FIX(res)) 
+		: (res == 1 ? trueVal : falseVal);
+		BranchInst::Create(mergeBB, thenBB);
+		
+		bb = elseBB;
+		Value *elseVal = compile_dispatch_call(params);
+		elseBB = bb;
+		BranchInst::Create(mergeBB, elseBB);
+		
+		PHINode *pn = PHINode::Create(RubyObjTy, "op_tmp", mergeBB);
+		pn->addIncoming(thenVal, thenBB);
+		pn->addIncoming(elseVal, elseBB);
+		bb = mergeBB;
+		
+		return pn;
+	}
+	// Non fixable (bignum), call the dispatcher.
+	return NULL;
+}
+
 Value *
 RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Value *> &params)
 {
@@ -1632,164 +1788,21 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Va
 	double leftDouble = leftIsFixFloatConstant ? FIXFLOAT2DBL(leftRVal) : 0;
 	double rightDouble = rightIsFixFloatConstant ? FIXFLOAT2DBL(rightRVal) : 0;
 	
-	if (leftIsFixFloatConstant && rightIsFixnumConstant) {
-		rightIsFixFloatConstant = true;
-		rightDouble = (double)rightLong;
-	}
-	else if (leftIsFixnumConstant && rightIsFixFloatConstant) {
-		leftIsFixFloatConstant = true;
-		leftDouble = (double)leftLong;
-	}
+
 
 	if (leftIsFixnumConstant && rightIsFixnumConstant) {
-	    // Both operands are fixnum constants.
-	    bool result_is_fixnum = true;
-	    long res;
-
-	    if (sel == selPLUS) {
-		res = leftLong + rightLong;
-	    }
-	    else if (sel == selMINUS) {
-		res = leftLong - rightLong;
-	    }
-	    else if (sel == selDIV) {
-		if (rightLong == 0) {
-		    return NULL;
-		}
-		res = leftLong / rightLong;
-	    }
-	    else if (sel == selMULT) {
-		res = leftLong * rightLong;
-	    }
-	    else {
-		result_is_fixnum = false;
-		if (sel == selLT) {
-		    res = leftLong < rightLong;
-		}
-		else if (sel == selLE) {
-		    res = leftLong <= rightLong;
-		}
-		else if (sel == selGT) {
-		    res = leftLong > rightLong;
-		}
-		else if (sel == selGE) {
-		    res = leftLong >= rightLong;
-		}
-		else if ((sel == selEq) || (sel == selEqq)) {
-		    res = leftLong == rightLong;
-		}
-		else if (sel == selNeq) {
-		    res = leftLong != rightLong;
-		}
-		else {
-		    abort();		
-		}
-	    }
-	    if (!result_is_fixnum || FIXABLE(res)) {
-		Value *is_redefined_val = new LoadInst(is_redefined, "", bb);
-		Value *isOpRedefined = new ICmpInst(ICmpInst::ICMP_EQ, 
-			is_redefined_val, ConstantInt::getFalse(), "", bb);
-
-		Function *f = bb->getParent();
-
-		BasicBlock *thenBB = BasicBlock::Create("op_not_redefined", f);
-		BasicBlock *elseBB  = BasicBlock::Create("op_dispatch", f);
-		BasicBlock *mergeBB = BasicBlock::Create("op_merge", f);
-
-		BranchInst::Create(thenBB, elseBB, isOpRedefined, bb);
-		Value *thenVal = result_is_fixnum
-		    ? ConstantInt::get(RubyObjTy, LONG2FIX(res)) 
-		    : (res == 1 ? trueVal : falseVal);
-		BranchInst::Create(mergeBB, thenBB);
-
-		bb = elseBB;
-		Value *elseVal = compile_dispatch_call(params);
-		elseBB = bb;
-		BranchInst::Create(mergeBB, elseBB);
-
-		PHINode *pn = PHINode::Create(RubyObjTy, "op_tmp", mergeBB);
-		pn->addIncoming(thenVal, thenBB);
-		pn->addIncoming(elseVal, elseBB);
-		bb = mergeBB;
-
-		return pn;
-	    }
-	    // Non fixable (bignum), call the dispatcher.
-	    return NULL;
+		return precompile_integral_arith_node(sel, leftLong, rightLong, argc, params);
+	}
+	else if (leftIsFixFloatConstant && rightIsFixnumConstant) {
+		return precompile_floating_arith_node(sel, leftDouble, (double)rightLong, argc, params);
+	}
+	else if (leftIsFixnumConstant && rightIsFixFloatConstant) {
+		return precompile_floating_arith_node(sel, (double)leftLong, rightDouble, argc, params);
 	}
 	else if (leftIsFixFloatConstant && rightIsFixFloatConstant) {
-		bool result_is_fixfloat = true;
-		double res;
-		// TODO: put checks in here for NaN, +/- infinity
-		if (sel == selPLUS) {
-			res = leftDouble + rightDouble;
-		}
-		else if (sel == selMINUS) {
-			res = leftDouble - rightDouble;
-		}
-		else if (sel == selMULT) {
-			res = leftDouble * rightDouble;
-		}
-		else if (sel == selDIV) {
-			if (rightDouble == 0.0) {
-				return NULL;
-			}
-			res = leftDouble / rightDouble;
-		} else {
-			result_is_fixfloat = false;
-			if (sel == selLT) {
-			    res = leftDouble < rightDouble;
-			}
-			else if (sel == selLE) {
-			    res = leftDouble <= rightDouble;
-			}
-			else if (sel == selGT) {
-			    res = leftDouble > rightDouble;
-			}
-			else if (sel == selGE) {
-			    res = leftDouble >= rightDouble;
-			}
-			else if ((sel == selEq) || (sel == selEqq)) {
-			    res = leftDouble == rightDouble;
-			}
-			else if (sel == selNeq) {
-			    res = leftDouble != rightDouble;
-			}
-			else {
-			    abort();		
-			}
-		    }
-		if (!result_is_fixfloat || FIXABLE_DBL(res)) {
-			Value *is_redefined_val = new LoadInst(is_redefined, "", bb);
-			Value *isOpRedefined = new ICmpInst(ICmpInst::ICMP_EQ, 
-				is_redefined_val, ConstantInt::getFalse(), "", bb);
-
-			Function *f = bb->getParent();
-
-			BasicBlock *thenBB = BasicBlock::Create("op_not_redefined", f);
-			BasicBlock *elseBB  = BasicBlock::Create("op_dispatch", f);
-			BasicBlock *mergeBB = BasicBlock::Create("op_merge", f);
-
-			BranchInst::Create(thenBB, elseBB, isOpRedefined, bb);
-			Value *thenVal = result_is_fixfloat
-			    ? ConstantInt::get(RubyObjTy, DBL2FIXFLOAT(res)) 
-			    : (res == 1 ? trueVal : falseVal);
-			BranchInst::Create(mergeBB, thenBB);
-
-			bb = elseBB;
-			Value *elseVal = compile_dispatch_call(params);
-			elseBB = bb;
-			BranchInst::Create(mergeBB, elseBB);
-
-			PHINode *pn = PHINode::Create(RubyObjTy, "op_tmp", mergeBB);
-			pn->addIncoming(thenVal, thenBB);
-			pn->addIncoming(elseVal, elseBB);
-			bb = mergeBB;
-
-			return pn;
-		}
+		return precompile_floating_arith_node(sel, leftDouble, rightDouble, argc, params);
 	}
-	else if (!(leftIsFixFloatConstant || rightIsFixFloatConstant)){
+	else if (!(leftIsFixFloatConstant || rightIsFixFloatConstant)) {
 		// Either one or both of the operands was not a fixable constant.
 	    Value *is_redefined_val = new LoadInst(is_redefined, "", bb);
 	    Value *isOpRedefined = new ICmpInst(ICmpInst::ICMP_EQ, 

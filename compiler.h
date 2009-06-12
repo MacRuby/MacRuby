@@ -179,6 +179,11 @@ class RoxorCompiler {
 	
 	PHINode *compile_negation_node(int argc, Value *val);
 	PHINode *compile_symbol_equality_node(SEL sel, VALUE leftRVal, VALUE rightRVal, int argc, std::vector<Value *> &params);
+	PHINode *
+	precompile_integral_arith_node(SEL sel, long leftLong, long rightLong, int argc, std::vector<Value *> &params);
+	PHINode *
+	precompile_floating_arith_node(SEL sel, double leftDouble, long rightDouble, int argc, std::vector<Value *> &params);
+
 
 
 	Value *compile_protected_call(Function *func,
