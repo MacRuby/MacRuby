@@ -183,8 +183,12 @@ class RoxorCompiler {
 	precompile_integral_arith_node(SEL sel, long leftLong, long rightLong, int argc, std::vector<Value *> &params);
 	PHINode *
 	precompile_floating_arith_node(SEL sel, double leftDouble, long rightDouble, int argc, std::vector<Value *> &params);
-
-
+	PHINode *
+	compile_variable_and_integral_node(SEL sel, long fixedLong, Value *val, Value *other, int argc,
+													  std::vector<Value *> &params);
+	PHINode *
+	compile_variable_and_floating_node(SEL sel, double fixedDouble, Value *val, Value *other,
+									   int argc, std::vector<Value *> &params);
 
 	Value *compile_protected_call(Function *func,
 		std::vector<Value *> &params);

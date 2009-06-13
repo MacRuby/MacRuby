@@ -1709,8 +1709,7 @@ RoxorCompiler::precompile_integral_arith_node(SEL sel, long leftLong, long right
 	}
 	if (!result_is_fixnum || FIXABLE(res)) {
 		Value *is_redefined_val = new LoadInst(is_redefined, "", bb);
-		Value *isOpRedefined = new ICmpInst(ICmpInst::ICMP_EQ, 
-											is_redefined_val, ConstantInt::getFalse(), "", bb);
+		Value *isOpRedefined = new ICmpInst(ICmpInst::ICMP_EQ, is_redefined_val, ConstantInt::getFalse(), "", bb);
 		
 		Function *f = bb->getParent();
 		
@@ -1740,6 +1739,261 @@ RoxorCompiler::precompile_integral_arith_node(SEL sel, long leftLong, long right
 	return NULL;
 }
 
+PHINode *
+RoxorCompiler::compile_variable_and_integral_node(SEL sel, long fixedLong, Value *targetVal, Value *otherVal, 
+												  int argc, std::vector<Value *> &params) {
+	
+	GlobalVariable *is_redefined = GET_VM()->redefined_op_gvar(sel, true);
+	// Either one or both of the operands was not a fixable constant.
+	Value *is_redefined_val = new LoadInst(is_redefined, "", bb);
+	Value *isOpRedefined = new ICmpInst(ICmpInst::ICMP_EQ, is_redefined_val, ConstantInt::getFalse(), "", bb);
+	
+	Function *f = bb->getParent();
+	
+	BasicBlock *then1BB = BasicBlock::Create("op_not_redefined", f);
+	BasicBlock *then2BB = BasicBlock::Create("op_optimize", f);
+	BasicBlock *elseBB  = BasicBlock::Create("op_dispatch", f);
+	BasicBlock *mergeBB = BasicBlock::Create("op_merge", f);
+	
+	BranchInst::Create(then1BB, elseBB, isOpRedefined, bb);
+	bb = then1BB;
+	
+	Value *andOp = BinaryOperator::CreateAnd(targetVal, threeVal, "", bb);
+	Value *isFixnum = new ICmpInst(ICmpInst::ICMP_EQ, andOp, oneVal, "", bb);
+	
+	
+	Value *fastEqqVal = NULL;
+	BasicBlock *fastEqqBB = NULL;
+	if (sel == selEqq) {
+		// compile_fast_eqq_call won't be called if #=== has been redefined
+		// fixnum optimizations are done separately
+		fastEqqBB = BasicBlock::Create("fast_eqq", f);
+		BranchInst::Create(then2BB, fastEqqBB, isFixnum, bb);
+		bb = fastEqqBB;
+		fastEqqVal = compile_fast_eqq_call(targetVal, otherVal);
+		fastEqqBB = bb;
+		BranchInst::Create(mergeBB, bb);
+	}
+	else {
+		BranchInst::Create(then2BB, elseBB, isFixnum, bb);
+	}
+	bb = then2BB;
+	
+	Value *unboxedLeft = ConstantInt::get(RubyObjTy, fixedLong);
+	Value *unboxedRight = BinaryOperator::CreateAShr(targetVal, twoVal, "", bb);
+	
+	Value *opVal;
+	bool result_is_fixnum = true;
+	if (sel == selPLUS) {
+		opVal = BinaryOperator::CreateAdd(unboxedLeft, unboxedRight, "", bb);
+	}
+	else if (sel == selMINUS) {
+		opVal = BinaryOperator::CreateSub(unboxedLeft, unboxedRight, "", bb);
+	}
+	else if (sel == selDIV) {
+		opVal = BinaryOperator::CreateSDiv(unboxedLeft, unboxedRight, "", bb);
+	}
+	else if (sel == selMULT) {
+		opVal = BinaryOperator::CreateMul(unboxedLeft, unboxedRight, "", bb);
+	}
+	else {
+		result_is_fixnum = false;
+		
+		CmpInst::Predicate predicate;
+		
+		if (sel == selLT) {
+		    predicate = ICmpInst::ICMP_SLT;
+		}
+		else if (sel == selLE) {
+		    predicate = ICmpInst::ICMP_SLE;
+		}
+		else if (sel == selGT) {
+		    predicate = ICmpInst::ICMP_SGT;
+		}
+		else if (sel == selGE) {
+		    predicate = ICmpInst::ICMP_SGE;
+		}
+		else if ((sel == selEq) || (sel == selEqq)) {
+		    predicate = ICmpInst::ICMP_EQ;
+		}
+		else if (sel == selNeq) {
+		    predicate = ICmpInst::ICMP_NE;
+		}
+		else {
+		    abort();
+		}
+		
+		opVal = new ICmpInst(predicate, unboxedLeft, unboxedRight, "", bb);
+		opVal = SelectInst::Create(opVal, trueVal, falseVal, "", bb);
+	}
+	
+	Value *thenVal;
+	BasicBlock *then3BB;
+	
+	if (result_is_fixnum) { 
+		Value *shift = BinaryOperator::CreateShl(opVal, twoVal, "", bb);
+		thenVal = BinaryOperator::CreateOr(shift, oneVal, "", bb);
+		
+		// Is result fixable?
+		Value *fixnumMax = ConstantInt::get(IntTy, FIXNUM_MAX + 1);
+		Value *isFixnumMaxOk = new ICmpInst(ICmpInst::ICMP_SLT, opVal, fixnumMax, "", bb);
+		
+		then3BB = BasicBlock::Create("op_fixable_max", f);
+		
+		BranchInst::Create(then3BB, elseBB, isFixnumMaxOk, bb);
+		
+		bb = then3BB;
+		Value *fixnumMin = ConstantInt::get(IntTy, FIXNUM_MIN);
+		Value *isFixnumMinOk = new ICmpInst(ICmpInst::ICMP_SGE, opVal, fixnumMin, "", bb);
+		
+		BranchInst::Create(mergeBB, elseBB, isFixnumMinOk, bb);
+	}
+	else {
+		thenVal = opVal;
+		then3BB = then2BB;
+		BranchInst::Create(mergeBB, then3BB);
+	}
+	
+	bb = elseBB;
+	Value *elseVal = compile_dispatch_call(params);
+	elseBB = bb;
+	BranchInst::Create(mergeBB, elseBB);
+	
+	bb = mergeBB;
+	PHINode *pn = PHINode::Create(RubyObjTy, "op_tmp", mergeBB);
+	pn->addIncoming(thenVal, then3BB);
+	pn->addIncoming(elseVal, elseBB);
+	
+	if (sel == selEqq) {
+		pn->addIncoming(fastEqqVal, fastEqqBB);
+	}
+	
+	return pn;
+}
+
+PHINode *
+RoxorCompiler::compile_variable_and_floating_node(SEL sel, double fixedDouble, Value *targetVal, Value *otherVal,
+												  int argc, std::vector<Value *> &params)
+{
+	GlobalVariable *is_redefined = GET_VM()->redefined_op_gvar(sel, true);
+	// Either one or both of the operands was not a fixable constant.
+	Value *is_redefined_val = new LoadInst(is_redefined, "", bb);
+	Value *isOpRedefined = new ICmpInst(ICmpInst::ICMP_EQ, is_redefined_val, ConstantInt::getFalse(), "", bb);
+	
+	Function *f = bb->getParent();
+	
+	BasicBlock *then1BB = BasicBlock::Create("op_not_redefined", f);
+	BasicBlock *then2BB = BasicBlock::Create("op_optimize", f);
+	BasicBlock *elseBB  = BasicBlock::Create("op_dispatch", f);
+	BasicBlock *mergeBB = BasicBlock::Create("op_merge", f);
+	
+	BranchInst::Create(then1BB, elseBB, isOpRedefined, bb);
+	bb = then1BB;
+	
+	Value *andOp = BinaryOperator::CreateAnd(targetVal, threeVal, "", bb);
+	Value *isDouble = new ICmpInst(ICmpInst::ICMP_EQ, andOp, oneVal, "", bb);
+	
+	Value *fastEqqVal = NULL;
+	BasicBlock *fastEqqBB = NULL;
+	if (sel == selEqq) {
+		// compile_fast_eqq_call won't be called if #=== has been redefined
+		// fixnum optimizations are done separately
+		fastEqqBB = BasicBlock::Create("fast_eqq", f);
+		BranchInst::Create(then2BB, fastEqqBB, isDouble, bb);
+		bb = fastEqqBB;
+		fastEqqVal = compile_fast_eqq_call(targetVal, otherVal);
+		fastEqqBB = bb;
+		BranchInst::Create(mergeBB, bb);
+	}
+	else {
+		BranchInst::Create(then2BB, elseBB, isDouble, bb);
+	}
+	bb = then2BB;
+	
+	Value *left = ConstantFP::get(Type::DoubleTy, fixedDouble);
+	Value *right = BinaryOperator::CreateXor(targetVal, threeVal, "", bb);
+	right = new BitCastInst(right, Type::DoubleTy, "", bb);
+	
+	
+	Value *opVal;
+	bool result_is_double = true;
+	if (sel == selPLUS) {
+		opVal = BinaryOperator::CreateAdd(left, right, "", bb);
+	}
+	else if (sel == selMINUS) {
+		opVal = BinaryOperator::CreateSub(left, right, "", bb);
+	}
+	else if (sel == selDIV) {
+		opVal = BinaryOperator::CreateSDiv(left, right, "", bb);
+	}
+	else if (sel == selMULT) {
+		opVal = BinaryOperator::CreateMul(left, right, "", bb);
+	}
+	else {
+		result_is_double = false;
+		
+		CmpInst::Predicate predicate;
+		
+		if (sel == selLT) {
+		    predicate = FCmpInst::FCMP_OLT;
+		}
+		else if (sel == selLE) {
+		    predicate = FCmpInst::FCMP_OLE;
+		}
+		else if (sel == selGT) {
+		    predicate = FCmpInst::FCMP_OGT;
+		}
+		else if (sel == selGE) {
+		    predicate = FCmpInst::FCMP_OGE;
+		}
+		else if ((sel == selEq) || (sel == selEqq)) {
+		    predicate = FCmpInst::FCMP_OEQ;
+		}
+		else if (sel == selNeq) {
+		    predicate = FCmpInst::FCMP_ONE;
+		}
+		else {
+		    abort();
+		}
+		
+		opVal = new FCmpInst(predicate, left, right, "", bb);
+		opVal = SelectInst::Create(opVal, trueVal, falseVal, "", bb);
+	}
+	
+	Value *thenVal;
+	BasicBlock *then3BB;
+	
+	if (result_is_double) { 
+		Value *casted = new BitCastInst(opVal, IntTy, "", bb);
+		thenVal = BinaryOperator::CreateOr(casted, threeVal, "", bb);
+		
+		then3BB = then2BB;
+		BranchInst::Create(mergeBB, then3BB);
+	}
+	else {
+		thenVal = opVal;
+		then3BB = then2BB;
+		BranchInst::Create(mergeBB, then3BB);
+	}
+	
+	bb = elseBB;
+	Value *elseVal = compile_dispatch_call(params);
+	elseBB = bb;
+	BranchInst::Create(mergeBB, elseBB);
+	
+	bb = mergeBB;
+	PHINode *pn = PHINode::Create(RubyObjTy, "op_tmp", mergeBB);
+	pn->addIncoming(thenVal, then3BB);
+	pn->addIncoming(elseVal, elseBB);
+	
+	if (sel == selEqq) {
+		pn->addIncoming(fastEqqVal, fastEqqBB);
+	}
+	
+	return pn;
+	
+}
+
 Value *
 RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Value *> &params)
 {
@@ -1756,8 +2010,6 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Va
 	if (current_block_func != NULL || argc != 1) {
 	    return NULL;
 	}
-
-	GlobalVariable *is_redefined = GET_VM()->redefined_op_gvar(sel, true);
 	
 	Value *leftVal = params[1]; // self
 	Value *rightVal = params.back();
@@ -1802,168 +2054,23 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Va
 	else if (leftIsFixFloatConstant && rightIsFixFloatConstant) {
 		return precompile_floating_arith_node(sel, leftDouble, rightDouble, argc, params);
 	}
-	else if (!(leftIsFixFloatConstant || rightIsFixFloatConstant)) {
-		// Either one or both of the operands was not a fixable constant.
-	    Value *is_redefined_val = new LoadInst(is_redefined, "", bb);
-	    Value *isOpRedefined = new ICmpInst(ICmpInst::ICMP_EQ, 
-		    is_redefined_val, ConstantInt::getFalse(), "", bb);
-
-	    Function *f = bb->getParent();
-
-	    BasicBlock *then1BB = BasicBlock::Create("op_not_redefined", f);
-	    BasicBlock *then2BB = BasicBlock::Create("op_optimize", f);
-	    BasicBlock *elseBB  = BasicBlock::Create("op_dispatch", f);
-	    BasicBlock *mergeBB = BasicBlock::Create("op_merge", f);
-
-	    BranchInst::Create(then1BB, elseBB, isOpRedefined, bb);
-
- 	    bb = then1BB;
-
-	    Value *leftAndOp = NULL;
-	    if (!leftIsFixnumConstant) {
-		leftAndOp = BinaryOperator::CreateAnd(leftVal, threeVal, "", 
-			bb);
-	    }
-
-	    Value *rightAndOp = NULL;
-	    if (!rightIsFixnumConstant) {
-		rightAndOp = BinaryOperator::CreateAnd(rightVal, threeVal, "", 
-			bb);
-	    }
-
-	    Value *areFixnums = NULL;
-	    if (leftAndOp != NULL && rightAndOp != NULL) {
-		Value *foo = BinaryOperator::CreateAdd(leftAndOp, rightAndOp, 
-			"", bb);
-		areFixnums = new ICmpInst(ICmpInst::ICMP_EQ, foo, twoVal, "", bb);
-	    }
-	    else if (leftAndOp != NULL) {
-		areFixnums = new ICmpInst(ICmpInst::ICMP_EQ, leftAndOp, oneVal, "", bb);
-	    }
-	    else {
-		areFixnums = new ICmpInst(ICmpInst::ICMP_EQ, rightAndOp, oneVal, "", bb);
-	    }
-	
-	    Value *fastEqqVal = NULL;
-	    BasicBlock *fastEqqBB = NULL;
-	    if (sel == selEqq) {
-		// compile_fast_eqq_call won't be called if #=== has been redefined
-		// fixnum optimizations are done separately
-		fastEqqBB = BasicBlock::Create("fast_eqq", f);
-		BranchInst::Create(then2BB, fastEqqBB, areFixnums, bb);
-		bb = fastEqqBB;
-		fastEqqVal = compile_fast_eqq_call(leftVal, rightVal);
-		fastEqqBB = bb;
-		BranchInst::Create(mergeBB, bb);
-	    }
-	    else {
-		BranchInst::Create(then2BB, elseBB, areFixnums, bb);
-	    }
-	    bb = then2BB;
-
-	    Value *unboxedLeft;
-	    if (leftIsFixnumConstant) {
-		unboxedLeft = ConstantInt::get(RubyObjTy, leftLong);
-	    }
-	    else {
-		unboxedLeft = BinaryOperator::CreateAShr(leftVal, twoVal, "", bb);
-	    }
-
-	    Value *unboxedRight;
-	    if (rightIsFixnumConstant) {
-		unboxedRight = ConstantInt::get(RubyObjTy, rightLong);
-	    }
-	    else {
-		unboxedRight = BinaryOperator::CreateAShr(rightVal, twoVal, "", bb);
-	    }
-
-	    Value *opVal;
-	    bool result_is_fixnum = true;
-	    if (sel == selPLUS) {
-		opVal = BinaryOperator::CreateAdd(unboxedLeft, unboxedRight, "", bb);
-	    }
-	    else if (sel == selMINUS) {
-		opVal = BinaryOperator::CreateSub(unboxedLeft, unboxedRight, "", bb);
-	    }
-	    else if (sel == selDIV) {
-		opVal = BinaryOperator::CreateSDiv(unboxedLeft, unboxedRight, "", bb);
-	    }
-	    else if (sel == selMULT) {
-		opVal = BinaryOperator::CreateMul(unboxedLeft, unboxedRight, "", bb);
-	    }
-	    else {
-		result_is_fixnum = false;
-
-		CmpInst::Predicate predicate;
-
-		if (sel == selLT) {
-		    predicate = ICmpInst::ICMP_SLT;
-		}
-		else if (sel == selLE) {
-		    predicate = ICmpInst::ICMP_SLE;
-		}
-		else if (sel == selGT) {
-		    predicate = ICmpInst::ICMP_SGT;
-		}
-		else if (sel == selGE) {
-		    predicate = ICmpInst::ICMP_SGE;
-		}
-		else if ((sel == selEq) || (sel == selEqq)) {
-		    predicate = ICmpInst::ICMP_EQ;
-		}
-		else if (sel == selNeq) {
-		    predicate = ICmpInst::ICMP_NE;
+	else if ((!(leftIsFixFloatConstant || rightIsFixFloatConstant)) && (leftIsFixnumConstant || rightIsFixnumConstant)) {
+		// One of the operands is a fixnum, the other is a variable
+		if (leftIsFixnumConstant) {
+			return compile_variable_and_integral_node(sel, leftLong, rightVal, leftVal, argc, params);
 		}
 		else {
-		    abort();
+			return compile_variable_and_integral_node(sel, rightLong, leftVal, rightVal, argc, params);
 		}
-
-		opVal = new ICmpInst(predicate, unboxedLeft, unboxedRight, "", bb);
-		opVal = SelectInst::Create(opVal, trueVal, falseVal, "", bb);
-	    }
-
-	    Value *thenVal;
-	    BasicBlock *then3BB;
-
-	    if (result_is_fixnum) { 
-		Value *shift = BinaryOperator::CreateShl(opVal, twoVal, "", bb);
-		thenVal = BinaryOperator::CreateOr(shift, oneVal, "", bb);
-
-		// Is result fixable?
-		Value *fixnumMax = ConstantInt::get(IntTy, FIXNUM_MAX + 1);
-		Value *isFixnumMaxOk = new ICmpInst(ICmpInst::ICMP_SLT, opVal, fixnumMax, "", bb);
-
-		then3BB = BasicBlock::Create("op_fixable_max", f);
-
-		BranchInst::Create(then3BB, elseBB, isFixnumMaxOk, bb);
-
-		bb = then3BB;
-		Value *fixnumMin = ConstantInt::get(IntTy, FIXNUM_MIN);
-		Value *isFixnumMinOk = new ICmpInst(ICmpInst::ICMP_SGE, opVal, fixnumMin, "", bb);
-
-		BranchInst::Create(mergeBB, elseBB, isFixnumMinOk, bb);
-	    }
-	    else {
-		thenVal = opVal;
-		then3BB = then2BB;
-		BranchInst::Create(mergeBB, then3BB);
-	    }
-
-	    bb = elseBB;
-	    Value *elseVal = compile_dispatch_call(params);
-	    elseBB = bb;
-	    BranchInst::Create(mergeBB, elseBB);
-
-	    bb = mergeBB;
-	    PHINode *pn = PHINode::Create(RubyObjTy, "op_tmp", mergeBB);
-	    pn->addIncoming(thenVal, then3BB);
-	    pn->addIncoming(elseVal, elseBB);
-
-	    if (sel == selEqq) {
-		pn->addIncoming(fastEqqVal, fastEqqBB);
-	    }
-
-	    return pn;
+	} else if((!(leftIsFixnumConstant || rightIsFixnumConstant)) && (leftIsFixFloatConstant || rightIsFixFloatConstant)) {
+		if (leftIsFixFloatConstant) {
+			return compile_variable_and_floating_node(sel, leftDouble, rightVal, leftVal, argc, params);
+		} else {
+			return compile_variable_and_floating_node(sel, rightDouble, leftVal, rightVal, argc, params);
+		}
+	} else {
+		printf("Both are variables, dying\n");
+		return NULL;
 	}
 	}
     // Other operators (#<< or #[] or #[]=)
@@ -2066,6 +2173,7 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Va
 	bb = mergeBB;
 	PHINode *pn = PHINode::Create(RubyObjTy, "op_tmp", mergeBB);
 	pn->addIncoming(thenVal, thenBB);
+	
 	pn->addIncoming(elseVal, elseBB);
 
 	return pn;
@@ -2125,6 +2233,8 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Va
 	PHINode *pn = PHINode::Create(RubyObjTy, "op_tmp", mergeBB);
 	pn->addIncoming(thenVal, thenBB);
 	pn->addIncoming(elseVal, elseBB);
+		
+	
 
 	return pn;
 
