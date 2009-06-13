@@ -11,13 +11,13 @@ describe "IO#write on a file" do
     @file = File.open(@filename, "r+")
     @readonly_file = File.open(@filename)
   end
-  
+
   after :each do
     @file.close
     @readonly_file.close
     File.delete(@filename)
   end
-  
+
   # TODO: impl detail? discuss this with matz. This spec is useless. - rdavis
   # I agree. I've marked it not compliant on macruby, as we don't buffer input. -pthomson
   not_compliant_on :macruby do
@@ -32,7 +32,7 @@ describe "IO#write on a file" do
       end
     end
   end
-  
+
   it "does not check if the file is writable if writing zero bytes" do
     lambda { @readonly_file.write("") }.should_not raise_error
   end

@@ -1,0 +1,2 @@
+critical:File.expand_path raises an ArgumentError if not passed one or two arguments
+critical:File.expand_path raises a TypeError if not passed a String type

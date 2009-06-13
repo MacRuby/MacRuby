@@ -1,0 +1,1 @@
+fails:IO#write on a file does not check if the file is writable if writing zero bytes
