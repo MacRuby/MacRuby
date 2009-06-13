@@ -16,13 +16,18 @@
 class Object
   def tmp(name)
     unless @spec_temp_directory
-      [ "/private/tmp", "/tmp", "/var/tmp", ENV["TMPDIR"], ENV["TMP"],
-        ENV["TEMP"], ENV["USERPROFILE"] ].each do |dir|
-        if dir and File.directory?(dir) and File.writable?(dir)
-          temp = File.expand_path dir
-          temp = File.readlink temp if File.symlink? temp
-          @spec_temp_directory = temp
-          break
+      # MacRuby TODO: Discuss with Brian
+      if RUBY_NAME =~ /^macruby/
+        @spec_temp_directory = "/private/tmp"
+      else
+        [ "/private/tmp", "/tmp", "/var/tmp", ENV["TMPDIR"], ENV["TMP"],
+          ENV["TEMP"], ENV["USERPROFILE"] ].each do |dir|
+          if dir and File.directory?(dir) and File.writable?(dir)
+            temp = File.expand_path dir
+            temp = File.readlink temp if File.symlink? temp
+            @spec_temp_directory = temp
+            break
+          end
         end
       end
     end

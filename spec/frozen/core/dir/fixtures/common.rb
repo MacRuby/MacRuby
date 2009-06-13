@@ -1,17 +1,21 @@
 require 'fileutils'
 
 module DirSpecs
-  def DirSpecs.mock_dir(dirs = ['mock'])
+  def self.pwd
+    File.expand_path(Dir.pwd)
+  end
+
+  def self.mock_dir(dirs = ['mock'])
     File.expand_path(tmp(File.join(dirs)))
   end
 
-  def DirSpecs.nonexistent
+  def self.nonexistent
     name = mock_dir + "/nonexistent00"
     name = name.next while File.exist? name
     name
   end
 
-  def DirSpecs.clear_dirs
+  def self.clear_dirs
     old_kcode, $KCODE = $KCODE, 'u'
     ['nonexisting', 'default_perms','reduced', 'always_returns_0', '???', [0xe9].pack('U')].each do |dir|
       begin
@@ -21,7 +25,7 @@ module DirSpecs
     end
   end
 
-  def DirSpecs.create_mock_dirs
+  def self.create_mock_dirs
     mock_dir = self.mock_dir
     files = %w[
       .dotfile

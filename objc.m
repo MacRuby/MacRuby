@@ -192,13 +192,34 @@ rb_objc_symbolize_address(void *addr, void **start, char *name,
 VALUE
 rb_file_expand_path(VALUE fname, VALUE dname)
 {
-    NSString *res = [(NSString *)fname stringByExpandingTildeInPath];
-    if (![res isAbsolutePath]) {
-	NSString *dir = dname != Qnil
-	    	? (NSString *)dname
-		: [[NSFileManager defaultManager] currentDirectoryPath];
-	res = [dir stringByAppendingPathComponent:res];
+    NSString *res = (NSString *)FilePathValue(fname);
+
+    if ([res isAbsolutePath]) {
+      NSString *tmp = [res stringByResolvingSymlinksInPath];
+      // Make sure we don't have an invalid user path.
+      if ([res hasPrefix:@"~"] && [tmp isEqualTo:res]) {
+        NSString *user = [[[res pathComponents] objectAtIndex:0] substringFromIndex:1];
+        rb_raise(rb_eArgError, "user %s doesn't exist", [user UTF8String]);
+      }
+      res = tmp;
     }
+    else {
+      NSString *dir = dname != Qnil ?
+        (NSString *)FilePathValue(dname) : [[NSFileManager defaultManager] currentDirectoryPath];
+
+      if (![dir isAbsolutePath]) {
+        dir = (NSString *)rb_file_expand_path((VALUE)dir, Qnil);
+      }
+
+      // stringByStandardizingPath does not expand "/." to "/".
+      if ([res isEqualTo:@"."] && [dir isEqualTo:@"/"]) {
+        res = @"/";
+      }
+      else {
+        res = [[dir stringByAppendingPathComponent:res] stringByStandardizingPath];
+      }
+    }
+
     return (VALUE)[res mutableCopy];
 }
 

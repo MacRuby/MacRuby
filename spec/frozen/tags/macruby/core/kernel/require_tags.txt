@@ -11,3 +11,4 @@ fails:Kernel#require bases the filename in $LOADED_FEATURES on the path given, n
 fails:Kernel#require will not load the same file twice, returns false instead
 fails:Kernel#require checks $LOADED_FEATURES to see whether file is already loaded
 fails:Kernel#require does not infinite loop on an rb file that requires itself
+fails:Kernel#require appends a file with no extension with .rb/.<ext> in that order to locate file

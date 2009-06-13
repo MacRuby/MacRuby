@@ -67,12 +67,18 @@ describe "File.expand_path" do
       File.expand_path('~/').should == ENV['HOME']
       File.expand_path('~/..badfilename').should == "#{ENV['HOME']}/..badfilename"
       File.expand_path('..').should == Dir.pwd.split('/')[0...-1].join("/")
-      File.expand_path('//').should == '//'
       File.expand_path('~/a','~/b').should == "#{ENV['HOME']}/a"
     end
 
+    not_compliant_on :macruby do
+      it "leaves multiple prefixed slashes untouched" do
+        File.expand_path('//').should == '//'
+        File.expand_path('////').should == '////'
+      end
+    end
+
     it "raises an ArgumentError if the path is not valid" do
-      lambda { File.expand_path("~a_fake_file") }.should raise_error(ArgumentError)
+      lambda { File.expand_path("~a_not_existing_user") }.should raise_error(ArgumentError)
     end
 
     it "expands ~ENV['USER'] to the user's home directory" do
@@ -85,7 +91,7 @@ describe "File.expand_path" do
     end
   end
 
-  it "raises an ArgumentError is not passed one or two arguments" do
+  it "raises an ArgumentError if not passed one or two arguments" do
     lambda { File.expand_path }.should raise_error(ArgumentError)
     lambda { File.expand_path '../', 'tmp', 'foo' }.should raise_error(ArgumentError)
   end
