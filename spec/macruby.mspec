@@ -37,6 +37,12 @@ class MSpecScript
   
   set :full, get(:macruby) + get(:language) + get(:core)
   
+  # Optional library specs
+  set :ffi, File.join(FROZEN_PREFIX, 'optional/ffi')
+  
+  # A list of _all_ optional library specs
+  set :optional, [get(:ffi)]
+  
   # The default implementation to run the specs.
   # TODO: this needs to be more sophisticated since the
   # executable is not consistently named.

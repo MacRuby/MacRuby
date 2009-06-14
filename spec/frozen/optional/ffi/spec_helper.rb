@@ -10,10 +10,14 @@ end
 module FFISpecs
   include FFI
 
+  # The FFI::Platform constant doesn't exist on MacRuby, but the raised ConstMissing exception
+  # isn't catched and instead of exiting MacRuby continues. Same goes for other missing constants.
   LongSize = FFI::Platform::LONG_SIZE / 8
 
   FIXTURE_DIR = File.expand_path("../fixtures", __FILE__)
-  LIBRARY = File.join(FIXTURE_DIR, "build/libtest/libtest.#{FFI::Platform::LIBSUFFIX}")
+
+  # LIBRARY = File.join(FIXTURE_DIR, "build/libtest/libtest.#{FFI::Platform::LIBSUFFIX}")
+  LIBRARY = File.join(FIXTURE_DIR, "build/libtest/libtest.dylib")
 
   def self.need_to_compile_fixtures?
     !File.exist?(LIBRARY) or Dir.glob(File.join(FIXTURE_DIR, "*.c")).any? { |f| File.mtime(f) > File.mtime(LIBRARY) }
