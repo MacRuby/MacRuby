@@ -1,3 +1,4 @@
 fails:Array#concat keeps untrusted status
 fails:Array#concat is not infected untrustedness by the other
 fails:Array#concat keeps the untrusted status of elements
+fails:Array#concat tries to convert the passed argument to an Array using #to_ary

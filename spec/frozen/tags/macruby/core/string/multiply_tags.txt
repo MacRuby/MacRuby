@@ -1,2 +1,3 @@
 fails:String#* returns subclass instances
 fails:String#* always taints the result when self is tainted
+fails:String#* tries to convert the given argument to an integer using to_int

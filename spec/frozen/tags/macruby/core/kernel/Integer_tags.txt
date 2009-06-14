@@ -12,3 +12,17 @@ fails:Kernel.Integer calls to_i on Rationals
 fails:Kernel.Integer raises an ArgumentError if the String ends with a null byte
 fails:Kernel#Integer calls to_i on Rationals
 fails:Kernel#Integer raises an ArgumentError if the String ends with a null byte
+fails:Kernel.Integer uncritically return the value of to_int even if it is not an Integer
+fails:Kernel.Integer returns the value of to_int if the result is a Fixnum
+fails:Kernel.Integer returns the value of to_int if the result is a Bignum
+fails:Kernel.Integer calls to_i on an object whose to_int returns nil
+fails:Kernel.Integer uncritically return the value of to_int even if it is not an Integer
+fails:Kernel.Integer raises a TypeError if to_i returns a value that is not an Integer
+fails:Kernel.Integer raises a TypeError if to_int returns nil and no to_i exists
+fails:Kernel#Integer uncritically return the value of to_int even if it is not an Integer
+fails:Kernel#Integer returns the value of to_int if the result is a Fixnum
+fails:Kernel#Integer returns the value of to_int if the result is a Bignum
+fails:Kernel#Integer calls to_i on an object whose to_int returns nil
+fails:Kernel#Integer uncritically return the value of to_int even if it is not an Integer
+fails:Kernel#Integer raises a TypeError if to_i returns a value that is not an Integer
+fails:Kernel#Integer raises a TypeError if to_int returns nil and no to_i exists

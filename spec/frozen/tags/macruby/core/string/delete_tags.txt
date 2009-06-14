@@ -3,3 +3,4 @@ fails:String#delete deletes all chars in a sequence
 fails:String#delete taints result when self is tainted
 fails:String#delete raises a TypeError when one set arg can't be converted to a string
 fails:String#delete! raises a TypeError when self is frozen
+fails:String#delete tries to convert each set arg to a string using to_str

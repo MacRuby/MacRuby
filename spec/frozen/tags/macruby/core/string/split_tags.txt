@@ -8,3 +8,6 @@ fails:String#split with String taints the resulting strings if self is tainted
 fails:String#split with Regexp returns subclass instances based on self
 fails:String#split with Regexp does not call constructor on created subclass instances
 fails:String#split with Regexp taints the resulting strings if self is tainted
+fails:String#split with String tries converting its pattern argument to a string via to_str
+fails:String#split with String tries converting limit to an integer via to_int
+fails:String#split with Regexp tries converting limit to an integer via to_int

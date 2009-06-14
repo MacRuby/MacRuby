@@ -2,3 +2,5 @@ critical:Hash#== computes equality for complex recursive hashes
 critical:Hash#== computes equality for recursive hashes & arrays
 fails:Hash#== compares keys with matching hash codes via eql?
 fails:Hash#== compares keys with eql? semantics
+fails:Hash#== first compares keys via hash
+fails:Hash#== does not compare keys with different hash codes via eql?

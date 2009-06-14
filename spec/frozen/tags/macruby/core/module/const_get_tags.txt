@@ -1,2 +1,5 @@
 fails:Module#const_get with statically assigned constants searches the superclass chain
 fails:Module#const_get with dynamically assigned constants searches the superclass chain
+fails:Module#const_get calls #to_str to convert the given name to a String
+fails:Module#const_get raises a TypeError if conversion to a String by calling #to_str fails
+fails:Module#const_get calls #const_missing on the receiver if unable to locate the constant

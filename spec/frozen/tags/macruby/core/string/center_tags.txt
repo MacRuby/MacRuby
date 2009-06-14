@@ -1,0 +1,2 @@
+fails:String#center with length, padding calls #to_int to convert length to an integer
+fails:String#center with length, padding calls #to_str to convert padstr to a String

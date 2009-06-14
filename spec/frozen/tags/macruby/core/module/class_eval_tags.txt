@@ -1,2 +1,4 @@
 fails:Module#class_eval shares a scope across sibling evals
 fails:Module#class_eval does not add defined methods to other classes
+fails:Module#class_eval converts non string eval-string to string using to_str
+fails:Module#class_eval raises a TypeError when the given eval-string can't be converted to string using to_str

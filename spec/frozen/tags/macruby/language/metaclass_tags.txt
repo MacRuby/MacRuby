@@ -4,3 +4,4 @@ fails:A constant on a metaclass can be accessed via self::CONST
 fails:A constant on a metaclass can be accessed via const_get
 fails:A constant on a metaclass is not defined on the object's class
 fails:A constant on a metaclass is not preserved when the object is duped
+fails:A constant on a metaclass does not appear in the object's class constant list

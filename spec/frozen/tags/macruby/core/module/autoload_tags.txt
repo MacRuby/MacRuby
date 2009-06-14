@@ -19,3 +19,4 @@ fails:Module#autoload loads the file when opening a module that is the autoloade
 fails:Module#autoload raises a NameError when the autoload file did not define the constant and a module is opened with the same name
 fails:Module#autoload raises a TypeError if opening a class with a different superclass than the class defined in the autoload file
 fails:Module#autoload does not call Kernel#require or Kernel#load dynamically
+fails:Module#autoload calls #to_path on non-String filename arguments

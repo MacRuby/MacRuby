@@ -36,38 +36,14 @@ namespace :spec do
   end
   
   namespace :tag do
-    desc "Removed fail tags for examples which actually pass. (FIXME)"
+    desc "Removed fail tags for examples which actually pass."
     task :remove do
       mspec :tag, "-g fails --del fails :full"
     end
     
-    desc "Tags failing examples in spec/core, specify the class to tag with the env variable `class'"
+    desc "Add fails tags for examples which fail."
     task :add do
-      klass = ENV['class']
-      puts "Tagging failing examples of class `#{klass}'"
-      
-      tag_base = "./spec/frozen/tags/macruby/core/#{klass}"
-      mkdir_p tag_base
-      
-      Dir.glob("./spec/frozen/core/#{klass}/*_spec.rb").each do |spec_file|
-        puts "Running spec: #{spec_file}"
-        cmd = "./mspec/bin/mspec ci -I./lib -f s -B ./spec/macruby.mspec #{spec_file}"
-        out = `#{cmd}`
-        
-        if out.match(/^1\)(.+?)(FAILED|ERROR)/m)
-          failures = $1.strip.split("\n")
-          
-          tag_file = "#{tag_base}/#{spec_file.match(/\/(\w+)_spec\.rb$/)[1]}_tags.txt"
-          puts "Writing tags file: #{tag_file}"
-          
-          File.open(tag_file, 'a+') do |f|
-            f << "\n" unless f.read.empty?
-            failures.each do |failure|
-              f << "fails:#{failure}\n"
-            end
-          end
-        end
-      end
+      mspec :tag, "-G critical -G fails :full"
     end
   end
   

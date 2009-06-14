@@ -2,3 +2,4 @@ critical:Kernel.catch can be nested
 fails:Kernel.catch raises ArgumentError if the number of arguments is not one
 fails:Kernel.catch raises TypeError if the argument is not a symbol
 fails:Kernel#catch is a private method
+fails:Kernel.catch yields a new, unique object when called without arguments

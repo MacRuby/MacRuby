@@ -1,1 +1,2 @@
 fails:Kernel#extend raises a TypeError if self is frozen
+fails:Kernel#extend raises a RuntimeError if self is frozen

@@ -1,2 +1,4 @@
 fails:Comparable#== returns nil if calling #<=> on self returns nil or a non-Integer
 fails:Comparable#== returns nil if calling #<=> on self raises a StandardError
+fails:Comparable#== calls #<=> on self with other and returns true if #<=> returns 0
+fails:Comparable#== returns false if calling #<=> on self returns a non-zero Integer

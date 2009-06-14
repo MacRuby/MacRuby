@@ -7,3 +7,6 @@ fails:Array#* with a string returns a string formed by concatenating each elemen
 fails:Array#* with a string raises a NoMethodError if an element does not respond to #to_s
 fails:Array#* with a string does not consider untrustworthiness of either the array or the separator when the array is empty
 fails:Array#* with a string returns a string which would be infected with untrustworthiness of the array, its elements or the separator when the array is not empty
+fails:Array#* tries to convert the passed argument to a String using #to_str
+fails:Array#* tires to convert the passed argument to an Integer using #to_int
+fails:Array#* with a string tries to convert the passed separator to a String using #to_str

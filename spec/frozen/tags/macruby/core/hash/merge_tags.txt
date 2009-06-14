@@ -1,3 +1,5 @@
 fails:Hash#merge returns subclass instance for subclasses
 fails:Hash#merge! raises a RuntimeError if called on a non-empty, frozen instance
 fails:Hash#merge! raises a RuntimeError if called on a frozen instance
+fails:Hash#merge tries to convert the passed argument to a hash using #to_hash
+fails:Hash#merge! tries to convert the passed argument to a hash using #to_hash

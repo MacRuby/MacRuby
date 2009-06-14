@@ -1,1 +1,4 @@
 fails:Kernel#Array is a private method
+fails:Kernel#Array tries to call #to_ary on the given argument if it's not an Array
+fails:Kernel#Array tries to call #to_a on the given argument if #to_ary is not provided
+fails:Kernel#Array raises a TypeError if #to_ary / #to_a do not return an array

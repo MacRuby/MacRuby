@@ -1,1 +1,3 @@
 fails:IO#write on a file does not check if the file is writable if writing zero bytes
+fails:IO#write coerces the argument to a string using to_s
+fails:IO#write invokes to_s on non-String argument

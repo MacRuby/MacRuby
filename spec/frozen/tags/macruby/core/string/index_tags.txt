@@ -7,3 +7,6 @@ fails:String#index with String returns the index of the first occurrence of the 
 fails:String#index with String ignores string subclasses
 fails:String#index with String starts the search at the given offset
 fails:String#index with Regexp behaves the same as String#index(string) for escaped string regexps
+fails:String#index with object tries to convert obj to a string via to_str
+fails:String#index with String converts start_offset to an integer via to_int
+fails:String#index with Regexp converts start_offset to an integer via to_int

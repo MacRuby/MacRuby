@@ -1,1 +1,2 @@
 critical:Hash#inspect handles recursive hashes
+fails:Hash#inspect calls inspect on keys and values

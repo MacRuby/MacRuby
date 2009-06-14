@@ -1,1 +1,4 @@
 fails:Array#initialize is private
+fails:Array#initialize with (array) calls #to_ary to convert the value to an array
+fails:Array#initialize with (size, object=nil) calls #to_int to convert the size argument to an Integer when object is given
+fails:Array#initialize with (size, object=nil) calls #to_int to convert the size argument to an Integer when object is not given

@@ -1,2 +1,3 @@
 fails:String#crypt taints the result if either salt or self is tainted
 fails:String#crypt doesn't return subclass instances
+fails:String#crypt calls #to_str to converts the salt arg to a String

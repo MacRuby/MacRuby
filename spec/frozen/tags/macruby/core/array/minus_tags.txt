@@ -1,1 +1,2 @@
 fails:Array#- acts as if using an  intermediate hash to collect values
+fails:Array#- tries to convert the passed arguments to Arrays using #to_ary

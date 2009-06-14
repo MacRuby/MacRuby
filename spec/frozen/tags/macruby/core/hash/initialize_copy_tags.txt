@@ -1,3 +1,4 @@
 fails:Hash#initialize_copy is private
 fails:Hash#initialize_copy does not transfer default values
 fails:Hash#initialize_copy raises a RuntimeError if called on a frozen instance
+fails:Hash#initialize_copy tries to convert the passed argument to a hash using #to_hash

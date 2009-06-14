@@ -1,1 +1,2 @@
 fails:String#end_with? works for multibyte strings
+fails:String#end_with? converts its argument using :to_str

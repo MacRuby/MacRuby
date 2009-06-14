@@ -5,3 +5,4 @@ fails:IO::foreach updates $. with each yield
 fails:IO::foreach can handle non-ASCII data as separator
 fails:IO::foreach converts second parameter to string and uses as separator
 fails:IO::foreach converts second parameter to string and uses as separator, with each to_str calling for each lines of the IOs
+fails:IO::foreach converts first parameter to string and uses as file name

@@ -1,3 +1,4 @@
 fails:String#count negates sets starting with ^
 fails:String#count counts all chars in a sequence
 fails:String#count raises a TypeError when a set arg can't be converted to a string
+fails:String#count calls #to_str to convert each set arg to a String

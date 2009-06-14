@@ -6,3 +6,5 @@ fails:String#[]= with String raises an IndexError without changing self if idx i
 fails:String#[]= with String raises a TypeError when self is frozen
 fails:String#[]= with String raises a TypeError if other_str can't be converted to a String
 fails:String#[]= with index, count raises a TypeError if other_str is a type other than String
+fails:String#[]= with String calls to_int on index
+fails:String#[]= with String calls #to_str to convert other to a String

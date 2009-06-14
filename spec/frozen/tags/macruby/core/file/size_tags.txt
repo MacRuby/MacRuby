@@ -1,0 +1,7 @@
+fails:File#size is an instance method
+fails:File#size returns the file's size as a Fixnum
+fails:File#size returns the file's size in bytes
+fails:File#size returns the cached size of the file if subsequently deleted
+fails:File#size returns the file's current size even if modified
+fails:File#size returns 0 for an empty file
+fails:File#size follows symlinks if necessary

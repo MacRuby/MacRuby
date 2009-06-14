@@ -1,0 +1,2 @@
+fails:File.fnmatch does not raise a TypeError if the third argument can be coerced to an Integer
+fails:File.fnmatch? does not raise a TypeError if the third argument can be coerced to an Integer

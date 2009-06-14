@@ -10,3 +10,5 @@ critical:File.new create a new file when use File::WRONLY|File::TRUNC mode
 fails:File.new return a new File with modus fd 
 fails:File.new expected errors 
 fails:File.new can't alter mode or permissions when opening a file
+fails:File.new coerces filename using to_str
+fails:File.new coerces filename using #to_path

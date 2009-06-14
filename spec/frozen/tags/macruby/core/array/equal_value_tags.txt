@@ -1,2 +1,3 @@
 critical:Array#== handles well recursive arrays
 fails:Array#== returns true if corresponding elements are #==
+fails:Array#== returns false if any corresponding elements are not #==

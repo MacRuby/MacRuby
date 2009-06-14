@@ -11,3 +11,4 @@ fails:IO#readlines when passed [file_name, separator] returns an Array containin
 fails:IO#readlines when passed [file_name, separator] does not change $_
 fails:IO#readlines when passed [file_name, separator] returns an Array containing all paragraphs when the passed separator is an empty String
 fails:IO#readlines when passed [file_name, separator] tries to convert the passed separator to a String using #to_str
+fails:IO.readlines when passed [file_name] tries to convert the passed file_name to a String using #to_str

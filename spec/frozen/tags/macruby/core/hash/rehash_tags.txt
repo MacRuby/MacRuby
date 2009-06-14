@@ -1,2 +1,3 @@
 fails:Hash#rehash raises a TypeError if called on a frozen instance
 fails:Hash#rehash causes a RuntimeError to be raised if called inside an iterator block
+fails:Hash#rehash reorganizes the hash by recomputing all key hash codes

@@ -2,3 +2,5 @@ critical:Hash#eql? computes equality for complex recursive hashes
 critical:Hash#eql? computes equality for recursive hashes & arrays
 fails:Hash#eql? compares keys with matching hash codes via eql?
 fails:Hash#eql? compares keys with eql? semantics
+fails:Hash#eql? first compares keys via hash
+fails:Hash#eql? does not compare keys with different hash codes via eql?

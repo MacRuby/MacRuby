@@ -1,1 +1,4 @@
 fails:Array.new with (size, object=nil) returns the value passed to break
+fails:Array.new with (array) calls #to_ary to convert the value to an array
+fails:Array.new with (size, object=nil) calls #to_int to convert the size argument to an Integer when object is given
+fails:Array.new with (size, object=nil) calls #to_int to convert the size argument to an Integer when object is not given

@@ -1,1 +1,3 @@
 fails:Module#const_defined? returns false if the constant is not defined in the receiver
+fails:Module#const_defined? calls #to_str to convert the given name to a String
+fails:Module#const_defined? raises a TypeError if conversion to a String by calling #to_str fails

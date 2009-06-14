@@ -54,3 +54,38 @@ fails:Array#pack with format 'X' doesn't change encoding of the result string
 fails:Array#pack with format 'X' doesn't care even if breaks a character
 fails:Array#pack with '@' doesn't change encoding of the result string
 fails:Array#pack with '@' doesn't care even if breaks a character
+fails:Array#pack with format 'A' tries to convert the pack argument to a String using #to_str
+fails:Array#pack with format 'a' tries to convert the pack argument to a String using #to_str
+fails:Array#pack with format 'Z' tries to convert the pack argument to a String using #to_str
+fails:Array#pack with format 'H' tries to convert the pack argument to a String using #to_str
+fails:Array#pack with format 'h' tries to convert the pack argument to a String using #to_str
+fails:Array#pack with format 'C' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 'c' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 'n' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 'v' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 'N' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 'V' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 's' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 'S' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 'l' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 'L' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 'q' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 'Q' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 's!' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 's_' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 'S!' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 'S_' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 'i' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 'i!' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 'i_' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 'I' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 'I!' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 'I_' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 'l!' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 'l_' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 'L!' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 'L_' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 'M' calls #to_s on object to convert to string
+fails:Array#pack with format 'm' tries to convert the pack argument to a String using #to_str
+fails:Array#pack with format 'u' tries to convert the pack argument to a String using #to_str
+fails:Array#pack with format 'w' calls to_int on non-integer values before packing

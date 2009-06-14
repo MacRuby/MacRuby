@@ -1,2 +1,3 @@
 fails:Kernel#` is a private method
 fails:Kernel#` sets $? to the exit status of the executed sub-process
+fails:Kernel#` tries to convert the given argument to String using #to_str

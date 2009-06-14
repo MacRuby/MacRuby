@@ -1,0 +1,1 @@
+fails:Fixnum#coerce tries to convert the given Object into a Float by using #to_f

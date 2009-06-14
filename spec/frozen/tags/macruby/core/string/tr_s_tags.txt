@@ -2,3 +2,4 @@ fails:String#tr_s accepts c1-c2 notation to denote ranges of characters
 fails:String#tr_s translates chars not in from_string when it starts with a ^
 fails:String#tr_s taints the result when self is tainted
 fails:String#tr_s! raises a TypeError if self is frozen
+fails:String#tr_s tries to convert from_str and to_str to strings using to_str

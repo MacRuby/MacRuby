@@ -1,0 +1,1 @@
+fails:String#sum tries to convert n to an integer using to_int

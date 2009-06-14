@@ -1,1 +1,2 @@
 critical:File.join raises an ArgumentError if passed a recursive array
+fails:File.join calls #to_str

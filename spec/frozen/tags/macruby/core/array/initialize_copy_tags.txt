@@ -1,1 +1,2 @@
 fails:Array#initialize_copy is private
+fails:Array#initialize_copy tries to convert the passed argument to an Array using #to_ary

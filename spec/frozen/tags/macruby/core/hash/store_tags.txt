@@ -1,3 +1,4 @@
 fails:Hash#store duplicates string keys using dup semantics
 fails:Hash#store duplicates and freezes string keys
 fails:Hash#store raises a TypeError if called on a frozen instance
+fails:Hash#store stores unequal keys that hash to the same value

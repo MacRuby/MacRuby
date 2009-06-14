@@ -1,3 +1,4 @@
 fails:Hash#[]= duplicates string keys using dup semantics
 fails:Hash#[]= duplicates and freezes string keys
 fails:Hash#[]= raises a TypeError if called on a frozen instance
+fails:Hash#[]= stores unequal keys that hash to the same value

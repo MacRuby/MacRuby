@@ -26,3 +26,13 @@ fails:Kernel.Float is a private method
 fails:Kernel#Float is a private method
 fails:Kernel.Float raises a TypeError if #to_f is not provided
 fails:Kernel#Float raises a TypeError if #to_f is not provided
+fails:Kernel.Float otherwise, converts the given argument to a Float by calling #to_f
+fails:Kernel.Float returns the identical NaN if to_f is called and it returns NaN
+fails:Kernel.Float returns the identical Infinity if to_f is called and it returns Infinity
+fails:Kernel.Float raises a TypeError if #to_f returns a String
+fails:Kernel.Float raises a TypeError if #to_f returns an Integer
+fails:Kernel#Float otherwise, converts the given argument to a Float by calling #to_f
+fails:Kernel#Float returns the identical NaN if to_f is called and it returns NaN
+fails:Kernel#Float returns the identical Infinity if to_f is called and it returns Infinity
+fails:Kernel#Float raises a TypeError if #to_f returns a String
+fails:Kernel#Float raises a TypeError if #to_f returns an Integer
