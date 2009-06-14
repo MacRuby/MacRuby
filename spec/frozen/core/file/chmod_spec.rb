@@ -132,7 +132,7 @@ describe "File.chmod" do
   end
 
   it "throws a TypeError if the given path is not coercable into a string" do
-    lambda { File.chmod(0, @file.to_sym) }.should raise_error(TypeError)
+    lambda { File.chmod(0, []) }.should raise_error(TypeError)
   end
 
   it "invokes to_int on non-integer argument" do

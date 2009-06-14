@@ -280,7 +280,7 @@ describe "Kernel.Integer" do
 end
 
 describe "Kernel#Integer" do
-  it_behaves_like :kernel_integer, :Integer, mock("receiver for Integer()")
+  it_behaves_like :kernel_integer, :Integer, Object.new
   it_behaves_like "Integer() given a String", :Integer
 
   it "is a private method" do

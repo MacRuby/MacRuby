@@ -1,2 +1,0 @@
-fails:Math.acosh raises an ArgumentError if the argument cannot be coerced with Float()
-fails:Math.acosh accepts any argument that can be coerced with Float()

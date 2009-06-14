@@ -8,7 +8,7 @@ describe "ARGF.binmode" do
   end
 
   after :each do
-    ARGF.close
+    ARGF.close unless ARGF.closed?
   end
 
   it "returns self" do

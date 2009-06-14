@@ -7,7 +7,7 @@ describe "ARGF.close" do
   end
 
   after :each do
-    ARGF.close
+    ARGF.close unless ARGF.closed?
   end
 
   it "closes the current open stream" do

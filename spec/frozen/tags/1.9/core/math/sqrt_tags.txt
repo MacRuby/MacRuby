@@ -1,3 +1,0 @@
-fails:Math.sqrt raises an ArgumentError if the argument cannot be coerced with Float()
-fails:Math.sqrt accepts any argument that can be coerced with Float()
-fails:Math.sqrt returns the square root of the argument

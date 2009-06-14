@@ -236,7 +236,7 @@ describe "Kernel.Float" do
 end
 
 describe "Kernel#Float" do
-  it_behaves_like :kernel_float, :Float, mock("receiver for Float()")
+  it_behaves_like :kernel_float, :Float, Object.new
 end
 
 describe "Kernel#Float" do

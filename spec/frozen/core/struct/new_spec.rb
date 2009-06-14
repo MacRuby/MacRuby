@@ -26,10 +26,16 @@ describe "Struct.new" do
     struct.name.should == "Struct::Foo"
   end
 
-  ruby_version_is "" ... "1.9" do
+  ruby_version_is ""..."1.9" do
     it "creates a new anonymous class with nil first argument" do
       struct = Struct.new(nil, :foo)
       struct.new("bar").foo.should == "bar"
+      struct.class.should == Class
+      struct.name.should == ""
+    end
+
+    it "creates a new anonymous class with symbol arguments" do
+      struct = Struct.new(:make, :model)
       struct.class.should == Class
       struct.name.should == ""
     end
@@ -39,6 +45,12 @@ describe "Struct.new" do
     it "creates a new anonymous class with nil first argument" do
       struct = Struct.new(nil, :foo)
       struct.new("bar").foo.should == "bar"
+      struct.class.should == Class
+      struct.name.should be_nil
+    end
+
+    it "creates a new anonymous class with symbol arguments" do
+      struct = Struct.new(:make, :model)
       struct.class.should == Class
       struct.name.should == nil
     end
@@ -49,21 +61,6 @@ describe "Struct.new" do
     struct.should_not == Struct::Animal
   end
 
-  ruby_version_is "" ... "1.9" do
-    it "creates a new anonymous class with symbol arguments" do
-      struct = Struct.new(:make, :model)
-      struct.class.should == Class
-      struct.name.should == ""
-    end
-  end
-
-  ruby_version_is "1.9" do
-    it "creates a new anonymous class with symbol arguments" do
-      struct = Struct.new(:make, :model)
-      struct.class.should == Class
-      struct.name.should == nil
-    end
-  end
 
   it "fails with invalid constant name as first argument" do
     lambda { Struct.new('animal', :name, :legs, :eyeballs) }.should raise_error(NameError)
@@ -87,20 +84,21 @@ describe "Struct.new" do
   end
 
   not_compliant_on :rubinius do
-    # XXX these 2 specs do not work as expected on 1.9 either
-    it "accepts Fixnums as Symbols unless fixnum.to_sym.nil?" do
-      num = :foo.to_i
-      Struct.new(nil, num).new("bar").foo.should == "bar"
-    end
+    ruby_version_is ""..."1.9" do
+      it "accepts Fixnums as Symbols unless fixnum.to_sym.nil?" do
+        num = :foo.to_i
+        Struct.new(nil, num).new("bar").foo.should == "bar"
+      end
 
-    it "raises an ArgumentError if fixnum#to_sym is nil" do
-      num = 10000
-      num.to_sym.should == nil  # if this fails, we need a new Fixnum to test
-      lambda { Struct.new(:animal, num) }.should raise_error(ArgumentError)
+      it "raises an ArgumentError if fixnum#to_sym is nil" do
+        num = 10000
+        num.to_sym.should == nil  # if this fails, we need a new Fixnum to test
+        lambda { Struct.new(:animal, num) }.should raise_error(ArgumentError)
+      end
     end
   end
 
-  ruby_version_is "" ... "1.9" do
+  ruby_version_is ""..."1.9" do
     it "instance_eval's a passed block" do
       klass = Struct.new(:something) { @something_else = 'something else entirely!' }
       klass.instance_variables.should include('@something_else')

@@ -36,6 +36,12 @@ class MSpecScript
   # An ordered list of the directories containing specs to run
   set :files, get(:language) + get(:core) + get(:library)
 
-  # The default implementation to run the specs.
+  # Optional library specs
+  set :ffi, 'optional/ffi'
+
+  # A list of _all_ optional library specs
+  set :optional, [get(:ffi)]
+
+  # The default implementation to run the specs
   set :target, 'ruby'
 end

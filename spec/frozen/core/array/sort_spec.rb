@@ -1,48 +1,6 @@
 require File.dirname(__FILE__) + '/../../spec_helper'
 require File.dirname(__FILE__) + '/fixtures/classes'
 
-module ArraySpecs
-  class SortSame
-    def <=>(other); 0; end
-    def ==(other); true; end
-  end
-
-  class UFOSceptic
-    def <=>(other); raise "N-uh, UFO:s do not exist!"; end
-  end
-
-  class MockForCompared
-    @@count = 0
-    @@compared = false
-    def initialize
-      @@compared = false
-      @order = (@@count += 1)
-    end
-    def <=>(rhs)
-      @@compared = true
-      return rhs.order <=> self.order
-    end
-    def self.compared?
-      @@compared
-    end
-
-    protected
-    attr_accessor :order
-  end
-  
-  class ComparableWithFixnum
-    include Comparable
-    def initialize(num)
-      @num = num
-    end
-
-    def <=>(fixnum)
-      @num <=> fixnum
-    end
-  end
-end
-
-
 describe "Array#sort" do
   it "returns a new array sorted based on comparing elements with <=>" do
     a = [1, -2, 3, 9, 1, 5, -5, 1000, -5, 2, -10, 14, 6, 23, 0]

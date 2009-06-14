@@ -9,7 +9,7 @@ describe :argf_each_char, :shared => true do
   end
 
   after :each do
-    ARGF.close
+    ARGF.close unless ARGF.closed?
   end
 
   it "yields each char of all streams to the passed block" do

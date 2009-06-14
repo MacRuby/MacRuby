@@ -9,7 +9,7 @@ describe :argf_each_byte, :shared => true do
   end
 
   after :each do
-    ARGF.close
+    ARGF.close unless ARGF.closed?
   end
 
   it "yields each byte of all streams to the passed block" do

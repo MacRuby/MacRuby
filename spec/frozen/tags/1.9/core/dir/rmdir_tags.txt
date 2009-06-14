@@ -1,1 +1,0 @@
-fails:Dir.rmdir raises a SystemCallError if lacking adequate permissions to remove the directory

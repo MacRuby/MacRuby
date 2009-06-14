@@ -9,7 +9,7 @@ describe "ARGF.skip" do
   end
 
   after :each do
-    ARGF.close
+    ARGF.close unless ARGF.closed?
   end
 
   it "skips the current file" do

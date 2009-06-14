@@ -256,12 +256,29 @@ describe "Module#autoload" do
     end.should raise_error(TypeError)
   end
 
-  it "raises a TypeError if not passed a String for the filename" do
-    name = mock("autoload_name.rb")
-    name.stub!(:to_s).and_return("autoload_name.rb")
-    name.stub!(:to_str).and_return("autoload_name.rb")
+  ruby_version_is ""..."1.9" do
+    it "raises a TypeError if not passed a String for the filename" do
+      name = mock("autoload_name.rb")
+      name.stub!(:to_s).and_return("autoload_name.rb")
+      name.stub!(:to_str).and_return("autoload_name.rb")
 
-    lambda { ModuleSpecs::Autoload.autoload :Str, name }.should raise_error(TypeError)
+      lambda { ModuleSpecs::Autoload.autoload :Str, name }.should raise_error(TypeError)
+    end
+  end
+
+  ruby_version_is "1.9" do
+    it "raises a TypeError if not passed a String or object respodning to #to_path for the filename" do
+      name = mock("autoload_name.rb")
+
+      lambda { ModuleSpecs::Autoload.autoload :Str, name }.should raise_error(TypeError)
+    end
+
+    it "calls #to_path on non-String filename arguments" do
+      name = mock("autoload_name.rb")
+      name.should_receive(:to_path).and_return("autoload_name.rb")
+
+      lambda { ModuleSpecs::Autoload.autoload :Str, name }.should_not raise_error
+    end
   end
 end
 

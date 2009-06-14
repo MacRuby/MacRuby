@@ -11,9 +11,11 @@ describe "Rational#== when passed [Rational]" do
     (Rational(-bignum_value, 3) == Rational(bignum_value, -3)).should be_true
   end
   
-  it "returns false if self has different numerator/denominator but the same numerical value as the passed argument" do
-    (Rational(3, 4) == Rational.new!(6, 8)).should be_false
-    (Rational(-3, 4) == Rational.new!(-6, 8)).should be_false
+  ruby_version_is ""..."1.9" do
+    it "returns false if self has different numerator/denominator but the same numerical value as the passed argument" do
+      (Rational(3, 4) == Rational.new!(6, 8)).should be_false
+      (Rational(-3, 4) == Rational.new!(-6, 8)).should be_false
+    end
   end
 end
 
@@ -23,9 +25,13 @@ describe "Rational#== when passed [Integer]" do
     (Rational(4, 2) == 2).should be_true
     (Rational(-4, 2) == -2).should be_true
     (Rational(4, -2) == -2).should be_true
+  end
 
-    (Rational.new!(4, 2) == 2).should be_false
-    (Rational.new!(9, 3) == 3).should be_false
+  ruby_version_is ""..."1.9" do
+    it "returns true if self is constructed with #new! and has the passed argument as numerator and a denominator of 1" do
+      (Rational.new!(4, 2) == 2).should be_false
+      (Rational.new!(9, 3) == 3).should be_false
+    end
   end
 end
 
@@ -35,10 +41,14 @@ describe "Rational#== when passed [Float]" do
     (Rational(4, 2) == 2.0).should be_true
     (Rational(-4, 2) == -2.0).should be_true
     (Rational(4, -2) == -2.0).should be_true
+  end
 
-    # This is inconsistent to behaviour when passed Integers or Rationals
-    (Rational.new!(4, 2) == 2.0).should be_true
-    (Rational.new!(9, 3) == 3.0).should be_true
+  ruby_version_is ""..."1.9" do
+    it "converts self to Float and compares it with the passed argument when the #new! constructor is used" do
+      # This is inconsistent to behaviour when passed Integers or Rationals
+      (Rational.new!(4, 2) == 2.0).should be_true
+      (Rational.new!(9, 3) == 3.0).should be_true
+    end
   end
 end
 

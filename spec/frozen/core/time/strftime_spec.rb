@@ -70,4 +70,27 @@ describe "Time#strftime" do
       time.strftime("%z").should == "+0000"
     end
   end
+
+  it "supports 12-hr formatting with %l" do
+    time = Time.local(2004, 8, 26, 22, 38, 3)
+    time.strftime('%l').should == '10'
+    morning_time = Time.local(2004, 8, 26, 6, 38, 3)
+    morning_time.strftime('%l').should == ' 6'
+  end
+
+  it "supports AM/PM formatting with %p" do
+    time = Time.local(2004, 8, 26, 22, 38, 3)
+    time.strftime('%p').should == 'PM'
+    time = Time.local(2004, 8, 26, 11, 38, 3)
+    time.strftime('%p').should == 'AM'
+  end
+
+  ruby_version_is "1.9" .. "" do
+    it "supports am/pm formatting with %P" do
+      time = Time.local(2004, 8, 26, 22, 38, 3)
+      time.strftime('%P').should == 'pm'
+      time = Time.local(2004, 8, 26, 11, 38, 3)
+      time.strftime('%P').should == 'am'
+    end
+  end
 end
