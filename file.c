@@ -2634,32 +2634,45 @@ static VALUE rb_file_join(VALUE ary, VALUE sep);
 static VALUE
 rb_file_join(VALUE ary, VALUE sep)
 {
+    CFMutableStringRef res = CFStringCreateMutable(NULL, 0);
+    CFStringRef sep_cf = (CFStringRef)sep;
     long count;
-
-    CFMutableStringRef mstr = CFStringCreateMutable(NULL, 0);
 
     count = RARRAY_LEN(ary);
     if (count > 0) {
-	long i;
-	for (i = 0; i < count; i++) {
-	    VALUE tmp = RARRAY_AT(ary, i);
-	    switch (TYPE(tmp)) {
-		case T_STRING:
-		    break;
-		case T_ARRAY:
-		    tmp = rb_file_join(tmp, sep);
-		    break;
-		default:
-		    FilePathStringValue(tmp);
-	    }
-	    if (i > 0)
-		CFStringAppend(mstr, (CFStringRef)sep);
-	    CFStringAppend(mstr, (CFStringRef)tmp);
-	}
-    }
-    CFMakeCollectable(mstr);
+      long i;
+      for (i = 0; i < count; i++) {
+        VALUE tmp = RARRAY_AT(ary, i);
+        switch (TYPE(tmp)) {
+        case T_STRING:
+          break;
+        case T_ARRAY:
+          tmp = rb_file_join(tmp, sep);
+          break;
+        default:
+          FilePathStringValue(tmp);
+        }
 
-    return (VALUE)mstr;
+        CFStringRef tmp_cf = (CFStringRef)tmp;
+
+        if (i > 0) {
+          if (CFStringHasSuffix(res, sep_cf)) {
+            if (CFStringHasPrefix(tmp_cf, sep_cf)) {
+              // Remove trailing slash from res if tmp starts with a slash.
+              CFStringDelete(res, CFRangeMake(CFStringGetLength(res) - 1, 1));
+            }
+          }
+          else if (!CFStringHasPrefix(tmp_cf, sep_cf)) {
+            CFStringAppend(res, sep_cf);
+          }
+        }
+
+        CFStringAppend(res, tmp_cf);
+      }
+    }
+
+    CFMakeCollectable(res);
+    return (VALUE)res;
 }
 
 /*

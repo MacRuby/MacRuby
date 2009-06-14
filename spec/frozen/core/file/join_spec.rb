@@ -30,7 +30,7 @@ describe "File.join" do
     File.join(["a", ["b", ["c"]]]).should == "a/b/c"
   end
   
-  it "inserts the separator in between empty strings and arrays" do  
+  it "inserts the separator in between empty strings and arrays" do
     File.join("").should == ""
     File.join("", "").should == "/"
     File.join(["", ""]).should == "/"
