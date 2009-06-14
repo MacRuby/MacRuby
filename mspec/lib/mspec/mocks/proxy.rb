@@ -9,6 +9,20 @@ class MockObject
   end
 end
 
+class NumericMockObject < Numeric
+  def initialize(name, options={})
+    @name = name
+    @null = options[:null_object]
+  end
+
+  def method_missing(sym, *args, &block)
+    @null ? self : super
+  end
+
+  def singleton_method_added(val)
+  end
+end
+
 class MockProxy
   def initialize(type=nil)
     @multiple_returns = nil
@@ -112,11 +126,11 @@ class MockProxy
     @yielding << args
     self
   end
-  
+
   def yielding
     @yielding
   end
-  
+
   def yielding?
     !@yielding.empty?
   end
