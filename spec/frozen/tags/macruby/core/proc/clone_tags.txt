@@ -1,0 +1,1 @@
+critical:Proc#clone returns a copy of self
