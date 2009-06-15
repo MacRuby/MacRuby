@@ -2041,7 +2041,7 @@ RoxorCompiler::compile_variable_and_floating_node(SEL sel, double fixedDouble, V
 	bb = then1BB;
 	
 	Value *andOp = BinaryOperator::CreateAnd(targetVal, threeVal, "", bb);
-	Value *isDouble = new ICmpInst(ICmpInst::ICMP_EQ, andOp, oneVal, "", bb);
+	Value *isDouble = new ICmpInst(ICmpInst::ICMP_EQ, andOp, threeVal, "", bb);
 	
 	Value *fastEqqVal = NULL;
 	BasicBlock *fastEqqBB = NULL;
