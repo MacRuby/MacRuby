@@ -1920,7 +1920,7 @@ RoxorCompiler::compile_variable_arith_node(SEL sel, Value *leftVal, Value *right
 		opVal = BinaryOperator::CreateSub(leftAsDouble, rightAsDouble, "", bb);
 	}
 	else if (sel == selDIV) {
-		opVal = BinaryOperator::CreateSDiv(leftAsDouble, rightAsDouble, "", bb);
+		opVal = BinaryOperator::CreateFDiv(leftAsDouble, rightAsDouble, "", bb);
 	}
 	else if (sel == selMULT) {
 		opVal = BinaryOperator::CreateMul(leftAsDouble, rightAsDouble, "", bb);
@@ -2089,7 +2089,7 @@ RoxorCompiler::compile_variable_and_floating_node(SEL sel, double fixedDouble, V
 		opVal = BinaryOperator::CreateSub(left, right, "", bb);
 	}
 	else if (sel == selDIV) {
-		opVal = BinaryOperator::CreateSDiv(left, right, "", bb);
+		opVal = BinaryOperator::CreateFDiv(left, right, "", bb);
 	}
 	else if (sel == selMULT) {
 		opVal = BinaryOperator::CreateMul(left, right, "", bb);
