@@ -1882,7 +1882,8 @@ RoxorCompiler::compile_variable_arith_node(SEL sel, Value *leftVal, Value *right
 	
 	BasicBlock *redefBB = BasicBlock::Create("op_not_redefined", f);
 	BasicBlock *toDblBB = BasicBlock::Create("op_floating_cast", f);
-	BasicBlock *toIntBB = BasicBlock::Create("op_integral_cast", f);
+	BasicBlock *onDblBB = BasicBlock::Create("op_optimize_floating", f);
+	BasicBlock *toIntBB = BasicBlock::Create("op_optimize_integral", f);
 	BasicBlock *elseBB  = BasicBlock::Create("op_dispatch", f);
 	BasicBlock *mergeBB = BasicBlock::Create("op_merge", f);
 	
@@ -1908,7 +1909,9 @@ RoxorCompiler::compile_variable_arith_node(SEL sel, Value *leftVal, Value *right
 	Value *unmaskedRight = BinaryOperator::CreateXor(rightVal, threeVal, "", bb);
 	leftAsDouble = new BitCastInst(unmaskedLeft, Type::DoubleTy, "", bb);
 	rightAsDouble = new BitCastInst(unmaskedRight, Type::DoubleTy, "", bb);
+	BranchInst::Create(onDblBB, toDblBB);
 	
+	bb = onDblBB;
 	bool result_is_bool = false;
 	if (sel == selPLUS) {
 		opVal = BinaryOperator::CreateAdd(leftAsDouble, rightAsDouble, "", bb);
@@ -1953,9 +1956,14 @@ RoxorCompiler::compile_variable_arith_node(SEL sel, Value *leftVal, Value *right
 		opVal = SelectInst::Create(opVal, trueVal, falseVal, "", bb);
 	}
 	
-	Value *castedResult = new BitCastInst(opVal, IntTy, "", bb);
-	Value *dblReturnResult = BinaryOperator::CreateOr(castedResult, threeVal, "", bb);
-	BranchInst::Create(mergeBB, toDblBB);
+	Value *dblReturnResult;
+	if (result_is_bool) {
+		dblReturnResult = opVal;
+	} else {
+		Value *castedResult = new BitCastInst(opVal, IntTy, "", bb);
+		dblReturnResult = BinaryOperator::CreateOr(castedResult, threeVal, "", bb);
+	}
+	BranchInst::Create(mergeBB, onDblBB);
 	
 	bb = toIntBB;
 	leftAsInt = BinaryOperator::CreateAShr(leftVal, twoVal, "", bb);
@@ -2004,8 +2012,14 @@ RoxorCompiler::compile_variable_arith_node(SEL sel, Value *leftVal, Value *right
 		opVal = SelectInst::Create(opVal, trueVal, falseVal, "", bb);
 	}
 	
-	Value *shiftedResult = BinaryOperator::CreateShl(opVal, twoVal, "", bb);
-	Value *intReturnResult = BinaryOperator::CreateOr(shiftedResult, oneVal, "", bb);
+	Value *intReturnResult = NULL;
+	if(result_is_bool) {
+		intReturnResult = opVal;
+	}
+	else {
+		Value *shiftedResult = BinaryOperator::CreateShl(opVal, twoVal, "", bb);
+		intReturnResult = BinaryOperator::CreateOr(shiftedResult, oneVal, "", bb);
+	} 
 	BranchInst::Create(mergeBB, toIntBB);
 	
 	bb = elseBB;
