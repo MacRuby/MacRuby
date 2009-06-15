@@ -236,7 +236,6 @@ VALUE rb_ull2inum(unsigned LONG_LONG);
 
 #define VOODOO_DOUBLE(d) (*(VALUE*)(&d))
 #define DBL2FIXFLOAT(d) (VOODOO_DOUBLE(d) | FIXFLOAT_FLAG)
-#define FIXABLE_DBL(d) (!(VOODOO_DOUBLE(d) & FIXFLOAT_FLAG))
 #define FIXFLOAT_P(v)  (((VALUE)v & FIXFLOAT_FLAG) == FIXFLOAT_FLAG)
 #define FIXFLOAT2DBL(v) coerce_ptr_to_double((VALUE)v)
 

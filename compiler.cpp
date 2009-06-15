@@ -171,13 +171,6 @@ RoxorCompiler::unbox_ruby_constant(Value *val, VALUE *rval)
     return false;
 }
 
-inline ICmpInst *
-RoxorCompiler::is_value_a_fixnum(Value *val)
-{
-    Value *andOp = BinaryOperator::CreateAnd(val, oneVal, "", bb);
-    return new ICmpInst(ICmpInst::ICMP_EQ, andOp, oneVal, "", bb); 
-}
-
 Value *
 RoxorCompiler::compile_protected_call(Function *func, std::vector<Value *> &params)
 {
@@ -1629,7 +1622,7 @@ RoxorCompiler::precompile_floating_arith_node(SEL sel, double leftDouble, long r
 			abort();		
 		}
 	}
-	if (!result_is_fixfloat || FIXABLE_DBL(res)) {
+	if (!result_is_fixfloat) {
 		Value *is_redefined_val = new LoadInst(is_redefined, "", bb);
 		Value *isOpRedefined = new ICmpInst(ICmpInst::ICMP_EQ, 
 											is_redefined_val, ConstantInt::getFalse(), "", bb);
@@ -1659,6 +1652,65 @@ RoxorCompiler::precompile_floating_arith_node(SEL sel, double leftDouble, long r
 		return pn;
 	}
 	return NULL; // loss of precision, call the dispatcher.
+}
+
+CmpInst::Predicate
+RoxorCompiler::integer_predicate_for_selector(SEL sel)
+{
+	CmpInst::Predicate predicate;
+	
+	if (sel == selLT) {
+	    predicate = ICmpInst::ICMP_SLT;
+	}
+	else if (sel == selLE) {
+	    predicate = ICmpInst::ICMP_SLE;
+	}
+	else if (sel == selGT) {
+	    predicate = ICmpInst::ICMP_SGT;
+	}
+	else if (sel == selGE) {
+	    predicate = ICmpInst::ICMP_SGE;
+	}
+	else if ((sel == selEq) || (sel == selEqq)) {
+	    predicate = ICmpInst::ICMP_EQ;
+	}
+	else if (sel == selNeq) {
+	    predicate = ICmpInst::ICMP_NE;
+	}
+	else {
+	    abort();
+	}	
+	return predicate;
+}
+
+CmpInst::Predicate
+RoxorCompiler::floating_point_predicate_for_selector(SEL sel)
+{
+	CmpInst::Predicate predicate;
+	
+	if (sel == selLT) {
+	    predicate = FCmpInst::FCMP_OLT;
+	}
+	else if (sel == selLE) {
+	    predicate = FCmpInst::FCMP_OLE;
+	}
+	else if (sel == selGT) {
+	    predicate = FCmpInst::FCMP_OGT;
+	}
+	else if (sel == selGE) {
+	    predicate = FCmpInst::FCMP_OGE;
+	}
+	else if ((sel == selEq) || (sel == selEqq)) {
+	    predicate = FCmpInst::FCMP_OEQ;
+	}
+	else if (sel == selNeq) {
+	    predicate = FCmpInst::FCMP_ONE;
+	}
+	else {
+	    abort();
+	}
+	
+	return predicate;
 }
 
 PHINode *
@@ -1798,31 +1850,7 @@ RoxorCompiler::compile_variable_and_integral_node(SEL sel, long fixedLong, Value
 	}
 	else {
 		result_is_fixnum = false;
-		
-		CmpInst::Predicate predicate;
-		
-		if (sel == selLT) {
-		    predicate = ICmpInst::ICMP_SLT;
-		}
-		else if (sel == selLE) {
-		    predicate = ICmpInst::ICMP_SLE;
-		}
-		else if (sel == selGT) {
-		    predicate = ICmpInst::ICMP_SGT;
-		}
-		else if (sel == selGE) {
-		    predicate = ICmpInst::ICMP_SGE;
-		}
-		else if ((sel == selEq) || (sel == selEqq)) {
-		    predicate = ICmpInst::ICMP_EQ;
-		}
-		else if (sel == selNeq) {
-		    predicate = ICmpInst::ICMP_NE;
-		}
-		else {
-		    abort();
-		}
-		
+		CmpInst::Predicate predicate = integer_predicate_for_selector(sel);
 		opVal = new ICmpInst(predicate, unboxedLeft, unboxedRight, "", bb);
 		opVal = SelectInst::Create(opVal, trueVal, falseVal, "", bb);
 	}
@@ -1881,8 +1909,7 @@ RoxorCompiler::compile_variable_arith_node(SEL sel, Value *leftVal, Value *right
 	Function *f = bb->getParent();
 	
 	BasicBlock *redefBB = BasicBlock::Create("op_not_redefined", f);
-	BasicBlock *toDblBB = BasicBlock::Create("op_floating_cast", f);
-	BasicBlock *onDblBB = BasicBlock::Create("op_optimize_floating", f);
+	BasicBlock *toDblBB = BasicBlock::Create("op_optimize_floating", f);
 	BasicBlock *toIntBB = BasicBlock::Create("op_optimize_integral", f);
 	BasicBlock *elseBB  = BasicBlock::Create("op_dispatch", f);
 	BasicBlock *mergeBB = BasicBlock::Create("op_merge", f);
@@ -1909,9 +1936,6 @@ RoxorCompiler::compile_variable_arith_node(SEL sel, Value *leftVal, Value *right
 	Value *unmaskedRight = BinaryOperator::CreateXor(rightVal, threeVal, "", bb);
 	leftAsDouble = new BitCastInst(unmaskedLeft, Type::DoubleTy, "", bb);
 	rightAsDouble = new BitCastInst(unmaskedRight, Type::DoubleTy, "", bb);
-	BranchInst::Create(onDblBB, toDblBB);
-	
-	bb = onDblBB;
 	bool result_is_bool = false;
 	if (sel == selPLUS) {
 		opVal = BinaryOperator::CreateAdd(leftAsDouble, rightAsDouble, "", bb);
@@ -1927,31 +1951,7 @@ RoxorCompiler::compile_variable_arith_node(SEL sel, Value *leftVal, Value *right
 	}
 	else {
 		result_is_bool = true;
-		
-		CmpInst::Predicate predicate;
-		
-		if (sel == selLT) {
-		    predicate = FCmpInst::FCMP_OLT;
-		}
-		else if (sel == selLE) {
-		    predicate = FCmpInst::FCMP_OLE;
-		}
-		else if (sel == selGT) {
-		    predicate = FCmpInst::FCMP_OGT;
-		}
-		else if (sel == selGE) {
-		    predicate = FCmpInst::FCMP_OGE;
-		}
-		else if ((sel == selEq) || (sel == selEqq)) {
-		    predicate = FCmpInst::FCMP_OEQ;
-		}
-		else if (sel == selNeq) {
-		    predicate = FCmpInst::FCMP_ONE;
-		}
-		else {
-		    abort();
-		}
-		
+		CmpInst::Predicate predicate = floating_point_predicate_for_selector(sel);
 		opVal = new FCmpInst(predicate, leftAsDouble, rightAsDouble, "", bb);
 		opVal = SelectInst::Create(opVal, trueVal, falseVal, "", bb);
 	}
@@ -1963,7 +1963,7 @@ RoxorCompiler::compile_variable_arith_node(SEL sel, Value *leftVal, Value *right
 		Value *castedResult = new BitCastInst(opVal, IntTy, "", bb);
 		dblReturnResult = BinaryOperator::CreateOr(castedResult, threeVal, "", bb);
 	}
-	BranchInst::Create(mergeBB, onDblBB);
+	BranchInst::Create(mergeBB, toDblBB);
 	
 	bb = toIntBB;
 	leftAsInt = BinaryOperator::CreateAShr(leftVal, twoVal, "", bb);
@@ -1984,30 +1984,7 @@ RoxorCompiler::compile_variable_arith_node(SEL sel, Value *leftVal, Value *right
 	else {
 		result_is_bool = true;
 		
-		CmpInst::Predicate predicate;
-		
-		if (sel == selLT) {
-		    predicate = ICmpInst::ICMP_SLT;
-		}
-		else if (sel == selLE) {
-		    predicate = ICmpInst::ICMP_SLE;
-		}
-		else if (sel == selGT) {
-		    predicate = ICmpInst::ICMP_SGT;
-		}
-		else if (sel == selGE) {
-		    predicate = ICmpInst::ICMP_SGE;
-		}
-		else if ((sel == selEq) || (sel == selEqq)) {
-		    predicate = ICmpInst::ICMP_EQ;
-		}
-		else if (sel == selNeq) {
-		    predicate = ICmpInst::ICMP_NE;
-		}
-		else {
-		    abort();
-		}
-		
+		CmpInst::Predicate predicate = integer_predicate_for_selector(sel);
 		opVal = new ICmpInst(predicate, leftAsInt, rightAsInt, "", bb);
 		opVal = SelectInst::Create(opVal, trueVal, falseVal, "", bb);
 	}
@@ -2096,31 +2073,7 @@ RoxorCompiler::compile_variable_and_floating_node(SEL sel, double fixedDouble, V
 	}
 	else {
 		result_is_double = false;
-		
-		CmpInst::Predicate predicate;
-		
-		if (sel == selLT) {
-		    predicate = FCmpInst::FCMP_OLT;
-		}
-		else if (sel == selLE) {
-		    predicate = FCmpInst::FCMP_OLE;
-		}
-		else if (sel == selGT) {
-		    predicate = FCmpInst::FCMP_OGT;
-		}
-		else if (sel == selGE) {
-		    predicate = FCmpInst::FCMP_OGE;
-		}
-		else if ((sel == selEq) || (sel == selEqq)) {
-		    predicate = FCmpInst::FCMP_OEQ;
-		}
-		else if (sel == selNeq) {
-		    predicate = FCmpInst::FCMP_ONE;
-		}
-		else {
-		    abort();
-		}
-		
+		CmpInst::Predicate predicate = floating_point_predicate_for_selector(sel);
 		opVal = new FCmpInst(predicate, left, right, "", bb);
 		opVal = SelectInst::Create(opVal, trueVal, falseVal, "", bb);
 	}

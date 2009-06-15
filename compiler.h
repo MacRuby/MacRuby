@@ -177,6 +177,10 @@ class RoxorCompiler {
 		: new IntToPtrInst(ptrint, PtrPtrTy, "");
 	}
 	
+	CmpInst::Predicate integer_predicate_for_selector(SEL sel);
+	CmpInst::Predicate floating_point_predicate_for_selector(SEL sel);
+	
+	
 	PHINode *compile_negation_node(int argc, Value *val);
 	PHINode *compile_symbol_equality_node(SEL sel, VALUE leftRVal, VALUE rightRVal, int argc, std::vector<Value *> &params);
 	PHINode *
@@ -275,7 +279,6 @@ class RoxorCompiler {
 	    return iter->second;
 	}
 
-	ICmpInst *is_value_a_fixnum(Value *val);
 	void compile_ivar_slots(Value *klass, BasicBlock::InstListType &list, 
 				BasicBlock::InstListType::iterator iter);
 	bool unbox_ruby_constant(Value *val, VALUE *rval);

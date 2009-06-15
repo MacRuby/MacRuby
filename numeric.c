@@ -541,13 +541,7 @@ num_to_int(VALUE num, SEL sel)
 VALUE
 rb_float_new(double d)
 {
-	if (FIXABLE_DBL(d)) return DBL2FIXFLOAT(d);
-    NEWOBJ(flt, struct RFloat);
-    OBJSETUP(flt, rb_cFloat, T_FLOAT);
-
-    flt->float_value = d;
-
-    return (VALUE)flt;
+	return DBL2FIXFLOAT(d);
 }
 
 /*
