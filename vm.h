@@ -191,6 +191,13 @@ rb_vm_method_node_noex(rb_vm_method_node_t *node)
     return 0;
 }
 
+static inline NODE *
+rb_vm_cfunc_node_from_imp(Class klass, int arity, IMP imp, int noex)
+{
+    NODE *node = NEW_CFUNC(imp, arity);
+    return NEW_FBODY(NEW_METHOD(node, klass, noex), 0);
+}
+
 VALUE rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding,
 		bool try_interpreter);
 VALUE rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
@@ -217,6 +224,7 @@ void rb_vm_define_method(Class klass, SEL sel, IMP imp, NODE *node,
 	bool direct);
 void rb_vm_define_method2(Class klass, SEL sel, rb_vm_method_node_t *node,
 	bool direct);
+void rb_vm_define_method3(Class klass, SEL sel, rb_vm_block_t *node);
 void rb_vm_define_attr(Class klass, const char *name, bool read, bool write,
 	int noex);
 void rb_vm_undef_method(Class klass, const char *name, bool must_exist);
@@ -582,8 +590,9 @@ class RoxorVM {
 
 	struct mcache *method_cache_get(SEL sel, bool super);
 	rb_vm_method_node_t *method_node_get(IMP imp);
-	void add_method(Class klass, SEL sel, IMP imp, IMP ruby_imp,
-		const rb_vm_arity_t &arity, int flags, const char *types);
+	rb_vm_method_node_t *add_method(Class klass, SEL sel, IMP imp,
+		IMP ruby_imp, const rb_vm_arity_t &arity, int flags,
+		const char *types);
 
 	GlobalVariable *redefined_op_gvar(SEL sel, bool create);
 	bool should_invalidate_inline_op(SEL sel, Class klass);

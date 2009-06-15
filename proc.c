@@ -48,14 +48,16 @@ rb_proc_alloc_with_block(VALUE klass, rb_vm_block_t *proc)
     return obj;
 }
 
-VALUE
-rb_obj_is_proc(VALUE proc)
+static inline bool
+rb_obj_is_proc(VALUE obj)
 {
-    if (TYPE(proc) == T_DATA) {
-	// TODO check if it's really a rb_cProc
-	return Qtrue;
-    }
-    return Qfalse;
+    return CLASS_OF(obj) == rb_cProc;
+}
+
+static inline bool
+rb_obj_is_method(VALUE obj)
+{
+    return CLASS_OF(obj) == rb_cMethod;
 }
 
 static VALUE
@@ -944,11 +946,8 @@ rb_mod_public_instance_method(VALUE mod, SEL sel, VALUE vid)
 static VALUE
 rb_mod_define_method(VALUE mod, SEL sel, int argc, VALUE *argv)
 {
-#if 0 // TODO
     ID id;
     VALUE body;
-    NODE *node;
-    int noex = NOEX_PUBLIC;
 
     if (argc == 1) {
 	id = rb_to_id(argv[0]);
@@ -967,7 +966,11 @@ rb_mod_define_method(VALUE mod, SEL sel, int argc, VALUE *argv)
 	rb_raise(rb_eArgError, "wrong number of arguments (%d for 1)", argc);
     }
 
-    if (true/*RDATA(body)->dmark == (RUBY_DATA_FUNC) bm_mark*/) {
+    SEL method_sel = sel_registerName(rb_id2name(id));
+    if (rb_obj_is_method(body)) {
+	// TODO
+	abort();
+#if 0
 	struct METHOD *method = (struct METHOD *)DATA_PTR(body);
 	VALUE rclass = method->rclass;
 	if (rclass != mod) {
@@ -982,32 +985,15 @@ rb_mod_define_method(VALUE mod, SEL sel, int argc, VALUE *argv)
 	    }
 	}
 	node = method->body;
-    }
-#if 0 // TODO
-    else if (rb_obj_is_proc(body)) {
-	rb_proc_t *proc;
-	body = proc_dup(body, 0);
-	GetProcPtr(body, proc);
-	if (BUILTIN_TYPE(proc->block.iseq) != T_NODE) {
-	    proc->block.iseq->defined_method_id = id;
-	    proc->block.iseq->klass = mod;
-	    proc->is_lambda = Qtrue;
-	    proc->is_from_method = Qtrue;
-	}
-	node = NEW_BMETHOD(body);
-    }
 #endif
+    }
     else {
-	/* type error */
-	rb_raise(rb_eTypeError, "wrong argument type (expected Proc/Method)");
+	rb_vm_block_t *proc;
+	GetProcPtr(body, proc);
+	rb_vm_define_method3((Class)mod, method_sel, proc);
     }
 
-    /* TODO: visibility */
-
-    rb_add_method(mod, id, node, noex);
     return body;
-#endif
-    return Qnil;
 }
 
 static VALUE

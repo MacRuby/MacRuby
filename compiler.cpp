@@ -101,6 +101,7 @@ RoxorCompiler::RoxorCompiler(const char *_fname)
     masgnGetSplatFunc = NULL;
     newStringFunc = NULL;
     yieldFunc = NULL;
+    blockEvalFunc = NULL;
     gvarSetFunc = NULL;
     gvarGetFunc = NULL;
     cvarSetFunc = NULL;
@@ -5347,6 +5348,43 @@ RoxorCompiler::compile_objc_stub(Function *ruby_func, const char *types)
     else {
 	ReturnInst::Create(bb);
     }
+
+    return f;
+}
+
+Function *
+RoxorCompiler::compile_block_caller(rb_vm_block_t *block)
+{
+    // VALUE foo(VALUE rcv, SEL sel, int argc, VALUE *argv)
+    // {
+    //     return rb_vm_block_eval2(block, rcv, argc, argv);
+    // }
+    Function *f = cast<Function>(module->getOrInsertFunction("",
+		RubyObjTy, RubyObjTy, PtrTy, Type::Int32Ty, RubyObjPtrTy,
+		NULL));
+    Function::arg_iterator arg = f->arg_begin();
+    Value *rcv = arg++;
+    arg++; // sel
+    Value *argc = arg++;
+    Value *argv = arg++;
+
+    bb = BasicBlock::Create("EntryBlock", f);
+
+    if (blockEvalFunc == NULL) {
+	blockEvalFunc = cast<Function>(module->getOrInsertFunction(
+		    "rb_vm_block_eval2",
+		    RubyObjTy, PtrTy, RubyObjTy, Type::Int32Ty, RubyObjPtrTy,
+		    NULL));
+    }
+    std::vector<Value *> params;
+    params.push_back(compile_const_pointer(block));
+    params.push_back(rcv);
+    params.push_back(argc);
+    params.push_back(argv);
+
+    Value *retval = compile_protected_call(blockEvalFunc, params);
+
+    ReturnInst::Create(retval, bb);
 
     return f;
 }

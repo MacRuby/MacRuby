@@ -940,8 +940,7 @@ rb_objc_add_method(VALUE klass, const char *name, void *imp, const int arity,
 	assert(name[strlen(name) - 1] != ':');
     }
 
-    NODE *node = NEW_CFUNC(imp, arity);
-    NODE *body = NEW_FBODY(NEW_METHOD(node, klass, noex), 0);
+    NODE *body = rb_vm_cfunc_node_from_imp((Class)klass, arity, (IMP)imp, noex);
     rb_objc_retain(body);
 
     rb_vm_define_method((Class)klass, name_to_sel(name, arity), (IMP)imp,

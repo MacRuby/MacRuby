@@ -46,6 +46,7 @@ class RoxorCompiler {
 	Function *compile_to_rval_convertor(const char *type);
 	Function *compile_to_ocval_convertor(const char *type);
 	Function *compile_objc_stub(Function *ruby_func, const char *types);
+	Function *compile_block_caller(rb_vm_block_t *block);
 
 	const Type *convert_type(const char *type);
 
@@ -131,6 +132,7 @@ class RoxorCompiler {
 	Function *masgnGetSplatFunc;
 	Function *newStringFunc;
 	Function *yieldFunc;
+	Function *blockEvalFunc;
 	Function *gvarSetFunc;
 	Function *gvarGetFunc;
 	Function *cvarSetFunc;

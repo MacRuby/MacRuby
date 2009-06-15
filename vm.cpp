@@ -510,7 +510,7 @@ RoxorVM::should_invalidate_inline_op(SEL sel, Class klass)
     abort();
 }
 
-void
+rb_vm_method_node_t *
 RoxorVM::add_method(Class klass, SEL sel, IMP imp, IMP ruby_imp,
 		    const rb_vm_arity_t &arity, int flags, const char *types)
 {
@@ -608,6 +608,8 @@ RoxorVM::add_method(Class klass, SEL sel, IMP imp, IMP ruby_imp,
 	    }
 	}
     }
+
+    return node;
 }
 
 void
@@ -1343,15 +1345,16 @@ prepare_method:
     }
 }
 
-static void __rb_vm_define_method(Class klass, SEL sel, IMP imp,
-	const rb_vm_arity_t &arity, int flags, bool direct);
+static void __rb_vm_define_method(Class klass, SEL sel, IMP objc_imp,
+	IMP ruby_imp, const rb_vm_arity_t &arity, int flags, bool direct);
 
 extern "C"
 void
 rb_vm_prepare_method2(Class klass, SEL sel, IMP imp, rb_vm_arity_t arity,
 		      int flags)
 {
-    __rb_vm_define_method(klass, sel, imp, arity, flags, false);
+    // TODO: create objc_imp
+    __rb_vm_define_method(klass, sel, imp, imp, arity, flags, false);
 }
 
 #define VISI(x) ((x)&NOEX_MASK)
@@ -1616,18 +1619,15 @@ rb_vm_define_attr(Class klass, const char *name, bool read, bool write,
 }
 
 static void
-__rb_vm_define_method(Class klass, SEL sel, IMP imp,
+__rb_vm_define_method(Class klass, SEL sel, IMP objc_imp, IMP ruby_imp,
 		      const rb_vm_arity_t &arity, int flags, bool direct)
 {
     assert(klass != NULL);
 
     const char *sel_name = sel_getName(sel);
     const bool genuine_selector = sel_name[strlen(sel_name) - 1] == ':';
-
     int oc_arity = genuine_selector ? arity.real : 0;
     bool redefined = direct;
-    rb_vm_method_node_t *node = GET_VM()->method_node_get(imp);
-    IMP ruby_imp = node == NULL ? imp : node->ruby_imp;
 
 define_method:
     Method method = class_getInstanceMethod(klass, sel);
@@ -1635,7 +1635,7 @@ define_method:
     char types[100];
     resolve_method_type(types, sizeof types, klass, method, sel, oc_arity);
 
-    GET_VM()->add_method(klass, sel, imp, ruby_imp, arity, flags, types);
+    GET_VM()->add_method(klass, sel, objc_imp, ruby_imp, arity, flags, types);
 
     if (!redefined) {
 	if (!genuine_selector && arity.max != arity.min) {
@@ -1666,7 +1666,8 @@ rb_vm_define_method(Class klass, SEL sel, IMP imp, NODE *node, bool direct)
 {
     assert(node != NULL);
 
-    __rb_vm_define_method(klass, sel, imp, rb_vm_node_arity(node),
+    // TODO: create objc_imp
+    __rb_vm_define_method(klass, sel, imp, imp, rb_vm_node_arity(node),
 	    rb_vm_node_flags(node), direct);
 }
 
@@ -1677,8 +1678,23 @@ rb_vm_define_method2(Class klass, SEL sel, rb_vm_method_node_t *node,
 {
     assert(node != NULL);
 
-    __rb_vm_define_method(klass, sel, node->objc_imp, node->arity,
-	    node->flags, direct);
+    __rb_vm_define_method(klass, sel, node->objc_imp, node->ruby_imp,
+	    node->arity, node->flags, direct);
+}
+
+extern "C"
+void
+rb_vm_define_method3(Class klass, SEL sel, rb_vm_block_t *block)
+{
+    assert(block != NULL);
+
+    Function *func = RoxorCompiler::shared->compile_block_caller(block);
+    IMP imp = GET_VM()->compile(func);
+    NODE *body = rb_vm_cfunc_node_from_imp(klass, -1, imp, 0);
+    rb_objc_retain(body);
+    rb_objc_retain(block);
+
+    rb_vm_define_method(klass, sel, imp, body, false);
 }
 
 extern "C"
@@ -3133,7 +3149,7 @@ rb_vm_create_block_from_method(rb_vm_method_t *method)
 }
 
 static inline VALUE
-rb_vm_block_eval0(rb_vm_block_t *b, int argc, const VALUE *argv)
+rb_vm_block_eval0(rb_vm_block_t *b, VALUE self, int argc, const VALUE *argv)
 {
     if (b->node != NULL) {
 	if (nd_type(b->node) == NODE_IFUNC) {
@@ -3205,7 +3221,7 @@ block_call:
 		    m->sel, argc, argv);
 	}
 	else {
-	    v = __rb_vm_bcall(b->self, (VALUE)b->dvars, b, b->imp, b->arity,
+	    v = __rb_vm_bcall(self, (VALUE)b->dvars, b, b->imp, b->arity,
 		    argc, argv);
 	}
     }
@@ -3222,7 +3238,15 @@ extern "C"
 VALUE
 rb_vm_block_eval(rb_vm_block_t *b, int argc, const VALUE *argv)
 {
-    return rb_vm_block_eval0(b, argc, argv);
+    return rb_vm_block_eval0(b, b->self, argc, argv);
+}
+
+extern "C"
+VALUE
+rb_vm_block_eval2(rb_vm_block_t *b, VALUE self, int argc, const VALUE *argv)
+{
+    // TODO check given arity and raise exception
+    return rb_vm_block_eval0(b, self, argc, argv);
 }
 
 static inline VALUE
@@ -3237,7 +3261,7 @@ rb_vm_yield0(int argc, const VALUE *argv)
 
     VALUE retval = Qnil;
     try {
-	retval = rb_vm_block_eval0(b, argc, argv);
+	retval = rb_vm_block_eval0(b, b->self, argc, argv);
     }
     catch (...) {
 	GET_VM()->add_current_block(b);
@@ -3270,7 +3294,7 @@ rb_vm_yield_under(VALUE klass, VALUE self, int argc, const VALUE *argv)
 
     VALUE retval = Qnil;
     try {
-	retval = rb_vm_block_eval0(b, argc, argv);
+	retval = rb_vm_block_eval0(b, b->self, argc, argv);
     }
     catch (...) {
 	b->self = old_self;
