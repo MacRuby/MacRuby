@@ -1856,7 +1856,6 @@ RoxorCompiler::compile_variable_and_integral_node(SEL sel, long fixedLong, Value
 	
 	bb = elseBB;
 	Value *elseVal = compile_dispatch_call(params);
-	elseBB = bb;
 	BranchInst::Create(mergeBB, elseBB);
 	
 	bb = mergeBB;
@@ -1868,6 +1867,158 @@ RoxorCompiler::compile_variable_and_integral_node(SEL sel, long fixedLong, Value
 		pn->addIncoming(fastEqqVal, fastEqqBB);
 	}
 	
+	return pn;
+}
+
+PHINode *
+RoxorCompiler::compile_variable_arith_node(SEL sel, Value *leftVal, Value *rightVal, int argc, std::vector<Value *>params) 
+{
+	GlobalVariable *is_redefined = GET_VM()->redefined_op_gvar(sel, true);
+	// Either one or both of the operands was not a fixable constant.
+	Value *is_redefined_val = new LoadInst(is_redefined, "", bb);
+	Value *isOpRedefined = new ICmpInst(ICmpInst::ICMP_EQ, is_redefined_val, ConstantInt::getFalse(), "", bb);
+	
+	Function *f = bb->getParent();
+	
+	BasicBlock *redefBB = BasicBlock::Create("op_not_redefined", f);
+	BasicBlock *toDblBB = BasicBlock::Create("op_floating_cast", f);
+	BasicBlock *toIntBB = BasicBlock::Create("op_integral_cast", f);
+	BasicBlock *elseBB  = BasicBlock::Create("op_dispatch", f);
+	BasicBlock *mergeBB = BasicBlock::Create("op_merge", f);
+	
+	BranchInst::Create(redefBB, elseBB, isOpRedefined, bb);
+	bb = redefBB;
+	
+	Value *leftAndOp = BinaryOperator::CreateAnd(leftVal, threeVal, "", bb);
+	Value *rightAndOp = BinaryOperator::CreateAnd(rightVal, threeVal, "", bb);
+	Value *andSum = BinaryOperator::CreateAdd(leftAndOp, rightAndOp, "", bb);
+	
+	Value *leftAsInt = NULL;
+	Value *rightAsInt = NULL;
+	Value *leftAsDouble = NULL;
+	Value *rightAsDouble = NULL;
+	Value *opVal = NULL;
+	
+	SwitchInst *switcher = SwitchInst::Create(andSum, elseBB, 2, bb);
+	switcher->addCase(ConstantInt::get(IntTy, 6), toDblBB);
+	switcher->addCase(ConstantInt::get(IntTy, 2), toIntBB);
+	
+	bb = toDblBB;
+	Value *unmaskedLeft = BinaryOperator::CreateXor(leftVal, threeVal, "", bb);
+	Value *unmaskedRight = BinaryOperator::CreateXor(rightVal, threeVal, "", bb);
+	leftAsDouble = new BitCastInst(unmaskedLeft, Type::DoubleTy, "", bb);
+	rightAsDouble = new BitCastInst(unmaskedRight, Type::DoubleTy, "", bb);
+	
+	bool result_is_bool = false;
+	if (sel == selPLUS) {
+		opVal = BinaryOperator::CreateAdd(leftAsDouble, rightAsDouble, "", bb);
+	}
+	else if (sel == selMINUS) {
+		opVal = BinaryOperator::CreateSub(leftAsDouble, rightAsDouble, "", bb);
+	}
+	else if (sel == selDIV) {
+		opVal = BinaryOperator::CreateSDiv(leftAsDouble, rightAsDouble, "", bb);
+	}
+	else if (sel == selMULT) {
+		opVal = BinaryOperator::CreateMul(leftAsDouble, rightAsDouble, "", bb);
+	}
+	else {
+		result_is_bool = true;
+		
+		CmpInst::Predicate predicate;
+		
+		if (sel == selLT) {
+		    predicate = FCmpInst::FCMP_OLT;
+		}
+		else if (sel == selLE) {
+		    predicate = FCmpInst::FCMP_OLE;
+		}
+		else if (sel == selGT) {
+		    predicate = FCmpInst::FCMP_OGT;
+		}
+		else if (sel == selGE) {
+		    predicate = FCmpInst::FCMP_OGE;
+		}
+		else if ((sel == selEq) || (sel == selEqq)) {
+		    predicate = FCmpInst::FCMP_OEQ;
+		}
+		else if (sel == selNeq) {
+		    predicate = FCmpInst::FCMP_ONE;
+		}
+		else {
+		    abort();
+		}
+		
+		opVal = new FCmpInst(predicate, leftAsDouble, rightAsDouble, "", bb);
+		opVal = SelectInst::Create(opVal, trueVal, falseVal, "", bb);
+	}
+	
+	Value *castedResult = new BitCastInst(opVal, IntTy, "", bb);
+	Value *dblReturnResult = BinaryOperator::CreateOr(castedResult, threeVal, "", bb);
+	BranchInst::Create(mergeBB, toDblBB);
+	
+	bb = toIntBB;
+	leftAsInt = BinaryOperator::CreateAShr(leftVal, twoVal, "", bb);
+	rightAsInt = BinaryOperator::CreateAShr(rightVal, twoVal, "", bb);
+	
+	if (sel == selPLUS) {
+		opVal = BinaryOperator::CreateAdd(leftAsInt, rightAsInt, "", bb);
+	}
+	else if (sel == selMINUS) {
+		opVal = BinaryOperator::CreateSub(leftAsInt, rightAsInt, "", bb);
+	}
+	else if (sel == selDIV) {
+		opVal = BinaryOperator::CreateSDiv(leftAsInt, rightAsInt, "", bb);
+	}
+	else if (sel == selMULT) {
+		opVal = BinaryOperator::CreateMul(leftAsInt, rightAsInt, "", bb);
+	}
+	else {
+		result_is_bool = true;
+		
+		CmpInst::Predicate predicate;
+		
+		if (sel == selLT) {
+		    predicate = ICmpInst::ICMP_SLT;
+		}
+		else if (sel == selLE) {
+		    predicate = ICmpInst::ICMP_SLE;
+		}
+		else if (sel == selGT) {
+		    predicate = ICmpInst::ICMP_SGT;
+		}
+		else if (sel == selGE) {
+		    predicate = ICmpInst::ICMP_SGE;
+		}
+		else if ((sel == selEq) || (sel == selEqq)) {
+		    predicate = ICmpInst::ICMP_EQ;
+		}
+		else if (sel == selNeq) {
+		    predicate = ICmpInst::ICMP_NE;
+		}
+		else {
+		    abort();
+		}
+		
+		opVal = new ICmpInst(predicate, leftAsInt, rightAsInt, "", bb);
+		opVal = SelectInst::Create(opVal, trueVal, falseVal, "", bb);
+	}
+	
+	Value *shiftedResult = BinaryOperator::CreateShl(opVal, twoVal, "", bb);
+	Value *intReturnResult = BinaryOperator::CreateOr(shiftedResult, oneVal, "", bb);
+	BranchInst::Create(mergeBB, toIntBB);
+	
+	bb = elseBB;
+	Value *elseVal = compile_dispatch_call(params);
+	elseBB = bb;
+	BranchInst::Create(mergeBB, elseBB);
+	
+	bb = mergeBB;
+	PHINode *pn = PHINode::Create(RubyObjTy, "op_tmp", mergeBB);
+	pn->addIncoming(dblReturnResult, toDblBB);
+	pn->addIncoming(intReturnResult, toIntBB);
+	pn->addIncoming(elseVal, elseBB);
+
 	return pn;
 }
 
@@ -2069,8 +2220,7 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Va
 			return compile_variable_and_floating_node(sel, rightDouble, leftVal, rightVal, argc, params);
 		}
 	} else {
-		printf("Both are variables, dying\n");
-		return NULL;
+		return compile_variable_arith_node(sel, leftVal, rightVal, argc, params);
 	}
 	}
     // Other operators (#<< or #[] or #[]=)

@@ -189,6 +189,8 @@ class RoxorCompiler {
 	PHINode *
 	compile_variable_and_floating_node(SEL sel, double fixedDouble, Value *val, Value *other,
 									   int argc, std::vector<Value *> &params);
+	PHINode *
+	compile_variable_arith_node(SEL sel, Value *leftVal, Value *rightVal, int argc, std::vector<Value *>params);
 
 	Value *compile_protected_call(Function *func,
 		std::vector<Value *> &params);
