@@ -1622,36 +1622,33 @@ RoxorCompiler::precompile_floating_arith_node(SEL sel, double leftDouble, long r
 			abort();		
 		}
 	}
-	if (!result_is_fixfloat) {
-		Value *is_redefined_val = new LoadInst(is_redefined, "", bb);
-		Value *isOpRedefined = new ICmpInst(ICmpInst::ICMP_EQ, 
-											is_redefined_val, ConstantInt::getFalse(), "", bb);
+	Value *is_redefined_val = new LoadInst(is_redefined, "", bb);
+	Value *isOpRedefined = new ICmpInst(ICmpInst::ICMP_EQ, 
+										is_redefined_val, ConstantInt::getFalse(), "", bb);
+	
+	Function *f = bb->getParent();
+	
+	BasicBlock *thenBB = BasicBlock::Create("op_not_redefined", f);
+	BasicBlock *elseBB  = BasicBlock::Create("op_dispatch", f);
+	BasicBlock *mergeBB = BasicBlock::Create("op_merge", f);
+	
+	BranchInst::Create(thenBB, elseBB, isOpRedefined, bb);
+	Value *thenVal = result_is_fixfloat
+	? ConstantInt::get(RubyObjTy, DBL2FIXFLOAT(res)) 
+	: (res == 1 ? trueVal : falseVal);
+	BranchInst::Create(mergeBB, thenBB);
+	
+	bb = elseBB;
+	Value *elseVal = compile_dispatch_call(params);
+	elseBB = bb;
+	BranchInst::Create(mergeBB, elseBB);
+	
+	PHINode *pn = PHINode::Create(RubyObjTy, "op_tmp", mergeBB);
+	pn->addIncoming(thenVal, thenBB);
+	pn->addIncoming(elseVal, elseBB);
+	bb = mergeBB;
 		
-		Function *f = bb->getParent();
-		
-		BasicBlock *thenBB = BasicBlock::Create("op_not_redefined", f);
-		BasicBlock *elseBB  = BasicBlock::Create("op_dispatch", f);
-		BasicBlock *mergeBB = BasicBlock::Create("op_merge", f);
-		
-		BranchInst::Create(thenBB, elseBB, isOpRedefined, bb);
-		Value *thenVal = result_is_fixfloat
-		? ConstantInt::get(RubyObjTy, DBL2FIXFLOAT(res)) 
-		: (res == 1 ? trueVal : falseVal);
-		BranchInst::Create(mergeBB, thenBB);
-		
-		bb = elseBB;
-		Value *elseVal = compile_dispatch_call(params);
-		elseBB = bb;
-		BranchInst::Create(mergeBB, elseBB);
-		
-		PHINode *pn = PHINode::Create(RubyObjTy, "op_tmp", mergeBB);
-		pn->addIncoming(thenVal, thenBB);
-		pn->addIncoming(elseVal, elseBB);
-		bb = mergeBB;
-		
-		return pn;
-	}
-	return NULL; // loss of precision, call the dispatcher.
+	return pn;
 }
 
 CmpInst::Predicate
@@ -1911,6 +1908,7 @@ RoxorCompiler::compile_variable_arith_node(SEL sel, Value *leftVal, Value *right
 	BasicBlock *redefBB = BasicBlock::Create("op_not_redefined", f);
 	BasicBlock *toDblBB = BasicBlock::Create("op_optimize_floating", f);
 	BasicBlock *toIntBB = BasicBlock::Create("op_optimize_integral", f);
+	BasicBlock *then3BB = BasicBlock::Create("op_fixable_max", f);
 	BasicBlock *elseBB  = BasicBlock::Create("op_dispatch", f);
 	BasicBlock *mergeBB = BasicBlock::Create("op_merge", f);
 	
@@ -1996,8 +1994,18 @@ RoxorCompiler::compile_variable_arith_node(SEL sel, Value *leftVal, Value *right
 	else {
 		Value *shiftedResult = BinaryOperator::CreateShl(opVal, twoVal, "", bb);
 		intReturnResult = BinaryOperator::CreateOr(shiftedResult, oneVal, "", bb);
+		
+		// Is result fixable?
+		Value *fixnumMax = ConstantInt::get(IntTy, FIXNUM_MAX + 1);
+		Value *isFixnumMaxOk = new ICmpInst(ICmpInst::ICMP_SLT, opVal, fixnumMax, "", bb);
+		BranchInst::Create(then3BB, elseBB, isFixnumMaxOk, bb);
+		
+		bb = then3BB;
+		Value *fixnumMin = ConstantInt::get(IntTy, FIXNUM_MIN);
+		Value *isFixnumMinOk = new ICmpInst(ICmpInst::ICMP_SGE, opVal, fixnumMin, "", bb);
+		
+		BranchInst::Create(mergeBB, elseBB, isFixnumMinOk, bb);
 	} 
-	BranchInst::Create(mergeBB, toIntBB);
 	
 	bb = elseBB;
 	Value *elseVal = compile_dispatch_call(params);
@@ -2007,7 +2015,7 @@ RoxorCompiler::compile_variable_arith_node(SEL sel, Value *leftVal, Value *right
 	bb = mergeBB;
 	PHINode *pn = PHINode::Create(RubyObjTy, "op_tmp", mergeBB);
 	pn->addIncoming(dblReturnResult, toDblBB);
-	pn->addIncoming(intReturnResult, toIntBB);
+	pn->addIncoming(intReturnResult, then3BB);
 	pn->addIncoming(elseVal, elseBB);
 
 	return pn;
