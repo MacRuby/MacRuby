@@ -1789,9 +1789,11 @@ RoxorCompiler::precompile_integral_arith_node(SEL sel, long leftLong, long right
 }
 
 PHINode *
-RoxorCompiler::compile_variable_and_integral_node(SEL sel, long fixedLong, bool leftIsFixed, Value *targetVal, Value *otherVal, 
+RoxorCompiler::compile_variable_and_integral_node(SEL sel, long fixedLong, bool leftToRight, Value *targetVal, Value *otherVal, 
 												  int argc, std::vector<Value *> &params) {
-	
+	if ((!leftToRight) && (fixedLong == 0) && (sel == selDIV)) {
+		return NULL; // division by zero
+	}
 	GlobalVariable *is_redefined = GET_VM()->redefined_op_gvar(sel, true);
 	// Either one or both of the operands was not a fixable constant.
 	Value *is_redefined_val = new LoadInst(is_redefined, "", bb);
@@ -1831,7 +1833,7 @@ RoxorCompiler::compile_variable_and_integral_node(SEL sel, long fixedLong, bool 
 	Value *unboxedLeft = NULL;
 	Value *unboxedRight = NULL;
 	
-	if (leftIsFixed) {
+	if (leftToRight) {
 		unboxedLeft = ConstantInt::get(RubyObjTy, fixedLong);
 		unboxedRight = BinaryOperator::CreateAShr(targetVal, twoVal, "", bb);
 	} else {
@@ -2030,9 +2032,12 @@ RoxorCompiler::compile_variable_arith_node(SEL sel, Value *leftVal, Value *right
 }
 
 PHINode *
-RoxorCompiler::compile_variable_and_floating_node(SEL sel, double fixedDouble, bool leftIsFixed, Value *targetVal, Value *otherVal,
+RoxorCompiler::compile_variable_and_floating_node(SEL sel, double fixedDouble, bool leftToRight, Value *targetVal, Value *otherVal,
 												  int argc, std::vector<Value *> &params)
 {
+	if ((!leftToRight) && (fixedDouble == 0.0) && (sel == selDIV)) {
+		return NULL; // division by zero
+	}
 	GlobalVariable *is_redefined = GET_VM()->redefined_op_gvar(sel, true);
 	// Either one or both of the operands was not a fixable constant.
 	Value *is_redefined_val = new LoadInst(is_redefined, "", bb);
@@ -2071,8 +2076,7 @@ RoxorCompiler::compile_variable_and_floating_node(SEL sel, double fixedDouble, b
 	
 	Value *left = NULL;
 	Value *right = NULL;
-	if (leftIsFixed) {
-		
+	if (leftToRight) {
 		left = ConstantFP::get(Type::DoubleTy, fixedDouble);
 		right = BinaryOperator::CreateXor(targetVal, threeVal, "", bb);
 		right = new BitCastInst(right, Type::DoubleTy, "", bb);
