@@ -1789,7 +1789,7 @@ RoxorCompiler::precompile_integral_arith_node(SEL sel, long leftLong, long right
 }
 
 PHINode *
-RoxorCompiler::compile_variable_and_integral_node(SEL sel, long fixedLong, Value *targetVal, Value *otherVal, 
+RoxorCompiler::compile_variable_and_integral_node(SEL sel, long fixedLong, bool leftIsFixed, Value *targetVal, Value *otherVal, 
 												  int argc, std::vector<Value *> &params) {
 	
 	GlobalVariable *is_redefined = GET_VM()->redefined_op_gvar(sel, true);
@@ -1828,8 +1828,16 @@ RoxorCompiler::compile_variable_and_integral_node(SEL sel, long fixedLong, Value
 	}
 	bb = then2BB;
 	
-	Value *unboxedLeft = ConstantInt::get(RubyObjTy, fixedLong);
-	Value *unboxedRight = BinaryOperator::CreateAShr(targetVal, twoVal, "", bb);
+	Value *unboxedLeft = NULL;
+	Value *unboxedRight = NULL;
+	
+	if (leftIsFixed) {
+		unboxedLeft = ConstantInt::get(RubyObjTy, fixedLong);
+		unboxedRight = BinaryOperator::CreateAShr(targetVal, twoVal, "", bb);
+	} else {
+		unboxedLeft = BinaryOperator::CreateAShr(targetVal, twoVal, "", bb);
+		unboxedRight = ConstantInt::get(RubyObjTy, fixedLong);
+	}
 	
 	Value *opVal;
 	bool result_is_fixnum = true;
@@ -2022,7 +2030,7 @@ RoxorCompiler::compile_variable_arith_node(SEL sel, Value *leftVal, Value *right
 }
 
 PHINode *
-RoxorCompiler::compile_variable_and_floating_node(SEL sel, double fixedDouble, Value *targetVal, Value *otherVal,
+RoxorCompiler::compile_variable_and_floating_node(SEL sel, double fixedDouble, bool leftIsFixed, Value *targetVal, Value *otherVal,
 												  int argc, std::vector<Value *> &params)
 {
 	GlobalVariable *is_redefined = GET_VM()->redefined_op_gvar(sel, true);
@@ -2060,9 +2068,20 @@ RoxorCompiler::compile_variable_and_floating_node(SEL sel, double fixedDouble, V
 	}
 	bb = then2BB;
 	
-	Value *left = ConstantFP::get(Type::DoubleTy, fixedDouble);
-	Value *right = BinaryOperator::CreateXor(targetVal, threeVal, "", bb);
-	right = new BitCastInst(right, Type::DoubleTy, "", bb);
+	
+	Value *left = NULL;
+	Value *right = NULL;
+	if (leftIsFixed) {
+		
+		left = ConstantFP::get(Type::DoubleTy, fixedDouble);
+		right = BinaryOperator::CreateXor(targetVal, threeVal, "", bb);
+		right = new BitCastInst(right, Type::DoubleTy, "", bb);
+	} else {
+		right = ConstantFP::get(Type::DoubleTy, fixedDouble);
+		left = BinaryOperator::CreateXor(targetVal, threeVal, "", bb);
+		left = new BitCastInst(right, Type::DoubleTy, "", bb);
+	}
+
 	
 	
 	Value *opVal;
@@ -2092,9 +2111,8 @@ RoxorCompiler::compile_variable_and_floating_node(SEL sel, double fixedDouble, V
 	if (result_is_double) { 
 		Value *casted = new BitCastInst(opVal, IntTy, "", bb);
 		thenVal = BinaryOperator::CreateOr(casted, threeVal, "", bb);
-		
-		then3BB = then2BB;
-		BranchInst::Create(mergeBB, then3BB);
+		then3BB = bb;
+		BranchInst::Create(mergeBB, bb);
 	}
 	else {
 		thenVal = opVal;
@@ -2183,16 +2201,16 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Va
 	else if ((!(leftIsFixFloatConstant || rightIsFixFloatConstant)) && (leftIsFixnumConstant || rightIsFixnumConstant)) {
 		// One of the operands is a fixnum, the other is a variable
 		if (leftIsFixnumConstant) {
-			return compile_variable_and_integral_node(sel, leftLong, rightVal, leftVal, argc, params);
+			return compile_variable_and_integral_node(sel, leftLong, true, rightVal, leftVal, argc, params);
 		}
 		else {
-			return compile_variable_and_integral_node(sel, rightLong, leftVal, rightVal, argc, params);
+			return compile_variable_and_integral_node(sel, rightLong, false, leftVal, rightVal, argc, params);
 		}
 	} else if((!(leftIsFixnumConstant || rightIsFixnumConstant)) && (leftIsFixFloatConstant || rightIsFixFloatConstant)) {
 		if (leftIsFixFloatConstant) {
-			return compile_variable_and_floating_node(sel, leftDouble, rightVal, leftVal, argc, params);
+			return compile_variable_and_floating_node(sel, leftDouble, true, rightVal, leftVal, argc, params);
 		} else {
-			return compile_variable_and_floating_node(sel, rightDouble, leftVal, rightVal, argc, params);
+			return compile_variable_and_floating_node(sel, rightDouble, false, leftVal, rightVal, argc, params);
 		}
 	} else {
 		return compile_variable_arith_node(sel, leftVal, rightVal, argc, params);

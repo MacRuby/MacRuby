@@ -188,11 +188,12 @@ class RoxorCompiler {
 	PHINode *
 	precompile_floating_arith_node(SEL sel, double leftDouble, long rightDouble, int argc, std::vector<Value *> &params);
 	PHINode *
-	compile_variable_and_integral_node(SEL sel, long fixedLong, Value *val, Value *other, int argc,
+	compile_variable_and_integral_node(SEL sel, long fixedLong, bool leftIsFixed, Value *val, Value *other, int argc,
 													  std::vector<Value *> &params);
 	PHINode *
-	compile_variable_and_floating_node(SEL sel, double fixedDouble, Value *val, Value *other,
+	compile_variable_and_floating_node(SEL sel, double fixedDouble, bool leftIsFixed, Value *val, Value *other,
 									   int argc, std::vector<Value *> &params);
+	
 	PHINode *
 	compile_variable_arith_node(SEL sel, Value *leftVal, Value *rightVal, int argc, std::vector<Value *>params);
 
