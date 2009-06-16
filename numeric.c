@@ -84,6 +84,7 @@ static ID id_coerce, id_to_i, id_eq;
 
 VALUE rb_cNumeric;
 VALUE rb_cCFNumber;
+VALUE rb_cNSNumber;
 VALUE rb_cFloat;
 VALUE rb_cInteger;
 VALUE rb_cFixnum;
@@ -3173,26 +3174,40 @@ imp_rb_fixnum_longValue(void *rcv, SEL sel)
     return RFIXNUM(rcv)->value;
 }
 
+static void *
+imp_nsnumber_to_int(void *rcv, SEL sel)
+{
+    // This is because some NSNumber subclasses must be converted to real
+    // CFNumber objects, in order to be coerced into Fixnum objects.
+    long val = 0;
+    if (!CFNumberGetValue((CFNumberRef)rcv, kCFNumberLongType, &val)) {
+	rb_raise(rb_eTypeError, "cannot get 'long' value out of NSNumber %p",
+		rcv);
+    }
+    CFNumberRef new_num = CFNumberCreate(NULL, kCFNumberLongType, &val);
+    CFMakeCollectable(new_num);
+    return (void *)new_num;
+}
+
 static void
 rb_install_nsnumber_primitives(void)
 {
     Class klass;
   
     klass = (Class)rb_cFloat;
-    rb_objc_install_method2(klass, "objCType",
-	    (IMP)imp_rb_float_objCType);
-    rb_objc_install_method2(klass, "getValue:", 
-	    (IMP)imp_rb_float_getValue);
+    rb_objc_install_method2(klass, "objCType", (IMP)imp_rb_float_objCType);
+    rb_objc_install_method2(klass, "getValue:", (IMP)imp_rb_float_getValue);
     rb_objc_install_method2(klass, "doubleValue", 
 	    (IMP)imp_rb_float_doubleValue);
 
     klass = (Class)rb_cFixnum;
-    rb_objc_install_method2(klass, "objCType",
-	    (IMP)imp_rb_fixnum_objCType);
-    rb_objc_install_method2(klass, "getValue:", 
-	    (IMP)imp_rb_fixnum_getValue);
-    rb_objc_install_method2(klass, "longValue",
-	    (IMP)imp_rb_fixnum_longValue);
+    rb_objc_install_method2(klass, "objCType", (IMP)imp_rb_fixnum_objCType);
+    rb_objc_install_method2(klass, "getValue:", (IMP)imp_rb_fixnum_getValue);
+    rb_objc_install_method2(klass, "longValue", (IMP)imp_rb_fixnum_longValue);
+
+    klass = (Class)rb_cNSNumber;
+    class_replaceMethod(klass, sel_registerName("to_int"),
+	    (IMP)imp_nsnumber_to_int, "@@:");
 }
 
 void
@@ -3204,8 +3219,9 @@ Init_Numeric(void)
 
     rb_eZeroDivError = rb_define_class("ZeroDivisionError", rb_eStandardError);
     rb_eFloatDomainError = rb_define_class("FloatDomainError", rb_eRangeError);
+    rb_cNSNumber = (VALUE)objc_getClass("NSNumber");
     rb_cCFNumber = (VALUE)objc_getClass("NSCFNumber");
-    rb_cNumeric = rb_define_class("Numeric", (VALUE)objc_getClass("NSNumber"));
+    rb_cNumeric = rb_define_class("Numeric", rb_cNSNumber);
     RCLASS_SET_VERSION_FLAG(rb_cNumeric, RCLASS_IS_OBJECT_SUBCLASS);
     rb_define_object_special_methods(rb_cNumeric);
     /* overriding NSObject methods */
