@@ -1384,19 +1384,6 @@ flo_truncate(VALUE num, SEL sel)
 
 /*
  *  call-seq:
- *     flt.__immediate__? -> true or false
- *
- *  Returns <code>true</code> if <i>fix</i> is an even number.
- */
-
-static VALUE
-flo_immediate_p(VALUE num, SEL sel)
-{
-	return (FIXFLOAT_P(num) ? Qtrue : Qfalse);
-}
-
-/*
- *  call-seq:
  *     num.floor    => integer
  *
  *  Returns the largest integer less than or equal to <i>num</i>.
@@ -3386,7 +3373,6 @@ Init_Numeric(void)
     rb_objc_define_method(rb_cFloat, "nan?",      flo_is_nan_p, 0);
     rb_objc_define_method(rb_cFloat, "infinite?", flo_is_infinite_p, 0);
     rb_objc_define_method(rb_cFloat, "finite?",   flo_is_finite_p, 0);
-	rb_objc_define_method(rb_cFloat, "__immediate__?", flo_immediate_p, 0);
 	
     rb_install_nsnumber_primitives();
 }

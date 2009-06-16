@@ -75,3 +75,4 @@
     [ ] test/spec
     [ ] mocha
   [X] known_bugs
+[ ] for JIT, make divide-by-zero work properly.
