@@ -493,18 +493,18 @@ struct RClass {
 # define RMODULE_M_TBL(m) RCLASS_M_TBL(m)
 # define RMODULE_SUPER(m) RCLASS_SUPER(m)
 #else
-# define RCLASS_IS_OBJECT_SUBCLASS    0x100   /* class is a true RBObject subclass */
-# define RCLASS_IS_RUBY_CLASS         0x200   /* class was created from Ruby */
-# define RCLASS_IS_MODULE             0x400   /* class represents a Ruby Module */
-# define RCLASS_IS_SINGLETON	      0x800   /* class represents a singleton */
-# define RCLASS_IS_FROZEN	      0x1000  /* class is frozen */
-# define RCLASS_IS_TAINTED	      0x2000  /* class is tainted */
-# define RCLASS_IS_STRING_SUBCLASS    0x10000 /* class is a subclass of NSCFString */
-# define RCLASS_IS_ARRAY_SUBCLASS     0x20000 /* class is a subclass of NSCFArray */
-# define RCLASS_IS_HASH_SUBCLASS      0x40000 /* class is a subclass of NSCFDictionary */
-# define RCLASS_IS_INCLUDED           0x80000 /* module is included */
-# define RCLASS_IS_SET_SUBCLASS       0x100000 /* class is a subclass of NSCFSet */
-# define RCLASS_HAS_ROBJECT_ALLOC     0x200000 /* class uses the default RObject alloc */
+# define RCLASS_IS_OBJECT_SUBCLASS    0x1000   /* class is a true RBObject subclass */
+# define RCLASS_IS_RUBY_CLASS         0x2000   /* class was created from Ruby */
+# define RCLASS_IS_MODULE             0x4000   /* class represents a Ruby Module */
+# define RCLASS_IS_SINGLETON	      0x8000   /* class represents a singleton */
+# define RCLASS_IS_FROZEN	      0x10000  /* class is frozen */
+# define RCLASS_IS_TAINTED	      0x20000  /* class is tainted */
+# define RCLASS_IS_STRING_SUBCLASS    0x40000  /* class is a subclass of NSCFString */
+# define RCLASS_IS_ARRAY_SUBCLASS     0x80000  /* class is a subclass of NSCFArray */
+# define RCLASS_IS_HASH_SUBCLASS      0x100000 /* class is a subclass of NSCFDictionary */
+# define RCLASS_IS_INCLUDED           0x200000 /* module is included */
+# define RCLASS_IS_SET_SUBCLASS       0x400000 /* class is a subclass of NSCFSet */
+# define RCLASS_HAS_ROBJECT_ALLOC     0x800000 /* class uses the default RObject alloc */
 # if defined(__LP64__)
 #  define _PTR_TYPE uint64_t
 #  define RCLASS_VERSION(m) (class_getVersion((Class)m))
