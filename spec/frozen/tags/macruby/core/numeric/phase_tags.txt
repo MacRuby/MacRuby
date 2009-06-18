@@ -1,0 +1,3 @@
+fails:Numeric#phase returns 0 if positive
+fails:Numeric#phase returns Pi if negative
+fails:Numeric#phase raises an ArgumentError if given any arguments

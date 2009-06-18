@@ -11,37 +11,37 @@ ruby_version_is "1.9" do
         Rational(2,3),
         Rational(1.898),
         Rational(-238),
-        29282.2827, 
-        -2927.00091, 
-        0.0, 
+        29282.2827,
+        -2927.00091,
+        0.0,
         12.0,
-        Float::MAX, 
+        Float::MAX,
         1/0.0,
         0/0.0
       ]
     end
 
     it "returns a Complex object" do
-      @numbers.each do |number| 
+      @numbers.each do |number|
         number.to_c.should be_an_instance_of(Complex)
-      end  
-    end  
+      end
+    end
 
     it "uses self as the real component" do
       @numbers.each do |number|
         real = number.to_c.real
         if number.to_f.nan?
           real.nan?.should be_true
-        else  
+        else
           real.should == number
-        end  
-      end  
-    end  
+        end
+      end
+    end
 
     it "uses 0 as the imaginary component" do
       @numbers.each do |number|
         number.to_c.imag.should == 0
       end
-    end  
+    end
   end
 end

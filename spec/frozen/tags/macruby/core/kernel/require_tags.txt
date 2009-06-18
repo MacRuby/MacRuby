@@ -16,3 +16,10 @@ fails:Kernel#require collapses consecutive path separators
 fails:Kernel#require collapses '../' inside an absolute path
 fails:Kernel#require canonicalizes relative paths
 fails:Kernel#require calls #to_path on non-String arguments
+fails:Kernel#require stores relative paths as absolute paths in $LOADED_FEATURES
+fails:Kernel#require stores ./file paths as absolute paths in $LOADED_FEATURES
+fails:Kernel#require performs tilde expansion before storing paths in $LOADED_FEATURES
+fails:Kernel#require collapses '../' inside an absolute path before storing in $LOADED_FEATURES
+fails:Kernel#require uses $LOADED_FEATURES to see whether file is already loaded
+fails:Kernel#require will not load a file whose path appears in $LOADED_FEATURES; it will return false
+fails:Kernel#require raises a LoadError if the file exists but can't be read

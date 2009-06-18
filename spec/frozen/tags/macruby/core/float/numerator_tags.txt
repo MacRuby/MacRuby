@@ -1,0 +1,5 @@
+fails:Numeric#numerator converts self to a Rational object then returns its numerator
+fails:Numeric#numerator returns 0 for 0.0
+fails:Numeric#numerator returns NaN for NaN
+fails:Numeric#numerator returns Infinity for Infinity
+fails:Numeric#numerator returns -Infinity for Infinity

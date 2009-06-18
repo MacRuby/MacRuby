@@ -15,6 +15,7 @@ class MSpecScript
     
     # Currently not working on MacRuby
     '^core/marshal',
+    '^core/numeric/to_c_spec.rb',
     '^core/precision',
     '^core/proc',
     '^core/process',

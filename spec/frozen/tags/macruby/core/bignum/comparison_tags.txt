@@ -1,1 +1,5 @@
 fails:Bignum#<=> returns nil when the given argument is not an Integer
+fails:Bignum#<=> returns 1 when self is Infinity and other is a Bignum
+fails:Bignum#<=> returns 1 when self is negative and other is Infinty
+fails:Bignum#<=> returns 1 when self is Infinity and other is a Bignum
+fails:Bignum#<=> returns 1 when self is negative and other is Infinty

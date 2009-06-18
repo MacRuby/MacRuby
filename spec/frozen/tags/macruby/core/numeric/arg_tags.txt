@@ -1,0 +1,3 @@
+fails:Numeric#arg returns 0 if positive
+fails:Numeric#arg returns Pi if negative
+fails:Numeric#arg raises an ArgumentError if given any arguments
