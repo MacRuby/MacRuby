@@ -264,7 +264,8 @@
 
 + (BOOL)testMethodReturningFloat:(TestMethod *)o
 {
-    return [o methodReturningFloat] == (float)3.1415;
+    float f = [o methodReturningFloat];
+    return f > 3.1414 && f < 3.1416;
 }
 
 - (double)methodReturningDouble
@@ -274,7 +275,8 @@
 
 + (BOOL)testMethodReturningDouble:(TestMethod *)o
 {
-    return [o methodReturningDouble] == (double)3.1415;
+    double f = [o methodReturningDouble];
+    return f > 3.1414 && f < 3.1416;
 }
 
 - (SEL)methodReturningSEL

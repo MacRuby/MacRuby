@@ -3,3 +3,4 @@ critical:Bignum#modulo raises a ZeroDivisionError when the given argument is 0
 critical:Bignum#modulo does not raise a FloatDomainError when the given argument is 0 and a Float
 critical:Bignum#modulo raises a TypeError when given a non-Integer
 fails:Bignum#% raises a TypeError when given a non-Integer
+fails:Bignum#% returns the modulus obtained from dividing self by the given argument
