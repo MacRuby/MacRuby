@@ -78,3 +78,5 @@ assert '42', %{
   end
   A::B.new.foo do p X end
 }
+
+assert '42', 'a = nil; 1.times { a = 42; eval "p a" }'
