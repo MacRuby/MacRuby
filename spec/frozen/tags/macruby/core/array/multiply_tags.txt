@@ -1,5 +1,4 @@
 critical:Array#* with a string handles recursive arrays
-fails:Array#* raises an ArgumentError when passed no arguments
 fails:Array#* with an integer copies the untrusted status of the original array even if the passed count is 0
 fails:Array#* with an integer copies the untrusted status of the original array even if the array is empty
 fails:Array#* with an integer copies the untrusted status of the original array if the passed count is not 0

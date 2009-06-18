@@ -1,4 +1,3 @@
-fails:Enumerable#take requires an argument
 fails:Enumerable#take when passed an argument returns the first count elements if given a count
 fails:Enumerable#take when passed an argument returns an empty array when passed count == 0
 fails:Enumerable#take when passed an argument returns an array containing the first element when passed count == 1

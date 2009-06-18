@@ -1,3 +1,2 @@
 critical:Calling a method allows any number of args beyond required to method with a splat
-fails:Calling a method with invalid argument count raises an ArgumentError
 fails:Calling a private getter method does not permit self as a receiver
