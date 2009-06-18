@@ -95,6 +95,21 @@ VALUE rb_eFloatDomainError;
 static CFMutableDictionaryRef fixnum_dict = NULL;
 static struct RFixnum *fixnum_cache = NULL;
 
+static inline VALUE
+rb_box_fixfloat0(double v)
+{
+    NEWOBJ(val, struct RFloat);
+    OBJSETUP(val, rb_cFloat, T_FLOAT);
+    val->float_value = v;
+    return (VALUE)val;
+}
+
+VALUE
+rb_box_fixfloat(VALUE fixfloat)
+{
+    return rb_box_fixfloat0(NUM2DBL(fixfloat));
+}
+
 VALUE
 rb_box_fixnum(VALUE fixnum)
 {
@@ -533,12 +548,7 @@ num_to_int(VALUE num, SEL sel)
 VALUE
 rb_float_new(double d)
 {
-    NEWOBJ(flt, struct RFloat);
-    OBJSETUP(flt, rb_cFloat, T_FLOAT);
-
-    flt->float_value = d;
-
-    return (VALUE)flt;
+    return DBL2FIXFLOAT(d);
 }
 
 /*
@@ -1378,7 +1388,6 @@ flo_truncate(VALUE num, SEL sel)
     val = f;
     return LONG2FIX(val);
 }
-
 
 /*
  *  call-seq:
@@ -3136,6 +3145,8 @@ fix_even_p(VALUE num, SEL sel)
     return Qtrue;
 }
 
+
+
 static const char *
 imp_rb_float_objCType(void *rcv, SEL sel)
 {
@@ -3384,6 +3395,6 @@ Init_Numeric(void)
     rb_objc_define_method(rb_cFloat, "nan?",      flo_is_nan_p, 0);
     rb_objc_define_method(rb_cFloat, "infinite?", flo_is_infinite_p, 0);
     rb_objc_define_method(rb_cFloat, "finite?",   flo_is_finite_p, 0);
-
+	
     rb_install_nsnumber_primitives();
 }

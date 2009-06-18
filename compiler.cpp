@@ -123,6 +123,7 @@ RoxorCompiler::RoxorCompiler(const char *_fname)
     zeroVal = ConstantInt::get(IntTy, 0);
     oneVal = ConstantInt::get(IntTy, 1);
     twoVal = ConstantInt::get(IntTy, 2);
+    threeVal = ConstantInt::get(IntTy, 3);
 
     RubyObjPtrTy = PointerType::getUnqual(RubyObjTy);
     RubyObjPtrPtrTy = PointerType::getUnqual(RubyObjPtrTy);
@@ -1514,8 +1515,182 @@ RoxorCompiler::compile_rethrow_exception(void)
     new UnreachableInst(bb);
 }
 
+typedef struct rb_vm_immediate_val {
+    int type;
+    union {
+	long l;
+	double d;
+    } v;
+    rb_vm_immediate_val(void) { type = 0; }
+    bool is_fixnum(void) { return type == T_FIXNUM; }
+    bool is_float(void) { return type == T_FLOAT; }
+    long long_val(void) { return is_fixnum() ? v.l : (long)v.d; }
+    double double_val(void) { return is_float() ? v.d : (double)v.l; }
+} rb_vm_immediate_val_t;
+
+static bool 
+unbox_immediate_val(VALUE rval, rb_vm_immediate_val_t *val)
+{
+    if (rval != Qundef) {
+	if (FIXNUM_P(rval)) {
+	    val->type = T_FIXNUM;
+	    val->v.l = FIX2LONG(rval);
+	    return true;
+	}
+	else if (FIXFLOAT_P(rval)) {
+	    val->type = T_FLOAT;
+	    val->v.d = FIXFLOAT2DBL(rval);
+	    return true;
+	}
+    }
+    return false;
+}
+
+template <class T> static bool
+optimized_const_immediate_op(SEL sel, T leftVal, T rightVal,
+			     bool *is_predicate, T *res_p)
+{
+    T res;
+    if (sel == selPLUS) {
+	res = leftVal + rightVal;
+    }
+    else if (sel == selMINUS) {
+	res = leftVal - rightVal;
+    }
+    else if (sel == selDIV) {
+	if (rightVal == 0) {
+	    return false;
+	}
+	res = leftVal / rightVal;
+    }
+    else if (sel == selMULT) {
+	res = leftVal * rightVal;
+    }
+    else {
+	*is_predicate = true;
+	if (sel == selLT) {
+	    res = leftVal < rightVal;
+	}
+	else if (sel == selLE) {
+	    res = leftVal <= rightVal;
+	}
+	else if (sel == selGT) {
+	    res = leftVal > rightVal;
+	}
+	else if (sel == selGE) {
+	    res = leftVal >= rightVal;
+	}
+	else if (sel == selEq || sel == selEqq) {
+	    res = leftVal == rightVal;
+	}
+	else if (sel == selNeq) {
+	    res = leftVal != rightVal;
+	}
+	else {
+	    abort();		
+	}
+    }
+    *res_p = res;
+    return true;
+}
+
 Value *
-RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Value *> &params)
+RoxorCompiler::optimized_immediate_op(SEL sel, Value *leftVal, Value *rightVal,
+	bool float_op, bool *is_predicate)
+{
+    Value *res;
+    if (sel == selPLUS) {
+	res = BinaryOperator::CreateAdd(leftVal, rightVal, "", bb);
+    }
+    else if (sel == selMINUS) {
+	res = BinaryOperator::CreateSub(leftVal, rightVal, "", bb);
+    }
+    else if (sel == selDIV) {
+	res = float_op
+	    ? BinaryOperator::CreateFDiv(leftVal, rightVal, "", bb)
+	    : BinaryOperator::CreateSDiv(leftVal, rightVal, "", bb);
+		
+    }
+    else if (sel == selMULT) {
+	res = BinaryOperator::CreateMul(leftVal, rightVal, "", bb);
+    }
+    else {
+	*is_predicate = true;
+
+	CmpInst::Predicate predicate;
+
+	if (sel == selLT) {
+	    predicate = float_op ? FCmpInst::FCMP_OLT : ICmpInst::ICMP_SLT;
+	}
+	else if (sel == selLE) {
+	    predicate = float_op ? FCmpInst::FCMP_OLE : ICmpInst::ICMP_SLE;
+	}
+	else if (sel == selGT) {
+	    predicate = float_op ? FCmpInst::FCMP_OGT : ICmpInst::ICMP_SGT;
+	}
+	else if (sel == selGE) {
+	    predicate = float_op ? FCmpInst::FCMP_OGE : ICmpInst::ICMP_SGE;
+	}
+	else if (sel == selEq || sel == selEqq) {
+	    predicate = float_op ? FCmpInst::FCMP_OEQ : ICmpInst::ICMP_EQ;
+	}
+	else if (sel == selNeq) {
+	    predicate = float_op ? FCmpInst::FCMP_ONE : ICmpInst::ICMP_NE;
+	}
+	else {
+	    abort();
+	}
+
+	if (float_op) {
+	    res = new FCmpInst(predicate, leftVal, rightVal, "", bb);
+	}
+	else {
+	    res = new ICmpInst(predicate, leftVal, rightVal, "", bb);
+	}
+	res = SelectInst::Create(res, trueVal, falseVal, "", bb);
+    }
+    return res;
+}
+
+Value *
+RoxorCompiler::compile_double_coercion(Value *val, Value *mask,
+	BasicBlock *fallback_bb, Function *f)
+{
+    Value *is_float = new ICmpInst(ICmpInst::ICMP_EQ,
+	    mask, threeVal, "", bb);
+
+    BasicBlock *is_float_bb = BasicBlock::Create("is_float", f);
+    BasicBlock *isnt_float_bb = BasicBlock::Create("isnt_float", f);
+    BasicBlock *merge_bb = BasicBlock::Create("merge", f);
+
+    BranchInst::Create(is_float_bb, isnt_float_bb, is_float, bb);
+
+    bb = is_float_bb;
+    Value *is_float_val = BinaryOperator::CreateXor(val, threeVal, "", bb);
+    is_float_val = new BitCastInst(is_float_val, Type::DoubleTy, "", bb);
+    BranchInst::Create(merge_bb, bb);
+
+    bb = isnt_float_bb;
+    Value *is_fixnum = new ICmpInst(ICmpInst::ICMP_EQ, mask, oneVal, "", bb);
+    BasicBlock *is_fixnum_bb = BasicBlock::Create("is_fixnum", f);
+    BranchInst::Create(is_fixnum_bb, fallback_bb, is_fixnum, bb);
+
+    bb = is_fixnum_bb;
+    Value *is_fixnum_val = BinaryOperator::CreateAShr(val, twoVal, "", bb);
+    is_fixnum_val = new SIToFPInst(is_fixnum_val, Type::DoubleTy, "", bb);
+    BranchInst::Create(merge_bb, bb);
+
+    bb = merge_bb;
+    PHINode *pn = PHINode::Create(Type::DoubleTy, "op_tmp", bb);
+    pn->addIncoming(is_float_val, is_float_bb);
+    pn->addIncoming(is_fixnum_val, is_fixnum_bb);
+
+    return pn;
+}
+
+Value *
+RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
+	std::vector<Value *> &params)
 {
     // The not operator (!).
     if (sel == selNot) {
@@ -1560,7 +1735,7 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Va
 	Value *leftVal = params[1]; // self
 	Value *rightVal = params.back();
 
-	VALUE leftRVal = 0, rightRVal = 0;
+	VALUE leftRVal = Qundef, rightRVal = Qundef;
 	const bool leftIsConstant = unbox_ruby_constant(leftVal, &leftRVal);
 	const bool rightIsConst = unbox_ruby_constant(rightVal, &rightRVal);
 
@@ -1608,57 +1783,52 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Va
 	    }
 	}
 
-	const bool leftIsFixnumConstant = FIXNUM_P(leftRVal);
-	const bool rightIsFixnumConstant = FIXNUM_P(rightRVal);
+	rb_vm_immediate_val_t leftImm, rightImm;
+	const bool leftIsImmediateConst = unbox_immediate_val(leftRVal,
+		&leftImm);
+	const bool rightIsImmediateConst = unbox_immediate_val(rightRVal,
+		&rightImm);
 
-	long leftLong = leftIsFixnumConstant ? FIX2LONG(leftRVal) : 0;
-	long rightLong = rightIsFixnumConstant ? FIX2LONG(rightRVal) : 0;
+	if (leftIsImmediateConst && rightIsImmediateConst) {
+	    Value *res_val = NULL;
 
-	if (leftIsFixnumConstant && rightIsFixnumConstant) {
-	    // Both operands are fixnum constants.
-	    bool result_is_fixnum = true;
-	    long res;
-
-	    if (sel == selPLUS) {
-		res = leftLong + rightLong;
-	    }
-	    else if (sel == selMINUS) {
-		res = leftLong - rightLong;
-	    }
-	    else if (sel == selDIV) {
-		if (rightLong == 0) {
-		    return NULL;
+	    if (leftImm.is_fixnum() && rightImm.is_fixnum()) {
+		bool result_is_predicate = false;
+		long res;
+		if (optimized_const_immediate_op<long>(
+			    sel,
+			    leftImm.long_val(),
+			    rightImm.long_val(),
+			    &result_is_predicate,
+			    &res)) {
+		    if (result_is_predicate) {
+			res_val = res == 1 ? trueVal : falseVal;
+		    }
+		    else if (FIXABLE(res)) {
+			res_val = ConstantInt::get(RubyObjTy, LONG2FIX(res));
+		    }
 		}
-		res = leftLong / rightLong;
-	    }
-	    else if (sel == selMULT) {
-		res = leftLong * rightLong;
 	    }
 	    else {
-		result_is_fixnum = false;
-		if (sel == selLT) {
-		    res = leftLong < rightLong;
-		}
-		else if (sel == selLE) {
-		    res = leftLong <= rightLong;
-		}
-		else if (sel == selGT) {
-		    res = leftLong > rightLong;
-		}
-		else if (sel == selGE) {
-		    res = leftLong >= rightLong;
-		}
-		else if ((sel == selEq) || (sel == selEqq)) {
-		    res = leftLong == rightLong;
-		}
-		else if (sel == selNeq) {
-		    res = leftLong != rightLong;
-		}
-		else {
-		    abort();		
+		bool result_is_predicate = false;
+		double res;
+		if (optimized_const_immediate_op<double>(
+			    sel,
+			    leftImm.double_val(),
+			    rightImm.double_val(),
+			    &result_is_predicate,
+			    &res)) {
+		    if (result_is_predicate) {
+			res_val = res == 1 ? trueVal : falseVal;
+		    }
+		    else {
+			res_val = ConstantInt::get(RubyObjTy,
+				DBL2FIXFLOAT(res));
+		    }
 		}
 	    }
-	    if (!result_is_fixnum || FIXABLE(res)) {
+
+	    if (res_val != NULL) {
 		Value *is_redefined_val = new LoadInst(is_redefined, "", bb);
 		Value *isOpRedefined = new ICmpInst(ICmpInst::ICMP_EQ, 
 			is_redefined_val, ConstantInt::getFalse(), "", bb);
@@ -1670,9 +1840,7 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Va
 		BasicBlock *mergeBB = BasicBlock::Create("op_merge", f);
 
 		BranchInst::Create(thenBB, elseBB, isOpRedefined, bb);
-		Value *thenVal = result_is_fixnum
-		    ? ConstantInt::get(RubyObjTy, LONG2FIX(res)) 
-		    : (res == 1 ? trueVal : falseVal);
+		Value *thenVal = res_val;
 		BranchInst::Create(mergeBB, thenBB);
 
 		bb = elseBB;
@@ -1687,169 +1855,188 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc, std::vector<Va
 
 		return pn;
 	    }
-	    // Non fixable (bignum), call the dispatcher.
+	    // Can't optimize, call the dispatcher.
 	    return NULL;
 	}
 	else {
-	    // Either one or both is not a constant fixnum.
+	    // Either one or both is not a constant immediate.
 	    Value *is_redefined_val = new LoadInst(is_redefined, "", bb);
 	    Value *isOpRedefined = new ICmpInst(ICmpInst::ICMP_EQ, 
 		    is_redefined_val, ConstantInt::getFalse(), "", bb);
 
 	    Function *f = bb->getParent();
 
-	    BasicBlock *then1BB = BasicBlock::Create("op_not_redefined", f);
-	    BasicBlock *then2BB = BasicBlock::Create("op_optimize", f);
-	    BasicBlock *elseBB  = BasicBlock::Create("op_dispatch", f);
-	    BasicBlock *mergeBB = BasicBlock::Create("op_merge", f);
+	    BasicBlock *not_redefined_bb =
+		BasicBlock::Create("op_not_redefined", f);
+	    BasicBlock *optimize_fixnum_bb =
+		BasicBlock::Create("op_optimize_fixnum", f);
+	    BasicBlock *optimize_float_bb =
+		BasicBlock::Create("op_optimize_float", f);
+	    BasicBlock *dispatch_bb  = BasicBlock::Create("op_dispatch", f);
+	    BasicBlock *merge_bb = BasicBlock::Create("op_merge", f);
 
-	    BranchInst::Create(then1BB, elseBB, isOpRedefined, bb);
+	    BranchInst::Create(not_redefined_bb, dispatch_bb, isOpRedefined,
+		    bb);
 
- 	    bb = then1BB;
+ 	    bb = not_redefined_bb;
 
 	    Value *leftAndOp = NULL;
-	    if (!leftIsFixnumConstant) {
-		leftAndOp = BinaryOperator::CreateAnd(leftVal, oneVal, "", 
+	    if (!leftIsImmediateConst) {
+		leftAndOp = BinaryOperator::CreateAnd(leftVal, threeVal, "", 
 			bb);
 	    }
 
 	    Value *rightAndOp = NULL;
-	    if (!rightIsFixnumConstant) {
-		rightAndOp = BinaryOperator::CreateAnd(rightVal, oneVal, "", 
+	    if (!rightIsImmediateConst) {
+		rightAndOp = BinaryOperator::CreateAnd(rightVal, threeVal, "", 
 			bb);
 	    }
 
-	    Value *areFixnums = NULL;
 	    if (leftAndOp != NULL && rightAndOp != NULL) {
-		Value *foo = BinaryOperator::CreateAdd(leftAndOp, rightAndOp, 
-			"", bb);
-		areFixnums = new ICmpInst(ICmpInst::ICMP_EQ, foo, twoVal, "", bb);
+		Value *leftIsFixnum = new ICmpInst(ICmpInst::ICMP_EQ,
+			leftAndOp, oneVal, "", bb);
+		BasicBlock *left_is_fixnum_bb =
+		    BasicBlock::Create("left_fixnum", f);
+		BranchInst::Create(left_is_fixnum_bb, optimize_float_bb,
+			leftIsFixnum, bb);
+
+		bb = left_is_fixnum_bb;
+		Value *rightIsFixnum = new ICmpInst(ICmpInst::ICMP_EQ,
+			rightAndOp, oneVal, "", bb);
+		BranchInst::Create(optimize_fixnum_bb, optimize_float_bb,
+			rightIsFixnum, bb);
 	    }
 	    else if (leftAndOp != NULL) {
-		areFixnums = new ICmpInst(ICmpInst::ICMP_EQ, leftAndOp, oneVal, "", bb);
+		if (rightImm.is_fixnum()) {
+		    Value *leftIsFixnum = new ICmpInst(ICmpInst::ICMP_EQ,
+			    leftAndOp, oneVal, "", bb);
+		    BranchInst::Create(optimize_fixnum_bb, optimize_float_bb,
+			    leftIsFixnum, bb);
+		}
+		else {
+		    BranchInst::Create(optimize_float_bb, bb);
+		}
 	    }
-	    else {
-		areFixnums = new ICmpInst(ICmpInst::ICMP_EQ, rightAndOp, oneVal, "", bb);
+	    else if (rightAndOp != NULL) {
+		if (leftImm.is_fixnum()) {
+		    Value *rightIsFixnum = new ICmpInst(ICmpInst::ICMP_EQ,
+			    rightAndOp, oneVal, "", bb);
+		    BranchInst::Create(optimize_fixnum_bb, optimize_float_bb,
+			    rightIsFixnum, bb);
+		}
+		else {
+		    BranchInst::Create(optimize_float_bb, bb);
+		}
 	    }
-	
-	    Value *fastEqqVal = NULL;
-	    BasicBlock *fastEqqBB = NULL;
-	    if (sel == selEqq) {
-		// compile_fast_eqq_call won't be called if #=== has been redefined
-		// fixnum optimizations are done separately
-		fastEqqBB = BasicBlock::Create("fast_eqq", f);
-		BranchInst::Create(then2BB, fastEqqBB, areFixnums, bb);
-		bb = fastEqqBB;
-		fastEqqVal = compile_fast_eqq_call(leftVal, rightVal);
-		fastEqqBB = bb;
-		BranchInst::Create(mergeBB, bb);
-	    }
-	    else {
-		BranchInst::Create(then2BB, elseBB, areFixnums, bb);
-	    }
-	    bb = then2BB;
+
+	    bb = optimize_fixnum_bb;
 
 	    Value *unboxedLeft;
-	    if (leftIsFixnumConstant) {
-		unboxedLeft = ConstantInt::get(RubyObjTy, leftLong);
+	    if (leftIsImmediateConst) {
+		unboxedLeft = ConstantInt::get(IntTy, leftImm.long_val());
 	    }
 	    else {
-		unboxedLeft = BinaryOperator::CreateAShr(leftVal, oneVal, "", bb);
+		unboxedLeft = BinaryOperator::CreateAShr(leftVal, twoVal, "",
+			bb);
 	    }
 
 	    Value *unboxedRight;
-	    if (rightIsFixnumConstant) {
-		unboxedRight = ConstantInt::get(RubyObjTy, rightLong);
+	    if (rightIsImmediateConst) {
+		unboxedRight = ConstantInt::get(IntTy, rightImm.long_val());
 	    }
 	    else {
-		unboxedRight = BinaryOperator::CreateAShr(rightVal, oneVal, "", bb);
+		unboxedRight = BinaryOperator::CreateAShr(rightVal, twoVal, "",
+			bb);
 	    }
 
-	    Value *opVal;
-	    bool result_is_fixnum = true;
-	    if (sel == selPLUS) {
-		opVal = BinaryOperator::CreateAdd(unboxedLeft, unboxedRight, "", bb);
-	    }
-	    else if (sel == selMINUS) {
-		opVal = BinaryOperator::CreateSub(unboxedLeft, unboxedRight, "", bb);
-	    }
-	    else if (sel == selDIV) {
-		opVal = BinaryOperator::CreateSDiv(unboxedLeft, unboxedRight, "", bb);
-	    }
-	    else if (sel == selMULT) {
-		opVal = BinaryOperator::CreateMul(unboxedLeft, unboxedRight, "", bb);
-	    }
-	    else {
-		result_is_fixnum = false;
+	    bool result_is_predicate = false;
+	    Value *fix_op_res = optimized_immediate_op(sel, unboxedLeft,
+		    unboxedRight, false, &result_is_predicate);
 
-		CmpInst::Predicate predicate;
-
-		if (sel == selLT) {
-		    predicate = ICmpInst::ICMP_SLT;
-		}
-		else if (sel == selLE) {
-		    predicate = ICmpInst::ICMP_SLE;
-		}
-		else if (sel == selGT) {
-		    predicate = ICmpInst::ICMP_SGT;
-		}
-		else if (sel == selGE) {
-		    predicate = ICmpInst::ICMP_SGE;
-		}
-		else if ((sel == selEq) || (sel == selEqq)) {
-		    predicate = ICmpInst::ICMP_EQ;
-		}
-		else if (sel == selNeq) {
-		    predicate = ICmpInst::ICMP_NE;
-		}
-		else {
-		    abort();
-		}
-
-		opVal = new ICmpInst(predicate, unboxedLeft, unboxedRight, "", bb);
-		opVal = SelectInst::Create(opVal, trueVal, falseVal, "", bb);
-	    }
-
-	    Value *thenVal;
-	    BasicBlock *then3BB;
-
-	    if (result_is_fixnum) { 
-		Value *shift = BinaryOperator::CreateShl(opVal, oneVal, "", bb);
-		thenVal = BinaryOperator::CreateOr(shift, oneVal, "", bb);
+	    if (!result_is_predicate) {
+		// Box the fixnum.
+		Value *shift = BinaryOperator::CreateShl(fix_op_res, twoVal, "",
+			bb);
+		Value *boxed_op_res = BinaryOperator::CreateOr(shift, oneVal,
+			"", bb);
 
 		// Is result fixable?
 		Value *fixnumMax = ConstantInt::get(IntTy, FIXNUM_MAX + 1);
-		Value *isFixnumMaxOk = new ICmpInst(ICmpInst::ICMP_SLT, opVal, fixnumMax, "", bb);
+		Value *isFixnumMaxOk = new ICmpInst(ICmpInst::ICMP_SLT,
+			fix_op_res, fixnumMax, "", bb);
 
-		then3BB = BasicBlock::Create("op_fixable_max", f);
+		BasicBlock *fixable_max_bb =
+		    BasicBlock::Create("op_fixable_max", f);
 
-		BranchInst::Create(then3BB, elseBB, isFixnumMaxOk, bb);
+		BranchInst::Create(fixable_max_bb, dispatch_bb, isFixnumMaxOk,
+			bb);
 
-		bb = then3BB;
+		bb = fixable_max_bb;
 		Value *fixnumMin = ConstantInt::get(IntTy, FIXNUM_MIN);
-		Value *isFixnumMinOk = new ICmpInst(ICmpInst::ICMP_SGE, opVal, fixnumMin, "", bb);
+		Value *isFixnumMinOk = new ICmpInst(ICmpInst::ICMP_SGE,
+			fix_op_res, fixnumMin, "", bb);
 
-		BranchInst::Create(mergeBB, elseBB, isFixnumMinOk, bb);
+		BranchInst::Create(merge_bb, dispatch_bb, isFixnumMinOk, bb);
+		fix_op_res = boxed_op_res;
+		optimize_fixnum_bb = fixable_max_bb;
 	    }
 	    else {
-		thenVal = opVal;
-		then3BB = then2BB;
-		BranchInst::Create(mergeBB, then3BB);
+		BranchInst::Create(merge_bb, bb);
 	    }
 
-	    bb = elseBB;
-	    Value *elseVal = compile_dispatch_call(params);
-	    elseBB = bb;
-	    BranchInst::Create(mergeBB, elseBB);
+	    bb = optimize_float_bb;
 
-	    bb = mergeBB;
-	    PHINode *pn = PHINode::Create(RubyObjTy, "op_tmp", mergeBB);
-	    pn->addIncoming(thenVal, then3BB);
-	    pn->addIncoming(elseVal, elseBB);
+	    if (leftIsImmediateConst) {
+		unboxedLeft = ConstantFP::get(Type::DoubleTy,
+			leftImm.double_val());
+	    }
+	    else {
+		unboxedLeft = compile_double_coercion(leftVal, leftAndOp,
+			dispatch_bb, f);
+	    }
 
+	    if (rightIsImmediateConst) {
+		unboxedRight = ConstantFP::get(Type::DoubleTy,
+			rightImm.double_val());
+	    }
+	    else {
+		unboxedRight = compile_double_coercion(rightVal, rightAndOp,
+			dispatch_bb, f);
+	    }
+
+	    result_is_predicate = false;
+	    Value *flp_op_res = optimized_immediate_op(sel, unboxedLeft,
+		    unboxedRight, true, &result_is_predicate);
+
+	    if (!result_is_predicate) {
+		// Box the float. 
+		flp_op_res = new BitCastInst(flp_op_res, RubyObjTy, "", bb);
+		flp_op_res = BinaryOperator::CreateOr(flp_op_res, threeVal,
+			"", bb);
+	    }
+	    optimize_float_bb = bb;
+	    BranchInst::Create(merge_bb, bb);
+
+	    bb = dispatch_bb;
+	    Value *dispatch_val;
 	    if (sel == selEqq) {
-		pn->addIncoming(fastEqqVal, fastEqqBB);
+		dispatch_val = compile_fast_eqq_call(leftVal, rightVal);
 	    }
+	    else {
+		dispatch_val = compile_dispatch_call(params);
+	    }
+	    dispatch_bb = bb;
+	    BranchInst::Create(merge_bb, bb);
+
+	    bb = merge_bb;
+	    PHINode *pn = PHINode::Create(RubyObjTy, "op_tmp", bb);
+	    pn->addIncoming(fix_op_res, optimize_fixnum_bb);
+	    pn->addIncoming(flp_op_res, optimize_float_bb);
+	    pn->addIncoming(dispatch_val, dispatch_bb);
+
+//	    if (sel == selEqq) {
+//		pn->addIncoming(fastEqqVal, fastEqqBB);
+//	    }
 
 	    return pn;
 	}
@@ -4896,7 +5083,7 @@ RoxorCompiler::compile_conversion_to_ruby(const char *type,
 	case _C_SHT:
 	case _C_INT:
 	    val = new SExtInst(val, RubyObjTy, "", bb);
-	    val = BinaryOperator::CreateShl(val, oneVal, "", bb);
+	    val = BinaryOperator::CreateShl(val, twoVal, "", bb);
 	    val = BinaryOperator::CreateOr(val, oneVal, "", bb);
 	    return val;
 
@@ -4904,7 +5091,7 @@ RoxorCompiler::compile_conversion_to_ruby(const char *type,
 	case _C_USHT:
 	case _C_UINT:
 	    val = new ZExtInst(val, RubyObjTy, "", bb);
-	    val = BinaryOperator::CreateShl(val, oneVal, "", bb);
+	    val = BinaryOperator::CreateShl(val, twoVal, "", bb);
 	    val = BinaryOperator::CreateOr(val, oneVal, "", bb);
 	    return val;
 
@@ -4925,15 +5112,12 @@ RoxorCompiler::compile_conversion_to_ruby(const char *type,
 	    break;
 
 	case _C_FLT:
-	    {
-		char buf = _C_DBL;
-		const Type *dbl_type = convert_type(&buf); 
-		val = new FPExtInst(val, dbl_type, "", bb);
-		llvm_type = dbl_type;
-	    }
+	    val = new FPExtInst(val, Type::DoubleTy, "", bb);
 	    // fall through	
 	case _C_DBL:
-	    func_name = "rb_float_new";
+	    val = new BitCastInst(val, RubyObjTy, "", bb);
+	    val = BinaryOperator::CreateOr(val, threeVal, "", bb);
+	    return val;
 	    break;
 
 	case _C_SEL:

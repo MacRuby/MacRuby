@@ -148,6 +148,7 @@ class RoxorCompiler {
 	Constant *zeroVal;
 	Constant *oneVal;
 	Constant *twoVal;
+	Constant *threeVal;
 	Constant *nilVal;
 	Constant *trueVal;
 	Constant *falseVal;
@@ -267,6 +268,11 @@ class RoxorCompiler {
 	void compile_ivar_slots(Value *klass, BasicBlock::InstListType &list, 
 				BasicBlock::InstListType::iterator iter);
 	bool unbox_ruby_constant(Value *val, VALUE *rval);
+	Value *optimized_immediate_op(SEL sel, Value *leftVal, Value *rightVal,
+		bool float_op, bool *is_predicate);
+	Value *compile_double_coercion(Value *val, Value *mask,
+		BasicBlock *fallback_bb, Function *f);
+
 	SEL mid_to_sel(ID mid, int arity);
 };
 
