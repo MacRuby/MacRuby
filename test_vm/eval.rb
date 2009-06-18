@@ -80,3 +80,7 @@ assert '42', %{
 }
 
 assert '42', 'a = nil; 1.times { a = 42; eval "p a" }'
+
+assert 'main', "p eval('self')"
+assert 'main', "p eval('self', binding)"
+assert 'main', "p eval('self', proc{}.binding)"
