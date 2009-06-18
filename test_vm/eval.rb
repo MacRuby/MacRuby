@@ -66,3 +66,15 @@ assert '42', %{
    module_eval &$b
   end
 }
+
+assert '42', %{
+  module A
+    X = 42
+    class B
+      def foo(&b)
+        (class << self; self; end).module_eval &b
+      end
+    end
+  end
+  A::B.new.foo do p X end
+}
