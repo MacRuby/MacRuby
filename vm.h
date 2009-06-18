@@ -244,6 +244,7 @@ void rb_vm_push_methods(VALUE ary, VALUE mod, bool include_objc_methods,
 	int (*filter) (VALUE, ID, VALUE));
 int rb_vm_find_class_ivar_slot(VALUE klass, ID name);
 void rb_vm_set_outer(VALUE klass, VALUE under);
+VALUE rb_vm_get_outer(VALUE klass);
 VALUE rb_vm_catch(VALUE tag);
 VALUE rb_vm_throw(VALUE tag, VALUE value);
 

@@ -774,6 +774,14 @@ rb_vm_set_outer(VALUE klass, VALUE under)
     GET_VM()->set_outer((Class)klass, (Class)under);
 }
 
+extern "C"
+VALUE
+rb_vm_get_outer(VALUE klass)
+{
+    rb_vm_outer_t *o = GET_VM()->get_outer((Class)klass);
+    return o == NULL ? Qundef : (VALUE)o->klass;
+}
+
 static inline void
 check_if_module(VALUE mod)
 {
@@ -1260,7 +1268,11 @@ void
 rb_vm_prepare_method(Class klass, SEL sel, Function *func, NODE *node)
 {
     if (GET_VM()->current_class != NULL) {
+	const bool meta = class_isMetaClass(klass);
 	klass = GET_VM()->current_class;
+	if (meta) {
+	    klass = *(Class *)klass;
+	}
     }
 
     const rb_vm_arity_t arity = rb_vm_node_arity(node);
@@ -3289,8 +3301,13 @@ rb_vm_yield_under(VALUE klass, VALUE self, int argc, const VALUE *argv)
 
     VALUE old_self = b->self;
     b->self = self;
-    //Class old_class = GET_VM()->current_class;
-    //GET_VM()->current_class = (Class)klass;
+    Class old_class = GET_VM()->current_class;
+    if (klass == self) {
+	// We only toggle the VM current klass in case #module_eval or
+	// #class_eval is used (where the given klass and self objects are 
+	// actually the same instances).
+	GET_VM()->current_class = (Class)klass;
+    }
 
     VALUE retval = Qnil;
     try {
@@ -3298,13 +3315,13 @@ rb_vm_yield_under(VALUE klass, VALUE self, int argc, const VALUE *argv)
     }
     catch (...) {
 	b->self = old_self;
-	//GET_VM()->current_class = old_class;
+	GET_VM()->current_class = old_class;
 	GET_VM()->add_current_block(b);
 	throw;
     }
 
     b->self = old_self;
-    //GET_VM()->current_class = old_class;
+    GET_VM()->current_class = old_class;
     GET_VM()->add_current_block(b);
 
     return retval;
