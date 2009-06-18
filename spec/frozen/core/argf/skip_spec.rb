@@ -36,4 +36,12 @@ describe "ARGF.skip" do
       ARGF.gets.should == nil
     end
   end
+
+  # This is similar to the test above, but it uncovered one of the regressions
+  # documented in bug #1633. This has been fixed on 1.9 HEAD
+  it "has no effect when the current file is the last" do
+    argv [@file1_name] do
+      lambda { ARGF.skip }.should_not raise_error
+    end
+  end
 end

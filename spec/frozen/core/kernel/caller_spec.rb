@@ -57,7 +57,7 @@ describe "Kernel#caller in a Proc or eval" do
 
   it "returns the correct caller line from a called Proc" do
     stack = CallerFixture.entry_point.call
-    stack[0].should =~ /caller_fixture1\.rb:31:in `third'/
+    stack[0].should =~ /caller_fixture1\.rb:31:in `(block in )?third'/
     stack[1].should =~ /caller_spec\.rb:59/
   end
 

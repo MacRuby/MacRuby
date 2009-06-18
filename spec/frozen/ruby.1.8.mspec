@@ -44,4 +44,12 @@ class MSpecScript
 
   # The default implementation to run the specs
   set :target, 'ruby'
+
+  set :tags_patterns, [
+                        [%r(language/),     'tags/1.8/language/'],
+                        [%r(core/),         'tags/1.8/core/'],
+                        [%r(command_line/), 'tags/1.8/command_line/'],
+                        [%r(library/),      'tags/1.8/library/'],
+                        [/_spec.rb$/,       '_tags.txt']
+                      ]
 end

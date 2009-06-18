@@ -166,6 +166,14 @@ describe "Module#include" do
       end
     }.should raise_error(ArgumentError)
   end
+
+  it "accepts no-arguments" do
+    lambda {
+      Module.new do
+        include
+      end
+    }.should_not raise_error
+  end
 end
 
 describe "Module#include?" do

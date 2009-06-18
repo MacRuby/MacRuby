@@ -20,9 +20,11 @@ describe :argf_each_byte, :shared => true do
     end
   end
 
-  it "returns self when passed a block" do
-    argv [@file1_name, @file2_name] do
-      ARGF.send(@method) {}.should equal(ARGF)
+  ruby_bug "#1633", "1.9.2" do
+    it "returns self when passed a block" do
+      argv [@file1_name, @file2_name] do
+        ARGF.send(@method) {}.should equal(ARGF)
+      end
     end
   end
 

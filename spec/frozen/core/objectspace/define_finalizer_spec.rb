@@ -22,4 +22,19 @@ describe "ObjectSpace.define_finalizer" do
     def handler.call(obj) end
     ObjectSpace.define_finalizer("garbage", handler).should == [0, handler]
   end
+
+  it "calls finalizer on process termination" do
+    rd, wr = IO.pipe
+    if Kernel::fork then
+      wr.close
+      rd.read.should == "finalized"
+      rd.close
+    else
+      rd.close
+      obj = "Test"
+      handler = Proc.new { wr.write "finalized"; wr.close }
+      ObjectSpace.define_finalizer(obj, handler)
+      exit 0
+    end
+  end
 end
