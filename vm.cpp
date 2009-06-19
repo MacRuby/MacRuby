@@ -3698,21 +3698,26 @@ __init_shared_compiler(void)
 extern "C"
 VALUE
 rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding,
-	  bool try_interpreter)
+	  bool inside_eval)
 {
     if (binding != NULL) {
 	GET_VM()->bindings.push_back(binding);
     }
 
     __init_shared_compiler();
-    Function *function = RoxorCompiler::shared->compile_main_function(node);
+    RoxorCompiler *compiler = RoxorCompiler::shared;
+
+    bool old_inside_eval = compiler->is_inside_eval();
+    compiler->set_inside_eval(inside_eval); 
+    Function *function = compiler->compile_main_function(node);
+    compiler->set_inside_eval(old_inside_eval);
 
     if (binding != NULL) {
 	GET_VM()->bindings.pop_back();
     }
 
 #if ROXOR_INTERPRET_EVAL
-    if (try_interpreter) {
+    if (inside_eval) {
 	return GET_VM()->interpret(function);
     }
     else {
@@ -3728,7 +3733,7 @@ rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding,
 extern "C"
 VALUE
 rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
-		rb_vm_binding_t *binding, bool try_interpreter)
+		rb_vm_binding_t *binding, bool inside_eval)
 {
     VALUE old_top_object = GET_VM()->current_top_object;
     if (binding != NULL) {
@@ -3742,7 +3747,7 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
 	GET_VM()->current_class = (Class)klass;
     }
 
-    VALUE val = rb_vm_run(fname, node, binding, try_interpreter);
+    VALUE val = rb_vm_run(fname, node, binding, inside_eval);
 
     GET_VM()->current_top_object = old_top_object;
     GET_VM()->current_class = old_class;

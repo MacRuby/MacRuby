@@ -50,8 +50,12 @@ class RoxorCompiler {
 
 	const Type *convert_type(const char *type);
 
+	bool is_inside_eval(void) { return inside_eval; }
+	void set_inside_eval(bool flag) { inside_eval = flag; }
+
     protected:
 	const char *fname;
+	bool inside_eval;
 
 	std::map<ID, Value *> lvars;
 	std::vector<ID> dvars;
@@ -248,7 +252,8 @@ class RoxorCompiler {
 					  const Type *llvm_type, Value *val);
 
 	int *get_slot_cache(ID id) {
-	    if (current_block || !current_instance_method || current_module) {
+	    if (inside_eval || current_block || !current_instance_method
+		|| current_module) {
 		return NULL;
 	    }
 	    std::map<ID, int *>::iterator iter = ivar_slots_cache.find(id);

@@ -199,9 +199,9 @@ rb_vm_cfunc_node_from_imp(Class klass, int arity, IMP imp, int noex)
 }
 
 VALUE rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding,
-		bool try_interpreter);
+		bool inside_eval);
 VALUE rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
-		      rb_vm_binding_t *binding, bool try_interpreter);
+		      rb_vm_binding_t *binding, bool inside_eval);
 void rb_vm_aot_compile(NODE *node);
 
 bool rb_vm_running(void);

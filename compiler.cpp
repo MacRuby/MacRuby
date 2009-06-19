@@ -35,6 +35,7 @@ RoxorCompiler *RoxorCompiler::shared = NULL;
 RoxorCompiler::RoxorCompiler(const char *_fname)
 {
     fname = _fname;
+    inside_eval = false;
 
     bb = NULL;
     entry_bb = NULL;
