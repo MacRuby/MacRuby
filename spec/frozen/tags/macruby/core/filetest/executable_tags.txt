@@ -1,1 +1,0 @@
-fails:FileTest.executable? raises an ArgumentError if not passed one argument
