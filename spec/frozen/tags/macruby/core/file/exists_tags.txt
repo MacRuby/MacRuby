@@ -1,1 +1,0 @@
-fails:File.exists? raises an ArgumentError if not passed one argument

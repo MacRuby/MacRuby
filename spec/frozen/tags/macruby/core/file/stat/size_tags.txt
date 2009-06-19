@@ -1,2 +1,0 @@
-fails:File::Stat#size? returns nil if the file has zero size
-fails:File::Stat#size? returns the size of the file if it exists and is not empty

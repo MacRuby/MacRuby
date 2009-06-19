@@ -1,1 +1,1 @@
-fails:ENV.fetch warns on block and default parameter given
+critical:ENV.fetch warns on block and default parameter given

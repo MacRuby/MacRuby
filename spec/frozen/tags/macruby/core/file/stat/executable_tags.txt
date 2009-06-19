@@ -1,2 +1,0 @@
-fails:File::Stat#executable? returns true if named file is executable by the effective user id of the process, otherwise false
-fails:File::Stat#executable? return true if the argument is an executable file

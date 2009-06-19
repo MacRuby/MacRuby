@@ -1,1 +1,0 @@
-fails:File::Stat#grpowned? return true if the file exist

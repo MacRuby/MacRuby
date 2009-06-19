@@ -1,1 +1,0 @@
-fails:File.directory? raises an ArgumentError if not passed one argument

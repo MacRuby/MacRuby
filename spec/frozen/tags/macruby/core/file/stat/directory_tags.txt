@@ -1,1 +1,0 @@
-fails:File::Stat#directory? return true if dir is a directory, otherwise return false

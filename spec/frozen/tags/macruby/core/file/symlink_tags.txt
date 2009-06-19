@@ -1,1 +1,0 @@
-fails:File.symlink raises an ArgumentError if not called with two arguments

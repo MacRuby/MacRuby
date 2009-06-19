@@ -1,3 +1,2 @@
 critical:File.ftype returns fifo when the file is a fifo
-fails:File.ftype raises ArgumentError if not given exactly one filename
 fails:File.ftype returns 'socket' when the file is a socket
