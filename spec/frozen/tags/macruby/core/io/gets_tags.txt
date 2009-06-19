@@ -1,6 +1,5 @@
 fails:IO#gets returns tainted strings
 fails:IO#gets updates lineno with each invocation
-fails:IO#gets updates $. with each invocation
 fails:IO#gets assigns the returned line to $_
 fails:IO#gets returns the entire content if the separator is nil
 fails:IO#gets returns the next paragraph if the separator's length is 0

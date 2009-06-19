@@ -1,2 +1,2 @@
+critical:IO::popen writes to a write-only pipe
 fails:IO::popen reads and writes to a read/write pipe
-fails:IO::popen writes to a write-only pipe
