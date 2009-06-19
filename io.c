@@ -62,6 +62,22 @@ struct argf {
 #define argf_of(obj) (*(struct argf *)DATA_PTR(obj))
 #define ARGF argf_of(argf)
 
+static VALUE
+pop_last_hash(int *argc_p, VALUE *argv)
+{
+    VALUE last, tmp;
+    if (*argc_p == 0) {
+	return Qnil;
+    }
+    last = argv[*argc_p-1];
+    tmp = rb_check_convert_type(last, T_HASH, "Hash", "to_hash");
+    if (NIL_P(tmp)) {
+	return Qnil;
+    }
+    (*argc_p)--;
+    return tmp;
+}
+
 static int
 convert_mode_string_to_fmode(VALUE rstr)
 {
@@ -2716,6 +2732,10 @@ rb_io_initialize(VALUE io, SEL sel, int argc, VALUE *argv)
     VALUE file_descriptor, mode;
     int mode_flags, fd;
     struct stat st;
+
+    // TODO handle optional hash
+    /*VALUE opt =*/ pop_last_hash(&argc, argv);
+
     rb_scan_args(argc, argv, "11", &file_descriptor, &mode);
 
     rb_io_t *io_struct = ExtractIOStruct(io);
@@ -3633,7 +3653,8 @@ rb_io_s_copy_stream(VALUE id, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_io_external_encoding(VALUE io, SEL sel)
 {
-    rb_notimplement();
+    // TODO
+    return Qnil;
 }
 
 /*
@@ -3668,7 +3689,8 @@ rb_io_internal_encoding(VALUE io, SEL sel)
 static VALUE
 rb_io_set_encoding(VALUE id, SEL sel, int argc, VALUE *argv)
 {
-    rb_notimplement();
+    // TODO
+    return Qnil;
 }
 
 static VALUE
