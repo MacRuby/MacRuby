@@ -20,6 +20,7 @@
 #include <paths.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <copyfile.h>
 
 #include <sys/select.h>
 #include <sys/ioctl.h>
@@ -3625,21 +3626,69 @@ rb_io_s_readlines(VALUE recv, SEL sel, int argc, VALUE *argv)
  *
  */
 static VALUE
-rb_io_s_copy_stream(VALUE id, SEL sel, int argc, VALUE *argv)
+rb_io_s_copy_stream(VALUE rcv, SEL sel, int argc, VALUE *argv)
 {
-	VALUE src, dst, len, offset;
-	rb_scan_args(argc, argv, "22", &src, &dst, &len, &offset);
-	VALUE old_offset = rb_io_tell(src, 0); // save the old offset
-	if(!NIL_P(offset)) {
-		// seek if necessary
-		rb_io_seek(src, 0, offset);
+    VALUE src, dst, len, offset;
+    rb_scan_args(argc, argv, "22", &src, &dst, &len, &offset);
+
+    bool src_is_path = false, dst_is_path = false;
+
+    VALUE old_src_offset = Qnil;
+    if (TYPE(src) != T_FILE) {
+	FilePathValue(src);
+	src_is_path = true;
+    }
+    else {
+	old_src_offset = rb_io_tell(src, 0); // save the old offset
+	if (!NIL_P(offset)) {
+	    // seek if necessary
+	    rb_io_seek(src, 0, offset);
 	}
-	VALUE data_read = (NIL_P(len) ? io_read(src, 0, 0, NULL) : io_read(src, 0, 1, &len));
-	VALUE copied = io_write(dst, 0, data_read);
-	if(!NIL_P(offset)) {
-		rb_io_seek(src, 0, old_offset); // restore the old offset
+    }
+
+    if (TYPE(dst) != T_FILE) {
+	FilePathValue(dst);
+	dst_is_path = true;
+    }
+
+    if (src_is_path && dst_is_path) {
+	// Fast path!
+	copyfile_state_t s = copyfile_state_alloc();
+	if (copyfile(RSTRING_PTR(src), RSTRING_PTR(dst), s, COPYFILE_ALL)
+		!= 0) {
+	    copyfile_state_free(s);
+	    rb_sys_fail("copyfile() failed");
 	}
-	return copied;
+	int src_fd = -2; 
+	assert(copyfile_state_get(s, COPYFILE_STATE_SRC_FD, &src_fd) == 0);
+	struct stat st;
+	if (fstat(src_fd, &st) != 0) {
+	    rb_sys_fail("fstat() failed");
+	}
+	copyfile_state_free(s);
+	return LONG2NUM(st.st_size);
+    }
+    else {
+	if (src_is_path) {
+	    src = rb_f_open(rcv, 0, 1, &src);
+	}
+	if (dst_is_path) {
+	    VALUE args[2];
+	    args[0] = dst;
+	    args[1] = rb_str_new2("w");
+	    dst = rb_f_open(rcv, 0, 2, args);
+	}
+    }
+
+    VALUE data_read = NIL_P(len)
+	? io_read(src, 0, 0, NULL) : io_read(src, 0, 1, &len);
+
+    VALUE copied = io_write(dst, 0, data_read);
+
+    if (!NIL_P(old_src_offset)) {
+	rb_io_seek(src, 0, old_src_offset); // restore the old offset
+    }
+    return copied;
 }
 
 /*
