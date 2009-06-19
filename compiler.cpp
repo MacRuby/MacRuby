@@ -855,10 +855,8 @@ RoxorCompiler::compile_block_create(NODE *node)
 	 iter != lvars.end(); ++iter) {
 	ID name = iter->first;
 	Value *slot = iter->second;
-	if (std::find(dvars.begin(), dvars.end(), name) == dvars.end()) {
-	    params.push_back(ConstantInt::get(IntTy, (long)name));
-	    params.push_back(slot);
-	}
+	params.push_back(ConstantInt::get(IntTy, (long)name));
+	params.push_back(slot);
     }
 
     return CallInst::Create(prepareBlockFunc, params.begin(), params.end(),
@@ -869,9 +867,11 @@ Value *
 RoxorCompiler::compile_binding(void)
 {
     if (pushBindingFunc == NULL) {
-	// void rb_vm_push_binding(VALUE self, int lvars_size, ...);
+	// void rb_vm_push_binding(VALUE self, rb_vm_block_t *current_block,
+	//			   int lvars_size, ...);
 	std::vector<const Type *> types;
 	types.push_back(RubyObjTy);
+	types.push_back(PtrTy);
 	types.push_back(Type::Int32Ty);
 	FunctionType *ft = FunctionType::get(Type::VoidTy, types, true);
 	pushBindingFunc = cast<Function>
@@ -880,12 +880,16 @@ RoxorCompiler::compile_binding(void)
 
     std::vector<Value *> params;
     params.push_back(current_self);
+    params.push_back(running_block == NULL
+	    ? compile_const_pointer(NULL) : running_block);
 
     // Lvars.
     params.push_back(ConstantInt::get(Type::Int32Ty, (int)lvars.size()));
     for (std::map<ID, Value *>::iterator iter = lvars.begin();
 	 iter != lvars.end(); ++iter) {
-	params.push_back(ConstantInt::get(IntTy, (long)iter->first));
+
+	ID lvar = iter->first;
+	params.push_back(ConstantInt::get(IntTy, lvar));
 	params.push_back(iter->second);
     }
 
@@ -2424,6 +2428,7 @@ RoxorCompiler::compile_node(NODE *node)
 
 		    if (has_vars_to_save) {
 			current_var_uses = new AllocaInst(PtrTy, "", bb);
+			//current_var_uses = new MallocInst(PtrTy, "", bb);
 			new StoreInst(compile_const_pointer(NULL), current_var_uses, bb);
 		    }
 
@@ -2500,8 +2505,8 @@ RoxorCompiler::compile_node(NODE *node)
 		    std::vector<Value *> params;
 
 		    params.push_back(NULL); // will be filled later
-
-		    params.push_back(ConstantInt::get(Type::Int32Ty, (int)lvars.size()));
+		    params.push_back(NULL); // idem
+		    int vars_count = 0;
 		    for (std::map<ID, Value *>::iterator iter = lvars.begin();
 			 iter != lvars.end(); ++iter) {
 			ID name = iter->first;
@@ -2509,22 +2514,29 @@ RoxorCompiler::compile_node(NODE *node)
 			if (std::find(dvars.begin(), dvars.end(), name) == dvars.end()) {
 			    params.push_back(ConstantInt::get(IntTy, (long)name));
 			    params.push_back(slot);
+			    vars_count++;
 			}
 		    }
+		    params[1] = ConstantInt::get(Type::Int32Ty, vars_count);
 
 		    // searches all ReturnInst in the function we just created and add before
 		    // a call to the function to save the local variables if necessary
 		    // (we can't do this before finishing compiling the whole function
 		    // because we can't be sure if a block is there or not before)
-		    for (Function::iterator block_it = f->begin(); block_it != f->end(); ++block_it) {
-			for (BasicBlock::iterator inst_it = block_it->begin(); inst_it != block_it->end(); ++inst_it) {
+		    for (Function::iterator block_it = f->begin();
+			 block_it != f->end();
+			 ++block_it) {
+			for (BasicBlock::iterator inst_it = block_it->begin();
+			     inst_it != block_it->end();
+			     ++inst_it) {
 			    if (dyn_cast<ReturnInst>(inst_it)) {
 				// LoadInst needs to be inserted in a BasicBlock
 				// so we has to wait before putting it in params
 				params[0] = new LoadInst(current_var_uses, "", inst_it);
 
 				// TODO: only call the function if current_use is not NULL
-				CallInst::Create(keepVarsFunc, params.begin(), params.end(), "", inst_it);
+				CallInst::Create(keepVarsFunc, params.begin(), params.end(), "",
+					inst_it);
 			    }
 			}
 		    }

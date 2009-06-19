@@ -2806,7 +2806,7 @@ rb_vm_prepare_block(void *llvm_function, NODE *node, VALUE self,
     b->self = self;
     b->node = node;
     b->parent_var_uses = parent_var_uses;
-    b->parent_block = parent_block;
+    GC_WB(&b->parent_block, parent_block);
 
     va_list ar;
     va_start(ar, dvars_size);
@@ -2865,8 +2865,8 @@ rb_vm_add_var_use(rb_vm_block_t *block)
 	if ((*var_uses == NULL)
 	    || ((*var_uses)->uses_count == VM_LVAR_USES_SIZE)) {
 
-	    rb_vm_var_uses* new_uses =
-		(rb_vm_var_uses*)malloc(sizeof(rb_vm_var_uses));
+	    rb_vm_var_uses *new_uses =
+		(rb_vm_var_uses *)malloc(sizeof(rb_vm_var_uses));
 	    new_uses->next = *var_uses;
 	    new_uses->uses_count = 0;
 	    *var_uses = new_uses;
@@ -2878,6 +2878,7 @@ rb_vm_add_var_use(rb_vm_block_t *block)
 
     // we should not keep references that won't be used
     block->parent_block = NULL;
+    block->parent_var_uses = NULL;
 }
 
 struct rb_vm_kept_local {
@@ -2932,6 +2933,7 @@ use_found:
 			}
 		    }
 		}
+
 		// indicate to the GC that we do not have a reference here anymore
 		rb_gc_assign_weak_ref(NULL, &current->uses[use_index]);
 	    }
@@ -2943,27 +2945,44 @@ use_found:
     }
 }
 
+static inline rb_vm_local_t **
+push_local(rb_vm_local_t **l, ID name, VALUE *value)
+{
+    GC_WB(l, xmalloc(sizeof(rb_vm_local_t)));
+    (*l)->name = name;
+    (*l)->value = value;
+    (*l)->next = NULL;
+    return &(*l)->next;
+}
+
 extern "C"
 void
-rb_vm_push_binding(VALUE self, int lvars_size, ...)
+rb_vm_push_binding(VALUE self, rb_vm_block_t *current_block,
+		   int lvars_size, ...)
 {
-    rb_vm_binding_t *b = (rb_vm_binding_t *)xmalloc(sizeof(rb_vm_binding_t));
-    GC_WB(&b->self, self);
+    rb_vm_binding_t *binding =
+	(rb_vm_binding_t *)xmalloc(sizeof(rb_vm_binding_t));
+    GC_WB(&binding->self, self);
+
+    rb_vm_local_t **l = &binding->locals;
+
+    for (rb_vm_block_t *b = current_block; b != NULL; b = b->parent_block) {
+	for (rb_vm_local_t *li = b->locals; li != NULL; li = li->next) {
+	    l = push_local(l, li->name, li->value);
+	}
+    }
 
     va_list ar;
     va_start(ar, lvars_size);
-    rb_vm_local_t **l = &b->locals;
     for (int i = 0; i < lvars_size; ++i) {
-	GC_WB(l, xmalloc(sizeof(rb_vm_local_t)));
-	(*l)->name = va_arg(ar, ID);
-	(*l)->value = va_arg(ar, VALUE *);
-	(*l)->next = NULL;
-	l = &(*l)->next;
+	ID name = va_arg(ar, ID);
+	VALUE *value = va_arg(ar, VALUE *);
+	l = push_local(l, name, value);
     }
     va_end(ar);
 
-    rb_objc_retain(b);
-    GET_VM()->bindings.push_back(b);
+    rb_objc_retain(binding);
+    GET_VM()->bindings.push_back(binding);
 }
 
 extern "C"
