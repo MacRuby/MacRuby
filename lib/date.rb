@@ -193,7 +193,6 @@
 #
 #     puts secs_to_new_year()
 
-require 'rational'
 require 'date/format'
 
 # Class representing a date.
@@ -1471,7 +1470,9 @@ class Date
   def hash() @ajd.hash end
 
   # Return internal object state as a programmer-readable string.
-  def inspect() format('#<%s: %s,%s,%s>', self.class, @ajd, @of, @sg) end
+  def inspect
+    format('#<%s: %s (%s,%s,%s)>', self.class, to_s, @ajd, @of, @sg)
+  end
 
   # Return the date as a human-readable string.
   #
@@ -1791,12 +1792,23 @@ class Date
   # Create a new Date object representing today.
   #
   # +sg+ specifies the Day of Calendar Reform.
-  def self.today(sg=ITALY) Time.now.to_date    .new_start(sg) end
+  def self.today(sg=ITALY)
+    t = Time.now
+    jd = civil_to_jd(t.year, t.mon, t.mday, sg)
+    new!(jd_to_ajd(jd, 0, 0), 0, sg)
+  end
 
   # Create a new DateTime object representing the current time.
   #
   # +sg+ specifies the Day of Calendar Reform.
-  def self.now  (sg=ITALY) Time.now.to_datetime.new_start(sg) end
+  def self.now(sg=ITALY)
+    t = Time.now
+    jd = civil_to_jd(t.year, t.mon, t.mday, sg)
+    fr = time_to_day_fraction(t.hour, t.min, [t.sec, 59].min) +
+      Rational(t.nsec, 86400_000_000_000)
+    of = Rational(t.utc_offset, 86400)
+    new!(jd_to_ajd(jd, fr, of), of, sg)
+  end
 
   private_class_method :now
 

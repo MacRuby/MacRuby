@@ -268,7 +268,7 @@ Note: Inherited methods from class (({Object})) cannot be used as XML-RPC names,
 
 
 = History
-    $Id: client.rb 16042 2008-04-15 14:10:18Z kou $
+    $Id: client.rb 19657 2008-10-01 13:46:53Z mame $
 
 =end
 
@@ -567,6 +567,7 @@ module XMLRPC
 
       set_cookies = resp.get_fields("Set-Cookie")
       if set_cookies and !set_cookies.empty?
+        require 'webrick/cookie'
         @cookie = set_cookies.collect do |set_cookie|
           cookie = WEBrick::Cookie.parse_set_cookie(set_cookie)
           WEBrick::Cookie.new(cookie.name, cookie.value).to_s
@@ -604,16 +605,16 @@ module XMLRPC
     class Proxy
 
       def initialize(server, prefix, args=[], meth=:call, delim=".")
-	@server = server
-	@prefix = prefix ? prefix + delim : ""
-	@args   = args 
+        @server = server
+        @prefix = prefix ? prefix + delim : ""
+        @args   = args 
         @meth   = meth
       end
 
       def method_missing(mid, *args)
-	pre = @prefix + mid.to_s
-	arg = @args + args
-	@server.send(@meth, pre, *arg)
+        pre = @prefix + mid.to_s
+        arg = @args + args
+        @server.send(@meth, pre, *arg)
       end
 
     end # class Proxy

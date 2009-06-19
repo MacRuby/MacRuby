@@ -1,7 +1,7 @@
 #
 #   irb/completor.rb - 
 #   	$Release Version: 0.9$
-#   	$Revision: 14912 $
+#   	$Revision: 20880 $
 #   	by Keiju ISHITSUKA(keiju@ishitsuka.com)
 #       From Original Idea of shugo@ruby-lang.org
 #
@@ -11,7 +11,7 @@ require "readline"
 module IRB
   module InputCompletor
 
-    @RCS_ID='-$Id: completion.rb 14912 2008-01-06 15:49:38Z akr $-'
+    @RCS_ID='-$Id: completion.rb 20880 2008-12-19 11:37:41Z yugui $-'
 
     ReservedWords = [
       "BEGIN", "END",
@@ -159,7 +159,7 @@ module IRB
 	    end
 	    next if name != "IRB::Context" and 
 	      /^(IRB|SLex|RubyLex|RubyToken)/ =~ name
-	    candidates.concat m.instance_methods(false).collect{|m| m.to_s}
+	    candidates.concat m.instance_methods(false).collect{|x| x.to_s}
 	  }
 	  candidates.sort!
 	  candidates.uniq!

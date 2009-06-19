@@ -49,15 +49,20 @@ module HotCocoa
           Views[guid] = control if guid
           inst.customize(control)
           map.each do |key, value|
-            if control.respond_to?(key) && value == true
-              if control.respond_to?("set#{key.to_s.capitalize}")
-                eval "control.set#{key.to_s.capitalize}(true)"
+            if control.respond_to?("#{key}=")
+              eval "control.#{key} = value"
+            elsif control.respond_to?(key)
+              new_key = (key.start_with?('set') ? key : "set#{key[0].capitalize}#{key[1..(key.length - 1)]}")
+              if control.respond_to?(new_key)
+                eval "control.#{new_key}(value)"
               else
                 control.send("#{key}")
               end
+            elsif control.respond_to?("set#{Mapper.camel_case(key.to_s)}")
+              eval "control.set#{Mapper.camel_case(key.to_s)}(value)"
             else
-              eval "control.#{key}= value"
-            end
+              NSLog "Unable to map #{key} as a method"
+            end            
           end
           if default_empty_rect_used
             control.sizeToFit if control.respondsToSelector(:sizeToFit) == true
@@ -71,6 +76,10 @@ module HotCocoa
           end
           control
         end
+        # make the function callable using HotCocoa.xxxx
+        HotCocoa.send(:module_function, builder_method)
+        # module_function makes the instance method private, but we want it to stay public
+        HotCocoa.send(:public, builder_method)
         self
       end
       
@@ -122,16 +131,25 @@ module HotCocoa
         unless Mapper.delegate_modules.has_key?(control_class)
           delegate_module = Module.new
           required_methods = []
-          inherited_delegate_methods.each do |delegate_method, mapping|
-            required_methods << delegate_method if mapping[:required]
-          end
-          inherited_delegate_methods.each do |delegate_method, mapping|
-            parameters = mapping[:parameters] ? ", "+mapping[:parameters].map {|param| %{"#{param}"} }.join(",") : ""
+          delegate_methods = inherited_delegate_methods
+          if delegate_methods.size > 0
+            delegate_methods.each do |delegate_method, mapping|
+              required_methods << delegate_method if mapping[:required]
+            end
+            delegate_methods.each do |delegate_method, mapping|
+              parameters = mapping[:parameters] ? ", "+mapping[:parameters].map {|param| %{"#{param}"} }.join(",") : ""
+              delegate_module.module_eval %{
+                def #{mapping[:to]}(&block)
+                  raise "Must pass in a block to use this delegate method" unless block_given?
+                  @_delegate_builder ||= HotCocoa::DelegateBuilder.new(self, #{required_methods.inspect})
+                  @_delegate_builder.add_delegated_method(block, "#{delegate_method}" #{parameters})
+                end
+              }
+            end
             delegate_module.module_eval %{
-              def #{mapping[:to]}(&block)
-                raise "Must pass in a block to use this delegate method" unless block_given?
+              def delegate_to(object)
                 @_delegate_builder ||= HotCocoa::DelegateBuilder.new(self, #{required_methods.inspect})
-                @_delegate_builder.add_delegated_method(block, "#{delegate_method}" #{parameters})
+                @_delegate_builder.delegate_to(object, #{delegate_methods.values.map {|method| ":#{method[:to]}"}.join(', ')})
               end
             }
           end
@@ -155,7 +173,7 @@ module HotCocoa
         bindings_module = Module.new
         instance.exposedBindings.each do |exposed_binding|
           bindings_module.module_eval %{
-            def #{underscore(exposed_binding)}=(value)
+            def #{Mapper.underscore(exposed_binding)}=(value)
               if value.kind_of?(Hash)
                 options = value.delete(:options)
                 bind "#{exposed_binding}", toObject:value.keys.first, withKeyPath:value.values.first, options:options
@@ -187,13 +205,22 @@ module HotCocoa
         result
       end
       
-      def underscore(camel_cased_word)
-        camel_cased_word.to_s.gsub(/::/, '/').
-          gsub(/([A-Z]+)([A-Z][a-z])/,'\1_\2').
-          gsub(/([a-z\d])([A-Z])/,'\1_\2').
+      def self.underscore(string)
+        string.gsub(/::/, '/').
+          gsub(/([A-Z]+)([A-Z][a-z])/, '\1_\2').
+          gsub(/([a-z\d])([A-Z])/, '\1_\2').
           tr("-", "_").
           downcase
       end
+      
+      def self.camel_case(string)
+        if string !~ /_/ && string =~ /[A-Z]+.*/
+          string
+        else
+          string.split('_').map{ |e| e.capitalize }.join
+        end
+      end
+
       
     end
   end

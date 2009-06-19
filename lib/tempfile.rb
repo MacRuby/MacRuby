@@ -1,7 +1,7 @@
 #
 # tempfile - manipulates temporary files
 #
-# $Id: tempfile.rb 13428 2007-09-11 08:28:29Z knu $
+# $Id: tempfile.rb 19833 2008-10-18 10:32:26Z matz $
 #
 
 require 'delegate'
@@ -29,7 +29,12 @@ class Tempfile < DelegateClass(File)
   # Dir::tmpdir provided by 'tmpdir.rb'.
   # When $SAFE > 0 and the given tmpdir is tainted, it uses
   # /tmp. (Note that ENV values are tainted by default)
-  def initialize(basename, tmpdir=Dir::tmpdir)
+  def initialize(basename, *rest)
+    # I wish keyword argument settled soon.
+    if opts = Hash.try_convert(rest[-1])
+      rest.pop
+    end
+    tmpdir = rest[0] || Dir::tmpdir
     if $SAFE > 0 and tmpdir.tainted?
       tmpdir = '/tmp'
     end
@@ -56,7 +61,12 @@ class Tempfile < DelegateClass(File)
     @clean_proc = Tempfile.callback(@data)
     ObjectSpace.define_finalizer(self, @clean_proc)
 
-    @tmpfile = File.open(tmpname, File::RDWR|File::CREAT|File::EXCL, 0600)
+    if opts.nil?
+      opts = []
+    else
+      opts = [opts]
+    end
+    @tmpfile = File.open(tmpname, File::RDWR|File::CREAT|File::EXCL, 0600, *opts)
     @tmpname = tmpname
     @@cleanlist << @tmpname
     @data[1] = @tmpfile
@@ -187,8 +197,6 @@ class Tempfile < DelegateClass(File)
 	ensure
 	  tempfile.close
 	end
-
-	nil
       else
 	tempfile
       end

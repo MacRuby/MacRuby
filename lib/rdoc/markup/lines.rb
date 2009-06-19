@@ -44,7 +44,8 @@ class RDoc::Markup
       @deleted = false
 
       # expand tabs
-      1 while @text.gsub!(/\t+/) { ' ' * (8*$&.length - $`.length % 8)}  && $~ #`
+      #1 while @text.gsub!(/\t+/) { ' ' * (8*$&.length - $`.length % 8)}  && $~ #`
+      @text.gsub!(/\t+/) { ' ' * (8*$&.length - $`.length % 8)}
 
       # Strip trailing whitespace
       @text.sub!(/\s+$/, '')

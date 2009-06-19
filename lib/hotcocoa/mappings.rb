@@ -3,7 +3,7 @@ module HotCocoa
     
     def self.reload
       Dir.glob(File.join(File.dirname(__FILE__), "mappings", "*.rb")).each do |mapping|
-        load mapping
+        require mapping
       end
     end
     
@@ -11,12 +11,19 @@ module HotCocoa
     
     module TargetActionConvenience
       def on_action=(behavior)
-        object = Object.new
-        object.instance_variable_set("@behavior", behavior)
-        def object.perform_action(sender)
-          @behavior.call(sender)
+        if target && (
+          target.instance_variable_get("@action_behavior") || 
+          target.instance_variable_get("@double_action_behavior"))
+            object.instance_variable_set("@action_behavior", behavior)
+            object = target
+        else
+          object = Object.new
+          object.instance_variable_set("@action_behavior", behavior)
+          setTarget(object)
         end
-        setTarget(object)
+        def object.perform_action(sender)
+          @action_behavior.call(sender)
+        end
         setAction("perform_action:")
       end
      
@@ -67,7 +74,7 @@ module HotCocoa
     
     # Registers a callback for after the specified framework has been loaded.
     def self.on_framework(name, &block)
-      (frameworks[name.to_s.downcase] ||= []) << block
+      (frameworks[name.to_s] ||= []) << block
     end
     
     # Returns the Hash of mapped frameworks.
@@ -81,19 +88,20 @@ module HotCocoa
     end
     
     # Registers a given framework as being loaded.
-    def self.framework_loaded(name)
-      name = name.to_s.downcase
-      loaded_frameworks << name
-      if frameworks[name]
-        frameworks[name].each do |mapper|
-          mapper.call
+    def self.framework_loaded
+      frameworks.keys.each do |key|
+        if loaded_framework?(key)
+          frameworks[key].each do |mapper|
+            mapper.call
+          end
+          frameworks.delete(key)
         end
       end
     end
     
     # Returns whether or not the framework has been loaded yet.
     def self.loaded_framework?(name)
-      loaded_frameworks.include?(name.to_s.downcase)
+      NSBundle.allFrameworks.map {|bundle| bundle.bundlePath.split("/").last}.select {|framework| framework.split(".")[1] == 'framework'}.map {|framework| framework.split(".")[0]}.include?(name.to_s)
     end
     
   end

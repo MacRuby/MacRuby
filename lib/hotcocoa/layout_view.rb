@@ -221,6 +221,8 @@ end
 
 class LayoutView < NSView
   
+  attr_accessor :frame_color
+  
   def initWithFrame(frame)
     super
     @mode = :vertical
@@ -272,6 +274,10 @@ class LayoutView < NSView
     setFrame(frame)
   end
   
+  def size=(size)
+    setFrameSize(size)
+  end
+  
   def margin
     @margin
   end
@@ -291,7 +297,7 @@ class LayoutView < NSView
     raise ArgumentError, "#{subview} is not a subview of #{self} and cannot be removed." unless subview.superview == self
     options[:needs_display] == false ? subview.removeFromSuperviewWithoutNeedingDisplay : subview.removeFromSuperview
   end
-    
+  
   def addSubview(view)
     super
     if view.respond_to?(:layout)
@@ -318,12 +324,12 @@ class LayoutView < NSView
     relayout!
   end
 
-  if $DEBUG
-    def drawRect(frame)
-      NSColor.redColor.set
-      NSFrameRect(frame)
+  def drawRect(frame)
+    if @frame_color 
+      @frame_color.set 
+      NSFrameRect(frame) 
     end
-  end 
+  end
 
   def setFrame(frame)
     super

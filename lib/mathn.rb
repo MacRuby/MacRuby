@@ -9,125 +9,56 @@
 #   
 #
 
-require "complex.rb"
-require "rational.rb"
+require "cmath.rb"
 require "matrix.rb"
+require "prime.rb"
 
-class Integer
+require "mathn/rational"
+require "mathn/complex"
 
-  def Integer.from_prime_division(pd)
-    value = 1
-    for prime, index in pd
-      value *= prime**index
-    end
-    value
-  end
-  
-  def prime_division
-    raise ZeroDivisionError if self == 0
-    ps = Prime.new
-    value = self
-    pv = []
-    for prime in ps
-      count = 0
-      while (value1, mod = value.divmod(prime)
-	     mod) == 0
-	value = value1
-	count += 1
-      end
-      if count != 0
-	pv.push [prime, count]
-      end
-      break if prime * prime  >= value
-    end
-    if value > 1
-      pv.push [value, 1]
-    end
-    return pv
-  end
-end
-  
-class Prime
-  include Enumerable
-  # These are included as class variables to cache them for later uses.  If memory
-  #   usage is a problem, they can be put in Prime#initialize as instance variables.
-
-  # There must be no primes between @@primes[-1] and @@next_to_check.
-  @@primes = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 101]
-  # @@next_to_check % 6 must be 1.  
-  @@next_to_check = 103            # @@primes[-1] - @@primes[-1] % 6 + 7
-  @@ulticheck_index = 3            # @@primes.index(@@primes.reverse.find {|n|
-                                   #   n < Math.sqrt(@@next_to_check) })
-  @@ulticheck_next_squared = 121   # @@primes[@@ulticheck_index + 1] ** 2
-
-  class << self
-    # Return the prime cache.
-    def cache
-      return @@primes
-    end
-    alias primes cache
-    alias primes_so_far cache
-  end
-  
-  def initialize
-    @index = -1
-  end
-  
-  # Return primes given by this instance so far.
-  def primes
-    return @@primes[0, @index + 1]
-  end
-  alias primes_so_far primes
-  
-  def succ
-    @index += 1
-    while @index >= @@primes.length
-      # Only check for prime factors up to the square root of the potential primes,
-      #   but without the performance hit of an actual square root calculation.
-      if @@next_to_check + 4 > @@ulticheck_next_squared
-        @@ulticheck_index += 1
-        @@ulticheck_next_squared = @@primes.at(@@ulticheck_index + 1) ** 2
-      end
-      # Only check numbers congruent to one and five, modulo six. All others
-      #   are divisible by two or three.  This also allows us to skip checking against
-      #   two and three.
-      @@primes.push @@next_to_check if @@primes[2..@@ulticheck_index].find {|prime| @@next_to_check % prime == 0 }.nil?
-      @@next_to_check += 4
-      @@primes.push @@next_to_check if @@primes[2..@@ulticheck_index].find {|prime| @@next_to_check % prime == 0 }.nil?
-      @@next_to_check += 2 
-    end
-    return @@primes[@index]
-  end
-  alias next succ
-
-  def each
-    return to_enum(:each) unless block_given?
-    loop do
-      yield succ
-    end
-  end
+unless defined?(Math.exp!)
+  Object.instance_eval{remove_const :Math}
+  Math = CMath
 end
 
 class Fixnum
   remove_method :/
   alias / quo
+
+  alias power! ** unless defined?(0.power!)
+
+  def ** (other)
+    if self < 0 && other.round != other
+      Complex(self, 0.0) ** other
+    else
+      power!(other)
+    end
+  end
+
 end
 
 class Bignum
   remove_method :/
   alias / quo
+
+  alias power! ** unless defined?(0.power!)
+
+  def ** (other)
+    if self < 0 && other.round != other
+      Complex(self, 0.0) ** other
+    else
+      power!(other)
+    end
+  end
+
 end
 
 class Rational
-  Unify = true
-
-  alias power! **
-
   def ** (other)
     if other.kind_of?(Rational)
       other2 = other
       if self < 0
-	return Complex.__send__(:new!, self, 0) ** other
+	return Complex(self, 0.0) ** other
       elsif other == 0
 	return Rational(1,1)
       elsif self == 0
@@ -183,57 +114,13 @@ class Rational
       x ** y
     end
   end
-
-  def power2(other)
-    if other.kind_of?(Rational)
-      if self < 0
-	return Complex.__send__(:new!, self, 0) ** other
-      elsif other == 0
-	return Rational(1,1)
-      elsif self == 0
-	return Rational(0,1)
-      elsif self == 1
-	return Rational(1,1)
-      end
-      
-      dem = nil
-      x = self.denominator.to_f.to_i
-      neard = self.denominator.to_f ** (1.0/other.denominator.to_f)
-      loop do
-	if (neard**other.denominator == self.denominator)
-	  dem = neaed
-	  break
-	end
-      end
-      nearn = self.numerator.to_f ** (1.0/other.denominator.to_f)
-      Rational(num,den)
-      
-    elsif other.kind_of?(Integer)
-      if other > 0
-	num = numerator ** other
-	den = denominator ** other
-      elsif other < 0
-	num = denominator ** -other
-	den = numerator ** -other
-      elsif other == 0
-	num = 1
-	den = 1
-      end
-      Rational(num, den)
-    elsif other.kind_of?(Float)
-      Float(self) ** other
-    else
-      x , y = other.coerce(self)
-      x ** y
-    end
-  end
 end
 
 module Math
   remove_method(:sqrt)
   def sqrt(a)
     if a.kind_of?(Complex)
-      abs = sqrt(a.real*a.real + a.image*a.image)
+      abs = sqrt(a.real*a.real + a.imag*a.imag)
 #      if not abs.kind_of?(Rational)
 #	return a**Rational(1,2)
 #      end
@@ -242,11 +129,13 @@ module Math
 #      if !(x.kind_of?(Rational) and y.kind_of?(Rational))
 #	return a**Rational(1,2)
 #      end
-      if a.image >= 0 
+      if a.imag >= 0 
 	Complex(x, y)
       else
 	Complex(x, -y)
       end
+    elsif a.respond_to?(:nan?) and a.nan?
+      a
     elsif a >= 0
       rsqrt(a)
     else
@@ -303,6 +192,15 @@ module Math
   module_function :rsqrt
 end
 
-class Complex
-  Unify = true
+class Float
+  alias power! **
+
+  def ** (other)
+    if self < 0 && other.round != other
+      Complex(self, 0.0) ** other
+    else
+      power!(other)
+    end
+  end
+
 end

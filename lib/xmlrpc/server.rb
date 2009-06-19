@@ -267,7 +267,9 @@ class BasicServer
         if obj.kind_of? Proc
           methods << name
         else
-          obj.methods.each {|meth| methods << name + meth}
+          obj.class.public_instance_methods(false).each do |meth|
+            methods << "#{name}#{meth}"
+          end
         end
       end
       methods
@@ -775,6 +777,6 @@ end # module XMLRPC
 
 =begin
 = History
-    $Id: server.rb 14070 2007-12-01 16:01:49Z jeg2 $    
+    $Id: server.rb 20879 2008-12-19 11:37:33Z yugui $    
 =end
 

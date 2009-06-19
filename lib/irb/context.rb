@@ -1,7 +1,7 @@
 #
 #   irb/context.rb - irb context
 #   	$Release Version: 0.9.5$
-#   	$Revision: 15442 $
+#   	$Revision: 19670 $
 #   	by Keiju ISHITSUKA(keiju@ruby-lang.org)
 #
 # --
@@ -233,6 +233,7 @@ module IRB
     def inspect
       array = []
       for ivar in instance_variables.sort{|e1, e2| e1 <=> e2}
+	ivar = ivar.to_s
 	name = ivar.sub(/^@(.*)$/, '\1')
 	val = instance_eval(ivar)
 	case ivar

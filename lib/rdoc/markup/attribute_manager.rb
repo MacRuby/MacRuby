@@ -64,7 +64,8 @@ class RDoc::Markup::AttributeManager
 
   def copy_string(start_pos, end_pos)
     res = @str[start_pos...end_pos]
-    res.gsub!(/\000/, '')
+    # XXX this doesn't work in MacRuby yet
+    #res.gsub!(/\000/, '')
     res
   end
 
@@ -131,7 +132,8 @@ class RDoc::Markup::AttributeManager
   end
 
   def unmask_protected_sequences
-    @str.gsub!(/(.)#{PROTECT_ATTR}/, "\\1\000")
+    #@str.gsub!(/(.)#{PROTECT_ATTR}/, "\\1\000")
+    @str.gsub!(/(.)#{PROTECT_ATTR}/, "\\1")
   end
 
   def initialize
@@ -144,8 +146,6 @@ class RDoc::Markup::AttributeManager
     add_html("b",  :BOLD)
     add_html("tt",   :TT)
     add_html("code", :TT)
-
-    add_special(/<!--(.*?)-->/, :COMMENT)
   end
 
   def add_word_pair(start, stop, name)
@@ -176,20 +176,15 @@ class RDoc::Markup::AttributeManager
   def flow(str)
     @str = str
 
-    puts("Before flow, str='#{@str.dump}'") if $DEBUG_RDOC
     mask_protected_sequences
 
     @attrs = RDoc::Markup::AttrSpan.new @str.length
-
-    puts("After protecting, str='#{@str.dump}'") if $DEBUG_RDOC
 
     convert_attrs(@str, @attrs)
     convert_html(@str, @attrs)
     convert_specials(str, @attrs)
 
     unmask_protected_sequences
-
-    puts("After flow, str='#{@str.dump}'") if $DEBUG_RDOC
 
     return split_into_flow
   end
@@ -217,8 +212,6 @@ class RDoc::Markup::AttributeManager
   end
 
   def split_into_flow
-    display_attributes if $DEBUG_RDOC
-
     res = []
     current_attr = 0
     str = ""

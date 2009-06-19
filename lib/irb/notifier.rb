@@ -1,7 +1,7 @@
 #
-#   notifier.rb - optput methods used by irb 
+#   notifier.rb - output methods used by irb 
 #   	$Release Version: 0.9.5$
-#   	$Revision: 14912 $
+#   	$Revision: 16810 $
 #   	by Keiju ISHITSUKA(keiju@ruby-lang.org)
 #
 # --

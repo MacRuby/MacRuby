@@ -1,3 +1,14 @@
+# NSTextField mappings
+# 
+# Usage example:
+#   @field = text_field(:text => "your text here", :layout => {:start => false}, :frame => [0, 0, 300, 300])
+#   @field.text = "New text"
+
+# Cocoa Documentation:
+#  http://developer.apple.com/documentation/Cocoa/Reference/ApplicationKit/Classes/NSTextField_Class/Reference/Reference.html
+#
+#
+
 HotCocoa::Mappings.map :text_field => :NSTextField do
 
   constant :text_align, {
@@ -18,10 +29,6 @@ HotCocoa::Mappings.map :text_field => :NSTextField do
       setAlignment(value)
     end
     
-    def text_color=(value)
-      setTextColor(value)
-    end
-
   end
   
   delegating "control:textShouldBeginEditing:", :to => :should_begin_editing?, :parameters => [:textShouldBeginEditing]

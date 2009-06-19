@@ -258,15 +258,24 @@ module FileUtils
   def rmdir(list, options = {})
     fu_check_options options, OPT_TABLE['rmdir']
     list = fu_list(list)
-    fu_output_message "rmdir #{list.join ' '}" if options[:verbose]
+    parents = options[:parents]
+    fu_output_message "rmdir #{parents ? '-p ' : ''}#{list.join ' '}" if options[:verbose]
     return if options[:noop]
     list.each do |dir|
-      Dir.rmdir dir.sub(%r</\z>, '')
+      begin
+        Dir.rmdir(dir = dir.sub(%r</\z>, ''))
+        if parents
+          until (parent = File.dirname(dir)) == '.' or parent == dir
+            Dir.rmdir(dir)
+          end
+        end
+      rescue Errno::ENOTEMPTY, Errno::ENOENT
+      end
     end
   end
   module_function :rmdir
 
-  OPT_TABLE['rmdir'] = [:noop, :verbose]
+  OPT_TABLE['rmdir'] = [:parents, :noop, :verbose]
 
   #
   # Options: force noop verbose
@@ -470,7 +479,7 @@ module FileUtils
   # +dest+ must respond to #write(str).
   #
   def copy_stream(src, dest)
-    fu_copy_stream0 src, dest, fu_stream_blksize(src, dest)
+    IO.copy_stream(src, dest)
   end
   module_function :copy_stream
 
@@ -524,7 +533,7 @@ module FileUtils
   OPT_TABLE['move'] = [:force, :noop, :verbose, :secure]
 
   def rename_cannot_overwrite_file?   #:nodoc:
-    /djgpp|cygwin|mswin|mingw|bccwin|wince|emx/ =~ RUBY_PLATFORM
+    /cygwin|mswin|mingw|bccwin|emx/ =~ RUBY_PLATFORM
   end
   private_module_function :rename_cannot_overwrite_file?
 
@@ -1041,14 +1050,11 @@ module FileUtils
     private
 
     def fu_windows?
-      /mswin|mingw|bccwin|wince|emx/ =~ RUBY_PLATFORM
+      /mswin|mingw|bccwin|emx/ =~ RUBY_PLATFORM
     end
 
-    def fu_copy_stream0(src, dest, blksize)   #:nodoc:
-      # FIXME: readpartial?
-      while s = src.read(blksize)
-        dest.write s
-      end
+    def fu_copy_stream0(src, dest, blksize = nil)   #:nodoc:
+      IO.copy_stream(src, dest)
     end
 
     def fu_stream_blksize(*streams)
@@ -1254,12 +1260,7 @@ module FileUtils
     end
 
     def copy_file(dest)
-      st = stat()
-      File.open(path(),  'rb') {|r|
-        File.open(dest, 'wb', st.mode) {|w|
-          fu_copy_stream0 r, w, (fu_blksize(st) || fu_default_blksize())
-        }
-      }
+      IO.copy_stream(path(),  dest)
     end
 
     def copy_metadata(path)
@@ -1507,8 +1508,7 @@ module FileUtils
   end
 
   METHODS = singleton_methods() - [:private_module_function,
-      :commands, :options, :have_option?, :options_of, 
-      :collect_method]
+      :commands, :options, :have_option?, :options_of, :collect_method]
 
   # 
   # This module has all methods of FileUtils module, but it outputs messages

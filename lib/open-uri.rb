@@ -132,6 +132,11 @@ module OpenURI
     options ||= {}
     OpenURI.check_options(options)
 
+    if /\Arb?(?:\Z|:([^:]+))/ =~ mode
+      encoding, = $1,Encoding.find($1) if $1
+      mode = nil
+    end
+
     unless mode == nil ||
            mode == 'r' || mode == 'rb' ||
            mode == File::RDONLY
@@ -139,6 +144,7 @@ module OpenURI
     end
 
     io = open_loop(uri, options)
+    io.set_encoding(encoding) if encoding
     if block_given?
       begin
         yield io
@@ -542,7 +548,7 @@ module OpenURI
     #    :proxy => true
     #    :proxy => false
     #    :proxy => nil
-    #   
+    #
     #  If :proxy option is specified, the value should be String, URI,
     #  boolean or nil.
     #  When String or URI is given, it is treated as proxy URI.
@@ -556,7 +562,7 @@ module OpenURI
     #  Synopsis:
     #    :proxy_http_basic_authentication => ["http://proxy.foo.com:8000/", "proxy-user", "proxy-password"]
     #    :proxy_http_basic_authentication => [URI.parse("http://proxy.foo.com:8000/"), "proxy-user", "proxy-password"]
-    #   
+    #
     #  If :proxy option is specified, the value should be an Array with 3 elements.
     #  It should contain a proxy URI, a proxy user name and a proxy password.
     #  The proxy URI should be a String, an URI or nil.
@@ -564,7 +570,7 @@ module OpenURI
     #
     #  If nil is given for the proxy URI, this option is just ignored.
     #
-    #  If :proxy and :proxy_http_basic_authentication is specified, 
+    #  If :proxy and :proxy_http_basic_authentication is specified,
     #  ArgumentError is raised.
     #
     # [:http_basic_authentication]
@@ -579,14 +585,14 @@ module OpenURI
     # [:content_length_proc]
     #  Synopsis:
     #    :content_length_proc => lambda {|content_length| ... }
-    # 
+    #
     #  If :content_length_proc option is specified, the option value procedure
     #  is called before actual transfer is started.
     #  It takes one argument which is expected content length in bytes.
-    # 
+    #
     #  If two or more transfer is done by HTTP redirection, the procedure
     #  is called only one for a last transfer.
-    # 
+    #
     #  When expected content length is unknown, the procedure is called with
     #  nil.
     #  It is happen when HTTP response has no Content-Length header.
@@ -657,7 +663,7 @@ module OpenURI
     # :redirect=>false is used to disable HTTP redirects at all.
     # OpenURI::HTTPRedirect exception raised on redirection.
     # It is true by default.
-    # The true means redirectoins between http and ftp is permitted.
+    # The true means redirections between http and ftp is permitted.
     #
     def open(*rest, &block)
       OpenURI.open_uri(self, *rest, &block)

@@ -20,4 +20,6 @@ HotCocoa::Mappings.map :alert => :NSAlert do
     
   end
   
+  delegating "alertShowHelp:", :to => :show_help?
+  
 end

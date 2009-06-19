@@ -64,7 +64,7 @@ HotCocoa::Mappings.map :application => :NSApplication do
     def on_quit(menu)
       terminate(menu)
     end
-    
+
     private
     
       def find_menu(menu, path)
@@ -79,5 +79,34 @@ HotCocoa::Mappings.map :application => :NSApplication do
       end
     
   end
+
+  delegating "application:delegateHandlesKey:",                       :to => :delegate_handles_key?,            :parameters => [:delegateHandlesKey]
+  delegating "application:openFile:",                                 :to => :open_file,                        :parameters => [:openFile]
+  delegating "application:openFiles:",                                :to => :open_files,                       :parameters => [:openFiles]
+  delegating "application:openFileWithoutUI:",                        :to => :open_file_without_ui,             :parameters => [:openFileWithoutUI]
+  delegating "application:openTempFile:",                             :to => :open_temp_file,                   :parameters => [:openTempFile]
+  delegating "application:printFile:",                                :to => :print_file
+  delegating "application:printFiles:withSettings:showPrintPanels:",  :to => :print_files
+  delegating "application:willPresentError:",                         :to => :will_present_error
+  delegating "applicationDidBecomeActive:",                           :to => :did_become_active
+  delegating "applicationDidChangeScreenParameters:",                 :to => :did_change_screen_parameters
+  delegating "applicationDidFinishLaunching:",                        :to => :did_finish_launching
+  delegating "applicationDidHide:",                                   :to => :did_hide
+  delegating "applicationDidResignActive:",                           :to => :resign_active
+  delegating "applicationDidUnhide:",                                 :to => :did_unhide
+  delegating "applicationDidUpdate:",                                 :to => :did_update
+  delegating "applicationDockMenu:",                                  :to => :dock_menu
+  delegating "applicationOpenUntitledFile:",                          :to => :open_untitled_file
+  delegating "applicationShouldHandleReopen:hasVisibleWindows:",      :to => :should_handle_reopen?,            :parameters => [:hasVisibleWindows]
+  delegating "applicationShouldOpenUntitledFile:",                    :to => :should_open_untitled_file?
+  delegating "applicationShouldTerminate:",                           :to => :should_terminate?
+  delegating "applicationShouldTerminateAfterLastWindowClosed:",      :to => :should_terminate_after_last_window_closed?
+  delegating "applicationWillBecomeActive:",                          :to => :will_become_active
+  delegating "applicationWillFinishLaunching:",                       :to => :will_finish_launching
+  delegating "applicationWillHide:",                                  :to => :will_hide
+  delegating "applicationWillResignActive:",                          :to => :will_resign_active
+  delegating "applicationWillTerminate:",                             :to => :will_terminate
+  delegating "applicationWillUnhide:",                                :to => :will_unhide
+  delegating "applicationWillUpdate:",                                :to => :will_update
   
 end

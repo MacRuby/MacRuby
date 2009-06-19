@@ -22,7 +22,7 @@
 # http://www.ruby-lang.org/ja/man/html/net_http.html
 # 
 #--
-# $Id: http.rb 16033 2008-04-15 08:12:30Z kazu $
+# $Id: http.rb 18805 2008-08-24 03:21:36Z naruse $
 #++ 
 
 require 'net/protocol'
@@ -284,7 +284,7 @@ module Net   #:nodoc:
   class HTTP < Protocol
 
     # :stopdoc:
-    Revision = %q$Revision: 16033 $.split[1]
+    Revision = %q$Revision: 18805 $.split[1]
     HTTPVersion = '1.1'
     @newimpl = true
     begin
@@ -486,6 +486,11 @@ module Net   #:nodoc:
       @enable_post_connection_check = true
       @compression = nil
       @sspi_enabled = false
+      if defined?(SSL_ATTRIBUTES)
+        SSL_ATTRIBUTES.each do |name|
+          instance_variable_set "@#{name}", nil
+        end
+      end
     end
 
     def inspect
@@ -1521,7 +1526,7 @@ module Net   #:nodoc:
     private :encode_kvpair
 
     def urlencode(str)
-      str.gsub(/[^a-zA-Z0-9_\.\-]/n) { sprintf('%%%02x', $&[0]) }
+      str.dup.force_encoding('ASCII-8BIT').gsub(/[^a-zA-Z0-9_\.\-]/){'%%%02x' % $&.ord}
     end
     private :urlencode
 
@@ -1643,7 +1648,7 @@ module Net   #:nodoc:
     private
 
     def send_request_with_body(sock, ver, path, body)
-      self.content_length = body.length
+      self.content_length = body.bytesize
       delete 'Transfer-Encoding'
       supply_default_content_type
       write_header sock, ver, path

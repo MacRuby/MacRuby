@@ -150,7 +150,7 @@ module REXML
       end
 
       # context sensitive
-      string.scan(pattern).each do
+      string.scan(pattern) do
         if $1[-1] != ?;
           raise "Illegal character '#{$1}' in raw string \"#{string}\""
         elsif $1[0] == ?&
@@ -261,7 +261,7 @@ module REXML
     end
  
      def wrap(string, width, addnewline=false)
-       # Recursivly wrap string at width.
+       # Recursively wrap string at width.
        return string if string.length <= width
        place = string.rindex(' ', width) # Position in string with last ' ' before cutoff
        if addnewline then

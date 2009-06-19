@@ -1,6 +1,6 @@
 require 'rubygems/command'
 require 'rubygems/local_remote_options'
-require 'rubygems/source_info_cache'
+require 'rubygems/spec_fetcher'
 require 'rubygems/version_option'
 
 class Gem::Commands::OutdatedCommand < Gem::Command
@@ -19,9 +19,12 @@ class Gem::Commands::OutdatedCommand < Gem::Command
     locals = Gem::SourceIndex.from_installed_gems
 
     locals.outdated.sort.each do |name|
-      local = locals.search(/^#{name}$/).last
-      remotes = Gem::SourceInfoCache.search_with_source(/^#{name}$/, true)
+      local = locals.find_name(name).last
+
+      dep = Gem::Dependency.new local.name, ">= #{local.version}"
+      remotes = Gem::SpecFetcher.fetcher.fetch dep
       remote = remotes.last.first
+
       say "#{local.name} (#{local.version} < #{remote.version})"
     end
   end

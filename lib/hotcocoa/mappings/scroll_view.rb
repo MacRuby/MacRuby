@@ -11,11 +11,7 @@ HotCocoa::Mappings.map :scroll_view => :NSScrollView do
     def <<(view)
       setDocumentView(view)
     end
-    
-    def document_view=(view)
-      setDocumentView(view)
-    end
-    
+
     def background=(value)
       setDrawsBackground(value)
     end
@@ -26,10 +22,6 @@ HotCocoa::Mappings.map :scroll_view => :NSScrollView do
     
     def horizontal_scroller=(value)
       setHasHorizontalScroller(value)
-    end
-    
-    def autoresizes_subviews=(value)
-      setAutoresizesSubviews(value)
     end
     
   end

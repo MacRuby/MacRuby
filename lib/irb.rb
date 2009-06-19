@@ -1,7 +1,7 @@
 #
 #   irb.rb - irb main module
 #   	$Release Version: 0.9.5 $
-#   	$Revision: 15689 $
+#   	$Revision: 20186 $
 #   	by Keiju ISHITSUKA(keiju@ruby-lang.org)
 #
 # --
@@ -22,7 +22,7 @@ require "irb/locale"
 STDOUT.sync = true
 
 module IRB
-  @RCS_ID='-$Id: irb.rb 15689 2008-03-04 12:37:05Z matz $-'
+  @RCS_ID='-$Id: irb.rb 20186 2008-11-11 08:41:29Z yugui $-'
 
   class Abort < Exception;end
 
@@ -107,7 +107,7 @@ module IRB
 	  f = @context.prompt_c
 	elsif indent > 0
 	  f = @context.prompt_n
-	else @context.prompt_i
+	else
 	  f = @context.prompt_i
 	end
 	f = "" unless f
@@ -308,7 +308,7 @@ module IRB
     def inspect
       ary = []
       for iv in instance_variables
-	case iv
+	case (iv = iv.to_s)
 	when "@signal_status"
 	  ary.push format("%s=:%s", iv, @signal_status.id2name)
 	when "@context"

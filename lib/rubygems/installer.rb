@@ -20,6 +20,7 @@ require 'rubygems/require_paths_builder'
 # filesystem including unpacking the gem into its gem dir, installing the
 # gemspec in the specifications dir, storing the cached gem in the cache dir,
 # and installing either wrappers or symlinks for executables.
+
 class Gem::Installer
 
   ##
@@ -31,7 +32,35 @@ class Gem::Installer
 
   include Gem::RequirePathsBuilder
 
+  ##
+  # The directory a gem's executables will be installed into
+
+  attr_reader :bin_dir
+
+  ##
+  # The gem repository the gem will be installed into
+
+  attr_reader :gem_home
+
+  ##
+  # The Gem::Specification for the gem being installed
+
+  attr_reader :spec
+
+  @home_install_warning = false
+  @path_warning = false
+
   class << self
+
+    ##
+    # True if we've warned about ~/.gems install
+
+    attr_accessor :home_install_warning
+
+    ##
+    # True if we've warned about PATH not including Gem.bindir
+
+    attr_accessor :path_warning
 
     attr_writer :exec_format
 
@@ -56,15 +85,17 @@ class Gem::Installer
   #                      foo_exec18.
   # :security_policy:: Use the specified security policy.  See Gem::Security
   # :wrappers:: Install wrappers if true, symlinks if false.
+
   def initialize(gem, options={})
     @gem = gem
 
     options = {
-      :force => false,
-      :install_dir => Gem.dir,
-      :exec_format => false,
-      :env_shebang => false,
-      :bin_dir => nil
+      :bin_dir      => nil,
+      :env_shebang  => false,
+      :exec_format  => false,
+      :force        => false,
+      :install_dir  => Gem.dir,
+      :source_index => Gem.source_index,
     }.merge options
 
     @env_shebang = options[:env_shebang]
@@ -76,11 +107,50 @@ class Gem::Installer
     @security_policy = options[:security_policy]
     @wrappers = options[:wrappers]
     @bin_dir = options[:bin_dir]
+    @development = options[:development]
+    @source_index = options[:source_index]
 
     begin
       @format = Gem::Format.from_file_by_path @gem, @security_policy
     rescue Gem::Package::FormatError
       raise Gem::InstallError, "invalid gem format for #{@gem}"
+    end
+
+    begin
+      FileUtils.mkdir_p @gem_home
+    rescue Errno::EACCES, Errno::ENOTDIR
+      # We'll divert to ~/.gem below
+    end
+
+    if not File.writable? @gem_home or
+        # TODO: Shouldn't have to test for existence of bindir; tests need it.
+        (@gem_home.to_s == Gem.dir and File.exist? Gem.bindir and
+         not File.writable? Gem.bindir) then
+      if options[:user_install] == false then # You don't want to use ~
+        raise Gem::FilePermissionError, @gem_home
+      elsif options[:user_install].nil? then
+        unless self.class.home_install_warning then
+          alert_warning "Installing to ~/.gem since #{@gem_home} and\n\t  #{Gem.bindir} aren't both writable."
+          self.class.home_install_warning = true
+        end
+      end
+      options[:user_install] = true
+    end
+
+    if options[:user_install] and not options[:unpack] then
+      @gem_home = Gem.user_dir
+
+      user_bin_dir = File.join(@gem_home, 'bin')
+      unless ENV['PATH'].split(File::PATH_SEPARATOR).include? user_bin_dir then
+        unless self.class.path_warning then
+          alert_warning "You don't have #{user_bin_dir} in your PATH,\n\t  gem executables will not run."
+          self.class.path_warning = true
+        end
+      end
+
+      FileUtils.mkdir_p @gem_home unless File.directory? @gem_home
+      # If it's still not writable, you've got issues.
+      raise Gem::FilePermissionError, @gem_home unless File.writable? @gem_home
     end
 
     @spec = @format.spec
@@ -98,6 +168,7 @@ class Gem::Installer
   #     cache/<gem-version>.gem #=> a cached copy of the installed gem
   #     gems/<gem-version>/... #=> extracted files
   #     specifications/<gem-version>.gemspec #=> the Gem::Specification
+
   def install
     # If we're forcing the install then disable security unless the security
     # policy says that we only install singed gems.
@@ -119,14 +190,20 @@ class Gem::Installer
       end
 
       unless @ignore_dependencies then
-        @spec.dependencies.each do |dep_gem|
+        deps = @spec.runtime_dependencies
+        deps |= @spec.development_dependencies if @development
+
+        deps.each do |dep_gem|
           ensure_dependency @spec, dep_gem
         end
       end
     end
 
+    Gem.pre_install_hooks.each do |hook|
+      hook.call self
+    end
+
     FileUtils.mkdir_p @gem_home unless File.directory? @gem_home
-    raise Gem::FilePermissionError, @gem_home unless File.writable? @gem_home
 
     Gem.ensure_gem_subdirectories @gem_home
 
@@ -150,6 +227,12 @@ class Gem::Installer
     @spec.loaded_from = File.join(@gem_home, 'specifications',
                                   "#{@spec.full_name}.gemspec")
 
+    @source_index.add_spec @spec
+
+    Gem.post_install_hooks.each do |hook|
+      hook.call self
+    end
+
     return @spec
   rescue Zlib::GzipFile::Error
     raise Gem::InstallError, "gzip error installing #{@gem}"
@@ -161,6 +244,7 @@ class Gem::Installer
   #
   # spec       :: Gem::Specification
   # dependency :: Gem::Dependency
+
   def ensure_dependency(spec, dependency)
     unless installation_satisfies_dependency? dependency then
       raise Gem::InstallError, "#{spec.name} requires #{dependency}"
@@ -170,17 +254,15 @@ class Gem::Installer
   end
 
   ##
-  # True if the current installed gems satisfy the given dependency.
-  #
-  # dependency :: Gem::Dependency
+  # True if the gems in the source_index satisfy +dependency+.
+
   def installation_satisfies_dependency?(dependency)
-    current_index = Gem::SourceIndex.from_installed_gems
-    current_index.find_name(dependency.name, dependency.version_requirements).size > 0
+    @source_index.find_name(dependency.name, dependency.version_requirements).size > 0
   end
 
   ##
   # Unpacks the gem into the given directory.
-  #
+
   def unpack(directory)
     @gem_dir = directory
     @format = Gem::Format.from_file_by_path @gem, @security_policy
@@ -188,17 +270,15 @@ class Gem::Installer
   end
 
   ##
-  # Writes the .gemspec specification (in Ruby) to the supplied
-  # spec_path.
-  #
-  # spec:: [Gem::Specification] The Gem specification to output
-  # spec_path:: [String] The location (path) to write the gemspec to
-  #
+  # Writes the .gemspec specification (in Ruby) to the gem home's
+  # specifications directory.
+
   def write_spec
     rubycode = @spec.to_ruby
 
     file_name = File.join @gem_home, 'specifications',
                           "#{@spec.full_name}.gemspec"
+
     file_name.untaint
 
     File.open(file_name, "w") do |file|
@@ -208,7 +288,7 @@ class Gem::Installer
 
   ##
   # Creates windows .bat files for easy running of commands
-  #
+
   def generate_windows_script(bindir, filename)
     if Gem.win_platform? then
       script_name = filename + ".bat"
@@ -227,7 +307,7 @@ class Gem::Installer
     # If the user has asked for the gem to be installed in a directory that is
     # the system gem directory, then use the system bin directory, else create
     # (or use) a new bin dir under the gem_home.
-    bindir = @bin_dir ? @bin_dir : (Gem.bindir @gem_home)
+    bindir = @bin_dir ? @bin_dir : Gem.bindir(@gem_home)
 
     Dir.mkdir bindir unless File.exist? bindir
     raise Gem::FilePermissionError.new(bindir) unless File.writable? bindir
@@ -252,7 +332,7 @@ class Gem::Installer
   # The Windows script is generated in addition to the regular one due to a
   # bug or misfeature in the Windows shell's pipe.  See
   # http://blade.nagaokaut.ac.jp/cgi-bin/scat.rb/ruby/ruby-talk/193379
-  #
+
   def generate_bin_script(filename, bindir)
     bin_script_path = File.join bindir, formatted_program_filename(filename)
 
@@ -260,6 +340,8 @@ class Gem::Installer
 
     # HACK some gems don't have #! in their executables, restore 2008/06
     #if File.read(exec_path, 2) == '#!' then
+      FileUtils.rm_f bin_script_path # prior install may have been --no-wrappers
+
       File.open bin_script_path, 'w', 0755 do |file|
         file.print app_script_text(filename)
       end
@@ -277,7 +359,7 @@ class Gem::Installer
   ##
   # Creates the symlinks to run the applications in the gem.  Moves
   # the symlink if the gem being installed has a newer version.
-  #
+
   def generate_bin_symlink(filename, bindir)
     if Gem.win_platform? then
       alert_warning "Unable to use symlinks on Windows, installing wrapper"
@@ -303,6 +385,7 @@ class Gem::Installer
   ##
   # Generates a #! line for +bin_file_name+'s wrapper copying arguments if
   # necessary.
+
   def shebang(bin_file_name)
     if @env_shebang then
       "#!/usr/bin/env " + Gem::ConfigMap[:ruby_install_name]
@@ -324,7 +407,9 @@ class Gem::Installer
     end
   end
 
+  ##
   # Return the text for an application file.
+
   def app_script_text(bin_file_name)
     <<-TEXT
 #{shebang bin_file_name}
@@ -349,7 +434,9 @@ load '#{bin_file_name}'
 TEXT
   end
 
+  ##
   # return the stub script text used to launch the true ruby script
+
   def windows_stub_script(bindir, bin_file_name)
     <<-TEXT
 @ECHO OFF
@@ -361,8 +448,10 @@ GOTO :EOF
 TEXT
   end
 
+  ##
   # Builds extensions.  Valid types of extensions are extconf.rb files,
   # configure scripts and rakefiles or mkrf_conf files.
+
   def build_extensions
     return if @spec.extensions.empty?
     say "Building native extensions.  This could take a while..."
@@ -418,6 +507,7 @@ Results logged to #{File.join(Dir.pwd, 'gem_make.out')}
   # Reads the file index and extracts each file into the gem directory.
   #
   # Ensures that files can't be installed outside the gem directory.
+
   def extract_files
     expand_and_validate_gem_dir
 
@@ -445,11 +535,15 @@ Results logged to #{File.join(Dir.pwd, 'gem_make.out')}
         out.write file_data
       end
 
+      FileUtils.chmod entry['mode'], path
+
       say path if Gem.configuration.really_verbose
     end
   end
 
+  ##
   # Prefix and suffix the program filename the same as ruby.
+
   def formatted_program_filename(filename)
     if @format_executable then
       self.class.exec_format % File.basename(filename)
@@ -460,7 +554,9 @@ Results logged to #{File.join(Dir.pwd, 'gem_make.out')}
 
   private
 
+  ##
   # HACK Pathname is broken on windows.
+
   def absolute_path? pathname
     pathname.absolute? or (Gem.win_platform? and pathname.to_s =~ /\A[a-z]:/i)
   end

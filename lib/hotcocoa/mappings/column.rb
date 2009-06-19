@@ -15,7 +15,7 @@ HotCocoa::Mappings.map :column => :NSTableColumn do
     def title=(newTitle)
       headerCell.stringValue = newTitle
     end
-    
+
   end
 
 end

@@ -3,7 +3,7 @@
 #
 # Author:: Akira Yamada <akira@ruby-lang.org>
 # License:: You can redistribute it and/or modify it under the same term as Ruby.
-# Revision:: $Id: mailto.rb 14565 2007-12-24 01:51:49Z drbrain $
+# Revision:: $Id: mailto.rb 19495 2008-09-23 18:16:08Z drbrain $
 #
 
 require 'uri/generic'
@@ -135,7 +135,7 @@ module URI
       @headers = []
 
       if MAILTO_REGEXP =~ @opaque
-         if arg[-1]
+        if arg[-1]
           self.to = $1
           self.headers = $2
         else
@@ -159,7 +159,7 @@ module URI
       return true unless v
       return true if v.size == 0
 
-      if OPAQUE !~ v || /\A#{MAILBOX_PATTERN}*\z/o !~ v
+      if @parser.regexp[:OPAQUE] !~ v || /\A#{MAILBOX_PATTERN}*\z/o !~ v
         raise InvalidComponentError,
           "bad component(expected opaque component): #{v}"
       end
@@ -183,7 +183,7 @@ module URI
       return true unless v
       return true if v.size == 0
 
-      if OPAQUE !~ v || 
+      if @parser.regexp[:OPAQUE] !~ v || 
           /\A(#{HEADER_PATTERN}(?:\&#{HEADER_PATTERN})*)\z/o !~ v
         raise InvalidComponentError,
           "bad component(expected opaque component): #{v}"
@@ -239,18 +239,18 @@ module URI
     #   # => "To: ruby-list@ruby-lang.org\nSubject: subscribe\nCc: myaddr\n\n\n"
     #
     def to_mailtext
-      to = URI::unescape(@to)
+      to = @parser.unescape(@to)
       head = ''
       body = ''
       @headers.each do |x|
         case x[0]
         when 'body'
-          body = URI::unescape(x[1])
+          body = @parser.unescape(x[1])
         when 'to'
-          to << ', ' + URI::unescape(x[1])
+          to << ', ' + @parser.unescape(x[1])
         else
-          head << URI::unescape(x[0]).capitalize + ': ' +
-            URI::unescape(x[1])  + "\n"
+          head << @parser.unescape(x[0]).capitalize + ': ' +
+            @parser.unescape(x[1])  + "\n"
         end
       end
 

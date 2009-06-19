@@ -3,29 +3,34 @@ require 'fcntl'
 require 'timeout'
 require 'thread'
 
+begin
+  require 'securerandom'
+rescue LoadError
+end
+
 # Resolv is a thread-aware DNS resolver library written in Ruby.  Resolv can
 # handle multiple DNS requests concurrently without blocking.  The ruby
 # interpreter.
 #
 # See also resolv-replace.rb to replace the libc resolver with # Resolv.
-# 
+#
 # Resolv can look up various DNS resources using the DNS module directly.
-# 
+#
 # Examples:
-# 
+#
 #   p Resolv.getaddress "www.ruby-lang.org"
 #   p Resolv.getname "210.251.121.214"
-# 
+#
 #   Resolv::DNS.open do |dns|
 #     ress = dns.getresources "www.ruby-lang.org", Resolv::DNS::Resource::IN::A
 #     p ress.map { |r| r.address }
 #     ress = dns.getresources "ruby-lang.org", Resolv::DNS::Resource::IN::MX
 #     p ress.map { |r| [r.exchange.to_s, r.preference] }
 #   end
-# 
-# 
+#
+#
 # == Bugs
-# 
+#
 # * NIS is not supported.
 # * /etc/nsswitch.conf is not supported.
 
@@ -33,14 +38,14 @@ class Resolv
 
   ##
   # Looks up the first IP address for +name+.
-  
+
   def self.getaddress(name)
     DefaultResolver.getaddress(name)
   end
 
   ##
   # Looks up all IP address for +name+.
-  
+
   def self.getaddresses(name)
     DefaultResolver.getaddresses(name)
   end
@@ -82,7 +87,7 @@ class Resolv
 
   ##
   # Looks up the first IP address for +name+.
-  
+
   def getaddress(name)
     each_address(name) {|address| return address}
     raise ResolvError.new("no address for #{name}")
@@ -90,7 +95,7 @@ class Resolv
 
   ##
   # Looks up all IP address for +name+.
-  
+
   def getaddresses(name)
     ret = []
     each_address(name) {|address| ret << address}
@@ -252,7 +257,7 @@ class Resolv
     end
 
     ##
-    # Iterates over all hostnames for +address+ retrived from the hosts file.
+    # Iterates over all hostnames for +address+ retrieved from the hosts file.
 
     def each_name(address, &proc)
       lazy_initialize
@@ -285,11 +290,6 @@ class Resolv
     UDPSize = 512
 
     ##
-    # Group of DNS resolver threads
-
-    DNSThreadGroup = ThreadGroup.new
-
-    ##
     # Creates a new DNS resolver.  See Resolv::DNS.new for argument details.
     #
     # Yields the created DNS resolver to the block, if given, otherwise
@@ -309,7 +309,7 @@ class Resolv
     # Creates a new DNS resolver.
     #
     # +config_info+ can be:
-    # 
+    #
     # nil:: Uses /etc/resolv.conf.
     # String:: Path to a file using /etc/resolv.conf's format.
     # Hash:: Must contain :nameserver, :search and :ndots keys.
@@ -330,13 +330,6 @@ class Resolv
       @mutex.synchronize {
         unless @initialized
           @config.lazy_initialize
-
-          if nameserver = @config.single?
-            @requester = Requester::ConnectedUDP.new(nameserver)
-          else
-            @requester = Requester::UnconnectedUDP.new
-          end
-
           @initialized = true
         end
       }
@@ -349,8 +342,6 @@ class Resolv
     def close
       @mutex.synchronize {
         if @initialized
-          @requester.close if @requester
-          @requester = nil
           @initialized = false
         end
       }
@@ -466,7 +457,7 @@ class Resolv
     ##
     # Looks up all +typeclass+ DNS resources for +name+.  See #getresource for
     # argument details.
-  
+
     def getresources(name, typeclass)
       ret = []
       each_resource(name, typeclass) {|resource| ret << resource}
@@ -476,10 +467,10 @@ class Resolv
     ##
     # Iterates over all +typeclass+ DNS resources for +name+.  See
     # #getresource for argument details.
-  
+
     def each_resource(name, typeclass, &proc)
       lazy_initialize
-      q = Queue.new
+      requester = make_requester
       senders = {}
       begin
         @config.resolv(name) {|candidate, tout, nameserver|
@@ -488,11 +479,9 @@ class Resolv
           msg.add_question(candidate, typeclass)
           unless sender = senders[[candidate, nameserver]]
             sender = senders[[candidate, nameserver]] =
-              @requester.sender(msg, candidate, q, nameserver)
+              requester.sender(msg, candidate, nameserver)
           end
-          sender.send
-          reply = reply_name = nil
-          timeout(tout, ResolvTimeout) { reply, reply_name = q.pop }
+          reply, reply_name = requester.request(sender, tout)
           case reply.rcode
           when RCode::NoError
             extract_resources(reply, reply_name, typeclass, &proc)
@@ -504,7 +493,15 @@ class Resolv
           end
         }
       ensure
-        @requester.delete(q)
+        requester.close
+      end
+    end
+
+    def make_requester # :nodoc:
+      if nameserver = @config.single?
+        Requester::ConnectedUDP.new(nameserver)
+      else
+        Requester::UnconnectedUDP.new
       end
     end
 
@@ -539,45 +536,106 @@ class Resolv
       }
     end
 
+    if defined? SecureRandom
+      def self.random(arg) # :nodoc:
+        begin
+          SecureRandom.random_number(arg)
+        rescue NotImplementedError
+          rand(arg)
+        end
+      end
+    else
+      def self.random(arg) # :nodoc:
+        rand(arg)
+      end
+    end
+
+
+    def self.rangerand(range) # :nodoc:
+      base = range.begin
+      len = range.end - range.begin
+      if !range.exclude_end?
+        len += 1
+      end
+      base + random(len)
+    end
+
+    RequestID = {}
+    RequestIDMutex = Mutex.new
+
+    def self.allocate_request_id(host, port) # :nodoc:
+      id = nil
+      RequestIDMutex.synchronize {
+        h = (RequestID[[host, port]] ||= {})
+        begin
+          id = rangerand(0x0000..0xffff)
+        end while h[id]
+        h[id] = true
+      }
+      id
+    end
+
+    def self.free_request_id(host, port, id) # :nodoc:
+      RequestIDMutex.synchronize {
+        key = [host, port]
+        if h = RequestID[key]
+          h.delete id
+          if h.empty?
+            RequestID.delete key
+          end
+        end
+      }
+    end
+
+    def self.bind_random_port(udpsock) # :nodoc:
+      begin
+        port = rangerand(1024..65535)
+        udpsock.bind("", port)
+      rescue Errno::EADDRINUSE
+        retry
+      end
+    end
+
     class Requester # :nodoc:
       def initialize
         @senders = {}
+        @sock = nil
+      end
+
+      def request(sender, tout)
+        timelimit = Time.now + tout
+        sender.send
+        while (now = Time.now) < timelimit
+          timeout = timelimit - now
+          if !IO.select([@sock], nil, nil, timeout)
+            raise ResolvTimeout
+          end
+          reply, from = recv_reply
+          begin
+            msg = Message.decode(reply)
+          rescue DecodeError
+            next # broken DNS message ignored
+          end
+          if s = @senders[[from,msg.id]]
+            break
+          else
+            # unexpected DNS message ignored
+          end
+        end
+        return msg, s.data
       end
 
       def close
-        thread, sock, @thread, @sock = @thread, @sock
-        begin
-          if thread
-            thread.kill
-            thread.join
-          end
-        ensure
-          sock.close if sock
-        end
-      end
-
-      def delete(arg)
-        case arg
-        when Sender
-          @senders.delete_if {|k, s| s == arg }
-        when Queue
-          @senders.delete_if {|k, s| s.queue == arg }
-        else
-          raise ArgumentError.new("neither Sender or Queue: #{arg}")
-        end
+        sock = @sock
+        @sock = nil
+        sock.close if sock
       end
 
       class Sender # :nodoc:
-        def initialize(msg, data, sock, queue)
+        def initialize(msg, data, sock)
           @msg = msg
           @data = data
           @sock = sock
-          @queue = queue
-        end
-        attr_reader :queue
-
-        def recv(msg)
-          @queue.push([msg, @data])
         end
       end
 
@@ -585,45 +643,38 @@ class Resolv
         def initialize
           super()
           @sock = UDPSocket.new
-          @sock.fcntl(Fcntl::F_SETFD, 1) if defined? Fcntl::F_SETFD
-          @id = {}
-          @id.default = -1
-          @thread = Thread.new {
-            DNSThreadGroup.add Thread.current
-            loop {
-              reply, from = @sock.recvfrom(UDPSize)
-              msg = begin
-                Message.decode(reply)
-              rescue DecodeError
-                STDERR.print("DNS message decoding error: #{reply.inspect}\n")
-                next
-              end
-              if s = @senders[[[from[3],from[1]],msg.id]]
-                s.recv msg
-              else
-                #STDERR.print("non-handled DNS message: #{msg.inspect} from #{from.inspect}\n")
-              end
-            }
-          }
+          @sock.fcntl(Fcntl::F_SETFD, Fcntl::FD_CLOEXEC) if defined? Fcntl::F_SETFD
+          DNS.bind_random_port(@sock)
         end
 
-        def sender(msg, data, queue, host, port=Port)
+        def recv_reply
+          reply, from = @sock.recvfrom(UDPSize)
+          return reply, [from[3],from[1]]
+        end
+
+        def sender(msg, data, host, port=Port)
           service = [host, port]
-          id = Thread.exclusive {
-            @id[service] = (@id[service] + 1) & 0xffff
-          }
+          id = DNS.allocate_request_id(host, port)
           request = msg.encode
           request[0,2] = [id].pack('n')
           return @senders[[service, id]] =
-            Sender.new(request, data, @sock, host, port, queue)
+            Sender.new(request, data, @sock, host, port)
+        end
+
+        def close
+          super
+          @senders.each_key {|service, id|
+            DNS.free_request_id(service[0], service[1], id)
+          }
         end
 
         class Sender < Requester::Sender # :nodoc:
-          def initialize(msg, data, sock, host, port, queue)
-            super(msg, data, sock, queue)
+          def initialize(msg, data, sock, host, port)
+            super(msg, data, sock)
             @host = host
             @port = port
           end
+          attr_reader :data
 
           def send
             @sock.send(@msg, 0, @host, @port)
@@ -637,42 +688,38 @@ class Resolv
           @host = host
           @port = port
           @sock = UDPSocket.new(host.index(':') ? Socket::AF_INET6 : Socket::AF_INET)
+          DNS.bind_random_port(@sock)
           @sock.connect(host, port)
-          @sock.fcntl(Fcntl::F_SETFD, 1) if defined? Fcntl::F_SETFD
-          @id = -1
-          @thread = Thread.new {
-            DNSThreadGroup.add Thread.current
-            loop {
-              reply = @sock.recv(UDPSize)
-              msg = begin
-                Message.decode(reply)
-              rescue DecodeError
-                STDERR.print("DNS message decoding error: #{reply.inspect}")
-                next
-              end
-              if s = @senders[msg.id]
-                s.recv msg
-              else
-                #STDERR.print("non-handled DNS message: #{msg.inspect}")
-              end
-            }
-          }
+          @sock.fcntl(Fcntl::F_SETFD, Fcntl::FD_CLOEXEC) if defined? Fcntl::F_SETFD
         end
 
-        def sender(msg, data, queue, host=@host, port=@port)
+        def recv_reply
+          reply = @sock.recv(UDPSize)
+          return reply, nil
+        end
+
+        def sender(msg, data, host=@host, port=@port)
           unless host == @host && port == @port
             raise RequestError.new("host/port don't match: #{host}:#{port}")
           end
-          id = Thread.exclusive { @id = (@id + 1) & 0xffff }
+          id = DNS.allocate_request_id(@host, @port)
           request = msg.encode
           request[0,2] = [id].pack('n')
-          return @senders[id] = Sender.new(request, data, @sock, queue)
+          return @senders[[nil,id]] = Sender.new(request, data, @sock)
+        end
+
+        def close
+          super
+          @senders.each_key {|from, id|
+            DNS.free_request_id(@host, @port, id)
+          }
         end
 
         class Sender < Requester::Sender # :nodoc:
           def send
             @sock.send(@msg, 0)
           end
+          attr_reader :data
         end
       end
 
@@ -681,39 +728,25 @@ class Resolv
           super()
           @host = host
           @port = port
-          @sock = TCPSocket.new
-          @sock.connect(host, port)
-          @sock.fcntl(Fcntl::F_SETFD, 1) if defined? Fcntl::F_SETFD
-          @id = -1
+          @sock = TCPSocket.new(@host, @port)
+          @sock.fcntl(Fcntl::F_SETFD, Fcntl::FD_CLOEXEC) if defined? Fcntl::F_SETFD
           @senders = {}
-          @thread = Thread.new {
-            DNSThreadGroup.add Thread.current
-            loop {
-              len = @sock.read(2).unpack('n')
-              reply = @sock.read(len)
-              msg = begin
-                Message.decode(reply)
-              rescue DecodeError
-                STDERR.print("DNS message decoding error: #{reply.inspect}")
-                next
-              end
-              if s = @senders[msg.id]
-                s.push msg
-              else
-                #STDERR.print("non-handled DNS message: #{msg.inspect}")
-              end
-            }
-          }
         end
 
-        def sender(msg, data, queue, host=@host, port=@port)
+        def recv_reply
+          len = @sock.read(2).unpack('n')[0]
+          reply = @sock.read(len)
+          return reply, nil
+        end
+
+        def sender(msg, data, host=@host, port=@port)
           unless host == @host && port == @port
             raise RequestError.new("host/port don't match: #{host}:#{port}")
           end
-          id = Thread.exclusive { @id = (@id + 1) & 0xffff }
+          id = DNS.allocate_request_id(@host, @port)
           request = msg.encode
           request[0,2] = [request.length, id].pack('nn')
-          return @senders[id] = Sender.new(request, data, @sock, queue)
+          return @senders[[nil,id]] = Sender.new(request, data, @sock)
         end
 
         class Sender < Requester::Sender # :nodoc:
@@ -721,6 +754,14 @@ class Resolv
             @sock.print(@msg)
             @sock.flush
           end
+          attr_reader :data
+        end
+
+        def close
+          super
+          @senders.each_key {|from,id|
+            DNS.free_request_id(@host, @port, id)
+          }
         end
       end
 
@@ -996,7 +1037,7 @@ class Resolv
     # A representation of a DNS name.
 
     class Name
-      
+
       ##
       # Creates a new DNS name from +arg+.  +arg+ can be:
       #
@@ -1419,11 +1460,11 @@ class Resolv
 
     class Query
       def encode_rdata(msg) # :nodoc:
-        raise EncodeError.new("#{self.class} is query.") 
+        raise EncodeError.new("#{self.class} is query.")
       end
 
       def self.decode_rdata(msg) # :nodoc:
-        raise DecodeError.new("#{self.class} is query.") 
+        raise DecodeError.new("#{self.class} is query.")
       end
     end
 
@@ -1898,7 +1939,7 @@ class Resolv
           def initialize(address)
             @address = IPv6.create(address)
           end
-          
+
           ##
           # The Resolv::IPv6 address for this AAAA.
 
@@ -1915,7 +1956,7 @@ class Resolv
 
         ##
         # SRV resource record defined in RFC 2782
-        # 
+        #
         # These records identify the hostname and port that a service is
         # available at.
 
@@ -2026,7 +2067,7 @@ class Resolv
     end
 
     ##
-    # A String reperesentation of this IPv4 address.
+    # A String representation of this IPv4 address.
 
     ##
     # The raw IPv4 address as a String.

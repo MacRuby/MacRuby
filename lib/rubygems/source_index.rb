@@ -7,6 +7,9 @@
 require 'rubygems'
 require 'rubygems/user_interaction'
 require 'rubygems/specification'
+module Gem
+  autoload(:SpecFetcher, 'rubygems/spec_fetcher')
+end
 
 ##
 # The SourceIndex object indexes all the gems available from a
@@ -27,6 +30,11 @@ class Gem::SourceIndex
 
   attr_reader :gems # :nodoc:
 
+  ##
+  # Directories to use to refresh this SourceIndex when calling refresh!
+
+  attr_accessor :spec_dirs
+
   class << self
     include Gem::UserInteraction
 
@@ -39,7 +47,7 @@ class Gem::SourceIndex
     #   +from_gems_in+.  This argument is deprecated and is provided
     #   just for backwards compatibility, and should not generally
     #   be used.
-    # 
+    #
     # return::
     #   SourceIndex instance
 
@@ -63,7 +71,9 @@ class Gem::SourceIndex
     # +spec_dirs+.
 
     def from_gems_in(*spec_dirs)
-      self.new.load_gems_in(*spec_dirs)
+      source_index = new
+      source_index.spec_dirs = spec_dirs
+      source_index.refresh!
     end
 
     ##
@@ -72,18 +82,26 @@ class Gem::SourceIndex
 
     def load_specification(file_name)
       begin
-        spec_code = File.read(file_name).untaint
+        spec_code = if RUBY_VERSION < '1.9' then
+                      File.read file_name
+                    else
+                      File.read file_name, :encoding => 'UTF-8'
+                    end.untaint
+
         gemspec = eval spec_code, binding, file_name
+
         if gemspec.is_a?(Gem::Specification)
           gemspec.loaded_from = file_name
           return gemspec
         end
         alert_warning "File '#{file_name}' does not evaluate to a gem specification"
+      rescue SignalException, SystemExit
+        raise
       rescue SyntaxError => e
         alert_warning e
         alert_warning spec_code
       rescue Exception => e
-        alert_warning(e.inspect.to_s + "\n" + spec_code)
+        alert_warning "#{e.inspect}\n#{spec_code}"
         alert_warning "Invalid .gemspec format in '#{file_name}'"
       end
       return nil
@@ -100,6 +118,7 @@ class Gem::SourceIndex
 
   def initialize(specifications={})
     @gems = specifications
+    @spec_dirs = nil
   end
 
   ##
@@ -121,8 +140,8 @@ class Gem::SourceIndex
   end
 
   ##
-  # Returns a Hash of name => Specification of the latest versions of each
-  # gem in this index.
+  # Returns an Array specifications for the latest versions of each gem in
+  # this index.
 
   def latest_specs
     result = Hash.new { |h,k| h[k] = [] }
@@ -219,7 +238,8 @@ class Gem::SourceIndex
   # Find a gem by an exact match on the short name.
 
   def find_name(gem_name, version_requirement = Gem::Requirement.default)
-    search(/^#{gem_name}$/, version_requirement)
+    dep = Gem::Dependency.new(/^#{gem_name}$/, version_requirement)
+    search dep
   end
 
   ##
@@ -235,13 +255,20 @@ class Gem::SourceIndex
     version_requirement = nil
     only_platform = false
 
-    case gem_pattern # TODO warn after 2008/03, remove three months after
+    # TODO - Remove support and warning for legacy arguments after 2008/11
+    unless Gem::Dependency === gem_pattern
+      warn "#{Gem.location_of_caller.join ':'}:Warning: Gem::SourceIndex#search support for #{gem_pattern.class} patterns is deprecated"
+    end
+
+    case gem_pattern
     when Regexp then
       version_requirement = platform_only || Gem::Requirement.default
     when Gem::Dependency then
       only_platform = platform_only
       version_requirement = gem_pattern.version_requirements
-      gem_pattern = if gem_pattern.name.empty? then
+      gem_pattern = if Regexp === gem_pattern.name then
+                      gem_pattern.name
+                    elsif gem_pattern.name.empty? then
                       //
                     else
                       /^#{Regexp.escape gem_pattern.name}$/
@@ -257,7 +284,7 @@ class Gem::SourceIndex
 
     specs = @gems.values.select do |spec|
       spec.name =~ gem_pattern and
-      version_requirement.satisfied_by? spec.version
+        version_requirement.satisfied_by? spec.version
     end
 
     if only_platform then
@@ -271,29 +298,41 @@ class Gem::SourceIndex
 
   ##
   # Replaces the gems in the source index from specifications in the
-  # installed_spec_directories,
+  # directories this source index was created from.  Raises an exception if
+  # this source index wasn't created from a directory (via from_gems_in or
+  # from_installed_gems, or having spec_dirs set).
 
   def refresh!
-    load_gems_in(*self.class.installed_spec_directories)
+    raise 'source index not created from disk' if @spec_dirs.nil?
+    load_gems_in(*@spec_dirs)
   end
 
   ##
   # Returns an Array of Gem::Specifications that are not up to date.
 
   def outdated
-    dep = Gem::Dependency.new '', Gem::Requirement.default
-
-    remotes = Gem::SourceInfoCache.search dep, true
-
     outdateds = []
 
     latest_specs.each do |local|
-      name = local.name
-      remote = remotes.select { |spec| spec.name == name }.
-        sort_by { |spec| spec.version.to_ints }.
-        last
+      dependency = Gem::Dependency.new local.name, ">= #{local.version}"
 
-      outdateds << name if remote and local.version < remote.version
+      begin
+        fetcher = Gem::SpecFetcher.fetcher
+        remotes = fetcher.find_matching dependency
+        remotes = remotes.map { |(name, version,_),_| version }
+      rescue Gem::RemoteFetcher::FetchError => e
+        raise unless fetcher.warn_legacy e do
+          require 'rubygems/source_info_cache'
+
+          specs = Gem::SourceInfoCache.search_with_source dependency, true
+
+          remotes = specs.map { |spec,| spec.version }
+        end
+      end
+
+      latest = remotes.sort.last
+
+      outdateds << local.name if latest and local.version < latest
     end
 
     outdateds
@@ -387,7 +426,8 @@ class Gem::SourceIndex
   end
 
   def fetch_bulk_index(source_uri)
-    say "Bulk updating Gem source index for: #{source_uri}"
+    say "Bulk updating Gem source index for: #{source_uri}" if
+      Gem.configuration.verbose
 
     index = fetch_index_from(source_uri)
     if index.nil? then
@@ -447,7 +487,7 @@ class Gem::SourceIndex
 
   def unzip(string)
     require 'zlib'
-    Zlib::Inflate.inflate(string)
+    Gem.inflate string
   end
 
   ##
@@ -513,7 +553,7 @@ module Gem
   # objects to load properly.
   Cache = SourceIndex
 
-  # :starddoc:
+  # :startdoc:
 
 end
 

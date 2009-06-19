@@ -19,6 +19,12 @@ module HotCocoa
       set_delegate if required_methods.empty?
     end
     
+    def delegate_to(object, *method_names)
+      method_names.each do |method_name|
+        control.send(method_name, &object.method(method_name)) if object.respond_to?(method_name)
+      end
+    end
+    
     private 
     
       def increment_method_count

@@ -1,3 +1,17 @@
+# Cocoa Reference: NSWindow
+#
+# Usage example:
+# ==============
+#
+#   window :frame => [100, 100, 604, 500], :title => "My app", :style => [:titled, :closable, :miniaturizable, :resizable] do |win|
+#     win.contentView.margin  = 0
+#     win.background_color    = color(:name => 'white')  
+#     win.will_close { exit }
+#   end
+#
+# Apple Developer Connection url: http://developer.apple.com/documentation/Cocoa/Reference/ApplicationKit/Classes/NSWindow_Class/Reference/Reference.html
+#
+
 HotCocoa::Mappings.map :window => :NSWindow do
     
   defaults  :style => [:titled, :closable, :miniaturizable, :resizable],
@@ -32,12 +46,12 @@ HotCocoa::Mappings.map :window => :NSWindow do
                                styleMask:options.delete(:style), 
                                backing:options.delete(:backing), 
                                defer:options.delete(:defer)
+    default_layout = options.delete(:default_layout)
     if options[:view] == :layout
       options.delete(:view)
       window.setContentView(LayoutView.alloc.initWithFrame([0,0,window.contentView.frameSize.width, window.contentView.frameSize.height]))
-      window.contentView.default_layout = options.delete(:default_layout)
+      window.contentView.default_layout = default_layout
     elsif options[:view] == :nolayout
-      options.delete(:default_layout)
       options.delete(:view)
     end
     window
@@ -68,20 +82,8 @@ HotCocoa::Mappings.map :window => :NSWindow do
       orderFrontRegardless
     end
     
-    def background_color=(color)
-      setBackgroundColor(color)
-    end
-    
-    def background_color
-      backgroundColor
-    end
-    
     def has_shadow?
       hasShadow
-    end
-    
-    def has_shadow=(value)
-      setHasShadow(value)
     end
     
   end

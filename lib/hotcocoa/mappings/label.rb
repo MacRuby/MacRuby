@@ -20,10 +20,6 @@ HotCocoa::Mappings.map :label => :NSTextField do
       setAlignment(value)
     end
     
-    def text_color=(value)
-      setTextColor(value)
-    end
-
   end
   
 end

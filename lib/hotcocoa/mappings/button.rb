@@ -30,14 +30,23 @@ HotCocoa::Mappings.map :button => :NSButton do
      :momentary_change    => NSMomentaryChangeButton,
      :on_off              => NSOnOffButton,
      :momentary_push_in   => NSMomentaryPushInButton,
-     :momentary_push      => NSMomentaryPushButton,
-     :momentary_light     => NSMomentaryLight
+     :momentary_push      => NSMomentaryPushButton
   }
 
   constant :state, {
     :on                   => NSOnState,
     :off                  => NSOffState,
     :mixed                => NSMixedState
+  }
+
+  constant :image_position, {
+    :text_only            => NSNoImage,
+    :image_only           => NSImageOnly,
+    :overlaps             => NSImageOverlaps,
+    :left                 => NSImageLeft,
+    :right                => NSImageRight,
+    :below                => NSImageBelow,
+    :above                => NSImageAbove
   }
   
   def init_with_options(button, options)

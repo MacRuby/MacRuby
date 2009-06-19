@@ -166,7 +166,7 @@ module HotCocoa::Graphics
     # set the current fill (given a Color object, or RGBA values)
     def fill(r=0, g=0, b=0, a=1)
       case r
-      when Graphics::Color
+      when Color
         g = r.g
         b = r.b
         a = r.a

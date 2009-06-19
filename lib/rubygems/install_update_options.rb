@@ -89,6 +89,19 @@ module Gem::InstallUpdateOptions
                'foo_exec18') do |value, options|
       options[:format_executable] = value
     end
+
+    add_option(:"Install/Update",       '--[no-]user-install',
+               'Install in user\'s home directory instead',
+               'of GEM_HOME. Defaults to using home directory',
+               'only if GEM_HOME is not writable.') do |value, options|
+      options[:user_install] = value
+    end
+
+    add_option(:"Install/Update", "--development",
+                "Install any additional development",
+                "dependencies") do |value, options|
+      options[:development] = true
+    end
   end
 
   # Default options for the gem install command.

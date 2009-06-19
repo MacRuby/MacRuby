@@ -4,7 +4,7 @@
 # 
 # Copyright (C) 2001, 2002, 2003 by Michael Neumann (mneumann@ntecs.de)
 #
-# $Id: httpserver.rb 11708 2007-02-12 23:01:19Z shyouhei $
+# $Id: httpserver.rb 19657 2008-10-01 13:46:53Z mame $
 #
 
 
@@ -156,7 +156,7 @@ private
     # parse HTTP headers
     while (line=io.gets) !~ /^(\n|\r)/
       if line =~ /^([\w-]+):\s*(.*)$/
-	request.header[$1] = $2.strip
+        request.header[$1] = $2.strip
       end
     end
 

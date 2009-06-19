@@ -6,7 +6,7 @@
 # 
 # Copyright (C) 2001, 2002, 2003 by Michael Neumann (mneumann@ntecs.de)
 #
-# $Id: utils.rb 13767 2007-10-24 18:46:08Z jeg2 $ 
+# $Id: utils.rb 19657 2008-10-01 13:46:53Z mame $ 
 #
 
 module XMLRPC
@@ -37,7 +37,7 @@ module XMLRPC
     def create
       # if set_writer was not already called then call it now
       if @create.nil? then
-	set_writer(Config::DEFAULT_WRITER.new)
+        set_writer(Config::DEFAULT_WRITER.new)
       end
       @create
     end
@@ -45,7 +45,7 @@ module XMLRPC
     def parser
       # if set_parser was not already called then call it now
       if @parser.nil? then
-	set_parser(Config::DEFAULT_PARSER.new)
+        set_parser(Config::DEFAULT_PARSER.new)
       end
       @parser
     end

@@ -7,7 +7,7 @@
 #
 # You can redistribute and/or modify it under the same terms as Ruby.
 #
-# $Id: ipaddr.rb 15821 2008-03-21 12:15:06Z knu $
+# $Id: ipaddr.rb 19504 2008-09-23 21:39:21Z ryan $
 #
 # Contact:
 #   - Akinori MUSHA <knu@iDaemons.org> (current maintainer)
@@ -483,7 +483,7 @@ class IPAddr
     if prefixlen
       mask!(prefixlen)
     else
-      @mask_addr = (family == Socket::AF_INET) ? IN4MASK : IN6MASK
+      @mask_addr = (@family == Socket::AF_INET) ? IN4MASK : IN6MASK
     end
   end
 
@@ -577,7 +577,6 @@ end
 __END__
 
 require 'test/unit'
-require 'test/unit/ui/console/testrunner'
 
 class TC_IPAddr < Test::Unit::TestCase
   def test_s_new
