@@ -1,4 +1,4 @@
-name: Round Transparent Window
+name: Download And progress bar
 load: lib/application.rb
 version: "1.0"
 icon: resources/HotCocoa.icns

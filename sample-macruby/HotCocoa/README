@@ -1,3 +1,5 @@
+== HotCocoa Examples ==
+
 This directory contains a few demos of using the HotCocoa library.
 
 To learn more about HotCocoa see:
@@ -24,22 +26,29 @@ directory structure is:
 After generating the structure, cd into that directory and run 
 macrake to build.
 
-Demos:
+== Examples ==
 
-calculator    #=> simple calculator example
-demo          #=> demo of many hotcocoa wrappers
-layout_view   #=> demo of using the layout view system
+calculator: a simple calculator example.
 
-Building the demos:
+demo: demo of many hotcocoa wrappers.
 
-Calculator:
-$ cd calculator
+layout_view: demo of using the layout view system.
+
+round_transparent_window: port of an Apple sample showing how to use hotcocoa 
+with a nib files.
+
+round_transparent_window_no_nibs: same as round_transparent_window but without
+using any nibs.
+
+download_and_progress_indicator: demo of downloading data, progress indicator
+and scroll view containing a text view.
+
+Building the examples:
+
+$ cd <example-directory>
 $ macrake
 
-Demo:
-$ cd demo
-$ macrake
+== HotCocoa::Graphics Examples ==
 
-Layout View:
-$ cd layout_view
-$ macrake
+$ cd graphics
+$ open -a textedit README

@@ -1,6 +1,4 @@
-framework 'webkit'
-
-class WebView
+class WebViewDemo
 
   def self.description 
     "Web Views" 

@@ -2,18 +2,17 @@
 #               we use a circle graphic and a pentagram graphic, switching between the two depending upon the 
 #               window's transparency.
 
-class CustomView < NSView
+module CustomViewBehaviors
 
-  # This method is called at app launch time when this class is unpacked from the nib.
-  # We get set up here.
-  def awakeFromNib
-    # load the images we'll use from the bundle's Resources directory
+  def set_images
     @circle_image = NSImage.imageNamed("circle")
     @penta_image  = NSImage.imageNamed("pentagram")
-    # tell ourselves that we need displaying (force redraw)
-    setNeedsDisplay(true)
   end
-
+  
+  def redraw
+    needsDisplay = true
+  end
+  
   # When it's time to draw, this method is called.
   # This view is inside the window, the window's opaqueness has been turned off,
   # and the window's styleMask has been set to NSBorderlessWindowMask on creation,
@@ -22,6 +21,7 @@ class CustomView < NSView
   # for all practical purposes.  Furthermore, if the window's alphaValue is <1.0, drawing will use
   # transparency.
   def drawRect(rect)
+    set_images unless @circle_image
     # erase whatever graphics were there before with clear
     NSColor.clearColor.set
     NSRectFill(frame)   

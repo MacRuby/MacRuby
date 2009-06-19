@@ -1,29 +1,27 @@
-# Description:  This is the implementation file for the CustomWindow class, which is our subclass of NSWindow.  We need to subclass
-#               NSWindow in order to configure the window properly in #initWithContentRect(contentRect, styleMask:aStyle, backing:bufferingType, defer:flag)
-#               to have a custom shape and be transparent.  We also override the #mouseDown and #mouseDragged metohds,
-#               to allow for dragging the window by clicking on its content area (since it doesn't have a title bar to drag).
+# Description:  This is where we extend the windows behaviors to have a custom shape and be transparent.  
+#               We also override the #mouseDown and #mouseDragged methods, to allow for dragging the window
+#               by clicking on its content area (since it doesn't have a title bar to drag).
 
-class CustomWindow < NSWindow
+module CustomWindowBehaviors
   attr_accessor :initialLocation
 
-  # In Interface Builder we set CustomWindow to be the class for our window, so our own initializer is called here.
-  # the original method is being extended but still called thanks to the `super` call
+  # We are extending initWithContentRect which is called by #window
   def initWithContentRect(contentRect, styleMask:aStyle, backing:bufferingType, defer:flag)
     # Call NSWindow's version of this function, but pass in the all-important value of NSBorderlessWindowMask
     #for the styleMask so that the window doesn't have a title bar
     result = super(contentRect, NSBorderlessWindowMask, NSBackingStoreBuffered, false)
     # Set the background color to clear so that (along with the setOpaque call below) we can see through the parts
     # of the window that we're not drawing into
-    result.setBackgroundColor(NSColor.clearColor)
+    result.backgroundColor = color(:name => 'clear')
     # This next line pulls the window up to the front on top of other system windows.  This is how the Clock app behaves;
     # generally you wouldn't do this for windows unless you really wanted them to float above everything.
-    result.setLevel(NSStatusWindowLevel)
+    result.level = NSStatusWindowLevel
     # Let's start with no transparency for all drawing into the window
-    result.setAlphaValue(1.0)
+    result.alphaValue = 1.0
     # but let's turn off opaqueness so that we can see through the parts of the window that we're not drawing into
-    result.setOpaque(false)
+    result.opaque = false
     # and while we're at it, make sure the window has a shadow, which will automatically be the shape of our custom content.
-    result.setHasShadow(true)
+    result.hasShadow = true
     result
   end
 
@@ -51,7 +49,7 @@ class CustomWindow < NSWindow
     end
 
     # go ahead and move the window to the new location
-    self.setFrameOrigin(new_origin)
+    self.frameOrigin = new_origin
   end
 
   # We start tracking the a drag operation here when the user first clicks the mouse,

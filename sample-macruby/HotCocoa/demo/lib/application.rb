@@ -1,5 +1,8 @@
 require 'hotcocoa'
 
+framework 'WebKit'
+framework 'QTKit'
+
 include HotCocoa
 
 # Replace the following code with your own hotcocoa code

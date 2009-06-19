@@ -1,6 +1,4 @@
-framework 'qtkit'
-
-class MovieView
+class MovieViewDemo
 
   def self.description 
     "Movies" 
