@@ -284,6 +284,11 @@ RoxorVM::optimize(Function *func)
 IMP
 RoxorVM::compile(Function *func)
 {
+    std::map<Function *, IMP>::iterator iter = JITcache.find(func);
+    if (iter != JITcache.end()) {
+	return iter->second;
+    }
+
 #if ROXOR_COMPILER_DEBUG
     if (verifyModule(*RoxorCompiler::module)) {
 	printf("Error during module verification\n");
@@ -296,6 +301,7 @@ RoxorVM::compile(Function *func)
     // Optimize & compile.
     optimize(func);
     IMP imp = (IMP)ee->getPointerToFunction(func);
+    JITcache[func] = imp;
 
 #if ROXOR_COMPILER_DEBUG
     uint64_t elapsed = mach_absolute_time() - start;

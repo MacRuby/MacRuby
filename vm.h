@@ -429,6 +429,7 @@ class RoxorVM {
 	ExecutionEngine *iee;
 	FunctionPassManager *fpm;
 	bool running;
+	std::map<Function *, IMP> JITcache;
 
 	std::map<IMP, rb_vm_method_node_t *> ruby_imps;
 	std::map<SEL, struct mcache *> mcache;
