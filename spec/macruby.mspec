@@ -45,9 +45,7 @@ class MSpecScript
   set :optional, [get(:ffi)]
   
   # The default implementation to run the specs.
-  # TODO: this needs to be more sophisticated since the
-  # executable is not consistently named.
-  set :target, './miniruby'
+  set :target, File.expand_path('../../miniruby', __FILE__)
   
   set :tags_patterns, [
                         [%r(language/), 'tags/macruby/language/'],
