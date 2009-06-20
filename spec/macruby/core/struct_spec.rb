@@ -213,7 +213,7 @@ describe "A BridgeSupport structure" do
     NSRect.object_id.should == CGRect.object_id
   end
 
-  it "returns an Array based on its elements when #to_s is called" do
+  it "returns an Array based on its elements when #to_a is called" do
     p = NSPoint.new(1, 2)
     o = p.to_a
     o.class.should == Array
