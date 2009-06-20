@@ -1714,15 +1714,17 @@ void
 rb_vm_undef_method(Class klass, const char *name, bool must_exist)
 {
     rb_vm_method_node_t *node = NULL;
-    SEL sel = sel_registerName(name);
 
-    if (!rb_vm_lookup_method((Class)klass, sel, NULL, &node)) {
+    if (!rb_vm_lookup_method2((Class)klass, rb_intern(name), NULL, NULL,
+		&node)) {
 	if (must_exist) {
 	    rb_raise(rb_eNameError, "undefined method `%s' for %s `%s'",
-		    name, TYPE(klass) == T_MODULE ? "module" : "class",
-		    name);
+		    name,
+		    TYPE(klass) == T_MODULE ? "module" : "class",
+		    rb_class2name((VALUE)klass));
 	}
 	assert(name[strlen(name) - 1] != ':');
+	SEL sel = sel_registerName(name);
 	class_replaceMethod((Class)klass, sel, NULL, "@@:");
     }
 
