@@ -1,0 +1,28 @@
+#!/usr/bin/ruby
+
+MACRUBY_FRAMEWORK = '/Library/Frameworks/MacRuby.framework'
+
+unless File.exist?(MACRUBY_FRAMEWORK)
+  $stderr.puts "Can't locate '#{MACRUBY_FRAMEWORK}'."
+  exit 1
+end
+
+versions = Dir.glob(File.join(MACRUBY_FRAMEWORK, 'Versions/*'))
+
+if ARGV.empty?
+  $stderr.puts "Usage:       $ macruby_select [version] [ruby args ...]"
+  $stderr.puts "Example:     $ macruby_select 0.4 -e 'p 42'"
+  $stderr.puts "Versions:    #{versions.map{|x|File.basename(x)}.join(', ')}"
+  exit 1
+end
+
+vers = ARGV.shift
+path = versions.find { |x| File.basename(x) == vers }
+if path.nil?
+  $stderr.puts "Given version '#{vers}' cannot be found."
+  exit 1
+end
+
+line = "#{path}/usr/bin/macruby"
+ARGV.each { |x| line << ' \'' << x << '\' ' }
+system(line)
