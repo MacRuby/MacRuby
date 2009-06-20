@@ -37,7 +37,10 @@ VALUE rb_cNSHash;
 VALUE rb_cNSMutableHash;
 
 static VALUE envtbl;
-static ID id_hash, id_yield, id_default;
+static ID id_hash, id_yield;
+
+static void *defaultCache = NULL;
+static SEL selDefault = 0;
 
 VALUE
 rb_hash(VALUE obj)
@@ -469,9 +472,10 @@ rb_hash_aref(VALUE hash, VALUE key)
 {
     VALUE val;
 
-    if (!CFDictionaryGetValueIfPresent((CFDictionaryRef)hash, (const void *)RB2OC(key),
+    if (!CFDictionaryGetValueIfPresent((CFDictionaryRef)hash,
+		(const void *)RB2OC(key),
 	(const void **)&val)) {
-	return rb_funcall(hash, id_default, 1, key);
+	return rb_vm_call_with_cache(defaultCache, hash, selDefault, 0, NULL);
     }
     val = OC2RB(val);
     return val;
@@ -2479,9 +2483,11 @@ rb_objc_install_hash_primitives(Class klass)
 void
 Init_Hash(void)
 {
+    selDefault = sel_registerName("default");
+    defaultCache = rb_vm_get_call_cache(selDefault);
+
     id_hash = rb_intern("hash");
     id_yield = rb_intern("yield");
-    id_default = rb_intern("default");
 
     rb_cCFHash = (VALUE)objc_getClass("NSCFDictionary");
 #if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
