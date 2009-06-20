@@ -212,4 +212,17 @@ describe "A BridgeSupport structure" do
     NSSize.object_id.should == CGSize.object_id
     NSRect.object_id.should == CGRect.object_id
   end
+
+  it "returns an Array based on its elements when #to_s is called" do
+    p = NSPoint.new(1, 2)
+    o = p.to_a
+    o.class.should == Array
+    o.should == [1, 2]
+
+    r = NSRect.new(NSPoint.new(1, 2), NSSize.new(3, 4))
+    o = r.to_a
+    o.class.should == Array
+    o.should == [NSPoint.new(1, 2), NSSize.new(3, 4)]
+    o.map { |x| x.to_a }.flatten.should == [1, 2, 3, 4]
+  end
 end

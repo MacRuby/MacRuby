@@ -348,6 +348,7 @@ rb_vm_struct_inspect(VALUE rcv, SEL sel)
     VALUE *rcv_data;
     Data_Get_Struct(rcv, VALUE, rcv_data);
     rb_vm_bs_boxed_t *bs_boxed = locate_bs_boxed(CLASS_OF(rcv), true);
+
     for (unsigned i = 0; i < bs_boxed->as.s->fields_count; i++) {
 	rb_str_cat2(str, " ");
 	rb_str_cat2(str, bs_boxed->as.s->fields[i].name);
@@ -358,6 +359,22 @@ rb_vm_struct_inspect(VALUE rcv, SEL sel)
     rb_str_cat2(str, ">");
 
     return str;
+}
+
+static VALUE
+rb_vm_struct_to_a(VALUE rcv, SEL sel)
+{
+    VALUE ary = rb_ary_new();
+
+    VALUE *rcv_data;
+    Data_Get_Struct(rcv, VALUE, rcv_data);
+    rb_vm_bs_boxed_t *bs_boxed = locate_bs_boxed(CLASS_OF(rcv), true);
+
+    for (unsigned i = 0; i < bs_boxed->as.s->fields_count; i++) {
+	rb_ary_push(ary, rcv_data[i]);
+    }
+
+    return ary;
 }
 
 static VALUE
@@ -460,6 +477,8 @@ register_bs_boxed(bs_element_type_t type, void *value)
 		(void *)rb_vm_struct_dup, 0);
 	rb_objc_define_method(boxed->klass, "inspect",
 		(void *)rb_vm_struct_inspect, 0);
+	rb_objc_define_method(boxed->klass, "to_a",
+		(void *)rb_vm_struct_to_a, 0);
     }
     else {
 	// Opaque methods.
