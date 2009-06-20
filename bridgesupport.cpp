@@ -537,11 +537,15 @@ rb_pointer_new(const char *type_str, void *val)
     return Data_Wrap_Struct(rb_cPointer, NULL, NULL, ptr);
 }
 
+static VALUE rb_pointer_assign(VALUE rcv, SEL sel, VALUE val);
+
 VALUE
-rb_pointer_new2(const char *type_str)
+rb_pointer_new2(const char *type_str, VALUE rval)
 {
-    return rb_pointer_new(type_str,
+    VALUE p = rb_pointer_new(type_str,
 	    xmalloc(GET_VM()->get_sizeof(type_str)));
+    rb_pointer_assign(p, 0, rval);
+    return p;
 }
 
 static VALUE
@@ -612,7 +616,7 @@ rb_pointer_aset(VALUE rcv, SEL sel, VALUE idx, VALUE val)
 static VALUE
 rb_pointer_assign(VALUE rcv, SEL sel, VALUE val)
 {
-    return rb_pointer_aset(rcv, 0, FIX2INT(0), val);
+    return rb_pointer_aset(rcv, 0, INT2FIX(0), val);
 }
 
 static VALUE

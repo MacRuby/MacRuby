@@ -4604,13 +4604,12 @@ rb_vm_rval_to_cptr(VALUE rval, const char *type, void **cptr)
     if (NIL_P(rval)) {
 	*cptr = NULL;
     }
-    else if (rb_boxed_is_type(CLASS_OF(rval), type + 1)) {
-	// A convenience helper so that the user can pass a Boxed object
-	// instead of a Pointer to the object.
-	VALUE ptr = rb_pointer_new2(type + 1);
-	*cptr = rb_pointer_get_data(ptr, type);
-    }
     else {
+	if (rb_boxed_is_type(CLASS_OF(rval), type + 1)) {
+	    // A convenience helper so that the user can pass a Boxed object
+	    // instead of a Pointer to the object.
+	    rval = rb_pointer_new2(type + 1, rval);
+	}
 	*cptr = rb_pointer_get_data(rval, type);
     }
     return *cptr;
