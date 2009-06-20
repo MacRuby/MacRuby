@@ -2483,7 +2483,7 @@ rb_objc_install_hash_primitives(Class klass)
 void
 Init_Hash(void)
 {
-    selDefault = sel_registerName("default");
+    selDefault = sel_registerName("default:");
     defaultCache = rb_vm_get_call_cache(selDefault);
 
     id_hash = rb_intern("hash");
