@@ -509,8 +509,9 @@ rb_objc_define_kvo_setter(VALUE klass, ID mid)
 
     if (!class_addMethod((Class)klass, sel_registerName(buf), 
 			 (IMP)rb_objc_kvo_setter_imp, "v@:@")) {
-	rb_warn("can't register `%s' as an KVO setter (method `%s')",
-		mid_name, buf);
+	rb_warn("can't register `%s' as an KVO setter on class `%s' "\
+		"(method `%s')",
+		mid_name, rb_class2name(klass), buf);
     }
 }
 
