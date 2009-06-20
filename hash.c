@@ -475,7 +475,7 @@ rb_hash_aref(VALUE hash, VALUE key)
     if (!CFDictionaryGetValueIfPresent((CFDictionaryRef)hash,
 		(const void *)RB2OC(key),
 	(const void **)&val)) {
-	return rb_vm_call_with_cache(defaultCache, hash, selDefault, 0, NULL);
+	return rb_vm_call_with_cache(defaultCache, hash, selDefault, 1, &key);
     }
     val = OC2RB(val);
     return val;
