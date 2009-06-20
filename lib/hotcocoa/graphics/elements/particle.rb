@@ -36,7 +36,7 @@ module HotCocoa::Graphics
       @velocity_y=velocity_y
     
       # append the point to the array
-      @points = [[@x, @y]]
+      @points = [NSPoint.new(@x, @y)]
       @stroke = Color.white
     end
   
@@ -56,7 +56,7 @@ module HotCocoa::Graphics
 
       # draw a line from the old position to the new
       #CANVAS.line(@previous_x,@previous_y,@x,@y);
-      @points.push([@x, @y])
+      @points.push(NSPoint.new(@x, @y))
     
       # grow old
       @age += 1

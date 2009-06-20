@@ -194,7 +194,13 @@ module HotCocoa::Graphics
       [330, 298], [345, 329],
       [360, 0  ]
     ]
-      
+
+    COLORNAMES.each_key do |name|
+      (class << self; self; end).define_method(name) do
+        named(name)
+      end
+    end
+  
     # create a color with the specified name
     def self.named(name)
       if COLORNAMES[name]
@@ -234,11 +240,6 @@ module HotCocoa::Graphics
         end
       end
       nearest
-    end
-  
-    # if the method name is not recognized, try creating a color with that name
-    def self.method_missing(name, *args)
-      Color.named(name.to_s.downcase)
     end
   
     # return a copy of this color
