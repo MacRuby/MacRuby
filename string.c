@@ -5646,6 +5646,7 @@ Init_String(void)
     rb_objc_define_method(rb_cSymbol, "to_sym", sym_to_sym, 0);
  
     rb_undef_method(rb_cSymbol, "to_str");
+    rb_undef_method(rb_cSymbol, "include?");
 
     install_symbol_primitives();
 
