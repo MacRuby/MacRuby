@@ -537,14 +537,33 @@ rb_pointer_new(const char *type_str, void *val)
     return Data_Wrap_Struct(rb_cPointer, NULL, NULL, ptr);
 }
 
-static VALUE rb_pointer_assign(VALUE rcv, SEL sel, VALUE val);
+static VALUE rb_pointer_aset(VALUE rcv, SEL sel, VALUE idx, VALUE val);
 
 VALUE
 rb_pointer_new2(const char *type_str, VALUE rval)
 {
-    VALUE p = rb_pointer_new(type_str,
-	    xmalloc(GET_VM()->get_sizeof(type_str)));
-    rb_pointer_assign(p, 0, rval);
+    VALUE p;
+
+    if (TYPE(rval) == T_ARRAY) {
+	const int len = RARRAY_LEN(rval);
+	if (len == 0) {
+	    rb_raise(rb_eArgError,
+		    "can't convert an empty array to a `%s' pointer",
+		    type_str);
+	}
+	p = rb_pointer_new(type_str,
+		xmalloc(GET_VM()->get_sizeof(type_str) * len));
+	int i;
+	for (i = 0; i < len; i++) {
+	    rb_pointer_aset(p, 0, INT2FIX(i), RARRAY_AT(rval, i));
+	}
+    }
+    else {
+	p = rb_pointer_new(type_str,
+		xmalloc(GET_VM()->get_sizeof(type_str)));
+	rb_pointer_aset(p, 0, INT2FIX(0), rval);
+    }
+
     return p;
 }
 
