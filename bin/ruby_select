@@ -25,4 +25,4 @@ end
 
 line = "#{path}/usr/bin/macruby"
 ARGV.each { |x| line << ' \'' << x << '\' ' }
-system(line)
+puts `#{line}`
