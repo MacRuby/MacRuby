@@ -225,4 +225,34 @@ describe "A BridgeSupport structure" do
     o.should == [NSPoint.new(1, 2), NSSize.new(3, 4)]
     o.map { |x| x.to_a }.flatten.should == [1, 2, 3, 4]
   end
+
+  it "allows its elements to be retrieved using #[]" do
+    p = NSPoint.new(1, 2)
+    p[0].should == 1
+    p[1].should == 2
+    p.x = 42
+    p.y = 4242
+    p[0].should == 42
+    p[1].should == 4242
+
+    lambda { p[-1] }.should raise_error(ArgumentError)
+    lambda { p[2] }.should raise_error(ArgumentError)
+  end
+
+  it "allows its elements to be set using #[]=" do
+    p = NSPoint.new
+    p[0] = 1
+    p[1] = 2
+    p.x.should == 1
+    p.y.should == 2
+
+    lambda { p[-1] = 42 }.should raise_error(ArgumentError)
+    lambda { p[2] = 42 }.should raise_error(ArgumentError)
+
+    r = NSRect.new
+    r[0] = p
+    r.origin.should == p
+    r[1] = [3, 4]
+    r.size.should == NSSize.new(3, 4)
+  end
 end

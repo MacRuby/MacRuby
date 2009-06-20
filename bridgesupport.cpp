@@ -378,6 +378,38 @@ rb_vm_struct_to_a(VALUE rcv, SEL sel)
 }
 
 static VALUE
+rb_vm_struct_aref(VALUE rcv, SEL sel, VALUE index)
+{
+    const long idx = NUM2LONG(index);
+
+    rb_vm_bs_boxed_t *bs_boxed = locate_bs_boxed(CLASS_OF(rcv), true);
+    if (idx < 0 || (unsigned long)idx >= bs_boxed->as.s->fields_count) {
+	rb_raise(rb_eArgError, "given index %ld out of bounds", idx);
+    }
+
+    VALUE *rcv_data;
+    Data_Get_Struct(rcv, VALUE, rcv_data);
+
+    return rcv_data[idx];
+}
+
+static VALUE
+rb_vm_struct_aset(VALUE rcv, SEL sel, VALUE index, VALUE val)
+{
+    const long idx = NUM2LONG(index);
+
+    rb_vm_bs_boxed_t *bs_boxed = locate_bs_boxed(CLASS_OF(rcv), true);
+    if (idx < 0 || (unsigned long)idx >= bs_boxed->as.s->fields_count) {
+	rb_raise(rb_eArgError, "given index %ld out of bounds", idx);
+    }
+
+    char buf[100];
+    snprintf(buf, sizeof buf, "%s=:", bs_boxed->as.s->fields[idx].name);
+
+    return rb_vm_call(rcv, sel_registerName(buf), 1, &val, false);
+}
+
+static VALUE
 rb_vm_struct_dup(VALUE rcv, SEL sel)
 {
     VALUE klass = CLASS_OF(rcv);
@@ -479,6 +511,10 @@ register_bs_boxed(bs_element_type_t type, void *value)
 		(void *)rb_vm_struct_inspect, 0);
 	rb_objc_define_method(boxed->klass, "to_a",
 		(void *)rb_vm_struct_to_a, 0);
+	rb_objc_define_method(boxed->klass, "[]",
+		(void *)rb_vm_struct_aref, 1);
+	rb_objc_define_method(boxed->klass, "[]=",
+		(void *)rb_vm_struct_aset, 2);
     }
     else {
 	// Opaque methods.
