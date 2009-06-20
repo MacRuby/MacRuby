@@ -98,7 +98,7 @@ module HotCocoa::Graphics
         rand(object.last - object.first + 1) + object.first
       end
     when Array
-      object.choice
+      object.sample
     else
       object
     end
