@@ -285,8 +285,12 @@ rb_vm_set_ivar_from_slot(VALUE obj, VALUE val, int slot)
     GC_WB(&robj->slots[slot], val);
 }
 
+// Defined in proc.c
+VALUE rb_proc_alloc_with_block(VALUE klass, rb_vm_block_t *proc);
+
 rb_vm_method_t *rb_vm_get_method(VALUE klass, VALUE obj, ID mid, int scope);
 rb_vm_block_t *rb_vm_create_block_from_method(rb_vm_method_t *method);
+rb_vm_block_t *rb_vm_create_block_calling_sel(SEL sel);
 
 static inline rb_vm_block_t *
 rb_proc_get_block(VALUE proc)

@@ -3088,8 +3088,6 @@ rb_vm_current_block(void)
     return GET_VM()->current_block();
 }
 
-extern "C" VALUE rb_proc_alloc_with_block(VALUE klass, rb_vm_block_t *proc);
-
 extern "C"
 VALUE
 rb_vm_current_block_object(void)
@@ -3183,6 +3181,31 @@ rb_vm_create_block_from_method(rb_vm_method_t *method)
     b->parent_var_uses = NULL;
     b->parent_block = NULL;
     b->dvars_size = 0;
+
+    return b;
+}
+
+static VALUE
+rb_vm_block_call_sel(VALUE rcv, SEL sel, VALUE **dvars, rb_vm_block_t *b,
+	VALUE x)
+{
+    if (x == Qnil) {
+	rb_raise(rb_eArgError, "no receiver given");
+    }
+    return rb_vm_call(x, (SEL)dvars[0], 0, NULL, false);
+}
+
+extern "C"
+rb_vm_block_t *
+rb_vm_create_block_calling_sel(SEL sel)
+{
+    rb_vm_block_t *b = (rb_vm_block_t *)xmalloc(sizeof(rb_vm_block_t)
+	    + sizeof(VALUE *));
+
+    b->arity = rb_vm_arity(1);
+    b->flags = VM_BLOCK_PROC;
+    b->imp = (IMP)rb_vm_block_call_sel;
+    b->dvars[0] = (VALUE *)sel;
 
     return b;
 }

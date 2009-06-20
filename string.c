@@ -5065,18 +5065,6 @@ sym_to_sym(VALUE sym, SEL sel)
     return sym;
 }
 
-static VALUE
-sym_call(VALUE args, VALUE sym, int argc, VALUE *argv)
-{
-    VALUE obj;
-
-    if (argc < 1) {
-	rb_raise(rb_eArgError, "no receiver given");
-    }
-    obj = argv[0];
-    return rb_funcall3(obj, (ID)sym, argc - 1, argv + 1);
-}
-
 /*
  * call-seq:
  *   sym.to_proc
@@ -5089,7 +5077,9 @@ sym_call(VALUE args, VALUE sym, int argc, VALUE *argv)
 static VALUE
 sym_to_proc(VALUE sym, SEL sel)
 {
-    return rb_proc_new(sym_call, (VALUE)SYM2ID(sym));
+    SEL msel = sel_registerName(rb_id2name(SYM2ID(sym)));
+    rb_vm_block_t *b = rb_vm_create_block_calling_sel(msel);
+    return rb_proc_alloc_with_block(rb_cProc, b);
 }
 
 ID

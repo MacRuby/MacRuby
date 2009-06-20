@@ -1350,16 +1350,6 @@ bmcall(VALUE args, VALUE method)
 }
 #endif
 
-VALUE
-rb_proc_new(
-    VALUE (*func)(ANYARGS), /* VALUE yieldarg[, VALUE procarg] */
-    VALUE val)
-{
-//    VALUE procval = rb_iterate(mproc, 0, func, val);
-//    return procval;
-    return Qnil;
-}
-
 /*
  *  call-seq:
  *     meth.to_proc    => prc
@@ -1432,11 +1422,14 @@ proc_binding(VALUE self, SEL sel)
     return Data_Wrap_Struct(rb_cBinding, NULL, NULL, binding);
 }
 
-static VALUE curry(VALUE dummy, VALUE args, int argc, VALUE *argv);
+//static VALUE curry(VALUE dummy, VALUE args, int argc, VALUE *argv);
 
 static VALUE
 make_curry_proc(VALUE proc, VALUE passed, VALUE arity)
 {
+    // TODO
+    return Qnil;
+#if 0
 #if WITH_OBJC
     VALUE args = rb_ary_new3(3, proc, passed, arity);
 #else
@@ -1449,8 +1442,10 @@ make_curry_proc(VALUE proc, VALUE passed, VALUE arity)
     rb_ary_freeze(passed);
     rb_ary_freeze(args);
     return rb_proc_new(curry, args);
+#endif
 }
 
+#if 0
 static VALUE
 curry(VALUE dummy, VALUE args, int argc, VALUE *argv)
 {
@@ -1468,9 +1463,10 @@ curry(VALUE dummy, VALUE args, int argc, VALUE *argv)
     arity = rb_proc_call(proc, passed);
     return arity;
 }
+#endif
 
  /*
-  *  call-seq:
+  curry*  call-seq:
   *     prc.curry         => a_proc
   *     prc.curry(arity)  => a_proc
   *

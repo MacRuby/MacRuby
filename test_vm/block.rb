@@ -521,3 +521,14 @@ assert ":ok\n:ok", %{
   p :ok if foo == 42
   p :ok if $!.nil?
 }
+
+assert ':ok', %{
+  b = :foo.to_proc
+  begin
+    b.call
+  rescue ArgumentError
+    p :ok
+  end
+}
+
+assert '[2, 3, 4]', "p [1, 2, 3].map(&:succ)"
