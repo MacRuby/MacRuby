@@ -480,6 +480,24 @@ rb_boxed_objc_type(VALUE rcv, SEL sel)
     return rb_ivar_get(rcv, boxed_ivar_type);
 }
 
+bool
+rb_boxed_is_type(VALUE klass, const char *type)
+{
+    VALUE rtype = rb_boxed_objc_type(klass, 0);
+    if (rtype == Qnil) {
+	return false;
+    }
+    if (strcmp(RSTRING_PTR(rtype), type) != 0) {
+	rb_raise(rb_eTypeError,
+		"expected instance of Boxed class of type `%s', "\
+		"got `%s' of type `%s'",
+		type,
+		rb_class2name(klass),
+		RSTRING_PTR(rtype));
+    }
+    return true;
+}
+
 static VALUE
 rb_boxed_is_opaque(VALUE rcv, SEL sel)
 {
@@ -519,6 +537,13 @@ rb_pointer_new(const char *type_str, void *val)
     return Data_Wrap_Struct(rb_cPointer, NULL, NULL, ptr);
 }
 
+VALUE
+rb_pointer_new2(const char *type_str)
+{
+    return rb_pointer_new(type_str,
+	    xmalloc(GET_VM()->get_sizeof(type_str)));
+}
+
 static VALUE
 rb_pointer_s_new(VALUE rcv, SEL sel, int argc, VALUE *argv)
 {
@@ -533,7 +558,6 @@ rb_pointer_s_new(VALUE rcv, SEL sel, int argc, VALUE *argv)
 	    xmalloc(GET_VM()->get_sizeof(type_str) * rlen));
 }
 
-extern "C"
 void *
 rb_pointer_get_data(VALUE rcv, const char *type)
 {
