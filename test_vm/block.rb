@@ -532,3 +532,8 @@ assert ':ok', %{
 }
 
 assert '[2, 3, 4]', "p [1, 2, 3].map(&:succ)"
+
+assert '42', %{
+  b = proc { |x| if x then p x else b.call(42) end }
+  b.call(nil)
+}

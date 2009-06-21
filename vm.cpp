@@ -2756,6 +2756,36 @@ rb_vm_get_block(VALUE obj)
 
 extern "C"
 rb_vm_block_t *
+rb_vm_dup_active_block(rb_vm_block_t *src_b)
+{
+    assert(src_b->flags & VM_BLOCK_ACTIVE);
+
+    int block_size = sizeof(rb_vm_block_t)
+	    + (sizeof(VALUE *) * src_b->dvars_size);
+
+    rb_vm_block_t *new_b = (rb_vm_block_t *)xmalloc(block_size);
+
+    memcpy(new_b, src_b, block_size);
+    GC_WB(&new_b->parent_block, src_b->parent_block);
+    new_b->flags = src_b->flags & ~VM_BLOCK_ACTIVE;
+
+    rb_vm_local_t *src_l = src_b->locals;
+    rb_vm_local_t **new_l = &new_b->locals;
+    while (src_l != NULL) {
+	GC_WB(new_l, xmalloc(sizeof(rb_vm_local_t)));
+	(*new_l)->name = src_l->name;
+	GC_WB(&(*new_l)->value, src_l->value);
+
+	new_l = &(*new_l)->next;
+	src_l = src_l->next;
+    }
+    *new_l = NULL;
+
+    return new_b;
+}
+
+extern "C"
+rb_vm_block_t *
 rb_vm_prepare_block(void *llvm_function, NODE *node, VALUE self,
 		    rb_vm_var_uses **parent_var_uses,
 		    rb_vm_block_t *parent_block,
@@ -2834,7 +2864,7 @@ rb_vm_prepare_block(void *llvm_function, NODE *node, VALUE self,
 	for (int i = 0; i < lvars_size; ++i) {
 	    assert(l != NULL);
 	    l->name = va_arg(ar, ID);
-	    l->value = va_arg(ar, VALUE *);
+	    GC_WB(&l->value, va_arg(ar, VALUE *));
 	    l = l->next;
 	}
     }
@@ -3273,7 +3303,9 @@ rb_vm_block_eval0(rb_vm_block_t *b, VALUE self, int argc, const VALUE *argv)
 
 block_call:
 
-    assert(!(b->flags & VM_BLOCK_ACTIVE));
+    if (b->flags & VM_BLOCK_ACTIVE) {
+	b = rb_vm_dup_active_block(b);
+    }
     b->flags |= VM_BLOCK_ACTIVE;
     VALUE v = Qnil;
     try {
