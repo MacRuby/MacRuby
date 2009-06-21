@@ -2767,6 +2767,7 @@ rb_vm_dup_active_block(rb_vm_block_t *src_b)
 
     memcpy(new_b, src_b, block_size);
     GC_WB(&new_b->parent_block, src_b->parent_block);
+    GC_WB(&new_b->self, src_b->self);
     new_b->flags = src_b->flags & ~VM_BLOCK_ACTIVE;
 
     rb_vm_local_t *src_l = src_b->locals;
@@ -2774,7 +2775,7 @@ rb_vm_dup_active_block(rb_vm_block_t *src_b)
     while (src_l != NULL) {
 	GC_WB(new_l, xmalloc(sizeof(rb_vm_local_t)));
 	(*new_l)->name = src_l->name;
-	GC_WB(&(*new_l)->value, src_l->value);
+	(*new_l)->value = src_l->value;
 
 	new_l = &(*new_l)->next;
 	src_l = src_l->next;
@@ -2864,7 +2865,7 @@ rb_vm_prepare_block(void *llvm_function, NODE *node, VALUE self,
 	for (int i = 0; i < lvars_size; ++i) {
 	    assert(l != NULL);
 	    l->name = va_arg(ar, ID);
-	    GC_WB(&l->value, va_arg(ar, VALUE *));
+	    l->value = va_arg(ar, VALUE *);
 	    l = l->next;
 	}
     }
