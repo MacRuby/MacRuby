@@ -1,1 +1,2 @@
+critical:Array#rindex does not fail when removing elements from block
 fails:Array#rindex returns the first index backwards from the end where element == to object
