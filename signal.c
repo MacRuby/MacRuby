@@ -416,8 +416,9 @@ rb_gc_mark_trap_list(void)
     int i;
 
     for (i=0; i<NSIG; i++) {
-	if (trap_list[i].cmd)
+	if (trap_list[i].cmd) {
 	    rb_gc_mark(trap_list[i].cmd);
+	}
     }
 #endif /* MACOS_UNUSE_SIGNAL */
 }

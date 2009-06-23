@@ -19,6 +19,7 @@ def do_option(name, default)
   end
 end
 
+USE_CLANG = do_option('use_clang', false)
 RUBY_INSTALL_NAME = do_option('ruby_install_name', 'macruby')
 RUBY_SO_NAME = do_option('ruby_so_name', RUBY_INSTALL_NAME)
 ARCHS = 
@@ -84,7 +85,14 @@ RUBY_VENDOR_ARCHLIB = File.join(RUBY_VENDOR_LIB2, NEW_RUBY_PLATFORM)
 INSTALL_NAME = File.join(FRAMEWORK_USR_LIB, 'lib' + RUBY_SO_NAME + '.dylib')
 ARCHFLAGS = ARCHS.map { |a| '-arch ' + a }.join(' ')
 LLVM_MODULES = "core jit nativecodegen interpreter bitwriter"
-CFLAGS = "-I. -I./include -I./onig -I/usr/include/libxml2 #{ARCHFLAGS} -fno-common -pipe -O3 -g -Wall -fexceptions"
+if (USE_CLANG) and (`sw_vers -productVersion`.strip >= '10.6')
+  CC = '/usr/bin/clang'
+  CPP = '/usr/bin/llvm-g++-4.2'
+elsif 
+  CC = '/usr/bin/gcc'
+  CPP = '/usr/bin/g++'
+end
+CFLAGS = "-I. -I./include -I./onig -I./giants/libDGiants  -I/usr/include/libxml2 #{ARCHFLAGS} -fno-common -pipe -O3 -g -Wall -fexceptions"
 CFLAGS << " -Wno-parentheses -Wno-deprecated-declarations -Werror" if NO_WARN_BUILD
 OBJC_CFLAGS = CFLAGS + " -fobjc-gc-only"
 CXXFLAGS = `#{LLVM_CONFIG} --cxxflags #{LLVM_MODULES}`.strip
@@ -130,9 +138,9 @@ class Builder
         s = obj_source(obj)
         cc, flags = 
           case File.extname(s)
-            when '.c' then ['/usr/bin/gcc', @cflags]
-            when '.cpp' then ['/usr/bin/g++', @cxxflags]
-            when '.m' then ['/usr/bin/gcc', @objc_cflags]
+            when '.c' then [CC, @cflags]
+            when '.cpp' then [CPP, @cxxflags]
+            when '.m' then [CC, @objc_cflags]
           end
         sh("#{cc} #{flags} -c #{s} -o #{obj}.o")
       end
@@ -166,7 +174,7 @@ class Builder
     objs ||= @objs
     ldflags ||= @ldflags
     if should_link?(name, objs)
-      sh("/usr/bin/g++ #{@cflags} #{objs.map { |x| x + '.o' }.join(' ') } #{ldflags} #{args}")
+      sh("#{CPP} #{@cflags} #{objs.map { |x| x + '.o' }.join(' ') } #{ldflags} #{args}")
     end
   end
 
