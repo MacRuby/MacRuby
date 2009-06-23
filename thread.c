@@ -2,6 +2,8 @@
 #include "ruby/node.h"
 #include "vm.h"
 
+#include <pthread.h>
+
 VALUE rb_cThread;
 VALUE rb_cMutex;
 
