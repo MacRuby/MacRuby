@@ -1,13 +1,41 @@
 #include "ruby/ruby.h"
+#include "ruby/node.h"
+#include "vm.h"
 
 VALUE rb_cThread;
 VALUE rb_cMutex;
 
+typedef struct rb_vm_thread {
+    pthread_t thread;
+    rb_vm_block_t *body;
+    int argc;
+    const VALUE *argv;
+} rb_vm_thread_t;
+
+#define GetThreadPtr(obj) ((rb_vm_thread_t *)DATA_PTR(obj))
+
+static void *
+rb_vm_thread_run(rb_vm_thread_t *t)
+{
+    rb_objc_gc_register_thread();
+    rb_vm_block_eval(t->body, t->argc, t->argv);
+    return NULL;
+}
+
+#if 0
 static VALUE
 thread_s_new(int argc, VALUE *argv, VALUE klass)
 {
     // TODO
     return Qnil;
+}
+#endif
+
+static VALUE
+thread_s_alloc(VALUE rcv, SEL sel)
+{
+    rb_vm_thread_t *t = (rb_vm_thread_t *)xmalloc(sizeof(rb_vm_thread_t));
+    return Data_Wrap_Struct(rb_cThread, NULL, NULL, t);
 }
 
 /*
@@ -28,10 +56,33 @@ thread_start(VALUE klass, VALUE args)
 }
 
 static VALUE
-thread_initialize(VALUE thread, VALUE args)
+thread_initialize(VALUE thread, SEL sel, int argc, VALUE *argv)
 {
-    // TODO
-    return Qnil;
+    if (!rb_block_given_p()) {
+	rb_raise(rb_eThreadError, "must be called with a block");
+    }
+    rb_vm_block_t *b = rb_vm_current_block();
+    assert(b != NULL);
+
+    rb_vm_thread_t *t = GetThreadPtr(thread);
+    assert(t->body == NULL);
+    GC_WB(&t->body, b);
+
+    if (argc > 0) {
+	t->argc = argc;
+	GC_WB(&t->argv, xmalloc(sizeof(VALUE) * argc));
+	int i;
+	for (i = 0; i < argc; i++) {
+	    GC_WB(&t->argv[i], argv[i]);
+	}
+    }
+
+    if (pthread_create(&t->thread, NULL, (void *(*)(void *))rb_vm_thread_run,
+		t) != 0) {
+	rb_sys_fail("pthread_create() failed");
+    }
+
+    return thread;
 }
 
 VALUE
@@ -82,10 +133,20 @@ rb_thread_create(VALUE (*fn)(ANYARGS), void *arg)
  */
 
 static VALUE
-thread_join_m(int argc, VALUE *argv, VALUE self)
+thread_join_m(VALUE self, SEL sel, int argc, VALUE *argv)
 {
-    // TODO
-    return Qnil;
+    if (argc != 0) {
+	rb_raise(rb_eArgError,
+		"calling #join with an argument is not implemented yet");
+    }
+
+    rb_vm_thread_t *t = GetThreadPtr(self);
+
+    if (pthread_join(t->thread, NULL) != 0) {
+	rb_sys_fail("pthread_join() failed");
+    }
+
+    return self;
 }
 
 /*
@@ -1198,9 +1259,9 @@ Init_Thread(void)
     VALUE cThGroup;
 
     rb_cThread = rb_define_class("Thread", rb_cObject);
-    rb_undef_alloc_func(rb_cThread);
+    rb_objc_define_method(*(VALUE *)rb_cThread, "alloc", thread_s_alloc, 0);
 
-    rb_define_singleton_method(rb_cThread, "new", thread_s_new, -1);
+    //rb_define_singleton_method(rb_cThread, "new", thread_s_new, -1);
     rb_define_singleton_method(rb_cThread, "start", thread_start, -2);
     rb_define_singleton_method(rb_cThread, "fork", thread_start, -2);
     rb_define_singleton_method(rb_cThread, "main", rb_thread_s_main, 0);
@@ -1213,9 +1274,9 @@ Init_Thread(void)
     rb_define_singleton_method(rb_cThread, "abort_on_exception", rb_thread_s_abort_exc, 0);
     rb_define_singleton_method(rb_cThread, "abort_on_exception=", rb_thread_s_abort_exc_set, 1);
 
-    rb_define_method(rb_cThread, "initialize", thread_initialize, -2);
+    rb_objc_define_method(rb_cThread, "initialize", thread_initialize, -1);
     rb_define_method(rb_cThread, "raise", thread_raise_m, -1);
-    rb_define_method(rb_cThread, "join", thread_join_m, -1);
+    rb_objc_define_method(rb_cThread, "join", thread_join_m, -1);
     rb_define_method(rb_cThread, "value", thread_value, 0);
     rb_define_method(rb_cThread, "kill", rb_thread_kill, 0);
     rb_define_method(rb_cThread, "terminate", rb_thread_kill, 0);
