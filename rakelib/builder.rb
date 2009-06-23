@@ -88,7 +88,7 @@ LLVM_MODULES = "core jit nativecodegen interpreter bitwriter"
 if (USE_CLANG) and (`sw_vers -productVersion`.strip >= '10.6')
   CC = '/usr/bin/clang'
   CPP = '/usr/bin/llvm-g++-4.2'
-elsif 
+else
   CC = '/usr/bin/gcc'
   CPP = '/usr/bin/g++'
 end
