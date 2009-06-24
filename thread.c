@@ -4,6 +4,10 @@
 
 #include <pthread.h>
 
+typedef struct rb_vm_mutex {
+    pthread_mutex_t mutex;
+} rb_vm_mutex_t;
+
 VALUE rb_cThread;
 VALUE rb_cMutex;
 
@@ -1122,18 +1126,31 @@ thgroup_add(VALUE group, VALUE thread)
  *
  *  Creates a new Mutex
  */
+
 static VALUE
-mutex_initialize(VALUE self)
+mutex_s_alloc(VALUE self, SEL sel)
 {
-    // TODO
-    return Qnil;
+    rb_vm_mutex_t *t = (rb_vm_mutex_t *)xmalloc(sizeof(rb_vm_mutex_t));
+    return Data_Wrap_Struct(rb_cMutex, NULL, NULL, t);
 }
 
-VALUE
-rb_mutex_new(void)
+#define GetMutex(obj) (((rb_vm_mutex_t *)DATA_PTR(obj))->mutex)
+
+#define assert_ok(call) \
+    do { \
+	const int __r = call; \
+	if (__r != 0) { \
+	    rb_raise(rb_eRuntimeError, "mutex operation failed: error %d", \
+		    __r); \
+	} \
+    } \
+    while (0)
+
+static VALUE
+mutex_initialize(VALUE self, SEL sel)
 {
-    // TODO
-    return Qnil;
+    assert_ok(pthread_mutex_init(&GetMutex(self), NULL));
+    return self;
 }
 
 /*
@@ -1146,6 +1163,7 @@ rb_mutex_new(void)
 VALUE
 rb_mutex_locked_p(VALUE self)
 {
+    // TODO
     return Qnil;
 }
 
@@ -1157,9 +1175,10 @@ rb_mutex_locked_p(VALUE self)
  * lock was granted.
  */
 
-VALUE
-rb_mutex_trylock(VALUE self)
+static VALUE
+rb_mutex_trylock(VALUE self, SEL sel)
 {
+    // TODO
     return Qnil;
 }
 
@@ -1220,9 +1239,11 @@ mutex_sleep(int argc, VALUE *argv, VALUE self)
 static VALUE
 mutex_synchronize(VALUE self, SEL sel)
 {
-    // TODO
-    rb_yield(Qundef);
-    return Qnil;
+    assert_ok(pthread_mutex_lock(&GetMutex(self)));
+    // TODO catch exception
+    VALUE ret = rb_yield(Qundef);
+    assert_ok(pthread_mutex_unlock(&GetMutex(self)));
+    return ret;
 }
 
 VALUE
@@ -1294,7 +1315,8 @@ Init_Thread(void)
     rb_define_method(cThGroup, "add", thgroup_add, 1);
 
     rb_cMutex = rb_define_class("Mutex", rb_cObject);
-    rb_define_method(rb_cMutex, "initialize", mutex_initialize, 0);
+    rb_objc_define_method(*(VALUE *)rb_cMutex, "alloc", mutex_s_alloc, 0);
+    rb_objc_define_method(rb_cMutex, "initialize", mutex_initialize, 0);
     rb_define_method(rb_cMutex, "locked?", rb_mutex_locked_p, 0);
     rb_define_method(rb_cMutex, "try_lock", rb_mutex_trylock, 0);
     rb_define_method(rb_cMutex, "lock", rb_mutex_lock, 0);
