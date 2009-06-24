@@ -69,6 +69,16 @@ typedef struct {
     void *cache;
 } rb_vm_method_t;
 
+#define GetThreadPtr(obj) ((rb_vm_thread_t *)DATA_PTR(obj))
+
+typedef struct rb_vm_thread {
+    pthread_t thread;
+    rb_vm_block_t *body;
+    int argc;
+    const VALUE *argv;
+    void *vm;  // an instance of RoxorVM
+} rb_vm_thread_t;
+
 typedef struct rb_vm_outer {
     Class klass;
     struct rb_vm_outer *outer;
@@ -312,6 +322,12 @@ rb_vm_binding_t *rb_vm_current_binding(void);
 void rb_vm_add_binding(rb_vm_binding_t *binding);
 void rb_vm_pop_binding();
 
+void *rb_vm_create_vm(void);
+void *rb_vm_thread_run(VALUE thread);
+VALUE rb_vm_current_thread(void);
+VALUE rb_vm_main_thread(void);
+VALUE rb_vm_threads(void);
+
 static inline VALUE
 rb_robject_allocate_instance(VALUE klass)
 {
@@ -425,108 +441,73 @@ struct ccache {
 class RoxorCompiler;
 class RoxorJITManager;
 
-class RoxorVM {
+#define READER(name, type) \
+    type get_##name(void) { return name; }
+
+#define WRITER(name, type) \
+    void set_##name(type v) { name = v; }
+
+#define ACCESSOR(name, type) \
+    READER(name, type) \
+    WRITER(name, type)
+
+// The Core class is a singleton, it's only created once and it's used by the
+// VMs. All calls to the Core are thread-safe, they acquire a shared lock.
+class RoxorCore {
+    public:
+	static RoxorCore *shared;
+
     private:
+	// LLVM objects.
 	ExistingModuleProvider *emp;
 	RoxorJITManager *jmm;
 	ExecutionEngine *ee;
 	ExecutionEngine *iee;
 	FunctionPassManager *fpm;
+
+	// Running threads.
+	VALUE threads;
+
+	// State.
 	bool running;
-	std::map<Function *, IMP> JITcache;
-
-	std::map<IMP, rb_vm_method_node_t *> ruby_imps;
-	std::map<SEL, struct mcache *> mcache;
-	std::map<ID, struct ccache *> ccache;
-	std::map<Class, std::map<ID, int> *> ivar_slots;
-	std::map<SEL, GlobalVariable *> redefined_ops_gvars;
-	std::map<Class, struct rb_vm_outer *> outers;
-	std::map<std::string, void *> c_stubs, objc_stubs,
-	    to_rval_convertors, to_ocval_convertors;
-
-	std::vector<rb_vm_block_t *> current_blocks;
-	std::vector<VALUE> current_exceptions;
-
-    public:
-	static RoxorVM *current;
-
-	Class current_class;
-	VALUE current_top_object;
+	bool multithreaded;
+	pthread_mutex_t gl;
 	VALUE loaded_features;
 	VALUE load_path;
-	VALUE backref;
-	VALUE broken_with;
-	VALUE last_status;
-	VALUE errinfo;
-	int safe_level;
-	std::vector<rb_vm_binding_t *> bindings;
+
+	// Cache to avoid compiling the same Function twice.
+	std::map<Function *, IMP> JITcache;
+
+	// Cache to avoid compiling the same block twice.
 	std::map<NODE *, rb_vm_block_t *> blocks;
-	std::map<double, struct rb_float_cache *> float_cache;
-	unsigned char method_missing_reason;
-	bool parse_in_eval;
 
-	std::string debug_blocks(void);
+	// Cache to identify pure Ruby methods.
+	std::map<IMP, rb_vm_method_node_t *> ruby_imps;
 
-	bool is_block_current(rb_vm_block_t *b) {
-	    return b == NULL
-		? false
-		: current_blocks.empty()
-		? false
-		: current_blocks.back() == b;
-	}
+	// Method and constant caches.
+	std::map<SEL, struct mcache *> mcache;
+	std::map<ID, struct ccache *> ccache;
 
-	void add_current_block(rb_vm_block_t *b) {
-	    current_blocks.push_back(b);
-	}
+	// Instance variable slots cache.
+	std::map<Class, std::map<ID, int> *> ivar_slots;
 
-	void pop_current_block(void) {
-	    assert(!current_blocks.empty());
-	    current_blocks.pop_back();
-	}
+	// Optimized selectors redefinition cache.
+	std::map<SEL, GlobalVariable *> redefined_ops_gvars;
 
-	rb_vm_block_t *current_block(void) {
-	    return current_blocks.empty() ? NULL : current_blocks.back();
-	}
+	// Outers map (where a class is actually defined).
+	std::map<Class, struct rb_vm_outer *> outers;
 
-	rb_vm_block_t *previous_block(void) {
-	    if (current_blocks.size() > 1) {
-		return current_blocks[current_blocks.size() - 2];
-	    }
-	    return NULL;
-	}
+	// Maps to cache compiled stubs for a given Objective-C runtime type.
+	std::map<std::string, void *> c_stubs, objc_stubs,
+	    to_rval_convertors, to_ocval_convertors;
+	std::map<Function *, IMP> objc_to_ruby_stubs;
 
-	rb_vm_block_t *first_block(void) {
-	    rb_vm_block_t *b = current_block();
-	    if (b == NULL) {
-		b = previous_block();
-	    }
-	    return b;
-	}
+	// Caches for the lazy JIT.
+	std::map<SEL, std::map<Class, rb_vm_method_source_t *> *>
+	    method_sources;
+	std::multimap<Class, SEL> method_source_sels;
 
-	std::string debug_exceptions(void);
-
-	VALUE current_exception(void) {
-	    return current_exceptions.empty()
-		? Qnil : current_exceptions.back();
-	}
-
-	void push_current_exception(VALUE exc) {
-	    assert(!NIL_P(exc));
-	    rb_objc_retain((void *)exc);
-	    current_exceptions.push_back(exc);
-	}
-
-	VALUE pop_current_exception(void) {
-	    assert(!current_exceptions.empty());
-	    VALUE exc = current_exceptions.back();
-	    rb_objc_release((void *)exc);
-	    current_exceptions.pop_back();
-	    return exc;
-	}
-
-	std::map<VALUE, rb_vm_catch_t *> catch_jmp_bufs;
-	std::vector<jmp_buf *> return_from_block_jmp_bufs;
-
+	// BridgeSupport caches.
 	bs_parser_t *bs_parser;
 	std::map<std::string, rb_vm_bs_boxed_t *> bs_boxed;
 	std::map<std::string, bs_element_function_t *> bs_funcs;
@@ -534,13 +515,55 @@ class RoxorVM {
 	std::map<std::string, std::map<SEL, bs_element_method_t *> *>
 	    bs_classes_class_methods, bs_classes_instance_methods;
 	std::map<std::string, bs_element_cftype_t *> bs_cftypes;
-	std::map<SEL, std::string> bs_informal_protocol_imethods,
+	std::map<SEL, std::string *> bs_informal_protocol_imethods,
 	    bs_informal_protocol_cmethods;
 
+#if ROXOR_VM_DEBUG
+	long functions_compiled;
+#endif
+
+    public:
+	RoxorCore(void);
+
+	ACCESSOR(running, bool);
+	ACCESSOR(multithreaded, bool);
+	READER(loaded_features, VALUE);
+	READER(load_path, VALUE);
+	READER(threads, VALUE);
+
+	void lock(void) { 
+	    if (multithreaded) {
+		assert(pthread_mutex_lock(&gl) == 0);
+	    }
+	}
+	void unlock(void) {
+	    if (multithreaded) {
+		assert(pthread_mutex_unlock(&gl) == 0);
+	    }
+	}
+
+	void register_thread(VALUE thread);
+	void unregister_thread(VALUE thread);
+
+	void optimize(Function *func);
+	IMP compile(Function *func);
+	VALUE interpret(Function *func);
+
+	void load_bridge_support(const char *path, const char *framework_path,
+		int options);
+
+	bs_element_constant_t *find_bs_const(ID name);
 	bs_element_method_t *find_bs_method(Class klass, SEL sel);
 	rb_vm_bs_boxed_t *find_bs_boxed(std::string type);
 	rb_vm_bs_boxed_t *find_bs_struct(std::string type);
 	rb_vm_bs_boxed_t *find_bs_opaque(std::string type);
+	bs_element_cftype_t *find_bs_cftype(std::string type);
+	std::string *find_bs_informal_protocol_method(SEL sel,
+		bool class_method);
+	bs_element_function_t *find_bs_function(std::string &name);
+
+	// This callback is public for the only reason it's called by C.
+	void bs_parse_cb(bs_element_type_t type, void *value, void *ctx);
 
 	void *gen_stub(std::string types, int argc, bool is_objc);
 	void *gen_to_rval_convertor(std::string type);
@@ -552,13 +575,8 @@ class RoxorVM {
 	    m.insert(std::make_pair(types, stub));
 	}
 
-	std::map<SEL, std::map<Class, rb_vm_method_source_t *> *>
-	    method_sources;
-	std::multimap<Class, SEL> method_source_sels;
-
 	std::map<Class, rb_vm_method_source_t *> *
-	method_sources_for_sel(SEL sel, bool create)
-	{
+	method_sources_for_sel(SEL sel, bool create) {
 	    std::map<SEL, std::map<Class, rb_vm_method_source_t *> *>::iterator
 		iter = method_sources.find(sel);
 		
@@ -576,29 +594,23 @@ class RoxorVM {
 	    return map;
 	}
 
-	std::map<Function *, IMP> objc_to_ruby_stubs;
-
-#if ROXOR_VM_DEBUG
-	long functions_compiled;
-#endif
-
-	RoxorVM(void);
-
-	void optimize(Function *func);
-	IMP compile(Function *func);
-	VALUE interpret(Function *func);
-
 	bool symbolize_call_address(void *addr, void **startp,
 		unsigned long *ln, char *name, size_t name_len);
 
-	bool is_running(void) { return running; }
-	void set_running(bool flag) { running = flag; }
-
 	struct mcache *method_cache_get(SEL sel, bool super);
 	rb_vm_method_node_t *method_node_get(IMP imp);
+
+	void prepare_method(Class klass, SEL sel, Function *func, NODE *node);
 	rb_vm_method_node_t *add_method(Class klass, SEL sel, IMP imp,
 		IMP ruby_imp, const rb_vm_arity_t &arity, int flags,
 		const char *types);
+	rb_vm_method_node_t *resolve_method(Class klass, SEL sel,
+		Function *func, NODE *node, IMP imp, Method m);
+	bool resolve_methods(std::map<Class, rb_vm_method_source_t *> *map,
+		Class klass, SEL sel);
+	void copy_methods(Class from_class, Class to_class);
+	void get_methods(VALUE ary, Class klass, bool include_objc_methods,
+		int (*filter) (VALUE, ID, VALUE));
 
 	GlobalVariable *redefined_op_gvar(SEL sel, bool create);
 	bool should_invalidate_inline_op(SEL sel, Class klass);
@@ -640,6 +652,161 @@ class RoxorVM {
 	    }
 	}
 
+	rb_vm_block_t *uncache_or_create_block(NODE *key, bool *cached,
+		int dvars_size);
+
+	size_t get_sizeof(const Type *type);
+	size_t get_sizeof(const char *type);
+	bool is_large_struct_type(const Type *type);
+
+    private:
+	bool register_bs_boxed(bs_element_type_t type, void *value);
+	void register_bs_class(bs_element_class_t *bs_class);
+};
+
+#define GET_CORE() (RoxorCore::shared)
+
+// The VM class is instantiated per thread. There is always at least one
+// instance. The VM class is purely thread-safe and concurrent, it does not
+// acquire any lock, except when it calls the Core.
+class RoxorVM {
+    public:
+	// The main VM object.
+	static RoxorVM *main;
+
+	// The pthread specific key to retrieve the current VM thread.
+	static pthread_key_t vm_thread_key;
+
+	static RoxorVM *current(void) {
+	    if (GET_CORE()->get_multithreaded()) {
+		void *vm = pthread_getspecific(vm_thread_key);
+		if (vm == NULL) {
+		    // The value does not exist yet, which means we are called
+		    // from a thread that was not created by MacRuby directly
+		    // (potentially the GC thread or Cocoa). In this case, we
+		    // create a new VM object just for this thread.
+		    // XXX the VM object is never detroyed.
+		    RoxorVM *new_vm = new RoxorVM();
+		    pthread_setspecific(vm_thread_key, (void *)new_vm);
+		    return new_vm;
+		}
+		return (RoxorVM *)vm;
+	    }
+	    return RoxorVM::main;
+	}
+
+    private:
+	std::vector<rb_vm_block_t *> current_blocks;
+	std::vector<VALUE> current_exceptions;
+	std::vector<rb_vm_binding_t *> bindings;
+	std::map<VALUE, rb_vm_catch_t *> catch_jmp_bufs;
+
+	VALUE thread;
+	Class current_class;
+	VALUE current_top_object;
+	VALUE backref;
+	VALUE broken_with;
+	VALUE last_status;
+	VALUE errinfo;
+	int safe_level;
+	unsigned char method_missing_reason;
+	bool parse_in_eval;
+
+    public:
+	RoxorVM(void);
+
+	ACCESSOR(thread, VALUE);
+	ACCESSOR(current_class, Class);
+	ACCESSOR(current_top_object, VALUE);
+	ACCESSOR(backref, VALUE);
+	ACCESSOR(broken_with, VALUE);
+	ACCESSOR(last_status, VALUE);
+	ACCESSOR(errinfo, VALUE);
+	ACCESSOR(safe_level, int);
+	ACCESSOR(method_missing_reason, unsigned char);
+	ACCESSOR(parse_in_eval, bool);
+
+	std::string debug_blocks(void);
+
+	bool is_block_current(rb_vm_block_t *b) {
+	    return b == NULL
+		? false
+		: current_blocks.empty()
+		? false
+		: current_blocks.back() == b;
+	}
+
+	void add_current_block(rb_vm_block_t *b) {
+	    current_blocks.push_back(b);
+	}
+
+	void pop_current_block(void) {
+	    assert(!current_blocks.empty());
+	    current_blocks.pop_back();
+	}
+
+	rb_vm_block_t *current_block(void) {
+	    return current_blocks.empty()
+		? NULL : current_blocks.back();
+	}
+
+	rb_vm_block_t *previous_block(void) {
+	    if (current_blocks.size() > 1) {
+		return current_blocks[current_blocks.size() - 2];
+	    }
+	    return NULL;
+	}
+
+	rb_vm_block_t *first_block(void) {
+	    rb_vm_block_t *b = current_block();
+	    if (b == NULL) {
+		b = previous_block();
+	    }
+	    return b;
+	}
+
+	rb_vm_binding_t *current_binding(void) {
+	    return bindings.empty()
+		? NULL : bindings.back();
+	}
+
+	void push_current_binding(rb_vm_binding_t *binding, bool retain=true) {
+	    if (retain) {
+		rb_objc_retain(binding);
+	    }
+	    bindings.push_back(binding);
+	}
+
+	void pop_current_binding(bool release=true) {
+	    if (!bindings.empty()) {
+		if (release) {
+		    rb_objc_release(bindings.back());
+		}
+		bindings.pop_back();
+	    }
+	}
+
+	std::string debug_exceptions(void);
+
+	VALUE current_exception(void) {
+	    return current_exceptions.empty()
+		? Qnil : current_exceptions.back();
+	}
+
+	void push_current_exception(VALUE exc) {
+	    assert(!NIL_P(exc));
+	    rb_objc_retain((void *)exc);
+	    current_exceptions.push_back(exc);
+	}
+
+	VALUE pop_current_exception(void) {
+	    assert(!current_exceptions.empty());
+	    VALUE exc = current_exceptions.back();
+	    rb_objc_release((void *)exc);
+	    current_exceptions.pop_back();
+	    return exc;
+	}
+
 	VALUE *get_binding_lvar(ID name) {
 	    if (!bindings.empty()) {
 		rb_vm_binding_t *b = bindings.back();
@@ -652,12 +819,11 @@ class RoxorVM {
 	    return NULL;
 	}
 
-	size_t get_sizeof(const Type *type);
-	size_t get_sizeof(const char *type);
-	bool is_large_struct_type(const Type *type);
+	VALUE ruby_catch(VALUE tag);
+	VALUE ruby_throw(VALUE tag, VALUE value);
 };
 
-#define GET_VM() (RoxorVM::current)
+#define GET_VM() (RoxorVM::current())
 
 #endif /* __cplusplus */
 

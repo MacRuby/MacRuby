@@ -52,7 +52,9 @@ using namespace llvm;
 
 #define force_inline __attribute__((always_inline))
 
-RoxorVM *RoxorVM::current = NULL;
+RoxorCore *RoxorCore::shared = NULL;
+RoxorVM *RoxorVM::main = NULL;
+pthread_key_t RoxorVM::vm_thread_key;
 
 VALUE rb_cTopLevel = 0;
 
@@ -81,10 +83,10 @@ class RoxorJITManager : public JITMemoryManager {
 	}
 
 	struct RoxorFunction *find_function(unsigned char *addr) {
-	     // TODO optimize me!
 	     if (functions.empty()) {
 		return NULL;
 	     }
+	     // TODO optimize me!
 	     RoxorFunction *front = functions.front();
 	     RoxorFunction *back = functions.back();
 	     if (addr < front->start || addr > back->end) {
@@ -131,18 +133,18 @@ class RoxorJITManager : public JITMemoryManager {
 	}
 
 	unsigned char *startFunctionBody(const Function *F, 
-					 uintptr_t &ActualSize) {
+		uintptr_t &ActualSize) {
 	    return mm->startFunctionBody(F, ActualSize);
 	}
 
 	unsigned char *allocateStub(const GlobalValue* F, 
-				    unsigned StubSize, 
-				    unsigned Alignment) {
+		unsigned StubSize, 
+		unsigned Alignment) {
 	    return mm->allocateStub(F, StubSize, Alignment);
 	}
 
 	void endFunctionBody(const Function *F, unsigned char *FunctionStart, 
-			     unsigned char *FunctionEnd) {
+		unsigned char *FunctionEnd) {
 	    mm->endFunctionBody(F, FunctionStart, FunctionEnd);
 	    functions.push_back(new RoxorFunction(const_cast<Function *>(F), 
 			FunctionStart, FunctionEnd));
@@ -153,13 +155,12 @@ class RoxorJITManager : public JITMemoryManager {
 	}
 
 	unsigned char* startExceptionTable(const Function* F, 
-					   uintptr_t &ActualSize) {
+		uintptr_t &ActualSize) {
 	    return mm->startExceptionTable(F, ActualSize);
 	}
 
 	void endExceptionTable(const Function *F, unsigned char *TableStart, 
-			       unsigned char *TableEnd, 
-			       unsigned char* FrameRegister) {
+		unsigned char *TableEnd, unsigned char* FrameRegister) {
 	    mm->endExceptionTable(F, TableStart, TableEnd, FrameRegister);
 	}
 };
@@ -181,27 +182,21 @@ value2gv(VALUE v)
 extern "C" void *__cxa_allocate_exception(size_t);
 extern "C" void __cxa_throw(void *, void *, void *);
 
-RoxorVM::RoxorVM(void)
+RoxorCore::RoxorCore(void)
 {
     running = false;
-    current_top_object = Qnil;
-    safe_level = 0;
+    multithreaded = false;
 
-    backref = Qnil;
-    broken_with = Qundef;
-    last_status = Qnil;
-    errinfo = Qnil;
-
-    parse_in_eval = false;
-
-#if ROXOR_VM_DEBUG
-    functions_compiled = 0;
-#endif
+    assert(pthread_mutex_init(&gl, 0) == 0);
 
     load_path = rb_ary_new();
     rb_objc_retain((void *)load_path);
+
     loaded_features = rb_ary_new();
     rb_objc_retain((void *)loaded_features);
+
+    threads = rb_ary_new();
+    rb_objc_retain((void *)threads);
 
     bs_parser = NULL;
 
@@ -228,6 +223,22 @@ RoxorVM::RoxorVM(void)
 
     iee = ExecutionEngine::create(emp, true);
     assert(iee != NULL);
+
+#if ROXOR_VM_DEBUG
+    functions_compiled = 0;
+#endif
+}
+
+RoxorVM::RoxorVM(void)
+{
+    current_top_object = Qnil;
+    current_class = NULL;
+    safe_level = 0;
+    backref = Qnil;
+    broken_with = Qundef;
+    last_status = Qnil;
+    errinfo = Qnil;
+    parse_in_eval = false;
 }
 
 static void
@@ -276,13 +287,13 @@ RoxorVM::debug_exceptions(void)
 }
 
 inline void
-RoxorVM::optimize(Function *func)
+RoxorCore::optimize(Function *func)
 {
     fpm->run(*func);
 }
 
 IMP
-RoxorVM::compile(Function *func)
+RoxorCore::compile(Function *func)
 {
     std::map<Function *, IMP>::iterator iter = JITcache.find(func);
     if (iter != JITcache.end()) {
@@ -326,17 +337,17 @@ RoxorVM::compile(Function *func)
 }
 
 VALUE
-RoxorVM::interpret(Function *func)
+RoxorCore::interpret(Function *func)
 {
     std::vector<GenericValue> args;
-    args.push_back(PTOGV((void *)GET_VM()->current_top_object));
+    args.push_back(PTOGV((void *)GET_VM()->get_current_top_object()));
     args.push_back(PTOGV(NULL));
     return (VALUE)iee->runFunction(func, args).IntVal.getZExtValue();
 }
 
 bool
-RoxorVM::symbolize_call_address(void *addr, void **startp, unsigned long *ln,
-				char *name, size_t name_len)
+RoxorCore::symbolize_call_address(void *addr, void **startp, unsigned long *ln,
+	char *name, size_t name_len)
 {
     void *start = NULL;
 
@@ -381,7 +392,7 @@ RoxorVM::symbolize_call_address(void *addr, void **startp, unsigned long *ln,
 }
 
 struct ccache *
-RoxorVM::constant_cache_get(ID path)
+RoxorCore::constant_cache_get(ID path)
 {
     std::map<ID, struct ccache *>::iterator iter = ccache.find(path);
     if (iter == ccache.end()) {
@@ -398,12 +409,12 @@ extern "C"
 void *
 rb_vm_get_constant_cache(const char *name)
 {
-    return GET_VM()->constant_cache_get(rb_intern(name));
+    return GET_CORE()->constant_cache_get(rb_intern(name));
 }
 
 
 struct mcache *
-RoxorVM::method_cache_get(SEL sel, bool super)
+RoxorCore::method_cache_get(SEL sel, bool super)
 {
     if (super) {
 	struct mcache *cache = (struct mcache *)malloc(sizeof(struct mcache));
@@ -425,11 +436,11 @@ extern "C"
 void *
 rb_vm_get_method_cache(SEL sel)
 {
-    return GET_VM()->method_cache_get(sel, false); 
+    return GET_CORE()->method_cache_get(sel, false); 
 }
 
 inline rb_vm_method_node_t *
-RoxorVM::method_node_get(IMP imp)
+RoxorCore::method_node_get(IMP imp)
 {
     std::map<IMP, rb_vm_method_node_t *>::iterator iter = ruby_imps.find(imp);
     if (iter == ruby_imps.end()) {
@@ -442,30 +453,30 @@ extern "C"
 rb_vm_method_node_t *
 rb_vm_get_method_node(IMP imp)
 {
-    return GET_VM()->method_node_get(imp);
+    return GET_CORE()->method_node_get(imp);
 }
 
 size_t
-RoxorVM::get_sizeof(const Type *type)
+RoxorCore::get_sizeof(const Type *type)
 {
     return ee->getTargetData()->getTypeSizeInBits(type) / 8;
 }
 
 size_t
-RoxorVM::get_sizeof(const char *type)
+RoxorCore::get_sizeof(const char *type)
 {
     return get_sizeof(RoxorCompiler::shared->convert_type(type));
 }
 
 bool
-RoxorVM::is_large_struct_type(const Type *type)
+RoxorCore::is_large_struct_type(const Type *type)
 {
     return type->getTypeID() == Type::StructTyID
 	&& ee->getTargetData()->getTypeSizeInBits(type) > 128;
 }
 
 inline GlobalVariable *
-RoxorVM::redefined_op_gvar(SEL sel, bool create)
+RoxorCore::redefined_op_gvar(SEL sel, bool create)
 {
     std::map <SEL, GlobalVariable *>::iterator iter =
 	redefined_ops_gvars.find(sel);
@@ -490,7 +501,7 @@ RoxorVM::redefined_op_gvar(SEL sel, bool create)
 }
 
 inline bool
-RoxorVM::should_invalidate_inline_op(SEL sel, Class klass)
+RoxorCore::should_invalidate_inline_op(SEL sel, Class klass)
 {
     if (sel == selEq || sel == selEqq || sel == selNeq) {
 	return klass == (Class)rb_cFixnum
@@ -517,8 +528,8 @@ RoxorVM::should_invalidate_inline_op(SEL sel, Class klass)
 }
 
 rb_vm_method_node_t *
-RoxorVM::add_method(Class klass, SEL sel, IMP imp, IMP ruby_imp,
-		    const rb_vm_arity_t &arity, int flags, const char *types)
+RoxorCore::add_method(Class klass, SEL sel, IMP imp, IMP ruby_imp,
+	const rb_vm_arity_t &arity, int flags, const char *types)
 {
 #if ROXOR_VM_DEBUG
     printf("defining %c[%s %s] with imp %p types %s\n",
@@ -581,7 +592,7 @@ RoxorVM::add_method(Class klass, SEL sel, IMP imp, IMP ruby_imp,
 		    RCLASS_HAS_ROBJECT_ALLOC));
     }
 
-    if (is_running()) {
+    if (get_running()) {
 	// Call method_added: or singleton_method_added:.
 	VALUE sym = ID2SYM(rb_intern(sel_getName(sel)));
         if (RCLASS_SINGLETON(klass)) {
@@ -619,7 +630,7 @@ RoxorVM::add_method(Class klass, SEL sel, IMP imp, IMP ruby_imp,
 }
 
 void
-RoxorVM::const_defined(ID path)
+RoxorCore::const_defined(ID path)
 {
     // Invalidate constant cache.
     std::map<ID, struct ccache *>::iterator iter = ccache.find(path);
@@ -629,13 +640,13 @@ RoxorVM::const_defined(ID path)
 }
 
 inline int
-RoxorVM::find_ivar_slot(VALUE klass, ID name, bool create)
+RoxorCore::find_ivar_slot(VALUE klass, ID name, bool create)
 {
     VALUE k = klass;
     int slot = 0;
 
     while (k != 0) {
-	std::map <ID, int> *slots = GET_VM()->get_ivar_slots((Class)k);
+	std::map <ID, int> *slots = get_ivar_slots((Class)k);
 	std::map <ID, int>::iterator iter = slots->find(name);
 	if (iter != slots->end()) {
 #if ROXOR_VM_DEBUG
@@ -662,7 +673,7 @@ RoxorVM::find_ivar_slot(VALUE klass, ID name, bool create)
 }
 
 inline bool
-RoxorVM::class_can_have_ivar_slots(VALUE klass)
+RoxorCore::class_can_have_ivar_slots(VALUE klass)
 {
     const long klass_version = RCLASS_VERSION(klass);
     if ((klass_version & RCLASS_IS_RUBY_CLASS) != RCLASS_IS_RUBY_CLASS
@@ -677,25 +688,26 @@ extern "C"
 bool
 rb_vm_running(void)
 {
-    return GET_VM()->is_running();
+    return GET_CORE()->get_running();
 }
 
 extern "C"
 void
 rb_vm_set_running(bool flag)
 {
-    GET_VM()->set_running(flag); 
+    GET_CORE()->set_running(flag); 
 }
 
 extern "C"
 void 
 rb_vm_set_const(VALUE outer, ID id, VALUE obj)
 {
-    if (GET_VM()->current_class != NULL) {
-	outer = (VALUE)GET_VM()->current_class;
+    Class k = GET_VM()->get_current_class();
+    if (k != NULL) {
+	outer = (VALUE)k;
     }
     rb_const_set(outer, id, obj);
-    GET_VM()->const_defined(id);
+    GET_CORE()->const_defined(id);
 }
 
 static inline VALUE
@@ -730,14 +742,17 @@ rb_vm_const_lookup(VALUE outer, ID path, bool lexical, bool defined)
     if (lexical) {
 	// Let's do a lexical lookup before a hierarchical one, by looking for
 	// the given constant in all modules under the given outer.
-	struct rb_vm_outer *o = GET_VM()->get_outer((Class)outer);
+	GET_CORE()->lock();
+	struct rb_vm_outer *o = GET_CORE()->get_outer((Class)outer);
 	while (o != NULL && o->klass != (Class)rb_cNSObject) {
 	    VALUE val = rb_const_get_direct((VALUE)o->klass, path);
 	    if (val != Qundef) {
+		GET_CORE()->unlock();
 		return defined ? Qtrue : val;
 	    }
 	    o = o->outer;
 	}
+	GET_CORE()->unlock();
     }
 
     // Nothing was found earlier so here we do a hierarchical lookup.
@@ -747,21 +762,24 @@ rb_vm_const_lookup(VALUE outer, ID path, bool lexical, bool defined)
 extern "C"
 VALUE
 rb_vm_get_const(VALUE outer, unsigned char lexical_lookup,
-		struct ccache *cache, ID path)
+	struct ccache *cache, ID path)
 {
-    if (GET_VM()->current_class != NULL && lexical_lookup) {
-	outer = (VALUE)GET_VM()->current_class;
+    Class k = GET_VM()->get_current_class();
+    if (lexical_lookup && k != NULL) {
+	outer = (VALUE)k;
     }
 
     assert(cache != NULL);
+
+    VALUE val;
     if (cache->outer == outer && cache->val != Qundef) {
-	return cache->val;
+	val = cache->val;
     }
-
-    VALUE val = rb_vm_const_lookup(outer, path, lexical_lookup, false);
-
-    cache->outer = outer;
-    cache->val = val;
+    else {
+	val = rb_vm_const_lookup(outer, path, lexical_lookup, false);
+	cache->outer = outer;
+	cache->val = val;
+    }
 
     return val;
 }
@@ -770,21 +788,21 @@ extern "C"
 void
 rb_vm_const_is_defined(ID path)
 {
-    GET_VM()->const_defined(path);
+    GET_CORE()->const_defined(path);
 }
 
 extern "C"
 void
 rb_vm_set_outer(VALUE klass, VALUE under)
 {
-    GET_VM()->set_outer((Class)klass, (Class)under);
+    GET_CORE()->set_outer((Class)klass, (Class)under);
 }
 
 extern "C"
 VALUE
 rb_vm_get_outer(VALUE klass)
 {
-    rb_vm_outer_t *o = GET_VM()->get_outer((Class)klass);
+    rb_vm_outer_t *o = GET_CORE()->get_outer((Class)klass);
     return o == NULL ? Qundef : (VALUE)o->klass;
 }
 
@@ -809,8 +827,9 @@ rb_vm_define_class(ID path, VALUE outer, VALUE super, unsigned char is_module)
     assert(path > 0);
     check_if_module(outer);
 
-    if (GET_VM()->current_class != NULL) {
-	outer = (VALUE)GET_VM()->current_class;
+    Class k = GET_VM()->get_current_class();
+    if (k != NULL) {
+	outer = (VALUE)k;
     }
 
     VALUE klass;
@@ -916,8 +935,9 @@ extern "C"
 VALUE
 rb_vm_cvar_get(VALUE klass, ID id)
 {
-    if (GET_VM()->current_class != NULL) {
-	klass = (VALUE)GET_VM()->current_class;
+    Class k = GET_VM()->get_current_class();
+    if (k != NULL) {
+	klass = (VALUE)k;
     }
     return rb_cvar_get(klass, id);
 }
@@ -926,8 +946,9 @@ extern "C"
 VALUE
 rb_vm_cvar_set(VALUE klass, ID id, VALUE val)
 {
-    if (GET_VM()->current_class != NULL) {
-	klass = (VALUE)GET_VM()->current_class;
+    Class k = GET_VM()->get_current_class();
+    if (k != NULL) {
+	klass = (VALUE)k;
     }
     rb_cvar_set(klass, id, val);
     return val;
@@ -982,7 +1003,7 @@ rb_vm_alias_method(Class klass, Method method, ID name, bool noargs)
     IMP imp = method_getImplementation(method);
     const char *types = method_getTypeEncoding(method);
 
-    rb_vm_method_node_t *node = GET_VM()->method_node_get(imp);
+    rb_vm_method_node_t *node = GET_CORE()->method_node_get(imp);
     if (node == NULL) {
 	rb_raise(rb_eArgError, "cannot alias non-Ruby method `%s'",
 		sel_getName(method_getName(method)));
@@ -999,7 +1020,7 @@ rb_vm_alias_method(Class klass, Method method, ID name, bool noargs)
 	sel = sel_registerName(tmp);
     }
 
-    GET_VM()->add_method(klass, sel, imp, node->ruby_imp,
+    GET_CORE()->add_method(klass, sel, imp, node->ruby_imp,
 	    node->arity, node->flags, types);
 }
 
@@ -1007,8 +1028,9 @@ extern "C"
 void
 rb_vm_alias(VALUE outer, ID name, ID def)
 {
-    if (GET_VM()->current_class != NULL) {
-	outer = (VALUE)GET_VM()->current_class;
+    Class k = GET_VM()->get_current_class();
+    if (k != NULL) {
+	outer = (VALUE)k;
     }
     rb_frozen_class_p(outer);
     if (outer == rb_cObject) {
@@ -1042,10 +1064,10 @@ extern "C"
 void
 rb_vm_undef(VALUE klass, ID name)
 {
-    if (GET_VM()->current_class != NULL) {
-	klass = (VALUE)GET_VM()->current_class;
+    Class k = GET_VM()->get_current_class();
+    if (k != NULL) {
+	klass = (VALUE)k;
     }
-
     rb_undef(klass, name);
 }
 
@@ -1078,7 +1100,7 @@ rb_vm_defined(VALUE self, int type, VALUE what, VALUE what2)
 	case DEFINED_LCONST:
 	    {
 		if (rb_vm_const_lookup(what2, (ID)what,
-				       type == DEFINED_LCONST, true)) {
+			    type == DEFINED_LCONST, true)) {
 		    str = "constant";
 		}
 	    }
@@ -1123,9 +1145,8 @@ rb_vm_prepare_class_ivar_slot(VALUE klass, ID name, int *slot_cache)
     assert(slot_cache != NULL);
     assert(*slot_cache == -1);
 
-    RoxorVM *vm = GET_VM();
-    if (vm->class_can_have_ivar_slots(klass)) {
-	*slot_cache = vm->find_ivar_slot(klass, name, true);
+    if (GET_CORE()->class_can_have_ivar_slots(klass)) {
+	*slot_cache = GET_CORE()->find_ivar_slot(klass, name, true);
     }
 }
 
@@ -1133,9 +1154,8 @@ extern "C"
 int
 rb_vm_find_class_ivar_slot(VALUE klass, ID name)
 {
-    RoxorVM *vm = GET_VM();
-    if (vm->class_can_have_ivar_slots(klass)) {
-	return vm->find_ivar_slot(klass, name, false);
+    if (GET_CORE()->class_can_have_ivar_slots(klass)) {
+	return GET_CORE()->find_ivar_slot(klass, name, false);
     }
     return -1;
 }
@@ -1144,18 +1164,16 @@ static inline void
 resolve_method_type(char *buf, const size_t buflen, Class klass, Method m,
 		    SEL sel, const unsigned int oc_arity)
 {
-    bs_element_method_t *bs_method = GET_VM()->find_bs_method(klass, sel);
+    bs_element_method_t *bs_method = GET_CORE()->find_bs_method(klass, sel);
 
     if (m == NULL
 	|| !rb_objc_get_types(Qnil, klass, sel, m, bs_method, buf, buflen)) {
 
-	std::map<SEL, std::string> &map = class_isMetaClass(klass)
-	    ? GET_VM()->bs_informal_protocol_cmethods
-	    : GET_VM()->bs_informal_protocol_imethods;
-
-	std::map<SEL, std::string>::iterator iter = map.find(sel);	
-	if (iter != map.end()) {
-	    strncpy(buf, iter->second.c_str(), buflen);
+	std::string *informal_type =
+	    GET_CORE()->find_bs_informal_protocol_method(sel,
+		    class_isMetaClass(klass));
+	if (informal_type != NULL) {
+	    strncpy(buf, informal_type->c_str(), buflen);
 	}
 	else {
 	    assert(oc_arity < buflen);
@@ -1178,40 +1196,39 @@ resolve_method_type(char *buf, const size_t buflen, Class klass, Method m,
     }
 }
 
-static void
-resolve_method(Class klass, SEL sel, Function *func, NODE *node, IMP imp,
-	       Method m)
+rb_vm_method_node_t *
+RoxorCore::resolve_method(Class klass, SEL sel, Function *func, NODE *node,
+	IMP imp, Method m)
 {
     const int oc_arity = rb_vm_node_arity(node).real + 3;
 
     char types[100];
     resolve_method_type(types, sizeof types, klass, m, sel, oc_arity);
 
-    std::map<Function *, IMP>::iterator iter =
-	GET_VM()->objc_to_ruby_stubs.find(func);
+    std::map<Function *, IMP>::iterator iter = objc_to_ruby_stubs.find(func);
     IMP objc_imp;
-    if (iter == GET_VM()->objc_to_ruby_stubs.end()) {
+    if (iter == objc_to_ruby_stubs.end()) {
 	Function *objc_func = RoxorCompiler::shared->compile_objc_stub(func,
 		types);
-	objc_imp = GET_VM()->compile(objc_func);
-	GET_VM()->objc_to_ruby_stubs[func] = objc_imp;
+	objc_imp = compile(objc_func);
+	objc_to_ruby_stubs[func] = objc_imp;
     }
     else {
 	objc_imp = iter->second;
     }
 
     if (imp == NULL) {
-	imp = GET_VM()->compile(func);
+	imp = compile(func);
     }
 
     const rb_vm_arity_t arity = rb_vm_node_arity(node);
     const int flags = rb_vm_node_flags(node);
-    GET_VM()->add_method(klass, sel, objc_imp, imp, arity, flags, types);
+    return add_method(klass, sel, objc_imp, imp, arity, flags, types);
 }
 
-static bool
-__rb_vm_resolve_method(std::map<Class, rb_vm_method_source_t *> *map,
-		       Class klass, SEL sel)
+bool
+RoxorCore::resolve_methods(std::map<Class, rb_vm_method_source_t *> *map,
+	Class klass, SEL sel)
 {
     bool did_something = false;
     std::map<Class, rb_vm_method_source_t *>::iterator iter = map->begin();
@@ -1239,9 +1256,13 @@ __rb_vm_resolve_method(std::map<Class, rb_vm_method_source_t *> *map,
 static bool
 rb_vm_resolve_method(Class klass, SEL sel)
 {
-    if (!GET_VM()->is_running()) {
+    if (!GET_CORE()->get_running()) {
 	return false;
     }
+
+    GET_CORE()->lock();
+
+    bool status = false;
 
 #if ROXOR_VM_DEBUG
     printf("resolving %c[%s %s]\n",
@@ -1251,9 +1272,9 @@ rb_vm_resolve_method(Class klass, SEL sel)
 #endif
 
     std::map<Class, rb_vm_method_source_t *> *map =
-	GET_VM()->method_sources_for_sel(sel, false);
+	GET_CORE()->method_sources_for_sel(sel, false);
     if (map == NULL) {
-	return false;
+	goto bails;
     }
 
     // Find the class where the method should be defined.
@@ -1261,21 +1282,57 @@ rb_vm_resolve_method(Class klass, SEL sel)
 	klass = class_getSuperclass(klass);
     }
     if (klass == NULL) {
-	return false;
+	goto bails;
     }
 
     // Now let's resolve all methods of the given name on the given class
     // and superclasses.
-    return __rb_vm_resolve_method(map, klass, sel);
+    status = GET_CORE()->resolve_methods(map, klass, sel);
+
+bails:
+    GET_CORE()->unlock();
+    return status;
+}
+
+void
+RoxorCore::prepare_method(Class klass, SEL sel, Function *func, NODE *node)
+{
+#if ROXOR_VM_DEBUG
+    printf("preparing %c[%s %s] with LLVM func %p node %p\n",
+	    class_isMetaClass(klass) ? '+' : '-',
+	    class_getName(klass),
+	    sel_getName(sel),
+	    func,
+	    node);
+#endif
+
+    std::map<Class, rb_vm_method_source_t *> *map =
+	method_sources_for_sel(sel, true);
+
+    std::map<Class, rb_vm_method_source_t *>::iterator iter = map->find(klass);
+
+    rb_vm_method_source_t *m = NULL;
+    if (iter == map->end()) {
+	m = (rb_vm_method_source_t *)malloc(sizeof(rb_vm_method_source_t));
+	map->insert(std::make_pair(klass, m));
+	method_source_sels.insert(std::make_pair(klass, sel));
+    }
+    else {
+	m = iter->second;
+    }
+
+    m->func = func;
+    m->node = node;
 }
 
 extern "C"
 void
 rb_vm_prepare_method(Class klass, SEL sel, Function *func, NODE *node)
 {
-    if (GET_VM()->current_class != NULL) {
+    Class k = GET_VM()->get_current_class();
+    if (k != NULL) {
 	const bool meta = class_isMetaClass(klass);
-	klass = GET_VM()->current_class;
+	klass = k;
 	if (meta) {
 	    klass = *(Class *)klass;
 	}
@@ -1295,39 +1352,13 @@ prepare_method:
     if (m != NULL) {
 	// The method already exists - we need to JIT it.
 	if (imp == NULL) {
-	    imp = GET_VM()->compile(func);
+	    imp = GET_CORE()->compile(func);
 	}
-	resolve_method(klass, sel, func, node, imp, m);
+	GET_CORE()->resolve_method(klass, sel, func, node, imp, m);
     }
     else {
 	// Let's keep the method and JIT it later on demand.
-#if ROXOR_VM_DEBUG
-	printf("preparing %c[%s %s] with LLVM func %p node %p\n",
-		class_isMetaClass(klass) ? '+' : '-',
-		class_getName(klass),
-		sel_getName(sel),
-		func,
-		node);
-#endif
-
-	std::map<Class, rb_vm_method_source_t *> *map =
-	    GET_VM()->method_sources_for_sel(sel, true);
-
-	std::map<Class, rb_vm_method_source_t *>::iterator iter =
-	    map->find(klass);
-
-	rb_vm_method_source_t *m = NULL;
-	if (iter == map->end()) {
-	    m = (rb_vm_method_source_t *)malloc(sizeof(rb_vm_method_source_t));
-	    map->insert(std::make_pair(klass, m));
-	    GET_VM()->method_source_sels.insert(std::make_pair(klass, sel));
-	}
-	else {
-	    m = iter->second;
-	}
-
-	m->func = func;
-	m->node = node;
+	GET_CORE()->prepare_method(klass, sel, func, node);
     }
 
     if (!redefined) {
@@ -1379,7 +1410,7 @@ rb_vm_prepare_method2(Class klass, SEL sel, IMP imp, rb_vm_arity_t arity,
 #define VISI_CHECK(x,f) (VISI(x) == (f))
 
 static void
-push_method(VALUE ary, VALUE mod, SEL sel, rb_vm_method_node_t *node,
+push_method(VALUE ary, SEL sel, rb_vm_method_node_t *node,
 	    int (*filter) (VALUE, ID, VALUE))
 {
     if (sel == sel_ignored) {
@@ -1413,15 +1444,14 @@ push_method(VALUE ary, VALUE mod, SEL sel, rb_vm_method_node_t *node,
     }
 } 
 
-extern "C"
 void
-rb_vm_push_methods(VALUE ary, VALUE mod, bool include_objc_methods,
-		   int (*filter) (VALUE, ID, VALUE))
+RoxorCore::get_methods(VALUE ary, Class klass, bool include_objc_methods,
+	int (*filter) (VALUE, ID, VALUE))
 {
     // TODO take into account undefined methods
 
     unsigned int count;
-    Method *methods = class_copyMethodList((Class)mod, &count); 
+    Method *methods = class_copyMethodList(klass, &count); 
     if (methods != NULL) {
 	for (unsigned int i = 0; i < count; i++) {
 	    Method m = methods[i];
@@ -1431,30 +1461,38 @@ rb_vm_push_methods(VALUE ary, VALUE mod, bool include_objc_methods,
 	    if (node == NULL && !include_objc_methods) {
 		continue;
 	    }
-	    push_method(ary, mod, sel, node, filter);
+	    push_method(ary, sel, node, filter);
 	}
 	free(methods);
     }
 
-    Class k = (Class)mod;
+    Class k = klass;
     do {
 	std::multimap<Class, SEL>::iterator iter =
-	    GET_VM()->method_source_sels.find(k);
+	    method_source_sels.find(k);
 
-	if (iter != GET_VM()->method_source_sels.end()) {
+	if (iter != method_source_sels.end()) {
 	    std::multimap<Class, SEL>::iterator last =
-		GET_VM()->method_source_sels.upper_bound(k);
+		method_source_sels.upper_bound(k);
 
 	    for (; iter != last; ++iter) {
 		SEL sel = iter->second;
 		// TODO retrieve method NODE*
-		push_method(ary, mod, sel, NULL, filter);
+		push_method(ary, sel, NULL, filter);
 	    }
 	}
 
 	k = class_getSuperclass(k);
     }
     while (k != NULL);
+}
+
+extern "C"
+void
+rb_vm_push_methods(VALUE ary, VALUE mod, bool include_objc_methods,
+		   int (*filter) (VALUE, ID, VALUE))
+{
+    GET_CORE()->get_methods(ary, (Class)mod, include_objc_methods, filter);
 }
 
 extern "C"
@@ -1478,6 +1516,12 @@ lle_X_rb_vm_prepare_method(const FunctionType *FT,
 extern "C"
 void
 rb_vm_copy_methods(Class from_class, Class to_class)
+{
+    GET_CORE()->copy_methods(from_class, to_class);
+}
+
+void
+RoxorCore::copy_methods(Class from_class, Class to_class)
 {
     Method *methods;
     unsigned int i, methods_count;
@@ -1503,10 +1547,10 @@ rb_vm_copy_methods(Class from_class, Class to_class)
 		    method_getTypeEncoding(method));
 
 	    std::map<Class, rb_vm_method_source_t *> *map =
-		GET_VM()->method_sources_for_sel(sel, false);
+		method_sources_for_sel(sel, false);
 	    if (map != NULL) {
 		// There might be some non-JIT'ed yet methods on subclasses.
-		__rb_vm_resolve_method(map, to_class, sel);
+		resolve_methods(map, to_class, sel);
 	    }
 	}
 	free(methods);
@@ -1514,18 +1558,18 @@ rb_vm_copy_methods(Class from_class, Class to_class)
 
     // Copy methods that have not been JIT'ed yet.
     std::multimap<Class, SEL>::iterator iter =
-	GET_VM()->method_source_sels.find(from_class);
+	method_source_sels.find(from_class);
 
-    if (iter != GET_VM()->method_source_sels.end()) {
+    if (iter != method_source_sels.end()) {
 	std::multimap<Class, SEL>::iterator last =
-	    GET_VM()->method_source_sels.upper_bound(from_class);
+	    method_source_sels.upper_bound(from_class);
 	std::vector<SEL> sels_to_add;
 
 	for (; iter != last; ++iter) {
 	    SEL sel = iter->second;
 
 	    std::map<Class, rb_vm_method_source_t *> *dict =
-		GET_VM()->method_sources_for_sel(sel, false);
+		method_sources_for_sel(sel, false);
 	    if (dict == NULL) {
 		continue;
 	    }
@@ -1555,7 +1599,7 @@ rb_vm_copy_methods(Class from_class, Class to_class)
 	for (std::vector<SEL>::iterator i = sels_to_add.begin();
 	     i != sels_to_add.end();
 	     ++i) {
-	    GET_VM()->method_source_sels.insert(std::make_pair(to_class, *i));
+	    method_source_sels.insert(std::make_pair(to_class, *i));
 	}
     } 
 }
@@ -1597,7 +1641,7 @@ rb_vm_lookup_method(Class klass, SEL sel, IMP *pimp,
 	*pimp = imp;
     }
     if (pnode != NULL) {
-	*pnode = GET_VM()->method_node_get(imp);
+	*pnode = GET_CORE()->method_node_get(imp);
     }
     return true;
 }
@@ -1653,7 +1697,7 @@ define_method:
     char types[100];
     resolve_method_type(types, sizeof types, klass, method, sel, oc_arity);
 
-    GET_VM()->add_method(klass, sel, objc_imp, ruby_imp, arity, flags, types);
+    GET_CORE()->add_method(klass, sel, objc_imp, ruby_imp, arity, flags, types);
 
     if (!redefined) {
 	if (!genuine_selector && arity.max != arity.min) {
@@ -1707,7 +1751,7 @@ rb_vm_define_method3(Class klass, SEL sel, rb_vm_block_t *block)
     assert(block != NULL);
 
     Function *func = RoxorCompiler::shared->compile_block_caller(block);
-    IMP imp = GET_VM()->compile(func);
+    IMP imp = GET_CORE()->compile(func);
     NODE *body = rb_vm_cfunc_node_from_imp(klass, -1, imp, 0);
     rb_objc_retain(body);
     rb_objc_retain(block);
@@ -1933,9 +1977,9 @@ rb_vm_super_lookup(VALUE klass, SEL sel, VALUE *klassp)
     std::vector<void *> callstack_funcs;
     for (int i = 0; i < callstack_n; i++) {
 	void *start = NULL;
-	if (GET_VM()->symbolize_call_address(callstack[i],
+	if (GET_CORE()->symbolize_call_address(callstack[i],
 		    &start, NULL, NULL, 0)) {
-	    rb_vm_method_node_t *node = GET_VM()->method_node_get((IMP)start);
+	    rb_vm_method_node_t *node = GET_CORE()->method_node_get((IMP)start);
 	    if (node != NULL && node->ruby_imp == start) {
 		start = (void *)node->objc_imp;
 	    }
@@ -2002,7 +2046,8 @@ rb_vm_method_missing(VALUE obj, int argc, const VALUE *argv)
         rb_raise(rb_eArgError, "no id given");
     }
 
-    const unsigned char last_call_status = GET_VM()->method_missing_reason;
+    const unsigned char last_call_status =
+	GET_VM()->get_method_missing_reason();
     const char *format = NULL;
     VALUE exc = rb_eNoMethodError;
 
@@ -2050,7 +2095,7 @@ static VALUE
 method_missing(VALUE obj, SEL sel, int argc, const VALUE *argv,
 	       unsigned char call_status)
 {
-    GET_VM()->method_missing_reason = call_status;
+    GET_VM()->set_method_missing_reason(call_status);
 
     if (sel == selMethodMissing) {
 	rb_vm_method_missing(obj, argc, argv);
@@ -2074,7 +2119,7 @@ method_missing(VALUE obj, SEL sel, int argc, const VALUE *argv,
 }
 
 inline void *
-RoxorVM::gen_stub(std::string types, int argc, bool is_objc)
+RoxorCore::gen_stub(std::string types, int argc, bool is_objc)
 {
     std::map<std::string, void *> &stubs = is_objc ? objc_stubs : c_stubs;
     std::map<std::string, void *>::iterator iter = stubs.find(types);
@@ -2091,7 +2136,7 @@ RoxorVM::gen_stub(std::string types, int argc, bool is_objc)
 }
 
 void *
-RoxorVM::gen_to_rval_convertor(std::string type)
+RoxorCore::gen_to_rval_convertor(std::string type)
 {
     std::map<std::string, void *>::iterator iter =
 	to_rval_convertors.find(type);
@@ -2108,7 +2153,7 @@ RoxorVM::gen_to_rval_convertor(std::string type)
 }
 
 void *
-RoxorVM::gen_to_ocval_convertor(std::string type)
+RoxorCore::gen_to_ocval_convertor(std::string type)
 {
     std::map<std::string, void *>::iterator iter =
 	to_ocval_convertors.find(type);
@@ -2227,7 +2272,7 @@ fill_ocache(struct mcache *cache, VALUE self, Class klass, IMP imp, SEL sel,
     cache->flag = MCACHE_OCALL;
     ocache.klass = klass;
     ocache.imp = imp;
-    ocache.bs_method = GET_VM()->find_bs_method(klass, sel);
+    ocache.bs_method = GET_CORE()->find_bs_method(klass, sel);
 
     char types[200];
     if (!rb_objc_get_types(self, klass, sel, method, ocache.bs_method,
@@ -2250,14 +2295,16 @@ fill_ocache(struct mcache *cache, VALUE self, Class klass, IMP imp, SEL sel,
 	    argc = real_argc;
 	}
     }
-    ocache.stub = (rb_vm_objc_stub_t *)GET_VM()->gen_stub(types, 
+    GET_CORE()->lock();
+    ocache.stub = (rb_vm_objc_stub_t *)GET_CORE()->gen_stub(types, 
 	    argc, true);
+    GET_CORE()->unlock();
 }
 
 static force_inline VALUE
-__rb_vm_dispatch(struct mcache *cache, VALUE self, Class klass, SEL sel,
-		 rb_vm_block_t *block, unsigned char opt, int argc,
-		 const VALUE *argv)
+__rb_vm_dispatch(RoxorVM *vm, struct mcache *cache, VALUE self, Class klass,
+	SEL sel, rb_vm_block_t *block, unsigned char opt, int argc,
+	const VALUE *argv)
 {
     assert(cache != NULL);
 
@@ -2289,7 +2336,7 @@ recache2:
 		goto call_method_missing;
 	    }
 
-	    rb_vm_method_node_t *node = GET_VM()->method_node_get(imp);
+	    rb_vm_method_node_t *node = GET_CORE()->method_node_get(imp);
 
 	    if (node != NULL) {
 		// ruby call
@@ -2369,10 +2416,8 @@ recache2:
 		selname_len--;
 	    }
 	    std::string name(selname, selname_len);
-	    std::map<std::string, bs_element_function_t *>::iterator iter =
-		GET_VM()->bs_funcs.find(name);
-	    if (iter != GET_VM()->bs_funcs.end()) {
-		bs_element_function_t *bs_func = iter->second;
+	    bs_element_function_t *bs_func = GET_CORE()->find_bs_function(name);
+	    if (bs_func != NULL) {
 		std::string types;
 		vm_gen_bs_func_types(bs_func, types);
 
@@ -2380,7 +2425,7 @@ recache2:
 		fcache.bs_function = bs_func;
 		fcache.imp = (IMP)dlsym(RTLD_DEFAULT, bs_func->name);
 		assert(fcache.imp != NULL);
-		fcache.stub = (rb_vm_c_stub_t *)GET_VM()->gen_stub(types,
+		fcache.stub = (rb_vm_c_stub_t *)GET_CORE()->gen_stub(types,
 			argc, false);
 	    }
 	    else {
@@ -2410,9 +2455,9 @@ dispatch:
 		cached ? "true" : "false");
 #endif
 
-	bool block_already_current = GET_VM()->is_block_current(block);
+	bool block_already_current = vm->is_block_current(block);
 	if (!block_already_current) {
-	    GET_VM()->add_current_block(block);
+	    vm->add_current_block(block);
 	}
 
 	VALUE ret = Qnil;
@@ -2421,12 +2466,12 @@ dispatch:
 	}
 	catch (...) {
 	    if (!block_already_current) {
-		GET_VM()->pop_current_block();
+		vm->pop_current_block();
 	    }
 	    throw;
 	}
 	if (!block_already_current) {
-	    GET_VM()->pop_current_block();
+	    vm->pop_current_block();
 	}
 	return ret;
     }
@@ -2438,16 +2483,16 @@ dispatch:
 	if (block != NULL) {
 	    if (self == rb_cNSMutableHash && sel == selNew) {
 		// Because Hash.new can accept a block.
-		GET_VM()->add_current_block(block);
+		vm->add_current_block(block);
 		VALUE h = Qnil;
 		try {
 		    h = rb_hash_new2(argc, argv);
 		}
 		catch (...) {
-		    GET_VM()->pop_current_block();
+		    vm->pop_current_block();
 		    throw;
 		}
-		GET_VM()->pop_current_block();
+		vm->pop_current_block();
 		return h;
 	    }
 	    rb_warn("passing a block to an Objective-C method - " \
@@ -2549,8 +2594,8 @@ call_method_missing:
     if (new_sel != 0) {
 	Method m = class_getInstanceMethod(klass, new_sel);
 	if (m != NULL
-	    && GET_VM()->method_node_get(method_getImplementation(m))
-	    != NULL) {
+		&& GET_CORE()->method_node_get(method_getImplementation(m))
+		!= NULL) {
 	    rb_raise(rb_eArgError, "wrong number of arguments (%d for %d)",
 		    argc, argc_expected);
 	}
@@ -2614,13 +2659,12 @@ rb_vm_dispatch(struct mcache *cache, VALUE self, SEL sel, rb_vm_block_t *block,
 	va_end(ar);
     }
 
-    VALUE retval = __rb_vm_dispatch(cache, self, NULL, sel, block, opt, argc,
-	    argv);
+    RoxorVM *vm = GET_VM();
 
-    if (!GET_VM()->bindings.empty()) {
-	rb_objc_release(GET_VM()->bindings.back());
-	GET_VM()->bindings.pop_back();
-    }
+    VALUE retval = __rb_vm_dispatch(vm, cache, self, NULL, sel, block, opt,
+	    argc, argv);
+
+    vm->pop_current_binding();
 
     return retval;
 }
@@ -2700,7 +2744,8 @@ rb_vm_fast_shift(VALUE obj, VALUE other, struct mcache *cache,
 		return obj;
 	}
     }
-    return __rb_vm_dispatch(cache, obj, NULL, selLTLT, NULL, 0, 1, &other);
+    return __rb_vm_dispatch(GET_VM(), cache, obj, NULL, selLTLT, NULL, 0, 1,
+	    &other);
 }
 
 extern "C"
@@ -2716,7 +2761,8 @@ rb_vm_fast_aref(VALUE obj, VALUE other, struct mcache *cache,
 	extern VALUE rb_ary_aref(VALUE ary, SEL sel, int argc, VALUE *argv);
 	return rb_ary_aref(obj, 0, 1, &other);
     }
-    return __rb_vm_dispatch(cache, obj, NULL, selAREF, NULL, 0, 1, &other);
+    return __rb_vm_dispatch(GET_VM(), cache, obj, NULL, selAREF, NULL, 0, 1,
+	    &other);
 }
 
 extern "C"
@@ -2734,7 +2780,8 @@ rb_vm_fast_aset(VALUE obj, VALUE other1, VALUE other2, struct mcache *cache,
     VALUE args[2];
     args[0] = other1;
     args[1] = other2;
-    return __rb_vm_dispatch(cache, obj, NULL, selASET, NULL, 0, 2, args);
+    return __rb_vm_dispatch(GET_VM(), cache, obj, NULL, selASET, NULL, 0, 2,
+	    args);
 }
 
 extern "C"
@@ -2785,6 +2832,35 @@ rb_vm_dup_active_block(rb_vm_block_t *src_b)
     return new_b;
 }
 
+rb_vm_block_t *
+RoxorCore::uncache_or_create_block(NODE *key, bool *cached, int dvars_size)
+{
+    std::map<NODE *, rb_vm_block_t *>::iterator iter = blocks.find(key);
+
+    rb_vm_block_t *b;
+
+    if ((iter == blocks.end())
+	|| (iter->second->flags & (VM_BLOCK_ACTIVE | VM_BLOCK_PROC))) {
+
+	if (iter != blocks.end()) {
+	    rb_objc_release(iter->second);
+	}
+
+	b = (rb_vm_block_t *)xmalloc(sizeof(rb_vm_block_t)
+		+ (sizeof(VALUE *) * dvars_size));
+	rb_objc_retain(b);
+	blocks[key] = b;
+
+	*cached = false;
+    }
+    else {
+	b = iter->second;
+	*cached = true;
+    }
+
+    return b;
+}
+
 extern "C"
 rb_vm_block_t *
 rb_vm_prepare_block(void *llvm_function, NODE *node, VALUE self,
@@ -2802,22 +2878,13 @@ rb_vm_prepare_block(void *llvm_function, NODE *node, VALUE self,
 	cache_key = node;
     }
 
-    std::map<NODE *, rb_vm_block_t *>::iterator iter =
-	GET_VM()->blocks.find(cache_key);
+    GET_CORE()->lock();
 
-    rb_vm_block_t *b;
     bool cached = false;
+    rb_vm_block_t *b = GET_CORE()->uncache_or_create_block(cache_key, &cached,
+	dvars_size);
 
-    if ((iter == GET_VM()->blocks.end())
-	|| (iter->second->flags & (VM_BLOCK_ACTIVE | VM_BLOCK_PROC))) {
-
-	if (iter != GET_VM()->blocks.end()) {
-	    rb_objc_release(iter->second);
-	}
-
-	b = (rb_vm_block_t *)xmalloc(sizeof(rb_vm_block_t)
-		+ (sizeof(VALUE *) * dvars_size));
-
+    if (!cached) {
 	if (nd_type(node) == NODE_IFUNC) {
 	    assert(llvm_function == NULL);
 	    b->imp = (IMP)node->u1.node;
@@ -2825,22 +2892,19 @@ rb_vm_prepare_block(void *llvm_function, NODE *node, VALUE self,
 	}
 	else {
 	    assert(llvm_function != NULL);
-	    b->imp = GET_VM()->compile((Function *)llvm_function);
+	    b->imp = GET_CORE()->compile((Function *)llvm_function);
 	    b->arity = rb_vm_node_arity(node);
 	}
 	b->flags = 0;
 	b->dvars_size = dvars_size;
 	b->parent_var_uses = NULL;
 	b->parent_block = NULL;
-
-	rb_objc_retain(b);
-	GET_VM()->blocks[cache_key] = b;
     }
     else {
-	b = iter->second;
 	assert(b->dvars_size == dvars_size);
-	cached = true;
     }
+
+    GET_CORE()->unlock();
 
     b->self = self;
     b->node = node;
@@ -3020,29 +3084,28 @@ rb_vm_push_binding(VALUE self, rb_vm_block_t *current_block,
     }
     va_end(ar);
 
-    rb_objc_retain(binding);
-    GET_VM()->bindings.push_back(binding);
+    GET_VM()->push_current_binding(binding);
 }
 
 extern "C"
 rb_vm_binding_t *
 rb_vm_current_binding(void)
 {
-   return GET_VM()->bindings.empty() ? NULL : GET_VM()->bindings.back();
+    return GET_VM()->current_binding();
 }
 
 extern "C"
 void
 rb_vm_add_binding(rb_vm_binding_t *binding)
 {
-    GET_VM()->bindings.push_back(binding);
+    GET_VM()->push_current_binding(binding, false);
 }
 
 extern "C"
 void
 rb_vm_pop_binding(void)
 {
-    GET_VM()->bindings.pop_back();
+    GET_VM()->pop_current_binding(false);
 }
 
 extern "C"
@@ -3057,27 +3120,29 @@ rb_vm_call(VALUE self, SEL sel, int argc, const VALUE *argv, bool super)
 	flg = DISPATCH_SUPER;
     }
     else {
-	cache = GET_VM()->method_cache_get(sel, false);
+	cache = GET_CORE()->method_cache_get(sel, false);
     }
 
-    return __rb_vm_dispatch(cache, self, NULL, sel, NULL, flg, argc, argv);
+    return __rb_vm_dispatch(GET_VM(), cache, self, NULL, sel, NULL, flg, argc,
+	    argv);
 }
 
 extern "C"
 VALUE
 rb_vm_call_with_cache(void *cache, VALUE self, SEL sel, int argc, 
-		      const VALUE *argv)
+	const VALUE *argv)
 {
-    return __rb_vm_dispatch((struct mcache *)cache, self, NULL, sel, NULL, 0,
-	    argc, argv);
+    return __rb_vm_dispatch(GET_VM(), (struct mcache *)cache, self, NULL, sel,
+	    NULL, 0, argc, argv);
 }
 
 extern "C"
 VALUE
 rb_vm_call_with_cache2(void *cache, rb_vm_block_t *block, VALUE self,
-		       VALUE klass, SEL sel, int argc, const VALUE *argv)
+	VALUE klass, SEL sel, int argc, const VALUE *argv)
 {
-    return __rb_vm_dispatch((struct mcache *)cache, self, (Class)klass, sel,
+    return __rb_vm_dispatch(GET_VM(), (struct mcache *)cache, self,
+	    (Class)klass, sel,
 	    block, 0, argc, argv);
 }
 
@@ -3085,7 +3150,7 @@ extern "C"
 void *
 rb_vm_get_call_cache(SEL sel)
 {
-    return GET_VM()->method_cache_get(sel, false);
+    return GET_CORE()->method_cache_get(sel, false);
 }
 
 // Should be used inside a method implementation.
@@ -3187,7 +3252,7 @@ rb_vm_get_method(VALUE klass, VALUE obj, ID mid, int scope)
 	fill_ocache(c, obj, oklass, imp, sel, method, arity);
     }
     else {
-	rb_vm_method_node_t *node = GET_VM()->method_node_get(imp);
+	rb_vm_method_node_t *node = GET_CORE()->method_node_get(imp);
 	assert(node != NULL);
 	fill_rcache(c, oklass, node);
     }
@@ -3384,12 +3449,12 @@ rb_vm_yield_under(VALUE klass, VALUE self, int argc, const VALUE *argv)
 
     VALUE old_self = b->self;
     b->self = self;
-    Class old_class = GET_VM()->current_class;
+    Class old_class = GET_VM()->get_current_class();
     if (klass == self) {
 	// We only toggle the VM current klass in case #module_eval or
 	// #class_eval is used (where the given klass and self objects are 
 	// actually the same instances).
-	GET_VM()->current_class = (Class)klass;
+	GET_VM()->set_current_class((Class)klass);
     }
 
     VALUE retval = Qnil;
@@ -3398,13 +3463,13 @@ rb_vm_yield_under(VALUE klass, VALUE self, int argc, const VALUE *argv)
     }
     catch (...) {
 	b->self = old_self;
-	GET_VM()->current_class = old_class;
+	GET_VM()->set_current_class(old_class);
 	GET_VM()->add_current_block(b);
 	throw;
     }
 
     b->self = old_self;
-    GET_VM()->current_class = old_class;
+    GET_VM()->set_current_class(old_class);
     GET_VM()->add_current_block(b);
 
     return retval;
@@ -3451,7 +3516,7 @@ rb_vm_respond_to(VALUE obj, SEL sel, bool priv)
 	}
 	IMP obj_imp = method_getImplementation(m);
 	rb_vm_method_node_t *node = obj_imp == NULL
-	    ? NULL : GET_VM()->method_node_get(obj_imp);
+	    ? NULL : GET_CORE()->method_node_get(obj_imp);
 
 	if (node != NULL
 		&& (reject_pure_ruby_methods
@@ -3578,15 +3643,15 @@ rb_vm_break(VALUE val)
 	rb_raise(rb_eLocalJumpError, "break from proc-closure");
     }
 #endif
-    GET_VM()->broken_with = val;
+    GET_VM()->set_broken_with(val);
 }
 
 extern "C"
 VALUE
 rb_vm_pop_broken_value(void)
 {
-    VALUE val = GET_VM()->broken_with;
-    GET_VM()->broken_with = Qundef;
+    VALUE val = GET_VM()->get_broken_with();
+    GET_VM()->set_broken_with(Qundef);
     return val;
 }
 
@@ -3605,8 +3670,8 @@ rb_vm_backtrace(int level)
 	char name[100];
 	unsigned long ln = 0;
 
-	if (GET_VM()->symbolize_call_address(callstack[i], NULL, &ln, name,
-					     sizeof name)) {
+	if (GET_CORE()->symbolize_call_address(callstack[i], NULL, &ln, name,
+		    sizeof name)) {
 	    char entry[100];
 	    snprintf(entry, sizeof entry, "%ld:in `%s'", ln, name);
 	    rb_ary_push(ary, rb_str_new2(entry));
@@ -3717,14 +3782,14 @@ extern "C"
 bool
 rb_vm_parse_in_eval(void)
 {
-    return GET_VM()->parse_in_eval;
+    return GET_VM()->get_parse_in_eval();
 }
 
 extern "C"
 void
 rb_vm_set_parse_in_eval(bool flag)
 {
-    GET_VM()->parse_in_eval = flag;
+    GET_VM()->set_parse_in_eval(flag);
 }
 
 extern "C"
@@ -3764,8 +3829,10 @@ VALUE
 rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding,
 	  bool inside_eval)
 {
+    RoxorVM *vm = GET_VM();
+
     if (binding != NULL) {
-	GET_VM()->bindings.push_back(binding);
+	vm->push_current_binding(binding, false);
     }
 
     __init_shared_compiler();
@@ -3777,20 +3844,20 @@ rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding,
     compiler->set_inside_eval(old_inside_eval);
 
     if (binding != NULL) {
-	GET_VM()->bindings.pop_back();
+	vm->pop_current_binding(false);
     }
 
 #if ROXOR_INTERPRET_EVAL
     if (inside_eval) {
-	return GET_VM()->interpret(function);
+	return GET_CORE()->interpret(function);
     }
     else {
-	IMP imp = GET_VM()->compile(function);
-	return ((VALUE(*)(VALUE, SEL))imp)(GET_VM()->current_top_object, 0);
+	IMP imp = GET_CORE()->compile(function);
+	return ((VALUE(*)(VALUE, SEL))imp)(vm->get_current_top_object(), 0);
     }
 #else
-    IMP imp = GET_VM()->compile(function);
-    return ((VALUE(*)(VALUE, SEL))imp)(GET_VM()->current_top_object, 0);
+    IMP imp = GET_CORE()->compile(function);
+    return ((VALUE(*)(VALUE, SEL))imp)(vm->get_current_top_object(), 0);
 #endif
 }
 
@@ -3799,22 +3866,22 @@ VALUE
 rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
 		rb_vm_binding_t *binding, bool inside_eval)
 {
-    VALUE old_top_object = GET_VM()->current_top_object;
+    VALUE old_top_object = GET_VM()->get_current_top_object();
     if (binding != NULL) {
 	self = binding->self;
     }
     if (self != 0) {
-	GET_VM()->current_top_object = self;
+	GET_VM()->set_current_top_object(self);
     }
-    Class old_class = GET_VM()->current_class;
+    Class old_class = GET_VM()->get_current_class();
     if (klass != 0) {
-	GET_VM()->current_class = (Class)klass;
+	GET_VM()->set_current_class((Class)klass);
     }
 
     VALUE val = rb_vm_run(fname, node, binding, inside_eval);
 
-    GET_VM()->current_top_object = old_top_object;
-    GET_VM()->current_class = old_class;
+    GET_VM()->set_current_top_object(old_top_object);
+    GET_VM()->set_current_class(old_class);
 
     return val;
 }
@@ -3829,7 +3896,7 @@ rb_vm_aot_compile(NODE *node)
     __init_shared_compiler();
     Function *f = RoxorCompiler::shared->compile_main_function(node);
     f->setName("rb_main");
-    GET_VM()->optimize(f);
+    GET_CORE()->optimize(f);
 
     // Save the bitcode into a temporary file.
     const char *tmpdir = getenv("TMPDIR");
@@ -3927,52 +3994,53 @@ extern "C"
 VALUE
 rb_vm_top_self(void)
 {
-    return GET_VM()->current_top_object;
+    return GET_VM()->get_current_top_object();
 }
 
 extern "C"
 VALUE
 rb_vm_loaded_features(void)
 {
-    return GET_VM()->loaded_features;
+    return GET_CORE()->get_loaded_features();
 }
 
 extern "C"
 VALUE
 rb_vm_load_path(void)
 {
-    return GET_VM()->load_path;
+    return GET_CORE()->get_load_path();
 }
 
 extern "C"
 int
 rb_vm_safe_level(void)
 {
-    return GET_VM()->safe_level;
+    return GET_VM()->get_safe_level();
 }
 
 extern "C"
 void 
 rb_vm_set_safe_level(int level)
 {
-    GET_VM()->safe_level = level;
+    GET_VM()->set_safe_level(level);
 }
 
 extern "C"
 VALUE
 rb_last_status_get(void)
 {
-    return GET_VM()->last_status;
+    return GET_VM()->get_last_status();
 }
 
 extern "C"
 void
 rb_last_status_set(int status, rb_pid_t pid)
 {
-    if (GET_VM()->last_status != Qnil) {
-	rb_objc_release((void *)GET_VM()->last_status);
+    VALUE last_status = GET_VM()->get_last_status();
+    if (last_status != Qnil) {
+	rb_objc_release((void *)last_status);
     }
-    VALUE last_status;
+
     if (pid == -1) {
 	last_status = Qnil;
     }
@@ -3982,14 +4050,14 @@ rb_last_status_set(int status, rb_pid_t pid)
 	rb_iv_set(last_status, "pid", PIDT2NUM(pid));
 	rb_objc_retain((void *)last_status);
     }
-    GET_VM()->last_status = last_status;
+    GET_VM()->set_last_status(last_status);
 }
 
 extern "C"
 VALUE
 rb_errinfo(void)
 {
-    return GET_VM()->errinfo;
+    return GET_VM()->get_errinfo();
 }
 
 void
@@ -3998,10 +4066,11 @@ rb_set_errinfo(VALUE err)
     if (!NIL_P(err) && !rb_obj_is_kind_of(err, rb_eException)) {
         rb_raise(rb_eTypeError, "assigning non-exception to $!");
     }
-    if (GET_VM()->errinfo != Qnil) {
-	rb_objc_release((void *)GET_VM()->errinfo);
+    VALUE errinfo = GET_VM()->get_errinfo();
+    if (errinfo != Qnil) {
+	rb_objc_release((void *)errinfo);
     }
-    GET_VM()->errinfo = err;
+    GET_VM()->set_errinfo(err);
     rb_objc_retain((void *)err);
 }
 
@@ -4040,40 +4109,39 @@ extern "C"
 void
 rb_iter_break(void)
 {
-    GET_VM()->broken_with = Qnil;
+    GET_VM()->set_broken_with(Qnil);
 }
 
 extern "C"
 VALUE
 rb_backref_get(void)
 {
-    return GET_VM()->backref;
+    return GET_VM()->get_backref();
 }
 
 extern "C"
 void
 rb_backref_set(VALUE val)
 {
-    VALUE old = GET_VM()->backref;
+    VALUE old = GET_VM()->get_backref();
     if (old != val) {
 	rb_objc_release((void *)old);
-	GET_VM()->backref = val;
+	GET_VM()->set_backref(val);
 	rb_objc_retain((void *)val);
     }
 }
 
-extern "C"
 VALUE
-rb_vm_catch(VALUE tag)
+RoxorVM::ruby_catch(VALUE tag)
 {
     std::map<VALUE, rb_vm_catch_t *>::iterator iter =
-	GET_VM()->catch_jmp_bufs.find(tag);
+	catch_jmp_bufs.find(tag);
     rb_vm_catch_t *s = NULL;
-    if (iter == GET_VM()->catch_jmp_bufs.end()) {
+    if (iter == catch_jmp_bufs.end()) {
 	s = (rb_vm_catch_t *)malloc(sizeof(rb_vm_catch_t));
 	s->throw_value = Qnil;
 	s->nested = 1;
-	GET_VM()->catch_jmp_bufs[tag] = s;
+	catch_jmp_bufs[tag] = s;
 	rb_objc_retain((void *)tag);
     }
     else {
@@ -4091,13 +4159,13 @@ rb_vm_catch(VALUE tag)
 	s->throw_value = Qnil;
     }
 
-    iter = GET_VM()->catch_jmp_bufs.find(tag);
-    assert(iter != GET_VM()->catch_jmp_bufs.end());
+    iter = catch_jmp_bufs.find(tag);
+    assert(iter != catch_jmp_bufs.end());
     s->nested--;
     if (s->nested == 0) {
 	s = iter->second;
 	free(s);
-	GET_VM()->catch_jmp_bufs.erase(iter);
+	catch_jmp_bufs.erase(iter);
 	rb_objc_release((void *)tag);
     }
 
@@ -4106,11 +4174,17 @@ rb_vm_catch(VALUE tag)
 
 extern "C"
 VALUE
-rb_vm_throw(VALUE tag, VALUE value)
+rb_vm_catch(VALUE tag)
+{
+    return GET_VM()->ruby_catch(tag);
+}
+
+VALUE
+RoxorVM::ruby_throw(VALUE tag, VALUE value)
 {
     std::map<VALUE, rb_vm_catch_t *>::iterator iter =
-	GET_VM()->catch_jmp_bufs.find(tag);
-    if (iter == GET_VM()->catch_jmp_bufs.end()) {
+	catch_jmp_bufs.find(tag);
+    if (iter == catch_jmp_bufs.end()) {
         VALUE desc = rb_inspect(tag);
         rb_raise(rb_eArgError, "uncaught throw %s", RSTRING_PTR(desc));
     }
@@ -4124,6 +4198,99 @@ rb_vm_throw(VALUE tag, VALUE value)
     return Qnil; // never reached
 }
 
+extern "C"
+VALUE
+rb_vm_throw(VALUE tag, VALUE value)
+{
+    return GET_VM()->ruby_throw(tag, value);
+}
+
+extern "C"
+void *
+rb_vm_create_vm(void)
+{
+    GET_CORE()->set_multithreaded(true);
+
+    RoxorVM *vm = new RoxorVM();
+    vm->set_current_top_object(GET_VM()->get_current_top_object());
+    return (void *)vm;
+}
+
+void
+RoxorCore::register_thread(VALUE thread)
+{
+    rb_ary_push(threads, thread);
+
+    rb_vm_thread_t *t = GetThreadPtr(thread);
+    assert(pthread_setspecific(RoxorVM::vm_thread_key, t->vm) == 0);
+
+    RoxorVM *vm = (RoxorVM *)t->vm;
+    vm->set_thread(thread);
+}
+
+void
+RoxorCore::unregister_thread(VALUE thread)
+{
+    if (rb_ary_delete(threads, thread) != thread) {
+	printf("trying to unregister a thread (%p) that was never registered!",
+		(void *)thread);
+	abort();
+    }
+
+    rb_vm_thread_t *t = GetThreadPtr(thread);
+    RoxorVM *vm = (RoxorVM *)t->vm;
+    delete vm;
+    t->vm = NULL;
+
+    assert(pthread_setspecific(RoxorVM::vm_thread_key, NULL) == 0);
+}
+
+extern "C"
+void *
+rb_vm_thread_run(VALUE thread)
+{
+    rb_objc_gc_register_thread();
+    GET_CORE()->register_thread(thread);
+
+    // Release the thread now.
+    rb_objc_release((void *)thread);
+
+    try {
+	rb_vm_thread_t *t = GetThreadPtr(thread);
+	rb_vm_block_eval(t->body, t->argc, t->argv);
+    }
+    catch (...) {
+	// TODO handle thread-level exceptions.
+    }
+
+    GET_CORE()->unregister_thread(thread);
+    rb_objc_gc_unregister_thread();
+
+    return NULL;
+
+}
+
+extern "C"
+VALUE
+rb_vm_threads(void)
+{
+    return GET_CORE()->get_threads();
+}
+
+extern "C"
+VALUE
+rb_vm_current_thread(void)
+{
+    return GET_VM()->get_thread();
+}
+
+extern "C"
+VALUE
+rb_vm_main_thread(void)
+{
+    return RoxorVM::main->get_thread();
+}
+
 static VALUE
 builtin_ostub1(IMP imp, id self, SEL sel, int argc, VALUE *argv)
 {
@@ -4133,8 +4300,8 @@ builtin_ostub1(IMP imp, id self, SEL sel, int argc, VALUE *argv)
 static void
 setup_builtin_stubs(void)
 {
-    GET_VM()->insert_stub("@@:", (void *)builtin_ostub1, true);
-    GET_VM()->insert_stub("#@:", (void *)builtin_ostub1, true);
+    GET_CORE()->insert_stub("@@:", (void *)builtin_ostub1, true);
+    GET_CORE()->insert_stub("#@:", (void *)builtin_ostub1, true);
 }
 
 static IMP old_resolveClassMethod_imp = NULL;
@@ -4165,7 +4332,10 @@ Init_PreVM(void)
     llvm::ExceptionHandling = true; // required!
 
     RoxorCompiler::module = new llvm::Module("Roxor");
-    RoxorVM::current = new RoxorVM();
+    RoxorCore::shared = new RoxorCore();
+    RoxorVM::main = new RoxorVM();
+
+    assert(pthread_key_create(&RoxorVM::vm_thread_key, NULL) == 0);
 
     setup_builtin_stubs();
 
@@ -4197,11 +4367,23 @@ Init_VM(void)
     rb_cTopLevel = rb_define_class("TopLevel", rb_cObject);
     rb_objc_define_method(rb_cTopLevel, "to_s", (void *)rb_toplevel_to_s, 0);
 
-    GET_VM()->current_class = NULL;
+    GET_VM()->set_current_class(NULL);
 
     VALUE top_self = rb_obj_alloc(rb_cTopLevel);
     rb_objc_retain((void *)top_self);
-    GET_VM()->current_top_object = top_self;
+    GET_VM()->set_current_top_object(top_self);
+}
+
+extern "C"
+void
+Init_PostVM(void)
+{
+    // Create and register the main thread;
+    rb_vm_thread_t *t = (rb_vm_thread_t *)xmalloc(sizeof(rb_vm_thread_t));
+    t->thread = pthread_self();
+    t->vm = (void *)GET_VM();
+    VALUE main = Data_Wrap_Struct(rb_cThread, NULL, NULL, t);
+    GET_CORE()->register_thread(main);
 }
 
 extern "C"

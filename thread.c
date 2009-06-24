@@ -7,23 +7,6 @@
 VALUE rb_cThread;
 VALUE rb_cMutex;
 
-typedef struct rb_vm_thread {
-    pthread_t thread;
-    rb_vm_block_t *body;
-    int argc;
-    const VALUE *argv;
-} rb_vm_thread_t;
-
-#define GetThreadPtr(obj) ((rb_vm_thread_t *)DATA_PTR(obj))
-
-static void *
-rb_vm_thread_run(rb_vm_thread_t *t)
-{
-    rb_objc_gc_register_thread();
-    rb_vm_block_eval(t->body, t->argc, t->argv);
-    return NULL;
-}
-
 #if 0
 static VALUE
 thread_s_new(int argc, VALUE *argv, VALUE klass)
@@ -79,8 +62,14 @@ thread_initialize(VALUE thread, SEL sel, int argc, VALUE *argv)
 	}
     }
 
+    t->vm = rb_vm_create_vm();
+
+    // Retain the Thread object to avoid a potential GC, the corresponding
+    // release is done in rb_vm_thread_run().
+    rb_objc_retain((void *)thread);
+
     if (pthread_create(&t->thread, NULL, (void *(*)(void *))rb_vm_thread_run,
-		t) != 0) {
+		(void *)thread) != 0) {
 	rb_sys_fail("pthread_create() failed");
     }
 
@@ -405,10 +394,9 @@ rb_thread_stop(void)
  */
 
 VALUE
-rb_thread_list(void)
+rb_thread_list(VALUE rcv, SEL sel)
 {
-    // TODO
-    return Qnil;
+    return rb_vm_threads();
 }
 
 /*
@@ -421,17 +409,15 @@ rb_thread_list(void)
  */
 
 static VALUE
-thread_s_current(VALUE klass)
+thread_s_current(VALUE klass, SEL sel)
 {
-    // TODO
-    return Qnil;
+    return rb_vm_current_thread();
 }
 
 static VALUE
-rb_thread_s_main(VALUE klass)
+rb_thread_s_main(VALUE klass, SEL sel)
 {
-    // TODO
-    return Qnil;
+    return rb_vm_main_thread();
 }
 
 /*
@@ -1266,13 +1252,13 @@ Init_Thread(void)
     //rb_define_singleton_method(rb_cThread, "new", thread_s_new, -1);
     rb_define_singleton_method(rb_cThread, "start", thread_start, -2);
     rb_define_singleton_method(rb_cThread, "fork", thread_start, -2);
-    rb_define_singleton_method(rb_cThread, "main", rb_thread_s_main, 0);
+    rb_objc_define_method(*(VALUE *)rb_cThread, "main", rb_thread_s_main, 0);
     rb_objc_define_method(*(VALUE *)rb_cThread, "current", thread_s_current, 0);
     rb_define_singleton_method(rb_cThread, "stop", rb_thread_stop, 0);
     rb_define_singleton_method(rb_cThread, "kill", rb_thread_s_kill, 1);
     rb_define_singleton_method(rb_cThread, "exit", rb_thread_exit, 0);
     rb_define_singleton_method(rb_cThread, "pass", thread_s_pass, 0);
-    rb_define_singleton_method(rb_cThread, "list", rb_thread_list, 0);
+    rb_objc_define_method(*(VALUE *)rb_cThread, "list", rb_thread_list, 0);
     rb_define_singleton_method(rb_cThread, "abort_on_exception", rb_thread_s_abort_exc, 0);
     rb_define_singleton_method(rb_cThread, "abort_on_exception=", rb_thread_s_abort_exc_set, 1);
 

@@ -385,7 +385,7 @@ RoxorCompiler::compile_when_splat(Value *comparedToVal, Value *splatVal)
 
     std::vector<Value *> params;
     params.push_back(compile_mcache(selEqq, false));
-    GlobalVariable *is_redefined = GET_VM()->redefined_op_gvar(selEqq, true);
+    GlobalVariable *is_redefined = GET_CORE()->redefined_op_gvar(selEqq, true);
     params.push_back(new LoadInst(is_redefined, "", bb));
     params.push_back(comparedToVal);
     params.push_back(splatVal);
@@ -432,7 +432,7 @@ RoxorCompiler::compile_const_global_string(const char *str)
 Value *
 RoxorCompiler::compile_mcache(SEL sel, bool super)
 {
-    struct mcache *cache = GET_VM()->method_cache_get(sel, super);
+    struct mcache *cache = GET_CORE()->method_cache_get(sel, super);
     return compile_const_pointer(cache);
 }
 
@@ -467,7 +467,7 @@ RoxorAOTCompiler::compile_mcache(SEL sel, bool super)
 Value *
 RoxorCompiler::compile_ccache(ID name)
 {
-    struct ccache *cache = GET_VM()->constant_cache_get(name);
+    struct ccache *cache = GET_CORE()->constant_cache_get(name);
     return compile_const_pointer(cache);
 }
 
@@ -566,7 +566,7 @@ RoxorAOTCompiler::compile_prepare_method(Value *classVal, Value *sel,
 
     // Make sure the function is compiled before use, this way LLVM won't use
     // a stub.
-    GET_VM()->compile(new_function);
+    GET_CORE()->compile(new_function);
     params.push_back(new BitCastInst(new_function, PtrTy, "", bb));
 
     uint64_t v;
@@ -1392,8 +1392,6 @@ RoxorCompiler::compile_jump(NODE *node)
 		if (return_from_block_jmpbuf == NULL) {
 		    return_from_block_jmpbuf = 
 			(jmp_buf *)malloc(sizeof(jmp_buf));
-		    GET_VM()->return_from_block_jmp_bufs.push_back(
-			    return_from_block_jmpbuf);
 		}
 		params.push_back(compile_const_pointer(
 			    return_from_block_jmpbuf));
@@ -1735,7 +1733,7 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 	    return NULL;
 	}
 
-	GlobalVariable *is_redefined = GET_VM()->redefined_op_gvar(sel, true);
+	GlobalVariable *is_redefined = GET_CORE()->redefined_op_gvar(sel, true);
 	
 	Value *leftVal = params[1]; // self
 	Value *rightVal = params.back();
@@ -2088,7 +2086,7 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 	}
 	new_params.push_back(params[0]);		// cache
 
-	GlobalVariable *is_redefined = GET_VM()->redefined_op_gvar(sel, true);
+	GlobalVariable *is_redefined = GET_CORE()->redefined_op_gvar(sel, true);
 	new_params.push_back(new LoadInst(is_redefined, "", bb));
 
 	return compile_protected_call(opt_func, new_params);
@@ -2109,7 +2107,7 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 	}
 	SEL new_sel = mid_to_sel(SYM2ID(sym), argc - 1);
 
-	GlobalVariable *is_redefined = GET_VM()->redefined_op_gvar(sel, true);
+	GlobalVariable *is_redefined = GET_CORE()->redefined_op_gvar(sel, true);
 
 	Value *is_redefined_val = new LoadInst(is_redefined, "", bb);
 	Value *isOpRedefined = new ICmpInst(ICmpInst::ICMP_EQ, 
@@ -4783,8 +4781,7 @@ RoxorCompiler::compile_conversion_to_c(const char *type, Value *val,
 
     type = SkipTypeModifiers(type);
 
-    if (*type == _C_PTR
-	&& GET_VM()->bs_cftypes.find(type) != GET_VM()->bs_cftypes.end()) {
+    if (*type == _C_PTR && GET_CORE()->find_bs_cftype(type) != NULL) {
 	type = "@";
     }
 
@@ -4856,7 +4853,7 @@ RoxorCompiler::compile_conversion_to_c(const char *type, Value *val,
 
 	case _C_STRUCT_B:
 	    {
-		rb_vm_bs_boxed_t *bs_boxed = GET_VM()->find_bs_struct(type);
+		rb_vm_bs_boxed_t *bs_boxed = GET_CORE()->find_bs_struct(type);
 		if (bs_boxed != NULL) {
 		    Value *fields = new AllocaInst(RubyObjTy,
 			    ConstantInt::get(Type::Int32Ty,
@@ -4887,7 +4884,7 @@ RoxorCompiler::compile_conversion_to_c(const char *type, Value *val,
 				fslot);
 		    }
 
-		    if (GET_VM()->is_large_struct_type(bs_boxed->type)) {
+		    if (GET_CORE()->is_large_struct_type(bs_boxed->type)) {
 			// If this structure is too large, we need to pass its
 			// address and not its value, to conform to the ABI.
 			return slot;
@@ -4899,7 +4896,7 @@ RoxorCompiler::compile_conversion_to_c(const char *type, Value *val,
 
 	case _C_PTR:
 	    {
-		rb_vm_bs_boxed_t *bs_boxed = GET_VM()->find_bs_opaque(type);
+		rb_vm_bs_boxed_t *bs_boxed = GET_CORE()->find_bs_opaque(type);
 		if (bs_boxed != NULL) {
 		    return compile_get_opaque_data(val, bs_boxed, slot);
 		}
@@ -5075,8 +5072,7 @@ RoxorCompiler::compile_conversion_to_ruby(const char *type,
 
     type = SkipTypeModifiers(type);
 
-    if (*type == _C_PTR
-	&& GET_VM()->bs_cftypes.find(type) != GET_VM()->bs_cftypes.end()) {
+    if (*type == _C_PTR && GET_CORE()->find_bs_cftype(type) != NULL) {
 	type = "@";
     }
 
@@ -5147,7 +5143,7 @@ RoxorCompiler::compile_conversion_to_ruby(const char *type,
 
 	case _C_STRUCT_B:
 	    {
-		rb_vm_bs_boxed_t *bs_boxed = GET_VM()->find_bs_struct(type);
+		rb_vm_bs_boxed_t *bs_boxed = GET_CORE()->find_bs_struct(type);
 		if (bs_boxed != NULL) {
 		    std::vector<Value *> params;
 
@@ -5170,7 +5166,7 @@ RoxorCompiler::compile_conversion_to_ruby(const char *type,
 
 	case _C_PTR:
 	    {
-		rb_vm_bs_boxed_t *bs_boxed = GET_VM()->find_bs_opaque(type);
+		rb_vm_bs_boxed_t *bs_boxed = GET_CORE()->find_bs_opaque(type);
 		if (bs_boxed != NULL) {
 		    Value *klass = ConstantInt::get(RubyObjTy, bs_boxed->klass);
 		    return compile_new_opaque(klass, val);
@@ -5245,7 +5241,7 @@ RoxorCompiler::convert_type(const char *type)
 	    return Type::Int64Ty;
 
 	case _C_STRUCT_B:
-	    rb_vm_bs_boxed_t *bs_boxed = GET_VM()->find_bs_struct(type);
+	    rb_vm_bs_boxed_t *bs_boxed = GET_CORE()->find_bs_struct(type);
 	    if (bs_boxed != NULL) {
 		if (bs_boxed->type == NULL) {
 		    std::vector<const Type *> s_types;
@@ -5306,7 +5302,7 @@ RoxorCompiler::compile_stub(const char *types, int argc, bool is_objc)
     const Type *ret_type = convert_type(buf);
 
     Value *sret = NULL;
-    if (GET_VM()->is_large_struct_type(ret_type)) {
+    if (GET_CORE()->is_large_struct_type(ret_type)) {
 	// We are returning a large struct, we need to pass a pointer as the
 	// first argument to the structure data and return void to conform to
 	// the ABI.
@@ -5346,7 +5342,7 @@ RoxorCompiler::compile_stub(const char *types, int argc, bool is_objc)
 
 	const Type *llvm_type = convert_type(buf);
 	const Type *f_type = llvm_type;
-	if (GET_VM()->is_large_struct_type(llvm_type)) {
+	if (GET_CORE()->is_large_struct_type(llvm_type)) {
 	    // We are passing a large struct, we need to mark this argument
 	    // with the byval attribute and configure the internal stub
 	    // call to pass a pointer to the structure, to conform to the
@@ -5463,7 +5459,7 @@ RoxorCompiler::compile_objc_stub(Function *ruby_func, const char *types)
     std::string ret_type(buf);
     const Type *f_ret_type = convert_type(buf);
     const Type *f_sret_type = NULL;
-    if (GET_VM()->is_large_struct_type(f_ret_type)) {
+    if (GET_CORE()->is_large_struct_type(f_ret_type)) {
 	// We are returning a large struct, we need to pass a pointer as the
 	// first argument to the structure data and return void to conform to
 	// the ABI.
@@ -5486,7 +5482,7 @@ RoxorCompiler::compile_objc_stub(Function *ruby_func, const char *types)
     for (unsigned int i = 0; i < ruby_func->arg_size() - 2; i++) {
 	p = GetFirstType(p, buf, sizeof buf);
 	const Type *t = convert_type(buf);
-	if (GET_VM()->is_large_struct_type(t)) {
+	if (GET_CORE()->is_large_struct_type(t)) {
 	    // We are passing a large struct, we need to mark this argument
 	    // with the byval attribute and configure the internal stub
 	    // call to pass a pointer to the structure, to conform to the ABI.

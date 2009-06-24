@@ -488,7 +488,7 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 	stub_args[3 + i] = argv[i];
     }
 
-    rb_vm_c_stub_t *stub = (rb_vm_c_stub_t *)GET_VM()->gen_stub(types,
+    rb_vm_c_stub_t *stub = (rb_vm_c_stub_t *)GET_CORE()->gen_stub(types,
 	    3, false);
 
     VALUE str = (*stub)((IMP)&CFStringCreateWithFormat, argc + 3, stub_args);
