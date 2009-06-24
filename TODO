@@ -13,6 +13,7 @@
 [X] constant caching
 [X] fast ivar access
 [X] zero-cost exceptions
+[ ] make returns in blocks and try/catches use zero-cost exceptions
 [X] fast #send
 [ ] fast regexp =~
 [X] fast break
