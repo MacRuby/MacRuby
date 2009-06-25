@@ -7,16 +7,16 @@ class FlickrDemoController < NSWindowController
     @imageBrowserView.animates = true
     @imageBrowserView.dataSource = self
     @imageBrowserView.delegate = self
-    
-    @sources = []
-    @sources << Source.new('cat')
-    @sourcesTableView.reloadData
-    @sourcesTableView.selectRowIndexes(NSIndexSet.indexSetWithIndex(0), byExtendingSelection:false)
-    
+
     NSNotificationCenter.defaultCenter.addObserver self,
       selector:'feedRefreshed:',
       name:PSFeedRefreshingNotification,
       object:nil
+    
+    @sources = []
+    @sources << Source.new('cat')
+    @sourcesTableView.reloadData
+    @sourcesTableView.selectRowIndexes(NSIndexSet.indexSetWithIndex(0), byExtendingSelection:false)    
   end
   
   # Actions
@@ -25,12 +25,13 @@ class FlickrDemoController < NSWindowController
     row = @sources.size
     @sources << Source.new('dog')
     @sourcesTableView.reloadData
+    @sourceEditing = true
     @sourcesTableView.selectRowIndexes(NSIndexSet.indexSetWithIndex(row), byExtendingSelection:false)
     @sourcesTableView.editColumn(0, row:row, withEvent:nil, select:true)
   end
   
   def removeSource(sender)
-    i =@sourcesTableView.selectedRow
+    i = @sourcesTableView.selectedRow
     if i == -1
       NSBeep()
     else
@@ -65,10 +66,13 @@ class FlickrDemoController < NSWindowController
     source = @sources[row]
     source.tag = object
     refreshImageView(source)
+    @sourceEditing = false
   end
 
-  def tableViewSelectionDidChange(notification)
-    refreshImageView @sources[@sourcesTableView.selectedRow]
+  def tableViewSelectionDidChange(notification)  
+    unless @sourceEditing
+      refreshImageView @sources[@sourcesTableView.selectedRow]
+    end
   end
   
   # Image browser datasource/delegate
@@ -99,8 +103,8 @@ class FlickrDemoController < NSWindowController
   def refreshImageView(source)
     if source
       url = NSURL.URLWithString(source.url)
-      feed = PSFeed.alloc.initWithURL(url)
-      feed.refresh(nil)
+      @feed = PSFeed.alloc.initWithURL(url)
+      @feed.refresh(nil)
     else
       @cache.clear
       @results.clear
