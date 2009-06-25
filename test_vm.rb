@@ -79,7 +79,7 @@ $test_only = $tests if $test_only.empty?
 $test_only.each do |what|
   print "#{what} "
   $stdout.flush
-  load "#{what}.rb"
+  load "./#{what}.rb"
   puts
 end
 
