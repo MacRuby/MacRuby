@@ -92,7 +92,7 @@ else
   CC = '/usr/bin/gcc'
   CPP = '/usr/bin/g++'
 end
-CFLAGS = "-I. -I./include -I./onig -I./giants/libDGiants  -I/usr/include/libxml2 #{ARCHFLAGS} -fno-common -pipe -O3 -g -Wall -fexceptions"
+CFLAGS = "-I. -I./include -I./onig -I/usr/include/libxml2 #{ARCHFLAGS} -fno-common -pipe -O3 -g -Wall -fexceptions"
 CFLAGS << " -Wno-parentheses -Wno-deprecated-declarations -Werror" if NO_WARN_BUILD
 OBJC_CFLAGS = CFLAGS + " -fobjc-gc-only"
 CXXFLAGS = `#{LLVM_CONFIG} --cxxflags #{LLVM_MODULES}`.strip
