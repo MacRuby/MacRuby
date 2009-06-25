@@ -6,7 +6,18 @@
 
 typedef struct rb_vm_mutex {
     pthread_mutex_t mutex;
+    pthread_t thread;
 } rb_vm_mutex_t;
+
+#define assert_ok(call) \
+    do { \
+	const int __r = call; \
+	if (__r != 0) { \
+	    rb_raise(rb_eRuntimeError, "pthread operation failed: error %d", \
+		    __r); \
+	} \
+    } \
+    while (0)
 
 VALUE rb_cThread;
 VALUE rb_cMutex;
@@ -67,6 +78,7 @@ thread_initialize(VALUE thread, SEL sel, int argc, VALUE *argv)
     }
 
     t->vm = rb_vm_create_vm();
+    t->value = Qundef;
 
     // Retain the Thread object to avoid a potential GC, the corresponding
     // release is done in rb_vm_thread_run().
@@ -136,10 +148,7 @@ thread_join_m(VALUE self, SEL sel, int argc, VALUE *argv)
     }
 
     rb_vm_thread_t *t = GetThreadPtr(self);
-
-    if (pthread_join(t->thread, NULL) != 0) {
-	rb_sys_fail("pthread_join() failed");
-    }
+    pthread_join(t->thread, NULL);
 
     return self;
 }
@@ -156,10 +165,10 @@ thread_join_m(VALUE self, SEL sel, int argc, VALUE *argv)
  */
 
 static VALUE
-thread_value(VALUE self)
+thread_value(VALUE self, SEL sel)
 {
-    // TODO
-    return Qnil;
+    thread_join_m(self, 0, 0, NULL);
+    return GetThreadPtr(self)->value;
 }
 
 void
@@ -616,10 +625,15 @@ rb_thread_safe_level(VALUE thread)
  */
 
 static VALUE
-rb_thread_inspect(VALUE thread)
+rb_thread_inspect(VALUE thread, SEL sel)
 {
-    // TODO
-    return Qnil;
+    const char *status = "unknown"; // TODO
+
+    char buf[100];
+    snprintf(buf, sizeof buf, "#<%s:%p %s>", rb_obj_classname(thread),
+	    (void *)thread, status);
+
+    return rb_str_new2(buf);
 }
 
 /*
@@ -1134,22 +1148,12 @@ mutex_s_alloc(VALUE self, SEL sel)
     return Data_Wrap_Struct(rb_cMutex, NULL, NULL, t);
 }
 
-#define GetMutex(obj) (((rb_vm_mutex_t *)DATA_PTR(obj))->mutex)
-
-#define assert_ok(call) \
-    do { \
-	const int __r = call; \
-	if (__r != 0) { \
-	    rb_raise(rb_eRuntimeError, "mutex operation failed: error %d", \
-		    __r); \
-	} \
-    } \
-    while (0)
+#define GetMutexPtr(obj) ((rb_vm_mutex_t *)DATA_PTR(obj))
 
 static VALUE
 mutex_initialize(VALUE self, SEL sel)
 {
-    assert_ok(pthread_mutex_init(&GetMutex(self), NULL));
+    assert_ok(pthread_mutex_init(&GetMutexPtr(self)->mutex, NULL));
     return self;
 }
 
@@ -1160,11 +1164,10 @@ mutex_initialize(VALUE self, SEL sel)
  * Returns +true+ if this lock is currently held by some thread.
  */
 
-VALUE
-rb_mutex_locked_p(VALUE self)
+static VALUE
+rb_mutex_locked_p(VALUE self, SEL sel)
 {
-    // TODO
-    return Qnil;
+    return GetMutexPtr(self)->thread == 0 ? Qfalse : Qtrue;
 }
 
 /*
@@ -1178,23 +1181,34 @@ rb_mutex_locked_p(VALUE self)
 static VALUE
 rb_mutex_trylock(VALUE self, SEL sel)
 {
-    // TODO
-    return Qnil;
+    if (pthread_mutex_trylock(&GetMutexPtr(self)->mutex) == 0) {
+	GetMutexPtr(self)->thread = pthread_self();
+	return Qtrue;
+    }
+    return Qfalse;
 }
 
 /*
  * call-seq:
- *    mutex.lock  => true or false
+ *    mutex.lock  => self
  *
  * Attempts to grab the lock and waits if it isn't available.
  * Raises +ThreadError+ if +mutex+ was locked by the current thread.
  */
 
-VALUE
-rb_mutex_lock(VALUE self)
+static VALUE
+rb_mutex_lock(VALUE self, SEL sel)
 {
-    // TODO
-    return Qnil;
+    pthread_t current = pthread_self();
+    rb_vm_mutex_t *m = GetMutexPtr(self);
+    if (m->thread == current) {
+	rb_raise(rb_eThreadError, "deadlock; recursive locking");
+    }
+
+    assert_ok(pthread_mutex_lock(&m->mutex));
+    m->thread = current;
+
+    return self;
 }
 
 /*
@@ -1205,11 +1219,19 @@ rb_mutex_lock(VALUE self)
  * Raises +ThreadError+ if +mutex+ wasn't locked by the current thread.
  */
 
-VALUE
-rb_mutex_unlock(VALUE self)
+static VALUE
+rb_mutex_unlock(VALUE self, SEL sel)
 {
-    // TODO
-    return Qnil;
+    rb_vm_mutex_t *m = GetMutexPtr(self);
+    if (m->thread == 0) {
+	rb_raise(rb_eThreadError,
+		"Attempt to unlock a mutex which is not locked");
+    }
+
+    assert_ok(pthread_mutex_unlock(&m->mutex));
+    m->thread = 0;
+
+    return self;
 }
 
 /*
@@ -1239,10 +1261,10 @@ mutex_sleep(int argc, VALUE *argv, VALUE self)
 static VALUE
 mutex_synchronize(VALUE self, SEL sel)
 {
-    assert_ok(pthread_mutex_lock(&GetMutex(self)));
+    rb_mutex_lock(self, 0);
     // TODO catch exception
     VALUE ret = rb_yield(Qundef);
-    assert_ok(pthread_mutex_unlock(&GetMutex(self)));
+    rb_mutex_unlock(self, 0);
     return ret;
 }
 
@@ -1286,7 +1308,7 @@ Init_Thread(void)
     rb_objc_define_method(rb_cThread, "initialize", thread_initialize, -1);
     rb_define_method(rb_cThread, "raise", thread_raise_m, -1);
     rb_objc_define_method(rb_cThread, "join", thread_join_m, -1);
-    rb_define_method(rb_cThread, "value", thread_value, 0);
+    rb_objc_define_method(rb_cThread, "value", thread_value, 0);
     rb_define_method(rb_cThread, "kill", rb_thread_kill, 0);
     rb_define_method(rb_cThread, "terminate", rb_thread_kill, 0);
     rb_define_method(rb_cThread, "exit", rb_thread_kill, 0);
@@ -1306,7 +1328,7 @@ Init_Thread(void)
     rb_define_method(rb_cThread, "safe_level", rb_thread_safe_level, 0);
     rb_define_method(rb_cThread, "group", rb_thread_group, 0);
 
-    rb_define_method(rb_cThread, "inspect", rb_thread_inspect, 0);
+    rb_objc_define_method(rb_cThread, "inspect", rb_thread_inspect, 0);
 
     cThGroup = rb_define_class("ThreadGroup", rb_cObject);
     rb_define_method(cThGroup, "list", thgroup_list, 0);
@@ -1317,10 +1339,10 @@ Init_Thread(void)
     rb_cMutex = rb_define_class("Mutex", rb_cObject);
     rb_objc_define_method(*(VALUE *)rb_cMutex, "alloc", mutex_s_alloc, 0);
     rb_objc_define_method(rb_cMutex, "initialize", mutex_initialize, 0);
-    rb_define_method(rb_cMutex, "locked?", rb_mutex_locked_p, 0);
-    rb_define_method(rb_cMutex, "try_lock", rb_mutex_trylock, 0);
-    rb_define_method(rb_cMutex, "lock", rb_mutex_lock, 0);
-    rb_define_method(rb_cMutex, "unlock", rb_mutex_unlock, 0);
+    rb_objc_define_method(rb_cMutex, "locked?", rb_mutex_locked_p, 0);
+    rb_objc_define_method(rb_cMutex, "try_lock", rb_mutex_trylock, 0);
+    rb_objc_define_method(rb_cMutex, "lock", rb_mutex_lock, 0);
+    rb_objc_define_method(rb_cMutex, "unlock", rb_mutex_unlock, 0);
     rb_define_method(rb_cMutex, "sleep", mutex_sleep, -1);
     rb_objc_define_method(rb_cMutex, "synchronize", mutex_synchronize, 0);
 

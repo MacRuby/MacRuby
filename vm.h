@@ -77,6 +77,7 @@ typedef struct rb_vm_thread {
     int argc;
     const VALUE *argv;
     void *vm;  // an instance of RoxorVM
+    VALUE value;
 } rb_vm_thread_t;
 
 typedef struct rb_vm_outer {
@@ -478,9 +479,6 @@ class RoxorCore {
 	// Cache to avoid compiling the same Function twice.
 	std::map<Function *, IMP> JITcache;
 
-	// Cache to avoid compiling the same block twice.
-	std::map<NODE *, rb_vm_block_t *> blocks;
-
 	// Cache to identify pure Ruby methods.
 	std::map<IMP, rb_vm_method_node_t *> ruby_imps;
 
@@ -652,9 +650,6 @@ class RoxorCore {
 	    }
 	}
 
-	rb_vm_block_t *uncache_or_create_block(NODE *key, bool *cached,
-		int dvars_size);
-
 	size_t get_sizeof(const Type *type);
 	size_t get_sizeof(const char *type);
 	bool is_large_struct_type(const Type *type);
@@ -696,6 +691,10 @@ class RoxorVM {
 	}
 
     private:
+	// Cache to avoid allocating the same block twice.
+	std::map<NODE *, rb_vm_block_t *> blocks;
+
+	// Keeps track of the current VM state (blocks, exceptions, bindings).
 	std::vector<rb_vm_block_t *> current_blocks;
 	std::vector<VALUE> current_exceptions;
 	std::vector<rb_vm_binding_t *> bindings;
@@ -764,6 +763,9 @@ class RoxorVM {
 	    }
 	    return b;
 	}
+
+	rb_vm_block_t *uncache_or_create_block(NODE *key, bool *cached,
+		int dvars_size);
 
 	rb_vm_binding_t *current_binding(void) {
 	    return bindings.empty()

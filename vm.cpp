@@ -443,10 +443,8 @@ inline rb_vm_method_node_t *
 RoxorCore::method_node_get(IMP imp)
 {
     std::map<IMP, rb_vm_method_node_t *>::iterator iter = ruby_imps.find(imp);
-    if (iter == ruby_imps.end()) {
-	return NULL;
-    }
-    return iter->second;
+    rb_vm_method_node_t *m = iter == ruby_imps.end() ? NULL : iter->second;
+    return m;
 }
 
 extern "C"
@@ -1834,7 +1832,8 @@ rb_vm_masgn_get_splat(VALUE ary, int before_splat_count, int after_splat_count) 
 }
 
 static force_inline void
-__rb_vm_fix_args(const VALUE *argv, VALUE *new_argv, const rb_vm_arity_t &arity, int argc)
+__rb_vm_fix_args(const VALUE *argv, VALUE *new_argv,
+	const rb_vm_arity_t &arity, int argc)
 {
     assert(argc >= arity.min);
     assert((arity.max == -1) || (argc <= arity.max));
@@ -2121,16 +2120,22 @@ method_missing(VALUE obj, SEL sel, int argc, const VALUE *argv,
 inline void *
 RoxorCore::gen_stub(std::string types, int argc, bool is_objc)
 {
+    lock();
+
     std::map<std::string, void *> &stubs = is_objc ? objc_stubs : c_stubs;
     std::map<std::string, void *>::iterator iter = stubs.find(types);
-    if (iter != stubs.end()) {
-	return iter->second;
+    void *stub;
+    if (iter == stubs.end()) {
+	Function *f = RoxorCompiler::shared->compile_stub(types.c_str(), argc,
+		is_objc);
+	stub = (void *)compile(f);
+	stubs.insert(std::make_pair(types, stub));
+    }
+    else {
+	stub = iter->second;
     }
 
-    Function *f = RoxorCompiler::shared->compile_stub(types.c_str(), argc,
-	    is_objc);
-    void *stub = (void *)compile(f);
-    stubs.insert(std::make_pair(types, stub));
+    unlock();
 
     return stub;
 }
@@ -2295,10 +2300,8 @@ fill_ocache(struct mcache *cache, VALUE self, Class klass, IMP imp, SEL sel,
 	    argc = real_argc;
 	}
     }
-    GET_CORE()->lock();
     ocache.stub = (rb_vm_objc_stub_t *)GET_CORE()->gen_stub(types, 
 	    argc, true);
-    GET_CORE()->unlock();
 }
 
 static force_inline VALUE
@@ -2833,7 +2836,7 @@ rb_vm_dup_active_block(rb_vm_block_t *src_b)
 }
 
 rb_vm_block_t *
-RoxorCore::uncache_or_create_block(NODE *key, bool *cached, int dvars_size)
+RoxorVM::uncache_or_create_block(NODE *key, bool *cached, int dvars_size)
 {
     std::map<NODE *, rb_vm_block_t *>::iterator iter = blocks.find(key);
 
@@ -2845,12 +2848,10 @@ RoxorCore::uncache_or_create_block(NODE *key, bool *cached, int dvars_size)
 	if (iter != blocks.end()) {
 	    rb_objc_release(iter->second);
 	}
-
 	b = (rb_vm_block_t *)xmalloc(sizeof(rb_vm_block_t)
 		+ (sizeof(VALUE *) * dvars_size));
 	rb_objc_retain(b);
 	blocks[key] = b;
-
 	*cached = false;
     }
     else {
@@ -2878,10 +2879,8 @@ rb_vm_prepare_block(void *llvm_function, NODE *node, VALUE self,
 	cache_key = node;
     }
 
-    GET_CORE()->lock();
-
     bool cached = false;
-    rb_vm_block_t *b = GET_CORE()->uncache_or_create_block(cache_key, &cached,
+    rb_vm_block_t *b = GET_VM()->uncache_or_create_block(cache_key, &cached,
 	dvars_size);
 
     if (!cached) {
@@ -2892,7 +2891,9 @@ rb_vm_prepare_block(void *llvm_function, NODE *node, VALUE self,
 	}
 	else {
 	    assert(llvm_function != NULL);
+	    GET_CORE()->lock();
 	    b->imp = GET_CORE()->compile((Function *)llvm_function);
+	    GET_CORE()->unlock();
 	    b->arity = rb_vm_node_arity(node);
 	}
 	b->flags = 0;
@@ -2903,8 +2904,6 @@ rb_vm_prepare_block(void *llvm_function, NODE *node, VALUE self,
     else {
 	assert(b->dvars_size == dvars_size);
     }
-
-    GET_CORE()->unlock();
 
     b->self = self;
     b->node = node;
@@ -4219,7 +4218,9 @@ rb_vm_create_vm(void)
 void
 RoxorCore::register_thread(VALUE thread)
 {
+    lock();
     rb_ary_push(threads, thread);
+    unlock();
 
     rb_vm_thread_t *t = GetThreadPtr(thread);
     assert(pthread_setspecific(RoxorVM::vm_thread_key, t->vm) == 0);
@@ -4231,11 +4232,13 @@ RoxorCore::register_thread(VALUE thread)
 void
 RoxorCore::unregister_thread(VALUE thread)
 {
+    lock();
     if (rb_ary_delete(threads, thread) != thread) {
 	printf("trying to unregister a thread (%p) that was never registered!",
 		(void *)thread);
 	abort();
     }
+    unlock();
 
     rb_vm_thread_t *t = GetThreadPtr(thread);
     RoxorVM *vm = (RoxorVM *)t->vm;
@@ -4257,10 +4260,12 @@ rb_vm_thread_run(VALUE thread)
 
     try {
 	rb_vm_thread_t *t = GetThreadPtr(thread);
-	rb_vm_block_eval(t->body, t->argc, t->argv);
+	VALUE val = rb_vm_block_eval(t->body, t->argc, t->argv);
+	GC_WB(&t->value, val);
     }
     catch (...) {
 	// TODO handle thread-level exceptions.
+	printf("exception raised inside thread %p\n", pthread_self());
     }
 
     GET_CORE()->unregister_thread(thread);
