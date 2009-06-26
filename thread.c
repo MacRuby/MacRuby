@@ -83,8 +83,6 @@ thread_initialize(VALUE thread, SEL sel, int argc, const VALUE *argv)
 	rb_sys_fail("pthread_create() failed");
     }
 
-    //assert(pthread_detach(t->thread) == 0);
-
     return thread;
 }
 

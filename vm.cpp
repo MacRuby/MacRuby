@@ -4538,15 +4538,23 @@ rb_thread_wait_for(struct timeval time)
     post_wait(t);
 }
 
+static inline void
+signal_thread(rb_vm_thread_t *t)
+{
+    assert(pthread_mutex_lock(&t->sleep_mutex) == 0);
+    assert(pthread_cond_signal(&t->sleep_cond) == 0);
+    assert(pthread_mutex_unlock(&t->sleep_mutex) == 0);
+}
+
 extern "C"
 void
 rb_vm_thread_wakeup(rb_vm_thread_t *t)
 {
     if (t->status == THREAD_DEAD) {
-	rb_raise(rb_eThreadError, "can't wake up thread from the dead");
+	rb_raise(rb_eThreadError, "can't wake up thread from the death");
     }
-    if (t->status == THREAD_SLEEP) {
-	assert(pthread_cond_signal(&t->sleep_cond) == 0);
+    if (t->status == THREAD_SLEEP && t->in_cond_wait) {
+	signal_thread(t);
     }
 }
 
@@ -4566,7 +4574,7 @@ rb_vm_thread_cancel(rb_vm_thread_t *t)
 	    // will autodestroy itself, to work around a stack unwinding bug
 	    // in the Mac OS X pthread implementation that messes our C++
 	    // exception handlers.
-	    assert(pthread_cond_signal(&t->sleep_cond) == 0);
+	    signal_thread(t);
 	}
 	else {
 	    assert(pthread_cancel(t->thread) == 0);
