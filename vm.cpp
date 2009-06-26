@@ -2961,41 +2961,66 @@ void
 rb_gc_assign_weak_ref(const void *value, void *const*location);
 
 static const int VM_LVAR_USES_SIZE = 8;
+enum {
+    VM_LVAR_USE_TYPE_BLOCK   = 1,
+    VM_LVAR_USE_TYPE_BINDING = 2
+};
 struct rb_vm_var_uses {
     int uses_count;
     void *uses[VM_LVAR_USES_SIZE];
+    unsigned char use_types[VM_LVAR_USES_SIZE];
     struct rb_vm_var_uses *next;
 };
 
+static void
+rb_vm_add_lvar_use(rb_vm_var_uses **var_uses, void *use, unsigned char use_type)
+{
+    if (var_uses == NULL) {
+	return;
+    }
+
+    if ((*var_uses == NULL)
+	|| ((*var_uses)->uses_count == VM_LVAR_USES_SIZE)) {
+
+	rb_vm_var_uses *new_uses =
+	    (rb_vm_var_uses *)malloc(sizeof(rb_vm_var_uses));
+	new_uses->next = *var_uses;
+	new_uses->uses_count = 0;
+	*var_uses = new_uses;
+    }
+    int current_index = (*var_uses)->uses_count;
+    rb_gc_assign_weak_ref(use, &(*var_uses)->uses[current_index]);
+    (*var_uses)->use_types[current_index] = use_type;
+    ++(*var_uses)->uses_count;
+}
+
 extern "C"
 void
-rb_vm_add_var_use(rb_vm_block_t *block)
+rb_vm_add_block_lvar_use(rb_vm_block_t *block)
 {
     for (rb_vm_block_t *block_for_uses = block;
 	 block_for_uses != NULL;
 	 block_for_uses = block_for_uses->parent_block) {
 
-	rb_vm_var_uses **var_uses = block_for_uses->parent_var_uses;
-	if (var_uses == NULL) {
-	    continue;
-	}
-	if ((*var_uses == NULL)
-	    || ((*var_uses)->uses_count == VM_LVAR_USES_SIZE)) {
-
-	    rb_vm_var_uses *new_uses =
-		(rb_vm_var_uses *)malloc(sizeof(rb_vm_var_uses));
-	    new_uses->next = *var_uses;
-	    new_uses->uses_count = 0;
-	    *var_uses = new_uses;
-	}
-	int current_index = (*var_uses)->uses_count;
-	rb_gc_assign_weak_ref(block, &(*var_uses)->uses[current_index]);
-	++(*var_uses)->uses_count;
+	rb_vm_add_lvar_use(block_for_uses->parent_var_uses, block, VM_LVAR_USE_TYPE_BLOCK);
     }
 
     // we should not keep references that won't be used
     block->parent_block = NULL;
     block->parent_var_uses = NULL;
+}
+
+static void
+rb_vm_add_binding_lvar_use(rb_vm_binding_t *binding, rb_vm_block_t *block,
+	rb_vm_var_uses **parent_var_uses)
+{
+    for (rb_vm_block_t *block_for_uses = block;
+	 block_for_uses != NULL;
+	 block_for_uses = block_for_uses->parent_block) {
+
+	rb_vm_add_lvar_use(block_for_uses->parent_var_uses, binding, VM_LVAR_USE_TYPE_BINDING);
+    }
+    rb_vm_add_lvar_use(parent_var_uses, binding, VM_LVAR_USE_TYPE_BINDING);
 }
 
 struct rb_vm_kept_local {
@@ -3040,12 +3065,31 @@ use_found:
 
     while (current != NULL) {
 	for (; use_index < current->uses_count; ++use_index) {
-	    rb_vm_block_t *block = (rb_vm_block_t *)rb_gc_read_weak_ref(&current->uses[use_index]);
-	    if (block != NULL) {
-		for (int dvar_index=0; dvar_index < block->dvars_size; ++dvar_index) {
-		    for (int lvar_index=0; lvar_index < lvars_size; ++lvar_index) {
-			if (block->dvars[dvar_index] == locals[lvar_index].stack_address) {
-			    GC_WB(&block->dvars[dvar_index], locals[lvar_index].new_address);
+	    void *use = rb_gc_read_weak_ref(&current->uses[use_index]);
+	    if (use != NULL) {
+		unsigned char type = current->use_types[use_index];
+		rb_vm_local_t *locals_to_replace;
+		if (type == VM_LVAR_USE_TYPE_BLOCK) {
+		    rb_vm_block_t *block = (rb_vm_block_t *)use;
+		    for (int dvar_index = 0; dvar_index < block->dvars_size; ++dvar_index) {
+			for (int lvar_index = 0; lvar_index < lvars_size; ++lvar_index) {
+			    if (block->dvars[dvar_index] == locals[lvar_index].stack_address) {
+				GC_WB(&block->dvars[dvar_index], locals[lvar_index].new_address);
+				break;
+			    }
+			}
+		    }
+		    locals_to_replace = block->locals;
+		}
+		else { // VM_LVAR_USE_TYPE_BINDING
+		    rb_vm_binding_t *binding = (rb_vm_binding_t *)use;
+		    locals_to_replace = binding->locals;
+		}
+
+		for (rb_vm_local_t *l = locals_to_replace; l != NULL; l = l->next) {
+		    for (int lvar_index = 0; lvar_index < lvars_size; ++lvar_index) {
+			if (l->value == locals[lvar_index].stack_address) {
+			    GC_WB(&l->value, locals[lvar_index].new_address);
 			    break;
 			}
 		    }
@@ -3075,6 +3119,7 @@ push_local(rb_vm_local_t **l, ID name, VALUE *value)
 extern "C"
 void
 rb_vm_push_binding(VALUE self, rb_vm_block_t *current_block,
+		   rb_vm_var_uses **parent_var_uses,
 		   int lvars_size, ...)
 {
     rb_vm_binding_t *binding =
@@ -3097,6 +3142,8 @@ rb_vm_push_binding(VALUE self, rb_vm_block_t *current_block,
 	l = push_local(l, name, value);
     }
     va_end(ar);
+
+    rb_vm_add_binding_lvar_use(binding, current_block, parent_var_uses);
 
     GET_VM()->push_current_binding(binding);
 }

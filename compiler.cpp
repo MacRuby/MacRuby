@@ -869,10 +869,12 @@ RoxorCompiler::compile_binding(void)
 {
     if (pushBindingFunc == NULL) {
 	// void rb_vm_push_binding(VALUE self, rb_vm_block_t *current_block,
+	//			   rb_vm_var_uses **parent_var_uses,
 	//			   int lvars_size, ...);
 	std::vector<const Type *> types;
 	types.push_back(RubyObjTy);
 	types.push_back(PtrTy);
+	types.push_back(PtrPtrTy);
 	types.push_back(Type::Int32Ty);
 	FunctionType *ft = FunctionType::get(Type::VoidTy, types, true);
 	pushBindingFunc = cast<Function>
@@ -883,6 +885,13 @@ RoxorCompiler::compile_binding(void)
     params.push_back(current_self);
     params.push_back(running_block == NULL
 	    ? compile_const_pointer(NULL) : running_block);
+    if (current_var_uses == NULL) {
+	// there is no local variables in this scope
+	params.push_back(compile_const_pointer_to_pointer(NULL));
+    }
+    else {
+	params.push_back(current_var_uses);
+    }
 
     // Lvars.
     params.push_back(ConstantInt::get(Type::Int32Ty, (int)lvars.size()));

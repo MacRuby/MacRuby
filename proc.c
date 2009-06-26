@@ -42,7 +42,7 @@ rb_proc_alloc_with_block(VALUE klass, rb_vm_block_t *proc)
     if (!(proc->flags & VM_BLOCK_PROC)) {
 	proc->flags |= VM_BLOCK_PROC;
 	if (!(proc->flags & VM_BLOCK_METHOD)) {
-	    rb_vm_add_var_use(proc);
+	    rb_vm_add_block_lvar_use(proc);
 	}
     }
     return obj;

@@ -322,7 +322,7 @@ rb_proc_get_block(VALUE proc)
    return (rb_vm_block_t *)DATA_PTR(proc);
 }
 
-void rb_vm_add_var_use(rb_vm_block_t *proc);
+void rb_vm_add_block_lvar_use(rb_vm_block_t *block);
 rb_vm_block_t *rb_vm_prepare_block(void *llvm_function, NODE *node, VALUE self,
        struct rb_vm_var_uses **parent_lvar_uses,
        rb_vm_block_t *parent_block,
