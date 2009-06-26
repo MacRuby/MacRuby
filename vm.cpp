@@ -3004,10 +3004,6 @@ rb_vm_add_block_lvar_use(rb_vm_block_t *block)
 
 	rb_vm_add_lvar_use(block_for_uses->parent_var_uses, block, VM_LVAR_USE_TYPE_BLOCK);
     }
-
-    // we should not keep references that won't be used
-    block->parent_block = NULL;
-    block->parent_var_uses = NULL;
 }
 
 static void
@@ -3079,6 +3075,11 @@ use_found:
 			    }
 			}
 		    }
+
+		    // the parent pointers can't be used anymore
+		    block->parent_block = NULL;
+		    block->parent_var_uses = NULL;
+
 		    locals_to_replace = block->locals;
 		}
 		else { // VM_LVAR_USE_TYPE_BINDING
