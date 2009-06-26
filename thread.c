@@ -144,7 +144,9 @@ thread_join_m(VALUE self, SEL sel, int argc, VALUE *argv)
     }
 
     rb_vm_thread_t *t = GetThreadPtr(self);
-    assert(pthread_join(t->thread, NULL) == 0);
+    if (t->status != THREAD_DEAD) {
+	assert(pthread_join(t->thread, NULL) == 0);
+    }
 
     return self;
 }
