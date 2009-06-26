@@ -751,14 +751,14 @@ rb_hash_delete_imp(VALUE hash, SEL sel, VALUE key)
  *     h         #=> {2=>"b", 3=>"c"}
  */
 
-static VALUE rb_hash_keys(VALUE, SEL);
+static VALUE rb_hash_keys_imp(VALUE, SEL);
 
 static VALUE
 rb_hash_shift(VALUE hash, SEL sel)
 {
     VALUE keys, key, val;
 
-    keys = rb_hash_keys(hash, 0);
+    keys = rb_hash_keys_imp(hash, 0);
     if (RARRAY_LEN(keys) == 0) {
 	struct rb_objc_hash_struct *s = rb_objc_hash_get_struct(hash);
 
@@ -1243,7 +1243,7 @@ keys_i(VALUE key, VALUE value, VALUE ary)
  */
 
 static VALUE
-rb_hash_keys(VALUE hash, SEL sel)
+rb_hash_keys_imp(VALUE hash, SEL sel)
 {
     VALUE ary;
 
@@ -1251,6 +1251,12 @@ rb_hash_keys(VALUE hash, SEL sel)
     rb_hash_foreach(hash, keys_i, ary);
 
     return ary;
+}
+
+VALUE
+rb_hash_keys(VALUE hash)
+{
+    return rb_hash_keys_imp(hash, 0);
 }
 
 static int
@@ -1300,12 +1306,17 @@ rb_hash_values(VALUE hash, SEL sel)
  */
 
 static VALUE
-rb_hash_has_key(VALUE hash, SEL sel, VALUE key)
+rb_hash_has_key_imp(VALUE hash, SEL sel, VALUE key)
 {
-    if (CFDictionaryContainsKey((CFDictionaryRef)hash, (const void *)RB2OC(key)))
-	return Qtrue;
+    return CFDictionaryContainsKey((CFDictionaryRef)hash,
+	    (const void *)RB2OC(key))
+	? Qtrue : Qfalse;
+}
 
-    return Qfalse;
+VALUE
+rb_hash_has_key(VALUE hash, VALUE key)
+{
+    return rb_hash_has_key_imp(hash, 0, key);
 }
 
 /*
@@ -1426,7 +1437,7 @@ static int
 rb_hash_update_block_i(VALUE key, VALUE value, VALUE hash)
 {
     if (key == Qundef) return ST_CONTINUE;
-    if (rb_hash_has_key(hash, 0, key)) {
+    if (rb_hash_has_key_imp(hash, 0, key)) {
 	value = rb_yield_values(3, key, rb_hash_aref(hash, key), value);
     }
     rb_hash_aset(hash, key, value);
@@ -2364,7 +2375,7 @@ imp_rb_hash_keyEnumerator(void *rcv, SEL sel)
     void *keys;
     static SEL objectEnumerator = 0;
     PREPARE_RCV(rcv);
-    keys = (void *)rb_hash_keys((VALUE)rcv, 0);
+    keys = (void *)rb_hash_keys_imp((VALUE)rcv, 0);
     RESTORE_RCV(rcv);
     if (objectEnumerator == 0)
 	objectEnumerator = sel_registerName("objectEnumerator");
@@ -2536,7 +2547,7 @@ Init_Hash(void)
     rb_objc_define_method(rb_cHash, "each_pair", rb_hash_each_pair, 0);
     rb_objc_define_method(rb_cHash, "each", rb_hash_each_pair, 0);
 
-    rb_objc_define_method(rb_cHash, "keys", rb_hash_keys, 0);
+    rb_objc_define_method(rb_cHash, "keys", rb_hash_keys_imp, 0);
     rb_objc_define_method(rb_cHash, "values", rb_hash_values, 0);
     rb_objc_define_method(rb_cHash, "values_at", rb_hash_values_at, -1);
 
@@ -2560,11 +2571,11 @@ Init_Hash(void)
     rb_objc_define_method(rb_cHash, "rassoc", rb_hash_rassoc, 1);
     rb_objc_define_method(rb_cHash, "flatten", rb_hash_flatten, -1);
 
-    rb_objc_define_method(rb_cHash, "include?", rb_hash_has_key, 1);
-    rb_objc_define_method(rb_cHash, "member?", rb_hash_has_key, 1);
-    rb_objc_define_method(rb_cHash, "has_key?", rb_hash_has_key, 1);
+    rb_objc_define_method(rb_cHash, "include?", rb_hash_has_key_imp, 1);
+    rb_objc_define_method(rb_cHash, "member?", rb_hash_has_key_imp, 1);
+    rb_objc_define_method(rb_cHash, "has_key?", rb_hash_has_key_imp, 1);
     rb_objc_define_method(rb_cHash, "has_value?", rb_hash_has_value, 1);
-    rb_objc_define_method(rb_cHash, "key?", rb_hash_has_key, 1);
+    rb_objc_define_method(rb_cHash, "key?", rb_hash_has_key_imp, 1);
     rb_objc_define_method(rb_cHash, "value?", rb_hash_has_value, 1);
 
     rb_objc_define_method(rb_cHash, "compare_by_identity", rb_hash_compare_by_id, 0);

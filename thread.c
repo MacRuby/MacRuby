@@ -658,9 +658,13 @@ rb_thread_inspect(VALUE thread, SEL sel)
  */
 
 static VALUE
-rb_thread_aref(VALUE thread, VALUE id)
+rb_thread_aref(VALUE thread, SEL sel, VALUE key)
 {
-    // TODO
+    key = ID2SYM(rb_to_id(key));
+    VALUE h = rb_vm_thread_locals(thread, false);
+    if (h != Qnil) {
+	return rb_hash_aref(h, key);
+    }
     return Qnil;
 }
 
@@ -673,10 +677,10 @@ rb_thread_aref(VALUE thread, VALUE id)
  */
 
 static VALUE
-rb_thread_aset(VALUE self, ID id, VALUE val)
+rb_thread_aset(VALUE self, SEL sel, ID key, VALUE val)
 {
-    // TODO
-    return Qnil;
+    key = ID2SYM(rb_to_id(key));
+    return rb_hash_aset(rb_vm_thread_locals(self, true), key, val);
 }
 
 /*
@@ -693,10 +697,14 @@ rb_thread_aset(VALUE self, ID id, VALUE val)
  */
 
 static VALUE
-rb_thread_key_p(VALUE self, VALUE key)
+rb_thread_key_p(VALUE self, SEL sel, VALUE key)
 {
-    // TODO
-    return Qnil;
+    key = ID2SYM(rb_to_id(key));
+    VALUE h = rb_vm_thread_locals(self, false);
+    if (h == Qnil) {
+	return Qfalse;
+    }
+    return rb_hash_has_key(h, key);
 }
 
 int
@@ -721,10 +729,10 @@ rb_thread_alone()
  */
 
 static VALUE
-rb_thread_keys(VALUE self)
+rb_thread_keys(VALUE self, SEL sel)
 {
-    // TODO
-    return Qnil;
+    VALUE h = rb_vm_thread_locals(self, false);
+    return h == Qnil ? rb_ary_new() : rb_hash_keys(h);
 }
 
 /*
@@ -1339,10 +1347,10 @@ Init_Thread(void)
     rb_objc_define_method(rb_cThread, "exit", rb_thread_kill, 0);
     rb_objc_define_method(rb_cThread, "run", rb_thread_run, 0);
     rb_objc_define_method(rb_cThread, "wakeup", rb_thread_wakeup, 0);
-    rb_define_method(rb_cThread, "[]", rb_thread_aref, 1);
-    rb_define_method(rb_cThread, "[]=", rb_thread_aset, 2);
-    rb_define_method(rb_cThread, "key?", rb_thread_key_p, 1);
-    rb_define_method(rb_cThread, "keys", rb_thread_keys, 0);
+    rb_objc_define_method(rb_cThread, "[]", rb_thread_aref, 1);
+    rb_objc_define_method(rb_cThread, "[]=", rb_thread_aset, 2);
+    rb_objc_define_method(rb_cThread, "key?", rb_thread_key_p, 1);
+    rb_objc_define_method(rb_cThread, "keys", rb_thread_keys, 0);
     rb_define_method(rb_cThread, "priority", rb_thread_priority, 0);
     rb_define_method(rb_cThread, "priority=", rb_thread_priority_set, 1);
     rb_objc_define_method(rb_cThread, "status", rb_thread_status, 0);

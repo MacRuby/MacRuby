@@ -4448,6 +4448,17 @@ rb_vm_main_thread(void)
 }
 
 extern "C"
+VALUE
+rb_vm_thread_locals(VALUE thread, bool create_storage)
+{
+    rb_vm_thread_t *t = GetThreadPtr(thread);
+    if (t->locals == Qnil && create_storage) {
+	GC_WB(&t->locals, rb_hash_new());
+    }
+    return t->locals;
+}
+
+extern "C"
 void
 rb_vm_thread_pre_init(rb_vm_thread_t *t, rb_vm_block_t *body, int argc,
 	const VALUE *argv, void *vm)
@@ -4476,6 +4487,7 @@ rb_vm_thread_pre_init(rb_vm_thread_t *t, rb_vm_block_t *body, int argc,
 
     t->vm  = vm;
     t->value = Qundef;
+    t->locals = Qnil;
     t->status = THREAD_ALIVE;
     t->in_cond_wait = false;
 

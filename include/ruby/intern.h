@@ -364,6 +364,8 @@ VALUE rb_hash_lookup(VALUE, VALUE);
 VALUE rb_hash_aset(VALUE, VALUE, VALUE);
 //VALUE rb_hash_delete_if(VALUE);
 VALUE rb_hash_delete(VALUE,VALUE);
+VALUE rb_hash_has_key(VALUE hash, VALUE key);
+VALUE rb_hash_keys(VALUE hash);
 struct st_table *rb_hash_tbl(VALUE);
 int rb_path_check(const char*);
 int rb_env_path_tainted(void);

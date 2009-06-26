@@ -91,6 +91,7 @@ typedef struct rb_vm_thread {
     pthread_cond_t sleep_cond;
     rb_vm_thread_status_t status;
     bool in_cond_wait;
+    VALUE locals;  // a Hash object or Qnil
 } rb_vm_thread_t;
 
 typedef struct rb_vm_outer {
@@ -343,6 +344,7 @@ void *rb_vm_thread_run(VALUE thread);
 VALUE rb_vm_current_thread(void);
 VALUE rb_vm_main_thread(void);
 VALUE rb_vm_threads(void);
+VALUE rb_vm_thread_locals(VALUE thread, bool create_storage);
 void rb_vm_thread_wakeup(rb_vm_thread_t *t);
 void rb_vm_thread_cancel(rb_vm_thread_t *t);
 
