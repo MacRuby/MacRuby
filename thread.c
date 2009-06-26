@@ -250,11 +250,9 @@ static VALUE
 rb_thread_kill(VALUE thread, SEL sel)
 {
     rb_vm_thread_t *t = GetThreadPtr(thread);
-    if (t->status == THREAD_KILLED) {
-	// Already being killed!
-	return thread;
+    if (t->status != THREAD_KILLED) {
+	rb_vm_thread_cancel(t);
     }
-    rb_vm_thread_cancel(t);
     return thread;
 }
 

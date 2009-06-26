@@ -90,6 +90,7 @@ typedef struct rb_vm_thread {
     pthread_mutex_t sleep_mutex;
     pthread_cond_t sleep_cond;
     rb_vm_thread_status_t status;
+    bool in_cond_wait;
 } rb_vm_thread_t;
 
 typedef struct rb_vm_outer {

@@ -4285,6 +4285,9 @@ RoxorCore::unregister_thread(VALUE thread)
 static inline void
 rb_vm_thread_throw_kill(void)
 {
+    // Killing a thread is implemented using a non-catchable (from Ruby)
+    // exception, which allows us to call the ensure blocks before dying,
+    // which is unfortunately covered in the Ruby specifications.
     rb_vm_rethrow();
 }
 
@@ -4378,9 +4381,29 @@ rb_vm_thread_pre_init(rb_vm_thread_t *t, rb_vm_block_t *body, int argc,
     t->vm  = vm;
     t->value = Qundef;
     t->status = THREAD_ALIVE;
+    t->in_cond_wait = false;
 
     assert(pthread_mutex_init(&t->sleep_mutex, NULL) == 0);
     assert(pthread_cond_init(&t->sleep_cond, NULL) == 0); 
+}
+
+static inline void
+pre_wait(rb_vm_thread_t *t)
+{
+    t->status = THREAD_SLEEP;
+    assert(pthread_mutex_lock(&t->sleep_mutex) == 0);
+    t->in_cond_wait = true;
+}
+
+static inline void
+post_wait(rb_vm_thread_t *t)
+{
+    t->in_cond_wait = false;
+    assert(pthread_mutex_unlock(&t->sleep_mutex) == 0);
+    if (t->status == THREAD_KILLED) {
+	rb_vm_thread_throw_kill();
+    }
+    t->status = THREAD_ALIVE;
 }
 
 extern "C"
@@ -4388,14 +4411,11 @@ void
 rb_thread_sleep_forever()
 {
     rb_vm_thread_t *t = GET_THREAD();
-    t->status = THREAD_SLEEP;
 
-    assert(pthread_mutex_lock(&t->sleep_mutex) == 0);
+    pre_wait(t);
     const int code = pthread_cond_wait(&t->sleep_cond, &t->sleep_mutex);
     assert(code == 0 || code == ETIMEDOUT);
-    assert(pthread_mutex_unlock(&t->sleep_mutex) == 0);
-
-    t->status = THREAD_ALIVE;
+    post_wait(t);
 }
 
 extern "C"
@@ -4414,15 +4434,11 @@ rb_thread_wait_for(struct timeval time)
     }
 
     rb_vm_thread_t *t = GET_THREAD();
-    t->status = THREAD_SLEEP;
-
-    assert(pthread_mutex_lock(&t->sleep_mutex) == 0);
+    pre_wait(t);
     const int code = pthread_cond_timedwait(&t->sleep_cond, &t->sleep_mutex,
 	    &ts);
     assert(code == 0 || code == ETIMEDOUT);
-    assert(pthread_mutex_unlock(&t->sleep_mutex) == 0);
-
-    t->status = THREAD_ALIVE;
+    post_wait(t);
 }
 
 extern "C"
@@ -4446,7 +4462,18 @@ rb_vm_thread_cancel(rb_vm_thread_t *t)
 	rb_vm_thread_throw_kill();
     }
     else {
-	assert(pthread_cancel(t->thread) == 0);
+	if (t->in_cond_wait) {
+	    // We are trying to kill a thread which is currently waiting
+	    // for a condition variable (#sleep). Instead of canceling the
+	    // thread, we are simply signaling the variable, and the thread
+	    // will autodestroy itself, to work around a stack unwinding bug
+	    // in the Mac OS X pthread implementation that messes our C++
+	    // exception handlers.
+	    assert(pthread_cond_signal(&t->sleep_cond) == 0);
+	}
+	else {
+	    assert(pthread_cancel(t->thread) == 0);
+	}
     }
 }
 
