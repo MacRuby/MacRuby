@@ -186,6 +186,7 @@ RoxorCore::RoxorCore(void)
 {
     running = false;
     multithreaded = false;
+    abort_on_exception = false;
 
     assert(pthread_mutex_init(&gl, 0) == 0);
 
@@ -694,6 +695,20 @@ void
 rb_vm_set_running(bool flag)
 {
     GET_CORE()->set_running(flag); 
+}
+
+extern "C"
+bool
+rb_vm_abort_on_exception(void)
+{
+    return GET_CORE()->get_abort_on_exception();
+}
+
+extern "C"
+void
+rb_vm_set_abort_on_exception(bool flag)
+{
+    GET_CORE()->set_abort_on_exception(flag);
 }
 
 extern "C"
@@ -3695,7 +3710,10 @@ rb_vm_is_eh_active(int argc, ...)
     assert(argc > 0);
 
     VALUE current_exception = GET_VM()->current_exception();
-    assert(current_exception != Qnil);
+    if (current_exception == Qnil) {
+	// Not a Ruby exception...
+	return 0;
+    }
 
     va_list ar;
     unsigned char active = 0;
@@ -4241,11 +4259,39 @@ RoxorCore::unregister_thread(VALUE thread)
     unlock();
 
     rb_vm_thread_t *t = GetThreadPtr(thread);
+
+    const int code = pthread_mutex_destroy(&t->sleep_mutex);
+    if (code == EBUSY) {
+	// The mutex is already locked, which means we are being called from
+	// a cancellation point inside the wait logic. Let's unlock the mutex
+	// and try again.
+	assert(pthread_mutex_unlock(&t->sleep_mutex) == 0);
+	assert(pthread_mutex_destroy(&t->sleep_mutex) == 0);
+    }
+    else if (code != 0) {
+	abort();
+    }
+    assert(pthread_cond_destroy(&t->sleep_cond) == 0);
+
     RoxorVM *vm = (RoxorVM *)t->vm;
     delete vm;
     t->vm = NULL;
 
     assert(pthread_setspecific(RoxorVM::vm_thread_key, NULL) == 0);
+
+    t->status = THREAD_DEAD;
+}
+
+static inline void
+rb_vm_thread_throw_kill(void)
+{
+    rb_vm_rethrow();
+}
+
+static void
+rb_vm_thread_destructor(void *userdata)
+{
+    rb_vm_thread_throw_kill();
 }
 
 extern "C"
@@ -4255,24 +4301,30 @@ rb_vm_thread_run(VALUE thread)
     rb_objc_gc_register_thread();
     GET_CORE()->register_thread(thread);
 
+    pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+    pthread_setcanceltype(PTHREAD_CANCEL_DEFERRED, NULL);
+
     // Release the thread now.
     rb_objc_release((void *)thread);
 
+    pthread_cleanup_push(rb_vm_thread_destructor, (void *)thread);
+
+    rb_vm_thread_t *t = GetThreadPtr(thread);
     try {
-	rb_vm_thread_t *t = GetThreadPtr(thread);
 	VALUE val = rb_vm_block_eval(t->body, t->argc, t->argv);
 	GC_WB(&t->value, val);
     }
     catch (...) {
 	// TODO handle thread-level exceptions.
-	printf("exception raised inside thread %p\n", pthread_self());
+	//printf("exception raised inside thread %p\n", pthread_self());
     }
+
+    pthread_cleanup_pop(0);
 
     GET_CORE()->unregister_thread(thread);
     rb_objc_gc_unregister_thread();
 
     return NULL;
-
 }
 
 extern "C"
@@ -4294,6 +4346,118 @@ VALUE
 rb_vm_main_thread(void)
 {
     return RoxorVM::main->get_thread();
+}
+
+extern "C"
+void
+rb_vm_thread_pre_init(rb_vm_thread_t *t, rb_vm_block_t *body, int argc,
+	const VALUE *argv, void *vm)
+{
+    t->thread = 0; // this will be set later
+
+    if (body != NULL) {
+	GC_WB(&t->body, body);
+    }
+    else {
+	t->body = NULL;
+    }
+   
+    if (argc > 0) {
+	t->argc = argc;
+	GC_WB(&t->argv, xmalloc(sizeof(VALUE) * argc));
+	int i;
+	for (i = 0; i < argc; i++) {
+	    GC_WB(&t->argv[i], argv[i]);
+	}
+    }
+    else {
+	t->argc = 0;
+	t->argv = NULL;
+    }
+
+    t->vm  = vm;
+    t->value = Qundef;
+    t->status = THREAD_ALIVE;
+
+    assert(pthread_mutex_init(&t->sleep_mutex, NULL) == 0);
+    assert(pthread_cond_init(&t->sleep_cond, NULL) == 0); 
+}
+
+extern "C"
+void
+rb_thread_sleep_forever()
+{
+    rb_vm_thread_t *t = GET_THREAD();
+    t->status = THREAD_SLEEP;
+
+    assert(pthread_mutex_lock(&t->sleep_mutex) == 0);
+    const int code = pthread_cond_wait(&t->sleep_cond, &t->sleep_mutex);
+    assert(code == 0 || code == ETIMEDOUT);
+    assert(pthread_mutex_unlock(&t->sleep_mutex) == 0);
+
+    t->status = THREAD_ALIVE;
+}
+
+extern "C"
+void
+rb_thread_wait_for(struct timeval time)
+{
+    struct timeval tvn;
+    gettimeofday(&tvn, NULL);
+
+    struct timespec ts;
+    ts.tv_sec = tvn.tv_sec + time.tv_sec;
+    ts.tv_nsec = (tvn.tv_usec + time.tv_usec) * 1000;
+    while (ts.tv_nsec >= 1000000000) {
+	ts.tv_sec += 1;
+	ts.tv_nsec -= 1000000000;
+    }
+
+    rb_vm_thread_t *t = GET_THREAD();
+    t->status = THREAD_SLEEP;
+
+    assert(pthread_mutex_lock(&t->sleep_mutex) == 0);
+    const int code = pthread_cond_timedwait(&t->sleep_cond, &t->sleep_mutex,
+	    &ts);
+    assert(code == 0 || code == ETIMEDOUT);
+    assert(pthread_mutex_unlock(&t->sleep_mutex) == 0);
+
+    t->status = THREAD_ALIVE;
+}
+
+extern "C"
+void
+rb_vm_thread_wakeup(rb_vm_thread_t *t)
+{
+    if (t->status == THREAD_DEAD) {
+	rb_raise(rb_eThreadError, "can't wake up thread from the dead");
+    }
+    if (t->status == THREAD_SLEEP) {
+	assert(pthread_cond_signal(&t->sleep_cond) == 0);
+    }
+}
+
+extern "C"
+void
+rb_vm_thread_cancel(rb_vm_thread_t *t)
+{
+    t->status = THREAD_KILLED;
+    if (t->thread == pthread_self()) {
+	rb_vm_thread_throw_kill();
+    }
+    else {
+	assert(pthread_cancel(t->thread) == 0);
+    }
+}
+
+extern "C"
+void
+rb_thread_sleep(int sec)
+{
+    struct timeval time;
+    time.tv_sec = sec;
+    time.tv_usec = 0;
+    rb_thread_wait_for(time);
 }
 
 static VALUE
@@ -4384,11 +4548,13 @@ void
 Init_PostVM(void)
 {
     // Create and register the main thread;
+    RoxorVM *main_vm = GET_VM();
     rb_vm_thread_t *t = (rb_vm_thread_t *)xmalloc(sizeof(rb_vm_thread_t));
+    rb_vm_thread_pre_init(t, NULL, 0, NULL, (void *)main_vm);
     t->thread = pthread_self();
-    t->vm = (void *)GET_VM();
     VALUE main = Data_Wrap_Struct(rb_cThread, NULL, NULL, t);
     GET_CORE()->register_thread(main);
+    main_vm->set_thread(main);
 }
 
 extern "C"

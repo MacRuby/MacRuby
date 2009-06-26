@@ -71,6 +71,15 @@ typedef struct {
 
 #define GetThreadPtr(obj) ((rb_vm_thread_t *)DATA_PTR(obj))
 
+typedef enum {
+    THREAD_ALIVE,  // this thread was born to be alive
+    THREAD_SLEEP,  // this thread is sleeping
+    THREAD_KILLED, // this thread is being killed!
+    THREAD_DEAD    // this thread is dead, sigh
+} rb_vm_thread_status_t;
+
+#include <pthread.h>
+
 typedef struct rb_vm_thread {
     pthread_t thread;
     rb_vm_block_t *body;
@@ -78,6 +87,9 @@ typedef struct rb_vm_thread {
     const VALUE *argv;
     void *vm;  // an instance of RoxorVM
     VALUE value;
+    pthread_mutex_t sleep_mutex;
+    pthread_cond_t sleep_cond;
+    rb_vm_thread_status_t status;
 } rb_vm_thread_t;
 
 typedef struct rb_vm_outer {
@@ -323,11 +335,18 @@ rb_vm_binding_t *rb_vm_current_binding(void);
 void rb_vm_add_binding(rb_vm_binding_t *binding);
 void rb_vm_pop_binding();
 
+void rb_vm_thread_pre_init(rb_vm_thread_t *t, rb_vm_block_t *body, int argc,
+	const VALUE *argv, void *vm);
 void *rb_vm_create_vm(void);
 void *rb_vm_thread_run(VALUE thread);
 VALUE rb_vm_current_thread(void);
 VALUE rb_vm_main_thread(void);
 VALUE rb_vm_threads(void);
+void rb_vm_thread_wakeup(rb_vm_thread_t *t);
+void rb_vm_thread_cancel(rb_vm_thread_t *t);
+
+bool rb_vm_abort_on_exception(void);
+void rb_vm_set_abort_on_exception(bool flag);
 
 static inline VALUE
 rb_robject_allocate_instance(VALUE klass)
@@ -360,6 +379,7 @@ VALUE rb_vm_backtrace(int level);
 VALUE rb_vm_pop_broken_value(void);
 #define RETURN_IF_BROKEN() \
     do { \
+	pthread_testcancel(); \
 	VALUE __v = rb_vm_pop_broken_value(); \
 	if (__v != Qundef) { \
 	    return __v; \
@@ -472,6 +492,7 @@ class RoxorCore {
 	// State.
 	bool running;
 	bool multithreaded;
+	bool abort_on_exception;
 	pthread_mutex_t gl;
 	VALUE loaded_features;
 	VALUE load_path;
@@ -525,6 +546,7 @@ class RoxorCore {
 
 	ACCESSOR(running, bool);
 	ACCESSOR(multithreaded, bool);
+	ACCESSOR(abort_on_exception, bool);
 	READER(loaded_features, VALUE);
 	READER(load_path, VALUE);
 	READER(threads, VALUE);
@@ -826,6 +848,7 @@ class RoxorVM {
 };
 
 #define GET_VM() (RoxorVM::current())
+#define GET_THREAD() (GetThreadPtr(GET_VM()->get_thread()))
 
 #endif /* __cplusplus */
 

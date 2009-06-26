@@ -1,12 +1,19 @@
+/* 
+ * MacRuby implementation of Thread.
+ *
+ * This file is covered by the Ruby license. See COPYING for more details.
+ * 
+ * Copyright (C) 2009, Apple Inc. All rights reserved.
+ * Copyright (C) 2004-2007 Koichi Sasada
+ */
+
 #include "ruby/ruby.h"
 #include "ruby/node.h"
 #include "vm.h"
 
-#include <pthread.h>
-
 typedef struct rb_vm_mutex {
     pthread_mutex_t mutex;
-    pthread_t thread;
+    rb_vm_thread_t *thread;
 } rb_vm_mutex_t;
 
 #define assert_ok(call) \
@@ -56,7 +63,7 @@ thread_start(VALUE klass, VALUE args)
 }
 
 static VALUE
-thread_initialize(VALUE thread, SEL sel, int argc, VALUE *argv)
+thread_initialize(VALUE thread, SEL sel, int argc, const VALUE *argv)
 {
     if (!rb_block_given_p()) {
 	rb_raise(rb_eThreadError, "must be called with a block");
@@ -65,20 +72,7 @@ thread_initialize(VALUE thread, SEL sel, int argc, VALUE *argv)
     assert(b != NULL);
 
     rb_vm_thread_t *t = GetThreadPtr(thread);
-    assert(t->body == NULL);
-    GC_WB(&t->body, b);
-
-    if (argc > 0) {
-	t->argc = argc;
-	GC_WB(&t->argv, xmalloc(sizeof(VALUE) * argc));
-	int i;
-	for (i = 0; i < argc; i++) {
-	    GC_WB(&t->argv[i], argv[i]);
-	}
-    }
-
-    t->vm = rb_vm_create_vm();
-    t->value = Qundef;
+    rb_vm_thread_pre_init(t, b, argc, argv, rb_vm_create_vm());
 
     // Retain the Thread object to avoid a potential GC, the corresponding
     // release is done in rb_vm_thread_run().
@@ -88,6 +82,8 @@ thread_initialize(VALUE thread, SEL sel, int argc, VALUE *argv)
 		(void *)thread) != 0) {
 	rb_sys_fail("pthread_create() failed");
     }
+
+    //assert(pthread_detach(t->thread) == 0);
 
     return thread;
 }
@@ -148,7 +144,7 @@ thread_join_m(VALUE self, SEL sel, int argc, VALUE *argv)
     }
 
     rb_vm_thread_t *t = GetThreadPtr(self);
-    pthread_join(t->thread, NULL);
+    assert(pthread_join(t->thread, NULL) == 0);
 
     return self;
 }
@@ -172,25 +168,7 @@ thread_value(VALUE self, SEL sel)
 }
 
 void
-rb_thread_sleep_forever()
-{
-    // TODO
-}
-
-void
-rb_thread_wait_for(struct timeval time)
-{
-    // TODO
-}
-
-void
 rb_thread_polling(void)
-{
-    // TODO
-}
-
-void
-rb_thread_sleep(int sec)
 {
     // TODO
 }
@@ -224,9 +202,9 @@ int rb_thread_critical; /* TODO: dummy variable */
  */
 
 static VALUE
-thread_s_pass(VALUE klass)
+thread_s_pass(VALUE klass, SEL sel)
 {
-    // TODO
+    pthread_yield_np();
     return Qnil;
 }
 
@@ -258,9 +236,9 @@ thread_raise_m(int argc, VALUE *argv, VALUE self)
 
 /*
  *  call-seq:
- *     thr.exit        => thr or nil
- *     thr.kill        => thr or nil
- *     thr.terminate   => thr or nil
+ *     thr.exit        => thr
+ *     thr.kill        => thr
+ *     thr.terminate   => thr
  *
  *  Terminates <i>thr</i> and schedules another thread to be run. If this thread
  *  is already marked to be killed, <code>exit</code> returns the
@@ -268,11 +246,16 @@ thread_raise_m(int argc, VALUE *argv, VALUE self)
  *  the process.
  */
 
-VALUE
-rb_thread_kill(VALUE thread)
+static VALUE
+rb_thread_kill(VALUE thread, SEL sel)
 {
-    // TODO
-    return Qnil;
+    rb_vm_thread_t *t = GetThreadPtr(thread);
+    if (t->status == THREAD_KILLED) {
+	// Already being killed!
+	return thread;
+    }
+    rb_vm_thread_cancel(t);
+    return thread;
 }
 
 /*
@@ -328,10 +311,10 @@ rb_thread_exit(void)
  *     hey!
  */
 
-VALUE
-rb_thread_wakeup(VALUE thread)
+static VALUE
+rb_thread_wakeup(VALUE thread, SEL sel)
 {
-    // TODO
+    rb_vm_thread_wakeup(GetThreadPtr(thread));
     return Qnil;
 }
 
@@ -354,11 +337,11 @@ rb_thread_wakeup(VALUE thread)
  *     c
  */
 
-VALUE
-rb_thread_run(VALUE thread)
+static VALUE
+rb_thread_run(VALUE thread, SEL sel)
 {
-    // TODO
-    return Qnil;
+    // On MacRuby, #wakeup and #run are the same.
+    return rb_thread_wakeup(thread, 0);
 }
 
 /*
@@ -379,10 +362,10 @@ rb_thread_run(VALUE thread)
  *     abc
  */
 
-VALUE
-rb_thread_stop(void)
+static VALUE
+rb_thread_stop(VALUE rcv, SEL sel)
 {
-    // TODO
+    rb_thread_sleep_forever();
     return Qnil;
 }
 
@@ -446,10 +429,9 @@ rb_thread_s_main(VALUE klass, SEL sel)
  */
 
 static VALUE
-rb_thread_s_abort_exc(void)
+rb_thread_s_abort_exc(VALUE rcv, SEL sel)
 {
-    // TODO
-    return Qnil;
+    return rb_vm_abort_on_exception() ? Qtrue : Qfalse;
 }
 
 /*
@@ -477,10 +459,10 @@ rb_thread_s_abort_exc(void)
  */
 
 static VALUE
-rb_thread_s_abort_exc_set(VALUE self, VALUE val)
+rb_thread_s_abort_exc_set(VALUE self, SEL sel, VALUE val)
 {
-    // TODO
-    return Qnil;
+    rb_vm_set_abort_on_exception(RTEST(val));
+    return val;
 }
 
 /*
@@ -554,11 +536,30 @@ rb_thread_group(VALUE thread)
  *     Thread.current.status   #=> "run"
  */
 
-static VALUE
-rb_thread_status(VALUE thread)
+static const char *
+rb_thread_status_cstr(VALUE thread)
 {
-    // TODO
-    return Qnil;
+    rb_vm_thread_t *t = GetThreadPtr(thread);
+    switch (t->status) {
+	case THREAD_ALIVE:
+	    return "run";
+
+	case THREAD_SLEEP:
+	    return "sleep";
+
+	case THREAD_KILLED:
+	    return "abort";
+
+	case THREAD_DEAD:
+	    return "dead";
+    }
+    return "unknown";
+}
+
+static VALUE
+rb_thread_status(VALUE thread, SEL sel)
+{
+    return rb_str_new2(rb_thread_status_cstr(thread));
 }
 
 /*
@@ -574,10 +575,10 @@ rb_thread_status(VALUE thread)
  */
 
 static VALUE
-rb_thread_alive_p(VALUE thread)
+rb_thread_alive_p(VALUE thread, SEL sel)
 {
-    // TODO
-    return Qnil;
+    rb_vm_thread_status_t s = GetThreadPtr(thread)->status;
+    return s == THREAD_ALIVE || s == THREAD_SLEEP ? Qtrue : Qfalse;
 }
 
 /*
@@ -595,7 +596,8 @@ rb_thread_alive_p(VALUE thread)
 static VALUE
 rb_thread_stop_p(VALUE thread)
 {
-    return Qnil;
+    rb_vm_thread_status_t s = GetThreadPtr(thread)->status;
+    return s == THREAD_DEAD || s == THREAD_SLEEP ? Qtrue : Qfalse;
 }
 
 /*
@@ -627,7 +629,7 @@ rb_thread_safe_level(VALUE thread)
 static VALUE
 rb_thread_inspect(VALUE thread, SEL sel)
 {
-    const char *status = "unknown"; // TODO
+    const char *status = rb_thread_status_cstr(thread);
 
     char buf[100];
     snprintf(buf, sizeof buf, "#<%s:%p %s>", rb_obj_classname(thread),
@@ -1182,7 +1184,7 @@ static VALUE
 rb_mutex_trylock(VALUE self, SEL sel)
 {
     if (pthread_mutex_trylock(&GetMutexPtr(self)->mutex) == 0) {
-	GetMutexPtr(self)->thread = pthread_self();
+	GetMutexPtr(self)->thread = GetThreadPtr(rb_vm_current_thread());
 	return Qtrue;
     }
     return Qfalse;
@@ -1199,13 +1201,15 @@ rb_mutex_trylock(VALUE self, SEL sel)
 static VALUE
 rb_mutex_lock(VALUE self, SEL sel)
 {
-    pthread_t current = pthread_self();
+    rb_vm_thread_t *current = GetThreadPtr(rb_vm_current_thread());
     rb_vm_mutex_t *m = GetMutexPtr(self);
     if (m->thread == current) {
 	rb_raise(rb_eThreadError, "deadlock; recursive locking");
     }
 
+    current->status = THREAD_SLEEP;
     assert_ok(pthread_mutex_lock(&m->mutex));
+    current->status = THREAD_ALIVE;
     m->thread = current;
 
     return self;
@@ -1244,10 +1248,26 @@ rb_mutex_unlock(VALUE self, SEL sel)
  */
 
 static VALUE
-mutex_sleep(int argc, VALUE *argv, VALUE self)
+mutex_sleep(VALUE self, SEL sel, int argc, VALUE *argv)
 {
-    // TODO
-    return Qnil;
+    VALUE timeout;
+    rb_scan_args(argc, argv, "01", &timeout);
+
+    rb_mutex_unlock(self, 0);
+    
+    time_t beg, end;
+    beg = time(0);
+
+    if (timeout == Qnil) {
+	rb_thread_sleep_forever();	
+    }
+    else {
+	struct timeval t = rb_time_interval(timeout);
+	rb_thread_wait_for(t);
+    }
+
+    end = time(0) - beg;
+    return INT2FIX(end);        
 }
 
 /*
@@ -1262,9 +1282,16 @@ static VALUE
 mutex_synchronize(VALUE self, SEL sel)
 {
     rb_mutex_lock(self, 0);
+    
     // TODO catch exception
     VALUE ret = rb_yield(Qundef);
-    rb_mutex_unlock(self, 0);
+
+    if (rb_mutex_locked_p(self, 0) == Qtrue) {
+	// We only unlock the mutex if it's still locked, since it could have
+	// been unlocked in the block!
+	rb_mutex_unlock(self, 0);
+    }
+
     return ret;
 }
 
@@ -1297,32 +1324,32 @@ Init_Thread(void)
     rb_define_singleton_method(rb_cThread, "fork", thread_start, -2);
     rb_objc_define_method(*(VALUE *)rb_cThread, "main", rb_thread_s_main, 0);
     rb_objc_define_method(*(VALUE *)rb_cThread, "current", thread_s_current, 0);
-    rb_define_singleton_method(rb_cThread, "stop", rb_thread_stop, 0);
+    rb_objc_define_method(*(VALUE *)rb_cThread, "stop", rb_thread_stop, 0);
     rb_define_singleton_method(rb_cThread, "kill", rb_thread_s_kill, 1);
     rb_define_singleton_method(rb_cThread, "exit", rb_thread_exit, 0);
-    rb_define_singleton_method(rb_cThread, "pass", thread_s_pass, 0);
+    rb_objc_define_method(*(VALUE *)rb_cThread, "pass", thread_s_pass, 0);
     rb_objc_define_method(*(VALUE *)rb_cThread, "list", rb_thread_list, 0);
-    rb_define_singleton_method(rb_cThread, "abort_on_exception", rb_thread_s_abort_exc, 0);
-    rb_define_singleton_method(rb_cThread, "abort_on_exception=", rb_thread_s_abort_exc_set, 1);
+    rb_objc_define_method(*(VALUE *)rb_cThread, "abort_on_exception", rb_thread_s_abort_exc, 0);
+    rb_objc_define_method(*(VALUE *)rb_cThread, "abort_on_exception=", rb_thread_s_abort_exc_set, 1);
 
     rb_objc_define_method(rb_cThread, "initialize", thread_initialize, -1);
     rb_define_method(rb_cThread, "raise", thread_raise_m, -1);
     rb_objc_define_method(rb_cThread, "join", thread_join_m, -1);
     rb_objc_define_method(rb_cThread, "value", thread_value, 0);
-    rb_define_method(rb_cThread, "kill", rb_thread_kill, 0);
-    rb_define_method(rb_cThread, "terminate", rb_thread_kill, 0);
-    rb_define_method(rb_cThread, "exit", rb_thread_kill, 0);
-    rb_define_method(rb_cThread, "run", rb_thread_run, 0);
-    rb_define_method(rb_cThread, "wakeup", rb_thread_wakeup, 0);
+    rb_objc_define_method(rb_cThread, "kill", rb_thread_kill, 0);
+    rb_objc_define_method(rb_cThread, "terminate", rb_thread_kill, 0);
+    rb_objc_define_method(rb_cThread, "exit", rb_thread_kill, 0);
+    rb_objc_define_method(rb_cThread, "run", rb_thread_run, 0);
+    rb_objc_define_method(rb_cThread, "wakeup", rb_thread_wakeup, 0);
     rb_define_method(rb_cThread, "[]", rb_thread_aref, 1);
     rb_define_method(rb_cThread, "[]=", rb_thread_aset, 2);
     rb_define_method(rb_cThread, "key?", rb_thread_key_p, 1);
     rb_define_method(rb_cThread, "keys", rb_thread_keys, 0);
     rb_define_method(rb_cThread, "priority", rb_thread_priority, 0);
     rb_define_method(rb_cThread, "priority=", rb_thread_priority_set, 1);
-    rb_define_method(rb_cThread, "status", rb_thread_status, 0);
-    rb_define_method(rb_cThread, "alive?", rb_thread_alive_p, 0);
-    rb_define_method(rb_cThread, "stop?", rb_thread_stop_p, 0);
+    rb_objc_define_method(rb_cThread, "status", rb_thread_status, 0);
+    rb_objc_define_method(rb_cThread, "alive?", rb_thread_alive_p, 0);
+    rb_objc_define_method(rb_cThread, "stop?", rb_thread_stop_p, 0);
     rb_define_method(rb_cThread, "abort_on_exception", rb_thread_abort_exc, 0);
     rb_define_method(rb_cThread, "abort_on_exception=", rb_thread_abort_exc_set, 1);
     rb_define_method(rb_cThread, "safe_level", rb_thread_safe_level, 0);
@@ -1343,7 +1370,7 @@ Init_Thread(void)
     rb_objc_define_method(rb_cMutex, "try_lock", rb_mutex_trylock, 0);
     rb_objc_define_method(rb_cMutex, "lock", rb_mutex_lock, 0);
     rb_objc_define_method(rb_cMutex, "unlock", rb_mutex_unlock, 0);
-    rb_define_method(rb_cMutex, "sleep", mutex_sleep, -1);
+    rb_objc_define_method(rb_cMutex, "sleep", mutex_sleep, -1);
     rb_objc_define_method(rb_cMutex, "synchronize", mutex_synchronize, 0);
 
     rb_eThreadError = rb_define_class("ThreadError", rb_eStandardError);

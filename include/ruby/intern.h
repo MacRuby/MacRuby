@@ -297,10 +297,6 @@ int rb_thread_alone(void);
 void rb_thread_polling(void);
 void rb_thread_sleep(int);
 void rb_thread_sleep_forever(void);
-VALUE rb_thread_stop(void);
-VALUE rb_thread_wakeup(VALUE);
-VALUE rb_thread_run(VALUE);
-VALUE rb_thread_kill(VALUE);
 VALUE rb_thread_create(VALUE (*)(ANYARGS), void*);
 void rb_thread_signal_raise(void *, int);
 void rb_thread_signal_exit(void *);
@@ -608,6 +604,7 @@ VALUE rb_barrier_release(VALUE self);
 /* time.c */
 VALUE rb_time_new(time_t, long);
 VALUE rb_time_nano_new(time_t, long);
+struct timeval rb_time_interval(VALUE num);
 /* variable.c */
 //VALUE rb_mod_name(VALUE);
 VALUE rb_class_path(VALUE);
