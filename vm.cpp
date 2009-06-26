@@ -242,6 +242,69 @@ RoxorVM::RoxorVM(void)
     parse_in_eval = false;
 }
 
+static inline NODE *
+block_cache_key(NODE *node)
+{
+    if (nd_type(node) == NODE_IFUNC) {
+	// In this case, node is dynamic but fortunately u1.node is always
+	// unique (it contains the IMP)
+	return node->u1.node;
+    }
+    return node;
+}
+
+RoxorVM::RoxorVM(const RoxorVM &vm)
+{
+    current_top_object = vm.current_top_object;
+    current_class = vm.current_class;
+    safe_level = vm.safe_level;
+
+    std::vector<rb_vm_block_t *> &vm_blocks =
+	const_cast<RoxorVM &>(vm).current_blocks;
+    for (std::vector<rb_vm_block_t *>::iterator i = vm_blocks.begin();
+	 (i + 1) != vm_blocks.end();
+	 ++i) {
+
+	const rb_vm_block_t *orig = *i;
+	rb_vm_block_t *b = NULL;
+	if (orig != NULL) {
+#if 1
+	    b = const_cast<rb_vm_block_t *>(orig);
+#else
+	    // XXX: This code does not work yet, it raises a failed integrity
+	    // check when running the specs.
+	    const size_t block_size = sizeof(rb_vm_block_t *)
+		+ (orig->dvars_size * sizeof(VALUE *));
+
+	    b = (rb_vm_block_t *)xmalloc(block_size);
+	    memcpy(b, orig, block_size);
+
+	    GC_WB(&b->self, orig->self);
+	    GC_WB(&b->node, orig->node);
+	    GC_WB(&b->locals, orig->locals);
+	    GC_WB(&b->parent_block, orig->parent_block);  // XXX not sure
+#endif
+	    rb_objc_retain(b);
+	    NODE *key = block_cache_key(orig->node);
+	    blocks[key] = b;
+	}
+	current_blocks.push_back(b);
+    }
+
+    // TODO bindings, exceptions?
+
+    backref = Qnil;
+    broken_with = Qundef;
+    last_status = Qnil;
+    errinfo = Qnil;
+    parse_in_eval = false;
+}
+
+RoxorVM::~RoxorVM(void)
+{
+    // TODO
+}
+
 static void
 append_ptr_address(std::string &s, void *ptr)
 {
@@ -258,10 +321,9 @@ RoxorVM::debug_blocks(void)
 	s.append("empty");
     }
     else {
-	for (std::vector<rb_vm_block_t *>::iterator i =
-		current_blocks.begin();
-		i != current_blocks.end();
-		++i) {
+	for (std::vector<rb_vm_block_t *>::iterator i = current_blocks.begin();
+	     i != current_blocks.end();
+	     ++i) {
 	    append_ptr_address(s, *i);
 	    s.append(" ");
 	}
@@ -2825,7 +2887,7 @@ rb_vm_dup_active_block(rb_vm_block_t *src_b)
 {
     assert(src_b->flags & VM_BLOCK_ACTIVE);
 
-    int block_size = sizeof(rb_vm_block_t)
+    const size_t block_size = sizeof(rb_vm_block_t)
 	    + (sizeof(VALUE *) * src_b->dvars_size);
 
     rb_vm_block_t *new_b = (rb_vm_block_t *)xmalloc(block_size);
@@ -2880,19 +2942,10 @@ RoxorVM::uncache_or_create_block(NODE *key, bool *cached, int dvars_size)
 extern "C"
 rb_vm_block_t *
 rb_vm_prepare_block(void *llvm_function, NODE *node, VALUE self,
-		    rb_vm_var_uses **parent_var_uses,
-		    rb_vm_block_t *parent_block,
-		    int dvars_size, ...)
+	rb_vm_var_uses **parent_var_uses, rb_vm_block_t *parent_block,
+	int dvars_size, ...)
 {
-    NODE *cache_key;
-    if (nd_type(node) == NODE_IFUNC) {
-	// In this case, node is dynamic but fortunately u1.node is always
-	// unique (it contains the IMP)
-	cache_key = node->u1.node;
-    }
-    else {
-	cache_key = node;
-    }
+    NODE *cache_key = block_cache_key(node);
 
     bool cached = false;
     rb_vm_block_t *b = GET_VM()->uncache_or_create_block(cache_key, &cached,
@@ -4276,9 +4329,7 @@ rb_vm_create_vm(void)
 {
     GET_CORE()->set_multithreaded(true);
 
-    RoxorVM *vm = new RoxorVM();
-    vm->set_current_top_object(GET_VM()->get_current_top_object());
-    return (void *)vm;
+    return (void *)new RoxorVM(*GET_VM());
 }
 
 void
@@ -4351,9 +4402,6 @@ rb_vm_thread_run(VALUE thread)
 {
     rb_objc_gc_register_thread();
     GET_CORE()->register_thread(thread);
-
-    pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
-    pthread_setcanceltype(PTHREAD_CANCEL_DEFERRED, NULL);
 
     // Release the thread now.
     rb_objc_release((void *)thread);
@@ -4482,6 +4530,7 @@ rb_thread_wait_for(struct timeval time)
     }
 
     rb_vm_thread_t *t = GET_THREAD();
+
     pre_wait(t);
     const int code = pthread_cond_timedwait(&t->sleep_cond, &t->sleep_mutex,
 	    &ts);

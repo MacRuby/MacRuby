@@ -546,7 +546,7 @@ rb_thread_status_cstr(VALUE thread)
 	    return "sleep";
 
 	case THREAD_KILLED:
-	    return "abort";
+	    return "aborting";
 
 	case THREAD_DEAD:
 	    return "dead";
@@ -576,7 +576,7 @@ static VALUE
 rb_thread_alive_p(VALUE thread, SEL sel)
 {
     rb_vm_thread_status_t s = GetThreadPtr(thread)->status;
-    return s == THREAD_ALIVE || s == THREAD_SLEEP ? Qtrue : Qfalse;
+    return s != THREAD_DEAD ? Qtrue : Qfalse;
 }
 
 /*

@@ -736,6 +736,8 @@ class RoxorVM {
 
     public:
 	RoxorVM(void);
+	RoxorVM(const RoxorVM &vm);
+	~RoxorVM(void);
 
 	ACCESSOR(thread, VALUE);
 	ACCESSOR(current_class, Class);
