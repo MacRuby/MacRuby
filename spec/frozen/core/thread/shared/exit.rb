@@ -74,13 +74,15 @@ describe :thread_exit, :shared => true do
     thread.join
     ScratchPad.recorded.should == nil
   end
-  
-  it "killing dying sleeping thread wakes up thread" do
-    t = ThreadSpecs.dying_thread_ensures { Thread.stop; ScratchPad.record :after_stop }
-    Thread.pass while t.status and t.status != "sleep"
-    t.send(@method)
-    t.join
-    ScratchPad.recorded.should == :after_stop
+ 
+  ruby_version_is "" ... "1.9" do 
+    it "killing dying sleeping thread wakes up thread" do
+      t = ThreadSpecs.dying_thread_ensures { Thread.stop; ScratchPad.record :after_stop }
+      Thread.pass while t.status and t.status != "sleep"
+      t.send(@method)
+      t.join
+      ScratchPad.recorded.should == :after_stop
+    end
   end
   
   it "killing dying running does nothing" do

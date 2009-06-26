@@ -1,2 +1,1 @@
-critical:Kernel#sleep pauses execution indefinitely if not given a duration
 fails:Kernel#sleep is a private method
