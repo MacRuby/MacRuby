@@ -537,3 +537,33 @@ assert '42', %{
   b = proc { |x| if x then p x else b.call(42) end }
   b.call(nil)
 }
+
+assert '42', %{
+  b = nil
+  1.times {
+    x = 42
+    b = proc { p x }
+  }
+  x = 1
+  b.call
+}
+
+assert "42\n42", %{
+  a = b = c = nil
+  1.times {
+    1.times {
+      x = 42
+      1.times {
+        1.times {
+          c = proc {
+            a = proc { p x }
+            b = proc { p x }
+          }
+        }
+        c.call
+      }
+    }
+  }
+  b.call
+  a.call
+}
