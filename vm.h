@@ -80,6 +80,17 @@ typedef enum {
 
 #include <pthread.h>
 
+#define pthread_assert(cmd) \
+    do { \
+	const int code = cmd; \
+	if (code != 0) { \
+	    printf("pthread command `%s' failed: %s (%d)\n", \
+		#cmd, strerror(code), code); \
+	    abort(); \
+	} \
+    } \
+    while (0)
+
 typedef struct rb_vm_thread {
     pthread_t thread;
     rb_vm_block_t *body;

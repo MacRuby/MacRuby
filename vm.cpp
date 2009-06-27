@@ -188,7 +188,7 @@ RoxorCore::RoxorCore(void)
     multithreaded = false;
     abort_on_exception = false;
 
-    assert(pthread_mutex_init(&gl, 0) == 0);
+    pthread_assert(pthread_mutex_init(&gl, 0));
 
     load_path = rb_ary_new();
     rb_objc_retain((void *)load_path);
@@ -4340,7 +4340,7 @@ RoxorCore::register_thread(VALUE thread)
     unlock();
 
     rb_vm_thread_t *t = GetThreadPtr(thread);
-    assert(pthread_setspecific(RoxorVM::vm_thread_key, t->vm) == 0);
+    pthread_assert(pthread_setspecific(RoxorVM::vm_thread_key, t->vm));
 
     RoxorVM *vm = (RoxorVM *)t->vm;
     vm->set_thread(thread);
@@ -4364,19 +4364,19 @@ RoxorCore::unregister_thread(VALUE thread)
 	// The mutex is already locked, which means we are being called from
 	// a cancellation point inside the wait logic. Let's unlock the mutex
 	// and try again.
-	assert(pthread_mutex_unlock(&t->sleep_mutex) == 0);
-	assert(pthread_mutex_destroy(&t->sleep_mutex) == 0);
+	pthread_assert(pthread_mutex_unlock(&t->sleep_mutex));
+	pthread_assert(pthread_mutex_destroy(&t->sleep_mutex));
     }
     else if (code != 0) {
 	abort();
     }
-    assert(pthread_cond_destroy(&t->sleep_cond) == 0);
+    pthread_assert(pthread_cond_destroy(&t->sleep_cond));
 
     RoxorVM *vm = (RoxorVM *)t->vm;
     delete vm;
     t->vm = NULL;
 
-    assert(pthread_setspecific(RoxorVM::vm_thread_key, NULL) == 0);
+    pthread_assert(pthread_setspecific(RoxorVM::vm_thread_key, NULL));
 
     t->status = THREAD_DEAD;
 }
@@ -4409,6 +4409,11 @@ rb_vm_thread_run(VALUE thread)
     pthread_cleanup_push(rb_vm_thread_destructor, (void *)thread);
 
     rb_vm_thread_t *t = GetThreadPtr(thread);
+
+    // Normally the pthread ID is set into the VM structure in the other
+    // thread right after pthread_create(), but we might run before the
+    // assignment!
+    t->thread = pthread_self();
 
     try {
 	VALUE val = rb_vm_block_eval(t->body, t->argc, t->argv);
@@ -4493,15 +4498,15 @@ rb_vm_thread_pre_init(rb_vm_thread_t *t, rb_vm_block_t *body, int argc,
     t->status = THREAD_ALIVE;
     t->in_cond_wait = false;
 
-    assert(pthread_mutex_init(&t->sleep_mutex, NULL) == 0);
-    assert(pthread_cond_init(&t->sleep_cond, NULL) == 0); 
+    pthread_assert(pthread_mutex_init(&t->sleep_mutex, NULL));
+    pthread_assert(pthread_cond_init(&t->sleep_cond, NULL)); 
 }
 
 static inline void
 pre_wait(rb_vm_thread_t *t)
 {
+    pthread_assert(pthread_mutex_lock(&t->sleep_mutex));
     t->status = THREAD_SLEEP;
-    assert(pthread_mutex_lock(&t->sleep_mutex) == 0);
     t->in_cond_wait = true;
 }
 
@@ -4509,7 +4514,7 @@ static inline void
 post_wait(rb_vm_thread_t *t)
 {
     t->in_cond_wait = false;
-    assert(pthread_mutex_unlock(&t->sleep_mutex) == 0);
+    pthread_assert(pthread_mutex_unlock(&t->sleep_mutex));
     if (t->status == THREAD_KILLED) {
 	rb_vm_thread_throw_kill();
     }
@@ -4552,14 +4557,6 @@ rb_thread_wait_for(struct timeval time)
     post_wait(t);
 }
 
-static inline void
-signal_thread(rb_vm_thread_t *t)
-{
-    assert(pthread_mutex_lock(&t->sleep_mutex) == 0);
-    assert(pthread_cond_signal(&t->sleep_cond) == 0);
-    assert(pthread_mutex_unlock(&t->sleep_mutex) == 0);
-}
-
 extern "C"
 void
 rb_vm_thread_wakeup(rb_vm_thread_t *t)
@@ -4568,7 +4565,9 @@ rb_vm_thread_wakeup(rb_vm_thread_t *t)
 	rb_raise(rb_eThreadError, "can't wake up thread from the death");
     }
     if (t->status == THREAD_SLEEP && t->in_cond_wait) {
-	signal_thread(t);
+	pthread_assert(pthread_mutex_lock(&t->sleep_mutex));
+	pthread_assert(pthread_cond_signal(&t->sleep_cond));
+	pthread_assert(pthread_mutex_unlock(&t->sleep_mutex));
     }
 }
 
@@ -4576,22 +4575,26 @@ extern "C"
 void
 rb_vm_thread_cancel(rb_vm_thread_t *t)
 {
-    t->status = THREAD_KILLED;
-    if (t->thread == pthread_self()) {
-	rb_vm_thread_throw_kill();
-    }
-    else {
-	if (t->in_cond_wait) {
-	    // We are trying to kill a thread which is currently waiting
-	    // for a condition variable (#sleep). Instead of canceling the
-	    // thread, we are simply signaling the variable, and the thread
-	    // will autodestroy itself, to work around a stack unwinding bug
-	    // in the Mac OS X pthread implementation that messes our C++
-	    // exception handlers.
-	    signal_thread(t);
+    if (t->status != THREAD_KILLED && t->status != THREAD_DEAD) {
+	t->status = THREAD_KILLED;
+	if (t->thread == pthread_self()) {
+	    rb_vm_thread_throw_kill();
 	}
 	else {
-	    assert(pthread_cancel(t->thread) == 0);
+	    pthread_assert(pthread_mutex_lock(&t->sleep_mutex));
+	    if (t->in_cond_wait) {
+		// We are trying to kill a thread which is currently waiting
+		// for a condition variable (#sleep). Instead of canceling the
+		// thread, we are simply signaling the variable, and the thread
+		// will autodestroy itself, to work around a stack unwinding
+		// bug in the Mac OS X pthread implementation that messes our
+		// C++ exception handlers.
+		pthread_assert(pthread_cond_signal(&t->sleep_cond));
+	    }
+	    else {
+		pthread_assert(pthread_cancel(t->thread));
+	    }
+	    pthread_assert(pthread_mutex_unlock(&t->sleep_mutex));
 	}
     }
 }
@@ -4650,7 +4653,7 @@ Init_PreVM(void)
     RoxorCore::shared = new RoxorCore();
     RoxorVM::main = new RoxorVM();
 
-    assert(pthread_key_create(&RoxorVM::vm_thread_key, NULL) == 0);
+    pthread_assert(pthread_key_create(&RoxorVM::vm_thread_key, NULL));
 
     setup_builtin_stubs();
 

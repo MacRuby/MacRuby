@@ -16,16 +16,6 @@ typedef struct rb_vm_mutex {
     rb_vm_thread_t *thread;
 } rb_vm_mutex_t;
 
-#define assert_ok(call) \
-    do { \
-	const int __r = call; \
-	if (__r != 0) { \
-	    rb_raise(rb_eRuntimeError, "pthread operation failed: error %d", \
-		    __r); \
-	} \
-    } \
-    while (0)
-
 VALUE rb_cThread;
 VALUE rb_cMutex;
 
@@ -136,14 +126,34 @@ rb_thread_create(VALUE (*fn)(ANYARGS), void *arg)
 static VALUE
 thread_join_m(VALUE self, SEL sel, int argc, VALUE *argv)
 {
-    if (argc != 0) {
-	rb_raise(rb_eArgError,
-		"calling #join with an argument is not implemented yet");
-    }
+    VALUE timeout;
+
+    rb_scan_args(argc, argv, "01", &timeout);
 
     rb_vm_thread_t *t = GetThreadPtr(self);
-    if (t->status != THREAD_DEAD) {
-	assert(pthread_join(t->thread, NULL) == 0);
+    if (t->status == THREAD_DEAD) {
+	return self;
+    }
+
+    if (timeout == Qnil) {
+	// No timeout given: block until the thread finishes.
+	pthread_assert(pthread_join(t->thread, NULL));
+    }
+    else {
+	// Timeout given: sleep then check if the thread is dead.
+	// TODO do multiple sleeps instead of only one.
+	struct timeval tv = rb_time_interval(timeout);
+	struct timespec ts;
+	ts.tv_sec = tv.tv_sec;
+	ts.tv_nsec = tv.tv_usec * 1000;
+	while (ts.tv_nsec >= 1000000000) {
+	    ts.tv_sec += 1;
+	    ts.tv_nsec -= 1000000000;
+	}
+	nanosleep(&ts, NULL);
+	if (t->status != THREAD_DEAD) {
+	    return Qnil;
+	}
     }
 
     return self;
@@ -558,6 +568,11 @@ rb_thread_status_cstr(VALUE thread)
 static VALUE
 rb_thread_status(VALUE thread, SEL sel)
 {
+    rb_vm_thread_t *t = GetThreadPtr(thread);
+    if (t->status == THREAD_DEAD) {
+	// TODO should return Qnil in case the thread got an exception.
+	return Qfalse;
+    }
     return rb_str_new2(rb_thread_status_cstr(thread));
 }
 
@@ -1162,7 +1177,7 @@ mutex_s_alloc(VALUE self, SEL sel)
 static VALUE
 mutex_initialize(VALUE self, SEL sel)
 {
-    assert_ok(pthread_mutex_init(&GetMutexPtr(self)->mutex, NULL));
+    pthread_assert(pthread_mutex_init(&GetMutexPtr(self)->mutex, NULL));
     return self;
 }
 
@@ -1215,7 +1230,7 @@ rb_mutex_lock(VALUE self, SEL sel)
     }
 
     current->status = THREAD_SLEEP;
-    assert_ok(pthread_mutex_lock(&m->mutex));
+    pthread_assert(pthread_mutex_lock(&m->mutex));
     current->status = THREAD_ALIVE;
     m->thread = current;
 
@@ -1239,7 +1254,7 @@ rb_mutex_unlock(VALUE self, SEL sel)
 		"Attempt to unlock a mutex which is not locked");
     }
 
-    assert_ok(pthread_mutex_unlock(&m->mutex));
+    pthread_assert(pthread_mutex_unlock(&m->mutex));
     m->thread = 0;
 
     return self;
