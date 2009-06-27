@@ -50,19 +50,21 @@ describe "Thread#raise on a sleeping thread" do
     lambda {t.value}.should raise_error(RuntimeError)
   end
 
-  it "re-raises active exception" do
-    t = Thread.new do
-      begin
-        1/0
-      rescue ZeroDivisionError
-        sleep 3
+  ruby_version_is "" ... "1.9" do
+    it "re-raises active exception" do
+      t = Thread.new do
+        begin
+          1/0
+        rescue ZeroDivisionError
+          sleep 3
+        end
       end
+  
+      Thread.pass while t.status and t.status != "sleep"
+      t.raise
+      lambda {t.value}.should raise_error(ZeroDivisionError)
+      t.kill
     end
-
-    Thread.pass while t.status and t.status != "sleep"
-    t.raise
-    lambda {t.value}.should raise_error(ZeroDivisionError)
-    t.kill
   end
 end
 
@@ -105,20 +107,22 @@ describe "Thread#raise on a running thread" do
     lambda {t.value}.should raise_error(RuntimeError)
   end
 
-  it "re-raises active exception" do
-    raised = false
-    t = Thread.new do
-      begin
-        1/0
-      rescue ZeroDivisionError
-        raised = true
-        loop { }
+  ruby_version_is "" ... "1.9" do
+    it "re-raises active exception" do
+      raised = false
+      t = Thread.new do
+        begin
+          1/0
+        rescue ZeroDivisionError
+          raised = true
+          loop { }
+        end
       end
+  
+      Thread.pass until raised || !t.alive?
+      t.raise
+      lambda {t.value}.should raise_error(ZeroDivisionError)
     end
-
-    Thread.pass until raised || !t.alive?
-    t.raise
-    lambda {t.value}.should raise_error(ZeroDivisionError)
   end
 end
 
