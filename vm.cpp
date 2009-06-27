@@ -4409,6 +4409,7 @@ rb_vm_thread_run(VALUE thread)
     pthread_cleanup_push(rb_vm_thread_destructor, (void *)thread);
 
     rb_vm_thread_t *t = GetThreadPtr(thread);
+
     try {
 	VALUE val = rb_vm_block_eval(t->body, t->argc, t->argv);
 	GC_WB(&t->value, val);
@@ -4416,6 +4417,7 @@ rb_vm_thread_run(VALUE thread)
     catch (...) {
 	// TODO handle thread-level exceptions.
 	//printf("exception raised inside thread %p\n", pthread_self());
+	t->value = Qfalse;
     }
 
     pthread_cleanup_pop(0);

@@ -313,7 +313,7 @@ static VALUE
 rb_thread_wakeup(VALUE thread, SEL sel)
 {
     rb_vm_thread_wakeup(GetThreadPtr(thread));
-    return Qnil;
+    return thread;
 }
 
 /*
@@ -338,8 +338,9 @@ rb_thread_wakeup(VALUE thread, SEL sel)
 static VALUE
 rb_thread_run(VALUE thread, SEL sel)
 {
-    // On MacRuby, #wakeup and #run are the same.
-    return rb_thread_wakeup(thread, 0);
+    rb_vm_thread_wakeup(GetThreadPtr(thread));
+    pthread_yield_np();
+    return thread;
 }
 
 /*
