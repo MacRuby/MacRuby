@@ -10,7 +10,7 @@ describe "Thread.stop" do
     t.value.should == 5
   end
 
-  ruby_version_is ""..."1.9.1" do
+  ruby_version_is ""..."1.9" do
     it "resets Thread.critical to false" do
       t = Thread.new { Thread.critical = true; Thread.stop }
       Thread.pass while t.status and t.status != 'sleep'
