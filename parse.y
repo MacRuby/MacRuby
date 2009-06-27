@@ -8992,7 +8992,7 @@ dyna_pop_gen(struct parser_params *parser)
 
 	    pprev_vars = prev_vars->prev;
 	    pprev_args = prev_args->prev;
-	    while (pprev_vars != NULL) {
+	    while ((pprev_vars != NULL) && (pprev_vars != DVARS_INHERIT)) {
 		if (vtable_included(pprev_vars, id) || vtable_included(pprev_args, id)) {
 		    vtable_add(prev_vars, id);
 		    break;

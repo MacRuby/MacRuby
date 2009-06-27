@@ -93,3 +93,5 @@ assert '42', %{
   }
   eval "p a", b
 }
+
+assert '42', 'y = eval("proc {|x| p x}"); y.call(42)'
