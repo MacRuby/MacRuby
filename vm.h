@@ -359,6 +359,7 @@ VALUE rb_vm_threads(void);
 VALUE rb_vm_thread_locals(VALUE thread, bool create_storage);
 void rb_vm_thread_wakeup(rb_vm_thread_t *t);
 void rb_vm_thread_cancel(rb_vm_thread_t *t);
+void rb_vm_thread_raise(rb_vm_thread_t *t, VALUE exc);
 
 bool rb_vm_abort_on_exception(void);
 void rb_vm_set_abort_on_exception(bool flag);

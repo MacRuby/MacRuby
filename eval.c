@@ -350,8 +350,6 @@ static VALUE get_errinfo(void);
  *     raise ArgumentError, "No parameters", caller
  */
 
-VALUE rb_make_exception(int, VALUE *);
-
 static VALUE
 rb_f_raise(VALUE klass, SEL sel, int argc, VALUE *argv)
 {

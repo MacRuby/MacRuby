@@ -204,6 +204,7 @@ NORETURN(void rb_load_fail(const char*));
 NORETURN(void rb_error_frozen(const char*));
 void rb_check_frozen(VALUE);
 /* eval.c */
+VALUE rb_make_exception(int, VALUE *);
 int rb_sourceline(void);
 const char *rb_sourcefile(void);
 

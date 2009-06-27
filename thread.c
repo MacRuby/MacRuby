@@ -242,9 +242,19 @@ thread_s_pass(VALUE klass, SEL sel)
  */
 
 static VALUE
-thread_raise_m(int argc, VALUE *argv, VALUE self)
+thread_raise_m(VALUE self, SEL sel, int argc, VALUE *argv)
 {
-    // TODO
+    VALUE exc = rb_make_exception(argc, argv);
+
+    rb_vm_thread_t *t = GetThreadPtr(self);
+
+    if (t->thread == pthread_self()) {
+	rb_exc_raise(exc);
+    }
+    else if (t->status != THREAD_DEAD) {
+	rb_vm_thread_raise(t, exc);
+    }
+
     return Qnil;
 }
 
@@ -1358,7 +1368,7 @@ Init_Thread(void)
     rb_objc_define_method(*(VALUE *)rb_cThread, "abort_on_exception=", rb_thread_s_abort_exc_set, 1);
 
     rb_objc_define_method(rb_cThread, "initialize", thread_initialize, -1);
-    rb_define_method(rb_cThread, "raise", thread_raise_m, -1);
+    rb_objc_define_method(rb_cThread, "raise", thread_raise_m, -1);
     rb_objc_define_method(rb_cThread, "join", thread_join_m, -1);
     rb_objc_define_method(rb_cThread, "value", thread_value, 0);
     rb_objc_define_method(rb_cThread, "kill", rb_thread_kill, 0);

@@ -4604,6 +4604,17 @@ rb_vm_thread_cancel(rb_vm_thread_t *t)
 
 extern "C"
 void
+rb_vm_thread_raise(rb_vm_thread_t *t, VALUE exc)
+{
+    // XXX we should lock here
+    RoxorVM *vm = (RoxorVM *)t->vm;
+    vm->push_current_exception(exc);
+
+    rb_vm_thread_cancel(t);
+}
+
+extern "C"
+void
 rb_thread_sleep(int sec)
 {
     struct timeval time;
