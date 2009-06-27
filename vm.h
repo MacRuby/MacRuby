@@ -103,6 +103,7 @@ typedef struct rb_vm_thread {
     rb_vm_thread_status_t status;
     bool in_cond_wait;
     VALUE locals;  // a Hash object or Qnil
+    VALUE exception;  // killed-by-exception or Qnil 
 } rb_vm_thread_t;
 
 typedef struct rb_vm_outer {

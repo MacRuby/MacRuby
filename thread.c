@@ -131,29 +131,33 @@ thread_join_m(VALUE self, SEL sel, int argc, VALUE *argv)
     rb_scan_args(argc, argv, "01", &timeout);
 
     rb_vm_thread_t *t = GetThreadPtr(self);
-    if (t->status == THREAD_DEAD) {
-	return self;
+    if (t->status != THREAD_DEAD) {
+	if (timeout == Qnil) {
+	    // No timeout given: block until the thread finishes.
+	    pthread_assert(pthread_join(t->thread, NULL));
+	}
+	else {
+	    // Timeout given: sleep then check if the thread is dead.
+	    // TODO do multiple sleeps instead of only one.
+	    struct timeval tv = rb_time_interval(timeout);
+	    struct timespec ts;
+	    ts.tv_sec = tv.tv_sec;
+	    ts.tv_nsec = tv.tv_usec * 1000;
+	    while (ts.tv_nsec >= 1000000000) {
+		ts.tv_sec += 1;
+		ts.tv_nsec -= 1000000000;
+	    }
+	    nanosleep(&ts, NULL);
+	    if (t->status != THREAD_DEAD) {
+		return Qnil;
+	    }
+	}
     }
 
-    if (timeout == Qnil) {
-	// No timeout given: block until the thread finishes.
-	pthread_assert(pthread_join(t->thread, NULL));
-    }
-    else {
-	// Timeout given: sleep then check if the thread is dead.
-	// TODO do multiple sleeps instead of only one.
-	struct timeval tv = rb_time_interval(timeout);
-	struct timespec ts;
-	ts.tv_sec = tv.tv_sec;
-	ts.tv_nsec = tv.tv_usec * 1000;
-	while (ts.tv_nsec >= 1000000000) {
-	    ts.tv_sec += 1;
-	    ts.tv_nsec -= 1000000000;
-	}
-	nanosleep(&ts, NULL);
-	if (t->status != THREAD_DEAD) {
-	    return Qnil;
-	}
+    // If the thread was terminated because of an exception, we need to
+    // propagate it.
+    if (t->exception != Qnil) {
+	rb_exc_raise(t->exception);
     }
 
     return self;
@@ -570,8 +574,7 @@ rb_thread_status(VALUE thread, SEL sel)
 {
     rb_vm_thread_t *t = GetThreadPtr(thread);
     if (t->status == THREAD_DEAD) {
-	// TODO should return Qnil in case the thread got an exception.
-	return Qfalse;
+	return t->exception == Qnil ? Qfalse : Qnil;
     }
     return rb_str_new2(rb_thread_status_cstr(thread));
 }

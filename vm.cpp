@@ -4420,9 +4420,11 @@ rb_vm_thread_run(VALUE thread)
 	GC_WB(&t->value, val);
     }
     catch (...) {
-	// TODO handle thread-level exceptions.
-	//printf("exception raised inside thread %p\n", pthread_self());
-	t->value = Qfalse;
+	VALUE exc = rb_vm_current_exception();
+	if (exc != Qnil) {
+	    GC_WB(&t->exception, exc);
+	}
+	t->value = Qnil;
     }
 
     pthread_cleanup_pop(0);
@@ -4495,6 +4497,7 @@ rb_vm_thread_pre_init(rb_vm_thread_t *t, rb_vm_block_t *body, int argc,
     t->vm  = vm;
     t->value = Qundef;
     t->locals = Qnil;
+    t->exception = Qnil;
     t->status = THREAD_ALIVE;
     t->in_cond_wait = false;
 
