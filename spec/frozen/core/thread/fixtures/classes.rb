@@ -91,9 +91,10 @@ module ThreadSpecs
   end
   
   def self.status_of_aborting_thread
-    t = Thread.new { sleep }
+    t = Thread.new { begin; sleep; ensure; Thread.pass; end }
     begin
       Thread.critical = true if Thread.respond_to? :critical
+      Thread.pass while t.status and t.status != 'sleep'
       t.kill
       Status.new t
     ensure
@@ -135,13 +136,16 @@ module ThreadSpecs
   end
   
   def self.dying_thread_ensures(kill_method_name=:kill)
-    t = Thread.new do
+    # XXX MacRuby hack: work around local variable corruption because the
+    # main thread might exit before kill_method_name is used.
+    t = Thread.new(kill_method_name) do |mid|
       begin
-        Thread.current.send(kill_method_name)
+        Thread.current.send(mid)
       ensure
         yield
       end
     end
+    t
   end
   
   def self.dying_thread_with_outer_ensure(kill_method_name=:kill)
