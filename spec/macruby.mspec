@@ -19,7 +19,6 @@ class MSpecScript
     '^core/precision',
     '^core/proc',
     '^core/process',
-    '^core/thread',
     '^core/threadgroup'
   ]
   
