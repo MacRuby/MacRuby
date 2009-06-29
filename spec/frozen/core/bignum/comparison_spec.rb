@@ -44,8 +44,8 @@ describe "Bignum#<=>" do
       (-@inf <=> -Float::MAX.to_i*2).should == -1
     end
 
-    it "returns -1 when self is negative and other is -Infinity" do
-      (-@inf <=> -Float::MAX.to_i*2).should == -1
+    it "returns 1 when self is negative and other is -Infinity" do
+      (-Float::MAX.to_i*2 <=> @inf).should == 1
     end
   end
 
@@ -64,8 +64,8 @@ describe "Bignum#<=>" do
       (-@inf <=> -Float::MAX.to_i*2).should == -1
     end
 
-    it "returns -1 when self is negative and other is -Infinity" do
-      (-@inf <=> -Float::MAX.to_i*2).should == -1
+    it "returns 1 when self is negative and other is -Infinity" do
+      (-Float::MAX.to_i*2 <=> @inf).should == 1
     end
   end
 end
