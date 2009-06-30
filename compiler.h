@@ -214,6 +214,7 @@ class RoxorCompiler {
 	Value *compile_multiple_assignment(NODE *node, Value *val);
 	void compile_multiple_assignment_element(NODE *node, Value *val);
 	Value *compile_current_class(void);
+	virtual Value *compile_nsobject(void);
 	Value *compile_class_path(NODE *node);
 	Value *compile_const(ID id, Value *outer);
 	Value *compile_singleton_class(Value *obj);
@@ -227,6 +228,7 @@ class RoxorCompiler {
 	virtual Instruction *compile_sel(SEL sel, bool add_to_bb=true) {
 	    return compile_const_pointer(sel, add_to_bb);
 	}
+	virtual Value *compile_id(ID id);
 	GlobalVariable *compile_const_global_string(const char *str);
 
 	void compile_landing_pad_header(void);
@@ -283,7 +285,7 @@ class RoxorCompiler {
 
 class RoxorAOTCompiler : public RoxorCompiler {
     public:
-	RoxorAOTCompiler(const char *fname) : RoxorCompiler(fname) { }
+	RoxorAOTCompiler(const char *fname);
 
 	Function *compile_main_function(NODE *node);
 
@@ -291,12 +293,16 @@ class RoxorAOTCompiler : public RoxorCompiler {
 	std::map<SEL, GlobalVariable *> mcaches;
 	std::map<ID, GlobalVariable *> ccaches;
 	std::map<SEL, GlobalVariable *> sels;
+	std::map<ID, GlobalVariable *> ids;
+	GlobalVariable *cObject_gvar;
 
 	Value *compile_mcache(SEL sel, bool super);
 	Value *compile_ccache(ID id);
 	Instruction *compile_sel(SEL sel, bool add_to_bb=true);
 	void compile_prepare_method(Value *classVal, Value *sel,
 		Function *new_function, rb_vm_arity_t &arity, NODE *body);
+	Value *compile_nsobject(void);
+	Value *compile_id(ID id);
 
 	Instruction *
         compile_const_pointer(void *ptr, bool insert_to_bb=true) {

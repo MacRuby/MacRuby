@@ -4104,8 +4104,6 @@ rb_vm_aot_compile(NODE *node)
 	       "line was: %s", gcc_line.c_str());
 	exit(1);
     }
-
-    //RoxorCompiler::module->dump();
 }
 
 extern "C"

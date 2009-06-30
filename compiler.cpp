@@ -142,6 +142,12 @@ RoxorCompiler::RoxorCompiler(const char *_fname)
 #endif
 }
 
+RoxorAOTCompiler::RoxorAOTCompiler(const char *_fname)
+    : RoxorCompiler(_fname)
+{
+    cObject_gvar = NULL;
+}
+
 inline SEL
 RoxorCompiler::mid_to_sel(ID mid, int arity)
 {
@@ -856,7 +862,7 @@ RoxorCompiler::compile_block_create(NODE *node)
 	 iter != lvars.end(); ++iter) {
 	ID name = iter->first;
 	Value *slot = iter->second;
-	params.push_back(ConstantInt::get(IntTy, (long)name));
+	params.push_back(compile_id((long)name));
 	params.push_back(slot);
     }
 
@@ -899,7 +905,7 @@ RoxorCompiler::compile_binding(void)
 	 iter != lvars.end(); ++iter) {
 
 	ID lvar = iter->first;
-	params.push_back(ConstantInt::get(IntTy, lvar));
+	params.push_back(compile_id(lvar));
 	params.push_back(iter->second);
     }
 
@@ -917,12 +923,9 @@ RoxorCompiler::compile_ivar_read(ID vid)
     }
 
     std::vector<Value *> params;
-    Value *val;
 
     params.push_back(current_self);
-
-    val = ConstantInt::get(IntTy, vid);
-    params.push_back(val);
+    params.push_back(compile_id(vid));
 
     int *slot_cache = get_slot_cache(vid);
     params.push_back(compile_const_pointer(slot_cache));
@@ -944,7 +947,7 @@ RoxorCompiler::compile_ivar_assignment(ID vid, Value *val)
     std::vector<Value *> params;
 
     params.push_back(current_self);
-    params.push_back(ConstantInt::get(IntTy, (long)vid));
+    params.push_back(compile_id(vid));
     params.push_back(val);
 
     int *slot_cache = get_slot_cache(vid);
@@ -968,7 +971,7 @@ RoxorCompiler::compile_cvar_assignment(ID name, Value *val)
     std::vector<Value *> params;
 
     params.push_back(compile_current_class());
-    params.push_back(ConstantInt::get(IntTy, (long)name));
+    params.push_back(compile_id(name));
     params.push_back(val);
 
     return CallInst::Create(cvarSetFunc, params.begin(),
@@ -1008,13 +1011,13 @@ RoxorCompiler::compile_constant_declaration(NODE *node, Value *val)
 
     if (node->nd_vid > 0) {
 	params.push_back(compile_current_class());
-	params.push_back(ConstantInt::get(IntTy, (long)node->nd_vid));
+	params.push_back(compile_id(node->nd_vid));
     }
     else {
 	assert(node->nd_else != NULL);
 	params.push_back(compile_class_path(node->nd_else));
 	assert(node->nd_else->nd_mid > 0);
-	params.push_back(ConstantInt::get(IntTy, (long)node->nd_else->nd_mid));
+	params.push_back(compile_id(node->nd_else->nd_mid));
     }
 
     params.push_back(val);
@@ -1028,9 +1031,59 @@ inline Value *
 RoxorCompiler::compile_current_class(void)
 {
     if (current_opened_class == NULL) {
-	return cObject;
+	return compile_nsobject();
     }
     return new LoadInst(current_opened_class, "", bb);
+}
+
+inline Value *
+RoxorCompiler::compile_nsobject(void)
+{
+    return cObject;
+}
+
+inline Value *
+RoxorAOTCompiler::compile_nsobject(void)
+{
+    if (cObject_gvar == NULL) {
+	cObject_gvar = new GlobalVariable(
+		RubyObjTy,
+		false,
+		GlobalValue::InternalLinkage,
+		zeroVal,
+		"NSObject",
+		RoxorCompiler::module);
+    }
+    return new LoadInst(cObject_gvar, "", bb);
+}
+
+inline Value *
+RoxorCompiler::compile_id(ID id)
+{
+    return ConstantInt::get(IntTy, (long)id);
+}
+
+inline Value *
+RoxorAOTCompiler::compile_id(ID id)
+{
+    std::map<ID, GlobalVariable *>::iterator iter = ids.find(id);
+
+    GlobalVariable *gvar;
+    if (iter == ids.end()) {
+	gvar = new GlobalVariable(
+		IntTy,
+		false,
+		GlobalValue::InternalLinkage,
+		ConstantInt::get(IntTy, 0),
+		rb_id2name(id),
+		RoxorCompiler::module);
+	ids[id] = gvar;
+    }
+    else {
+	gvar = iter->second;
+    }
+
+    return new LoadInst(gvar, "", bb);
 }
 
 Value *
@@ -1055,7 +1108,7 @@ RoxorCompiler::compile_const(ID id, Value *outer)
     params.push_back(outer);
     params.push_back(ConstantInt::get(Type::Int8Ty, outer_given ? 0 : 1));
     params.push_back(compile_ccache(id));
-    params.push_back(ConstantInt::get(IntTy, id));
+    params.push_back(compile_id(id));
 
     return compile_protected_call(getConstFunc, params);
 }
@@ -1177,7 +1230,7 @@ RoxorCompiler::compile_defined_expression(NODE *node)
 	case NODE_COLON3:
 	    what2 = nd_type(node) == NODE_COLON2
 		? compile_node(node->nd_head)
-		: cObject;
+		: compile_nsobject();
 	    if (rb_is_const_id(node->nd_mid)) {
 		type = DEFINED_CONST;
 		what1 = (VALUE)node->nd_mid;
@@ -1433,7 +1486,7 @@ RoxorCompiler::compile_class_path(NODE *node)
 {
     if (nd_type(node) == NODE_COLON3) {
 	// ::Foo
-	return cObject;
+	return compile_nsobject();
     }
     else if (node->nd_head != NULL) {
 	// Bar::Foo
@@ -2290,7 +2343,7 @@ RoxorCompiler::compile_ivar_slots(Value *klass,
 
 	    std::vector<Value *> params;
 	    params.push_back(klass);
-	    params.push_back(ConstantInt::get(IntTy, iter->first));
+	    params.push_back(compile_id(iter->first));
 	    Instruction *ptr = compile_const_pointer(iter->second, false);
 	    list.insert(list_iter, ptr);
 	    params.push_back(ptr);
@@ -2520,7 +2573,7 @@ RoxorCompiler::compile_node(NODE *node)
 			ID name = iter->first;
 			Value *slot = iter->second;
 			if (std::find(dvars.begin(), dvars.end(), name) == dvars.end()) {
-			    params.push_back(ConstantInt::get(IntTy, (long)name));
+			    params.push_back(compile_id(name));
 			    params.push_back(slot);
 			    vars_count++;
 			}
@@ -2615,7 +2668,7 @@ RoxorCompiler::compile_node(NODE *node)
 		std::vector<Value *> params;
 
 		params.push_back(compile_current_class());
-		params.push_back(ConstantInt::get(IntTy, (long)node->nd_vid));
+		params.push_back(compile_id(node->nd_vid));
 
 		return compile_protected_call(cvarGetFunc, params);
 	    }
@@ -3099,7 +3152,7 @@ RoxorCompiler::compile_node(NODE *node)
 
 		    std::vector<Value *> params;
 
-		    params.push_back(ConstantInt::get(IntTy, (long)path));
+		    params.push_back(compile_id(path));
 		    params.push_back(compile_class_path(node->nd_cpath));
 		    params.push_back(super == NULL ? zeroVal : compile_node(super));
 		    params.push_back(ConstantInt::get(Type::Int8Ty,
@@ -3632,8 +3685,8 @@ rescan_args:
 		std::vector<Value *> params;
 
 		assert(node->u1.id > 0 && node->u2.id > 0);
-		params.push_back(ConstantInt::get(IntTy, node->u1.id));
-		params.push_back(ConstantInt::get(IntTy, node->u2.id));
+		params.push_back(compile_id(node->u1.id));
+		params.push_back(compile_id(node->u2.id));
 
 		CallInst::Create(valiasFunc, params.begin(), params.end(), "", bb);
 
@@ -3652,8 +3705,8 @@ rescan_args:
 		std::vector<Value *> params;
 
 		params.push_back(compile_current_class());
-		params.push_back(ConstantInt::get(IntTy, node->u1.node->u1.node->u2.id));
-		params.push_back(ConstantInt::get(IntTy, node->u2.node->u1.node->u2.id));
+		params.push_back(compile_id(node->u1.node->u1.node->u2.id));
+		params.push_back(compile_id(node->u2.node->u1.node->u2.id));
 
 		compile_protected_call(aliasFunc, params);
 
@@ -3726,7 +3779,7 @@ rescan_args:
 
 		std::vector<Value *> params;
 		params.push_back(compile_current_class());
-		params.push_back(ConstantInt::get(IntTy, name));
+		params.push_back(compile_id(name));
 
 		compile_protected_call(undefFunc, params);
 
@@ -4176,7 +4229,7 @@ rescan_args:
 
 	case NODE_COLON3:
 	    assert(node->nd_mid > 0);
-	    return compile_const(node->nd_mid, cObject);
+	    return compile_const(node->nd_mid, compile_nsobject());
 
 	case NODE_CASE:
 	    {
@@ -4358,6 +4411,68 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 
 	Instruction *assign = new StoreInst(call, gvar, "");
  
+	list.insert(list.begin(), assign);
+	list.insert(list.begin(), call);
+	list.insert(list.begin(), load);
+    }
+
+    // Compile IDs.
+
+    Function *rbInternFunc = cast<Function>(module->getOrInsertFunction(
+		"rb_intern",
+		IntTy, PtrTy, NULL));
+
+    for (std::map<ID, GlobalVariable *>::iterator i = ids.begin();
+	 i != ids.end();
+	 ++i) {
+
+	ID name = i->first;
+	GlobalVariable *gvar = i->second;
+	
+	GlobalVariable *name_gvar = compile_const_global_string(rb_id2name(name));
+
+	std::vector<Value *> idxs;
+	idxs.push_back(ConstantInt::get(Type::Int32Ty, 0));
+	idxs.push_back(ConstantInt::get(Type::Int32Ty, 0));
+	Instruction *load = GetElementPtrInst::Create(name_gvar,
+		idxs.begin(), idxs.end(), "");
+
+	std::vector<Value *> params;
+	params.push_back(load);
+
+	Instruction *call = CallInst::Create(rbInternFunc, params.begin(),
+		params.end(), "");
+
+	Instruction *assign = new StoreInst(call, gvar, "");
+ 
+	list.insert(list.begin(), assign);
+	list.insert(list.begin(), call);
+	list.insert(list.begin(), load);
+    }
+
+    // Compile NSObject reference.
+
+    Function *objcGetClassFunc = cast<Function>(module->getOrInsertFunction(
+		"objc_getClass",
+		RubyObjTy, PtrTy, NULL));
+
+    if (cObject_gvar != NULL) {
+	GlobalVariable *nsobject = compile_const_global_string("NSObject");
+
+	std::vector<Value *> idxs;
+	idxs.push_back(ConstantInt::get(Type::Int32Ty, 0));
+	idxs.push_back(ConstantInt::get(Type::Int32Ty, 0));
+	Instruction *load = GetElementPtrInst::Create(nsobject,
+		idxs.begin(), idxs.end(), "");
+
+	std::vector<Value *> params;
+	params.push_back(load);
+
+	Instruction *call = CallInst::Create(objcGetClassFunc, params.begin(),
+		params.end(), "");
+
+	Instruction *assign = new StoreInst(call, cObject_gvar, "");
+
 	list.insert(list.begin(), assign);
 	list.insert(list.begin(), call);
 	list.insert(list.begin(), load);
