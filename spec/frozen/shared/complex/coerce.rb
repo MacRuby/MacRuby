@@ -1,6 +1,4 @@
 require File.dirname(__FILE__) + '/../../spec_helper'
-require 'complex'
-require "rational"
 
 describe :complex_coerce, :shared => true do
   before(:each) do

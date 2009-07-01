@@ -1,8 +1,10 @@
 require File.dirname(__FILE__) + '/../../shared/complex/exponent'
-require "complex"
-require "rational"
 
 ruby_version_is ""..."1.9" do
+  
+  require "complex"
+  require "rational"
+  
   describe "Complex#** when given 0" do
     it_behaves_like(:complex_exponent_zero, :**)
   end

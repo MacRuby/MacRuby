@@ -25,16 +25,16 @@ describe "Float#<=>" do
       (@inf <=> Float::MAX.to_i*2).should == 1
     end  
 
-    it "returns 1 when self is negative and other is Infinty" do
-      (-Float::MAX.to_i*2 <=> @inf).should == 1
+    it "returns -1 when self is negative and other is Infinty" do
+      (-Float::MAX.to_i*2 <=> @inf).should == -1
     end  
 
     it "returns -1 when self is -Infinity and other is negative" do
       (-@inf <=> -Float::MAX.to_i*2).should == -1
     end
 
-    it "returns -1 when self is negative and other is -Infinity" do
-      (-@inf <=> -Float::MAX.to_i*2).should == -1
+    it "returns 1 when self is negative and other is -Infinity" do
+      (-Float::MAX.to_i*2 <=> -@inf).should == 1
     end
   end
 
@@ -45,16 +45,16 @@ describe "Float#<=>" do
       (@inf <=> Float::MAX.to_i*2).should == 1
     end  
 
-    it "returns 1 when self is negative and other is Infinty" do
-      (-Float::MAX.to_i*2 <=> @inf).should == 1
+    it "returns -1 when self is negative and other is Infinty" do
+      (-Float::MAX.to_i*2 <=> @inf).should == -1
     end  
 
     it "returns -1 when self is -Infinity and other is negative" do
       (-@inf <=> -Float::MAX.to_i*2).should == -1
     end
 
-    it "returns -1 when self is negative and other is -Infinity" do
-      (-@inf <=> -Float::MAX.to_i*2).should == -1
+    it "returns 1 when self is negative and other is -Infinity" do
+      (-Float::MAX.to_i*2 <=> -@inf).should == 1
     end
   end
 end

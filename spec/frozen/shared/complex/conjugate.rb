@@ -1,5 +1,3 @@
-require 'complex'
-
 describe :complex_conjugate, :shared => true do
   it "returns the complex conjugate: conj a + bi = a - bi" do
     Complex(3, 5).send(@method).should == Complex(3, -5)

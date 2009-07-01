@@ -1,7 +1,9 @@
 require File.dirname(__FILE__) + '/../../shared/complex/equal_value'
-require 'complex'
 
 ruby_version_is ""..."1.9" do
+  
+  require 'complex'
+  
   describe "Complex#== with Complex" do
     it_behaves_like(:complex_equal_value_complex, :shared => true)
   end

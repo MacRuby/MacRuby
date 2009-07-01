@@ -1,7 +1,9 @@
 require File.dirname(__FILE__) + '/../../spec_helper'
-require 'complex'
 
 ruby_version_is ""..."1.9" do
+  
+  require 'complex'
+  
   describe "Complex#<=>" do
     it "compares the absolute values of self and other" do
       (Complex(1, 2) <=> Complex(2, 1)).should == 0

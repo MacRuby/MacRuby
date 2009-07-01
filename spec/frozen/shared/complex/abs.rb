@@ -1,5 +1,4 @@
 require File.dirname(__FILE__) + '/../../spec_helper'
-require 'complex'
 
 describe :complex_abs, :shared => true do
   it "returns the modulus: |a + bi| = sqrt((a ^ 2) + (b ^ 2))" do

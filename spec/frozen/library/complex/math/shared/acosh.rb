@@ -1,4 +1,3 @@
-require 'complex'
 require File.dirname(__FILE__) + '/../fixtures/classes'
 
 describe :complex_math_acosh, :shared => true do

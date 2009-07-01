@@ -1,5 +1,4 @@
 require File.dirname(__FILE__) + '/../../spec_helper'
-require 'complex'
 
 describe :complex_abs2, :shared => true do
   it "returns the sum of the squares of the real and imaginary parts" do

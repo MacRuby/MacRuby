@@ -1,5 +1,3 @@
-require 'complex'
-
 describe :numeric_conjugate, :shared => true do
   it "returns self" do
     20.send(@method).should == 20
