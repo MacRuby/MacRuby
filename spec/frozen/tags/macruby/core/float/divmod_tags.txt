@@ -1,1 +1,1 @@
-fails:Float#divmod raises FloatDomainError if other is zero
+fails:Float#divmod raises a ZeroDivisionError if other is zero
