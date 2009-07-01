@@ -1,7 +1,7 @@
 require File.dirname(__FILE__) + '/../../spec_helper'
 
 ruby_version_is "1.9" do
-  describe "Numeric#numerator" do
+  describe "Float#numerator" do
     before(:all) do
       @numbers = [
         29871.2722891,

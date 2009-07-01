@@ -12,6 +12,11 @@ describe "Float#<=>" do
     ((bignum_value*1.1) <=> bignum_value).should == 1
   end
 
+  it "returns nil when either argument is NaN" do
+    (@nan <=> 71.2).should be_nil
+    (1771.176 <=> @nan).should be_nil
+  end
+
   # TODO: Remove duplicate ruby_bug guards when ruby_bug is fixed.
   ruby_bug "[ruby-dev:38672] [Bug #1645]", "1.8.6.369" do
     # The 4 tests below are taken from matz's revision 23730 for Ruby trunk

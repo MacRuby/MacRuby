@@ -14,5 +14,13 @@ ruby_version_is "1.9" do
     it "returns 1" do
       @numbers.each {|number| number.denominator.should == 1}
     end  
+
+    it "works with Numeric subclasses" do
+      rational = mock_numeric('rational')
+      rational.should_receive(:denominator).and_return(:denominator)
+      numeric = mock_numeric('numeric')
+      numeric.should_receive(:to_r).and_return(rational)
+      numeric.denominator.should == :denominator
+    end
   end
 end

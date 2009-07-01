@@ -24,10 +24,8 @@ describe "ARGF.close" do
     end
   end
 
-  # This passes on 1.9, but fails on 1.8. matz claims to have fixed it in the
-  # attached ticket. The actual exception raised may differ; this will need
-  # checking.
-  ruby_bug "#1633", "1.8" do
+  # This passes on 1.9 and 1.8 HEAD, but fails on 1.8.7 and 1.8.6
+  ruby_bug "#1633", "1.8.7.174" do
     it "raises an IOError if called on a closed stream" do
       argv [@file1_name] do
         lambda { ARGF.close }.should_not raise_error
@@ -38,13 +36,11 @@ describe "ARGF.close" do
 
   # This passes on 1.8.6 and 1.8.7 but fails on 1.9. matz confirmed that it
   # should pass in the referenced bug report
-  ruby_bug "#1633", "1.9.2" do
-    it "can close STDIN" do
-      argv [] do
-        ARGV.size.should == 0
-        ARGF.close.should == ARGF
-        ARGF.closed?.should be_true
-      end
-    end   
-  end
+  it "can close STDIN" do
+    argv ['-'] do
+      ARGV.size.should == 1
+      ARGF.close.should == ARGF
+      ARGF.closed?.should be_true
+    end
+  end   
 end

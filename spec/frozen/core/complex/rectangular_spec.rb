@@ -1,5 +1,5 @@
 require File.dirname(__FILE__) + '/../../spec_helper'
-require File.dirname(__FILE__) + '/shared/rect'
+require File.dirname(__FILE__) + '/../../shared/complex/rect'
 
 ruby_version_is "1.9" do
   describe "Complex#rectangular" do

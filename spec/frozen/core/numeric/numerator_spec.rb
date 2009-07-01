@@ -23,5 +23,13 @@ ruby_version_is "1.9" do
         number.numerator.should == Rational(number).numerator
       end  
     end  
+
+    it "works with Numeric subclasses" do
+      rational = mock_numeric('rational')
+      rational.should_receive(:numerator).and_return(:numerator)
+      numeric = mock_numeric('numeric')
+      numeric.should_receive(:to_r).and_return(rational)
+      numeric.numerator.should == :numerator
+    end
   end
 end

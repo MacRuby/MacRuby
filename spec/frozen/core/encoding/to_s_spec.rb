@@ -1,5 +1,7 @@
-require File.dirname(__FILE__) + '/../../spec_helper'
+require File.dirname(__FILE__) + '/shared/name'
 
-describe "Encoding#to_s" do
-  it "needs to be reviewed for spec completeness"
+ruby_version_is "1.9" do
+  describe "Encoding#to_s" do
+    it_behaves_like(:encoding_name, :to_s)
+  end
 end

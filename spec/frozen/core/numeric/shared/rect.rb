@@ -26,7 +26,11 @@ describe :numeric_rect, :shared => true do
 
   it "returns self as the first element" do
    @numbers.each do |number| 
-     number.send(@method).first.should == number
+     if number.to_f.nan?
+       number.send(@method).first.nan?.should be_true
+     else
+       number.send(@method).first.should == number
+     end
    end
   end
 

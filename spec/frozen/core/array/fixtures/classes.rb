@@ -82,12 +82,12 @@ module ArraySpecs
     def initialize(*values, &block)
       @values = values;
     end
-    
+
     def to_a
       self.called = :to_a
       @values
     end
-    
+
     def to_ary
       self.called = :to_ary
       @values
@@ -127,7 +127,7 @@ module ArraySpecs
     protected
     attr_accessor :order
   end
-  
+
   class ComparableWithFixnum
     include Comparable
     def initialize(num)
@@ -136,6 +136,12 @@ module ArraySpecs
 
     def <=>(fixnum)
       @num <=> fixnum
+    end
+  end
+
+  class Uncomparable
+    def <=>(obj)
+      nil
     end
   end
 end

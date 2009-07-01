@@ -99,14 +99,14 @@ describe "Struct.new" do
   end
 
   ruby_version_is ""..."1.9" do
-    it "instance_eval's a passed block" do
+    it "processes passed block with instance_eval" do
       klass = Struct.new(:something) { @something_else = 'something else entirely!' }
       klass.instance_variables.should include('@something_else')
     end
   end
 
   ruby_version_is "1.9" do
-    it "instance_eval's a passed block" do
+    it "processes passed block with instance_eval" do
       klass = Struct.new(:something) { @something_else = 'something else entirely!' }
       klass.instance_variables.should include(:@something_else)
     end

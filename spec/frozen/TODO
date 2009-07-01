@@ -21,6 +21,8 @@
 * Ascertain backport policy for 1.9.2 -> 1.9.1 -> 1.8.7. Are bug fixes merged
   backwards by default, or is it all case by case? The answer will inform how
   we handle ruby_bug guards that pass on HEAD, but fail on earlier versions.
+* Replace Infinity/NaN hacks with the new helpers.
+* Think about how we can support exhaustive tests of certain features.
 
 # Windows
 ==========
@@ -47,3 +49,5 @@
 * Unify treatment of bugs after conversation with brixen. Bugs that occur only
   in 1.9 shouldn't be guarded; we just tag them with the bug number, e.g. " mspec
   tag --add 'fails(#555)' -e 'the failing stuff' path/to/spec".
+* Ask Ruby core about what Array#pack should do to encoding; citing failing
+  tests as example questions.

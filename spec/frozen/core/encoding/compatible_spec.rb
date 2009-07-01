@@ -1,31 +1,26 @@
-# encoding: utf-8
-
 require File.dirname(__FILE__) + '/../../spec_helper'
 
-describe "Encoding.compatible?" do
-  before :all do
-    @ascii1 = "ant"
-    @ascii2 = "bee"
-    @iso = "\xee"
-    @iso.force_encoding(Encoding::ISO_8859_1)
-    @utf = "δog"
-  end
+ruby_version_is "1.9" do
+  describe "Encoding.compatible?" do
+    it "returns an Encoding object if the given encodings are compatible" do
+      Encoding.compatible?('a','a').should be_an_instance_of(Encoding)
+    end
 
-  it "returns an Encoding instance which will be compatible with both given strings" do
-    encoding = Encoding.compatible?(@ascii1, @ascii2)
-    encoding.should be_kind_of(Encoding)
-    encoding.name.should == "UTF-8"
+    it "returns the encoding of the string that would result from concatenating the arguments" do
+      [["\u{9876}".force_encoding('UTF-8'), "\u{1254}".force_encoding('UTF-8')],
+      ["a".encode!('SJIS'), "b".encode!('ASCII')]].each do |pair|
+        Encoding.compatible?(pair.first, pair.last).
+          should == pair.first.concat(pair.last).encoding
+      end
+    end
 
-    encoding = Encoding.compatible?(@ascii1, @iso)
-    encoding.should be_kind_of(Encoding)
-    encoding.name.should == "ISO-8859-1"
+    it "returns nil if there is not a compatible encoding for the arguments" do
+       Encoding.compatible?("\xa1".force_encoding("iso-8859-1"),
+                            "\xa1\xa1".force_encoding("euc-jp")).should be_nil
+    end
 
-    encoding = Encoding.compatible?(@ascii1, @utf)
-    encoding.should be_kind_of(Encoding)
-    encoding.name.should == "UTF-8"
-  end
-
-  it "returns `nil' if no compatible Encoding for the two given strings exists" do
-    Encoding.compatible?(@iso, @utf).should be_nil
+    it "returns nil unless both arguments are Strings" do
+      Encoding.compatible?([], :foo).should be_nil
+    end
   end
 end

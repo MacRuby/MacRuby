@@ -28,6 +28,20 @@ describe "ARGF.rewind" do
     end
   end
 
+  # This fails on all versions as reported in bug #1693. If it's deemed not to
+  # be a bug, this guard can be removed
+  ruby_bug "#1693", "1.8.7.174" do
+    it "resets ARGF.lineno to 0" do
+      argv [@file2_name] do
+        ARGF.lineno = 0
+        ARGF.gets;
+        ARGF.lineno.should > 0
+        ARGF.rewind;
+        ARGF.lineno.should == 0
+      end
+    end
+  end
+
   it "raises an ArgumentError when end of stream reached" do
     argv [@file1_name, @file2_name] do
       ARGF.read

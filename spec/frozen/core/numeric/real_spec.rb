@@ -15,13 +15,17 @@ ruby_version_is "1.9" do
 
     it "returns self" do
       @numbers.each do |number| 
-        number.send(@method).should == number
+        if number.to_f.nan?
+          number.real.nan?.should be_true
+        else
+          number.real.should == number
+        end
       end
     end  
 
     it "raises an ArgumentError if given any arguments" do
      @numbers.each do |number| 
-       lambda { number.send(@method, number) }.should raise_error(ArgumentError)
+       lambda { number.real(number) }.should raise_error(ArgumentError)
      end
     end
   end

@@ -50,8 +50,16 @@ describe "Class.new" do
     klass_instance.is_a?(klass).should == true
   end
 
-  it "creates a class without a name" do
-    Class.new.name.should == ""
+  ruby_version_is ""..."1.9" do
+    it "creates a class without a name" do
+      Class.new.name.should == ""
+    end
+  end
+
+  ruby_version_is "1.9" do
+    it "creates a class without a name" do
+      Class.new.name.should be_nil
+    end
   end
 
   it "creates a class that can be given a name by assigning it to a constant" do

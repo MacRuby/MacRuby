@@ -105,7 +105,7 @@ describe "Array#sort" do
   it "returns the specified value when it would break in the given block" do
     [1, 2, 3].sort{ break :a }.should == :a
   end
-  
+
   it "compares values returned by block with 0" do
     a = [1, 2, 5, 10, 7, -4, 12]
     a.sort { |n, m| n - m }.should == [-4, 1, 2, 5, 7, 10, 12]
@@ -116,7 +116,11 @@ describe "Array#sort" do
       a.sort { |n, m| (n - m).to_s }
     }.should raise_error(ArgumentError)
   end
-  
+
+  it "raises an error if objects can't be compared" do
+    a=[ArraySpecs::Uncomparable.new, ArraySpecs::Uncomparable.new]
+    lambda {a.sort}.should raise_error(ArgumentError)
+  end
 end
 
 describe "Array#sort!" do

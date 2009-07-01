@@ -283,9 +283,11 @@ describe "String#gsub with pattern and block" do
     $~.should == nil
   end
 
-  it "raises a RuntimeError if the string is modified while substituting" do
-    str = "hello"
-    lambda { str.gsub(//) { str[0] = 'x' } }.should raise_error(RuntimeError)
+  ruby_version_is ""..."1.9" do
+    it "raises a RuntimeError if the string is modified while substituting" do
+      str = "hello"
+      lambda { str.gsub(//) { str[0] = 'x' } }.should raise_error(RuntimeError)
+    end
   end
   
   it "doesn't interpolate special sequences like \\1 for the block's return value" do

@@ -1,4 +1,4 @@
-require File.dirname(__FILE__) + '/../../../spec_helper'
+require File.dirname(__FILE__) + '/../../spec_helper'
 
 describe :complex_rect, :shared => true do
   before(:each) do

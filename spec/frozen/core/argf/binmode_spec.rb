@@ -45,4 +45,16 @@ describe "ARGF.binmode" do
       end
     end
   end
+
+  ruby_version_is "1.9" do
+    it "sets the file's encoding to ASCII-8BIT" do
+      argv [@bin_file, @file1] do
+        ARGF.binmode
+        ARGF.binmode?.should be_true
+        ARGF.gets.encoding.should == Encoding::ASCII_8BIT
+        ARGF.skip
+        ARGF.read.encoding.should == Encoding::ASCII_8BIT
+      end
+    end
+  end
 end

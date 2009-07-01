@@ -39,9 +39,17 @@ describe :rational_div_float, :shared => true do
     end
   end
 
-  it "raises a FloatDomainError when the argument is 0.0" do
-    lambda { Rational(3, 4).div(0.0) }.should raise_error(FloatDomainError)
-  end    
+  ruby_version_is ""..."1.9" do
+    it "raises a FloatDomainError when the argument is 0.0" do
+      lambda { Rational(3, 4).div(0.0) }.should raise_error(FloatDomainError)
+    end    
+  end
+
+  ruby_version_is "1.9" do
+    it "raises a ZeroDivisionError when the argument is 0.0" do
+      lambda { Rational(3, 4).div(0.0) }.should raise_error(ZeroDivisionError)
+    end    
+  end
 end  
 
 describe :rational_div_int, :shared => true do
