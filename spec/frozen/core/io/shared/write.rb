@@ -1,6 +1,6 @@
 require File.dirname(__FILE__) + '/../fixtures/classes'
 
-describe(:io_write, {:shared => true}) do
+describe :io_write, :shared => true do
   before :each do
     @filename = tmp("IO_syswrite_file") + $$.to_s
     File.open(@filename, "w") do |file|

@@ -1,4 +1,4 @@
-require 'rakelib/git'
+require File.expand_path('../git', __FILE__)
 
 class Rake::UpstreamGitRepoTasks
   attr_accessor :name, :local_dir, :upstream_dir, :anon_url, :commit_url, :upstream_options

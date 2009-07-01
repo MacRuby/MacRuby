@@ -1,7 +1,7 @@
 # encoding: utf-8
 require File.dirname(__FILE__) + '/../fixtures/classes'
 
-describe(:io_each, {:shared => true}) do
+describe :io_each, :shared => true do
   before(:each) do
     @io = File.open(IOSpecs.gets_fixtures)
   end

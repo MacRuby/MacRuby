@@ -1,4 +1,4 @@
-require 'rakelib/upstream_git_repo_tasks'
+require File.expand_path('../upstream_git_repo_tasks', __FILE__)
 
 root = File.expand_path("../../", __FILE__)
 

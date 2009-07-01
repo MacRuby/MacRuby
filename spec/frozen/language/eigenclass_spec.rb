@@ -165,7 +165,7 @@ describe "A constant on an eigenclass" do
   end
 
   it "appears in the eigenclass constant list" do
-    klass = (class << @object; self; end )
+    klass = class << @object; self; end
     klass.should have_constant(:CONST)
   end
 

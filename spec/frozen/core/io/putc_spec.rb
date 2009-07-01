@@ -5,7 +5,7 @@ require File.dirname(__FILE__) + '/fixtures/classes'
 describe "IO#putc" do
   before :each do
     @filename = tmp "IO_putc_file_#{$$}"
-    @io = File.open @filename, 'w+'
+    @io = File.open @filename, 'w'
     @io.sync = true
   end
 
@@ -20,8 +20,7 @@ describe "IO#putc" do
 
   it "writes the first byte of a String" do
     @io.putc "foo"
-    @io.rewind
-    @io.getc.should == 'f'
+    File.read(@filename).should == 'f'
   end
 
   it "writes the first byte of an object's string representation" do
