@@ -1,0 +1,1 @@
+critical:Exception#== returns true if the two exceptions inherit from Exception but have different classes

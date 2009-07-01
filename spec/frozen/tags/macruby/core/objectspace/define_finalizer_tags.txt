@@ -1,1 +1,2 @@
 critical:ObjectSpace.define_finalizer calls finalizer on process termination
+critical:ObjectSpace.define_finalizer doesn't call self-referencing finalizers
