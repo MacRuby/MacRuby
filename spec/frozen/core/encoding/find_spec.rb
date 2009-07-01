@@ -41,6 +41,18 @@ ruby_version_is "1.9" do
       end
     end
 
+    it "accepts any object as encoding name, if it responds to #to_str" do
+      obj = Class.new do
+        attr_writer :encoding_name
+        def to_str; @encoding_name; end
+      end.new
+
+      Encoding.list.each do |enc|
+        obj.encoding_name = enc.name
+        Encoding.find(obj).should == enc
+      end
+    end
+
     it "is case insensitive" do
       @encodings.each do |enc|
         Encoding.find(enc.upcase).should == Encoding.find(enc)

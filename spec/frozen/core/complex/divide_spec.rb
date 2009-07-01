@@ -1,6 +1,7 @@
-require File.dirname(__FILE__) + '/../../shared/complex/divide'
-
 ruby_version_is "1.9" do
+  
+  require File.dirname(__FILE__) + '/../../shared/complex/divide'
+  
   describe "Complex#/ with Complex" do
     it_behaves_like(:complex_divide_complex, :/)
   end

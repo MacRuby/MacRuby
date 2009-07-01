@@ -1,7 +1,8 @@
 require File.dirname(__FILE__) + '/../../../spec_helper'
-require 'fiber'
 
 ruby_version_is "1.9" do
+  require 'fiber'
+  
   describe :resume, :shared => :true do
 
     it "can be invoked from the root Fiber" do

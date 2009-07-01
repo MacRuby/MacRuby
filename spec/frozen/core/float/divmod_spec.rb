@@ -13,8 +13,17 @@ describe "Float#divmod" do
     values[1].should be_close(9223372036854775808.000, TOLERANCE)
   end
 
-  it "raises FloatDomainError if other is zero" do
-    lambda { 1.0.divmod(0)   }.should raise_error(FloatDomainError)
-    lambda { 1.0.divmod(0.0) }.should raise_error(FloatDomainError)
+  ruby_version_is ""..."1.9" do
+    it "raises FloatDomainError if other is zero" do
+      lambda { 1.0.divmod(0)   }.should raise_error(FloatDomainError)
+      lambda { 1.0.divmod(0.0) }.should raise_error(FloatDomainError)
+    end
+  end
+
+  ruby_version_is "1.9" do
+    it "raises a ZeroDivisionError if other is zero" do
+      lambda { 1.0.divmod(0)   }.should raise_error(ZeroDivisionError)
+      lambda { 1.0.divmod(0.0) }.should raise_error(ZeroDivisionError)
+    end
   end
 end

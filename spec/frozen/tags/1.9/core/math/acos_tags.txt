@@ -2,3 +2,8 @@ fails:Math.acos raises an ArgumentError if the argument cannot be coerced with F
 fails:Math.acos accepts any argument that can be coerced with Float()
 fails:Math.acos raises an ArgumentError if the string argument cannot be coerced with Float()
 fails:Math.acos coerces string argument with Float() without calling to_f
+fails:Math.acos raises an Errno::EDOM if the argument is greater than 1.0
+fails:Math.acos raises an Errno::EDOM if the argument is less than -1.0
+fails:Math.acos raises a TypeError if the string argument cannot be coerced with Float()
+fails:Math.acos raises an TypeError if the argument cannot be coerced with Float()
+fails:Math.acos raises a TypeError if the argument is nil

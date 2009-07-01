@@ -51,3 +51,4 @@
   tag --add 'fails(#555)' -e 'the failing stuff' path/to/spec".
 * Ask Ruby core about what Array#pack should do to encoding; citing failing
   tests as example questions.
+* Spec Ripper.
