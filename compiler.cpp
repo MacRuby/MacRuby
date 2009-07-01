@@ -551,6 +551,15 @@ RoxorCompiler::compile_prepare_method(Value *classVal, Value *sel,
 	    params.end(), "", bb);
 }
 
+inline Value *
+RoxorCompiler::compile_arity(rb_vm_arity_t &arity)
+{
+    uint64_t v;
+    assert(sizeof(uint64_t) == sizeof(rb_vm_arity_t));
+    memcpy(&v, &arity, sizeof(rb_vm_arity_t));
+    return ConstantInt::get(Type::Int64Ty, v);
+}
+
 void
 RoxorAOTCompiler::compile_prepare_method(Value *classVal, Value *sel,
 	Function *new_function, rb_vm_arity_t &arity, NODE *body)
@@ -575,11 +584,7 @@ RoxorAOTCompiler::compile_prepare_method(Value *classVal, Value *sel,
     GET_CORE()->compile(new_function);
     params.push_back(new BitCastInst(new_function, PtrTy, "", bb));
 
-    uint64_t v;
-    assert(sizeof(uint64_t) == sizeof(rb_vm_arity_t));
-    memcpy(&v, &arity, sizeof(rb_vm_arity_t));
-    params.push_back(ConstantInt::get(Type::Int64Ty, v));
-
+    params.push_back(compile_arity(arity));
     params.push_back(ConstantInt::get(Type::Int32Ty, rb_vm_node_flags(body)));
 
     CallInst::Create(prepareMethodFunc, params.begin(),
@@ -797,6 +802,21 @@ RoxorCompiler::compile_multiple_assignment(NODE *node, Value *val)
 }
 
 Value *
+RoxorCompiler::compile_prepare_block_args(Function *func, int *flags)
+{
+    return compile_const_pointer(func);    
+}
+
+Value *
+RoxorAOTCompiler::compile_prepare_block_args(Function *func, int *flags)
+{
+    *flags |= VM_BLOCK_AOT;
+    // Force compilation (no stub).
+    GET_CORE()->compile(func);
+    return new BitCastInst(func, PtrTy, "", bb);
+}
+
+Value *
 RoxorCompiler::compile_block_create(NODE *node)
 {
     if (node != NULL) {
@@ -815,14 +835,16 @@ RoxorCompiler::compile_block_create(NODE *node)
     assert(current_block_func != NULL && current_block_node != NULL);
 
     if (prepareBlockFunc == NULL) {
-	// void *rb_vm_prepare_block(Function *func, NODE *node, VALUE self,
-	//			     rb_vm_var_uses **parent_var_uses,
-	//			     rb_vm_block_t *parent_block,
-	//			     int dvars_size, ...);
+	// void *rb_vm_prepare_block(Function *func, int flags, VALUE self,
+	//	rb_vm_arity_t arity,
+	//	rb_vm_var_uses **parent_var_uses,
+	//	rb_vm_block_t *parent_block,
+	//	int dvars_size, ...);
 	std::vector<const Type *> types;
 	types.push_back(PtrTy);
-	types.push_back(PtrTy);
+	types.push_back(Type::Int32Ty);
 	types.push_back(RubyObjTy);
+	types.push_back(Type::Int64Ty);
 	types.push_back(PtrPtrTy);
 	types.push_back(PtrTy);
 	types.push_back(Type::Int32Ty);
@@ -832,22 +854,20 @@ RoxorCompiler::compile_block_create(NODE *node)
     }
 
     std::vector<Value *> params;
-    params.push_back(compile_const_pointer(current_block_func));
-    params.push_back(compile_const_pointer(current_block_node));
+    int flags = 0;
+    params.push_back(compile_prepare_block_args(current_block_func, &flags));
+    if (nd_type(current_block_node) == NODE_SCOPE
+	&& current_block_node->nd_body == NULL) {
+	flags |= VM_BLOCK_EMPTY;
+    }
+    params.push_back(ConstantInt::get(Type::Int32Ty, flags));
     params.push_back(current_self);
-    if (current_var_uses == NULL) {
-	// there is no local variables in this scope
-	params.push_back(compile_const_pointer_to_pointer(NULL));
-    }
-    else {
-	params.push_back(current_var_uses);
-    }
-    if (running_block == NULL) {
-	params.push_back(compile_const_pointer(NULL));
-    }
-    else {
-	params.push_back(running_block);
-    }
+    rb_vm_arity_t arity = rb_vm_node_arity(current_block_node);
+    params.push_back(compile_arity(arity));
+    params.push_back(current_var_uses == NULL
+	    ? compile_const_pointer_to_pointer(NULL) : current_var_uses);
+    params.push_back(running_block == NULL
+	    ? compile_const_pointer(NULL) : running_block);
 
     // Dvars.
     params.push_back(ConstantInt::get(Type::Int32Ty, (int)dvars.size()));
@@ -3385,7 +3405,8 @@ rescan_args:
 		}
 		else {
 		    blockVal = block_given
-			? compile_block_create() : compile_const_pointer(NULL);
+			? compile_block_create(NULL)
+			: compile_const_pointer(NULL);
 		}
 		params[3] = blockVal;
 
@@ -4172,7 +4193,7 @@ rescan_args:
 		    params.push_back(compile_mcache(selEach, false));
 		    params.push_back(compile_node(node->nd_iter));
 		    params.push_back(compile_sel(selEach));
-		    params.push_back(compile_block_create());
+		    params.push_back(compile_block_create(NULL));
 		    params.push_back(ConstantInt::get(Type::Int8Ty, 0));
 		    params.push_back(ConstantInt::get(Type::Int32Ty, 0));
 

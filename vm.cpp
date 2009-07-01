@@ -242,15 +242,13 @@ RoxorVM::RoxorVM(void)
     parse_in_eval = false;
 }
 
-static inline NODE *
-block_cache_key(NODE *node)
+static inline void *
+block_cache_key(const rb_vm_block_t *b)
 {
-    if (nd_type(node) == NODE_IFUNC) {
-	// In this case, node is dynamic but fortunately u1.node is always
-	// unique (it contains the IMP)
-	return node->u1.node;
+    if ((b->flags & VM_BLOCK_IFUNC) == VM_BLOCK_IFUNC) {
+	return (void *)b->imp;
     }
-    return node;
+    return (void *)b->userdata;
 }
 
 RoxorVM::RoxorVM(const RoxorVM &vm)
@@ -261,6 +259,7 @@ RoxorVM::RoxorVM(const RoxorVM &vm)
 
     std::vector<rb_vm_block_t *> &vm_blocks =
 	const_cast<RoxorVM &>(vm).current_blocks;
+
     for (std::vector<rb_vm_block_t *>::iterator i = vm_blocks.begin();
 	 (i + 1) != vm_blocks.end();
 	 ++i) {
@@ -280,13 +279,11 @@ RoxorVM::RoxorVM(const RoxorVM &vm)
 	    memcpy(b, orig, block_size);
 
 	    GC_WB(&b->self, orig->self);
-	    GC_WB(&b->node, orig->node);
 	    GC_WB(&b->locals, orig->locals);
 	    GC_WB(&b->parent_block, orig->parent_block);  // XXX not sure
 #endif
 	    rb_objc_retain(b);
-	    NODE *key = block_cache_key(orig->node);
-	    blocks[key] = b;
+	    blocks[block_cache_key(orig)] = b;
 	}
 	current_blocks.push_back(b);
     }
@@ -2913,9 +2910,9 @@ rb_vm_dup_active_block(rb_vm_block_t *src_b)
 }
 
 rb_vm_block_t *
-RoxorVM::uncache_or_create_block(NODE *key, bool *cached, int dvars_size)
+RoxorVM::uncache_or_create_block(void *key, bool *cached, int dvars_size)
 {
-    std::map<NODE *, rb_vm_block_t *>::iterator iter = blocks.find(key);
+    std::map<void *, rb_vm_block_t *>::iterator iter = blocks.find(key);
 
     rb_vm_block_t *b;
 
@@ -2925,9 +2922,11 @@ RoxorVM::uncache_or_create_block(NODE *key, bool *cached, int dvars_size)
 	if (iter != blocks.end()) {
 	    rb_objc_release(iter->second);
 	}
+
 	b = (rb_vm_block_t *)xmalloc(sizeof(rb_vm_block_t)
 		+ (sizeof(VALUE *) * dvars_size));
 	rb_objc_retain(b);
+
 	blocks[key] = b;
 	*cached = false;
     }
@@ -2941,40 +2940,44 @@ RoxorVM::uncache_or_create_block(NODE *key, bool *cached, int dvars_size)
 
 extern "C"
 rb_vm_block_t *
-rb_vm_prepare_block(void *llvm_function, NODE *node, VALUE self,
+rb_vm_prepare_block(void *function, int flags, VALUE self, rb_vm_arity_t arity,
 	rb_vm_var_uses **parent_var_uses, rb_vm_block_t *parent_block,
 	int dvars_size, ...)
 {
-    NODE *cache_key = block_cache_key(node);
+    assert(function != NULL);
 
     bool cached = false;
-    rb_vm_block_t *b = GET_VM()->uncache_or_create_block(cache_key, &cached,
+    rb_vm_block_t *b = GET_VM()->uncache_or_create_block(function, &cached,
 	dvars_size);
 
     if (!cached) {
-	if (nd_type(node) == NODE_IFUNC) {
-	    assert(llvm_function == NULL);
-	    b->imp = (IMP)node->u1.node;
-	    memset(&b->arity, 0, sizeof(rb_vm_arity_t)); // not used
+	if ((flags & VM_BLOCK_IFUNC) == VM_BLOCK_IFUNC) {
+	    b->imp = (IMP)function;
 	}
 	else {
-	    assert(llvm_function != NULL);
-	    GET_CORE()->lock();
-	    b->imp = GET_CORE()->compile((Function *)llvm_function);
-	    GET_CORE()->unlock();
-	    b->arity = rb_vm_node_arity(node);
+	    if ((flags & VM_BLOCK_AOT) == VM_BLOCK_AOT) {
+		flags ^= VM_BLOCK_AOT;
+		b->imp = (IMP)function;
+	    }
+	    else {
+		GET_CORE()->lock();
+		b->imp = GET_CORE()->compile((Function *)function);
+		GET_CORE()->unlock();
+	    }
+	    b->userdata = (VALUE)function;
 	}
-	b->flags = 0;
+	b->arity = arity;
+	b->flags = flags;
 	b->dvars_size = dvars_size;
 	b->parent_var_uses = NULL;
 	b->parent_block = NULL;
     }
     else {
 	assert(b->dvars_size == dvars_size);
+	assert((b->flags & flags) == flags);
     }
 
     b->self = self;
-    b->node = node;
     b->parent_var_uses = parent_var_uses;
     GC_WB(&b->parent_block, parent_block);
 
@@ -3002,6 +3005,17 @@ rb_vm_prepare_block(void *llvm_function, NODE *node, VALUE self,
     }
     va_end(ar);
 
+    return b;
+}
+
+extern "C"
+rb_vm_block_t *
+rb_vm_create_block(IMP imp, VALUE self, VALUE userdata)
+{
+    rb_vm_block_t *b = rb_vm_prepare_block((void *)imp, VM_BLOCK_IFUNC, self,
+	    rb_vm_arity(0), // not used
+	    NULL, NULL, 0, 0);
+    GC_WB(&b->userdata, userdata);
     return b;
 }
 
@@ -3383,7 +3397,6 @@ rb_vm_create_block_from_method(rb_vm_method_t *method)
     rb_vm_block_t *b = (rb_vm_block_t *)xmalloc(sizeof(rb_vm_block_t));
 
     GC_WB(&b->self, method->recv);
-    b->node = NULL;
     b->arity = method->node == NULL
 	? rb_vm_arity(method->arity) : method->node->arity;
     b->imp = (IMP)method;
@@ -3424,23 +3437,17 @@ rb_vm_create_block_calling_sel(SEL sel)
 static inline VALUE
 rb_vm_block_eval0(rb_vm_block_t *b, VALUE self, int argc, const VALUE *argv)
 {
-    if (b->node != NULL) {
-	if (nd_type(b->node) == NODE_IFUNC) {
-	    // Special case for blocks passed with rb_objc_block_call(), to
-	    // preserve API compatibility.
-	    VALUE data = (VALUE)b->node->u2.node;
+    if ((b->flags & VM_BLOCK_IFUNC) == VM_BLOCK_IFUNC) {
+	// Special case for blocks passed with rb_objc_block_call(), to
+	// preserve API compatibility.
+	VALUE (*pimp)(VALUE, VALUE, int, const VALUE *) =
+	    (VALUE (*)(VALUE, VALUE, int, const VALUE *))b->imp;
 
-	    VALUE (*pimp)(VALUE, VALUE, int, const VALUE *) =
-		(VALUE (*)(VALUE, VALUE, int, const VALUE *))b->imp;
-
-	    return (*pimp)(argc == 0 ? Qnil : argv[0], data, argc, argv);
-	}
-	else if (nd_type(b->node) == NODE_SCOPE) {
-	    if (b->node->nd_body == NULL) {
-		// Trying to call an empty block!
-		return Qnil;
-	    }
-	}
+	return (*pimp)(argc == 0 ? Qnil : argv[0], b->userdata, argc, argv);
+    }
+    else if ((b->flags & VM_BLOCK_EMPTY) == VM_BLOCK_EMPTY) {
+	// Trying to call an empty block!
+	return Qnil;
     }
 
     rb_vm_arity_t arity = b->arity;    

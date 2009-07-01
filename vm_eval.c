@@ -281,8 +281,7 @@ VALUE
 rb_objc_block_call(VALUE obj, SEL sel, void *cache, int argc, VALUE *argv, 
 		   VALUE (*bl_proc) (ANYARGS), VALUE data2)
 {
-    NODE *node = NEW_IFUNC(bl_proc, data2);
-    rb_vm_block_t *b = rb_vm_prepare_block(NULL, node, obj, NULL, NULL, 0, 0);
+    rb_vm_block_t *b = rb_vm_create_block((IMP)bl_proc, obj, data2);
     if (cache == NULL) {
 	cache = rb_vm_get_call_cache(sel);
     }

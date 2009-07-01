@@ -30,10 +30,15 @@ typedef struct rb_vm_local {
 #define VM_BLOCK_LAMBDA 0x0002	// block is a lambda
 #define VM_BLOCK_ACTIVE 0x0004	// block is active (being executed)
 #define VM_BLOCK_METHOD 0x0008	// block is created from Method
+#define VM_BLOCK_IFUNC  0x0010  // block is created from rb_vm_create_block()
+#define VM_BLOCK_EMPTY  0x0012	// block has an empty body
+
+#define VM_BLOCK_AOT	0x1000  // block is created by the AOT compiler (temporary)
 
 typedef struct rb_vm_block {
     VALUE self;
-    NODE *node;
+    VALUE userdata; // if VM_BLOCK_IFUNC, contains the user data, otherwise
+		    // contains the key used in the blocks cache.
     rb_vm_arity_t arity;
     IMP imp;
     int flags;
@@ -336,10 +341,7 @@ rb_proc_get_block(VALUE proc)
 }
 
 void rb_vm_add_block_lvar_use(rb_vm_block_t *block);
-rb_vm_block_t *rb_vm_prepare_block(void *llvm_function, NODE *node, VALUE self,
-       struct rb_vm_var_uses **parent_lvar_uses,
-       rb_vm_block_t *parent_block,
-       int dvars_size, ...);
+rb_vm_block_t *rb_vm_create_block(IMP imp, VALUE self, VALUE userdata);
 rb_vm_block_t *rb_vm_current_block(void);
 rb_vm_block_t *rb_vm_first_block(void);
 bool rb_vm_block_saved(void);
@@ -730,7 +732,7 @@ class RoxorVM {
 
     private:
 	// Cache to avoid allocating the same block twice.
-	std::map<NODE *, rb_vm_block_t *> blocks;
+	std::map<void *, rb_vm_block_t *> blocks;
 
 	// Keeps track of the current VM state (blocks, exceptions, bindings).
 	std::vector<rb_vm_block_t *> current_blocks;
@@ -804,7 +806,7 @@ class RoxorVM {
 	    return b;
 	}
 
-	rb_vm_block_t *uncache_or_create_block(NODE *key, bool *cached,
+	rb_vm_block_t *uncache_or_create_block(void *key, bool *cached,
 		int dvars_size);
 
 	rb_vm_binding_t *current_binding(void) {

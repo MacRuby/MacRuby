@@ -202,7 +202,8 @@ class RoxorCompiler {
 	Value *compile_when_splat(Value *comparedToVal, Value *splatVal);
 	Value *compile_fast_eqq_call(Value *selfVal, Value *comparedToVal);
 	Value *compile_attribute_assign(NODE *node, Value *extra_val);
-	Value *compile_block_create(NODE *node=NULL);
+	virtual Value *compile_prepare_block_args(Function *func, int *flags);
+	Value *compile_block_create(NODE *node);
 	Value *compile_binding(void);
 	Value *compile_optimized_dispatch_call(SEL sel, int argc,
 		std::vector<Value *> &params);
@@ -230,6 +231,7 @@ class RoxorCompiler {
 	}
 	virtual Value *compile_id(ID id);
 	GlobalVariable *compile_const_global_string(const char *str);
+	Value *compile_arity(rb_vm_arity_t &arity);
 
 	void compile_landing_pad_header(void);
 	void compile_landing_pad_footer(void);
@@ -301,6 +303,7 @@ class RoxorAOTCompiler : public RoxorCompiler {
 	Instruction *compile_sel(SEL sel, bool add_to_bb=true);
 	void compile_prepare_method(Value *classVal, Value *sel,
 		Function *new_function, rb_vm_arity_t &arity, NODE *body);
+	Value *compile_prepare_block_args(Function *func, int *flags);
 	Value *compile_nsobject(void);
 	Value *compile_id(ID id);
 
