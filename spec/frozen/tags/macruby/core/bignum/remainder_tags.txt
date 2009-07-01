@@ -1,1 +1,2 @@
 fails:Bignum#remainder returns the remainder of dividing self by other
+fails:Bignum#remainder does raises ZeroDivisionError if other is zero and a Float

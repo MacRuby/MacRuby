@@ -1,0 +1,2 @@
+fails:Numeric#fdiv coerces self with #to_f
+fails:Numeric#fdiv coerces other with #to_f

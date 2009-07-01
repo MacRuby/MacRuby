@@ -4,3 +4,4 @@ fails:IO.open cannot open an IO with incompatible flags
 fails:IO.open with a block invokes close on opened IO object when exiting the block
 fails:IO.open with a block propagates non-StandardErrors produced by close
 fails:IO.open takes an Integer or #to_int argument as the descriptor to open
+fails:IO.open does not close the stream automatically if given a block

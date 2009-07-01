@@ -5,3 +5,4 @@ fails:String#each_line yields subclass instances for subclasses
 fails:String#each_line not care if the string is modified while substituting
 fails:String#each_line returns an enumerator when no block given
 fails:String#each_line tries to convert the separator to a string using to_str
+fails:String#each_line does not care if the string is modified while substituting
