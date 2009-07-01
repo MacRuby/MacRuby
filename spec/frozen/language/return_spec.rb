@@ -22,7 +22,6 @@ describe "The return keyword" do
     r().should be_nil
   end
 
-
   describe "in a Thread" do
     ruby_version_is "" ... "1.9" do
       it "raises a ThreadError if used to exit a thread" do
@@ -88,41 +87,8 @@ describe "The return keyword" do
       end
     end
 
+
     it "calls 'to_a' on the splatted value first" do
-      def r
-        obj = Object.new
-        def obj.to_a
-          []
-        end
-
-        return *obj
-      end
-
-      ruby_version_is "" ... "1.9" do
-        r().should be_nil
-      end
-
-      ruby_version_is "1.9" do
-        r().should == []
-      end
-
-      def r
-        obj = Object.new
-        def obj.to_a
-          [1]
-        end
-
-        return *obj
-      end
-
-      ruby_version_is "" ... "1.9" do
-        r().should == 1
-      end
-
-      ruby_version_is "1.9" do
-        r().should == [1]
-      end
-
       def r
         obj = Object.new
         def obj.to_a
@@ -140,39 +106,16 @@ describe "The return keyword" do
         def r
           obj = Object.new
           def obj.to_ary
-            []
-          end
-  
-          return *obj
-        end
-  
-        r().should be_nil
-  
-        def r
-          obj = Object.new
-          def obj.to_ary
-            [1]
-          end
-  
-          return *obj
-        end
-  
-        r().should == 1
-  
-        def r
-          obj = Object.new
-          def obj.to_ary
             [1,2]
           end
-  
+
           return *obj
         end
-  
+
         r().should == [1,2]
       end
     end
   end
-
 
   describe "within a begin" do
     it "executes ensure before returning from function" do
@@ -233,7 +176,6 @@ describe "The return keyword" do
     end
   end
 
-
   describe "within a block" do
     before :each do
       ScratchPad.clear
@@ -282,5 +224,4 @@ describe "The return keyword" do
       f.should be_true
     end
   end
-
 end
