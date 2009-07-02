@@ -4065,14 +4065,18 @@ rb_vm_aot_compile(NODE *node)
 
     // Compile main function.
     std::string main_path(tmpdir);
-    main_path.append("main.c");
+    main_path.append("main.cpp");
     std::ofstream main_file(main_path.c_str());
     std::string main_content(
-"extern void ruby_sysinit(int *, char ***);\n"
-"extern void ruby_init(void);\n"
-"extern void ruby_set_argv(int, char **);\n"
-"extern void *rb_vm_top_self(void);\n"
-"extern void *rb_main(void *, void *);\n"
+"extern \"C\" {\n"
+"    void ruby_sysinit(int *, char ***);\n"
+"    void ruby_init(void);\n"
+"    void ruby_set_argv(int, char **);\n"
+"    void *rb_vm_top_self(void);\n"
+"    void rb_vm_print_current_exception(void);\n"
+"    void rb_exit(int);\n"
+"    void *rb_main(void *, void *);\n"
+"}\n"
 "\n"
 "int main(int argc, char **argv)\n"
 "{\n"
@@ -4082,14 +4086,20 @@ rb_vm_aot_compile(NODE *node)
 "    }\n"
 "    ruby_init();\n"
 "    ruby_set_argv(argc, argv);\n"
-"    rb_main(rb_vm_top_self(), 0);\n"
-"    return 1;\n"
+"    try {\n"
+"	rb_main(rb_vm_top_self(), 0);\n"
+"    }\n"
+"    catch (...) {\n"
+"	rb_vm_print_current_exception();\n"
+"	rb_exit(1);\n"
+"    }\n"
+"    rb_exit(0);\n"
 "}\n"
 );
     main_file.write(main_content.c_str(), main_content.size());
     main_file.close();
     gcc_line.clear();
-    gcc_line.append("gcc ");
+    gcc_line.append("g++ ");
     gcc_line.append(main_path);
     gcc_line.append(" -c -arch x86_64 -o ");
     std::string main_o_path(tmpdir);
