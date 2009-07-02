@@ -2950,13 +2950,18 @@ rb_vm_prepare_block(void *function, int flags, VALUE self, rb_vm_arity_t arity,
     rb_vm_block_t *b = GET_VM()->uncache_or_create_block(function, &cached,
 	dvars_size);
 
+    bool aot_block = false;
+    if ((flags & VM_BLOCK_AOT) == VM_BLOCK_AOT) {
+	flags ^= VM_BLOCK_AOT;
+	aot_block = true;
+    }
+
     if (!cached) {
 	if ((flags & VM_BLOCK_IFUNC) == VM_BLOCK_IFUNC) {
 	    b->imp = (IMP)function;
 	}
 	else {
-	    if ((flags & VM_BLOCK_AOT) == VM_BLOCK_AOT) {
-		flags ^= VM_BLOCK_AOT;
+	    if (aot_block) {
 		b->imp = (IMP)function;
 	    }
 	    else {

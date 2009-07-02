@@ -2585,21 +2585,6 @@ RoxorCompiler::compile_node(NODE *node)
 
 		    std::vector<Value *> params;
 
-		    params.push_back(NULL); // will be filled later
-		    params.push_back(NULL); // idem
-		    int vars_count = 0;
-		    for (std::map<ID, Value *>::iterator iter = lvars.begin();
-			 iter != lvars.end(); ++iter) {
-			ID name = iter->first;
-			Value *slot = iter->second;
-			if (std::find(dvars.begin(), dvars.end(), name) == dvars.end()) {
-			    params.push_back(compile_id(name));
-			    params.push_back(slot);
-			    vars_count++;
-			}
-		    }
-		    params[1] = ConstantInt::get(Type::Int32Ty, vars_count);
-
 		    // searches all ReturnInst in the function we just created and add before
 		    // a call to the function to save the local variables if necessary
 		    // (we can't do this before finishing compiling the whole function
@@ -2611,9 +2596,26 @@ RoxorCompiler::compile_node(NODE *node)
 			     inst_it != block_it->end();
 			     ++inst_it) {
 			    if (dyn_cast<ReturnInst>(inst_it)) {
-				// LoadInst needs to be inserted in a BasicBlock
-				// so we has to wait before putting it in params
-				params[0] = new LoadInst(current_var_uses, "", inst_it);
+				if (params.empty()) {
+				    params.push_back(new LoadInst(current_var_uses, "", inst_it));
+				    params.push_back(NULL); // filled right after.
+				    int vars_count = 0;
+				    for (std::map<ID, Value *>::iterator iter = lvars.begin();
+					    iter != lvars.end(); ++iter) {
+					ID name = iter->first;
+					Value *slot = iter->second;
+					if (std::find(dvars.begin(), dvars.end(), name) == dvars.end()) {
+					    Value *id_val = compile_id(name);
+					    if (Instruction::classof(id_val)) {
+						cast<Instruction>(id_val)->moveBefore(inst_it);
+					    }
+					    params.push_back(id_val);
+					    params.push_back(slot);
+					    vars_count++;
+					}
+				    }
+				    params[1] = ConstantInt::get(Type::Int32Ty, vars_count);
+				}
 
 				// TODO: only call the function if current_use is not NULL
 				CallInst::Create(keepVarsFunc, params.begin(), params.end(), "",
