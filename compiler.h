@@ -59,7 +59,7 @@ class RoxorCompiler {
 
 	std::map<ID, Value *> lvars;
 	std::vector<ID> dvars;
-	std::map<ID, int *> ivar_slots_cache;
+	std::map<ID, Instruction *> ivar_slots_cache;
 	std::map<std::string, GlobalVariable *> static_strings;
 
 #if ROXOR_COMPILER_DEBUG
@@ -165,23 +165,25 @@ class RoxorCompiler {
 	const Type *PtrTy;
 	const Type *PtrPtrTy;
 	const Type *IntTy;
+	const Type *Int32PtrTy;
 
 	void compile_node_error(const char *msg, NODE *node);
 
 	virtual Instruction *
-	compile_const_pointer(void *ptr, bool insert_to_bb=true) {
+	compile_const_pointer(void *ptr, const Type *type=NULL,
+		bool insert_to_bb=true) {
 	    Value *ptrint = ConstantInt::get(IntTy, (long)ptr);
+	    if (type == NULL) {
+		type = PtrTy;
+	    }
 	    return insert_to_bb
-		? new IntToPtrInst(ptrint, PtrTy, "", bb)
-		: new IntToPtrInst(ptrint, PtrTy, "");
+		? new IntToPtrInst(ptrint, type, "", bb)
+		: new IntToPtrInst(ptrint, type, "");
 	}
 
 	Instruction *
         compile_const_pointer_to_pointer(void *ptr, bool insert_to_bb=true) {
-	    Value *ptrint = ConstantInt::get(IntTy, (long)ptr);
-	    return insert_to_bb
-		? new IntToPtrInst(ptrint, PtrPtrTy, "", bb)
-		: new IntToPtrInst(ptrint, PtrPtrTy, "");
+	    return compile_const_pointer(ptr, PtrPtrTy, insert_to_bb);
 	}
 
 	Value *compile_protected_call(Function *func,
@@ -227,7 +229,7 @@ class RoxorCompiler {
 	virtual Value *compile_mcache(SEL sel, bool super);
 	virtual Value *compile_ccache(ID id);
 	virtual Instruction *compile_sel(SEL sel, bool add_to_bb=true) {
-	    return compile_const_pointer(sel, add_to_bb);
+	    return compile_const_pointer(sel, PtrTy, add_to_bb);
 	}
 	virtual Value *compile_id(ID id);
 	GlobalVariable *compile_const_global_string(const char *str);
@@ -255,24 +257,8 @@ class RoxorCompiler {
 	Value *compile_conversion_to_ruby(const char *type,
 					  const Type *llvm_type, Value *val);
 
-	int *get_slot_cache(ID id) {
-	    if (inside_eval || current_block || !current_instance_method
-		|| current_module) {
-		return NULL;
-	    }
-	    std::map<ID, int *>::iterator iter = ivar_slots_cache.find(id);
-	    if (iter == ivar_slots_cache.end()) {
-#if ROXOR_COMPILER_DEBUG
-		printf("allocating a new slot for ivar %s\n", rb_id2name(id));
-#endif
-		int *slot = (int *)malloc(sizeof(int));
-		*slot = -1;
-		ivar_slots_cache[id] = slot;
-		return slot;
-	    }
-	    return iter->second;
-	}
-
+	Instruction *compile_slot_cache(ID id);
+	virtual Instruction *gen_slot_cache(ID id);
 	ICmpInst *is_value_a_fixnum(Value *val);
 	void compile_ivar_slots(Value *klass, BasicBlock::InstListType &list, 
 				BasicBlock::InstListType::iterator iter);
@@ -296,6 +282,7 @@ class RoxorAOTCompiler : public RoxorCompiler {
 	std::map<ID, GlobalVariable *> ccaches;
 	std::map<SEL, GlobalVariable *> sels;
 	std::map<ID, GlobalVariable *> ids;
+	std::vector<GlobalVariable *> ivar_slots;
 	GlobalVariable *cObject_gvar;
 
 	Value *compile_mcache(SEL sel, bool super);
@@ -307,10 +294,14 @@ class RoxorAOTCompiler : public RoxorCompiler {
 	Value *compile_nsobject(void);
 	Value *compile_id(ID id);
 
+	Instruction *gen_slot_cache(ID id);
+
 	Instruction *
-        compile_const_pointer(void *ptr, bool insert_to_bb=true) {
+        compile_const_pointer(void *ptr, const Type *type=NULL,
+		bool insert_to_bb=true) {
 	    if (ptr == NULL) {
-		return RoxorCompiler::compile_const_pointer(ptr, insert_to_bb);
+		return RoxorCompiler::compile_const_pointer(ptr, type,
+			insert_to_bb);
 	    }
 	    printf("compile_const_pointer() called with a non-NULL pointer " \
 		   "on the AOT compiler - leaving the ship!\n");

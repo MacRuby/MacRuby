@@ -136,6 +136,7 @@ RoxorCompiler::RoxorCompiler(const char *_fname)
     cObject = ConstantInt::get(RubyObjTy, (long)rb_cObject);
     PtrTy = PointerType::getUnqual(Type::Int8Ty);
     PtrPtrTy = PointerType::getUnqual(PtrTy);
+    Int32PtrTy = PointerType::getUnqual(Type::Int32Ty);
 
 #if ROXOR_COMPILER_DEBUG
     level = 0;
@@ -933,22 +934,71 @@ RoxorCompiler::compile_binding(void)
 	    "", bb);
 }
 
+Instruction *
+RoxorCompiler::gen_slot_cache(ID id)
+{
+    int *slot = (int *)malloc(sizeof(int));
+    *slot = -1;
+    return compile_const_pointer(slot, Int32PtrTy, false);
+}
+
+Instruction *
+RoxorAOTCompiler::gen_slot_cache(ID id)
+{
+    GlobalVariable *gvar = new GlobalVariable(
+	    Int32PtrTy,
+	    false,
+	    GlobalValue::InternalLinkage,
+	    Constant::getNullValue(Int32PtrTy),
+	    rb_id2name(id),
+	    RoxorCompiler::module);
+
+    ivar_slots.push_back(gvar);
+
+    return new LoadInst(gvar, "");
+}
+
+Instruction *
+RoxorCompiler::compile_slot_cache(ID id)
+{
+    if (inside_eval || current_block || !current_instance_method
+	|| current_module) {
+	return compile_const_pointer(NULL, Int32PtrTy);
+    }
+
+    std::map<ID, Instruction *>::iterator iter = ivar_slots_cache.find(id);
+    Instruction *slot;
+    if (iter == ivar_slots_cache.end()) {
+#if ROXOR_COMPILER_DEBUG
+	printf("allocating a new slot for ivar %s\n", rb_id2name(id));
+#endif
+	slot = gen_slot_cache(id);
+	ivar_slots_cache[id] = slot;
+    }
+    else {
+	slot = iter->second;
+    }
+
+    Instruction *insn = slot->clone();
+    BasicBlock::InstListType &list = bb->getInstList();
+    list.insert(list.end(), insn);
+    return insn;
+}
+
 Value *
 RoxorCompiler::compile_ivar_read(ID vid)
 {
     if (getIvarFunc == NULL) {
-	// VALUE rb_vm_ivar_get(VALUE obj, ID name, void *slot_cache);
+	// VALUE rb_vm_ivar_get(VALUE obj, ID name, int *slot_cache);
 	getIvarFunc = cast<Function>(module->getOrInsertFunction("rb_vm_ivar_get",
-		    RubyObjTy, RubyObjTy, IntTy, PtrTy, NULL)); 
+		    RubyObjTy, RubyObjTy, IntTy, Int32PtrTy, NULL)); 
     }
 
     std::vector<Value *> params;
 
     params.push_back(current_self);
     params.push_back(compile_id(vid));
-
-    int *slot_cache = get_slot_cache(vid);
-    params.push_back(compile_const_pointer(slot_cache));
+    params.push_back(compile_slot_cache(vid));
 
     return CallInst::Create(getIvarFunc, params.begin(), params.end(), "", bb);
 }
@@ -960,7 +1010,7 @@ RoxorCompiler::compile_ivar_assignment(ID vid, Value *val)
 	// void rb_vm_ivar_set(VALUE obj, ID name, VALUE val, int *slot_cache);
 	setIvarFunc = 
 	    cast<Function>(module->getOrInsertFunction("rb_vm_ivar_set",
-			Type::VoidTy, RubyObjTy, IntTy, RubyObjTy, PtrTy,
+			Type::VoidTy, RubyObjTy, IntTy, RubyObjTy, Int32PtrTy,
 			NULL)); 
     }
 
@@ -969,9 +1019,7 @@ RoxorCompiler::compile_ivar_assignment(ID vid, Value *val)
     params.push_back(current_self);
     params.push_back(compile_id(vid));
     params.push_back(val);
-
-    int *slot_cache = get_slot_cache(vid);
-    params.push_back(compile_const_pointer(slot_cache));
+    params.push_back(compile_slot_cache(vid));
 
     CallInst::Create(setIvarFunc, params.begin(), params.end(), "", bb);
 
@@ -2347,26 +2395,40 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 
 void
 RoxorCompiler::compile_ivar_slots(Value *klass,
-				  BasicBlock::InstListType &list, 
-				  BasicBlock::InstListType::iterator list_iter)
+	BasicBlock::InstListType &list, 
+	BasicBlock::InstListType::iterator list_iter)
 {
     if (ivar_slots_cache.size() > 0) {
 	if (prepareIvarSlotFunc == NULL) {
-	    // void rb_vm_prepare_class_ivar_slot(VALUE klass, ID name, int *slot_cache);
+	    // void rb_vm_prepare_class_ivar_slot(VALUE klass, ID name,
+	    // 		int *slot_cache);
 	    prepareIvarSlotFunc = cast<Function>(
-		    module->getOrInsertFunction("rb_vm_prepare_class_ivar_slot", 
-			Type::VoidTy, RubyObjTy, IntTy, PtrTy, NULL));
+		    module->getOrInsertFunction(
+			"rb_vm_prepare_class_ivar_slot", 
+			Type::VoidTy, RubyObjTy, IntTy, Int32PtrTy, NULL));
 	}
-	for (std::map<ID, int *>::iterator iter = ivar_slots_cache.begin();
-		iter != ivar_slots_cache.end();
-		++iter) {
+	for (std::map<ID, Instruction *>::iterator iter
+		= ivar_slots_cache.begin();
+	     iter != ivar_slots_cache.end();
+	     ++iter) {
 
+	    ID ivar_name = iter->first;
+	    Instruction *ivar_slot = iter->second;
 	    std::vector<Value *> params;
+
 	    params.push_back(klass);
-	    params.push_back(compile_id(iter->first));
-	    Instruction *ptr = compile_const_pointer(iter->second, false);
-	    list.insert(list_iter, ptr);
-	    params.push_back(ptr);
+
+	    Value *id_val = compile_id(ivar_name);
+	    if (Instruction::classof(id_val)) {
+		Instruction *insn = cast<Instruction>(id_val);
+		insn->removeFromParent();
+		list.insert(list_iter, insn);
+	    }
+	    params.push_back(id_val);
+
+	    Instruction *insn = ivar_slot->clone();
+	    list.insert(list_iter, insn);
+	    params.push_back(insn);
 
 	    CallInst *call = CallInst::Create(prepareIvarSlotFunc, 
 		    params.begin(), params.end(), "");
@@ -2509,7 +2571,6 @@ RoxorCompiler::compile_node(NODE *node)
 
 		    if (has_vars_to_save) {
 			current_var_uses = new AllocaInst(PtrTy, "", bb);
-			//current_var_uses = new MallocInst(PtrTy, "", bb);
 			new StoreInst(compile_const_pointer(NULL), current_var_uses, bb);
 		    }
 
@@ -2597,8 +2658,8 @@ RoxorCompiler::compile_node(NODE *node)
 			     ++inst_it) {
 			    if (dyn_cast<ReturnInst>(inst_it)) {
 				if (params.empty()) {
-				    params.push_back(new LoadInst(current_var_uses, "", inst_it));
-				    params.push_back(NULL); // filled right after.
+				    params.push_back(NULL);
+				    params.push_back(NULL);
 				    int vars_count = 0;
 				    for (std::map<ID, Value *>::iterator iter = lvars.begin();
 					    iter != lvars.end(); ++iter) {
@@ -2616,6 +2677,8 @@ RoxorCompiler::compile_node(NODE *node)
 				    }
 				    params[1] = ConstantInt::get(Type::Int32Ty, vars_count);
 				}
+
+				params[0] = new LoadInst(current_var_uses, "", inst_it);
 
 				// TODO: only call the function if current_use is not NULL
 				CallInst::Create(keepVarsFunc, params.begin(), params.end(), "",
@@ -3206,7 +3269,8 @@ RoxorCompiler::compile_node(NODE *node)
 
 			bool old_current_module = current_module;
 
-			std::map<ID, int *> old_ivar_slots_cache = ivar_slots_cache;
+			std::map<ID, Instruction *> old_ivar_slots_cache
+			    = ivar_slots_cache;
 			ivar_slots_cache.clear();
 
 			new StoreInst(classVal, current_opened_class, bb);
@@ -4337,10 +4401,15 @@ RoxorCompiler::compile_main_function(NODE *node)
 Function *
 RoxorAOTCompiler::compile_main_function(NODE *node)
 {
-    Function *function = RoxorCompiler::compile_main_function(node);
+    current_instance_method = true;
+
+    Value *val = compile_node(node);
+    assert(Function::classof(val));
+    Function *function = cast<Function>(val);
 
     BasicBlock::InstListType &list = 
 	function->getEntryBlock().getInstList();
+    bb = &function->getEntryBlock();
 
     // Compile method caches.
 
@@ -4500,6 +4569,48 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 	list.insert(list.begin(), call);
 	list.insert(list.begin(), load);
     }
+
+    // Compile ivar slots.
+
+    if (!ivar_slots_cache.empty()) {
+	GlobalVariable *toplevel = compile_const_global_string("TopLevel");
+
+	std::vector<Value *> idxs;
+	idxs.push_back(ConstantInt::get(Type::Int32Ty, 0));
+	idxs.push_back(ConstantInt::get(Type::Int32Ty, 0));
+	Instruction *load = GetElementPtrInst::Create(toplevel,
+		idxs.begin(), idxs.end(), "");
+
+	std::vector<Value *> params;
+	params.push_back(load);
+
+	Instruction *call = CallInst::Create(objcGetClassFunc, params.begin(),
+		params.end(), "");
+
+	compile_ivar_slots(call, list, list.begin());
+	ivar_slots_cache.clear();
+
+	list.insert(list.begin(), call);
+	list.insert(list.begin(), load);
+    }
+
+    for (std::vector<GlobalVariable *>::iterator i = ivar_slots.begin();
+	 i != ivar_slots.end();
+	 ++i) {
+
+	GlobalVariable *gvar = *i;
+
+	Instruction *call = new MallocInst(Type::Int32Ty, "");
+	Instruction *assign1 =
+	    new StoreInst(ConstantInt::get(Type::Int32Ty, -1), call, "");
+	Instruction *assign2 = new StoreInst(call, gvar, "");
+
+	list.insert(list.begin(), assign2);
+	list.insert(list.begin(), assign1);
+	list.insert(list.begin(), call);
+    }
+
+    bb = NULL;
 
     return function;
 }
