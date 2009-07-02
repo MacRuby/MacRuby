@@ -36,6 +36,6 @@ main(int argc, char **argv, char **envp)
     }
     catch (...) {
 	rb_vm_print_current_exception();
-	exit(1);
+	rb_exit(1);
     }
 }
