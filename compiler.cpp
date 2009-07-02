@@ -4602,7 +4602,7 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 
 	Instruction *call = new MallocInst(Type::Int32Ty, "");
 	Instruction *assign1 =
-	    new StoreInst(ConstantInt::get(Type::Int32Ty, -1), call, "");
+	    new StoreInst(ConstantInt::getSigned(Type::Int32Ty, -1), call, "");
 	Instruction *assign2 = new StoreInst(call, gvar, "");
 
 	list.insert(list.begin(), assign2);
