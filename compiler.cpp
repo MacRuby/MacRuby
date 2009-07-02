@@ -101,6 +101,8 @@ RoxorCompiler::RoxorCompiler(const char *_fname)
     masgnGetElemAfterSplatFunc = NULL;
     masgnGetSplatFunc = NULL;
     newStringFunc = NULL;
+    newString2Func = NULL;
+    newString3Func = NULL;
     yieldFunc = NULL;
     blockEvalFunc = NULL;
     gvarSetFunc = NULL;
@@ -401,16 +403,16 @@ RoxorCompiler::compile_when_splat(Value *comparedToVal, Value *splatVal)
 }
 
 GlobalVariable *
-RoxorCompiler::compile_const_global_string(const char *str)
+RoxorCompiler::compile_const_global_string(const char *str, const size_t str_len)
 {
-    std::string s(str);
+    assert(str_len > 0);
+
+    std::string s(str, str_len);
     std::map<std::string, GlobalVariable *>::iterator iter =
 	static_strings.find(s);
+
     GlobalVariable *gvar;
     if (iter == static_strings.end()) {
-	const size_t str_len = strlen(str);
-	assert(str_len > 0);
-
 	const ArrayType *str_type = ArrayType::get(Type::Int8Ty, str_len + 1);
 
 	std::vector<Constant *> ary_elements;
@@ -2393,6 +2395,56 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
     return NULL;
 }
 
+Value *
+RoxorCompiler::compile_literal(VALUE val)
+{
+    if (TYPE(val) == T_STRING) {
+	// We must compile a new string creation because strings are
+	// mutable, we can't simply compile a reference to a master
+	// copy.
+	//
+	//	10.times { s = 'foo'; s << 'bar' }
+	//
+	const char *str = RSTRING_PTR(val);
+	const size_t str_len = RSTRING_LEN(val);
+	if (str_len == 0) {
+	    if (newString3Func == NULL) {	
+		newString3Func = cast<Function>(
+			module->getOrInsertFunction(
+			    "rb_str_new_empty", RubyObjTy, NULL));
+	    }
+	    return CallInst::Create(newString3Func, "", bb);
+	}
+	else {
+	    GlobalVariable *str_gvar = compile_const_global_string(str,
+		    str_len);
+
+	    std::vector<Value *> idxs;
+	    idxs.push_back(ConstantInt::get(Type::Int32Ty, 0));
+	    idxs.push_back(ConstantInt::get(Type::Int32Ty, 0));
+	    Instruction *load = GetElementPtrInst::Create(str_gvar,
+		    idxs.begin(), idxs.end(), "", bb);
+
+	    if (newString2Func == NULL) {	
+		newString2Func = cast<Function>(
+			module->getOrInsertFunction(
+			    "rb_str_new", RubyObjTy, PtrTy, Type::Int32Ty,
+			    NULL));
+	    }
+
+	    std::vector<Value *> params;
+	    params.push_back(load);
+	    params.push_back(ConstantInt::get(Type::Int32Ty, str_len));
+
+	    return compile_protected_call(newString2Func, params);
+	}
+    }
+
+    // The other types are supposedly immutables.
+    // TODO AOT compile!
+    return ConstantInt::get(RubyObjTy, (long)val); 
+}
+
 void
 RoxorCompiler::compile_ivar_slots(Value *klass,
 	BasicBlock::InstListType &list, 
@@ -3545,7 +3597,7 @@ rescan_args:
 	case NODE_STR:
 	    {
 		assert(node->nd_lit != 0);
-		return ConstantInt::get(RubyObjTy, (long)node->nd_lit);
+		return compile_literal(node->nd_lit);
 	    }
 	    break;
 

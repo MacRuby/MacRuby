@@ -82,6 +82,12 @@ str_alloc(VALUE klass)
 }
 
 VALUE
+rb_str_new_empty(void)
+{
+    return str_alloc(0);
+}
+
+VALUE
 rb_str_new_fast(int argc, ...)
 {
     VALUE str;

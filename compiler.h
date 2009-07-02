@@ -135,6 +135,8 @@ class RoxorCompiler {
 	Function *masgnGetElemAfterSplatFunc;
 	Function *masgnGetSplatFunc;
 	Function *newStringFunc;
+	Function *newString2Func;
+	Function *newString3Func;
 	Function *yieldFunc;
 	Function *blockEvalFunc;
 	Function *gvarSetFunc;
@@ -232,8 +234,13 @@ class RoxorCompiler {
 	    return compile_const_pointer(sel, PtrTy, add_to_bb);
 	}
 	virtual Value *compile_id(ID id);
-	GlobalVariable *compile_const_global_string(const char *str);
+	GlobalVariable *compile_const_global_string(const char *str,
+		const size_t str_len);
+	GlobalVariable *compile_const_global_string(const char *str) {
+	    return compile_const_global_string(str, strlen(str));
+	}
 	Value *compile_arity(rb_vm_arity_t &arity);
+	Value *compile_literal(VALUE val);
 
 	void compile_landing_pad_header(void);
 	void compile_landing_pad_footer(void);
