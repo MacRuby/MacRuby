@@ -12,8 +12,11 @@
 #include <locale.h>
 #endif
 
-extern "C" void rb_vm_print_current_exception(void);
-extern "C" void rb_vm_aot_compile(NODE *);
+extern "C" {
+    void rb_vm_print_current_exception(void);
+    void rb_vm_aot_compile(NODE *);
+    void rb_vm_init_compiler(void);
+}
 
 int
 main(int argc, char **argv, char **envp)
@@ -26,6 +29,7 @@ main(int argc, char **argv, char **envp)
 	ruby_sysinit(&argc, &argv);
 	ruby_init();
 	void *node = ruby_options(argc, argv);
+	rb_vm_init_compiler();
 	if (ruby_aot_compile) {
 	    rb_vm_aot_compile((NODE *)node);
 	    rb_exit(0);

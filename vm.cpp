@@ -3944,14 +3944,13 @@ rb_dvar_defined(ID id)
     return 0;
 }
 
-static inline void
-__init_shared_compiler(void)
+extern "C"
+void
+rb_vm_init_compiler(void)
 {
-    if (RoxorCompiler::shared == NULL) {
-	RoxorCompiler::shared = ruby_aot_compile
-	    ? new RoxorAOTCompiler("")
-	    : new RoxorCompiler("");
-    }
+    RoxorCompiler::shared = ruby_aot_compile
+	? new RoxorAOTCompiler("")
+	: new RoxorCompiler("");
 }
 
 extern "C"
@@ -3965,7 +3964,6 @@ rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding,
 	vm->push_current_binding(binding, false);
     }
 
-    __init_shared_compiler();
     RoxorCompiler *compiler = RoxorCompiler::shared;
 
     bool old_inside_eval = compiler->is_inside_eval();
@@ -4023,7 +4021,6 @@ rb_vm_aot_compile(NODE *node)
     assert(ruby_aot_compile);
 
     // Compile the program as IR.
-    __init_shared_compiler();
     Function *f = RoxorCompiler::shared->compile_main_function(node);
     f->setName("rb_main");
     GET_CORE()->optimize(f);
@@ -4072,6 +4069,7 @@ rb_vm_aot_compile(NODE *node)
 "    void ruby_sysinit(int *, char ***);\n"
 "    void ruby_init(void);\n"
 "    void ruby_set_argv(int, char **);\n"
+"    void rb_vm_init_compiler(void);\n"
 "    void *rb_vm_top_self(void);\n"
 "    void rb_vm_print_current_exception(void);\n"
 "    void rb_exit(int);\n"
@@ -4086,6 +4084,7 @@ rb_vm_aot_compile(NODE *node)
 "    }\n"
 "    ruby_init();\n"
 "    ruby_set_argv(argc, argv);\n"
+"    rb_vm_init_compiler();\n"
 "    try {\n"
 "	rb_main(rb_vm_top_self(), 0);\n"
 "    }\n"
