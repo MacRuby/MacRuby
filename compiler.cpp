@@ -681,7 +681,7 @@ RoxorCompiler::compile_multiple_assignment_element(NODE *node, Value *val)
 	    break;
 
 	case NODE_GASGN:
-	    compile_gvar_assignment(node->nd_entry, val);
+	    compile_gvar_assignment(node, val);
 	    break;
 
 	case NODE_ATTRASGN:
@@ -1049,7 +1049,7 @@ RoxorCompiler::compile_cvar_assignment(ID name, Value *val)
 }
 
 Value *
-RoxorCompiler::compile_gvar_assignment(struct global_entry *entry, Value *val)
+RoxorCompiler::compile_gvar_assignment(NODE *node, Value *val)
 {
     if (gvarSetFunc == NULL) {
 	// VALUE rb_gvar_set(struct global_entry *entry, VALUE val);
@@ -1060,7 +1060,7 @@ RoxorCompiler::compile_gvar_assignment(struct global_entry *entry, Value *val)
 
     std::vector<Value *> params;
 
-    params.push_back(compile_const_pointer(entry));
+    params.push_back(compile_global_entry(node));
     params.push_back(val);
 
     return CallInst::Create(gvarSetFunc, params.begin(),
@@ -2445,6 +2445,37 @@ RoxorCompiler::compile_literal(VALUE val)
     return ConstantInt::get(RubyObjTy, (long)val); 
 }
 
+Value *
+RoxorCompiler::compile_global_entry(NODE *node)
+{
+    return compile_const_pointer(node->nd_entry);
+}
+
+Value *
+RoxorAOTCompiler::compile_global_entry(NODE *node)
+{
+    const ID name = node->nd_vid;
+    assert(name > 0);
+    
+    std::map<ID, GlobalVariable *>::iterator iter = global_entries.find(name);
+    GlobalVariable *gvar = NULL;
+    if (iter == global_entries.end()) {
+	gvar = new GlobalVariable(
+		PtrTy,
+		false,
+		GlobalValue::InternalLinkage,
+		Constant::getNullValue(PtrTy),
+		rb_id2name(name),
+		RoxorCompiler::module);
+	global_entries[name] = gvar;
+    }
+    else {
+	gvar = iter->second;
+    }
+
+    return new LoadInst(gvar, "", bb);
+}
+
 void
 RoxorCompiler::compile_ivar_slots(Value *klass,
 	BasicBlock::InstListType &list, 
@@ -2773,7 +2804,7 @@ RoxorCompiler::compile_node(NODE *node)
 
 		std::vector<Value *> params;
 
-		params.push_back(compile_const_pointer(node->nd_entry));
+		params.push_back(compile_global_entry(node));
 
 		return CallInst::Create(gvarGetFunc, params.begin(), params.end(), "", bb);
 	    }
@@ -2785,8 +2816,7 @@ RoxorCompiler::compile_node(NODE *node)
 		assert(node->nd_value != NULL);
 		assert(node->nd_entry != NULL);
 
-		return compile_gvar_assignment(
-			node->nd_entry,
+		return compile_gvar_assignment(node,
 			compile_node(node->nd_value));
 	    }
 	    break;
@@ -4558,6 +4588,37 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 	list.insert(list.begin(), assign);
 	list.insert(list.begin(), call);
 	list.insert(list.begin(), load);
+    }
+
+    // Compile global entries.
+
+    Function *globalEntryFunc = cast<Function>(module->getOrInsertFunction(
+		"rb_global_entry",
+		PtrTy, IntTy, NULL));
+
+    for (std::map<ID, GlobalVariable *>::iterator i = global_entries.begin();
+	 i != global_entries.end();
+	 ++i) {
+
+	ID name_id = i->first;
+	GlobalVariable *gvar = i->second;
+
+	Value *name_val = compile_id(name_id);
+	assert(Instruction::classof(name_val));
+	Instruction *name = cast<Instruction>(name_val);
+	name->removeFromParent();	
+
+	std::vector<Value *> params;
+	params.push_back(name);	
+
+	Instruction *call = CallInst::Create(globalEntryFunc, params.begin(),
+		params.end(), "");
+
+	Instruction *assign = new StoreInst(call, gvar, "");
+	
+	list.insert(list.begin(), assign);
+	list.insert(list.begin(), call);
+	list.insert(list.begin(), name);
     }
 
     // Compile IDs.

@@ -214,7 +214,7 @@ class RoxorCompiler {
 	Value *compile_ivar_read(ID vid);
 	Value *compile_ivar_assignment(ID vid, Value *val);
 	Value *compile_cvar_assignment(ID vid, Value *val);
-	Value *compile_gvar_assignment(struct global_entry *entry, Value *val);
+	Value *compile_gvar_assignment(NODE *node, Value *val);
 	Value *compile_constant_declaration(NODE *node, Value *val);
 	Value *compile_multiple_assignment(NODE *node, Value *val);
 	void compile_multiple_assignment_element(NODE *node, Value *val);
@@ -241,6 +241,7 @@ class RoxorCompiler {
 	}
 	Value *compile_arity(rb_vm_arity_t &arity);
 	Value *compile_literal(VALUE val);
+	virtual Value *compile_global_entry(NODE *node);
 
 	void compile_landing_pad_header(void);
 	void compile_landing_pad_footer(void);
@@ -289,6 +290,7 @@ class RoxorAOTCompiler : public RoxorCompiler {
 	std::map<ID, GlobalVariable *> ccaches;
 	std::map<SEL, GlobalVariable *> sels;
 	std::map<ID, GlobalVariable *> ids;
+	std::map<ID, GlobalVariable *> global_entries;
 	std::vector<GlobalVariable *> ivar_slots;
 	GlobalVariable *cObject_gvar;
 
@@ -300,6 +302,7 @@ class RoxorAOTCompiler : public RoxorCompiler {
 	Value *compile_prepare_block_args(Function *func, int *flags);
 	Value *compile_nsobject(void);
 	Value *compile_id(ID id);
+	Value *compile_global_entry(NODE *node);
 
 	Instruction *gen_slot_cache(ID id);
 
