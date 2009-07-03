@@ -430,6 +430,8 @@ resources_path(char *path, size_t len)
     return path;
 }
 
+void rb_vm_init_compiler(void);
+
 int
 macruby_main(const char *path, int argc, char **argv)
 {
@@ -459,6 +461,7 @@ macruby_main(const char *path, int argc, char **argv)
 	void *tree;
 	ruby_init();
 	tree = ruby_options(argc, argv);
+	rb_vm_init_compiler();
 	free(newargv);
 	free(p1);
 	free(p2);
