@@ -2454,19 +2454,18 @@ rb_io_print(VALUE io, SEL sel, int argc, VALUE *argv)
     rb_io_assert_writable(ExtractIOStruct(io));
     VALUE line;
     if (argc == 0) {
-        // No arguments? Bloody Perlisms...
         argc = 1;
         line = rb_lastline_get();
         argv = &line;
     }
-    while(argc--) {
-        rb_io_write(rb_stdout, 0, *argv++);
+    while (argc--) {
+        rb_io_write(io, 0, *argv++);
         if (!NIL_P(rb_output_fs)) {
-            rb_io_write(rb_stdout, 0, rb_output_fs);
+            rb_io_write(io, 0, rb_output_fs);
         }
     }
     if (!NIL_P(rb_output_rs)) {
-        rb_io_write(rb_stdout, 0, rb_output_rs);
+        rb_io_write(io, 0, rb_output_rs);
     }
     return Qnil;
 }
