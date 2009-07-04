@@ -567,3 +567,13 @@ assert "42\n42", %{
   b.call
   a.call
 }
+
+assert '42', %{
+  END { p 42 }
+}
+
+assert '42', %{
+  $x = 42
+  END { $x += 1 }
+  END { p $x }
+}

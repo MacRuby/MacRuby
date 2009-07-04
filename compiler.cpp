@@ -4486,6 +4486,34 @@ rescan_args:
 	    }
 	    break;
 
+	case NODE_POSTEXE:
+	    {
+		assert(node->nd_body != NULL);
+
+		Value *body = compile_node(node->nd_body);
+		assert(Function::classof(body));
+
+		Function *old_current_block_func = current_block_func;
+		NODE *old_current_block_node = current_block_node;
+		current_block_func = cast<Function>(body);
+		current_block_node = node->nd_body;
+
+		std::vector<Value *> params;
+		SEL sel = sel_registerName("at_exit");
+		params.push_back(compile_mcache(sel, false));
+		params.push_back(compile_nsobject());
+		params.push_back(compile_sel(sel));
+		params.push_back(compile_block_create(NULL));
+		params.push_back(ConstantInt::get(Type::Int8Ty, 0));
+		params.push_back(ConstantInt::get(Type::Int32Ty, 0));
+
+		current_block_func = old_current_block_func;
+		current_block_node = old_current_block_node;
+
+		return compile_dispatch_call(params);
+	    }
+	    break;
+
 	default:
 	    compile_node_error("not implemented", node);
     }
