@@ -1798,7 +1798,7 @@ static VALUE
 rb_io_set_close_on_exec(VALUE io, SEL sel, VALUE arg)
 {
     rb_io_t *io_s = ExtractIOStruct(io);
-    const int flags = fcntl(io_s->fd, F_GETFD, 0);
+    int flags = fcntl(io_s->fd, F_GETFD, 0);
     if (arg == Qtrue) {		
 	flags |= FD_CLOEXEC;
     }
