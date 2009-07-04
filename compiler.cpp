@@ -149,6 +149,7 @@ RoxorAOTCompiler::RoxorAOTCompiler(const char *_fname)
     : RoxorCompiler(_fname)
 {
     cObject_gvar = NULL;
+    name2symFunc = NULL;
 }
 
 inline SEL
@@ -403,7 +404,8 @@ RoxorCompiler::compile_when_splat(Value *comparedToVal, Value *splatVal)
 }
 
 GlobalVariable *
-RoxorCompiler::compile_const_global_string(const char *str, const size_t str_len)
+RoxorCompiler::compile_const_global_string(const char *str,
+	const size_t str_len)
 {
     assert(str_len > 0);
 
@@ -426,7 +428,7 @@ RoxorCompiler::compile_const_global_string(const char *str, const size_t str_len
 		true,
 		GlobalValue::InternalLinkage,
 		ConstantArray::get(str_type, ary_elements),
-		std::string("global_string.") + str,
+		"",
 		RoxorCompiler::module);
 
 	static_strings[s] = gvar;
@@ -461,7 +463,7 @@ RoxorAOTCompiler::compile_mcache(SEL sel, bool super)
 		    false,
 		    GlobalValue::InternalLinkage,
 		    Constant::getNullValue(PtrTy),
-		    std::string("mcache_") + sel_getName(sel),
+		    "",
 		    RoxorCompiler::module);
 	    assert(gvar != NULL);
 	    mcaches[sel] = gvar;
@@ -492,7 +494,7 @@ RoxorAOTCompiler::compile_ccache(ID name)
 		false,
 		GlobalValue::InternalLinkage,
 		Constant::getNullValue(PtrTy),
-		std::string("ccache_") + rb_id2name(name),
+		"",
 		RoxorCompiler::module);
 	assert(gvar != NULL);
 	ccaches[name] = gvar;
@@ -514,7 +516,7 @@ RoxorAOTCompiler::compile_sel(SEL sel, bool add_to_bb)
 		false,
 		GlobalValue::InternalLinkage,
 		Constant::getNullValue(PtrTy),
-		std::string("sel_") + sel_getName(sel),
+		"",
 		RoxorCompiler::module);
 	assert(gvar != NULL);
 	sels[sel] = gvar;
@@ -952,7 +954,7 @@ RoxorAOTCompiler::gen_slot_cache(ID id)
 	    false,
 	    GlobalValue::InternalLinkage,
 	    Constant::getNullValue(Int32PtrTy),
-	    rb_id2name(id),
+	    "",
 	    RoxorCompiler::module);
 
     ivar_slots.push_back(gvar);
@@ -1145,7 +1147,7 @@ RoxorAOTCompiler::compile_id(ID id)
 		false,
 		GlobalValue::InternalLinkage,
 		ConstantInt::get(IntTy, 0),
-		rb_id2name(id),
+		"",
 		RoxorCompiler::module);
 	ids[id] = gvar;
     }
@@ -1372,7 +1374,7 @@ RoxorCompiler::compile_dstr(NODE *node)
     std::vector<Value *> params;
 
     if (node->nd_lit != 0) {
-	params.push_back(ConstantInt::get(RubyObjTy, node->nd_lit));
+	params.push_back(compile_literal(node->nd_lit));
     }
 
     NODE *n = node->nd_next;
@@ -2440,9 +2442,40 @@ RoxorCompiler::compile_literal(VALUE val)
 	}
     }
 
-    // The other types are supposedly immutables.
-    // TODO AOT compile!
+    return compile_immutable_literal(val);
+}
+
+Value *
+RoxorCompiler::compile_immutable_literal(VALUE val)
+{
     return ConstantInt::get(RubyObjTy, (long)val); 
+}
+
+Value *
+RoxorAOTCompiler::compile_immutable_literal(VALUE val)
+{
+    if (SPECIAL_CONST_P(val)) {
+	return RoxorCompiler::compile_immutable_literal(val);
+    }
+
+    std::map<VALUE, GlobalVariable *>::iterator iter = literals.find(val);
+    GlobalVariable *gvar = NULL;
+
+    if (iter == literals.end()) {
+	gvar = new GlobalVariable(
+		RubyObjTy,
+		false,
+		GlobalValue::InternalLinkage,
+		nilVal,
+		"",
+		RoxorCompiler::module);
+	literals[val] = gvar;
+    }
+    else {
+	gvar = iter->second;
+    }
+
+    return new LoadInst(gvar, "", bb);
 }
 
 Value *
@@ -2465,7 +2498,7 @@ RoxorAOTCompiler::compile_global_entry(NODE *node)
 		false,
 		GlobalValue::InternalLinkage,
 		Constant::getNullValue(PtrTy),
-		rb_id2name(name),
+		"",
 		RoxorCompiler::module);
 	global_entries[name] = gvar;
     }
@@ -4590,6 +4623,59 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 	list.insert(list.begin(), load);
     }
 
+    // Compile literals.
+
+    for (std::map<VALUE, GlobalVariable *>::iterator i = literals.begin();
+	 i != literals.end();
+	 ++i) {
+
+	VALUE val = i->first;
+	GlobalVariable *gvar = i->second;
+
+	switch (TYPE(val)) {
+	    case T_SYMBOL:
+		{
+		    if (name2symFunc == NULL) {
+			name2symFunc =
+			    cast<Function>(module->getOrInsertFunction(
+					"rb_name2sym",
+					RubyObjTy, PtrTy, NULL));
+		    }
+
+		    const char *symname = rb_id2name(SYM2ID(val));
+		    			 
+		    GlobalVariable *symname_gvar =
+			compile_const_global_string(symname);
+
+		    std::vector<Value *> idxs;
+		    idxs.push_back(ConstantInt::get(Type::Int32Ty, 0));
+		    idxs.push_back(ConstantInt::get(Type::Int32Ty, 0));
+		    Instruction *load = GetElementPtrInst::Create(symname_gvar,
+			    idxs.begin(), idxs.end(), "");
+
+		    std::vector<Value *> params;
+		    params.push_back(load);
+
+		    Instruction *call = CallInst::Create(name2symFunc,
+			    params.begin(), params.end(), "");
+
+		    Instruction *assign = new StoreInst(call, gvar, "");
+
+		    list.insert(list.begin(), assign);
+		    list.insert(list.begin(), call);
+		    list.insert(list.begin(), load);
+		}
+		break;
+
+	    default:
+		printf("unrecognized literal `%s' (class `%s' type %d)\n",
+			RSTRING_PTR(rb_inspect(val)),
+			rb_obj_classname(val),
+			TYPE(val));
+		abort();
+	}
+    }
+
     // Compile global entries.
 
     Function *globalEntryFunc = cast<Function>(module->getOrInsertFunction(
@@ -4634,7 +4720,8 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 	ID name = i->first;
 	GlobalVariable *gvar = i->second;
 	
-	GlobalVariable *name_gvar = compile_const_global_string(rb_id2name(name));
+	GlobalVariable *name_gvar =
+	    compile_const_global_string(rb_id2name(name));
 
 	std::vector<Value *> idxs;
 	idxs.push_back(ConstantInt::get(Type::Int32Ty, 0));

@@ -241,6 +241,7 @@ class RoxorCompiler {
 	}
 	Value *compile_arity(rb_vm_arity_t &arity);
 	Value *compile_literal(VALUE val);
+	virtual Value *compile_immutable_literal(VALUE val);
 	virtual Value *compile_global_entry(NODE *node);
 
 	void compile_landing_pad_header(void);
@@ -292,7 +293,11 @@ class RoxorAOTCompiler : public RoxorCompiler {
 	std::map<ID, GlobalVariable *> ids;
 	std::map<ID, GlobalVariable *> global_entries;
 	std::vector<GlobalVariable *> ivar_slots;
+	std::map<VALUE, GlobalVariable *> literals;
+
 	GlobalVariable *cObject_gvar;
+
+	Function *name2symFunc;
 
 	Value *compile_mcache(SEL sel, bool super);
 	Value *compile_ccache(ID id);
@@ -302,6 +307,7 @@ class RoxorAOTCompiler : public RoxorCompiler {
 	Value *compile_prepare_block_args(Function *func, int *flags);
 	Value *compile_nsobject(void);
 	Value *compile_id(ID id);
+	Value *compile_immutable_literal(VALUE val);
 	Value *compile_global_entry(NODE *node);
 
 	Instruction *gen_slot_cache(ID id);

@@ -9797,6 +9797,12 @@ rb_id2str(ID id)
     return 0;
 }
 
+VALUE
+rb_name2sym(const char *name)
+{
+    return rb_id2str(rb_intern(name));
+}
+
 const char *
 ruby_node_name(int node)
 {
