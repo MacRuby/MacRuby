@@ -246,16 +246,17 @@ static bool
 rb_io_is_open(rb_io_t *io_struct) 
 {
     // Either the readStream or the writeStream must be not null and open.
-    return ((io_struct->readStream == NULL) ?
-	    (io_struct->writeStream != NULL && CFWriteStreamGetStatus(io_struct->writeStream) == kCFStreamStatusOpen) :
-	    (CFReadStreamGetStatus(io_struct->readStream) == kCFStreamStatusOpen));
+    return io_struct->readStream == NULL
+	? io_struct->writeStream != NULL && CFWriteStreamGetStatus(io_struct->writeStream) == kCFStreamStatusOpen
+	: CFReadStreamGetStatus(io_struct->readStream) == kCFStreamStatusOpen;
 }
 
 static void
 rb_io_assert_open(rb_io_t *io_struct)
 {
     if (!rb_io_is_open(io_struct)) {
-	rb_raise(rb_eIOError, "cannot perform that operation on a closed stream");
+	rb_raise(rb_eIOError,
+		"cannot perform that operation on a closed stream");
     }
 }
 
@@ -276,7 +277,7 @@ rb_io_is_closed_for_writing(rb_io_t *io_struct)
 	return true;
     }
     CFStreamStatus s = CFWriteStreamGetStatus(io_struct->writeStream);
-    return ((s == kCFStreamStatusNotOpen) || (s == kCFStreamStatusClosed));
+    return s == kCFStreamStatusNotOpen || s == kCFStreamStatusClosed;
 }
 
 static VALUE
@@ -287,7 +288,6 @@ io_alloc(VALUE klass, SEL sel)
     GC_WB(&io->fptr, ALLOC(rb_io_t));
     return (VALUE)io;
 }
-
 
 CFReadStreamRef _CFReadStreamCreateFromFileDescriptor(CFAllocatorRef alloc, int fd);
 CFWriteStreamRef _CFWriteStreamCreateFromFileDescriptor(CFAllocatorRef alloc, int fd);
@@ -450,7 +450,7 @@ io_write(VALUE io, SEL sel, VALUE to_write)
     rb_secure(4);
     
     io_struct = ExtractIOStruct(io);
-	rb_io_assert_writable(io_struct);
+    rb_io_assert_writable(io_struct);
     to_write = rb_obj_as_string(to_write);
 
     if (CLASS_OF(to_write) == rb_cByteString) {
@@ -600,15 +600,16 @@ rb_io_seek(VALUE io, VALUE offset, int whence)
 	offset += rb_io_read_stream_get_offset(io_struct->readStream);
     }
     // TODO: make this work with IO::SEEK_CUR, SEEK_END, etc.
-	if (CFReadStreamGetStatus(io_struct->readStream) == kCFStreamStatusAtEnd) {
-		// Terrible hack to work around the fact that CFReadStreams, once they
-		// reach EOF, are permanently exhausted even if we set the offset.
-		GC_WB(&io_struct->readStream, _CFReadStreamCreateFromFileDescriptor(NULL, io_struct->fd));
-		CFReadStreamOpen(io_struct->readStream);
-		CFMakeCollectable(io_struct->readStream);
-	}
+    if (CFReadStreamGetStatus(io_struct->readStream) == kCFStreamStatusAtEnd) {
+	// Terrible hack to work around the fact that CFReadStreams, once they
+	// reach EOF, are permanently exhausted even if we set the offset.
+	GC_WB(&io_struct->readStream,
+		_CFReadStreamCreateFromFileDescriptor(NULL, io_struct->fd));
+	CFReadStreamOpen(io_struct->readStream);
+	CFMakeCollectable(io_struct->readStream);
+    }
     rb_io_read_stream_set_offset(io_struct->readStream, NUM2OFFT(offset));
-    return INT2FIX(0); // is this right?
+    return INT2FIX(0);
 }
 
 /*
@@ -693,10 +694,9 @@ rb_io_set_pos(VALUE io, SEL sel, VALUE offset)
 static VALUE
 rb_io_rewind(VALUE io, SEL sel)
 {
-	ExtractIOStruct(io)->lineno = 0;
+    ExtractIOStruct(io)->lineno = 0;
     return rb_io_seek(io, INT2FIX(0), SEEK_SET);
 }
-
 
 /*
  *  call-seq:
@@ -735,8 +735,8 @@ rb_io_eof(VALUE io, SEL sel)
 {
     rb_io_t *io_struct = ExtractIOStruct(io);
     rb_io_assert_readable(io_struct);
-    return CONDITION_TO_BOOLEAN(
-	    CFReadStreamGetStatus(io_struct->readStream) == kCFStreamStatusAtEnd);
+    return CFReadStreamGetStatus(io_struct->readStream)
+	== kCFStreamStatusAtEnd ? Qtrue : Qfalse;
 }
 
 /*
@@ -1502,8 +1502,6 @@ rb_io_each_char(VALUE io, SEL sel)
     return io;
 }
 
-
-
 /*
  *  call-seq:
  *     ios.lines(sep=$/)     => anEnumerator
@@ -1758,8 +1756,8 @@ static VALUE
 rb_io_isatty(VALUE io, SEL sel)
 {
     rb_io_t *io_s = ExtractIOStruct(io);
-	rb_io_assert_open(io_s);
-    return CONDITION_TO_BOOLEAN(isatty(io_s->fd));
+    rb_io_assert_open(io_s);
+    return isatty(io_s->fd) ? Qtrue : Qfalse;
 }
 
 /*
@@ -1780,8 +1778,8 @@ static VALUE
 rb_io_close_on_exec_p(VALUE io, SEL sel)
 {
     rb_io_t *io_s = ExtractIOStruct(io);
-	int flags = fcntl(io_s->fd, F_GETFD, 0);
-	return ((flags & FD_CLOEXEC) ? Qtrue : Qfalse);
+    const int flags = fcntl(io_s->fd, F_GETFD, 0);
+    return ((flags & FD_CLOEXEC) ? Qtrue : Qfalse);
 }
 
 /*
@@ -1799,16 +1797,16 @@ rb_io_close_on_exec_p(VALUE io, SEL sel)
 static VALUE
 rb_io_set_close_on_exec(VALUE io, SEL sel, VALUE arg)
 {
-	rb_io_t *io_s = ExtractIOStruct(io);
-	int flags = fcntl(io_s->fd, F_GETFD, 0);
-	if (arg == Qtrue) {		
-		flags |= FD_CLOEXEC;
-	}
-	else {
-		flags &= ~FD_CLOEXEC;
-	}
-	fcntl(io_s->fd, F_SETFD, flags);
-	return arg;
+    rb_io_t *io_s = ExtractIOStruct(io);
+    const int flags = fcntl(io_s->fd, F_GETFD, 0);
+    if (arg == Qtrue) {		
+	flags |= FD_CLOEXEC;
+    }
+    else {
+	flags &= ~FD_CLOEXEC;
+    }
+    fcntl(io_s->fd, F_SETFD, flags);
+    return arg;
 }
 
 static inline void
@@ -1848,8 +1846,8 @@ static VALUE
 rb_io_closed(VALUE io, SEL sel)
 {
     rb_io_t *ios = ExtractIOStruct(io);
-    return CONDITION_TO_BOOLEAN(rb_io_is_closed_for_writing(ios)
-	    && rb_io_is_closed_for_reading(ios));
+    return rb_io_is_closed_for_writing(ios) && rb_io_is_closed_for_reading(ios)
+	? Qtrue : Qfalse;
 }
 
 /*
@@ -2324,37 +2322,64 @@ rb_io_s_sysopen(VALUE klass, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_io_reopen(VALUE io, SEL sel, int argc, VALUE *argv)
 {
-	VALUE path_or_io, mode_string;
-	rb_scan_args(argc, argv, "11", &path_or_io, &mode_string);
-	rb_io_t *io_s = ExtractIOStruct(io);
-	rb_io_assert_open(io_s);
-	
-	if (TYPE(path_or_io) == T_STRING) {
-		// Reassociate it with the stream opened on the given path
-		if (NIL_P(mode_string)) {
-			mode_string = (VALUE)CFSTR("r");
-		}
-		FilePathValue(path_or_io); // Sanitize the name
-		const char *filepath = RSTRING_PTR(path_or_io);
-		int fd = open(filepath, convert_mode_string_to_oflags(mode_string), 0644);
-		prepare_io_from_fd(io_s, fd, convert_mode_string_to_fmode(mode_string), true);
-		GC_WB(&io_s->path, path_or_io);
-		return io;
-	} else {
-		// reassociate it with the stream given in the other io
-		// This is too simplistic.
-		rb_io_t *other = ExtractIOStruct(path_or_io);
-		rb_io_assert_open(other);
-		GC_WB(&RFILE(io)->fptr, other);
-		return io;
+    VALUE path_or_io, mode_string;
+    rb_scan_args(argc, argv, "11", &path_or_io, &mode_string);
+    rb_io_t *io_s = ExtractIOStruct(io);
+    rb_io_assert_open(io_s);
+
+    if (TYPE(path_or_io) == T_STRING) {
+	// Reassociate it with the stream opened on the given path
+	if (NIL_P(mode_string)) {
+	    mode_string = (VALUE)CFSTR("r");
 	}
+	FilePathValue(path_or_io); // Sanitize the name
+	const char *filepath = RSTRING_PTR(path_or_io);
+	const int fd =
+	    open(filepath, convert_mode_string_to_oflags(mode_string), 0644);
+	prepare_io_from_fd(io_s, fd,
+		convert_mode_string_to_fmode(mode_string), true);
+	GC_WB(&io_s->path, path_or_io);
+    } 
+    else {
+	// reassociate it with the stream given in the other io
+	// This is too simplistic.
+	rb_io_t *other = ExtractIOStruct(path_or_io);
+	rb_io_assert_open(other);
+	GC_WB(&RFILE(io)->fptr, other);
+    }
+    return io;
 }
 
 /* :nodoc: */
 static VALUE
-rb_io_init_copy(VALUE dest, VALUE io)
+rb_io_init_copy(VALUE dest, SEL sel, VALUE origin)
 {
-    rb_notimplement();
+    rb_io_t *dest_io = ExtractIOStruct(dest);
+    rb_io_t *origin_io = ExtractIOStruct(origin);
+
+    GC_WB(&dest_io->readStream, origin_io->readStream);
+    GC_WB(&dest_io->writeStream, origin_io->writeStream);
+
+    dest_io->fd = origin_io->fd;
+    dest_io->pipe = origin_io->pipe;
+    GC_WB(&dest_io->path, origin_io->path);
+    dest_io->pid = origin_io->pid;
+    dest_io->lineno = origin_io->lineno;
+    dest_io->sync = origin_io->sync;
+    dest_io->should_close_streams = origin_io->should_close_streams;
+    
+    if (origin_io->ungetc_buf_len > 0) {
+	GC_WB(&dest_io->ungetc_buf, xmalloc(origin_io->ungetc_buf_len));
+	memcpy(dest_io->ungetc_buf, origin_io->ungetc_buf,
+		origin_io->ungetc_buf_len);
+    }
+    else {
+	dest_io->ungetc_buf = NULL;
+    }
+    dest_io->ungetc_buf_len = origin_io->ungetc_buf_len;
+    dest_io->ungetc_buf_pos = origin_io->ungetc_buf_pos;
+
+    return dest;
 }
 
 /*
@@ -2426,7 +2451,7 @@ rb_f_printf(VALUE klass, SEL sel, int argc, VALUE *argv)
 VALUE
 rb_io_print(VALUE io, SEL sel, int argc, VALUE *argv)
 {
-	rb_io_assert_writable(ExtractIOStruct(io));
+    rb_io_assert_writable(ExtractIOStruct(io));
     VALUE line;
     if (argc == 0) {
         // No arguments? Bloody Perlisms...
@@ -2445,8 +2470,6 @@ rb_io_print(VALUE io, SEL sel, int argc, VALUE *argv)
     }
     return Qnil;
 }
-
-
 
 /*
  *  call-seq:
@@ -2773,7 +2796,6 @@ rb_objc_io_finalize(void *rcv, SEL sel)
  *     File.new(filename, mode="r")            => file
  *     File.new(filename [, mode [, perm]])    => file
  *
-
  *  Opens the file named by _filename_ according to
  *  _mode_ (default is ``r'') and returns a new
  *  <code>File</code> object. See the description of class +IO+ for
@@ -3226,7 +3248,6 @@ rb_f_select(VALUE recv, SEL sel, int argc, VALUE *argv)
     rb_notimplement();
 }
 
-
 // Here be dragons.
 static VALUE
 rb_io_ctl(VALUE io, VALUE req, VALUE arg, int is_io)
@@ -3332,7 +3353,6 @@ rb_f_syscall(VALUE recv, SEL sel, int argc, VALUE *argv)
 	argv++;
 	ii++;
     }
-
 
     switch (argc) {
 	case 1:
@@ -3686,7 +3706,7 @@ rb_io_s_copy_stream(VALUE rcv, SEL sel, int argc, VALUE *argv)
     VALUE copied = io_write(dst, 0, data_read);
 
     if (!NIL_P(old_src_offset)) {
-	rb_io_seek(src, 0, old_src_offset); // restore the old offset
+	rb_io_seek(src, old_src_offset, SEEK_SET); // restore the old offset
     }
     return copied;
 }
@@ -3747,7 +3767,7 @@ argf_external_encoding(VALUE argf, SEL sel)
 {
     next_argv();
     ARGF_FORWARD(0, 0);
-	return rb_io_external_encoding(ARGF.current_file, sel);
+    return rb_io_external_encoding(ARGF.current_file, sel);
 }
 
 static VALUE
@@ -3755,7 +3775,7 @@ argf_internal_encoding(VALUE argf, SEL sel)
 {
     next_argv();
     ARGF_FORWARD(0, 0);
-	return rb_io_internal_encoding(ARGF.current_file, sel);
+    return rb_io_internal_encoding(ARGF.current_file, sel);
 }
 
 static VALUE
@@ -3763,7 +3783,7 @@ argf_set_encoding(VALUE id, SEL sel, int argc, VALUE *argv)
 {
     next_argv();
     ARGF_FORWARD(0, 0);
-	return rb_io_set_encoding(ARGF.current_file, sel, argc, argv);
+    return rb_io_set_encoding(ARGF.current_file, sel, argc, argv);
 }
 
 static VALUE
@@ -4038,7 +4058,7 @@ opt_i_set(VALUE val, ID id, VALUE *var)
 const char *
 ruby_get_inplace_mode(void)
 {
-	return ARGF.inplace;
+    return ARGF.inplace;
 }
 
 void
