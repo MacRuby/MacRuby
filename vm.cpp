@@ -4758,6 +4758,6 @@ rb_vm_finalize(void)
     }
 #if ROXOR_VM_DEBUG
     printf("functions all=%ld compiled=%ld\n", RoxorCompiler::module->size(),
-	    GET_VM()->functions_compiled);
+	    GET_CORE()->get_functions_compiled());
 #endif
 }

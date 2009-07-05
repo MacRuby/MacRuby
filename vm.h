@@ -569,6 +569,10 @@ class RoxorCore {
 	READER(load_path, VALUE);
 	READER(threads, VALUE);
 
+#if ROXOR_VM_DEBUG
+	READER(functions_compiled, long);
+#endif
+
 	void lock(void) { 
 	    if (multithreaded) {
 		assert(pthread_mutex_lock(&gl) == 0);
