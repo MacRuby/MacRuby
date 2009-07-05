@@ -364,6 +364,9 @@ EOS
 
   desc "Install the framework"
   task :install => :info_plist do
+    Dir.chdir('ext/ripper') do
+      sh "/usr/bin/make top_srcdir=../.. ruby=../../miniruby install"
+    end
     sh "./miniruby instruby.rb #{INSTRUBY_ARGS}"
   end
 end
