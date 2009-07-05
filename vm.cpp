@@ -838,6 +838,7 @@ rb_vm_get_const(VALUE outer, unsigned char lexical_lookup,
 {
     Class k = GET_VM()->get_current_class();
     if (lexical_lookup && k != NULL) {
+	outer = (VALUE)k;
     }
 
     assert(cache != NULL);
