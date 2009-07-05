@@ -1018,23 +1018,22 @@ ivar_get(VALUE obj, ID id, int warn)
 {
     VALUE val;
 
+    const int slot = rb_vm_find_class_ivar_slot(CLASS_OF(obj), id);
+    if (slot != -1) {
+	return rb_vm_get_ivar_from_slot(obj, slot);
+    }
+
     switch (TYPE(obj)) {
 	case T_OBJECT:
 	    {
 		val = Qundef;
 
-		int slot = rb_vm_find_class_ivar_slot(CLASS_OF(obj), id);
-		if (slot != -1) {
-		    val = rb_vm_get_ivar_from_slot(obj, slot);
-		}
-		else {
-		    if (ROBJECT(obj)->tbl != NULL) {
-			if (!CFDictionaryGetValueIfPresent(
-				    (CFDictionaryRef)ROBJECT(obj)->tbl,
-				    (const void *)id,
-				    (const void **)&val)) {
-			    val = Qundef;
-			}
+		if (ROBJECT(obj)->tbl != NULL) {
+		    if (!CFDictionaryGetValueIfPresent(
+				(CFDictionaryRef)ROBJECT(obj)->tbl,
+				(const void *)id,
+				(const void **)&val)) {
+			val = Qundef;
 		    }
 		}
 
@@ -1092,27 +1091,28 @@ rb_ivar_set(VALUE obj, ID id, VALUE val)
     if (OBJ_FROZEN(obj)) {
 	rb_error_frozen("object");
     }
+
+    const int slot = rb_vm_find_class_ivar_slot(CLASS_OF(obj), id);
+    if (slot != -1) {
+	rb_vm_set_ivar_from_slot(obj, val, slot);
+	return val;
+    }
+
     switch (TYPE(obj)) {
 	case T_OBJECT:
 	    {
-		int slot = rb_vm_find_class_ivar_slot(CLASS_OF(obj), id);
-		if (slot != -1) {
-		    rb_vm_set_ivar_from_slot(obj, val, slot);
+		if (ROBJECT(obj)->tbl == NULL) {
+		    CFMutableDictionaryRef tbl;
+
+		    tbl = CFDictionaryCreateMutable(NULL, 0, NULL, 
+			    &rb_cfdictionary_value_cb);
+
+		    GC_WB(&ROBJECT(obj)->tbl, tbl);
+		    CFMakeCollectable(tbl);
 		}
-		else {
-		    if (ROBJECT(obj)->tbl == NULL) {
-			CFMutableDictionaryRef tbl;
 
-			tbl = CFDictionaryCreateMutable(NULL, 0, NULL, 
-				&rb_cfdictionary_value_cb);
-
-			GC_WB(&ROBJECT(obj)->tbl, tbl);
-			CFMakeCollectable(tbl);
-		    }
-
-		    CFDictionarySetValue(ROBJECT(obj)->tbl, 
-			    (const void *)id, (const void *)val);
-		}
+		CFDictionarySetValue(ROBJECT(obj)->tbl, 
+			(const void *)id, (const void *)val);
 	    }
 	    break;
 
@@ -1142,22 +1142,23 @@ rb_ivar_defined(VALUE obj, ID id)
 {
     VALUE val;
 
+    const int slot = rb_vm_find_class_ivar_slot(CLASS_OF(obj), id);
+    if (slot != -1) {
+	if (rb_vm_get_ivar_from_slot(obj, slot) != Qundef) {
+	    return Qtrue;
+	}
+    }
+
     switch (TYPE(obj)) {
 	case T_OBJECT:
 	    {
 		val = Qundef;
 
-		int slot = rb_vm_find_class_ivar_slot(CLASS_OF(obj), id);
-		if (slot != -1) {
-		    val = rb_vm_get_ivar_from_slot(obj, slot);
-		}
-		else {
-		    if (ROBJECT(obj)->tbl != NULL) {
-			if (CFDictionaryGetValueIfPresent(
-				    (CFDictionaryRef)ROBJECT(obj)->tbl,
-				    (const void *)id, NULL)) {
-			    val = Qtrue;
-			}
+		if (ROBJECT(obj)->tbl != NULL) {
+		    if (CFDictionaryGetValueIfPresent(
+				(CFDictionaryRef)ROBJECT(obj)->tbl,
+				(const void *)id, NULL)) {
+			val = Qtrue;
 		    }
 		}
 
