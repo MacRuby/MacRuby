@@ -602,7 +602,7 @@ static VALUE ripper_id2sym(ID);
 # define rb_warningS(fmt,a) ripper_warningS(parser, fmt, a)
 static void ripper_warn0(struct parser_params*, const char*);
 static void ripper_warnI(struct parser_params*, const char*, int);
-static void ripper_warnS(struct parser_params*, const char*, const char*);
+//static void ripper_warnS(struct parser_params*, const char*, const char*);
 static void ripper_warning0(struct parser_params*, const char*);
 static void ripper_warningS(struct parser_params*, const char*, const char*);
 #endif
@@ -9993,7 +9993,70 @@ parser_free(void *ptr)
 VALUE rb_parser_get_yydebug(VALUE);
 VALUE rb_parser_set_yydebug(VALUE, VALUE);
 
+/*
+ *  call-seq:
+ *    ripper#end_seen?   -> Boolean
+ *
+ *  Return if parsed source ended by +\_\_END\_\_+.
+ *  This number starts from 1.
+ */
+static VALUE
+rb_parser_end_seen_p_imp(VALUE vparser, SEL sel)
+{
+    struct parser_params *parser;
+
+    Data_Get_Struct(vparser, struct parser_params, parser);
+    return ruby__end__seen ? Qtrue : Qfalse;
+}
+
+/*
+ *  call-seq:
+ *    ripper#encoding   -> encoding
+ *
+ *  Return encoding of the source.
+ */
+static VALUE
+rb_parser_encoding_imp(VALUE vparser, SEL sel)
+{
+    struct parser_params *parser;
+
+    Data_Get_Struct(vparser, struct parser_params, parser);
+    return rb_enc_from_encoding(parser->enc);
+}
+
+/*
+ *  call-seq:
+ *    ripper.yydebug   -> true or false
+ *
+ *  Get yydebug.
+ */
+static VALUE
+rb_parser_get_yydebug_imp(VALUE self, SEL sel)
+{
+    struct parser_params *parser;
+
+    Data_Get_Struct(self, struct parser_params, parser);
+    return yydebug ? Qtrue : Qfalse;
+}
+
+/*
+ *  call-seq:
+ *    ripper.yydebug = flag
+ *
+ *  Set yydebug.
+ */
+static VALUE
+rb_parser_set_yydebug_imp(VALUE self, SEL sel, VALUE flag)
+{
+    struct parser_params *parser;
+
+    Data_Get_Struct(self, struct parser_params, parser);
+    yydebug = RTEST(flag);
+    return flag;
+}
+
 #ifndef RIPPER
+
 static struct parser_params *
 parser_new(void)
 {
@@ -10013,66 +10076,28 @@ rb_parser_new(void)
     return Data_Wrap_Struct(rb_cData, parser_mark, parser_free, p);
 }
 
-/*
- *  call-seq:
- *    ripper#end_seen?   -> Boolean
- *
- *  Return if parsed source ended by +\_\_END\_\_+.
- *  This number starts from 1.
- */
 VALUE
 rb_parser_end_seen_p(VALUE vparser)
 {
-    struct parser_params *parser;
-
-    Data_Get_Struct(vparser, struct parser_params, parser);
-    return ruby__end__seen ? Qtrue : Qfalse;
+    return rb_parser_end_seen_p_imp(vparser, 0);
 }
 
-/*
- *  call-seq:
- *    ripper#encoding   -> encoding
- *
- *  Return encoding of the source.
- */
 VALUE
 rb_parser_encoding(VALUE vparser)
 {
-    struct parser_params *parser;
-
-    Data_Get_Struct(vparser, struct parser_params, parser);
-    return rb_enc_from_encoding(parser->enc);
+    return rb_parser_encoding_imp(vparser, 0);
 }
 
-/*
- *  call-seq:
- *    ripper.yydebug   -> true or false
- *
- *  Get yydebug.
- */
 VALUE
-rb_parser_get_yydebug(VALUE self)
+rb_parse_get_yydebug(VALUE self)
 {
-    struct parser_params *parser;
-
-    Data_Get_Struct(self, struct parser_params, parser);
-    return yydebug ? Qtrue : Qfalse;
+    return rb_parser_get_yydebug_imp(self, 0);
 }
 
-/*
- *  call-seq:
- *    ripper.yydebug = flag
- *
- *  Set yydebug.
- */
 VALUE
 rb_parser_set_yydebug(VALUE self, VALUE flag)
 {
-    struct parser_params *parser;
-
-    Data_Get_Struct(self, struct parser_params, parser);
-    yydebug = RTEST(flag);
-    return flag;
+    return rb_parser_set_yydebug_imp(self, 0, flag);
 }
 
 #ifdef YYMALLOC
@@ -10355,12 +10380,14 @@ ripper_warnI(struct parser_params *parser, const char *fmt, int a)
                STR_NEW2(fmt), INT2NUM(a));
 }
 
+#if 0
 static void
 ripper_warnS(struct parser_params *parser, const char *fmt, const char *str)
 {
     rb_funcall(parser->value, rb_intern("warn"), 2,
     	       STR_NEW2(fmt), STR_NEW2(str));
 }
+#endif
 
 static void
 ripper_warning0(struct parser_params *parser, const char *fmt)
@@ -10375,11 +10402,13 @@ ripper_warningS(struct parser_params *parser, const char *fmt, const char *str)
                STR_NEW2(fmt), STR_NEW2(str));
 }
 
+#if 0
 static VALUE
 ripper_lex_get_generic(struct parser_params *parser, VALUE src)
 {
     return rb_funcall(src, ripper_id_gets, 0);
 }
+#endif
 
 static VALUE
 ripper_s_allocate(VALUE klass)
@@ -10407,21 +10436,24 @@ ripper_s_allocate(VALUE klass)
  *  See also Ripper#parse and Ripper.parse.
  */
 static VALUE
-ripper_initialize(int argc, VALUE *argv, VALUE self)
+ripper_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     struct parser_params *parser;
     VALUE src, fname, lineno;
 
     Data_Get_Struct(self, struct parser_params, parser);
     rb_scan_args(argc, argv, "12", &src, &fname, &lineno);
+#if 0 // TODO
     if (rb_obj_respond_to(src, ripper_id_gets, 0)) {
         parser->parser_lex_gets = ripper_lex_get_generic;
     }
-    else {
+    else
+#endif 
+    {
         StringValue(src);
         parser->parser_lex_gets = lex_get_str;
     }
-    parser->parser_lex_input = src;
+    GC_WB(&parser->parser_lex_input, src);
     parser->eofp = Qfalse;
     if (NIL_P(fname)) {
         fname = STR_NEW2("(ripper)");
@@ -10431,8 +10463,8 @@ ripper_initialize(int argc, VALUE *argv, VALUE self)
     }
     parser_initialize(parser);
 
-    parser->parser_ruby_sourcefile_string = fname;
-    parser->parser_ruby_sourcefile = RSTRING_PTR(fname);
+    GC_WB(&parser->parser_ruby_sourcefile_string, fname);
+    parser->parser_ruby_sourcefile = (char *)RSTRING_PTR(fname);
     parser->parser_ruby_sourceline = NIL_P(lineno) ? 0 : NUM2INT(lineno) - 1;
 
     return Qnil;
@@ -10474,7 +10506,7 @@ ripper_ensure(VALUE parser_v)
  *  Start parsing and returns the value of the root action.
  */
 static VALUE
-ripper_parse(VALUE self)
+ripper_parse(VALUE self, SEL sel)
 {
     struct parser_params *parser;
 
@@ -10502,7 +10534,7 @@ ripper_parse(VALUE self)
  *  This number starts from 0.
  */
 static VALUE
-ripper_column(VALUE self)
+ripper_column(VALUE self, SEL sel)
 {
     struct parser_params *parser;
     long col;
@@ -10524,7 +10556,7 @@ ripper_column(VALUE self)
  *  This number starts from 1.
  */
 static VALUE
-ripper_lineno(VALUE self)
+ripper_lineno(VALUE self, SEL sel)
 {
     struct parser_params *parser;
 
@@ -10563,15 +10595,15 @@ Init_ripper(void)
 
     Ripper = rb_define_class("Ripper", rb_cObject);
     rb_define_const(Ripper, "Version", rb_usascii_str_new2(RIPPER_VERSION));
-    rb_define_alloc_func(Ripper, ripper_s_allocate);
-    rb_define_method(Ripper, "initialize", ripper_initialize, -1);
-    rb_define_method(Ripper, "parse", ripper_parse, 0);
-    rb_define_method(Ripper, "column", ripper_column, 0);
-    rb_define_method(Ripper, "lineno", ripper_lineno, 0);
-    rb_define_method(Ripper, "end_seen?", rb_parser_end_seen_p, 0);
-    rb_define_method(Ripper, "encoding", rb_parser_encoding, 0);
-    rb_define_method(Ripper, "yydebug", rb_parser_get_yydebug, 0);
-    rb_define_method(Ripper, "yydebug=", rb_parser_set_yydebug, 1);
+    rb_objc_define_method(*(VALUE *)Ripper, "alloc", ripper_s_allocate, 0);
+    rb_objc_define_method(Ripper, "initialize", ripper_initialize, -1);
+    rb_objc_define_method(Ripper, "parse", ripper_parse, 0);
+    rb_objc_define_method(Ripper, "column", ripper_column, 0);
+    rb_objc_define_method(Ripper, "lineno", ripper_lineno, 0);
+    rb_objc_define_method(Ripper, "end_seen?", rb_parser_end_seen_p_imp, 0);
+    rb_objc_define_method(Ripper, "encoding", rb_parser_encoding_imp, 0);
+    rb_objc_define_method(Ripper, "yydebug", rb_parser_get_yydebug_imp, 0);
+    rb_objc_define_method(Ripper, "yydebug=", rb_parser_set_yydebug_imp, 1);
 #ifdef RIPPER_DEBUG
     rb_define_method(rb_mKernel, "assert_Qundef", ripper_assert_Qundef, 2);
     rb_define_method(rb_mKernel, "rawVALUE", ripper_value, 1);
