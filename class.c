@@ -427,6 +427,7 @@ rb_define_class(const char *name, VALUE super)
     st_add_direct(rb_class_tbl, id, klass);
     rb_name_class(klass, id);
     rb_const_set(rb_cObject, id, klass);
+    rb_vm_set_outer(klass, rb_cObject);
     rb_class_inherited(super, klass);
 
     return klass;
