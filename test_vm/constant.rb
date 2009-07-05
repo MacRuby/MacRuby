@@ -90,3 +90,5 @@ assert '42', %q{
     end
   end
 }
+
+assert '1', "class Float; class X; p ROUNDS; end; end"
