@@ -193,7 +193,7 @@ module RbConfig
   CONFIG["RDOCTARGET"] = "install-doc"
   CONFIG["cppflags"] = ""
   CONFIG["cflags"] = "$(optflags) $(debugflags) $(warnflags)"
-  CONFIG["optflags"] = "-O2"
+  CONFIG["optflags"] = "-O3"
   CONFIG["debugflags"] = "-g"
   CONFIG["warnflags"] = "-Wall -Wno-parentheses"
   CONFIG["LIBRUBY_LDSHARED"] = "gcc -dynamiclib -undefined suppress -flat_namespace"
@@ -317,7 +317,11 @@ task :extensions => [:miniruby, "macruby:static"] do
 =begin
   sh "./miniruby -I./lib -I.ext/common -I./- -r./ext/purelib.rb ext/extmk.rb #{EXTMK_ARGS}"
 =end
-  $stderr.puts "Skipping extensions build (for now)..."
+  Dir.chdir('ext/ripper') do
+    sh "../../miniruby extconf.rb"
+    sh "/usr/bin/make top_srcdir=../.. ruby=../../miniruby"
+  end
+  $stderr.puts "Skipping other extensions (for now)..."
 end
 
 namespace :framework do
