@@ -267,7 +267,21 @@ static const struct types {
     {T_MATCH,	"MatchData"},	/* data of $~ */
     {T_NODE,	"Node"},	/* internal use: syntax tree node */
     {T_UNDEF,	"undef"},	/* internal use: #undef; should not happen */
+    {T_NATIVE,  "native"}
 };
+
+const char *
+rb_obj_type(VALUE x)
+{
+    int i;
+    const int t = TYPE(x);
+    for (i = 0; i < sizeof(builtin_types) / sizeof(builtin_types[0]); i++) {
+	if (t == builtin_types[i].type) {
+	    return builtin_types[i].name;
+	}
+    }
+    return "unknown";
+}
 
 void
 rb_check_type(VALUE x, int t)
