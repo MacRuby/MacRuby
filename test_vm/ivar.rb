@@ -73,3 +73,12 @@ assert '231', %q{
   end
   p Foo.new.foo
 }
+
+assert '42', %{
+  class Foo < File::Stat
+    def foo; @foo=42; end
+  end
+  o=Foo.new('/System')
+  o.foo
+  p o.instance_variable_get(:@foo)
+}
