@@ -318,8 +318,8 @@ task :extensions => [:miniruby, "macruby:static"] do
   sh "./miniruby -I./lib -I.ext/common -I./- -r./ext/purelib.rb ext/extmk.rb #{EXTMK_ARGS}"
 =end
   Dir.chdir('ext/ripper') do
-    sh "../../miniruby extconf.rb"
-    sh "/usr/bin/make top_srcdir=../.. ruby=../../miniruby"
+    sh "../../miniruby -I../.. -I../../lib extconf.rb"
+    sh "/usr/bin/make top_srcdir=../.. ruby=\"../../miniruby -I../.. -I../../lib\" libdir=../.."
   end
   $stderr.puts "Skipping other extensions (for now)..."
 end
