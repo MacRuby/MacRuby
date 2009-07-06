@@ -23,6 +23,7 @@ using namespace llvm;
 #include "vm.h"
 #include "compiler.h"
 #include "bridgesupport.h"
+#include "objc.h"
 
 #include <execinfo.h>
 #include <dlfcn.h>
@@ -986,8 +987,44 @@ RoxorCore::bs_parse_cb(bs_element_type_t type, void *value, void *ctx)
 		? bs_informal_protocol_cmethods
 		: bs_informal_protocol_imethods;
 
-	    map[bs_inf_prot_method->name] =
-		new std::string(bs_inf_prot_method->type);
+	    char *type;
+#if __LP64__
+	    // XXX workaround a BridgeSupport bug: 64-bit annotations for
+	    // informal_protocol elements are missing!
+	    // Manually converting some 32-bit types to 64-bit...
+	    const size_t typelen = strlen(bs_inf_prot_method->type) + 1;
+	    type = (char *)alloca(typelen);
+	    *type = '\0';
+	    const char *p = bs_inf_prot_method->type;
+	    do {
+		const char *p2 = (char *)SkipFirstType(p);
+		const size_t len = p2 - p;
+		if (len == 1 && *p == _C_FLT) {
+		    // float -> double
+		    strlcat(type, "d", typelen);
+		}
+		else if (strncmp(p, "{_NSPoint=", 10) == 0) {
+		    strlcat(type, "{CGPoint=dd}", typelen);
+		}
+		else if (strncmp(p, "{_NSSize=", 9) == 0) {
+		    strlcat(type, "{CGSize=dd}", typelen);
+		}
+		else if (strncmp(p, "{_NSRect=", 9) == 0) {
+		    strlcat(type, "{CGRect={CGPoint=dd}{CGSize=dd}}", typelen);
+		}
+		else {
+		    char buf[100];
+		    strncpy(buf, p, len);
+		    buf[len] = '\0';
+		    strlcat(type, buf, typelen);
+		}
+		p = SkipStackSize(p2);
+	    }
+	    while (*p != '\0');
+#else
+	    type = bs_inf_prot_method->type;
+#endif
+	    map[bs_inf_prot_method->name] = new std::string(type);
 	    break;
 	}
 
