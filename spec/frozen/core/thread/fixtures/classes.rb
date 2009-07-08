@@ -136,11 +136,9 @@ module ThreadSpecs
   end
   
   def self.dying_thread_ensures(kill_method_name=:kill)
-    # XXX MacRuby hack: work around local variable corruption because the
-    # main thread might exit before kill_method_name is used.
-    t = Thread.new(kill_method_name) do |mid|
+    t = Thread.new do
       begin
-        Thread.current.send(mid)
+        Thread.current.send(kill_method_name)
       ensure
         yield
       end
