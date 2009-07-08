@@ -4503,6 +4503,7 @@ rb_vm_thread_pre_init(rb_vm_thread_t *t, rb_vm_block_t *body, int argc,
 
     if (body != NULL) {
 	GC_WB(&t->body, body);
+	rb_vm_add_block_lvar_use(body);
     }
     else {
 	t->body = NULL;
