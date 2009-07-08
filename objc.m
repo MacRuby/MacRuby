@@ -411,63 +411,7 @@ success:
     return Qtrue;
 }
 
-static const char *
-resources_path(char *path, size_t len)
-{
-    CFBundleRef bundle;
-    CFURLRef url;
-
-    bundle = CFBundleGetMainBundle();
-    assert(bundle != NULL);
-
-    url = CFBundleCopyResourcesDirectoryURL(bundle);
-    *path = '-'; 
-    *(path+1) = 'I';
-    assert(CFURLGetFileSystemRepresentation(
-	url, true, (UInt8 *)&path[2], len - 2));
-    CFRelease(url);
-
-    return path;
-}
-
 void rb_vm_init_compiler(void);
-
-int
-macruby_main(const char *path, int argc, char **argv)
-{
-    char **newargv;
-    char *p1, *p2;
-    int n, i;
-
-    newargv = (char **)malloc(sizeof(char *) * (argc + 2));
-    for (i = n = 0; i < argc; i++) {
-	if (!strncmp(argv[i], "-psn_", 5) == 0) {
-	    newargv[n++] = argv[i];
-	}
-    }
-    
-    p1 = (char *)malloc(PATH_MAX);
-    newargv[n++] = (char *)resources_path(p1, PATH_MAX);
-
-    p2 = (char *)malloc(PATH_MAX);
-    snprintf(p2, PATH_MAX, "%s/%s", (path[0] != '/') ? &p1[2] : "", path);
-    newargv[n++] = p2;
-
-    argv = newargv;    
-    argc = n;
-
-    ruby_sysinit(&argc, &argv);
-    {
-	void *tree;
-	ruby_init();
-	tree = ruby_options(argc, argv);
-	rb_vm_init_compiler();
-	free(newargv);
-	free(p1);
-	free(p2);
-	return ruby_run_node(tree);
-    }
-}
 
 static void
 rb_objc_kvo_setter_imp(void *recv, SEL sel, void *value)
