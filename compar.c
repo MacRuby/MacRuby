@@ -34,14 +34,24 @@ rb_cmperr(VALUE x, VALUE y)
 	     rb_obj_classname(x), classname);
 }
 
+VALUE
+rb_objs_cmp(VALUE x, VALUE y)
+{
+    return rb_vm_call_with_cache(cmp_cache, x, cmp, 1, &y);
+}
+
 static VALUE
 cmp_eq(VALUE *a)
 {
     //VALUE c = rb_funcall(a[0], cmp, 1, a[1]);
     VALUE c = rb_vm_call_with_cache(cmp_cache, a[0], cmp, 1, &a[1]);
 
-    if (NIL_P(c)) return Qfalse;
-    if (rb_cmpint(c, a[0], a[1]) == 0) return Qtrue;
+    if (NIL_P(c)) {
+	return Qfalse;
+    }
+    if (rb_cmpint(c, a[0], a[1]) == 0) {
+	return Qtrue;
+    }
     return Qfalse;
 }
 

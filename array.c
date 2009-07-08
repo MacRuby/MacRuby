@@ -25,8 +25,6 @@ VALUE rb_cNSArray0;
 VALUE rb_cNSArray;
 VALUE rb_cNSMutableArray;
 
-static ID id_cmp;
-
 #define ARY_DEFAULT_SIZE 16
 
 void
@@ -1536,19 +1534,17 @@ sort_1(const void *ap, const void *bp, void *dummy)
 static int
 sort_2(const void *ap, const void *bp, void *dummy)
 {
-    VALUE retval;
     VALUE a = (VALUE)ap, b = (VALUE)bp;
-    int n;
 
     /* FIXME optimize!!! */
     if (TYPE(a) == T_STRING) {
-	if (TYPE(b) == T_STRING) return rb_str_cmp(a, b);
+	if (TYPE(b) == T_STRING) {
+	    return rb_str_cmp(a, b);
+	}
     }
 
-    retval = rb_funcall(a, id_cmp, 1, b);
-    n = rb_cmpint(retval, a, b);
-
-    return n;
+    VALUE retval = rb_objs_cmp(a, b);
+    return rb_cmpint(retval, a, b);
 }
 
 /*
@@ -2546,7 +2542,7 @@ recursive_cmp(VALUE ary1, VALUE ary2, int recur)
 	len = RARRAY_LEN(ary2);
     }
     for (i=0; i<len; i++) {
-	VALUE v = rb_funcall(rb_ary_elt(ary1, i), id_cmp, 1, rb_ary_elt(ary2, i));
+	VALUE v = rb_objs_cmp(rb_ary_elt(ary1, i), rb_ary_elt(ary2, i));
 	if (v != INT2FIX(0)) {
 	    return v;
 	}
@@ -3814,6 +3810,4 @@ Init_Array(void)
     /* to return mutable copies */
     rb_objc_define_method(rb_cArray, "dup", rb_ary_dup_imp, 0);
     rb_objc_define_method(rb_cArray, "clone", rb_ary_clone, 0);
-
-    id_cmp = rb_intern("<=>");
 }

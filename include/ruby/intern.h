@@ -178,6 +178,7 @@ VALUE rb_singleton_class(VALUE);
 /* compar.c */
 int rb_cmpint(VALUE, VALUE, VALUE);
 NORETURN(void rb_cmperr(VALUE, VALUE));
+VALUE rb_objs_cmp(VALUE x, VALUE y);
 /* cont.c */
 VALUE rb_fiber_new(VALUE (*)(ANYARGS), VALUE);
 VALUE rb_fiber_resume(VALUE fib, int argc, VALUE *args);

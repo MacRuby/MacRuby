@@ -16,7 +16,7 @@
 #include "id.h"
 
 VALUE rb_mEnumerable;
-static ID id_each, id_eqq, id_cmp, id_next, id_size;
+static ID id_each, id_eqq, id_next, id_size;
 
 static VALUE
 enum_values_pack(int argc, VALUE *argv)
@@ -716,7 +716,7 @@ sort_by_cmp(const void *ap, const void *bp, void *data)
 	rb_raise(rb_eRuntimeError, "sort_by reentered");
     }
 #endif
-    return rb_cmpint(rb_funcall(a, id_cmp, 1, b), a, b);
+    return rb_cmpint(rb_objs_cmp(a, b), a, b);
 }
 
 /*
@@ -996,7 +996,7 @@ min_i(VALUE i, VALUE *memo, int argc, VALUE *argv)
 	*memo = i;
     }
     else {
-	cmp = rb_funcall(i, id_cmp, 1, *memo);
+	cmp = rb_objs_cmp(i, *memo);
 	if (rb_cmpint(cmp, i, *memo) < 0) {
 	    *memo = i;
 	}
@@ -1069,7 +1069,7 @@ max_i(VALUE i, VALUE *memo, int argc, VALUE *argv)
 	*memo = i;
     }
     else {
-	cmp = rb_funcall(i, id_cmp, 1, *memo);
+	cmp = rb_objs_cmp(i, *memo);
 	if (rb_cmpint(cmp, i, *memo) > 0) {
 	    *memo = i;
 	}
@@ -1142,11 +1142,11 @@ minmax_i(VALUE i, VALUE *memo, int argc, VALUE *argv)
 	memo[1] = i;
     }
     else {
-	n = rb_cmpint(rb_funcall(i, id_cmp, 1, memo[0]), i, memo[0]);
+	n = rb_cmpint(rb_objs_cmp(i, memo[0]), i, memo[0]);
 	if (n < 0) {
 	    memo[0] = i;
 	}
-	n = rb_cmpint(rb_funcall(i, id_cmp, 1, memo[1]), i, memo[1]);
+	n = rb_cmpint(rb_objs_cmp(i, memo[1]), i, memo[1]);
 	if (n > 0) {
 	    memo[1] = i;
 	}
@@ -1232,7 +1232,7 @@ min_by_i(VALUE i, VALUE *memo, int argc, VALUE *argv)
 	memo[0] = v;
 	memo[1] = i;
     }
-    else if (rb_cmpint(rb_funcall(v, id_cmp, 1, memo[0]), v, memo[0]) < 0) {
+    else if (rb_cmpint(rb_objs_cmp(v, memo[0]), v, memo[0]) < 0) {
 	memo[0] = v;
 	memo[1] = i;
     }
@@ -1275,7 +1275,7 @@ max_by_i(VALUE i, VALUE *memo, int argc, VALUE *argv)
 	memo[0] = v;
 	memo[1] = i;
     }
-    else if (rb_cmpint(rb_funcall(v, id_cmp, 1, memo[0]), v, memo[0]) > 0) {
+    else if (rb_cmpint(rb_objs_cmp(v, memo[0]), v, memo[0]) > 0) {
 	memo[0] = v;
 	memo[1] = i;
     }
@@ -1321,11 +1321,11 @@ minmax_by_i(VALUE i, VALUE *memo, int argc, VALUE *argv)
 	memo[3] = i;
     }
     else {
-	if (rb_cmpint(rb_funcall(v, id_cmp, 1, memo[0]), v, memo[0]) < 0) {
+	if (rb_cmpint(rb_objs_cmp(v, memo[0]), v, memo[0]) < 0) {
 	    memo[0] = v;
 	    memo[2] = i;
 	}
-	if (rb_cmpint(rb_funcall(v, id_cmp, 1, memo[1]), v, memo[1]) > 0) {
+	if (rb_cmpint(rb_objs_cmp(v, memo[1]), v, memo[1]) > 0) {
 	    memo[1] = v;
 	    memo[3] = i;
 	}
@@ -1862,7 +1862,6 @@ Init_Enumerable(void)
 
     id_eqq  = rb_intern("===");
     id_each = rb_intern("each");
-    id_cmp  = rb_intern("<=>");
     id_next = rb_intern("next");
     id_size = rb_intern("size");
 }

@@ -16,7 +16,7 @@
 #include "id.h"
 
 VALUE rb_cRange;
-static ID id_cmp, id_succ, id_beg, id_end, id_excl;
+static ID id_succ, id_beg, id_end, id_excl;
 static SEL selUpto = 0;
 static void *cacheUpto = NULL;
 
@@ -37,7 +37,7 @@ range_failed(void)
 static VALUE
 range_check(VALUE *args)
 {
-    return rb_funcall(args[0], id_cmp, 1, args[1]);
+    return rb_objs_cmp(args[0], args[1]);
 }
 
 static void
@@ -144,7 +144,7 @@ range_eq(VALUE range, SEL sel, VALUE obj)
 static int
 r_lt(VALUE a, VALUE b)
 {
-    VALUE r = rb_funcall(a, id_cmp, 1, b);
+    VALUE r = rb_objs_cmp(a, b);
 
     if (NIL_P(r))
 	return Qfalse;
@@ -157,7 +157,7 @@ static int
 r_le(VALUE a, VALUE b)
 {
     int c;
-    VALUE r = rb_funcall(a, id_cmp, 1, b);
+    VALUE r = rb_objs_cmp(a, b);
 
     if (NIL_P(r))
 	return Qfalse;
@@ -552,7 +552,7 @@ range_min(VALUE range, SEL sel)
     else {
 	VALUE b = RANGE_BEG(range);
 	VALUE e = RANGE_END(range);
-	int c = rb_cmpint(rb_funcall(b, id_cmp, 1, e), b, e);
+	int c = rb_cmpint(rb_objs_cmp(b, e), b, e);
 
 	if (c > 0 || (c == 0 && EXCL(range)))
 	    return Qnil;
@@ -587,7 +587,7 @@ range_max(VALUE range, SEL sel)
     }
     else {
 	VALUE b = RANGE_BEG(range);
-	int c = rb_cmpint(rb_funcall(b, id_cmp, 1, e), b, e);
+	int c = rb_cmpint(rb_objs_cmp(b, e), b, e);
 
 	if (c > 0)
 	    return Qnil;
@@ -918,7 +918,6 @@ range_alloc(VALUE klass)
 void
 Init_Range(void)
 {
-    id_cmp = rb_intern("<=>");
     id_succ = rb_intern("succ");
     id_beg = rb_intern("begin");
     id_end = rb_intern("end");
