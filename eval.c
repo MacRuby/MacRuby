@@ -459,14 +459,6 @@ rb_need_block()
 }
 
 VALUE
-rb_rescue2(VALUE (* b_proc) (ANYARGS), VALUE data1,
-	   VALUE (* r_proc) (ANYARGS), VALUE data2, ...)
-{
-    // TODO
-    return (*b_proc)(data1);
-}
-
-VALUE
 rb_rescue(VALUE (* b_proc)(ANYARGS), VALUE data1,
 	  VALUE (* r_proc)(ANYARGS), VALUE data2)
 {

@@ -3757,6 +3757,41 @@ rb_vm_raise(VALUE exception)
 }
 
 extern "C"
+VALUE
+rb_rescue2(VALUE (*b_proc) (ANYARGS), VALUE data1,
+           VALUE (*r_proc) (ANYARGS), VALUE data2, ...)
+{
+    try {
+	return (*b_proc)(data1);
+    }
+    catch (...) {
+	VALUE exc = rb_vm_current_exception();
+	if (exc != Qnil) {
+	    va_list ar;
+	    VALUE eclass;
+	    bool handled = false;
+
+	    va_start(ar, data2);
+	    while ((eclass = va_arg(ar, VALUE)) != 0) {
+		if (rb_obj_is_kind_of(exc, eclass)) {
+		    handled = true;
+		    break;
+		}
+	    }
+	    va_end(ar);
+
+	    if (handled) {
+		if (r_proc != NULL) {
+		    return (*r_proc)(data2);
+		}
+		return Qnil;
+	    }
+	}
+	throw;
+    }
+}
+
+extern "C"
 void
 rb_vm_break(VALUE val)
 {
