@@ -3792,6 +3792,22 @@ rb_rescue2(VALUE (*b_proc) (ANYARGS), VALUE data1,
 }
 
 extern "C"
+VALUE
+rb_ensure(VALUE (*b_proc)(ANYARGS), VALUE data1,
+	VALUE (*e_proc)(ANYARGS), VALUE data2)
+{
+    try {
+	VALUE v = (*b_proc)(data1);
+	(*e_proc)(data2);
+	return v;
+    }
+    catch (...) {
+	(*e_proc)(data2);
+	throw;	
+    }
+}
+
+extern "C"
 void
 rb_vm_break(VALUE val)
 {
@@ -4563,6 +4579,7 @@ rb_vm_thread_pre_init(rb_vm_thread_t *t, rb_vm_block_t *body, int argc,
     t->exception = Qnil;
     t->status = THREAD_ALIVE;
     t->in_cond_wait = false;
+    t->group = Qnil; // will be set right after
 
     pthread_assert(pthread_mutex_init(&t->sleep_mutex, NULL));
     pthread_assert(pthread_cond_init(&t->sleep_cond, NULL)); 
@@ -4833,7 +4850,7 @@ extern "C"
 void
 Init_PostVM(void)
 {
-    // Create and register the main thread;
+    // Create and register the main thread.
     RoxorVM *main_vm = GET_VM();
     rb_vm_thread_t *t = (rb_vm_thread_t *)xmalloc(sizeof(rb_vm_thread_t));
     rb_vm_thread_pre_init(t, NULL, 0, NULL, (void *)main_vm);
@@ -4841,6 +4858,11 @@ Init_PostVM(void)
     VALUE main = Data_Wrap_Struct(rb_cThread, NULL, NULL, t);
     GET_CORE()->register_thread(main);
     main_vm->set_thread(main);
+
+    // Create main thread group.
+    VALUE group = rb_obj_alloc(rb_cThGroup);
+    rb_thgroup_add(group, main);
+    rb_define_const(rb_cThGroup, "Default", group);
 }
 
 extern "C"

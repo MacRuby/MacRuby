@@ -476,15 +476,6 @@ rb_protect(VALUE (* proc) (VALUE), VALUE data, int * state)
     return (*proc)(data);
 }
 
-VALUE
-rb_ensure(VALUE (*b_proc)(ANYARGS), VALUE data1, VALUE (*e_proc)(ANYARGS), VALUE data2)
-{
-    // TODO
-    VALUE result = (*b_proc)(data1);
-    (*e_proc)(data2);
-    return result;
-}
-
 ID
 rb_frame_this_func(void)
 {

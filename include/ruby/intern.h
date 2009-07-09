@@ -597,6 +597,7 @@ VALUE rb_struct_members(VALUE);
 VALUE rb_struct_alloc_noinit(VALUE);
 VALUE rb_struct_define_without_accessor(const char *, VALUE, rb_alloc_func_t, ...);
 /* thread.c */
+VALUE rb_thgroup_add(VALUE group, VALUE thread);
 typedef void rb_unblock_function_t(void *);
 typedef VALUE rb_blocking_function_t(void *);
 VALUE rb_thread_blocking_region(rb_blocking_function_t *func, void *data1,

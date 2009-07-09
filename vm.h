@@ -101,14 +101,15 @@ typedef struct rb_vm_thread {
     rb_vm_block_t *body;
     int argc;
     const VALUE *argv;
-    void *vm;  // an instance of RoxorVM
+    void *vm;  // a C++ instance of RoxorVM
     VALUE value;
     pthread_mutex_t sleep_mutex;
     pthread_cond_t sleep_cond;
     rb_vm_thread_status_t status;
     bool in_cond_wait;
     VALUE locals;  // a Hash object or Qnil
-    VALUE exception;  // killed-by-exception or Qnil 
+    VALUE exception;  // killed-by exception or Qnil 
+    VALUE group;  // always a ThreadGroup object
 } rb_vm_thread_t;
 
 typedef struct rb_vm_outer {

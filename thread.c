@@ -17,6 +17,7 @@ typedef struct rb_vm_mutex {
 } rb_vm_mutex_t;
 
 VALUE rb_cThread;
+VALUE rb_cThGroup;
 VALUE rb_cMutex;
 
 #if 0
@@ -63,6 +64,9 @@ thread_initialize(VALUE thread, SEL sel, int argc, const VALUE *argv)
 
     rb_vm_thread_t *t = GetThreadPtr(thread);
     rb_vm_thread_pre_init(t, b, argc, argv, rb_vm_create_vm());
+
+    // The thread's group is always the parent's one.
+    rb_thgroup_add(GetThreadPtr(rb_vm_current_thread())->group, thread);
 
     // Retain the Thread object to avoid a potential GC, the corresponding
     // release is done in rb_vm_thread_run().
@@ -530,11 +534,10 @@ rb_thread_abort_exc_set(VALUE thread, VALUE val)
  *     Thread.main.group   #=> #<ThreadGroup:0x4029d914>
  */
 
-VALUE
-rb_thread_group(VALUE thread)
+static VALUE
+rb_thread_group(VALUE thread, SEL sel)
 {
-    // TODO
-    return Qnil;
+    return GetThreadPtr(thread)->group;
 }
 
 /*
@@ -1059,6 +1062,23 @@ rb_thread_select(int max, fd_set * read, fd_set * write, fd_set * except,
  *  were created.
  */
 
+typedef struct {
+    bool enclosed;
+    VALUE threads;
+} rb_thread_group_t;
+
+#define GetThreadGroupPtr(obj) ((rb_thread_group_t *)DATA_PTR(obj))
+
+static VALUE
+thgroup_s_alloc(VALUE self, SEL sel)
+{
+    rb_thread_group_t *t = (rb_thread_group_t *)xmalloc(
+	    sizeof(rb_thread_group_t));
+    t->enclosed = false;
+    GC_WB(&t->threads, rb_ary_new());
+    return Data_Wrap_Struct(rb_cThGroup, NULL, NULL, t);
+}
+
 /*
  *  call-seq:
  *     thgrp.list   => array
@@ -1070,10 +1090,9 @@ rb_thread_select(int max, fd_set * read, fd_set * write, fd_set * except,
  */
 
 static VALUE
-thgroup_list(VALUE group)
+thgroup_list(VALUE group, SEL sel)
 {
-    // TODO
-    return Qnil;
+    return GetThreadGroupPtr(group)->threads;
 }
 
 /*
@@ -1094,10 +1113,11 @@ thgroup_list(VALUE group)
  *     ThreadError: can't move from the enclosed thread group
  */
 
-VALUE
-thgroup_enclose(VALUE group)
+static VALUE
+thgroup_enclose(VALUE group, SEL sel)
 {
-    return Qnil;
+    GetThreadGroupPtr(group)->enclosed = true;
+    return group;
 }
 
 /*
@@ -1111,7 +1131,7 @@ thgroup_enclose(VALUE group)
 static VALUE
 thgroup_enclosed_p(VALUE group)
 {
-    return Qnil;
+    return GetThreadGroupPtr(group)->enclosed ? Qtrue : Qfalse;
 }
 
 /*
@@ -1141,9 +1161,34 @@ thgroup_enclosed_p(VALUE group)
  */
 
 static VALUE
-thgroup_add(VALUE group, VALUE thread)
+thgroup_add(VALUE group, SEL sel, VALUE thread)
 {
-    return Qnil;
+    rb_vm_thread_t *t = GetThreadPtr(thread);
+
+    rb_thread_group_t *new_tg = GetThreadGroupPtr(group);
+    if (new_tg->enclosed) {
+	rb_raise(rb_eThreadError, "can't move from the enclosed thread group");
+    }
+
+    if (t->group != Qnil) {
+	rb_thread_group_t *old_tg = GetThreadGroupPtr(t->group);
+	if (old_tg->enclosed) {
+	    rb_raise(rb_eThreadError,
+		    "can't move from the enclosed thread group");
+	}
+	rb_ary_delete(old_tg->threads, thread); 
+    }
+
+    rb_ary_push(new_tg->threads, thread);
+    GC_WB(&t->group, group);
+
+    return group;
+}
+
+VALUE
+rb_thgroup_add(VALUE group, VALUE thread)
+{
+    return thgroup_add(group, 0, thread);
 }
 
 /*
@@ -1314,20 +1359,27 @@ mutex_sleep(VALUE self, SEL sel, int argc, VALUE *argv)
  */
 
 static VALUE
+sync_body(VALUE a)
+{
+    return rb_yield(Qundef);
+}
+
+static VALUE
+sync_ensure(VALUE mutex)
+{
+    if (rb_mutex_locked_p(mutex, 0) == Qtrue) {
+	// We only unlock the mutex if it's still locked, since it could have
+	// been unlocked in the block!
+	rb_mutex_unlock(mutex, 0);
+    }
+    return Qnil;
+}
+
+static VALUE
 mutex_synchronize(VALUE self, SEL sel)
 {
     rb_mutex_lock(self, 0);
-    
-    // TODO catch exception
-    VALUE ret = rb_yield(Qundef);
-
-    if (rb_mutex_locked_p(self, 0) == Qtrue) {
-	// We only unlock the mutex if it's still locked, since it could have
-	// been unlocked in the block!
-	rb_mutex_unlock(self, 0);
-    }
-
-    return ret;
+    return rb_ensure(sync_body, Qundef, sync_ensure, self);
 }
 
 VALUE
@@ -1349,8 +1401,6 @@ rb_thread_synchronize(VALUE mutex, VALUE (*func)(VALUE arg), VALUE arg)
 void
 Init_Thread(void)
 {
-    VALUE cThGroup;
-
     rb_cThread = rb_define_class("Thread", rb_cObject);
     rb_objc_define_method(*(VALUE *)rb_cThread, "alloc", thread_s_alloc, 0);
 
@@ -1388,15 +1438,16 @@ Init_Thread(void)
     rb_define_method(rb_cThread, "abort_on_exception", rb_thread_abort_exc, 0);
     rb_define_method(rb_cThread, "abort_on_exception=", rb_thread_abort_exc_set, 1);
     rb_define_method(rb_cThread, "safe_level", rb_thread_safe_level, 0);
-    rb_define_method(rb_cThread, "group", rb_thread_group, 0);
+    rb_objc_define_method(rb_cThread, "group", rb_thread_group, 0);
 
     rb_objc_define_method(rb_cThread, "inspect", rb_thread_inspect, 0);
 
-    cThGroup = rb_define_class("ThreadGroup", rb_cObject);
-    rb_define_method(cThGroup, "list", thgroup_list, 0);
-    rb_define_method(cThGroup, "enclose", thgroup_enclose, 0);
-    rb_define_method(cThGroup, "enclosed?", thgroup_enclosed_p, 0);
-    rb_define_method(cThGroup, "add", thgroup_add, 1);
+    rb_cThGroup = rb_define_class("ThreadGroup", rb_cObject);
+    rb_objc_define_method(*(VALUE *)rb_cThGroup, "alloc", thgroup_s_alloc, 0);
+    rb_objc_define_method(rb_cThGroup, "list", thgroup_list, 0);
+    rb_objc_define_method(rb_cThGroup, "enclose", thgroup_enclose, 0);
+    rb_objc_define_method(rb_cThGroup, "enclosed?", thgroup_enclosed_p, 0);
+    rb_objc_define_method(rb_cThGroup, "add", thgroup_add, 1);
 
     rb_cMutex = rb_define_class("Mutex", rb_cObject);
     rb_objc_define_method(*(VALUE *)rb_cMutex, "alloc", mutex_s_alloc, 0);
