@@ -58,7 +58,7 @@ RoxorCompiler::RoxorCompiler(const char *_fname)
     current_loop_end_bb = NULL;
     current_loop_exit_val = NULL;
     current_rescue = false;
-    return_from_block_jmpbuf = NULL;
+    return_from_block = false;
 
     dispatcherFunc = NULL;
     fastEqqFunc = NULL;
@@ -113,6 +113,8 @@ RoxorCompiler::RoxorCompiler(const char *_fname)
     popExceptionFunc = NULL;
     getSpecialFunc = NULL;
     breakFunc = NULL;
+    returnFromBlockFunc = NULL;
+    returnFromBlockValueFunc = NULL;
     longjmpFunc = NULL;
     setjmpFunc = NULL;
     popBrokenValue = NULL;
@@ -1439,8 +1441,50 @@ RoxorCompiler::compile_break_val(Value *val)
     }
     std::vector<Value *> params;
     params.push_back(val);
-    CallInst::Create(breakFunc, params.begin(),
-	    params.end(), "", bb);
+    CallInst::Create(breakFunc, params.begin(), params.end(), "", bb);
+}
+
+void
+RoxorCompiler::compile_return_from_block(Value *val)
+{
+    if (returnFromBlockFunc == NULL) {
+	// void rb_vm_return_from_block(VALUE val);
+	returnFromBlockFunc = cast<Function>(
+		module->getOrInsertFunction("rb_vm_return_from_block", 
+		    Type::VoidTy, RubyObjTy, NULL));
+    }
+    std::vector<Value *> params;
+    params.push_back(val);
+    CallInst::Create(returnFromBlockFunc, params.begin(), params.end(), "", bb);
+}
+
+void
+RoxorCompiler::compile_return_from_block_handler(void)
+{
+    compile_landing_pad_header();
+
+    if (returnFromBlockValueFunc == NULL) {
+	returnFromBlockValueFunc = cast<Function>(
+		module->getOrInsertFunction(
+		    "rb_vm_pop_return_from_block_value", 
+		    RubyObjTy, NULL));
+    }
+
+    Value *val = CallInst::Create(returnFromBlockValueFunc, "", bb);
+
+    Function *f = bb->getParent();
+    BasicBlock *ret_bb = BasicBlock::Create("ret", f);
+    BasicBlock *rethrow_bb  = BasicBlock::Create("rethrow", f);
+    Value *need_ret = new ICmpInst(ICmpInst::ICMP_NE, val,
+	    ConstantInt::get(RubyObjTy, Qundef), "", bb);
+    BranchInst::Create(ret_bb, rethrow_bb, need_ret, bb);
+
+    bb = ret_bb;
+    compile_landing_pad_footer(false);
+    ReturnInst::Create(val, bb);	
+
+    bb = rethrow_bb;
+    compile_rethrow_exception();
 }
 
 Value *
@@ -1514,24 +1558,8 @@ RoxorCompiler::compile_jump(NODE *node)
 		compile_pop_exception();
 	    }
 	    if (within_block) {
-		compile_break_val(val);
-		// Return-from-block is implemented using a setjmp() call.
-		if (longjmpFunc == NULL) {
-		    // void longjmp(jmp_buf, int);
-		    longjmpFunc = cast<Function>(
-			    module->getOrInsertFunction("longjmp", 
-				Type::VoidTy, PtrTy, Type::Int32Ty, NULL));
-		}
-		std::vector<Value *> params;
-		if (return_from_block_jmpbuf == NULL) {
-		    return_from_block_jmpbuf = 
-			(jmp_buf *)malloc(sizeof(jmp_buf));
-		}
-		params.push_back(compile_const_pointer(
-			    return_from_block_jmpbuf));
-		params.push_back(ConstantInt::get(Type::Int32Ty, 1));
-		CallInst::Create(longjmpFunc, params.begin(), params.end(), "",
-			bb);
+		return_from_block = true;
+		compile_return_from_block(val);
 		ReturnInst::Create(val, bb);
 	    }
 	    else {
@@ -1624,9 +1652,11 @@ RoxorCompiler::compile_pop_exception(void)
 }
 
 void
-RoxorCompiler::compile_landing_pad_footer(void)
+RoxorCompiler::compile_landing_pad_footer(bool pop_exception)
 {
-    compile_pop_exception();
+    if (pop_exception) {
+	compile_pop_exception();
+    }
 
     Function *endCatchFunc = NULL;
     if (endCatchFunc == NULL) {
@@ -4301,55 +4331,25 @@ rescan_args:
 		NODE *old_current_block_node = current_block_node;
 		ID old_current_mid = current_mid;
 		bool old_current_block = current_block;
-		jmp_buf *old_return_from_block_jmpbuf =
-		    return_from_block_jmpbuf;
+		bool old_return_from_block = return_from_block;
+		BasicBlock *old_rescue_bb = rescue_bb;
 
 		current_mid = 0;
 		current_block = true;
-		return_from_block_jmpbuf = NULL;
 
 		assert(node->nd_body != NULL);
 		Value *block = compile_node(node->nd_body);	
 		assert(Function::classof(block));
 
-		if (return_from_block_jmpbuf != NULL) {
-		    // The block we just compiled contains one (or more)
-		    // return expressions and provided us a longjmp buffer.
-		    // Let's compile a call to setjmp() and make sure to
-		    // return if its return value is non-zero.
-		    if (setjmpFunc == NULL) {
-			// int setjmp(jmp_buf);
-			setjmpFunc = cast<Function>(
-				module->getOrInsertFunction("setjmp", 
-				    Type::Int32Ty, PtrTy, NULL));
-		    }
-		    std::vector<Value *> params;
-		    params.push_back(compile_const_pointer(
-				return_from_block_jmpbuf));
-		    Value *retval = CallInst::Create(setjmpFunc,
-			    params.begin(), params.end(), "", bb);
-
+		BasicBlock *return_from_block_bb = NULL;
+		if (!old_return_from_block && return_from_block) {
+		    // The block we just compiled contains one or more
+		    // return expressions! We need to enclose the dispatcher
+		    // call inside an exception handler, since return-from
+		    // -block is implemented using a C++ exception.
 		    Function *f = bb->getParent();
-		    BasicBlock *ret_bb = BasicBlock::Create("ret", f);
-		    BasicBlock *no_ret_bb  = BasicBlock::Create("no_ret", f);
-		    Value *need_ret = new ICmpInst(ICmpInst::ICMP_NE, 
-			    retval, ConstantInt::get(Type::Int32Ty, 0), 
-			    "", bb);
-		    BranchInst::Create(ret_bb, no_ret_bb, need_ret, bb);
-		
-		    bb = ret_bb;
-		    if (popBrokenValue == NULL) {
-			// VALUE rb_vm_pop_broken_value(void);
-			popBrokenValue = cast<Function>(
-				module->getOrInsertFunction(
-				    "rb_vm_pop_broken_value", 
-				    RubyObjTy, NULL));
-		    }
-		    params.clear();
-		    Value *val = compile_protected_call(popBrokenValue, params);
-		    ReturnInst::Create(val, bb);	
-
-		    bb = no_ret_bb;
+		    rescue_bb = return_from_block_bb = BasicBlock::Create(
+			    "return-from-block", f);
 		}
 
 		current_loop_begin_bb = old_current_loop_begin_bb;
@@ -4381,9 +4381,17 @@ rescan_args:
 		    caller = compile_dispatch_call(params);
 		}
 
+		if (return_from_block_bb) {
+		    BasicBlock *old_bb = bb;
+		    bb = return_from_block_bb;
+		    compile_return_from_block_handler();	
+		    rescue_bb = old_rescue_bb;
+		    bb = old_bb;
+		}
+
+		return_from_block = old_return_from_block;
 		current_block_func = old_current_block_func;
 		current_block_node = old_current_block_node;
-		return_from_block_jmpbuf = old_return_from_block_jmpbuf;
 		dvars = old_dvars;
 
 		return caller;

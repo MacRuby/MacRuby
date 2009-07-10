@@ -86,13 +86,13 @@ class RoxorCompiler {
 	bool current_rescue;
 	NODE *current_block_node;
 	Function *current_block_func;
-	jmp_buf *return_from_block_jmpbuf;
 	GlobalVariable *current_opened_class;
 	bool current_module;
 	BasicBlock *current_loop_begin_bb;
 	BasicBlock *current_loop_body_bb;
 	BasicBlock *current_loop_end_bb;
 	Value *current_loop_exit_val;
+	bool return_from_block;
 
 	Function *dispatcherFunc;
 	Function *fastEqqFunc;
@@ -147,6 +147,8 @@ class RoxorCompiler {
 	Function *popExceptionFunc;
 	Function *getSpecialFunc;
 	Function *breakFunc;
+	Function *returnFromBlockFunc;
+	Function *returnFromBlockValueFunc;
 	Function *longjmpFunc;
 	Function *setjmpFunc;
 	Function *popBrokenValue;
@@ -227,6 +229,8 @@ class RoxorCompiler {
 	Value *compile_dstr(NODE *node);
 	Value *compile_dvar_slot(ID name);
 	void compile_break_val(Value *val);
+	void compile_return_from_block(Value *val);
+	void compile_return_from_block_handler(void);
 	Value *compile_jump(NODE *node);
 	virtual Value *compile_mcache(SEL sel, bool super);
 	virtual Value *compile_ccache(ID id);
@@ -245,7 +249,7 @@ class RoxorCompiler {
 	virtual Value *compile_global_entry(NODE *node);
 
 	void compile_landing_pad_header(void);
-	void compile_landing_pad_footer(void);
+	void compile_landing_pad_footer(bool pop_exception=true);
 	void compile_rethrow_exception(void);
 	void compile_pop_exception(void);
 	Value *compile_lvar_slot(ID name);

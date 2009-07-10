@@ -237,6 +237,7 @@ RoxorVM::RoxorVM(void)
     safe_level = 0;
     backref = Qnil;
     broken_with = Qundef;
+    returned_from_block = false;
     last_status = Qnil;
     errinfo = Qnil;
     parse_in_eval = false;
@@ -292,6 +293,7 @@ RoxorVM::RoxorVM(const RoxorVM &vm)
 
     backref = Qnil;
     broken_with = Qundef;
+    returned_from_block = false;
     last_status = Qnil;
     errinfo = Qnil;
     parse_in_eval = false;
@@ -3833,6 +3835,35 @@ rb_vm_pop_broken_value(void)
     return val;
 }
 
+static inline void
+rb_vm_rethrow(void)
+{
+    void *exc = __cxa_allocate_exception(0);
+    __cxa_throw(exc, NULL, NULL);
+}
+
+extern "C"
+void
+rb_vm_return_from_block(VALUE val)
+{
+    GET_VM()->set_broken_with(val);
+    GET_VM()->set_returned_from_block(true);
+    rb_vm_rethrow();
+}
+
+extern "C"
+VALUE
+rb_vm_pop_return_from_block_value(void)
+{
+    if (GET_VM()->get_returned_from_block()) {
+	GET_VM()->set_returned_from_block(false);
+	VALUE val = rb_vm_pop_broken_value();
+	assert(val != Qundef);
+	return val;
+    }
+    return Qundef;
+}
+
 extern "C"
 VALUE
 rb_vm_backtrace(int level)
@@ -3857,14 +3888,6 @@ rb_vm_backtrace(int level)
     }
 
     return ary;
-}
-
-extern "C"
-void
-rb_vm_rethrow(void)
-{
-    void *exc = __cxa_allocate_exception(0);
-    __cxa_throw(exc, NULL, NULL);
 }
 
 extern "C"
@@ -4490,7 +4513,14 @@ rb_vm_thread_run(VALUE thread)
 	GC_WB(&t->value, val);
     }
     catch (...) {
-	VALUE exc = rb_vm_current_exception();
+	VALUE exc;
+	if (rb_vm_pop_return_from_block_value() != Qundef) {
+	    exc = rb_exc_new2(rb_eLocalJumpError,
+		    "unexpected return from Thread");
+	}
+	else {
+	    exc = rb_vm_current_exception();
+	}
 	if (exc != Qnil) {
 	    GC_WB(&t->exception, exc);
 	}
