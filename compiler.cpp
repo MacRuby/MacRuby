@@ -32,9 +32,9 @@ extern "C" const char *ruby_node_name(int node);
 llvm::Module *RoxorCompiler::module = NULL;
 RoxorCompiler *RoxorCompiler::shared = NULL;
 
-RoxorCompiler::RoxorCompiler(const char *_fname)
+RoxorCompiler::RoxorCompiler(void)
 {
-    fname = _fname;
+    fname = NULL;
     inside_eval = false;
 
     bb = NULL;
@@ -58,7 +58,8 @@ RoxorCompiler::RoxorCompiler(const char *_fname)
     current_loop_end_bb = NULL;
     current_loop_exit_val = NULL;
     current_rescue = false;
-    return_from_block = false;
+    return_from_block = -1;
+    return_from_block_ids = 0;
 
     dispatcherFunc = NULL;
     fastEqqFunc = NULL;
@@ -114,7 +115,7 @@ RoxorCompiler::RoxorCompiler(const char *_fname)
     getSpecialFunc = NULL;
     breakFunc = NULL;
     returnFromBlockFunc = NULL;
-    returnFromBlockValueFunc = NULL;
+    checkReturnFromBlockFunc = NULL;
     longjmpFunc = NULL;
     setjmpFunc = NULL;
     popBrokenValue = NULL;
@@ -147,8 +148,8 @@ RoxorCompiler::RoxorCompiler(const char *_fname)
 #endif
 }
 
-RoxorAOTCompiler::RoxorAOTCompiler(const char *_fname)
-    : RoxorCompiler(_fname)
+RoxorAOTCompiler::RoxorAOTCompiler(void)
+: RoxorCompiler()
 {
     cObject_gvar = NULL;
     name2symFunc = NULL;
@@ -1445,32 +1446,40 @@ RoxorCompiler::compile_break_val(Value *val)
 }
 
 void
-RoxorCompiler::compile_return_from_block(Value *val)
+RoxorCompiler::compile_return_from_block(Value *val, int id)
 {
     if (returnFromBlockFunc == NULL) {
-	// void rb_vm_return_from_block(VALUE val);
+	// void rb_vm_return_from_block(VALUE val, int id);
 	returnFromBlockFunc = cast<Function>(
 		module->getOrInsertFunction("rb_vm_return_from_block", 
-		    Type::VoidTy, RubyObjTy, NULL));
+		    Type::VoidTy, RubyObjTy, Type::Int32Ty, NULL));
     }
     std::vector<Value *> params;
     params.push_back(val);
+    params.push_back(ConstantInt::get(Type::Int32Ty, id));
     CallInst::Create(returnFromBlockFunc, params.begin(), params.end(), "", bb);
 }
 
 void
-RoxorCompiler::compile_return_from_block_handler(void)
+RoxorCompiler::compile_return_from_block_handler(int id)
 {
-    compile_landing_pad_header();
+    //const std::type_info &eh_type = typeid(RoxorReturnFromBlockException *);
+    //Value *exception = compile_landing_pad_header(eh_type);
+    Value *exception = compile_landing_pad_header();
 
-    if (returnFromBlockValueFunc == NULL) {
-	returnFromBlockValueFunc = cast<Function>(
+    if (checkReturnFromBlockFunc == NULL) {
+	// VALUE rb_vm_check_return_from_block_exc(void *exc, int id);
+	checkReturnFromBlockFunc = cast<Function>(
 		module->getOrInsertFunction(
-		    "rb_vm_pop_return_from_block_value", 
-		    RubyObjTy, NULL));
+		    "rb_vm_check_return_from_block_exc", 
+		    RubyObjTy, PtrTy, Type::Int32Ty, NULL));
     }
 
-    Value *val = CallInst::Create(returnFromBlockValueFunc, "", bb);
+    std::vector<Value *> params;
+    params.push_back(exception);
+    params.push_back(ConstantInt::get(Type::Int32Ty, id));
+    Value *val = CallInst::Create(checkReturnFromBlockFunc, params.begin(),
+	    params.end(), "", bb);
 
     Function *f = bb->getParent();
     BasicBlock *ret_bb = BasicBlock::Create("ret", f);
@@ -1558,8 +1567,10 @@ RoxorCompiler::compile_jump(NODE *node)
 		compile_pop_exception();
 	    }
 	    if (within_block) {
-		return_from_block = true;
-		compile_return_from_block(val);
+		if (return_from_block == -1) {
+		    return_from_block = return_from_block_ids++;
+		}
+		compile_return_from_block(val, return_from_block);
 		ReturnInst::Create(val, bb);
 	    }
 	    else {
@@ -1596,8 +1607,14 @@ RoxorCompiler::compile_class_path(NODE *node)
     return compile_current_class();
 }
 
-void
+Value *
 RoxorCompiler::compile_landing_pad_header(void)
+{
+    return compile_landing_pad_header(typeid(void));
+}
+
+Value *
+RoxorCompiler::compile_landing_pad_header(const std::type_info &eh_type)
 {
     Function *eh_exception_f = Intrinsic::getDeclaration(module,
 	    Intrinsic::eh_exception);
@@ -1621,21 +1638,58 @@ RoxorCompiler::compile_landing_pad_header(void)
     }
     params.push_back(new BitCastInst(__gxx_personality_v0_func,
 		PtrTy, "", bb));
-    params.push_back(compile_const_pointer(NULL));
 
-    CallInst::Create(eh_selector_f, params.begin(), params.end(),
-	    "", bb);
+    if (eh_type == typeid(void)) {
+	// catch (...)
+	params.push_back(compile_const_pointer(NULL));
+    }
+    else {
+	// catch (eh_type &exc)
+	params.push_back(compile_const_pointer((void *)&eh_type));
+	params.push_back(compile_const_pointer(NULL));
+    }
+
+    Value *eh_sel = CallInst::Create(eh_selector_f, params.begin(),
+	    params.end(), "", bb);
+
+    if (eh_type != typeid(void)) {
+	// TODO: this doesn't work yet, the type id must be a GlobalVariable...
+#if __LP64__
+	Function *eh_typeid_for_f = Intrinsic::getDeclaration(module,
+		Intrinsic::eh_typeid_for_i64);
+#else
+	Function *eh_typeid_for_f = Intrinsic::getDeclaration(module,
+		Intrinsic::eh_typeid_for_i32);
+#endif
+	std::vector<Value *> params;
+	params.push_back(compile_const_pointer((void *)&eh_type));
+
+	Value *eh_typeid = CallInst::Create(eh_typeid_for_f, params.begin(),
+		params.end(), "", bb);
+
+	Function *f = bb->getParent();
+	BasicBlock *typeok_bb = BasicBlock::Create("typeok", f);
+	BasicBlock *nocatch_bb  = BasicBlock::Create("nocatch", f);
+	Value *need_ret = new ICmpInst(ICmpInst::ICMP_EQ, eh_sel,
+		eh_typeid, "", bb);
+	BranchInst::Create(typeok_bb, nocatch_bb, need_ret, bb);
+
+	bb = nocatch_bb;
+	compile_rethrow_exception();
+
+	bb = typeok_bb;
+    }
 
     Function *beginCatchFunc = NULL;
     if (beginCatchFunc == NULL) {
 	// void *__cxa_begin_catch(void *);
 	beginCatchFunc = cast<Function>(
 		module->getOrInsertFunction("__cxa_begin_catch",
-		    Type::VoidTy, PtrTy, NULL));
+		    PtrTy, PtrTy, NULL));
     }
     params.clear();
     params.push_back(eh_ptr);
-    CallInst::Create(beginCatchFunc, params.begin(), params.end(),
+    return CallInst::Create(beginCatchFunc, params.begin(), params.end(),
 	    "", bb);
 }
 
@@ -4245,7 +4299,6 @@ rescan_args:
 		    compile_landing_pad_header();
 		    compile_node(node->nd_ensr);
 		    compile_rethrow_exception();
-		    //compile_landing_pad_footer();
 		}
 		else {
 		    val = compile_node(node->nd_head);
@@ -4331,7 +4384,7 @@ rescan_args:
 		NODE *old_current_block_node = current_block_node;
 		ID old_current_mid = current_mid;
 		bool old_current_block = current_block;
-		bool old_return_from_block = return_from_block;
+		int old_return_from_block = return_from_block;
 		BasicBlock *old_rescue_bb = rescue_bb;
 
 		current_mid = 0;
@@ -4342,7 +4395,7 @@ rescan_args:
 		assert(Function::classof(block));
 
 		BasicBlock *return_from_block_bb = NULL;
-		if (!old_return_from_block && return_from_block) {
+		if (return_from_block != -1) {
 		    // The block we just compiled contains one or more
 		    // return expressions! We need to enclose the dispatcher
 		    // call inside an exception handler, since return-from
@@ -4381,10 +4434,10 @@ rescan_args:
 		    caller = compile_dispatch_call(params);
 		}
 
-		if (return_from_block_bb) {
+		if (return_from_block != -1) {
 		    BasicBlock *old_bb = bb;
 		    bb = return_from_block_bb;
-		    compile_return_from_block_handler();	
+		    compile_return_from_block_handler(return_from_block);	
 		    rescue_bb = old_rescue_bb;
 		    bb = old_bb;
 		}
@@ -4415,10 +4468,10 @@ rescan_args:
 		if (node->nd_head != NULL) {
 		    compile_dispatch_arguments(node->nd_head, params, &argc);
 		}
-		params.insert(params.begin(), ConstantInt::get(Type::Int32Ty, argc));
+		params.insert(params.begin(),
+			ConstantInt::get(Type::Int32Ty, argc));
 
-		return CallInst::Create(yieldFunc, params.begin(),
-			params.end(), "", bb);
+		return compile_protected_call(yieldFunc, params);
 	    }
 	    break;
 

@@ -180,7 +180,7 @@ value2gv(VALUE v)
 #define VALUE_TO_GV(v) (value2gv((VALUE)v))
 
 extern "C" void *__cxa_allocate_exception(size_t);
-extern "C" void __cxa_throw(void *, void *, void *);
+extern "C" void __cxa_throw(void *, void *, void (*)(void*));
 
 RoxorCore::RoxorCore(void)
 {
@@ -237,7 +237,6 @@ RoxorVM::RoxorVM(void)
     safe_level = 0;
     backref = Qnil;
     broken_with = Qundef;
-    returned_from_block = false;
     last_status = Qnil;
     errinfo = Qnil;
     parse_in_eval = false;
@@ -293,7 +292,6 @@ RoxorVM::RoxorVM(const RoxorVM &vm)
 
     backref = Qnil;
     broken_with = Qundef;
-    returned_from_block = false;
     last_status = Qnil;
     errinfo = Qnil;
     parse_in_eval = false;
@@ -3835,6 +3833,45 @@ rb_vm_pop_broken_value(void)
     return val;
 }
 
+extern "C"
+void
+rb_vm_return_from_block(VALUE val, int id)
+{
+    RoxorReturnFromBlockException *exc = new RoxorReturnFromBlockException();
+
+    rb_objc_retain((void *)val);
+    exc->val = val;
+    exc->id = id;
+
+    throw exc;
+}
+
+extern "C" std::type_info *__cxa_current_exception_type(void);
+
+static inline bool
+current_exception_is_return_from_block(void)
+{
+    const std::type_info *exc_type = __cxa_current_exception_type();
+    return exc_type != NULL
+	&& *exc_type == typeid(RoxorReturnFromBlockException *);
+}
+
+extern "C"
+VALUE
+rb_vm_check_return_from_block_exc(RoxorReturnFromBlockException **pexc, int id)
+{
+    if (current_exception_is_return_from_block()) {
+	RoxorReturnFromBlockException *exc = *pexc;
+	if (id == -1 || exc->id == id) {
+	    VALUE val = exc->val;
+	    rb_objc_release((void *)val);
+	    delete exc;
+	    return val;
+	}
+    }
+    return Qundef;
+}
+
 static inline void
 rb_vm_rethrow(void)
 {
@@ -3842,27 +3879,19 @@ rb_vm_rethrow(void)
     __cxa_throw(exc, NULL, NULL);
 }
 
-extern "C"
-void
-rb_vm_return_from_block(VALUE val)
-{
-    GET_VM()->set_broken_with(val);
-    GET_VM()->set_returned_from_block(true);
-    rb_vm_rethrow();
-}
-
+#if 0
 extern "C"
 VALUE
-rb_vm_pop_return_from_block_value(void)
+rb_vm_pop_return_from_block_value(int id)
 {
-    if (GET_VM()->get_returned_from_block()) {
-	GET_VM()->set_returned_from_block(false);
+    if (GET_VM()->check_return_from_block(id)) {
 	VALUE val = rb_vm_pop_broken_value();
 	assert(val != Qundef);
 	return val;
     }
     return Qundef;
 }
+#endif
 
 extern "C"
 VALUE
@@ -4023,8 +4052,8 @@ void
 rb_vm_init_compiler(void)
 {
     RoxorCompiler::shared = ruby_aot_compile
-	? new RoxorAOTCompiler("")
-	: new RoxorCompiler("");
+	? new RoxorAOTCompiler()
+	: new RoxorCompiler();
 }
 
 extern "C"
@@ -4041,8 +4070,10 @@ rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding,
     RoxorCompiler *compiler = RoxorCompiler::shared;
 
     bool old_inside_eval = compiler->is_inside_eval();
-    compiler->set_inside_eval(inside_eval); 
+    compiler->set_inside_eval(inside_eval);
+    compiler->set_fname(fname);
     Function *function = compiler->compile_main_function(node);
+    compiler->set_fname(NULL);
     compiler->set_inside_eval(old_inside_eval);
 
     if (binding != NULL) {
@@ -4514,7 +4545,8 @@ rb_vm_thread_run(VALUE thread)
     }
     catch (...) {
 	VALUE exc;
-	if (rb_vm_pop_return_from_block_value() != Qundef) {
+	if (current_exception_is_return_from_block()) {
+	    // TODO: the exception is leaking!
 	    exc = rb_exc_new2(rb_eLocalJumpError,
 		    "unexpected return from Thread");
 	}

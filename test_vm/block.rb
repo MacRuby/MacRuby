@@ -527,6 +527,39 @@ assert '42', %{
   p bar
 }
 
+assert ':ok', %{
+  def foo
+    begin
+      yield
+    ensure
+      p :ok
+    end
+  end
+  def bar
+   foo { return }
+  end 
+  bar
+}
+
+assert 'false', %{
+  def foo(m); m.synchronize { return 42 }; end
+  m = Mutex.new
+  foo(m)
+  p m.locked?
+}
+
+assert ':ok', %{
+  def foo(v)
+    1.times do
+      return true if v
+      return false
+      p :nok1
+    end
+    p :nok2
+  end
+  p :ok if !foo(false) and foo(true)
+}
+
 assert ":ok\n:ok", %{
   def foo
     raise

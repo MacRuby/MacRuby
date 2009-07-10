@@ -30,8 +30,12 @@ class RoxorCompiler {
 	static llvm::Module *module;
 	static RoxorCompiler *shared;
 
-	RoxorCompiler(const char *fname);
+	RoxorCompiler(void);
 	virtual ~RoxorCompiler(void) { }
+
+	void set_fname(const char *_fname) {
+	    fname = _fname;
+	}
 
 	Value *compile_node(NODE *node);
 
@@ -92,7 +96,8 @@ class RoxorCompiler {
 	BasicBlock *current_loop_body_bb;
 	BasicBlock *current_loop_end_bb;
 	Value *current_loop_exit_val;
-	bool return_from_block;
+	int return_from_block;
+	int return_from_block_ids;
 
 	Function *dispatcherFunc;
 	Function *fastEqqFunc;
@@ -148,7 +153,7 @@ class RoxorCompiler {
 	Function *getSpecialFunc;
 	Function *breakFunc;
 	Function *returnFromBlockFunc;
-	Function *returnFromBlockValueFunc;
+	Function *checkReturnFromBlockFunc;
 	Function *longjmpFunc;
 	Function *setjmpFunc;
 	Function *popBrokenValue;
@@ -229,8 +234,8 @@ class RoxorCompiler {
 	Value *compile_dstr(NODE *node);
 	Value *compile_dvar_slot(ID name);
 	void compile_break_val(Value *val);
-	void compile_return_from_block(Value *val);
-	void compile_return_from_block_handler(void);
+	void compile_return_from_block(Value *val, int id);
+	void compile_return_from_block_handler(int id);
 	Value *compile_jump(NODE *node);
 	virtual Value *compile_mcache(SEL sel, bool super);
 	virtual Value *compile_ccache(ID id);
@@ -248,7 +253,8 @@ class RoxorCompiler {
 	virtual Value *compile_immutable_literal(VALUE val);
 	virtual Value *compile_global_entry(NODE *node);
 
-	void compile_landing_pad_header(void);
+	Value *compile_landing_pad_header(void);
+	Value *compile_landing_pad_header(const std::type_info &eh_type);
 	void compile_landing_pad_footer(bool pop_exception=true);
 	void compile_rethrow_exception(void);
 	void compile_pop_exception(void);
@@ -286,7 +292,7 @@ class RoxorCompiler {
 
 class RoxorAOTCompiler : public RoxorCompiler {
     public:
-	RoxorAOTCompiler(const char *fname);
+	RoxorAOTCompiler(void);
 
 	Function *compile_main_function(NODE *node);
 
