@@ -511,6 +511,15 @@ assert ':ok', %{
   c { p :ok }
 }
 
+assert '42', %{
+  def foo; 1.times { return 42 }; p :nok; end
+  foo
+}
+
+assert '42', %{
+  def foo; 1.times { 1.times { 1.times { return 42 } } }; p :nok; end
+}
+
 assert ":ok\n:ok", %{
   def foo
     raise
