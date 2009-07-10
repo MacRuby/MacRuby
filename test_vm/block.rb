@@ -513,11 +513,18 @@ assert ':ok', %{
 
 assert '42', %{
   def foo; 1.times { return 42 }; p :nok; end
-  foo
+  p foo
 }
 
 assert '42', %{
   def foo; 1.times { 1.times { 1.times { return 42 } } }; p :nok; end
+  p foo
+}
+
+assert '42', %{
+  def foo; 1.times { return yield }; end
+  def bar; foo { return 42 }; p :nok; end
+  p bar
 }
 
 assert ":ok\n:ok", %{
