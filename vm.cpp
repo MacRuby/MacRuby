@@ -3879,20 +3879,6 @@ rb_vm_rethrow(void)
     __cxa_throw(exc, NULL, NULL);
 }
 
-#if 0
-extern "C"
-VALUE
-rb_vm_pop_return_from_block_value(int id)
-{
-    if (GET_VM()->check_return_from_block(id)) {
-	VALUE val = rb_vm_pop_broken_value();
-	assert(val != Qundef);
-	return val;
-    }
-    return Qundef;
-}
-#endif
-
 extern "C"
 VALUE
 rb_vm_backtrace(int level)
@@ -4119,117 +4105,39 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
     return val;
 }
 
+#include <libgen.h>
+
 extern "C"
 void
 rb_vm_aot_compile(NODE *node)
 {
     assert(ruby_aot_compile);
 
+    const char *output = RSTRING_PTR(ruby_aot_compile);
+
+    // Generate the name of the init function.
+    // TODO make it unique (checkum/hash?)
+    char buf[PATH_MAX];
+    strlcpy(buf, output, sizeof buf);
+    std::string base(basename(buf));
+    std::string init_function_name("MREP_");
+    const size_t pos = base.rfind('.');
+    if (pos != std::string::npos) {
+	init_function_name.append(base, 0, pos);
+    }
+    else {
+	init_function_name.append(base);
+    }
+
     // Compile the program as IR.
     Function *f = RoxorCompiler::shared->compile_main_function(node);
-    f->setName("rb_main");
+    f->setName(init_function_name.c_str());
     GET_CORE()->optimize(f);
 
-    // Save the bitcode into a temporary file.
-    const char *tmpdir = getenv("TMPDIR");
-    assert(tmpdir != NULL);
-    std::string bc_path(tmpdir);
-    bc_path.append("ruby.bc");
-    std::ofstream out(bc_path.c_str());
+    // Dump the bitcode.
+    std::ofstream out(output);
     WriteBitcodeToFile(RoxorCompiler::module, out);
     out.close();
-
-    // Compile the bitcode as assembly.
-    std::string llc_line("llc -f ");
-    llc_line.append(bc_path);
-    llc_line.append(" -o=");
-    std::string as_path(tmpdir);
-    as_path.append("ruby.s");
-    llc_line.append(as_path);
-    if (system(llc_line.c_str()) != 0) {
-	printf("error when compiling bitcode as assembly\n" \
-	       "line was: %s", llc_line.c_str());
-	exit(1);
-    }
-
-    // Compile the assembly.
-    std::string gcc_line("gcc -c -arch x86_64 ");
-    gcc_line.append(as_path);
-    std::string o_path(tmpdir);
-    o_path.append("ruby.o");
-    gcc_line.append(" -o ");
-    gcc_line.append(o_path);
-    if (system(gcc_line.c_str()) != 0) {
-	printf("error when compiling assembly as machine code\n" \
-	       "line was: %s", gcc_line.c_str());
-	exit(1);
-    }
-
-    // Compile main function.
-    std::string main_path(tmpdir);
-    main_path.append("main.cpp");
-    std::ofstream main_file(main_path.c_str());
-    std::string main_content(
-"extern \"C\" {\n"
-"    void ruby_sysinit(int *, char ***);\n"
-"    void ruby_init(void);\n"
-"    void ruby_set_argv(int, char **);\n"
-"    void rb_vm_init_compiler(void);\n"
-"    void *rb_vm_top_self(void);\n"
-"    void rb_vm_print_current_exception(void);\n"
-"    void rb_exit(int);\n"
-"    void *rb_main(void *, void *);\n"
-"}\n"
-"\n"
-"int main(int argc, char **argv)\n"
-"{\n"
-"    ruby_sysinit(&argc, &argv);\n"
-"    if (argc > 0) {\n"
-"	argc--; argv++;\n"
-"    }\n"
-"    ruby_init();\n"
-"    ruby_set_argv(argc, argv);\n"
-"    rb_vm_init_compiler();\n"
-"    try {\n"
-"	rb_main(rb_vm_top_self(), 0);\n"
-"    }\n"
-"    catch (...) {\n"
-"	rb_vm_print_current_exception();\n"
-"	rb_exit(1);\n"
-"    }\n"
-"    rb_exit(0);\n"
-"}\n"
-);
-    main_file.write(main_content.c_str(), main_content.size());
-    main_file.close();
-    gcc_line.clear();
-    gcc_line.append("g++ ");
-    gcc_line.append(main_path);
-    gcc_line.append(" -c -arch x86_64 -o ");
-    std::string main_o_path(tmpdir);
-    main_o_path.append("main.o");
-    gcc_line.append(main_o_path);
-    if (system(gcc_line.c_str()) != 0) {
-	printf("error when compiling main function as machine code\n" \
-	       "line was: %s", gcc_line.c_str());
-	exit(1);
-    }
-
-    // Link everything!
-    std::string out_path("a.out");
-    gcc_line.clear();
-    gcc_line.append("g++ ");
-    gcc_line.append(o_path);
-    gcc_line.append(" -o ");
-    gcc_line.append(out_path);
-    // XXX -L. should be removed later
-    gcc_line.append(" -L. -lmacruby-static -arch x86_64 -framework Foundation -lobjc -lauto -I/usr/include/libxml2 -lxml2 `llvm-config --ldflags --libs core jit nativecodegen interpreter bitwriter` ");
-    gcc_line.append(main_o_path);
-    if (system(gcc_line.c_str()) != 0) {
-	printf("error when compiling main function as machine code\n" \
-	       "line was: %s", gcc_line.c_str());
-	exit(1);
-    }
 }
 
 extern "C"

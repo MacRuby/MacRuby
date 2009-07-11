@@ -132,7 +132,6 @@ usage(const char *name)
 	"-x[directory]   strip off text before #!ruby line and perhaps cd to directory",
 	"--copyright     print the copyright",
 	"--version       print the version",
-	"--compile       ahead-of-time (AOT) compile the script",
 	NULL
     };
     const char *const *p = usage_msg;
@@ -748,8 +747,17 @@ proc_options(int argc, char **argv, struct cmdline_options *opt)
 		usage(origarg.argv[0]);
 		rb_exit(EXIT_SUCCESS);
 	    }
-	    else if (strcmp("compile", s) == 0) {
-		ruby_aot_compile = Qtrue;
+	    else if (strcmp("emit-llvm", s) == 0) {
+		// This option is not documented and only used by macrubyc.
+		// Users should use macrubyc and never call this option
+		// directly.
+		if (argc < 2) {
+		    rb_raise(rb_eRuntimeError,
+			    "expected argument (output file) for --emit-llvm");
+		}
+		ruby_aot_compile = rb_str_new2(argv[1]);
+		rb_objc_retain((void *)ruby_aot_compile);
+		argc--; argv++;
 	    }
 	    else {
 		rb_raise(rb_eRuntimeError,
