@@ -1,0 +1,197 @@
+#!/usr/bin/ruby
+# MacRuby AOT Compiler.
+#
+# This file is covered by the Ruby license.
+#
+# Copyright (C) 2009, Apple Inc
+
+require 'optparse'
+require 'rbconfig'
+
+class Compiler
+  NAME = File.basename(__FILE__)
+  VERSION = '0.1'
+
+  def initialize(argv)
+    # Parse arguments.
+    OptionParser.new do |opts|
+      opts.banner = "Usage: #{NAME} [options] file..."
+      opts.on('-c', 'Compile and assemble, but do not link') { @dont_link = true }
+      opts.on('-o <file>', 'Place the output into <file>') { |output| @output = output }
+      opts.on('-v', '--version', 'Display the version') { show_version }
+      opts.on('-V', '--verbose', 'Print every command line executed') { @verbose = true }
+      opts.on('-h', '--help', 'Display this information') { die opts }
+      begin
+        opts.parse!(argv)
+      rescue OptionParser::InvalidOption => e
+        die e, opts
+      end
+      die opts if argv.empty?
+      @files = argv
+    end
+
+    # Locate necessary programs.
+    @macruby = locate('macruby')
+    @llc = locate('llc')    
+    @gcc = locate('gcc')
+    @gcxx = locate('g++')
+    @nm = locate('nm')
+
+    # Misc.
+    @tmpdir = (ENV['TMPDIR'] or raise 'no TMPDIR?')
+    @tmpfiles = []
+  end
+
+  def run
+    if @dont_link
+      if @files.size > 1 and @output
+        die "cannot specify -o with -c and multiple input files"
+      end
+      @files.each do |file|
+        if File.extname(file) != '.rb'
+          die "given input file `#{file}' must be a Ruby source file (.rb)"
+        end
+        compile_object(file, @output)
+      end
+    else
+      objs = @files.map do |file|
+        case File.extname(file)
+          when '.rb'
+            compile_object(file, nil)
+          when '.o'
+            die "given input file `#{file} must exist" unless File.exist?(File)
+            file
+          else
+            die "given input file `#{file}' must be either a Ruby source file (.rb) or a Mach-O object file (.o)"
+        end
+      end
+      compile_executable(objs, @output)
+    end
+  end
+
+  def cleanup
+    @tmpfiles.each { |x| File.delete(x) }
+  end
+
+  private
+
+  def compile_object(path, output)
+    base = File.basename(path, '.rb') 
+    output ||= File.join(File.dirname(path), base + '.o')
+
+    # Compile the file into LLVM bitcode.
+    bc = gen_tmpfile(base, 'bc')
+    execute("#{@macruby} --emit-llvm \"#{bc}\" \"#{path}\"")
+
+    # Compile the bitcode as assembly.
+    asm = gen_tmpfile(base, 's')
+    execute("#{@llc} -f #{bc} -o=#{asm}")
+
+    # Finally compile the assembly.
+    execute("#{@gcc} -c -arch x86_64 #{asm} -o #{output}")
+
+    output
+  end
+
+  def compile_executable(objs, output)
+    output ||= 'a.out'
+
+    # Guess which objects were originally MacRuby source files and memorize their init function.
+    init_funcs = []
+    objs.each do |file|
+      ary = execute("#{@nm} #{file}").scan(/^\d+\sT\s(_MREP_.*)$/)
+      unless ary.empty?
+        init_funcs << ary[0][0][1..-1] # drop _ prefix
+      end
+    end
+
+    # Generate main file.
+    main_txt = <<EOS
+extern "C" {
+    void ruby_sysinit(int *, char ***);
+    void ruby_init(void);
+    void ruby_set_argv(int, char **);
+    void rb_vm_init_compiler(void);
+    void *rb_vm_top_self(void);
+    void rb_vm_print_current_exception(void);
+    void rb_exit(int);
+EOS
+    init_funcs.each { |x| main_txt << "void *#{x}(void *, void *);\n" }
+    main_txt << <<EOS
+}
+
+int main(int argc, char **argv)
+{
+    ruby_sysinit(&argc, &argv);
+    if (argc > 0) {
+	argc--;
+        argv++;
+    }
+    ruby_init();
+    ruby_set_argv(argc, argv);
+    rb_vm_init_compiler();
+    try {
+        void *self = rb_vm_top_self();
+EOS
+    init_funcs.each { |x| main_txt << "#{x}(self, 0);\n" }
+    main_txt << <<EOS
+    }
+    catch (...) {
+	rb_vm_print_current_exception();
+	rb_exit(1);
+    }
+    rb_exit(0);
+}
+EOS
+
+    # Compile main file.
+    main = gen_tmpfile('main', 'cpp')
+    File.open(main, 'w') { |io| io.write(main_txt) }
+    main_o = gen_tmpfile('main', 'o')
+    execute("#{@gcxx} #{main} -c -arch x86_64 -o #{main_o}")
+    objs.unshift(main_o)
+
+    # Link all objects into executable.
+    line = "#{@gcxx} -o #{output} -L#{RbConfig::CONFIG['libdir']} -lmacruby-static -arch x86_64 -framework Foundation -lobjc -lauto -I/usr/include/libxml2 -lxml2 "
+    line << execute("llvm-config --ldflags --libs core jit nativecodegen interpreter bitwriter").gsub(/\n/, '')
+    objs.each { |o| line << " #{o}" }
+    execute(line)
+  end
+
+  def execute(line)
+    $stderr.puts line if @verbose
+    ret = `#{line}`
+    die "Error when executing `#{line}'" unless $?.success?
+    ret
+  end
+
+  def locate(progname)
+    path = `which #{progname}`.strip
+    die "Can't locate program `#{progname}'" if path.empty?
+    path
+  end
+
+  def gen_tmpfile(base, ext)
+    file = File.join(@tmpdir, "#{base}.#{ext}")
+    @tmpfiles << file
+    file
+  end
+
+  def die(*args)
+    $stderr.puts args
+    exit 1
+  end
+
+  def show_version
+    puts "MacRuby version #{MACRUBY_VERSION}"
+    puts "#{NAME} version #{VERSION}"
+    exit 1
+  end
+end
+
+app = Compiler.new(ARGV)
+begin
+  app.run
+ensure
+  app.cleanup
+end
