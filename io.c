@@ -389,13 +389,13 @@ io_struct_close(rb_io_t *io_struct, bool close_read, bool close_write)
 	io_struct->writeStream = NULL;
     }
     if (io_struct->pid != -1) {
+	rb_last_status_set(0, io_struct->pid);
 	// Don't commit seppuku!
 	if (io_struct->pid != 0 && io_struct->pid != getpid()) {
 	    kill(io_struct->pid, SIGTERM);
 	}
 	io_struct->pid = -1;
     }
-    rb_last_status_set(0, io_struct->pid);
     io_struct->fd = -1;
 }
 
