@@ -49,7 +49,8 @@ class RoxorCompiler {
 	Function *compile_ffi_function(void *stub, void *imp, int argc);
 	Function *compile_to_rval_convertor(const char *type);
 	Function *compile_to_ocval_convertor(const char *type);
-	Function *compile_objc_stub(Function *ruby_func, const char *types);
+	Function *compile_objc_stub(Function *ruby_func, IMP ruby_imp,
+		const rb_vm_arity_t &arity, const char *types);
 	Function *compile_block_caller(rb_vm_block_t *block);
 
 	const Type *convert_type(const char *type);

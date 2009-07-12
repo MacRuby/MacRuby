@@ -438,7 +438,8 @@ extern FILE *ruby_dlog_file;
 
 typedef struct {
     Function *func;
-    NODE *node;
+    rb_vm_arity_t arity;
+    int flags;
 } rb_vm_method_source_t;
 
 typedef VALUE rb_vm_objc_stub_t(IMP imp, id self, SEL sel, int argc,
@@ -538,7 +539,7 @@ class RoxorCore {
 	// Maps to cache compiled stubs for a given Objective-C runtime type.
 	std::map<std::string, void *> c_stubs, objc_stubs,
 	    to_rval_convertors, to_ocval_convertors;
-	std::map<Function *, IMP> objc_to_ruby_stubs;
+	std::map<IMP, IMP> objc_to_ruby_stubs;
 
 	// Caches for the lazy JIT.
 	std::map<SEL, std::map<Class, rb_vm_method_source_t *> *>
@@ -643,12 +644,14 @@ class RoxorCore {
 	struct mcache *method_cache_get(SEL sel, bool super);
 	rb_vm_method_node_t *method_node_get(IMP imp);
 
-	void prepare_method(Class klass, SEL sel, Function *func, NODE *node);
+	void prepare_method(Class klass, SEL sel, Function *func,
+		const rb_vm_arity_t &arity, int flag);
 	rb_vm_method_node_t *add_method(Class klass, SEL sel, IMP imp,
 		IMP ruby_imp, const rb_vm_arity_t &arity, int flags,
 		const char *types);
 	rb_vm_method_node_t *resolve_method(Class klass, SEL sel,
-		Function *func, NODE *node, IMP imp, Method m);
+		Function *func, const rb_vm_arity_t &arity, int flags,
+		IMP imp, Method m);
 	bool resolve_methods(std::map<Class, rb_vm_method_source_t *> *map,
 		Class klass, SEL sel);
 	void copy_methods(Class from_class, Class to_class);

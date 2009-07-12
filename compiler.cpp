@@ -453,27 +453,27 @@ RoxorCompiler::compile_mcache(SEL sel, bool super)
 Value *
 RoxorAOTCompiler::compile_mcache(SEL sel, bool super)
 {
-    GlobalVariable *gvar;
     if (super) {
-	abort(); // TODO
+	char buf[100];
+	snprintf(buf, sizeof buf, "__super__:%s", sel_getName(sel));
+        sel = sel_registerName(buf);
+    }
+
+    GlobalVariable *gvar;
+    std::map<SEL, GlobalVariable *>::iterator iter = mcaches.find(sel);
+    if (iter == mcaches.end()) {
+	gvar = new GlobalVariable(
+		PtrTy,
+		false,
+		GlobalValue::InternalLinkage,
+		Constant::getNullValue(PtrTy),
+		"",
+		RoxorCompiler::module);
+	assert(gvar != NULL);
+	mcaches[sel] = gvar;
     }
     else {
-	std::map<SEL, GlobalVariable *>::iterator iter =
-	    mcaches.find(sel);
-	if (iter == mcaches.end()) {
-	    gvar = new GlobalVariable(
-		    PtrTy,
-		    false,
-		    GlobalValue::InternalLinkage,
-		    Constant::getNullValue(PtrTy),
-		    "",
-		    RoxorCompiler::module);
-	    assert(gvar != NULL);
-	    mcaches[sel] = gvar;
-	}
-	else {
-	    gvar = iter->second;
-	}
+	gvar = iter->second;
     }
     return new LoadInst(gvar, "", bb);
 }
@@ -532,33 +532,6 @@ RoxorAOTCompiler::compile_sel(SEL sel, bool add_to_bb)
 	: new LoadInst(gvar, "");
 }
 
-void
-RoxorCompiler::compile_prepare_method(Value *classVal, Value *sel,
-	Function *new_function, rb_vm_arity_t &arity, NODE *body)
-{
-    if (prepareMethodFunc == NULL) {
-	// void rb_vm_prepare_method(Class klass, SEL sel,
-	//			     Function *f, NODE *node);
-	prepareMethodFunc = 
-	    cast<Function>(module->getOrInsertFunction(
-			"rb_vm_prepare_method",
-			Type::VoidTy, RubyObjTy, PtrTy, PtrTy,
-			PtrTy, NULL));
-    }
-
-    std::vector<Value *> params;
-
-    params.push_back(classVal);
-    params.push_back(sel);
-
-    params.push_back(compile_const_pointer(new_function));
-    rb_objc_retain((void *)body);
-    params.push_back(compile_const_pointer(body));
-
-    CallInst::Create(prepareMethodFunc, params.begin(),
-	    params.end(), "", bb);
-}
-
 inline Value *
 RoxorCompiler::compile_arity(rb_vm_arity_t &arity)
 {
@@ -569,12 +542,40 @@ RoxorCompiler::compile_arity(rb_vm_arity_t &arity)
 }
 
 void
+RoxorCompiler::compile_prepare_method(Value *classVal, Value *sel,
+	Function *new_function, rb_vm_arity_t &arity, NODE *body)
+{
+    if (prepareMethodFunc == NULL) {
+	// void rb_vm_prepare_method(Class klass, SEL sel,
+	//	Function *func, rb_vm_arity_t arity, int flags)
+	prepareMethodFunc = 
+	    cast<Function>(module->getOrInsertFunction(
+			"rb_vm_prepare_method",
+			Type::VoidTy, RubyObjTy, PtrTy, PtrTy,
+			Type::Int64Ty, Type::Int32Ty, NULL));
+    }
+
+    std::vector<Value *> params;
+
+    params.push_back(classVal);
+    params.push_back(sel);
+
+    params.push_back(compile_const_pointer(new_function));
+    rb_objc_retain((void *)body);
+    params.push_back(compile_arity(arity));
+    params.push_back(ConstantInt::get(Type::Int32Ty, rb_vm_node_flags(body)));
+
+    CallInst::Create(prepareMethodFunc, params.begin(),
+	    params.end(), "", bb);
+}
+
+void
 RoxorAOTCompiler::compile_prepare_method(Value *classVal, Value *sel,
 	Function *new_function, rb_vm_arity_t &arity, NODE *body)
 {
     if (prepareMethodFunc == NULL) {
-	// void rb_vm_prepare_method2(Class klass, SEl sel, IMP imp,
-	//			      rb_vm_arity_t arity, int flags);
+	// void rb_vm_prepare_method2(Class klass, SEL sel,
+	//	IMP ruby_imp, rb_vm_arity_t arity, int flags)
 	prepareMethodFunc = 
 	    cast<Function>(module->getOrInsertFunction(
 			"rb_vm_prepare_method2",
@@ -5995,8 +5996,11 @@ RoxorCompiler::compile_lvar_slot(ID name)
 }
 
 Function *
-RoxorCompiler::compile_objc_stub(Function *ruby_func, const char *types)
+RoxorCompiler::compile_objc_stub(Function *ruby_func, IMP ruby_imp,
+	const rb_vm_arity_t &arity, const char *types)
 {
+    assert(ruby_func != NULL || ruby_imp != NULL);
+
     char buf[100];
     const char *p = types;
     std::vector<const Type *> f_types;
@@ -6026,7 +6030,7 @@ RoxorCompiler::compile_objc_stub(Function *ruby_func, const char *types)
     // Arguments.
     std::vector<std::string> arg_types;
     std::vector<unsigned int> byval_args;
-    for (unsigned int i = 0; i < ruby_func->arg_size() - 2; i++) {
+    for (int i = 0; i < arity.real; i++) {
 	p = GetFirstType(p, buf, sizeof buf);
 	const Type *t = convert_type(buf);
 	if (GET_CORE()->is_large_struct_type(t)) {
@@ -6064,20 +6068,37 @@ RoxorCompiler::compile_objc_stub(Function *ruby_func, const char *types)
     params.push_back(arg++); // sel
 
     // Convert every incoming argument into Ruby type.
-    for (unsigned int i = 0; i < ruby_func->arg_size() - 2; i++) {
+    for (int i = 0; i < arity.real; i++) {
 	Value *a = arg++;
 	if (std::find(byval_args.begin(), byval_args.end(), i + 3 + sret_i)
-	    != byval_args.end()) {
-	     a = new LoadInst(a, "", bb);
+		!= byval_args.end()) {
+	    a = new LoadInst(a, "", bb);
 	}
 	Value *ruby_arg = compile_conversion_to_ruby(arg_types[i].c_str(),
 		f_types[i + 2 + sret_i], a);
 	params.push_back(ruby_arg);
     }
 
+    // Create the Ruby implementation type (unless it's already provided).
+    Value *imp;
+    if (ruby_func == NULL) {
+	std::vector<const Type *> ruby_func_types;
+	ruby_func_types.push_back(RubyObjTy);
+	ruby_func_types.push_back(PtrTy);
+	for (int i = 0; i < arity.real; i++) {
+	    ruby_func_types.push_back(RubyObjTy);
+	}
+	FunctionType *ft = FunctionType::get(RubyObjTy, ruby_func_types, false);
+	imp = new BitCastInst(compile_const_pointer((void *)ruby_imp),
+		PointerType::getUnqual(ft), "", bb);
+    }
+    else {
+	imp = ruby_func;
+    }
+
     // Call the Ruby implementation.
-    Value *ret_val = CallInst::Create(ruby_func, params.begin(),
-	    params.end(), "", bb);
+    Value *ret_val = CallInst::Create(imp, params.begin(), params.end(),
+	    "", bb);
 
     // Convert the return value into Objective-C type (if any).
     if (f_ret_type != Type::VoidTy) {

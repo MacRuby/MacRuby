@@ -1269,32 +1269,30 @@ resolve_method_type(char *buf, const size_t buflen, Class klass, Method m,
 }
 
 rb_vm_method_node_t *
-RoxorCore::resolve_method(Class klass, SEL sel, Function *func, NODE *node,
-	IMP imp, Method m)
+RoxorCore::resolve_method(Class klass, SEL sel, Function *func,
+	const rb_vm_arity_t &arity, int flags, IMP imp, Method m)
 {
-    const int oc_arity = rb_vm_node_arity(node).real + 3;
+    if (imp == NULL) {
+	assert(func != NULL);
+	imp = compile(func);
+    }
 
+    const int oc_arity = arity.real + 3;
     char types[100];
     resolve_method_type(types, sizeof types, klass, m, sel, oc_arity);
 
-    std::map<Function *, IMP>::iterator iter = objc_to_ruby_stubs.find(func);
+    std::map<IMP, IMP>::iterator iter = objc_to_ruby_stubs.find(imp);
     IMP objc_imp;
     if (iter == objc_to_ruby_stubs.end()) {
 	Function *objc_func = RoxorCompiler::shared->compile_objc_stub(func,
-		types);
+		imp, arity, types);
 	objc_imp = compile(objc_func);
-	objc_to_ruby_stubs[func] = objc_imp;
+	objc_to_ruby_stubs[imp] = objc_imp;
     }
     else {
 	objc_imp = iter->second;
     }
 
-    if (imp == NULL) {
-	imp = compile(func);
-    }
-
-    const rb_vm_arity_t arity = rb_vm_node_arity(node);
-    const int flags = rb_vm_node_flags(node);
     return add_method(klass, sel, objc_imp, imp, arity, flags, types);
 }
 
@@ -1312,7 +1310,8 @@ RoxorCore::resolve_methods(std::map<Class, rb_vm_method_source_t *> *map,
 
 	if (k != NULL) {
 	    rb_vm_method_source_t *m = iter->second;
-	    resolve_method(iter->first, sel, m->func, m->node, NULL, NULL);
+	    resolve_method(iter->first, sel, m->func, m->arity, m->flags,
+		    NULL, NULL);
 	    map->erase(iter++);
 	    free(m);
 	    did_something = true;
@@ -1367,15 +1366,15 @@ bails:
 }
 
 void
-RoxorCore::prepare_method(Class klass, SEL sel, Function *func, NODE *node)
+RoxorCore::prepare_method(Class klass, SEL sel, Function *func,
+	const rb_vm_arity_t &arity, int flags)
 {
 #if ROXOR_VM_DEBUG
-    printf("preparing %c[%s %s] with LLVM func %p node %p\n",
+    printf("preparing %c[%s %s] with LLVM func %p\n",
 	    class_isMetaClass(klass) ? '+' : '-',
 	    class_getName(klass),
 	    sel_getName(sel),
-	    func,
-	    node);
+	    func);
 #endif
 
     std::map<Class, rb_vm_method_source_t *> *map =
@@ -1394,12 +1393,13 @@ RoxorCore::prepare_method(Class klass, SEL sel, Function *func, NODE *node)
     }
 
     m->func = func;
-    m->node = node;
+    m->arity = arity;
+    m->flags = flags;
 }
 
-extern "C"
-void
-rb_vm_prepare_method(Class klass, SEL sel, Function *func, NODE *node)
+static void
+prepare_method(Class klass, SEL sel, void *data,
+	const rb_vm_arity_t &arity, int flags, bool precompiled)
 {
     Class k = GET_VM()->get_current_class();
     if (k != NULL) {
@@ -1410,7 +1410,6 @@ rb_vm_prepare_method(Class klass, SEL sel, Function *func, NODE *node)
 	}
     }
 
-    const rb_vm_arity_t arity = rb_vm_node_arity(node);
     const char *sel_name = sel_getName(sel);
     const bool genuine_selector = sel_name[strlen(sel_name) - 1] == ':';
     bool redefined = false;
@@ -1421,16 +1420,23 @@ rb_vm_prepare_method(Class klass, SEL sel, Function *func, NODE *node)
 prepare_method:
 
     m = class_getInstanceMethod(klass, sel);
-    if (m != NULL) {
-	// The method already exists - we need to JIT it.
-	if (imp == NULL) {
-	    imp = GET_CORE()->compile(func);
-	}
-	GET_CORE()->resolve_method(klass, sel, func, node, imp, m);
+    if (precompiled) {
+	imp = (IMP)data;
+	GET_CORE()->resolve_method(klass, sel, NULL, arity, flags, imp, m);
     }
     else {
-	// Let's keep the method and JIT it later on demand.
-	GET_CORE()->prepare_method(klass, sel, func, node);
+	Function *func = (Function *)data;
+	if (m != NULL) {
+	    // The method already exists - we need to JIT it.
+	    if (imp == NULL) {
+		imp = GET_CORE()->compile(func);
+	    }
+	    GET_CORE()->resolve_method(klass, sel, func, arity, flags, imp, m);
+	}
+	else {
+	    // Let's keep the method and JIT it later on demand.
+	    GET_CORE()->prepare_method(klass, sel, func, arity, flags);
+	}
     }
 
     if (!redefined) {
@@ -1460,23 +1466,31 @@ prepare_method:
 	    int i, count = RARRAY_LEN(included_in_classes);
 	    for (i = 0; i < count; i++) {
 		VALUE mod = RARRAY_AT(included_in_classes, i);
-		rb_vm_prepare_method((Class)mod, orig_sel, func, node);
+		prepare_method((Class)mod, orig_sel, data, arity, flags,
+			precompiled);
 	    }
 	}
     }
 }
 
-static void __rb_vm_define_method(Class klass, SEL sel, IMP objc_imp,
-	IMP ruby_imp, const rb_vm_arity_t &arity, int flags, bool direct);
+extern "C"
+void
+rb_vm_prepare_method(Class klass, SEL sel, Function *func,
+	const rb_vm_arity_t arity, int flags)
+{
+    prepare_method(klass, sel, (void *)func, arity, flags, false);
+}
 
 extern "C"
 void
-rb_vm_prepare_method2(Class klass, SEL sel, IMP imp, rb_vm_arity_t arity,
-		      int flags)
+rb_vm_prepare_method2(Class klass, SEL sel, IMP ruby_imp,
+	const rb_vm_arity_t arity, int flags)
 {
-    // TODO: create objc_imp
-    __rb_vm_define_method(klass, sel, imp, imp, arity, flags, false);
+    prepare_method(klass, sel, (void *)ruby_imp, arity, flags, true);
 }
+
+static void __rb_vm_define_method(Class klass, SEL sel, IMP objc_imp,
+	IMP ruby_imp, const rb_vm_arity_t &arity, int flags, bool direct);
 
 #define VISI(x) ((x)&NOEX_MASK)
 #define VISI_CHECK(x,f) (VISI(x) == (f))
@@ -1567,6 +1581,7 @@ rb_vm_push_methods(VALUE ary, VALUE mod, bool include_objc_methods,
     GET_CORE()->get_methods(ary, (Class)mod, include_objc_methods, filter);
 }
 
+#if 0
 extern "C"
 GenericValue
 lle_X_rb_vm_prepare_method(const FunctionType *FT,
@@ -1584,6 +1599,7 @@ lle_X_rb_vm_prepare_method(const FunctionType *FT,
     GV.IntVal = 0;
     return GV;
 }
+#endif
 
 extern "C"
 void
@@ -1663,7 +1679,8 @@ RoxorCore::copy_methods(Class from_class, Class to_class)
 	    rb_vm_method_source_t *m = (rb_vm_method_source_t *)
 		malloc(sizeof(rb_vm_method_source_t));
 	    m->func = iter2->second->func;
-	    m->node = iter2->second->node;
+	    m->arity = iter2->second->arity;
+	    m->flags = iter2->second->flags;
 	    dict->insert(std::make_pair(to_class, m));
 	    sels_to_add.push_back(sel);
 	}
@@ -1733,22 +1750,14 @@ rb_vm_define_attr(Class klass, const char *name, bool read, bool write,
     if (read) {
 	Function *f = RoxorCompiler::shared->compile_read_attr(iname);
 	SEL sel = sel_registerName(name);
-	NODE *node = NEW_CFUNC(NULL, 0);
-	NODE *body = NEW_FBODY(NEW_METHOD(node, klass, noex), 0);
-	rb_objc_retain(body);
-
-	rb_vm_prepare_method(klass, sel, f, body);
+	rb_vm_prepare_method(klass, sel, f, rb_vm_arity(0), NODE_FBODY);
     }
 
     if (write) {
 	Function *f = RoxorCompiler::shared->compile_write_attr(iname);
 	snprintf(buf, sizeof buf, "%s=:", name);
 	SEL sel = sel_registerName(buf);
-	NODE *node = NEW_CFUNC(NULL, 1);
-	NODE *body = NEW_FBODY(NEW_METHOD(node, klass, noex), 0);
-	rb_objc_retain(body);
-
-	rb_vm_prepare_method(klass, sel, f, body);
+	rb_vm_prepare_method(klass, sel, f, rb_vm_arity(1), NODE_FBODY);
     }
 }
 
