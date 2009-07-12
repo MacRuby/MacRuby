@@ -6070,8 +6070,8 @@ RoxorCompiler::compile_objc_stub(Function *ruby_func, IMP ruby_imp,
     // Convert every incoming argument into Ruby type.
     for (int i = 0; i < arity.real; i++) {
 	Value *a = arg++;
-	if (std::find(byval_args.begin(), byval_args.end(), i + 3 + sret_i)
-		!= byval_args.end()) {
+	if (std::find(byval_args.begin(), byval_args.end(),
+		    (unsigned int)i + 3 + sret_i) != byval_args.end()) {
 	    a = new LoadInst(a, "", bb);
 	}
 	Value *ruby_arg = compile_conversion_to_ruby(arg_types[i].c_str(),
