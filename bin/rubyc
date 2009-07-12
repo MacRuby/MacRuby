@@ -10,15 +10,32 @@ require 'rbconfig'
 
 class Compiler
   NAME = File.basename(__FILE__)
-  VERSION = '0.1'
 
   def initialize(argv)
+    @mode = :normal
+    @frameworks = []
+=begin
+    # OptionParser is not smart enough to handle some typical command line style arguments.
+    new_argv = argv.dup
+    argv.each_with_index do |a, i|
+      if a == '-framework'
+        die 'missing argument: -framework' if argv.size == i + 1
+        @frameworks << argv[i + 1]
+	new_argv.delete_at(i)
+	new_argv.delete_at(i)
+      end
+    end
+    argv = new_argv
+=end
+
     # Parse arguments.
     OptionParser.new do |opts|
       opts.banner = "Usage: #{NAME} [options] file..."
       opts.on('-c', 'Compile and assemble, but do not link') { @dont_link = true }
       opts.on('-o <file>', 'Place the output into <file>') { |output| @output = output }
-      opts.on('-v', '--version', 'Display the version') { show_version }
+      opts.on('--mode [MODE]', "Select compilation mode (normal or full)") { |mode| @mode = mode.intern }
+      #opts.on('-framework <framework>', 'Link against <framework>') { |path| @frameworks << path }
+      opts.on('-v', '--version', 'Display the version') { puts RUBY_DESCRIPTION; exit 1 }
       opts.on('-V', '--verbose', 'Print every command line executed') { @verbose = true }
       opts.on('-h', '--help', 'Display this information') { die opts }
       begin
@@ -28,6 +45,9 @@ class Compiler
       end
       die opts if argv.empty?
       @files = argv
+      if @mode != :normal and @mode != :full
+        die "invalid mode `#{@mode}' (possible choices are: normal, full)"
+      end
     end
 
     # Locate necessary programs.
@@ -43,6 +63,9 @@ class Compiler
   end
 
   def run
+    if @mode == :full
+      die "full compilation mode is not implemented yet!"
+    end
     if @dont_link
       if @files.size > 1 and @output
         die "cannot specify -o with -c and multiple input files"
@@ -153,6 +176,7 @@ EOS
 
     # Link all objects into executable.
     line = "#{@gcxx} -o #{output} -L#{RbConfig::CONFIG['libdir']} -lmacruby-static -arch x86_64 -framework Foundation -lobjc -lauto -I/usr/include/libxml2 -lxml2 "
+    @frameworks.each { |f| line << "-framework #{f} " }
     line << execute("llvm-config --ldflags --libs core jit nativecodegen interpreter bitwriter").gsub(/\n/, '')
     objs.each { |o| line << " #{o}" }
     execute(line)
