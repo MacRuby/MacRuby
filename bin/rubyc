@@ -82,7 +82,7 @@ class Compiler
           when '.rb'
             compile_object(file, nil)
           when '.o'
-            die "given input file `#{file} must exist" unless File.exist?(File)
+            die "given input file `#{file} must exist" unless File.exist?(file)
             file
           else
             die "given input file `#{file}' must be either a Ruby source file (.rb) or a Mach-O object file (.o)"
@@ -203,12 +203,6 @@ EOS
 
   def die(*args)
     $stderr.puts args
-    exit 1
-  end
-
-  def show_version
-    puts "MacRuby version #{MACRUBY_VERSION}"
-    puts "#{NAME} version #{VERSION}"
     exit 1
   end
 end
