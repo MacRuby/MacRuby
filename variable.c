@@ -1020,7 +1020,10 @@ ivar_get(VALUE obj, ID id, int warn)
 
     const int slot = rb_vm_find_class_ivar_slot(CLASS_OF(obj), id);
     if (slot != -1) {
-	return rb_vm_get_ivar_from_slot(obj, slot);
+	val = rb_vm_get_ivar_from_slot(obj, slot);
+	if (val != Qundef) {
+	    return val;
+	}
     }
 
     switch (TYPE(obj)) {
