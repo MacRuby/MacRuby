@@ -3879,7 +3879,7 @@ rb_str_each_byte(VALUE str, SEL sel)
 	    0,
 	    false,
 	    buffer,
-	    sizeof buffer,
+	    buflen+1,
 	    &used_buflen);
 
     long i;
