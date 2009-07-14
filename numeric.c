@@ -3113,6 +3113,12 @@ fix_zero_p(VALUE num, SEL sel)
     return Qfalse;
 }
 
+static VALUE
+fix_popcnt(VALUE num, SEL sel)
+{
+	return INT2FIX(__builtin_popcountl(FIX2ULONG(num)));
+}
+
 /*
  *  call-seq:
  *     fix.odd? -> true or false
@@ -3339,6 +3345,7 @@ Init_Numeric(void)
     rb_objc_define_method(rb_cFixnum, "odd?", fix_odd_p, 0);
     rb_objc_define_method(rb_cFixnum, "even?", fix_even_p, 0);
     rb_objc_define_method(rb_cFixnum, "succ", fix_succ, 0);
+	rb_objc_define_method(rb_cFixnum, "popcnt", fix_popcnt, 0);
 
     rb_cFloat  = rb_define_class("Float", rb_cNumeric);
 

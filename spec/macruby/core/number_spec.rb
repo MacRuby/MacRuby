@@ -10,3 +10,13 @@ describe "An NSNumber boolean object" do
 end
 
 # TODO cover the Numeric interface on top of NSNumber
+
+describe "Fixnum#popcnt" do
+	it "counts the number of set bits in a number" do
+		5.popcnt.should == 2
+		0.popcnt.should == 0
+		1024.popcnt.should == 1
+		# popcnt can, and should, vary depending on machine word size for negative numbers.
+		-1.popcnt.should <= 64
+	end
+end
