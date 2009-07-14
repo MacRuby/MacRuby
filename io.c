@@ -1307,6 +1307,7 @@ rb_io_gets_m(VALUE io, SEL sel, int argc, VALUE *argv)
 	}
 	CFDataSetLength(data, data_read);
     }
+	OBJ_TAINT(bstr);
 	io_struct->lineno += 1;
 	ARGF.lineno = INT2FIX(io_struct->lineno);
     return bstr; 
