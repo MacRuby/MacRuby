@@ -3113,6 +3113,15 @@ fix_zero_p(VALUE num, SEL sel)
     return Qfalse;
 }
 
+/*
+ *  call-seq:
+ *     fix.popcnt    => Fixnum
+ *
+ *  Returns the number of 1 bits set in the internal representation of 
+ *	<i>fix</i>. This function returns consistent results across platforms for 
+ *	positive numbers, but may vary for negative numbers.
+ *
+ */
 static VALUE
 fix_popcnt(VALUE num, SEL sel)
 {
