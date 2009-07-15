@@ -36,6 +36,7 @@ VALUE rb_cByteString;
 
 static ptrdiff_t wrappedDataOffset;
 #define WRAPPED_DATA_IV_NAME "wrappedData"
+#define BYTESTRING_ENCODING_IV_NAME "encoding"
 
 VALUE
 rb_str_freeze(VALUE str)
@@ -5418,6 +5419,32 @@ imp_rb_bytestring_length(void *rcv, SEL sel)
     return rb_bytestring_length((VALUE)rcv);
 }
 
+static VALUE
+rb_bytestring_getbyte(VALUE bstr, SEL sel, VALUE idx)
+{
+	long index = NUM2LONG(idx);
+	while(idx < 0)
+	{
+		// adjusting for negative indices
+		idx += rb_bytestring_length(bstr);
+	}
+	return INT2FIX(rb_bytestring_byte_pointer(bstr)[index]);
+}
+
+static VALUE
+rb_bytestring_setbyte(VALUE bstr, SEL sel, VALUE idx, VALUE newbyte)
+{
+	long index = NUM2LONG(idx);
+	while(idx < 0)
+	{
+		// adjusting for negative indices
+		idx += rb_bytestring_length(bstr);
+	}
+	rb_bytestring_byte_pointer(bstr)[index] = FIX2UINT(newbyte);
+	return Qnil;
+}
+
+
 static UniChar
 imp_rb_bytestring_characterAtIndex(void *rcv, SEL sel, CFIndex idx)
 {
@@ -5670,7 +5697,8 @@ Init_String(void)
 	    rb_bytestring_initialize, -1);
     rb_objc_define_method(*(VALUE *)rb_cByteString, "alloc",
 	    rb_bytestring_alloc, 0);
-
+	rb_objc_define_method(rb_cByteString, "getbyte", rb_bytestring_getbyte, 1);
+	rb_objc_define_method(rb_cByteString, "setbyte", rb_bytestring_setbyte, 2);
     wrappedDataOffset = ivar_getOffset(
 	    class_getInstanceVariable((Class)rb_cByteString,
 		WRAPPED_DATA_IV_NAME));
