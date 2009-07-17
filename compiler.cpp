@@ -3138,9 +3138,10 @@ RoxorCompiler::compile_node(NODE *node)
 		    }
 
 		    BranchInst::Create(mergeBB, untouchedBB);
-		    bb = touchedBB;
 
+		    bb = touchedBB;
 		    tmp2 = compile_node(value);
+		    touchedBB = bb;
 		}
 		else {
 		    ID mid = nd_type(node) == NODE_OP_ASGN1
