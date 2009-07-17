@@ -1234,7 +1234,7 @@ rb_vm_find_class_ivar_slot(VALUE klass, ID name)
 
 static inline void 
 resolve_method_type(char *buf, const size_t buflen, Class klass, Method m,
-		    SEL sel, const unsigned int oc_arity)
+	SEL sel, const unsigned int oc_arity)
 {
     bs_element_method_t *bs_method = GET_CORE()->find_bs_method(klass, sel);
 
@@ -2044,30 +2044,49 @@ __rb_vm_rcall(VALUE self, SEL sel, IMP pimp, const rb_vm_arity_t &arity,
     abort();
 }
 
-static inline Method
-rb_vm_super_lookup(VALUE klass, SEL sel, VALUE *klassp)
+static inline IMP
+objc_imp(IMP imp)
 {
-    VALUE k, ary;
-    int i, count;
-    bool klass_located;
+    rb_vm_method_node_t *node = GET_CORE()->method_node_get(imp);
+    if (node != NULL && node->ruby_imp == imp) {
+	imp = node->objc_imp;
+    }
+    return imp;
+}
 
-    ary = rb_mod_ancestors_nocopy(klass);
+static inline Method
+rb_vm_super_lookup(VALUE klass, SEL sel)
+{
+    // Locate the current method implementation.
+    Method m = class_getInstanceMethod((Class)klass, sel);
+    assert(m != NULL);
+    IMP self = objc_imp(method_getImplementation(m));
 
+    // Compute the stack call implementations right after our current method.
     void *callstack[128];
     int callstack_n = backtrace(callstack, 128);
-
     std::vector<void *> callstack_funcs;
-    for (int i = 0; i < callstack_n; i++) {
+    bool skip = true;
+    for (int i = callstack_n - 1; i >= 0; i--) {
 	void *start = NULL;
 	if (GET_CORE()->symbolize_call_address(callstack[i],
 		    &start, NULL, NULL, 0)) {
-	    rb_vm_method_node_t *node = GET_CORE()->method_node_get((IMP)start);
-	    if (node != NULL && node->ruby_imp == start) {
-		start = (void *)node->objc_imp;
+	    start = (void *)objc_imp((IMP)start);
+	    if (start == (void *)self) {
+		skip = false;
 	    }
-	    callstack_funcs.push_back(start);
+	    if (!skip) {
+		callstack_funcs.push_back(start);
+	    }
 	}
     }
+
+    // Iterate over ancestors and return the first method that isn't on
+    // the stack.
+    VALUE ary = rb_mod_ancestors_nocopy(klass);
+    const int count = RARRAY_LEN(ary);
+    VALUE k = klass;
+    bool klass_located = false;
 
 #if ROXOR_VM_DEBUG
     printf("locating super method %s of class %s in ancestor chain %s\n", 
@@ -2082,11 +2101,7 @@ rb_vm_super_lookup(VALUE klass, SEL sel, VALUE *klassp)
     printf("\n");
 #endif
 
-    count = RARRAY_LEN(ary);
-    k = klass;
-    klass_located = false;
-
-    for (i = 0; i < count; i++) {
+    for (int i = 0; i < count; i++) {
         if (!klass_located && RARRAY_AT(ary, i) == klass) {
             klass_located = true;
         }
@@ -2407,7 +2422,7 @@ __rb_vm_dispatch(RoxorVM *vm, struct mcache *cache, VALUE self, Class klass,
 recache:
 	Method method;
 	if (opt == DISPATCH_SUPER) {
-	    method = rb_vm_super_lookup((VALUE)klass, sel, NULL);
+	    method = rb_vm_super_lookup((VALUE)klass, sel);
 	}
 	else {
 	    method = class_getInstanceMethod(klass, sel);
@@ -2437,7 +2452,7 @@ recache2:
 	    // Method is not found...
 
 	    // Does the receiver implements -forwardInvocation:?
-	    if (can_forwardInvocation(self, sel)) {
+	    if (opt != DISPATCH_SUPER && can_forwardInvocation(self, sel)) {
 		fill_ocache(cache, self, klass, (IMP)objc_msgSend, sel, NULL,
 			argc);
 		goto dispatch;
@@ -3993,7 +4008,7 @@ rb_vm_print_current_exception(void)
     VALUE exc = GET_VM()->current_exception();
     if (exc == Qnil) {
 	printf("uncatched Objective-C/C++ exception...\n");
-	return;
+	std::terminate();
     }
 
     static SEL sel_message = 0;
