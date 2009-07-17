@@ -5933,7 +5933,7 @@ RoxorCompiler::compile_stub(const char *types, int argc, bool is_objc)
     // Compile retval.
     Value *retval;
     if (sret != NULL) {
-	imp_call->addAttribute(0, Attribute::StructRet);
+	imp_call->addAttribute(1, Attribute::StructRet);
 	retval = new LoadInst(sret, "", bb);
     }
     else {
