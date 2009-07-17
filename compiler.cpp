@@ -4396,7 +4396,7 @@ rescan_args:
 		assert(Function::classof(block));
 
 		BasicBlock *return_from_block_bb = NULL;
-		if (return_from_block != -1) {
+		if (!old_current_block && return_from_block != -1) {
 		    // The block we just compiled contains one or more
 		    // return expressions! We need to enclose the dispatcher
 		    // call inside an exception handler, since return-from
@@ -4435,15 +4435,15 @@ rescan_args:
 		    caller = compile_dispatch_call(params);
 		}
 
-		if (return_from_block != -1) {
+		if (return_from_block_bb != NULL) {
 		    BasicBlock *old_bb = bb;
 		    bb = return_from_block_bb;
 		    compile_return_from_block_handler(return_from_block);	
 		    rescue_bb = old_rescue_bb;
 		    bb = old_bb;
+		    return_from_block = old_return_from_block;
 		}
 
-		return_from_block = old_return_from_block;
 		current_block_func = old_current_block_func;
 		current_block_node = old_current_block_node;
 		dvars = old_dvars;
