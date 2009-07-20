@@ -2283,39 +2283,27 @@ pipe_nocrash(int filedes[2], VALUE fds)
 rb_pid_t
 rb_fork(int *status, int (*chfunc)(void*), void *charg, VALUE fds)
 {
-#if 0 // TODO
     rb_pid_t pid;
     int err, state = 0;
-#ifdef FD_CLOEXEC
     int ep[2];
-#endif
 
-#ifndef __VMS
 #define prefork() (		\
-	rb_io_flush(rb_stdout), \
-	rb_io_flush(rb_stderr)	\
+	rb_io_flush(rb_stdout, 0), \
+	rb_io_flush(rb_stderr, 0)	\
 	)
-#else
-#define prefork() ((void)0)
-#endif
 
     prefork();
 
-#ifdef FD_CLOEXEC
     if (chfunc) {
-	if (pipe_nocrash(ep, fds)) return -1;
-	if (fcntl(ep[1], F_SETFD, FD_CLOEXEC)) {
-	    preserving_errno((close(ep[0]), close(ep[1])));
-	    return -1;
-	}
+		if (pipe(ep)) return -1;
+		if (fcntl(ep[1], F_SETFD, FD_CLOEXEC)) {
+		    preserving_errno((close(ep[0]), close(ep[1])));
+		    return -1;
+		}
     }
-#endif
     for (; (pid = fork()) < 0; prefork()) {
 	switch (errno) {
-	  case EAGAIN:
-#if defined(EWOULDBLOCK) && EWOULDBLOCK != EAGAIN
 	  case EWOULDBLOCK:
-#endif
 	    if (!status && !chfunc) {
 		rb_thread_sleep(1);
 		continue;
@@ -2326,11 +2314,9 @@ rb_fork(int *status, int (*chfunc)(void*), void *charg, VALUE fds)
 		if (!state) continue;
 	    }
 	  default:
-#ifdef FD_CLOEXEC
 	    if (chfunc) {
 		preserving_errno((close(ep[0]), close(ep[1])));
 	    }
-#endif
 	    //if (state && !status) rb_jump_tag(state);
 	    return -1;
 	}
@@ -2338,14 +2324,10 @@ rb_fork(int *status, int (*chfunc)(void*), void *charg, VALUE fds)
     if (!pid) {
 	//rb_thread_reset_timer_thread();
 	if (chfunc) {
-#ifdef FD_CLOEXEC
 	    close(ep[0]);
-#endif
 	    if (!(*chfunc)(charg)) _exit(EXIT_SUCCESS);
-#ifdef FD_CLOEXEC
 	    err = errno;
 	    write(ep[1], &err, sizeof(err));
-#endif
 #if EXIT_SUCCESS == 127
 	    _exit(EXIT_FAILURE);
 #else
@@ -2354,7 +2336,6 @@ rb_fork(int *status, int (*chfunc)(void*), void *charg, VALUE fds)
 	}
 	//rb_thread_start_timer_thread();
     }
-#ifdef FD_CLOEXEC
     else if (chfunc) {
 	close(ep[1]);
 	if ((state = read(ep[0], &err, sizeof(err))) < 0) {
@@ -2363,7 +2344,7 @@ rb_fork(int *status, int (*chfunc)(void*), void *charg, VALUE fds)
 	close(ep[0]);
 	if (state) {
 	    if (status) {
-		rb_protect(proc_syswait, (VALUE)pid, status);
+		rb_protect((VALUE (*)(VALUE))rb_syswait, (VALUE)pid, status);
 	    }
 	    else {
 		rb_syswait(pid);
@@ -2374,10 +2355,7 @@ rb_fork(int *status, int (*chfunc)(void*), void *charg, VALUE fds)
     }
 #endif
     return pid;
-#endif
-    abort();
 }
-#endif
 
 /*
  *  call-seq:
@@ -5087,12 +5065,12 @@ Init_process(void)
     rb_objc_define_method(*(VALUE *)rb_mProcess, "abort", rb_f_abort, -1);
 
     rb_objc_define_method(*(VALUE *)rb_mProcess, "kill", rb_f_kill, -1); /* in signal.c */
-    rb_objc_define_method(rb_mProcess, "wait", proc_wait, -1);
-    rb_objc_define_method(rb_mProcess, "wait2", proc_wait2, -1);
-    rb_objc_define_method(rb_mProcess, "waitpid", proc_wait, -1);
-    rb_objc_define_method(rb_mProcess, "waitpid2", proc_wait2, -1);
-    rb_objc_define_method(rb_mProcess, "waitall", proc_waitall, 0);
-    rb_objc_define_method(rb_mProcess, "detach", proc_detach, 1);
+    rb_objc_define_method(*(VALUE *)rb_mProcess, "wait", proc_wait, -1);
+    rb_objc_define_method(*(VALUE *)rb_mProcess, "wait2", proc_wait2, -1);
+    rb_objc_define_method(*(VALUE *)rb_mProcess, "waitpid", proc_wait, -1);
+    rb_objc_define_method(*(VALUE *)rb_mProcess, "waitpid2", proc_wait2, -1);
+    rb_objc_define_method(*(VALUE *)rb_mProcess, "waitall", proc_waitall, 0);
+    rb_objc_define_method(*(VALUE *)rb_mProcess, "detach", proc_detach, 1);
 
     rb_cProcessStatus = rb_define_class_under(rb_mProcess, "Status", rb_cObject);
     rb_undef_method(CLASS_OF(rb_cProcessStatus), "new");
