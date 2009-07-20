@@ -20,7 +20,6 @@ class MSpecScript
     '^core/numeric/to_c_spec.rb',
     '^core/precision',
     '^core/proc',
-    '^core/process'
   ]
   
   # Prepend the paths with the proper prefix
