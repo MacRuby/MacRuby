@@ -3185,7 +3185,6 @@ RoxorCompiler::compile_node(NODE *node)
 
 		    bb = touchedBB;
 		    tmp2 = compile_node(value);
-		    touchedBB = bb;
 		}
 		else {
 		    ID mid = nd_type(node) == NODE_OP_ASGN1
@@ -3237,6 +3236,10 @@ RoxorCompiler::compile_node(NODE *node)
 		if (mergeBB == NULL) {
 		    return ret;
 		}
+
+		// compile_dispatch_call can create a new BasicBlock
+		// so we have to get bb just after
+		touchedBB = bb;
 
 		BranchInst::Create(mergeBB, touchedBB);
 
