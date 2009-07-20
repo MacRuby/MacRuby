@@ -62,7 +62,7 @@ describe "An NSDictionary object" do
   end
 
   it "can have a singleton class" do
-    a = NSDictionary.array
+    a = NSDictionary.dictionary
     def a.foo; 42; end
     a.foo.should == 42
     lambda { a[42] = 123 }.should raise_error(RuntimeError)

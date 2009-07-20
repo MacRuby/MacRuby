@@ -9,6 +9,7 @@
 
 **********************************************************************/
 
+#include "oniguruma.h"
 #include "ruby/ruby.h"
 #include "ruby/re.h"
 #include "ruby/encoding.h"
@@ -449,10 +450,13 @@ rb_reg_source(VALUE re, SEL sel)
     rb_reg_check(re);
     cstr = RREGEXP(re)->str;
     clen = RREGEXP(re)->len;
-    if (clen == 0)
+    if (clen == 0) {
 	cstr = NULL;
+    }
     str = rb_enc_str_new(cstr, clen, rb_enc_get(re));
-    if (OBJ_TAINTED(re)) OBJ_TAINT(str);
+    if (OBJ_TAINTED(re)) {
+	OBJ_TAINT(str);
+    }
     return str;
 }
 
@@ -772,7 +776,8 @@ rb_reg_named_captures(VALUE re, SEL sel)
 }
 
 static Regexp*
-make_regexp(const char *s, long len, rb_encoding *enc, int flags, onig_errmsg_buffer err)
+make_regexp(const char *s, long len, rb_encoding *enc, int flags,
+	onig_errmsg_buffer err)
 {
     Regexp *rp;
     int r;
@@ -1228,9 +1233,88 @@ reg_enc_error(VALUE re, VALUE str)
 }
 #endif
 
-static rb_encoding*
-rb_reg_prepare_enc(VALUE re, VALUE str, int warn)
+static void
+get_cstring(VALUE str, CFStringEncoding enc, char **pcstr, size_t *pcharsize,
+	bool *should_free)
 {
+    if (pcstr != NULL && pcharsize != NULL && should_free != NULL) {
+	char *p = (char *)CFStringGetCStringPtr((CFStringRef)str, enc);
+	if (p != NULL) {
+	    *should_free = false;
+	}
+	else {
+	    const size_t s = CFStringGetMaximumSizeForEncoding(
+		    CFStringGetLength((CFStringRef)str), enc);
+	    p = (char *)malloc(s + 1);
+	    assert(CFStringGetCString((CFStringRef)str, p, s + 1, enc));
+	    *should_free = true;
+	}
+	*pcstr = p;
+	*pcharsize = sizeof(char);
+    }
+}
+
+static void
+get_unistring(VALUE str, CFStringEncoding enc, char **pcstr, size_t *pcharsize,
+	bool *should_free)
+{
+    if (pcstr != NULL && pcharsize != NULL && should_free != NULL) {
+	UniChar *p = (UniChar *)CFStringGetCharactersPtr((CFStringRef)str);
+	const size_t str_len = CFStringGetLength((CFStringRef)str);
+	if (p != NULL) {
+	    *should_free = false;
+	}
+	else {
+	    const size_t s = CFStringGetMaximumSizeForEncoding(
+		    str_len, enc);
+	    p = (UniChar *)malloc(s);
+	    CFStringGetCharacters((CFStringRef)str,
+		    CFRangeMake(0, str_len),
+		    p);
+	    *should_free = true;
+	}
+	*pcstr = (char *)p;
+	*pcharsize = sizeof(UniChar);
+    }
+}
+
+static inline bool
+multibyte_encoding(rb_encoding *enc)
+{
+    return enc == (rb_encoding *)ONIG_ENCODING_UTF16_BE
+	|| enc == (rb_encoding *)ONIG_ENCODING_UTF16_LE
+	|| enc == (rb_encoding *)ONIG_ENCODING_UTF32_BE
+	|| enc == (rb_encoding *)ONIG_ENCODING_UTF32_LE;
+}
+
+static rb_encoding*
+rb_reg_prepare_enc(VALUE re, VALUE str, char **pcstr, size_t *pcharsize,
+	bool *should_free)
+{
+    CFStringEncoding enc = CFStringGetFastestEncoding((CFStringRef)str);
+    switch (enc) {
+	case kCFStringEncodingMacRoman:
+	case kCFStringEncodingWindowsLatin1:
+	case kCFStringEncodingISOLatin1:
+	case kCFStringEncodingNextStepLatin:
+	case kCFStringEncodingASCII:
+	case kCFStringEncodingNonLossyASCII:
+	    get_cstring(str, enc, pcstr, pcharsize, should_free);
+	    return (rb_encoding *)ONIG_ENCODING_ASCII;
+
+	case kCFStringEncodingUTF8:
+	case kCFStringEncodingUTF16:
+	case kCFStringEncodingUTF16BE:
+	case kCFStringEncodingUTF16LE:
+	case kCFStringEncodingUTF32:
+	case kCFStringEncodingUTF32BE:
+	case kCFStringEncodingUTF32LE:
+	    get_unistring(str, enc, pcstr, pcharsize, should_free);
+	    return (rb_encoding *)ONIG_ENCODING_UTF16_LE;
+    }
+
+    rb_raise(rb_eArgError, "given string has unrecognized encoding");
+#if 0
     rb_encoding *enc = 0;
 
 #if !WITH_OBJC
@@ -1265,10 +1349,12 @@ rb_reg_prepare_enc(VALUE re, VALUE str, int warn)
     }
 #endif
     return enc;
+#endif
 }
 
-regex_t *
-rb_reg_prepare_re(VALUE re, VALUE str)
+static regex_t *
+rb_reg_prepare_re(VALUE re, VALUE str, char **pcstr, size_t *pcharsize,
+	bool *should_free)
 {
     regex_t *reg = RREGEXP(re)->ptr;
     onig_errmsg_buffer err = "";
@@ -1277,38 +1363,49 @@ rb_reg_prepare_re(VALUE re, VALUE str)
     const char *pattern;
     VALUE unescaped;
     rb_encoding *fixed_enc = 0;
-    rb_encoding *enc = rb_reg_prepare_enc(re, str, 1);
+    rb_encoding *enc = rb_reg_prepare_enc(re, str, pcstr, pcharsize,
+	    should_free);
 
-#if !WITH_OBJC
-    if (reg->enc == enc) return reg;
-#endif
+    if ((rb_encoding *)reg->enc == enc) {
+	return reg;
+    }
 
     rb_reg_check(re);
     reg = RREGEXP(re)->ptr;
     pattern = RREGEXP(re)->str;
 
-    unescaped = rb_reg_preprocess(
-	pattern, pattern + RREGEXP(re)->len, enc,
+    unescaped = rb_reg_preprocess(pattern, pattern + RREGEXP(re)->len, enc,
 	&fixed_enc, err);
 
     if (unescaped == Qnil) {
 	rb_raise(rb_eArgError, "regexp preprocess failed: %s", err);
     }
 
-#if WITH_OBJC
-    enc = (rb_encoding *)ONIG_ENCODING_ASCII;
-#endif
+    UChar *begin, *end;
+    if (multibyte_encoding(enc)) {
+	UniChar *chars = (UniChar *)CFStringGetCharactersPtr(
+		(CFStringRef)unescaped);
+	const long len = RSTRING_LEN(unescaped);
+	if (chars == NULL) {
+	    chars = (UniChar *)alloca(sizeof(UniChar) * len);
+	    CFStringGetCharacters((CFStringRef)unescaped,
+		    CFRangeMake(0, len), chars);
+	}
+	begin = (UChar *)chars;
+	end = (UChar *)chars + (sizeof(UniChar) * len);
+    }
+    else {
+	begin = (UChar *)RSTRING_PTR(unescaped);
+	end = begin + RSTRING_LEN(unescaped);
+    }
 
-    r = onig_new(&reg, (UChar* )RSTRING_PTR(unescaped),
-		 (UChar* )(RSTRING_PTR(unescaped) + RSTRING_LEN(unescaped)),
-		 reg->options, (OnigEncoding)enc,
-		 OnigDefaultSyntax, &einfo);
-    if (r) {
+    r = onig_new(&reg, begin, end, reg->options, (OnigEncoding)enc,
+	    OnigDefaultSyntax, &einfo);
+    if (r != 0) {
 	onig_error_code_to_str((UChar*)err, r, &einfo);
 	rb_reg_raise(pattern, RREGEXP(re)->len, err, re);
     }
 
-    RB_GC_GUARD(unescaped);
     return reg;
 }
 
@@ -1321,7 +1418,7 @@ rb_reg_adjust_startpos(VALUE re, VALUE str, int pos, int reverse)
     UChar *p, *string;
 #endif
 
-    enc = rb_reg_prepare_enc(re, str, 0);
+    enc = rb_reg_prepare_enc(re, str, NULL, NULL, NULL);
 
     if (reverse) {
 	range = -pos;
@@ -1350,46 +1447,44 @@ rb_reg_adjust_startpos(VALUE re, VALUE str, int pos, int reverse)
 int
 rb_reg_search(VALUE re, VALUE str, int pos, int reverse)
 {
-    int result;
-    VALUE match;
-    struct re_registers *pregs;
-    const char *cstr, *range;
-    long clen;
     regex_t *reg0 = RREGEXP(re)->ptr, *reg;
     int busy = FL_TEST(re, REG_BUSY);
 
-    cstr = range = RSTRING_PTR(str);
-    clen = RSTRING_LEN(str);
-#if WITH_OBJC
     static struct re_registers *regs = NULL;
     if (regs == NULL) {
 	regs = xmalloc(sizeof(struct re_registers));
 	rb_objc_root(&regs);
     }
-    pregs = regs;
-#else
-    static struct re_registers regs;
-    pregs = &regs;
-#endif
+    struct re_registers *pregs = regs;
 
+    const size_t clen = RSTRING_LEN(str);
     if (pos > clen || pos < 0) {
 	rb_backref_set(Qnil);
 	return -1;
     }
 
-    reg = rb_reg_prepare_re(re, str);
+    char *cstr = NULL;
+    size_t charsize = 0;
+    bool should_free = false;
+    reg = rb_reg_prepare_re(re, str, &cstr, &charsize, &should_free);
 
+    char *range = cstr;
     FL_SET(re, REG_BUSY);
     if (!reverse) {
-	range += RSTRING_LEN(str);
+	range += (clen * charsize);
     }
     MEMZERO(pregs, struct re_registers, 1);
-    result = onig_search(RREGEXP(re)->ptr,
-			 (UChar*)cstr,
-			 ((UChar*)cstr + clen),
-			 ((UChar*)cstr + pos),
-			 ((UChar*)range),
-			 pregs, ONIG_OPTION_NONE);
+    int result = onig_search(reg,
+	    (UChar*)cstr,
+	    ((UChar*)cstr + (clen * charsize)),
+	    ((UChar*)cstr + (pos * charsize)),
+	    ((UChar*)range),
+	    pregs, ONIG_OPTION_NONE);
+
+    if (should_free) {
+	free(cstr);
+	cstr = NULL;
+    }
 
     if (RREGEXP(re)->ptr != reg) {
 	if (busy) {
@@ -1400,7 +1495,9 @@ rb_reg_search(VALUE re, VALUE str, int pos, int reverse)
 	    RREGEXP(re)->ptr = reg;
 	}
     }
-    if (!busy) FL_UNSET(re, REG_BUSY);
+    if (!busy) {
+	FL_UNSET(re, REG_BUSY);
+    }
     if (result < 0) {
 	onig_region_free(pregs, 0);
 	if (result == ONIG_MISMATCH) {
@@ -1414,10 +1511,26 @@ rb_reg_search(VALUE re, VALUE str, int pos, int reverse)
 	}
     }
 
+    if (charsize > 1) {
+	int i;
+	for (i = 0; i < pregs->num_regs; i++) {
+	    if (pregs->beg[i] > 0) {
+		assert((pregs->beg[i] % charsize) == 0);
+		pregs->beg[i] /= charsize;
+	    }
+	    if (pregs->end[i] > 0) {
+		assert((pregs->end[i] % charsize) == 0);
+		pregs->end[i] /= charsize;
+	    }
+	}
+	assert((result % charsize) == 0);
+	result /= charsize;
+    }
+
 #if WITH_OBJC
-    match = match_alloc(rb_cMatch, 0);
+    VALUE match = match_alloc(rb_cMatch, 0);
 #else
-    match = rb_backref_get();
+    VALUE match = rb_backref_get();
     if (NIL_P(match) || FL_TEST(match, MATCH_BUSY)) {
 	match = match_alloc(rb_cMatch);
     }
@@ -1467,7 +1580,9 @@ rb_reg_nth_match(int nth, VALUE match)
     long start, end, len;
     struct re_registers *regs;
 
-    if (NIL_P(match)) return Qnil;
+    if (NIL_P(match)) {
+	return Qnil;
+    }
     match_check(match);
     regs = RMATCH_REGS(match);
     if (nth >= regs->num_regs) {
@@ -1475,14 +1590,17 @@ rb_reg_nth_match(int nth, VALUE match)
     }
     if (nth < 0) {
 	nth += regs->num_regs;
-	if (nth <= 0) return Qnil;
+	if (nth <= 0) {
+	    return Qnil;
+	}
     }
     start = BEG(nth);
-    if (start == -1) return Qnil;
+    if (start == -1) {
+	return Qnil;
+    }
     end = END(nth);
     len = end - start;
     str = rb_str_subseq(RMATCH(match)->str, start, len);
-    OBJ_INFECT(str, match);
     return str;
 }
 
@@ -1794,9 +1912,15 @@ match_to_s(VALUE match, SEL sel)
     VALUE str = rb_reg_last_match(match);
 
     match_check(match);
-    if (NIL_P(str)) str = rb_str_new(0,0);
-    if (OBJ_TAINTED(match)) OBJ_TAINT(str);
-    if (OBJ_TAINTED(RMATCH(match)->str)) OBJ_TAINT(str);
+    if (NIL_P(str)) {
+	str = rb_str_new(0,0);
+    }
+    if (OBJ_TAINTED(match)) {
+	OBJ_TAINT(str);
+    }
+    else if (OBJ_TAINTED(RMATCH(match)->str)) {
+	OBJ_TAINT(str);
+    }
     return str;
 }
 
@@ -1886,9 +2010,10 @@ match_inspect(VALUE match, SEL sel)
     for (i = 0; i < num_regs; i++) {
         VALUE v;
         rb_str_buf_cat2(str, " ");
-        if (0 < i) {
-            if (names[i].name)
+        if (i > 0) {
+            if (names[i].name) { 
                 rb_str_buf_cat(str, (const char *)names[i].name, names[i].len);
+	    }
             else {
                 char buf[sizeof(i)*3+1];
                 snprintf(buf, sizeof(buf), "%d", i);
@@ -1897,10 +2022,12 @@ match_inspect(VALUE match, SEL sel)
             rb_str_buf_cat2(str, ":");
         }
         v = rb_reg_nth_match(i, match);
-        if (v == Qnil)
+        if (v == Qnil) {
             rb_str_buf_cat2(str, "nil");
-        else
+	}
+        else {
             rb_str_buf_append(str, rb_str_inspect(v, 0));
+	}
     }
     rb_str_buf_cat2(str, ">");
 
@@ -2324,7 +2451,6 @@ rb_reg_check_preprocess(VALUE str)
     enc = rb_enc_get(str);
 
     buf = rb_reg_preprocess(p, end, enc, &fixed_enc, err);
-    RB_GC_GUARD(str);
 
     if (buf == Qnil) {
 	return rb_reg_error_desc(str, 0, err);
@@ -2404,15 +2530,21 @@ rb_reg_initialize(VALUE obj, const char *s, int len, rb_encoding *enc,
     rb_encoding *a_enc = rb_ascii8bit_encoding();
 #endif
 
-    if (!OBJ_TAINTED(obj) && rb_safe_level() >= 4)
+    if (!OBJ_TAINTED(obj) && rb_safe_level() >= 4) {
 	rb_raise(rb_eSecurityError, "Insecure: can't modify regexp");
+    }
     rb_check_frozen(obj);
-    if (FL_TEST(obj, REG_LITERAL))
+    if (FL_TEST(obj, REG_LITERAL)) {
 	rb_raise(rb_eSecurityError, "can't modify literal regexp");
-    if (re->ptr) onig_free(re->ptr);
-    if (re->str) xfree(re->str);
-    re->ptr = 0;
-    re->str = 0;
+    }
+    if (re->ptr != NULL) {
+	onig_free(re->ptr);
+    }
+    if (re->str != NULL) {
+	xfree(re->str);
+    }
+    re->ptr = NULL;
+    re->str = NULL;
 
     unescaped = rb_reg_preprocess(s, s+len, enc, &fixed_enc, err);
     if (unescaped == Qnil)
@@ -2444,23 +2576,24 @@ rb_reg_initialize(VALUE obj, const char *s, int len, rb_encoding *enc,
     if (options & ARG_ENCODING_NONE) {
         re->basic.flags |= REG_ENCODING_NONE;
     }
-    
-    GC_WB(&re->ptr, make_regexp(RSTRING_PTR(unescaped), 
-				RSTRING_LEN(unescaped), enc,
-                                options & ARG_REG_OPTION_MASK, err));
-    if (!re->ptr) return -1;
+   
+    Regexp *reg = make_regexp(RSTRING_PTR(unescaped), 
+	    RSTRING_LEN(unescaped), enc,
+	    options & ARG_REG_OPTION_MASK, err);
+    if (reg == NULL) {
+	return -1;
+    }
+    GC_WB(&re->ptr, reg);
     GC_WB(&re->str, ALLOC_N(char, len+1));
     memcpy(re->str, s, len);
     re->str[len] = '\0';
     re->len = len;
-    RB_GC_GUARD(unescaped);
     return 0;
 }
 
 static int
 rb_reg_initialize_str(VALUE obj, VALUE str, int options, onig_errmsg_buffer err)
 {
-    int ret;
     rb_encoding *enc = rb_enc_get(str);
     if (options & ARG_ENCODING_NONE) {
 #if !WITH_OBJC
@@ -2475,10 +2608,8 @@ rb_reg_initialize_str(VALUE obj, VALUE str, int options, onig_errmsg_buffer err)
         }
 #endif
     }
-    ret = rb_reg_initialize(obj, RSTRING_PTR(str), RSTRING_LEN(str), enc,
-			    options, err);
-    RB_GC_GUARD(str);
-    return ret;
+    return rb_reg_initialize(obj, RSTRING_PTR(str), RSTRING_LEN(str), enc,
+	    options, err);
 }
 
 static VALUE

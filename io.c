@@ -460,22 +460,11 @@ io_write(VALUE io, SEL sel, VALUE to_write)
     }
     else {
 	buffer = (UInt8 *)RSTRING_PTR(to_write);
-	if (buffer != NULL) {
-	    length = RSTRING_LEN(to_write);
+	if (buffer == NULL) {
+	    rb_raise(rb_eRuntimeError,
+		    "could not extract a string from the read data.");
 	}
-	else {
-	    const long max = CFStringGetMaximumSizeForEncoding(
-		    CFStringGetLength((CFStringRef)to_write),
-		    kCFStringEncodingUTF8);
-
-	    buffer = (UInt8 *)alloca(max + 1);
-	    if (!CFStringGetCString((CFStringRef)to_write, (char *)buffer, 
-			max, kCFStringEncodingUTF8)) {
-		rb_raise(rb_eRuntimeError,
-			"could not extract a string from the read data.");
-	    }
-	    length = strlen((char *)buffer);
-	}
+	length = strlen((char *)buffer);
     }
 
     if (length == 0) {

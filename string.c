@@ -157,6 +157,15 @@ str_new(VALUE klass, const char *ptr, long len)
 }
 
 VALUE
+rb_unicode_str_new(const UniChar *ptr, const size_t len)
+{
+    VALUE str = str_alloc(rb_cString);
+    CFStringAppendCharacters((CFMutableStringRef)str,
+	    ptr, len);
+    return str;
+}
+
+VALUE
 rb_str_new(const char *ptr, long len)
 {
     return str_new(rb_cString, ptr, len);
@@ -165,17 +174,13 @@ rb_str_new(const char *ptr, long len)
 VALUE
 rb_usascii_str_new(const char *ptr, long len)
 {
-    VALUE str = str_new(rb_cString, ptr, len);
-
-    return str;
+    return str_new(rb_cString, ptr, len);
 }
 
 VALUE
 rb_enc_str_new(const char *ptr, long len, rb_encoding *enc)
 {
-    VALUE str = str_new(rb_cString, ptr, len);
-
-    return str;
+    return str_new(rb_cString, ptr, len);
 }
 
 VALUE
@@ -592,8 +597,12 @@ rb_str_cstr(VALUE ptr)
 	    kCFStringEncodingUTF8);
 
     cptr = (char *)xmalloc(max + 1);
-    assert(CFStringGetCString((CFStringRef)ptr, cptr,
-		max, kCFStringEncodingUTF8));
+    if (!CFStringGetCString((CFStringRef)ptr, cptr,
+		max + 1, kCFStringEncodingUTF8)) {
+	// Probably a UTF16 string...
+	xfree(cptr);
+	return NULL;
+    }
 
     return cptr;
 }
@@ -817,6 +826,9 @@ rb_str_buf_append0(VALUE str, VALUE str2)
 	Check_Type(str2, T_STRING);
     }
 
+    CFStringAppend((CFMutableStringRef)str, (CFStringRef)str2);
+
+#if 0
     const char *ptr;
     long len;
 
@@ -824,6 +836,7 @@ rb_str_buf_append0(VALUE str, VALUE str2)
     len = RSTRING_LEN(str2);
 
     rb_objc_str_cat(str, ptr, len, kCFStringEncodingASCII);
+#endif
 
     return str;
 }
@@ -1892,13 +1905,12 @@ get_pat(VALUE pat, int quote)
 static VALUE
 rb_str_sub_bang(VALUE str, SEL sel, int argc, VALUE *argv)
 {
-    VALUE pat, repl, match, hash = Qnil;
-    struct re_registers *regs;
-    int iter = 0;
-    int tainted = 0;
+    VALUE repl, hash = Qnil;
+    bool iter = false;
+    bool tainted = false;
 
     if (argc == 1 && rb_block_given_p()) {
-	iter = 1;
+	iter = true;
     }
     else if (argc == 2) {
 	repl = argv[1];
@@ -1906,30 +1918,33 @@ rb_str_sub_bang(VALUE str, SEL sel, int argc, VALUE *argv)
 	if (NIL_P(hash)) {
 	    StringValue(repl);
 	}
-	if (OBJ_TAINTED(repl)) tainted = 1;
+	if (OBJ_TAINTED(repl)) {
+	    tainted = true;
+	}
     }
     else {
 	rb_raise(rb_eArgError, "wrong number of arguments (%d for 2)", argc);
     }
 
-    pat = get_pat(argv[0], 1);
+    VALUE pat = get_pat(argv[0], 1);
     if (rb_reg_search(pat, str, 0, 0) >= 0) {
-
-	match = rb_backref_get();
-	regs = RMATCH_REGS(match);
+	VALUE match = rb_backref_get();
+	struct re_registers *regs = RMATCH_REGS(match);
 
 	if (iter || !NIL_P(hash)) {
-
             if (iter) {
                 rb_match_busy(match);
                 repl = rb_obj_as_string(rb_yield(rb_reg_nth_match(0, match)));
             }
             else {
-                repl = rb_hash_aref(hash, rb_str_subseq(str, BEG(0), END(0) - BEG(0)));
+                repl = rb_hash_aref(hash, rb_str_subseq(str, BEG(0),
+			    END(0) - BEG(0)));
                 repl = rb_obj_as_string(repl);
             }
 	    str_frozen_check(str);
-	    if (iter) rb_backref_set(match);
+	    if (iter) {
+		rb_backref_set(match);
+	    }
 	}
 	else {
 	    repl = rb_reg_regsub(repl, str, regs, pat);
@@ -1937,15 +1952,17 @@ rb_str_sub_bang(VALUE str, SEL sel, int argc, VALUE *argv)
 
 	rb_str_modify(str);
 	rb_str_splice_0(str, BEG(0), END(0) - BEG(0), repl);
-	if (OBJ_TAINTED(repl)) tainted = 1;
+	if (OBJ_TAINTED(repl)) {
+	    tainted = true;
+	}
 
-	if (tainted) OBJ_TAINT(str);
-
+	if (tainted) {
+	    OBJ_TAINT(str);
+	}
 	return str;
     }
     return Qnil;
 }
-
 
 /*
  *  call-seq:
@@ -1989,37 +2006,35 @@ rb_str_sub(VALUE str, SEL sel, int argc, VALUE *argv)
 static VALUE
 str_gsub(SEL sel, int argc, VALUE *argv, VALUE str, int bang)
 {
-    VALUE pat, val, repl, match, dest, hash = Qnil;
-    struct re_registers *regs;
-    long beg, n;
-    long offset, slen, len;
-    int iter = 0;
-    const char *sp, *cp;
-    int tainted = 0;
-    rb_encoding *str_enc;
-    
+    bool iter = false;
+    bool tainted = false;
+    VALUE hash = Qnil, repl = Qnil;
+ 
     switch (argc) {
-      case 1:
-	RETURN_ENUMERATOR(str, argc, argv);
-	iter = 1;
-	break;
-      case 2:
-	repl = argv[1];
-	hash = rb_check_convert_type(argv[1], T_HASH, "Hash", "to_hash");
-	if (NIL_P(hash)) {
-	    StringValue(repl);
-	}
-	if (OBJ_TAINTED(repl)) {
-	    tainted = 1;
-	}
-	break;
-      default:
-	rb_raise(rb_eArgError, "wrong number of arguments (%d for 2)", argc);
+	case 1:
+	    RETURN_ENUMERATOR(str, argc, argv);
+	    iter = true;
+	    break;
+
+	case 2:
+	    repl = argv[1];
+	    hash = rb_check_convert_type(argv[1], T_HASH, "Hash", "to_hash");
+	    if (NIL_P(hash)) {
+		StringValue(repl);
+	    }
+	    if (OBJ_TAINTED(repl)) {
+		tainted = true;
+	    }
+	    break;
+
+	default:
+	    rb_raise(rb_eArgError, "wrong number of arguments (%d for 2)",
+		    argc);
     }
 
-    pat = get_pat(argv[0], 1);
-    offset=0; n=0;
-    beg = rb_reg_search(pat, str, 0, 0);
+    VALUE pat = get_pat(argv[0], 1);
+    long offset = 0;
+    long beg = rb_reg_search(pat, str, 0, 0);
     if (beg < 0) {
 	if (bang) {
 	    return Qnil;	/* no match, no substitution */
@@ -2027,23 +2042,23 @@ str_gsub(SEL sel, int argc, VALUE *argv, VALUE str, int bang)
 	return rb_str_new3(str);
     }
 
-    dest = rb_str_new5(str, NULL, 0);
-    slen = RSTRING_LEN(str);
-    sp = RSTRING_PTR(str);
-    cp = sp;
-    str_enc = NULL;
+    VALUE dest = rb_str_new5(str, NULL, 0);
+    long slen = RSTRING_LEN(str);
+    VALUE match;
 
     do {
-	n++;
 	match = rb_backref_get();
-	regs = RMATCH_REGS(match);
+	struct re_registers *regs = RMATCH_REGS(match);
+        VALUE val;
+
 	if (iter || !NIL_P(hash)) {
             if (iter) {
                 rb_match_busy(match);
                 val = rb_obj_as_string(rb_yield(rb_reg_nth_match(0, match)));
             }
             else {
-                val = rb_hash_aref(hash, rb_str_subseq(str, BEG(0), END(0) - BEG(0)));
+                val = rb_hash_aref(hash, rb_str_subseq(str, BEG(0),
+			    END(0) - BEG(0)));
                 val = rb_obj_as_string(val);
             }
 	    str_mod_check(str, sp, slen);
@@ -2062,13 +2077,15 @@ str_gsub(SEL sel, int argc, VALUE *argv, VALUE str, int bang)
 	    val = rb_reg_regsub(repl, str, regs, pat);
 	}
 
+
 	if (OBJ_TAINTED(val)) {
-	    tainted = 1;
+	    tainted = true;
 	}
 
-	len = beg - offset;	/* copy pre-match substr */
-        if (len) {
-	    rb_enc_str_buf_cat(dest, cp, len, str_enc);
+	long len = beg - offset;  /* copy pre-match substr */
+        if (len > 0) {
+	    rb_str_buf_append(dest, rb_str_subseq(str, offset, len));
+	    //rb_enc_str_buf_cat(dest, cp, len, str_enc);
         }
 
         rb_str_buf_append(dest, val);
@@ -2079,18 +2096,24 @@ str_gsub(SEL sel, int argc, VALUE *argv, VALUE str, int bang)
 	     * Always consume at least one character of the input string
 	     * in order to prevent infinite loops.
 	     */
-	    if (slen <= END(0)) break;
+	    if (slen <= END(0)) {
+		break;
+	    }
 	    len = 1;
-            rb_enc_str_buf_cat(dest, sp+END(0), len, str_enc);
+	    rb_str_buf_append(dest, rb_str_subseq(str, END(0), len));
+            //rb_enc_str_buf_cat(dest, sp+END(0), len, str_enc);
 	    offset = END(0) + len;
 	}
-	cp = sp + offset;
-	if (offset > slen) break;
+	if (offset > slen) {
+	    break;
+	}
 	beg = rb_reg_search(pat, str, offset, 0);
-    } 
+    }
     while (beg >= 0);
+
     if (slen > offset) {
-        rb_enc_str_buf_cat(dest, cp, slen - offset, str_enc);
+	rb_str_buf_append(dest, rb_str_subseq(str, offset, slen - offset));
+        //rb_enc_str_buf_cat(dest, cp, slen - offset, str_enc);
     }
     rb_backref_set(match);
     if (bang) {
@@ -2099,7 +2122,7 @@ str_gsub(SEL sel, int argc, VALUE *argv, VALUE str, int bang)
     }
     else {
     	if (!tainted && OBJ_TAINTED(str)) {
-	    tainted = 1;
+	    tainted = true;
 	}
 	str = dest;
     }
@@ -2443,6 +2466,7 @@ rb_str_to_s(VALUE str, SEL sel)
     return str;
 }
 
+#if 0
 static void
 str_cat_char(VALUE str, int c, rb_encoding *enc)
 {
@@ -2458,6 +2482,7 @@ prefix_escape(VALUE str, int c, rb_encoding *enc)
     str_cat_char(str, '\\', enc);
     str_cat_char(str, c, enc);
 }
+#endif
 
 /*
  * call-seq:
@@ -2471,12 +2496,36 @@ prefix_escape(VALUE str, int c, rb_encoding *enc)
  *    str.inspect       #=> "\"hel\\bo\""
  */
 
+static inline void
+__append(CFMutableStringRef out, UniChar c, bool prefix)
+{
+    CFStringAppendCharacters(out, &c, 1);
+}
+
 VALUE
 rb_str_inspect(VALUE str, SEL sel)
 {
-    rb_encoding *enc = STR_ENC_GET(str);
+    const long len = CFStringGetLength((CFStringRef)str);
+    CFStringInlineBuffer buf; 
+    CFStringInitInlineBuffer((CFStringRef)str, &buf, CFRangeMake(0, len));
+
+    CFMutableStringRef out = CFStringCreateMutable(NULL, 0);
+    __append(out, '"', false);
+
+    long i;
+    for (i = 0; i < len; i++) {
+	UniChar c = CFStringGetCharacterFromInlineBuffer(&buf, i);
+	__append(out, c, false);
+    }
+    __append(out, '"', false);
+
+    return (VALUE)CFMakeCollectable(out);
+
+#if 0
     const char *p, *pend;
     VALUE result;
+
+
 
     p = RSTRING_PTR(str); 
     pend = p + RSTRING_LEN(str);
@@ -2545,6 +2594,7 @@ rb_str_inspect(VALUE str, SEL sel)
     str_cat_char(result, '"', enc);
 
     return result;
+#endif
 }
 
 #define IS_EVSTR(p,e) ((p) < (e) && (*(p) == '$' || *(p) == '@' || *(p) == '{'))

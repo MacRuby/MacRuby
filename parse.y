@@ -290,14 +290,34 @@ struct parser_params {
 
 #if WITH_OBJC
 # define UTF8_ENC() (NULL)
+static inline VALUE
+__new_tmp_str(const char *ptr, const size_t len)
+{
+    if (ptr != NULL) {
+	CFStringRef str = CFStringCreateWithBytes(NULL, (UInt8 *)ptr, len,
+		kCFStringEncodingUTF8, false);
+	if (str != NULL) {
+	    CFMutableStringRef str2 =
+		CFStringCreateMutableCopy(NULL, 0, str);
+	    assert(str2 != NULL);
+	    CFRelease(str);
+	    return (VALUE)CFMakeCollectable(str2);
+	}
+    }
+    return rb_usascii_str_new(ptr, len);
+}
+# define STR_NEW(p,n) __new_tmp_str(p, n)
+# define STR_NEW0() __new_tmp_str(0, 0)
+# define STR_NEW2(p) __new_tmp_str(p, strlen(p))
+# define STR_NEW3(p,n,e,func) __new_tmp_str(p, n)
 #else
 # define UTF8_ENC() (parser->utf8 ? parser->utf8 : \
 		    (parser->utf8 = rb_utf8_encoding()))
+# define STR_NEW(p,n) rb_enc_str_new((p),(n),parser->enc)
+# define STR_NEW0() rb_usascii_str_new(0,0)
+# define STR_NEW2(p) rb_enc_str_new((p),strlen(p),parser->enc)
+# define STR_NEW3(p,n,e,func) parser_str_new((p),(n),(e),(func),parser->enc)
 #endif
-#define STR_NEW(p,n) rb_enc_str_new((p),(n),parser->enc)
-#define STR_NEW0() rb_usascii_str_new(0,0)
-#define STR_NEW2(p) rb_enc_str_new((p),strlen(p),parser->enc)
-#define STR_NEW3(p,n,e,func) parser_str_new((p),(n),(e),(func),parser->enc)
 #if WITH_OBJC
 # define STR_ENC(m) (parser->enc)
 # define ENC_SINGLE(cr) (1)
@@ -5238,6 +5258,7 @@ enum string_type {
     str_dsym   = (STR_FUNC_SYMBOL|STR_FUNC_EXPAND),
 };
 
+#if 0
 static VALUE
 parser_str_new(const char *p, long n, rb_encoding *enc, int func, rb_encoding *enc0)
 {
@@ -5266,6 +5287,7 @@ parser_str_new(const char *p, long n, rb_encoding *enc, int func, rb_encoding *e
 
     return str;
 }
+#endif
 
 #define lex_goto_eol(parser) (parser->parser_lex_p = parser->parser_lex_pend)
 

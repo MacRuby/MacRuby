@@ -138,7 +138,7 @@ RoxorCompiler::RoxorCompiler(void)
     falseVal = ConstantInt::get(RubyObjTy, Qfalse);
     undefVal = ConstantInt::get(RubyObjTy, Qundef);
     splatArgFollowsVal = ConstantInt::get(RubyObjTy, SPLAT_ARG_FOLLOWS);
-    cObject = ConstantInt::get(RubyObjTy, (long)rb_cObject);
+    cObject = ConstantInt::get(RubyObjTy, rb_cObject);
     PtrTy = PointerType::getUnqual(Type::Int8Ty);
     PtrPtrTy = PointerType::getUnqual(PtrTy);
     Int32PtrTy = PointerType::getUnqual(Type::Int32Ty);
@@ -407,21 +407,56 @@ RoxorCompiler::compile_when_splat(Value *comparedToVal, Value *splatVal)
 }
 
 GlobalVariable *
-RoxorCompiler::compile_const_global_string(const char *str,
-	const size_t str_len)
+RoxorCompiler::compile_const_global_ustring(const UniChar *str,
+	const size_t len, CFHashCode hash)
 {
-    assert(str_len > 0);
+    assert(len > 0);
 
-    std::string s(str, str_len);
+    std::map<CFHashCode, GlobalVariable *>::iterator iter =
+	static_ustrings.find(hash);
+
+    GlobalVariable *gvar;
+    if (iter == static_ustrings.end()) {
+	const ArrayType *str_type = ArrayType::get(Type::Int16Ty, len);
+
+	std::vector<Constant *> ary_elements;
+	for (unsigned int i = 0; i < len; i++) {
+	    ary_elements.push_back(ConstantInt::get(Type::Int16Ty, str[i]));
+	}
+
+	gvar = new GlobalVariable(
+		str_type,
+		true,
+		GlobalValue::InternalLinkage,
+		ConstantArray::get(str_type, ary_elements),
+		"",
+		RoxorCompiler::module);
+
+	static_ustrings[hash] = gvar;
+    }
+    else {
+	gvar = iter->second;
+    }
+
+    return gvar;
+}
+
+GlobalVariable *
+RoxorCompiler::compile_const_global_string(const char *str,
+	const size_t len)
+{
+    assert(len > 0);
+
+    std::string s(str, len);
     std::map<std::string, GlobalVariable *>::iterator iter =
 	static_strings.find(s);
 
     GlobalVariable *gvar;
     if (iter == static_strings.end()) {
-	const ArrayType *str_type = ArrayType::get(Type::Int8Ty, str_len + 1);
+	const ArrayType *str_type = ArrayType::get(Type::Int8Ty, len + 1);
 
 	std::vector<Constant *> ary_elements;
-	for (unsigned int i = 0; i < str_len; i++) {
+	for (unsigned int i = 0; i < len; i++) {
 	    ary_elements.push_back(ConstantInt::get(Type::Int8Ty, str[i]));
 	}
 	ary_elements.push_back(ConstantInt::get(Type::Int8Ty, 0));
@@ -2492,7 +2527,6 @@ RoxorCompiler::compile_literal(VALUE val)
 	//
 	//	10.times { s = 'foo'; s << 'bar' }
 	//
-	const char *str = RSTRING_PTR(val);
 	const size_t str_len = RSTRING_LEN(val);
 	if (str_len == 0) {
 	    if (newString3Func == NULL) {	
@@ -2503,8 +2537,17 @@ RoxorCompiler::compile_literal(VALUE val)
 	    return CallInst::Create(newString3Func, "", bb);
 	}
 	else {
-	    GlobalVariable *str_gvar = compile_const_global_string(str,
-		    str_len);
+	    UniChar *buf = (UniChar *)CFStringGetCharactersPtr(
+		    (CFStringRef)val);
+
+	    if (buf == NULL) {
+		buf = (UniChar *)alloca(sizeof(UniChar) * str_len);
+		CFStringGetCharacters((CFStringRef)val,
+			CFRangeMake(0, str_len), buf);
+	    }
+
+	    GlobalVariable *str_gvar = compile_const_global_ustring(buf,
+		    str_len, CFHash((CFTypeRef)val));
 
 	    std::vector<Value *> idxs;
 	    idxs.push_back(ConstantInt::get(Type::Int32Ty, 0));
@@ -2515,8 +2558,9 @@ RoxorCompiler::compile_literal(VALUE val)
 	    if (newString2Func == NULL) {	
 		newString2Func = cast<Function>(
 			module->getOrInsertFunction(
-			    "rb_str_new", RubyObjTy, PtrTy, Type::Int32Ty,
-			    NULL));
+			    "rb_unicode_str_new",
+			    RubyObjTy, PointerType::getUnqual(Type::Int16Ty),
+			    Type::Int32Ty, NULL));
 	    }
 
 	    std::vector<Value *> params;

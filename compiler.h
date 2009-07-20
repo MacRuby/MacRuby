@@ -66,6 +66,7 @@ class RoxorCompiler {
 	std::vector<ID> dvars;
 	std::map<ID, Instruction *> ivar_slots_cache;
 	std::map<std::string, GlobalVariable *> static_strings;
+	std::map<CFHashCode, GlobalVariable *> static_ustrings;
 
 #if ROXOR_COMPILER_DEBUG
 	int level;
@@ -249,6 +250,9 @@ class RoxorCompiler {
 	GlobalVariable *compile_const_global_string(const char *str) {
 	    return compile_const_global_string(str, strlen(str));
 	}
+	GlobalVariable *compile_const_global_ustring(const UniChar *str,
+		const size_t str_len, CFHashCode hash);
+
 	Value *compile_arity(rb_vm_arity_t &arity);
 	Value *compile_literal(VALUE val);
 	virtual Value *compile_immutable_literal(VALUE val);
