@@ -142,8 +142,13 @@ apply2files(void (*func)(const char *, void *), VALUE vargs, void *arg)
 
     rb_secure(4);
     for (i=0; i<RARRAY_LEN(vargs); i++) {
-	path = rb_get_path(RARRAY_AT(vargs, i));
-	(*func)(StringValueCStr(path), arg);
+		path = rb_check_string_type(RARRAY_AT(vargs, i));
+		if (NIL_P(path))
+		{
+			// should we check for to_path too? i find it to be a hideous idiom.
+			rb_raise(rb_eTypeError, "paths must be strings or coerceable into strings");
+		}
+		(*func)(StringValueCStr(path), arg);
     }
 
     return RARRAY_LEN(vargs);
@@ -1703,15 +1708,12 @@ rb_file_s_mtime(VALUE klass, SEL sel, VALUE fname)
 static VALUE
 rb_file_mtime(VALUE obj, SEL sel)
 {
-    //     rb_io_t *fptr;
-    //     struct stat st;
-    // 
-    //     GetOpenFile(obj, fptr);
-    //     if (fstat(fptr->fd, &st) == -1) {
-    // rb_sys_fail(fptr->path);
-    //     }
-    //     return stat_mtime(&st);
-    rb_notimplement();
+	struct stat st;
+    struct rb_io_t *io = ExtractIOStruct(obj);
+    if (fstat(io->fd, &st) == -1) {
+	rb_sys_fail(RSTRING_PTR(io->path));
+    }
+	return stat_mtime(&st);
 }
 
 /*
@@ -1750,15 +1752,12 @@ rb_file_s_ctime(VALUE klass, SEL sel, VALUE fname)
 static VALUE
 rb_file_ctime(VALUE obj, SEL sel)
 {
-    //     rb_io_t *fptr;
-    //     struct stat st;
-    // 
-    //     GetOpenFile(obj, fptr);
-    //     if (fstat(fptr->fd, &st) == -1) {
-    // rb_sys_fail(fptr->path);
-    //     }
-    //     return stat_ctime(&st);
-    rb_notimplement();
+	struct stat st;
+    struct rb_io_t *io = ExtractIOStruct(obj);
+    if (fstat(io->fd, &st) == -1) {
+	rb_sys_fail(RSTRING_PTR(io->path));
+    }
+	return stat_ctime(&st);
 }
 
 static void
@@ -1791,6 +1790,11 @@ rb_file_s_chmod(VALUE rcv, SEL sel, int argc, VALUE *argv)
 
     rb_secure(2);
     rb_scan_args(argc, argv, "1*", &vmode, &rest);
+	vmode = rb_check_to_integer(vmode, "to_int");
+	if (NIL_P(vmode))
+	{
+		rb_raise(rb_eTypeError, "chmod() takes a numeric argument");
+	}
     mode = NUM2INT(vmode);
 
     n = apply2files(chmod_internal, rest, &mode);
@@ -1813,24 +1817,18 @@ rb_file_s_chmod(VALUE rcv, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_file_chmod(VALUE obj, SEL sel, VALUE vmode)
 {
-//     rb_io_t *fptr;
-//     int mode;
-// 
-//     rb_secure(2);
-//     mode = NUM2INT(vmode);
-// 
-//     GetOpenFile(obj, fptr);
-// #ifdef HAVE_FCHMOD
-//     if (fchmod(fptr->fd, mode) == -1)
-//  rb_sys_fail(fptr->path);
-// #else
-//     if (!fptr->path) return Qnil;
-//     if (chmod(fptr->path, mode) == -1)
-//  rb_sys_fail(fptr->path);
-// #endif
-// 
-//     return INT2FIX(0);
-    rb_notimplement();
+	rb_secure(2);
+	rb_io_t *io = ExtractIOStruct(obj);
+	vmode = rb_check_to_integer(vmode, "to_int");
+	if (NIL_P(vmode))
+	{
+		rb_raise(rb_eTypeError, "chmod() takes a numeric argument");
+	}
+	if (fchmod(io->fd, FIX2INT(vmode)) == -1)
+	{
+		rb_sys_fail(RSTRING_PTR(io->path));
+	}
+	return INT2FIX(0);
 }
 
 #if defined(HAVE_LCHMOD)
