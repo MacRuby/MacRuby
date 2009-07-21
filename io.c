@@ -222,7 +222,7 @@ rb_io_assert_usable(CFStreamStatus status)
     }
 }
 
-static void 
+void 
 rb_io_assert_writable(rb_io_t *io_struct)
 {
     rb_io_assert_initialized(io_struct);

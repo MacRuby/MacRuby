@@ -76,6 +76,8 @@ typedef struct rb_io_t {
 VALUE rb_io_taint_check(VALUE);
 NORETURN(void rb_eof_error(void));
 
+void rb_io_assert_writable(rb_io_t *io);
+
 
 #if defined(__cplusplus)
 #if 0

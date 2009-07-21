@@ -2752,29 +2752,15 @@ rb_file_s_truncate(VALUE klass, SEL sel, VALUE path, VALUE len)
 static VALUE
 rb_file_truncate(VALUE obj, SEL sel, VALUE len)
 {
-//     rb_io_t *fptr;
-//     off_t pos;
-// 
-//     rb_secure(2);
-//     pos = NUM2OFFT(len);
-//     GetOpenFile(obj, fptr);
-//     if (!(fptr->mode & FMODE_WRITABLE)) {
-//  rb_raise(rb_eIOError, "not opened for writing");
-//     }
-//     rb_io_flush(obj);
-// #ifdef HAVE_FTRUNCATE
-//     if (ftruncate(fptr->fd, pos) < 0)
-//  rb_sys_fail(fptr->path);
-// #else
-// # ifdef HAVE_CHSIZE
-//     if (chsize(fptr->fd, pos) < 0)
-//  rb_sys_fail(fptr->path);
-// # else
-//     rb_notimplement();
-// # endif
-// #endif
-//     return INT2FIX(0);
-    rb_notimplement();
+	rb_secure(2);
+	rb_io_t *io = ExtractIOStruct(obj);
+	off_t pos = NUM2OFFT(len);
+	rb_io_assert_writable(io);
+	if (ftruncate(io->fd, pos) < 0)
+	{
+		rb_sys_fail(RSTRING_PTR(io->path));
+	}
+	return INT2FIX(0);
 }
 
 # ifndef LOCK_SH
