@@ -164,13 +164,8 @@ apply2files(void (*func)(const char *, void *), VALUE vargs, void *arg)
 static VALUE
 rb_file_path(VALUE obj, SEL sel)
 {
-    // rb_io_t *fptr;
-    // 
-    // fptr = RFILE(rb_io_taint_check(obj))->fptr;
-    // rb_io_check_initialized(fptr);
-    // if (!fptr->path) return Qnil;
-    // return rb_tainted_str_new2(fptr->path);
-    rb_notimplement();
+	rb_io_t *io = ExtractIOStruct(obj);
+	return (io->path == NULL ? Qnil : (VALUE)io->path);
 }
 
 static VALUE
@@ -1667,15 +1662,12 @@ rb_file_s_atime(VALUE klass, SEL sel, VALUE fname)
 static VALUE
 rb_file_atime(VALUE obj, SEL sel)
 {
-    //     rb_io_t *fptr;
-    //     struct stat st;
-    // 
-    //     GetOpenFile(obj, fptr);
-    //     if (fstat(fptr->fd, &st) == -1) {
-    // rb_sys_fail(fptr->path);
-    //     }
-    //     return stat_atime(&st);
-        rb_notimplement();
+	struct stat st;
+    struct rb_io_t *io = ExtractIOStruct(obj);
+    if (fstat(io->fd, &st) == -1) {
+	rb_sys_fail(RSTRING_PTR(io->path));
+    }
+	return stat_atime(&st);
 }
 
 /*
