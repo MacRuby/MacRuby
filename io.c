@@ -3343,18 +3343,18 @@ rb_f_select(VALUE recv, SEL sel, int argc, VALUE *argv)
 }
 // Here be dragons.
 static VALUE
-rb_io_ctl(VALUE io, VALUE req, VALUE arg, int is_io)
+rb_io_ctl(VALUE io, VALUE arg, VALUE req, int is_io)
 {
+	unsigned long request;
+    unsigned long cmd = NUM2ULONG(arg);
     rb_io_t *io_s = ExtractIOStruct(io);
     if (TYPE(req) == T_STRING) {
-	rb_bug("ioctl doesn't support strings yet...\n");
-	return INT2FIX(0);
-    }
-    unsigned long cmd = NUM2ULONG(req);
-
-    int retval = is_io ? ioctl(io_s->fd, cmd) : fcntl(io_s->fd, cmd);
-
-    return retval;
+		request = (unsigned long)(intptr_t)RSTRING_PTR(req);
+    } else {
+		request = FIX2ULONG(req);
+	}
+    int retval = is_io ? ioctl(io_s->fd, cmd, request) : fcntl(io_s->fd, cmd, request);
+    return INT2FIX(retval);
 }
 
 /*
