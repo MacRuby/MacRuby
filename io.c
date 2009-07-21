@@ -3209,18 +3209,6 @@ rb_f_backquote(VALUE obj, SEL sel, VALUE str)
     return bstr;
 }
 
-// static VALUE
-// select_call(VALUE arg)
-// {
-// rb_notimplement();
-// }
-// 
-// static VALUE
-// select_end(VALUE arg)
-// {
-// rb_notimplement();
-// }
-
 /*
  *  call-seq:
  *     IO.select(read_array
@@ -3231,12 +3219,128 @@ rb_f_backquote(VALUE obj, SEL sel, VALUE str)
  *  See <code>Kernel#select</code>.
  */
 
+// helper method. returns the highest-valued file descriptor encountered.
+static int
+build_fd_set_from_io_array(fd_set* set, VALUE arr)
+{
+	int max_fd = 0;
+	FD_ZERO(set);
+	if (!NIL_P(arr))
+	{
+		if (TYPE(arr) != T_ARRAY)
+		{
+			rb_raise(rb_eTypeError, "Kernel#select expects arrays of IO objects");
+		}
+
+		long n = RARRAY_LEN(arr);
+		long ii;
+		for(ii=0; ii<n; ii++)
+		{
+			VALUE io = RARRAY_AT(arr, ii);
+			io = rb_check_convert_type(io, T_FILE, "IO", "to_io");
+			if (NIL_P(io))
+			{
+				rb_raise(rb_eTypeError, "Kernel#select expects arrays of IO objects");
+			}
+			int fd = ExtractIOStruct(io)->fd;
+			FD_SET(fd, set);
+			max_fd = MAX(fd, max_fd);
+		}
+	}
+	return max_fd;
+}
+
+static void
+build_timeval_from_numeric(struct timeval *tv, VALUE num)
+{
+	tv->tv_sec = 0L;
+	tv->tv_usec = 0L;
+	if(FIXNUM_P(num))
+	{
+		if (FIX2LONG(num) < 0)
+		{
+			rb_raise(rb_eArgError, "select() does not accept negative timeouts.");
+		}
+		tv->tv_sec = FIX2LONG(num);
+	}
+	else if (FIXFLOAT_P(num))
+	{
+		double quantity = RFLOAT_VALUE(num);
+		if (quantity < 0.0)
+		{
+			rb_raise(rb_eArgError, "select() does not accept negative timeouts.");
+		}
+		tv->tv_sec = (long)floor(quantity);
+		tv->tv_usec = (long)(1000 * (quantity - floor(quantity)));
+	}
+	else if (!NIL_P(num))
+	{
+		rb_raise(rb_eTypeError, "timeout parameter must be numeric.");
+	}
+}
+
+static VALUE
+extract_ready_descriptors(VALUE arr, fd_set* set)
+{
+	VALUE ready_ios = rb_ary_new();
+	if (NIL_P(arr))
+	{
+		return ready_ios;
+	}
+	long len = RARRAY_LEN(arr);
+	long ii;
+	for (ii=0; ii<len; ii++)
+	{
+		VALUE io = RARRAY_AT(arr, ii);
+		VALUE tmp = rb_check_convert_type(io, T_FILE, "IO", "to_io");
+		if (FD_ISSET(ExtractIOStruct(tmp)->fd, set))
+		{
+			rb_ary_push(ready_ios, io);
+		}
+	}
+	return ready_ios;
+}
+
 static VALUE
 rb_f_select(VALUE recv, SEL sel, int argc, VALUE *argv)
 {
-    rb_notimplement();
+	VALUE read_arr, write_arr, err_arr, timeout_val;
+	VALUE readable_arr, writable_arr, errored_arr;
+	rb_scan_args(argc, argv, "13", &read_arr, &write_arr, &err_arr, &timeout_val);
+	fd_set read_set, write_set, err_set;
+	struct timeval timeout;
+	
+	// ndfs has to be 1 + the highest fd we're looking for.
+	int temp = 0;
+	int ndfs = build_fd_set_from_io_array(&read_set, read_arr);
+	temp = build_fd_set_from_io_array(&write_set, write_arr);
+	ndfs = MAX(temp, ndfs);
+	temp = build_fd_set_from_io_array(&err_set, err_arr);
+	ndfs = MAX(temp, ndfs);
+	ndfs++;
+	
+	
+	// A timeval of 0 needs to be distinguished from a NULL timeval, as a 
+	// NULL timeval polls indefinitly while a 0 timeval returns immediately.
+	build_timeval_from_numeric(&timeout, timeout_val);
+	struct timeval *timeval_ptr = (NIL_P(timeout_val) ? NULL : &timeout);
+	
+	int ready_count = select(ndfs, &read_set, &write_set, &err_set, timeval_ptr);
+	if(ready_count == -1) 
+	{
+		rb_sys_fail("select(2) failed");
+	}
+	else if (ready_count == 0)
+	{
+		return Qnil; // no ready file descriptors? return 0.
+	}
+	
+	readable_arr = extract_ready_descriptors(read_arr, &read_set);
+	writable_arr = extract_ready_descriptors(write_arr, &write_set);
+	errored_arr = extract_ready_descriptors(err_arr, &err_set);
+	
+	return rb_ary_new3(3, readable_arr, writable_arr, errored_arr);
 }
-
 // Here be dragons.
 static VALUE
 rb_io_ctl(VALUE io, VALUE req, VALUE arg, int is_io)
