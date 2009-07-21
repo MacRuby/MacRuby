@@ -4938,7 +4938,11 @@ rb_str_valid_encoding_p(VALUE str, SEL sel)
 static VALUE
 rb_str_is_ascii_only_p(VALUE str, SEL sel)
 {
-    rb_notimplement();
+	CFCharacterSetRef ascii = CFCharacterSetCreateWithCharactersInRange(NULL, CFRangeMake(0, 128));
+	CFCharacterSetRef this = CFCharacterSetCreateWithCharactersInString(NULL, (CFStringRef)str);
+	Boolean b = CFCharacterSetIsSupersetOfSet(ascii, this);
+	CFRelease(ascii); CFRelease(this);
+	return (b ? Qtrue : Qfalse);
 }
 
 static VALUE
