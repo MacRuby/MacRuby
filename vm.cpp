@@ -8,6 +8,7 @@
 
 #define ROXOR_VM_DEBUG		0
 #define ROXOR_INTERPRET_EVAL	0
+#define ROXOR_COMPILER_DEBUG 	0
 
 #include <llvm/Module.h>
 #include <llvm/DerivedTypes.h>

@@ -2744,6 +2744,7 @@ RoxorCompiler::compile_node(NODE *node)
 		BasicBlock *old_rescue_bb = rescue_bb;
 		BasicBlock *old_entry_bb = entry_bb;
 		BasicBlock *old_bb = bb;
+		BasicBlock *new_rescue_bb = NULL;
 		rescue_bb = NULL;
 		bb = BasicBlock::Create("MainBlock", f);
 
@@ -2817,6 +2818,9 @@ RoxorCompiler::compile_node(NODE *node)
 		    if (has_vars_to_save) {
 			current_var_uses = new AllocaInst(PtrTy, "", bb);
 			new StoreInst(compile_const_pointer(NULL), current_var_uses, bb);
+
+			new_rescue_bb = BasicBlock::Create("rescue_save_vars", f);
+			rescue_bb = new_rescue_bb;
 		    }
 
 		    NODE *args_node = node->nd_args;
@@ -2931,6 +2935,56 @@ RoxorCompiler::compile_node(NODE *node)
 			    }
 			}
 		    }
+
+		    if (new_rescue_bb->use_empty()) {
+			rescue_bb->eraseFromParent();
+		    }
+		    else {
+			assert(params.size() > 0);
+			bb = new_rescue_bb;
+			compile_landing_pad_header();
+
+			// call keepVarsFunc if current_var_uses is not NULL
+			BasicBlock *notNullBB = BasicBlock::Create("not_null", f);
+			BasicBlock *mergeBB = BasicBlock::Create("merge", f);
+			Value *usesVal = new LoadInst(current_var_uses, "", bb);
+			Value *notNullCond = new ICmpInst(ICmpInst::ICMP_NE, usesVal, compile_const_pointer(NULL), "", bb);
+			BranchInst::Create(notNullBB, mergeBB, notNullCond, bb);
+			bb = notNullBB;
+			params[0] = new LoadInst(current_var_uses, "", bb);
+			CallInst::Create(keepVarsFunc, params.begin(), params.end(), "", bb);
+			BranchInst::Create(mergeBB, bb);
+
+			bb = mergeBB;
+			compile_rethrow_exception();
+		    }
+		}
+		else if (current_var_uses != NULL) {
+		    for (BasicBlock::use_iterator rescue_use_it = new_rescue_bb->use_begin();
+			 rescue_use_it != new_rescue_bb->use_end();
+			 rescue_use_it = new_rescue_bb->use_begin()) {
+			InvokeInst* invoke = dyn_cast<InvokeInst>(rescue_use_it);
+			assert(invoke != NULL);
+
+			// transform the InvokeInst in CallInst
+			std::vector<Value *> params;
+			for (InvokeInst::op_iterator op_it = invoke->op_begin()+3;
+			     op_it != invoke->op_end(); ++op_it) {
+			    params.push_back(op_it->get());
+			}
+			CallInst *call_inst = CallInst::Create(
+				invoke->getOperand(0),
+				params.begin(), params.end(),
+				invoke->getNameStr(),
+				invoke);
+
+			invoke->replaceAllUsesWith(call_inst);
+			BasicBlock *normal_bb = dyn_cast<BasicBlock>(invoke->getOperand(1));
+			assert(normal_bb != NULL);
+			BranchInst::Create(normal_bb, invoke);
+			invoke->eraseFromParent();
+		    }
+		    rescue_bb->eraseFromParent();
 		}
 
 		bb = old_bb;
