@@ -180,9 +180,12 @@ ruby_stop(int ex)
 
 extern VALUE rb_progname;
 
+void rb_require_libraries(void);
+
 int
 ruby_run_node(void *n)
 {
+    rb_require_libraries();
     if ((VALUE)n == Qtrue) {
 	return EXIT_SUCCESS;
     }

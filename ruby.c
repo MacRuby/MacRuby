@@ -292,9 +292,15 @@ add_modules(const char *mod)
 extern void Init_ext(void);
 extern VALUE rb_vm_top_self(void);
 
-static void
-require_libraries(void)
+void
+rb_require_libraries(void)
 {
+    static bool init = false;
+    if (init) {
+	return;
+    }
+    init = true;
+
     Init_ext();		/* should be called here for some reason :-( */
 
     if (req_list != NULL) {
@@ -962,7 +968,7 @@ process_options(VALUE arg)
 	else {
 	    eenc = lenc;
 	}
-	require_libraries();
+	//require_libraries();
 	tree = rb_parser_compile_string(parser, opt->script, opt->e_script, 1);
     }
     else {
@@ -1147,7 +1153,7 @@ load_file(VALUE parser, const char *fname, int script, struct cmdline_options *o
 	else if (!NIL_P(c)) {
 	    rb_io_ungetc(f, 0, c);
 	}
-	require_libraries();	/* Why here? unnatural */
+	//require_libraries();	/* Why here? unnatural */
     }
     if (opt->src.enc.enc != NULL) {
     	enc = opt->src.enc.enc;
