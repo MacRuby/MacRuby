@@ -1351,6 +1351,11 @@ rb_io_set_lineno(VALUE io, SEL sel, VALUE line_no)
 {
     rb_io_t *io_s = ExtractIOStruct(io);
 	rb_io_assert_open(io_s);
+	line_no = rb_check_to_integer(line_no, "to_int");
+	if (NIL_P(line_no))
+	{
+		rb_raise(rb_eTypeError, "lineno's argument must be coercable to integer");
+	}
     io_s->lineno = FIX2INT(line_no);
     return line_no;
 }
