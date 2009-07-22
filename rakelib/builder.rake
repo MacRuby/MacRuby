@@ -320,18 +320,18 @@ task :extensions => [:miniruby, "macruby:static"] do
 =begin
   sh "./miniruby -I./lib -I.ext/common -I./- -r./ext/purelib.rb ext/extmk.rb #{EXTMK_ARGS}"
 =end
-	SUPPORTED_EXTENSIONS.each do |dirname|
-	  Dir.chdir(dirname) do
-	    sh "../../miniruby -I../.. -I../../lib extconf.rb"
-	    sh "/usr/bin/make top_srcdir=../.. ruby=\"../../miniruby -I../.. -I../../lib\" libdir=../.."
-	  end
-	end
-	DIGESTS.each do |digest|
-		Dir.chdir("ext/digest/#{digest}") do
-			sh "../../../miniruby -I../../.. -I../../../lib extconf.rb"
-	    sh "/usr/bin/make top_srcdir=../../.. ruby=\"../../../miniruby -I../../.. -I../../../lib\" libdir=../../.."
-		end
-	end
+  SUPPORTED_EXTENSIONS.each do |dirname|
+    Dir.chdir(dirname) do
+      sh "../../miniruby -I../.. -I../../lib extconf.rb"
+      sh "/usr/bin/make top_srcdir=../.. ruby=\"../../miniruby -I../.. -I../../lib\" libdir=../.."
+    end
+  end
+  DIGESTS.each do |digest|
+    Dir.chdir("ext/digest/#{digest}") do
+      sh "../../../miniruby -I../../.. -I../../../lib extconf.rb"
+      sh "/usr/bin/make top_srcdir=../../.. ruby=\"../../../miniruby -I../../.. -I../../../lib\" libdir=../../.."
+    end
+  end
   $stderr.puts "Skipping other extensions (for now)..."
 end
 
@@ -375,16 +375,16 @@ EOS
 
   desc "Install the framework"
   task :install => :info_plist do
-		SUPPORTED_EXTENSIONS.each do |dirname|
-	    Dir.chdir(dirname) do
-	      sh "/usr/bin/make top_srcdir=../.. ruby=../../miniruby install"
-	    end
-		end
-		DIGESTS.each do |digest|
-			Dir.chdir("ext/digest/#{digest}") do
-	      sh "/usr/bin/make top_srcdir=../.. ruby=../../miniruby install"
-			end
-		end
+    SUPPORTED_EXTENSIONS.each do |dirname|
+      Dir.chdir(dirname) do
+        sh "/usr/bin/make top_srcdir=../.. ruby=../../miniruby install"
+      end
+    end
+    DIGESTS.each do |digest|
+      Dir.chdir("ext/digest/#{digest}") do
+        sh "/usr/bin/make top_srcdir=../.. ruby=../../miniruby install"
+      end
+    end
     sh "./miniruby instruby.rb #{INSTRUBY_ARGS}"
   end
 end
