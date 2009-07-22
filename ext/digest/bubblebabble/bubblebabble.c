@@ -85,7 +85,7 @@ bubblebabble_str_new(VALUE str_digest)
  * Returns a BubbleBabble encoded version of a given _string_.
  */
 static VALUE
-rb_digest_s_bubblebabble(VALUE klass, VALUE str)
+rb_digest_s_bubblebabble(VALUE klass, SEL sel, VALUE str)
 {
     return bubblebabble_str_new(str);
 }
@@ -97,7 +97,7 @@ rb_digest_s_bubblebabble(VALUE klass, VALUE str)
  * Returns the BubbleBabble encoded hash value of a given _string_.
  */
 static VALUE
-rb_digest_class_s_bubblebabble(int argc, VALUE *argv, VALUE klass)
+rb_digest_class_s_bubblebabble(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
     return bubblebabble_str_new(rb_funcall2(klass, id_digest, argc, argv));
 }
@@ -109,7 +109,7 @@ rb_digest_class_s_bubblebabble(int argc, VALUE *argv, VALUE klass)
  * Returns the resulting hash value in a Bubblebabble encoded form.
  */
 static VALUE
-rb_digest_instance_bubblebabble(VALUE self)
+rb_digest_instance_bubblebabble(VALUE self, SEL sel)
 {
     return bubblebabble_str_new(rb_funcall(self, id_digest, 0));
 }
@@ -130,10 +130,10 @@ Init_bubblebabble(void)
     cDigest_Class = rb_path2class("Digest::Class");
 
     /* Digest::bubblebabble() */
-    rb_define_module_function(mDigest, "bubblebabble", rb_digest_s_bubblebabble, 1);
+    rb_objc_define_method(*(VALUE *)mDigest, "bubblebabble", rb_digest_s_bubblebabble, 1);
 
     /* Digest::Class::bubblebabble() */
-    rb_define_singleton_method(cDigest_Class, "bubblebabble", rb_digest_class_s_bubblebabble, -1);
+    rb_objc_define_method(*(VALUE *)cDigest_Class, "bubblebabble", rb_digest_class_s_bubblebabble, -1);
 
     /* Digest::Instance#bubblebabble() */
     rb_define_method(mDigest_Instance, "bubblebabble", rb_digest_instance_bubblebabble, 0);
