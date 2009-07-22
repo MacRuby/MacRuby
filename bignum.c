@@ -1013,7 +1013,7 @@ rb_big_to_s(VALUE x, SEL sel, int argc, VALUE *argv)
     return rb_big2str(x, base);
 }
 
-static VALUE
+static unsigned long
 big2ulong(VALUE x, const char *type, int check)
 {
     long len = RBIGNUM_LEN(x);
@@ -1031,26 +1031,26 @@ big2ulong(VALUE x, const char *type, int check)
 	num = BIGUP(num);
 	num += ds[len];
     }
-    return num;
+    return (unsigned long)num;
 }
 
-VALUE
+unsigned long
 rb_big2ulong_pack(VALUE x)
 {
-    VALUE num = big2ulong(x, "unsigned long", Qfalse);
+    unsigned long num = big2ulong(x, "unsigned long", Qfalse);
     if (!RBIGNUM_SIGN(x)) {
 	return -num;
     }
     return num;
 }
 
-VALUE
+unsigned long
 rb_big2ulong(VALUE x)
 {
     VALUE num = big2ulong(x, "unsigned long", Qtrue);
 
     if (!RBIGNUM_SIGN(x)) {
-	if ((SIGNED_VALUE)num < 0) {
+	if ((long)num < 0) {
 	    rb_raise(rb_eRangeError, "bignum out of range of unsigned long");
 	}
 	return -num;
@@ -1058,7 +1058,7 @@ rb_big2ulong(VALUE x)
     return num;
 }
 
-SIGNED_VALUE
+long
 rb_big2long(VALUE x)
 {
     VALUE num = big2ulong(x, "long", Qtrue);
@@ -1067,7 +1067,7 @@ rb_big2long(VALUE x)
 	(RBIGNUM_SIGN(x) || (SIGNED_VALUE)num != LONG_MIN)) {
 	rb_raise(rb_eRangeError, "bignum too big to convert into `long'");
     }
-    if (!RBIGNUM_SIGN(x)) return -(SIGNED_VALUE)num;
+    if (!RBIGNUM_SIGN(x)) return -(long)num;
     return num;
 }
 
