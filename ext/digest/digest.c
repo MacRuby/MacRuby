@@ -95,7 +95,7 @@ rb_digest_s_hexencode(VALUE klass, SEL sel, VALUE str)
  * other)
  */
 static VALUE
-rb_digest_instance_update(VALUE self, VALUE str)
+rb_digest_instance_update(VALUE self, SEL sel, VALUE str)
 {
     rb_raise(rb_eRuntimeError, "%s does not implement update()", RSTRING_PTR(rb_inspect(self)));
 }
@@ -113,7 +113,7 @@ rb_digest_instance_update(VALUE self, VALUE str)
  * security reasons.
  */
 static VALUE
-rb_digest_instance_finish(VALUE self)
+rb_digest_instance_finish(VALUE self, SEL sel)
 {
     rb_raise(rb_eRuntimeError, "%s does not implement finish()", RSTRING_PTR(rb_inspect(self)));
 }
@@ -127,7 +127,7 @@ rb_digest_instance_finish(VALUE self)
  * This method is overridden by each implementation subclass.
  */
 static VALUE
-rb_digest_instance_reset(VALUE self)
+rb_digest_instance_reset(VALUE self, SEL sel)
 {
     rb_raise(rb_eRuntimeError, "%s does not implement reset()", RSTRING_PTR(rb_inspect(self)));
 }
@@ -140,7 +140,7 @@ rb_digest_instance_reset(VALUE self)
  * to digest_obj.clone().reset().
  */
 static VALUE
-rb_digest_instance_new(VALUE self)
+rb_digest_instance_new(VALUE self, SEL sel)
 {
     VALUE clone = rb_obj_clone(self);
     rb_funcall(clone, id_reset, 0);
@@ -160,7 +160,7 @@ rb_digest_instance_new(VALUE self)
  * after the process.
  */
 static VALUE
-rb_digest_instance_digest(int argc, VALUE *argv, VALUE self)
+rb_digest_instance_digest(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     VALUE str, value;
 
@@ -187,7 +187,7 @@ rb_digest_instance_digest(int argc, VALUE *argv, VALUE self)
  * initial state.
  */
 static VALUE
-rb_digest_instance_digest_bang(VALUE self)
+rb_digest_instance_digest_bang(VALUE self, SEL sel)
 {
     VALUE value = rb_funcall(self, id_finish, 0);
     rb_funcall(self, id_reset, 0);
@@ -235,7 +235,7 @@ rb_digest_instance_hexdigest(VALUE self, SEL sel, int argc, VALUE *argv)
  * initial state.
  */
 static VALUE
-rb_digest_instance_hexdigest_bang(VALUE self)
+rb_digest_instance_hexdigest_bang(VALUE self, SEL sel)
 {
     VALUE value = rb_funcall(self, id_finish, 0);
     rb_funcall(self, id_reset, 0);
@@ -250,7 +250,7 @@ rb_digest_instance_hexdigest_bang(VALUE self)
  * Returns digest_obj.hexdigest().
  */
 static VALUE
-rb_digest_instance_to_s(VALUE self)
+rb_digest_instance_to_s(VALUE self, SEL sel)
 {
     return rb_funcall(self, id_hexdigest, 0);
 }
@@ -262,7 +262,7 @@ rb_digest_instance_to_s(VALUE self)
  * Creates a printable version of the digest object.
  */
 static VALUE
-rb_digest_instance_inspect(VALUE self)
+rb_digest_instance_inspect(VALUE self, SEL sel)
 {
     VALUE str;
     size_t digest_len = 32;	/* about this size at least */
@@ -291,15 +291,15 @@ rb_digest_instance_inspect(VALUE self)
  * returns false.
  */
 static VALUE
-rb_digest_instance_equal(VALUE self, VALUE other)
+rb_digest_instance_equal(VALUE self, SEL sel, VALUE other)
 {
     VALUE str1, str2;
 
     if (rb_obj_is_kind_of(other, rb_mDigest_Instance) == Qtrue) {
-        str1 = rb_digest_instance_digest(0, 0, self);
-        str2 = rb_digest_instance_digest(0, 0, other);
+        str1 = rb_digest_instance_digest(self, 0, 0, 0);
+        str2 = rb_digest_instance_digest(other, 0, 0, 0);
     } else {
-        str1 = rb_digest_instance_to_s(self);
+        str1 = rb_digest_instance_to_s(self, 0);
         str2 = other;
     }
 
@@ -324,10 +324,10 @@ rb_digest_instance_equal(VALUE self, VALUE other)
  * If not, digest_obj.digest().length() is returned.
  */
 static VALUE
-rb_digest_instance_digest_length(VALUE self)
+rb_digest_instance_digest_length(VALUE self, SEL sel)
 {
     /* subclasses really should redefine this method */
-    VALUE digest = rb_digest_instance_digest(0, 0, self);
+    VALUE digest = rb_digest_instance_digest(self, 0, 0, 0);
 
     /* never blindly assume that #digest() returns a string */
     StringValue(digest);
@@ -342,7 +342,7 @@ rb_digest_instance_digest_length(VALUE self)
  * Returns digest_obj.digest_length().
  */
 static VALUE
-rb_digest_instance_length(VALUE self)
+rb_digest_instance_length(VALUE self, SEL sel)
 {
     return rb_funcall(self, id_digest_length, 0);
 }
@@ -356,7 +356,7 @@ rb_digest_instance_length(VALUE self)
  * This method is overridden by each implementation subclass.
  */
 static VALUE
-rb_digest_instance_block_length(VALUE self)
+rb_digest_instance_block_length(VALUE self, SEL sel)
 {
     rb_raise(rb_eRuntimeError, "%s does not implement block_length()", RSTRING_PTR(rb_inspect(self)));
 }
@@ -378,7 +378,7 @@ rb_digest_instance_block_length(VALUE self)
  * _string_ is passed to #digest().
  */
 static VALUE
-rb_digest_class_s_digest(int argc, VALUE *argv, VALUE klass)
+rb_digest_class_s_digest(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
     VALUE str;
     volatile VALUE obj;
@@ -435,8 +435,8 @@ get_digest_base_metadata(VALUE klass)
 
     if (!p)
         rb_raise(rb_eRuntimeError, "Digest::Base cannot be directly inherited in Ruby");
-
-    Data_Get_Struct(obj, rb_digest_metadata_t, algo);
+	
+	algo = (rb_digest_metadata_t*)RDATA(obj)->data;
 
     switch (algo->api_version) {
       case 2:
@@ -476,7 +476,7 @@ rb_digest_base_alloc(VALUE klass)
 
 /* :nodoc: */
 static VALUE
-rb_digest_base_copy(VALUE copy, VALUE obj)
+rb_digest_base_copy(VALUE copy, SEL sel, VALUE obj)
 {
     rb_digest_metadata_t *algo;
     void *pctx1, *pctx2;
@@ -496,7 +496,7 @@ rb_digest_base_copy(VALUE copy, VALUE obj)
 
 /* :nodoc: */
 static VALUE
-rb_digest_base_reset(VALUE self)
+rb_digest_base_reset(VALUE self, SEL sel)
 {
     rb_digest_metadata_t *algo;
     void *pctx;
@@ -512,7 +512,7 @@ rb_digest_base_reset(VALUE self)
 
 /* :nodoc: */
 static VALUE
-rb_digest_base_update(VALUE self, VALUE str)
+rb_digest_base_update(VALUE self, SEL sel, VALUE str)
 {
     rb_digest_metadata_t *algo;
     void *pctx;
@@ -529,7 +529,7 @@ rb_digest_base_update(VALUE self, VALUE str)
 
 /* :nodoc: */
 static VALUE
-rb_digest_base_finish(VALUE self)
+rb_digest_base_finish(VALUE self, SEL sel)
 {
     rb_digest_metadata_t *algo;
     void *pctx;
@@ -550,7 +550,7 @@ rb_digest_base_finish(VALUE self)
 
 /* :nodoc: */
 static VALUE
-rb_digest_base_digest_length(VALUE self)
+rb_digest_base_digest_length(VALUE self, SEL sel)
 {
     rb_digest_metadata_t *algo;
 
@@ -594,26 +594,26 @@ Init_digest(void)
     rb_mDigest_Instance = rb_define_module_under(rb_mDigest, "Instance");
 
     /* instance methods that should be overridden */
-    rb_define_method(rb_mDigest_Instance, "update", rb_digest_instance_update, 1);
-    rb_define_method(rb_mDigest_Instance, "<<", rb_digest_instance_update, 1);
-    rb_define_private_method(rb_mDigest_Instance, "finish", rb_digest_instance_finish, 0);
-    rb_define_method(rb_mDigest_Instance, "reset", rb_digest_instance_reset, 0);
-    rb_define_method(rb_mDigest_Instance, "digest_length", rb_digest_instance_digest_length, 0);
-    rb_define_method(rb_mDigest_Instance, "block_length", rb_digest_instance_block_length, 0);
+    rb_objc_define_method(rb_mDigest_Instance, "update", rb_digest_instance_update, 1);
+    rb_objc_define_method(rb_mDigest_Instance, "<<", rb_digest_instance_update, 1);
+    rb_objc_define_private_method(rb_mDigest_Instance, "finish", rb_digest_instance_finish, 0);
+    rb_objc_define_method(rb_mDigest_Instance, "reset", rb_digest_instance_reset, 0);
+    rb_objc_define_method(rb_mDigest_Instance, "digest_length", rb_digest_instance_digest_length, 0);
+    rb_objc_define_method(rb_mDigest_Instance, "block_length", rb_digest_instance_block_length, 0);
 
     /* instance methods that may be overridden */
-    rb_define_method(rb_mDigest_Instance, "==", rb_digest_instance_equal, 1);
-    rb_define_method(rb_mDigest_Instance, "inspect", rb_digest_instance_inspect, 0);
+    rb_objc_define_method(rb_mDigest_Instance, "==", rb_digest_instance_equal, 1);
+    rb_objc_define_method(rb_mDigest_Instance, "inspect", rb_digest_instance_inspect, 0);
 
     /* instance methods that need not usually be overridden */
-    rb_define_method(rb_mDigest_Instance, "new", rb_digest_instance_new, 0);
-    rb_define_method(rb_mDigest_Instance, "digest", rb_digest_instance_digest, -1);
-    rb_define_method(rb_mDigest_Instance, "digest!", rb_digest_instance_digest_bang, 0);
-    rb_define_method(rb_mDigest_Instance, "hexdigest", rb_digest_instance_hexdigest, -1);
-    rb_define_method(rb_mDigest_Instance, "hexdigest!", rb_digest_instance_hexdigest_bang, 0);
-    rb_define_method(rb_mDigest_Instance, "to_s", rb_digest_instance_to_s, 0);
-    rb_define_method(rb_mDigest_Instance, "length", rb_digest_instance_length, 0);
-    rb_define_method(rb_mDigest_Instance, "size", rb_digest_instance_length, 0);
+    rb_objc_define_method(rb_mDigest_Instance, "new", rb_digest_instance_new, 0);
+    rb_objc_define_method(rb_mDigest_Instance, "digest", rb_digest_instance_digest, -1);
+    rb_objc_define_method(rb_mDigest_Instance, "digest!", rb_digest_instance_digest_bang, 0);
+    rb_objc_define_method(rb_mDigest_Instance, "hexdigest", rb_digest_instance_hexdigest, -1);
+    rb_objc_define_method(rb_mDigest_Instance, "hexdigest!", rb_digest_instance_hexdigest_bang, 0);
+    rb_objc_define_method(rb_mDigest_Instance, "to_s", rb_digest_instance_to_s, 0);
+    rb_objc_define_method(rb_mDigest_Instance, "length", rb_digest_instance_length, 0);
+    rb_objc_define_method(rb_mDigest_Instance, "size", rb_digest_instance_length, 0);
 
     /*
      * class Digest::Class
@@ -622,7 +622,7 @@ Init_digest(void)
     rb_include_module(rb_cDigest_Class, rb_mDigest_Instance);
 
     /* class methods */
-    rb_define_singleton_method(rb_cDigest_Class, "digest", rb_digest_class_s_digest, -1);
+    rb_objc_define_method(*(VALUE *)rb_cDigest_Class, "digest", rb_digest_class_s_digest, -1);
     rb_objc_define_method(*(VALUE *)rb_cDigest_Class, "hexdigest", rb_digest_class_s_hexdigest, -1);
 
     id_metadata = rb_intern("metadata");
@@ -630,13 +630,13 @@ Init_digest(void)
     /* class Digest::Base < Digest::Class */
     rb_cDigest_Base = rb_define_class_under(rb_mDigest, "Base", rb_cDigest_Class);
 
-    rb_define_alloc_func(rb_cDigest_Base, rb_digest_base_alloc);
+    rb_objc_define_method(*(VALUE *)rb_cDigest_Base, "alloc", rb_digest_base_alloc, 0);
 
-    rb_define_method(rb_cDigest_Base, "initialize_copy",  rb_digest_base_copy, 1);
-    rb_define_method(rb_cDigest_Base, "reset", rb_digest_base_reset, 0);
-    rb_define_method(rb_cDigest_Base, "update", rb_digest_base_update, 1);
-    rb_define_method(rb_cDigest_Base, "<<", rb_digest_base_update, 1);
-    rb_define_private_method(rb_cDigest_Base, "finish", rb_digest_base_finish, 0);
-    rb_define_method(rb_cDigest_Base, "digest_length", rb_digest_base_digest_length, 0);
-    rb_define_method(rb_cDigest_Base, "block_length", rb_digest_base_block_length, 0);
+    rb_objc_define_method(rb_cDigest_Base, "initialize_copy",  rb_digest_base_copy, 1);
+    rb_objc_define_method(rb_cDigest_Base, "reset", rb_digest_base_reset, 0);
+    rb_objc_define_method(rb_cDigest_Base, "update", rb_digest_base_update, 1);
+    rb_objc_define_method(rb_cDigest_Base, "<<", rb_digest_base_update, 1);
+    rb_objc_define_private_method(rb_cDigest_Base, "finish", rb_digest_base_finish, 0);
+    rb_objc_define_method(rb_cDigest_Base, "digest_length", rb_digest_base_digest_length, 0);
+    rb_objc_define_method(rb_cDigest_Base, "block_length", rb_digest_base_block_length, 0);
 }
