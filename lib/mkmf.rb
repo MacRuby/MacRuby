@@ -273,7 +273,7 @@ module Logging
       begin
         log.print(open {yield})
         @log.close
-        File::open(tmplog) {|t| FileUtils.copy_stream(t, log)}
+        #File::open(tmplog) {|t| FileUtils.copy_stream(t, log)}
       ensure
         @log, @logfile, @orgout, @orgerr = log, *save
         @postpone -= 1
@@ -1923,7 +1923,7 @@ RULE_SUBST = config_string('RULE_SUBST')
 COMPILE_C = config_string('COMPILE_C') || '$(CC) $(INCFLAGS) $(CPPFLAGS) $(CFLAGS) $(COUTFLAG)$@ -c $<'
 COMPILE_CXX = config_string('COMPILE_CXX') || '$(CXX) $(INCFLAGS) $(CPPFLAGS) $(CXXFLAGS) $(COUTFLAG)$@ -c $<'
 TRY_LINK = config_string('TRY_LINK') ||
-  "$(CC) #{OUTFLAG}conftest $(INCFLAGS) $(CPPFLAGS) " \
+  "$(CXX) #{OUTFLAG}conftest $(INCFLAGS) $(CPPFLAGS) " \
   "$(CFLAGS) $(src) $(LIBPATH) $(LDFLAGS) $(ARCH_FLAG) $(LOCAL_LIBS) $(LIBS)"
 LINK_SO = config_string('LINK_SO') ||
   if CONFIG["DLEXT"] == $OBJEXT

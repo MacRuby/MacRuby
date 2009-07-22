@@ -1,6 +1,8 @@
 require File.expand_path('../builder', __FILE__)
 require 'rake'
 
+SUPPORTED_EXTENSIONS = ['ext/ripper', 'ext/digest']
+
 # We monkey-patch the method that Rake uses to display the tasks so we can add
 # the build options.
 module Rake
@@ -317,10 +319,16 @@ task :extensions => [:miniruby, "macruby:static"] do
 =begin
   sh "./miniruby -I./lib -I.ext/common -I./- -r./ext/purelib.rb ext/extmk.rb #{EXTMK_ARGS}"
 =end
-  Dir.chdir('ext/ripper') do
-    sh "../../miniruby -I../.. -I../../lib extconf.rb"
-    sh "/usr/bin/make top_srcdir=../.. ruby=\"../../miniruby -I../.. -I../../lib\" libdir=../.."
-  end
+	SUPPORTED_EXTENSIONS.each do |dirname|
+	  Dir.chdir(dirname) do
+	    sh "../../miniruby -I../.. -I../../lib extconf.rb"
+	    sh "/usr/bin/make top_srcdir=../.. ruby=\"../../miniruby -I../.. -I../../lib\" libdir=../.."
+	  end
+	end
+	Dir.chdir('ext/digest/sha1') do
+		sh "../../../miniruby -I../../.. -I../../../lib extconf.rb"
+    sh "/usr/bin/make top_srcdir=../../.. ruby=\"../../../miniruby -I../../.. -I../../../lib\" libdir=../../.."
+	end
   $stderr.puts "Skipping other extensions (for now)..."
 end
 
@@ -364,9 +372,12 @@ EOS
 
   desc "Install the framework"
   task :install => :info_plist do
-    Dir.chdir('ext/ripper') do
-      sh "/usr/bin/make top_srcdir=../.. ruby=../../miniruby install"
-    end
+		SUPPORTED_EXTENSIONS.each do |dirname|
+	    Dir.chdir(dirname) do
+	      sh "/usr/bin/make top_srcdir=../.. ruby=../../miniruby install"
+	    end
+		end
+		Dir.chdir('ext/digest/sha1') { sh "/usr/bin/make top_srcdir=../../.. ruby=../../../miniruby install" }
     sh "./miniruby instruby.rb #{INSTRUBY_ARGS}"
   end
 end

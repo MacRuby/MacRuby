@@ -71,7 +71,7 @@ hexencode_str_new(VALUE str_digest)
  * Generates a hex-encoded version of a given _string_.
  */
 static VALUE
-rb_digest_s_hexencode(VALUE klass, VALUE str)
+rb_digest_s_hexencode(VALUE klass, SEL sel, VALUE str)
 {
     return hexencode_str_new(str);
 }
@@ -208,7 +208,7 @@ rb_digest_instance_digest_bang(VALUE self)
  * state before and after the process.
  */
 static VALUE
-rb_digest_instance_hexdigest(int argc, VALUE *argv, VALUE self)
+rb_digest_instance_hexdigest(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     VALUE str, value;
 
@@ -275,7 +275,7 @@ rb_digest_instance_inspect(VALUE self)
     rb_str_buf_cat2(str, "#<");
     rb_str_buf_cat2(str, cname);
     rb_str_buf_cat2(str, ": ");
-    rb_str_buf_append(str, rb_digest_instance_hexdigest(0, 0, self));
+    rb_str_buf_append(str, rb_digest_instance_hexdigest(self, 0, 0, 0));
     rb_str_buf_cat2(str, ">");
     return str;
 }
@@ -407,7 +407,7 @@ rb_digest_class_s_digest(int argc, VALUE *argv, VALUE klass)
  * Digest.hexencode(Digest::Class.new(*parameters).digest(string)).
  */
 static VALUE
-rb_digest_class_s_hexdigest(int argc, VALUE *argv, VALUE klass)
+rb_digest_class_s_hexdigest(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
     return hexencode_str_new(rb_funcall2(klass, id_digest, argc, argv));
 }
@@ -586,7 +586,7 @@ Init_digest(void)
     rb_mDigest = rb_define_module("Digest");
 
     /* module functions */
-    rb_define_module_function(rb_mDigest, "hexencode", rb_digest_s_hexencode, 1);
+    rb_objc_define_method(*(VALUE *)rb_mDigest, "hexencode", rb_digest_s_hexencode, 1);
 
     /*
      * module Digest::Instance
@@ -623,7 +623,7 @@ Init_digest(void)
 
     /* class methods */
     rb_define_singleton_method(rb_cDigest_Class, "digest", rb_digest_class_s_digest, -1);
-    rb_define_singleton_method(rb_cDigest_Class, "hexdigest", rb_digest_class_s_hexdigest, -1);
+    rb_objc_define_method(*(VALUE *)rb_cDigest_Class, "hexdigest", rb_digest_class_s_hexdigest, -1);
 
     id_metadata = rb_intern("metadata");
 
