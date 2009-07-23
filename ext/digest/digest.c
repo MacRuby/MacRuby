@@ -34,10 +34,9 @@ RUBY_EXTERN void Init_digest_base(void);
 static VALUE
 hexencode_str_new(VALUE str_digest)
 {
-    char *digest;
+    const char *digest;
     size_t digest_len;
     int i;
-    VALUE str;
     char *p;
     static const char hex[] = {
         '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
@@ -52,16 +51,17 @@ hexencode_str_new(VALUE str_digest)
         rb_raise(rb_eRuntimeError, "digest string too long");
     }
 
-    str = rb_str_new(0, digest_len * 2);
+    const size_t p_len = digest_len * 2;
+    p = (char *)alloca(p_len + 1);
 
-    for (i = 0, p = RSTRING_PTR(str); i < digest_len; i++) {
+    for (i = 0; i < digest_len; i++) {
         unsigned char byte = digest[i];
 
         p[i + i]     = hex[byte >> 4];
         p[i + i + 1] = hex[byte & 0x0f];
     }
 
-    return str;
+    return rb_str_new(p, p_len);
 }
 
 /*
@@ -266,7 +266,7 @@ rb_digest_instance_inspect(VALUE self, SEL sel)
 {
     VALUE str;
     size_t digest_len = 32;	/* about this size at least */
-    char *cname;
+    const char *cname;
 
     cname = rb_obj_classname(self);
 

@@ -19,9 +19,8 @@ static ID id_digest;
 static VALUE
 bubblebabble_str_new(VALUE str_digest)
 {
-    char *digest;
+    const char *digest;
     size_t digest_len;
-    VALUE str;
     char *p;
     int i, j, seed = 1;
     static const char vowels[] = {
@@ -40,8 +39,8 @@ bubblebabble_str_new(VALUE str_digest)
 	rb_raise(rb_eRuntimeError, "digest string too long");
     }
 
-    str = rb_str_new(0, (digest_len | 1) * 3 + 2);
-    p = RSTRING_PTR(str);
+    const size_t p_len = (digest_len | 1) * 3 + 2;
+    p = (char *)alloca(p_len + 1);
 
     i = j = 0;
     p[j++] = 'x';
@@ -75,7 +74,7 @@ bubblebabble_str_new(VALUE str_digest)
 
     p[j] = 'x';
 
-    return str;
+    return rb_str_new(p, p_len);
 }
 
 /*
