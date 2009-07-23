@@ -139,14 +139,14 @@ module RbConfig
   CONFIG["target_cpu"] = "i686"
   CONFIG["target_vendor"] = "apple"
   CONFIG["target_os"] = "darwin9.0"
-  CONFIG["CC"] = "gcc"
+  CONFIG["CC"] = "/usr/bin/gcc"
   CONFIG["CFLAGS"] = "-fno-common -pipe $(cflags)"
   CONFIG["LDFLAGS"] = ""
   CONFIG["CPPFLAGS"] = "$(cppflags)"
   CONFIG["OBJEXT"] = "o"
-  CONFIG["CXX"] = "g++"
+  CONFIG["CXX"] = "/usr/bin/g++"
   CONFIG["CXXFLAGS"] = ""
-  CONFIG["CPP"] = "gcc -E"
+  CONFIG["CPP"] = "/usr/bin/gcc -E"
   CONFIG["GREP"] = "/usr/bin/grep"
   CONFIG["EGREP"] = "/usr/bin/grep -E"
   CONFIG["GNU_LD"] = "no"
@@ -183,7 +183,7 @@ module RbConfig
   CONFIG["LIBPATHFLAG"] = " -L%s"
   CONFIG["RPATHFLAG"] = ""
   CONFIG["LIBPATHENV"] = "DYLD_LIBRARY_PATH"
-  CONFIG["TRY_LINK"] = ""
+  CONFIG["TRY_LINK"] = "$(CXX) -o conftest $(INCFLAGS) $(CPPFLAGS) $(CFLAGS) $(src) $(LIBPATH) $(LDFLAGS) $(ARCH_FLAG) $(LOCAL_LIBS) $(LIBS)"
   CONFIG["STRIP"] = "strip -A -n"
   CONFIG["EXTSTATIC"] = ""
   CONFIG["setup"] = "Setup"
@@ -196,7 +196,7 @@ module RbConfig
   CONFIG["optflags"] = "-O3"
   CONFIG["debugflags"] = "-g"
   CONFIG["warnflags"] = "-Wall -Wno-parentheses"
-  CONFIG["LIBRUBY_LDSHARED"] = "gcc -dynamiclib -undefined suppress -flat_namespace"
+  CONFIG["LIBRUBY_LDSHARED"] = "/usr/bin/gcc -dynamiclib -undefined suppress -flat_namespace"
   CONFIG["LIBRUBY_DLDFLAGS"] = "-install_name $(libdir)/lib$(RUBY_SO_NAME).dylib -current_version $(MAJOR).$(MINOR).$(TEENY) -compatibility_version $(MAJOR).$(MINOR)"
   CONFIG["rubyw_install_name"] = ""
   CONFIG["RUBYW_INSTALL_NAME"] = ""
@@ -312,7 +312,7 @@ SCRIPT_ARGS = "--make=\"/usr/bin/make\" --dest-dir=\"#{DESTDIR}\" --extout=\"#{E
 EXTMK_ARGS = "#{SCRIPT_ARGS} --extension --extstatic"
 INSTRUBY_ARGS = "#{SCRIPT_ARGS} --data-mode=0644 --prog-mode=0755 --installed-list #{INSTALLED_LIST} --mantype=\"doc\" --sym-dest-dir=\"#{SYM_INSTDIR}\""
 
-EXTENSIONS = ['ripper']#, 'digest']
+EXTENSIONS = ['ripper', 'digest']
 def perform_extensions_target(target)
   EXTENSIONS.map { |x| File.join('ext', x) }.each do |ext_dir|
     Dir.glob(File.join(ext_dir, '**/extconf.rb')) do |p|
@@ -326,12 +326,11 @@ def perform_extensions_target(target)
         case target
           when :all
             line << " libdir=#{srcdir}"
-          when :install
-            line << " install"
           else
-            raise "invalid extensions target #{target}"
+            line << " #{target}"
         end
         sh line
+        rm_f 'Makefile' if target == :clean
       end
     end
   end
@@ -344,6 +343,9 @@ task :extensions => [:miniruby, "macruby:static"] do
 =end
   perform_extensions_target(:all)
 end
+
+desc "Same as extensions"
+task :ext => 'extensions'
 
 namespace :framework do
   desc "Create the plist file for the framework"
@@ -404,5 +406,6 @@ namespace :clean do
       sh "./miniruby -I./lib -I.ext/common -I./- -r./ext/purelib.rb ext/extmk.rb #{EXTMK_ARGS} -- clean"
     end
 =end
+    perform_extensions_target(:clean)
   end
 end
