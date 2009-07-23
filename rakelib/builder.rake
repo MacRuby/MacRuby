@@ -1,9 +1,6 @@
 require File.expand_path('../builder', __FILE__)
 require 'rake'
 
-SUPPORTED_EXTENSIONS = ['ext/ripper', 'ext/digest']
-DIGESTS = %w{ sha1 md5 rmd160 bubblebabble sha2 }
-
 # We monkey-patch the method that Rake uses to display the tasks so we can add
 # the build options.
 module Rake
@@ -315,24 +312,37 @@ SCRIPT_ARGS = "--make=\"/usr/bin/make\" --dest-dir=\"#{DESTDIR}\" --extout=\"#{E
 EXTMK_ARGS = "#{SCRIPT_ARGS} --extension --extstatic"
 INSTRUBY_ARGS = "#{SCRIPT_ARGS} --data-mode=0644 --prog-mode=0755 --installed-list #{INSTALLED_LIST} --mantype=\"doc\" --sym-dest-dir=\"#{SYM_INSTDIR}\""
 
+EXTENSIONS = ['ripper']#, 'digest']
+def perform_extensions_target(target)
+  EXTENSIONS.map { |x| File.join('ext', x) }.each do |ext_dir|
+    Dir.glob(File.join(ext_dir, '**/extconf.rb')) do |p|
+      dir = File.dirname(p)
+      Dir.chdir(dir) do
+        srcdir = File.join(*dir.split(File::SEPARATOR).map { |x| '..' })
+        if !File.exist?('Makefile') or File.mtime('extconf.rb') > File.mtime('Makefile')
+          sh "#{srcdir}/miniruby -I#{srcdir} -I#{srcdir}/lib extconf.rb"
+        end
+        line = "/usr/bin/make top_srcdir=#{srcdir} ruby=\"#{srcdir}/miniruby -I#{srcdir} -I#{srcdir}/lib\""
+        case target
+          when :all
+            line << " libdir=#{srcdir}"
+          when :install
+            line << " install"
+          else
+            raise "invalid extensions target #{target}"
+        end
+        sh line
+      end
+    end
+  end
+end
+
 desc "Build extensions"
 task :extensions => [:miniruby, "macruby:static"] do
 =begin
   sh "./miniruby -I./lib -I.ext/common -I./- -r./ext/purelib.rb ext/extmk.rb #{EXTMK_ARGS}"
 =end
-  SUPPORTED_EXTENSIONS.each do |dirname|
-    Dir.chdir(dirname) do
-      sh "../../miniruby -I../.. -I../../lib extconf.rb"
-      sh "/usr/bin/make top_srcdir=../.. ruby=\"../../miniruby -I../.. -I../../lib\" libdir=../.."
-    end
-  end
-  DIGESTS.each do |digest|
-    Dir.chdir("ext/digest/#{digest}") do
-      sh "../../../miniruby -I../../.. -I../../../lib extconf.rb"
-      sh "/usr/bin/make top_srcdir=../../.. ruby=\"../../../miniruby -I../../.. -I../../../lib\" libdir=../../.."
-    end
-  end
-  $stderr.puts "Skipping other extensions (for now)..."
+  perform_extensions_target(:all)
 end
 
 namespace :framework do
@@ -375,16 +385,7 @@ EOS
 
   desc "Install the framework"
   task :install => :info_plist do
-    SUPPORTED_EXTENSIONS.each do |dirname|
-      Dir.chdir(dirname) do
-        sh "/usr/bin/make top_srcdir=../.. ruby=../../miniruby install"
-      end
-    end
-    DIGESTS.each do |digest|
-      Dir.chdir("ext/digest/#{digest}") do
-        sh "/usr/bin/make top_srcdir=../.. ruby=../../miniruby install"
-      end
-    end
+    perform_extensions_target(:install) 
     sh "./miniruby instruby.rb #{INSTRUBY_ARGS}"
   end
 end
