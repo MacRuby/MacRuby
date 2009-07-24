@@ -37,7 +37,7 @@ hexencode_str_new(VALUE str_digest)
     const char *digest;
     size_t digest_len;
     int i;
-    char *p;
+    UInt8 *p;
     static const char hex[] = {
         '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
         'a', 'b', 'c', 'd', 'e', 'f'
@@ -52,7 +52,7 @@ hexencode_str_new(VALUE str_digest)
     }
 
     const size_t p_len = digest_len * 2;
-    p = (char *)alloca(p_len + 1);
+    p = (UInt8 *)alloca(p_len + 1);
 
     for (i = 0; i < digest_len; i++) {
         unsigned char byte = digest[i];
@@ -61,7 +61,7 @@ hexencode_str_new(VALUE str_digest)
         p[i + i + 1] = hex[byte & 0x0f];
     }
 
-    return rb_str_new(p, p_len);
+    return rb_bytestring_new_with_data(p, p_len);
 }
 
 /*
