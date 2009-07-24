@@ -19,12 +19,16 @@
 #include <editline/readline.h>
 #endif
 
-#include "ruby/ruby.h"
+#include "ruby.h"
 #include "ruby/io.h"
 #include "ruby/signal.h"
 
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
+#endif
+
+#ifndef GetOpenFile
+#define GetOpenFile(obj, var) var = RFILE(rb_io_taint_check(obj))->fptr
 #endif
 
 #if WITH_OBJC
@@ -78,7 +82,7 @@ readline_event(void)
 #endif
 
 static VALUE
-readline_readline(int argc, VALUE *argv, VALUE self)
+readline_readline(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     VALUE tmp, add_hist, result;
     const char *prompt = NULL;
@@ -126,31 +130,31 @@ readline_readline(int argc, VALUE *argv, VALUE self)
 }
 
 static VALUE
-readline_s_set_input(VALUE self, VALUE input)
+readline_s_set_input(VALUE self, SEL sel, VALUE input)
 {
     rb_io_t *ifp;
 
     rb_secure(4);
     Check_Type(input, T_FILE);
     GetOpenFile(input, ifp);
-    rl_instream = rb_io_stdio_file(ifp);
+    rl_instream = fdopen(ifp->fd, "r+");
     return input;
 }
 
 static VALUE
-readline_s_set_output(VALUE self, VALUE output)
+readline_s_set_output(VALUE self, SEL sel, VALUE output)
 {
     rb_io_t *ofp;
 
     rb_secure(4);
     Check_Type(output, T_FILE);
     GetOpenFile(output, ofp);
-    rl_outstream = rb_io_stdio_file(ofp);
+    rl_outstream = fdopen(ofp->fd, "w+");
     return output;
 }
 
 static VALUE
-readline_s_set_completion_proc(VALUE self, VALUE proc)
+readline_s_set_completion_proc(VALUE self, SEL sel, VALUE proc)
 {
     rb_secure(4);
     if (!rb_respond_to(proc, rb_intern("call")))
@@ -159,21 +163,21 @@ readline_s_set_completion_proc(VALUE self, VALUE proc)
 }
 
 static VALUE
-readline_s_get_completion_proc(VALUE self)
+readline_s_get_completion_proc(VALUE self, SEL sel)
 {
     rb_secure(4);
     return rb_attr_get(mReadline, completion_proc);
 }
 
 static VALUE
-readline_s_set_completion_case_fold(VALUE self, VALUE val)
+readline_s_set_completion_case_fold(VALUE self, SEL sel, VALUE val)
 {
     rb_secure(4);
     return rb_ivar_set(mReadline, completion_case_fold, val);
 }
 
 static VALUE
-readline_s_get_completion_case_fold(VALUE self)
+readline_s_get_completion_case_fold(VALUE self, SEL sel)
 {
     rb_secure(4);
     return rb_attr_get(mReadline, completion_case_fold);
@@ -244,7 +248,7 @@ readline_attempted_completion_function(const char *text, int start, int end)
 }
 
 static VALUE
-readline_s_vi_editing_mode(VALUE self)
+readline_s_vi_editing_mode(VALUE self, SEL sel)
 {
 #ifdef HAVE_RL_VI_EDITING_MODE
     rb_secure(4);
@@ -257,7 +261,7 @@ readline_s_vi_editing_mode(VALUE self)
 }
 
 static VALUE
-readline_s_emacs_editing_mode(VALUE self)
+readline_s_emacs_editing_mode(VALUE self, SEL sel)
 {
 #ifdef HAVE_RL_EMACS_EDITING_MODE
     rb_secure(4);
@@ -270,7 +274,7 @@ readline_s_emacs_editing_mode(VALUE self)
 }
 
 static VALUE
-readline_s_set_completion_append_character(VALUE self, VALUE str)
+readline_s_set_completion_append_character(VALUE self, SEL sel, VALUE str)
 {
 #ifdef HAVE_RL_COMPLETION_APPEND_CHARACTER
     rb_secure(4);
@@ -293,7 +297,7 @@ readline_s_set_completion_append_character(VALUE self, VALUE str)
 }
 
 static VALUE
-readline_s_get_completion_append_character(VALUE self)
+readline_s_get_completion_append_character(VALUE self, SEL sel)
 {
 #ifdef HAVE_RL_COMPLETION_APPEND_CHARACTER
     VALUE str;
@@ -311,7 +315,7 @@ readline_s_get_completion_append_character(VALUE self)
 }
 
 static VALUE
-readline_s_set_basic_word_break_characters(VALUE self, VALUE str)
+readline_s_set_basic_word_break_characters(VALUE self, SEL sel, VALUE str)
 {
 #ifdef HAVE_RL_BASIC_WORD_BREAK_CHARACTERS
     static char *basic_word_break_characters = NULL;
@@ -337,7 +341,7 @@ readline_s_set_basic_word_break_characters(VALUE self, VALUE str)
 }
 
 static VALUE
-readline_s_get_basic_word_break_characters(VALUE self, VALUE str)
+readline_s_get_basic_word_break_characters(VALUE self, SEL sel, VALUE str)
 {
 #ifdef HAVE_RL_BASIC_WORD_BREAK_CHARACTERS
     rb_secure(4);
@@ -351,7 +355,7 @@ readline_s_get_basic_word_break_characters(VALUE self, VALUE str)
 }
 
 static VALUE
-readline_s_set_completer_word_break_characters(VALUE self, VALUE str)
+readline_s_set_completer_word_break_characters(VALUE self, SEL sel, VALUE str)
 {
 #ifdef HAVE_RL_COMPLETER_WORD_BREAK_CHARACTERS
     static char *completer_word_break_characters = NULL;
@@ -377,7 +381,7 @@ readline_s_set_completer_word_break_characters(VALUE self, VALUE str)
 }
 
 static VALUE
-readline_s_get_completer_word_break_characters(VALUE self, VALUE str)
+readline_s_get_completer_word_break_characters(VALUE self, SEL sel, VALUE str)
 {
 #ifdef HAVE_RL_COMPLETER_WORD_BREAK_CHARACTERS
     rb_secure(4);
@@ -391,7 +395,7 @@ readline_s_get_completer_word_break_characters(VALUE self, VALUE str)
 }
 
 static VALUE
-readline_s_set_basic_quote_characters(VALUE self, VALUE str)
+readline_s_set_basic_quote_characters(VALUE self, SEL sel, VALUE str)
 {
 #ifdef HAVE_RL_BASIC_QUOTE_CHARACTERS
     static char *basic_quote_characters = NULL;
@@ -418,7 +422,7 @@ readline_s_set_basic_quote_characters(VALUE self, VALUE str)
 }
 
 static VALUE
-readline_s_get_basic_quote_characters(VALUE self, VALUE str)
+readline_s_get_basic_quote_characters(VALUE self, SEL sel, VALUE str)
 {
 #ifdef HAVE_RL_BASIC_QUOTE_CHARACTERS
     rb_secure(4);
@@ -432,7 +436,7 @@ readline_s_get_basic_quote_characters(VALUE self, VALUE str)
 }
 
 static VALUE
-readline_s_set_completer_quote_characters(VALUE self, VALUE str)
+readline_s_set_completer_quote_characters(VALUE self, SEL sel, VALUE str)
 {
 #ifdef HAVE_RL_COMPLETER_QUOTE_CHARACTERS
     static char *completer_quote_characters = NULL;
@@ -458,7 +462,7 @@ readline_s_set_completer_quote_characters(VALUE self, VALUE str)
 }
 
 static VALUE
-readline_s_get_completer_quote_characters(VALUE self, VALUE str)
+readline_s_get_completer_quote_characters(VALUE self, SEL sel, VALUE str)
 {
 #ifdef HAVE_RL_COMPLETER_QUOTE_CHARACTERS
     rb_secure(4);
@@ -472,7 +476,7 @@ readline_s_get_completer_quote_characters(VALUE self, VALUE str)
 }
 
 static VALUE
-readline_s_set_filename_quote_characters(VALUE self, VALUE str)
+readline_s_set_filename_quote_characters(VALUE self, SEL sel, VALUE str)
 {
 #ifdef HAVE_RL_FILENAME_QUOTE_CHARACTERS
     static char *filename_quote_characters = NULL;
@@ -498,7 +502,7 @@ readline_s_set_filename_quote_characters(VALUE self, VALUE str)
 }
 
 static VALUE
-readline_s_get_filename_quote_characters(VALUE self, VALUE str)
+readline_s_get_filename_quote_characters(VALUE self, SEL sel, VALUE str)
 {
 #ifdef HAVE_RL_FILENAME_QUOTE_CHARACTERS
     rb_secure(4);
@@ -512,13 +516,13 @@ readline_s_get_filename_quote_characters(VALUE self, VALUE str)
 }
 
 static VALUE
-hist_to_s(VALUE self)
+hist_to_s(VALUE self, SEL sel)
 {
     return rb_str_new2("HISTORY");
 }
 
 static VALUE
-hist_get(VALUE self, VALUE index)
+hist_get(VALUE self, SEL sel, VALUE index)
 {
     HIST_ENTRY *entry;
     int i;
@@ -536,7 +540,7 @@ hist_get(VALUE self, VALUE index)
 }
 
 static VALUE
-hist_set(VALUE self, VALUE index, VALUE str)
+hist_set(VALUE self, SEL sel, VALUE index, VALUE str)
 {
 #ifdef HAVE_REPLACE_HISTORY_ENTRY
     HIST_ENTRY *entry;
@@ -560,7 +564,7 @@ hist_set(VALUE self, VALUE index, VALUE str)
 }
 
 static VALUE
-hist_push(VALUE self, VALUE str)
+hist_push(VALUE self, SEL sel, VALUE str)
 {
     rb_secure(4);
     SafeStringValue(str);
@@ -569,7 +573,7 @@ hist_push(VALUE self, VALUE str)
 }
 
 static VALUE
-hist_push_method(int argc, VALUE *argv, VALUE self)
+hist_push_method(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     VALUE str;
     
@@ -605,7 +609,7 @@ rb_remove_history(int index)
 }
 
 static VALUE
-hist_pop(VALUE self)
+hist_pop(VALUE self, SEL sel)
 {
     rb_secure(4);
     if (history_length > 0) {
@@ -616,7 +620,7 @@ hist_pop(VALUE self)
 }
 
 static VALUE
-hist_shift(VALUE self)
+hist_shift(VALUE self, SEL sel)
 {
     rb_secure(4);
     if (history_length > 0) {
@@ -627,7 +631,7 @@ hist_shift(VALUE self)
 }
 
 static VALUE
-hist_each(VALUE self)
+hist_each(VALUE self, SEL sel)
 {
     HIST_ENTRY *entry;
     int i;
@@ -645,21 +649,21 @@ hist_each(VALUE self)
 }
 
 static VALUE
-hist_length(VALUE self)
+hist_length(VALUE self, SEL sel)
 {
     rb_secure(4);
     return INT2NUM(history_length);
 }
 
 static VALUE
-hist_empty_p(VALUE self)
+hist_empty_p(VALUE self, SEL sel)
 {
     rb_secure(4);
     return history_length == 0 ? Qtrue : Qfalse;
 }
 
 static VALUE
-hist_delete_at(VALUE self, VALUE index)
+hist_delete_at(VALUE self, SEL sel, VALUE index)
 {
     int i;
 
@@ -674,7 +678,7 @@ hist_delete_at(VALUE self, VALUE index)
 }
 
 static VALUE
-filename_completion_proc_call(VALUE self, VALUE str)
+filename_completion_proc_call(VALUE self, SEL sel, VALUE str)
 {
     VALUE result;
     char **matches;
@@ -699,7 +703,7 @@ filename_completion_proc_call(VALUE self, VALUE str)
 }
 
 static VALUE
-username_completion_proc_call(VALUE self, VALUE str)
+username_completion_proc_call(VALUE self, SEL sel, VALUE str)
 {
     VALUE result;
     char **matches;
@@ -737,72 +741,72 @@ Init_readline()
     completion_case_fold = rb_intern(COMPLETION_CASE_FOLD);
 
     mReadline = rb_define_module("Readline");
-    rb_define_module_function(mReadline, "readline",
+    rb_objc_define_method(mReadline, "readline",
 			      readline_readline, -1);
-    rb_define_singleton_method(mReadline, "input=",
+    rb_objc_define_method(*(VALUE *)mReadline, "input=",
 			       readline_s_set_input, 1);
-    rb_define_singleton_method(mReadline, "output=",
+    rb_objc_define_method(*(VALUE *)mReadline, "output=",
 			       readline_s_set_output, 1);
-    rb_define_singleton_method(mReadline, "completion_proc=",
+    rb_objc_define_method(*(VALUE *)mReadline, "completion_proc=",
 			       readline_s_set_completion_proc, 1);
-    rb_define_singleton_method(mReadline, "completion_proc",
+    rb_objc_define_method(*(VALUE *)mReadline, "completion_proc",
 			       readline_s_get_completion_proc, 0);
-    rb_define_singleton_method(mReadline, "completion_case_fold=",
+    rb_objc_define_method(*(VALUE *)mReadline, "completion_case_fold=",
 			       readline_s_set_completion_case_fold, 1);
-    rb_define_singleton_method(mReadline, "completion_case_fold",
+    rb_objc_define_method(*(VALUE *)mReadline, "completion_case_fold",
 			       readline_s_get_completion_case_fold, 0);
-    rb_define_singleton_method(mReadline, "vi_editing_mode",
+    rb_objc_define_method(*(VALUE *)mReadline, "vi_editing_mode",
 			       readline_s_vi_editing_mode, 0);
-    rb_define_singleton_method(mReadline, "emacs_editing_mode",
+    rb_objc_define_method(*(VALUE *)mReadline, "emacs_editing_mode",
 			       readline_s_emacs_editing_mode, 0);
-    rb_define_singleton_method(mReadline, "completion_append_character=",
+    rb_objc_define_method(*(VALUE *)mReadline, "completion_append_character=",
 			       readline_s_set_completion_append_character, 1);
-    rb_define_singleton_method(mReadline, "completion_append_character",
+    rb_objc_define_method(*(VALUE *)mReadline, "completion_append_character",
 			       readline_s_get_completion_append_character, 0);
-    rb_define_singleton_method(mReadline, "basic_word_break_characters=",
+    rb_objc_define_method(*(VALUE *)mReadline, "basic_word_break_characters=",
 			       readline_s_set_basic_word_break_characters, 1);
-    rb_define_singleton_method(mReadline, "basic_word_break_characters",
+    rb_objc_define_method(*(VALUE *)mReadline, "basic_word_break_characters",
 			       readline_s_get_basic_word_break_characters, 0);
-    rb_define_singleton_method(mReadline, "completer_word_break_characters=",
+    rb_objc_define_method(*(VALUE *)mReadline, "completer_word_break_characters=",
 			       readline_s_set_completer_word_break_characters, 1);
-    rb_define_singleton_method(mReadline, "completer_word_break_characters",
+    rb_objc_define_method(*(VALUE *)mReadline, "completer_word_break_characters",
 			       readline_s_get_completer_word_break_characters, 0);
-    rb_define_singleton_method(mReadline, "basic_quote_characters=",
+    rb_objc_define_method(*(VALUE *)mReadline, "basic_quote_characters=",
 			       readline_s_set_basic_quote_characters, 1);
-    rb_define_singleton_method(mReadline, "basic_quote_characters",
+    rb_objc_define_method(*(VALUE *)mReadline, "basic_quote_characters",
 			       readline_s_get_basic_quote_characters, 0);
-    rb_define_singleton_method(mReadline, "completer_quote_characters=",
+    rb_objc_define_method(*(VALUE *)mReadline, "completer_quote_characters=",
 			       readline_s_set_completer_quote_characters, 1);
-    rb_define_singleton_method(mReadline, "completer_quote_characters",
+    rb_objc_define_method(*(VALUE *)mReadline, "completer_quote_characters",
 			       readline_s_get_completer_quote_characters, 0);
-    rb_define_singleton_method(mReadline, "filename_quote_characters=",
+    rb_objc_define_method(*(VALUE *)mReadline, "filename_quote_characters=",
 			       readline_s_set_filename_quote_characters, 1);
-    rb_define_singleton_method(mReadline, "filename_quote_characters",
+    rb_objc_define_method(*(VALUE *)mReadline, "filename_quote_characters",
 			       readline_s_get_filename_quote_characters, 0);
 
     history = rb_obj_alloc(rb_cObject);
     rb_extend_object(history, rb_mEnumerable);
-    rb_define_singleton_method(history,"to_s", hist_to_s, 0);
-    rb_define_singleton_method(history,"[]", hist_get, 1);
-    rb_define_singleton_method(history,"[]=", hist_set, 2);
-    rb_define_singleton_method(history,"<<", hist_push, 1);
-    rb_define_singleton_method(history,"push", hist_push_method, -1);
-    rb_define_singleton_method(history,"pop", hist_pop, 0);
-    rb_define_singleton_method(history,"shift", hist_shift, 0);
-    rb_define_singleton_method(history,"each", hist_each, 0);
-    rb_define_singleton_method(history,"length", hist_length, 0);
-    rb_define_singleton_method(history,"size", hist_length, 0);
-    rb_define_singleton_method(history,"empty?", hist_empty_p, 0);
-    rb_define_singleton_method(history,"delete_at", hist_delete_at, 1);
+    rb_objc_define_method(*(VALUE *)history, "to_s", hist_to_s, 0);
+    rb_objc_define_method(*(VALUE *)history, "[]", hist_get, 1);
+    rb_objc_define_method(*(VALUE *)history, "[]=", hist_set, 2);
+    rb_objc_define_method(*(VALUE *)history, "<<", hist_push, 1);
+    rb_objc_define_method(*(VALUE *)history, "push", hist_push_method, -1);
+    rb_objc_define_method(*(VALUE *)history, "pop", hist_pop, 0);
+    rb_objc_define_method(*(VALUE *)history, "shift", hist_shift, 0);
+    rb_objc_define_method(*(VALUE *)history, "each", hist_each, 0);
+    rb_objc_define_method(*(VALUE *)history, "length", hist_length, 0);
+    rb_objc_define_method(*(VALUE *)history, "size", hist_length, 0);
+    rb_objc_define_method(*(VALUE *)history, "empty?", hist_empty_p, 0);
+    rb_objc_define_method(*(VALUE *)history, "delete_at", hist_delete_at, 1);
     rb_define_const(mReadline, "HISTORY", history);
 
     fcomp = rb_obj_alloc(rb_cObject);
-    rb_define_singleton_method(fcomp, "call",
+    rb_objc_define_method(*(VALUE *)fcomp, "call",
 			       filename_completion_proc_call, 1);
     rb_define_const(mReadline, "FILENAME_COMPLETION_PROC", fcomp);
 
     ucomp = rb_obj_alloc(rb_cObject);
-    rb_define_singleton_method(ucomp, "call",
+    rb_objc_define_method(*(VALUE *)ucomp, "call",
 			       username_completion_proc_call, 1);
     rb_define_const(mReadline, "USERNAME_COMPLETION_PROC", ucomp);
 #if defined HAVE_RL_LIBRARY_VERSION
