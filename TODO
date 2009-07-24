@@ -44,13 +44,18 @@
 
       // etc.
 
-      In the case of rb_define_global_function(), replace it by
+      In the case of rb_define_global_function(), replace it with
       rb_objc_define_method(rb_mKernel, ...)
 
-      In the case of rb_define_singleton_method(), replace it by
+      In the case of rb_define_singleton_method() for defining class
+      functions and module-level functions, replace it with
       rb_objc_define_method(*(VALUE *)klass, ...)
 
-      In the case of rb_define_alloc_func(), replace it by
+      In the case of rb_define_singleton_method() for defining methods on 
+      individual instances of objects, replace it with
+      rb_objc_define_method(rb_singleton_class(obj), ...)
+
+      In the case of rb_define_alloc_func(), replace it with
       rb_objc_define_method(*(VALUE *)klass, "alloc", ..., 0)
 
 [/] port all rb_funcall() calls to rb_vm_call()

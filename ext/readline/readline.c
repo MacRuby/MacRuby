@@ -800,13 +800,13 @@ Init_readline()
     rb_objc_define_method(*(VALUE *)history, "delete_at", hist_delete_at, 1);
     rb_define_const(mReadline, "HISTORY", history);
 
-    fcomp = rb_singleton_class_clone(rb_obj_alloc(rb_cObject));
-    rb_objc_define_method(*(VALUE *)fcomp, "call",
+    fcomp = rb_obj_alloc(rb_cObject);
+    rb_objc_define_method(rb_singleton_class(fcomp), "call",
 			       filename_completion_proc_call, 1);
     rb_define_const(mReadline, "FILENAME_COMPLETION_PROC", fcomp);
 
-    ucomp = rb_singleton_class_clone(rb_obj_alloc(rb_cObject));
-    rb_objc_define_method(*(VALUE *)ucomp, "call",
+    ucomp = rb_obj_alloc(rb_cObject);
+    rb_objc_define_method(rb_singleton_class(ucomp), "call",
 			       username_completion_proc_call, 1);
     rb_define_const(mReadline, "USERNAME_COMPLETION_PROC", ucomp);
 #if defined HAVE_RL_LIBRARY_VERSION
