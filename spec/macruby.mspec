@@ -21,9 +21,14 @@ class MSpecScript
     '^core/precision',
     '^core/proc',
   ]
+
+  # Library specs
+  set :library, [
+    'library/digest'
+  ]
   
   # Prepend the paths with the proper prefix
-  [:language, :core].each do |pseudo_dir|
+  [:language, :core, :library].each do |pseudo_dir|
     set(pseudo_dir, get(pseudo_dir).map do |path|
       if path[0,1] == '^'
         "^#{File.join(FROZEN_PREFIX, path[1..-1])}"
@@ -35,7 +40,7 @@ class MSpecScript
   
   set :macruby, ['spec/macruby']
   
-  set :full, get(:macruby) + get(:language) + get(:core)
+  set :full, get(:macruby) + get(:language) + get(:core) + get(:library)
   
   # Optional library specs
   set :ffi, File.join(FROZEN_PREFIX, 'optional/ffi')
@@ -44,7 +49,7 @@ class MSpecScript
   set :optional, [get(:ffi)]
   
   # The default implementation to run the specs.
-  set :target, File.expand_path('../../miniruby', __FILE__)
+  set :target, File.expand_path('../../macruby', __FILE__)
   
   set :tags_patterns, [
                         [%r(language/), 'tags/macruby/language/'],
