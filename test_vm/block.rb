@@ -182,6 +182,7 @@ assert "42", "p proc { next 42 }.call"
 assert "42", "begin p proc { break 24 }.call rescue LocalJumpError; p 42 end"
 assert "42", "def foo; yield; end; foo { break }; 1.times {p 42}"
 assert "42", "1.times { begin; break; ensure; p 42; end }"
+assert "42", "i=0; while i<1000; begin; break; ensure; p 42; end; end"
 
 assert "42", "p [42].map { |x| x }.map { |y| y }[0]"
 
