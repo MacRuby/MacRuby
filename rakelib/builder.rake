@@ -183,7 +183,7 @@ module RbConfig
   CONFIG["LIBPATHFLAG"] = " -L%s"
   CONFIG["RPATHFLAG"] = ""
   CONFIG["LIBPATHENV"] = "DYLD_LIBRARY_PATH"
-  CONFIG["TRY_LINK"] = "$(CXX) -o conftest $(INCFLAGS) $(CPPFLAGS) $(CFLAGS) $(src) $(LIBPATH) $(LDFLAGS) $(ARCH_FLAG) $(LOCAL_LIBS) $(LIBS)"
+  CONFIG["TRY_LINK"] = ""
   CONFIG["STRIP"] = "strip -A -n"
   CONFIG["EXTSTATIC"] = ""
   CONFIG["setup"] = "Setup"
@@ -205,8 +205,8 @@ module RbConfig
   CONFIG["LIBRUBY_ALIASES"] = "lib$(RUBY_SO_NAME).$(MAJOR).$(MINOR).dylib lib$(RUBY_SO_NAME).dylib"
   CONFIG["LIBRUBY"] = "$(LIBRUBY_SO)"
   CONFIG["LIBRUBYARG"] = "$(LIBRUBYARG_SHARED)"
-  CONFIG["LIBRUBYARG_STATIC"] = "-l$(RUBY_SO_NAME)-static #{LDFLAGS}"
-  CONFIG["LIBRUBYARG_SHARED"] = "-l$(RUBY_SO_NAME)"
+  #CONFIG["LIBRUBYARG_STATIC"] = "-l$(RUBY_SO_NAME)-static #{LDFLAGS}"
+  CONFIG["LIBRUBYARG_SHARED"] = CONFIG["LIBRUBYARG_STATIC"] = "-l$(RUBY_SO_NAME)"
   CONFIG["SOLIBS"] = ""
   CONFIG["DLDLIBS"] = ""
   CONFIG["ENABLE_SHARED"] = "yes"
@@ -318,6 +318,7 @@ def perform_extensions_target(target)
     Dir.glob(File.join(ext_dir, '**/extconf.rb')) do |p|
       dir = File.dirname(p)
       Dir.chdir(dir) do
+        $stderr.puts "cd #{dir}"
         srcdir = File.join(*dir.split(File::SEPARATOR).map { |x| '..' })
         if !File.exist?('Makefile') or File.mtime('extconf.rb') > File.mtime('Makefile')
           sh "#{srcdir}/miniruby -I#{srcdir} -I#{srcdir}/lib extconf.rb"
