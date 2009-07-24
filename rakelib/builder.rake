@@ -385,9 +385,13 @@ EOS
     File.open('framework/Info.plist', 'w') { |io| io.print plist }
   end
 
-  desc "Install the framework"
-  task :install => :info_plist do
+  desc "Install the extensions"
+  task :install_ext do
     perform_extensions_target(:install) 
+  end
+
+  desc "Install the framework"
+  task :install => [:info_plist, :install_ext] do
     sh "./miniruby instruby.rb #{INSTRUBY_ARGS}"
   end
 end
