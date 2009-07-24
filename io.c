@@ -79,6 +79,12 @@ pop_last_hash(int *argc_p, VALUE *argv)
     return tmp;
 }
 
+static inline VALUE
+rb_io_get_io(VALUE io)
+{
+    return rb_convert_type(io, T_FILE, "IO", "to_io");
+}
+
 static int
 convert_mode_string_to_fmode(VALUE rstr)
 {
@@ -280,6 +286,31 @@ rb_io_is_closed_for_writing(rb_io_t *io_struct)
     return s == kCFStreamStatusNotOpen || s == kCFStreamStatusClosed;
 }
 
+static bool
+rb_io_is_readable(rb_io_t *io_struct)
+{
+    return !(rb_io_is_closed_for_reading(io_struct));
+}
+
+static bool
+rb_io_is_writable(rb_io_t *io_struct)
+{
+    return !(rb_io_is_closed_for_writing(io_struct));
+}
+
+static int
+rb_io_calculate_mode_flags(rb_io_t *io_struct)
+{
+    int flags = 0;
+    if (rb_io_is_readable(io_struct)) {
+	flags |= FMODE_READABLE;
+    }
+    if (rb_io_is_writable(io_struct)) {
+	flags |= FMODE_WRITABLE;
+    }
+    return flags;
+}
+
 static VALUE
 io_alloc(VALUE klass, SEL sel)
 {
@@ -327,6 +358,10 @@ prepare_io_from_fd(rb_io_t *io_struct, int fd, int mode, bool should_close_strea
 	case 2:
 	    stdio = rb_stderr;
 	    break;
+    }
+
+    if (stdio != 0) {
+	should_close_streams = false;
     }
 
     if (read) {
@@ -590,12 +625,14 @@ rb_io_seek(VALUE io, VALUE offset, int whence)
     }
     // TODO: make this work with IO::SEEK_CUR, SEEK_END, etc.
     if (CFReadStreamGetStatus(io_struct->readStream) == kCFStreamStatusAtEnd) {
+#if 0 // this doesn't work...
 	// Terrible hack to work around the fact that CFReadStreams, once they
 	// reach EOF, are permanently exhausted even if we set the offset.
 	GC_WB(&io_struct->readStream,
 		_CFReadStreamCreateFromFileDescriptor(NULL, io_struct->fd));
 	CFReadStreamOpen(io_struct->readStream);
 	CFMakeCollectable(io_struct->readStream);
+#endif
     }
     rb_io_read_stream_set_offset(io_struct->readStream, NUM2OFFT(offset));
     return INT2FIX(0);
@@ -957,7 +994,7 @@ rb_io_read_all(rb_io_t *io_struct, VALUE bytestring_buffer)
         CFDataIncreaseLength(data, BUFSIZE);
         UInt8 *b = CFDataGetMutableBytePtr(data) + original_position
 	    + bytes_read;
-        long last_read = rb_io_read_internal(io_struct, b, BUFSIZE);
+        const long last_read = rb_io_read_internal(io_struct, b, BUFSIZE);
         bytes_read += last_read;
 	if (last_read < BUFSIZE) {
 	    break;
@@ -1177,21 +1214,20 @@ io_read(VALUE io, SEL sel, int argc, VALUE *argv)
 static VALUE
 io_readpartial(VALUE io, SEL sel, int argc, VALUE *argv)
 {
-	VALUE maxlen, buffer;
-	rb_scan_args(argc, argv, "11", &maxlen, &buffer);
-	if (FIX2INT(maxlen) == 0) {
-		return rb_str_new2("");
-	}
-	else if (FIX2INT(maxlen) < 0) {
-		rb_raise(rb_eArgError, "negative numbers not valid");
-	}
-	VALUE read_data = io_read(io, sel, argc, argv);
-	if (NIL_P(read_data)) {
-		rb_eof_error();
-	}
-	return read_data;
+    VALUE maxlen, buffer;
+    rb_scan_args(argc, argv, "11", &maxlen, &buffer);
+    if (FIX2INT(maxlen) == 0) {
+	return rb_str_new2("");
+    }
+    else if (FIX2INT(maxlen) < 0) {
+	rb_raise(rb_eArgError, "negative numbers not valid");
+    }
+    VALUE read_data = io_read(io, sel, argc, argv);
+    if (NIL_P(read_data)) {
+	rb_eof_error();
+    }
+    return read_data;
 }
-
 
 /*
  *  call-seq:
@@ -1325,7 +1361,7 @@ static VALUE
 rb_io_lineno(VALUE io, SEL sel)
 {
     rb_io_t *io_s = ExtractIOStruct(io);
-	rb_io_assert_open(io_s);
+    rb_io_assert_open(io_s);
     return INT2FIX(io_s->lineno);
 }
 
@@ -1350,12 +1386,11 @@ static VALUE
 rb_io_set_lineno(VALUE io, SEL sel, VALUE line_no)
 {
     rb_io_t *io_s = ExtractIOStruct(io);
-	rb_io_assert_open(io_s);
-	line_no = rb_check_to_integer(line_no, "to_int");
-	if (NIL_P(line_no))
-	{
-		rb_raise(rb_eTypeError, "lineno's argument must be coercable to integer");
-	}
+    rb_io_assert_open(io_s);
+    line_no = rb_check_to_integer(line_no, "to_int");
+    if (NIL_P(line_no)) {
+	rb_raise(rb_eTypeError, "lineno's argument must be coercable to integer");
+    }
     io_s->lineno = FIX2INT(line_no);
     return line_no;
 }
@@ -2267,14 +2302,25 @@ rb_file_open(VALUE io, int argc, VALUE *argv)
 }
 
 static VALUE
+f_open_body(VALUE io)
+{
+    return rb_vm_yield(1, &io);
+}
+
+static VALUE
+f_open_ensure(VALUE io)
+{
+    rb_io_close_m(io, 0);
+    return Qnil;
+}
+
+static VALUE
 rb_f_open(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
     VALUE io = rb_class_new_instance(argc, argv, rb_cFile);
     io = rb_file_open(io, argc, argv);
     if (rb_block_given_p()) {
-	VALUE ret = rb_vm_yield(1, &io);
-	rb_io_close_m(io, 0);
-	return ret;
+	return rb_ensure(f_open_body, io, f_open_ensure, io);
     }
     return io;
 }
@@ -2314,6 +2360,24 @@ rb_io_s_sysopen(VALUE klass, SEL sel, int argc, VALUE *argv)
  *     f2.readlines[0]   #=> "This is line one\n"
  */
 
+static void
+io_replace_streams(int fd, rb_io_t *dest, rb_io_t *origin)
+{
+    prepare_io_from_fd(dest, fd, rb_io_calculate_mode_flags(origin),
+	    origin->should_close_streams);
+
+    if (origin->ungetc_buf_len > 0) {
+	GC_WB(&dest->ungetc_buf, xmalloc(origin->ungetc_buf_len));
+	memcpy(dest->ungetc_buf, origin->ungetc_buf,
+		origin->ungetc_buf_len);
+    }
+    else {
+	dest->ungetc_buf = NULL;
+    }
+    dest->ungetc_buf_len = origin->ungetc_buf_len;
+    dest->ungetc_buf_pos = origin->ungetc_buf_pos;
+}
+
 static VALUE
 rb_io_reopen(VALUE io, SEL sel, int argc, VALUE *argv)
 {
@@ -2336,11 +2400,41 @@ rb_io_reopen(VALUE io, SEL sel, int argc, VALUE *argv)
 	GC_WB(&io_s->path, path_or_io);
     } 
     else {
-	// reassociate it with the stream given in the other io
-	// This is too simplistic.
+	// Reassociate it with a duplicate of the stream given
+	path_or_io = rb_io_get_io(path_or_io);
 	rb_io_t *other = ExtractIOStruct(path_or_io);
 	rb_io_assert_open(other);
-	GC_WB(&RFILE(io)->fptr, other);
+	if (io_s == other) {
+	    return io;
+	}
+
+	if (io_s->fd == -1) {
+	    rb_raise(rb_eRuntimeError,
+		    "cannot reopen non file descriptor based IO");
+	}
+	if (other->fd == -1) {
+	    rb_raise(rb_eRuntimeError,
+		    "cannot reopen from non file descriptor based IO");
+	}
+
+	if (io_s->should_close_streams) {
+	    io_struct_close(io_s, true, true);
+	}
+	else {
+	    if (io_s->readStream != NULL) {
+		CFRetain(io_s->readStream);
+	    }
+	    if (io_s->writeStream != NULL) {
+		CFRetain(io_s->writeStream);
+	    }
+	}
+	int fd = dup2(other->fd, io_s->fd);
+	if (fd < 0) {
+	    rb_sys_fail("dup2() failed");
+	}
+	io_replace_streams(fd, io_s, other);
+
+	*(VALUE *)io = *(VALUE *)path_or_io;
     }
     return io;
 }
@@ -2349,30 +2443,24 @@ rb_io_reopen(VALUE io, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_io_init_copy(VALUE dest, SEL sel, VALUE origin)
 {
+    origin = rb_io_get_io(origin);
     rb_io_t *dest_io = ExtractIOStruct(dest);
     rb_io_t *origin_io = ExtractIOStruct(origin);
 
-    GC_WB(&dest_io->readStream, origin_io->readStream);
-    GC_WB(&dest_io->writeStream, origin_io->writeStream);
+    if (dest_io == origin_io) {
+	return dest;
+    }
 
-    dest_io->fd = origin_io->fd;
-    dest_io->pipe = origin_io->pipe;
-    GC_WB(&dest_io->path, origin_io->path);
-    dest_io->pid = origin_io->pid;
-    dest_io->lineno = origin_io->lineno;
-    dest_io->sync = origin_io->sync;
-    dest_io->should_close_streams = origin_io->should_close_streams;
-    
-    if (origin_io->ungetc_buf_len > 0) {
-	GC_WB(&dest_io->ungetc_buf, xmalloc(origin_io->ungetc_buf_len));
-	memcpy(dest_io->ungetc_buf, origin_io->ungetc_buf,
-		origin_io->ungetc_buf_len);
+    if (origin_io->fd == -1) {
+	rb_raise(rb_eRuntimeError,
+		"cannot copy from non file descriptor based IO");
     }
-    else {
-	dest_io->ungetc_buf = NULL;
+
+    int fd = dup(origin_io->fd);
+    if (fd < 0) {
+	rb_sys_fail("dup() failed");
     }
-    dest_io->ungetc_buf_len = origin_io->ungetc_buf_len;
-    dest_io->ungetc_buf_pos = origin_io->ungetc_buf_pos;
+    io_replace_streams(fd, dest_io, origin_io);
 
     return dest;
 }
@@ -3228,136 +3316,123 @@ rb_f_backquote(VALUE obj, SEL sel, VALUE str)
 static int
 build_fd_set_from_io_array(fd_set* set, VALUE arr)
 {
-	int max_fd = 0;
-	FD_ZERO(set);
-	if (!NIL_P(arr))
-	{
-		if (TYPE(arr) != T_ARRAY)
-		{
-			rb_raise(rb_eTypeError, "Kernel#select expects arrays of IO objects");
-		}
-
-		long n = RARRAY_LEN(arr);
-		long ii;
-		for(ii=0; ii<n; ii++)
-		{
-			VALUE io = RARRAY_AT(arr, ii);
-			io = rb_check_convert_type(io, T_FILE, "IO", "to_io");
-			if (NIL_P(io))
-			{
-				rb_raise(rb_eTypeError, "Kernel#select expects arrays of IO objects");
-			}
-			int fd = ExtractIOStruct(io)->fd;
-			FD_SET(fd, set);
-			max_fd = MAX(fd, max_fd);
-		}
+    int max_fd = 0;
+    FD_ZERO(set);
+    if (!NIL_P(arr)) {
+	if (TYPE(arr) != T_ARRAY) {
+	    rb_raise(rb_eTypeError, "Kernel#select expects arrays of IO objects");
 	}
-	return max_fd;
+
+	long n = RARRAY_LEN(arr);
+	long ii;
+	for (ii = 0; ii < n; ii++) {
+	    VALUE io = RARRAY_AT(arr, ii);
+	    io = rb_check_convert_type(io, T_FILE, "IO", "to_io");
+	    if (NIL_P(io)) {
+		rb_raise(rb_eTypeError, "Kernel#select expects arrays of IO objects");
+	    }
+	    int fd = ExtractIOStruct(io)->fd;
+	    FD_SET(fd, set);
+	    max_fd = MAX(fd, max_fd);
+	}
+    }
+    return max_fd;
 }
 
 static void
 build_timeval_from_numeric(struct timeval *tv, VALUE num)
 {
-	tv->tv_sec = 0L;
-	tv->tv_usec = 0L;
-	if(FIXNUM_P(num))
-	{
-		if (FIX2LONG(num) < 0)
-		{
-			rb_raise(rb_eArgError, "select() does not accept negative timeouts.");
-		}
-		tv->tv_sec = FIX2LONG(num);
+    tv->tv_sec = 0L;
+    tv->tv_usec = 0L;
+    if (FIXNUM_P(num)) {
+	if (FIX2LONG(num) < 0) {
+	    rb_raise(rb_eArgError, "select() does not accept negative timeouts.");
 	}
-	else if (FIXFLOAT_P(num))
-	{
-		double quantity = RFLOAT_VALUE(num);
-		if (quantity < 0.0)
-		{
-			rb_raise(rb_eArgError, "select() does not accept negative timeouts.");
-		}
-		tv->tv_sec = (long)floor(quantity);
-		tv->tv_usec = (long)(1000 * (quantity - floor(quantity)));
+	tv->tv_sec = FIX2LONG(num);
+    }
+    else if (FIXFLOAT_P(num)) {
+	double quantity = RFLOAT_VALUE(num);
+	if (quantity < 0.0) {
+	    rb_raise(rb_eArgError, "select() does not accept negative timeouts.");
 	}
-	else if (!NIL_P(num))
-	{
-		rb_raise(rb_eTypeError, "timeout parameter must be numeric.");
-	}
+	tv->tv_sec = (long)floor(quantity);
+	tv->tv_usec = (long)(1000 * (quantity - floor(quantity)));
+    }
+    else if (!NIL_P(num)) {
+	rb_raise(rb_eTypeError, "timeout parameter must be numeric.");
+    }
 }
 
 static VALUE
 extract_ready_descriptors(VALUE arr, fd_set* set)
 {
-	VALUE ready_ios = rb_ary_new();
-	if (NIL_P(arr))
-	{
-		return ready_ios;
-	}
-	long len = RARRAY_LEN(arr);
-	long ii;
-	for (ii=0; ii<len; ii++)
-	{
-		VALUE io = RARRAY_AT(arr, ii);
-		VALUE tmp = rb_check_convert_type(io, T_FILE, "IO", "to_io");
-		if (FD_ISSET(ExtractIOStruct(tmp)->fd, set))
-		{
-			rb_ary_push(ready_ios, io);
-		}
-	}
+    VALUE ready_ios = rb_ary_new();
+    if (NIL_P(arr)) {
 	return ready_ios;
+    }
+    long len = RARRAY_LEN(arr);
+    long ii;
+    for (ii = 0; ii < len; ii++) {
+	VALUE io = RARRAY_AT(arr, ii);
+	VALUE tmp = rb_check_convert_type(io, T_FILE, "IO", "to_io");
+	if (FD_ISSET(ExtractIOStruct(tmp)->fd, set)) {
+	    rb_ary_push(ready_ios, io);
+	}
+    }
+    return ready_ios;
 }
 
 static VALUE
 rb_f_select(VALUE recv, SEL sel, int argc, VALUE *argv)
 {
-	VALUE read_arr, write_arr, err_arr, timeout_val;
-	VALUE readable_arr, writable_arr, errored_arr;
-	rb_scan_args(argc, argv, "13", &read_arr, &write_arr, &err_arr, &timeout_val);
-	fd_set read_set, write_set, err_set;
-	struct timeval timeout;
-	
-	// ndfs has to be 1 + the highest fd we're looking for.
-	int temp = 0;
-	int ndfs = build_fd_set_from_io_array(&read_set, read_arr);
-	temp = build_fd_set_from_io_array(&write_set, write_arr);
-	ndfs = MAX(temp, ndfs);
-	temp = build_fd_set_from_io_array(&err_set, err_arr);
-	ndfs = MAX(temp, ndfs);
-	ndfs++;
-	
-	
-	// A timeval of 0 needs to be distinguished from a NULL timeval, as a 
-	// NULL timeval polls indefinitly while a 0 timeval returns immediately.
-	build_timeval_from_numeric(&timeout, timeout_val);
-	struct timeval *timeval_ptr = (NIL_P(timeout_val) ? NULL : &timeout);
-	
-	int ready_count = select(ndfs, &read_set, &write_set, &err_set, timeval_ptr);
-	if(ready_count == -1) 
-	{
-		rb_sys_fail("select(2) failed");
-	}
-	else if (ready_count == 0)
-	{
-		return Qnil; // no ready file descriptors? return 0.
-	}
-	
-	readable_arr = extract_ready_descriptors(read_arr, &read_set);
-	writable_arr = extract_ready_descriptors(write_arr, &write_set);
-	errored_arr = extract_ready_descriptors(err_arr, &err_set);
-	
-	return rb_ary_new3(3, readable_arr, writable_arr, errored_arr);
+    VALUE read_arr, write_arr, err_arr, timeout_val;
+    VALUE readable_arr, writable_arr, errored_arr;
+    rb_scan_args(argc, argv, "13", &read_arr, &write_arr, &err_arr, &timeout_val);
+    fd_set read_set, write_set, err_set;
+    struct timeval timeout;
+
+    // ndfs has to be 1 + the highest fd we're looking for.
+    int temp = 0;
+    int ndfs = build_fd_set_from_io_array(&read_set, read_arr);
+    temp = build_fd_set_from_io_array(&write_set, write_arr);
+    ndfs = MAX(temp, ndfs);
+    temp = build_fd_set_from_io_array(&err_set, err_arr);
+    ndfs = MAX(temp, ndfs);
+    ndfs++;
+
+    // A timeval of 0 needs to be distinguished from a NULL timeval, as a 
+    // NULL timeval polls indefinitly while a 0 timeval returns immediately.
+    build_timeval_from_numeric(&timeout, timeout_val);
+    struct timeval *timeval_ptr = (NIL_P(timeout_val) ? NULL : &timeout);
+
+    int ready_count = select(ndfs, &read_set, &write_set, &err_set, timeval_ptr);
+    if (ready_count == -1) {
+	rb_sys_fail("select(2) failed");
+    }
+    else if (ready_count == 0) {
+	return Qnil; // no ready file descriptors? return 0.
+    }
+
+    readable_arr = extract_ready_descriptors(read_arr, &read_set);
+    writable_arr = extract_ready_descriptors(write_arr, &write_set);
+    errored_arr = extract_ready_descriptors(err_arr, &err_set);
+
+    return rb_ary_new3(3, readable_arr, writable_arr, errored_arr);
 }
+
 // Here be dragons.
 static VALUE
 rb_io_ctl(VALUE io, VALUE arg, VALUE req, int is_io)
 {
-	unsigned long request;
+    unsigned long request;
     unsigned long cmd = NUM2ULONG(arg);
     rb_io_t *io_s = ExtractIOStruct(io);
     if (TYPE(req) == T_STRING) {
-		request = (unsigned long)(intptr_t)RSTRING_PTR(req);
-    } else {
-		request = FIX2ULONG(req);
-	}
+	request = (unsigned long)(intptr_t)RSTRING_PTR(req);
+    }
+    else {
+	request = FIX2ULONG(req);
+    }
     int retval = is_io ? ioctl(io_s->fd, cmd, request) : fcntl(io_s->fd, cmd, request);
     return INT2FIX(retval);
 }
@@ -3757,9 +3832,8 @@ rb_io_s_copy_stream(VALUE rcv, SEL sel, int argc, VALUE *argv)
 	src_is_path = true;
     }
     else {
-	old_src_offset = rb_io_tell(src, 0); // save the old offset
 	if (!NIL_P(offset)) {
-	    // seek if necessary
+	    old_src_offset = rb_io_tell(src, 0); // save the old offset
 	    rb_io_seek(src, 0, offset);
 	}
     }
@@ -3806,6 +3880,7 @@ rb_io_s_copy_stream(VALUE rcv, SEL sel, int argc, VALUE *argv)
     if (!NIL_P(old_src_offset)) {
 	rb_io_seek(src, old_src_offset, SEEK_SET); // restore the old offset
     }
+
     return copied;
 }
 
