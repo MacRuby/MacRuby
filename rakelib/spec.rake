@@ -3,7 +3,15 @@ namespace :spec do
   DEFAULT_OPTIONS = "-I./lib -B #{MACRUBY_MSPEC}"
   
   def mspec(type, options)
-    sh "./mspec/bin/mspec #{type} #{DEFAULT_OPTIONS} #{ENV['opts']} #{options}"
+    old_path = ENV['DYLD_LIBRARY_PATH']
+    new_path = '.'
+    new_path << ":#{old_path}" if old_path
+    begin
+      ENV['DYLD_LIBRARY_PATH'] = new_path
+      sh "./mspec/bin/mspec #{type} #{DEFAULT_OPTIONS} #{ENV['opts']} #{options}"
+    ensure
+      ENV['DYLD_LIBRARY_PATH']  = old_path
+    end
   end
   
   desc "Run continuous integration language examples (all known good examples)"
@@ -19,6 +27,11 @@ namespace :spec do
   desc "Run all MacRuby-only specs"
   task :macruby do
     mspec :ci, ":macruby"
+  end
+
+  desc "Run all Library-only specs"
+  task :library do
+    mspec :ci, ":library"
   end
   
   desc "Run language examples that are known to fail"
