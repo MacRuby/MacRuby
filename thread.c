@@ -1291,6 +1291,10 @@ rb_mutex_lock(VALUE self, SEL sel)
     pthread_assert(pthread_mutex_lock(&m->mutex));
     current->status = THREAD_ALIVE;
     m->thread = current;
+    if (current->mutexes == Qnil) {
+	GC_WB(&current->mutexes, rb_ary_new());
+    }
+    rb_ary_push(current->mutexes, self);
 
     return self;
 }
@@ -1303,19 +1307,43 @@ rb_mutex_lock(VALUE self, SEL sel)
  * Raises +ThreadError+ if +mutex+ wasn't locked by the current thread.
  */
 
-static VALUE
-rb_mutex_unlock(VALUE self, SEL sel)
+static void
+rb_mutex_unlock0(VALUE self, bool delete_from_thread_mutexes)
 {
     rb_vm_mutex_t *m = GetMutexPtr(self);
-    if (m->thread == 0) {
+    if (m->thread == NULL) {
 	rb_raise(rb_eThreadError,
 		"Attempt to unlock a mutex which is not locked");
     }
-
+    else if (m->thread != GetThreadPtr(rb_vm_current_thread())) {
+	rb_raise(rb_eThreadError,
+		"Attempt to unlock a mutex which is locked by another thread");
+    }
+    if (delete_from_thread_mutexes) {
+	assert(m->thread->mutexes != Qnil);
+	rb_ary_delete(m->thread->mutexes, self);
+    }
     pthread_assert(pthread_mutex_unlock(&m->mutex));
-    m->thread = 0;
+    m->thread = NULL;
+}
 
+static VALUE
+rb_mutex_unlock(VALUE self, SEL sel)
+{
+    rb_mutex_unlock0(self, true);
     return self;
+}
+
+void
+rb_thread_unlock_all_mutexes(rb_vm_thread_t *thread)
+{
+    if (thread->mutexes != Qnil) {
+	int i, count = RARRAY_LEN(thread->mutexes);
+	for (i = 0; i < count; i++) {
+	    rb_mutex_unlock0(RARRAY_AT(thread->mutexes, i), false);  
+	}
+	rb_ary_clear(thread->mutexes);
+    }
 }
 
 /*

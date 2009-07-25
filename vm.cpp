@@ -4405,6 +4405,8 @@ RoxorCore::register_thread(VALUE thread)
     vm->set_thread(thread);
 }
 
+extern "C" void rb_thread_unlock_all_mutexes(rb_vm_thread_t *thread);
+
 void
 RoxorCore::unregister_thread(VALUE thread)
 {
@@ -4430,6 +4432,8 @@ RoxorCore::unregister_thread(VALUE thread)
 	abort();
     }
     pthread_assert(pthread_cond_destroy(&t->sleep_cond));
+
+    rb_thread_unlock_all_mutexes(t); 
 
     RoxorVM *vm = (RoxorVM *)t->vm;
     delete vm;
@@ -4577,6 +4581,7 @@ rb_vm_thread_pre_init(rb_vm_thread_t *t, rb_vm_block_t *body, int argc,
     t->status = THREAD_ALIVE;
     t->in_cond_wait = false;
     t->group = Qnil; // will be set right after
+    t->mutexes = Qnil;
 
     pthread_assert(pthread_mutex_init(&t->sleep_mutex, NULL));
     pthread_assert(pthread_cond_init(&t->sleep_cond, NULL)); 

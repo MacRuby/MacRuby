@@ -110,6 +110,7 @@ typedef struct rb_vm_thread {
     VALUE locals;  // a Hash object or Qnil
     VALUE exception;  // killed-by exception or Qnil 
     VALUE group;  // always a ThreadGroup object
+    VALUE mutexes;  // an Array object or Qnil
 } rb_vm_thread_t;
 
 typedef struct rb_vm_outer {
