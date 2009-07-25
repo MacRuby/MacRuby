@@ -25,6 +25,8 @@ class MSpecScript
   # Library specs
   set :library, [
     'library/digest',
+    'library/mutex',
+    'library/queue',
     'library/readline'
   ]
   
