@@ -3763,7 +3763,7 @@ Init_Array(void)
     rb_objc_define_method(rb_cArray, "zip", rb_ary_zip, -1);
     rb_objc_define_method(rb_cArray, "transpose", rb_ary_transpose, 0);
     rb_objc_define_method(rb_cArray, "replace", rb_ary_replace_imp, 1);
-    rb_objc_define_method(rb_cArray, "clear", rb_ary_clear, 0);
+    rb_objc_define_method(rb_cArray, "clear", rb_ary_clear_imp, 0);
     rb_objc_define_method(rb_cArray, "fill", rb_ary_fill, -1);
     rb_objc_define_method(rb_cArray, "include?", rb_ary_includes_imp, 1);
     rb_objc_define_method(rb_cArray, "<=>", rb_ary_cmp, 1);
