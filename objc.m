@@ -161,13 +161,15 @@ rb_objc_symbolize_address(void *addr, void **start, char *name,
 {
     Dl_info info;
     if (dladdr(addr, &info) != 0) {
-	if (start != NULL) {
-	    *start = info.dli_saddr;
+	if (info.dli_saddr != NULL) {
+	    if (start != NULL) {
+		*start = info.dli_saddr;
+	    }
+	    if (name != NULL) {
+		strncpy(name, info.dli_sname, name_len);
+	    }
+	    return true;
 	}
-	if (name != NULL) {
-	    strncpy(name, info.dli_sname, name_len);
-	}
-	return true;
     }
 
 #if 1
