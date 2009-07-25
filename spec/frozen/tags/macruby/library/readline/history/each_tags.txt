@@ -1,0 +1,1 @@
+fails:Readline::HISTORY.each yields each item in the history

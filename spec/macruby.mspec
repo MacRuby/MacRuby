@@ -24,7 +24,8 @@ class MSpecScript
 
   # Library specs
   set :library, [
-    'library/digest'
+    'library/digest',
+    'library/readline'
   ]
   
   # Prepend the paths with the proper prefix
