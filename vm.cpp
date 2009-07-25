@@ -2570,11 +2570,13 @@ dispatch:
 	    if (!block_already_current) {
 		vm->pop_current_block();
 	    }
+	    vm->pop_broken_with();
 	    throw;
 	}
 	if (!block_already_current) {
 	    vm->pop_current_block();
 	}
+	vm->pop_broken_with();
 	return ret;
     }
     else if (cache->flag == MCACHE_OCALL) {
@@ -3564,23 +3566,24 @@ rb_vm_block_eval2(rb_vm_block_t *b, VALUE self, int argc, const VALUE *argv)
 static inline VALUE
 rb_vm_yield0(int argc, const VALUE *argv)
 {
-    rb_vm_block_t *b = GET_VM()->current_block();
+    RoxorVM *vm = GET_VM();
+    rb_vm_block_t *b = vm->current_block();
     if (b == NULL) {
 	rb_raise(rb_eLocalJumpError, "no block given");
     }
 
-    GET_VM()->pop_current_block();
+    vm->pop_current_block();
 
     VALUE retval = Qnil;
     try {
 	retval = rb_vm_block_eval0(b, b->self, argc, argv);
     }
     catch (...) {
-	GET_VM()->add_current_block(b);
+	vm->add_current_block(b);
 	throw;
     }
 
-    GET_VM()->add_current_block(b);
+    vm->add_current_block(b);
 
     return retval;
 }
@@ -3596,17 +3599,18 @@ extern "C"
 VALUE
 rb_vm_yield_under(VALUE klass, VALUE self, int argc, const VALUE *argv)
 {
-    rb_vm_block_t *b = GET_VM()->current_block();
-    GET_VM()->pop_current_block();
+    RoxorVM *vm = GET_VM();
+    rb_vm_block_t *b = vm->current_block();
+    vm->pop_current_block();
 
     VALUE old_self = b->self;
     b->self = self;
-    Class old_class = GET_VM()->get_current_class();
+    Class old_class = vm->get_current_class();
     if (klass == self) {
 	// We only toggle the VM current klass in case #module_eval or
 	// #class_eval is used (where the given klass and self objects are 
 	// actually the same instances).
-	GET_VM()->set_current_class((Class)klass);
+	vm->set_current_class((Class)klass);
     }
 
     VALUE retval = Qnil;
@@ -3615,14 +3619,14 @@ rb_vm_yield_under(VALUE klass, VALUE self, int argc, const VALUE *argv)
     }
     catch (...) {
 	b->self = old_self;
-	GET_VM()->set_current_class(old_class);
-	GET_VM()->add_current_block(b);
+	vm->set_current_class(old_class);
+	vm->add_current_block(b);
 	throw;
     }
 
     b->self = old_self;
-    GET_VM()->set_current_class(old_class);
-    GET_VM()->add_current_block(b);
+    vm->set_current_class(old_class);
+    vm->add_current_block(b);
 
     return retval;
 }
@@ -3853,9 +3857,7 @@ extern "C"
 VALUE
 rb_vm_pop_broken_value(void)
 {
-    VALUE val = GET_VM()->get_broken_with();
-    GET_VM()->set_broken_with(Qundef);
-    return val;
+    return GET_VM()->pop_broken_with();
 }
 
 extern "C"

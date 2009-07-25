@@ -871,6 +871,12 @@ class RoxorVM {
 	    return NULL;
 	}
 
+	VALUE pop_broken_with(void) {
+	    VALUE v = broken_with;
+	    broken_with = Qundef;
+	    return v;
+	}
+
 	VALUE ruby_catch(VALUE tag);
 	VALUE ruby_throw(VALUE tag, VALUE value);
 };
