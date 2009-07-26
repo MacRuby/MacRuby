@@ -579,6 +579,17 @@ assert ":ok\n:ok", %{
 }
 
 assert ':ok', %{
+  proc do
+    def proc_caller(&b) b.call end
+    def enclosing_method
+      proc_caller { return :ok }
+      :nok
+    end
+    p enclosing_method
+  end.call
+}
+
+assert ':ok', %{
   b = :foo.to_proc
   begin
     b.call
