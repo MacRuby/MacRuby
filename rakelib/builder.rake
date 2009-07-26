@@ -322,9 +322,9 @@ def perform_extensions_target(target)
         srcdir = File.join(*dir.split(File::SEPARATOR).map { |x| '..' })
         next if target == :clean and !File.exist?('Makefile')
         if !File.exist?('Makefile') or File.mtime('extconf.rb') > File.mtime('Makefile')
-          sh "#{srcdir}/miniruby -I#{srcdir} -I#{srcdir}/lib extconf.rb"
+          sh "#{srcdir}/miniruby -I#{srcdir} -I#{srcdir}/lib -r rbconfig -e \"RbConfig::CONFIG['libdir'] = '#{srcdir}'; require './extconf.rb'\""
         end
-        line = "/usr/bin/make top_srcdir=#{srcdir} ruby=\"#{srcdir}/miniruby -I#{srcdir} -I#{srcdir}/lib\""
+        line = "/usr/bin/make top_srcdir=#{srcdir} ruby=\"#{srcdir}/miniruby -I#{srcdir} -I#{srcdir}/lib\" extout=#{srcdir}/.ext"
         case target
           when :all
             line << " libdir=#{srcdir}"
