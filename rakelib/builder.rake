@@ -320,7 +320,7 @@ def perform_extensions_target(target)
       Dir.chdir(dir) do
         $stderr.puts "cd #{dir}"
         srcdir = File.join(*dir.split(File::SEPARATOR).map { |x| '..' })
-        if !File.exist?('Makefile') or File.mtime('extconf.rb') > File.mtime('Makefile')
+        if target != :clean and (!File.exist?('Makefile') or File.mtime('extconf.rb') > File.mtime('Makefile'))
           sh "#{srcdir}/miniruby -I#{srcdir} -I#{srcdir}/lib extconf.rb"
         end
         line = "/usr/bin/make top_srcdir=#{srcdir} ruby=\"#{srcdir}/miniruby -I#{srcdir} -I#{srcdir}/lib\""
