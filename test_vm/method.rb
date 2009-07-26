@@ -49,3 +49,8 @@ assert ":ok", %{
   m.call(:ok, k)
   p o[k]
 }
+
+assert '42', %{
+  def foo=(x); x+=1; end
+  p(self.foo=42)
+}
