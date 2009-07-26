@@ -696,7 +696,8 @@ RoxorCompiler::compile_attribute_assign(NODE *node, Value *extra_val)
 	params.push_back(*i);
     }
 
-    return compile_dispatch_call(params);
+    compile_dispatch_call(params);
+    return params.back();
 }
 
 void
