@@ -1307,30 +1307,46 @@ rb_mutex_lock(VALUE self, SEL sel)
  * Raises +ThreadError+ if +mutex+ wasn't locked by the current thread.
  */
 
-static void
-rb_mutex_unlock0(VALUE self, bool delete_from_thread_mutexes)
+static bool
+rb_mutex_can_unlock(rb_vm_mutex_t *m, bool raise)
 {
-    rb_vm_mutex_t *m = GetMutexPtr(self);
     if (m->thread == NULL) {
+	if (!raise) {
+	    return false;
+	}
 	rb_raise(rb_eThreadError,
 		"Attempt to unlock a mutex which is not locked");
     }
     else if (m->thread != GetThreadPtr(rb_vm_current_thread())) {
+	if (!raise) {
+	    return false;
+	}
 	rb_raise(rb_eThreadError,
 		"Attempt to unlock a mutex which is locked by another thread");
     }
-    if (delete_from_thread_mutexes) {
-	assert(m->thread->mutexes != Qnil);
-	rb_ary_delete(m->thread->mutexes, self);
+    return true;
+}
+
+static void
+rb_mutex_unlock0(VALUE self, bool assert_unlockable,
+	bool delete_from_thread_mutexes)
+{
+    rb_vm_mutex_t *m = GetMutexPtr(self);
+    bool ok = rb_mutex_can_unlock(m, assert_unlockable);
+    if (ok) {
+	if (delete_from_thread_mutexes) {
+	    assert(m->thread->mutexes != Qnil);
+	    rb_ary_delete(m->thread->mutexes, self);
+	}
+	pthread_assert(pthread_mutex_unlock(&m->mutex));
+	m->thread = NULL;
     }
-    pthread_assert(pthread_mutex_unlock(&m->mutex));
-    m->thread = NULL;
 }
 
 static VALUE
 rb_mutex_unlock(VALUE self, SEL sel)
 {
-    rb_mutex_unlock0(self, true);
+    rb_mutex_unlock0(self, true, true);
     return self;
 }
 
@@ -1340,7 +1356,7 @@ rb_thread_unlock_all_mutexes(rb_vm_thread_t *thread)
     if (thread->mutexes != Qnil) {
 	int i, count = RARRAY_LEN(thread->mutexes);
 	for (i = 0; i < count; i++) {
-	    rb_mutex_unlock0(RARRAY_AT(thread->mutexes, i), false);  
+	    rb_mutex_unlock0(RARRAY_AT(thread->mutexes, i), false, false);
 	}
 	rb_ary_clear(thread->mutexes);
     }
@@ -1395,11 +1411,7 @@ sync_body(VALUE a)
 static VALUE
 sync_ensure(VALUE mutex)
 {
-    if (rb_mutex_locked_p(mutex, 0) == Qtrue) {
-	// We only unlock the mutex if it's still locked, since it could have
-	// been unlocked in the block!
-	rb_mutex_unlock(mutex, 0);
-    }
+    rb_mutex_unlock0(mutex, false, true);
     return Qnil;
 }
 
