@@ -1815,16 +1815,19 @@ env_aset(VALUE obj, SEL sel, VALUE nm, VALUE val)
     }
 
     if (NIL_P(val)) {
-	rb_raise(rb_eTypeError, "cannot assign nil; use Hash#delete instead");
+	env_delete(obj, nm);
+	return Qnil;
     }
     StringValue(nm);
     StringValue(val);
     name = RSTRING_PTR(nm);
     value = RSTRING_PTR(val);
-    if (strlen(name) != RSTRING_LEN(nm))
+    if (strlen(name) != RSTRING_LEN(nm)) {
 	rb_raise(rb_eArgError, "bad environment variable name");
-    if (strlen(value) != RSTRING_LEN(val))
+    }
+    if (strlen(value) != RSTRING_LEN(val)) {
 	rb_raise(rb_eArgError, "bad environment variable value");
+    }
 
     ruby_setenv(name, value);
 #ifdef ENV_IGNORECASE
