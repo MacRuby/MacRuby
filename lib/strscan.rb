@@ -165,7 +165,7 @@ class StringScanner
   # This method is obsolete; use #terminate instead.
   #
   def clear
-    # warn "StringScanner#clear is obsolete; use #terminate instead" if $VERBOSE
+    warn "StringScanner#clear is obsolete; use #terminate instead" if $VERBOSE
     terminate
   end
   
@@ -231,7 +231,7 @@ class StringScanner
   # This method is obsolete; use #get_byte instead.
   #
   def getbyte
-    # warn "StringScanner#getbyte is obsolete; use #get_byte instead" if $VERBOSE
+    warn "StringScanner#getbyte is obsolete; use #get_byte instead" if $VERBOSE
     get_byte
   end
   
@@ -318,7 +318,7 @@ class StringScanner
   # This method is obsolete, use #eos? instead.
   #
   def empty?
-    # warn "StringScanner#empty? is obsolete; use #eos? instead" if $VERBOSE
+    warn "StringScanner#empty? is obsolete; use #eos? instead" if $VERBOSE
     eos?
   end
   
@@ -350,7 +350,7 @@ class StringScanner
   # This method is obsolete; use #rest_size instead.
   #
   def restsize
-    # warn "StringScanner#restsize is obsolete; use #rest_size instead" if $VERBOSE
+    warn "StringScanner#restsize is obsolete; use #rest_size instead" if $VERBOSE
     rest_size
   end
   
@@ -430,7 +430,7 @@ class StringScanner
   # This method is obsolete; use #matched_size instead.
   #
   def matchedsize
-    # warn "StringScanner#matchedsize is obsolete; use #matched_size instead" if $VERBOSE
+    warn "StringScanner#matchedsize is obsolete; use #matched_size instead" if $VERBOSE
     matched_size
   end
  
@@ -530,7 +530,7 @@ class StringScanner
   # This method is obsolete; use #peek instead.
   #
   def peep(length)
-    # warn "StringScanner#peep is obsolete; use #peek instead" if $VERBOSE
+    warn "StringScanner#peep is obsolete; use #peek instead" if $VERBOSE
     peek(length)
   end
   

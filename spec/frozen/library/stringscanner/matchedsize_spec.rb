@@ -6,24 +6,20 @@ describe "StringScanner#matchedsize" do
   it_behaves_like(:strscan_matched_size, :matchedsize)
 
   it "warns in verbose mode that the method is obsolete" do
-    if Kernel.respond_to?(:warn)
-      s = StringScanner.new("abc")
-      begin
-        old = $VERBOSE
-        lambda {
-          $VERBOSE = true
-          s.matchedsize
-        }.should complain(/matchedsize.*obsolete.*matched_size/)
+    s = StringScanner.new("abc")
+    begin
+      old = $VERBOSE
+      lambda {
+        $VERBOSE = true
+        s.matchedsize
+      }.should complain(/matchedsize.*obsolete.*matched_size/)
 
-        lambda {
-          $VERBOSE = false
-          s.matchedsize
-        }.should_not complain
-      ensure
-        $VERBOSE = old
-      end
-    else
-      fail "The tested implementation cannot display warnings."
-    end
+      lambda {
+        $VERBOSE = false
+        s.matchedsize
+      }.should_not complain
+    ensure
+      $VERBOSE = old
+    end 
   end
 end
