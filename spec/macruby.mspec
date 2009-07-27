@@ -25,8 +25,11 @@ class MSpecScript
   # Library specs
   set :library, [
     'library/digest',
+    'library/getoptlong',
     'library/mutex',
     'library/queue',
+    'library/observer',
+    'library/pathname',
     'library/readline',
     'library/stringscanner'
   ]

@@ -274,20 +274,22 @@ rb_objc_root(void *addr)
     }
 }
 
-void
+const void *
 rb_objc_retain(const void *addr)
 {
     if (addr != NULL && !SPECIAL_CONST_P(addr)) {
 	auto_zone_retain(__auto_zone, (void *)addr);
     }
+    return addr;
 }
 
-void
+const void *
 rb_objc_release(const void *addr)
 {
     if (addr != NULL && !SPECIAL_CONST_P(addr)) {
 	auto_zone_release(__auto_zone, (void *)addr);
     }
+    return addr;
 }
 
 void

@@ -329,8 +329,8 @@ void rb_objc_gc_register_thread(void);
 void rb_objc_gc_unregister_thread(void);
 void rb_objc_set_associative_ref(void *, void *, void *);
 void *rb_objc_get_associative_ref(void *, void *);
-void rb_objc_retain(const void *);
-void rb_objc_release(const void *);
+const void *rb_objc_retain(const void *);
+const void *rb_objc_release(const void *);
 # define rb_gc_mark_locations(x,y)
 # define rb_mark_tbl(x)
 # define rb_mark_set(x)

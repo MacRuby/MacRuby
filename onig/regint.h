@@ -113,21 +113,32 @@
 
 /* Ruby-specific defines... */
 
-#define onig_st_init_table                  st_init_table
-#define onig_st_init_table_with_size        st_init_table_with_size
-#define onig_st_init_numtable               st_init_numtable
-#define onig_st_init_numtable_with_size     st_init_numtable_with_size
-#define onig_st_init_strtable               st_init_strtable
-#define onig_st_init_strtable_with_size     st_init_strtable_with_size
+const void *rb_objc_retain(const void *addr);
+const void *rb_objc_release(const void *addr);
+
+#define onig_st_init_table(t) \
+    ((st_table *)rb_objc_retain(st_init_table(t)))
+#define onig_st_init_table_with_size(t, s) \
+    ((st_table *)rb_objc_retain(st_init_table_with_size(t, s)))
+#define onig_st_init_numtable() \
+    ((st_table *)rb_objc_retain(st_init_numtable()))
+#define onig_st_init_numtable_with_size(s) \
+    ((st_table *)rb_objc_retain(st_init_numtable_with_size(s)))
+#define onig_st_init_strtable() \
+    ((st_table *)rb_objc_retain(st_init_strtable()))
+#define onig_st_init_strtable_with_size(s) \
+    ((st_table *)rb_objc_retain(st_init_strtable_with_size(s)))
+#define onig_st_copy(t) \
+    ((st_table *)rb_objc_retain(st_copy(t)))
+#define onig_st_free_table(t) \
+    (st_free_table((st_table *)rb_objc_release(t)))
 #define onig_st_delete                      st_delete
 #define onig_st_delete_safe                 st_delete_safe
 #define onig_st_insert                      st_insert
 #define onig_st_lookup                      st_lookup
 #define onig_st_foreach                     st_foreach
 #define onig_st_add_direct                  st_add_direct
-#define onig_st_free_table                  st_free_table
 #define onig_st_cleanup_safe                st_cleanup_safe
-#define onig_st_copy                        st_copy
 #define onig_st_nothing_key_clone           st_nothing_key_clone
 #define onig_st_nothing_key_free            st_nothing_key_free
 /* */
