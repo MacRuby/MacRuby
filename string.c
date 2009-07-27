@@ -666,7 +666,7 @@ rb_str_subseq(VALUE str, long beg, long len)
 	return Qnil;
     }
     if (beg + len > n) {
-	return (VALUE)CFSTR("");
+	len = n - beg;
     }
 
     substr = CFStringCreateMutable(NULL, 0);
