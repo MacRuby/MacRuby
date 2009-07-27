@@ -402,7 +402,10 @@ namespace :clean do
   desc "Clean local build files"
   task :local do
     $builder.clean
-    ['parse.c', 'lex.c', INSTALLED_LIST, 'Makefile', *Dir['*.inc']].each { |x| rm_f(x) }
+    list = ['parse.c', 'lex.c', INSTALLED_LIST, 'Makefile', RUBY_INSTALL_NAME, 'miniruby']
+    list.concat(Dir['*.inc'])
+    list.concat(Dir['lib*.{dylib,a}'])
+    list.each { |x| rm_f(x) }
   end
 
   desc "Clean extension build files"
