@@ -5473,35 +5473,36 @@ imp_rb_bytestring_length(void *rcv, SEL sel)
     return rb_bytestring_length((VALUE)rcv);
 }
 
+static inline long
+bytestring_index(VALUE bstr, VALUE idx)
+{
+    long index = NUM2LONG(idx);
+    while (index < 0) {
+	// adjusting for negative indices
+	index += rb_bytestring_length(bstr);
+    }
+    return index;
+}
+
 static VALUE
 rb_bytestring_getbyte(VALUE bstr, SEL sel, VALUE idx)
 {
-	long index = NUM2LONG(idx);
-	while(idx < 0)
-	{
-		// adjusting for negative indices
-		idx += rb_bytestring_length(bstr);
-	}
-	return INT2FIX(rb_bytestring_byte_pointer(bstr)[index]);
+    const long index = bytestring_index(bstr, idx);
+    return INT2FIX(rb_bytestring_byte_pointer(bstr)[index]);
 }
 
 static VALUE
 rb_bytestring_setbyte(VALUE bstr, SEL sel, VALUE idx, VALUE newbyte)
 {
-	long index = NUM2LONG(idx);
-	while(idx < 0)
-	{
-		// adjusting for negative indices
-		idx += rb_bytestring_length(bstr);
-	}
-	rb_bytestring_byte_pointer(bstr)[index] = FIX2UINT(newbyte);
-	return Qnil;
+    const long index = bytestring_index(bstr, idx);
+    rb_bytestring_byte_pointer(bstr)[index] = FIX2UINT(newbyte);
+    return Qnil;
 }
 
 static VALUE
 rb_bytestring_bytesize(VALUE bstr, SEL sel)
 {
-	return LONG2NUM(CFDataGetLength(rb_bytestring_wrapped_data(bstr)));
+    return LONG2NUM(CFDataGetLength(rb_bytestring_wrapped_data(bstr)));
 }
 
 static UniChar
@@ -5756,9 +5757,10 @@ Init_String(void)
 	    rb_bytestring_initialize, -1);
     rb_objc_define_method(*(VALUE *)rb_cByteString, "alloc",
 	    rb_bytestring_alloc, 0);
-	rb_objc_define_method(rb_cByteString, "bytesize", rb_bytestring_bytesize, 0);
-	rb_objc_define_method(rb_cByteString, "getbyte", rb_bytestring_getbyte, 1);
-	rb_objc_define_method(rb_cByteString, "setbyte", rb_bytestring_setbyte, 2);
+    rb_objc_define_method(rb_cByteString, "bytesize",
+	    rb_bytestring_bytesize, 0);
+    rb_objc_define_method(rb_cByteString, "getbyte", rb_bytestring_getbyte, 1);
+    rb_objc_define_method(rb_cByteString, "setbyte", rb_bytestring_setbyte, 2);
     wrappedDataOffset = ivar_getOffset(
 	    class_getInstanceVariable((Class)rb_cByteString,
 		WRAPPED_DATA_IV_NAME));
