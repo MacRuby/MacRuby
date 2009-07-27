@@ -248,6 +248,7 @@ VALUE rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
 		      rb_vm_binding_t *binding, bool inside_eval);
 void rb_vm_aot_compile(NODE *node);
 
+void rb_vm_init_compiler(void);
 bool rb_vm_running(void);
 void rb_vm_set_running(bool flag);
 bool rb_vm_parse_in_eval(void);
