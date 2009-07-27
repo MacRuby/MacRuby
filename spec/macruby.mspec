@@ -27,7 +27,8 @@ class MSpecScript
     'library/digest',
     'library/mutex',
     'library/queue',
-    'library/readline'
+    'library/readline',
+    'library/stringscanner'
   ]
   
   # Prepend the paths with the proper prefix
