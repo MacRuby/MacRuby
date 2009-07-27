@@ -100,6 +100,7 @@ extern SEL selBackquote;
 extern SEL selMethodAdded;
 extern SEL selSingletonMethodAdded;
 extern SEL selIsEqual;
+extern SEL selWrite;
 extern ID idIncludedModules;
 extern ID idIncludedInClasses;
 extern ID idAncestors;

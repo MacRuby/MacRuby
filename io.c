@@ -15,6 +15,7 @@
 #include "ruby/node.h"
 #include "vm.h"
 #include "objc.h"
+#include "id.h"
 
 #include <errno.h>
 #include <paths.h>
@@ -83,6 +84,12 @@ static inline VALUE
 rb_io_get_io(VALUE io)
 {
     return rb_convert_type(io, T_FILE, "IO", "to_io");
+}
+
+static inline VALUE
+rb_io_check_io(VALUE io)
+{
+    return rb_check_convert_type(io, T_FILE, "IO", "to_io");
 }
 
 static int
@@ -474,7 +481,6 @@ prep_io(int fd, int mode, VALUE klass, bool should_close_streams)
  *     That was 15 bytes of data
  */
 
-
 static VALUE
 io_write(VALUE io, SEL sel, VALUE to_write)
 {
@@ -483,6 +489,13 @@ io_write(VALUE io, SEL sel, VALUE to_write)
     CFIndex length;
     
     rb_secure(4);
+
+    VALUE tmp = rb_io_check_io(io);
+    if (NIL_P(tmp)) {
+	// receiver is not IO, dispatch the write method on it
+	return rb_vm_call(io, selWrite, 1, &to_write, false);
+    }
+    io = tmp;
     
     io_struct = ExtractIOStruct(io);
     rb_io_assert_writable(io_struct);
@@ -2711,7 +2724,8 @@ rb_p(VALUE obj, SEL sel) /* for debug print within C code */
     rb_io_write(rb_stdout, 0, rb_default_rs);
 }
 
-VALUE rb_io_write(VALUE v, SEL sel, VALUE i)
+VALUE
+rb_io_write(VALUE v, SEL sel, VALUE i)
 {
     io_write(v, 0, i);
     return Qnil;

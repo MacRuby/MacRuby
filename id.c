@@ -91,6 +91,7 @@ Init_id(void)
     selMethodAdded = sel_registerName("method_added:");
     selSingletonMethodAdded = sel_registerName("singleton_method_added:");
     selIsEqual = sel_registerName("isEqual:");
+    selWrite = sel_registerName("write:");
 
     cacheEach = rb_vm_get_call_cache(selEach);
 #endif
