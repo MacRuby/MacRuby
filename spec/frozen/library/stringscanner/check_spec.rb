@@ -11,6 +11,6 @@ describe "StringScanner#check" do
     @s.matched.should == "This"
     @s.pos.should == 0
     @s.check(/is/).should == nil
-    @s.matched.should == nil
+    @s.matched.should == nil   
   end
 end

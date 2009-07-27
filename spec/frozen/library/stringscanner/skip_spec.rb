@@ -14,5 +14,5 @@ describe "StringScanner#skip" do
   it "returns nil if there's no match" do
     @s.skip(/\s+/).should == nil
     @s.skip(/\d+/).should == nil
-  end
+  end   
 end

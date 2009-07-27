@@ -1,3 +1,5 @@
+require 'spec/frozen/library/stringscanner/shared/eucjp'
+
 describe :strscan_get_byte, :shared => true do
   it "scans one byte and returns it" do
     s = StringScanner.new('abc5.')
@@ -12,6 +14,14 @@ describe :strscan_get_byte, :shared => true do
     s = StringScanner.new("\244\242")
     s.send(@method).should == "\244"
     s.send(@method).should == "\242"
+    s.send(@method).should == nil
+  end
+  
+  it "is not multi-byte character sensitive and can handle encodings" do
+    s = StringScanner.new(TestStrings.eucjp)
+    s.send(@method).should == "\244"
+    s.send(@method).should == "\242"
+    s.send(@method).should == nil
   end
 
   it "returns nil at the end of the string" do

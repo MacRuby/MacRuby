@@ -21,5 +21,10 @@ describe :strscan_peek, :shared => true do
 
   it "raises a RangeError when the passed argument is a Bignum" do
     lambda { @s.send(@method, bignum_value) }.should raise_error(RangeError)
+  end 
+  
+  it "raises a TypeError when the passed argument is not a Fixnum" do
+    lambda { @s.send(@method, "test") }.should raise_error(TypeError)
   end
+    
 end

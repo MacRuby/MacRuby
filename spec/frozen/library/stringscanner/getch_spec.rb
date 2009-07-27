@@ -1,4 +1,5 @@
 require File.dirname(__FILE__) + '/../../spec_helper'
+require File.dirname(__FILE__) + '/shared/eucjp'
 require 'strscan'
 
 describe "StringScanner#getch" do
@@ -10,13 +11,14 @@ describe "StringScanner#getch" do
   end
 
   it "is multi-byte character sensitive" do
-    begin
-        old, $KCODE = $KCODE, 'EUC'
-        s = StringScanner.new("\244\242")
-        s.getch.should == "\244\242" # Japanese hira-kana "A" in EUC-JP
-    ensure
-      $KCODE = old
-    end
+    s = StringScanner.new("あ") # Japanese hira-kana "A" 
+    s.getch.should == "あ" 
+    s.getch.should be_nil
+  end
+  
+  it "should keep the encoding" do
+    s = StringScanner.new(TestStrings.eucjp)
+    s.getch.encoding.to_s.should == "EUC-JP"
   end
 
   it "returns nil at the end of the string" do
@@ -29,6 +31,12 @@ describe "StringScanner#getch" do
     s = StringScanner.new('a')
     s.getch # skip one
     s.getch.should == nil
+  end
+  
+  it "should start from scratch even after a scan was used" do
+    s = StringScanner.new('this is a test')
+    s.scan(/\w+/)
+    s.getch.should == " "
   end
 
   it "does not accept any arguments" do
