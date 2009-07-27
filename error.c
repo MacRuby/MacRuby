@@ -189,7 +189,7 @@ rb_warning(const char *fmt, ...)
  */
 
 static VALUE
-rb_warn_m(VALUE self, VALUE mesg)
+rb_warn_m(VALUE self, SEL sel, VALUE mesg)
 {
     if (!NIL_P(ruby_verbose)) {
 	rb_io_write(rb_stderr, (SEL)0, mesg);
@@ -1104,7 +1104,7 @@ Init_Exception(void)
     rb_mErrno = rb_define_module("Errno");
     rb_objc_define_method(*(VALUE *)rb_mErrno, "const_missing", errno_missing, 1);
 
-    rb_define_global_function("warn", rb_warn_m, 1);
+    rb_objc_define_method(rb_mKernel, "warn", rb_warn_m, 1);
 }
 
 void
