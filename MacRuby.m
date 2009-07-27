@@ -18,6 +18,7 @@ extern int ruby_initialized;
 	    char **argv = NULL;
 	    ruby_sysinit(&argc, &argv);
 	    ruby_init();
+	    rb_vm_init_compiler();
 	}
     }
     return runtime;
