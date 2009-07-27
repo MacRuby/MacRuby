@@ -118,7 +118,7 @@ class StringScanner
   #
   # match <String>:: Matched string
   #
-  attr_reader :string, :pos, :match
+  attr_reader :string, :pos
   
   # This method is defined for backward compatibility.
   #
@@ -142,7 +142,7 @@ class StringScanner
   def initialize_copy(orig)
     @string = orig.string
     @pos = orig.pos
-    @match = orig.match
+    @match = orig.instance_variable_get("@match")
   end 
   
   # Reset the scan pointer (index 0) and clear matching data.
@@ -401,7 +401,7 @@ class StringScanner
   #   s.matched           # -> "test"
   #     
   def matched
-    match.to_s if matched?
+    @match.to_s if matched?
   end
   
   # Returns +true+ iff the last match was successful.
@@ -413,7 +413,7 @@ class StringScanner
   #   s.matched?          # => false
   #
   def matched?
-    !match.nil?
+    !@match.nil?
   end 
   
   # Returns the last matched string.
@@ -423,7 +423,7 @@ class StringScanner
   #   s.matched           # -> "test"
   #
   def matched_size
-    match.to_s.size if matched?
+    @match.to_s.size if matched?
   end
   
   # Equivalent to #matched_size.
@@ -581,7 +581,7 @@ class StringScanner
   #
   def [](n)
     raise TypeError, "Bad argument #{n.inspect}" unless n.respond_to? :to_int
-    match[n]
+    @match.nil? ? nil : @match[n]
   end
   
   # Return the <i><b>pre</b>-match</i> (in the regular expression sense) of the last scan.
@@ -593,7 +593,7 @@ class StringScanner
   #   s.post_match            # -> "string"  
   #
   def pre_match
-    string[0...(pos - match.to_s.size)] if matched?
+    string[0...(pos - @match.to_s.size)] if matched?
   end
   
   # Return the <i><b>post</b>-match</i> (in the regular expression sense) of the last scan.
@@ -605,7 +605,7 @@ class StringScanner
   #   s.post_match            # -> "string"
   #
   def post_match
-    match.post_match if matched?
+    @match.post_match if matched?
   end
   
   private
