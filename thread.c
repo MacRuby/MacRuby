@@ -36,23 +36,6 @@ thread_s_alloc(VALUE rcv, SEL sel)
     return Data_Wrap_Struct(rb_cThread, NULL, NULL, t);
 }
 
-/*
- *  call-seq:
- *     Thread.start([args]*) {|args| block }   => thread
- *     Thread.fork([args]*) {|args| block }    => thread
- *
- *  Basically the same as <code>Thread::new</code>. However, if class
- *  <code>Thread</code> is subclassed, then calling <code>start</code> in that
- *  subclass will not invoke the subclass's <code>initialize</code> method.
- */
-
-static VALUE
-thread_start(VALUE klass, VALUE args)
-{
-    // TODO
-    return Qnil;
-}
-
 static VALUE
 thread_initialize(VALUE thread, SEL sel, int argc, const VALUE *argv)
 {
@@ -78,6 +61,23 @@ thread_initialize(VALUE thread, SEL sel, int argc, const VALUE *argv)
     }
 
     return thread;
+}
+
+/*
+ *  call-seq:
+ *     Thread.start([args]*) {|args| block }   => thread
+ *     Thread.fork([args]*) {|args| block }    => thread
+ *
+ *  Basically the same as <code>Thread::new</code>. However, if class
+ *  <code>Thread</code> is subclassed, then calling <code>start</code> in that
+ *  subclass will not invoke the subclass's <code>initialize</code> method.
+ */
+
+static VALUE
+thread_start(VALUE klass, SEL sel, int argc, VALUE *argv)
+{
+    VALUE th = thread_s_alloc(klass, 0);
+    return thread_initialize(th, 0, argc, argv);
 }
 
 VALUE
@@ -1444,9 +1444,8 @@ Init_Thread(void)
     rb_cThread = rb_define_class("Thread", rb_cObject);
     rb_objc_define_method(*(VALUE *)rb_cThread, "alloc", thread_s_alloc, 0);
 
-    //rb_define_singleton_method(rb_cThread, "new", thread_s_new, -1);
-    rb_define_singleton_method(rb_cThread, "start", thread_start, -2);
-    rb_define_singleton_method(rb_cThread, "fork", thread_start, -2);
+    rb_objc_define_method(*(VALUE *)rb_cThread, "start", thread_start, -1);
+    rb_objc_define_method(*(VALUE *)rb_cThread, "fork", thread_start, -1);
     rb_objc_define_method(*(VALUE *)rb_cThread, "main", rb_thread_s_main, 0);
     rb_objc_define_method(*(VALUE *)rb_cThread, "current", thread_s_current, 0);
     rb_objc_define_method(*(VALUE *)rb_cThread, "stop", rb_thread_stop, 0);
