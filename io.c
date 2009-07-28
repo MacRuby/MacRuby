@@ -1336,6 +1336,16 @@ rb_io_gets_m(VALUE io, SEL sel, int argc, VALUE *argv)
 	    data_read += seplen;
 
 	    if (memcmp(tmp_buf, sepstr, seplen) == 0) {
+		// We found the separator, however in order to conform to the
+		// Ruby specification we must try to read one more byte, in
+		// order to properly mark the stream as EOF.
+		UInt8 c;
+		if (rb_io_read_internal(io_struct, &c, 1) == 1) {
+		    // If we could read one byte, let's seek to one byte in the
+		    // past to revert the stream to its original position.
+		    rb_io_seek(io, OFFT2NUM(NUM2OFFT(rb_io_tell(io, 0)) - 1),
+			    SEEK_SET); 
+		}
 		break;
 	    }
 	}
@@ -1345,9 +1355,9 @@ rb_io_gets_m(VALUE io, SEL sel, int argc, VALUE *argv)
 	}
 	CFDataSetLength(data, data_read);
     }
-	OBJ_TAINT(bstr);
-	io_struct->lineno += 1;
-	ARGF.lineno = INT2FIX(io_struct->lineno);
+    OBJ_TAINT(bstr);
+    io_struct->lineno += 1;
+    ARGF.lineno = INT2FIX(io_struct->lineno);
     return bstr; 
 }
 
