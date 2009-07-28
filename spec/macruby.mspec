@@ -31,7 +31,9 @@ class MSpecScript
     'library/observer',
     'library/pathname',
     'library/readline',
-    'library/stringscanner'
+    'library/scanf',
+    'library/stringscanner',
+    'library/tmpdir'
   ]
   
   # Prepend the paths with the proper prefix
