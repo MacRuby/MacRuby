@@ -84,6 +84,7 @@ class RoxorCompiler {
 	ID self_id;
 	Value *current_self;
 	bool current_block;
+	bool current_block_chain;
 	Value *current_var_uses;
 	Value *running_block;
 	BasicBlock *begin_bb;

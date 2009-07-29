@@ -49,6 +49,7 @@ RoxorCompiler::RoxorCompiler(void)
     current_var_uses = NULL;
     running_block = NULL;
     current_block = false;
+    current_block_chain = false;
     current_block_node = NULL;
     current_block_func = NULL;
     current_opened_class = NULL;
@@ -4125,8 +4126,8 @@ rescan_args:
 
 		current_mid = mid;
 		current_instance_method = !singleton_method;
-		const bool old_current_block = current_block;
-		current_block = false;
+		const bool old_current_block_chain = current_block_chain;
+		current_block_chain = false;
 
 		DEBUG_LEVEL_INC();
 		Value *val = compile_node(body);
@@ -4134,7 +4135,7 @@ rescan_args:
 		Function *new_function = cast<Function>(val);
 		DEBUG_LEVEL_DEC();
 
-		current_block = old_current_block;
+		current_block_chain = old_current_block_chain;
 		current_mid = 0;
 		current_instance_method = false;
 
@@ -4491,18 +4492,20 @@ rescan_args:
 		NODE *old_current_block_node = current_block_node;
 		ID old_current_mid = current_mid;
 		bool old_current_block = current_block;
+		bool old_current_block_chain = current_block_chain;
 		int old_return_from_block = return_from_block;
 		BasicBlock *old_rescue_bb = rescue_bb;
 
 		current_mid = 0;
 		current_block = true;
+		current_block_chain = true;
 
 		assert(node->nd_body != NULL);
 		Value *block = compile_node(node->nd_body);	
 		assert(Function::classof(block));
 
 		BasicBlock *return_from_block_bb = NULL;
-		if (!old_current_block && return_from_block != -1) {
+		if (!old_current_block_chain && return_from_block != -1) {
 		    // The block we just compiled contains one or more
 		    // return expressions! We need to enclose the dispatcher
 		    // call inside an exception handler, since return-from
@@ -4517,6 +4520,7 @@ rescan_args:
 		current_loop_end_bb = old_current_loop_end_bb;
 		current_mid = old_current_mid;
 		current_block = old_current_block;
+		current_block_chain = old_current_block_chain;
 
 		current_block_func = cast<Function>(block);
 		current_block_node = node->nd_body;
