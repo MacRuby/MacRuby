@@ -1,2 +1,13 @@
 fails:String#unpack with 'DdEeFfGg' directives returns an array by decoding self in little-endian order according to the format string
 fails:String#unpack with 'm' directive returns an array by decoding self according to the format string
+fails:String#unpack with 'w' directive produces a BER-compressed integer
+fails:String#unpack with 'U' directive returns an array by decoding self according to the format string
+fails:String#unpack with 'H' and 'h' directives returns an array by decoding self according to the format string
+fails:String#unpack with 'B' and 'b' directives returns an array by decoding self according to the format string
+fails:String#unpack with 'DdEeFfGg' directives returns an array by decoding self according to the format string
+fails:String#unpack with 'Q' and 'q' directives returns Bignums for big numeric values on little-endian platforms
+fails:String#unpack with 'Q' and 'q' directives returns an array in little-endian (native format) order by decoding self according to the format string
+fails:String#unpack with 'C' and 'c' directives returns an array by decoding self according to the format string
+fails:String#unpack with 'V' and 'v' directives returns an array by decoding self according to the format string
+fails:String#unpack with 'N' and 'n' directives returns an array by decoding self according to the format string
+fails:String#unpack returns an array by decoding self in little-endian (native format) order according to the format string

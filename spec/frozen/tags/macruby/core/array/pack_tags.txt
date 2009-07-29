@@ -89,3 +89,17 @@ fails:Array#pack with format 'M' calls #to_s on object to convert to string
 fails:Array#pack with format 'm' tries to convert the pack argument to a String using #to_str
 fails:Array#pack with format 'u' tries to convert the pack argument to a String using #to_str
 fails:Array#pack with format 'w' calls to_int on non-integer values before packing
+fails:Array#pack just ignores unknown format
+fails:Array#pack with format 'v' returns a string containing 2 bytes for an integer
+fails:Array#pack with format 's' returns a string containing 2 bytes for an integer
+fails:Array#pack with format 'S' returns a string containing 2 bytes for an integer
+fails:Array#pack with format 's!' returns a string containing 2 bytes for an integer
+fails:Array#pack with format 's_' returns a string containing 2 bytes for an integer
+fails:Array#pack with format 'S!' returns a string containing 2 bytes for an integer
+fails:Array#pack with format 'S_' returns a string containing 2 bytes for an integer
+fails:Array#pack with format 'f' accepts a NaN
+fails:Array#pack with format 'd' accepts a NaN
+fails:Array#pack with format 'e' accepts a NaN
+fails:Array#pack with format 'E' accepts a NaN
+fails:Array#pack with format 'g' accepts a NaN
+fails:Array#pack with format 'G' accepts a NaN
