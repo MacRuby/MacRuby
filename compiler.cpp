@@ -6081,7 +6081,7 @@ RoxorCompiler::compile_lvar_slot(ID name)
 #endif
 	return iter->second;
     }
-    VALUE *var = GET_VM()->get_binding_lvar(name);
+    VALUE *var = GET_VM()->get_binding_lvar(name, false);
     if (var != NULL) {
 #if ROXOR_COMPILER_DEBUG
 	printf("get_binding_lvar %s (%p)\n", rb_id2name(name), *(void **)var);

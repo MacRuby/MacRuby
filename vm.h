@@ -861,17 +861,7 @@ class RoxorVM {
 	    return exc;
 	}
 
-	VALUE *get_binding_lvar(ID name) {
-	    if (!bindings.empty()) {
-		rb_vm_binding_t *b = bindings.back();
-		for (rb_vm_local_t *l = b->locals; l != NULL; l = l->next) {
-		    if (l->name == name) {
-			return l->value;
-		    }
-		}
-	    }
-	    return NULL;
-	}
+	VALUE *get_binding_lvar(ID name, bool create);
 
 	VALUE pop_broken_with(void) {
 	    VALUE v = broken_with;

@@ -4045,11 +4045,41 @@ rb_parse_in_eval(void)
     return rb_vm_parse_in_eval() ? 1 : 0;
 }
 
+VALUE *
+RoxorVM::get_binding_lvar(ID name, bool create)
+{
+    if (!bindings.empty()) {
+	rb_vm_binding_t *b = bindings.back();
+	rb_vm_local_t **l = &b->locals;
+	while (*l != NULL) {
+	    if ((*l)->name == name) {
+		return (*l)->value;
+	    }
+	    l = &(*l)->next;
+	}
+	if (create) {
+	    GC_WB(l, xmalloc(sizeof(rb_vm_local_t)));
+	    (*l)->name = name;
+	    GC_WB(&(*l)->value, xmalloc(sizeof(VALUE)));
+	    (*l)->next = NULL;
+	    return (*l)->value;
+	}
+    }
+    return NULL;
+}
+
+extern "C"
+int
+rb_local_define(ID id)
+{
+    return GET_VM()->get_binding_lvar(id, true) != NULL ? 1 : 0;
+}
+
 extern "C"
 int
 rb_local_defined(ID id)
 {
-    return GET_VM()->get_binding_lvar(id) != NULL ? 1 : 0;
+    return GET_VM()->get_binding_lvar(id, false) != NULL ? 1 : 0;
 }
 
 extern "C"

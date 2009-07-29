@@ -8094,6 +8094,8 @@ gettable_gen(struct parser_params *parser, ID id)
     return 0;
 }
 
+int rb_local_define(ID id);
+
 static NODE*
 assignable_gen(struct parser_params *parser, ID id, NODE *val)
 {
@@ -8136,14 +8138,18 @@ assignable_gen(struct parser_params *parser, ID id, NODE *val)
 	    else if (local_id(id)) {
 		return NEW_LASGN(id, val);
 	    }
-	    else{
-		dyna_var(id);
+	    else {
+		if (!rb_local_define(id)) {
+		    dyna_var(id);
+		}
 		return NEW_DASGN_CURR(id, val);
 	    }
 	}
 	else {
 	    if (!local_id(id)) {
-		local_var(id);
+		if (!rb_local_define(id)) {
+		    local_var(id);
+		}
 	    }
 	    return NEW_LASGN(id, val);
 	}
