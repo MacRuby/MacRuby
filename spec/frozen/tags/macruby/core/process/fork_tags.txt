@@ -1,0 +1,2 @@
+fails:Process.fork return nil for the child process
+fails:Process.fork runs a block in a child process
