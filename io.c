@@ -1410,11 +1410,7 @@ rb_io_set_lineno(VALUE io, SEL sel, VALUE line_no)
 {
     rb_io_t *io_s = ExtractIOStruct(io);
     rb_io_assert_open(io_s);
-    line_no = rb_check_to_integer(line_no, "to_int");
-    if (NIL_P(line_no)) {
-	rb_raise(rb_eTypeError, "lineno's argument must be coercable to integer");
-    }
-    io_s->lineno = FIX2INT(line_no);
+    io_s->lineno = NUM2INT(line_no);
     return line_no;
 }
 
@@ -2440,6 +2436,7 @@ rb_io_reopen(VALUE io, SEL sel, int argc, VALUE *argv)
 		    "cannot reopen from non file descriptor based IO");
 	}
 
+	int fd = io_s->fd;
 	if (io_s->should_close_streams) {
 	    io_struct_close(io_s, true, true);
 	}
@@ -2451,7 +2448,7 @@ rb_io_reopen(VALUE io, SEL sel, int argc, VALUE *argv)
 		CFRetain(io_s->writeStream);
 	    }
 	}
-	int fd = dup2(other->fd, io_s->fd);
+	fd = dup2(other->fd, fd);
 	if (fd < 0) {
 	    rb_sys_fail("dup2() failed");
 	}
