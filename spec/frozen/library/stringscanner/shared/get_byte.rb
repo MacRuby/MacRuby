@@ -1,3 +1,4 @@
+# encoding: UTF-8
 require 'spec/frozen/library/stringscanner/shared/eucjp'
 
 describe :strscan_get_byte, :shared => true do
@@ -11,18 +12,19 @@ describe :strscan_get_byte, :shared => true do
   end
 
   it "is not multi-byte character sensitive" do
-    s = StringScanner.new("\244\242")
-    s.send(@method).should == "\244"
-    s.send(@method).should == "\242"
+    s = StringScanner.new("あ") 
+    s.send(@method).should == "\xE3"
+    s.send(@method).should == "\x81"
+    s.send(@method).should == "\x82"
     s.send(@method).should == nil
   end
   
   it "is not multi-byte character sensitive and can handle encodings" do
     s = StringScanner.new(TestStrings.eucjp)
-    s.send(@method).should == "\244"
-    s.send(@method).should == "\242"
+    s.send(@method).should == TestStrings.first_char
+    s.send(@method).should == TestStrings.second_char
     s.send(@method).should == nil
-  end
+  end 
 
   it "returns nil at the end of the string" do
     # empty string case

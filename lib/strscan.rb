@@ -224,6 +224,8 @@ class StringScanner
   #   s.get_byte         # => nil
   #
   def get_byte
+    # temp hack
+    # TODO replace by a solution that will work with UTF-8
     scan(/./mn)
   end
   
@@ -636,6 +638,6 @@ class StringScanner
     end
     
     getstr ? m : m.size
-  end  
+  end
   
 end
