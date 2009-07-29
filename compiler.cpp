@@ -4125,6 +4125,8 @@ rescan_args:
 
 		current_mid = mid;
 		current_instance_method = !singleton_method;
+		const bool old_current_block = current_block;
+		current_block = false;
 
 		DEBUG_LEVEL_INC();
 		Value *val = compile_node(body);
@@ -4132,6 +4134,7 @@ rescan_args:
 		Function *new_function = cast<Function>(val);
 		DEBUG_LEVEL_DEC();
 
+		current_block = old_current_block;
 		current_mid = 0;
 		current_instance_method = false;
 
