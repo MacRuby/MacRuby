@@ -604,6 +604,9 @@ rb_io_read_stream_get_offset(CFReadStreamRef stream)
 
     CFNumberRef pos = CFReadStreamCopyProperty(stream,
 	    kCFStreamPropertyFileCurrentOffset);
+    if (pos == NULL) {
+	return -1;
+    }
     CFNumberGetValue(pos, kCFNumberLongLongType, (void*)&result);
     CFRelease(pos);
 
@@ -638,14 +641,20 @@ rb_io_seek(VALUE io, VALUE offset, int whence)
     }
     // TODO: make this work with IO::SEEK_CUR, SEEK_END, etc.
     if (CFReadStreamGetStatus(io_struct->readStream) == kCFStreamStatusAtEnd) {
-#if 0 // this doesn't work...
 	// Terrible hack to work around the fact that CFReadStreams, once they
 	// reach EOF, are permanently exhausted even if we set the offset.
+	if (!io_struct->should_close_streams) {
+	    rb_raise(rb_eRuntimeError,
+		    "can't seek inside a fixed closed stream");
+	}
+	int fd = dup(io_struct->fd);
+	if (fd < 0) {
+	    rb_sys_fail("dup() failed");
+	}
 	GC_WB(&io_struct->readStream,
-		_CFReadStreamCreateFromFileDescriptor(NULL, io_struct->fd));
+		_CFReadStreamCreateFromFileDescriptor(NULL, fd));
 	CFReadStreamOpen(io_struct->readStream);
 	CFMakeCollectable(io_struct->readStream);
-#endif
     }
     rb_io_read_stream_set_offset(io_struct->readStream, NUM2OFFT(offset));
     return INT2FIX(0);
@@ -769,13 +778,30 @@ rb_io_rewind(VALUE io, SEL sel)
  *  So <code>IO#sysread</code> doesn't work with <code>IO#eof?</code>.
  */
 
+static inline long rb_io_read_internal(rb_io_t *io_struct, UInt8 *buffer,
+	long len);
+
 VALUE
 rb_io_eof(VALUE io, SEL sel)
 {
     rb_io_t *io_struct = ExtractIOStruct(io);
     rb_io_assert_readable(io_struct);
-    return CFReadStreamGetStatus(io_struct->readStream)
-	== kCFStreamStatusAtEnd ? Qtrue : Qfalse;
+
+    if (CFReadStreamGetStatus(io_struct->readStream) == kCFStreamStatusAtEnd) {
+	return Qtrue;
+    }
+
+    // The stream is still open, however, there might not be any data left.
+    UInt8 c;
+    if (rb_io_read_internal(io_struct, &c, 1) != 1) {
+	// Can't read anything.
+	return Qtrue;
+    }
+    const off_t off = NUM2OFFT(rb_io_tell(io, 0));
+    if (off != -1) {
+	rb_io_seek(io, OFFT2NUM(off - 1), SEEK_SET); 
+    }
+    return Qfalse;
 }
 
 /*
@@ -1336,16 +1362,6 @@ rb_io_gets_m(VALUE io, SEL sel, int argc, VALUE *argv)
 	    data_read += seplen;
 
 	    if (memcmp(tmp_buf, sepstr, seplen) == 0) {
-		// We found the separator, however in order to conform to the
-		// Ruby specification we must try to read one more byte, in
-		// order to properly mark the stream as EOF.
-		UInt8 c;
-		if (rb_io_read_internal(io_struct, &c, 1) == 1) {
-		    // If we could read one byte, let's seek to one byte in the
-		    // past to revert the stream to its original position.
-		    rb_io_seek(io, OFFT2NUM(NUM2OFFT(rb_io_tell(io, 0)) - 1),
-			    SEEK_SET); 
-		}
 		break;
 	    }
 	}
