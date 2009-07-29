@@ -2385,6 +2385,8 @@ rb_f_fork(VALUE obj, SEL sel)
 
     rb_secure(2);
 
+    rb_raise(rb_eRuntimeError, "fork is not supported yet");
+
     switch (pid = rb_fork(0, 0, 0, Qnil)) {
       case 0:
 	//rb_thread_atfork();
