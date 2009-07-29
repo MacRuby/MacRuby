@@ -2497,9 +2497,16 @@ prefix_escape(VALUE str, int c, rb_encoding *enc)
  */
 
 static inline void
-__append(CFMutableStringRef out, UniChar c, bool prefix)
+__append(CFMutableStringRef out, UniChar c)
 {
     CFStringAppendCharacters(out, &c, 1);
+}
+
+static inline void
+__append_escape(CFMutableStringRef out, UniChar c)
+{
+    __append(out, '\\');
+    __append(out, c);
 }
 
 VALUE
@@ -2510,91 +2517,48 @@ rb_str_inspect(VALUE str, SEL sel)
     CFStringInitInlineBuffer((CFStringRef)str, &buf, CFRangeMake(0, len));
 
     CFMutableStringRef out = CFStringCreateMutable(NULL, 0);
-    __append(out, '"', false);
+    __append(out, '"');
 
     long i;
     for (i = 0; i < len; i++) {
 	UniChar c = CFStringGetCharacterFromInlineBuffer(&buf, i);
-	__append(out, c, false);
-    }
-    __append(out, '"', false);
-
-    return (VALUE)CFMakeCollectable(out);
-
-#if 0
-    const char *p, *pend;
-    VALUE result;
-
-
-
-    p = RSTRING_PTR(str); 
-    pend = p + RSTRING_LEN(str);
-    if (p == NULL) {
-	return rb_str_new2("\"\"");
-    }
-    result = rb_str_buf_new2("");
-    str_cat_char(result, '"', enc);
-    while (p < pend) {
-	int c;
-	int n;
-	int cc;
-
-	c = *p;
-	n = 1;
-
-	p += n;
-	if (c == '"'|| c == '\\' ||
-	    (c == '#' &&
-             p < pend &&
-	     ((cc = *p),
-              (cc == '$' || cc == '@' || cc == '{')))) {
-	    prefix_escape(result, c, enc);
+	if (iswprint(c)) {
+	    __append(out, c);
+	}
+	else if (c == '"'|| c == '\\') {
+	    __append_escape(out, c);
 	}
 	else if (c == '\n') {
-	    prefix_escape(result, 'n', enc);
+	    __append_escape(out, 'n');
 	}
 	else if (c == '\r') {
-	    prefix_escape(result, 'r', enc);
+	    __append_escape(out, 'r');
 	}
 	else if (c == '\t') {
-	    prefix_escape(result, 't', enc);
+	    __append_escape(out, 't');
 	}
 	else if (c == '\f') {
-	    prefix_escape(result, 'f', enc);
+	    __append_escape(out, 'f');
 	}
 	else if (c == '\013') {
-	    prefix_escape(result, 'v', enc);
+	    __append_escape(out, 'v');
 	}
 	else if (c == '\010') {
-	    prefix_escape(result, 'b', enc);
+	    __append_escape(out, 'b');
 	}
 	else if (c == '\007') {
-	    prefix_escape(result, 'a', enc);
+	    __append_escape(out, 'a');
 	}
 	else if (c == 033) {
-	    prefix_escape(result, 'e', enc);
-	}
-	else if (rb_enc_isprint(c, enc)) {
-	    rb_enc_str_buf_cat(result, p-n, n, enc);
+	    __append_escape(out, 'e');
 	}
 	else {
-	    char buf[5];
-	    char *s;
-            const char *q;
-
-            for (q = p-n; q < p; q++) {
-                s = buf;
-                sprintf(buf, "\\x%02X", *q & 0377);
-                while (*s) {
-                    str_cat_char(result, *s++, enc);
-                }
-            }
+	    CFStringAppendFormat(out, NULL, CFSTR("\\x%X"), c);
 	}
     }
-    str_cat_char(result, '"', enc);
+    __append(out, '"');
 
-    return result;
-#endif
+    return (VALUE)CFMakeCollectable(out);
 }
 
 #define IS_EVSTR(p,e) ((p) < (e) && (*(p) == '$' || *(p) == '@' || *(p) == '{'))
