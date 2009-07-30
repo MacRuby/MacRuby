@@ -473,19 +473,19 @@ nucomp_f_complex(VALUE klass, SEL sel, int argc, VALUE *argv)
 }
 
 #define imp1(n) \
-extern VALUE math_##n(VALUE obj, VALUE x);\
+extern VALUE math_##n(VALUE obj, SEL sel, VALUE x);\
 inline static VALUE \
 m_##n##_bang(VALUE x)\
 {\
-    return math_##n(Qnil, x);\
+    return math_##n(Qnil, 0, x);\
 }
 
 #define imp2(n) \
-extern VALUE math_##n(VALUE obj, VALUE x, VALUE y);\
+extern VALUE math_##n(VALUE obj, SEL sel, VALUE x, VALUE y);\
 inline static VALUE \
 m_##n##_bang(VALUE x, VALUE y)\
 {\
-    return math_##n(Qnil, x, y);\
+    return math_##n(Qnil, 0, x, y);\
 }
 
 imp2(atan2)
@@ -496,12 +496,12 @@ imp2(hypot)
 
 #define m_hypot(x,y) m_hypot_bang(x,y)
 
-extern VALUE math_log(int argc, VALUE *argv);
+extern VALUE math_log(VALUE rcv, SEL sel, int argc, VALUE *argv);
 
 static VALUE
 m_log_bang(VALUE x)
 {
-    return math_log(1, &x);
+    return math_log(0, 0, 1, &x);
 }
 
 imp1(sin)
