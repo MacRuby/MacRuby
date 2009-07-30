@@ -669,7 +669,7 @@ struct RRational {
 struct RComplex {
     struct RBasic basic;
     VALUE real;
-    VALUE image;
+    VALUE imag;
 };
 
 struct RData {

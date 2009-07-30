@@ -405,7 +405,9 @@ num_divmod(VALUE x, SEL sel, VALUE y)
 static VALUE
 num_modulo(VALUE x, SEL sel, VALUE y)
 {
-    return rb_funcall(x, '%', 1, y);
+      return rb_funcall(x, '-', 1,
+              rb_funcall(y, '*', 1,
+              rb_funcall(x, rb_intern("div"), 1, y)));
 }
 
 /*
@@ -433,6 +435,20 @@ num_remainder(VALUE x, SEL sel, VALUE y)
 	return rb_funcall(z, '-', 1, y);
     }
     return z;
+}
+
+/*
+ *  call-seq:
+ *     num.real?  ->  true or false
+ *
+ *  Returns <code>true</code> if <i>num</i> is a <code>Real</code>
+ *  (i.e. non <code>Complex</code>).
+ */
+
+static VALUE
+num_real_p(VALUE num, SEL sel)
+{
+    return Qtrue;
 }
 
 /*
@@ -3267,11 +3283,13 @@ Init_Numeric(void)
     rb_objc_define_method(rb_cNumeric, "fdiv", num_fdiv, 1);
     rb_objc_define_method(rb_cNumeric, "div", num_div, 1);
     rb_objc_define_method(rb_cNumeric, "divmod", num_divmod, 1);
+    rb_objc_define_method(rb_cNumeric, "%", num_modulo, 1);
     rb_objc_define_method(rb_cNumeric, "modulo", num_modulo, 1);
     rb_objc_define_method(rb_cNumeric, "remainder", num_remainder, 1);
     rb_objc_define_method(rb_cNumeric, "abs", num_abs, 0);
     rb_objc_define_method(rb_cNumeric, "to_int", num_to_int, 0);
-
+    
+    rb_objc_define_method(rb_cNumeric, "real?", num_real_p, 0);
     rb_objc_define_method(rb_cNumeric, "scalar?", num_scalar_p, 0);
     rb_objc_define_method(rb_cNumeric, "integer?", num_int_p, 0);
     rb_objc_define_method(rb_cNumeric, "zero?", num_zero_p, 0);
