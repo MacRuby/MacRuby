@@ -2619,46 +2619,50 @@ rb_file_s_split(VALUE klass, SEL sel, VALUE path)
 
 static VALUE separator;
 
-static VALUE rb_file_join(VALUE ary, VALUE sep);
-
 static VALUE
 rb_file_join(VALUE ary, VALUE sep)
 {
     CFMutableStringRef res = CFStringCreateMutable(NULL, 0);
     CFStringRef sep_cf = (CFStringRef)sep;
-    long count;
 
-    count = RARRAY_LEN(ary);
+    const long count = RARRAY_LEN(ary);
     if (count > 0) {
-      long i;
-      for (i = 0; i < count; i++) {
-        VALUE tmp = RARRAY_AT(ary, i);
-        switch (TYPE(tmp)) {
-        case T_STRING:
-          break;
-        case T_ARRAY:
-          tmp = rb_file_join(tmp, sep);
-          break;
-        default:
-          FilePathStringValue(tmp);
-        }
+	long i;
+	for (i = 0; i < count; i++) {
+	    VALUE tmp = RARRAY_AT(ary, i);
+	    switch (TYPE(tmp)) {
+		case T_STRING:
+		    if (*(VALUE *)tmp == rb_cByteString) {
+			tmp = (VALUE)rb_bytestring_resolve_cfstring(tmp);
+		    }
+		    break;
 
-        CFStringRef tmp_cf = (CFStringRef)tmp;
+		case T_ARRAY:
+		    tmp = rb_file_join(tmp, sep);
+		    break;
 
-        if (i > 0) {
-          if (CFStringHasSuffix(res, sep_cf)) {
-            if (CFStringHasPrefix(tmp_cf, sep_cf)) {
-              // Remove trailing slash from res if tmp starts with a slash.
-              CFStringDelete(res, CFRangeMake(CFStringGetLength(res) - 1, 1));
-            }
-          }
-          else if (!CFStringHasPrefix(tmp_cf, sep_cf)) {
-            CFStringAppend(res, sep_cf);
-          }
-        }
+		default:
+		    FilePathStringValue(tmp);
+	    }
 
-        CFStringAppend(res, tmp_cf);
-      }
+	    CFStringRef tmp_cf = (CFStringRef)tmp;
+
+	    if (i > 0) {
+		if (CFStringHasSuffix(res, sep_cf)) {
+		    if (CFStringHasPrefix(tmp_cf, sep_cf)) {
+			// Remove trailing slash from res if tmp starts with a
+			// slash.
+			CFStringDelete(res,
+				CFRangeMake(CFStringGetLength(res) - 1, 1));
+		    }
+		}
+		else if (!CFStringHasPrefix(tmp_cf, sep_cf)) {
+		    CFStringAppend(res, sep_cf);
+		}
+	    }
+
+	    CFStringAppend(res, tmp_cf);
+	}
     }
 
     CFMakeCollectable(res);
@@ -3743,12 +3747,7 @@ path_check_0(VALUE path, int execpath)
     char *p = 0, *s;
 
     if (!is_absolute_path(p0)) {
-	char *buf = my_getcwd();
-	VALUE newpath;
-
-	newpath = rb_str_new2(buf);
-	xfree(buf);
-
+	VALUE newpath = my_getcwd();
 	rb_str_cat2(newpath, "/");
 	rb_str_cat2(newpath, p0);
 	path = newpath;

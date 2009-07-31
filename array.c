@@ -2465,7 +2465,9 @@ rb_ary_rassoc(VALUE ary, SEL sel, VALUE value)
 static VALUE
 rb_ary_equal(VALUE ary1, SEL sel, VALUE ary2)
 {
-    if (ary1 == ary2) return Qtrue;
+    if (ary1 == ary2) {
+	return Qtrue;
+    }
     if (TYPE(ary2) != T_ARRAY) {
 	if (!rb_respond_to(ary2, rb_intern("to_ary"))) {
 	    return Qfalse;

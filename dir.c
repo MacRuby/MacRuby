@@ -744,9 +744,9 @@ dir_s_chdir(VALUE obj, SEL sel, int argc, VALUE *argv)
 
     if (rb_block_given_p()) {
 	struct chdir_data args;
-	char *cwd = my_getcwd();
+	VALUE cwd = my_getcwd();
 
-	args.old_path = rb_tainted_str_new2(cwd); xfree(cwd);
+	args.old_path = cwd;
 	rb_objc_retain((const void *)args.old_path);
 	args.new_path = path;
 	args.done = Qfalse;
@@ -771,15 +771,8 @@ dir_s_chdir(VALUE obj, SEL sel, int argc, VALUE *argv)
 static VALUE
 dir_s_getwd(VALUE dir, SEL sel)
 {
-    char *path;
-    VALUE cwd;
-
     rb_secure(4);
-    path = my_getcwd();
-    cwd = rb_tainted_str_new2(path);
-
-    xfree(path);
-    return cwd;
+    return my_getcwd();
 }
 
 static void

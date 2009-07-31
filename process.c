@@ -2113,9 +2113,9 @@ rb_run_exec_options(const struct rb_exec_arg *e, struct rb_exec_arg *s)
     obj = rb_ary_entry(options, EXEC_OPTION_CHDIR);
     if (!NIL_P(obj)) {
         if (!NIL_P(soptions)) {
-            char *cwd = my_getcwd();
+            VALUE cwd = my_getcwd();
             rb_ary_store(soptions, EXEC_OPTION_CHDIR,
-                         hide_obj(rb_str_new2(cwd)));
+                         hide_obj(cwd));
         }
         if (chdir(RSTRING_PTR(obj)) == -1)
             return -1;

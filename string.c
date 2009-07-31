@@ -944,11 +944,27 @@ bool rb_objc_str_is_pure(VALUE);
  *  <code><=></code> <i>obj</i> returns zero.
  */
 
+#if 0
+static inline CFDataRef
+str_data(VALUE str)
+{
+    if (*(VALUE *)str == rb_cByteString) {
+	return rb_bytestring_wrapped_data(str);
+    }
+    else {
+	CFDataRef data = CFStringCreateExternalRepresentation(NULL, 
+		(CFStringRef)str, kCFStringEncodingUTF8, 0);
+	if (data != NULL) {
+	    CFMakeCollectable(data);
+	}
+	return data;
+    }
+}
+#endif
+
 static VALUE
 rb_str_equal_imp(VALUE str1, SEL sel, VALUE str2)
 {
-    int len;
-
     if (str1 == str2) {
 	return Qtrue;
     }
@@ -958,9 +974,10 @@ rb_str_equal_imp(VALUE str1, SEL sel, VALUE str2)
 	}
 	return rb_equal(str2, str1);
     }
-    len = RSTRING_LEN(str1);
-    if (len != RSTRING_LEN(str2)) {
-	return Qfalse;
+    if (*(VALUE *)str1 == *(VALUE *)str2) {
+	if (RSTRING_LEN(str1) != RSTRING_LEN(str2)) {
+	    return Qfalse;
+	}
     }
     if (!rb_objc_str_is_pure(str2)) {
 	/* This is to work around a strange bug in CFEqual's objc 
@@ -970,11 +987,7 @@ rb_str_equal_imp(VALUE str1, SEL sel, VALUE str2)
 	str1 = str2;
 	str2 = tmp;
     }
-    if (CFEqual((CFTypeRef)str1, (CFTypeRef)str2)) {
-	return Qtrue;
-    }
-
-    return Qfalse;
+    return CFEqual((CFTypeRef)str1, (CFTypeRef)str2) ? Qtrue : Qfalse;
 }
 
 VALUE
@@ -5431,6 +5444,52 @@ rb_bytestring_resize(VALUE str, long newsize)
     CFDataSetLength(rb_bytestring_wrapped_data(str), newsize);
 }
 
+CFStringRef
+rb_bytestring_resolve_cfstring(VALUE str)
+{
+    CFDataRef data = rb_bytestring_wrapped_data(str);
+    CFStringRef cfstr = CFStringCreateFromExternalRepresentation(NULL,
+	data, kCFStringEncodingUTF8);
+    if (cfstr == NULL) {
+	// If UTF8 doesn't work, try ASCII.
+	cfstr = CFStringCreateFromExternalRepresentation(NULL,
+		data, kCFStringEncodingASCII);
+    }
+    if (cfstr != NULL) {
+	return CFMakeCollectable(cfstr);
+    }
+    return (CFStringRef)str;
+}
+
+static bool
+imp_rb_bytestring_isEqual(void *rcv, SEL sel, void *other)
+{
+    if (rcv == other) {
+	return true;
+    }
+    if (*(VALUE *)other == rb_cByteString) {
+	// Both operands are bytestrings.
+	CFDataRef rcv_data = rb_bytestring_wrapped_data((VALUE)rcv);
+	CFDataRef other_data = rb_bytestring_wrapped_data((VALUE)other);
+	if (CFDataGetLength(rcv_data) != CFDataGetLength(other_data)) {
+	    return false;
+	}
+	return CFEqual(rcv_data, other_data);
+    }
+    else {
+	// Given operand is a character string.
+	CFStringRef rcv_str = rb_bytestring_resolve_cfstring((VALUE)rcv);
+	if (rcv_str == (CFStringRef)rcv) {
+	    // Can't resolve a character string based on that data.
+	    return false;
+	}
+	if (CFStringGetLength(rcv_str) != CFStringGetLength(other)) {
+	    return false;
+	}
+	return CFEqual(rcv_str, (CFTypeRef)other);
+    }
+}
+
 static CFIndex
 imp_rb_bytestring_length(void *rcv, SEL sel) 
 {
@@ -5704,6 +5763,8 @@ Init_String(void)
 	    0, "@");
     objc_registerClassPair((Class)rb_cByteString);
 
+    rb_objc_install_method2((Class)rb_cByteString, "isEqual:",
+	    (IMP)imp_rb_bytestring_isEqual);
     rb_objc_install_method2((Class)rb_cByteString, "length",
 	    (IMP)imp_rb_bytestring_length);
     rb_objc_install_method2((Class)rb_cByteString, "characterAtIndex:",

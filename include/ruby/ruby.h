@@ -376,6 +376,7 @@ VALUE rb_bytestring_new();
 VALUE rb_bytestring_new_with_data(const UInt8 *buf, long size);
 VALUE rb_bytestring_new_with_cfdata(CFMutableDataRef data);
 CFMutableDataRef rb_bytestring_wrapped_data(VALUE);
+CFStringRef rb_bytestring_resolve_cfstring(VALUE str);
 UInt8 *rb_bytestring_byte_pointer(VALUE);
 VALUE rb_coerce_to_bytestring(VALUE);
 long rb_bytestring_length(VALUE str);
