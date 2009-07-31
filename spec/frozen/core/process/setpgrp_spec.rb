@@ -40,8 +40,12 @@ describe "Process.setpgrp and Process.getpgrp" do
 
   describe "Process.setpgrp" do
     platform_is_not :windows do
-      it "returns zero" do
-        Process.setpgrp.should == 0
+      # XXX: the spec does pass in MacRuby but causes a deadlock in ioctl() when
+      # initializing libedit (readline) later.
+      not_compliant_on :macruby do
+        it "returns zero" do
+          Process.setpgrp.should == 0
+        end
       end
     end
   end
