@@ -115,11 +115,26 @@ rb_get_path_check(VALUE obj, int check)
 	tmp = obj;
     }
   exit:
-    StringValueCStr(tmp);
-    if (check && obj != tmp) {
-	rb_check_safe_obj(tmp);
+    if (CLASS_OF(tmp) == rb_cByteString) {
+	const long len = rb_bytestring_length(tmp);
+	char *buf = (char *)alloca(len + 1);
+	memcpy(buf, (const char *)rb_bytestring_byte_pointer(tmp), len); 
+	buf[len] = '\0';
+	CFStringRef str = CFStringCreateWithFileSystemRepresentation(NULL,
+		buf);
+	if (str == NULL) {
+	    rb_raise(rb_eRuntimeError,
+		    "can't convert given ByteString to path");
+	}
+	return (VALUE)CFMakeCollectable(str);
     }
-    return rb_str_new4(tmp);
+    else {
+	StringValueCStr(tmp);
+	if (check && obj != tmp) {
+	    rb_check_safe_obj(tmp);
+	}
+	return rb_str_new4(tmp);
+    }
 }
 
 VALUE
