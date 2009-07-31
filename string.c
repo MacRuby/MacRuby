@@ -944,24 +944,6 @@ bool rb_objc_str_is_pure(VALUE);
  *  <code><=></code> <i>obj</i> returns zero.
  */
 
-#if 0
-static inline CFDataRef
-str_data(VALUE str)
-{
-    if (*(VALUE *)str == rb_cByteString) {
-	return rb_bytestring_wrapped_data(str);
-    }
-    else {
-	CFDataRef data = CFStringCreateExternalRepresentation(NULL, 
-		(CFStringRef)str, kCFStringEncodingUTF8, 0);
-	if (data != NULL) {
-	    CFMakeCollectable(data);
-	}
-	return data;
-    }
-}
-#endif
-
 static VALUE
 rb_str_equal_imp(VALUE str1, SEL sel, VALUE str2)
 {
