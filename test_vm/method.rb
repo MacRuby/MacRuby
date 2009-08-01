@@ -54,3 +54,8 @@ assert '42', %{
   def foo=(x); x+=1; end
   p(self.foo=42)
 }
+
+assert '42', %{
+  def foo; p 42; end
+  foo(*[])
+}
