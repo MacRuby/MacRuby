@@ -1,7 +1,7 @@
 require 'date' 
 require File.dirname(__FILE__) + '/../../spec_helper'
 
-describe "Date#strftime" do
+describe "Date#strptime" do
 
   it "should be able to parse without arguments" do
     Date.strptime.should == Date.civil(-4712, 1, 1)
