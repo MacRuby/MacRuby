@@ -41,6 +41,13 @@ VALUE rb_stdin = 0, rb_stdout = 0, rb_stderr = 0;
 VALUE rb_deferr;		/* rescue VIM plugin */
 static VALUE orig_stdout, orig_stderr;
 
+// kept_streams is an Array of CFStreams that cannot be released, because
+// their file descriptor would be closed at the very same time. These streams
+// are basically standard IO streams (stdio) but also streams created by 
+// IO#initialize (accepting a given file descriptor).
+// TODO: not thread-safe.
+static VALUE kept_streams;
+
 VALUE rb_output_fs;
 VALUE rb_rs;
 VALUE rb_output_rs;
@@ -331,7 +338,8 @@ CFReadStreamRef _CFReadStreamCreateFromFileDescriptor(CFAllocatorRef alloc, int 
 CFWriteStreamRef _CFWriteStreamCreateFromFileDescriptor(CFAllocatorRef alloc, int fd);
 
 static inline void 
-prepare_io_from_fd(rb_io_t *io_struct, int fd, int mode, bool should_close_streams)
+prepare_io_from_fd(rb_io_t *io_struct, int fd, int mode,
+	bool should_close_streams)
 {
     // TODO we should really get rid of these FMODE_* constants and instead
     // always use the POSIX ones.
@@ -381,6 +389,9 @@ prepare_io_from_fd(rb_io_t *io_struct, int fd, int mode, bool should_close_strea
 		CFReadStreamOpen(r);
 		GC_WB(&io_struct->readStream, r);
 		CFMakeCollectable(r);
+		if (!should_close_streams) {
+		    rb_ary_push(kept_streams, (VALUE)r);
+		}
 	    } 
 	    else {
 		io_struct->readStream = NULL;
@@ -398,6 +409,9 @@ prepare_io_from_fd(rb_io_t *io_struct, int fd, int mode, bool should_close_strea
 		CFWriteStreamOpen(w);
 		GC_WB(&io_struct->writeStream, w);
 		CFMakeCollectable(w);
+		if (!should_close_streams) {
+		    rb_ary_push(kept_streams, (VALUE)w);
+		}
 	    } 
 	    else {
 		io_struct->writeStream = NULL;
@@ -2456,14 +2470,6 @@ rb_io_reopen(VALUE io, SEL sel, int argc, VALUE *argv)
 	if (io_s->should_close_streams) {
 	    io_struct_close(io_s, true, true);
 	}
-	else {
-	    if (io_s->readStream != NULL) {
-		CFRetain(io_s->readStream);
-	    }
-	    if (io_s->writeStream != NULL) {
-		CFRetain(io_s->writeStream);
-	    }
-	}
 	fd = dup2(other->fd, fd);
 	if (fd < 0) {
 	    rb_sys_fail("dup2() failed");
@@ -3653,7 +3659,7 @@ rb_io_s_pipe(VALUE recv, SEL sel, int argc, VALUE *argv)
     rb_scan_args(argc, argv, "02", &ext_enc, &int_enc);
 
     int fd[2] = {-1, -1};
-    if (pipe(fd) == -1) {
+    if (pipe(fd) != 0) {
 	rb_sys_fail("pipe() failed");
     }
 
@@ -4556,6 +4562,9 @@ Init_IO(void)
     rb_objc_define_method(rb_cIO, "external_encoding", rb_io_external_encoding, 0);
     rb_objc_define_method(rb_cIO, "internal_encoding", rb_io_internal_encoding, 0);
     rb_objc_define_method(rb_cIO, "set_encoding", rb_io_set_encoding, -1);
+
+    kept_streams = rb_ary_new();
+    rb_objc_retain((void *)kept_streams);
 
     rb_stdin = prep_io(fileno(stdin), FMODE_READABLE, rb_cIO, false);
     GC_WB(&(ExtractIOStruct(rb_stdin)->path), CFSTR("<STDIN>"));
