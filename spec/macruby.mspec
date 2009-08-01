@@ -33,6 +33,7 @@ class MSpecScript
     'library/readline',
     'library/scanf',
     'library/stringscanner',
+    'library/time',
     'library/tmpdir'
   ]
   
