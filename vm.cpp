@@ -2860,7 +2860,7 @@ rb_vm_fast_aref(VALUE obj, VALUE other, struct mcache *cache,
     // TODO what about T_HASH?
     if (overriden == 0 && TYPE(obj) == T_ARRAY) {
 	if (TYPE(other) == T_FIXNUM) {
-	    return rb_ary_entry(obj, FIX2INT(other));
+	    return rb_ary_entry(obj, FIX2LONG(other));
 	}
 	extern VALUE rb_ary_aref(VALUE ary, SEL sel, int argc, VALUE *argv);
 	return rb_ary_aref(obj, 0, 1, &other);
