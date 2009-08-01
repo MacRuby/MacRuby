@@ -18,6 +18,7 @@
 #include "objc.h"
 #include <ruby/node.h>
 #include "vm.h"
+#include "id.h"
 
 #ifdef HAVE_FLOAT_H
 #include <float.h>
@@ -80,7 +81,8 @@ round(double x)
 }
 #endif
 
-static ID id_coerce, id_to_i, id_eq;
+static SEL sel_coerce;
+static ID id_to_i, id_eq;
 
 VALUE rb_cNumeric;
 VALUE rb_cCFNumber;
@@ -178,7 +180,7 @@ num_coerce(VALUE x, SEL sel, VALUE y)
 static VALUE
 coerce_body(VALUE *x)
 {
-    return rb_funcall(x[1], id_coerce, 1, x[0]);
+    return rb_vm_call(x[1], sel_coerce, 1, &x[0], false);
 }
 
 static VALUE
@@ -231,12 +233,12 @@ rb_num_coerce_cmp(VALUE x, VALUE y, ID func)
 }
 
 VALUE
-rb_num_coerce_relop(VALUE x, VALUE y, ID func)
+rb_num_coerce_relop(VALUE x, VALUE y, SEL sel)
 {
     VALUE c, x0 = x, y0 = y;
 
     if (!do_coerce(&x, &y, Qfalse) ||
-	NIL_P(c = rb_funcall(x, func, 1, y))) {
+	NIL_P(c = rb_vm_call(x, sel, 1, &y, false))) {
 	rb_cmperr(x0, y0);
 	return Qnil;		/* not reached */
     }
@@ -1032,7 +1034,7 @@ flo_gt(VALUE x, SEL sel, VALUE y)
 	break;
 
       default:
-	return rb_num_coerce_relop(x, y, '>');
+	return rb_num_coerce_relop(x, y, selGT);
     }
     if (isnan(a)) return Qfalse;
     return (a > b)?Qtrue:Qfalse;
@@ -1067,7 +1069,7 @@ flo_ge(VALUE x, SEL sel, VALUE y)
 	break;
 
       default:
-	return rb_num_coerce_relop(x, y, rb_intern(">="));
+	return rb_num_coerce_relop(x, y, selGE);
     }
     if (isnan(a)) return Qfalse;
     return (a >= b)?Qtrue:Qfalse;
@@ -1101,7 +1103,7 @@ flo_lt(VALUE x, SEL sel, VALUE y)
 	break;
 
       default:
-	return rb_num_coerce_relop(x, y, '<');
+	return rb_num_coerce_relop(x, y, selLT);
     }
     if (isnan(a)) return Qfalse;
     return (a < b)?Qtrue:Qfalse;
@@ -1136,7 +1138,7 @@ flo_le(VALUE x, SEL sel, VALUE y)
 	break;
 
       default:
-	return rb_num_coerce_relop(x, y, rb_intern("<="));
+	return rb_num_coerce_relop(x, y, selLE);
     }
     if (isnan(a)) return Qfalse;
     return (a <= b)?Qtrue:Qfalse;
@@ -2615,7 +2617,7 @@ fix_gt(VALUE x, SEL sel, VALUE y)
       case T_FLOAT:
 	return (double)FIX2LONG(x) > RFLOAT_VALUE(y) ? Qtrue : Qfalse;
       default:
-	return rb_num_coerce_relop(x, y, '>');
+	return rb_num_coerce_relop(x, y, selGT);
     }
 }
 
@@ -2640,7 +2642,7 @@ fix_ge(VALUE x, SEL sel, VALUE y)
       case T_FLOAT:
 	return (double)FIX2LONG(x) >= RFLOAT_VALUE(y) ? Qtrue : Qfalse;
       default:
-	return rb_num_coerce_relop(x, y, rb_intern(">="));
+	return rb_num_coerce_relop(x, y, selGE);
     }
 }
 
@@ -2665,7 +2667,7 @@ fix_lt(VALUE x, SEL sel, VALUE y)
       case T_FLOAT:
 	return (double)FIX2LONG(x) < RFLOAT_VALUE(y) ? Qtrue : Qfalse;
       default:
-	return rb_num_coerce_relop(x, y, '<');
+	return rb_num_coerce_relop(x, y, selLT);
     }
 }
 
@@ -2690,7 +2692,7 @@ fix_le(VALUE x, SEL sel, VALUE y)
       case T_FLOAT:
 	return (double)FIX2LONG(x) <= RFLOAT_VALUE(y) ? Qtrue : Qfalse;
       default:
-	return rb_num_coerce_relop(x, y, rb_intern("<="));
+	return rb_num_coerce_relop(x, y, selLE);
     }
 }
 
@@ -3255,7 +3257,7 @@ rb_install_nsnumber_primitives(void)
 void
 Init_Numeric(void)
 {
-    id_coerce = rb_intern("coerce");
+    sel_coerce = sel_registerName("coerce:");
     id_to_i = rb_intern("to_i");
     id_eq = rb_intern("==");
 
