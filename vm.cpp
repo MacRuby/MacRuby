@@ -2759,8 +2759,22 @@ rb_vm_dispatch(struct mcache *cache, VALUE self, SEL sel, rb_vm_block_t *block,
     if (argc > 0) {
 	va_list ar;
 	va_start(ar, argc);
-	argc = __rb_vm_resolve_args(argv, argc, ar);
+	const int new_argc = __rb_vm_resolve_args(argv, argc, ar);
 	va_end(ar);
+	if (argc > 0 && new_argc == 0) {
+	    const char *selname = sel_getName(sel);
+	    const size_t selnamelen = strlen(selname);
+	    if (selname[selnamelen - 1] == ':') {
+		// Because
+		//   def foo; end; foo(*[])
+		// creates foo but dispatches foo:.
+		char buf[100];
+		strncpy(buf, selname, sizeof buf);
+		buf[selnamelen - 1] = '\0';
+		sel = sel_registerName(buf);
+	    }
+	}
+  	argc = new_argc;
     }
 
     RoxorVM *vm = GET_VM();
