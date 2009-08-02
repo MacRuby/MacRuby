@@ -6,8 +6,8 @@ describe :strscan_concat, :shared => true do
     s.eos?.should be_false
   end
 
-  it "raises a TypeError if the given argument can't be converted to a String" do
-    lambda { a = StringScanner.new('hello').send(@method, :world)    }.should raise_error(TypeError)
+  it "raises a TypeError if the given argument can't be converted to a String" do 
+    lambda { a = StringScanner.new('hello').send(@method, [1,2,3])    }.should raise_error(TypeError)
     lambda { a = StringScanner.new('hello').send(@method, mock('x')) }.should raise_error(TypeError)
   end
 end

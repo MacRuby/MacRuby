@@ -1,5 +1,5 @@
 # encoding: UTF-8
-require 'spec/frozen/library/stringscanner/shared/eucjp'
+require File.expand_path('../eucjp', __FILE__)
 
 describe :strscan_get_byte, :shared => true do
   it "scans one byte and returns it" do
