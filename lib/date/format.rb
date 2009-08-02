@@ -130,6 +130,9 @@ class Date
 	@elem.reject{|k, v| /\A_/ =~ k.to_s || v.nil?}
       end
 
+      # XXX this is required in MacRuby otherwise it conflicts with NSObject#zone
+      def zone; @elem[:zone]; end
+      def zone=(z); @elem[:zone]=z; end
     end
 
   end
