@@ -65,6 +65,8 @@ Init_id(void)
     selInit = sel_registerName("init");
     selInitialize = sel_registerName("initialize");
     selInitialize2 = sel_registerName("initialize:");
+    selDescription = sel_registerName("description");
+    selInspect = sel_registerName("inspect");
     selNew = sel_registerName("new");
     selRespondTo = sel_registerName("respond_to?:");
     selMethodMissing = sel_registerName("method_missing:");

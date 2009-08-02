@@ -75,6 +75,8 @@ extern SEL selAllocWithZone;
 extern SEL selInit;
 extern SEL selInitialize;
 extern SEL selInitialize2;
+extern SEL selDescription;
+extern SEL selInspect;
 extern SEL selNew;
 extern SEL selRespondTo;
 extern SEL selMethodMissing;

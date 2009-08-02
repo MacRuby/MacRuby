@@ -75,14 +75,21 @@ rb_obj_imp_isEqual(void *rcv, SEL sel, void *obj)
 	return RFIXNUM(rcv)->value == RFIXNUM(obj)->value;
     }
 
-    return rb_funcall((VALUE)rcv, idEq, 1, OC2RB(obj)) == Qtrue;
+    VALUE arg = OC2RB(obj);
+    return rb_vm_call((VALUE)rcv, selEq, 1, &arg, false) == Qtrue;
 }
 
 static void *
 rb_obj_imp_init(void *rcv, SEL sel)
 {
-    rb_funcall((VALUE)rcv, idInitialize, 0);
+    rb_vm_call((VALUE)rcv, selInitialize, 0, NULL, false);
     return rcv;
+}
+
+static void *
+rb_obj_imp_description(void *rcv, SEL sel)
+{
+    return (void *)rb_vm_call((VALUE)rcv, selToS, 0, NULL, false);
 }
 
 static VALUE
@@ -117,6 +124,7 @@ rb_define_object_special_methods(VALUE klass)
 	    (IMP)rb_obj_imp_allocWithZone);
     rb_objc_install_method((Class)klass, selIsEqual, (IMP)rb_obj_imp_isEqual);
     rb_objc_install_method((Class)klass, selInit, (IMP)rb_obj_imp_init);
+    rb_objc_install_method((Class)klass, selDescription, (IMP)rb_obj_imp_description);
 }
 
 static VALUE
