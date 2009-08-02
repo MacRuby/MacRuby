@@ -784,6 +784,9 @@ f_divide(VALUE self, VALUE other,
 static VALUE
 nucomp_div(VALUE self, SEL sel, VALUE other)
 {
+    if (f_zero_p(other)) {
+	rb_raise_zerodiv();
+    }
     return f_divide(self, other, f_quo, id_quo);
 }
 
