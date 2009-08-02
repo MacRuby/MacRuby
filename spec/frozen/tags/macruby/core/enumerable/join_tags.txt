@@ -1,0 +1,1 @@
+critical:Enumerable#join raises an ArgumentError when the Array is recursive

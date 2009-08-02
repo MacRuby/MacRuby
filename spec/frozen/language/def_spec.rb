@@ -453,10 +453,11 @@ describe "A method definition in an eval" do
   end
 end
 
-describe "a method definition that sets more than one default parameter all to the same value" do
+describe "A method definition that sets more than one default parameter all to the same value" do
   def foo(a=b=c={})
     [a,b,c]
   end
+
   it "assigns them all the same object by default" do
     foo.should == [{},{},{}]
     a, b, c = foo

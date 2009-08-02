@@ -95,30 +95,30 @@ describe "The super keyword" do
   #   sub.new.b.should == "b"
   #   sub.new.a.should == "a"
   # end
-
-  ruby_version_is ""..."1.9" do
-    it "can be used with implicit arguments from a method defined with define_method" do
-      sup = Class.new do
-        def a; "a"; end
-      end
-
-      sub = Class.new(sup) do
-        define_method :a do
-          super
-        end
-      end
-
-      sub.new.a.should == "a"
-    end
-  end
-
-  ruby_version_is "1.9" do
-    it "can't be used with implicit arguments from a method defined with define_method" do
-      Class.new do
-        define_method :a do
-          super
-        end.should raise_error(RuntimeError) 
-      end
-    end
-  end
+  # 
+  # ruby_version_is ""..."1.9" do
+  #   it "can be used with implicit arguments from a method defined with define_method" do
+  #     sup = Class.new do
+  #       def a; "a"; end
+  #     end
+  # 
+  #     sub = Class.new(sup) do
+  #       define_method :a do
+  #         super
+  #       end
+  #     end
+  # 
+  #     sub.new.a.should == "a"
+  #   end
+  # end
+  # 
+  # ruby_version_is "1.9" do
+  #   it "can't be used with implicit arguments from a method defined with define_method" do
+  #     Class.new do
+  #       define_method :a do
+  #         super
+  #       end.should raise_error(RuntimeError)
+  #     end
+  #   end
+  # end
 end

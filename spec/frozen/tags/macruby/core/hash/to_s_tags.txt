@@ -1,2 +1,2 @@
-critical:Hash#to_s handles recursive hashes
+critical:Hash#to_s handles hashes with recursive values
 fails:Hash#to_s calls inspect on keys and values
