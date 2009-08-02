@@ -4,4 +4,3 @@ fails:Literal Regexps throws NoMethodError on missing to_s
 fails:Literal Regexps allows substitution which mixes modifiers
 fails:Literal Regexps supports /o (once)
 fails:Literal Regexps invokes substitutions for /o only once
-fails:Literal Regexps will not clobber capture variables across threads
