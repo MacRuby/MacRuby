@@ -70,6 +70,7 @@ assert '42', "@a = nil;   @a ||= 42; p @a"
 assert '42', "@a = false; @a ||= 42; p @a"
 assert '42', "@a = 42; @a ||= 40; p @a"
 assert '42', "@a = 40; @b = 2; @c ||= @a + @b; p @c"
+assert '42', "@@a ||= 42; p @@a"
 
 assert 'nil', "a &&= 42; p a"
 assert '42',  "a = 0; a &&= 42; p a"
