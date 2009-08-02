@@ -27,3 +27,5 @@ assert '"global-variable"', "$a = 123; p defined? $a"
 
 assert 'nil', "p defined? A"
 assert '"constant"', "A = 123; p defined? A"
+
+assert 'nil', "p defined?(yield)"

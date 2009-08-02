@@ -30,3 +30,5 @@ assert '42', "class Symbol; def !=(o); p 42; end; end; :foo != :foo"
 assert "false", "p ['foo'] == [:foo]"
 
 assert '424242', "a=''; 3.times { b=''; b << '42'; a<<b }; p a.to_i"
+
+assert '42', 'p -> { 42 }.call'
