@@ -28,6 +28,8 @@ describe :complex_exponent_integer, :shared => true do
     (Complex(3, 4) ** 2.5).should be_close(Complex(-38.0, 41.0), TOLERANCE)
     (Complex(3, 4) ** -2.5).should be_close(Complex(-0.01216, -0.01312), TOLERANCE)
 
+    (Complex(1) ** 1).should == Complex(1)
+
     # NOTE: Takes way too long...
     #(Complex(2, 1) ** bignum_value)
   end

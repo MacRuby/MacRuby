@@ -13,6 +13,11 @@ module MethodSpecs
     def self.redefined
       :last
     end
+
+    def original
+    end
+
+    alias :aka :original 
   end
 
   class Methods

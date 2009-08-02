@@ -21,11 +21,13 @@ describe :complex_equal_value_complex, :shared => true do
 
     Complex(bignum_value, 2.5).should == Complex(bignum_value, 2.5)
     Complex(3.75, bignum_value).should_not == Complex(1.5, bignum_value)
+
+    Complex(nan_value).should_not == Complex(nan_value)
   end
 end
 
 describe :complex_equal_value_numeric, :shared => true do
-  it "returns true when self's imaginery part is 0 and the real part and other have numerical equality" do
+  it "returns true when self's imaginary part is 0 and the real part and other have numerical equality" do
     Complex(3, 0).should == 3
     Complex(-3, 0).should == -3
     

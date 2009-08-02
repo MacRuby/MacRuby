@@ -107,7 +107,7 @@ describe "IO#reopen" do
     File.readlines(@name2_w).should == ["line1-F2\n"]
   end
 
-  it "reassociates self with new a new stream after some reads" do
+  it "reassociates self with a new stream after some reads" do
     @file1.reopen(@file2)
     @file1.gets
     @file1.gets

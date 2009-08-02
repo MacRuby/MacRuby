@@ -66,6 +66,15 @@ describe "File.join" do
     File.join("usr/",  "", "/bin").should == "usr/bin"
   end
 
+  it "gives priority to existing separators in the rightmost argument" do
+    File.join("usr/",   "bin")   .should == "usr/bin"
+    File.join("usr/",   "/bin")  .should == "usr/bin"
+    File.join("usr//",  "/bin")  .should == "usr/bin"
+    File.join("usr//",  "//bin") .should == "usr//bin"
+    File.join("usr//",  "///bin").should == "usr///bin"
+    File.join("usr///", "//bin") .should == "usr//bin"
+  end
+
   # TODO: See MRI svn r23306. Add patchlevel when there is a release.
   ruby_bug "redmine #1418", "1.8.8" do
     it "raises an ArgumentError if passed a recursive array" do

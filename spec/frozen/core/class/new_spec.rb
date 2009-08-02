@@ -63,8 +63,8 @@ describe "Class.new" do
   end
 
   it "creates a class that can be given a name by assigning it to a constant" do
-    MyClass = Class.new
-    MyClass.name.should == "MyClass"
+    ::MyClass = Class.new
+    ::MyClass.name.should == "MyClass"
     a = Class.new
     MyClass::NestedClass = a
     MyClass::NestedClass.name.should == "MyClass::NestedClass"

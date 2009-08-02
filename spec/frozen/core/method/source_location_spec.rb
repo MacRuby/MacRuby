@@ -30,5 +30,9 @@ ruby_version_is "1.9" do
     it "returns the last place the method was defined" do
       MethodSpecs::SourceLocation.method(:redefined).source_location.last.should == 13
     end
+
+    it "returns the location of the original method even if it was aliased" do
+      MethodSpecs::SourceLocation.new.method(:aka).source_location.last.should == 17
+    end
   end
 end

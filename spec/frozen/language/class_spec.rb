@@ -18,6 +18,8 @@ describe "A class definition" do
   end
 
   it "raises TypeError if constant given as class name exists and is not a Module" do
+    # 1.9 needs the constant defined here because of it's scoping rules
+    ClassSpecsNumber = 12
     lambda {
       class ClassSpecsNumber
       end

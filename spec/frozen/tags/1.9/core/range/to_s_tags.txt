@@ -1,1 +1,0 @@
-fails:Range#to_s provides a printable form of self

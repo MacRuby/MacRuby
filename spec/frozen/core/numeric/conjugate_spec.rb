@@ -1,5 +1,5 @@
 require File.dirname(__FILE__) + '/../../spec_helper'
-require File.dirname(__FILE__) + '/shared/conj'
+require File.dirname(__FILE__) + '/../../shared/complex/numeric/conj'
 
 ruby_version_is "1.9" do
   describe "Numeric#conjugate" do

@@ -63,6 +63,34 @@ describe "Kernel#require" do
     end
   end
 
+  ruby_version_is "1.9" do
+    # This expectation is necessarily long-winded because the conditions are
+    # particularly specific. Namely:
+    #   
+    #   * The directory containing the file isn't in $LOAD_PATH
+    #   * The filename has no path components prepended
+    #   * The file hasn't already been required
+    #   * The file exists
+    #
+    # For reference see [ruby-core:24155] in which matz confirms this feature is
+    # intentional for security reasons. 
+    it "does not resolve completely unqualified filenames against the current working directory unless it appears in $LOAD_PATH" do
+      dir = File.join($require_tmp_dir, $$.to_s)
+      $LOAD_PATH.include?(dir).should be_false
+      File.directory?(dir).should be_false
+      Dir.mkdir(dir)
+      File.directory?(dir).should be_true
+      Dir.chdir(dir) do |tmp_dir|
+        file = "#{$$}_#{Process.times.utime}.rb"
+        FileUtils.touch file
+        File.exist?(file).should be_true
+        lambda { require file }.should raise_error(LoadError)
+        File.unlink(file)
+      end
+      Dir.rmdir(dir)
+    end
+  end
+
   it "does not expand/resolve qualified files against $LOAD_PATH" do
     num_features = $LOADED_FEATURES.size
     Dir.chdir($require_fixture_dir + '/../') do |dir|

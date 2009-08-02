@@ -157,6 +157,10 @@ module KernelSpecs
     end
   end
 
+  module InstEvalCVar
+    instance_eval { @@count = 2 }
+  end
+
   module InstEval
     def self.included(base)
       base.instance_eval { @@count = 2 }
@@ -197,6 +201,24 @@ module KernelSpecs
     def initialize_copy(other)
       ScratchPad.record object_id
     end
+  end
+
+  module ParentMixin
+    def parent_mixin_method; end
+  end
+
+  class Parent
+    include ParentMixin
+    def parent_method; end
+    def another_parent_method; end
+  end
+
+  class Child < Parent
+    undef_method :parent_method
+  end
+
+  class Grandchild < Child
+    undef_method :parent_mixin_method
   end
 end
 

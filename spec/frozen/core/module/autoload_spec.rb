@@ -199,19 +199,39 @@ describe "Module#autoload" do
     ModuleSpecs::Autoload::U::V::X.should == :autoload_uvx
   end
 
-  # [ruby-core:19127]
-  it "raises a NameError when the autoload file did not define the constant and a module is opened with the same name" do
-    lambda do
-      module ModuleSpecs::Autoload
-        class W
-          autoload :Y, fixture(__FILE__, "autoload_w.rb")
+  # TODO: Remove duplicate specs (this one and that which follows it) when ruby_bug is fixed
+  ruby_bug "#1745", "1.9" do
+    # [ruby-core:19127]
+    it "raises a NameError when the autoload file did not define the constant and a module is opened with the same name" do
+      lambda do
+        module ModuleSpecs::Autoload
+          class W
+            autoload :Y, fixture(__FILE__, "autoload_w.rb")
 
-          class Y
+            class Y
+            end
           end
         end
-      end
-    end.should raise_error(NameError)
-    ScratchPad.recorded.should == :loaded
+      end.should raise_error(NameError)
+      ScratchPad.recorded.should == :loaded
+    end
+  end
+
+  ruby_version_is ""..."1.9" do
+    # [ruby-core:19127]
+    it "raises a NameError when the autoload file did not define the constant and a module is opened with the same name" do
+      lambda do
+        module ModuleSpecs::Autoload
+          class W
+            autoload :Y, fixture(__FILE__, "autoload_w.rb")
+
+            class Y
+            end
+          end
+        end
+      end.should raise_error(NameError)
+      ScratchPad.recorded.should == :loaded
+    end
   end
 
   it "raises an ArgumentError when an empty filename is given" do

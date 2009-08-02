@@ -1,6 +1,0 @@
-fails:Module#autoload with constant enumeration or removal doesn't trigger file load
-fails:Module#autoload autoloaded constants are removed on the first access
-fails:Module#autoload raises a NameError when the autoload file did not define the constant and a module is opened with the same name
-critical:Module#autoload does not remove the constant from the constant table if the loaded files does not define it
-critical:Module#autoload does not load the file when refering to the constant in defined?
-critical:Module#autoload shares the autoload request across dup'ed copies of modules

@@ -29,10 +29,37 @@ describe "Dir.chdir" do
     Dir.chdir(@original).should == 0
   end
   
+  it "calls #to_str on the argument if it's not a String" do
+    obj = mock('path')
+    obj.should_receive(:to_str).and_return(Dir.pwd)
+    Dir.chdir(obj)
+  end
+
+  ruby_version_is "1.9" do
+    it "calls #to_path on the argument if it's not a String" do
+      obj = mock('path')
+      obj.should_receive(:to_path).and_return(Dir.pwd)
+      Dir.chdir(obj)
+    end
+
+    it "prefers #to_str over #to_path" do
+      obj = Class.new do
+        def to_path; DirSpecs.mock_dir; end
+        def to_str;  Dir.pwd; end
+      end
+      Dir.chdir(obj.new)
+      Dir.pwd.should == @original
+    end
+  end
+
   it "returns the value of the block when a block is given" do
     Dir.chdir(@original) { :block_value }.should == :block_value
   end
   
+  it "defaults to the home directory when given a block but no argument" do
+    Dir.chdir { Dir.pwd.should == ENV['HOME'] }
+  end
+
   it "changes to the specified directory for the duration of the block" do
     ar = Dir.chdir(DirSpecs.mock_dir) { |dir| [dir, DirSpecs.pwd] }
     ar.should == [DirSpecs.mock_dir, DirSpecs.mock_dir]

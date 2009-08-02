@@ -158,6 +158,14 @@ describe "The defined? keyword" do
     ret.should == "expression"
   end
 
+  it "returns 'yield' when there is a block to yield to and defined?(yield) is sent" do
+    def y
+      ret = defined?(yield)
+      ret.should == 'yield'
+    end
+    y {|a| true}
+  end
+
   deviates_on :rubinius do
     # Rubinius does not care about dynamic vars
     it "returns 'local-variable' when defined? is called on a block var" do

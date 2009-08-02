@@ -144,4 +144,13 @@ module ArraySpecs
       nil
     end
   end
+
+  # Useful for shared specs where you pass in an object as the third argument.
+  # @object.new(a,b,c) creates an Array-like object with elements a, b, and c.
+  # This class allows a similar constructor for Array
+  class NewArray
+    def self.new(*args)
+      args
+    end
+  end
 end
