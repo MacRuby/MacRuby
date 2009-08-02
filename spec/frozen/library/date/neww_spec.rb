@@ -2,8 +2,12 @@ require 'date'
 require File.dirname(__FILE__) + '/../../spec_helper'
 require File.dirname(__FILE__) + '/shared/commercial'
 
-describe "Date#neww" do
+ruby_version_is "" ... "1.9" do
 
-  it_behaves_like(:date_commercial, :neww)
+  describe "Date#neww" do
+  
+    it_behaves_like(:date_commercial, :neww)
+  
+  end
 
 end
