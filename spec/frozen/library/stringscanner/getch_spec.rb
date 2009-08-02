@@ -13,15 +13,24 @@ describe "StringScanner#getch" do
   end
 
   it "is multi-byte character sensitive" do
-    s = StringScanner.new("あ") # Japanese hira-kana "A" 
-    s.getch.should == "あ" 
-    s.getch.should be_nil
+    ruby_version_is "" ... "1.9" do
+      @s = StringScanner.new("\244\242")
+      @s.getch.should == "\244"
+      @s.getch.should == "\242"
+    end
+    ruby_version_is "1.9" do
+      @s = StringScanner.new("あ") # Japanese hira-kana "A" 
+      @s.getch.should == "あ" 
+    end
+    @s.getch.should be_nil
   end
-  
-  it "should keep the encoding" do
-    s = StringScanner.new(TestStrings.eucjp)
-    s.getch.encoding.to_s.should == "EUC-JP"
-  end
+   
+  ruby_version_is "1.9" do  
+    it "should keep the encoding" do
+      s = StringScanner.new(TestStrings.eucjp)
+      s.getch.encoding.to_s.should == "EUC-JP"
+    end
+  end  
 
   it "returns nil at the end of the string" do
     # empty string case
