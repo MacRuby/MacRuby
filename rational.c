@@ -2145,6 +2145,7 @@ Init_Rational(void)
 
     rb_objc_define_method(*(VALUE *)rb_cRational, "convert", nurat_s_convert, -1);
 //    rb_define_private_method(CLASS_OF(rb_cRational), "convert", nurat_s_convert, -1);
+    // TODO: insert NSNumber primitives
 }
 
 /*

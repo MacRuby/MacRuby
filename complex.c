@@ -1995,6 +1995,8 @@ Init_Complex(void)
 
     rb_define_const(rb_cComplex, "I",
 		    f_complex_new_bang2(rb_cComplex, ZERO, ONE));
+
+    // TODO: insert NSNumber primitives
 }
 
 /*
