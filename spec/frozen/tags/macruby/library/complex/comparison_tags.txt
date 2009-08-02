@@ -1,1 +1,0 @@
-fails:Complex#<=> compares the absolute values of self and other

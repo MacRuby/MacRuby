@@ -1,7 +1,0 @@
-fails:Complex.new returns a new Complex number
-fails:Complex.new raises a TypeError when one of the given arguments is not Numeric
-fails:Complex.new raises a TypeError when one of the given arguments is a Complex
-fails:Complex.new! returns a new Complex number
-fails:Complex.new! defaults to 0 for the imaginery part
-fails:Complex.new! raises a TypeError when one of the given arguments is not Numeric
-fails:Complex.new! raises a TypeError when one of the given arguments is a Complex

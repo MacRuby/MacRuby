@@ -1,1 +1,0 @@
-fails:Complex#inspect returns "Complex(real, image)"
