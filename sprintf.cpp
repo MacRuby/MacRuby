@@ -406,7 +406,20 @@ get_types_for_format_str(std::string &octypes, const unsigned int len,
 				args[j] = (VALUE)CFSTR("");
 			    }
 			}
+#if 1
+			// In Ruby, '%s' is supposed to convert the argument
+			// as a string, calling #to_s on it. In order to
+			// support this behavior we are changing the format
+			// to '@' which sends the -[NSObject description]
+			// message, exactly what we want.
+			if (*new_fmt == NULL) {
+			    *new_fmt = strdup(format_str);
+			}
+			(*new_fmt)[i] = '@';
+			type = _C_ID;
+#else
 			type = _C_CHARPTR;
+#endif
 		    }
 		    break;
 
