@@ -8,7 +8,12 @@ describe "StringIO#initialize_copy" do
   end
   
   it "is private" do
-    @io.private_methods.should include("initialize_copy")
+    ruby_version_is "" ... "1.9" do
+      @io.private_methods.should include('initialize_copy')
+    end
+    ruby_version_is "1.9" do
+      @io.private_methods.should include(:initialize_copy)
+    end
   end
   
   it "returns self" do

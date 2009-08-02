@@ -26,9 +26,17 @@ describe :stringio_read, :shared => true do
   it "raises a TypeError when the passed buffer Object can't be converted to a String" do
     lambda { @io.send(@method, 7, Object.new) }.should raise_error(TypeError)
   end
-
-  it "raises an error when passed a frozen String as buffer" do
-    lambda { @io.send(@method, 7, "".freeze) }.should raise_error(TypeError)
+  
+  ruby_version_is "" ... "1.9" do
+    it "raises an error when passed a frozen String as buffer" do
+      lambda { @io.send(@method, 7, "".freeze) }.should raise_error(TypeError)
+    end
+  end
+  
+  ruby_version_is "1.9" do  
+    it "raises an error when passed a frozen String as buffer" do
+      lambda { @io.send(@method, 7, "".freeze) }.should raise_error(RuntimeError)
+    end 
   end
 end
 

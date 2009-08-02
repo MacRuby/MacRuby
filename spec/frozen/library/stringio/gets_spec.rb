@@ -39,7 +39,12 @@ describe "StringIO#gets when passed [separator]" do
   
   it "returns the next paragraph when the passed separator is an empty String" do
     io = StringIO.new("this is\n\nan example")
-    io.gets("").should == "this is\n"
+    ruby_version_is "" ... "1.9" do
+      io.gets("").should == "this is\n"
+    end
+    ruby_version_is "1.9" do
+      io.gets("").should == "this is\n\n"
+    end
     io.gets("").should == "an example"
   end
   

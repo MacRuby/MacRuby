@@ -39,8 +39,13 @@ describe "StringIO#readline when passed [separator]" do
   end
   
   it "returns the next paragraph when the passed separator is an empty String" do
-    io = StringIO.new("this is\n\nan example")
-    io.readline("").should == "this is\n"
+    io = StringIO.new("this is\n\nan example") 
+    ruby_version_is "" ... "1.9" do
+      io.readline("").should == "this is\n"
+    end
+    ruby_version_is "1.9" do
+      io.readline("").should == "this is\n\n"
+    end
     io.readline("").should == "an example"
   end
   

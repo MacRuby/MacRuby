@@ -44,11 +44,21 @@ describe "StringIO#ungetc when passed [char]" do
     @io.ungetc(obj)
     @io.string.should == "A234"
   end
-
-  it "raises a TypeError when the passed length can't be converted to an Integer" do
-    lambda { @io.ungetc(Object.new) }.should raise_error(TypeError)
-    lambda { @io.ungetc("A") }.should raise_error(TypeError)
+  
+  ruby_version_is "" ... "1.9" do
+    it "raises a TypeError when the passed length can't be converted to an Integer" do
+      lambda { @io.ungetc(Object.new) }.should raise_error(TypeError)
+      lambda { @io.ungetc("A") }.should raise_error(TypeError)
+    end 
   end
+  
+  ruby_version_is "1.9" do
+    it "raises a TypeError when the passed length can't be converted to an Integer" do
+      lambda { @io.ungetc(Object.new) }.should raise_error(TypeError)
+      @io.ungetc("A").should be_nil
+    end
+  end
+  
 end
 
 describe "StringIO#ungetc when self is not readable" do
