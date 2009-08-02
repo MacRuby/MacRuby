@@ -1,0 +1,4 @@
+fails:Date#strptime should be able to parse without arguments
+fails:Date#strptime should be able to parse the default date format
+fails:Date#strptime should be able to parse the date as YYYY-MM-DD
+fails:Date#strptime should be able to show the commercial week

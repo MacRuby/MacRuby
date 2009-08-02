@@ -24,6 +24,7 @@ class MSpecScript
 
   # Library specs
   set :library, [
+    'library/date',
     'library/digest',
     'library/getoptlong',
     'library/mutex',
