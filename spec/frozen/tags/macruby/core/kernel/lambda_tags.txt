@@ -4,3 +4,4 @@ fails:Kernel.lambda raises an ArgumentError when given too many arguments
 fails:Kernel.lambda raises an ArgumentError when given too few arguments
 fails:Kernel.lambda is a private method
 fails:Kernel.lambda returns from block into caller block
+fails:Kernel.lambda returns from the  itself; not the creation site of the 

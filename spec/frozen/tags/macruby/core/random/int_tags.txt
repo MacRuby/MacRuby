@@ -1,0 +1,12 @@
+fails:Random#int coerces the argument with #to_int
+fails:Random#int returns an Integer
+fails:Random#int returns an number >= 0
+fails:Random#int returns a number < the argument
+fails:Random#int returns a random number on each call that satisfies the given inequalities
+fails:Random#int returns the same sequence of numbers for a given seed
+fails:Random#int returns an integer from the inclusive Integer range if one is given
+fails:Random#int returns an integer from the exclusive Integer range if one is given
+fails:Random#int raises a TypeError if a String range is given
+fails:Random#int returns an ArgumentError when the argument is 1
+fails:Random#int returns an ArgumentError when the argument is 0
+fails:Random#int returns an ArgumentError when the argument is negative

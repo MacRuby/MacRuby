@@ -1,3 +1,9 @@
 fails:Kernel#methods doesn't pick up methods added inside 'class << self; private'
 fails:Kernel#methods returns a list of the names of publicly accessible methods in the object
 fails:Kernel#methods does not include any .undef'd methods
+fails:Kernel#methods does not return private singleton methods defined in 'class << self'
+fails:Kernel#methods returns the publicly accessible methods of the object
+fails:Kernel#methods does not return undefined singleton methods defined by obj.meth
+fails:Kernel#methods does not return superclass methods undefined in the object's class
+fails:Kernel#methods does not return superclass methods undefined in a superclass
+fails:Kernel#methods does not return included module methods undefined in the object's class

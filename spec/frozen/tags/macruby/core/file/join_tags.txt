@@ -1,3 +1,4 @@
 critical:File.join raises an ArgumentError if passed a recursive array
 fails:File.join calls #to_str
 fails:File.join calls #to_path
+fails:File.join gives priority to existing separators in the rightmost argument

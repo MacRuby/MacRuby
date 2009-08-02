@@ -1,0 +1,2 @@
+fails:Enumerable#collect with implicit to_proc [each(&obj) form] does not call obj.to_proc if obj is a lambda
+fails:Enumerable#collect with implicit to_proc [each(&obj) form] does not call obj.to_proc if obj is a Proc

@@ -1,0 +1,3 @@
+fails:Kernel#public_send raises a NoMethodError if the method is protected
+fails:Kernel#public_send raises an ArgumentError if called with more arguments than available parameters
+fails:Kernel#public_send raises an ArgumentError if called with fewer arguments than required parameters

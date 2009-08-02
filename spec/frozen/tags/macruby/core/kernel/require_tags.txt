@@ -23,3 +23,4 @@ fails:Kernel#require collapses '../' inside an absolute path before storing in $
 fails:Kernel#require uses $LOADED_FEATURES to see whether file is already loaded
 fails:Kernel#require will not load a file whose path appears in $LOADED_FEATURES; it will return false
 fails:Kernel#require raises a LoadError if the file exists but can't be read
+fails:Kernel#require does not resolve completely unqualified filenames against the current working directory unless it appears in $LOAD_PATH

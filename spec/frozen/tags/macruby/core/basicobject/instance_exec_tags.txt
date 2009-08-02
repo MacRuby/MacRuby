@@ -1,1 +1,4 @@
 critical:BasicObject#instance_exec raises a LocalJumpError unless given a block
+fails:BasicObject#instance_exec only binds the exec to the receiver
+fails:BasicObject#instance_exec raises a TypeError when defining methods on an immediate
+fails:BasicObject#instance_exec raises a TypeError when defining methods on numerics

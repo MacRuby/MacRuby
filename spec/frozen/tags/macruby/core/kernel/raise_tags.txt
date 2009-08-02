@@ -1,1 +1,2 @@
 fails:Kernel#raise is a private method
+fails:Kernel#raise raises RuntimeError if no exception class is given

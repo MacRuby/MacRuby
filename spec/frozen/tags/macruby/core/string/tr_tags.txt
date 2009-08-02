@@ -5,3 +5,4 @@ fails:String#tr taints the result when self is tainted
 fails:String#tr! modifies self in place
 fails:String#tr! raises a TypeError if self is frozen
 fails:String#tr tries to convert from_str and to_str to strings using to_str
+fails:String#tr can replace a 7-bit ASCII character with a multibyte one

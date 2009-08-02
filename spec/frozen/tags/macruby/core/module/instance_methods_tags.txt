@@ -1,1 +1,5 @@
 fails:Module#instance_methods does not return undefined methods
+fails:Module#instance_methods does not return methods undefined in a superclass
+fails:Module#instance_methods does not return methods undefined in a subclass
+fails:Module#instance_methods does not return methods undefined in the current class
+fails:Module#instance_methods does not return methods from an included module that are undefined in the class
