@@ -24,6 +24,7 @@ VALUE rb_cEmitter;
 VALUE rb_cDocument;
 VALUE rb_cResolver;
 VALUE rb_cNode;
+VALUE rb_cSeqNode;
 VALUE rb_cScalar;
 VALUE rb_cOut;
 
@@ -119,7 +120,6 @@ static VALUE
 rb_yaml_document_alloc(VALUE klass, SEL sel)
 {
 	yaml_document_t *document = ALLOC(yaml_document_t);
-	// XXX: still need to write a finalizer
 	yaml_document_initialize(document, NULL, NULL, NULL, 1, 1);
 	return Data_Wrap_Struct(rb_cDocument, NULL, NULL, document);
 }
@@ -143,10 +143,20 @@ rb_yaml_document_add_sequence(VALUE self, SEL sel, VALUE taguri, VALUE style)
 	if (rb_block_given_p())
 	{
 		yaml_node_t *node = yaml_document_get_node(document, nodeID);
-		VALUE n = rb_yaml_node_new(node);
+		VALUE n = rb_yaml_node_new(node, nodeID, self);
 		rb_yield(n);
 	}
 	return self;
+}
+
+static VALUE
+rb_yaml_document_add_scalar(VALUE self, SEL sel, VALUE taguri, VALUE str, VALUE style)
+{
+	yaml_document_t *document;
+	Data_Get_Struct(self, yaml_document_t, document);
+	// TODO: stop ignoring the style
+	int scalID = yaml_document_add_scalar(document, RSTRING_PTR(taguri), RSTRING_PTR(str), RSTRING_LEN(str), YAML_ANY_SCALAR_STYLE);
+	return rb_yaml_node_new(yaml_document_get_node(document, scalID), scalID, self);
 }
 
 static VALUE
@@ -154,7 +164,7 @@ rb_yaml_document_root_node(VALUE self, SEL sel)
 {
 	yaml_document_t *document;
 	Data_Get_Struct(self, yaml_document_t, document);
-	return rb_yaml_node_new(yaml_document_get_root_node(document));
+	return rb_yaml_node_new(yaml_document_get_root_node(document), 0, self);
 }
 
 static VALUE
@@ -188,27 +198,44 @@ rb_yaml_document_finalize(void *rcv, SEL sel)
 }
 
 static VALUE
-rb_yaml_node_new(yaml_node_t *node)
+rb_yaml_node_new(yaml_node_t *node, int id, VALUE document)
 {
-	VALUE n = Data_Wrap_Struct(rb_cNode, NULL, NULL, node);
+	VALUE klass;
 	switch (node->type)
 	{
 		case YAML_SCALAR_NODE:
-		rb_ivar_set(n, rb_intern("type"), rb_intern("scalar"));
+		klass = rb_cNode; // fix me.
 		break;
 		
 		case YAML_MAPPING_NODE:
-		rb_ivar_set(n, rb_intern("type"), rb_intern("mapping"));
+		klass = rb_cNode; // fix me, too.
 		break;
 		
 		case YAML_SEQUENCE_NODE:
-		rb_ivar_set(n, rb_intern("type"), rb_intern("sequence"));
+		klass = rb_cSeqNode;
 		break;
 		
 		case YAML_NO_NODE:
-		rb_raise(rb_eRuntimeError, "what the hell is going on?!");
+		rb_raise(rb_eRuntimeError, "unexpected empty node");
 	}
+	VALUE n = Data_Wrap_Struct(rb_cNode, NULL, NULL, node);
+	rb_ivar_set(n, rb_intern("node_id"), INT2FIX(id));
+	rb_ivar_set(n, rb_intern("document"), document);
 	return n;
+}
+
+static VALUE
+rb_sequence_node_add(VALUE self, SEL sel, VALUE obj)
+{
+	VALUE doc = rb_ivar_get(self, rb_intern("document"));
+	yaml_document_t *document;
+	Data_Get_Struct(doc, yaml_document_t, document);
+	VALUE scalar_node = rb_vm_call_with_cache(obj, "to_yaml", 1, &doc, true);
+	int seqID = FIX2INT(rb_ivar_get(self, rb_intern("node_id")));
+	int scalID = FIX2INT(rb_ivar_get(scalar_node, rb_intern("node_id")));
+	printf("Appending item %d to sequence %d\n", seqID, scalID);
+	yaml_document_append_sequence_item(document, seqID, scalID);
+	return self;
 }
 
 #if 0 // still need to think about this some more.
@@ -360,6 +387,8 @@ Init_libyaml()
 	rb_yaml_document_finalize_super = rb_objc_install_method2((Class)rb_cDocument, "finalize", (IMP)rb_yaml_document_finalize);
 	
 	rb_cNode = rb_define_class_under(rb_mLibYAML, "Node", rb_cObject);
+	rb_define_attr(rb_cNode, "document", 1, 1);
+	rb_define_attr(rb_cNode, "node_id", 1, 1);
 	//rb_objc_define_method(rb_cNode, "type", rb_yaml_node_type, 0);
 	//rb_objc_define_method(rb_cNode, "scalar?", rb_yaml_node_scalar_p, 0);
 	//rb_objc_define_method(rb_cNode, "mapping?", rb_yaml_node_mapping_p, 0);
@@ -369,6 +398,9 @@ Init_libyaml()
 	//rb_objc_define_method(rb_cNode, "value", rb_yaml_node_value, 0);
 	//rb_objc_define_method(rb_cNode, "start_mark", rb_yaml_node_start_mark, 0);
 	//rb_objc_define_method(rb_cNode, "end_mark", rb_yaml_node_end_mark, 0);
+	
+	rb_cSeqNode = rb_define_class_under(rb_mLibYAML, "Seq", rb_cNode);
+	rb_objc_define_method(rb_cNode, "add", rb_sequence_node_add, 1);
 	
 	rb_cResolver = rb_define_class_under(rb_mLibYAML, "Resolver", rb_cObject);
 	rb_define_attr(rb_cResolver, "tags", 1, 1);
