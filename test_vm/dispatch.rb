@@ -338,3 +338,15 @@ assert '42', %{
   end
   Y.new.foo(42)
 }
+
+assert %{"hello world"\n42}, %{
+  class X; def foo(x,y); p x,y; end; end
+  class Y < X; def foo(x,*args); x << ' world'; args[0] = 42; super; end; end
+  Y.new.foo('hello', 1)
+}
+
+assert %{"hello world"\n42}, %{
+  class X; def foo(x,y); p x,y; end; end
+  class Y < X; def foo(x,*args); x << ' world'; args = 42; super; end; end
+  Y.new.foo('hello', 1)
+}
