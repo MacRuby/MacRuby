@@ -312,7 +312,7 @@ SCRIPT_ARGS = "--make=\"/usr/bin/make\" --dest-dir=\"#{DESTDIR}\" --extout=\"#{E
 EXTMK_ARGS = "#{SCRIPT_ARGS} --extension --extstatic"
 INSTRUBY_ARGS = "#{SCRIPT_ARGS} --data-mode=0644 --prog-mode=0755 --installed-list #{INSTALLED_LIST} --mantype=\"doc\" --sym-dest-dir=\"#{SYM_INSTDIR}\""
 
-EXTENSIONS = ['ripper', 'digest', 'readline']
+EXTENSIONS = ['ripper', 'digest', 'readline', 'libyaml']
 def perform_extensions_target(target)
   EXTENSIONS.map { |x| File.join('ext', x) }.each do |ext_dir|
     Dir.glob(File.join(ext_dir, '**/extconf.rb')) do |p|

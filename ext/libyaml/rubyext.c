@@ -13,6 +13,8 @@
 #include "id.h"
 #include "yaml.h"
 
+// too lazy to find out what headers these belong to.
+VALUE rb_vm_yield(int argc, const VALUE *argv);
 VALUE rb_vm_call(VALUE self, SEL sel, int argc, const VALUE *args, bool super);
 long rb_io_primitive_read(struct rb_io_t *io_struct, UInt8 *buffer, long len);
 VALUE rb_ary_last(VALUE, SEL, int, VALUE*);
@@ -308,8 +310,8 @@ rb_yaml_resolve_node(yaml_node_t *node, yaml_document_t *document, VALUE tags)
 	{
 		case YAML_SCALAR_NODE:
 		{
-			VALUE tag = rb_str_new2(node->tag);
-			VALUE scalarval = rb_str_new(node->data.scalar.value, node->data.scalar.length);
+			VALUE tag = rb_str_new2((const char*)node->tag);
+			VALUE scalarval = rb_str_new((const char*)node->data.scalar.value, node->data.scalar.length);
 			VALUE handler = rb_hash_lookup(tags, tag);
 			if (rb_respond_to(handler, rb_intern("call")))
 			{
@@ -317,7 +319,6 @@ rb_yaml_resolve_node(yaml_node_t *node, yaml_document_t *document, VALUE tags)
 			}
 			else if (rb_respond_to(handler, rb_intern("yaml_new")))
 			{
-				printf("Calling YAML_NEW\n");
 				return rb_funcall(handler, rb_intern("yaml_new"), 1, scalarval);
 			}
 			return scalarval;
