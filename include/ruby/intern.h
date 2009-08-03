@@ -394,6 +394,7 @@ VALUE rb_io_addstr(VALUE, SEL, VALUE);
 VALUE rb_io_printf(VALUE, SEL, int, VALUE *);
 VALUE rb_io_print(VALUE, SEL, int, VALUE *);
 VALUE rb_io_fdopen(int, int, const char*);
+long rb_io_primitive_read(rb_io_t *, UInt8 *, long);
 VALUE rb_gets(void);
 void rb_write_error(const char*);
 void rb_write_error2(const char*, long);

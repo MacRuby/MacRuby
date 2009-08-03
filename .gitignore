@@ -15,3 +15,7 @@ spec/frozen/upstream_patches
 mspec_upstream
 mspec/upstream_patches
 spec/frozen/optional/ffi/fixtures/build
+*.bundle
+mkmf.log
+Makefile
+>>>>>>> Further work in making even a semi-usable YAML parser out of this code.:.gitignore

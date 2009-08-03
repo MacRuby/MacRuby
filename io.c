@@ -1076,6 +1076,12 @@ rb_io_read_all_file(VALUE io, UInt8 *buffer, size_t buffer_len)
     return rb_io_read_internal(io_struct, buffer, buffer_len) > 0;
 }
 
+long
+rb_io_primitive_read(rb_io_t *io_struct, UInt8 *buffer, long len)
+{
+	return rb_io_read_internal(io_struct, buffer, len);
+}
+
 /*
  *  call-seq:
  *     ios.read_nonblock(maxlen)              => string
