@@ -234,8 +234,18 @@ VALUE rb_ull2inum(unsigned LONG_LONG);
 #define IMMEDIATE_P(x) ((VALUE)(x) & IMMEDIATE_MASK)
 
 
+#if __LP64__
 #define VOODOO_DOUBLE(d) (*(VALUE*)(&d))
 #define DBL2FIXFLOAT(d) (VOODOO_DOUBLE(d) | FIXFLOAT_FLAG)
+#else
+// voodoo_float must be a function
+// because the parameter must be converted to float
+static inline VALUE voodoo_float(float f)
+{
+    return *(VALUE *)(&f);
+}
+#define DBL2FIXFLOAT(d) (voodoo_float(d) | FIXFLOAT_FLAG)
+#endif
 #define FIXFLOAT_P(v)  (((VALUE)v & IMMEDIATE_MASK) == FIXFLOAT_FLAG)
 #define FIXFLOAT2DBL(v) coerce_ptr_to_double((VALUE)v)
 
@@ -269,7 +279,14 @@ enum ruby_special_consts {
 // and then extract its double member. Hacky, but effective.
 static inline double coerce_ptr_to_double(VALUE v)
 {
-    union {VALUE val; double d;} coerced_value;
+    union {
+	VALUE val;
+#if __LP64__
+	double d;
+#else
+	float d;
+#endif
+    } coerced_value;
     coerced_value.val = v & ~RUBY_FIXFLOAT_FLAG; // unset the last two bits.
     return coerced_value.d;
 }
