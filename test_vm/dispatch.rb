@@ -328,3 +328,13 @@ assert ':ok', %{
   X.new
   p :ok
 }
+
+assert '42', %{
+  class X
+    def foo(x); p x; end
+  end
+  class Y < X
+    def foo(*args); super; end
+  end
+  Y.new.foo(42)
+}
