@@ -1945,7 +1945,12 @@ RoxorCompiler::compile_double_coercion(Value *val, Value *mask,
 
     bb = is_float_bb;
     Value *is_float_val = BinaryOperator::CreateXor(val, threeVal, "", bb);
+#if __LP64__
     is_float_val = new BitCastInst(is_float_val, Type::DoubleTy, "", bb);
+#else
+    is_float_val = new BitCastInst(is_float_val, Type::FloatTy, "", bb);
+    is_float_val = new FPExtInst(is_float_val, Type::DoubleTy, "", bb);
+#endif
     BranchInst::Create(merge_bb, bb);
 
     bb = isnt_float_bb;
@@ -2288,6 +2293,9 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 
 	    if (!result_is_predicate) {
 		// Box the float. 
+#if !__LP64__
+		flp_op_res = new FPTruncInst(flp_op_res, Type::FloatTy, "", bb);
+#endif
 		flp_op_res = new BitCastInst(flp_op_res, RubyObjTy, "", bb);
 		flp_op_res = BinaryOperator::CreateOr(flp_op_res, threeVal,
 			"", bb);
