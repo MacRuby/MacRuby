@@ -4983,10 +4983,10 @@ sym_equal(VALUE sym1, SEL sel, VALUE sym2)
 }
 
 static VALUE
-sym_cmp(VALUE sym1, VALUE sym2)
+sym_cmp(VALUE sym1, SEL sel, VALUE sym2)
 {
     int code;
-
+	printf("Class = symbol? %d\n", CLASS_OF(sym1) == rb_cSymbol);
     if (CLASS_OF(sym2) != rb_cSymbol) {
 	return Qnil;
     }
