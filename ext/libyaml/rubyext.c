@@ -33,8 +33,7 @@ static VALUE rb_cResolver;
 static VALUE rb_cNode;
 static VALUE rb_cSeqNode;
 static VALUE rb_cMapNode;
-static VALUE rb_cScalar;
-static VALUE rb_cOut;
+static VALUE rb_cScalarNode;
 
 static ID id_plain;
 static ID id_quote2;
@@ -42,8 +41,6 @@ static ID id_tags_ivar;
 static ID id_input_ivar;
 static ID id_node_id_ivar;
 static ID id_document_ivar;
-
-static SEL selToYAML;
 
 static VALUE rb_oDefaultResolver;
 
@@ -94,6 +91,36 @@ rb_yaml_parser_set_input(VALUE self, SEL sel, VALUE input)
 }
 
 static VALUE
+rb_yaml_parser_error(VALUE self, SEL sel)
+{
+	yaml_parser_t *parser;
+	Data_Get_Struct(self, yaml_parser_t, parser);
+	VALUE error = Qnil;
+	char *msg = NULL;
+	switch(parser->error)
+	{
+		case YAML_SCANNER_ERROR:
+		case YAML_PARSER_ERROR:
+		{
+			asprintf(&msg, "syntax error on line %d, col %d: %s", parser->problem_mark.line,
+				parser->problem_mark.column, parser->problem);
+			error = rb_exc_new2(rb_eArgError, msg);
+		}
+		
+		case YAML_NO_ERROR:
+		break;
+		
+		default:
+		error = rb_exc_new2(rb_eRuntimeError, parser->problem);
+	}
+	if(msg != NULL)
+	{
+		free(msg);
+	}
+	return error;
+}
+
+static VALUE
 rb_yaml_parser_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 {
 	VALUE input = Qnil;
@@ -108,7 +135,9 @@ rb_yaml_parser_load(VALUE self, SEL sel)
 	yaml_parser_t *parser;
 	Data_Get_Struct(self, yaml_parser_t, parser);
 	yaml_document_t *document = ALLOC(yaml_document_t);
-	yaml_parser_load(parser, document);
+	if(yaml_parser_load(parser, document) == 0) {
+		rb_exc_raise(rb_yaml_parser_error(self, sel));
+	}
 	return Data_Wrap_Struct(rb_cDocument, NULL, NULL, document);
 }
 
@@ -205,6 +234,14 @@ rb_yaml_document_root_node(VALUE self, SEL sel)
 	yaml_document_t *document;
 	Data_Get_Struct(self, yaml_document_t, document);
 	return rb_yaml_node_new(yaml_document_get_root_node(document), 0, self);
+}
+
+static VALUE
+rb_yaml_document_empty_p(VALUE self, SEL sel)
+{
+	yaml_document_t *document;
+	Data_Get_Struct(self, yaml_document_t, document);
+	return (yaml_document_get_root_node(document) == NULL) ? Qtrue : Qfalse;
 }
 
 static VALUE
@@ -306,9 +343,23 @@ static void
 rb_yaml_guess_type_of_plain_node(yaml_node_t *node)
 {
 	const char* v = (char*) node->data.scalar.value;
-	if ((strcmp(v, "true") == 0) || (strcmp(v, "false") == 0))
+	if (node->data.scalar.length == 0)
 	{
-		node->tag = "tag:yaml.org,2002:bool";
+		node->tag = (yaml_char_t*)"tag:yaml.org,2002:null";
+	}
+	// holy cow, this is not a good solution at all.
+	// i should incorporate rb_cstr_to_inum here, or something.
+	else if (strtol(v, NULL, 10) != 0)
+	{
+		node->tag = (yaml_char_t*)"tag:yaml.org,2002:int";
+	}
+	else if (*v == ':')
+	{
+		node->tag = (yaml_char_t*)"tag:ruby.yaml.org,2002:symbol";
+	}
+	else if ((strcmp(v, "true") == 0) || (strcmp(v, "false") == 0))
+	{
+		node->tag = (yaml_char_t*)"tag:yaml.org,2002:bool";
 	} 
 }
 
@@ -387,7 +438,12 @@ rb_yaml_resolver_transfer(VALUE self, SEL sel, VALUE obj)
 	{
 		yaml_document_t *document;
 		Data_Get_Struct(obj, yaml_document_t, document);
-		return rb_yaml_resolve_node(document->nodes.start, document, tags);
+		yaml_node_t *root = yaml_document_get_root_node(document);
+		if (root == NULL)
+		{
+			return Qnil;
+		}
+		return rb_yaml_resolve_node(root, document, tags);
 	}
 	return Qnil;
 }
@@ -508,6 +564,7 @@ Init_libyaml()
 	rb_objc_define_method(rb_cDocument, "scalar", rb_yaml_document_add_scalar, 3);
 	//rb_objc_define_method(rb_cDocument, "[]", rb_yaml_document_aref, 1);
 	//rb_objc_define_method(rb_cDocument, "version", rb_yaml_document_version, 0);
+	rb_objc_define_method(rb_cDocument, "empty?", rb_yaml_document_empty_p, 0);
 	rb_objc_define_method(rb_cDocument, "implicit_start?", rb_yaml_document_implicit_start_p, 0);
 	rb_objc_define_method(rb_cDocument, "implicit_end?", rb_yaml_document_implicit_end_p, 0);
 	//rb_objc_define_method(rb_cDocument, "implicit_start=", rb_yaml_document_implicit_start_set, 1);
@@ -532,6 +589,8 @@ Init_libyaml()
 	
 	rb_cMapNode = rb_define_class_under(rb_mLibYAML, "Map", rb_cNode);
 	rb_objc_define_method(rb_cMapNode, "add", rb_mapping_node_add, 2);
+	
+	rb_cScalarNode = rb_define_class_under(rb_mLibYAML, "Scalar", rb_cNode);
 	
 	rb_cResolver = rb_define_class_under(rb_mLibYAML, "Resolver", rb_cObject);
 	rb_define_attr(rb_cResolver, "tags", 1, 1);

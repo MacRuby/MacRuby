@@ -111,6 +111,16 @@ class Float
   end
 end
 
+class Symbol
+  yaml_as "tag:ruby.yaml.org,2002:symbol"
+  
+  def self.yaml_new(val); val[1..-1].to_sym; end
+  
+  def to_yaml(out)
+    out.scalar(taguri, self.to_s[1..-1], :plain)
+  end
+end
+
 class Regexp
   yaml_as "tag:ruby.yaml.org,2002:regexp"
   def to_yaml(out)
@@ -121,6 +131,9 @@ end
 
 class NilClass 
   yaml_as "tag:yaml.org,2002:null"
+  
+  def self.yaml_new(val); nil; end
+  
 	def to_yaml(out)
     out.scalar(taguri, "", :plain)
 	end
@@ -128,6 +141,9 @@ end
 
 class TrueClass
   yaml_as "tag:yaml.org,2002:bool"
+  
+  def self.yaml_new(val); true; end
+  
   def to_yaml(out)
     out.scalar(taguri, "true", :plain)
   end
@@ -135,15 +151,14 @@ end
 
 class FalseClass
   yaml_as "tag:yaml.org,2002:bool"
+  
+  def self.yaml_new(val); false; end
+  
   def to_yaml(out)
     out.scalar(taguri, "false", :plain)
   end
 end
 
-YAML::LibYAML::DEFAULT_RESOLVER.tags["tag:yaml.org,2002:bool"] = lambda {
-  |value|
-  value == "true"
-}
 
 =begin
 

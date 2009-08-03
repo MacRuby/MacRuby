@@ -41,7 +41,7 @@ describe "YAML.load" do
   it "accepts symbols" do
     YAML.load( "--- :locked" ).should == :locked
   end
-
+  
   it "accepts numbers" do
     YAML.load("47").should == 47
     YAML.load("-1").should == -1
@@ -59,19 +59,21 @@ describe "YAML.load" do
     YAML.load("--- ---\n").should == "---"
     YAML.load("--- abc").should == "abc"
   end
-
-  it "does not escape symbols" do
-    YAML.load("foobar: >= 123").should == { "foobar" => ">= 123"}
-    YAML.load("foobar: |= 567").should == { "foobar" => "|= 567"}
-    YAML.load("--- \n*.rb").should == "*.rb"
-    YAML.load("--- \n&.rb").should == "&.rb"
+  
+  not_compliant_on :macruby do
+    it "does not escape symbols" do
+      YAML.load("foobar: >= 123").should == { "foobar" => ">= 123"}
+      YAML.load("foobar: |= 567").should == { "foobar" => "|= 567"}
+      YAML.load("--- \n*.rb").should == "*.rb"
+      YAML.load("--- \n&.rb").should == "&.rb"
+    end
   end
 
   it "works with block sequence shortcuts" do
     block_seq = "- - - one\n    - two\n    - three"
     YAML.load(block_seq).should == [[["one", "two", "three"]]]
   end
-
+  
   it "works on complex keys" do
     expected = { 
       [ 'Detroit Tigers', 'Chicago Cubs' ] => [ Date.new( 2001, 7, 23 ) ],
@@ -81,7 +83,7 @@ describe "YAML.load" do
     }
     YAML.load($complex_key_1).should == expected
   end
-  
+
   it "loads a symbol key that contains spaces" do
     string = ":user name: This is the user name."
     expected = { :"user name" => "This is the user name."}
