@@ -652,7 +652,7 @@ assert '42', %{
     end
   end
   
-  class Bar
+  class Bar < Foo
     def something(var)
       instance_eval do
         super(var)
@@ -661,5 +661,5 @@ assert '42', %{
   end
   
   x = Bar.new
-  x.something(42)
+  p x.something(42)
 }
