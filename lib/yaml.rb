@@ -41,7 +41,28 @@ module YAML
   def YAML.parse_file(path)
     File.open(path) { |f| parse(f) }
   end
+end
+
+class YAML::LibYAML::QuickEmitter < YAML::LibYAML::Emitter
+  def initialize
+    super
+    @doc = Document.new
+  end
   
+  def seq(taguri, style, &block)
+    @doc.seq(taguri, style) { |o| block[o] }
+    self.dump(@doc)
+  end
+  
+  def scalar(*args)
+    @doc.scalar(*args)
+    self.dump(@doc)
+  end
+  
+  def map(taguri, style, &block)
+    @doc.map(taguri, style) { |o| block[o] }
+    self.dump(@doc)
+  end
 end
 
 module Kernel
@@ -49,6 +70,8 @@ module Kernel
     objs.each { |obj| YAML::dump(obj, $stdout) }
   end
 end
+
+
 
 =begin
 

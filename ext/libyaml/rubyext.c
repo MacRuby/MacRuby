@@ -224,7 +224,7 @@ rb_yaml_document_add_scalar(VALUE self, SEL sel, VALUE taguri, VALUE str, VALUE 
 	// TODO: stop ignoring the style
 	yaml_char_t *tag = (yaml_char_t*)RSTRING_PTR(taguri);
 	yaml_char_t *val = (yaml_char_t*)RSTRING_PTR(str);
-	int scalID = yaml_document_add_scalar(document, tag, val, RSTRING_LEN(str), rb_symbol_to_scalar_style(style));
+	int scalID = yaml_document_add_scalar(document, NULL, val, RSTRING_LEN(str), rb_symbol_to_scalar_style(style));
 	return rb_yaml_node_new(yaml_document_get_node(document, scalID), scalID, self);
 }
 

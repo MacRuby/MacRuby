@@ -28,7 +28,7 @@ class Object
     self.instance_variables.sort
   end
   
-  def to_yaml(out)
+  def to_yaml(out = YAML::LibYAML::QuickEmitter.new)
     if out.respond_to? :map
       out.map(taguri, to_yaml_style) do |map|
         to_yaml_properties.each do |m|
@@ -47,14 +47,14 @@ end
 class String
   yaml_as "tag:yaml.org,2002:str"
   
-  def to_yaml(out)
+  def to_yaml(out = YAML::LibYAML::LibYAML::QuickEmitter.new)
     out.scalar(taguri, self, self =~ /^:/ ? :quote2 : nil)
   end
 end
 
 class Exception
   yaml_as "tag:ruby.yaml.org,2002:exception"
-  def to_yaml(out)
+  def to_yaml(out = YAML::LibYAML::QuickEmitter.new)
     out.map(taguri, to_yaml_style) do |map|
       map.add('message', message)
     end
@@ -64,7 +64,7 @@ end
 
 class Array
   yaml_as "tag:yaml.org,2002:seq"
-  def to_yaml(out)
+  def to_yaml(out = YAML::LibYAML::QuickEmitter.new)
     out.seq(taguri, to_yaml_style) do |seq|
       each { |i| seq.add(i) }
     end
@@ -73,7 +73,7 @@ end
 
 class Hash
   yaml_as "tag:yaml.org,2002:map"
-  def to_yaml(out)
+  def to_yaml(out = YAML::LibYAML::QuickEmitter.new)
     out.map(taguri, to_yaml_style) do |map| 
       each { |k,v| map.add(k,v) }
     end
@@ -86,7 +86,7 @@ class Integer
     val.to_i
   end
   
-	def to_yaml(out)
+	def to_yaml(out = YAML::LibYAML::QuickEmitter.new)
     out.scalar( "tag:yaml.org,2002:int", self.to_s, :plain )
 	end
 end
@@ -98,7 +98,7 @@ class Float
     val.to_f
   end
   
-  def to_yaml(out)
+  def to_yaml(out = YAML::LibYAML::QuickEmitter.new)
     str = self.to_s
     if str == "Infinity"
       str = ".Inf"
@@ -116,14 +116,14 @@ class Symbol
   
   def self.yaml_new(val); val[1..-1].to_sym; end
   
-  def to_yaml(out)
-    out.scalar(taguri, self.to_s[1..-1], :plain)
+  def to_yaml(out = YAML::LibYAML::QuickEmitter.new)
+    out.scalar(taguri, self.inspect, :plain)
   end
 end
 
 class Regexp
   yaml_as "tag:ruby.yaml.org,2002:regexp"
-  def to_yaml(out)
+  def to_yaml(out = YAML::LibYAML::QuickEmitter.new)
     out.scalar(taguri, self.inspect, :plain)
     super(out)
 	end
@@ -134,7 +134,7 @@ class NilClass
   
   def self.yaml_new(val); nil; end
   
-	def to_yaml(out)
+	def to_yaml(out = YAML::LibYAML::QuickEmitter.new)
     out.scalar(taguri, "", :plain)
 	end
 end
@@ -144,7 +144,7 @@ class TrueClass
   
   def self.yaml_new(val); true; end
   
-  def to_yaml(out)
+  def to_yaml(out = YAML::LibYAML::QuickEmitter.new)
     out.scalar(taguri, "true", :plain)
   end
 end
@@ -154,7 +154,7 @@ class FalseClass
   
   def self.yaml_new(val); false; end
   
-  def to_yaml(out)
+  def to_yaml(out = YAML::LibYAML::QuickEmitter.new)
     out.scalar(taguri, "false", :plain)
   end
 end
