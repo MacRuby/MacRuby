@@ -1,5 +1,37 @@
 # -*- mode: ruby; ruby-indent-level: 4; tab-width: 4 -*- vim: sw=4 ts=4
-require 'date'
+# require 'date'
+
+class Object
+  def yaml_as(tag)
+    class_eval <<-EOS
+      def taguri
+        @taguri || '#{tag}'
+      end
+      
+      def taguri=(t)
+        @taguri = t
+      end
+    EOS
+  end
+end
+
+class String
+  yaml_as "tag:yaml.org,2002:str"
+  def to_yaml(out)
+    out.scalar(taguri, self, self =~ /^:/ ? :quote2 : to_yaml_style)
+  end
+end
+
+class Array
+  yaml_as "tag:yaml.org,2002:seq"
+  def to_yaml(out)
+    out.seq(taguri, to_yaml_style) do |seq|
+      each { |i| seq.add(i) }
+    end
+  end
+end
+
+=begin
 
 class Class
 	def to_yaml( opts = {} )
@@ -444,3 +476,4 @@ class NilClass
 	end
 end
 
+=end

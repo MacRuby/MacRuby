@@ -25,6 +25,7 @@ VALUE rb_cDocument;
 VALUE rb_cResolver;
 VALUE rb_cNode;
 VALUE rb_cScalar;
+VALUE rb_cOut;
 
 VALUE rb_oDefaultResolver;
 
@@ -114,12 +115,38 @@ rb_yaml_parser_finalize(void *rcv, SEL sel)
 
 static VALUE rb_yaml_node_new(yaml_node_t *node);
 
-static VALUE rb_yaml_document_alloc(VALUE klass, SEL sel)
+static VALUE 
+rb_yaml_document_alloc(VALUE klass, SEL sel)
 {
 	yaml_document_t *document = ALLOC(yaml_document_t);
 	// XXX: still need to write a finalizer
 	yaml_document_initialize(document, NULL, NULL, NULL, 1, 1);
 	return Data_Wrap_Struct(rb_cDocument, NULL, NULL, document);
+}
+
+static VALUE 
+rb_yaml_document_add_node(VALUE self, SEL sel, VALUE obj)
+{
+	yaml_document_t *document;
+	Data_Get_Struct(self, yaml_document_t, document);
+	rb_yaml_dump_object_to_document(document, obj);
+	return self;
+}
+
+static VALUE
+rb_yaml_document_add_sequence(VALUE self, SEL sel, VALUE taguri, VALUE style)
+{
+	yaml_document_t *document;
+	Data_Get_Struct(self, yaml_document_t, document);
+	// TODO: stop ignoring the style parameter
+	int nodeID = yaml_document_add_sequence(document, RSTRING_PTR(taguri), YAML_ANY_SEQUENCE_STYLE);
+	if (rb_block_given_p())
+	{
+		yaml_node_t *node = yaml_document_get_node(document, nodeID);
+		VALUE n = rb_yaml_node_new(node);
+		rb_yield(n);
+	}
+	return self;
 }
 
 static VALUE
@@ -212,8 +239,9 @@ rb_yaml_resolver_transfer(VALUE self, SEL sel, VALUE obj)
 	}
 	else 
 	{
-		// check the taguri
-		// hmm... put some more thought into this.
+		VALUE document = rb_vm_call(rb_cDocument, selNew, 0, NULL, true);
+		rb_vm_call_with_cache(obj, "to_yaml", 1, &document, true);
+		return document;
 	}
 	return Qnil;
 }
@@ -322,6 +350,7 @@ Init_libyaml()
 	rb_cDocument = rb_define_class_under(rb_mLibYAML, "Document", rb_cObject);
 	//rb_objc_define_method(rb_cDocument, "<<", rb_yaml_document_add_node, 1);
 	rb_objc_define_method(rb_cDocument, "root", rb_yaml_document_root_node, 0);
+	rb_objc_define_method(rb_cDocument, "seq", rb_yaml_document_add_sequence, 2);
 	//rb_objc_define_method(rb_cDocument, "[]", rb_yaml_document_aref, 1);
 	//rb_objc_define_method(rb_cDocument, "version", rb_yaml_document_version, 0);
 	rb_objc_define_method(rb_cDocument, "implicit_start?", rb_yaml_document_implicit_start_p, 0);
@@ -351,6 +380,15 @@ Init_libyaml()
 	//rb_objc_define_method(rb_cResolver, "add_private_type", rb_yaml_resolver_add_private_type, 1);
 	rb_oDefaultResolver = rb_vm_call(rb_cResolver, selNew, 0, NULL, true);
 	rb_define_const(rb_mLibYAML, "DEFAULT_RESOLVER", rb_oDefaultResolver);
+	
+	#if 0
+	rb_cOut = rb_define_class_under(rb_mLibYAML, "Out", rb_cObject);
+    rb_define_attr(cOut, "document", 1, 1 );
+    rb_objc_define_method(rb_cOut, "initialize", rb_yaml_out_initialize, 1);
+    rb_objc_define_method(rb_cOut, "map", rb_yaml_out_map, -1);
+    rb_objc_define_method(rb_cOut, "seq", rb_yaml_out_seq, -1);
+    rb_objc_define_method(rb_cOut, "scalar", rb_yaml_out_scalar, -1);
+	#endif
 	
 	rb_cEmitter = rb_define_class_under(rb_mLibYAML, "Emitter", rb_cObject);
 	rb_objc_define_method(*(VALUE *)rb_cEmitter, "alloc", rb_yaml_emitter_alloc, 0);
