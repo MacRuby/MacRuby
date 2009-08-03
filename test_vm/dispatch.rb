@@ -350,3 +350,9 @@ assert %{"hello world"\n42}, %{
   class Y < X; def foo(x,*args); x << ' world'; args = 42; super; end; end
   Y.new.foo('hello', 1)
 }
+
+assert "42", %{
+  class X; def foo(x); p x; end; end
+  class Y < X; def foo(x); 1.times { |; x| x = 1; super; } end; end
+  Y.new.foo(42)
+}
