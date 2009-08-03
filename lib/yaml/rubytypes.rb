@@ -67,6 +67,7 @@ end
 
 class Array
   yaml_as "tag:yaml.org,2002:seq"
+  
   def to_yaml(doc = nil)
     YAML::quick_emit(self, doc) do |out|
       out.seq(taguri, to_yaml_style) do |seq|
@@ -78,6 +79,7 @@ end
 
 class Hash
   yaml_as "tag:yaml.org,2002:map"
+  
   def to_yaml(doc = nil)
     YAML::quick_emit(self, doc) do |out|
       out.map(taguri, to_yaml_style) do |map| 
@@ -131,6 +133,24 @@ class Symbol
   def to_yaml(doc = nil)
     YAML::quick_emit(self, doc) do |out|
       out.scalar(taguri, self.inspect, :plain)
+    end
+  end
+end
+
+class Range
+  yaml_as "tag:ruby.yaml.org,2002:range"
+  
+  def Range.yaml_new(attrs)
+    Range.new(attrs['begin'], attrs['end'], attrs['excl'])
+  end
+  
+  def to_yaml(doc=nil)
+    YAML::quick_emit(self, doc) do |out|
+      out.map(taguri, to_yaml_style) do |map|
+        map.add('begin', self.begin)
+        map.add('end', self.end)
+        map.add('excl', self.exclude_end?)
+      end
     end
   end
 end

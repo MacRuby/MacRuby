@@ -233,7 +233,8 @@ rb_yaml_tag_or_null(VALUE tagstr)
 	const char *tag = RSTRING_PTR(tagstr);
 	if ((strcmp(tag, "tag:yaml.org,2002:int") == 0) ||
 		(strcmp(tag, "tag:yaml.org,2002:float") == 0) ||
-		(strcmp(tag, "tag:ruby.yaml.org,2002:symbol") == 0))
+		(strcmp(tag, "tag:ruby.yaml.org,2002:symbol") == 0) ||
+		(strcmp(tag, "tag:yaml.org,2002:bool") == 0))
 	{
 		return NULL;	
 	}
@@ -416,17 +417,21 @@ rb_yaml_resolver_initialize(VALUE self, SEL sel)
 static VALUE
 rb_yaml_resolve_node(yaml_node_t *node, yaml_document_t *document, VALUE tags)
 {
+	VALUE tag = rb_str_new2((const char*)node->tag);
+	VALUE handler = rb_hash_lookup(tags, tag);
 	switch(node->type)
 	{
 		case YAML_SCALAR_NODE:
 		{
+			printf("Tag is %s\n", node->tag);
 			if (node->data.scalar.style == YAML_PLAIN_SCALAR_STYLE)
 			{
 				rb_yaml_guess_type_of_plain_node(node);
+				tag = rb_str_new2((const char*)node->tag);
+				handler = rb_hash_lookup(tags, tag);
+				printf("Tag is now %s\n", node->tag);
 			}
-			VALUE tag = rb_str_new2((const char*)node->tag);
 			VALUE scalarval = rb_str_new((const char*)node->data.scalar.value, node->data.scalar.length);
-			VALUE handler = rb_hash_lookup(tags, tag);
 			if (rb_respond_to(handler, rb_intern("call")))
 			{
 				return rb_funcall(handler, rb_intern("call"), 1, scalarval);
@@ -449,6 +454,14 @@ rb_yaml_resolve_node(yaml_node_t *node, yaml_document_t *document, VALUE tags)
 				VALUE new_obj = rb_yaml_resolve_node(subnode, document, tags);
 				rb_ary_push(arr, new_obj);
 			}
+			if (rb_respond_to(handler, rb_intern("call")))
+			{
+				return rb_funcall(handler, rb_intern("call"), 1, arr);
+			}
+			else if (rb_respond_to(handler, rb_intern("yaml_new")))
+			{
+				return rb_funcall(handler, rb_intern("yaml_new"), 1, arr);
+			}
 			return arr;
 		}
 		break;
@@ -462,6 +475,14 @@ rb_yaml_resolve_node(yaml_node_t *node, yaml_document_t *document, VALUE tags)
 				VALUE k = rb_yaml_resolve_node(yaml_document_get_node(document, pair->key), document, tags);
 				VALUE v = rb_yaml_resolve_node(yaml_document_get_node(document, pair->value), document, tags);
 				rb_hash_aset(hash, k, v);
+			}
+			if (rb_respond_to(handler, rb_intern("call")))
+			{
+				return rb_funcall(handler, rb_intern("call"), 1, hash);
+			}
+			else if (rb_respond_to(handler, rb_intern("yaml_new")))
+			{
+				return rb_funcall(handler, rb_intern("yaml_new"), 1, hash);
 			}
 			return hash;
 		}
