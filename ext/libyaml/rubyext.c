@@ -172,6 +172,10 @@ rb_yaml_document_add_sequence(VALUE self, SEL sel, VALUE taguri, VALUE style)
 	// TODO: stop ignoring the style parameter
 	yaml_char_t *tag = (yaml_char_t*)RSTRING_PTR(taguri);
 	int nodeID = yaml_document_add_sequence(document, tag, YAML_ANY_SEQUENCE_STYLE);
+	if (nodeID == 0)
+	{
+		rb_exc_raise(rb_yaml_parser_error(self, sel));
+	}
 	if (rb_block_given_p())
 	{
 		yaml_node_t *node = yaml_document_get_node(document, nodeID);
@@ -188,6 +192,10 @@ rb_yaml_document_add_mapping(VALUE self, SEL sel, VALUE taguri, VALUE style)
 	yaml_document_t *document = (yaml_document_t*)DATA_PTR(self);
 	yaml_char_t *tag = (yaml_char_t*)RSTRING_PTR(taguri);
 	int nodeID = yaml_document_add_mapping(document, tag, YAML_ANY_MAPPING_STYLE);
+	if (nodeID == 0)
+	{
+		rb_exc_raise(rb_yaml_parser_error(self, sel));
+	}
 	if (rb_block_given_p())
 	{
 		yaml_node_t *node = yaml_document_get_node(document, nodeID);
@@ -225,6 +233,10 @@ rb_yaml_document_add_scalar(VALUE self, SEL sel, VALUE taguri, VALUE str, VALUE 
 	yaml_char_t *tag = (yaml_char_t*)RSTRING_PTR(taguri);
 	yaml_char_t *val = (yaml_char_t*)RSTRING_PTR(str);
 	int scalID = yaml_document_add_scalar(document, NULL, val, RSTRING_LEN(str), rb_symbol_to_scalar_style(style));
+	if (scalID == 0)
+	{
+		rb_exc_raise(rb_yaml_parser_error(self, sel));
+	}
 	return rb_yaml_node_new(yaml_document_get_node(document, scalID), scalID, self);
 }
 
