@@ -189,7 +189,7 @@ rb_yaml_write_item_to_document(VALUE item, yaml_document_t *document)
 	}
 	else
 	{
-		VALUE to_dump = rb_inspect(item);
+		VALUE to_dump = rb_obj_as_string(item);
 		nodeID = yaml_document_add_scalar(document, (yaml_char_t *)YAML_DEFAULT_SCALAR_TAG, 
 			(yaml_char_t*)(RSTRING_PTR(to_dump)), RSTRING_LEN(to_dump), YAML_ANY_SCALAR_STYLE);
 	}
