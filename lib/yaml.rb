@@ -20,9 +20,9 @@ module YAML
   end
   
   def YAML.dump(obj, io=nil)
-    document = YAML::Document.new
+    document = LibYAML::Document.new
     obj.to_yaml(document)
-    Emitter.new(io).dump(document).output
+    LibYAML::Emitter.new(io).dump(document)
   end
   
   def YAML.load(io)

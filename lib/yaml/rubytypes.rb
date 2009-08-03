@@ -3,6 +3,7 @@
 
 class Object
   def yaml_as(tag)
+    # TODO: find out if there's a better way to do this than merely 
     class_eval <<-EOS
       def taguri
         @taguri || '#{tag}'
@@ -18,18 +19,26 @@ end
 class String
   yaml_as "tag:yaml.org,2002:str"
   def to_yaml(out)
-    out.scalar(taguri, self, self =~ /^:/ ? :quote2 : to_yaml_style)
+    out.scalar(taguri, self, self =~ /^:/ ? :quote2 : nil)
   end
 end
 
 class Array
   yaml_as "tag:yaml.org,2002:seq"
   def to_yaml(out)
-    out.seq(taguri, to_yaml_style) do |seq|
+    out.seq(taguri, nil) do |seq|
       each { |i| seq.add(i) }
     end
   end
 end
+
+class Integer
+  yaml_as "tag:yaml.org,2002:int"
+	def to_yaml(out)
+    out.scalar( "tag:yaml.org,2002:int", self.to_s, :plain )
+	end
+end
+
 
 =begin
 

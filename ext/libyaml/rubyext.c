@@ -114,37 +114,34 @@ rb_yaml_parser_finalize(void *rcv, SEL sel)
 	}
 }
 
-static VALUE rb_yaml_node_new(yaml_node_t *node);
+static VALUE rb_yaml_node_new(yaml_node_t *node, int id, VALUE document);
 
 static VALUE 
 rb_yaml_document_alloc(VALUE klass, SEL sel)
 {
 	yaml_document_t *document = ALLOC(yaml_document_t);
-	yaml_document_initialize(document, NULL, NULL, NULL, 1, 1);
+	yaml_document_initialize(document, NULL, NULL, NULL, 0, 1);
 	return Data_Wrap_Struct(rb_cDocument, NULL, NULL, document);
 }
 
 static VALUE 
 rb_yaml_document_add_node(VALUE self, SEL sel, VALUE obj)
 {
-	yaml_document_t *document;
-	Data_Get_Struct(self, yaml_document_t, document);
-	rb_yaml_dump_object_to_document(document, obj);
-	return self;
+	rb_notimplement();
 }
 
 static VALUE
 rb_yaml_document_add_sequence(VALUE self, SEL sel, VALUE taguri, VALUE style)
 {
-	yaml_document_t *document;
-	Data_Get_Struct(self, yaml_document_t, document);
+	yaml_document_t *document = (yaml_document_t*)DATA_PTR(self);
 	// TODO: stop ignoring the style parameter
-	int nodeID = yaml_document_add_sequence(document, RSTRING_PTR(taguri), YAML_ANY_SEQUENCE_STYLE);
+	yaml_char_t *tag = (yaml_char_t*)RSTRING_PTR(taguri);
+	int nodeID = yaml_document_add_sequence(document, tag, YAML_ANY_SEQUENCE_STYLE);
 	if (rb_block_given_p())
 	{
 		yaml_node_t *node = yaml_document_get_node(document, nodeID);
 		VALUE n = rb_yaml_node_new(node, nodeID, self);
-		rb_yield(n);
+		rb_vm_yield(1, &n);
 	}
 	return self;
 }
@@ -152,10 +149,11 @@ rb_yaml_document_add_sequence(VALUE self, SEL sel, VALUE taguri, VALUE style)
 static VALUE
 rb_yaml_document_add_scalar(VALUE self, SEL sel, VALUE taguri, VALUE str, VALUE style)
 {
-	yaml_document_t *document;
-	Data_Get_Struct(self, yaml_document_t, document);
+	yaml_document_t *document = (yaml_document_t*)DATA_PTR(self);
 	// TODO: stop ignoring the style
-	int scalID = yaml_document_add_scalar(document, RSTRING_PTR(taguri), RSTRING_PTR(str), RSTRING_LEN(str), YAML_ANY_SCALAR_STYLE);
+	yaml_char_t *tag = (yaml_char_t*)RSTRING_PTR(taguri);
+	yaml_char_t *val = (yaml_char_t*)RSTRING_PTR(str);
+	int scalID = yaml_document_add_scalar(document, tag, val, RSTRING_LEN(str), YAML_ANY_SCALAR_STYLE);
 	return rb_yaml_node_new(yaml_document_get_node(document, scalID), scalID, self);
 }
 
@@ -200,7 +198,7 @@ rb_yaml_document_finalize(void *rcv, SEL sel)
 static VALUE
 rb_yaml_node_new(yaml_node_t *node, int id, VALUE document)
 {
-	VALUE klass;
+	VALUE klass = rb_cNode;
 	switch (node->type)
 	{
 		case YAML_SCALAR_NODE:
@@ -218,7 +216,7 @@ rb_yaml_node_new(yaml_node_t *node, int id, VALUE document)
 		case YAML_NO_NODE:
 		rb_raise(rb_eRuntimeError, "unexpected empty node");
 	}
-	VALUE n = Data_Wrap_Struct(rb_cNode, NULL, NULL, node);
+	VALUE n = Data_Wrap_Struct(klass, NULL, NULL, node);
 	rb_ivar_set(n, rb_intern("node_id"), INT2FIX(id));
 	rb_ivar_set(n, rb_intern("document"), document);
 	return n;
@@ -230,10 +228,9 @@ rb_sequence_node_add(VALUE self, SEL sel, VALUE obj)
 	VALUE doc = rb_ivar_get(self, rb_intern("document"));
 	yaml_document_t *document;
 	Data_Get_Struct(doc, yaml_document_t, document);
-	VALUE scalar_node = rb_vm_call_with_cache(obj, "to_yaml", 1, &doc, true);
+	VALUE scalar_node = rb_funcall(obj, rb_intern("to_yaml"), 1, doc);
 	int seqID = FIX2INT(rb_ivar_get(self, rb_intern("node_id")));
 	int scalID = FIX2INT(rb_ivar_get(scalar_node, rb_intern("node_id")));
-	printf("Appending item %d to sequence %d\n", seqID, scalID);
 	yaml_document_append_sequence_item(document, seqID, scalID);
 	return self;
 }
@@ -267,7 +264,7 @@ rb_yaml_resolver_transfer(VALUE self, SEL sel, VALUE obj)
 	else 
 	{
 		VALUE document = rb_vm_call(rb_cDocument, selNew, 0, NULL, true);
-		rb_vm_call_with_cache(obj, "to_yaml", 1, &document, true);
+		rb_vm_call(obj, (SEL)"to_yaml", 1, &document, true);
 		return document;
 	}
 	return Qnil;
@@ -333,7 +330,7 @@ rb_yaml_emitter_dump(VALUE self, SEL sel, VALUE doc)
 	yaml_emitter_t *emitter;
 	yaml_document_t *document;
 	Data_Get_Struct(self, yaml_emitter_t, emitter);
-	Data_Get_Struct(self, yaml_document_t, document);
+	Data_Get_Struct(doc, yaml_document_t, document);
 	yaml_emitter_open(emitter);
 	yaml_emitter_dump(emitter, document);
 	yaml_emitter_flush(emitter);
@@ -375,9 +372,11 @@ Init_libyaml()
 	rb_yaml_parser_finalize_super = rb_objc_install_method2((Class)rb_cParser, "finalize", (IMP)rb_yaml_parser_finalize);
 	
 	rb_cDocument = rb_define_class_under(rb_mLibYAML, "Document", rb_cObject);
-	//rb_objc_define_method(rb_cDocument, "<<", rb_yaml_document_add_node, 1);
+	rb_objc_define_method(*(VALUE *)rb_cDocument, "alloc", rb_yaml_document_alloc, 0);
+	rb_objc_define_method(rb_cDocument, "<<", rb_yaml_document_add_node, 1);
 	rb_objc_define_method(rb_cDocument, "root", rb_yaml_document_root_node, 0);
 	rb_objc_define_method(rb_cDocument, "seq", rb_yaml_document_add_sequence, 2);
+	rb_objc_define_method(rb_cDocument, "scalar", rb_yaml_document_add_scalar, 3);
 	//rb_objc_define_method(rb_cDocument, "[]", rb_yaml_document_aref, 1);
 	//rb_objc_define_method(rb_cDocument, "version", rb_yaml_document_version, 0);
 	rb_objc_define_method(rb_cDocument, "implicit_start?", rb_yaml_document_implicit_start_p, 0);
