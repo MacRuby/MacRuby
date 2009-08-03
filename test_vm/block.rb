@@ -644,3 +644,22 @@ assert '42', %{
   END { $x += 1 }
   END { p $x }
 }
+
+assert '42', %{
+  class Foo
+    def something(var)
+      var
+    end
+  end
+  
+  class Bar
+    def something(var)
+      instance_eval do
+        super(var)
+      end
+    end
+  end
+  
+  x = Bar.new
+  x.something(42)
+}
