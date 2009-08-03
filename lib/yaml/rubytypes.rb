@@ -140,6 +140,11 @@ class FalseClass
   end
 end
 
+YAML::LibYAML::DEFAULT_RESOLVER.tags["tag:yaml.org,2002:bool"] = lambda {
+  |value|
+  value == "true"
+}
+
 =begin
 
 class Class

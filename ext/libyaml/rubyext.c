@@ -24,22 +24,22 @@ VALUE rb_ary_last(VALUE, SEL, int, VALUE*);
 // struct that I can access through Data_Get_Struct();
 // Nodes: Cache the tag as a Ruby string
 
-VALUE rb_mYAML;
-VALUE rb_mLibYAML;
-VALUE rb_cParser;
-VALUE rb_cEmitter;
-VALUE rb_cDocument;
-VALUE rb_cResolver;
-VALUE rb_cNode;
-VALUE rb_cSeqNode;
-VALUE rb_cMapNode;
-VALUE rb_cScalar;
-VALUE rb_cOut;
+static VALUE rb_mYAML;
+static VALUE rb_mLibYAML;
+static VALUE rb_cParser;
+static VALUE rb_cEmitter;
+static VALUE rb_cDocument;
+static VALUE rb_cResolver;
+static VALUE rb_cNode;
+static VALUE rb_cSeqNode;
+static VALUE rb_cMapNode;
+static VALUE rb_cScalar;
+static VALUE rb_cOut;
 
 static ID id_plain;
 static ID id_quote2;
 
-VALUE rb_oDefaultResolver;
+static VALUE rb_oDefaultResolver;
 
 static VALUE
 rb_yaml_parser_alloc(VALUE klass, SEL sel)
@@ -296,6 +296,16 @@ rb_yaml_node_tag(VALUE self, SEL sel)
 }
 #endif
 
+static void
+rb_yaml_guess_type_of_plain_node(yaml_node_t *node)
+{
+	const unsigned char* v = node->data.scalar.value;
+	if ((strcmp(v, "true") == 0) || (strcmp(v, "false") == 0))
+	{
+		node->tag = "tag:yaml.org,2002:bool";
+	} 
+}
+
 static VALUE
 rb_yaml_resolver_initialize(VALUE self, SEL sel)
 {
@@ -310,6 +320,10 @@ rb_yaml_resolve_node(yaml_node_t *node, yaml_document_t *document, VALUE tags)
 	{
 		case YAML_SCALAR_NODE:
 		{
+			if (node->data.scalar.style == YAML_PLAIN_SCALAR_STYLE)
+			{
+				rb_yaml_guess_type_of_plain_node(node);
+			}
 			VALUE tag = rb_str_new2((const char*)node->tag);
 			VALUE scalarval = rb_str_new((const char*)node->data.scalar.value, node->data.scalar.length);
 			VALUE handler = rb_hash_lookup(tags, tag);
