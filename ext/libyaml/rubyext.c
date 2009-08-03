@@ -24,6 +24,30 @@ VALUE rb_ary_last(VALUE, SEL, int, VALUE*);
 // struct that I can access through Data_Get_Struct();
 // Nodes: Cache the tag as a Ruby string
 
+typedef struct rb_yaml_node_s {
+	struct RBasic basic;
+	yaml_node_t *node;
+	int node_id;
+	yaml_document_t *document;
+} rb_yaml_node_t;
+
+#define RYAMLNode(val) ((rb_yaml_node_t*)val)
+
+typedef struct rb_yaml_document_s {
+	struct RBasic basic;
+	yaml_document_t *document;
+} rb_yaml_document_t;
+
+#define RYAMLDoc(val) ((rb_yaml_document_t*)val)
+
+typedef struct rb_yaml_parser_s {
+	struct RBasic basic;
+	yaml_parser_t *parser;
+	VALUE input;
+} rb_yaml_parser_t;
+
+#define RYAMLParser(val) ((rb_yaml_parser_t*)val)
+
 static VALUE rb_mYAML;
 static VALUE rb_mLibYAML;
 static VALUE rb_cParser;
@@ -47,9 +71,15 @@ static VALUE rb_oDefaultResolver;
 static VALUE
 rb_yaml_parser_alloc(VALUE klass, SEL sel)
 {
-	yaml_parser_t *yparser = ALLOC(yaml_parser_t);
-	yaml_parser_initialize(yparser);
-	return Data_Wrap_Struct(klass, NULL, NULL, yparser);
+	NEWOBJ(parser, struct rb_yaml_parser_s);
+	OBJSETUP(parser, klass, T_OBJECT);
+	// XXX: check with Laurent to see if this is going to be correct, as parser
+	// will have stuff assigned to its members...if not, we should just be able
+	// to replace this with malloc...actually, maybe we should do that anyway.
+	GC_WB(&parser->parser, ALLOC(yaml_parser_t));
+	parser->input = Qnil;
+	yaml_parser_initialize(parser->parser);
+	return (VALUE)parser;
 }
 
 static int
@@ -68,9 +98,9 @@ rb_yaml_io_read_handler(void *io_ptr, unsigned char *buffer, size_t size, size_t
 static VALUE
 rb_yaml_parser_set_input(VALUE self, SEL sel, VALUE input)
 {
-	yaml_parser_t *parser;
-	rb_ivar_set(self, id_input_ivar, input);
-	Data_Get_Struct(self, yaml_parser_t, parser);
+	rb_yaml_parser_t *rbparser = RYAMLParser(self);
+	rbparser->input = input; // do we need to retain this?
+	yaml_parser_t *parser = rbparser->parser;
 	if (!NIL_P(input))
 	{
 		assert(parser != NULL);
@@ -87,8 +117,18 @@ rb_yaml_parser_set_input(VALUE self, SEL sel, VALUE input)
 		{
 			yaml_parser_set_input(parser, rb_yaml_io_read_handler, (void*)input);
 		}
+		else
+		{
+			rb_raise(rb_eArgError, "invalid input for YAML parser: %s", rb_obj_classname(input));
+		}
 	}
 	return input;
+}
+
+static VALUE
+rb_yaml_parser_input(VALUE self, SEL sel)
+{
+	return RYAMLParser(self)->input;
 }
 
 static VALUE
@@ -96,8 +136,7 @@ rb_yaml_parser_error(VALUE self, SEL sel)
 {
 	VALUE error = Qnil;
 	char *msg = NULL;
-	yaml_parser_t *parser;
-	Data_Get_Struct(self, yaml_parser_t, parser);
+	yaml_parser_t *parser = RYAMLParser(self)->parser;
 	assert(parser != NULL);
 	switch(parser->error)
 	{
@@ -134,8 +173,7 @@ rb_yaml_parser_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_yaml_parser_load(VALUE self, SEL sel)
 {
-	yaml_parser_t *parser;
-	Data_Get_Struct(self, yaml_parser_t, parser);
+	yaml_parser_t *parser = RYAMLParser(self)->parser;
 	yaml_document_t *document = ALLOC(yaml_document_t);
 	if(yaml_parser_load(parser, document) == 0) {
 		rb_exc_raise(rb_yaml_parser_error(self, sel));
@@ -145,12 +183,16 @@ rb_yaml_parser_load(VALUE self, SEL sel)
 
 static IMP rb_yaml_parser_finalize_super = NULL; 
 
+// TODO: check with lrz to see if this is correctly reentrant
 static void
 rb_yaml_parser_finalize(void *rcv, SEL sel)
 {
-	yaml_parser_t *parser;
-	Data_Get_Struct(rcv, yaml_parser_t, parser);
-	yaml_parser_delete(parser);
+	rb_yaml_parser_t *rbparser = RYAMLParser(rcv);
+	if((rbparser != NULL) && (rbparser->parser != NULL)) 
+	{
+		yaml_parser_delete(rbparser->parser);
+		rbparser->parser = NULL;
+	}
 	if (rb_yaml_parser_finalize_super != NULL)
 	{
 		((void(*)(void *, SEL))rb_yaml_parser_finalize_super)(rcv, sel);
@@ -617,8 +659,8 @@ Init_libyaml()
 	rb_define_const(rb_mLibYAML, "VERSION", rb_str_new2(yaml_get_version_string()));
 	
 	rb_cParser = rb_define_class_under(rb_mLibYAML, "Parser", rb_cObject);
-	rb_define_attr(rb_cParser, "input", 1, 1);
 	rb_objc_define_method(*(VALUE *)rb_cParser, "alloc", rb_yaml_parser_alloc, 0);
+	rb_objc_define_method(rb_cParser, "input", rb_yaml_parser_input, 0);
 	rb_objc_define_method(rb_cParser, "input=", rb_yaml_parser_set_input, 1);
 	rb_objc_define_method(rb_cParser, "initialize", rb_yaml_parser_initialize, -1);
 	// commented methods here are just unimplemented; i plan to put them in soon.
