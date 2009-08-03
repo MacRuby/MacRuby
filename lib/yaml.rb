@@ -8,6 +8,42 @@
 
 require 'libyaml'
 
+module YAML
+  
+  def YAML.parser
+    Parser.new
+  end
+  
+  def YAML.emitter
+    Emitter.new
+  end
+  
+  def YAML.dump(obj, io=nil)
+    obj.to_yaml(io)
+  end
+  
+  def YAML.load(io)
+    parser.load(io)
+  end
+  
+  def YAML.load_file(path)
+    File.open(path) { |i| load(i) }
+  end
+  
+  def YAML.parse(io)
+    parser.parse(io)
+  end
+  
+  def YAML.parse_file(path)
+    File.open(path) { |i| parse(i) }
+  end
+  
+  def YAML.quick_emit(obj, opts={}, &block)
+    emitter.emit(obj)
+  end
+  
+end
+
 =begin
 
 require 'stringio'
