@@ -1,4 +1,4 @@
-describe :stringio_getc, :shared => true do
+describe :stringio_getbyte, :shared => true do
   before(:each) do
     @io = StringIO.new("example")
   end
@@ -14,11 +14,20 @@ describe :stringio_getc, :shared => true do
     @io.pos.should eql(3)
   end
   
-  it "returns the 8-bit byte at the current position" do
-    @io.send(@method).should == ?e
-    @io.send(@method).should == ?x
-    @io.send(@method).should == ?a
-  end   
+  ruby_version_is "" ... "1.9" do    
+    it "returns the 8-bit byte at the current position" do
+      @io.send(@method).should == ?e
+      @io.send(@method).should == ?x
+      @io.send(@method).should == ?a
+    end
+  end
+  ruby_version_is "1.9" do  
+    it "returns the 8-bit byte at the current position" do
+      @io.send(@method).should == 101
+      @io.send(@method).should == 120
+      @io.send(@method).should == 97
+    end
+  end 
 
   it "returns nil when called at the end of self" do
     @io.pos = 7
@@ -37,7 +46,7 @@ describe :stringio_getc, :shared => true do
   end
 end
 
-describe :stringio_getc_not_readable, :shared => true do
+describe :stringio_getbyte_not_readable, :shared => true do
   it "raises an IOError" do
     io = StringIO.new("xyz", "w")
     lambda { io.send(@method) }.should raise_error(IOError)

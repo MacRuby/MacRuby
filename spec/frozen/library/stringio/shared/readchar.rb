@@ -2,13 +2,13 @@ describe :stringio_readchar, :shared => true do
   before(:each) do
     @io = StringIO.new("example")
   end
-
+  
   it "reads the next 8-bit byte from self's current position" do
     @io.send(@method).should == ?e
 
     @io.pos = 4
     @io.send(@method).should == ?p
-  end
+  end 
 
   it "correctly updates the current position" do
     @io.send(@method)

@@ -22,12 +22,14 @@ describe "StringIO#ungetc when passed [char]" do
     @io.ungetc(?A)
     @io.pos.should eql(1)
   end
-
-  it "pads with \\000 when the current position is after the end" do
-    @io.pos = 15
-    @io.ungetc(?A)
-    @io.string.should == "1234\000\000\000\000\000\000\000\000\000\000A"
-  end
+  
+  ruby_version_is "" ... "1.9" do
+    it "pads with \\000 when the current position is after the end" do
+      @io.pos = 15
+      @io.ungetc(?A)
+      @io.string.should == "1234\000\000\000\000\000\000\000\000\000\000A"
+    end
+  end 
 
   ruby_version_is "1.8.6" .. "1.8.6.367" do
     it "does nothing when at the beginning of self" do
@@ -35,14 +37,27 @@ describe "StringIO#ungetc when passed [char]" do
       @io.string.should == '1234'
     end
   end
+  
+  ruby_version_is "" ... "1.9" do
+    it "tries to convert the passed length to an Integer using #to_int" do
+      obj = mock("to_int")
+      obj.should_receive(:to_int).and_return(?A)
 
-  it "tries to convert the passed length to an Integer using #to_int" do
-    obj = mock("to_int")
-    obj.should_receive(:to_int).and_return(?A)
+      @io.pos = 1
+      @io.ungetc(obj)
+      @io.string.should == "A234"
+    end 
+  end
+  
+  ruby_version_is "1.9" do
+    it "tries to convert the passed argument to a String using #to_str if the argument isn't an Integer" do
+      obj = mock("to_str")
+      obj.should_receive(:to_str).and_return(?A) 
 
-    @io.pos = 1
-    @io.ungetc(obj)
-    @io.string.should == "A234"
+      @io.pos = 1
+      @io.ungetc(obj)
+      @io.string.should == "A234"
+    end
   end
   
   ruby_version_is "" ... "1.9" do
