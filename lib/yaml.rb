@@ -12,7 +12,7 @@ require 'yaml/rubytypes'
 module YAML
   
   def YAML.parser
-
+    LibYAML::Parser.new
   end
   
   def YAML.emitter
@@ -35,11 +35,11 @@ module YAML
   end
   
   def YAML.parse(io)
-
+    LibYAML::Parser.new(io).load
   end
   
   def YAML.parse_file(path)
-
+    File.open(path) { |f| parse(f) }
   end
   
 end

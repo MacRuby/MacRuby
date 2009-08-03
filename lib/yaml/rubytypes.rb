@@ -1,5 +1,6 @@
 # -*- mode: ruby; ruby-indent-level: 4; tab-width: 4 -*- vim: sw=4 ts=4
 # require 'date'
+require 'libyaml'
 
 class Class
   def to_yaml(out)
@@ -14,6 +15,7 @@ class Object
     klass.define_method(:taguri) do
       @taguri || tag
     end
+    YAML::LibYAML::DEFAULT_RESOLVER.tags[tag] = klass
   end
   
   yaml_as "tag:ruby.yaml.org,2002:object"
@@ -44,10 +46,6 @@ end
 
 class String
   yaml_as "tag:yaml.org,2002:str"
-  
-  def self.yaml_new(value)
-    value
-  end
   
   def to_yaml(out)
     out.scalar(taguri, self, self =~ /^:/ ? :quote2 : nil)
@@ -84,6 +82,10 @@ end
 
 class Integer
   yaml_as "tag:yaml.org,2002:int"
+  def Integer.yaml_new(val)
+    val.to_i
+  end
+  
 	def to_yaml(out)
     out.scalar( "tag:yaml.org,2002:int", self.to_s, :plain )
 	end
@@ -91,6 +93,11 @@ end
 
 class Float
   yaml_as "tag:yaml.org,2002:float"
+  
+  def Float.yaml_new(val)
+    val.to_f
+  end
+  
   def to_yaml(out)
     str = self.to_s
     if str == "Infinity"

@@ -20,6 +20,7 @@ VALUE rb_ary_last(VALUE, SEL, int, VALUE*);
 // Ideas to speed this up:
 // Nodes: Stop relying on @document and @node_id as ivars; embed them in a
 // struct that I can access through Data_Get_Struct();
+// Nodes: Cache the tag as a Ruby string
 
 VALUE rb_mYAML;
 VALUE rb_mLibYAML;
@@ -296,7 +297,7 @@ rb_yaml_node_tag(VALUE self, SEL sel)
 static VALUE
 rb_yaml_resolver_initialize(VALUE self, SEL sel)
 {
-	rb_ivar_set(self, rb_intern("tags"), rb_hash_new());
+	rb_ivar_set(self, rb_intern("@tags"), rb_hash_new());
 	return self;
 }
 
@@ -307,7 +308,19 @@ rb_yaml_resolve_node(yaml_node_t *node, yaml_document_t *document, VALUE tags)
 	{
 		case YAML_SCALAR_NODE:
 		{
-			return rb_str_new(node->data.scalar.value, node->data.scalar.length);
+			VALUE tag = rb_str_new2(node->tag);
+			VALUE scalarval = rb_str_new(node->data.scalar.value, node->data.scalar.length);
+			VALUE handler = rb_hash_lookup(tags, tag);
+			if (rb_respond_to(handler, rb_intern("call")))
+			{
+				return rb_funcall(handler, rb_intern("call"), 1, scalarval);
+			}
+			else if (rb_respond_to(handler, rb_intern("yaml_new")))
+			{
+				printf("Calling YAML_NEW\n");
+				return rb_funcall(handler, rb_intern("yaml_new"), 1, scalarval);
+			}
+			return scalarval;
 		}
 		break;
 		case YAML_SEQUENCE_NODE:
@@ -348,7 +361,7 @@ rb_yaml_resolve_node(yaml_node_t *node, yaml_document_t *document, VALUE tags)
 static VALUE
 rb_yaml_resolver_transfer(VALUE self, SEL sel, VALUE obj)
 {
-	VALUE tags = rb_ivar_get(self, rb_intern("tags"));
+	VALUE tags = rb_ivar_get(self, rb_intern("@tags"));
 	if (rb_obj_is_kind_of(obj, rb_cDocument))
 	{
 		yaml_document_t *document;
