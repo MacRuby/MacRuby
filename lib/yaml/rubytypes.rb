@@ -1,18 +1,19 @@
 # -*- mode: ruby; ruby-indent-level: 4; tab-width: 4 -*- vim: sw=4 ts=4
 # require 'date'
 
+class Class
+  def to_yaml(out)
+    raise TypeError, "can't dump anonymous class %s" % self.class
+  end
+end
+
 class Object
   def yaml_as(tag)
-    # TODO: find out if there's a better way to do this than merely 
-    class_eval <<-EOS
-      def taguri
-        @taguri || '#{tag}'
-      end
-      
-      def taguri=(t)
-        @taguri = t
-      end
-    EOS
+    attr_writer :taguri
+    klass = (self.is_a? Class) ? self : (class << self; end)
+    klass.define_method(:taguri) do
+      @taguri || tag
+    end
   end
 end
 
@@ -39,6 +40,41 @@ class Integer
 	end
 end
 
+class Float
+  yaml_as "tag:yaml.org,2002:float"
+  def to_yaml
+    str = self.to_s
+    if str == "Infinity"
+      str = ".Inf"
+    elsif str == "-Infinity"
+      str = "-.Inf"
+    elsif str == "NaN"
+      str = ".NaN"
+    end
+    out.scalar("tag:yaml.org,2002:float", str, :plain)
+  end
+end
+
+class NilClass 
+  yaml_as "tag:yaml.org,2002:null"
+	def to_yaml(out)
+    out.scalar(taguri, "", :plain)
+	end
+end
+
+class TrueClass
+  yaml_as "tag:yaml.org,2002:bool#yes"
+  def to_yaml(out)
+    out.scalar(taguri, "true", :plain)
+  end
+end
+
+class FalseClass
+  yaml_as "tag:yaml.org,2002:bool#no"
+  def to_yaml(out)
+    out.scalar(taguri, "false", :plain)
+  end
+end
 
 =begin
 
@@ -134,21 +170,6 @@ class Struct
                 end
 				self.to_yaml_properties.each do |m|
                     map.add( m, instance_variable_get( m ) )
-                end
-            end
-        end
-	end
-end
-
-class Array
-    yaml_as "tag:ruby.yaml.org,2002:array"
-    yaml_as "tag:yaml.org,2002:seq"
-    def yaml_initialize( tag, val ); concat( val.to_a ); end
-	def to_yaml( opts = {} )
-		YAML::quick_emit( self, opts ) do |out|
-            out.seq( taguri, to_yaml_style ) do |seq|
-                each do |x|
-                    seq.add( x )
                 end
             end
         end
@@ -394,32 +415,6 @@ class Date
 	end
 end
 
-class Integer
-    yaml_as "tag:yaml.org,2002:int"
-	def to_yaml( opts = {} )
-		YAML::quick_emit( nil, opts ) do |out|
-            out.scalar( "tag:yaml.org,2002:int", self.to_s, :plain )
-        end
-	end
-end
-
-class Float
-    yaml_as "tag:yaml.org,2002:float"
-	def to_yaml( opts = {} )
-		YAML::quick_emit( nil, opts ) do |out|
-            str = self.to_s
-            if str == "Infinity"
-                str = ".Inf"
-            elsif str == "-Infinity"
-                str = "-.Inf"
-            elsif str == "NaN"
-                str = ".NaN"
-            end
-            out.scalar( "tag:yaml.org,2002:float", str, :plain )
-        end
-	end
-end
-
 class Rational
 	yaml_as "tag:ruby.yaml.org,2002:object:Rational"
 	def Rational.yaml_new( klass, tag, val )
@@ -458,31 +453,5 @@ class Complex
 	end
 end
 
-class TrueClass
-    yaml_as "tag:yaml.org,2002:bool#yes"
-	def to_yaml( opts = {} )
-		YAML::quick_emit( nil, opts ) do |out|
-            out.scalar( taguri, "true", :plain )
-        end
-	end
-end
-
-class FalseClass
-    yaml_as "tag:yaml.org,2002:bool#no"
-	def to_yaml( opts = {} )
-		YAML::quick_emit( nil, opts ) do |out|
-            out.scalar( taguri, "false", :plain )
-        end
-	end
-end
-
-class NilClass 
-    yaml_as "tag:yaml.org,2002:null"
-	def to_yaml( opts = {} )
-		YAML::quick_emit( nil, opts ) do |out|
-            out.scalar( taguri, "", :plain )
-        end
-	end
-end
 
 =end

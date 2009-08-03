@@ -16,7 +16,7 @@ module YAML
   end
   
   def YAML.emitter
-
+    LibYAML::Emitter.new
   end
   
   def YAML.dump(obj, io=nil)
