@@ -74,12 +74,12 @@ rb_yaml_parser_set_input(VALUE self, SEL sel, VALUE input)
 	{
 		if (CLASS_OF(input) == rb_cByteString)
 		{
-			yaml_parser_set_input_string(parser, (const unsigned char *)(RSTRING_PTR(input)), RSTRING_LEN(input));
+			// I think this will work. At least, I hope so.
+			yaml_parser_set_input_string(parser, (const unsigned char*)rb_bytestring_byte_pointer(input), rb_bytestring_length(input));
 		}
 		else if (TYPE(input) == T_STRING)
 		{
-			// I think this will work. At least, I hope so.
-			yaml_parser_set_input_string(parser, (const unsigned char*)rb_bytestring_byte_pointer(input), rb_bytestring_length(input));
+			yaml_parser_set_input_string(parser, (const unsigned char *)(RSTRING_PTR(input)), RSTRING_LEN(input));			
 		}
 		else if (TYPE(input) == T_FILE)
 		{
@@ -306,19 +306,58 @@ rb_yaml_resolver_initialize(VALUE self, SEL sel)
 }
 
 static VALUE
+rb_yaml_resolve_node(yaml_node_t *node, yaml_document_t *document, VALUE tags)
+{
+	switch(node->type)
+	{
+		case YAML_SCALAR_NODE:
+		{
+			return rb_str_new(node->data.scalar.value, node->data.scalar.length);
+		}
+		break;
+		case YAML_SEQUENCE_NODE:
+		{
+			yaml_node_item_t *item;
+			VALUE arr = rb_ary_new();
+			for(item = node->data.sequence.items.start; item < node->data.sequence.items.top; item++)
+			{
+				int item_id = *item;
+				yaml_node_t *subnode = yaml_document_get_node(document, item_id);
+				VALUE new_obj = rb_yaml_resolve_node(subnode, document, tags);
+				rb_ary_push(arr, new_obj);
+			}
+			return arr;
+		}
+		break;
+		
+		case YAML_MAPPING_NODE:
+		{
+			yaml_node_pair_t *pair;
+			VALUE hash = rb_hash_new();
+			for(pair = node->data.mapping.pairs.start; pair < node->data.mapping.pairs.top; pair++)
+			{
+				VALUE k = rb_yaml_resolve_node(yaml_document_get_node(document, pair->key), document, tags);
+				VALUE v = rb_yaml_resolve_node(yaml_document_get_node(document, pair->value), document, tags);
+				rb_hash_aset(hash, k, v);
+			}
+			return hash;
+		}
+		
+		case YAML_NO_NODE:
+		break;
+	}
+	return Qnil;
+}
+
+static VALUE
 rb_yaml_resolver_transfer(VALUE self, SEL sel, VALUE obj)
 {
-	if (rb_obj_is_kind_of(obj, rb_cNode))
+	VALUE tags = rb_ivar_get(self, rb_intern("tags"));
+	if (rb_obj_is_kind_of(obj, rb_cDocument))
 	{
-		// check the tags first, see if there's a corresponding Proc that will accept us
-		// otherwise, try calling to_yaml
-		// otherwise, go up a level
-	}
-	else 
-	{
-		VALUE document = rb_vm_call(rb_cDocument, selNew, 0, NULL, true);
-		rb_vm_call(obj, (SEL)"to_yaml", 1, &document, true);
-		return document;
+		yaml_document_t *document;
+		Data_Get_Struct(obj, yaml_document_t, document);
+		return rb_yaml_resolve_node(document->nodes.start, document, tags);
 	}
 	return Qnil;
 }

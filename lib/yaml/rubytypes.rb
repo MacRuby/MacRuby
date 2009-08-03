@@ -44,6 +44,11 @@ end
 
 class String
   yaml_as "tag:yaml.org,2002:str"
+  
+  def self.yaml_new(value)
+    value
+  end
+  
   def to_yaml(out)
     out.scalar(taguri, self, self =~ /^:/ ? :quote2 : nil)
   end
