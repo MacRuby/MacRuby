@@ -6,6 +6,10 @@
 # Author:: why the lucky stiff
 # 
 
+require 'libyaml'
+
+=begin
+
 require 'stringio'
 require 'yaml/error'
 require 'yaml/syck'
@@ -437,4 +441,4 @@ module Kernel
     private :y
 end
 
-
+=end

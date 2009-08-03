@@ -161,6 +161,15 @@ yaml_load(VALUE module, SEL sel, VALUE input)
 {
 	VALUE parser = rb_yaml_parser_alloc(rb_cParser, 0);
 	VALUE ary = rb_yaml_parser_load(parser, 0, input);
+	if (RARRAY_LEN(ary) == 1)
+	{
+		VALUE unit = RARRAY_AT(ary, 0);
+		if (TYPE(unit) == T_ARRAY)
+		{
+			return unit;
+		}
+	}
+	return ary;
 }
 
 static VALUE
