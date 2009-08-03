@@ -31,14 +31,9 @@ process_is_foreground do
       end
 
       it "raises an IndexError when there is no item at the passed index" do
-        # When asking for negative indices from readline's history on
-        # libedit (which MacRuby uses), readline behaves more like a Ruby array
-        # and returns indices counting from the end.
-        not_compliant_on :macruby do
-          lambda { Readline::HISTORY[-10] }.should raise_error(IndexError)
-          lambda { Readline::HISTORY[-9] }.should raise_error(IndexError)
-          lambda { Readline::HISTORY[-8] }.should raise_error(IndexError)
-        end
+        lambda { Readline::HISTORY[-10] }.should raise_error(IndexError)
+        lambda { Readline::HISTORY[-9] }.should raise_error(IndexError)
+        lambda { Readline::HISTORY[-8] }.should raise_error(IndexError)
 
         lambda { Readline::HISTORY[8] }.should raise_error(IndexError)
         lambda { Readline::HISTORY[9] }.should raise_error(IndexError)

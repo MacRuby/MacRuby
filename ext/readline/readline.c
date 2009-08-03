@@ -81,6 +81,17 @@ readline_event(void)
 }
 #endif
 
+static HIST_ENTRY*
+readline_history_get(int idx)
+{
+	int readline_idx = history_base + idx - 1;
+	if (readline_idx < 0)
+	{
+		rb_raise(rb_eIndexError, "invalid index");
+	}
+	return history_get(readline_idx);
+}
+
 static VALUE
 readline_readline(VALUE self, SEL sel, int argc, VALUE *argv)
 {
@@ -532,7 +543,7 @@ hist_get(VALUE self, SEL sel, VALUE index)
     if (i < 0) {
         i += history_length;
     }
-    entry = history_get(history_base + i - 1);
+    entry = readline_history_get(i);
     if (entry == NULL) {
 	rb_raise(rb_eIndexError, "invalid index");
     }
@@ -640,7 +651,7 @@ hist_each(VALUE self, SEL sel)
 
     rb_secure(4);
     for (i = 0; i < history_length; i++) {
-        entry = history_get(history_base + i - 1);
+        entry = readline_history_get(i);
         if (entry == NULL)
             break;
 	rb_yield(rb_tainted_str_new2(entry->line));
