@@ -423,13 +423,11 @@ rb_yaml_resolve_node(yaml_node_t *node, yaml_document_t *document, VALUE tags)
 	{
 		case YAML_SCALAR_NODE:
 		{
-			printf("Tag is %s\n", node->tag);
 			if (node->data.scalar.style == YAML_PLAIN_SCALAR_STYLE)
 			{
 				rb_yaml_guess_type_of_plain_node(node);
 				tag = rb_str_new2((const char*)node->tag);
 				handler = rb_hash_lookup(tags, tag);
-				printf("Tag is now %s\n", node->tag);
 			}
 			VALUE scalarval = rb_str_new((const char*)node->data.scalar.value, node->data.scalar.length);
 			if (rb_respond_to(handler, rb_intern("call")))
