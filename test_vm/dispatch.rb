@@ -315,3 +315,16 @@ assert ':ok', %{
   end
   X.new.foo(42)
 }
+
+assert ':ok', %{
+  module M
+    def initialize(*args)
+      super
+    end
+  end
+  class X
+    include M
+  end
+  X.new
+  p :ok
+}
