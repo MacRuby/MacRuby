@@ -55,11 +55,6 @@ rb_yaml_io_read_handler(void *io_ptr, unsigned char *buffer, size_t size, size_t
 	{
 		return 0;
 	}
-	if (rb_io_eof(io, 0) == Qtrue)
-	{
-		*size_read = 0;
-		return 1;
-	}
 	*size_read = result;
 	return 1;
 }
@@ -344,6 +339,7 @@ rb_yaml_resolve_node(yaml_node_t *node, yaml_document_t *document, VALUE tags)
 		}
 		
 		case YAML_NO_NODE:
+		default:
 		break;
 	}
 	return Qnil;

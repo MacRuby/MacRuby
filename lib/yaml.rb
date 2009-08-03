@@ -31,7 +31,7 @@ module YAML
   end
   
   def YAML.load_file(path)
-
+    File.open(path) { |f| load(f) }
   end
   
   def YAML.parse(io)
