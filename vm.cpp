@@ -1006,13 +1006,13 @@ rb_vm_ivar_set(VALUE obj, ID name, VALUE val, int *slot_cache)
 
 extern "C"
 VALUE
-rb_vm_cvar_get(VALUE klass, ID id)
+rb_vm_cvar_get(VALUE klass, ID id, unsigned char check)
 {
     Class k = GET_VM()->get_current_class();
     if (k != NULL) {
 	klass = (VALUE)k;
     }
-    return rb_cvar_get(klass, id);
+    return rb_cvar_get2(klass, id, check);
 }
 
 extern "C"

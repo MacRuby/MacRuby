@@ -1945,7 +1945,7 @@ rb_cvar_set(VALUE klass, ID id, VALUE val)
 }
 
 VALUE
-rb_cvar_get(VALUE klass, ID id)
+rb_cvar_get2(VALUE klass, ID id, bool check)
 {
     VALUE value, tmp, front = 0, target = 0;
     CFMutableDictionaryRef iv_dict;
@@ -1956,8 +1956,13 @@ rb_cvar_get(VALUE klass, ID id)
     }
     CVAR_LOOKUP(&value, {if (!front) front = klass; target = klass;});
     if (!target) {
-	rb_name_error(id,"uninitialized class variable %s in %s",
-		      rb_id2name(id), rb_class2name(tmp));
+	if (check) {
+	    rb_name_error(id,"uninitialized class variable %s in %s",
+		    rb_id2name(id), rb_class2name(tmp));
+	}
+	else {
+	    return Qnil;
+	}
     }
     if (front && target != front) {
 	ID did = id;
@@ -1972,6 +1977,12 @@ rb_cvar_get(VALUE klass, ID id)
 	}
     }
     return value;
+}
+
+VALUE
+rb_cvar_get(VALUE klass, ID id)
+{
+    return rb_cvar_get2(klass, id, true);
 }
 
 VALUE

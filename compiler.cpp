@@ -1072,6 +1072,25 @@ RoxorCompiler::compile_ivar_assignment(ID vid, Value *val)
 }
 
 Value *
+RoxorCompiler::compile_cvar_get(ID id, bool check)
+{
+    if (cvarGetFunc == NULL) {
+	// VALUE rb_vm_cvar_get(VALUE klass, ID id, unsigned char check);
+	cvarGetFunc = cast<Function>(module->getOrInsertFunction(
+		    "rb_vm_cvar_get", 
+		    RubyObjTy, RubyObjTy, IntTy, Type::Int8Ty, NULL));
+    }
+
+    std::vector<Value *> params;
+
+    params.push_back(compile_current_class());
+    params.push_back(compile_id(id));
+    params.push_back(ConstantInt::get(Type::Int8Ty, check ? 1 : 0));
+
+    return compile_protected_call(cvarGetFunc, params);
+}
+
+Value *
 RoxorCompiler::compile_cvar_assignment(ID name, Value *val)
 {
     if (cvarSetFunc == NULL) {
@@ -3054,24 +3073,8 @@ RoxorCompiler::compile_node(NODE *node)
 	    break;
 
 	case NODE_CVAR:
-	    {
-		assert(node->nd_vid > 0);
-
-		if (cvarGetFunc == NULL) {
-		    // VALUE rb_vm_cvar_get(VALUE klass, ID id);
-		    cvarGetFunc = cast<Function>(module->getOrInsertFunction(
-				"rb_vm_cvar_get", 
-				RubyObjTy, RubyObjTy, IntTy, NULL));
-		}
-
-		std::vector<Value *> params;
-
-		params.push_back(compile_current_class());
-		params.push_back(compile_id(node->nd_vid));
-
-		return compile_protected_call(cvarGetFunc, params);
-	    }
-	    break;
+	    assert(node->nd_vid > 0);
+	    return compile_cvar_get(node->nd_vid, true);
 
 	case NODE_CVASGN:
 	    assert(node->nd_vid > 0);
@@ -3108,8 +3111,20 @@ RoxorCompiler::compile_node(NODE *node)
 	    {
 		assert(node->nd_recv != NULL);
 		assert(node->nd_value != NULL);
-		
-		Value *recvVal = compile_node(node->nd_recv);
+
+		Value *recvVal;
+		if (nd_type(node->nd_recv) == NODE_CVAR) {
+		    // @@foo ||= 42
+		    // We need to compile the class variable retrieve to not
+		    // raise an exception in case the variable has never been
+		    // defined yet.
+		    assert(node->nd_recv->nd_vid > 0);
+		    recvVal = compile_cvar_get(node->nd_recv->nd_vid, false);
+		}
+		else {
+		    recvVal = compile_node(node->nd_recv);
+		}
+
 
 		Value *falseCond = new ICmpInst(ICmpInst::ICMP_EQ, recvVal, falseVal, "", bb);
 

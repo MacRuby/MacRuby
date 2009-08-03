@@ -224,6 +224,7 @@ class RoxorCompiler {
 	Value *compile_ivar_read(ID vid);
 	Value *compile_ivar_assignment(ID vid, Value *val);
 	Value *compile_cvar_assignment(ID vid, Value *val);
+	Value *compile_cvar_get(ID vid, bool check);
 	Value *compile_gvar_assignment(NODE *node, Value *val);
 	Value *compile_constant_declaration(NODE *node, Value *val);
 	Value *compile_multiple_assignment(NODE *node, Value *val);

@@ -652,6 +652,7 @@ void rb_const_set(VALUE, ID, VALUE);
 VALUE rb_cvar_defined(VALUE, ID);
 void rb_cvar_set(VALUE, ID, VALUE);
 VALUE rb_cvar_get(VALUE, ID);
+VALUE rb_cvar_get2(VALUE klass, ID id, bool check);
 void rb_cv_set(VALUE, const char*, VALUE);
 VALUE rb_cv_get(VALUE, const char*);
 void rb_define_class_variable(VALUE, const char*, VALUE);
