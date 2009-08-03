@@ -351,6 +351,12 @@ assert %{"hello world"\n42}, %{
   Y.new.foo('hello', 1)
 }
 
+assert 'true', %{
+  class X; def foo; p block_given?; end; end
+  class Y < X; def foo(&b); super; end; end
+  Y.new.foo {}
+}
+
 assert "42", %{
   class X; def foo(x); p x; end; end
   class Y < X; def foo(x); 1.times { |; x| x = 1; super; } end; end
