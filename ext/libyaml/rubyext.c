@@ -20,6 +20,11 @@ VALUE rb_mLibYAML;
 VALUE rb_cParser;
 VALUE rb_cEmitter;
 
+typedef struct {
+	yaml_emitter_t *emitter;
+	VALUE bytestring;
+} rb_yaml_emitter_t;
+
 static VALUE
 rb_yaml_parser_alloc(VALUE klass, SEL sel)
 {
@@ -103,6 +108,10 @@ rb_yaml_parse(yaml_parser_t *parser)
         }
         yaml_event_delete(&event);
     }
+	if (RARRAY_LEN(stack) == 1)
+	{
+		return RARRAY_AT(stack, 0);
+	}
     return stack;
 }
 
@@ -150,10 +159,75 @@ rb_yaml_parser_finalize(void *rcv, SEL sel)
 	}
 }
 
-static VALUE
-rb_yaml_emitter_emit(VALUE self, SEL sel, int argc, VALUE *argv)
+static int
+rb_yaml_write_item_to_document(VALUE item, yaml_document_t *document)
 {
-	rb_notimplement();
+	int nodeID = 0;
+	if (TYPE(item) == T_ARRAY)
+	{
+		nodeID = yaml_document_add_sequence(document, (yaml_char_t *)YAML_DEFAULT_SEQUENCE_TAG, YAML_ANY_SEQUENCE_STYLE);
+		long len = RARRAY_LEN(item);
+		int ii;
+		for(ii=0; ii<len; ii++)
+		{
+			int newItem = rb_yaml_write_item_to_document(RARRAY_AT(item, ii), document);
+			yaml_document_append_sequence_item(document, nodeID, newItem);
+		}
+	}
+	else if (TYPE(item) == T_HASH)
+	{
+		nodeID = yaml_document_add_mapping(document, (yaml_char_t *)YAML_DEFAULT_MAPPING_TAG, YAML_ANY_MAPPING_STYLE);
+		VALUE keys = rb_hash_keys(item); // this is probably really inefficient.
+		long len = RARRAY_LEN(item);
+		int ii;
+		for(ii=0; ii<len; ii++)
+		{
+			int keyID = rb_yaml_write_item_to_document(RARRAY_AT(keys, ii), document);
+			int valID = rb_yaml_write_item_to_document(rb_hash_aref(item, RARRAY_AT(keys, ii)), document);
+			yaml_document_append_mapping_pair(document, nodeID, keyID, valID);
+		}
+	}
+	else
+	{
+		VALUE to_dump = rb_inspect(item);
+		nodeID = yaml_document_add_scalar(document, (yaml_char_t *)YAML_DEFAULT_SCALAR_TAG, 
+			(yaml_char_t*)(RSTRING_PTR(to_dump)), RSTRING_LEN(to_dump), YAML_ANY_SCALAR_STYLE);
+	}
+	return nodeID;
+}
+
+static int
+rb_yaml_emitter_write_handler(void *bytestring, unsigned char* buffer, size_t size)
+{
+	VALUE bstr = (VALUE)bytestring;
+	CFMutableDataRef data = rb_bytestring_wrapped_data(bstr);
+	CFDataAppendBytes(data, (const UInt8*)buffer, (CFIndex)size);
+	return 1;
+}
+
+static VALUE
+rb_yaml_emitter_alloc(VALUE klass, SEL sel)
+{
+	rb_yaml_emitter_t *emitter = ALLOC(rb_yaml_emitter_t);
+	GC_WB(&emitter->emitter, ALLOC(yaml_emitter_t));
+	emitter->bytestring = rb_bytestring_new();
+	yaml_emitter_initialize(emitter->emitter);
+	yaml_emitter_set_output(emitter->emitter, rb_yaml_emitter_write_handler, (void*)emitter->bytestring);
+	return Data_Wrap_Struct(klass, NULL, NULL, emitter);
+}
+
+static VALUE
+rb_yaml_emitter_emit(VALUE self, SEL sel, VALUE obj)
+{
+	rb_yaml_emitter_t *emitter;
+	Data_Get_Struct(self, rb_yaml_emitter_t, emitter);
+	yaml_document_t document;
+	memset(&document, 0, sizeof(yaml_document_t));
+	yaml_document_initialize(&document, NULL, NULL, NULL, 0, 0);
+	rb_yaml_write_item_to_document(obj, &document);
+    yaml_emitter_dump(emitter->emitter, &document);
+	yaml_document_delete(&document);
+	return emitter->bytestring;
 }
 
 static VALUE
@@ -161,21 +235,14 @@ yaml_load(VALUE module, SEL sel, VALUE input)
 {
 	VALUE parser = rb_yaml_parser_alloc(rb_cParser, 0);
 	VALUE ary = rb_yaml_parser_load(parser, 0, input);
-	if (RARRAY_LEN(ary) == 1)
-	{
-		VALUE unit = RARRAY_AT(ary, 0);
-		if (TYPE(unit) == T_ARRAY)
-		{
-			return unit;
-		}
-	}
 	return ary;
 }
 
 static VALUE
-yaml_dump(VALUE module, SEL sel, int argc, VALUE* argv)
+yaml_dump(VALUE module, SEL sel, VALUE obj)
 {
-	return Qnil;
+	VALUE rb_em = rb_yaml_emitter_alloc(rb_cEmitter, 0);
+	return rb_yaml_emitter_emit(rb_em, 0, obj);
 }
 
 
@@ -185,7 +252,7 @@ Init_libyaml()
 	rb_mYAML = rb_define_module("YAML");
 	
 	rb_objc_define_method(*(VALUE *)rb_mYAML, "load", yaml_load, 1);
-	rb_objc_define_method(*(VALUE *)rb_mYAML, "dump", yaml_dump, -1);
+	rb_objc_define_method(*(VALUE *)rb_mYAML, "dump", yaml_dump, 1);
 	
 	rb_mLibYAML = rb_define_module_under(rb_mYAML, "LibYAML");
 	rb_define_const(rb_mLibYAML, "VERSION", rb_str_new2(yaml_get_version_string()));
