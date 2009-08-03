@@ -43,6 +43,12 @@ module YAML
   
 end
 
+module Kernel
+  def y(*objs)
+    objs.each { |obj| YAML::dump(obj, $stdout) }
+  end
+end
+
 =begin
 
 require 'stringio'

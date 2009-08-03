@@ -144,6 +144,7 @@ rb_yaml_document_add_sequence(VALUE self, SEL sel, VALUE taguri, VALUE style)
 		yaml_node_t *node = yaml_document_get_node(document, nodeID);
 		VALUE n = rb_yaml_node_new(node, nodeID, self);
 		rb_vm_yield(1, &n);
+		return n;
 	}
 	return self;
 }
@@ -159,6 +160,7 @@ rb_yaml_document_add_mapping(VALUE self, SEL sel, VALUE taguri, VALUE style)
 		yaml_node_t *node = yaml_document_get_node(document, nodeID);
 		VALUE n = rb_yaml_node_new(node, nodeID, self);
 		rb_vm_yield(1, &n);
+		return n;
 	}
 	return self;
 }
@@ -453,10 +455,10 @@ Init_libyaml()
 	//rb_objc_define_method(rb_cNode, "end_mark", rb_yaml_node_end_mark, 0);
 	
 	rb_cSeqNode = rb_define_class_under(rb_mLibYAML, "Seq", rb_cNode);
-	rb_objc_define_method(rb_cNode, "add", rb_sequence_node_add, 1);
+	rb_objc_define_method(rb_cSeqNode, "add", rb_sequence_node_add, 1);
 	
 	rb_cMapNode = rb_define_class_under(rb_mLibYAML, "Map", rb_cNode);
-	rb_objc_define_method(rb_cNode, "add", rb_mapping_node_add, 2);
+	rb_objc_define_method(rb_cMapNode, "add", rb_mapping_node_add, 2);
 	
 	rb_cResolver = rb_define_class_under(rb_mLibYAML, "Resolver", rb_cObject);
 	rb_define_attr(rb_cResolver, "tags", 1, 1);
@@ -468,15 +470,6 @@ Init_libyaml()
 	//rb_objc_define_method(rb_cResolver, "add_private_type", rb_yaml_resolver_add_private_type, 1);
 	rb_oDefaultResolver = rb_vm_call(rb_cResolver, selNew, 0, NULL, true);
 	rb_define_const(rb_mLibYAML, "DEFAULT_RESOLVER", rb_oDefaultResolver);
-	
-	#if 0
-	rb_cOut = rb_define_class_under(rb_mLibYAML, "Out", rb_cObject);
-    rb_define_attr(cOut, "document", 1, 1 );
-    rb_objc_define_method(rb_cOut, "initialize", rb_yaml_out_initialize, 1);
-    rb_objc_define_method(rb_cOut, "map", rb_yaml_out_map, -1);
-    rb_objc_define_method(rb_cOut, "seq", rb_yaml_out_seq, -1);
-    rb_objc_define_method(rb_cOut, "scalar", rb_yaml_out_scalar, -1);
-	#endif
 	
 	rb_cEmitter = rb_define_class_under(rb_mLibYAML, "Emitter", rb_cObject);
 	rb_objc_define_method(*(VALUE *)rb_cEmitter, "alloc", rb_yaml_emitter_alloc, 0);

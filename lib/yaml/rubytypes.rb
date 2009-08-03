@@ -15,6 +15,31 @@ class Object
       @taguri || tag
     end
   end
+  
+  yaml_as "tag:ruby.yaml.org,2002:object"
+  
+  def to_yaml_style
+    nil
+  end
+  
+  def to_yaml_properties
+    self.instance_variables.sort
+  end
+  
+  def to_yaml(out)
+    if out.respond_to? :map
+      out.map(taguri, to_yaml_style) do |map|
+        to_yaml_properties.each do |m|
+          # The [1..-1] strips the @ from the variable name.
+          out.add(m[1..-1], instance_variable_get(m))
+        end
+      end
+    elsif out.respond_to? :add
+      to_yaml_properties.each do |m|
+        out.add(m[1..-1], instance_variable_get(m))
+      end
+    end
+  end
 end
 
 class String
@@ -24,10 +49,20 @@ class String
   end
 end
 
+class Exception
+  yaml_as "tag:ruby.yaml.org,2002:exception"
+  def to_yaml(out)
+    out.map(taguri, to_yaml_style) do |map|
+      map.add('message', message)
+    end
+    super(out)
+  end
+end
+
 class Array
   yaml_as "tag:yaml.org,2002:seq"
   def to_yaml(out)
-    out.seq(taguri, nil) do |seq|
+    out.seq(taguri, to_yaml_style) do |seq|
       each { |i| seq.add(i) }
     end
   end
@@ -36,7 +71,7 @@ end
 class Hash
   yaml_as "tag:yaml.org,2002:map"
   def to_yaml(out)
-    out.map(taguri, nil) do |map| 
+    out.map(taguri, to_yaml_style) do |map| 
       each { |k,v| map.add(k,v) }
     end
   end
@@ -51,7 +86,7 @@ end
 
 class Float
   yaml_as "tag:yaml.org,2002:float"
-  def to_yaml
+  def to_yaml(out)
     str = self.to_s
     if str == "Infinity"
       str = ".Inf"
@@ -64,6 +99,14 @@ class Float
   end
 end
 
+class Regexp
+  yaml_as "tag:ruby.yaml.org,2002:regexp"
+  def to_yaml(out)
+    out.scalar(taguri, self.inspect, :plain)
+    super(out)
+	end
+end
+
 class NilClass 
   yaml_as "tag:yaml.org,2002:null"
 	def to_yaml(out)
@@ -72,14 +115,14 @@ class NilClass
 end
 
 class TrueClass
-  yaml_as "tag:yaml.org,2002:bool#yes"
+  yaml_as "tag:yaml.org,2002:bool"
   def to_yaml(out)
     out.scalar(taguri, "true", :plain)
   end
 end
 
 class FalseClass
-  yaml_as "tag:yaml.org,2002:bool#no"
+  yaml_as "tag:yaml.org,2002:bool"
   def to_yaml(out)
     out.scalar(taguri, "false", :plain)
   end
