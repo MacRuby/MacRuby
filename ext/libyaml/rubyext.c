@@ -73,13 +73,14 @@ rb_yaml_parser_set_input(VALUE self, SEL sel, VALUE input)
 	Data_Get_Struct(self, yaml_parser_t, parser);
 	if (!NIL_P(input))
 	{
+		assert(parser != NULL);
 		if (CLASS_OF(input) == rb_cByteString)
 		{
-			// I think this will work. At least, I hope so.
 			yaml_parser_set_input_string(parser, (const unsigned char*)rb_bytestring_byte_pointer(input), rb_bytestring_length(input));
 		}
 		else if (TYPE(input) == T_STRING)
 		{
+			// TODO: Make sure that this is Unicode-aware.
 			yaml_parser_set_input_string(parser, (const unsigned char *)(RSTRING_PTR(input)), RSTRING_LEN(input));			
 		}
 		else if (TYPE(input) == T_FILE)
@@ -93,10 +94,11 @@ rb_yaml_parser_set_input(VALUE self, SEL sel, VALUE input)
 static VALUE
 rb_yaml_parser_error(VALUE self, SEL sel)
 {
-	yaml_parser_t *parser;
-	Data_Get_Struct(self, yaml_parser_t, parser);
 	VALUE error = Qnil;
 	char *msg = NULL;
+	yaml_parser_t *parser;
+	Data_Get_Struct(self, yaml_parser_t, parser);
+	assert(parser != NULL);
 	switch(parser->error)
 	{
 		case YAML_SCANNER_ERROR:
@@ -225,14 +227,27 @@ rb_symbol_to_scalar_style(VALUE sym)
 	return style;
 }
 
+static yaml_char_t*
+rb_yaml_tag_or_null(VALUE tagstr)
+{
+	const char *tag = RSTRING_PTR(tagstr);
+	if ((strcmp(tag, "tag:yaml.org,2002:int") == 0) ||
+		(strcmp(tag, "tag:yaml.org,2002:float") == 0) ||
+		(strcmp(tag, "tag:ruby.yaml.org,2002:symbol") == 0))
+	{
+		return NULL;	
+	}
+	return (yaml_char_t*)tag;
+}
+
 static VALUE
 rb_yaml_document_add_scalar(VALUE self, SEL sel, VALUE taguri, VALUE str, VALUE style)
 {
 	yaml_document_t *document = (yaml_document_t*)DATA_PTR(self);
 	// TODO: stop ignoring the style
-	yaml_char_t *tag = (yaml_char_t*)RSTRING_PTR(taguri);
+	// yaml_char_t *tag = (yaml_char_t*)RSTRING_PTR(taguri);
 	yaml_char_t *val = (yaml_char_t*)RSTRING_PTR(str);
-	int scalID = yaml_document_add_scalar(document, NULL, val, RSTRING_LEN(str), rb_symbol_to_scalar_style(style));
+	int scalID = yaml_document_add_scalar(document, rb_yaml_tag_or_null(taguri), val, RSTRING_LEN(str), rb_symbol_to_scalar_style(style));
 	if (scalID == 0)
 	{
 		rb_exc_raise(rb_yaml_parser_error(self, sel));
@@ -245,7 +260,12 @@ rb_yaml_document_root_node(VALUE self, SEL sel)
 {
 	yaml_document_t *document;
 	Data_Get_Struct(self, yaml_document_t, document);
-	return rb_yaml_node_new(yaml_document_get_root_node(document), 0, self);
+	yaml_node_t *node = yaml_document_get_root_node(document);
+	if(node == NULL)
+	{
+		return Qnil;
+	}
+	return rb_yaml_node_new(node, 0, self);
 }
 
 static VALUE
@@ -261,6 +281,7 @@ rb_yaml_document_implicit_start_p(VALUE self, SEL sel)
 {
 	yaml_document_t *document;
 	Data_Get_Struct(self, yaml_document_t, document);
+	assert(document != NULL);
 	return (document->start_implicit) ? Qtrue : Qfalse;
 }
 
@@ -269,6 +290,7 @@ rb_yaml_document_implicit_end_p(VALUE self, SEL sel)
 {
 	yaml_document_t *document;
 	Data_Get_Struct(self, yaml_document_t, document);
+	assert(document != NULL);
 	return (document->end_implicit) ? Qtrue : Qfalse;
 }
 
@@ -293,7 +315,7 @@ rb_yaml_node_new(yaml_node_t *node, int id, VALUE document)
 	switch (node->type)
 	{
 		case YAML_SCALAR_NODE:
-		klass = rb_cNode; // fix me.
+		klass = rb_cScalarNode;
 		break;
 		
 		case YAML_MAPPING_NODE:
@@ -319,10 +341,15 @@ rb_sequence_node_add(VALUE self, SEL sel, VALUE obj)
 	VALUE doc = rb_ivar_get(self, id_document_ivar);
 	yaml_document_t *document;
 	Data_Get_Struct(doc, yaml_document_t, document);
+	assert(document != NULL);
 	VALUE scalar_node = rb_funcall(obj, rb_intern("to_yaml"), 1, doc);
 	int seqID = FIX2INT(rb_ivar_get(self, id_node_id_ivar));
 	int scalID = FIX2INT(rb_ivar_get(scalar_node, id_node_id_ivar));
-	yaml_document_append_sequence_item(document, seqID, scalID);
+	assert((seqID != 0) && (scalID != 0));
+	if (yaml_document_append_sequence_item(document, seqID, scalID) == 0)
+	{
+		rb_exc_raise(rb_yaml_parser_error(self, sel));
+	}
 	return self;
 }
 
@@ -337,7 +364,11 @@ rb_mapping_node_add(VALUE self, SEL sel, VALUE key, VALUE val)
 	int myID = FIX2INT(rb_ivar_get(self, id_node_id_ivar));
 	int keyID = FIX2INT(rb_ivar_get(key_node, id_node_id_ivar));
 	int valID = FIX2INT(rb_ivar_get(val_node, id_node_id_ivar));
-	yaml_document_append_mapping_pair(document, myID, keyID, valID);
+	assert((myID != 0) && (keyID != 0) && (valID != 0));
+	if(yaml_document_append_mapping_pair(document, myID, keyID, valID) == 0)
+	{
+		rb_exc_raise(rb_yaml_parser_error(self, sel));
+	}
 	return self;
 }
 
@@ -488,14 +519,22 @@ rb_yaml_emitter_set_output(VALUE self, SEL sel, VALUE output)
 {
 	yaml_emitter_t *emitter;
 	Data_Get_Struct(self, yaml_emitter_t, emitter);
+	assert(emitter != NULL);
 	rb_ivar_set(self, rb_intern("output"), output);
-	if (CLASS_OF(output) == rb_cByteString)
+	if (!NIL_P(output)) 
 	{
-		yaml_emitter_set_output(emitter, rb_yaml_bytestring_output_handler, (void*)output);
-	}
-	else
-	{
-		yaml_emitter_set_output(emitter, rb_yaml_io_output_handler, (void*)output);
+		if (CLASS_OF(output) == rb_cByteString)
+		{
+			yaml_emitter_set_output(emitter, rb_yaml_bytestring_output_handler, (void*)output);
+		}
+		else if (TYPE(output) == T_FILE)
+		{
+			yaml_emitter_set_output(emitter, rb_yaml_io_output_handler, (void*)output);
+		}
+		else
+		{
+			rb_raise(rb_eArgError, "unsupported YAML output type %s", rb_obj_classname(output));
+		}
 	}
 	return output;
 }
@@ -521,6 +560,8 @@ rb_yaml_emitter_dump(VALUE self, SEL sel, VALUE doc)
 	yaml_document_t *document;
 	Data_Get_Struct(self, yaml_emitter_t, emitter);
 	Data_Get_Struct(doc, yaml_document_t, document);
+	assert(emitter != NULL);
+	assert(document != NULL);
 	yaml_emitter_open(emitter);
 	yaml_emitter_dump(emitter, document);
 	yaml_emitter_flush(emitter);
