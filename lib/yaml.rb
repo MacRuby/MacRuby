@@ -9,6 +9,28 @@
 require 'libyaml'
 require 'yaml/rubytypes'
 
+class YAML::LibYAML::QuickEmitter < YAML::LibYAML::Emitter
+  def initialize
+    super
+    @doc = YAML::LibYAML::Document.new
+  end
+
+  def seq(taguri, style, &block)
+    @doc.seq(taguri, style) { |o| block[o] }
+    self.dump(@doc)
+  end
+
+  def scalar(*args)
+    @doc.scalar(*args)
+    self.dump(@doc)
+  end
+
+  def map(taguri, style, &block)
+    @doc.map(taguri, style) { |o| block[o] }
+    self.dump(@doc)
+  end
+end
+
 module YAML
   
   def YAML.parser
@@ -41,27 +63,10 @@ module YAML
   def YAML.parse_file(path)
     File.open(path) { |f| parse(f) }
   end
-end
-
-class YAML::LibYAML::QuickEmitter < YAML::LibYAML::Emitter
-  def initialize
-    super
-    @doc = Document.new
-  end
   
-  def seq(taguri, style, &block)
-    @doc.seq(taguri, style) { |o| block[o] }
-    self.dump(@doc)
-  end
-  
-  def scalar(*args)
-    @doc.scalar(*args)
-    self.dump(@doc)
-  end
-  
-  def map(taguri, style, &block)
-    @doc.map(taguri, style) { |o| block[o] }
-    self.dump(@doc)
+  def YAML.quick_emit(obj, out=nil, &block)
+    out ||= YAML::LibYAML::QuickEmitter.new
+    block[out]
   end
 end
 
