@@ -38,6 +38,12 @@ static VALUE rb_cOut;
 
 static ID id_plain;
 static ID id_quote2;
+static ID id_tags_ivar; 
+static ID id_input_ivar;
+static ID id_node_id_ivar;
+static ID id_document_ivar;
+
+static SEL selToYAML;
 
 static VALUE rb_oDefaultResolver;
 
@@ -66,7 +72,7 @@ static VALUE
 rb_yaml_parser_set_input(VALUE self, SEL sel, VALUE input)
 {
 	yaml_parser_t *parser;
-	rb_ivar_set(self, rb_intern("input"), input);
+	rb_ivar_set(self, id_input_ivar, input);
 	Data_Get_Struct(self, yaml_parser_t, parser);
 	if (!NIL_P(input))
 	{
@@ -253,20 +259,20 @@ rb_yaml_node_new(yaml_node_t *node, int id, VALUE document)
 		rb_raise(rb_eRuntimeError, "unexpected empty node");
 	}
 	VALUE n = Data_Wrap_Struct(klass, NULL, NULL, node);
-	rb_ivar_set(n, rb_intern("node_id"), INT2FIX(id));
-	rb_ivar_set(n, rb_intern("document"), document);
+	rb_ivar_set(n, id_node_id_ivar, INT2FIX(id));
+	rb_ivar_set(n, id_document_ivar, document);
 	return n;
 }
 
 static VALUE
 rb_sequence_node_add(VALUE self, SEL sel, VALUE obj)
 {
-	VALUE doc = rb_ivar_get(self, rb_intern("document"));
+	VALUE doc = rb_ivar_get(self, id_document_ivar);
 	yaml_document_t *document;
 	Data_Get_Struct(doc, yaml_document_t, document);
 	VALUE scalar_node = rb_funcall(obj, rb_intern("to_yaml"), 1, doc);
-	int seqID = FIX2INT(rb_ivar_get(self, rb_intern("node_id")));
-	int scalID = FIX2INT(rb_ivar_get(scalar_node, rb_intern("node_id")));
+	int seqID = FIX2INT(rb_ivar_get(self, id_node_id_ivar));
+	int scalID = FIX2INT(rb_ivar_get(scalar_node, id_node_id_ivar));
 	yaml_document_append_sequence_item(document, seqID, scalID);
 	return self;
 }
@@ -274,14 +280,14 @@ rb_sequence_node_add(VALUE self, SEL sel, VALUE obj)
 static VALUE
 rb_mapping_node_add(VALUE self, SEL sel, VALUE key, VALUE val)
 {
-	VALUE doc = rb_ivar_get(self, rb_intern("document"));
+	VALUE doc = rb_ivar_get(self, id_document_ivar);
 	yaml_document_t *document;
 	Data_Get_Struct(doc, yaml_document_t, document);
 	VALUE key_node = rb_funcall(key, rb_intern("to_yaml"), 1, doc);
 	VALUE val_node = rb_funcall(val, rb_intern("to_yaml"), 1, doc);
-	int myID = FIX2INT(rb_ivar_get(self, rb_intern("node_id")));
-	int keyID = FIX2INT(rb_ivar_get(key_node, rb_intern("node_id")));
-	int valID = FIX2INT(rb_ivar_get(val_node, rb_intern("node_id")));
+	int myID = FIX2INT(rb_ivar_get(self, id_node_id_ivar));
+	int keyID = FIX2INT(rb_ivar_get(key_node, id_node_id_ivar));
+	int valID = FIX2INT(rb_ivar_get(val_node, id_node_id_ivar));
 	yaml_document_append_mapping_pair(document, myID, keyID, valID);
 	return self;
 }
@@ -299,7 +305,7 @@ rb_yaml_node_tag(VALUE self, SEL sel)
 static void
 rb_yaml_guess_type_of_plain_node(yaml_node_t *node)
 {
-	const unsigned char* v = node->data.scalar.value;
+	const char* v = (char*) node->data.scalar.value;
 	if ((strcmp(v, "true") == 0) || (strcmp(v, "false") == 0))
 	{
 		node->tag = "tag:yaml.org,2002:bool";
@@ -309,7 +315,7 @@ rb_yaml_guess_type_of_plain_node(yaml_node_t *node)
 static VALUE
 rb_yaml_resolver_initialize(VALUE self, SEL sel)
 {
-	rb_ivar_set(self, rb_intern("@tags"), rb_hash_new());
+	rb_ivar_set(self, id_tags_ivar, rb_hash_new());
 	return self;
 }
 
@@ -376,7 +382,7 @@ rb_yaml_resolve_node(yaml_node_t *node, yaml_document_t *document, VALUE tags)
 static VALUE
 rb_yaml_resolver_transfer(VALUE self, SEL sel, VALUE obj)
 {
-	VALUE tags = rb_ivar_get(self, rb_intern("@tags"));
+	VALUE tags = rb_ivar_get(self, id_tags_ivar);
 	if (rb_obj_is_kind_of(obj, rb_cDocument))
 	{
 		yaml_document_t *document;
@@ -472,6 +478,10 @@ Init_libyaml()
 {
 	id_plain = rb_intern("plain");
 	id_quote2 = rb_intern("quote2");
+	id_tags_ivar = rb_intern("@tags");
+	id_input_ivar = rb_intern("@input");
+	id_node_id_ivar = rb_intern("@node_id");
+	id_document_ivar = rb_intern("@document");
 	
 	rb_mYAML = rb_define_module("YAML");
 	
