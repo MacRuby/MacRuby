@@ -608,8 +608,14 @@ rb_objc_create_exception(VALUE exc)
 {
     NSString *name = [NSString stringWithUTF8String:rb_obj_classname(exc)];
     NSString *reason = [(id)exc performSelector:@selector(message)];
+#if 0
+    // This is technically not required, and it seems that some exceptions
+    // don't like to be treated like NSDictionary values...
     NSDictionary *dict = [NSDictionary dictionaryWithObject:(id)exc
 	forKey:@"RubyException"];
+#else
+    NSDictionary *dict = nil;
+#endif
     return [NSException exceptionWithName:name reason:reason userInfo:dict];
 }
 
