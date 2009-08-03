@@ -33,6 +33,15 @@ class Array
   end
 end
 
+class Hash
+  yaml_as "tag:yaml.org,2002:map"
+  def to_yaml(out)
+    out.map(taguri, nil) do |map| 
+      each { |k,v| map.add(k,v) }
+    end
+  end
+end
+
 class Integer
   yaml_as "tag:yaml.org,2002:int"
 	def to_yaml(out)
