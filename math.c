@@ -18,6 +18,9 @@ VALUE rb_mMath;
 static VALUE
 to_flo(VALUE x)
 {
+    if (CLASS_OF(x) == rb_cFloat) {
+	return x;
+    }
     if (!rb_obj_is_kind_of(x, rb_cNumeric)) {
 	rb_raise(rb_eTypeError, "can't convert %s into Float",
 		 NIL_P(x) ? "nil" :
