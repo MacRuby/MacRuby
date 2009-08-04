@@ -3118,7 +3118,7 @@ rb_reg_quote(VALUE str)
     char *t_beg;
 
   meta_found:
-    t_beg = (char *)alloca(RSTRING_LEN(str) * 2);
+    t_beg = (char *)alloca(RSTRING_LEN(str) * 2 + 1);
     t = t_beg;
     /* copy upto metacharacter */
     memcpy(t, RSTRING_PTR(str), s - RSTRING_PTR(str));
@@ -3163,8 +3163,10 @@ rb_reg_quote(VALUE str)
 	}
 	*t++ = c;
     }
+    // rb_str_new wants a NULL-terminated string
+    *t = 0;
 
-    return rb_str_new(t, t - t_beg);
+    return rb_str_new(t_beg, t - t_beg);
 }
 
 
