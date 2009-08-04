@@ -21,4 +21,9 @@ describe :stringio_eof, :shared => true do
     @io.pos = 2
     @io.send(@method).should be_false
   end
+  
+  it "raises an error if the io isn't readable" do
+    @io.close
+    lambda{ @io.send(@method)}.should raise_error(IOError)
+  end
 end
