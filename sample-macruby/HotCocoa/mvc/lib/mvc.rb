@@ -75,14 +75,31 @@ class HotCocoaController
 end
 
 class HotCocoaApplicationController < HotCocoaController
-  
+    
   def initialize(application)
     super(application)
   end
   
   def application_window
-    @application_window ||= ApplicationWindow.new(self).application_window
+    if @application_window
+      @application_window
+    else              
+      @application_window = ApplicationWindow.new(self).application_window
+      @application_window.will_close{ exit }     
+      # view callback when the window is rendered
+      application_view.after_render
+      # application controller callback for when the window is rendered
+      after_render 
+    end
+    @application_window
   end
+                   
+  # After window render callback placeholder
+  # at this point application_window is available
+  #
+  # Overwrite this method in your controller
+  def after_render; end
+  
   
   # help menu item
   def on_help(menu)
@@ -112,8 +129,10 @@ class HotCocoaWindow
   end
   
   def render
-    @application_window = HotCocoa.window(:title => title)
-    @application_window.view << application_controller.application_view
+    unless @application_window
+      @application_window = HotCocoa.window(:title => title)
+      @application_window.view << application_controller.application_view 
+    end
   end
   
   def title
@@ -131,11 +150,11 @@ class HotCocoaView < NSView
       if name
         @name = name
       else
-        @name || :application_controller
+        @name || name || :application_controller
       end
     end
     def options(options=nil)
-      @options = options if options
+      @options = options unless options.nil?
     end
   end
   
@@ -145,9 +164,13 @@ class HotCocoaView < NSView
     class_name = klass.name.underscore
     HotCocoaController.class_eval %{
       def #{class_name}
-        view = HotCocoaController.view_instances[:#{class_name}] ||= #{klass.name}.alloc.initWithFrame([0,0,0,0])
-        view.setup_view
-        view
+        if HotCocoaController.view_instances[:#{class_name}].nil?
+          view = HotCocoaController.view_instances[:#{class_name}] = #{klass.name}.alloc.initWithFrame([0,0,0,0]) 
+          view.setup_view
+          view
+         else
+           HotCocoaController.view_instances[:#{class_name}]
+         end
       end
     }, __FILE__, __LINE__
   end
@@ -155,10 +178,16 @@ class HotCocoaView < NSView
   attr_reader :controller
 
   def setup_view
-    @controller = class_controller
+    @controller ||= class_controller
     self.layout = layout_options
-    render
-  end
+    render 
+  end 
+  
+  # After window render callback placeholder
+  # at this point application_window is available
+  #
+  # Overwrite this method in your view
+  def after_render; end 
   
   private
   
@@ -176,7 +205,5 @@ class HotCocoaView < NSView
 
 end
 
-class ApplicationWindow < HotCocoaWindow
-  
+class ApplicationWindow < HotCocoaWindow   
 end
-
