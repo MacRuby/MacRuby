@@ -80,6 +80,7 @@ class RoxorCompiler {
 	BasicBlock *bb;
 	BasicBlock *entry_bb;
 	ID current_mid;
+	rb_vm_arity_t current_arity;
 	bool current_instance_method;
 	ID self_id;
 	Value *current_self;

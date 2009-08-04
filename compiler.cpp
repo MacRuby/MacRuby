@@ -43,6 +43,7 @@ RoxorCompiler::RoxorCompiler(void)
     rescue_bb = NULL;
     ensure_bb = NULL;
     current_mid = 0;
+    current_arity = rb_vm_arity(-1);
     current_instance_method = false;
     self_id = rb_intern("self");
     current_self = NULL;
@@ -2899,9 +2900,14 @@ RoxorCompiler::compile_node(NODE *node)
 		    BranchInst::Create(entry_bb, bb);
 		    bb = entry_bb;
 
+		    rb_vm_arity_t old_current_arity = current_arity;
+		    current_arity = arity;
+
 		    DEBUG_LEVEL_INC();
 		    val = compile_node(node->nd_body);
 		    DEBUG_LEVEL_DEC();
+
+		    current_arity = old_current_arity;
 		}
 		if (val == NULL) {
 		    val = nilVal;
@@ -3781,8 +3787,17 @@ rescan_args:
 		    Function::ArgumentListType::iterator iter = fargs.begin();
 		    iter++; // skip self
 		    iter++; // skip sel
+		    const int rest_pos = current_arity.max == -1
+			? (current_arity.left_req
+				+ (current_arity.real - current_arity.min - 1))
+			: -1;
+		    int i = 0;
 		    while (iter != fargs.end()) {
+			if (i == rest_pos) {
+			    params.push_back(splatArgFollowsVal); 
+			}
 			params.push_back(iter);
+			++i;
 			++iter;
 		    }
 		    argc = fargs_arity;
