@@ -8,29 +8,29 @@
 
 #include "ruby/ruby.h"
 #include "ruby/intern.h"
+#include "ruby/node.h"
 #include "ruby/io.h"
 #include "objc.h"
 #include "id.h"
+#include "vm.h"
 #include "yaml.h"
 
-// too lazy to find out what headers these belong to.
-VALUE rb_vm_call(VALUE self, SEL sel, int argc, const VALUE *args, bool super);
-long rb_io_primitive_read(struct rb_io_t *io_struct, UInt8 *buffer, long len);
-
 // Ideas to speed this up:
-// Use rb_vm_call_with_cache() for calls to :to_yaml and yaml_new
+// none as of yet.
 
 typedef struct rb_yaml_parser_s {
 	struct RBasic basic;		// holds the class information
 	yaml_parser_t *parser;		// the parser object.
 	
-	VALUE *documents;			// all the documents. documents usually take 
-								// the form of hashes, but they can technically
-								// be anything.
-	uint32_t document_count; 	// how many documents are there?
-	uint32_t current_document;  // what is the document we're editing?
-	
 	VALUE input;				// a reference to the object that's providing input
+	
+	VALUE *stack;				// the current object hierarchy that is being parsed.
+								// the root element is at stack[0].
+	uint32_t stack_index;		// what element are we currently adding to?
+	uint32_t stack_size;		// how big can the stack become?
+	
+	VALUE resolver;				// used to determine how to unserialize objects.
+	
 	yaml_event_t event;			// the event that is currently being parsed.
 	bool event_valid;			// is this event valid?
 } rb_yaml_parser_t;
@@ -56,7 +56,11 @@ static ID id_tags_ivar;
 static ID id_plain;
 static ID id_quote2;
 
+static SEL sel_to_yaml;
+
 static VALUE rb_oDefaultResolver;
+
+static struct mcache *to_yaml_cache = NULL;
 
 static VALUE
 rb_yaml_parser_alloc(VALUE klass, SEL sel)
@@ -81,6 +85,34 @@ rb_yaml_io_read_handler(void *io_ptr, unsigned char *buffer, size_t size, size_t
 	*size_read = result;
 	return 1;
 }
+
+#if 0
+static void
+rb_yaml_guess_type_of_plain_node(yaml_node_t *node)
+{
+	const char* v = (char*) node->data.scalar.value;
+	if (node->data.scalar.length == 0)
+	{
+		node->tag = (yaml_char_t*)"tag:yaml.org,2002:null";
+	}
+	// holy cow, this is not a good solution at all.
+	// i should incorporate rb_cstr_to_inum here, or something.
+	else if (strtol(v, NULL, 10) != 0)
+	{
+		node->tag = (yaml_char_t*)"tag:yaml.org,2002:int";
+	}
+	else if (*v == ':')
+	{
+		node->tag = (yaml_char_t*)"tag:ruby.yaml.org,2002:symbol";
+	}
+	else if ((strcmp(v, "true") == 0) || (strcmp(v, "false") == 0))
+	{
+		node->tag = (yaml_char_t*)"tag:yaml.org,2002:bool";
+	} 
+}
+
+#endif
+
 
 static VALUE
 rb_yaml_parser_set_input(VALUE self, SEL sel, VALUE input)
@@ -219,34 +251,6 @@ rb_yaml_tag_or_null(VALUE tagstr, int *can_omit_tag)
 	return (yaml_char_t*)tag;
 }
 
-
-#if 0
-static void
-rb_yaml_guess_type_of_plain_node(yaml_node_t *node)
-{
-	const char* v = (char*) node->data.scalar.value;
-	if (node->data.scalar.length == 0)
-	{
-		node->tag = (yaml_char_t*)"tag:yaml.org,2002:null";
-	}
-	// holy cow, this is not a good solution at all.
-	// i should incorporate rb_cstr_to_inum here, or something.
-	else if (strtol(v, NULL, 10) != 0)
-	{
-		node->tag = (yaml_char_t*)"tag:yaml.org,2002:int";
-	}
-	else if (*v == ':')
-	{
-		node->tag = (yaml_char_t*)"tag:ruby.yaml.org,2002:symbol";
-	}
-	else if ((strcmp(v, "true") == 0) || (strcmp(v, "false") == 0))
-	{
-		node->tag = (yaml_char_t*)"tag:yaml.org,2002:bool";
-	} 
-}
-
-#endif
-
 static VALUE
 rb_yaml_resolver_initialize(VALUE self, SEL sel)
 {
@@ -351,10 +355,8 @@ rb_yaml_emitter_document(VALUE self, SEL sel, int argc, VALUE *argv)
 	
 	yaml_document_start_event_initialize(&ev, NULL, NULL, NULL, RTEST(impl_beg));
 	yaml_emitter_emit(emitter, &ev);
-	yaml_emitter_flush(emitter);
 	
 	rb_yield(self);
-	yaml_emitter_flush(emitter);
 	
 	yaml_document_end_event_initialize(&ev, RTEST(impl_end));
 	yaml_emitter_emit(emitter, &ev);
@@ -370,14 +372,11 @@ rb_yaml_emitter_sequence(VALUE self, SEL sel, VALUE taguri, VALUE style)
 	yaml_char_t *tag = (yaml_char_t*)RSTRING_PTR(taguri);
 	yaml_sequence_start_event_initialize(&ev, NULL, tag, 1, YAML_ANY_SEQUENCE_STYLE);
 	yaml_emitter_emit(emitter, &ev);
-	yaml_emitter_flush(emitter);
 	
 	rb_yield(self);
-	yaml_emitter_flush(emitter);
 	
 	yaml_sequence_end_event_initialize(&ev);
 	yaml_emitter_emit(emitter, &ev);
-	yaml_emitter_flush(emitter);
 	return self;
 }
 
@@ -389,14 +388,11 @@ rb_yaml_emitter_mapping(VALUE self, SEL sel, VALUE taguri, VALUE style)
 	yaml_char_t *tag = (yaml_char_t*)RSTRING_PTR(taguri);
 	yaml_mapping_start_event_initialize(&ev, NULL, tag, 1, YAML_ANY_MAPPING_STYLE);
 	yaml_emitter_emit(emitter, &ev);
-	yaml_emitter_flush(emitter);
 
 	rb_yield(self);
-	yaml_emitter_flush(emitter);
 		
 	yaml_mapping_end_event_initialize(&ev);
 	yaml_emitter_emit(emitter, &ev);
-	yaml_emitter_flush(emitter);
 	return self;
 }
 
@@ -410,7 +406,6 @@ rb_yaml_emitter_scalar(VALUE self, SEL sel, VALUE taguri, VALUE val, VALUE style
 	yaml_char_t *tag = rb_yaml_tag_or_null(taguri, &can_omit_tag);
 	yaml_scalar_event_initialize(&ev, NULL, tag, output, RSTRING_LEN(val), can_omit_tag, 0, rb_symbol_to_scalar_style(style));
 	yaml_emitter_emit(emitter, &ev);
-	yaml_emitter_flush(emitter);
 	
 	return self;
 }
@@ -420,10 +415,10 @@ rb_yaml_emitter_add(VALUE self, SEL sel, int argc, VALUE *argv)
 {
 	VALUE first = Qnil, second = Qnil;
 	rb_scan_args(argc, argv, "11", &first, &second);
-	rb_funcall(first, rb_intern("to_yaml"), 1, self);
+	rb_vm_call_with_cache(to_yaml_cache, first, sel_to_yaml, 1, &self);
 	if(argc == 2)
 	{
-		rb_funcall(second, rb_intern("to_yaml"), 1, self);
+		rb_vm_call_with_cache(to_yaml_cache, second, sel_to_yaml, 1, &self);
 	}
 	return self;
 	
@@ -449,6 +444,9 @@ Init_libyaml()
 	id_plain = rb_intern("plain");
 	id_quote2 = rb_intern("quote2");
 	id_tags_ivar = rb_intern("@tags");
+	
+	sel_to_yaml = sel_registerName("to_yaml:");
+	to_yaml_cache = rb_vm_get_call_cache(sel_to_yaml);
 	
 	rb_mYAML = rb_define_module("YAML");
 	
