@@ -25,7 +25,7 @@ module YAML
   
   def YAML.load(io)
     parsr = LibYAML::Parser.new(io)
-    LibYAML::DEFAULT_RESOLVER.transfer(parsr.load)
+    parsr.load
   end
   
   def YAML.load_file(path)

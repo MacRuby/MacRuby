@@ -16,7 +16,8 @@
 #include "yaml.h"
 
 // Ideas to speed this up:
-// none as of yet.
+// embed the yaml_parser_t and yaml_emitter_t into the parser/emitter structs
+// rather than just keep pointers to them; this means fewer mallocs
 
 typedef struct rb_yaml_parser_s {
 	struct RBasic basic;		// holds the class information
@@ -62,13 +63,24 @@ static VALUE rb_oDefaultResolver;
 
 static struct mcache *to_yaml_cache = NULL;
 
+static const int DEFAULT_STACK_SIZE = 5;
+
 static VALUE
 rb_yaml_parser_alloc(VALUE klass, SEL sel)
 {
 	NEWOBJ(parser, struct rb_yaml_parser_s);
 	OBJSETUP(parser, klass, T_OBJECT);
+	
+	GC_WB(&parser->stack, ALLOC_N(VALUE, DEFAULT_STACK_SIZE));	
+	parser->stack_size = DEFAULT_STACK_SIZE;
+	parser->stack_index = -1;
+	parser->stack[0] = Qnil;
+	
+	parser->resolver = rb_oDefaultResolver;
+	
+	parser->event_valid = false;
+	
 	GC_WB(&parser->parser, ALLOC(yaml_parser_t));
-	parser->input = Qnil;
 	yaml_parser_initialize(parser->parser);
 	return (VALUE)parser;
 }
@@ -78,12 +90,8 @@ rb_yaml_io_read_handler(void *io_ptr, unsigned char *buffer, size_t size, size_t
 {
 	VALUE io = (VALUE)io_ptr;
 	long result = rb_io_primitive_read(ExtractIOStruct(io), (UInt8*)buffer, size);
-	if (result == -1)
-	{
-		return 0;
-	}
 	*size_read = result;
-	return 1;
+	return (result != -1);
 }
 
 #if 0
@@ -113,6 +121,11 @@ rb_yaml_guess_type_of_plain_node(yaml_node_t *node)
 
 #endif
 
+static VALUE
+rb_yaml_parser_input(VALUE self, SEL sel)
+{
+	return RYAMLParser(self)->input;
+}
 
 static VALUE
 rb_yaml_parser_set_input(VALUE self, SEL sel, VALUE input)
@@ -144,10 +157,14 @@ rb_yaml_parser_set_input(VALUE self, SEL sel, VALUE input)
 	return input;
 }
 
+
 static VALUE
-rb_yaml_parser_input(VALUE self, SEL sel)
+rb_yaml_parser_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 {
-	return RYAMLParser(self)->input;
+	VALUE input = Qnil;
+	rb_scan_args(argc, argv, "01", &input);
+	rb_yaml_parser_set_input(self, 0, input);
+	return self;
 }
 
 static VALUE
@@ -180,19 +197,140 @@ rb_yaml_parser_error(VALUE self, SEL sel)
 	return error;
 }
 
-static VALUE
-rb_yaml_parser_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
+static inline void
+delete_event(rb_yaml_parser_t *parser)
 {
-	VALUE input = Qnil;
-	rb_scan_args(argc, argv, "01", &input);
-	rb_yaml_parser_set_input(self, 0, input);
-	return self;
+	if (parser->event_valid)
+	{
+		yaml_event_delete(&parser->event);
+		parser->event_valid = false;
+	}
 }
+
+static inline bool
+next_event(rb_yaml_parser_t *parser)
+{
+	delete_event(parser);
+	if (yaml_parser_parse(parser->parser, &parser->event) == -1)
+	{
+		rb_raise(rb_eRuntimeError, "parsing error"); // XXX: Make this more informative
+		parser->event_valid = false;
+	} else
+	{
+		parser->event_valid = true;
+	}
+	printf("Parsed event\n");
+	return parser->event_valid;
+}
+
+static void
+parse_scalar(rb_yaml_parser_t *parser)
+{
+	VALUE current_item = parser->stack[parser->stack_index];
+	VALUE new_str = rb_str_new2((char*)parser->event.data.scalar.value);
+	if(NIL_P(current_item))
+	{
+		parser->stack[parser->stack_index] = new_str;
+	}
+	else if (TYPE(current_item) == T_ARRAY)
+	{
+		rb_ary_push(current_item, new_str);
+	}
+}
+
+static void
+push(rb_yaml_parser_t *parser, VALUE item)
+{
+	parser->stack_index += 1;
+	if (parser->stack_index >= parser->stack_size)
+	{
+		rb_raise(rb_eRuntimeError, "oh god the stack depth");
+	}
+	parser->stack[parser->stack_index] = item;
+}
+
+static void pop(rb_yaml_parser_t *parser) __attribute__ ((noinline));
+
+static void
+pop(rb_yaml_parser_t *parser)
+{
+	if(parser->stack_index == 0)
+	{
+		return;
+	}
+	
+	printf("something is very wrong here.");
+}
+
+static void
+parse(rb_yaml_parser_t *parser)
+{
+	if(!next_event(parser))
+	{
+		return;
+	}
+	
+	if(parser->event.type != YAML_STREAM_START_EVENT)
+	{
+		rb_raise(rb_eRuntimeError, "expected STREAM_START event");
+	}
+	
+	for(;;) 
+	{
+		if(!next_event(parser))
+		{
+			break;
+		}
+		switch(parser->event.type)
+		{
+			case YAML_DOCUMENT_START_EVENT:
+			break;
+
+			case YAML_MAPPING_START_EVENT:
+			printf("oh god a mapping\n");
+			break;
+
+			case YAML_SEQUENCE_START_EVENT:
+			printf("oh god parsing a sequence");
+			push(parser, rb_ary_new());
+			break;
+
+			case YAML_SCALAR_EVENT:
+			printf("oh god parsing a scalar");
+			parse_scalar(parser);
+			break;
+
+			case YAML_ALIAS_EVENT:
+			printf("oh god an alias i don't even know how to do this\n");
+			break;
+				
+			case YAML_MAPPING_END_EVENT:
+			printf("oh god a mapping ended aaagh\n");
+			break;
+			
+			case YAML_SEQUENCE_END_EVENT:
+			pop(parser);
+			break;
+
+			case YAML_NO_EVENT:
+			rb_raise(rb_eRuntimeError, "expected an event, got nothing");
+			
+			default: break;
+		}
+		if (parser->event.type == YAML_DOCUMENT_END_EVENT)
+		{
+			break;
+		}
+	}
+}
+
 
 static VALUE
 rb_yaml_parser_load(VALUE self, SEL sel)
 {
-	rb_notimplement();
+	rb_yaml_parser_t *parser = RYAMLParser(self);
+	parse(parser);
+	return parser->stack[0];
 }
 
 static IMP rb_yaml_parser_finalize_super = NULL; 
@@ -206,6 +344,10 @@ rb_yaml_parser_finalize(void *rcv, SEL sel)
 	{
 		yaml_parser_delete(rbparser->parser);
 		rbparser->parser = NULL;
+	}
+	if((rbparser != NULL) && (rbparser->stack != NULL))
+	{
+		rbparser->stack = NULL;
 	}
 	if (rb_yaml_parser_finalize_super != NULL)
 	{
