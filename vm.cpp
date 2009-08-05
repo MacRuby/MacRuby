@@ -279,6 +279,7 @@ RoxorVM::RoxorVM(const RoxorVM &vm)
 	    b = (rb_vm_block_t *)xmalloc(block_size);
 	    memcpy(b, orig, block_size);
 
+	    GC_WB(&b->proc, orig->proc);
 	    GC_WB(&b->self, orig->self);
 	    GC_WB(&b->locals, orig->locals);
 	    GC_WB(&b->parent_block, orig->parent_block);  // XXX not sure
@@ -2931,6 +2932,7 @@ rb_vm_dup_active_block(rb_vm_block_t *src_b)
     rb_vm_block_t *new_b = (rb_vm_block_t *)xmalloc(block_size);
 
     memcpy(new_b, src_b, block_size);
+    GC_WB(&new_b->proc, src_b->proc);
     GC_WB(&new_b->parent_block, src_b->parent_block);
     GC_WB(&new_b->self, src_b->self);
     new_b->flags = src_b->flags & ~VM_BLOCK_ACTIVE;
@@ -3023,6 +3025,7 @@ rb_vm_prepare_block(void *function, int flags, VALUE self, rb_vm_arity_t arity,
 	assert((b->flags & flags) == flags);
     }
 
+    b->proc = Qnil;
     b->self = self;
     b->parent_var_uses = parent_var_uses;
     GC_WB(&b->parent_block, parent_block);
@@ -3365,9 +3368,6 @@ rb_vm_current_block_object(void)
 {
     rb_vm_block_t *b = GET_VM()->current_block();
     if (b != NULL) {
-#if ROXOR_VM_DEBUG
-	printf("create Proc object based on block %p\n", b);
-#endif
 	return rb_proc_alloc_with_block(rb_cProc, b);
     }
     return Qnil;
@@ -3442,6 +3442,7 @@ rb_vm_create_block_from_method(rb_vm_method_t *method)
 {
     rb_vm_block_t *b = (rb_vm_block_t *)xmalloc(sizeof(rb_vm_block_t));
 
+    b->proc = Qnil;
     GC_WB(&b->self, method->recv);
     b->arity = method->node == NULL
 	? rb_vm_arity(method->arity) : method->node->arity;
@@ -3472,12 +3473,51 @@ rb_vm_create_block_calling_sel(SEL sel)
     rb_vm_block_t *b = (rb_vm_block_t *)xmalloc(sizeof(rb_vm_block_t)
 	    + sizeof(VALUE *));
 
+    b->proc = Qnil;
     b->arity = rb_vm_arity(1);
     b->flags = VM_BLOCK_PROC;
     b->imp = (IMP)rb_vm_block_call_sel;
     b->dvars[0] = (VALUE *)sel;
 
     return b;
+}
+
+static VALUE
+rb_vm_block_curry(VALUE rcv, SEL sel, VALUE **dvars, rb_vm_block_t *b,
+	VALUE args)
+{
+    VALUE proc = (VALUE)dvars[0];
+    VALUE passed = (VALUE)dvars[1];
+    VALUE arity = (VALUE)dvars[2];
+
+    passed = rb_ary_plus(passed, args);
+    rb_ary_freeze(passed);
+    if (RARRAY_LEN(passed) < FIX2INT(arity)) {
+	return rb_vm_make_curry_proc(proc, passed, arity);
+    }
+    return rb_proc_call(proc, passed);
+}
+
+extern "C"
+VALUE
+rb_vm_make_curry_proc(VALUE proc, VALUE passed, VALUE arity)
+{
+    // Proc.new { |*args| curry... }
+    rb_vm_block_t *b = (rb_vm_block_t *)xmalloc(sizeof(rb_vm_block_t)
+	    + (3 * sizeof(VALUE *)));
+
+    b->proc = Qnil;
+    b->arity.min = 0;
+    b->arity.max = -1;
+    b->arity.left_req = 0;
+    b->arity.real = 1;
+    b->flags = VM_BLOCK_PROC;
+    b->imp = (IMP)rb_vm_block_curry;
+    b->dvars[0] = (VALUE *)proc;
+    b->dvars[1] = (VALUE *)passed;
+    b->dvars[2] = (VALUE *)arity;
+
+    return rb_proc_alloc_with_block(rb_cProc, b);
 }
 
 static inline VALUE
@@ -3499,6 +3539,11 @@ rb_vm_block_eval0(rb_vm_block_t *b, VALUE self, int argc, const VALUE *argv)
     rb_vm_arity_t arity = b->arity;    
 
     if (argc < arity.min || argc > arity.max) {
+	if (arity.max != -1
+		&& (b->flags & VM_BLOCK_LAMBDA) == VM_BLOCK_LAMBDA) {
+	    rb_raise(rb_eArgError, "wrong number of arguments (%d for %d)",
+		    argc, arity.min);
+	}
 	VALUE *new_argv;
 	if (argc == 1 && TYPE(argv[0]) == T_ARRAY
 	    && (arity.min > 1 || (arity.min == 1 && arity.min != arity.max))) {

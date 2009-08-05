@@ -37,8 +37,13 @@ rb_proc_alloc(VALUE klass)
 VALUE
 rb_proc_alloc_with_block(VALUE klass, rb_vm_block_t *proc)
 {
+    if (proc->proc != Qnil) {
+	return proc->proc;
+    }
+
     VALUE obj;
     obj = Data_Wrap_Struct(klass, NULL, NULL, proc);
+    GC_WB(&proc->proc, obj);
     if (!(proc->flags & VM_BLOCK_PROC)) {
 	proc->flags |= VM_BLOCK_PROC;
 	if (!(proc->flags & VM_BLOCK_METHOD)) {
@@ -63,21 +68,9 @@ rb_obj_is_method(VALUE obj)
 static VALUE
 proc_dup(VALUE self, SEL sel)
 {
-    VALUE procval = rb_proc_alloc(rb_cProc);
-    rb_vm_block_t *src, *dst;
+    rb_vm_block_t *src;
     GetProcPtr(self, src);
-    GetProcPtr(procval, dst);
-
-    // TODO
-#if 0
-    dst->block = src->block;
-    GC_WB(&dst->block.proc, procval);
-    GC_WB(&dst->envval, src->envval);
-    dst->safe_level = src->safe_level;
-    dst->is_lambda = src->is_lambda;
-#endif
-
-    return procval;
+    return Data_Wrap_Struct(CLASS_OF(self), NULL, NULL, src);
 }
 
 static VALUE
@@ -196,7 +189,8 @@ proc_lambda_p(VALUE procval, SEL sel)
     rb_vm_block_t *proc;
     GetProcPtr(procval, proc);
 
-    return proc->flags & VM_BLOCK_LAMBDA ? Qtrue : Qfalse;
+    return (proc->flags & VM_BLOCK_LAMBDA) == VM_BLOCK_LAMBDA
+	? Qtrue : Qfalse;
 }
 
 /* Binding */
@@ -297,12 +291,15 @@ bind_eval(VALUE bindval, SEL sel, int argc, VALUE *argv)
 }
 
 static VALUE
-proc_new(VALUE klass, int is_lambda)
+proc_new(VALUE klass, bool is_lambda)
 {
     rb_vm_block_t *block = rb_vm_first_block();
     if (block == NULL) {
 	rb_raise(rb_eArgError,
 		"tried to create Proc object without a block");
+    }
+    if (is_lambda) {
+	block->flags |= VM_BLOCK_LAMBDA;
     }
     return rb_proc_alloc_with_block(klass, block);
 }
@@ -327,7 +324,7 @@ proc_new(VALUE klass, int is_lambda)
 static VALUE
 rb_proc_s_new(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
-    VALUE block = proc_new(klass, Qfalse);
+    VALUE block = proc_new(klass, false);
 
     rb_obj_call_init(block, argc, argv);
     return block;
@@ -343,7 +340,7 @@ rb_proc_s_new(VALUE klass, SEL sel, int argc, VALUE *argv)
 VALUE
 rb_block_proc(void)
 {
-    return proc_new(rb_cProc, Qfalse);
+    return proc_new(rb_cProc, false);
 }
 
 VALUE
@@ -355,7 +352,7 @@ rb_block_proc_imp(void)
 VALUE
 rb_block_lambda(void)
 {
-    return proc_new(rb_cProc, Qtrue);
+    return proc_new(rb_cProc, true);
 }
 
 VALUE
@@ -485,30 +482,14 @@ method_arity(VALUE method)
 static VALUE
 proc_arity(VALUE self, SEL sel)
 {
-#if 0 // TODO
-    rb_proc_t *proc;
-    rb_iseq_t *iseq;
-    GetProcPtr(self, proc);
-    iseq = proc->block.iseq;
-    if (iseq) {
-	if (BUILTIN_TYPE(iseq) != T_NODE) {
-	    if (iseq->arg_rest < 0) {
-		return INT2FIX(iseq->argc);
-	    }
-	    else {
-		return INT2FIX(-(iseq->argc + 1 + iseq->arg_post_len));
-	    }
-	}
-	else {
-	    NODE *node = (NODE *)iseq;
-	    if (nd_type(node) == NODE_IFUNC && node->nd_cfnc == bmcall) {
-		/* method(:foo).to_proc.arity */
-		return INT2FIX(method_arity(node->nd_tval));
-	    }
-	}
+    rb_vm_block_t *b;
+    GetProcPtr(self, b);
+
+    int arity = b->arity.min;
+    if (b->arity.min != b->arity.max) {
+	arity = -arity - 1;
     }
-#endif
-    return INT2FIX(-1);
+    return INT2FIX(arity);
 }
 
 int
@@ -560,23 +541,15 @@ rb_proc_location(VALUE self)
 static VALUE
 proc_eq(VALUE self, SEL sel, VALUE other)
 {
-#if 0 // TODO
     if (self == other) {
 	return Qtrue;
     }
-    else {
-	if (TYPE(other)          == T_DATA &&
-	    RBASIC(other)->klass == rb_cProc &&
-	    CLASS_OF(self)       == CLASS_OF(other)) {
-	    rb_proc_t *p1, *p2;
-	    GetProcPtr(self, p1);
-	    GetProcPtr(other, p2);
-	    if (p1->block.iseq == p2->block.iseq && p1->envval == p2->envval) {
-		return Qtrue;
-	    }
-	}
+    else if (rb_obj_is_kind_of(other, rb_cProc)) {
+	rb_vm_block_t *self_b, *other_b;
+	GetProcPtr(self, self_b);
+	GetProcPtr(other, other_b);
+	return self_b == other_b ? Qtrue : Qfalse;
     }
-#endif
     return Qfalse;
 }
 
@@ -590,16 +563,9 @@ proc_eq(VALUE self, SEL sel, VALUE other)
 static VALUE
 proc_hash(VALUE self, SEL sel)
 {
-#if 0 // TODO
-    int hash;
-    rb_proc_t *proc;
-    GetProcPtr(self, proc);
-    hash = (long)proc->block.iseq;
-    hash ^= (long)proc->envval;
-    hash ^= (long)proc->block.lfp >> 16;
-    return INT2FIX(hash);
-#endif
-    return Qnil;
+    rb_vm_block_t *b;
+    GetProcPtr(self, b);
+    return LONG2FIX(b);
 }
 
 /*
@@ -1422,51 +1388,8 @@ proc_binding(VALUE self, SEL sel)
     return Data_Wrap_Struct(rb_cBinding, NULL, NULL, binding);
 }
 
-//static VALUE curry(VALUE dummy, VALUE args, int argc, VALUE *argv);
-
-static VALUE
-make_curry_proc(VALUE proc, VALUE passed, VALUE arity)
-{
-    // TODO
-    return Qnil;
-#if 0
-#if WITH_OBJC
-    VALUE args = rb_ary_new3(3, proc, passed, arity);
-#else
-    VALUE args = rb_ary_new2(3);
-    RARRAY_PTR(args)[0] = proc;
-    RARRAY_PTR(args)[1] = passed;
-    RARRAY_PTR(args)[2] = arity;
-    RARRAY_LEN(args) = 3;
-#endif
-    rb_ary_freeze(passed);
-    rb_ary_freeze(args);
-    return rb_proc_new(curry, args);
-#endif
-}
-
-#if 0
-static VALUE
-curry(VALUE dummy, VALUE args, int argc, VALUE *argv)
-{
-    VALUE proc, passed, arity;
-    proc = RARRAY_AT(args, 0);
-    passed = RARRAY_AT(args, 1);
-    arity = RARRAY_AT(args, 2);
-
-    passed = rb_ary_plus(passed, rb_ary_new4(argc, argv));
-    rb_ary_freeze(passed);
-    if(RARRAY_LEN(passed) < FIX2INT(arity)) {
-	arity = make_curry_proc(proc, passed, arity);
-	return arity;
-    }
-    arity = rb_proc_call(proc, passed);
-    return arity;
-}
-#endif
-
  /*
-  curry*  call-seq:
+  *  call-seq:
   *     prc.curry         => a_proc
   *     prc.curry(arity)  => a_proc
   *
@@ -1529,7 +1452,7 @@ proc_curry(VALUE self, SEL sel, int argc, VALUE *argv)
 	}
     }
 
-    return make_curry_proc(self, rb_ary_new(), arity);
+    return rb_vm_make_curry_proc(self, rb_ary_new(), arity);
 }
 
 /*
@@ -1561,6 +1484,7 @@ Init_Proc(void)
     rb_objc_define_method(*(VALUE *)rb_cProc, "new", rb_proc_s_new, -1);
     rb_objc_define_method(rb_cProc, "call", proc_call, -1);
     rb_objc_define_method(rb_cProc, "[]", proc_call, -1);
+    rb_objc_define_method(rb_cProc, "===", proc_call, -1);
     rb_objc_define_method(rb_cProc, "yield", proc_call, -1);
     rb_objc_define_method(rb_cProc, "to_proc", proc_to_proc, 0);
     rb_objc_define_method(rb_cProc, "arity", proc_arity, 0);

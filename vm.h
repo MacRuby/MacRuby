@@ -36,6 +36,7 @@ typedef struct rb_vm_local {
 #define VM_BLOCK_AOT	0x1000  // block is created by the AOT compiler (temporary)
 
 typedef struct rb_vm_block {
+    VALUE proc; // a reference to a Proc object, or nil
     VALUE self;
     VALUE userdata; // if VM_BLOCK_IFUNC, contains the user data, otherwise
 		    // contains the key used in the blocks cache.
@@ -336,11 +337,12 @@ VALUE rb_proc_alloc_with_block(VALUE klass, rb_vm_block_t *proc);
 rb_vm_method_t *rb_vm_get_method(VALUE klass, VALUE obj, ID mid, int scope);
 rb_vm_block_t *rb_vm_create_block_from_method(rb_vm_method_t *method);
 rb_vm_block_t *rb_vm_create_block_calling_sel(SEL sel);
+VALUE rb_vm_make_curry_proc(VALUE proc, VALUE passed, VALUE arity);
 
 static inline rb_vm_block_t *
 rb_proc_get_block(VALUE proc)
 {
-   return (rb_vm_block_t *)DATA_PTR(proc);
+    return (rb_vm_block_t *)DATA_PTR(proc);
 }
 
 void rb_vm_add_block_lvar_use(rb_vm_block_t *block);
