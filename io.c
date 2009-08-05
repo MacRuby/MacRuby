@@ -2969,6 +2969,12 @@ rb_file_initialize(VALUE io, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_io_s_new(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
+    if (rb_block_given_p()) {
+	const char *cname = rb_class2name(klass);
+
+	rb_warn("%s::new() does not take block; use %s::open() instead",
+		cname, cname);
+    }
     return rb_class_new_instance(argc, argv, klass);
 }
 
