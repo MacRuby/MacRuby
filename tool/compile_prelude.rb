@@ -61,7 +61,8 @@ require 'erb'
 
 tmp = ERB.new(<<'EOS', nil, '%').result(binding)
 #include "ruby/ruby.h"
-#include "vm_core.h"
+#include "ruby/node.h"
+#include "vm.h"
 
 % preludes.zip(lines_list).each_with_index {|(prelude, (setup_lines, lines)), i|
 static const char prelude_name<%=i%>[] = <%=c_esc(File.basename(prelude))%>;
@@ -76,17 +77,12 @@ void
 Init_<%=init_name%>(void)
 {
 % lines_list.each_with_index {|(setup_lines, lines), i|
-  rb_iseq_eval(rb_iseq_compile(
+  rb_vm_run(prelude_name<%=i%>, rb_compile_string(
+    prelude_name<%=i%>,
     rb_str_new(prelude_code<%=i%>, sizeof(prelude_code<%=i%>) - 1),
-    rb_str_new(prelude_name<%=i%>, sizeof(prelude_name<%=i%>) - 1),
-    INT2FIX(<%=1-setup_lines.length%>)));
+    1), NULL, false);
 
 % }
-#if 0
-% preludes.length.times {|i|
-    puts(prelude_code<%=i%>);
-% }
-#endif
 }
 EOS
 

@@ -1,0 +1,2 @@
+fails:ARGF.bytes returns self when passed a block
+fails:ARGF.bytes returns an Enumerable::Enumerator when passed no block

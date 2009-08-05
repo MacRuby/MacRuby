@@ -1,0 +1,2 @@
+fails:Kernel#binding is a private method
+fails:Kernel#binding encapsulates the execution context properly

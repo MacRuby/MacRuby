@@ -1,0 +1,1 @@
+fails:Array.try_convert checks the result of the conversion

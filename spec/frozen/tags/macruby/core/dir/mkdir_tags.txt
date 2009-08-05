@@ -1,0 +1,1 @@
+fails:Dir.mkdir raises a SystemCallError when lacking adequate permissions in the parent dir

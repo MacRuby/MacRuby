@@ -1,0 +1,2 @@
+fails:String#rjust with length, padding tries to convert length to an integer using to_int
+fails:String#rjust with length, padding tries to convert padstr to a string using to_str

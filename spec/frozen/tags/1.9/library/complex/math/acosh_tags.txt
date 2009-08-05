@@ -1,0 +1,2 @@
+fails:Math#acosh! raises a TypeError when passed a Complex number
+fails:Math.acosh! raises a TypeError when passed a Complex number

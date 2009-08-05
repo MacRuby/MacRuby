@@ -1,0 +1,2 @@
+critical:Array#inspect handles recursive arrays
+fails:Array#inspect calls inspect on its elements

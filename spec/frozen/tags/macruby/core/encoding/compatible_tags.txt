@@ -1,0 +1,2 @@
+fails:Encoding.compatible? returns an Encoding instance which will be compatible with both given strings
+fails:Encoding.compatible? returns `nil' if no compatible Encoding for the two given strings exists

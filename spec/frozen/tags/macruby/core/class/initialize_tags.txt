@@ -1,0 +1,1 @@
+fails:Class#new passes the block to #initialize

@@ -22,7 +22,7 @@
 #include <math.h>
 
 VALUE rb_cTime;
-static VALUE time_utc_offset _((VALUE));
+static VALUE time_utc_offset _((VALUE, SEL));
 
 static ID id_divmod, id_mul, id_submicro;
 
@@ -43,7 +43,7 @@ time_free(void *tobj)
 }
 
 static VALUE
-time_s_alloc(VALUE klass)
+time_s_alloc(VALUE klass, SEL sel)
 {
     VALUE obj;
     struct time_object *tobj;
@@ -89,7 +89,7 @@ time_modify(VALUE time)
  */
 
 static VALUE
-time_init(VALUE time)
+time_init(VALUE time, SEL sel)
 {
     struct time_object *tobj;
 
@@ -152,7 +152,7 @@ time_overflow_p(time_t *secp, long *nsecp)
 static VALUE
 time_new_internal(VALUE klass, time_t sec, long nsec)
 {
-    VALUE time = time_s_alloc(klass);
+    VALUE time = time_s_alloc(klass, 0);
     struct time_object *tobj;
 
     GetTimeval(time, tobj);
@@ -310,7 +310,7 @@ rb_time_timespec(VALUE time)
  */
 
 static VALUE
-time_s_at(int argc, VALUE *argv, VALUE klass)
+time_s_at(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
     struct timespec ts;
     VALUE time, t;
@@ -475,8 +475,8 @@ time_arg(int argc, VALUE *argv, struct tm *tm, long *nsec)
 	rb_raise(rb_eArgError, "argument out of range");
 }
 
-static VALUE time_gmtime(VALUE);
-static VALUE time_localtime(VALUE);
+static VALUE time_gmtime(VALUE, SEL);
+static VALUE time_localtime(VALUE, SEL);
 static VALUE time_get_tm(VALUE, int);
 
 static int
@@ -881,8 +881,8 @@ time_utc_or_local(int argc, VALUE *argv, int utc_p, VALUE klass)
 
     time_arg(argc, argv, &tm, &nsec);
     time = time_new_internal(klass, make_time_t(&tm, utc_p), nsec);
-    if (utc_p) return time_gmtime(time);
-    return time_localtime(time);
+    if (utc_p) return time_gmtime(time, 0);
+    return time_localtime(time, 0);
 }
 
 /*
@@ -918,7 +918,7 @@ time_utc_or_local(int argc, VALUE *argv, int utc_p, VALUE klass)
  *     Time.gm(2000,"jan",1,20,15,1)   #=> 2000-01-01 20:15:01 UTC
  */
 static VALUE
-time_s_mkutc(int argc, VALUE *argv, VALUE klass)
+time_s_mkutc(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
     return time_utc_or_local(argc, argv, Qtrue, klass);
 }
@@ -949,7 +949,7 @@ time_s_mkutc(int argc, VALUE *argv, VALUE klass)
  */
 
 static VALUE
-time_s_mktime(int argc, VALUE *argv, VALUE klass)
+time_s_mktime(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
     return time_utc_or_local(argc, argv, Qfalse, klass);
 }
@@ -968,7 +968,7 @@ time_s_mktime(int argc, VALUE *argv, VALUE klass)
  */
 
 static VALUE
-time_to_i(VALUE time)
+time_to_i(VALUE time, SEL sel)
 {
     struct time_object *tobj;
 
@@ -992,7 +992,7 @@ time_to_i(VALUE time)
  */
 
 static VALUE
-time_to_f(VALUE time)
+time_to_f(VALUE time, SEL sel)
 {
     struct time_object *tobj;
 
@@ -1013,7 +1013,7 @@ time_to_f(VALUE time)
  */
 
 static VALUE
-time_usec(VALUE time)
+time_usec(VALUE time, SEL sel)
 {
     struct time_object *tobj;
 
@@ -1039,7 +1039,7 @@ time_usec(VALUE time)
  */
 
 static VALUE
-time_nsec(VALUE time)
+time_nsec(VALUE time, SEL sel)
 {
     struct time_object *tobj;
 
@@ -1068,7 +1068,7 @@ time_nsec(VALUE time)
  */
 
 static VALUE
-time_cmp(VALUE time1, VALUE time2)
+time_cmp(VALUE time1, SEL sel, VALUE time2)
 {
     struct time_object *tobj1, *tobj2;
 
@@ -1097,7 +1097,7 @@ time_cmp(VALUE time1, VALUE time2)
  */
 
 static VALUE
-time_eql(VALUE time1, VALUE time2)
+time_eql(VALUE time1, SEL sel, VALUE time2)
 {
     struct time_object *tobj1, *tobj2;
 
@@ -1131,7 +1131,7 @@ time_eql(VALUE time1, VALUE time2)
  */
 
 static VALUE
-time_utc_p(VALUE time)
+time_utc_p(VALUE time, SEL sel)
 {
     struct time_object *tobj;
 
@@ -1148,7 +1148,7 @@ time_utc_p(VALUE time)
  */
 
 static VALUE
-time_hash(VALUE time)
+time_hash(VALUE time, SEL sel)
 {
     struct time_object *tobj;
     long hash;
@@ -1160,7 +1160,7 @@ time_hash(VALUE time)
 
 /* :nodoc: */
 static VALUE
-time_init_copy(VALUE copy, VALUE time)
+time_init_copy(VALUE copy, SEL sel, VALUE time)
 {
     struct time_object *tobj, *tcopy;
 
@@ -1179,8 +1179,8 @@ time_init_copy(VALUE copy, VALUE time)
 static VALUE
 time_dup(VALUE time)
 {
-    VALUE dup = time_s_alloc(CLASS_OF(time));
-    time_init_copy(dup, time);
+    VALUE dup = time_s_alloc(CLASS_OF(time), 0);
+    time_init_copy(dup, 0, time);
     return dup;
 }
 
@@ -1198,7 +1198,7 @@ time_dup(VALUE time)
  */
 
 static VALUE
-time_localtime(VALUE time)
+time_localtime(VALUE time, SEL sel)
 {
     struct time_object *tobj;
     struct tm *tm_tmp;
@@ -1241,7 +1241,7 @@ time_localtime(VALUE time)
  */
 
 static VALUE
-time_gmtime(VALUE time)
+time_gmtime(VALUE time, SEL sel)
 {
     struct time_object *tobj;
     struct tm *tm_tmp;
@@ -1280,9 +1280,9 @@ time_gmtime(VALUE time)
  */
 
 static VALUE
-time_getlocaltime(VALUE time)
+time_getlocaltime(VALUE time, SEL sel)
 {
-    return time_localtime(time_dup(time));
+    return time_localtime(time_dup(time), 0);
 }
 
 /*
@@ -1301,16 +1301,16 @@ time_getlocaltime(VALUE time)
  */
 
 static VALUE
-time_getgmtime(VALUE time)
+time_getgmtime(VALUE time, SEL sel)
 {
-    return time_gmtime(time_dup(time));
+    return time_gmtime(time_dup(time), 0);
 }
 
 static VALUE
 time_get_tm(VALUE time, int gmt)
 {
-    if (gmt) return time_gmtime(time);
-    return time_localtime(time);
+    if (gmt) return time_gmtime(time, 0);
+    return time_localtime(time, 0);
 }
 
 /*
@@ -1324,7 +1324,7 @@ time_get_tm(VALUE time, int gmt)
  */
 
 static VALUE
-time_asctime(VALUE time)
+time_asctime(VALUE time, SEL sel)
 {
     struct time_object *tobj;
     char *s;
@@ -1356,7 +1356,7 @@ time_asctime(VALUE time)
  */
 
 static VALUE
-time_to_s(VALUE time)
+time_to_s(VALUE time, SEL sel)
 {
     struct time_object *tobj;
     char buf[128];
@@ -1375,7 +1375,7 @@ time_to_s(VALUE time)
 #if defined(HAVE_STRUCT_TM_TM_GMTOFF)
 	off = tobj->tm.tm_gmtoff;
 #else
-	VALUE tmp = time_utc_offset(time);
+	VALUE tmp = time_utc_offset(time, 0);
 	off = NUM2INT(tmp);
 #endif
 	if (off < 0) {
@@ -1442,7 +1442,7 @@ time_add(struct time_object *tobj, VALUE offset, int sign)
  */
 
 static VALUE
-time_plus(VALUE time1, VALUE time2)
+time_plus(VALUE time1, SEL sel, VALUE time2)
 {
     struct time_object *tobj;
     GetTimeval(time1, tobj);
@@ -1469,7 +1469,7 @@ time_plus(VALUE time1, VALUE time2)
  */
 
 static VALUE
-time_minus(VALUE time1, VALUE time2)
+time_minus(VALUE time1, SEL sel, VALUE time2)
 {
     struct time_object *tobj;
 
@@ -1501,7 +1501,7 @@ time_minus(VALUE time1, VALUE time2)
  */
 
 static VALUE
-time_succ(VALUE time)
+time_succ(VALUE time, SEL sel)
 {
     struct time_object *tobj;
     int gmt;
@@ -1517,7 +1517,7 @@ time_succ(VALUE time)
 VALUE
 rb_time_succ(VALUE time)
 {
-  return time_succ(time);
+  return time_succ(time, 0);
 }
 
 /*
@@ -1534,7 +1534,7 @@ rb_time_succ(VALUE time)
  */
 
 static VALUE
-time_sec(VALUE time)
+time_sec(VALUE time, SEL sel)
 {
     struct time_object *tobj;
 
@@ -1556,7 +1556,7 @@ time_sec(VALUE time)
  */
 
 static VALUE
-time_min(VALUE time)
+time_min(VALUE time, SEL sel)
 {
     struct time_object *tobj;
 
@@ -1578,7 +1578,7 @@ time_min(VALUE time)
  */
 
 static VALUE
-time_hour(VALUE time)
+time_hour(VALUE time, SEL sel)
 {
     struct time_object *tobj;
 
@@ -1602,7 +1602,7 @@ time_hour(VALUE time)
  */
 
 static VALUE
-time_mday(VALUE time)
+time_mday(VALUE time, SEL sel)
 {
     struct time_object *tobj;
 
@@ -1626,7 +1626,7 @@ time_mday(VALUE time)
  */
 
 static VALUE
-time_mon(VALUE time)
+time_mon(VALUE time, SEL sel)
 {
     struct time_object *tobj;
 
@@ -1648,7 +1648,7 @@ time_mon(VALUE time)
  */
 
 static VALUE
-time_year(VALUE time)
+time_year(VALUE time, SEL sel)
 {
     struct time_object *tobj;
 
@@ -1678,7 +1678,7 @@ time_year(VALUE time)
  */
 
 static VALUE
-time_wday(VALUE time)
+time_wday(VALUE time, SEL sel)
 {
     struct time_object *tobj;
 
@@ -1709,7 +1709,7 @@ time_wday(VALUE time)
  */
 
 static VALUE
-time_sunday(VALUE time)
+time_sunday(VALUE time, SEL sel)
 {
     wday_p(0);
 }
@@ -1725,7 +1725,7 @@ time_sunday(VALUE time)
  */
 
 static VALUE
-time_monday(VALUE time)
+time_monday(VALUE time, SEL sel)
 {
     wday_p(1);
 }
@@ -1741,7 +1741,7 @@ time_monday(VALUE time)
  */
 
 static VALUE
-time_tuesday(VALUE time)
+time_tuesday(VALUE time, SEL sel)
 {
     wday_p(2);
 }
@@ -1757,7 +1757,7 @@ time_tuesday(VALUE time)
  */
 
 static VALUE
-time_wednesday(VALUE time)
+time_wednesday(VALUE time, SEL sel)
 {
     wday_p(3);
 }
@@ -1773,7 +1773,7 @@ time_wednesday(VALUE time)
  */
 
 static VALUE
-time_thursday(VALUE time)
+time_thursday(VALUE time, SEL sel)
 {
     wday_p(4);
 }
@@ -1789,7 +1789,7 @@ time_thursday(VALUE time)
  */
 
 static VALUE
-time_friday(VALUE time)
+time_friday(VALUE time, SEL sel)
 {
     wday_p(5);
 }
@@ -1805,7 +1805,7 @@ time_friday(VALUE time)
  */
 
 static VALUE
-time_saturday(VALUE time)
+time_saturday(VALUE time, SEL sel)
 {
     wday_p(6);
 }
@@ -1821,7 +1821,7 @@ time_saturday(VALUE time)
  */
 
 static VALUE
-time_yday(VALUE time)
+time_yday(VALUE time, SEL sel)
 {
     struct time_object *tobj;
 
@@ -1858,7 +1858,7 @@ time_yday(VALUE time)
  */
 
 static VALUE
-time_isdst(VALUE time)
+time_isdst(VALUE time, SEL sel)
 {
     struct time_object *tobj;
 
@@ -1883,7 +1883,7 @@ time_isdst(VALUE time)
  */
 
 static VALUE
-time_zone(VALUE time)
+time_zone(VALUE time, SEL sel)
 {
     struct time_object *tobj;
 #if !defined(HAVE_TM_ZONE) && (!defined(HAVE_TZNAME) || !defined(HAVE_DAYLIGHT))
@@ -1925,7 +1925,7 @@ time_zone(VALUE time)
  */
 
 static VALUE
-time_utc_offset(VALUE time)
+time_utc_offset(VALUE time, SEL sel)
 {
     struct time_object *tobj;
 
@@ -1981,7 +1981,7 @@ time_utc_offset(VALUE time)
  */
 
 static VALUE
-time_to_a(VALUE time)
+time_to_a(VALUE time, SEL sel)
 {
     struct time_object *tobj;
 
@@ -1999,7 +1999,7 @@ time_to_a(VALUE time)
 		    INT2FIX(tobj->tm.tm_wday),
 		    INT2FIX(tobj->tm.tm_yday+1),
 		    tobj->tm.tm_isdst?Qtrue:Qfalse,
-		    time_zone(time));
+		    time_zone(time, 0));
 }
 
 #define SMALLBUF 100
@@ -2075,7 +2075,7 @@ rb_strftime(char **buf, const char *format, struct tm *time)
  */
 
 static VALUE
-time_strftime(VALUE time, VALUE format)
+time_strftime(VALUE time, SEL sel, VALUE format)
 {
     void rb_enc_copy(VALUE, VALUE);
     struct time_object *tobj;
@@ -2203,7 +2203,7 @@ time_mdump(VALUE time)
  */
 
 static VALUE
-time_dump(int argc, VALUE *argv, VALUE time)
+time_dump(VALUE time, SEL sel, int argc, VALUE *argv)
 {
     VALUE str;
 
@@ -2233,14 +2233,18 @@ time_mload(VALUE time, VALUE str)
     time_modify(time);
 
     submicro = rb_attr_get(str, id_submicro);
+#if 0 // TODO
     if (submicro != Qnil) {
         st_delete(rb_generic_ivar_table(str), (st_data_t*)&id_submicro, 0);
     }
+#endif
     rb_copy_generic_ivar(time, str);
 
     StringValue(str);
-    buf = (unsigned char *)RSTRING_BYTEPTR(str); /* ok */
-    if (RSTRING_BYTELEN(str) != 8) {
+    assert(*(VALUE *)str == rb_cByteString);
+
+    buf = (unsigned char *)rb_bytestring_byte_pointer(str);
+    if (rb_bytestring_length(str) != 8) {
 	rb_raise(rb_eTypeError, "marshaled time format differ");
     }
 
@@ -2278,7 +2282,7 @@ time_mload(VALUE time, VALUE str)
             long len;
             int digit;
             ptr = (unsigned char*)StringValuePtr(submicro);
-            len = RSTRING_BYTELEN(submicro);
+            len = RSTRING_LEN(submicro);
             if (0 < len) {
                 if (10 <= (digit = ptr[0] >> 4)) goto end_submicro;
                 nsec += digit * 100;
@@ -2311,9 +2315,9 @@ end_submicro: ;
  */
 
 static VALUE
-time_load(VALUE klass, VALUE str)
+time_load(VALUE klass, SEL sel, VALUE str)
 {
-    VALUE time = time_s_alloc(klass);
+    VALUE time = time_s_alloc(klass, 0);
 
     time_mload(time, str);
     return time;
@@ -2347,78 +2351,79 @@ Init_Time(void)
     rb_cTime = rb_define_class("Time", rb_cObject);
     rb_include_module(rb_cTime, rb_mComparable);
 
-    rb_define_alloc_func(rb_cTime, time_s_alloc);
-    rb_define_singleton_method(rb_cTime, "now", rb_class_new_instance, -1);
-    rb_define_singleton_method(rb_cTime, "at", time_s_at, -1);
-    rb_define_singleton_method(rb_cTime, "utc", time_s_mkutc, -1);
-    rb_define_singleton_method(rb_cTime, "gm", time_s_mkutc, -1);
-    rb_define_singleton_method(rb_cTime, "local", time_s_mktime, -1);
-    rb_define_singleton_method(rb_cTime, "mktime", time_s_mktime, -1);
+    rb_objc_define_method(*(VALUE *)rb_cTime, "alloc", time_s_alloc, 0);
+    VALUE rb_class_new_instance_imp(VALUE, SEL, int, VALUE *);
+    rb_objc_define_method(*(VALUE *)rb_cTime, "now", rb_class_new_instance_imp, -1);
+    rb_objc_define_method(*(VALUE *)rb_cTime, "at", time_s_at, -1);
+    rb_objc_define_method(*(VALUE *)rb_cTime, "utc", time_s_mkutc, -1);
+    rb_objc_define_method(*(VALUE *)rb_cTime, "gm", time_s_mkutc, -1);
+    rb_objc_define_method(*(VALUE *)rb_cTime, "local", time_s_mktime, -1);
+    rb_objc_define_method(*(VALUE *)rb_cTime, "mktime", time_s_mktime, -1);
 
-    rb_define_method(rb_cTime, "to_i", time_to_i, 0);
-    rb_define_method(rb_cTime, "to_f", time_to_f, 0);
-    rb_define_method(rb_cTime, "<=>", time_cmp, 1);
-    rb_define_method(rb_cTime, "eql?", time_eql, 1);
-    rb_define_method(rb_cTime, "hash", time_hash, 0);
-    rb_define_method(rb_cTime, "initialize", time_init, 0);
-    rb_define_method(rb_cTime, "initialize_copy", time_init_copy, 1);
+    rb_objc_define_method(rb_cTime, "to_i", time_to_i, 0);
+    rb_objc_define_method(rb_cTime, "to_f", time_to_f, 0);
+    rb_objc_define_method(rb_cTime, "<=>", time_cmp, 1);
+    rb_objc_define_method(rb_cTime, "eql?", time_eql, 1);
+    rb_objc_define_method(rb_cTime, "hash", time_hash, 0);
+    rb_objc_define_method(rb_cTime, "initialize", time_init, 0);
+    rb_objc_define_method(rb_cTime, "initialize_copy", time_init_copy, 1);
 
-    rb_define_method(rb_cTime, "localtime", time_localtime, 0);
-    rb_define_method(rb_cTime, "gmtime", time_gmtime, 0);
-    rb_define_method(rb_cTime, "utc", time_gmtime, 0);
-    rb_define_method(rb_cTime, "getlocal", time_getlocaltime, 0);
-    rb_define_method(rb_cTime, "getgm", time_getgmtime, 0);
-    rb_define_method(rb_cTime, "getutc", time_getgmtime, 0);
+    rb_objc_define_method(rb_cTime, "localtime", time_localtime, 0);
+    rb_objc_define_method(rb_cTime, "gmtime", time_gmtime, 0);
+    rb_objc_define_method(rb_cTime, "utc", time_gmtime, 0);
+    rb_objc_define_method(rb_cTime, "getlocal", time_getlocaltime, 0);
+    rb_objc_define_method(rb_cTime, "getgm", time_getgmtime, 0);
+    rb_objc_define_method(rb_cTime, "getutc", time_getgmtime, 0);
 
-    rb_define_method(rb_cTime, "ctime", time_asctime, 0);
-    rb_define_method(rb_cTime, "asctime", time_asctime, 0);
-    rb_define_method(rb_cTime, "to_s", time_to_s, 0);
-    rb_define_method(rb_cTime, "inspect", time_to_s, 0);
-    rb_define_method(rb_cTime, "to_a", time_to_a, 0);
+    rb_objc_define_method(rb_cTime, "ctime", time_asctime, 0);
+    rb_objc_define_method(rb_cTime, "asctime", time_asctime, 0);
+    rb_objc_define_method(rb_cTime, "to_s", time_to_s, 0);
+    rb_objc_define_method(rb_cTime, "inspect", time_to_s, 0);
+    rb_objc_define_method(rb_cTime, "to_a", time_to_a, 0);
 
-    rb_define_method(rb_cTime, "+", time_plus, 1);
-    rb_define_method(rb_cTime, "-", time_minus, 1);
+    rb_objc_define_method(rb_cTime, "+", time_plus, 1);
+    rb_objc_define_method(rb_cTime, "-", time_minus, 1);
 
-    rb_define_method(rb_cTime, "succ", time_succ, 0);
-    rb_define_method(rb_cTime, "sec", time_sec, 0);
-    rb_define_method(rb_cTime, "min", time_min, 0);
-    rb_define_method(rb_cTime, "hour", time_hour, 0);
-    rb_define_method(rb_cTime, "mday", time_mday, 0);
-    rb_define_method(rb_cTime, "day", time_mday, 0);
-    rb_define_method(rb_cTime, "mon", time_mon, 0);
-    rb_define_method(rb_cTime, "month", time_mon, 0);
-    rb_define_method(rb_cTime, "year", time_year, 0);
-    rb_define_method(rb_cTime, "wday", time_wday, 0);
-    rb_define_method(rb_cTime, "yday", time_yday, 0);
-    rb_define_method(rb_cTime, "isdst", time_isdst, 0);
-    rb_define_method(rb_cTime, "dst?", time_isdst, 0);
-    rb_define_method(rb_cTime, "zone", time_zone, 0);
-    rb_define_method(rb_cTime, "gmtoff", time_utc_offset, 0);
-    rb_define_method(rb_cTime, "gmt_offset", time_utc_offset, 0);
-    rb_define_method(rb_cTime, "utc_offset", time_utc_offset, 0);
+    rb_objc_define_method(rb_cTime, "succ", time_succ, 0);
+    rb_objc_define_method(rb_cTime, "sec", time_sec, 0);
+    rb_objc_define_method(rb_cTime, "min", time_min, 0);
+    rb_objc_define_method(rb_cTime, "hour", time_hour, 0);
+    rb_objc_define_method(rb_cTime, "mday", time_mday, 0);
+    rb_objc_define_method(rb_cTime, "day", time_mday, 0);
+    rb_objc_define_method(rb_cTime, "mon", time_mon, 0);
+    rb_objc_define_method(rb_cTime, "month", time_mon, 0);
+    rb_objc_define_method(rb_cTime, "year", time_year, 0);
+    rb_objc_define_method(rb_cTime, "wday", time_wday, 0);
+    rb_objc_define_method(rb_cTime, "yday", time_yday, 0);
+    rb_objc_define_method(rb_cTime, "isdst", time_isdst, 0);
+    rb_objc_define_method(rb_cTime, "dst?", time_isdst, 0);
+    rb_objc_define_method(rb_cTime, "zone", time_zone, 0);
+    rb_objc_define_method(rb_cTime, "gmtoff", time_utc_offset, 0);
+    rb_objc_define_method(rb_cTime, "gmt_offset", time_utc_offset, 0);
+    rb_objc_define_method(rb_cTime, "utc_offset", time_utc_offset, 0);
 
-    rb_define_method(rb_cTime, "utc?", time_utc_p, 0);
-    rb_define_method(rb_cTime, "gmt?", time_utc_p, 0);
+    rb_objc_define_method(rb_cTime, "utc?", time_utc_p, 0);
+    rb_objc_define_method(rb_cTime, "gmt?", time_utc_p, 0);
 
-    rb_define_method(rb_cTime, "sunday?", time_sunday, 0);
-    rb_define_method(rb_cTime, "monday?", time_monday, 0);
-    rb_define_method(rb_cTime, "tuesday?", time_tuesday, 0);
-    rb_define_method(rb_cTime, "wednesday?", time_wednesday, 0);
-    rb_define_method(rb_cTime, "thursday?", time_thursday, 0);
-    rb_define_method(rb_cTime, "friday?", time_friday, 0);
-    rb_define_method(rb_cTime, "saturday?", time_saturday, 0);
+    rb_objc_define_method(rb_cTime, "sunday?", time_sunday, 0);
+    rb_objc_define_method(rb_cTime, "monday?", time_monday, 0);
+    rb_objc_define_method(rb_cTime, "tuesday?", time_tuesday, 0);
+    rb_objc_define_method(rb_cTime, "wednesday?", time_wednesday, 0);
+    rb_objc_define_method(rb_cTime, "thursday?", time_thursday, 0);
+    rb_objc_define_method(rb_cTime, "friday?", time_friday, 0);
+    rb_objc_define_method(rb_cTime, "saturday?", time_saturday, 0);
 
-    rb_define_method(rb_cTime, "tv_sec", time_to_i, 0);
-    rb_define_method(rb_cTime, "tv_usec", time_usec, 0);
-    rb_define_method(rb_cTime, "usec", time_usec, 0);
-    rb_define_method(rb_cTime, "tv_nsec", time_nsec, 0);
-    rb_define_method(rb_cTime, "nsec", time_nsec, 0);
+    rb_objc_define_method(rb_cTime, "tv_sec", time_to_i, 0);
+    rb_objc_define_method(rb_cTime, "tv_usec", time_usec, 0);
+    rb_objc_define_method(rb_cTime, "usec", time_usec, 0);
+    rb_objc_define_method(rb_cTime, "tv_nsec", time_nsec, 0);
+    rb_objc_define_method(rb_cTime, "nsec", time_nsec, 0);
 
-    rb_define_method(rb_cTime, "strftime", time_strftime, 1);
+    rb_objc_define_method(rb_cTime, "strftime", time_strftime, 1);
 
     /* methods for marshaling */
-    rb_define_method(rb_cTime, "_dump", time_dump, -1);
-    rb_define_singleton_method(rb_cTime, "_load", time_load, 1);
+    rb_objc_define_method(rb_cTime, "_dump", time_dump, -1);
+    rb_objc_define_method(*(VALUE *)rb_cTime, "_load", time_load, 1);
 #if 0
     /* Time will support marshal_dump and marshal_load in the future (1.9 maybe) */
     rb_define_method(rb_cTime, "marshal_dump", time_mdump, 0);

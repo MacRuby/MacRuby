@@ -1,0 +1,2 @@
+fails:Hash#reject returns subclass instance for subclasses
+fails:Hash#reject! raises a TypeError if called on a frozen instance

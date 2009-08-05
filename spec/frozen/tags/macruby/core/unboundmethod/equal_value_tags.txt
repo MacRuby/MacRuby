@@ -1,0 +1,2 @@
+fails:UnboundMethod#== returns true if either is an alias for the other
+fails:UnboundMethod#== returns true if both are aliases for a third method

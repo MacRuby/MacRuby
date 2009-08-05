@@ -259,7 +259,7 @@ module HotCocoa::Graphics
         x = x - w / 2
         y = y - h / 2
       end
-      CGContextAddRect(@ctx, [x, y, w, h])
+      CGContextAddRect(@ctx, NSMakeRect(x, y, w, h))
       CGContextDrawPath(@ctx, KCGPathFillStroke)
     end
   
@@ -270,7 +270,7 @@ module HotCocoa::Graphics
         x = x - w / 2
         y = y - w / 2
       end
-      CGContextAddEllipseInRect(@ctx, [x, y, w, h])
+      CGContextAddEllipseInRect(@ctx, NSMakeRect(x, y, w, h))
       CGContextDrawPath(@ctx, KCGPathFillStroke) # apply fill and stroke
     end
   
@@ -294,14 +294,14 @@ module HotCocoa::Graphics
     def radial(gradient, sx=@width/2, sy=@height/2, er=@width/2, ex=sx, ey=sy, sr=0.0)
       #options = KCGGradientDrawsBeforeStartLocation
       #options = KCGGradientDrawsAfterEndLocation
-      CGContextDrawRadialGradient(@ctx, gradient.gradient, [sx, sy], sr, [ex, ey], er, gradient.pre + gradient.post)
+      CGContextDrawRadialGradient(@ctx, gradient.gradient, NSMakePoint(sx, sy), sr, NSMakePoint(ex, ey), er, gradient.pre + gradient.post)
     end
   
     # draw an axial(linear) gradient starting at sx,sy and ending at ex,ey
     def gradient(gradient=Gradient.new, start_x=@width/2, start_y=0, end_x=@width/2, end_y=@height)
       #options = KCGGradientDrawsBeforeStartLocation
       #options = KCGGradientDrawsAfterEndLocation
-      CGContextDrawLinearGradient(@ctx, gradient.gradient, [start_x, start_y], [end_x, end_y], gradient.pre + gradient.post)
+      CGContextDrawLinearGradient(@ctx, gradient.gradient, NSMakePoint(start_x, start_y), NSMakePoint(end_x, end_y), gradient.pre + gradient.post)
     end
 
     # draw a cartesian coordinate grid for reference
@@ -339,7 +339,7 @@ module HotCocoa::Graphics
   
     # draw a line starting at x1,y1 and ending at x2,y2
     def line(x1, y1, x2, y2)
-      CGContextAddLines(@ctx, [[x1, y1], [x2, y2]], 2)
+      CGContextAddLines(@ctx, [NSPoint.new(x1, y1), NSPoint.new(x2, y2)], 2)
       CGContextDrawPath(@ctx, KCGPathStroke) # apply stroke
       endpath
       

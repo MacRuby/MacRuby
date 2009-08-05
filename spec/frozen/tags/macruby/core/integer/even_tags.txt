@@ -1,0 +1,1 @@
+critical:Integer#even? returns true when self is an even number

@@ -19,10 +19,9 @@ static ID id_digest;
 static VALUE
 bubblebabble_str_new(VALUE str_digest)
 {
-    char *digest;
+    const char *digest;
     size_t digest_len;
-    VALUE str;
-    char *p;
+    UInt8 *p;
     int i, j, seed = 1;
     static const char vowels[] = {
         'a', 'e', 'i', 'o', 'u', 'y'
@@ -40,8 +39,8 @@ bubblebabble_str_new(VALUE str_digest)
 	rb_raise(rb_eRuntimeError, "digest string too long");
     }
 
-    str = rb_str_new(0, (digest_len | 1) * 3 + 2);
-    p = RSTRING_PTR(str);
+    const size_t p_len = (digest_len | 1) * 3 + 2;
+    p = (UInt8 *)alloca(p_len + 1);
 
     i = j = 0;
     p[j++] = 'x';
@@ -75,7 +74,7 @@ bubblebabble_str_new(VALUE str_digest)
 
     p[j] = 'x';
 
-    return str;
+    return rb_bytestring_new_with_data(p, p_len);
 }
 
 /*
@@ -85,7 +84,7 @@ bubblebabble_str_new(VALUE str_digest)
  * Returns a BubbleBabble encoded version of a given _string_.
  */
 static VALUE
-rb_digest_s_bubblebabble(VALUE klass, VALUE str)
+rb_digest_s_bubblebabble(VALUE klass, SEL sel, VALUE str)
 {
     return bubblebabble_str_new(str);
 }
@@ -97,7 +96,7 @@ rb_digest_s_bubblebabble(VALUE klass, VALUE str)
  * Returns the BubbleBabble encoded hash value of a given _string_.
  */
 static VALUE
-rb_digest_class_s_bubblebabble(int argc, VALUE *argv, VALUE klass)
+rb_digest_class_s_bubblebabble(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
     return bubblebabble_str_new(rb_funcall2(klass, id_digest, argc, argv));
 }
@@ -109,7 +108,7 @@ rb_digest_class_s_bubblebabble(int argc, VALUE *argv, VALUE klass)
  * Returns the resulting hash value in a Bubblebabble encoded form.
  */
 static VALUE
-rb_digest_instance_bubblebabble(VALUE self)
+rb_digest_instance_bubblebabble(VALUE self, SEL sel)
 {
     return bubblebabble_str_new(rb_funcall(self, id_digest, 0));
 }
@@ -130,10 +129,10 @@ Init_bubblebabble(void)
     cDigest_Class = rb_path2class("Digest::Class");
 
     /* Digest::bubblebabble() */
-    rb_define_module_function(mDigest, "bubblebabble", rb_digest_s_bubblebabble, 1);
+    rb_objc_define_method(*(VALUE *)mDigest, "bubblebabble", rb_digest_s_bubblebabble, 1);
 
     /* Digest::Class::bubblebabble() */
-    rb_define_singleton_method(cDigest_Class, "bubblebabble", rb_digest_class_s_bubblebabble, -1);
+    rb_objc_define_method(*(VALUE *)cDigest_Class, "bubblebabble", rb_digest_class_s_bubblebabble, -1);
 
     /* Digest::Instance#bubblebabble() */
     rb_define_method(mDigest_Instance, "bubblebabble", rb_digest_instance_bubblebabble, 0);

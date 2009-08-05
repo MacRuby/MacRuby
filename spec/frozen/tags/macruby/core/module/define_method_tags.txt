@@ -1,0 +1,6 @@
+fails:Module#define_method when given an UnboundMethod correctly passes given arguments to the new method
+fails:Module#define_method when given an UnboundMethod adds the new method to the methods list
+fails:Module#define_method defines the given method as an instance method with the given name in self
+fails:Module#define_method defines a new method with the given name and the given block as body in self
+fails:Module#define_method raises a TypeError when the given method is no Method/Proc
+fails:Module#define_method should maintain the Proc's scope

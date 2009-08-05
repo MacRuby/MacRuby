@@ -1,0 +1,1 @@
+fails:Module#protected makes an existing class method protected

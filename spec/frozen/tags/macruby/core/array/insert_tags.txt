@@ -1,0 +1,1 @@
+fails:Array#insert tries to convert the passed position argument to an Integer using #to_int

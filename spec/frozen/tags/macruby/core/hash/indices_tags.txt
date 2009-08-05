@@ -1,0 +1,1 @@
+fails:Hash#indices returns an array of values for the given keys

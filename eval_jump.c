@@ -3,8 +3,6 @@
  * from eval.c
  */
 
-#include "eval_intern.h"
-
 /* exit */
 
 void
@@ -35,7 +33,7 @@ rb_call_end_proc(VALUE data)
  */
 
 static VALUE
-rb_f_at_exit(void)
+rb_f_at_exit(VALUE self, SEL sel)
 {
     VALUE proc;
 
@@ -54,23 +52,17 @@ struct end_proc_data {
     struct end_proc_data *next;
 };
 
-static struct end_proc_data *end_procs, *ephemeral_end_procs, *tmp_end_procs;
+static struct end_proc_data *end_procs = NULL;
+static struct end_proc_data *tmp_end_procs = NULL;
 
 void
 rb_set_end_proc(void (*func)(VALUE), VALUE data)
 {
-    /* FIXME not GC safe! */
     struct end_proc_data *link = ALLOC(struct end_proc_data);
     struct end_proc_data **list;
-    rb_thread_t *th = GET_THREAD();
 
-    if (th->top_wrapper) {
-	list = &ephemeral_end_procs;
-    }
-    else {
-	list = &end_procs;
-    }
-    link->next = *list;
+    list = &end_procs;
+    GC_WB(&link->next, *list);
     link->func = func;
     link->data = data;
     link->safe = rb_safe_level();
@@ -78,65 +70,17 @@ rb_set_end_proc(void (*func)(VALUE), VALUE data)
 }
 
 void
-rb_mark_end_proc(void)
-{
-    struct end_proc_data *link;
-
-    link = end_procs;
-    while (link) {
-	rb_gc_mark(link->data);
-	link = link->next;
-    }
-    link = ephemeral_end_procs;
-    while (link) {
-	rb_gc_mark(link->data);
-	link = link->next;
-    }
-    link = tmp_end_procs;
-    while (link) {
-	rb_gc_mark(link->data);
-	link = link->next;
-    }
-}
-
-void
 rb_exec_end_proc(void)
 {
     struct end_proc_data *link, *tmp;
-    int status;
-    volatile int safe = rb_safe_level();
+    int safe = rb_safe_level();
 
-    while (ephemeral_end_procs) {
-	tmp_end_procs = link = ephemeral_end_procs;
-	ephemeral_end_procs = 0;
-	while (link) {
-	    PUSH_TAG();
-	    if ((status = EXEC_TAG()) == 0) {
-		rb_set_safe_level_force(link->safe);
-		(*link->func) (link->data);
-	    }
-	    POP_TAG();
-	    if (status) {
-		error_handle(status);
-	    }
-	    tmp = link;
-	    tmp_end_procs = link = link->next;
-	    free(tmp);
-	}
-    }
-    while (end_procs) {
+    if (end_procs != NULL) {
 	tmp_end_procs = link = end_procs;
 	end_procs = 0;
-	while (link) {
-	    PUSH_TAG();
-	    if ((status = EXEC_TAG()) == 0) {
-		rb_set_safe_level_force(link->safe);
-		(*link->func) (link->data);
-	    }
-	    POP_TAG();
-	    if (status) {
-		error_handle(status);
-	    }
+	while (link != NULL) {
+	    rb_set_safe_level_force(link->safe);
+	    (*link->func) (link->data);
 	    tmp = link;
 	    tmp_end_procs = link = link->next;
 	    xfree(tmp);
@@ -148,6 +92,6 @@ rb_exec_end_proc(void)
 void
 Init_jump(void)
 {
-    rb_define_global_function("at_exit", rb_f_at_exit, 0);
+    rb_objc_define_method(rb_mKernel, "at_exit", rb_f_at_exit, 0);
     GC_ROOT(&end_procs);
 }

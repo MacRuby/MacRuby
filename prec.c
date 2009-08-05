@@ -31,7 +31,7 @@ static ID prc_pr, prc_if;
  */
 
 static VALUE
-prec_prec(VALUE x, VALUE klass)
+prec_prec(VALUE x, SEL sel, VALUE klass)
 {
     return rb_funcall(klass, prc_if, 1, x);
 }
@@ -45,7 +45,7 @@ prec_prec(VALUE x, VALUE klass)
  */
 
 static VALUE
-prec_prec_i(VALUE x)
+prec_prec_i(VALUE x, SEL sel)
 {
     VALUE klass = rb_cInteger;
 
@@ -61,7 +61,7 @@ prec_prec_i(VALUE x)
  */
 
 static VALUE
-prec_prec_f(VALUE x)
+prec_prec_f(VALUE x, SEL sel)
 {
     VALUE klass = rb_cFloat;
 
@@ -82,7 +82,7 @@ prec_prec_f(VALUE x)
  */
 
 static VALUE
-prec_induced_from(VALUE module, VALUE x)
+prec_induced_from(VALUE module, SEL sel, VALUE x)
 {
     rb_raise(rb_eTypeError, "undefined conversion from %s into %s",
             rb_obj_classname(x), rb_class2name(module));
@@ -99,7 +99,7 @@ prec_induced_from(VALUE module, VALUE x)
  */
 
 static VALUE
-prec_included(VALUE module, VALUE include)
+prec_included(VALUE module, SEL sel, VALUE include)
 {
     switch (TYPE(include)) {
       case T_CLASS:
@@ -109,7 +109,7 @@ prec_included(VALUE module, VALUE include)
        Check_Type(include, T_CLASS);
        break;
     }
-    rb_define_singleton_method(include, "induced_from", prec_induced_from, 1);
+    rb_objc_define_method(*(VALUE *)include, "induced_from", prec_induced_from, 1);
     return module;
 }
 
@@ -125,10 +125,10 @@ void
 Init_Precision(void)
 {
     rb_mPrecision = rb_define_module("Precision");
-    rb_define_singleton_method(rb_mPrecision, "included", prec_included, 1);
-    rb_define_method(rb_mPrecision, "prec", prec_prec, 1);
-    rb_define_method(rb_mPrecision, "prec_i", prec_prec_i, 0);
-    rb_define_method(rb_mPrecision, "prec_f", prec_prec_f, 0);
+    rb_objc_define_method(*(VALUE *)rb_mPrecision, "included", prec_included, 1);
+    rb_objc_define_method(rb_mPrecision, "prec", prec_prec, 1);
+    rb_objc_define_method(rb_mPrecision, "prec_i", prec_prec_i, 0);
+    rb_objc_define_method(rb_mPrecision, "prec_f", prec_prec_f, 0);
 
     prc_pr = rb_intern("prec");
     prc_if = rb_intern("induced_from");

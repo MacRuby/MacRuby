@@ -81,7 +81,6 @@ util.c (partly):
     OF THIS SOFTWARE OR ITS FITNESS FOR ANY PARTICULAR PURPOSE.
 
 util.c (partly):
-win32/win32.[ch]:
 
   You can apply the Artistic License to these files. (or GPL,
   alternatively)
@@ -139,97 +138,9 @@ random.c
     email: matumoto@math.keio.ac.jp
 
 st.[ch]:
-x68/*:
-missing/alloca.c:
-missing/dup2.c:
-missing/finite.c:
-missing/hypot.c:
-missing/isinf.c:
-missing/isnan.c:
-missing/memcmp.c:
-missing/memmove.c:
-missing/strchr.c:
-missing/streror.c:
-missing/strftime.c:
-missing/strstr.c:
-missing/strtol.c:
 ext/digest/sha1/sha1.[ch]:
 
   These files are all under public domain.
-
-missing/erf.c:
-missing/tgamma.c:
-missing/lgamma_r.c:
-missing/crypt.c:
-missing/vsnprintf.c:
-
-  This file is under the old-style BSD license.  Note that the
-  paragraph 3 below is now null and void.
-
-    Copyright (c) 1990, 1993
-         The Regents of the University of California.  All rights reserved.
-
-    This code is derived from software contributed to Berkeley by
-    Chris Torek.
-
-    Redistribution and use in source and binary forms, with or without
-    modification, are permitted provided that the following conditions
-    are met:
-    1. Redistributions of source code must retain the above copyright
-       notice, this list of conditions and the following disclaimer.
-    2. Redistributions in binary form must reproduce the above copyright
-       notice, this list of conditions and the following disclaimer in the
-       documentation and/or other materials provided with the distribution.
-    3. Neither the name of the University nor the names of its contributors
-       may be used to endorse or promote products derived from this software
-       without specific prior written permission.
-
-    THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
-    ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-    IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-    ARE DISCLAIMED.  IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE
-    FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-    DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
-    OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
-    HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
-    LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
-    OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
-    SUCH DAMAGE.
-
-    IMPORTANT NOTE:
-    --------------
-    From ftp://ftp.cs.berkeley.edu/pub/4bsd/README.Impt.License.Change
-    paragraph 3 above is now null and void.
-
-missing/strlcat.c
-missing/strlcpy.c
-
-  These files are under the new-style BSD license.
-
-   Copyright (c) 1998 Todd C. Miller <Todd.Miller@courtesan.com>
-   All rights reserved.
-
-   Redistribution and use in source and binary forms, with or without
-   modification, are permitted provided that the following conditions
-   are met:
-   1. Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-   2. Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-   3. The name of the author may not be used to endorse or promote products
-      derived from this software without specific prior written permission.
-
-   THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES,
-   INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
-   AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL
-   THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
-   OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
-   WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
-   OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
-   ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ext/digest/md5/md5.[ch]:
 
@@ -359,17 +270,48 @@ ext/socket/getnameinfo.c:
     OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
     SUCH DAMAGE.
 
-ext/win32ole/win32ole.c:
+bs.[ch]:
 
-  You can apply the Artistic License to this file. (or GPL,
-  alternatively)
+  These files are under the new-style BSD license.
 
-    (c) 1995 Microsoft Corporation. All rights reserved.
-    Developed by ActiveWare Internet Corp., http://www.ActiveWare.com
+    Copyright (c) 2008, Apple Inc. All rights reserved.
+  
+    Redistribution and use in source and binary forms, with or without
+    modification, are permitted provided that the following conditions
+    are met:
+    1.  Redistributions of source code must retain the above copyright
+        notice, this list of conditions and the following disclaimer.
+    2.  Redistributions in binary form must reproduce the above copyright
+        notice, this list of conditions and the following disclaimer in the
+        documentation and/or other materials provided with the distribution.
+    3.  Neither the name of Apple Inc. ("Apple") nor the names of
+        its contributors may be used to endorse or promote products derived
+        from this software without specific prior written permission.
+  
+    THIS SOFTWARE IS PROVIDED BY APPLE AND ITS CONTRIBUTORS "AS IS" AND
+    ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+    IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+    ARE DISCLAIMED. IN NO EVENT SHALL APPLE OR ITS CONTRIBUTORS BE LIABLE FOR
+    ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+    DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+    OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+    HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+    STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
+    IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+    POSSIBILITY OF SUCH DAMAGE.
 
-    Other modifications Copyright (c) 1997, 1998 by Gurusamy Sarathy
-    <gsar@umich.edu> and Jan Dubois <jan.dubois@ibm.net>
- 
-    You may distribute under the terms of either the GNU General Public
-    License or the Artistic License, as specified in the README file
-    of the Perl distribution.
+autozone.h:
+
+  This file is under the Apache License, version 2.0.
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+    
+        http://www.apache.org/licenses/LICENSE-2.0
+    
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.

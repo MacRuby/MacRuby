@@ -1,0 +1,2 @@
+fails:Fixnum#** returns self raised to the given power
+fails:Fixnum#** returns Infinity for 0**-1

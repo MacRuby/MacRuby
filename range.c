@@ -11,9 +11,14 @@
 
 #include "ruby/ruby.h"
 #include "ruby/encoding.h"
+#include "ruby/node.h"
+#include "vm.h"
+#include "id.h"
 
 VALUE rb_cRange;
-static ID id_cmp, id_succ, id_beg, id_end, id_excl;
+static ID id_succ, id_beg, id_end, id_excl;
+static SEL selUpto = 0;
+static void *cacheUpto = NULL;
 
 #define RANGE_BEG(r) (RSTRUCT(r)->as.ary[0])
 #define RANGE_END(r) (RSTRUCT(r)->as.ary[1])
@@ -32,7 +37,7 @@ range_failed(void)
 static VALUE
 range_check(VALUE *args)
 {
-    return rb_funcall(args[0], id_cmp, 1, args[1]);
+    return rb_objs_cmp(args[0], args[1]);
 }
 
 static void
@@ -75,7 +80,7 @@ rb_range_new(VALUE beg, VALUE end, int exclude_end)
  */
 
 static VALUE
-range_initialize(int argc, VALUE *argv, VALUE range)
+range_initialize(VALUE range, SEL sel ,int argc, VALUE *argv)
 {
     VALUE beg, end, flags;
     
@@ -97,7 +102,7 @@ range_initialize(int argc, VALUE *argv, VALUE range)
  */
 
 static VALUE
-range_exclude_end_p(VALUE range)
+range_exclude_end_p(VALUE range, SEL sel)
 {
     return EXCL(range) ? Qtrue : Qfalse;
 }
@@ -118,7 +123,7 @@ range_exclude_end_p(VALUE range)
  */
 
 static VALUE
-range_eq(VALUE range, VALUE obj)
+range_eq(VALUE range, SEL sel, VALUE obj)
 {
     if (range == obj)
 	return Qtrue;
@@ -139,7 +144,7 @@ range_eq(VALUE range, VALUE obj)
 static int
 r_lt(VALUE a, VALUE b)
 {
-    VALUE r = rb_funcall(a, id_cmp, 1, b);
+    VALUE r = rb_objs_cmp(a, b);
 
     if (NIL_P(r))
 	return Qfalse;
@@ -152,7 +157,7 @@ static int
 r_le(VALUE a, VALUE b)
 {
     int c;
-    VALUE r = rb_funcall(a, id_cmp, 1, b);
+    VALUE r = rb_objs_cmp(a, b);
 
     if (NIL_P(r))
 	return Qfalse;
@@ -180,7 +185,7 @@ r_le(VALUE a, VALUE b)
  */
 
 static VALUE
-range_eql(VALUE range, VALUE obj)
+range_eql(VALUE range, SEL sel, VALUE obj)
 {
     if (range == obj)
 	return Qtrue;
@@ -208,7 +213,7 @@ range_eql(VALUE range, VALUE obj)
  */
 
 static VALUE
-range_hash(VALUE range)
+range_hash(VALUE range, SEL sel)
 {
     long hash = EXCL(range);
     VALUE v;
@@ -293,7 +298,7 @@ step_i(VALUE i, void *arg)
 
 
 static VALUE
-range_step(int argc, VALUE *argv, VALUE range)
+range_step(VALUE range, SEL sel, int argc, VALUE *argv)
 {
     VALUE b, e, step, tmp;
 
@@ -326,6 +331,7 @@ range_step(int argc, VALUE *argv, VALUE range)
 	i = FIX2LONG(b);	
 	while (i < end) {
 	    rb_yield(LONG2NUM(i));
+	    RETURN_IF_BROKEN();
 	    if (i + unit < i) break;
 	    i += unit;
 	}
@@ -338,6 +344,7 @@ range_step(int argc, VALUE *argv, VALUE range)
 
 	while (RTEST(rb_funcall(b, op, 1, e))) {
 	    rb_yield(b);
+	    RETURN_IF_BROKEN();
 	    b = rb_funcall(b, '+', 1, step);
 	}
     }
@@ -352,7 +359,7 @@ range_step(int argc, VALUE *argv, VALUE range)
 	    args[1] = EXCL(range) ? Qtrue : Qfalse;
 	    iter[0] = INT2FIX(1);
 	    iter[1] = step;
-	    rb_block_call(b, rb_intern("upto"), 2, args, step_i, (VALUE)iter);
+	    rb_objc_block_call(b, selUpto, cacheUpto, 2, args, step_i, (VALUE)iter);
 	}
 	else {
 	    VALUE args[2];
@@ -395,7 +402,7 @@ each_i(VALUE v, void *arg)
  */
 
 static VALUE
-range_each(VALUE range)
+range_each(VALUE range, SEL sel)
 {
     VALUE beg, end;
 
@@ -416,6 +423,7 @@ range_each(VALUE range)
 	    lim += 1;
 	for (i = FIX2LONG(beg); i < lim; i++) {
 	    rb_yield(LONG2FIX(i));
+	    RETURN_IF_BROKEN();
 	}
     }
     else if (TYPE(beg) == T_STRING) {
@@ -423,7 +431,7 @@ range_each(VALUE range)
 
 	args[0] = end;
 	args[1] = EXCL(range) ? Qtrue : Qfalse;
-	rb_block_call(beg, rb_intern("upto"), 2, args, rb_yield, 0);
+	rb_objc_block_call(beg, selUpto, cacheUpto, 2, args, rb_yield, 0);
     }
     else {
 	range_each_func(range, each_i, NULL);
@@ -439,7 +447,7 @@ range_each(VALUE range)
  */
 
 static VALUE
-range_begin(VALUE range)
+range_begin(VALUE range, SEL sel)
 {
     return RANGE_BEG(range);
 }
@@ -457,7 +465,7 @@ range_begin(VALUE range)
 
 
 static VALUE
-range_end(VALUE range)
+range_end(VALUE range, SEL sel)
 {
     return RANGE_END(range);
 }
@@ -486,7 +494,7 @@ first_i(VALUE i, VALUE *ary)
  */
 
 static VALUE
-range_first(int argc, VALUE *argv, VALUE range)
+range_first(VALUE range, SEL sel, int argc, VALUE *argv)
 {
     VALUE n, ary[2];
 
@@ -495,7 +503,7 @@ range_first(int argc, VALUE *argv, VALUE range)
     rb_scan_args(argc, argv, "1", &n);
     ary[0] = n;
     ary[1] = rb_ary_new2(NUM2LONG(n));
-    rb_block_call(range, rb_intern("each"), 0, 0, first_i, (VALUE)ary);
+    rb_objc_block_call(range, selEach, cacheEach, 0, 0, first_i, (VALUE)ary);
 
     return ary[1];
 }
@@ -510,7 +518,7 @@ range_first(int argc, VALUE *argv, VALUE range)
  */
 
 static VALUE
-range_last(int argc, VALUE *argv, VALUE range)
+range_last(VALUE range, SEL sel, int argc, VALUE *argv)
 {
     VALUE rb_ary_last(int, VALUE *, VALUE);
 
@@ -532,15 +540,19 @@ range_last(int argc, VALUE *argv, VALUE range)
 
 
 static VALUE
-range_min(VALUE range)
+range_min(VALUE range, SEL sel)
 {
     if (rb_block_given_p()) {
-	return rb_call_super(0, 0);
+	//return rb_call_super(0, 0);
+	if (sel == NULL) {
+	    sel = sel_registerName("min");
+	}
+	return rb_vm_call(range, sel, 0, NULL, true);
     }
     else {
 	VALUE b = RANGE_BEG(range);
 	VALUE e = RANGE_END(range);
-	int c = rb_cmpint(rb_funcall(b, id_cmp, 1, e), b, e);
+	int c = rb_cmpint(rb_objs_cmp(b, e), b, e);
 
 	if (c > 0 || (c == 0 && EXCL(range)))
 	    return Qnil;
@@ -561,17 +573,21 @@ range_min(VALUE range)
 
 
 static VALUE
-range_max(VALUE range)
+range_max(VALUE range, SEL sel)
 {
     VALUE e = RANGE_END(range);
     int ip = FIXNUM_P(e) || rb_obj_is_kind_of(e, rb_cInteger);
 
     if (rb_block_given_p() || (EXCL(range) && !ip)) {
-	return rb_call_super(0, 0);
+	//return rb_call_super(0, 0);
+	if (sel == NULL) {
+	    sel = sel_registerName("max");
+	}
+	return rb_vm_call(range, sel, 0, NULL, true);
     }
     else {
 	VALUE b = RANGE_BEG(range);
-	int c = rb_cmpint(rb_funcall(b, id_cmp, 1, e), b, e);
+	int c = rb_cmpint(rb_objs_cmp(b, e), b, e);
 
 	if (c > 0)
 	    return Qnil;
@@ -646,7 +662,7 @@ rb_range_beg_len(VALUE range, long *begp, long *lenp, long len, int err)
  */
 
 static VALUE
-range_to_s(VALUE range)
+range_to_s(VALUE range, SEL sel)
 {
     VALUE str, str2;
 
@@ -671,7 +687,7 @@ range_to_s(VALUE range)
 
 
 static VALUE
-range_inspect(VALUE range)
+range_inspect(VALUE range, SEL sel)
 {
     VALUE str, str2;
 
@@ -706,7 +722,7 @@ range_inspect(VALUE range)
  */
 
 static VALUE
-range_eqq(VALUE range, VALUE val)
+range_eqq(VALUE range, SEL sel, VALUE val)
 {
     return rb_funcall(range, rb_intern("include?"), 1, val);
 }
@@ -726,7 +742,7 @@ range_eqq(VALUE range, VALUE val)
  */
 
 static VALUE
-range_include(VALUE range, VALUE val)
+range_include(VALUE range, SEL sel, VALUE val)
 {
     VALUE beg = RANGE_BEG(range);
     VALUE end = RANGE_END(range);
@@ -769,7 +785,11 @@ range_include(VALUE range, VALUE val)
 	}
     }
     /* TODO: ruby_frame->this_func = rb_intern("include?"); */
-    return rb_call_super(1, &val);
+    //return rb_call_super(1, &val);
+    if (sel == NULL) {
+	sel = sel_registerName("include?:");
+    }
+    return rb_vm_call(range, sel, 1, &val, true);
 }
 
 
@@ -786,7 +806,7 @@ range_include(VALUE range, VALUE val)
  */
 
 static VALUE
-range_cover(VALUE range, VALUE val)
+range_cover(VALUE range, SEL sel, VALUE val)
 {
     VALUE beg, end;
 
@@ -805,6 +825,7 @@ range_cover(VALUE range, VALUE val)
     return Qfalse;
 }
 
+#if 0
 static VALUE
 range_dumper(VALUE range)
 {
@@ -832,6 +853,7 @@ range_loader(VALUE range, VALUE obj)
     RSTRUCT(range)->as.ary[2] = rb_ivar_get(obj, id_excl);
     return range;
 }
+#endif
 
 static VALUE
 range_alloc(VALUE klass)
@@ -896,7 +918,6 @@ range_alloc(VALUE klass)
 void
 Init_Range(void)
 {
-    id_cmp = rb_intern("<=>");
     id_succ = rb_intern("succ");
     id_beg = rb_intern("begin");
     id_end = rb_intern("end");
@@ -907,26 +928,29 @@ Init_Range(void)
         "begin", "end", "excl", NULL);
 
     rb_include_module(rb_cRange, rb_mEnumerable);
-    rb_marshal_define_compat(rb_cRange, rb_cObject, range_dumper, range_loader);
-    rb_define_method(rb_cRange, "initialize", range_initialize, -1);
-    rb_define_method(rb_cRange, "==", range_eq, 1);
-    rb_define_method(rb_cRange, "===", range_eqq, 1);
-    rb_define_method(rb_cRange, "eql?", range_eql, 1);
-    rb_define_method(rb_cRange, "hash", range_hash, 0);
-    rb_define_method(rb_cRange, "each", range_each, 0);
-    rb_define_method(rb_cRange, "step", range_step, -1);
-    rb_define_method(rb_cRange, "begin", range_begin, 0);
-    rb_define_method(rb_cRange, "end", range_end, 0);
-    rb_define_method(rb_cRange, "first", range_first, -1);
-    rb_define_method(rb_cRange, "last", range_last, -1);
-    rb_define_method(rb_cRange, "min", range_min, 0);
-    rb_define_method(rb_cRange, "max", range_max, 0);
-    rb_define_method(rb_cRange, "to_s", range_to_s, 0);
-    rb_define_method(rb_cRange, "inspect", range_inspect, 0);
+    //rb_marshal_define_compat(rb_cRange, rb_cObject, range_dumper, range_loader);
+    rb_objc_define_method(rb_cRange, "initialize", range_initialize, -1);
+    rb_objc_define_method(rb_cRange, "==", range_eq, 1);
+    rb_objc_define_method(rb_cRange, "===", range_eqq, 1);
+    rb_objc_define_method(rb_cRange, "eql?", range_eql, 1);
+    rb_objc_define_method(rb_cRange, "hash", range_hash, 0);
+    rb_objc_define_method(rb_cRange, "each", range_each, 0);
+    rb_objc_define_method(rb_cRange, "step", range_step, -1);
+    rb_objc_define_method(rb_cRange, "begin", range_begin, 0);
+    rb_objc_define_method(rb_cRange, "end", range_end, 0);
+    rb_objc_define_method(rb_cRange, "first", range_first, -1);
+    rb_objc_define_method(rb_cRange, "last", range_last, -1);
+    rb_objc_define_method(rb_cRange, "min", range_min, 0);
+    rb_objc_define_method(rb_cRange, "max", range_max, 0);
+    rb_objc_define_method(rb_cRange, "to_s", range_to_s, 0);
+    rb_objc_define_method(rb_cRange, "inspect", range_inspect, 0);
 
-    rb_define_method(rb_cRange, "exclude_end?", range_exclude_end_p, 0);
+    rb_objc_define_method(rb_cRange, "exclude_end?", range_exclude_end_p, 0);
 
-    rb_define_method(rb_cRange, "member?", range_include, 1);
-    rb_define_method(rb_cRange, "include?", range_include, 1);
-    rb_define_method(rb_cRange, "cover?", range_cover, 1);
+    rb_objc_define_method(rb_cRange, "member?", range_include, 1);
+    rb_objc_define_method(rb_cRange, "include?", range_include, 1);
+    rb_objc_define_method(rb_cRange, "cover?", range_cover, 1);
+
+    selUpto = sel_registerName("upto:");
+    cacheUpto = rb_vm_get_call_cache(selUpto);
 }

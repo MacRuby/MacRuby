@@ -12,6 +12,10 @@
 #ifndef RUBY_ENCODING_H
 #define RUBY_ENCODING_H 1
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 #ifdef HAVE_STDARG_PROTOTYPES
 # include <stdarg.h>
 #else
@@ -107,7 +111,7 @@ PRINTF_ARGS(VALUE rb_enc_sprintf(rb_encoding *, const char*, ...), 2, 3);
 VALUE rb_enc_vsprintf(rb_encoding *, const char*, va_list);
 long rb_enc_strlen(const char*, const char*, rb_encoding*);
 char* rb_enc_nth(const char*, const char*, int, rb_encoding*);
-VALUE rb_obj_encoding(VALUE);
+VALUE rb_obj_encoding(VALUE, SEL);
 VALUE rb_enc_str_buf_cat(VALUE str, const char *ptr, long len, rb_encoding *enc);
 
 /* index -> rb_encoding */
@@ -214,7 +218,7 @@ int rb_usascii_encindex(void);
 int rb_ascii8bit_encindex(void);
 VALUE rb_enc_default_external(void);
 void rb_enc_set_default_external(VALUE encoding);
-VALUE rb_locale_charmap(VALUE klass);
+//VALUE rb_locale_charmap(VALUE klass);
 long rb_memsearch(const void*,long,const void*,long,rb_encoding*);
 
 RUBY_EXTERN VALUE rb_cEncoding;
@@ -239,5 +243,9 @@ rb_enc_dummy_p(rb_encoding *enc)
 #endif
 
 VALUE rb_str_transcode(VALUE str, VALUE to);
+
+#if defined(__cplusplus)
+}
+#endif
 
 #endif /* RUBY_ENCODING_H */

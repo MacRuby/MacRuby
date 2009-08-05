@@ -1,0 +1,21 @@
+*.o
+.ext
+dtrace.h
+lex.c
+miniprelude.c
+miniruby
+node_name.inc
+parse.c
+prelude.c
+revision.h
+y.tab.c
+include/ruby/config.h
+spec/ruby
+spec/frozen/upstream_patches
+mspec_upstream
+mspec/upstream_patches
+spec/frozen/optional/ffi/fixtures/build
+*.bundle
+mkmf.log
+Makefile
+>>>>>>> Further work in making even a semi-usable YAML parser out of this code.:.gitignore

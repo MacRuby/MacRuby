@@ -1,0 +1,1 @@
+fails:Encoding#names returns an array of names by which an Encoding instance can be referenced

@@ -15,7 +15,7 @@ def main
   $defs << '-DRIPPER'
   $defs << '-DRIPPER_DEBUG' if $debug
   $VPATH << '$(topdir)' << '$(top_srcdir)'
-  $INCFLAGS << ' -I$(topdir) -I$(top_srcdir)'
+  $INCFLAGS << ' -I$(topdir) -I$(top_srcdir) -I$(top_srcdir)/onig'
   create_makefile 'ripper'
 end
 

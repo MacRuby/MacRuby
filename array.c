@@ -14,13 +14,16 @@
 #include "ruby/st.h"
 #include "id.h"
 #include "objc.h"
+#include "ruby/node.h"
+#include "vm.h"
 
 VALUE rb_cArray;
 VALUE rb_cCFArray;
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
+VALUE rb_cNSArray0;
+#endif
 VALUE rb_cNSArray;
 VALUE rb_cNSMutableArray;
-
-static ID id_cmp;
 
 #define ARY_DEFAULT_SIZE 16
 
@@ -41,15 +44,15 @@ rb_ary_modify_check(VALUE ary)
 #else
     mask = rb_objc_flag_get_mask((void *)ary);
 #endif
-    if (mask == 0) {
-	bool _CFArrayIsMutable(void *);
-	if (!_CFArrayIsMutable((void *)ary))
-	    mask |= FL_FREEZE;
+    if (RARRAY_IMMUTABLE(ary)) {
+	mask |= FL_FREEZE;
     }
-    if ((mask & FL_FREEZE) == FL_FREEZE)
+    if ((mask & FL_FREEZE) == FL_FREEZE) {
 	rb_raise(rb_eRuntimeError, "can't modify frozen/immutable array");
-    if ((mask & FL_TAINT) == FL_TAINT && rb_safe_level() >= 4)
+    }
+    if ((mask & FL_TAINT) == FL_TAINT && rb_safe_level() >= 4) {
 	rb_raise(rb_eSecurityError, "Insecure: can't modify array");
+    }
 }
 #define rb_ary_modify rb_ary_modify_check
 
@@ -74,9 +77,15 @@ rb_ary_frozen_p(VALUE ary)
     return Qfalse;
 }
 
+static VALUE
+rb_ary_frozen_imp(VALUE ary, SEL sel)
+{
+    return rb_ary_frozen_p(ary);
+}
+
 void rb_ary_insert(VALUE ary, long idx, VALUE val);
 
-static VALUE
+static inline VALUE
 ary_alloc(VALUE klass)
 {
     CFMutableArrayRef ary;
@@ -88,6 +97,25 @@ ary_alloc(VALUE klass)
     CFMakeCollectable(ary);
 
     return (VALUE)ary;
+}
+
+VALUE
+rb_ary_new_fast(int argc, ...) 
+{
+    va_list ar;
+    VALUE ary;
+    int i;
+
+    ary = ary_alloc(0);
+
+    va_start(ar, argc);
+    for (i = 0; i < argc; i++) {
+	VALUE item = va_arg(ar, VALUE);
+	CFArrayAppendValue((CFMutableArrayRef)ary, (const void *)RB2OC(item));
+    }
+    va_end(ar);
+
+    return ary;
 }
 
 static VALUE
@@ -111,7 +139,6 @@ rb_ary_new2(long len)
 {
     return ary_new(0, len);
 }
-
 
 VALUE
 rb_ary_new(void)
@@ -196,7 +223,7 @@ rb_check_array_type(VALUE ary)
  */
 
 static VALUE
-rb_ary_s_try_convert(VALUE dummy, VALUE ary)
+rb_ary_s_try_convert(VALUE dummy, SEL sel, VALUE ary)
 {
     return rb_check_array_type(ary);
 }
@@ -240,7 +267,7 @@ rb_ary_s_try_convert(VALUE dummy, VALUE ary)
  */
 
 static VALUE
-rb_ary_initialize(int argc, VALUE *argv, VALUE ary)
+rb_ary_initialize(VALUE ary, SEL sel, int argc, VALUE *argv)
 {
     long len;
     VALUE size, val;
@@ -251,6 +278,7 @@ rb_ary_initialize(int argc, VALUE *argv, VALUE ary)
 	if (rb_block_given_p()) {
 	    rb_warning("given block not used");
 	}
+	rb_ary_clear(ary);
 	return ary;
     }
     rb_scan_args(argc, argv, "02", &size, &val);
@@ -269,15 +297,17 @@ rb_ary_initialize(int argc, VALUE *argv, VALUE ary)
     if (len > LONG_MAX / sizeof(VALUE)) {
 	rb_raise(rb_eArgError, "array size too big");
     }
-    rb_ary_modify(ary);
     if (rb_block_given_p()) {
 	long i;
 
 	if (argc == 2) {
 	    rb_warn("block supersedes default value argument");
 	}
-	for (i=0; i<len; i++) {
-	    rb_ary_store(ary, i, rb_yield(LONG2NUM(i)));
+	rb_ary_clear(ary);
+	for (i = 0; i < len; i++) {
+	    VALUE v = rb_yield(LONG2NUM(i));
+	    RETURN_IF_BROKEN();
+	    rb_ary_store(ary, i, v);
 	}
     }
     else {
@@ -285,10 +315,13 @@ rb_ary_initialize(int argc, VALUE *argv, VALUE ary)
 	const void **values = alloca(sizeof(void *) * len);
 	void *ocval = RB2OC(val);
 
-	for (i=0; i<len; i++)
+	rb_ary_modify(ary);
+	for (i = 0; i < len; i++) {
 	    values[i] = ocval;
+	}
 
-	CFArrayReplaceValues((CFMutableArrayRef)ary, CFRangeMake(0, 0), values, len); 
+	CFArrayReplaceValues((CFMutableArrayRef)ary, CFRangeMake(0, 0),
+		values, len); 
     }
     return ary;
 }
@@ -303,7 +336,7 @@ rb_ary_initialize(int argc, VALUE *argv, VALUE ary)
 */
 
 static VALUE
-rb_ary_s_create(int argc, VALUE *argv, VALUE klass)
+rb_ary_s_create(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
     int i;
 
@@ -407,12 +440,24 @@ ary_shared_first(int argc, VALUE *argv, VALUE ary, int last, bool remove)
  *
  */
 
-VALUE
-rb_ary_push(VALUE ary, VALUE item)
+static inline VALUE
+rb_ary_push0(VALUE ary, VALUE item)
 {
     rb_ary_modify(ary);
     CFArrayAppendValue((CFMutableArrayRef)ary, (const void *)RB2OC(item));
     return ary;
+}
+
+VALUE
+rb_ary_push(VALUE ary, VALUE item) 
+{
+    return rb_ary_push0(ary, item);
+}
+
+static VALUE
+rb_ary_push_imp(VALUE ary, SEL sel, VALUE item)
+{
+    return rb_ary_push0(ary, item);
 }
 
 /* 
@@ -429,10 +474,17 @@ rb_ary_push(VALUE ary, VALUE item)
  */
 
 static VALUE
-rb_ary_push_m(int argc, VALUE *argv, VALUE ary)
+rb_ary_push_m(VALUE ary, SEL sel, int argc, VALUE *argv)
 {
-    while (argc--) {
-	rb_ary_push(ary, *argv++);
+    if (argc == 0) {
+	// Even if there is nothing to push, we still need to check if the
+	// receiver can be modified, to conform to RubySpec.
+	rb_ary_modify(ary);
+    }
+    else {
+	while (argc--) {
+	    rb_ary_push(ary, *argv++);
+	}
     }
     return ary;
 }
@@ -471,7 +523,7 @@ rb_ary_pop(VALUE ary)
  */
 
 static VALUE
-rb_ary_pop_m(int argc, VALUE *argv, VALUE ary)
+rb_ary_pop_m(VALUE ary, SEL sel, int argc, VALUE *argv)
 {
     VALUE result;
 
@@ -490,7 +542,9 @@ rb_ary_shift(VALUE ary)
     VALUE top;
 
     rb_ary_modify_check(ary);
-    if (RARRAY_LEN(ary) == 0) return Qnil;
+    if (RARRAY_LEN(ary) == 0) {
+	return Qnil;
+    }
     top = RARRAY_AT(ary, 0);
     CFArrayRemoveValueAtIndex((CFMutableArrayRef)ary, 0);
     return top;
@@ -518,7 +572,7 @@ rb_ary_shift(VALUE ary)
  */
 
 static VALUE
-rb_ary_shift_m(int argc, VALUE *argv, VALUE ary)
+rb_ary_shift_m(VALUE ary, SEL sel, int argc, VALUE *argv)
 {
     VALUE result;
 
@@ -545,16 +599,19 @@ rb_ary_shift_m(int argc, VALUE *argv, VALUE ary)
  */
 
 static VALUE
-rb_ary_unshift_m(int argc, VALUE *argv, VALUE ary)
+rb_ary_unshift_m(VALUE ary, SEL sel, int argc, VALUE *argv)
 {
-    int i;
+    rb_ary_modify(ary);
+
     if (argc == 0) {
 	return ary;
     }
-    rb_ary_modify(ary);
-    for (i = argc - 1; i >= 0; i--)
+
+    int i;
+    for (i = argc - 1; i >= 0; i--) {
 	CFArrayInsertValueAtIndex((CFMutableArrayRef)ary,
 	    0, (const void *)RB2OC(argv[i]));
+    }
 
     return ary;
 }
@@ -562,7 +619,7 @@ rb_ary_unshift_m(int argc, VALUE *argv, VALUE ary)
 VALUE
 rb_ary_unshift(VALUE ary, VALUE item)
 {
-    return rb_ary_unshift_m(1,&item,ary);
+    return rb_ary_unshift_m(ary, 0, 1, &item);
 }
 
 /* faster version - use this if you don't need to treat negative offset */
@@ -570,10 +627,12 @@ VALUE
 rb_ary_elt(VALUE ary, long offset)
 {
     long n = RARRAY_LEN(ary);
-    if (n == 0) 
+    if (n == 0) {
 	return Qnil;
-    if (offset < 0 || n <= offset)
+    }
+    if (offset < 0 || n <= offset) {
 	return Qnil;
+    }
     return OC2RB(CFArrayGetValueAtIndex((CFArrayRef)ary, offset));
 }
 
@@ -672,7 +731,7 @@ rb_ary_subseq(VALUE ary, long beg, long len)
  */
 
 VALUE
-rb_ary_aref(int argc, VALUE *argv, VALUE ary)
+rb_ary_aref(VALUE ary, SEL sel, int argc, VALUE *argv)
 {
     VALUE arg;
     long beg, len;
@@ -719,7 +778,7 @@ rb_ary_aref(int argc, VALUE *argv, VALUE ary)
  */
 
 static VALUE
-rb_ary_at(VALUE ary, VALUE pos)
+rb_ary_at(VALUE ary, SEL sel, VALUE pos)
 {
     return rb_ary_entry(ary, NUM2LONG(pos));
 }
@@ -739,7 +798,7 @@ rb_ary_at(VALUE ary, VALUE pos)
  */
 
 static VALUE
-rb_ary_first(int argc, VALUE *argv, VALUE ary)
+rb_ary_first(VALUE ary, SEL sel, int argc, VALUE *argv)
 {
     if (argc == 0) {
 	if (RARRAY_LEN(ary) == 0) return Qnil;
@@ -764,7 +823,7 @@ rb_ary_first(int argc, VALUE *argv, VALUE ary)
  */
 
 VALUE
-rb_ary_last(int argc, VALUE *argv, VALUE ary)
+rb_ary_last(VALUE ary, SEL sel, int argc, VALUE *argv)
 {
     if (argc == 0) {
 	long n = RARRAY_LEN(ary);
@@ -797,7 +856,7 @@ rb_ary_last(int argc, VALUE *argv, VALUE ary)
  */
 
 static VALUE
-rb_ary_fetch(int argc, VALUE *argv, VALUE ary)
+rb_ary_fetch(VALUE ary, SEL sel, int argc, VALUE *argv)
 {
     VALUE pos, ifnone;
     long block_given;
@@ -842,7 +901,7 @@ rb_ary_fetch(int argc, VALUE *argv, VALUE ary)
  */
 
 static VALUE
-rb_ary_index(int argc, VALUE *argv, VALUE ary)
+rb_ary_index(VALUE ary, SEL sel, int argc, VALUE *argv)
 {
     VALUE val;
     long n, i;
@@ -851,7 +910,9 @@ rb_ary_index(int argc, VALUE *argv, VALUE ary)
     if (rb_scan_args(argc, argv, "01", &val) == 0) {
 	RETURN_ENUMERATOR(ary, 0, 0);
 	for (i=0; i<n; i++) {
-	    if (RTEST(rb_yield(RARRAY_AT(ary, i)))) {
+	    VALUE v = rb_yield(RARRAY_AT(ary, i));
+	    RETURN_IF_BROKEN();
+	    if (RTEST(v)) {
 		return LONG2NUM(i);
 	    }
 	}
@@ -882,7 +943,7 @@ rb_ary_index(int argc, VALUE *argv, VALUE ary)
  */
 
 static VALUE
-rb_ary_rindex(int argc, VALUE *argv, VALUE ary)
+rb_ary_rindex(VALUE ary, SEL sel, int argc, VALUE *argv)
 {
     VALUE val;
     long i, n;
@@ -892,8 +953,11 @@ rb_ary_rindex(int argc, VALUE *argv, VALUE ary)
     if (argc == 0) {
 	RETURN_ENUMERATOR(ary, 0, 0);
 	while (i--) {
-	    if (RTEST(rb_yield(RARRAY_AT(ary, i))))
+	    VALUE v = rb_yield(RARRAY_AT(ary, i));
+	    RETURN_IF_BROKEN();
+	    if (RTEST(v)) {
 		return LONG2NUM(i);
+	    }
 	    if (i > n) {
 		i = n;
 	    }
@@ -927,7 +991,9 @@ rb_ary_splice(VALUE ary, long beg, long len, VALUE rpl)
     long n, rlen;
 
     n = RARRAY_LEN(ary);
-    if (len < 0) rb_raise(rb_eIndexError, "negative length (%ld)", len);
+    if (len < 0) {
+	rb_raise(rb_eIndexError, "negative length (%ld)", len);
+    }
     if (beg < 0) {
 	beg += n;
 	if (beg < 0) {
@@ -949,12 +1015,13 @@ rb_ary_splice(VALUE ary, long beg, long len, VALUE rpl)
     rb_ary_modify(ary);
     if (beg >= n) {
 	long i;
-	for (i = n; i < beg - n; i++) {
+	for (i = n; i < beg; i++) {
 	    CFArrayAppendValue((CFMutableArrayRef)ary, (const void *)kCFNull);
 	}
-	if (rlen > 0) 
+	if (rlen > 0)  {
 	    CFArrayAppendArray((CFMutableArrayRef)ary, (CFArrayRef)rpl,
 		    CFRangeMake(0, rlen));
+	}
     }
     else {
 	const void **values;
@@ -1001,7 +1068,7 @@ rb_ary_splice(VALUE ary, long beg, long len, VALUE rpl)
  */
 
 static VALUE
-rb_ary_aset(int argc, VALUE *argv, VALUE ary)
+rb_ary_aset(VALUE ary, SEL sel, int argc, VALUE *argv)
 {
     long offset, beg, len;
 
@@ -1041,11 +1108,14 @@ fixnum:
  */
 
 static VALUE
-rb_ary_insert_m(int argc, VALUE *argv, VALUE ary)
+rb_ary_insert_m(VALUE ary, SEL sel, int argc, VALUE *argv)
 {
     long pos;
 
-    if (argc == 1) return ary;
+    if (argc == 1) {
+	rb_ary_modify(ary);
+	return ary;
+    }
     if (argc < 1) {
 	rb_raise(rb_eArgError, "wrong number of arguments (at least 1)");
     }
@@ -1076,13 +1146,15 @@ rb_ary_insert_m(int argc, VALUE *argv, VALUE ary)
  */
 
 VALUE
-rb_ary_each(VALUE ary)
+rb_ary_each(VALUE ary, SEL sel)
 {
     long i;
 
     RETURN_ENUMERATOR(ary, 0, 0);
-    for (i = 0; i < RARRAY_LEN(ary); i++)
+    for (i = 0; i < RARRAY_LEN(ary); i++) {
 	rb_yield(RARRAY_AT(ary, i));
+	RETURN_IF_BROKEN();
+    }
     return ary;
 }
 
@@ -1102,13 +1174,14 @@ rb_ary_each(VALUE ary)
  */
 
 static VALUE
-rb_ary_each_index(VALUE ary)
+rb_ary_each_index(VALUE ary, SEL sel)
 {
     long i, n;
     RETURN_ENUMERATOR(ary, 0, 0);
 
     for (i = 0, n = RARRAY_LEN(ary); i < n; i++) {
 	rb_yield(LONG2NUM(i));
+	RETURN_IF_BROKEN();
     }
     return ary;
 }
@@ -1129,7 +1202,7 @@ rb_ary_each_index(VALUE ary)
  */
 
 static VALUE
-rb_ary_reverse_each(VALUE ary)
+rb_ary_reverse_each(VALUE ary, SEL sel)
 {
     long n, len;
 
@@ -1137,6 +1210,7 @@ rb_ary_reverse_each(VALUE ary)
     len = RARRAY_LEN(ary);
     while (len--) {
 	rb_yield(RARRAY_AT(ary, len));
+	RETURN_IF_BROKEN();
 	n = RARRAY_LEN(ary);
 	if (n < len) {
 	    len = n;
@@ -1155,7 +1229,7 @@ rb_ary_reverse_each(VALUE ary)
  */
 
 static VALUE
-rb_ary_length(VALUE ary)
+rb_ary_length(VALUE ary, SEL sel)
 {
     long len = RARRAY_LEN(ary);
     return LONG2NUM(len);
@@ -1171,11 +1245,9 @@ rb_ary_length(VALUE ary)
  */
 
 static VALUE
-rb_ary_empty_p(VALUE ary)
+rb_ary_empty_p(VALUE ary, SEL sel)
 {
-    if (RARRAY_LEN(ary) == 0)
-	return Qtrue;
-    return Qfalse;
+    return RARRAY_LEN(ary) == 0 ? Qtrue : Qfalse;
 }
 
 VALUE
@@ -1187,19 +1259,27 @@ rb_ary_dup(VALUE ary)
     if (*(Class *)ary != (Class)rb_cCFArray) {
 	*(Class *)dup = *(Class *)ary;
     }
-    if (OBJ_TAINTED(ary))
+    if (OBJ_TAINTED(ary)) {
 	OBJ_TAINT(dup);
+    }
 
     CFMakeCollectable((CFTypeRef)dup);
     return dup;
 }
 
 static VALUE
-rb_ary_clone(VALUE ary)
+rb_ary_dup_imp(VALUE ary, SEL sel)
+{
+    return rb_ary_dup(ary);
+}
+
+static VALUE
+rb_ary_clone(VALUE ary, SEL sel)
 {
     VALUE clone = rb_ary_dup(ary);
-    if (OBJ_FROZEN(ary))
+    if (OBJ_FROZEN(ary)) {
 	OBJ_FREEZE(clone);
+    }
     return clone;
 }
 
@@ -1216,40 +1296,56 @@ recursive_join(VALUE ary, VALUE argp, int recur)
 }
 
 VALUE
+rb_exec_recursive(VALUE (*func) (VALUE, VALUE, int), VALUE obj, VALUE arg)
+{
+    // TODO check!
+    return (*func) (obj, arg, Qfalse);
+}
+
+VALUE
 rb_ary_join(VALUE ary, VALUE sep)
 {
     long i, count;
     int taint = Qfalse;
     VALUE result, tmp;
 
-    if (RARRAY_LEN(ary) == 0) return rb_str_new(0, 0);
-    if (OBJ_TAINTED(ary) || OBJ_TAINTED(sep)) taint = Qtrue;
-    result = rb_str_buf_new(0);
+    if (RARRAY_LEN(ary) == 0) {
+	return rb_str_new(0, 0);
+    }
+    if (OBJ_TAINTED(ary) || OBJ_TAINTED(sep)) {
+	taint = Qtrue;
+    }
+    result = rb_str_new(0, 0);
 
-    for (i=0, count=RARRAY_LEN(ary); i<count; i++) {
+    for (i = 0, count = RARRAY_LEN(ary); i < count; i++) {
 	tmp = RARRAY_AT(ary, i);
 	switch (TYPE(tmp)) {
-	  case T_STRING:
-	    break;
-	  case T_ARRAY:
-	    {
-		VALUE args[2];
+	    case T_STRING:
+		break;
+	    case T_ARRAY:
+		{
+		    VALUE args[2];
 
-		args[0] = tmp;
-		args[1] = sep;
-		tmp = rb_exec_recursive(recursive_join, ary, (VALUE)args);
-	    }
-	    break;
-	  default:
-	    tmp = rb_obj_as_string(tmp);
+		    args[0] = tmp;
+		    args[1] = sep;
+		    tmp = rb_exec_recursive(recursive_join, ary, (VALUE)args);
+		}
+		break;
+	    default:
+		tmp = rb_obj_as_string(tmp);
 	}
-	if (i > 0 && !NIL_P(sep))
+	if (i > 0 && !NIL_P(sep)) {
 	    rb_str_buf_append(result, sep);
+	}
 	rb_str_buf_append(result, tmp);
-	if (OBJ_TAINTED(tmp)) taint = Qtrue;
+	if (OBJ_TAINTED(tmp)) {
+	    taint = Qtrue;
+	}
     }
 
-    if (taint) OBJ_TAINT(result);
+    if (taint) {
+	OBJ_TAINT(result);
+    }
     return result;
 }
 
@@ -1265,7 +1361,7 @@ rb_ary_join(VALUE ary, VALUE sep)
  */
 
 static VALUE
-rb_ary_join_m(int argc, VALUE *argv, VALUE ary)
+rb_ary_join_m(VALUE ary, SEL sel, int argc, VALUE *argv)
 {
     VALUE sep;
 
@@ -1282,16 +1378,24 @@ inspect_ary(VALUE ary, VALUE dummy, int recur)
     long i;
     VALUE s, str;
 
-    if (recur) return rb_tainted_str_new2("[...]");
+    if (recur) {
+	return rb_tainted_str_new2("[...]");
+    }
     str = rb_str_buf_new2("[");
     for (i=0; i<RARRAY_LEN(ary); i++) {
 	s = rb_inspect(RARRAY_AT(ary, i));
-	if (OBJ_TAINTED(s)) tainted = Qtrue;
-	if (i > 0) rb_str_buf_cat2(str, ", ");
+	if (OBJ_TAINTED(s)) {
+	    tainted = Qtrue;
+	}
+	if (i > 0) {
+	    rb_str_buf_cat2(str, ", ");
+	}
 	rb_str_buf_append(str, s);
     }
     rb_str_buf_cat2(str, "]");
-    if (tainted) OBJ_TAINT(str);
+    if (tainted) {
+	OBJ_TAINT(str);
+    }
     return str;
 }
 
@@ -1304,7 +1408,7 @@ inspect_ary(VALUE ary, VALUE dummy, int recur)
  */
 
 static VALUE
-rb_ary_inspect(VALUE ary)
+rb_ary_inspect(VALUE ary, SEL sel)
 {
     if (RARRAY_LEN(ary) == 0) return rb_usascii_str_new2("[]");
     return rb_exec_recursive(inspect_ary, ary, 0);
@@ -1313,7 +1417,7 @@ rb_ary_inspect(VALUE ary)
 VALUE
 rb_ary_to_s(VALUE ary)
 {
-    return rb_ary_inspect(ary);
+    return rb_ary_inspect(ary, 0);
 }
 
 /*
@@ -1325,7 +1429,7 @@ rb_ary_to_s(VALUE ary)
  */
 
 static VALUE
-rb_ary_to_a(VALUE ary)
+rb_ary_to_a(VALUE ary, SEL sel)
 {
     if (!rb_objc_ary_is_pure(ary)) {
 	VALUE dup = rb_ary_new2(RARRAY_LEN(ary));
@@ -1343,7 +1447,7 @@ rb_ary_to_a(VALUE ary)
  */
 
 static VALUE
-rb_ary_to_ary_m(VALUE ary)
+rb_ary_to_ary_m(VALUE ary, SEL sel)
 {
     return ary;
 }
@@ -1385,7 +1489,7 @@ rb_ary_reverse(VALUE ary)
  */
 
 static VALUE
-rb_ary_reverse_bang(VALUE ary)
+rb_ary_reverse_bang(VALUE ary, SEL sel)
 {
     return rb_ary_reverse(ary);
 }
@@ -1401,7 +1505,7 @@ rb_ary_reverse_bang(VALUE ary)
  */
 
 static VALUE
-rb_ary_reverse_m(VALUE ary)
+rb_ary_reverse_m(VALUE ary, SEL sel)
 {
     return rb_ary_reverse(rb_ary_dup(ary));
 }
@@ -1409,30 +1513,38 @@ rb_ary_reverse_m(VALUE ary)
 static int
 sort_1(const void *ap, const void *bp, void *dummy)
 {
-    VALUE a = (VALUE)ap, b = (VALUE)bp;
-    VALUE retval = rb_yield_values(2, a, b);
-    int n;
+    if (*(VALUE *)dummy == 0) {
+	VALUE a = (VALUE)ap, b = (VALUE)bp;
+	VALUE retval = rb_yield_values(2, a, b);
 
-    n = rb_cmpint(retval, a, b);
-    return n;
+	VALUE v = rb_vm_pop_broken_value();
+	if (v != Qundef) {
+	    // break was performed, we marked the dummy variable with its
+	    // value and we will make sure further calls are ignored.
+	    *(VALUE *)dummy = v;
+	    return 0;
+	}
+	return rb_cmpint(retval, a, b);
+    }
+    else {
+	return 0;
+    }
 }
 
 static int
 sort_2(const void *ap, const void *bp, void *dummy)
 {
-    VALUE retval;
     VALUE a = (VALUE)ap, b = (VALUE)bp;
-    int n;
 
     /* FIXME optimize!!! */
     if (TYPE(a) == T_STRING) {
-	if (TYPE(b) == T_STRING) return rb_str_cmp(a, b);
+	if (TYPE(b) == T_STRING) {
+	    return rb_str_cmp(a, b);
+	}
     }
 
-    retval = rb_funcall(a, id_cmp, 1, b);
-    n = rb_cmpint(retval, a, b);
-
-    return n;
+    VALUE retval = rb_objs_cmp(a, b);
+    return rb_cmpint(retval, a, b);
 }
 
 /*
@@ -1451,19 +1563,24 @@ sort_2(const void *ap, const void *bp, void *dummy)
  *     a.sort {|x,y| y <=> x }   #=> ["e", "d", "c", "b", "a"]
  */
 
-static void
+static VALUE
 rb_ary_sort_bang1(VALUE ary, bool is_dup)
 {
     long n = RARRAY_LEN(ary);
     if (n > 1) {
 	if (rb_block_given_p()) {
 	    VALUE tmp = is_dup ? ary : rb_ary_dup(ary);
+	    VALUE break_val = 0;
 	    CFArraySortValues((CFMutableArrayRef)tmp,
 		    CFRangeMake(0, n),
 		    (CFComparatorFunction)sort_1,
-		    NULL);
-	    if (!is_dup)
+		    &break_val);
+	    if (break_val != 0) {
+		return break_val;
+	    }
+	    if (!is_dup) {
 		rb_ary_replace(ary, tmp);
+	    }
 	}
 	else {
 	    CFArraySortValues((CFMutableArrayRef)ary,
@@ -1472,14 +1589,20 @@ rb_ary_sort_bang1(VALUE ary, bool is_dup)
 		    NULL);
 	}
     }
+    return ary;
+}
+
+static VALUE
+rb_ary_sort_bang_imp(VALUE ary, SEL sel)
+{
+    rb_ary_modify(ary);
+    return rb_ary_sort_bang1(ary, false);
 }
 
 VALUE
 rb_ary_sort_bang(VALUE ary)
 {
-    rb_ary_modify(ary);
-    rb_ary_sort_bang1(ary, false);
-    return ary;
+    return rb_ary_sort_bang_imp(ary, 0);
 }
 
 /*
@@ -1498,12 +1621,17 @@ rb_ary_sort_bang(VALUE ary)
  *     a.sort {|x,y| y <=> x }   #=> ["e", "d", "c", "b", "a"]
  */
 
+static VALUE
+rb_ary_sort_imp(VALUE ary, SEL sel)
+{
+    ary = rb_ary_dup(ary);
+    return rb_ary_sort_bang1(ary, true);
+}
+
 VALUE
 rb_ary_sort(VALUE ary)
 {
-    ary = rb_ary_dup(ary);
-    rb_ary_sort_bang1(ary, true);
-    return ary;
+    return rb_ary_sort_imp(ary, 0);
 }
 
 
@@ -1522,15 +1650,17 @@ rb_ary_sort(VALUE ary)
  */
 
 static VALUE
-rb_ary_collect(VALUE ary)
+rb_ary_collect(VALUE ary, SEL sel)
 {
     long i;
     VALUE collect;
 
     RETURN_ENUMERATOR(ary, 0, 0);
-    collect = rb_ary_new2(RARRAY_LEN(ary));
+    collect = rb_ary_new();
     for (i = 0; i < RARRAY_LEN(ary); i++) {
-	rb_ary_push(collect, rb_yield(RARRAY_AT(ary, i)));
+	VALUE v = rb_yield(RARRAY_AT(ary, i));
+	RETURN_IF_BROKEN();
+	rb_ary_push(collect, v);
     }
     return collect;
 }
@@ -1551,14 +1681,16 @@ rb_ary_collect(VALUE ary)
  */
 
 static VALUE
-rb_ary_collect_bang(VALUE ary)
+rb_ary_collect_bang(VALUE ary, SEL sel)
 {
     long i;
 
     RETURN_ENUMERATOR(ary, 0, 0);
     rb_ary_modify(ary);
     for (i = 0; i < RARRAY_LEN(ary); i++) {
-	rb_ary_store(ary, i, rb_yield(RARRAY_AT(ary, i)));
+	VALUE v = rb_yield(RARRAY_AT(ary, i));
+	RETURN_IF_BROKEN();
+	rb_ary_store(ary, i, v);
     }
     return ary;
 }
@@ -1608,7 +1740,7 @@ rb_get_values_at(VALUE obj, long olen, int argc, VALUE *argv, VALUE (*func) (VAL
  */
 
 static VALUE
-rb_ary_values_at(int argc, VALUE *argv, VALUE ary)
+rb_ary_values_at(VALUE ary, SEL sel, int argc, VALUE *argv)
 {
     return rb_get_values_at(ary, RARRAY_LEN(ary), argc, argv, rb_ary_entry);
 }
@@ -1627,7 +1759,7 @@ rb_ary_values_at(int argc, VALUE *argv, VALUE ary)
  */
 
 static VALUE
-rb_ary_select(VALUE ary)
+rb_ary_select(VALUE ary, SEL sel)
 {
     VALUE result;
     long n, i;
@@ -1637,7 +1769,9 @@ rb_ary_select(VALUE ary)
     result = rb_ary_new2(n);
     for (i = 0; i < n; i++) {
 	VALUE v = RARRAY_AT(ary, i);
-	if (RTEST(rb_yield(v))) {
+	VALUE v2 = rb_yield(v);
+	RETURN_IF_BROKEN();
+	if (RTEST(v2)) {
 	    rb_ary_push(result, v);
 	}
     }
@@ -1661,8 +1795,8 @@ rb_ary_select(VALUE ary)
  *     a.delete("z") { "not found" }   #=> "not found"
  */
 
-VALUE
-rb_ary_delete(VALUE ary, VALUE item)
+static VALUE
+rb_ary_delete_imp(VALUE ary, SEL sel, VALUE item)
 {
     long k, n, i;
     CFRange r;
@@ -1687,6 +1821,12 @@ rb_ary_delete(VALUE ary, VALUE item)
 	return Qnil;
     }
     return item;
+}
+
+VALUE
+rb_ary_delete(VALUE ary, VALUE item)
+{
+    return rb_ary_delete_imp(ary, 0, item);
 }
 
 VALUE
@@ -1723,7 +1863,7 @@ rb_ary_delete_at(VALUE ary, long pos)
  */
 
 static VALUE
-rb_ary_delete_at_m(VALUE ary, VALUE pos)
+rb_ary_delete_at_m(VALUE ary, SEL sel, VALUE pos)
 {
     return rb_ary_delete_at(ary, NUM2LONG(pos));
 }
@@ -1748,7 +1888,7 @@ rb_ary_delete_at_m(VALUE ary, VALUE pos)
  */
 
 static VALUE
-rb_ary_slice_bang(int argc, VALUE *argv, VALUE ary)
+rb_ary_slice_bang(VALUE ary, SEL sel, int argc, VALUE *argv)
 {
     VALUE arg1, arg2;
     long pos, len;
@@ -1800,7 +1940,7 @@ rb_ary_slice_bang(int argc, VALUE *argv, VALUE ary)
  */
 
 static VALUE
-rb_ary_reject_bang(VALUE ary)
+rb_ary_reject_bang(VALUE ary, SEL sel)
 {
     long orign, n, i1, i2;
 
@@ -1809,7 +1949,9 @@ rb_ary_reject_bang(VALUE ary)
     orign = n = RARRAY_LEN(ary);
     for (i1 = i2 = 0; i1 < n; i1++) {
 	VALUE v = RARRAY_AT(ary, i1);
-	if (!RTEST(rb_yield(v))) {
+	VALUE v2 = rb_yield(v);
+	RETURN_IF_BROKEN();
+	if (!RTEST(v2)) {
 	    continue;
 	}
 	CFArrayRemoveValueAtIndex((CFMutableArrayRef)ary, i1);
@@ -1831,11 +1973,11 @@ rb_ary_reject_bang(VALUE ary)
  */
 
 static VALUE
-rb_ary_reject(VALUE ary)
+rb_ary_reject(VALUE ary, SEL sel)
 {
     RETURN_ENUMERATOR(ary, 0, 0);
     ary = rb_ary_dup(ary);
-    rb_ary_reject_bang(ary);
+    rb_ary_reject_bang(ary, 0);
     return ary;
 }
 
@@ -1851,18 +1993,22 @@ rb_ary_reject(VALUE ary)
  */
 
 static VALUE
-rb_ary_delete_if(VALUE ary)
+rb_ary_delete_if(VALUE ary, SEL sel)
 {
     RETURN_ENUMERATOR(ary, 0, 0);
-    rb_ary_reject_bang(ary);
+    rb_ary_reject_bang(ary, 0);
     return ary;
 }
 
 static VALUE
 take_i(VALUE val, VALUE *args, int argc, VALUE *argv)
 {
-    if (args[1]-- == 0) rb_iter_break();
-    if (argc > 1) val = rb_ary_new4(argc, argv);
+    if (args[1]-- == 0) {
+	rb_iter_break();
+    }
+    if (argc > 1) {
+	val = rb_ary_new4(argc, argv);
+    }
     rb_ary_push(args[0], val);
     return Qnil;
 }
@@ -1870,14 +2016,20 @@ take_i(VALUE val, VALUE *args, int argc, VALUE *argv)
 static VALUE
 take_items(VALUE obj, long n)
 {
-    VALUE result = rb_ary_new2(n);
+    VALUE result = rb_check_array_type(obj);
     VALUE args[2];
 
-    args[0] = result; args[1] = (VALUE)n;
-    rb_block_call(obj, rb_intern("each"), 0, 0, take_i, (VALUE)args);
+    if (!NIL_P(result)) {
+	return rb_ary_subseq(result, 0, n);
+    }
+    result = rb_ary_new2(n);
+    args[0] = result;
+    args[1] = (VALUE)n;
+    
+    rb_objc_block_call(obj, selEach, cacheEach, 0, 0, take_i, (VALUE)args);
+
     return result;
 }
-
 
 /*
  *  call-seq:
@@ -1901,10 +2053,7 @@ take_items(VALUE obj, long n)
  */
 
 static VALUE
-rb_ary_zip(argc, argv, ary)
-    int argc;
-    VALUE *argv;
-    VALUE ary;
+rb_ary_zip(VALUE ary, SEL sel, int argc, VALUE *argv)
 {
     int i, j;
     long len;
@@ -1927,6 +2076,7 @@ rb_ary_zip(argc, argv, ary)
 	}
 	if (NIL_P(result)) {
 	    rb_yield(tmp);
+	    RETURN_IF_BROKEN();
 	}
 	else {
 	    rb_ary_push(result, tmp);
@@ -1947,7 +2097,7 @@ rb_ary_zip(argc, argv, ary)
  */
 
 static VALUE
-rb_ary_transpose(VALUE ary)
+rb_ary_transpose(VALUE ary, SEL sel)
 {
     long elen = -1, alen, i, j;
     VALUE tmp, result = 0;
@@ -1991,13 +2141,21 @@ rb_ary_replace(VALUE copy, VALUE orig)
 {
     orig = to_ary(orig);
     rb_ary_modify_check(copy);
-    if (copy == orig) return copy;
+    if (copy == orig) {
+	return copy;
+    }
     CFArrayRemoveAllValues((CFMutableArrayRef)copy);
     CFArrayAppendArray((CFMutableArrayRef)copy,
 	(CFArrayRef)orig,
 	CFRangeMake(0, RARRAY_LEN(orig)));
 
     return copy;
+}
+
+static VALUE
+rb_ary_replace_imp(VALUE copy, SEL sel, VALUE orig)
+{
+    return rb_ary_replace(copy, orig);
 }
 
 /* 
@@ -2010,12 +2168,18 @@ rb_ary_replace(VALUE copy, VALUE orig)
  *     a.clear    #=> [ ]
  */
 
-VALUE
-rb_ary_clear(VALUE ary)
+static VALUE
+rb_ary_clear_imp(VALUE ary, SEL sel)
 {
     rb_ary_modify(ary);
     CFArrayRemoveAllValues((CFMutableArrayRef)ary);
     return ary;
+}
+
+VALUE
+rb_ary_clear(VALUE ary)
+{
+    return rb_ary_clear_imp(ary, 0);
 }
 
 /*
@@ -2043,7 +2207,7 @@ rb_ary_clear(VALUE ary)
  */
 
 static VALUE
-rb_ary_fill(int argc, VALUE *argv, VALUE ary)
+rb_ary_fill(VALUE ary, SEL sel, int argc, VALUE *argv)
 {
     VALUE item, arg1, arg2;
     long beg = 0, end = 0, len = 0, n;
@@ -2076,10 +2240,12 @@ rb_ary_fill(int argc, VALUE *argv, VALUE ary)
 	    if (beg < 0) beg = 0;
 	}
 	len = NIL_P(arg2) ? n - beg : NUM2LONG(arg2);
-	if (len < 0) rb_raise(rb_eIndexError, "negative length (%ld)", len);
 	break;
     }
     rb_ary_modify(ary);
+    if (len < 0) {
+	return ary;
+    }
     end = beg + len;
     if (end < 0) {
 	rb_raise(rb_eArgError, "argument too big");
@@ -2091,6 +2257,7 @@ rb_ary_fill(int argc, VALUE *argv, VALUE ary)
 
 	for (i=beg; i<end; i++) {
 	    v = rb_yield(LONG2NUM(i));
+	    RETURN_IF_BROKEN();
 	    rb_ary_store(ary, i, v);
 	}
     }
@@ -2113,8 +2280,8 @@ rb_ary_fill(int argc, VALUE *argv, VALUE ary)
  *     [ 1, 2, 3 ] + [ 4, 5 ]    #=> [ 1, 2, 3, 4, 5 ]
  */
 
-VALUE
-rb_ary_plus(VALUE x, VALUE y)
+static VALUE
+rb_ary_plus_imp(VALUE x, SEL sel, VALUE y)
 {
     VALUE z;
 
@@ -2127,6 +2294,12 @@ rb_ary_plus(VALUE x, VALUE y)
     return z;
 }
 
+VALUE
+rb_ary_plus(VALUE x, VALUE y)
+{
+    return rb_ary_plus_imp(x, 0, y);
+}
+
 /* 
  *  call-seq:
  *     array.concat(other_array)   ->  array
@@ -2136,17 +2309,26 @@ rb_ary_plus(VALUE x, VALUE y)
  *     [ "a", "b" ].concat( ["c", "d"] ) #=> [ "a", "b", "c", "d" ]
  */
 
-
-VALUE
-rb_ary_concat(VALUE x, VALUE y)
+static VALUE
+rb_ary_concat_imp(VALUE x, SEL sel, VALUE y)
 {
     y = to_ary(y);
     if (RARRAY_LEN(y) > 0) {
 	rb_ary_splice(x, RARRAY_LEN(x), 0, y);
     }
+    else {
+	// Even if we do nothing since the given array is empty, we still need
+	// to check if the receiver is modifiable, for RubySpec compliance.
+	rb_ary_modify(x);
+    }
     return x;
 }
 
+VALUE
+rb_ary_concat(VALUE x, VALUE y)
+{
+    return rb_ary_concat_imp(x, 0, y);
+}
 
 /* 
  *  call-seq:
@@ -2164,7 +2346,7 @@ rb_ary_concat(VALUE x, VALUE y)
  */
 
 static VALUE
-rb_ary_times(VALUE ary, VALUE times)
+rb_ary_times(VALUE ary, SEL sel, VALUE times)
 {
     VALUE ary2, tmp;
     long n, i, len;
@@ -2175,19 +2357,27 @@ rb_ary_times(VALUE ary, VALUE times)
     }
 
     len = NUM2LONG(times);
-    if (len == 0) return ary_new(rb_obj_class(ary), 0);
-    if (len < 0) {
-	rb_raise(rb_eArgError, "negative argument");
+    if (len == 0) {
+	ary2 = ary_new(rb_obj_class(ary), 0);
     }
-    n = RARRAY_LEN(ary);
-    if (LONG_MAX/len < n) {
-	rb_raise(rb_eArgError, "argument too big");
+    else {
+	if (len < 0) {
+	    rb_raise(rb_eArgError, "negative argument");
+	}
+	n = RARRAY_LEN(ary);
+	if (LONG_MAX/len < n) {
+	    rb_raise(rb_eArgError, "argument too big");
+	}
+	ary2 = ary_new(rb_obj_class(ary), 0);
+	for (i = 0; i < len; i++) {
+	    CFArrayAppendArray((CFMutableArrayRef)ary2,
+		    (CFArrayRef)ary,
+		    CFRangeMake(0, n));
+	}
     }
-    ary2 = ary_new(rb_obj_class(ary), 0);
-    for (i = 0; i < len; i++) {
-	CFArrayAppendArray((CFMutableArrayRef)ary2,
-		(CFArrayRef)ary,
-		CFRangeMake(0, n));
+
+    if (OBJ_TAINTED(ary)) {
+	OBJ_TAINT(ary2);
     }
 
     return ary2;
@@ -2213,8 +2403,8 @@ rb_ary_times(VALUE ary, VALUE times)
  *     a.assoc("foo")      #=> nil
  */
 
-VALUE
-rb_ary_assoc(VALUE ary, VALUE key)
+static VALUE
+rb_ary_assoc(VALUE ary, SEL sel, VALUE key)
 {
     long i;
     VALUE v;
@@ -2242,8 +2432,8 @@ rb_ary_assoc(VALUE ary, VALUE key)
  *     a.rassoc("four")   #=> nil
  */
 
-VALUE
-rb_ary_rassoc(VALUE ary, VALUE value)
+static VALUE
+rb_ary_rassoc(VALUE ary, SEL sel, VALUE value)
 {
     long i;
     VALUE v;
@@ -2273,9 +2463,11 @@ rb_ary_rassoc(VALUE ary, VALUE value)
  */
 
 static VALUE
-rb_ary_equal(VALUE ary1, VALUE ary2)
+rb_ary_equal(VALUE ary1, SEL sel, VALUE ary2)
 {
-    if (ary1 == ary2) return Qtrue;
+    if (ary1 == ary2) {
+	return Qtrue;
+    }
     if (TYPE(ary2) != T_ARRAY) {
 	if (!rb_respond_to(ary2, rb_intern("to_ary"))) {
 	    return Qfalse;
@@ -2307,7 +2499,7 @@ recursive_eql(VALUE ary1, VALUE ary2, int recur)
  */
 
 static VALUE
-rb_ary_eql(VALUE ary1, VALUE ary2)
+rb_ary_eql(VALUE ary1, SEL sel, VALUE ary2)
 {
     if (ary1 == ary2) return Qtrue;
     if (TYPE(ary2) != T_ARRAY) return Qfalse;
@@ -2328,13 +2520,18 @@ rb_ary_eql(VALUE ary1, VALUE ary2)
  *     a.include?("z")   #=> false
  */
 
-VALUE
-rb_ary_includes(VALUE ary, VALUE item)
+static VALUE
+rb_ary_includes_imp(VALUE ary, SEL sel, VALUE item)
 {
     return CFArrayContainsValue((CFArrayRef)ary, 
 	CFRangeMake(0, RARRAY_LEN(ary)), (const void *)RB2OC(item)) ? Qtrue : Qfalse;
 }
 
+VALUE
+rb_ary_includes(VALUE ary, VALUE item)
+{
+    return rb_ary_includes_imp(ary, 0, item);
+}
 
 static VALUE
 recursive_cmp(VALUE ary1, VALUE ary2, int recur)
@@ -2347,7 +2544,7 @@ recursive_cmp(VALUE ary1, VALUE ary2, int recur)
 	len = RARRAY_LEN(ary2);
     }
     for (i=0; i<len; i++) {
-	VALUE v = rb_funcall(rb_ary_elt(ary1, i), id_cmp, 1, rb_ary_elt(ary2, i));
+	VALUE v = rb_objs_cmp(rb_ary_elt(ary1, i), rb_ary_elt(ary2, i));
 	if (v != INT2FIX(0)) {
 	    return v;
 	}
@@ -2375,8 +2572,8 @@ recursive_cmp(VALUE ary1, VALUE ary2, int recur)
  *
  */
 
-VALUE
-rb_ary_cmp(VALUE ary1, VALUE ary2)
+static VALUE
+rb_ary_cmp(VALUE ary1, SEL sel, VALUE ary2)
 {
     long len;
     VALUE v;
@@ -2421,7 +2618,7 @@ ary_make_hash(VALUE ary1, VALUE ary2)
  */
 
 static VALUE
-rb_ary_diff(VALUE ary1, VALUE ary2)
+rb_ary_diff(VALUE ary1, SEL sel, VALUE ary2)
 {
     VALUE ary3;
     volatile VALUE hash;
@@ -2451,7 +2648,7 @@ rb_ary_diff(VALUE ary1, VALUE ary2)
 
 
 static VALUE
-rb_ary_and(VALUE ary1, VALUE ary2)
+rb_ary_and(VALUE ary1, SEL sel, VALUE ary2)
 {
     VALUE hash, ary3, v, vv;
     long i;
@@ -2489,7 +2686,7 @@ rb_ary_and(VALUE ary1, VALUE ary2)
  */
 
 static VALUE
-rb_ary_or(VALUE ary1, VALUE ary2)
+rb_ary_or(VALUE ary1, SEL sel, VALUE ary2)
 {
     VALUE hash, ary3;
     VALUE v, vv;
@@ -2535,7 +2732,7 @@ rb_ary_or(VALUE ary1, VALUE ary2)
  */
 
 static VALUE
-rb_ary_uniq_bang(VALUE ary)
+rb_ary_uniq_bang(VALUE ary, SEL sel)
 {
     long i, n;
     bool changed;
@@ -2576,10 +2773,10 @@ rb_ary_uniq_bang(VALUE ary)
  */
 
 static VALUE
-rb_ary_uniq(VALUE ary)
+rb_ary_uniq(VALUE ary, SEL sel)
 {
     ary = rb_ary_dup(ary);
-    rb_ary_uniq_bang(ary);
+    rb_ary_uniq_bang(ary, 0);
     return ary;
 }
 
@@ -2595,7 +2792,7 @@ rb_ary_uniq(VALUE ary)
  */
 
 static VALUE
-rb_ary_compact_bang(VALUE ary)
+rb_ary_compact_bang(VALUE ary, SEL sel)
 {
     long i, n, k;
     CFRange r;
@@ -2630,10 +2827,10 @@ rb_ary_compact_bang(VALUE ary)
  */
 
 static VALUE
-rb_ary_compact(VALUE ary)
+rb_ary_compact(VALUE ary, SEL sel)
 {
     ary = rb_ary_dup(ary);
-    rb_ary_compact_bang(ary);
+    rb_ary_compact_bang(ary, 0);
     return ary;
 }
 
@@ -2655,7 +2852,7 @@ rb_ary_compact(VALUE ary)
  */
 
 static VALUE
-rb_ary_count(int argc, VALUE *argv, VALUE ary)
+rb_ary_count(VALUE ary, SEL sel, int argc, VALUE *argv)
 {
     long n = 0;
  
@@ -2666,8 +2863,11 @@ rb_ary_count(int argc, VALUE *argv, VALUE ary)
 	    return LONG2NUM(count);
 
 	for (i = 0; i < count; i++) {
-	    if (RTEST(rb_yield(RARRAY_AT(ary, i)))) 
+	    VALUE v = rb_yield(RARRAY_AT(ary, i)); 
+	    RETURN_IF_BROKEN();
+	    if (RTEST(v)) {
 		n++;
+	    }
 	}
     }
     else {
@@ -2753,17 +2953,24 @@ flatten(VALUE ary, int level, int *modified)
  */
 
 static VALUE
-rb_ary_flatten_bang(int argc, VALUE *argv, VALUE ary)
+rb_ary_flatten_bang(VALUE ary, SEL sel, int argc, VALUE *argv)
 {
     int mod = 0, level = -1;
     VALUE result, lv;
 
     rb_scan_args(argc, argv, "01", &lv);
-    if (!NIL_P(lv)) level = NUM2INT(lv);
-    if (level == 0) return ary;
+    rb_ary_modify(ary);
+    if (!NIL_P(lv)) {
+	level = NUM2INT(lv);
+    }
+    if (level == 0) {
+	return ary;
+    }
 
     result = flatten(ary, level, &mod);
-    if (mod == 0) return Qnil;
+    if (mod == 0) {
+	return Qnil;
+    }
     rb_ary_replace(ary, result);
 
     return ary;
@@ -2788,17 +2995,23 @@ rb_ary_flatten_bang(int argc, VALUE *argv, VALUE ary)
  */
 
 static VALUE
-rb_ary_flatten(int argc, VALUE *argv, VALUE ary)
+rb_ary_flatten(VALUE ary, SEL sel, int argc, VALUE *argv)
 {
     int mod = 0, level = -1;
     VALUE result, lv;
 
     rb_scan_args(argc, argv, "01", &lv);
-    if (!NIL_P(lv)) level = NUM2INT(lv);
-    if (level == 0) return ary;
+    if (!NIL_P(lv)) {
+	level = NUM2INT(lv);
+    }
+    if (level == 0) {
+	return ary;
+    }
 
     result = flatten(ary, level, &mod);
-    if (OBJ_TAINTED(ary)) OBJ_TAINT(result);
+    if (OBJ_TAINTED(ary)) {
+	OBJ_TAINT(result);
+    }
 
     return result;
 }
@@ -2812,7 +3025,7 @@ rb_ary_flatten(int argc, VALUE *argv, VALUE ary)
 
 
 static VALUE
-rb_ary_shuffle_bang(VALUE ary)
+rb_ary_shuffle_bang(VALUE ary, SEL sel)
 {
     long i = RARRAY_LEN(ary);
 
@@ -2836,31 +3049,109 @@ rb_ary_shuffle_bang(VALUE ary)
  */
 
 static VALUE
-rb_ary_shuffle(VALUE ary)
+rb_ary_shuffle(VALUE ary, SEL sel)
 {
     ary = rb_ary_dup(ary);
-    rb_ary_shuffle_bang(ary);
+    rb_ary_shuffle_bang(ary, 0);
     return ary;
 }
 
 
 /*
  *  call-seq:
- *     array.choice        -> obj
+ *     array.sample        -> obj
+ *     array.sample(n)     -> an_array
  *  
- *  Choose a random element from an array.
+ *  Choose a random element, or the random +n+ elements, from the array.
+ *  If the array is empty, the first form returns <code>nil</code>, and the
+ *  second form returns an empty array.
  */
 
 
 static VALUE
-rb_ary_choice(VALUE ary)
+rb_ary_sample(VALUE ary, SEL sel, int argc, VALUE *argv)
 {
-    long i, j;
+    VALUE nv, result;
+    long n, len, i, j, k, idx[10];
 
-    i = RARRAY_LEN(ary);
-    if (i == 0) return Qnil;
-    j = rb_genrand_real()*i;
-    return RARRAY_AT(ary, j);
+    len = RARRAY_LEN(ary); 
+    if (argc == 0) {
+	if (len == 0) {
+	    return Qnil;
+	}
+	i = len == 1 ? 0 : rb_genrand_real() * len;
+	return RARRAY_AT(ary, i);
+    }
+    rb_scan_args(argc, argv, "1", &nv);
+    n = NUM2LONG(nv);
+    len = RARRAY_LEN(ary); 
+    if (n > len) {
+	n = len;
+    }
+    switch (n) {
+	case 0:
+	    return rb_ary_new2(0);
+
+	case 1:
+	    nv = RARRAY_AT(ary, (long)(rb_genrand_real() * len));
+	    return rb_ary_new4(1, &nv);
+
+	case 2:
+	    i = rb_genrand_real() * len;
+	    j = rb_genrand_real() * (len - 1);
+	    if (j >= i) {
+		j++;
+	    }
+	    return rb_ary_new3(2, RARRAY_AT(ary, i), RARRAY_AT(ary, j));
+
+	case 3:
+	    i = rb_genrand_real() * len;
+	    j = rb_genrand_real() * (len - 1);
+	    k = rb_genrand_real() * (len - 2);
+	    {
+		long l = j, g = i;
+		if (j >= i) {
+		    l = i;
+		    g = ++j;
+		}
+		if (k >= l && (++k >= g)) {
+		    ++k;
+		}
+	    }
+	    return rb_ary_new3(3, RARRAY_AT(ary, i), RARRAY_AT(ary, j),
+		    RARRAY_AT(ary, k));
+    }
+    if (n < sizeof(idx) / sizeof(idx[0])) {
+	long sorted[sizeof(idx) / sizeof(idx[0])];
+	sorted[0] = idx[0] = rb_genrand_real()*len;
+	for (i = 1; i < n; i++) {
+	    k = rb_genrand_real() * --len;
+	    for (j = 0; j < i; ++j) {
+		if (k < sorted[j]) {
+		    break;
+		}
+		++k;
+	    }
+	    memmove(&sorted[j+1], &sorted[j], sizeof(sorted[0])*(i-j));
+	    sorted[j] = idx[i] = k;
+	}
+	VALUE *elems = (VALUE *)alloca(sizeof(VALUE) * n);
+	for (i = 0; i < n; i++) {
+	    elems[i] = RARRAY_AT(ary, idx[i]);
+	}
+	result = rb_ary_new4(n, elems);
+    }
+    else {
+	VALUE *elems = (VALUE *)alloca(sizeof(VALUE) * n);
+	for (i = 0; i < n; i++) {
+	    j = (long)(rb_genrand_real() * (len - i)) + i;
+	    nv = RARRAY_AT(ary, j);
+	    elems[i] = nv;
+	}
+	result = rb_ary_new4(n, elems);
+    }
+
+    return result;
 }
 
 
@@ -2881,7 +3172,7 @@ rb_ary_choice(VALUE ary)
  */
 
 static VALUE
-rb_ary_cycle(int argc, VALUE *argv, VALUE ary)
+rb_ary_cycle(VALUE ary, SEL sel, int argc, VALUE *argv)
 {
     long n, i;
     VALUE nv = Qnil;
@@ -2900,12 +3191,11 @@ rb_ary_cycle(int argc, VALUE *argv, VALUE ary)
     while (RARRAY_LEN(ary) > 0 && (n < 0 || 0 < n--)) {
         for (i=0; i<RARRAY_LEN(ary); i++) {
             rb_yield(RARRAY_AT(ary, i));
+	    RETURN_IF_BROKEN();
         }
     }
     return Qnil;
 }
-
-#define tmpbuf(n, size) rb_str_tmp_new((n)*(size))
 
 /*
  * Recursively compute permutations of r elements of the set [0..n-1].
@@ -2937,8 +3227,9 @@ permute0(long n, long r, long *p, long index, int *used, VALUE values)
 		/* Build a ruby array of the corresponding values */
 		/* And yield it to the associated block */
 		VALUE result = rb_ary_new2(r);
-		for (j = 0; j < r; j++) 
+		for (j = 0; j < r; j++) {
 		    rb_ary_store(result, j, RARRAY_AT(values, p[j]));
+		}
 		rb_yield(result);
 	    }
 	}
@@ -2972,14 +3263,14 @@ permute0(long n, long r, long *p, long index, int *used, VALUE values)
  */
 
 static VALUE
-rb_ary_permutation(int argc, VALUE *argv, VALUE ary)
+rb_ary_permutation(VALUE ary, SEL sel, int argc, VALUE *argv)
 {
     VALUE num;
     long r, n, i;
 
-    n = RARRAY_LEN(ary);                  /* Array length */
     RETURN_ENUMERATOR(ary, argc, argv);   /* Return enumerator if no block */
     rb_scan_args(argc, argv, "01", &num);
+    n = RARRAY_LEN(ary);                  /* Array length */
     r = NIL_P(num) ? n : NUM2LONG(num);   /* Permutation size from argument */
 
     if (r < 0 || n < r) { 
@@ -2991,13 +3282,12 @@ rb_ary_permutation(int argc, VALUE *argv, VALUE ary)
     else if (r == 1) { /* this is a special, easy case */
 	for (i = 0; i < n; i++) {
 	    rb_yield(rb_ary_new3(1, RARRAY_AT(ary, i)));
+	    RETURN_IF_BROKEN();
 	}
     }
     else {             /* this is the general case */
-	volatile VALUE t0 = tmpbuf(n,sizeof(long));
-	long *p = (long*)RSTRING_BYTEPTR(t0);
-	volatile VALUE t1 = tmpbuf(n,sizeof(int));
-	int *used = (int*)RSTRING_BYTEPTR(t1);
+	long *p = (long *)alloca(n * sizeof(long));
+	int *used = (int *)alloca(n * sizeof(int));
 	VALUE ary0 = rb_ary_dup(ary);
 
 	for (i = 0; i < n; i++) used[i] = 0; /* initialize array */
@@ -3052,7 +3342,7 @@ combi_len(long n, long k)
  */
 
 static VALUE
-rb_ary_combination(VALUE ary, VALUE num)
+rb_ary_combination(VALUE ary, SEL sel, VALUE num)
 {
     long n, i, len;
 
@@ -3068,11 +3358,11 @@ rb_ary_combination(VALUE ary, VALUE num)
     else if (n == 1) {
 	for (i = 0; i < len; i++) {
 	    rb_yield(rb_ary_new3(1, RARRAY_AT(ary, i)));
+	    RETURN_IF_BROKEN();
 	}
     }
     else {
-	volatile VALUE t0 = tmpbuf(n+1, sizeof(long));
-	long *stack = (long*)RSTRING_BYTEPTR(t0);
+	long *stack = (long *)alloca((n + 1) * sizeof(long));
 	long nlen = combi_len(len, n);
 	volatile VALUE cc = rb_ary_new2(n);
 	long lev = 0;
@@ -3086,6 +3376,7 @@ rb_ary_combination(VALUE ary, VALUE num)
 		rb_ary_store(cc, lev, RARRAY_AT(ary, stack[lev+1]));
 	    }
 	    rb_yield(rb_ary_dup(cc));
+	    RETURN_IF_BROKEN();
 	    do {
 		stack[lev--]++;
 	    } while (lev && (stack[lev+1]+n == len+lev+1));
@@ -3111,13 +3402,11 @@ rb_ary_combination(VALUE ary, VALUE num)
  */
 
 static VALUE
-rb_ary_product(int argc, VALUE *argv, VALUE ary)
+rb_ary_product(VALUE ary, SEL sel, int argc, VALUE *argv)
 {
     int n = argc+1;    /* How many arrays we're operating on */
-    volatile VALUE t0 = tmpbuf(n, sizeof(VALUE));
-    volatile VALUE t1 = tmpbuf(n, sizeof(int));
-    VALUE *arrays = (VALUE*)RSTRING_BYTEPTR(t0); /* The arrays we're computing the product of */
-    int *counters = (int*)RSTRING_BYTEPTR(t1); /* The current position in each one */
+    VALUE *arrays = (VALUE *)alloca(n * sizeof(VALUE));; /* The arrays we're computing the product of */
+    int *counters = (int *)alloca(n * sizeof(int)); /* The current position in each one */
     VALUE result;      /* The array we'll be returning */
     long i,j;
     long resultlen = 1;
@@ -3180,7 +3469,7 @@ rb_ary_product(int argc, VALUE *argv, VALUE ary)
  */
 
 static VALUE
-rb_ary_take(VALUE obj, VALUE n)
+rb_ary_take(VALUE obj, SEL sel, VALUE n)
 {
     long len = NUM2LONG(n);
     if (len < 0) {
@@ -3202,15 +3491,19 @@ rb_ary_take(VALUE obj, VALUE n)
  */
 
 static VALUE
-rb_ary_take_while(VALUE ary)
+rb_ary_take_while(VALUE ary, SEL sel)
 {
     long i;
 
     RETURN_ENUMERATOR(ary, 0, 0);
     for (i = 0; i < RARRAY_LEN(ary); i++) {
-	if (!RTEST(rb_yield(RARRAY_AT(ary, i)))) break;
+	VALUE v = rb_yield(RARRAY_AT(ary, i));
+	RETURN_IF_BROKEN();
+	if (!RTEST(v)) {
+	    break;
+	}
     }
-    return rb_ary_take(ary, LONG2FIX(i));
+    return rb_ary_take(ary, 0, LONG2FIX(i));
 }
 
 /*
@@ -3226,7 +3519,7 @@ rb_ary_take_while(VALUE ary)
  */
 
 static VALUE
-rb_ary_drop(VALUE ary, VALUE n)
+rb_ary_drop(VALUE ary, SEL sel, VALUE n)
 {
     VALUE result;
     long pos = NUM2LONG(n);
@@ -3253,15 +3546,19 @@ rb_ary_drop(VALUE ary, VALUE n)
  */
 
 static VALUE
-rb_ary_drop_while(VALUE ary)
+rb_ary_drop_while(VALUE ary, SEL sel)
 {
     long i;
 
     RETURN_ENUMERATOR(ary, 0, 0);
     for (i = 0; i < RARRAY_LEN(ary); i++) {
-	if (!RTEST(rb_yield(RARRAY_AT(ary, i)))) break;
+	VALUE v = rb_yield(RARRAY_AT(ary, i));
+	RETURN_IF_BROKEN();
+	if (!RTEST(v)) {
+	    break;
+	}
     }
-    return rb_ary_drop(ary, LONG2FIX(i));
+    return rb_ary_drop(ary, 0, LONG2FIX(i));
 }
 
 #define PREPARE_RCV(x) \
@@ -3339,6 +3636,7 @@ imp_rb_array_addObject(void *rcv, SEL sel, void *obj)
     RESTORE_RCV(rcv);
 }
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1060
 static CFIndex
 imp_rb_array_cfindexOfObjectInRange(void *rcv, SEL sel, void *obj, 
     CFRange range)
@@ -3349,20 +3647,33 @@ imp_rb_array_cfindexOfObjectInRange(void *rcv, SEL sel, void *obj,
     RESTORE_RCV(rcv);
     return i;
 }
+#endif
 
 void
 rb_objc_install_array_primitives(Class klass)
 {
     rb_objc_install_method2(klass, "count", (IMP)imp_rb_array_count);
-    rb_objc_install_method2(klass, "objectAtIndex:", (IMP)imp_rb_array_objectAtIndex);
-    rb_objc_install_method2(klass, "insertObject:atIndex:", (IMP)imp_rb_array_insertObjectAtIndex);
-    rb_objc_install_method2(klass, "removeObjectAtIndex:", (IMP)imp_rb_array_removeObjectAtIndex);
-    rb_objc_install_method2(klass, "replaceObjectAtIndex:withObject:", 
-	(IMP)imp_rb_array_replaceObjectAtIndexWithObject);
-    rb_objc_install_method2(klass, "replaceObjectsInRange:withObjects:count:",
-	(IMP)imp_rb_array_replaceObjectsInRangeWithObjectsCount);
-    rb_objc_install_method2(klass, "addObject:", (IMP)imp_rb_array_addObject);
+    rb_objc_install_method2(klass, "objectAtIndex:",
+	    (IMP)imp_rb_array_objectAtIndex);
 
+    const bool mutable = class_getSuperclass(klass)
+	== (Class)rb_cNSMutableArray;
+
+    if (mutable) {
+	rb_objc_install_method2(klass, "insertObject:atIndex:",
+		(IMP)imp_rb_array_insertObjectAtIndex);
+	rb_objc_install_method2(klass, "removeObjectAtIndex:",
+		(IMP)imp_rb_array_removeObjectAtIndex);
+	rb_objc_install_method2(klass, "replaceObjectAtIndex:withObject:", 
+		(IMP)imp_rb_array_replaceObjectAtIndexWithObject);
+	rb_objc_install_method2(klass,
+		"replaceObjectsInRange:withObjects:count:",
+		(IMP)imp_rb_array_replaceObjectsInRangeWithObjectsCount);
+	rb_objc_install_method2(klass, "addObject:",
+		(IMP)imp_rb_array_addObject);
+    }
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1060
     /* This is to work around a bug where CF will try to call an non-existing 
      * method. 
      */
@@ -3372,8 +3683,9 @@ rb_objc_install_array_primitives(Class klass)
 	    sel_registerName("_cfindexOfObject:range:"));
     class_addMethod(klass, sel_registerName("_cfindexOfObject:inRange:"), 
 	    method_getImplementation(m), method_getTypeEncoding(m));
-    
-    rb_define_alloc_func((VALUE)klass, ary_alloc);
+#endif
+
+    rb_objc_define_method(*(VALUE *)klass, "alloc", ary_alloc, 0);
 }
 
 /* Arrays are ordered, integer-indexed collections of any object. 
@@ -3387,6 +3699,9 @@ void
 Init_Array(void)
 {
     rb_cCFArray = (VALUE)objc_getClass("NSCFArray");
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
+    rb_cNSArray0 = (VALUE)objc_getClass("__NSArray0");
+#endif
     rb_const_set(rb_cObject, rb_intern("NSCFArray"), rb_cCFArray);
     rb_cArray = rb_cNSArray = (VALUE)objc_getClass("NSArray");
     rb_cNSMutableArray = (VALUE)objc_getClass("NSMutableArray");
@@ -3395,108 +3710,106 @@ Init_Array(void)
 
     rb_include_module(rb_cArray, rb_mEnumerable);
 
-    rb_define_singleton_method(rb_cArray, "[]", rb_ary_s_create, -1);
-    rb_define_singleton_method(rb_cArray, "try_convert", rb_ary_s_try_convert, 1);
-    rb_define_method(rb_cArray, "initialize", rb_ary_initialize, -1);
-    rb_define_method(rb_cArray, "initialize_copy", rb_ary_replace, 1);
+    rb_objc_define_method(*(VALUE *)rb_cArray, "[]", rb_ary_s_create, -1);
+    rb_objc_define_method(*(VALUE *)rb_cArray, "try_convert", rb_ary_s_try_convert, 1);
+    rb_objc_define_method(rb_cArray, "initialize", rb_ary_initialize, -1);
+    rb_objc_define_method(rb_cArray, "initialize_copy", rb_ary_replace_imp, 1);
 
-    rb_define_method(rb_cArray, "to_s", rb_ary_inspect, 0);
-    rb_define_method(rb_cArray, "inspect", rb_ary_inspect, 0);
-    rb_define_method(rb_cArray, "to_a", rb_ary_to_a, 0);
-    rb_define_method(rb_cArray, "to_ary", rb_ary_to_ary_m, 0);
-    rb_define_method(rb_cArray, "frozen?",  rb_ary_frozen_p, 0);
+    rb_objc_define_method(rb_cArray, "to_s", rb_ary_inspect, 0);
+    rb_objc_define_method(rb_cArray, "inspect", rb_ary_inspect, 0);
+    rb_objc_define_method(rb_cArray, "to_a", rb_ary_to_a, 0);
+    rb_objc_define_method(rb_cArray, "to_ary", rb_ary_to_ary_m, 0);
+    rb_objc_define_method(rb_cArray, "frozen?",  rb_ary_frozen_imp, 0);
 
-    rb_define_method(rb_cArray, "==", rb_ary_equal, 1);
-    rb_define_method(rb_cArray, "eql?", rb_ary_eql, 1);
+    rb_objc_define_method(rb_cArray, "==", rb_ary_equal, 1);
+    rb_objc_define_method(rb_cArray, "eql?", rb_ary_eql, 1);
 
-    rb_define_method(rb_cArray, "[]", rb_ary_aref, -1);
-    rb_define_method(rb_cArray, "[]=", rb_ary_aset, -1);
-    rb_define_method(rb_cArray, "at", rb_ary_at, 1);
-    rb_define_method(rb_cArray, "fetch", rb_ary_fetch, -1);
-    rb_define_method(rb_cArray, "first", rb_ary_first, -1);
-    rb_define_method(rb_cArray, "last", rb_ary_last, -1);
-    rb_define_method(rb_cArray, "concat", rb_ary_concat, 1);
-    rb_define_method(rb_cArray, "<<", rb_ary_push, 1);
-    rb_define_method(rb_cArray, "push", rb_ary_push_m, -1);
-    rb_define_method(rb_cArray, "pop", rb_ary_pop_m, -1);
-    rb_define_method(rb_cArray, "shift", rb_ary_shift_m, -1);
-    rb_define_method(rb_cArray, "unshift", rb_ary_unshift_m, -1);
-    rb_define_method(rb_cArray, "insert", rb_ary_insert_m, -1);
-    rb_define_method(rb_cArray, "each", rb_ary_each, 0);
-    rb_define_method(rb_cArray, "each_index", rb_ary_each_index, 0);
-    rb_define_method(rb_cArray, "reverse_each", rb_ary_reverse_each, 0);
-    rb_define_method(rb_cArray, "length", rb_ary_length, 0);
-    rb_define_alias(rb_cArray,  "size", "length");
-    rb_define_method(rb_cArray, "empty?", rb_ary_empty_p, 0);
-    rb_define_method(rb_cArray, "find_index", rb_ary_index, -1);
-    rb_define_method(rb_cArray, "index", rb_ary_index, -1);
-    rb_define_method(rb_cArray, "rindex", rb_ary_rindex, -1);
-    rb_define_method(rb_cArray, "join", rb_ary_join_m, -1);
-    rb_define_method(rb_cArray, "reverse", rb_ary_reverse_m, 0);
-    rb_define_method(rb_cArray, "reverse!", rb_ary_reverse_bang, 0);
-    rb_define_method(rb_cArray, "sort", rb_ary_sort, 0);
-    rb_define_method(rb_cArray, "sort!", rb_ary_sort_bang, 0);
-    rb_define_method(rb_cArray, "collect", rb_ary_collect, 0);
-    rb_define_method(rb_cArray, "collect!", rb_ary_collect_bang, 0);
-    rb_define_method(rb_cArray, "map", rb_ary_collect, 0);
-    rb_define_method(rb_cArray, "map!", rb_ary_collect_bang, 0);
-    rb_define_method(rb_cArray, "select", rb_ary_select, 0);
-    rb_define_method(rb_cArray, "values_at", rb_ary_values_at, -1);
-    rb_define_method(rb_cArray, "delete", rb_ary_delete, 1);
-    rb_define_method(rb_cArray, "delete_at", rb_ary_delete_at_m, 1);
-    rb_define_method(rb_cArray, "delete_if", rb_ary_delete_if, 0);
-    rb_define_method(rb_cArray, "reject", rb_ary_reject, 0);
-    rb_define_method(rb_cArray, "reject!", rb_ary_reject_bang, 0);
-    rb_define_method(rb_cArray, "zip", rb_ary_zip, -1);
-    rb_define_method(rb_cArray, "transpose", rb_ary_transpose, 0);
-    rb_define_method(rb_cArray, "replace", rb_ary_replace, 1);
-    rb_define_method(rb_cArray, "clear", rb_ary_clear, 0);
-    rb_define_method(rb_cArray, "fill", rb_ary_fill, -1);
-    rb_define_method(rb_cArray, "include?", rb_ary_includes, 1);
-    rb_define_method(rb_cArray, "<=>", rb_ary_cmp, 1);
+    rb_objc_define_method(rb_cArray, "[]", rb_ary_aref, -1);
+    rb_objc_define_method(rb_cArray, "[]=", rb_ary_aset, -1);
+    rb_objc_define_method(rb_cArray, "at", rb_ary_at, 1);
+    rb_objc_define_method(rb_cArray, "fetch", rb_ary_fetch, -1);
+    rb_objc_define_method(rb_cArray, "first", rb_ary_first, -1);
+    rb_objc_define_method(rb_cArray, "last", rb_ary_last, -1);
+    rb_objc_define_method(rb_cArray, "concat", rb_ary_concat_imp, 1);
+    rb_objc_define_method(rb_cArray, "<<", rb_ary_push_imp, 1);
+    rb_objc_define_method(rb_cArray, "push", rb_ary_push_m, -1);
+    rb_objc_define_method(rb_cArray, "pop", rb_ary_pop_m, -1);
+    rb_objc_define_method(rb_cArray, "shift", rb_ary_shift_m, -1);
+    rb_objc_define_method(rb_cArray, "unshift", rb_ary_unshift_m, -1);
+    rb_objc_define_method(rb_cArray, "insert", rb_ary_insert_m, -1);
+    rb_objc_define_method(rb_cArray, "each", rb_ary_each, 0);
+    rb_objc_define_method(rb_cArray, "each_index", rb_ary_each_index, 0);
+    rb_objc_define_method(rb_cArray, "reverse_each", rb_ary_reverse_each, 0);
+    rb_objc_define_method(rb_cArray, "length", rb_ary_length, 0);
+    rb_objc_define_method(rb_cArray, "size", rb_ary_length, 0);
+    rb_objc_define_method(rb_cArray, "empty?", rb_ary_empty_p, 0);
+    rb_objc_define_method(rb_cArray, "find_index", rb_ary_index, -1);
+    rb_objc_define_method(rb_cArray, "index", rb_ary_index, -1);
+    rb_objc_define_method(rb_cArray, "rindex", rb_ary_rindex, -1);
+    rb_objc_define_method(rb_cArray, "join", rb_ary_join_m, -1);
+    rb_objc_define_method(rb_cArray, "reverse", rb_ary_reverse_m, 0);
+    rb_objc_define_method(rb_cArray, "reverse!", rb_ary_reverse_bang, 0);
+    rb_objc_define_method(rb_cArray, "sort", rb_ary_sort_imp, 0);
+    rb_objc_define_method(rb_cArray, "sort!", rb_ary_sort_bang_imp, 0);
+    rb_objc_define_method(rb_cArray, "collect", rb_ary_collect, 0);
+    rb_objc_define_method(rb_cArray, "collect!", rb_ary_collect_bang, 0);
+    rb_objc_define_method(rb_cArray, "map", rb_ary_collect, 0);
+    rb_objc_define_method(rb_cArray, "map!", rb_ary_collect_bang, 0);
+    rb_objc_define_method(rb_cArray, "select", rb_ary_select, 0);
+    rb_objc_define_method(rb_cArray, "values_at", rb_ary_values_at, -1);
+    rb_objc_define_method(rb_cArray, "delete", rb_ary_delete_imp, 1);
+    rb_objc_define_method(rb_cArray, "delete_at", rb_ary_delete_at_m, 1);
+    rb_objc_define_method(rb_cArray, "delete_if", rb_ary_delete_if, 0);
+    rb_objc_define_method(rb_cArray, "reject", rb_ary_reject, 0);
+    rb_objc_define_method(rb_cArray, "reject!", rb_ary_reject_bang, 0);
+    rb_objc_define_method(rb_cArray, "zip", rb_ary_zip, -1);
+    rb_objc_define_method(rb_cArray, "transpose", rb_ary_transpose, 0);
+    rb_objc_define_method(rb_cArray, "replace", rb_ary_replace_imp, 1);
+    rb_objc_define_method(rb_cArray, "clear", rb_ary_clear_imp, 0);
+    rb_objc_define_method(rb_cArray, "fill", rb_ary_fill, -1);
+    rb_objc_define_method(rb_cArray, "include?", rb_ary_includes_imp, 1);
+    rb_objc_define_method(rb_cArray, "<=>", rb_ary_cmp, 1);
 
-    rb_define_method(rb_cArray, "slice", rb_ary_aref, -1);
-    rb_define_method(rb_cArray, "slice!", rb_ary_slice_bang, -1);
+    rb_objc_define_method(rb_cArray, "slice", rb_ary_aref, -1);
+    rb_objc_define_method(rb_cArray, "slice!", rb_ary_slice_bang, -1);
 
-    rb_define_method(rb_cArray, "assoc", rb_ary_assoc, 1);
-    rb_define_method(rb_cArray, "rassoc", rb_ary_rassoc, 1);
+    rb_objc_define_method(rb_cArray, "assoc", rb_ary_assoc, 1);
+    rb_objc_define_method(rb_cArray, "rassoc", rb_ary_rassoc, 1);
 
-    rb_define_method(rb_cArray, "+", rb_ary_plus, 1);
-    rb_define_method(rb_cArray, "*", rb_ary_times, 1);
+    rb_objc_define_method(rb_cArray, "+", rb_ary_plus_imp, 1);
+    rb_objc_define_method(rb_cArray, "*", rb_ary_times, 1);
 
-    rb_define_method(rb_cArray, "-", rb_ary_diff, 1);
-    rb_define_method(rb_cArray, "&", rb_ary_and, 1);
-    rb_define_method(rb_cArray, "|", rb_ary_or, 1);
+    rb_objc_define_method(rb_cArray, "-", rb_ary_diff, 1);
+    rb_objc_define_method(rb_cArray, "&", rb_ary_and, 1);
+    rb_objc_define_method(rb_cArray, "|", rb_ary_or, 1);
 
-    rb_define_method(rb_cArray, "uniq", rb_ary_uniq, 0);
-    rb_define_method(rb_cArray, "uniq!", rb_ary_uniq_bang, 0);
-    rb_define_method(rb_cArray, "compact", rb_ary_compact, 0);
-    rb_define_method(rb_cArray, "compact!", rb_ary_compact_bang, 0);
-    rb_define_method(rb_cArray, "flatten", rb_ary_flatten, -1);
-    rb_define_method(rb_cArray, "flatten!", rb_ary_flatten_bang, -1);
-    rb_define_method(rb_cArray, "_count", rb_ary_count, -1);
+    rb_objc_define_method(rb_cArray, "uniq", rb_ary_uniq, 0);
+    rb_objc_define_method(rb_cArray, "uniq!", rb_ary_uniq_bang, 0);
+    rb_objc_define_method(rb_cArray, "compact", rb_ary_compact, 0);
+    rb_objc_define_method(rb_cArray, "compact!", rb_ary_compact_bang, 0);
+    rb_objc_define_method(rb_cArray, "flatten", rb_ary_flatten, -1);
+    rb_objc_define_method(rb_cArray, "flatten!", rb_ary_flatten_bang, -1);
+    rb_objc_define_method(rb_cArray, "_count", rb_ary_count, -1);
 
     /* to maintain backwards compatibility with our /etc/irbrc file
      * TODO: fix /etc/irbrc to use #count, and remove this method.
      */
-    rb_define_method(rb_cArray, "nitems", rb_ary_count, -1);
+    rb_objc_define_method(rb_cArray, "nitems", rb_ary_count, -1);
 
-    rb_define_method(rb_cArray, "shuffle!", rb_ary_shuffle_bang, 0);
-    rb_define_method(rb_cArray, "shuffle", rb_ary_shuffle, 0);
-    rb_define_method(rb_cArray, "choice", rb_ary_choice, 0);
-    rb_define_method(rb_cArray, "cycle", rb_ary_cycle, -1);
-    rb_define_method(rb_cArray, "permutation", rb_ary_permutation, -1);
-    rb_define_method(rb_cArray, "combination", rb_ary_combination, 1);
-    rb_define_method(rb_cArray, "product", rb_ary_product, -1);
+    rb_objc_define_method(rb_cArray, "shuffle!", rb_ary_shuffle_bang, 0);
+    rb_objc_define_method(rb_cArray, "shuffle", rb_ary_shuffle, 0);
+    rb_objc_define_method(rb_cArray, "sample", rb_ary_sample, -1);
+    rb_objc_define_method(rb_cArray, "cycle", rb_ary_cycle, -1);
+    rb_objc_define_method(rb_cArray, "permutation", rb_ary_permutation, -1);
+    rb_objc_define_method(rb_cArray, "combination", rb_ary_combination, 1);
+    rb_objc_define_method(rb_cArray, "product", rb_ary_product, -1);
 
-    rb_define_method(rb_cArray, "take", rb_ary_take, 1);
-    rb_define_method(rb_cArray, "take_while", rb_ary_take_while, 0);
-    rb_define_method(rb_cArray, "drop", rb_ary_drop, 1);
-    rb_define_method(rb_cArray, "drop_while", rb_ary_drop_while, 0);
+    rb_objc_define_method(rb_cArray, "take", rb_ary_take, 1);
+    rb_objc_define_method(rb_cArray, "take_while", rb_ary_take_while, 0);
+    rb_objc_define_method(rb_cArray, "drop", rb_ary_drop, 1);
+    rb_objc_define_method(rb_cArray, "drop_while", rb_ary_drop_while, 0);
 
     /* to return mutable copies */
-    rb_define_method(rb_cArray, "dup", rb_ary_dup, 0);
-    rb_define_method(rb_cArray, "clone", rb_ary_clone, 0);
-
-    id_cmp = rb_intern("<=>");
+    rb_objc_define_method(rb_cArray, "dup", rb_ary_dup_imp, 0);
+    rb_objc_define_method(rb_cArray, "clone", rb_ary_clone, 0);
 }

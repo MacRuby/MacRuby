@@ -241,7 +241,6 @@ enum node_type {
 };
 
 typedef struct RNode {
-    void *isa; /* always NULL */
     unsigned long flags;
     char *nd_file;
     union {

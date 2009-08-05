@@ -1,0 +1,1 @@
+fails:ConditionVariable#wait should return self

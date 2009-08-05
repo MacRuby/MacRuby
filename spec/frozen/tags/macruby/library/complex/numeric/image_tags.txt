@@ -1,0 +1,1 @@
+fails:Numeric#image returns 0

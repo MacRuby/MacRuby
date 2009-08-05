@@ -1,0 +1,2 @@
+fails:ENV.reject rejects entries based on key
+fails:ENV.reject rejects entries based on value

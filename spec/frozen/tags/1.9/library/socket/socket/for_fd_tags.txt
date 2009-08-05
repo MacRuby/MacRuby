@@ -1,0 +1,2 @@
+fails:Socket#for_fd given a file descriptor raises EBADF for a bad descriptor
+fails:Socket#for_fd given a file descriptor raises error for a bad descriptor

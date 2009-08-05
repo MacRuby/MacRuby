@@ -394,8 +394,8 @@ module FileUtils
   end
   module_function :cp
 
-  alias copy cp
-  module_function :copy
+  #alias copy cp
+  #module_function :copy
 
   OPT_TABLE['cp']   =
   OPT_TABLE['copy'] = [:preserve, :noop, :verbose]

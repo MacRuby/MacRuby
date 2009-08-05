@@ -18,25 +18,23 @@
 int
 rb_safe_level(void)
 {
-    return GET_THREAD()->safe_level;
+    return rb_vm_safe_level();
 }
 
 void
 rb_set_safe_level_force(int safe)
 {
-    GET_THREAD()->safe_level = safe;
+    rb_vm_set_safe_level(safe);
 }
 
 void
 rb_set_safe_level(int level)
 {
-    rb_thread_t *th = GET_THREAD();
-
-    if (level > th->safe_level) {
+    if (level > rb_vm_safe_level()) {
 	if (level > SAFE_LEVEL_MAX) {
 	    level = SAFE_LEVEL_MAX;
 	}
-	th->safe_level = level;
+	rb_vm_set_safe_level(level);
     }
 }
 
@@ -50,17 +48,17 @@ static void
 safe_setter(VALUE val)
 {
     int level = NUM2INT(val);
-    rb_thread_t *th = GET_THREAD();
+    int current_level = rb_vm_safe_level();
 
-    if (level < th->safe_level) {
+    if (level < current_level) {
 	rb_raise(rb_eSecurityError,
 		 "tried to downgrade safe level from %d to %d",
-		 th->safe_level, level);
+		 current_level, level);
     }
     if (level > SAFE_LEVEL_MAX) {
 	level = SAFE_LEVEL_MAX;
     }
-    th->safe_level = level;
+    rb_vm_set_safe_level(level);
 }
 
 void

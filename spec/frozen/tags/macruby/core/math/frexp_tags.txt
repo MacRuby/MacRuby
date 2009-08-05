@@ -1,0 +1,3 @@
+fails:Math.frexp raises an ArgumentError if the argument cannot be coerced with Float()
+fails:Math.frexp accepts any argument that can be coerced with Float()
+fails:Math#frexp is accessible as a private instance method

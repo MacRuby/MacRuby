@@ -10,6 +10,14 @@ def gen_random(max)
   (max * ($last = ($last * IA + IC) % IM)) / IM
 end
 
+=begin
+gen_random(100.0)
+gen_random(100.0)
+gen_random(100.0)
+gen_random(100.0)
+gen_random(100.0)
+=end
+
 N = 1000000
 
 i=0

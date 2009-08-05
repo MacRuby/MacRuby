@@ -1,0 +1,8 @@
+* For IO: internal_encoding returns nil when none is given and
+  Encoding.default_internal is nil or when Encoding.default_internal and
+  Encoding.default_external are the same.
+* Merge eigenclass spec into metaclass spec
+* Cleanup MacRuby specs
+* Write more 1.9/MacRuby encoding specs
+* Merge Ruby-FFI specs (?)
+* Move/update existing MacRuby test cases (./test)

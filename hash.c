@@ -13,12 +13,14 @@
 #include "ruby/st.h"
 #include "ruby/util.h"
 #include "ruby/signal.h"
+#include "ruby/node.h"
 #include "id.h"
 #include "objc.h"
+#include "vm.h"
 
 #include <crt_externs.h>
 
-static VALUE rb_hash_s_try_convert(VALUE, VALUE);
+static VALUE rb_hash_s_try_convert(VALUE, SEL, VALUE);
 
 VALUE
 rb_hash_freeze(VALUE hash)
@@ -28,11 +30,17 @@ rb_hash_freeze(VALUE hash)
 
 VALUE rb_cHash;
 VALUE rb_cCFHash;
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
+VALUE rb_cNSHash0;
+#endif
 VALUE rb_cNSHash;
 VALUE rb_cNSMutableHash;
 
 static VALUE envtbl;
-static ID id_hash, id_yield, id_default;
+static ID id_hash, id_yield;
+
+static void *defaultCache = NULL;
+static SEL selDefault = 0;
 
 VALUE
 rb_hash(VALUE obj)
@@ -176,7 +184,13 @@ rb_hash_dup(VALUE rcv)
 }
 
 static VALUE
-rb_hash_clone(VALUE rcv)
+rb_hash_dup_imp(VALUE rcv, SEL sel)
+{
+    return rb_hash_dup(rcv);
+}
+
+static VALUE
+rb_hash_clone(VALUE rcv, SEL sel)
 {
     VALUE clone = rb_hash_dup(rcv);
     if (OBJ_FROZEN(rcv))
@@ -190,6 +204,29 @@ rb_hash_new(void)
     return hash_alloc(0);
 }
 
+VALUE
+rb_hash_new_fast(int argc, ...)
+{
+    va_list ar;
+    VALUE hash;
+    int i;
+
+    hash = hash_alloc(0);
+
+    assert(argc % 2 == 0);
+
+    va_start(ar, argc);
+    for (i = 0; i < argc; i += 2) {
+	VALUE key = va_arg(ar, VALUE);
+	VALUE val = va_arg(ar, VALUE);
+	CFDictionarySetValue((CFMutableDictionaryRef)hash, (const void *)RB2OC(key),
+		(const void *)RB2OC(val));
+    }
+    va_end(ar);
+
+    return hash;
+}
+
 static inline void
 rb_hash_modify_check(VALUE hash)
 {
@@ -199,15 +236,15 @@ rb_hash_modify_check(VALUE hash)
 #else
     mask = rb_objc_flag_get_mask((const void *)hash);
 #endif
-    if (mask == 0) {
-	bool _CFDictionaryIsMutable(void *);
-	if (!_CFDictionaryIsMutable((void *)hash))
-	    mask |= FL_FREEZE;
+    if (RHASH_IMMUTABLE(hash)) {
+	mask |= FL_FREEZE;
     }
-    if ((mask & FL_FREEZE) == FL_FREEZE)
+    if ((mask & FL_FREEZE) == FL_FREEZE) {
 	rb_raise(rb_eRuntimeError, "can't modify frozen/immutable hash");
-    if ((mask & FL_TAINT) == FL_TAINT && rb_safe_level() >= 4)
+    }
+    if ((mask & FL_TAINT) == FL_TAINT && rb_safe_level() >= 4) {
 	rb_raise(rb_eSecurityError, "Insecure: can't modify hash");
+    }
 }
 
 #define rb_hash_modify rb_hash_modify_check
@@ -248,7 +285,7 @@ rb_hash_modify_check(VALUE hash)
  */
 
 static VALUE
-rb_hash_initialize(int argc, VALUE *argv, VALUE hash)
+rb_hash_initialize(VALUE hash, SEL sel, int argc, const VALUE *argv)
 {
     VALUE ifnone;
 
@@ -269,6 +306,14 @@ rb_hash_initialize(int argc, VALUE *argv, VALUE hash)
     return hash;
 }
 
+VALUE
+rb_hash_new2(int argc, const VALUE *argv)
+{
+    VALUE h = hash_alloc(0);
+    rb_hash_initialize(h, 0, argc, argv);
+    return h;
+}
+
 /*
  *  call-seq:
  *     Hash[ [key =>|, value]* ]   => hash
@@ -283,13 +328,13 @@ rb_hash_initialize(int argc, VALUE *argv, VALUE hash)
  */
 
 static VALUE
-rb_hash_s_create(int argc, VALUE *argv, VALUE klass)
+rb_hash_s_create(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
     VALUE hash, tmp;
     int i;
 
     if (argc == 1) {
-	tmp = rb_hash_s_try_convert(Qnil, argv[0]);
+	tmp = rb_hash_s_try_convert(Qnil, 0, argv[0]);
 	if (!NIL_P(tmp)) {
 	    CFIndex i, count;
 	    const void **keys;
@@ -357,7 +402,7 @@ to_hash(VALUE hash)
  *     Hash.try_convert("1=>2")   # => nil
  */
 static VALUE
-rb_hash_s_try_convert(VALUE dummy, VALUE hash)
+rb_hash_s_try_convert(VALUE dummy, SEL sel, VALUE hash)
 {
     return rb_check_convert_type(hash, T_HASH, "Hash", "to_hash");
 }
@@ -383,7 +428,7 @@ rb_hash_s_try_convert(VALUE dummy, VALUE hash)
  */
 
 static VALUE
-rb_hash_rehash(VALUE hash)
+rb_hash_rehash(VALUE hash, SEL sel)
 {
     CFIndex i, count;
     const void **keys;
@@ -427,12 +472,19 @@ rb_hash_aref(VALUE hash, VALUE key)
 {
     VALUE val;
 
-    if (!CFDictionaryGetValueIfPresent((CFDictionaryRef)hash, (const void *)RB2OC(key),
+    if (!CFDictionaryGetValueIfPresent((CFDictionaryRef)hash,
+		(const void *)RB2OC(key),
 	(const void **)&val)) {
-	return rb_funcall(hash, id_default, 1, key);
+	return rb_vm_call_with_cache(defaultCache, hash, selDefault, 1, &key);
     }
     val = OC2RB(val);
     return val;
+}
+
+static VALUE
+rb_hash_aref_imp(VALUE hash, SEL sel, VALUE key)
+{
+    return rb_hash_aref(hash, key);
 }
 
 VALUE
@@ -478,7 +530,7 @@ rb_hash_lookup(VALUE hash, VALUE key)
  */
 
 static VALUE
-rb_hash_fetch(int argc, VALUE *argv, VALUE hash)
+rb_hash_fetch(VALUE hash, SEL sel, int argc, VALUE *argv)
 {
     VALUE key, if_none;
     VALUE val;
@@ -523,7 +575,7 @@ rb_hash_fetch(int argc, VALUE *argv, VALUE hash)
  */
 
 static VALUE
-rb_hash_default(int argc, VALUE *argv, VALUE hash)
+rb_hash_default(VALUE hash, SEL sel, int argc, VALUE *argv)
 {
     struct rb_objc_hash_struct *s = rb_objc_hash_get_struct(hash);
     VALUE key;
@@ -560,7 +612,7 @@ rb_hash_default(int argc, VALUE *argv, VALUE hash)
  */
 
 static VALUE
-rb_hash_set_default(VALUE hash, VALUE ifnone)
+rb_hash_set_default(VALUE hash, SEL sel, VALUE ifnone)
 {
     rb_hash_modify(hash);
     rb_objc_hash_set_struct(hash, ifnone, false);
@@ -583,7 +635,7 @@ rb_hash_set_default(VALUE hash, VALUE ifnone)
 
 
 static VALUE
-rb_hash_default_proc(VALUE hash)
+rb_hash_default_proc(VALUE hash, SEL sel)
 {
     struct rb_objc_hash_struct *s = rb_objc_hash_get_struct(hash);
     if (s != NULL && s->has_proc_default)
@@ -614,7 +666,7 @@ key_i(VALUE key, VALUE value, VALUE *args)
  */
 
 static VALUE
-rb_hash_key(VALUE hash, VALUE value)
+rb_hash_key(VALUE hash, SEL sel, VALUE value)
 {
     VALUE args[2];
 
@@ -628,10 +680,10 @@ rb_hash_key(VALUE hash, VALUE value)
 
 /* :nodoc: */
 static VALUE
-rb_hash_index(VALUE hash, VALUE value)
+rb_hash_index(VALUE hash, SEL sel, VALUE value)
 {
     rb_warn("Hash#index is deprecated; use Hash#key");
-    return rb_hash_key(hash, value);
+    return rb_hash_key(hash, 0, value);
 }
 
 static VALUE
@@ -680,6 +732,12 @@ rb_hash_delete(VALUE hash, VALUE key)
     return Qnil;
 }
 
+static VALUE
+rb_hash_delete_imp(VALUE hash, SEL sel, VALUE key)
+{
+    return rb_hash_delete(hash, key);
+}
+
 /*
  *  call-seq:
  *     hsh.shift -> anArray or obj
@@ -693,14 +751,14 @@ rb_hash_delete(VALUE hash, VALUE key)
  *     h         #=> {2=>"b", 3=>"c"}
  */
 
-static VALUE rb_hash_keys(VALUE);
+static VALUE rb_hash_keys_imp(VALUE, SEL);
 
 static VALUE
-rb_hash_shift(VALUE hash)
+rb_hash_shift(VALUE hash, SEL sel)
 {
     VALUE keys, key, val;
 
-    keys = rb_hash_keys(hash);
+    keys = rb_hash_keys_imp(hash, 0);
     if (RARRAY_LEN(keys) == 0) {
 	struct rb_objc_hash_struct *s = rb_objc_hash_get_struct(hash);
 
@@ -741,8 +799,8 @@ delete_if_i(VALUE key, VALUE value, VALUE hash)
  *
  */
 
-VALUE
-rb_hash_delete_if(VALUE hash)
+static VALUE
+rb_hash_delete_if(VALUE hash, SEL sel)
 {
     RETURN_ENUMERATOR(hash, 0, 0);
     rb_hash_modify(hash);
@@ -758,14 +816,14 @@ rb_hash_delete_if(VALUE hash)
  *  <code>nil</code> if no changes were made.
  */
 
-VALUE
-rb_hash_reject_bang(VALUE hash)
+static VALUE
+rb_hash_reject_bang(VALUE hash, SEL sel)
 {
     CFIndex n;
 
     RETURN_ENUMERATOR(hash, 0, 0);
     n = CFDictionaryGetCount((CFDictionaryRef)hash);
-    rb_hash_delete_if(hash);
+    rb_hash_delete_if(hash, 0);
     if (n == CFDictionaryGetCount((CFDictionaryRef)hash))
 	return Qnil;
     return hash;
@@ -782,9 +840,9 @@ rb_hash_reject_bang(VALUE hash)
  */
 
 static VALUE
-rb_hash_reject(VALUE hash)
+rb_hash_reject(VALUE hash, SEL sel)
 {
-    return rb_hash_delete_if(rb_hash_dup(hash));
+    return rb_hash_delete_if(rb_hash_dup(hash), 0);
 }
 
 /*
@@ -798,8 +856,8 @@ rb_hash_reject(VALUE hash)
  *   h.values_at("cow", "cat")  #=> ["bovine", "feline"]
  */
 
-VALUE
-rb_hash_values_at(int argc, VALUE *argv, VALUE hash)
+static VALUE
+rb_hash_values_at(VALUE hash, SEL sel, int argc, VALUE *argv)
 {
     VALUE result = rb_ary_new2(argc);
     long i;
@@ -830,8 +888,8 @@ select_i(VALUE key, VALUE value, VALUE result)
  *     h.select {|k,v| v < 200}  #=> {"a" => 100}
  */
 
-VALUE
-rb_hash_select(VALUE hash)
+static VALUE
+rb_hash_select(VALUE hash, SEL sel)
 {
     VALUE result;
 
@@ -853,7 +911,7 @@ rb_hash_select(VALUE hash)
  */
 
 static VALUE
-rb_hash_clear(VALUE hash)
+rb_hash_clear(VALUE hash, SEL sel)
 {
     rb_hash_modify_check(hash);
     CFDictionaryRemoveAllValues((CFMutableDictionaryRef)hash);
@@ -888,6 +946,12 @@ rb_hash_aset(VALUE hash, VALUE key, VALUE val)
     return val;
 }
 
+static VALUE
+rb_hash_aset_imp(VALUE hash, SEL sel, VALUE key, VALUE val)
+{
+    return rb_hash_aset(hash, key, val);
+}
+
 static int
 replace_i(VALUE key, VALUE val, VALUE hash)
 {
@@ -911,11 +975,11 @@ replace_i(VALUE key, VALUE val, VALUE hash)
  */
 
 static VALUE
-rb_hash_replace(VALUE hash, VALUE hash2)
+rb_hash_replace(VALUE hash, SEL sel, VALUE hash2)
 {
     hash2 = to_hash(hash2);
     if (hash == hash2) return hash;
-    rb_hash_clear(hash);
+    rb_hash_clear(hash, 0);
     rb_hash_foreach(hash2, replace_i, hash);
     {
 	struct rb_objc_hash_struct *s = rb_objc_hash_get_struct(hash2);
@@ -940,7 +1004,7 @@ rb_hash_replace(VALUE hash, VALUE hash2)
  */
 
 static VALUE
-rb_hash_size(VALUE hash)
+rb_hash_size(VALUE hash, SEL sel)
 {
     return INT2FIX(CFDictionaryGetCount((CFDictionaryRef)hash));
 }
@@ -957,7 +1021,7 @@ rb_hash_size(VALUE hash)
  */
 
 static VALUE
-rb_hash_empty_p(VALUE hash)
+rb_hash_empty_p(VALUE hash, SEL sel)
 {
     return RHASH_EMPTY_P(hash) ? Qtrue : Qfalse;
 }
@@ -987,7 +1051,7 @@ each_value_i(VALUE key, VALUE value)
  */
 
 static VALUE
-rb_hash_each_value(VALUE hash)
+rb_hash_each_value(VALUE hash, SEL sel)
 {
     RETURN_ENUMERATOR(hash, 0, 0);
     rb_hash_foreach(hash, each_value_i, 0);
@@ -1018,7 +1082,7 @@ each_key_i(VALUE key, VALUE value)
  *     b
  */
 static VALUE
-rb_hash_each_key(VALUE hash)
+rb_hash_each_key(VALUE hash, SEL sel)
 {
     RETURN_ENUMERATOR(hash, 0, 0);
     rb_hash_foreach(hash, each_key_i, 0);
@@ -1052,7 +1116,7 @@ each_pair_i(VALUE key, VALUE value)
  */
 
 static VALUE
-rb_hash_each_pair(VALUE hash)
+rb_hash_each_pair(VALUE hash, SEL sel)
 {
     RETURN_ENUMERATOR(hash, 0, 0);
     rb_hash_foreach(hash, each_pair_i, 0);
@@ -1079,7 +1143,7 @@ to_a_i(VALUE key, VALUE value, VALUE ary)
  */
 
 static VALUE
-rb_hash_to_a(VALUE hash)
+rb_hash_to_a(VALUE hash, SEL sel)
 {
     VALUE ary;
 
@@ -1095,7 +1159,9 @@ inspect_i(VALUE key, VALUE value, VALUE str)
 {
     VALUE str2;
 
-    if (key == Qundef) return ST_CONTINUE;
+    if (key == Qundef) {
+	return ST_CONTINUE;
+    }
     if (RSTRING_LEN(str) > 1) {
 	rb_str_cat2(str, ", ");
     }
@@ -1113,7 +1179,9 @@ inspect_hash(VALUE hash, VALUE dummy, int recur)
 {
     VALUE str;
 
-    if (recur) return rb_usascii_str_new2("{...}");
+    if (recur) {
+	return rb_usascii_str_new2("{...}");
+    }
     str = rb_str_buf_new2("{");
     rb_hash_foreach(hash, inspect_i, str);
     rb_str_buf_cat2(str, "}");
@@ -1134,7 +1202,7 @@ inspect_hash(VALUE hash, VALUE dummy, int recur)
  */
 
 static VALUE
-rb_hash_inspect(VALUE hash)
+rb_hash_inspect(VALUE hash, SEL sel)
 {
     if (RHASH_EMPTY_P(hash))
 	return rb_usascii_str_new2("{}");
@@ -1149,7 +1217,7 @@ rb_hash_inspect(VALUE hash)
  */
 
 static VALUE
-rb_hash_to_hash(VALUE hash)
+rb_hash_to_hash(VALUE hash, SEL sel)
 {
     return hash;
 }
@@ -1175,7 +1243,7 @@ keys_i(VALUE key, VALUE value, VALUE ary)
  */
 
 static VALUE
-rb_hash_keys(VALUE hash)
+rb_hash_keys_imp(VALUE hash, SEL sel)
 {
     VALUE ary;
 
@@ -1183,6 +1251,12 @@ rb_hash_keys(VALUE hash)
     rb_hash_foreach(hash, keys_i, ary);
 
     return ary;
+}
+
+VALUE
+rb_hash_keys(VALUE hash)
+{
+    return rb_hash_keys_imp(hash, 0);
 }
 
 static int
@@ -1205,8 +1279,8 @@ values_i(VALUE key, VALUE value, VALUE ary)
  *
  */
 
-VALUE
-rb_hash_values(VALUE hash)
+static VALUE
+rb_hash_values(VALUE hash, SEL sel)
 {
     VALUE ary;
 
@@ -1232,12 +1306,17 @@ rb_hash_values(VALUE hash)
  */
 
 static VALUE
+rb_hash_has_key_imp(VALUE hash, SEL sel, VALUE key)
+{
+    return CFDictionaryContainsKey((CFDictionaryRef)hash,
+	    (const void *)RB2OC(key))
+	? Qtrue : Qfalse;
+}
+
+VALUE
 rb_hash_has_key(VALUE hash, VALUE key)
 {
-    if (CFDictionaryContainsKey((CFDictionaryRef)hash, (const void *)RB2OC(key)))
-	return Qtrue;
-
-    return Qfalse;
+    return rb_hash_has_key_imp(hash, 0, key);
 }
 
 /*
@@ -1254,7 +1333,7 @@ rb_hash_has_key(VALUE hash, VALUE key)
  */
 
 static VALUE
-rb_hash_has_value(VALUE hash, VALUE val)
+rb_hash_has_value(VALUE hash, SEL sel, VALUE val)
 {
     return CFDictionaryContainsValue((CFDictionaryRef)hash, (const void *)RB2OC(val))
 	? Qtrue : Qfalse;
@@ -1298,7 +1377,7 @@ hash_equal(VALUE hash1, VALUE hash2, int eql)
  */
 
 static VALUE
-rb_hash_equal(VALUE hash1, VALUE hash2)
+rb_hash_equal(VALUE hash1, SEL sel, VALUE hash2)
 {
     return hash_equal(hash1, hash2, Qfalse);
 }
@@ -1312,7 +1391,7 @@ rb_hash_equal(VALUE hash1, VALUE hash2)
  */
 
 static VALUE
-rb_hash_eql(VALUE hash1, VALUE hash2)
+rb_hash_eql(VALUE hash1, SEL sel, VALUE hash2)
 {
     return hash_equal(hash1, hash2, Qtrue);
 }
@@ -1338,7 +1417,7 @@ rb_hash_invert_i(VALUE key, VALUE value, VALUE hash)
  */
 
 static VALUE
-rb_hash_invert(VALUE hash)
+rb_hash_invert(VALUE hash, SEL sel)
 {
     VALUE h = rb_hash_new();
 
@@ -1358,7 +1437,7 @@ static int
 rb_hash_update_block_i(VALUE key, VALUE value, VALUE hash)
 {
     if (key == Qundef) return ST_CONTINUE;
-    if (rb_hash_has_key(hash, key)) {
+    if (rb_hash_has_key_imp(hash, 0, key)) {
 	value = rb_yield_values(3, key, rb_hash_aref(hash, key), value);
     }
     rb_hash_aset(hash, key, value);
@@ -1389,7 +1468,7 @@ rb_hash_update_block_i(VALUE key, VALUE value, VALUE hash)
  */
 
 static VALUE
-rb_hash_update(VALUE hash1, VALUE hash2)
+rb_hash_update(VALUE hash1, SEL sel, VALUE hash2)
 {
     hash2 = to_hash(hash2);
     if (rb_block_given_p()) {
@@ -1418,9 +1497,9 @@ rb_hash_update(VALUE hash1, VALUE hash2)
  */
 
 static VALUE
-rb_hash_merge(VALUE hash1, VALUE hash2)
+rb_hash_merge(VALUE hash1, SEL sel, VALUE hash2)
 {
-    return rb_hash_update(rb_hash_dup(hash1), hash2);
+    return rb_hash_update(rb_hash_dup(hash1), 0, hash2);
 }
 
 static int
@@ -1449,7 +1528,7 @@ assoc_i(VALUE key, VALUE val, VALUE *args)
  */
 
 VALUE
-rb_hash_assoc(VALUE hash, VALUE obj)
+rb_hash_assoc(VALUE hash, SEL sel, VALUE obj)
 {
     VALUE args[2];
 
@@ -1484,7 +1563,7 @@ rassoc_i(VALUE key, VALUE val, VALUE *args)
  */
 
 VALUE
-rb_hash_rassoc(VALUE hash, VALUE obj)
+rb_hash_rassoc(VALUE hash, SEL sel, VALUE obj)
 {
     VALUE args[2];
 
@@ -1511,11 +1590,11 @@ rb_hash_rassoc(VALUE hash, VALUE obj)
  */
 
 static VALUE
-rb_hash_flatten(int argc, VALUE *argv, VALUE hash)
+rb_hash_flatten(VALUE hash, SEL sel, int argc, VALUE *argv)
 {
     VALUE ary, tmp;
 
-    ary = rb_hash_to_a(hash);
+    ary = rb_hash_to_a(hash, 0);
     if (argc == 0) {
 	argc = 1;
 	tmp = INT2FIX(1);
@@ -1542,7 +1621,7 @@ rb_hash_flatten(int argc, VALUE *argv, VALUE hash)
  */
 
 static VALUE
-rb_hash_compare_by_id(VALUE hash)
+rb_hash_compare_by_id(VALUE hash, SEL sel)
 {
     rb_hash_modify(hash);
 //    HASH_KEY_CALLBACKS(hash)->equal = NULL;
@@ -1559,7 +1638,7 @@ rb_hash_compare_by_id(VALUE hash)
  */
 
 static VALUE
-rb_hash_compare_by_id_p(VALUE hash)
+rb_hash_compare_by_id_p(VALUE hash, SEL sel)
 {
     return Qfalse;
 //    return HASH_KEY_CALLBACKS(hash) != &kCFTypeDictionaryKeyCallBacks 
@@ -1621,7 +1700,7 @@ env_delete(VALUE obj, VALUE name)
 }
 
 static VALUE
-env_delete_m(VALUE obj, VALUE name)
+env_delete_m(VALUE obj, SEL sel, VALUE name)
 {
     VALUE val;
 
@@ -1631,7 +1710,7 @@ env_delete_m(VALUE obj, VALUE name)
 }
 
 static VALUE
-rb_f_getenv(VALUE obj, VALUE name)
+rb_f_getenv(VALUE obj, SEL sel, VALUE name)
 {
     const char *nam, *env;
 
@@ -1660,7 +1739,7 @@ rb_f_getenv(VALUE obj, VALUE name)
 }
 
 static VALUE
-env_fetch(int argc, VALUE *argv)
+env_fetch(VALUE rcv, SEL sel, int argc, VALUE *argv)
 {
     VALUE key, if_none;
     long block_given;
@@ -1727,7 +1806,7 @@ ruby_unsetenv(const char *name)
 }
 
 static VALUE
-env_aset(VALUE obj, VALUE nm, VALUE val)
+env_aset(VALUE obj, SEL sel, VALUE nm, VALUE val)
 {
     const char *name, *value;
 
@@ -1736,16 +1815,19 @@ env_aset(VALUE obj, VALUE nm, VALUE val)
     }
 
     if (NIL_P(val)) {
-	rb_raise(rb_eTypeError, "cannot assign nil; use Hash#delete instead");
+	env_delete(obj, nm);
+	return Qnil;
     }
     StringValue(nm);
     StringValue(val);
     name = RSTRING_PTR(nm);
     value = RSTRING_PTR(val);
-    if (strlen(name) != RSTRING_LEN(nm))
+    if (strlen(name) != RSTRING_LEN(nm)) {
 	rb_raise(rb_eArgError, "bad environment variable name");
-    if (strlen(value) != RSTRING_LEN(val))
+    }
+    if (strlen(value) != RSTRING_LEN(val)) {
 	rb_raise(rb_eArgError, "bad environment variable value");
+    }
 
     ruby_setenv(name, value);
 #ifdef ENV_IGNORECASE
@@ -1766,7 +1848,7 @@ env_aset(VALUE obj, VALUE nm, VALUE val)
 }
 
 static VALUE
-env_keys(void)
+env_keys(VALUE rcv, SEL sel)
 {
     char **env;
     VALUE ary;
@@ -1786,21 +1868,22 @@ env_keys(void)
 }
 
 static VALUE
-env_each_key(VALUE ehash)
+env_each_key(VALUE ehash, SEL sel)
 {
     VALUE keys;
     long i;
 
     RETURN_ENUMERATOR(ehash, 0, 0);
-    keys = env_keys();	/* rb_secure(4); */
+    keys = env_keys(Qnil, 0);	/* rb_secure(4); */
     for (i=0; i<RARRAY_LEN(keys); i++) {
 	rb_yield(RARRAY_AT(keys, i));
+	RETURN_IF_BROKEN();
     }
     return ehash;
 }
 
 static VALUE
-env_values(void)
+env_values(VALUE rcv, SEL sel)
 {
     VALUE ary;
     char **env;
@@ -1820,21 +1903,22 @@ env_values(void)
 }
 
 static VALUE
-env_each_value(VALUE ehash)
+env_each_value(VALUE ehash, SEL sel)
 {
     VALUE values;
     long i;
 
     RETURN_ENUMERATOR(ehash, 0, 0);
-    values = env_values();	/* rb_secure(4); */
+    values = env_values(Qnil, 0);	/* rb_secure(4); */
     for (i=0; i<RARRAY_LEN(values); i++) {
 	rb_yield(RARRAY_AT(values, i));
+	RETURN_IF_BROKEN();
     }
     return ehash;
 }
 
 static VALUE
-env_each_pair(VALUE ehash)
+env_each_pair(VALUE ehash, SEL sel)
 {
     char **env;
     VALUE ary;
@@ -1857,23 +1941,26 @@ env_each_pair(VALUE ehash)
 
     for (i=0; i<RARRAY_LEN(ary); i+=2) {
 	rb_yield(rb_assoc_new(RARRAY_AT(ary, i), RARRAY_AT(ary, i+1)));
+	RETURN_IF_BROKEN();
     }
     return ehash;
 }
 
 static VALUE
-env_reject_bang(VALUE ehash)
+env_reject_bang(VALUE ehash, SEL sel)
 {
     volatile VALUE keys;
     long i;
     int del = 0;
 
     RETURN_ENUMERATOR(ehash, 0, 0);
-    keys = env_keys();	/* rb_secure(4); */
+    keys = env_keys(Qnil, 0);	/* rb_secure(4); */
     for (i=0; i<RARRAY_LEN(keys); i++) {
-	VALUE val = rb_f_getenv(Qnil, RARRAY_AT(keys, i));
+	VALUE val = rb_f_getenv(Qnil, 0, RARRAY_AT(keys, i));
 	if (!NIL_P(val)) {
-	    if (RTEST(rb_yield_values(2, RARRAY_AT(keys, i), val))) {
+	    VALUE v = rb_yield_values(2, RARRAY_AT(keys, i), val);
+	    RETURN_IF_BROKEN();
+	    if (RTEST(v)) {
 		rb_obj_untaint(RARRAY_AT(keys, i));
 		env_delete(Qnil, RARRAY_AT(keys, i));
 		del++;
@@ -1885,15 +1972,15 @@ env_reject_bang(VALUE ehash)
 }
 
 static VALUE
-env_delete_if(VALUE ehash)
+env_delete_if(VALUE ehash, SEL sel)
 {
     RETURN_ENUMERATOR(ehash, 0, 0);
-    env_reject_bang(ehash);
+    env_reject_bang(ehash, 0);
     return envtbl;
 }
 
 static VALUE
-env_values_at(int argc, VALUE *argv)
+env_values_at(VALUE rcv, SEL sel, int argc, VALUE *argv)
 {
     VALUE result;
     long i;
@@ -1901,13 +1988,13 @@ env_values_at(int argc, VALUE *argv)
     rb_secure(4);
     result = rb_ary_new();
     for (i=0; i<argc; i++) {
-	rb_ary_push(result, rb_f_getenv(Qnil, argv[i]));
+	rb_ary_push(result, rb_f_getenv(Qnil, 0, argv[i]));
     }
     return result;
 }
 
 static VALUE
-env_select(VALUE ehash)
+env_select(VALUE ehash, SEL sel)
 {
     VALUE result;
     char **env;
@@ -1921,7 +2008,9 @@ env_select(VALUE ehash)
 	if (s) {
 	    VALUE k = env_str_new(*env, s-*env);
 	    VALUE v = env_str_new2(s+1);
-	    if (RTEST(rb_yield_values(2, k, v))) {
+	    VALUE v2 = rb_yield_values(2, k, v);
+	    RETURN_IF_BROKEN();
+	    if (RTEST(v2)) {
 		rb_hash_aset(result, k, v);
 	    }
 	}
@@ -1932,15 +2021,15 @@ env_select(VALUE ehash)
     return result;
 }
 
-VALUE
-rb_env_clear(void)
+static VALUE
+rb_env_clear_imp(VALUE rcv, SEL sel)
 {
-    volatile VALUE keys;
+    VALUE keys;
     long i;
 
-    keys = env_keys();	/* rb_secure(4); */
+    keys = env_keys(Qnil, 0);	/* rb_secure(4); */
     for (i=0; i<RARRAY_LEN(keys); i++) {
-	VALUE val = rb_f_getenv(Qnil, RARRAY_AT(keys, i));
+	VALUE val = rb_f_getenv(Qnil, 0, RARRAY_AT(keys, i));
 	if (!NIL_P(val)) {
 	    env_delete(Qnil, RARRAY_AT(keys, i));
 	}
@@ -1948,14 +2037,20 @@ rb_env_clear(void)
     return envtbl;
 }
 
+VALUE
+rb_env_clear(void)
+{
+    return rb_env_clear_imp(Qnil, 0);
+}
+
 static VALUE
-env_to_s(void)
+env_to_s(VALUE rcv, SEL sel)
 {
     return rb_usascii_str_new2("ENV");
 }
 
 static VALUE
-env_inspect(void)
+env_inspect(VALUE rcv, SEL sel)
 {
     char **env;
     VALUE str, i;
@@ -1986,7 +2081,7 @@ env_inspect(void)
 }
 
 static VALUE
-env_to_a(void)
+env_to_a(VALUE rcv, SEL sel)
 {
     char **env;
     VALUE ary;
@@ -2007,13 +2102,13 @@ env_to_a(void)
 }
 
 static VALUE
-env_none(void)
+env_none(VALUE rcv, SEL sel)
 {
     return Qnil;
 }
 
 static VALUE
-env_size(void)
+env_size(VALUE rcv, SEL sel)
 {
     int i;
     char **env;
@@ -2027,7 +2122,7 @@ env_size(void)
 }
 
 static VALUE
-env_empty_p(void)
+env_empty_p(VALUE rcv, SEL sel)
 {
     char **env;
 
@@ -2042,7 +2137,7 @@ env_empty_p(void)
 }
 
 static VALUE
-env_has_key(VALUE env, VALUE key)
+env_has_key(VALUE env, SEL sel, VALUE key)
 {
     char *s;
 
@@ -2055,7 +2150,7 @@ env_has_key(VALUE env, VALUE key)
 }
 
 static VALUE
-env_assoc(VALUE env, VALUE key)
+env_assoc(VALUE env, SEL sel, VALUE key)
 {
     char *s, *e;
 
@@ -2069,7 +2164,7 @@ env_assoc(VALUE env, VALUE key)
 }
 
 static VALUE
-env_has_value(VALUE dmy, VALUE obj)
+env_has_value(VALUE dmy, SEL sel, VALUE obj)
 {
     char **env;
 
@@ -2118,7 +2213,7 @@ env_rassoc(VALUE dmy, VALUE obj)
 }
 
 static VALUE
-env_key(VALUE dmy, VALUE value)
+env_key(VALUE dmy, SEL sel, VALUE value)
 {
     char **env;
     VALUE str;
@@ -2143,14 +2238,14 @@ env_key(VALUE dmy, VALUE value)
 }
 
 static VALUE
-env_index(VALUE dmy, VALUE value)
+env_index(VALUE dmy, SEL sel, VALUE value)
 {
     rb_warn("ENV.index is deprecated; use ENV.key");
-    return env_key(dmy, value);
+    return env_key(dmy, 0, value);
 }
 
 static VALUE
-env_to_hash(void)
+env_to_hash(VALUE rcv, SEL sel)
 {
     char **env;
     VALUE hash;
@@ -2171,13 +2266,13 @@ env_to_hash(void)
 }
 
 static VALUE
-env_reject(void)
+env_reject(VALUE rcv, SEL sel)
 {
-    return rb_hash_delete_if(env_to_hash());
+    return rb_hash_delete_if(env_to_hash(Qnil, 0), 0);
 }
 
 static VALUE
-env_shift(void)
+env_shift(VALUE rcv, SEL sel)
 {
     char **env;
 
@@ -2197,16 +2292,16 @@ env_shift(void)
 }
 
 static VALUE
-env_invert(void)
+env_invert(VALUE rcv, SEL sel)
 {
-    return rb_hash_invert(env_to_hash());
+    return rb_hash_invert(env_to_hash(Qnil, 0), 0);
 }
 
 static int
 env_replace_i(VALUE key, VALUE val, VALUE keys)
 {
     if (key != Qundef) {
-	env_aset(Qnil, key, val);
+	env_aset(Qnil, 0, key, val);
 	if (rb_ary_includes(keys, key)) {
 	    rb_ary_delete(keys, key);
 	}
@@ -2215,12 +2310,12 @@ env_replace_i(VALUE key, VALUE val, VALUE keys)
 }
 
 static VALUE
-env_replace(VALUE env, VALUE hash)
+env_replace(VALUE env, SEL sel, VALUE hash)
 {
     volatile VALUE keys;
     long i;
 
-    keys = env_keys();	/* rb_secure(4); */
+    keys = env_keys(Qnil, 0);	/* rb_secure(4); */
     if (env == hash) return env;
     hash = to_hash(hash);
     rb_hash_foreach(hash, env_replace_i, keys);
@@ -2236,15 +2331,16 @@ env_update_i(VALUE key, VALUE val)
 {
     if (key != Qundef) {
 	if (rb_block_given_p()) {
-	    val = rb_yield_values(3, key, rb_f_getenv(Qnil, key), val);
+	    val = rb_yield_values(3, key, rb_f_getenv(Qnil, 0, key), val);
+	    RETURN_IF_BROKEN();
 	}
-	env_aset(Qnil, key, val);
+	env_aset(Qnil, 0, key, val);
     }
     return ST_CONTINUE;
 }
 
 static VALUE
-env_update(VALUE env, VALUE hash)
+env_update(VALUE env, SEL sel, VALUE hash)
 {
     rb_secure(4);
     if (env == hash) return env;
@@ -2282,7 +2378,7 @@ imp_rb_hash_keyEnumerator(void *rcv, SEL sel)
     void *keys;
     static SEL objectEnumerator = 0;
     PREPARE_RCV(rcv);
-    keys = (void *)rb_hash_keys((VALUE)rcv);
+    keys = (void *)rb_hash_keys_imp((VALUE)rcv, 0);
     RESTORE_RCV(rcv);
     if (objectEnumerator == 0)
 	objectEnumerator = sel_registerName("objectEnumerator");
@@ -2360,16 +2456,29 @@ void
 rb_objc_install_hash_primitives(Class klass)
 {
     rb_objc_install_method2(klass, "count", (IMP)imp_rb_hash_count);
-    rb_objc_install_method2(klass, "keyEnumerator", (IMP)imp_rb_hash_keyEnumerator);
-    rb_objc_install_method2(klass, "objectForKey:", (IMP)imp_rb_hash_objectForKey);
-    rb_objc_install_method2(klass, "getObjects:andKeys:", (IMP)imp_rb_hash_getObjectsAndKeys);
-    rb_objc_install_method2(klass, "setObject:forKey:", (IMP)imp_rb_hash_setObjectForKey);
-    rb_objc_install_method2(klass, "removeObjectForKey:", (IMP)imp_rb_hash_removeObjectForKey);
-    rb_objc_install_method2(klass, "removeAllObjects", (IMP)imp_rb_hash_removeAllObjects);
+    rb_objc_install_method2(klass, "keyEnumerator",
+	    (IMP)imp_rb_hash_keyEnumerator);
+    rb_objc_install_method2(klass, "objectForKey:",
+	    (IMP)imp_rb_hash_objectForKey);
+    rb_objc_install_method2(klass, "getObjects:andKeys:",
+	    (IMP)imp_rb_hash_getObjectsAndKeys);
     rb_objc_install_method2(klass, "isEqual:", (IMP)imp_rb_hash_isEqual);
-    rb_objc_install_method2(klass, "containsObject:", (IMP)imp_rb_hash_containsObject);
+    rb_objc_install_method2(klass, "containsObject:",
+	    (IMP)imp_rb_hash_containsObject);
 
-    rb_define_alloc_func((VALUE)klass, hash_alloc);
+    const bool mutable = class_getSuperclass(klass)
+	== (Class)rb_cNSMutableHash; 
+
+    if (mutable) {
+	rb_objc_install_method2(klass, "setObject:forKey:",
+		(IMP)imp_rb_hash_setObjectForKey);
+	rb_objc_install_method2(klass, "removeObjectForKey:",
+		(IMP)imp_rb_hash_removeObjectForKey);
+	rb_objc_install_method2(klass, "removeAllObjects",
+		(IMP)imp_rb_hash_removeAllObjects);
+    }
+
+    rb_objc_define_method(*(VALUE *)klass, "alloc", hash_alloc, 0);
 }
 
 /*
@@ -2388,11 +2497,16 @@ rb_objc_install_hash_primitives(Class klass)
 void
 Init_Hash(void)
 {
+    selDefault = sel_registerName("default:");
+    defaultCache = rb_vm_get_call_cache(selDefault);
+
     id_hash = rb_intern("hash");
     id_yield = rb_intern("yield");
-    id_default = rb_intern("default");
 
     rb_cCFHash = (VALUE)objc_getClass("NSCFDictionary");
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
+    rb_cNSHash0 = (VALUE)objc_getClass("__NSDictionary0");
+#endif
     rb_const_set(rb_cObject, rb_intern("NSCFDictionary"), rb_cCFHash);
     rb_cHash = rb_cNSHash = (VALUE)objc_getClass("NSDictionary");
     rb_cNSMutableHash = (VALUE)objc_getClass("NSMutableDictionary");
@@ -2402,117 +2516,117 @@ Init_Hash(void)
     rb_include_module(rb_cHash, rb_mEnumerable);
 
     /* to return mutable copies */
-    rb_define_method(rb_cHash, "dup", rb_hash_dup, 0);
-    rb_define_method(rb_cHash, "clone", rb_hash_clone, 0);
+    rb_objc_define_method(rb_cHash, "dup", rb_hash_dup_imp, 0);
+    rb_objc_define_method(rb_cHash, "clone", rb_hash_clone, 0);
 
-    rb_define_singleton_method(rb_cHash, "[]", rb_hash_s_create, -1);
-    rb_define_singleton_method(rb_cHash, "try_convert", rb_hash_s_try_convert, 1);
-    rb_define_method(rb_cHash,"initialize", rb_hash_initialize, -1);
-    rb_define_method(rb_cHash,"initialize_copy", rb_hash_replace, 1);
-    rb_define_method(rb_cHash,"rehash", rb_hash_rehash, 0);
+    rb_objc_define_method(*(VALUE *)rb_cHash, "[]", rb_hash_s_create, -1);
+    rb_objc_define_method(*(VALUE *)rb_cHash, "try_convert", rb_hash_s_try_convert, 1);
+    rb_objc_define_method(rb_cHash, "initialize", rb_hash_initialize, -1);
+    rb_objc_define_method(rb_cHash, "initialize_copy", rb_hash_replace, 1);
+    rb_objc_define_method(rb_cHash, "rehash", rb_hash_rehash, 0);
 
-    rb_define_method(rb_cHash,"to_hash", rb_hash_to_hash, 0);
-    rb_define_method(rb_cHash,"to_a", rb_hash_to_a, 0);
-    rb_define_method(rb_cHash,"to_s", rb_hash_inspect, 0);
-    rb_define_method(rb_cHash,"inspect", rb_hash_inspect, 0);
+    rb_objc_define_method(rb_cHash, "to_hash", rb_hash_to_hash, 0);
+    rb_objc_define_method(rb_cHash, "to_a", rb_hash_to_a, 0);
+    rb_objc_define_method(rb_cHash, "to_s", rb_hash_inspect, 0);
+    rb_objc_define_method(rb_cHash, "inspect", rb_hash_inspect, 0);
 
-    rb_define_method(rb_cHash,"==", rb_hash_equal, 1);
-    rb_define_method(rb_cHash,"[]", rb_hash_aref, 1);
-    rb_define_method(rb_cHash,"eql?", rb_hash_eql, 1);
-    rb_define_method(rb_cHash,"fetch", rb_hash_fetch, -1);
-    rb_define_method(rb_cHash,"[]=", rb_hash_aset, 2);
-    rb_define_method(rb_cHash,"store", rb_hash_aset, 2);
-    rb_define_method(rb_cHash,"default", rb_hash_default, -1);
-    rb_define_method(rb_cHash,"default=", rb_hash_set_default, 1);
-    rb_define_method(rb_cHash,"default_proc", rb_hash_default_proc, 0);
-    rb_define_method(rb_cHash,"key", rb_hash_key, 1);
-    rb_define_method(rb_cHash,"index", rb_hash_index, 1);
-    rb_define_method(rb_cHash,"size", rb_hash_size, 0);
-    rb_define_method(rb_cHash,"length", rb_hash_size, 0);
-    rb_define_method(rb_cHash,"empty?", rb_hash_empty_p, 0);
+    rb_objc_define_method(rb_cHash, "==", rb_hash_equal, 1);
+    rb_objc_define_method(rb_cHash, "[]", rb_hash_aref_imp, 1);
+    rb_objc_define_method(rb_cHash, "eql?", rb_hash_eql, 1);
+    rb_objc_define_method(rb_cHash, "fetch", rb_hash_fetch, -1);
+    rb_objc_define_method(rb_cHash, "[]=", rb_hash_aset_imp, 2);
+    rb_objc_define_method(rb_cHash, "store", rb_hash_aset_imp, 2);
+    rb_objc_define_method(rb_cHash, "default", rb_hash_default, -1);
+    rb_objc_define_method(rb_cHash, "default=", rb_hash_set_default, 1);
+    rb_objc_define_method(rb_cHash, "default_proc", rb_hash_default_proc, 0);
+    rb_objc_define_method(rb_cHash, "key", rb_hash_key, 1);
+    rb_objc_define_method(rb_cHash, "index", rb_hash_index, 1);
+    rb_objc_define_method(rb_cHash, "size", rb_hash_size, 0);
+    rb_objc_define_method(rb_cHash, "length", rb_hash_size, 0);
+    rb_objc_define_method(rb_cHash, "empty?", rb_hash_empty_p, 0);
 
-    rb_define_method(rb_cHash,"each_value", rb_hash_each_value, 0);
-    rb_define_method(rb_cHash,"each_key", rb_hash_each_key, 0);
-    rb_define_method(rb_cHash,"each_pair", rb_hash_each_pair, 0);
-    rb_define_method(rb_cHash,"each", rb_hash_each_pair, 0);
+    rb_objc_define_method(rb_cHash, "each_value", rb_hash_each_value, 0);
+    rb_objc_define_method(rb_cHash, "each_key", rb_hash_each_key, 0);
+    rb_objc_define_method(rb_cHash, "each_pair", rb_hash_each_pair, 0);
+    rb_objc_define_method(rb_cHash, "each", rb_hash_each_pair, 0);
 
-    rb_define_method(rb_cHash,"keys", rb_hash_keys, 0);
-    rb_define_method(rb_cHash,"values", rb_hash_values, 0);
-    rb_define_method(rb_cHash,"values_at", rb_hash_values_at, -1);
+    rb_objc_define_method(rb_cHash, "keys", rb_hash_keys_imp, 0);
+    rb_objc_define_method(rb_cHash, "values", rb_hash_values, 0);
+    rb_objc_define_method(rb_cHash, "values_at", rb_hash_values_at, -1);
 
-    rb_define_method(rb_cHash,"shift", rb_hash_shift, 0);
-    rb_define_method(rb_cHash,"delete", rb_hash_delete, 1);
-    rb_define_method(rb_cHash,"delete_if", rb_hash_delete_if, 0);
-    rb_define_method(rb_cHash,"select", rb_hash_select, 0);
-    rb_define_method(rb_cHash,"reject", rb_hash_reject, 0);
-    rb_define_method(rb_cHash,"reject!", rb_hash_reject_bang, 0);
-    rb_define_method(rb_cHash,"clear", rb_hash_clear, 0);
-    rb_define_method(rb_cHash,"invert", rb_hash_invert, 0);
+    rb_objc_define_method(rb_cHash, "shift", rb_hash_shift, 0);
+    rb_objc_define_method(rb_cHash, "delete", rb_hash_delete_imp, 1);
+    rb_objc_define_method(rb_cHash, "delete_if", rb_hash_delete_if, 0);
+    rb_objc_define_method(rb_cHash, "select", rb_hash_select, 0);
+    rb_objc_define_method(rb_cHash, "reject", rb_hash_reject, 0);
+    rb_objc_define_method(rb_cHash, "reject!", rb_hash_reject_bang, 0);
+    rb_objc_define_method(rb_cHash, "clear", rb_hash_clear, 0);
+    rb_objc_define_method(rb_cHash, "invert", rb_hash_invert, 0);
 
     /* to override the private -[NSMutableDictionary invert] method */
-    rb_define_method(rb_cNSMutableHash,"invert", rb_hash_invert, 0);
+    rb_objc_define_method(rb_cNSMutableHash, "invert", rb_hash_invert, 0);
 
-    rb_define_method(rb_cHash,"update", rb_hash_update, 1);
-    rb_define_method(rb_cHash,"replace", rb_hash_replace, 1);
-    rb_define_method(rb_cHash,"merge!", rb_hash_update, 1);
-    rb_define_method(rb_cHash,"merge", rb_hash_merge, 1);
-    rb_define_method(rb_cHash, "assoc", rb_hash_assoc, 1);
-    rb_define_method(rb_cHash, "rassoc", rb_hash_rassoc, 1);
-    rb_define_method(rb_cHash, "flatten", rb_hash_flatten, -1);
+    rb_objc_define_method(rb_cHash, "update", rb_hash_update, 1);
+    rb_objc_define_method(rb_cHash, "replace", rb_hash_replace, 1);
+    rb_objc_define_method(rb_cHash, "merge!", rb_hash_update, 1);
+    rb_objc_define_method(rb_cHash, "merge", rb_hash_merge, 1);
+    rb_objc_define_method(rb_cHash, "assoc", rb_hash_assoc, 1);
+    rb_objc_define_method(rb_cHash, "rassoc", rb_hash_rassoc, 1);
+    rb_objc_define_method(rb_cHash, "flatten", rb_hash_flatten, -1);
 
-    rb_define_method(rb_cHash,"include?", rb_hash_has_key, 1);
-    rb_define_method(rb_cHash,"member?", rb_hash_has_key, 1);
-    rb_define_method(rb_cHash,"has_key?", rb_hash_has_key, 1);
-    rb_define_method(rb_cHash,"has_value?", rb_hash_has_value, 1);
-    rb_define_method(rb_cHash,"key?", rb_hash_has_key, 1);
-    rb_define_method(rb_cHash,"value?", rb_hash_has_value, 1);
+    rb_objc_define_method(rb_cHash, "include?", rb_hash_has_key_imp, 1);
+    rb_objc_define_method(rb_cHash, "member?", rb_hash_has_key_imp, 1);
+    rb_objc_define_method(rb_cHash, "has_key?", rb_hash_has_key_imp, 1);
+    rb_objc_define_method(rb_cHash, "has_value?", rb_hash_has_value, 1);
+    rb_objc_define_method(rb_cHash, "key?", rb_hash_has_key_imp, 1);
+    rb_objc_define_method(rb_cHash, "value?", rb_hash_has_value, 1);
 
-    rb_define_method(rb_cHash,"compare_by_identity", rb_hash_compare_by_id, 0);
-    rb_define_method(rb_cHash,"compare_by_identity?", rb_hash_compare_by_id_p, 0);
+    rb_objc_define_method(rb_cHash, "compare_by_identity", rb_hash_compare_by_id, 0);
+    rb_objc_define_method(rb_cHash, "compare_by_identity?", rb_hash_compare_by_id_p, 0);
 
     origenviron = environ;
     envtbl = rb_obj_alloc(rb_cObject);
     rb_extend_object(envtbl, rb_mEnumerable);
 
-    rb_define_singleton_method(envtbl,"[]", rb_f_getenv, 1);
-    rb_define_singleton_method(envtbl,"fetch", env_fetch, -1);
-    rb_define_singleton_method(envtbl,"[]=", env_aset, 2);
-    rb_define_singleton_method(envtbl,"store", env_aset, 2);
-    rb_define_singleton_method(envtbl,"each", env_each_pair, 0);
-    rb_define_singleton_method(envtbl,"each_pair", env_each_pair, 0);
-    rb_define_singleton_method(envtbl,"each_key", env_each_key, 0);
-    rb_define_singleton_method(envtbl,"each_value", env_each_value, 0);
-    rb_define_singleton_method(envtbl,"delete", env_delete_m, 1);
-    rb_define_singleton_method(envtbl,"delete_if", env_delete_if, 0);
-    rb_define_singleton_method(envtbl,"clear", rb_env_clear, 0);
-    rb_define_singleton_method(envtbl,"reject", env_reject, 0);
-    rb_define_singleton_method(envtbl,"reject!", env_reject_bang, 0);
-    rb_define_singleton_method(envtbl,"select", env_select, 0);
-    rb_define_singleton_method(envtbl,"shift", env_shift, 0);
-    rb_define_singleton_method(envtbl,"invert", env_invert, 0);
-    rb_define_singleton_method(envtbl,"replace", env_replace, 1);
-    rb_define_singleton_method(envtbl,"update", env_update, 1);
-    rb_define_singleton_method(envtbl,"inspect", env_inspect, 0);
-    rb_define_singleton_method(envtbl,"rehash", env_none, 0);
-    rb_define_singleton_method(envtbl,"to_a", env_to_a, 0);
-    rb_define_singleton_method(envtbl,"to_s", env_to_s, 0);
-    rb_define_singleton_method(envtbl,"key", env_key, 1);
-    rb_define_singleton_method(envtbl,"index", env_index, 1);
-    rb_define_singleton_method(envtbl,"size", env_size, 0);
-    rb_define_singleton_method(envtbl,"length", env_size, 0);
-    rb_define_singleton_method(envtbl,"empty?", env_empty_p, 0);
-    rb_define_singleton_method(envtbl,"keys", env_keys, 0);
-    rb_define_singleton_method(envtbl,"values", env_values, 0);
-    rb_define_singleton_method(envtbl,"values_at", env_values_at, -1);
-    rb_define_singleton_method(envtbl,"include?", env_has_key, 1);
-    rb_define_singleton_method(envtbl,"member?", env_has_key, 1);
-    rb_define_singleton_method(envtbl,"has_key?", env_has_key, 1);
-    rb_define_singleton_method(envtbl,"has_value?", env_has_value, 1);
-    rb_define_singleton_method(envtbl,"key?", env_has_key, 1);
-    rb_define_singleton_method(envtbl,"value?", env_has_value, 1);
-    rb_define_singleton_method(envtbl,"to_hash", env_to_hash, 0);
-    rb_define_singleton_method(envtbl,"assoc", env_assoc, 1);
-    rb_define_singleton_method(envtbl,"rassoc", env_rassoc, 1);
+    rb_objc_define_method(*(VALUE *)envtbl, "[]", rb_f_getenv, 1);
+    rb_objc_define_method(*(VALUE *)envtbl, "fetch", env_fetch, -1);
+    rb_objc_define_method(*(VALUE *)envtbl, "[]=", env_aset, 2);
+    rb_objc_define_method(*(VALUE *)envtbl, "store", env_aset, 2);
+    rb_objc_define_method(*(VALUE *)envtbl, "each", env_each_pair, 0);
+    rb_objc_define_method(*(VALUE *)envtbl, "each_pair", env_each_pair, 0);
+    rb_objc_define_method(*(VALUE *)envtbl, "each_key", env_each_key, 0);
+    rb_objc_define_method(*(VALUE *)envtbl, "each_value", env_each_value, 0);
+    rb_objc_define_method(*(VALUE *)envtbl, "delete", env_delete_m, 1);
+    rb_objc_define_method(*(VALUE *)envtbl, "delete_if", env_delete_if, 0);
+    rb_objc_define_method(*(VALUE *)envtbl, "clear", rb_env_clear_imp, 0);
+    rb_objc_define_method(*(VALUE *)envtbl, "reject", env_reject, 0);
+    rb_objc_define_method(*(VALUE *)envtbl, "reject!", env_reject_bang, 0);
+    rb_objc_define_method(*(VALUE *)envtbl, "select", env_select, 0);
+    rb_objc_define_method(*(VALUE *)envtbl, "shift", env_shift, 0);
+    rb_objc_define_method(*(VALUE *)envtbl, "invert", env_invert, 0);
+    rb_objc_define_method(*(VALUE *)envtbl, "replace", env_replace, 1);
+    rb_objc_define_method(*(VALUE *)envtbl, "update", env_update, 1);
+    rb_objc_define_method(*(VALUE *)envtbl, "inspect", env_inspect, 0);
+    rb_objc_define_method(*(VALUE *)envtbl, "rehash", env_none, 0);
+    rb_objc_define_method(*(VALUE *)envtbl, "to_a", env_to_a, 0);
+    rb_objc_define_method(*(VALUE *)envtbl, "to_s", env_to_s, 0);
+    rb_objc_define_method(*(VALUE *)envtbl, "key", env_key, 1);
+    rb_objc_define_method(*(VALUE *)envtbl, "index", env_index, 1);
+    rb_objc_define_method(*(VALUE *)envtbl, "size", env_size, 0);
+    rb_objc_define_method(*(VALUE *)envtbl, "length", env_size, 0);
+    rb_objc_define_method(*(VALUE *)envtbl, "empty?", env_empty_p, 0);
+    rb_objc_define_method(*(VALUE *)envtbl, "keys", env_keys, 0);
+    rb_objc_define_method(*(VALUE *)envtbl, "values", env_values, 0);
+    rb_objc_define_method(*(VALUE *)envtbl, "values_at", env_values_at, -1);
+    rb_objc_define_method(*(VALUE *)envtbl, "include?", env_has_key, 1);
+    rb_objc_define_method(*(VALUE *)envtbl, "member?", env_has_key, 1);
+    rb_objc_define_method(*(VALUE *)envtbl, "has_key?", env_has_key, 1);
+    rb_objc_define_method(*(VALUE *)envtbl, "has_value?", env_has_value, 1);
+    rb_objc_define_method(*(VALUE *)envtbl, "key?", env_has_key, 1);
+    rb_objc_define_method(*(VALUE *)envtbl, "value?", env_has_value, 1);
+    rb_objc_define_method(*(VALUE *)envtbl, "to_hash", env_to_hash, 0);
+    rb_objc_define_method(*(VALUE *)envtbl, "assoc", env_assoc, 1);
+    rb_objc_define_method(*(VALUE *)envtbl, "rassoc", env_rassoc, 1);
 
     rb_define_global_const("ENV", envtbl);
 }

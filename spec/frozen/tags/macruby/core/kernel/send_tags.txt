@@ -1,0 +1,2 @@
+fails:Kernel#send raises an ArgumentError if called with more arguments than available parameters
+fails:Kernel#send raises an ArgumentError if called with fewer arguments than required parameters

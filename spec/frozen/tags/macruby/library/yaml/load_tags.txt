@@ -1,0 +1,1 @@
+fails:YAML.load works on complex keys

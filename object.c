@@ -12,13 +12,15 @@
 #include "ruby/ruby.h"
 #include "ruby/st.h"
 #include "ruby/util.h"
-#include "debug.h"
+#include "ruby/node.h"
 #include "id.h"
 #include <stdio.h>
 #include <errno.h>
 #include <ctype.h>
 #include <math.h>
 #include <float.h>
+#include "objc.h"
+#include "vm.h"
 
 VALUE rb_cBasicObject;
 VALUE rb_mKernel;
@@ -34,6 +36,18 @@ VALUE rb_cFalseClass;
 
 static ID id_eq, id_eql, id_match, id_inspect, id_init_copy;
 
+static void *allocCache = NULL;
+static void *initializeCache = NULL;
+static void *initialize2Cache = NULL;
+static void *eqCache = NULL;
+static void *dupCache = NULL;
+
+inline VALUE
+rb_send_dup(VALUE obj)
+{
+    return rb_vm_call_with_cache(dupCache, obj, selDup, 0, NULL);
+}
+
 /*
  *  call-seq:
  *     obj === other   => true or false
@@ -43,15 +57,25 @@ static ID id_eq, id_eql, id_match, id_inspect, id_init_copy;
  *  to provide meaningful semantics in <code>case</code> statements.
  */
 
-VALUE
+inline VALUE
 rb_equal(VALUE obj1, VALUE obj2)
 {
     VALUE result;
 
-    if (obj1 == obj2) return Qtrue;
-    result = rb_funcall(obj1, id_eq, 1, obj2);
-    if (RTEST(result)) return Qtrue;
+    if (obj1 == obj2) {
+	return Qtrue;
+    }
+    result = rb_vm_call_with_cache(eqCache, obj1, selEq, 1, &obj2);
+    if (RTEST(result)) {
+	return Qtrue;
+    }
     return Qfalse;
+}
+
+static VALUE
+rb_equal_imp(VALUE obj1, SEL sel, VALUE obj2)
+{
+    return rb_equal(obj1, obj2);
 }
 
 int
@@ -89,8 +113,8 @@ rb_eql(VALUE obj1, VALUE obj2)
  *     1.eql? 1.0   #=> false
  */
 
-VALUE
-rb_obj_equal(VALUE obj1, VALUE obj2)
+static VALUE
+rb_obj_equal(VALUE obj1, SEL sel, VALUE obj2)
 {
     if (obj1 == obj2) return Qtrue;
     return Qfalse;
@@ -103,8 +127,8 @@ rb_obj_equal(VALUE obj1, VALUE obj2)
  *  Boolean negate.
  */
 
-VALUE
-rb_obj_not(VALUE obj)
+static VALUE
+rb_obj_not(VALUE obj, SEL sel)
 {
     return RTEST(obj) ? Qfalse : Qtrue;
 }
@@ -116,10 +140,10 @@ rb_obj_not(VALUE obj)
  *  Returns true if two objects are not-equal, otherwise false.
  */
 
-VALUE
-rb_obj_not_equal(VALUE obj1, VALUE obj2)
+static VALUE
+rb_obj_not_equal(VALUE obj1, SEL sel, VALUE obj2)
 {
-    VALUE result = rb_funcall(obj1, id_eq, 1, obj2);
+    VALUE result = rb_vm_call_with_cache(eqCache, obj1, selEq, 1, &obj2);
     return RTEST(result) ? Qfalse : Qtrue;
 }
 
@@ -173,15 +197,20 @@ init_copy(VALUE dest, VALUE obj)
 	    case T_STRING:
 	    case T_ARRAY:
 	    case T_HASH:
-		if (RCLASS_RC_FLAGS(obj) & FL_TAINT)
+		if (RCLASS_RC_FLAGS(obj) & FL_TAINT) {
 		    RCLASS_RC_FLAGS(dest) |= FL_TAINT;
+		}
+		/* fall through */
 	    default:
-		if (rb_objc_flag_check((const void *)obj, FL_TAINT))
+		if (rb_objc_flag_check((const void *)obj, FL_TAINT)) {
 		    rb_objc_flag_set((const void *)dest, FL_TAINT, true);
+		}
+		break;
 	}
 #else
-	if (rb_objc_flag_check((const void *)obj, FL_TAINT))
+	if (rb_objc_flag_check((const void *)obj, FL_TAINT)) {
 	    rb_objc_flag_set((const void *)dest, FL_TAINT, true);
+	}
 #endif
 	goto call_init_copy;
     }
@@ -193,34 +222,25 @@ init_copy(VALUE dest, VALUE obj)
     rb_copy_generic_ivar(dest, obj);
     rb_gc_copy_finalizer(dest, obj);
     switch (TYPE(obj)) {
-      case T_OBJECT:
-	ROBJECT(dest)->ivars.type = ROBJECT(obj)->ivars.type;
-	switch (RB_IVAR_TYPE(ROBJECT(obj)->ivars)) {
-	    case RB_IVAR_ARY:
-	    {
+	case T_OBJECT:
+	    if (ROBJECT(obj)->tbl != NULL) {
+		CFMutableDictionaryRef new_tbl;
+		new_tbl = CFDictionaryCreateMutableCopy(NULL, 0, (CFDictionaryRef)ROBJECT(obj)->tbl);
+		assert(new_tbl != NULL);
+		GC_WB(&ROBJECT(dest)->tbl, new_tbl);
+		CFMakeCollectable(new_tbl);
+	    }
+	    else {
+		ROBJECT(dest)->tbl = NULL;
+	    }
+	    ROBJECT(dest)->num_slots = ROBJECT(obj)->num_slots;
+	    if (ROBJECT(dest)->num_slots > 0) {
 		int i;
-		GC_WB(&ROBJECT(dest)->ivars.as.ary,
-		    (struct rb_ivar_ary_entry *)xmalloc(
-			sizeof(struct rb_ivar_ary_entry)
-			    * RB_IVAR_ARY_LEN(ROBJECT(obj)->ivars)));
-		for (i = 0; i < RB_IVAR_ARY_LEN(ROBJECT(obj)->ivars); i++) {
-		    ROBJECT(dest)->ivars.as.ary[i].name = ROBJECT(obj)->ivars.as.ary[i].name;
-		    GC_WB(&ROBJECT(dest)->ivars.as.ary[i].value, ROBJECT(obj)->ivars.as.ary[i].value);
+		for (i = 0; i < ROBJECT(obj)->num_slots; i++) {
+		    ROBJECT(dest)->slots[i] = ROBJECT(obj)->slots[i];
 		}
 	    }
 	    break;
-
-	    case RB_IVAR_TBL:
-	    {
-		CFMutableDictionaryRef new_tbl;
-		new_tbl = CFDictionaryCreateMutableCopy(NULL, 0, (CFDictionaryRef)ROBJECT(obj)->ivars.as.tbl);
-		assert(new_tbl != NULL);
-		GC_WB(&ROBJECT(dest)->ivars.as.tbl, new_tbl);
-		CFMakeCollectable(new_tbl);
-	    }
-	    break;
-	}
-	break;
       case T_CLASS:
       case T_MODULE:
 	{
@@ -270,10 +290,10 @@ call_init_copy:
  *  the class.
  */
 
-static VALUE rb_class_s_alloc(VALUE);
+static VALUE rb_class_s_alloc(VALUE, SEL);
 
-VALUE
-rb_obj_clone(VALUE obj)
+static VALUE
+rb_obj_clone_imp(VALUE obj, SEL sel)
 {
     VALUE clone;
 
@@ -287,7 +307,7 @@ rb_obj_clone(VALUE obj)
 	    break;
 	case T_CLASS:
 	case T_MODULE:
-	    clone = rb_class_s_alloc(Qnil);
+	    clone = rb_class_s_alloc(Qnil, 0);
 	    break;
 	default:
 	    clone = rb_obj_alloc(rb_obj_class(obj));
@@ -304,6 +324,12 @@ rb_obj_clone(VALUE obj)
 	OBJ_FREEZE(clone);
 
     return clone;
+}
+
+VALUE
+rb_obj_clone(VALUE obj)
+{
+    return rb_obj_clone_imp(obj, 0);
 }
 
 /*
@@ -339,14 +365,14 @@ rb_obj_dup(VALUE obj)
 }
 
 static VALUE
-rb_nsobj_dup(VALUE obj)
+rb_nsobj_dup(VALUE obj, VALUE sel)
 {
     return (VALUE)objc_msgSend((id)obj, selCopy); 
 }
 
 /* :nodoc: */
 VALUE
-rb_obj_init_copy(VALUE obj, VALUE orig)
+rb_obj_init_copy(VALUE obj, SEL sel, VALUE orig)
 {
     if (obj == orig) return obj;
     rb_check_frozen(obj);
@@ -447,31 +473,22 @@ inspect_obj(VALUE obj, VALUE str, int recur)
 static VALUE
 rb_obj_inspect(VALUE obj)
 {
-
     if (TYPE(obj) == T_OBJECT) {
-        int has_ivar = 0;
-	switch (RB_IVAR_TYPE(ROBJECT(obj)->ivars)) {
-	    case RB_IVAR_ARY:
-	    {
-		int i, len = RB_IVAR_ARY_LEN(ROBJECT(obj)->ivars);
-		if (len == 0)
-		    break;
-		for (i = 0; i < len; i++) {
-		    if (ROBJECT(obj)->ivars.as.ary[i].value != Qundef) {
-			has_ivar = 1;
-			break;
-		    }
-		}
-		break;
-	    }
+        bool has_ivar = false;
 
-	    case RB_IVAR_TBL:
-		has_ivar = 
-		    CFDictionaryGetCount(
-			(CFDictionaryRef)ROBJECT(obj)->ivars.as.tbl)
-		    	    > 0;
-		break;
+	if (ROBJECT(obj)->tbl != NULL && CFDictionaryGetCount(ROBJECT(obj)->tbl) > 0) {
+	    has_ivar = true;
 	}
+	else {
+	    int i;
+	    for (i = 0; i < ROBJECT(obj)->num_slots; i++) {
+		if (ROBJECT(obj)->slots[i] != Qundef) {
+		    has_ivar = true;
+		    break;
+		}
+	    }
+	}
+
         if (has_ivar) {
             VALUE str;
             const char *c = rb_obj_classname(obj);
@@ -482,7 +499,6 @@ rb_obj_inspect(VALUE obj)
     }
     return rb_funcall(obj, rb_intern("to_s"), 0, 0);
 }
-
 
 /*
  *  call-seq:
@@ -508,6 +524,11 @@ rb_obj_is_instance_of(VALUE obj, VALUE c)
     return Qfalse;
 }
 
+static VALUE
+rb_obj_is_instance_of_imp(VALUE obj, SEL sel, VALUE c)
+{
+    return rb_obj_is_instance_of(obj, c);
+}
 
 /*
  *  call-seq:
@@ -570,6 +591,11 @@ rb_obj_is_kind_of(VALUE obj, VALUE c)
     return Qfalse;
 }
 
+static VALUE
+rb_obj_is_kind_of_imp(VALUE obj, SEL sel, VALUE c)
+{
+    return rb_obj_is_kind_of(obj, c);
+}
 
 /*
  *  call-seq:
@@ -586,8 +612,8 @@ rb_obj_is_kind_of(VALUE obj, VALUE c)
  *
  */
 
-VALUE
-rb_obj_tap(VALUE obj)
+static VALUE
+rb_obj_tap(VALUE obj, SEL sel)
 {
     rb_yield(obj);
     return obj;
@@ -728,7 +754,13 @@ rb_obj_tap(VALUE obj)
  */
 
 static VALUE
-rb_obj_dummy(void)
+rb_obj_dummy(VALUE self, SEL sel)
+{
+    return Qnil;
+}
+
+static VALUE
+rb_obj_dummy2(VALUE self, SEL sel, VALUE other)
 {
     return Qnil;
 }
@@ -746,17 +778,23 @@ rb_obj_tainted(VALUE obj)
     if (!SPECIAL_CONST_P(obj) && NATIVE(obj)) {
 	switch (TYPE(obj)) {
 	    case T_STRING:
+		if (*(VALUE *)obj == rb_cByteString) {
+		    return rb_objc_flag_check((const void *)obj, FL_TAINT)
+			? Qtrue : Qfalse;
+		}
+		// fall through
 	    case T_ARRAY:
 	    case T_HASH:
 #ifdef __LP64__
-		return (RCLASS_RC_FLAGS(obj) & FL_TAINT == FL_TAINT) ? Qtrue : Qfalse;
+		return (RCLASS_RC_FLAGS(obj) & FL_TAINT) == FL_TAINT ? Qtrue : Qfalse;
 #endif
 	    default:
 		return rb_objc_flag_check((const void *)obj, FL_TAINT) ? Qtrue : Qfalse;
 	}
     }
-    if (FL_TEST(obj, FL_TAINT))
+    if (FL_TEST(obj, FL_TAINT)) {
 	return Qtrue;
+    }
     return Qfalse;
 }
 
@@ -776,6 +814,11 @@ rb_obj_taint(VALUE obj)
     if (!SPECIAL_CONST_P(obj) && NATIVE(obj)) {
 	switch (TYPE(obj)) {
 	    case T_STRING:
+		if (*(VALUE *)obj == rb_cByteString) {
+		    rb_objc_flag_set((const void *)obj, FL_TAINT, true);
+		    break;
+		}
+		// fall through
 	    case T_ARRAY:
 	    case T_HASH:
 #ifdef __LP64__
@@ -811,6 +854,11 @@ rb_obj_untaint(VALUE obj)
     if (!SPECIAL_CONST_P(obj) && NATIVE(obj)) {
 	switch (TYPE(obj)) {
 	    case T_STRING:
+		if (*(VALUE *)obj == rb_cByteString) {
+		    // TODO
+		    return obj;
+		}
+		// fall through
 	    case T_ARRAY:
 	    case T_HASH:
 #ifdef __LP64__
@@ -876,6 +924,11 @@ rb_obj_freeze(VALUE obj)
 	else if (NATIVE(obj)) {
 	    switch(TYPE(obj)) {
 		case T_STRING:
+		if (*(VALUE *)obj == rb_cByteString) {
+		    rb_objc_flag_set((const void *)obj, FL_FREEZE, true);
+		    break;
+		}
+		// fall through
 		case T_ARRAY:
 		case T_HASH:
 #ifdef __LP64__
@@ -917,6 +970,11 @@ rb_obj_frozen_p(VALUE obj)
     }
     switch (TYPE(obj)) {
 	case T_STRING:
+	    if (*(VALUE *)obj == rb_cByteString) {
+		return rb_objc_flag_check((const void *)obj, FL_FREEZE)
+		    ? Qtrue : Qfalse;
+	    }
+	    // fall through
 	case T_ARRAY:
 	case T_HASH:
 #ifdef __LP64__
@@ -953,7 +1011,7 @@ rb_obj_frozen_p(VALUE obj)
 
 
 static VALUE
-nil_to_i(VALUE obj)
+nil_to_i(VALUE obj, SEL sel)
 {
     return INT2FIX(0);
 }
@@ -968,7 +1026,7 @@ nil_to_i(VALUE obj)
  */
 
 static VALUE
-nil_to_f(VALUE obj)
+nil_to_f(VALUE obj, SEL sel)
 {
     return DOUBLE2NUM(0.0);
 }
@@ -981,7 +1039,7 @@ nil_to_f(VALUE obj)
  */
 
 static VALUE
-nil_to_s(VALUE obj)
+nil_to_s(VALUE obj, SEL sel)
 {
     return rb_usascii_str_new(0, 0);
 }
@@ -998,7 +1056,7 @@ nil_to_s(VALUE obj)
  */
 
 static VALUE
-nil_to_a(VALUE obj)
+nil_to_a(VALUE obj, SEL sel)
 {
     return rb_ary_new2(0);
 }
@@ -1011,7 +1069,7 @@ nil_to_a(VALUE obj)
  */
 
 static VALUE
-nil_inspect(VALUE obj)
+nil_inspect(VALUE obj, SEL sel)
 {
     return rb_usascii_str_new2("nil");
 }
@@ -1034,7 +1092,7 @@ nil_inspect(VALUE obj)
  */
 
 static VALUE
-true_to_s(VALUE obj)
+true_to_s(VALUE obj, SEL sel)
 {
     return rb_usascii_str_new2("true");
 }
@@ -1049,7 +1107,7 @@ true_to_s(VALUE obj)
  */
 
 static VALUE
-true_and(VALUE obj, VALUE obj2)
+true_and(VALUE obj, SEL sel, VALUE obj2)
 {
     return RTEST(obj2)?Qtrue:Qfalse;
 }
@@ -1071,7 +1129,7 @@ true_and(VALUE obj, VALUE obj2)
  */
 
 static VALUE
-true_or(VALUE obj, VALUE obj2)
+true_or(VALUE obj, SEL sel, VALUE obj2)
 {
     return Qtrue;
 }
@@ -1087,7 +1145,7 @@ true_or(VALUE obj, VALUE obj2)
  */
 
 static VALUE
-true_xor(VALUE obj, VALUE obj2)
+true_xor(VALUE obj, SEL sel, VALUE obj2)
 {
     return RTEST(obj2)?Qfalse:Qtrue;
 }
@@ -1111,7 +1169,7 @@ true_xor(VALUE obj, VALUE obj2)
  */
 
 static VALUE
-false_to_s(VALUE obj)
+false_to_s(VALUE obj, SEL sel)
 {
     return rb_usascii_str_new2("false");
 }
@@ -1127,7 +1185,7 @@ false_to_s(VALUE obj)
  */
 
 static VALUE
-false_and(VALUE obj, VALUE obj2)
+false_and(VALUE obj, SEL sel, VALUE obj2)
 {
     return Qfalse;
 }
@@ -1143,12 +1201,10 @@ false_and(VALUE obj, VALUE obj2)
  */
 
 static VALUE
-false_or(VALUE obj, VALUE obj2)
+false_or(VALUE obj, SEL sel, VALUE obj2)
 {
     return RTEST(obj2)?Qtrue:Qfalse;
 }
-
-
 
 /*
  *  call-seq:
@@ -1162,7 +1218,7 @@ false_or(VALUE obj, VALUE obj2)
  */
 
 static VALUE
-false_xor(VALUE obj, VALUE obj2)
+false_xor(VALUE obj, SEL sel, VALUE obj2)
 {
     return RTEST(obj2)?Qtrue:Qfalse;
 }
@@ -1175,7 +1231,7 @@ false_xor(VALUE obj, VALUE obj2)
  */
 
 static VALUE
-rb_true(VALUE obj)
+rb_true(VALUE obj, SEL sel)
 {
     return Qtrue;
 }
@@ -1190,7 +1246,7 @@ rb_true(VALUE obj)
 
 
 static VALUE
-rb_false(VALUE obj)
+rb_false(VALUE obj, SEL sel)
 {
     return Qfalse;
 }
@@ -1206,7 +1262,7 @@ rb_false(VALUE obj)
  */
 
 static VALUE
-rb_obj_match(VALUE obj1, VALUE obj2)
+rb_obj_match(VALUE obj1, SEL sel, VALUE obj2)
 {
     return Qnil;
 }
@@ -1219,7 +1275,7 @@ rb_obj_match(VALUE obj1, VALUE obj2)
  */
 
 static VALUE
-rb_obj_not_match(VALUE obj1, VALUE obj2)
+rb_obj_not_match(VALUE obj1, SEL sel, VALUE obj2)
 {
     VALUE result = rb_funcall(obj1, id_match, 1, obj2);
     return RTEST(result) ? Qfalse : Qtrue;
@@ -1264,7 +1320,7 @@ rb_obj_not_match(VALUE obj1, VALUE obj2)
  */
 
 static VALUE
-rb_mod_to_s(VALUE klass)
+rb_mod_to_s(VALUE klass, SEL sel)
 {
     if (RCLASS_SINGLETON(klass)) {
 	VALUE s = rb_usascii_str_new2("#<");
@@ -1286,6 +1342,18 @@ rb_mod_to_s(VALUE klass)
     return rb_str_dup(rb_class_name(klass));
 }
 
+static VALUE 
+rb_mod_included_modules_imp(VALUE recv, SEL sel)
+{
+    return rb_mod_included_modules(recv);
+}
+
+static VALUE
+rb_mod_ancestors_imp(VALUE self, SEL sel)
+{
+    return rb_mod_ancestors(self);
+}
+
 /*
  *  call-seq:
  *     mod.freeze
@@ -1294,7 +1362,7 @@ rb_mod_to_s(VALUE klass)
  */
 
 static VALUE
-rb_mod_freeze(VALUE mod)
+rb_mod_freeze(VALUE mod, SEL sel)
 {
     rb_class_name(mod);
     return rb_obj_freeze(mod);
@@ -1311,7 +1379,7 @@ rb_mod_freeze(VALUE mod)
  */
 
 static VALUE
-rb_mod_eqq(VALUE mod, VALUE arg)
+rb_mod_eqq(VALUE mod, SEL sel, VALUE arg)
 {
     return rb_obj_is_kind_of(arg, mod);
 }
@@ -1355,6 +1423,12 @@ rb_class_inherited_p(VALUE mod, VALUE arg)
     return Qnil;
 }
 
+static VALUE
+rb_class_inherited_imp(VALUE mod, SEL sel, VALUE arg)
+{
+    return rb_class_inherited_p(mod, arg);
+}
+
 /*
  * call-seq:
  *   mod < other   =>  true, false, or nil
@@ -1367,7 +1441,7 @@ rb_class_inherited_p(VALUE mod, VALUE arg)
  */
 
 static VALUE
-rb_mod_lt(VALUE mod, VALUE arg)
+rb_mod_lt(VALUE mod, SEL sel, VALUE arg)
 {
     if (mod == arg) return Qfalse;
     return rb_class_inherited_p(mod, arg);
@@ -1387,7 +1461,7 @@ rb_mod_lt(VALUE mod, VALUE arg)
  */
 
 static VALUE
-rb_mod_ge(VALUE mod, VALUE arg)
+rb_mod_ge(VALUE mod, SEL sel, VALUE arg)
 {
     switch (TYPE(arg)) {
       case T_MODULE:
@@ -1412,10 +1486,10 @@ rb_mod_ge(VALUE mod, VALUE arg)
  */
 
 static VALUE
-rb_mod_gt(VALUE mod, VALUE arg)
+rb_mod_gt(VALUE mod, SEL sel, VALUE arg)
 {
     if (mod == arg) return Qfalse;
-    return rb_mod_ge(mod, arg);
+    return rb_mod_ge(mod, 0, arg);
 }
 
 /*
@@ -1430,7 +1504,7 @@ rb_mod_gt(VALUE mod, VALUE arg)
  */
 
 static VALUE
-rb_mod_cmp(VALUE mod, VALUE arg)
+rb_mod_cmp(VALUE mod, SEL sel, VALUE arg)
 {
     VALUE cmp;
 
@@ -1452,13 +1526,13 @@ rb_mod_cmp(VALUE mod, VALUE arg)
 }
 
 static VALUE
-rb_module_s_alloc(VALUE klass)
+rb_module_s_alloc(VALUE klass, SEL sel)
 {
     return rb_module_new();
 }
 
 static VALUE
-rb_class_s_alloc(VALUE klass)
+rb_class_s_alloc(VALUE klass, SEL sel)
 {
     return rb_class_boot(0);
 }
@@ -1486,13 +1560,13 @@ rb_class_s_alloc(VALUE klass)
  *     a.meth2          #=> "bye"
  */
 
- VALUE
-rb_mod_initialize(VALUE module)
-{
-    extern VALUE rb_mod_module_exec(int argc, VALUE *argv, VALUE mod);
+VALUE rb_mod_module_exec(VALUE mod, SEL sel, int argc, VALUE *argv);
 
+VALUE
+rb_mod_initialize(VALUE module, SEL sel)
+{
     if (rb_block_given_p()) {
-	rb_mod_module_exec(1, &module, module);
+	rb_mod_module_exec(module, 0, 1, &module);
     }
     return Qnil;
 }
@@ -1509,9 +1583,10 @@ rb_mod_initialize(VALUE module)
  *
  */
 static VALUE
-rb_mod_method_signature(VALUE module, VALUE mid, VALUE sim)
+rb_mod_method_signature(VALUE module, SEL sel, VALUE mid, VALUE sim)
 {
-    rb_objc_change_ruby_method_signature(module, mid, sim);
+    // TODO
+    abort();
     return Qnil;
 }
 
@@ -1547,7 +1622,7 @@ rb_class_initialize(int argc, VALUE *argv, VALUE klass)
 	rb_define_object_special_methods(klass);
 
     rb_class_inherited(super, klass);
-    rb_mod_initialize(klass);
+    rb_mod_initialize(klass, 0);
 
     return klass;
 }
@@ -1561,25 +1636,42 @@ rb_class_initialize(int argc, VALUE *argv, VALUE klass)
  *     
  */
 
-VALUE
-rb_obj_alloc(VALUE klass)
+static inline VALUE
+rb_obj_alloc0(VALUE klass)
 {
-    VALUE obj;
-
+#if 0
     if (RCLASS_SUPER(klass) == 0 && klass != rb_cBasicObject && klass != rb_cObject) {
 	rb_raise(rb_eTypeError, "can't instantiate uninitialized class");
     }
+#endif
     if (RCLASS_SINGLETON(klass)) {
 	rb_raise(rb_eTypeError, "can't create instance of singleton class");
     }
-    obj = rb_funcall(klass, ID_ALLOCATOR, 0, 0);
 
-    bool rb_objc_is_placeholder(void *obj);
-    if (rb_objc_is_placeholder((void *)obj)) {
-	obj = (VALUE)objc_msgSend((void *)obj, selInit);
+    if ((RCLASS_VERSION(*(void **)klass) & RCLASS_HAS_ROBJECT_ALLOC) == RCLASS_HAS_ROBJECT_ALLOC) {
+	return rb_robject_allocate_instance(klass);
     }
+    else {
+	//obj = rb_funcall(klass, ID_ALLOCATOR, 0, 0);
+	VALUE obj = rb_vm_call_with_cache(allocCache, klass, selAlloc, 0, NULL);
 
-    return obj;
+	if (rb_objc_is_placeholder((id)obj)) {
+	    return (VALUE)objc_msgSend((void *)obj, selInit);
+	}
+	return obj;
+    }
+}
+
+VALUE
+rb_obj_alloc(VALUE klass)
+{
+    return rb_obj_alloc0(klass);
+}
+
+static VALUE
+rb_obj_alloc_imp(VALUE klass, SEL sel)
+{
+    return rb_obj_alloc0(klass);
 }
 
 /*
@@ -1594,18 +1686,29 @@ rb_obj_alloc(VALUE klass)
  *     
  */
 
-VALUE
-rb_class_new_instance(int argc, VALUE *argv, VALUE klass)
+static inline VALUE
+rb_class_new_instance0(int argc, VALUE *argv, VALUE klass)
 {
     VALUE obj, init_obj, p;
 
-    obj = rb_obj_alloc(klass);
+    obj = rb_obj_alloc0(klass);
 
     /* Because we cannot override +[NSObject initialize] */
-    if (klass == rb_cClass)
+    if (klass == rb_cClass) {
 	return rb_class_initialize(argc, argv, obj);
+    }
 
-    init_obj = rb_obj_call_init(obj, argc, argv);
+    //init_obj = rb_obj_call_init(obj, argc, argv);
+
+    rb_vm_block_t *block = rb_vm_current_block();
+    if (argc == 0) {
+	init_obj = rb_vm_call_with_cache2(initializeCache, block, obj,
+		CLASS_OF(obj), selInitialize, argc, argv);
+    }
+    else {
+	init_obj = rb_vm_call_with_cache2(initialize2Cache, block, obj,
+		CLASS_OF(obj), selInitialize2, argc, argv);
+    }
 
     if (init_obj != Qnil) {
 	p = CLASS_OF(init_obj);
@@ -1620,6 +1723,18 @@ rb_class_new_instance(int argc, VALUE *argv, VALUE klass)
     return obj;
 }
 
+VALUE
+rb_class_new_instance_imp(VALUE klass, SEL sel, int argc, VALUE *argv)
+{
+    return rb_class_new_instance0(argc, argv, klass);
+}
+
+VALUE
+rb_class_new_instance(int argc, VALUE *argv, VALUE klass)
+{
+    return rb_class_new_instance0(argc, argv, klass);
+}
+
 /*
  *  call-seq:
  *     attr_reader(symbol, ...)    => nil
@@ -1631,7 +1746,7 @@ rb_class_new_instance(int argc, VALUE *argv, VALUE klass)
  */
 
 static VALUE
-rb_mod_attr_reader(int argc, VALUE *argv, VALUE klass)
+rb_mod_attr_reader(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
     int i;
 
@@ -1641,15 +1756,15 @@ rb_mod_attr_reader(int argc, VALUE *argv, VALUE klass)
     return Qnil;
 }
 
-VALUE
-rb_mod_attr(int argc, VALUE *argv, VALUE klass)
+static VALUE
+rb_mod_attr(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
     if (argc == 2 && (argv[1] == Qtrue || argv[1] == Qfalse)) {
 	rb_warning("optional boolean argument is obsoleted");
 	rb_attr(klass, rb_to_id(argv[0]), 1, RTEST(argv[1]), Qtrue);
 	return Qnil;
     }
-    return rb_mod_attr_reader(argc, argv, klass);
+    return rb_mod_attr_reader(klass, 0, argc, argv);
 }
 
 /*
@@ -1661,7 +1776,7 @@ rb_mod_attr(int argc, VALUE *argv, VALUE klass)
  */
 
 static VALUE
-rb_mod_attr_writer(int argc, VALUE *argv, VALUE klass)
+rb_mod_attr_writer(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
     int i;
 
@@ -1687,7 +1802,7 @@ rb_mod_attr_writer(int argc, VALUE *argv, VALUE klass)
  */
 
 static VALUE
-rb_mod_attr_accessor(int argc, VALUE *argv, VALUE klass)
+rb_mod_attr_accessor(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
     int i;
 
@@ -1710,7 +1825,7 @@ rb_mod_attr_accessor(int argc, VALUE *argv, VALUE klass)
  */
 
 static VALUE
-rb_mod_const_get(int argc, VALUE *argv, VALUE mod)
+rb_mod_const_get(VALUE mod, SEL sel, int argc, VALUE *argv)
 {
     VALUE name, recur;
     ID id;
@@ -1742,7 +1857,7 @@ rb_mod_const_get(int argc, VALUE *argv, VALUE mod)
  */
 
 static VALUE
-rb_mod_const_set(VALUE mod, VALUE name, VALUE value)
+rb_mod_const_set(VALUE mod, SEL sel, VALUE name, VALUE value)
 {
     ID id = rb_to_id(name);
 
@@ -1766,7 +1881,7 @@ rb_mod_const_set(VALUE mod, VALUE name, VALUE value)
  */
 
 static VALUE
-rb_mod_const_defined(int argc, VALUE *argv, VALUE mod)
+rb_mod_const_defined(VALUE mod, SEL sel, int argc, VALUE *argv)
 {
     VALUE name, recur;
     ID id;
@@ -1783,6 +1898,12 @@ rb_mod_const_defined(int argc, VALUE *argv, VALUE mod)
 	rb_name_error(id, "wrong constant name %s", rb_id2name(id));
     }
     return RTEST(recur) ? rb_const_defined(mod, id) : rb_const_defined_at(mod, id);
+}
+
+static VALUE
+rb_mod_remove_const_imp(VALUE mod, SEL sel, VALUE name)
+{
+    return rb_mod_remove_const(mod, name);
 }
 
 /*
@@ -1804,8 +1925,10 @@ rb_mod_const_defined(int argc, VALUE *argv, VALUE mod)
  *     k.methods.length   #=> 42
  */
 
+VALUE rb_class_instance_methods(VALUE, SEL, int, VALUE *);
+
 static VALUE
-rb_obj_methods(int argc, VALUE *argv, VALUE obj)
+rb_obj_methods(VALUE obj, SEL sel, int argc, VALUE *argv)
 {
     VALUE recur, objc_methods;
     VALUE args[2];
@@ -1821,7 +1944,7 @@ rb_obj_methods(int argc, VALUE *argv, VALUE obj)
     args[0] = recur;
     args[1] = objc_methods;
 
-    return rb_class_instance_methods(2, args, CLASS_OF(obj));
+    return rb_class_instance_methods(CLASS_OF(obj), 0, 2, args);
 }
 
 /*
@@ -1833,16 +1956,18 @@ rb_obj_methods(int argc, VALUE *argv, VALUE obj)
  *  in the receiver will be listed.
  */
 
+VALUE rb_class_protected_instance_methods(VALUE, SEL, int, VALUE *);
+
 static VALUE
-rb_obj_protected_methods(int argc, VALUE *argv, VALUE obj)
+rb_obj_protected_methods(VALUE obj, SEL sel, int argc, VALUE *argv)
 {
     if (argc == 0) {		/* hack to stop warning */
 	VALUE args[1];
 
 	args[0] = Qtrue;
-	return rb_class_protected_instance_methods(1, args, CLASS_OF(obj));
+	return rb_class_protected_instance_methods(CLASS_OF(obj), 0, 1, args);
     }
-    return rb_class_protected_instance_methods(argc, argv, CLASS_OF(obj));
+    return rb_class_protected_instance_methods(CLASS_OF(obj), 0, argc, argv);
 }
 
 /*
@@ -1854,16 +1979,18 @@ rb_obj_protected_methods(int argc, VALUE *argv, VALUE obj)
  *  in the receiver will be listed.
  */
 
+VALUE rb_class_private_instance_methods(VALUE, SEL, int, VALUE *);
+
 static VALUE
-rb_obj_private_methods(int argc, VALUE *argv, VALUE obj)
+rb_obj_private_methods(VALUE obj, SEL sel, int argc, VALUE *argv)
 {
     if (argc == 0) {		/* hack to stop warning */
 	VALUE args[1];
 
 	args[0] = Qtrue;
-	return rb_class_private_instance_methods(1, args, CLASS_OF(obj));
+	return rb_class_private_instance_methods(CLASS_OF(obj), 0, 1, args);
     }
-    return rb_class_private_instance_methods(argc, argv, CLASS_OF(obj));
+    return rb_class_private_instance_methods(CLASS_OF(obj), 0, argc, argv);
 }
 
 /*
@@ -1875,16 +2002,18 @@ rb_obj_private_methods(int argc, VALUE *argv, VALUE obj)
  *  in the receiver will be listed.
  */
 
+VALUE rb_class_public_instance_methods(VALUE, SEL, int, VALUE *);
+
 static VALUE
-rb_obj_public_methods(int argc, VALUE *argv, VALUE obj)
+rb_obj_public_methods(VALUE obj, SEL sel, int argc, VALUE *argv)
 {
     if (argc == 0) {		/* hack to stop warning */
 	VALUE args[1];
 
 	args[0] = Qtrue;
-	return rb_class_public_instance_methods(1, args, CLASS_OF(obj));
+	return rb_class_public_instance_methods(CLASS_OF(obj), 0, 1, args);
     }
-    return rb_class_public_instance_methods(argc, argv, CLASS_OF(obj));
+    return rb_class_public_instance_methods(CLASS_OF(obj), 0, argc, argv);
 }
 
 /*
@@ -1908,7 +2037,7 @@ rb_obj_public_methods(int argc, VALUE *argv, VALUE obj)
  */
 
 static VALUE
-rb_obj_ivar_get(VALUE obj, VALUE iv)
+rb_obj_ivar_get(VALUE obj, SEL sel, VALUE iv)
 {
     ID id = rb_to_id(iv);
 
@@ -1939,7 +2068,7 @@ rb_obj_ivar_get(VALUE obj, VALUE iv)
  */
 
 static VALUE
-rb_obj_ivar_set(VALUE obj, VALUE iv, VALUE val)
+rb_obj_ivar_set(VALUE obj, SEL sel, VALUE iv, VALUE val)
 {
     ID id = rb_to_id(iv);
 
@@ -1968,7 +2097,7 @@ rb_obj_ivar_set(VALUE obj, VALUE iv, VALUE val)
  */
 
 static VALUE
-rb_obj_ivar_defined(VALUE obj, VALUE iv)
+rb_obj_ivar_defined(VALUE obj, SEL sel, VALUE iv)
 {
     ID id = rb_to_id(iv);
 
@@ -1993,7 +2122,7 @@ rb_obj_ivar_defined(VALUE obj, VALUE iv)
  */
 
 static VALUE
-rb_mod_cvar_get(VALUE obj, VALUE iv)
+rb_mod_cvar_get(VALUE obj, SEL sel, VALUE iv)
 {
     ID id = rb_to_id(iv);
 
@@ -2021,7 +2150,7 @@ rb_mod_cvar_get(VALUE obj, VALUE iv)
  */
 
 static VALUE
-rb_mod_cvar_set(VALUE obj, VALUE iv, VALUE val)
+rb_mod_cvar_set(VALUE obj, SEL sel, VALUE iv, VALUE val)
 {
     ID id = rb_to_id(iv);
 
@@ -2047,7 +2176,7 @@ rb_mod_cvar_set(VALUE obj, VALUE iv, VALUE val)
  */
 
 static VALUE
-rb_mod_cvar_defined(VALUE obj, VALUE iv)
+rb_mod_cvar_defined(VALUE obj, SEL sel, VALUE iv)
 {
     ID id = rb_to_id(iv);
 
@@ -2060,23 +2189,27 @@ rb_mod_cvar_defined(VALUE obj, VALUE iv)
 static VALUE
 convert_type(VALUE val, const char *tname, const char *method, int raise)
 {
-    ID m;
+//    ID m;
 
-    m = rb_intern(method);
-    if (!rb_obj_respond_to(val, m, Qtrue)) {
+//    m = rb_intern(method);
+//    if (!rb_obj_respond_to(val, m, Qtrue)) {
+
+    SEL sel = sel_registerName(method);
+    if (!rb_vm_respond_to(val, sel, true)) {
 	if (raise) {
 	    rb_raise(rb_eTypeError, "can't convert %s into %s",
-		     NIL_P(val) ? "nil" :
-		     val == Qtrue ? "true" :
-		     val == Qfalse ? "false" :
-		     rb_obj_classname(val), 
-		     tname);
+		    NIL_P(val) ? "nil" :
+		    val == Qtrue ? "true" :
+		    val == Qfalse ? "false" :
+		    rb_obj_classname(val), 
+		    tname);
 	}
 	else {
 	    return Qnil;
 	}
     }
-    return rb_funcall(val, m, 0);
+    //return rb_funcall(val, m, 0);
+    return rb_vm_call(val, sel, 0, NULL, false);
 }
 
 VALUE
@@ -2100,9 +2233,13 @@ rb_check_convert_type(VALUE val, int type, const char *tname, const char *method
     VALUE v;
 
     /* always convert T_DATA */
-    if (TYPE(val) == type && type != T_DATA) return val;
+    if (TYPE(val) == type && type != T_DATA) {
+	return val;
+    }
     v = convert_type(val, tname, method, Qfalse);
-    if (NIL_P(v)) return Qnil;
+    if (NIL_P(v)) {
+	return Qnil;
+    }
     if (TYPE(v) != type) {
 	const char *cname = rb_obj_classname(val);
 	rb_raise(rb_eTypeError, "can't convert %s to %s (%s#%s gives %s)",
@@ -2198,7 +2335,7 @@ rb_Integer(VALUE val)
  */
 
 static VALUE
-rb_f_integer(VALUE obj, VALUE arg)
+rb_f_integer(VALUE obj, SEL sel, VALUE arg)
 {
     return rb_Integer(arg);
 }
@@ -2336,7 +2473,7 @@ rb_Float(VALUE val)
  */
 
 static VALUE
-rb_f_float(VALUE obj, VALUE arg)
+rb_f_float(VALUE obj, SEL sel, VALUE arg)
 {
     return rb_Float(arg);
 }
@@ -2394,7 +2531,7 @@ rb_String(VALUE val)
  */
 
 static VALUE
-rb_f_string(VALUE obj, VALUE arg)
+rb_f_string(VALUE obj, SEL sel, VALUE arg)
 {
     return rb_String(arg);
 }
@@ -2424,7 +2561,7 @@ rb_Array(VALUE val)
  */
 
 static VALUE
-rb_f_array(VALUE obj, VALUE arg)
+rb_f_array(VALUE obj, SEL sel, VALUE arg)
 {
     return rb_Array(arg);
 }
@@ -2441,13 +2578,13 @@ boot_defclass(const char *name, VALUE super)
 }
 
 static VALUE
-rb_obj_is_native(VALUE recv)
+rb_obj_is_native(VALUE recv, SEL sel)
 {
     return NATIVE(recv) ? Qtrue : Qfalse;
 }
 
 static VALUE
-rb_class_is_meta(VALUE klass)
+rb_class_is_meta(VALUE klass, SEL sel)
 {
     return RCLASS_META(klass) ? Qtrue : Qfalse;
 }
@@ -2531,6 +2668,8 @@ rb_class_is_meta(VALUE klass)
  *  <code>Symbol</code> (such as <code>:name</code>).
  */
 
+VALUE rb_f_sprintf_imp(VALUE recv, SEL sel, int argc, VALUE *argv);
+
 void
 Init_Object(void)
 {
@@ -2541,173 +2680,195 @@ Init_Object(void)
     rb_cModule = boot_defclass("Module", rb_cNSObject);
     rb_cClass =  boot_defclass("Class",  rb_cModule);
 
-    rb_define_method(rb_cClass, "new", rb_class_new_instance, -1);
+    allocCache = rb_vm_get_call_cache(selAlloc);
+    initializeCache = rb_vm_get_call_cache(selInitialize);
+    initialize2Cache = rb_vm_get_call_cache(selInitialize2);
+    eqCache = rb_vm_get_call_cache(selEq);
+    dupCache = rb_vm_get_call_cache(selDup);
+
+    rb_objc_define_method(*(VALUE *)rb_cModule, "alloc", rb_module_s_alloc, 0);
+    rb_objc_define_method(*(VALUE *)rb_cClass, "alloc", rb_class_s_alloc, 0);
+    rb_objc_define_method(rb_cClass, "new", rb_class_new_instance_imp, -1);
 
     void rb_include_module2(VALUE klass, VALUE module, int check, int add_methods);
 
+    // At this point, methods defined on Class or Module will be automatically
+    // added to NSObject's metaclass.
     rb_include_module2(*(VALUE *)rb_cNSObject, rb_cClass, 0, 0);
     rb_include_module2(*(VALUE *)rb_cNSObject, rb_cModule, 0, 0);
 
-    rb_define_private_method(rb_cNSObject, "initialize", rb_obj_dummy, 0);
-    rb_define_method(rb_cNSObject, "==", rb_obj_equal, 1);
-    rb_define_method(rb_cNSObject, "equal?", rb_obj_equal, 1);
-    rb_define_method(rb_cNSObject, "!", rb_obj_not, 0);
-    rb_define_method(rb_cNSObject, "!=", rb_obj_not_equal, 1);
+    rb_objc_define_direct_method(*(VALUE *)rb_cNSObject, "new:", rb_class_new_instance_imp, -1);
 
-    rb_define_private_method(rb_cBasicObject, "initialize", rb_obj_dummy, 0);
-    rb_define_method(rb_cBasicObject, "==", rb_obj_equal, 1);
-    rb_define_method(rb_cBasicObject, "equal?", rb_obj_equal, 1);
-    rb_define_method(rb_cBasicObject, "!", rb_obj_not, 0);
-    rb_define_method(rb_cBasicObject, "!=", rb_obj_not_equal, 1);
+    rb_objc_define_private_method(rb_cNSObject, "initialize", rb_obj_dummy, 0);
+    rb_objc_define_method(rb_cNSObject, "==", rb_obj_equal, 1);
+    rb_objc_define_method(rb_cNSObject, "equal?", rb_obj_equal, 1);
+    rb_objc_define_method(rb_cNSObject, "!", rb_obj_not, 0);
+    rb_objc_define_method(rb_cNSObject, "!=", rb_obj_not_equal, 1);
 
-    rb_define_private_method(rb_cNSObject, "singleton_method_added", rb_obj_dummy, 1);
-    rb_define_private_method(rb_cNSObject, "singleton_method_removed", rb_obj_dummy, 1);
-    rb_define_private_method(rb_cNSObject, "singleton_method_undefined", rb_obj_dummy, 1);
+    rb_objc_define_private_method(rb_cBasicObject, "initialize", rb_obj_dummy, 0);
+    rb_objc_define_method(rb_cBasicObject, "==", rb_obj_equal, 1);
+    rb_objc_define_method(rb_cBasicObject, "equal?", rb_obj_equal, 1);
+    rb_objc_define_method(rb_cBasicObject, "!", rb_obj_not, 0);
+    rb_objc_define_method(rb_cBasicObject, "!=", rb_obj_not_equal, 1);
+
+    rb_objc_define_private_method(rb_cNSObject, "singleton_method_added", rb_obj_dummy2, 1);
+    rb_objc_define_private_method(rb_cNSObject, "singleton_method_removed", rb_obj_dummy2, 1);
+    rb_objc_define_private_method(rb_cNSObject, "singleton_method_undefined", rb_obj_dummy2, 1);
 
     rb_mKernel = rb_define_module("Kernel");
     rb_include_module(rb_cNSObject, rb_mKernel);
-    rb_define_private_method(rb_cClass, "inherited", rb_obj_dummy, 1);
-    rb_define_private_method(rb_cModule, "included", rb_obj_dummy, 1);
-    rb_define_private_method(rb_cModule, "extended", rb_obj_dummy, 1);
-    rb_define_private_method(rb_cModule, "method_added", rb_obj_dummy, 1);
-    rb_define_private_method(rb_cModule, "method_removed", rb_obj_dummy, 1);
-    rb_define_private_method(rb_cModule, "method_undefined", rb_obj_dummy, 1);
-    rb_define_private_method(rb_cModule, "method_signature", rb_mod_method_signature, 2);
+    rb_objc_define_private_method(rb_cClass, "inherited", rb_obj_dummy2, 1);
+    rb_objc_define_private_method(rb_cModule, "included", rb_obj_dummy2, 1);
+    rb_objc_define_private_method(rb_cModule, "extended", rb_obj_dummy2, 1);
+    rb_objc_define_private_method(rb_cModule, "method_added", rb_obj_dummy2, 1);
+    rb_objc_define_private_method(rb_cModule, "method_removed", rb_obj_dummy2, 1);
+    rb_objc_define_private_method(rb_cModule, "method_undefined", rb_obj_dummy2, 1);
+    rb_objc_define_private_method(rb_cModule, "method_signature", rb_mod_method_signature, 2);
 
-    rb_define_method(rb_mKernel, "nil?", rb_false, 0);
-    rb_define_method(rb_mKernel, "===", rb_equal, 1); 
-    rb_define_method(rb_mKernel, "=~", rb_obj_match, 1);
-    rb_define_method(rb_mKernel, "!~", rb_obj_not_match, 1);
-    rb_define_method(rb_mKernel, "eql?", rb_obj_equal, 1);
+    rb_objc_define_method(rb_mKernel, "nil?", rb_false, 0);
+    rb_objc_define_method(rb_mKernel, "===", rb_equal_imp, 1); 
+    rb_objc_define_method(rb_mKernel, "=~", rb_obj_match, 1);
+    rb_objc_define_method(rb_mKernel, "!~", rb_obj_not_match, 1);
+    rb_objc_define_method(rb_mKernel, "eql?", rb_obj_equal, 1);
 
-    rb_define_method(rb_cNSObject, "clone", rb_obj_clone, 0);
-    rb_define_method(rb_cNSObject, "dup", rb_nsobj_dup, 0);
+    rb_objc_define_method(rb_cNSObject, "clone", rb_obj_clone_imp, 0);
+    rb_objc_define_method(rb_cNSObject, "dup", rb_nsobj_dup, 0);
 
-    rb_define_method(rb_mKernel, "taint", rb_obj_taint, 0);
-    rb_define_method(rb_mKernel, "tainted?", rb_obj_tainted, 0);
-    rb_define_method(rb_mKernel, "untaint", rb_obj_untaint, 0);
-    rb_define_method(rb_mKernel, "freeze", rb_obj_freeze, 0);
-    rb_define_method(rb_mKernel, "frozen?", rb_obj_frozen_p, 0);
+    rb_objc_define_method(rb_mKernel, "taint", rb_obj_taint, 0);
+    rb_objc_define_method(rb_mKernel, "tainted?", rb_obj_tainted, 0);
+    rb_objc_define_method(rb_mKernel, "untaint", rb_obj_untaint, 0);
+    rb_objc_define_method(rb_mKernel, "freeze", rb_obj_freeze, 0);
+    rb_objc_define_method(rb_mKernel, "frozen?", rb_obj_frozen_p, 0);
 
-    rb_define_method(rb_mKernel, "to_s", rb_any_to_s, 0);
-    rb_define_method(rb_mKernel, "inspect", rb_obj_inspect, 0);
-    rb_define_method(rb_mKernel, "methods", rb_obj_methods, -1);
-    rb_define_method(rb_mKernel, "singleton_methods", rb_obj_singleton_methods, -1); /* in class.c */
-    rb_define_method(rb_mKernel, "protected_methods", rb_obj_protected_methods, -1);
-    rb_define_method(rb_mKernel, "private_methods", rb_obj_private_methods, -1);
-    rb_define_method(rb_mKernel, "public_methods", rb_obj_public_methods, -1);
-    rb_define_method(rb_mKernel, "instance_variables", rb_obj_instance_variables, 0); /* in variable.c */
-    rb_define_method(rb_mKernel, "instance_variable_get", rb_obj_ivar_get, 1);
-    rb_define_method(rb_mKernel, "instance_variable_set", rb_obj_ivar_set, 2);
-    rb_define_method(rb_mKernel, "instance_variable_defined?", rb_obj_ivar_defined, 1);
-    rb_define_private_method(rb_mKernel, "remove_instance_variable",
-			     rb_obj_remove_instance_variable, 1); /* in variable.c */
+    rb_objc_define_method(rb_mKernel, "to_s", rb_any_to_s, 0);
+    rb_objc_define_method(rb_mKernel, "inspect", rb_obj_inspect, 0);
+    rb_objc_define_method(rb_mKernel, "methods", rb_obj_methods, -1);
 
-    rb_define_method(rb_mKernel, "instance_of?", rb_obj_is_instance_of, 1);
-    rb_define_method(rb_mKernel, "kind_of?", rb_obj_is_kind_of, 1);
-    rb_define_method(rb_mKernel, "is_a?", rb_obj_is_kind_of, 1);
-    rb_define_method(rb_mKernel, "tap", rb_obj_tap, 0);
+    VALUE rb_obj_singleton_methods(VALUE obj, SEL sel, int argc, VALUE *argv);
+    rb_objc_define_method(rb_mKernel, "singleton_methods", rb_obj_singleton_methods, -1); /* in class.c */
+    rb_objc_define_method(rb_mKernel, "protected_methods", rb_obj_protected_methods, -1);
+    rb_objc_define_method(rb_mKernel, "private_methods", rb_obj_private_methods, -1);
+    rb_objc_define_method(rb_mKernel, "public_methods", rb_obj_public_methods, -1);
+    rb_objc_define_method(rb_mKernel, "instance_variables", rb_obj_instance_variables, 0); /* in variable.c */
+    rb_objc_define_method(rb_mKernel, "instance_variable_get", rb_obj_ivar_get, 1);
+    rb_objc_define_method(rb_mKernel, "instance_variable_set", rb_obj_ivar_set, 2);
+    rb_objc_define_method(rb_mKernel, "instance_variable_defined?", rb_obj_ivar_defined, 1);
+    VALUE rb_obj_remove_instance_variable(VALUE obj, SEL sel, VALUE other);
+    rb_objc_define_private_method(rb_mKernel, "remove_instance_variable",
+	    rb_obj_remove_instance_variable, 1); /* in variable.c */
 
-    rb_define_method(rb_mKernel, "__native__?", rb_obj_is_native, 0);
+    rb_objc_define_method(rb_mKernel, "instance_of?", rb_obj_is_instance_of_imp, 1);
+    rb_objc_define_method(rb_mKernel, "kind_of?", rb_obj_is_kind_of_imp, 1);
+    rb_objc_define_method(rb_mKernel, "is_a?", rb_obj_is_kind_of_imp, 1);
+    rb_objc_define_method(rb_mKernel, "tap", rb_obj_tap, 0);
 
-    rb_define_global_function("sprintf", rb_f_sprintf, -1); /* in sprintf.c */
-    rb_define_global_function("format", rb_f_sprintf, -1);  /* in sprintf.c */
+    rb_objc_define_method(rb_mKernel, "__native__?", rb_obj_is_native, 0);
 
-    rb_define_global_function("Integer", rb_f_integer, 1);
-    rb_define_global_function("Float", rb_f_float, 1);
+    rb_objc_define_method(rb_mKernel, "sprintf", rb_f_sprintf_imp, -1); /* in sprintf.c */
+    rb_objc_define_method(rb_mKernel, "format", rb_f_sprintf_imp, -1);  /* in sprintf.c */
 
-    rb_define_global_function("String", rb_f_string, 1);
-    rb_define_global_function("Array", rb_f_array, 1);
+    rb_objc_define_method(rb_mKernel, "Integer", rb_f_integer, 1);
+    rb_objc_define_method(rb_mKernel, "Float", rb_f_float, 1);
+
+    rb_objc_define_method(rb_mKernel, "String", rb_f_string, 1);
+    rb_objc_define_method(rb_mKernel, "Array", rb_f_array, 1);
 
     rb_const_set(rb_cObject, rb_intern("NSNull"), (VALUE)objc_getClass("NSNull"));
 
     rb_cNilClass = rb_define_class("NilClass", rb_cObject);
-    rb_define_method(rb_cNilClass, "to_i", nil_to_i, 0);
-    rb_define_method(rb_cNilClass, "to_f", nil_to_f, 0);
-    rb_define_method(rb_cNilClass, "to_s", nil_to_s, 0);
-    rb_define_method(rb_cNilClass, "to_a", nil_to_a, 0);
-    rb_define_method(rb_cNilClass, "inspect", nil_inspect, 0);
-    rb_define_method(rb_cNilClass, "&", false_and, 1);
-    rb_define_method(rb_cNilClass, "|", false_or, 1);
-    rb_define_method(rb_cNilClass, "^", false_xor, 1);
+    rb_objc_define_method(rb_cNilClass, "to_i", nil_to_i, 0);
+    rb_objc_define_method(rb_cNilClass, "to_f", nil_to_f, 0);
+    rb_objc_define_method(rb_cNilClass, "to_s", nil_to_s, 0);
+    rb_objc_define_method(rb_cNilClass, "to_a", nil_to_a, 0);
+    rb_objc_define_method(rb_cNilClass, "inspect", nil_inspect, 0);
+    rb_objc_define_method(rb_cNilClass, "&", false_and, 1);
+    rb_objc_define_method(rb_cNilClass, "|", false_or, 1);
+    rb_objc_define_method(rb_cNilClass, "^", false_xor, 1);
 
-    rb_define_method(rb_cNilClass, "nil?", rb_true, 0);
-    rb_undef_alloc_func(rb_cNilClass);
-    rb_undef_method(CLASS_OF(rb_cNilClass), "new");
+    rb_objc_define_method(rb_cNilClass, "nil?", rb_true, 0);
+    rb_undef_method(*(VALUE *)rb_cNilClass, "alloc");
+    rb_undef_method(*(VALUE *)rb_cNilClass, "new");
     rb_define_global_const("NIL", Qnil);
 
-    rb_define_method(rb_cModule, "freeze", rb_mod_freeze, 0);
-    rb_define_method(rb_cModule, "===", rb_mod_eqq, 1);
-    rb_define_method(rb_cModule, "==", rb_obj_equal, 1);
-    rb_define_method(rb_cModule, "<=>",  rb_mod_cmp, 1);
-    rb_define_method(rb_cModule, "<",  rb_mod_lt, 1);
-    rb_define_method(rb_cModule, "<=", rb_class_inherited_p, 1);
-    rb_define_method(rb_cModule, ">",  rb_mod_gt, 1);
-    rb_define_method(rb_cModule, ">=", rb_mod_ge, 1);
-    rb_define_method(rb_cModule, "initialize_copy", rb_mod_init_copy, 1); /* in class.c */
-    rb_define_method(rb_cModule, "to_s", rb_mod_to_s, 0);
-    rb_define_method(rb_cModule, "included_modules", rb_mod_included_modules, 0); /* in class.c */
-    rb_define_method(rb_cModule, "include?", rb_mod_include_p, 1); /* in class.c */
-    rb_define_method(rb_cModule, "name", rb_mod_name, 0);  /* in variable.c */
-    rb_define_method(rb_cModule, "ancestors", rb_mod_ancestors, 0); /* in class.c */
-    rb_define_private_method(rb_cModule, "ib_outlet", rb_mod_objc_ib_outlet, -1); /* in objc.m */
-    rb_define_method(rb_cClass, "__meta__?", rb_class_is_meta, 0);
+    rb_objc_define_method(rb_cModule, "freeze", rb_mod_freeze, 0);
+    rb_objc_define_method(rb_cModule, "===", rb_mod_eqq, 1);
+    rb_objc_define_method(rb_cModule, "==", rb_obj_equal, 1);
+    rb_objc_define_method(rb_cModule, "<=>",  rb_mod_cmp, 1);
+    rb_objc_define_method(rb_cModule, "<",  rb_mod_lt, 1);
+    rb_objc_define_method(rb_cModule, "<=", rb_class_inherited_imp, 1);
+    rb_objc_define_method(rb_cModule, ">",  rb_mod_gt, 1);
+    rb_objc_define_method(rb_cModule, ">=", rb_mod_ge, 1);
+    VALUE rb_mod_init_copy(VALUE recv, SEL sel, VALUE copy);
+    rb_objc_define_method(rb_cModule, "initialize_copy", rb_mod_init_copy, 1); /* in class.c */
+    rb_objc_define_method(rb_cModule, "to_s", rb_mod_to_s, 0);
+    rb_objc_define_method(rb_cModule, "included_modules", rb_mod_included_modules_imp, 0);
+    VALUE rb_mod_include_p(VALUE, SEL, VALUE);
+    rb_objc_define_method(rb_cModule, "include?", rb_mod_include_p, 1); /* in class.c */
+    VALUE rb_mod_name(VALUE, SEL);
+    rb_objc_define_method(rb_cModule, "name", rb_mod_name, 0);  /* in variable.c */
+    rb_objc_define_method(rb_cModule, "ancestors", rb_mod_ancestors_imp, 0);
+    VALUE rb_mod_objc_ib_outlet(VALUE, SEL, int, VALUE *);
+    rb_objc_define_private_method(rb_cModule, "ib_outlet", rb_mod_objc_ib_outlet, -1); /* in objc.m */
+    rb_objc_define_method(rb_cClass, "__meta__?", rb_class_is_meta, 0);
 
-    rb_define_private_method(rb_cModule, "attr", rb_mod_attr, -1);
-    rb_define_private_method(rb_cModule, "attr_reader", rb_mod_attr_reader, -1);
-    rb_define_private_method(rb_cModule, "attr_writer", rb_mod_attr_writer, -1);
-    rb_define_private_method(rb_cModule, "attr_accessor", rb_mod_attr_accessor, -1);
+    rb_objc_define_private_method(rb_cModule, "attr", rb_mod_attr, -1);
+    rb_objc_define_private_method(rb_cModule, "attr_reader", rb_mod_attr_reader, -1);
+    rb_objc_define_private_method(rb_cModule, "attr_writer", rb_mod_attr_writer, -1);
+    rb_objc_define_private_method(rb_cModule, "attr_accessor", rb_mod_attr_accessor, -1);
 
-    rb_define_alloc_func(rb_cModule, rb_module_s_alloc);
-    rb_define_method(rb_cModule, "instance_methods", rb_class_instance_methods, -1); /* in class.c */
-    rb_define_method(rb_cModule, "public_instance_methods", 
+    rb_objc_define_method(rb_cModule, "instance_methods", rb_class_instance_methods, -1); /* in class.c */
+    rb_objc_define_method(rb_cModule, "public_instance_methods", 
 		     rb_class_public_instance_methods, -1);    /* in class.c */
-    rb_define_method(rb_cModule, "protected_instance_methods", 
+    rb_objc_define_method(rb_cModule, "protected_instance_methods", 
 		     rb_class_protected_instance_methods, -1); /* in class.c */
-    rb_define_method(rb_cModule, "private_instance_methods", 
+    rb_objc_define_method(rb_cModule, "private_instance_methods", 
 		     rb_class_private_instance_methods, -1);   /* in class.c */
 
-    rb_define_method(rb_cModule, "constants", rb_mod_constants, -1); /* in variable.c */
-    rb_define_method(rb_cModule, "const_get", rb_mod_const_get, -1);
-    rb_define_method(rb_cModule, "const_set", rb_mod_const_set, 2);
-    rb_define_method(rb_cModule, "const_defined?", rb_mod_const_defined, -1);
-    rb_define_private_method(rb_cModule, "remove_const", 
-			     rb_mod_remove_const, 1); /* in variable.c */
-    rb_define_method(rb_cModule, "const_missing", 
+    VALUE rb_mod_constants(VALUE, SEL, int, VALUE *);
+    rb_objc_define_method(rb_cModule, "constants", rb_mod_constants, -1); /* in variable.c */
+    rb_objc_define_method(rb_cModule, "const_get", rb_mod_const_get, -1);
+    rb_objc_define_method(rb_cModule, "const_set", rb_mod_const_set, 2);
+    rb_objc_define_method(rb_cModule, "const_defined?", rb_mod_const_defined, -1);
+    rb_objc_define_private_method(rb_cModule, "remove_const", 
+			     rb_mod_remove_const_imp, 1); /* in variable.c */
+    VALUE rb_mod_const_missing(VALUE, SEL, VALUE);
+    rb_objc_define_method(rb_cModule, "const_missing", 
 		     rb_mod_const_missing, 1); /* in variable.c */
-    rb_define_method(rb_cModule, "class_variables", 
+    VALUE rb_mod_class_variables(VALUE, SEL);
+    rb_objc_define_method(rb_cModule, "class_variables", 
 		     rb_mod_class_variables, 0); /* in variable.c */
-    rb_define_method(rb_cModule, "remove_class_variable", 
+    VALUE rb_mod_remove_cvar(VALUE, SEL, VALUE);
+    rb_objc_define_method(rb_cModule, "remove_class_variable", 
 		     rb_mod_remove_cvar, 1); /* in variable.c */
-    rb_define_method(rb_cModule, "class_variable_get", rb_mod_cvar_get, 1);
-    rb_define_method(rb_cModule, "class_variable_set", rb_mod_cvar_set, 2);
-    rb_define_method(rb_cModule, "class_variable_defined?", rb_mod_cvar_defined, 1);
+    rb_objc_define_method(rb_cModule, "class_variable_get", rb_mod_cvar_get, 1);
+    rb_objc_define_method(rb_cModule, "class_variable_set", rb_mod_cvar_set, 2);
+    rb_objc_define_method(rb_cModule, "class_variable_defined?", rb_mod_cvar_defined, 1);
 
-    rb_define_method(rb_cClass, "allocate", rb_obj_alloc, 0);
-    rb_define_method(rb_cClass, "initialize_copy", rb_class_init_copy, 1); /* in class.c */
-    rb_define_alloc_func(rb_cClass, rb_class_s_alloc);
+    rb_objc_define_method(rb_cClass, "allocate", rb_obj_alloc_imp, 0);
+    VALUE rb_class_init_copy(VALUE, SEL, VALUE);
+    rb_objc_define_method(rb_cClass, "initialize_copy", rb_class_init_copy, 1); /* in class.c */
     rb_undef_method(rb_cClass, "extend_object");
     rb_undef_method(rb_cClass, "append_features");
 
     rb_cData = rb_define_class("Data", rb_cObject);
-    rb_undef_alloc_func(rb_cData);
+    rb_undef_method(*(VALUE *)rb_cData, "alloc");
 
     rb_cTrueClass = rb_define_class("TrueClass", rb_cObject);
-    rb_define_method(rb_cTrueClass, "to_s", true_to_s, 0);
-    rb_define_method(rb_cTrueClass, "&", true_and, 1);
-    rb_define_method(rb_cTrueClass, "|", true_or, 1);
-    rb_define_method(rb_cTrueClass, "^", true_xor, 1);
-    rb_undef_alloc_func(rb_cTrueClass);
-    rb_undef_method(CLASS_OF(rb_cTrueClass), "new");
+    rb_objc_define_method(rb_cTrueClass, "to_s", true_to_s, 0);
+    rb_objc_define_method(rb_cTrueClass, "&", true_and, 1);
+    rb_objc_define_method(rb_cTrueClass, "|", true_or, 1);
+    rb_objc_define_method(rb_cTrueClass, "^", true_xor, 1);
+    rb_undef_method(*(VALUE *)rb_cTrueClass, "alloc");
+    rb_undef_method(*(VALUE *)rb_cTrueClass, "new");
     rb_define_global_const("TRUE", Qtrue);
 
     rb_cFalseClass = rb_define_class("FalseClass", rb_cObject);
-    rb_define_method(rb_cFalseClass, "to_s", false_to_s, 0);
-    rb_define_method(rb_cFalseClass, "&", false_and, 1);
-    rb_define_method(rb_cFalseClass, "|", false_or, 1);
-    rb_define_method(rb_cFalseClass, "^", false_xor, 1);
-    rb_undef_alloc_func(rb_cFalseClass);
-    rb_undef_method(CLASS_OF(rb_cFalseClass), "new");
+    rb_objc_define_method(rb_cFalseClass, "to_s", false_to_s, 0);
+    rb_objc_define_method(rb_cFalseClass, "&", false_and, 1);
+    rb_objc_define_method(rb_cFalseClass, "|", false_or, 1);
+    rb_objc_define_method(rb_cFalseClass, "^", false_xor, 1);
+    rb_undef_method(*(VALUE *)rb_cFalseClass, "alloc");
+    rb_undef_method(*(VALUE *)rb_cFalseClass, "new");
     rb_define_global_const("FALSE", Qfalse);
 
     id_eq = rb_intern("==");

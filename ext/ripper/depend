@@ -1,7 +1,7 @@
 GEN  = $(srcdir)/tools/generate.rb
 SRC1 = $(top_srcdir)/parse.y
 SRC2 = $(srcdir)/eventids2.c
-BISON = bison
+BISON = /usr/bin/bison
 
 src: ripper.c eventids1.c eventids2table.c
 
@@ -9,7 +9,7 @@ ripper.o: ripper.c lex.c eventids1.c eventids2.c eventids2table.c
 
 .y.c:
 	$(BISON) -t -v -oy.tab.c $<
-	sed -f $(top_srcdir)/tool/ytab.sed -e "/^#/s!y\.tab\.c!$@!" y.tab.c > $@
+	/usr/bin/sed -f $(top_srcdir)/tool/ytab.sed -e "/^#/s!y\.tab\.c!$@!" y.tab.c > $@
 	@$(RM) y.tab.c
 
 all: check

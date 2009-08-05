@@ -1,0 +1,2 @@
+fails:Hash#default= unsets the default proc
+fails:Hash#default= raises a TypeError if called on a frozen instance

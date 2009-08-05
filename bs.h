@@ -29,6 +29,10 @@
 #ifndef __BS_H_
 #define __BS_H_
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 #include <CoreFoundation/CoreFoundation.h>
 #include <objc/runtime.h>
 
@@ -258,5 +262,9 @@ bool bs_parser_parse(bs_parser_t *parser, const char *path,
  * value: a pointer to the bridge support element.
  */
 void bs_element_free(bs_element_type_t type, void *value);
+
+#if defined(__cplusplus)
+}
+#endif
 
 #endif /* __BS_H_ */

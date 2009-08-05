@@ -30,7 +30,7 @@ loop do
     end
   end
   begin
-    print eval(line).inspect, "\n"
+    print eval(line, TOPLEVEL_BINDING).inspect, "\n"
   rescue ScriptError, StandardError
     printf "ERR: %s\n", $! || 'exception raised'
   end

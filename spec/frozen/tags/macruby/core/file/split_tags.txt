@@ -1,0 +1,1 @@
+fails:File.split raises an ArgumentError when not passed a single argument

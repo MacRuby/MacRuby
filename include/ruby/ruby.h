@@ -167,10 +167,10 @@ typedef unsigned LONG_LONG ID;
 # endif
 #endif
 
-#define FIXNUM_MAX (LONG_MAX>>1)
-#define FIXNUM_MIN RSHIFT((long)LONG_MIN,1)
+#define FIXNUM_MAX (LONG_MAX>>2)
+#define FIXNUM_MIN RSHIFT((long)LONG_MIN,2)
 
-#define INT2FIX(i) ((VALUE)(((SIGNED_VALUE)(i))<<1 | FIXNUM_FLAG))
+#define INT2FIX(i) ((VALUE)(((SIGNED_VALUE)(i))<<2 | FIXNUM_FLAG))
 #define LONG2FIX(i) INT2FIX(i)
 #define rb_fix_new(v) INT2FIX(v)
 VALUE rb_int2inum(SIGNED_VALUE);
@@ -224,14 +224,30 @@ VALUE rb_ull2inum(unsigned LONG_LONG);
 #define NUM2GIDT(v) NUM2LONG(v)
 #endif
 
-#define FIX2LONG(x) RSHIFT((SIGNED_VALUE)x,1)
-#define FIX2ULONG(x) ((((VALUE)(x))>>1)&LONG_MAX)
-#define FIXNUM_P(f) (((SIGNED_VALUE)(f))&FIXNUM_FLAG)
+#define FIX2LONG(x) RSHIFT((SIGNED_VALUE)x,2)
+#define FIX2ULONG(x) ((((VALUE)(x))>>2)&LONG_MAX)
+#define FIXNUM_P(f) ((((SIGNED_VALUE)(f)) & IMMEDIATE_MASK) == FIXNUM_FLAG)
 #define POSFIXABLE(f) ((f) < FIXNUM_MAX+1)
 #define NEGFIXABLE(f) ((f) >= FIXNUM_MIN)
 #define FIXABLE(f) (POSFIXABLE(f) && NEGFIXABLE(f))
 
 #define IMMEDIATE_P(x) ((VALUE)(x) & IMMEDIATE_MASK)
+
+
+#if __LP64__
+#define VOODOO_DOUBLE(d) (*(VALUE*)(&d))
+#define DBL2FIXFLOAT(d) (VOODOO_DOUBLE(d) | FIXFLOAT_FLAG)
+#else
+// voodoo_float must be a function
+// because the parameter must be converted to float
+static inline VALUE voodoo_float(float f)
+{
+    return *(VALUE *)(&f);
+}
+#define DBL2FIXFLOAT(d) (voodoo_float(d) | FIXFLOAT_FLAG)
+#endif
+#define FIXFLOAT_P(v)  (((VALUE)v & IMMEDIATE_MASK) == FIXFLOAT_FLAG)
+#define FIXFLOAT2DBL(v) coerce_ptr_to_double((VALUE)v)
 
 #if WITH_OBJC
 # define SYMBOL_P(x) (TYPE(x) == T_SYMBOL)
@@ -252,11 +268,28 @@ enum ruby_special_consts {
 
     RUBY_IMMEDIATE_MASK = 0x03,
     RUBY_FIXNUM_FLAG    = 0x01,
+    RUBY_FIXFLOAT_FLAG	= 0x03,
 #if !WITH_OBJC
     RUBY_SYMBOL_FLAG    = 0x0e,
 #endif
     RUBY_SPECIAL_SHIFT  = 8,
 };
+
+// We can't directly cast a void* to a double, so we cast it to a union
+// and then extract its double member. Hacky, but effective.
+static inline double coerce_ptr_to_double(VALUE v)
+{
+    union {
+	VALUE val;
+#if __LP64__
+	double d;
+#else
+	float d;
+#endif
+    } coerced_value;
+    coerced_value.val = v & ~RUBY_FIXFLOAT_FLAG; // unset the last two bits.
+    return coerced_value.d;
+}
 
 #define Qfalse ((VALUE)RUBY_Qfalse)
 #define Qtrue  ((VALUE)RUBY_Qtrue)
@@ -264,6 +297,7 @@ enum ruby_special_consts {
 #define Qundef ((VALUE)RUBY_Qundef)	/* undefined value for placeholder */
 #define IMMEDIATE_MASK RUBY_IMMEDIATE_MASK
 #define FIXNUM_FLAG RUBY_FIXNUM_FLAG
+#define FIXFLOAT_FLAG RUBY_FIXFLOAT_FLAG
 #if !WITH_OBJC
 # define SYMBOL_FLAG RUBY_SYMBOL_FLAG
 #endif
@@ -354,6 +388,16 @@ char *rb_string_value_cstr(volatile VALUE*);
 #define StringValue(v) rb_string_value(&(v))
 #define StringValuePtr(v) rb_string_value_ptr(&(v))
 #define StringValueCStr(v) rb_string_value_cstr(&(v))
+
+VALUE rb_bytestring_new();
+VALUE rb_bytestring_new_with_data(const UInt8 *buf, long size);
+VALUE rb_bytestring_new_with_cfdata(CFMutableDataRef data);
+CFMutableDataRef rb_bytestring_wrapped_data(VALUE);
+CFStringRef rb_bytestring_resolve_cfstring(VALUE str);
+UInt8 *rb_bytestring_byte_pointer(VALUE);
+VALUE rb_coerce_to_bytestring(VALUE);
+long rb_bytestring_length(VALUE str);
+void rb_bytestring_resize(VALUE str, long newsize);
 
 void rb_check_safe_obj(VALUE);
 void rb_check_safe_str(VALUE);
@@ -456,27 +500,11 @@ struct RBasic {
     VALUE flags;
 };
 
-struct rb_ivars {
-#define RB_IVAR_ARY 0 
-#define RB_IVAR_TBL 1
-#define RB_IVAR_TYPE(ivars) (ivars.type & 0x1)
-#define RB_IVAR_SET_TYPE(ivars, t) (ivars.type |= t)
-#define RB_IVAR_ARY_LEN(ivars) (ivars.type >> 1)
-#define RB_IVAR_ARY_SET_LEN(ivars, len) (ivars.type = (len << 1) | (ivars.type & 0x1))
-#define RB_IVAR_ARY_MAX 10
-    short type;
-    union {
-	struct rb_ivar_ary_entry {
-	    ID name;
-	    VALUE value;
-	} *ary;
-	CFMutableDictionaryRef tbl;
-    } as;
-};
-
 struct RObject {
     struct RBasic basic;
-    struct rb_ivars ivars;
+    CFMutableDictionaryRef tbl;   /* dynamic ivars (runtime) */
+    unsigned int num_slots;
+    VALUE *slots;                 /* static ivars (compilation) */
 };
 
 #if !WITH_OBJC
@@ -500,32 +528,35 @@ struct RClass {
 # define RMODULE_M_TBL(m) RCLASS_M_TBL(m)
 # define RMODULE_SUPER(m) RCLASS_SUPER(m)
 #else
-# define RCLASS_IS_OBJECT_SUBCLASS    0x100   /* class is a true RBObject subclass */
-# define RCLASS_IS_RUBY_CLASS         0x200   /* class was created from Ruby */
-# define RCLASS_IS_MODULE             0x400   /* class represents a Ruby Module */
-# define RCLASS_IS_SINGLETON	      0x800   /* class represents a singleton */
-# define RCLASS_IS_FROZEN	      0x1000  /* class is frozen */
-# define RCLASS_IS_TAINTED	      0x2000  /* class is tainted */
-# define RCLASS_IS_STRING_SUBCLASS    0x10000 /* class is a subclass of NSCFString */
-# define RCLASS_IS_ARRAY_SUBCLASS     0x20000 /* class is a subclass of NSCFArray */
-# define RCLASS_IS_HASH_SUBCLASS      0x40000 /* class is a subclass of NSCFDictionary */
-# define RCLASS_IS_INCLUDED           0x80000 /* module is included */
-# define RCLASS_IS_SET_SUBCLASS       0x100000 /* class is a subclass of NSCFSet */
+# define RCLASS_IS_OBJECT_SUBCLASS    0x1000   /* class is a true RBObject subclass */
+# define RCLASS_IS_RUBY_CLASS         0x2000   /* class was created from Ruby */
+# define RCLASS_IS_MODULE             0x4000   /* class represents a Ruby Module */
+# define RCLASS_IS_SINGLETON	      0x8000   /* class represents a singleton */
+# define RCLASS_IS_FROZEN	      0x10000  /* class is frozen */
+# define RCLASS_IS_TAINTED	      0x20000  /* class is tainted */
+# define RCLASS_IS_STRING_SUBCLASS    0x40000  /* class is a subclass of NSCFString */
+# define RCLASS_IS_ARRAY_SUBCLASS     0x80000  /* class is a subclass of NSCFArray */
+# define RCLASS_IS_HASH_SUBCLASS      0x100000 /* class is a subclass of NSCFDictionary */
+# define RCLASS_IS_INCLUDED           0x200000 /* module is included */
+# define RCLASS_IS_SET_SUBCLASS       0x400000 /* class is a subclass of NSCFSet */
+# define RCLASS_HAS_ROBJECT_ALLOC     0x800000 /* class uses the default RObject alloc */
 # if defined(__LP64__)
+#  define _PTR_TYPE uint64_t
 #  define RCLASS_VERSION(m) (class_getVersion((Class)m))
 #  define RCLASS_SET_VERSION(m,f) (class_setVersion((Class)m, f))
 #  define RCLASS_SET_VERSION_FLAG(m,f) (class_setVersion((Class)m, (RCLASS_VERSION(m) | f)))
-#  define RCLASS_SUPER(m) (*(VALUE *)((void *)m + (sizeof(void *) * 1)))
+#  define RCLASS_SUPER(m) (*(VALUE *)((_PTR_TYPE)m + (sizeof(void *) * 1)))
 #  define RCLASS_SET_SUPER(m, s) (class_setSuperclass((Class)m, (Class)s))
 #  define RCLASS_META(m) (class_isMetaClass((Class)m))
-#  define RCLASS_RC_FLAGS(m) (*(uint32_t *) ((void *)(m) + sizeof(uintptr_t) + (sizeof(uint8_t) * 4)))
+#  define RCLASS_RC_FLAGS(m) (*(uint32_t *) ((_PTR_TYPE)(m) + sizeof(uintptr_t) + (sizeof(uint8_t) * 4)))
 # else
-#  define RCLASS_VERSION(m) (*(long *)((void *)m + (sizeof(void *) * 3)))
+#  define _PTR_TYPE uint32_t
+#  define RCLASS_VERSION(m) (*(long *)((_PTR_TYPE)m + (sizeof(void *) * 3)))
 #  define RCLASS_SET_VERSION(m,f) do { RCLASS_VERSION(m) = f; } while (0)
 #  define RCLASS_SET_VERSION_FLAG(m,f) (RCLASS_VERSION(m) |= f)
-#  define RCLASS_SUPER(m) (*(VALUE *)((void *)m + (sizeof(void *) * 1)))
+#  define RCLASS_SUPER(m) (*(VALUE *)((_PTR_TYPE)m + (sizeof(void *) * 1)))
 #  define RCLASS_SET_SUPER(m, s) (RCLASS_SUPER(m) = s)
-#  define _RCLASS_INFO(m) (*(long *)((void *)m + (sizeof(void *) * 4)))
+#  define _RCLASS_INFO(m) (*(long *)((_PTR_TYPE)m + (sizeof(void *) * 4)))
 #  define RCLASS_META(m) (_RCLASS_INFO(m) & CLS_META)
 # endif
 # define RCLASS_RUBY(m) ((RCLASS_VERSION(m) & RCLASS_IS_RUBY_CLASS) == RCLASS_IS_RUBY_CLASS)
@@ -540,7 +571,7 @@ struct RFloat {
     struct RBasic basic;
     double float_value;
 };
-#define RFLOAT_VALUE(v) (RFLOAT(v)->float_value)
+#define RFLOAT_VALUE(v) (FIXFLOAT_P(v) ? FIXFLOAT2DBL(v) : RFLOAT(v)->float_value)
 #define DOUBLE2NUM(dbl)  rb_float_new(dbl)
 
 #if WITH_OBJC
@@ -588,21 +619,8 @@ struct RString {
      RSTRING(str)->as.ary : \
      RSTRING(str)->as.heap.ptr)
 #else
-/* IMPORTANT: try to avoid using RSTRING_PTR/RSTRING_LEN if necessary, 
- * because they can be slow operations in non-8bit strings. 
- * If you modify RSTRING_BYTEPTR, you need to call RSTRING_SYNC in order to
- * synchronize its content with the real string storage.
- * RSTRING_BYTEPTR/RSTRING_BYTELEN deal with bytes. If you want to access a C string
- * pointer, please use RSTRING_PTR/RSTRING/LEN instead which are faster.
- */
-char *rb_str_byteptr(VALUE);
-long rb_str_bytelen(VALUE);
-void rb_str_bytesync(VALUE);
 const char *rb_str_cstr(VALUE);
 long rb_str_clen(VALUE);
-# define RSTRING_BYTEPTR(str) (rb_str_byteptr((VALUE)str))
-# define RSTRING_BYTELEN(str) (rb_str_bytelen((VALUE)str))
-# define RSTRING_SYNC(str) (rb_str_bytesync((VALUE)str))
 # define RSTRING_PTR(str) (rb_str_cstr((VALUE)str))
 # define RSTRING_LEN(str) (rb_str_clen((VALUE)str))
 #endif
@@ -669,7 +687,7 @@ struct RRational {
 struct RComplex {
     struct RBasic basic;
     VALUE real;
-    VALUE image;
+    VALUE imag;
 };
 
 struct RData {
@@ -678,6 +696,9 @@ struct RData {
     void (*dfree)(void*);
     void *data;
 };
+
+#define ExtractIOStruct(obj) RFILE(obj)->fptr
+//#define ExtractIOStruct(obj) RFILE(rb_io_taint_check(obj))->fptr
 
 #define DATA_PTR(dta) (RDATA(dta)->data)
 
@@ -818,7 +839,7 @@ struct RBignum {
 
 #define SPECIAL_CONST_P(x) (IMMEDIATE_P(x) || !RTEST(x))
 
-#define FL_ABLE(x) (!SPECIAL_CONST_P(x) && BUILTIN_TYPE(x) != T_NODE)
+#define FL_ABLE(x) (!SPECIAL_CONST_P(x) && !NATIVE(x) && BUILTIN_TYPE(x) != T_NODE)
 #define FL_TEST(x,f) (FL_ABLE(x)?(RBASIC(x)->flags&(f)):0)
 #define FL_ANY(x,f) FL_TEST(x,f)
 #define FL_ALL(x,f) (FL_TEST(x,f) == (f))
@@ -887,6 +908,11 @@ void rb_undef_method(VALUE,const char*);
 void rb_define_alias(VALUE,const char*,const char*);
 void rb_define_attr(VALUE,const char*,int,int);
 
+void rb_objc_define_method(VALUE klass, const char *name, void *imp, const int arity);
+void rb_objc_define_direct_method(VALUE klass, const char *name, void *imp, const int arity);
+void rb_objc_define_private_method(VALUE klass, const char *name, void *imp, const int arity);
+void rb_objc_undef_method(VALUE klass, const char *name);
+
 void rb_global_variable(VALUE*);
 void rb_register_mark_object(VALUE);
 void rb_gc_register_address(VALUE*);
@@ -926,7 +952,7 @@ const char *rb_id2name(ID);
 const char *rb_class2name(VALUE);
 const char *rb_obj_classname(VALUE);
 
-void rb_p(VALUE);
+void rb_p(VALUE, SEL);
 
 VALUE rb_eval_string(const char*);
 VALUE rb_eval_string_protect(const char*, int*);
@@ -944,13 +970,13 @@ VALUE rb_iv_set(VALUE, const char*, VALUE);
 
 VALUE rb_equal(VALUE,VALUE);
 
-RUBY_EXTERN VALUE ruby_verbose, ruby_debug;
+RUBY_EXTERN VALUE ruby_verbose, ruby_debug, ruby_aot_compile;
 
 PRINTF_ARGS(NORETURN(void rb_raise(VALUE, const char*, ...)), 2, 3);
 PRINTF_ARGS(NORETURN(void rb_fatal(const char*, ...)), 1, 2);
 PRINTF_ARGS(NORETURN(void rb_bug(const char*, ...)), 1, 2);
 NORETURN(void rb_sys_fail(const char*));
-NORETURN(void rb_iter_break(void));
+void rb_iter_break(void);
 NORETURN(void rb_exit(int));
 NORETURN(void rb_notimplement(void));
 
@@ -973,13 +999,15 @@ int rb_block_given_p(void);
 void rb_need_block(void);
 VALUE rb_iterate(VALUE(*)(VALUE),VALUE,VALUE(*)(ANYARGS),VALUE);
 VALUE rb_block_call(VALUE,ID,int,VALUE*,VALUE(*)(ANYARGS),VALUE);
+VALUE rb_objc_block_call(VALUE obj, SEL sel, void *cache, int argc,
+	VALUE *argv, VALUE (*bl_proc) (ANYARGS), VALUE data2);
 VALUE rb_rescue(VALUE(*)(ANYARGS),VALUE,VALUE(*)(ANYARGS),VALUE);
 VALUE rb_rescue2(VALUE(*)(ANYARGS),VALUE,VALUE(*)(ANYARGS),VALUE,...);
 VALUE rb_ensure(VALUE(*)(ANYARGS),VALUE,VALUE(*)(ANYARGS),VALUE);
 VALUE rb_catch(const char*,VALUE(*)(ANYARGS),VALUE);
 VALUE rb_catch_obj(VALUE,VALUE(*)(ANYARGS),VALUE);
-NORETURN(void rb_throw(const char*,VALUE));
-NORETURN(void rb_throw_obj(VALUE,VALUE));
+void rb_throw(const char*,VALUE);
+void rb_throw_obj(VALUE,VALUE);
 
 VALUE rb_require(const char*);
 
@@ -1037,6 +1065,7 @@ RUBY_EXTERN VALUE rb_cNameErrorMesg;
 RUBY_EXTERN VALUE rb_cNilClass;
 RUBY_EXTERN VALUE rb_cNumeric;
 RUBY_EXTERN VALUE rb_cProc;
+RUBY_EXTERN VALUE rb_cProcessStatus;
 RUBY_EXTERN VALUE rb_cRange;
 RUBY_EXTERN VALUE rb_cRational;
 RUBY_EXTERN VALUE rb_cComplex;
@@ -1044,9 +1073,11 @@ RUBY_EXTERN VALUE rb_cRegexp;
 RUBY_EXTERN VALUE rb_cSet;
 RUBY_EXTERN VALUE rb_cStat;
 RUBY_EXTERN VALUE rb_cString;
+RUBY_EXTERN VALUE rb_cByteString;
 RUBY_EXTERN VALUE rb_cStruct;
 RUBY_EXTERN VALUE rb_cSymbol;
 RUBY_EXTERN VALUE rb_cThread;
+RUBY_EXTERN VALUE rb_cThGroup;
 RUBY_EXTERN VALUE rb_cTime;
 RUBY_EXTERN VALUE rb_cTrueClass;
 RUBY_EXTERN VALUE rb_cUnboundMethod;
@@ -1059,15 +1090,53 @@ RUBY_EXTERN VALUE rb_cCFString;
 RUBY_EXTERN VALUE rb_cNSString;
 RUBY_EXTERN VALUE rb_cNSMutableString;
 RUBY_EXTERN VALUE rb_cCFArray;
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
+RUBY_EXTERN VALUE rb_cNSArray0; 
+#endif
 RUBY_EXTERN VALUE rb_cNSArray;
 RUBY_EXTERN VALUE rb_cNSMutableArray;
 RUBY_EXTERN VALUE rb_cCFHash;
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
+RUBY_EXTERN VALUE rb_cNSHash0; 
+#endif
 RUBY_EXTERN VALUE rb_cNSHash;
 RUBY_EXTERN VALUE rb_cNSMutableHash;
 RUBY_EXTERN VALUE rb_cCFSet;
 RUBY_EXTERN VALUE rb_cNSSet;
 RUBY_EXTERN VALUE rb_cNSMutableSet;
 RUBY_EXTERN VALUE rb_cCFNumber;
+RUBY_EXTERN VALUE rb_cBoxed;
+RUBY_EXTERN VALUE rb_cPointer;
+RUBY_EXTERN VALUE rb_cTopLevel;
+
+bool _CFArrayIsMutable(void *);
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
+# define RARRAY_IMMUTABLE(o) \
+    (*(VALUE *)o == rb_cCFArray \
+	? !_CFArrayIsMutable((void *)o) : *(VALUE *)o == rb_cNSArray0)
+#else
+# define RARRAY_IMMUTABLE(o) \
+    (*(VALUE *)o == rb_cCFArray ? !_CFArrayIsMutable((void *)o) : false)
+#endif
+
+bool _CFDictionaryIsMutable(void *);
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
+# define RHASH_IMMUTABLE(o) \
+    (*(VALUE *)o == rb_cCFHash \
+	? !_CFDictionaryIsMutable((void *)o) : *(VALUE *)o == rb_cNSHash0)
+#else
+# define RHASH_IMMUTABLE(o) \
+    (*(VALUE *)o == rb_cCFHash ? !_CFDictionaryIsMutable((void *)o) : false)
+#endif
+
+bool __CFStringIsMutable(void *);
+#define RSTRING_IMMUTABLE(o) \
+    (*(VALUE *)o == rb_cCFString ? !__CFStringIsMutable((void *)o) : false)
+
+bool _CFSetIsMutable(void *);
+#define RSET_IMMUTABLE(o) \
+    (*(VALUE *)o == rb_cCFSet ? !_CFSetIsMutable((void *)o) : false)
+
 #endif
 
 RUBY_EXTERN VALUE rb_eException;
@@ -1113,6 +1182,7 @@ rb_is_native(VALUE obj) {
 #define NATIVE(obj) (rb_is_native((VALUE)obj))
 
 VALUE rb_box_fixnum(VALUE);
+VALUE rb_box_fixfloat(VALUE);
 
 static inline id
 rb_rval_to_ocid(VALUE obj)
@@ -1127,8 +1197,11 @@ rb_rval_to_ocid(VALUE obj)
         if (obj == Qnil) {
             return (id)kCFNull;
         }
-        if (FIXNUM_P(obj)) {
+	if (FIXNUM_P(obj)) {
 	    return (id)rb_box_fixnum(obj);
+	}
+	if (FIXFLOAT_P(obj)) {
+	    return (id)rb_box_fixfloat(obj);
 	}
     }
     return (id)obj;
@@ -1143,12 +1216,18 @@ rb_ocid_to_rval(id obj)
     if (obj == (id)kCFBooleanFalse) {
 	return Qfalse;
     }
-    if (obj == (id)kCFNull) {
+    if (obj == (id)kCFNull || obj == nil) {
 	return Qnil;
     }
     if (*(Class *)obj == (Class)rb_cFixnum) {
 	return LONG2FIX(RFIXNUM(obj)->value);
     }
+#if 0 // XXX this does not seem to be needed
+    if (*(Class *)obj == (Class)rb_cFloat) {
+	extern VALUE rb_float_new(double);
+	return rb_float_new(RFLOAT(obj)->float_value);
+    }
+#endif
     if (*(Class *)obj == (Class)rb_cCFNumber) {
 	/* TODO NSNumber should implement the Numeric primitive methods */
 	if (CFNumberIsFloatType((CFNumberRef)obj)) {
@@ -1176,11 +1255,13 @@ rb_ary_elt_fast(CFArrayRef ary, long i)
 #define RARRAY_AT(a,i) (rb_ary_elt_fast((CFArrayRef)a, (long)i))
 #endif
 
+
 static inline VALUE
 rb_class_of(VALUE obj)
 {
     if (IMMEDIATE_P(obj)) {
 	if (FIXNUM_P(obj)) return rb_cFixnum;
+	if (FIXFLOAT_P(obj)) return rb_cFloat;
 	if (obj == Qtrue)  return rb_cTrueClass;
 #if !WITH_OBJC
 	if (SYMBOL_P(obj)) return rb_cSymbol;
@@ -1198,38 +1279,66 @@ rb_type(VALUE obj)
 {
     Class k;
     if (IMMEDIATE_P(obj)) {
-	if (FIXNUM_P(obj)) return T_FIXNUM;
-	if (obj == Qtrue) return T_TRUE;
+	if (FIXNUM_P(obj)) {
+	    return T_FIXNUM;
+	}
+	if (FIXFLOAT_P(obj)) {
+	    return T_FLOAT;
+	}
+	if (obj == Qtrue) {
+	    return T_TRUE;
+	}
 #if !WITH_OBJC
-	if (SYMBOL_P(obj)) return T_SYMBOL;
+	if (SYMBOL_P(obj)) {
+	    return T_SYMBOL;
+	}
 #endif
-	if (obj == Qundef) return T_UNDEF;
+	if (obj == Qundef) {
+	    return T_UNDEF;
+	}
     }
     else if (!RTEST(obj)) {
-	if (obj == Qnil) return T_NIL;
-	if (obj == Qfalse) return T_FALSE;
+	if (obj == Qnil) {
+	    return T_NIL;
+	}
+	if (obj == Qfalse) {
+	    return T_FALSE;
+	}
     }
 #if WITH_OBJC
     else if ((k = *(Class *)obj) != NULL) {
-	if (RCLASS_META(k)) {
-	    if (RCLASS_MODULE(obj)) return T_MODULE;
-	    else return T_CLASS;
-	}
-	if (k == (Class)rb_cSymbol) return T_SYMBOL;
 	if (k == (Class)rb_cCFString
 	    || (RCLASS_VERSION(k) & RCLASS_IS_STRING_SUBCLASS) 
-		== RCLASS_IS_STRING_SUBCLASS) 
+		== RCLASS_IS_STRING_SUBCLASS) {
 	    return T_STRING;
+	}
 	if (k == (Class)rb_cCFArray
 	    || (RCLASS_VERSION(k) & RCLASS_IS_ARRAY_SUBCLASS) 
-		== RCLASS_IS_ARRAY_SUBCLASS) 
+		== RCLASS_IS_ARRAY_SUBCLASS) {
 	    return T_ARRAY;
+	}
 	if (k == (Class)rb_cCFHash
 	    || (RCLASS_VERSION(k) & RCLASS_IS_HASH_SUBCLASS) 
-		== RCLASS_IS_HASH_SUBCLASS)
+	        == RCLASS_IS_HASH_SUBCLASS) {
 	    return T_HASH;
-	if (k == (Class)rb_cFixnum) return T_FIXNUM;
-	if (NATIVE(obj)) return T_NATIVE;
+	}
+	if (RCLASS_META(k)) {
+	    if (RCLASS_MODULE(obj)) {
+		return T_MODULE;
+	    }
+	    else {
+		return T_CLASS;
+	    }
+	}
+	if (k == (Class)rb_cSymbol) {
+	    return T_SYMBOL;
+	}
+	if (k == (Class)rb_cFixnum) {
+	    return T_FIXNUM;
+	}
+	if (NATIVE(obj)) {
+	    return T_NATIVE;
+	}
     }
 #endif
     return BUILTIN_TYPE(obj);
@@ -1254,13 +1363,6 @@ rb_special_const_p(VALUE obj)
 #if defined(EXTLIB) && defined(USE_DLN_A_OUT)
 /* hook for external modules */
 static char *dln_libs_to_be_linked[] = { EXTLIB, 0 };
-#endif
-
-#if (defined(__APPLE__) || defined(__NeXT__)) && defined(__MACH__) && !defined(WITH_OBJC)
-/* to link startup code with ObjC support */
-#define RUBY_GLOBAL_SETUP static void objcdummyfunction(void) {objc_msgSend(NULL,NULL);}
-#else
-#define RUBY_GLOBAL_SETUP
 #endif
 
 void ruby_sysinit(int *, char ***);

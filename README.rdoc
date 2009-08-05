@@ -1,0 +1,60 @@
+== MacRuby
+
+MacRuby is a Ruby implementation based on Mac OS X technologies, such as the 
+Objective-C runtime and garbage collector, the CoreFoundation framework and the
+LLVM compiler infrastructure.
+
+It is the goal of MacRuby to enable the creation of full-fledged Mac OS X
+applications which do not sacrifice performance in order to enjoy the benefits
+of using Ruby.
+
+MacRuby is copyrighted free software by Apple Inc and covered by the terms of
+the Ruby license. Please refer to the COPYING file for more information.
+
+The project website contains more documentation, such as tutorials and guides:
+http://macruby.org
+
+=== Requirements
+
+* An Intel machine. PowerPC machines are not supported anymore, but may still
+  work. An Intel 64-bit machine (Intel Core Duo 2) is recommended.
+
+* Mac OS X 10.5.6 or later.
+
+* LLVM trunk, compiled for both i386 and x86_64.
+
+  In case trunk reveals to be unstable we recommend revision 72741.
+
+    $ svn co -r 72741 https://llvm.org/svn/llvm-project/llvm/trunk llvm-trunk
+    $ cd llvm-trunk
+    $ ./configure
+    $ UNIVERSAL=1 UNIVERSAL_ARCH="i386 x86_64" ENABLE_OPTIMIZED=1 make
+    $ sudo env UNIVERSAL=1 UNIVERSAL_ARCH="i386 x86_64" ENABLE_OPTIMIZED=1 make install
+
+  Note that compiling LLVM can take quite a while. If you have a machine with
+  multiple cores, which is quite likely, you might want to speed up the process
+  by using all/more cores. However, doing this can make your machine
+  unresponsive during compilation. To use multiple cores pass the `-j N'
+  option, where `N' stands for the number of cores you'd like to use. So for a
+  Dore Duo the command would look like:
+  
+    $ UNIVERSAL=1 UNIVERSAL_ARCH="i386 x86_64" ENABLE_OPTIMIZED=1 make -j2
+  
+=== Build Instructions
+
+You can build MacRuby by doing the following command:
+
+  $ rake
+
+Once done, you can run the RubySpec-based regression tests as well as the
+performance suite:
+
+  $ rake spec:ci
+  $ rake bench:ci
+
+To install MacRuby on your machine:
+
+  $ sudo rake install
+
+Then you should be all set! Please report us any problem you will find (the
+http://macruby.org website has pointers). Thanks!

@@ -31,12 +31,6 @@ class TestMappings < Test::Unit::TestCase
     assert Mappings.frameworks.is_a?(Hash)
   end
   
-  it "should create a mapping to a class with a module and instance method" do
-    Mappings.map(:method_name_that_does_not_already_exist => SampleClass) {}
-    assert_respond_to HotCocoa, :method_name_that_does_not_already_exist
-    assert_respond_to HotCocoa.new, :method_name_that_does_not_already_exist
-  end
-  
   it "should create a mapping to a class with a Class instance given to #map" do
     Mappings.map(:klass => SampleClass) {}
     assert_equal SampleClass, Mappings.mappings[:klass].control_class

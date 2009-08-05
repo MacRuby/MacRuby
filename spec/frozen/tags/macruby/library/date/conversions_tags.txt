@@ -1,0 +1,1 @@
+fails:Date#day_fraction_to_time should be able to convert a day fraction into time

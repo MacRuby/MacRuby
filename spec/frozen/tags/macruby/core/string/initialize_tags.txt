@@ -1,0 +1,6 @@
+critical:String#initialize raises TypeError on inconvertible object
+critical:String#initialize converts its argument to a string representation
+fails:String#initialize is a private method
+fails:String#initialize returns an instance of a subclass
+fails:String#initialize is called on subclasses
+fails:String#initialize raises a TypeError if self is frozen

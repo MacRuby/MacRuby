@@ -1,0 +1,2 @@
+fails:UnboundMethod#to_s returns a String
+fails:UnboundMethod#to_s the String shows the method name, Module defined in and Module extracted from

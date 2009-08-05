@@ -1,0 +1,2 @@
+fails:Array#sort compares values returned by block with 0
+fails:Array#sort! makes some modification even if finished sorting when it would break in the given block

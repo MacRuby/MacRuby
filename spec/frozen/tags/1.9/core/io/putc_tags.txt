@@ -1,0 +1,1 @@
+fails:IO#putc writes Numerics that fit in a C char

@@ -13,14 +13,12 @@
 #include "ruby/signal.h"
 #include "ruby/node.h"
 #include "ruby/st.h"
-#include "debug.h"
-#include "id.h"
 #include <ctype.h>
+#include "id.h"
+#include "vm.h"
+#include "objc.h"
 
 extern st_table *rb_class_tbl;
-
-#define VISI(x) ((x)&NOEX_MASK)
-#define VISI_CHECK(x,f) (VISI(x) == (f))
 
 void rb_objc_install_array_primitives(Class);
 void rb_objc_install_hash_primitives(Class);
@@ -59,12 +57,10 @@ rb_objc_install_primitives(Class ocklass, Class ocsuper)
     return false;
 }
 
-static VALUE
-rb_class_allocate_instance(VALUE klass)
+static void *
+rb_obj_imp_allocWithZone(void *rcv, SEL sel, void *zone)
 {
-    NEWOBJ(obj, struct RObject);
-    OBJSETUP(obj, klass, T_OBJECT);
-    return (VALUE)obj;
+    return (void *)rb_robject_allocate_instance((VALUE)rcv);
 }
 
 static BOOL
@@ -79,18 +75,25 @@ rb_obj_imp_isEqual(void *rcv, SEL sel, void *obj)
 	return RFIXNUM(rcv)->value == RFIXNUM(obj)->value;
     }
 
-    return rb_funcall((VALUE)rcv, idEq, 1, OC2RB(obj)) == Qtrue;
+    VALUE arg = OC2RB(obj);
+    return rb_vm_call((VALUE)rcv, selEq, 1, &arg, false) == Qtrue;
 }
 
 static void *
 rb_obj_imp_init(void *rcv, SEL sel)
 {
-    rb_funcall((VALUE)rcv, idInitialize, 0);
+    rb_vm_call((VALUE)rcv, selInitialize, 0, NULL, false);
     return rcv;
 }
 
+static void *
+rb_obj_imp_description(void *rcv, SEL sel)
+{
+    return (void *)rb_vm_call((VALUE)rcv, selToS, 0, NULL, false);
+}
+
 static VALUE
-rb_objc_init(VALUE rcv)
+rb_objc_init(VALUE rcv, SEL sel)
 {
     IMP imp = class_getMethodImplementation((Class)CLASS_OF(rcv), selInit);
     if (imp != NULL && imp != (IMP)rb_obj_imp_init) {
@@ -99,22 +102,29 @@ rb_objc_init(VALUE rcv)
     return rcv;
 }
 
+VALUE rb_obj_init_copy(VALUE, SEL, VALUE);
+
+VALUE rb_class_new_instance_imp(VALUE klass, SEL sel, int argc, VALUE *argv);
+
 void
 rb_define_object_special_methods(VALUE klass)
 {
-    rb_define_alloc_func(klass, rb_class_allocate_instance);
-    rb_define_singleton_method(klass, "new", rb_class_new_instance, -1);
-    rb_define_singleton_method(klass, "__new__", rb_class_new_instance, -1);
-    rb_define_method(klass, "dup", rb_obj_dup, 0);
-    rb_define_method(klass, "initialize", rb_objc_init, 0);
-    rb_define_method(klass, "initialize_copy", rb_obj_init_copy, 1);
+    RCLASS_SET_VERSION(*(VALUE *)klass,
+	    (RCLASS_VERSION(*(VALUE *)klass) | RCLASS_HAS_ROBJECT_ALLOC));
 
-    static SEL sel_isEqual = 0;
-    if (sel_isEqual == 0)
-	sel_isEqual = sel_registerName("isEqual:");
-    class_addMethod((Class)klass, sel_isEqual, (IMP)rb_obj_imp_isEqual, "c@:@");
+    rb_objc_define_method(*(VALUE *)klass, "new",
+	    rb_class_new_instance_imp, -1);
+    rb_objc_define_method(*(VALUE *)klass, "__new__",
+	    rb_class_new_instance_imp, -1);
+    rb_objc_define_method(klass, "dup", rb_obj_dup, 0);
+    rb_objc_define_method(klass, "initialize", rb_objc_init, 0);
+    rb_objc_define_method(klass, "initialize_copy", rb_obj_init_copy, 1);
 
-    class_addMethod((Class)klass, selInit, (IMP)rb_obj_imp_init, "@@:");
+    rb_objc_install_method(*(Class *)klass, selAllocWithZone,
+	    (IMP)rb_obj_imp_allocWithZone);
+    rb_objc_install_method((Class)klass, selIsEqual, (IMP)rb_obj_imp_isEqual);
+    rb_objc_install_method((Class)klass, selInit, (IMP)rb_obj_imp_init);
+    rb_objc_install_method((Class)klass, selDescription, (IMP)rb_obj_imp_description);
 }
 
 static VALUE
@@ -163,8 +173,11 @@ rb_objc_alloc_class(const char *name, VALUE super, VALUE flags, VALUE klass)
 
     DLOG("DEFC", "%s < %s (version=%d)", ocname, class_getName(class_getSuperclass((Class)ocklass)), version_flag);
 
-    if (klass != 0)
+    objc_registerClassPair(ocklass);
+
+    if (klass != 0) {
 	rb_objc_install_primitives(ocklass, (Class)super);
+    }
 
     return (VALUE)ocklass;
 }
@@ -185,7 +198,6 @@ rb_objc_create_class(const char *name, VALUE super)
     }
 
     klass = rb_objc_alloc_class(name, super, T_CLASS, rb_cClass);
-    objc_registerClassPair((Class)klass);
    
     if (super == rb_cNSObject) {
 	rb_define_object_special_methods(klass);
@@ -229,9 +241,9 @@ rb_class_new(VALUE super)
 
 /* :nodoc: */
 VALUE
-rb_mod_init_copy(VALUE clone, VALUE orig)
+rb_mod_init_copy(VALUE clone, SEL sel, VALUE orig)
 {
-    rb_obj_init_copy(clone, orig);
+    rb_obj_init_copy(clone, 0, orig);
     {
 	VALUE super;
 	int version_flag;
@@ -280,12 +292,12 @@ rb_mod_init_copy(VALUE clone, VALUE orig)
 
 /* :nodoc: */
 VALUE
-rb_class_init_copy(VALUE clone, VALUE orig)
+rb_class_init_copy(VALUE clone, SEL sel, VALUE orig)
 {
     if (RCLASS_SINGLETON(orig)) {
 	rb_raise(rb_eTypeError, "can't copy singleton class");
     }
-    clone =  rb_mod_init_copy(clone, orig);
+    clone =  rb_mod_init_copy(clone, 0, orig);
     rb_objc_install_primitives((Class)clone, (Class)orig);
     return clone;
 }
@@ -346,8 +358,9 @@ rb_singleton_class_attached(VALUE klass, VALUE obj)
 {
     if (RCLASS_SINGLETON(klass)) {
 	static ID attachedId = 0;
-	if (attachedId == 0)
+	if (attachedId == 0) {
 	    attachedId = rb_intern("__attached__");
+	}
 	rb_ivar_set(klass, attachedId, obj);
     }
 }
@@ -369,6 +382,7 @@ rb_make_metaclass(VALUE obj, VALUE super)
 	    RCLASS_SET_VERSION(klass, v);
 	}
 	RCLASS_SET_VERSION_FLAG(klass, RCLASS_IS_SINGLETON);
+	rb_vm_set_outer(klass, rb_vm_get_outer(super));
 
 	rb_singleton_class_attached(klass, obj);
 
@@ -390,8 +404,11 @@ rb_define_class_id(ID id, VALUE super)
 VALUE
 rb_class_inherited(VALUE super, VALUE klass)
 {
-    if (!super) super = rb_cObject;
-    return rb_funcall(super, rb_intern("inherited"), 1, klass);
+    if (rb_vm_running()) {
+	if (!super) super = rb_cObject;
+	return rb_funcall(super, rb_intern("inherited"), 1, klass);
+    }
+    return Qnil;
 }
 
 VALUE
@@ -418,6 +435,7 @@ rb_define_class(const char *name, VALUE super)
     st_add_direct(rb_class_tbl, id, klass);
     rb_name_class(klass, id);
     rb_const_set(rb_cObject, id, klass);
+    rb_vm_set_outer(klass, rb_cObject);
     rb_class_inherited(super, klass);
 
     return klass;
@@ -458,18 +476,18 @@ rb_module_new(void)
     return rb_define_module_id(0);
 }
 
+VALUE rb_mod_initialize(VALUE, SEL);
+
 VALUE
 rb_define_module_id(ID id)
 {
     VALUE mdl;
 
     mdl = rb_objc_alloc_class(id == 0 ? NULL : rb_id2name(id), rb_cObject, T_MODULE, rb_cModule);
-    objc_registerClassPair((Class)mdl);
 
     if (rb_mKernel != 0) {
 	/* because Module#initialize can accept a block */
-	extern VALUE rb_mod_initialize(VALUE);
-	rb_define_method(*(VALUE *)mdl, "initialize", rb_mod_initialize, 0);
+	rb_objc_define_method(*(VALUE *)mdl, "initialize", rb_mod_initialize, 0);
     }
 
     return mdl;
@@ -561,28 +579,7 @@ rb_include_module2(VALUE klass, VALUE module, int check, int add_methods)
     DLOG("INCM", "%s <- %s", class_getName((Class)klass), class_getName((Class)module));
 
     if (add_methods) {
-	Method *methods;
-	unsigned int i, methods_count;
-
-	methods = class_copyMethodList((Class)module, &methods_count);
-	if (methods != NULL) {
-	    for (i = 0; i < methods_count; i++) {
-		Method method = methods[i], method2;
-		DLOG("DEFI", "-[%s %s]", class_getName((Class)klass), (char *)method_getName(method));
-
-		method2 = class_getInstanceMethod((Class)klass, method_getName(method));
-		if (method2 != NULL && method2 != class_getInstanceMethod((Class)RCLASS_SUPER(klass), method_getName(method))) {
-		    method_setImplementation(method2, method_getImplementation(method));
-		}
-		else {
-		    assert(class_addMethod((Class)klass, 
-				method_getName(method), 
-				method_getImplementation(method), 
-				method_getTypeEncoding(method)));
-		}
-	    }
-	    free(methods);
-	}
+	rb_vm_copy_methods((Class)module, (Class)klass);
     }
 }
 
@@ -657,7 +654,7 @@ rb_mod_included_modules(VALUE mod)
  */
 
 VALUE
-rb_mod_include_p(VALUE mod, VALUE mod2)
+rb_mod_include_p(VALUE mod, SEL sel, VALUE mod2)
 {
     return rb_ary_includes(rb_mod_included_modules(mod), mod2);
 }
@@ -755,107 +752,6 @@ ins_methods_pub_i(VALUE name, ID type, VALUE ary)
     return ins_methods_push(name, type, ary, NOEX_PUBLIC);
 }
 
-static void
-rb_objc_push_methods(VALUE ary, VALUE mod, VALUE objc_methods, int (*func) (VALUE, ID, VALUE))
-{
-    Method *methods;
-    unsigned int i, count;
-
-    /* XXX fails to ignore undefined methods (#undef_method) */
-
-    methods = class_copyMethodList((Class)mod, &count); 
-    if (methods != NULL) {  
-	for (i = 0; i < count; i++) {
-	    Method method;
-	    SEL sel;
-	    char *sel_name, *p;
-	    ID mid;
-	    char buf[100];
-	    BOOL is_ruby_method;
-	    size_t len;
-	    IMP imp;
-	    VALUE sym;
-	    NODE *mn;
-	   
-	    method = methods[i];
-
-	    sel = method_getName(method);
-	    if (sel == sel_ignored)
-		continue; 
-
-	    imp = method_getImplementation(method);
-	    if (imp == NULL)
-		continue;
-
-	    mn = rb_objc_method_node3(imp);
-	    is_ruby_method = mn != NULL;
-	    if (!is_ruby_method && objc_methods == Qfalse)
-		continue;
-
-	    sel_name = (char *)sel;
-	    len = strlen(sel_name);
-
-	    if (is_ruby_method && len > 8 && sel_name[0] == '_' && sel_name[1] == '_' && sel_name[2] == 'r' && sel_name[3] == 'b' && sel_name[4] == '_' && sel_name[len - 1] == '_' && sel_name[len - 2] == '_') {
-		/* retransform ignored selectors, __rb_%s__ -> %s */
-		assert(sizeof buf > len - 7);
-		strncpy(buf, &sel_name[5], len - 7);
-		buf[len - 7] = '\0';
-		sel_name = buf;
-	    }
-	    else {
-		if (is_ruby_method && len >= 3 && sel_name[len - 1] == ':' && isalpha(sel_name[len - 3])) {
-		    assert(len + 3 < sizeof(buf));
-		    if (sel_name[len - 2] == '=') {
-			/* skip foo=: (ruby) -> setFoo: (objc) shortcuts */
-			snprintf(buf, sizeof buf, "set%s", sel_name);
-			buf[4] = toupper(buf[4]);
-			buf[len + 1] = ':';
-			buf[len + 2] = '\0';
-
-			method = class_getInstanceMethod((Class)mod, sel_registerName(buf));
-			if (method != NULL && rb_objc_method_node3(method_getImplementation(method)) == NULL)
-			    continue;
-		    }
-		    else if (sel_name[len - 2] == '?') {
-			/* skip foo?: (ruby) -> isFoo: (objc) shortcuts */
-			snprintf(buf, sizeof buf, "is%s", sel_name);
-			buf[3] = toupper(buf[3]);
-			buf[len] = ':';
-			buf[len + 1] = '\0';
-
-			method = class_getInstanceMethod((Class)mod, sel_registerName(buf));
-			if (method != NULL && rb_objc_method_node3(method_getImplementation(method)) == NULL)
-			    continue;
-		    }
-		}
-		p = strchr(sel_name, ':');
-		if (p != NULL && strchr(p + 1, ':') == NULL) {
-		    /* remove trailing ':' for methods with arity 1 */
-		    assert(len < sizeof(buf));
-		    strncpy(buf, sel_name, len);
-		    buf[len - 1] = '\0';
-		    sel_name = buf;
-		}
-	    }
-	    mid = rb_intern(sel_name);
-	    sym = ID2SYM(mid);
-
-	    if (rb_ary_includes(ary, sym) == Qfalse) {
-		if (is_ruby_method) {
-		    int type;
-
-		    type = mn->nd_body == NULL ? -1 : VISI(mn->nd_noex);
-		    (*func)(sym, type, ary);
-		}
-		else {
-		    rb_ary_push(ary, sym);
-		}
-	    }
-	} 
-	free(methods); 
-    }
-}
-
 static VALUE
 class_instance_method_list(int argc, VALUE *argv, VALUE mod, int (*func) (VALUE, ID, VALUE))
 {
@@ -870,16 +766,19 @@ class_instance_method_list(int argc, VALUE *argv, VALUE mod, int (*func) (VALUE,
     }
     else {
 	rb_scan_args(argc, argv, "02", &recur, &objc_methods);
-	if (NIL_P(recur))
+	if (NIL_P(recur)) {
 	    recur = Qtrue;
-	if (NIL_P(objc_methods))
+	}
+	if (NIL_P(objc_methods)) {
 	    objc_methods = Qfalse;
+	}
     }
 
     while (mod != 0) {
-	rb_objc_push_methods(ary, mod, objc_methods, func);
-	if (recur == Qfalse)
+	rb_vm_push_methods(ary, mod, RTEST(objc_methods), func);
+	if (recur == Qfalse) {
 	   break;	   
+	}
 	mod = (VALUE)class_getSuperclass((Class)mod); 
     } 
 
@@ -914,7 +813,7 @@ class_instance_method_list(int argc, VALUE *argv, VALUE mod, int (*func) (VALUE,
  */
 
 VALUE
-rb_class_instance_methods(int argc, VALUE *argv, VALUE mod)
+rb_class_instance_methods(VALUE mod, SEL sel, int argc, VALUE *argv)
 {
     return class_instance_method_list(argc, argv, mod, ins_methods_i);
 }
@@ -929,7 +828,7 @@ rb_class_instance_methods(int argc, VALUE *argv, VALUE mod)
  */
 
 VALUE
-rb_class_protected_instance_methods(int argc, VALUE *argv, VALUE mod)
+rb_class_protected_instance_methods(VALUE mod, SEL sel, int argc, VALUE *argv)
 {
     return class_instance_method_list(argc, argv, mod, ins_methods_prot_i);
 }
@@ -952,7 +851,7 @@ rb_class_protected_instance_methods(int argc, VALUE *argv, VALUE mod)
  */
 
 VALUE
-rb_class_private_instance_methods(int argc, VALUE *argv, VALUE mod)
+rb_class_private_instance_methods(VALUE mod, SEL sel, int argc, VALUE *argv)
 {
     return class_instance_method_list(argc, argv, mod, ins_methods_priv_i);
 }
@@ -967,7 +866,7 @@ rb_class_private_instance_methods(int argc, VALUE *argv, VALUE mod)
  */
 
 VALUE
-rb_class_public_instance_methods(int argc, VALUE *argv, VALUE mod)
+rb_class_public_instance_methods(VALUE mod, SEL sel, int argc, VALUE *argv)
 {
     return class_instance_method_list(argc, argv, mod, ins_methods_pub_i);
 }
@@ -1004,8 +903,8 @@ rb_class_public_instance_methods(int argc, VALUE *argv, VALUE mod)
  *     a.singleton_methods         #=> [:two, :one, :three]
  */
 
-VALUE
-rb_obj_singleton_methods(int argc, VALUE *argv, VALUE obj)
+VALUE 
+rb_obj_singleton_methods(VALUE obj, SEL sel, int argc, VALUE *argv)
 {
     VALUE recur, objc_methods, klass, ary;
 
@@ -1022,13 +921,59 @@ rb_obj_singleton_methods(int argc, VALUE *argv, VALUE obj)
 
     do {
 	if (RCLASS_SINGLETON(klass)) {
-	    rb_objc_push_methods(ary, klass, objc_methods, ins_methods_i);
+	    rb_vm_push_methods(ary, klass, RTEST(objc_methods), ins_methods_i);
 	}
 	klass = RCLASS_SUPER(klass);
     }
     while (recur == Qtrue && klass != 0);
 
     return ary;
+}
+
+static SEL
+name_to_sel(const char *name, const int arity)
+{
+    if (arity > 0) {
+	char buf[100];
+	snprintf(buf, sizeof buf, "%s:", name);
+	return sel_registerName(buf);
+    }
+    return sel_registerName(name);
+}
+
+static void
+rb_objc_add_method(VALUE klass, const char *name, void *imp, const int arity,
+		   const int noex, bool direct)
+{
+    if (!direct) {
+	assert(name[strlen(name) - 1] != ':');
+    }
+
+    NODE *body = rb_vm_cfunc_node_from_imp((Class)klass, arity, (IMP)imp, noex);
+    rb_objc_retain(body);
+
+    rb_vm_define_method((Class)klass, name_to_sel(name, arity), (IMP)imp,
+	    body, direct);
+}
+
+void
+rb_objc_define_direct_method(VALUE klass, const char *name, void *imp,
+			     const int arity)
+{
+    rb_objc_add_method(klass, name, imp, arity, NOEX_PUBLIC, true);
+}
+
+void
+rb_objc_define_method(VALUE klass, const char *name, void *imp, const int arity)
+{
+    rb_objc_add_method(klass, name, imp, arity, NOEX_PUBLIC, false);
+}
+
+void
+rb_objc_define_private_method(VALUE klass, const char *name, void *imp,
+			      const int arity)
+{
+    rb_objc_add_method(klass, name, imp, arity, NOEX_PRIVATE, false);
 }
 
 void
@@ -1058,7 +1003,7 @@ rb_define_private_method(VALUE klass, const char *name, VALUE (*func)(ANYARGS), 
 void
 rb_undef_method(VALUE klass, const char *name)
 {
-    rb_add_method(klass, rb_intern(name), 0, NOEX_UNDEF);
+    rb_vm_undef_method((Class)klass, name, false);
 }
 
 #define SPECIAL_SINGLETON(x,c) do {\
@@ -1082,17 +1027,22 @@ rb_singleton_class(VALUE obj)
 	rb_bug("unknown immediate %ld", obj);
     }
 
+#if 0
     DEFER_INTS;
     if (RCLASS_SINGLETON(RBASIC(obj)->klass) &&
 	rb_iv_get(RBASIC(obj)->klass, "__attached__") == obj) {
 	klass = RBASIC(obj)->klass;
     }
-    else {
+    else
+#endif	
+    {
 	switch (TYPE(obj)) {
 	    case T_CLASS:
 	    case T_MODULE:
 		klass = *(VALUE *)obj;
+		rb_vm_set_outer(klass, obj);
 		break;
+
 	    default:
 		klass = rb_make_metaclass(obj, RBASIC(obj)->klass);
 		break;
@@ -1105,9 +1055,11 @@ rb_singleton_class(VALUE obj)
     else {
 	OBJ_UNTAINT(klass);
     }
+    if (OBJ_FROZEN(obj)) {
+	OBJ_FREEZE(klass);
+    }
 #endif
-    if (OBJ_FROZEN(obj)) OBJ_FREEZE(klass);
-    ALLOW_INTS;
+//    ALLOW_INTS;
 
     return klass;
 }

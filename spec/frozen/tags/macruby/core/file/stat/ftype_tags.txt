@@ -1,0 +1,2 @@
+critical:File::Stat#ftype returns fifo when the file is a fifo
+fails:File::Stat#ftype returns 'socket' when the file is a socket

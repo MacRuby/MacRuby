@@ -3,6 +3,7 @@
  * included by eval.c
  */
 
+#if 0
 static void
 warn_printf(const char *fmt, ...)
 {
@@ -14,40 +15,23 @@ warn_printf(const char *fmt, ...)
     va_end(args);
     rb_write_error(buf);
 }
+#endif
 
 #define warn_print(x) rb_write_error(x)
 #define warn_print2(x,l) rb_write_error2(x,l)
-
-static void
-error_pos(void)
-{
-    const char *sourcefile = rb_sourcefile();
-    int sourceline = rb_sourceline();
-
-    if (sourcefile) {
-	if (sourceline == 0) {
-	    warn_printf("%s", sourcefile);
-	}
-	else if (rb_frame_callee()) {
-	    warn_printf("%s:%d:in `%s'", sourcefile, sourceline,
-			rb_id2name(rb_frame_callee()));
-	}
-	else {
-	    warn_printf("%s:%d", sourcefile, sourceline);
-	}
-    }
-}
 
 VALUE rb_check_backtrace(VALUE);
 
 static VALUE
 get_backtrace(VALUE info)
 {
-    if (NIL_P(info))
+    if (NIL_P(info)) {
 	return Qnil;
+    }
     info = rb_funcall(info, rb_intern("backtrace"), 0);
-    if (NIL_P(info))
+    if (NIL_P(info)) {
 	return Qnil;
+    }
     return rb_check_backtrace(info);
 }
 
@@ -66,6 +50,7 @@ set_backtrace(VALUE info, VALUE bt)
 static void
 error_print(void)
 {
+#if 0
     VALUE errat = Qnil;		/* OK */
     VALUE errinfo = GET_THREAD()->errinfo;
     volatile VALUE eclass, e;
@@ -177,6 +162,7 @@ error_print(void)
     }
   error:
     POP_TAG();
+#endif
 }
 
 void
@@ -200,73 +186,4 @@ rb_print_undef(VALUE klass, ID id, int scope)
 		  rb_id2name(id),
 		  (TYPE(klass) == T_MODULE) ? "module" : "class",
 		  rb_class2name(klass));
-}
-
-static int
-sysexit_status(VALUE err)
-{
-    VALUE st = rb_iv_get(err, "status");
-    return NUM2INT(st);
-}
-
-static int
-error_handle(int ex)
-{
-    int status = EXIT_FAILURE;
-    rb_thread_t *th = GET_THREAD();
-
-    if (rb_thread_set_raised(th))
-	return EXIT_FAILURE;
-    switch (ex & TAG_MASK) {
-      case 0:
-	status = EXIT_SUCCESS;
-	break;
-
-      case TAG_RETURN:
-	error_pos();
-	warn_print(": unexpected return\n");
-	break;
-      case TAG_NEXT:
-	error_pos();
-	warn_print(": unexpected next\n");
-	break;
-      case TAG_BREAK:
-	error_pos();
-	warn_print(": unexpected break\n");
-	break;
-      case TAG_REDO:
-	error_pos();
-	warn_print(": unexpected redo\n");
-	break;
-      case TAG_RETRY:
-	error_pos();
-	warn_print(": retry outside of rescue clause\n");
-	break;
-      case TAG_THROW:
-	/* TODO: fix me */
-	error_pos();
-	warn_printf(": unexpected throw\n");
-	break;
-      case TAG_RAISE: {
-	VALUE errinfo = GET_THREAD()->errinfo;
-	if (rb_obj_is_kind_of(errinfo, rb_eSystemExit)) {
-	    status = sysexit_status(errinfo);
-	}
-	else if (rb_obj_is_instance_of(errinfo, rb_eSignal)) {
-	    /* no message when exiting by signal */
-	}
-	else {
-	    error_print();
-	}
-	break;
-      }
-      case TAG_FATAL:
-	error_print();
-	break;
-      default:
-	rb_bug("Unknown longjmp status %d", ex);
-	break;
-    }
-    rb_thread_reset_raised(th);
-    return status;
 }

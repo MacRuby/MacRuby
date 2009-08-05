@@ -1,0 +1,1 @@
+fails:Encoding.aliases returns an encoding name for a given alias

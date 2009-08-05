@@ -1,0 +1,2 @@
+critical:The NSString class can be subclassed and later instantiated
+critical:An NSString object can have a singleton class

@@ -1,0 +1,2 @@
+fails:Hash#key? returns false for objects with the same hash
+fails:Hash#key compares values using ==

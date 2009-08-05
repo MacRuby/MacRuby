@@ -1,0 +1,1 @@
+fails:Range#eql? returns true for subclasses to Range

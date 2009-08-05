@@ -6,6 +6,61 @@
 # Author:: why the lucky stiff
 # 
 
+require 'libyaml'
+require 'yaml/rubytypes'
+
+module YAML
+  
+  def YAML.parser
+    LibYAML::Parser.new
+  end
+  
+  def YAML.emitter
+    LibYAML::Emitter.new
+  end
+  
+  def YAML.dump(obj, io=nil)
+    obj.to_yaml(io)
+  end
+  
+  def YAML.load(io)
+    parsr = LibYAML::Parser.new(io)
+    parsr.load
+  end
+  
+  def YAML.load_file(path)
+    File.open(path) { |f| load(f) }
+  end
+  
+  def YAML.parse(io)
+    LibYAML::Parser.new(io).load
+  end
+  
+  def YAML.parse_file(path)
+    File.open(path) { |f| parse(f) }
+  end
+  
+  def YAML.quick_emit(out, &block)
+    if out.is_a? LibYAML::Emitter
+      yield(out)
+    else
+      LibYAML::Emitter.new(out).stream do |stream|
+        stream.document { |doc| yield(doc) }
+      end
+    end
+  end
+end
+
+module Kernel
+  def y(*objs)
+    objs.each { |obj| YAML::dump(obj, $stdout) }
+  end
+end
+
+
+
+=begin
+
 require 'stringio'
 require 'yaml/error'
 require 'yaml/syck'
@@ -437,4 +492,4 @@ module Kernel
     private :y
 end
 
-
+=end

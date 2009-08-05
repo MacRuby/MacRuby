@@ -22,7 +22,7 @@ class TestString < Test::Unit::TestCase
 @end
 EOS
       File.open('/tmp/_test_string.m', 'w') { |io| io.write(s) }
-      system("gcc /tmp/_test_string.m -bundle -o #{bundle} -arch i386 -arch x86_64 -framework Foundation -fobjc-gc-only") or exit 1
+      system("gcc /tmp/_test_string.m -bundle -o #{bundle} -framework Foundation -fobjc-gc-only") or exit 1
     end
     require 'dl'; DL.dlopen(bundle)
   end
@@ -41,12 +41,6 @@ EOS
     [[0,1], [1,7], [4,3], [7,2]].each do |d|
       assert_equal(s[*d], obj.testSubstring(s, range:NSRange.new(*d)))
     end
-  end
-  
-  it "should return the correct length for multibyte characters" do
-    assert_equal(3, 'あいう'.length)
-    assert_equal(2, 'aあ'.length)
-    assert_equal(1, 'a'.length)
   end
   
   #

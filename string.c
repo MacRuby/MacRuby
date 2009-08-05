@@ -14,6 +14,8 @@
 #include "ruby/encoding.h"
 #include "id.h"
 #include "objc.h"
+#include "ruby/node.h"
+#include "vm.h"
 
 #define BEG(no) regs->beg[no]
 #define END(no) regs->end[no]
@@ -30,121 +32,17 @@ VALUE rb_cCFString;
 VALUE rb_cNSString;
 VALUE rb_cNSMutableString;
 VALUE rb_cSymbol;
+VALUE rb_cByteString;
 
-static void *rb_str_cfdata_key;
-
-static inline void
-rb_str_cfdata_set(VALUE str, void *cfdata)
-{
-    rb_objc_set_associative_ref((void *)str, &rb_str_cfdata_key,
-	    cfdata);
-}
-
-static inline void *
-rb_str_cfdata2(VALUE str) 
-{
-    return rb_objc_get_associative_ref((void *)str, &rb_str_cfdata_key);
-}
-
-static inline bool
-rb_objc_str_is_bytestring(VALUE str)
-{
-    return rb_str_cfdata2(str) != NULL;
-}
-
-static void *
-rb_str_cfdata(VALUE str)
-{
-    void *cfdata;
-
-    assert(str != 0);
-
-    cfdata = rb_str_cfdata2(str);
-    if (cfdata == NULL) {
-	CFMutableDataRef mdata;
-	long len;
-
-	if (CFStringGetLength((CFStringRef)str) == 0) {
-	    mdata = CFDataCreateMutable(NULL, 0);
-	}
-	else {
-	    CFDataRef data;
-	    data = CFStringCreateExternalRepresentation(NULL,
-		    (CFStringRef)str, kCFStringEncodingUTF8, 0);
-	    if (data == NULL)
-		return NULL;
-	    mdata = CFDataCreateMutableCopy(NULL, 0, data);
-	    len = CFDataGetLength(data);
-	    /* This is a hack to make sure a sentinel byte is created at the 
-	     * end of the buffer. 
-	     */
-	    CFDataSetLength(mdata, len + 1); 
-	    CFDataSetLength(mdata, len);
-	    CFRelease((CFTypeRef)data);
-	}
-	cfdata = (void *)mdata;
-	rb_str_cfdata_set(str, cfdata);
-	CFMakeCollectable(mdata);
-    }
-    return cfdata;    
-}
-
-char *
-rb_str_byteptr(VALUE str)
-{
-    return (char *)CFDataGetMutableBytePtr(
-	(CFMutableDataRef)rb_str_cfdata(str));
-}
-
-long
-rb_str_bytelen(VALUE str)
-{
-    return CFDataGetLength((CFDataRef)rb_str_cfdata(str));
-}
-
-void
-rb_str_bytesync(VALUE str)
-{
-    void *cfdata;
-
-    cfdata = rb_str_cfdata2(str);
-    if (cfdata != NULL) {
-	CFDataRef data;
-	CFIndex datalen;
-	const UInt8 *dataptr;
-	CFStringRef bytestr;
-
-	data = (CFDataRef)cfdata;
-	datalen = CFDataGetLength(data);
-	dataptr = CFDataGetBytePtr(data);
-	bytestr = CFStringCreateWithBytesNoCopy(
-		NULL,
-		dataptr,
-		datalen,
-		kCFStringEncodingUTF8,
-		false,
-		kCFAllocatorNull);
-	if (bytestr != NULL) {
-	    CFStringReplaceAll((CFMutableStringRef)str, (CFStringRef)bytestr);
-	    if (CFStringGetLength(bytestr) == datalen) {
-		rb_str_cfdata_set(str, NULL);
-	    }
-	    CFRelease(bytestr);
-	}
-    }
-}
+static ptrdiff_t wrappedDataOffset;
+#define WRAPPED_DATA_IV_NAME "wrappedData"
+#define BYTESTRING_ENCODING_IV_NAME "encoding"
 
 VALUE
 rb_str_freeze(VALUE str)
 {
     rb_obj_freeze(str);
     return str;
-}
-
-static VALUE
-rb_str_bytestring_m(VALUE str)
-{
-    return rb_objc_str_is_bytestring(str) ? Qtrue : Qfalse;
 }
 
 #define is_ascii_string(str) (1)
@@ -162,42 +60,57 @@ str_frozen_check(VALUE s)
     }
 }
 
-static VALUE
-str_alloc(VALUE klass)
+static inline void
+str_change_class(VALUE str, VALUE klass)
 {
-    VALUE str;
-
-    str = (VALUE)CFStringCreateMutable(NULL, 0);
     if (klass != 0 
 	&& klass != rb_cNSString 
 	&& klass != rb_cNSMutableString
-	&& klass != rb_cSymbol)
-	*(Class *)str = (Class)klass;
+	&& klass != rb_cSymbol
+	&& klass != rb_cByteString) {
+	*(VALUE *)str = (VALUE)klass;
+    }
+}
+
+static inline VALUE
+str_alloc(VALUE klass)
+{
+    VALUE str = (VALUE)CFStringCreateMutable(NULL, 0);
+    str_change_class(str, klass);
     CFMakeCollectable((CFTypeRef)str);
 
     return (VALUE)str;
 }
 
-static VALUE
-rb_str_new_bytestring_m(VALUE rcv, VALUE data)
+VALUE
+rb_str_new_empty(void)
 {
-    VALUE str = str_alloc(0);
-    rb_str_cfdata_set(str, (void *)data);
-    return str;
+    return str_alloc(0);
 }
 
-static void
-rb_objc_str_set_bytestring(VALUE str, const char *dataptr, long datalen)
+VALUE
+rb_str_new_fast(int argc, ...)
 {
-    CFMutableDataRef data;
+    VALUE str;
+   
+    str = str_alloc(0);
 
-    assert(dataptr != NULL);
-    assert(datalen > 0);
+    if (argc > 0) {
+	va_list ar;
+	int i;
 
-    data = CFDataCreateMutable(NULL, 0);
-    CFDataAppendBytes(data, (const UInt8 *)dataptr, datalen);
-    rb_str_cfdata_set(str, data);
-    CFMakeCollectable(data);
+	va_start(ar, argc);
+	for (i = 0; i < argc; ++i) {
+	    VALUE fragment;
+	   
+	    fragment = va_arg(ar, VALUE);
+	    fragment = rb_obj_as_string(fragment);
+	    CFStringAppend((CFMutableStringRef)str, (CFStringRef)fragment);
+	}
+	va_end(ar);
+    }
+
+    return str;
 }
 
 static VALUE
@@ -209,42 +122,46 @@ str_new(VALUE klass, const char *ptr, long len)
 	rb_raise(rb_eArgError, "negative string size (or size too big)");
     }
 
-    str = str_alloc(klass);
-    bool need_padding = len > 0;
     if (ptr != NULL && len > 0) {
-	long slen;
-	slen = strlen(ptr);
+	const long slen = len == 1
+	    ? 1 /* XXX in the case ptr is actually a pointer to a single char
+		   character, which is not NULL-terminated. */
+	    : strlen(ptr);
 
-	if (slen == len) {
+	if (len <= slen) {
+	    str = str_alloc(klass);
 	    CFStringAppendCString((CFMutableStringRef)str, ptr, 
 		    kCFStringEncodingUTF8);
-	    need_padding = false;
-	    if (CFStringGetLength((CFStringRef)str) != len)
-		rb_objc_str_set_bytestring(str, ptr, len);
+	    if (len < slen) {
+		CFStringPad((CFMutableStringRef)str, NULL, len, 0);
+	    }
+	    if (CFStringGetLength((CFStringRef)str) != len) {
+		str = rb_bytestring_new_with_data((const UInt8 *)ptr, len);
+	    }
 	}
 	else {
-	    if (slen == 0 || len < slen) {
-		CFStringRef substr;
-
-		substr = CFStringCreateWithBytes(NULL, (const UInt8 *)ptr, 
-			len, kCFStringEncodingUTF8, false);
-
-		if (substr != NULL) {
-		    CFStringAppend((CFMutableStringRef)str, substr);
-		    CFRelease(substr);		
-		}
-		else {
-		    rb_objc_str_set_bytestring(str, ptr, len);
-		}
-	    }
-	    else {
-		rb_objc_str_set_bytestring(str, ptr, len);
-	    }
+	    str = rb_bytestring_new_with_data((const UInt8 *)ptr, len);
 	}
     }
-    if (need_padding)
-	CFStringPad((CFMutableStringRef)str, CFSTR(" "), len, 0);
+    else {
+	if (len == 0) {
+	    str = str_alloc(klass);
+	}
+	else {
+	    str = rb_bytestring_new();
+	    rb_bytestring_resize(str, len);
+	}
+    }
 
+    return str;
+}
+
+VALUE
+rb_unicode_str_new(const UniChar *ptr, const size_t len)
+{
+    VALUE str = str_alloc(rb_cString);
+    CFStringAppendCharacters((CFMutableStringRef)str,
+	    ptr, len);
     return str;
 }
 
@@ -257,17 +174,13 @@ rb_str_new(const char *ptr, long len)
 VALUE
 rb_usascii_str_new(const char *ptr, long len)
 {
-    VALUE str = str_new(rb_cString, ptr, len);
-
-    return str;
+    return str_new(rb_cString, ptr, len);
 }
 
 VALUE
 rb_enc_str_new(const char *ptr, long len, rb_encoding *enc)
 {
-    VALUE str = str_new(rb_cString, ptr, len);
-
-    return str;
+    return str_new(rb_cString, ptr, len);
 }
 
 VALUE
@@ -306,18 +219,18 @@ rb_tainted_str_new2(const char *ptr)
     return str;
 }
 
-static VALUE
+static inline VALUE
 str_new3(VALUE klass, VALUE str)
 {
-    return rb_str_dup(str);
+    VALUE str2 = rb_str_dup(str);
+    str_change_class(str2, klass);
+    return str2;
 }
 
 VALUE
 rb_str_new3(VALUE str)
 {
-    VALUE str2 = str_new3(rb_obj_class(str), str);
-
-    return str2;
+    return str_new3(rb_obj_class(str), str);
 }
 
 VALUE
@@ -337,27 +250,26 @@ rb_str_new5(VALUE obj, const char *ptr, long len)
 VALUE
 rb_str_buf_new(long capa)
 {
-    VALUE str = str_alloc(rb_cString);
-
-    return str;
+    return rb_bytestring_new();
 }
 
 VALUE
 rb_str_buf_new2(const char *ptr)
 {
-    VALUE str;
+    VALUE str = rb_bytestring_new();
     long len = strlen(ptr);
-
-    str = rb_str_buf_new(len);
-    rb_str_buf_cat(str, ptr, len);
-
+    if (ptr != NULL && len > 0) {
+	CFDataAppendBytes(rb_bytestring_wrapped_data(str), (const UInt8 *)ptr, len);
+    }
     return str;
 }
 
 VALUE
 rb_str_tmp_new(long len)
 {
-    return str_new(0, 0, len);
+    VALUE str = rb_bytestring_new();
+    rb_bytestring_resize(str, len);
+    return str;
 }
 
 VALUE
@@ -380,44 +292,57 @@ rb_obj_as_string(VALUE obj)
 {
     VALUE str;
 
-    if (TYPE(obj) == T_STRING) {
+    if (TYPE(obj) == T_STRING || TYPE(obj) == T_SYMBOL) {
 	return obj;
     }
-    str = rb_funcall(obj, id_to_s, 0);
-    if (TYPE(str) != T_STRING)
+    //str = rb_funcall(obj, id_to_s, 0);
+    str = rb_vm_call(obj, selToS, 0, NULL, false);
+    if (TYPE(str) != T_STRING) {
 	return rb_any_to_s(obj);
-    if (OBJ_TAINTED(obj)) OBJ_TAINT(str);
+    }
+    if (OBJ_TAINTED(obj)) {
+	OBJ_TAINT(str);
+    }
     return str;
 }
 
 static VALUE rb_str_replace(VALUE, VALUE);
 
-VALUE
-rb_str_dup(VALUE str)
+static VALUE
+rb_str_dup_imp(VALUE str, SEL sel)
 {
     VALUE dup;
-    void *data;
 
+#if 0
+    if (RSTRING_LEN(str) == 0) {
+	return str_alloc(0);
+    }
     dup = (VALUE)CFStringCreateMutableCopy(NULL, 0, (CFStringRef)str);
-
-    data = rb_str_cfdata2(str);
-    if (data != NULL)
-	rb_str_cfdata_set(dup, data);
-
-    if (OBJ_TAINTED(str))
-	OBJ_TAINT(dup);
-
     CFMakeCollectable((CFTypeRef)dup);
+#else
+    dup = (VALUE)objc_msgSend((id)str, selMutableCopy);
+#endif
+
+    if (OBJ_TAINTED(str)) {
+	OBJ_TAINT(dup);
+    }
 
     return dup;
 }
 
+VALUE
+rb_str_dup(VALUE str)
+{
+    return rb_str_dup_imp(str, 0);
+}
+
 static VALUE
-rb_str_clone(VALUE str)
+rb_str_clone(VALUE str, SEL sel)
 {
     VALUE clone = rb_str_dup(str);
-    if (OBJ_FROZEN(str))
+    if (OBJ_FROZEN(str)) {
 	OBJ_FREEZE(clone);
+    }
     return clone;
 }
 
@@ -429,14 +354,15 @@ rb_str_clone(VALUE str)
  */
 
 static VALUE
-rb_str_init(int argc, VALUE *argv, VALUE str)
+rb_str_init(VALUE str, SEL sel, int argc, VALUE *argv)
 {
     VALUE orig;
 
     str = (VALUE)objc_msgSend((id)str, selInit);
 
-    if (argc > 0 && rb_scan_args(argc, argv, "01", &orig) == 1)
+    if (argc > 0 && rb_scan_args(argc, argv, "01", &orig) == 1) {
 	rb_str_replace(str, orig);
+    }
     return str;
 }
 
@@ -455,13 +381,19 @@ str_strlen(VALUE str, rb_encoding *enc)
  *  Returns the character length of <i>str</i>.
  */
 
-VALUE
-rb_str_length(VALUE str)
+static VALUE
+rb_str_length_imp(VALUE str, SEL sel)
 {
     int len;
 
     len = str_strlen(str, STR_ENC_GET(str));
     return INT2NUM(len);
+}
+
+VALUE
+rb_str_length(VALUE str)
+{
+    return rb_str_length_imp(str, 0);
 }
 
 /*
@@ -472,9 +404,12 @@ rb_str_length(VALUE str)
  */
 
 static VALUE
-rb_str_bytesize(VALUE str)
+rb_str_bytesize(VALUE str, SEL sel)
 {
-    return INT2NUM(rb_str_bytelen(str));
+    // TODO Not super accurate...
+    CFStringEncoding encoding = CFStringGetSmallestEncoding((CFStringRef)str);
+    long size = CFStringGetMaximumSizeForEncoding(RSTRING_LEN(str), encoding);
+    return LONG2NUM(size);
 }
 
 /*
@@ -488,11 +423,9 @@ rb_str_bytesize(VALUE str)
  */
 
 static VALUE
-rb_str_empty(VALUE str)
+rb_str_empty(VALUE str, SEL sel)
 {
-    if (RSTRING_LEN(str) == 0)
-	return Qtrue;
-    return Qfalse;
+    return RSTRING_LEN(str) == 0 ? Qtrue : Qfalse;
 }
 
 /*
@@ -505,14 +438,15 @@ rb_str_empty(VALUE str)
  *     "Hello from " + self.to_s   #=> "Hello from main"
  */
 
-VALUE
-rb_str_plus(VALUE str1, VALUE str2)
+static VALUE
+rb_str_plus(VALUE str1, SEL sel, VALUE str2)
 {
     VALUE str3 = rb_str_new(0, 0);
     rb_str_buf_append(str3, str1);
     rb_str_buf_append(str3, str2);
-    if (OBJ_TAINTED(str1) || OBJ_TAINTED(str2))
+    if (OBJ_TAINTED(str1) || OBJ_TAINTED(str2)) {
 	OBJ_TAINT(str3);
+    }
     return str3;
 }
 
@@ -526,8 +460,8 @@ rb_str_plus(VALUE str1, VALUE str2)
  *     "Ho! " * 3   #=> "Ho! Ho! Ho! "
  */
 
-VALUE
-rb_str_times(VALUE str, VALUE times)
+static VALUE
+rb_str_times(VALUE str, SEL sel, VALUE times)
 {
     VALUE str2;
     long n, len;
@@ -563,7 +497,7 @@ rb_str_times(VALUE str, VALUE times)
  */
 
 static VALUE
-rb_str_format_m(VALUE str, VALUE arg)
+rb_str_format_m(VALUE str, SEL sel, VALUE arg)
 {
     VALUE tmp = rb_check_array_type(arg);
 
@@ -576,12 +510,21 @@ rb_str_format_m(VALUE str, VALUE arg)
 static inline void
 str_modifiable(VALUE str)
 {
-    bool __CFStringIsMutable(void *);
-    if (!__CFStringIsMutable((void *)str)) 
-	rb_raise(rb_eRuntimeError, "can't modify immutable string");
-    if (OBJ_FROZEN(str)) rb_error_frozen("string");
-    if (!OBJ_TAINTED(str) && rb_safe_level() >= 4)
+    long mask;
+#ifdef __LP64__
+    mask = RCLASS_RC_FLAGS(str);
+#else
+    mask = rb_objc_flag_get_mask((void *)str);
+#endif
+    if (RSTRING_IMMUTABLE(str)) {
+	mask |= FL_FREEZE;
+    }
+    if ((mask & FL_FREEZE) == FL_FREEZE) {
+	rb_raise(rb_eRuntimeError, "can't modify frozen/immutable string");
+    }
+    if ((mask & FL_TAINT) == FL_TAINT && rb_safe_level() >= 4) {
 	rb_raise(rb_eSecurityError, "Insecure: can't modify string");
+    }
 }
 
 void
@@ -590,8 +533,9 @@ rb_str_modify(VALUE str)
 #if WITH_OBJC
     str_modifiable(str);
 #else
-    if (!str_independent(str))
+    if (!str_independent(str)) {
 	str_make_independent(str);
+    }
     ENC_CODERANGE_CLEAR(str);
 #endif
 }
@@ -629,32 +573,44 @@ rb_string_value_ptr(volatile VALUE *ptr)
 const char *
 rb_str_cstr(VALUE ptr)
 {
-    CFDataRef data;
-    const char *cptr;
-   
-    data = (CFDataRef)rb_str_cfdata2(ptr);
-    cptr = NULL;
-    if (data == NULL) {
-	cptr = CFStringGetCStringPtr((CFStringRef)ptr, 0);
-    	if (cptr == NULL) {
-	    long len;
-	    len = CFStringGetLength((CFStringRef)ptr);
-	    if (len == 0)
-		return "";
-	    else 
-		data = (CFDataRef)rb_str_cfdata(ptr);
-	}
+    if (*(VALUE *)ptr == rb_cSymbol) {
+	return RSYMBOL(ptr)->str;
     }
-    return data == NULL ? cptr : (const char *)CFDataGetBytePtr(data);
+    if (*(VALUE *)ptr == rb_cByteString) {
+	return (const char *)rb_bytestring_byte_pointer(ptr);
+    }
+
+    if (RSTRING_LEN(ptr) == 0) {
+	return "";
+    }
+
+    char *cptr = (char *)CFStringGetCStringPtr((CFStringRef)ptr, 0);
+    if (cptr != NULL) {
+	return cptr;
+    }
+
+    // XXX this is quite inefficient, but we don't really have the
+    // choice.
+
+    const long max = CFStringGetMaximumSizeForEncoding(
+	    CFStringGetLength((CFStringRef)ptr),
+	    kCFStringEncodingUTF8);
+
+    cptr = (char *)xmalloc(max + 1);
+    if (!CFStringGetCString((CFStringRef)ptr, cptr,
+		max + 1, kCFStringEncodingUTF8)) {
+	// Probably a UTF16 string...
+	xfree(cptr);
+	return NULL;
+    }
+
+    return cptr;
 }
 
 long
 rb_str_clen(VALUE ptr)
 {
-    CFDataRef data = (CFDataRef)rb_str_cfdata2(ptr);
-    return data == NULL 
-	? CFStringGetLength((CFStringRef)ptr) 
-	: CFDataGetLength(data);
+    return CFStringGetLength((CFStringRef)ptr);
 }
 
 char *
@@ -683,7 +639,7 @@ rb_check_string_type(VALUE str)
  *     String.try_convert(/re/)      # => nil
  */
 static VALUE
-rb_str_s_try_convert(VALUE dummy, VALUE str)
+rb_str_s_try_convert(VALUE dummy, SEL sel, VALUE str)
 {
     return rb_check_string_type(str);
 }
@@ -698,58 +654,36 @@ rb_str_sublen(VALUE str, long pos)
 VALUE
 rb_str_subseq(VALUE str, long beg, long len)
 {
-    CFDataRef data;
     CFMutableStringRef substr;
     long n;
 
-#if 1
-    data = NULL;
     n = CFStringGetLength((CFStringRef)str);
-#else
-    /* the world is not prepared for this yet */
-    data = (CFDataRef)rb_str_cfdata2(str);
-    if (data != NULL) {
-	n = CFDataGetLength(data);
-    }
-    else {
-        n = CFStringGetLength((CFStringRef)str);
-    }
-#endif
 
-    if (beg < 0)
+    if (beg < 0) {
 	beg += n;
-    if (beg > n || beg < 0)
+    }
+    if (beg > n || beg < 0) {
 	return Qnil;
-    if (beg + len > n)
-	return (VALUE)CFSTR("");
+    }
+    if (beg + len > n) {
+	len = n - beg;
+    }
 
     substr = CFStringCreateMutable(NULL, 0);
 
-    if (data != NULL) {
-	const UInt8 *bytes;
-	CFMutableDataRef subdata;
-
-	bytes = CFDataGetBytePtr(data);
-	subdata = CFDataCreateMutable(NULL, 0);
-	CFDataAppendBytes(subdata, bytes + beg, len);
-	rb_str_cfdata_set((VALUE)substr, subdata);
-	CFMakeCollectable(subdata);
-
-	RSTRING_SYNC(substr);
+    if (len == 1) {
+	UniChar c = CFStringGetCharacterAtIndex((CFStringRef)str, beg);
+	CFStringAppendCharacters(substr, &c, 1);
     }
     else {
-	if (len == 1) {
-	    UniChar c = CFStringGetCharacterAtIndex((CFStringRef)str, beg);
-	    CFStringAppendCharacters(substr, &c, 1);
-	}
-	else {
-	    UniChar *buffer = alloca(sizeof(UniChar) * len);
-	    CFStringGetCharacters((CFStringRef)str, CFRangeMake(beg, len), 
+	UniChar *buffer = alloca(sizeof(UniChar) * len);
+	CFStringGetCharacters((CFStringRef)str, CFRangeMake(beg, len), 
 		buffer);
-	    CFStringAppendCharacters(substr, buffer, len);
-	}
+	CFStringAppendCharacters(substr, buffer, len);
     }
+
     CFMakeCollectable(substr);
+
     return (VALUE)substr;
 }
 
@@ -797,52 +731,46 @@ rb_str_resize(VALUE str, long len)
     rb_str_modify(str);
     slen = RSTRING_LEN(str);
     if (slen != len) {
-	void *cfdata;
-
 	CFStringPad((CFMutableStringRef)str, CFSTR(" "), len, 0);
-
-	cfdata = rb_str_cfdata2(str);
-	if (cfdata != NULL)
-	    CFDataSetLength((CFMutableDataRef)cfdata, len); 
     }
     return str;
 }
 
+__attribute__((always_inline))
 static void
 rb_objc_str_cat(VALUE str, const char *ptr, long len, int cfstring_encoding)
 {
-    CFMutableDataRef data;
-
-    data = (CFMutableDataRef)rb_str_cfdata2(str);
-    if (data != NULL) {
+    if (*(VALUE *)str == rb_cByteString) {
+	CFMutableDataRef data = rb_bytestring_wrapped_data(str);
 	CFDataAppendBytes(data, (const UInt8 *)ptr, len);
-	RSTRING_SYNC(str);
     }
     else {
-	long slen;
-	if (ptr[len] != '\0') {
-	    char *p = alloca(len + 1);
-	    memcpy(p, ptr, len);
-	    p[len] = '\0';
-	    ptr = p;
-	}
-	slen = strlen(ptr);
-	if (slen == len) {
-	    CFStringAppendCString((CFMutableStringRef)str, ptr, 
-		cfstring_encoding);
-	}
-	else {
-	    CFStringRef substr = CFStringCreateWithBytes(NULL, 
-		(const UInt8 *)ptr,
-		len, cfstring_encoding, false);
-	    if (substr == NULL) {
-		data = (CFMutableDataRef)rb_str_cfdata(str);
-		CFDataAppendBytes(data, (void *)ptr, len);
+	long plen = strlen(ptr);
+	if (plen >= len) {
+	    const char *cstr;
+	    if (plen > len) {
+		// Sometimes the given string is bigger than the given length.
+		char *tmp = alloca(len + 1);
+		strncpy(tmp, ptr, len);
+		tmp[len] = '\0';
+		cstr = (const char *)tmp;
 	    }
 	    else {
-		CFStringAppend((CFMutableStringRef)str, substr);
-		CFRelease(substr);
+		cstr = ptr;
 	    }
+	    CFStringAppendCString((CFMutableStringRef)str, cstr,
+		    cfstring_encoding);
+	}
+	else {
+	    // Promoting as bytestring!
+	    CFDataRef data = CFStringCreateExternalRepresentation(NULL, (CFStringRef)str,
+		    kCFStringEncodingUTF8, 0);
+	    assert(data != NULL);
+	    CFMutableDataRef mdata = CFDataCreateMutableCopy(NULL, 0, data);
+	    CFRelease(data);
+	    *(VALUE *)str = rb_cByteString;
+	    *(void **)((char *)str + sizeof(void *)) = (void *)mdata;
+	    CFMakeCollectable(mdata);
 	}
     }
 }
@@ -891,49 +819,40 @@ rb_str_buf_cat_ascii(VALUE str, const char *ptr)
     return str;
 }
 
-VALUE
-rb_str_buf_append(VALUE str, VALUE str2)
+static inline VALUE
+rb_str_buf_append0(VALUE str, VALUE str2)
 {
-    CFMutableDataRef mdata;
-    CFDataRef data;
-    long str2len;
-
     if (TYPE(str2) != T_SYMBOL) {
 	Check_Type(str2, T_STRING);
     }
 
-    str2len = RSTRING_LEN(str2);
+    CFStringAppend((CFMutableStringRef)str, (CFStringRef)str2);
 
-    if (str2len == 0)
-	return str;
+#if 0
+    const char *ptr;
+    long len;
 
-    data = (CFDataRef)rb_str_cfdata2(str2);
-    if (data != NULL) {
-	mdata = (CFMutableDataRef)rb_str_cfdata(str);
-	CFDataAppendBytes(mdata, CFDataGetBytePtr(data),
-	    CFDataGetLength(data));
-    }
-    else {
-	mdata = (CFMutableDataRef)rb_str_cfdata2(str);
-	if (mdata == NULL) {
-	    CFStringAppend((CFMutableStringRef)str, (CFStringRef)str2);
-	}
-	else {
-	    data = (CFDataRef)rb_str_cfdata(str2);
-	    CFDataAppendBytes(mdata, CFDataGetBytePtr(data), 
-		CFDataGetLength(data));
-	}
-    }
-    RSTRING_SYNC(str);
+    ptr = RSTRING_PTR(str2);
+    len = RSTRING_LEN(str2);
+
+    rb_objc_str_cat(str, ptr, len, kCFStringEncodingASCII);
+#endif
 
     return str;
+}
+
+VALUE
+rb_str_buf_append(VALUE str, VALUE str2)
+{
+   return rb_str_buf_append0(str, str2);
 }
 
 VALUE
 rb_str_append(VALUE str, VALUE str2)
 {
     StringValue(str2);
-    return rb_str_buf_append(str, str2);
+    rb_str_modify(str);
+    return rb_str_buf_append0(str, str2);
 }
 
 
@@ -953,8 +872,8 @@ rb_str_append(VALUE str, VALUE str2)
  *     a.concat(33)   #=> "hello world!"
  */
 
-VALUE
-rb_str_concat(VALUE str1, VALUE str2)
+static VALUE
+rb_str_concat_imp(VALUE str1, SEL sel, VALUE str2)
 {
     if (FIXNUM_P(str2)) {
         int c = FIX2INT(str2);
@@ -968,6 +887,12 @@ rb_str_concat(VALUE str1, VALUE str2)
 	return str1;
     }
     return rb_str_append(str1, str2);
+}
+
+VALUE
+rb_str_concat(VALUE str1, VALUE str2)
+{
+    return rb_str_concat_imp(str1, 0, str2);
 }
 
 int
@@ -1019,23 +944,23 @@ bool rb_objc_str_is_pure(VALUE);
  *  <code><=></code> <i>obj</i> returns zero.
  */
 
-VALUE
-rb_str_equal(VALUE str1, VALUE str2)
+static VALUE
+rb_str_equal_imp(VALUE str1, SEL sel, VALUE str2)
 {
-    int len;
-
-    if (str1 == str2) return Qtrue;
+    if (str1 == str2) {
+	return Qtrue;
+    }
     if (TYPE(str2) != T_STRING) {
 	if (!rb_respond_to(str2, rb_intern("to_str"))) {
 	    return Qfalse;
 	}
 	return rb_equal(str2, str1);
     }
-    len = RSTRING_LEN(str1);
-    if (len != RSTRING_LEN(str2))
-	return Qfalse;
-    if (rb_str_cfdata2(str1) != NULL || rb_str_cfdata2(str2) != NULL)
-	return memcmp(RSTRING_PTR(str1), RSTRING_PTR(str2), len) == 0 ? Qtrue : Qfalse;
+    if (*(VALUE *)str1 == *(VALUE *)str2) {
+	if (RSTRING_LEN(str1) != RSTRING_LEN(str2)) {
+	    return Qfalse;
+	}
+    }
     if (!rb_objc_str_is_pure(str2)) {
 	/* This is to work around a strange bug in CFEqual's objc 
 	 * dispatching.
@@ -1044,10 +969,13 @@ rb_str_equal(VALUE str1, VALUE str2)
 	str1 = str2;
 	str2 = tmp;
     }
-    if (CFEqual((CFTypeRef)str1, (CFTypeRef)str2))
-	return Qtrue;
+    return CFEqual((CFTypeRef)str1, (CFTypeRef)str2) ? Qtrue : Qfalse;
+}
 
-    return Qfalse;
+VALUE
+rb_str_equal(VALUE str1, VALUE str2)
+{
+    return rb_str_equal_imp(str1, 0, str2);
 }
 
 /*
@@ -1058,13 +986,15 @@ rb_str_equal(VALUE str1, VALUE str2)
  */
 
 static VALUE
-rb_str_eql(VALUE str1, VALUE str2)
+rb_str_eql(VALUE str1, SEL sel, VALUE str2)
 {
-    if (TYPE(str2) != T_STRING || RSTRING_BYTELEN(str1) != RSTRING_BYTELEN(str2))
+    if (TYPE(str2) != T_STRING) {
 	return Qfalse;
+    }
 
-    if (CFEqual((CFTypeRef)str1, (CFTypeRef)str2))
+    if (CFEqual((CFTypeRef)str1, (CFTypeRef)str2)) {
 	return Qtrue;
+    }
 
     return Qfalse;
 }
@@ -1093,7 +1023,7 @@ rb_str_eql(VALUE str1, VALUE str2)
  */
 
 static VALUE
-rb_str_cmp_m(VALUE str1, VALUE str2)
+rb_str_cmp_m(VALUE str1, SEL sel, VALUE str2)
 {
     long result;
 
@@ -1133,7 +1063,7 @@ rb_str_cmp_m(VALUE str1, VALUE str2)
  */
 
 static VALUE
-rb_str_casecmp(VALUE str1, VALUE str2)
+rb_str_casecmp(VALUE str1, SEL sel, VALUE str2)
 {
     return INT2FIX(CFStringCompare((CFStringRef)str1, (CFStringRef)str2,
 	kCFCompareCaseInsensitive));
@@ -1171,7 +1101,7 @@ rb_str_index(VALUE str, VALUE sub, long offset)
  */
 
 static VALUE
-rb_str_index_m(int argc, VALUE *argv, VALUE str)
+rb_str_index_m(VALUE str, SEL sel, int argc, VALUE *argv)
 {
     VALUE sub;
     VALUE initpos;
@@ -1263,7 +1193,7 @@ rb_str_rindex(VALUE str, VALUE sub, long pos)
  */
 
 static VALUE
-rb_str_rindex_m(int argc, VALUE *argv, VALUE str)
+rb_str_rindex_m(VALUE str, SEL sel, int argc, VALUE *argv)
 {
     VALUE sub;
     VALUE vpos;
@@ -1332,7 +1262,7 @@ rb_str_rindex_m(int argc, VALUE *argv, VALUE str)
  */
 
 static VALUE
-rb_str_match(VALUE x, VALUE y)
+rb_str_match(VALUE x, SEL sel, VALUE y)
 {
     switch (TYPE(y)) {
       case T_STRING:
@@ -1379,11 +1309,12 @@ static VALUE get_pat(VALUE, int);
  */
 
 static VALUE
-rb_str_match_m(int argc, VALUE *argv, VALUE str)
+rb_str_match_m(VALUE str, SEL sel, int argc, VALUE *argv)
 {
     VALUE re, result;
-    if (argc < 1)
+    if (argc < 1) {
 	rb_raise(rb_eArgError, "wrong number of arguments (%d for 1)", argc);
+    }
     re = argv[0];
     argv[0] = str;
     result = rb_funcall2(get_pat(re, 0), rb_intern("match"), argc, argv);
@@ -1418,8 +1349,8 @@ rb_str_match_m(int argc, VALUE *argv, VALUE str)
  *     "***".succ         #=> "**+"
  */
 
-VALUE
-rb_str_succ(VALUE orig)
+static VALUE
+rb_str_succ(VALUE orig, SEL sel)
 {
     UniChar *buf;
     UniChar carry;
@@ -1495,9 +1426,9 @@ rb_str_succ(VALUE orig)
  */
 
 static VALUE
-rb_str_succ_bang(VALUE str)
+rb_str_succ_bang(VALUE str, SEL sel)
 {
-    rb_str_shared_replace(str, rb_str_succ(str));
+    rb_str_shared_replace(str, rb_str_succ(str, 0));
 
     return str;
 }
@@ -1525,7 +1456,7 @@ rb_str_succ_bang(VALUE str)
  */
 
 static VALUE
-rb_str_upto(int argc, VALUE *argv, VALUE beg)
+rb_str_upto(VALUE beg, SEL sel, int argc, VALUE *argv)
 {
     VALUE end, exclusive;
     VALUE current, after_end;
@@ -1548,6 +1479,7 @@ rb_str_upto(int argc, VALUE *argv, VALUE beg)
 	    CFStringAppendCharacters(substr, &c, 1);
 	    CFMakeCollectable(substr);
 	    rb_yield((VALUE)substr);
+	    RETURN_IF_BROKEN();
 	    if (!excl && c == e) 
 		break;
 	    c++;
@@ -1563,6 +1495,7 @@ rb_str_upto(int argc, VALUE *argv, VALUE beg)
     current = beg;
     while (!rb_str_equal(current, after_end)) {
 	rb_yield(current);
+	RETURN_IF_BROKEN();
 	if (!excl && rb_str_equal(current, end)) break;
 	current = rb_funcall(current, succ, 0, 0);
 	StringValue(current);
@@ -1677,7 +1610,7 @@ rb_str_aref(VALUE str, VALUE indx)
  */
 
 static VALUE
-rb_str_aref_m(int argc, VALUE *argv, VALUE str)
+rb_str_aref_m(VALUE str, SEL sel, int argc, VALUE *argv)
 {
     if (argc == 2) {
 	if (TYPE(argv[0]) == T_REGEXP) {
@@ -1704,14 +1637,16 @@ rb_str_splice(VALUE str, long beg, long len, VALUE val)
 {
     long slen;
 
-    if (len < 0) rb_raise(rb_eIndexError, "negative length %ld", len);
+    if (len < 0) {
+	rb_raise(rb_eIndexError, "negative length %ld", len);
+    }
 
     StringValue(val);
     rb_str_modify(str);
     slen = CFStringGetLength((CFStringRef)str);
 
     if (slen < beg) {
-      out_of_range:
+out_of_range:
 	rb_raise(rb_eIndexError, "index %ld out of string", beg);
     }
     if (beg < 0) {
@@ -1724,6 +1659,10 @@ rb_str_splice(VALUE str, long beg, long len, VALUE val)
 	len = slen - beg;
     }
     rb_str_splice_0(str, beg, len, val);
+
+    if (OBJ_TAINTED(val)) {
+	OBJ_TAINT(str);
+    }
 }
 
 void
@@ -1771,36 +1710,36 @@ rb_str_aset(VALUE str, VALUE indx, VALUE val)
     long idx, beg;
 
     switch (TYPE(indx)) {
-      case T_FIXNUM:
-	idx = FIX2LONG(indx);
-      num_index:
-	rb_str_splice(str, idx, 1, val);
-	return val;
+	case T_FIXNUM:
+	    idx = FIX2LONG(indx);
+num_index:
+	    rb_str_splice(str, idx, 1, val);
+	    return val;
 
-      case T_REGEXP:
-	rb_str_subpat_set(str, indx, 0, val);
-	return val;
+	case T_REGEXP:
+	    rb_str_subpat_set(str, indx, 0, val);
+	    return val;
 
-      case T_STRING:
-	beg = rb_str_index(str, indx, 0);
-	if (beg < 0) {
-	    rb_raise(rb_eIndexError, "string not matched");
-	}
-	beg = rb_str_sublen(str, beg);
-	rb_str_splice(str, beg, str_strlen(indx, 0), val);
-	return val;
-
-      default:
-	/* check if indx is Range */
-	{
-	    long beg, len;
-	    if (rb_range_beg_len(indx, &beg, &len, str_strlen(str, 0), 2)) {
-		rb_str_splice(str, beg, len, val);
-		return val;
+	case T_STRING:
+	    beg = rb_str_index(str, indx, 0);
+	    if (beg < 0) {
+		rb_raise(rb_eIndexError, "string not matched");
 	    }
-	}
-	idx = NUM2LONG(indx);
-	goto num_index;
+	    beg = rb_str_sublen(str, beg);
+	    rb_str_splice(str, beg, str_strlen(indx, 0), val);
+	    return val;
+
+	default:
+	    /* check if indx is Range */
+	    {
+		long beg, len;
+		if (rb_range_beg_len(indx, &beg, &len, str_strlen(str, 0), 2)) {
+		    rb_str_splice(str, beg, len, val);
+		    return val;
+		}
+	    }
+	    idx = NUM2LONG(indx);
+	    goto num_index;
     }
 }
 
@@ -1829,7 +1768,7 @@ rb_str_aset(VALUE str, VALUE indx, VALUE val)
  */
 
 static VALUE
-rb_str_aset_m(int argc, VALUE *argv, VALUE str)
+rb_str_aset_m(VALUE str, SEL sel, int argc, VALUE *argv)
 {
     if (argc == 3) {
 	if (TYPE(argv[0]) == T_REGEXP) {
@@ -1864,7 +1803,7 @@ rb_str_aset_m(int argc, VALUE *argv, VALUE str)
  */
 
 static VALUE
-rb_str_insert(VALUE str, VALUE idx, VALUE str2)
+rb_str_insert(VALUE str, SEL sel, VALUE idx, VALUE str2)
 {
     long pos = NUM2LONG(idx);
 
@@ -1899,7 +1838,7 @@ rb_str_insert(VALUE str, VALUE idx, VALUE str2)
  */
 
 static VALUE
-rb_str_slice_bang(int argc, VALUE *argv, VALUE str)
+rb_str_slice_bang(VALUE str, SEL sel, int argc, VALUE *argv)
 {
     VALUE result;
     VALUE buf[3];
@@ -1913,9 +1852,9 @@ rb_str_slice_bang(int argc, VALUE *argv, VALUE str)
     }
     rb_str_modify(str);
     buf[i] = rb_str_new(0,0);
-    result = rb_str_aref_m(argc, buf, str);
+    result = rb_str_aref_m(str, 0, argc, buf);
     if (!NIL_P(result)) {
-	rb_str_aset_m(argc+1, buf, str);
+	rb_str_aset_m(str, 0, argc+1, buf);
     }
     return result;
 }
@@ -1959,15 +1898,14 @@ get_pat(VALUE pat, int quote)
  */
 
 static VALUE
-rb_str_sub_bang(int argc, VALUE *argv, VALUE str)
+rb_str_sub_bang(VALUE str, SEL sel, int argc, VALUE *argv)
 {
-    VALUE pat, repl, match, hash = Qnil;
-    struct re_registers *regs;
-    int iter = 0;
-    int tainted = 0;
+    VALUE repl, hash = Qnil;
+    bool iter = false;
+    bool tainted = false;
 
     if (argc == 1 && rb_block_given_p()) {
-	iter = 1;
+	iter = true;
     }
     else if (argc == 2) {
 	repl = argv[1];
@@ -1975,47 +1913,51 @@ rb_str_sub_bang(int argc, VALUE *argv, VALUE str)
 	if (NIL_P(hash)) {
 	    StringValue(repl);
 	}
-	if (OBJ_TAINTED(repl)) tainted = 1;
+	if (OBJ_TAINTED(repl)) {
+	    tainted = true;
+	}
     }
     else {
 	rb_raise(rb_eArgError, "wrong number of arguments (%d for 2)", argc);
     }
 
-    pat = get_pat(argv[0], 1);
+    VALUE pat = get_pat(argv[0], 1);
     if (rb_reg_search(pat, str, 0, 0) >= 0) {
-
-	match = rb_backref_get();
-	regs = RMATCH_REGS(match);
+	VALUE match = rb_backref_get();
+	struct re_registers *regs = RMATCH_REGS(match);
 
 	if (iter || !NIL_P(hash)) {
-
             if (iter) {
                 rb_match_busy(match);
                 repl = rb_obj_as_string(rb_yield(rb_reg_nth_match(0, match)));
             }
             else {
-                repl = rb_hash_aref(hash, rb_str_subseq(str, BEG(0), END(0) - BEG(0)));
+                repl = rb_hash_aref(hash, rb_str_subseq(str, BEG(0),
+			    END(0) - BEG(0)));
                 repl = rb_obj_as_string(repl);
             }
 	    str_frozen_check(str);
-	    if (iter) rb_backref_set(match);
+	    if (iter) {
+		rb_backref_set(match);
+	    }
 	}
 	else {
 	    repl = rb_reg_regsub(repl, str, regs, pat);
 	}
 
 	rb_str_modify(str);
-	RSTRING_SYNC(str);
 	rb_str_splice_0(str, BEG(0), END(0) - BEG(0), repl);
-	if (OBJ_TAINTED(repl)) tainted = 1;
+	if (OBJ_TAINTED(repl)) {
+	    tainted = true;
+	}
 
-	if (tainted) OBJ_TAINT(str);
-
+	if (tainted) {
+	    OBJ_TAINT(str);
+	}
 	return str;
     }
     return Qnil;
 }
-
 
 /*
  *  call-seq:
@@ -2049,85 +1991,96 @@ rb_str_sub_bang(int argc, VALUE *argv, VALUE str)
  */
 
 static VALUE
-rb_str_sub(int argc, VALUE *argv, VALUE str)
+rb_str_sub(VALUE str, SEL sel, int argc, VALUE *argv)
 {
-    str = rb_str_dup(str);
-    rb_str_sub_bang(argc, argv, str);
+    str = rb_str_new3(str);
+    rb_str_sub_bang(str, 0, argc, argv);
     return str;
 }
 
 static VALUE
-str_gsub(int argc, VALUE *argv, VALUE str, int bang)
+str_gsub(SEL sel, int argc, VALUE *argv, VALUE str, int bang)
 {
-    VALUE pat, val, repl, match, dest, hash = Qnil;
-    struct re_registers *regs;
-    long beg, n;
-    long offset, slen, len;
-    int iter = 0;
-    const char *sp, *cp;
-    int tainted = 0;
-    rb_encoding *str_enc;
-    
+    bool iter = false;
+    bool tainted = false;
+    VALUE hash = Qnil, repl = Qnil;
+ 
     switch (argc) {
-      case 1:
-	RETURN_ENUMERATOR(str, argc, argv);
-	iter = 1;
-	break;
-      case 2:
-	repl = argv[1];
-	hash = rb_check_convert_type(argv[1], T_HASH, "Hash", "to_hash");
-	if (NIL_P(hash)) {
-	    StringValue(repl);
-	}
-	if (OBJ_TAINTED(repl)) tainted = 1;
-	break;
-      default:
-	rb_raise(rb_eArgError, "wrong number of arguments (%d for 2)", argc);
+	case 1:
+	    RETURN_ENUMERATOR(str, argc, argv);
+	    iter = true;
+	    break;
+
+	case 2:
+	    repl = argv[1];
+	    hash = rb_check_convert_type(argv[1], T_HASH, "Hash", "to_hash");
+	    if (NIL_P(hash)) {
+		StringValue(repl);
+	    }
+	    if (OBJ_TAINTED(repl)) {
+		tainted = true;
+	    }
+	    break;
+
+	default:
+	    rb_raise(rb_eArgError, "wrong number of arguments (%d for 2)",
+		    argc);
     }
 
-    pat = get_pat(argv[0], 1);
-    offset=0; n=0;
-    beg = rb_reg_search(pat, str, 0, 0);
+    VALUE pat = get_pat(argv[0], 1);
+    long offset = 0;
+    long beg = rb_reg_search(pat, str, 0, 0);
     if (beg < 0) {
-	if (bang) return Qnil;	/* no match, no substitution */
-	return rb_str_dup(str);
+	if (bang) {
+	    return Qnil;	/* no match, no substitution */
+	}
+	return rb_str_new3(str);
     }
 
-    dest = rb_str_new5(str, NULL, 0);
-    slen = RSTRING_LEN(str);
-    sp = RSTRING_PTR(str);
-    cp = sp;
-    str_enc = NULL;
+    VALUE dest = rb_str_new5(str, NULL, 0);
+    long slen = RSTRING_LEN(str);
+    VALUE match;
 
     do {
-	n++;
 	match = rb_backref_get();
-	regs = RMATCH_REGS(match);
+	struct re_registers *regs = RMATCH_REGS(match);
+        VALUE val;
+
 	if (iter || !NIL_P(hash)) {
             if (iter) {
                 rb_match_busy(match);
                 val = rb_obj_as_string(rb_yield(rb_reg_nth_match(0, match)));
             }
             else {
-                val = rb_hash_aref(hash, rb_str_subseq(str, BEG(0), END(0) - BEG(0)));
+                val = rb_hash_aref(hash, rb_str_subseq(str, BEG(0),
+			    END(0) - BEG(0)));
                 val = rb_obj_as_string(val);
             }
 	    str_mod_check(str, sp, slen);
-	    if (bang) str_frozen_check(str);
+	    if (bang) {
+		str_frozen_check(str);
+	    }
 	    if (val == dest) { 	/* paranoid check [ruby-dev:24827] */
 		rb_raise(rb_eRuntimeError, "block should not cheat");
 	    }
-	    if (iter) rb_backref_set(match);
+	    if (iter) {
+		rb_backref_set(match);
+		RETURN_IF_BROKEN();
+	    }
 	}
 	else {
 	    val = rb_reg_regsub(repl, str, regs, pat);
 	}
 
-	if (OBJ_TAINTED(val)) tainted = 1;
 
-	len = beg - offset;	/* copy pre-match substr */
-        if (len) {
-	    rb_enc_str_buf_cat(dest, cp, len, str_enc);
+	if (OBJ_TAINTED(val)) {
+	    tainted = true;
+	}
+
+	long len = beg - offset;  /* copy pre-match substr */
+        if (len > 0) {
+	    rb_str_buf_append(dest, rb_str_subseq(str, offset, len));
+	    //rb_enc_str_buf_cat(dest, cp, len, str_enc);
         }
 
         rb_str_buf_append(dest, val);
@@ -2138,32 +2091,40 @@ str_gsub(int argc, VALUE *argv, VALUE str, int bang)
 	     * Always consume at least one character of the input string
 	     * in order to prevent infinite loops.
 	     */
-	    if (slen <= END(0)) break;
+	    if (slen <= END(0)) {
+		break;
+	    }
 	    len = 1;
-            rb_enc_str_buf_cat(dest, sp+END(0), len, str_enc);
+	    rb_str_buf_append(dest, rb_str_subseq(str, END(0), len));
+            //rb_enc_str_buf_cat(dest, sp+END(0), len, str_enc);
 	    offset = END(0) + len;
 	}
-	cp = sp + offset;
-	if (offset > slen) break;
+	if (offset > slen) {
+	    break;
+	}
 	beg = rb_reg_search(pat, str, offset, 0);
-    } while (beg >= 0);
+    }
+    while (beg >= 0);
+
     if (slen > offset) {
-        rb_enc_str_buf_cat(dest, cp, slen - offset, str_enc);
+	rb_str_buf_append(dest, rb_str_subseq(str, offset, slen - offset));
+        //rb_enc_str_buf_cat(dest, cp, slen - offset, str_enc);
     }
     rb_backref_set(match);
     if (bang) {
 	rb_str_modify(str);
-	RSTRING_SYNC(str);
-	RSTRING_SYNC(dest);
 	CFStringReplaceAll((CFMutableStringRef)str, (CFStringRef)dest);
     }
     else {
-    	if (!tainted && OBJ_TAINTED(str))
-	    tainted = 1;
+    	if (!tainted && OBJ_TAINTED(str)) {
+	    tainted = true;
+	}
 	str = dest;
     }
 
-    if (tainted) OBJ_TAINT(str);
+    if (tainted) {
+	OBJ_TAINT(str);
+    }
     return str;
 }
 
@@ -2178,9 +2139,9 @@ str_gsub(int argc, VALUE *argv, VALUE str, int bang)
  */
 
 static VALUE
-rb_str_gsub_bang(int argc, VALUE *argv, VALUE str)
+rb_str_gsub_bang(VALUE str, SEL sel, int argc, VALUE *argv)
 {
-    return str_gsub(argc, argv, str, 1);
+    return str_gsub(sel, argc, argv, str, 1);
 }
 
 
@@ -2218,9 +2179,9 @@ rb_str_gsub_bang(int argc, VALUE *argv, VALUE str)
  */
 
 static VALUE
-rb_str_gsub(int argc, VALUE *argv, VALUE str)
+rb_str_gsub(VALUE str, SEL sel, int argc, VALUE *argv)
 {
-    return str_gsub(argc, argv, str, 0);
+    return str_gsub(sel, argc, argv, str, 0);
 }
 
 
@@ -2235,23 +2196,24 @@ rb_str_gsub(int argc, VALUE *argv, VALUE str)
  *     s.replace "world"   #=> "world"
  */
 
+static VALUE
+rb_str_replace_imp(VALUE str, SEL sel, VALUE str2)
+{
+    if (str == str2) {
+	return str;
+    }
+    rb_str_modify(str);
+    CFStringReplaceAll((CFMutableStringRef)str, (CFStringRef)str2);
+    if (OBJ_TAINTED(str2)) {
+	OBJ_TAINT(str);
+    }
+    return str;
+}
+
 VALUE
 rb_str_replace(VALUE str, VALUE str2)
 {
-    if (str == str2) return str;
-    rb_str_modify(str);
-    CFDataRef data = (CFDataRef)rb_str_cfdata2(str2);
-    if (data != NULL) {
-	CFMutableDataRef mdata;
-       
-	mdata = CFDataCreateMutableCopy(NULL, 0, data);
-	rb_str_cfdata_set(str, mdata);
-	CFMakeCollectable(mdata);
-    }
-    CFStringReplaceAll((CFMutableStringRef)str, (CFStringRef)str2);
-    if (OBJ_TAINTED(str2))
-	OBJ_TAINT(str);
-    return str;
+    return rb_str_replace_imp(str, 0, str2);
 }
 
 /*
@@ -2265,7 +2227,7 @@ rb_str_replace(VALUE str, VALUE str2)
  */
 
 static VALUE
-rb_str_clear(VALUE str)
+rb_str_clear(VALUE str, SEL sel)
 {
     rb_str_modify(str);
     CFStringDelete((CFMutableStringRef)str, 
@@ -2284,7 +2246,7 @@ rb_str_clear(VALUE str)
  */
 
 static VALUE
-rb_str_chr(VALUE str)
+rb_str_chr(VALUE str, SEL sel)
 {
     return rb_str_substr(str, 0, 1);
 }
@@ -2296,17 +2258,23 @@ rb_str_chr(VALUE str)
  *  returns the <i>index</i>th byte as an integer.
  */
 static VALUE
-rb_str_getbyte(VALUE str, VALUE index)
+rb_str_getbyte(VALUE str, SEL sel, VALUE index)
 {
+    // TODO
+#if 0
     long pos = NUM2LONG(index);
     long n = RSTRING_BYTELEN(str);
 
-    if (pos < 0)
+    if (pos < 0) {
         pos += n;
-    if (pos < 0 || n <= pos)
+    }
+    if (pos < 0 || n <= pos) {
         return Qnil;
+    }
 
     return INT2FIX((unsigned char)RSTRING_BYTEPTR(str)[pos]);
+#endif
+    abort();
 }
 
 /*
@@ -2316,8 +2284,10 @@ rb_str_getbyte(VALUE str, VALUE index)
  *  modifies the <i>index</i>th byte as <i>int</i>.
  */
 static VALUE
-rb_str_setbyte(VALUE str, VALUE index, VALUE value)
+rb_str_setbyte(VALUE str, SEL sel, VALUE index, VALUE value)
 {
+    // TODO promote to ByteString
+#if 0
     long pos = NUM2LONG(index);
     int byte = NUM2INT(value);
     long n = RSTRING_BYTELEN(str);
@@ -2333,6 +2303,8 @@ rb_str_setbyte(VALUE str, VALUE index, VALUE value)
     RSTRING_SYNC(str);
 
     return value;
+#endif
+    abort();
 }
 
 
@@ -2344,14 +2316,15 @@ rb_str_setbyte(VALUE str, VALUE index, VALUE value)
  */
 
 static VALUE
-rb_str_reverse_bang(VALUE str)
+rb_str_reverse_bang(VALUE str, SEL sel)
 {
     CFIndex i, n;
     UniChar *buffer;
 
     n = CFStringGetLength((CFStringRef)str);
-    if (n <= 1)
+    if (n <= 1) {
 	return rb_str_dup(str);
+    }
    
     buffer = (UniChar *)alloca(sizeof(UniChar) * n);
     CFStringGetCharacters((CFStringRef)str, CFRangeMake(0, n), buffer);
@@ -2376,10 +2349,10 @@ rb_str_reverse_bang(VALUE str)
  */
 
 static VALUE
-rb_str_reverse(VALUE str)
+rb_str_reverse(VALUE str, SEL sel)
 {
     VALUE obj = rb_str_dup(str);
-    rb_str_reverse_bang(obj);
+    rb_str_reverse_bang(obj, 0);
     return obj;
 }
 
@@ -2397,15 +2370,14 @@ rb_str_reverse(VALUE str)
  */
 
 static VALUE
-rb_str_include(VALUE str, VALUE arg)
+rb_str_include(VALUE str, SEL sel, VALUE arg)
 {
     long i;
 
     StringValue(arg);
     i = rb_str_index(str, arg, 0);
 
-    if (i == -1) return Qfalse;
-    return Qtrue;
+    return (i == -1) ? Qfalse : Qtrue;
 }
 
 
@@ -2431,7 +2403,7 @@ rb_str_include(VALUE str, VALUE arg)
  */
 
 static VALUE
-rb_str_to_i(int argc, VALUE *argv, VALUE str)
+rb_str_to_i(VALUE str, SEL sel, int argc, VALUE *argv)
 {
     int base;
 
@@ -2464,7 +2436,7 @@ rb_str_to_i(int argc, VALUE *argv, VALUE str)
  */
 
 static VALUE
-rb_str_to_f(VALUE str)
+rb_str_to_f(VALUE str, SEL sel)
 {
     return DOUBLE2NUM(rb_str_to_dbl(str, Qfalse));
 }
@@ -2479,7 +2451,7 @@ rb_str_to_f(VALUE str)
  */
 
 static VALUE
-rb_str_to_s(VALUE str)
+rb_str_to_s(VALUE str, SEL sel)
 {
     if (!rb_objc_str_is_pure(str)) {
 	VALUE dup = str_alloc(rb_cString);
@@ -2489,6 +2461,7 @@ rb_str_to_s(VALUE str)
     return str;
 }
 
+#if 0
 static void
 str_cat_char(VALUE str, int c, rb_encoding *enc)
 {
@@ -2504,6 +2477,7 @@ prefix_escape(VALUE str, int c, rb_encoding *enc)
     str_cat_char(str, '\\', enc);
     str_cat_char(str, c, enc);
 }
+#endif
 
 /*
  * call-seq:
@@ -2517,86 +2491,69 @@ prefix_escape(VALUE str, int c, rb_encoding *enc)
  *    str.inspect       #=> "\"hel\\bo\""
  */
 
-VALUE
-rb_str_inspect(VALUE str)
+static inline void
+__append(CFMutableStringRef out, UniChar c)
 {
-    rb_encoding *enc = STR_ENC_GET(str);
-    const char *p, *pend;
-    VALUE result;
+    CFStringAppendCharacters(out, &c, 1);
+}
 
-    if (rb_objc_str_is_bytestring(str)) {
-	p = (const char *)RSTRING_BYTEPTR(str); 
-	pend = (const char *)RSTRING_END(str);
-    }
-    else {
-	p = RSTRING_PTR(str); 
-	pend = p + RSTRING_LEN(str);
-    }
-    if (p == NULL)
-	return rb_str_new2("\"\"");
-    result = rb_str_buf_new2("");
-    str_cat_char(result, '"', enc);
-    while (p < pend) {
-	int c;
-	int n;
-	int cc;
+static inline void
+__append_escape(CFMutableStringRef out, UniChar c)
+{
+    __append(out, '\\');
+    __append(out, c);
+}
 
-	c = *p;
-	n = 1;
+VALUE
+rb_str_inspect(VALUE str, SEL sel)
+{
+    const long len = CFStringGetLength((CFStringRef)str);
+    CFStringInlineBuffer buf; 
+    CFStringInitInlineBuffer((CFStringRef)str, &buf, CFRangeMake(0, len));
 
-	p += n;
-	if (c == '"'|| c == '\\' ||
-	    (c == '#' &&
-             p < pend &&
-	     ((cc = *p),
-              (cc == '$' || cc == '@' || cc == '{')))) {
-	    prefix_escape(result, c, enc);
+    CFMutableStringRef out = CFStringCreateMutable(NULL, 0);
+    __append(out, '"');
+
+    long i;
+    for (i = 0; i < len; i++) {
+	UniChar c = CFStringGetCharacterFromInlineBuffer(&buf, i);
+	if (iswprint(c)) {
+	    __append(out, c);
+	}
+	else if (c == '"'|| c == '\\') {
+	    __append_escape(out, c);
 	}
 	else if (c == '\n') {
-	    prefix_escape(result, 'n', enc);
+	    __append_escape(out, 'n');
 	}
 	else if (c == '\r') {
-	    prefix_escape(result, 'r', enc);
+	    __append_escape(out, 'r');
 	}
 	else if (c == '\t') {
-	    prefix_escape(result, 't', enc);
+	    __append_escape(out, 't');
 	}
 	else if (c == '\f') {
-	    prefix_escape(result, 'f', enc);
+	    __append_escape(out, 'f');
 	}
 	else if (c == '\013') {
-	    prefix_escape(result, 'v', enc);
+	    __append_escape(out, 'v');
 	}
 	else if (c == '\010') {
-	    prefix_escape(result, 'b', enc);
+	    __append_escape(out, 'b');
 	}
 	else if (c == '\007') {
-	    prefix_escape(result, 'a', enc);
+	    __append_escape(out, 'a');
 	}
 	else if (c == 033) {
-	    prefix_escape(result, 'e', enc);
-	}
-	else if (rb_enc_isprint(c, enc)) {
-	    rb_enc_str_buf_cat(result, p-n, n, enc);
+	    __append_escape(out, 'e');
 	}
 	else {
-	    char buf[5];
-	    char *s;
-            const char *q;
-
-            for (q = p-n; q < p; q++) {
-                s = buf;
-                sprintf(buf, "\\x%02X", *q & 0377);
-                while (*s) {
-                    str_cat_char(result, *s++, enc);
-                }
-            }
+	    CFStringAppendFormat(out, NULL, CFSTR("\\x%X"), c);
 	}
     }
-    str_cat_char(result, '"', enc);
-    RSTRING_SYNC(result);
+    __append(out, '"');
 
-    return result;
+    return (VALUE)CFMakeCollectable(out);
 }
 
 #define IS_EVSTR(p,e) ((p) < (e) && (*(p) == '$' || *(p) == '@' || *(p) == '{'))
@@ -2609,24 +2566,17 @@ rb_str_inspect(VALUE str)
  *  <code>\nnn</code> notation and all special characters escaped.
  */
 
-VALUE
-rb_str_dump(VALUE str)
+static VALUE
+rb_str_dump(VALUE str, SEL sel)
 {
     rb_encoding *enc0 = rb_enc_get(str);
     long len;
     const char *p, *pend;
     char *q, *qend;
-    VALUE result;
 
     len = 2;			/* "" */
-    if (rb_objc_str_is_bytestring(str)) {
-	p = RSTRING_BYTEPTR(str); 
-	pend = RSTRING_END(str);
-    }
-    else {
-	p = RSTRING_PTR(str); 
-	pend = p + RSTRING_LEN(str);
-    }
+    p = RSTRING_PTR(str); 
+    pend = p + RSTRING_LEN(str);
     while (p < pend) {
 	unsigned char c = *p++;
 	switch (c) {
@@ -2656,9 +2606,11 @@ rb_str_dump(VALUE str)
 	len += strlen(rb_enc_name(enc0));
     }
 
-    result = rb_str_new5(str, 0, len);
-    p = RSTRING_BYTEPTR(str); pend = p + RSTRING_BYTELEN(str);
-    q = RSTRING_BYTEPTR(result); qend = q + len;
+    p = RSTRING_PTR(str);
+    pend = p + RSTRING_LEN(str);
+
+    char *q_beg = q = (char *)alloca(len);
+    qend = q + len;
 
     *q++ = '"';
     while (p < pend) {
@@ -2716,13 +2668,15 @@ rb_str_dump(VALUE str)
     *q++ = '"';
     if (!rb_enc_asciicompat(enc0)) {
 	sprintf(q, ".force_encoding(\"%s\")", rb_enc_name(enc0));
-
     }
 
     /* result from dump is ASCII */
 
-    RSTRING_SYNC(result);
-    return result;
+    VALUE res = rb_str_new5(str, q_beg, strlen(q_beg));
+    if (OBJ_TAINTED(str)) {
+	OBJ_TAINT(res);
+    }
+    return res;
 }
 
 
@@ -2736,14 +2690,15 @@ rb_str_dump(VALUE str)
  */
 
 static VALUE
-rb_str_upcase_bang(VALUE str)
+rb_str_upcase_bang(VALUE str, SEL sel)
 {
     CFHashCode h;
     rb_str_modify(str);
     h = CFHash((CFTypeRef)str);
     CFStringUppercase((CFMutableStringRef)str, NULL);
-    if (h == CFHash((CFTypeRef)str))
+    if (h == CFHash((CFTypeRef)str)) {
 	return Qnil;
+    }
     return str;
 }
 
@@ -2761,10 +2716,10 @@ rb_str_upcase_bang(VALUE str)
  */
 
 static VALUE
-rb_str_upcase(VALUE str)
+rb_str_upcase(VALUE str, SEL sel)
 {
-    str = rb_str_dup(str);
-    rb_str_upcase_bang(str);
+    str = rb_str_new3(str);
+    rb_str_upcase_bang(str, 0);
     return str;
 }
 
@@ -2779,14 +2734,15 @@ rb_str_upcase(VALUE str)
  */
 
 static VALUE
-rb_str_downcase_bang(VALUE str)
+rb_str_downcase_bang(VALUE str, SEL sel)
 {
     CFHashCode h;
     rb_str_modify(str);
     h = CFHash((CFTypeRef)str);
     CFStringLowercase((CFMutableStringRef)str, NULL);
-    if (h == CFHash((CFTypeRef)str))
+    if (h == CFHash((CFTypeRef)str)) {
 	return Qnil;
+    }
     return str;
 }
 
@@ -2804,10 +2760,10 @@ rb_str_downcase_bang(VALUE str)
  */
 
 static VALUE
-rb_str_downcase(VALUE str)
+rb_str_downcase(VALUE str, SEL sel)
 {
-    str = rb_str_dup(str);
-    rb_str_downcase_bang(str);
+    str = rb_str_new3(str);
+    rb_str_downcase_bang(str, 0);
     return str;
 }
 
@@ -2827,7 +2783,7 @@ rb_str_downcase(VALUE str)
  */
 
 static VALUE
-rb_str_capitalize_bang(VALUE str)
+rb_str_capitalize_bang(VALUE str, SEL sel)
 {
     CFStringRef tmp;
     long i, n;
@@ -2836,23 +2792,25 @@ rb_str_capitalize_bang(VALUE str)
 
     rb_str_modify(str);
     n = CFStringGetLength((CFStringRef)str);
-    if (n == 0)
+    if (n == 0) {
 	return Qnil;
+    }
     buffer = (UniChar *)alloca(sizeof(UniChar) * n);
     CFStringGetCharacters((CFStringRef)str, CFRangeMake(0, n), buffer);
     changed = false;
-    if (iswlower(buffer[0])) {
+    if (iswascii(buffer[0]) && iswlower(buffer[0])) {
 	buffer[0] = towupper(buffer[0]);
 	changed = true;
     }
     for (i = 1; i < n; i++) {
-	if (iswupper(buffer[i])) {
+	if (iswascii(buffer[0]) && iswupper(buffer[i])) {
 	    buffer[i] = towlower(buffer[i]);
 	    changed = true;
 	}
     }
-    if (!changed)
+    if (!changed) {
 	return Qnil;
+    }
     tmp = CFStringCreateWithCharacters(NULL, buffer, n);
     CFStringReplaceAll((CFMutableStringRef)str, tmp);
     CFRelease(tmp);
@@ -2874,10 +2832,10 @@ rb_str_capitalize_bang(VALUE str)
  */
 
 static VALUE
-rb_str_capitalize(VALUE str)
+rb_str_capitalize(VALUE str, SEL sel)
 {
-    str = rb_str_dup(str);
-    rb_str_capitalize_bang(str);
+    str = rb_str_new3(str);
+    rb_str_capitalize_bang(str, 0);
     return str;
 }
 
@@ -2892,15 +2850,18 @@ rb_str_capitalize(VALUE str)
  */
 
 static VALUE
-rb_str_swapcase_bang(VALUE str)
+rb_str_swapcase_bang(VALUE str, SEL sel)
 {
     CFIndex i, n;
     UniChar *buffer;
     bool changed;
 
+    rb_str_modify(str);
+
     n = CFStringGetLength((CFStringRef)str);
-    if (n == 0)
-	return rb_str_dup(str);
+    if (n == 0) {
+	return Qnil;
+    }
    
     buffer = (UniChar *)CFStringGetCharactersPtr((CFStringRef)str);
     if (buffer == NULL) {
@@ -2909,6 +2870,9 @@ rb_str_swapcase_bang(VALUE str)
     }
     for (i = 0, changed = false; i < n; i++) {
 	UniChar c = buffer[i];
+	if (!iswascii(c)) {
+	    continue;
+	}
 	if (iswlower(c)) {
 	    c = towupper(c);
 	}
@@ -2921,10 +2885,12 @@ rb_str_swapcase_bang(VALUE str)
 	changed = true;
 	buffer[i] = c;
     }
-    if (!changed)
+    if (!changed) {
 	return Qnil;
+    }
     CFStringDelete((CFMutableStringRef)str, CFRangeMake(0, n));
-    CFStringAppendCharacters((CFMutableStringRef)str, (const UniChar *)buffer, n);
+    CFStringAppendCharacters((CFMutableStringRef)str,
+	    (const UniChar *)buffer, n);
     return str;
 }
 
@@ -2942,10 +2908,10 @@ rb_str_swapcase_bang(VALUE str)
  */
 
 static VALUE
-rb_str_swapcase(VALUE str)
+rb_str_swapcase(VALUE str, SEL sel)
 {
-    str = rb_str_dup(str);
-    rb_str_swapcase_bang(str);
+    str = rb_str_new3(str);
+    rb_str_swapcase_bang(str, 0);
     return str;
 }
 
@@ -3307,7 +3273,7 @@ tr_trans(VALUE str, VALUE src, VALUE repl, int sflag)
  */
 
 static VALUE
-rb_str_tr_bang(VALUE str, VALUE src, VALUE repl)
+rb_str_tr_bang(VALUE str, SEL sel, VALUE src, VALUE repl)
 {
     return tr_trans(str, src, repl, 0);
 }
@@ -3331,10 +3297,10 @@ rb_str_tr_bang(VALUE str, VALUE src, VALUE repl)
  */
 
 static VALUE
-rb_str_tr(VALUE str, VALUE src, VALUE repl)
+rb_str_tr(VALUE str, SEL sel, VALUE src, VALUE repl)
 {
-    str = rb_str_dup(str);
-    rb_str_tr_bang(str, src, repl);
+    str = rb_str_new3(str);
+    rb_str_tr_bang(str, 0, src, repl);
     return str;
 }
 
@@ -3358,17 +3324,19 @@ rb_str_delete_bang_cb(CFRange *search_range, const CFRange *result_range,
 }
 
 static VALUE
-rb_str_delete_bang(int argc, VALUE *argv, VALUE str)
+rb_str_delete_bang(VALUE str, SEL sel, int argc, VALUE *argv)
 {
     bool changed;
-    if (argc < 1)
+    if (argc < 1) {
 	rb_raise(rb_eArgError, "wrong number of arguments");
+    }
     rb_str_modify(str);
     changed = false;
     str_charset_find((CFStringRef)str, argv, argc, false,
 	rb_str_delete_bang_cb, &changed);
-    if (!changed)
+    if (!changed) {
     	return Qnil;
+    }
     return str;
 }
 
@@ -3387,10 +3355,10 @@ rb_str_delete_bang(int argc, VALUE *argv, VALUE str)
  */
 
 static VALUE
-rb_str_delete(int argc, VALUE *argv, VALUE str)
+rb_str_delete(VALUE str, SEL sel, int argc, VALUE *argv)
 {
-    str = rb_str_dup(str);
-    rb_str_delete_bang(argc, argv, str);
+    str = rb_str_new3(str);
+    rb_str_delete_bang(str, 0, argc, argv);
     return str;
 }
 
@@ -3419,7 +3387,7 @@ rb_str_squeeze_bang_cb(CFRange *search_range, const CFRange *result_range,
 }
 
 static VALUE
-rb_str_squeeze_bang(int argc, VALUE *argv, VALUE str)
+rb_str_squeeze_bang(VALUE str, SEL sel, int argc, VALUE *argv)
 {
     bool changed;
     VALUE all_chars;
@@ -3454,10 +3422,10 @@ rb_str_squeeze_bang(int argc, VALUE *argv, VALUE str)
  */
 
 static VALUE
-rb_str_squeeze(int argc, VALUE *argv, VALUE str)
+rb_str_squeeze(VALUE str, SEL sel, int argc, VALUE *argv)
 {
-    str = rb_str_dup(str);
-    rb_str_squeeze_bang(argc, argv, str);
+    str = rb_str_new3(str);
+    rb_str_squeeze_bang(str, 0, argc, argv);
     return str;
 }
 
@@ -3471,7 +3439,7 @@ rb_str_squeeze(int argc, VALUE *argv, VALUE str)
  */
 
 static VALUE
-rb_str_tr_s_bang(VALUE str, VALUE src, VALUE repl)
+rb_str_tr_s_bang(VALUE str, SEL sel, VALUE src, VALUE repl)
 {
     return tr_trans(str, src, repl, 1);
 }
@@ -3491,10 +3459,10 @@ rb_str_tr_s_bang(VALUE str, VALUE src, VALUE repl)
  */
 
 static VALUE
-rb_str_tr_s(VALUE str, VALUE src, VALUE repl)
+rb_str_tr_s(VALUE str, SEL sel, VALUE src, VALUE repl)
 {
-    str = rb_str_dup(str);
-    rb_str_tr_s_bang(str, src, repl);
+    str = rb_str_new3(str);
+    rb_str_tr_s_bang(str, 0, src, repl);
     return str;
 }
 
@@ -3523,11 +3491,12 @@ rb_str_count_cb(CFRange *search_range, const CFRange *result_range,
 }
 
 static VALUE
-rb_str_count(int argc, VALUE *argv, VALUE str)
+rb_str_count(VALUE str, SEL sel, int argc, VALUE *argv)
 {
     int count;
-    if (argc < 1)
+    if (argc < 1) {
 	rb_raise(rb_eArgError, "wrong number of arguments");
+    }
     count = 0;
     str_charset_find((CFStringRef)str, argv, argc, false,
 	rb_str_count_cb, &count); 
@@ -3577,7 +3546,7 @@ rb_str_count(int argc, VALUE *argv, VALUE str)
  */
 
 static VALUE
-rb_str_split_m(int argc, VALUE *argv, VALUE str)
+rb_str_split_m(VALUE str, SEL sel, int argc, VALUE *argv)
 {
     rb_encoding *enc;
     VALUE spat;
@@ -3732,17 +3701,9 @@ rb_str_split_m(int argc, VALUE *argv, VALUE str)
 	rb_ary_push(result, tmp);
     }
     if (NIL_P(limit) && lim == 0) {
-	int count = RARRAY_LEN(result);
-	while (count > 0) {
-	    VALUE s = RARRAY_AT(result, count - 1);
-	    if (s == Qnil || RSTRING_LEN(s) == 0) {
-		rb_ary_pop(result);
-		count--;
-	    }
-	    else {
-		break;
-	    }
-	}
+	while (RARRAY_LEN(result) > 0 &&
+	       RSTRING_LEN(RARRAY_AT(result, RARRAY_LEN(result)-1)) == 0)
+	    rb_ary_pop(result);
     }
 
     return result;
@@ -3755,7 +3716,7 @@ rb_str_split(VALUE str, const char *sep0)
 
     StringValue(str);
     sep = rb_str_new2(sep0);
-    return rb_str_split_m(1, &sep, str);
+    return rb_str_split_m(str, 0, 1, &sep);
 }
 
 VALUE
@@ -3763,7 +3724,7 @@ rb_str_split2(VALUE str, VALUE sep)
 {
     StringValue(str);
     StringValue(sep);
-    return rb_str_split_m(1, &sep, str);
+    return rb_str_split_m(str, 0, 1, &sep);
 }
 
 /*
@@ -3812,7 +3773,7 @@ rb_str_split2(VALUE str, VALUE sep)
  */
 
 static VALUE
-rb_str_each_line(int argc, VALUE *argv, VALUE str)
+rb_str_each_line(VALUE str, SEL sel, int argc, VALUE *argv)
 {
     VALUE rs;
     long n;
@@ -3847,6 +3808,7 @@ rb_str_each_line(int argc, VALUE *argv, VALUE str)
 	CFMakeCollectable((CFTypeRef)mcopy); \
 	rb_yield(mcopy); \
 	CFRelease(substr); \
+	RETURN_IF_BROKEN(); \
     } \
     while (0)
 
@@ -3907,18 +3869,35 @@ rb_str_each_line(int argc, VALUE *argv, VALUE str)
  */
 
 static VALUE
-rb_str_each_byte(VALUE str)
+rb_str_each_byte(VALUE str, SEL sel)
 {
-    long n, i;
-    char *ptr;
-
     RETURN_ENUMERATOR(str, 0, 0);
 
-    n = RSTRING_BYTELEN(str);
-    ptr = RSTRING_BYTEPTR(str);
-    for (i=0; i<n; i++) {
-	rb_yield(INT2FIX(ptr[i] & 0xff));
+    long n = RSTRING_LEN(str);
+    if (n == 0) {
+	return str;
     }
+
+    CFStringEncoding encoding = CFStringGetSmallestEncoding((CFStringRef)str);
+    const long buflen = CFStringGetMaximumSizeForEncoding(n, encoding);
+    UInt8 *buffer = (UInt8 *)alloca(buflen + 1);
+    long used_buflen = 0;
+
+    CFStringGetBytes((CFStringRef)str,
+	    CFRangeMake(0, n),
+	    encoding,
+	    0,
+	    false,
+	    buffer,
+	    buflen+1,
+	    &used_buflen);
+
+    long i;
+    for (i = 0; i < used_buflen; i++) {
+	rb_yield(INT2FIX(buffer[i]));
+	RETURN_IF_BROKEN();
+    }
+
     return str;
 }
 
@@ -3950,7 +3929,7 @@ rb_str_each_byte(VALUE str)
  */
 
 static VALUE
-rb_str_each_char(VALUE str)
+rb_str_each_char(VALUE str, SEL sel)
 {
     CFStringInlineBuffer buf;
     long i, n;
@@ -3966,6 +3945,7 @@ rb_str_each_char(VALUE str)
 	s = rb_str_new(NULL, 0);
 	CFStringAppendCharacters((CFMutableStringRef)s, &c, 1);
 	rb_yield(s);
+	RETURN_IF_BROKEN();
     }
     return str;
 }
@@ -3980,7 +3960,7 @@ rb_str_each_char(VALUE str)
  */
 
 static VALUE
-rb_str_chop_bang(VALUE str)
+rb_str_chop_bang(VALUE str, SEL sel)
 {
     long n;
     const char *p;
@@ -4022,10 +4002,10 @@ rb_str_chop_bang(VALUE str)
  */
 
 static VALUE
-rb_str_chop(VALUE str)
+rb_str_chop(VALUE str, SEL sel)
 {
-    VALUE str2 = rb_str_dup(str);
-    rb_str_chop_bang(str2);
+    VALUE str2 = rb_str_new3(str);
+    rb_str_chop_bang(str2, 0);
     return str2;
 }
 
@@ -4039,7 +4019,7 @@ rb_str_chop(VALUE str)
  */
 
 static VALUE
-rb_str_chomp_bang(int argc, VALUE *argv, VALUE str)
+rb_str_chomp_bang(VALUE str, SEL sel, int argc, VALUE *argv)
 {
     VALUE rs;
     long len, rslen;
@@ -4107,10 +4087,10 @@ rb_str_chomp_bang(int argc, VALUE *argv, VALUE str)
  */
 
 static VALUE
-rb_str_chomp(int argc, VALUE *argv, VALUE str)
+rb_str_chomp(VALUE str, SEL sel, int argc, VALUE *argv)
 {
-    str = rb_str_dup(str);
-    rb_str_chomp_bang(argc, argv, str);
+    str = rb_str_new3(str);
+    rb_str_chomp_bang(str, 0, argc, argv);
     return str;
 }
 
@@ -4171,7 +4151,7 @@ rb_str_strip_bang2(VALUE str, int direction)
 }
 
 static VALUE
-rb_str_lstrip_bang(VALUE str)
+rb_str_lstrip_bang(VALUE str, SEL sel)
 {
     return rb_str_strip_bang2(str, -1);
 }
@@ -4192,7 +4172,7 @@ static VALUE
 rb_str_lstrip(VALUE str)
 {
     str = rb_str_dup(str);
-    rb_str_lstrip_bang(str);
+    rb_str_lstrip_bang(str, 0);
     return str;
 }
 
@@ -4210,7 +4190,7 @@ rb_str_lstrip(VALUE str)
  */
 
 static VALUE
-rb_str_rstrip_bang(VALUE str)
+rb_str_rstrip_bang(VALUE str, SEL sel)
 {
     return rb_str_strip_bang2(str, 1);
 }
@@ -4231,7 +4211,7 @@ static VALUE
 rb_str_rstrip(VALUE str)
 {
     str = rb_str_dup(str);
-    rb_str_rstrip_bang(str);
+    rb_str_rstrip_bang(str, 0);
     return str;
 }
 
@@ -4245,7 +4225,7 @@ rb_str_rstrip(VALUE str)
  */
 
 static VALUE
-rb_str_strip_bang(VALUE str)
+rb_str_strip_bang(VALUE str, SEL sel)
 {
     return rb_str_strip_bang2(str, 0);
 }
@@ -4262,10 +4242,10 @@ rb_str_strip_bang(VALUE str)
  */
 
 static VALUE
-rb_str_strip(VALUE str)
+rb_str_strip(VALUE str, SEL sel)
 {
     str = rb_str_dup(str);
-    rb_str_strip_bang(str);
+    rb_str_strip_bang(str, 0);
     return str;
 }
 
@@ -4357,7 +4337,7 @@ scan_once(VALUE str, VALUE pat, long *start, long strlen, bool pat_is_string)
  */
 
 static VALUE
-rb_str_scan(VALUE str, VALUE pat)
+rb_str_scan(VALUE str, SEL sel, VALUE pat)
 {
     VALUE result;
     long start = 0;
@@ -4365,8 +4345,9 @@ rb_str_scan(VALUE str, VALUE pat)
     long len = CFStringGetLength((CFStringRef)str);
     bool pat_is_string = TYPE(pat) == T_STRING;
     
-    if (!pat_is_string)
+    if (!pat_is_string) {
 	pat = get_pat(pat, 1);
+    }
     if (!rb_block_given_p()) {
 	VALUE ary = rb_ary_new();
 
@@ -4383,6 +4364,7 @@ rb_str_scan(VALUE str, VALUE pat)
 	match = rb_backref_get();
 	rb_match_busy(match);
 	rb_yield(result);
+	RETURN_IF_BROKEN();
 	rb_backref_set(match);	/* restore $~ value */
     }
     rb_backref_set(match);
@@ -4405,7 +4387,7 @@ rb_str_scan(VALUE str, VALUE pat)
  */
 
 static VALUE
-rb_str_hex(VALUE str)
+rb_str_hex(VALUE str, SEL sel)
 {
     rb_encoding *enc = rb_enc_get(str);
 
@@ -4431,7 +4413,7 @@ rb_str_hex(VALUE str)
  */
 
 static VALUE
-rb_str_oct(VALUE str)
+rb_str_oct(VALUE str, SEL sel)
 {
     rb_encoding *enc = rb_enc_get(str);
 
@@ -4452,22 +4434,21 @@ rb_str_oct(VALUE str)
  *  <code>[a-zA-Z0-9./]</code>.
  */
 
+extern char *crypt(const char *, const char *);
+
 static VALUE
-rb_str_crypt(VALUE str, VALUE salt)
+rb_str_crypt(VALUE str, SEL sel, VALUE salt)
 {
-    extern char *crypt(const char *, const char *);
-    VALUE result;
-    const char *s;
-
     StringValue(salt);
-    if (RSTRING_BYTELEN(salt) < 2)
+    if (RSTRING_LEN(salt) < 2) {
 	rb_raise(rb_eArgError, "salt too short (need >=2 bytes)");
+    }
 
-    s = RSTRING_BYTEPTR(str);
-    if (s == NULL)
-	s = "";
-    result = rb_str_new2(crypt(s, RSTRING_BYTEPTR(salt)));
-    return result;
+    size_t str_len = RSTRING_LEN(str);
+    char *s = alloca(str_len + 1);
+    strncpy(s, RSTRING_PTR(str), str_len + 1);
+
+    return rb_str_new2(crypt(s, RSTRING_PTR(salt)));
 }
 
 
@@ -4492,16 +4473,18 @@ rb_str_crypt(VALUE str, VALUE salt)
  */
 
 VALUE
-rb_str_intern(VALUE s)
+rb_str_intern_fast(VALUE s)
 {
-    VALUE str = s;
-    ID id;
+    return ID2SYM(rb_intern_str(s));
+}
 
+static VALUE
+rb_str_intern(VALUE str, SEL sel)
+{
     if (OBJ_TAINTED(str) && rb_safe_level() >= 1) {
 	rb_raise(rb_eSecurityError, "Insecure: can't intern tainted string");
     }
-    id = rb_intern_str(str);
-    return ID2SYM(id);
+    return rb_str_intern_fast(str);
 }
 
 /*
@@ -4513,11 +4496,12 @@ rb_str_intern(VALUE s)
  *     "a".ord         #=> 97
  */
 
-VALUE
-rb_str_ord(VALUE s)
+static VALUE
+rb_str_ord(VALUE s, SEL sel)
 {
-    if (CFStringGetLength((CFStringRef)s) == 0)
+    if (CFStringGetLength((CFStringRef)s) == 0) {
 	rb_raise(rb_eArgError, "empty string");
+    }
     return INT2NUM(CFStringGetCharacterAtIndex((CFStringRef)s, 0));
 }
 
@@ -4533,11 +4517,11 @@ rb_str_ord(VALUE s)
  */
 
 static VALUE
-rb_str_sum(int argc, VALUE *argv, VALUE str)
+rb_str_sum(VALUE str, SEL sel, int argc, VALUE *argv)
 {
     VALUE vbits;
     int bits;
-    char *ptr, *p, *pend;
+    const char *ptr, *p, *pend;
     long len;
 
     if (argc == 0) {
@@ -4547,8 +4531,8 @@ rb_str_sum(int argc, VALUE *argv, VALUE str)
 	rb_scan_args(argc, argv, "01", &vbits);
 	bits = NUM2INT(vbits);
     }
-    ptr = p = RSTRING_BYTEPTR(str);
-    len = RSTRING_BYTELEN(str);
+    ptr = p = RSTRING_PTR(str);
+    len = RSTRING_LEN(str);
     pend = p + len;
     if (bits >= sizeof(long)*CHAR_BIT) {
 	VALUE sum = INT2FIX(0);
@@ -4594,7 +4578,8 @@ rb_str_justify0(VALUE str, VALUE pad, long width, long padwidth, long index)
 	    CFMakeCollectable((CFTypeRef)pad);
 	}
 	CFStringInsert((CFMutableStringRef)str, index, (CFStringRef)pad);
-	width -= padwidth;	
+	width -= padwidth;
+	index += padwidth;
     }
     while (width > 0);
 }
@@ -4607,12 +4592,6 @@ rb_str_justify(int argc, VALUE *argv, VALUE str, char jflag)
 
     rb_scan_args(argc, argv, "11", &w, &pad);
     width = NUM2LONG(w);
-    n = CFStringGetLength((CFStringRef)str);
-   
-    str =  rb_str_dup(str);
-    if (width < 0 || width <= n)
-	return str;
-    width -= n;
 
     if (NIL_P(pad)) {
 	pad = rb_str_new(" ", 1);
@@ -4622,6 +4601,18 @@ rb_str_justify(int argc, VALUE *argv, VALUE str, char jflag)
 	StringValue(pad);
 	padwidth = CFStringGetLength((CFStringRef)pad);
     }
+
+    if (padwidth == 0) {
+	rb_raise(rb_eArgError, "zero width padding");
+    }
+
+    n = CFStringGetLength((CFStringRef)str);
+   
+    str = rb_str_new3(str);
+    if (width < 0 || width <= n) {
+	return str;
+    }
+    width -= n;
 
     if (jflag == 'c') {
 	rb_str_justify0(str, pad, ceil(width / 2.0), padwidth, n);
@@ -4635,6 +4626,10 @@ rb_str_justify(int argc, VALUE *argv, VALUE str, char jflag)
     }
     else {
 	rb_bug("invalid jflag");
+    }
+
+    if (OBJ_TAINTED(pad)) {
+	OBJ_TAINT(str);
     }
 
     return str;
@@ -4655,7 +4650,7 @@ rb_str_justify(int argc, VALUE *argv, VALUE str, char jflag)
  */
 
 static VALUE
-rb_str_ljust(int argc, VALUE *argv, VALUE str)
+rb_str_ljust(VALUE str, SEL sel, int argc, VALUE *argv)
 {
     return rb_str_justify(argc, argv, str, 'l');
 }
@@ -4675,7 +4670,7 @@ rb_str_ljust(int argc, VALUE *argv, VALUE str)
  */
 
 static VALUE
-rb_str_rjust(int argc, VALUE *argv, VALUE str)
+rb_str_rjust(VALUE str, SEL sel, int argc, VALUE *argv)
 {
     return rb_str_justify(argc, argv, str, 'r');
 }
@@ -4695,7 +4690,7 @@ rb_str_rjust(int argc, VALUE *argv, VALUE str)
  */
 
 static VALUE
-rb_str_center(int argc, VALUE *argv, VALUE str)
+rb_str_center(VALUE str, SEL sel, int argc, VALUE *argv)
 {
     return rb_str_justify(argc, argv, str, 'c');
 }
@@ -4713,7 +4708,7 @@ rb_str_center(int argc, VALUE *argv, VALUE str)
  */
 
 static VALUE
-rb_str_partition(VALUE str, VALUE sep)
+rb_str_partition(VALUE str, SEL sel, VALUE sep)
 {
     long pos;
     int regex = Qfalse;
@@ -4764,9 +4759,9 @@ rb_str_partition(VALUE str, VALUE sep)
  */
 
 static VALUE
-rb_str_rpartition(VALUE str, VALUE sep)
+rb_str_rpartition(VALUE str, SEL sel, VALUE sep)
 {
-    long pos = RSTRING_BYTELEN(str);
+    long pos = RSTRING_LEN(str);
     int regex = Qfalse;
     long seplen;
 
@@ -4807,15 +4802,18 @@ rb_str_rpartition(VALUE str, VALUE sep)
  */
 
 static VALUE
-rb_str_start_with(int argc, VALUE *argv, VALUE str)
+rb_str_start_with(VALUE str, SEL sel, int argc, VALUE *argv)
 {
     int i;
 
-    for (i=0; i<argc; i++) {
+    for (i = 0; i < argc; i++) {
 	VALUE tmp = rb_check_string_type(argv[i]);
-	if (NIL_P(tmp)) continue;
-	if (CFStringHasPrefix((CFStringRef)str, (CFStringRef)tmp))
+	if (NIL_P(tmp)) {
+	    continue;
+	}
+	if (CFStringHasPrefix((CFStringRef)str, (CFStringRef)tmp)) {
 	    return Qtrue;
+	}
     }
     return Qfalse;
 }
@@ -4828,15 +4826,18 @@ rb_str_start_with(int argc, VALUE *argv, VALUE str)
  */
 
 static VALUE
-rb_str_end_with(int argc, VALUE *argv, VALUE str)
+rb_str_end_with(VALUE str, SEL sel, int argc, VALUE *argv)
 {
     int i;
 
-    for (i=0; i<argc; i++) {
+    for (i = 0; i < argc; i++) {
 	VALUE tmp = rb_check_string_type(argv[i]);
-	if (NIL_P(tmp)) continue;
-	if (CFStringHasSuffix((CFStringRef)str, (CFStringRef)tmp))
+	if (NIL_P(tmp)) {
+	    continue;
+	}
+	if (CFStringHasSuffix((CFStringRef)str, (CFStringRef)tmp)) {
 	    return Qtrue;
+	}
     }
     return Qfalse;
 }
@@ -4859,27 +4860,10 @@ rb_str_setter(VALUE val, ID id, VALUE *var)
  */
 
 static VALUE
-rb_str_force_encoding(VALUE str, VALUE enc)
+rb_str_force_encoding(VALUE str, SEL sel, VALUE enc)
 {
+    // TODO
     str_modifiable(str);
-#if 0
-    CFDataRef data = rb_str_cfdata2(str);
-    if (data != NULL) {
-	CFStringRef substr;
-	CFStringEncoding *cfenc;
-
-	cfenc = rb_to_encoding(enc);
-	assert(cfenc != NULL);
-
-	substr = CFStringCreateFromExternalRepresentation(NULL, data, *cfenc);
-
-	if (substr) {
-	    CFStringReplaceAll((CFMutableStringRef)str, substr);
-	    CFRelease(substr);
-	    rb_str_cfdata_set(str, NULL);
-	}
-    }
-#endif
     return str;
 }
 
@@ -4895,7 +4879,7 @@ rb_str_force_encoding(VALUE str, VALUE enc)
  */
 
 static VALUE
-rb_str_valid_encoding_p(VALUE str)
+rb_str_valid_encoding_p(VALUE str, SEL sel)
 {
     rb_notimplement();
 }
@@ -4911,13 +4895,17 @@ rb_str_valid_encoding_p(VALUE str)
  */
 
 static VALUE
-rb_str_is_ascii_only_p(VALUE str)
+rb_str_is_ascii_only_p(VALUE str, SEL sel)
 {
-    rb_notimplement();
+	CFCharacterSetRef ascii = CFCharacterSetCreateWithCharactersInRange(NULL, CFRangeMake(0, 128));
+	CFCharacterSetRef this = CFCharacterSetCreateWithCharactersInString(NULL, (CFStringRef)str);
+	Boolean b = CFCharacterSetIsSupersetOfSet(ascii, this);
+	CFRelease(ascii); CFRelease(this);
+	return (b ? Qtrue : Qfalse);
 }
 
 static VALUE
-rb_str_transform_bang(VALUE str, VALUE transform_name)
+rb_str_transform_bang(VALUE str, SEL sel, VALUE transform_name)
 {
     CFRange range;
 
@@ -4927,20 +4915,21 @@ rb_str_transform_bang(VALUE str, VALUE transform_name)
     range = CFRangeMake(0, RSTRING_LEN(str));
 
     if (!CFStringTransform((CFMutableStringRef)str, 
-	&range,
-	(CFStringRef)transform_name,
-       	false))
+		&range,
+		(CFStringRef)transform_name,
+		false)) {
 	rb_raise(rb_eRuntimeError, "cannot apply transformation `%s' to `%s'",
 		RSTRING_PTR(transform_name), RSTRING_PTR(str));
+    }
 
     return range.length == kCFNotFound ? Qnil : str;
 }
 
 static VALUE
-rb_str_transform(VALUE str, VALUE transform_name)
+rb_str_transform(VALUE str, SEL sel, VALUE transform_name)
 {
     str = rb_str_dup(str);
-    rb_str_transform_bang(str, transform_name);
+    rb_str_transform_bang(str, 0, transform_name);
     return str;
 }
 
@@ -4988,19 +4977,18 @@ rb_str_transform(VALUE str, VALUE transform_name)
  */
 
 static VALUE
-sym_equal(VALUE sym1, VALUE sym2)
+sym_equal(VALUE sym1, SEL sel, VALUE sym2)
 {
-    if (sym1 == sym2) return Qtrue;
-    return Qfalse;
+    return sym1 == sym2 ? Qtrue : Qfalse;
 }
 
 static VALUE
-sym_cmp(VALUE sym1, VALUE sym2)
+sym_cmp(VALUE sym1, SEL sel, VALUE sym2)
 {
     int code;
-
-    if (CLASS_OF(sym2) != rb_cSymbol)
+    if (CLASS_OF(sym2) != rb_cSymbol) {
 	return Qnil;
+    }
     code = strcmp(RSYMBOL(sym1)->str, RSYMBOL(sym2)->str);
     if (code > 0) {
 	code = 1;
@@ -5020,18 +5008,39 @@ sym_cmp(VALUE sym1, VALUE sym2)
  *     :fred.inspect   #=> ":fred"
  */
 
-static VALUE
-sym_inspect(VALUE sym)
+static inline bool
+sym_printable(const char *str, long len)
 {
-    VALUE str;
-
-#if 0
-    if (!rb_enc_symname_p(RSTRING_PTR(sym), NULL)) {
-	sym = rb_str_inspect(sym);
+    // TODO multibyte symbols
+    long i;
+    for (i = 0; i < len; i++) {
+	if (!isprint(str[i])) {
+	    return false;
+	}
     }
-#endif
-    str = rb_str_new2(":");
-    rb_str_buf_append(str, sym);
+    return true;
+}
+
+static VALUE
+sym_inspect(VALUE sym, SEL sel)
+{
+    const char *symstr = RSYMBOL(sym)->str;
+
+    long len = strlen(symstr);
+    if (len == 0) {
+	return rb_str_new2(":\"\"");
+    }
+
+    VALUE str = rb_str_new2(":");
+    if (!rb_symname_p(symstr) || !sym_printable(symstr, len)) {
+	rb_str_buf_cat2(str, "\"");
+	rb_str_buf_append(str, sym);
+	rb_str_buf_cat2(str, "\"");
+    }
+    else {
+	rb_str_buf_append(str, sym);
+    }
+
     return str;
 }
 
@@ -5047,12 +5056,17 @@ sym_inspect(VALUE sym)
  */
 
 
-VALUE
-rb_sym_to_s(VALUE sym)
+static VALUE
+rb_sym_to_s_imp(VALUE sym, SEL sel)
 {
     return rb_str_new2(RSYMBOL(sym)->str);
 }
 
+VALUE
+rb_sym_to_s(VALUE sym)
+{
+    return rb_sym_to_s_imp(sym, 0);
+}
 
 /*
  * call-seq:
@@ -5065,21 +5079,9 @@ rb_sym_to_s(VALUE sym)
  */
 
 static VALUE
-sym_to_sym(VALUE sym)
+sym_to_sym(VALUE sym, SEL sel)
 {
     return sym;
-}
-
-static VALUE
-sym_call(VALUE args, VALUE sym, int argc, VALUE *argv)
-{
-    VALUE obj;
-
-    if (argc < 1) {
-	rb_raise(rb_eArgError, "no receiver given");
-    }
-    obj = argv[0];
-    return rb_funcall3(obj, (ID)sym, argc - 1, argv + 1);
 }
 
 /*
@@ -5092,9 +5094,11 @@ sym_call(VALUE args, VALUE sym, int argc, VALUE *argv)
  */
 
 static VALUE
-sym_to_proc(VALUE sym)
+sym_to_proc(VALUE sym, SEL sel)
 {
-    return rb_proc_new(sym_call, (VALUE)SYM2ID(sym));
+    SEL msel = sel_registerName(rb_id2name(SYM2ID(sym)));
+    rb_vm_block_t *b = rb_vm_create_block_calling_sel(msel);
+    return rb_proc_alloc_with_block(rb_cProc, b);
 }
 
 ID
@@ -5113,7 +5117,7 @@ rb_to_id(VALUE name)
 	name = tmp;
 	/* fall through */
       case T_STRING:
-	name = rb_str_intern(name);
+	name = rb_str_intern(name, 0);
 	/* fall through */
       case T_SYMBOL:
 	return SYM2ID(name);
@@ -5217,17 +5221,27 @@ void
 rb_objc_install_string_primitives(Class klass)
 {
     rb_objc_install_method2(klass, "length", (IMP)imp_rb_str_length);
-    rb_objc_install_method2(klass, "characterAtIndex:", (IMP)imp_rb_str_characterAtIndex);
-    rb_objc_install_method2(klass, "getCharacters:range:", (IMP)imp_rb_str_getCharactersRange);
-    rb_objc_install_method2(klass, "replaceCharactersInRange:withString:", 
-	(IMP)imp_rb_str_replaceCharactersInRangeWithString);
-    rb_objc_install_method2(klass, "_fastCharacterContents", (IMP)imp_rb_str_fastCharacterContents);
-    rb_objc_install_method2(klass, "_fastCStringContents:", (IMP)imp_rb_str_fastCStringContents);
+    rb_objc_install_method2(klass, "characterAtIndex:",
+	    (IMP)imp_rb_str_characterAtIndex);
+    rb_objc_install_method2(klass, "getCharacters:range:",
+	    (IMP)imp_rb_str_getCharactersRange);
+    rb_objc_install_method2(klass, "_fastCharacterContents",
+	    (IMP)imp_rb_str_fastCharacterContents);
+    rb_objc_install_method2(klass, "_fastCStringContents:",
+	    (IMP)imp_rb_str_fastCStringContents);
     rb_objc_install_method2(klass, "_fastestEncodingInCFStringEncoding",
 	(IMP)imp_rb_str_fastestEncodingInCFStringEncoding);
     rb_objc_install_method2(klass, "isEqual:", (IMP)imp_rb_str_isEqual);
-    
-    rb_define_alloc_func((VALUE)klass, str_alloc);
+
+    const bool mutable = class_getSuperclass(klass)
+	== (Class)rb_cNSMutableString;
+
+    if (mutable) {
+	rb_objc_install_method2(klass, "replaceCharactersInRange:withString:", 
+		(IMP)imp_rb_str_replaceCharactersInRangeWithString);
+    }
+
+    rb_objc_define_method(*(VALUE *)klass, "alloc", str_alloc, 0);
 }
 
 static CFIndex
@@ -5239,8 +5253,9 @@ imp_rb_symbol_length(void *rcv, SEL sel)
 static UniChar
 imp_rb_symbol_characterAtIndex(void *rcv, SEL sel, CFIndex idx)
 {
-    if (idx < 0 || idx > RSYMBOL(rcv)->len)
+    if (idx < 0 || idx > RSYMBOL(rcv)->len) {
 	rb_bug("[Symbol characterAtIndex:] out of bounds");
+    }
     return RSYMBOL(rcv)->str[idx];
 }
 
@@ -5250,8 +5265,9 @@ imp_rb_symbol_getCharactersRange(void *rcv, SEL sel, UniChar *buffer,
 {
     int i;
 
-    if (range.location + range.length > RSYMBOL(rcv)->len)
+    if (range.location + range.length > RSYMBOL(rcv)->len) {
 	rb_bug("[Symbol getCharacters:range:] out of bounds");
+    }
 
     for (i = range.location; i < range.location + range.length; i++) {
 	*buffer = RSYMBOL(rcv)->str[i];
@@ -5262,13 +5278,22 @@ imp_rb_symbol_getCharactersRange(void *rcv, SEL sel, UniChar *buffer,
 static bool
 imp_rb_symbol_isEqual(void *rcv, SEL sel, void *other)
 {
-    if (other == NULL)
-	return false;
-    if (rcv == other)
+    if (rcv == other) {
 	return true;
-    if (!rb_objc_is_kind_of(other, (Class)rb_cNSString))
+    }
+    if (other == NULL || *(VALUE *)other != rb_cSymbol) {
 	return false;
+    }
     return CFStringCompare((CFStringRef)rcv, (CFStringRef)other, 0) == 0;
+}
+
+static void *
+imp_rb_symbol_mutableCopy(void *rcv, SEL sel)
+{
+    CFMutableStringRef new_str = CFStringCreateMutable(NULL, 0);
+    CFStringAppendCString(new_str, RSYMBOL(rcv)->str, kCFStringEncodingUTF8);
+    CFMakeCollectable(new_str);
+    return new_str;
 }
 
 static void
@@ -5280,9 +5305,257 @@ install_symbol_primitives(void)
     rb_objc_install_method2(klass, "characterAtIndex:", (IMP)imp_rb_symbol_characterAtIndex);
     rb_objc_install_method2(klass, "getCharacters:range:", (IMP)imp_rb_symbol_getCharactersRange);
     rb_objc_install_method2(klass, "isEqual:", (IMP)imp_rb_symbol_isEqual);
+    rb_objc_install_method2(klass, "mutableCopy", (IMP)imp_rb_symbol_mutableCopy);
 }
 
 #undef INSTALL_METHOD
+
+static inline void **
+rb_bytestring_ivar_addr(VALUE bstr)
+{
+    return (void **)((char *)bstr + wrappedDataOffset);
+}
+
+CFMutableDataRef 
+rb_bytestring_wrapped_data(VALUE bstr)
+{
+    void **addr = rb_bytestring_ivar_addr(bstr);
+    return (CFMutableDataRef)(*addr); 
+}
+
+inline void
+rb_bytestring_set_wrapped_data(VALUE bstr, CFMutableDataRef data)
+{
+    void **addr = rb_bytestring_ivar_addr(bstr);
+    GC_WB(addr, data);
+}
+
+UInt8 *
+rb_bytestring_byte_pointer(VALUE bstr)
+{
+    return CFDataGetMutableBytePtr(rb_bytestring_wrapped_data(bstr));
+}
+
+static inline VALUE
+bytestring_alloc(void)
+{
+    return (VALUE)class_createInstance((Class)rb_cByteString, sizeof(void *));
+}
+
+static VALUE
+rb_bytestring_alloc(VALUE klass, SEL sel)
+{
+    VALUE bstr = bytestring_alloc();
+
+    CFMutableDataRef data = CFDataCreateMutable(NULL, 0);
+    rb_bytestring_set_wrapped_data(bstr, data);
+    CFMakeCollectable(data);
+
+    return bstr;
+}
+
+VALUE 
+rb_bytestring_new() 
+{
+    VALUE bs = rb_bytestring_alloc(0, 0);
+    bs = (VALUE)objc_msgSend((id)bs, selInit); // [recv init];
+    return bs;
+}
+
+VALUE
+rb_bytestring_new_with_data(const UInt8 *buf, long size)
+{
+    VALUE v = rb_bytestring_new();
+    CFDataAppendBytes(rb_bytestring_wrapped_data(v), buf, size);
+    return v;
+}
+
+VALUE
+rb_bytestring_new_with_cfdata(CFMutableDataRef data)
+{
+    VALUE v = bytestring_alloc();
+    rb_bytestring_set_wrapped_data(v, data);
+    return v;
+}
+
+static void inline
+rb_bytestring_copy_cfstring_content(VALUE bstr, CFStringRef str)
+{
+	if (CFStringGetLength(str) == 0) return;
+    const char *cptr = CFStringGetCStringPtr(str, kCFStringEncodingUTF8);
+    assert(cptr != NULL); // TODO handle UTF-16 strings
+
+    CFDataAppendBytes(rb_bytestring_wrapped_data(bstr), (UInt8 *)cptr, 
+	    CFStringGetLength(str));
+}
+
+static VALUE
+rb_bytestring_initialize(VALUE recv, SEL sel, int argc, VALUE *argv)
+{
+    VALUE orig;
+
+    rb_scan_args(argc, argv, "01", &orig);
+
+    recv = (VALUE)objc_msgSend((id)recv, selInit); // [recv init];
+
+    if (!NIL_P(orig)) {
+	StringValue(orig);
+	rb_bytestring_copy_cfstring_content(recv, (CFStringRef)orig);
+    }
+    return orig;
+}
+
+VALUE
+rb_coerce_to_bytestring(VALUE str)
+{
+    VALUE new = rb_bytestring_alloc(0, 0);
+    rb_bytestring_copy_cfstring_content(new, (CFStringRef)str);
+    return new;
+}
+
+inline long 
+rb_bytestring_length(VALUE str)
+{
+    return CFDataGetLength(rb_bytestring_wrapped_data(str));
+}
+
+void
+rb_bytestring_resize(VALUE str, long newsize)
+{
+    CFDataSetLength(rb_bytestring_wrapped_data(str), newsize);
+}
+
+CFStringRef
+rb_bytestring_resolve_cfstring(VALUE str)
+{
+    CFDataRef data = rb_bytestring_wrapped_data(str);
+    CFStringRef cfstr = CFStringCreateFromExternalRepresentation(NULL,
+	data, kCFStringEncodingUTF8);
+    if (cfstr == NULL) {
+	// If UTF8 doesn't work, try ASCII.
+	cfstr = CFStringCreateFromExternalRepresentation(NULL,
+		data, kCFStringEncodingASCII);
+    }
+    if (cfstr != NULL) {
+	return CFMakeCollectable(cfstr);
+    }
+    return (CFStringRef)str;
+}
+
+static bool
+imp_rb_bytestring_isEqual(void *rcv, SEL sel, void *other)
+{
+    if (rcv == other) {
+	return true;
+    }
+    if (*(VALUE *)other == rb_cByteString) {
+	// Both operands are bytestrings.
+	CFDataRef rcv_data = rb_bytestring_wrapped_data((VALUE)rcv);
+	CFDataRef other_data = rb_bytestring_wrapped_data((VALUE)other);
+	if (CFDataGetLength(rcv_data) != CFDataGetLength(other_data)) {
+	    return false;
+	}
+	return CFEqual(rcv_data, other_data);
+    }
+    else {
+	// Given operand is a character string.
+	CFStringRef rcv_str = rb_bytestring_resolve_cfstring((VALUE)rcv);
+	if (rcv_str == (CFStringRef)rcv) {
+	    // Can't resolve a character string based on that data.
+	    return false;
+	}
+	if (CFStringGetLength(rcv_str) != CFStringGetLength(other)) {
+	    return false;
+	}
+	return CFEqual(rcv_str, (CFTypeRef)other);
+    }
+}
+
+static CFIndex
+imp_rb_bytestring_length(void *rcv, SEL sel) 
+{
+    return rb_bytestring_length((VALUE)rcv);
+}
+
+static inline long
+bytestring_index(VALUE bstr, VALUE idx)
+{
+    long index = NUM2LONG(idx);
+    while (index < 0) {
+	// adjusting for negative indices
+	index += rb_bytestring_length(bstr);
+    }
+    return index;
+}
+
+static VALUE
+rb_bytestring_getbyte(VALUE bstr, SEL sel, VALUE idx)
+{
+    const long index = bytestring_index(bstr, idx);
+    return INT2FIX(rb_bytestring_byte_pointer(bstr)[index]);
+}
+
+static VALUE
+rb_bytestring_setbyte(VALUE bstr, SEL sel, VALUE idx, VALUE newbyte)
+{
+    const long index = bytestring_index(bstr, idx);
+    rb_bytestring_byte_pointer(bstr)[index] = FIX2UINT(newbyte);
+    return Qnil;
+}
+
+static VALUE
+rb_bytestring_bytesize(VALUE bstr, SEL sel)
+{
+    return LONG2NUM(CFDataGetLength(rb_bytestring_wrapped_data(bstr)));
+}
+
+static UniChar
+imp_rb_bytestring_characterAtIndex(void *rcv, SEL sel, CFIndex idx)
+{
+    // XXX should be encoding aware
+    return rb_bytestring_byte_pointer((VALUE)rcv)[idx];
+}
+
+static void
+imp_rb_bytestring_replaceCharactersInRange_withString(void *rcv, SEL sel,
+	CFRange range, void *str)
+{
+    const UInt8 *bytes = (const UInt8 *)RSTRING_PTR(str);
+    const long length = RSTRING_LEN(str);
+    CFMutableDataRef data = rb_bytestring_wrapped_data((VALUE)rcv);
+
+    // No need to check if the given range fits in the data's bounds,
+    // CFDataReplaceBytes() will grow the object automatically for us.
+    CFDataReplaceBytes(data, range, bytes, length);
+}
+
+static void *
+imp_rb_bytestring_mutableCopy(void *rcv, SEL sel)
+{
+    VALUE new_bstr = rb_bytestring_new();
+    CFMutableDataRef rcv_data = rb_bytestring_wrapped_data((VALUE)rcv);
+    CFMutableDataRef new_data = rb_bytestring_wrapped_data(new_bstr);
+    CFDataAppendBytes(new_data, (const UInt8 *)CFDataGetMutableBytePtr(rcv_data),
+	    CFDataGetLength(rcv_data));
+    return (void *)new_bstr;
+}
+
+static void
+imp_rb_bytestring_cfAppendCString_length(void *rcv, SEL sel, const UInt8 *cstr,
+					 long len)
+{
+    CFDataAppendBytes(rb_bytestring_wrapped_data((VALUE)rcv), cstr, len);
+}
+
+static void
+imp_rb_bytestring_setString(void *rcv, SEL sel, void *new_str)
+{
+    CFMutableDataRef data = rb_bytestring_wrapped_data((VALUE)rcv);
+    CFRange data_range = CFRangeMake(0, CFDataGetLength(data));
+    const char *cstr = RSTRING_PTR(new_str);
+    const long len = RSTRING_LEN(new_str);
+    CFDataReplaceBytes(data, data_range, (const UInt8 *)cstr, len);
+} 
 
 /*
  *  A <code>String</code> object holds and manipulates an arbitrary sequence of
@@ -5307,134 +5580,131 @@ Init_String(void)
     rb_const_set(rb_cObject, rb_intern("String"), rb_cNSMutableString);
     rb_set_class_path(rb_cNSMutableString, rb_cObject, "NSMutableString");
 
-    rb_define_singleton_method(rb_cString, "__new_bytestring__", rb_str_new_bytestring_m, 1);
-    rb_define_method(rb_cString, "__bytestring__?", rb_str_bytestring_m, 0);
-
     rb_include_module(rb_cString, rb_mComparable);
 
-    rb_define_singleton_method(rb_cString, "try_convert", rb_str_s_try_convert, 1);
-    rb_define_method(rb_cString, "initialize", rb_str_init, -1);
-    rb_define_method(rb_cString, "initialize_copy", rb_str_replace, 1);
-    rb_define_method(rb_cString, "<=>", rb_str_cmp_m, 1);
-    rb_define_method(rb_cString, "==", rb_str_equal, 1);
-    rb_define_method(rb_cString, "eql?", rb_str_eql, 1);
-    rb_define_method(rb_cString, "casecmp", rb_str_casecmp, 1);
-    rb_define_method(rb_cString, "+", rb_str_plus, 1);
-    rb_define_method(rb_cString, "*", rb_str_times, 1);
-    rb_define_method(rb_cString, "%", rb_str_format_m, 1);
-    rb_define_method(rb_cString, "[]", rb_str_aref_m, -1);
-    rb_define_method(rb_cString, "[]=", rb_str_aset_m, -1);
-    rb_define_method(rb_cString, "insert", rb_str_insert, 2);
-    rb_define_method(rb_cString, "size", rb_str_length, 0);
-    rb_define_method(rb_cString, "bytesize", rb_str_bytesize, 0);
-    rb_define_method(rb_cString, "empty?", rb_str_empty, 0);
-    rb_define_method(rb_cString, "=~", rb_str_match, 1);
-    rb_define_method(rb_cString, "match", rb_str_match_m, -1);
-    rb_define_method(rb_cString, "succ", rb_str_succ, 0);
-    rb_define_method(rb_cString, "succ!", rb_str_succ_bang, 0);
-    rb_define_method(rb_cString, "next", rb_str_succ, 0);
-    rb_define_method(rb_cString, "next!", rb_str_succ_bang, 0);
-    rb_define_method(rb_cString, "upto", rb_str_upto, -1);
-    rb_define_method(rb_cString, "index", rb_str_index_m, -1);
-    rb_define_method(rb_cString, "rindex", rb_str_rindex_m, -1);
-    rb_define_method(rb_cString, "replace", rb_str_replace, 1);
-    rb_define_method(rb_cString, "clear", rb_str_clear, 0);
-    rb_define_method(rb_cString, "chr", rb_str_chr, 0);
-    rb_define_method(rb_cString, "getbyte", rb_str_getbyte, 1);
-    rb_define_method(rb_cString, "setbyte", rb_str_setbyte, 2);
+    rb_objc_define_method(*(VALUE *)rb_cString, "try_convert", rb_str_s_try_convert, 1);
+    rb_objc_define_method(rb_cString, "initialize", rb_str_init, -1);
+    rb_objc_define_method(rb_cString, "initialize_copy", rb_str_replace_imp, 1);
+    rb_objc_define_method(rb_cString, "<=>", rb_str_cmp_m, 1);
+    rb_objc_define_method(rb_cString, "==", rb_str_equal_imp, 1);
+    rb_objc_define_method(rb_cString, "eql?", rb_str_eql, 1);
+    rb_objc_define_method(rb_cString, "casecmp", rb_str_casecmp, 1);
+    rb_objc_define_method(rb_cString, "+", rb_str_plus, 1);
+    rb_objc_define_method(rb_cString, "*", rb_str_times, 1);
+    rb_objc_define_method(rb_cString, "%", rb_str_format_m, 1);
+    rb_objc_define_method(rb_cString, "[]", rb_str_aref_m, -1);
+    rb_objc_define_method(rb_cString, "[]=", rb_str_aset_m, -1);
+    rb_objc_define_method(rb_cString, "insert", rb_str_insert, 2);
+    rb_objc_define_method(rb_cString, "size", rb_str_length_imp, 0);
+    rb_objc_define_method(rb_cString, "bytesize", rb_str_bytesize, 0);
+    rb_objc_define_method(rb_cString, "empty?", rb_str_empty, 0);
+    rb_objc_define_method(rb_cString, "=~", rb_str_match, 1);
+    rb_objc_define_method(rb_cString, "match", rb_str_match_m, -1);
+    rb_objc_define_method(rb_cString, "succ", rb_str_succ, 0);
+    rb_objc_define_method(rb_cString, "succ!", rb_str_succ_bang, 0);
+    rb_objc_define_method(rb_cString, "next", rb_str_succ, 0);
+    rb_objc_define_method(rb_cString, "next!", rb_str_succ_bang, 0);
+    rb_objc_define_method(rb_cString, "upto", rb_str_upto, -1);
+    rb_objc_define_method(rb_cString, "index", rb_str_index_m, -1);
+    rb_objc_define_method(rb_cString, "rindex", rb_str_rindex_m, -1);
+    rb_objc_define_method(rb_cString, "replace", rb_str_replace_imp, 1);
+    rb_objc_define_method(rb_cString, "clear", rb_str_clear, 0);
+    rb_objc_define_method(rb_cString, "chr", rb_str_chr, 0);
+    rb_objc_define_method(rb_cString, "getbyte", rb_str_getbyte, 1);
+    rb_objc_define_method(rb_cString, "setbyte", rb_str_setbyte, 2);
 
-    rb_define_method(rb_cString, "to_i", rb_str_to_i, -1);
-    rb_define_method(rb_cString, "to_f", rb_str_to_f, 0);
-    rb_define_method(rb_cString, "to_s", rb_str_to_s, 0);
-    rb_define_method(rb_cString, "to_str", rb_str_to_s, 0);
-    rb_define_method(rb_cString, "inspect", rb_str_inspect, 0);
-    rb_define_method(rb_cString, "dump", rb_str_dump, 0);
+    rb_objc_define_method(rb_cString, "to_i", rb_str_to_i, -1);
+    rb_objc_define_method(rb_cString, "to_f", rb_str_to_f, 0);
+    rb_objc_define_method(rb_cString, "to_s", rb_str_to_s, 0);
+    rb_objc_define_method(rb_cString, "to_str", rb_str_to_s, 0);
+    rb_objc_define_method(rb_cString, "inspect", rb_str_inspect, 0);
+    rb_objc_define_method(rb_cString, "dump", rb_str_dump, 0);
 
-    rb_define_method(rb_cString, "upcase", rb_str_upcase, 0);
-    rb_define_method(rb_cString, "downcase", rb_str_downcase, 0);
-    rb_define_method(rb_cString, "capitalize", rb_str_capitalize, 0);
-    rb_define_method(rb_cString, "swapcase", rb_str_swapcase, 0);
+    rb_objc_define_method(rb_cString, "upcase", rb_str_upcase, 0);
+    rb_objc_define_method(rb_cString, "downcase", rb_str_downcase, 0);
+    rb_objc_define_method(rb_cString, "capitalize", rb_str_capitalize, 0);
+    rb_objc_define_method(rb_cString, "swapcase", rb_str_swapcase, 0);
 
-    rb_define_method(rb_cString, "upcase!", rb_str_upcase_bang, 0);
-    rb_define_method(rb_cString, "downcase!", rb_str_downcase_bang, 0);
-    rb_define_method(rb_cString, "capitalize!", rb_str_capitalize_bang, 0);
-    rb_define_method(rb_cString, "swapcase!", rb_str_swapcase_bang, 0);
+    rb_objc_define_method(rb_cString, "upcase!", rb_str_upcase_bang, 0);
+    rb_objc_define_method(rb_cString, "downcase!", rb_str_downcase_bang, 0);
+    rb_objc_define_method(rb_cString, "capitalize!", rb_str_capitalize_bang, 0);
+    rb_objc_define_method(rb_cString, "swapcase!", rb_str_swapcase_bang, 0);
 
-    rb_define_method(rb_cString, "hex", rb_str_hex, 0);
-    rb_define_method(rb_cString, "oct", rb_str_oct, 0);
-    rb_define_method(rb_cString, "split", rb_str_split_m, -1);
-    rb_define_method(rb_cString, "lines", rb_str_each_line, -1);
-    rb_define_method(rb_cString, "bytes", rb_str_each_byte, 0);
-    rb_define_method(rb_cString, "chars", rb_str_each_char, 0);
-    rb_define_method(rb_cString, "reverse", rb_str_reverse, 0);
-    rb_define_method(rb_cString, "reverse!", rb_str_reverse_bang, 0);
-    rb_define_method(rb_cString, "concat", rb_str_concat, 1);
-    rb_define_method(rb_cString, "<<", rb_str_concat, 1);
-    rb_define_method(rb_cString, "crypt", rb_str_crypt, 1);
-    rb_define_method(rb_cString, "intern", rb_str_intern, 0);
-    rb_define_method(rb_cString, "to_sym", rb_str_intern, 0);
-    rb_define_method(rb_cString, "ord", rb_str_ord, 0);
+    rb_objc_define_method(rb_cString, "hex", rb_str_hex, 0);
+    rb_objc_define_method(rb_cString, "oct", rb_str_oct, 0);
+    rb_objc_define_method(rb_cString, "split", rb_str_split_m, -1);
+    rb_objc_define_method(rb_cString, "lines", rb_str_each_line, -1);
+    rb_objc_define_method(rb_cString, "bytes", rb_str_each_byte, 0);
+    rb_objc_define_method(rb_cString, "chars", rb_str_each_char, 0);
+    rb_objc_define_method(rb_cString, "reverse", rb_str_reverse, 0);
+    rb_objc_define_method(rb_cString, "reverse!", rb_str_reverse_bang, 0);
+    rb_objc_define_method(rb_cString, "concat", rb_str_concat_imp, 1);
+    rb_objc_define_method(rb_cString, "<<", rb_str_concat_imp, 1);
+    rb_objc_define_method(rb_cString, "crypt", rb_str_crypt, 1);
+    rb_objc_define_method(rb_cString, "intern", rb_str_intern, 0);
+    rb_objc_define_method(rb_cString, "to_sym", rb_str_intern, 0);
+    rb_objc_define_method(rb_cString, "ord", rb_str_ord, 0);
 
-    rb_define_method(rb_cString, "include?", rb_str_include, 1);
-    rb_define_method(rb_cString, "start_with?", rb_str_start_with, -1);
-    rb_define_method(rb_cString, "end_with?", rb_str_end_with, -1);
+    rb_objc_define_method(rb_cString, "include?", rb_str_include, 1);
+    rb_objc_define_method(rb_cString, "start_with?", rb_str_start_with, -1);
+    rb_objc_define_method(rb_cString, "end_with?", rb_str_end_with, -1);
 
-    rb_define_method(rb_cString, "scan", rb_str_scan, 1);
+    rb_objc_define_method(rb_cString, "scan", rb_str_scan, 1);
 
-    rb_define_method(rb_cString, "ljust", rb_str_ljust, -1);
-    rb_define_method(rb_cString, "rjust", rb_str_rjust, -1);
-    rb_define_method(rb_cString, "center", rb_str_center, -1);
+    rb_objc_define_method(rb_cString, "ljust", rb_str_ljust, -1);
+    rb_objc_define_method(rb_cString, "rjust", rb_str_rjust, -1);
+    rb_objc_define_method(rb_cString, "center", rb_str_center, -1);
 
-    rb_define_method(rb_cString, "sub", rb_str_sub, -1);
-    rb_define_method(rb_cString, "gsub", rb_str_gsub, -1);
-    rb_define_method(rb_cString, "chop", rb_str_chop, 0);
-    rb_define_method(rb_cString, "chomp", rb_str_chomp, -1);
-    rb_define_method(rb_cString, "strip", rb_str_strip, 0);
-    rb_define_method(rb_cString, "lstrip", rb_str_lstrip, 0);
-    rb_define_method(rb_cString, "rstrip", rb_str_rstrip, 0);
+    rb_objc_define_method(rb_cString, "sub", rb_str_sub, -1);
+    rb_objc_define_method(rb_cString, "gsub", rb_str_gsub, -1);
+    rb_objc_define_method(rb_cString, "chop", rb_str_chop, 0);
+    rb_objc_define_method(rb_cString, "chomp", rb_str_chomp, -1);
+    rb_objc_define_method(rb_cString, "strip", rb_str_strip, 0);
+    rb_objc_define_method(rb_cString, "lstrip", rb_str_lstrip, 0);
+    rb_objc_define_method(rb_cString, "rstrip", rb_str_rstrip, 0);
 
-    rb_define_method(rb_cString, "sub!", rb_str_sub_bang, -1);
-    rb_define_method(rb_cString, "gsub!", rb_str_gsub_bang, -1);
-    rb_define_method(rb_cString, "chop!", rb_str_chop_bang, 0);
-    rb_define_method(rb_cString, "chomp!", rb_str_chomp_bang, -1);
-    rb_define_method(rb_cString, "strip!", rb_str_strip_bang, 0);
-    rb_define_method(rb_cString, "lstrip!", rb_str_lstrip_bang, 0);
-    rb_define_method(rb_cString, "rstrip!", rb_str_rstrip_bang, 0);
+    rb_objc_define_method(rb_cString, "sub!", rb_str_sub_bang, -1);
+    rb_objc_define_method(rb_cString, "gsub!", rb_str_gsub_bang, -1);
+    rb_objc_define_method(rb_cString, "chop!", rb_str_chop_bang, 0);
+    rb_objc_define_method(rb_cString, "chomp!", rb_str_chomp_bang, -1);
+    rb_objc_define_method(rb_cString, "strip!", rb_str_strip_bang, 0);
+    rb_objc_define_method(rb_cString, "lstrip!", rb_str_lstrip_bang, 0);
+    rb_objc_define_method(rb_cString, "rstrip!", rb_str_rstrip_bang, 0);
 
-    rb_define_method(rb_cString, "tr", rb_str_tr, 2);
-    rb_define_method(rb_cString, "tr_s", rb_str_tr_s, 2);
-    rb_define_method(rb_cString, "delete", rb_str_delete, -1);
-    rb_define_method(rb_cString, "squeeze", rb_str_squeeze, -1);
-    rb_define_method(rb_cString, "count", rb_str_count, -1);
+    rb_objc_define_method(rb_cString, "tr", rb_str_tr, 2);
+    rb_objc_define_method(rb_cString, "tr_s", rb_str_tr_s, 2);
+    rb_objc_define_method(rb_cString, "delete", rb_str_delete, -1);
+    rb_objc_define_method(rb_cString, "squeeze", rb_str_squeeze, -1);
+    rb_objc_define_method(rb_cString, "count", rb_str_count, -1);
 
-    rb_define_method(rb_cString, "tr!", rb_str_tr_bang, 2);
-    rb_define_method(rb_cString, "tr_s!", rb_str_tr_s_bang, 2);
-    rb_define_method(rb_cString, "delete!", rb_str_delete_bang, -1);
-    rb_define_method(rb_cString, "squeeze!", rb_str_squeeze_bang, -1);
+    rb_objc_define_method(rb_cString, "tr!", rb_str_tr_bang, 2);
+    rb_objc_define_method(rb_cString, "tr_s!", rb_str_tr_s_bang, 2);
+    rb_objc_define_method(rb_cString, "delete!", rb_str_delete_bang, -1);
+    rb_objc_define_method(rb_cString, "squeeze!", rb_str_squeeze_bang, -1);
 
-    rb_define_method(rb_cString, "each_line", rb_str_each_line, -1);
-    rb_define_method(rb_cString, "each_byte", rb_str_each_byte, 0);
-    rb_define_method(rb_cString, "each_char", rb_str_each_char, 0);
+    rb_objc_define_method(rb_cString, "each_line", rb_str_each_line, -1);
+    rb_objc_define_method(rb_cString, "each_byte", rb_str_each_byte, 0);
+    rb_objc_define_method(rb_cString, "each_char", rb_str_each_char, 0);
 
-    rb_define_method(rb_cString, "sum", rb_str_sum, -1);
+    rb_objc_define_method(rb_cString, "sum", rb_str_sum, -1);
 
-    rb_define_method(rb_cString, "slice", rb_str_aref_m, -1);
-    rb_define_method(rb_cString, "slice!", rb_str_slice_bang, -1);
+    rb_objc_define_method(rb_cString, "slice", rb_str_aref_m, -1);
+    rb_objc_define_method(rb_cString, "slice!", rb_str_slice_bang, -1);
 
-    rb_define_method(rb_cString, "partition", rb_str_partition, 1);
-    rb_define_method(rb_cString, "rpartition", rb_str_rpartition, 1);
+    rb_objc_define_method(rb_cString, "partition", rb_str_partition, 1);
+    rb_objc_define_method(rb_cString, "rpartition", rb_str_rpartition, 1);
 
-    rb_define_method(rb_cString, "encoding", rb_obj_encoding, 0); /* in encoding.c */
-    rb_define_method(rb_cString, "force_encoding", rb_str_force_encoding, 1);
-    rb_define_method(rb_cString, "valid_encoding?", rb_str_valid_encoding_p, 0);
-    rb_define_method(rb_cString, "ascii_only?", rb_str_is_ascii_only_p, 0);
+    rb_objc_define_method(rb_cString, "encoding", rb_obj_encoding, 0); /* in encoding.c */
+    rb_objc_define_method(rb_cString, "force_encoding", rb_str_force_encoding, 1);
+    rb_objc_define_method(rb_cString, "valid_encoding?", rb_str_valid_encoding_p, 0);
+    rb_objc_define_method(rb_cString, "ascii_only?", rb_str_is_ascii_only_p, 0);
 
-    rb_define_method(rb_cString, "transform", rb_str_transform, 1);
-    rb_define_method(rb_cString, "transform!", rb_str_transform_bang, 1);
+    rb_objc_define_method(rb_cString, "transform", rb_str_transform, 1);
+    rb_objc_define_method(rb_cString, "transform!", rb_str_transform_bang, 1);
 
     /* to return mutable copies */
-    rb_define_method(rb_cString, "dup", rb_str_dup, 0);
-    rb_define_method(rb_cString, "clone", rb_str_clone, 0);
+    rb_objc_define_method(rb_cString, "dup", rb_str_dup_imp, 0);
+    rb_objc_define_method(rb_cString, "clone", rb_str_clone, 0);
 
     id_to_s = rb_intern("to_s");
 
@@ -5450,16 +5720,54 @@ Init_String(void)
     rb_undef_method(CLASS_OF(rb_cSymbol), "new");
     rb_define_singleton_method(rb_cSymbol, "all_symbols", rb_sym_all_symbols, 0); /* in parse.y */
 
-    rb_define_method(rb_cSymbol, "==", sym_equal, 1);
-    rb_define_method(rb_cSymbol, "<=>", sym_cmp, 1);
-    rb_define_method(rb_cSymbol, "inspect", sym_inspect, 0);
-    rb_define_method(rb_cSymbol, "description", sym_inspect, 0);
-    rb_define_method(rb_cSymbol, "dup", rb_obj_dup, 0);
-    rb_define_method(rb_cSymbol, "to_proc", sym_to_proc, 0);
-    rb_define_method(rb_cSymbol, "to_s", rb_sym_to_s, 0);
-    rb_define_method(rb_cSymbol, "id2name", rb_sym_to_s, 0);
-    rb_define_method(rb_cSymbol, "intern", sym_to_sym, 0);
-    rb_define_method(rb_cSymbol, "to_sym", sym_to_sym, 0);
+    rb_objc_define_method(rb_cSymbol, "==", sym_equal, 1);
+    rb_objc_define_method(rb_cSymbol, "eql?", sym_equal, 1);
+    rb_objc_define_method(rb_cSymbol, "<=>", sym_cmp, 1);
+    rb_objc_define_method(rb_cSymbol, "inspect", sym_inspect, 0);
+    rb_objc_define_method(rb_cSymbol, "description", sym_inspect, 0);
+    rb_objc_define_method(rb_cSymbol, "dup", rb_obj_dup, 0);
+    rb_objc_define_method(rb_cSymbol, "to_proc", sym_to_proc, 0);
+    rb_objc_define_method(rb_cSymbol, "to_s", rb_sym_to_s_imp, 0);
+    rb_objc_define_method(rb_cSymbol, "id2name", rb_sym_to_s_imp, 0);
+    rb_objc_define_method(rb_cSymbol, "intern", sym_to_sym, 0);
+    rb_objc_define_method(rb_cSymbol, "to_sym", sym_to_sym, 0);
+ 
+    rb_undef_method(rb_cSymbol, "to_str");
+    rb_undef_method(rb_cSymbol, "include?");
 
     install_symbol_primitives();
+
+    rb_cByteString = (VALUE)objc_allocateClassPair((Class)rb_cNSMutableString,
+	    "ByteString", sizeof(void *));
+    RCLASS_SET_VERSION_FLAG(rb_cByteString, RCLASS_IS_STRING_SUBCLASS);
+    class_addIvar((Class)rb_cByteString, WRAPPED_DATA_IV_NAME, sizeof(id), 
+	    0, "@");
+    objc_registerClassPair((Class)rb_cByteString);
+
+    rb_objc_install_method2((Class)rb_cByteString, "isEqual:",
+	    (IMP)imp_rb_bytestring_isEqual);
+    rb_objc_install_method2((Class)rb_cByteString, "length",
+	    (IMP)imp_rb_bytestring_length);
+    rb_objc_install_method2((Class)rb_cByteString, "characterAtIndex:",
+	    (IMP)imp_rb_bytestring_characterAtIndex);
+    rb_objc_install_method2((Class)rb_cByteString,
+	    "replaceCharactersInRange:withString:",
+	    (IMP)imp_rb_bytestring_replaceCharactersInRange_withString);
+    rb_objc_install_method2((Class)rb_cByteString, "mutableCopy",
+	    (IMP)imp_rb_bytestring_mutableCopy);
+    rb_objc_install_method2((Class)rb_cByteString, "_cfAppendCString:length:",
+	    (IMP)imp_rb_bytestring_cfAppendCString_length);
+    rb_objc_install_method2((Class)rb_cByteString, "setString:",
+	    (IMP)imp_rb_bytestring_setString);
+    rb_objc_define_method(rb_cByteString, "initialize",
+	    rb_bytestring_initialize, -1);
+    rb_objc_define_method(*(VALUE *)rb_cByteString, "alloc",
+	    rb_bytestring_alloc, 0);
+    rb_objc_define_method(rb_cByteString, "bytesize",
+	    rb_bytestring_bytesize, 0);
+    rb_objc_define_method(rb_cByteString, "getbyte", rb_bytestring_getbyte, 1);
+    rb_objc_define_method(rb_cByteString, "setbyte", rb_bytestring_setbyte, 2);
+    wrappedDataOffset = ivar_getOffset(
+	    class_getInstanceVariable((Class)rb_cByteString,
+		WRAPPED_DATA_IV_NAME));
 }

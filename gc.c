@@ -16,9 +16,8 @@
 #include "ruby/re.h"
 #include "ruby/io.h"
 #include "ruby/util.h"
-#include "eval_intern.h"
-#include "vm_core.h"
-#include "gc.h"
+#include "objc.h"
+#include "vm.h"
 #include <stdio.h>
 #include <setjmp.h>
 #include <sys/types.h>
@@ -39,30 +38,9 @@
 #endif
 static auto_zone_t *__auto_zone = NULL;
 
-int rb_io_fptr_finalize(struct rb_io_t*);
-
-#define rb_jmp_buf rb_jmpbuf_t
-
-#ifndef GC_MALLOC_LIMIT
-# define GC_MALLOC_LIMIT 8000000
-#endif
-
 static VALUE nomem_error;
 
-#define MARK_STACK_MAX 1024
-
-int ruby_gc_debug_indent = 0;
-
-#undef GC_DEBUG
-
-int ruby_gc_stress = 0;
-bool dont_gc = false;
-#define malloc_limit GC_MALLOC_LIMIT
-VALUE *rb_gc_stack_start = 0;
-#ifdef __ia64
-VALUE *rb_gc_register_stack_start = 0;
-#endif
-size_t rb_gc_stack_maxsize = 655300*sizeof(VALUE);
+static bool dont_gc = false;
 
 void
 rb_global_variable(VALUE *var)
@@ -73,13 +51,6 @@ rb_global_variable(VALUE *var)
 void
 rb_memerror(void)
 {
-    rb_thread_t *th = GET_THREAD();
-    if (!nomem_error ||
-	(rb_thread_raised_p(th, RAISED_NOMEMORY) && rb_safe_level() < 4)) {
-	fprintf(stderr, "[FATAL] failed to allocate memory\n");
-	exit(1);
-    }
-    rb_thread_raised_set(th, RAISED_NOMEMORY);
     rb_exc_raise(nomem_error);
 }
 
@@ -91,9 +62,10 @@ rb_memerror(void)
  */
 
 static VALUE
-gc_stress_get(VALUE self)
+gc_stress_get(VALUE self, SEL sel)
 {
-    return ruby_gc_stress ? Qtrue : Qfalse;
+    rb_notimplement();
+    return Qnil;
 }
 
 /*
@@ -109,11 +81,10 @@ gc_stress_get(VALUE self)
  */
 
 static VALUE
-gc_stress_set(VALUE self, VALUE flag)
+gc_stress_set(VALUE self, SEL sel, VALUE flag)
 {
-    rb_secure(2);
-    ruby_gc_stress = RTEST(flag);
-    return flag;
+    rb_notimplement();
+    return Qnil;
 }
 
 static int garbage_collect(void);
@@ -136,13 +107,16 @@ ruby_xmalloc(size_t size)
     if (size < 0) {
 	rb_raise(rb_eNoMemError, "negative allocation size (or too big)");
     }
-    if (size == 0) size = 1;
-    
-    if (__auto_zone == NULL)
+    if (size == 0) {
+	size = 1;
+    }
+    if (__auto_zone == NULL) {
 	rb_objc_no_gc_error();
+    }
+
     mem = auto_zone_allocate_object(__auto_zone, size, 
 				    AUTO_MEMORY_SCANNED, 0, 0);
-    if (!mem) {
+    if (mem == NULL) {
 	rb_memerror();
     }
 
@@ -176,18 +150,21 @@ ruby_xrealloc(void *ptr, size_t size)
 {
     void *mem;
 
-    if (size < 0)
+    if (size < 0) {
 	rb_raise(rb_eArgError, "negative re-allocation size");
-    
-    if (ptr == NULL) 
+    }
+    if (ptr == NULL) {
 	return ruby_xmalloc(size);
-    
-    if (size == 0) 
+    }
+    if (size == 0) {
 	size = 1;
+    }
     
     mem = malloc_zone_realloc(__auto_zone, ptr, size);
-    if (mem == NULL)
+
+    if (mem == NULL) {
 	rb_memerror();
+    }
 
     return mem;
 }
@@ -203,11 +180,11 @@ ruby_xrealloc2(void *ptr, size_t n, size_t size)
 }
 
 void
-ruby_xfree(void *x)
+ruby_xfree(void *ptr)
 {
-    if (x != NULL) {
-	auto_zone_retain(__auto_zone, x);
-	malloc_zone_free(__auto_zone, x);
+    if (ptr != NULL) {
+	auto_zone_retain(__auto_zone, ptr);
+	malloc_zone_free(__auto_zone, ptr);
     }
 }
 
@@ -226,7 +203,7 @@ ruby_xfree(void *x)
  */
 
 VALUE
-rb_gc_enable(void)
+rb_gc_enable(VALUE self, SEL sel)
 {
     int old = dont_gc;
 
@@ -248,7 +225,7 @@ rb_gc_enable(void)
  */
 
 VALUE
-rb_gc_disable(void)
+rb_gc_disable(VALUE self, SEL sel)
 {
     int old = dont_gc;
 
@@ -260,12 +237,25 @@ rb_gc_disable(void)
 VALUE rb_mGC;
 
 void
+rb_gc_assign_weak_ref(const void *value, void *const*location)
+{
+    auto_assign_weak_reference(__auto_zone, value, location, NULL);
+}
+
+void*
+rb_gc_read_weak_ref(void **referrer)
+{
+    return auto_read_weak_reference(__auto_zone, referrer);
+}
+
+
+void
 rb_objc_wb(void *dst, void *newval)
 {
     if (!SPECIAL_CONST_P(newval)) {
-	//printf("rb_objc_wb %p %p\n", dst, newval);
-	if (!auto_zone_set_write_barrier(__auto_zone, dst, newval))
+	if (!auto_zone_set_write_barrier(__auto_zone, dst, newval)) {
 	    rb_bug("destination %p isn't in the auto zone", dst);
+	}
     }
     *(void **)dst = newval;
 }
@@ -279,34 +269,39 @@ rb_gc_memmove(void *dst, const void *src, size_t len)
 void
 rb_objc_root(void *addr)
 {
-    if (addr != NULL)
+    if (addr != NULL) {
 	auto_zone_add_root(__auto_zone, addr, *(void **)addr);
+    }
 }
 
-void
+const void *
 rb_objc_retain(const void *addr)
 {
-    if (addr != NULL && !SPECIAL_CONST_P(addr))
+    if (addr != NULL && !SPECIAL_CONST_P(addr)) {
 	auto_zone_retain(__auto_zone, (void *)addr);
+    }
+    return addr;
 }
 
-void
+const void *
 rb_objc_release(const void *addr)
 {
-    if (addr != NULL && !SPECIAL_CONST_P(addr))
+    if (addr != NULL && !SPECIAL_CONST_P(addr)) {
 	auto_zone_release(__auto_zone, (void *)addr);
+    }
+    return addr;
 }
 
 void
 rb_objc_set_associative_ref(void *obj, void *key, void *val)
 {
-     auto_zone_set_associative_ref(__auto_zone, obj, key, val);
+    auto_zone_set_associative_ref(__auto_zone, obj, key, val);
 }
 
 void *
 rb_objc_get_associative_ref(void *obj, void *key)
 {
-     return auto_zone_get_associative_ref(__auto_zone, obj, key);
+    return auto_zone_get_associative_ref(__auto_zone, obj, key);
 }
 
 void
@@ -334,16 +329,9 @@ rb_objc_newobj(size_t size)
 {
     void *obj;
 
-    if (ruby_gc_stress) {
-	objc_collect(OBJC_GENERATIONAL_COLLECTION);
-    }
-
-    obj = auto_zone_allocate_object(__auto_zone, size, AUTO_OBJECT_SCANNED, 
-				    0, 0);
+    obj = auto_zone_allocate_object(__auto_zone, size, AUTO_OBJECT_SCANNED,
+	    0, 0);
     assert(obj != NULL);
-    if (__nsobject == NULL) {
-	__nsobject = (void *)objc_getClass("NSObject");
-    }
     RBASIC(obj)->klass = (VALUE)__nsobject;
     return obj;
 }
@@ -360,23 +348,10 @@ rb_objc_gc_unregister_thread(void)
     auto_zone_unregister_thread(__auto_zone);
 }
 
-void native_mutex_lock(pthread_mutex_t *lock);
-void native_mutex_unlock(pthread_mutex_t *lock);
-
-static void
-rb_objc_scan_external_callout(void *context, void (*scanner)(void *context, void *start, void *end))
-{
-    /* XXX we should scan all threads */
-    rb_thread_t *th = GET_THREAD();
-    if (th->stack != NULL) {
-	(*scanner)(context, th->stack, th->stack + th->stack_size);
-    }
-} 
-
 NODE*
 rb_node_newnode(enum node_type type, VALUE a0, VALUE a1, VALUE a2)
 {
-    NEWOBJ(n, NODE);
+    NODE *n = xmalloc(sizeof(struct RNode));
 
     n->flags |= T_NODE;
     nd_set_type(n, type);
@@ -399,71 +374,6 @@ rb_data_object_alloc(VALUE klass, void *datap, RUBY_DATA_FUNC dmark, RUBY_DATA_F
     data->dmark = dmark;
 
     return (VALUE)data;
-}
-
-#ifdef __ia64
-#define SET_STACK_END (SET_MACHINE_STACK_END(&th->machine_stack_end), th->machine_register_stack_end = rb_ia64_bsp())
-#else
-#define SET_STACK_END SET_MACHINE_STACK_END(&th->machine_stack_end)
-#endif
-
-#define STACK_START (th->machine_stack_start)
-#define STACK_END (th->machine_stack_end)
-#define STACK_LEVEL_MAX (th->machine_stack_maxsize/sizeof(VALUE))
-
-#if STACK_GROW_DIRECTION < 0
-# define STACK_LENGTH  (STACK_START - STACK_END)
-#elif STACK_GROW_DIRECTION > 0
-# define STACK_LENGTH  (STACK_END - STACK_START + 1)
-#else
-# define STACK_LENGTH  ((STACK_END < STACK_START) ? STACK_START - STACK_END\
-                                           : STACK_END - STACK_START + 1)
-#endif
-
-#if STACK_GROW_DIRECTION > 0
-# define STACK_UPPER(x, a, b) a
-#elif STACK_GROW_DIRECTION < 0
-# define STACK_UPPER(x, a, b) b
-#else
-static int grow_direction;
-static int
-stack_grow_direction(VALUE *addr)
-{
-    rb_thread_t *th = GET_THREAD();
-    SET_STACK_END;
-
-    if (STACK_END > addr) return grow_direction = 1;
-    return grow_direction = -1;
-}
-# define stack_growup_p(x) ((grow_direction ? grow_direction : stack_grow_direction(x)) > 0)
-# define STACK_UPPER(x, a, b) (stack_growup_p(x) ? a : b)
-#endif
-
-#define GC_WATER_MARK 512
-
-int
-ruby_stack_length(VALUE **p)
-{
-    rb_thread_t *th = GET_THREAD();
-    SET_STACK_END;
-    if (p) *p = STACK_UPPER(STACK_END, STACK_START, STACK_END);
-    return STACK_LENGTH;
-}
-
-int
-ruby_stack_check(void)
-{
-    int ret;
-    rb_thread_t *th = GET_THREAD();
-    SET_STACK_END;
-    ret = STACK_LENGTH > STACK_LEVEL_MAX + GC_WATER_MARK;
-#ifdef __ia64
-    if (!ret) {
-        ret = (VALUE*)rb_ia64_bsp() - th->machine_register_stack_start >
-              th->machine_register_stack_maxsize/sizeof(VALUE) + GC_WATER_MARK;
-    }
-#endif
-    return ret;
 }
 
 void
@@ -498,57 +408,10 @@ rb_gc(void)
  */
 
 VALUE
-rb_gc_start(void)
+rb_gc_start(VALUE self, SEL sel)
 {
     rb_gc();
     return Qnil;
-}
-
-#undef ruby_init_stack
-void
-ruby_init_stack(VALUE *addr
-#ifdef __ia64
-    , void *bsp
-#endif
-    )
-{
-    if (!rb_gc_stack_start ||
-        STACK_UPPER(&addr,
-                    rb_gc_stack_start > addr,
-                    rb_gc_stack_start < addr)) {
-        rb_gc_stack_start = addr;
-    }
-#ifdef __ia64
-    if (!rb_gc_register_stack_start ||
-        (VALUE*)bsp < rb_gc_register_stack_start) {
-        rb_gc_register_stack_start = (VALUE*)bsp;
-    }
-#endif
-#ifdef HAVE_GETRLIMIT
-    {
-	struct rlimit rlim;
-
-	if (getrlimit(RLIMIT_STACK, &rlim) == 0) {
-	    unsigned int space = rlim.rlim_cur/5;
-
-	    if (space > 1024*1024) space = 1024*1024;
-	    rb_gc_stack_maxsize = rlim.rlim_cur - space;
-	}
-    }
-#elif defined _WIN32
-    {
-	MEMORY_BASIC_INFORMATION mi;
-	DWORD size;
-	DWORD space;
-
-	if (VirtualQuery(&mi, &mi, sizeof(mi))) {
-	    size = (char *)mi.BaseAddress - (char *)mi.AllocationBase;
-	    space = size / 5;
-	    if (space > 1024*1024) space = 1024*1024;
-            rb_gc_stack_maxsize = size - space;
-	}
-    }
-#endif
 }
 
 /*
@@ -582,26 +445,10 @@ ruby_init_stack(VALUE *addr
  *
  */
 
-bool
-rb_objc_is_placeholder(void *obj)
-{
-    static void *placeholder_str = NULL;
-    static void *placeholder_dict = NULL;
-    static void *placeholder_ary = NULL;
-    void *obj_klass;
-    if (placeholder_str == NULL)
-	placeholder_str = objc_getClass("NSPlaceholderMutableString");
-    if (placeholder_dict == NULL)
-	placeholder_dict = objc_getClass("__NSPlaceholderDictionary");
-    if (placeholder_ary == NULL)
-	placeholder_ary = objc_getClass("__NSPlaceholderArray");
-    obj_klass = *(void **)obj;
-    return obj_klass == placeholder_str || obj_klass == placeholder_dict || obj_klass == placeholder_ary;
-}
-
 struct rb_objc_recorder_context {
     VALUE class_of;
     int count;
+    VALUE break_value;
 };
 
 static int
@@ -639,6 +486,7 @@ rb_objc_yield_classes(VALUE of)
 
 	if (nsobject_based) {
 	    rb_yield((VALUE)k);
+	    RETURN_IF_BROKEN();
 	    rcount++;
 	}
     }
@@ -656,41 +504,48 @@ rb_objc_recorder(task_t task, void *context, unsigned type_mask,
     ctx = (struct rb_objc_recorder_context *)context;
 
     for (r = ranges, end = ranges + range_count; r < end; r++) {
-	Class c;
-	auto_memory_type_t type =
-	    auto_zone_get_layout_type(__auto_zone, (void *)r->address);
-	if (type != AUTO_OBJECT_SCANNED && type != AUTO_OBJECT_UNSCANNED)
+	auto_memory_type_t type = auto_zone_get_layout_type(__auto_zone,
+		(void *)r->address);
+	if (type != AUTO_OBJECT_SCANNED && type != AUTO_OBJECT_UNSCANNED) {
 	    continue;
-	if (*(Class *)r->address == NULL)
+	}
+	if (*(Class *)r->address == NULL) {
 	    continue;
+	}
 	if (ctx->class_of != 0) {
+	    Class c;
 	    bool ok = false;
-	    for (c = *(Class *)r->address; c != NULL; 
-		    c = class_getSuperclass(c)) {
-		if (c ==(Class)ctx->class_of) {
+	    for (c = *(Class *)r->address; c != NULL;
+		 c = class_getSuperclass(c)) {
+		if (c == (Class)ctx->class_of) {
 		    ok = true;
 		    break;
 		}
 	    }
-	    if (!ok)
+	    if (!ok) {
 		continue;
+	    }
 	}
 	switch (TYPE(r->address)) {
 	    case T_NONE: 
 	    case T_NODE:
 		continue;
+
 	    case T_ICLASS: 
 	    case T_CLASS:
 	    case T_MODULE:
 		rb_bug("object %p of type %d should not be recorded", 
 		       (void *)r->address, TYPE(r->address));
+
 	    case T_NATIVE:
-		if (rb_objc_is_placeholder((void *)r->address))
+		if (rb_objc_is_placeholder((void *)r->address)) {
 		    continue;
+		}
 	}
 	rb_yield((VALUE)r->address);
+	ctx->break_value = rb_vm_pop_broken_value();
 	ctx->count++;
-    }	
+    }
 }
 
 /*
@@ -727,7 +582,7 @@ rb_objc_recorder(task_t task, void *context, unsigned type_mask,
  */
 
 static VALUE
-os_each_obj(int argc, VALUE *argv, VALUE os)
+os_each_obj(VALUE os, SEL sel, int argc, VALUE *argv)
 {
     VALUE of;
     int count;
@@ -742,14 +597,23 @@ os_each_obj(int argc, VALUE *argv, VALUE os)
     RETURN_ENUMERATOR(os, 1, &of);
 
     /* Class/Module are a special case, because they are not auto objects */
-    count = rb_objc_yield_classes(of);
+    if (of == rb_cClass || of == rb_cModule) {
+	count = rb_objc_yield_classes(of);
+    }
+    else {
+	struct rb_objc_recorder_context ctx = {of, 0, Qundef};
 
-    if (of != rb_cClass && of != rb_cModule) {
-	struct rb_objc_recorder_context ctx = {of, count};
+	auto_collector_disable(__auto_zone);
 
 	(((malloc_zone_t *)__auto_zone)->introspect->enumerator)(
 	    mach_task_self(), (void *)&ctx, MALLOC_PTR_IN_USE_RANGE_TYPE,
 	    (vm_address_t)__auto_zone, NULL, rb_objc_recorder);
+
+	auto_collector_reenable(__auto_zone);
+
+	if (ctx.break_value != Qundef) {
+	    return ctx.break_value;
+	}
 
 	count = ctx.count;
     }
@@ -768,7 +632,7 @@ os_each_obj(int argc, VALUE *argv, VALUE os)
 static CFMutableDictionaryRef __os_finalizers = NULL;
 
 static VALUE
-undefine_final(VALUE os, VALUE obj)
+undefine_final(VALUE os, SEL sel, VALUE obj)
 {
     if (__os_finalizers != NULL)
 	CFDictionaryRemoveValue(__os_finalizers, (const void *)obj);
@@ -792,7 +656,7 @@ undefine_final(VALUE os, VALUE obj)
  */
 
 static VALUE
-define_final(int argc, VALUE *argv, VALUE os)
+define_final(VALUE os, SEL sel, int argc, VALUE *argv)
 {
     VALUE obj, block, table;
 
@@ -826,7 +690,10 @@ define_final(int argc, VALUE *argv, VALUE os)
     else {
 	FL_SET(obj, FL_FINALIZE);
     }
-    return block;
+
+    VALUE ret = rb_ary_new3(2, INT2FIX(rb_safe_level()), block);
+    OBJ_FREEZE(ret);
+    return ret;
 }
 
 void
@@ -858,30 +725,6 @@ rb_gc_copy_finalizer(VALUE dest, VALUE obj)
     }
 }
 
-static CFMutableArrayRef __exit_finalize = NULL;
-
-static void
-rb_objc_finalize_pure_ruby_obj(VALUE obj)
-{
-    switch (RBASIC(obj)->flags & T_MASK) {
-	case T_FILE:
-	    if (RFILE(obj)->fptr != NULL) {
-		rb_io_fptr_finalize(RFILE(obj)->fptr);
-	    }
-	    break;
-    }
-}
-
-void
-rb_objc_keep_for_exit_finalize(VALUE v)
-{
-    if (__exit_finalize == NULL) {
-	__exit_finalize = CFArrayCreateMutable(NULL, 0, 
-	    &kCFTypeArrayCallBacks);
-    }
-    CFArrayAppendValue(__exit_finalize, (void *)v);
-}
-
 static void rb_call_os_finalizer2(VALUE, VALUE);
 
 static void
@@ -893,19 +736,6 @@ os_finalize_cb(const void *key, const void *val, void *context)
 void
 rb_gc_call_finalizer_at_exit(void)
 {
-    if (__exit_finalize != NULL) {
-	long i, count;
-	for (i = 0, count = CFArrayGetCount((CFArrayRef)__exit_finalize); 
-	     i < count; 
-	     i++) {
-	    VALUE v;
-	    v = (VALUE)CFArrayGetValueAtIndex((CFArrayRef)__exit_finalize, i);
-	    rb_objc_finalize_pure_ruby_obj(v);
-	}
-	CFArrayRemoveAllValues(__exit_finalize);
-	CFRelease(__exit_finalize);
-    }
-
     if (__os_finalizers != NULL) {
 	CFDictionaryApplyFunction((CFDictionaryRef)__os_finalizers,
     	    os_finalize_cb, NULL);
@@ -930,7 +760,7 @@ rb_gc_call_finalizer_at_exit(void)
  */
 
 static VALUE
-id2ref(VALUE obj, VALUE objid)
+id2ref(VALUE obj, SEL sel, VALUE objid)
 {
 #if SIZEOF_LONG == SIZEOF_VOIDP
 #define NUM2PTR(x) NUM2ULONG(x)
@@ -990,7 +820,7 @@ id2ref(VALUE obj, VALUE objid)
  */
 
 VALUE
-rb_obj_id(VALUE obj)
+rb_obj_id(VALUE obj, SEL sel)
 {
     return (VALUE)LONG2NUM((SIGNED_VALUE)obj);
 }
@@ -1016,7 +846,7 @@ rb_obj_id(VALUE obj)
  */
 
 static VALUE
-count_objects(int argc, VALUE *argv, VALUE os)
+count_objects(VALUE os, SEL sel, int argc, VALUE *argv)
 {
     /* TODO implement me! */
     return rb_hash_new();
@@ -1106,12 +936,12 @@ count_objects(int argc, VALUE *argv, VALUE os)
  *
  */
 
-static long _gc_count = 0;
-
 static VALUE
 gc_count(VALUE self)
 {
-    return UINT2NUM(_gc_count);
+    auto_statistics_t stats;
+    auto_zone_statistics(__auto_zone, &stats);
+    return UINT2NUM(stats.num_collections[0] + stats.num_collections[1]);
 }
 
 /*
@@ -1138,7 +968,7 @@ rb_call_os_finalizer2(VALUE obj, VALUE table)
     critical_save = rb_thread_critical;
     rb_thread_critical = Qtrue;
 
-    args[1] = rb_ary_new3(1, rb_obj_id(obj));
+    args[1] = rb_ary_new3(1, rb_obj_id(obj, 0));
     args[2] = (VALUE)rb_safe_level();
 
     for (i = 0, count = RARRAY_LEN(table); i < count; i++) {
@@ -1149,7 +979,7 @@ rb_call_os_finalizer2(VALUE obj, VALUE table)
     rb_thread_critical = critical_save;
 }
 
-static void
+void
 rb_call_os_finalizer(void *obj)
 {
     if (__os_finalizers != NULL) {
@@ -1168,8 +998,8 @@ rb_call_os_finalizer(void *obj)
 static void
 rb_obj_imp_finalize(void *obj, SEL sel)
 {
-    const bool need_protection = 
-	GET_THREAD()->thread_id != pthread_self();
+//    const bool need_protection = 
+//	GET_THREAD()->thread_id != pthread_self();
     bool call_finalize, free_ivar;
 
     if (NATIVE((VALUE)obj)) {
@@ -1186,18 +1016,18 @@ rb_obj_imp_finalize(void *obj, SEL sel)
     }
 
     if (call_finalize || free_ivar) {
-	if (need_protection) {
-	    native_mutex_lock(&GET_THREAD()->vm->global_interpreter_lock);
-	}
+//	if (need_protection) {
+//	    native_mutex_lock(&GET_THREAD()->vm->global_interpreter_lock);
+//	}
 	if (call_finalize) {
 	    rb_call_os_finalizer(obj);
 	}
 	if (free_ivar) {
 	    rb_free_generic_ivar((VALUE)obj);
 	}
-	if (need_protection) {
-	    native_mutex_unlock(&GET_THREAD()->vm->global_interpreter_lock);
-	}
+//	if (need_protection) {
+//	    native_mutex_unlock(&GET_THREAD()->vm->global_interpreter_lock);
+//	}
     }
 }
 
@@ -1210,12 +1040,13 @@ Init_PreGC(void)
 
     __auto_zone = auto_zone();
     
-    if (__auto_zone == NULL)
+    if (__auto_zone == NULL) {
 	rb_objc_no_gc_error();
+    }
+
+    __nsobject = (void *)objc_getClass("NSObject");
 
     control = auto_collection_parameters(__auto_zone);
-    control->scan_external_callout = 
-	rb_objc_scan_external_callout;
     if (getenv("GC_DEBUG")) {
 	control->log = AUTO_LOG_COLLECTIONS | AUTO_LOG_REGIONS | AUTO_LOG_UNUSUAL;
     }
@@ -1226,7 +1057,7 @@ Init_PreGC(void)
     Method m = class_getInstanceMethod((Class)objc_getClass("NSObject"), sel_registerName("finalize"));
     assert(m != NULL);
     method_setImplementation(m, (IMP)rb_obj_imp_finalize);
-    
+
     auto_collector_disable(__auto_zone);
 }
 
@@ -1245,29 +1076,29 @@ Init_GC(void)
     VALUE rb_mObSpace;
 
     rb_mGC = rb_define_module("GC");
-    rb_define_singleton_method(rb_mGC, "start", rb_gc_start, 0);
-    rb_define_singleton_method(rb_mGC, "enable", rb_gc_enable, 0);
-    rb_define_singleton_method(rb_mGC, "disable", rb_gc_disable, 0);
-    rb_define_singleton_method(rb_mGC, "stress", gc_stress_get, 0);
-    rb_define_singleton_method(rb_mGC, "stress=", gc_stress_set, 1);
-    rb_define_singleton_method(rb_mGC, "count", gc_count, 0);
-    rb_define_method(rb_mGC, "garbage_collect", rb_gc_start, 0);
+    rb_objc_define_method(*(VALUE *)rb_mGC, "start", rb_gc_start, 0);
+    rb_objc_define_method(*(VALUE *)rb_mGC, "enable", rb_gc_enable, 0);
+    rb_objc_define_method(*(VALUE *)rb_mGC, "disable", rb_gc_disable, 0);
+    rb_objc_define_method(*(VALUE *)rb_mGC, "stress", gc_stress_get, 0);
+    rb_objc_define_method(*(VALUE *)rb_mGC, "stress=", gc_stress_set, 1);
+    rb_objc_define_method(*(VALUE *)rb_mGC, "count", gc_count, 0);
+    rb_objc_define_method(rb_mGC, "garbage_collect", rb_gc_start, 0);
 
     rb_mObSpace = rb_define_module("ObjectSpace");
-    rb_define_module_function(rb_mObSpace, "each_object", os_each_obj, -1);
-    rb_define_module_function(rb_mObSpace, "garbage_collect", rb_gc_start, 0);
+    rb_objc_define_method(*(VALUE *)rb_mObSpace, "each_object", os_each_obj, -1);
+    rb_objc_define_method(*(VALUE *)rb_mObSpace, "garbage_collect", rb_gc_start, 0);
 
-    rb_define_module_function(rb_mObSpace, "define_finalizer", define_final, -1);
-    rb_define_module_function(rb_mObSpace, "undefine_finalizer", undefine_final, 1);
+    rb_objc_define_method(*(VALUE *)rb_mObSpace, "define_finalizer", define_final, -1);
+    rb_objc_define_method(*(VALUE *)rb_mObSpace, "undefine_finalizer", undefine_final, 1);
 
-    rb_define_module_function(rb_mObSpace, "_id2ref", id2ref, 1);
+    rb_objc_define_method(*(VALUE *)rb_mObSpace, "_id2ref", id2ref, 1);
 
     rb_global_variable(&nomem_error);
     nomem_error = rb_exc_new2(rb_eNoMemError, "failed to allocate memory");
 
-    //rb_define_method(rb_mKernel, "hash", rb_obj_id, 0);
-    rb_define_method(rb_mKernel, "__id__", rb_obj_id, 0);
-    rb_define_method(rb_mKernel, "object_id", rb_obj_id, 0);
+    rb_objc_define_method(rb_mKernel, "hash", rb_obj_id, 0);
+    rb_objc_define_method(rb_mKernel, "__id__", rb_obj_id, 0);
+    rb_objc_define_method(rb_mKernel, "object_id", rb_obj_id, 0);
 
-    rb_define_module_function(rb_mObSpace, "count_objects", count_objects, -1);
+    rb_objc_define_method(*(VALUE *)rb_mObSpace, "count_objects", count_objects, -1);
 }

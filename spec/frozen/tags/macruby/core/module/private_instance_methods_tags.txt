@@ -1,0 +1,1 @@
+fails:Module#private_instance_methods returns a list of private methods in module and its ancestors

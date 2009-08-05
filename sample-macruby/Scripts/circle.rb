@@ -2,7 +2,9 @@
 framework 'Cocoa'
 
 url = NSURL.fileURLWithPath('circle.pdf')
-pdf = CGPDFContextCreateWithURL(url, [[0, 0], [617, 792]], nil)
+prect = Pointer.new(CGRect.type)
+prect[0] = [[0, 0], [617, 792]]
+pdf = CGPDFContextCreateWithURL(url, prect, nil)
 
 CGPDFContextBeginPage(pdf, nil)
 CGContextSetRGBFillColor(pdf, 1.0, 0.0, 0.0, 1.0)

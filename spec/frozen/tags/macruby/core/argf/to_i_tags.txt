@@ -1,0 +1,1 @@
+fails:ARGF.to_i raises an ArgumentError when called on a closed stream

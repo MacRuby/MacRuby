@@ -10,9 +10,6 @@
 **********************************************************************/
 
 #include "ruby/ruby.h"
-#include "vm_core.h"
-#include "gc.h"
-#include "eval_intern.h"
 
 enum context_type {
     CONTINUATION_CONTEXT = 0,
@@ -589,13 +586,14 @@ rb_fiber_start(void)
 {
     rb_thread_t *th = GET_THREAD();
     rb_context_t *cont;
-    rb_proc_t *proc;
-    VALUE args;
+//    rb_proc_t *proc;
+//    VALUE args;
     int state;
 
     GetContPtr(th->fiber, cont);
     TH_PUSH_TAG(th);
     if ((state = EXEC_TAG()) == 0) {
+#if 0 // TODO
 	GetProcPtr(cont->saved_thread.first_proc, proc);
 	args = cont->value;
 	cont->value = Qnil;
@@ -604,6 +602,7 @@ rb_fiber_start(void)
 	th->local_svar = Qnil;
 
 	cont->value = vm_invoke_proc(th, proc, proc->block.self, 1, &args, 0);
+#endif
     }
     TH_POP_TAG();
 

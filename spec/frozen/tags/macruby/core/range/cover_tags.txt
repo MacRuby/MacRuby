@@ -1,0 +1,2 @@
+fails:Range#cover? returns false if range is empty
+fails:Range#cover? uses the range element's <=> to make the comparison

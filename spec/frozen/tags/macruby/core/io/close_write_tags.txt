@@ -1,0 +1,3 @@
+fails:IO#close_write raises an IOError on subsequent invocations
+fails:IO#close_write raises an IOError if the stream is readable and not duplexed
+fails:IO#close_write raises IOError on closed stream

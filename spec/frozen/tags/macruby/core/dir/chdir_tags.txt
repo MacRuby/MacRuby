@@ -1,0 +1,1 @@
+fails:Dir.chdir always returns to the original directory when given a block

@@ -1,0 +1,2 @@
+fails:Math#tanh! raises a TypeError when passed a Complex number
+fails:Math.tanh! raises a TypeError when passed a Complex number

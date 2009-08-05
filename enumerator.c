@@ -13,7 +13,7 @@
 ************************************************/
 
 #include "ruby/ruby.h"
-#include "debug.h"
+#include "id.h"
 
 /*
  * Document-class: Enumerable::Enumerator
@@ -28,24 +28,12 @@ VALUE rb_eStopIteration;
 
 struct enumerator {
     VALUE obj;
-    ID    meth;
+    SEL   sel;
     VALUE args;
     VALUE fib;
     VALUE dst;
     VALUE no_next;
 };
-
-static void
-enumerator_mark(void *p)
-{
-#if !WITH_OBJC
-    struct enumerator *ptr = p;
-    rb_gc_mark(ptr->obj);
-    rb_gc_mark(ptr->args);
-    rb_gc_mark(ptr->fib);
-    rb_gc_mark(ptr->dst);
-#endif
-}
 
 static struct enumerator *
 enumerator_ptr(VALUE obj)
@@ -53,11 +41,13 @@ enumerator_ptr(VALUE obj)
     struct enumerator *ptr;
 
     Data_Get_Struct(obj, struct enumerator, ptr);
+#if 0
     if (RDATA(obj)->dmark != enumerator_mark) {
 	rb_raise(rb_eTypeError,
 		 "wrong argument type %s (expected %s)",
 		 rb_obj_classname(obj), rb_class2name(rb_cEnumerator));
     }
+#endif
     if (!ptr) {
 	rb_raise(rb_eArgError, "uninitialized enumerator");
     }
@@ -84,7 +74,7 @@ enumerator_ptr(VALUE obj)
  *
  */
 static VALUE
-obj_to_enum(int argc, VALUE *argv, VALUE obj)
+obj_to_enum(VALUE obj, SEL sel, int argc, VALUE *argv)
 {
     VALUE meth = sym_each;
 
@@ -92,7 +82,8 @@ obj_to_enum(int argc, VALUE *argv, VALUE obj)
 	--argc;
 	meth = *argv++;
     }
-    return rb_enumeratorize(obj, meth, argc, argv);
+    // TODO
+    return rb_enumeratorize(obj, 0, argc, argv);
 }
 
 static VALUE
@@ -130,7 +121,7 @@ each_slice_i(VALUE val, VALUE *memo)
  *
  */
 static VALUE
-enum_each_slice(VALUE obj, VALUE n)
+enum_each_slice(VALUE obj, SEL sel, VALUE n)
 {
     long size = NUM2LONG(n);
     VALUE args[2], ary;
@@ -140,7 +131,7 @@ enum_each_slice(VALUE obj, VALUE n)
     args[0] = rb_ary_new2(size);
     args[1] = (VALUE)size;
 
-    rb_block_call(obj, SYM2ID(sym_each), 0, 0, each_slice_i, (VALUE)args);
+    rb_objc_block_call(obj, selEach, cacheEach, 0, 0, each_slice_i, (VALUE)args);
 
     ary = args[0];
     if (RARRAY_LEN(ary) > 0) rb_yield(ary);
@@ -187,7 +178,7 @@ each_cons_i(VALUE val, VALUE *memo)
  *
  */
 static VALUE
-enum_each_cons(VALUE obj, VALUE n)
+enum_each_cons(VALUE obj, SEL sel, VALUE n)
 {
     long size = NUM2LONG(n);
     VALUE args[2];
@@ -197,7 +188,7 @@ enum_each_cons(VALUE obj, VALUE n)
     args[0] = rb_ary_new2(size);
     args[1] = (VALUE)size;
 
-    rb_block_call(obj, SYM2ID(sym_each), 0, 0, each_cons_i, (VALUE)args);
+    rb_objc_block_call(obj, selEach, cacheEach, 0, 0, each_cons_i, (VALUE)args);
 
     return Qnil;
 }
@@ -207,7 +198,7 @@ enumerator_allocate(VALUE klass)
 {
     struct enumerator *ptr;
     return Data_Make_Struct(klass, struct enumerator,
-			    enumerator_mark, -1, ptr);
+			    NULL, -1, ptr);
 }
 
 static VALUE
@@ -217,13 +208,15 @@ enumerator_each_i(VALUE v, VALUE enum_obj, int argc, VALUE *argv)
 }
 
 static VALUE
-enumerator_init(VALUE enum_obj, VALUE obj, VALUE meth, int argc, VALUE *argv)
+enumerator_init(VALUE enum_obj, VALUE obj, SEL sel, int argc, VALUE *argv)
 {
     struct enumerator *ptr = enumerator_ptr(enum_obj);
 
-    ptr->obj  = obj;
-    ptr->meth = rb_to_id(meth);
-    if (argc) GC_WB(&ptr->args, rb_ary_new4(argc, argv));
+    GC_WB(&ptr->obj, obj);
+    ptr->sel = sel;
+    if (argc > 0) {
+	GC_WB(&ptr->args, rb_ary_new4(argc, argv));
+    }
     ptr->fib = 0;
     ptr->dst = Qnil;
     ptr->no_next = Qfalse;
@@ -243,7 +236,7 @@ enumerator_init(VALUE enum_obj, VALUE obj, VALUE meth, int argc, VALUE *argv)
  *  instead.
  */
 static VALUE
-enumerator_initialize(int argc, VALUE *argv, VALUE obj)
+enumerator_initialize(VALUE obj, SEL sel, int argc, VALUE *argv)
 {
     VALUE recv, meth = sym_each;
 
@@ -254,12 +247,22 @@ enumerator_initialize(int argc, VALUE *argv, VALUE obj)
 	meth = *argv++;
 	--argc;
     }
-    return enumerator_init(obj, recv, meth, argc, argv);
+    ID meth_id = rb_to_id(meth);
+    SEL meth_sel;
+    if (argc == 0) {
+	meth_sel = sel_registerName(rb_id2name(meth_id));
+    }
+    else {
+	char buf[100];
+	snprintf(buf, sizeof buf, "%s:", rb_id2name(meth_id));
+	meth_sel = sel_registerName(buf);
+    }
+    return enumerator_init(obj, recv, meth_sel, argc, argv);
 }
 
 /* :nodoc: */
 static VALUE
-enumerator_init_copy(VALUE obj, VALUE orig)
+enumerator_init_copy(VALUE obj, SEL sel, VALUE orig)
 {
     struct enumerator *ptr0, *ptr1;
 
@@ -270,18 +273,21 @@ enumerator_init_copy(VALUE obj, VALUE orig)
     }
     ptr1 = enumerator_ptr(obj);
 
-    ptr1->obj  = ptr0->obj;
-    ptr1->meth = ptr0->meth;
-    ptr1->args = ptr0->args;
+    GC_WB(&ptr1->obj, ptr0->obj);
+    ptr1->sel = ptr0->sel;
+    if (ptr0->args != 0) {
+	GC_WB(&ptr1->args, ptr0->args);
+    }
     ptr1->fib  = 0;
 
     return obj;
 }
 
 VALUE
-rb_enumeratorize(VALUE obj, VALUE meth, int argc, VALUE *argv)
+rb_enumeratorize(VALUE obj, SEL sel, int argc, VALUE *argv)
 {
-    return enumerator_init(enumerator_allocate(rb_cEnumerator), obj, meth, argc, argv);
+    return enumerator_init(enumerator_allocate(rb_cEnumerator), obj, sel,
+	    argc, argv);
 }
 
 /*
@@ -293,7 +299,7 @@ rb_enumeratorize(VALUE obj, VALUE meth, int argc, VALUE *argv)
  *
  */
 static VALUE
-enumerator_each(VALUE obj)
+enumerator_each(VALUE obj, SEL sel)
 {
     struct enumerator *e;
     int argc = 0;
@@ -301,12 +307,12 @@ enumerator_each(VALUE obj)
 
     if (!rb_block_given_p()) return obj;
     e = enumerator_ptr(obj);
-    if (e->args) {
+    if (e->args != 0) {
 	argc = RARRAY_LEN(e->args);
 	argv = RARRAY_PTR(e->args);
     }
-    return rb_block_call(e->obj, e->meth, argc, (VALUE *)argv,
-			 enumerator_each_i, (VALUE)e);
+    return rb_objc_block_call(e->obj, e->sel, NULL, argc, (VALUE *)argv,
+	    enumerator_each_i, (VALUE)e);
 }
 
 static VALUE
@@ -327,7 +333,7 @@ enumerator_with_index_i(VALUE val, VALUE *memo)
  *
  */
 static VALUE
-enumerator_with_index(VALUE obj)
+enumerator_with_index(VALUE obj, SEL sel)
 {
     struct enumerator *e;
     VALUE memo = 0;
@@ -336,14 +342,15 @@ enumerator_with_index(VALUE obj)
 
     RETURN_ENUMERATOR(obj, 0, 0);
     e = enumerator_ptr(obj);
-    if (e->args) {
+    if (e->args != 0) {
 	argc = RARRAY_LEN(e->args);
 	argv = RARRAY_PTR(e->args);
     }
-    return rb_block_call(e->obj, e->meth, argc, (VALUE *)argv,
-			 enumerator_with_index_i, (VALUE)&memo);
+    return rb_objc_block_call(e->obj, e->sel, NULL, argc, (VALUE *)argv,
+	    enumerator_with_index_i, (VALUE)&memo);
 }
 
+#if 0
 static VALUE
 next_ii(VALUE i, VALUE obj, int argc, VALUE *argv)
 {
@@ -369,6 +376,7 @@ next_init(VALUE obj, struct enumerator *e)
     e->dst = curr;
     e->fib = rb_fiber_new(next_i, obj);
 }
+#endif
 
 /*
  * call-seq:
@@ -385,8 +393,10 @@ next_init(VALUE obj, struct enumerator *e)
  */
 
 static VALUE
-enumerator_next(VALUE obj)
+enumerator_next(VALUE obj, SEL sel)
 {
+    // TODO
+#if 0
     struct enumerator *e = enumerator_ptr(obj);
     VALUE curr, v;
     curr = rb_fiber_current();
@@ -403,6 +413,8 @@ enumerator_next(VALUE obj)
 	rb_raise(rb_eStopIteration, "iteration reached at end");
     }
     return v;
+#endif
+    return Qnil;
 }
 
 /*
@@ -413,7 +425,7 @@ enumerator_next(VALUE obj)
  */
 
 static VALUE
-enumerator_rewind(VALUE obj)
+enumerator_rewind(VALUE obj, SEL sel)
 {
     struct enumerator *e = enumerator_ptr(obj);
 
@@ -426,23 +438,23 @@ enumerator_rewind(VALUE obj)
 void
 Init_Enumerator(void)
 {
-    rb_define_method(rb_mKernel, "to_enum", obj_to_enum, -1);
-    rb_define_method(rb_mKernel, "enum_for", obj_to_enum, -1);
+    rb_objc_define_method(rb_mKernel, "to_enum", obj_to_enum, -1);
+    rb_objc_define_method(rb_mKernel, "enum_for", obj_to_enum, -1);
 
-    rb_define_method(rb_mEnumerable, "each_slice", enum_each_slice, 1);
-    rb_define_method(rb_mEnumerable, "each_cons", enum_each_cons, 1);
+    rb_objc_define_method(rb_mEnumerable, "each_slice", enum_each_slice, 1);
+    rb_objc_define_method(rb_mEnumerable, "each_cons", enum_each_cons, 1);
 
-    rb_cEnumerator = rb_define_class_under(rb_mEnumerable, "Enumerator", rb_cObject);
+    rb_cEnumerator = rb_define_class("Enumerator", rb_cObject);
     rb_include_module(rb_cEnumerator, rb_mEnumerable);
 
-    rb_define_alloc_func(rb_cEnumerator, enumerator_allocate);
-    rb_define_method(rb_cEnumerator, "initialize", enumerator_initialize, -1);
-    rb_define_method(rb_cEnumerator, "initialize_copy", enumerator_init_copy, 1);
-    rb_define_method(rb_cEnumerator, "each", enumerator_each, 0);
-    rb_define_method(rb_cEnumerator, "each_with_index", enumerator_with_index, 0);
-    rb_define_method(rb_cEnumerator, "with_index", enumerator_with_index, 0);
-    rb_define_method(rb_cEnumerator, "next", enumerator_next, 0);
-    rb_define_method(rb_cEnumerator, "rewind", enumerator_rewind, 0);
+    rb_objc_define_method(*(VALUE *)rb_cEnumerator, "alloc", enumerator_allocate, 0);
+    rb_objc_define_method(rb_cEnumerator, "initialize", enumerator_initialize, -1);
+    rb_objc_define_method(rb_cEnumerator, "initialize_copy", enumerator_init_copy, 1);
+    rb_objc_define_method(rb_cEnumerator, "each", enumerator_each, 0);
+    rb_objc_define_method(rb_cEnumerator, "each_with_index", enumerator_with_index, 0);
+    rb_objc_define_method(rb_cEnumerator, "with_index", enumerator_with_index, 0);
+    rb_objc_define_method(rb_cEnumerator, "next", enumerator_next, 0);
+    rb_objc_define_method(rb_cEnumerator, "rewind", enumerator_rewind, 0);
 
     rb_eStopIteration   = rb_define_class("StopIteration", rb_eIndexError);
 

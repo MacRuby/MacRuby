@@ -1,0 +1,28 @@
+<?xml version='1.0'?>
+<!DOCTYPE signatures SYSTEM "file://localhost/System/Library/DTDs/BridgeSupport.dtd">
+<signatures version='0.9'>
+  <class name='TestMethod'>
+    <method selector='isFoo'>
+      <retval type='B'/>
+    </method>
+    <method selector='isFoo2'>
+      <retval type='B'/>
+    </method>
+    <method selector='methodReturningYES'>
+      <retval type='B'/>
+    </method>
+    <method selector='methodReturningNO'>
+      <retval type='B'/>
+    </method>
+    <method selector='methodAcceptingTrueBOOL:'>
+      <arg index='0' type='B'/>
+    </method>
+    <method selector='methodAcceptingFalseBOOL:'>
+      <arg index='0' type='B'/>
+    </method>
+  </class>
+  <informal_protocol name='Foo'>
+    <method type="i@:i" selector="informalProtocolMethod1:"/>
+    <method type="B@:ii" selector="informalProtocolMethod2:withValue:"/>
+  </informal_protocol>
+</signatures>

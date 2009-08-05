@@ -1,0 +1,2 @@
+fails:ARGF.pos gives the correct position for each read operation
+fails:ARGF.pos raises an ArgumentError when called on a closed stream

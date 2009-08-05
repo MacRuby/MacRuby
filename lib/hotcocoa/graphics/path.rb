@@ -132,8 +132,7 @@ module HotCocoa::Graphics
   
     # return the current point
     def currentpoint
-      point = CGPathGetCurrentPoint(@path)
-      [point.x, point.y]
+      CGPathGetCurrentPoint(@path)
     end
   
     # true if the path contains the current point # doesn't work?
@@ -206,7 +205,7 @@ module HotCocoa::Graphics
   
     # draw a line from x1,x2 to x2,y2
     def line(x1, y1, x2, y2)
-      CGPathAddLines(@path, @transform, [[x1, y1], [x2, y2]])
+      CGPathAddLines(@path, @transform, [NSMakePoint(x1, y1), NSMakePoint(x2, y2)])
       self
     end
 

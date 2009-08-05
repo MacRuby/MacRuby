@@ -1,0 +1,1 @@
+fails:Array#index returns the index of the first element == to object

@@ -1,0 +1,2 @@
+fails:Math.asinh raises a TypeError if the argument cannot be coerced with Float()
+fails:Math.asinh raises a TypeError if the argument is nil

@@ -1,0 +1,5 @@
+fails:Kernel.warn is a private method
+fails:Kernel.warn calls #write on $stderr if $VERBOSE is true
+fails:Kernel.warn calls #write on $stderr if $VERBOSE is false
+fails:Kernel.warn does not call #write on $stderr if $VERBOSE is nil
+fails:Kernel.warn writes the default record separator and NOT $/ to $stderr after the warning message

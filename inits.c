@@ -30,7 +30,7 @@ void Init_GC(void);
 void Init_Hash(void);
 void Init_IO(void);
 void Init_Math(void);
-void Init_marshal(void);
+// void Init_marshal(void);
 void Init_Numeric(void);
 void Init_Object(void);
 void Init_pack(void);
@@ -46,19 +46,18 @@ void Init_signal(void);
 void Init_String(void);
 void Init_Struct(void);
 void Init_Set(void);
-void Init_Time(void);
+void Init_Time(void);   
 void Init_var_tables(void);
 void Init_version(void);
-void Init_ISeq(void);
 void Init_VM(void);
 void Init_Thread(void);
-void Init_Cont(void);
-void Init_top_self(void);
+//void Init_Cont(void);
 void Init_Encoding(void);
 void Init_PostGC(void);
-#if WITH_OBJC
 void Init_ObjC(void);
-#endif
+void Init_BridgeSupport(void);
+void Init_FFI(void);
+void Init_PostVM(void);
 
 void
 rb_call_inits()
@@ -67,7 +66,7 @@ rb_call_inits()
     Init_id();
     Init_var_tables();
     Init_Object();
-    Init_top_self();
+    Init_VM();
     Init_Encoding();
     Init_Comparable();
     Init_Enumerable();
@@ -86,7 +85,7 @@ rb_call_inits()
     Init_Regexp();
     Init_pack();
     Init_transcode();
-    Init_marshal();
+    //Init_marshal();
     Init_Range();
     Init_IO();
     Init_Dir();
@@ -100,15 +99,14 @@ rb_call_inits()
     Init_Math();
     Init_GC();
     Init_Enumerator();
-    Init_VM();
-    Init_ISeq();
     Init_Thread();
-    Init_Cont();
+    //Init_Cont();
     Init_Rational();
     Init_Complex();
     Init_version();
     Init_PostGC();
-#if WITH_OBJC
     Init_ObjC();
-#endif
+    Init_BridgeSupport();
+    Init_FFI();
+    Init_PostVM();
 }

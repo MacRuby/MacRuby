@@ -1,0 +1,24 @@
+<?xml version='1.0'?>
+<!DOCTYPE signatures SYSTEM "file://localhost/System/Library/DTDs/BridgeSupport.dtd">
+<signatures version='0.9'>
+  <constant name='ConstantChar' type='c'/>
+  <constant name='ConstantClass' type='#'/>
+  <constant name='ConstantDouble' type='d'/>
+  <constant name='ConstantFloat' type='f'/>
+  <constant name='ConstantInt' type='i'/>
+  <constant name='ConstantLong' type='l'/>
+  <constant name='ConstantLongLong' type='q'/>
+  <constant name='ConstantNO' type='B'/>
+  <constant name='ConstantNSPoint' type='{_NSPoint=ff}' type64='{CGPoint=dd}'/>
+  <constant name='ConstantNSRect' type='{_NSRect={_NSPoint=ff}{_NSSize=ff}}' type64='{CGRect={CGPoint=dd}{CGSize=dd}}'/>
+  <constant name='ConstantNSSize' type='{_NSSize=ff}' type64='{CGSize=dd}'/>
+  <constant name='ConstantObject' type='@'/>
+  <constant name='ConstantSEL' type=':'/>
+  <constant name='ConstantShort' type='s'/>
+  <constant name='ConstantUnsignedChar' type='C'/>
+  <constant name='ConstantUnsignedInt' type='I'/>
+  <constant name='ConstantUnsignedLong' type='L'/>
+  <constant name='ConstantUnsignedLongLong' type='Q'/>
+  <constant name='ConstantUnsignedShort' type='S'/>
+  <constant name='ConstantYES' type='B'/>
+</signatures>

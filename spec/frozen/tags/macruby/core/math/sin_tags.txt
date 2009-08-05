@@ -1,0 +1,3 @@
+fails:Math.sin raises an ArgumentError if the argument cannot be coerced with Float()
+fails:Math.sin accepts any argument that can be coerced with Float()
+fails:Math#sin is accessible as a private instance method

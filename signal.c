@@ -14,7 +14,8 @@
 #include "ruby/ruby.h"
 #include "ruby/signal.h"
 #include "ruby/node.h"
-#include "vm_core.h"
+#include "id.h"
+#include "vm.h"
 #include <signal.h>
 #include <stdio.h>
 
@@ -212,7 +213,7 @@ ruby_signal_name(int no)
  */
 
 static VALUE
-esignal_init(int argc, VALUE *argv, VALUE self)
+esignal_init(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     int argnum = 1;
     VALUE sig = Qnil;
@@ -255,7 +256,8 @@ esignal_init(int argc, VALUE *argv, VALUE self)
 	}
 	sig = rb_sprintf("SIG%s", signm);
     }
-    rb_call_super(1, &sig);
+    //rb_call_super(1, &sig);
+    rb_vm_call(self, selInitialize2, 1, &sig, true);
     rb_iv_set(self, "signo", INT2NUM(signo));
 
     return self;
@@ -269,19 +271,20 @@ esignal_init(int argc, VALUE *argv, VALUE self)
  */
 
 static VALUE
-esignal_signo(VALUE self)
+esignal_signo(VALUE self, SEL sel)
 {
     return rb_iv_get(self, "signo");
 }
 
 static VALUE
-interrupt_init(int argc, VALUE *argv, VALUE self)
+interrupt_init(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     VALUE args[2];
 
     args[0] = INT2FIX(SIGINT);
     rb_scan_args(argc, argv, "01", &args[1]);
-    return rb_call_super(2, args);
+    //return rb_call_super(2, args);
+    return rb_vm_call(self, selInitialize2, 2, args, true);
 }
 
 void
@@ -318,7 +321,7 @@ ruby_default_signal(int sig)
  */
 
 VALUE
-rb_f_kill(int argc, VALUE *argv)
+rb_f_kill(VALUE self, SEL sel, int argc, VALUE *argv)
 {
 #ifndef HAS_KILLPG
 #define killpg(pg, sig) kill(-(pg), sig)
@@ -413,8 +416,9 @@ rb_gc_mark_trap_list(void)
     int i;
 
     for (i=0; i<NSIG; i++) {
-	if (trap_list[i].cmd)
+	if (trap_list[i].cmd) {
 	    rb_gc_mark(trap_list[i].cmd);
+	}
     }
 #endif /* MACOS_UNUSE_SIGNAL */
 }
@@ -476,9 +480,11 @@ ruby_nativethread_signal(int signum, sighandler_t handler)
 static RETSIGTYPE
 sighandler(int sig)
 {
+#if 0
     rb_vm_t *vm = GET_VM(); /* fix me for Multi-VM */
     ATOMIC_INC(vm->signal_buff[sig]);
     ATOMIC_INC(vm->buffered_signal_size);
+#endif
 
 #if !defined(BSD_SIGNAL) && !defined(POSIX_SIGNAL)
     ruby_signal(sig, sighandler);
@@ -519,6 +525,7 @@ rb_enable_interrupt(void)
 #endif
 }
 
+#if 0 // XXX unused function
 int
 rb_get_next_signal(rb_vm_t *vm)
 {
@@ -538,6 +545,7 @@ rb_get_next_signal(rb_vm_t *vm)
     }
     return sig;
 }
+#endif
 
 #ifdef SIGBUS
 static RETSIGTYPE
@@ -557,9 +565,7 @@ sigsegv(int sig)
 	exit(1);
     }
     else {
-	extern int ruby_gc_stress;
 	segv_received = 1;
-	ruby_gc_stress = 0;
 	rb_bug("Segmentation fault");
     }
 }
@@ -576,10 +582,12 @@ sigpipe(int sig)
 static void
 signal_exec(VALUE cmd, int sig)
 {
+#if 0 // TODO
     rb_proc_t *proc;
     VALUE signum = INT2FIX(sig);
     GetProcPtr(cmd, proc);
     vm_invoke_proc(GET_THREAD(), proc, proc->block.self, 1, &signum, 0);
+#endif
 }
 
 void
@@ -595,8 +603,8 @@ rb_trap_exit(void)
 #endif
 }
 
-void
-rb_signal_exec(rb_thread_t *th, int sig)
+static void
+rb_signal_exec(int sig)
 {
     VALUE cmd = rb_get_trap_cmd(sig);
 
@@ -623,12 +631,12 @@ rb_signal_exec(rb_thread_t *th, int sig)
 #ifdef SIGUSR2
 	  case SIGUSR2:
 #endif
-	    rb_thread_signal_raise(th, sig);
+	    //rb_thread_signal_raise(th, sig);
 	    break;
 	}
     }
     else if (cmd == Qundef) {
-	rb_thread_signal_exit(th);
+//	rb_thread_signal_exit(th);
     }
     else {
 	signal_exec(cmd, sig);
@@ -644,7 +652,7 @@ rb_trap_exec(void)
     for (i=0; i<NSIG; i++) {
 	if (trap_pending_list[i]) {
 	    trap_pending_list[i] = 0;
-	    rb_signal_exec(GET_THREAD(), i);
+	    rb_signal_exec(i);
 	}
     }
 #endif /* MACOS_UNUSE_SIGNAL */
@@ -773,8 +781,10 @@ sig_dfl:
 	    }
 	}
 	else {
+#if 0 // TODO
 	    rb_proc_t *proc;
 	    GetProcPtr(*cmd, proc);
+#endif
 	    func = sighandler;
 	}
     }
@@ -905,7 +915,7 @@ rb_trap_restore_mask(void)
  *     Terminating: 27460
  */
 static VALUE
-sig_trap(int argc, VALUE *argv)
+sig_trap(VALUE rcv, SEL sel, int argc, VALUE *argv)
 {
     struct trap_arg arg;
 
@@ -952,7 +962,7 @@ sig_trap(int argc, VALUE *argv)
  * Signal.list   #=> {"ABRT"=>6, "ALRM"=>14, "BUS"=>7, "CHLD"=>17, "CLD"=>17, "CONT"=>18, "FPE"=>8, "HUP"=>1, "ILL"=>4, "INT"=>2, "IO"=>29, "IOT"=>6, "KILL"=>9, "PIPE"=>13, "POLL"=>29, "PROF"=>27, "PWR"=>30, "QUIT"=>3, "SEGV"=>11, "STOP"=>19, "SYS"=>31, "TERM"=>15, "TRAP"=>5, "TSTP"=>20, "TTIN"=>21, "TTOU"=>22, "URG"=>23, "USR1"=>10, "USR2"=>12, "VTALRM"=>26, "WINCH"=>28, "XCPU"=>24, "XFSZ"=>25}
  */
 static VALUE
-sig_list(void)
+sig_list(VALUE rcv, SEL sel)
 {
     VALUE h = rb_hash_new();
     const struct signals *sigs;
@@ -1076,14 +1086,14 @@ Init_signal(void)
 #ifndef MACOS_UNUSE_SIGNAL
     VALUE mSignal = rb_define_module("Signal");
 
-    rb_define_global_function("trap", sig_trap, -1);
-    rb_define_module_function(mSignal, "trap", sig_trap, -1);
-    rb_define_module_function(mSignal, "list", sig_list, 0);
+    rb_objc_define_method(rb_mKernel, "trap", sig_trap, -1);
+    rb_objc_define_method(*(VALUE *)mSignal, "trap", sig_trap, -1);
+    rb_objc_define_method(*(VALUE *)mSignal, "list", sig_list, 0);
 
-    rb_define_method(rb_eSignal, "initialize", esignal_init, -1);
-    rb_define_method(rb_eSignal, "signo", esignal_signo, 0);
+    rb_objc_define_method(rb_eSignal, "initialize", esignal_init, -1);
+    rb_objc_define_method(rb_eSignal, "signo", esignal_signo, 0);
     rb_alias(rb_eSignal, rb_intern("signm"), rb_intern("message"));
-    rb_define_method(rb_eInterrupt, "initialize", interrupt_init, -1);
+    rb_objc_define_method(rb_eInterrupt, "initialize", interrupt_init, -1);
 
     install_sighandler(SIGINT, sighandler);
 #ifdef SIGHUP

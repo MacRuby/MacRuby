@@ -1,0 +1,3 @@
+fails:Matrix#/ returns the result of dividing self by another Matrix
+fails:Matrix#/ returns the result of dividing self by a Fixnum
+fails:Matrix#/ returns the result of dividing self by a Bignum

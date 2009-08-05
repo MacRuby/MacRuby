@@ -196,7 +196,7 @@ w_nbyte(const char *s, int n, struct dump_arg *arg)
     rb_str_buf_cat(buf, s, n);
     if (arg->dest && RSTRING_LEN(buf) >= BUFSIZ) {
 	if (arg->taint) OBJ_TAINT(buf);
-	rb_io_write(arg->dest, buf);
+	rb_io_write(arg->dest, (SEL)"write:", buf);
 	rb_str_resize(buf, 0);
     }
 }
@@ -573,7 +573,8 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
     st_data_t num;
     int hasiv = 0;
 #if WITH_OBJC
-#define has_ivars(obj, ivtbl) ((ivtbl = rb_generic_ivar_table(obj)) != 0)
+// TODO
+#define has_ivars(obj, ivtbl) (false)
 #else
 #define has_ivars(obj, ivtbl) ((ivtbl = rb_generic_ivar_table(obj)) != 0 || \
 			       (!SPECIAL_CONST_P(obj) && !ENCODING_IS_ASCII8BIT(obj)))
@@ -858,7 +859,7 @@ dump(struct dump_call_arg *arg)
 {
     w_object(arg->obj, arg->arg, arg->limit);
     if (arg->arg->dest) {
-	rb_io_write(arg->arg->dest, arg->arg->str);
+	    rb_io_write(arg->arg->dest, (SEL)"write:", arg->arg->str);
 	rb_str_resize(arg->arg->str, 0);
     }
     return 0;
@@ -944,7 +945,8 @@ marshal_dump(int argc, VALUE *argv)
 	GC_WB(&arg->str, port);
     }
 
-    RSTRING_BYTEPTR(arg->str); /* force bytestring creation */
+    // TODO should create ByteString
+    //RSTRING_BYTEPTR(arg->str); /* force bytestring creation */
 
     GC_WB(&arg->symbols, st_init_numtable());
     GC_WB(&arg->data, st_init_numtable());
@@ -1490,7 +1492,7 @@ format_error:
 		}
                 rb_ary_push(values, r_object(arg));
 	    }
-            rb_struct_initialize(v, values);
+            rb_struct_initialize(v, 0, values);
             v = r_leave(v, arg);
 	}
 	break;

@@ -1,0 +1,1 @@
+fails:CGI::Html3#doctype returns the doctype declaration for HTML3

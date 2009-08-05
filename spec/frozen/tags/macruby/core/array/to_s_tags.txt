@@ -1,0 +1,4 @@
+critical:Array#to_s returns '[...]' for an empty array embedded in itself
+critical:Array#to_s returns '[...]' for the embedded array in a recursive array
+critical:Array#to_s is equivalent to Array#inspect in a recursive array
+fails:Array#to_s is equivalent to #join without a separator string

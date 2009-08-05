@@ -1,0 +1,12 @@
+fails:String#index with object raises a TypeError if obj isn't a String, Fixnum or Regexp
+fails:String#index with Fixnum character values over 255 (256th ASCII character) always result in nil
+fails:String#index with Fixnum negative character values always result in nil
+fails:String#index with Fixnum returns nil if the character isn't found
+fails:String#index with String behaves the same as String#index(char) for one-character strings
+fails:String#index with String returns the index of the first occurrence of the given substring
+fails:String#index with String ignores string subclasses
+fails:String#index with String starts the search at the given offset
+fails:String#index with Regexp behaves the same as String#index(string) for escaped string regexps
+fails:String#index with object tries to convert obj to a string via to_str
+fails:String#index with String converts start_offset to an integer via to_int
+fails:String#index with Regexp converts start_offset to an integer via to_int

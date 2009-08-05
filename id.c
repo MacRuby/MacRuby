@@ -10,6 +10,8 @@
 **********************************************************************/
 
 #include "ruby/ruby.h"
+#include "ruby/node.h"
+#include "vm.h"
 
 #define extern
 #include "id.h"
@@ -58,11 +60,42 @@ Init_id(void)
     selLength = sel_registerName("length");
     selSucc = sel_registerName("succ");
     selNot = sel_registerName("!");
+    selAlloc = sel_registerName("alloc");
+    selAllocWithZone = sel_registerName("allocWithZone:");
     selInit = sel_registerName("init");
+    selInitialize = sel_registerName("initialize");
+    selInitialize2 = sel_registerName("initialize:");
+    selDescription = sel_registerName("description");
+    selInspect = sel_registerName("inspect");
+    selNew = sel_registerName("new");
+    selRespondTo = sel_registerName("respond_to?:");
+    selMethodMissing = sel_registerName("method_missing:");
     selCopy = sel_registerName("copy");
+    selMutableCopy = sel_registerName("mutableCopy");
     sel_ignored = sel_registerName("retain");
     assert(sel_ignored == sel_registerName("release"));
     sel_zone = sel_registerName("zone");
+    selToS = sel_registerName("to_s");
+    selSend = sel_registerName("send:");
+    sel__send__ = sel_registerName("__send__:");
+    selEqTilde = sel_registerName("=~:");
+    selClass = sel_registerName("class");
+    selEval = sel_registerName("eval:");
+    selInstanceEval = sel_registerName("instance_eval:");
+    selClassEval = sel_registerName("class_eval:");
+    selModuleEval = sel_registerName("module_eval:");
+    selLocalVariables = sel_registerName("local_variables");
+    selBinding = sel_registerName("binding");
+    selEach = sel_registerName("each");
+    selEqq = sel_registerName("===:");
+    selDup = sel_registerName("dup");
+    selBackquote = sel_registerName("`:");
+    selMethodAdded = sel_registerName("method_added:");
+    selSingletonMethodAdded = sel_registerName("singleton_method_added:");
+    selIsEqual = sel_registerName("isEqual:");
+    selWrite = sel_registerName("write:");
+
+    cacheEach = rb_vm_get_call_cache(selEach);
 #endif
 
     idAREF = rb_intern("[]");

@@ -1,0 +1,1 @@
+fails:Symbol#to_i has been removed as deprecated

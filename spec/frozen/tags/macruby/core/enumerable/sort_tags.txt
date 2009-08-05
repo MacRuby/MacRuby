@@ -1,0 +1,2 @@
+fails:Enumerable#sort sorts enumerables that contain nils
+fails:Enumerable#sort compare values returned by block with 0

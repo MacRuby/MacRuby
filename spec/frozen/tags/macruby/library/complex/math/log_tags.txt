@@ -1,0 +1,2 @@
+fails:Math#log! raises a TypeError when passed a Complex number
+fails:Math.log! raises a TypeError when passed a Complex number

@@ -1,28 +1,22 @@
-/**********************************************************************
-
-  variable.c -
-
-  $Author: nobu $
-  created at: Tue Apr 19 23:55:15 JST 1994
-
-  Copyright (C) 1993-2007 Yukihiro Matsumoto
-  Copyright (C) 2000  Network Applied Communication Laboratory, Inc.
-  Copyright (C) 2000  Information-technology Promotion Agency, Japan
-
-**********************************************************************/
+/* This file is covered by the Ruby license. See COPYING for more details.
+ * 
+ * Copyright (C) 2007-2008, Apple Inc. All rights reserved.
+ * Copyright (C) 1993-2007 Yukihiro Matsumoto
+ * Copyright (C) 2000  Network Applied Communication Laboratory, Inc.
+ * Copyright (C) 2000  Information-technology Promotion Agency, Japan
+ */
 
 #include "ruby/ruby.h"
 #include "ruby/node.h"
 #include "ruby/st.h"
 #include "ruby/util.h"
-#include "debug.h"
 #include "id.h"
+#include "vm.h"
 
-void rb_vm_change_state(void);
 st_table *rb_global_tbl;
 st_table *rb_class_tbl;
 static ID autoload, classpath, tmp_classpath;
-#if WITH_OBJC
+
 static const void *
 retain_cb(CFAllocatorRef allocator, const void *v)
 {
@@ -61,15 +55,14 @@ ivar_dict_foreach(VALUE hash, int (*func)(ANYARGS), VALUE farg)
 static CFDictionaryValueCallBacks rb_cfdictionary_value_cb = {
     0, retain_cb, release_cb, NULL, NULL
 };
-#endif
 
 void
 Init_var_tables(void)
 {
     rb_global_tbl = st_init_numtable();
-    GC_ROOT(&rb_global_tbl);
+    rb_objc_retain(rb_global_tbl);
     rb_class_tbl = st_init_numtable();
-    GC_ROOT(&rb_class_tbl);
+    rb_objc_retain(rb_class_tbl);
     autoload = rb_intern("__autoload__");
     classpath = rb_intern("__classpath__");
     tmp_classpath = rb_intern("__tmp_classpath__");
@@ -91,12 +84,7 @@ fc_path(struct fc_result *fc, ID name)
     path = rb_str_dup(rb_id2str(name));
     while (fc) {
 	if (fc->track == rb_cObject) break;
-#if WITH_OBJC
 	if ((tmp = rb_attr_get(fc->track, classpath)) != Qnil) {
-#else
-	if (RCLASS_IV_TBL(fc->track) &&
-	    st_lookup(RCLASS_IV_TBL(fc->track), classpath, &tmp)) {
-#endif
 	    tmp = rb_str_dup(tmp);
 	    rb_str_cat2(tmp, "::");
 	    rb_str_append(tmp, path);
@@ -126,12 +114,8 @@ fc_i(ID key, VALUE value, struct fc_result *res)
       case T_MODULE:
       case T_CLASS:
       {
-#if WITH_OBJC
 	CFDictionaryRef iv_dict = rb_class_ivar_dict(value);
 	if (iv_dict == NULL) return ST_CONTINUE;
-#else
-	if (!RCLASS_IV_TBL(value)) return ST_CONTINUE;
-#endif
 	else {
 	    struct fc_result arg;
 	    struct fc_result *list;
@@ -147,11 +131,7 @@ fc_i(ID key, VALUE value, struct fc_result *res)
 	    arg.klass = res->klass;
 	    arg.track = value;
 	    arg.prev = res;
-#if WITH_OBJC
 	    ivar_dict_foreach((VALUE)iv_dict, fc_i, (VALUE)&arg);
-#else
-	    st_foreach(RCLASS_IV_TBL(value), fc_i, (st_data_t)&arg);
-#endif
 	    if (arg.path) {
 		res->path = arg.path;
 		return ST_STOP;
@@ -177,34 +157,19 @@ find_class_path(VALUE klass)
     arg.track = rb_cObject;
     arg.prev = 0;
 
-#if WITH_OBJC
     CFMutableDictionaryRef iv_dict = rb_class_ivar_dict(rb_cObject);
     if (iv_dict != NULL) {
 	ivar_dict_foreach((VALUE)iv_dict, fc_i, (VALUE)&arg);
     }
-#else
-    if (RCLASS_IV_TBL(rb_cObject)) {
-	st_foreach_safe(RCLASS_IV_TBL(rb_cObject), fc_i, (st_data_t)&arg);
-    }
-#endif
     if (arg.path == 0) {
 	st_foreach_safe(rb_class_tbl, fc_i, (st_data_t)&arg);
     }
     if (arg.path) {
-#if WITH_OBJC
 	iv_dict = rb_class_ivar_dict_or_create(klass);
 	CFDictionarySetValue(iv_dict, (const void *)classpath, (const void *)arg.path);
 	CFDictionaryRemoveValue(iv_dict, (const void *)tmp_classpath);
-#else
-	if (!RCLASS_IV_TBL(klass)) {
-	    GC_WB(&RCLASS_IV_TBL(klass), st_init_numtable());
-	}
-	st_insert(RCLASS_IV_TBL(klass), classpath, arg.path);
-	st_delete(RCLASS_IV_TBL(klass), &tmp_classpath, 0);
-#endif
 	return arg.path;
     }
-#if WITH_OBJC
     if (!RCLASS_RUBY(klass)) {
 	VALUE name = rb_str_new2(class_getName((Class)klass));
 	iv_dict = rb_class_ivar_dict_or_create(klass);
@@ -212,7 +177,6 @@ find_class_path(VALUE klass)
 	CFDictionaryRemoveValue(iv_dict, (const void *)tmp_classpath);
 	return name;
     }
-#endif
     return Qnil;
 }
 
@@ -222,7 +186,6 @@ classname(VALUE klass)
     VALUE path = Qnil;
 
     if (!klass) klass = rb_cObject;
-#if WITH_OBJC
     CFMutableDictionaryRef iv_dict = rb_class_ivar_dict(klass);
     if (iv_dict != NULL) {
 	if (!CFDictionaryGetValueIfPresent((CFDictionaryRef)iv_dict, 
@@ -240,19 +203,6 @@ classname(VALUE klass)
 	    OBJ_FREEZE(path);
 	    CFDictionarySetValue(iv_dict, (const void *)classpath, (const void *)path);
 	    CFDictionaryRemoveValue(iv_dict, (const void *)classid);
-#else
-    if (RCLASS_IV_TBL(klass)) {
-	if (!st_lookup(RCLASS_IV_TBL(klass), classpath, &path)) {
-	    ID classid = rb_intern("__classid__");
-
-	    if (!st_lookup(RCLASS_IV_TBL(klass), classid, &path)) {
-		return find_class_path(klass);
-	    }
-	    path = rb_str_dup(rb_id2str(SYM2ID(path)));
-	    OBJ_FREEZE(path);
-	    st_insert(RCLASS_IV_TBL(klass), classpath, path);
-	    st_delete(RCLASS_IV_TBL(klass), (st_data_t*)&classid, 0);
-#endif
 	}
 	if (TYPE(path) != T_STRING) {
 	    rb_bug("class path is not set properly");
@@ -270,11 +220,13 @@ classname(VALUE klass)
  */
 
 VALUE
-rb_mod_name(VALUE mod)
+rb_mod_name(VALUE mod, SEL sel)
 {
     VALUE path = classname(mod);
 
-    if (!NIL_P(path)) return rb_str_dup(path);
+    if (!NIL_P(path)) {
+	return rb_str_dup(path);
+    }
     return path;
 }
 
@@ -284,12 +236,7 @@ rb_class_path(VALUE klass)
     VALUE path = classname(klass);
 
     if (!NIL_P(path)) return path;
-#if WITH_OBJC
     if ((path = rb_attr_get(klass, tmp_classpath)) != Qnil) {
-#else
-    if (RCLASS_IV_TBL(klass) && st_lookup(RCLASS_IV_TBL(klass),
-					   tmp_classpath, &path)) {
-#endif
 	return path;
     }
     else {
@@ -326,6 +273,8 @@ rb_set_class_path(VALUE klass, VALUE under, const char *name)
     }
     OBJ_FREEZE(str);
     rb_ivar_set(klass, classpath, str);
+
+    rb_vm_set_outer(klass, under);
 }
 
 VALUE
@@ -405,13 +354,10 @@ struct global_variable {
     struct trace_var *trace;
 };
 
-#if !WITH_OBJC
-/* defined in vm_core.h, imported by debug.h */
 struct global_entry {
     struct global_variable *var;
     ID id;
 };
-#endif
 
 static VALUE undef_getter(ID id);
 static void  undef_setter(VALUE val, ID id, void *data, struct global_variable *var);
@@ -491,7 +437,9 @@ val_setter(VALUE val, ID id, void *data, struct global_variable *var)
 static void
 val_marker(VALUE data)
 {
-    if (data) rb_gc_mark_maybe(data);
+    if (data) {
+	rb_gc_mark_maybe(data);
+    }
 }
 
 static VALUE
@@ -510,7 +458,9 @@ var_setter(VALUE val, ID id, VALUE *var)
 static void
 var_marker(VALUE *var)
 {
-    if (var) rb_gc_mark_maybe(*var);
+    if (var) {
+	rb_gc_mark_maybe(*var);
+    }
 }
 
 static void
@@ -528,7 +478,9 @@ mark_global_entry(ID key, struct global_entry *entry)
     (*var->marker)(var->data);
     trace = var->trace;
     while (trace) {
-	if (trace->data) rb_gc_mark_maybe(trace->data);
+	if (trace->data) {
+	    rb_gc_mark_maybe(trace->data);
+	}
 	trace = trace->next;
     }
     return ST_CONTINUE;
@@ -632,8 +584,10 @@ rb_trace_eval(VALUE cmd, VALUE val)
  *     $_ is now ' there'
  */
 
+VALUE rb_f_untrace_var(VALUE rcv, SEL sel, int argc, VALUE *argv);
+
 VALUE
-rb_f_trace_var(int argc, VALUE *argv)
+rb_f_trace_var(VALUE rcv, SEL sel,int argc, VALUE *argv)
 {
     VALUE var, cmd;
     struct global_entry *entry;
@@ -644,7 +598,7 @@ rb_f_trace_var(int argc, VALUE *argv)
 	cmd = rb_block_proc();
     }
     if (NIL_P(cmd)) {
-	return rb_f_untrace_var(argc, argv);
+	return rb_f_untrace_var(0, 0, argc, argv);
     }
     entry = rb_global_entry(rb_to_id(var));
     if (OBJ_TAINTED(cmd)) {
@@ -693,7 +647,7 @@ remove_trace(struct global_variable *var)
  */
 
 VALUE
-rb_f_untrace_var(int argc, VALUE *argv)
+rb_f_untrace_var(VALUE rcv, SEL sel, int argc, VALUE *argv)
 {
     VALUE var, cmd;
     ID id;
@@ -827,7 +781,7 @@ gvar_i(ID key, struct global_entry *entry, VALUE ary)
  */
 
 VALUE
-rb_f_global_variables(void)
+rb_f_global_variables(VALUE rcv, SEL sel)
 {
     VALUE ary = rb_ary_new();
     char buf[4];
@@ -879,32 +833,11 @@ rb_alias_variable(ID name1, ID name2)
     entry1->var = entry2->var;
 }
 
-#if WITH_OBJC
 static CFMutableDictionaryRef generic_iv_dict = NULL;
-#else
-static int special_generic_ivar = 0;
-static st_table *generic_iv_tbl;
-#endif
-
-st_table*
-rb_generic_ivar_table(VALUE obj)
-{
-#if WITH_OBJC
-    return NULL;
-#else
-    st_data_t tbl;
-
-    if (!FL_TEST(obj, FL_EXIVAR)) return 0;
-    if (!generic_iv_tbl) return 0;
-    if (!st_lookup(generic_iv_tbl, obj, &tbl)) return 0;
-    return (st_table *)tbl;
-#endif
-}
 
 static VALUE
 generic_ivar_get(VALUE obj, ID id, int warn)
 {
-#if WITH_OBJC
     if (generic_iv_dict != NULL) {
 	CFDictionaryRef obj_dict;
 
@@ -918,18 +851,6 @@ generic_ivar_get(VALUE obj, ID id, int warn)
 		return val;
 	}
     }
-#else
-    st_data_t tbl;
-    VALUE val;
-
-    if (generic_iv_tbl) {
-	if (st_lookup(generic_iv_tbl, obj, &tbl)) {
-	    if (st_lookup((st_table *)tbl, id, &val)) {
-		return val;
-	    }
-	}
-    }
-#endif
     if (warn) {
 	rb_warning("instance variable %s not initialized", rb_id2name(id));
     }
@@ -939,7 +860,6 @@ generic_ivar_get(VALUE obj, ID id, int warn)
 static void
 generic_ivar_set(VALUE obj, ID id, VALUE val)
 {
-#if WITH_OBJC
     CFMutableDictionaryRef obj_dict;
 
     if (rb_special_const_p(obj)) {
@@ -948,6 +868,7 @@ generic_ivar_set(VALUE obj, ID id, VALUE val)
     }
     if (generic_iv_dict == NULL) {
 	generic_iv_dict = CFDictionaryCreateMutable(NULL, 0, NULL, &rb_cfdictionary_value_cb);
+	rb_objc_retain(generic_iv_dict);
 	obj_dict = NULL;
     }
     else {
@@ -955,39 +876,17 @@ generic_ivar_set(VALUE obj, ID id, VALUE val)
 	    (CFDictionaryRef)generic_iv_dict, (const void *)obj);
     }
     if (obj_dict == NULL) {
-	obj_dict = CFDictionaryCreateMutable(kCFAllocatorMalloc, 0, NULL, &rb_cfdictionary_value_cb);
+	obj_dict = CFDictionaryCreateMutable(NULL, 0, NULL, &rb_cfdictionary_value_cb);
 	CFDictionarySetValue(generic_iv_dict, (const void *)obj, 
 	    (const void *)obj_dict);
 	CFMakeCollectable(obj_dict);
     }
     CFDictionarySetValue(obj_dict, (const void *)id, (const void *)val);
-#else
-    st_table *tbl;
-    st_data_t data;
-
-    if (rb_special_const_p(obj)) {
-	if (rb_obj_frozen_p(obj)) rb_error_frozen("object");
-	special_generic_ivar = 1;
-    }
-    if (!generic_iv_tbl) {
-	generic_iv_tbl = st_init_numtable();
-	GC_ROOT(&generic_iv_tbl);
-    }
-    if (!st_lookup(generic_iv_tbl, obj, &data)) {
-	FL_SET(obj, FL_EXIVAR);
-	tbl = st_init_numtable();
-	st_add_direct(generic_iv_tbl, obj, (st_data_t)tbl);
-	st_add_direct(tbl, id, val);
-	return;
-    }
-    st_insert((st_table *)data, id, val);
-#endif
 }
 
 static VALUE
 generic_ivar_defined(VALUE obj, ID id)
 {
-#if WITH_OBJC
     CFMutableDictionaryRef obj_dict;
 
     if (generic_iv_dict != NULL
@@ -997,26 +896,11 @@ generic_ivar_defined(VALUE obj, ID id)
 	    return Qtrue;
     }
     return Qfalse;    
-
-#else
-    st_table *tbl;
-    st_data_t data;
-    VALUE val;
-
-    if (!generic_iv_tbl) return Qfalse;
-    if (!st_lookup(generic_iv_tbl, obj, &data)) return Qfalse;
-    tbl = (st_table *)data;
-    if (st_lookup(tbl, id, &val)) {
-	return Qtrue;
-    }
-    return Qfalse;
-#endif
 }
 
 static int
 generic_ivar_remove(VALUE obj, ID id, VALUE *valp)
 {
-#if WITH_OBJC
     CFMutableDictionaryRef obj_dict;
     VALUE val;
 
@@ -1036,79 +920,19 @@ generic_ivar_remove(VALUE obj, ID id, VALUE *valp)
     }
 
     return 0;
-#else
-    st_table *tbl;
-    st_data_t data;
-    int status;
-
-    if (!generic_iv_tbl) return 0;
-    if (!st_lookup(generic_iv_tbl, obj, &data)) return 0;
-    tbl = (st_table *)data;
-    status = st_delete(tbl, &id, valp);
-    if (tbl->num_entries == 0) {
-	st_delete(generic_iv_tbl, &obj, &data);
-	st_free_table((st_table *)data);
-    }
-    return status;
-#endif
 }
-
-#if !WITH_OBJC
-void
-rb_mark_generic_ivar(VALUE obj)
-{
-    st_data_t tbl;
-
-    if (!generic_iv_tbl) return;
-    if (st_lookup(generic_iv_tbl, obj, &tbl)) {
-	rb_mark_tbl((st_table *)tbl);
-    }
-}
-
-static int
-givar_mark_i(ID key, VALUE value)
-{
-    rb_gc_mark(value);
-    return ST_CONTINUE;
-}
-
-static int
-givar_i(VALUE obj, st_table *tbl)
-{
-    if (rb_special_const_p(obj)) {
-	st_foreach_safe(tbl, givar_mark_i, 0);
-    }
-    return ST_CONTINUE;
-}
-
-void
-rb_mark_generic_ivar_tbl(void)
-{
-    if (!generic_iv_tbl) return;
-    if (special_generic_ivar == 0) return;
-    st_foreach_safe(generic_iv_tbl, givar_i, 0);
-}
-#endif
 
 void
 rb_free_generic_ivar(VALUE obj)
 {
-#if WITH_OBJC
-    if (generic_iv_dict != NULL)
+    if (generic_iv_dict != NULL) {
 	CFDictionaryRemoveValue(generic_iv_dict, (const void *)obj);
-#else
-    st_data_t tbl;
-
-    if (!generic_iv_tbl) return;
-    if (st_delete(generic_iv_tbl, &obj, &tbl))
-	st_free_table((st_table *)tbl);
-#endif
+    }
 }
 
 void
 rb_copy_generic_ivar(VALUE clone, VALUE obj)
 {
-#if WITH_OBJC
     CFMutableDictionaryRef obj_dict;
     CFMutableDictionaryRef clone_dict;
 
@@ -1125,42 +949,16 @@ rb_copy_generic_ivar(VALUE clone, VALUE obj)
 	&& clone_dict != NULL)
 	CFDictionaryRemoveValue(generic_iv_dict, (const void *)clone);
 
-    clone_dict = CFDictionaryCreateMutableCopy(kCFAllocatorMalloc, 0, obj_dict);
+    clone_dict = CFDictionaryCreateMutableCopy(NULL, 0, obj_dict);
     CFDictionarySetValue(generic_iv_dict, (const void *)clone, 
 	(const void *)clone_dict);
     CFMakeCollectable(clone_dict);
-#else
-    st_data_t data;
-
-    if (!generic_iv_tbl) return;
-    if (!FL_TEST(obj, FL_EXIVAR)) {
-clear:
-        if (FL_TEST(clone, FL_EXIVAR)) {
-            rb_free_generic_ivar(clone);
-            FL_UNSET(clone, FL_EXIVAR);
-        }
-        return;
-    }
-    if (st_lookup(generic_iv_tbl, obj, &data)) {
-	st_table *tbl = (st_table *)data;
-
-        if (tbl->num_entries == 0)
-            goto clear;
-
-	if (st_lookup(generic_iv_tbl, clone, &data)) {
-	    st_free_table((st_table *)data);
-	    st_insert(generic_iv_tbl, clone, (st_data_t)st_copy(tbl));
-	}
-	else {
-	    st_add_direct(generic_iv_tbl, clone, (st_data_t)st_copy(tbl));
-	    FL_SET(clone, FL_EXIVAR);
-	}
-    }
-#endif
 }
 
-#if WITH_OBJC
-# define RCLASS_RUBY_IVAR_DICT(mod) (*(CFMutableDictionaryRef *)((void *)mod + class_getInstanceSize(*(Class *)RCLASS_SUPER(mod))))
+#define RCLASS_RUBY_IVAR_DICT(mod) \
+    (*(CFMutableDictionaryRef *) \
+     	((void *)mod + class_getInstanceSize(*(Class *)RCLASS_SUPER(mod))))
+
 CFMutableDictionaryRef 
 rb_class_ivar_dict(VALUE mod)
 {
@@ -1185,15 +983,17 @@ rb_class_ivar_set_dict(VALUE mod, CFMutableDictionaryRef dict)
     if (RCLASS_RUBY(mod)) {
 	CFMutableDictionaryRef old_dict = RCLASS_RUBY_IVAR_DICT(mod);
 	if (old_dict != dict) {
-	    if (old_dict != NULL)
+	    if (old_dict != NULL) {
 		CFRelease(old_dict);
+	    }
 	    CFRetain(dict);
 	    RCLASS_RUBY_IVAR_DICT(mod) = dict;
 	}
     }
     else {
 	if (generic_iv_dict == NULL) {
-	    generic_iv_dict = CFDictionaryCreateMutable(kCFAllocatorMalloc, 0, NULL, &rb_cfdictionary_value_cb);
+	    generic_iv_dict = CFDictionaryCreateMutable(NULL, 0, NULL, &rb_cfdictionary_value_cb);
+	    rb_objc_retain(generic_iv_dict);
 	}
 	CFDictionarySetValue(generic_iv_dict, (const void *)mod, (const void *)dict);
     }
@@ -1206,86 +1006,66 @@ rb_class_ivar_dict_or_create(VALUE mod)
 
     dict = rb_class_ivar_dict(mod);
     if (dict == NULL) {
-	dict = CFDictionaryCreateMutable(kCFAllocatorMalloc, 0, NULL, &rb_cfdictionary_value_cb);
+	dict = CFDictionaryCreateMutable(NULL, 0, NULL, &rb_cfdictionary_value_cb);
 	rb_class_ivar_set_dict(mod, dict);
 	CFMakeCollectable(dict);
     }
     return dict;
 }
-#endif
 
 static VALUE
 ivar_get(VALUE obj, ID id, int warn)
 {
     VALUE val;
-#if !WITH_OBJC
-    VALUE *ptr;
-    struct st_table *iv_index_tbl;
-    long len;
-    st_data_t index;
-#endif
+
+    const int slot = rb_vm_find_class_ivar_slot(CLASS_OF(obj), id);
+    if (slot != -1) {
+	val = rb_vm_get_ivar_from_slot(obj, slot);
+	if (val != Qundef) {
+	    return val;
+	}
+    }
 
     switch (TYPE(obj)) {
-      case T_OBJECT:
-#if WITH_OBJC
-	switch (RB_IVAR_TYPE(ROBJECT(obj)->ivars)) {
-	    case RB_IVAR_ARY: 
+	case T_OBJECT:
 	    {
-		int i;
 		val = Qundef;
-		for (i = 0; i < RB_IVAR_ARY_LEN(ROBJECT(obj)->ivars); i++) {
-		    if (ROBJECT(obj)->ivars.as.ary[i].name == id) {
-			val = ROBJECT(obj)->ivars.as.ary[i].value;
-			break;		    
+
+		if (ROBJECT(obj)->tbl != NULL) {
+		    if (!CFDictionaryGetValueIfPresent(
+				(CFDictionaryRef)ROBJECT(obj)->tbl,
+				(const void *)id,
+				(const void **)&val)) {
+			val = Qundef;
 		    }
 		}
-		break;
+
+		if (val != Qundef) {
+		    return val;
+		}
 	    }
+	    break;
 
-	    case RB_IVAR_TBL:
-		if (!CFDictionaryGetValueIfPresent(
-		    (CFDictionaryRef)ROBJECT(obj)->ivars.as.tbl,
-		    (const void *)id,
-		    (const void **)&val))
-		    val = Qundef;
-		break;
-	}
-#else
-        len = ROBJECT_NUMIV(obj);
-        ptr = ROBJECT_IVPTR(obj);
-        iv_index_tbl = ROBJECT_IV_INDEX_TBL(obj);
-        if (!iv_index_tbl) break; 
-        if (!st_lookup(iv_index_tbl, id, &index)) break;
-        if (len <= index) break;
-        val = ptr[index];
-#endif
+	case T_CLASS:
+	case T_MODULE:
+	    {
+		CFDictionaryRef iv_dict = rb_class_ivar_dict(obj);
+		if (iv_dict != NULL 
+			&& CFDictionaryGetValueIfPresent(
+			    iv_dict, (const void *)id, (const void **)&val)) {
+		    return val;
+		}
+	    }
+	    break;
 
-        if (val != Qundef)
-            return val;
-	break;
-      case T_CLASS:
-      case T_MODULE:
-#if WITH_OBJC
-      {
-	  CFDictionaryRef iv_dict = rb_class_ivar_dict(obj);
-	  if (iv_dict != NULL 
-	      && CFDictionaryGetValueIfPresent(
-		  iv_dict, (const void *)id, (const void **)&val))
-	      return val;
-      }
-#else
-	if (RCLASS_IV_TBL(obj) && st_lookup(RCLASS_IV_TBL(obj), id, &val))
-	    return val;
-#endif
-	break;
-#if WITH_OBJC
-      case T_NATIVE:
-	return generic_ivar_get(obj, id, warn);
-#endif
-      default:
-	if (FL_TEST(obj, FL_EXIVAR) || rb_special_const_p(obj))
+	case T_NATIVE:
 	    return generic_ivar_get(obj, id, warn);
-	break;
+
+	default:
+	    if (FL_TEST(obj, FL_EXIVAR) || rb_special_const_p(obj)) {
+		return generic_ivar_get(obj, id, warn);
+	    }
+	    break;
     }
     if (warn) {
 	rb_warning("instance variable %s not initialized", rb_id2name(id));
@@ -1308,166 +1088,54 @@ rb_attr_get(VALUE obj, ID id)
 VALUE
 rb_ivar_set(VALUE obj, ID id, VALUE val)
 {
-#if !WITH_OBJC
-    struct st_table *iv_index_tbl;
-    st_data_t index;
-    long i, len;
-    int ivar_extended;
-#endif
-
-    if (!OBJ_TAINTED(obj) && rb_safe_level() >= 4)
+    if (!OBJ_TAINTED(obj) && rb_safe_level() >= 4) {
 	rb_raise(rb_eSecurityError, "Insecure: can't modify instance variable");
-    if (OBJ_FROZEN(obj)) rb_error_frozen("object");
+    }
+    if (OBJ_FROZEN(obj)) {
+	rb_error_frozen("object");
+    }
+
+    const int slot = rb_vm_find_class_ivar_slot(CLASS_OF(obj), id);
+    if (slot != -1) {
+	rb_vm_set_ivar_from_slot(obj, val, slot);
+	return val;
+    }
+
     switch (TYPE(obj)) {
-      case T_OBJECT:
-#if WITH_OBJC
-	switch (RB_IVAR_TYPE(ROBJECT(obj)->ivars)) {
-	    case RB_IVAR_ARY: 
+	case T_OBJECT:
 	    {
-		int i, len;
-		bool new_ivar;
+		if (ROBJECT(obj)->tbl == NULL) {
+		    CFMutableDictionaryRef tbl;
 
-		len = RB_IVAR_ARY_LEN(ROBJECT(obj)->ivars);
-		new_ivar = true;
+		    tbl = CFDictionaryCreateMutable(NULL, 0, NULL, 
+			    &rb_cfdictionary_value_cb);
 
-		if (len == 0) {
-		    assert(ROBJECT(obj)->ivars.as.ary == NULL);
-		    GC_WB(&ROBJECT(obj)->ivars.as.ary,
-			(struct rb_ivar_ary_entry *)xmalloc(
-			    sizeof(struct rb_ivar_ary_entry)));
+		    GC_WB(&ROBJECT(obj)->tbl, tbl);
+		    CFMakeCollectable(tbl);
 		}
-		else {
-		    assert(ROBJECT(obj)->ivars.as.ary != NULL);
-		    for (i = 0; i < len; i++) {
-			if (ROBJECT(obj)->ivars.as.ary[i].value == Qundef) {
-			    ROBJECT(obj)->ivars.as.ary[i].name = id;	
-			    GC_WB(&ROBJECT(obj)->ivars.as.ary[i].value, val);
-			    new_ivar = false;
-			    break;
-			}
-			else if (ROBJECT(obj)->ivars.as.ary[i].name == id) {
-			    GC_WB(&ROBJECT(obj)->ivars.as.ary[i].value, val);
-			    new_ivar = false;
-			    break;
-			}
-		    }
-		}
-		if (new_ivar) {
-		    if (len + 1 == RB_IVAR_ARY_MAX) {
-			CFMutableDictionaryRef tbl;
-			tbl = CFDictionaryCreateMutable(kCFAllocatorMalloc, 0, NULL, 
-				&rb_cfdictionary_value_cb);
 
-			for (i = 0; i < len; i++) 
-			    CFDictionarySetValue(tbl, 
-				(const void *)ROBJECT(obj)->ivars.as.ary[i].name, 
-				(const void *)ROBJECT(obj)->ivars.as.ary[i].value);
-
-			CFDictionarySetValue(tbl, (const void *)id, 
-				(const void *)val);
-
-			xfree(ROBJECT(obj)->ivars.as.ary);
-			GC_WB(&ROBJECT(obj)->ivars.as.tbl, tbl);
-			CFMakeCollectable(tbl);
-			RB_IVAR_SET_TYPE(ROBJECT(obj)->ivars, RB_IVAR_TBL);
-		    }
-		    else {
-			if (len > 0) {
-			    struct rb_ivar_ary_entry *ary;
-			    ary = ROBJECT(obj)->ivars.as.ary;
-			    REALLOC_N(ary, struct rb_ivar_ary_entry, len + 1);	    
-			    GC_WB(&ROBJECT(obj)->ivars.as.ary, ary);
-			}
-			ROBJECT(obj)->ivars.as.ary[len].name = id;
-			GC_WB(&ROBJECT(obj)->ivars.as.ary[len].value, val);
-			RB_IVAR_ARY_SET_LEN(ROBJECT(obj)->ivars, len + 1);
-		    }
-		}
-		break;
-	    }
-
-	    case RB_IVAR_TBL:
-		CFDictionarySetValue(ROBJECT(obj)->ivars.as.tbl, 
+		CFDictionarySetValue(ROBJECT(obj)->tbl, 
 			(const void *)id, (const void *)val);
-		break;
-	}
-#else
-        iv_index_tbl = ROBJECT_IV_INDEX_TBL(obj);
-        if (!iv_index_tbl) {
-            VALUE klass = rb_obj_class(obj);
-            iv_index_tbl = RCLASS_IV_INDEX_TBL(klass);
-            if (!iv_index_tbl) {
-		GC_WB(&RCLASS_IV_INDEX_TBL(klass), st_init_numtable());
-                iv_index_tbl = RCLASS_IV_INDEX_TBL(klass);
-            }
-        }
-        ivar_extended = 0;
-        if (!st_lookup(iv_index_tbl, id, &index)) {
-            index = iv_index_tbl->num_entries;
-            st_add_direct(iv_index_tbl, id, index);
-            ivar_extended = 1;
-        }
-        len = ROBJECT_NUMIV(obj);
-        if (len <= index) {
-            VALUE *ptr = ROBJECT_IVPTR(obj);
-            if (index < ROBJECT_EMBED_LEN_MAX) {
-                RBASIC(obj)->flags |= ROBJECT_EMBED;
-                ptr = ROBJECT(obj)->as.ary;
-                for (i = 0; i < ROBJECT_EMBED_LEN_MAX; i++) {
-                    ptr[i] = Qundef;
-                }
-            }
-            else {
-                VALUE *newptr;
-                long newsize = (index+1) + (index+1)/4; /* (index+1)*1.25 */
-                if (!ivar_extended &&
-                    iv_index_tbl->num_entries < newsize) {
-                    newsize = iv_index_tbl->num_entries;
-                }
-                if (RBASIC(obj)->flags & ROBJECT_EMBED) {
-                    newptr = ALLOC_N(VALUE, newsize);
-                    MEMCPY(newptr, ptr, VALUE, len);
-                    RBASIC(obj)->flags &= ~ROBJECT_EMBED;
-                    GC_WB(&ROBJECT(obj)->as.heap.ivptr, newptr);
-                }
-                else {
-                    REALLOC_N(ROBJECT(obj)->as.heap.ivptr, VALUE, newsize);
-                    newptr = ROBJECT(obj)->as.heap.ivptr;
-                }
-                for (; len < newsize; len++)
-                    newptr[len] = Qundef;
-                ROBJECT(obj)->as.heap.numiv = newsize;
-                ROBJECT(obj)->as.heap.iv_index_tbl = iv_index_tbl;
-            }
-        }
-        GC_WB(&ROBJECT_IVPTR(obj)[index], val);
-#endif
-	break;
-      case T_CLASS:
-      case T_MODULE:
-#if WITH_OBJC
-      {
-	  CFMutableDictionaryRef iv_dict = rb_class_ivar_dict_or_create(obj);
-	  CFDictionarySetValue(iv_dict, (const void *)id, (const void *)val);
-	  break;
-      }
-#else
-	if (!RCLASS_IV_TBL(obj)) {
-	    GC_WB(&RCLASS_IV_TBL(obj), st_init_numtable());
-	}
-	st_insert(RCLASS_IV_TBL(obj), id, val);
-        break;
-#endif
-#if WITH_OBJC
-      case T_NATIVE:
-	rb_objc_flag_set((const void *)obj, FL_EXIVAR, true);
-	generic_ivar_set(obj, id, val);
-	break;
-#endif
-      default:
-	generic_ivar_set(obj, id, val);
-	FL_SET(obj, FL_EXIVAR);
-	break;
+	    }
+	    break;
+
+	case T_CLASS:
+	case T_MODULE:
+	    {
+		CFMutableDictionaryRef iv_dict = rb_class_ivar_dict_or_create(obj);
+		CFDictionarySetValue(iv_dict, (const void *)id, (const void *)val);
+	    }
+	    break;
+
+	case T_NATIVE:
+	    rb_objc_flag_set((const void *)obj, FL_EXIVAR, true);
+	    generic_ivar_set(obj, id, val);
+	    break;
+
+	default:
+	    generic_ivar_set(obj, id, val);
+	    FL_SET(obj, FL_EXIVAR);
+	    break;
     }
     return val;
 }
@@ -1476,67 +1144,51 @@ VALUE
 rb_ivar_defined(VALUE obj, ID id)
 {
     VALUE val;
-#if !WITH_OBJC
-    struct st_table *iv_index_tbl;
-    st_data_t index;
-#endif
+
+    const int slot = rb_vm_find_class_ivar_slot(CLASS_OF(obj), id);
+    if (slot != -1) {
+	if (rb_vm_get_ivar_from_slot(obj, slot) != Qundef) {
+	    return Qtrue;
+	}
+    }
 
     switch (TYPE(obj)) {
-      case T_OBJECT:
-#if WITH_OBJC
-	val = Qundef;
-	switch (RB_IVAR_TYPE(ROBJECT(obj)->ivars)) {
-	    case RB_IVAR_ARY:
+	case T_OBJECT:
 	    {
-		int i;
-		for (i = 0; i < RB_IVAR_ARY_LEN(ROBJECT(obj)->ivars); i++) {
-		    if (ROBJECT(obj)->ivars.as.ary[i].name == id) {
-			val = ROBJECT(obj)->ivars.as.ary[i].value;
-			break;
+		val = Qundef;
+
+		if (ROBJECT(obj)->tbl != NULL) {
+		    if (CFDictionaryGetValueIfPresent(
+				(CFDictionaryRef)ROBJECT(obj)->tbl,
+				(const void *)id, NULL)) {
+			val = Qtrue;
 		    }
+		}
+
+		if (val != Qundef) {
+		    return Qtrue;
+		}
+	    }
+	    break;
+
+	case T_CLASS:
+	case T_MODULE:
+	    {
+		CFDictionaryRef iv_dict = rb_class_ivar_dict(obj);
+		if (iv_dict != NULL && CFDictionaryGetValueIfPresent(iv_dict, (const void *)id, NULL)) {
+		    return Qtrue;
 		}
 		break;
 	    }
 
-	    case RB_IVAR_TBL:
-		if (CFDictionaryGetValueIfPresent(
-		    (CFDictionaryRef)ROBJECT(obj)->ivars.as.tbl,
-		    (const void *)id, NULL))
-		    val = Qtrue;
-		break;
-	}
-#else
-        iv_index_tbl = ROBJECT_IV_INDEX_TBL(obj);
-        if (!iv_index_tbl) break;
-        if (!st_lookup(iv_index_tbl, id, &index)) break;
-        if (ROBJECT_NUMIV(obj) <= index) break;
-        val = ROBJECT_IVPTR(obj)[index];
-#endif
-        if (val != Qundef)
-            return Qtrue;
-	break;
-      case T_CLASS:
-      case T_MODULE:
-#if WITH_OBJC
-      {
-	  CFDictionaryRef iv_dict = rb_class_ivar_dict(obj);
-	  if (iv_dict != NULL && CFDictionaryGetValueIfPresent(iv_dict, (const void *)id, NULL))
-	      return Qtrue;
-	  break;
-      }
-#else
-	if (RCLASS_IV_TBL(obj) && st_lookup(RCLASS_IV_TBL(obj), id, 0))
-	    return Qtrue;
-	break;
-#endif
-#if WITH_OBJC
-      case T_NATIVE:
-	return generic_ivar_defined(obj, id);
-#endif
-      default:
-	if (FL_TEST(obj, FL_EXIVAR) || rb_special_const_p(obj))
+	case T_NATIVE:
 	    return generic_ivar_defined(obj, id);
-	break;
+
+	default:
+	    if (FL_TEST(obj, FL_EXIVAR) || rb_special_const_p(obj)) {
+		return generic_ivar_defined(obj, id);
+	    }
+	    break;
     }
     return Qfalse;
 }
@@ -1547,106 +1199,43 @@ struct obj_ivar_tag {
     st_data_t arg;
 };
 
-#if !WITH_OBJC
-static int
-obj_ivar_i(ID key, VALUE index, struct obj_ivar_tag *data)
-{
-    if (index < ROBJECT_NUMIV(data->obj)) {
-        VALUE val = ROBJECT_IVPTR(data->obj)[index];
-        if (val != Qundef) {
-            return (data->func)(key, val, data->arg);
-        }
-    }
-    return ST_CONTINUE;
-}
-
-static void
-obj_ivar_each(VALUE obj, int (*func)(ANYARGS), st_data_t arg)
-{
-    st_table *tbl;
-    struct obj_ivar_tag data;
-
-    tbl = ROBJECT_IV_INDEX_TBL(obj);
-    if (!tbl)
-        return;
-
-    data.obj = obj;
-    data.func = (int (*)(ID key, VALUE val, st_data_t arg))func;
-    data.arg = arg;
-
-    st_foreach_safe(tbl, obj_ivar_i, (st_data_t)&data);
-}
-#endif
-
 void rb_ivar_foreach(VALUE obj, int (*func)(ANYARGS), st_data_t arg)
 {
     switch (TYPE(obj)) {
       case T_OBJECT:
-#if WITH_OBJC
-	switch (RB_IVAR_TYPE(ROBJECT(obj)->ivars)) {
-	     case RB_IVAR_ARY:
-	     {
-		int i;
-		for (i = 0; i < RB_IVAR_ARY_LEN(ROBJECT(obj)->ivars); i++) {
-		    if ((*func)(ROBJECT(obj)->ivars.as.ary[i].name, 
-				ROBJECT(obj)->ivars.as.ary[i].value, arg) 
-			    	    != ST_CONTINUE)
-			break;
-		}
-		break;
-	     }
+	  // TODO support slots
+	  if (ROBJECT(obj)->tbl != NULL) {
+	      CFDictionaryApplyFunction(ROBJECT(obj)->tbl, 
+		      (CFDictionaryApplierFunction)func, (void *)arg);
+	  }
+	  return;
 
-	     case RB_IVAR_TBL:
-		 CFDictionaryApplyFunction(ROBJECT(obj)->ivars.as.tbl, 
-		     (CFDictionaryApplierFunction)func, (void *)arg);
-		 break;
-	}
-#else
-        obj_ivar_each(obj, func, arg);
-#endif
-	return;
       case T_CLASS:
       case T_MODULE:
-#if WITH_OBJC
-      {
-	  CFMutableDictionaryRef iv_dict = rb_class_ivar_dict(obj);
-	  if (iv_dict != NULL)
-	      ivar_dict_foreach((VALUE)iv_dict, func, arg);
-      }
-#else
-	if (RCLASS_IV_TBL(obj)) {
-	    st_foreach_safe(RCLASS_IV_TBL(obj), func, arg);
-	}
-#endif
-	return;
-#if WITH_OBJC
+	  {
+	      CFMutableDictionaryRef iv_dict = rb_class_ivar_dict(obj);
+	      if (iv_dict != NULL)
+		  ivar_dict_foreach((VALUE)iv_dict, func, arg);
+	  }
+	  return;
+
       case T_NATIVE:
-	goto generic;
-#endif
+	  goto generic;
     }
-    if (!FL_TEST(obj, FL_EXIVAR) && !rb_special_const_p(obj))
+    if (!FL_TEST(obj, FL_EXIVAR) && !rb_special_const_p(obj)) {
 	return;
+    }
 generic:
-#if WITH_OBJC
     if (generic_iv_dict != NULL) {
 	CFDictionaryRef obj_dict;
 
 	obj_dict = (CFDictionaryRef)CFDictionaryGetValue(
-	    (CFDictionaryRef)generic_iv_dict, (const void *)obj);
-	if (obj_dict != NULL)
+		(CFDictionaryRef)generic_iv_dict, (const void *)obj);
+	if (obj_dict != NULL) {
 	    CFDictionaryApplyFunction(obj_dict, 
-		(CFDictionaryApplierFunction)func, (void *)arg);
-    }
-#else
-    if (!generic_iv_tbl) break;
-    if (FL_TEST(obj, FL_EXIVAR) || rb_special_const_p(obj)) {
-	st_data_t tbl;
-
-	if (st_lookup(generic_iv_tbl, obj, &tbl)) {
-	    st_foreach_safe((st_table *)tbl, func, arg);
+		    (CFDictionaryApplierFunction)func, (void *)arg);
 	}
     }
-#endif
 }
 
 static int
@@ -1708,86 +1297,51 @@ rb_obj_instance_variables(VALUE obj)
  */
 
 VALUE
-rb_obj_remove_instance_variable(VALUE obj, VALUE name)
+rb_obj_remove_instance_variable(VALUE obj, SEL sel, VALUE name)
 {
     VALUE val = Qnil;
     ID id = rb_to_id(name);
-#if !WITH_OBJC
-    struct st_table *iv_index_tbl;
-    st_data_t index;
-#endif
 
-    if (!OBJ_TAINTED(obj) && rb_safe_level() >= 4)
+    if (!OBJ_TAINTED(obj) && rb_safe_level() >= 4) {
 	rb_raise(rb_eSecurityError, "Insecure: can't modify instance variable");
-    if (OBJ_FROZEN(obj)) rb_error_frozen("object");
+    }
+    if (OBJ_FROZEN(obj)) {
+	rb_error_frozen("object");
+    }
     if (!rb_is_instance_id(id)) {
 	rb_name_error(id, "`%s' is not allowed as an instance variable name", rb_id2name(id));
     }
 
     switch (TYPE(obj)) {
-      case T_OBJECT:
-#if WITH_OBJC
-	switch (RB_IVAR_TYPE(ROBJECT(obj)->ivars)) {
-	    case RB_IVAR_ARY:
-	    {
-		int i;
-		for (i = 0; i < RB_IVAR_ARY_LEN(ROBJECT(obj)->ivars); i++) {
-		    if (ROBJECT(obj)->ivars.as.ary[i].name == id) {
-			val = ROBJECT(obj)->ivars.as.ary[i].value;
-			ROBJECT(obj)->ivars.as.ary[i].value = Qundef;
-			return val;
-		    }
-		}
-		break;
-	    }
-
-	    case RB_IVAR_TBL:
-		if (CFDictionaryGetValueIfPresent(
-		    (CFDictionaryRef)ROBJECT(obj)->ivars.as.tbl,
-		    (const void *)id,
-		    (const void **)val)) {
-		    CFDictionaryRemoveValue(ROBJECT(obj)->ivars.as.tbl, 
-		       (const void *)id);
+	case T_OBJECT:
+	    // TODO support slots
+	    if (ROBJECT(obj)->tbl != NULL) {
+		if (CFDictionaryGetValueIfPresent(ROBJECT(obj)->tbl, (const void *)id, (const void **)val)) {
+		    CFDictionaryRemoveValue(ROBJECT(obj)->tbl, 
+			    (const void *)id);
 		    return val;
 		}
-		break;
-	}
-#else
-        iv_index_tbl = ROBJECT_IV_INDEX_TBL(obj);
-        if (!iv_index_tbl) break;
-        if (!st_lookup(iv_index_tbl, id, &index)) break;
-        if (ROBJECT_NUMIV(obj) <= index) break;
-        val = ROBJECT_IVPTR(obj)[index];
-        if (val != Qundef) {
-            ROBJECT_IVPTR(obj)[index] = Qundef;
-            return val;
-        }
-#endif
-	break;
-      case T_CLASS:
-      case T_MODULE:
-#if WITH_OBJC
-      {
-	  CFMutableDictionaryRef iv_dict = rb_class_ivar_dict(obj);
-	  if (iv_dict != NULL && CFDictionaryGetValueIfPresent((CFDictionaryRef)iv_dict, (const void *)id, (const void **)&val)) {
-	      CFDictionaryRemoveValue(iv_dict, (const void *)id);
-	      return val;
-	  }	      
-	  break;
-      }
-#else
-	if (RCLASS_IV_TBL(obj) && st_delete(RCLASS_IV_TBL(obj), (st_data_t*)&id, &val)) {
-	    return val;
-	}
-	break;
-#endif
-      default:
-	if (FL_TEST(obj, FL_EXIVAR) || rb_special_const_p(obj)) {
-	    if (generic_ivar_remove(obj, id, &val)) {
-		return val;
 	    }
-	}
-	break;
+	    break;
+
+	case T_CLASS:
+	case T_MODULE:
+	    {
+		CFMutableDictionaryRef iv_dict = rb_class_ivar_dict(obj);
+		if (iv_dict != NULL && CFDictionaryGetValueIfPresent(iv_dict, (const void *)id, (const void **)&val)) {
+		    CFDictionaryRemoveValue(iv_dict, (const void *)id);
+		    return val;
+		}	      
+	    }
+	    break;
+
+	default:
+	    if (FL_TEST(obj, FL_EXIVAR) || rb_special_const_p(obj)) {
+		if (generic_ivar_remove(obj, id, &val)) {
+		    return val;
+		}
+	    }
+	    break;
     }
     rb_name_error(id, "instance variable %s not defined", rb_id2name(id));
     return Qnil;		/* not reached */
@@ -1842,23 +1396,19 @@ const_missing(VALUE klass, ID id)
  */
 
 VALUE
-rb_mod_const_missing(VALUE klass, VALUE name)
+rb_mod_const_missing(VALUE klass, SEL sel, VALUE name)
 {
-    rb_frame_pop(); /* pop frame for "const_missing" */
+    //rb_frame_pop(); /* pop frame for "const_missing" */
     uninitialized_constant(klass, rb_to_id(name));
     return Qnil;		/* not reached */
 }
-
-#if WITH_OBJC
-static void *rb_mark_tbl = (void *)0x42;
-#endif
 
 static struct st_table *
 check_autoload_table(VALUE av)
 {
     Check_Type(av, T_DATA);
-    if (RDATA(av)->dmark != (RUBY_DATA_FUNC)rb_mark_tbl ||
-	RDATA(av)->dfree != (RUBY_DATA_FUNC)st_free_table) {
+    if (false) {
+	// TODO
 	VALUE desc = rb_inspect(av);
 	rb_raise(rb_eTypeError, "wrong autoload table: %s", RSTRING_PTR(desc));
     }
@@ -1878,29 +1428,17 @@ rb_autoload(VALUE mod, ID id, const char *file)
 	rb_raise(rb_eArgError, "empty file name");
     }
 
-#if WITH_OBJC
-    if ((av = rb_attr_get(mod, id)) != Qnil && av != Qundef)
-#else
-    if ((tbl = RCLASS_IV_TBL(mod)) && st_lookup(tbl, id, &av) && av != Qundef)
-#endif
+    if ((av = rb_attr_get(mod, id)) != Qnil && av != Qundef) {
 	return;
+    }
 
     rb_const_set(mod, id, Qundef);
-#if WITH_OBJC
     if ((av = rb_attr_get(mod, autoload)) != Qnil) {
-#else
-    tbl = RCLASS_IV_TBL(mod);
-    if (st_lookup(tbl, autoload, &av)) {
-#endif
 	tbl = check_autoload_table(av);
     }
     else {
-	av = Data_Wrap_Struct(rb_cData, rb_mark_tbl, st_free_table, 0);
-#if WITH_OBJC
+	av = Data_Wrap_Struct(rb_cData, NULL, NULL, 0);
 	rb_ivar_set(mod, autoload, av);
-#else
-	st_add_direct(tbl, autoload, av);
-#endif
 	tbl = st_init_numtable();
 	GC_WB(&DATA_PTR(av), tbl);
     }
@@ -1920,16 +1458,11 @@ autoload_delete(VALUE mod, ID id)
     VALUE val;
     st_data_t load = 0;
 
-#if WITH_OBJC
     CFMutableDictionaryRef iv_dict = rb_class_ivar_dict(mod);
     assert(iv_dict != NULL);
     CFDictionaryRemoveValue(iv_dict, (const void *)id);
     if (CFDictionaryGetValueIfPresent((CFDictionaryRef)iv_dict, 
 	(const void *)autoload, (const void **)&val)) {
-#else
-    st_delete(RCLASS_IV_TBL(mod), (st_data_t*)&id, 0);
-    if (st_lookup(RCLASS_IV_TBL(mod), autoload, &val)) {
-#endif
 	struct st_table *tbl = check_autoload_table(val);
 
 	st_delete(tbl, (st_data_t*)&id, &load);
@@ -1938,13 +1471,7 @@ autoload_delete(VALUE mod, ID id)
 	    DATA_PTR(val) = 0;
 	    st_free_table(tbl);
 	    id = autoload;
-#if WITH_OBJC
 	    CFDictionaryRemoveValue(iv_dict, (const void *)id);
-#else
-	    if (st_delete(RCLASS_IV_TBL(mod), (st_data_t*)&id, &val)) {
-		rb_gc_force_recycle(val);
-	    }
-#endif
 	}
     }
 
@@ -1970,7 +1497,6 @@ autoload_file(VALUE mod, ID id)
     struct st_table *tbl;
     st_data_t load;
 
-#if WITH_OBJC
     CFMutableDictionaryRef iv_dict = rb_class_ivar_dict(mod);
     assert(iv_dict != NULL);
     if (!CFDictionaryGetValueIfPresent((CFDictionaryRef)iv_dict, 
@@ -1978,12 +1504,6 @@ autoload_file(VALUE mod, ID id)
 	|| (tbl = check_autoload_table(val)) == NULL
 	|| !st_lookup(tbl, id, &load))
 	return Qnil;
-#else
-    if (!st_lookup(RCLASS_IV_TBL(mod), autoload, &val) ||
-	!(tbl = check_autoload_table(val)) || !st_lookup(tbl, id, &load)) {
-	return Qnil;
-    }
-#endif
     file = ((NODE *)load)->nd_lit;
     Check_Type(file, T_STRING);
     if (RSTRING_LEN(file) == 0) {
@@ -1999,13 +1519,7 @@ autoload_file(VALUE mod, ID id)
 	DATA_PTR(val) = 0;
 	st_free_table(tbl);
 	id = autoload;
-#if WITH_OBJC
 	CFDictionaryRemoveValue(iv_dict, (const void *)id);
-#else
-	if (st_delete(RCLASS_IV_TBL(mod), (st_data_t*)&id, &val)) {
-	    rb_gc_force_recycle(val);
-	}
-#endif
     }
     return Qnil;
 }
@@ -2013,7 +1527,6 @@ autoload_file(VALUE mod, ID id)
 VALUE
 rb_autoload_p(VALUE mod, ID id)
 {
-#if WITH_OBJC
     CFDictionaryRef iv_dict = (CFDictionaryRef)rb_class_ivar_dict(mod);
     VALUE val;
 
@@ -2021,14 +1534,6 @@ rb_autoload_p(VALUE mod, ID id)
 	|| !CFDictionaryGetValueIfPresent(iv_dict, (const void *)id, (const void **)&val)
 	|| val != Qundef)
 	return Qnil;
-#else
-    struct st_table *tbl = RCLASS_IV_TBL(mod);
-    VALUE val;
-
-    if (!tbl || !st_lookup(tbl, id, &val) || val != Qundef) {
-	return Qnil;
-    }
-#endif
     return autoload_file(mod, id);
 }
 
@@ -2041,13 +1546,9 @@ rb_const_get_0(VALUE klass, ID id, int exclude, int recurse)
     tmp = klass;
   retry:
     while (RTEST(tmp)) {
-#if WITH_OBJC
 	CFDictionaryRef iv_dict;
 	while ((iv_dict = rb_class_ivar_dict(tmp)) != NULL
 	       && CFDictionaryGetValueIfPresent(iv_dict, (const void *)id, (const void **)&value)) {
-#else
-	while (RCLASS_IV_TBL(tmp) && st_lookup(RCLASS_IV_TBL(tmp),id,&value)) {
-#endif
 	    if (value == Qundef) {
 		if (!RTEST(rb_autoload_load(tmp, id))) break;
 		continue;
@@ -2056,23 +1557,19 @@ rb_const_get_0(VALUE klass, ID id, int exclude, int recurse)
 		rb_warn("toplevel constant %s referenced by %s::%s",
 			rb_id2name(id), rb_class2name(klass), rb_id2name(id));
 	    }
-#if WITH_OBJC
-	    value = rb_objc_resolve_const_value(value, klass, id);
-#endif
+	    value = rb_vm_resolve_const_value(value, klass, id);
 	    return value;
 	}
 	if (!recurse && klass != rb_cObject) break;
-#if WITH_OBJC
 	VALUE inc_mods = rb_attr_get(tmp, idIncludedModules);
 	if (inc_mods != Qnil) {
 	    int i, count = RARRAY_LEN(inc_mods);
 	    for (i = 0; i < count; i++) {
 		iv_dict = rb_class_ivar_dict(RARRAY_AT(inc_mods, i));
 		if (CFDictionaryGetValueIfPresent(iv_dict, (const void *)id, (const void **)&value))
-		    return rb_objc_resolve_const_value(value, klass, id);
+		    return rb_vm_resolve_const_value(value, klass, id);
 	    }
 	}
-#endif
 	tmp = RCLASS_SUPER(tmp);
     }
     if (!exclude && !mod_retry && BUILTIN_TYPE(klass) == T_MODULE) {
@@ -2081,28 +1578,25 @@ rb_const_get_0(VALUE klass, ID id, int exclude, int recurse)
 	goto retry;
     }
 
-#if WITH_OBJC
-    {
-      /* Classes are typically pre-loaded by Kernel#framework and imported by
-       * rb_objc_resolve_const_value(), but it is still useful to keep the
-       * dynamic import facility, because someone in the Objective-C world may
-       * dynamically define classes at runtime (like ScriptingBridge.framework).
-       *
-       * Note that objc_getClass does _not_ honor namespaces. Consider:
-       *
-       *  module Namespace
-       *    class RubyClass; end
-       *  end
-       *
-       * In this case objc_getClass will happily return the Namespace::RubyClass
-       * object, which is ok but _not_ when trying to find a Ruby class. So we
-       * test whether or not the found class is a pure Ruby class/module or not.
-       */
-      Class k = (Class)objc_getClass(rb_id2name(id));
-      if (k != NULL && !RCLASS_RUBY(k))
-          return (VALUE)k;
+    /* Classes are typically pre-loaded by Kernel#framework but it is still
+     * useful to keep the dynamic import facility, because someone in the
+     * Objective-C world may dynamically define classes at runtime (like
+     * ScriptingBridge.framework).
+     *
+     * Note that objc_getClass does _not_ honor namespaces. Consider:
+     *
+     *  module Namespace
+     *    class RubyClass; end
+     *  end
+     *
+     * In this case objc_getClass will happily return the Namespace::RubyClass
+     * object, which is ok but _not_ when trying to find a Ruby class. So we
+     * test whether or not the found class is a pure Ruby class/module or not.
+     */
+    Class k = (Class)objc_getClass(rb_id2name(id));
+    if (k != NULL && !RCLASS_RUBY(k)) {
+	return (VALUE)k;
     }
-#endif
 
     return const_missing(klass, id);
 }
@@ -2140,22 +1634,19 @@ rb_mod_remove_const(VALUE mod, VALUE name)
     ID id = rb_to_id(name);
     VALUE val;
 
-    rb_vm_change_state();
-
     if (!rb_is_const_id(id)) {
 	rb_name_error(id, "`%s' is not allowed as a constant name", rb_id2name(id));
     }
-    if (!OBJ_TAINTED(mod) && rb_safe_level() >= 4)
+    if (!OBJ_TAINTED(mod) && rb_safe_level() >= 4) {
 	rb_raise(rb_eSecurityError, "Insecure: can't remove constant");
-    if (OBJ_FROZEN(mod)) rb_error_frozen("class/module");
+    }
+    if (OBJ_FROZEN(mod)) {
+	rb_error_frozen("class/module");
+    }
 
-#if WITH_OBJC
     CFMutableDictionaryRef iv_dict = rb_class_ivar_dict(mod);
     if (iv_dict != NULL && CFDictionaryGetValueIfPresent((CFDictionaryRef)iv_dict, (const void *)id, (const void **)&val)) {
 	CFDictionaryRemoveValue(iv_dict, (const void *)id);
-#else	
-    if (RCLASS_IV_TBL(mod) && st_delete(RCLASS_IV_TBL(mod), (st_data_t*)&id, &val)) {
-#endif
 	if (val == Qundef) {
 	    autoload_delete(mod, id);
 	    val = Qnil;
@@ -2189,15 +1680,10 @@ rb_mod_const_at(VALUE mod, void *data)
     if (!tbl) {
 	tbl = st_init_numtable();
     }
-#if WITH_OBJC
     CFMutableDictionaryRef iv_dict = rb_class_ivar_dict(mod);
-    if (iv_dict != NULL)
+    if (iv_dict != NULL) {
 	ivar_dict_foreach((VALUE)iv_dict, sv_i, (VALUE)tbl);
-#else
-    if (RCLASS_IV_TBL(mod)) {
-	st_foreach_safe(RCLASS_IV_TBL(mod), sv_i, (st_data_t)tbl);
     }
-#endif
     return tbl;
 }
 
@@ -2208,8 +1694,12 @@ rb_mod_const_of(VALUE mod, void *data)
     for (;;) {
 	data = rb_mod_const_at(tmp, data);
 	tmp = RCLASS_SUPER(tmp);
-	if (!tmp) break;
-	if (tmp == rb_cObject && mod != rb_cObject) break;
+	if (tmp == 0) {
+	    break;
+	}
+	if (tmp == rb_cObject && mod != rb_cObject) {
+	    break;
+	}
     }
     return data;
 }
@@ -2227,7 +1717,9 @@ rb_const_list(void *data)
     st_table *tbl = data;
     VALUE ary;
 
-    if (!tbl) return rb_ary_new2(0);
+    if (tbl == NULL) {
+	return rb_ary_new2(0);
+    }
     ary = rb_ary_new2(tbl->num_entries);
     st_foreach_safe(tbl, list_i, ary);
     st_free_table(tbl);
@@ -2251,7 +1743,7 @@ rb_const_list(void *data)
  */
 
 VALUE
-rb_mod_constants(int argc, VALUE *argv, VALUE mod)
+rb_mod_constants(VALUE mod, SEL sel, int argc, VALUE *argv)
 {
     VALUE inherit;
     st_table *tbl;
@@ -2280,18 +1772,17 @@ rb_const_defined_0(VALUE klass, ID id, int exclude, int recurse)
     tmp = klass;
   retry:
     while (tmp) {
-#if WITH_OBJC
 	CFDictionaryRef iv_dict = rb_class_ivar_dict(tmp);
 	if (iv_dict != NULL && CFDictionaryGetValueIfPresent(iv_dict, 
 	    (const void *)id, (const void **)&value)) {
-#else
-	if (RCLASS_IV_TBL(tmp) && st_lookup(RCLASS_IV_TBL(tmp), id, &value)) {
-#endif
-	    if (value == Qundef && NIL_P(autoload_file(klass, id)))
+	    if (value == Qundef && NIL_P(autoload_file(klass, id))) {
 		return Qfalse;
+	    }
 	    return Qtrue;
 	}
-	if (!recurse && klass != rb_cObject) break;
+	if (!recurse && klass != rb_cObject) {
+	    break;
+	}
 	tmp = RCLASS_SUPER(tmp);
     }
     if (!exclude && !mod_retry && BUILTIN_TYPE(klass) == T_MODULE) {
@@ -2325,8 +1816,9 @@ mod_av_set(VALUE klass, ID id, VALUE val, int isconst)
 {
     const char *dest = isconst ? "constant" : "class variable";
 
-    if (!OBJ_TAINTED(klass) && rb_safe_level() >= 4)
+    if (!OBJ_TAINTED(klass) && rb_safe_level() >= 4) {
       rb_raise(rb_eSecurityError, "Insecure: can't set %s", dest);
+    }
     if (OBJ_FROZEN(klass)) {
 	if (BUILTIN_TYPE(klass) == T_MODULE) {
 	    rb_error_frozen("module");
@@ -2335,38 +1827,23 @@ mod_av_set(VALUE klass, ID id, VALUE val, int isconst)
 	    rb_error_frozen("class");
 	}
     }
-#if WITH_OBJC
     CFMutableDictionaryRef iv_dict = rb_class_ivar_dict_or_create(klass);
-#else
-    if (!RCLASS_IV_TBL(klass)) {
-	GC_WB(&RCLASS_IV_TBL(klass), st_init_numtable());
-    }
-    else
-#endif
     if (isconst) {
 	VALUE value = Qfalse;
 
-#if WITH_OBJC
 	if (CFDictionaryGetValueIfPresent((CFDictionaryRef)iv_dict, (const void *)id, (const void **)&value)) {
-#else
-	if (st_lookup(RCLASS_IV_TBL(klass), id, &value)) {
-#endif
-	    if (value == Qundef)
-	      autoload_delete(klass, id);
-	    else
-	      rb_warn("already initialized %s %s", dest, rb_id2name(id));
+	    if (value == Qundef) {
+		autoload_delete(klass, id);
+	    }
+	    else {
+		rb_warn("already initialized %s %s", dest, rb_id2name(id));
+	    }
 	}
     }
 
-    if (isconst) {
-	rb_vm_change_state();
-    }
-#if WITH_OBJC
     DLOG("CONS", "%s::%s <- %p", class_getName((Class)klass), rb_id2name(id), (void *)val);
     CFDictionarySetValue(iv_dict, (const void *)id, (const void *)val);
-#else
-    st_insert(RCLASS_IV_TBL(klass), id, val);
-#endif
+    rb_vm_const_is_defined(id);
 }
 
 void
@@ -2407,11 +1884,7 @@ original_module(VALUE c)
     return c;
 }
 
-#if WITH_OBJC
-# define IV_LOOKUP(k,i,v) ((iv_dict = rb_class_ivar_dict(k)) != NULL && CFDictionaryGetValueIfPresent((CFDictionaryRef)iv_dict, (const void *)i, (const void **)(v)))
-#else
-# define IV_LOOKUP(k,i,v) (RCLASS_IV_TBL(k) && st_lookup(RCLASS_IV_TBL(k),(i),(v)))
-#endif
+#define IV_LOOKUP(k,i,v) ((iv_dict = rb_class_ivar_dict(k)) != NULL && CFDictionaryGetValueIfPresent((CFDictionaryRef)iv_dict, (const void *)i, (const void **)(v)))
 
 #define CVAR_LOOKUP(v,r) do {\
     if (IV_LOOKUP(klass, id, v)) {\
@@ -2444,15 +1917,12 @@ void
 rb_cvar_set(VALUE klass, ID id, VALUE val)
 {
     VALUE tmp, front = 0, target = 0;
-#if WITH_OBJC
     CFMutableDictionaryRef iv_dict;
-#endif
 
     tmp = klass;
-#if WITH_OBJC
-    if (!RCLASS_META(klass)) 
+    if (!RCLASS_META(klass)) { 
 	tmp = klass = *(VALUE *)klass;
-#endif
+    }
     CVAR_LOOKUP(0, {if (!front) front = klass; target = klass;});
     if (target) {
 	if (front && target != front) {
@@ -2464,11 +1934,7 @@ rb_cvar_set(VALUE klass, ID id, VALUE val)
 			   rb_class2name(original_module(target)));
 	    }
 	    if (TYPE(front) == T_CLASS) {
-#if WITH_OBJC
 		CFDictionaryRemoveValue(rb_class_ivar_dict(front), (const void *)did);
-#else
-		st_delete(RCLASS_IV_TBL(front),&did,0);
-#endif
 	    }
 	}
     }
@@ -2479,22 +1945,24 @@ rb_cvar_set(VALUE klass, ID id, VALUE val)
 }
 
 VALUE
-rb_cvar_get(VALUE klass, ID id)
+rb_cvar_get2(VALUE klass, ID id, bool check)
 {
     VALUE value, tmp, front = 0, target = 0;
-#if WITH_OBJC
     CFMutableDictionaryRef iv_dict;
-#endif
 
     tmp = klass;
-#if WITH_OBJC
-    if (!RCLASS_META(klass)) 
+    if (!RCLASS_META(klass)) {
 	tmp = klass = *(VALUE *)klass;
-#endif
+    }
     CVAR_LOOKUP(&value, {if (!front) front = klass; target = klass;});
     if (!target) {
-	rb_name_error(id,"uninitialized class variable %s in %s",
-		      rb_id2name(id), rb_class2name(tmp));
+	if (check) {
+	    rb_name_error(id,"uninitialized class variable %s in %s",
+		    rb_id2name(id), rb_class2name(tmp));
+	}
+	else {
+	    return Qnil;
+	}
     }
     if (front && target != front) {
 	ID did = id;
@@ -2505,27 +1973,28 @@ rb_cvar_get(VALUE klass, ID id)
 		       rb_class2name(original_module(target)));
 	}
 	if (BUILTIN_TYPE(front) == T_CLASS) {
-#if WITH_OBJC
 	    CFDictionaryRemoveValue(rb_class_ivar_dict(front), (const void *)did);
-#else
-	    st_delete(RCLASS_IV_TBL(front),&did,0);
-#endif
 	}
     }
     return value;
 }
 
 VALUE
+rb_cvar_get(VALUE klass, ID id)
+{
+    return rb_cvar_get2(klass, id, true);
+}
+
+VALUE
 rb_cvar_defined(VALUE klass, ID id)
 {
-#if WITH_OBJC
     CFMutableDictionaryRef iv_dict;
-#endif
-    if (!klass) return Qfalse;
-#if WITH_OBJC
-    if (!RCLASS_META(klass)) 
+    if (!klass) {
+	return Qfalse;
+    }
+    if (!RCLASS_META(klass)) {
 	klass = *(VALUE *)klass;
-#endif
+    }
     CVAR_LOOKUP(0,return Qtrue);
     return Qfalse;
 }
@@ -2590,19 +2059,16 @@ cv_i(ID key, VALUE value, VALUE ary)
  */
 
 VALUE
-rb_mod_class_variables(VALUE obj)
+rb_mod_class_variables(VALUE obj, SEL sel)
 {
-    VALUE ary = rb_ary_new();
-
-#if WITH_OBJC
-    CFMutableDictionaryRef iv_dict = rb_class_ivar_dict(obj);
-    if (iv_dict != NULL)
-	ivar_dict_foreach((VALUE)iv_dict, cv_i, (VALUE)ary);
-#else
-    if (RCLASS_IV_TBL(obj)) {
-	st_foreach_safe(RCLASS_IV_TBL(obj), cv_i, ary);
+    if (!RCLASS_META(obj)) {
+	obj = *(VALUE *)obj;
     }
-#endif
+    VALUE ary = rb_ary_new();
+    CFMutableDictionaryRef iv_dict = rb_class_ivar_dict(obj);
+    if (iv_dict != NULL) {
+	ivar_dict_foreach((VALUE)iv_dict, cv_i, (VALUE)ary);
+    }
     return ary;
 }
 
@@ -2627,7 +2093,7 @@ rb_mod_class_variables(VALUE obj)
  */
 
 VALUE
-rb_mod_remove_cvar(VALUE mod, VALUE name)
+rb_mod_remove_cvar(VALUE mod, SEL sel, VALUE name)
 {
     ID id = rb_to_id(name);
     VALUE val;
@@ -2635,21 +2101,18 @@ rb_mod_remove_cvar(VALUE mod, VALUE name)
     if (!rb_is_class_id(id)) {
 	rb_name_error(id, "wrong class variable name %s", rb_id2name(id));
     }
-    if (!OBJ_TAINTED(mod) && rb_safe_level() >= 4)
+    if (!OBJ_TAINTED(mod) && rb_safe_level() >= 4) {
 	rb_raise(rb_eSecurityError, "Insecure: can't remove class variable");
-    if (OBJ_FROZEN(mod)) rb_error_frozen("class/module");
+    }
+    if (OBJ_FROZEN(mod)) {
+	rb_error_frozen("class/module");
+    }
 
-#if WITH_OBJC
     CFMutableDictionaryRef iv_dict = rb_class_ivar_dict(mod);
     if (iv_dict != NULL && CFDictionaryGetValueIfPresent((CFDictionaryRef)iv_dict, (const void *)id, (const void **)&val)) {
 	CFDictionaryRemoveValue(iv_dict, (const void *)id);
 	return val;
     }
-#else
-    if (RCLASS_IV_TBL(mod) && st_delete(RCLASS_IV_TBL(mod), (st_data_t*)&id, &val)) {
-	return val;
-    }
-#endif
     if (rb_cvar_defined(mod, id)) {
 	rb_name_error(id, "cannot remove %s for %s",
 		 rb_id2name(id), rb_class2name(mod));

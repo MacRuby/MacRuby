@@ -16,10 +16,9 @@
 #include <stdio.h>
 
 #include "objc.h"
-
-#if defined(__FreeBSD__) && __FreeBSD__ < 4
-#include <floatingpoint.h>
-#endif
+#include <ruby/node.h>
+#include "vm.h"
+#include "id.h"
 
 #ifdef HAVE_FLOAT_H
 #include <float.h>
@@ -82,16 +81,12 @@ round(double x)
 }
 #endif
 
-static ID id_coerce, id_to_i, id_eq;
-#if WITH_OBJC
-static ID id_spaceship, id_pow, id_shl, id_shr;
-#endif
+static SEL sel_coerce;
+static ID id_to_i, id_eq;
 
 VALUE rb_cNumeric;
-#if WITH_OBJC
 VALUE rb_cCFNumber;
 VALUE rb_cNSNumber;
-#endif
 VALUE rb_cFloat;
 VALUE rb_cInteger;
 VALUE rb_cFixnum;
@@ -99,9 +94,23 @@ VALUE rb_cFixnum;
 VALUE rb_eZeroDivError;
 VALUE rb_eFloatDomainError;
 
-#if WITH_OBJC
 static CFMutableDictionaryRef fixnum_dict = NULL;
 static struct RFixnum *fixnum_cache = NULL;
+
+static inline VALUE
+rb_box_fixfloat0(double v)
+{
+    NEWOBJ(val, struct RFloat);
+    OBJSETUP(val, rb_cFloat, T_FLOAT);
+    val->float_value = v;
+    return (VALUE)val;
+}
+
+VALUE
+rb_box_fixfloat(VALUE fixfloat)
+{
+    return rb_box_fixfloat0(NUM2DBL(fixfloat));
+}
 
 VALUE
 rb_box_fixnum(VALUE fixnum)
@@ -136,7 +145,6 @@ rb_box_fixnum(VALUE fixnum)
 
     return (VALUE)val;
 }
-#endif
 
 void
 rb_num_zerodiv(void)
@@ -162,7 +170,7 @@ rb_num_zerodiv(void)
  */
 
 static VALUE
-num_coerce(VALUE x, VALUE y)
+num_coerce(VALUE x, SEL sel, VALUE y)
 {
     if (CLASS_OF(x) == CLASS_OF(y))
 	return rb_assoc_new(y, x);
@@ -172,7 +180,7 @@ num_coerce(VALUE x, VALUE y)
 static VALUE
 coerce_body(VALUE *x)
 {
-    return rb_funcall(x[1], id_coerce, 1, x[0]);
+    return rb_vm_call(x[1], sel_coerce, 1, &x[0], false);
 }
 
 static VALUE
@@ -182,7 +190,7 @@ coerce_rescue(VALUE *x)
 
     rb_raise(rb_eTypeError, "%s can't be coerced into %s",
 	     rb_special_const_p(x[1])?
-	     RSTRING_BYTEPTR(v):
+	     RSTRING_PTR(v):
 	     rb_obj_classname(x[1]),
 	     rb_obj_classname(x[0]));
     return Qnil;		/* dummy */
@@ -225,12 +233,12 @@ rb_num_coerce_cmp(VALUE x, VALUE y, ID func)
 }
 
 VALUE
-rb_num_coerce_relop(VALUE x, VALUE y, ID func)
+rb_num_coerce_relop(VALUE x, VALUE y, SEL sel)
 {
     VALUE c, x0 = x, y0 = y;
 
     if (!do_coerce(&x, &y, Qfalse) ||
-	NIL_P(c = rb_funcall(x, func, 1, y))) {
+	NIL_P(c = rb_vm_call(x, sel, 1, &y, false))) {
 	rb_cmperr(x0, y0);
 	return Qnil;		/* not reached */
     }
@@ -243,7 +251,7 @@ rb_num_coerce_relop(VALUE x, VALUE y, ID func)
  */
 
 static VALUE
-num_sadded(VALUE x, VALUE name)
+num_sadded(VALUE x, SEL sel, VALUE name)
 {
     /* ruby_frame = ruby_frame->prev; */ /* pop frame for "singleton_method_added" */
     /* Numerics should be values; singleton_methods should not be added to them */
@@ -256,7 +264,7 @@ num_sadded(VALUE x, VALUE name)
 
 /* :nodoc: */
 static VALUE
-num_init_copy(VALUE x, VALUE y)
+num_init_copy(VALUE x, SEL sel, VALUE y)
 {
     /* Numerics are immutable values, which should not be copied */
     rb_raise(rb_eTypeError, "can't copy %s", rb_obj_classname(x));
@@ -271,7 +279,7 @@ num_init_copy(VALUE x, VALUE y)
  */
 
 static VALUE
-num_uplus(VALUE num)
+num_uplus(VALUE num, SEL sel)
 {
     return num;
 }
@@ -284,7 +292,7 @@ num_uplus(VALUE num)
  */
 
 static VALUE
-num_uminus(VALUE num)
+num_uminus(VALUE num, SEL sel)
 {
     VALUE zero;
 
@@ -302,7 +310,7 @@ num_uminus(VALUE num)
  */
 
 static VALUE
-num_quo(VALUE x, VALUE y)
+num_quo(VALUE x, SEL sel, VALUE y)
 {
     return rb_funcall(rb_rational_raw1(x), '/', 1, y);
 }
@@ -316,13 +324,13 @@ num_quo(VALUE x, VALUE y)
  */
 
 static VALUE
-num_fdiv(VALUE x, VALUE y)
+num_fdiv(VALUE x, SEL sel, VALUE y)
 {
     return rb_funcall(rb_Float(x), '/', 1, y);
 }
 
 
-static VALUE num_floor(VALUE num);
+static VALUE num_floor(VALUE num, SEL sel);
 
 /*
  *  call-seq:
@@ -334,10 +342,10 @@ static VALUE num_floor(VALUE num);
  */
 
 static VALUE
-num_div(VALUE x, VALUE y)
+num_div(VALUE x, SEL sel, VALUE y)
 {
     if (rb_equal(INT2FIX(0), y)) rb_num_zerodiv();
-    return num_floor(rb_funcall(x, '/', 1, y));
+    return num_floor(rb_funcall(x, '/', 1, y), 0);
 }
 
 
@@ -383,9 +391,9 @@ num_div(VALUE x, VALUE y)
  */
 
 static VALUE
-num_divmod(VALUE x, VALUE y)
+num_divmod(VALUE x, SEL sel, VALUE y)
 {
-    return rb_assoc_new(num_div(x, y), rb_funcall(x, '%', 1, y));
+    return rb_assoc_new(num_div(x, 0, y), rb_funcall(x, '%', 1, y));
 }
 
 /*
@@ -397,9 +405,11 @@ num_divmod(VALUE x, VALUE y)
  */
 
 static VALUE
-num_modulo(VALUE x, VALUE y)
+num_modulo(VALUE x, SEL sel, VALUE y)
 {
-    return rb_funcall(x, '%', 1, y);
+      return rb_funcall(x, '-', 1,
+              rb_funcall(y, '*', 1,
+              rb_funcall(x, rb_intern("div"), 1, y)));
 }
 
 /*
@@ -415,7 +425,7 @@ num_modulo(VALUE x, VALUE y)
  */
 
 static VALUE
-num_remainder(VALUE x, VALUE y)
+num_remainder(VALUE x, SEL sel, VALUE y)
 {
     VALUE z = rb_funcall(x, '%', 1, y);
 
@@ -431,6 +441,20 @@ num_remainder(VALUE x, VALUE y)
 
 /*
  *  call-seq:
+ *     num.real?  ->  true or false
+ *
+ *  Returns <code>true</code> if <i>num</i> is a <code>Real</code>
+ *  (i.e. non <code>Complex</code>).
+ */
+
+static VALUE
+num_real_p(VALUE num, SEL sel)
+{
+    return Qtrue;
+}
+
+/*
+ *  call-seq:
  *     num.scalar? -> true or false
  *
  *  Returns <code>true</code> if <i>num</i> is an <code>Scalar</code>
@@ -438,7 +462,7 @@ num_remainder(VALUE x, VALUE y)
  */
 
 static VALUE
-num_scalar_p(VALUE num)
+num_scalar_p(VALUE num, SEL sel)
 {
     return Qtrue;
 }
@@ -452,7 +476,7 @@ num_scalar_p(VALUE num)
  */
 
 static VALUE
-num_int_p(VALUE num)
+num_int_p(VALUE num, SEL sel)
 {
     return Qfalse;
 }
@@ -469,7 +493,7 @@ num_int_p(VALUE num)
  */
 
 static VALUE
-num_abs(VALUE num)
+num_abs(VALUE num, SEL sel)
 {
     if (RTEST(rb_funcall(num, '<', 1, INT2FIX(0)))) {
 	return rb_funcall(num, rb_intern("-@"), 0);
@@ -486,7 +510,7 @@ num_abs(VALUE num)
  */
 
 static VALUE
-num_zero_p(VALUE num)
+num_zero_p(VALUE num, SEL sel)
 {
     if (rb_equal(num, INT2FIX(0))) {
 	return Qtrue;
@@ -508,7 +532,7 @@ num_zero_p(VALUE num)
  */
 
 static VALUE
-num_nonzero_p(VALUE num)
+num_nonzero_p(VALUE num, SEL sel)
 {
     if (RTEST(rb_funcall(num, rb_intern("zero?"), 0, 0))) {
 	return Qnil;
@@ -525,7 +549,7 @@ num_nonzero_p(VALUE num)
  */
 
 static VALUE
-num_to_int(VALUE num)
+num_to_int(VALUE num, SEL sel)
 {
     return rb_funcall(num, id_to_i, 0, 0);
 }
@@ -542,11 +566,7 @@ num_to_int(VALUE num)
 VALUE
 rb_float_new(double d)
 {
-    NEWOBJ(flt, struct RFloat);
-    OBJSETUP(flt, rb_cFloat, T_FLOAT);
-
-    flt->float_value = d;
-    return (VALUE)flt;
+    return DBL2FIXFLOAT(d);
 }
 
 /*
@@ -560,7 +580,7 @@ rb_float_new(double d)
  */
 
 static VALUE
-flo_to_s(VALUE flt)
+flo_to_s(VALUE flt, SEL sel)
 {
     char buf[32];
     double value = RFLOAT_VALUE(flt);
@@ -593,7 +613,7 @@ flo_to_s(VALUE flt)
  */
 
 static VALUE
-flo_coerce(VALUE x, VALUE y)
+flo_coerce(VALUE x, SEL sel, VALUE y)
 {
     return rb_assoc_new(rb_Float(y), x);
 }
@@ -606,7 +626,7 @@ flo_coerce(VALUE x, VALUE y)
  */
 
 static VALUE
-flo_uminus(VALUE flt)
+flo_uminus(VALUE flt, SEL sel)
 {
     return DOUBLE2NUM(-RFLOAT_VALUE(flt));
 }
@@ -620,7 +640,7 @@ flo_uminus(VALUE flt)
  */
 
 static VALUE
-flo_plus(VALUE x, VALUE y)
+flo_plus(VALUE x, SEL sel, VALUE y)
 {
     switch (TYPE(y)) {
       case T_FIXNUM:
@@ -643,7 +663,7 @@ flo_plus(VALUE x, VALUE y)
  */
 
 static VALUE
-flo_minus(VALUE x, VALUE y)
+flo_minus(VALUE x, SEL sel, VALUE y)
 {
     switch (TYPE(y)) {
       case T_FIXNUM:
@@ -666,7 +686,7 @@ flo_minus(VALUE x, VALUE y)
  */
 
 static VALUE
-flo_mul(VALUE x, VALUE y)
+flo_mul(VALUE x, SEL sel, VALUE y)
 {
     switch (TYPE(y)) {
       case T_FIXNUM:
@@ -689,7 +709,7 @@ flo_mul(VALUE x, VALUE y)
  */
 
 static VALUE
-flo_div(VALUE x, VALUE y)
+flo_div(VALUE x, SEL sel, VALUE y)
 {
     long f_y;
     double d;
@@ -709,7 +729,7 @@ flo_div(VALUE x, VALUE y)
 }
 
 static VALUE
-flo_quo(VALUE x, VALUE y)
+flo_quo(VALUE x, SEL sel, VALUE y)
 {
     return rb_funcall(x, '/', 1, y);
 }
@@ -754,7 +774,7 @@ flodivmod(double x, double y, double *divp, double *modp)
  */
 
 static VALUE
-flo_mod(VALUE x, VALUE y)
+flo_mod(VALUE x, SEL sel, VALUE y)
 {
     double fy, mod;
 
@@ -799,7 +819,7 @@ dbl2ival(double d)
  */
 
 static VALUE
-flo_divmod(VALUE x, VALUE y)
+flo_divmod(VALUE x, SEL sel, VALUE y)
 {
     double fy, div, mod;
     volatile VALUE a, b;
@@ -832,7 +852,7 @@ flo_divmod(VALUE x, VALUE y)
  */
 
 static VALUE
-flo_pow(VALUE x, VALUE y)
+flo_pow(VALUE x, SEL sel, VALUE y)
 {
     switch (TYPE(y)) {
       case T_FIXNUM:
@@ -859,7 +879,7 @@ flo_pow(VALUE x, VALUE y)
  */
 
 static VALUE
-num_eql(VALUE x, VALUE y)
+num_eql(VALUE x, SEL sel, VALUE y)
 {
     if (TYPE(x) != TYPE(y)) return Qfalse;
 
@@ -875,7 +895,7 @@ num_eql(VALUE x, VALUE y)
  */
 
 static VALUE
-num_cmp(VALUE x, VALUE y)
+num_cmp(VALUE x, SEL sel, VALUE y)
 {
     if (x == y) return INT2FIX(0);
     return Qnil;
@@ -901,7 +921,7 @@ num_equal(VALUE x, VALUE y)
  */
 
 static VALUE
-flo_eq(VALUE x, VALUE y)
+flo_eq(VALUE x, SEL sel, VALUE y)
 {
     volatile double a, b;
 
@@ -932,7 +952,7 @@ flo_eq(VALUE x, VALUE y)
  */
 
 static VALUE
-flo_hash(VALUE num)
+flo_hash(VALUE num, SEL sel)
 {
     double d;
     int hash;
@@ -962,7 +982,7 @@ rb_dbl_cmp(double a, double b)
  */
 
 static VALUE
-flo_cmp(VALUE x, VALUE y)
+flo_cmp(VALUE x, SEL sel, VALUE y)
 {
     double a, b;
 
@@ -994,7 +1014,7 @@ flo_cmp(VALUE x, VALUE y)
  */
 
 static VALUE
-flo_gt(VALUE x, VALUE y)
+flo_gt(VALUE x, SEL sel, VALUE y)
 {
     double a, b;
 
@@ -1014,7 +1034,7 @@ flo_gt(VALUE x, VALUE y)
 	break;
 
       default:
-	return rb_num_coerce_relop(x, y, '>');
+	return rb_num_coerce_relop(x, y, selGT);
     }
     if (isnan(a)) return Qfalse;
     return (a > b)?Qtrue:Qfalse;
@@ -1029,7 +1049,7 @@ flo_gt(VALUE x, VALUE y)
  */
 
 static VALUE
-flo_ge(VALUE x, VALUE y)
+flo_ge(VALUE x, SEL sel, VALUE y)
 {
     double a, b;
 
@@ -1049,7 +1069,7 @@ flo_ge(VALUE x, VALUE y)
 	break;
 
       default:
-	return rb_num_coerce_relop(x, y, rb_intern(">="));
+	return rb_num_coerce_relop(x, y, selGE);
     }
     if (isnan(a)) return Qfalse;
     return (a >= b)?Qtrue:Qfalse;
@@ -1063,7 +1083,7 @@ flo_ge(VALUE x, VALUE y)
  */
 
 static VALUE
-flo_lt(VALUE x, VALUE y)
+flo_lt(VALUE x, SEL sel, VALUE y)
 {
     double a, b;
 
@@ -1083,7 +1103,7 @@ flo_lt(VALUE x, VALUE y)
 	break;
 
       default:
-	return rb_num_coerce_relop(x, y, '<');
+	return rb_num_coerce_relop(x, y, selLT);
     }
     if (isnan(a)) return Qfalse;
     return (a < b)?Qtrue:Qfalse;
@@ -1098,7 +1118,7 @@ flo_lt(VALUE x, VALUE y)
  */
 
 static VALUE
-flo_le(VALUE x, VALUE y)
+flo_le(VALUE x, SEL sel, VALUE y)
 {
     double a, b;
 
@@ -1118,7 +1138,7 @@ flo_le(VALUE x, VALUE y)
 	break;
 
       default:
-	return rb_num_coerce_relop(x, y, rb_intern("<="));
+	return rb_num_coerce_relop(x, y, selLE);
     }
     if (isnan(a)) return Qfalse;
     return (a <= b)?Qtrue:Qfalse;
@@ -1136,7 +1156,7 @@ flo_le(VALUE x, VALUE y)
  */
 
 static VALUE
-flo_eql(VALUE x, VALUE y)
+flo_eql(VALUE x, SEL sel, VALUE y)
 {
     if (TYPE(y) == T_FLOAT) {
 	double a = RFLOAT_VALUE(x);
@@ -1156,7 +1176,7 @@ flo_eql(VALUE x, VALUE y)
  */
 
 static VALUE
-flo_to_f(VALUE num)
+flo_to_f(VALUE num, SEL sel)
 {
     return num;
 }
@@ -1173,7 +1193,7 @@ flo_to_f(VALUE num)
  */
 
 static VALUE
-flo_abs(VALUE flt)
+flo_abs(VALUE flt, SEL sel)
 {
     double val = fabs(RFLOAT_VALUE(flt));
     return DOUBLE2NUM(val);
@@ -1188,7 +1208,7 @@ flo_abs(VALUE flt)
  */
 
 static VALUE
-flo_zero_p(VALUE num)
+flo_zero_p(VALUE num, SEL sel)
 {
     if (RFLOAT_VALUE(num) == 0.0) {
 	return Qtrue;
@@ -1210,7 +1230,7 @@ flo_zero_p(VALUE num)
  */
 
 static VALUE
-flo_is_nan_p(VALUE num)
+flo_is_nan_p(VALUE num, SEL sel)
 {
     double value = RFLOAT_VALUE(num);
 
@@ -1230,7 +1250,7 @@ flo_is_nan_p(VALUE num)
  */
 
 static VALUE
-flo_is_infinite_p(VALUE num)
+flo_is_infinite_p(VALUE num, SEL sel)
 {
     double value = RFLOAT_VALUE(num);
 
@@ -1252,7 +1272,7 @@ flo_is_infinite_p(VALUE num)
  */
 
 static VALUE
-flo_is_finite_p(VALUE num)
+flo_is_finite_p(VALUE num, SEL sel)
 {
     double value = RFLOAT_VALUE(num);
 
@@ -1280,7 +1300,7 @@ flo_is_finite_p(VALUE num)
  */
 
 static VALUE
-flo_floor(VALUE num)
+flo_floor(VALUE num, SEL sel)
 {
     double f = floor(RFLOAT_VALUE(num));
     long val;
@@ -1306,7 +1326,7 @@ flo_floor(VALUE num)
  */
 
 static VALUE
-flo_ceil(VALUE num)
+flo_ceil(VALUE num, SEL sel)
 {
     double f = ceil(RFLOAT_VALUE(num));
     long val;
@@ -1331,7 +1351,7 @@ flo_ceil(VALUE num)
  */
 
 static VALUE
-flo_round(int argc, VALUE *argv, VALUE num)
+flo_round(VALUE num, SEL sel, int argc, VALUE *argv)
 {
     VALUE nd;
     double number, f;
@@ -1372,7 +1392,7 @@ flo_round(int argc, VALUE *argv, VALUE num)
  */
 
 static VALUE
-flo_truncate(VALUE num)
+flo_truncate(VALUE num, SEL sel)
 {
     double f = RFLOAT_VALUE(num);
     long val;
@@ -1387,7 +1407,6 @@ flo_truncate(VALUE num)
     return LONG2FIX(val);
 }
 
-
 /*
  *  call-seq:
  *     num.floor    => integer
@@ -1401,9 +1420,9 @@ flo_truncate(VALUE num)
  */
 
 static VALUE
-num_floor(VALUE num)
+num_floor(VALUE num, SEL sel)
 {
-    return flo_floor(rb_Float(num));
+    return flo_floor(rb_Float(num), 0);
 }
 
 
@@ -1423,9 +1442,9 @@ num_floor(VALUE num)
  */
 
 static VALUE
-num_ceil(VALUE num)
+num_ceil(VALUE num, SEL sel)
 {
-    return flo_ceil(rb_Float(num));
+    return flo_ceil(rb_Float(num), 0);
 }
 
 /*
@@ -1439,9 +1458,9 @@ num_ceil(VALUE num)
  */
 
 static VALUE
-num_round(int argc, VALUE* argv, VALUE num)
+num_round(VALUE num, SEL sel, int argc, VALUE* argv)
 {
-    return flo_round(argc, argv, rb_Float(num));
+    return flo_round(rb_Float(num), 0, argc, argv);
 }
 
 /*
@@ -1454,9 +1473,9 @@ num_round(int argc, VALUE* argv, VALUE num)
  */
 
 static VALUE
-num_truncate(VALUE num)
+num_truncate(VALUE num, SEL sel)
 {
-    return flo_truncate(rb_Float(num));
+    return flo_truncate(rb_Float(num), 0);
 }
 
 
@@ -1488,7 +1507,7 @@ num_truncate(VALUE num)
  */
 
 static VALUE
-num_step(int argc, VALUE *argv, VALUE from)
+num_step(VALUE from, SEL sel, int argc, VALUE *argv)
 {
     VALUE to, step;
 
@@ -1520,12 +1539,14 @@ num_step(int argc, VALUE *argv, VALUE from)
 	if (diff > 0) {
 	    while (i <= end) {
 		rb_yield(LONG2FIX(i));
+		RETURN_IF_BROKEN();
 		i += diff;
 	    }
 	}
 	else {
 	    while (i >= end) {
 		rb_yield(LONG2FIX(i));
+		RETURN_IF_BROKEN();
 		i += diff;
 	    }
 	}
@@ -1543,6 +1564,7 @@ num_step(int argc, VALUE *argv, VALUE from)
 	n = floor(n + err) + 1;
 	for (i=0; i<n; i++) {
 	    rb_yield(DOUBLE2NUM(i*unit+beg));
+	    RETURN_IF_BROKEN();
 	}
     }
     else {
@@ -1558,6 +1580,7 @@ num_step(int argc, VALUE *argv, VALUE from)
 	for (;;) {
 	    if (RTEST(rb_funcall(i, cmp, 1, to))) break;
 	    rb_yield(i);
+	    RETURN_IF_BROKEN();
 	    i = rb_funcall(i, '+', 1, step);
 	}
     }
@@ -1759,13 +1782,13 @@ rb_num2ull(VALUE val)
 #endif  /* HAVE_LONG_LONG */
 
 static VALUE
-num_numerator(VALUE num)
+num_numerator(VALUE num, SEL sel)
 {
     return rb_funcall(rb_Rational1(num), rb_intern("numerator"), 0);
 }
 
 static VALUE
-num_denominator(VALUE num)
+num_denominator(VALUE num, SEL sel)
 {
     return rb_funcall(rb_Rational1(num), rb_intern("denominator"), 0);
 }
@@ -1793,7 +1816,7 @@ num_denominator(VALUE num)
  */
 
 static VALUE
-int_to_i(VALUE num)
+int_to_i(VALUE num, SEL sel)
 {
     return num;
 }
@@ -1806,7 +1829,7 @@ int_to_i(VALUE num)
  */
 
 static VALUE
-int_int_p(VALUE num)
+int_int_p(VALUE num, SEL sel)
 {
     return Qtrue;
 }
@@ -1819,7 +1842,7 @@ int_int_p(VALUE num)
  */
 
 static VALUE
-int_odd_p(VALUE num)
+int_odd_p(VALUE num, SEL sel)
 {
     if (rb_funcall(num, '%', 1, INT2FIX(2)) != INT2FIX(0)) {
 	return Qtrue;
@@ -1835,7 +1858,7 @@ int_odd_p(VALUE num)
  */
 
 static VALUE
-int_even_p(VALUE num)
+int_even_p(VALUE num, SEL sel)
 {
     if (rb_funcall(num, '%', 1, INT2FIX(2)) == INT2FIX(0)) {
 	return Qtrue;
@@ -1855,7 +1878,7 @@ int_even_p(VALUE num)
  */
 
 static VALUE
-fix_succ(VALUE num)
+fix_succ(VALUE num, SEL sel)
 {
     long i = FIX2LONG(num) + 1;
     return LONG2NUM(i);
@@ -1873,7 +1896,7 @@ fix_succ(VALUE num)
  */
 
 static VALUE
-int_succ(VALUE num)
+int_succ(VALUE num, SEL sel)
 {
     if (FIXNUM_P(num)) {
 	long i = FIX2LONG(num) + 1;
@@ -1893,7 +1916,7 @@ int_succ(VALUE num)
  */
 
 static VALUE
-int_pred(VALUE num)
+int_pred(VALUE num, SEL sel)
 {
     if (FIXNUM_P(num)) {
 	long i = FIX2LONG(num) - 1;
@@ -1915,12 +1938,9 @@ int_pred(VALUE num)
  */
 
 static VALUE
-int_chr(int argc, VALUE *argv, VALUE num)
+int_chr(VALUE num, SEL sel, int argc, VALUE *argv)
 {
     char c;
-#if !WITH_OBJC
-    int n;
-#endif
     long i = NUM2LONG(num);
     rb_encoding *enc;
     VALUE str;
@@ -1928,9 +1948,6 @@ int_chr(int argc, VALUE *argv, VALUE num)
     switch (argc) {
       case 0:
 	if (i < 0 || 0xff < i) {
-#if !WITH_OBJC
-	  out_of_range:
-#endif
 	    rb_raise(rb_eRangeError, "%"PRIdVALUE " out of char range", i);
 	}
 	c = i;
@@ -1946,29 +1963,40 @@ int_chr(int argc, VALUE *argv, VALUE num)
 	rb_raise(rb_eArgError, "wrong number of arguments (%d for 0 or 1)", argc);
 	break;
     }
-#if WITH_OBJC
     enc = rb_to_encoding(argv[0]);
     str = rb_enc_str_new(&c, 1, enc);
-#else
-    enc = rb_to_encoding(argv[0]);
-    if (!enc) enc = rb_ascii8bit_encoding();
-    if (i < 0 || (n = rb_enc_codelen(i, enc)) <= 0) goto out_of_range;
-    str = rb_enc_str_new(0, n, enc);
-    rb_enc_mbcput(i, RSTRING_BYTEPTR(str), enc);
-#endif
     return str;
 }
 
 static VALUE
-int_numerator(VALUE num)
+int_numerator(VALUE num, SEL sel)
 {
     return num;
 }
 
 static VALUE
-int_denominator(VALUE num)
+int_denominator(VALUE num, SEL sel)
 {
     return INT2FIX(1);
+}
+
+/*
+ *  call-seq:
+ *     int.ord  ->  self
+ *
+ *  Returns the int itself.
+ *
+ *     ?a.ord    #=> 97
+ *
+ *  This method is intended for compatibility to
+ *  character constant in Ruby 1.9.
+ *  For example, ?a.ord returns 97 both in 1.8 and 1.9.
+ */
+
+static VALUE
+int_ord(VALUE num, SEL sel)
+{
+    return num;
 }
 
 /********************************************************************
@@ -1999,7 +2027,7 @@ int_denominator(VALUE num)
  */
 
 static VALUE
-rb_fix_induced_from(VALUE klass, VALUE x)
+rb_fix_induced_from(VALUE klass, SEL sel, VALUE x)
 {
     return rb_num2fix(x);
 }
@@ -2012,7 +2040,7 @@ rb_fix_induced_from(VALUE klass, VALUE x)
  */
 
 static VALUE
-rb_int_induced_from(VALUE klass, VALUE x)
+rb_int_induced_from(VALUE klass, SEL sel, VALUE x)
 {
     switch (TYPE(x)) {
       case T_FIXNUM:
@@ -2035,7 +2063,7 @@ rb_int_induced_from(VALUE klass, VALUE x)
  */
 
 static VALUE
-rb_flo_induced_from(VALUE klass, VALUE x)
+rb_flo_induced_from(VALUE klass, SEL sel, VALUE x)
 {
     switch (TYPE(x)) {
       case T_FIXNUM:
@@ -2058,7 +2086,7 @@ rb_flo_induced_from(VALUE klass, VALUE x)
  */
 
 static VALUE
-fix_uminus(VALUE num)
+fix_uminus(VALUE num, SEL sel)
 {
     return LONG2NUM(-FIX2LONG(num));
 }
@@ -2108,7 +2136,7 @@ rb_fix2str(VALUE x, int base)
  *
  */
 static VALUE
-fix_to_s(int argc, VALUE *argv, VALUE x)
+fix_to_s(VALUE x, SEL sel, int argc, VALUE *argv)
 {
     int base;
 
@@ -2133,7 +2161,7 @@ fix_to_s(int argc, VALUE *argv, VALUE x)
  */
 
 static VALUE
-fix_plus(VALUE x, VALUE y)
+fix_plus(VALUE x, SEL sel, VALUE y)
 {
     if (FIXNUM_P(y)) {
 	long a, b, c;
@@ -2166,7 +2194,7 @@ fix_plus(VALUE x, VALUE y)
  */
 
 static VALUE
-fix_minus(VALUE x, VALUE y)
+fix_minus(VALUE x, SEL sel, VALUE y)
 {
     if (FIXNUM_P(y)) {
 	long a, b, c;
@@ -2204,7 +2232,7 @@ fix_minus(VALUE x, VALUE y)
  */
 
 static VALUE
-fix_mul(VALUE x, VALUE y)
+fix_mul(VALUE x, SEL sel, VALUE y)
 {
     if (FIXNUM_P(y)) {
 #ifdef __HP_cc
@@ -2289,7 +2317,7 @@ fixdivmod(long x, long y, long *divp, long *modp)
  */
 
 static VALUE
-fix_fdiv(VALUE x, VALUE y)
+fix_fdiv(VALUE x, SEL sel, VALUE y)
 {
     if (FIXNUM_P(y)) {
 	return DOUBLE2NUM((double)FIX2LONG(x) / (double)FIX2LONG(y));
@@ -2346,7 +2374,7 @@ fix_divide(VALUE x, VALUE y, ID op)
  */
 
 static VALUE
-fix_div(VALUE x, VALUE y)
+fix_div(VALUE x, SEL sel, VALUE y)
 {
     return fix_divide(x, y, '/');
 }
@@ -2359,7 +2387,7 @@ fix_div(VALUE x, VALUE y)
  */
 
 static VALUE
-fix_idiv(VALUE x, VALUE y)
+fix_idiv(VALUE x, SEL sel, VALUE y)
 {
     return fix_divide(x, y, rb_intern("div"));
 }
@@ -2374,7 +2402,7 @@ fix_idiv(VALUE x, VALUE y)
  */
 
 static VALUE
-fix_mod(VALUE x, VALUE y)
+fix_mod(VALUE x, SEL sel, VALUE y)
 {
     if (FIXNUM_P(y)) {
 	long mod;
@@ -2405,7 +2433,7 @@ fix_mod(VALUE x, VALUE y)
  *  See <code>Numeric#divmod</code>.
  */
 static VALUE
-fix_divmod(VALUE x, VALUE y)
+fix_divmod(VALUE x, SEL sel, VALUE y)
 {
     if (FIXNUM_P(y)) {
 	long div, mod;
@@ -2482,7 +2510,7 @@ int_pow(long x, unsigned long y)
  */
 
 static VALUE
-fix_pow(VALUE x, VALUE y)
+fix_pow(VALUE x, SEL sel, VALUE y)
 {
     static const double zero = 0.0;
     long a = FIX2LONG(x);
@@ -2517,7 +2545,7 @@ fix_pow(VALUE x, VALUE y)
 	if (a == 0) return INT2FIX(0);
 	if (a == 1) return INT2FIX(1);
 	if (a == -1) {
-	    if (int_even_p(y)) return INT2FIX(1);
+	    if (int_even_p(y, 0)) return INT2FIX(1);
 	    else return INT2FIX(-1);
 	}
 	x = rb_int2big(FIX2LONG(x));
@@ -2546,7 +2574,7 @@ fix_pow(VALUE x, VALUE y)
  */
 
 static VALUE
-fix_equal(VALUE x, VALUE y)
+fix_equal(VALUE x, SEL sel, VALUE y)
 {
     if (x == y) return Qtrue;
     if (FIXNUM_P(y)) return Qfalse;
@@ -2570,7 +2598,7 @@ fix_equal(VALUE x, VALUE y)
  */
 
 static VALUE
-fix_cmp(VALUE x, VALUE y)
+fix_cmp(VALUE x, SEL sel, VALUE y)
 {
     if (x == y) return INT2FIX(0);
     if (FIXNUM_P(y)) {
@@ -2596,7 +2624,7 @@ fix_cmp(VALUE x, VALUE y)
  */
 
 static VALUE
-fix_gt(VALUE x, VALUE y)
+fix_gt(VALUE x, SEL sel, VALUE y)
 {
     if (FIXNUM_P(y)) {
 	if (FIX2LONG(x) > FIX2LONG(y)) return Qtrue;
@@ -2608,7 +2636,7 @@ fix_gt(VALUE x, VALUE y)
       case T_FLOAT:
 	return (double)FIX2LONG(x) > RFLOAT_VALUE(y) ? Qtrue : Qfalse;
       default:
-	return rb_num_coerce_relop(x, y, '>');
+	return rb_num_coerce_relop(x, y, selGT);
     }
 }
 
@@ -2621,7 +2649,7 @@ fix_gt(VALUE x, VALUE y)
  */
 
 static VALUE
-fix_ge(VALUE x, VALUE y)
+fix_ge(VALUE x, SEL sel, VALUE y)
 {
     if (FIXNUM_P(y)) {
 	if (FIX2LONG(x) >= FIX2LONG(y)) return Qtrue;
@@ -2633,7 +2661,7 @@ fix_ge(VALUE x, VALUE y)
       case T_FLOAT:
 	return (double)FIX2LONG(x) >= RFLOAT_VALUE(y) ? Qtrue : Qfalse;
       default:
-	return rb_num_coerce_relop(x, y, rb_intern(">="));
+	return rb_num_coerce_relop(x, y, selGE);
     }
 }
 
@@ -2646,7 +2674,7 @@ fix_ge(VALUE x, VALUE y)
  */
 
 static VALUE
-fix_lt(VALUE x, VALUE y)
+fix_lt(VALUE x, SEL sel, VALUE y)
 {
     if (FIXNUM_P(y)) {
 	if (FIX2LONG(x) < FIX2LONG(y)) return Qtrue;
@@ -2658,7 +2686,7 @@ fix_lt(VALUE x, VALUE y)
       case T_FLOAT:
 	return (double)FIX2LONG(x) < RFLOAT_VALUE(y) ? Qtrue : Qfalse;
       default:
-	return rb_num_coerce_relop(x, y, '<');
+	return rb_num_coerce_relop(x, y, selLT);
     }
 }
 
@@ -2671,7 +2699,7 @@ fix_lt(VALUE x, VALUE y)
  */
 
 static VALUE
-fix_le(VALUE x, VALUE y)
+fix_le(VALUE x, SEL sel, VALUE y)
 {
     if (FIXNUM_P(y)) {
 	if (FIX2LONG(x) <= FIX2LONG(y)) return Qtrue;
@@ -2683,7 +2711,7 @@ fix_le(VALUE x, VALUE y)
       case T_FLOAT:
 	return (double)FIX2LONG(x) <= RFLOAT_VALUE(y) ? Qtrue : Qfalse;
       default:
-	return rb_num_coerce_relop(x, y, rb_intern("<="));
+	return rb_num_coerce_relop(x, y, selLE);
     }
 }
 
@@ -2695,7 +2723,7 @@ fix_le(VALUE x, VALUE y)
  */
 
 static VALUE
-fix_rev(VALUE num)
+fix_rev(VALUE num, SEL sel)
 {
     long val = FIX2LONG(num);
 
@@ -2723,7 +2751,7 @@ bit_coerce(VALUE x)
  */
 
 static VALUE
-fix_and(VALUE x, VALUE y)
+fix_and(VALUE x, SEL sel, VALUE y)
 {
     long val;
 
@@ -2742,7 +2770,7 @@ fix_and(VALUE x, VALUE y)
  */
 
 static VALUE
-fix_or(VALUE x, VALUE y)
+fix_or(VALUE x, SEL sel, VALUE y)
 {
     long val;
 
@@ -2761,7 +2789,7 @@ fix_or(VALUE x, VALUE y)
  */
 
 static VALUE
-fix_xor(VALUE x, VALUE y)
+fix_xor(VALUE x, SEL sel, VALUE y)
 {
     long val;
 
@@ -2783,7 +2811,7 @@ static VALUE fix_rshift(long, unsigned long);
  */
 
 static VALUE
-rb_fix_lshift(VALUE x, VALUE y)
+rb_fix_lshift(VALUE x, SEL sel, VALUE y)
 {
     long val, width;
 
@@ -2815,7 +2843,7 @@ fix_lshift(long val, unsigned long width)
  */
 
 static VALUE
-rb_fix_rshift(VALUE x, VALUE y)
+rb_fix_rshift(VALUE x, SEL sel, VALUE y)
 {
     long i, val;
 
@@ -2857,7 +2885,7 @@ fix_rshift(long val, unsigned long i)
  */
 
 static VALUE
-fix_aref(VALUE fix, VALUE idx)
+fix_aref(VALUE fix, SEL sel, VALUE idx)
 {
     long val = FIX2LONG(fix);
     long i;
@@ -2892,7 +2920,7 @@ fix_aref(VALUE fix, VALUE idx)
  */
 
 static VALUE
-fix_to_f(VALUE num)
+fix_to_f(VALUE num, SEL sel)
 {
     double val;
 
@@ -2913,7 +2941,7 @@ fix_to_f(VALUE num)
  */
 
 static VALUE
-fix_abs(VALUE fix)
+fix_abs(VALUE fix, SEL sel)
 {
     long i = FIX2LONG(fix);
 
@@ -2937,7 +2965,7 @@ fix_abs(VALUE fix)
  */
 
 static VALUE
-fix_size(VALUE fix)
+fix_size(VALUE fix, SEL sel)
 {
     return INT2FIX(sizeof(long));
 }
@@ -2957,7 +2985,7 @@ fix_size(VALUE fix)
  */
 
 static VALUE
-int_upto(VALUE from, VALUE to)
+int_upto(VALUE from, SEL sel, VALUE to)
 {
     RETURN_ENUMERATOR(from, 1, &to);
     if (FIXNUM_P(from) && FIXNUM_P(to)) {
@@ -2966,6 +2994,7 @@ int_upto(VALUE from, VALUE to)
 	end = FIX2LONG(to);
 	for (i = FIX2LONG(from); i <= end; i++) {
 	    rb_yield(LONG2FIX(i));
+	    RETURN_IF_BROKEN();
 	}
     }
     else {
@@ -2973,6 +3002,7 @@ int_upto(VALUE from, VALUE to)
 
 	while (!(c = rb_funcall(i, '>', 1, to))) {
 	    rb_yield(i);
+	    RETURN_IF_BROKEN();
 	    i = rb_funcall(i, '+', 1, INT2FIX(1));
 	}
 	if (NIL_P(c)) rb_cmperr(i, to);
@@ -2996,7 +3026,7 @@ int_upto(VALUE from, VALUE to)
  */
 
 static VALUE
-int_downto(VALUE from, VALUE to)
+int_downto(VALUE from, SEL sel, VALUE to)
 {
     RETURN_ENUMERATOR(from, 1, &to);
     if (FIXNUM_P(from) && FIXNUM_P(to)) {
@@ -3005,6 +3035,7 @@ int_downto(VALUE from, VALUE to)
 	end = FIX2LONG(to);
 	for (i=FIX2LONG(from); i >= end; i--) {
 	    rb_yield(LONG2FIX(i));
+	    RETURN_IF_BROKEN();
 	}
     }
     else {
@@ -3012,6 +3043,7 @@ int_downto(VALUE from, VALUE to)
 
 	while (!(c = rb_funcall(i, '<', 1, to))) {
 	    rb_yield(i);
+	    RETURN_IF_BROKEN();
 	    i = rb_funcall(i, '-', 1, INT2FIX(1));
 	}
 	if (NIL_P(c)) rb_cmperr(i, to);
@@ -3036,7 +3068,7 @@ int_downto(VALUE from, VALUE to)
  */
 
 static VALUE
-int_dotimes(VALUE num)
+int_dotimes(VALUE num, SEL sel)
 {
     RETURN_ENUMERATOR(num, 0, 0);
 
@@ -3046,14 +3078,18 @@ int_dotimes(VALUE num)
 	end = FIX2LONG(num);
 	for (i=0; i<end; i++) {
 	    rb_yield(LONG2FIX(i));
+	    RETURN_IF_BROKEN();
 	}
     }
     else {
 	VALUE i = INT2FIX(0);
 
 	for (;;) {
-	    if (!RTEST(rb_funcall(i, '<', 1, num))) break;
+	    if (!RTEST(rb_funcall(i, '<', 1, num))) {
+		break;
+	    }
 	    rb_yield(i);
+	    RETURN_IF_BROKEN();
 	    i = rb_funcall(i, '+', 1, INT2FIX(1));
 	}
     }
@@ -3061,7 +3097,7 @@ int_dotimes(VALUE num)
 }
 
 static VALUE
-int_round(int argc, VALUE* argv, VALUE num)
+int_round(VALUE num, SEL sel, int argc, VALUE* argv)
 {
     VALUE n, f, h, r;
     int ndigits;
@@ -3106,12 +3142,27 @@ int_round(int argc, VALUE* argv, VALUE num)
  */
 
 static VALUE
-fix_zero_p(VALUE num)
+fix_zero_p(VALUE num, SEL sel)
 {
     if (FIX2LONG(num) == 0) {
 	return Qtrue;
     }
     return Qfalse;
+}
+
+/*
+ *  call-seq:
+ *     fix.popcnt    => Fixnum
+ *
+ *  Returns the number of 1 bits set in the internal representation of 
+ *	<i>fix</i>. This function returns consistent results across platforms for 
+ *	positive numbers, but may vary for negative numbers.
+ *
+ */
+static VALUE
+fix_popcnt(VALUE num, SEL sel)
+{
+	return INT2FIX(__builtin_popcountl(FIX2ULONG(num)));
 }
 
 /*
@@ -3122,7 +3173,7 @@ fix_zero_p(VALUE num)
  */
 
 static VALUE
-fix_odd_p(VALUE num)
+fix_odd_p(VALUE num, SEL sel)
 {
     if (num & 2) {
 	return Qtrue;
@@ -3138,7 +3189,7 @@ fix_odd_p(VALUE num)
  */
 
 static VALUE
-fix_even_p(VALUE num)
+fix_even_p(VALUE num, SEL sel)
 {
     if (num & 2) {
 	return Qfalse;
@@ -3146,7 +3197,8 @@ fix_even_p(VALUE num)
     return Qtrue;
 }
 
-#if WITH_OBJC
+
+
 static const char *
 imp_rb_float_objCType(void *rcv, SEL sel)
 {
@@ -3185,968 +3237,171 @@ imp_rb_fixnum_longValue(void *rcv, SEL sel)
     return RFIXNUM(rcv)->value;
 }
 
+static void *
+imp_nsnumber_to_int(void *rcv, SEL sel)
+{
+    // This is because some NSNumber subclasses must be converted to real
+    // CFNumber objects, in order to be coerced into Fixnum objects.
+    long val = 0;
+    if (!CFNumberGetValue((CFNumberRef)rcv, kCFNumberLongType, &val)) {
+	rb_raise(rb_eTypeError, "cannot get 'long' value out of NSNumber %p",
+		rcv);
+    }
+    CFNumberRef new_num = CFNumberCreate(NULL, kCFNumberLongType, &val);
+    CFMakeCollectable(new_num);
+    return (void *)new_num;
+}
+
 static void
 rb_install_nsnumber_primitives(void)
 {
     Class klass;
-
+  
     klass = (Class)rb_cFloat;
-    rb_objc_install_method2(klass, "objCType",
-	    (IMP)imp_rb_float_objCType);
-    rb_objc_install_method2(klass, "getValue:", 
-	    (IMP)imp_rb_float_getValue);
+    rb_objc_install_method2(klass, "objCType", (IMP)imp_rb_float_objCType);
+    rb_objc_install_method2(klass, "getValue:", (IMP)imp_rb_float_getValue);
     rb_objc_install_method2(klass, "doubleValue", 
 	    (IMP)imp_rb_float_doubleValue);
 
     klass = (Class)rb_cFixnum;
-    rb_objc_install_method2(klass, "objCType",
-	    (IMP)imp_rb_fixnum_objCType);
-    rb_objc_install_method2(klass, "getValue:", 
-	    (IMP)imp_rb_fixnum_getValue);
-    rb_objc_install_method2(klass, "longValue",
-	    (IMP)imp_rb_fixnum_longValue);
-}
-#endif
-
-static inline double
-nsnum_cdouble(VALUE num)
-{
-    double val; 
-    CFNumberGetValue((CFNumberRef)num, kCFNumberDoubleType, &val);
-    return val;
-}
-
-static inline long long
-nsnum_cLL(VALUE num)
-{
-    long long val; 
-    CFNumberGetValue((CFNumberRef)num, kCFNumberLongLongType, &val);
-    return val;
-}
-
-static VALUE
-nsnum_to_i(VALUE num)
-{
-    return LL2NUM(nsnum_cLL(num));
-}
-
-static VALUE
-nsnum_to_f(VALUE num)
-{
-    return DOUBLE2NUM(nsnum_cdouble(num));
-}
-
-static VALUE
-nsnum_class(VALUE num)
-{
-    CFNumberType t = CFNumberGetType((CFNumberRef)num);
-    switch (t) {
-	case kCFNumberSInt8Type:
-	case kCFNumberSInt16Type:
-	case kCFNumberSInt32Type:
-	case kCFNumberSInt64Type:
-	case kCFNumberCharType:
-	case kCFNumberShortType:
-	case kCFNumberIntType:
-	case kCFNumberLongType:
-	case kCFNumberLongLongType:
-	case kCFNumberCFIndexType:
-	case kCFNumberNSIntegerType:
-	    return rb_cFixnum;
-	case kCFNumberFloat32Type:
-	case kCFNumberFloat64Type:
-	case kCFNumberFloatType:
-	case kCFNumberDoubleType:
-	case kCFNumberMaxType:
-	    return rb_cFloat;
-    }
-    if (CFNumberIsFloatType((CFNumberRef)num)) return rb_cFloat;
-    return rb_cNSNumber; //This could be something exotic like a struct
-}
-
-static VALUE
-nsnum_to_rb(VALUE num)
-{
-    if (FIXNUM_P(num)) {
-	return num;
-    }
-    VALUE c = CLASS_OF(num);
-    if (c != rb_cCFNumber && c != rb_cNSNumber) {
-	return num;
-    }
-    VALUE num_class = nsnum_class(num);
-    if (num_class == rb_cFloat) {
-	return DOUBLE2NUM(nsnum_cdouble(num));
-    }
-    if (num_class == rb_cFixnum) {
-	return LL2NUM(nsnum_cLL(num));
-    }
-    return num;
-}
-
-static void
-nsnum_fail_coerce(VALUE num)
-{
-    VALUE nsn_desc = rb_funcall(num, rb_intern("description"), 0);
-    const char* numdesc = StringValueCStr(nsn_desc);
-    rb_raise(rb_eTypeError, "Cannot coerce NSNumber %s into a ruby number", numdesc);
-}
-
-static VALUE
-nsnum_to_rb_force(VALUE num)
-{
-    if (FIXNUM_P(num)) {
-	return num;
-    }
-    VALUE c = CLASS_OF(num);
-    if (c != rb_cCFNumber && c != rb_cNSNumber) {
-	return num;
-    }
-    VALUE num_class = nsnum_class(num);
-    if (num_class == rb_cFloat) {
-	return DOUBLE2NUM((nsnum_cdouble(num)));
-    }
-    if (num_class == rb_cFixnum) {
-	return LL2NUM((nsnum_cLL(num)));
-    }
-    nsnum_fail_coerce(num);
-    return Qnil;
-}
-
-static VALUE
-nsnum_to_rb_abs(VALUE num)
-{
-    VALUE num_class = nsnum_class(num);
-    if (num_class==rb_cFloat) {
-	return DOUBLE2NUM(fabs(nsnum_cdouble(num)));
-    }
-    if (num_class==rb_cFixnum) {
-	return LL2NUM(llabs(nsnum_cLL(num)));
-    }
-    nsnum_fail_coerce(num);
-    return Qnil;
-}
-
-static VALUE
-nsnum_to_rb_neg(VALUE num)
-{
-    VALUE num_class = nsnum_class(num);
-    if (num_class == rb_cFloat) {
-	return DOUBLE2NUM(-(nsnum_cdouble(num)));
-    }
-    if (num_class == rb_cFixnum) {
-	return LL2NUM(-(nsnum_cLL(num)));
-    }
-    nsnum_fail_coerce(num);
-    return Qnil;
-}
-
-static VALUE
-nsnum_cmp(VALUE l, VALUE r)
-{
-    if (!do_coerce(&l, &r, Qtrue)) {
-	return Qnil;
-    }
-    return rb_funcall(l, id_spaceship, 1, r);
-}
-
-static VALUE
-nsnum_eq(VALUE l, VALUE r)
-{
-    if (!do_coerce(&l, &r, Qtrue)) {
-	return Qnil;
-    }
-    return rb_funcall(l, id_eq, 1, r);
-}
-
-static VALUE
-nsnum_coerce(VALUE num, VALUE b)
-{
-    return num_coerce(nsnum_to_rb_force(num),b);
-}
-
-static VALUE
-nsnum_init_copy(VALUE x)
-{
-    /* Numerics are immutable values, which should not be copied */
-    rb_raise(rb_eTypeError, "can't copy %s",rb_class2name(nsnum_class(x)));
-    return Qnil;		/* not reached */
-}
-
-static VALUE
-nsnum_dup(VALUE x)
-{
-    /* Numerics are immutable values, which should not be copied */
-    rb_raise(rb_eTypeError, "can't dup %s", rb_class2name(nsnum_class(x)));
-    return Qnil;		/* not reached */
-}
-
-/*static VALUE
-  nsnum_missing(int argc, VALUE* argv, VALUE self)
-  {
-  VALUE rb_self = nsnum_to_rb(self);
-  rb_p(rb_self);
-  static ID to_s = Qnil;
-  if (to_s==Qnil) to_s = rb_intern("to_s");
-  printf("to_s: %s\n", rb_id2name(to_s));
-  VALUE sel_name = rb_funcall(argv[0], to_s, 0);
-  rb_p(sel_name);
-  ID sel = rb_to_id(sel_name);
-  printf("sel: %s\n", rb_id2name(sel));
-  if (rb_respond_to(rb_self, sel)) {
-  return rb_self;//rb_funcall2(rb_self, sel, argc-1, argv+1);
-  } else {
-  rb_raise(rb_eNoMethodError, "undefined method `%s' for %s", rb_id2name(sel), rb_obj_classname(rb_self));
-  }
-  return Qnil;
-  }*/
-
-static VALUE
-nsnum_quo(VALUE a, VALUE b)
-{
-    static ID sel = 0;
-    if (!sel) {
-	sel = rb_intern("quo");
-    }
-    do_coerce(&a,&b,Qtrue);
-    return rb_funcall(a, sel, 1, b);
-}
-
-static VALUE
-nsnum_fdiv(VALUE a, VALUE b)
-{
-    static ID sel = 0;
-    if (!sel) {
-	sel = rb_intern("fdiv");
-    }
-    do_coerce(&a,&b,Qtrue);
-    return rb_funcall(a, sel, 1, b);
-}
-
-static VALUE
-nsnum_divmod(VALUE a, VALUE b)
-{
-    static ID sel = 0;
-    if (!sel) {
-	sel = rb_intern("divmod");
-    }
-    do_coerce(&a,&b,Qtrue);
-    return rb_funcall(a, sel, 1, b);
-}
-
-static VALUE
-nsnum_modulo(VALUE a, VALUE b)
-{
-    static ID sel = 0;
-    if (!sel) {
-	sel = rb_intern("modulo");
-    }
-    do_coerce(&a,&b,Qtrue);
-    return rb_funcall(a, sel, 1, b);
-}
-
-static VALUE
-nsnum_remainder(VALUE a, VALUE b)
-{
-    static ID sel = 0;
-    if (!sel) {
-	sel = rb_intern("remainder");
-    }
-    do_coerce(&a,&b,Qtrue);
-    return rb_funcall(a, sel, 1, b);
-}
-
-static VALUE
-nsnum_true(VALUE a)
-{
-    return Qtrue;
-}
-
-static VALUE
-nsnum_integer_p(VALUE a)
-{
-    VALUE num_class = nsnum_class(a);
-    if (num_class == rb_cFloat) {
-	return Qfalse;
-    }
-    if (num_class == rb_cFixnum) {
-	return Qtrue;
-    }
-    nsnum_fail_coerce(a);
-    return Qnil;
-}
-
-static VALUE
-nsnum_zero_p(VALUE num)
-{
-    VALUE num_class = nsnum_class(num);
-    if (num_class == rb_cFloat) {
-	return nsnum_cdouble(num) == 0;
-    }
-    if (num_class == rb_cFixnum) {
-	return nsnum_cLL(num) == 0;
-    }
-    nsnum_fail_coerce(num);
-    return Qnil;
-}
-
-static VALUE
-nsnum_nonzero_p(VALUE num)
-{
-    VALUE num_class = nsnum_class(num);
-    if (num_class == rb_cFloat) {
-	return nsnum_cdouble(num) != 0;
-    }
-    if (num_class == rb_cFixnum) {
-	return nsnum_cLL(num) != 0;
-    }
-    nsnum_fail_coerce(num);
-    return Qnil;
-}
-
-static VALUE
-nsnum_floor(VALUE num)
-{
-    VALUE num_class = nsnum_class(num);
-    if (num_class == rb_cFixnum) {
-	return num;
-    }
-    if (num_class != rb_cFloat) {
-	nsnum_fail_coerce(num);
-	return Qnil;
-    }
-    double v = floor(nsnum_cdouble(num));
-    if (!FIXABLE(v)) {
-	return rb_dbl2big(v);
-    }
-    return LL2NUM((long long)v);
-}
-
-static VALUE
-nsnum_ceil(VALUE num)
-{
-    VALUE num_class = nsnum_class(num);
-    if (num_class == rb_cFixnum) {
-	return num;
-    }
-    if (num_class != rb_cFloat) {
-	nsnum_fail_coerce(num);
-	return Qnil;
-    }
-    double v = ceil(nsnum_cdouble(num));
-    if (!FIXABLE(v)) {
-	return rb_dbl2big(v);
-    }
-    return LL2NUM((long long)v);
-}
-
-static VALUE
-nsnum_round(int argc, VALUE* argv, VALUE self)
-{
-    VALUE num_class = nsnum_class(self);
-    if (num_class == rb_cFloat) {
-	return flo_round(argc, argv, DOUBLE2NUM(nsnum_cdouble(self)));
-    }
-    if (num_class == rb_cFixnum) {
-	return int_round(argc, argv, LL2NUM(nsnum_cLL(self)));
-    }
-    nsnum_fail_coerce(self);
-    return Qnil;
-}
-
-static VALUE
-nsnum_truncate(VALUE self)
-{
-    VALUE num_class = nsnum_class(self);
-    if (num_class == rb_cFloat) {
-	return LL2NUM(nsnum_cdouble(self));
-    }
-    if (num_class == rb_cFixnum) {
-	return self;
-    }
-    nsnum_fail_coerce(self);
-    return Qnil;
-}
-
-static VALUE
-nsnum_step(int argc, VALUE* argv, VALUE self)
-{
-    VALUE num_class = nsnum_class(self);
-    if (num_class == rb_cFloat) {
-	return num_step(argc, argv, DOUBLE2NUM(nsnum_cdouble(self)));
-    }
-    if (num_class == rb_cFixnum) {
-	return num_step(argc, argv, LL2NUM(nsnum_cLL(self)));
-    }
-    nsnum_fail_coerce(self);
-    return Qnil;
-}
-
-static VALUE
-nsnum_numerator(VALUE a)
-{
-    VALUE num_class = nsnum_class(a);
-    if (num_class == rb_cFloat) {
-	return num_numerator(DOUBLE2NUM(nsnum_cdouble(a)));
-    }
-    if (num_class == rb_cFixnum) {
-	return LL2NUM(nsnum_cLL(a));
-    }
-    nsnum_fail_coerce(a);
-    return Qnil;
-}
-
-static VALUE
-nsnum_denominator(VALUE a)
-{
-    VALUE num_class = nsnum_class(a);
-    if (num_class == rb_cFloat) {
-	return num_denominator(DOUBLE2NUM(nsnum_cdouble(a)));
-    }
-    if (num_class == rb_cFixnum) {
-	return LONG2FIX(1);
-    }
-    nsnum_fail_coerce(a);
-    return Qnil;
-}
-
-    static VALUE
-nsnum_even_p(VALUE a)
-{
-    VALUE num_class = nsnum_class(a);
-    if (num_class == rb_cFloat) {
-	//TODO: it will still respond_to the method even if it shouldn't
-	rb_raise(rb_eNoMethodError, "undefined method `even?' for %s", rb_obj_classname(a));
-    }
-    if (num_class == rb_cFixnum) {
-	return (nsnum_cLL(a) & 1) ? Qfalse : Qtrue;
-    }
-    return Qnil;
-}
-
-static VALUE
-nsnum_odd_p(VALUE a)
-{
-    VALUE num_class = nsnum_class(a);
-    if (num_class == rb_cFloat) {
-	//TODO: it will still respond_to the method even if it shouldn't
-	rb_raise(rb_eNoMethodError, "undefined method `odd?' for %s", rb_obj_classname(a));
-    }
-    if (num_class == rb_cFixnum) {
-	return (nsnum_cLL(a) & 1) ? Qtrue : Qfalse;
-    }
-    return Qnil;
-}
-
-static VALUE
-nsnum_upto(VALUE a, VALUE b)
-{
-    if (FIXNUM_P(b)) {
-	long i = nsnum_cLL(a);
-	long j = FIX2LONG(b);
-	while (i <= j) {
-	    rb_yield(LONG2FIX(i));
-	    i++;
-	}
-	return a;
-    }
-    VALUE i = a;
-    VALUE c;
-    while (1) {
-	c = rb_funcall(i, '>', 1, b);
-	if (c == Qnil || c == Qtrue) {
-	    break;
-	}
-	rb_yield(i);
-	i = rb_funcall(i, '+', 1, INT2FIX(1));
-    }
-    if (NIL_P(c)) {
-	rb_cmperr(i, b);
-    }
-    return a;
-}
-
-static VALUE
-nsnum_downto(VALUE a, VALUE b)
-{
-    long long i = nsnum_cLL(a);
-    if (FIXNUM_P(b) && FIXABLE(i)) {
-	long j = FIX2LONG(b);
-	while (i >= j) {
-	    rb_yield(LONG2FIX(i));
-	    i--;
-	}
-	return a;
-    }
-    VALUE ii = a;
-    VALUE c;
-    while (1) {
-	c = rb_funcall(ii, '<', 1, b);
-	if (c == Qnil || c == Qtrue) {
-	    break;
-	}
-	rb_yield(ii);
-	ii = rb_funcall(ii, '-', 1, INT2FIX(1));
-    }
-    if (NIL_P(c)) {
-	rb_cmperr(ii, b);
-    }
-    return a;
-}
-
-static VALUE
-nsnum_dotimes(VALUE a)
-{
-    long long j = nsnum_cLL(a);
-    long long i;
-    for (i = 0; i < j; i++) {
-	rb_yield(LL2NUM(i));
-    }
-    return a;
-}
-
-static VALUE
-nsnum_succ(VALUE a)
-{
-    long long j = nsnum_cLL(a);
-    if (j + 1 < j) {
-	VALUE r = LL2NUM(j);
-	return rb_funcall(r, '+', 1, INT2FIX(1));
-    }
-    return LL2NUM(j + 1);
-}
-
-static VALUE
-nsnum_pred(VALUE a)
-{
-    long long j = nsnum_cLL(a);
-    if (j - 1 > j) {
-	VALUE r = LL2NUM(j);
-	return rb_funcall(r, '-', 1, INT2FIX(1));
-    }
-    return LL2NUM(j - 1);
-}
-
-static VALUE
-nsnum_nan_p(VALUE a)
-{
-    VALUE num_class = nsnum_class(a);
-    if (num_class == rb_cFloat) {
-	return isnan(nsnum_cdouble(a)) ? Qtrue : Qfalse;
-    }
-    if (num_class == rb_cFixnum) {
-	//TODO: it will still respond_to the method even if it shouldn't
-	rb_raise(rb_eNoMethodError, "undefined method `is_nan?' for %s", rb_obj_classname(a));
-    }
-    nsnum_fail_coerce(a);
-    return Qnil;
-}
-
-static VALUE
-nsnum_inf_p(VALUE a)
-{
-    VALUE num_class = nsnum_class(a);
-    if (num_class == rb_cFloat) {
-	return isinf(nsnum_cdouble(a)) ? Qtrue : Qfalse;
-    }
-    if (num_class == rb_cFixnum) {
-	//TODO: it will still respond_to the method even if it shouldn't
-	rb_raise(rb_eNoMethodError, "undefined method `is_nan?' for %s", rb_obj_classname(a));
-    }
-    nsnum_fail_coerce(a);
-    return Qnil;
-}
-
-static VALUE
-nsnum_notinf_p(VALUE a)
-{
-    VALUE num_class = nsnum_class(a);
-    if (num_class == rb_cFloat) {
-	return isinf(nsnum_cdouble(a)) ? Qfalse : Qtrue;
-    }
-    if (num_class == rb_cFixnum) {
-	//TODO: it will still respond_to the method even if it shouldn't
-	rb_raise(rb_eNoMethodError, "undefined method `is_nan?' for %s", rb_obj_classname(a));
-    }
-    nsnum_fail_coerce(a);
-    return Qnil;
-}
-
-static VALUE
-nsnum_pow(VALUE a, VALUE b)
-{
-    VALUE num_class = nsnum_class(a);
-    b = nsnum_to_rb_force(b);
-    if (num_class == rb_cFloat) {
-	return flo_pow(DOUBLE2NUM(nsnum_cdouble(a)), b);
-    }
-    if (num_class == rb_cFixnum) {
-	return fix_pow(LL2NUM(nsnum_cLL(a)), b);
-    }
-    nsnum_fail_coerce(a);
-    return Qnil;
-}
-
-static VALUE
-nsnum_plus(VALUE a, VALUE b)
-{
-    VALUE num_class = nsnum_class(a);
-    b = nsnum_to_rb_force(b);
-    if (num_class == rb_cFloat) {
-	return flo_plus(DOUBLE2NUM(nsnum_cdouble(a)), b);
-    }
-    if (num_class == rb_cFixnum) {
-	return fix_plus(LL2NUM(nsnum_cLL(a)), b);
-    }
-    nsnum_fail_coerce(a);
-    return Qnil;
-}
-
-static VALUE
-nsnum_minus(VALUE a, VALUE b)
-{
-    VALUE num_class = nsnum_class(a);
-    b = nsnum_to_rb_force(b);
-    if (num_class == rb_cFloat) {
-	return flo_minus(DOUBLE2NUM(nsnum_cdouble(a)), b);
-    }
-    if (num_class == rb_cFixnum) {
-	return fix_minus(LL2NUM(nsnum_cLL(a)), b);
-    }
-    nsnum_fail_coerce(a);
-    return Qnil;
-}
-
-static VALUE
-nsnum_times(VALUE a, VALUE b)
-{
-    VALUE num_class = nsnum_class(a);
-    b = nsnum_to_rb_force(b);
-    if (num_class == rb_cFloat) {
-	return flo_mul(DOUBLE2NUM(nsnum_cdouble(a)), b);
-    }
-    if (num_class == rb_cFixnum) {
-	return fix_mul(LL2NUM(nsnum_cLL(a)), b);
-    }
-    nsnum_fail_coerce(a);
-    return Qnil;
-}
-
-static VALUE
-nsnum_div(VALUE a, VALUE b)
-{
-    VALUE num_class = nsnum_class(a);
-    b = nsnum_to_rb_force(b);
-    if (num_class == rb_cFloat) {
-	return flo_div(DOUBLE2NUM(nsnum_cdouble(a)), b);
-    }
-    if (num_class == rb_cFixnum) {
-	return fix_div(LL2NUM(nsnum_cLL(a)), b);
-    }
-    nsnum_fail_coerce(a);
-    return Qnil;
-}
-
-static VALUE
-nsnum_rev(VALUE a)
-{
-    return LONG2FIX(~FIX2LONG(a));
-}
-
-static VALUE
-nsnum_and(VALUE a, VALUE b)
-{
-    b = bit_coerce(nsnum_to_rb_force(b));
-    if (!FIXNUM_P(b)) {
-	return rb_big_and(nsnum_to_rb_force(a), b);
-    }
-    return LONG2NUM(nsnum_cLL(a) & FIX2LONG(b));
-}
-
-static VALUE
-nsnum_or(VALUE a, VALUE b)
-{
-    b = bit_coerce(nsnum_to_rb_force(b));
-    if (!FIXNUM_P(b)) {
-	return rb_big_or(nsnum_to_rb_force(a), b);
-    }
-    return LONG2NUM(nsnum_cLL(a) | FIX2LONG(b));
-}
-
-static VALUE
-nsnum_xor(VALUE a, VALUE b)
-{
-    b = bit_coerce(nsnum_to_rb_force(b));
-    if (!FIXNUM_P(b)) {
-	return rb_big_xor(nsnum_to_rb_force(a), b);
-    }
-    return LONG2NUM(nsnum_cLL(a) ^ FIX2LONG(b));
-}
-
-static VALUE
-nsnum_aref(VALUE l, VALUE idx)
-{
-    long long v = nsnum_cLL(l);
-    idx = rb_to_int(idx);
-    if (!FIXNUM_P(idx)) {
-	idx = rb_big_norm(idx);
-	if (!FIXNUM_P(idx)) {
-	    if (!RBIGNUM_SIGN(idx) || v >= 0) {
-		return INT2FIX(0);
-	    }
-	    return INT2FIX(1);
-	}
-    }
-    long i = FIX2LONG(idx);
-    if (i < 0) return INT2FIX(0);
-    if (SIZEOF_LONG * CHAR_BIT - 1 < i) {
-	if (v < 0) {
-	    return INT2FIX(1);
-	}
-	return INT2FIX(0);
-    }
-    if (v & (1L << i)) {
-	return INT2FIX(1);
-    }
-    return INT2FIX(0);
-}
-
-static VALUE
-nsnum_shl(VALUE v, VALUE amt)
-{
-    VALUE num_class = nsnum_class(v);
-    if (num_class == rb_cFloat) {
-	rb_raise(rb_eNoMethodError, "undefined method `<<' for %s", rb_obj_classname(v));
-    }
-    return rb_funcall(nsnum_to_rb_force(v), id_shl, 1, nsnum_to_rb_force(amt));
-}
-
-static VALUE
-nsnum_shr(VALUE v, VALUE amt)
-{
-    VALUE num_class = nsnum_class(v);
-    if (num_class == rb_cFloat) {
-	rb_raise(rb_eNoMethodError, "undefined method `>>' for %s", rb_obj_classname(v));
-    }
-    return rb_funcall(nsnum_to_rb_force(v), id_shr, 1, nsnum_to_rb_force(amt));
-}
-
-static void
-rb_install_nsnumber_methods() {
-    id_spaceship = rb_intern("<=>");
-    id_shl = rb_intern("<<");
-    id_shr = rb_intern(">>");
-    id_pow = rb_intern("**");
-
-    rb_cNSNumber = (VALUE)objc_getClass("NSNumber");
-    rb_define_method(rb_cNSNumber, "to_i", nsnum_to_i,0);
-    rb_define_method(rb_cNSNumber, "to_f", nsnum_to_f,0);
-    rb_define_method(rb_cNSNumber, "to_rb", nsnum_to_rb,0);
-
-    //rb_define_method(rb_cNSNumber, "class", nsnum_class,0);
-    rb_define_method(rb_cNSNumber, "dup", nsnum_dup,0);
-    rb_define_method(rb_cNSNumber, "initialize_copy", nsnum_init_copy,0);
-    rb_define_method(rb_cNSNumber, "coerce", nsnum_coerce, 1);
-
-    rb_define_method(rb_cNSNumber, "+@", nsnum_to_rb, 0);
-    rb_define_method(rb_cNSNumber, "-@", nsnum_to_rb_neg, 0);
-    rb_define_method(rb_cNSNumber, "<=>", nsnum_cmp, 1);
-    rb_define_method(rb_cNSNumber, "eql?", nsnum_eq, 1);
-    rb_define_method(rb_cNSNumber, "quo", nsnum_quo, 1);
-    rb_define_method(rb_cNSNumber, "fdiv", nsnum_fdiv, 1);
-    rb_define_method(rb_cNSNumber, "div", nsnum_div, 1);
-    rb_define_method(rb_cNSNumber, "divmod", nsnum_divmod, 1);
-    rb_define_method(rb_cNSNumber, "modulo", nsnum_modulo, 1);
-    rb_define_method(rb_cNSNumber, "%", nsnum_modulo, 1);
-    rb_define_method(rb_cNSNumber, "remainder", nsnum_remainder, 1);
-    rb_define_method(rb_cNSNumber, "abs", nsnum_to_rb_abs, 0);
-    rb_define_method(rb_cNSNumber, "to_int", nsnum_to_i, 0);
-
-    rb_define_method(rb_cNSNumber, "scalar?", nsnum_true, 0);
-    rb_define_method(rb_cNSNumber, "integer?", nsnum_integer_p, 0);
-    rb_define_method(rb_cNSNumber, "zero?", nsnum_zero_p, 0);
-    rb_define_method(rb_cNSNumber, "nonzero?", nsnum_nonzero_p, 0);
-
-    rb_define_method(rb_cNSNumber, "floor", nsnum_floor, 0);
-    rb_define_method(rb_cNSNumber, "ceil", nsnum_ceil, 0);
-    rb_define_method(rb_cNSNumber, "round", nsnum_round, -1);
-    rb_define_method(rb_cNSNumber, "truncate", nsnum_truncate, 0);
-    rb_define_method(rb_cNSNumber, "step", nsnum_step, -1);
-
-    rb_define_method(rb_cNSNumber, "numerator", nsnum_numerator, 0);
-    rb_define_method(rb_cNSNumber, "denominator", nsnum_denominator, 0);
-
-    rb_define_method(rb_cNSNumber, "odd?", nsnum_odd_p, 0);
-    rb_define_method(rb_cNSNumber, "even?", nsnum_even_p, 0);
-
-    rb_define_method(rb_cNSNumber, "upto", nsnum_upto, 1);
-    rb_define_method(rb_cNSNumber, "downto", nsnum_downto, 1);
-    rb_define_method(rb_cNSNumber, "times", nsnum_dotimes, 0);	
-
-    rb_define_method(rb_cNSNumber, "succ", nsnum_succ, 0);	
-    rb_define_method(rb_cNSNumber, "next", nsnum_succ, 0);	
-    rb_define_method(rb_cNSNumber, "pred", nsnum_pred, 0);	
-
-    rb_define_method(rb_cNSNumber, "nan?",      nsnum_nan_p, 0);
-    rb_define_method(rb_cNSNumber, "infinite?", nsnum_inf_p, 0);
-    rb_define_method(rb_cNSNumber, "finite?",   nsnum_notinf_p, 0);	
-
-    rb_define_method(rb_cNSNumber, "**", nsnum_pow, 1);
-    rb_define_method(rb_cNSNumber, "+", nsnum_plus, 1);
-    rb_define_method(rb_cNSNumber, "-", nsnum_minus, 1);
-    rb_define_method(rb_cNSNumber, "*", nsnum_times, 1);
-    rb_define_method(rb_cNSNumber, "/", nsnum_div, 1);
-
-    rb_define_method(rb_cNSNumber, "~", nsnum_rev, 0);
-    rb_define_method(rb_cNSNumber, "&", nsnum_and, 1);
-    rb_define_method(rb_cNSNumber, "|", nsnum_or,  1);
-    rb_define_method(rb_cNSNumber, "^", nsnum_xor, 1);
-    rb_define_method(rb_cNSNumber, "[]", nsnum_aref, 1);
-    rb_define_method(rb_cNSNumber, "<<", nsnum_shl, 1);
-    rb_define_method(rb_cNSNumber, ">>", nsnum_shr, 1);
-
-    //rb_define_method(rb_cNSNumber, "method_missing", nsnum_missing, -1);
-    rb_include_module(rb_cNSNumber, rb_mComparable);
+    rb_objc_install_method2(klass, "objCType", (IMP)imp_rb_fixnum_objCType);
+    rb_objc_install_method2(klass, "getValue:", (IMP)imp_rb_fixnum_getValue);
+    rb_objc_install_method2(klass, "longValue", (IMP)imp_rb_fixnum_longValue);
+
+    klass = (Class)rb_cNSNumber;
+    class_replaceMethod(klass, sel_registerName("to_int"),
+	    (IMP)imp_nsnumber_to_int, "@@:");
 }
 
 void
 Init_Numeric(void)
 {
-#if defined(__FreeBSD__) && __FreeBSD__ < 4
-    /* allow divide by zero -- Inf */
-    fpsetmask(fpgetmask() & ~(FP_X_DZ|FP_X_INV|FP_X_OFL));
-#elif defined(_UNICOSMP)
-    /* Turn off floating point exceptions for divide by zero, etc. */
-    _set_Creg(0, 0);
-#elif defined(__BORLANDC__)
-    /* Turn off floating point exceptions for overflow, etc. */
-    _control87(MCW_EM, MCW_EM);
-#endif
-    id_coerce = rb_intern("coerce");
+    sel_coerce = sel_registerName("coerce:");
     id_to_i = rb_intern("to_i");
     id_eq = rb_intern("==");
 
     rb_eZeroDivError = rb_define_class("ZeroDivisionError", rb_eStandardError);
     rb_eFloatDomainError = rb_define_class("FloatDomainError", rb_eRangeError);
-#if WITH_OBJC
+    rb_cNSNumber = (VALUE)objc_getClass("NSNumber");
     rb_cCFNumber = (VALUE)objc_getClass("NSCFNumber");
-    rb_cNumeric = rb_define_class("Numeric", (VALUE)objc_getClass("NSNumber"));
+    rb_cNumeric = rb_define_class("Numeric", rb_cNSNumber);
     RCLASS_SET_VERSION_FLAG(rb_cNumeric, RCLASS_IS_OBJECT_SUBCLASS);
     rb_define_object_special_methods(rb_cNumeric);
     /* overriding NSObject methods */
-    rb_define_method(rb_cNumeric, "class", rb_obj_class, 0);
-    rb_define_method(rb_cNumeric, "dup", rb_obj_dup, 0);
-#else
-    rb_cNumeric = rb_define_class("Numeric", rb_cObject);
-#endif
+    rb_objc_define_method(rb_cNumeric, "class", rb_obj_class, 0);
+    rb_objc_define_method(rb_cNumeric, "dup", rb_obj_dup, 0);
 
-    rb_define_method(rb_cNumeric, "singleton_method_added", num_sadded, 1);
+    rb_objc_define_method(rb_cNumeric, "singleton_method_added", num_sadded, 1);
     rb_include_module(rb_cNumeric, rb_mComparable);
-    rb_define_method(rb_cNumeric, "initialize_copy", num_init_copy, 1);
-    rb_define_method(rb_cNumeric, "coerce", num_coerce, 1);
+    rb_objc_define_method(rb_cNumeric, "initialize_copy", num_init_copy, 1);
+    rb_objc_define_method(rb_cNumeric, "coerce", num_coerce, 1);
 
-    rb_define_method(rb_cNumeric, "+@", num_uplus, 0);
-    rb_define_method(rb_cNumeric, "-@", num_uminus, 0);
-    rb_define_method(rb_cNumeric, "<=>", num_cmp, 1);
-    rb_define_method(rb_cNumeric, "eql?", num_eql, 1);
-    rb_define_method(rb_cNumeric, "quo", num_quo, 1);
-    rb_define_method(rb_cNumeric, "fdiv", num_fdiv, 1);
-    rb_define_method(rb_cNumeric, "div", num_div, 1);
-    rb_define_method(rb_cNumeric, "divmod", num_divmod, 1);
-    rb_define_method(rb_cNumeric, "modulo", num_modulo, 1);
-    rb_define_method(rb_cNumeric, "remainder", num_remainder, 1);
-    rb_define_method(rb_cNumeric, "abs", num_abs, 0);
-    rb_define_method(rb_cNumeric, "to_int", num_to_int, 0);
+    rb_objc_define_method(rb_cNumeric, "+@", num_uplus, 0);
+    rb_objc_define_method(rb_cNumeric, "-@", num_uminus, 0);
+    rb_objc_define_method(rb_cNumeric, "<=>", num_cmp, 1);
+    rb_objc_define_method(rb_cNumeric, "eql?", num_eql, 1);
+    rb_objc_define_method(rb_cNumeric, "quo", num_quo, 1);
+    rb_objc_define_method(rb_cNumeric, "fdiv", num_fdiv, 1);
+    rb_objc_define_method(rb_cNumeric, "div", num_div, 1);
+    rb_objc_define_method(rb_cNumeric, "divmod", num_divmod, 1);
+    rb_objc_define_method(rb_cNumeric, "%", num_modulo, 1);
+    rb_objc_define_method(rb_cNumeric, "modulo", num_modulo, 1);
+    rb_objc_define_method(rb_cNumeric, "remainder", num_remainder, 1);
+    rb_objc_define_method(rb_cNumeric, "abs", num_abs, 0);
+    rb_objc_define_method(rb_cNumeric, "to_int", num_to_int, 0);
+    
+    rb_objc_define_method(rb_cNumeric, "real?", num_real_p, 0);
+    rb_objc_define_method(rb_cNumeric, "scalar?", num_scalar_p, 0);
+    rb_objc_define_method(rb_cNumeric, "integer?", num_int_p, 0);
+    rb_objc_define_method(rb_cNumeric, "zero?", num_zero_p, 0);
+    rb_objc_define_method(rb_cNumeric, "nonzero?", num_nonzero_p, 0);
 
-    rb_define_method(rb_cNumeric, "scalar?", num_scalar_p, 0);
-    rb_define_method(rb_cNumeric, "integer?", num_int_p, 0);
-    rb_define_method(rb_cNumeric, "zero?", num_zero_p, 0);
-    rb_define_method(rb_cNumeric, "nonzero?", num_nonzero_p, 0);
+    rb_objc_define_method(rb_cNumeric, "floor", num_floor, 0);
+    rb_objc_define_method(rb_cNumeric, "ceil", num_ceil, 0);
+    rb_objc_define_method(rb_cNumeric, "round", num_round, -1);
+    rb_objc_define_method(rb_cNumeric, "truncate", num_truncate, 0);
+    rb_objc_define_method(rb_cNumeric, "step", num_step, -1);
 
-    rb_define_method(rb_cNumeric, "floor", num_floor, 0);
-    rb_define_method(rb_cNumeric, "ceil", num_ceil, 0);
-    rb_define_method(rb_cNumeric, "round", num_round, -1);
-    rb_define_method(rb_cNumeric, "truncate", num_truncate, 0);
-    rb_define_method(rb_cNumeric, "step", num_step, -1);
-
-    rb_define_method(rb_cNumeric, "numerator", num_numerator, 0);
-    rb_define_method(rb_cNumeric, "denominator", num_denominator, 0);
+    rb_objc_define_method(rb_cNumeric, "numerator", num_numerator, 0);
+    rb_objc_define_method(rb_cNumeric, "denominator", num_denominator, 0);
 
     rb_cInteger = rb_define_class("Integer", rb_cNumeric);
     rb_undef_alloc_func(rb_cInteger);
     rb_undef_method(CLASS_OF(rb_cInteger), "new");
 
-    rb_define_method(rb_cInteger, "integer?", int_int_p, 0);
-    rb_define_method(rb_cInteger, "odd?", int_odd_p, 0);
-    rb_define_method(rb_cInteger, "even?", int_even_p, 0);
-    rb_define_method(rb_cInteger, "upto", int_upto, 1);
-    rb_define_method(rb_cInteger, "downto", int_downto, 1);
-    rb_define_method(rb_cInteger, "times", int_dotimes, 0);
+    rb_objc_define_method(rb_cInteger, "integer?", int_int_p, 0);
+    rb_objc_define_method(rb_cInteger, "odd?", int_odd_p, 0);
+    rb_objc_define_method(rb_cInteger, "even?", int_even_p, 0);
+    rb_objc_define_method(rb_cInteger, "upto", int_upto, 1);
+    rb_objc_define_method(rb_cInteger, "downto", int_downto, 1);
+    rb_objc_define_method(rb_cInteger, "times", int_dotimes, 0);
     rb_include_module(rb_cInteger, rb_mPrecision);
-    rb_define_method(rb_cInteger, "succ", int_succ, 0);
-    rb_define_method(rb_cInteger, "next", int_succ, 0);
-    rb_define_method(rb_cInteger, "pred", int_pred, 0);
-    rb_define_method(rb_cInteger, "chr", int_chr, -1);
-    rb_define_method(rb_cInteger, "to_i", int_to_i, 0);
-    rb_define_method(rb_cInteger, "to_int", int_to_i, 0);
-    rb_define_method(rb_cInteger, "floor", int_to_i, 0);
-    rb_define_method(rb_cInteger, "ceil", int_to_i, 0);
-    rb_define_method(rb_cInteger, "truncate", int_to_i, 0);
-    rb_define_method(rb_cInteger, "round", int_round, -1);
+    rb_objc_define_method(rb_cInteger, "succ", int_succ, 0);
+    rb_objc_define_method(rb_cInteger, "next", int_succ, 0);
+    rb_objc_define_method(rb_cInteger, "pred", int_pred, 0);
+    rb_objc_define_method(rb_cInteger, "chr", int_chr, -1);
+    rb_objc_define_method(rb_cInteger, "ord", int_ord, 0);
+    rb_objc_define_method(rb_cInteger, "to_i", int_to_i, 0);
+    rb_objc_define_method(rb_cInteger, "to_int", int_to_i, 0);
+    rb_objc_define_method(rb_cInteger, "floor", int_to_i, 0);
+    rb_objc_define_method(rb_cInteger, "ceil", int_to_i, 0);
+    rb_objc_define_method(rb_cInteger, "truncate", int_to_i, 0);
+    rb_objc_define_method(rb_cInteger, "round", int_round, -1);
 
     rb_cFixnum = rb_define_class("Fixnum", rb_cInteger);
     rb_include_module(rb_cFixnum, rb_mPrecision);
-    rb_define_singleton_method(rb_cFixnum, "induced_from", rb_fix_induced_from, 1);
-    rb_define_singleton_method(rb_cInteger, "induced_from", rb_int_induced_from, 1);
+    rb_objc_define_method(*(VALUE *)rb_cFixnum, "induced_from", rb_fix_induced_from, 1);
+    rb_objc_define_method(*(VALUE *)rb_cInteger, "induced_from", rb_int_induced_from, 1);
 
-    rb_define_method(rb_cInteger, "numerator", int_numerator, 0);
-    rb_define_method(rb_cInteger, "denominator", int_denominator, 0);
+    rb_objc_define_method(rb_cInteger, "numerator", int_numerator, 0);
+    rb_objc_define_method(rb_cInteger, "denominator", int_denominator, 0);
 
-    rb_define_method(rb_cFixnum, "to_s", fix_to_s, -1);
+    rb_objc_define_method(rb_cFixnum, "to_s", fix_to_s, -1);
 
-    rb_define_method(rb_cFixnum, "-@", fix_uminus, 0);
-    rb_define_method(rb_cFixnum, "+", fix_plus, 1);
-    rb_define_method(rb_cFixnum, "-", fix_minus, 1);
-    rb_define_method(rb_cFixnum, "*", fix_mul, 1);
-    rb_define_method(rb_cFixnum, "/", fix_div, 1);
-    rb_define_method(rb_cFixnum, "div", fix_idiv, 1);
-    rb_define_method(rb_cFixnum, "%", fix_mod, 1);
-    rb_define_method(rb_cFixnum, "modulo", fix_mod, 1);
-    rb_define_method(rb_cFixnum, "divmod", fix_divmod, 1);
-    rb_define_method(rb_cFixnum, "fdiv", fix_fdiv, 1);
-    rb_define_method(rb_cFixnum, "**", fix_pow, 1);
+    rb_objc_define_method(rb_cFixnum, "-@", fix_uminus, 0);
+    rb_objc_define_method(rb_cFixnum, "+", fix_plus, 1);
+    rb_objc_define_method(rb_cFixnum, "-", fix_minus, 1);
+    rb_objc_define_method(rb_cFixnum, "*", fix_mul, 1);
+    rb_objc_define_method(rb_cFixnum, "/", fix_div, 1);
+    rb_objc_define_method(rb_cFixnum, "div", fix_idiv, 1);
+    rb_objc_define_method(rb_cFixnum, "%", fix_mod, 1);
+    rb_objc_define_method(rb_cFixnum, "modulo", fix_mod, 1);
+    rb_objc_define_method(rb_cFixnum, "divmod", fix_divmod, 1);
+    rb_objc_define_method(rb_cFixnum, "fdiv", fix_fdiv, 1);
+    rb_objc_define_method(rb_cFixnum, "**", fix_pow, 1);
 
-    rb_define_method(rb_cFixnum, "abs", fix_abs, 0);
+    rb_objc_define_method(rb_cFixnum, "abs", fix_abs, 0);
 
-    rb_define_method(rb_cFixnum, "==", fix_equal, 1);
-    rb_define_method(rb_cFixnum, "<=>", fix_cmp, 1);
-    rb_define_method(rb_cFixnum, ">",  fix_gt, 1);
-    rb_define_method(rb_cFixnum, ">=", fix_ge, 1);
-    rb_define_method(rb_cFixnum, "<",  fix_lt, 1);
-    rb_define_method(rb_cFixnum, "<=", fix_le, 1);
+    rb_objc_define_method(rb_cFixnum, "==", fix_equal, 1);
+    rb_objc_define_method(rb_cFixnum, "<=>", fix_cmp, 1);
+    rb_objc_define_method(rb_cFixnum, ">",  fix_gt, 1);
+    rb_objc_define_method(rb_cFixnum, ">=", fix_ge, 1);
+    rb_objc_define_method(rb_cFixnum, "<",  fix_lt, 1);
+    rb_objc_define_method(rb_cFixnum, "<=", fix_le, 1);
 
-    rb_define_method(rb_cFixnum, "~", fix_rev, 0);
-    rb_define_method(rb_cFixnum, "&", fix_and, 1);
-    rb_define_method(rb_cFixnum, "|", fix_or,  1);
-    rb_define_method(rb_cFixnum, "^", fix_xor, 1);
-    rb_define_method(rb_cFixnum, "[]", fix_aref, 1);
+    rb_objc_define_method(rb_cFixnum, "~", fix_rev, 0);
+    rb_objc_define_method(rb_cFixnum, "&", fix_and, 1);
+    rb_objc_define_method(rb_cFixnum, "|", fix_or,  1);
+    rb_objc_define_method(rb_cFixnum, "^", fix_xor, 1);
+    rb_objc_define_method(rb_cFixnum, "[]", fix_aref, 1);
 
-    rb_define_method(rb_cFixnum, "<<", rb_fix_lshift, 1);
-    rb_define_method(rb_cFixnum, ">>", rb_fix_rshift, 1);
+    rb_objc_define_method(rb_cFixnum, "<<", rb_fix_lshift, 1);
+    rb_objc_define_method(rb_cFixnum, ">>", rb_fix_rshift, 1);
 
-    rb_define_method(rb_cFixnum, "to_f", fix_to_f, 0);
-    rb_define_method(rb_cFixnum, "size", fix_size, 0);
-    rb_define_method(rb_cFixnum, "zero?", fix_zero_p, 0);
-    rb_define_method(rb_cFixnum, "odd?", fix_odd_p, 0);
-    rb_define_method(rb_cFixnum, "even?", fix_even_p, 0);
-    rb_define_method(rb_cFixnum, "succ", fix_succ, 0);
+    rb_objc_define_method(rb_cFixnum, "to_f", fix_to_f, 0);
+    rb_objc_define_method(rb_cFixnum, "size", fix_size, 0);
+    rb_objc_define_method(rb_cFixnum, "zero?", fix_zero_p, 0);
+    rb_objc_define_method(rb_cFixnum, "odd?", fix_odd_p, 0);
+    rb_objc_define_method(rb_cFixnum, "even?", fix_even_p, 0);
+    rb_objc_define_method(rb_cFixnum, "succ", fix_succ, 0);
+	rb_objc_define_method(rb_cFixnum, "popcnt", fix_popcnt, 0);
 
     rb_cFloat  = rb_define_class("Float", rb_cNumeric);
 
     rb_undef_alloc_func(rb_cFloat);
     rb_undef_method(CLASS_OF(rb_cFloat), "new");
 
-    rb_define_singleton_method(rb_cFloat, "induced_from", rb_flo_induced_from, 1);
+    rb_objc_define_method(*(VALUE *)rb_cFloat, "induced_from", rb_flo_induced_from, 1);
     rb_include_module(rb_cFloat, rb_mPrecision);
 
     rb_define_const(rb_cFloat, "ROUNDS", INT2FIX(FLT_ROUNDS));
@@ -4161,44 +3416,41 @@ Init_Numeric(void)
     rb_define_const(rb_cFloat, "MAX", DOUBLE2NUM(DBL_MAX));
     rb_define_const(rb_cFloat, "EPSILON", DOUBLE2NUM(DBL_EPSILON));
 
-    rb_define_method(rb_cFloat, "to_s", flo_to_s, 0);
-    rb_define_method(rb_cFloat, "coerce", flo_coerce, 1);
-    rb_define_method(rb_cFloat, "-@", flo_uminus, 0);
-    rb_define_method(rb_cFloat, "+", flo_plus, 1);
-    rb_define_method(rb_cFloat, "-", flo_minus, 1);
-    rb_define_method(rb_cFloat, "*", flo_mul, 1);
-    rb_define_method(rb_cFloat, "/", flo_div, 1);
-    rb_define_method(rb_cFloat, "quo", flo_quo, 1);
-    rb_define_method(rb_cFloat, "fdiv", flo_quo, 1);
-    rb_define_method(rb_cFloat, "%", flo_mod, 1);
-    rb_define_method(rb_cFloat, "modulo", flo_mod, 1);
-    rb_define_method(rb_cFloat, "divmod", flo_divmod, 1);
-    rb_define_method(rb_cFloat, "**", flo_pow, 1);
-    rb_define_method(rb_cFloat, "==", flo_eq, 1);
-    rb_define_method(rb_cFloat, "<=>", flo_cmp, 1);
-    rb_define_method(rb_cFloat, ">",  flo_gt, 1);
-    rb_define_method(rb_cFloat, ">=", flo_ge, 1);
-    rb_define_method(rb_cFloat, "<",  flo_lt, 1);
-    rb_define_method(rb_cFloat, "<=", flo_le, 1);
-    rb_define_method(rb_cFloat, "eql?", flo_eql, 1);
-    rb_define_method(rb_cFloat, "hash", flo_hash, 0);
-    rb_define_method(rb_cFloat, "to_f", flo_to_f, 0);
-    rb_define_method(rb_cFloat, "abs", flo_abs, 0);
-    rb_define_method(rb_cFloat, "zero?", flo_zero_p, 0);
+    rb_objc_define_method(rb_cFloat, "to_s", flo_to_s, 0);
+    rb_objc_define_method(rb_cFloat, "coerce", flo_coerce, 1);
+    rb_objc_define_method(rb_cFloat, "-@", flo_uminus, 0);
+    rb_objc_define_method(rb_cFloat, "+", flo_plus, 1);
+    rb_objc_define_method(rb_cFloat, "-", flo_minus, 1);
+    rb_objc_define_method(rb_cFloat, "*", flo_mul, 1);
+    rb_objc_define_method(rb_cFloat, "/", flo_div, 1);
+    rb_objc_define_method(rb_cFloat, "quo", flo_quo, 1);
+    rb_objc_define_method(rb_cFloat, "fdiv", flo_quo, 1);
+    rb_objc_define_method(rb_cFloat, "%", flo_mod, 1);
+    rb_objc_define_method(rb_cFloat, "modulo", flo_mod, 1);
+    rb_objc_define_method(rb_cFloat, "divmod", flo_divmod, 1);
+    rb_objc_define_method(rb_cFloat, "**", flo_pow, 1);
+    rb_objc_define_method(rb_cFloat, "==", flo_eq, 1);
+    rb_objc_define_method(rb_cFloat, "<=>", flo_cmp, 1);
+    rb_objc_define_method(rb_cFloat, ">",  flo_gt, 1);
+    rb_objc_define_method(rb_cFloat, ">=", flo_ge, 1);
+    rb_objc_define_method(rb_cFloat, "<",  flo_lt, 1);
+    rb_objc_define_method(rb_cFloat, "<=", flo_le, 1);
+    rb_objc_define_method(rb_cFloat, "eql?", flo_eql, 1);
+    rb_objc_define_method(rb_cFloat, "hash", flo_hash, 0);
+    rb_objc_define_method(rb_cFloat, "to_f", flo_to_f, 0);
+    rb_objc_define_method(rb_cFloat, "abs", flo_abs, 0);
+    rb_objc_define_method(rb_cFloat, "zero?", flo_zero_p, 0);
 
-    rb_define_method(rb_cFloat, "to_i", flo_truncate, 0);
-    rb_define_method(rb_cFloat, "to_int", flo_truncate, 0);
-    rb_define_method(rb_cFloat, "floor", flo_floor, 0);
-    rb_define_method(rb_cFloat, "ceil", flo_ceil, 0);
-    rb_define_method(rb_cFloat, "round", flo_round, -1);
-    rb_define_method(rb_cFloat, "truncate", flo_truncate, 0);
+    rb_objc_define_method(rb_cFloat, "to_i", flo_truncate, 0);
+    rb_objc_define_method(rb_cFloat, "to_int", flo_truncate, 0);
+    rb_objc_define_method(rb_cFloat, "floor", flo_floor, 0);
+    rb_objc_define_method(rb_cFloat, "ceil", flo_ceil, 0);
+    rb_objc_define_method(rb_cFloat, "round", flo_round, -1);
+    rb_objc_define_method(rb_cFloat, "truncate", flo_truncate, 0);
 
-    rb_define_method(rb_cFloat, "nan?",      flo_is_nan_p, 0);
-    rb_define_method(rb_cFloat, "infinite?", flo_is_infinite_p, 0);
-    rb_define_method(rb_cFloat, "finite?",   flo_is_finite_p, 0);
-
-#if WITH_OBJC
+    rb_objc_define_method(rb_cFloat, "nan?",      flo_is_nan_p, 0);
+    rb_objc_define_method(rb_cFloat, "infinite?", flo_is_infinite_p, 0);
+    rb_objc_define_method(rb_cFloat, "finite?",   flo_is_finite_p, 0);
+	
     rb_install_nsnumber_primitives();
-    rb_install_nsnumber_methods();
-#endif
 }

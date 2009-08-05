@@ -11,7 +11,9 @@
 
 #include "ruby/ruby.h"
 #include "ruby/st.h"
-#include "vm_core.h"
+#include "ruby/node.h"
+#include "vm.h"
+#include "id.h"
 
 #include <stdio.h>
 #include <stdarg.h>
@@ -144,6 +146,7 @@ warn_print(const char *fmt, va_list args)
     err_snprintf(buf, BUFSIZ, fmt, args);
     len = strlen(buf);
     buf[len++] = '\n';
+    buf[len] = '\0';
     rb_write_error2(buf, len);
 }
 
@@ -187,16 +190,16 @@ rb_warning(const char *fmt, ...)
  */
 
 static VALUE
-rb_warn_m(VALUE self, VALUE mesg)
+rb_warn_m(VALUE self, SEL sel, VALUE mesg)
 {
     if (!NIL_P(ruby_verbose)) {
-	rb_io_write(rb_stderr, mesg);
-	rb_io_write(rb_stderr, rb_default_rs);
+	rb_io_write(rb_stderr, (SEL)0, mesg);
+	rb_io_write(rb_stderr, (SEL)0, rb_default_rs);
     }
     return Qnil;
 }
 
-void rb_vm_bugreport(void);
+//void rb_vm_bugreport(void);
 
 static void
 report_bug(const char *file, int line, const char *fmt, va_list args)
@@ -210,7 +213,7 @@ report_bug(const char *file, int line, const char *fmt, va_list args)
 	fputs("[BUG] ", out);
 	vfprintf(out, fmt, args);
 	fprintf(out, "\n%s\n\n", ruby_description);
-	rb_vm_bugreport();
+	//rb_vm_bugreport();
     }
 }
 
@@ -265,7 +268,21 @@ static const struct types {
     {T_MATCH,	"MatchData"},	/* data of $~ */
     {T_NODE,	"Node"},	/* internal use: syntax tree node */
     {T_UNDEF,	"undef"},	/* internal use: #undef; should not happen */
+    {T_NATIVE,  "native"}
 };
+
+const char *
+rb_obj_type(VALUE x)
+{
+    int i;
+    const int t = TYPE(x);
+    for (i = 0; i < sizeof(builtin_types) / sizeof(builtin_types[0]); i++) {
+	if (t == builtin_types[i].type) {
+	    return builtin_types[i].name;
+	}
+    }
+    return "unknown";
+}
 
 void
 rb_check_type(VALUE x, int t)
@@ -365,7 +382,7 @@ rb_exc_new3(VALUE etype, VALUE str)
  */
 
 static VALUE
-exc_initialize(int argc, VALUE *argv, VALUE exc)
+exc_initialize(VALUE exc, SEL sel, int argc, VALUE *argv)
 {
     VALUE arg;
 
@@ -390,14 +407,14 @@ exc_initialize(int argc, VALUE *argv, VALUE exc)
  */
 
 static VALUE
-exc_exception(int argc, VALUE *argv, VALUE self)
+exc_exception(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     VALUE exc;
 
     if (argc == 0) return self;
     if (argc == 1 && self == argv[0]) return self;
     exc = rb_obj_clone(self);
-    exc_initialize(argc, argv, exc);
+    exc_initialize(exc, 0, argc, argv);
 
     return exc;
 }
@@ -411,7 +428,7 @@ exc_exception(int argc, VALUE *argv, VALUE self)
  */
 
 static VALUE
-exc_to_s(VALUE exc)
+exc_to_s(VALUE exc, SEL sel)
 {
     VALUE mesg = rb_attr_get(exc, rb_intern("mesg"));
 
@@ -431,7 +448,7 @@ exc_to_s(VALUE exc)
  */
 
 static VALUE
-exc_message(VALUE exc)
+exc_message(VALUE exc, SEL sel)
 {
     return rb_funcall(exc, rb_intern("to_s"), 0, 0);
 }
@@ -444,7 +461,7 @@ exc_message(VALUE exc)
  */
 
 static VALUE
-exc_inspect(VALUE exc)
+exc_inspect(VALUE exc, SEL sel)
 {
     VALUE str, klass;
 
@@ -494,7 +511,7 @@ exc_inspect(VALUE exc)
 */
 
 static VALUE
-exc_backtrace(VALUE exc)
+exc_backtrace(VALUE exc, SEL sel)
 {
     static ID bt;
 
@@ -537,7 +554,7 @@ rb_check_backtrace(VALUE bt)
  */
 
 static VALUE
-exc_set_backtrace(VALUE exc, VALUE bt)
+exc_set_backtrace(VALUE exc, SEL sel, VALUE bt)
 {
     return rb_iv_set(exc, "bt", rb_check_backtrace(bt));
 }
@@ -552,7 +569,7 @@ exc_set_backtrace(VALUE exc, VALUE bt)
  */
 
 static VALUE
-exc_equal(VALUE exc, VALUE obj)
+exc_equal(VALUE exc, SEL sel, VALUE obj)
 {
     ID id_mesg = rb_intern("mesg");
 
@@ -561,7 +578,7 @@ exc_equal(VALUE exc, VALUE obj)
 	return rb_equal(obj, exc);
     if (!rb_equal(rb_attr_get(exc, id_mesg), rb_attr_get(obj, id_mesg)))
 	return Qfalse;
-    if (!rb_equal(exc_backtrace(exc), exc_backtrace(obj)))
+    if (!rb_equal(exc_backtrace(exc, 0), exc_backtrace(obj, 0)))
 	return Qfalse;
     return Qtrue;
 }
@@ -573,15 +590,20 @@ exc_equal(VALUE exc, VALUE obj)
  * Create a new +SystemExit+ exception with the given status.
  */
 
-static VALUE
-exit_initialize(int argc, VALUE *argv, VALUE exc)
+/* XXX not a static/local symbol because of the super call that calls dladdr */
+VALUE
+exit_initialize(VALUE exc, SEL sel, int argc, VALUE *argv)
 {
     VALUE status = INT2FIX(EXIT_SUCCESS);
     if (argc > 0 && FIXNUM_P(argv[0])) {
 	status = *argv++;
 	--argc;
     }
-    rb_call_super(argc, argv);
+    //rb_call_super(argc, argv);
+    if (sel == 0) {
+	sel = argc == 0 ? selInitialize : selInitialize2;
+    }
+    rb_vm_call(exc, sel, argc, argv, true);
     rb_iv_set(exc, "status", status);
     return exc;
 }
@@ -595,7 +617,7 @@ exit_initialize(int argc, VALUE *argv, VALUE exc)
  */
 
 static VALUE
-exit_status(VALUE exc)
+exit_status(VALUE exc, SEL sel)
 {
     return rb_attr_get(exc, rb_intern("status"));
 }
@@ -609,7 +631,7 @@ exit_status(VALUE exc)
  */
 
 static VALUE
-exit_success_p(VALUE exc)
+exit_success_p(VALUE exc, SEL sel)
 {
     VALUE status = rb_attr_get(exc, rb_intern("status"));
     if (NIL_P(status)) return Qtrue;
@@ -643,13 +665,18 @@ rb_name_error(ID id, const char *fmt, ...)
  * method.
  */
 
-static VALUE
-name_err_initialize(int argc, VALUE *argv, VALUE self)
+/* XXX not a static/local symbol because of the super call that calls dladdr */
+VALUE
+name_err_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     VALUE name;
 
     name = (argc > 1) ? argv[--argc] : Qnil;
-    rb_call_super(argc, argv);
+    //rb_call_super(argc, argv);
+    if (sel == 0) {
+	sel = argc == 0 ? selInitialize : selInitialize2;
+    }
+    rb_vm_call(self, sel, argc, argv, true);
     rb_iv_set(self, "name", name);
     return self;
 }
@@ -662,7 +689,7 @@ name_err_initialize(int argc, VALUE *argv, VALUE self)
  */
 
 static VALUE
-name_err_name(VALUE self)
+name_err_name(VALUE self, SEL sel)
 {
     return rb_attr_get(self, rb_intern("name"));
 }
@@ -675,12 +702,14 @@ name_err_name(VALUE self)
  */
 
 static VALUE
-name_err_to_s(VALUE exc)
+name_err_to_s(VALUE exc, SEL sel)
 {
     VALUE mesg = rb_attr_get(exc, rb_intern("mesg"));
     VALUE str = mesg;
 
-    if (NIL_P(mesg)) return rb_class_name(CLASS_OF(exc));
+    if (NIL_P(mesg)) {
+	return rb_class_name(CLASS_OF(exc));
+    }
     StringValue(str);
     if (str != mesg) {
 	rb_iv_set(exc, "mesg", mesg = str);
@@ -699,37 +728,36 @@ name_err_to_s(VALUE exc)
  * arguments using the <code>#args</code> method.
  */
 
-static VALUE
-nometh_err_initialize(int argc, VALUE *argv, VALUE self)
+/* XXX not a static/local symbol because of the super call that calls dladdr */
+VALUE
+nometh_err_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     VALUE args = (argc > 2) ? argv[--argc] : Qnil;
-    name_err_initialize(argc, argv, self);
+    //name_err_initialize(self, sel, argc, argv);
+    if (sel == 0) {
+	sel = argc == 0 ? selInitialize : selInitialize2;
+    }
+    rb_vm_call(self, sel, argc, argv, true);
     rb_iv_set(self, "args", args);
     return self;
 }
 
 /* :nodoc: */
-static void
-name_err_mesg_mark(VALUE *ptr)
-{
-    rb_gc_mark_locations(ptr, ptr+3);
-}
-
-/* :nodoc: */
 static VALUE
-name_err_mesg_new(VALUE obj, VALUE mesg, VALUE recv, VALUE method)
+name_err_mesg_new(VALUE obj, SEL sel, VALUE mesg, VALUE recv, VALUE method)
 {
     VALUE *ptr = ALLOC_N(VALUE, 3);
 
-    ptr[0] = mesg;
-    ptr[1] = recv;
-    ptr[2] = method;
-    return Data_Wrap_Struct(rb_cNameErrorMesg, name_err_mesg_mark, -1, ptr);
+    GC_WB(&ptr[0], mesg);
+    GC_WB(&ptr[1], recv);
+    GC_WB(&ptr[2], method);
+
+    return Data_Wrap_Struct(rb_cNameErrorMesg, NULL, NULL, ptr);
 }
 
 /* :nodoc: */
 static VALUE
-name_err_mesg_equal(VALUE obj1, VALUE obj2)
+name_err_mesg_equal(VALUE obj1, SEL sel, VALUE obj2)
 {
     VALUE *ptr1, *ptr2;
     int i;
@@ -749,13 +777,15 @@ name_err_mesg_equal(VALUE obj1, VALUE obj2)
 
 /* :nodoc: */
 static VALUE
-name_err_mesg_to_str(VALUE obj)
+name_err_mesg_to_str(VALUE obj, SEL sel)
 {
     VALUE *ptr, mesg;
     Data_Get_Struct(obj, VALUE, ptr);
 
     mesg = ptr[0];
-    if (NIL_P(mesg)) return Qnil;
+    if (NIL_P(mesg)) {
+	return Qnil;
+    }
     else {
 	const char *desc = 0;
 	VALUE d = 0, args[3];
@@ -789,13 +819,15 @@ name_err_mesg_to_str(VALUE obj)
 	args[2] = d;
 	mesg = rb_f_sprintf(3, args);
     }
-    if (OBJ_TAINTED(obj)) OBJ_TAINT(mesg);
+    if (OBJ_TAINTED(obj)) {
+	OBJ_TAINT(mesg);
+    }
     return mesg;
 }
 
 /* :nodoc: */
 static VALUE
-name_err_mesg_load(VALUE klass, VALUE str)
+name_err_mesg_load(VALUE klass, SEL sel, VALUE str)
 {
     return str;
 }
@@ -809,15 +841,17 @@ name_err_mesg_load(VALUE klass, VALUE str)
  */
 
 static VALUE
-nometh_err_args(VALUE self)
+nometh_err_args(VALUE self, SEL sel)
 {
     return rb_attr_get(self, rb_intern("args"));
 }
 
+VALUE rb_str_inspect(VALUE, SEL);
+
 void
 rb_invalid_str(const char *str, const char *type)
 {
-    VALUE s = rb_str_inspect(rb_str_new2(str));
+    VALUE s = rb_str_inspect(rb_str_new2(str), 0);
 
     rb_raise(rb_eArgError, "invalid value for %s: %s", type, RSTRING_PTR(s));
 }
@@ -896,8 +930,9 @@ get_syserr(int n)
  * method.
  */
 
-static VALUE
-syserr_initialize(int argc, VALUE *argv, VALUE self)
+/* XXX not a static/local symbol because of the super call that calls dladdr */
+VALUE
+syserr_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 {
 #if !defined(_WIN32) && !defined(__VMS)
     char *strerror();
@@ -935,7 +970,8 @@ syserr_initialize(int argc, VALUE *argv, VALUE self)
     else {
 	mesg = rb_str_new2(err);
     }
-    rb_call_super(1, &mesg);
+    //rb_call_super(1, &mesg);
+    rb_vm_call(self, selInitialize2, 1, &mesg, true);
     rb_iv_set(self, "errno", error);
     return self;
 }
@@ -948,7 +984,7 @@ syserr_initialize(int argc, VALUE *argv, VALUE self)
  */
 
 static VALUE
-syserr_errno(VALUE self)
+syserr_errno(VALUE self, SEL sel)
 {
     return rb_attr_get(self, rb_intern("errno"));
 }
@@ -962,7 +998,7 @@ syserr_errno(VALUE self)
  */
 
 static VALUE
-syserr_eqq(VALUE self, VALUE exc)
+syserr_eqq(VALUE self, SEL sel, VALUE exc)
 {
     VALUE num, e;
     ID en = rb_intern("errno");
@@ -989,7 +1025,7 @@ syserr_eqq(VALUE self, VALUE exc)
  * Returns default SystemCallError class.
  */
 static VALUE
-errno_missing(VALUE self, VALUE id)
+errno_missing(VALUE self, SEL sel, VALUE id)
 {
     return rb_eNOERROR;
 }
@@ -1004,24 +1040,26 @@ errno_missing(VALUE self, VALUE id)
  *  <code>Exception</code> to add additional information.
  */
 
+VALUE rb_class_new_instance_imp(VALUE, SEL, int, VALUE *);
+
 void
 Init_Exception(void)
 {
     rb_eException   = rb_define_class("Exception", rb_cObject);
-    rb_define_singleton_method(rb_eException, "exception", rb_class_new_instance, -1);
-    rb_define_method(rb_eException, "exception", exc_exception, -1);
-    rb_define_method(rb_eException, "initialize", exc_initialize, -1);
-    rb_define_method(rb_eException, "==", exc_equal, 1);
-    rb_define_method(rb_eException, "to_s", exc_to_s, 0);
-    rb_define_method(rb_eException, "message", exc_message, 0);
-    rb_define_method(rb_eException, "inspect", exc_inspect, 0);
-    rb_define_method(rb_eException, "backtrace", exc_backtrace, 0);
-    rb_define_method(rb_eException, "set_backtrace", exc_set_backtrace, 1);
+    rb_objc_define_method(*(VALUE *)rb_eException, "exception", rb_class_new_instance_imp, -1);
+    rb_objc_define_method(rb_eException, "exception", exc_exception, -1);
+    rb_objc_define_method(rb_eException, "initialize", exc_initialize, -1);
+    rb_objc_define_method(rb_eException, "==", exc_equal, 1);
+    rb_objc_define_method(rb_eException, "to_s", exc_to_s, 0);
+    rb_objc_define_method(rb_eException, "message", exc_message, 0);
+    rb_objc_define_method(rb_eException, "inspect", exc_inspect, 0);
+    rb_objc_define_method(rb_eException, "backtrace", exc_backtrace, 0);
+    rb_objc_define_method(rb_eException, "set_backtrace", exc_set_backtrace, 1);
 
     rb_eSystemExit  = rb_define_class("SystemExit", rb_eException);
-    rb_define_method(rb_eSystemExit, "initialize", exit_initialize, -1);
-    rb_define_method(rb_eSystemExit, "status", exit_status, 0);
-    rb_define_method(rb_eSystemExit, "success?", exit_success_p, 0);
+    rb_objc_define_method(rb_eSystemExit, "initialize", exit_initialize, -1);
+    rb_objc_define_method(rb_eSystemExit, "status", exit_status, 0);
+    rb_objc_define_method(rb_eSystemExit, "success?", exit_success_p, 0);
 
     rb_eFatal  	    = rb_define_class("fatal", rb_eException);
     rb_eSignal      = rb_define_class("SignalException", rb_eException);
@@ -1040,18 +1078,18 @@ Init_Exception(void)
     rb_eNotImpError = rb_define_class("NotImplementedError", rb_eScriptError);
 
     rb_eNameError     = rb_define_class("NameError", rb_eStandardError);
-    rb_define_method(rb_eNameError, "initialize", name_err_initialize, -1);
-    rb_define_method(rb_eNameError, "name", name_err_name, 0);
-    rb_define_method(rb_eNameError, "to_s", name_err_to_s, 0);
+    rb_objc_define_method(rb_eNameError, "initialize", name_err_initialize, -1);
+    rb_objc_define_method(rb_eNameError, "name", name_err_name, 0);
+    rb_objc_define_method(rb_eNameError, "to_s", name_err_to_s, 0);
     rb_cNameErrorMesg = rb_define_class_under(rb_eNameError, "message", rb_cData);
-    rb_define_singleton_method(rb_cNameErrorMesg, "!", name_err_mesg_new, 3);
-    rb_define_method(rb_cNameErrorMesg, "==", name_err_mesg_equal, 1);
-    rb_define_method(rb_cNameErrorMesg, "to_str", name_err_mesg_to_str, 0);
-    rb_define_method(rb_cNameErrorMesg, "_dump", name_err_mesg_to_str, 1);
-    rb_define_singleton_method(rb_cNameErrorMesg, "_load", name_err_mesg_load, 1);
+    rb_objc_define_method(*(VALUE *)rb_cNameErrorMesg, "!", name_err_mesg_new, 3);
+    rb_objc_define_method(rb_cNameErrorMesg, "==", name_err_mesg_equal, 1);
+    rb_objc_define_method(rb_cNameErrorMesg, "to_str", name_err_mesg_to_str, 0);
+    rb_objc_define_method(rb_cNameErrorMesg, "_dump", name_err_mesg_to_str, 0);
+    rb_objc_define_method(*(VALUE *)rb_cNameErrorMesg, "_load", name_err_mesg_load, 1);
     rb_eNoMethodError = rb_define_class("NoMethodError", rb_eNameError);
-    rb_define_method(rb_eNoMethodError, "initialize", nometh_err_initialize, -1);
-    rb_define_method(rb_eNoMethodError, "args", nometh_err_args, 0);
+    rb_objc_define_method(rb_eNoMethodError, "initialize", nometh_err_initialize, -1);
+    rb_objc_define_method(rb_eNoMethodError, "args", nometh_err_args, 0);
 
     rb_eRuntimeError = rb_define_class("RuntimeError", rb_eStandardError);
     rb_eSecurityError = rb_define_class("SecurityError", rb_eException);
@@ -1060,14 +1098,14 @@ Init_Exception(void)
     syserr_tbl = st_init_numtable();
     GC_ROOT(&syserr_tbl);
     rb_eSystemCallError = rb_define_class("SystemCallError", rb_eStandardError);
-    rb_define_method(rb_eSystemCallError, "initialize", syserr_initialize, -1);
-    rb_define_method(rb_eSystemCallError, "errno", syserr_errno, 0);
-    rb_define_singleton_method(rb_eSystemCallError, "===", syserr_eqq, 1);
+    rb_objc_define_method(rb_eSystemCallError, "initialize", syserr_initialize, -1);
+    rb_objc_define_method(rb_eSystemCallError, "errno", syserr_errno, 0);
+    rb_objc_define_method(*(VALUE *)rb_eSystemCallError, "===", syserr_eqq, 1);
 
     rb_mErrno = rb_define_module("Errno");
-    rb_define_singleton_method(rb_mErrno, "const_missing", errno_missing, 1);
+    rb_objc_define_method(*(VALUE *)rb_mErrno, "const_missing", errno_missing, 1);
 
-    rb_define_global_function("warn", rb_warn_m, 1);
+    rb_objc_define_method(rb_mKernel, "warn", rb_warn_m, 1);
 }
 
 void
@@ -1099,7 +1137,7 @@ rb_notimplement(void)
 {
     rb_raise(rb_eNotImpError,
 	     "%s() function is unimplemented on this machine",
-	     rb_id2name(rb_frame_this_func()));
+	     "TODO");//rb_id2name(rb_frame_this_func()));
 }
 
 void
@@ -1543,26 +1581,25 @@ Init_syserr(void)
 static void
 err_append(const char *s)
 {
-    rb_thread_t *th = GET_THREAD();
-    VALUE err = th->errinfo;
+    VALUE err = rb_vm_current_exception();
 
-    if (th->parse_in_eval) {
-	if (!RTEST(err)) {
+    if (rb_vm_parse_in_eval()) {
+	if (err == Qnil) {
 	    err = rb_exc_new2(rb_eSyntaxError, s);
-	    GC_WB(&th->errinfo, err);
+	    rb_vm_set_current_exception(err);
 	}
 	else {
 	    VALUE str = rb_obj_as_string(err);
 
 	    rb_str_cat2(str, "\n");
 	    rb_str_cat2(str, s);
-	    GC_WB(&th->errinfo, rb_exc_new3(rb_eSyntaxError, str));
+	    rb_vm_set_current_exception(rb_exc_new3(rb_eSyntaxError, str));
 	}
     }
     else {
-	if (!RTEST(err)) {
+	if (err == Qnil) {
 	    err = rb_exc_new2(rb_eSyntaxError, "compile error");
-	    GC_WB(&th->errinfo, err);
+	    rb_vm_set_current_exception(err);
 	}
 	rb_write_error(s);
 	rb_write_error("\n");

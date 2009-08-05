@@ -1,0 +1,3 @@
+fails:String#chr returns a String in the same encoding as self
+fails:String#chr understands multi-byte characters
+fails:String#chr understands Strings that contain a mixture of character widths

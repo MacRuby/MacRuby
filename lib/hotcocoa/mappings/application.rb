@@ -34,6 +34,7 @@ HotCocoa::Mappings.map :application => :NSApplication do
       setMainMenu(menu)
     end
     
+=begin
     def menu(path=nil)
       if path
         find_menu(mainMenu, path)
@@ -41,6 +42,8 @@ HotCocoa::Mappings.map :application => :NSApplication do
         mainMenu
       end
     end
+=end
+    def menu; mainMenu; end
     
     def on_hide(menu)
       hide(menu)
@@ -105,7 +108,5 @@ HotCocoa::Mappings.map :application => :NSApplication do
   delegating "applicationWillTerminate:",                             :to => :will_terminate
   delegating "applicationWillUnhide:",                                :to => :will_unhide
   delegating "applicationWillUpdate:",                                :to => :will_update
-  
-  
   
 end

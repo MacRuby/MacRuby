@@ -9,6 +9,7 @@
 
 **********************************************************************/
 
+#include "oniguruma.h"
 #include "ruby/ruby.h"
 #include "ruby/re.h"
 #include "ruby/encoding.h"
@@ -440,7 +441,7 @@ rb_reg_desc(const char *s, long len, VALUE re)
  */
 
 static VALUE
-rb_reg_source(VALUE re)
+rb_reg_source(VALUE re, SEL sel)
 {
     VALUE str;
     const char *cstr;
@@ -449,10 +450,13 @@ rb_reg_source(VALUE re)
     rb_reg_check(re);
     cstr = RREGEXP(re)->str;
     clen = RREGEXP(re)->len;
-    if (clen == 0)
+    if (clen == 0) {
 	cstr = NULL;
+    }
     str = rb_enc_str_new(cstr, clen, rb_enc_get(re));
-    if (OBJ_TAINTED(re)) OBJ_TAINT(str);
+    if (OBJ_TAINTED(re)) {
+	OBJ_TAINT(str);
+    }
     return str;
 }
 
@@ -469,7 +473,7 @@ rb_reg_source(VALUE re)
  */
 
 static VALUE
-rb_reg_inspect(VALUE re)
+rb_reg_inspect(VALUE re, SEL sel)
 {
     rb_reg_check(re);
     return rb_reg_desc(RREGEXP(re)->str, RREGEXP(re)->len, re);
@@ -497,7 +501,7 @@ rb_reg_inspect(VALUE re)
  */
 
 static VALUE
-rb_reg_to_s(VALUE re)
+rb_reg_to_s(VALUE re, SEL sel)
 {
     int options, opt;
     const int embeddable = ONIG_OPTION_MULTILINE|ONIG_OPTION_IGNORECASE|ONIG_OPTION_EXTEND;
@@ -654,7 +658,7 @@ rb_reg_raise_str(VALUE str, int options, const char *err)
  */
 
 static VALUE
-rb_reg_casefold_p(VALUE re)
+rb_reg_casefold_p(VALUE re, SEL sel)
 {
     rb_reg_check(re);
     if (RREGEXP(re)->ptr->options & ONIG_OPTION_IGNORECASE) return Qtrue;
@@ -686,7 +690,7 @@ rb_reg_casefold_p(VALUE re)
  */
 
 static VALUE
-rb_reg_options_m(VALUE re)
+rb_reg_options_m(VALUE re, SEL sel)
 {
     int options = rb_reg_options(re);
     return INT2NUM(options);
@@ -718,7 +722,7 @@ reg_names_iter(const OnigUChar *name, const OnigUChar *name_end,
  */
 
 static VALUE
-rb_reg_names(VALUE re)
+rb_reg_names(VALUE re, SEL sel)
 {
     VALUE ary = rb_ary_new();
     onig_foreach_name(RREGEXP(re)->ptr, reg_names_iter, (void*)ary);
@@ -764,7 +768,7 @@ reg_named_captures_iter(const OnigUChar *name, const OnigUChar *name_end,
  */
 
 static VALUE
-rb_reg_named_captures(VALUE re)
+rb_reg_named_captures(VALUE re, SEL sel)
 {
     VALUE hash = rb_hash_new();
     onig_foreach_name(RREGEXP(re)->ptr, reg_named_captures_iter, (void*)hash);
@@ -772,7 +776,8 @@ rb_reg_named_captures(VALUE re)
 }
 
 static Regexp*
-make_regexp(const char *s, long len, rb_encoding *enc, int flags, onig_errmsg_buffer err)
+make_regexp(const char *s, long len, rb_encoding *enc, int flags,
+	onig_errmsg_buffer err)
 {
     Regexp *rp;
     int r;
@@ -825,7 +830,7 @@ make_regexp(const char *s, long len, rb_encoding *enc, int flags, onig_errmsg_bu
 VALUE rb_cMatch;
 
 static VALUE
-match_alloc(VALUE klass)
+match_alloc(VALUE klass, SEL sel)
 {
     NEWOBJ(match, struct RMatch);
     OBJSETUP(match, klass, T_MATCH);
@@ -936,7 +941,7 @@ match_check(VALUE match)
 
 /* :nodoc: */
 static VALUE
-match_init_copy(VALUE obj, VALUE orig)
+match_init_copy(VALUE obj, SEL sel, VALUE orig)
 {
     struct rmatch *rm;
 
@@ -979,7 +984,7 @@ match_init_copy(VALUE obj, VALUE orig)
  */
 
 static VALUE
-match_regexp(VALUE match)
+match_regexp(VALUE match, SEL sel)
 {
     match_check(match);
     return RMATCH(match)->regexp;
@@ -1000,10 +1005,10 @@ match_regexp(VALUE match)
  */
 
 static VALUE
-match_names(VALUE match)
+match_names(VALUE match, SEL sel)
 {
     match_check(match);
-    return rb_reg_names(RMATCH(match)->regexp);
+    return rb_reg_names(RMATCH(match)->regexp, 0);
 }
 
 /*
@@ -1019,7 +1024,7 @@ match_names(VALUE match)
  */
 
 static VALUE
-match_size(VALUE match)
+match_size(VALUE match, SEL sel)
 {
     match_check(match);
     return INT2FIX(RMATCH_REGS(match)->num_regs);
@@ -1080,7 +1085,7 @@ match_backref_number(VALUE match, VALUE backref)
  */
 
 static VALUE
-match_offset(VALUE match, VALUE n)
+match_offset(VALUE match, SEL sel, VALUE n)
 {
     int i = match_backref_number(match, n);
     struct re_registers *regs = RMATCH_REGS(match);
@@ -1116,7 +1121,7 @@ match_offset(VALUE match, VALUE n)
  */
 
 static VALUE
-match_begin(VALUE match, VALUE n)
+match_begin(VALUE match, SEL sel, VALUE n)
 {
     int i = match_backref_number(match, n);
     struct re_registers *regs = RMATCH_REGS(match);
@@ -1151,7 +1156,7 @@ match_begin(VALUE match, VALUE n)
  */
 
 static VALUE
-match_end(VALUE match, VALUE n)
+match_end(VALUE match, SEL sel, VALUE n)
 {
     int i = match_backref_number(match, n);
     struct re_registers *regs = RMATCH_REGS(match);
@@ -1205,7 +1210,7 @@ rb_match_busy(VALUE match)
  */
 
 static VALUE
-rb_reg_fixed_encoding_p(VALUE re)
+rb_reg_fixed_encoding_p(VALUE re, SEL sel)
 {
     if (FL_TEST(re, KCODE_FIXED))
         return Qtrue;
@@ -1228,9 +1233,88 @@ reg_enc_error(VALUE re, VALUE str)
 }
 #endif
 
-static rb_encoding*
-rb_reg_prepare_enc(VALUE re, VALUE str, int warn)
+static void
+get_cstring(VALUE str, CFStringEncoding enc, char **pcstr, size_t *pcharsize,
+	bool *should_free)
 {
+    if (pcstr != NULL && pcharsize != NULL && should_free != NULL) {
+	char *p = (char *)CFStringGetCStringPtr((CFStringRef)str, enc);
+	if (p != NULL) {
+	    *should_free = false;
+	}
+	else {
+	    const size_t s = CFStringGetMaximumSizeForEncoding(
+		    CFStringGetLength((CFStringRef)str), enc);
+	    p = (char *)malloc(s + 1);
+	    assert(CFStringGetCString((CFStringRef)str, p, s + 1, enc));
+	    *should_free = true;
+	}
+	*pcstr = p;
+	*pcharsize = sizeof(char);
+    }
+}
+
+static void
+get_unistring(VALUE str, CFStringEncoding enc, char **pcstr, size_t *pcharsize,
+	bool *should_free)
+{
+    if (pcstr != NULL && pcharsize != NULL && should_free != NULL) {
+	UniChar *p = (UniChar *)CFStringGetCharactersPtr((CFStringRef)str);
+	const size_t str_len = CFStringGetLength((CFStringRef)str);
+	if (p != NULL) {
+	    *should_free = false;
+	}
+	else {
+	    const size_t s = CFStringGetMaximumSizeForEncoding(
+		    str_len, enc);
+	    p = (UniChar *)malloc(s);
+	    CFStringGetCharacters((CFStringRef)str,
+		    CFRangeMake(0, str_len),
+		    p);
+	    *should_free = true;
+	}
+	*pcstr = (char *)p;
+	*pcharsize = sizeof(UniChar);
+    }
+}
+
+static inline bool
+multibyte_encoding(rb_encoding *enc)
+{
+    return enc == (rb_encoding *)ONIG_ENCODING_UTF16_BE
+	|| enc == (rb_encoding *)ONIG_ENCODING_UTF16_LE
+	|| enc == (rb_encoding *)ONIG_ENCODING_UTF32_BE
+	|| enc == (rb_encoding *)ONIG_ENCODING_UTF32_LE;
+}
+
+static rb_encoding*
+rb_reg_prepare_enc(VALUE re, VALUE str, char **pcstr, size_t *pcharsize,
+	bool *should_free)
+{
+    CFStringEncoding enc = CFStringGetFastestEncoding((CFStringRef)str);
+    switch (enc) {
+	case kCFStringEncodingMacRoman:
+	case kCFStringEncodingWindowsLatin1:
+	case kCFStringEncodingISOLatin1:
+	case kCFStringEncodingNextStepLatin:
+	case kCFStringEncodingASCII:
+	case kCFStringEncodingNonLossyASCII:
+	    get_cstring(str, enc, pcstr, pcharsize, should_free);
+	    return (rb_encoding *)ONIG_ENCODING_ASCII;
+
+	case kCFStringEncodingUTF8:
+	case kCFStringEncodingUTF16:
+	case kCFStringEncodingUTF16BE:
+	case kCFStringEncodingUTF16LE:
+	case kCFStringEncodingUTF32:
+	case kCFStringEncodingUTF32BE:
+	case kCFStringEncodingUTF32LE:
+	    get_unistring(str, enc, pcstr, pcharsize, should_free);
+	    return (rb_encoding *)ONIG_ENCODING_UTF16_LE;
+    }
+
+    rb_raise(rb_eArgError, "given string has unrecognized encoding");
+#if 0
     rb_encoding *enc = 0;
 
 #if !WITH_OBJC
@@ -1249,7 +1333,7 @@ rb_reg_prepare_enc(VALUE re, VALUE str, int warn)
 	    reg_enc_error(re, str);
 	}
     }
-    else if (rb_reg_fixed_encoding_p(re)) {
+    else if (rb_reg_fixed_encoding_p(re, 0)) {
         if (RREGEXP(re)->ptr->enc != enc &&
 	    (!rb_enc_asciicompat(RREGEXP(re)->ptr->enc) ||
 	     rb_enc_str_coderange(str) != ENC_CODERANGE_7BIT)) {
@@ -1265,10 +1349,12 @@ rb_reg_prepare_enc(VALUE re, VALUE str, int warn)
     }
 #endif
     return enc;
+#endif
 }
 
-regex_t *
-rb_reg_prepare_re(VALUE re, VALUE str)
+static regex_t *
+rb_reg_prepare_re(VALUE re, VALUE str, char **pcstr, size_t *pcharsize,
+	bool *should_free)
 {
     regex_t *reg = RREGEXP(re)->ptr;
     onig_errmsg_buffer err = "";
@@ -1277,38 +1363,49 @@ rb_reg_prepare_re(VALUE re, VALUE str)
     const char *pattern;
     VALUE unescaped;
     rb_encoding *fixed_enc = 0;
-    rb_encoding *enc = rb_reg_prepare_enc(re, str, 1);
+    rb_encoding *enc = rb_reg_prepare_enc(re, str, pcstr, pcharsize,
+	    should_free);
 
-#if !WITH_OBJC
-    if (reg->enc == enc) return reg;
-#endif
+    if ((rb_encoding *)reg->enc == enc) {
+	return reg;
+    }
 
     rb_reg_check(re);
     reg = RREGEXP(re)->ptr;
     pattern = RREGEXP(re)->str;
 
-    unescaped = rb_reg_preprocess(
-	pattern, pattern + RREGEXP(re)->len, enc,
+    unescaped = rb_reg_preprocess(pattern, pattern + RREGEXP(re)->len, enc,
 	&fixed_enc, err);
 
     if (unescaped == Qnil) {
 	rb_raise(rb_eArgError, "regexp preprocess failed: %s", err);
     }
 
-#if WITH_OBJC
-    enc = (rb_encoding *)ONIG_ENCODING_ASCII;
-#endif
+    UChar *begin, *end;
+    if (multibyte_encoding(enc)) {
+	UniChar *chars = (UniChar *)CFStringGetCharactersPtr(
+		(CFStringRef)unescaped);
+	const long len = RSTRING_LEN(unescaped);
+	if (chars == NULL) {
+	    chars = (UniChar *)alloca(sizeof(UniChar) * len);
+	    CFStringGetCharacters((CFStringRef)unescaped,
+		    CFRangeMake(0, len), chars);
+	}
+	begin = (UChar *)chars;
+	end = (UChar *)chars + (sizeof(UniChar) * len);
+    }
+    else {
+	begin = (UChar *)RSTRING_PTR(unescaped);
+	end = begin + RSTRING_LEN(unescaped);
+    }
 
-    r = onig_new(&reg, (UChar* )RSTRING_BYTEPTR(unescaped),
-		 (UChar* )(RSTRING_BYTEPTR(unescaped) + RSTRING_BYTELEN(unescaped)),
-		 reg->options, (OnigEncoding)enc,
-		 OnigDefaultSyntax, &einfo);
-    if (r) {
+    r = onig_new(&reg, begin, end, reg->options, (OnigEncoding)enc,
+	    OnigDefaultSyntax, &einfo);
+    if (r != 0) {
 	onig_error_code_to_str((UChar*)err, r, &einfo);
 	rb_reg_raise(pattern, RREGEXP(re)->len, err, re);
     }
 
-    RB_GC_GUARD(unescaped);
     return reg;
 }
 
@@ -1321,7 +1418,7 @@ rb_reg_adjust_startpos(VALUE re, VALUE str, int pos, int reverse)
     UChar *p, *string;
 #endif
 
-    enc = rb_reg_prepare_enc(re, str, 0);
+    enc = rb_reg_prepare_enc(re, str, NULL, NULL, NULL);
 
     if (reverse) {
 	range = -pos;
@@ -1350,43 +1447,44 @@ rb_reg_adjust_startpos(VALUE re, VALUE str, int pos, int reverse)
 int
 rb_reg_search(VALUE re, VALUE str, int pos, int reverse)
 {
-    int result;
-    VALUE match;
-    struct re_registers *pregs;
-    const char *cstr, *range;
-    long clen;
     regex_t *reg0 = RREGEXP(re)->ptr, *reg;
     int busy = FL_TEST(re, REG_BUSY);
 
-    cstr = range = RSTRING_PTR(str);
-    clen = RSTRING_LEN(str);
-#if WITH_OBJC
-    struct re_registers *regs = NULL;
-    regs = xmalloc(sizeof(struct re_registers));
-    pregs = regs;
-#else
-    static struct re_registers regs;
-    pregs = &regs;
-#endif
+    static struct re_registers *regs = NULL;
+    if (regs == NULL) {
+	regs = xmalloc(sizeof(struct re_registers));
+	rb_objc_root(&regs);
+    }
+    struct re_registers *pregs = regs;
 
+    const size_t clen = RSTRING_LEN(str);
     if (pos > clen || pos < 0) {
 	rb_backref_set(Qnil);
 	return -1;
     }
 
-    reg = rb_reg_prepare_re(re, str);
+    char *cstr = NULL;
+    size_t charsize = 0;
+    bool should_free = false;
+    reg = rb_reg_prepare_re(re, str, &cstr, &charsize, &should_free);
 
+    char *range = cstr;
     FL_SET(re, REG_BUSY);
     if (!reverse) {
-	range += RSTRING_LEN(str);
+	range += (clen * charsize);
     }
     MEMZERO(pregs, struct re_registers, 1);
-    result = onig_search(RREGEXP(re)->ptr,
-			 (UChar*)cstr,
-			 ((UChar*)cstr + clen),
-			 ((UChar*)cstr + pos),
-			 ((UChar*)range),
-			 pregs, ONIG_OPTION_NONE);
+    int result = onig_search(reg,
+	    (UChar*)cstr,
+	    ((UChar*)cstr + (clen * charsize)),
+	    ((UChar*)cstr + (pos * charsize)),
+	    ((UChar*)range),
+	    pregs, ONIG_OPTION_NONE);
+
+    if (should_free) {
+	free(cstr);
+	cstr = NULL;
+    }
 
     if (RREGEXP(re)->ptr != reg) {
 	if (busy) {
@@ -1394,10 +1492,12 @@ rb_reg_search(VALUE re, VALUE str, int pos, int reverse)
 	}
 	else {
 	    onig_free(reg0);
-	    GC_WB(&RREGEXP(re)->ptr, reg);
+	    RREGEXP(re)->ptr = reg;
 	}
     }
-    if (!busy) FL_UNSET(re, REG_BUSY);
+    if (!busy) {
+	FL_UNSET(re, REG_BUSY);
+    }
     if (result < 0) {
 	onig_region_free(pregs, 0);
 	if (result == ONIG_MISMATCH) {
@@ -1411,10 +1511,26 @@ rb_reg_search(VALUE re, VALUE str, int pos, int reverse)
 	}
     }
 
+    if (charsize > 1) {
+	int i;
+	for (i = 0; i < pregs->num_regs; i++) {
+	    if (pregs->beg[i] > 0) {
+		assert((pregs->beg[i] % charsize) == 0);
+		pregs->beg[i] /= charsize;
+	    }
+	    if (pregs->end[i] > 0) {
+		assert((pregs->end[i] % charsize) == 0);
+		pregs->end[i] /= charsize;
+	    }
+	}
+	assert((result % charsize) == 0);
+	result /= charsize;
+    }
+
 #if WITH_OBJC
-    match = match_alloc(rb_cMatch);
+    VALUE match = match_alloc(rb_cMatch, 0);
 #else
-    match = rb_backref_get();
+    VALUE match = rb_backref_get();
     if (NIL_P(match) || FL_TEST(match, MATCH_BUSY)) {
 	match = match_alloc(rb_cMatch);
     }
@@ -1464,7 +1580,9 @@ rb_reg_nth_match(int nth, VALUE match)
     long start, end, len;
     struct re_registers *regs;
 
-    if (NIL_P(match)) return Qnil;
+    if (NIL_P(match)) {
+	return Qnil;
+    }
     match_check(match);
     regs = RMATCH_REGS(match);
     if (nth >= regs->num_regs) {
@@ -1472,14 +1590,17 @@ rb_reg_nth_match(int nth, VALUE match)
     }
     if (nth < 0) {
 	nth += regs->num_regs;
-	if (nth <= 0) return Qnil;
+	if (nth <= 0) {
+	    return Qnil;
+	}
     }
     start = BEG(nth);
-    if (start == -1) return Qnil;
+    if (start == -1) {
+	return Qnil;
+    }
     end = END(nth);
     len = end - start;
     str = rb_str_subseq(RMATCH(match)->str, start, len);
-    OBJ_INFECT(str, match);
     return str;
 }
 
@@ -1502,7 +1623,7 @@ rb_reg_last_match(VALUE match)
  */
 
 VALUE
-rb_reg_match_pre(VALUE match)
+rb_reg_match_pre(VALUE match, SEL sel)
 {
     VALUE str;
     struct re_registers *regs;
@@ -1529,7 +1650,7 @@ rb_reg_match_pre(VALUE match)
  */
 
 VALUE
-rb_reg_match_post(VALUE match)
+rb_reg_match_post(VALUE match, SEL sel)
 {
     VALUE str;
     long pos;
@@ -1572,13 +1693,13 @@ last_match_getter(void)
 static VALUE
 prematch_getter(void)
 {
-    return rb_reg_match_pre(rb_backref_get());
+    return rb_reg_match_pre(rb_backref_get(), 0);
 }
 
 static VALUE
 postmatch_getter(void)
 {
-    return rb_reg_match_post(rb_backref_get());
+    return rb_reg_match_post(rb_backref_get(), 0);
 }
 
 static VALUE
@@ -1638,7 +1759,7 @@ match_array(VALUE match, int start)
  */
 
 static VALUE
-match_to_a(VALUE match)
+match_to_a(VALUE match, SEL sel)
 {
     return match_array(match, 0);
 }
@@ -1657,7 +1778,7 @@ match_to_a(VALUE match)
  *     f4    #=> "8"
  */
 static VALUE
-match_captures(VALUE match)
+match_captures(VALUE match, SEL sel)
 {
     return match_array(match, 1);
 }
@@ -1706,7 +1827,7 @@ name_to_backref_number(struct re_registers *regs, VALUE regexp, const char* name
  */
 
 static VALUE
-match_aref(int argc, VALUE *argv, VALUE match)
+match_aref(VALUE match, SEL sel, int argc, VALUE *argv)
 {
     VALUE idx, rest;
 
@@ -1743,7 +1864,8 @@ match_aref(int argc, VALUE *argv, VALUE match)
       }
     }
 
-    return rb_ary_aref(argc, argv, match_to_a(match));
+    extern VALUE rb_ary_aref(VALUE recv, SEL sel, int argc, VALUE *argv);
+    return rb_ary_aref(match_to_a(match, 0), 0, argc, argv);
 }
 
 static VALUE
@@ -1767,13 +1889,12 @@ match_entry(VALUE match, long n)
  */
 
 static VALUE
-match_values_at(int argc, VALUE *argv, VALUE match)
+match_values_at(VALUE match, SEL sel, int argc, VALUE *argv)
 {
     struct re_registers *regs = RMATCH_REGS(match);
     match_check(match);
     return rb_get_values_at(match, regs->num_regs, argc, argv, match_entry);
 }
-
 
 /*
  *  call-seq:
@@ -1786,14 +1907,20 @@ match_values_at(int argc, VALUE *argv, VALUE match)
  */
 
 static VALUE
-match_to_s(VALUE match)
+match_to_s(VALUE match, SEL sel)
 {
     VALUE str = rb_reg_last_match(match);
 
     match_check(match);
-    if (NIL_P(str)) str = rb_str_new(0,0);
-    if (OBJ_TAINTED(match)) OBJ_TAINT(str);
-    if (OBJ_TAINTED(RMATCH(match)->str)) OBJ_TAINT(str);
+    if (NIL_P(str)) {
+	str = rb_str_new(0,0);
+    }
+    if (OBJ_TAINTED(match)) {
+	OBJ_TAINT(str);
+    }
+    else if (OBJ_TAINTED(RMATCH(match)->str)) {
+	OBJ_TAINT(str);
+    }
     return str;
 }
 
@@ -1809,7 +1936,7 @@ match_to_s(VALUE match)
  */
 
 static VALUE
-match_string(VALUE match)
+match_string(VALUE match, SEL sel)
 {
     match_check(match);
     return RMATCH(match)->str;	/* str is frozen */
@@ -1854,8 +1981,10 @@ match_inspect_name_iter(const OnigUChar *name, const OnigUChar *name_end,
  *
  */
 
+VALUE rb_str_inspect(VALUE, SEL);
+
 static VALUE
-match_inspect(VALUE match)
+match_inspect(VALUE match, SEL sel)
 {
     const char *cname = rb_obj_classname(match);
     VALUE str;
@@ -1881,9 +2010,10 @@ match_inspect(VALUE match)
     for (i = 0; i < num_regs; i++) {
         VALUE v;
         rb_str_buf_cat2(str, " ");
-        if (0 < i) {
-            if (names[i].name)
+        if (i > 0) {
+            if (names[i].name) { 
                 rb_str_buf_cat(str, (const char *)names[i].name, names[i].len);
+	    }
             else {
                 char buf[sizeof(i)*3+1];
                 snprintf(buf, sizeof(buf), "%d", i);
@@ -1892,10 +2022,12 @@ match_inspect(VALUE match)
             rb_str_buf_cat2(str, ":");
         }
         v = rb_reg_nth_match(i, match);
-        if (v == Qnil)
+        if (v == Qnil) {
             rb_str_buf_cat2(str, "nil");
-        else
-            rb_str_buf_append(str, rb_str_inspect(v));
+	}
+        else {
+            rb_str_buf_append(str, rb_str_inspect(v, 0));
+	}
     }
     rb_str_buf_cat2(str, ">");
 
@@ -2319,7 +2451,6 @@ rb_reg_check_preprocess(VALUE str)
     enc = rb_enc_get(str);
 
     buf = rb_reg_preprocess(p, end, enc, &fixed_enc, err);
-    RB_GC_GUARD(str);
 
     if (buf == Qnil) {
 	return rb_reg_error_desc(str, 0, err);
@@ -2399,15 +2530,21 @@ rb_reg_initialize(VALUE obj, const char *s, int len, rb_encoding *enc,
     rb_encoding *a_enc = rb_ascii8bit_encoding();
 #endif
 
-    if (!OBJ_TAINTED(obj) && rb_safe_level() >= 4)
+    if (!OBJ_TAINTED(obj) && rb_safe_level() >= 4) {
 	rb_raise(rb_eSecurityError, "Insecure: can't modify regexp");
+    }
     rb_check_frozen(obj);
-    if (FL_TEST(obj, REG_LITERAL))
+    if (FL_TEST(obj, REG_LITERAL)) {
 	rb_raise(rb_eSecurityError, "can't modify literal regexp");
-    if (re->ptr) onig_free(re->ptr);
-    if (re->str) xfree(re->str);
-    re->ptr = 0;
-    re->str = 0;
+    }
+    if (re->ptr != NULL) {
+	onig_free(re->ptr);
+    }
+    if (re->str != NULL) {
+	xfree(re->str);
+    }
+    re->ptr = NULL;
+    re->str = NULL;
 
     unescaped = rb_reg_preprocess(s, s+len, enc, &fixed_enc, err);
     if (unescaped == Qnil)
@@ -2439,23 +2576,24 @@ rb_reg_initialize(VALUE obj, const char *s, int len, rb_encoding *enc,
     if (options & ARG_ENCODING_NONE) {
         re->basic.flags |= REG_ENCODING_NONE;
     }
-    
-    GC_WB(&re->ptr, make_regexp(RSTRING_PTR(unescaped), 
-				RSTRING_LEN(unescaped), enc,
-                                options & ARG_REG_OPTION_MASK, err));
-    if (!re->ptr) return -1;
+   
+    Regexp *reg = make_regexp(RSTRING_PTR(unescaped), 
+	    RSTRING_LEN(unescaped), enc,
+	    options & ARG_REG_OPTION_MASK, err);
+    if (reg == NULL) {
+	return -1;
+    }
+    GC_WB(&re->ptr, reg);
     GC_WB(&re->str, ALLOC_N(char, len+1));
     memcpy(re->str, s, len);
     re->str[len] = '\0';
     re->len = len;
-    RB_GC_GUARD(unescaped);
     return 0;
 }
 
 static int
 rb_reg_initialize_str(VALUE obj, VALUE str, int options, onig_errmsg_buffer err)
 {
-    int ret;
     rb_encoding *enc = rb_enc_get(str);
     if (options & ARG_ENCODING_NONE) {
 #if !WITH_OBJC
@@ -2470,14 +2608,12 @@ rb_reg_initialize_str(VALUE obj, VALUE str, int options, onig_errmsg_buffer err)
         }
 #endif
     }
-    ret = rb_reg_initialize(obj, RSTRING_PTR(str), RSTRING_LEN(str), enc,
-			    options, err);
-    RB_GC_GUARD(str);
-    return ret;
+    return rb_reg_initialize(obj, RSTRING_PTR(str), RSTRING_LEN(str), enc,
+	    options, err);
 }
 
 static VALUE
-rb_reg_s_alloc(VALUE klass)
+rb_reg_s_alloc(VALUE klass, SEL sel)
 {
     NEWOBJ(re, struct RRegexp);
     OBJSETUP(re, klass, T_REGEXP);
@@ -2492,7 +2628,7 @@ rb_reg_s_alloc(VALUE klass)
 VALUE
 rb_reg_new_str(VALUE s, int options)
 {
-    VALUE re = rb_reg_s_alloc(rb_cRegexp);
+    VALUE re = rb_reg_s_alloc(rb_cRegexp, 0);
     onig_errmsg_buffer err = "";
 
     if (rb_reg_initialize_str(re, s, options, err) != 0) {
@@ -2511,7 +2647,7 @@ rb_reg_new_ary(VALUE ary, int opt)
 VALUE
 rb_enc_reg_new(const char *s, long len, rb_encoding *enc, int options)
 {
-    VALUE re = rb_reg_s_alloc(rb_cRegexp);
+    VALUE re = rb_reg_s_alloc(rb_cRegexp, 0);
     onig_errmsg_buffer err = "";
 
     if (rb_reg_initialize(re, s, len, enc, options, err) != 0) {
@@ -2534,7 +2670,7 @@ rb_reg_new(const char *s, long len, int options)
 VALUE
 rb_reg_compile(VALUE str, int options)
 {
-    VALUE re = rb_reg_s_alloc(rb_cRegexp);
+    VALUE re = rb_reg_s_alloc(rb_cRegexp, 0);
     onig_errmsg_buffer err = "";
 
     if (!str) str = rb_str_new(0,0);
@@ -2572,7 +2708,7 @@ rb_reg_regcomp(VALUE str)
  */
 
 static VALUE
-rb_reg_hash(VALUE re)
+rb_reg_hash(VALUE re, SEL sel)
 {
     int hashval, len;
     char *p;
@@ -2606,7 +2742,7 @@ rb_reg_hash(VALUE re)
  */
 
 static VALUE
-rb_reg_equal(VALUE re1, VALUE re2)
+rb_reg_equal(VALUE re1, SEL sel, VALUE re2)
 {
     if (re1 == re2) return Qtrue;
     if (TYPE(re2) != T_REGEXP) return Qfalse;
@@ -2705,13 +2841,21 @@ reg_match_pos(VALUE re, VALUE *strp, long pos)
  *
  */
 
+static VALUE
+rb_reg_match_imp(VALUE re, SEL sel, VALUE str)
+{
+    long pos = reg_match_pos(re, &str, 0);
+    if (pos < 0) {
+	return Qnil;
+    }
+    pos = rb_str_sublen(str, pos);
+    return LONG2FIX(pos);
+}
+
 VALUE
 rb_reg_match(VALUE re, VALUE str)
 {
-    long pos = reg_match_pos(re, &str, 0);
-    if (pos < 0) return Qnil;
-    pos = rb_str_sublen(str, pos);
-    return LONG2FIX(pos);
+    return rb_reg_match_imp(re, 0, str);
 }
 
 /*
@@ -2733,7 +2877,7 @@ rb_reg_match(VALUE re, VALUE str)
  */
 
 VALUE
-rb_reg_eqq(VALUE re, VALUE str)
+rb_reg_eqq(VALUE re, SEL sel, VALUE str)
 {
     long start;
 
@@ -2761,8 +2905,8 @@ rb_reg_eqq(VALUE re, VALUE str)
  *     ~ /at/   #=> 7
  */
 
-VALUE
-rb_reg_match2(VALUE re)
+static VALUE
+rb_reg_match2(VALUE re, SEL sel)
 {
     long start;
     VALUE line = rb_lastline_get();
@@ -2810,7 +2954,7 @@ rb_reg_match2(VALUE re)
  */
 
 static VALUE
-rb_reg_match_m(int argc, VALUE *argv, VALUE re)
+rb_reg_match_m(VALUE re, SEL sel, int argc, VALUE *argv)
 {
     VALUE result, str, initpos;
     long pos;
@@ -2865,7 +3009,7 @@ rb_reg_match_m(int argc, VALUE *argv, VALUE re)
  */
 
 static VALUE
-rb_reg_initialize_m(int argc, VALUE *argv, VALUE self)
+rb_reg_initialize_m(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     onig_errmsg_buffer err = "";
     int flags = 0;
@@ -2930,7 +3074,6 @@ rb_reg_quote(VALUE str)
 #endif
     const char *s, *send;
     char *t;
-    VALUE tmp;
     int c, clen;
 #if WITH_OBJC
     int ascii_only = 0;
@@ -2972,35 +3115,18 @@ rb_reg_quote(VALUE str)
     }
     return str;
 
+    char *t_beg;
+
   meta_found:
-    tmp = rb_str_new(0, RSTRING_LEN(str)*2);
-#if !WITH_OBJC
-    if (ascii_only) {
-        rb_enc_associate(tmp, rb_usascii_encoding());
-    }
-    else {
-        rb_enc_copy(tmp, str);
-    }
-#endif
-    t = RSTRING_BYTEPTR(tmp);
+    t_beg = (char *)alloca(RSTRING_LEN(str) * 2 + 1);
+    t = t_beg;
     /* copy upto metacharacter */
     memcpy(t, RSTRING_PTR(str), s - RSTRING_PTR(str));
     t += s - RSTRING_PTR(str);
 
     while (s < send) {
-#if WITH_OBJC
 	c = *s;
 	clen = 1;
-#else
-        c = rb_enc_ascget(s, send, &clen, enc);
-	if (c == -1) {
-	    int n = mbclen(s, send, enc);
-
-	    while (n--)
-		*t++ = *s++;
-	    continue;
-	}
-#endif
         s += clen;
 	switch (c) {
 	  case '[': case ']': case '{': case '}':
@@ -3037,12 +3163,10 @@ rb_reg_quote(VALUE str)
 	}
 	*t++ = c;
     }
-    rb_str_resize(tmp, t - RSTRING_BYTEPTR(tmp));
-    RSTRING_SYNC(tmp);
-#if !WITH_OBJC
-    OBJ_INFECT(tmp, str);
-#endif
-    return tmp;
+    // rb_str_new wants a NULL-terminated string
+    *t = 0;
+
+    return rb_str_new(t_beg, t - t_beg);
 }
 
 
@@ -3061,7 +3185,7 @@ rb_reg_quote(VALUE str)
  */
 
 static VALUE
-rb_reg_s_quote(VALUE c, VALUE str)
+rb_reg_s_quote(VALUE c, SEL sel ,VALUE str)
 {
     return rb_reg_quote(reg_operand(str, Qtrue));
 }
@@ -3102,7 +3226,7 @@ rb_check_regexp_type(VALUE re)
  *
  */
 static VALUE
-rb_reg_s_try_convert(VALUE dummy, VALUE re)
+rb_reg_s_try_convert(VALUE dummy, SEL sel, VALUE re)
 {
     return rb_check_regexp_type(re);
 }
@@ -3124,7 +3248,7 @@ rb_reg_s_union(VALUE self, VALUE args0)
             return re;
         else {
             VALUE quoted;
-            quoted = rb_reg_s_quote(Qnil, arg);
+            quoted = rb_reg_s_quote(Qnil, 0, arg);
             return rb_reg_new_str(quoted, 0);
         }
     }
@@ -3156,7 +3280,7 @@ rb_reg_s_union(VALUE self, VALUE args0)
                         rb_raise(rb_eArgError, "incompatible encodings: %s and %s",
                             rb_enc_name(has_ascii_incompat), rb_enc_name(enc));
                 }
-                else if (rb_reg_fixed_encoding_p(v)) {
+                else if (rb_reg_fixed_encoding_p(v, 0)) {
                     if (!has_ascii_compat_fixed)
                         has_ascii_compat_fixed = enc;
                     else if (has_ascii_compat_fixed != enc)
@@ -3166,7 +3290,7 @@ rb_reg_s_union(VALUE self, VALUE args0)
                 else {
                     has_asciionly = 1;
                 }
-		v = rb_reg_to_s(v);
+		v = rb_reg_to_s(v, 0);
 	    }
 	    else {
                 rb_encoding *enc = rb_enc_get(e);
@@ -3191,7 +3315,7 @@ rb_reg_s_union(VALUE self, VALUE args0)
                         rb_raise(rb_eArgError, "incompatible encodings: %s and %s",
                             rb_enc_name(has_ascii_compat_fixed), rb_enc_name(enc));
                 }
-		v = rb_reg_s_quote(Qnil, e);
+		v = rb_reg_s_quote(Qnil, 0, e);
 	    }
 #if !WITH_OBJC
             if (has_ascii_incompat) {
@@ -3249,7 +3373,7 @@ rb_reg_s_union(VALUE self, VALUE args0)
  *     Regexp.union(/dogs/, /cats/i)        #=> /(?-mix:dogs)|(?i-mx:cats)/
  */
 static VALUE
-rb_reg_s_union_m(VALUE self, VALUE args)
+rb_reg_s_union_m(VALUE self, SEL sel, VALUE args)
 {
     VALUE v;
     if (RARRAY_LEN(args) == 1 &&
@@ -3261,7 +3385,7 @@ rb_reg_s_union_m(VALUE self, VALUE args)
 
 /* :nodoc: */
 static VALUE
-rb_reg_init_copy(VALUE copy, VALUE re)
+rb_reg_init_copy(VALUE copy, SEL sel, VALUE re)
 {
     onig_errmsg_buffer err = "";
     const char *s;
@@ -3492,7 +3616,7 @@ match_setter(VALUE val)
  */
 
 static VALUE
-rb_reg_s_last_match(int argc, VALUE *argv)
+rb_reg_s_last_match(VALUE rcv, SEL sel, int argc, VALUE *argv)
 {
     VALUE nth;
 
@@ -3522,6 +3646,8 @@ re_warn(const char *s)
  *
  */
 
+VALUE rb_class_new_instance_imp(VALUE, SEL, int, VALUE *);
+
 void
 Init_Regexp(void)
 {
@@ -3543,32 +3669,32 @@ Init_Regexp(void)
     rb_define_virtual_variable("$-K", kcode_getter, kcode_setter);
 
     rb_cRegexp = rb_define_class("Regexp", rb_cObject);
-    rb_define_alloc_func(rb_cRegexp, rb_reg_s_alloc);
-    rb_define_singleton_method(rb_cRegexp, "compile", rb_class_new_instance, -1);
-    rb_define_singleton_method(rb_cRegexp, "quote", rb_reg_s_quote, 1);
-    rb_define_singleton_method(rb_cRegexp, "escape", rb_reg_s_quote, 1);
-    rb_define_singleton_method(rb_cRegexp, "union", rb_reg_s_union_m, -2);
-    rb_define_singleton_method(rb_cRegexp, "last_match", rb_reg_s_last_match, -1);
-    rb_define_singleton_method(rb_cRegexp, "try_convert", rb_reg_s_try_convert, 1);
+    rb_objc_define_method(*(VALUE *)rb_cRegexp, "alloc", rb_reg_s_alloc, 0);
+    rb_objc_define_method(*(VALUE *)rb_cRegexp, "compile", rb_class_new_instance_imp, -1);
+    rb_objc_define_method(*(VALUE *)rb_cRegexp, "quote", rb_reg_s_quote, 1);
+    rb_objc_define_method(*(VALUE *)rb_cRegexp, "escape", rb_reg_s_quote, 1);
+    rb_objc_define_method(*(VALUE *)rb_cRegexp, "union", rb_reg_s_union_m, -2);
+    rb_objc_define_method(*(VALUE *)rb_cRegexp, "last_match", rb_reg_s_last_match, -1);
+    rb_objc_define_method(*(VALUE *)rb_cRegexp, "try_convert", rb_reg_s_try_convert, 1);
 
-    rb_define_method(rb_cRegexp, "initialize", rb_reg_initialize_m, -1);
-    rb_define_method(rb_cRegexp, "initialize_copy", rb_reg_init_copy, 1);
-    rb_define_method(rb_cRegexp, "hash", rb_reg_hash, 0);
-    rb_define_method(rb_cRegexp, "eql?", rb_reg_equal, 1);
-    rb_define_method(rb_cRegexp, "==", rb_reg_equal, 1);
-    rb_define_method(rb_cRegexp, "=~", rb_reg_match, 1);
-    rb_define_method(rb_cRegexp, "===", rb_reg_eqq, 1);
-    rb_define_method(rb_cRegexp, "~", rb_reg_match2, 0);
-    rb_define_method(rb_cRegexp, "match", rb_reg_match_m, -1);
-    rb_define_method(rb_cRegexp, "to_s", rb_reg_to_s, 0);
-    rb_define_method(rb_cRegexp, "inspect", rb_reg_inspect, 0);
-    rb_define_method(rb_cRegexp, "source", rb_reg_source, 0);
-    rb_define_method(rb_cRegexp, "casefold?", rb_reg_casefold_p, 0);
-    rb_define_method(rb_cRegexp, "options", rb_reg_options_m, 0);
-    rb_define_method(rb_cRegexp, "encoding", rb_obj_encoding, 0); /* in encoding.c */
-    rb_define_method(rb_cRegexp, "fixed_encoding?", rb_reg_fixed_encoding_p, 0);
-    rb_define_method(rb_cRegexp, "names", rb_reg_names, 0);
-    rb_define_method(rb_cRegexp, "named_captures", rb_reg_named_captures, 0);
+    rb_objc_define_method(rb_cRegexp, "initialize", rb_reg_initialize_m, -1);
+    rb_objc_define_method(rb_cRegexp, "initialize_copy", rb_reg_init_copy, 1);
+    rb_objc_define_method(rb_cRegexp, "hash", rb_reg_hash, 0);
+    rb_objc_define_method(rb_cRegexp, "eql?", rb_reg_equal, 1);
+    rb_objc_define_method(rb_cRegexp, "==", rb_reg_equal, 1);
+    rb_objc_define_method(rb_cRegexp, "=~", rb_reg_match_imp, 1);
+    rb_objc_define_method(rb_cRegexp, "===", rb_reg_eqq, 1);
+    rb_objc_define_method(rb_cRegexp, "~", rb_reg_match2, 0);
+    rb_objc_define_method(rb_cRegexp, "match", rb_reg_match_m, -1);
+    rb_objc_define_method(rb_cRegexp, "to_s", rb_reg_to_s, 0);
+    rb_objc_define_method(rb_cRegexp, "inspect", rb_reg_inspect, 0);
+    rb_objc_define_method(rb_cRegexp, "source", rb_reg_source, 0);
+    rb_objc_define_method(rb_cRegexp, "casefold?", rb_reg_casefold_p, 0);
+    rb_objc_define_method(rb_cRegexp, "options", rb_reg_options_m, 0);
+    rb_objc_define_method(rb_cRegexp, "encoding", rb_obj_encoding, 0); /* in encoding.c */
+    rb_objc_define_method(rb_cRegexp, "fixed_encoding?", rb_reg_fixed_encoding_p, 0);
+    rb_objc_define_method(rb_cRegexp, "names", rb_reg_names, 0);
+    rb_objc_define_method(rb_cRegexp, "named_captures", rb_reg_named_captures, 0);
 
     rb_define_const(rb_cRegexp, "IGNORECASE", INT2FIX(ONIG_OPTION_IGNORECASE));
     rb_define_const(rb_cRegexp, "EXTENDED", INT2FIX(ONIG_OPTION_EXTEND));
@@ -3577,24 +3703,24 @@ Init_Regexp(void)
     rb_global_variable(&reg_cache);
 
     rb_cMatch  = rb_define_class("MatchData", rb_cObject);
-    rb_define_alloc_func(rb_cMatch, match_alloc);
+    rb_objc_define_method(*(VALUE *)rb_cMatch, "alloc", match_alloc, 0);
     rb_undef_method(CLASS_OF(rb_cMatch), "new");
 
-    rb_define_method(rb_cMatch, "initialize_copy", match_init_copy, 1);
-    rb_define_method(rb_cMatch, "regexp", match_regexp, 0);
-    rb_define_method(rb_cMatch, "names", match_names, 0);
-    rb_define_method(rb_cMatch, "size", match_size, 0);
-    rb_define_method(rb_cMatch, "length", match_size, 0);
-    rb_define_method(rb_cMatch, "offset", match_offset, 1);
-    rb_define_method(rb_cMatch, "begin", match_begin, 1);
-    rb_define_method(rb_cMatch, "end", match_end, 1);
-    rb_define_method(rb_cMatch, "to_a", match_to_a, 0);
-    rb_define_method(rb_cMatch, "[]", match_aref, -1);
-    rb_define_method(rb_cMatch, "captures", match_captures, 0);
-    rb_define_method(rb_cMatch, "values_at", match_values_at, -1);
-    rb_define_method(rb_cMatch, "pre_match", rb_reg_match_pre, 0);
-    rb_define_method(rb_cMatch, "post_match", rb_reg_match_post, 0);
-    rb_define_method(rb_cMatch, "to_s", match_to_s, 0);
-    rb_define_method(rb_cMatch, "inspect", match_inspect, 0);
-    rb_define_method(rb_cMatch, "string", match_string, 0);
+    rb_objc_define_method(rb_cMatch, "initialize_copy", match_init_copy, 1);
+    rb_objc_define_method(rb_cMatch, "regexp", match_regexp, 0);
+    rb_objc_define_method(rb_cMatch, "names", match_names, 0);
+    rb_objc_define_method(rb_cMatch, "size", match_size, 0);
+    rb_objc_define_method(rb_cMatch, "length", match_size, 0);
+    rb_objc_define_method(rb_cMatch, "offset", match_offset, 1);
+    rb_objc_define_method(rb_cMatch, "begin", match_begin, 1);
+    rb_objc_define_method(rb_cMatch, "end", match_end, 1);
+    rb_objc_define_method(rb_cMatch, "to_a", match_to_a, 0);
+    rb_objc_define_method(rb_cMatch, "[]", match_aref, -1);
+    rb_objc_define_method(rb_cMatch, "captures", match_captures, 0);
+    rb_objc_define_method(rb_cMatch, "values_at", match_values_at, -1);
+    rb_objc_define_method(rb_cMatch, "pre_match", rb_reg_match_pre, 0);
+    rb_objc_define_method(rb_cMatch, "post_match", rb_reg_match_post, 0);
+    rb_objc_define_method(rb_cMatch, "to_s", match_to_s, 0);
+    rb_objc_define_method(rb_cMatch, "inspect", match_inspect, 0);
+    rb_objc_define_method(rb_cMatch, "string", match_string, 0);
 }

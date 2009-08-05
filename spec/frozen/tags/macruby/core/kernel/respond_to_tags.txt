@@ -1,0 +1,2 @@
+fails:Kernel#respond_to? returns false if the given method was undefined
+fails:Kernel#respond_to? returns true if obj responds to the given private method, include_private = true

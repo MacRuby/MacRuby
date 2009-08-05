@@ -1,0 +1,105 @@
+critical:Array#pack with format 'M' properly handles recursive arrays
+fails:Array#pack returns a untrusted string when the format is untrusted
+fails:Array#pack returns a untrusted string when the format is untrusted even if the given format is empty
+fails:Array#pack returns a untrusted string when a pack argument is untrusted
+fails:Array#pack returns a trusted string even if the array is untrusted
+fails:Array#pack returns a string in encoding of common to the concatenated results
+fails:Array#pack reuses last array element as often as needed to complete the string
+fails:Array#pack with format 'A' keeps encoding of source strings
+fails:Array#pack with format 'A' cuts byte sequence even if it breaks a multibyte character
+fails:Array#pack with format 'a' keeps encoding of source strings
+fails:Array#pack with format 'a' cuts byte sequence even if it breaks a multibyte character
+fails:Array#pack with format 'Z' keeps encoding of source strings
+fails:Array#pack with format 'Z' cuts byte sequence even if it breaks a multibyte character
+fails:Array#pack with format 'B' consumes only one array item per a format
+fails:Array#pack with format 'H' fills low-nibble of the last byte with 0 when count is odd even if pack argument has insufficient length
+fails:Array#pack with format 'h' fills high-nibble of the last byte with 0 when count is odd even if pack argument has insufficient length
+fails:Array#pack with format 'v' does not raise a RangeError even when a pack argument is >= 2**64
+fails:Array#pack with format 's' does not raise a RangeError even when a pack argument is >= 2**64
+fails:Array#pack with format 'S' does not raise a RangeError even when a pack argument is >= 2**64
+fails:Array#pack with format 'q' processes count number of array elements if count given
+fails:Array#pack with format 'q' with star parameter processes all remaining array items
+fails:Array#pack with format 'Q' processes count number of array elements if count given
+fails:Array#pack with format 'Q' with star parameter processes all remaining array items
+fails:Array#pack with format 's!' does not raise a RangeError even when a pack argument is >= 2**64
+fails:Array#pack with format 's_' does not raise a RangeError even when a pack argument is >= 2**64
+fails:Array#pack with format 'S!' does not raise a RangeError even when a pack argument is >= 2**64
+fails:Array#pack with format 'S_' does not raise a RangeError even when a pack argument is >= 2**64
+fails:Array#pack with format 'l!' processes count number of array elements if count given
+fails:Array#pack with format 'l!' with star parameter processes all remaining array items
+fails:Array#pack with format 'l_' processes count number of array elements if count given
+fails:Array#pack with format 'l_' with star parameter processes all remaining array items
+fails:Array#pack with format 'L!' processes count number of array elements if count given
+fails:Array#pack with format 'L!' with star parameter processes all remaining array items
+fails:Array#pack with format 'L_' processes count number of array elements if count given
+fails:Array#pack with format 'L_' with star parameter processes all remaining array items
+fails:Array#pack with format 'f' consumes as many Floats as specified
+fails:Array#pack with format 'f' tries to convert the pack argument to a Float using #to_f
+fails:Array#pack with format 'd' consumes as many Floats as specified
+fails:Array#pack with format 'd' tries to convert the pack argument to a Float using #to_f
+fails:Array#pack with format 'e' consumes as many Floats as specified
+fails:Array#pack with format 'e' tries to convert the pack argument to a Float using #to_f
+fails:Array#pack with format 'E' consumes as many Floats as specified
+fails:Array#pack with format 'E' tries to convert the pack argument to a Float using #to_f
+fails:Array#pack with format 'g' consumes as many Floats as specified
+fails:Array#pack with format 'g' tries to convert the pack argument to a Float using #to_f
+fails:Array#pack with format 'G' consumes as many Floats as specified
+fails:Array#pack with format 'G' tries to convert the pack argument to a Float using #to_f
+fails:Array#pack with format 'M' ignores star parameter
+fails:Array#pack with format 'm' does not append newline if line length parameter is 0
+fails:Array#pack with format 'm' ignores star parameter
+fails:Array#pack with format 'U' regards a integer as a Unicode codepoint and encodes into UTF-8 byte sequence
+fails:Array#pack with format 'U' returns a UTF-8 string
+fails:Array#pack with format 'X' doesn't change encoding of the result string
+fails:Array#pack with format 'X' doesn't care even if breaks a character
+fails:Array#pack with '@' doesn't change encoding of the result string
+fails:Array#pack with '@' doesn't care even if breaks a character
+fails:Array#pack with format 'A' tries to convert the pack argument to a String using #to_str
+fails:Array#pack with format 'a' tries to convert the pack argument to a String using #to_str
+fails:Array#pack with format 'Z' tries to convert the pack argument to a String using #to_str
+fails:Array#pack with format 'H' tries to convert the pack argument to a String using #to_str
+fails:Array#pack with format 'h' tries to convert the pack argument to a String using #to_str
+fails:Array#pack with format 'C' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 'c' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 'n' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 'v' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 'N' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 'V' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 's' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 'S' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 'l' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 'L' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 'q' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 'Q' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 's!' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 's_' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 'S!' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 'S_' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 'i' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 'i!' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 'i_' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 'I' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 'I!' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 'I_' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 'l!' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 'l_' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 'L!' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 'L_' tries to convert the pack argument to an Integer using #to_int
+fails:Array#pack with format 'M' calls #to_s on object to convert to string
+fails:Array#pack with format 'm' tries to convert the pack argument to a String using #to_str
+fails:Array#pack with format 'u' tries to convert the pack argument to a String using #to_str
+fails:Array#pack with format 'w' calls to_int on non-integer values before packing
+fails:Array#pack just ignores unknown format
+fails:Array#pack with format 'v' returns a string containing 2 bytes for an integer
+fails:Array#pack with format 's' returns a string containing 2 bytes for an integer
+fails:Array#pack with format 'S' returns a string containing 2 bytes for an integer
+fails:Array#pack with format 's!' returns a string containing 2 bytes for an integer
+fails:Array#pack with format 's_' returns a string containing 2 bytes for an integer
+fails:Array#pack with format 'S!' returns a string containing 2 bytes for an integer
+fails:Array#pack with format 'S_' returns a string containing 2 bytes for an integer
+fails:Array#pack with format 'f' accepts a NaN
+fails:Array#pack with format 'd' accepts a NaN
+fails:Array#pack with format 'e' accepts a NaN
+fails:Array#pack with format 'E' accepts a NaN
+fails:Array#pack with format 'g' accepts a NaN
+fails:Array#pack with format 'G' accepts a NaN
