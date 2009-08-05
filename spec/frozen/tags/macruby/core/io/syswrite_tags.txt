@@ -1,2 +1,3 @@
 fails:IO#syswrite coerces the argument to a string using to_s
 fails:IO#syswrite invokes to_s on non-String argument
+fails:IO#syswrite on a file warns if called immediately after a buffered IO#write
