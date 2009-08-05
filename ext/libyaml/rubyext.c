@@ -27,8 +27,8 @@ typedef struct rb_yaml_parser_s {
 	
 	VALUE *stack;				// the current object hierarchy that is being parsed.
 								// the root element is at stack[0].
-	uint32_t stack_index;		// what element are we currently adding to?
-	uint32_t stack_size;		// how big can the stack become?
+	int32_t stack_index;		// what element are we currently adding to?
+	int32_t stack_size;			// how big can the stack become?
 	
 	VALUE resolver;				// used to determine how to unserialize objects.
 	
@@ -63,7 +63,7 @@ static VALUE rb_oDefaultResolver;
 
 static struct mcache *to_yaml_cache = NULL;
 
-static const int DEFAULT_STACK_SIZE = 5;
+static const int DEFAULT_STACK_SIZE = 8;
 
 static VALUE
 rb_yaml_parser_alloc(VALUE klass, SEL sel)
@@ -88,38 +88,10 @@ rb_yaml_parser_alloc(VALUE klass, SEL sel)
 static int
 rb_yaml_io_read_handler(void *io_ptr, unsigned char *buffer, size_t size, size_t* size_read)
 {
-	VALUE io = (VALUE)io_ptr;
-	long result = rb_io_primitive_read(ExtractIOStruct(io), (UInt8*)buffer, size);
+	long result = rb_io_primitive_read(ExtractIOStruct(io_ptr), (UInt8*)buffer, size);
 	*size_read = result;
 	return (result != -1);
 }
-
-#if 0
-static void
-rb_yaml_guess_type_of_plain_node(yaml_node_t *node)
-{
-	const char* v = (char*) node->data.scalar.value;
-	if (node->data.scalar.length == 0)
-	{
-		node->tag = (yaml_char_t*)"tag:yaml.org,2002:null";
-	}
-	// holy cow, this is not a good solution at all.
-	// i should incorporate rb_cstr_to_inum here, or something.
-	else if (strtol(v, NULL, 10) != 0)
-	{
-		node->tag = (yaml_char_t*)"tag:yaml.org,2002:int";
-	}
-	else if (*v == ':')
-	{
-		node->tag = (yaml_char_t*)"tag:ruby.yaml.org,2002:symbol";
-	}
-	else if ((strcmp(v, "true") == 0) || (strcmp(v, "false") == 0))
-	{
-		node->tag = (yaml_char_t*)"tag:yaml.org,2002:bool";
-	} 
-}
-
-#endif
 
 static VALUE
 rb_yaml_parser_input(VALUE self, SEL sel)
@@ -168,28 +140,60 @@ rb_yaml_parser_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 }
 
 static VALUE
-rb_yaml_parser_error(VALUE self, SEL sel)
+rb_yaml_parser_generate_error(yaml_parser_t *parser)
 {
 	VALUE error = Qnil;
-	char *msg = NULL;
-	yaml_parser_t *parser = RYAMLParser(self)->parser;
 	assert(parser != NULL);
+	char *descriptor;
 	switch(parser->error)
 	{
-		case YAML_SCANNER_ERROR:
-		case YAML_PARSER_ERROR:
-		{
-			asprintf(&msg, "syntax error on line %d, col %d: %s", parser->problem_mark.line,
-				parser->problem_mark.column, parser->problem);
-			error = rb_exc_new2(rb_eArgError, msg);
-		}
-		
 		case YAML_NO_ERROR:
+		return Qnil;
+		
+		case YAML_SCANNER_ERROR:
+		descriptor = "scanning";
+		break;
+		
+		case YAML_PARSER_ERROR:
+		descriptor = "parsing";
+		break;
+		
+		case YAML_MEMORY_ERROR:
+		descriptor = "memory allocation";
+		break;
+		
+		case YAML_READER_ERROR:
+		descriptor = "reading";
 		break;
 		
 		default:
-		error = rb_exc_new2(rb_eRuntimeError, parser->problem);
+		descriptor = "unknown";
+		break;
 	}
+	
+	char *msg;
+	if(parser->problem != NULL)
+	{
+		if(parser->context != NULL)
+		{
+			asprintf(&msg, "%s error encountered during parsing: %s (line %d, column %d), context %s (line %d, column %d)",
+				descriptor, parser->problem, parser->problem_mark.line,
+				parser->problem_mark.column, parser->context,
+				parser->context_mark.line, parser->context_mark.column);
+		}
+		else
+		{
+			asprintf(&msg, "%s error encountered during parsing: %s (line %d, column %d)",
+				descriptor, parser->problem, parser->problem_mark.line,
+				parser->problem_mark.column);
+		}
+	}
+	else
+	{
+		asprintf(&msg, "%s error encountered during parsing", descriptor);
+	}
+	
+	error = rb_exc_new2(rb_eRuntimeError, msg);
 	if(msg != NULL)
 	{
 		free(msg);
@@ -197,140 +201,180 @@ rb_yaml_parser_error(VALUE self, SEL sel)
 	return error;
 }
 
-static inline void
-delete_event(rb_yaml_parser_t *parser)
+static VALUE
+rb_yaml_parser_error(VALUE self, SEL sel)
+{
+	return rb_yaml_parser_generate_error(RYAMLParser(self)->parser);
+}
+
+
+static void push(rb_yaml_parser_t *parser, VALUE val) __attribute__ ((noinline));
+
+static void
+push(rb_yaml_parser_t *parser, VALUE val)
+{
+	parser->stack_index++;
+	if(parser->stack_index >= (parser->stack_size - 1))
+	{
+		printf("Currently at index %d out of size %d\n", parser->stack_index, parser->stack_size);
+		parser->stack_size *= 2;
+		GC_WB(&parser->stack, xrealloc2(parser->stack, parser->stack_size, sizeof(VALUE)));
+		printf("Reallocated to size %d\n", parser->stack_size);
+	}
+	parser->stack[parser->stack_index] = val;
+}
+
+static VALUE rb_yaml_get_and_interpret_scalar(rb_yaml_parser_t *parser) __attribute__ ((noinline));
+
+static VALUE 
+rb_yaml_get_and_interpret_scalar(rb_yaml_parser_t *parser)
+{
+	char *val = (char*)parser->event.data.scalar.value;
+	char *tag = (char*)parser->event.data.scalar.tag;
+	if ((parser->event.data.scalar.style == YAML_PLAIN_SCALAR_STYLE) && (tag == NULL))
+	{
+		if (parser->event.data.scalar.length == 0)
+		{
+			tag = "tag:yaml.org,2002:null";
+		}
+		else if (*val == ':')
+		{
+			tag = "tag:ruby.yaml.org,2002:symbol";
+		}
+		else if (strtol(val, NULL, 10) != 0)
+		// this is not a good solution. i should use rb_str_to_inum, which parses strings correctly.
+		{
+			tag = "tag:yaml.org,2002:int";
+		}
+		else
+		{
+			tag = "tag:yaml.org,2002:str";
+		}
+	}
+	if(tag == NULL)
+	{
+		tag = "tag:yaml.org,2002:str";
+	}
+	VALUE scalarval = rb_str_new(val, parser->event.data.scalar.length);
+	VALUE tags = rb_ivar_get(parser->resolver, id_tags_ivar);
+	VALUE handler = rb_hash_lookup(tags, rb_str_new2(tag));
+	if (rb_respond_to(handler, rb_intern("call")))
+	{
+		return rb_funcall(handler, rb_intern("call"), 1, scalarval);
+	}
+	else if (rb_respond_to(handler, rb_intern("yaml_new")))
+	{
+		return rb_funcall(handler, rb_intern("yaml_new"), 1, scalarval);
+	}
+	return scalarval;
+}
+
+
+static bool
+yaml_next_event(rb_yaml_parser_t *parser)
 {
 	if (parser->event_valid)
 	{
 		yaml_event_delete(&parser->event);
 		parser->event_valid = false;
 	}
-}
-
-static inline bool
-next_event(rb_yaml_parser_t *parser)
-{
-	delete_event(parser);
 	if (yaml_parser_parse(parser->parser, &parser->event) == -1)
 	{
-		rb_raise(rb_eRuntimeError, "parsing error"); // XXX: Make this more informative
+		rb_exc_raise(rb_yaml_parser_generate_error(parser->parser));
 		parser->event_valid = false;
 	} else
 	{
 		parser->event_valid = true;
 	}
-	printf("Parsed event\n");
 	return parser->event_valid;
 }
 
-static void
-parse_scalar(rb_yaml_parser_t *parser)
-{
-	VALUE current_item = parser->stack[parser->stack_index];
-	VALUE new_str = rb_str_new2((char*)parser->event.data.scalar.value);
-	if(NIL_P(current_item))
-	{
-		parser->stack[parser->stack_index] = new_str;
-	}
-	else if (TYPE(current_item) == T_ARRAY)
-	{
-		rb_ary_push(current_item, new_str);
-	}
-}
+#define NEXT_EVENT() yaml_next_event(parser)
+#define CURRENT_ITEM(p) p->stack[p->stack_index]
 
-static void
-push(rb_yaml_parser_t *parser, VALUE item)
+static VALUE
+rb_yaml_parser_slurp(rb_yaml_parser_t *parser)
 {
-	parser->stack_index += 1;
-	if (parser->stack_index >= parser->stack_size)
+	int current_depth = parser->stack_index;
+	NEXT_EVENT();
+	switch(parser->event.type)
 	{
-		rb_raise(rb_eRuntimeError, "oh god the stack depth");
-	}
-	parser->stack[parser->stack_index] = item;
-}
-
-static void pop(rb_yaml_parser_t *parser) __attribute__ ((noinline));
-
-static void
-pop(rb_yaml_parser_t *parser)
-{
-	if(parser->stack_index == 0)
-	{
-		return;
-	}
-	
-	printf("something is very wrong here.");
-}
-
-static void
-parse(rb_yaml_parser_t *parser)
-{
-	if(!next_event(parser))
-	{
-		return;
-	}
-	
-	if(parser->event.type != YAML_STREAM_START_EVENT)
-	{
-		rb_raise(rb_eRuntimeError, "expected STREAM_START event");
-	}
-	
-	for(;;) 
-	{
-		if(!next_event(parser))
+		case YAML_MAPPING_START_EVENT:;
+		push(parser, rb_hash_new());
+		assert(current_depth+1 == parser->stack_index);
+		for(;;)
 		{
-			break;
+			VALUE key = rb_yaml_parser_slurp(parser);
+			if(parser->event.type == YAML_MAPPING_END_EVENT)
+			{
+				parser->stack_index--;
+				break;
+			}
+			VALUE val = rb_yaml_parser_slurp(parser);
+			assert(TYPE(CURRENT_ITEM(parser)) == T_HASH);
+			rb_hash_aset(CURRENT_ITEM(parser), key, val);
 		}
-		switch(parser->event.type)
+		
+		break;
+
+		case YAML_SEQUENCE_START_EVENT:
+		push(parser, rb_ary_new());
+		assert(current_depth+1 == parser->stack_index);
+		for(;;)
 		{
-			case YAML_DOCUMENT_START_EVENT:
-			break;
+			VALUE item = rb_yaml_parser_slurp(parser);
+			if(parser->event.type == YAML_SEQUENCE_END_EVENT) 
+			{
+				parser->stack_index--;
+				break;
+			}
+			assert(TYPE(parser->stack[parser->stack_index]) == T_ARRAY);
+			rb_ary_push(parser->stack[parser->stack_index], item);
+		}
+		break;
 
-			case YAML_MAPPING_START_EVENT:
-			printf("oh god a mapping\n");
-			break;
+		case YAML_SCALAR_EVENT:
+		push(parser, rb_yaml_get_and_interpret_scalar(parser));
+		assert(current_depth+1 == parser->stack_index);
+		parser->stack_index--;
+		break;
 
-			case YAML_SEQUENCE_START_EVENT:
-			printf("oh god parsing a sequence");
-			push(parser, rb_ary_new());
-			break;
-
-			case YAML_SCALAR_EVENT:
-			printf("oh god parsing a scalar");
-			parse_scalar(parser);
-			break;
-
-			case YAML_ALIAS_EVENT:
-			printf("oh god an alias i don't even know how to do this\n");
-			break;
-				
-			case YAML_MAPPING_END_EVENT:
-			printf("oh god a mapping ended aaagh\n");
-			break;
+		case YAML_ALIAS_EVENT:
+		printf("oh god an alias i don't even know how to do this\n");
+		break;
 			
-			case YAML_SEQUENCE_END_EVENT:
-			pop(parser);
-			break;
+		case YAML_MAPPING_END_EVENT:
+		case YAML_SEQUENCE_END_EVENT:
+		return Qnil;
+		break;
 
-			case YAML_NO_EVENT:
-			rb_raise(rb_eRuntimeError, "expected an event, got nothing");
-			
-			default: break;
-		}
-		if (parser->event.type == YAML_DOCUMENT_END_EVENT)
-		{
-			break;
-		}
+		case YAML_STREAM_END_EVENT:
+		case YAML_DOCUMENT_END_EVENT:
+		break;
+		
+		default:
+		break;
+		
 	}
+	return parser->stack[parser->stack_index+1];
 }
-
 
 static VALUE
 rb_yaml_parser_load(VALUE self, SEL sel)
 {
 	rb_yaml_parser_t *parser = RYAMLParser(self);
-	parse(parser);
-	return parser->stack[0];
+	NEXT_EVENT();
+	if(parser->event.type != YAML_STREAM_START_EVENT)
+	{
+		rb_raise(rb_eRuntimeError, "expected STREAM_START event");
+	}
+	NEXT_EVENT();
+	if(parser->event.type != YAML_DOCUMENT_START_EVENT)
+	{
+		rb_raise(rb_eRuntimeError, "expected DOCUMENT_START event");
+	}
+	
+	return rb_yaml_parser_slurp(parser);
 }
 
 static IMP rb_yaml_parser_finalize_super = NULL; 
@@ -597,9 +641,9 @@ Init_libyaml()
 	
 	rb_cParser = rb_define_class_under(rb_mLibYAML, "Parser", rb_cObject);
 	rb_objc_define_method(*(VALUE *)rb_cParser, "alloc", rb_yaml_parser_alloc, 0);
+	rb_objc_define_method(rb_cParser, "initialize", rb_yaml_parser_initialize, -1);
 	rb_objc_define_method(rb_cParser, "input", rb_yaml_parser_input, 0);
 	rb_objc_define_method(rb_cParser, "input=", rb_yaml_parser_set_input, 1);
-	rb_objc_define_method(rb_cParser, "initialize", rb_yaml_parser_initialize, -1);
 	// commented methods here are just unimplemented; i plan to put them in soon.
 	//rb_objc_define_method(rb_cParser, "encoding", rb_yaml_parser_encoding, 0);
 	//rb_objc_define_method(rb_cParser, "encoding=", rb_yaml_parser_set_encoding, 1);
