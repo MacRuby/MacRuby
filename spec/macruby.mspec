@@ -17,8 +17,7 @@ class MSpecScript
     '^core/encoding',
     '^core/marshal',
     '^core/numeric/to_c_spec.rb',
-    '^core/precision',
-    '^core/proc',
+    '^core/precision'
   ]
 
   # Library specs
