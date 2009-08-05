@@ -20,7 +20,7 @@ module YAML
   end
   
   def YAML.dump(obj, io=nil)
-    obj.to_yaml(nil)
+    obj.to_yaml(io)
   end
   
   def YAML.load(io)
@@ -40,15 +40,14 @@ module YAML
     File.open(path) { |f| parse(f) }
   end
   
-  def YAML.quick_emit(obj, out=nil, &block)
-    if(out)
+  def YAML.quick_emit(out, &block)
+    if out.is_a? LibYAML::Emitter
       yield(out)
     else
-      LibYAML::Emitter.new.stream do |stream|
+      LibYAML::Emitter.new(out).stream do |stream|
         stream.document { |doc| yield(doc) }
       end
     end
-    
   end
 end
 

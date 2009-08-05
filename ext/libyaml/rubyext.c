@@ -53,6 +53,8 @@ static VALUE rb_cEmitter;
 static VALUE rb_cResolver;
 
 static ID id_tags_ivar;
+static ID id_plain;
+static ID id_quote2;
 
 static VALUE rb_oDefaultResolver;
 
@@ -178,15 +180,29 @@ rb_yaml_parser_finalize(void *rcv, SEL sel)
 		((void(*)(void *, SEL))rb_yaml_parser_finalize_super)(rcv, sel);
 	}
 }
-#if 0
+
 static yaml_scalar_style_t
 rb_symbol_to_scalar_style(VALUE sym)
 {
-	rb_notimplement();
+	yaml_scalar_style_t style = YAML_ANY_SCALAR_STYLE;
+	if (NIL_P(sym))
+	{
+		return style;
+	}
+	else if (rb_to_id(sym) == id_plain)
+	{
+		style = YAML_PLAIN_SCALAR_STYLE;
+	}
+	else if (rb_to_id(sym) == id_quote2)
+	{
+		style = YAML_DOUBLE_QUOTED_SCALAR_STYLE;
+	}
+	return style;
 }
 
+
 static yaml_char_t*
-rb_yaml_tag_or_null(VALUE tagstr)
+rb_yaml_tag_or_null(VALUE tagstr, int *can_omit_tag)
 {
 	// todo: make this part of the resolver chain; this is the wrong place for it
 	const char *tag = RSTRING_PTR(tagstr);
@@ -194,13 +210,17 @@ rb_yaml_tag_or_null(VALUE tagstr)
 		(strcmp(tag, "tag:yaml.org,2002:float") == 0) ||
 		(strcmp(tag, "tag:ruby.yaml.org,2002:symbol") == 0) ||
 		(strcmp(tag, "tag:yaml.org,2002:bool") == 0) ||
-		(strcmp(tag, "tag:yaml.org,2002:null") == 0))
+		(strcmp(tag, "tag:yaml.org,2002:null") == 0) ||
+		(strcmp(tag, "tag:yaml.org,2002:str") == 0))
 	{
+		*can_omit_tag = 1;
 		return NULL;	
 	}
 	return (yaml_char_t*)tag;
 }
-#endif
+
+
+#if 0
 static void
 rb_yaml_guess_type_of_plain_node(yaml_node_t *node)
 {
@@ -225,6 +245,8 @@ rb_yaml_guess_type_of_plain_node(yaml_node_t *node)
 	} 
 }
 
+#endif
+
 static VALUE
 rb_yaml_resolver_initialize(VALUE self, SEL sel)
 {
@@ -246,7 +268,6 @@ rb_yaml_emitter_alloc(VALUE klass, SEL sel)
 static int
 rb_yaml_bytestring_output_handler(void *bs, unsigned char *buffer, size_t size)
 {
-	printf("okay, in bytestring output_hanlder\n");
 	CFMutableDataRef data = rb_bytestring_wrapped_data((VALUE)bs);
 	CFDataAppendBytes(data, (const UInt8*)buffer, (CFIndex)size);
 	return 1;
@@ -314,7 +335,7 @@ rb_yaml_emitter_stream(VALUE self, SEL sel)
 	yaml_emitter_emit(emitter, &ev);
 	yaml_emitter_flush(emitter);
 	yaml_emitter_delete(emitter);
-	// XXX: cleanup here...
+	// XXX: more cleanup here...
 	return RYAMLEmitter(self)->output;
 }
 
@@ -361,7 +382,7 @@ rb_yaml_emitter_sequence(VALUE self, SEL sel, VALUE taguri, VALUE style)
 }
 
 static VALUE
-rb_yaml_emitter_mapping(VALUE self, SEL sel, VALUE style, VALUE taguri)
+rb_yaml_emitter_mapping(VALUE self, SEL sel, VALUE taguri, VALUE style)
 {
 	yaml_event_t ev;
 	yaml_emitter_t *emitter = RYAMLEmitter(self)->emitter;
@@ -384,10 +405,10 @@ rb_yaml_emitter_scalar(VALUE self, SEL sel, VALUE taguri, VALUE val, VALUE style
 {
 	yaml_event_t ev;
 	yaml_emitter_t *emitter = RYAMLEmitter(self)->emitter;
-	yaml_char_t *tag = (yaml_char_t*)RSTRING_PTR(taguri);
 	yaml_char_t *output = (yaml_char_t*)RSTRING_PTR(val);
-	
-	yaml_scalar_event_initialize(&ev, NULL, tag, output, RSTRING_LEN(val), 1, 1, YAML_ANY_SCALAR_STYLE);
+	int can_omit_tag = 0;
+	yaml_char_t *tag = rb_yaml_tag_or_null(taguri, &can_omit_tag);
+	yaml_scalar_event_initialize(&ev, NULL, tag, output, RSTRING_LEN(val), can_omit_tag, 0, rb_symbol_to_scalar_style(style));
 	yaml_emitter_emit(emitter, &ev);
 	yaml_emitter_flush(emitter);
 	
@@ -425,6 +446,8 @@ rb_yaml_emitter_finalize(void *rcv, SEL sel)
 void
 Init_libyaml()
 {
+	id_plain = rb_intern("plain");
+	id_quote2 = rb_intern("quote2");
 	id_tags_ivar = rb_intern("@tags");
 	
 	rb_mYAML = rb_define_module("YAML");
