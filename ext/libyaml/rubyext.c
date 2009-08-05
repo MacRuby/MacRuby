@@ -14,49 +14,45 @@
 #include "yaml.h"
 
 // too lazy to find out what headers these belong to.
-VALUE rb_vm_yield(int argc, const VALUE *argv);
 VALUE rb_vm_call(VALUE self, SEL sel, int argc, const VALUE *args, bool super);
 long rb_io_primitive_read(struct rb_io_t *io_struct, UInt8 *buffer, long len);
-VALUE rb_ary_last(VALUE, SEL, int, VALUE*);
 
 // Ideas to speed this up:
 // Use rb_vm_call_with_cache() for calls to :to_yaml and yaml_new
-// Nodes: Cache the tag as a Ruby string
-
-typedef struct rb_yaml_node_s {
-	struct RBasic basic;
-	yaml_node_t *node;
-	int node_id;
-	VALUE doc;
-} rb_yaml_node_t;
-
-#define RYAMLNode(val) ((rb_yaml_node_t*)val)
 
 typedef struct rb_yaml_parser_s {
-	struct RBasic basic;
-	yaml_parser_t *parser;
-	VALUE input;
+	struct RBasic basic;		// holds the class information
+	yaml_parser_t *parser;		// the parser object.
+	
+	VALUE *documents;			// all the documents. documents usually take 
+								// the form of hashes, but they can technically
+								// be anything.
+	uint32_t document_count; 	// how many documents are there?
+	uint32_t current_document;  // what is the document we're editing?
+	
+	VALUE input;				// a reference to the object that's providing input
+	yaml_event_t event;			// the event that is currently being parsed.
+	bool event_valid;			// is this event valid?
 } rb_yaml_parser_t;
 
 #define RYAMLParser(val) ((rb_yaml_parser_t*)val)
+
+typedef struct rb_yaml_emitter_s {
+	struct RBasic basic;		// holds the class information
+	yaml_emitter_t *emitter;	// the emitter object
+	
+	VALUE output;				// the object to which we are writing
+} rb_yaml_emitter_t;
+
+#define RYAMLEmitter(val) ((rb_yaml_emitter_t*)val)
 
 static VALUE rb_mYAML;
 static VALUE rb_mLibYAML;
 static VALUE rb_cParser;
 static VALUE rb_cEmitter;
-static VALUE rb_cDocument;
 static VALUE rb_cResolver;
-static VALUE rb_cNode;
-static VALUE rb_cSeqNode;
-static VALUE rb_cMapNode;
-static VALUE rb_cScalarNode;
 
-static ID id_plain;
-static ID id_quote2;
-static ID id_tags_ivar; 
-static ID id_input_ivar;
-static ID id_node_id_ivar;
-static ID id_document_ivar;
+static ID id_tags_ivar;
 
 static VALUE rb_oDefaultResolver;
 
@@ -65,9 +61,6 @@ rb_yaml_parser_alloc(VALUE klass, SEL sel)
 {
 	NEWOBJ(parser, struct rb_yaml_parser_s);
 	OBJSETUP(parser, klass, T_OBJECT);
-	// XXX: check with Laurent to see if this is going to be correct, as parser
-	// will have stuff assigned to its members...if not, we should just be able
-	// to replace this with malloc...actually, maybe we should do that anyway.
 	GC_WB(&parser->parser, ALLOC(yaml_parser_t));
 	parser->input = Qnil;
 	yaml_parser_initialize(parser->parser);
@@ -165,12 +158,7 @@ rb_yaml_parser_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_yaml_parser_load(VALUE self, SEL sel)
 {
-	yaml_parser_t *parser = RYAMLParser(self)->parser;
-	yaml_document_t *document = ALLOC(yaml_document_t);
-	if(yaml_parser_load(parser, document) == 0) {
-		rb_exc_raise(rb_yaml_parser_error(self, sel));
-	}
-	return Data_Wrap_Struct(rb_cDocument, NULL, NULL, document);
+	rb_notimplement();
 }
 
 static IMP rb_yaml_parser_finalize_super = NULL; 
@@ -190,85 +178,11 @@ rb_yaml_parser_finalize(void *rcv, SEL sel)
 		((void(*)(void *, SEL))rb_yaml_parser_finalize_super)(rcv, sel);
 	}
 }
-
-static VALUE rb_yaml_node_new(yaml_node_t *node, int id, VALUE document);
-
-static VALUE 
-rb_yaml_document_alloc(VALUE klass, SEL sel)
-{
-	yaml_document_t *document = ALLOC(yaml_document_t);
-	yaml_document_initialize(document, NULL, NULL, NULL, 0, 1);
-	return Data_Wrap_Struct(rb_cDocument, NULL, NULL, document);
-}
-
-static VALUE
-rb_yaml_document_error(VALUE self, SEL sel)
-{
-	yaml_document_t *document;
-	Data_Get_Struct(self, yaml_document_t, document);
-	rb_raise(rb_eRuntimeError, "unknown error occurred in %s", (char*)sel);
-}
-
-static VALUE
-rb_yaml_document_add_sequence(VALUE self, SEL sel, VALUE taguri, VALUE style)
-{
-	yaml_document_t *document;
-	Data_Get_Struct(self, yaml_document_t, document);
-	// TODO: stop ignoring the style parameter
-	yaml_char_t *tag = (yaml_char_t*)RSTRING_PTR(taguri);
-	int nodeID = yaml_document_add_sequence(document, tag, YAML_ANY_SEQUENCE_STYLE);
-	if (nodeID == 0)
-	{
-		rb_yaml_document_error(self, sel);
-	}
-	if (rb_block_given_p())
-	{
-		yaml_node_t *node = yaml_document_get_node(document, nodeID);
-		VALUE n = rb_yaml_node_new(node, nodeID, self);
-		rb_vm_yield(1, &n);
-		return n;
-	}
-	return self;
-}
-
-static VALUE
-rb_yaml_document_add_mapping(VALUE self, SEL sel, VALUE taguri, VALUE style)
-{
-	yaml_document_t *document;
-	Data_Get_Struct(self, yaml_document_t, document);
-	yaml_char_t *tag = (yaml_char_t*)RSTRING_PTR(taguri);
-	int nodeID = yaml_document_add_mapping(document, tag, YAML_ANY_MAPPING_STYLE);
-	if (nodeID == 0)
-	{
-		rb_yaml_parser_error(self, sel);
-	}
-	if (rb_block_given_p())
-	{
-		yaml_node_t *node = yaml_document_get_node(document, nodeID);
-		VALUE n = rb_yaml_node_new(node, nodeID, self);
-		rb_vm_yield(1, &n);
-		return n;
-	}
-	return self;
-}
-
+#if 0
 static yaml_scalar_style_t
 rb_symbol_to_scalar_style(VALUE sym)
 {
-	yaml_scalar_style_t style = YAML_ANY_SCALAR_STYLE;
-	if (NIL_P(sym))
-	{
-		return style;
-	}
-	else if (rb_to_id(sym) == id_plain)
-	{
-		style = YAML_PLAIN_SCALAR_STYLE;
-	}
-	else if (rb_to_id(sym) == id_quote2)
-	{
-		style = YAML_DOUBLE_QUOTED_SCALAR_STYLE;
-	}
-	return style;
+	rb_notimplement();
 }
 
 static yaml_char_t*
@@ -286,166 +200,7 @@ rb_yaml_tag_or_null(VALUE tagstr)
 	}
 	return (yaml_char_t*)tag;
 }
-
-static VALUE
-rb_yaml_document_add_scalar(VALUE self, SEL sel, VALUE taguri, VALUE str, VALUE style)
-{
-	yaml_document_t *document;
-	Data_Get_Struct(self, yaml_document_t, document);
-	// TODO: stop ignoring the style
-	// yaml_char_t *tag = (yaml_char_t*)RSTRING_PTR(taguri);
-	yaml_char_t *val = (yaml_char_t*)RSTRING_PTR(str);
-	int scalID = yaml_document_add_scalar(document, rb_yaml_tag_or_null(taguri), val, RSTRING_LEN(str), rb_symbol_to_scalar_style(style));
-	if (scalID == 0)
-	{
-		rb_yaml_document_error(self, sel);
-	}
-	return rb_yaml_node_new(yaml_document_get_node(document, scalID), scalID, self);
-}
-
-static VALUE
-rb_yaml_document_root_node(VALUE self, SEL sel)
-{
-	yaml_document_t *document;
-	Data_Get_Struct(self, yaml_document_t, document);
-	yaml_node_t *node = yaml_document_get_root_node(document);
-	if(node == NULL)
-	{
-		return Qnil;
-	}
-	return rb_yaml_node_new(node, 0, self);
-}
-
-static VALUE
-rb_yaml_document_empty_p(VALUE self, SEL sel)
-{
-	yaml_document_t *document;
-	Data_Get_Struct(self, yaml_document_t, document);
-	return (yaml_document_get_root_node(document) == NULL) ? Qtrue : Qfalse;
-}
-
-static VALUE
-rb_yaml_document_implicit_start_p(VALUE self, SEL sel)
-{
-	yaml_document_t *document;
-	Data_Get_Struct(self, yaml_document_t, document);
-	assert(document != NULL);
-	return (document->start_implicit) ? Qtrue : Qfalse;
-}
-
-static VALUE
-rb_yaml_document_implicit_end_p(VALUE self, SEL sel)
-{
-	yaml_document_t *document;
-	Data_Get_Struct(self, yaml_document_t, document);
-	assert(document != NULL);
-	return (document->end_implicit) ? Qtrue : Qfalse;
-}
-
-static IMP rb_yaml_document_finalize_super = NULL; 
-
-static void
-rb_yaml_document_finalize(void *rcv, SEL sel)
-{
-	yaml_document_t *document;
-	Data_Get_Struct(rcv, yaml_document_t, document);
-	yaml_document_delete(document);
-	if (rb_yaml_document_finalize_super != NULL)
-	{
-		((void(*)(void *, SEL))rb_yaml_document_finalize_super)(rcv, sel);
-	}
-}
-
-
-#pragma mark YAML Nodes
-
-static inline int
-rb_yaml_node_id(VALUE n)
-{
-	return RYAMLNode(n)->node_id;
-}
-
-static inline yaml_document_t*
-rb_yaml_node_document(VALUE n)
-{
-	yaml_document_t *doc;
-	Data_Get_Struct(RYAMLNode(n)->doc, yaml_document_t, doc);
-	return doc;
-}
-
-static VALUE
-rb_yaml_node_new(yaml_node_t *node, int id, VALUE doc)
-{
-	yaml_document_t *document;
-	Data_Get_Struct(doc, yaml_document_t, document);
-	VALUE klass = rb_cNode;
-	switch (node->type)
-	{
-		case YAML_SCALAR_NODE:
-		klass = rb_cScalarNode;
-		break;
-		
-		case YAML_MAPPING_NODE:
-		klass = rb_cMapNode;
-		break;
-		
-		case YAML_SEQUENCE_NODE:
-		klass = rb_cSeqNode;
-		break;
-		
-		case YAML_NO_NODE:
-		rb_raise(rb_eRuntimeError, "unexpected empty node");
-	}
-	NEWOBJ(n, struct rb_yaml_node_s);
-	OBJSETUP(n, klass, T_OBJECT);
-	GC_WB(&n->node, node);
-	n->doc = doc;
-	n->node_id = id;
-	return (VALUE)n;
-}
-
-static VALUE
-rb_sequence_node_add(VALUE self, SEL sel, VALUE obj)
-{
-	yaml_document_t *document = rb_yaml_node_document(self);
-	VALUE scalar_node = rb_funcall(obj, rb_intern("to_yaml"), 1, RYAMLNode(self)->doc);
-	int seqID = rb_yaml_node_id(self);
-	int scalID = rb_yaml_node_id(scalar_node);
-	assert((seqID != 0) && (scalID != 0));
-	if (yaml_document_append_sequence_item(document, seqID, scalID) == 0)
-	{
-		rb_exc_raise(rb_yaml_document_error(self, sel));
-	}
-	return self;
-}
-
-static VALUE
-rb_mapping_node_add(VALUE self, SEL sel, VALUE key, VALUE val)
-{
-	yaml_document_t *document = rb_yaml_node_document(self);
-	VALUE key_node = rb_funcall(key, rb_intern("to_yaml"), 1, RYAMLNode(self)->doc);
-	VALUE val_node = rb_funcall(val, rb_intern("to_yaml"), 1, RYAMLNode(self)->doc);
-	int myID = rb_yaml_node_id(self);
-	int keyID = rb_yaml_node_id(key_node);
-	int valID = rb_yaml_node_id(val_node);
-	assert((myID != 0) && (keyID != 0) && (valID != 0));
-	if(yaml_document_append_mapping_pair(document, myID, keyID, valID) == 0)
-	{
-		rb_exc_raise(rb_yaml_document_error(self, sel));
-	}
-	return self;
-}
-
-#if 0 // still need to think about this some more.
-static VALUE
-rb_yaml_node_tag(VALUE self, SEL sel)
-{
-	yaml_node_tag *node;
-	Data_Get_Struct(self, yaml_node_tag, node);
-	return rb_str_new2(node->tag);
-}
 #endif
-
 static void
 rb_yaml_guess_type_of_plain_node(yaml_node_t *node)
 {
@@ -478,112 +233,20 @@ rb_yaml_resolver_initialize(VALUE self, SEL sel)
 }
 
 static VALUE
-rb_yaml_resolve_node(yaml_node_t *node, yaml_document_t *document, VALUE tags)
-{
-	VALUE tag = rb_str_new2((const char*)node->tag);
-	VALUE handler = rb_hash_lookup(tags, tag);
-	switch(node->type)
-	{
-		case YAML_SCALAR_NODE:
-		{
-			if (node->data.scalar.style == YAML_PLAIN_SCALAR_STYLE)
-			{
-				rb_yaml_guess_type_of_plain_node(node);
-				tag = rb_str_new2((const char*)node->tag);
-				handler = rb_hash_lookup(tags, tag);
-			}
-			VALUE scalarval = rb_str_new((const char*)node->data.scalar.value, node->data.scalar.length);
-			if (rb_respond_to(handler, rb_intern("call")))
-			{
-				return rb_funcall(handler, rb_intern("call"), 1, scalarval);
-			}
-			else if (rb_respond_to(handler, rb_intern("yaml_new")))
-			{
-				return rb_funcall(handler, rb_intern("yaml_new"), 1, scalarval);
-			}
-			return scalarval;
-		}
-		break;
-		case YAML_SEQUENCE_NODE:
-		{
-			yaml_node_item_t *item;
-			VALUE arr = rb_ary_new();
-			for(item = node->data.sequence.items.start; item < node->data.sequence.items.top; item++)
-			{
-				int item_id = *item;
-				yaml_node_t *subnode = yaml_document_get_node(document, item_id);
-				VALUE new_obj = rb_yaml_resolve_node(subnode, document, tags);
-				rb_ary_push(arr, new_obj);
-			}
-			if (rb_respond_to(handler, rb_intern("call")))
-			{
-				return rb_funcall(handler, rb_intern("call"), 1, arr);
-			}
-			else if (rb_respond_to(handler, rb_intern("yaml_new")))
-			{
-				return rb_funcall(handler, rb_intern("yaml_new"), 1, arr);
-			}
-			return arr;
-		}
-		break;
-		
-		case YAML_MAPPING_NODE:
-		{
-			yaml_node_pair_t *pair;
-			VALUE hash = rb_hash_new();
-			for(pair = node->data.mapping.pairs.start; pair < node->data.mapping.pairs.top; pair++)
-			{
-				VALUE k = rb_yaml_resolve_node(yaml_document_get_node(document, pair->key), document, tags);
-				VALUE v = rb_yaml_resolve_node(yaml_document_get_node(document, pair->value), document, tags);
-				rb_hash_aset(hash, k, v);
-			}
-			if (rb_respond_to(handler, rb_intern("call")))
-			{
-				return rb_funcall(handler, rb_intern("call"), 1, hash);
-			}
-			else if (rb_respond_to(handler, rb_intern("yaml_new")))
-			{
-				return rb_funcall(handler, rb_intern("yaml_new"), 1, hash);
-			}
-			return hash;
-		}
-		
-		case YAML_NO_NODE:
-		default:
-		break;
-	}
-	return Qnil;
-}
-
-static VALUE
-rb_yaml_resolver_transfer(VALUE self, SEL sel, VALUE obj)
-{
-	VALUE tags = rb_ivar_get(self, id_tags_ivar);
-	if (rb_obj_is_kind_of(obj, rb_cDocument))
-	{
-		yaml_document_t *document;
-		Data_Get_Struct(obj, yaml_document_t, document);
-		yaml_node_t *root = yaml_document_get_root_node(document);
-		if (root == NULL)
-		{
-			return Qnil;
-		}
-		return rb_yaml_resolve_node(root, document, tags);
-	}
-	return Qnil;
-}
-
-static VALUE
 rb_yaml_emitter_alloc(VALUE klass, SEL sel)
 {
-	yaml_emitter_t *emitter = ALLOC(yaml_emitter_t);
-	yaml_emitter_initialize(emitter);
-	return Data_Wrap_Struct(klass, NULL, NULL, emitter);
+	NEWOBJ(emitter, struct rb_yaml_emitter_s);
+	OBJSETUP(emitter, klass, T_OBJECT);
+	GC_WB(&emitter->emitter, ALLOC(yaml_emitter_t));
+	yaml_emitter_initialize(emitter->emitter);
+	emitter->output = Qnil;
+	return (VALUE)emitter;
 }
 
 static int
 rb_yaml_bytestring_output_handler(void *bs, unsigned char *buffer, size_t size)
 {
+	printf("okay, in bytestring output_hanlder\n");
 	CFMutableDataRef data = rb_bytestring_wrapped_data((VALUE)bs);
 	CFDataAppendBytes(data, (const UInt8*)buffer, (CFIndex)size);
 	return 1;
@@ -599,10 +262,10 @@ rb_yaml_io_output_handler(void *data, unsigned char* buffer, size_t size)
 static VALUE
 rb_yaml_emitter_set_output(VALUE self, SEL sel, VALUE output)
 {
-	yaml_emitter_t *emitter;
-	Data_Get_Struct(self, yaml_emitter_t, emitter);
-	assert(emitter != NULL);
-	rb_ivar_set(self, rb_intern("output"), output);
+
+	rb_yaml_emitter_t *remitter = RYAMLEmitter(self);
+	remitter->output = output;
+	yaml_emitter_t *emitter = remitter->emitter;
 	if (!NIL_P(output)) 
 	{
 		if (CLASS_OF(output) == rb_cByteString)
@@ -636,18 +299,113 @@ rb_yaml_emitter_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 }
 
 static VALUE
-rb_yaml_emitter_dump(VALUE self, SEL sel, VALUE doc)
+rb_yaml_emitter_stream(VALUE self, SEL sel)
 {
-	yaml_emitter_t *emitter;
-	yaml_document_t *document;
-	Data_Get_Struct(self, yaml_emitter_t, emitter);
-	Data_Get_Struct(doc, yaml_document_t, document);
-	assert(emitter != NULL);
-	assert(document != NULL);
-	yaml_emitter_open(emitter);
-	yaml_emitter_dump(emitter, document);
+	yaml_event_t ev;
+	yaml_emitter_t *emitter = RYAMLEmitter(self)->emitter;
+	
+	// RADAR: allow the encoding to be configurable
+	yaml_stream_start_event_initialize(&ev, YAML_UTF8_ENCODING); 
+	yaml_emitter_emit(emitter, &ev);
+	
+	rb_yield(self);
+	
+	yaml_stream_end_event_initialize(&ev);
+	yaml_emitter_emit(emitter, &ev);
 	yaml_emitter_flush(emitter);
-	return rb_ivar_get(self, rb_intern("output"));
+	yaml_emitter_delete(emitter);
+	// XXX: cleanup here...
+	return RYAMLEmitter(self)->output;
+}
+
+static VALUE
+rb_yaml_emitter_document(VALUE self, SEL sel, int argc, VALUE *argv)
+{
+	yaml_event_t ev;
+	yaml_emitter_t *emitter = RYAMLEmitter(self)->emitter;
+	VALUE impl_beg = Qnil, impl_end = Qnil;
+	rb_scan_args(argc, argv, "02", &impl_beg, &impl_end);
+	if(NIL_P(impl_beg)) { impl_beg = Qfalse; }
+	if(NIL_P(impl_end)) { impl_end = Qtrue; }
+	
+	yaml_document_start_event_initialize(&ev, NULL, NULL, NULL, RTEST(impl_beg));
+	yaml_emitter_emit(emitter, &ev);
+	yaml_emitter_flush(emitter);
+	
+	rb_yield(self);
+	yaml_emitter_flush(emitter);
+	
+	yaml_document_end_event_initialize(&ev, RTEST(impl_end));
+	yaml_emitter_emit(emitter, &ev);
+	yaml_emitter_flush(emitter);
+	return self;
+}
+
+static VALUE
+rb_yaml_emitter_sequence(VALUE self, SEL sel, VALUE taguri, VALUE style)
+{
+	yaml_event_t ev;
+	yaml_emitter_t *emitter = RYAMLEmitter(self)->emitter;
+	yaml_char_t *tag = (yaml_char_t*)RSTRING_PTR(taguri);
+	yaml_sequence_start_event_initialize(&ev, NULL, tag, 1, YAML_ANY_SEQUENCE_STYLE);
+	yaml_emitter_emit(emitter, &ev);
+	yaml_emitter_flush(emitter);
+	
+	rb_yield(self);
+	yaml_emitter_flush(emitter);
+	
+	yaml_sequence_end_event_initialize(&ev);
+	yaml_emitter_emit(emitter, &ev);
+	yaml_emitter_flush(emitter);
+	return self;
+}
+
+static VALUE
+rb_yaml_emitter_mapping(VALUE self, SEL sel, VALUE style, VALUE taguri)
+{
+	yaml_event_t ev;
+	yaml_emitter_t *emitter = RYAMLEmitter(self)->emitter;
+	yaml_char_t *tag = (yaml_char_t*)RSTRING_PTR(taguri);
+	yaml_mapping_start_event_initialize(&ev, NULL, tag, 1, YAML_ANY_MAPPING_STYLE);
+	yaml_emitter_emit(emitter, &ev);
+	yaml_emitter_flush(emitter);
+
+	rb_yield(self);
+	yaml_emitter_flush(emitter);
+		
+	yaml_mapping_end_event_initialize(&ev);
+	yaml_emitter_emit(emitter, &ev);
+	yaml_emitter_flush(emitter);
+	return self;
+}
+
+static VALUE
+rb_yaml_emitter_scalar(VALUE self, SEL sel, VALUE taguri, VALUE val, VALUE style)
+{
+	yaml_event_t ev;
+	yaml_emitter_t *emitter = RYAMLEmitter(self)->emitter;
+	yaml_char_t *tag = (yaml_char_t*)RSTRING_PTR(taguri);
+	yaml_char_t *output = (yaml_char_t*)RSTRING_PTR(val);
+	
+	yaml_scalar_event_initialize(&ev, NULL, tag, output, RSTRING_LEN(val), 1, 1, YAML_ANY_SCALAR_STYLE);
+	yaml_emitter_emit(emitter, &ev);
+	yaml_emitter_flush(emitter);
+	
+	return self;
+}
+
+static VALUE
+rb_yaml_emitter_add(VALUE self, SEL sel, int argc, VALUE *argv)
+{
+	VALUE first = Qnil, second = Qnil;
+	rb_scan_args(argc, argv, "11", &first, &second);
+	rb_funcall(first, rb_intern("to_yaml"), 1, self);
+	if(argc == 2)
+	{
+		rb_funcall(second, rb_intern("to_yaml"), 1, self);
+	}
+	return self;
+	
 }
 
 static IMP rb_yaml_emitter_finalize_super = NULL; 
@@ -667,12 +425,7 @@ rb_yaml_emitter_finalize(void *rcv, SEL sel)
 void
 Init_libyaml()
 {
-	id_plain = rb_intern("plain");
-	id_quote2 = rb_intern("quote2");
 	id_tags_ivar = rb_intern("@tags");
-	id_input_ivar = rb_intern("@input");
-	id_node_id_ivar = rb_intern("@node_id");
-	id_document_ivar = rb_intern("@document");
 	
 	rb_mYAML = rb_define_module("YAML");
 	
@@ -687,50 +440,14 @@ Init_libyaml()
 	// commented methods here are just unimplemented; i plan to put them in soon.
 	//rb_objc_define_method(rb_cParser, "encoding", rb_yaml_parser_encoding, 0);
 	//rb_objc_define_method(rb_cParser, "encoding=", rb_yaml_parser_set_encoding, 1);
-	//rb_objc_define_method(rb_cParser, "error", rb_yaml_parser_error, 0);
+	rb_objc_define_method(rb_cParser, "error", rb_yaml_parser_error, 0);
 	rb_objc_define_method(rb_cParser, "load", rb_yaml_parser_load, 0);
 	rb_yaml_parser_finalize_super = rb_objc_install_method2((Class)rb_cParser, "finalize", (IMP)rb_yaml_parser_finalize);
-	
-	rb_cDocument = rb_define_class_under(rb_mLibYAML, "Document", rb_cObject);
-	rb_objc_define_method(*(VALUE *)rb_cDocument, "alloc", rb_yaml_document_alloc, 0);
-	rb_objc_define_method(rb_cDocument, "root", rb_yaml_document_root_node, 0);
-	rb_objc_define_method(rb_cDocument, "seq", rb_yaml_document_add_sequence, 2);
-	rb_objc_define_method(rb_cDocument, "map", rb_yaml_document_add_mapping, 2);
-	rb_objc_define_method(rb_cDocument, "scalar", rb_yaml_document_add_scalar, 3);
-	//rb_objc_define_method(rb_cDocument, "[]", rb_yaml_document_aref, 1);
-	//rb_objc_define_method(rb_cDocument, "version", rb_yaml_document_version, 0);
-	rb_objc_define_method(rb_cDocument, "empty?", rb_yaml_document_empty_p, 0);
-	rb_objc_define_method(rb_cDocument, "implicit_start?", rb_yaml_document_implicit_start_p, 0);
-	rb_objc_define_method(rb_cDocument, "implicit_end?", rb_yaml_document_implicit_end_p, 0);
-	//rb_objc_define_method(rb_cDocument, "implicit_start=", rb_yaml_document_implicit_start_set, 1);
-	//rb_objc_define_method(rb_cDocument, "implicit_end=", rb_yaml_document_implicit_end_set, 1);
-	rb_yaml_document_finalize_super = rb_objc_install_method2((Class)rb_cDocument, "finalize", (IMP)rb_yaml_document_finalize);
-	
-	rb_cNode = rb_define_class_under(rb_mLibYAML, "Node", rb_cObject);
-	rb_define_attr(rb_cNode, "document", 1, 1);
-	rb_define_attr(rb_cNode, "node_id", 1, 1);
-	//rb_objc_define_method(rb_cNode, "type", rb_yaml_node_type, 0);
-	//rb_objc_define_method(rb_cNode, "scalar?", rb_yaml_node_scalar_p, 0);
-	//rb_objc_define_method(rb_cNode, "mapping?", rb_yaml_node_mapping_p, 0);
-	//rb_objc_define_method(rb_cNode, "sequence?", rb_yaml_node_sequence_p, 0);
-	//rb_objc_define_method(rb_cNode, "style", rb_yaml_node_style, 0);
-	//rb_objc_define_method(rb_cNode, "tag", rb_yaml_node_tag, 0);
-	//rb_objc_define_method(rb_cNode, "value", rb_yaml_node_value, 0);
-	//rb_objc_define_method(rb_cNode, "start_mark", rb_yaml_node_start_mark, 0);
-	//rb_objc_define_method(rb_cNode, "end_mark", rb_yaml_node_end_mark, 0);
-	
-	rb_cSeqNode = rb_define_class_under(rb_mLibYAML, "Seq", rb_cNode);
-	rb_objc_define_method(rb_cSeqNode, "add", rb_sequence_node_add, 1);
-	
-	rb_cMapNode = rb_define_class_under(rb_mLibYAML, "Map", rb_cNode);
-	rb_objc_define_method(rb_cMapNode, "add", rb_mapping_node_add, 2);
-	
-	rb_cScalarNode = rb_define_class_under(rb_mLibYAML, "Scalar", rb_cNode);
 	
 	rb_cResolver = rb_define_class_under(rb_mLibYAML, "Resolver", rb_cObject);
 	rb_define_attr(rb_cResolver, "tags", 1, 1);
 	rb_objc_define_method(rb_cResolver, "initialize", rb_yaml_resolver_initialize, 0);
-	rb_objc_define_method(rb_cResolver, "transfer", rb_yaml_resolver_transfer, 1);
+	//rb_objc_define_method(rb_cResolver, "transfer", rb_yaml_resolver_transfer, 1);
 	//rb_objc_define_method(rb_cResolver, "add_domain_type", rb_yaml_resolver_add_domain_type, 2);
 	//rb_objc_define_method(rb_cResolver, "add_ruby_type", rb_yaml_resolver_add_ruby_type, 1);
 	//rb_objc_define_method(rb_cResolver, "add_builtin_type", rb_yaml_resolver_add_builtin_type, 1);
@@ -743,7 +460,14 @@ Init_libyaml()
 	rb_define_attr(rb_cEmitter, "output", 1, 1);
 	rb_objc_define_method(rb_cEmitter, "initialize", rb_yaml_emitter_initialize, -1);
 	rb_objc_define_method(rb_cEmitter, "output=", rb_yaml_emitter_set_output, 1);
-	rb_objc_define_method(rb_cEmitter, "dump", rb_yaml_emitter_dump, 1);
+	//rb_objc_define_method(rb_cEmitter, "dump", rb_yaml_emitter_dump, -1);
+	rb_objc_define_method(rb_cEmitter, "stream", rb_yaml_emitter_stream, 0);
+	rb_objc_define_method(rb_cEmitter, "document", rb_yaml_emitter_document, -1);
+	rb_objc_define_method(rb_cEmitter, "seq", rb_yaml_emitter_sequence, 2);
+	rb_objc_define_method(rb_cEmitter, "map", rb_yaml_emitter_mapping, 2);
+	rb_objc_define_method(rb_cEmitter, "scalar", rb_yaml_emitter_scalar, 3);
+	rb_objc_define_method(rb_cEmitter, "add", rb_yaml_emitter_add, -1);
+	
 	//rb_objc_define_method(rb_cEmitter, "error", rb_yaml_emitter_error, 0);
 	//rb_objc_define_method(rb_cEmitter, "encoding", rb_yaml_emitter_encoding, 0);
 	//rb_objc_define_method(rb_cEmitter, "encoding=", rb_yaml_emitter_set_encoding, 1);
