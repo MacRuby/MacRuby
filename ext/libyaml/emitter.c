@@ -654,8 +654,11 @@ yaml_emitter_emit_document_start(yaml_emitter_t *emitter,
     {
         if (emitter->open_ended)
         {
+			// MacRuby change: since the emitter ignores this parameter, disable it.
+			#if 0
             if (!yaml_emitter_write_indicator(emitter, "...", 1, 0, 0))
                 return 0;
+			#endif
             if (!yaml_emitter_write_indent(emitter))
                 return 0;
         }
