@@ -43,7 +43,7 @@ rb_proc_alloc_with_block(VALUE klass, rb_vm_block_t *proc)
 
     VALUE obj;
     obj = Data_Wrap_Struct(klass, NULL, NULL, proc);
-    GC_WB(&proc->proc, obj);
+    proc->proc = obj; // weak
     if (!(proc->flags & VM_BLOCK_PROC)) {
 	proc->flags |= VM_BLOCK_PROC;
 	if (!(proc->flags & VM_BLOCK_METHOD)) {

@@ -279,7 +279,7 @@ RoxorVM::RoxorVM(const RoxorVM &vm)
 	    b = (rb_vm_block_t *)xmalloc(block_size);
 	    memcpy(b, orig, block_size);
 
-	    GC_WB(&b->proc, orig->proc);
+	    b->proc = orig->proc; // weak
 	    GC_WB(&b->self, orig->self);
 	    GC_WB(&b->locals, orig->locals);
 	    GC_WB(&b->parent_block, orig->parent_block);  // XXX not sure
@@ -2563,22 +2563,22 @@ dispatch:
 	    vm->add_current_block(block);
 	}
 
-	VALUE ret = Qnil;
-	try {
-	    ret = __rb_vm_ruby_dispatch(self, sel, rcache.node, argc, argv);
-	}
-	catch (...) {
-	    if (!block_already_current) {
-		vm->pop_current_block();
+	struct Finally {
+	    bool block_already_current;
+	    RoxorVM *vm;
+	    Finally(bool _block_already_current, RoxorVM *_vm) {
+		block_already_current = _block_already_current;
+		vm = _vm;
 	    }
-	    vm->pop_broken_with();
-	    throw;
-	}
-	if (!block_already_current) {
-	    vm->pop_current_block();
-	}
-	vm->pop_broken_with();
-	return ret;
+	    ~Finally() {
+		if (!block_already_current) {
+		    vm->pop_current_block();
+		}
+		vm->pop_broken_with();
+	    }
+	} finalizer(block_already_current, vm);
+
+	return __rb_vm_ruby_dispatch(self, sel, rcache.node, argc, argv);
     }
     else if (cache->flag == MCACHE_OCALL) {
 	if (ocache.klass != klass) {
@@ -2589,16 +2589,14 @@ dispatch:
 	    if (self == rb_cNSMutableHash && sel == selNew) {
 		// Because Hash.new can accept a block.
 		vm->add_current_block(block);
-		VALUE h = Qnil;
-		try {
-		    h = rb_hash_new2(argc, argv);
-		}
-		catch (...) {
-		    vm->pop_current_block();
-		    throw;
-		}
-		vm->pop_current_block();
-		return h;
+
+		struct Finally {
+		    RoxorVM *vm;
+		    Finally(RoxorVM *_vm) { vm = _vm; }
+		    ~Finally() { vm->pop_current_block(); }
+		} finalizer(vm);
+
+		return rb_hash_new2(argc, argv);
 	    }
 	    rb_warn("passing a block to an Objective-C method - " \
 		    "will be ignored");
@@ -2932,7 +2930,7 @@ rb_vm_dup_active_block(rb_vm_block_t *src_b)
     rb_vm_block_t *new_b = (rb_vm_block_t *)xmalloc(block_size);
 
     memcpy(new_b, src_b, block_size);
-    GC_WB(&new_b->proc, src_b->proc);
+    new_b->proc = src_b->proc; // weak
     GC_WB(&new_b->parent_block, src_b->parent_block);
     GC_WB(&new_b->self, src_b->self);
     new_b->flags = src_b->flags & ~VM_BLOCK_ACTIVE;
@@ -3586,25 +3584,20 @@ block_call:
 	b = rb_vm_dup_active_block(b);
     }
     b->flags |= VM_BLOCK_ACTIVE;
-    VALUE v = Qnil;
-    try {
-	if (b->flags & VM_BLOCK_METHOD) {
-	    rb_vm_method_t *m = (rb_vm_method_t *)b->imp;
-	    v = rb_vm_call_with_cache2(m->cache, NULL, m->recv, m->oclass,
-		    m->sel, argc, argv);
-	}
-	else {
-	    v = __rb_vm_bcall(self, (VALUE)b->dvars, b, b->imp, b->arity,
-		    argc, argv);
-	}
-    }
-    catch (...) {
-	b->flags &= ~VM_BLOCK_ACTIVE;
-	throw;
-    }
-    b->flags &= ~VM_BLOCK_ACTIVE;
 
-    return v;
+    struct Finally {
+	rb_vm_block_t *b;
+	Finally(rb_vm_block_t *_b) { b = _b; }
+	~Finally() { b->flags &= ~VM_BLOCK_ACTIVE; }
+    } finalizer(b);
+
+    if (b->flags & VM_BLOCK_METHOD) {
+	rb_vm_method_t *m = (rb_vm_method_t *)b->imp;
+	return rb_vm_call_with_cache2(m->cache, NULL, m->recv, m->oclass,
+		m->sel, argc, argv);
+    }
+    return __rb_vm_bcall(self, (VALUE)b->dvars, b, b->imp, b->arity,
+	    argc, argv);
 }
 
 extern "C"
@@ -3633,18 +3626,14 @@ rb_vm_yield0(int argc, const VALUE *argv)
 
     vm->pop_current_block();
 
-    VALUE retval = Qnil;
-    try {
-	retval = rb_vm_block_eval0(b, b->self, argc, argv);
-    }
-    catch (...) {
-	vm->add_current_block(b);
-	throw;
-    }
+    struct Finally {
+	RoxorVM *vm;
+	rb_vm_block_t *b;
+	Finally(RoxorVM *_vm, rb_vm_block_t *_b) { vm = _vm; b = _b; }
+	~Finally() { vm->add_current_block(b); }
+    } finalizer(vm, b);
 
-    vm->add_current_block(b);
-
-    return retval;
+    return rb_vm_block_eval0(b, b->self, argc, argv);
 }
 
 extern "C"
@@ -3672,22 +3661,26 @@ rb_vm_yield_under(VALUE klass, VALUE self, int argc, const VALUE *argv)
 	vm->set_current_class((Class)klass);
     }
 
-    VALUE retval = Qnil;
-    try {
-	retval = rb_vm_block_eval0(b, b->self, argc, argv);
-    }
-    catch (...) {
-	b->self = old_self;
-	vm->set_current_class(old_class);
-	vm->add_current_block(b);
-	throw;
-    }
+    struct Finally {
+	RoxorVM *vm;
+	rb_vm_block_t *b;
+	Class old_class;
+	VALUE old_self;
+	Finally(RoxorVM *_vm, rb_vm_block_t *_b, Class _old_class,
+		VALUE _old_self) {
+	    vm = _vm;
+	    b = _b;
+	    old_class = _old_class;
+	    old_self = _old_self;
+	}
+	~Finally() {
+	    b->self = old_self;
+	    vm->set_current_class(old_class);
+	    vm->add_current_block(b);
+	}
+    } finalizer(vm, b, old_class, old_self);
 
-    b->self = old_self;
-    vm->set_current_class(old_class);
-    vm->add_current_block(b);
-
-    return retval;
+    return rb_vm_block_eval0(b, b->self, argc, argv);
 }
 
 extern "C"
@@ -3884,15 +3877,17 @@ VALUE
 rb_ensure(VALUE (*b_proc)(ANYARGS), VALUE data1,
 	VALUE (*e_proc)(ANYARGS), VALUE data2)
 {
-    try {
-	VALUE v = (*b_proc)(data1);
-	(*e_proc)(data2);
-	return v;
-    }
-    catch (...) {
-	(*e_proc)(data2);
-	throw;	
-    }
+    struct Finally {
+	VALUE (*e_proc)(ANYARGS);
+	VALUE data2;
+	Finally(VALUE (*_e_proc)(ANYARGS), VALUE _data2) {
+	    e_proc = _e_proc;
+	    data2 = _data2;
+	}
+	~Finally() { (*e_proc)(data2); }
+    } finalizer(e_proc, data2);
+
+    return (*b_proc)(data1);
 }
 
 extern "C"
