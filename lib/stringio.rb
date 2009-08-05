@@ -23,7 +23,7 @@ class StringIO
   # Creates new StringIO instance from with _string_ and _mode_.
   #
   def initialize(string = "", mode = nil)
-    @string = string.to_str unless string.kind_of?(String) 
+    @string = string.kind_of?(String) ? string : string.to_str  
     @pos = 0
     @lineno = 0
     define_mode(mode)
@@ -63,7 +63,8 @@ class StringIO
     end
     
     define_mode(mode)
-    @pos, @lineno = 0, 0
+    @pos = 0
+    @lineno = 0
     
     self
   end
@@ -77,6 +78,73 @@ class StringIO
     @pos = 0
     @lineno = 0
   end
+  
+  #   strio.read([length [, buffer]])    -> string, buffer, or nil
+  #
+  # See IO#read.
+  #
+  def read(length = nil, buffer = "")
+    raise IOError, "not opened for reading" unless @readable
+    
+    unless buffer.kind_of?(String)
+      begin
+        buffer = buffer.to_str
+      rescue NoMethodError
+        raise TypeError
+      end
+    end 
+ 
+    if length.nil?
+      return "" if self.eof?
+      buffer.replace(@string[@pos..-1])
+      @pos = @string.size
+    else
+      return nil if self.eof?
+      unless length.kind_of?(Integer)
+        begin
+          length = length.to_int
+        rescue
+          raise TypeError
+        end        
+      end
+      raise ArgumentError if length < 0
+      buffer.replace(@string[@pos, length])
+      @pos += buffer.length
+    end
+ 
+    buffer
+  end
+  
+  #   strio.seek(amount, whence=SEEK_SET) -> 0
+  #
+  # Seeks to a given offset _amount_ in the stream according to
+  # the value of _whence_ (see IO#seek).
+  #
+  def seek(offset, whence = ::IO::SEEK_SET) 
+    raise(IOError, "closed stream") if closed?
+    unless offset.kind_of?(Integer)
+      raise TypeError unless offset.respond_to?(:to_int)
+      offset = offset.to_int
+    end
+    
+    case whence
+    when ::IO::SEEK_CUR
+      # Seeks to offset plus current position
+      offset += @pos
+    when ::IO::SEEK_END
+      # Seeks to offet plus end of stream (usually offset is a negative value)
+      offset += @string.size
+    when ::IO::SEEK_SET, nil
+      # Seeks to the absolute location given by offset
+    else
+      raise Errno::EINVAL, "invalid whence"
+    end
+    
+    raise Errno::EINVAL if (offset < 0)
+    @pos = offset  
+    
+    0
+  end 
   
   #   strio.pos = integer    -> integer
   #
@@ -113,6 +181,16 @@ class StringIO
     !@readable
   end
   
+  #   strio.close_read    -> nil
+  #
+  # Closes the read end of a StringIO.  Will raise an +IOError+ if the
+  # *strio* is not readable.
+  #
+  def close_read
+    raise IOError, "closing non-duplex IO for reading" unless @readable
+    @readable = nil
+  end
+  
   #   strio.closed_write?    -> true or false
   #
   # Returns +true+ if *strio* is not writable, +false+ otherwise.
@@ -129,7 +207,7 @@ class StringIO
   #
   def eof?
     raise(IOError, "not opened for reading") unless @readable
-    pos >= string.length
+    pos >= @string.length
   end
   alias_method :eof, :eof? 
   
