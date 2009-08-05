@@ -269,14 +269,14 @@ handle_scalar(rb_yaml_parser_t *parser)
 		tag = "tag:yaml.org,2002:str";
 	}
 	VALUE scalarval = rb_str_new(val, parser->event.data.scalar.length);
-	return interpret_value(parser, scalarval, rb_str_new2(tag));
+	return interpret_value(parser, scalarval, rb_str_new2((char*)tag));
 }
 
 static VALUE handle_sequence(rb_yaml_parser_t *parser)
 {
 	VALUE node;
 	VALUE tag = (parser->event.data.sequence_start.tag == NULL) ? Qnil :
-					rb_str_new2(parser->event.data.sequence_start.tag);
+					rb_str_new2((char*)parser->event.data.sequence_start.tag);
 	VALUE arr = rb_ary_new();
 	while(node = get_node(parser))
 	{
@@ -289,7 +289,7 @@ static VALUE handle_mapping(rb_yaml_parser_t *parser)
 {
 	VALUE key_node, value_node;
 	VALUE tag = (parser->event.data.mapping_start.tag == NULL) ? Qnil :
-					rb_str_new2(parser->event.data.mapping_start.tag);
+					rb_str_new2((char*)parser->event.data.mapping_start.tag);
 	VALUE hash = rb_hash_new();
 	while(key_node = get_node(parser))
 	{
