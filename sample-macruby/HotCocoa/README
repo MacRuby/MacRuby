@@ -43,6 +43,8 @@ using any nibs.
 download_and_progress_indicator: demo of downloading data, progress indicator
 and scroll view containing a text view.
 
+hotconsole: an IRB-like console using WebKit.
+
 Building the examples:
 
 $ cd <example-directory>
