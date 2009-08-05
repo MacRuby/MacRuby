@@ -146,6 +146,7 @@ warn_print(const char *fmt, va_list args)
     err_snprintf(buf, BUFSIZ, fmt, args);
     len = strlen(buf);
     buf[len++] = '\n';
+    buf[len] = '\0';
     rb_write_error2(buf, len);
 }
 
