@@ -347,7 +347,8 @@ rb_yaml_parser_load(VALUE self, SEL sel)
 		rb_raise(rb_eRuntimeError, "expected DOCUMENT_START event");
 	}
 
-	root = (get_node(parser) || Qnil);
+	root = get_node(parser);
+	if(root == 0) { root = Qnil; }
 
 	NEXT_EVENT();
 	if (parser->event.type != YAML_DOCUMENT_END_EVENT)
