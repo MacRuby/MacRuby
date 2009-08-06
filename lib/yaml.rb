@@ -71,6 +71,11 @@ module YAML
     end
   end
   
+  def YAML.tag_class(tag, klass)
+    LibYAML::DEFAULT_RESOLVER.add_type(tag, klass)
+    klass
+  end
+  
 end
 
 module Kernel
