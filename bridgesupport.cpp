@@ -1063,8 +1063,6 @@ void
 RoxorCore::load_bridge_support(const char *path, const char *framework_path,
 	int options)
 {
-    char *error;
-    bool ok;
     CFMutableDictionaryRef rb_cObject_dict;  
 
     if (bs_parser == NULL) {
@@ -1074,32 +1072,28 @@ RoxorCore::load_bridge_support(const char *path, const char *framework_path,
     rb_cObject_dict = rb_class_ivar_dict(rb_cObject);
     assert(rb_cObject_dict != NULL);
 
-    ok = bs_parser_parse(bs_parser, path, framework_path,
-	    (bs_parse_options_t)options,
-	    __bs_parse_cb, rb_cObject_dict, &error);
+    char *error = NULL;
+    const bool ok = bs_parser_parse(bs_parser, path, framework_path,
+	    (bs_parse_options_t)options, __bs_parse_cb, rb_cObject_dict, &error);
     if (!ok) {
 	rb_raise(rb_eRuntimeError, "%s", error);
     }
-#if 0 //TODO //MAC_OS_X_VERSION_MAX_ALLOWED <= 1060
-    /* XXX we should introduce the possibility to write prelude scripts per
-     * frameworks where this kind of changes could be located.
-     */
 #if defined(__LP64__)
     static bool R6399046_fixed = false;
-    /* XXX work around for <rdar://problem/6399046> NSNotFound 64-bit value is incorrect */
+    // XXX work around for
+    // <rdar://problem/6399046> NSNotFound 64-bit value is incorrect
     if (!R6399046_fixed) {
-	ID nsnotfound = rb_intern("NSNotFound");
-	VALUE val = 
-	    (VALUE)CFDictionaryGetValue(rb_cObject_dict, (void *)nsnotfound);
-	if ((VALUE)val == INT2FIX(-1)) {
-	    CFDictionarySetValue(rb_cObject_dict, 
-		    (const void *)nsnotfound,
-		    (const void *)ULL2NUM(NSNotFound));
+	const void *key = (const void *)rb_intern("NSNotFound");
+	const void *real_val = (const void *)ULL2NUM(LONG_MAX);
+
+	const void *val = CFDictionaryGetValue(rb_cObject_dict, key);
+	if (val != real_val) {
+	    CFDictionarySetValue(rb_cObject_dict, key, real_val);
 	    R6399046_fixed = true;
-	    DLOG("XXX", "applied work-around for rdar://problem/6399046");
 	}
     }
 #endif
+#if 0
     static bool R6401816_fixed = false;
     /* XXX work around for <rdar://problem/6401816> -[NSObject performSelector:withObject:] has wrong sel_of_type attributes*/
     if (!R6401816_fixed) {
@@ -1114,7 +1108,6 @@ RoxorCore::load_bridge_support(const char *path, const char *framework_path,
 		    && arg->sel_of_type[0] != '@') {
 		    arg->sel_of_type[0] = '@';
 		    R6401816_fixed = true;
-		    DLOG("XXX", "applied work-around for rdar://problem/6401816");
 		    break;
 		}
 		arg++;
