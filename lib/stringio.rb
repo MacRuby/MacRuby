@@ -315,6 +315,16 @@ class StringIO
   # See IO#each_byte.
   #
   def each_byte
+  end
+  
+  #   strio.gets(sep=$/)     -> string or nil
+  #   strio.gets(limit)      -> string or nil
+  #   strio.gets(sep, limit) -> string or nil
+  #
+  # See IO#gets.
+  #
+  def gets(sep=$/)
+    $_ = self.getline(sep)
   end 
            
 
@@ -385,5 +395,40 @@ class StringIO
       @append = true if (mode & IO::APPEND) != 0
       @string.replace("") if (mode & IO::TRUNC) != 0
     end
+    
+    def getline(sep = $/)
+      raise(IOError, "not opened for reading") unless @readable
+      sep = sep.to_str unless (sep.nil? || sep.kind_of?(String))
+      return nil if self.eof?
+
+      if sep.nil?
+        line = string[pos .. -1]
+        @pos = string.size
+      elsif sep.empty?
+        if stop = string.index("\n\n", pos)
+          stop += 2
+          line = string[pos .. (stop - 2)]
+          while string[stop] == ?\n
+            stop += 1
+          end
+          @pos = stop
+        else
+          line = string[pos .. -1]
+          @pos = string.size
+        end
+      else
+        if stop = string.index(sep, pos)
+          line = string[pos .. stop]
+          @pos = stop + 1
+        else
+          line = string[pos .. -1]
+          @pos = string.size
+        end
+      end
+
+      @lineno += 1
+
+      return line
+    end  
 
 end
