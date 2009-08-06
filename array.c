@@ -61,7 +61,9 @@ extern void _CFArraySetCapacity(CFMutableArrayRef array, CFIndex cap);
 static inline void
 rb_ary_set_capacity(VALUE ary, long len)
 {
-    _CFArraySetCapacity((CFMutableArrayRef)ary, len);
+    if (RARRAY_LEN(ary) < len) {
+	_CFArraySetCapacity((CFMutableArrayRef)ary, len);
+    }
 }
 
 VALUE
