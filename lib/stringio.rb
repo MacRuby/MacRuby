@@ -285,8 +285,24 @@ class StringIO
   # See IO#readchar.
   #
   def readchar
-    
+    raise(IO::EOFError, "end of file reached") if self.eof?
+    getc
   end
+  
+  #   strio.each_char {|char| block }  -> strio
+  #
+  # See IO#each_char.
+  #
+  def each_char
+    raise(IOError, "not opened for reading") unless @readable
+    if block_given?
+      string.each_char{|c| yield(c)}
+      self
+    else
+      string.each_char
+    end
+  end
+  alias_method :chars, :each_char 
   
   #   strio.getbyte   -> fixnum or nil
   #
