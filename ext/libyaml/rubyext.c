@@ -16,17 +16,15 @@
 #include "yaml.h"
 
 // Ideas to speed this up:
-// embed the yaml_parser_t and yaml_emitter_t into the parser/emitter structs
-// rather than just keep pointers to them; this means fewer mallocs
 // have the resolver be an opaque CFMutableDictionary mapping C strings to VALUES
 // store that dictionary in the parser, fewer ivar accesses
 
 typedef struct rb_yaml_parser_s {
 	struct RBasic basic;		// holds the class information
-	yaml_parser_t *parser;		// the parser object.
+	yaml_parser_t parser;		// the parser object.
 	
 	VALUE input;				// a reference to the object that's providing input
-
+	
 	VALUE resolver;				// used to determine how to unserialize objects.
 	
 	yaml_event_t event;			// the event that is currently being parsed.
@@ -37,12 +35,19 @@ typedef struct rb_yaml_parser_s {
 
 typedef struct rb_yaml_emitter_s {
 	struct RBasic basic;		// holds the class information
-	yaml_emitter_t *emitter;	// the emitter object
+	yaml_emitter_t emitter;	// the emitter object
 	
 	VALUE output;				// the object to which we are writing
 } rb_yaml_emitter_t;
 
 #define RYAMLEmitter(val) ((rb_yaml_emitter_t*)val)
+
+typedef struct rb_yaml_resolver_s {
+	struct RBasic basic;
+	CFMutableDictionaryRef tags;
+} rb_yaml_resolver_t;
+
+#define RYAMLResolver(val) ((rb_yaml_resolver_t*)val)
 
 static VALUE rb_mYAML;
 static VALUE rb_mLibYAML;
@@ -50,7 +55,7 @@ static VALUE rb_cParser;
 static VALUE rb_cEmitter;
 static VALUE rb_cResolver;
 
-static ID id_tags_ivar;
+
 static ID id_plain;
 static ID id_quote2;
 
@@ -76,8 +81,7 @@ rb_yaml_parser_alloc(VALUE klass, SEL sel)
 	
 	parser->event_valid = false;
 	
-	GC_WB(&parser->parser, ALLOC(yaml_parser_t));
-	yaml_parser_initialize(parser->parser);
+	yaml_parser_initialize(&parser->parser);
 	return (VALUE)parser;
 }
 
@@ -100,7 +104,7 @@ rb_yaml_parser_set_input(VALUE self, SEL sel, VALUE input)
 {
 	rb_yaml_parser_t *rbparser = RYAMLParser(self);
 	rbparser->input = input; // do we need to retain this?
-	yaml_parser_t *parser = rbparser->parser;
+	yaml_parser_t *parser = &rbparser->parser;
 	if (!NIL_P(input))
 	{
 		assert(parser != NULL);
@@ -200,10 +204,10 @@ rb_yaml_parser_generate_error(yaml_parser_t *parser)
 static VALUE
 rb_yaml_parser_error(VALUE self, SEL sel)
 {
-	return rb_yaml_parser_generate_error(RYAMLParser(self)->parser);
+	return rb_yaml_parser_generate_error(&(RYAMLParser(self)->parser));
 }
 
-static bool
+static inline bool
 yaml_next_event(rb_yaml_parser_t *parser)
 {
 	if (parser->event_valid)
@@ -211,9 +215,9 @@ yaml_next_event(rb_yaml_parser_t *parser)
 		yaml_event_delete(&parser->event);
 		parser->event_valid = false;
 	}
-	if (yaml_parser_parse(parser->parser, &parser->event) == -1)
+	if (yaml_parser_parse(&parser->parser, &parser->event) == -1)
 	{
-		rb_exc_raise(rb_yaml_parser_generate_error(parser->parser));
+		rb_exc_raise(rb_yaml_parser_generate_error(&parser->parser));
 		parser->event_valid = false;
 	} else
 	{
@@ -223,11 +227,11 @@ yaml_next_event(rb_yaml_parser_t *parser)
 }
 
 #define NEXT_EVENT() yaml_next_event(parser)
-static VALUE get_node(rb_yaml_parser_t *parser);
+static inline VALUE get_node(rb_yaml_parser_t *parser);
 
-static VALUE interpret_value(rb_yaml_parser_t *parser, VALUE result, VALUE tag)
+static inline VALUE interpret_value(rb_yaml_parser_t *parser, VALUE result, VALUE tag)
 {
-	VALUE handler = rb_hash_lookup(rb_ivar_get(parser->resolver, id_tags_ivar), tag);
+	VALUE handler = rb_hash_lookup((VALUE)(RYAMLResolver(parser->resolver)->tags), tag);
 	if (rb_vm_respond_to(handler, sel_call, 0))
 	{
 		return rb_vm_call_with_cache(call_cache, handler, sel_call, 1, &result);
@@ -299,7 +303,7 @@ static VALUE handle_mapping(rb_yaml_parser_t *parser)
 	return interpret_value(parser, hash, tag);
 }
 
-static VALUE get_node(rb_yaml_parser_t *parser)
+static inline VALUE get_node(rb_yaml_parser_t *parser)
 {
 	VALUE node;
 	NEXT_EVENT();
@@ -372,11 +376,8 @@ static void
 rb_yaml_parser_finalize(void *rcv, SEL sel)
 {
 	rb_yaml_parser_t *rbparser = RYAMLParser(rcv);
-	if((rbparser != NULL) && (rbparser->parser != NULL)) 
-	{
-		yaml_parser_delete(rbparser->parser);
-		rbparser->parser = NULL;
-	}
+	yaml_parser_delete(&rbparser->parser);
+	
 	if (rb_yaml_parser_finalize_super != NULL)
 	{
 		((void(*)(void *, SEL))rb_yaml_parser_finalize_super)(rcv, sel);
@@ -422,19 +423,11 @@ rb_yaml_tag_or_null(VALUE tagstr, int *can_omit_tag)
 }
 
 static VALUE
-rb_yaml_resolver_initialize(VALUE self, SEL sel)
-{
-	rb_ivar_set(self, id_tags_ivar, rb_hash_new());
-	return self;
-}
-
-static VALUE
 rb_yaml_emitter_alloc(VALUE klass, SEL sel)
 {
 	NEWOBJ(emitter, struct rb_yaml_emitter_s);
 	OBJSETUP(emitter, klass, T_OBJECT);
-	GC_WB(&emitter->emitter, ALLOC(yaml_emitter_t));
-	yaml_emitter_initialize(emitter->emitter);
+	yaml_emitter_initialize(&emitter->emitter);
 	emitter->output = Qnil;
 	return (VALUE)emitter;
 }
@@ -460,7 +453,7 @@ rb_yaml_emitter_set_output(VALUE self, SEL sel, VALUE output)
 
 	rb_yaml_emitter_t *remitter = RYAMLEmitter(self);
 	remitter->output = output;
-	yaml_emitter_t *emitter = remitter->emitter;
+	yaml_emitter_t *emitter = &remitter->emitter;
 	if (!NIL_P(output)) 
 	{
 		if (CLASS_OF(output) == rb_cByteString)
@@ -497,7 +490,7 @@ static VALUE
 rb_yaml_emitter_stream(VALUE self, SEL sel)
 {
 	yaml_event_t ev;
-	yaml_emitter_t *emitter = RYAMLEmitter(self)->emitter;
+	yaml_emitter_t *emitter = &RYAMLEmitter(self)->emitter;
 	
 	// RADAR: allow the encoding to be configurable
 	yaml_stream_start_event_initialize(&ev, YAML_UTF8_ENCODING); 
@@ -517,7 +510,7 @@ static VALUE
 rb_yaml_emitter_document(VALUE self, SEL sel, int argc, VALUE *argv)
 {
 	yaml_event_t ev;
-	yaml_emitter_t *emitter = RYAMLEmitter(self)->emitter;
+	yaml_emitter_t *emitter = &RYAMLEmitter(self)->emitter;
 	VALUE impl_beg = Qnil, impl_end = Qnil;
 	rb_scan_args(argc, argv, "02", &impl_beg, &impl_end);
 	if(NIL_P(impl_beg)) { impl_beg = Qfalse; }
@@ -538,7 +531,7 @@ static VALUE
 rb_yaml_emitter_sequence(VALUE self, SEL sel, VALUE taguri, VALUE style)
 {
 	yaml_event_t ev;
-	yaml_emitter_t *emitter = RYAMLEmitter(self)->emitter;
+	yaml_emitter_t *emitter = &RYAMLEmitter(self)->emitter;
 	yaml_char_t *tag = (yaml_char_t*)RSTRING_PTR(taguri);
 	yaml_sequence_start_event_initialize(&ev, NULL, tag, 1, YAML_ANY_SEQUENCE_STYLE);
 	yaml_emitter_emit(emitter, &ev);
@@ -554,7 +547,7 @@ static VALUE
 rb_yaml_emitter_mapping(VALUE self, SEL sel, VALUE taguri, VALUE style)
 {
 	yaml_event_t ev;
-	yaml_emitter_t *emitter = RYAMLEmitter(self)->emitter;
+	yaml_emitter_t *emitter = &RYAMLEmitter(self)->emitter;
 	yaml_char_t *tag = (yaml_char_t*)RSTRING_PTR(taguri);
 	yaml_mapping_start_event_initialize(&ev, NULL, tag, 1, YAML_ANY_MAPPING_STYLE);
 	yaml_emitter_emit(emitter, &ev);
@@ -570,7 +563,7 @@ static VALUE
 rb_yaml_emitter_scalar(VALUE self, SEL sel, VALUE taguri, VALUE val, VALUE style)
 {
 	yaml_event_t ev;
-	yaml_emitter_t *emitter = RYAMLEmitter(self)->emitter;
+	yaml_emitter_t *emitter = &RYAMLEmitter(self)->emitter;
 	yaml_char_t *output = (yaml_char_t*)RSTRING_PTR(val);
 	int can_omit_tag = 0;
 	yaml_char_t *tag = rb_yaml_tag_or_null(taguri, &can_omit_tag);
@@ -599,21 +592,50 @@ static IMP rb_yaml_emitter_finalize_super = NULL;
 static void
 rb_yaml_emitter_finalize(void *rcv, SEL sel)
 {
-	yaml_emitter_t *emitter;
-	Data_Get_Struct(rcv, yaml_emitter_t, emitter);
-	yaml_emitter_close(emitter);
+	rb_yaml_emitter_t *emitter = RYAMLEmitter(rcv);
+	yaml_emitter_delete(&emitter->emitter);
+	
 	if (rb_yaml_emitter_finalize_super != NULL)
 	{
 		((void(*)(void *, SEL))rb_yaml_emitter_finalize_super)(rcv, sel);
 	}
 }
 
+static VALUE
+rb_yaml_resolver_alloc(VALUE klass, SEL sel)
+{
+	NEWOBJ(resolver, struct rb_yaml_resolver_s);
+	OBJSETUP(resolver, klass, T_OBJECT);
+	resolver->tags = NULL;
+	return (VALUE)resolver;
+}
+
+static VALUE
+rb_yaml_resolver_initialize(VALUE self, SEL sel)
+{
+	rb_yaml_resolver_t *resolver = RYAMLResolver(self);
+	CFMutableDictionaryRef d = CFDictionaryCreateMutable(NULL, 15, 
+		&kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+	GC_WB(&resolver->tags, CFMakeCollectable(d));
+	return self;
+}
+
+static VALUE
+rb_yaml_resolver_add_type(VALUE self, SEL sel, VALUE key, VALUE handler)
+{
+	if(!NIL_P(key)) {
+		CFMutableDictionaryRef d = RYAMLResolver(self)->tags;
+		CFDictionarySetValue(d, (const void*)key, (const void*)handler);
+	}
+	return Qnil;
+}
+
+
 void
 Init_libyaml()
 {
 	id_plain = rb_intern("plain");
 	id_quote2 = rb_intern("quote2");
-	id_tags_ivar = rb_intern("@tags");
 	
 	sel_to_yaml = sel_registerName("to_yaml:");
 	sel_call = sel_registerName("call:");
@@ -641,9 +663,10 @@ Init_libyaml()
 	rb_yaml_parser_finalize_super = rb_objc_install_method2((Class)rb_cParser, "finalize", (IMP)rb_yaml_parser_finalize);
 	
 	rb_cResolver = rb_define_class_under(rb_mLibYAML, "Resolver", rb_cObject);
-	rb_define_attr(rb_cResolver, "tags", 1, 1);
+	rb_objc_define_method(*(VALUE *)rb_cResolver, "alloc", rb_yaml_resolver_alloc, 0);
 	rb_objc_define_method(rb_cResolver, "initialize", rb_yaml_resolver_initialize, 0);
 	//rb_objc_define_method(rb_cResolver, "transfer", rb_yaml_resolver_transfer, 1);
+	rb_objc_define_method(rb_cResolver, "add_type", rb_yaml_resolver_add_type, 2);
 	//rb_objc_define_method(rb_cResolver, "add_domain_type", rb_yaml_resolver_add_domain_type, 2);
 	//rb_objc_define_method(rb_cResolver, "add_ruby_type", rb_yaml_resolver_add_ruby_type, 1);
 	//rb_objc_define_method(rb_cResolver, "add_builtin_type", rb_yaml_resolver_add_builtin_type, 1);

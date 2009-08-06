@@ -15,7 +15,7 @@ class Object
     klass.define_method(:taguri) do
       @taguri || tag
     end
-    YAML::LibYAML::DEFAULT_RESOLVER.tags[tag] = klass
+    YAML::LibYAML::DEFAULT_RESOLVER.add_type(tag, self)
   end
   
   yaml_as "tag:ruby.yaml.org,2002:object"
