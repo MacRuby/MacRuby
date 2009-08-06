@@ -23,6 +23,14 @@ module YAML
     obj.to_yaml(io)
   end
   
+  def YAML.dump_stream(*objs)
+    LibYAML::Emitter.new.stream do |stream|
+      objs.each do |obj| 
+        stream.document { |doc| obj.to_yaml(doc) }
+      end
+    end
+  end
+  
   def YAML.load(io)
     parsr = LibYAML::Parser.new(io)
     parsr.load
@@ -30,6 +38,19 @@ module YAML
   
   def YAML.load_file(path)
     File.open(path) { |f| load(f) }
+  end
+  
+  def YAML.load_documents(io)
+    yparser = LibYAML::Parser.new(io)
+    until (element = yparser.load).nil?
+      yield(element)
+    end
+  end
+  
+  def YAML.load_all(io)
+    elements = []
+    YAML.load_documents(io) { |e| elements << e}
+    elements
   end
   
   def YAML.parse(io)
@@ -49,11 +70,13 @@ module YAML
       end
     end
   end
+  
 end
 
 module Kernel
   def y(*objs)
     objs.each { |obj| YAML::dump(obj, $stdout) }
+    nil
   end
 end
 

@@ -34,8 +34,10 @@ class MSpecScript
     'library/stringscanner',
     'library/time',
     'library/tmpdir',
-    'library/yaml/load_spec.rb',
-    'library/yaml/dump_spec.rb'
+    'library/yaml/dump_spec.rb',
+    'library/yaml/load_documents_spec.rb',
+    'library/yaml/load_file.spec',
+    'library/yaml/load_spec.rb'
   ]
   
   # Prepend the paths with the proper prefix

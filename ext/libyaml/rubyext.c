@@ -338,14 +338,17 @@ static VALUE
 rb_yaml_parser_load(VALUE self, SEL sel)
 {
 	rb_yaml_parser_t *parser = RYAMLParser(self);
-	VALUE root;
-	NEXT_EVENT();
-	if (parser->event.type != YAML_STREAM_START_EVENT)
-	{
-		rb_raise(rb_eRuntimeError, "expected STREAM_START event");
-	}
+	VALUE root = Qnil;
 	
 	NEXT_EVENT();
+	if (parser->event.type == YAML_STREAM_END_EVENT)
+	{
+		return Qnil;
+	}
+	if (parser->event.type == YAML_STREAM_START_EVENT)
+	{
+		NEXT_EVENT();
+	}
 	if (parser->event.type != YAML_DOCUMENT_START_EVENT)
 	{
 		rb_raise(rb_eRuntimeError, "expected DOCUMENT_START event");
@@ -360,11 +363,6 @@ rb_yaml_parser_load(VALUE self, SEL sel)
 		rb_raise(rb_eRuntimeError, "expected DOCUMENT_END event");
 	}
 	
-	NEXT_EVENT();
-	if (parser->event.type != YAML_STREAM_END_EVENT)
-	{
-		rb_raise(rb_eRuntimeError, "expected STREAM_END event");
-	}
 	
 	return root;
 }
