@@ -160,6 +160,46 @@ class Regexp
 	end
 end
 
+class Rational
+	yaml_as "tag:ruby.yaml.org,2002:object:Rational"
+	
+	def Rational.yaml_new(attrs)
+		if attrs.is_a? String
+			Rational(attrs)
+		else
+			Rational(attrs['numerator'], attrs['denominator'])
+		end
+	end
+	
+	def to_yaml(output = nil) 
+		YAML::quick_emit(output) do |out|
+			out.map(taguri, to_yaml_style) do |map| 
+				map.add('denominator', denominator)
+				map.add('numerator', numerator)
+			end
+		end
+	end
+end
+
+class Complex
+  yaml_as "tag:ruby.yaml.org,2002:object:Complex"
+  def Complex.yaml_new(val)
+    if val.is_a? String
+      Complex(val)
+    else
+      Complex(val['real'], val['image'])
+    end
+  end
+  def to_yaml(output = nil)
+    YAML::quick_emit(output) do |out|
+      out.map(taguri, nil ) do |map|
+        map.add('image', imaginary)
+        map.add('real', real)
+      end
+    end
+  end
+end
+
 class NilClass 
   yaml_as "tag:yaml.org,2002:null"
   
@@ -198,27 +238,6 @@ end
 
 
 =begin
-
-class Class
-	def to_yaml( opts = {} )
-		raise TypeError, "can't dump anonymous class %s" % self.class
-	end
-end
-
-class Object
-    yaml_as "tag:ruby.yaml.org,2002:object"
-    def to_yaml_style; end
-    def to_yaml_properties; instance_variables.sort; end
-	def to_yaml( opts = {} )
-		YAML::quick_emit( self, opts ) do |out|
-            out.map( taguri, to_yaml_style ) do |map|
-				to_yaml_properties.each do |m|
-                    map.add( m[1..-1], instance_variable_get( m ) )
-                end
-            end
-        end
-	end
-end
 
 class Hash
     yaml_as "tag:ruby.yaml.org,2002:hash"
@@ -533,44 +552,6 @@ class Date
 		YAML::quick_emit( self, opts ) do |out|
             out.scalar( "tag:yaml.org,2002:timestamp", self.to_s, :plain )
         end
-	end
-end
-
-class Rational
-	yaml_as "tag:ruby.yaml.org,2002:object:Rational"
-	def Rational.yaml_new( klass, tag, val )
-		if val.is_a? String
-			Rational( val )
-		else
-			Rational( val['numerator'], val['denominator'] )
-		end
-	end
-	def to_yaml( opts = {} ) 
-		YAML::quick_emit( self, opts ) do |out|
-			out.map( taguri, nil ) do |map| 
-				map.add( 'denominator', denominator )
-				map.add( 'numerator', numerator )
-			end
-		end
-	end
-end
-
-class Complex
-	yaml_as "tag:ruby.yaml.org,2002:object:Complex"
-	def Complex.yaml_new( klass, tag, val )
-		if val.is_a? String
-			Complex( val )
-		else
-			Complex( val['real'], val['image'] )
-		end
-	end
-	def to_yaml( opts = {} )
-		YAML::quick_emit( self, opts ) do |out|
-			out.map( taguri, nil ) do |map|
-				map.add( 'image', imaginary )
-				map.add( 'real', real )
-			end
-		end
 	end
 end
 

@@ -414,7 +414,9 @@ rb_yaml_tag_or_null(VALUE tagstr, int *can_omit_tag)
 		(strcmp(tag, "tag:ruby.yaml.org,2002:symbol") == 0) ||
 		(strcmp(tag, "tag:yaml.org,2002:bool") == 0) ||
 		(strcmp(tag, "tag:yaml.org,2002:null") == 0) ||
-		(strcmp(tag, "tag:yaml.org,2002:str") == 0))
+		(strcmp(tag, "tag:yaml.org,2002:str") == 0) ||
+		(strcmp(tag, YAML_DEFAULT_SEQUENCE_TAG) == 0) ||
+		(strcmp(tag, YAML_DEFAULT_MAPPING_TAG) == 0))
 	{
 		*can_omit_tag = 1;
 		return NULL;	
@@ -532,8 +534,9 @@ rb_yaml_emitter_sequence(VALUE self, SEL sel, VALUE taguri, VALUE style)
 {
 	yaml_event_t ev;
 	yaml_emitter_t *emitter = &RYAMLEmitter(self)->emitter;
-	yaml_char_t *tag = (yaml_char_t*)RSTRING_PTR(taguri);
-	yaml_sequence_start_event_initialize(&ev, NULL, tag, 1, YAML_ANY_SEQUENCE_STYLE);
+	int can_omit_tag = 0;
+	yaml_char_t *tag = rb_yaml_tag_or_null(taguri, &can_omit_tag);
+	yaml_sequence_start_event_initialize(&ev, NULL, tag, can_omit_tag, YAML_ANY_SEQUENCE_STYLE);
 	yaml_emitter_emit(emitter, &ev);
 	
 	rb_yield(self);
@@ -548,8 +551,9 @@ rb_yaml_emitter_mapping(VALUE self, SEL sel, VALUE taguri, VALUE style)
 {
 	yaml_event_t ev;
 	yaml_emitter_t *emitter = &RYAMLEmitter(self)->emitter;
-	yaml_char_t *tag = (yaml_char_t*)RSTRING_PTR(taguri);
-	yaml_mapping_start_event_initialize(&ev, NULL, tag, 1, YAML_ANY_MAPPING_STYLE);
+	int can_omit_tag = 0;
+	yaml_char_t *tag = rb_yaml_tag_or_null(taguri, &can_omit_tag);
+	yaml_mapping_start_event_initialize(&ev, NULL, tag, can_omit_tag, YAML_ANY_MAPPING_STYLE);
 	yaml_emitter_emit(emitter, &ev);
 
 	rb_yield(self);
