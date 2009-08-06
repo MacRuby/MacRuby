@@ -56,6 +56,14 @@ rb_ary_modify_check(VALUE ary)
 }
 #define rb_ary_modify rb_ary_modify_check
 
+extern void _CFArraySetCapacity(CFMutableArrayRef array, CFIndex cap);
+
+static inline void
+rb_ary_set_capacity(VALUE ary, long len)
+{
+    _CFArraySetCapacity((CFMutableArrayRef)ary, len);
+}
+
 VALUE
 rb_ary_freeze(VALUE ary)
 {
@@ -297,6 +305,7 @@ rb_ary_initialize(VALUE ary, SEL sel, int argc, VALUE *argv)
     if (len > LONG_MAX / sizeof(VALUE)) {
 	rb_raise(rb_eArgError, "array size too big");
     }
+    rb_ary_set_capacity(ary, len);
     if (rb_block_given_p()) {
 	long i;
 
@@ -1657,6 +1666,7 @@ rb_ary_collect(VALUE ary, SEL sel)
 
     RETURN_ENUMERATOR(ary, 0, 0);
     collect = rb_ary_new();
+    rb_ary_set_capacity(collect, RARRAY_LEN(ary));
     for (i = 0; i < RARRAY_LEN(ary); i++) {
 	VALUE v = rb_yield(RARRAY_AT(ary, i));
 	RETURN_IF_BROKEN();
@@ -2287,10 +2297,12 @@ rb_ary_plus_imp(VALUE x, SEL sel, VALUE y)
 
     y = to_ary(y);
     z = rb_ary_new2(0);
-    CFArrayAppendArray((CFMutableArrayRef)z, 
-	(CFArrayRef)x, CFRangeMake(0, RARRAY_LEN(x)));    
-    CFArrayAppendArray((CFMutableArrayRef)z, 
-	(CFArrayRef)y, CFRangeMake(0, RARRAY_LEN(y)));    
+    const size_t x_len = RARRAY_LEN(x);
+    const size_t y_len = RARRAY_LEN(y);
+    rb_ary_set_capacity(z, x_len + y_len);
+    CFArrayAppendArray((CFMutableArrayRef)z, (CFArrayRef)x, CFRangeMake(0, x_len));    
+    CFArrayAppendArray((CFMutableArrayRef)z, (CFArrayRef)y, CFRangeMake(0, y_len));    
+
     return z;
 }
 
