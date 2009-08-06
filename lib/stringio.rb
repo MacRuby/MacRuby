@@ -225,7 +225,82 @@ class StringIO
   
   def fsync
     0
-  end            
+  end
+  
+  #   strio.sync    -> true
+  #
+  # Returns +true+ always.
+  #
+  def sync
+    true
+  end
+  
+  #    strio.sync = boolean -> boolean
+  #
+  def sync=(value)
+    value
+  end
+  
+  def tell
+    @pos
+  end 
+  
+  #   strio.getc   -> string or nil
+  #
+  # Gets the next character from io.
+  # Returns nil if called at end of ﬁle
+  def getc
+    return nil if eof?
+    @pos += 1
+    @string[@pos]
+  end
+    
+  #   strio.ungetc(string)   -> nil
+  #
+  # Pushes back one character (passed as a parameter) onto *strio*
+  # such that a subsequent buffered read will return it.  Pushing back 
+  # behind the beginning of the buffer string is not possible.  Nothing
+  # will be done if such an attempt is made.
+  # In other case, there is no limitation for multiple pushbacks.
+  #
+  def ungetc(chars)
+    raise(IOError, "not opened for reading") unless @readable
+    unless chars.kind_of?(Integer)
+      raise TypeError unless chars.respond_to?(:to_str)
+      chars = chars.to_str
+    end
+    
+    if pos == 0
+      @string = chars + @string    
+    elsif pos > 0
+      @pos -= 1
+      string[pos] = chars      
+    end    
+        
+    nil
+  end
+  
+  #   strio.readchar   -> fixnum
+  #
+  # See IO#readchar.
+  #
+  def readchar
+    
+  end
+  
+  #   strio.getbyte   -> fixnum or nil
+  #
+  # See IO#getbyte.
+  def get_byte
+  end
+  
+  #   strio.each_byte {|byte| block }  -> strio
+  #
+  # See IO#each_byte.
+  #
+  def each_byte
+  end 
+           
 
 
   protected 
@@ -295,4 +370,4 @@ class StringIO
       @string.replace("") if (mode & IO::TRUNC) != 0
     end
 
-end    
+end
