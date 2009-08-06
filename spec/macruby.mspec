@@ -22,8 +22,10 @@ class MSpecScript
 
   # Library specs
   set :library, [
+    'library/abbrev',
     'library/date',
     'library/digest',
+    'library/ftools', 
     'library/getoptlong',
     'library/mutex',
     'library/queue',
@@ -31,6 +33,7 @@ class MSpecScript
     'library/pathname',
     'library/readline',
     'library/scanf',
+    'library/shellwords', 
     'library/stringscanner',
     'library/time',
     'library/tmpdir',

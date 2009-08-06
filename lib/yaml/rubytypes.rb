@@ -11,7 +11,7 @@ end
 class Object
   def yaml_as(tag)
     attr_writer :taguri
-    klass = (self.is_a? Class) ? self : (class << self; end)
+    klass = (self.is_a? Class) ? self : (class << self; self; end)
     klass.define_method(:taguri) do
       @taguri || tag
     end
