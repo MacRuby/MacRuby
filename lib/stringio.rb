@@ -285,7 +285,7 @@ class StringIO
   # See IO#readchar.
   #
   def readchar
-    raise(IO::EOFError, "end of file reached") if self.eof?
+    raise(IO::EOFError, "end of file reached") if eof?
     getc
   end
   
@@ -324,7 +324,17 @@ class StringIO
   # See IO#gets.
   #
   def gets(sep=$/)
-    $_ = self.getline(sep)
+    $_ = getline(sep)
+  end
+  
+  #   strio.readline(sep=$/)     -> string
+  #   strio.readline(limit)      -> string or nil
+  #   strio.readline(sep, limit) -> string or nil
+  #
+  # See IO#readline.
+  def readline(sep=$/)
+    raise(IO::EOFError, 'end of file reached') if eof?
+    $_ = getline(sep)
   end 
            
 
@@ -399,7 +409,7 @@ class StringIO
     def getline(sep = $/)
       raise(IOError, "not opened for reading") unless @readable
       sep = sep.to_str unless (sep.nil? || sep.kind_of?(String))
-      return nil if self.eof?
+      return nil if eof?
 
       if sep.nil?
         line = string[pos .. -1]
