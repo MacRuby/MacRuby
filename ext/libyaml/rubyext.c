@@ -287,21 +287,25 @@ handler_for_tag(rb_yaml_parser_t *parser, yaml_char_t *tag)
 	return (h == NULL) ? Qnil : (VALUE)h;
 }
 
-static inline VALUE interpret_value(rb_yaml_parser_t *parser, VALUE result, VALUE handler)
+static inline VALUE interpret_value(rb_yaml_parser_t *parser, VALUE result, VALUE handler, bool collect)
 {
 	if(NIL_P(handler)) 
 	{
-		return result;
+		return (collect ? (VALUE)CFMakeCollectable((CFTypeRef)result) : result);
 	}
 	if (rb_vm_respond_to(handler, sel_call, 0))
 	{
-		return rb_vm_call_with_cache(call_cache, handler, sel_call, 1, &result);
+		VALUE r = rb_vm_call_with_cache(call_cache, handler, sel_call, 1, &result);
+		if((collect)) { CFRelease((CFTypeRef)result); }
+		return r;
 	}
 	else if (rb_vm_respond_to(handler, sel_yaml_new, 0))
 	{
-		return rb_vm_call_with_cache(yaml_new_cache, handler, sel_yaml_new, 1, &result);
+		VALUE r = rb_vm_call_with_cache(yaml_new_cache, handler, sel_yaml_new, 1, &result);
+		if(collect) { CFRelease((CFTypeRef)result); }
+		return r;
 	}
-	return result;
+	return (collect ? (VALUE)CFMakeCollectable((CFTypeRef)result) : result);
 }
 
 static VALUE 
@@ -334,8 +338,9 @@ handle_scalar(rb_yaml_parser_t *parser)
 		tag = "tag:yaml.org,2002:str";
 	}
 	VALUE handler = handler_for_tag(parser, tag);
-	VALUE scalarval = rb_str_new(val, parser->event.data.scalar.length);
-	return interpret_value(parser, scalarval, handler);
+	VALUE scalarval = CFStringCreateWithBytes(NULL, (const UInt8*)val, parser->event.data.scalar.length,
+		kCFStringEncodingUTF8, true);
+	return interpret_value(parser, scalarval, handler, true);
 }
 
 static VALUE handle_sequence(rb_yaml_parser_t *parser)
@@ -347,7 +352,7 @@ static VALUE handle_sequence(rb_yaml_parser_t *parser)
 	{
 		rb_ary_push(arr, node);
 	}
-	return interpret_value(parser, arr, handler);
+	return interpret_value(parser, arr, handler, false);
 }
 
 static VALUE handle_mapping(rb_yaml_parser_t *parser)
@@ -360,7 +365,7 @@ static VALUE handle_mapping(rb_yaml_parser_t *parser)
 		value_node = get_node(parser);
 		rb_hash_aset(hash, key_node, value_node);
 	}
-	return interpret_value(parser, hash, handler);
+	return interpret_value(parser, hash, handler, false);
 }
 
 static inline VALUE get_node(rb_yaml_parser_t *parser)
@@ -676,10 +681,10 @@ static VALUE
 rb_yaml_resolver_initialize(VALUE self, SEL sel)
 {
 	rb_yaml_resolver_t *resolver = RYAMLResolver(self);
-	CFMutableDictionaryRef d1 = CFDictionaryCreateMutable(kCFAllocatorMallocZone, 15, 
+	CFMutableDictionaryRef d1 = CFDictionaryCreateMutable(kCFAllocatorMallocZone, 0, 
 		&kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
 	GC_WB(&resolver->tags, CFMakeCollectable(d1));
-	CFMutableDictionaryRef d2 = CFDictionaryCreateMutable(kCFAllocatorMallocZone, 15,
+	CFMutableDictionaryRef d2 = CFDictionaryCreateMutable(kCFAllocatorMallocZone, 0,
 		&cStringKeyCallbacks, &kCFTypeDictionaryValueCallBacks);
 	GC_WB(&resolver->cstr_tags, CFMakeCollectable(d2));
 	return self;
