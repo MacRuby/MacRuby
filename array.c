@@ -25,6 +25,23 @@ VALUE rb_cNSArray0;
 VALUE rb_cNSArray;
 VALUE rb_cNSMutableArray;
 
+#if 0
+VALUE rb_cRubyArray;
+
+typedef struct {
+    Class klass;
+    long len;
+    long capacity;
+    VALUE *elements;
+} rb_ary_t;
+
+static void
+Init_RubyArray(void)
+{
+    rb_cRubyArray = rb_define_class("RubyArray", rb_cNSMutableArray);
+}
+#endif
+
 #define ARY_DEFAULT_SIZE 16
 
 void
@@ -83,8 +100,7 @@ rb_ary_freeze(VALUE ary)
 VALUE
 rb_ary_frozen_p(VALUE ary)
 {
-    if (OBJ_FROZEN(ary)) return Qtrue;
-    return Qfalse;
+    return OBJ_FROZEN(ary) ? Qtrue : Qfalse;
 }
 
 static VALUE
@@ -116,10 +132,11 @@ rb_ary_new_fast(int argc, ...)
     VALUE ary = ary_alloc(0);
 
     if (argc > 0) {
-	rb_ary_set_capacity(ary, argc);
-	va_list ar = va_start(ar, argc);
-
+	va_list ar;
 	int i;
+
+	rb_ary_set_capacity(ary, argc);
+	va_start(ar, argc);
 	for (i = 0; i < argc; i++) {
 	    VALUE item = va_arg(ar, VALUE);
 	    CFArrayAppendValue((CFMutableArrayRef)ary,
@@ -3830,4 +3847,6 @@ Init_Array(void)
     /* to return mutable copies */
     rb_objc_define_method(rb_cArray, "dup", rb_ary_dup_imp, 0);
     rb_objc_define_method(rb_cArray, "clone", rb_ary_clone, 0);
+
+    //Init_RubyArray();
 }
