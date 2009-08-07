@@ -76,6 +76,7 @@ Init_id(void)
     assert(sel_ignored == sel_registerName("release"));
     sel_zone = sel_registerName("zone");
     selToS = sel_registerName("to_s");
+    selToAry = sel_registerName("to_ary");
     selSend = sel_registerName("send:");
     sel__send__ = sel_registerName("__send__:");
     selEqTilde = sel_registerName("=~:");

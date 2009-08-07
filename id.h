@@ -83,6 +83,7 @@ extern SEL selMethodMissing;
 extern SEL selCopy;
 extern SEL selMutableCopy;
 extern SEL selToS;
+extern SEL selToAry;
 extern SEL sel_ignored;
 extern SEL sel_zone;
 extern SEL selSend;

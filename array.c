@@ -101,8 +101,9 @@ ary_alloc(VALUE klass)
     CFMutableArrayRef ary;
 
     ary = CFArrayCreateMutable(NULL, 0, &kCFTypeArrayCallBacks);
-    if (klass != 0 && klass != rb_cNSArray && klass != rb_cNSMutableArray)
+    if (klass != 0 && klass != rb_cNSArray && klass != rb_cNSMutableArray) {
 	*(Class *)ary = (Class)klass;
+    }
 
     CFMakeCollectable(ary);
 
@@ -112,18 +113,20 @@ ary_alloc(VALUE klass)
 VALUE
 rb_ary_new_fast(int argc, ...) 
 {
-    va_list ar;
-    VALUE ary;
-    int i;
+    VALUE ary = ary_alloc(0);
 
-    ary = ary_alloc(0);
+    if (argc > 0) {
+	rb_ary_set_capacity(ary, argc);
+	va_list ar = va_start(ar, argc);
 
-    va_start(ar, argc);
-    for (i = 0; i < argc; i++) {
-	VALUE item = va_arg(ar, VALUE);
-	CFArrayAppendValue((CFMutableArrayRef)ary, (const void *)RB2OC(item));
+	int i;
+	for (i = 0; i < argc; i++) {
+	    VALUE item = va_arg(ar, VALUE);
+	    CFArrayAppendValue((CFMutableArrayRef)ary,
+		    (const void *)RB2OC(item));
+	}
+	va_end(ar);
     }
-    va_end(ar);
 
     return ary;
 }
@@ -1274,7 +1277,8 @@ rb_ary_dup(VALUE ary)
 	OBJ_TAINT(dup);
     }
 
-    CFMakeCollectable((CFTypeRef)dup);
+    CFMakeCollectable((CFMutableArrayRef)dup);
+
     return dup;
 }
 
@@ -2483,7 +2487,7 @@ rb_ary_equal(VALUE ary1, SEL sel, VALUE ary2)
 	return Qtrue;
     }
     if (TYPE(ary2) != T_ARRAY) {
-	if (!rb_respond_to(ary2, rb_intern("to_ary"))) {
+	if (!rb_vm_respond_to(ary2, selToAry, true)) {
 	    return Qfalse;
 	}
 	return rb_equal(ary2, ary1);
