@@ -508,8 +508,26 @@ class StringIO
   def close_write
     raise(IOError, "closing non-duplex IO for writing") unless @writable
     @writable = false
-  end 
-           
+  end
+  
+  #   strio.truncate(integer)    -> 0
+  #
+  # Truncates the buffer string to at most _integer_ bytes. The *strio*
+  # must be opened for writing.
+  #
+  def truncate(len)
+    raise(IOError, "closing non-duplex IO for writing") unless @writable
+    raise(TypeError) unless len.respond_to?(:to_int)
+    length = len.to_int
+    raise(Errno::EINVAL, "negative length") if (length < 0)
+    if length < string.size
+      @string[length .. string.size] = ""
+    else
+      @string = string.ljust(length, "\000")
+    end
+    # send back what was passed, not our :to_int version
+    len 
+  end           
 
 
   protected
