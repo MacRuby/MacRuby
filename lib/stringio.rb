@@ -23,7 +23,7 @@ class StringIO
   # Creates new StringIO instance from with _string_ and _mode_.
   #
   def initialize(string = "", mode = nil)
-    @string = string.kind_of?(String) ? string : string.to_str  
+    @string = string.to_str  
     @pos = 0
     @lineno = 0
     define_mode(mode)
@@ -33,7 +33,7 @@ class StringIO
   end
   
   def initialize_copy(from)
-    from = from.to_strio unless from.kind_of?(StringIO)
+    from = from.to_strio
     self.taint if from.tainted?
  
     @string   = from.instance_variable_get(:@string).dup
@@ -56,7 +56,7 @@ class StringIO
   #
   def reopen(string, mode = nil)
     self.taint if string.tainted?
-    if !string.kind_of?(String) && mode.nil?
+    if !string.kind_of?(String) && mode == nil
       @string = string.to_strio.string 
     else
       @string = string  
@@ -85,30 +85,18 @@ class StringIO
   #
   def read(length = nil, buffer = "")
     raise IOError, "not opened for reading" unless @readable
-    
-    unless buffer.kind_of?(String)
-      begin
-        buffer = buffer.to_str
-      rescue NoMethodError
-        raise TypeError
-      end
-    end 
+    raise TypeError unless buffer.respond_to?(:to_str)
+    buffer = buffer.to_str      
  
     if length.nil?
       return "" if self.eof?
       buffer.replace(@string[@pos..-1])
-      @pos = @string.size
+      @pos = string.size
     else
       return nil if self.eof?
-      unless length.kind_of?(Integer)
-        begin
-          length = length.to_int
-        rescue
-          raise TypeError
-        end        
-      end
+      raise TypeError unless length.respond_to?(:to_int)       
       raise ArgumentError if length < 0
-      buffer.replace(@string[@pos, length])
+      buffer.replace(string[pos, length])
       @pos += buffer.length
     end
  
@@ -122,10 +110,8 @@ class StringIO
   #
   def seek(offset, whence = ::IO::SEEK_SET) 
     raise(IOError, "closed stream") if closed?
-    unless offset.kind_of?(Integer)
-      raise TypeError unless offset.respond_to?(:to_int)
-      offset = offset.to_int
-    end
+    raise TypeError unless offset.respond_to?(:to_int)       
+    offset = offset.to_int
     
     case whence
     when ::IO::SEEK_CUR
@@ -187,7 +173,7 @@ class StringIO
   # *strio* is not readable.
   #
   def close_read
-    raise IOError, "closing non-duplex IO for reading" unless @readable
+    raise(IOError, "closing non-duplex IO for reading") unless @readable
     @readable = nil
   end
   
@@ -243,7 +229,25 @@ class StringIO
   
   def tell
     @pos
-  end 
+  end
+  
+  # strio.fileno -> nil
+  #
+  def fileno
+    nil
+  end
+  
+  #   strio.isatty -> nil
+  #   strio.tty? -> nil
+  def isatty
+    false
+  end
+  alias_method :tty?, :isatty
+  
+  def length
+    string.length
+  end
+  alias_method :size, :length 
   
   #   strio.getc   -> string or nil
   #
@@ -252,7 +256,7 @@ class StringIO
   def getc
     return nil if eof?
     @pos += 1
-    @string[@pos]
+    string[pos]
   end
     
   #   strio.ungetc(string)   -> nil
@@ -265,13 +269,11 @@ class StringIO
   #
   def ungetc(chars)
     raise(IOError, "not opened for reading") unless @readable
-    unless chars.kind_of?(Integer)
-      raise TypeError unless chars.respond_to?(:to_str)
-      chars = chars.to_str
-    end
+    raise TypeError unless chars.respond_to?(:to_str)       
+    chars = chars.to_str
     
     if pos == 0
-      @string = chars + @string    
+      @string = chars + string    
     elsif pos > 0
       @pos -= 1
       string[pos] = chars      
@@ -307,7 +309,15 @@ class StringIO
   #   strio.getbyte   -> fixnum or nil
   #
   # See IO#getbyte.
-  def get_byte
+  def getbyte
+    raise(IOError, "not opened for reading") unless @readable
+    # Because we currently don't support bytes access
+    # the following code isn't used
+    # instead we are dealing with chars
+    result = string.bytes.to_a[pos]
+    @pos += 1             
+    result 
+    # getc
   end
   
   #   strio.each_byte {|byte| block }  -> strio
@@ -315,7 +325,41 @@ class StringIO
   # See IO#each_byte.
   #
   def each_byte
+    raise(IOError, "not opened for reading") unless @readable
+    return self if (pos > string.length)
+    if block_given?
+      string.each_byte{|b| @pos += 1; yield(b)}
+      self
+    else
+      string.each_byte
+    end
   end
+  alias_method :bytes, :each_byte 
+  
+  
+  #   strio.each(sep=$/) {|line| block }         -> strio
+  #   strio.each(limit) {|line| block }          -> strio
+  #   strio.each(sep, limit) {|line| block }     -> strio
+  #   strio.each_line(sep=$/) {|line| block }    -> strio
+  #   strio.each_line(limit) {|line| block }     -> strio
+  #   strio.each_line(sep,limit) {|line| block } -> strio
+  #
+  # See IO#each.
+  #
+  def each(sep = $/)
+    if block_given?
+      raise(IOError, "not opened for reading") unless @readable
+      sep = sep.to_s unless sep == nil
+      while line = getline(sep)
+        yield(line)
+      end
+      self
+    else
+      to_enum(:each_byte, sep)
+    end
+  end 
+  alias_method :each_line, :each
+  alias_method :lines, :each
   
   #   strio.gets(sep=$/)     -> string or nil
   #   strio.gets(limit)      -> string or nil
@@ -347,7 +391,7 @@ class StringIO
   # Returns the number of bytes written.  See IO#write.
   #
   def write(str)
-    str = str.to_s unless str.kind_of?(String)
+    str = str.to_s
     return 0 if str.empty?
 
     raise(IOError, "not opened for writing") unless @writable    
@@ -384,7 +428,12 @@ class StringIO
            
 
 
-  protected 
+  protected
+    
+    # meant to be overwritten by developers
+    def to_strio
+      self
+    end
   
     def finalize
       self.close
@@ -393,16 +442,14 @@ class StringIO
     end
     
     def define_mode(mode=nil)
-      if mode.nil?
+      if mode == nil
         # default modes
         string.frozen? ? set_mode_from_string("r") : set_mode_from_string("r+") 
+      elsif mode.is_a?(Integer)
+        set_mode_from_integer(mode)
       else
-        if mode.is_a?(Integer)
-          set_mode_from_integer(mode)
-        else
-          mode = mode.to_str
-          set_mode_from_string(mode)
-        end
+        mode = mode.to_str
+        set_mode_from_string(mode)
       end 
     end   
 
@@ -456,7 +503,7 @@ class StringIO
       sep = sep.to_str unless (sep.nil? || sep.kind_of?(String))
       return nil if eof?
 
-      if sep.nil?
+      if sep == nil
         line = string[pos .. -1]
         @pos = string.size
       elsif sep.empty?
@@ -483,7 +530,7 @@ class StringIO
 
       @lineno += 1
 
-      return line
+      line
     end  
 
 end
