@@ -33,7 +33,6 @@ class MSpecScript
     'library/pathname',
     'library/readline',
     'library/scanf',
-    'library/shellwords', 
     'library/stringscanner',
     'library/time',
     'library/tmpdir',
