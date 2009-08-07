@@ -17,6 +17,28 @@ class StringIO
   # <code>$.</code> is updated only on the next read. 
   #
   attr_accessor :lineno
+  include Enumerable
+  
+  
+  #    StringIO.open(string=""[, mode]) {|strio| ...}
+  #
+  # Equivalent to StringIO.new except that when it is called with a block, it
+  # yields with the new instance and closes it, and returns the result which
+  # returned from the block.
+  #
+  def self.open(*args)
+    obj = new(*args)
+    
+    if block_given?
+      begin
+        yield obj
+      ensure
+        obj.finalize
+      end
+    else
+      obj
+    end
+  end
 
   # StringIO.new(string=""[, mode])
   #
@@ -54,12 +76,16 @@ class StringIO
   # Reinitializes *strio* with the given <i>other_StrIO</i> or _string_ 
   # and _mode_ (see StringIO#new).
   #
-  def reopen(string, mode = nil)
-    self.taint if string.tainted?
-    if !string.kind_of?(String) && mode == nil
-      @string = string.to_strio.string 
+  def reopen(str=nil, mode=nil)
+    if str == nil && mode == nil
+      mode = 'w+'
+    elsif !str.kind_of?(String) && mode == nil
+      self.taint if str.tainted?
+      raise TypeError unless str.respond_to?(:to_strio)
+      @string = str.to_strio.string 
     else
-      @string = string  
+      raise TypeError unless str.respond_to?(:to_str)
+      @string = str.to_str  
     end
     
     define_mode(mode)
@@ -68,6 +94,16 @@ class StringIO
     
     self
   end
+   
+  #   strio.string = string  -> string
+  #
+  # Changes underlying String object, the subject of IO.
+  #
+  def string=(str)
+    @string = str.to_str
+    @pos = 0
+    @lineno = 0
+  end 
   
   #   strio.rewind    -> 0
   #
@@ -94,13 +130,34 @@ class StringIO
       @pos = string.size
     else
       return nil if self.eof?
-      raise TypeError unless length.respond_to?(:to_int)       
+      raise TypeError unless length.respond_to?(:to_int)
+      length = length.to_int       
       raise ArgumentError if length < 0
       buffer.replace(string[pos, length])
       @pos += buffer.length
     end
  
     buffer
+  end
+  
+  #   strio.sysread(integer[, outbuf])    -> string
+  #
+  # Similar to #read, but raises +EOFError+ at end of string instead of
+  # returning +nil+, as well as IO#sysread does.
+  def sysread(length = nil, buffer = "")
+    val = read(length, buffer)
+    raise(IO::EOFError, "end of file reached") if val == nil
+    val
+  end  
+  alias_method :readpartial, :sysread
+  
+  #   strio.readbyte   -> fixnum
+  #
+  # See IO#readbyte.
+  #
+  def readbyte
+    raise(IO::EOFError, "end of file reached") if eof?
+    getbyte
   end
   
   #   strio.seek(amount, whence=SEEK_SET) -> 0
@@ -211,6 +268,18 @@ class StringIO
   
   def fsync
     0
+  end
+  
+  # strio.path -> nil
+  #
+  def path
+    nil
+  end
+  
+  # strio.pid -> nil
+  # 
+  def pid
+    nil
   end
   
   #   strio.sync    -> true
@@ -381,6 +450,21 @@ class StringIO
     $_ = getline(sep)
   end
   
+  #   strio.readlines(sep=$/)    ->   array
+  #   strio.readlines(limit)     ->   array
+  #   strio.readlines(sep,limit) ->   array
+  #
+  # See IO#readlines.
+  #
+  def readlines(sep=$/)
+    raise IOError, "not opened for reading" unless @readable
+    ary = []
+    while line = getline(sep)
+      ary << line
+    end
+    ary
+  end 
+  
   
   #   strio.write(string)    -> integer
   #   strio.syswrite(string) -> integer
@@ -460,19 +544,22 @@ class StringIO
       when "r", "rb"
         @readable = true
       when "r+", "rb+"
+        raise(Errno::EACCES) if string.frozen?
         @readable = true
         @writable = true
       when "w", "wb"
-        string.frozen? ? raise(Errno::EACCES) : @string.replace("")
+        string.frozen? ? raise(Errno::EACCES) : string.replace("")
         @writable = true
       when "w+", "wb+"
+        string.frozen? ? raise(Errno::EACCES) : string.replace("")
         @readable = true
         @writable = true
-        string.frozen? ? raise(Errno::EACCES) : @string.replace("")
       when "a", "ab"
+        raise(Errno::EACCES) if string.frozen?
         @writable = true
         @append = true
       when "a+", "ab+"
+        raise(Errno::EACCES) if string.frozen?
         @readable = true
         @writable = true
         @append = true
@@ -489,12 +576,15 @@ class StringIO
       when IO::WRONLY
         @readable = false
         @writable = true
+        raise(Errno::EACCES) if string.frozen?
       when IO::RDWR
         @readable = true
         @writable = true
+        raise(Errno::EACCES) if string.frozen?
       end
  
       @append = true if (mode & IO::APPEND) != 0
+      raise(Errno::EACCES) if @append && string.frozen?
       @string.replace("") if (mode & IO::TRUNC) != 0
     end
     
