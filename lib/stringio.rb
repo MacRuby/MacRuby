@@ -531,7 +531,7 @@ class StringIO
   
   #   strio.puts(obj, ...)    -> nil
   #
-  #  Writes the given objects to <em>ios</em> as with
+  #  Writes the given objects to <em>strio</em> as with
   #  <code>IO#print</code>. Writes a record separator (typically a
   #  newline) after any that do not already end with a newline sequence.
   #  If called with an array argument, writes each element on a new line.
@@ -569,7 +569,49 @@ class StringIO
     end
     
     nil
-  end           
+  end
+  
+  #     strio.print()             => nil
+  #     strio.print(obj, ...)     => nil
+  #
+  #  Writes the given object(s) to <em>strio</em>. The stream must be
+  #  opened for writing. If the output record separator (<code>$\\</code>)
+  #  is not <code>nil</code>, it will be appended to the output. If no
+  #  arguments are given, prints <code>$_</code>. Objects that aren't
+  #  strings will be converted by calling their <code>to_s</code> method.
+  #  With no argument, prints the contents of the variable <code>$_</code>.
+  #  Returns <code>nil</code>.
+  #
+  #     io.print("This is ", 100, " percent.\n")
+  #
+  #  <em>produces:</em>
+  #
+  #     This is 100 percent.
+  #
+  def print(*args)
+    raise IOError, "not opened for writing" unless @writable
+    args << $_ if args.empty?
+    args.map! { |x| (x == nil) ? "nil" : x }
+    write((args << $\).flatten.join)
+    nil
+  end 
+  
+  #     printf(strio, string [, obj ... ] )    => nil
+  #
+  #  Equivalent to:
+  #     strio.write(sprintf(string, obj, ...)
+  #
+  def printf(*args)
+    raise IOError, "not opened for writing" unless @writable
+
+    if args.size > 1
+      write(args.shift % args)
+    else
+      write(args.first)
+    end
+
+    nil
+  end          
 
 
   protected
