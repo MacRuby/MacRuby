@@ -64,6 +64,8 @@ RoxorCompiler::RoxorCompiler(void)
     return_from_block_ids = 0;
 
     dispatcherFunc = NULL;
+    fastEqFunc = NULL;
+    fastNeqFunc = NULL;
     fastEqqFunc = NULL;
     whenSplatFunc = NULL;
     prepareBlockFunc = NULL;
@@ -368,21 +370,44 @@ RoxorCompiler::compile_dispatch_arguments(NODE *args, std::vector<Value *> &argu
 }
 
 Value *
-RoxorCompiler::compile_fast_eqq_call(Value *selfVal, Value *comparedToVal)
+RoxorCompiler::compile_fast_op_call(SEL sel, Value *selfVal, Value *comparedToVal)
 {
-    if (fastEqqFunc == NULL) {
-	// VALUE rb_vm_fast_eqq(struct mcache *cache, VALUE left, VALUE right)
-	fastEqqFunc = cast<Function>
-	    (module->getOrInsertFunction("rb_vm_fast_eqq",
-					 RubyObjTy, PtrTy, RubyObjTy, RubyObjTy, NULL));
+    Function *func = NULL;
+    // VALUE rb_vm_fast_op(struct mcache *cache, VALUE left, VALUE right)
+    if (sel == selEq) {
+	if (fastEqFunc == NULL) {
+	    fastEqFunc = cast<Function>(module->getOrInsertFunction(
+			"rb_vm_fast_eq",
+			RubyObjTy, PtrTy, RubyObjTy, RubyObjTy, NULL));
+	}
+	func = fastEqFunc;
+    }
+    else if (sel == selNeq) {
+	if (fastNeqFunc == NULL) {
+	    fastNeqFunc = cast<Function>(module->getOrInsertFunction(
+			"rb_vm_fast_neq",
+			RubyObjTy, PtrTy, RubyObjTy, RubyObjTy, NULL));
+	}
+	func = fastNeqFunc;
+    }
+    else if (sel == selEqq) {	
+	if (fastEqqFunc == NULL) {
+	    fastEqqFunc = cast<Function>(module->getOrInsertFunction(
+			"rb_vm_fast_eqq",
+			RubyObjTy, PtrTy, RubyObjTy, RubyObjTy, NULL));
+	}
+	func = fastEqqFunc;
+    }
+    else {
+	return NULL;
     }
 
     std::vector<Value *> params;
-    params.push_back(compile_mcache(selEqq, false));
+    params.push_back(compile_mcache(sel, false));
     params.push_back(selfVal);
     params.push_back(comparedToVal);
 
-    return compile_protected_call(fastEqqFunc, params);
+    return compile_protected_call(func, params);
 }
 
 Value *
@@ -2305,11 +2330,8 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 	    BranchInst::Create(merge_bb, bb);
 
 	    bb = dispatch_bb;
-	    Value *dispatch_val;
-	    if (sel == selEqq) {
-		dispatch_val = compile_fast_eqq_call(leftVal, rightVal);
-	    }
-	    else {
+	    Value *dispatch_val = compile_fast_op_call(sel, leftVal, rightVal);
+	    if (dispatch_val == NULL) {
 		dispatch_val = compile_dispatch_call(params);
 	    }
 	    dispatch_bb = bb;

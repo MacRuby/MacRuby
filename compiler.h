@@ -104,6 +104,8 @@ class RoxorCompiler {
 	int return_from_block_ids;
 
 	Function *dispatcherFunc;
+	Function *fastEqFunc;
+	Function *fastNeqFunc;
 	Function *fastEqqFunc;
 	Function *whenSplatFunc;
 	Function *prepareBlockFunc;
@@ -215,7 +217,7 @@ class RoxorCompiler {
 		Function *new_function, rb_vm_arity_t &arity, NODE *body);
 	Value *compile_dispatch_call(std::vector<Value *> &params);
 	Value *compile_when_splat(Value *comparedToVal, Value *splatVal);
-	Value *compile_fast_eqq_call(Value *selfVal, Value *comparedToVal);
+	Value *compile_fast_op_call(SEL sel, Value *selfVal, Value *comparedToVal);
 	Value *compile_attribute_assign(NODE *node, Value *extra_val);
 	virtual Value *compile_prepare_block_args(Function *func, int *flags);
 	Value *compile_block_create(NODE *node);
