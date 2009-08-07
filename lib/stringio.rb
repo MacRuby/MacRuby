@@ -17,8 +17,8 @@ class StringIO
   # <code>$.</code> is updated only on the next read. 
   #
   attr_accessor :lineno
-  include Enumerable
   
+  include Enumerable  
   
   #    StringIO.open(string=""[, mode]) {|strio| ...}
   #
@@ -527,6 +527,48 @@ class StringIO
     end
     # send back what was passed, not our :to_int version
     len 
+  end
+  
+  #   strio.puts(obj, ...)    -> nil
+  #
+  #  Writes the given objects to <em>ios</em> as with
+  #  <code>IO#print</code>. Writes a record separator (typically a
+  #  newline) after any that do not already end with a newline sequence.
+  #  If called with an array argument, writes each element on a new line.
+  #  If called without arguments, outputs a single record separator.
+  #
+  #     io.puts("this", "is", "a", "test")
+  #
+  #  <em>produces:</em>
+  #
+  #     this
+  #     is
+  #     a
+  #     test
+  #
+  def puts(*args)
+    if args.empty?
+      write("\n")
+    else
+      args.each do |arg|
+        if arg == nil
+          line = "nil"
+        else
+          begin
+            arg = arg.to_ary
+            arg.each {|a| puts a }
+            next
+          rescue
+            line = arg.to_s
+          end
+        end 
+        
+        write(line)
+        write("\n") if !line.empty? && (line[-1] != ?\n)
+      end
+    end
+    
+    nil
   end           
 
 
