@@ -335,6 +335,51 @@ class StringIO
   def readline(sep=$/)
     raise(IO::EOFError, 'end of file reached') if eof?
     $_ = getline(sep)
+  end
+  
+  
+  #   strio.write(string)    -> integer
+  #   strio.syswrite(string) -> integer
+  #
+  # Appends the given string to the underlying buffer string of *strio*.
+  # The stream must be opened for writing.  If the argument is not a
+  # string, it will be converted to a string using <code>to_s</code>.
+  # Returns the number of bytes written.  See IO#write.
+  #
+  def write(str)
+    str = str.to_s unless str.kind_of?(String)
+    return 0 if str.empty?
+
+    raise(IOError, "not opened for writing") unless @writable    
+ 
+    if @append || (pos >= string.length)
+      # add padding in case it's needed 
+      str = str.rjust((pos + str.length) - string.length, "\000") if (pos > string.length)
+      @string << str
+      @pos = string.length
+    else
+      @string[pos, str.length] = str
+      @pos += str.length
+      @string.taint if str.tainted?
+    end
+ 
+    str.length
+  end
+  alias_method :syswrite, :write
+  
+  #   strio << obj     -> strio
+  #
+  # See IO#<<.
+  #
+  def <<(str)
+    self.write(str)
+    self
+  end
+
+  
+  def close_write
+    raise(IOError, "closing non-duplex IO for writing") unless @writable
+    @writable = false
   end 
            
 
