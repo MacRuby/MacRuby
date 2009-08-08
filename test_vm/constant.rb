@@ -92,3 +92,15 @@ assert '42', %q{
 }
 
 assert '1', "class Float; class X; p ROUNDS; end; end"
+
+assert '42', %{
+  class A
+    B = 42
+  end
+  A.class_eval {
+    def bar
+      p B
+    end
+  }
+  A.new.bar
+}
