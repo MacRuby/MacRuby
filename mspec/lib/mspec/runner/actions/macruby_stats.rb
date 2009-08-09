@@ -6,39 +6,42 @@ class MacRubySpecStats
     @categories = {}
   end 
   
+  # return the current arborescence
   def push_file(path)
     cat, subcat, specfile = parse_path(path)
     @categories[cat] ||= {}
     @categories[cat][subcat] ||= {:files => 0, :examples => 0, :expectations => 0, :failures => 0, :errors => 0}
     @categories[cat][subcat][:files] += 1
+    [cat, subcat, specfile] 
   end
   
   # increases the amount of examples in the category
-  def example!(path)
-    increase_stats(path, :examples)
+  def example!(arborescence)
+    increase_stats(arborescence, :examples)
   end
   
-  def expectation!(path) 
-    increase_stats(path, :expectations)
+  def expectation!(arborescence) 
+    increase_stats(arborescence, :expectations)
   end
   
-  def failure!(path)
-    increase_stats(path, :failures) 
+  def failure!(arborescence)
+    increase_stats(arborescence, :failures) 
   end
   
-  def error!(path)
-    increase_stats(path, :errors) 
+  def error!(arborescence)
+    increase_stats(arborescence, :errors) 
   end
   
   protected
   
   def parse_path(path)
-    path =~ /frozen\/(.+?)\/(.+)\/(.+_spec)\.rb/
-    [$1, $2, $3]
+    # Ruby 1.9 only
+    /.*frozen\/(?<category>.+?)\/(?<subcategory>.+)\/(?<file>.+_spec)\.rb/ =~ path
+    [category, subcategory, file]
   end
   
-  def increase_stats(path, type)
-    cat, subcat, specfile = parse_path(path)
+  def increase_stats(arborescence, type)
+    cat, subcat, specfile = arborescence
     @categories[cat][subcat][type] += 1
   end
   
@@ -46,6 +49,8 @@ end
 
 
 class MacRubyStatsAction
+  
+  attr_reader :current_arborescence
   
   def initialize  
     @stats = MacRubySpecStats.new
@@ -66,20 +71,20 @@ class MacRubyStatsAction
   end
   
   def load
-    @stats.push_file MSpec.retrieve(:file)
+    @current_arborescence = @stats.push_file(MSpec.retrieve(:file))
   end
   
   def example(state, block)
-    @stats.example! MSpec.retrieve(:file)
+    @stats.example!(current_arborescence)
   end
   
   def expectation(state)
     print "."
-    @stats.expectation! MSpec.retrieve(:file)
+    @stats.expectation!(current_arborescence)
   end
   
   def exception(exception)
-    exception.failure? ? @stats.failure!(MSpec.retrieve(:file)) : @stats.error!(MSpec.retrieve(:file))
+    exception.failure? ? @stats.failure!(current_arborescence) : @stats.error!(current_arborescence)
   end 
   
   def categories

@@ -38,7 +38,16 @@ class MacRubyFormatter < DottedFormatter
         print "  #{subcat}: #{stats[:failures]} failures, #{stats[:errors]} errors (#{stats[:examples]} examples, #{stats[:expectations]} expectations, #{stats[:files]} files) \n"
         
       end
+    end 
+    
+    count = 0
+    @exceptions.each do |exc|
+      outcome = exc.failure? ? "FAILED" : "ERROR"
+      print "\n#{count += 1})\n#{exc.description} #{outcome}\n"
+      print exc.message, "\n"
+      print exc.backtrace, "\n"
     end
+    
     print "\nSummary:\n"
     print "files: ",        @tally.counter.files,        "\n"
     print "examples: ",     @tally.counter.examples,     "\n"
