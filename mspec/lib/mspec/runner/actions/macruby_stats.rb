@@ -74,6 +74,7 @@ class MacRubyStatsAction
   end
   
   def expectation(state)
+    print "."
     @stats.expectation! MSpec.retrieve(:file)
   end
   

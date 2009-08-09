@@ -35,7 +35,7 @@ class MacRubyFormatter < DottedFormatter
     @stats.categories.each do |category, subcategories|
       print "#{category}:\n"
       subcategories.each do |subcat, stats|
-        print "  #{subcat} stats: #{stats[:failures]} failures, #{stats[:errors]} errors (#{stats[:examples]} examples, #{stats[:expectations]} expectations, #{stats[:files]} files) \n"
+        print "  #{subcat}: #{stats[:failures]} failures, #{stats[:errors]} errors (#{stats[:examples]} examples, #{stats[:expectations]} expectations, #{stats[:files]} files) \n"
         
       end
     end
