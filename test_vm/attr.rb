@@ -46,3 +46,13 @@ assert '42', %q{
   o.foo = 42
   p o.bar
 }
+
+assert '42', %{
+  obj = Object.new
+  class << obj
+    attr_accessor :foo
+  end
+  obj.foo = 42
+  eval('nil')
+  p obj.foo
+}
