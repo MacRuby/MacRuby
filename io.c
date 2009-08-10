@@ -801,8 +801,9 @@ rb_io_eof(VALUE io, SEL sel)
     rb_io_t *io_struct = ExtractIOStruct(io);
     rb_io_assert_readable(io_struct);
 
-    if (CFReadStreamGetStatus(io_struct->readStream) == kCFStreamStatusAtEnd) {
-	return Qtrue;
+    if ((CFReadStreamGetStatus(io_struct->readStream) == kCFStreamStatusAtEnd)) {
+		// if there's anything left in the ungetc buffer, this io is not at EOF
+		return (io_struct->ungetc_buf_len == 0) ? Qtrue : Qfalse;
     }
 
     // The stream is still open, however, there might not be any data left.
@@ -1524,9 +1525,19 @@ rb_io_readlines(VALUE io, SEL sel, int argc, VALUE *argv)
  *     4: And so on...
  */
 
+static SEL sel_each_line = 0;
+static SEL sel_each_byte = 0;
+static SEL sel_each_char = 0;
+
 static VALUE
 rb_io_each_line(VALUE io, SEL sel, int argc, VALUE *argv)
 {
+	if (!rb_block_given_p())
+	{
+		// return an enumerator unless given a block.
+		return rb_enumeratorize(io, sel_each_line, 0, NULL);
+	}
+	
     VALUE line = rb_io_gets_m(io, sel, argc, argv);
     while (!NIL_P(line)) {
 	rb_vm_yield(1, &line);
@@ -1552,6 +1563,12 @@ rb_io_each_line(VALUE io, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_io_each_byte(VALUE io, SEL sel)
 {
+	if (!rb_block_given_p())
+	{
+		// return an enumerator unless given a block.
+		return rb_enumeratorize(io, sel_each_byte, 0, NULL);
+	}
+	
     VALUE b = rb_io_getbyte(io, 0);
 
     while (!NIL_P(b)) {
@@ -1578,8 +1595,14 @@ static VALUE rb_io_getc(VALUE io, SEL sel);
 static VALUE
 rb_io_each_char(VALUE io, SEL sel)
 {
+	if (!rb_block_given_p())
+	{
+		// return an enumerator unless given a block.
+		return rb_enumeratorize(io, sel_each_char, 0, NULL);
+	}
+	
     VALUE c = rb_io_getc(io, 0);
-
+	
     while (!NIL_P(c)) {
 	rb_vm_yield(1, &c);
 	c = rb_io_getc(io, 0);
@@ -1603,8 +1626,6 @@ rb_io_each_char(VALUE io, SEL sel)
  *     f.lines.sort  #=> ["bar\n", "foo\n"]
  */
 
-static SEL sel_each_line = 0;
-
 static VALUE
 rb_io_lines(VALUE io, SEL sel, int argc, VALUE *argv)
 {
@@ -1624,8 +1645,6 @@ rb_io_lines(VALUE io, SEL sel, int argc, VALUE *argv)
  *     f.rewind
  *     f.bytes.sort  #=> [101, 104, 108, 108, 111]
  */
-
-static SEL sel_each_byte = 0;
 
 static VALUE
 rb_io_bytes(VALUE io, SEL sel)
@@ -1647,7 +1666,6 @@ rb_io_bytes(VALUE io, SEL sel)
  *     f.chars.sort  #=> ["e", "h", "l", "l", "o"]
  */
 
-static SEL sel_each_char = 0;
 
 static VALUE
 rb_io_chars(VALUE io, SEL sel)
