@@ -337,8 +337,8 @@ handle_scalar(rb_yaml_parser_t *parser)
 	{
 		tag = "tag:yaml.org,2002:str";
 	}
-	VALUE handler = handler_for_tag(parser, tag);
-	VALUE scalarval = CFStringCreateWithBytes(NULL, (const UInt8*)val, parser->event.data.scalar.length,
+	VALUE handler = handler_for_tag(parser, (yaml_char_t*)tag);
+	VALUE scalarval = (VALUE)CFStringCreateWithBytes(NULL, (const UInt8*)val, parser->event.data.scalar.length,
 		kCFStringEncodingUTF8, true);
 	return interpret_value(parser, scalarval, handler, true);
 }
@@ -696,7 +696,7 @@ rb_yaml_resolver_add_type(VALUE self, SEL sel, VALUE key, VALUE handler)
 	if(!NIL_P(key)) {
 		rb_yaml_resolver_t *r = RYAMLResolver(self);
 		CFDictionarySetValue(r->tags, (const void*)key, (const void*)handler);
-		char *c = RSTRING_PTR(key);
+		const char *c = RSTRING_PTR(key);
 		CFDictionarySetValue(r->cstr_tags, (const void*)c, (const void*)handler);
 	}
 	return Qnil;
