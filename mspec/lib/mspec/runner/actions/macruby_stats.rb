@@ -1,48 +1,51 @@
 class MacRubySpecStats
   attr_accessor :categories
-  attr_reader :category, :subcategory, :file
+  attr_reader :category, :subcategory, :file, :tag_files
   
   def initialize
     @categories = {}
+    @tag_files  = []
   end 
   
   # return the current arborescence
   def push_file(path)
-    cat, subcat, specfile = parse_path(path)
-    @categories[cat] ||= {}
-    @categories[cat][subcat] ||= {:files => 0, :examples => 0, :expectations => 0, :failures => 0, :errors => 0}
-    @categories[cat][subcat][:files] += 1
-    [cat, subcat, specfile] 
+    category = parse_path(path)
+    @categories[category] ||= {:files => 0, :examples => 0, :expectations => 0, :failures => 0, :errors => 0, :skipped => 0}  
+    @categories[category][:files] += 1
+    category
+  end
+  
+  def push_skipped(category, amount)
+    increase_stats(category, :skipped, amount)
   end
   
   # increases the amount of examples in the category
-  def example!(arborescence)
-    increase_stats(arborescence, :examples)
+  def example!(category)
+    increase_stats(category, :examples)
   end
   
-  def expectation!(arborescence) 
-    increase_stats(arborescence, :expectations)
+  def expectation!(category) 
+    increase_stats(category, :expectations)
   end
   
-  def failure!(arborescence)
-    increase_stats(arborescence, :failures) 
+  def failure!(category)
+    increase_stats(category, :failures) 
   end
   
-  def error!(arborescence)
-    increase_stats(arborescence, :errors) 
+  def error!(category)
+    increase_stats(category, :errors) 
   end
   
   protected
   
+  # Return the spec category
   def parse_path(path)
-    # Ruby 1.9 only
-    /.*frozen\/(?<category>.+?)\/(?<subcategory>.+)\/(?<file>.+_spec)\.rb/ =~ path
-    [category, subcategory, file]
+    /spec\/(frozen|macruby)\/(.+?)\//  =~ path
+    $2 
   end
   
-  def increase_stats(arborescence, type)
-    cat, subcat, specfile = arborescence
-    @categories[cat][subcat][type] += 1
+  def increase_stats(category, type, amount=1)
+    @categories[category][type] += amount
   end
   
 end
@@ -50,45 +53,51 @@ end
 
 class MacRubyStatsAction
   
-  attr_reader :current_arborescence
+  attr_reader :current_category
   
   def initialize  
     @stats = MacRubySpecStats.new
   end
-
+  
   def register
     MSpec.register :load,        self
     MSpec.register :exception,   self
     MSpec.register :example,     self
-    MSpec.register :expectation, self    
+    MSpec.register :expectation, self
   end
 
   def unregister
     MSpec.unregister :load,        self
     MSpec.unregister :exception,   self
     MSpec.unregister :example,     self
-    MSpec.unregister :expectation, self 
+    MSpec.unregister :expectation, self
   end
   
   def load
-    @current_arborescence = @stats.push_file(MSpec.retrieve(:file))
+    @current_category = @stats.push_file(MSpec.retrieve(:file))
+    skilled_specs = MSpec.read_tags(['critical', 'fails']).size
+    @stats.push_skipped(current_category, skilled_specs) if skilled_specs > 0
   end
   
   def example(state, block)
-    @stats.example!(current_arborescence)
+    @stats.example!(current_category)
   end
   
   def expectation(state)
     print "."
-    @stats.expectation!(current_arborescence)
+    @stats.expectation!(current_category)
   end
   
   def exception(exception)
-    exception.failure? ? @stats.failure!(current_arborescence) : @stats.error!(current_arborescence)
+    exception.failure? ? @stats.failure!(current_category) : @stats.error!(current_category)
   end 
   
   def categories
     @stats.categories
+  end
+  
+  def tags
+    @stats.tag_files
   end
   
 end
