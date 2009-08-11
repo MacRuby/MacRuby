@@ -3127,11 +3127,11 @@ argf_next_argv(VALUE argf)
 	ARGF.next_p = 0;
 retry:  
 	if (RARRAY_LEN(ARGF.argv) > 0) {
-	    ARGF.filename = rb_ary_shift(ARGF.argv);
+	    GC_WB(&ARGF.filename, rb_ary_shift(ARGF.argv));
 	    fn = StringValueCStr(ARGF.filename);
 	    if (strlen(fn) == 1 && fn[0] == '-') {
 		// - means read from standard input, obviously.
-		ARGF.current_file = rb_stdin;
+		GC_WB(&ARGF.current_file, rb_stdin);
 		if (ARGF.inplace) {
 		    rb_warn("Can't do inplace edit for stdio; skipping");
 		    goto retry;
@@ -3177,7 +3177,7 @@ retry:
 		    }
 		    rb_stdout = prep_io(fw, FMODE_WRITABLE, rb_cFile, true);
 		}
-		ARGF.current_file = prep_io(fr, FMODE_READABLE, rb_cFile, true);
+		GC_WB(&ARGF.current_file, prep_io(fr, FMODE_READABLE, rb_cFile, true));
 	    }
 #if 0 // TODO once we get encodings sorted out.
 	    if (ARGF.encs.enc) {
@@ -3194,8 +3194,8 @@ retry:
 	}
     }
     else if (ARGF.next_p == -1) {
-	ARGF.current_file = rb_stdin;
-	ARGF.filename = rb_str_new2("-");
+	GC_WB(&ARGF.current_file, rb_stdin);
+	GC_WB(&ARGF.filename, rb_str_new2("-"));
     }
     return Qtrue;
 
