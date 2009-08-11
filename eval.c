@@ -617,6 +617,11 @@ rb_mod_extend_object(VALUE mod, SEL sel, VALUE obj)
 static VALUE
 rb_obj_extend(VALUE obj, SEL sel, int argc, VALUE *argv)
 {
+	if(rb_obj_frozen_p(obj))
+	{
+		rb_raise(rb_eRuntimeError, "cannot extend a frozen object");
+	}
+	
     int i;
 
     if (argc == 0) {

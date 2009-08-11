@@ -24,13 +24,3 @@ critical:Kernel#Float raises an exception if there's a trailing _ on either side
 critical:Kernel#Float raises an ArgumentError if there's a decimal point on the right side of the 'E'
 fails:Kernel.Float is a private method
 fails:Kernel#Float is a private method
-fails:Kernel.Float otherwise, converts the given argument to a Float by calling #to_f
-fails:Kernel.Float returns the identical NaN if to_f is called and it returns NaN
-fails:Kernel.Float returns the identical Infinity if to_f is called and it returns Infinity
-fails:Kernel.Float raises a TypeError if #to_f returns a String
-fails:Kernel.Float raises a TypeError if #to_f returns an Integer
-fails:Kernel#Float otherwise, converts the given argument to a Float by calling #to_f
-fails:Kernel#Float returns the identical NaN if to_f is called and it returns NaN
-fails:Kernel#Float returns the identical Infinity if to_f is called and it returns Infinity
-fails:Kernel#Float raises a TypeError if #to_f returns a String
-fails:Kernel#Float raises a TypeError if #to_f returns an Integer
