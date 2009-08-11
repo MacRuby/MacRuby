@@ -48,6 +48,10 @@ static VALUE orig_stdout, orig_stderr;
 // TODO: not thread-safe.
 static VALUE kept_streams;
 
+// TODO: After Object#untrusted? and Object#trusted? get implemented,
+// place the appropriate checks on #inspect, #reopen, #close, #close_read,
+// and #close_write.
+
 VALUE rb_output_fs;
 VALUE rb_rs;
 VALUE rb_output_rs;
@@ -235,6 +239,9 @@ rb_io_assert_initialized(rb_io_t *fptr)
 static inline void
 rb_io_assert_usable(CFStreamStatus status)
 {
+	// As far as I can tell, kCFStreamStatusNotOpen means that a stream has 
+	// not been opened *yet*. Streams that are opened and then closed have
+	// the status of kCFStreamStatusClosed.
     if (status == kCFStreamStatusNotOpen
 	|| status == kCFStreamStatusClosed
 	|| status == kCFStreamStatusError) {
@@ -341,9 +348,12 @@ static inline void
 prepare_io_from_fd(rb_io_t *io_struct, int fd, int mode,
 	bool should_close_streams)
 {
-    // TODO we should really get rid of these FMODE_* constants and instead
-    // always use the POSIX ones.
-
+    // While getting rid of the FMODE_* constants and replacing them with the 
+	// POSIX constants would be very nice, it would be a mistake on Darwin,
+	// as O_RDONLY|O_WRONLY != O_RDWR, whereas FMODE_READABLE|FMODE_WRITABLE = 
+	// FMODE_READWRITE. As such, we have to redefine a whole lot of system-wide
+	// constants, which sucks. But we don't have any other option.
+	
     bool read = false, write = false;
     switch (mode & FMODE_READWRITE) {
 	case FMODE_READABLE:
@@ -1778,10 +1788,8 @@ rb_io_readbyte(VALUE io, SEL sel)
  *     ios.ungetc(string)   => nil
  *
  *  Pushes back one character (passed as a parameter) onto <em>ios</em>,
- *  such that a subsequent buffered read will return it. Only one character
- *  may be pushed back before a subsequent read operation (that is,
- *  you will be able to read only the last of several characters that have been pushed
- *  back). Has no effect with unbuffered reads (such as <code>IO#sysread</code>).
+ *  such that a subsequent read will read it. When calling <code>ungetc</code>
+ *	multiple times, the most-recently-pushed character will be read first.
  *
  *     f = File.new("testfile")   #=> #<File:testfile>
  *     c = f.getc                 #=> "8"
@@ -1793,7 +1801,6 @@ VALUE
 rb_io_ungetc(VALUE io, SEL sel, VALUE c)
 {
     rb_io_t *io_struct = ExtractIOStruct(io);
-
     rb_io_assert_readable(io_struct);
 
     if (NIL_P(c)) {
@@ -2454,6 +2461,8 @@ io_replace_streams(int fd, rb_io_t *dest, rb_io_t *origin)
 static VALUE
 rb_io_reopen(VALUE io, SEL sel, int argc, VALUE *argv)
 {
+	rb_secure(4);
+	
     VALUE path_or_io, mode_string;
     rb_scan_args(argc, argv, "11", &path_or_io, &mode_string);
     rb_io_t *io_s = ExtractIOStruct(io);
@@ -2902,6 +2911,8 @@ rb_obj_display(VALUE self, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_io_initialize(VALUE io, SEL sel, int argc, VALUE *argv)
 {
+	rb_secure(4);
+	
     VALUE file_descriptor, mode;
     int mode_flags, fd;
     struct stat st;
@@ -3508,6 +3519,8 @@ rb_f_select(VALUE recv, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_io_ctl(VALUE io, VALUE arg, VALUE req, int is_io)
 {
+	rb_secure(2);
+	
     unsigned long request;
     unsigned long cmd = NUM2ULONG(arg);
     rb_io_t *io_s = ExtractIOStruct(io);
