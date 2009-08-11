@@ -16,8 +16,7 @@
 #include "yaml.h"
 
 // Ideas to speed this up:
-// have the resolver be an opaque CFMutableDictionary mapping C strings to VALUES
-// store that dictionary in the parser, fewer ivar accesses
+// none as of yet. need to figure out how to get Shark to link against this .bundle
 
 #define FNV1_32A_INIT 0x811c9dc5
 

@@ -382,8 +382,8 @@ rb_obj_init_copy(VALUE obj, SEL sel, VALUE orig)
  *  initial execution context of Ruby programs returns ``main.''
  */
 
-VALUE
-rb_any_to_s(VALUE obj)
+static VALUE
+rb_any_to_string(VALUE obj, SEL sel)
 {
     const char *cname = rb_obj_classname(obj);
     VALUE str;
@@ -392,6 +392,12 @@ rb_any_to_s(VALUE obj)
     if (OBJ_TAINTED(obj)) OBJ_TAINT(str);
 
     return str;
+}
+
+VALUE
+rb_any_to_s(VALUE obj)
+{
+	return rb_any_to_string(obj, 0);
 }
 
 VALUE
@@ -460,7 +466,7 @@ inspect_obj(VALUE obj, VALUE str, int recur)
 
 
 static VALUE
-rb_obj_inspect(VALUE obj)
+rb_obj_inspect(VALUE obj, SEL sel)
 {
     if (TYPE(obj) == T_OBJECT) {
         bool has_ivar = false;
@@ -761,8 +767,8 @@ rb_obj_dummy2(VALUE self, SEL sel, VALUE other)
  *  Returns <code>true</code> if the object is tainted.
  */
 
-VALUE
-rb_obj_tainted(VALUE obj)
+static VALUE
+rb_obj_tainted_p(VALUE obj, SEL sel)
 {
     if (!SPECIAL_CONST_P(obj) && NATIVE(obj)) {
 	switch (TYPE(obj)) {
@@ -791,6 +797,12 @@ rb_obj_tainted(VALUE obj)
     return Qfalse;
 }
 
+VALUE
+rb_obj_tainted(VALUE obj)
+{
+	return rb_obj_tainted_p(obj, 0);
+}
+
 /*
  *  call-seq:
  *     obj.taint -> obj
@@ -800,8 +812,8 @@ rb_obj_tainted(VALUE obj)
  *  programs environment will refuse to accept tainted strings.
  */
 
-VALUE
-rb_obj_taint(VALUE obj)
+static VALUE
+rb_obj_taint_m(VALUE obj, SEL sel)
 {
     rb_secure(4);
     if (!SPECIAL_CONST_P(obj) && NATIVE(obj)) {
@@ -837,6 +849,12 @@ rb_obj_taint(VALUE obj)
     return obj;
 }
 
+VALUE 
+rb_obj_taint(VALUE obj)
+{
+	return rb_obj_taint_m(obj, 0);
+}
+
 
 /*
  *  call-seq:
@@ -845,8 +863,8 @@ rb_obj_taint(VALUE obj)
  *  Removes the taint from <i>obj</i>.
  */
 
-VALUE
-rb_obj_untaint(VALUE obj)
+static VALUE
+rb_obj_untaint_m(VALUE obj, SEL sel)
 {
     rb_secure(3);
     if (!SPECIAL_CONST_P(obj) && NATIVE(obj)) {
@@ -882,6 +900,12 @@ rb_obj_untaint(VALUE obj)
     return obj;
 }
 
+VALUE
+rb_obj_untaint(VALUE obj)
+{
+	return rb_obj_untaint_m(obj, 0);
+}
+
 void
 rb_obj_infect(VALUE obj1, VALUE obj2)
 {
@@ -909,8 +933,8 @@ static st_table *immediate_frozen_tbl = 0;
  *     	from prog.rb:3
  */
 
-VALUE
-rb_obj_freeze(VALUE obj)
+static VALUE
+rb_obj_freeze_m(VALUE obj, SEL sel)
 {
     if (!OBJ_FROZEN(obj)) {
 	int type;
@@ -957,6 +981,12 @@ rb_obj_freeze(VALUE obj)
     return obj;
 }
 
+VALUE
+rb_obj_freeze(VALUE obj)
+{
+	return rb_obj_freeze_m(obj, 0);
+}
+
 /*
  *  call-seq:
  *     obj.frozen?    => true or false
@@ -968,8 +998,8 @@ rb_obj_freeze(VALUE obj)
  *     a.frozen?   #=> true
  */
 
-VALUE
-rb_obj_frozen_p(VALUE obj)
+static VALUE
+rb_obj_frozen(VALUE obj, SEL sel)
 {
     if (SPECIAL_CONST_P(obj)) {
 	if (!immediate_frozen_tbl) return Qfalse;
@@ -1003,6 +1033,12 @@ rb_obj_frozen_p(VALUE obj)
 	default:
 	    return FL_TEST(obj, FL_FREEZE) ? Qtrue : Qfalse;
     }
+}
+
+VALUE
+rb_obj_frozen_p(VALUE obj)
+{
+	return rb_obj_frozen(obj, 0);
 }
 
 
@@ -2750,13 +2786,13 @@ Init_Object(void)
     rb_objc_define_method(rb_cNSObject, "clone", rb_obj_clone_imp, 0);
     rb_objc_define_method(rb_cNSObject, "dup", rb_nsobj_dup, 0);
 
-    rb_objc_define_method(rb_mKernel, "taint", rb_obj_taint, 0);
-    rb_objc_define_method(rb_mKernel, "tainted?", rb_obj_tainted, 0);
-    rb_objc_define_method(rb_mKernel, "untaint", rb_obj_untaint, 0);
-    rb_objc_define_method(rb_mKernel, "freeze", rb_obj_freeze, 0);
-    rb_objc_define_method(rb_mKernel, "frozen?", rb_obj_frozen_p, 0);
+    rb_objc_define_method(rb_mKernel, "taint", rb_obj_taint_m, 0);
+    rb_objc_define_method(rb_mKernel, "tainted?", rb_obj_tainted_p, 0);
+    rb_objc_define_method(rb_mKernel, "untaint", rb_obj_untaint_m, 0);
+    rb_objc_define_method(rb_mKernel, "freeze", rb_obj_freeze_m, 0);
+    rb_objc_define_method(rb_mKernel, "frozen?", rb_obj_frozen, 0);
 
-    rb_objc_define_method(rb_mKernel, "to_s", rb_any_to_s, 0);
+    rb_objc_define_method(rb_mKernel, "to_s", rb_any_to_string, 0);
     rb_objc_define_method(rb_mKernel, "inspect", rb_obj_inspect, 0);
     rb_objc_define_method(rb_mKernel, "methods", rb_obj_methods, -1);
 
