@@ -864,7 +864,7 @@ struct RBignum {
 #if WITH_OBJC
 # define OBJ_TAINTED(x) (int)(SPECIAL_CONST_P(x) || NATIVE(x) ? rb_obj_tainted((VALUE)x) == Qtrue : FL_TEST((x), FL_TAINT))
 # define OBJ_TAINT(x)   (rb_obj_taint((VALUE)x))
-# define OBJ_UNTRUSTED(x) (int)(SPECIAL_CONST_P(x) || NATIVE(x) ? rb_obj_tainted((VALUE)x) == Qtrue : FL_TEST((x), FL_TAINT)
+# define OBJ_UNTRUSTED(x) (int)(SPECIAL_CONST_P(x) || NATIVE(x) ? rb_obj_untrusted((VALUE)x) == Qtrue : FL_TEST((x), FL_UNTRUSTED))
 # define OBJ_UNTRUST(x)	(rb_obj_untrust((VALUE)x))
 #else
 # define OBJ_TAINTED(x) FL_TEST((x), FL_TAINT)
