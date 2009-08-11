@@ -9,20 +9,9 @@
  * Copyright (C) 2000  Information-technology Promotion Agency, Japan
  */
 
-#include <llvm/Module.h>
-#include <llvm/DerivedTypes.h>
-#include <llvm/Constants.h>
-#include <llvm/CallingConv.h>
-#include <llvm/Instructions.h>
-#include <llvm/ModuleProvider.h>
-#include <llvm/Intrinsics.h>
-#include <llvm/ExecutionEngine/JIT.h>
-#include <llvm/PassManager.h>
-#include <llvm/Target/TargetData.h>
-using namespace llvm;
-
 #include <stdarg.h>
 
+#include "llvm.h"
 #include "ruby/ruby.h"
 #include "ruby/node.h"
 #include "ruby/encoding.h"

@@ -51,8 +51,6 @@ using namespace llvm;
 #include <iostream>
 #include <fstream>
 
-#define force_inline __attribute__((always_inline))
-
 RoxorCore *RoxorCore::shared = NULL;
 RoxorVM *RoxorVM::main = NULL;
 pthread_key_t RoxorVM::vm_thread_key;
@@ -1888,7 +1886,7 @@ VALUE
 rb_vm_masgn_get_elem_before_splat(VALUE ary, int offset)
 {
     if (offset < RARRAY_LEN(ary)) {
-	return OC2RB(CFArrayGetValueAtIndex((CFArrayRef)ary, offset));
+	return RARRAY_AT(ary, offset);
     }
     return Qnil;
 }
@@ -1901,12 +1899,12 @@ rb_vm_masgn_get_elem_after_splat(VALUE ary, int before_splat_count, int after_sp
     if (len < before_splat_count + after_splat_count) {
 	offset += before_splat_count;
 	if (offset < len) {
-	    return OC2RB(CFArrayGetValueAtIndex((CFArrayRef)ary, offset));
+	    return RARRAY_AT(ary, offset);
 	}
     }
     else {
 	offset += len - after_splat_count;
-	return OC2RB(CFArrayGetValueAtIndex((CFArrayRef)ary, offset));
+	return RARRAY_AT(ary, offset);
     }
     return Qnil;
 }
@@ -1929,7 +1927,7 @@ __rb_vm_fix_args(const VALUE *argv, VALUE *new_argv,
 {
     assert(argc >= arity.min);
     assert((arity.max == -1) || (argc <= arity.max));
-    int used_opt_args = argc - arity.min;
+    const int used_opt_args = argc - arity.min;
     int opt_args, rest_pos;
     if (arity.max == -1) {
 	opt_args = arity.real - arity.min - 1;
@@ -2635,6 +2633,9 @@ dispatch:
 		return RARRAY_IMMUTABLE(self)
 		    ? rb_cNSArray : rb_cNSMutableArray;
 	    }
+	    else if (klass == (Class)rb_cRubyArray) {
+		return rb_cNSMutableArray;
+	    }
 #if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
 	    if (klass == (Class)rb_cCFHash || klass == (Class)rb_cNSHash0) {
 #else
@@ -2815,6 +2816,9 @@ rb_vm_fast_eq(struct mcache *cache, VALUE self, VALUE comparedTo)
 	    if (TYPE(comparedTo) != self_type) {
 		return Qfalse;
 	    }
+	    if (self_type == T_ARRAY) {
+		return rb_ary_equal(self, comparedTo);
+	    }
 	    return CFEqual((CFTypeRef)self, (CFTypeRef)comparedTo)
 		? Qtrue : Qfalse;
     }
@@ -2914,7 +2918,6 @@ rb_vm_fast_aref(VALUE obj, VALUE other, struct mcache *cache,
 	if (TYPE(other) == T_FIXNUM) {
 	    return rb_ary_entry(obj, FIX2LONG(other));
 	}
-	extern VALUE rb_ary_aref(VALUE ary, SEL sel, int argc, VALUE *argv);
 	return rb_ary_aref(obj, 0, 1, &other);
     }
     return __rb_vm_dispatch(GET_VM(), cache, obj, NULL, selAREF, NULL, 0, 1,
@@ -2929,13 +2932,11 @@ rb_vm_fast_aset(VALUE obj, VALUE other1, VALUE other2, struct mcache *cache,
     // TODO what about T_HASH?
     if (overriden == 0 && TYPE(obj) == T_ARRAY) {
 	if (TYPE(other1) == T_FIXNUM) {
-	    rb_ary_store(obj, FIX2INT(other1), other2);
+	    rb_ary_store(obj, FIX2LONG(other1), other2);
 	    return other2;
 	}
     }
-    VALUE args[2];
-    args[0] = other1;
-    args[1] = other2;
+    VALUE args[2] = { other1, other2 };
     return __rb_vm_dispatch(GET_VM(), cache, obj, NULL, selASET, NULL, 0, 2,
 	    args);
 }
@@ -3959,7 +3960,6 @@ rb_vm_return_from_block(VALUE val, int id)
 {
     RoxorReturnFromBlockException *exc = new RoxorReturnFromBlockException();
 
-    rb_objc_retain((void *)val);
     exc->val = val;
     exc->id = id;
 
@@ -3984,7 +3984,6 @@ rb_vm_check_return_from_block_exc(RoxorReturnFromBlockException **pexc, int id)
 	RoxorReturnFromBlockException *exc = *pexc;
 	if (id == -1 || exc->id == id) {
 	    VALUE val = exc->val;
-	    rb_objc_release((void *)val);
 	    delete exc;
 	    return val;
 	}

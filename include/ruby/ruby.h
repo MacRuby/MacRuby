@@ -77,6 +77,18 @@ extern "C" {
 #include "defines.h"
 #endif
 
+#include <objc/objc.h>
+#include <objc/runtime.h>
+#include <objc/message.h>
+#include <objc/objc-auto.h>
+#include <assert.h>
+#include <CoreFoundation/CoreFoundation.h>
+
+#if HAVE_AUTO_ZONE_H
+# include <auto_zone.h>
+#else
+# include "auto_zone.h"
+#endif
 #if defined(HAVE_ALLOCA_H)
 #include <alloca.h>
 #else
@@ -640,7 +652,8 @@ struct RArray {
 # define RARRAY_PTR(a) RARRAY(a)->ptr
 # define RARRAY_AT(a,i) RARRAY_PTR(a)[i]
 #else
-# define RARRAY_LEN(a) (CFArrayGetCount((CFArrayRef)a))
+# define RARRAY_LEN(a) (rb_ary_len((VALUE)a))
+# define RARRAY_AT(a,i) (rb_ary_elt((VALUE)a, (long)i))
 /* IMPORTANT: try to avoid using RARRAY_PTR if necessary, because it's
  * a _much_ slower operation than RARRAY_AT. RARRAY_PTR is only provided for
  * compatibility but should _not_ be used intensively.
@@ -1095,6 +1108,7 @@ RUBY_EXTERN VALUE rb_cNSArray0;
 #endif
 RUBY_EXTERN VALUE rb_cNSArray;
 RUBY_EXTERN VALUE rb_cNSMutableArray;
+RUBY_EXTERN VALUE rb_cRubyArray;
 RUBY_EXTERN VALUE rb_cCFHash;
 #if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
 RUBY_EXTERN VALUE rb_cNSHash0; 
@@ -1246,35 +1260,34 @@ rb_ocid_to_rval(id obj)
 }
 #define RB2OC(obj) (rb_rval_to_ocid((VALUE)obj))
 #define OC2RB(obj) (rb_ocid_to_rval((id)obj))
-
-static inline VALUE
-rb_ary_elt_fast(CFArrayRef ary, long i)
-{
-    return OC2RB(CFArrayGetValueAtIndex(ary, i));
-}
-#define RARRAY_AT(a,i) (rb_ary_elt_fast((CFArrayRef)a, (long)i))
 #endif
 
-
-static inline VALUE
+static force_inline VALUE
 rb_class_of(VALUE obj)
 {
     if (IMMEDIATE_P(obj)) {
-	if (FIXNUM_P(obj)) return rb_cFixnum;
-	if (FIXFLOAT_P(obj)) return rb_cFloat;
-	if (obj == Qtrue)  return rb_cTrueClass;
-#if !WITH_OBJC
-	if (SYMBOL_P(obj)) return rb_cSymbol;
-#endif
+	if (FIXNUM_P(obj)) {
+	    return rb_cFixnum;
+	}
+	if (FIXFLOAT_P(obj)) {
+	    return rb_cFloat;
+	}
+	if (obj == Qtrue) {
+	    return rb_cTrueClass;
+	}
     }
     else if (!RTEST(obj)) {
-	if (obj == Qnil)   return rb_cNilClass;
-	if (obj == Qfalse) return rb_cFalseClass;
+	if (obj == Qnil) {
+	    return rb_cNilClass;
+	}
+	if (obj == Qfalse) {
+	    return rb_cFalseClass;
+	}
     }
     return RBASIC(obj)->klass;
 }
 
-static inline int
+static force_inline int
 rb_type(VALUE obj)
 {
     Class k;
@@ -1307,19 +1320,13 @@ rb_type(VALUE obj)
     }
 #if WITH_OBJC
     else if ((k = *(Class *)obj) != NULL) {
-	if (k == (Class)rb_cCFString
-	    || (RCLASS_VERSION(k) & RCLASS_IS_STRING_SUBCLASS) 
-		== RCLASS_IS_STRING_SUBCLASS) {
+	if (k == (Class)rb_cCFString) {
 	    return T_STRING;
 	}
-	if (k == (Class)rb_cCFArray
-	    || (RCLASS_VERSION(k) & RCLASS_IS_ARRAY_SUBCLASS) 
-		== RCLASS_IS_ARRAY_SUBCLASS) {
+	if (k == (Class)rb_cCFArray || k == (Class)rb_cRubyArray) {
 	    return T_ARRAY;
 	}
-	if (k == (Class)rb_cCFHash
-	    || (RCLASS_VERSION(k) & RCLASS_IS_HASH_SUBCLASS) 
-	        == RCLASS_IS_HASH_SUBCLASS) {
+	if (k == (Class)rb_cCFHash) {
 	    return T_HASH;
 	}
 	if (RCLASS_META(k)) {
@@ -1336,6 +1343,16 @@ rb_type(VALUE obj)
 	if (k == (Class)rb_cFixnum) {
 	    return T_FIXNUM;
 	}
+	const long v = RCLASS_VERSION(k);
+	if ((v & RCLASS_IS_STRING_SUBCLASS) == RCLASS_IS_STRING_SUBCLASS) {
+	    return T_STRING;
+	}
+	if ((v & RCLASS_IS_ARRAY_SUBCLASS) == RCLASS_IS_ARRAY_SUBCLASS) {
+	    return T_ARRAY;
+	}
+	if ((v & RCLASS_IS_HASH_SUBCLASS) == RCLASS_IS_HASH_SUBCLASS) {
+	    return T_HASH;
+	}
 	if (NATIVE(obj)) {
 	    return T_NATIVE;
 	}
@@ -1344,12 +1361,62 @@ rb_type(VALUE obj)
     return BUILTIN_TYPE(obj);
 }
 
+static inline void
+__ignore_stupid_gcc_warnings(void)
+{
+    TYPE(INT2FIX(0));
+    CLASS_OF(INT2FIX(0));
+}
+
 static inline int
 rb_special_const_p(VALUE obj)
 {
     if (SPECIAL_CONST_P(obj)) return Qtrue;
     return Qfalse;
 }
+
+extern auto_zone_t *__auto_zone;
+
+#define GC_WB(dst, newval) \
+    do { \
+	void *nv = (void *)newval; \
+	if (!SPECIAL_CONST_P(nv)) { \
+	    if (!auto_zone_set_write_barrier(__auto_zone, (const void *)dst, (const void *)nv)) { \
+		rb_bug("destination %p isn't in the auto zone", dst); \
+	    } \
+	} \
+	*(void **)dst = nv; \
+    } \
+    while (0)
+
+static inline void
+rb_objc_root(void *addr)
+{
+    if (addr != NULL) {
+	auto_zone_add_root(__auto_zone, addr, *(void **)addr);
+    }
+}
+#define GC_ROOT(addr) (rb_objc_root((void *)addr))
+
+static inline const void *
+rb_objc_retain(const void *addr)
+{
+    if (addr != NULL && !SPECIAL_CONST_P(addr)) {
+        auto_zone_retain(__auto_zone, (void *)addr);
+    }
+    return addr;
+}
+#define GC_RETAIN(obj) (rb_objc_retain((const void *)obj))
+
+static inline const void *
+rb_objc_release(const void *addr)
+{
+    if (addr != NULL && !SPECIAL_CONST_P(addr)) {
+        auto_zone_release(__auto_zone, (void *)addr);
+    }
+    return addr;
+}
+#define GC_RELEASE(obj) (rb_objc_retain((const void *)obj))
 
 #if RUBY_INCLUDED_AS_FRAMEWORK
 #include <MacRuby/ruby/missing.h>

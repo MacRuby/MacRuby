@@ -1276,7 +1276,7 @@ flo_is_finite_p(VALUE num, SEL sel)
 {
     double value = RFLOAT_VALUE(num);
 
-#if HAVE_FINITE
+#if 0//HAVE_FINITE
     if (!finite(value))
 	return Qfalse;
 #else

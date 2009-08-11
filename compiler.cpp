@@ -8,18 +8,7 @@
 
 #define ROXOR_COMPILER_DEBUG 	0
 
-#include <llvm/Module.h>
-#include <llvm/DerivedTypes.h>
-#include <llvm/Constants.h>
-#include <llvm/CallingConv.h>
-#include <llvm/Instructions.h>
-#include <llvm/ModuleProvider.h>
-#include <llvm/Intrinsics.h>
-#include <llvm/ExecutionEngine/JIT.h>
-#include <llvm/PassManager.h>
-#include <llvm/Target/TargetData.h>
-using namespace llvm;
-
+#include "llvm.h"
 #include "ruby/ruby.h"
 #include "ruby/node.h"
 #include "id.h"
@@ -723,7 +712,10 @@ RoxorCompiler::compile_attribute_assign(NODE *node, Value *extra_val)
 	params.push_back(*i);
     }
 
-    compile_dispatch_call(params);
+    if (compile_optimized_dispatch_call(sel, argc, params) == NULL) {
+	compile_dispatch_call(params);
+    }
+    // The return value of these assignments is always the new value.
     return params.back();
 }
 
@@ -2358,6 +2350,12 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 	    return NULL;
 	}
 
+	if (params.size() - argc > 6) {
+	    // Looks like there is a splat argument there, we can't handle this
+	    // in the primitives.
+	    return NULL;
+	}
+
 	Function *opt_func = NULL;
 
 	if (sel == selLTLT) {
@@ -2382,13 +2380,7 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 	    new_params.push_back(params.back());	// other
 	}
 	else {
-	    // Damn I hate the STL.
-	    std::vector<Value *>::iterator iter = params.end();
-	    --iter;
-	    --iter;
-	    new_params.push_back(*iter);		// other1
-	    ++iter;
-	    new_params.push_back(*iter);		// other2
+	    new_params.insert(new_params.end(), params.end() - 2, params.end());
 	}
 	new_params.push_back(params[0]);		// cache
 

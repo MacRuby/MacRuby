@@ -73,8 +73,11 @@ VALUE rb_ary_includes(VALUE, VALUE);
 VALUE rb_ary_replace(VALUE copy, VALUE orig);
 VALUE rb_get_values_at(VALUE, long, int, VALUE*, VALUE(*)(VALUE,long));
 void rb_ary_insert(VALUE, long, VALUE);
+VALUE rb_ary_equal(VALUE, VALUE);
 #if WITH_OBJC
+long rb_ary_len(VALUE);
 VALUE rb_ary_elt(VALUE, long);
+VALUE rb_ary_aref(VALUE ary, SEL sel, int argc, VALUE *argv);
 bool rb_objc_ary_is_pure(VALUE);
 #endif
 /* bignum.c */
@@ -366,6 +369,7 @@ VALUE rb_hash_lookup(VALUE, VALUE);
 VALUE rb_hash_aset(VALUE, VALUE, VALUE);
 //VALUE rb_hash_delete_if(VALUE);
 VALUE rb_hash_delete(VALUE,VALUE);
+VALUE rb_hash_delete_key(VALUE,VALUE);
 VALUE rb_hash_has_key(VALUE hash, VALUE key);
 VALUE rb_hash_keys(VALUE hash);
 struct st_table *rb_hash_tbl(VALUE);

@@ -96,6 +96,7 @@ CXXFLAGS << " -Wno-parentheses -Wno-deprecated-declarations -Werror" if NO_WARN_
 LDFLAGS = `#{LLVM_CONFIG} --ldflags --libs #{LLVM_MODULES}`.strip.gsub(/\n/, '')
 LDFLAGS << " -lpthread -ldl -lxml2 -lobjc -lauto -framework Foundation"
 DLDFLAGS = "-dynamiclib -undefined suppress -flat_namespace -install_name #{INSTALL_NAME} -current_version #{MACRUBY_VERSION} -compatibility_version #{MACRUBY_VERSION}"
+CFLAGS << " -std=c99" # we add this one later to not conflict with ObjC/C++ flags
 
 # removed: marshal
 OBJS = %w{ 
@@ -136,6 +137,7 @@ class Builder
             when '.c' then [CC, @cflags]
             when '.cpp' then [CXX, @cxxflags]
             when '.m' then [CC, @objc_cflags]
+            when '.mm' then [CXX, @cxxflags + ' ' + @objc_cflags]
           end
         sh("#{cc} #{flags} -c #{s} -o #{obj}.o")
       end
@@ -201,7 +203,7 @@ class Builder
   def obj_source(obj)
     s = @obj_sources[obj]
     unless s
-      s = ['.c', '.cpp', '.m'].map { |e| obj + e }.find { |p| File.exist?(p) }
+      s = ['.c', '.cpp', '.m', '.mm'].map { |e| obj + e }.find { |p| File.exist?(p) }
       err "cannot locate source file for object `#{obj}'" if s.nil?
       @obj_sources[obj] = s
     end

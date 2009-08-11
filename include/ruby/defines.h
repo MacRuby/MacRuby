@@ -280,35 +280,7 @@ void rb_ia64_flushrs(void);
 
 #define WITH_OBJC 1 /* TODO: this should be set by configure */
 
-#if WITH_OBJC
-# include <objc/objc.h>
-# include <objc/runtime.h>
-# include <objc/message.h>
-# include <objc/objc-auto.h>
-# include <assert.h>
-# include <CoreFoundation/CoreFoundation.h>
-# define ASSERT_NO_OBJC() (assert(1 == 0))
-void rb_objc_wb(void *dst, void *newval);
-void rb_objc_root(void *addr);
-# define GC_WB(dst, newval) \
-    do { \
-	void *nv = (void *)newval; \
-	if (SPECIAL_CONST_P(nv)) { \
-	    *(void **)dst = nv; \
-	} \
-	else { \
-	    rb_objc_wb((void *)dst, (void *)nv); \
-	} \
-    } \
-    while (0)
-# define GC_ROOT(dst) (rb_objc_root((void *)dst))
-# define GC_WEAK(dst) (rb_objc_weak((void *)dst))
-#else
-# define ASSERT_NO_OBJC
-# define GC_WB(dst, newval) do { *(void **)dst = (void *)newval; } while (0)
-# define GC_ROOT(dst)
-# define GC_WEAK(dst)
-#endif
+#define force_inline __attribute__((always_inline))
 
 #if defined(__cplusplus)
 #if 0

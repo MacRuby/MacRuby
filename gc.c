@@ -31,12 +31,8 @@
 #endif
 
 #include <mach/mach.h>
-#if HAVE_AUTO_ZONE_H
-# include <auto_zone.h>
-#else
-# include "auto_zone.h"
-#endif
-static auto_zone_t *__auto_zone = NULL;
+
+auto_zone_t *__auto_zone = NULL;
 
 static VALUE nomem_error;
 
@@ -248,48 +244,10 @@ rb_gc_read_weak_ref(void **referrer)
     return auto_read_weak_reference(__auto_zone, referrer);
 }
 
-
-void
-rb_objc_wb(void *dst, void *newval)
-{
-    if (!SPECIAL_CONST_P(newval)) {
-	if (!auto_zone_set_write_barrier(__auto_zone, dst, newval)) {
-	    rb_bug("destination %p isn't in the auto zone", dst);
-	}
-    }
-    *(void **)dst = newval;
-}
-
 void *
 rb_gc_memmove(void *dst, const void *src, size_t len)
 {
     return auto_zone_write_barrier_memmove(__auto_zone, dst, src, len);
-}
-
-void
-rb_objc_root(void *addr)
-{
-    if (addr != NULL) {
-	auto_zone_add_root(__auto_zone, addr, *(void **)addr);
-    }
-}
-
-const void *
-rb_objc_retain(const void *addr)
-{
-    if (addr != NULL && !SPECIAL_CONST_P(addr)) {
-	auto_zone_retain(__auto_zone, (void *)addr);
-    }
-    return addr;
-}
-
-const void *
-rb_objc_release(const void *addr)
-{
-    if (addr != NULL && !SPECIAL_CONST_P(addr)) {
-	auto_zone_release(__auto_zone, (void *)addr);
-    }
-    return addr;
 }
 
 void
@@ -302,6 +260,18 @@ void *
 rb_objc_get_associative_ref(void *obj, void *key)
 {
     return auto_zone_get_associative_ref(__auto_zone, obj, key);
+}
+
+const void *
+rb_objc_retain_ni(const void *addr)
+{
+    return rb_objc_retain(addr);
+}
+
+const void *
+rb_objc_release_ni(const void *addr)
+{
+    return rb_objc_release(addr);
 }
 
 void
@@ -998,6 +968,7 @@ rb_call_os_finalizer(void *obj)
 static void
 rb_obj_imp_finalize(void *obj, SEL sel)
 {
+#if 0
 //    const bool need_protection = 
 //	GET_THREAD()->thread_id != pthread_self();
     bool call_finalize, free_ivar;
@@ -1029,6 +1000,7 @@ rb_obj_imp_finalize(void *obj, SEL sel)
 //	    native_mutex_unlock(&GET_THREAD()->vm->global_interpreter_lock);
 //	}
     }
+#endif
 }
 
 static bool gc_disabled = false;

@@ -686,7 +686,7 @@ rb_hash_index(VALUE hash, SEL sel, VALUE value)
     return rb_hash_key(hash, 0, value);
 }
 
-static VALUE
+VALUE
 rb_hash_delete_key(VALUE hash, VALUE key)
 {
     VALUE val;

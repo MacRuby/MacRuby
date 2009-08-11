@@ -150,21 +150,27 @@ rb_obj_not_equal(VALUE obj1, SEL sel, VALUE obj2)
 VALUE
 rb_class_real(VALUE cl)
 {
-    if (cl == 0)
+    if (cl == 0) {
         return 0;
-    if (RCLASS_META(cl))
+    }
+    if (RCLASS_META(cl)) {
 	return rb_cClass;
+    }
     while (RCLASS_SINGLETON(cl)) {
 	cl = RCLASS_SUPER(cl);
     }
-    if (cl == rb_cCFString)
+    if (cl == rb_cCFString) {
 	return rb_cNSMutableString;
-    if (cl == rb_cCFArray)
+    }
+    if (cl == rb_cCFArray || cl == rb_cRubyArray) {
 	return rb_cNSMutableArray;
-    if (cl == rb_cCFHash)
+    }
+    if (cl == rb_cCFHash) {
 	return rb_cNSMutableHash;
-    if (cl == rb_cCFSet)
+    }
+    if (cl == rb_cCFSet) {
 	return rb_cNSMutableSet;
+    }
     return cl;
 }
 
@@ -192,26 +198,9 @@ static void
 init_copy(VALUE dest, VALUE obj)
 {
     if (NATIVE(obj)) {
-#ifdef __LP64__
-	switch (TYPE(obj)) {
-	    case T_STRING:
-	    case T_ARRAY:
-	    case T_HASH:
-		if (RCLASS_RC_FLAGS(obj) & FL_TAINT) {
-		    RCLASS_RC_FLAGS(dest) |= FL_TAINT;
-		}
-		/* fall through */
-	    default:
-		if (rb_objc_flag_check((const void *)obj, FL_TAINT)) {
-		    rb_objc_flag_set((const void *)dest, FL_TAINT, true);
-		}
-		break;
-	}
-#else
-	if (rb_objc_flag_check((const void *)obj, FL_TAINT)) {
-	    rb_objc_flag_set((const void *)dest, FL_TAINT, true);
-	}
-#endif
+	if (OBJ_TAINTED(obj)) {
+	    OBJ_TAINT(dest);
+	} 
 	goto call_init_copy;
     }
     if (OBJ_FROZEN(dest)) {
@@ -313,9 +302,9 @@ rb_obj_clone_imp(VALUE obj, SEL sel)
 	    clone = rb_obj_alloc(rb_obj_class(obj));
 	    RBASIC(clone)->klass = rb_singleton_class_clone(obj);
 	    RBASIC(clone)->flags = (RBASIC(obj)->flags | FL_TEST(clone, FL_TAINT)) & ~(FL_FREEZE|FL_FINALIZE);
-#ifdef __LP64__
-	    RCLASS_RC_FLAGS(clone) = RCLASS_RC_FLAGS(obj);
-#endif
+//#ifdef __LP64__
+//	    RCLASS_RC_FLAGS(clone) = RCLASS_RC_FLAGS(obj);
+//#endif
 	    break;
     }
 
@@ -777,13 +766,17 @@ rb_obj_tainted(VALUE obj)
 {
     if (!SPECIAL_CONST_P(obj) && NATIVE(obj)) {
 	switch (TYPE(obj)) {
+	    case T_ARRAY:
+		if (*(VALUE *)obj != rb_cCFArray) {
+		    return RBASIC(obj)->flags & FL_TAINT ? Qtrue : Qfalse;
+		}
+		// fall through
 	    case T_STRING:
 		if (*(VALUE *)obj == rb_cByteString) {
 		    return rb_objc_flag_check((const void *)obj, FL_TAINT)
 			? Qtrue : Qfalse;
 		}
 		// fall through
-	    case T_ARRAY:
 	    case T_HASH:
 #ifdef __LP64__
 		return (RCLASS_RC_FLAGS(obj) & FL_TAINT) == FL_TAINT ? Qtrue : Qfalse;
@@ -813,13 +806,18 @@ rb_obj_taint(VALUE obj)
     rb_secure(4);
     if (!SPECIAL_CONST_P(obj) && NATIVE(obj)) {
 	switch (TYPE(obj)) {
+	    case T_ARRAY:
+		if (*(VALUE *)obj != rb_cCFArray) {
+		    RBASIC(obj)->flags |= FL_TAINT;
+		    break;
+		}
+		// fall through
 	    case T_STRING:
 		if (*(VALUE *)obj == rb_cByteString) {
 		    rb_objc_flag_set((const void *)obj, FL_TAINT, true);
 		    break;
 		}
 		// fall through
-	    case T_ARRAY:
 	    case T_HASH:
 #ifdef __LP64__
 		RCLASS_RC_FLAGS(obj) |= FL_TAINT;
@@ -853,13 +851,18 @@ rb_obj_untaint(VALUE obj)
     rb_secure(3);
     if (!SPECIAL_CONST_P(obj) && NATIVE(obj)) {
 	switch (TYPE(obj)) {
+	    case T_ARRAY:
+		if (*(VALUE *)obj != rb_cCFArray) {
+		   RBASIC(obj)->flags &= ~FL_TAINT;
+		   break;
+		}	
+		// fall through
 	    case T_STRING:
 		if (*(VALUE *)obj == rb_cByteString) {
-		    // TODO
-		    return obj;
+		    rb_objc_flag_set((const void *)obj, FL_TAINT, false);
+		    break;
 		}
 		// fall through
-	    case T_ARRAY:
 	    case T_HASH:
 #ifdef __LP64__
 		RCLASS_RC_FLAGS(obj) &= ~FL_TAINT;
@@ -923,13 +926,18 @@ rb_obj_freeze(VALUE obj)
 	}
 	else if (NATIVE(obj)) {
 	    switch(TYPE(obj)) {
-		case T_STRING:
-		if (*(VALUE *)obj == rb_cByteString) {
-		    rb_objc_flag_set((const void *)obj, FL_FREEZE, true);
-		    break;
-		}
-		// fall through
 		case T_ARRAY:
+		    if (*(VALUE *)obj != rb_cCFArray) {
+			RBASIC(obj)->flags |= FL_FREEZE;
+			break;
+		    }	
+		    // fall through
+		case T_STRING:
+		    if (*(VALUE *)obj == rb_cByteString) {
+			rb_objc_flag_set((const void *)obj, FL_FREEZE, true);
+			break;
+		    }
+		    // fall through
 		case T_HASH:
 #ifdef __LP64__
 		    RCLASS_RC_FLAGS(obj) |= FL_FREEZE;
@@ -969,13 +977,17 @@ rb_obj_frozen_p(VALUE obj)
 	return Qfalse;
     }
     switch (TYPE(obj)) {
+	case T_ARRAY:
+	    if (*(VALUE *)obj != rb_cCFArray) {
+		return RBASIC(obj)->flags & FL_FREEZE ? Qtrue : Qfalse;
+	    }
+	    // fall through
 	case T_STRING:
 	    if (*(VALUE *)obj == rb_cByteString) {
 		return rb_objc_flag_check((const void *)obj, FL_FREEZE)
 		    ? Qtrue : Qfalse;
 	    }
 	    // fall through
-	case T_ARRAY:
 	case T_HASH:
 #ifdef __LP64__
 	    return (RCLASS_RC_FLAGS(obj) & FL_FREEZE) == FL_FREEZE ? Qtrue : Qfalse;
@@ -1691,6 +1703,10 @@ rb_class_new_instance0(int argc, VALUE *argv, VALUE klass)
 {
     VALUE obj, init_obj, p;
 
+    if (klass == rb_cNSMutableArray) {
+	klass = rb_cRubyArray;
+    }
+
     obj = rb_obj_alloc0(klass);
 
     /* Because we cannot override +[NSObject initialize] */
@@ -2215,10 +2231,10 @@ convert_type(VALUE val, const char *tname, const char *method, int raise)
 VALUE
 rb_convert_type(VALUE val, int type, const char *tname, const char *method)
 {
-    VALUE v;
-
-    if (TYPE(val) == type) return val;
-    v = convert_type(val, tname, method, Qtrue);
+    if (TYPE(val) == type) {
+	return val;
+    }
+    VALUE v = convert_type(val, tname, method, Qtrue);
     if (TYPE(v) != type) {
 	const char *cname = rb_obj_classname(val);
 	rb_raise(rb_eTypeError, "can't convert %s to %s (%s#%s gives %s)",

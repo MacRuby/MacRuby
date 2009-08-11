@@ -702,20 +702,10 @@ sort_by_i(VALUE i, VALUE ary, int argc, VALUE *argv)
 }
 
 static int
-sort_by_cmp(const void *ap, const void *bp, void *data)
+sort_by_cmp(void *data, const void *ap, const void *bp)
 {
-#if WITH_OBJC
-    VALUE a = ((NODE *)ap)->u1.value;
-    VALUE b = ((NODE *)bp)->u1.value;
-#else
     VALUE a = (*(NODE *const *)ap)->u1.value;
     VALUE b = (*(NODE *const *)bp)->u1.value;
-    VALUE ary = (VALUE)data;
-    
-    if (RBASIC(ary)->klass) {
-	rb_raise(rb_eRuntimeError, "sort_by reentered");
-    }
-#endif
     return rb_cmpint(rb_objs_cmp(a, b), a, b);
 }
 
@@ -791,11 +781,9 @@ sort_by_cmp(const void *ap, const void *bp, void *data)
 static VALUE
 enum_sort_by(VALUE obj, SEL sel)
 {
-    VALUE ary;
-    long i;
-
     RETURN_ENUMERATOR(obj, 0, 0);
 
+    VALUE ary;
     if (TYPE(obj) == T_ARRAY) {
 	ary  = rb_ary_new2(RARRAY_LEN(obj));
     }
@@ -804,11 +792,10 @@ enum_sort_by(VALUE obj, SEL sel)
     }
     rb_objc_block_call(obj, selEach, cacheEach, 0, 0, sort_by_i, ary);
     if (RARRAY_LEN(ary) > 1) {
-	CFArraySortValues((CFMutableArrayRef)ary, 
-	    CFRangeMake(0, RARRAY_LEN(ary)),
-	    (CFComparatorFunction)sort_by_cmp, (void *)ary);
+	qsort_r((VALUE *)RARRAY_PTR(ary), RARRAY_LEN(ary), sizeof(VALUE), NULL,
+		sort_by_cmp);
     }
-    for (i=0; i<RARRAY_LEN(ary); i++) {
+    for (long i = 0; i < RARRAY_LEN(ary); i++) {
 	rb_ary_store(ary, i, RNODE(RARRAY_AT(ary, i))->u2.value);
     }
     return ary;
