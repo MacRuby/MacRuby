@@ -2749,9 +2749,11 @@ rb_ary_times(VALUE ary, SEL sel, VALUE times)
     if (OBJ_TAINTED(ary)) {
 	OBJ_TAINT(ary2);
     }
+
     if (OBJ_UNTRUSTED(ary)) {
-    OBJ_UNTRUST(ary2);
+	OBJ_UNTRUST(ary2);
     }
+
     return ary2;
 }
 
