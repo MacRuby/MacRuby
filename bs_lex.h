@@ -82,7 +82,7 @@ hash (register const char *str, register unsigned int len)
 }
 
 #ifdef __GNUC__
-__inline
+static __inline
 #endif
 struct bs_xml_atom *
 bs_xml_element (register const char *str, register unsigned int len)
