@@ -906,6 +906,128 @@ rb_obj_untaint(VALUE obj)
 	return rb_obj_untaint_m(obj, 0);
 }
 
+static VALUE
+rb_obj_untrusted_imp(VALUE obj, SEL sel)
+{
+	if (!SPECIAL_CONST_P(obj) && NATIVE(obj)) {
+		switch (TYPE(obj)) {
+			case T_ARRAY:
+			if (*(VALUE *)obj != rb_cCFArray) {
+				return RBASIC(obj)->flags & FL_UNTRUSTED ? Qtrue : Qfalse;
+			}
+// fall through
+			case T_STRING:
+			if (*(VALUE *)obj == rb_cByteString) {
+				return rb_objc_flag_check((const void *)obj, FL_UNTRUSTED)
+					? Qtrue : Qfalse;
+			}
+// fall through
+			case T_HASH:
+#ifdef __LP64__
+			return (RCLASS_RC_FLAGS(obj) & FL_UNTRUSTED) == FL_UNTRUSTED ? Qtrue : Qfalse;
+#endif
+			default:
+			return rb_objc_flag_check((const void *)obj, FL_UNTRUSTED) ? Qtrue : Qfalse;
+		}
+	}
+	if (FL_TEST(obj, FL_UNTRUSTED)) {
+		return Qtrue;
+	}
+	return Qfalse;
+}
+
+VALUE
+rb_obj_untrusted(VALUE obj)
+{
+	return rb_obj_untrusted_imp(obj, 0);
+}
+
+static VALUE
+rb_obj_trust_imp(VALUE obj, SEL sel)
+{
+    rb_secure(4);
+    if (!SPECIAL_CONST_P(obj) && NATIVE(obj)) {
+	switch (TYPE(obj)) {
+	    case T_ARRAY:
+		if (*(VALUE *)obj != rb_cCFArray) {
+		    RBASIC(obj)->flags &= ~FL_UNTRUSTED;
+		    break;
+		}
+		// fall through
+	    case T_STRING:
+		if (*(VALUE *)obj == rb_cByteString) {
+		    rb_objc_flag_set((const void *)obj, FL_UNTRUSTED, false);
+		    break;
+		}
+		// fall through
+	    case T_HASH:
+#ifdef __LP64__
+		RCLASS_RC_FLAGS(obj) &= ~FL_UNTRUSTED;
+		break;
+#endif
+	    default:
+		rb_objc_flag_set((const void *)obj, FL_UNTRUSTED, false);
+	}
+	return obj;
+    }
+    if (!OBJ_TAINTED(obj)) {
+	if (OBJ_FROZEN(obj)) {
+	    rb_error_frozen("object");
+	}
+	FL_UNSET(obj, FL_UNTRUSTED);
+    }
+    return obj;
+}
+
+VALUE
+rb_obj_trust(VALUE obj)
+{
+	return rb_obj_trust_imp(obj, 0);
+}
+
+static VALUE
+rb_obj_untrust_imp(VALUE obj, SEL sel)
+{
+    rb_secure(4);
+    if (!SPECIAL_CONST_P(obj) && NATIVE(obj)) {
+	switch (TYPE(obj)) {
+	    case T_ARRAY:
+		if (*(VALUE *)obj != rb_cCFArray) {
+		    RBASIC(obj)->flags |= FL_UNTRUSTED;
+		    break;
+		}
+		// fall through
+	    case T_STRING:
+		if (*(VALUE *)obj == rb_cByteString) {
+		    rb_objc_flag_set((const void *)obj, FL_UNTRUSTED, true);
+		    break;
+		}
+		// fall through
+	    case T_HASH:
+#ifdef __LP64__
+		RCLASS_RC_FLAGS(obj) |= FL_UNTRUSTED;
+		break;
+#endif
+	    default:
+		rb_objc_flag_set((const void *)obj, FL_UNTRUSTED, true);
+	}
+	return obj;
+    }
+    if (!OBJ_TAINTED(obj)) {
+	if (OBJ_FROZEN(obj)) {
+	    rb_error_frozen("object");
+	}
+	FL_SET(obj, FL_UNTRUSTED);
+    }
+    return obj;
+}
+
+VALUE
+rb_obj_untrust(VALUE obj)
+{
+	return rb_obj_untrust_imp(obj, 0);
+}
+
 void
 rb_obj_infect(VALUE obj1, VALUE obj2)
 {
@@ -2791,6 +2913,9 @@ Init_Object(void)
     rb_objc_define_method(rb_mKernel, "untaint", rb_obj_untaint_m, 0);
     rb_objc_define_method(rb_mKernel, "freeze", rb_obj_freeze_m, 0);
     rb_objc_define_method(rb_mKernel, "frozen?", rb_obj_frozen, 0);
+	rb_objc_define_method(rb_mKernel, "trust", rb_obj_trust_imp, 0);
+	rb_objc_define_method(rb_mKernel, "untrust", rb_obj_untrust_imp, 0);
+	rb_objc_define_method(rb_mKernel, "untrusted?", rb_obj_untrusted_imp, 0);
 
     rb_objc_define_method(rb_mKernel, "to_s", rb_any_to_string, 0);
     rb_objc_define_method(rb_mKernel, "inspect", rb_obj_inspect, 0);

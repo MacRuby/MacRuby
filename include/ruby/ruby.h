@@ -823,10 +823,11 @@ struct RBignum {
 #define FL_RESERVED  (((VALUE)1)<<6) /* will be used in the future GC */
 #define FL_FINALIZE  (((VALUE)1)<<7)
 #define FL_TAINT     (((VALUE)1)<<8)
-#define FL_EXIVAR    (((VALUE)1)<<9)
-#define FL_FREEZE    (((VALUE)1)<<10)
+#define FL_UNTRUSTED (((VALUE)1)<<9)
+#define FL_EXIVAR    (((VALUE)1)<<10)
+#define FL_FREEZE    (((VALUE)1)<<11)
 
-#define FL_USHIFT    11
+#define FL_USHIFT    12
 
 #define FL_USER0     (((VALUE)1)<<(FL_USHIFT+0))
 #define FL_USER1     (((VALUE)1)<<(FL_USHIFT+1))
@@ -863,9 +864,13 @@ struct RBignum {
 #if WITH_OBJC
 # define OBJ_TAINTED(x) (int)(SPECIAL_CONST_P(x) || NATIVE(x) ? rb_obj_tainted((VALUE)x) == Qtrue : FL_TEST((x), FL_TAINT))
 # define OBJ_TAINT(x)   (rb_obj_taint((VALUE)x))
+# define OBJ_UNTRUSTED(x) (int)(SPECIAL_CONST_P(x) || NATIVE(x) ? rb_obj_tainted((VALUE)x) == Qtrue : FL_TEST((x), FL_TAINT)
+# define OBJ_UNTRUST(x)	(rb_obj_untrust((VALUE)x))
 #else
 # define OBJ_TAINTED(x) FL_TEST((x), FL_TAINT)
 # define OBJ_TAINT(x) FL_SET((x), FL_TAINT)
+# define OBJ_UNTRUSTED(x) (FL_TEST((x), FL_UNTRUSTED))
+# define OBJ_UNTRUST(x) FL_SET((x), FL_UNTRUSTED)
 #endif
 
 #define OBJ_INFECT(x,s) do {if (FL_ABLE(x) && FL_ABLE(s)) RBASIC(x)->flags |= RBASIC(s)->flags & FL_TAINT;} while (0)
