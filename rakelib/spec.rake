@@ -3,15 +3,7 @@ namespace :spec do
   DEFAULT_OPTIONS = "-B #{MACRUBY_MSPEC}"
   
   def mspec(type, options)
-    old_path = ENV['DYLD_LIBRARY_PATH']
-    new_path = '.'
-    new_path << ":#{old_path}" if old_path
-    begin
-      ENV['DYLD_LIBRARY_PATH'] = new_path
-      sh "./mspec/bin/mspec #{type} #{DEFAULT_OPTIONS} #{ENV['opts']} #{options}"
-    ensure
-      ENV['DYLD_LIBRARY_PATH']  = old_path
-    end
+    sh "./mspec/bin/mspec #{type} #{DEFAULT_OPTIONS} #{ENV['opts']} #{options}"
   end
   
   desc "Run continuous integration language examples (all known good examples)"
