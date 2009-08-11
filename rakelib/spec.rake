@@ -1,6 +1,6 @@
 namespace :spec do
   MACRUBY_MSPEC = "./spec/macruby.mspec"
-  DEFAULT_OPTIONS = "-I./lib -B #{MACRUBY_MSPEC}"
+  DEFAULT_OPTIONS = "-B #{MACRUBY_MSPEC}"
   
   def mspec(type, options)
     old_path = ENV['DYLD_LIBRARY_PATH']

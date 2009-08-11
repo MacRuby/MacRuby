@@ -64,8 +64,19 @@ class MSpecScript
   # A list of _all_ optional library specs
   set :optional, [get(:ffi)]
   
+  # All setup needed to run the specs from the macruby source root.
+  #
+  #
+  # Make the macruby binary look for the framework in the source root
+  source_root = File.expand_path('../../', __FILE__)
+  ENV['DYLD_LIBRARY_PATH'] = source_root
+  # Setup the proper load paths for lib and extensions
+  load_paths = %w{ -I./lib -I./ext }
+  load_paths.concat Dir.glob('./ext/**/*.bundle').map { |filename| "-I#{File.dirname(filename)}" }.uniq
+  load_paths.concat(get(:flags)) if get(:flags)
+  set :flags, load_paths
   # The default implementation to run the specs.
-  set :target, File.expand_path('../../macruby', __FILE__)
+  set :target, File.join(source_root, 'macruby')
   
   set :tags_patterns, [
                         [%r(language/), 'tags/macruby/language/'],
