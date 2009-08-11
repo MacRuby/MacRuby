@@ -1,1 +1,0 @@
-fails:Array#delete_if keeps untrusted status

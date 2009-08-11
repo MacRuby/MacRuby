@@ -1,2 +1,0 @@
-fails:Array#collect does not copy untrusted status
-fails:Array#collect! keeps untrusted status
