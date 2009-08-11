@@ -909,37 +909,37 @@ rb_obj_untaint(VALUE obj)
 static VALUE
 rb_obj_untrusted_imp(VALUE obj, SEL sel)
 {
-	if (!SPECIAL_CONST_P(obj) && NATIVE(obj)) {
-		switch (TYPE(obj)) {
-			case T_ARRAY:
-			if (*(VALUE *)obj != rb_cCFArray) {
-				return RBASIC(obj)->flags & FL_UNTRUSTED ? Qtrue : Qfalse;
-			}
-// fall through
-			case T_STRING:
-			if (*(VALUE *)obj == rb_cByteString) {
-				return rb_objc_flag_check((const void *)obj, FL_UNTRUSTED)
-					? Qtrue : Qfalse;
-			}
-// fall through
-			case T_HASH:
-#ifdef __LP64__
-			return (RCLASS_RC_FLAGS(obj) & FL_UNTRUSTED) == FL_UNTRUSTED ? Qtrue : Qfalse;
-#endif
-			default:
-			return rb_objc_flag_check((const void *)obj, FL_UNTRUSTED) ? Qtrue : Qfalse;
+    if (!SPECIAL_CONST_P(obj) && NATIVE(obj)) {
+	switch (TYPE(obj)) {
+	    case T_ARRAY:
+		if (*(VALUE *)obj != rb_cCFArray) {
+		    return RBASIC(obj)->flags & FL_UNTRUSTED ? Qtrue : Qfalse;
 		}
+		// fall through
+	    case T_STRING:
+		if (*(VALUE *)obj == rb_cByteString) {
+		    return rb_objc_flag_check((const void *)obj, FL_UNTRUSTED)
+			? Qtrue : Qfalse;
+		}
+		// fall through
+	    case T_HASH:
+#ifdef __LP64__
+		return (RCLASS_RC_FLAGS(obj) & FL_UNTRUSTED) == FL_UNTRUSTED ? Qtrue : Qfalse;
+#endif
+	    default:
+		return rb_objc_flag_check((const void *)obj, FL_UNTRUSTED) ? Qtrue : Qfalse;
 	}
-	if (FL_TEST(obj, FL_UNTRUSTED)) {
-		return Qtrue;
-	}
-	return Qfalse;
+    }
+    if (FL_TEST(obj, FL_UNTRUSTED)) {
+	return Qtrue;
+    }
+    return Qfalse;
 }
 
 VALUE
 rb_obj_untrusted(VALUE obj)
 {
-	return rb_obj_untrusted_imp(obj, 0);
+    return rb_obj_untrusted_imp(obj, 0);
 }
 
 static VALUE
@@ -982,7 +982,7 @@ rb_obj_trust_imp(VALUE obj, SEL sel)
 VALUE
 rb_obj_trust(VALUE obj)
 {
-	return rb_obj_trust_imp(obj, 0);
+    return rb_obj_trust_imp(obj, 0);
 }
 
 static VALUE

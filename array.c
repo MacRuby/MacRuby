@@ -1567,11 +1567,10 @@ rb_ary_dup(VALUE ary)
     if (OBJ_TAINTED(ary)) {
 	OBJ_TAINT(dup);
     }
-	
-	if (OBJ_UNTRUSTED(ary))
-	{
+
+    if (OBJ_UNTRUSTED(ary)) {
 	OBJ_UNTRUST(dup);
-	}
+    }
 
     return dup;
 }
