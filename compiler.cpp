@@ -2735,6 +2735,52 @@ RoxorCompiler::compile_node_error(const char *msg, NODE *node)
     abort();
 }
 
+void
+RoxorCompiler::compile_keep_vars(BasicBlock *startBB, BasicBlock *mergeBB)
+{
+    if (keepVarsFunc == NULL) {
+	// void rb_vm_keep_vars(rb_vm_var_uses *uses, int lvars_size, ...)
+	std::vector<const Type *> types;
+	types.push_back(PtrTy);
+	types.push_back(Type::Int32Ty);
+	FunctionType *ft = FunctionType::get(Type::VoidTy, types, true);
+	keepVarsFunc = cast<Function>
+	    (module->getOrInsertFunction("rb_vm_keep_vars", ft));
+    }
+
+    BasicBlock *notNullBB = BasicBlock::Create("not_null", startBB->getParent());
+
+    bb = startBB;
+    Value *usesVal = new LoadInst(current_var_uses, "", bb);
+    Value *notNullCond = new ICmpInst(ICmpInst::ICMP_NE, usesVal, compile_const_pointer(NULL), "", bb);
+    // we only need to call keepVarsFunc if current_var_uses is not NULL
+    BranchInst::Create(notNullBB, mergeBB, notNullCond, bb);
+
+    bb = notNullBB;
+
+    // params must be filled each time because in AOT mode it contains instructions
+    std::vector<Value *> params;
+    params.push_back(new LoadInst(current_var_uses, "", bb));
+    params.push_back(NULL);
+    int vars_count = 0;
+    for (std::map<ID, Value *>::iterator iter = lvars.begin();
+	    iter != lvars.end(); ++iter) {
+	ID name = iter->first;
+	Value *slot = iter->second;
+	if (std::find(dvars.begin(), dvars.end(), name) == dvars.end()) {
+	    Value *id_val = compile_id(name);
+	    params.push_back(id_val);
+	    params.push_back(slot);
+	    vars_count++;
+	}
+    }
+    params[1] = ConstantInt::get(Type::Int32Ty, vars_count);
+
+    CallInst::Create(keepVarsFunc, params.begin(), params.end(), "", bb);
+
+    BranchInst::Create(mergeBB, bb);
+}
+
 Value *
 RoxorCompiler::compile_node(NODE *node)
 {
@@ -2932,16 +2978,6 @@ RoxorCompiler::compile_node(NODE *node)
 		// current_lvar_uses has 2 uses or more if it is really used
 		// (there is always a StoreInst in which we assign it NULL)
 		if (current_var_uses != NULL && current_var_uses->hasNUsesOrMore(2)) {
-		    if (keepVarsFunc == NULL) {
-			// void rb_vm_keep_vars(rb_vm_var_uses *uses, int lvars_size, ...)
-			std::vector<const Type *> types;
-			types.push_back(PtrTy);
-			types.push_back(Type::Int32Ty);
-			FunctionType *ft = FunctionType::get(Type::VoidTy, types, true);
-			keepVarsFunc = cast<Function>
-			    (module->getOrInsertFunction("rb_vm_keep_vars", ft));
-		    }
-
 		    // searches all ReturnInst in the function we just created and add before
 		    // a call to the function to save the local variables if necessary
 		    // (we can't do this before finishing compiling the whole function
@@ -2959,47 +2995,18 @@ RoxorCompiler::compile_node(NODE *node)
 			    }
 			}
 		    }
+		    // we have to process the blocks in a second loop because
+		    // we can't modify the blocks while iterating on them
 		    for (std::vector<ReturnInst *>::iterator inst_it = to_fix.begin();
 			 inst_it != to_fix.end();
 			 ++inst_it) {
 
 			ReturnInst *inst = *inst_it;
-
 			BasicBlock *startBB = inst->getParent();
 			BasicBlock *mergeBB = startBB->splitBasicBlock(inst, "merge");
 			// we do not want the BranchInst added by splitBasicBlock
 			startBB->getInstList().pop_back();
-			BasicBlock *notNullBB = BasicBlock::Create("not_null", f);
-
-			bb = startBB;
-			Value *usesVal = new LoadInst(current_var_uses, "", bb);
-			Value *notNullCond = new ICmpInst(ICmpInst::ICMP_NE, usesVal, compile_const_pointer(NULL), "", bb);
-			// we only need to call keepVarsFunc if current_var_uses is not NULL
-			BranchInst::Create(notNullBB, mergeBB, notNullCond, bb);
-
-			bb = notNullBB;
-
-			// params must be filled each time because in AOT mode it contains instructions
-			std::vector<Value *> params;
-			params.push_back(new LoadInst(current_var_uses, "", bb));
-			params.push_back(NULL);
-			int vars_count = 0;
-			for (std::map<ID, Value *>::iterator iter = lvars.begin();
-				iter != lvars.end(); ++iter) {
-			    ID name = iter->first;
-			    Value *slot = iter->second;
-			    if (std::find(dvars.begin(), dvars.end(), name) == dvars.end()) {
-				Value *id_val = compile_id(name);
-				params.push_back(id_val);
-				params.push_back(slot);
-				vars_count++;
-			    }
-			}
-			params[1] = ConstantInt::get(Type::Int32Ty, vars_count);
-
-			CallInst::Create(keepVarsFunc, params.begin(), params.end(), "", bb);
-
-			BranchInst::Create(mergeBB, bb);
+			compile_keep_vars(startBB, mergeBB);
 		    }
 
 		    if (new_rescue_bb->use_empty()) {
@@ -3009,35 +3016,8 @@ RoxorCompiler::compile_node(NODE *node)
 			bb = new_rescue_bb;
 			compile_landing_pad_header();
 
-			// call keepVarsFunc if current_var_uses is not NULL
-			BasicBlock *notNullBB = BasicBlock::Create("not_null", f);
 			BasicBlock *mergeBB = BasicBlock::Create("merge", f);
-			Value *usesVal = new LoadInst(current_var_uses, "", bb);
-			Value *notNullCond = new ICmpInst(ICmpInst::ICMP_NE, usesVal, compile_const_pointer(NULL), "", bb);
-			BranchInst::Create(notNullBB, mergeBB, notNullCond, bb);
-			bb = notNullBB;
-
-			// params must be filled again because in AOT mode it contains instructions
-			std::vector<Value *> params;
-			params.push_back(new LoadInst(current_var_uses, "", bb));
-			params.push_back(NULL);
-			int vars_count = 0;
-			for (std::map<ID, Value *>::iterator iter = lvars.begin();
-				iter != lvars.end(); ++iter) {
-			    ID name = iter->first;
-			    Value *slot = iter->second;
-			    if (std::find(dvars.begin(), dvars.end(), name) == dvars.end()) {
-				Value *id_val = compile_id(name);
-				params.push_back(id_val);
-				params.push_back(slot);
-				vars_count++;
-			    }
-			}
-			params[1] = ConstantInt::get(Type::Int32Ty, vars_count);
-
-			CallInst::Create(keepVarsFunc, params.begin(), params.end(), "", bb);
-
-			BranchInst::Create(mergeBB, bb);
+			compile_keep_vars(new_rescue_bb, mergeBB);
 
 			bb = mergeBB;
 			compile_rethrow_exception();

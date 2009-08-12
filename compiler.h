@@ -296,6 +296,7 @@ class RoxorCompiler {
 		bool float_op, bool *is_predicate);
 	Value *compile_double_coercion(Value *val, Value *mask,
 		BasicBlock *fallback_bb, Function *f);
+	void compile_keep_vars(BasicBlock *startBB, BasicBlock *mergeBB);
 
 	SEL mid_to_sel(ID mid, int arity);
 };
