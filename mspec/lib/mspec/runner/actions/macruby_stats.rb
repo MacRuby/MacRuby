@@ -76,7 +76,8 @@ class MacRubyStatsAction
   def load
     @current_category = @stats.push_file(MSpec.retrieve(:file))
     skilled_specs = MSpec.read_tags(['critical', 'fails']).size
-    @stats.push_skipped(current_category, skilled_specs) if skilled_specs > 0
+    @stats.push_skipped(current_category, skilled_specs) if skilled_specs > 0 
+    print "."
   end
   
   def example(state, block)
@@ -84,7 +85,6 @@ class MacRubyStatsAction
   end
   
   def expectation(state)
-    print "."
     @stats.expectation!(current_category)
   end
   

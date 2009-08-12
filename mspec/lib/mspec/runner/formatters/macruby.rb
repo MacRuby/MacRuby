@@ -27,6 +27,10 @@ class MacRubyFormatter < DottedFormatter
     super
     (@stats = MacRubyStatsAction.new).register
   end
+  
+  def sum_skipped
+    @stats.categories.inject(0){|sum, cat_info| sum += cat_info.last[:skipped].to_i}
+  end
 
   def finish
     switch
@@ -40,12 +44,12 @@ class MacRubyFormatter < DottedFormatter
     print "\nSummary:\n"
     print "files: ",        @tally.counter.files,        "\n"
     print "examples: ",     @tally.counter.examples,     "\n"
-    print "skipped examples: ", @stats.categories.inject(0){|sum, cat| sum += cat[:skipped]}, "\n"
+    print "skipped examples: ", sum_skipped, "\n"
     print "expectations: ", @tally.counter.expectations, "\n"
     print "failures: ",     @tally.counter.failures,     "\n"
     print "errors: ",       @tally.counter.errors,       "\n" 
     
-    print "\nExceptions:\n"
+    print "\nExceptions:\n" unless @exceptions.empty?
     count = 0
     @exceptions.each do |exc|
       outcome = exc.failure? ? "FAILED" : "ERROR"
