@@ -564,6 +564,7 @@ RoxorCore::should_invalidate_inline_op(SEL sel, Class klass)
     if (sel == selEq || sel == selEqq || sel == selNeq) {
 	return klass == (Class)rb_cFixnum
 	    || klass == (Class)rb_cFloat
+	    || klass == (Class)rb_cBignum
 	    || klass == (Class)rb_cSymbol
 	    || klass == (Class)rb_cNSString
 	    || klass == (Class)rb_cNSMutableString
@@ -575,14 +576,14 @@ RoxorCore::should_invalidate_inline_op(SEL sel, Class klass)
     if (sel == selPLUS || sel == selMINUS || sel == selDIV 
 	|| sel == selMULT || sel == selLT || sel == selLE 
 	|| sel == selGT || sel == selGE) {
-	return klass == (Class)rb_cFixnum;
+	return klass == (Class)rb_cFixnum
+	    || klass == (Class)rb_cFloat
+	    || klass == (Class)rb_cBignum;
     }
-
     if (sel == selLTLT || sel == selAREF || sel == selASET) {
 	return klass == (Class)rb_cNSArray
 	    || klass == (Class)rb_cNSMutableArray;
     }
-
     if (sel == selSend || sel == sel__send__ || sel == selEval) {
 	// Matches any class, since these are Kernel methods.
 	return true;
@@ -2809,63 +2810,157 @@ rb_vm_dispatch(struct mcache *cache, VALUE self, SEL sel, rb_vm_block_t *block,
 
 extern "C"
 VALUE
-rb_vm_fast_eq(struct mcache *cache, VALUE self, VALUE comparedTo)
+rb_vm_fast_plus(struct mcache *cache, VALUE self, VALUE other)
+{
+    switch (TYPE(self)) {
+	// TODO: Array, String
+	case T_BIGNUM:
+	    return rb_big_plus(self, other);
+    }
+    return rb_vm_dispatch(cache, self, selPLUS, NULL, 0, 1, other);
+}
+
+extern "C"
+VALUE
+rb_vm_fast_minus(struct mcache *cache, VALUE self, VALUE other)
+{
+    switch (TYPE(self)) {
+	// TODO: Array, String
+	case T_BIGNUM:
+	    return rb_big_minus(self, other);
+    }
+    return rb_vm_dispatch(cache, self, selMINUS, NULL, 0, 1, other);
+}
+
+extern "C"
+VALUE
+rb_vm_fast_div(struct mcache *cache, VALUE self, VALUE other)
+{
+    switch (TYPE(self)) {
+	case T_BIGNUM:
+	    return rb_big_div(self, other);
+    }
+    return rb_vm_dispatch(cache, self, selDIV, NULL, 0, 1, other);
+}
+
+extern "C"
+VALUE
+rb_vm_fast_mult(struct mcache *cache, VALUE self, VALUE other)
+{
+    switch (TYPE(self)) {
+	// TODO: Array, String
+	case T_BIGNUM:
+	    return rb_big_mul(self, other);
+    }
+    return rb_vm_dispatch(cache, self, selMULT, NULL, 0, 1, other);
+}
+
+extern "C"
+VALUE
+rb_vm_fast_lt(struct mcache *cache, VALUE self, VALUE other)
+{
+    switch (TYPE(self)) {
+	case T_BIGNUM:
+	    return FIX2INT(rb_big_cmp(self, other)) < 0 ? Qtrue : Qfalse;
+    }
+    return rb_vm_dispatch(cache, self, selLT, NULL, 0, 1, other);
+}
+
+extern "C"
+VALUE
+rb_vm_fast_le(struct mcache *cache, VALUE self, VALUE other)
+{
+    switch (TYPE(self)) {
+	case T_BIGNUM:
+	    return FIX2INT(rb_big_cmp(self, other)) <= 0 ? Qtrue : Qfalse;
+    }
+    return rb_vm_dispatch(cache, self, selLE, NULL, 0, 1, other);
+}
+
+extern "C"
+VALUE
+rb_vm_fast_gt(struct mcache *cache, VALUE self, VALUE other)
+{
+    switch (TYPE(self)) {
+	case T_BIGNUM:
+	    return FIX2INT(rb_big_cmp(self, other)) > 0 ? Qtrue : Qfalse;
+    }
+    return rb_vm_dispatch(cache, self, selGT, NULL, 0, 1, other);
+}
+
+extern "C"
+VALUE
+rb_vm_fast_ge(struct mcache *cache, VALUE self, VALUE other)
+{
+    switch (TYPE(self)) {
+	case T_BIGNUM:
+	    return FIX2INT(rb_big_cmp(self, other)) >= 0 ? Qtrue : Qfalse;
+    }
+    return rb_vm_dispatch(cache, self, selGE, NULL, 0, 1, other);
+}
+
+extern "C"
+VALUE
+rb_vm_fast_eq(struct mcache *cache, VALUE self, VALUE other)
 {
     const int self_type = TYPE(self);
     switch (self_type) {
 	case T_SYMBOL:
-	    return self == comparedTo ? Qtrue : Qfalse;
+	    return self == other ? Qtrue : Qfalse;
 
 	case T_STRING:
 	case T_ARRAY:
 	case T_HASH:
-	    if (self == comparedTo) {
+	    if (self == other) {
 		return Qtrue;
 	    }
-	    if (TYPE(comparedTo) != self_type) {
+	    if (TYPE(other) != self_type) {
 		return Qfalse;
 	    }
 	    if (self_type == T_ARRAY) {
-		return rb_ary_equal(self, comparedTo);
+		return rb_ary_equal(self, other);
 	    }
-	    return CFEqual((CFTypeRef)self, (CFTypeRef)comparedTo)
+	    return CFEqual((CFTypeRef)self, (CFTypeRef)other)
 		? Qtrue : Qfalse;
+
+	case T_BIGNUM:
+	    return rb_big_eq(self, other);
     }
-    return rb_vm_dispatch(cache, self, selEq, NULL, 0, 1, comparedTo);
+    return rb_vm_dispatch(cache, self, selEq, NULL, 0, 1, other);
 }
 
 extern "C"
 VALUE
-rb_vm_fast_neq(struct mcache *cache, VALUE self, VALUE comparedTo)
+rb_vm_fast_neq(struct mcache *cache, VALUE self, VALUE other)
 {
     // TODO
-    return rb_vm_dispatch(cache, self, selNeq, NULL, 0, 1, comparedTo);
+    return rb_vm_dispatch(cache, self, selNeq, NULL, 0, 1, other);
 }
 
 extern "C"
 VALUE
-rb_vm_fast_eqq(struct mcache *cache, VALUE self, VALUE comparedTo)
+rb_vm_fast_eqq(struct mcache *cache, VALUE self, VALUE other)
 {
     switch (TYPE(self)) {
 	// TODO: Range
 	case T_STRING:
-	    if (self == comparedTo) {
+	    if (self == other) {
 		return Qtrue;
 	    }
-	    return rb_str_equal(self, comparedTo);
+	    return rb_str_equal(self, other);
 
 	case T_REGEXP:
-	    return rb_reg_eqq(self, selEqq, comparedTo);
+	    return rb_reg_eqq(self, selEqq, other);
 
 	case T_SYMBOL:
-	    return (self == comparedTo ? Qtrue : Qfalse);
+	    return (self == other ? Qtrue : Qfalse);
 	
 	case T_MODULE:
 	case T_CLASS:
-	    return rb_obj_is_kind_of(comparedTo, self);
+	    return rb_obj_is_kind_of(other, self);
 
 	default:
-	    return rb_vm_dispatch(cache, self, selEqq, NULL, 0, 1, comparedTo);
+	    return rb_vm_dispatch(cache, self, selEqq, NULL, 0, 1, other);
     }
 }
 

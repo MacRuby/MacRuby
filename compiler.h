@@ -104,6 +104,14 @@ class RoxorCompiler {
 	int return_from_block_ids;
 
 	Function *dispatcherFunc;
+	Function *fastPlusFunc;
+	Function *fastMinusFunc;
+	Function *fastMultFunc;
+	Function *fastDivFunc;
+	Function *fastLtFunc;
+	Function *fastLeFunc;
+	Function *fastGtFunc;
+	Function *fastGeFunc;
 	Function *fastEqFunc;
 	Function *fastNeqFunc;
 	Function *fastEqqFunc;

@@ -53,6 +53,14 @@ RoxorCompiler::RoxorCompiler(void)
     return_from_block_ids = 0;
 
     dispatcherFunc = NULL;
+    fastPlusFunc = NULL;
+    fastMinusFunc = NULL;
+    fastMultFunc = NULL;
+    fastDivFunc = NULL;
+    fastLtFunc = NULL;
+    fastLeFunc = NULL;
+    fastGtFunc = NULL;
+    fastGeFunc = NULL;
     fastEqFunc = NULL;
     fastNeqFunc = NULL;
     fastEqqFunc = NULL;
@@ -359,33 +367,53 @@ RoxorCompiler::compile_dispatch_arguments(NODE *args, std::vector<Value *> &argu
 }
 
 Value *
-RoxorCompiler::compile_fast_op_call(SEL sel, Value *selfVal, Value *comparedToVal)
+RoxorCompiler::compile_fast_op_call(SEL sel, Value *selfVal, Value *otherVal)
 {
     Function *func = NULL;
-    // VALUE rb_vm_fast_op(struct mcache *cache, VALUE left, VALUE right)
-    if (sel == selEq) {
-	if (fastEqFunc == NULL) {
-	    fastEqFunc = cast<Function>(module->getOrInsertFunction(
-			"rb_vm_fast_eq",
-			RubyObjTy, PtrTy, RubyObjTy, RubyObjTy, NULL));
-	}
-	func = fastEqFunc;
+
+    // VALUE rb_vm_fast_op(struct mcache *cache, VALUE left, VALUE right);
+#define fast_op(storage, name) \
+    do { \
+	if (storage == NULL) { \
+	    storage = cast<Function>(module->getOrInsertFunction(name, \
+			RubyObjTy, PtrTy, RubyObjTy, RubyObjTy, NULL)); \
+	} \
+	func = storage; \
+    } \
+    while (0);
+
+    if (sel == selPLUS) {	
+	fast_op(fastPlusFunc, "rb_vm_fast_plus");
+    }
+    else if (sel == selMINUS) {	
+	fast_op(fastMinusFunc, "rb_vm_fast_minus");
+    }
+    else if (sel == selDIV) {	
+	fast_op(fastDivFunc, "rb_vm_fast_div");
+    }
+    else if (sel == selMULT) {	
+	fast_op(fastMultFunc, "rb_vm_fast_mult");
+    }
+    else if (sel == selLT) {	
+	fast_op(fastLtFunc, "rb_vm_fast_lt");
+    }
+    else if (sel == selLE) {	
+	fast_op(fastLeFunc, "rb_vm_fast_le");
+    }
+    else if (sel == selGT) {	
+	fast_op(fastGtFunc, "rb_vm_fast_gt");
+    }
+    else if (sel == selGE) {	
+	fast_op(fastGeFunc, "rb_vm_fast_ge");
+    }
+    else if (sel == selEq) {
+	fast_op(fastEqFunc, "rb_vm_fast_eq");
     }
     else if (sel == selNeq) {
-	if (fastNeqFunc == NULL) {
-	    fastNeqFunc = cast<Function>(module->getOrInsertFunction(
-			"rb_vm_fast_neq",
-			RubyObjTy, PtrTy, RubyObjTy, RubyObjTy, NULL));
-	}
-	func = fastNeqFunc;
+	fast_op(fastNeqFunc, "rb_vm_fast_neq");
     }
     else if (sel == selEqq) {	
-	if (fastEqqFunc == NULL) {
-	    fastEqqFunc = cast<Function>(module->getOrInsertFunction(
-			"rb_vm_fast_eqq",
-			RubyObjTy, PtrTy, RubyObjTy, RubyObjTy, NULL));
-	}
-	func = fastEqqFunc;
+	fast_op(fastEqqFunc, "rb_vm_fast_eqq");
     }
     else {
 	return NULL;
@@ -394,7 +422,7 @@ RoxorCompiler::compile_fast_op_call(SEL sel, Value *selfVal, Value *comparedToVa
     std::vector<Value *> params;
     params.push_back(compile_mcache(sel, false));
     params.push_back(selfVal);
-    params.push_back(comparedToVal);
+    params.push_back(otherVal);
 
     return compile_protected_call(func, params);
 }
