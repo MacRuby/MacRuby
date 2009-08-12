@@ -2945,41 +2945,61 @@ RoxorCompiler::compile_node(NODE *node)
 		    // searches all ReturnInst in the function we just created and add before
 		    // a call to the function to save the local variables if necessary
 		    // (we can't do this before finishing compiling the whole function
-		    // because we can't be sure if a block is there or not before)
+		    // because we can't be sure if the function contains a block or not before)
+		    std::vector<ReturnInst *> to_fix;
 		    for (Function::iterator block_it = f->begin();
 			 block_it != f->end();
 			 ++block_it) {
 			for (BasicBlock::iterator inst_it = block_it->begin();
 			     inst_it != block_it->end();
 			     ++inst_it) {
-			    if (dyn_cast<ReturnInst>(inst_it)) {
-				// params must be filled each time because in AOT mode it contains instructions
-				std::vector<Value *> params;
-
-				params.push_back(new LoadInst(current_var_uses, "", inst_it));
-				params.push_back(NULL);
-				int vars_count = 0;
-				for (std::map<ID, Value *>::iterator iter = lvars.begin();
-					iter != lvars.end(); ++iter) {
-				    ID name = iter->first;
-				    Value *slot = iter->second;
-				    if (std::find(dvars.begin(), dvars.end(), name) == dvars.end()) {
-					Value *id_val = compile_id(name);
-					if (Instruction::classof(id_val)) {
-					    cast<Instruction>(id_val)->moveBefore(inst_it);
-					}
-					params.push_back(id_val);
-					params.push_back(slot);
-					vars_count++;
-				    }
-				}
-				params[1] = ConstantInt::get(Type::Int32Ty, vars_count);
-
-				// TODO: only call the function if current_use is not NULL
-				CallInst::Create(keepVarsFunc, params.begin(), params.end(), "",
-					inst_it);
+			    ReturnInst *inst = dyn_cast<ReturnInst>(inst_it);
+			    if (inst != NULL) {
+				to_fix.push_back(inst);
 			    }
 			}
+		    }
+		    for (std::vector<ReturnInst *>::iterator inst_it = to_fix.begin();
+			 inst_it != to_fix.end();
+			 ++inst_it) {
+
+			ReturnInst *inst = *inst_it;
+
+			BasicBlock *startBB = inst->getParent();
+			BasicBlock *mergeBB = startBB->splitBasicBlock(inst, "merge");
+			// we do not want the BranchInst added by splitBasicBlock
+			startBB->getInstList().pop_back();
+			BasicBlock *notNullBB = BasicBlock::Create("not_null", f);
+
+			bb = startBB;
+			Value *usesVal = new LoadInst(current_var_uses, "", bb);
+			Value *notNullCond = new ICmpInst(ICmpInst::ICMP_NE, usesVal, compile_const_pointer(NULL), "", bb);
+			// we only need to call keepVarsFunc if current_var_uses is not NULL
+			BranchInst::Create(notNullBB, mergeBB, notNullCond, bb);
+
+			bb = notNullBB;
+
+			// params must be filled each time because in AOT mode it contains instructions
+			std::vector<Value *> params;
+			params.push_back(new LoadInst(current_var_uses, "", bb));
+			params.push_back(NULL);
+			int vars_count = 0;
+			for (std::map<ID, Value *>::iterator iter = lvars.begin();
+				iter != lvars.end(); ++iter) {
+			    ID name = iter->first;
+			    Value *slot = iter->second;
+			    if (std::find(dvars.begin(), dvars.end(), name) == dvars.end()) {
+				Value *id_val = compile_id(name);
+				params.push_back(id_val);
+				params.push_back(slot);
+				vars_count++;
+			    }
+			}
+			params[1] = ConstantInt::get(Type::Int32Ty, vars_count);
+
+			CallInst::Create(keepVarsFunc, params.begin(), params.end(), "", bb);
+
+			BranchInst::Create(mergeBB, bb);
 		    }
 
 		    if (new_rescue_bb->use_empty()) {
@@ -3016,6 +3036,7 @@ RoxorCompiler::compile_node(NODE *node)
 			params[1] = ConstantInt::get(Type::Int32Ty, vars_count);
 
 			CallInst::Create(keepVarsFunc, params.begin(), params.end(), "", bb);
+
 			BranchInst::Create(mergeBB, bb);
 
 			bb = mergeBB;
