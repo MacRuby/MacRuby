@@ -206,15 +206,27 @@ rary_clear(rb_ary_t *ary)
     ary->len = 0;
 }
 
+static VALUE
+rb_equal_fast(VALUE x, VALUE y)
+{
+    if (x == y) {
+	return Qtrue;
+    }
+    if (SPECIAL_CONST_P(x) && SPECIAL_CONST_P(y) && TYPE(x) == TYPE(y)) {
+	return Qfalse;
+    }
+    return rb_equal(x, y);
+}
+
 #define NOT_FOUND LONG_MAX
 
-size_t
+static size_t
 rary_index_of_item(rb_ary_t *ary, size_t origin, VALUE item)
 {
     assert(origin < ary->len);
     for (size_t i = origin; i < ary->len; i++) {
 	VALUE item2 = rary_elt(ary, i);
-	if (item == item2 || rb_equal(item, item2) == Qtrue) {
+	if (rb_equal_fast(item, item2) == Qtrue) {
 	    return i;
 	}
     }
@@ -1887,6 +1899,27 @@ sort_2(void *dummy, const void *ap, const void *bp)
     VALUE a = *(VALUE *)ap;
     VALUE b = *(VALUE *)bp;
 
+    if (FIXNUM_P(a) && FIXNUM_P(b)) {
+	if ((long)a > (long)b) {
+	    return 1;
+	}
+	if ((long)a < (long)b) {
+	    return -1;
+	}
+	return 0;
+    }
+    else if (FIXFLOAT_P(a) && FIXFLOAT_P(b)) {
+	const double fa = FIXFLOAT2DBL(a);
+	const double fb = FIXFLOAT2DBL(b);
+	if (fa > fb) {
+	    return 1;
+	}
+	if (fa < fb) {
+	    return -1;
+	}
+	return 0;
+    }
+
     /* FIXME optimize!!! */
     if (TYPE(a) == T_STRING) {
 	if (TYPE(b) == T_STRING) {
@@ -2883,7 +2916,8 @@ rb_ary_equal(VALUE ary1, VALUE ary2)
 		|| FIXFLOAT_P(item2) && isnan(FIXFLOAT2DBL(item2))) {
 		return Qfalse;
 	    }
-	    if (item1 != item2 && rb_equal(item1, item2) == Qfalse) {
+
+	    if (rb_equal_fast(item1, item2) == Qfalse) {
 		return Qfalse;
 	    }
 	}
@@ -3068,13 +3102,35 @@ ary_make_hash(VALUE ary1, VALUE ary2)
 static VALUE
 rb_ary_diff(VALUE ary1, SEL sel, VALUE ary2)
 {
-    VALUE hash = ary_make_hash(to_ary(ary2), 0);
+    ary2 = to_ary(ary2);
+    const long ary1_len = RARRAY_LEN(ary1);
+    const long ary2_len = RARRAY_LEN(ary2);
+
     VALUE ary3 = rb_ary_new();
 
-    for (long i = 0; i < RARRAY_LEN(ary1); i++) {
-	VALUE v = RARRAY_AT(ary1, i);
-	if (rb_hash_has_key(hash, v) == Qfalse) {
-	    rb_ary_push(ary3, rb_ary_elt(ary1, i));
+    if (ary2_len == 0) {
+	rb_ary_concat(ary3, ary1);	
+	return ary3;
+    }
+
+    rary_reserve(RARY(ary3), ary1_len);
+
+    if (ary1_len < 100 && ary2_len < 100 && IS_RARY(ary1) && IS_RARY(ary2)) {
+	for (long i = 0; i < ary1_len; i++) {
+	    VALUE elem = rary_elt(RARY(ary1), i);
+	    if (rary_index_of_item(RARY(ary2), 0, elem) == NOT_FOUND) {
+		rary_append(RARY(ary3), elem);
+	    }
+	}
+    }
+    else {
+	VALUE hash = ary_make_hash(ary2, 0);
+
+	for (long i = 0; i < ary1_len; i++) {
+	    VALUE v = RARRAY_AT(ary1, i);
+	    if (rb_hash_has_key(hash, v) == Qfalse) {
+		rb_ary_push(ary3, rb_ary_elt(ary1, i));
+	    }
 	}
     }
     return ary3;
