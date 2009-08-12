@@ -617,18 +617,15 @@ rb_mod_extend_object(VALUE mod, SEL sel, VALUE obj)
 static VALUE
 rb_obj_extend(VALUE obj, SEL sel, int argc, VALUE *argv)
 {
-	if(rb_obj_frozen_p(obj))
-	{
-		rb_raise(rb_eRuntimeError, "cannot extend a frozen object");
-	}
-	
-    int i;
-
+    if (OBJ_FROZEN(obj)) {
+	rb_raise(rb_eRuntimeError, "cannot extend a frozen object");
+    }
     if (argc == 0) {
 	rb_raise(rb_eArgError, "wrong number of arguments (0 for 1)");
     }
-    for (i = 0; i < argc; i++)
+    for (int i = 0; i < argc; i++) {
 	Check_Type(argv[i], T_MODULE);
+    }
     while (argc--) {
 	rb_funcall(argv[argc], rb_intern("extend_object"), 1, obj);
 	rb_funcall(argv[argc], rb_intern("extended"), 1, obj);
