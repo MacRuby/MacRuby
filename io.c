@@ -2371,9 +2371,23 @@ rb_file_open(VALUE io, int argc, VALUE *argv)
     StringValue(path);
     const char *filepath = RSTRING_PTR(path);
     const int flags = convert_mode_string_to_oflags(modes);
-    int fd = open(filepath, flags, 0644);
-    if (fd == -1) {
-	rb_sys_fail(NULL);
+    int fd, retry = 0;
+    while (true) {
+       fd = open(filepath, flags, 0644);
+       if (fd == -1) {
+	   if (retry < 5 && errno == EMFILE) {
+		// Too many open files. Let's schedule a GC collection.
+	       	rb_gc();
+		usleep(1000);
+	       	retry++;
+	   }
+	   else {
+	       rb_sys_fail("open() failed");
+	   }
+       }
+       else {
+	   break;
+       }
     }
     rb_io_t *io_struct = ExtractIOStruct(io);
     prepare_io_from_fd(io_struct, fd, convert_mode_string_to_fmode(modes), true);

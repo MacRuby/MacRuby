@@ -355,9 +355,11 @@ rb_gc_force_recycle(VALUE p)
 static int
 garbage_collect(void)
 {
-    if (dont_gc)
-	return Qtrue;
-    auto_collect(__auto_zone, AUTO_COLLECT_GENERATIONAL_COLLECTION, NULL);
+    if (!dont_gc) {
+	auto_collect(__auto_zone,
+		AUTO_COLLECT_EXHAUSTIVE_COLLECTION|AUTO_COLLECT_SYNCHRONOUS,
+		NULL);
+    }
     return Qtrue;
 }
 
