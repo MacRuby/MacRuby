@@ -239,7 +239,7 @@ rb_yaml_parser_generate_error(yaml_parser_t *parser)
 		asprintf(&msg, "%s error encountered during parsing", descriptor);
 	}
 	
-	error = rb_exc_new2(rb_eRuntimeError, msg);
+	error = rb_exc_new2(rb_eArgError, msg);
 	if(msg != NULL)
 	{
 		free(msg);
@@ -261,7 +261,7 @@ yaml_next_event(rb_yaml_parser_t *parser)
 		yaml_event_delete(&parser->event);
 		parser->event_valid = false;
 	}
-	if (yaml_parser_parse(&parser->parser, &parser->event) == -1)
+	if (yaml_parser_parse(&parser->parser, &parser->event) == 0)
 	{
 		rb_exc_raise(rb_yaml_parser_generate_error(&parser->parser));
 		parser->event_valid = false;
@@ -415,7 +415,7 @@ rb_yaml_parser_load(VALUE self, SEL sel)
 	}
 	if (parser->event.type != YAML_DOCUMENT_START_EVENT)
 	{
-		rb_raise(rb_eRuntimeError, "expected DOCUMENT_START event");
+		rb_raise(rb_eArgError, "expected DOCUMENT_START event");
 	}
 
 	root = get_node(parser);
@@ -424,7 +424,7 @@ rb_yaml_parser_load(VALUE self, SEL sel)
 	NEXT_EVENT();
 	if (parser->event.type != YAML_DOCUMENT_END_EVENT)
 	{
-		rb_raise(rb_eRuntimeError, "expected DOCUMENT_END event");
+		rb_raise(rb_eArgError, "expected DOCUMENT_END event");
 	}
 	
 	
