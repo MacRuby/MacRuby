@@ -2610,6 +2610,11 @@ dispatch:
 	    rb_warn("passing a block to an Objective-C method - " \
 		    "will be ignored");
 	}
+	else if (sel == selNew) {
+	    if (self == rb_cNSMutableArray) {
+		self = rb_cRubyArray;
+	    }
+	}
 	else if (sel == selClass) {
 	    // Because +[NSObject class] returns self.
 	    if (RCLASS_META(klass)) {
