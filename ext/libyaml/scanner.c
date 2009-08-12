@@ -537,8 +537,7 @@
       parser->mark.column = 0,                                                  \
       parser->mark.line ++,                                                     \
       parser->unread -= 2) :                                                    \
-     (CHECK_AT(parser->buffer,'\r',0)                                           \
-      || CHECK_AT(parser->buffer,'\n',0)) ?         /* CR|LF -> LF */           \
+     (CHECK_AT(parser->buffer,'\n',0)) ? /* MacRuby addition: CRs are ignored */\
      (*((string).pointer++) = (yaml_char_t) '\n',                               \
       parser->buffer.pointer ++,                                                \
       parser->mark.index ++,                                                    \

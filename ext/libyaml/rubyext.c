@@ -391,6 +391,11 @@ static inline VALUE get_node(rb_yaml_parser_t *parser)
 		node = handle_scalar(parser);
 		break;
 		
+		case YAML_ALIAS_EVENT:
+        rb_warn("ignoring alias");
+        node = Qnil;
+        break;
+		
 		default:
 		rb_raise(rb_eArgError, "Invalid event %d at top level", (int)parser->event.type);
 	}
