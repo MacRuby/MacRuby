@@ -313,10 +313,7 @@ rb_str_dup_imp(VALUE str, SEL sel)
 {
     VALUE dup;
 
-#if 0
-    if (RSTRING_LEN(str) == 0) {
-	return str_alloc(0);
-    }
+#if 1
     dup = (VALUE)CFStringCreateMutableCopy(NULL, 0, (CFStringRef)str);
     CFMakeCollectable((CFTypeRef)dup);
 #else
