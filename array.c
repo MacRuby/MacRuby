@@ -30,6 +30,7 @@ VALUE rb_cRubyArray;
 
 typedef struct {
     struct RBasic basic;
+    size_t beg;
     size_t len;
     size_t cap;
     VALUE *elements;
@@ -40,37 +41,68 @@ typedef struct {
 static VALUE
 rary_elt(rb_ary_t *ary, size_t idx)
 {
-    assert(idx < ary->len);
-    return ary->elements[idx];	
+//    assert(idx < ary->len);
+    return ary->elements[ary->beg + idx];	
 }
 
 static void
-rary_reserve(rb_ary_t *ary, size_t newcap)
+rary_replace(rb_ary_t *ary, size_t idx, VALUE item)
 {
-    if (newcap > ary->cap) {
-#if MAC_OS_X_VERSION_MAX_ALLOWED <1060
-	VALUE *new_elements = (VALUE *)xmalloc(sizeof(VALUE) * newcap);
-	for (size_t i = 0; i < ary->len; i++) {
-	    GC_WB(&new_elements[i], ary->elements[i]);
+//    assert(idx < ary->len);
+    GC_WB(&ary->elements[ary->beg + idx], item);
+}
+
+static VALUE *
+rary_ptr(rb_ary_t *ary)
+{
+    return &ary->elements[ary->beg];
+}
+
+static void
+rary_reserve(rb_ary_t *ary, size_t newlen)
+{
+    if (ary->beg + newlen > ary->cap) {
+	if (ary->beg > 0) {
+	    if (ary->beg > newlen) {
+		newlen = 0;
+	    }
+	    else {
+		newlen -= ary->beg;
+	    }
+	    for (size_t i = 0; i < ary->len; i++) {
+		GC_WB(&ary->elements[i], ary->elements[ary->beg + i]);
+	    }
+	    ary->beg = 0;
 	}
-	GC_WB(&ary->elements, new_elements);
-#else
-	VALUE *new_elements = xrealloc(ary->elements, sizeof(VALUE) * newcap);
-	if (new_elements != ary->elements) {
+	if (newlen > ary->cap) {
+	    if (ary->cap > 0) {
+		newlen *= 2;
+	    }
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1060
+	    VALUE *new_elements = (VALUE *)xmalloc(sizeof(VALUE) * newlen);
+	    for (size_t i = 0; i < ary->len; i++) {
+		GC_WB(&new_elements[i], ary->elements[i]);
+	    }
 	    GC_WB(&ary->elements, new_elements);
-	}
+#else
+//printf("xrealloc %p (%ld -> %ld)\n", ary, ary->cap, newlen);
+	    VALUE *new_elements = xrealloc(ary->elements, sizeof(VALUE) * newlen);
+	    if (new_elements != ary->elements) {
+		GC_WB(&ary->elements, new_elements);
+	    }
 #endif
-	ary->cap = newcap;
+	    ary->cap = newlen;
+	}
     }
 }
 
 static void
 rary_append(rb_ary_t *ary, VALUE item)
 {
-    if (ary->len + 1 > ary->cap) {
+    if (ary->beg + ary->len + 1 >= ary->cap) {
 	rary_reserve(ary, (ary->cap + 1) * 10);
     }
-    GC_WB(&ary->elements[ary->len], item);
+    rary_replace(ary, ary->len, item);
     ary->len++;
 }
 
@@ -79,13 +111,11 @@ rary_insert(rb_ary_t *ary, size_t idx, VALUE item)
 {
     assert(idx <= ary->len);
     if (idx < ary->len) {
-	if (ary->len + 1 > ary->cap) {
-	    rary_reserve(ary, ary->cap + 10);
-	}
+	rary_reserve(ary, ary->len + 1);
 	for (size_t i = ary->len; i > idx; i--) {
-	    GC_WB(&ary->elements[i], ary->elements[i - 1]);
+	    rary_replace(ary, i, rary_elt(ary, i - 1));
 	}
-	GC_WB(&ary->elements[idx], item);
+	rary_replace(ary, idx, item);
 	ary->len++;
     }
     else {
@@ -97,22 +127,28 @@ static VALUE
 rary_erase(rb_ary_t *ary, size_t idx, size_t len)
 {
     assert(idx + len <= ary->len);
-    VALUE item = ary->elements[idx];
-    for (size_t i = idx; i < ary->len - len; i++) {
-	GC_WB(&ary->elements[i], ary->elements[i + len]);
+    VALUE item = rary_elt(ary, idx);
+    if (idx == 0) {
+	for (size_t i = 0; i < len; i++) {
+	    rary_replace(ary, i, Qnil);
+	}
+	if (len < ary->len) {
+	    ary->beg += len;
+	}
+	else {
+	    ary->beg = 0;
+	}
     }
-    for (size_t i = 0; i < len; i++) {
-	ary->elements[ary->len - i - 1] = Qnil;
+    else {
+	for (size_t i = idx; i < ary->len - len; i++) {
+	    rary_replace(ary, i, rary_elt(ary, i + len));
+	}
+	for (size_t i = 0; i < len; i++) {
+	    rary_replace(ary, ary->len - i - 1, Qnil);
+	}
     }
     ary->len -= len;
     return item;
-}
-
-static void
-rary_replace(rb_ary_t *ary, size_t idx, VALUE item)
-{
-    assert(idx < ary->len);
-    GC_WB(&ary->elements[idx], item);
 }
 
 static void
@@ -121,7 +157,7 @@ rary_store(rb_ary_t *ary, size_t idx, VALUE item)
     if (idx >= ary->len) {
 	rary_reserve(ary, idx + 1);
 	for (size_t i = ary->len; i < idx + 1; i++) {
-	    ary->elements[i] = Qnil;
+	    rary_replace(ary, i, Qnil);
 	}
 	ary->len = idx + 1;
     }
@@ -135,7 +171,7 @@ rary_resize(rb_ary_t *ary, size_t newlen)
 	rary_reserve(ary, newlen);
     }
     for (size_t i = ary->len; i < newlen; i++) {
-	ary->elements[i] = Qnil;
+	rary_replace(ary, i, Qnil);
     }
     ary->len = newlen;
 }
@@ -143,9 +179,9 @@ rary_resize(rb_ary_t *ary, size_t newlen)
 static void
 rary_concat(rb_ary_t *ary, rb_ary_t *other, size_t beg, size_t len)
 {
-    rary_reserve(ary, ary->len + len + 16);
+    rary_reserve(ary, ary->len + len);
     for (size_t i = 0; i < len; i++) {
-	GC_WB(&ary->elements[i + ary->len], other->elements[beg + i]);
+	rary_replace(ary, i + ary->len, rary_elt(other, beg + i));
     }
     ary->len += len;
 }
@@ -156,9 +192,9 @@ rary_reverse(rb_ary_t *ary)
     if (ary->len > 1) {
 	for (size_t i = 0; i < ary->len / 2; i++) {
 	    const size_t j = ary->len - i - 1;
-	    VALUE elem = ary->elements[i];
-	    GC_WB(&ary->elements[i], ary->elements[j]);
-	    GC_WB(&ary->elements[j], elem);
+	    VALUE elem = rary_elt(ary, i);
+	    rary_replace(ary, i, rary_elt(ary, j));
+	    rary_replace(ary, j, elem);
 	}
     }
 }
@@ -177,7 +213,7 @@ rary_index_of_item(rb_ary_t *ary, size_t origin, VALUE item)
 {
     assert(origin < ary->len);
     for (size_t i = origin; i < ary->len; i++) {
-	VALUE item2 = ary->elements[i];
+	VALUE item2 = rary_elt(ary, i);
 	if (item == item2 || rb_equal(item, item2) == Qtrue) {
 	    return i;
 	}
@@ -280,7 +316,7 @@ ary_alloc(VALUE klass)
 	NEWOBJ(ary, rb_ary_t);
 	ary->basic.flags = 0;
 	ary->basic.klass = rb_cRubyArray;
-        ary->len = ary->cap = 0;
+        ary->beg = ary->len = ary->cap = 0;
 	ary->elements = NULL;
 	return (VALUE)ary;
     }
@@ -875,7 +911,7 @@ const VALUE *
 rb_ary_ptr(VALUE ary)
 {
     if (IS_RARY(ary)) {
-	return RARY(ary)->elements;
+	return rary_ptr(RARY(ary));
     }
 
     const long len = RARRAY_LEN(ary);
@@ -1294,13 +1330,13 @@ rb_ary_splice(VALUE ary, long beg, long len, VALUE rpl)
 	}
 	else if (len == rlen) {
 	    for (long i = 0; i < len; i++) {
-		rary_store(RARY(ary), beg + i, RARY(rpl)->elements[i]);	
+		rary_replace(RARY(ary), beg + i, rary_elt(RARY(rpl), i));
 	    }	
 	}
 	else {
 	    rary_erase(RARY(ary), beg, len);
 	    for (long i = 0; i < rlen; i++) {
-		rary_insert(RARY(ary), beg + i, RARY(rpl)->elements[i]);
+		rary_insert(RARY(ary), beg + i, rary_elt(RARY(rpl), i));
 	    }
 	}
     }
@@ -1904,7 +1940,7 @@ rb_ary_sort_bang1(VALUE ary, bool is_dup)
 	    VALUE break_val = 0;
 
 	    if (IS_RARY(ary)) {
-		qsort_r(RARY(tmp)->elements, n, sizeof(VALUE), &break_val,
+		qsort_r(rary_ptr(RARY(tmp)), n, sizeof(VALUE), &break_val,
 			sort_1);
 	    }
 	    else {
@@ -1923,7 +1959,7 @@ rb_ary_sort_bang1(VALUE ary, bool is_dup)
 	}
 	else {
 	    if (IS_RARY(ary)) {
-		qsort_r(RARY(ary)->elements, n, sizeof(VALUE), NULL, sort_2);
+		qsort_r(rary_ptr(RARY(ary)), n, sizeof(VALUE), NULL, sort_2);
 	    }
 	    else {
 		CFArraySortValues((CFMutableArrayRef)ary,
@@ -2677,6 +2713,8 @@ rb_ary_plus_imp(VALUE x, SEL sel, VALUE y)
     y = to_ary(y);
     z = rb_ary_new2(0);
 
+    rary_reserve(RARY(z), RARRAY_LEN(x) + RARRAY_LEN(y));
+
     rb_ary_concat(z, x);
     rb_ary_concat(z, y);
 
@@ -2838,8 +2876,8 @@ rb_ary_equal(VALUE ary1, VALUE ary2)
 	    return Qfalse;
 	}
 	for (size_t i = 0; i < RARY(ary1)->len; i++) {
-	    VALUE item1 = RARY(ary1)->elements[i];
-	    VALUE item2 = RARY(ary2)->elements[i];
+	    VALUE item1 = rary_elt(RARY(ary1), i);
+	    VALUE item2 = rary_elt(RARY(ary2), i);
 
 	    if ((FIXFLOAT_P(item1) && isnan(FIXFLOAT2DBL(item1)))
 		|| FIXFLOAT_P(item2) && isnan(FIXFLOAT2DBL(item2))) {
@@ -3123,7 +3161,7 @@ rb_ary_uniq_bang(VALUE ary, SEL sel)
 
     if (IS_RARY(ary)) {
 	for (size_t i = 0; i < n; i++) {
-	    VALUE item = RARY(ary)->elements[i];
+	    VALUE item = rary_elt(RARY(ary), i);
 	    size_t pos = i + 1;
 	    while (pos < n && (pos = rary_index_of_item(RARY(ary), pos, item))
 		    != NOT_FOUND) {
@@ -4023,7 +4061,7 @@ imp_rb_array_addObject(void *rcv, SEL sel, void *obj)
     RESTORE_RCV(rcv);
 }
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED <1060
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1060
 static CFIndex
 imp_rb_array_cfindexOfObjectInRange(void *rcv, SEL sel, void *obj, 
     CFRange range)
@@ -4085,7 +4123,7 @@ static const void *
 imp_rary_objectAtIndex(void *rcv, SEL sel, CFIndex idx)
 {
     assert(idx < RARY(rcv)->len);
-    return RB2OC(RARY(rcv)->elements[idx]);
+    return RB2OC(rary_elt(RARY(rcv), idx));
 }
 
 static void
