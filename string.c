@@ -2545,7 +2545,7 @@ rb_str_inspect(VALUE str, SEL sel)
 	    __append_escape(out, 'e');
 	}
 	else {
-	    CFStringAppendFormat(out, NULL, CFSTR("\\x%X"), c);
+	    CFStringAppendFormat(out, NULL, CFSTR("\\x%02X"), c);
 	}
     }
     __append(out, '"');
@@ -5378,12 +5378,13 @@ rb_bytestring_new_with_cfdata(CFMutableDataRef data)
 static void inline
 rb_bytestring_copy_cfstring_content(VALUE bstr, CFStringRef str)
 {
-	if (CFStringGetLength(str) == 0) return;
-    const char *cptr = CFStringGetCStringPtr(str, kCFStringEncodingUTF8);
-    assert(cptr != NULL); // TODO handle UTF-16 strings
+    if (CFStringGetLength(str) != 0) {
+	const char *cptr = CFStringGetCStringPtr(str, kCFStringEncodingUTF8);
+	assert(cptr != NULL); // TODO handle UTF-16 strings
 
-    CFDataAppendBytes(rb_bytestring_wrapped_data(bstr), (UInt8 *)cptr, 
-	    CFStringGetLength(str));
+	CFDataAppendBytes(rb_bytestring_wrapped_data(bstr), (UInt8 *)cptr, 
+		CFStringGetLength(str));
+    }
 }
 
 static VALUE
