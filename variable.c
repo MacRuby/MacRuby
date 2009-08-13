@@ -1538,6 +1538,25 @@ rb_autoload_p(VALUE mod, ID id)
 }
 
 static VALUE
+retrieve_dynamic_objc_class(VALUE klass, ID name)
+{
+    // Classes are typically pre-loaded by Kernel#framework but it is still
+    // useful to keep the dynamic import facility, because someone in the
+    // Objective-C world may dynamically define classes at runtime (like
+    // ScriptingBridge.framework).
+    if (klass == rb_cObject) {
+	VALUE k = (VALUE)objc_getClass(rb_id2name(name));
+	if (k != 0 && !RCLASS_RUBY(k)) {
+	     // Set the constant. Only if the returned class is a pure
+	     // Objective-C class, to avoid namespace conflicts in Ruby land.
+	    rb_const_set(klass, name, k);
+	    return k;
+	}
+    }
+    return Qnil;
+}
+
+static VALUE
 rb_const_get_0(VALUE klass, ID id, int exclude, int recurse)
 {
     VALUE value, tmp;
@@ -1577,25 +1596,9 @@ rb_const_get_0(VALUE klass, ID id, int exclude, int recurse)
 	tmp = rb_cObject;
 	goto retry;
     }
-
-    /* Classes are typically pre-loaded by Kernel#framework but it is still
-     * useful to keep the dynamic import facility, because someone in the
-     * Objective-C world may dynamically define classes at runtime (like
-     * ScriptingBridge.framework).
-     *
-     * Note that objc_getClass does _not_ honor namespaces. Consider:
-     *
-     *  module Namespace
-     *    class RubyClass; end
-     *  end
-     *
-     * In this case objc_getClass will happily return the Namespace::RubyClass
-     * object, which is ok but _not_ when trying to find a Ruby class. So we
-     * test whether or not the found class is a pure Ruby class/module or not.
-     */
-    Class k = (Class)objc_getClass(rb_id2name(id));
-    if (k != NULL && !RCLASS_RUBY(k)) {
-	return (VALUE)k;
+    VALUE k = retrieve_dynamic_objc_class(klass, id);
+    if (k != Qnil) {
+	return k;
     }
 
     return const_missing(klass, id);
@@ -1789,6 +1792,10 @@ rb_const_defined_0(VALUE klass, ID id, int exclude, int recurse)
 	mod_retry = 1;
 	tmp = rb_cObject;
 	goto retry;
+    }
+    VALUE k = retrieve_dynamic_objc_class(klass, id);
+    if (k != Qnil) {
+	return Qtrue;
     }
     return Qfalse;
 }
