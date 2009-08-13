@@ -4880,7 +4880,7 @@ rb_str_force_encoding(VALUE str, SEL sel, VALUE enc)
 static VALUE
 rb_str_valid_encoding_p(VALUE str, SEL sel)
 {
-    rb_notimplement();
+    return *(VALUE *)str == rb_cByteString ? Qfalse : Qtrue;
 }
 
 /*
