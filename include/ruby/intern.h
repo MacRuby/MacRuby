@@ -621,6 +621,7 @@ struct timeval rb_time_interval(VALUE num);
 //VALUE rb_mod_name(VALUE);
 VALUE rb_class_path(VALUE);
 void rb_set_class_path(VALUE, VALUE, const char*);
+void rb_set_class_path2(VALUE, VALUE, const char*, bool);
 VALUE rb_path2class(const char*);
 void rb_name_class(VALUE, ID);
 VALUE rb_class_name(VALUE);

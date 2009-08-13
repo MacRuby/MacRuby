@@ -483,6 +483,10 @@ struct ccache {
     VALUE val;
 };
 
+// For rb_vm_define_class()
+#define DEFINE_MODULE	0x1
+#define DEFINE_OUTER 	0x2
+
 class RoxorCompiler;
 class RoxorJITManager;
 

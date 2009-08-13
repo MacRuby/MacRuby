@@ -1193,7 +1193,7 @@ RoxorCompiler::compile_constant_declaration(NODE *node, Value *val)
     }
     else {
 	assert(node->nd_else != NULL);
-	params.push_back(compile_class_path(node->nd_else));
+	params.push_back(compile_class_path(node->nd_else, NULL));
 	assert(node->nd_else->nd_mid > 0);
 	params.push_back(compile_id(node->nd_else->nd_mid));
     }
@@ -1696,17 +1696,26 @@ RoxorCompiler::compile_jump(NODE *node)
 }
 
 Value *
-RoxorCompiler::compile_class_path(NODE *node)
+RoxorCompiler::compile_class_path(NODE *node, bool *outer)
 {
     if (nd_type(node) == NODE_COLON3) {
 	// ::Foo
+	if (outer != NULL) {
+	    *outer = false;
+	}
 	return compile_nsobject();
     }
     else if (node->nd_head != NULL) {
 	// Bar::Foo
+	if (outer != NULL) {
+	    *outer = false;
+	}
 	return compile_node(node->nd_head);
     }
 
+    if (outer != NULL) {
+	*outer = true;
+    }
     return compile_current_class();
 }
 
@@ -2639,7 +2648,8 @@ RoxorCompiler::compile_literal(VALUE val)
 	    params.push_back(load);
 	    params.push_back(ConstantInt::get(Type::Int32Ty, str_len));
 
-	    return compile_protected_call(newString2Func, params);
+	    return CallInst::Create(newString2Func, params.begin(),
+		    params.end(), "", bb);
 	}
     }
 
@@ -3618,20 +3628,28 @@ RoxorCompiler::compile_node(NODE *node)
 
 		    if (defineClassFunc == NULL) {
 			// VALUE rb_vm_define_class(ID path, VALUE outer, VALUE super,
-			//			    unsigned char is_module);
+			//			    int flags);
 			defineClassFunc = cast<Function>(module->getOrInsertFunction(
 				    "rb_vm_define_class",
 				    RubyObjTy, IntTy, RubyObjTy, RubyObjTy,
-				    Type::Int8Ty, NULL));
+				    Type::Int32Ty, NULL));
 		    }
 
 		    std::vector<Value *> params;
+		    bool outer = true;
 
 		    params.push_back(compile_id(path));
-		    params.push_back(compile_class_path(node->nd_cpath));
+		    params.push_back(compile_class_path(node->nd_cpath, &outer));
 		    params.push_back(super == NULL ? zeroVal : compile_node(super));
-		    params.push_back(ConstantInt::get(Type::Int8Ty,
-				nd_type(node) == NODE_MODULE ? 1 : 0));
+		    
+		    int flags = 0;
+		    if (nd_type(node) == NODE_MODULE) {
+			flags |= DEFINE_MODULE;
+		    }
+		    if (outer) {
+			flags |= DEFINE_OUTER;
+		    }
+		    params.push_back(ConstantInt::get(Type::Int32Ty, flags));
 
 		    classVal = compile_protected_call(defineClassFunc, params);
 		}

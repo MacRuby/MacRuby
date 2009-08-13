@@ -242,7 +242,7 @@ class RoxorCompiler {
 	void compile_multiple_assignment_element(NODE *node, Value *val);
 	Value *compile_current_class(void);
 	virtual Value *compile_nsobject(void);
-	Value *compile_class_path(NODE *node);
+	Value *compile_class_path(NODE *node, bool *outer);
 	Value *compile_const(ID id, Value *outer);
 	Value *compile_singleton_class(Value *obj);
 	Value *compile_defined_expression(NODE *node);
