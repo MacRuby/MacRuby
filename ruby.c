@@ -804,10 +804,12 @@ void Init_prelude(void);
 static void
 ruby_init_gems(int enable)
 {
+#if 0 // TODO
     if (enable) {
 	rb_define_module("Gem");
     }
-    //Init_prelude();
+    Init_prelude();
+#endif
 }
 
 static rb_encoding *
