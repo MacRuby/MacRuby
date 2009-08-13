@@ -310,7 +310,7 @@ rb_quad_pack(char *buf, VALUE val)
 VALUE
 rb_quad_unpack(const char *buf, int sign)
 {
-    unsigned LONG_LONG q;
+    BDIGIT_DBL q;
     long neg = 0;
     long i;
     BDIGIT *digits;
@@ -875,7 +875,11 @@ big2str_orig(VALUE x, int base, char* ptr, long len, long hbase, int trim)
 	    num %= hbase;
 	}
 	if (trim && ds[i-1] == 0) i--;
-	k = SIZEOF_BDIGITS;
+#ifdef __LP64__
+	k = SIZEOF_BDIGITS/2;
+#else
+    k = SIZEOF_BDIGITS;
+#endif
 	while (k--) {
 	    ptr[--j] = ruby_digitmap[num % base];
 	    num /= base;
