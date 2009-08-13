@@ -98,7 +98,6 @@ LDFLAGS << " -lpthread -ldl -lxml2 -lobjc -lauto -framework Foundation"
 DLDFLAGS = "-dynamiclib -undefined suppress -flat_namespace -install_name #{INSTALL_NAME} -current_version #{MACRUBY_VERSION} -compatibility_version #{MACRUBY_VERSION}"
 CFLAGS << " -std=c99" # we add this one later to not conflict with ObjC/C++ flags
 
-# removed: marshal
 OBJS = %w{ 
   array bignum class compar complex enum enumerator error eval file load proc 
   gc hash inits io math numeric object pack parse prec dir process
@@ -108,7 +107,7 @@ OBJS = %w{
   onig/enc/utf8 onig/enc/euc_jp onig/enc/sjis onig/enc/iso8859_1
   onig/enc/utf16_be onig/enc/utf16_le onig/enc/utf32_be onig/enc/utf32_le
   ruby set signal sprintf st string struct time transcode util variable version
-  thread id objc bs encoding main dln dmyext
+  thread id objc bs encoding main dln dmyext marshal
   vm_eval prelude miniprelude gc-stub bridgesupport compiler vm MacRuby
 }
 

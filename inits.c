@@ -30,7 +30,7 @@ void Init_GC(void);
 void Init_Hash(void);
 void Init_IO(void);
 void Init_Math(void);
-// void Init_marshal(void);
+void Init_marshal(void);
 void Init_Numeric(void);
 void Init_Object(void);
 void Init_pack(void);
@@ -85,7 +85,7 @@ rb_call_inits()
     Init_Regexp();
     Init_pack();
     Init_transcode();
-    //Init_marshal();
+    Init_marshal();
     Init_Range();
     Init_IO();
     Init_Dir();

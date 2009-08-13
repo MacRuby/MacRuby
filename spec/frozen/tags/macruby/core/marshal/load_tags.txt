@@ -1,0 +1,1 @@
+fails:Marshal::load calls the proc for recursively visited data
