@@ -1600,17 +1600,16 @@ rb_ary_dup(VALUE ary)
 {
     VALUE dup;
 
-    if (IS_RARY(ary)) {
+    if (rb_obj_is_kind_of(ary, rb_cRubyArray)) {
 	dup = rb_ary_new();
 	rary_concat(RARY(dup), RARY(ary), 0, RARY(ary)->len);
     }
     else {
 	dup = (VALUE)CFArrayCreateMutableCopy(NULL, 0, (CFArrayRef)ary);
-	if (*(Class *)ary != (Class)rb_cCFArray) {
-	    *(Class *)dup = *(Class *)ary;
-	}
 	CFMakeCollectable((CFMutableArrayRef)dup);
     }
+
+    *(VALUE *)dup = *(VALUE *)ary;
 
     if (OBJ_TAINTED(ary)) {
 	OBJ_TAINT(dup);
