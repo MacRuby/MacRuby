@@ -23,6 +23,7 @@ class MSpecScript
   # Library specs
   set :library, [
     'library/abbrev',
+    'library/csv',
     'library/date',
     'library/digest',
     'library/ftools', 
