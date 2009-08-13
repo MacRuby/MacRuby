@@ -77,6 +77,8 @@ void xfree(void*);
 # define SIZEOF_LONG_LONG SIZEOF___INT64
 #endif
 
+#include <AvailabilityMacros.h>
+
 #if defined(__LP64__) && (MAC_OS_X_VERSION_MAX_ALLOWED >= 1060)
 # define BDIGIT uint64_t
 # define SIZEOF_BDIGITS 8
