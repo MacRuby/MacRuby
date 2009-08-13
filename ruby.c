@@ -986,13 +986,8 @@ process_options(VALUE arg)
     opt->xflag = 0;
 
     if (rb_safe_level() >= 4) {
-#if __LP64__
-	RCLASS_RC_FLAGS(rb_argv) &= ~FL_TAINT;
-	RCLASS_RC_FLAGS(rb_vm_load_path()) &= ~FL_TAINT;
-#else
-	FL_UNSET(rb_argv, FL_TAINT);
-	FL_UNSET(rb_vm_load_path(), FL_TAINT);
-#endif
+	OBJ_TAINT(rb_argv);
+	OBJ_TAINT(rb_vm_load_path());
     }
 
     if (opt->do_check) {
