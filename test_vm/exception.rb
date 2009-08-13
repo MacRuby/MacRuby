@@ -233,3 +233,17 @@ assert ":ok", %{
     end
   end
 }
+
+assert ":ok", %{
+  module M
+    class LoadError < ::LoadError
+    end
+  end
+  class M::Foo
+    begin
+      require 'hey'
+    rescue LoadError
+      p :ok
+    end
+  end
+}

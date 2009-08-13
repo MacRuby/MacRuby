@@ -104,3 +104,16 @@ assert '42', %{
   }
   A.new.bar
 }
+
+assert ':ok', %{
+  module M
+    FOO=42
+  end
+  class M::Foo
+    begin
+      p FOO
+    rescue NameError
+      p :ok
+    end
+  end
+}
