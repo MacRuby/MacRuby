@@ -2515,10 +2515,12 @@ rb_str_inspect(VALUE str, SEL sel)
     for (i = 0; i < len; i++) {
 	UniChar c = CFStringGetCharacterFromInlineBuffer(&buf, i);
 	if (iswprint(c)) {
-	    __append(out, c);
-	}
-	else if (c == '"'|| c == '\\') {
-	    __append_escape(out, c);
+	    if (c == '"'|| c == '\\') {
+		__append_escape(out, c);
+	    }
+	    else {
+		__append(out, c);
+	    }
 	}
 	else if (c == '\n') {
 	    __append_escape(out, 'n');
