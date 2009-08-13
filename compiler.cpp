@@ -380,7 +380,7 @@ RoxorCompiler::compile_fast_op_call(SEL sel, Value *selfVal, Value *otherVal)
 	} \
 	func = storage; \
     } \
-    while (0);
+    while (0)
 
     if (sel == selPLUS) {	
 	fast_op(fastPlusFunc, "rb_vm_fast_plus");
