@@ -33,7 +33,9 @@ class StringIO
       begin
         yield obj
       ensure
-        obj.finalize
+        obj.close
+        obj.instance_variable_set(:@string, nil)
+        obj
       end
     else
       obj
@@ -618,12 +620,6 @@ class StringIO
     
     # meant to be overwritten by developers
     def to_strio
-      self
-    end
-  
-    def finalize
-      self.close
-      @string = nil
       self
     end
     
