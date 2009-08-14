@@ -82,8 +82,18 @@ obj_to_enum(VALUE obj, SEL sel, int argc, VALUE *argv)
 	--argc;
 	meth = *argv++;
     }
-    // TODO
-    return rb_enumeratorize(obj, 0, argc, argv);
+
+    ID meth_id = SYM2ID(meth);
+    SEL enum_sel;
+    if (argc > 0) {
+	char buf[100];
+	snprintf(buf, sizeof buf, "%s:", rb_id2name(meth_id));
+	enum_sel = sel_registerName(buf);
+    }
+    else {
+	enum_sel = sel_registerName(rb_id2name(meth_id));
+    }
+    return rb_enumeratorize(obj, enum_sel, argc, argv);
 }
 
 static VALUE
