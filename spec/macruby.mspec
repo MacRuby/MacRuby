@@ -35,6 +35,7 @@ class MSpecScript
     'library/readline',
     'library/scanf',
     'library/stringscanner',
+    'library/stringio',
     'library/time',
     'library/tmpdir',
     'library/yaml/dump_spec.rb',
