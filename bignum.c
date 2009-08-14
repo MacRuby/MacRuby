@@ -875,10 +875,10 @@ big2str_orig(VALUE x, int base, char* ptr, long len, long hbase, int trim)
 	    num %= hbase;
 	}
 	if (trim && ds[i-1] == 0) i--;
-#ifdef __LP64__
+#if defined(__LP64__) && (MAC_OS_X_VERSION_MAX_ALLOWED >= 1060)
 	k = SIZEOF_BDIGITS/2;
 #else
-    k = SIZEOF_BDIGITS;
+	k = SIZEOF_BDIGITS;
 #endif
 	while (k--) {
 	    ptr[--j] = ruby_digitmap[num % base];
