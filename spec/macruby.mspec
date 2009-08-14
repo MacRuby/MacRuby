@@ -34,6 +34,7 @@ class MSpecScript
     'library/pathname',
     'library/readline',
     'library/scanf',
+    'library/shellwords',
     'library/stringscanner',
     'library/stringio',
     'library/time',
