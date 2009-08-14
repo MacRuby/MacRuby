@@ -947,7 +947,7 @@ rb_vm_define_class(ID path, VALUE outer, VALUE super, int flags)
     }
 
 #if ROXOR_VM_DEBUG
-    if (is_module) {
+    if (flags & DEFINE_MODULE) {
 	printf("define module %s::%s\n", 
 		class_getName((Class)outer), 
 		rb_id2name(path));
