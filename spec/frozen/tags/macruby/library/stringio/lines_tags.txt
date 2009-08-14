@@ -1,0 +1,2 @@
+fails:StringIO#lines when passed a separator does not change $_
+fails:StringIO#lines when passed no arguments does not change $_

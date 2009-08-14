@@ -126,7 +126,7 @@ class StringIO
     raise TypeError unless buffer.respond_to?(:to_str)
     buffer = buffer.to_str      
  
-    if length.nil?
+    if length == nil
       return "" if self.eof?
       buffer.replace(@string[@pos..-1])
       @pos = string.size
@@ -148,7 +148,7 @@ class StringIO
   # returning +nil+, as well as IO#sysread does.
   def sysread(length = nil, buffer = "")
     val = read(length, buffer)
-    raise(IO::EOFError, "end of file reached") if val == nil
+    ( buffer.clear && raise(IO::EOFError, "end of file reached")) if val == nil
     val
   end  
   alias_method :readpartial, :sysread
@@ -326,8 +326,9 @@ class StringIO
   # Returns nil if called at end of ﬁle
   def getc
     return nil if eof?
+    result = string[pos]
     @pos += 1
-    string[pos]
+    result
   end
     
   #   strio.ungetc(string)   -> nil
@@ -386,7 +387,7 @@ class StringIO
     # the following code isn't used
     # instead we are dealing with chars
     result = string.bytes.to_a[pos]
-    @pos += 1             
+    @pos += 1 unless eof?
     result 
     # getc
   end
@@ -420,13 +421,13 @@ class StringIO
   def each(sep = $/)
     if block_given?
       raise(IOError, "not opened for reading") unless @readable
-      sep = sep.to_s unless sep == nil
+      sep = sep.to_str unless sep == nil
       while line = getline(sep)
         yield(line)
       end
       self
     else
-      to_enum(:each_byte, sep)
+      to_enum(:each, sep)
     end
   end 
   alias_method :each_line, :each
@@ -509,7 +510,7 @@ class StringIO
   
   def close_write
     raise(IOError, "closing non-duplex IO for writing") unless @writable
-    @writable = false
+    @writable = nil
   end
   
   #   strio.truncate(integer)    -> 0
@@ -572,6 +573,39 @@ class StringIO
     
     nil
   end
+  
+  
+  #   strio.putc(obj)    -> obj
+  #
+  #  If <i>obj</i> is <code>Numeric</code>, write the character whose
+  #  code is <i>obj</i>, otherwise write the first character of the
+  #  string representation of  <i>obj</i> to <em>strio</em>.
+  #
+  def putc(obj)
+    raise(IOError, "not opened for writing") unless @writable
+
+    if obj.is_a?(String)
+      char = obj[0]
+    else
+      raise TypeError unless obj.respond_to?(:to_int)  
+      char = obj.to_int
+    end
+
+    if @append || pos == string.length
+      @string << char
+      @pos = string.length
+    elsif pos > string.length
+      @string = string.ljust(pos, "\000")
+      @string << char
+      @pos = string.length
+    else
+      @string[pos] = ("" << char)
+      @pos += 1
+    end
+
+    obj
+  end
+    
   
   #     strio.print()             => nil
   #     strio.print(obj, ...)     => nil
@@ -688,19 +722,19 @@ class StringIO
     
     def getline(sep = $/)
       raise(IOError, "not opened for reading") unless @readable
-      sep = sep.to_str unless (sep.nil? || sep.kind_of?(String))
       return nil if eof?
-
+      sep = sep.to_str unless (sep == nil)
+      
       if sep == nil
         line = string[pos .. -1]
         @pos = string.size
       elsif sep.empty?
         if stop = string.index("\n\n", pos)
-          stop += 2
-          line = string[pos .. (stop - 2)]
+          stop += 1
+          line = string[pos .. stop]
           while string[stop] == ?\n
             stop += 1
-          end
+          end  
           @pos = stop
         else
           line = string[pos .. -1]

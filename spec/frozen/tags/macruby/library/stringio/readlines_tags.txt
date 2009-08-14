@@ -1,1 +1,2 @@
-fails:StringIO#readlines when passed [separator] returns an Array containing all paragraphs when the passed separator is an empty String
+fails:StringIO#readlines when passed [separator] does not change $_
+fails:StringIO#readlines when passed no argument does not change $_

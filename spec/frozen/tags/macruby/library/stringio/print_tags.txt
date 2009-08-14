@@ -1,1 +1,2 @@
 fails:StringIO#print prints $_ when passed no arguments
+fails:StringIO#print prints $_ when passed no arguments and return self if $_ is nil
