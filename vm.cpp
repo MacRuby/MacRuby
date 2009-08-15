@@ -361,7 +361,7 @@ RoxorCore::compile(Function *func)
     }
 
 #if ROXOR_COMPILER_DEBUG
-    if (verifyModule(*RoxorCompiler::module)) {
+    if (verifyModule(*RoxorCompiler::module, PrintMessageAction)) {
 	printf("Error during module verification\n");
 	exit(1);
     }
@@ -385,7 +385,7 @@ RoxorCore::compile(Function *func)
 
     uint64_t elapsedNano = elapsed * sTimebaseInfo.numer / sTimebaseInfo.denom;
 
-    printf("compilation of LLVM function %p done, took %lld ns\n",
+    fprintf(stderr, "compilation of LLVM function %p done, took %lld ns\n",
 	func, elapsedNano);
 #endif
 

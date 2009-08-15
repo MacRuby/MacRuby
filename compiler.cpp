@@ -51,6 +51,7 @@ RoxorCompiler::RoxorCompiler(void)
     current_rescue = false;
     return_from_block = -1;
     return_from_block_ids = 0;
+    ensure_pn = NULL;
 
     dispatcherFunc = NULL;
     fastPlusFunc = NULL;
@@ -1679,6 +1680,7 @@ RoxorCompiler::compile_jump(NODE *node)
 	    else {
 		if (ensure_bb != NULL) {
 		    BranchInst::Create(ensure_bb, bb);
+		    ensure_pn->addIncoming(val, bb);
 		}
 		else {
 		    ReturnInst::Create(val, bb);
@@ -4498,7 +4500,9 @@ rescan_args:
 
 		Function *f = bb->getParent();
 		BasicBlock *old_ensure_bb = ensure_bb;
+		PHINode *old_ensure_pn = ensure_pn;
 		ensure_bb = BasicBlock::Create("ensure", f);
+		ensure_pn = PHINode::Create(RubyObjTy, "ensure.phi", ensure_bb);
 		Value *val;
 
 		if (nd_type(node->nd_head) != NODE_RESCUE) {
@@ -4515,6 +4519,7 @@ rescan_args:
 		    DEBUG_LEVEL_DEC();
 		    rescue_bb = old_rescue_bb;
 		    BranchInst::Create(ensure_bb, bb);
+		    ensure_pn->addIncoming(val, bb);
 
 		    bb = new_rescue_bb;
 		    compile_landing_pad_header();
@@ -4524,10 +4529,14 @@ rescan_args:
 		else {
 		    val = compile_node(node->nd_head);
 		    BranchInst::Create(ensure_bb, bb);
+		    ensure_pn->addIncoming(val, bb);
 		}
+
+		val = ensure_pn;
 
 		bb = ensure_bb;
 		ensure_bb = old_ensure_bb;
+		ensure_pn = old_ensure_pn;
 		compile_node(node->nd_ensr);
 
 		return val;

@@ -102,6 +102,7 @@ class RoxorCompiler {
 	Value *current_loop_exit_val;
 	int return_from_block;
 	int return_from_block_ids;
+	PHINode *ensure_pn;
 
 	Function *dispatcherFunc;
 	Function *fastPlusFunc;
