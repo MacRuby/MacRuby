@@ -257,3 +257,15 @@ assert '42', %{
   end
   p bar(1)
 }
+
+assert '42', %{
+  def foo
+    begin
+      return 42
+    ensure
+      nil
+    end
+    23
+  end
+  p foo
+}
