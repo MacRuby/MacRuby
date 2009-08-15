@@ -247,3 +247,13 @@ assert ":ok", %{
     end
   end
 }
+
+assert '42', %{
+  def bar(arg)
+    return 42 if arg == 1
+    return a
+  ensure
+    nil
+  end
+  p bar(1)
+}
