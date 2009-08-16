@@ -283,3 +283,42 @@ assert "1\n2\n42", %{
   end
   p foo
 }
+
+assert ':ok', %{
+  class A < Exception; end
+  def foo
+    begin
+      raise 'foo'
+    rescue A
+    ensure
+      p :ok
+    end
+    p :ko
+  end
+  
+  begin
+    foo
+  rescue
+  end  
+}
+
+assert ':ok', %{
+  class A < Exception; end
+  def foo
+    begin
+      begin
+        raise 'foo'
+      rescue A
+      end
+      p :ko
+    ensure
+      p :ok
+    end
+    p :ko
+  end
+  
+  begin
+    foo
+  rescue
+  end
+}
