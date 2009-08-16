@@ -99,9 +99,7 @@ rary_reserve(rb_ary_t *ary, size_t newlen)
 static void
 rary_append(rb_ary_t *ary, VALUE item)
 {
-    if (ary->beg + ary->len + 1 >= ary->cap) {
-	rary_reserve(ary, (ary->cap + 1) * 10);
-    }
+    rary_reserve(ary, ary->len + 1);
     rary_replace(ary, ary->len, item);
     ary->len++;
 }
