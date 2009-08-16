@@ -1527,24 +1527,22 @@ rb_reg_search(VALUE re, VALUE str, int pos, int reverse)
 	result /= charsize;
     }
 
-#if WITH_OBJC
-    VALUE match = match_alloc(rb_cMatch, 0);
-#else
     VALUE match = rb_backref_get();
     if (NIL_P(match) || FL_TEST(match, MATCH_BUSY)) {
-	match = match_alloc(rb_cMatch);
+	match = match_alloc(rb_cMatch, 0);
     }
     else {
-	if (rb_safe_level() >= 3)
+	if (rb_safe_level() >= 3) {
 	    OBJ_TAINT(match);
-	else
+	}
+	else {
 	    FL_UNSET(match, FL_TAINT);
+	}
     }
-#endif
 
     onig_region_copy(RMATCH_REGS(match), pregs);
     onig_region_free(pregs, 0);
-    GC_WB(&RMATCH(match)->str, rb_str_new4(str));
+    GC_WB(&RMATCH(match)->str, rb_str_new4(str)); // OPTIMIZE
     GC_WB(&RMATCH(match)->regexp, re);
     RMATCH(match)->rmatch->char_offset_updated = 0;
     rb_backref_set(match);
