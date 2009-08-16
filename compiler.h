@@ -250,6 +250,7 @@ class RoxorCompiler {
 	Value *compile_dstr(NODE *node);
 	Value *compile_dvar_slot(ID name);
 	void compile_break_val(Value *val);
+	void compile_simple_return(Value *val);
 	void compile_return_from_block(Value *val, int id);
 	void compile_return_from_block_handler(int id);
 	Value *compile_jump(NODE *node);

@@ -1678,13 +1678,7 @@ RoxorCompiler::compile_jump(NODE *node)
 		ReturnInst::Create(val, bb);
 	    }
 	    else {
-		if (ensure_bb != NULL) {
-		    BranchInst::Create(ensure_bb, bb);
-		    ensure_pn->addIncoming(val, bb);
-		}
-		else {
-		    ReturnInst::Create(val, bb);
-		}
+		compile_simple_return(val);
 	    }
 	    break;
     }
@@ -1695,6 +1689,17 @@ RoxorCompiler::compile_jump(NODE *node)
     bb = BasicBlock::Create("DEAD", bb->getParent());
 
     return val;
+}
+
+void RoxorCompiler::compile_simple_return(Value *val)
+{
+    if (ensure_bb != NULL) {
+	BranchInst::Create(ensure_bb, bb);
+	ensure_pn->addIncoming(val, bb);
+    }
+    else {
+	ReturnInst::Create(val, bb);
+    }
 }
 
 Value *
@@ -4504,9 +4509,15 @@ rescan_args:
 		Function *f = bb->getParent();
 		BasicBlock *old_ensure_bb = ensure_bb;
 		PHINode *old_ensure_pn = ensure_pn;
-		ensure_bb = BasicBlock::Create("ensure", f);
-		ensure_pn = PHINode::Create(RubyObjTy, "ensure.phi", ensure_bb);
+		// the ensure for when the block is left with a return
+		BasicBlock *ensure_return_bb = BasicBlock::Create("ensure.for.return", f);
+		// the ensure for when the block is left without using return
+		BasicBlock *ensure_normal_bb = BasicBlock::Create("ensure.no.return", f);
+		PHINode *new_ensure_pn = PHINode::Create(RubyObjTy, "ensure.phi", ensure_return_bb);
+		ensure_pn = new_ensure_pn;
 		Value *val;
+
+		ensure_bb = ensure_return_bb;
 
 		if (nd_type(node->nd_head) != NODE_RESCUE) {
 		    // An ensure without a rescue (Ex. begin; ...; ensure; end)
@@ -4521,8 +4532,7 @@ rescan_args:
 		    val = compile_node(node->nd_head);
 		    DEBUG_LEVEL_DEC();
 		    rescue_bb = old_rescue_bb;
-		    BranchInst::Create(ensure_bb, bb);
-		    ensure_pn->addIncoming(val, bb);
+		    BranchInst::Create(ensure_normal_bb, bb);
 
 		    bb = new_rescue_bb;
 		    compile_landing_pad_header();
@@ -4531,15 +4541,30 @@ rescan_args:
 		}
 		else {
 		    val = compile_node(node->nd_head);
-		    BranchInst::Create(ensure_bb, bb);
-		    ensure_pn->addIncoming(val, bb);
+		    BranchInst::Create(ensure_normal_bb, bb);
 		}
 
-		val = ensure_pn;
-
-		bb = ensure_bb;
 		ensure_bb = old_ensure_bb;
 		ensure_pn = old_ensure_pn;
+
+		if (new_ensure_pn->getNumIncomingValues() == 0) {
+		    // there was no return in the block so we do not need
+		    // to have an ensure block to return the value
+		    new_ensure_pn->eraseFromParent();
+		    ensure_return_bb->eraseFromParent();
+		}
+		else {
+		    // some value was returned in the block so we have to
+		    // make a version of the ensure that returns this value
+		    bb = ensure_return_bb;
+		    compile_node(node->nd_ensr);
+		    // the return value is the PHINode from all the return
+		    compile_simple_return(new_ensure_pn);
+		}
+
+		// we also have to compile the ensure
+		// for when the block was left without return
+		bb = ensure_normal_bb;
 		compile_node(node->nd_ensr);
 
 		return val;
