@@ -91,21 +91,27 @@ rb_str_new_empty(void)
 VALUE
 rb_str_new_fast(int argc, ...)
 {
-    VALUE str;
-   
-    str = str_alloc(0);
+    VALUE str = str_alloc(0);
 
     if (argc > 0) {
 	va_list ar;
-	int i;
-
 	va_start(ar, argc);
-	for (i = 0; i < argc; ++i) {
-	    VALUE fragment;
-	   
-	    fragment = va_arg(ar, VALUE);
-	    fragment = rb_obj_as_string(fragment);
-	    CFStringAppend((CFMutableStringRef)str, (CFStringRef)fragment);
+	for (int i = 0; i < argc; ++i) {
+	    VALUE fragment = va_arg(ar, VALUE);
+	    switch (TYPE(fragment)) {
+		case T_FIXNUM:
+		    CFStringAppendFormat((CFMutableStringRef)str, NULL, CFSTR("%ld"),
+			    FIX2LONG(fragment));
+		    break;
+
+		default:
+		    fragment = rb_obj_as_string(fragment);
+		    // fall through
+
+		case T_STRING:
+		    CFStringAppend((CFMutableStringRef)str, (CFStringRef)fragment);
+		    break;
+	    }
 	}
 	va_end(ar);
     }
