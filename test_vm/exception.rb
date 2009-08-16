@@ -269,3 +269,17 @@ assert '42', %{
   end
   p foo
 }
+
+assert "1\n2\n42", %{
+  def foo
+    begin
+      return 42
+    ensure
+      p 1
+    end
+    p 3
+  ensure
+    p 2
+  end
+  p foo
+}
