@@ -2465,6 +2465,12 @@ recache2:
 	else {
 	    // Method is not found...
 
+	    // Force a method resolving, because the objc cache might be
+	    // wrong.
+	    if (rb_vm_resolve_method(klass, sel)) {
+		goto recache;
+	    }
+
 	    // Does the receiver implements -forwardInvocation:?
 	    if (opt != DISPATCH_SUPER && can_forwardInvocation(self, sel)) {
 		fill_ocache(cache, self, klass, (IMP)objc_msgSend, sel, NULL,
@@ -3845,6 +3851,29 @@ rb_vm_yield_args(int argc, ...)
 
 extern IMP basic_respond_to_imp; // vm_method.c
 
+static inline IMP
+class_respond_to(Class klass, SEL sel)
+{
+#if 0
+    Method m = class_getInstanceMethod(klass, sel);
+    if (m != NULL) {
+	return method_getImplementation(m);
+    }
+    return NULL;
+#else
+    IMP imp = class_getMethodImplementation(klass, sel);
+    if (imp == _objc_msgForward) {
+	if (rb_vm_resolve_method(klass, sel)) {
+	    imp = class_getMethodImplementation(klass, sel);
+	}
+	else {
+	    imp = NULL;
+	}
+    }
+    return imp;
+#endif
+}
+
 extern "C"
 bool
 rb_vm_respond_to(VALUE obj, SEL sel, bool priv)
@@ -3855,30 +3884,31 @@ rb_vm_respond_to(VALUE obj, SEL sel, bool priv)
 	    selRespondTo);
 
     if (respond_to_imp == basic_respond_to_imp) {
-	Method m = class_getInstanceMethod((Class)klass, sel);
 	bool reject_pure_ruby_methods = false;
-	if (m == NULL) {
+	IMP imp = class_respond_to((Class)klass, sel);
+	if (imp == NULL) {
 	    const char *selname = sel_getName(sel);
 	    sel = helper_sel(selname, strlen(selname));
 	    if (sel != NULL) {
-		m = class_getInstanceMethod((Class)klass, sel);
-		if (m == NULL) {
+		imp = class_respond_to((Class)klass, sel);
+		if (imp == NULL) {
 		    return false;
 		}
 		reject_pure_ruby_methods = true;
 	    }
 	}
-	IMP obj_imp = method_getImplementation(m);
-	rb_vm_method_node_t *node = obj_imp == NULL
-	    ? NULL : GET_CORE()->method_node_get(obj_imp);
+	if (imp == NULL) {
+	    return false;
+	}
 
+	rb_vm_method_node_t *node = GET_CORE()->method_node_get(imp);
 	if (node != NULL
 		&& (reject_pure_ruby_methods
 		    || (priv == 0
 			&& (rb_vm_method_node_noex(node) & NOEX_PRIVATE)))) {
 	    return false;
 	}
-        return obj_imp != NULL;
+        return true;
     }
     else {
 	VALUE args[2];

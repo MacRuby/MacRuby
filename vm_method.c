@@ -844,7 +844,6 @@ obj_respond_to(VALUE obj, SEL sel, int argc, VALUE *argv)
     rb_scan_args(argc, argv, "11", &mid, &priv);
     id = rb_to_id(mid);
     return rb_obj_respond_to(obj, id, RTEST(priv)) ? Qtrue : Qfalse;
-    return Qfalse;
 }
 
 IMP basic_respond_to_imp = NULL;
