@@ -1291,6 +1291,12 @@ static rb_encoding*
 rb_reg_prepare_enc(VALUE re, VALUE str, char **pcstr, size_t *pcharsize,
 	bool *should_free)
 {
+    if (*(VALUE *)str == rb_cByteString) {
+	*pcstr = (char *)rb_bytestring_byte_pointer(str);
+	*pcharsize = 1;
+	*should_free = false;
+	return (rb_encoding *)ONIG_ENCODING_ASCII;
+    }
     CFStringEncoding enc = CFStringGetFastestEncoding((CFStringRef)str);
     switch (enc) {
 	case kCFStringEncodingMacRoman:

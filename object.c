@@ -779,8 +779,7 @@ rb_obj_tainted_p(VALUE obj, SEL sel)
 		// fall through
 	    case T_STRING:
 		if (*(VALUE *)obj == rb_cByteString) {
-		    return rb_objc_flag_check((const void *)obj, FL_TAINT)
-			? Qtrue : Qfalse;
+		    return RBASIC(obj)->flags & FL_TAINT ? Qtrue : Qfalse;
 		}
 		// fall through
 	    case T_HASH:
@@ -826,7 +825,7 @@ rb_obj_taint_m(VALUE obj, SEL sel)
 		// fall through
 	    case T_STRING:
 		if (*(VALUE *)obj == rb_cByteString) {
-		    rb_objc_flag_set((const void *)obj, FL_TAINT, true);
+		    RBASIC(obj)->flags |= FL_TAINT;
 		    break;
 		}
 		// fall through
@@ -871,13 +870,13 @@ rb_obj_untaint_m(VALUE obj, SEL sel)
 	switch (TYPE(obj)) {
 	    case T_ARRAY:
 		if (*(VALUE *)obj != rb_cCFArray) {
-		   RBASIC(obj)->flags &= ~FL_TAINT;
-		   break;
+		    RBASIC(obj)->flags &= ~FL_TAINT;
+		    break;
 		}	
 		// fall through
 	    case T_STRING:
 		if (*(VALUE *)obj == rb_cByteString) {
-		    rb_objc_flag_set((const void *)obj, FL_TAINT, false);
+		    RBASIC(obj)->flags &= ~FL_TAINT;
 		    break;
 		}
 		// fall through
@@ -918,8 +917,7 @@ rb_obj_untrusted_imp(VALUE obj, SEL sel)
 		// fall through
 	    case T_STRING:
 		if (*(VALUE *)obj == rb_cByteString) {
-		    return rb_objc_flag_check((const void *)obj, FL_UNTRUSTED)
-			? Qtrue : Qfalse;
+		    return RBASIC(obj)->flags & FL_UNTRUSTED ? Qtrue : Qfalse;
 		}
 		// fall through
 	    case T_HASH:
@@ -956,7 +954,7 @@ rb_obj_trust_imp(VALUE obj, SEL sel)
 		// fall through
 	    case T_STRING:
 		if (*(VALUE *)obj == rb_cByteString) {
-		    rb_objc_flag_set((const void *)obj, FL_UNTRUSTED, false);
+		    RBASIC(obj)->flags &= ~FL_UNTRUSTED;
 		    break;
 		}
 		// fall through
@@ -999,7 +997,7 @@ rb_obj_untrust_imp(VALUE obj, SEL sel)
 		// fall through
 	    case T_STRING:
 		if (*(VALUE *)obj == rb_cByteString) {
-		    rb_objc_flag_set((const void *)obj, FL_UNTRUSTED, true);
+		    RBASIC(obj)->flags |= FL_UNTRUSTED;
 		    break;
 		}
 		// fall through
@@ -1080,7 +1078,7 @@ rb_obj_freeze_m(VALUE obj, SEL sel)
 		    // fall through
 		case T_STRING:
 		    if (*(VALUE *)obj == rb_cByteString) {
-			rb_objc_flag_set((const void *)obj, FL_FREEZE, true);
+			RBASIC(obj)->flags |= FL_FREEZE;
 			break;
 		    }
 		    // fall through
@@ -1106,7 +1104,7 @@ rb_obj_freeze_m(VALUE obj, SEL sel)
 VALUE
 rb_obj_freeze(VALUE obj)
 {
-	return rb_obj_freeze_m(obj, 0);
+    return rb_obj_freeze_m(obj, 0);
 }
 
 /*
@@ -1124,8 +1122,12 @@ static VALUE
 rb_obj_frozen(VALUE obj, SEL sel)
 {
     if (SPECIAL_CONST_P(obj)) {
-	if (!immediate_frozen_tbl) return Qfalse;
-	if (st_lookup(immediate_frozen_tbl, obj, 0)) return Qtrue;
+	if (!immediate_frozen_tbl) {
+	    return Qfalse;
+	}
+	if (st_lookup(immediate_frozen_tbl, obj, 0)) {
+	    return Qtrue;
+	}
 	return Qfalse;
     }
     switch (TYPE(obj)) {
@@ -1136,8 +1138,7 @@ rb_obj_frozen(VALUE obj, SEL sel)
 	    // fall through
 	case T_STRING:
 	    if (*(VALUE *)obj == rb_cByteString) {
-		return rb_objc_flag_check((const void *)obj, FL_FREEZE)
-		    ? Qtrue : Qfalse;
+		return RBASIC(obj)->flags & FL_FREEZE ? Qtrue : Qfalse;
 	    }
 	    // fall through
 	case T_HASH:
@@ -2913,9 +2914,9 @@ Init_Object(void)
     rb_objc_define_method(rb_mKernel, "untaint", rb_obj_untaint_m, 0);
     rb_objc_define_method(rb_mKernel, "freeze", rb_obj_freeze_m, 0);
     rb_objc_define_method(rb_mKernel, "frozen?", rb_obj_frozen, 0);
-	rb_objc_define_method(rb_mKernel, "trust", rb_obj_trust_imp, 0);
-	rb_objc_define_method(rb_mKernel, "untrust", rb_obj_untrust_imp, 0);
-	rb_objc_define_method(rb_mKernel, "untrusted?", rb_obj_untrusted_imp, 0);
+    rb_objc_define_method(rb_mKernel, "trust", rb_obj_trust_imp, 0);
+    rb_objc_define_method(rb_mKernel, "untrust", rb_obj_untrust_imp, 0);
+    rb_objc_define_method(rb_mKernel, "untrusted?", rb_obj_untrusted_imp, 0);
 
     rb_objc_define_method(rb_mKernel, "to_s", rb_any_to_string, 0);
     rb_objc_define_method(rb_mKernel, "inspect", rb_obj_inspect, 0);

@@ -34,10 +34,6 @@ VALUE rb_cNSMutableString;
 VALUE rb_cSymbol;
 VALUE rb_cByteString;
 
-static ptrdiff_t wrappedDataOffset;
-#define WRAPPED_DATA_IV_NAME "wrappedData"
-#define BYTESTRING_ENCODING_IV_NAME "encoding"
-
 VALUE
 rb_str_freeze(VALUE str)
 {
@@ -320,8 +316,13 @@ rb_str_dup_imp(VALUE str, SEL sel)
     VALUE dup;
 
 #if 1
-    dup = (VALUE)CFStringCreateMutableCopy(NULL, 0, (CFStringRef)str);
-    CFMakeCollectable((CFTypeRef)dup);
+    if (*(VALUE *)str == rb_cByteString) {
+	dup = rb_bytestring_copy(str);
+    }
+    else {
+	dup = (VALUE)CFStringCreateMutableCopy(NULL, 0, (CFStringRef)str);
+	CFMakeCollectable((CFTypeRef)dup);
+    }
 #else
     dup = (VALUE)objc_msgSend((id)str, selMutableCopy);
 #endif
@@ -739,8 +740,7 @@ rb_str_resize(VALUE str, long len)
     return str;
 }
 
-__attribute__((always_inline))
-static void
+static force_inline void
 rb_objc_str_cat(VALUE str, const char *ptr, long len, int cfstring_encoding)
 {
     if (*(VALUE *)str == rb_cByteString) {
@@ -5315,24 +5315,21 @@ install_symbol_primitives(void)
 
 #undef INSTALL_METHOD
 
-static inline void **
-rb_bytestring_ivar_addr(VALUE bstr)
-{
-    return (void **)((char *)bstr + wrappedDataOffset);
-}
+typedef struct {
+    struct RBasic basic;
+    CFMutableDataRef data;
+} rb_bstr_t;
 
 CFMutableDataRef 
 rb_bytestring_wrapped_data(VALUE bstr)
 {
-    void **addr = rb_bytestring_ivar_addr(bstr);
-    return (CFMutableDataRef)(*addr); 
+    return ((rb_bstr_t *)bstr)->data;
 }
 
 inline void
 rb_bytestring_set_wrapped_data(VALUE bstr, CFMutableDataRef data)
 {
-    void **addr = rb_bytestring_ivar_addr(bstr);
-    GC_WB(addr, data);
+    GC_WB(&((rb_bstr_t *)bstr)->data, data);
 }
 
 UInt8 *
@@ -5344,7 +5341,11 @@ rb_bytestring_byte_pointer(VALUE bstr)
 static inline VALUE
 bytestring_alloc(void)
 {
-    return (VALUE)class_createInstance((Class)rb_cByteString, sizeof(void *));
+    NEWOBJ(bstr, rb_bstr_t);
+    bstr->basic.flags = 0;
+    bstr->basic.klass = rb_cByteString;
+    bstr->data = NULL;
+    return (VALUE)bstr;
 }
 
 static VALUE
@@ -5362,9 +5363,7 @@ rb_bytestring_alloc(VALUE klass, SEL sel)
 VALUE 
 rb_bytestring_new() 
 {
-    VALUE bs = rb_bytestring_alloc(0, 0);
-    bs = (VALUE)objc_msgSend((id)bs, selInit); // [recv init];
-    return bs;
+    return rb_bytestring_alloc(0, 0);
 }
 
 VALUE
@@ -5401,8 +5400,6 @@ rb_bytestring_initialize(VALUE recv, SEL sel, int argc, VALUE *argv)
     VALUE orig;
 
     rb_scan_args(argc, argv, "01", &orig);
-
-    recv = (VALUE)objc_msgSend((id)recv, selInit); // [recv init];
 
     if (!NIL_P(orig)) {
 	StringValue(orig);
@@ -5535,15 +5532,21 @@ imp_rb_bytestring_replaceCharactersInRange_withString(void *rcv, SEL sel,
     CFDataReplaceBytes(data, range, bytes, length);
 }
 
-static void *
-imp_rb_bytestring_mutableCopy(void *rcv, SEL sel)
+VALUE
+rb_bytestring_copy(VALUE bstr)
 {
     VALUE new_bstr = rb_bytestring_new();
-    CFMutableDataRef rcv_data = rb_bytestring_wrapped_data((VALUE)rcv);
+    CFMutableDataRef rcv_data = rb_bytestring_wrapped_data(bstr);
     CFMutableDataRef new_data = rb_bytestring_wrapped_data(new_bstr);
     CFDataAppendBytes(new_data, (const UInt8 *)CFDataGetMutableBytePtr(rcv_data),
 	    CFDataGetLength(rcv_data));
-    return (void *)new_bstr;
+    return new_bstr;
+}
+
+static void *
+imp_rb_bytestring_mutableCopy(void *rcv, SEL sel)
+{
+    return (void *)rb_bytestring_copy((VALUE)rcv);
 }
 
 static void
@@ -5743,12 +5746,8 @@ Init_String(void)
 
     install_symbol_primitives();
 
-    rb_cByteString = (VALUE)objc_allocateClassPair((Class)rb_cNSMutableString,
-	    "ByteString", sizeof(void *));
+    rb_cByteString = rb_define_class("ByteString", rb_cNSMutableString);
     RCLASS_SET_VERSION_FLAG(rb_cByteString, RCLASS_IS_STRING_SUBCLASS);
-    class_addIvar((Class)rb_cByteString, WRAPPED_DATA_IV_NAME, sizeof(id), 
-	    0, "@");
-    objc_registerClassPair((Class)rb_cByteString);
 
     rb_objc_install_method2((Class)rb_cByteString, "isEqual:",
 	    (IMP)imp_rb_bytestring_isEqual);
@@ -5773,7 +5772,4 @@ Init_String(void)
 	    rb_bytestring_bytesize, 0);
     rb_objc_define_method(rb_cByteString, "getbyte", rb_bytestring_getbyte, 1);
     rb_objc_define_method(rb_cByteString, "setbyte", rb_bytestring_setbyte, 2);
-    wrappedDataOffset = ivar_getOffset(
-	    class_getInstanceVariable((Class)rb_cByteString,
-		WRAPPED_DATA_IV_NAME));
 }

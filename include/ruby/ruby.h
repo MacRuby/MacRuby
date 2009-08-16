@@ -404,6 +404,7 @@ char *rb_string_value_cstr(volatile VALUE*);
 VALUE rb_bytestring_new();
 VALUE rb_bytestring_new_with_data(const UInt8 *buf, long size);
 VALUE rb_bytestring_new_with_cfdata(CFMutableDataRef data);
+VALUE rb_bytestring_copy(VALUE str);
 CFMutableDataRef rb_bytestring_wrapped_data(VALUE);
 CFStringRef rb_bytestring_resolve_cfstring(VALUE str);
 UInt8 *rb_bytestring_byte_pointer(VALUE);
