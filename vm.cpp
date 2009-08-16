@@ -3851,6 +3851,11 @@ rb_vm_yield_args(int argc, ...)
 
 extern IMP basic_respond_to_imp; // vm_method.c
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1060
+// the function is available on Leopard but it's not declared
+extern "C" id _objc_msgForward(id receiver, SEL sel, ...);
+#endif
+
 static inline IMP
 class_respond_to(Class klass, SEL sel)
 {
