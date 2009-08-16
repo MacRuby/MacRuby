@@ -4495,8 +4495,11 @@ rescan_args:
 
 	case NODE_ENSURE:
 	    {
-		assert(node->nd_head != NULL);
 		assert(node->nd_ensr != NULL);
+		if (node->nd_head == NULL) {
+		    compile_node(node->nd_ensr);
+		    return nilVal;
+		}
 
 		Function *f = bb->getParent();
 		BasicBlock *old_ensure_bb = ensure_bb;
