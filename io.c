@@ -811,9 +811,9 @@ rb_io_eof(VALUE io, SEL sel)
     rb_io_t *io_struct = ExtractIOStruct(io);
     rb_io_assert_readable(io_struct);
 
-    if ((CFReadStreamGetStatus(io_struct->readStream) == kCFStreamStatusAtEnd)) {
-		// if there's anything left in the ungetc buffer, this io is not at EOF
-		return (io_struct->ungetc_buf_len == 0) ? Qtrue : Qfalse;
+    if (CFReadStreamGetStatus(io_struct->readStream) == kCFStreamStatusAtEnd) {
+	// If there's anything left in the ungetc buffer, this io is not at EOF.
+	return io_struct->ungetc_buf_len == 0 ? Qtrue : Qfalse;
     }
 
     // The stream is still open, however, there might not be any data left.
@@ -1206,7 +1206,7 @@ io_read(VALUE io, SEL sel, int argc, VALUE *argv)
         return rb_io_read_all(io_struct, outbuf);
     }
 
-    long size = FIX2LONG(len);
+    const long size = FIX2LONG(len);
     if (size == 0) {
 	return rb_str_new2("");
     }
@@ -1215,7 +1215,7 @@ io_read(VALUE io, SEL sel, int argc, VALUE *argv)
     CFDataIncreaseLength(data, size);
     UInt8 *buf = CFDataGetMutableBytePtr(data);
 
-    long data_read = rb_io_read_internal(io_struct, buf, size);
+    const long data_read = rb_io_read_internal(io_struct, buf, size);
     if (data_read == 0) {
 	return Qnil;
     }
@@ -1330,9 +1330,6 @@ rb_io_gets_m(VALUE io, SEL sel, int argc, VALUE *argv)
     }
     rb_io_t *io_struct = ExtractIOStruct(io);
     rb_io_assert_readable(io_struct);
-    if (rb_io_eof(io, 0) == Qtrue) {
-	return Qnil;
-    }
 
     if (NIL_P(rb_rs)) {
 	// TODO: Get rid of this when the fix comes in for the $\ variable.
@@ -1355,7 +1352,7 @@ rb_io_gets_m(VALUE io, SEL sel, int argc, VALUE *argv)
 	    sep = (VALUE)CFSTR("\n\n");
 	}
     }
-    long line_limit = (NIL_P(limit) ? -1 : FIX2LONG(limit));
+    const long line_limit = NIL_P(limit) ? -1 : FIX2LONG(limit);
     // now that we've got our parameters, let's get down to business.
 
     VALUE bstr = rb_bytestring_new();
@@ -1542,12 +1539,8 @@ static SEL sel_each_char = 0;
 static VALUE
 rb_io_each_line(VALUE io, SEL sel, int argc, VALUE *argv)
 {
-	if (!rb_block_given_p())
-	{
-		// return an enumerator unless given a block.
-		return rb_enumeratorize(io, sel_each_line, 0, NULL);
-	}
-	
+    RETURN_ENUMERATOR(io, argc, argv);
+
     VALUE line = rb_io_gets_m(io, sel, argc, argv);
     while (!NIL_P(line)) {
 	rb_vm_yield(1, &line);
@@ -1573,14 +1566,9 @@ rb_io_each_line(VALUE io, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_io_each_byte(VALUE io, SEL sel)
 {
-	if (!rb_block_given_p())
-	{
-		// return an enumerator unless given a block.
-		return rb_enumeratorize(io, sel_each_byte, 0, NULL);
-	}
-	
-    VALUE b = rb_io_getbyte(io, 0);
+    RETURN_ENUMERATOR(io, 0, 0);
 
+    VALUE b = rb_io_getbyte(io, 0);
     while (!NIL_P(b)) {
 	rb_vm_yield(1, &b);
 	b = rb_io_getbyte(io, 0);
@@ -1605,14 +1593,9 @@ static VALUE rb_io_getc(VALUE io, SEL sel);
 static VALUE
 rb_io_each_char(VALUE io, SEL sel)
 {
-	if (!rb_block_given_p())
-	{
-		// return an enumerator unless given a block.
-		return rb_enumeratorize(io, sel_each_char, 0, NULL);
-	}
-	
+    RETURN_ENUMERATOR(io, 0, 0);
+
     VALUE c = rb_io_getc(io, 0);
-	
     while (!NIL_P(c)) {
 	rb_vm_yield(1, &c);
 	c = rb_io_getc(io, 0);
