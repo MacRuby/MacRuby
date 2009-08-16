@@ -322,3 +322,41 @@ assert ':ok', %{
   rescue
   end
 }
+
+assert "1\n2", %{
+  class A < Exception; end
+  class B < Exception; end
+  begin
+    begin
+      begin
+        raise A.new
+      rescue B
+        p :ko1
+      end
+      p :ko2
+    rescue B
+      p :ko3
+    end
+    p :ko4
+  rescue A
+    p 1
+  ensure
+    p 2
+  end
+}
+
+assert ":ok", %{
+  class A < Exception; end
+  class B < Exception; end
+  
+  begin
+    begin
+      raise B.new
+    rescue A
+      p :ko
+    end
+    p :ko
+  rescue B
+    p :ok
+  end
+}
