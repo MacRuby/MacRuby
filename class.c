@@ -166,10 +166,7 @@ rb_objc_alloc_class(const char *name, VALUE super, VALUE flags, VALUE klass)
     if (flags == T_MODULE) {
 	version_flag |= RCLASS_IS_MODULE;
     }
-    if (super == rb_cObject) {
-	version_flag |= RCLASS_IS_OBJECT_SUBCLASS;
-    }
-    else if ((RCLASS_VERSION(super) & RCLASS_IS_OBJECT_SUBCLASS) == RCLASS_IS_OBJECT_SUBCLASS) {
+    if (super == rb_cObject || (RCLASS_VERSION(super) & RCLASS_IS_OBJECT_SUBCLASS) == RCLASS_IS_OBJECT_SUBCLASS) {
 	version_flag |= RCLASS_IS_OBJECT_SUBCLASS;
     }
 
@@ -205,6 +202,12 @@ rb_objc_create_class(const char *name, VALUE super)
    
     if (super == rb_cNSObject) {
 	rb_define_object_special_methods(klass);
+    }
+    else if (super != 0
+	    && ((RCLASS_VERSION(*(VALUE *)super) & RCLASS_HAS_ROBJECT_ALLOC)
+		== RCLASS_HAS_ROBJECT_ALLOC)) {
+	RCLASS_SET_VERSION(*(VALUE *)klass,
+		(RCLASS_VERSION(*(VALUE *)klass) | RCLASS_HAS_ROBJECT_ALLOC));
     }
 
     if (name != NULL && rb_class_tbl != NULL) {
