@@ -51,6 +51,7 @@ struct RMatch {
 
 VALUE rb_reg_regcomp(VALUE);
 int rb_reg_search(VALUE, VALUE, int, int);
+int rb_reg_search2(VALUE, VALUE, int, int, bool);
 VALUE rb_reg_regsub(VALUE, VALUE, struct re_registers *, VALUE);
 int rb_reg_adjust_startpos(VALUE, VALUE, int, int);
 void rb_match_busy(VALUE);

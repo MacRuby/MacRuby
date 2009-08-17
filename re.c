@@ -1451,9 +1451,9 @@ rb_reg_adjust_startpos(VALUE re, VALUE str, int pos, int reverse)
 }
 
 int
-rb_reg_search(VALUE re, VALUE str, int pos, int reverse)
+rb_reg_search2(VALUE re, VALUE str, int pos, int reverse, bool need_match_str)
 {
-    regex_t *reg0 = RREGEXP(re)->ptr, *reg;
+    regex_t *reg0 = RREGEXP(re)->ptr;
     int busy = FL_TEST(re, REG_BUSY);
 
     static struct re_registers *regs = NULL;
@@ -1472,7 +1472,7 @@ rb_reg_search(VALUE re, VALUE str, int pos, int reverse)
     char *cstr = NULL;
     size_t charsize = 0;
     bool should_free = false;
-    reg = rb_reg_prepare_re(re, str, &cstr, &charsize, &should_free);
+    regex_t *reg = rb_reg_prepare_re(re, str, &cstr, &charsize, &should_free);
 
     char *range = cstr;
     FL_SET(re, REG_BUSY);
@@ -1536,6 +1536,7 @@ rb_reg_search(VALUE re, VALUE str, int pos, int reverse)
     VALUE match = rb_backref_get();
     if (NIL_P(match) || FL_TEST(match, MATCH_BUSY)) {
 	match = match_alloc(rb_cMatch, 0);
+	rb_backref_set(match);
     }
     else {
 	if (rb_safe_level() >= 3) {
@@ -1548,15 +1549,30 @@ rb_reg_search(VALUE re, VALUE str, int pos, int reverse)
 
     onig_region_copy(RMATCH_REGS(match), pregs);
     onig_region_free(pregs, 0);
-    GC_WB(&RMATCH(match)->str, rb_str_new4(str)); // OPTIMIZE
-    GC_WB(&RMATCH(match)->regexp, re);
+    if (need_match_str) {
+	if (RMATCH(match)->str == 0
+		|| !CFEqual((CFTypeRef)RMATCH(match)->str, (CFTypeRef)str)) {
+	    GC_WB(&RMATCH(match)->str, rb_str_new4(str));
+	}
+    }
+    else {
+	RMATCH(match)->str = 0;
+    }
+    if (RMATCH(match)->regexp != re) {
+	GC_WB(&RMATCH(match)->regexp, re);
+    }
     RMATCH(match)->rmatch->char_offset_updated = 0;
-    rb_backref_set(match);
 
     OBJ_INFECT(match, re);
     OBJ_INFECT(match, str);
 
     return result;
+}
+
+int
+rb_reg_search(VALUE re, VALUE str, int pos, int reverse)
+{
+    return rb_reg_search2(re, str, pos, reverse, true);
 }
 
 VALUE
@@ -2686,7 +2702,7 @@ rb_reg_compile(VALUE str, int options)
     return re;
 }
 
-static VALUE reg_cache;
+static VALUE reg_cache = 0;
 
 VALUE
 rb_reg_regcomp(VALUE str)
@@ -2698,10 +2714,16 @@ rb_reg_regcomp(VALUE str)
 #else
 	&& ENCODING_GET(reg_cache) == ENCODING_GET(str)
 #endif
-        && memcmp(RREGEXP(reg_cache)->str, RSTRING_PTR(str), RSTRING_LEN(str)) == 0)
+	&& memcmp(RREGEXP(reg_cache)->str, RSTRING_PTR(str), RSTRING_LEN(str)) == 0) {
 	return reg_cache;
+    }
 
-    return reg_cache = rb_reg_new_str(save_str, 0);
+    if (reg_cache != 0) {
+	GC_RELEASE(reg_cache);
+    }
+    reg_cache = rb_reg_new_str(save_str, 0);
+    GC_RETAIN(reg_cache);
+    return reg_cache;
 }
 
 /*

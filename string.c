@@ -673,6 +673,11 @@ rb_str_subseq(VALUE str, long beg, long len)
 	len = n - beg;
     }
 
+    if (*(VALUE *)str == rb_cByteString) {
+	UInt8 *str_data = rb_bytestring_byte_pointer(str);
+	return rb_bytestring_new_with_data(str_data + beg, len);
+    }
+
     substr = CFStringCreateMutable(NULL, 0);
 
     if (len == 1) {
@@ -2002,7 +2007,7 @@ rb_str_sub(VALUE str, SEL sel, int argc, VALUE *argv)
 }
 
 static VALUE
-str_gsub(SEL sel, int argc, VALUE *argv, VALUE str, int bang)
+str_gsub(SEL sel, int argc, VALUE *argv, VALUE str, bool bang)
 {
     bool iter = false;
     bool tainted = false;
@@ -2144,7 +2149,7 @@ str_gsub(SEL sel, int argc, VALUE *argv, VALUE str, int bang)
 static VALUE
 rb_str_gsub_bang(VALUE str, SEL sel, int argc, VALUE *argv)
 {
-    return str_gsub(sel, argc, argv, str, 1);
+    return str_gsub(sel, argc, argv, str, true);
 }
 
 
@@ -2184,7 +2189,7 @@ rb_str_gsub_bang(VALUE str, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_str_gsub(VALUE str, SEL sel, int argc, VALUE *argv)
 {
-    return str_gsub(sel, argc, argv, str, 0);
+    return str_gsub(sel, argc, argv, str, false);
 }
 
 
@@ -3567,10 +3572,13 @@ rb_str_split_m(VALUE str, SEL sel, int argc, VALUE *argv)
 
     if (rb_scan_args(argc, argv, "02", &spat, &limit) == 2) {
 	lim = NUM2INT(limit);
-	if (lim <= 0) limit = Qnil;
+	if (lim <= 0) {
+	    limit = Qnil;
+	}
 	else if (lim == 1) {
-	    if (clen == 0)
+	    if (clen == 0) {
 		return rb_ary_new2(0);
+	    }
 	    return rb_ary_new3(1, str);
 	}
 	i = 1;
@@ -3603,28 +3611,31 @@ rb_str_split_m(VALUE str, SEL sel, int argc, VALUE *argv)
     if (awk_split || spat_string) {
 	CFRange search_range;
 	CFCharacterSetRef charset = NULL;
-	if (spat == Qnil)
+	if (spat == Qnil) {
 	    charset = CFCharacterSetGetPredefined(
-		kCFCharacterSetWhitespaceAndNewline);
+		    kCFCharacterSetWhitespaceAndNewline);
+	}
 	search_range = CFRangeMake(0, clen);
 	do {
 	    CFRange result_range;
 	    CFRange substr_range;
 	    if (spat != Qnil) {
 		if (!CFStringFindWithOptions((CFStringRef)str, 
-		    (CFStringRef)spat,
-		    search_range,
-		    0,
-		    &result_range))
+			    (CFStringRef)spat,
+			    search_range,
+			    0,
+			    &result_range)) {
 		    break;
+		}
 	    }
 	    else {
 		if (!CFStringFindCharacterFromSet((CFStringRef)str,
-		    charset, 
-		    search_range,
-		    0,
-		    &result_range))
+			    charset, 
+			    search_range,
+			    0,
+			    &result_range)) {
 		    break;
+		}
 	    }
 
 	    substr_range.location = search_range.location;
@@ -3632,23 +3643,21 @@ rb_str_split_m(VALUE str, SEL sel, int argc, VALUE *argv)
 		- search_range.location;
 
 	    if (awk_split == Qfalse || substr_range.length > 0) {
-		VALUE substr;
-	       
-		substr = rb_str_subseq(str, substr_range.location,
+		VALUE substr = rb_str_subseq(str, substr_range.location,
 		    substr_range.length);
 
 		if (awk_split == Qtrue) {
 		    CFStringTrimWhitespace((CFMutableStringRef)substr);
-		    if (CFStringGetLength((CFStringRef)substr) > 0)
+		    if (CFStringGetLength((CFStringRef)substr) > 0) {
 			rb_ary_push(result, substr);
+		    }
 		}
 		else {
 		    rb_ary_push(result, substr);
 		}
 	    }
 
-	    search_range.location = result_range.location 
-		+ result_range.length;
+	    search_range.location = result_range.location + result_range.length;
 	    search_range.length = clen - search_range.location;
 	}
 	while ((limit == Qnil || --lim > 1));
@@ -3656,26 +3665,22 @@ rb_str_split_m(VALUE str, SEL sel, int argc, VALUE *argv)
     }
     else {
 	long start = beg;
-	long idx;
-	int last_null = 0;
+	bool last_null = false;
 	struct re_registers *regs;
 
-	while ((end = rb_reg_search(spat, str, start, 0)) >= 0) {
+	while ((end = rb_reg_search2(spat, str, start, 0, false)) >= 0) {
 	    regs = RMATCH_REGS(rb_backref_get());
 	    if (start == end && BEG(0) == END(0)) {
 		if (0) {
 		    break;
 		}
-		else if (last_null == 1) {
+		else if (last_null) {
 		    rb_ary_push(result, rb_str_subseq(str, beg, 1));
 		    beg = start;
 		}
 		else {
-                    if (start == clen)
-                        start++;
-                    else
-			start += 1;
-		    last_null = 1;
+		    start++;
+		    last_null = true;
 		    continue;
 		}
 	    }
@@ -3683,17 +3688,23 @@ rb_str_split_m(VALUE str, SEL sel, int argc, VALUE *argv)
 		rb_ary_push(result, rb_str_subseq(str, beg, end-beg));
 		beg = start = END(0);
 	    }
-	    last_null = 0;
+	    last_null = false;
 
-	    for (idx=1; idx < regs->num_regs; idx++) {
-		if (BEG(idx) == -1) continue;
-		if (BEG(idx) == END(idx))
+	    for (long idx = 1; idx < regs->num_regs; idx++) {
+		if (BEG(idx) == -1) {
+		    continue;
+		}
+		if (BEG(idx) == END(idx)) {
 		    tmp = rb_str_new5(str, 0, 0);
-		else
-		    tmp = rb_str_subseq(str, BEG(idx), END(idx)-BEG(idx));
+		}
+		else {
+		    tmp = rb_str_subseq(str, BEG(idx), END(idx) - BEG(idx));
+		}
 		rb_ary_push(result, tmp);
 	    }
-	    if (!NIL_P(limit) && lim <= ++i) break;
+	    if (!NIL_P(limit) && lim <= ++i) {
+		break;
+	    }
 	}
     }
     if (clen > 0 && (!NIL_P(limit) || clen > beg || lim < 0)) {
@@ -4284,14 +4295,15 @@ scan_once(VALUE str, VALUE pat, long *start, long strlen, bool pat_is_string)
 	return result;
     }
 
-    if (rb_reg_search(pat, str, *start, 0) >= 0) {
+    if (rb_reg_search2(pat, str, *start, 0, false) >= 0) {
 	match = rb_backref_get();
+	GC_WB(&RMATCH(match)->str, str);
 	regs = RMATCH_REGS(match);
 	if (BEG(0) == END(0)) {
 	    /*
 	     * Always consume at least one character of the input string
 	     */
-		*start = END(0)+1;
+	    *start = END(0)+1;
 	}
 	else {
 	    *start = END(0);
@@ -4358,10 +4370,8 @@ rb_str_scan(VALUE str, SEL sel, VALUE pat)
 
 	while (!NIL_P(result = scan_once(str, pat, &start, len, 
 					 pat_is_string))) {
-	    match = rb_backref_get();
 	    rb_ary_push(ary, result);
 	}
-	rb_backref_set(match);
 	return ary;
     }
 
