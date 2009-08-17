@@ -11,7 +11,11 @@
 #
 # Author::    James Reynolds  (mailto:drtoast@drtoast.com)
 # Copyright:: Copyright (c) 2008 James Reynolds
-# License::   Distributes under the same terms as Ruby
+# License::   Distributes under the same terms as Ruby 
+
+# In Quartz 2D, the canvas is often referred as the "page".
+# Overview of the underlying page concept available at:
+# http://developer.apple.com/documentation/GraphicsImaging/Conceptual/drawingwithquartz2d/dq_overview/dq_overview.html#//apple_ref/doc/uid/TP30001066-CH202-TPXREF101
 
 
 module HotCocoa::Graphics
@@ -42,7 +46,11 @@ module HotCocoa::Graphics
     
     DefaultOptions = {:quality => 0.8, :width => 400, :height => 400}
   
-    attr_accessor :width, :height
+    attr_accessor :width, :height  
+    
+    # We make the context available so developers can directly use underlying CG methods
+    # on objects created by this wrapper
+    attr_reader :ctx
     
     class << self
       def for_rendering(options={}, &block)
@@ -83,7 +91,7 @@ module HotCocoa::Graphics
     
       @width = options[:width]
       @height = options[:height]
-      @output = options[:filename]
+      @output = options[:filename] || 'test'
       @stacksize = 0
       @colorspace = CGColorSpaceCreateDeviceRGB() # => CGColorSpaceRef
       @autoclosepath = false
@@ -131,7 +139,7 @@ module HotCocoa::Graphics
       quality(options[:quality])   # set the compression default
       push  # save the pristine default default graphics state (retrieved by calling "reset")
       push  # create a new graphics state for the user to mess up
-      if block
+      if block_given?
         case block.arity
         when 0
           send(:instance_eval, &block)
