@@ -1633,6 +1633,9 @@ rb_ary_clone(VALUE ary, SEL sel)
     if (OBJ_FROZEN(ary)) {
 	OBJ_FREEZE(clone);
     }
+    if (OBJ_UNTRUSTED(ary)) {
+        OBJ_UNTRUST(clone);
+    }
     return clone;
 }
 
@@ -1660,6 +1663,7 @@ rb_ary_join(VALUE ary, VALUE sep)
 {
     long i, count;
     int taint = Qfalse;
+    int untrust = Qfalse;
     VALUE result, tmp;
 
     if (RARRAY_LEN(ary) == 0) {
@@ -1667,6 +1671,9 @@ rb_ary_join(VALUE ary, VALUE sep)
     }
     if (OBJ_TAINTED(ary) || OBJ_TAINTED(sep)) {
 	taint = Qtrue;
+    }
+    if (OBJ_UNTRUSTED(ary) || OBJ_UNTRUSTED(sep)) {
+        untrust = Qtrue;
     }
     result = rb_str_new(0, 0);
 
@@ -1694,10 +1701,16 @@ rb_ary_join(VALUE ary, VALUE sep)
 	if (OBJ_TAINTED(tmp)) {
 	    taint = Qtrue;
 	}
+	if (OBJ_UNTRUSTED(tmp)) {
+        untrust = Qtrue;
+	}
     }
 
     if (taint) {
 	OBJ_TAINT(result);
+    }
+    if (untrust) {
+        OBJ_UNTRUST(result);
     }
     return result;
 }
