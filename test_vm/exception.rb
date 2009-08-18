@@ -362,3 +362,21 @@ assert ":ok", %{
     p :ok
   end
 }
+
+assert '42', %{
+  class A < Exception; end
+  class B < Exception; end
+  
+  def foo
+    a = 42
+    $p = proc { p a }
+    raise A.new
+  rescue B
+  end
+  
+  begin
+    foo
+  rescue A
+  end
+  $p.call  
+}
