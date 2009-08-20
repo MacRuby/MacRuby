@@ -55,6 +55,7 @@ if %w'z libz zlib1 zlib zdll'.find {|z| have_library(z, 'deflateReset')} and
   defines << "OS_CODE=#{os_code}"
 
   $defs.concat(defines.collect{|d|' -D'+d})
+  $INCFLAGS << ' -I../..'
 
   create_makefile('zlib')
 

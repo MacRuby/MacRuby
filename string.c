@@ -5396,7 +5396,7 @@ static void inline
 rb_bytestring_copy_cfstring_content(VALUE bstr, CFStringRef str)
 {
     if (CFStringGetLength(str) != 0) {
-	const char *cptr = CFStringGetCStringPtr(str, kCFStringEncodingUTF8);
+        const char *cptr = RSTRING_PTR((VALUE)str);
 	assert(cptr != NULL); // TODO handle UTF-16 strings
 
 	CFDataAppendBytes(rb_bytestring_wrapped_data(bstr), (UInt8 *)cptr, 
@@ -5436,6 +5436,12 @@ void
 rb_bytestring_resize(VALUE str, long newsize)
 {
     CFDataSetLength(rb_bytestring_wrapped_data(str), newsize);
+}
+
+void
+rb_bytestring_append_bytes(VALUE str, const UInt8* bytes, long len)
+{
+    CFDataAppendBytes(rb_bytestring_wrapped_data(str), bytes, len);
 }
 
 CFStringRef

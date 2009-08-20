@@ -411,6 +411,7 @@ UInt8 *rb_bytestring_byte_pointer(VALUE);
 VALUE rb_coerce_to_bytestring(VALUE);
 long rb_bytestring_length(VALUE str);
 void rb_bytestring_resize(VALUE str, long newsize);
+void rb_bytestring_append_bytes(VALUE str, const UInt8* bytes, long len);
 
 void rb_check_safe_obj(VALUE);
 void rb_check_safe_str(VALUE);
