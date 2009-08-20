@@ -342,6 +342,7 @@ rb_zlib_crc_table(VALUE obj, SEL sel)
 /*-------- zstream - internal APIs --------*/
 
 struct zstream {
+    struct RObject object;
     unsigned long flags;
     VALUE buf;
     long buf_filled;
@@ -757,9 +758,8 @@ zstream_finalize(struct zstream *z)
 static VALUE
 zstream_new(VALUE klass, const struct zstream_funcs *funcs)
 {
-    struct zstream *z = ALLOC(struct zstream);
-    memset(z, 0, sizeof(*z));
-    Data_Wrap_Struct(klass, NULL, NULL, z);
+    NEWOBJ(z, struct zstream);
+    OBJSETUP(z, klass, T_OBJECT);
     zstream_init(z, funcs);
     return (VALUE)z;
 }
@@ -770,9 +770,7 @@ zstream_new(VALUE klass, const struct zstream_funcs *funcs)
 static struct zstream *
 get_zstream(VALUE obj)
 {
-    struct zstream *z;
-
-    Data_Get_Struct(obj, struct zstream, z);
+    struct zstream *z = (struct zstream*)obj;
     if (!ZSTREAM_IS_READY(z)) {
 	rb_raise(cZError, "stream is not ready");
     }
@@ -888,10 +886,8 @@ rb_zstream_finish(VALUE obj, SEL sel)
 static VALUE
 rb_zstream_flush_next_in(VALUE obj, SEL sel)
 {
-    struct zstream *z;
+    struct zstream *z = (struct zstream*)obj;
     VALUE dst;
-
-    Data_Get_Struct(obj, struct zstream, z);
     dst = zstream_detach_input(z);
     OBJ_INFECT(dst, obj);
     return dst;
@@ -903,10 +899,9 @@ rb_zstream_flush_next_in(VALUE obj, SEL sel)
 static VALUE
 rb_zstream_flush_next_out(VALUE obj, SEL sel)
 {
-    struct zstream *z;
+    struct zstream *z = (struct zstream *)obj;
     VALUE dst;
 
-    Data_Get_Struct(obj, struct zstream, z);
     dst = zstream_detach_buffer(z);
     OBJ_INFECT(dst, obj);
     return dst;
@@ -919,8 +914,7 @@ rb_zstream_flush_next_out(VALUE obj, SEL sel)
 static VALUE
 rb_zstream_avail_out(VALUE obj, SEL sel)
 {
-    struct zstream *z;
-    Data_Get_Struct(obj, struct zstream, z);
+    struct zstream *z = (struct zstream *)obj;
     return rb_uint2inum(z->stream.avail_out);
 }
 
@@ -946,8 +940,7 @@ rb_zstream_set_avail_out(VALUE obj, SEL sel, VALUE size)
 static VALUE
 rb_zstream_avail_in(VALUE obj, SEL sel)
 {
-    struct zstream *z;
-    Data_Get_Struct(obj, struct zstream, z);
+    struct zstream *z = (struct zstream *)obj;
     return INT2FIX(NIL_P(z->input) ? 0 : (int)(BSTRING_LEN(z->input)));
 }
 
@@ -1004,8 +997,7 @@ rb_zstream_finished_p(VALUE obj, SEL sel)
 static VALUE
 rb_zstream_closed_p(VALUE obj, SEL sel)
 {
-    struct zstream *z;
-    Data_Get_Struct(obj, struct zstream, z);
+    struct zstream *z = (struct zstream *)obj;
     return ZSTREAM_IS_READY(z) ? Qfalse : Qtrue;
 }
 
@@ -1049,13 +1041,13 @@ static VALUE
 rb_deflate_initialize(VALUE obj, SEL sel, int argc, VALUE *argv)
 {
     printf("Calling initialize\n");
-    struct zstream *z;
+    assert(ROBJECT(obj)->tbl == NULL);
     VALUE level, wbits, memlevel, strategy;
     int err;
 
     rb_scan_args(argc, argv, "04", &level, &wbits, &memlevel, &strategy);
-    Data_Get_Struct(obj, struct zstream, z);
-
+    struct zstream *z = (struct zstream *)obj;
+    
     err = deflateInit2(&z->stream, ARG_LEVEL(level), Z_DEFLATED,
 		       ARG_WBITS(wbits), ARG_MEMLEVEL(memlevel),
 		       ARG_STRATEGY(strategy));
@@ -1063,7 +1055,7 @@ rb_deflate_initialize(VALUE obj, SEL sel, int argc, VALUE *argv)
 	raise_zlib_error(err, z->stream.msg);
     }
     ZSTREAM_READY(z);
-
+    assert(ROBJECT(obj)->tbl == NULL);
     return obj;
 }
 
@@ -1316,12 +1308,11 @@ rb_inflate_s_allocate(VALUE klass, SEL sel)
 static VALUE
 rb_inflate_initialize(VALUE obj, SEL sel, int argc, VALUE *argv)
 {
-    struct zstream *z;
     VALUE wbits;
     int err;
 
     rb_scan_args(argc, argv, "01", &wbits);
-    Data_Get_Struct(obj, struct zstream, z);
+    struct zstream *z = (struct zstream *)obj;
 
     err = inflateInit2(&z->stream, ARG_WBITS(wbits));
     if (err != Z_OK) {
@@ -1531,8 +1522,7 @@ rb_inflate_set_dictionary(VALUE obj, SEL sel, VALUE dic)
 
     OBJ_INFECT(obj, dic);
     StringValue(src);
-    err = inflateSetDictionary(&z->stream,
-			       (Bytef*)RSTRING_BYTEPTR(src), RSTRING_BYTELEN(src));
+    err = inflateSetDictionary(&z->stream, BSTRING_PTR_BYTEF(src), BSTRING_LEN(src));
     if (err != Z_OK) {
 	raise_zlib_error(err, z->stream.msg);
     }
