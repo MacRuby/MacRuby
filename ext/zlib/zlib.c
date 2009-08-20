@@ -190,6 +190,9 @@ static VALUE rb_gzreader_readlines _((VALUE, SEL, int, VALUE*));
 
 void Init_zlib _((void));
 
+#define BSTRING_LEN(s) rb_bytestring_length(s)
+#define BSTRING_PTR(s) (rb_bytestring_byte_pointer(s))
+#define BSTRING_PTR_BYTEF(s) ((Bytef*)rb_bytestring_byte_pointer(s))
 
 
 /*--------- Exceptions --------*/
@@ -280,7 +283,7 @@ raise_zlib_error(int err, const char *msg)
          sum = func(sum, Z_NULL, 0);
      } else {
          StringValue(str);
-         sum = func(sum, (Bytef*)RSTRING_PTR(str), RSTRING_LEN(str));
+         sum = func(sum, BSTRING_PTR_BYTEF(str), BSTRING_LEN(str));
      }
      return rb_uint2inum(sum);
  }
@@ -409,9 +412,6 @@ zstream_init(struct zstream *z, const struct zstream_funcs *func)
 
 #define zstream_init_deflate(z)   zstream_init((z), &deflate_funcs)
 #define zstream_init_inflate(z)   zstream_init((z), &inflate_funcs)
-#define BSTRING_LEN(s) rb_bytestring_length(s)
-#define BSTRING_PTR(s) (rb_bytestring_byte_pointer(s))
-#define BSTRING_PTR_BYTEF(s) ((Bytef*)rb_bytestring_byte_pointer(s))
 
 static void
 zstream_expand_buffer(struct zstream *z)
@@ -422,7 +422,7 @@ zstream_expand_buffer(struct zstream *z)
         GC_WB(&z->buf, rb_bytestring_new());
         rb_bytestring_resize(z->buf, ZSTREAM_INITIAL_BUFSIZE);
         z->buf_filled = 0;
-        z->stream.next_out = (Bytef*)rb_bytestring_byte_pointer(z->buf);
+        z->stream.next_out = BSTRING_PTR_BYTEF(z->buf);
         z->stream.avail_out = ZSTREAM_INITIAL_BUFSIZE;
         return;
     }
@@ -446,15 +446,13 @@ static void
 zstream_expand_buffer_into(struct zstream *z, int size)
 {
     if (NIL_P(z->buf)) {
-    /* I uses rb_str_new here not rb_str_buf_new because
-        rb_str_buf_new makes a zero-length string. */
-            GC_WB(&z->buf, rb_bytestring_new());
+        GC_WB(&z->buf, rb_bytestring_new());
         z->buf_filled = 0;
         z->stream.next_out = BSTRING_PTR_BYTEF(z->buf);
         z->stream.avail_out = size;
     }
     else if (z->stream.avail_out != size) {
-        rb_str_resize(z->buf, z->buf_filled + size);
+        rb_bytestring_resize(z->buf, z->buf_filled + size);
         z->stream.next_out = BSTRING_PTR_BYTEF(z->buf) + z->buf_filled;
         z->stream.avail_out = size;
     }
@@ -1050,6 +1048,7 @@ rb_deflate_s_allocate(VALUE klass, SEL sel)
 static VALUE
 rb_deflate_initialize(VALUE obj, SEL sel, int argc, VALUE *argv)
 {
+    printf("Calling initialize\n");
     struct zstream *z;
     VALUE level, wbits, memlevel, strategy;
     int err;
@@ -1103,7 +1102,7 @@ deflate_run(VALUE args)
  * Compresses the given +string+. Valid values of level are
  * <tt>Zlib::NO_COMPRESSION</tt>, <tt>Zlib::BEST_SPEED</tt>,
  * <tt>Zlib::BEST_COMPRESSION</tt>, <tt>Zlib::DEFAULT_COMPRESSION</tt>, and an
- * integer from 0 to 9.
+ * integer from 0 to 9. The default is Zlib::DEFAULT_COMPRESSION
  *
  * This method is almost equivalent to the following code:
  *
@@ -1114,7 +1113,6 @@ deflate_run(VALUE args)
  *     dst
  *   end
  *
- * TODO: what's default value of +level+?
  *
  */
 static VALUE
@@ -1281,14 +1279,13 @@ rb_deflate_set_dictionary(VALUE obj, SEL sel, VALUE dic)
     OBJ_INFECT(obj, dic);
     StringValue(src);
     err = deflateSetDictionary(&z->stream,
-			       (Bytef*)RSTRING_PTR(src), RSTRING_LEN(src));
+			       BSTRING_PTR_BYTEF(src), BSTRING_LEN(src));
     if (err != Z_OK) {
 	raise_zlib_error(err, z->stream.msg);
     }
 
     return dic;
 }
-#if 0
 
 /* ------------------------------------------------------------------------- */
 
@@ -1341,7 +1338,7 @@ inflate_run(VALUE args)
     struct zstream *z = (struct zstream*)((VALUE*)args)[0];
     VALUE src = ((VALUE*)args)[1];
 
-    zstream_run(z, (Bytef*)RSTRING_BYTEPTR(src), RSTRING_BYTELEN(src), Z_SYNC_FLUSH);
+    zstream_run(z, BSTRING_PTR_BYTEF(src), BSTRING_LEN(src), Z_SYNC_FLUSH);
     zstream_run(z, (Bytef*)"", 0, Z_FINISH);  /* for checking errors */
     return zstream_detach_buffer(z);
 }
@@ -1396,8 +1393,8 @@ do_inflate(struct zstream *z, VALUE src)
 	return;
     }
     StringValue(src);
-    if (RSTRING_BYTELEN(src) > 0) { /* prevent Z_BUF_ERROR */
-	zstream_run(z, (Bytef*)RSTRING_BYTEPTR(src), RSTRING_BYTELEN(src), Z_SYNC_FLUSH);
+    if (BSTRING_LEN(src) > 0) { /* prevent Z_BUF_ERROR */
+	zstream_run(z, BSTRING_PTR_BYTEF(src), BSTRING_LEN(src), Z_SYNC_FLUSH);
     }
 }
 
@@ -1429,6 +1426,9 @@ rb_inflate_inflate(VALUE obj, SEL sel, VALUE src)
 	}
 	else {
 	    StringValue(src);
+	    if (CLASS_OF(src) != rb_cByteString) {
+            src = rb_coerce_to_bytestring(src);
+	    }
 	    zstream_append_buffer2(z, src);
 	    dst = rb_str_new(0, 0);
 	}
@@ -1490,7 +1490,7 @@ rb_inflate_sync(VALUE obj, SEL sel, VALUE src)
 
     OBJ_INFECT(obj, src);
     StringValue(src);
-    return zstream_sync(z, (Bytef*)RSTRING_BYTEPTR(src), RSTRING_BYTELEN(src));
+    return zstream_sync(z, BSTRING_PTR_BYTEF(src), BSTRING_LEN(src));
 }
 
 /*
@@ -1540,6 +1540,7 @@ rb_inflate_set_dictionary(VALUE obj, SEL sel, VALUE dic)
     return dic;
 }
 
+#if 0
 
 
 #if GZIP_SUPPORT
@@ -3225,7 +3226,6 @@ void Init_zlib()
     rb_define_const(mZlib, "BINARY", INT2FIX(Z_BINARY));
     rb_define_const(mZlib, "ASCII", INT2FIX(Z_ASCII));
     rb_define_const(mZlib, "UNKNOWN", INT2FIX(Z_UNKNOWN));
-
     cDeflate = rb_define_class_under(mZlib, "Deflate", cZStream);
     rb_objc_define_method(*(VALUE *)cDeflate, "deflate", rb_deflate_s_deflate, -1);
     rb_objc_define_method(*(VALUE *)cDeflate, "alloc", rb_deflate_s_allocate, 0);
@@ -3236,10 +3236,10 @@ void Init_zlib()
     rb_objc_define_method(cDeflate, "flush", rb_deflate_flush, -1);
     rb_objc_define_method(cDeflate, "params", rb_deflate_params, 2);
     rb_objc_define_method(cDeflate, "set_dictionary", rb_deflate_set_dictionary, 1);
-#if 0
+
     cInflate = rb_define_class_under(mZlib, "Inflate", cZStream);
-    rb_objc_define_method(*(VALUE *)cDeflate, "inflate", rb_inflate_s_inflate, 1);
-    rb_objc_define_method(*(VALUE *)cDeflate, "alloc", rb_inflate_s_allocate, 0);
+    rb_objc_define_method(*(VALUE *)cInflate, "inflate", rb_inflate_s_inflate, 1);
+    rb_objc_define_method(*(VALUE *)cInflate, "alloc", rb_inflate_s_allocate, 0);
     rb_objc_define_method(cInflate, "initialize", rb_inflate_initialize, -1);
     rb_objc_define_method(cInflate, "inflate", rb_inflate_inflate, 1);
     rb_objc_define_method(cInflate, "<<", rb_inflate_addstr, 1);
@@ -3265,7 +3265,7 @@ void Init_zlib()
     rb_define_const(mZlib, "SYNC_FLUSH", INT2FIX(Z_SYNC_FLUSH));
     rb_define_const(mZlib, "FULL_FLUSH", INT2FIX(Z_FULL_FLUSH));
     rb_define_const(mZlib, "FINISH", INT2FIX(Z_FINISH));
-
+#if 0
 #if GZIP_SUPPORT
     id_write = rb_intern("write");
     id_read = rb_intern("read");
