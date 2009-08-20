@@ -2391,7 +2391,7 @@ f_open_ensure(VALUE io)
     return Qnil;
 }
 
-static VALUE
+VALUE
 rb_f_open(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
     VALUE io = rb_class_new_instance(argc, argv, rb_cFile);
