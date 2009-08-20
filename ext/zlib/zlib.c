@@ -2971,7 +2971,7 @@ gzreader_gets(VALUE obj, SEL sel, int argc, VALUE *argv)
 	rslen = 2;
 	rspara = 1;
     } else {
-	rsptr = BSTRING_PTR(rs);
+	rsptr = (const char*)BSTRING_PTR(rs);
 	rslen = BSTRING_LEN(rs);
 	rspara = 0;
     }
@@ -2988,13 +2988,13 @@ gzreader_gets(VALUE obj, SEL sel, int argc, VALUE *argv)
 	gzfile_read_more(gz);
     }
 
-    p = BSTRING_PTR(gz->z.buf);
+    p = (char*)BSTRING_PTR(gz->z.buf);
     n = rslen;
     for (;;) {
 	if (n > gz->z.buf_filled) {
 	    if (ZSTREAM_IS_FINISHED(&gz->z)) break;
 	    gzfile_read_more(gz);
-	    p = BSTRING_PTR(gz->z.buf) + n - rslen;
+	    p = (char*)BSTRING_PTR(gz->z.buf) + n - rslen;
 	}
 	if (!rspara) rscheck(rsptr, rslen, rs);
 	res = memchr(p, rsptr[0], (gz->z.buf_filled - n + 1));
