@@ -397,8 +397,8 @@ zstream_init(struct zstream *z, const struct zstream_funcs *func)
     z->buf = Qnil;
     z->buf_filled = 0;
     z->input = Qnil;
-    z->stream.zalloc = zlib_mem_alloc;
-    z->stream.zfree = zlib_mem_free;
+    z->stream.zalloc = Z_NULL;
+    z->stream.zfree = Z_NULL;
     z->stream.opaque = Z_NULL;
     z->stream.msg = Z_NULL;
     z->stream.next_in = Z_NULL;
