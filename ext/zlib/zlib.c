@@ -43,8 +43,6 @@ static VALUE do_checksum _((int, VALUE*, uLong (*) _((uLong, const Bytef*, uInt)
 static VALUE rb_zlib_adler32 _((VALUE, SEL, int, VALUE*));
 static VALUE rb_zlib_crc32 _((VALUE, SEL, int, VALUE*));
 static VALUE rb_zlib_crc_table _((VALUE, SEL));
-static voidpf zlib_mem_alloc _((voidpf, uInt, uInt));
-static void zlib_mem_free _((voidpf, voidpf));
 
 struct zstream;
 struct zstream_funcs;
@@ -376,19 +374,6 @@ static const struct zstream_funcs deflate_funcs = {
 static const struct zstream_funcs inflate_funcs = {
     inflateReset, inflateEnd, inflate,
 };
-
-
-static voidpf
-zlib_mem_alloc(voidpf opaque, uInt items, uInt size)
-{
-    return xmalloc(items * size);
-}
-
-static void
-zlib_mem_free(voidpf opaque, voidpf address)
-{
-    xfree(address);
-}
 
 static void
 zstream_init(struct zstream *z, const struct zstream_funcs *func)
@@ -757,10 +742,8 @@ static VALUE
 zstream_new(VALUE klass, const struct zstream_funcs *funcs)
 {
     struct zstream *z = ALLOC(struct zstream);
-    memset(z, 0, sizeof(*z));
-    Data_Wrap_Struct(klass, NULL, NULL, z);
     zstream_init(z, funcs);
-    return (VALUE)z;
+    return Data_Wrap_Struct(klass, NULL, NULL, z);
 }
 
 #define zstream_deflate_new(klass)  zstream_new((klass), &deflate_funcs)
@@ -1047,14 +1030,13 @@ rb_deflate_s_allocate(VALUE klass, SEL sel)
 static VALUE
 rb_deflate_initialize(VALUE obj, SEL sel, int argc, VALUE *argv)
 {
-    printf("Calling initialize\n");
     struct zstream *z;
     VALUE level, wbits, memlevel, strategy;
     int err;
 
     rb_scan_args(argc, argv, "04", &level, &wbits, &memlevel, &strategy);
     Data_Get_Struct(obj, struct zstream, z);
-
+    zstream_init_deflate(z);
     err = deflateInit2(&z->stream, ARG_LEVEL(level), Z_DEFLATED,
 		       ARG_WBITS(wbits), ARG_MEMLEVEL(memlevel),
 		       ARG_STRATEGY(strategy));
@@ -1075,7 +1057,7 @@ rb_deflate_init_copy(VALUE self, SEL sel, VALUE orig)
     struct zstream *z1 = get_zstream(self);
     struct zstream *z2 = get_zstream(orig);
     int err;
-
+    
     err = deflateCopy(&z1->stream, &z2->stream);
     if (err != Z_OK) {
 	raise_zlib_error(err, 0);
@@ -1151,6 +1133,9 @@ do_deflate(struct zstream *z, VALUE src, int flush)
 	return;
     }
     StringValue(src);
+    if (CLASS_OF(src) != rb_cByteString) {
+        src = rb_coerce_to_bytestring(src);
+    }
     if (flush != Z_NO_FLUSH || BSTRING_LEN(src) > 0) { /* prevent BUF_ERROR */
 	zstream_run(z, BSTRING_PTR_BYTEF(src), BSTRING_LEN(src), flush);
     }
@@ -1277,8 +1262,11 @@ rb_deflate_set_dictionary(VALUE obj, SEL sel, VALUE dic)
 
     OBJ_INFECT(obj, dic);
     StringValue(src);
+    if (CLASS_OF(src) != rb_cByteString) {
+        src = rb_coerce_to_bytestring(src);
+    }
     err = deflateSetDictionary(&z->stream,
-			       BSTRING_PTR_BYTEF(src), BSTRING_LEN(src));
+			       BSTRING_PTR(src), BSTRING_LEN(src));
     if (err != Z_OK) {
 	raise_zlib_error(err, z->stream.msg);
     }
@@ -3230,8 +3218,8 @@ void Init_zlib()
     rb_objc_define_method(cDeflate, "set_dictionary", rb_deflate_set_dictionary, 1);
 
     cInflate = rb_define_class_under(mZlib, "Inflate", cZStream);
-    rb_objc_define_method(*(VALUE *)cDeflate, "inflate", rb_inflate_s_inflate, 1);
-    rb_objc_define_method(*(VALUE *)cDeflate, "alloc", rb_inflate_s_allocate, 0);
+    rb_objc_define_method(*(VALUE *)cInflate, "inflate", rb_inflate_s_inflate, 1);
+    rb_objc_define_method(*(VALUE *)cInflate, "alloc", rb_inflate_s_allocate, 0);
     rb_objc_define_method(cInflate, "initialize", rb_inflate_initialize, -1);
     rb_objc_define_method(cInflate, "inflate", rb_inflate_inflate, 1);
     rb_objc_define_method(cInflate, "<<", rb_inflate_addstr, 1);

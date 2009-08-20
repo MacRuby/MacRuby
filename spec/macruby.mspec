@@ -42,7 +42,8 @@ class MSpecScript
     'library/yaml/load_documents_spec.rb',
     'library/yaml/load_file.spec',
     'library/yaml/load_spec.rb',
-    'library/yaml/tag_class_spec.rb'
+    'library/yaml/tag_class_spec.rb',
+    'library/zlib/deflate'
   ]
   
   # Prepend the paths with the proper prefix
