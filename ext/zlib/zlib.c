@@ -246,43 +246,43 @@ raise_zlib_error(int err, const char *msg)
 /*
  * Returns the string which represents the version of zlib library.
  */
-     static VALUE
-     rb_zlib_version(VALUE klass, SEL sel)
- {
-     VALUE str;
+static VALUE
+rb_zlib_version(VALUE klass, SEL sel)
+{
+    VALUE str;
 
-     str = rb_str_new2(zlibVersion());
-     OBJ_TAINT(str);  /* for safe */
-     return str;
- }
+    str = rb_str_new2(zlibVersion());
+    OBJ_TAINT(str);  /* for safe */
+    return str;
+}
 
- static VALUE
-     do_checksum(argc, argv, func)
-     int argc;
- VALUE *argv;
- uLong (*func) _((uLong, const Bytef*, uInt));
- {
-     VALUE str, vsum;
-     unsigned long sum;
+static VALUE
+do_checksum(argc, argv, func)
+    int argc;
+    VALUE *argv;
+    uLong (*func) _((uLong, const Bytef*, uInt));
+{
+    VALUE str, vsum;
+    unsigned long sum;
 
-     rb_scan_args(argc, argv, "02", &str, &vsum);
+    rb_scan_args(argc, argv, "02", &str, &vsum);
 
-     if (!NIL_P(vsum)) {
-         sum = NUM2ULONG(vsum);
-     } else if (NIL_P(str)) {
-         sum = 0;
-     } else {
-         sum = func(0, Z_NULL, 0);
-     }
+    if (!NIL_P(vsum)) {
+        sum = NUM2ULONG(vsum);
+    } else if (NIL_P(str)) {
+        sum = 0;
+    } else {
+        sum = func(0, Z_NULL, 0);
+    }
 
-     if (NIL_P(str)) {
-         sum = func(sum, Z_NULL, 0);
-     } else {
-         StringValue(str);
-         sum = func(sum, BSTRING_PTR_BYTEF(str), BSTRING_LEN(str));
-     }
-     return rb_uint2inum(sum);
- }
+    if (NIL_P(str)) {
+        sum = func(sum, Z_NULL, 0);
+    } else {
+        StringValue(str);
+        sum = func(sum, (const Bytef*)RSTRING_PTR(str), (uInt)RSTRING_LEN(str));
+    }
+    return rb_uint2inum(sum);
+}
 
 /*
  * call-seq: Zlib.adler32(string, adler)
@@ -535,7 +535,7 @@ zstream_append_input(struct zstream *z, const Bytef *src, unsigned int len)
     if (len <= 0) return;
 
     if (NIL_P(z->input)) {
-        z->input = rb_bytestring_new_with_data((UInt8*)src, len);
+        GC_WB(&z->input, rb_bytestring_new_with_data((UInt8*)src, len));
     } else {
 	    rb_bytestring_append_bytes(z->input, (const UInt8*)src, len);
     }
@@ -1106,6 +1106,7 @@ rb_deflate_s_deflate(VALUE klass, SEL sel, int argc, VALUE *argv)
     rb_scan_args(argc, argv, "11", &src, &level);
 
     lev = ARG_LEVEL(level);
+    CFShow((CFStringRef)src);
     StringValue(src);
     if (CLASS_OF(src) != rb_cByteString) {
         src = rb_coerce_to_bytestring(src);
