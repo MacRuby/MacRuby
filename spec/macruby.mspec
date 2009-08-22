@@ -43,10 +43,14 @@ class MSpecScript
     'library/yaml/load_file.spec',
     'library/yaml/load_spec.rb',
     'library/yaml/tag_class_spec.rb',
+=begin
+    # disabled the zlib specs for now because of a random GC crash
+    # that seems to occur in gzipfile/closed_spec.rb
     'library/zlib/adler32_spec.rb',
     'library/zlib/crc32_spec.rb',
     'library/zlib/crc_table_spec.rb',
     'library/zlib/deflate'
+=end
   ]
   
   # Prepend the paths with the proper prefix
