@@ -42,6 +42,11 @@ describe "Date#gregorian" do
   end
 end
 
+# The following methods are private in 1.9's date.rb.
+# XXX should we write specs that test if they are private?
+# should we rewrite the specs using #send?
+ruby_version_is "" ... "1.9" do
+
 describe "Date#ordinal_to_jd" do
   it "should convert an ordinal date (year-day) to a Julian day number" do
     Date.ordinal_to_jd(2007, 55).should == 2454156
@@ -151,3 +156,5 @@ describe "Date#jd_to_wday" do
     Date.jd_to_wday(2454482).should == 3
   end
 end
+
+end # "" ... "1.9"

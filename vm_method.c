@@ -143,7 +143,7 @@ remove_method(VALUE klass, ID mid)
 	rb_name_error(mid, "method `%s' not defined in %s",
 		      rb_id2name(mid), rb_class2name(klass));
     }
-    if (rb_vm_get_method_node(method_getImplementation(m)) == NULL) {
+    if (!rb_vm_is_ruby_method(m)) {
 	rb_warn("removing pure Objective-C method `%s' may cause serious " \
 		"problem", rb_id2name(mid));
     }
@@ -217,15 +217,35 @@ rb_export_method(VALUE klass, ID name, ID noex)
 	}
     }
 
-#if 0 // TODO
-    if (node->nd_noex != noex) {
-	// TODO if the method exists on a super class, we should add a new method
-	// with the correct noex that calls super
-	assert(!rb_vm_lookup_method((Class)RCLASS_SUPER(klass), sel, NULL, NULL));
-
-	node->nd_noex = noex;
+    if (node == NULL) {
+	rb_raise(rb_eRuntimeError,
+		"can't change visibility of non Ruby method `%s'",
+		sel_getName(sel));
     }
-#endif
+
+    VALUE sklass = RCLASS_SUPER(klass);
+    if (sklass != 0) {
+	Method m = class_getInstanceMethod((Class)sklass, sel);
+	if (m != NULL && method_getImplementation(m) == node->objc_imp) {
+	    // The method actually exists on a superclass, we need to duplicate
+	    // it to the current class then change its visibility.
+	    node = rb_vm_define_method2((Class)klass, sel, node, false);
+	}
+    }
+
+    switch (noex) {
+	case NOEX_PUBLIC:
+	    node->flags |= 0;
+	    break;
+
+	case NOEX_PRIVATE:
+	    node->flags |= VM_METHOD_PRIVATE;
+	    break;
+
+	case NOEX_PROTECTED:
+	    node->flags |= VM_METHOD_PROTECTED;
+	    break;
+    }
 }
 
 int
@@ -245,25 +265,14 @@ rb_method_boundp(VALUE klass, ID id, int ex)
 void
 rb_attr(VALUE klass, ID id, int read, int write, int ex)
 {
-    const char *name;
-    int noex;
-
-    if (!ex) {
-	noex = NOEX_PUBLIC;
-    }
-    else {
-	// TODO honor current scope ex
-	noex = NOEX_PUBLIC;
-    }
-
     if (!rb_is_local_id(id) && !rb_is_const_id(id)) {
 	rb_name_error(id, "invalid attribute name `%s'", rb_id2name(id));
     }
-    name = rb_id2name(id);
-    if (!name) {
+    const char *name = rb_id2name(id);
+    if (name == NULL) {
 	rb_raise(rb_eArgError, "argument needs to be symbol or string");
     }
-    rb_vm_define_attr((Class)klass, name, read, write, noex);
+    rb_vm_define_attr((Class)klass, name, read, write);
     if (write) {
 	rb_objc_define_kvo_setter(klass, id);
     }
@@ -272,59 +281,19 @@ rb_attr(VALUE klass, ID id, int read, int write, int ex)
 void
 rb_undef(VALUE klass, ID id)
 {
-    // TODO
-#if 0
-    VALUE origin;
-    NODE *body;
-
-#if 0 // TODO
-    if (rb_vm_cbase() == rb_cObject && klass == rb_cObject) {
+    if (klass == rb_cObject) {
 	rb_secure(4);
     }
-#endif
     if (rb_safe_level() >= 4 && !OBJ_TAINTED(klass)) {
 	rb_raise(rb_eSecurityError, "Insecure: can't undef `%s'",
-		 rb_id2name(id));
+		rb_id2name(id));
     }
     rb_frozen_class_p(klass);
     if (id == object_id || id == __send__ || id == idInitialize) {
 	rb_warn("undefining `%s' may cause serious problem", rb_id2name(id));
     }
-    /* TODO: warn if a very important method of NSObject is undefined 
-     * by default, pure objc methods are not exposed by introspections API 
-     */
-    body = search_method(klass, id, &origin);
-    if (!body || !body->nd_body) {
-	const char *s0 = " class";
-	VALUE c = klass;
 
-	if (RCLASS_SINGLETON(c)) {
-	    VALUE obj = rb_iv_get(klass, "__attached__");
-
-	    switch (TYPE(obj)) {
-	      case T_MODULE:
-	      case T_CLASS:
-		c = obj;
-		s0 = "";
-	    }
-	}
-	else if (TYPE(c) == T_MODULE) {
-	    s0 = " module";
-	}
-	rb_name_error(id, "undefined method `%s' for%s `%s'",
-		      rb_id2name(id), s0, rb_class2name(c));
-    }
-
-    rb_add_method(klass, id, 0, NOEX_PUBLIC);
-
-    if (RCLASS_SINGLETON(klass)) {
-	rb_funcall(rb_iv_get(klass, "__attached__"),
-		   singleton_undefined, 1, ID2SYM(id));
-    }
-    else {
-	rb_funcall(klass, undefined, 1, ID2SYM(id));
-    }
-#endif
+    rb_vm_undef_method((Class)klass, id, true);
 }
 
 /*
@@ -373,8 +342,7 @@ rb_undef(VALUE klass, ID id)
 static VALUE
 rb_mod_undef_method(VALUE mod, SEL sel, int argc, VALUE *argv)
 {
-    int i;
-    for (i = 0; i < argc; i++) {
+    for (int i = 0; i < argc; i++) {
 	rb_undef(mod, rb_to_id(argv[i]));
     }
     return mod;
@@ -441,17 +409,24 @@ rb_mod_method_defined(VALUE mod, SEL sel, VALUE mid)
  */
 
 static VALUE
+check_method_visibility(VALUE mod, ID id, int visi)
+{
+    rb_vm_method_node_t *node;
+    if (rb_vm_lookup_method2((Class)mod, id, NULL, NULL, &node)) {
+	if (node != NULL) {
+	    if (node->flags & rb_vm_noex_flag(visi)) {
+		return Qtrue;
+	    }
+	}
+    }
+    return Qfalse;
+}
+
+static VALUE
 rb_mod_public_method_defined(VALUE mod, SEL sel, VALUE mid)
 {
     ID id = rb_to_id(mid);
-    NODE *method;
-
-    method = rb_method_node(mod, id);
-    if (method) {
-	if (VISI_CHECK(method->nd_noex, NOEX_PUBLIC))
-	    return Qtrue;
-    }
-    return Qfalse;
+    return check_method_visibility(mod, id, NOEX_PUBLIC);
 }
 
 /*
@@ -484,14 +459,7 @@ static VALUE
 rb_mod_private_method_defined(VALUE mod, SEL sel, VALUE mid)
 {
     ID id = rb_to_id(mid);
-    NODE *method;
-
-    method = rb_method_node(mod, id);
-    if (method) {
-	if (VISI_CHECK(method->nd_noex, NOEX_PRIVATE))
-	    return Qtrue;
-    }
-    return Qfalse;
+    return check_method_visibility(mod, id, NOEX_PRIVATE);
 }
 
 /*
@@ -524,14 +492,7 @@ static VALUE
 rb_mod_protected_method_defined(VALUE mod, SEL sel, VALUE mid)
 {
     ID id = rb_to_id(mid);
-    NODE *method;
-
-    method = rb_method_node(mod, id);
-    if (method) {
-	if (VISI_CHECK(method->nd_noex, NOEX_PROTECTED))
-	    return Qtrue;
-    }
-    return Qfalse;
+    return check_method_visibility(mod, id, NOEX_PROTECTED);
 }
 
 void
@@ -581,9 +542,8 @@ secure_visibility(VALUE self)
 static void
 set_method_visibility(VALUE self, int argc, VALUE *argv, ID ex)
 {
-    int i;
     secure_visibility(self);
-    for (i = 0; i < argc; i++) {
+    for (int i = 0; i < argc; i++) {
 	rb_export_method(self, rb_to_id(argv[i]), ex);
     }
 }
@@ -603,7 +563,7 @@ rb_mod_public(VALUE module, SEL sel, int argc, VALUE *argv)
 {
     secure_visibility(module);
     if (argc == 0) {
-	// TODO change scope!
+	rb_vm_set_current_scope(module, SCOPE_PUBLIC);
     }
     else {
 	set_method_visibility(module, argc, argv, NOEX_PUBLIC);
@@ -626,7 +586,7 @@ rb_mod_protected(VALUE module, SEL sel, int argc, VALUE *argv)
 {
     secure_visibility(module);
     if (argc == 0) {
-	// TODO change scope!
+	rb_vm_set_current_scope(module, SCOPE_PROTECTED);
     }
     else {
 	set_method_visibility(module, argc, argv, NOEX_PROTECTED);
@@ -658,7 +618,7 @@ rb_mod_private(VALUE module, SEL sel, int argc, VALUE *argv)
 {
     secure_visibility(module);
     if (argc == 0) {
-	// TODO change scope!
+	rb_vm_set_current_scope(module, SCOPE_PRIVATE);
     }
     else {
 	set_method_visibility(module, argc, argv, NOEX_PRIVATE);
@@ -764,21 +724,19 @@ top_private(VALUE recv, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_mod_modfunc(VALUE module, SEL sel, int argc, VALUE *argv)
 {
-    int i;
-
     if (TYPE(module) != T_MODULE) {
 	rb_raise(rb_eTypeError, "module_function must be called for modules");
     }
 
     secure_visibility(module);
     if (argc == 0) {
-	// TODO change scope!
+	rb_vm_set_current_scope(module, SCOPE_MODULE_FUNC);
 	return module;
     }
 
     set_method_visibility(module, argc, argv, NOEX_PRIVATE);
 
-    for (i = 0; i < argc; i++) {
+    for (int i = 0; i < argc; i++) {
 	ID id = rb_to_id(argv[i]);
 	IMP imp;
 	rb_vm_method_node_t *node;

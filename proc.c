@@ -677,14 +677,17 @@ method_eq(VALUE method, SEL sel, VALUE other)
 {
     rb_vm_method_t *m1, *m2;
 
-    if (CLASS_OF(method) != CLASS_OF(other))
+    if (CLASS_OF(method) != CLASS_OF(other)) {
 	return Qfalse;
+    }
 
     Data_Get_Struct(method, rb_vm_method_t, m1);
     Data_Get_Struct(other, rb_vm_method_t, m2);
 
-    if (m1->oclass != m2->oclass || m1->rclass != m2->rclass ||
-	m1->recv != m2->recv || m1->node != m2->node) {
+    if (m1->oclass != m2->oclass
+	|| m1->rclass != m2->rclass
+	|| m1->recv != m2->recv
+	|| m1->node->objc_imp != m2->node->objc_imp) {
 	return Qfalse;
     }
 

@@ -12,9 +12,11 @@
 #if defined(__cplusplus)
 
 // For the dispatcher.
-#define DISPATCH_VCALL 		1
-#define DISPATCH_SUPER 		2
-#define SPLAT_ARG_FOLLOWS 	0xdeadbeef
+#define DISPATCH_VCALL		1  // no receiver, no argument
+#define DISPATCH_FCALL		2  // no receiver, one or more arguments
+#define DISPATCH_SUPER		3  // super call
+#define DISPATCH_SELF_ATTRASGN	4  // self attribute assignment
+#define SPLAT_ARG_FOLLOWS	0xdeadbeef
 
 // For defined?
 #define DEFINED_IVAR 	1
@@ -172,6 +174,8 @@ class RoxorCompiler {
 	Function *longjmpFunc;
 	Function *setjmpFunc;
 	Function *popBrokenValue;
+	Function *setScopeFunc;
+	Function *setCurrentClassFunc;
 
 	Constant *zeroVal;
 	Constant *oneVal;
@@ -183,6 +187,8 @@ class RoxorCompiler {
 	Constant *undefVal;
 	Constant *splatArgFollowsVal;
 	Constant *cObject;
+	Constant *defaultScope;
+	Constant *publicScope;
 	const Type *RubyObjTy; 
 	const Type *RubyObjPtrTy;
 	const Type *RubyObjPtrPtrTy;
@@ -222,8 +228,9 @@ class RoxorCompiler {
 		BasicBlock *thenBB);
 	void compile_single_when_argument(NODE *arg, Value *comparedToVal,
 		BasicBlock *thenBB);
-	virtual void compile_prepare_method(Value *classVal, Value *sel,
-		Function *new_function, rb_vm_arity_t &arity, NODE *body);
+	virtual void compile_prepare_method(Value *classVal, bool singleton,
+		Value *sel, Function *new_function, rb_vm_arity_t &arity,
+		NODE *body);
 	Value *compile_dispatch_call(std::vector<Value *> &params);
 	Value *compile_when_splat(Value *comparedToVal, Value *splatVal);
 	Value *compile_fast_op_call(SEL sel, Value *selfVal, Value *comparedToVal);
@@ -272,6 +279,9 @@ class RoxorCompiler {
 	Value *compile_literal(VALUE val);
 	virtual Value *compile_immutable_literal(VALUE val);
 	virtual Value *compile_global_entry(NODE *node);
+
+	void compile_set_current_scope(Value *klass, Value *scope);
+	Value *compile_set_current_class(Value *klass);
 
 	Value *compile_landing_pad_header(void);
 	Value *compile_landing_pad_header(const std::type_info &eh_type);
@@ -333,8 +343,9 @@ class RoxorAOTCompiler : public RoxorCompiler {
 	Value *compile_mcache(SEL sel, bool super);
 	Value *compile_ccache(ID id);
 	Instruction *compile_sel(SEL sel, bool add_to_bb=true);
-	void compile_prepare_method(Value *classVal, Value *sel,
-		Function *new_function, rb_vm_arity_t &arity, NODE *body);
+	void compile_prepare_method(Value *classVal, bool singleton,
+		Value *sel, Function *new_function, rb_vm_arity_t &arity,
+		NODE *body);
 	Value *compile_prepare_block_args(Function *func, int *flags);
 	Value *compile_nsobject(void);
 	Value *compile_id(ID id);

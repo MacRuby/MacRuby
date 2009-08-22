@@ -500,7 +500,7 @@ rb_obj_instance_eval(VALUE self, SEL sel, int argc, VALUE *argv)
 	klass = 0;
     }
     else {
-	klass = CLASS_OF(self);
+	klass = rb_singleton_class(self);
     }
     return specific_eval(argc, argv, klass, self);
 }

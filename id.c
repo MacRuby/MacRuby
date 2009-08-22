@@ -65,6 +65,7 @@ Init_id(void)
     selInit = sel_registerName("init");
     selInitialize = sel_registerName("initialize");
     selInitialize2 = sel_registerName("initialize:");
+    selInitializeCopy = sel_registerName("initialize_copy:");
     selDescription = sel_registerName("description");
     selInspect = sel_registerName("inspect");
     selNew = sel_registerName("new");
@@ -95,6 +96,7 @@ Init_id(void)
     selSingletonMethodAdded = sel_registerName("singleton_method_added:");
     selIsEqual = sel_registerName("isEqual:");
     selWrite = sel_registerName("write:");
+    selInherited = sel_registerName("inherited:");
 
     cacheEach = rb_vm_get_call_cache(selEach);
 #endif

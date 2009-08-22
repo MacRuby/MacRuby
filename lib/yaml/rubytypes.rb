@@ -12,8 +12,10 @@ class Object
   def yaml_as(tag)
     attr_writer :taguri
     klass = (self.is_a? Class) ? self : (class << self; self; end)
-    klass.define_method(:taguri) do
-      @taguri || tag
+    klass.instance_eval do
+      define_method(:taguri) do
+        @taguri || tag
+      end
     end
     YAML::LibYAML::DEFAULT_RESOLVER.add_type(tag, self)
   end

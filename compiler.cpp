@@ -121,6 +121,8 @@ RoxorCompiler::RoxorCompiler(void)
     longjmpFunc = NULL;
     setjmpFunc = NULL;
     popBrokenValue = NULL;
+    setScopeFunc = NULL;
+    setCurrentClassFunc = NULL;
 
 #if __LP64__
     RubyObjTy = IntTy = Type::Int64Ty;
@@ -132,6 +134,9 @@ RoxorCompiler::RoxorCompiler(void)
     oneVal = ConstantInt::get(IntTy, 1);
     twoVal = ConstantInt::get(IntTy, 2);
     threeVal = ConstantInt::get(IntTy, 3);
+
+    defaultScope = ConstantInt::get(Type::Int32Ty, SCOPE_DEFAULT);
+    publicScope = ConstantInt::get(Type::Int32Ty, SCOPE_PUBLIC);
 
     RubyObjPtrTy = PointerType::getUnqual(RubyObjTy);
     RubyObjPtrPtrTy = PointerType::getUnqual(RubyObjPtrTy);
@@ -622,22 +627,23 @@ RoxorCompiler::compile_arity(rb_vm_arity_t &arity)
 }
 
 void
-RoxorCompiler::compile_prepare_method(Value *classVal, Value *sel,
-	Function *new_function, rb_vm_arity_t &arity, NODE *body)
+RoxorCompiler::compile_prepare_method(Value *classVal, bool singleton,
+	Value *sel, Function *new_function, rb_vm_arity_t &arity, NODE *body)
 {
     if (prepareMethodFunc == NULL) {
-	// void rb_vm_prepare_method(Class klass, SEL sel,
-	//	Function *func, rb_vm_arity_t arity, int flags)
+	// void rb_vm_prepare_method(Class klass, unsigned char singleton,
+	//	SEL sel, Function *func, rb_vm_arity_t arity, int flags)
 	prepareMethodFunc = 
 	    cast<Function>(module->getOrInsertFunction(
 			"rb_vm_prepare_method",
-			Type::VoidTy, RubyObjTy, PtrTy, PtrTy,
+			Type::VoidTy, RubyObjTy, Type::Int8Ty, PtrTy, PtrTy,
 			Type::Int64Ty, Type::Int32Ty, NULL));
     }
 
     std::vector<Value *> params;
 
     params.push_back(classVal);
+    params.push_back(ConstantInt::get(Type::Int8Ty, singleton));
     params.push_back(sel);
 
     params.push_back(compile_const_pointer(new_function));
@@ -650,22 +656,23 @@ RoxorCompiler::compile_prepare_method(Value *classVal, Value *sel,
 }
 
 void
-RoxorAOTCompiler::compile_prepare_method(Value *classVal, Value *sel,
-	Function *new_function, rb_vm_arity_t &arity, NODE *body)
+RoxorAOTCompiler::compile_prepare_method(Value *classVal, bool singleton,
+	Value *sel, Function *new_function, rb_vm_arity_t &arity, NODE *body)
 {
     if (prepareMethodFunc == NULL) {
-	// void rb_vm_prepare_method2(Class klass, SEL sel,
-	//	IMP ruby_imp, rb_vm_arity_t arity, int flags)
+	// void rb_vm_prepare_method2(Class klass, unsigned char singleton,
+	//	SEL sel, IMP ruby_imp, rb_vm_arity_t arity, int flags)
 	prepareMethodFunc = 
 	    cast<Function>(module->getOrInsertFunction(
 			"rb_vm_prepare_method2",
-			Type::VoidTy, RubyObjTy, PtrTy, PtrTy,
+			Type::VoidTy, RubyObjTy, Type::Int8Ty, PtrTy, PtrTy,
 			Type::Int64Ty, Type::Int32Ty, NULL));
     }
 
     std::vector<Value *> params;
 
     params.push_back(classVal);
+    params.push_back(ConstantInt::get(Type::Int8Ty, singleton));
     params.push_back(sel);
 
     // Make sure the function is compiled before use, this way LLVM won't use
@@ -674,6 +681,7 @@ RoxorAOTCompiler::compile_prepare_method(Value *classVal, Value *sel,
     params.push_back(new BitCastInst(new_function, PtrTy, "", bb));
 
     params.push_back(compile_arity(arity));
+
     params.push_back(ConstantInt::get(Type::Int32Ty, rb_vm_node_flags(body)));
 
     CallInst::Create(prepareMethodFunc, params.begin(),
@@ -733,7 +741,11 @@ RoxorCompiler::compile_attribute_assign(NODE *node, Value *extra_val)
     params.push_back(recv);
     params.push_back(compile_sel(sel));
     params.push_back(compile_const_pointer(NULL));
-    params.push_back(ConstantInt::get(Type::Int8Ty, 0));
+    unsigned char opt = 0;
+    if (recv == current_self) {
+	opt = DISPATCH_SELF_ATTRASGN;
+    }
+    params.push_back(ConstantInt::get(Type::Int8Ty, opt));
     params.push_back(ConstantInt::get(Type::Int32Ty, argc));
     for (std::vector<Value *>::iterator i = args.begin();
 	 i != args.end();
@@ -2469,7 +2481,7 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 	new_params.push_back(params[1]);
 	new_params.push_back(compile_sel(new_sel));
 	new_params.push_back(params[3]);
-	new_params.push_back(params[4]);
+	new_params.push_back(ConstantInt::get(Type::Int8Ty, DISPATCH_FCALL));
 	new_params.push_back(ConstantInt::get(Type::Int32Ty, argc - 1));
 	for (int i = 0; i < argc - 1; i++) {
 	    new_params.push_back(params[7 + i]);
@@ -2725,6 +2737,40 @@ RoxorAOTCompiler::compile_global_entry(NODE *node)
     }
 
     return new LoadInst(gvar, "", bb);
+}
+
+Value *
+RoxorCompiler::compile_set_current_class(Value *klass)
+{
+    if (setCurrentClassFunc == NULL) {
+	// Class rb_vm_set_current_class(Class klass)
+	setCurrentClassFunc = cast<Function>(
+		module->getOrInsertFunction("rb_vm_set_current_class",
+		    RubyObjTy, RubyObjTy, NULL));
+    }
+
+    std::vector<Value *> params;
+    params.push_back(klass);
+
+    return CallInst::Create(setCurrentClassFunc, params.begin(), params.end(),
+	    "", bb);
+}
+
+void
+RoxorCompiler::compile_set_current_scope(Value *klass, Value *scope)
+{
+    if (setScopeFunc == NULL) {
+	// void rb_vm_set_current_scope(VALUE mod, int scope)
+	setScopeFunc = cast<Function>(
+		module->getOrInsertFunction("rb_vm_set_current_scope",
+		    Type::VoidTy, RubyObjTy, Type::Int32Ty, NULL));
+    }
+
+    std::vector<Value *> params;
+    params.push_back(klass);
+    params.push_back(scope);
+
+    CallInst::Create(setScopeFunc, params.begin(), params.end(), "", bb);
 }
 
 void
@@ -3692,7 +3738,15 @@ RoxorCompiler::compile_node(NODE *node)
 
 			current_module = nd_type(node) == NODE_MODULE;
 
+			compile_set_current_scope(classVal, publicScope);
+			Value *old_current_class = 
+			    compile_set_current_class(
+				    ConstantInt::get(RubyObjTy, 0));
+
 			Value *val = compile_node(body->nd_body);
+
+			compile_set_current_class(old_current_class);
+			compile_set_current_scope(classVal, defaultScope);
 
 			BasicBlock::InstListType &list = bb->getInstList();
 			compile_ivar_slots(classVal, list, list.end());
@@ -3844,7 +3898,8 @@ rescan_args:
 		    ? DISPATCH_SUPER
 		    : (nd_type(node) == NODE_VCALL)
 			? DISPATCH_VCALL
-			: 0;
+			: (nd_type(node) == NODE_FCALL)
+			    ? DISPATCH_FCALL : 0;	
 		params.push_back(ConstantInt::get(Type::Int8Ty, call_opt));
 
 		// Arguments.
@@ -4271,7 +4326,7 @@ rescan_args:
 		rb_vm_arity_t arity = rb_vm_node_arity(body);
 		const SEL sel = mid_to_sel(mid, arity.real);
 
-		compile_prepare_method(classVal, compile_sel(sel),
+		compile_prepare_method(classVal, singleton_method, compile_sel(sel),
 			new_function, arity, body);
 
 		return nilVal;

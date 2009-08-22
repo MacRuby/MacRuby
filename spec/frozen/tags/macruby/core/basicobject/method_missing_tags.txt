@@ -1,3 +1,2 @@
-fails:BasicObject#method_missing is a private method
 fails:BasicObject#method_missing is called when a private method is called
 fails:BasicObject#method_missing is called when a protected method is called

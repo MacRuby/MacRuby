@@ -213,6 +213,9 @@ rb_equal_fast(VALUE x, VALUE y)
     if (SPECIAL_CONST_P(x) && SPECIAL_CONST_P(y) && TYPE(x) == TYPE(y)) {
 	return Qfalse;
     }
+    if (SYMBOL_P(x)) {
+	return x == y ? Qtrue : Qfalse;
+    }
     return rb_equal(x, y);
 }
 

@@ -121,8 +121,8 @@ rb_define_object_special_methods(VALUE klass)
     rb_objc_define_method(*(VALUE *)klass, "__new__",
 	    rb_class_new_instance_imp, -1);
     rb_objc_define_method(klass, "dup", rb_obj_dup, 0);
-    rb_objc_define_method(klass, "initialize", rb_objc_init, 0);
-    rb_objc_define_method(klass, "initialize_copy", rb_obj_init_copy, 1);
+    rb_objc_define_private_method(klass, "initialize", rb_objc_init, 0);
+    rb_objc_define_private_method(klass, "initialize_copy", rb_obj_init_copy, 1);
 
     rb_objc_install_method(*(Class *)klass, selAllocWithZone,
 	    (IMP)rb_obj_imp_allocWithZone);
@@ -400,20 +400,20 @@ rb_make_metaclass(VALUE obj, VALUE super)
 VALUE
 rb_define_class_id(ID id, VALUE super)
 {
-    VALUE klass;
-
-    if (!super) super = rb_cObject;
-    klass = rb_objc_create_class(rb_id2name(id), super);
-
-    return klass;
+    if (super == 0) {
+	super = rb_cObject;
+    }
+    return rb_objc_create_class(rb_id2name(id), super);
 }
 
 VALUE
 rb_class_inherited(VALUE super, VALUE klass)
 {
     if (rb_vm_running()) {
-	if (!super) super = rb_cObject;
-	return rb_funcall(super, rb_intern("inherited"), 1, klass);
+	if (super == 0) {
+	    super = rb_cObject;
+	}
+	return rb_vm_call(super, selInherited, 1, &klass, false);
     }
     return Qnil;
 }
@@ -717,20 +717,21 @@ rb_mod_ancestors(VALUE mod)
 static int
 ins_methods_push(VALUE name, long type, VALUE ary, long visi)
 {
-    if (type == -1) return ST_CONTINUE;
-
-    switch (visi) {
-      case NOEX_PRIVATE:
-      case NOEX_PROTECTED:
-      case NOEX_PUBLIC:
-	visi = (type == visi);
-	break;
-      default:
-	visi = (type != NOEX_PRIVATE);
-	break;
-    }
-    if (visi) {
-	rb_ary_push(ary, name);
+    if (type != -1) {
+	bool visible;
+	switch (visi) {
+	    case NOEX_PRIVATE:
+	    case NOEX_PROTECTED:
+	    case NOEX_PUBLIC:
+		visible = (type == visi);
+		break;
+	    default:
+		visible = (type != NOEX_PRIVATE);
+		break;
+	}
+	if (visible) {
+	    rb_ary_push(ary, name);
+	}
     }
     return ST_CONTINUE;
 }
@@ -1010,7 +1011,7 @@ rb_define_private_method(VALUE klass, const char *name, VALUE (*func)(ANYARGS), 
 void
 rb_undef_method(VALUE klass, const char *name)
 {
-    rb_vm_undef_method((Class)klass, name, false);
+    rb_vm_undef_method((Class)klass, rb_intern(name), false);
 }
 
 #define SPECIAL_SINGLETON(x,c) do {\

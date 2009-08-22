@@ -252,7 +252,7 @@ init_copy(VALUE dest, VALUE obj)
         break;
     }
 call_init_copy:
-    rb_funcall(dest, id_init_copy, 1, obj);
+    rb_vm_call(dest, selInitializeCopy, 1, &obj, false);
 }
 
 /*
@@ -386,18 +386,17 @@ static VALUE
 rb_any_to_string(VALUE obj, SEL sel)
 {
     const char *cname = rb_obj_classname(obj);
-    VALUE str;
-
-    str = rb_sprintf("#<%s:%p>", cname, (void*)obj);
-    if (OBJ_TAINTED(obj)) OBJ_TAINT(str);
-
+    VALUE str = rb_sprintf("#<%s:%p>", cname, (void*)obj);
+    if (OBJ_TAINTED(obj)) {
+	OBJ_TAINT(str);
+    }
     return str;
 }
 
 VALUE
 rb_any_to_s(VALUE obj)
 {
-	return rb_any_to_string(obj, 0);
+    return rb_any_to_string(obj, 0);
 }
 
 VALUE
@@ -1789,8 +1788,9 @@ rb_class_initialize(int argc, VALUE *argv, VALUE klass)
 	RCLASS_SET_VERSION(klass, v);
     }
     rb_objc_install_primitives((Class)klass, (Class)super);
-    if (super == rb_cObject)
+    if (super == rb_cObject) {
 	rb_define_object_special_methods(klass);
+    }
 
     rb_class_inherited(super, klass);
     rb_mod_initialize(klass, 0);

@@ -55,9 +55,42 @@ typedef struct {
     rb_vm_local_t *locals;
 } rb_vm_binding_t;
 
-#define VM_METHOD_EMPTY	1000
+#define VM_METHOD_EMPTY		1 // method has an empty body (compilation)
+#define VM_METHOD_PRIVATE	2 // method is private (runtime)
+#define VM_METHOD_PROTECTED	4 // method is protected (runtime)
+#define VM_METHOD_FBODY		8 // method has a MRI C prototype (compilation) 
 
-typedef struct {
+static inline int
+rb_vm_noex_flag(const int noex)
+{
+    switch (noex) {
+	case NOEX_PRIVATE:
+	    return VM_METHOD_PRIVATE;
+	case NOEX_PROTECTED:
+	    return VM_METHOD_PROTECTED;
+	default:
+	case NOEX_PUBLIC:
+	    return 0;
+    }
+}
+
+static inline int
+rb_vm_node_flags(NODE *node)
+{
+    int flags = 0;
+    if (nd_type(node) == NODE_FBODY) {
+	flags |= VM_METHOD_FBODY;
+	if (nd_type(node->nd_body) == NODE_METHOD) {
+	    flags |= rb_vm_noex_flag(node->nd_body->nd_noex);
+	}
+    }
+    if (node->nd_body == NULL) {
+	flags |= VM_METHOD_EMPTY;
+    }
+    return flags;
+}
+
+typedef struct rb_vm_method_node {
     rb_vm_arity_t arity;
     SEL sel;
     IMP objc_imp;
@@ -102,16 +135,16 @@ typedef struct rb_vm_thread {
     rb_vm_block_t *body;
     int argc;
     const VALUE *argv;
-    void *vm;  // a C++ instance of RoxorVM
+    void *vm;		// a C++ instance of RoxorVM
     VALUE value;
     pthread_mutex_t sleep_mutex;
     pthread_cond_t sleep_cond;
     rb_vm_thread_status_t status;
     bool in_cond_wait;
-    VALUE locals;  // a Hash object or Qnil
-    VALUE exception;  // killed-by exception or Qnil 
-    VALUE group;  // always a ThreadGroup object
-    VALUE mutexes;  // an Array object or Qnil
+    VALUE locals;	// a Hash object or Qnil
+    VALUE exception;	// killed-by exception or Qnil 
+    VALUE group;	// always a ThreadGroup object
+    VALUE mutexes;	// an Array object or Qnil
 } rb_vm_thread_t;
 
 typedef struct rb_vm_outer {
@@ -206,36 +239,6 @@ rb_vm_node_arity(NODE *node)
     abort();
 }
 
-static inline int
-rb_vm_node_flags(NODE *node)
-{
-    int flags = nd_type(node);
-    if (node->nd_body == NULL) {
-	flags |= VM_METHOD_EMPTY;
-    }
-    return flags;
-}
-
-static inline int
-rb_vm_method_node_type(rb_vm_method_node_t *node)
-{
-    return node->flags & VM_METHOD_EMPTY
-	? node->flags ^ VM_METHOD_EMPTY : node->flags; 
-}
-
-static inline bool
-rb_vm_method_node_empty(rb_vm_method_node_t *node)
-{
-    return node->flags & VM_METHOD_EMPTY;
-}
-
-static inline int
-rb_vm_method_node_noex(rb_vm_method_node_t *node)
-{
-    // TODO
-    return 0;
-}
-
 static inline NODE *
 rb_vm_cfunc_node_from_imp(Class klass, int arity, IMP imp, int noex)
 {
@@ -265,15 +268,14 @@ bool rb_vm_lookup_method(Class klass, SEL sel, IMP *pimp,
 	rb_vm_method_node_t **pnode);
 bool rb_vm_lookup_method2(Class klass, ID mid, SEL *psel, IMP *pimp,
 	rb_vm_method_node_t **pnode);
-rb_vm_method_node_t *rb_vm_get_method_node(IMP imp);
-void rb_vm_define_method(Class klass, SEL sel, IMP imp, NODE *node,
-	bool direct);
-void rb_vm_define_method2(Class klass, SEL sel, rb_vm_method_node_t *node,
-	bool direct);
+bool rb_vm_is_ruby_method(Method m);
+rb_vm_method_node_t *rb_vm_define_method(Class klass, SEL sel, IMP imp,
+	NODE *node, bool direct);
+rb_vm_method_node_t *rb_vm_define_method2(Class klass, SEL sel,
+	rb_vm_method_node_t *node, bool direct);
 void rb_vm_define_method3(Class klass, SEL sel, rb_vm_block_t *node);
-void rb_vm_define_attr(Class klass, const char *name, bool read, bool write,
-	int noex);
-void rb_vm_undef_method(Class klass, const char *name, bool must_exist);
+void rb_vm_define_attr(Class klass, const char *name, bool read, bool write);
+void rb_vm_undef_method(Class klass, ID name, bool must_exist);
 void rb_vm_alias(VALUE klass, ID name, ID def);
 void rb_vm_copy_methods(Class from_class, Class to_class);
 VALUE rb_vm_call(VALUE self, SEL sel, int argc, const VALUE *args, bool super);
@@ -415,6 +417,16 @@ void rb_vm_finalize(void);
 void rb_vm_load_bridge_support(const char *path, const char *framework_path,
 	int options);
 
+typedef enum {
+    SCOPE_DEFAULT = 0,	// public for everything but Object
+    SCOPE_PUBLIC,
+    SCOPE_PRIVATE,
+    SCOPE_PROTECTED,
+    SCOPE_MODULE_FUNC,
+} rb_vm_scope_t;
+
+void rb_vm_set_current_scope(VALUE mod, rb_vm_scope_t scope);
+
 VALUE rb_iseq_compile(VALUE src, VALUE file, VALUE line);
 VALUE rb_iseq_eval(VALUE iseq);
 VALUE rb_iseq_new(NODE *node, VALUE filename);
@@ -528,8 +540,9 @@ class RoxorCore {
 	// Cache to avoid compiling the same Function twice.
 	std::map<Function *, IMP> JITcache;
 
-	// Cache to identify pure Ruby methods.
+	// Cache to identify pure Ruby implementations / methods.
 	std::map<IMP, rb_vm_method_node_t *> ruby_imps;
+	std::map<Method, rb_vm_method_node_t *> ruby_methods;
 
 	// Method and constant caches.
 	std::map<SEL, struct mcache *> mcache;
@@ -651,6 +664,9 @@ class RoxorCore {
 
 	struct mcache *method_cache_get(SEL sel, bool super);
 	rb_vm_method_node_t *method_node_get(IMP imp);
+	rb_vm_method_node_t *method_node_get(Method m, bool create=false);
+
+	rb_vm_method_source_t *method_source_get(Class klass, SEL sel);
 
 	void prepare_method(Class klass, SEL sel, Function *func,
 		const rb_vm_arity_t &arity, int flag);
@@ -660,6 +676,7 @@ class RoxorCore {
 	rb_vm_method_node_t *resolve_method(Class klass, SEL sel,
 		Function *func, const rb_vm_arity_t &arity, int flags,
 		IMP imp, Method m);
+	void undef_method(Class klass, SEL sel);
 	bool resolve_methods(std::map<Class, rb_vm_method_source_t *> *map,
 		Class klass, SEL sel);
 	void copy_methods(Class from_class, Class to_class);
@@ -717,6 +734,14 @@ class RoxorCore {
 
 #define GET_CORE() (RoxorCore::shared)
 
+typedef enum {
+    METHOD_MISSING_DEFAULT = 0,
+    METHOD_MISSING_PRIVATE,
+    METHOD_MISSING_PROTECTED,
+    METHOD_MISSING_VCALL,
+    METHOD_MISSING_SUPER
+} rb_vm_method_missing_reason_t;
+
 // The VM class is instantiated per thread. There is always at least one
 // instance. The VM class is purely thread-safe and concurrent, it does not
 // acquire any lock, except when it calls the Core.
@@ -764,7 +789,7 @@ class RoxorVM {
 	VALUE last_status;
 	VALUE errinfo;
 	int safe_level;
-	unsigned char method_missing_reason;
+	rb_vm_method_missing_reason_t method_missing_reason;
 	bool parse_in_eval;
 
     public:
@@ -780,7 +805,7 @@ class RoxorVM {
 	ACCESSOR(last_status, VALUE);
 	ACCESSOR(errinfo, VALUE);
 	ACCESSOR(safe_level, int);
-	ACCESSOR(method_missing_reason, unsigned char);
+	ACCESSOR(method_missing_reason, rb_vm_method_missing_reason_t);
 	ACCESSOR(parse_in_eval, bool);
 
 	std::string debug_blocks(void);
