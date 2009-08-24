@@ -508,18 +508,22 @@ RoxorCore::method_node_get(IMP imp)
 inline rb_vm_method_node_t *
 RoxorCore::method_node_get(Method m, bool create)
 {
+    rb_vm_method_node_t *n;
     std::map<Method, rb_vm_method_node_t *>::iterator iter =
 	ruby_methods.find(m);
     if (iter == ruby_methods.end()) {
 	if (create) {
-	    rb_vm_method_node_t *n =
-		(rb_vm_method_node_t *)malloc(sizeof(rb_vm_method_node_t));
+	    n = (rb_vm_method_node_t *)malloc(sizeof(rb_vm_method_node_t));
 	    ruby_methods[m] = n;
-	    return n;
 	}
-	return NULL;
+	else {
+	    n = NULL;
+	}
     }
-    return iter->second;
+    else {
+	n = iter->second;
+    }
+    return n;
 }
 
 extern "C"
@@ -4825,6 +4829,20 @@ rb_vm_create_vm(void)
     GET_CORE()->set_multithreaded(true);
 
     return (void *)new RoxorVM(*GET_VM());
+}
+
+extern "C"
+bool
+rb_vm_is_multithreaded(void)
+{
+    return GET_CORE()->get_multithreaded();
+}
+
+extern "C"
+void
+rb_vm_set_multithreaded(bool flag)
+{
+    GET_CORE()->set_multithreaded(flag);
 }
 
 void

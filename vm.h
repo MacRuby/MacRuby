@@ -373,6 +373,9 @@ void rb_vm_thread_raise(rb_vm_thread_t *t, VALUE exc);
 bool rb_vm_abort_on_exception(void);
 void rb_vm_set_abort_on_exception(bool flag);
 
+bool rb_vm_is_multithreaded(void);
+void rb_vm_set_multithreaded(bool flag);
+
 static inline VALUE
 rb_robject_allocate_instance(VALUE klass)
 {
