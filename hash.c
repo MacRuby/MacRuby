@@ -287,7 +287,7 @@ rb_hash_modify_check(VALUE hash)
 static VALUE
 rb_hash_initialize(VALUE hash, SEL sel, int argc, const VALUE *argv)
 {
-    VALUE ifnone;
+    rb_hash_modify(hash);
 
     hash = (VALUE)objc_msgSend((id)hash, selInit);
 
@@ -298,6 +298,7 @@ rb_hash_initialize(VALUE hash, SEL sel, int argc, const VALUE *argv)
 	rb_objc_hash_set_struct(hash, rb_block_proc(), true);
     }
     else {
+	VALUE ifnone;
 	rb_scan_args(argc, argv, "01", &ifnone);
 	if (ifnone != Qnil)
 	    rb_objc_hash_set_struct(hash, ifnone, false);
