@@ -377,7 +377,8 @@ rb_mod_undef_method(VALUE mod, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_mod_method_defined(VALUE mod, SEL sel, VALUE mid)
 {
-    return rb_method_boundp(mod, rb_to_id(mid), 1);
+    ID id = rb_to_id(mid);
+    return rb_obj_respond_to(mod, id, true) ? Qtrue : Qfalse;
 }
 
 #define VISI_CHECK(x,f) (((x)&NOEX_MASK) == (f))
@@ -764,8 +765,8 @@ rb_mod_modfunc(VALUE module, SEL sel, int argc, VALUE *argv)
 
 //static NODE *basic_respond_to = 0;
 
-int
-rb_obj_respond_to(VALUE obj, ID id, int priv)
+bool
+rb_obj_respond_to(VALUE obj, ID id, bool priv)
 {
     const char *id_name = rb_id2name(id);
     SEL sel = sel_registerName(id_name);
@@ -773,12 +774,12 @@ rb_obj_respond_to(VALUE obj, ID id, int priv)
 	char buf[100];
 	snprintf(buf, sizeof buf, "%s:", id_name);
 	sel = sel_registerName(buf);
-	return rb_vm_respond_to(obj, sel, priv) == true ? 1 : 0;
+	return rb_vm_respond_to(obj, sel, priv);
     }
-    return 1;
+    return true;
 }
 
-int
+bool
 rb_respond_to(VALUE obj, ID id)
 {
     return rb_obj_respond_to(obj, id, Qfalse);
