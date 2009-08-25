@@ -977,14 +977,16 @@ replace_i(VALUE key, VALUE val, VALUE hash)
 static VALUE
 rb_hash_replace(VALUE hash, SEL sel, VALUE hash2)
 {
+    rb_hash_modify(hash);
     hash2 = to_hash(hash2);
-    if (hash == hash2) return hash;
+    if (hash == hash2) {
+	return hash;
+    }
     rb_hash_clear(hash, 0);
     rb_hash_foreach(hash2, replace_i, hash);
-    {
-	struct rb_objc_hash_struct *s = rb_objc_hash_get_struct(hash2);
-	if (s != NULL)
-	    rb_objc_hash_set_struct(hash, s->ifnone, s->has_proc_default);
+    struct rb_objc_hash_struct *s = rb_objc_hash_get_struct(hash2);
+    if (s != NULL) {
+	rb_objc_hash_set_struct(hash, s->ifnone, s->has_proc_default);
     }
 
     return hash;
