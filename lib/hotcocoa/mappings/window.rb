@@ -49,7 +49,7 @@ HotCocoa::Mappings.map :window => :NSWindow do
     default_layout = options.delete(:default_layout)
     if options[:view] == :layout
       options.delete(:view)
-      window.setContentView(LayoutView.alloc.initWithFrame([0,0,window.contentView.frameSize.width, window.contentView.frameSize.height]))
+      window.setContentView(HotCocoa::LayoutView.alloc.initWithFrame([0,0,window.contentView.frameSize.width, window.contentView.frameSize.height]))
       window.contentView.default_layout = default_layout
     elsif options[:view] == :nolayout
       options.delete(:view)

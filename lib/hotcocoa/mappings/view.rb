@@ -36,7 +36,7 @@ HotCocoa::Mappings.map :view => :NSView do
     end
     
     def layout=(options)
-      @layout = LayoutOptions.new(self, options)
+      @layout = HotCocoa::LayoutOptions.new(self, options)
       @layout.update_layout_views!
     end
     
