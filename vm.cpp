@@ -2537,7 +2537,7 @@ __rb_vm_ruby_dispatch(VALUE self, SEL sel, rb_vm_method_node_t *node,
     if ((node->flags & VM_METHOD_PRIVATE) && opt == 0) {
 	// Calling a private method with no explicit receiver OR an attribute
 	// assignment to non-self, triggering #method_missing.
-	method_missing(self, sel, argc, argv, METHOD_MISSING_PRIVATE);
+	return method_missing(self, sel, argc, argv, METHOD_MISSING_PRIVATE);
     }
 
     if ((node->flags & VM_METHOD_EMPTY) && arity.max == arity.min) {
