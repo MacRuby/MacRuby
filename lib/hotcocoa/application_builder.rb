@@ -1,3 +1,5 @@
+framework 'Foundation'
+
 require 'fileutils'
 
 module HotCocoa
