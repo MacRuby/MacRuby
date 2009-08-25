@@ -1,3 +1,0 @@
-fails:Hash#initialize raises a TypeError if called on a frozen instance
-fails:Hash#initialize raises a RuntimeError if called on a frozen instance
-fails:Hash#initialize is private
