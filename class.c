@@ -93,7 +93,7 @@ rb_obj_imp_init(void *rcv, SEL sel)
 static void *
 rb_obj_imp_description(void *rcv, SEL sel)
 {
-    return (void *)rb_vm_call((VALUE)rcv, selToS, 0, NULL, false);
+    return (void *)rb_vm_call(OC2RB(rcv), selToS, 0, NULL, false);
 }
 
 static VALUE
