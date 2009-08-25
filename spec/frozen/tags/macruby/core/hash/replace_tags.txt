@@ -1,3 +1,0 @@
-fails:Hash#replace does not transfer default values
-fails:Hash#replace raises a RuntimeError if called on a frozen instance
-fails:Hash#replace tries to convert the passed argument to a hash using #to_hash
