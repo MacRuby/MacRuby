@@ -2891,6 +2891,10 @@ Init_Object(void)
     rb_objc_define_private_method(rb_cNSObject, "singleton_method_removed", rb_obj_dummy2, 1);
     rb_objc_define_private_method(rb_cNSObject, "singleton_method_undefined", rb_obj_dummy2, 1);
 
+    rb_objc_define_private_method(rb_cBasicObject, "singleton_method_added", rb_obj_dummy2, 1);
+    rb_objc_define_private_method(rb_cBasicObject, "singleton_method_removed", rb_obj_dummy2, 1);
+    rb_objc_define_private_method(rb_cBasicObject, "singleton_method_undefined", rb_obj_dummy2, 1);
+
     rb_mKernel = rb_define_module("Kernel");
     rb_include_module(rb_cNSObject, rb_mKernel);
     rb_objc_define_private_method(rb_cClass, "inherited", rb_obj_dummy2, 1);
