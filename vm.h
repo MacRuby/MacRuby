@@ -38,6 +38,7 @@ typedef struct rb_vm_local {
 typedef struct rb_vm_block {
     VALUE proc; // a reference to a Proc object, or nil
     VALUE self;
+    VALUE klass;
     VALUE userdata; // if VM_BLOCK_IFUNC, contains the user data, otherwise
 		    // contains the key used in the blocks cache.
     rb_vm_arity_t arity;
@@ -372,6 +373,8 @@ void rb_vm_thread_raise(rb_vm_thread_t *t, VALUE exc);
 
 bool rb_vm_abort_on_exception(void);
 void rb_vm_set_abort_on_exception(bool flag);
+
+Class rb_vm_set_current_class(Class klass);
 
 bool rb_vm_is_multithreaded(void);
 void rb_vm_set_multithreaded(bool flag);

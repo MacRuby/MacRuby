@@ -1052,7 +1052,13 @@ rb_singleton_class(VALUE obj)
 		break;
 
 	    default:
-		klass = rb_make_metaclass(obj, RBASIC(obj)->klass);
+		if (RCLASS_SINGLETON(RBASIC(obj)->klass) &&
+		    rb_iv_get(RBASIC(obj)->klass, "__attached__") == obj) {
+		    klass = RBASIC(obj)->klass;
+		}
+		else {
+		    klass = rb_make_metaclass(obj, RBASIC(obj)->klass);
+		}
 		break;
 	}
     }

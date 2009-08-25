@@ -290,7 +290,9 @@ rb_load(VALUE fname, int wrap)
     if (node == NULL) {
 	rb_raise(rb_eSyntaxError, "compile error");
     }
+    Class old_klass = rb_vm_set_current_class(NULL);
     rb_vm_run(fname_str, node, NULL, false);
+    rb_vm_set_current_class(old_klass);
 }
 
 void

@@ -212,7 +212,7 @@ describe "Kernel#eval" do
 
   it "should perform top level evaluations from inside a block" do
     # The class Object bit is needed to workaround some mspec oddness
-    class Object
+    class ::Object
       [1].each { eval "Const = 1"}
       Const.should == 1
       remove_const :Const

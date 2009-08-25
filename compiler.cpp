@@ -43,6 +43,7 @@ RoxorCompiler::RoxorCompiler(void)
     current_block_node = NULL;
     current_block_func = NULL;
     current_opened_class = NULL;
+    dynamic_class = false;
     current_module = false;
     current_loop_begin_bb = NULL;
     current_loop_body_bb = NULL;
@@ -627,11 +628,11 @@ RoxorCompiler::compile_arity(rb_vm_arity_t &arity)
 }
 
 void
-RoxorCompiler::compile_prepare_method(Value *classVal, bool singleton,
-	Value *sel, Function *new_function, rb_vm_arity_t &arity, NODE *body)
+RoxorCompiler::compile_prepare_method(Value *classVal, Value *sel,
+	bool singleton, Function *new_function, rb_vm_arity_t &arity, NODE *body)
 {
     if (prepareMethodFunc == NULL) {
-	// void rb_vm_prepare_method(Class klass, unsigned char singleton,
+	// void rb_vm_prepare_method(Class klass, unsigned char dynamic_class,
 	//	SEL sel, Function *func, rb_vm_arity_t arity, int flags)
 	prepareMethodFunc = 
 	    cast<Function>(module->getOrInsertFunction(
@@ -643,7 +644,8 @@ RoxorCompiler::compile_prepare_method(Value *classVal, bool singleton,
     std::vector<Value *> params;
 
     params.push_back(classVal);
-    params.push_back(ConstantInt::get(Type::Int8Ty, singleton));
+    params.push_back(ConstantInt::get(Type::Int8Ty,
+		!singleton && dynamic_class ? 1 : 0));
     params.push_back(sel);
 
     params.push_back(compile_const_pointer(new_function));
@@ -656,11 +658,11 @@ RoxorCompiler::compile_prepare_method(Value *classVal, bool singleton,
 }
 
 void
-RoxorAOTCompiler::compile_prepare_method(Value *classVal, bool singleton,
-	Value *sel, Function *new_function, rb_vm_arity_t &arity, NODE *body)
+RoxorAOTCompiler::compile_prepare_method(Value *classVal, Value *sel,
+	bool singleton, Function *new_function, rb_vm_arity_t &arity, NODE *body)
 {
     if (prepareMethodFunc == NULL) {
-	// void rb_vm_prepare_method2(Class klass, unsigned char singleton,
+	// void rb_vm_prepare_method2(Class klass, unsigned char dynamic_class,
 	//	SEL sel, IMP ruby_imp, rb_vm_arity_t arity, int flags)
 	prepareMethodFunc = 
 	    cast<Function>(module->getOrInsertFunction(
@@ -672,7 +674,8 @@ RoxorAOTCompiler::compile_prepare_method(Value *classVal, bool singleton,
     std::vector<Value *> params;
 
     params.push_back(classVal);
-    params.push_back(ConstantInt::get(Type::Int8Ty, singleton));
+    params.push_back(ConstantInt::get(Type::Int8Ty,
+		!singleton && dynamic_class ? 1 : 0));
     params.push_back(sel);
 
     // Make sure the function is compiled before use, this way LLVM won't use
@@ -1134,10 +1137,12 @@ Value *
 RoxorCompiler::compile_cvar_get(ID id, bool check)
 {
     if (cvarGetFunc == NULL) {
-	// VALUE rb_vm_cvar_get(VALUE klass, ID id, unsigned char check);
+	// VALUE rb_vm_cvar_get(VALUE klass, ID id, unsigned char check,
+	//	unsigned char dynamic_class);
 	cvarGetFunc = cast<Function>(module->getOrInsertFunction(
 		    "rb_vm_cvar_get", 
-		    RubyObjTy, RubyObjTy, IntTy, Type::Int8Ty, NULL));
+		    RubyObjTy, RubyObjTy, IntTy, Type::Int8Ty, Type::Int8Ty,
+		    NULL));
     }
 
     std::vector<Value *> params;
@@ -1145,6 +1150,7 @@ RoxorCompiler::compile_cvar_get(ID id, bool check)
     params.push_back(compile_current_class());
     params.push_back(compile_id(id));
     params.push_back(ConstantInt::get(Type::Int8Ty, check ? 1 : 0));
+    params.push_back(ConstantInt::get(Type::Int8Ty, dynamic_class ? 1 : 0));
 
     return compile_protected_call(cvarGetFunc, params);
 }
@@ -1153,10 +1159,11 @@ Value *
 RoxorCompiler::compile_cvar_assignment(ID name, Value *val)
 {
     if (cvarSetFunc == NULL) {
-	// VALUE rb_vm_cvar_set(VALUE klass, ID id, VALUE val);
+	// VALUE rb_vm_cvar_set(VALUE klass, ID id, VALUE val,
+	//	unsigned char dynamic_class);
 	cvarSetFunc = cast<Function>(module->getOrInsertFunction(
 		    "rb_vm_cvar_set", 
-		    RubyObjTy, RubyObjTy, IntTy, RubyObjTy, NULL));
+		    RubyObjTy, RubyObjTy, IntTy, RubyObjTy, Type::Int8Ty, NULL));
     }
 
     std::vector<Value *> params;
@@ -1164,6 +1171,7 @@ RoxorCompiler::compile_cvar_assignment(ID name, Value *val)
     params.push_back(compile_current_class());
     params.push_back(compile_id(name));
     params.push_back(val);
+    params.push_back(ConstantInt::get(Type::Int8Ty, dynamic_class ? 1 : 0));
 
     return CallInst::Create(cvarSetFunc, params.begin(),
 	    params.end(), "", bb);
@@ -1192,13 +1200,16 @@ Value *
 RoxorCompiler::compile_constant_declaration(NODE *node, Value *val)
 {
     if (setConstFunc == NULL) {
-	// VALUE rb_vm_set_const(VALUE mod, ID id, VALUE obj);
+	// VALUE rb_vm_set_const(VALUE mod, ID id, VALUE obj,
+	//	unsigned char dynamic_class);
 	setConstFunc = cast<Function>(module->getOrInsertFunction(
 		    "rb_vm_set_const",
-		    Type::VoidTy, RubyObjTy, IntTy, RubyObjTy, NULL));
+		    Type::VoidTy, RubyObjTy, IntTy, RubyObjTy, Type::Int8Ty,
+		    NULL));
     }
 
     std::vector<Value *> params;
+    bool outer = false;
 
     if (node->nd_vid > 0) {
 	params.push_back(compile_current_class());
@@ -1206,12 +1217,13 @@ RoxorCompiler::compile_constant_declaration(NODE *node, Value *val)
     }
     else {
 	assert(node->nd_else != NULL);
-	params.push_back(compile_class_path(node->nd_else, NULL));
+	params.push_back(compile_class_path(node->nd_else, &outer));
 	assert(node->nd_else->nd_mid > 0);
 	params.push_back(compile_id(node->nd_else->nd_mid));
     }
-
     params.push_back(val);
+    params.push_back(ConstantInt::get(Type::Int8Ty,
+		dynamic_class && outer ? 1 : 0));
 
     CallInst::Create(setConstFunc, params.begin(), params.end(), "", bb);
 
@@ -1288,10 +1300,11 @@ RoxorCompiler::compile_const(ID id, Value *outer)
 
     if (getConstFunc == NULL) {
 	// VALUE rb_vm_get_const(VALUE mod, unsigned char lexical_lookup,
-	//			 struct ccache *cache, ID id);
+	//	struct ccache *cache, ID id, unsigned char dynamic_class);
 	getConstFunc = cast<Function>(module->getOrInsertFunction(
 		    "rb_vm_get_const", 
-		    RubyObjTy, RubyObjTy, Type::Int8Ty, PtrTy, IntTy, NULL));
+		    RubyObjTy, RubyObjTy, Type::Int8Ty, PtrTy, IntTy, Type::Int8Ty,
+		    NULL));
     }
 
     std::vector<Value *> params;
@@ -1300,6 +1313,7 @@ RoxorCompiler::compile_const(ID id, Value *outer)
     params.push_back(ConstantInt::get(Type::Int8Ty, outer_given ? 0 : 1));
     params.push_back(compile_ccache(id));
     params.push_back(compile_id(id));
+    params.push_back(ConstantInt::get(Type::Int8Ty, dynamic_class ? 1 : 0));
 
     return compile_protected_call(getConstFunc, params);
 }
@@ -3671,7 +3685,8 @@ RoxorCompiler::compile_node(NODE *node)
 
 		Value *classVal;
 		if (nd_type(node) == NODE_SCLASS) {
-		    classVal = compile_singleton_class(compile_node(node->nd_recv));
+		    classVal =
+			compile_singleton_class(compile_node(node->nd_recv));
 		}
 		else {
 		    assert(node->nd_cpath->nd_mid > 0);
@@ -3680,16 +3695,18 @@ RoxorCompiler::compile_node(NODE *node)
 		    NODE *super = node->nd_super;
 
 		    if (defineClassFunc == NULL) {
-			// VALUE rb_vm_define_class(ID path, VALUE outer, VALUE super,
-			//			    int flags);
-			defineClassFunc = cast<Function>(module->getOrInsertFunction(
+			// VALUE rb_vm_define_class(ID path, VALUE outer,
+			//	VALUE super, int flags,
+			//	unsigned char dynamic_class);
+			defineClassFunc = cast<Function>(
+				module->getOrInsertFunction(
 				    "rb_vm_define_class",
 				    RubyObjTy, IntTy, RubyObjTy, RubyObjTy,
-				    Type::Int32Ty, NULL));
+				    Type::Int32Ty, Type::Int8Ty, NULL));
 		    }
 
 		    std::vector<Value *> params;
-		    bool outer = true;
+		    bool outer = false;
 
 		    params.push_back(compile_id(path));
 		    params.push_back(compile_class_path(node->nd_cpath, &outer));
@@ -3703,6 +3720,8 @@ RoxorCompiler::compile_node(NODE *node)
 			flags |= DEFINE_OUTER;
 		    }
 		    params.push_back(ConstantInt::get(Type::Int32Ty, flags));
+		    params.push_back(ConstantInt::get(Type::Int8Ty,
+				outer && dynamic_class ? 1 : 0));
 
 		    classVal = compile_protected_call(defineClassFunc, params);
 		}
@@ -3739,13 +3758,12 @@ RoxorCompiler::compile_node(NODE *node)
 			current_module = nd_type(node) == NODE_MODULE;
 
 			compile_set_current_scope(classVal, publicScope);
-			Value *old_current_class = 
-			    compile_set_current_class(
-				    ConstantInt::get(RubyObjTy, 0));
+			bool old_dynamic_class = dynamic_class;
+			dynamic_class = false;
 
 			Value *val = compile_node(body->nd_body);
 
-			compile_set_current_class(old_current_class);
+			dynamic_class = old_dynamic_class;
 			compile_set_current_scope(classVal, defaultScope);
 
 			BasicBlock::InstListType &list = bb->getInstList();
@@ -4263,9 +4281,12 @@ rescan_args:
 	case NODE_ALIAS:
 	    {
 		if (aliasFunc == NULL) {
-		    // void rb_vm_alias(VALUE outer, ID from, ID to);
-		    aliasFunc = cast<Function>(module->getOrInsertFunction("rb_vm_alias",
-				Type::VoidTy, RubyObjTy, IntTy, IntTy, NULL));
+		    // void rb_vm_alias2(VALUE outer, ID from, ID to,
+		    //	unsigned char dynamic_class);
+		    aliasFunc = cast<Function>(module->getOrInsertFunction(
+				"rb_vm_alias2",
+				Type::VoidTy, RubyObjTy, IntTy, IntTy, Type::Int8Ty,
+				NULL));
 		}
 
 		std::vector<Value *> params;
@@ -4273,6 +4294,8 @@ rescan_args:
 		params.push_back(compile_current_class());
 		params.push_back(compile_id(node->u1.node->u1.node->u2.id));
 		params.push_back(compile_id(node->u2.node->u1.node->u2.id));
+		params.push_back(ConstantInt::get(Type::Int8Ty,
+			    dynamic_class ? 1 : 0));
 
 		compile_protected_call(aliasFunc, params);
 
@@ -4326,8 +4349,8 @@ rescan_args:
 		rb_vm_arity_t arity = rb_vm_node_arity(body);
 		const SEL sel = mid_to_sel(mid, arity.real);
 
-		compile_prepare_method(classVal, singleton_method, compile_sel(sel),
-			new_function, arity, body);
+		compile_prepare_method(classVal, compile_sel(sel),
+			singleton_method, new_function, arity, body);
 
 		return nilVal;
 	    }
@@ -4336,11 +4359,13 @@ rescan_args:
 	case NODE_UNDEF:
 	    {
 		if (undefFunc == NULL) {
-		    // VALUE rb_vm_undef(VALUE klass, ID name);
+		    // VALUE rb_vm_undef(VALUE klass, ID name,
+		    //	unsigned char dynamic_class);
 		    undefFunc =
 			cast<Function>(module->getOrInsertFunction(
 				"rb_vm_undef",
-				Type::VoidTy, RubyObjTy, IntTy, NULL));
+				Type::VoidTy, RubyObjTy, IntTy, Type::Int8Ty,
+				NULL));
 		}
 
 		assert(node->u2.node != NULL);
@@ -4349,6 +4374,8 @@ rescan_args:
 		std::vector<Value *> params;
 		params.push_back(compile_current_class());
 		params.push_back(compile_id(name));
+		params.push_back(ConstantInt::get(Type::Int8Ty,
+			    dynamic_class ? 1 : 0));
 
 		compile_protected_call(undefFunc, params);
 
@@ -4700,14 +4727,18 @@ rescan_args:
 		bool old_current_block_chain = current_block_chain;
 		int old_return_from_block = return_from_block;
 		BasicBlock *old_rescue_bb = rescue_bb;
+		bool old_dynamic_class = dynamic_class;
 
 		current_mid = 0;
 		current_block = true;
 		current_block_chain = true;
+		dynamic_class = true;
 
 		assert(node->nd_body != NULL);
 		Value *block = compile_node(node->nd_body);	
 		assert(Function::classof(block));
+
+		dynamic_class = old_dynamic_class;
 
 		BasicBlock *return_from_block_bb = NULL;
 		if (!old_current_block_chain && return_from_block != -1) {

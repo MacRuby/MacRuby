@@ -177,19 +177,19 @@ describe "The defined? keyword" do
   end
 
   not_compliant_on :rubinius do
-    # I (Evan) am not certain we'll support defined?(super) ever.
-    # for now, i'm marking these as compliant.
-    it "returns 'super' when Subclass#no_args uses defined?" do
-      ret = (LanguageDefinedSpecs::LanguageDefinedSubclass.new.no_args)
-      ret.should == "super"
-    end
-
-    it "returns 'super' when Subclass#args uses defined?" do
-      ret = (LanguageDefinedSpecs::LanguageDefinedSubclass.new.args)
-      ret.should == "super"
-    end
-
     ruby_version_is "" ... "1.9" do
+      # I (Evan) am not certain we'll support defined?(super) ever.
+      # for now, i'm marking these as compliant.
+      it "returns 'super' when Subclass#no_args uses defined?" do
+        ret = (LanguageDefinedSpecs::LanguageDefinedSubclass.new.no_args)
+        ret.should == "super"
+      end
+  
+      it "returns 'super' when Subclass#args uses defined?" do
+        ret = (LanguageDefinedSpecs::LanguageDefinedSubclass.new.args)
+        ret.should == "super"
+      end
+
       it "returns 'local-variable(in-block)' when defined? is called on a block var" do
         block = Proc.new { |xxx| defined?(xxx) }
         ret = block.call(1)
@@ -198,6 +198,16 @@ describe "The defined? keyword" do
     end
 
     ruby_version_is "1.9" do
+      it "returns 'super' when Subclass#no_args uses defined?" do
+        ret = (LanguageDefinedSubclass.new.no_args)
+        ret.should == "super"
+      end
+  
+      it "returns 'super' when Subclass#args uses defined?" do
+        ret = (LanguageDefinedSubclass.new.args)
+        ret.should == "super"
+      end
+
       it "returns 'local-variable' when defined? is called on a block var" do
         block = Proc.new { |xxx| defined?(xxx) }
         ret = block.call(1)

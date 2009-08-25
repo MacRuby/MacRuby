@@ -2852,6 +2852,7 @@ Init_Object(void)
     rb_const_set(rb_cObject, rb_intern("Object"), rb_cNSObject);
     rb_set_class_path(rb_cObject, rb_cObject, "NSObject");
     rb_cBasicObject = (VALUE)objc_duplicateClass((Class)rb_cObject, "BasicObject", 0);
+    rb_const_set(rb_cObject, rb_intern("BasicObject"), rb_cBasicObject);
     rb_cModule = boot_defclass("Module", rb_cNSObject);
     rb_cClass =  boot_defclass("Class",  rb_cModule);
 

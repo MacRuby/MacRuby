@@ -1,5 +1,6 @@
 require File.dirname(__FILE__) + "/../spec_helper"
 FixtureCompiler.require! "exception"
+TestException # force dynamic load
 
 =begin # TODO
 describe "An Objective-C exception" do

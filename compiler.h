@@ -59,6 +59,8 @@ class RoxorCompiler {
 
 	bool is_inside_eval(void) { return inside_eval; }
 	void set_inside_eval(bool flag) { inside_eval = flag; }
+	bool is_dynamic_class(void) { return dynamic_class; }
+	void set_dynamic_class(bool flag) { dynamic_class = flag; }
 
     protected:
 	const char *fname;
@@ -97,6 +99,7 @@ class RoxorCompiler {
 	NODE *current_block_node;
 	Function *current_block_func;
 	GlobalVariable *current_opened_class;
+	bool dynamic_class;
 	bool current_module;
 	BasicBlock *current_loop_begin_bb;
 	BasicBlock *current_loop_body_bb;
@@ -228,8 +231,8 @@ class RoxorCompiler {
 		BasicBlock *thenBB);
 	void compile_single_when_argument(NODE *arg, Value *comparedToVal,
 		BasicBlock *thenBB);
-	virtual void compile_prepare_method(Value *classVal, bool singleton,
-		Value *sel, Function *new_function, rb_vm_arity_t &arity,
+	virtual void compile_prepare_method(Value *classVal, Value *sel,
+		bool singleton, Function *new_function, rb_vm_arity_t &arity,
 		NODE *body);
 	Value *compile_dispatch_call(std::vector<Value *> &params);
 	Value *compile_when_splat(Value *comparedToVal, Value *splatVal);
@@ -343,8 +346,8 @@ class RoxorAOTCompiler : public RoxorCompiler {
 	Value *compile_mcache(SEL sel, bool super);
 	Value *compile_ccache(ID id);
 	Instruction *compile_sel(SEL sel, bool add_to_bb=true);
-	void compile_prepare_method(Value *classVal, bool singleton,
-		Value *sel, Function *new_function, rb_vm_arity_t &arity,
+	void compile_prepare_method(Value *classVal, Value *sel,
+		bool singleton, Function *new_function, rb_vm_arity_t &arity,
 		NODE *body);
 	Value *compile_prepare_block_args(Function *func, int *flags);
 	Value *compile_nsobject(void);

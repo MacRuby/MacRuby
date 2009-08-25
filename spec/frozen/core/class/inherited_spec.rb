@@ -37,36 +37,36 @@ describe "Class.inherited" do
   it "is called when marked as a private class method" do
     CoreClassSpecs::A.private_class_method :inherited
     CoreClassSpecs::Record.called?.should == nil
-    module CoreClassSpecs; class B < A; end; end
+    module ::CoreClassSpecs; class B < A; end; end
     CoreClassSpecs::Record.called?.should == CoreClassSpecs::B
   end
   
   it "is called when marked as a protected class method" do
-    class << CoreClassSpecs::A
+    class << ::CoreClassSpecs::A
       protected :inherited
     end
     CoreClassSpecs::Record.called?.should == nil
-    module CoreClassSpecs; class C < A; end; end
+    module ::CoreClassSpecs; class C < A; end; end
     CoreClassSpecs::Record.called?.should == CoreClassSpecs::C
   end
   
   it "is called when marked as a public class method" do
     CoreClassSpecs::A.public_class_method :inherited
     CoreClassSpecs::Record.called?.should == nil
-    module CoreClassSpecs; class D < A; end; end
+    module ::CoreClassSpecs; class D < A; end; end
     CoreClassSpecs::Record.called?.should == CoreClassSpecs::D
   end
   
   it "is called by super from a method provided by an included module" do
     CoreClassSpecs::Record.called?.should == nil
-    module CoreClassSpecs; class E < F; end; end
+    module ::CoreClassSpecs; class E < F; end; end
     CoreClassSpecs::Record.called?.should == CoreClassSpecs::E
   end
   
   it "is called by super even when marked as a private class method" do
     CoreClassSpecs::Record.called?.should == nil
     CoreClassSpecs::H.private_class_method :inherited
-    module CoreClassSpecs; class I < H; end; end
+    module ::CoreClassSpecs; class I < H; end; end
     CoreClassSpecs::Record.called?.should == CoreClassSpecs::I
   end
   

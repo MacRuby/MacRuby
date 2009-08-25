@@ -534,6 +534,9 @@ rb_obj_instance_exec(VALUE self, SEL sel, int argc, VALUE *argv)
     else {
 	klass = rb_singleton_class(self);
     }
+    if (!rb_block_given_p()) {
+	rb_raise(rb_eLocalJumpError, "no block given");
+    }
     return rb_vm_yield_under(klass, self, argc, argv);
 }
 

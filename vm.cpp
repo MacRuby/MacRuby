@@ -828,11 +828,13 @@ rb_vm_set_abort_on_exception(bool flag)
 
 extern "C"
 void 
-rb_vm_set_const(VALUE outer, ID id, VALUE obj)
+rb_vm_set_const(VALUE outer, ID id, VALUE obj, unsigned char dynamic_class)
 {
-    Class k = GET_VM()->get_current_class();
-    if (k != NULL) {
-	outer = (VALUE)k;
+    if (dynamic_class) {
+	Class k = GET_VM()->get_current_class();
+	if (k != NULL) {
+	    outer = (VALUE)k;
+	}
     }
     rb_const_set(outer, id, obj);
     GET_CORE()->const_defined(id);
@@ -890,11 +892,13 @@ rb_vm_const_lookup(VALUE outer, ID path, bool lexical, bool defined)
 extern "C"
 VALUE
 rb_vm_get_const(VALUE outer, unsigned char lexical_lookup,
-	struct ccache *cache, ID path)
+	struct ccache *cache, ID path, unsigned char dynamic_class)
 {
-    Class k = GET_VM()->get_current_class();
-    if (lexical_lookup && k != NULL) {
-	outer = (VALUE)k;
+    if (dynamic_class) {
+	Class k = GET_VM()->get_current_class();
+	if (lexical_lookup && k != NULL) {
+	    outer = (VALUE)k;
+	}
     }
 
     assert(cache != NULL);
@@ -950,14 +954,17 @@ check_if_module(VALUE mod)
 
 extern "C"
 VALUE
-rb_vm_define_class(ID path, VALUE outer, VALUE super, int flags)
+rb_vm_define_class(ID path, VALUE outer, VALUE super, int flags,
+	unsigned char dynamic_class)
 {
     assert(path > 0);
     check_if_module(outer);
 
-    Class k = GET_VM()->get_current_class();
-    if (k != NULL) {
-	outer = (VALUE)k;
+    if (dynamic_class) {
+	Class k = GET_VM()->get_current_class();
+	if (k != NULL) {
+	    outer = (VALUE)k;
+	}
     }
 
     VALUE klass;
@@ -1023,6 +1030,7 @@ lle_X_rb_vm_define_class(const FunctionType *FT,
 		FROM_GV(Args[0], ID),
 		FROM_GV(Args[1], VALUE),
 		FROM_GV(Args[2], VALUE),
+		FROM_GV(Args[3], int),
 		FROM_GV(Args[3], unsigned char)));
 }
 
@@ -1063,22 +1071,27 @@ rb_vm_ivar_set(VALUE obj, ID name, VALUE val, int *slot_cache)
 
 extern "C"
 VALUE
-rb_vm_cvar_get(VALUE klass, ID id, unsigned char check)
+rb_vm_cvar_get(VALUE klass, ID id, unsigned char check,
+	unsigned char dynamic_class)
 {
-    Class k = GET_VM()->get_current_class();
-    if (k != NULL) {
-	klass = (VALUE)k;
+    if (dynamic_class) {
+	Class k = GET_VM()->get_current_class();
+	if (k != NULL) {
+	    klass = (VALUE)k;
+	}
     }
     return rb_cvar_get2(klass, id, check);
 }
 
 extern "C"
 VALUE
-rb_vm_cvar_set(VALUE klass, ID id, VALUE val)
+rb_vm_cvar_set(VALUE klass, ID id, VALUE val, unsigned char dynamic_class)
 {
-    Class k = GET_VM()->get_current_class();
-    if (k != NULL) {
-	klass = (VALUE)k;
+    if (dynamic_class) {
+	Class k = GET_VM()->get_current_class();
+	if (k != NULL) {
+	    klass = (VALUE)k;
+	}
     }
     rb_cvar_set(klass, id, val);
     return val;
@@ -1157,11 +1170,13 @@ rb_vm_alias_method(Class klass, Method method, ID name, bool noargs)
 
 extern "C"
 void
-rb_vm_alias(VALUE outer, ID name, ID def)
+rb_vm_alias2(VALUE outer, ID name, ID def, unsigned char dynamic_class)
 {
-    Class k = GET_VM()->get_current_class();
-    if (k != NULL) {
-	outer = (VALUE)k;
+    if (dynamic_class) {
+	Class k = GET_VM()->get_current_class();
+	if (k != NULL) {
+	    outer = (VALUE)k;
+	}
     }
     rb_frozen_class_p(outer);
     if (outer == rb_cObject) {
@@ -1193,11 +1208,20 @@ rb_vm_alias(VALUE outer, ID name, ID def)
 
 extern "C"
 void
-rb_vm_undef(VALUE klass, VALUE name)
+rb_vm_alias(VALUE outer, ID name, ID def)
 {
-    Class k = GET_VM()->get_current_class();
-    if (k != NULL) {
-	klass = (VALUE)k;
+    rb_vm_alias2(outer, name, def, false);
+}
+
+extern "C"
+void
+rb_vm_undef(VALUE klass, VALUE name, unsigned char dynamic_class)
+{
+    if (dynamic_class) {
+	Class k = GET_VM()->get_current_class();
+	if (k != NULL) {
+	    klass = (VALUE)k;
+	}
     }
     rb_vm_undef_method((Class)klass, rb_to_id(name), true);
 }
@@ -1477,10 +1501,10 @@ RoxorCore::prepare_method(Class klass, SEL sel, Function *func,
 }
 
 static void
-prepare_method(Class klass, bool singleton, SEL sel, void *data,
+prepare_method(Class klass, bool dynamic_class, SEL sel, void *data,
 	const rb_vm_arity_t &arity, int flags, bool precompiled)
 {
-    if (!singleton) {
+    if (dynamic_class) {
 	Class k = GET_VM()->get_current_class();
 	if (k != NULL) {
 	    const bool meta = class_isMetaClass(klass);
@@ -1561,8 +1585,8 @@ prepare_method:
 	    for (i = 0; i < count; i++) {
 		VALUE mod = RARRAY_AT(included_in_classes, i);
 		rb_vm_set_current_scope(mod, SCOPE_PUBLIC);
-		prepare_method((Class)mod, false, orig_sel, data, arity, flags,
-			precompiled);
+		prepare_method((Class)mod, false, orig_sel, data, arity,
+			flags, precompiled);
 		rb_vm_set_current_scope(mod, SCOPE_DEFAULT);
 	    }
 	}
@@ -1571,18 +1595,20 @@ prepare_method:
 
 extern "C"
 void
-rb_vm_prepare_method(Class klass, bool singleton, SEL sel, Function *func,
-	const rb_vm_arity_t arity, int flags)
+rb_vm_prepare_method(Class klass, unsigned char dynamic_class, SEL sel,
+	Function *func, const rb_vm_arity_t arity, int flags)
 {
-    prepare_method(klass, singleton, sel, (void *)func, arity, flags, false);
+    prepare_method(klass, dynamic_class, sel, (void *)func, arity,
+	    flags, false);
 }
 
 extern "C"
 void
-rb_vm_prepare_method2(Class klass, bool singleton, SEL sel, IMP ruby_imp,
-	const rb_vm_arity_t arity, int flags)
+rb_vm_prepare_method2(Class klass, unsigned char dynamic_class, SEL sel,
+	IMP ruby_imp, const rb_vm_arity_t arity, int flags)
 {
-    prepare_method(klass, singleton, sel, (void *)ruby_imp, arity, flags, true);
+    prepare_method(klass, dynamic_class, sel, (void *)ruby_imp, arity,
+	    flags, true);
 }
 
 static rb_vm_method_node_t * __rb_vm_define_method(Class klass, SEL sel,
@@ -2758,24 +2784,30 @@ dispatch:
 #endif
 
 	bool block_already_current = vm->is_block_current(block);
+	Class current_klass = vm->get_current_class();
 	if (!block_already_current) {
 	    vm->add_current_block(block);
 	}
+	vm->set_current_class(NULL);
 
 	struct Finally {
 	    bool block_already_current;
+	    Class current_class;
 	    RoxorVM *vm;
-	    Finally(bool _block_already_current, RoxorVM *_vm) {
+	    Finally(bool _block_already_current, Class _current_class,
+		    RoxorVM *_vm) {
 		block_already_current = _block_already_current;
+		current_class = _current_class;
 		vm = _vm;
 	    }
 	    ~Finally() {
 		if (!block_already_current) {
 		    vm->pop_current_block();
 		}
+		vm->set_current_class(current_class);
 		vm->pop_broken_with();
 	    }
-	} finalizer(block_already_current, vm);
+	} finalizer(block_already_current, current_klass, vm);
 
 	return __rb_vm_ruby_dispatch(self, sel, rcache.node, opt, argc, argv);
     }
@@ -3322,9 +3354,10 @@ rb_vm_prepare_block(void *function, int flags, VALUE self, rb_vm_arity_t arity,
 	int dvars_size, ...)
 {
     assert(function != NULL);
+    RoxorVM *vm = GET_VM();
 
     bool cached = false;
-    rb_vm_block_t *b = GET_VM()->uncache_or_create_block(function, &cached,
+    rb_vm_block_t *b = vm->uncache_or_create_block(function, &cached,
 	dvars_size);
 
     bool aot_block = false;
@@ -3361,6 +3394,7 @@ rb_vm_prepare_block(void *function, int flags, VALUE self, rb_vm_arity_t arity,
 
     b->proc = Qnil;
     b->self = self;
+    b->klass = (VALUE)vm->get_current_class();
     b->parent_var_uses = parent_var_uses;
     GC_WB(&b->parent_block, parent_block);
 
@@ -3779,6 +3813,7 @@ rb_vm_create_block_from_method(rb_vm_method_t *method)
 
     b->proc = Qnil;
     GC_WB(&b->self, method->recv);
+    b->klass = 0;
     b->arity = method->node == NULL
 	? rb_vm_arity(method->arity) : method->node->arity;
     b->imp = (IMP)method;
@@ -3808,6 +3843,7 @@ rb_vm_create_block_calling_sel(SEL sel)
     rb_vm_block_t *b = (rb_vm_block_t *)xmalloc(sizeof(rb_vm_block_t)
 	    + sizeof(VALUE *));
 
+    b->klass = 0;
     b->proc = Qnil;
     b->arity = rb_vm_arity(1);
     b->flags = VM_BLOCK_PROC;
@@ -3841,6 +3877,7 @@ rb_vm_make_curry_proc(VALUE proc, VALUE passed, VALUE arity)
     rb_vm_block_t *b = (rb_vm_block_t *)xmalloc(sizeof(rb_vm_block_t)
 	    + (3 * sizeof(VALUE *)));
 
+    b->klass = 0;
     b->proc = Qnil;
     b->arity.min = 0;
     b->arity.max = -1;
@@ -3922,11 +3959,24 @@ block_call:
     }
     b->flags |= VM_BLOCK_ACTIVE;
 
+    RoxorVM *vm = GET_VM();
+    Class old_current_class = vm->get_current_class();
+    vm->set_current_class((Class)b->klass);
+
     struct Finally {
+	RoxorVM *vm;
 	rb_vm_block_t *b;
-	Finally(rb_vm_block_t *_b) { b = _b; }
-	~Finally() { b->flags &= ~VM_BLOCK_ACTIVE; }
-    } finalizer(b);
+	Class c;
+	Finally(RoxorVM *_vm, rb_vm_block_t *_b, Class _c) {
+	    vm = _vm;
+	    b = _b;
+	    c = _c;
+	}
+	~Finally() {
+	    b->flags &= ~VM_BLOCK_ACTIVE;
+	    vm->set_current_class(c);
+	}
+    } finalizer(vm, b, old_current_class);
 
     if (b->flags & VM_BLOCK_METHOD) {
 	rb_vm_method_t *m = (rb_vm_method_t *)b->imp;
@@ -3966,8 +4016,13 @@ rb_vm_yield0(int argc, const VALUE *argv)
     struct Finally {
 	RoxorVM *vm;
 	rb_vm_block_t *b;
-	Finally(RoxorVM *_vm, rb_vm_block_t *_b) { vm = _vm; b = _b; }
-	~Finally() { vm->add_current_block(b); }
+	Finally(RoxorVM *_vm, rb_vm_block_t *_b) { 
+	    vm = _vm;
+	    b = _b;
+	}
+	~Finally() {
+	    vm->add_current_block(b);
+	}
     } finalizer(vm, b);
 
     return rb_vm_block_eval0(b, b->self, argc, argv);
@@ -3990,20 +4045,15 @@ rb_vm_yield_under(VALUE klass, VALUE self, int argc, const VALUE *argv)
 
     VALUE old_self = b->self;
     b->self = self;
-    Class old_class = vm->get_current_class();
-    if (klass == self) {
-	// We only toggle the VM current klass in case #module_eval or
-	// #class_eval is used (where the given klass and self objects are 
-	// actually the same instances).
-	vm->set_current_class((Class)klass);
-    }
+    VALUE old_class = b->klass;
+    b->klass = klass;
 
     struct Finally {
 	RoxorVM *vm;
 	rb_vm_block_t *b;
-	Class old_class;
+	VALUE old_class;
 	VALUE old_self;
-	Finally(RoxorVM *_vm, rb_vm_block_t *_b, Class _old_class,
+	Finally(RoxorVM *_vm, rb_vm_block_t *_b, VALUE _old_class,
 		VALUE _old_self) {
 	    vm = _vm;
 	    b = _b;
@@ -4012,7 +4062,7 @@ rb_vm_yield_under(VALUE klass, VALUE self, int argc, const VALUE *argv)
 	}
 	~Finally() {
 	    b->self = old_self;
-	    vm->set_current_class(old_class);
+	    b->klass = old_class;
 	    vm->add_current_block(b);
 	}
     } finalizer(vm, b, old_class, old_self);
@@ -4552,22 +4602,28 @@ VALUE
 rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
 		rb_vm_binding_t *binding, bool inside_eval)
 {
-    VALUE old_top_object = GET_VM()->get_current_top_object();
+    RoxorVM *vm = GET_VM();
+    RoxorCompiler *compiler = RoxorCompiler::shared;
+
+    VALUE old_top_object = vm->get_current_top_object();
     if (binding != NULL) {
 	self = binding->self;
     }
     if (self != 0) {
-	GET_VM()->set_current_top_object(self);
+	vm->set_current_top_object(self);
     }
     Class old_class = GET_VM()->get_current_class();
+    bool old_dynamic_class = compiler->is_dynamic_class();
     if (klass != 0) {
-	GET_VM()->set_current_class((Class)klass);
+	vm->set_current_class((Class)klass);
+	compiler->set_dynamic_class(true);
     }
 
     VALUE val = rb_vm_run(fname, node, binding, inside_eval);
 
-    GET_VM()->set_current_top_object(old_top_object);
-    GET_VM()->set_current_class(old_class);
+    compiler->set_dynamic_class(old_dynamic_class);
+    vm->set_current_top_object(old_top_object);
+    vm->set_current_class(old_class);
 
     return val;
 }

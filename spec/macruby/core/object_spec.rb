@@ -1,5 +1,6 @@
 require File.dirname(__FILE__) + "/../spec_helper"
 FixtureCompiler.require! "object"
+TestObject # force dynamic load
 
 require File.join(FIXTURES, 'object')
 
