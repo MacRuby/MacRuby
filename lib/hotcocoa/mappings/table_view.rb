@@ -30,7 +30,7 @@ HotCocoa::Mappings.map :table_view => :NSTableView do
   custom_methods do
     
     def data=(data_source)
-      data_source = TableDataSource.new(data_source) if data_source.kind_of?(Array)
+      data_source = HotCocoa::TableDataSource.new(data_source) if data_source.kind_of?(Array)
       setDataSource(data_source)
     end
     
