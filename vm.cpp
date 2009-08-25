@@ -1531,6 +1531,7 @@ prepare_method(Class klass, bool dynamic_class, SEL sel, void *data,
     const char *sel_name = sel_getName(sel);
     const bool genuine_selector = sel_name[strlen(sel_name) - 1] == ':';
     bool redefined = false;
+    bool added_modfunc = false;
     SEL orig_sel = sel;
     Method m;
     IMP imp = NULL;
@@ -1590,6 +1591,14 @@ prepare_method:
 		rb_vm_set_current_scope(mod, SCOPE_DEFAULT);
 	    }
 	}
+    }
+
+    if (!added_modfunc && (v & RCLASS_SCOPE_MOD_FUNC)) {
+	added_modfunc = true;
+	redefined = false;
+	klass = *(Class *)klass;
+	flags = 0;
+	goto prepare_method;
     }
 }
 

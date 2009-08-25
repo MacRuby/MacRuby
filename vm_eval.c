@@ -355,11 +355,18 @@ eval_string(VALUE self, VALUE klass, VALUE src, VALUE scope, const char *file,
 static VALUE
 specific_eval(int argc, VALUE *argv, VALUE klass, VALUE self)
 {
+    VALUE retval;
+
+    // XXX: not exception-safe
+    const long old_version = RCLASS_VERSION(klass);
+
     if (rb_block_given_p()) {
         if (argc > 0) {
-            rb_raise(rb_eArgError, "wrong number of arguments (%d for 0)", argc);
+            rb_raise(rb_eArgError, "wrong number of arguments (%d for 0)",
+		    argc);
         }
-        return rb_vm_yield_under(klass, self, 0, NULL);
+	rb_vm_set_current_scope(klass, SCOPE_PUBLIC);
+        retval = rb_vm_yield_under(klass, self, 0, NULL);
     }
     else {
 	const char *file = "(eval)";
@@ -386,8 +393,13 @@ specific_eval(int argc, VALUE *argv, VALUE klass, VALUE self)
 	if (argc > 1) {
 	    file = StringValuePtr(argv[1]);
 	}
-	return eval_string(self, klass, argv[0], Qnil, file, line);
+	rb_vm_set_current_scope(klass, SCOPE_PUBLIC);
+	retval = eval_string(self, klass, argv[0], Qnil, file, line);
     }
+
+    RCLASS_SET_VERSION(klass, old_version);
+
+    return retval;
 }
 
 /*
@@ -436,7 +448,17 @@ rb_f_eval(VALUE self, SEL sel, int argc, VALUE *argv)
     if (!NIL_P(vfile)) {
 	file = RSTRING_PTR(vfile);
     }
-    return eval_string(self, 0, src, scope, file, line);
+    VALUE klass;
+    switch (TYPE(self)) {
+	case T_CLASS:
+	case T_MODULE:
+	    klass = self;
+	    break;
+	default:
+	    klass = 0;
+	    break;
+    }
+    return eval_string(self, klass, src, scope, file, line);
 }
 
 VALUE
