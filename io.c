@@ -4004,7 +4004,8 @@ rb_io_external_encoding(VALUE io, SEL sel)
 static VALUE
 rb_io_internal_encoding(VALUE io, SEL sel)
 {
-    rb_notimplement();
+    // TODO
+    return Qnil;
 }
 
 /*
