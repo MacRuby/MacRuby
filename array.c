@@ -406,12 +406,15 @@ rb_ary_new3(long n, ...)
 {
     VALUE ary = rb_ary_new2(n);
 
-    va_list ar;
-    va_start(ar, n);
-    for (long i = 0; i < n; i++) {
-	rb_ary_insert(ary, i, va_arg(ar, VALUE));
+    if (n > 0) {
+	va_list ar;
+	va_start(ar, n);
+	rary_reserve(RARY(ary), n);
+	for (long i = 0; i < n; i++) {
+	    rary_append(RARY(ary), va_arg(ar, VALUE));
+	}
+	va_end(ar);
     }
-    va_end(ar);
 
     return ary;
 }
