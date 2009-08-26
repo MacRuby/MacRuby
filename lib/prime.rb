@@ -146,8 +146,8 @@ class Prime
   def prime?(value, generator = Prime::Generator23.new)
     for num in generator
       q,r = value.divmod num
-      return true if q < num
-      return false if r == 0
+      break true if q < num
+      break false if r == 0
     end
   end
 
@@ -334,7 +334,7 @@ class Prime
 	  when 3; @prime = 5; @step = 2
 	  end
 	end
-	return @prime
+	break @prime
       end
     end
     alias next succ
@@ -408,11 +408,13 @@ class Prime
     def next_to(n)
       n = (n-1).div(2)*2+3 # the next odd number of given n
       i,j = n.divmod(32)
-      loop do
+      while true do
 	extend_table until @table.length > i
 	if !@table[i].zero?
-	  (j...32).step(2) do |k|
+          k = j;
+          while k <= 32
 	    return 32*i+k if !@table[i][k.div(2)].zero?
+            k += 2
 	  end
 	end
 	i += 1; j = 1

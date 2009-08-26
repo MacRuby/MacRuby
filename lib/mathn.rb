@@ -13,8 +13,8 @@ require "cmath.rb"
 require "matrix.rb"
 require "prime.rb"
 
-require "mathn/rational"
-require "mathn/complex"
+#require "mathn/rational"
+#require "mathn/complex"
 
 unless defined?(Math.exp!)
   Object.instance_eval{remove_const :Math}
