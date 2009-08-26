@@ -4,6 +4,7 @@ load "./rbconfig.rb"
 include RbConfig
 
 srcdir = File.dirname(__FILE__)
+$:.clear
 $:.unshift File.expand_path("lib", srcdir)
 require 'fileutils'
 require 'shellwords'
