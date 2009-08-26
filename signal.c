@@ -1086,7 +1086,7 @@ Init_signal(void)
 #ifndef MACOS_UNUSE_SIGNAL
     VALUE mSignal = rb_define_module("Signal");
 
-    rb_objc_define_method(rb_mKernel, "trap", sig_trap, -1);
+    rb_objc_define_module_function(rb_mKernel, "trap", sig_trap, -1);
     rb_objc_define_method(*(VALUE *)mSignal, "trap", sig_trap, -1);
     rb_objc_define_method(*(VALUE *)mSignal, "list", sig_list, 0);
 

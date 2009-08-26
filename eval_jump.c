@@ -92,6 +92,6 @@ rb_exec_end_proc(void)
 void
 Init_jump(void)
 {
-    rb_objc_define_method(rb_mKernel, "at_exit", rb_f_at_exit, 0);
+    rb_objc_define_module_function(rb_mKernel, "at_exit", rb_f_at_exit, 0);
     GC_ROOT(&end_procs);
 }

@@ -4101,7 +4101,7 @@ Init_File(void)
 
     rb_objc_define_method(rb_cFile, "path",  rb_file_path, 0);
     rb_objc_define_method(rb_cFile, "to_path",  rb_file_path, 0);
-    rb_objc_define_method(rb_mKernel, "test", rb_f_test, -1);
+    rb_objc_define_module_function(rb_mKernel, "test", rb_f_test, -1);
 
     rb_cStat = rb_define_class_under(rb_cFile, "Stat", rb_cObject);
     rb_objc_define_method(*(VALUE *)rb_cStat, "alloc", rb_stat_s_alloc, 0);

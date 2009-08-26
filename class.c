@@ -985,6 +985,14 @@ rb_objc_define_private_method(VALUE klass, const char *name, void *imp,
 }
 
 void
+rb_objc_define_module_function(VALUE module, const char *name, void *imp,
+			       const int arity)
+{
+    rb_objc_define_private_method(module, name, imp, arity);
+    rb_objc_define_method(*(VALUE *)module, name, imp, arity);
+}
+
+void
 rb_define_method_id(VALUE klass, ID name, VALUE (*func)(ANYARGS), int argc)
 {
     rb_add_method(klass, name, NEW_CFUNC(func,argc), NOEX_PUBLIC);

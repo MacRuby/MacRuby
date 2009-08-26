@@ -773,15 +773,15 @@ Init_eval(void)
     rb_define_virtual_variable("$@", errat_getter, errat_setter);
     rb_define_virtual_variable("$!", errinfo_getter, 0);
 
-    rb_objc_define_method(rb_mKernel, "eval", rb_f_eval, -1);
-    rb_objc_define_method(rb_mKernel, "iterator?", rb_f_block_given_p, 0);
-    rb_objc_define_method(rb_mKernel, "block_given?", rb_f_block_given_p, 0);
+    rb_objc_define_module_function(rb_mKernel, "eval", rb_f_eval, -1);
+    rb_objc_define_module_function(rb_mKernel, "iterator?", rb_f_block_given_p, 0);
+    rb_objc_define_module_function(rb_mKernel, "block_given?", rb_f_block_given_p, 0);
 
-    rb_objc_define_method(rb_mKernel, "raise", rb_f_raise, -1);
-    rb_objc_define_method(rb_mKernel, "fail", rb_f_raise, -1);
+    rb_objc_define_module_function(rb_mKernel, "raise", rb_f_raise, -1);
+    rb_objc_define_module_function(rb_mKernel, "fail", rb_f_raise, -1);
 
-    rb_objc_define_method(rb_mKernel, "global_variables", rb_f_global_variables, 0);	/* in variable.c */
-    rb_objc_define_method(rb_mKernel, "local_variables", rb_f_local_variables, 0);
+    rb_objc_define_module_function(rb_mKernel, "global_variables", rb_f_global_variables, 0);	/* in variable.c */
+    rb_objc_define_module_function(rb_mKernel, "local_variables", rb_f_local_variables, 0);
 
     rb_objc_define_method(rb_mKernel, "__method__", rb_f_method_name, 0);
     rb_objc_define_method(rb_mKernel, "__callee__", rb_f_method_name, 0);
@@ -805,8 +805,8 @@ Init_eval(void)
 
     rb_objc_define_method(rb_mKernel, "extend", rb_obj_extend, -1);
 
-    rb_objc_define_method(rb_mKernel, "trace_var", rb_f_trace_var, -1);	/* in variable.c */
-    rb_objc_define_method(rb_mKernel, "untrace_var", rb_f_untrace_var, -1);	/* in variable.c */
+    rb_objc_define_module_function(rb_mKernel, "trace_var", rb_f_trace_var, -1);	/* in variable.c */
+    rb_objc_define_module_function(rb_mKernel, "untrace_var", rb_f_untrace_var, -1);	/* in variable.c */
 
     rb_define_virtual_variable("$SAFE", safe_getter, safe_setter);
 

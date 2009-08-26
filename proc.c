@@ -1512,8 +1512,8 @@ Init_Proc(void)
     rb_objc_retain((void *)sysstack_error);
 
     /* utility functions */
-    rb_objc_define_method(rb_mKernel, "proc", rb_block_proc_imp, 0);
-    rb_objc_define_method(rb_mKernel, "lambda", proc_lambda, 0);
+    rb_objc_define_module_function(rb_mKernel, "proc", rb_block_proc_imp, 0);
+    rb_objc_define_module_function(rb_mKernel, "lambda", proc_lambda, 0);
 
     /* Method */
     rb_cMethod = rb_define_class("Method", rb_cObject);
@@ -1605,7 +1605,7 @@ Init_Binding(void)
     rb_objc_define_method(rb_cBinding, "clone", binding_clone, 0);
     rb_objc_define_method(rb_cBinding, "dup", binding_dup, 0);
     rb_objc_define_method(rb_cBinding, "eval", bind_eval, -1);
-    rb_objc_define_method(rb_mKernel, "binding", rb_f_binding, 0);
+    rb_objc_define_module_function(rb_mKernel, "binding", rb_f_binding, 0);
 
     rb_vm_binding_t *binding = (rb_vm_binding_t *)xmalloc(
 	    sizeof(rb_vm_binding_t));

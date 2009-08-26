@@ -605,12 +605,12 @@ Init_load()
     rb_define_virtual_variable("$\"", rb_vm_loaded_features, 0);
     rb_define_virtual_variable("$LOADED_FEATURES", rb_vm_loaded_features, 0);
 
-    rb_objc_define_method(rb_mKernel, "load", rb_f_load, -1);
-    rb_objc_define_method(rb_mKernel, "require", rb_f_require_imp, 1);
+    rb_objc_define_module_function(rb_mKernel, "load", rb_f_load, -1);
+    rb_objc_define_module_function(rb_mKernel, "require", rb_f_require_imp, 1);
     rb_objc_define_method(rb_cModule, "autoload", rb_mod_autoload, 2);
     rb_objc_define_method(rb_cModule, "autoload?", rb_mod_autoload_p, 1);
-    rb_objc_define_method(rb_mKernel, "autoload", rb_f_autoload, 2);
-    rb_objc_define_method(rb_mKernel, "autoload?", rb_f_autoload_p, 1);
+    rb_objc_define_module_function(rb_mKernel, "autoload", rb_f_autoload, 2);
+    rb_objc_define_module_function(rb_mKernel, "autoload?", rb_f_autoload_p, 1);
 
-    rb_objc_define_method(rb_mKernel, "framework", rb_require_framework, -1);
+    rb_objc_define_module_function(rb_mKernel, "framework", rb_require_framework, -1);
 }

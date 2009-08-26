@@ -503,7 +503,7 @@ void
 Init_Random(void)
 {
     rand_init(random_seed());
-    rb_objc_define_method(rb_mKernel, "srand", rb_f_srand, -1);
-    rb_objc_define_method(rb_mKernel, "rand", rb_f_rand, -1);
+    rb_objc_define_module_function(rb_mKernel, "srand", rb_f_srand, -1);
+    rb_objc_define_module_function(rb_mKernel, "rand", rb_f_rand, -1);
     rb_global_variable(&saved_seed);
 }

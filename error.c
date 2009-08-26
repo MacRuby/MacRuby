@@ -1105,7 +1105,7 @@ Init_Exception(void)
     rb_mErrno = rb_define_module("Errno");
     rb_objc_define_method(*(VALUE *)rb_mErrno, "const_missing", errno_missing, 1);
 
-    rb_objc_define_method(rb_mKernel, "warn", rb_warn_m, 1);
+    rb_objc_define_module_function(rb_mKernel, "warn", rb_warn_m, 1);
 }
 
 void

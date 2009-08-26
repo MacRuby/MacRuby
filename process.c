@@ -5037,14 +5037,14 @@ Init_process(void)
 {
     rb_define_virtual_variable("$?", rb_last_status_get, 0);
     rb_define_virtual_variable("$$", get_pid, 0);
-    rb_objc_define_method(rb_mKernel, "exec", rb_f_exec, -1);
-    rb_objc_define_method(rb_mKernel, "fork", rb_f_fork, 0);
-    rb_objc_define_method(rb_mKernel, "exit!", rb_f_exit_bang, -1);
-    rb_objc_define_method(rb_mKernel, "system", rb_f_system, -1);
-    rb_objc_define_method(rb_mKernel, "spawn", rb_f_spawn, -1);
-    rb_objc_define_method(rb_mKernel, "sleep", rb_f_sleep, -1);
-    rb_objc_define_method(rb_mKernel, "exit", rb_f_exit, -1);
-    rb_objc_define_method(rb_mKernel, "abort", rb_f_abort, -1);
+    rb_objc_define_module_function(rb_mKernel, "exec", rb_f_exec, -1);
+    rb_objc_define_module_function(rb_mKernel, "fork", rb_f_fork, 0);
+    rb_objc_define_module_function(rb_mKernel, "exit!", rb_f_exit_bang, -1);
+    rb_objc_define_module_function(rb_mKernel, "system", rb_f_system, -1);
+    rb_objc_define_module_function(rb_mKernel, "spawn", rb_f_spawn, -1);
+    rb_objc_define_module_function(rb_mKernel, "sleep", rb_f_sleep, -1);
+    rb_objc_define_module_function(rb_mKernel, "exit", rb_f_exit, -1);
+    rb_objc_define_module_function(rb_mKernel, "abort", rb_f_abort, -1);
 
     rb_mProcess = rb_define_module("Process");
 

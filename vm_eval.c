@@ -272,8 +272,9 @@ loop_i(void)
  */
 
 static VALUE
-rb_f_loop(VALUE klass, SEL sel)
+rb_f_loop(VALUE rcv, SEL sel)
 {
+    RETURN_ENUMERATOR(rcv, 0, 0);
     return rb_rescue2(loop_i, (VALUE)0, 0, 0, rb_eStopIteration, (VALUE)0);
 }
 
@@ -765,10 +766,10 @@ rb_make_backtrace(void)
 void
 Init_vm_eval(void)
 {
-    rb_objc_define_method(rb_mKernel, "catch", rb_f_catch, 1);
-    rb_objc_define_method(rb_mKernel, "throw", rb_f_throw, -1);
+    rb_objc_define_module_function(rb_mKernel, "catch", rb_f_catch, 1);
+    rb_objc_define_module_function(rb_mKernel, "throw", rb_f_throw, -1);
 
-    rb_objc_define_method(rb_mKernel, "loop", rb_f_loop, 0);
+    rb_objc_define_module_function(rb_mKernel, "loop", rb_f_loop, 0);
 
     rb_objc_define_method(rb_cNSObject, "instance_eval", rb_obj_instance_eval, -1);
     rb_objc_define_method(rb_cNSObject, "instance_exec", rb_obj_instance_exec, -1);
@@ -786,6 +787,6 @@ Init_vm_eval(void)
     rb_objc_define_method(rb_cModule, "module_exec", rb_mod_module_exec, -1);
     rb_objc_define_method(rb_cModule, "class_exec", rb_mod_module_exec, -1);
 
-    rb_objc_define_method(rb_mKernel, "caller", rb_f_caller, -1);
+    rb_objc_define_module_function(rb_mKernel, "caller", rb_f_caller, -1);
 }
 

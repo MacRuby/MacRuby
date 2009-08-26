@@ -4481,23 +4481,23 @@ Init_IO(void)
     id_encode = rb_intern("encode");
     id_readpartial = rb_intern("readpartial");
 
-    rb_objc_define_method(rb_mKernel, "syscall", rb_f_syscall, -1);
+    rb_objc_define_module_function(rb_mKernel, "syscall", rb_f_syscall, -1);
 
-    rb_objc_define_method(rb_mKernel, "open", rb_f_open, -1);
-    rb_objc_define_method(rb_mKernel, "printf", rb_f_printf, -1);
-    rb_objc_define_method(rb_mKernel, "print", rb_f_print, -1);
-    rb_objc_define_method(rb_mKernel, "putc", rb_f_putc, 1);
-    rb_objc_define_method(rb_mKernel, "puts", rb_f_puts, -1);
-    rb_objc_define_method(rb_mKernel, "gets", rb_f_gets, -1);
-    rb_objc_define_method(rb_mKernel, "readline", rb_f_readline, -1);
-    rb_objc_define_method(rb_mKernel, "select", rb_f_select, -1);
+    rb_objc_define_module_function(rb_mKernel, "open", rb_f_open, -1);
+    rb_objc_define_module_function(rb_mKernel, "printf", rb_f_printf, -1);
+    rb_objc_define_module_function(rb_mKernel, "print", rb_f_print, -1);
+    rb_objc_define_module_function(rb_mKernel, "putc", rb_f_putc, 1);
+    rb_objc_define_module_function(rb_mKernel, "puts", rb_f_puts, -1);
+    rb_objc_define_module_function(rb_mKernel, "gets", rb_f_gets, -1);
+    rb_objc_define_module_function(rb_mKernel, "readline", rb_f_readline, -1);
+    rb_objc_define_module_function(rb_mKernel, "select", rb_f_select, -1);
 
-    rb_objc_define_method(rb_mKernel, "readlines", rb_f_readlines, -1);
+    rb_objc_define_module_function(rb_mKernel, "readlines", rb_f_readlines, -1);
 
-    rb_objc_define_method(rb_mKernel, "`", rb_f_backquote, 1);
+    rb_objc_define_module_function(rb_mKernel, "`", rb_f_backquote, 1);
 
-    rb_objc_define_method(rb_mKernel, "p", rb_f_p, -1);
-    rb_objc_define_method(rb_mKernel, "display", rb_obj_display, -1);
+    rb_objc_define_module_function(rb_mKernel, "p", rb_f_p, -1);
+    rb_objc_define_module_function(rb_mKernel, "display", rb_obj_display, -1);
 
     rb_cIO = rb_define_class("IO", rb_cObject);
     rb_include_module(rb_cIO, rb_mEnumerable);

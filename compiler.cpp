@@ -3486,10 +3486,11 @@ RoxorCompiler::compile_node(NODE *node)
 
 		std::vector<Value *> params;
 		params.push_back(compile_mcache(selBackquote, false));
-		params.push_back(nilVal);
+		params.push_back(current_self);
 		params.push_back(compile_sel(selBackquote));
 		params.push_back(compile_const_pointer(NULL));
-		params.push_back(ConstantInt::get(Type::Int8Ty, 0));
+		params.push_back(ConstantInt::get(Type::Int8Ty,
+			    DISPATCH_FCALL));
 		params.push_back(ConstantInt::get(Type::Int32Ty, 1));
 		params.push_back(str);
 

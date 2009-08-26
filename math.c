@@ -621,39 +621,38 @@ Init_Math(void)
     rb_define_const(rb_mMath, "E", DOUBLE2NUM(exp(1.0)));
 #endif
 
-    VALUE rb_cmMath = *(VALUE *)rb_mMath;
-    rb_objc_define_method(rb_cmMath, "atan2", math_atan2, 2);
-    rb_objc_define_method(rb_cmMath, "cos", math_cos, 1);
-    rb_objc_define_method(rb_cmMath, "sin", math_sin, 1);
-    rb_objc_define_method(rb_cmMath, "tan", math_tan, 1);
+    rb_objc_define_module_function(rb_mMath, "atan2", math_atan2, 2);
+    rb_objc_define_module_function(rb_mMath, "cos", math_cos, 1);
+    rb_objc_define_module_function(rb_mMath, "sin", math_sin, 1);
+    rb_objc_define_module_function(rb_mMath, "tan", math_tan, 1);
 
-    rb_objc_define_method(rb_cmMath, "acos", math_acos, 1);
-    rb_objc_define_method(rb_cmMath, "asin", math_asin, 1);
-    rb_objc_define_method(rb_cmMath, "atan", math_atan, 1);
+    rb_objc_define_module_function(rb_mMath, "acos", math_acos, 1);
+    rb_objc_define_module_function(rb_mMath, "asin", math_asin, 1);
+    rb_objc_define_module_function(rb_mMath, "atan", math_atan, 1);
 
-    rb_objc_define_method(rb_cmMath, "cosh", math_cosh, 1);
-    rb_objc_define_method(rb_cmMath, "sinh", math_sinh, 1);
-    rb_objc_define_method(rb_cmMath, "tanh", math_tanh, 1);
+    rb_objc_define_module_function(rb_mMath, "cosh", math_cosh, 1);
+    rb_objc_define_module_function(rb_mMath, "sinh", math_sinh, 1);
+    rb_objc_define_module_function(rb_mMath, "tanh", math_tanh, 1);
 
-    rb_objc_define_method(rb_cmMath, "acosh", math_acosh, 1);
-    rb_objc_define_method(rb_cmMath, "asinh", math_asinh, 1);
-    rb_objc_define_method(rb_cmMath, "atanh", math_atanh, 1);
+    rb_objc_define_module_function(rb_mMath, "acosh", math_acosh, 1);
+    rb_objc_define_module_function(rb_mMath, "asinh", math_asinh, 1);
+    rb_objc_define_module_function(rb_mMath, "atanh", math_atanh, 1);
 
-    rb_objc_define_method(rb_cmMath, "exp", math_exp, 1);
-    rb_objc_define_method(rb_cmMath, "log", math_log, -1);
-    rb_objc_define_method(rb_cmMath, "log2", math_log2, 1);
-    rb_objc_define_method(rb_cmMath, "log10", math_log10, 1);
-    rb_objc_define_method(rb_cmMath, "sqrt", math_sqrt, 1);
-    rb_objc_define_method(rb_cmMath, "cbrt", math_cbrt, 1);
+    rb_objc_define_module_function(rb_mMath, "exp", math_exp, 1);
+    rb_objc_define_module_function(rb_mMath, "log", math_log, -1);
+    rb_objc_define_module_function(rb_mMath, "log2", math_log2, 1);
+    rb_objc_define_module_function(rb_mMath, "log10", math_log10, 1);
+    rb_objc_define_module_function(rb_mMath, "sqrt", math_sqrt, 1);
+    rb_objc_define_module_function(rb_mMath, "cbrt", math_cbrt, 1);
 
-    rb_objc_define_method(rb_cmMath, "frexp", math_frexp, 1);
-    rb_objc_define_method(rb_cmMath, "ldexp", math_ldexp, 2);
+    rb_objc_define_module_function(rb_mMath, "frexp", math_frexp, 1);
+    rb_objc_define_module_function(rb_mMath, "ldexp", math_ldexp, 2);
 
-    rb_objc_define_method(rb_cmMath, "hypot", math_hypot, 2);
+    rb_objc_define_module_function(rb_mMath, "hypot", math_hypot, 2);
 
-    rb_objc_define_method(rb_cmMath, "erf",  math_erf,  1);
-    rb_objc_define_method(rb_cmMath, "erfc", math_erfc, 1);
+    rb_objc_define_module_function(rb_mMath, "erf",  math_erf,  1);
+    rb_objc_define_module_function(rb_mMath, "erfc", math_erfc, 1);
 
-    rb_objc_define_method(rb_cmMath, "gamma", math_gamma, 1);
-    rb_objc_define_method(rb_cmMath, "lgamma", math_lgamma, 1);
+    rb_objc_define_module_function(rb_mMath, "gamma", math_gamma, 1);
+    rb_objc_define_module_function(rb_mMath, "lgamma", math_lgamma, 1);
 }

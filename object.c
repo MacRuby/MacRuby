@@ -2914,6 +2914,7 @@ Init_Object(void)
     rb_objc_define_method(rb_cNSObject, "clone", rb_obj_clone_imp, 0);
     rb_objc_define_method(rb_cNSObject, "dup", rb_nsobj_dup, 0);
 
+    rb_objc_define_method(rb_mKernel, "initialize_copy", rb_obj_init_copy, 1);
     rb_objc_define_method(rb_mKernel, "taint", rb_obj_taint_m, 0);
     rb_objc_define_method(rb_mKernel, "tainted?", rb_obj_tainted_p, 0);
     rb_objc_define_method(rb_mKernel, "untaint", rb_obj_untaint_m, 0);
@@ -2947,14 +2948,13 @@ Init_Object(void)
 
     rb_objc_define_method(rb_mKernel, "__native__?", rb_obj_is_native, 0);
 
-    rb_objc_define_method(rb_mKernel, "sprintf", rb_f_sprintf_imp, -1); /* in sprintf.c */
-    rb_objc_define_method(rb_mKernel, "format", rb_f_sprintf_imp, -1);  /* in sprintf.c */
+    rb_objc_define_module_function(rb_mKernel, "sprintf", rb_f_sprintf_imp, -1); /* in sprintf.c */
+    rb_objc_define_module_function(rb_mKernel, "format", rb_f_sprintf_imp, -1);  /* in sprintf.c */
 
-    rb_objc_define_method(rb_mKernel, "Integer", rb_f_integer, 1);
-    rb_objc_define_method(rb_mKernel, "Float", rb_f_float, 1);
-
-    rb_objc_define_method(rb_mKernel, "String", rb_f_string, 1);
-    rb_objc_define_method(rb_mKernel, "Array", rb_f_array, 1);
+    rb_objc_define_module_function(rb_mKernel, "Integer", rb_f_integer, 1);
+    rb_objc_define_module_function(rb_mKernel, "Float", rb_f_float, 1);
+    rb_objc_define_module_function(rb_mKernel, "String", rb_f_string, 1);
+    rb_objc_define_module_function(rb_mKernel, "Array", rb_f_array, 1);
 
     rb_const_set(rb_cObject, rb_intern("NSNull"), (VALUE)objc_getClass("NSNull"));
 
