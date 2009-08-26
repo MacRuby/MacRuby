@@ -16,8 +16,7 @@
 #include "id.h"
 
 VALUE rb_cRange;
-static ID id_succ, id_beg, id_end, id_excl;
-static SEL selUpto = 0;
+static SEL selUpto, selBeg, selEnd, selExcludeEnd, selInclude; 
 static void *cacheUpto = NULL;
 
 #define RANGE_BEG(r) (RSTRUCT(r)->as.ary[0])
@@ -238,7 +237,7 @@ range_each_func(VALUE range, VALUE (*func) (VALUE, void *), void *arg)
     if (EXCL(range)) {
 	while (r_lt(v, e)) {
 	    (*func) (v, arg);
-	    v = rb_funcall(v, id_succ, 0, 0);
+	    v = rb_vm_call(v, selSucc, 0, NULL, false);
 	}
     }
     else {
@@ -246,7 +245,7 @@ range_each_func(VALUE range, VALUE (*func) (VALUE, void *), void *arg)
 	    (*func) (v, arg);
 	    if (c == INT2FIX(0))
 		break;
-	    v = rb_funcall(v, id_succ, 0, 0);
+	    v = rb_vm_call(v, selSucc, 0, NULL, false);
 	}
     }
 }
@@ -260,7 +259,8 @@ step_i(VALUE i, void *arg)
 	iter[0] -= INT2FIX(1) & ~FIXNUM_FLAG;
     }
     else {
-	iter[0] = rb_funcall(iter[0], '-', 1, INT2FIX(1));
+	VALUE one = INT2FIX(1);
+	iter[0] = rb_vm_call(iter[0], selMINUS, 1, &one, false);
     }
     if (iter[0] == INT2FIX(0)) {
 	rb_yield(i);
@@ -314,10 +314,11 @@ range_step(VALUE range, SEL sel, int argc, VALUE *argv)
 	if (!rb_obj_is_kind_of(step, rb_cNumeric)) {
 	    step = rb_to_int(step);
 	}
-	if (rb_funcall(step, '<', 1, INT2FIX(0))) {
+	VALUE zero = INT2FIX(0);
+	if (rb_vm_call(step, selLT, 1, &zero, false)) {
 	    rb_raise(rb_eArgError, "step can't be negative");
 	}
-	else if (!rb_funcall(step, '>', 1, INT2FIX(0))) {
+	else if (!rb_vm_call(step, selGT, 1, &zero, false)) {
 	    rb_raise(rb_eArgError, "step can't be 0");
 	}
     }
@@ -340,12 +341,12 @@ range_step(VALUE range, SEL sel, int argc, VALUE *argv)
     else if (rb_obj_is_kind_of(b, rb_cNumeric) ||
 	     !NIL_P(rb_check_to_integer(b, "to_int")) ||
 	     !NIL_P(rb_check_to_integer(e, "to_int"))) {
-	ID op = EXCL(range) ? '<' : rb_intern("<=");
+	SEL op = EXCL(range) ? selLT : selLE;
 
-	while (RTEST(rb_funcall(b, op, 1, e))) {
+	while (RTEST(rb_vm_call(b, op, 1, &e, false))) {
 	    rb_yield(b);
 	    RETURN_IF_BROKEN();
-	    b = rb_funcall(b, '+', 1, step);
+	    b = rb_vm_call(b, selPLUS, 1, &step, false);
 	}
     }
     else {
@@ -364,7 +365,7 @@ range_step(VALUE range, SEL sel, int argc, VALUE *argv)
 	else {
 	    VALUE args[2];
 
-	    if (!rb_respond_to(b, id_succ)) {
+	    if (!rb_vm_respond_to(b, selSucc, true)) {
 		rb_raise(rb_eTypeError, "can't iterate from %s",
 			 rb_obj_classname(b));
 	    }
@@ -411,7 +412,7 @@ range_each(VALUE range, SEL sel)
     beg = RANGE_BEG(range);
     end = RANGE_END(range);
 
-    if (!rb_respond_to(beg, id_succ)) {
+    if (!rb_vm_respond_to(beg, selSucc, false)) {
 	rb_raise(rb_eTypeError, "can't iterate from %s",
 		 rb_obj_classname(beg));
     }
@@ -596,7 +597,8 @@ range_max(VALUE range, SEL sel)
 	    if (FIXNUM_P(e)) {
 		return LONG2NUM(FIX2LONG(e) - 1);
 	    }
-	    return rb_funcall(e, '-', 1, INT2FIX(1));
+	    VALUE one = INT2FIX(1);
+	    return rb_vm_call(e, selMINUS, 1, &one, false);
 	}
 	return e;
     }
@@ -614,11 +616,15 @@ rb_range_beg_len(VALUE range, long *begp, long *lenp, long len, int err)
 	excl = EXCL(range);
     }
     else {
-	if (!rb_respond_to(range, id_beg)) return Qfalse;
-	if (!rb_respond_to(range, id_end)) return Qfalse;
-	b = rb_funcall(range, id_beg, 0);
-	e = rb_funcall(range, id_end, 0);
-	excl = RTEST(rb_funcall(range, rb_intern("exclude_end?"), 0));
+	if (!rb_vm_respond_to(range, selBeg, false)) {
+	    return Qfalse;
+	}
+	if (!rb_vm_respond_to(range, selEnd, false)) {
+	    return Qfalse;
+	}
+	b = rb_vm_call(range, selBeg, 0, NULL, false);
+	e = rb_vm_call(range, selEnd, 0, NULL, false);
+	excl = RTEST(rb_vm_call(range, selExcludeEnd, 0, NULL, false));
     }
     beg = NUM2LONG(b);
     end = NUM2LONG(e);
@@ -724,9 +730,8 @@ range_inspect(VALUE range, SEL sel)
 static VALUE
 range_eqq(VALUE range, SEL sel, VALUE val)
 {
-    return rb_funcall(range, rb_intern("include?"), 1, val);
+    return rb_vm_call(range, selInclude, 1, &val, false);
 }
-
 
 /*
  *  call-seq:
@@ -918,11 +923,6 @@ range_alloc(VALUE klass)
 void
 Init_Range(void)
 {
-    id_succ = rb_intern("succ");
-    id_beg = rb_intern("begin");
-    id_end = rb_intern("end");
-    id_excl = rb_intern("excl");
-
     rb_cRange = rb_struct_define_without_accessor(
         "Range", rb_cObject, range_alloc,
         "begin", "end", "excl", NULL);
@@ -953,4 +953,8 @@ Init_Range(void)
 
     selUpto = sel_registerName("upto:");
     cacheUpto = rb_vm_get_call_cache(selUpto);
+    selBeg = sel_registerName("begin");
+    selEnd = sel_registerName("end");
+    selExcludeEnd = sel_registerName("exclude_end?");
+    selInclude = sel_registerName("include?:");
 }
