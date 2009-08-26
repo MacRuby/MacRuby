@@ -9,6 +9,7 @@ assert "42", "x = 40; begin; x += 1; rescue; ensure; x += 1; end; p x"
 assert "42", "x = 40; begin; raise; x = nil; rescue; x += 1; ensure; x += 1; end; p x"
 
 assert "42", "x = 40; begin; x; rescue => e; else; x = 42 ; end; p x"
+assert ":ok", "p begin; :ko; rescue => e; :ko; else; :ok; end"
 
 assert "42", "x = begin; 42; rescue; nil; end; p x"
 assert "42", "x = begin; raise; nil; rescue; 42; end; p x"

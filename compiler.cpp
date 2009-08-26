@@ -4436,11 +4436,19 @@ rescan_args:
 		BranchInst::Create(begin_bb, bb);
 		bb = begin_bb;
 		rescue_bb = new_rescue_bb;
-		Value *begin_val = compile_node(node->nd_head);
-		BasicBlock *real_begin_bb = bb;
+		Value *not_rescued_val = compile_node(node->nd_head);
 		rescue_bb = old_rescue_bb;
-		BranchInst::Create(merge_bb, bb);
-		
+
+		if (node->nd_else != NULL) {
+		    BasicBlock *else_bb = BasicBlock::Create("else", f);
+		    BranchInst::Create(else_bb, bb);
+		    bb = else_bb;
+		    not_rescued_val = compile_node(node->nd_else);
+		}
+
+		BasicBlock *not_rescued_bb = bb;
+		BranchInst::Create(merge_bb, not_rescued_bb);
+
 		// Landing pad header.
 		bb = new_rescue_bb;
 		compile_landing_pad_header();
@@ -4459,7 +4467,7 @@ rescan_args:
 
 		PHINode *pn = PHINode::Create(RubyObjTy, "rescue_result",
 			merge_bb);
-		pn->addIncoming(begin_val, real_begin_bb);
+		pn->addIncoming(not_rescued_val, not_rescued_bb);
 		pn->addIncoming(rescue_val, new_rescue_bb);
 		bb = merge_bb;
 
