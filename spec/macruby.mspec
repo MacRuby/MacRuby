@@ -24,6 +24,7 @@ class MSpecScript
   set :library, [
     'library/abbrev',
     'library/csv',
+    'library/etc',
     'library/date',
     'library/digest',
     'library/ftools', 
