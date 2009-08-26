@@ -554,29 +554,37 @@ VALUE
 rb_obj_is_kind_of(VALUE obj, VALUE c)
 {
     VALUE cl = CLASS_OF(obj);
+    bool is_module = false;
 
     switch (TYPE(c)) {
       case T_MODULE:
+	  is_module = true;
+	  // fall through
       case T_CLASS:
       case T_ICLASS:
-	break;
+	  break;
 
       default:
-	rb_raise(rb_eTypeError, "class or module required");
+	  rb_raise(rb_eTypeError, "class or module required");
+    }
+
+    if (RCLASS_META(cl)) {
+	is_module = true;
     }
 
     while (cl) {
-	VALUE ary;
 	if (cl == c) {
 	    return Qtrue;
 	}
-	ary = rb_attr_get(cl, idIncludedModules);
-	if (ary != Qnil) {
-	    int i, count;
-	    for (i = 0, count = RARRAY_LEN(ary); i < count; i++) {
-		VALUE imod = RARRAY_AT(ary, i);
-		if (imod == c) {
-		    return Qtrue;
+	if (is_module) {
+	    VALUE ary = rb_attr_get(cl, idIncludedModules);
+	    if (ary != Qnil) {
+		int i, count;
+		for (i = 0, count = RARRAY_LEN(ary); i < count; i++) {
+		    VALUE imod = RARRAY_AT(ary, i);
+		    if (imod == c) {
+			return Qtrue;
+		    }
 		}
 	    }
 	}
