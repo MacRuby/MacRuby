@@ -41,7 +41,7 @@ char *getlogin();
  *   Etc.getlogin -> 'guest'
  */
 static VALUE
-etc_getlogin(VALUE obj)
+etc_getlogin(VALUE obj, SEL sel)
 {
     char *login;
 
@@ -117,7 +117,7 @@ setup_passwd(struct passwd *pwd)
  * passwd="x", uid=0, gid=0, gecos="root",dir="/root", shell="/bin/bash">
  */
 static VALUE
-etc_getpwuid(int argc, VALUE *argv, VALUE obj)
+etc_getpwuid(VALUE obj, SEL sel, int argc, VALUE *argv)
 {
 #if defined(HAVE_GETPWENT)
     VALUE id;
@@ -148,7 +148,7 @@ etc_getpwuid(int argc, VALUE *argv, VALUE obj)
  * passwd="x", uid=0, gid=0, gecos="root",dir="/root", shell="/bin/bash">
  */
 static VALUE
-etc_getpwnam(VALUE obj, VALUE nam)
+etc_getpwnam(VALUE obj, SEL sel, VALUE nam)
 {
 #ifdef HAVE_GETPWENT
     struct passwd *pwd;
@@ -201,7 +201,7 @@ passwd_iterate(void)
  *
  */
 static VALUE
-etc_passwd(VALUE obj)
+etc_passwd(VALUE obj, SEL sel)
 {
 #ifdef HAVE_GETPWENT
     struct passwd *pw;
@@ -225,7 +225,7 @@ etc_passwd(VALUE obj)
  * to getpwent will return the first entry again.
  */
 static VALUE
-etc_setpwent(VALUE obj)
+etc_setpwent(VALUE obj, SEL sel)
 {
 #ifdef HAVE_GETPWENT
     setpwent();
@@ -237,7 +237,7 @@ etc_setpwent(VALUE obj)
  * getpwent, and closes the file.
  */
 static VALUE
-etc_endpwent(VALUE obj)
+etc_endpwent(VALUE obj, SEL sel)
 {
 #ifdef HAVE_GETPWENT
     endpwent();
@@ -272,7 +272,7 @@ etc_endpwent(VALUE obj)
  * - Passwd#shell contains the path to the login shell of the user as a String.
  */
 static VALUE
-etc_getpwent(VALUE obj)
+etc_getpwent(VALUE obj, SEL sel)
 {
 #ifdef HAVE_GETPWENT
     struct passwd *pw;
@@ -318,7 +318,7 @@ setup_group(struct group *grp)
  *
  */
 static VALUE
-etc_getgrgid(int argc, VALUE *argv, VALUE obj)
+etc_getgrgid(VALUE obj, SEL sel, int argc, VALUE *argv)
 {
 #ifdef HAVE_GETGRENT
     VALUE id;
@@ -351,7 +351,7 @@ etc_getgrgid(int argc, VALUE *argv, VALUE obj)
  *
  */
 static VALUE
-etc_getgrnam(VALUE obj, VALUE nam)
+etc_getgrnam(VALUE obj, SEL sel, VALUE nam)
 {
 #ifdef HAVE_GETGRENT
     struct group *grp;
@@ -405,7 +405,7 @@ group_iterate(void)
  *
  */
 static VALUE
-etc_group(VALUE obj)
+etc_group(VALUE obj, SEL sel)
 {
 #ifdef HAVE_GETGRENT
     struct group *grp;
@@ -429,7 +429,7 @@ etc_group(VALUE obj)
  * to getgrent will return the first entry again.
  */
 static VALUE
-etc_setgrent(VALUE obj)
+etc_setgrent(VALUE obj, SEL sel)
 {
 #ifdef HAVE_GETGRENT
     setgrent();
@@ -441,7 +441,7 @@ etc_setgrent(VALUE obj)
  * getgrent, and closes the file.
  */
 static VALUE
-etc_endgrent(VALUE obj)
+etc_endgrent(VALUE obj, SEL sel)
 {
 #ifdef HAVE_GETGRENT
     endgrent();
@@ -470,7 +470,7 @@ etc_endgrent(VALUE obj)
  *   members of the group.
  */
 static VALUE
-etc_getgrent(VALUE obj)
+etc_getgrent(VALUE obj, SEL sel)
 {
 #ifdef HAVE_GETGRENT
     struct group *gr;
@@ -494,21 +494,21 @@ Init_etc(void)
 {
     mEtc = rb_define_module("Etc");
 
-    rb_define_module_function(mEtc, "getlogin", etc_getlogin, 0);
+    rb_objc_define_module_function(mEtc, "getlogin", etc_getlogin, 0);
 
-    rb_define_module_function(mEtc, "getpwuid", etc_getpwuid, -1);
-    rb_define_module_function(mEtc, "getpwnam", etc_getpwnam, 1);
-    rb_define_module_function(mEtc, "setpwent", etc_setpwent, 0);
-    rb_define_module_function(mEtc, "endpwent", etc_endpwent, 0);
-    rb_define_module_function(mEtc, "getpwent", etc_getpwent, 0);
-    rb_define_module_function(mEtc, "passwd", etc_passwd, 0);
+    rb_objc_define_module_function(mEtc, "getpwuid", etc_getpwuid, -1);
+    rb_objc_define_module_function(mEtc, "getpwnam", etc_getpwnam, 1);
+    rb_objc_define_module_function(mEtc, "setpwent", etc_setpwent, 0);
+    rb_objc_define_module_function(mEtc, "endpwent", etc_endpwent, 0);
+    rb_objc_define_module_function(mEtc, "getpwent", etc_getpwent, 0);
+    rb_objc_define_module_function(mEtc, "passwd", etc_passwd, 0);
 
-    rb_define_module_function(mEtc, "getgrgid", etc_getgrgid, -1);
-    rb_define_module_function(mEtc, "getgrnam", etc_getgrnam, 1);
-    rb_define_module_function(mEtc, "group", etc_group, 0);
-    rb_define_module_function(mEtc, "setgrent", etc_setgrent, 0);
-    rb_define_module_function(mEtc, "endgrent", etc_endgrent, 0);
-    rb_define_module_function(mEtc, "getgrent", etc_getgrent, 0);
+    rb_objc_define_module_function(mEtc, "getgrgid", etc_getgrgid, -1);
+    rb_objc_define_module_function(mEtc, "getgrnam", etc_getgrnam, 1);
+    rb_objc_define_module_function(mEtc, "group", etc_group, 0);
+    rb_objc_define_module_function(mEtc, "setgrent", etc_setgrent, 0);
+    rb_objc_define_module_function(mEtc, "endgrent", etc_endgrent, 0);
+    rb_objc_define_module_function(mEtc, "getgrent", etc_getgrent, 0);
 
     sPasswd =  rb_struct_define("Passwd",
 				"name", "passwd", "uid", "gid",
@@ -535,8 +535,7 @@ Init_etc(void)
 				"expire",
 #endif
 				NULL);
-
-    rb_register_mark_object(sPasswd);
+    rb_define_const(mEtc, "Passwd", sPasswd);
 
 #ifdef HAVE_GETGRENT
     sGroup = rb_struct_define("Group", "name",
@@ -545,6 +544,6 @@ Init_etc(void)
 #endif
 			      "gid", "mem", NULL);
 
-    rb_register_mark_object(sGroup);
+    rb_define_const(mEtc, "Group", sGroup);
 #endif
 }
