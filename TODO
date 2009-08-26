@@ -64,5 +64,8 @@ Porting from rb_define_method() to rb_objc_define_method():
   individual instances of objects, replace it with
   rb_objc_define_method(rb_singleton_class(obj), ...)
 
+  In the case of rb_define_module_function(), replace it with
+  rb_objc_define_module_function()
+
   In the case of rb_define_alloc_func(), replace it with
   rb_objc_define_method(*(VALUE *)klass, "alloc", ..., 0)
