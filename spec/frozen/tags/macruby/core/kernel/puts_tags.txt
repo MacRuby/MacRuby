@@ -1,5 +1,4 @@
 critical:Kernel#puts writes [...] for a recursive array arg
-fails:Kernel#puts is a private method
 fails:Kernel#puts writes just a newline when given no args
 fails:Kernel#puts writes nil with a newline when given nil as an arg
 fails:Kernel#puts calls to_s before writing non-string objects

@@ -1,6 +1,5 @@
 fails:Shell expansion in Kernel#require expands a preceding ~/ to the user's home directory for building the path to search
 fails:Shell expansion in Kernel#require adds the path to $LOADED_FEATURES
-fails:Kernel#require is a private method
 fails:Kernel#require loads a .rb from an absolute path and returns true
 fails:Kernel#require prefers to use .rb over .<ext> if given non-extensioned file and both exist
 fails:Kernel#require will load file.rb when given 'file' if it exists even if file.<ext> is loaded

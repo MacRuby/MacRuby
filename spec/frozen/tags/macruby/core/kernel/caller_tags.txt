@@ -1,4 +1,3 @@
-fails:Kernel#caller is a private method
 fails:Kernel#caller returns the current call stack
 fails:Kernel#caller omits a number of frames corresponding to the parameter
 fails:Kernel#caller in a Proc or eval returns the definition trace of a block when evaluated in a Proc binding

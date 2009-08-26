@@ -1,3 +1,2 @@
-fails:Kernel#p is a private method
 fails:Kernel#p prints obj.inspect followed by system record separator for each argument given
 critical:Kernel#p is not affected by setting $\, $/ or $,

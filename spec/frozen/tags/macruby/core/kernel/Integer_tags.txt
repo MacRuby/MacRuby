@@ -6,7 +6,5 @@ critical:Kernel#Integer raises an ArgumentError if the number cannot be parsed a
 critical:Kernel#Integer raises an ArgumentError if the number cannot be parsed as binary
 critical:Kernel#Integer raises an ArgumentError if the number cannot be parsed as octal
 critical:Kernel#Integer raises an ArgumentError if the number cannot be parsed as decimal
-fails:Kernel.Integer is a private method
-fails:Kernel#Integer is a private method
 fails:Kernel.Integer raises an ArgumentError if the String ends with a null byte
 fails:Kernel#Integer raises an ArgumentError if the String ends with a null byte

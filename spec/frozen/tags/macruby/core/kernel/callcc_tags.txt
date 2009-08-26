@@ -1,4 +1,3 @@
-fails:Kernel#callcc is a private method
 fails:Kernel#callcc is possible to exit a loop like a break
 fails:Kernel#callcc is possible to call a continuation multiple times
 fails:Kernel#callcc returns the results of a block if continuation is not called

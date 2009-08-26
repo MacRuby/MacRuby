@@ -1,2 +1,1 @@
 fails:Kernel#system does not write to stderr when it can't find a command
-fails:Kernel#system is a private method
