@@ -60,6 +60,7 @@ extern SEL selDIV;
 extern SEL selMOD;
 extern SEL selEq;
 extern SEL selNeq;
+extern SEL selCmp;
 extern SEL selLT;
 extern SEL selLE;
 extern SEL selGT;

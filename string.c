@@ -565,6 +565,11 @@ rb_string_value(volatile VALUE *ptr)
 	s = rb_str_to_str(s);
 	*ptr = s;
     }
+#if 0 // Apparently not needed...
+    else if (CLASS_OF(s) == rb_cByteString) {
+	s = (VALUE)rb_bytestring_resolve_cfstring(s);
+    }
+#endif
     return s;
 }
 
@@ -5392,6 +5397,12 @@ rb_bytestring_new_with_cfdata(CFMutableDataRef data)
     return v;
 }
 
+static VALUE
+bytestring_from_data(VALUE klass, SEL sel, VALUE data)
+{
+    return rb_bytestring_new_with_cfdata((CFMutableDataRef)data);
+}
+
 static void inline
 rb_bytestring_copy_cfstring_content(VALUE bstr, CFStringRef str)
 {
@@ -5764,6 +5775,9 @@ Init_String(void)
 
     rb_cByteString = rb_define_class("ByteString", rb_cNSMutableString);
     RCLASS_SET_VERSION_FLAG(rb_cByteString, RCLASS_IS_STRING_SUBCLASS);
+
+    rb_objc_define_method(*(VALUE *)rb_cString, "__new_bytestring__",
+	    bytestring_from_data, 1);
 
     rb_objc_install_method2((Class)rb_cByteString, "isEqual:",
 	    (IMP)imp_rb_bytestring_isEqual);

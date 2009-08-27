@@ -50,6 +50,7 @@ Init_id(void)
     selMOD = sel_registerName("%:");
     selEq = sel_registerName("==:");
     selNeq = sel_registerName("!=:");
+    selCmp = sel_registerName("<=>:");
     selLT = sel_registerName("<:");
     selLE = sel_registerName("<=:");
     selGT = sel_registerName(">:");

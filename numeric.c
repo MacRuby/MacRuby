@@ -81,7 +81,7 @@ round(double x)
 }
 #endif
 
-static SEL sel_coerce, selDiv;
+static SEL sel_coerce, selDiv, selDivmod, selExp;
 static ID id_to_i, id_eq;
 
 VALUE rb_cNumeric;
@@ -224,10 +224,26 @@ rb_num_coerce_bin(VALUE x, VALUE y, ID func)
 }
 
 VALUE
+rb_objc_num_coerce_bin(VALUE x, VALUE y, SEL sel)
+{
+    do_coerce(&x, &y, Qtrue);
+    return rb_vm_call(x, sel, 1, &y, false);
+}
+
+VALUE
 rb_num_coerce_cmp(VALUE x, VALUE y, ID func)
 {
     if (do_coerce(&x, &y, Qfalse)) {
 	return rb_funcall(x, func, 1, y);
+    }
+    return Qnil;
+}
+
+VALUE
+rb_objc_num_coerce_cmp(VALUE x, VALUE y, SEL sel)
+{
+    if (do_coerce(&x, &y, Qfalse)) {
+	return rb_vm_call(x, sel, 1, &y, false);
     }
     return Qnil;
 }
@@ -654,7 +670,7 @@ flo_plus(VALUE x, SEL sel, VALUE y)
       case T_FLOAT:
 	return DOUBLE2NUM(RFLOAT_VALUE(x) + RFLOAT_VALUE(y));
       default:
-	return rb_num_coerce_bin(x, y, '+');
+	return rb_objc_num_coerce_bin(x, y, selPLUS);
     }
 }
 
@@ -677,7 +693,7 @@ flo_minus(VALUE x, SEL sel, VALUE y)
       case T_FLOAT:
 	return DOUBLE2NUM(RFLOAT_VALUE(x) - RFLOAT_VALUE(y));
       default:
-	return rb_num_coerce_bin(x, y, '-');
+	return rb_objc_num_coerce_bin(x, y, selMINUS);
     }
 }
 
@@ -700,7 +716,7 @@ flo_mul(VALUE x, SEL sel, VALUE y)
       case T_FLOAT:
 	return DOUBLE2NUM(RFLOAT_VALUE(x) * RFLOAT_VALUE(y));
       default:
-	return rb_num_coerce_bin(x, y, '*');
+	return rb_objc_num_coerce_bin(x, y, selMULT);
     }
 }
 
@@ -728,7 +744,7 @@ flo_div(VALUE x, SEL sel, VALUE y)
       case T_FLOAT:
 	return DOUBLE2NUM(RFLOAT_VALUE(x) / RFLOAT_VALUE(y));
       default:
-	return rb_num_coerce_bin(x, y, '/');
+	return rb_objc_num_coerce_bin(x, y, selDIV);
     }
 }
 
@@ -793,7 +809,7 @@ flo_mod(VALUE x, SEL sel, VALUE y)
 	fy = RFLOAT_VALUE(y);
 	break;
       default:
-	return rb_num_coerce_bin(x, y, '%');
+	return rb_objc_num_coerce_bin(x, y, selMOD);
     }
     flodivmod(RFLOAT_VALUE(x), fy, 0, &mod);
     return DOUBLE2NUM(mod);
@@ -839,7 +855,7 @@ flo_divmod(VALUE x, SEL sel, VALUE y)
 	fy = RFLOAT_VALUE(y);
 	break;
       default:
-	return rb_num_coerce_bin(x, y, rb_intern("divmod"));
+	return rb_objc_num_coerce_bin(x, y, selDivmod);
     }
     flodivmod(RFLOAT_VALUE(x), fy, &div, &mod);
     a = dbl2ival(div);
@@ -866,7 +882,7 @@ flo_pow(VALUE x, SEL sel, VALUE y)
       case T_FLOAT:
 	return DOUBLE2NUM(pow(RFLOAT_VALUE(x), RFLOAT_VALUE(y)));
       default:
-	return rb_num_coerce_bin(x, y, rb_intern("**"));
+	return rb_objc_num_coerce_bin(x, y, selExp);
     }
 }
 
@@ -2187,7 +2203,7 @@ fix_plus(VALUE x, SEL sel, VALUE y)
       case T_FLOAT:
 	return DOUBLE2NUM((double)FIX2LONG(x) + RFLOAT_VALUE(y));
       default:
-	return rb_num_coerce_bin(x, y, '+');
+	return rb_objc_num_coerce_bin(x, y, selPLUS);
     }
 }
 
@@ -2221,7 +2237,7 @@ fix_minus(VALUE x, SEL sel, VALUE y)
       case T_FLOAT:
 	return DOUBLE2NUM((double)FIX2LONG(x) - RFLOAT_VALUE(y));
       default:
-	return rb_num_coerce_bin(x, y, '-');
+	return rb_objc_num_coerce_bin(x, y, selMINUS);
     }
 }
 
@@ -2280,7 +2296,7 @@ fix_mul(VALUE x, SEL sel, VALUE y)
       case T_FLOAT:
 	return DOUBLE2NUM((double)FIX2LONG(x) * RFLOAT_VALUE(y));
       default:
-	return rb_num_coerce_bin(x, y, '*');
+	return rb_objc_num_coerce_bin(x, y, selMULT);
     }
 }
 
@@ -2342,7 +2358,7 @@ fix_fdiv(VALUE x, SEL sel, VALUE y)
 }
 
 static VALUE
-fix_divide(VALUE x, VALUE y, ID op)
+fix_divide(VALUE x, VALUE y, SEL op)
 {
     if (FIXNUM_P(y)) {
 	long div;
@@ -2358,7 +2374,7 @@ fix_divide(VALUE x, VALUE y, ID op)
 	    {
 		double div;
 
-		if (op == '/') {
+		if (op == selDIV) {
 		    div = (double)FIX2LONG(x) / RFLOAT_VALUE(y);
 		    return DOUBLE2NUM(div);
 		}
@@ -2371,7 +2387,7 @@ fix_divide(VALUE x, VALUE y, ID op)
 		}
 	    }
 	default:
-	    return rb_num_coerce_bin(x, y, op);
+	    return rb_objc_num_coerce_bin(x, y, op);
     }
 }
 
@@ -2387,7 +2403,7 @@ fix_divide(VALUE x, VALUE y, ID op)
 static VALUE
 fix_div(VALUE x, SEL sel, VALUE y)
 {
-    return fix_divide(x, y, '/');
+    return fix_divide(x, y, selDIV);
 }
 
 /*
@@ -2400,7 +2416,7 @@ fix_div(VALUE x, SEL sel, VALUE y)
 static VALUE
 fix_idiv(VALUE x, SEL sel, VALUE y)
 {
-    return fix_divide(x, y, rb_intern("div"));
+    return fix_divide(x, y, selDiv);
 }
 
 /*
@@ -2433,7 +2449,7 @@ fix_mod(VALUE x, SEL sel, VALUE y)
 	    return DOUBLE2NUM(mod);
 	}
       default:
-	return rb_num_coerce_bin(x, y, '%');
+	return rb_objc_num_coerce_bin(x, y, selMOD);
     }
 }
 
@@ -2468,7 +2484,7 @@ fix_divmod(VALUE x, SEL sel, VALUE y)
 	    return rb_assoc_new(a, b);
 	}
       default:
-	return rb_num_coerce_bin(x, y, rb_intern("divmod"));
+	return rb_objc_num_coerce_bin(x, y, selDivmod);
     }
 }
 
@@ -2530,7 +2546,7 @@ fix_pow(VALUE x, SEL sel, VALUE y)
 	long b = FIX2LONG(y);
 
 	if (b < 0) {
-	  return rb_funcall(rb_rational_raw1(x), rb_intern("**"), 1, y);
+	  return rb_vm_call(rb_rational_raw1(x), selExp, 1, &y, false);
 	}
 
 	if (b == 0) {
@@ -2562,7 +2578,7 @@ fix_pow(VALUE x, SEL sel, VALUE y)
     switch (TYPE(y)) {
       case T_BIGNUM:
 	  if (rb_vm_call(y, selLT, 1, &zerov, false)) {
-	      return rb_funcall(rb_rational_raw1(x), rb_intern("**"), 1, y);
+	      return rb_vm_call(rb_rational_raw1(x), selExp, 1, &y, false);
 	  }
 	  if (a == 0) {
 	      return INT2FIX(0);
@@ -2592,7 +2608,7 @@ fix_pow(VALUE x, SEL sel, VALUE y)
 	  return DOUBLE2NUM(pow((double)a, RFLOAT_VALUE(y)));
 
       default:
-	  return rb_num_coerce_bin(x, y, rb_intern("**"));
+	  return rb_objc_num_coerce_bin(x, y, selExp);
     }
 }
 
@@ -3316,6 +3332,9 @@ Init_Numeric(void)
 {
     sel_coerce = sel_registerName("coerce:");
     selDiv = sel_registerName("div:");
+    selDivmod = sel_registerName("divmod:");
+    selExp = sel_registerName("**:");
+
     id_to_i = rb_intern("to_i");
     id_eq = rb_intern("==");
 

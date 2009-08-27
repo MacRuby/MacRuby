@@ -410,7 +410,9 @@ void rb_marshal_define_compat(VALUE newclass, VALUE oldclass, VALUE (*dumper)(VA
 /* numeric.c */
 void rb_num_zerodiv(void);
 VALUE rb_num_coerce_bin(VALUE, VALUE, ID);
+VALUE rb_objc_num_coerce_bin(VALUE x, VALUE Y, SEL sel);
 VALUE rb_num_coerce_cmp(VALUE, VALUE, ID);
+VALUE rb_objc_num_coerce_cmp(VALUE, VALUE, SEL sel);
 VALUE rb_num_coerce_relop(VALUE, VALUE, SEL);
 VALUE rb_float_new(double);
 VALUE rb_num2fix(VALUE);

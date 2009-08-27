@@ -8,6 +8,9 @@
 #include "ruby.h"
 #include <math.h>
 #include "ruby/re.h"
+#include "ruby/node.h"
+#include "vm.h"
+#include "id.h"
 
 #define NDEBUG
 #include <assert.h>
@@ -18,10 +21,10 @@
 
 VALUE rb_cComplex;
 
-static ID id_abs, id_abs2, id_arg, id_cmp, id_conj, id_convert,
-    id_denominator, id_divmod, id_eqeq_p, id_expt, id_fdiv,  id_floor,
-    id_idiv, id_imag, id_inspect, id_negate, id_numerator, id_quo,
-    id_real, id_real_p, id_to_f, id_to_i, id_to_r, id_to_s;
+static SEL sel_abs, sel_abs2, sel_arg, sel_cmp, sel_conj, sel_convert,
+    sel_denominator, sel_divmod, sel_expt, sel_fdiv,  sel_floor,
+    sel_idiv, sel_imag, sel_inspect, sel_negate, sel_numerator, sel_quo,
+    sel_real, sel_real_p, sel_to_f, sel_to_i, sel_to_r, sel_to_s;
 
 #define f_boolcast(x) ((x) ? Qtrue : Qfalse)
 
@@ -29,35 +32,36 @@ static ID id_abs, id_abs2, id_arg, id_cmp, id_conj, id_convert,
 inline static VALUE \
 f_##n(VALUE x, VALUE y)\
 {\
-    return rb_funcall(x, op, 1, y);\
+    return rb_vm_call(x, op, 1, &y, false);\
 }
 
 #define fun1(n) \
 inline static VALUE \
 f_##n(VALUE x)\
 {\
-    return rb_funcall(x, id_##n, 0);\
+    return rb_vm_call(x, sel_##n, 0, NULL, false);\
 }
 
 #define fun2(n) \
 inline static VALUE \
 f_##n(VALUE x, VALUE y)\
 {\
-    return rb_funcall(x, id_##n, 1, y);\
+    return rb_vm_call(x, sel_##n, 1, &y, false);\
 }
 
 #define math1(n) \
 inline static VALUE \
 m_##n(VALUE x)\
 {\
-    return rb_funcall(rb_mMath, id_##n, 1, x);\
+    return rb_vm_call(rb_mMath, sel_##n, 1, &x, false);\
 }
 
 #define math2(n) \
 inline static VALUE \
 m_##n(VALUE x, VALUE y)\
 {\
-    return rb_funcall(rb_mMath, id_##n, 2, x, y);\
+    VALUE args[2]; args[0] = x; args[1] = y;\
+    return rb_vm_call(rb_mMath, sel_##n, 2, args, false);\
 }
 
 #define PRESERVE_SIGNEDZERO
@@ -71,7 +75,7 @@ f_add(VALUE x, VALUE y)
     else if (FIXNUM_P(x) && FIX2LONG(x) == 0)
 	return y;
 #endif
-    return rb_funcall(x, '+', 1, y);
+    return rb_vm_call(x, selPLUS, 1, &y, false);
 }
 
 inline static VALUE
@@ -79,13 +83,15 @@ f_cmp(VALUE x, VALUE y)
 {
     if (FIXNUM_P(x) && FIXNUM_P(y)) {
 	long c = FIX2LONG(x) - FIX2LONG(y);
-	if (c > 0)
+	if (c > 0) {
 	    c = 1;
-	else if (c < 0)
+	}
+	else if (c < 0) {
 	    c = -1;
+	}
 	return INT2FIX(c);
     }
-    return rb_funcall(x, id_cmp, 1, y);
+    return rb_vm_call(x, selCmp, 1, &y, false);
 }
 
 inline static VALUE
@@ -93,7 +99,7 @@ f_div(VALUE x, VALUE y)
 {
     if (FIXNUM_P(y) && FIX2LONG(y) == 1)
 	return x;
-    return rb_funcall(x, '/', 1, y);
+    return rb_vm_call(x, selDIV, 1, &y, false);
 }
 
 inline static VALUE
@@ -101,7 +107,7 @@ f_gt_p(VALUE x, VALUE y)
 {
     if (FIXNUM_P(x) && FIXNUM_P(y))
 	return f_boolcast(FIX2LONG(x) > FIX2LONG(y));
-    return rb_funcall(x, '>', 1, y);
+    return rb_vm_call(x, selGT, 1, &y, false);
 }
 
 inline static VALUE
@@ -109,10 +115,10 @@ f_lt_p(VALUE x, VALUE y)
 {
     if (FIXNUM_P(x) && FIXNUM_P(y))
 	return f_boolcast(FIX2LONG(x) < FIX2LONG(y));
-    return rb_funcall(x, '<', 1, y);
+    return rb_vm_call(x, selLT, 1, &y, false);
 }
 
-binop(mod, '%')
+binop(mod, selMOD)
 
 inline static VALUE
 f_mul(VALUE x, VALUE y)
@@ -137,7 +143,7 @@ f_mul(VALUE x, VALUE y)
 	    return y;
     }
 #endif
-    return rb_funcall(x, '*', 1, y);
+    return rb_vm_call(x, selMULT, 1, &y, false);
 }
 
 inline static VALUE
@@ -147,7 +153,7 @@ f_sub(VALUE x, VALUE y)
     if (FIXNUM_P(y) && FIX2LONG(y) == 0)
 	return x;
 #endif
-    return rb_funcall(x, '-', 1, y);
+    return rb_vm_call(x, selMINUS, 1, &y, false);
 }
 
 fun1(abs)
@@ -173,9 +179,10 @@ fun2(divmod)
 inline static VALUE
 f_eqeq_p(VALUE x, VALUE y)
 {
-    if (FIXNUM_P(x) && FIXNUM_P(y))
+    if (FIXNUM_P(x) && FIXNUM_P(y)) {
 	return f_boolcast(FIX2LONG(x) == FIX2LONG(y));
-    return rb_funcall(x, id_eqeq_p, 1, y);
+    }
+    return rb_vm_call(x, selEq, 1, &y, false);
 }
 
 fun2(expt)
@@ -186,9 +193,11 @@ fun2(quo)
 inline static VALUE
 f_negative_p(VALUE x)
 {
-    if (FIXNUM_P(x))
+    if (FIXNUM_P(x)) {
 	return f_boolcast(FIX2LONG(x) < 0);
-    return rb_funcall(x, '<', 1, ZERO);
+    }
+    VALUE v = ZERO;
+    return rb_vm_call(x, selLT, 1, &v, false);
 }
 
 #define f_positive_p(x) (!f_negative_p(x))
@@ -208,7 +217,8 @@ f_zero_p(VALUE x)
 	  return f_boolcast(FIXNUM_P(num) && FIX2LONG(num) == 0);
       }
     }
-    return rb_funcall(x, id_eqeq_p, 1, ZERO);
+    VALUE v = ZERO;
+    return rb_vm_call(x, selEq, 1, &v, false);
 }
 
 #define f_nonzero_p(x) (!f_zero_p(x))
@@ -230,7 +240,8 @@ f_one_p(VALUE x)
 			    FIXNUM_P(den) && FIX2LONG(den) == 1);
       }
     }
-    return rb_funcall(x, id_eqeq_p, 1, ONE);
+    VALUE v = ONE;
+    return rb_vm_call(x, selEq, 1, &v, false);
 }
 
 inline static VALUE
@@ -469,7 +480,7 @@ f_complex_new2(VALUE klass, VALUE x, VALUE y)
 static VALUE
 nucomp_f_complex(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
-    return rb_funcall2(rb_cComplex, id_convert, argc, argv);
+    return rb_vm_call(rb_cComplex, sel_convert, argc, argv, false);
 }
 
 #define imp1(n) \
@@ -639,7 +650,7 @@ nucomp_negate(VALUE self, SEL sel)
 
 inline static VALUE
 f_addsub(VALUE self, VALUE other,
-	 VALUE (*func)(VALUE, VALUE), ID id)
+	 VALUE (*func)(VALUE, VALUE), SEL op)
 {
     if (k_complex_p(other)) {
 	VALUE real, imag;
@@ -657,7 +668,7 @@ f_addsub(VALUE self, VALUE other,
 	return f_complex_new2(CLASS_OF(self),
 			      (*func)(dat->real, other), dat->imag);
     }
-    return rb_num_coerce_bin(self, other, id);
+    return rb_objc_num_coerce_bin(self, other, op);
 }
 
 /*
@@ -669,7 +680,7 @@ f_addsub(VALUE self, VALUE other,
 static VALUE
 nucomp_add(VALUE self, SEL sel, VALUE other)
 {
-    return f_addsub(self, other, f_add, '+');
+    return f_addsub(self, other, f_add, selPLUS);
 }
 
 /*
@@ -681,7 +692,7 @@ nucomp_add(VALUE self, SEL sel, VALUE other)
 static VALUE
 nucomp_sub(VALUE self, SEL sel, VALUE other)
 {
-    return f_addsub(self, other, f_sub, '-');
+    return f_addsub(self, other, f_sub, selMINUS);
 }
 
 /*
@@ -712,12 +723,12 @@ nucomp_mul(VALUE self, SEL sel, VALUE other)
 			      f_mul(dat->real, other),
 			      f_mul(dat->imag, other));
     }
-    return rb_num_coerce_bin(self, other, '*');
+    return rb_objc_num_coerce_bin(self, other, selMULT);
 }
 
 inline static VALUE
 f_divide(VALUE self, VALUE other,
-	 VALUE (*func)(VALUE, VALUE), ID id)
+	 VALUE (*func)(VALUE, VALUE), SEL op)
 {
     if (k_complex_p(other)) {
 	int flo;
@@ -764,7 +775,7 @@ f_divide(VALUE self, VALUE other,
 			      (*func)(dat->real, other),
 			      (*func)(dat->imag, other));
     }
-    return rb_num_coerce_bin(self, other, id);
+    return rb_objc_num_coerce_bin(self, other, op);
 }
 
 #define rb_raise_zerodiv() rb_raise(rb_eZeroDivError, "divided by 0")
@@ -787,7 +798,7 @@ nucomp_div(VALUE self, SEL sel, VALUE other)
     if (f_zero_p(other)) {
 	rb_raise_zerodiv();
     }
-    return f_divide(self, other, f_quo, id_quo);
+    return f_divide(self, other, f_quo, sel_quo);
 }
 
 #define nucomp_quo nucomp_div
@@ -805,7 +816,7 @@ nucomp_div(VALUE self, SEL sel, VALUE other)
 static VALUE
 nucomp_fdiv(VALUE self, SEL sel, VALUE other)
 {
-    return f_divide(self, other, f_fdiv, id_fdiv);
+    return f_divide(self, other, f_fdiv, sel_fdiv);
 }
 
 static VALUE
@@ -930,7 +941,7 @@ nucomp_expt(VALUE self, SEL sel, VALUE other)
 	return f_complex_polar(CLASS_OF(self), f_expt(r, other),
 			       f_mul(theta, other));
     }
-    return rb_num_coerce_bin(self, other, id_expt);
+    return rb_objc_num_coerce_bin(self, other, sel_expt);
 }
 
 /*
@@ -1848,30 +1859,29 @@ Init_Complex(void)
 {
     assert(fprintf(stderr, "assert() is now active\n"));
 
-    id_abs = rb_intern("abs");
-    id_abs2 = rb_intern("abs2");
-    id_arg = rb_intern("arg");
-    id_cmp = rb_intern("<=>");
-    id_conj = rb_intern("conj");
-    id_convert = rb_intern("convert");
-    id_denominator = rb_intern("denominator");
-    id_divmod = rb_intern("divmod");
-    id_eqeq_p = rb_intern("==");
-    id_expt = rb_intern("**");
-    id_fdiv = rb_intern("fdiv");
-    id_floor = rb_intern("floor");
-    id_idiv = rb_intern("div");
-    id_imag = rb_intern("imag");
-    id_inspect = rb_intern("inspect");
-    id_negate = rb_intern("-@");
-    id_numerator = rb_intern("numerator");
-    id_quo = rb_intern("quo");
-    id_real = rb_intern("real");
-    id_real_p = rb_intern("real?");
-    id_to_f = rb_intern("to_f");
-    id_to_i = rb_intern("to_i");
-    id_to_r = rb_intern("to_r");
-    id_to_s = rb_intern("to_s");
+    sel_abs = sel_registerName("abs");
+    sel_abs2 = sel_registerName("abs2");
+    sel_arg = sel_registerName("arg");
+    sel_cmp = sel_registerName("<=>");
+    sel_conj = sel_registerName("conj");
+    sel_convert = sel_registerName("convert");
+    sel_denominator = sel_registerName("denominator");
+    sel_divmod = sel_registerName("divmod:");
+    sel_expt = sel_registerName("**:");
+    sel_fdiv = sel_registerName("fdiv:");
+    sel_floor = sel_registerName("floor");
+    sel_idiv = sel_registerName("div:");
+    sel_imag = sel_registerName("imag");
+    sel_inspect = sel_registerName("inspect");
+    sel_negate = sel_registerName("-@");
+    sel_numerator = sel_registerName("numerator");
+    sel_quo = sel_registerName("quo:");
+    sel_real = sel_registerName("real");
+    sel_real_p = sel_registerName("real?");
+    sel_to_f = sel_registerName("to_f");
+    sel_to_i = sel_registerName("to_i");
+    sel_to_r = sel_registerName("to_r");
+    sel_to_s = sel_registerName("to_s");
 
     rb_cComplex = rb_define_class("Complex", rb_cNumeric);
 

@@ -15,8 +15,10 @@ For 0.5 (must do):
 [ ] merge stdlib from 1.9.2 trunk
 [ ] rubygems should work (modulo C extensions)
 [ ] most language/core/library specs should run (modulo a very few exceptions)
-[/] port all rb_define_method() calls to rb_objc_define_method().
+[/] port all rb_define_method() calls to rb_objc_define_method()
 [/] port all rb_funcall() calls to rb_vm_call()
+[/] port all rb_num_coerce_bin() calls to rb_objc_num_coerce_bin()
+[/] port all rb_obj_respond_to() calls to rb_vm_respond_to()
 
 For 0.5 (tentative):
 
