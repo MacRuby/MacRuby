@@ -541,8 +541,14 @@ zstream_append_input(struct zstream *z, const Bytef *src, unsigned int len)
     }
 }
 
-#define zstream_append_input2(z,v)\
-    zstream_append_input((z), BSTRING_PTR_BYTEF(v), BSTRING_LEN(v))
+#define zstream_append_input2(z,v) \
+    do { \
+	if (*(VALUE *)v != rb_cByteString) { \
+	    v = rb_coerce_to_bytestring(v); \
+	} \
+	zstream_append_input((z), BSTRING_PTR_BYTEF(v), BSTRING_LEN(v)); \
+    } \
+    while(0)
 
 static void
 zstream_discard_input(struct zstream *z, unsigned int len)
