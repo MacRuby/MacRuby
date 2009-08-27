@@ -79,6 +79,18 @@ assert '42', %{
   A::B.new.foo do p X end
 }
 
+assert '42', %{
+  class A; end
+  A.class_eval %{
+   def foo
+     baz = {}
+     bar = baz[:foo] = 42
+     bar
+   end
+  }
+  p A.new.foo  
+}
+
 assert '42', 'a = nil; 1.times { a = 42; eval "p a" }'
 
 assert 'main', "p eval('self')"
