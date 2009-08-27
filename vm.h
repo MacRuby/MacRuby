@@ -407,10 +407,11 @@ VALUE rb_vm_current_exception(void);
 void rb_vm_set_current_exception(VALUE exception);
 VALUE rb_vm_backtrace(int level);
 
+#define TEST_THREAD_CANCEL() (pthread_testcancel())
+
 VALUE rb_vm_pop_broken_value(void);
 #define RETURN_IF_BROKEN() \
     do { \
-	pthread_testcancel(); \
 	VALUE __v = rb_vm_pop_broken_value(); \
 	if (__v != Qundef) { \
 	    return __v; \

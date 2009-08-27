@@ -248,9 +248,14 @@ rb_yield_splat(VALUE values)
 static VALUE
 loop_i(void)
 {
+    int count = 0;
     for (;;) {
 	rb_yield(Qundef);
 	RETURN_IF_BROKEN();
+	if (++count < 100) {
+	    TEST_THREAD_CANCEL();
+	    count = 0;
+	}
     }
     return Qnil;
 }
