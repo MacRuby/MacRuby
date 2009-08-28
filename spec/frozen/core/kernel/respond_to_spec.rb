@@ -21,8 +21,8 @@ describe "Kernel#respond_to?" do
 
   it "returns true if obj responds to the given public method" do    
     @a.respond_to?("five").should == false
-    @a.respond_to?(:public_method).should == true
-    @a.respond_to?("public_method").should == true
+    @a.respond_to?(:pub_method).should == true
+    @a.respond_to?("pub_method").should == true
   end
   
   it "returns true if obj responds to the given protected method" do

@@ -37,19 +37,13 @@ describe :complex_divide_float, :shared => true do
     (Complex(15, 16) / 2.0).should be_close(Complex(7.5, 8), TOLERANCE)
   end
 
-  ruby_version_is ""..."1.9" do
-    it "returns Complex(Infinity, Infinity) when given zero" do
-      (Complex(20, 40) / 0.0).inspect.should == "Complex(Infinity, Infinity)"
-      (Complex(-20, -40) / 0.0).inspect.should == "Complex(-Infinity, -Infinity)"
-    end
+  it "returns Complex(Infinity, Infinity) when given zero" do
+    (Complex(20, 40) / 0.0).real.infinite?.should == 1
+    (Complex(20, 40) / 0.0).imag.infinite?.should == 1
+    (Complex(-20, 40) / 0.0).real.infinite?.should == -1
+    (Complex(-20, 40) / 0.0).imag.infinite?.should == 1
   end
 
-  ruby_version_is "1.9" do
-    it "raises a ZeroDivisionError when given 0.0" do
-      lambda { Complex(20, 40) / 0.0 }.should raise_error(ZeroDivisionError)
-      lambda { Complex(-20, -40) / 0.0 }.should raise_error(ZeroDivisionError)
-    end
-  end
 end
 
 describe :complex_divide_object, :shared => true do

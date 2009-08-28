@@ -66,9 +66,14 @@ ruby_version_is '1.9' do
       lambda { "Glark".ascii_only?('?') }.should raise_error(ArgumentError)
     end
     
-    it "returns true for the empty String" do
+    it "returns true for the empty String with an ASCII-compatiable encoding" do
       ''.ascii_only?.should be_true
       ''.encode('UTF-8').ascii_only?.should be_true
+    end
+
+    it "returns false for the empty String with a non-ASCII-compatiable encoding" do
+      ''.force_encoding('UTF-16LE').ascii_only?.should be_false
+      ''.encode('UTF-16BE').ascii_only?.should be_false
     end
   end
 end

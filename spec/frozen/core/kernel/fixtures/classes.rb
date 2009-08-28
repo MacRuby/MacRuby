@@ -41,7 +41,8 @@ module KernelSpecs
   end
 
   class A
-    def public_method; :public_method; end
+    # 1.9 as Kernel#public_method, so we don't want this one to clash:
+    def pub_method; :public_method; end
 
     def undefed_method; :undefed_method; end
     undef_method :undefed_method
@@ -214,6 +215,11 @@ module KernelSpecs
   end
 
   class Child < Parent
+    # In case this trips anybody up: This fixtures file must only be loaded
+    # once for the Kernel specs. If it's loaded multiple times the following
+    # line raises a NameError. This is a problem if you require it from a
+    # location outside of core/kernel on 1.8.6, because 1.8.6 doesn't
+    # normalise paths...
     undef_method :parent_method
   end
 

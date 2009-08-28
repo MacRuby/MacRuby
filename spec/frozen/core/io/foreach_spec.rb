@@ -123,4 +123,11 @@ describe "IO::foreach" do
       lines.should == @content_with_r
     end
   end
+
+  ruby_version_is "1.8.7" do
+    it "returns an Enumerator when called without a block" do
+      IO.foreach(@file).should be_an_instance_of(enumerator_class)
+      IO.foreach(@file).to_a.should == @content
+    end
+  end
 end

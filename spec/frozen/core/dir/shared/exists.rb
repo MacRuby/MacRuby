@@ -33,9 +33,9 @@ describe :dir_exists, :shared => true do
     Dir.send(@method, dir).should be_true
   end
 
-  it "expands paths" do
+  it "doesn't expand paths" do
     Dir.send(@method, File.expand_path('~')).should be_true
-    Dir.send(@method, '~').should be_true
+    Dir.send(@method, '~').should be_false
   end
 
   it "returns false if the argument exists but is a file" do

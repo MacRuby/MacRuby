@@ -241,11 +241,13 @@ describe "Kernel#eval" do
     end
   end
 
-  it "can be aliased" do
-    alias aliased_eval eval
-    x = 2
-    aliased_eval('x += 40')
-    x.should == 42
+  deviates_on "jruby" do
+    it "can be aliased" do
+      alias aliased_eval eval
+      x = 2
+      aliased_eval('x += 40')
+      x.should == 42
+    end
   end
 end
 

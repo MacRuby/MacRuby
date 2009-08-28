@@ -1,6 +1,5 @@
-require 'enumerator'
 
-describe :enumerator_enum_for, :shared => true do
+describe :enum_for, :shared => true do
   it "is defined in Kernel" do
     Kernel.method_defined?(@method).should be_true
   end

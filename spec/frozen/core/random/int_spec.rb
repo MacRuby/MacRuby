@@ -83,13 +83,15 @@ ruby_version_is "1.9" do
       end.should raise_error(TypeError)
     end
 
-    # http://redmine.ruby-lang.org/issues/show/1859
-    quarantine! do
-      it "raises a TypeError if a Float..Integer range is given" do
-        lambda do
-          Random.new.int(20.2..40)
-        end.should raise_error(TypeError)
-      end
+    # (#int(3.3..5) previously segfaulted (bug #1859) which is why we test it
+    # here. Now, #int(3.3..5) is interpreted as #int(3...5), which has been
+    # reported as part of the same bug
+    it "converts each endpoint of the supplied Range to Integers" do
+      prng = Random.new(272726)
+      ints_a = 10.times.map { prng.int(3.3..5) }
+      prng = Random.new(272726)
+      ints_b = 10.times.map { prng.int(3..5) }
+      ints_a.should == ints_b
     end
 
     # The following examples fail. This has been reported as bug #1858

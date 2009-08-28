@@ -29,27 +29,20 @@ ruby_version_is "1.9" do
       Encoding::Converter.asciicompat_encoding('UTF-8').should be_nil
     end
 
-    quarantine! do
-      # Reported as bug #1659
-      it "handles encoding names who resolve to nil encodings" do
-        internal = Encoding.default_internal
-        Encoding.default_internal = nil
-        Encoding::Converter.asciicompat_encoding('internal')
-        Encoding.default_internal = internal
-      end
+    it "handles encoding names who resolve to nil encodings" do
+      internal = Encoding.default_internal
+      Encoding.default_internal = nil
+      Encoding::Converter.asciicompat_encoding('internal').should be_nil
+      Encoding.default_internal = internal
     end
 
     it "returns nil if called with an encoding it returned previously" do
       internal = Encoding.default_internal
-      # We set the default_internal encoding explicitly because otherwise we
-      # trigger bug #1659
-      Encoding.default_internal = 'UTF-8'
       Encoding.name_list.each do |name|
         asciicompat = Encoding::Converter.asciicompat_encoding(name)
         next if asciicompat.nil?
         Encoding::Converter.asciicompat_encoding(asciicompat).should be_nil
       end
-      Encoding.default_internal = internal
     end
   end
 end
