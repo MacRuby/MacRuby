@@ -57,6 +57,7 @@ void Init_PostGC(void);
 void Init_ObjC(void);
 void Init_BridgeSupport(void);
 void Init_FFI(void);
+void Init_Dispatch(void);
 void Init_PostVM(void);
 
 void
@@ -108,5 +109,6 @@ rb_call_inits()
     Init_ObjC();
     Init_BridgeSupport();
     Init_FFI();
+    Init_Dispatch();
     Init_PostVM();
 }

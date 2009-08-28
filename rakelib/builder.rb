@@ -107,7 +107,7 @@ OBJS = %w{
   onig/enc/utf8 onig/enc/euc_jp onig/enc/sjis onig/enc/iso8859_1
   onig/enc/utf16_be onig/enc/utf16_le onig/enc/utf32_be onig/enc/utf32_le
   ruby set signal sprintf st string struct time transcode util variable version
-  thread id objc bs encoding main dln dmyext marshal
+  thread id objc bs encoding main dln dmyext marshal gcd
   vm_eval prelude miniprelude gc-stub bridgesupport compiler vm MacRuby
 }
 
