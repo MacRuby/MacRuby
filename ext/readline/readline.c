@@ -752,8 +752,8 @@ Init_readline()
     completion_case_fold = rb_intern(COMPLETION_CASE_FOLD);
 
     mReadline = rb_define_module("Readline");
-    rb_objc_define_method(mReadline, "readline",
-			      readline_readline, -1);
+    rb_objc_define_module_function(mReadline, "readline",
+	    readline_readline, -1);
     rb_objc_define_method(*(VALUE *)mReadline, "input=",
 			       readline_s_set_input, 1);
     rb_objc_define_method(*(VALUE *)mReadline, "output=",
