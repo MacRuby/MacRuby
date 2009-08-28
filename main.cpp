@@ -18,12 +18,16 @@ extern "C" {
     void rb_vm_init_compiler(void);
 }
 
+bool ruby_is_miniruby = false;
+
 int
 main(int argc, char **argv, char **envp)
 {
 #ifdef HAVE_LOCALE_H
     setlocale(LC_CTYPE, "");
 #endif
+
+    ruby_is_miniruby = argc > 0 && strstr(argv[0], "miniruby") != NULL;
 
     try {
 	ruby_sysinit(&argc, &argv);

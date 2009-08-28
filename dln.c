@@ -65,9 +65,16 @@ dln_strerror(void)
     return (char*)dlerror();
 }
 
+extern bool ruby_is_miniruby;
+
 void*
 dln_load(const char *file)
 {
+    if (ruby_is_miniruby) {
+	rb_raise(rb_eLoadError,
+		"miniruby can't load C extension bundles due to technical problems");
+    }
+
     const char *error = 0;
 #define DLN_ERROR() (error = dln_strerror(), strcpy(ALLOCA_N(char, strlen(error) + 1), error))
 
