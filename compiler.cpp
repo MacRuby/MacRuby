@@ -161,8 +161,6 @@ RoxorAOTCompiler::RoxorAOTCompiler(void)
 : RoxorCompiler()
 {
     cObject_gvar = NULL;
-    name2symFunc = NULL;
-    newRegexp2Func = NULL;
 }
 
 inline SEL
@@ -1268,7 +1266,7 @@ RoxorCompiler::compile_id(ID id)
     return ConstantInt::get(IntTy, (long)id);
 }
 
-inline Value *
+Value *
 RoxorAOTCompiler::compile_id(ID id)
 {
     std::map<ID, GlobalVariable *>::iterator iter = ids.find(id);
@@ -5072,6 +5070,18 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 
     // Compile literals.
 
+    Function *name2symFunc =
+	cast<Function>(module->getOrInsertFunction("rb_name2sym",
+		    RubyObjTy, PtrTy, NULL));
+
+    Function *newRegexp2Func =
+	cast<Function>(module->getOrInsertFunction("rb_reg_new",
+		    RubyObjTy, PtrTy, Type::Int32Ty, Type::Int32Ty, NULL));
+
+    Function *getClassFunc =
+	cast<Function>(module->getOrInsertFunction("objc_getClass",
+		    RubyObjTy, PtrTy, NULL));
+
     for (std::map<VALUE, GlobalVariable *>::iterator i = literals.begin();
 	 i != literals.end();
 	 ++i) {
@@ -5080,16 +5090,35 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 	GlobalVariable *gvar = i->second;
 
 	switch (TYPE(val)) {
+	    case T_CLASS:
+		{
+		    // This strange literal seems to be only emitted for 
+		    // `for' loops.
+		    GlobalVariable *kname_gvar =
+			compile_const_global_string(class_getName((Class)val));
+
+		    std::vector<Value *> idxs;
+		    idxs.push_back(ConstantInt::get(Type::Int32Ty, 0));
+		    idxs.push_back(ConstantInt::get(Type::Int32Ty, 0));
+		    Instruction *load = GetElementPtrInst::Create(kname_gvar,
+			    idxs.begin(), idxs.end(), "");
+
+		    std::vector<Value *> params;
+		    params.push_back(load);
+
+		    Instruction *call = CallInst::Create(getClassFunc,
+			    params.begin(), params.end(), "");
+
+		    Instruction *assign = new StoreInst(call, gvar, "");
+
+		    list.insert(list.begin(), assign);
+		    list.insert(list.begin(), call);
+		    list.insert(list.begin(), load);
+		}
+		break;
+
 	    case T_REGEXP:
 		{
-		    if (newRegexp2Func == NULL) {
-			newRegexp2Func =
-			    cast<Function>(module->getOrInsertFunction(
-					"rb_reg_new",
-					RubyObjTy, PtrTy, Type::Int32Ty,
-					Type::Int32Ty, NULL));
-		    }
-
 		    struct RRegexp *re = (struct RRegexp *)val;
 
 		    GlobalVariable *rename_gvar =
@@ -5120,13 +5149,6 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 
 	    case T_SYMBOL:
 		{
-		    if (name2symFunc == NULL) {
-			name2symFunc =
-			    cast<Function>(module->getOrInsertFunction(
-					"rb_name2sym",
-					RubyObjTy, PtrTy, NULL));
-		    }
-
 		    const char *symname = rb_id2name(SYM2ID(val));
 
 		    GlobalVariable *symname_gvar =
@@ -5204,7 +5226,7 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 
 	ID name = i->first;
 	GlobalVariable *gvar = i->second;
-	
+
 	GlobalVariable *name_gvar =
 	    compile_const_global_string(rb_id2name(name));
 

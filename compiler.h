@@ -341,9 +341,6 @@ class RoxorAOTCompiler : public RoxorCompiler {
 
 	GlobalVariable *cObject_gvar;
 
-	Function *name2symFunc;
-	Function *newRegexp2Func;
-
 	Value *compile_mcache(SEL sel, bool super);
 	Value *compile_ccache(ID id);
 	Instruction *compile_sel(SEL sel, bool add_to_bb=true);
