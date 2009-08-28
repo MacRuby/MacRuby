@@ -5121,17 +5121,23 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 		{
 		    struct RRegexp *re = (struct RRegexp *)val;
 
-		    GlobalVariable *rename_gvar =
-			compile_const_global_string(re->str, re->len);
+		    Instruction *re_str;
+		    if (re->len == 0) {
+			re_str = compile_const_pointer(NULL, NULL, false);	
+		    }
+		    else {
+			GlobalVariable *rename_gvar =
+			    compile_const_global_string(re->str, re->len);
 
-		    std::vector<Value *> idxs;
-		    idxs.push_back(ConstantInt::get(Type::Int32Ty, 0));
-		    idxs.push_back(ConstantInt::get(Type::Int32Ty, 0));
-		    Instruction *load = GetElementPtrInst::Create(rename_gvar,
-			    idxs.begin(), idxs.end(), "");
+			std::vector<Value *> idxs;
+			idxs.push_back(ConstantInt::get(Type::Int32Ty, 0));
+			idxs.push_back(ConstantInt::get(Type::Int32Ty, 0));
+			re_str = GetElementPtrInst::Create(rename_gvar,
+				idxs.begin(), idxs.end(), "");
+		    }
 
 		    std::vector<Value *> params;
-		    params.push_back(load);
+		    params.push_back(re_str);
 		    params.push_back(ConstantInt::get(Type::Int32Ty, re->len));
 		    params.push_back(ConstantInt::get(Type::Int32Ty,
 				re->ptr->options));
@@ -5143,7 +5149,7 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 
 		    list.insert(list.begin(), assign);
 		    list.insert(list.begin(), call);
-		    list.insert(list.begin(), load);
+		    list.insert(list.begin(), re_str);
 		}
 		break;
 

@@ -2681,6 +2681,9 @@ VALUE
 rb_reg_new(const char *s, long len, int options)
 {
 #if WITH_OBJC
+    if (s == NULL && len == 0) {
+	s = "";
+    }
     return rb_enc_reg_new(s, len, NULL, options);
 #else
     return rb_enc_reg_new(s, len, rb_ascii8bit_encoding(), options);
