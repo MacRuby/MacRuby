@@ -10,6 +10,7 @@
 
 #include "llvm.h"
 #include "ruby/ruby.h"
+#include "ruby/encoding.h"
 #include "ruby/node.h"
 #include "ruby/re.h"
 #include "id.h"
@@ -2723,6 +2724,11 @@ RoxorAOTCompiler::compile_immutable_literal(VALUE val)
 {
     if (SPECIAL_CONST_P(val)) {
 	return RoxorCompiler::compile_immutable_literal(val);
+    }
+    if (rb_obj_is_kind_of(val, rb_cEncoding)) {
+	// This is the __ENCODING__ keyword.
+	// TODO: compile the real encoding...
+	return nilVal;
     }
 
     std::map<VALUE, GlobalVariable *>::iterator iter = literals.find(val);
