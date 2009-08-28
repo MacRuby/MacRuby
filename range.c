@@ -604,6 +604,15 @@ range_max(VALUE range, SEL sel)
     }
 }
 
+void
+rb_range_extract(VALUE range, VALUE *begp, VALUE *endp, bool *exclude)
+{
+    assert(begp != NULL && endp != NULL && exclude != NULL);
+    *begp = RANGE_BEG(range);
+    *endp = RANGE_END(range);
+    *exclude = EXCL(range);
+}
+
 VALUE
 rb_range_beg_len(VALUE range, long *begp, long *lenp, long len, int err)
 {

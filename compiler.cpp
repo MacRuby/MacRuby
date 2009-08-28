@@ -197,8 +197,9 @@ RoxorCompiler::is_value_a_fixnum(Value *val)
     return new ICmpInst(ICmpInst::ICMP_EQ, andOp, oneVal, "", bb); 
 }
 
-Value *
-RoxorCompiler::compile_protected_call(Function *func, std::vector<Value *> &params)
+Instruction *
+RoxorCompiler::compile_protected_call(Function *func,
+	std::vector<Value *> &params)
 {
     if (rescue_bb == NULL) {
 	CallInst *dispatch = CallInst::Create(func, 
@@ -206,7 +207,7 @@ RoxorCompiler::compile_protected_call(Function *func, std::vector<Value *> &para
 		params.end(), 
 		"", 
 		bb);
-	return cast<Value>(dispatch);
+	return dispatch;
     }
     else {
 	BasicBlock *normal_bb = BasicBlock::Create("normal", bb->getParent());
@@ -221,7 +222,7 @@ RoxorCompiler::compile_protected_call(Function *func, std::vector<Value *> &para
 
 	bb = normal_bb;
 
-	return cast<Value>(dispatch); 
+	return dispatch;
     }
 }
 
@@ -2631,6 +2632,28 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
     return NULL;
 }
 
+Instruction *
+RoxorCompiler::compile_range(Value *beg, Value *end, bool exclude_end,
+	bool add_to_bb)
+{
+    if (newRangeFunc == NULL) {
+	// VALUE rb_range_new(VALUE beg, VALUE end, int exclude_end);
+	newRangeFunc = cast<Function>(module->getOrInsertFunction(
+		    "rb_range_new",
+		    RubyObjTy, RubyObjTy, RubyObjTy, RubyObjTy, NULL));
+    }
+
+    std::vector<Value *> params;
+    params.push_back(beg);
+    params.push_back(end);
+    params.push_back(exclude_end ? trueVal : falseVal);
+
+    if (add_to_bb) {
+	return compile_protected_call(newRangeFunc, params);
+    }
+    return CallInst::Create(newRangeFunc, params.begin(), params.end(), "");
+}
+
 Value *
 RoxorCompiler::compile_literal(VALUE val)
 {
@@ -4180,22 +4203,12 @@ rescan_args:
 	case NODE_DOT2:
 	case NODE_DOT3:
 	    {
-		if (newRangeFunc == NULL) {
-		    // VALUE rb_range_new(VALUE beg, VALUE end, int exclude_end);
-		    newRangeFunc = cast<Function>(module->getOrInsertFunction("rb_range_new",
-			RubyObjTy, RubyObjTy, RubyObjTy, RubyObjTy, NULL));
-		}
-
 		assert(node->nd_beg != NULL);
 		assert(node->nd_end != NULL);
 
-		std::vector<Value *> params;
-		params.push_back(compile_node(node->nd_beg));
-		params.push_back(compile_node(node->nd_end));
-		params.push_back(nd_type(node) == NODE_DOT2 ? falseVal : trueVal);
-
-		return cast<Value>(CallInst::Create(newRangeFunc,
-			    params.begin(), params.end(), "", bb));
+		return compile_range(compile_node(node->nd_beg),
+			compile_node(node->nd_end),
+			nd_type(node) == NODE_DOT3);
 	    }
 	    break;
 
@@ -5181,11 +5194,30 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 		break;
 
 	    default:
-		printf("unrecognized literal `%s' (class `%s' type %d)\n",
-			RSTRING_PTR(rb_inspect(val)),
-			rb_obj_classname(val),
-			TYPE(val));
-		abort();
+		if (rb_obj_is_kind_of(val, rb_cRange)) {
+		    VALUE beg = 0, end = 0;
+		    bool exclude_end = false;
+		    rb_range_extract(val, &beg, &end, &exclude_end);
+
+		    Instruction *call = compile_range(
+			    ConstantInt::get(RubyObjTy, beg),
+			    ConstantInt::get(RubyObjTy, end),
+			    exclude_end,
+			    false);	
+
+		    Instruction *assign = new StoreInst(call, gvar, "");
+
+		    list.insert(list.begin(), assign);
+		    list.insert(list.begin(), call);
+		}
+		else {
+		    printf("unrecognized literal `%s' (class `%s' type %d)\n",
+			    RSTRING_PTR(rb_inspect(val)),
+			    rb_obj_classname(val),
+			    TYPE(val));
+		    abort();
+		}
+		break;
 	}
     }
 

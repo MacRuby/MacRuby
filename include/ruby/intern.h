@@ -492,6 +492,7 @@ void rb_syswait(rb_pid_t pid);
 rb_pid_t rb_spawn(int, VALUE*);
 VALUE rb_detach_process(rb_pid_t pid);
 /* range.c */
+void rb_range_extract(VALUE range, VALUE *begp, VALUE *endp, bool *exclude);
 VALUE rb_range_new(VALUE, VALUE, int);
 VALUE rb_range_beg_len(VALUE, long*, long*, long, int);
 /* random.c */

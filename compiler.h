@@ -219,7 +219,7 @@ class RoxorCompiler {
 	    return compile_const_pointer(ptr, PtrPtrTy, insert_to_bb);
 	}
 
-	Value *compile_protected_call(Function *func,
+	Instruction *compile_protected_call(Function *func,
 		std::vector<Value *> &params);
 	void compile_dispatch_arguments(NODE *args,
 		std::vector<Value *> &arguments, int *pargc);
@@ -279,6 +279,8 @@ class RoxorCompiler {
 		const size_t str_len, CFHashCode hash);
 
 	Value *compile_arity(rb_vm_arity_t &arity);
+	Instruction *compile_range(Value *beg, Value *end, bool exclude_end,
+		bool add_to_bb=true);
 	Value *compile_literal(VALUE val);
 	virtual Value *compile_immutable_literal(VALUE val);
 	virtual Value *compile_global_entry(NODE *node);
