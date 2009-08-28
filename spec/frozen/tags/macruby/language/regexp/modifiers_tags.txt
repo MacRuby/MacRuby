@@ -1,0 +1,2 @@
+fails:Regexps with modifers supports /o (once)
+fails:Regexps with modifers invokes substitutions for /o only once

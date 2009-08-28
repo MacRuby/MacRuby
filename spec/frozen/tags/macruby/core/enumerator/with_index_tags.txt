@@ -1,0 +1,4 @@
+fails:Enumerator#with_index accepts an optional argument when given a block
+fails:Enumerator#with_index accepts an optional argument when not given a block
+fails:Enumerator#with_index numbers indices from the given index when given an offset but no block
+fails:Enumerator#with_index numbers indices from the given index when given an offset and block

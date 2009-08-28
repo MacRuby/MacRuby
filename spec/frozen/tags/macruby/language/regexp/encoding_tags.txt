@@ -1,0 +1,2 @@
+fails:Regexps with encoding modifiers supports /n (Normal encoding)
+fails:Regexps with encoding modifiers supports /s (Windows_31J encoding)

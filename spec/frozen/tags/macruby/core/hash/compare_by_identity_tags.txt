@@ -1,0 +1,7 @@
+fails:Hash#compare_by_identity causes future comparisons on the receiver to be made by identity
+fails:Hash#compare_by_identity causes #compare_by_identity? to return true
+fails:Hash#compare_by_identity uses the semantics of BasicObject#equal? to determine key identity
+fails:Hash#compare_by_identity regards #dup'd objects as having different identities
+fails:Hash#compare_by_identity regards #clone'd objects as having different identities
+fails:Hash#compare_by_identity? returns true once #compare_by_identity has been invoked on self
+fails:Hash#compare_by_identity? returns true when called multiple times on the same ident hash

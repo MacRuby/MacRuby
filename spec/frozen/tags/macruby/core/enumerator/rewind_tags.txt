@@ -1,0 +1,4 @@
+fails:Enumerator#rewind resets the enumerator to its initial state
+fails:Enumerator#rewind has no effect on a new enumerator
+fails:Enumerator#rewind has no effect if called multiple, consecutive times
+fails:Enumerator#rewind calls the enclosed object's rewind method if one exists

@@ -10,3 +10,4 @@ fails:Random#int raises a TypeError if a String range is given
 fails:Random#int returns an ArgumentError when the argument is 1
 fails:Random#int returns an ArgumentError when the argument is 0
 fails:Random#int returns an ArgumentError when the argument is negative
+fails:Random#int converts each endpoint of the supplied Range to Integers

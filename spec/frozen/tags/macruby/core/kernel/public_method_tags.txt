@@ -1,0 +1,2 @@
+fails:Kernel#public_method raises a NameError when called on a private method
+fails:Kernel#public_method raises a NameError when called on a protected method
