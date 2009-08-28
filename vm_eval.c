@@ -252,7 +252,7 @@ loop_i(void)
     for (;;) {
 	rb_yield(Qundef);
 	RETURN_IF_BROKEN();
-	if (++count < 100) {
+	if (++count >= 100) {
 	    TEST_THREAD_CANCEL();
 	    count = 0;
 	}
