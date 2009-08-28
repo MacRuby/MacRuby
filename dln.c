@@ -65,7 +65,7 @@ dln_strerror(void)
     return (char*)dlerror();
 }
 
-extern bool ruby_is_miniruby;
+bool ruby_is_miniruby = false;
 
 void*
 dln_load(const char *file)

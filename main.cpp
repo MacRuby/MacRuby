@@ -18,7 +18,7 @@ extern "C" {
     void rb_vm_init_compiler(void);
 }
 
-bool ruby_is_miniruby = false;
+extern bool ruby_is_miniruby;
 
 int
 main(int argc, char **argv, char **envp)
