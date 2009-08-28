@@ -9430,12 +9430,21 @@ rb_gc_mark_symbols(void)
 }
 #endif
 
+// XXX not thread-safe
+static long internal_count = 0;
+
 static ID
 internal_id_gen(struct parser_params *parser)
 {
+#if 1
+    char buf[100];
+    snprintf(buf, sizeof buf, "__internal_id_tmp_%ld__", internal_count++);
+    return rb_intern(buf);
+#else
     ID id = (ID)vtable_size(lvtbl->args) + (ID)vtable_size(lvtbl->vars);
     id += ((tLAST_TOKEN - ID_INTERNAL) >> ID_SCOPE_SHIFT) + 1;
     return ID_INTERNAL | (id << ID_SCOPE_SHIFT);
+#endif
 }
 
 static int
