@@ -252,18 +252,24 @@ rb_str_new5(VALUE obj, const char *ptr, long len)
 VALUE
 rb_str_buf_new(long capa)
 {
+    return rb_str_new2("");
+#if 0
     return rb_bytestring_new();
+#endif
 }
 
 VALUE
 rb_str_buf_new2(const char *ptr)
 {
+    return rb_str_new2(ptr);
+#if 0
     VALUE str = rb_bytestring_new();
     long len = strlen(ptr);
     if (ptr != NULL && len > 0) {
 	CFDataAppendBytes(rb_bytestring_wrapped_data(str), (const UInt8 *)ptr, len);
     }
     return str;
+#endif
 }
 
 VALUE
@@ -2331,23 +2337,58 @@ rb_str_setbyte(VALUE str, SEL sel, VALUE index, VALUE value)
 static VALUE
 rb_str_reverse_bang(VALUE str, SEL sel)
 {
-    CFIndex i, n;
-    UniChar *buffer;
+    rb_str_modify(str);
 
-    n = CFStringGetLength((CFStringRef)str);
+    const long n = CFStringGetLength((CFStringRef)str);
     if (n <= 1) {
 	return rb_str_dup(str);
     }
-   
-    buffer = (UniChar *)alloca(sizeof(UniChar) * n);
-    CFStringGetCharacters((CFStringRef)str, CFRangeMake(0, n), buffer);
-    for (i = 0; i < (n / 2); i++) {
-	UniChar c = buffer[i];
-	buffer[i] = buffer[n - i - 1];
-	buffer[n - i - 1] = c;
+
+#if 1
+    // HACK
+    const char *ptr = CFStringGetCStringPtr((CFStringRef)str, 0);
+    if (ptr != NULL) {
+	char *beg = (char *)ptr;
+	char *end = (char *)&ptr[n - 1];
+	while (beg < end) {
+	    char c = *beg;
+	    *beg++ = *end;
+	    *end-- = c;
+	}
+	return str;
     }
+    const UniChar *ptr2 = CFStringGetCharactersPtr((CFStringRef)str);
+    if (ptr2 != NULL) {
+	UniChar *beg = (UniChar *)ptr2;
+	UniChar *end = (UniChar *)&ptr2[n - 1];
+	while (beg < end) {
+	    UniChar c = *beg;
+	    *beg++ = *end;
+	    *end-- = c;
+	}
+	return str;
+    }
+#endif
+ 
+    UniChar *buffer = (UniChar *)alloca(sizeof(UniChar) * n);
+    CFStringGetCharacters((CFStringRef)str, CFRangeMake(0, n), buffer);
+    UniChar *beg = buffer;
+    UniChar *end = &buffer[n - 1];
+    while (beg < end) {
+	UniChar c = *beg;
+	*beg++ = *end;
+	*end-- = c;
+    }
+
+#if 0
     CFStringDelete((CFMutableStringRef)str, CFRangeMake(0, n));
     CFStringAppendCharacters((CFMutableStringRef)str, (const UniChar *)buffer, n);
+#else
+    CFStringRef tmp = CFStringCreateWithCharactersNoCopy(kCFAllocatorMalloc,
+	    buffer, n, kCFAllocatorNull);
+    CFStringReplaceAll((CFMutableStringRef)str, tmp);
+    CFRelease(tmp);
+#endif
 
     return str;
 }
