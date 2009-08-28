@@ -313,8 +313,8 @@ nucomp_s_new_internal(VALUE klass, VALUE real, VALUE imag)
     NEWOBJ(obj, struct RComplex);
     OBJSETUP(obj, klass, T_COMPLEX);
 
-    obj->real = real;
-    obj->imag = imag;
+    GC_WB(&obj->real, real);
+    GC_WB(&obj->imag, imag);
 
     return (VALUE)obj;
 }
@@ -1298,8 +1298,8 @@ static VALUE
 nucomp_marshal_load(VALUE self, SEL sel, VALUE a)
 {
     get_dat1(self);
-    dat->real = RARRAY_PTR(a)[0];
-    dat->imag = RARRAY_PTR(a)[1];
+    GC_WB(&dat->real, RARRAY_AT(a, 0));
+    GC_WB(&dat->imag, RARRAY_AT(a, 1));
     rb_copy_generic_ivar(self, a);
     return self;
 }
