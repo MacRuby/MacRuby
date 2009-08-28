@@ -38,6 +38,13 @@ assert "42", %{
   p X.new.foo
 }
 
+assert "true", %{
+  class X
+    define_singleton_method(:foo, method(:constants))
+  end
+  p X.foo == X.constants
+}
+
 assert "42", %q{
   class X
     def foo
