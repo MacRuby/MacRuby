@@ -683,6 +683,12 @@ nucomp_add(VALUE self, SEL sel, VALUE other)
     return f_addsub(self, other, f_add, selPLUS);
 }
 
+VALUE
+rb_nu_plus(VALUE x, VALUE y)
+{
+    return f_addsub(x, y, f_add, selPLUS);
+}
+
 /*
  * call-seq:
  *    cmp - numeric  ->  complex
@@ -693,6 +699,12 @@ static VALUE
 nucomp_sub(VALUE self, SEL sel, VALUE other)
 {
     return f_addsub(self, other, f_sub, selMINUS);
+}
+
+VALUE
+rb_nu_minus(VALUE x, VALUE y)
+{
+    return f_addsub(x, y, f_sub, selMINUS);
 }
 
 /*
@@ -724,6 +736,12 @@ nucomp_mul(VALUE self, SEL sel, VALUE other)
 			      f_mul(dat->imag, other));
     }
     return rb_objc_num_coerce_bin(self, other, selMULT);
+}
+
+VALUE
+rb_nu_mul(VALUE x, VALUE y)
+{
+    return nucomp_mul(x, 0, y);
 }
 
 inline static VALUE
@@ -799,6 +817,12 @@ nucomp_div(VALUE self, SEL sel, VALUE other)
 	rb_raise_zerodiv();
     }
     return f_divide(self, other, f_quo, sel_quo);
+}
+
+VALUE
+rb_nu_div(VALUE x, VALUE y)
+{
+    return nucomp_div(x, 0, y);
 }
 
 #define nucomp_quo nucomp_div

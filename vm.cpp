@@ -2645,12 +2645,16 @@ __rb_vm_dispatch(RoxorVM *vm, struct mcache *cache, VALUE self, Class klass,
     }
 
 #if ROXOR_VM_DEBUG
-    const bool cached = cache->flag != 0;
+    bool cached = true;
 #endif
     bool do_rcache = true;
 
     if (cache->flag == 0) {
 recache:
+#if ROXOR_VM_DEBUG
+	cached = false;
+#endif
+
 	Method method;
 	if (opt == DISPATCH_SUPER) {
 	    method = rb_vm_super_lookup((VALUE)klass, sel);
@@ -3041,6 +3045,21 @@ rb_vm_dispatch(struct mcache *cache, VALUE self, SEL sel, rb_vm_block_t *block,
 // not, because this is already handled by the compiler.
 // Also, fixnums and floats are already handled.
 
+extern "C" {
+    VALUE rb_fix_plus(VALUE x, VALUE y);
+    VALUE rb_fix_minus(VALUE x, VALUE y);
+    VALUE rb_fix_div(VALUE x, VALUE y);
+    VALUE rb_fix_mul(VALUE x, VALUE y);
+    VALUE rb_flo_plus(VALUE x, VALUE y);
+    VALUE rb_flo_minus(VALUE x, VALUE y);
+    VALUE rb_flo_div(VALUE x, VALUE y);
+    VALUE rb_flo_mul(VALUE x, VALUE y);
+    VALUE rb_nu_plus(VALUE x, VALUE y);
+    VALUE rb_nu_minus(VALUE x, VALUE y);
+    VALUE rb_nu_div(VALUE x, VALUE y);
+    VALUE rb_nu_mul(VALUE x, VALUE y);
+}
+
 extern "C"
 VALUE
 rb_vm_fast_plus(struct mcache *cache, VALUE self, VALUE other)
@@ -3049,6 +3068,12 @@ rb_vm_fast_plus(struct mcache *cache, VALUE self, VALUE other)
 	// TODO: Array, String
 	case T_BIGNUM:
 	    return rb_big_plus(self, other);
+	case T_FIXNUM:
+	    return rb_fix_plus(self, other);
+	case T_FLOAT:
+	    return rb_flo_plus(self, other);
+	case T_COMPLEX:
+	    return rb_nu_plus(self, other);
     }
     return rb_vm_dispatch(cache, self, selPLUS, NULL, 0, 1, other);
 }
@@ -3061,6 +3086,12 @@ rb_vm_fast_minus(struct mcache *cache, VALUE self, VALUE other)
 	// TODO: Array, String
 	case T_BIGNUM:
 	    return rb_big_minus(self, other);
+	case T_FIXNUM:
+	    return rb_fix_minus(self, other);
+	case T_FLOAT:
+	    return rb_flo_minus(self, other);
+	case T_COMPLEX:
+	    return rb_nu_minus(self, other);
     }
     return rb_vm_dispatch(cache, self, selMINUS, NULL, 0, 1, other);
 }
@@ -3072,6 +3103,12 @@ rb_vm_fast_div(struct mcache *cache, VALUE self, VALUE other)
     switch (TYPE(self)) {
 	case T_BIGNUM:
 	    return rb_big_div(self, other);
+	case T_FIXNUM:
+	    return rb_fix_div(self, other);
+	case T_FLOAT:
+	    return rb_flo_div(self, other);
+	case T_COMPLEX:
+	    return rb_nu_div(self, other);
     }
     return rb_vm_dispatch(cache, self, selDIV, NULL, 0, 1, other);
 }
@@ -3084,6 +3121,12 @@ rb_vm_fast_mult(struct mcache *cache, VALUE self, VALUE other)
 	// TODO: Array, String
 	case T_BIGNUM:
 	    return rb_big_mul(self, other);
+	case T_FIXNUM:
+	    return rb_fix_mul(self, other);
+	case T_FLOAT:
+	    return rb_flo_mul(self, other);
+	case T_COMPLEX:
+	    return rb_nu_mul(self, other);
     }
     return rb_vm_dispatch(cache, self, selMULT, NULL, 0, 1, other);
 }

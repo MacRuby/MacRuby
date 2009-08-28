@@ -659,8 +659,8 @@ flo_uminus(VALUE flt, SEL sel)
  * and <code>other</code>.
  */
 
-static VALUE
-flo_plus(VALUE x, SEL sel, VALUE y)
+VALUE
+rb_flo_plus(VALUE x, VALUE y)
 {
     switch (TYPE(y)) {
       case T_FIXNUM:
@@ -674,6 +674,12 @@ flo_plus(VALUE x, SEL sel, VALUE y)
     }
 }
 
+static VALUE
+flo_plus(VALUE x, SEL sel, VALUE y)
+{
+    return rb_flo_plus(x, y);
+}
+
 /*
  * call-seq:
  *   float + other   => float
@@ -682,8 +688,8 @@ flo_plus(VALUE x, SEL sel, VALUE y)
  * and <code>other</code>.
  */
 
-static VALUE
-flo_minus(VALUE x, SEL sel, VALUE y)
+VALUE
+rb_flo_minus(VALUE x, VALUE y)
 {
     switch (TYPE(y)) {
       case T_FIXNUM:
@@ -697,6 +703,12 @@ flo_minus(VALUE x, SEL sel, VALUE y)
     }
 }
 
+static VALUE
+flo_minus(VALUE x, SEL sel, VALUE y)
+{
+    return rb_flo_minus(x, y);
+}
+
 /*
  * call-seq:
  *   float * other   => float
@@ -705,8 +717,8 @@ flo_minus(VALUE x, SEL sel, VALUE y)
  * and <code>other</code>.
  */
 
-static VALUE
-flo_mul(VALUE x, SEL sel, VALUE y)
+VALUE
+rb_flo_mul(VALUE x, VALUE y)
 {
     switch (TYPE(y)) {
       case T_FIXNUM:
@@ -720,6 +732,12 @@ flo_mul(VALUE x, SEL sel, VALUE y)
     }
 }
 
+static VALUE
+flo_mul(VALUE x, SEL sel, VALUE y)
+{
+    return rb_flo_mul(x, y);
+}
+
 /*
  * call-seq:
  *   float / other   => float
@@ -728,8 +746,8 @@ flo_mul(VALUE x, SEL sel, VALUE y)
  * <code>float</code> by <code>other</code>.
  */
 
-static VALUE
-flo_div(VALUE x, SEL sel, VALUE y)
+VALUE
+rb_flo_div(VALUE x, VALUE y)
 {
     long f_y;
     double d;
@@ -746,6 +764,12 @@ flo_div(VALUE x, SEL sel, VALUE y)
       default:
 	return rb_objc_num_coerce_bin(x, y, selDIV);
     }
+}
+
+static VALUE
+flo_div(VALUE x, SEL sel, VALUE y)
+{
+    return rb_flo_div(x, y);
 }
 
 static VALUE
@@ -2183,8 +2207,8 @@ fix_to_s(VALUE x, SEL sel, int argc, VALUE *argv)
  * result.
  */
 
-static VALUE
-fix_plus(VALUE x, SEL sel, VALUE y)
+VALUE
+rb_fix_plus(VALUE x, VALUE y)
 {
     if (FIXNUM_P(y)) {
 	long a, b, c;
@@ -2207,6 +2231,12 @@ fix_plus(VALUE x, SEL sel, VALUE y)
     }
 }
 
+static VALUE
+fix_plus(VALUE x, SEL sel, VALUE y)
+{
+    return rb_fix_plus(x, y);
+}
+
 /*
  * call-seq:
  *   fix - numeric   =>  numeric_result
@@ -2216,8 +2246,8 @@ fix_plus(VALUE x, SEL sel, VALUE y)
  * result.
  */
 
-static VALUE
-fix_minus(VALUE x, SEL sel, VALUE y)
+VALUE
+rb_fix_minus(VALUE x, VALUE y)
 {
     if (FIXNUM_P(y)) {
 	long a, b, c;
@@ -2241,6 +2271,12 @@ fix_minus(VALUE x, SEL sel, VALUE y)
     }
 }
 
+static VALUE
+fix_minus(VALUE x, SEL sel, VALUE y)
+{
+    return rb_fix_minus(x, y);
+}
+
 #define SQRT_LONG_MAX ((SIGNED_VALUE)1<<((SIZEOF_LONG*CHAR_BIT-1)/2))
 /*tests if N*N would overflow*/
 #define FIT_SQRT_LONG(n) (((n)<SQRT_LONG_MAX)&&((n)>=-SQRT_LONG_MAX))
@@ -2254,8 +2290,8 @@ fix_minus(VALUE x, SEL sel, VALUE y)
  * result.
  */
 
-static VALUE
-fix_mul(VALUE x, SEL sel, VALUE y)
+VALUE
+rb_fix_mul(VALUE x, VALUE y)
 {
     if (FIXNUM_P(y)) {
 #ifdef __HP_cc
@@ -2298,6 +2334,12 @@ fix_mul(VALUE x, SEL sel, VALUE y)
       default:
 	return rb_objc_num_coerce_bin(x, y, selMULT);
     }
+}
+
+static VALUE
+fix_mul(VALUE x, SEL sel, VALUE y)
+{
+    return rb_fix_mul(x, y);
 }
 
 static void
@@ -2402,6 +2444,12 @@ fix_divide(VALUE x, VALUE y, SEL op)
 
 static VALUE
 fix_div(VALUE x, SEL sel, VALUE y)
+{
+    return fix_divide(x, y, selDIV);
+}
+
+VALUE
+rb_fix_div(VALUE x, VALUE y)
 {
     return fix_divide(x, y, selDIV);
 }
