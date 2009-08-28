@@ -1,5 +1,6 @@
 fails:IO.read raises an ArgumentError when not passed a valid length
 fails:IO.read raises an Errno::EINVAL when not passed a valid offset
+critical:IO#read strips the BOM when given 'rb:utf-7-bom' as the mode
 fails:IO#read can read lots of data
 fails:IO#read can read lots of data with length
 fails:IO#read places the specified number of bytes in the buffer

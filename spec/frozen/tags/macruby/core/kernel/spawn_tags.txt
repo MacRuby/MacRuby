@@ -1,0 +1,2 @@
+critical:Kernel.spawn redirects STDERR to the given file descriptior if if :err => Fixnum
+critical:Kernel.spawn redirects STDERR to the given file if :err => String

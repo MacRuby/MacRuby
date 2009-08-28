@@ -86,6 +86,7 @@ fails:Array#pack with format 'l_' tries to convert the pack argument to an Integ
 fails:Array#pack with format 'L!' tries to convert the pack argument to an Integer using #to_int
 fails:Array#pack with format 'L_' tries to convert the pack argument to an Integer using #to_int
 fails:Array#pack with format 'M' calls #to_s on object to convert to string
+critical:Array#pack with format 'M' does not check whether the pack argument responds to #to_s before call #to_s
 fails:Array#pack with format 'm' tries to convert the pack argument to a String using #to_str
 fails:Array#pack with format 'u' tries to convert the pack argument to a String using #to_str
 fails:Array#pack with format 'w' calls to_int on non-integer values before packing

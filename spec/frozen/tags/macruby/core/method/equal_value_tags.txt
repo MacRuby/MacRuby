@@ -1,0 +1,1 @@
+critical:Method#== returns true if the two methods are alises of each other in C
