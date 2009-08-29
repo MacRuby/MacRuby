@@ -317,6 +317,15 @@ assert ':ok', %{
 }
 
 assert ':ok', %{
+  class X
+    def method_missing(x, *args, &block)
+      p :ok if x == :foo and block.call == 42
+    end
+  end
+  X.new.foo { 42 }
+}
+
+assert ':ok', %{
   module M
     def initialize(*args)
       super
