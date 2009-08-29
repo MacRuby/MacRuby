@@ -65,6 +65,7 @@ static VALUE qDefaultPriority;
 static VALUE qLowPriority;
 static ID high_priority_id;
 static ID low_priority_id;
+static ID default_priority_id;
 
 // group stuff
 static VALUE cGroup;
@@ -93,14 +94,14 @@ static VALUE
 rb_queue_alloc(VALUE klass, SEL sel)
 {
     NEWOBJ(queue, rb_queue_t);
-    OBJSETUP(queue, klass, T_OBJECT);
+    OBJSETUP(queue, klass, RUBY_T_GCD_QUEUE);
     queue->suspension_count = 0;
     queue->should_release_queue = 0;
     return (VALUE)queue;
 }
 
 static VALUE
-rb_queue_from_dispatch(dispatch_queue_t dq, int should_retain)
+rb_queue_from_dispatch(dispatch_queue_t dq, bool should_retain)
 {
     VALUE q = rb_queue_alloc(cQueue, 0);
     if (should_retain) { 
@@ -116,12 +117,17 @@ rb_queue_get_concurrent(VALUE klass, SEL sel, int argc, VALUE *argv)
     VALUE priority;
     rb_scan_args(argc, argv, "01", &priority);
     if (!NIL_P(priority)) {
-        ID p = rb_to_id(priority);
-        if (p == high_priority_id) {
-            return qHighPriority;
-        }
-        else if (p == low_priority_id) {
-            return qLowPriority;
+	ID id = rb_to_id(priority);
+	if (id == high_priority_id) {
+	    return qHighPriority;
+	}
+	else if (id == low_priority_id) {
+	    return qLowPriority;
+	}
+	else if (id != default_priority_id) {
+	    rb_raise(rb_eArgError,
+		    "invalid priority `%s' (expected either :low, :default or :high)",
+		    rb_id2name(id));
         }
     }
     return qDefaultPriority;
@@ -130,7 +136,7 @@ rb_queue_get_concurrent(VALUE klass, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_queue_get_current(VALUE klass, SEL sel)
 {
-    return rb_queue_from_dispatch(dispatch_get_current_queue(), 0);
+    return rb_queue_from_dispatch(dispatch_get_current_queue(), false);
 }
 
 
@@ -143,6 +149,8 @@ rb_queue_get_main(VALUE klass, SEL sel)
 static VALUE 
 rb_queue_initialize(VALUE self, SEL sel, VALUE name)
 {
+    StringValue(name);
+
     rb_queue_t *queue = RQueue(self);
     queue->suspension_count = 0;
     queue->should_release_queue = 1;
@@ -290,7 +298,7 @@ static VALUE
 rb_group_alloc(VALUE klass, SEL sel)
 {
     NEWOBJ(group, rb_group_t);
-    OBJSETUP(group, klass, T_OBJECT);
+    OBJSETUP(group, klass, RUBY_T_GCD_GROUP);
     group->suspension_count = 0;
     return (VALUE)group;
 }
@@ -356,7 +364,7 @@ static VALUE
 rb_source_alloc(VALUE klass, SEL sel)
 {
     NEWOBJ(source, rb_source_t);
-    OBJSETUP(source, klass, T_OBJECT);
+    OBJSETUP(source, klass, RUBY_T_GCD_SOURCE);
     source->suspension_count = 1;
     return (VALUE)source;
 }
@@ -503,11 +511,13 @@ Init_Dispatch(void)
 {
     high_priority_id = rb_intern("high");
     low_priority_id = rb_intern("low");
+    default_priority_id = rb_intern("default");
     mDispatch = rb_define_module("Dispatch");
     cQueue = rb_define_class_under(mDispatch, "Queue", rb_cObject);
     
     rb_objc_define_method(*(VALUE *)cQueue, "alloc", rb_queue_alloc, 0);
-    rb_objc_define_method(*(VALUE *)cQueue, "concurrent", rb_queue_get_concurrent, -1);
+    rb_objc_define_method(*(VALUE *)cQueue, "concurrent",
+	    rb_queue_get_concurrent, -1);
     rb_objc_define_method(*(VALUE *)cQueue, "current", rb_queue_get_current, 0);
     rb_objc_define_method(*(VALUE *)cQueue, "main", rb_queue_get_main, 0);
     rb_objc_define_method(cQueue, "initialize", rb_queue_initialize, 1);
@@ -519,16 +529,22 @@ Init_Dispatch(void)
     rb_objc_define_method(cQueue, "suspend!", rb_dispatch_suspend, 0);
     rb_objc_define_method(cQueue, "suspended?", rb_dispatch_suspended_p, 0);
     
-    rb_queue_finalize_super = rb_objc_install_method2((Class)cQueue, "finalize", (IMP)rb_queue_finalize);
+    rb_queue_finalize_super = rb_objc_install_method2((Class)cQueue,
+	    "finalize", (IMP)rb_queue_finalize);
     
-    qHighPriority = rb_queue_from_dispatch(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), 1);
-    qDefaultPriority = rb_queue_from_dispatch(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), 1);
-    qLowPriority = rb_queue_from_dispatch(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_LOW, 0), 1);
+    qHighPriority = rb_queue_from_dispatch(dispatch_get_global_queue(
+		DISPATCH_QUEUE_PRIORITY_HIGH, 0), true);
+    qDefaultPriority = rb_queue_from_dispatch(dispatch_get_global_queue(
+		DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), true);
+    qLowPriority = rb_queue_from_dispatch(dispatch_get_global_queue(
+		DISPATCH_QUEUE_PRIORITY_LOW, 0), true);
     
-    qMain = rb_queue_from_dispatch(dispatch_get_main_queue(), 0);
-    rb_objc_define_method(rb_singleton_class(qMain), "run", rb_main_queue_run, 0);
+    qMain = rb_queue_from_dispatch(dispatch_get_main_queue(), true);
+    rb_objc_define_method(rb_singleton_class(qMain), "run", rb_main_queue_run,
+	    0);
     
-    rb_queue_finalize_super = rb_objc_install_method2((Class)cQueue, "finalize", (IMP)rb_queue_finalize);
+    rb_queue_finalize_super = rb_objc_install_method2((Class)cQueue,
+	    "finalize", (IMP)rb_queue_finalize);
     
     cGroup = rb_define_class_under(mDispatch, "Group", rb_cObject);
     rb_objc_define_method(*(VALUE *)cGroup, "alloc", rb_group_alloc, 0);
