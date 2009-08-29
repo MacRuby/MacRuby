@@ -148,8 +148,8 @@ rb_objc_alloc_class(const char *name, VALUE super, VALUE flags, VALUE klass)
 	    snprintf(ocname, sizeof ocname, "RB%s", name);
 	    while (objc_getClass(ocname) != NULL)
 		snprintf(ocname, sizeof ocname, "RB%s%ld", name, ++count);
-	    rb_warning("can't create `%s' as an Objective-C class, because " \
-		       "it already exists, instead using `%s'", name, ocname);
+//	    rb_warning("can't create `%s' as an Objective-C class, because " \
+//		       "it already exists, instead using `%s'", name, ocname);
 	}
 	else {
 	    strncpy(ocname, name, sizeof ocname);
