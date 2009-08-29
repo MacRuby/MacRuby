@@ -36,7 +36,7 @@ http://macruby.org
   by using all/more cores. However, doing this can make your machine
   unresponsive during compilation. To use multiple cores pass the `-j N'
   option, where `N' stands for the number of cores you'd like to use. So for a
-  Dore Duo the command would look like:
+  Core Duo the command would look like:
   
     $ UNIVERSAL=1 UNIVERSAL_ARCH="i386 x86_64" ENABLE_OPTIMIZED=1 make -j2
   
