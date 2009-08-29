@@ -553,6 +553,7 @@ Init_Encoding(void)
     rb_objc_define_method(*(VALUE *)rb_cEncoding, "_load", enc_load, 1);
 
     rb_objc_define_method(*(VALUE *)rb_cEncoding, "default_external", get_default_external, 0);
+    rb_objc_define_method(*(VALUE *)rb_cEncoding, "default_internal", get_default_external, 0); // TODO
     rb_objc_define_method(*(VALUE *)rb_cEncoding, "locale_charmap", rb_locale_charmap, 0);
 
     enc_init_db();
