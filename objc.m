@@ -251,18 +251,22 @@ reload_class_constants(void)
     Class *buf;
 
     count = objc_getClassList(NULL, 0);
-    if (count == class_count)
+    if (count == class_count) {
 	return;
+    }
 
     buf = (Class *)alloca(sizeof(Class) * count);
     objc_getClassList(buf, count);
 
     for (i = 0; i < count; i++) {
-	const char *name = class_getName(buf[i]);
-	if (name[0] != '_') {
-	    ID name_id = rb_intern(name);
-	    if (!rb_const_defined(rb_cObject, name_id)) {
-		rb_const_set(rb_cObject, name_id, (VALUE)buf[i]);
+	Class k = buf[i];
+	if (!RCLASS_RUBY(k)) {
+	    const char *name = class_getName(k);
+	    if (name[0] != '_') {
+		ID name_id = rb_intern(name);
+		if (!rb_const_defined(rb_cObject, name_id)) {
+		    rb_const_set(rb_cObject, name_id, (VALUE)k);
+		}
 	    }
 	}
     }
