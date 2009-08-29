@@ -466,7 +466,7 @@ rb_source_on_event(VALUE self, SEL sel)
         rb_raise(rb_eArgError, "on_event() requires a block argument");
     }
     GC_WB(&src->event_handler, the_block);
-    dispatch_source_set_context(src->source, (void *)self); // retain this?
+    dispatch_set_context(src->source, (void *)self); // retain this?
     dispatch_source_set_event_handler_f(src->source, rb_source_event_handler);
     return Qnil;
 }
@@ -488,7 +488,7 @@ rb_source_on_cancellation(VALUE self, SEL sel)
         rb_raise(rb_eArgError, "on_event() requires a block argument");
     }
     GC_WB(&src->cancel_handler, the_block);
-    dispatch_source_set_context(src->source, (void*)self); // retain this?
+    dispatch_set_context(src->source, (void*)self); // retain this?
     dispatch_source_set_cancel_handler_f(src->source, rb_source_cancel_handler);
     return Qnil;
 }
