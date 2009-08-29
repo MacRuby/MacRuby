@@ -1319,7 +1319,12 @@ rb_reg_prepare_enc(VALUE re, VALUE str, char **pcstr, size_t *pcharsize,
 	    return (rb_encoding *)ONIG_ENCODING_UTF16_LE;
     }
 
-    rb_raise(rb_eArgError, "given string has unrecognized encoding");
+    CFStringRef enc_name = CFStringConvertEncodingToIANACharSetName(enc);
+    rb_raise(rb_eArgError,
+	    "given string `%s' has unrecognized encoding `%s' (%ld)",
+	    RSTRING_PTR(rb_inspect(str)),
+	    enc_name == NULL ? "unknown" : RSTRING_PTR(enc_name),
+	    (long)enc);
 #if 0
     rb_encoding *enc = 0;
 
