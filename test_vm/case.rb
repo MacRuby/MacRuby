@@ -27,3 +27,4 @@ assert "1\n:foobar", %{
 }
 assert '1', 'p case 1 when *[2, 1] then 1 else 2 end'
 assert '1', 'a = [7, 8]; p case 1 when *a, *[4, 5], 1 then 1 else 2 end'
+assert '1', 'p case :foo when *[Symbol] then 1 else 2 end'
