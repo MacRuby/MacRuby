@@ -2963,7 +2963,8 @@ RoxorCompiler::compile_node(NODE *node)
 		    types.push_back(RubyObjTy);
 		}
 		FunctionType *ft = FunctionType::get(RubyObjTy, types, false);
-		Function *f = cast<Function>(module->getOrInsertFunction("", ft));
+		Function *f = Function::Create(ft, GlobalValue::PrivateLinkage,
+			"", module);
 
 		BasicBlock *old_rescue_bb = rescue_bb;
 		BasicBlock *old_entry_bb = entry_bb;
@@ -4985,6 +4986,7 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
     Value *val = compile_node(node);
     assert(Function::classof(val));
     Function *function = cast<Function>(val);
+    function->setLinkage(GlobalValue::ExternalLinkage);
 
     BasicBlock::InstListType &list = 
 	function->getEntryBlock().getInstList();
