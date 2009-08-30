@@ -14,19 +14,6 @@ class Compiler
   def initialize(argv)
     @mode = :normal
     @frameworks = []
-=begin
-    # OptionParser is not smart enough to handle some typical command line style arguments.
-    new_argv = argv.dup
-    argv.each_with_index do |a, i|
-      if a == '-framework'
-        die 'missing argument: -framework' if argv.size == i + 1
-        @frameworks << argv[i + 1]
-	new_argv.delete_at(i)
-	new_argv.delete_at(i)
-      end
-    end
-    argv = new_argv
-=end
 
     # Parse arguments.
     OptionParser.new do |opts|
@@ -34,7 +21,8 @@ class Compiler
       opts.on('-c', 'Compile and assemble, but do not link') { @dont_link = true }
       opts.on('-o <file>', 'Place the output into <file>') { |output| @output = output }
       opts.on('--mode [MODE]', "Select compilation mode (normal or full)") { |mode| @mode = mode.intern }
-      #opts.on('-framework <framework>', 'Link against <framework>') { |path| @frameworks << path }
+      #opts.on('--framework <framework>', 'Link against <framework>') { |path| @frameworks << path }
+      opts.on('-C', 'Compile, assemble and link a loadable object file') { @bundle = true }
       opts.on('-v', '--version', 'Display the version') { puts RUBY_DESCRIPTION; exit 1 }
       opts.on('-V', '--verbose', 'Print every command line executed') { @verbose = true }
       opts.on('-h', '--help', 'Display this information') { die opts }
@@ -66,14 +54,18 @@ class Compiler
     if @mode == :full
       die "full compilation mode is not implemented yet!"
     end
-    if @dont_link
+    if @dont_link or @bundle
+      die "cannot specify -c and -C at the same time" if @bundle and @dont_link
       if @files.size > 1 and @output
-        die "cannot specify -o with -c and multiple input files"
+        die "cannot specify -o with -c or -C and multiple input files"
       end
-      @files.each do |file|
-        if File.extname(file) != '.rb'
-          die "given input file `#{file}' must be a Ruby source file (.rb)"
-        end
+      file = @files[0]
+      if File.extname(file) != '.rb'
+        die "given input file `#{file}' must be a Ruby source file (.rb)"
+      end
+      if @bundle
+        compile_bundle(file, @output)
+      else
         compile_object(file, @output)
       end
     else
@@ -116,16 +108,43 @@ class Compiler
     output
   end
 
+  def compile_bundle(file, output)
+    base = File.basename(file, '.rb')
+    obj = gen_tmpfile(base, 'o')
+    compile_object(file, obj)
+
+    output ||= File.join(File.dirname(file), base + '.rbo')
+
+    real_init_func = guess_init_function_name(obj)
+    unless real_init_func
+      die "can't guess the init function of Ruby object file `#{obj}'"
+    end
+
+    init_func = "Init_" + base
+    main_txt = <<EOS
+extern "C" {
+  void *#{real_init_func}(void *, void *);
+  void *rb_vm_top_self(void);
+  void
+  #{init_func}(void) {
+    #{real_init_func}(rb_vm_top_self(), 0);
+  }
+}
+EOS
+
+    main = gen_tmpfile('main', 'c')
+    File.open(main, 'w') { |io| io.write(main_txt) }
+    execute("#{@gcxx} #{main} -dynamic -bundle -undefined suppress -flat_namespace -arch x86_64 -framework MacRuby #{obj} -o #{output}")
+  end
+
   def compile_executable(objs, output)
     output ||= 'a.out'
 
     # Guess which objects were originally MacRuby source files and memorize their init function.
     init_funcs = []
     objs.each do |file|
-      ary = execute("#{@nm} #{file}").scan(/^\d+\sT\s(_MREP_.*)$/)
-      unless ary.empty?
-        init_funcs << ary[0][0][1..-1] # drop _ prefix
-      end
+      n = guess_init_function_name(file)
+      init_funcs << n if n
     end
 
     # Generate main file.
@@ -180,6 +199,11 @@ EOS
     line << execute("llvm-config --ldflags --libs core jit nativecodegen interpreter bitwriter").gsub(/\n/, '')
     objs.each { |o| line << " #{o}" }
     execute(line)
+  end
+
+  def guess_init_function_name(file)
+    ary = execute("#{@nm} -g #{file}").scan(/^\d+\sT\s(_MREP_.*)$/)
+    ary.empty? ? nil : ary[0][0][1..-1] # drop _ prefix
   end
 
   def execute(line)
