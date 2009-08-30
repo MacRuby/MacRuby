@@ -1299,6 +1299,10 @@ rb_reg_prepare_enc(VALUE re, VALUE str, char **pcstr, size_t *pcharsize,
     }
     CFStringEncoding enc = CFStringGetFastestEncoding((CFStringRef)str);
     switch (enc) {
+	default:
+	    // The user probably has the __CF_USER_TEXT_ENCODING environment
+	    // variable set to some exotic encoding, let's assume it's a
+	    // 8 bits one & fall through.
 	case kCFStringEncodingMacRoman:
 	case kCFStringEncodingWindowsLatin1:
 	case kCFStringEncodingISOLatin1:
@@ -1319,12 +1323,15 @@ rb_reg_prepare_enc(VALUE re, VALUE str, char **pcstr, size_t *pcharsize,
 	    return (rb_encoding *)ONIG_ENCODING_UTF16_LE;
     }
 
+#if 0
+    // Never reached.
     CFStringRef enc_name = CFStringConvertEncodingToIANACharSetName(enc);
     rb_raise(rb_eArgError,
 	    "given string `%s' has unrecognized encoding `%s' (%ld)",
 	    RSTRING_PTR(rb_inspect(str)),
 	    enc_name == NULL ? "unknown" : RSTRING_PTR(enc_name),
 	    (long)enc);
+#endif
 #if 0
     rb_encoding *enc = 0;
 
