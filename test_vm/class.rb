@@ -72,3 +72,12 @@ assert "42", %{
   end
   p Y.new.foo
 }
+
+assert "true", %q{
+  class X
+    class << self
+      def foo; end
+      p public_method_defined?(:foo)
+    end
+  end
+}
