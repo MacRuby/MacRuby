@@ -81,3 +81,13 @@ assert "true", %q{
     end
   end
 }
+
+assert "false", %q{
+  class X
+    class << self
+      def foo; end
+      remove_method(:foo)
+    end
+    p respond_to?(:foo)
+  end
+}
