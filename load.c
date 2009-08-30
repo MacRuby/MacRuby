@@ -8,6 +8,7 @@
 #include "dln.h"
 
 #define IS_RBEXT(e) (strcmp(e, ".rb") == 0)
+#define IS_RBOEXT(e) (strcmp(e, ".rbo") == 0)
 #define IS_SOEXT(e) (strcmp(e, ".so") == 0 || strcmp(e, ".o") == 0)
 #ifdef DLEXT2
 #define IS_DLEXT(e) (strcmp(e, DLEXT) == 0 || strcmp(e, DLEXT2) == 0)
@@ -15,9 +16,8 @@
 #define IS_DLEXT(e) (strcmp(e, DLEXT) == 0)
 #endif
 
-
 static const char *const loadable_ext[] = {
-    ".rb", DLEXT,
+    ".rbo", ".rb", DLEXT,
 #ifdef DLEXT2
     DLEXT2,
 #endif
@@ -485,14 +485,27 @@ rb_require_safe(VALUE fname, int safe)
 	else {
 	    // TODO: load should be protected by a lock
 	    rb_set_safe_level_force(0);
-	    switch (found) {
-		case 'r':
-		    rb_load(path, 0);
-		    break;
-
-		case 's':
-		    dln_load(RSTRING_PTR(path));
-		    break;
+	    const char *cpath = RSTRING_PTR(path);
+	    const size_t cpathlen = strlen(cpath);
+	    if (cpathlen > 3 && cpath[cpathlen - 3] == '.'
+		&& cpath[cpathlen - 2] == 'r'
+		&& cpath[cpathlen - 1] == 'b') {
+		rb_load(path, 0);
+	    }
+	    else if (cpathlen > 7 && cpath[cpathlen - 7] == '.'
+		&& cpath[cpathlen - 6] == 'b'
+		&& cpath[cpathlen - 5] == 'u'
+		&& cpath[cpathlen - 4] == 'n'
+		&& cpath[cpathlen - 3] == 'd'
+		&& cpath[cpathlen - 2] == 'l'
+		&& cpath[cpathlen - 1] == 'e') {
+		dln_load(cpath);
+	    }
+	    else if (cpathlen > 4 && cpath[cpathlen - 4] == '.'
+		&& cpath[cpathlen - 3] == 'r'
+		&& cpath[cpathlen - 2] == 'b'
+		&& cpath[cpathlen - 1] == 'o') {
+		dln_load(cpath);
 	    }
 	    rb_provide_feature(path);
 	    result = Qtrue;
