@@ -2429,8 +2429,20 @@ method_missing(VALUE obj, SEL sel, int argc, const VALUE *argv,
 
     char buf[100];
     int n = snprintf(buf, sizeof buf, "%s", sel_getName(sel));
-    if (argc <= 1 && buf[n - 1] == ':') {
-	buf[n - 1] = '\0';
+    if (buf[n - 1] == ':') {
+      // Let's see if there are more colons making this a real selector.
+      bool multiple_colons = false;
+      for (int i = 0; i < (n - 1); i++) {
+        if (buf[i] == ':') {
+          multiple_colons = true;
+          break;
+        }
+      }
+      if (!multiple_colons) {
+        // Not a typical multiple argument selector. So as this is probably a
+        // typical ruby method name, chop off the colon.
+        buf[n - 1] = '\0';
+      }
     }
     new_argv[0] = ID2SYM(rb_intern(buf));
     MEMCPY(&new_argv[1], argv, VALUE, argc);
