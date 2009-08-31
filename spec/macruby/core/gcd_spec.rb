@@ -25,7 +25,7 @@ if MACOSX_VERSION >= 10.6
       lambda { Dispatch::Queue.concurrent(42) }.should raise_error(TypeError)
     end
 
-    it "raises an ArgumentError if the given argument is not a valid priority symvol" do
+    it "raises an ArgumentError if the given argument is not a valid priority symbol" do
       lambda { Dispatch::Queue.concurrent(:foo) }.should raise_error(ArgumentError)
     end
   end
