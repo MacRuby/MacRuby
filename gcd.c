@@ -111,6 +111,33 @@ rb_queue_from_dispatch(dispatch_queue_t dq, bool should_retain)
     return q;
 }
 
+/*
+ *  call-seq:
+ *     Dispatch::Queue.concurrent        => Dispatch::Queue
+ *
+ *  Returns a new concurrent dispatch queue.
+ * 
+ *  A dispatch is a FIFO queue to which you can submit tasks in the form of a 
+ *  block. 
+ *  Blocks submitted to dispatch queues are executed on a pool of threads fully 
+ *  managed by the system. Dispatched tasks execute one at a time in FIFO order.
+ *  GCD takes take of using multiple cores effectively and better accommodate 
+ *  the needs of all running applications, matching them to the 
+ *  available system resources in a balanced fashion.
+ *   
+ *  Use concurrent queues to execute large numbers of tasks concurrently.
+ *  GCD automatically creates three concurrent dispatch queues that are global 
+ *  to your application and are differentiated only by their priority level. 
+ *  
+ *  The three priority levels are: <code>:low</code>, <code>:default</code>, 
+ *  <code>:high</code>.
+ *
+ *     gcdq = Dispatch::Queue.concurrent
+ *     gcdq.dispatch(:low) { p 'bar' }
+ *     gcdq_2 = Dispatch::Queue.concurrent(:high)
+ *     gcdq.dispatch(:low) { p 'foo' } 
+ *
+ */
 static VALUE
 rb_queue_get_concurrent(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
@@ -133,12 +160,28 @@ rb_queue_get_concurrent(VALUE klass, SEL sel, int argc, VALUE *argv)
     return qDefaultPriority;
 }
 
+
+/*
+ *  call-seq:
+ *     Dispatch::Queue.current      => Dispatch::Queue
+ *
+ *  Returns the queue on which the currently executing block is running.
+ *
+ */
+
 static VALUE
 rb_queue_get_current(VALUE klass, SEL sel)
 {
     return rb_queue_from_dispatch(dispatch_get_current_queue(), false);
 }
 
+/*
+ *  call-seq:
+ *     Dispatch::Queue.main           => Dispatch::Queue
+ *
+ *  Returns the dispatch queue for the main thread.
+ *
+ */
 
 static VALUE 
 rb_queue_get_main(VALUE klass, SEL sel)
@@ -146,6 +189,35 @@ rb_queue_get_main(VALUE klass, SEL sel)
     return qMain;
 }
 
+/*
+ *  call-seq:
+ *     Dispatch::Queue.new(label)        => Dispatch::Queue
+ *
+ *  Returns a new serial dispatch queue.
+ * 
+ *  A dispatch is a FIFO queue to which you can submit tasks in the form of a 
+ *  block. 
+ *  Blocks submitted to dispatch queues are executed on a pool of threads fully 
+ *  managed by the system. Dispatched tasks execute one at a time in FIFO order.
+ *  GCD takes take of using multiple cores effectively and better accommodate 
+ *  the needs of all running applications, matching them to the 
+ *  available system resources in a balanced fashion.
+ *
+ *  Use this kind of GCD queue to ensure that tasks execute in a predictable order.
+ *  It’s a good practice to identify a specific purpose for each serial queue, 
+ *  such as protecting a resource or synchronizing key processes.
+ *  Create as many of them as necessary, but should avoid using them instead 
+ *  of concurrent queues just to execute many tasks simultaneously.
+ *  Dispatch queues need to be labeled and thereofore you need to pass a name 
+ *  to create your queue.
+ *
+ *     gcdq = Dispatch::Queue.new('example')
+ *     gcdq.dispatch { p 'foo' }
+ *     gcdq.dispatch { p 'bar' }
+ *     gcdq.synchronize! 
+ *
+ */
+ 
 static VALUE 
 rb_queue_initialize(VALUE self, SEL sel, VALUE name)
 {
@@ -186,6 +258,29 @@ rb_queue_dispatcher(void* block)
     rb_vm_block_eval(the_block, 0, NULL);
 }
 
+/* 
+ *  call-seq:
+ *    gcdq.dispatch { i = 42 }
+ *
+ *  Yields the passed block synchronously or asynchronously.
+ *  By default the block is yield asynchronously:
+ *  
+ *     gcdq = Dispatch::Queue.new('doc')
+ *     i = 42
+ *     gcdq.dispatch { i = 42 }
+ *     while i == 0 do; end
+ *     i #=> 42
+ *
+ *   If you want to yield the block synchronously pass <code>true</code> as the
+ *   argument.
+ *
+ *     gcdq = Dispatch::Queue.new('doc')
+ *     i = 42
+ *     gcdq.dispatch(true) { i = 42 }
+ *     i #=> 42
+ *
+ */
+
 static VALUE
 rb_queue_dispatch(VALUE self, SEL sel, int argc, VALUE* argv)
 {
@@ -211,6 +306,16 @@ rb_queue_dispatch(VALUE self, SEL sel, int argc, VALUE* argv)
     return Qnil;
 }
 
+/* 
+ *  call-seq:
+ *    gcdq.after(time) { block }
+ *
+ *  Runs the passed block after the given time (in seconds).
+ *  
+ *     gcdq.after(0.5) { puts 'wait is over :)' }
+ *
+ */
+ 
 static VALUE
 rb_queue_dispatch_after(VALUE self, SEL sel, VALUE sec)
 {
@@ -239,6 +344,19 @@ rb_queue_applier(void* block, size_t ii)
     rb_vm_block_eval(the_block, 1, &num);
 }
 
+/* 
+ *  call-seq:
+ *    gcdq.apply(amount_size) { block }
+ *
+ *  Runs a block and yields it as many times as asked
+ *  
+ *     gcdq = Dispatch::Queue.new('foo')
+ *     i = 0
+ *     gcdq.apply(10) { i += 1 }
+ *     i #=> 10
+ *
+ */
+ 
 static VALUE
 rb_queue_apply(VALUE self, SEL sel, VALUE n)
 {
@@ -255,6 +373,19 @@ rb_queue_apply(VALUE self, SEL sel, VALUE n)
     return Qnil;
 }
 
+/* 
+ *  call-seq:
+ *    gcdq.label -> str
+ *
+ *  Returns the label of the dispatch queue.
+ *  
+ *     gcdq = Dispatch::Queue.new('doc')
+ *     gcdq.label #=> 'doc'
+ *     gcdq = Dispatch::Queue.main
+ *     gcdq.label #=> 'com.apple.main-thread'
+ *
+ */
+
 static VALUE 
 rb_queue_label(VALUE self, SEL sel)
 {
@@ -268,6 +399,18 @@ rb_main_queue_run(VALUE self, SEL sel)
     return Qnil; // never reached
 }
 
+/* 
+ *  call-seq:
+ *    gcdq.resume!
+ *
+ *  Resumes a suspended queue.
+ *  
+ *     gcdq.suspend!
+ *     gcdq.suspended?  #=> true
+ *     gcdq.resume!
+ *
+ */
+ 
 static VALUE
 rb_dispatch_resume(VALUE self, SEL sel)
 {
@@ -279,6 +422,20 @@ rb_dispatch_resume(VALUE self, SEL sel)
     return Qnil;
 }
 
+/* 
+ *  call-seq:
+ *    gcdq.suspend!
+ *
+ *  Suspends the queue which can be resumed by calling <code>#resume!</code>
+ *  
+ *     gcdq = Dispatch::Queue.new('foo')
+ *     gcdq.dispatch { sleep 1 }
+ *     gcdq.suspend!
+ *     gcdq.suspended?  #=> true
+ *     gcdq.resume!
+ *
+ */
+ 
 static VALUE
 rb_dispatch_suspend(VALUE self, SEL sel)
 {
@@ -288,6 +445,19 @@ rb_dispatch_suspend(VALUE self, SEL sel)
     return Qnil;
 }
 
+/* 
+ *  call-seq:
+ *    gcdq.suspended?   => true or false
+ *
+ *  Returns <code>true</code> if <i>gcdq</i> is suspended.
+ *  
+ *     gcdq.suspend!
+ *     gcdq.suspended?  #=> true
+ *     gcdq.resume!
+ *     gcdq.suspended?  #=> false
+ *
+ */
+ 
 static VALUE
 rb_dispatch_suspended_p(VALUE self, SEL sel)
 {
