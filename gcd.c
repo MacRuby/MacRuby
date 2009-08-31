@@ -18,6 +18,13 @@
 #include "id.h"
 #include "vm.h"
 
+// TODO: These structures need to be wrapped in a Data struct,
+// otherwise there are crashes when one tries to add an instance
+// variable to a queue. (Not that that is a good idea.)
+
+// TODO: Add a top-level rdoc for the module explaining what GCD
+// is good for (and pointing them to the dispatch(3) manpage).
+
 typedef struct {
     struct RBasic basic;
     int suspension_count;
@@ -113,12 +120,11 @@ rb_queue_from_dispatch(dispatch_queue_t dq, bool should_retain)
 
 /*
  *  call-seq:
- *     Dispatch::Queue.concurrent        => Dispatch::Queue
+ *     Dispatch::Queue.concurrent(priority=:default)    => Dispatch::Queue
  *
  *  Returns a new concurrent dispatch queue.
  * 
- *  A dispatch is a FIFO queue to which you can submit tasks in the form of a 
- *  block. 
+ *  A dispatch queue is a FIFO queue to which you can submit tasks in the form of a block. 
  *  Blocks submitted to dispatch queues are executed on a pool of threads fully 
  *  managed by the system. Dispatched tasks execute one at a time in FIFO order.
  *  GCD takes take of using multiple cores effectively and better accommodate 
@@ -130,12 +136,17 @@ rb_queue_from_dispatch(dispatch_queue_t dq, bool should_retain)
  *  to your application and are differentiated only by their priority level. 
  *  
  *  The three priority levels are: <code>:low</code>, <code>:default</code>, 
- *  <code>:high</code>.
+ *  <code>:high</code>, corresponding to the DISPATCH_QUEUE_PRIORITY_HIGH, 
+ *  DISPATCH_QUEUE_PRIORITY_DEFAULT, and DISPATCH_QUEUE_PRIORITY_LOW (detailed
+ *  in the dispatch_queue_create(3) man page). The Grand Central thread dispatcher
+ *  will perform actions submitted to the high priority queue before any actions 
+ *  submitted to the default or low queues, and will only perform actions on the 
+ *  low queues if there are no actions queued on the high or default queues.
  *
- *     gcdq = Dispatch::Queue.concurrent
- *     gcdq.dispatch(:low) { p 'bar' }
- *     gcdq_2 = Dispatch::Queue.concurrent(:high)
- *     gcdq.dispatch(:low) { p 'foo' } 
+ *     gcdq = Dispatch::Queue.concurrent(:high)
+ *     5.times { gcdq.dispatch { print 'foo' } }
+ *     gcdq_2 = Dispatch::Queue.concurrent(:low)
+ *     gcdq.dispatch(:low) { print 'bar' }  # will always print 'foofoofoofoofoobar'.
  *
  */
 static VALUE
@@ -165,7 +176,11 @@ rb_queue_get_concurrent(VALUE klass, SEL sel, int argc, VALUE *argv)
  *  call-seq:
  *     Dispatch::Queue.current      => Dispatch::Queue
  *
- *  Returns the queue on which the currently executing block is running.
+ *  When called from within a block that is being dispatched on a queue,
+ *  this returns the queue in question. If executed outside of a block, 
+ *  the result depends on whether the run method has been called on the
+ *  main queue: if it has, it returns the main queue, otherwise it returns
+ *  the default-priority concurrent queue.
  *
  */
 
@@ -195,8 +210,7 @@ rb_queue_get_main(VALUE klass, SEL sel)
  *
  *  Returns a new serial dispatch queue.
  * 
- *  A dispatch is a FIFO queue to which you can submit tasks in the form of a 
- *  block. 
+ *  A dispatch is a FIFO queue to which you can submit tasks in the form of a block. 
  *  Blocks submitted to dispatch queues are executed on a pool of threads fully 
  *  managed by the system. Dispatched tasks execute one at a time in FIFO order.
  *  GCD takes take of using multiple cores effectively and better accommodate 
@@ -206,15 +220,15 @@ rb_queue_get_main(VALUE klass, SEL sel)
  *  Use this kind of GCD queue to ensure that tasks execute in a predictable order.
  *  It’s a good practice to identify a specific purpose for each serial queue, 
  *  such as protecting a resource or synchronizing key processes.
- *  Create as many of them as necessary, but should avoid using them instead 
- *  of concurrent queues just to execute many tasks simultaneously.
+ *  Create as many of them as necessary, but avoid using them instead 
+ *  of concurrent queues when you need to run many tasks simultaneously.
  *  Dispatch queues need to be labeled and thereofore you need to pass a name 
- *  to create your queue.
+ *  to create your queue. By convention, labels are in reverse-DNS style.
  *
- *     gcdq = Dispatch::Queue.new('example')
+ *     gcdq = Dispatch::Queue.new('org.macruby.gcd.example')
  *     gcdq.dispatch { p 'foo' }
  *     gcdq.dispatch { p 'bar' }
- *     gcdq.synchronize! 
+ * 	   gcdq.dispatch(true) {} 
  *
  */
  
@@ -260,10 +274,10 @@ rb_queue_dispatcher(void* block)
 
 /* 
  *  call-seq:
- *    gcdq.dispatch { i = 42 }
+ *    gcdq.dispatch(synchronicity) { i = 42 }
  *
  *  Yields the passed block synchronously or asynchronously.
- *  By default the block is yield asynchronously:
+ *  By default the block is yielded asynchronously:
  *  
  *     gcdq = Dispatch::Queue.new('doc')
  *     i = 42
@@ -315,7 +329,8 @@ rb_queue_dispatch(VALUE self, SEL sel, int argc, VALUE* argv)
  *     gcdq.after(0.5) { puts 'wait is over :)' }
  *
  */
- 
+// TODO: there is a max value that can be passed (int64_max / NSEC_PER_SEC);
+// adjust for this.
 static VALUE
 rb_queue_dispatch_after(VALUE self, SEL sel, VALUE sec)
 {
@@ -401,13 +416,13 @@ rb_main_queue_run(VALUE self, SEL sel)
 
 /* 
  *  call-seq:
- *    gcdq.resume!
+ *    obj.resume!
  *
- *  Resumes a suspended queue.
+ *  Resumes a suspended dispatch object (group, source or queue).
  *  
- *     gcdq.suspend!
- *     gcdq.suspended?  #=> true
- *     gcdq.resume!
+ *     obj.suspend!
+ *     obj.suspended?  #=> true
+ *     obj.resume!
  *
  */
  
@@ -424,9 +439,10 @@ rb_dispatch_resume(VALUE self, SEL sel)
 
 /* 
  *  call-seq:
- *    gcdq.suspend!
+ *    obj.suspend!
  *
- *  Suspends the queue which can be resumed by calling <code>#resume!</code>
+ *  Suspends the operation of a dispatch object (group, source or queue).
+ *  To resume operation, call <code>resume!</code>.
  *  
  *     gcdq = Dispatch::Queue.new('foo')
  *     gcdq.dispatch { sleep 1 }
@@ -447,9 +463,9 @@ rb_dispatch_suspend(VALUE self, SEL sel)
 
 /* 
  *  call-seq:
- *    gcdq.suspended?   => true or false
+ *    obj.suspended?   => true or false
  *
- *  Returns <code>true</code> if <i>gcdq</i> is suspended.
+ *  Returns <code>true</code> if <i>obj</i> is suspended.
  *  
  *     gcdq.suspend!
  *     gcdq.suspended?  #=> true
@@ -497,9 +513,9 @@ rb_group_initialize(VALUE self, SEL sel)
 
 /* 
  *  call-seq:
- *    gcdg.dispatch { block }
+ *    gcdg.dispatch(queue) { block }
  *
- *  Yields the passed block via the group.
+ * 	Passes the given block into the group, executing it on the provided queue..
  *  The dispatch group maintains a count of its outstanding associated tasks, 
  *  incrementing the count when a new task is associated and decrementing it 
  *  when a task completes. 
@@ -508,7 +524,7 @@ rb_group_initialize(VALUE self, SEL sel)
  *  when all tasks associated with the group have completed.
  *
  *     gcdg = Dispatch::Group.new
- *     gcdg.dispatch { p 'foo'}
+ *     gcdg.dispatch(Dispatch::Queue.concurrent) { p 'foo'}
  *
  */
 
@@ -539,7 +555,7 @@ rb_group_dispatch(VALUE self, SEL sel, VALUE target)
  *
  *     gcdg = Dispatch::Group.new
  *     gcdg.notify { p 'bar' }
- *     gcdg.dispatch { p 'foo' }
+ *     gcdg.dispatch(Dispatch::Queue.concurrent) { p 'foo' }
  *
  */
 
