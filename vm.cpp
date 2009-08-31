@@ -2013,13 +2013,13 @@ rb_vm_define_method3(Class klass, SEL sel, rb_vm_block_t *block)
     rb_vm_define_method(klass, sel, imp, body, false);
 }
 
-static VALUE method_missing(VALUE obj, SEL sel, int argc, const VALUE *argv,
+static VALUE method_missing(VALUE obj, SEL sel, rb_vm_block_t *block, int argc, const VALUE *argv,
 	rb_vm_method_missing_reason_t call_status);
 
 static void *
 undefined_imp(void *rcv, SEL sel)
 {
-    method_missing((VALUE)rcv, sel, NULL, NULL, METHOD_MISSING_DEFAULT);
+    method_missing((VALUE)rcv, sel, NULL, NULL, NULL, METHOD_MISSING_DEFAULT);
     return NULL; // never reached
 }
 
@@ -2412,7 +2412,7 @@ rb_vm_method_missing(VALUE obj, int argc, const VALUE *argv)
 }
 
 static VALUE
-method_missing(VALUE obj, SEL sel, int argc, const VALUE *argv,
+method_missing(VALUE obj, SEL sel, rb_vm_block_t *block, int argc, const VALUE *argv,
 	       rb_vm_method_missing_reason_t call_status)
 {
     GET_VM()->set_method_missing_reason(call_status);
@@ -2447,7 +2447,10 @@ method_missing(VALUE obj, SEL sel, int argc, const VALUE *argv,
     new_argv[0] = ID2SYM(rb_intern(buf));
     MEMCPY(&new_argv[1], argv, VALUE, argc);
 
-    return rb_vm_call(obj, selMethodMissing, argc + 1, new_argv, false);
+    struct mcache *cache;
+    cache = GET_CORE()->method_cache_get(selMethodMissing, false);
+    return rb_vm_call_with_cache2(cache, block, obj, NULL, selMethodMissing,
+    	argc + 1, new_argv);
 }
 
 inline void *
@@ -2558,7 +2561,8 @@ __rb_vm_ruby_dispatch(VALUE self, SEL sel, rb_vm_method_node_t *node,
     if ((node->flags & VM_METHOD_PRIVATE) && opt == 0) {
 	// Calling a private method with no explicit receiver OR an attribute
 	// assignment to non-self, triggering #method_missing.
-	return method_missing(self, sel, argc, argv, METHOD_MISSING_PRIVATE);
+	rb_vm_block_t *b = GET_VM()->current_block();
+	return method_missing(self, sel, b, argc, argv, METHOD_MISSING_PRIVATE);
     }
 
     if ((node->flags & VM_METHOD_EMPTY) && arity.max == arity.min) {
@@ -2971,7 +2975,7 @@ call_method_missing:
 	opt == DISPATCH_VCALL
 	    ? METHOD_MISSING_VCALL : opt == DISPATCH_SUPER
 		? METHOD_MISSING_SUPER : METHOD_MISSING_DEFAULT;
-    return method_missing((VALUE)self, sel, argc, argv, status);
+    return method_missing((VALUE)self, sel, block, argc, argv, status);
 }
 
 #define MAX_DISPATCH_ARGS 200
