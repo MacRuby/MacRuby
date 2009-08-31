@@ -473,12 +473,44 @@ rb_group_alloc(VALUE klass, SEL sel)
     return (VALUE)group;
 }
 
+/* 
+ *  call-seq:
+ *    Dispatch::Group.new    =>  Dispatch::Group
+ *
+ *  Returns a Queue group allowing for for aggregate synchronization.
+ *  You can dispatch multiple blocks and track when they all complete, 
+ *  even though they might run on different queues. 
+ *  This behavior can be helpful when progress can’t be made until all 
+ *  of the specified tasks are complete.
+ *
+ *  
+ *     gcdg = Dispatch::Group.new
+ *
+ */
+
 static VALUE
 rb_group_initialize(VALUE self, SEL sel)
 {
     RGroup(self)->group = dispatch_group_create();
     return self;
 }
+
+/* 
+ *  call-seq:
+ *    gcdg.dispatch { block }
+ *
+ *  Yields the passed block via the group.
+ *  The dispatch group maintains a count of its outstanding associated tasks, 
+ *  incrementing the count when a new task is associated and decrementing it 
+ *  when a task completes. 
+ *
+ *  <code>#notify</code< and <code>#wait</code> use that count to determine 
+ *  when all tasks associated with the group have completed.
+ *
+ *     gcdg = Dispatch::Group.new
+ *     gcdg.dispatch { p 'foo'}
+ *
+ */
 
 static VALUE
 rb_group_dispatch(VALUE self, SEL sel, VALUE target)
@@ -495,6 +527,21 @@ rb_group_dispatch(VALUE self, SEL sel, VALUE target)
 
     return Qnil;
 }
+
+
+/* 
+ *  call-seq:
+ *    gcdg.notify { block }
+ *
+ *  Schedules a block to be called when a group of previously submitted dispatches
+ *  have completed.
+ *
+ *
+ *     gcdg = Dispatch::Group.new
+ *     gcdg.notify { p 'bar' }
+ *     gcdg.dispatch { p 'foo' }
+ *
+ */
 
 static VALUE
 rb_group_notify(VALUE self, SEL sel, VALUE target)

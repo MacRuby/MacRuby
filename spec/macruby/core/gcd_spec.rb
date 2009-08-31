@@ -138,4 +138,45 @@ if MACOSX_VERSION >= 10.6
       o.suspended?.should == false
     end
   end
+  
+  describe "Dispatch::Group" do
+    it "returns an instance of Group" do
+      @group = Dispatch::Group.new
+      @group.should be_kind_of(Dispatch::Group)
+    end
+    
+    describe "#dispatch" do
+      it "raises an ArgumentError if no block is given" do
+        lambda { @group.dispatch }.should raise_error(ArgumentError) 
+      end
+      
+      # it "accepts a block and yields it asynchronously" do
+      #   i = 0 
+      #   @group.dispatch { i = 42 }
+      #   while i == 0 do; end
+      #   i.should == 42
+      # end  
+      
+    end
+    
+    describe "#notify" do
+      it "raises an ArgumentError if no block is given" do
+        lambda { @group.dispatch }.should raise_error(ArgumentError) 
+      end
+      
+      # it "accepts a block and yields it when the group is ready" do
+      #   i = 0 
+      #   @group.notify{ i = 42}
+      #   @group.dispatch { i = 40 }
+      #   while i == 0 do; end
+      #   i.should == 42
+      # end  
+      
+    end
+    
+    describe "#wait" do
+      
+    end
+    
+  end
 end
