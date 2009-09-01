@@ -56,6 +56,14 @@ assert "42", %q{
   p Z.new.foo
 }
 
+assert "true", %{
+  class X;   def foo(x); x;                        end; end
+  module M1; def foo(x); super(true);              end; end
+  module M2; def foo(x); return false if x; super; end; end
+  class Y < X; include M1; include M2; def foo; super(false); end; end
+  p Y.new.foo
+}
+
 assert "42", "def foo; 42; end; p send(:foo)"
 assert "42", "def foo(x, y); x + y; end; p send(:foo, 40, 2)"
 
