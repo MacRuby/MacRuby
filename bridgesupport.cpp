@@ -92,7 +92,7 @@ RoxorCompiler::compile_check_arity(Value *given, Value *requested)
 	// void rb_vm_check_arity(int given, int requested);
 	checkArityFunc = cast<Function>(module->getOrInsertFunction(
 		    "rb_vm_check_arity",
-		    Type::VoidTy, Type::Int32Ty, Type::Int32Ty, NULL));
+		    VoidTy, Int32Ty, Int32Ty, NULL));
     }
 
     std::vector<Value *> params;
@@ -118,12 +118,12 @@ RoxorCompiler::compile_set_struct(Value *rcv, int field, Value *val)
 	// void rb_vm_set_struct(VALUE rcv, int field, VALUE val);
 	setStructFunc = cast<Function>(module->getOrInsertFunction(
 		    "rb_vm_set_struct",
-		    Type::VoidTy, RubyObjTy, Type::Int32Ty, RubyObjTy, NULL));
+		    VoidTy, RubyObjTy, Int32Ty, RubyObjTy, NULL));
     }
 
     std::vector<Value *> params;
     params.push_back(rcv);
-    params.push_back(ConstantInt::get(Type::Int32Ty, field));
+    params.push_back(ConstantInt::get(Int32Ty, field));
     params.push_back(val);
 
     CallInst::Create(setStructFunc, params.begin(), params.end(), "", bb);
@@ -140,7 +140,7 @@ RoxorCompiler::compile_bs_struct_writer(rb_vm_bs_boxed_t *bs_boxed, int field)
     arg++;			// sel
     Value *val = arg++; 	// val
 
-    bb = BasicBlock::Create("EntryBlock", f);
+    bb = BasicBlock::Create(context, "EntryBlock", f);
 
     assert((unsigned)field < bs_boxed->as.s->fields_count);
     const char *ftype = bs_boxed->as.s->fields[field].type;
@@ -152,7 +152,7 @@ RoxorCompiler::compile_bs_struct_writer(rb_vm_bs_boxed_t *bs_boxed, int field)
 
     compile_set_struct(self, field, val);
 
-    ReturnInst::Create(val, bb);
+    ReturnInst::Create(context, val, bb);
 
     return f;
 }
@@ -162,7 +162,7 @@ RoxorCompiler::compile_bs_struct_new(rb_vm_bs_boxed_t *bs_boxed)
 {
     // VALUE foo(VALUE self, SEL sel, int argc, VALUE *argv);
     Function *f = cast<Function>(module->getOrInsertFunction("",
-		RubyObjTy, RubyObjTy, PtrTy, Type::Int32Ty, RubyObjPtrTy,
+		RubyObjTy, RubyObjTy, PtrTy, Int32Ty, RubyObjPtrTy,
 		NULL));
     Function::arg_iterator arg = f->arg_begin();
     Value *klass = arg++; 	// self
@@ -170,12 +170,12 @@ RoxorCompiler::compile_bs_struct_new(rb_vm_bs_boxed_t *bs_boxed)
     Value *argc = arg++; 	// argc
     Value *argv = arg++; 	// argv
 
-    bb = BasicBlock::Create("EntryBlock", f);
+    bb = BasicBlock::Create(context, "EntryBlock", f);
 
-    BasicBlock *no_args_bb = BasicBlock::Create("no_args", f);
-    BasicBlock *args_bb  = BasicBlock::Create("args", f);
-    Value *has_args = new ICmpInst(ICmpInst::ICMP_EQ, argc,
-	    ConstantInt::get(Type::Int32Ty, 0), "", bb);
+    BasicBlock *no_args_bb = BasicBlock::Create(context, "no_args", f);
+    BasicBlock *args_bb  = BasicBlock::Create(context, "args", f);
+    Value *has_args = new ICmpInst(*bb, ICmpInst::ICMP_EQ, argc,
+	    ConstantInt::get(Int32Ty, 0));
 
     BranchInst::Create(no_args_bb, args_bb, has_args, bb);
 
@@ -196,10 +196,10 @@ RoxorCompiler::compile_bs_struct_new(rb_vm_bs_boxed_t *bs_boxed)
 
 	std::vector<Value *> params;
 	params.push_back(new BitCastInst(fval, PtrTy, "", bb));
-	params.push_back(ConstantInt::get(Type::Int8Ty, 0));
+	params.push_back(ConstantInt::get(Int8Ty, 0));
 	params.push_back(ConstantInt::get(IntTy,
 		    GET_CORE()->get_sizeof(llvm_type)));
-	params.push_back(ConstantInt::get(Type::Int32Ty, 0));
+	params.push_back(ConstantInt::get(Int32Ty, 0));
 	CallInst::Create(memset_func, params.begin(), params.end(), "", bb);
 
 	fval = new LoadInst(fval, "", bb);
@@ -208,7 +208,7 @@ RoxorCompiler::compile_bs_struct_new(rb_vm_bs_boxed_t *bs_boxed)
 	fields.push_back(fval);
     }
 
-    ReturnInst::Create(compile_new_struct(klass, fields), bb);
+    ReturnInst::Create(context, compile_new_struct(klass, fields), bb);
 
     // Arguments are given. Need to check given arity, then convert the given
     // Ruby values into the requested struct field types.
@@ -216,14 +216,14 @@ RoxorCompiler::compile_bs_struct_new(rb_vm_bs_boxed_t *bs_boxed)
     fields.clear();
 
     compile_check_arity(argc,
-	    ConstantInt::get(Type::Int32Ty, bs_boxed->as.s->fields_count));
+	    ConstantInt::get(Int32Ty, bs_boxed->as.s->fields_count));
 
     for (unsigned i = 0; i < bs_boxed->as.s->fields_count; i++) {
 	const char *ftype = bs_boxed->as.s->fields[i].type;
 	const Type *llvm_type = convert_type(ftype);
 	Value *fval = new AllocaInst(llvm_type, "", bb);
 
-	Value *index = ConstantInt::get(Type::Int32Ty, i);
+	Value *index = ConstantInt::get(Int32Ty, i);
 	Value *arg = GetElementPtrInst::Create(argv, index, "", bb);
 	arg = new LoadInst(arg, "", bb);
 	arg = compile_conversion_to_c(ftype, arg, fval);
@@ -232,7 +232,7 @@ RoxorCompiler::compile_bs_struct_new(rb_vm_bs_boxed_t *bs_boxed)
 	fields.push_back(arg);
     }
 
-    ReturnInst::Create(compile_new_struct(klass, fields), bb);
+    ReturnInst::Create(context, compile_new_struct(klass, fields), bb);
 
     return f;
 }
@@ -1233,7 +1233,7 @@ RoxorCompiler::compile_ffi_function(void *stub, void *imp, int argc)
     FunctionType *ft = FunctionType::get(RubyObjTy, f_types, false);
     Function *f = cast<Function>(module->getOrInsertFunction("", ft));
 
-    bb = BasicBlock::Create("EntryBlock", f);
+    bb = BasicBlock::Create(context, "EntryBlock", f);
 
     Function::arg_iterator arg = f->arg_begin();
     arg++; // skip self
@@ -1247,8 +1247,8 @@ RoxorCompiler::compile_ffi_function(void *stub, void *imp, int argc)
     stub_types.push_back(PtrTy);
 
     // Second argument is arity;
-    params.push_back(ConstantInt::get(Type::Int32Ty, argc));
-    stub_types.push_back(Type::Int32Ty);
+    params.push_back(ConstantInt::get(Int32Ty, argc));
+    stub_types.push_back(Int32Ty);
 
     // Third is an array of arguments.
     Value *argv;
@@ -1257,10 +1257,10 @@ RoxorCompiler::compile_ffi_function(void *stub, void *imp, int argc)
 		"", bb);
     }
     else {
-	argv = new AllocaInst(RubyObjTy, ConstantInt::get(Type::Int32Ty, argc),
+	argv = new AllocaInst(RubyObjTy, ConstantInt::get(Int32Ty, argc),
 		"", bb);
 	for (int i = 0; i < argc; i++) {
-	    Value *index = ConstantInt::get(Type::Int32Ty, i);
+	    Value *index = ConstantInt::get(Int32Ty, i);
 	    Value *slot = GetElementPtrInst::Create(argv, index, "", bb);
 	    new StoreInst(arg++, slot, "", bb);
 	}
@@ -1276,7 +1276,7 @@ RoxorCompiler::compile_ffi_function(void *stub, void *imp, int argc)
     // Call the stub and return its return value.
     CallInst *stub_call = CallInst::Create(stub_val, params.begin(),
 	    params.end(), "", bb); 
-    ReturnInst::Create(stub_call, bb);
+    ReturnInst::Create(context, stub_call, bb);
 
     return f;
 }

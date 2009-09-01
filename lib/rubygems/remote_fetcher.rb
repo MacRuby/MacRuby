@@ -56,7 +56,7 @@ class Gem::RemoteFetcher
   # * <tt>:no_proxy</tt>: ignore environment variables and _don't_ use a proxy
 
   def initialize(proxy)
-    Socket.do_not_reverse_lookup = true
+    #Socket.do_not_reverse_lookup = true
 
     @connections = {}
     @requests = Hash.new 0
@@ -146,7 +146,8 @@ class Gem::RemoteFetcher
     raise
   rescue Timeout::Error
     raise FetchError.new('timed out', uri)
-  rescue IOError, SocketError, SystemCallError => e
+  #rescue IOError, SocketError, SystemCallError => e
+  rescue IOError, SystemCallError => e
     raise FetchError.new("#{e.class}: #{e}", uri)
   end
 
@@ -235,8 +236,8 @@ class Gem::RemoteFetcher
       # XXX we are taking a _much faster_ code path here, this change should be
       # removed once we re-implement the IO subsystem (and therefore Net::HTTP)
       # on top of CF.
-      url = NSURL.URLWithString(uri.to_s)
-      data = NSMutableData.dataWithContentsOfURL(url)
+      url = ::NSURL.URLWithString(uri.to_s)
+      data = ::NSMutableData.dataWithContentsOfURL(url)
       if data.nil?
 	      raise Gem::RemoteFetcher::FetchError, "error when fetching data from #{uri}"
       end

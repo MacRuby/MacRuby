@@ -192,6 +192,15 @@ class RoxorCompiler {
 	Constant *cObject;
 	Constant *defaultScope;
 	Constant *publicScope;
+
+	const Type *VoidTy;
+	const Type *Int1Ty;
+	const Type *Int8Ty;
+	const Type *Int16Ty;
+	const Type *Int32Ty;
+	const Type *Int64Ty;
+	const Type *FloatTy;
+	const Type *DoubleTy;
 	const Type *RubyObjTy; 
 	const Type *RubyObjPtrTy;
 	const Type *RubyObjPtrPtrTy;
@@ -325,6 +334,8 @@ class RoxorCompiler {
 
 	SEL mid_to_sel(ID mid, int arity);
 };
+
+#define context (RoxorCompiler::module->getContext())
 
 class RoxorAOTCompiler : public RoxorCompiler {
     public:

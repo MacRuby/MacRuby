@@ -6,7 +6,7 @@
  * Copyright (C) 2008-2009, Apple Inc. All rights reserved.
  */
 
-#define ROXOR_COMPILER_DEBUG 	0
+#define ROXOR_COMPILER_DEBUG 	1
 
 #include "llvm.h"
 #include "ruby/ruby.h"
@@ -23,7 +23,7 @@ extern "C" const char *ruby_node_name(int node);
 llvm::Module *RoxorCompiler::module = NULL;
 RoxorCompiler *RoxorCompiler::shared = NULL;
 
-RoxorCompiler::RoxorCompiler(void)
+RoxorCompiler::RoxorCompiler()
 {
     fname = NULL;
     inside_eval = false;
@@ -127,10 +127,19 @@ RoxorCompiler::RoxorCompiler(void)
     setScopeFunc = NULL;
     setCurrentClassFunc = NULL;
 
+    VoidTy = Type::getVoidTy(context);
+    Int1Ty = Type::getInt1Ty(context);
+    Int8Ty = Type::getInt8Ty(context);
+    Int16Ty = Type::getInt16Ty(context);
+    Int32Ty = Type::getInt32Ty(context);
+    Int64Ty = Type::getInt64Ty(context);
+    FloatTy = Type::getFloatTy(context);
+    DoubleTy = Type::getDoubleTy(context);
+
 #if __LP64__
-    RubyObjTy = IntTy = Type::Int64Ty;
+    RubyObjTy = IntTy = Int64Ty;
 #else
-    RubyObjTy = IntTy = Type::Int32Ty;
+    RubyObjTy = IntTy = Int32Ty;
 #endif
 
     zeroVal = ConstantInt::get(IntTy, 0);
@@ -138,8 +147,8 @@ RoxorCompiler::RoxorCompiler(void)
     twoVal = ConstantInt::get(IntTy, 2);
     threeVal = ConstantInt::get(IntTy, 3);
 
-    defaultScope = ConstantInt::get(Type::Int32Ty, SCOPE_DEFAULT);
-    publicScope = ConstantInt::get(Type::Int32Ty, SCOPE_PUBLIC);
+    defaultScope = ConstantInt::get(Int32Ty, SCOPE_DEFAULT);
+    publicScope = ConstantInt::get(Int32Ty, SCOPE_PUBLIC);
 
     RubyObjPtrTy = PointerType::getUnqual(RubyObjTy);
     RubyObjPtrPtrTy = PointerType::getUnqual(RubyObjPtrTy);
@@ -149,9 +158,9 @@ RoxorCompiler::RoxorCompiler(void)
     undefVal = ConstantInt::get(RubyObjTy, Qundef);
     splatArgFollowsVal = ConstantInt::get(RubyObjTy, SPLAT_ARG_FOLLOWS);
     cObject = ConstantInt::get(RubyObjTy, rb_cObject);
-    PtrTy = PointerType::getUnqual(Type::Int8Ty);
+    PtrTy = PointerType::getUnqual(Int8Ty);
     PtrPtrTy = PointerType::getUnqual(PtrTy);
-    Int32PtrTy = PointerType::getUnqual(Type::Int32Ty);
+    Int32PtrTy = PointerType::getUnqual(Int32Ty);
 
 #if ROXOR_COMPILER_DEBUG
     level = 0;
@@ -195,7 +204,7 @@ inline ICmpInst *
 RoxorCompiler::is_value_a_fixnum(Value *val)
 {
     Value *andOp = BinaryOperator::CreateAnd(val, oneVal, "", bb);
-    return new ICmpInst(ICmpInst::ICMP_EQ, andOp, oneVal, "", bb); 
+    return new ICmpInst(*bb, ICmpInst::ICMP_EQ, andOp, oneVal);
 }
 
 Instruction *
@@ -211,7 +220,8 @@ RoxorCompiler::compile_protected_call(Function *func,
 	return dispatch;
     }
     else {
-	BasicBlock *normal_bb = BasicBlock::Create("normal", bb->getParent());
+	BasicBlock *normal_bb = BasicBlock::Create(context, "normal",
+		bb->getParent());
 
 	InvokeInst *dispatch = InvokeInst::Create(func,
 		normal_bb, 
@@ -238,8 +248,8 @@ RoxorCompiler::compile_single_when_argument(NODE *arg, Value *comparedToVal, Bas
 	params.push_back(subnodeVal);
 	params.push_back(compile_sel(selEqq));
 	params.push_back(compile_const_pointer(NULL));
-	params.push_back(ConstantInt::get(Type::Int8Ty, 0));
-	params.push_back(ConstantInt::get(Type::Int32Ty, 1));
+	params.push_back(ConstantInt::get(Int8Ty, 0));
+	params.push_back(ConstantInt::get(Int32Ty, 1));
 	params.push_back(comparedToVal);
 
 	condVal = compile_optimized_dispatch_call(selEqq, 1, params);
@@ -252,7 +262,7 @@ RoxorCompiler::compile_single_when_argument(NODE *arg, Value *comparedToVal, Bas
     }
 
     Function *f = bb->getParent();
-    BasicBlock *nextTestBB = BasicBlock::Create("next_test", f);
+    BasicBlock *nextTestBB = BasicBlock::Create(context, "next_test", f);
 
     compile_boolean_test(condVal, thenBB, nextTestBB);
 
@@ -262,11 +272,12 @@ RoxorCompiler::compile_single_when_argument(NODE *arg, Value *comparedToVal, Bas
 void RoxorCompiler::compile_boolean_test(Value *condVal, BasicBlock *ifTrueBB, BasicBlock *ifFalseBB)
 {
     Function *f = bb->getParent();
-    BasicBlock *notFalseBB = BasicBlock::Create("not_false", f);
+    BasicBlock *notFalseBB = BasicBlock::Create(context, "not_false", f);
 
-    Value *notFalseCond = new ICmpInst(ICmpInst::ICMP_NE, condVal, falseVal, "", bb);
+    Value *notFalseCond = new ICmpInst(*bb, ICmpInst::ICMP_NE, condVal,
+	    falseVal);
     BranchInst::Create(notFalseBB, ifFalseBB, notFalseCond, bb);
-    Value *notNilCond = new ICmpInst(ICmpInst::ICMP_NE, condVal, nilVal, "", notFalseBB);
+    Value *notNilCond = new ICmpInst(*bb, ICmpInst::ICMP_NE, condVal, nilVal);
     BranchInst::Create(ifTrueBB, ifFalseBB, notNilCond, notFalseBB);
 }
 
@@ -283,9 +294,11 @@ RoxorCompiler::compile_when_arguments(NODE *args, Value *comparedToVal, BasicBlo
 
 	case NODE_SPLAT:
 	    {
-		Value *condVal = compile_when_splat(comparedToVal, compile_node(args->nd_head));
+		Value *condVal = compile_when_splat(comparedToVal,
+			compile_node(args->nd_head));
 
-		BasicBlock *nextTestBB = BasicBlock::Create("next_test", bb->getParent());
+		BasicBlock *nextTestBB = BasicBlock::Create(context,
+			"next_test", bb->getParent());
 		compile_boolean_test(condVal, thenBB, nextTestBB);
 
 		bb = nextTestBB;
@@ -312,11 +325,12 @@ RoxorCompiler::compile_optional_arguments(Function::ArgumentListType::iterator i
     do {
 	assert(node->nd_value != NULL);
 
-	Value *isUndefInst = new ICmpInst(ICmpInst::ICMP_EQ, iter, undefVal, "", bb);
+	Value *isUndefInst = new ICmpInst(*bb, ICmpInst::ICMP_EQ, iter,
+		undefVal);
 
 	Function *f = bb->getParent();
-	BasicBlock *arg_undef = BasicBlock::Create("arg_undef", f);
-	BasicBlock *next_bb = BasicBlock::Create("", f);
+	BasicBlock *arg_undef = BasicBlock::Create(context, "arg_undef", f);
+	BasicBlock *next_bb = BasicBlock::Create(context, "", f);
 
 	BranchInst::Create(arg_undef, next_bb, isUndefInst, bb);
 
@@ -445,7 +459,7 @@ RoxorCompiler::compile_when_splat(Value *comparedToVal, Value *splatVal)
 	//			  VALUE comparedTo, VALUE splat)
 	whenSplatFunc = cast<Function>
 	    (module->getOrInsertFunction("rb_vm_when_splat",
-					 RubyObjTy, PtrTy, Type::Int1Ty,
+					 RubyObjTy, PtrTy, Int1Ty,
 					 RubyObjTy, RubyObjTy, NULL));
     }
 
@@ -470,20 +484,16 @@ RoxorCompiler::compile_const_global_ustring(const UniChar *str,
 
     GlobalVariable *gvar;
     if (iter == static_ustrings.end()) {
-	const ArrayType *str_type = ArrayType::get(Type::Int16Ty, len);
+	const ArrayType *str_type = ArrayType::get(Int16Ty, len);
 
 	std::vector<Constant *> ary_elements;
 	for (unsigned int i = 0; i < len; i++) {
-	    ary_elements.push_back(ConstantInt::get(Type::Int16Ty, str[i]));
+	    ary_elements.push_back(ConstantInt::get(Int16Ty, str[i]));
 	}
 
-	gvar = new GlobalVariable(
-		str_type,
-		true,
+	gvar = new GlobalVariable(*RoxorCompiler::module, str_type, true,
 		GlobalValue::InternalLinkage,
-		ConstantArray::get(str_type, ary_elements),
-		"",
-		RoxorCompiler::module);
+		ConstantArray::get(str_type, ary_elements), "");
 
 	static_ustrings[hash] = gvar;
     }
@@ -506,21 +516,17 @@ RoxorCompiler::compile_const_global_string(const char *str,
 
     GlobalVariable *gvar;
     if (iter == static_strings.end()) {
-	const ArrayType *str_type = ArrayType::get(Type::Int8Ty, len + 1);
+	const ArrayType *str_type = ArrayType::get(Int8Ty, len + 1);
 
 	std::vector<Constant *> ary_elements;
 	for (unsigned int i = 0; i < len; i++) {
-	    ary_elements.push_back(ConstantInt::get(Type::Int8Ty, str[i]));
+	    ary_elements.push_back(ConstantInt::get(Int8Ty, str[i]));
 	}
-	ary_elements.push_back(ConstantInt::get(Type::Int8Ty, 0));
+	ary_elements.push_back(ConstantInt::get(Int8Ty, 0));
 	
-	gvar = new GlobalVariable(
-		str_type,
-		true,
+	gvar = new GlobalVariable(*RoxorCompiler::module, str_type, true,
 		GlobalValue::InternalLinkage,
-		ConstantArray::get(str_type, ary_elements),
-		"",
-		RoxorCompiler::module);
+		ConstantArray::get(str_type, ary_elements), "");
 
 	static_strings[s] = gvar;
     }
@@ -550,13 +556,9 @@ RoxorAOTCompiler::compile_mcache(SEL sel, bool super)
     GlobalVariable *gvar;
     std::map<SEL, GlobalVariable *>::iterator iter = mcaches.find(sel);
     if (iter == mcaches.end()) {
-	gvar = new GlobalVariable(
-		PtrTy,
-		false,
-		GlobalValue::InternalLinkage,
-		Constant::getNullValue(PtrTy),
-		"",
-		RoxorCompiler::module);
+	gvar = new GlobalVariable(*RoxorCompiler::module, PtrTy, false,
+		GlobalValue::InternalLinkage, Constant::getNullValue(PtrTy),
+		"");
 	assert(gvar != NULL);
 	mcaches[sel] = gvar;
     }
@@ -580,13 +582,9 @@ RoxorAOTCompiler::compile_ccache(ID name)
 	ccaches.find(name);
     GlobalVariable *gvar;
     if (iter == ccaches.end()) {
-	gvar = new GlobalVariable(
-		PtrTy,
-		false,
-		GlobalValue::InternalLinkage,
-		Constant::getNullValue(PtrTy),
-		"",
-		RoxorCompiler::module);
+	gvar = new GlobalVariable(*RoxorCompiler::module, PtrTy, false,
+		GlobalValue::InternalLinkage, Constant::getNullValue(PtrTy),
+		"");
 	assert(gvar != NULL);
 	ccaches[name] = gvar;
     }
@@ -602,13 +600,9 @@ RoxorAOTCompiler::compile_sel(SEL sel, bool add_to_bb)
     std::map<SEL, GlobalVariable *>::iterator iter = sels.find(sel);
     GlobalVariable *gvar;
     if (iter == sels.end()) {
-	gvar = new GlobalVariable(
-		PtrTy,
-		false,
-		GlobalValue::InternalLinkage,
-		Constant::getNullValue(PtrTy),
-		"",
-		RoxorCompiler::module);
+	gvar = new GlobalVariable(*RoxorCompiler::module, PtrTy, false,
+		GlobalValue::InternalLinkage, Constant::getNullValue(PtrTy),
+		"");
 	assert(gvar != NULL);
 	sels[sel] = gvar;
     }
@@ -626,7 +620,7 @@ RoxorCompiler::compile_arity(rb_vm_arity_t &arity)
     uint64_t v;
     assert(sizeof(uint64_t) == sizeof(rb_vm_arity_t));
     memcpy(&v, &arity, sizeof(rb_vm_arity_t));
-    return ConstantInt::get(Type::Int64Ty, v);
+    return ConstantInt::get(Int64Ty, v);
 }
 
 void
@@ -639,21 +633,21 @@ RoxorCompiler::compile_prepare_method(Value *classVal, Value *sel,
 	prepareMethodFunc = 
 	    cast<Function>(module->getOrInsertFunction(
 			"rb_vm_prepare_method",
-			Type::VoidTy, RubyObjTy, Type::Int8Ty, PtrTy, PtrTy,
-			Type::Int64Ty, Type::Int32Ty, NULL));
+			VoidTy, RubyObjTy, Int8Ty, PtrTy, PtrTy, Int64Ty,
+			Int32Ty, NULL));
     }
 
     std::vector<Value *> params;
 
     params.push_back(classVal);
-    params.push_back(ConstantInt::get(Type::Int8Ty,
+    params.push_back(ConstantInt::get(Int8Ty,
 		!singleton && dynamic_class ? 1 : 0));
     params.push_back(sel);
 
     params.push_back(compile_const_pointer(new_function));
     rb_objc_retain((void *)body);
     params.push_back(compile_arity(arity));
-    params.push_back(ConstantInt::get(Type::Int32Ty, rb_vm_node_flags(body)));
+    params.push_back(ConstantInt::get(Int32Ty, rb_vm_node_flags(body)));
 
     CallInst::Create(prepareMethodFunc, params.begin(),
 	    params.end(), "", bb);
@@ -669,14 +663,14 @@ RoxorAOTCompiler::compile_prepare_method(Value *classVal, Value *sel,
 	prepareMethodFunc = 
 	    cast<Function>(module->getOrInsertFunction(
 			"rb_vm_prepare_method2",
-			Type::VoidTy, RubyObjTy, Type::Int8Ty, PtrTy, PtrTy,
-			Type::Int64Ty, Type::Int32Ty, NULL));
+			VoidTy, RubyObjTy, Int8Ty, PtrTy, PtrTy, Int64Ty,
+			Int32Ty, NULL));
     }
 
     std::vector<Value *> params;
 
     params.push_back(classVal);
-    params.push_back(ConstantInt::get(Type::Int8Ty,
+    params.push_back(ConstantInt::get(Int8Ty,
 		!singleton && dynamic_class ? 1 : 0));
     params.push_back(sel);
 
@@ -687,7 +681,7 @@ RoxorAOTCompiler::compile_prepare_method(Value *classVal, Value *sel,
 
     params.push_back(compile_arity(arity));
 
-    params.push_back(ConstantInt::get(Type::Int32Ty, rb_vm_node_flags(body)));
+    params.push_back(ConstantInt::get(Int32Ty, rb_vm_node_flags(body)));
 
     CallInst::Create(prepareMethodFunc, params.begin(),
 	    params.end(), "", bb);
@@ -704,8 +698,8 @@ RoxorCompiler::compile_dispatch_call(std::vector<Value *> &params)
 	types.push_back(RubyObjTy);
 	types.push_back(PtrTy);
 	types.push_back(PtrTy);
-	types.push_back(Type::Int8Ty);
-	types.push_back(Type::Int32Ty);
+	types.push_back(Int8Ty);
+	types.push_back(Int32Ty);
 	FunctionType *ft = FunctionType::get(RubyObjTy, types, true);
 	dispatcherFunc = cast<Function>
 	    (module->getOrInsertFunction("rb_vm_dispatch", ft));
@@ -750,8 +744,8 @@ RoxorCompiler::compile_attribute_assign(NODE *node, Value *extra_val)
     if (recv == current_self) {
 	opt = DISPATCH_SELF_ATTRASGN;
     }
-    params.push_back(ConstantInt::get(Type::Int8Ty, opt));
-    params.push_back(ConstantInt::get(Type::Int32Ty, argc));
+    params.push_back(ConstantInt::get(Int8Ty, opt));
+    params.push_back(ConstantInt::get(Int32Ty, argc));
     for (std::vector<Value *>::iterator i = args.begin();
 	 i != args.end();
 	 ++i) {
@@ -823,19 +817,19 @@ RoxorCompiler::compile_multiple_assignment(NODE *node, Value *val)
 	// VALUE rb_vm_masgn_get_elem_before_splat(VALUE ary, int offset);
 	masgnGetElemBeforeSplatFunc = cast<Function>(module->getOrInsertFunction(
 		    "rb_vm_masgn_get_elem_before_splat",
-		    RubyObjTy, RubyObjTy, Type::Int32Ty, NULL));
+		    RubyObjTy, RubyObjTy, Int32Ty, NULL));
     }
     if (masgnGetElemAfterSplatFunc == NULL) {
 	// VALUE rb_vm_masgn_get_elem_after_splat(VALUE ary, int before_splat_count, int after_splat_count, int offset);
 	masgnGetElemAfterSplatFunc = cast<Function>(module->getOrInsertFunction(
 		    "rb_vm_masgn_get_elem_after_splat",
-		    RubyObjTy, RubyObjTy, Type::Int32Ty, Type::Int32Ty, Type::Int32Ty, NULL));
+		    RubyObjTy, RubyObjTy, Int32Ty, Int32Ty, Int32Ty, NULL));
     }
     if (masgnGetSplatFunc == NULL) {
 	// VALUE rb_vm_masgn_get_splat(VALUE ary, int before_splat_count, int after_splat_count);
 	masgnGetSplatFunc = cast<Function>(module->getOrInsertFunction(
 		    "rb_vm_masgn_get_splat",
-		    RubyObjTy, RubyObjTy, Type::Int32Ty, Type::Int32Ty, NULL));
+		    RubyObjTy, RubyObjTy, Int32Ty, Int32Ty, NULL));
     }
 
     NODE *before_splat = node->nd_head, *after_splat = NULL, *splat = NULL;
@@ -873,7 +867,7 @@ RoxorCompiler::compile_multiple_assignment(NODE *node, Value *val)
     for (int i = 0; l != NULL; ++i) {
 	std::vector<Value *> params;
 	params.push_back(val);
-	params.push_back(ConstantInt::get(Type::Int32Ty, i));
+	params.push_back(ConstantInt::get(Int32Ty, i));
 	Value *elt = CallInst::Create(masgnGetElemBeforeSplatFunc, params.begin(),
 		params.end(), "", bb);
 
@@ -885,8 +879,8 @@ RoxorCompiler::compile_multiple_assignment(NODE *node, Value *val)
     if (splat != NULL && splat != (NODE *)-1) {
 	std::vector<Value *> params;
 	params.push_back(val);
-	params.push_back(ConstantInt::get(Type::Int32Ty, before_splat_count));
-	params.push_back(ConstantInt::get(Type::Int32Ty, after_splat_count));
+	params.push_back(ConstantInt::get(Int32Ty, before_splat_count));
+	params.push_back(ConstantInt::get(Int32Ty, after_splat_count));
 	Value *elt = CallInst::Create(masgnGetSplatFunc, params.begin(),
 		params.end(), "", bb);
 
@@ -897,9 +891,9 @@ RoxorCompiler::compile_multiple_assignment(NODE *node, Value *val)
     for (int i = 0; l != NULL; ++i) {
 	std::vector<Value *> params;
 	params.push_back(val);
-	params.push_back(ConstantInt::get(Type::Int32Ty, before_splat_count));
-	params.push_back(ConstantInt::get(Type::Int32Ty, after_splat_count));
-	params.push_back(ConstantInt::get(Type::Int32Ty, i));
+	params.push_back(ConstantInt::get(Int32Ty, before_splat_count));
+	params.push_back(ConstantInt::get(Int32Ty, after_splat_count));
+	params.push_back(ConstantInt::get(Int32Ty, i));
 	Value *elt = CallInst::Create(masgnGetElemAfterSplatFunc, params.begin(),
 		params.end(), "", bb);
 
@@ -952,12 +946,12 @@ RoxorCompiler::compile_block_create(NODE *node)
 	//	int dvars_size, ...);
 	std::vector<const Type *> types;
 	types.push_back(PtrTy);
-	types.push_back(Type::Int32Ty);
+	types.push_back(Int32Ty);
 	types.push_back(RubyObjTy);
-	types.push_back(Type::Int64Ty);
+	types.push_back(Int64Ty);
 	types.push_back(PtrPtrTy);
 	types.push_back(PtrTy);
-	types.push_back(Type::Int32Ty);
+	types.push_back(Int32Ty);
 	FunctionType *ft = FunctionType::get(PtrTy, types, true);
 	prepareBlockFunc = cast<Function>
 	    (module->getOrInsertFunction("rb_vm_prepare_block", ft));
@@ -970,7 +964,7 @@ RoxorCompiler::compile_block_create(NODE *node)
 	&& current_block_node->nd_body == NULL) {
 	flags |= VM_BLOCK_EMPTY;
     }
-    params.push_back(ConstantInt::get(Type::Int32Ty, flags));
+    params.push_back(ConstantInt::get(Int32Ty, flags));
     params.push_back(current_self);
     rb_vm_arity_t arity = rb_vm_node_arity(current_block_node);
     params.push_back(compile_arity(arity));
@@ -980,14 +974,14 @@ RoxorCompiler::compile_block_create(NODE *node)
 	    ? compile_const_pointer(NULL) : running_block);
 
     // Dvars.
-    params.push_back(ConstantInt::get(Type::Int32Ty, (int)dvars.size()));
+    params.push_back(ConstantInt::get(Int32Ty, (int)dvars.size()));
     for (std::vector<ID>::iterator iter = dvars.begin();
 	 iter != dvars.end(); ++iter) {
 	params.push_back(compile_lvar_slot(*iter));
     }
 
     // Lvars.
-    params.push_back(ConstantInt::get(Type::Int32Ty, (int)lvars.size()));
+    params.push_back(ConstantInt::get(Int32Ty, (int)lvars.size()));
     for (std::map<ID, Value *>::iterator iter = lvars.begin();
 	 iter != lvars.end(); ++iter) {
 	ID name = iter->first;
@@ -1011,8 +1005,8 @@ RoxorCompiler::compile_binding(void)
 	types.push_back(RubyObjTy);
 	types.push_back(PtrTy);
 	types.push_back(PtrPtrTy);
-	types.push_back(Type::Int32Ty);
-	FunctionType *ft = FunctionType::get(Type::VoidTy, types, true);
+	types.push_back(Int32Ty);
+	FunctionType *ft = FunctionType::get(VoidTy, types, true);
 	pushBindingFunc = cast<Function>
 	    (module->getOrInsertFunction("rb_vm_push_binding", ft));
     }
@@ -1030,7 +1024,7 @@ RoxorCompiler::compile_binding(void)
     }
 
     // Lvars.
-    params.push_back(ConstantInt::get(Type::Int32Ty, (int)lvars.size()));
+    params.push_back(ConstantInt::get(Int32Ty, (int)lvars.size()));
     for (std::map<ID, Value *>::iterator iter = lvars.begin();
 	 iter != lvars.end(); ++iter) {
 
@@ -1054,16 +1048,10 @@ RoxorCompiler::gen_slot_cache(ID id)
 Instruction *
 RoxorAOTCompiler::gen_slot_cache(ID id)
 {
-    GlobalVariable *gvar = new GlobalVariable(
-	    Int32PtrTy,
-	    false,
-	    GlobalValue::InternalLinkage,
-	    Constant::getNullValue(Int32PtrTy),
-	    "",
-	    RoxorCompiler::module);
-
+    GlobalVariable *gvar = new GlobalVariable(*RoxorCompiler::module,
+	    Int32PtrTy, false, GlobalValue::InternalLinkage,
+	    Constant::getNullValue(Int32PtrTy), "");
     ivar_slots.push_back(gvar);
-
     return new LoadInst(gvar, "");
 }
 
@@ -1088,7 +1076,7 @@ RoxorCompiler::compile_slot_cache(ID id)
 	slot = iter->second;
     }
 
-    Instruction *insn = slot->clone();
+    Instruction *insn = slot->clone(context);
     BasicBlock::InstListType &list = bb->getInstList();
     list.insert(list.end(), insn);
     return insn;
@@ -1119,7 +1107,7 @@ RoxorCompiler::compile_ivar_assignment(ID vid, Value *val)
 	// void rb_vm_ivar_set(VALUE obj, ID name, VALUE val, int *slot_cache);
 	setIvarFunc = 
 	    cast<Function>(module->getOrInsertFunction("rb_vm_ivar_set",
-			Type::VoidTy, RubyObjTy, IntTy, RubyObjTy, Int32PtrTy,
+			VoidTy, RubyObjTy, IntTy, RubyObjTy, Int32PtrTy,
 			NULL)); 
     }
 
@@ -1143,16 +1131,15 @@ RoxorCompiler::compile_cvar_get(ID id, bool check)
 	//	unsigned char dynamic_class);
 	cvarGetFunc = cast<Function>(module->getOrInsertFunction(
 		    "rb_vm_cvar_get", 
-		    RubyObjTy, RubyObjTy, IntTy, Type::Int8Ty, Type::Int8Ty,
-		    NULL));
+		    RubyObjTy, RubyObjTy, IntTy, Int8Ty, Int8Ty, NULL));
     }
 
     std::vector<Value *> params;
 
     params.push_back(compile_current_class());
     params.push_back(compile_id(id));
-    params.push_back(ConstantInt::get(Type::Int8Ty, check ? 1 : 0));
-    params.push_back(ConstantInt::get(Type::Int8Ty, dynamic_class ? 1 : 0));
+    params.push_back(ConstantInt::get(Int8Ty, check ? 1 : 0));
+    params.push_back(ConstantInt::get(Int8Ty, dynamic_class ? 1 : 0));
 
     return compile_protected_call(cvarGetFunc, params);
 }
@@ -1165,7 +1152,7 @@ RoxorCompiler::compile_cvar_assignment(ID name, Value *val)
 	//	unsigned char dynamic_class);
 	cvarSetFunc = cast<Function>(module->getOrInsertFunction(
 		    "rb_vm_cvar_set", 
-		    RubyObjTy, RubyObjTy, IntTy, RubyObjTy, Type::Int8Ty, NULL));
+		    RubyObjTy, RubyObjTy, IntTy, RubyObjTy, Int8Ty, NULL));
     }
 
     std::vector<Value *> params;
@@ -1173,7 +1160,7 @@ RoxorCompiler::compile_cvar_assignment(ID name, Value *val)
     params.push_back(compile_current_class());
     params.push_back(compile_id(name));
     params.push_back(val);
-    params.push_back(ConstantInt::get(Type::Int8Ty, dynamic_class ? 1 : 0));
+    params.push_back(ConstantInt::get(Int8Ty, dynamic_class ? 1 : 0));
 
     return CallInst::Create(cvarSetFunc, params.begin(),
 	    params.end(), "", bb);
@@ -1206,7 +1193,7 @@ RoxorCompiler::compile_constant_declaration(NODE *node, Value *val)
 	//	unsigned char dynamic_class);
 	setConstFunc = cast<Function>(module->getOrInsertFunction(
 		    "rb_vm_set_const",
-		    Type::VoidTy, RubyObjTy, IntTy, RubyObjTy, Type::Int8Ty,
+		    VoidTy, RubyObjTy, IntTy, RubyObjTy, Int8Ty,
 		    NULL));
     }
 
@@ -1224,7 +1211,7 @@ RoxorCompiler::compile_constant_declaration(NODE *node, Value *val)
 	params.push_back(compile_id(node->nd_else->nd_mid));
     }
     params.push_back(val);
-    params.push_back(ConstantInt::get(Type::Int8Ty,
+    params.push_back(ConstantInt::get(Int8Ty,
 		dynamic_class && outer ? 1 : 0));
 
     CallInst::Create(setConstFunc, params.begin(), params.end(), "", bb);
@@ -1251,13 +1238,8 @@ inline Value *
 RoxorAOTCompiler::compile_nsobject(void)
 {
     if (cObject_gvar == NULL) {
-	cObject_gvar = new GlobalVariable(
-		RubyObjTy,
-		false,
-		GlobalValue::InternalLinkage,
-		zeroVal,
-		"NSObject",
-		RoxorCompiler::module);
+	cObject_gvar = new GlobalVariable(*RoxorCompiler::module, RubyObjTy,
+		false, GlobalValue::InternalLinkage, zeroVal, "");
     }
     return new LoadInst(cObject_gvar, "", bb);
 }
@@ -1275,13 +1257,8 @@ RoxorAOTCompiler::compile_id(ID id)
 
     GlobalVariable *gvar;
     if (iter == ids.end()) {
-	gvar = new GlobalVariable(
-		IntTy,
-		false,
-		GlobalValue::InternalLinkage,
-		ConstantInt::get(IntTy, 0),
-		"",
-		RoxorCompiler::module);
+	gvar = new GlobalVariable(*RoxorCompiler::module, IntTy, false,
+		GlobalValue::InternalLinkage, ConstantInt::get(IntTy, 0), "");
 	ids[id] = gvar;
     }
     else {
@@ -1305,17 +1282,17 @@ RoxorCompiler::compile_const(ID id, Value *outer)
 	//	struct ccache *cache, ID id, unsigned char dynamic_class);
 	getConstFunc = cast<Function>(module->getOrInsertFunction(
 		    "rb_vm_get_const", 
-		    RubyObjTy, RubyObjTy, Type::Int8Ty, PtrTy, IntTy, Type::Int8Ty,
+		    RubyObjTy, RubyObjTy, Int8Ty, PtrTy, IntTy, Int8Ty,
 		    NULL));
     }
 
     std::vector<Value *> params;
 
     params.push_back(outer);
-    params.push_back(ConstantInt::get(Type::Int8Ty, outer_given ? 0 : 1));
+    params.push_back(ConstantInt::get(Int8Ty, outer_given ? 0 : 1));
     params.push_back(compile_ccache(id));
     params.push_back(compile_id(id));
-    params.push_back(ConstantInt::get(Type::Int8Ty, dynamic_class ? 1 : 0));
+    params.push_back(ConstantInt::get(Int8Ty, dynamic_class ? 1 : 0));
 
     return compile_protected_call(getConstFunc, params);
 }
@@ -1395,8 +1372,8 @@ RoxorCompiler::compile_defined_expression(NODE *node)
     // exception.
     Function *f = bb->getParent(); 
     BasicBlock *old_rescue_bb = rescue_bb;
-    BasicBlock *new_rescue_bb = BasicBlock::Create("rescue", f);
-    BasicBlock *merge_bb = BasicBlock::Create("merge", f);
+    BasicBlock *new_rescue_bb = BasicBlock::Create(context, "rescue", f);
+    BasicBlock *merge_bb = BasicBlock::Create(context, "merge", f);
     rescue_bb = new_rescue_bb;
 
     // Prepare arguments for the runtime.
@@ -1470,14 +1447,14 @@ RoxorCompiler::compile_defined_expression(NODE *node)
 	// VALUE rb_vm_defined(VALUE self, int type, VALUE what, VALUE what2);
 	definedFunc = cast<Function>(module->getOrInsertFunction(
 		    "rb_vm_defined",
-		    RubyObjTy, RubyObjTy, Type::Int32Ty, RubyObjTy, RubyObjTy,
+		    RubyObjTy, RubyObjTy, Int32Ty, RubyObjTy, RubyObjTy,
 		    NULL));
     }
 
     std::vector<Value *> params;
 
     params.push_back(self);
-    params.push_back(ConstantInt::get(Type::Int32Ty, type));
+    params.push_back(ConstantInt::get(Int32Ty, type));
     params.push_back(ConstantInt::get(RubyObjTy, what1));
     params.push_back(what2 == NULL ? nilVal : what2);
 
@@ -1521,12 +1498,12 @@ RoxorCompiler::compile_dstr(NODE *node)
 
     const int count = params.size();
 
-    params.insert(params.begin(), ConstantInt::get(Type::Int32Ty, count));
+    params.insert(params.begin(), ConstantInt::get(Int32Ty, count));
 
     if (newStringFunc == NULL) {
 	// VALUE rb_str_new_fast(int argc, ...)
 	std::vector<const Type *> types;
-	types.push_back(Type::Int32Ty);
+	types.push_back(Int32Ty);
 	FunctionType *ft = FunctionType::get(RubyObjTy, types, true);
 	newStringFunc = cast<Function>(module->getOrInsertFunction(
 		    "rb_str_new_fast", ft));
@@ -1558,7 +1535,7 @@ RoxorCompiler::compile_dvar_slot(ID name)
     ++fargs_i; // skip sel
     Value *dvars_ary = fargs_i;
 
-    Value *index = ConstantInt::get(Type::Int32Ty, idx);
+    Value *index = ConstantInt::get(Int32Ty, idx);
     Value *slot = GetElementPtrInst::Create(dvars_ary, index, rb_id2name(name), bb);
     return new LoadInst(slot, "", bb);
 }
@@ -1570,7 +1547,7 @@ RoxorCompiler::compile_break_val(Value *val)
 	// void rb_vm_break(VALUE val);
 	breakFunc = cast<Function>(
 		module->getOrInsertFunction("rb_vm_break", 
-		    Type::VoidTy, RubyObjTy, NULL));
+		    VoidTy, RubyObjTy, NULL));
     }
     std::vector<Value *> params;
     params.push_back(val);
@@ -1584,11 +1561,11 @@ RoxorCompiler::compile_return_from_block(Value *val, int id)
 	// void rb_vm_return_from_block(VALUE val, int id);
 	returnFromBlockFunc = cast<Function>(
 		module->getOrInsertFunction("rb_vm_return_from_block", 
-		    Type::VoidTy, RubyObjTy, Type::Int32Ty, NULL));
+		    VoidTy, RubyObjTy, Int32Ty, NULL));
     }
     std::vector<Value *> params;
     params.push_back(val);
-    params.push_back(ConstantInt::get(Type::Int32Ty, id));
+    params.push_back(ConstantInt::get(Int32Ty, id));
     CallInst::Create(returnFromBlockFunc, params.begin(), params.end(), "", bb);
 }
 
@@ -1604,25 +1581,25 @@ RoxorCompiler::compile_return_from_block_handler(int id)
 	checkReturnFromBlockFunc = cast<Function>(
 		module->getOrInsertFunction(
 		    "rb_vm_check_return_from_block_exc", 
-		    RubyObjTy, PtrTy, Type::Int32Ty, NULL));
+		    RubyObjTy, PtrTy, Int32Ty, NULL));
     }
 
     std::vector<Value *> params;
     params.push_back(exception);
-    params.push_back(ConstantInt::get(Type::Int32Ty, id));
+    params.push_back(ConstantInt::get(Int32Ty, id));
     Value *val = CallInst::Create(checkReturnFromBlockFunc, params.begin(),
 	    params.end(), "", bb);
 
     Function *f = bb->getParent();
-    BasicBlock *ret_bb = BasicBlock::Create("ret", f);
-    BasicBlock *rethrow_bb  = BasicBlock::Create("rethrow", f);
-    Value *need_ret = new ICmpInst(ICmpInst::ICMP_NE, val,
-	    ConstantInt::get(RubyObjTy, Qundef), "", bb);
+    BasicBlock *ret_bb = BasicBlock::Create(context, "ret", f);
+    BasicBlock *rethrow_bb  = BasicBlock::Create(context, "rethrow", f);
+    Value *need_ret = new ICmpInst(*bb, ICmpInst::ICMP_NE, val,
+	    ConstantInt::get(RubyObjTy, Qundef));
     BranchInst::Create(ret_bb, rethrow_bb, need_ret, bb);
 
     bb = ret_bb;
     compile_landing_pad_footer(false);
-    ReturnInst::Create(val, bb);	
+    ReturnInst::Create(context, val, bb);	
 
     bb = rethrow_bb;
     compile_rethrow_exception();
@@ -1662,7 +1639,7 @@ RoxorCompiler::compile_jump(NODE *node)
 	    }
 	    else if (within_block) {
 		compile_break_val(val);
-		ReturnInst::Create(val, bb);
+		ReturnInst::Create(context, val, bb);
 	    }
 	    else {
 		rb_raise(rb_eLocalJumpError, "unexpected break");
@@ -1674,7 +1651,7 @@ RoxorCompiler::compile_jump(NODE *node)
 		BranchInst::Create(current_loop_begin_bb, bb);
 	    }
 	    else if (within_block) {
-		ReturnInst::Create(val, bb);
+		ReturnInst::Create(context, val, bb);
 	    }
 	    else {
 		rb_raise(rb_eLocalJumpError, "unexpected next");
@@ -1703,7 +1680,7 @@ RoxorCompiler::compile_jump(NODE *node)
 		    return_from_block = return_from_block_ids++;
 		}
 		compile_return_from_block(val, return_from_block);
-		ReturnInst::Create(val, bb);
+		ReturnInst::Create(context, val, bb);
 	    }
 	    else {
 		compile_simple_return(val);
@@ -1714,7 +1691,7 @@ RoxorCompiler::compile_jump(NODE *node)
     // To not complicate the compiler even more, let's be very lazy here and
     // continue on a dead branch. Hopefully LLVM is smart enough to eliminate
     // it at compilation time.
-    bb = BasicBlock::Create("DEAD", bb->getParent());
+    bb = BasicBlock::Create(context, "DEAD", bb->getParent());
 
     return val;
 }
@@ -1726,7 +1703,7 @@ void RoxorCompiler::compile_simple_return(Value *val)
 	ensure_pn->addIncoming(val, bb);
     }
     else {
-	ReturnInst::Create(val, bb);
+	ReturnInst::Create(context, val, bb);
     }
 }
 
@@ -1815,10 +1792,10 @@ RoxorCompiler::compile_landing_pad_header(const std::type_info &eh_type)
 		params.end(), "", bb);
 
 	Function *f = bb->getParent();
-	BasicBlock *typeok_bb = BasicBlock::Create("typeok", f);
-	BasicBlock *nocatch_bb  = BasicBlock::Create("nocatch", f);
-	Value *need_ret = new ICmpInst(ICmpInst::ICMP_EQ, eh_sel,
-		eh_typeid, "", bb);
+	BasicBlock *typeok_bb = BasicBlock::Create(context, "typeok", f);
+	BasicBlock *nocatch_bb  = BasicBlock::Create(context, "nocatch", f);
+	Value *need_ret = new ICmpInst(*bb, ICmpInst::ICMP_EQ, eh_sel,
+		eh_typeid);
 	BranchInst::Create(typeok_bb, nocatch_bb, need_ret, bb);
 
 	bb = nocatch_bb;
@@ -1847,7 +1824,7 @@ RoxorCompiler::compile_pop_exception(void)
 	// void rb_vm_pop_exception(void);
 	popExceptionFunc = cast<Function>(
 		module->getOrInsertFunction("rb_vm_pop_exception", 
-		    Type::VoidTy, NULL));
+		    VoidTy, NULL));
     }
     CallInst::Create(popExceptionFunc, "", bb);
 }
@@ -1864,7 +1841,7 @@ RoxorCompiler::compile_landing_pad_footer(bool pop_exception)
 	// void __cxa_end_catch(void);
 	endCatchFunc = cast<Function>(
 		module->getOrInsertFunction("__cxa_end_catch",
-		    Type::VoidTy, NULL));
+		    VoidTy, NULL));
     }
     CallInst::Create(endCatchFunc, "", bb);
 }
@@ -1876,11 +1853,10 @@ RoxorCompiler::compile_rethrow_exception(void)
     if (rethrowFunc == NULL) {
 	// void __cxa_rethrow(void);
 	rethrowFunc = cast<Function>(
-		module->getOrInsertFunction("__cxa_rethrow",
-		    Type::VoidTy, NULL));
+		module->getOrInsertFunction("__cxa_rethrow", VoidTy, NULL));
     }
     CallInst::Create(rethrowFunc, "", bb);
-    new UnreachableInst(bb);
+    new UnreachableInst(context, bb);
 }
 
 typedef struct rb_vm_immediate_val {
@@ -2010,10 +1986,10 @@ RoxorCompiler::optimized_immediate_op(SEL sel, Value *leftVal, Value *rightVal,
 	}
 
 	if (float_op) {
-	    res = new FCmpInst(predicate, leftVal, rightVal, "", bb);
+	    res = new FCmpInst(*bb, predicate, leftVal, rightVal);
 	}
 	else {
-	    res = new ICmpInst(predicate, leftVal, rightVal, "", bb);
+	    res = new ICmpInst(*bb, predicate, leftVal, rightVal);
 	}
 	res = SelectInst::Create(res, trueVal, falseVal, "", bb);
     }
@@ -2024,37 +2000,36 @@ Value *
 RoxorCompiler::compile_double_coercion(Value *val, Value *mask,
 	BasicBlock *fallback_bb, Function *f)
 {
-    Value *is_float = new ICmpInst(ICmpInst::ICMP_EQ,
-	    mask, threeVal, "", bb);
+    Value *is_float = new ICmpInst(*bb, ICmpInst::ICMP_EQ, mask, threeVal);
 
-    BasicBlock *is_float_bb = BasicBlock::Create("is_float", f);
-    BasicBlock *isnt_float_bb = BasicBlock::Create("isnt_float", f);
-    BasicBlock *merge_bb = BasicBlock::Create("merge", f);
+    BasicBlock *is_float_bb = BasicBlock::Create(context, "is_float", f);
+    BasicBlock *isnt_float_bb = BasicBlock::Create(context, "isnt_float", f);
+    BasicBlock *merge_bb = BasicBlock::Create(context, "merge", f);
 
     BranchInst::Create(is_float_bb, isnt_float_bb, is_float, bb);
 
     bb = is_float_bb;
     Value *is_float_val = BinaryOperator::CreateXor(val, threeVal, "", bb);
 #if __LP64__
-    is_float_val = new BitCastInst(is_float_val, Type::DoubleTy, "", bb);
+    is_float_val = new BitCastInst(is_float_val, DoubleTy, "", bb);
 #else
-    is_float_val = new BitCastInst(is_float_val, Type::FloatTy, "", bb);
-    is_float_val = new FPExtInst(is_float_val, Type::DoubleTy, "", bb);
+    is_float_val = new BitCastInst(is_float_val, FloatTy, "", bb);
+    is_float_val = new FPExtInst(is_float_val, DoubleTy, "", bb);
 #endif
     BranchInst::Create(merge_bb, bb);
 
     bb = isnt_float_bb;
-    Value *is_fixnum = new ICmpInst(ICmpInst::ICMP_EQ, mask, oneVal, "", bb);
-    BasicBlock *is_fixnum_bb = BasicBlock::Create("is_fixnum", f);
+    Value *is_fixnum = new ICmpInst(*bb, ICmpInst::ICMP_EQ, mask, oneVal);
+    BasicBlock *is_fixnum_bb = BasicBlock::Create(context, "is_fixnum", f);
     BranchInst::Create(is_fixnum_bb, fallback_bb, is_fixnum, bb);
 
     bb = is_fixnum_bb;
     Value *is_fixnum_val = BinaryOperator::CreateAShr(val, twoVal, "", bb);
-    is_fixnum_val = new SIToFPInst(is_fixnum_val, Type::DoubleTy, "", bb);
+    is_fixnum_val = new SIToFPInst(is_fixnum_val, DoubleTy, "", bb);
     BranchInst::Create(merge_bb, bb);
 
     bb = merge_bb;
-    PHINode *pn = PHINode::Create(Type::DoubleTy, "op_tmp", bb);
+    PHINode *pn = PHINode::Create(DoubleTy, "op_tmp", bb);
     pn->addIncoming(is_float_val, is_float_bb);
     pn->addIncoming(is_fixnum_val, is_fixnum_bb);
 
@@ -2076,9 +2051,9 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 
 	Function *f = bb->getParent();
 
-	BasicBlock *falseBB = BasicBlock::Create("", f);
-	BasicBlock *trueBB = BasicBlock::Create("", f);
-	BasicBlock *mergeBB = BasicBlock::Create("", f);
+	BasicBlock *falseBB = BasicBlock::Create(context, "", f);
+	BasicBlock *trueBB = BasicBlock::Create(context, "", f);
+	BasicBlock *mergeBB = BasicBlock::Create(context, "", f);
 
 	compile_boolean_test(val, trueBB, falseBB);
 
@@ -2117,14 +2092,14 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 	    // Both operands are symbol constants.
 	    if (sel == selEq || sel == selEqq || sel == selNeq) {
 		Value *is_redefined_val = new LoadInst(is_redefined, "", bb);
-		Value *isOpRedefined = new ICmpInst(ICmpInst::ICMP_EQ, 
-			is_redefined_val, ConstantInt::getFalse(), "", bb);
+		Value *isOpRedefined = new ICmpInst(*bb, ICmpInst::ICMP_EQ,
+			is_redefined_val, ConstantInt::getFalse(context));
 
 		Function *f = bb->getParent();
 
-		BasicBlock *thenBB = BasicBlock::Create("op_not_redefined", f);
-		BasicBlock *elseBB  = BasicBlock::Create("op_dispatch", f);
-		BasicBlock *mergeBB = BasicBlock::Create("op_merge", f);
+		BasicBlock *thenBB = BasicBlock::Create(context, "op_not_redefined", f);
+		BasicBlock *elseBB  = BasicBlock::Create(context, "op_dispatch", f);
+		BasicBlock *mergeBB = BasicBlock::Create(context, "op_merge", f);
 
 		BranchInst::Create(thenBB, elseBB, isOpRedefined, bb);
 		Value *thenVal = NULL;
@@ -2203,14 +2178,14 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 
 	    if (res_val != NULL) {
 		Value *is_redefined_val = new LoadInst(is_redefined, "", bb);
-		Value *isOpRedefined = new ICmpInst(ICmpInst::ICMP_EQ, 
-			is_redefined_val, ConstantInt::getFalse(), "", bb);
+		Value *isOpRedefined = new ICmpInst(*bb, ICmpInst::ICMP_EQ,
+			is_redefined_val, ConstantInt::getFalse(context));
 
 		Function *f = bb->getParent();
 
-		BasicBlock *thenBB = BasicBlock::Create("op_not_redefined", f);
-		BasicBlock *elseBB  = BasicBlock::Create("op_dispatch", f);
-		BasicBlock *mergeBB = BasicBlock::Create("op_merge", f);
+		BasicBlock *thenBB = BasicBlock::Create(context, "op_not_redefined", f);
+		BasicBlock *elseBB  = BasicBlock::Create(context, "op_dispatch", f);
+		BasicBlock *mergeBB = BasicBlock::Create(context, "op_merge", f);
 
 		BranchInst::Create(thenBB, elseBB, isOpRedefined, bb);
 		Value *thenVal = res_val;
@@ -2234,19 +2209,20 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 	else {
 	    // Either one or both is not a constant immediate.
 	    Value *is_redefined_val = new LoadInst(is_redefined, "", bb);
-	    Value *isOpRedefined = new ICmpInst(ICmpInst::ICMP_EQ, 
-		    is_redefined_val, ConstantInt::getFalse(), "", bb);
+	    Value *isOpRedefined = new ICmpInst(*bb, ICmpInst::ICMP_EQ,
+		    is_redefined_val, ConstantInt::getFalse(context));
 
 	    Function *f = bb->getParent();
 
 	    BasicBlock *not_redefined_bb =
-		BasicBlock::Create("op_not_redefined", f);
+		BasicBlock::Create(context, "op_not_redefined", f);
 	    BasicBlock *optimize_fixnum_bb =
-		BasicBlock::Create("op_optimize_fixnum", f);
+		BasicBlock::Create(context, "op_optimize_fixnum", f);
 	    BasicBlock *optimize_float_bb =
-		BasicBlock::Create("op_optimize_float", f);
-	    BasicBlock *dispatch_bb  = BasicBlock::Create("op_dispatch", f);
-	    BasicBlock *merge_bb = BasicBlock::Create("op_merge", f);
+		BasicBlock::Create(context, "op_optimize_float", f);
+	    BasicBlock *dispatch_bb =
+		BasicBlock::Create( context, "op_dispatch", f);
+	    BasicBlock *merge_bb = BasicBlock::Create(context, "op_merge", f);
 
 	    BranchInst::Create(not_redefined_bb, dispatch_bb, isOpRedefined,
 		    bb);
@@ -2266,23 +2242,23 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 	    }
 
 	    if (leftAndOp != NULL && rightAndOp != NULL) {
-		Value *leftIsFixnum = new ICmpInst(ICmpInst::ICMP_EQ,
-			leftAndOp, oneVal, "", bb);
+		Value *leftIsFixnum = new ICmpInst(*bb, ICmpInst::ICMP_EQ,
+			leftAndOp, oneVal);
 		BasicBlock *left_is_fixnum_bb =
-		    BasicBlock::Create("left_fixnum", f);
+		    BasicBlock::Create(context, "left_fixnum", f);
 		BranchInst::Create(left_is_fixnum_bb, optimize_float_bb,
 			leftIsFixnum, bb);
 
 		bb = left_is_fixnum_bb;
-		Value *rightIsFixnum = new ICmpInst(ICmpInst::ICMP_EQ,
-			rightAndOp, oneVal, "", bb);
+		Value *rightIsFixnum = new ICmpInst(*bb, ICmpInst::ICMP_EQ,
+			rightAndOp, oneVal);
 		BranchInst::Create(optimize_fixnum_bb, optimize_float_bb,
 			rightIsFixnum, bb);
 	    }
 	    else if (leftAndOp != NULL) {
 		if (rightImm.is_fixnum()) {
-		    Value *leftIsFixnum = new ICmpInst(ICmpInst::ICMP_EQ,
-			    leftAndOp, oneVal, "", bb);
+		    Value *leftIsFixnum = new ICmpInst(*bb, ICmpInst::ICMP_EQ,
+			    leftAndOp, oneVal);
 		    BranchInst::Create(optimize_fixnum_bb, optimize_float_bb,
 			    leftIsFixnum, bb);
 		}
@@ -2292,8 +2268,8 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 	    }
 	    else if (rightAndOp != NULL) {
 		if (leftImm.is_fixnum()) {
-		    Value *rightIsFixnum = new ICmpInst(ICmpInst::ICMP_EQ,
-			    rightAndOp, oneVal, "", bb);
+		    Value *rightIsFixnum = new ICmpInst(*bb, ICmpInst::ICMP_EQ,
+			    rightAndOp, oneVal);
 		    BranchInst::Create(optimize_fixnum_bb, optimize_float_bb,
 			    rightIsFixnum, bb);
 		}
@@ -2335,19 +2311,19 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 
 		// Is result fixable?
 		Value *fixnumMax = ConstantInt::get(IntTy, FIXNUM_MAX + 1);
-		Value *isFixnumMaxOk = new ICmpInst(ICmpInst::ICMP_SLT,
-			fix_op_res, fixnumMax, "", bb);
+		Value *isFixnumMaxOk = new ICmpInst(*bb, ICmpInst::ICMP_SLT,
+			fix_op_res, fixnumMax);
 
 		BasicBlock *fixable_max_bb =
-		    BasicBlock::Create("op_fixable_max", f);
+		    BasicBlock::Create(context, "op_fixable_max", f);
 
 		BranchInst::Create(fixable_max_bb, dispatch_bb, isFixnumMaxOk,
 			bb);
 
 		bb = fixable_max_bb;
 		Value *fixnumMin = ConstantInt::get(IntTy, FIXNUM_MIN);
-		Value *isFixnumMinOk = new ICmpInst(ICmpInst::ICMP_SGE,
-			fix_op_res, fixnumMin, "", bb);
+		Value *isFixnumMinOk = new ICmpInst(*bb, ICmpInst::ICMP_SGE,
+			fix_op_res, fixnumMin);
 
 		BranchInst::Create(merge_bb, dispatch_bb, isFixnumMinOk, bb);
 		fix_op_res = boxed_op_res;
@@ -2360,8 +2336,7 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 	    bb = optimize_float_bb;
 
 	    if (leftIsImmediateConst) {
-		unboxedLeft = ConstantFP::get(Type::DoubleTy,
-			leftImm.double_val());
+		unboxedLeft = ConstantFP::get(DoubleTy, leftImm.double_val());
 	    }
 	    else {
 		unboxedLeft = compile_double_coercion(leftVal, leftAndOp,
@@ -2369,8 +2344,7 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 	    }
 
 	    if (rightIsImmediateConst) {
-		unboxedRight = ConstantFP::get(Type::DoubleTy,
-			rightImm.double_val());
+		unboxedRight = ConstantFP::get(DoubleTy, rightImm.double_val());
 	    }
 	    else {
 		unboxedRight = compile_double_coercion(rightVal, rightAndOp,
@@ -2384,7 +2358,7 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 	    if (!result_is_predicate) {
 		// Box the float. 
 #if !__LP64__
-		flp_op_res = new FPTruncInst(flp_op_res, Type::FloatTy, "", bb);
+		flp_op_res = new FPTruncInst(flp_op_res, FloatTy, "", bb);
 #endif
 		flp_op_res = new BitCastInst(flp_op_res, RubyObjTy, "", bb);
 		flp_op_res = BinaryOperator::CreateOr(flp_op_res, threeVal,
@@ -2432,15 +2406,16 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 
 	if (sel == selLTLT) {
 	    opt_func = cast<Function>(module->getOrInsertFunction("rb_vm_fast_shift",
-			RubyObjTy, RubyObjTy, RubyObjTy, PtrTy, Type::Int1Ty, NULL));
+			RubyObjTy, RubyObjTy, RubyObjTy, PtrTy, Int1Ty, NULL));
 	}
 	else if (sel == selAREF) {
 	    opt_func = cast<Function>(module->getOrInsertFunction("rb_vm_fast_aref",
-			RubyObjTy, RubyObjTy, RubyObjTy, PtrTy, Type::Int1Ty, NULL));
+			RubyObjTy, RubyObjTy, RubyObjTy, PtrTy, Int1Ty, NULL));
 	}
 	else if (sel == selASET) {
 	    opt_func = cast<Function>(module->getOrInsertFunction("rb_vm_fast_aset",
-			RubyObjTy, RubyObjTy, RubyObjTy, RubyObjTy, PtrTy, Type::Int1Ty, NULL));
+			RubyObjTy, RubyObjTy, RubyObjTy, RubyObjTy, PtrTy,
+			Int1Ty, NULL));
 	}
 	else {
 	    abort();
@@ -2480,14 +2455,14 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 	GlobalVariable *is_redefined = GET_CORE()->redefined_op_gvar(sel, true);
 
 	Value *is_redefined_val = new LoadInst(is_redefined, "", bb);
-	Value *isOpRedefined = new ICmpInst(ICmpInst::ICMP_EQ, 
-		is_redefined_val, ConstantInt::getFalse(), "", bb);
+	Value *isOpRedefined = new ICmpInst(*bb, ICmpInst::ICMP_EQ,
+		is_redefined_val, ConstantInt::getFalse(context));
 
 	Function *f = bb->getParent();
 
-	BasicBlock *thenBB = BasicBlock::Create("op_not_redefined", f);
-	BasicBlock *elseBB = BasicBlock::Create("op_dispatch", f);
-	BasicBlock *mergeBB = BasicBlock::Create("op_merge", f);
+	BasicBlock *thenBB = BasicBlock::Create(context, "op_not_redefined", f);
+	BasicBlock *elseBB = BasicBlock::Create(context, "op_dispatch", f);
+	BasicBlock *mergeBB = BasicBlock::Create(context, "op_merge", f);
 
 	BranchInst::Create(thenBB, elseBB, isOpRedefined, bb);
 
@@ -2497,8 +2472,8 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 	new_params.push_back(params[1]);
 	new_params.push_back(compile_sel(new_sel));
 	new_params.push_back(params[3]);
-	new_params.push_back(ConstantInt::get(Type::Int8Ty, DISPATCH_FCALL));
-	new_params.push_back(ConstantInt::get(Type::Int32Ty, argc - 1));
+	new_params.push_back(ConstantInt::get(Int8Ty, DISPATCH_FCALL));
+	new_params.push_back(ConstantInt::get(Int32Ty, argc - 1));
 	for (int i = 0; i < argc - 1; i++) {
 	    new_params.push_back(params[7 + i]);
 	}
@@ -2688,8 +2663,8 @@ RoxorCompiler::compile_literal(VALUE val)
 		    str_len, CFHash((CFTypeRef)val));
 
 	    std::vector<Value *> idxs;
-	    idxs.push_back(ConstantInt::get(Type::Int32Ty, 0));
-	    idxs.push_back(ConstantInt::get(Type::Int32Ty, 0));
+	    idxs.push_back(ConstantInt::get(Int32Ty, 0));
+	    idxs.push_back(ConstantInt::get(Int32Ty, 0));
 	    Instruction *load = GetElementPtrInst::Create(str_gvar,
 		    idxs.begin(), idxs.end(), "", bb);
 
@@ -2697,13 +2672,13 @@ RoxorCompiler::compile_literal(VALUE val)
 		newString2Func = cast<Function>(
 			module->getOrInsertFunction(
 			    "rb_unicode_str_new",
-			    RubyObjTy, PointerType::getUnqual(Type::Int16Ty),
-			    Type::Int32Ty, NULL));
+			    RubyObjTy, PointerType::getUnqual(Int16Ty),
+			    Int32Ty, NULL));
 	    }
 
 	    std::vector<Value *> params;
 	    params.push_back(load);
-	    params.push_back(ConstantInt::get(Type::Int32Ty, str_len));
+	    params.push_back(ConstantInt::get(Int32Ty, str_len));
 
 	    return CallInst::Create(newString2Func, params.begin(),
 		    params.end(), "", bb);
@@ -2735,13 +2710,8 @@ RoxorAOTCompiler::compile_immutable_literal(VALUE val)
     GlobalVariable *gvar = NULL;
 
     if (iter == literals.end()) {
-	gvar = new GlobalVariable(
-		RubyObjTy,
-		false,
-		GlobalValue::InternalLinkage,
-		nilVal,
-		"",
-		RoxorCompiler::module);
+	gvar = new GlobalVariable(*RoxorCompiler::module, RubyObjTy, false,
+		GlobalValue::InternalLinkage, nilVal, "");
 	literals[val] = gvar;
     }
     else {
@@ -2766,13 +2736,9 @@ RoxorAOTCompiler::compile_global_entry(NODE *node)
     std::map<ID, GlobalVariable *>::iterator iter = global_entries.find(name);
     GlobalVariable *gvar = NULL;
     if (iter == global_entries.end()) {
-	gvar = new GlobalVariable(
-		PtrTy,
-		false,
-		GlobalValue::InternalLinkage,
-		Constant::getNullValue(PtrTy),
-		"",
-		RoxorCompiler::module);
+	gvar = new GlobalVariable(*RoxorCompiler::module, PtrTy, false,
+		GlobalValue::InternalLinkage, Constant::getNullValue(PtrTy),
+		"");
 	global_entries[name] = gvar;
     }
     else {
@@ -2806,7 +2772,7 @@ RoxorCompiler::compile_set_current_scope(Value *klass, Value *scope)
 	// void rb_vm_set_current_scope(VALUE mod, int scope)
 	setScopeFunc = cast<Function>(
 		module->getOrInsertFunction("rb_vm_set_current_scope",
-		    Type::VoidTy, RubyObjTy, Type::Int32Ty, NULL));
+		    VoidTy, RubyObjTy, Int32Ty, NULL));
     }
 
     std::vector<Value *> params;
@@ -2828,7 +2794,7 @@ RoxorCompiler::compile_ivar_slots(Value *klass,
 	    prepareIvarSlotFunc = cast<Function>(
 		    module->getOrInsertFunction(
 			"rb_vm_prepare_class_ivar_slot", 
-			Type::VoidTy, RubyObjTy, IntTy, Int32PtrTy, NULL));
+			VoidTy, RubyObjTy, IntTy, Int32PtrTy, NULL));
 	}
 	for (std::map<ID, Instruction *>::iterator iter
 		= ivar_slots_cache.begin();
@@ -2849,7 +2815,7 @@ RoxorCompiler::compile_ivar_slots(Value *klass,
 	    }
 	    params.push_back(id_val);
 
-	    Instruction *insn = ivar_slot->clone();
+	    Instruction *insn = ivar_slot->clone(context);
 	    list.insert(list_iter, insn);
 	    params.push_back(insn);
 
@@ -2876,17 +2842,19 @@ RoxorCompiler::compile_keep_vars(BasicBlock *startBB, BasicBlock *mergeBB)
 	// void rb_vm_keep_vars(rb_vm_var_uses *uses, int lvars_size, ...)
 	std::vector<const Type *> types;
 	types.push_back(PtrTy);
-	types.push_back(Type::Int32Ty);
-	FunctionType *ft = FunctionType::get(Type::VoidTy, types, true);
+	types.push_back(Int32Ty);
+	FunctionType *ft = FunctionType::get(VoidTy, types, true);
 	keepVarsFunc = cast<Function>
 	    (module->getOrInsertFunction("rb_vm_keep_vars", ft));
     }
 
-    BasicBlock *notNullBB = BasicBlock::Create("not_null", startBB->getParent());
+    BasicBlock *notNullBB = BasicBlock::Create(context, "not_null",
+	    startBB->getParent());
 
     bb = startBB;
     Value *usesVal = new LoadInst(current_var_uses, "", bb);
-    Value *notNullCond = new ICmpInst(ICmpInst::ICMP_NE, usesVal, compile_const_pointer(NULL), "", bb);
+    Value *notNullCond = new ICmpInst(*bb, ICmpInst::ICMP_NE, usesVal,
+	    compile_const_pointer(NULL));
     // we only need to call keepVarsFunc if current_var_uses is not NULL
     BranchInst::Create(notNullBB, mergeBB, notNullCond, bb);
 
@@ -2908,7 +2876,7 @@ RoxorCompiler::compile_keep_vars(BasicBlock *startBB, BasicBlock *mergeBB)
 	    vars_count++;
 	}
     }
-    params[1] = ConstantInt::get(Type::Int32Ty, vars_count);
+    params[1] = ConstantInt::get(Int32Ty, vars_count);
 
     CallInst::Create(keepVarsFunc, params.begin(), params.end(), "", bb);
 
@@ -2971,7 +2939,7 @@ RoxorCompiler::compile_node(NODE *node)
 		BasicBlock *old_bb = bb;
 		BasicBlock *new_rescue_bb = NULL;
 		rescue_bb = NULL;
-		bb = BasicBlock::Create("MainBlock", f);
+		bb = BasicBlock::Create(context, "MainBlock", f);
 
 		std::map<ID, Value *> old_lvars = lvars;
 		lvars.clear();
@@ -3044,7 +3012,7 @@ RoxorCompiler::compile_node(NODE *node)
 			current_var_uses = new AllocaInst(PtrTy, "", bb);
 			new StoreInst(compile_const_pointer(NULL), current_var_uses, bb);
 
-			new_rescue_bb = BasicBlock::Create("rescue_save_vars", f);
+			new_rescue_bb = BasicBlock::Create(context, "rescue_save_vars", f);
 			rescue_bb = new_rescue_bb;
 		    }
 
@@ -3091,7 +3059,7 @@ RoxorCompiler::compile_node(NODE *node)
 
 		Value *val = NULL;
 		if (node->nd_body != NULL) {
-		    entry_bb = BasicBlock::Create("entry_point", f); 
+		    entry_bb = BasicBlock::Create(context, "entry_point", f); 
 		    BranchInst::Create(entry_bb, bb);
 		    bb = entry_bb;
 
@@ -3108,7 +3076,7 @@ RoxorCompiler::compile_node(NODE *node)
 		    val = nilVal;
 		}
 
-		ReturnInst::Create(val, bb);
+		ReturnInst::Create(context, val, bb);
 
 		// current_lvar_uses has 2 uses or more if it is really used
 		// (there is always a StoreInst in which we assign it NULL)
@@ -3151,7 +3119,8 @@ RoxorCompiler::compile_node(NODE *node)
 			bb = new_rescue_bb;
 			compile_landing_pad_header();
 
-			BasicBlock *mergeBB = BasicBlock::Create("merge", f);
+			BasicBlock *mergeBB = BasicBlock::Create(context,
+				"merge", f);
 			compile_keep_vars(new_rescue_bb, mergeBB);
 
 			bb = mergeBB;
@@ -3290,19 +3259,21 @@ RoxorCompiler::compile_node(NODE *node)
 		}
 
 
-		Value *falseCond = new ICmpInst(ICmpInst::ICMP_EQ, recvVal, falseVal, "", bb);
+		Value *falseCond = new ICmpInst(*bb, ICmpInst::ICMP_EQ,
+			recvVal, falseVal);
 
 		Function *f = bb->getParent();
 
-		BasicBlock *falseBB = BasicBlock::Create("", f);
-		BasicBlock *elseBB  = BasicBlock::Create("", f);
-		BasicBlock *trueBB = BasicBlock::Create("", f);
-		BasicBlock *mergeBB = BasicBlock::Create("", f);
+		BasicBlock *falseBB = BasicBlock::Create(context, "", f);
+		BasicBlock *elseBB  = BasicBlock::Create(context, "", f);
+		BasicBlock *trueBB = BasicBlock::Create(context, "", f);
+		BasicBlock *mergeBB = BasicBlock::Create(context, "", f);
 
 		BranchInst::Create(falseBB, trueBB, falseCond, bb);
 
 		bb = trueBB;
-		Value *nilCond = new ICmpInst(ICmpInst::ICMP_EQ, recvVal, nilVal, "", bb);
+		Value *nilCond = new ICmpInst(*bb, ICmpInst::ICMP_EQ, recvVal,
+			nilVal);
 		BranchInst::Create(falseBB, elseBB, nilCond, bb);
 
 		bb = falseBB;
@@ -3330,9 +3301,9 @@ RoxorCompiler::compile_node(NODE *node)
 
 		Function *f = bb->getParent();
 
-		BasicBlock *notNilBB = BasicBlock::Create("", f);
-		BasicBlock *elseBB  = BasicBlock::Create("", f);
-		BasicBlock *mergeBB = BasicBlock::Create("", f);
+		BasicBlock *notNilBB = BasicBlock::Create(context, "", f);
+		BasicBlock *elseBB  = BasicBlock::Create(context, "", f);
+		BasicBlock *mergeBB = BasicBlock::Create(context, "", f);
 
 		compile_boolean_test(recvVal, notNilBB, elseBB);
 
@@ -3385,7 +3356,7 @@ RoxorCompiler::compile_node(NODE *node)
 		params.push_back(recv);
 		params.push_back(compile_sel(sel));
 		params.push_back(compile_const_pointer(NULL));
-		params.push_back(ConstantInt::get(Type::Int8Ty, 0));
+		params.push_back(ConstantInt::get(Int8Ty, 0));
 
 		int argc = 0;
 		std::vector<Value *> arguments;
@@ -3395,7 +3366,7 @@ RoxorCompiler::compile_node(NODE *node)
 			    arguments,
 			    &argc);
 		}
-		params.push_back(ConstantInt::get(Type::Int32Ty, argc));
+		params.push_back(ConstantInt::get(Int32Ty, argc));
 		for (std::vector<Value *>::iterator i = arguments.begin();
 			i != arguments.end(); ++i) {
 		    params.push_back(*i);
@@ -3419,9 +3390,9 @@ RoxorCompiler::compile_node(NODE *node)
 		    // 0 means OR, 1 means AND
 		    Function *f = bb->getParent();
 
-		    touchedBB = BasicBlock::Create("", f);
-		    untouchedBB  = BasicBlock::Create("", f);
-		    mergeBB = BasicBlock::Create("merge", f);
+		    touchedBB = BasicBlock::Create(context, "", f);
+		    untouchedBB  = BasicBlock::Create(context, "", f);
+		    mergeBB = BasicBlock::Create(context, "merge", f);
 
 		    if (type == 0) {
 			compile_boolean_test(tmp, untouchedBB, touchedBB);
@@ -3444,8 +3415,8 @@ RoxorCompiler::compile_node(NODE *node)
 		    params.push_back(tmp);
 		    params.push_back(compile_sel(sel));
 		    params.push_back(compile_const_pointer(NULL));
-		    params.push_back(ConstantInt::get(Type::Int8Ty, 0));
-		    params.push_back(ConstantInt::get(Type::Int32Ty, 1));
+		    params.push_back(ConstantInt::get(Int8Ty, 0));
+		    params.push_back(ConstantInt::get(Int32Ty, 1));
 		    params.push_back(compile_node(value));
 
 		    tmp2 = compile_optimized_dispatch_call(sel, 1, params);
@@ -3468,9 +3439,9 @@ RoxorCompiler::compile_node(NODE *node)
 		params.push_back(recv);
 		params.push_back(compile_sel(sel));
 		params.push_back(compile_const_pointer(NULL));
-		params.push_back(ConstantInt::get(Type::Int8Ty, 0));
+		params.push_back(ConstantInt::get(Int8Ty, 0));
 		argc++;
-		params.push_back(ConstantInt::get(Type::Int32Ty, argc));
+		params.push_back(ConstantInt::get(Int32Ty, argc));
 		for (std::vector<Value *>::iterator i = arguments.begin();
 		     i != arguments.end(); ++i) {
 		    params.push_back(*i);
@@ -3519,9 +3490,8 @@ RoxorCompiler::compile_node(NODE *node)
 		params.push_back(current_self);
 		params.push_back(compile_sel(selBackquote));
 		params.push_back(compile_const_pointer(NULL));
-		params.push_back(ConstantInt::get(Type::Int8Ty,
-			    DISPATCH_FCALL));
-		params.push_back(ConstantInt::get(Type::Int32Ty, 1));
+		params.push_back(ConstantInt::get(Int8Ty, DISPATCH_FCALL));
+		params.push_back(ConstantInt::get(Int32Ty, 1));
 		params.push_back(str);
 
 		return compile_dispatch_call(params);
@@ -3540,12 +3510,12 @@ RoxorCompiler::compile_node(NODE *node)
 		if (newRegexpFunc == NULL) {
 		    newRegexpFunc = cast<Function>(module->getOrInsertFunction(
 				"rb_reg_new_str",
-				RubyObjTy, RubyObjTy, Type::Int32Ty, NULL));
+				RubyObjTy, RubyObjTy, Int32Ty, NULL));
 		}
 
 		std::vector<Value *> params;
 		params.push_back(val);
-		params.push_back(ConstantInt::get(Type::Int32Ty, flag));
+		params.push_back(ConstantInt::get(Int32Ty, flag));
 
 		return compile_protected_call(newRegexpFunc, params);
 	    }
@@ -3584,29 +3554,41 @@ RoxorCompiler::compile_node(NODE *node)
 
 		Function *f = bb->getParent();
 
-		BasicBlock *leftNotFalseBB = BasicBlock::Create("left_not_false", f);
-		BasicBlock *leftNotTrueBB = BasicBlock::Create("left_not_true", f);
-		BasicBlock *leftTrueBB = BasicBlock::Create("left_is_true", f);
-		BasicBlock *rightNotFalseBB = BasicBlock::Create("right_not_false", f);
-		BasicBlock *rightTrueBB = BasicBlock::Create("right_is_true", f);
-		BasicBlock *failBB = BasicBlock::Create("fail", f);
-		BasicBlock *mergeBB = BasicBlock::Create("merge", f);
+		BasicBlock *leftNotFalseBB = BasicBlock::Create(context,
+			"left_not_false", f);
+		BasicBlock *leftNotTrueBB = BasicBlock::Create(context,
+			"left_not_true", f);
+		BasicBlock *leftTrueBB = BasicBlock::Create(context,
+			"left_is_true", f);
+		BasicBlock *rightNotFalseBB = BasicBlock::Create(context,
+			"right_not_false", f);
+		BasicBlock *rightTrueBB = BasicBlock::Create(context,
+			"right_is_true", f);
+		BasicBlock *failBB = BasicBlock::Create(context, "fail", f);
+		BasicBlock *mergeBB = BasicBlock::Create(context, "merge", f);
 
 		Value *leftVal = compile_node(left);
-		Value *leftNotFalseCond = new ICmpInst(ICmpInst::ICMP_NE, leftVal, falseVal, "", bb);
-		BranchInst::Create(leftNotFalseBB, leftNotTrueBB, leftNotFalseCond, bb);
+		Value *leftNotFalseCond = new ICmpInst(*bb, ICmpInst::ICMP_NE,
+			leftVal, falseVal);
+		BranchInst::Create(leftNotFalseBB, leftNotTrueBB,
+			leftNotFalseCond, bb);
 
 		bb = leftNotFalseBB;
-		Value *leftNotNilCond = new ICmpInst(ICmpInst::ICMP_NE, leftVal, nilVal, "", bb);
-		BranchInst::Create(leftTrueBB, leftNotTrueBB, leftNotNilCond, bb);
+		Value *leftNotNilCond = new ICmpInst(*bb, ICmpInst::ICMP_NE,
+			leftVal, nilVal);
+		BranchInst::Create(leftTrueBB, leftNotTrueBB, leftNotNilCond,
+			bb);
 
 		bb = leftNotTrueBB;
 		Value *rightVal = compile_node(right);
-		Value *rightNotFalseCond = new ICmpInst(ICmpInst::ICMP_NE, rightVal, falseVal, "", bb);
-		BranchInst::Create(rightNotFalseBB, failBB, rightNotFalseCond, bb);
+		Value *rightNotFalseCond = new ICmpInst(*bb, ICmpInst::ICMP_NE,
+			rightVal, falseVal);
+		BranchInst::Create(rightNotFalseBB, failBB, rightNotFalseCond,
+			bb);
 
 		bb = rightNotFalseBB;
-		Value *rightNotNilCond = new ICmpInst(ICmpInst::ICMP_NE, rightVal, nilVal, "", bb);
+		Value *rightNotNilCond = new ICmpInst(*bb, ICmpInst::ICMP_NE,
+			rightVal, nilVal);
 		BranchInst::Create(rightTrueBB, failBB, rightNotNilCond, bb);
 
 		BranchInst::Create(mergeBB, leftTrueBB);
@@ -3633,30 +3615,41 @@ RoxorCompiler::compile_node(NODE *node)
 
 		Function *f = bb->getParent();
 
-		BasicBlock *leftNotFalseBB = BasicBlock::Create("left_not_false", f);
-		BasicBlock *leftTrueBB = BasicBlock::Create("left_is_true", f);
-		BasicBlock *rightNotFalseBB = BasicBlock::Create("right_not_false", f);
-		BasicBlock *leftFailBB = BasicBlock::Create("left_fail", f);
-		BasicBlock *rightFailBB = BasicBlock::Create("right_fail", f);
-		BasicBlock *successBB = BasicBlock::Create("success", f);
-		BasicBlock *mergeBB = BasicBlock::Create("merge", f);
+		BasicBlock *leftNotFalseBB = BasicBlock::Create(context,
+			"left_not_false", f);
+		BasicBlock *leftTrueBB = BasicBlock::Create(context,
+			"left_is_true", f);
+		BasicBlock *rightNotFalseBB = BasicBlock::Create(context,
+			"right_not_false", f);
+		BasicBlock *leftFailBB = BasicBlock::Create(context,
+			"left_fail", f);
+		BasicBlock *rightFailBB = BasicBlock::Create(context,
+			"right_fail", f);
+		BasicBlock *successBB = BasicBlock::Create(context, "success",
+			f);
+		BasicBlock *mergeBB = BasicBlock::Create(context, "merge", f);
 
 		Value *leftVal = compile_node(left);
-		Value *leftNotFalseCond = new ICmpInst(ICmpInst::ICMP_NE, leftVal, falseVal, "", bb);
-		BranchInst::Create(leftNotFalseBB, leftFailBB, leftNotFalseCond, bb);
+		Value *leftNotFalseCond = new ICmpInst(*bb, ICmpInst::ICMP_NE,
+			leftVal, falseVal);
+		BranchInst::Create(leftNotFalseBB, leftFailBB,
+			leftNotFalseCond, bb);
 
 		bb = leftNotFalseBB;
-		Value *leftNotNilCond = new ICmpInst(ICmpInst::ICMP_NE, leftVal, nilVal, "", bb);
+		Value *leftNotNilCond = new ICmpInst(*bb, ICmpInst::ICMP_NE,
+			leftVal, nilVal);
 		BranchInst::Create(leftTrueBB, leftFailBB, leftNotNilCond, bb);
 
 		bb = leftTrueBB;
 		Value *rightVal = compile_node(right);
-		Value *rightNotFalseCond = new ICmpInst(ICmpInst::ICMP_NE, rightVal, falseVal, "", bb);
+		Value *rightNotFalseCond = new ICmpInst(*bb, ICmpInst::ICMP_NE,
+			rightVal, falseVal);
 
 		BranchInst::Create(rightNotFalseBB, rightFailBB, rightNotFalseCond, bb);
 
 		bb = rightNotFalseBB;
-		Value *rightNotNilCond = new ICmpInst(ICmpInst::ICMP_NE, rightVal, nilVal, "", bb);
+		Value *rightNotNilCond = new ICmpInst(*bb, ICmpInst::ICMP_NE,
+			rightVal, nilVal);
 		BranchInst::Create(successBB, rightFailBB, rightNotNilCond, bb);
 
 		BranchInst::Create(mergeBB, successBB);
@@ -3679,9 +3672,9 @@ RoxorCompiler::compile_node(NODE *node)
 
 		Function *f = bb->getParent();
 
-		BasicBlock *thenBB = BasicBlock::Create("then", f);
-		BasicBlock *elseBB  = BasicBlock::Create("else", f);
-		BasicBlock *mergeBB = BasicBlock::Create("merge", f);
+		BasicBlock *thenBB = BasicBlock::Create(context, "then", f);
+		BasicBlock *elseBB  = BasicBlock::Create(context, "else", f);
+		BasicBlock *mergeBB = BasicBlock::Create(context, "merge", f);
 
 		compile_boolean_test(condVal, thenBB, elseBB);
 
@@ -3733,7 +3726,7 @@ RoxorCompiler::compile_node(NODE *node)
 				module->getOrInsertFunction(
 				    "rb_vm_define_class",
 				    RubyObjTy, IntTy, RubyObjTy, RubyObjTy,
-				    Type::Int32Ty, Type::Int8Ty, NULL));
+				    Int32Ty, Int8Ty, NULL));
 		    }
 
 		    std::vector<Value *> params;
@@ -3750,8 +3743,8 @@ RoxorCompiler::compile_node(NODE *node)
 		    if (outer) {
 			flags |= DEFINE_OUTER;
 		    }
-		    params.push_back(ConstantInt::get(Type::Int32Ty, flags));
-		    params.push_back(ConstantInt::get(Type::Int8Ty,
+		    params.push_back(ConstantInt::get(Int32Ty, flags));
+		    params.push_back(ConstantInt::get(Int8Ty,
 				outer && dynamic_class ? 1 : 0));
 
 		    classVal = compile_protected_call(defineClassFunc, params);
@@ -3771,12 +3764,8 @@ RoxorCompiler::compile_node(NODE *node)
 
 			GlobalVariable *old_class = current_opened_class;
 			current_opened_class = new GlobalVariable(
-				RubyObjTy,
-				false,
-				GlobalValue::InternalLinkage,
-				nilVal,
-				"current_opened_class",
-				RoxorCompiler::module);
+				*RoxorCompiler::module, RubyObjTy, false,
+				GlobalValue::InternalLinkage, nilVal, "");
 
 			bool old_current_module = current_module;
 
@@ -3949,13 +3938,12 @@ rescan_args:
 			? DISPATCH_VCALL
 			: (nd_type(node) == NODE_FCALL)
 			    ? DISPATCH_FCALL : 0;	
-		params.push_back(ConstantInt::get(Type::Int8Ty, call_opt));
+		params.push_back(ConstantInt::get(Int8Ty, call_opt));
 
 		// Arguments.
 		int argc = 0;
 		if (nd_type(node) == NODE_ZSUPER) {
-		    params.push_back(ConstantInt::get(Type::Int32Ty,
-				fargs_arity));
+		    params.push_back(ConstantInt::get(Int32Ty, fargs_arity));
 		    Function::ArgumentListType::iterator iter = fargs.begin();
 		    iter++; // skip self
 		    iter++; // skip sel
@@ -3977,14 +3965,14 @@ rescan_args:
 		else if (real_args != NULL) {
 		    std::vector<Value *> arguments;
 		    compile_dispatch_arguments(real_args, arguments, &argc);
-		    params.push_back(ConstantInt::get(Type::Int32Ty, argc));
+		    params.push_back(ConstantInt::get(Int32Ty, argc));
 		    for (std::vector<Value *>::iterator i = arguments.begin();
 			 i != arguments.end(); ++i) {
 			params.push_back(*i);
 		    }
 		}
 		else {
-		    params.push_back(ConstantInt::get(Type::Int32Ty, 0));
+		    params.push_back(ConstantInt::get(Int32Ty, 0));
 		}
 
 		// Restore the block state.
@@ -4141,7 +4129,7 @@ rescan_args:
 		if (newArrayFunc == NULL) {
 		    // VALUE rb_ary_new_fast(int argc, ...);
 		    std::vector<const Type *> types;
-		    types.push_back(Type::Int32Ty);
+		    types.push_back(Int32Ty);
 		    FunctionType *ft = FunctionType::get(RubyObjTy, types, true);
 		    newArrayFunc = cast<Function>(module->getOrInsertFunction("rb_ary_new_fast", ft));
 		}
@@ -4149,13 +4137,13 @@ rescan_args:
 		std::vector<Value *> params;
 
 		if (nd_type(node) == NODE_ZARRAY) {
-		    params.push_back(ConstantInt::get(Type::Int32Ty, 0));
+		    params.push_back(ConstantInt::get(Int32Ty, 0));
 		}
 		else {
 		    const int count = node->nd_alen;
 		    NODE *n = node;
 		    
-		    params.push_back(ConstantInt::get(Type::Int32Ty, count));
+		    params.push_back(ConstantInt::get(Int32Ty, count));
 
 		    for (int i = 0; i < count; i++) {
 			assert(n->nd_head != NULL);
@@ -4173,7 +4161,7 @@ rescan_args:
 		if (newHashFunc == NULL) {
 		    // VALUE rb_hash_new_fast(int argc, ...);
 		    std::vector<const Type *> types;
-		    types.push_back(Type::Int32Ty);
+		    types.push_back(Int32Ty);
 		    FunctionType *ft = FunctionType::get(RubyObjTy, types, true);
 		    newHashFunc = cast<Function>(module->getOrInsertFunction("rb_hash_new_fast", ft));
 		}
@@ -4186,7 +4174,7 @@ rescan_args:
 		    assert(count % 2 == 0);
 		    NODE *n = node->nd_head;
 
-		    params.push_back(ConstantInt::get(Type::Int32Ty, count));
+		    params.push_back(ConstantInt::get(Int32Ty, count));
 
 		    for (int i = 0; i < count; i += 2) {
 			Value *key = compile_node(n->nd_head);
@@ -4199,7 +4187,7 @@ rescan_args:
 		    }
 		}
 		else {
-		    params.push_back(ConstantInt::get(Type::Int32Ty, 0));
+		    params.push_back(ConstantInt::get(Int32Ty, 0));
 		}
 
 		return cast<Value>(CallInst::Create(newHashFunc, 
@@ -4265,8 +4253,8 @@ rescan_args:
 		params.push_back(reTarget);
 		params.push_back(compile_sel(selEqTilde));
 		params.push_back(compile_const_pointer(NULL));
-		params.push_back(ConstantInt::get(Type::Int8Ty, 0));
-		params.push_back(ConstantInt::get(Type::Int32Ty, 1));
+		params.push_back(ConstantInt::get(Int8Ty, 0));
+		params.push_back(ConstantInt::get(Int32Ty, 1));
 		params.push_back(reSource);
 
 		return compile_dispatch_call(params);
@@ -4284,7 +4272,7 @@ rescan_args:
 		if (valiasFunc == NULL) {
 		    // void rb_alias_variable(ID from, ID to);
 		    valiasFunc = cast<Function>(module->getOrInsertFunction("rb_alias_variable",
-				Type::VoidTy, IntTy, IntTy, NULL));
+				VoidTy, IntTy, IntTy, NULL));
 		}
 
 		std::vector<Value *> params;
@@ -4306,7 +4294,7 @@ rescan_args:
 		    //	unsigned char dynamic_class);
 		    aliasFunc = cast<Function>(module->getOrInsertFunction(
 				"rb_vm_alias2",
-				Type::VoidTy, RubyObjTy, IntTy, IntTy, Type::Int8Ty,
+				VoidTy, RubyObjTy, IntTy, IntTy, Int8Ty,
 				NULL));
 		}
 
@@ -4315,7 +4303,7 @@ rescan_args:
 		params.push_back(compile_current_class());
 		params.push_back(compile_id(node->u1.node->u1.node->u2.id));
 		params.push_back(compile_id(node->u2.node->u1.node->u2.id));
-		params.push_back(ConstantInt::get(Type::Int8Ty,
+		params.push_back(ConstantInt::get(Int8Ty,
 			    dynamic_class ? 1 : 0));
 
 		compile_protected_call(aliasFunc, params);
@@ -4385,8 +4373,7 @@ rescan_args:
 		    undefFunc =
 			cast<Function>(module->getOrInsertFunction(
 				"rb_vm_undef",
-				Type::VoidTy, RubyObjTy, IntTy, Type::Int8Ty,
-				NULL));
+				VoidTy, RubyObjTy, IntTy, Int8Ty, NULL));
 		}
 
 		assert(node->u2.node != NULL);
@@ -4395,7 +4382,7 @@ rescan_args:
 		std::vector<Value *> params;
 		params.push_back(compile_current_class());
 		params.push_back(compile_id(name));
-		params.push_back(ConstantInt::get(Type::Int8Ty,
+		params.push_back(ConstantInt::get(Int8Ty,
 			    dynamic_class ? 1 : 0));
 
 		compile_protected_call(undefFunc, params);
@@ -4425,11 +4412,11 @@ rescan_args:
 		    // VALUE rb_vm_get_special(char code);
 		    getSpecialFunc =
 			cast<Function>(module->getOrInsertFunction("rb_vm_get_special",
-				RubyObjTy, Type::Int8Ty, NULL));
+				RubyObjTy, Int8Ty, NULL));
 		}
 
 		std::vector<Value *> params;
-		params.push_back(ConstantInt::get(Type::Int8Ty, code));
+		params.push_back(ConstantInt::get(Int8Ty, code));
 
 		return CallInst::Create(getSpecialFunc, params.begin(), params.end(), "", bb);
 	    }
@@ -4446,11 +4433,11 @@ rescan_args:
 		Function *f = bb->getParent();
 
 		BasicBlock *old_begin_bb = begin_bb;
-		begin_bb = BasicBlock::Create("begin", f);
+		begin_bb = BasicBlock::Create(context, "begin", f);
 
 		BasicBlock *old_rescue_bb = rescue_bb;
-		BasicBlock *new_rescue_bb = BasicBlock::Create("rescue", f);
-		BasicBlock *merge_bb = BasicBlock::Create("merge", f);
+		BasicBlock *new_rescue_bb = BasicBlock::Create(context, "rescue", f);
+		BasicBlock *merge_bb = BasicBlock::Create(context, "merge", f);
 
 		// Begin code.
 		BranchInst::Create(begin_bb, bb);
@@ -4460,7 +4447,7 @@ rescan_args:
 		rescue_bb = old_rescue_bb;
 
 		if (node->nd_else != NULL) {
-		    BasicBlock *else_bb = BasicBlock::Create("else", f);
+		    BasicBlock *else_bb = BasicBlock::Create(context, "else", f);
 		    BranchInst::Create(else_bb, bb);
 		    bb = else_bb;
 		    not_rescued_val = compile_node(node->nd_else);
@@ -4502,7 +4489,7 @@ rescan_args:
 		NODE *n = node;
 
 		Function *f = bb->getParent();
-		BasicBlock *merge_bb = BasicBlock::Create("merge", f);
+		BasicBlock *merge_bb = BasicBlock::Create(context, "merge", f);
 		BasicBlock *handler_bb = NULL;
 
 		std::vector<std::pair<Value *, BasicBlock *> > handlers;
@@ -4534,8 +4521,8 @@ rescan_args:
 		    if (isEHActiveFunc == NULL) {
 			// bool rb_vm_is_eh_active(int argc, ...);
 			std::vector<const Type *> types;
-			types.push_back(Type::Int32Ty);
-			FunctionType *ft = FunctionType::get(Type::Int8Ty,
+			types.push_back(Int32Ty);
+			FunctionType *ft = FunctionType::get(Int8Ty,
 				types, true);
 			isEHActiveFunc = cast<Function>(
 				module->getOrInsertFunction(
@@ -4544,19 +4531,19 @@ rescan_args:
 
 		    const int size = exceptions_to_catch.size();
 		    exceptions_to_catch.insert(exceptions_to_catch.begin(), 
-			    ConstantInt::get(Type::Int32Ty, size));
+			    ConstantInt::get(Int32Ty, size));
 
 		    Value *handler_active = CallInst::Create(isEHActiveFunc, 
 			    exceptions_to_catch.begin(), 
 			    exceptions_to_catch.end(), "", bb);
 
-		    Value *is_handler_active = new ICmpInst(ICmpInst::ICMP_EQ,
-			    handler_active,
-			    ConstantInt::get(Type::Int8Ty, 1), "", bb);
+		    Value *is_handler_active = new ICmpInst(*bb,
+			    ICmpInst::ICMP_EQ, handler_active,
+			    ConstantInt::get(Int8Ty, 1));
 		    
-		    handler_bb = BasicBlock::Create("handler", f);
+		    handler_bb = BasicBlock::Create(context, "handler", f);
 		    BasicBlock *next_handler_bb =
-			BasicBlock::Create("handler", f);
+			BasicBlock::Create(context, "handler", f);
 
 		    BranchInst::Create(handler_bb, next_handler_bb,
 			    is_handler_active, bb);
@@ -4621,9 +4608,9 @@ rescan_args:
 		BasicBlock *old_ensure_bb = ensure_bb;
 		PHINode *old_ensure_pn = ensure_pn;
 		// the ensure for when the block is left with a return
-		BasicBlock *ensure_return_bb = BasicBlock::Create("ensure.for.return", f);
+		BasicBlock *ensure_return_bb = BasicBlock::Create(context, "ensure.for.return", f);
 		// the ensure for when the block is left without using return
-		BasicBlock *ensure_normal_bb = BasicBlock::Create("ensure.no.return", f);
+		BasicBlock *ensure_normal_bb = BasicBlock::Create(context, "ensure.no.return", f);
 		PHINode *new_ensure_pn = PHINode::Create(RubyObjTy, "ensure.phi", ensure_return_bb);
 		ensure_pn = new_ensure_pn;
 		Value *val;
@@ -4635,7 +4622,7 @@ rescan_args:
 		    // we must call the head within an exception handler, then
 		    // branch on the ensure block, then re-raise the potential
 		    // exception.
-		    BasicBlock *new_rescue_bb = BasicBlock::Create("rescue", f);
+		    BasicBlock *new_rescue_bb = BasicBlock::Create(context, "rescue", f);
 		    BasicBlock *old_rescue_bb = rescue_bb;
 
 		    rescue_bb = new_rescue_bb;
@@ -4690,9 +4677,9 @@ rescan_args:
 
 		Function *f = bb->getParent();
 
-		BasicBlock *loopBB = BasicBlock::Create("loop", f);
-		BasicBlock *bodyBB = BasicBlock::Create("body", f);
-		BasicBlock *afterBB = BasicBlock::Create("after", f);
+		BasicBlock *loopBB = BasicBlock::Create(context, "loop", f);
+		BasicBlock *bodyBB = BasicBlock::Create(context, "body", f);
+		BasicBlock *afterBB = BasicBlock::Create(context, "after", f);
 
 		const bool first_pass_free = node->nd_state == 0;
 
@@ -4777,7 +4764,7 @@ rescan_args:
 		    // -block is implemented using a C++ exception.
 		    Function *f = bb->getParent();
 		    rescue_bb = return_from_block_bb = BasicBlock::Create(
-			    "return-from-block", f);
+			    context, "return-from-block", f);
 		}
 
 		current_loop_begin_bb = old_current_loop_begin_bb;
@@ -4804,8 +4791,8 @@ rescan_args:
 		    params.push_back(compile_node(node->nd_iter));
 		    params.push_back(compile_sel(selEach));
 		    params.push_back(compile_block_create(NULL));
-		    params.push_back(ConstantInt::get(Type::Int8Ty, 0));
-		    params.push_back(ConstantInt::get(Type::Int32Ty, 0));
+		    params.push_back(ConstantInt::get(Int8Ty, 0));
+		    params.push_back(ConstantInt::get(Int32Ty, 0));
 
 		    caller = compile_dispatch_call(params);
 		}
@@ -4832,7 +4819,7 @@ rescan_args:
 		if (yieldFunc == NULL) {
 		    // VALUE rb_vm_yield_args(int argc, ...)
 		    std::vector<const Type *> types;
-		    types.push_back(Type::Int32Ty);
+		    types.push_back(Int32Ty);
 		    FunctionType *ft =
 			FunctionType::get(RubyObjTy, types, true);
 		    yieldFunc = cast<Function>(module->getOrInsertFunction(
@@ -4845,7 +4832,7 @@ rescan_args:
 		    compile_dispatch_arguments(node->nd_head, params, &argc);
 		}
 		params.insert(params.begin(),
-			ConstantInt::get(Type::Int32Ty, argc));
+			ConstantInt::get(Int32Ty, argc));
 
 		return compile_protected_call(yieldFunc, params);
 	    }
@@ -4873,7 +4860,7 @@ rescan_args:
 	case NODE_CASE:
 	    {
 		Function *f = bb->getParent();
-		BasicBlock *caseMergeBB = BasicBlock::Create("case_merge", f);
+		BasicBlock *caseMergeBB = BasicBlock::Create(context, "case_merge", f);
 
 		PHINode *pn = PHINode::Create(RubyObjTy, "case_tmp",
 			caseMergeBB);
@@ -4892,7 +4879,7 @@ rescan_args:
 		    NODE *valueNode = subnode->nd_head;
 		    assert(valueNode != NULL);
 
-		    BasicBlock *thenBB = BasicBlock::Create("then", f);
+		    BasicBlock *thenBB = BasicBlock::Create(context, "then", f);
 
 		    compile_when_arguments(valueNode, comparedToVal, thenBB);
 		    BasicBlock *nextWhenBB = bb;
@@ -4941,8 +4928,8 @@ rescan_args:
 		params.push_back(compile_nsobject());
 		params.push_back(compile_sel(sel));
 		params.push_back(compile_block_create(NULL));
-		params.push_back(ConstantInt::get(Type::Int8Ty, 0));
-		params.push_back(ConstantInt::get(Type::Int32Ty, 0));
+		params.push_back(ConstantInt::get(Int8Ty, 0));
+		params.push_back(ConstantInt::get(Int32Ty, 0));
 
 		current_block_func = old_current_block_func;
 		current_block_node = old_current_block_node;
@@ -5036,8 +5023,8 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 	    compile_const_global_string(rb_id2name(name));
 
 	std::vector<Value *> idxs;
-	idxs.push_back(ConstantInt::get(Type::Int32Ty, 0));
-	idxs.push_back(ConstantInt::get(Type::Int32Ty, 0));
+	idxs.push_back(ConstantInt::get(Int32Ty, 0));
+	idxs.push_back(ConstantInt::get(Int32Ty, 0));
 	Instruction *load = GetElementPtrInst::Create(const_gvar,
 		idxs.begin(), idxs.end(), "");
 
@@ -5071,8 +5058,8 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 	    compile_const_global_string(sel_getName(sel));
 
 	std::vector<Value *> idxs;
-	idxs.push_back(ConstantInt::get(Type::Int32Ty, 0));
-	idxs.push_back(ConstantInt::get(Type::Int32Ty, 0));
+	idxs.push_back(ConstantInt::get(Int32Ty, 0));
+	idxs.push_back(ConstantInt::get(Int32Ty, 0));
 	Instruction *load = GetElementPtrInst::Create(sel_gvar,
 		idxs.begin(), idxs.end(), "");
 
@@ -5097,7 +5084,7 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 
     Function *newRegexp2Func =
 	cast<Function>(module->getOrInsertFunction("rb_reg_new",
-		    RubyObjTy, PtrTy, Type::Int32Ty, Type::Int32Ty, NULL));
+		    RubyObjTy, PtrTy, Int32Ty, Int32Ty, NULL));
 
     Function *getClassFunc =
 	cast<Function>(module->getOrInsertFunction("objc_getClass",
@@ -5119,8 +5106,8 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 			compile_const_global_string(class_getName((Class)val));
 
 		    std::vector<Value *> idxs;
-		    idxs.push_back(ConstantInt::get(Type::Int32Ty, 0));
-		    idxs.push_back(ConstantInt::get(Type::Int32Ty, 0));
+		    idxs.push_back(ConstantInt::get(Int32Ty, 0));
+		    idxs.push_back(ConstantInt::get(Int32Ty, 0));
 		    Instruction *load = GetElementPtrInst::Create(kname_gvar,
 			    idxs.begin(), idxs.end(), "");
 
@@ -5151,16 +5138,16 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 			    compile_const_global_string(re->str, re->len);
 
 			std::vector<Value *> idxs;
-			idxs.push_back(ConstantInt::get(Type::Int32Ty, 0));
-			idxs.push_back(ConstantInt::get(Type::Int32Ty, 0));
+			idxs.push_back(ConstantInt::get(Int32Ty, 0));
+			idxs.push_back(ConstantInt::get(Int32Ty, 0));
 			re_str = GetElementPtrInst::Create(rename_gvar,
 				idxs.begin(), idxs.end(), "");
 		    }
 
 		    std::vector<Value *> params;
 		    params.push_back(re_str);
-		    params.push_back(ConstantInt::get(Type::Int32Ty, re->len));
-		    params.push_back(ConstantInt::get(Type::Int32Ty,
+		    params.push_back(ConstantInt::get(Int32Ty, re->len));
+		    params.push_back(ConstantInt::get(Int32Ty,
 				re->ptr->options));
 
 		    Instruction *call = CallInst::Create(newRegexp2Func,
@@ -5182,8 +5169,8 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 			compile_const_global_string(symname);
 
 		    std::vector<Value *> idxs;
-		    idxs.push_back(ConstantInt::get(Type::Int32Ty, 0));
-		    idxs.push_back(ConstantInt::get(Type::Int32Ty, 0));
+		    idxs.push_back(ConstantInt::get(Int32Ty, 0));
+		    idxs.push_back(ConstantInt::get(Int32Ty, 0));
 		    Instruction *load = GetElementPtrInst::Create(symname_gvar,
 			    idxs.begin(), idxs.end(), "");
 
@@ -5277,8 +5264,8 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 	    compile_const_global_string(rb_id2name(name));
 
 	std::vector<Value *> idxs;
-	idxs.push_back(ConstantInt::get(Type::Int32Ty, 0));
-	idxs.push_back(ConstantInt::get(Type::Int32Ty, 0));
+	idxs.push_back(ConstantInt::get(Int32Ty, 0));
+	idxs.push_back(ConstantInt::get(Int32Ty, 0));
 	Instruction *load = GetElementPtrInst::Create(name_gvar,
 		idxs.begin(), idxs.end(), "");
 
@@ -5305,8 +5292,8 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 	GlobalVariable *nsobject = compile_const_global_string("NSObject");
 
 	std::vector<Value *> idxs;
-	idxs.push_back(ConstantInt::get(Type::Int32Ty, 0));
-	idxs.push_back(ConstantInt::get(Type::Int32Ty, 0));
+	idxs.push_back(ConstantInt::get(Int32Ty, 0));
+	idxs.push_back(ConstantInt::get(Int32Ty, 0));
 	Instruction *load = GetElementPtrInst::Create(nsobject,
 		idxs.begin(), idxs.end(), "");
 
@@ -5329,8 +5316,8 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 	GlobalVariable *toplevel = compile_const_global_string("TopLevel");
 
 	std::vector<Value *> idxs;
-	idxs.push_back(ConstantInt::get(Type::Int32Ty, 0));
-	idxs.push_back(ConstantInt::get(Type::Int32Ty, 0));
+	idxs.push_back(ConstantInt::get(Int32Ty, 0));
+	idxs.push_back(ConstantInt::get(Int32Ty, 0));
 	Instruction *load = GetElementPtrInst::Create(toplevel,
 		idxs.begin(), idxs.end(), "");
 
@@ -5353,9 +5340,9 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 
 	GlobalVariable *gvar = *i;
 
-	Instruction *call = new MallocInst(Type::Int32Ty, "");
+	Instruction *call = new MallocInst(Int32Ty, "");
 	Instruction *assign1 =
-	    new StoreInst(ConstantInt::getSigned(Type::Int32Ty, -1), call, "");
+	    new StoreInst(ConstantInt::getSigned(Int32Ty, -1), call, "");
 	Instruction *assign2 = new StoreInst(call, gvar, "");
 
 	list.insert(list.begin(), assign2);
@@ -5377,11 +5364,11 @@ RoxorCompiler::compile_read_attr(ID name)
     Function::arg_iterator arg = f->arg_begin();
     current_self = arg++;
 
-    bb = BasicBlock::Create("EntryBlock", f);
+    bb = BasicBlock::Create(context, "EntryBlock", f);
 
     Value *val = compile_ivar_read(name);
 
-    ReturnInst::Create(val, bb);
+    ReturnInst::Create(context, val, bb);
 
     return f;
 }
@@ -5397,11 +5384,11 @@ RoxorCompiler::compile_write_attr(ID name)
     arg++; // sel
     Value *new_val = arg++; // 1st argument
 
-    bb = BasicBlock::Create("EntryBlock", f);
+    bb = BasicBlock::Create(context, "EntryBlock", f);
 
     Value *val = compile_ivar_assignment(name, new_val);
 
-    ReturnInst::Create(val, bb);
+    ReturnInst::Create(context, val, bb);
 
     return f;
 }
@@ -5717,7 +5704,7 @@ RoxorCompiler::compile_get_struct_fields(Value *val, Value *buf,
     if (getStructFieldsFunc == NULL) {
 	getStructFieldsFunc = cast<Function>(module->getOrInsertFunction(
 		    "rb_vm_get_struct_fields",
-		    Type::VoidTy, RubyObjTy, RubyObjPtrTy, PtrTy, NULL));
+		    VoidTy, RubyObjTy, RubyObjPtrTy, PtrTy, NULL));
     }
 
     std::vector<Value *> params;
@@ -5867,7 +5854,7 @@ RoxorCompiler::compile_conversion_to_c(const char *type, Value *val,
 		rb_vm_bs_boxed_t *bs_boxed = GET_CORE()->find_bs_struct(type);
 		if (bs_boxed != NULL) {
 		    Value *fields = new AllocaInst(RubyObjTy,
-			    ConstantInt::get(Type::Int32Ty,
+			    ConstantInt::get(Int32Ty,
 				bs_boxed->as.s->fields_count), "", bb);
 
 		    compile_get_struct_fields(val, fields, bs_boxed);
@@ -5879,15 +5866,15 @@ RoxorCompiler::compile_conversion_to_c(const char *type, Value *val,
 
 			// Load field VALUE.
 			Value *fval = GetElementPtrInst::Create(fields,
-				ConstantInt::get(Type::Int32Ty, i), "", bb);
+				ConstantInt::get(Int32Ty, i), "", bb);
 			fval = new LoadInst(fval, "", bb);
 
 			// Get a pointer to the struct field. The extra 0 is
 			// needed because we are dealing with a pointer to the
 			// structure.
 			std::vector<Value *> slot_idx;
-			slot_idx.push_back(ConstantInt::get(Type::Int32Ty, 0));
-			slot_idx.push_back(ConstantInt::get(Type::Int32Ty, i));
+			slot_idx.push_back(ConstantInt::get(Int32Ty, 0));
+			slot_idx.push_back(ConstantInt::get(Int32Ty, i));
 			Value *fslot = GetElementPtrInst::Create(slot,
 				slot_idx.begin(), slot_idx.end(), "", bb);
 
@@ -5926,7 +5913,7 @@ RoxorCompiler::compile_conversion_to_c(const char *type, Value *val,
     params.push_back(slot);
 
     Function *func = cast<Function>(module->getOrInsertFunction(
-		func_name, Type::VoidTy, RubyObjTy,
+		func_name, VoidTy, RubyObjTy,
 		PointerType::getUnqual(convert_type(type)), NULL));
 
     CallInst::Create(func, params.begin(), params.end(), "", bb);
@@ -6020,14 +6007,14 @@ RoxorCompiler::compile_new_struct(Value *klass, std::vector<Value *> &fields)
     if (newStructFunc == NULL) {
 	std::vector<const Type *> types;
 	types.push_back(RubyObjTy);
-	types.push_back(Type::Int32Ty);
+	types.push_back(Int32Ty);
 	FunctionType *ft = FunctionType::get(RubyObjTy, types, true);
 
 	newStructFunc = cast<Function>(module->getOrInsertFunction(
 		    "rb_vm_new_struct", ft));
     }
 
-    Value *argc = ConstantInt::get(Type::Int32Ty, fields.size());
+    Value *argc = ConstantInt::get(Int32Ty, fields.size());
     fields.insert(fields.begin(), argc);
     fields.insert(fields.begin(), klass);
 
@@ -6063,8 +6050,8 @@ RoxorCompiler::compile_new_pointer(const char *type, Value *val)
 
     GlobalVariable *gvar = compile_const_global_string(type);
     std::vector<Value *> idxs;
-    idxs.push_back(ConstantInt::get(Type::Int32Ty, 0));
-    idxs.push_back(ConstantInt::get(Type::Int32Ty, 0));
+    idxs.push_back(ConstantInt::get(Int32Ty, 0));
+    idxs.push_back(ConstantInt::get(Int32Ty, 0));
     Instruction *load = GetElementPtrInst::Create(gvar,
 	    idxs.begin(), idxs.end(), "", bb);
     params.push_back(load);
@@ -6093,8 +6080,8 @@ RoxorCompiler::compile_conversion_to_ruby(const char *type,
 
 	case _C_BOOL:
 	    {
-		Value *is_true = new ICmpInst(ICmpInst::ICMP_EQ, val,
-			ConstantInt::get(Type::Int8Ty, 1), "", bb);
+		Value *is_true = new ICmpInst(*bb, ICmpInst::ICMP_EQ, val,
+			ConstantInt::get(Int8Ty, 1));
 		return SelectInst::Create(is_true, trueVal, falseVal, "", bb);
 	    }
 
@@ -6136,7 +6123,7 @@ RoxorCompiler::compile_conversion_to_ruby(const char *type,
 	    break;
 
 	case _C_FLT:
-	    val = new FPExtInst(val, Type::DoubleTy, "", bb);
+	    val = new FPExtInst(val, DoubleTy, "", bb);
 	    // fall through	
 	case _C_DBL:
 	    val = new BitCastInst(val, RubyObjTy, "", bb);
@@ -6209,7 +6196,7 @@ RoxorCompiler::convert_type(const char *type)
 
     switch (*type) {
 	case _C_VOID:
-	    return Type::VoidTy;
+	    return VoidTy;
 
 	case _C_ID:
 	case _C_CLASS:
@@ -6223,33 +6210,33 @@ RoxorCompiler::convert_type(const char *type)
 	case _C_BOOL:
 	case _C_UCHR:
 	case _C_CHR:
-	    return Type::Int8Ty;
+	    return Int8Ty;
 
 	case _C_SHT:
 	case _C_USHT:
-	    return Type::Int16Ty;
+	    return Int16Ty;
 
 	case _C_INT:
 	case _C_UINT:
-	    return Type::Int32Ty;
+	    return Int32Ty;
 
 	case _C_LNG:
 	case _C_ULNG:
 #if __LP64__
-	    return Type::Int64Ty;
+	    return Int64Ty;
 #else
-	    return Type::Int32Ty;
+	    return Int32Ty;
 #endif
 
 	case _C_FLT:
-	    return Type::FloatTy;
+	    return FloatTy;
 
 	case _C_DBL:
-	    return Type::DoubleTy;
+	    return DoubleTy;
 
 	case _C_LNG_LNG:
 	case _C_ULNG_LNG:
-	    return Type::Int64Ty;
+	    return Int64Ty;
 
 	case _C_STRUCT_B:
 	    rb_vm_bs_boxed_t *bs_boxed = GET_CORE()->find_bs_struct(type);
@@ -6262,7 +6249,7 @@ RoxorCompiler::convert_type(const char *type)
 			const char *ftype = bs_boxed->as.s->fields[i].type;
 			s_types.push_back(convert_type(ftype));
 		    }
-		    bs_boxed->type = StructType::get(s_types);
+		    bs_boxed->type = StructType::get(context, s_types);
 		    assert(bs_boxed->type != NULL);
 		}
 		return bs_boxed->type;
@@ -6285,8 +6272,7 @@ RoxorCompiler::compile_stub(const char *types, int argc, bool is_objc)
 	// }
 	f = cast<Function>(module->getOrInsertFunction("",
 		    RubyObjTy,
-		    PtrTy, RubyObjTy, PtrTy, Type::Int32Ty, RubyObjPtrTy,
-		    NULL));
+		    PtrTy, RubyObjTy, PtrTy, Int32Ty, RubyObjPtrTy, NULL));
     }
     else {
 	// VALUE stub(IMP imp, int argc, VALUE *argv)
@@ -6295,11 +6281,11 @@ RoxorCompiler::compile_stub(const char *types, int argc, bool is_objc)
 	// }
 	f = cast<Function>(module->getOrInsertFunction("",
 		    RubyObjTy,
-		    PtrTy, Type::Int32Ty, RubyObjPtrTy,
+		    PtrTy, Int32Ty, RubyObjPtrTy,
 		    NULL));
     }
 
-    bb = BasicBlock::Create("EntryBlock", f);
+    bb = BasicBlock::Create(context, "EntryBlock", f);
 
     Function::arg_iterator arg = f->arg_begin();
     Value *imp_arg = arg++;
@@ -6320,7 +6306,7 @@ RoxorCompiler::compile_stub(const char *types, int argc, bool is_objc)
 	f_types.push_back(PointerType::getUnqual(ret_type));
 	sret = new AllocaInst(ret_type, "", bb);
 	params.push_back(sret);
-	ret_type = Type::VoidTy;
+	ret_type = VoidTy;
     }
 
     if (is_objc) {
@@ -6369,7 +6355,7 @@ RoxorCompiler::compile_stub(const char *types, int argc, bool is_objc)
 	    f_types.push_back(f_type);
 	}
 
-	Value *index = ConstantInt::get(Type::Int32Ty, given_argc);
+	Value *index = ConstantInt::get(Int32Ty, given_argc);
 	Value *slot = GetElementPtrInst::Create(argv_arg, index, "", bb);
 	Value *arg_val = new LoadInst(slot, "", bb);
 	Value *new_val_slot = new AllocaInst(llvm_type, "", bb);
@@ -6403,7 +6389,7 @@ RoxorCompiler::compile_stub(const char *types, int argc, bool is_objc)
     }
     GetFirstType(types, buf, sizeof buf);
     retval = compile_conversion_to_ruby(buf, convert_type(buf), retval);
-    ReturnInst::Create(retval, bb);
+    ReturnInst::Create(context, retval, bb);
 
     return f;
 }
@@ -6479,7 +6465,7 @@ RoxorCompiler::compile_objc_stub(Function *ruby_func, IMP ruby_imp,
 	// the ABI.
 	f_types.push_back(PointerType::getUnqual(f_ret_type));
 	f_sret_type = f_ret_type;
-	f_ret_type = Type::VoidTy;
+	f_ret_type = VoidTy;
     }
 
     // self
@@ -6512,7 +6498,7 @@ RoxorCompiler::compile_objc_stub(Function *ruby_func, IMP ruby_imp,
     Function *f = cast<Function>(module->getOrInsertFunction("", ft));
     Function::arg_iterator arg = f->arg_begin();
 
-    bb = BasicBlock::Create("EntryBlock", f);
+    bb = BasicBlock::Create(context, "EntryBlock", f);
 
     Value *sret = NULL;
     int sret_i = 0;
@@ -6564,17 +6550,17 @@ RoxorCompiler::compile_objc_stub(Function *ruby_func, IMP ruby_imp,
 	    "", bb);
 
     // Convert the return value into Objective-C type (if any).
-    if (f_ret_type != Type::VoidTy) {
+    if (f_ret_type != VoidTy) {
 	ret_val = compile_conversion_to_c(ret_type.c_str(), ret_val,
 		new AllocaInst(f_ret_type, "", bb));
-	ReturnInst::Create(ret_val, bb);
+	ReturnInst::Create(context, ret_val, bb);
     }
     else if (sret != NULL) {
 	compile_conversion_to_c(ret_type.c_str(), ret_val, sret);
-	ReturnInst::Create(bb);
+	ReturnInst::Create(context, bb);
     }
     else {
-	ReturnInst::Create(bb);
+	ReturnInst::Create(context, bb);
     }
 
     return f;
@@ -6588,7 +6574,7 @@ RoxorCompiler::compile_block_caller(rb_vm_block_t *block)
     //     return rb_vm_block_eval2(block, rcv, argc, argv);
     // }
     Function *f = cast<Function>(module->getOrInsertFunction("",
-		RubyObjTy, RubyObjTy, PtrTy, Type::Int32Ty, RubyObjPtrTy,
+		RubyObjTy, RubyObjTy, PtrTy, Int32Ty, RubyObjPtrTy,
 		NULL));
     Function::arg_iterator arg = f->arg_begin();
     Value *rcv = arg++;
@@ -6596,12 +6582,12 @@ RoxorCompiler::compile_block_caller(rb_vm_block_t *block)
     Value *argc = arg++;
     Value *argv = arg++;
 
-    bb = BasicBlock::Create("EntryBlock", f);
+    bb = BasicBlock::Create(context, "EntryBlock", f);
 
     if (blockEvalFunc == NULL) {
 	blockEvalFunc = cast<Function>(module->getOrInsertFunction(
 		    "rb_vm_block_eval2",
-		    RubyObjTy, PtrTy, RubyObjTy, Type::Int32Ty, RubyObjPtrTy,
+		    RubyObjTy, PtrTy, RubyObjTy, Int32Ty, RubyObjPtrTy,
 		    NULL));
     }
     std::vector<Value *> params;
@@ -6612,7 +6598,7 @@ RoxorCompiler::compile_block_caller(rb_vm_block_t *block)
 
     Value *retval = compile_protected_call(blockEvalFunc, params);
 
-    ReturnInst::Create(retval, bb);
+    ReturnInst::Create(context, retval, bb);
 
     return f;
 }
@@ -6621,12 +6607,12 @@ Function *
 RoxorCompiler::compile_to_rval_convertor(const char *type)
 {
     // VALUE foo(void *ocval);
-    Function *f = cast<Function>(module->getOrInsertFunction("",
-		Type::VoidTy, PtrTy, NULL));
+    Function *f = cast<Function>(module->getOrInsertFunction("", VoidTy,
+		PtrTy, NULL));
     Function::arg_iterator arg = f->arg_begin();
     Value *ocval = arg++;
 
-    bb = BasicBlock::Create("EntryBlock", f);
+    bb = BasicBlock::Create(context, "EntryBlock", f);
 
     const Type *llvm_type = convert_type(type); 
     ocval = new BitCastInst(ocval, PointerType::getUnqual(llvm_type), "", bb);
@@ -6634,7 +6620,7 @@ RoxorCompiler::compile_to_rval_convertor(const char *type)
 
     Value *rval = compile_conversion_to_ruby(type, llvm_type, ocval);
 
-    ReturnInst::Create(rval, bb);
+    ReturnInst::Create(context, rval, bb);
 
     return f;
 }
@@ -6644,18 +6630,18 @@ RoxorCompiler::compile_to_ocval_convertor(const char *type)
 {
     // void foo(VALUE rval, void **ocval);
     Function *f = cast<Function>(module->getOrInsertFunction("",
-		Type::VoidTy, RubyObjTy, PtrTy, NULL));
+		VoidTy, RubyObjTy, PtrTy, NULL));
     Function::arg_iterator arg = f->arg_begin();
     Value *rval = arg++;
     Value *ocval = arg++;
 
-    bb = BasicBlock::Create("EntryBlock", f);
+    bb = BasicBlock::Create(context, "EntryBlock", f);
 
     const Type *llvm_type = convert_type(type);
     ocval = new BitCastInst(ocval, PointerType::getUnqual(llvm_type), "", bb);
     compile_conversion_to_c(type, rval, ocval);
 
-    ReturnInst::Create(bb);
+    ReturnInst::Create(context, bb);
 
     return f;
 }
