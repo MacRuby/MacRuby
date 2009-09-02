@@ -1,8 +1,14 @@
-For 0.5 (must do):
+For 0.5 RC1:
 
 [ ] fix irb Binding bugs
+[ ] sockets
+[ ] rubygems should work (modulo C extensions)
+
+For 0.5 (must do):
+
 [ ] implement Enumerable::Enumerator
-[ ] 32-bit should be back
+[/] 32-bit should be back
+[X] Array subclass for immediates
 [ ] Hash subclass for immediates
 [ ] backtracing / symbolication
 [ ] try/catch should use a C++ exception
@@ -10,11 +16,9 @@ For 0.5 (must do):
 [ ] fully implement FFI API
 [ ] support for bigdecimal
 [ ] support for json
-[ ] support for zlib
-[ ] sockets
+[/] support for zlib
 [ ] merge stdlib from 1.9.2 trunk
-[ ] rubygems should work (modulo C extensions)
-[ ] most language/core/library specs should run (modulo a very few exceptions)
+[/] most language/core/library specs should run (modulo a very few exceptions)
 [/] port all rb_define_method() calls to rb_objc_define_method()
 [/] port all rb_funcall() calls to rb_vm_call()
 [/] port all rb_num_coerce_bin() calls to rb_objc_num_coerce_bin()
@@ -27,10 +31,10 @@ For 0.5 (tentative):
 [ ] block inlining
 [ ] fast regexp =~
 [ ] rakefile-ize instruby.rb
-[ ] finish AOT compiler (only normal mode)
+[/] finish AOT compiler (only normal mode)
+[/] sync with LLVM 2.6 (DONE in llvm26 branch, blocked by LLVM regressions)
 [ ] multithreaded JIT
 [ ] debugger interface
-[ ] sync with LLVM 2.6 once it's released
 
 Porting from rb_define_method() to rb_objc_define_method():
 
