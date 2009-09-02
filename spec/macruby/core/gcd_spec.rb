@@ -28,12 +28,32 @@ if MACOSX_VERSION >= 10.6
     it "raises an ArgumentError if the given argument is not a valid priority symbol" do
       lambda { Dispatch::Queue.concurrent(:foo) }.should raise_error(ArgumentError)
     end
+    
+    it "should return the same queue object across invocations" do
+      a = Dispatch::Queue.concurrent(:low)
+      b = Dispatch::Queue.concurrent(:low)
+      a.should eql?(b)
+    end
+    
+    it "raises a TypeError if the provided priority is not a symbol" do
+      lambda { Dispatch::Queue.concurrent(42) }.should raise_error(TypeError)
+    end
   end
 
   describe "Dispatch::Queue.current" do
     it "returns an instance of Queue" do
       o = Dispatch::Queue.current
       o.should be_kind_of(Dispatch::Queue)
+    end
+    
+    it "should return the parent queue when inside an executing block" do
+      q = Dispatch::Queue.new('org.macruby.rubyspecs.gcd.test')
+      q2 = nil
+      q.dispatch do
+        q2 = Dispatch::Queue.current
+      end
+      q.dispatch(:true) {}
+      q.label.should == q2.label
     end
   end
 

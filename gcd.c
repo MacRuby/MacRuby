@@ -122,7 +122,7 @@ rb_queue_from_dispatch(dispatch_queue_t dq, bool should_retain)
  *  call-seq:
  *     Dispatch::Queue.concurrent(priority=:default)    => Dispatch::Queue
  *
- *  Returns a new concurrent dispatch queue.
+ *  Returns one of the global concurrent priority queues.
  * 
  *  A dispatch queue is a FIFO queue to which you can submit tasks in the form of a block. 
  *  Blocks submitted to dispatch queues are executed on a pool of threads fully 
@@ -187,6 +187,7 @@ rb_queue_get_concurrent(VALUE klass, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_queue_get_current(VALUE klass, SEL sel)
 {
+    // TODO: check this to see if we need to retain it
     return rb_queue_from_dispatch(dispatch_get_current_queue(), false);
 }
 
@@ -220,8 +221,9 @@ rb_queue_get_main(VALUE klass, SEL sel)
  *  Use this kind of GCD queue to ensure that tasks execute in a predictable order.
  *  It’s a good practice to identify a specific purpose for each serial queue, 
  *  such as protecting a resource or synchronizing key processes.
- *  Create as many of them as necessary, but avoid using them instead 
- *  of concurrent queues when you need to run many tasks simultaneously.
+ *  Create as many of them as necessary - serial queues are extremely lightweight 
+ *  (with a total memory footprint of less than 300 bytes); however, remember to 
+ *  use concurrent queues if you need to perform idempotent tasks in parallel.
  *  Dispatch queues need to be labeled and thereofore you need to pass a name 
  *  to create your queue. By convention, labels are in reverse-DNS style.
  *
@@ -554,9 +556,9 @@ rb_group_dispatch(VALUE self, SEL sel, VALUE target)
  *
  *
  *     gcdg = Dispatch::Group.new
- *     gcdg.notify { p 'bar' }
- *     gcdg.dispatch(Dispatch::Queue.concurrent) { p 'foo' }
- *
+ *     gcdg.notify { print 'bar' }
+ *     gcdg.dispatch(Dispatch::Queue.concurrent) { print 'foo' }
+ *     # prints 'foobar'
  */
 
 static VALUE
@@ -575,6 +577,22 @@ rb_group_notify(VALUE self, SEL sel, VALUE target)
     return Qnil;
 }
 
+/* 
+ *  call-seq:
+ *    grp.wait(timeout=nil)     => true or false
+ *
+ *  Waits until all the blocks associated with the <code>grp</code> have 
+ *  finished executing or until the specified <code>timeout</code> has elapsed.
+ *  The function will return <code>true</code> if the group became empty within 
+ *  the specified amount of time and will return <code>false</code> otherwise.
+ *  If the supplied timeout is nil, the function will wait indefinitely until 
+ *  the specified group becomes empty, always returning true.
+ *
+ *     q = Dispatch::Queue.new('org.macruby.documentation')
+ *     grp = Dispatch::Group.new
+ *     grp.dispatch(q) { sleep 4 }
+ *     grp.wait(5) # true
+ */
 static VALUE
 rb_group_wait(VALUE self, SEL sel, int argc, VALUE *argv)
 {
@@ -582,6 +600,7 @@ rb_group_wait(VALUE self, SEL sel, int argc, VALUE *argv)
     VALUE float_timeout;
     rb_scan_args(argc, argv, "01", &float_timeout);
     if (!NIL_P(float_timeout)) {
+        // TODO: watch out for overflow here, too
         double d = NUM2DBL(float_timeout);
         int64_t to = (int64_t)(d * NSEC_PER_SEC);
         timeout = dispatch_walltime(NULL, to);
