@@ -269,7 +269,9 @@ RoxorCompiler::compile_single_when_argument(NODE *arg, Value *comparedToVal, Bas
     bb = nextTestBB;
 }
 
-void RoxorCompiler::compile_boolean_test(Value *condVal, BasicBlock *ifTrueBB, BasicBlock *ifFalseBB)
+void
+RoxorCompiler::compile_boolean_test(Value *condVal, BasicBlock *ifTrueBB,
+	BasicBlock *ifFalseBB)
 {
     Function *f = bb->getParent();
     BasicBlock *notFalseBB = BasicBlock::Create(context, "not_false", f);
@@ -277,7 +279,8 @@ void RoxorCompiler::compile_boolean_test(Value *condVal, BasicBlock *ifTrueBB, B
     Value *notFalseCond = new ICmpInst(*bb, ICmpInst::ICMP_NE, condVal,
 	    falseVal);
     BranchInst::Create(notFalseBB, ifFalseBB, notFalseCond, bb);
-    Value *notNilCond = new ICmpInst(*bb, ICmpInst::ICMP_NE, condVal, nilVal);
+    Value *notNilCond = new ICmpInst(*notFalseBB, ICmpInst::ICMP_NE, condVal,
+	    nilVal);
     BranchInst::Create(ifTrueBB, ifFalseBB, notNilCond, notFalseBB);
 }
 
@@ -1509,7 +1512,8 @@ RoxorCompiler::compile_dstr(NODE *node)
 		    "rb_str_new_fast", ft));
     }
 
-    return CallInst::Create(newStringFunc, params.begin(), params.end(), "", bb);
+    return CallInst::Create(newStringFunc, params.begin(), params.end(), "",
+	    bb);
 }
 
 Value *
@@ -1536,7 +1540,8 @@ RoxorCompiler::compile_dvar_slot(ID name)
     Value *dvars_ary = fargs_i;
 
     Value *index = ConstantInt::get(Int32Ty, idx);
-    Value *slot = GetElementPtrInst::Create(dvars_ary, index, rb_id2name(name), bb);
+    Value *slot = GetElementPtrInst::Create(dvars_ary, index, rb_id2name(name),
+	    bb);
     return new LoadInst(slot, "", bb);
 }
 
@@ -1696,7 +1701,8 @@ RoxorCompiler::compile_jump(NODE *node)
     return val;
 }
 
-void RoxorCompiler::compile_simple_return(Value *val)
+void
+RoxorCompiler::compile_simple_return(Value *val)
 {
     if (ensure_bb != NULL) {
 	BranchInst::Create(ensure_bb, bb);
