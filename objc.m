@@ -320,7 +320,7 @@ rb_require_framework(VALUE recv, SEL sel, int argc, VALUE *argv)
     NSString *path;
     NSBundle *bundle;
     NSError *error;
-
+    
     rb_scan_args(argc, argv, "11", &framework, &search_network);
 
     Check_Type(framework, T_STRING);
@@ -379,6 +379,14 @@ rb_require_framework(VALUE recv, SEL sel, int argc, VALUE *argv)
 		stringByAppendingPathComponent:@"Library"];
 	    FIND_LOAD_PATH_IN_LIBRARY(dir); 
 	}
+	
+    dirs = [[[[NSProcessInfo processInfo] environment] valueForKey:@"DYLD_FRAMEWORK_PATH"] componentsSeparatedByString: @":"];
+    for (i = 0, count = [dirs count]; i < count; i++) {
+        NSString *dir = [dirs objectAtIndex:i];
+        path = [dir stringByAppendingPathComponent:frameworkName];
+        if ([fileManager fileExistsAtPath:path])
+            goto success;
+    }
 
 #undef FIND_LOAD_PATH_IN_LIBRARY
 
