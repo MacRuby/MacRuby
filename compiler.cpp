@@ -6,7 +6,7 @@
  * Copyright (C) 2008-2009, Apple Inc. All rights reserved.
  */
 
-#define ROXOR_COMPILER_DEBUG 	1
+#define ROXOR_COMPILER_DEBUG 	0
 
 #include "llvm.h"
 #include "ruby/ruby.h"
@@ -23,7 +23,7 @@ extern "C" const char *ruby_node_name(int node);
 llvm::Module *RoxorCompiler::module = NULL;
 RoxorCompiler *RoxorCompiler::shared = NULL;
 
-RoxorCompiler::RoxorCompiler()
+RoxorCompiler::RoxorCompiler(void)
 {
     fname = NULL;
     inside_eval = false;
@@ -317,8 +317,8 @@ RoxorCompiler::compile_when_arguments(NODE *args, Value *comparedToVal, BasicBlo
 }
 
 Function::ArgumentListType::iterator
-RoxorCompiler::compile_optional_arguments(Function::ArgumentListType::iterator iter,
-					  NODE *node)
+RoxorCompiler::compile_optional_arguments(
+	Function::ArgumentListType::iterator iter, NODE *node)
 {
     assert(nd_type(node) == NODE_OPT_ARG);
 

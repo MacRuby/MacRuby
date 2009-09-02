@@ -6,8 +6,8 @@
  * Copyright (C) 2008-2009, Apple Inc. All rights reserved.
  */
 
-#define ROXOR_VM_DEBUG		1
-#define ROXOR_COMPILER_DEBUG 	1	
+#define ROXOR_VM_DEBUG		0
+#define ROXOR_COMPILER_DEBUG 	0	
 
 #include <llvm/Module.h>
 #include <llvm/DerivedTypes.h>
@@ -224,20 +224,13 @@ RoxorCore::RoxorCore(void)
 	abort();
     }
 
-#if 0
-    std::string str =
-	ee->getTargetData()->getStringRepresentation();
-    RoxorCompiler::module->setDataLayout(str);
-    RoxorCompiler::module->setTargetTriple(LLVM_HOSTTRIPLE);
-#endif
-
     fpm = new FunctionPassManager(emp);
     fpm->add(new TargetData(*ee->getTargetData()));
 
-    // Eliminate unnecessary alloca.
-    fpm->add(createPromoteMemoryToRegisterPass());
     // Do simple "peephole" optimizations and bit-twiddling optzns.
     fpm->add(createInstructionCombiningPass());
+    // Eliminate unnecessary alloca.
+    fpm->add(createPromoteMemoryToRegisterPass());
     // Reassociate expressions.
     fpm->add(createReassociatePass());
     // Eliminate Common SubExpressions.
@@ -391,8 +384,10 @@ RoxorCore::compile(Function *func)
 	return iter->second;
     }
 
+    if (verifyModule(*RoxorCompiler::module, PrintMessageAction)) {
+    }
+
 #if ROXOR_COMPILER_DEBUG
-RoxorCompiler::module->dump();
     if (verifyModule(*RoxorCompiler::module, PrintMessageAction)) {
 	printf("Error during module verification\n");
 	exit(1);
@@ -403,7 +398,6 @@ RoxorCompiler::module->dump();
 
     // Optimize & compile.
     optimize(func);
-RoxorCompiler::module->dump();
     IMP imp = (IMP)ee->getPointerToFunction(func);
     JITcache[func] = imp;
 
@@ -4759,7 +4753,13 @@ rb_vm_aot_compile(NODE *node)
     GET_CORE()->optimize(f);
 
     // Dump the bitcode.
-    std::ofstream out(output);
+    std::string err;
+    raw_fd_ostream out(output, err, raw_fd_ostream::F_Binary);
+    if (!err.empty()) {
+	fprintf(stderr, "error when opening the output bitcode file: %s\n",
+		err.c_str());
+	abort();
+    }
     WriteBitcodeToFile(RoxorCompiler::module, out);
     out.close();
 }
@@ -5420,6 +5420,13 @@ resolveInstanceMethod_imp(void *self, SEL sel, SEL name)
     return NO; // TODO call old IMP
 }
 
+// We can't trust LLVM to pick the right target at runtime.
+#if __LP64__
+# define TARGET_TRIPLE "x86_64-apple-darwin"
+#else
+# define TARGET_TRIPLE "i386-apple-darwin"
+#endif
+
 extern "C"
 void 
 Init_PreVM(void)
@@ -5427,6 +5434,7 @@ Init_PreVM(void)
     llvm::DwarfExceptionHandling = true; // required!
 
     RoxorCompiler::module = new llvm::Module("Roxor", getGlobalContext());
+    RoxorCompiler::module->setTargetTriple(TARGET_TRIPLE);
     RoxorCore::shared = new RoxorCore();
     RoxorVM::main = new RoxorVM();
 
