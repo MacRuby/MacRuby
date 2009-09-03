@@ -946,19 +946,29 @@ marshal_dump(VALUE self, SEL sel, int argc, VALUE *argv)
     arg = (struct dump_arg *)xmalloc(sizeof(struct dump_arg));
     c_arg = (struct dump_call_arg *)xmalloc(sizeof(struct dump_call_arg));
     if (argc == 3) {
-	if (!NIL_P(a2)) limit = NUM2INT(a2);
-	if (NIL_P(a1)) goto type_error;
+	if (!NIL_P(a2)) {
+	    limit = NUM2INT(a2);
+	}
+	if (NIL_P(a1)) {
+	    goto type_error;
+	}
 	port = a1;
     }
     else if (argc == 2) {
-	if (FIXNUM_P(a1)) limit = FIX2INT(a1);
-	else if (NIL_P(a1)) goto type_error;
-	else port = a1;
+	if (FIXNUM_P(a1)) {
+	    limit = FIX2INT(a1);
+	}
+	else if (NIL_P(a1)) {
+	    goto type_error;
+	}
+	else {
+	    port = a1;
+	}
     }
     arg->dest = 0;
     if (!NIL_P(port)) {
 	if (!rb_obj_respond_to(port, s_write, Qtrue)) {
-	  type_error:
+type_error:
 	    rb_raise(rb_eTypeError, "instance of IO needed");
 	}
 	GC_WB(&arg->str, rb_str_buf_new(0));
@@ -968,7 +978,7 @@ marshal_dump(VALUE self, SEL sel, int argc, VALUE *argv)
 	}
     }
     else {
-	port = rb_str_buf_new(0);
+	port = rb_bytestring_new();
 	GC_WB(&arg->str, port);
     }
 
@@ -977,7 +987,7 @@ marshal_dump(VALUE self, SEL sel, int argc, VALUE *argv)
 
     GC_WB(&arg->symbols, st_init_numtable());
     GC_WB(&arg->data, st_init_numtable());
-    arg->taint   = Qfalse;
+    arg->taint = Qfalse;
     GC_WB(&arg->compat_tbl, st_init_numtable());
     GC_WB(&arg->wrapper, Data_Wrap_Struct(rb_cData, mark_dump_arg, 0, arg));
     arg->encodings = 0;
