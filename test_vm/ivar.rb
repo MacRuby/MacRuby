@@ -82,3 +82,15 @@ assert '42', %{
   o.foo
   p o.instance_variable_get(:@foo)
 }
+
+assert 'nil', %{
+  class Foo
+    def bar
+      @v1 = @v2 = @v3 = @v4 = @v5 = @v6 = @v7 = @v8 = @v9 = @v10 = 0
+    end
+    def foo
+      p @oops
+    end
+  end
+  Foo.new.foo
+}
