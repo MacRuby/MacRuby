@@ -4286,7 +4286,8 @@ rb_iseq_new(NODE *node, VALUE filename)
 static inline void
 __vm_raise(void)
 {
-#if 1
+#if __LP64__
+    // In 64-bit, an Objective-C exception is a C++ exception.
     id exc = rb_objc_create_exception(GET_VM()->current_exception());
     objc_exception_throw(exc);
 #else
