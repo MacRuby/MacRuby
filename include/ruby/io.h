@@ -25,28 +25,18 @@ extern "C" {
 #include "ruby/encoding.h"
 
 typedef struct rb_io_t {
-    // The streams.
-    CFReadStreamRef readStream;
-    CFWriteStreamRef writeStream;
-    
-    // The Unixy low-level file handles.
-    int fd; // You can expect this to be what the above CFStreams point to.
-    int pipe;
+    int fd;
+    int read_fd;
+    int write_fd;
 
-    // Additional information.
     CFStringRef path;
     pid_t pid;
     int lineno;
     bool sync;
-    bool should_close_streams;
-    
-    // For ungetc.
-    UInt8 *ungetc_buf;
-    long ungetc_buf_len;
-    long ungetc_buf_pos;
-} rb_io_t;
 
-#define HAVE_RB_IO_T 1
+    CFMutableDataRef buf;
+    unsigned long buf_offset;
+} rb_io_t;
 
 #define FMODE_READABLE  1
 #define FMODE_WRITABLE  2
@@ -76,8 +66,33 @@ typedef struct rb_io_t {
 VALUE rb_io_taint_check(VALUE);
 NORETURN(void rb_eof_error(void));
 
-void rb_io_assert_writable(rb_io_t *io);
 long rb_io_primitive_read(struct rb_io_t *io_struct, UInt8 *buffer, long len);
+
+static inline void
+rb_io_assert_initialized(rb_io_t *fptr)
+{
+    if (fptr == NULL) {
+	rb_raise(rb_eIOError, "uninitialized stream");
+    }
+}
+
+static inline void 
+rb_io_assert_writable(rb_io_t *io_struct)
+{
+    rb_io_assert_initialized(io_struct);
+    if (io_struct->write_fd == -1) {
+	rb_raise(rb_eIOError, "not opened for writing");
+    }
+}
+
+static inline void
+rb_io_assert_readable(rb_io_t *io_struct)
+{
+    rb_io_assert_initialized(io_struct);
+    if (io_struct->read_fd == -1) {
+	rb_raise(rb_eIOError, "not opened for reading");
+    }
+}
 
 #if defined(__cplusplus)
 #if 0

@@ -184,8 +184,8 @@ apply2files(void (*func)(const char *, void *), VALUE vargs, void *arg)
 static VALUE
 rb_file_path(VALUE obj, SEL sel)
 {
-	rb_io_t *io = ExtractIOStruct(obj);
-	return (io->path == NULL ? Qnil : (VALUE)io->path);
+    rb_io_t *io = ExtractIOStruct(obj);
+    return io->path == NULL ? Qnil : (VALUE)io->path;
 }
 
 static VALUE
@@ -193,7 +193,7 @@ stat_new_0(VALUE klass, struct stat *st)
 {
     struct stat *nst = 0;
 
-    if (st) {
+    if (st != NULL) {
 	nst = ALLOC(struct stat);
 	*nst = *st;
     }
@@ -725,10 +725,8 @@ rb_stat_inspect(VALUE self, SEL sel)
 static int
 rb_stat(VALUE file, struct stat *st)
 {
-    VALUE tmp;
-
     rb_secure(2);
-    tmp = rb_check_convert_type(file, T_FILE, "IO", "to_io");
+    VALUE tmp = rb_check_convert_type(file, T_FILE, "IO", "to_io");
     if (!NIL_P(tmp)) {
 	rb_io_t *io_struct = ExtractIOStruct(tmp);
 	return fstat(io_struct->fd, st);
@@ -736,38 +734,6 @@ rb_stat(VALUE file, struct stat *st)
     FilePathValue(file);
     return stat(StringValueCStr(file), st);
 }
-
-#ifdef _WIN32
-static HANDLE
-w32_io_info(VALUE *file, BY_HANDLE_FILE_INFORMATION *st)
-{
-    VALUE tmp;
-    HANDLE f, ret = 0;
-
-    tmp = rb_check_convert_type(*file, T_FILE, "IO", "to_io");
-    if (!NIL_P(tmp)) {
-	rb_io_t *fptr;
-
-	GetOpenFile(tmp, fptr);
-	f = (HANDLE)rb_w32_get_osfhandle(fptr->fd);
-	if (f == (HANDLE)-1) return INVALID_HANDLE_VALUE;
-    }
-    else {
-	FilePathValue(*file);
-	f = CreateFile(StringValueCStr(*file), 0,
-	               FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING,
-	               rb_w32_iswin95() ? 0 : FILE_FLAG_BACKUP_SEMANTICS, NULL);
-	if (f == INVALID_HANDLE_VALUE) return f;
-	ret = f;
-    }
-    if (GetFileType(f) == FILE_TYPE_DISK) {
-	ZeroMemory(st, sizeof(*st));
-	if (GetFileInformationByHandle(f, st)) return ret;
-    }
-    if (ret) CloseHandle(ret);
-    return INVALID_HANDLE_VALUE;
-}
-#endif
 
 /*
  *  call-seq:
@@ -1682,12 +1648,12 @@ rb_file_s_atime(VALUE klass, SEL sel, VALUE fname)
 static VALUE
 rb_file_atime(VALUE obj, SEL sel)
 {
-	struct stat st;
+    struct stat st;
     struct rb_io_t *io = ExtractIOStruct(obj);
     if (fstat(io->fd, &st) == -1) {
 	rb_sys_fail(RSTRING_PTR(io->path));
     }
-	return stat_atime(&st);
+    return stat_atime(&st);
 }
 
 /*
@@ -1723,12 +1689,12 @@ rb_file_s_mtime(VALUE klass, SEL sel, VALUE fname)
 static VALUE
 rb_file_mtime(VALUE obj, SEL sel)
 {
-	struct stat st;
+    struct stat st;
     struct rb_io_t *io = ExtractIOStruct(obj);
     if (fstat(io->fd, &st) == -1) {
 	rb_sys_fail(RSTRING_PTR(io->path));
     }
-	return stat_mtime(&st);
+    return stat_mtime(&st);
 }
 
 /*
@@ -1767,12 +1733,12 @@ rb_file_s_ctime(VALUE klass, SEL sel, VALUE fname)
 static VALUE
 rb_file_ctime(VALUE obj, SEL sel)
 {
-	struct stat st;
+    struct stat st;
     struct rb_io_t *io = ExtractIOStruct(obj);
     if (fstat(io->fd, &st) == -1) {
 	rb_sys_fail(RSTRING_PTR(io->path));
     }
-	return stat_ctime(&st);
+    return stat_ctime(&st);
 }
 
 static void
@@ -1832,18 +1798,16 @@ rb_file_s_chmod(VALUE rcv, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_file_chmod(VALUE obj, SEL sel, VALUE vmode)
 {
-	rb_secure(2);
-	rb_io_t *io = ExtractIOStruct(obj);
-	vmode = rb_check_to_integer(vmode, "to_int");
-	if (NIL_P(vmode))
-	{
-		rb_raise(rb_eTypeError, "chmod() takes a numeric argument");
-	}
-	if (fchmod(io->fd, FIX2INT(vmode)) == -1)
-	{
-		rb_sys_fail(RSTRING_PTR(io->path));
-	}
-	return INT2FIX(0);
+    rb_secure(2);
+    rb_io_t *io = ExtractIOStruct(obj);
+    vmode = rb_check_to_integer(vmode, "to_int");
+    if (NIL_P(vmode)) {
+	rb_raise(rb_eTypeError, "chmod() takes a numeric argument");
+    }
+    if (fchmod(io->fd, FIX2INT(vmode)) == -1) {
+	rb_sys_fail(RSTRING_PTR(io->path));
+    }
+    return INT2FIX(0);
 }
 
 #if defined(HAVE_LCHMOD)
@@ -2719,38 +2683,12 @@ rb_file_s_join(VALUE klass, SEL sel, VALUE args)
 static VALUE
 rb_file_s_truncate(VALUE klass, SEL sel, VALUE path, VALUE len)
 {
-    off_t pos;
-
     rb_secure(2);
-    pos = NUM2OFFT(len);
+    const off_t pos = NUM2OFFT(len);
     FilePathValue(path);
-#ifdef HAVE_TRUNCATE
-    if (truncate(StringValueCStr(path), pos) < 0)
+    if (truncate(StringValueCStr(path), pos) < 0) {
 	rb_sys_fail(RSTRING_PTR(path));
-#else
-# ifdef HAVE_CHSIZE
-    {
-	int tmpfd;
-
-#  ifdef _WIN32
-	if ((tmpfd = open(StringValueCStr(path), O_RDWR)) < 0) {
-	    rb_sys_fail(RSTRING_PTR(path));
-	}
-#  else
-	if ((tmpfd = open(StringValueCStr(path), 0)) < 0) {
-	    rb_sys_fail(RSTRING_PTR(path));
-	}
-#  endif
-	if (chsize(tmpfd, pos) < 0) {
-	    close(tmpfd);
-	    rb_sys_fail(RSTRING_PTR(path));
-	}
-	close(tmpfd);
     }
-# else
-    rb_notimplement();
-# endif
-#endif
     return INT2FIX(0);
 }
 
@@ -2771,15 +2709,14 @@ rb_file_s_truncate(VALUE klass, SEL sel, VALUE path, VALUE len)
 static VALUE
 rb_file_truncate(VALUE obj, SEL sel, VALUE len)
 {
-	rb_secure(2);
-	rb_io_t *io = ExtractIOStruct(obj);
-	off_t pos = NUM2OFFT(len);
-	rb_io_assert_writable(io);
-	if (ftruncate(io->fd, pos) < 0)
-	{
-		rb_sys_fail(RSTRING_PTR(io->path));
-	}
-	return INT2FIX(0);
+    rb_secure(2);
+    rb_io_t *io = ExtractIOStruct(obj);
+    const off_t pos = NUM2OFFT(len);
+    rb_io_assert_writable(io);
+    if (ftruncate(io->fd, pos) < 0) {
+	rb_sys_fail(RSTRING_PTR(io->path));
+    }
+    return INT2FIX(0);
 }
 
 # ifndef LOCK_SH

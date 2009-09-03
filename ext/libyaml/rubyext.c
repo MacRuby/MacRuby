@@ -513,7 +513,8 @@ static int
 rb_yaml_io_output_handler(void *data, unsigned char* buffer, size_t size)
 {
 	rb_io_t *io_struct = ExtractIOStruct(data);
-	return (CFWriteStreamWrite(io_struct->writeStream, (const UInt8*)buffer, (CFIndex)size) > 0);
+	assert(io_struct->write_fd != -1);
+	return (write(io_struct->write_fd, (const UInt8*)buffer, (CFIndex)size) > 0);
 }
 
 static VALUE

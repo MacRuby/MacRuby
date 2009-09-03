@@ -41,13 +41,6 @@ VALUE rb_stdin = 0, rb_stdout = 0, rb_stderr = 0;
 VALUE rb_deferr;		/* rescue VIM plugin */
 static VALUE orig_stdout, orig_stderr;
 
-// kept_streams is an Array of CFStreams that cannot be released, because
-// their file descriptor would be closed at the very same time. These streams
-// are basically standard IO streams (stdio) but also streams created by 
-// IO#initialize (accepting a given file descriptor).
-// TODO: not thread-safe.
-static VALUE kept_streams;
-
 // TODO: After Object#untrusted? and Object#trusted? get implemented,
 // place the appropriate checks on #inspect, #reopen, #close, #close_read,
 // and #close_write.
@@ -228,57 +221,13 @@ rb_io_taint_check(VALUE io)
     return io;
 }
 
-static inline void
-rb_io_assert_initialized(rb_io_t *fptr)
-{
-    if (fptr == NULL) {
-	rb_raise(rb_eIOError, "uninitialized stream");
-    }
-}
-
-static inline void
-rb_io_assert_usable(CFStreamStatus status)
-{
-	// As far as I can tell, kCFStreamStatusNotOpen means that a stream has 
-	// not been opened *yet*. Streams that are opened and then closed have
-	// the status of kCFStreamStatusClosed.
-    if (status == kCFStreamStatusNotOpen
-	|| status == kCFStreamStatusClosed
-	|| status == kCFStreamStatusError) {
-	rb_raise(rb_eIOError, "stream is not usable");
-    }
-}
-
-void 
-rb_io_assert_writable(rb_io_t *io_struct)
-{
-    rb_io_assert_initialized(io_struct);
-    if (io_struct->writeStream == NULL) {
-	rb_raise(rb_eIOError, "not opened for writing");
-    }
-    rb_io_assert_usable(CFWriteStreamGetStatus(io_struct->writeStream));
-}
-
-static void
-rb_io_assert_readable(rb_io_t *io_struct)
-{
-    rb_io_assert_initialized(io_struct);
-    if (io_struct->readStream == NULL) {
-	rb_raise(rb_eIOError, "not opened for reading");
-    }
-    rb_io_assert_usable(CFReadStreamGetStatus(io_struct->readStream));
-}
-
-static bool
+static inline bool
 rb_io_is_open(rb_io_t *io_struct) 
 {
-    // Either the readStream or the writeStream must be not null and open.
-    return io_struct->readStream == NULL
-	? io_struct->writeStream != NULL && CFWriteStreamGetStatus(io_struct->writeStream) == kCFStreamStatusOpen
-	: CFReadStreamGetStatus(io_struct->readStream) == kCFStreamStatusOpen;
+    return io_struct->fd != -1;
 }
 
-static void
+static inline void
 rb_io_assert_open(rb_io_t *io_struct)
 {
     if (!rb_io_is_open(io_struct)) {
@@ -287,36 +236,28 @@ rb_io_assert_open(rb_io_t *io_struct)
     }
 }
 
-static bool
+static inline bool
 rb_io_is_closed_for_reading(rb_io_t *io_struct) 
 {
-    if (io_struct->readStream == NULL) {
-	return true;
-    }	
-    CFStreamStatus s = CFReadStreamGetStatus(io_struct->readStream);
-    return ((s == kCFStreamStatusNotOpen) || (s == kCFStreamStatusClosed));
+    return io_struct->read_fd == -1;
 }
 
-static bool
+static inline bool
 rb_io_is_closed_for_writing(rb_io_t *io_struct) 
 {
-    if (io_struct->writeStream == NULL) {
-	return true;
-    }
-    CFStreamStatus s = CFWriteStreamGetStatus(io_struct->writeStream);
-    return s == kCFStreamStatusNotOpen || s == kCFStreamStatusClosed;
+    return io_struct->write_fd == -1;
 }
 
-static bool
+static inline bool
 rb_io_is_readable(rb_io_t *io_struct)
 {
-    return !(rb_io_is_closed_for_reading(io_struct));
+    return !rb_io_is_closed_for_reading(io_struct);
 }
 
-static bool
+static inline bool
 rb_io_is_writable(rb_io_t *io_struct)
 {
-    return !(rb_io_is_closed_for_writing(io_struct));
+    return !rb_io_is_closed_for_writing(io_struct);
 }
 
 static int
@@ -338,22 +279,22 @@ io_alloc(VALUE klass, SEL sel)
     NEWOBJ(io, struct RFile);
     OBJSETUP(io, klass, T_FILE);
     GC_WB(&io->fptr, ALLOC(rb_io_t));
+    io->fptr->fd = -1;
+    io->fptr->read_fd = -1;
+    io->fptr->write_fd = -1;
+    io->fptr->pid = -1;
     return (VALUE)io;
 }
 
-CFReadStreamRef _CFReadStreamCreateFromFileDescriptor(CFAllocatorRef alloc, int fd);
-CFWriteStreamRef _CFWriteStreamCreateFromFileDescriptor(CFAllocatorRef alloc, int fd);
-
 static inline void 
-prepare_io_from_fd(rb_io_t *io_struct, int fd, int mode,
-	bool should_close_streams)
+prepare_io_from_fd(rb_io_t *io_struct, int fd, int mode)
 {
     // While getting rid of the FMODE_* constants and replacing them with the 
-	// POSIX constants would be very nice, it would be a mistake on Darwin,
-	// as O_RDONLY|O_WRONLY != O_RDWR, whereas FMODE_READABLE|FMODE_WRITABLE = 
-	// FMODE_READWRITE. As such, we have to redefine a whole lot of system-wide
-	// constants, which sucks. But we don't have any other option.
-	
+    // POSIX constants would be very nice, it would be a mistake on Darwin,
+    // as O_RDONLY|O_WRONLY != O_RDWR, whereas FMODE_READABLE|FMODE_WRITABLE = 
+    // FMODE_READWRITE. As such, we have to redefine a whole lot of system-wide
+    // constants, which sucks. But we don't have any other option.
+
     bool read = false, write = false;
     switch (mode & FMODE_READWRITE) {
 	case FMODE_READABLE:
@@ -370,107 +311,61 @@ prepare_io_from_fd(rb_io_t *io_struct, int fd, int mode,
     }
     assert(read || write);
 
-    VALUE stdio = 0;
-    switch (fd) {
-	case 0:
-	    stdio = rb_stdin;
-	    break;
-
-	case 1:
-	    stdio = rb_stdout;
-	    break;
-
-	case 2:
-	    stdio = rb_stderr;
-	    break;
-    }
-
-    if (stdio != 0) {
-	should_close_streams = false;
-    }
-
     if (read) {
-	if (stdio != 0) {
-	    GC_WB(&io_struct->readStream, ExtractIOStruct(stdio)->readStream);
-	}
-	else {
-	    CFReadStreamRef r = _CFReadStreamCreateFromFileDescriptor(NULL, fd);
-	    if (r != NULL) {
-		CFReadStreamOpen(r);
-		GC_WB(&io_struct->readStream, r);
-		CFMakeCollectable(r);
-		if (!should_close_streams) {
-		    rb_ary_push(kept_streams, (VALUE)r);
-		}
-	    } 
-	    else {
-		io_struct->readStream = NULL;
-	    }
-	}
+	io_struct->read_fd = fd;
     }
 
     if (write) {
-	if (stdio != 0) {
-	    GC_WB(&io_struct->writeStream, ExtractIOStruct(stdio)->writeStream);
-	}
-	else {
-	    CFWriteStreamRef w = _CFWriteStreamCreateFromFileDescriptor(NULL, fd);
-	    if (w != NULL) {
-		CFWriteStreamOpen(w);
-		GC_WB(&io_struct->writeStream, w);
-		CFMakeCollectable(w);
-		if (!should_close_streams) {
-		    rb_ary_push(kept_streams, (VALUE)w);
-		}
-	    } 
-	    else {
-		io_struct->writeStream = NULL;
-	    }
-	}
+	io_struct->write_fd = fd;
     }
  
     io_struct->fd = fd;
     io_struct->pid = -1;
-    io_struct->pipe = -1;
-    io_struct->ungetc_buf = NULL;
-    io_struct->ungetc_buf_len = 0;
-    io_struct->ungetc_buf_pos = 0;
     io_struct->sync = mode & FMODE_SYNC;
-    io_struct->should_close_streams = should_close_streams;
 }
 
 static void
 io_struct_close(rb_io_t *io_struct, bool close_read, bool close_write)
 {
-    if (close_read && io_struct->readStream != NULL) {
-	if (io_struct->should_close_streams) {
-	    CFReadStreamClose(io_struct->readStream);
+    if (close_read) {
+	if (io_struct->read_fd != io_struct->write_fd) {
+	    close(io_struct->read_fd);
 	}
-	io_struct->readStream = NULL;
+	else {
+	    io_struct->fd = -1;
+	}
+	io_struct->read_fd = -1;
     }
-    if (close_write && io_struct->writeStream != NULL) {
-	if (io_struct->should_close_streams) {
-	    CFWriteStreamClose(io_struct->writeStream);
+    if (close_write) {
+	if (io_struct->write_fd != io_struct->read_fd) {
+	    close(io_struct->write_fd);
 	}
-	io_struct->writeStream = NULL;
+	else {
+	    io_struct->fd = -1;
+	}
+	io_struct->write_fd = -1;
     }
     if (io_struct->pid != -1) {
-	rb_last_status_set(0, io_struct->pid);
 	// Don't commit seppuku!
+	rb_last_status_set(0, io_struct->pid);
 	if (io_struct->pid != 0 && io_struct->pid != getpid()) {
 	    kill(io_struct->pid, SIGTERM);
 	}
 	io_struct->pid = -1;
     }
-    io_struct->fd = -1;
+    if (io_struct->fd != -1 && io_struct->read_fd == -1
+	    && io_struct->write_fd == -1) {
+	close(io_struct->fd);
+	io_struct->fd = -1;
+    }
 }
 
 static VALUE
-prep_io(int fd, int mode, VALUE klass, bool should_close_streams)
+prep_io(int fd, int mode, VALUE klass)
 {
     VALUE io = io_alloc(klass, 0);
     rb_io_t *io_struct = ExtractIOStruct(io);
-    prepare_io_from_fd(io_struct, fd, mode, should_close_streams);
+    prepare_io_from_fd(io_struct, fd, mode);
     return io;
 }
 
@@ -508,10 +403,6 @@ prep_io(int fd, int mode, VALUE klass, bool should_close_streams)
 static VALUE
 io_write(VALUE io, SEL sel, VALUE to_write)
 {
-    rb_io_t *io_struct;
-    UInt8 *buffer;
-    CFIndex length;
-    
     rb_secure(4);
 
     VALUE tmp = rb_io_check_io(io);
@@ -521,10 +412,12 @@ io_write(VALUE io, SEL sel, VALUE to_write)
     }
     io = tmp;
     
-    io_struct = ExtractIOStruct(io);
+    rb_io_t *io_struct = ExtractIOStruct(io);
     rb_io_assert_writable(io_struct);
     to_write = rb_obj_as_string(to_write);
 
+    UInt8 *buffer;
+    size_t length;
     if (CLASS_OF(to_write) == rb_cByteString) {
 	CFMutableDataRef data = rb_bytestring_wrapped_data(to_write);
 	buffer = CFDataGetMutableBytePtr(data);
@@ -543,17 +436,18 @@ io_write(VALUE io, SEL sel, VALUE to_write)
         return INT2FIX(0);
     }
 	
-    rb_io_assert_writable(io_struct);
-
-    CFIndex code = CFWriteStreamWrite(io_struct->writeStream, buffer, length);
+    ssize_t code = write(io_struct->write_fd, buffer, length);
     if (code == -1) {
-	CFErrorRef er = CFWriteStreamCopyError(io_struct->writeStream);
-	CFStringRef desc = CFErrorCopyDescription(er);
-	CFRelease(er);
-	CFMakeCollectable(desc);
-	rb_raise(rb_eRuntimeError,
-		"internal error while writing to stream: %s",
-		RSTRING_PTR(desc));
+	rb_sys_fail("write() failed");
+    }
+
+    if (io_struct->buf != NULL) {
+	if (length > CFDataGetLength(io_struct->buf) - io_struct->buf_offset) {
+	    CFDataIncreaseLength(io_struct->buf, length);
+	}
+	UInt8 *data = CFDataGetMutableBytePtr(io_struct->buf);
+	memcpy(data + io_struct->buf_offset, buffer, length);
+	io_struct->buf_offset += length;
     }
 
     return LONG2FIX(code);
@@ -646,41 +540,41 @@ rb_io_read_stream_set_offset(CFReadStreamRef stream, off_t offset)
     CFRelease(pos);
 }
 
+static off_t
+ltell(int fd)
+{
+    off_t code = lseek(fd, 0, SEEK_CUR);
+    if (code == -1) {
+	rb_sys_fail("lseek() failed");
+    }
+    return code;
+}
+
 static VALUE
 rb_io_tell(VALUE io, SEL sel)
 {
     rb_io_t *io_struct = ExtractIOStruct(io);
     rb_io_assert_readable(io_struct);
 
-    return OFFT2NUM(rb_io_read_stream_get_offset(io_struct->readStream)); 
+    return OFFT2NUM(ltell(io_struct->read_fd));
 }
 
 static VALUE
 rb_io_seek(VALUE io, VALUE offset, int whence)
 {
     rb_io_t *io_struct = ExtractIOStruct(io);
-    rb_io_assert_readable(io_struct); 
-    if (whence == SEEK_CUR) {
-	offset += rb_io_read_stream_get_offset(io_struct->readStream);
+    rb_io_assert_readable(io_struct);
+    off_t off = NUM2OFFT(offset);
+//    if (whence == SEEK_CUR) {
+//	off += ltell(io_struct->read_fd);
+//    }
+    const off_t code = lseek(io_struct->read_fd, off, whence);
+    if (code == -1) {
+	rb_sys_fail("lseek() failed");
     }
-    // TODO: make this work with IO::SEEK_CUR, SEEK_END, etc.
-    if (CFReadStreamGetStatus(io_struct->readStream) == kCFStreamStatusAtEnd) {
-	// Terrible hack to work around the fact that CFReadStreams, once they
-	// reach EOF, are permanently exhausted even if we set the offset.
-	if (!io_struct->should_close_streams) {
-	    rb_raise(rb_eRuntimeError,
-		    "can't seek inside a fixed closed stream");
-	}
-	int fd = dup(io_struct->fd);
-	if (fd < 0) {
-	    rb_sys_fail("dup() failed");
-	}
-	GC_WB(&io_struct->readStream,
-		_CFReadStreamCreateFromFileDescriptor(NULL, fd));
-	CFReadStreamOpen(io_struct->readStream);
-	CFMakeCollectable(io_struct->readStream);
+    if (io_struct->buf != NULL) {
+	io_struct->buf_offset = code;
     }
-    rb_io_read_stream_set_offset(io_struct->readStream, NUM2OFFT(offset));
     return INT2FIX(0);
 }
 
@@ -811,20 +705,17 @@ rb_io_eof(VALUE io, SEL sel)
     rb_io_t *io_struct = ExtractIOStruct(io);
     rb_io_assert_readable(io_struct);
 
-    if (CFReadStreamGetStatus(io_struct->readStream) == kCFStreamStatusAtEnd) {
-	// If there's anything left in the ungetc buffer, this io is not at EOF.
-	return io_struct->ungetc_buf_len == 0 ? Qtrue : Qfalse;
+    if (io_struct->buf != NULL && CFDataGetLength(io_struct->buf) > 0) {
+	return Qfalse;
     }
 
-    // The stream is still open, however, there might not be any data left.
     UInt8 c;
     if (rb_io_read_internal(io_struct, &c, 1) != 1) {
-	// Can't read anything.
 	return Qtrue;
     }
-    const off_t off = NUM2OFFT(rb_io_tell(io, 0));
-    if (off != -1) {
-	rb_io_seek(io, OFFT2NUM(off - 1), SEEK_SET); 
+
+    if (io_struct->buf != NULL) {
+	io_struct->buf_offset--;
     }
     return Qfalse;
 }
@@ -943,7 +834,7 @@ rb_io_pid(VALUE io, SEL sel)
 {
     rb_io_t *io_struct = ExtractIOStruct(io);
     rb_io_assert_open(io_struct);
-    return ((io_struct->pid == -1) ? Qnil : INT2FIX(io_struct->pid));
+    return io_struct->pid == -1 ? Qnil : INT2FIX(io_struct->pid);
 }
 
 
@@ -983,68 +874,76 @@ rb_io_to_io(VALUE io, SEL sel)
 }
 
 static inline long
-rb_io_stream_read_internal(CFReadStreamRef readStream, UInt8 *buffer, long len)
+read_internal(int fd, UInt8 *buffer, long len)
 {
-    long data_read = 0;
-	
-    while (data_read < len) {
-	CFIndex code = CFReadStreamRead(readStream, &buffer[data_read],
-		len - data_read);
+    long code;
 
-	if (code == 0) {
-	    // EOF
-	    break;
+retry:
+    code = read(fd, buffer, len);
+    if (code == -1) {
+	if (errno == EINTR) {
+	    fd_set readset;
+	    FD_ZERO(&readset);
+	    FD_SET(fd, &readset);
+	    if (select(fd + 1, &readset, NULL, NULL, NULL) >= 0) {
+		goto retry;
+	    }
 	}
-	else if (code == -1) {
-	    CFErrorRef er = CFReadStreamCopyError(readStream);
-	    CFStringRef desc = CFErrorCopyDescription(er);
-	    CFRelease(er);
-	    CFMakeCollectable(desc);
-	    rb_raise(rb_eRuntimeError,
-		    "internal error while reading stream: %s",
-		    RSTRING_PTR(desc));
-	}
-
-	data_read += code;
+	rb_sys_fail("read() failed");
     }
+    return code;
+}
 
-    return data_read;
+static inline void
+rb_io_create_buf(rb_io_t *io_struct)
+{
+    if (io_struct->buf == NULL) {
+	CFMutableDataRef data = CFDataCreateMutable(NULL, 0);
+	GC_WB(&io_struct->buf, data);
+	CFMakeCollectable(data);
+    }
 }
 
 static inline long
 rb_io_read_internal(rb_io_t *io_struct, UInt8 *buffer, long len)
 {
-    assert(io_struct->readStream != NULL);
-	
-    long data_read = 0;
+    assert(io_struct->read_fd != -1);
 
-    // First let's check if there is something to read in our ungetc buffer.
-    if (io_struct->ungetc_buf_len > 0) {
-	data_read = MIN(io_struct->ungetc_buf_len, len);
-	memcpy(buffer, &io_struct->ungetc_buf[io_struct->ungetc_buf_pos], 
-		data_read);
-	io_struct->ungetc_buf_len -= data_read;
-	io_struct->ungetc_buf_pos += data_read;
-	if (io_struct->ungetc_buf_len == 0) {
-	    xfree(io_struct->ungetc_buf);
-	    io_struct->ungetc_buf = NULL;
+    if (io_struct->buf == NULL || CFDataGetLength(io_struct->buf) == 0) {
+	struct stat buf;
+	if (fstat(io_struct->read_fd, &buf) == -1 || buf.st_size == 0
+		|| lseek(io_struct->read_fd, 0, SEEK_CUR) > 0) {
+	    // Either a pipe, stdio, or a regular file that was seeked.
+	    return read_internal(io_struct->read_fd, buffer, len);
 	}
-	if (data_read == len) {
-	    return data_read;
-	}
-    }
-	
-    if (io_struct->pipe != -1) {
-	int status;
-	waitpid(io_struct->pid, &status, 0);
-	close(io_struct->pipe);
-	io_struct->pipe = -1;
+
+	// TODO don't pre-read more than a certain threshold...
+	const long size = buf.st_size;
+	rb_io_create_buf(io_struct);
+	CFDataSetLength(io_struct->buf, size);
+
+	const long s = read_internal(io_struct->read_fd,
+		CFDataGetMutableBytePtr(io_struct->buf), size);
+	CFDataSetLength(io_struct->buf, s);
     }
 
-    // Read from the stream.
-    data_read += rb_io_stream_read_internal(io_struct->readStream,
-	    &buffer[data_read], len - data_read);
-    return data_read;
+    const long s = CFDataGetLength(io_struct->buf);
+    if (s == 0 || len == 0) {
+	return 0;
+    }
+
+    const long n = len > s - io_struct->buf_offset
+	? s - io_struct->buf_offset : len;
+    memcpy(buffer, CFDataGetBytePtr(io_struct->buf) + io_struct->buf_offset, n);
+    io_struct->buf_offset += n;
+
+    lseek(io_struct->read_fd, io_struct->buf_offset, SEEK_SET);
+    if (io_struct->buf_offset == s) {
+	CFDataSetLength(io_struct->buf, 0);
+	io_struct->buf_offset = 0;
+    }
+
+    return n;
 }
 
 static VALUE 
@@ -1068,29 +967,10 @@ rb_io_read_all(rb_io_t *io_struct, VALUE bytestring_buffer)
     return bytestring_buffer; 
 }
 
-// Called by parse.y
-size_t rb_io_file_size(VALUE io)
-{
-    rb_io_t *io_struct = ExtractIOStruct(io);
-    struct stat buf;
-    if (fstat(io_struct->fd, &buf) == -1) {
-	return 0;
-    }
-    return buf.st_size;
-}
-
-// Called by parse.y
-bool
-rb_io_read_all_file(VALUE io, UInt8 *buffer, size_t buffer_len)
-{
-    rb_io_t *io_struct = ExtractIOStruct(io);
-    return rb_io_read_internal(io_struct, buffer, buffer_len) > 0;
-}
-
 long
 rb_io_primitive_read(rb_io_t *io_struct, UInt8 *buffer, long len)
 {
-	return rb_io_read_internal(io_struct, buffer, len);
+    return rb_io_read_internal(io_struct, buffer, len);
 }
 
 /*
@@ -1807,28 +1687,19 @@ rb_io_ungetc(VALUE io, SEL sel, VALUE c)
 	len = RSTRING_LEN(c);
     }
 
-    if (len > io_struct->ungetc_buf_pos) {
-	// Reallocate the buffer.
-	GC_WB(&io_struct->ungetc_buf, xrealloc(io_struct->ungetc_buf,
-		    io_struct->ungetc_buf_len + len));
+    rb_io_create_buf(io_struct);
+    UInt8 *data = CFDataGetMutableBytePtr(io_struct->buf);
 
-	// Shift the buffer.
-	memmove(&io_struct->ungetc_buf[len],
-		&io_struct->ungetc_buf[io_struct->ungetc_buf_pos],
-		io_struct->ungetc_buf_len);
-
-	io_struct->ungetc_buf_pos = len;
+    if (len <= io_struct->buf_offset) {
+	io_struct->buf_offset -= len;
+	memcpy(data + io_struct->buf_offset, bytes, len);
     }
-
-    // Update position.
-    io_struct->ungetc_buf_pos -= len;
-    assert(io_struct->ungetc_buf_pos >= 0);
-
-    // Copy the bytes at the new position.
-    memcpy(&io_struct->ungetc_buf[io_struct->ungetc_buf_pos], bytes, len);
-
-    // Update buffer size.
-    io_struct->ungetc_buf_len += len;
+    else {
+	const long n = len - io_struct->buf_offset;
+	CFDataIncreaseLength(io_struct->buf, n);
+	memmove(data + n, data, CFDataGetLength(io_struct->buf));
+	memcpy(data, bytes, len);
+    }
 
     return Qnil;
 }
@@ -2009,7 +1880,7 @@ rb_io_fdopen(int fd, int mode, const char *path)
     if (path != NULL && strcmp(path, "-") != 0) {
 	klass = rb_cFile;
     }
-    return prep_io(fd, convert_oflags_to_fmode(mode), klass, true);
+    return prep_io(fd, convert_oflags_to_fmode(mode), klass);
 }
 
 static VALUE
@@ -2121,44 +1992,22 @@ io_from_spawning_new_process(VALUE prog, VALUE mode)
 {
     VALUE io = io_alloc(rb_cIO, 0);
     rb_io_t *io_struct = ExtractIOStruct(io);
-    CFReadStreamRef r = NULL;
-    CFWriteStreamRef w = NULL;
-    pid_t pid;
-    int fd[2];
-    // TODO: Split the process_name up into char* components?
-    char *spawnedArgs[] = {(char*)_PATH_BSHELL, "-c",
-	(char*)RSTRING_PTR(prog), NULL};
     posix_spawn_file_actions_t actions;
 
-    int fmode = convert_mode_string_to_fmode(mode);
-
+    int fd[2];
     if (pipe(fd) < 0) {
 	posix_spawn_file_actions_destroy(&actions);
-	rb_sys_fail("pipe() failed.");
+	rb_sys_fail("pipe() failed");
     }
+
     // Confusingly enough, FMODE_WRITABLE means 'write-only'
     // and FMODE_READABLE means 'read-only'.
+    const int fmode = convert_mode_string_to_fmode(mode);
     if (fmode != FMODE_WRITABLE) {
-	r = _CFReadStreamCreateFromFileDescriptor(NULL, fd[0]);
-	if (r != NULL) {
-	    CFReadStreamOpen(r);
-	    GC_WB(&io_struct->readStream, r);
-	    CFMakeCollectable(r);
-	}
-	else {
-	    io_struct->readStream = NULL;
-	}
+	io_struct->read_fd = fd[0];
     }
     if (fmode != FMODE_READABLE) {
-	w = _CFWriteStreamCreateFromFileDescriptor(NULL, fd[1]);
-	if (w != NULL) {
-	    CFWriteStreamOpen(w);
-	    GC_WB(&io_struct->writeStream, w);
-	    CFMakeCollectable(w);
-	}
-	else {
-	    io_struct->writeStream = NULL;
-	}
+	io_struct->write_fd = fd[1];
     }
 
     rb_sys_fail_unless(posix_spawn_file_actions_init(&actions),
@@ -2168,22 +2017,22 @@ io_from_spawning_new_process(VALUE prog, VALUE mode)
     rb_sys_fail_unless(posix_spawn_file_actions_addclose(&actions, fd[1]),
 	    "could not add a close() to stdout");
 
+    pid_t pid;
+    // TODO: Split the process_name up into char* components?
+    char *spawnedArgs[] = {(char*)_PATH_BSHELL, "-c",
+	(char*)RSTRING_PTR(prog), NULL};
     errno = posix_spawn(&pid, spawnedArgs[0], &actions, NULL, spawnedArgs,
 	    *(_NSGetEnviron()));
     if (errno != 0) {
-	int err = errno;
+	const int err = errno;
 	close(fd[0]);
 	close(fd[1]);
 	errno = err;
-	rb_sys_fail("posix_spawn failed.");
+	rb_sys_fail("posix_spawn() failed");
     }
     posix_spawn_file_actions_destroy(&actions);
 
     io_struct->fd = fd[0];
-    io_struct->pipe = fd[1];
-    io_struct->ungetc_buf = NULL;
-    io_struct->ungetc_buf_len = 0;
-    io_struct->ungetc_buf_pos = 0;
     io_struct->pid = pid;
     io_struct->sync = mode & FMODE_SYNC;
 
@@ -2373,7 +2222,7 @@ rb_file_open(VALUE io, int argc, VALUE *argv)
        }
     }
     rb_io_t *io_struct = ExtractIOStruct(io);
-    prepare_io_from_fd(io_struct, fd, convert_mode_string_to_fmode(modes), true);
+    prepare_io_from_fd(io_struct, fd, convert_mode_string_to_fmode(modes));
     GC_WB(&io_struct->path, path); 
     return io;
 }
@@ -2440,25 +2289,23 @@ rb_io_s_sysopen(VALUE klass, SEL sel, int argc, VALUE *argv)
 static void
 io_replace_streams(int fd, rb_io_t *dest, rb_io_t *origin)
 {
-    prepare_io_from_fd(dest, fd, rb_io_calculate_mode_flags(origin),
-	    origin->should_close_streams);
+    prepare_io_from_fd(dest, fd, rb_io_calculate_mode_flags(origin));
 
-    if (origin->ungetc_buf_len > 0) {
-	GC_WB(&dest->ungetc_buf, xmalloc(origin->ungetc_buf_len));
-	memcpy(dest->ungetc_buf, origin->ungetc_buf,
-		origin->ungetc_buf_len);
+    if (origin->buf != NULL) {
+	CFMutableDataRef data = CFDataCreateMutableCopy(NULL, 0, origin->buf);
+	GC_WB(&dest->buf, data);
+	CFMakeCollectable(data);
     }
     else {
-	dest->ungetc_buf = NULL;
+	dest->buf = NULL;
     }
-    dest->ungetc_buf_len = origin->ungetc_buf_len;
-    dest->ungetc_buf_pos = origin->ungetc_buf_pos;
+    dest->buf_offset = origin->buf_offset;
 }
 
 static VALUE
 rb_io_reopen(VALUE io, SEL sel, int argc, VALUE *argv)
 {
-	rb_secure(4);
+    rb_secure(4);
 	
     VALUE path_or_io, mode_string;
     rb_scan_args(argc, argv, "11", &path_or_io, &mode_string);
@@ -2475,8 +2322,10 @@ rb_io_reopen(VALUE io, SEL sel, int argc, VALUE *argv)
 	const int fd =
 	    open(filepath, convert_mode_string_to_oflags(mode_string), 0644);
 	prepare_io_from_fd(io_s, fd,
-		convert_mode_string_to_fmode(mode_string), true);
+		convert_mode_string_to_fmode(mode_string));
 	GC_WB(&io_s->path, path_or_io);
+	io_s->buf = NULL;
+	io_s->buf_offset = 0;
     } 
     else {
 	// Reassociate it with a duplicate of the stream given
@@ -2497,9 +2346,7 @@ rb_io_reopen(VALUE io, SEL sel, int argc, VALUE *argv)
 	}
 
 	int fd = io_s->fd;
-	if (io_s->should_close_streams) {
-	    io_struct_close(io_s, true, true);
-	}
+	io_struct_close(io_s, true, true);
 	fd = dup2(other->fd, fd);
 	if (fd < 0) {
 	    rb_sys_fail("dup2() failed");
@@ -2528,7 +2375,7 @@ rb_io_init_copy(VALUE dest, SEL sel, VALUE origin)
 		"cannot copy from non file descriptor based IO");
     }
 
-    int fd = dup(origin_io->fd);
+    const int fd = dup(origin_io->fd);
     if (fd < 0) {
 	rb_sys_fail("dup() failed");
     }
@@ -2933,7 +2780,7 @@ rb_io_initialize(VALUE io, SEL sel, int argc, VALUE *argv)
 
     mode_flags = (NIL_P(mode) ? FMODE_READABLE
 	    : convert_mode_string_to_fmode(mode));
-    prepare_io_from_fd(io_struct, fd, mode_flags, false);
+    prepare_io_from_fd(io_struct, fd, mode_flags);
     return io;
 }
 
@@ -3172,9 +3019,9 @@ retry:
 			// copy the groups and owners
 			fchown(fw, st.st_uid, st.st_gid);
 		    }
-		    rb_stdout = prep_io(fw, FMODE_WRITABLE, rb_cFile, true);
+		    rb_stdout = prep_io(fw, FMODE_WRITABLE, rb_cFile);
 		}
-		GC_WB(&ARGF.current_file, prep_io(fr, FMODE_READABLE, rb_cFile, true));
+		GC_WB(&ARGF.current_file, prep_io(fr, FMODE_READABLE, rb_cFile));
 	    }
 #if 0 // TODO once we get encodings sorted out.
 	    if (ARGF.encs.enc) {
@@ -3387,6 +3234,22 @@ static VALUE
 rb_f_backquote(VALUE obj, SEL sel, VALUE str)
 {
     VALUE io = rb_io_s_popen(rb_cIO, 0, 1, &str);
+    rb_io_t *io_s = ExtractIOStruct(io);
+
+    // Wait that the process is finished before reading stuff.
+    assert(io_s->pid != -1);
+    int status;
+    if (waitpid(io_s->pid, &status, 0) != -1) {
+	rb_last_status_set(status, io_s->pid);
+	io_s->pid = -1;
+#if 0
+	if (!WIFEXITED(status) || WEXITSTATUS(status) > 0) {
+	    rb_io_close(io, 0);
+	    return rb_str_new2("");
+	}
+#endif
+    }
+
     VALUE bstr = rb_bytestring_new();
     rb_io_read_all(ExtractIOStruct(io), bstr);
     rb_io_close(io, 0);
@@ -3516,7 +3379,7 @@ rb_f_select(VALUE recv, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_io_ctl(VALUE io, VALUE arg, VALUE req, int is_io)
 {
-	rb_secure(2);
+    rb_secure(2);
 	
     unsigned long request;
     unsigned long cmd = NUM2ULONG(arg);
@@ -3527,7 +3390,8 @@ rb_io_ctl(VALUE io, VALUE arg, VALUE req, int is_io)
     else {
 	request = FIX2ULONG(req);
     }
-    int retval = is_io ? ioctl(io_s->fd, cmd, request) : fcntl(io_s->fd, cmd, request);
+    int retval = is_io ? ioctl(io_s->fd, cmd, request)
+	: fcntl(io_s->fd, cmd, request);
     return INT2FIX(retval);
 }
 
@@ -3714,8 +3578,8 @@ rb_io_s_pipe(VALUE recv, SEL sel, int argc, VALUE *argv)
 	rb_sys_fail("pipe() failed");
     }
 
-    rd = prep_io(fd[0], FMODE_READABLE, rb_cIO, true);
-    wr = prep_io(fd[1], FMODE_WRITABLE, rb_cIO, true);
+    rd = prep_io(fd[0], FMODE_READABLE, rb_cIO);
+    wr = prep_io(fd[1], FMODE_WRITABLE, rb_cIO);
 
     return rb_assoc_new(rd, wr);
 }
@@ -4615,21 +4479,18 @@ Init_IO(void)
     rb_objc_define_method(rb_cIO, "internal_encoding", rb_io_internal_encoding, 0);
     rb_objc_define_method(rb_cIO, "set_encoding", rb_io_set_encoding, -1);
 
-    kept_streams = rb_ary_new();
-    rb_objc_retain((void *)kept_streams);
-
-    rb_stdin = prep_io(fileno(stdin), FMODE_READABLE, rb_cIO, false);
+    rb_stdin = prep_io(fileno(stdin), FMODE_READABLE, rb_cIO);
     GC_WB(&(ExtractIOStruct(rb_stdin)->path), CFSTR("<STDIN>"));
     rb_define_variable("$stdin", &rb_stdin);
     rb_define_global_const("STDIN", rb_stdin);
     
-    rb_stdout = prep_io(fileno(stdout), FMODE_WRITABLE, rb_cIO, false);
+    rb_stdout = prep_io(fileno(stdout), FMODE_WRITABLE, rb_cIO);
     GC_WB(&(ExtractIOStruct(rb_stdout)->path), CFSTR("<STDOUT>"));
     rb_define_hooked_variable("$stdout", &rb_stdout, 0, stdout_setter);
     rb_define_hooked_variable("$>", &rb_stdout, 0, stdout_setter);
     rb_define_global_const("STDOUT", rb_stdout);
     
-    rb_stderr = prep_io(fileno(stderr), FMODE_WRITABLE|FMODE_SYNC, rb_cIO, false);
+    rb_stderr = prep_io(fileno(stderr), FMODE_WRITABLE|FMODE_SYNC, rb_cIO);
     GC_WB(&(ExtractIOStruct(rb_stderr)->path), CFSTR("<STDERR>"));
     rb_define_hooked_variable("$stderr", &rb_stderr, 0, stdout_setter);
     rb_define_global_const("STDERR", rb_stderr);

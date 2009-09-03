@@ -1021,7 +1021,8 @@ process_options(VALUE arg)
 }
 
 static NODE *
-load_file(VALUE parser, const char *fname, int script, struct cmdline_options *opt)
+load_file(VALUE parser, const char *fname, int script,
+	struct cmdline_options *opt)
 {
     extern VALUE rb_stdin;
     VALUE f;
@@ -1029,8 +1030,9 @@ load_file(VALUE parser, const char *fname, int script, struct cmdline_options *o
     NODE *tree = 0;
     rb_encoding *enc;
 
-    if (!fname)
+    if (fname == NULL) {
 	rb_load_fail(fname);
+    }
     if (strcmp(fname, "-") == 0) {
 	f = rb_stdin;
     }
@@ -1039,7 +1041,6 @@ load_file(VALUE parser, const char *fname, int script, struct cmdline_options *o
 	if ((fd = open(fname, mode)) < 0) {
 	    rb_load_fail(fname);
 	}
-
 	f = rb_io_fdopen(fd, mode, fname);
     }
 

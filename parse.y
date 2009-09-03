@@ -5114,7 +5114,7 @@ rb_parser_compile_string(volatile VALUE vparser, const char *f, VALUE s, int lin
     Data_Get_Struct(vparser, struct parser_params, parser);
     lex_gets = lex_get_str;
     lex_gets_ptr = 0;
-    lex_input = s;
+    GC_WB(&lex_input, s);
     lex_pbeg = lex_p = lex_pend = 0;
     compile_for_eval = rb_parse_in_eval();
 
@@ -5136,50 +5136,6 @@ rb_parser_compile_cstr(volatile VALUE vparser, const char *f, const char *s, int
     return rb_parser_compile_string(vparser, f, rb_str_new(s, len), line);
 }
 
-struct lex_io_gets_data {
-    UInt8 *buf;
-    size_t buflen;
-};
-
-static VALUE
-lex_io_gets_fast(struct parser_params *parser, VALUE udata)
-{
-    struct lex_io_gets_data *data = (struct lex_io_gets_data *)udata;
-
-    long beg = 0; 
-    if (lex_gets_ptr > 0) {
-	if (data->buflen == lex_gets_ptr) {
-	    return Qnil;
-	}
-	beg = lex_gets_ptr;
-    }
-
-    char *p = strchr((char *)data->buf + beg, '\n');
-    if (p != NULL) {
-	const long location = p - (char *)data->buf;
-	lex_gets_ptr = location + 1;
-    }
-    else {
-	lex_gets_ptr = data->buflen;
-    }
-
-    // XXX In order to deal with files containing non-ASCII characters, 
-    // returning a ByteString object seems to be better with the existing
-    // parsing infrastructure, notably because we deal with raw bytes
-#if 0
-    CFStringRef v = CFStringCreateWithBytes(NULL, data->buf + beg,
-	    lex_gets_ptr - beg, kCFStringEncodingUTF8, false);
-    CFMakeCollectable(v);
-    return (VALUE)v;
-#else
-    CFDataRef cfdata = CFDataCreateWithBytesNoCopy(NULL, data->buf + beg,
-	lex_gets_ptr - beg, kCFAllocatorNull);
-    VALUE v = rb_bytestring_new_with_cfdata((CFMutableDataRef)cfdata);
-    CFMakeCollectable(cfdata);
-    return v;
-#endif
-}
-
 static VALUE
 lex_io_gets(struct parser_params *parser, VALUE io)
 {
@@ -5194,47 +5150,22 @@ rb_compile_file(const char *f, VALUE file, int start)
     return rb_parser_compile_file(vparser, f, file, start);
 }
 
-size_t rb_io_file_size(VALUE io);
-bool rb_io_read_all_file(VALUE io, UInt8 *buf, size_t buflen);
-
-NODE*
-rb_parser_compile_file(volatile VALUE vparser, const char *f, VALUE file, int start)
+NODE *
+rb_parser_compile_file(volatile VALUE vparser, const char *f, VALUE file,
+	int start)
 {
     struct parser_params *parser;
     volatile VALUE tmp;
     NODE *node;
-    UInt8 *buf = NULL;
-    struct lex_io_gets_data data;
 
     Data_Get_Struct(vparser, struct parser_params, parser);
 
-    size_t buflen = rb_io_file_size(file);
-    if (buflen == 0) {
-	// may be a pipe or something, use the less-efficient code path.
-	lex_gets = lex_io_gets;
-	lex_input = file;
-    }
-    else {
-	// TODO use mmap() if the file is too big
-	buf = (UInt8 *)xmalloc(buflen);
-	if (!rb_io_read_all_file(file, buf, buflen)) {
-	    return NULL;
-	}
-
-	data.buf = buf;
-	data.buflen = buflen;
-
-	lex_gets = lex_io_gets_fast;
-	lex_input = (VALUE)&data;
-    }
-
+    lex_gets = lex_io_gets;
+    GC_WB(&lex_input, file);
     lex_pbeg = lex_p = lex_pend = 0;
+
     node = yycompile(parser, f, start);
     tmp = vparser; /* prohibit tail call optimization */
-
-    if (buf != NULL) {
-	xfree(buf);
-    }
 
     return node;
 }
