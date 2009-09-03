@@ -2000,16 +2000,6 @@ io_from_spawning_new_process(VALUE prog, VALUE mode)
 	rb_sys_fail("pipe() failed");
     }
 
-    // Confusingly enough, FMODE_WRITABLE means 'write-only'
-    // and FMODE_READABLE means 'read-only'.
-    const int fmode = convert_mode_string_to_fmode(mode);
-    if (fmode != FMODE_WRITABLE) {
-	io_struct->read_fd = fd[0];
-    }
-    if (fmode != FMODE_READABLE) {
-	io_struct->write_fd = fd[1];
-    }
-
     rb_sys_fail_unless(posix_spawn_file_actions_init(&actions),
 	    "could not init file actions");
     rb_sys_fail_unless(posix_spawn_file_actions_adddup2(&actions, fd[1],
@@ -2035,6 +2025,19 @@ io_from_spawning_new_process(VALUE prog, VALUE mode)
     io_struct->fd = fd[0];
     io_struct->pid = pid;
     io_struct->sync = mode & FMODE_SYNC;
+
+    // Confusingly enough, FMODE_WRITABLE means 'write-only'
+    // and FMODE_READABLE means 'read-only'.
+    const int fmode = convert_mode_string_to_fmode(mode);
+    if (fmode != FMODE_WRITABLE) {
+	io_struct->read_fd = fd[0];
+    }
+    if (fmode != FMODE_READABLE) {
+	io_struct->write_fd = fd[1];
+    }
+    else {
+	close(fd[1]);	
+    }
 
     return io;
 }
@@ -3242,12 +3245,6 @@ rb_f_backquote(VALUE obj, SEL sel, VALUE str)
     if (waitpid(io_s->pid, &status, 0) != -1) {
 	rb_last_status_set(status, io_s->pid);
 	io_s->pid = -1;
-#if 0
-	if (!WIFEXITED(status) || WEXITSTATUS(status) > 0) {
-	    rb_io_close(io, 0);
-	    return rb_str_new2("");
-	}
-#endif
     }
 
     VALUE bstr = rb_bytestring_new();
