@@ -309,7 +309,7 @@ rb_vm_regrow_robject_slots(struct RObject *obj, unsigned int new_num_slot)
     for (i = obj->num_slots + 1; i < new_num_slot; i++) {
 	obj->slots[i] = Qundef;
     }
-    obj->num_slots = new_num_slot;
+    obj->num_slots = new_num_slot + 1;
 }
 
 static inline VALUE
@@ -317,7 +317,7 @@ rb_vm_get_ivar_from_slot(VALUE obj, int slot)
 {
     struct RObject *robj = (struct RObject *)obj;
     assert(slot >= 0);
-    if (robj->num_slots < (unsigned int)slot) {
+    if ((unsigned int)slot >= robj->num_slots)  {
 	return Qnil;
     }
     return robj->slots[slot];
@@ -328,7 +328,7 @@ rb_vm_set_ivar_from_slot(VALUE obj, VALUE val, int slot)
 {
     struct RObject *robj = (struct RObject *)obj;
     assert(slot >= 0);
-    if (robj->num_slots < (unsigned int)slot) {
+    if ((unsigned int)slot >= robj->num_slots)  {
 	rb_vm_regrow_robject_slots(robj, (unsigned int)slot);
     }
     GC_WB(&robj->slots[slot], val);
