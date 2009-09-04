@@ -1667,7 +1667,7 @@ gzfile_close(struct gzfile *gz, int closeflag)
 {
     VALUE io = gz->io;
 
-    
+    gz->end(gz);    
     gz->io = Qnil;
     gz->orig_name = Qnil;
     gz->comment = Qnil;
