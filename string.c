@@ -2507,7 +2507,7 @@ rb_str_to_f(VALUE str, SEL sel)
 static VALUE
 rb_str_to_s(VALUE str, SEL sel)
 {
-    if (!rb_objc_str_is_pure(str)) {
+    if (!rb_objc_str_is_pure(str) && *(VALUE *)str != rb_cByteString) {
 	VALUE dup = str_alloc(rb_cString);
 	rb_str_replace(dup, str);
 	return dup;
