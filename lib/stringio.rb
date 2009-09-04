@@ -46,7 +46,7 @@ class StringIO
   #
   # Creates new StringIO instance from with _string_ and _mode_.
   #
-  def initialize(string = "", mode = nil)
+  def initialize(string = ByteString.new, mode = nil)
     @string = string.to_str  
     @pos = 0
     @lineno = 0
