@@ -1,1 +1,2 @@
 fails:StringIO#puts when passed [Array, ...] handles self-recursive arrays correctly
+fails:StringIO#puts when passed an encoded string stores the bytes unmodified
