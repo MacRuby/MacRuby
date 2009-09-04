@@ -121,7 +121,7 @@ class StringIO
   #
   # See IO#read.
   #
-  def read(length = nil, buffer = "")
+  def read(length = nil, buffer = ByteString.new)
     raise IOError, "not opened for reading" unless @readable
     raise TypeError unless buffer.respond_to?(:to_str)
     buffer = buffer.to_str      
@@ -146,7 +146,7 @@ class StringIO
   #
   # Similar to #read, but raises +EOFError+ at end of string instead of
   # returning +nil+, as well as IO#sysread does.
-  def sysread(length = nil, buffer = "")
+  def sysread(length = nil, buffer = ByteString.new)
     val = read(length, buffer)
     ( buffer.clear && raise(IO::EOFError, "end of file reached")) if val == nil
     val
