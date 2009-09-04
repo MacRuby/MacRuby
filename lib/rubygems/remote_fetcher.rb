@@ -235,15 +235,16 @@ class Gem::RemoteFetcher
       # XXX we are taking a _much faster_ code path here, this change should be
       # removed once we re-implement the IO subsystem (and therefore Net::HTTP)
       # on top of CF.
+      framework 'Foundation'
       url = NSURL.URLWithString(uri.to_s)
       data = NSMutableData.dataWithContentsOfURL(url)
       if data.nil?
-	      raise Gem::RemoteFetcher::FetchError, "error when fetching data from #{uri}"
+        raise Gem::RemoteFetcher::FetchError, "error when fetching data from #{uri}"
       end
       string = String.__new_bytestring__(data)
       #block.call(string) if block
       return string
-    end    
+    end
     raise "block is dead" if block_given?
 
     return open(get_file_uri_path(uri)) if file_uri? uri
