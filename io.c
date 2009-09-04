@@ -321,7 +321,7 @@ prepare_io_from_fd(rb_io_t *io_struct, int fd, int mode)
  
     io_struct->fd = fd;
     io_struct->pid = -1;
-    io_struct->sync = mode & FMODE_SYNC;
+    io_struct->mode = mode;
 }
 
 static void
@@ -705,7 +705,7 @@ rb_io_eof(VALUE io, SEL sel)
     rb_io_t *io_struct = ExtractIOStruct(io);
     rb_io_assert_readable(io_struct);
 
-    if (io_struct->buf != NULL && CFDataGetLength(io_struct->buf) > 0) {
+    if (rb_io_read_pending(io_struct)) {
 	return Qfalse;
     }
 
@@ -738,7 +738,7 @@ rb_io_sync(VALUE io, SEL sel)
 {
     rb_io_t *io_struct = ExtractIOStruct(io);
     rb_io_assert_open(io_struct);
-    return io_struct->sync ? Qtrue : Qfalse;
+    return (io_struct->mode & FMODE_SYNC) ? Qtrue : Qfalse;
 }
 
 /*
@@ -761,7 +761,12 @@ rb_io_set_sync(VALUE io, SEL sel, VALUE mode)
 {
     rb_io_t *io_struct = ExtractIOStruct(io);
     rb_io_assert_open(io_struct);
-    io_struct->sync = RTEST(mode);
+    if (RTEST(mode)) {
+	io_struct->mode |= FMODE_SYNC;
+    }
+    else {
+	io_struct->mode &= ~FMODE_SYNC;
+    }
     return mode;
 }
 
@@ -873,6 +878,31 @@ rb_io_to_io(VALUE io, SEL sel)
     return io;
 }
 
+static inline bool
+__rb_io_wait_readable(int fd)
+{
+    if (errno == EINTR) {
+	fd_set readset;
+	FD_ZERO(&readset);
+	FD_SET(fd, &readset);
+	return select(fd + 1, &readset, NULL, NULL, NULL) >= 0;
+    }
+    return false;
+}
+
+bool
+rb_io_wait_readable(int fd)
+{
+    return __rb_io_wait_readable(fd);
+}
+
+bool
+rb_io_wait_writable(int fd)
+{
+    // TODO
+    return false;
+}
+
 static inline long
 read_internal(int fd, UInt8 *buffer, long len)
 {
@@ -881,13 +911,8 @@ read_internal(int fd, UInt8 *buffer, long len)
 retry:
     code = read(fd, buffer, len);
     if (code == -1) {
-	if (errno == EINTR) {
-	    fd_set readset;
-	    FD_ZERO(&readset);
-	    FD_SET(fd, &readset);
-	    if (select(fd + 1, &readset, NULL, NULL, NULL) >= 0) {
-		goto retry;
-	    }
+	if (__rb_io_wait_readable(fd)) {
+	    goto retry;
 	}
 	rb_sys_fail("read() failed");
     }
@@ -959,7 +984,7 @@ rb_io_read_all(rb_io_t *io_struct, VALUE bytestring_buffer)
 	    + bytes_read;
         const long last_read = rb_io_read_internal(io_struct, b, BUFSIZE);
         bytes_read += last_read;
-	if (last_read < BUFSIZE) {
+	if (last_read == 0) {
 	    break;
 	}
     }
@@ -2024,7 +2049,7 @@ io_from_spawning_new_process(VALUE prog, VALUE mode)
 
     io_struct->fd = fd[0];
     io_struct->pid = pid;
-    io_struct->sync = mode & FMODE_SYNC;
+    io_struct->mode = mode;
 
     // Confusingly enough, FMODE_WRITABLE means 'write-only'
     // and FMODE_READABLE means 'read-only'.

@@ -104,6 +104,8 @@ if have_func("sendmsg") | have_func("recvmsg")
   have_struct_member('struct msghdr', 'msg_accrights', ['sys/types.h', 'sys/socket.h'])
 end
 
+getaddr_info_ok = true
+=begin
 getaddr_info_ok = enable_config("wide-getaddrinfo") do
   checking_for("wide getaddrinfo") {try_run(<<EOF)}
 #{cpp_include(headers)}
@@ -208,6 +210,7 @@ main()
 }
 EOF
 end
+=end
 if ipv6 and not getaddr_info_ok
   abort <<EOS
 

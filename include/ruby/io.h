@@ -32,7 +32,7 @@ typedef struct rb_io_t {
     CFStringRef path;
     pid_t pid;
     int lineno;
-    bool sync;
+    int mode;
 
     CFMutableDataRef buf;
     unsigned long buf_offset;
@@ -68,18 +68,36 @@ NORETURN(void rb_eof_error(void));
 
 long rb_io_primitive_read(struct rb_io_t *io_struct, UInt8 *buffer, long len);
 
+bool rb_io_wait_readable(int fd);
+bool rb_io_wait_writable(int fd);
+
 static inline void
-rb_io_assert_initialized(rb_io_t *fptr)
+rb_io_check_initialized(rb_io_t *fptr)
 {
     if (fptr == NULL) {
 	rb_raise(rb_eIOError, "uninitialized stream");
     }
 }
 
+static inline void
+rb_io_check_closed(rb_io_t *io_struct)
+{
+    rb_io_check_initialized(io_struct);
+    if (io_struct->fd == -1) {
+	rb_raise(rb_eIOError, "closed stream");
+    }
+}
+
+static inline bool
+rb_io_read_pending(rb_io_t *io_struct)
+{
+    return io_struct->buf != NULL && CFDataGetLength(io_struct->buf) > 0;
+}
+
 static inline void 
 rb_io_assert_writable(rb_io_t *io_struct)
 {
-    rb_io_assert_initialized(io_struct);
+    rb_io_check_initialized(io_struct);
     if (io_struct->write_fd == -1) {
 	rb_raise(rb_eIOError, "not opened for writing");
     }
@@ -88,7 +106,7 @@ rb_io_assert_writable(rb_io_t *io_struct)
 static inline void
 rb_io_assert_readable(rb_io_t *io_struct)
 {
-    rb_io_assert_initialized(io_struct);
+    rb_io_check_initialized(io_struct);
     if (io_struct->read_fd == -1) {
 	rb_raise(rb_eIOError, "not opened for reading");
     }
