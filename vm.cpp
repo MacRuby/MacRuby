@@ -3268,7 +3268,8 @@ rb_vm_when_splat(struct mcache *cache, unsigned char overriden,
     int count = RARRAY_LEN(ary);
     if (overriden == 0) {
 	for (int i = 0; i < count; ++i) {
-	    if (RTEST(rb_vm_fast_eqq(cache, comparedTo, RARRAY_AT(ary, i)))) {
+	    VALUE o = RARRAY_AT(ary, i);
+	    if (RTEST(rb_vm_fast_eqq(cache, o, comparedTo))) {
 		return Qtrue;
 	    }
 	}
@@ -3276,7 +3277,7 @@ rb_vm_when_splat(struct mcache *cache, unsigned char overriden,
     else {
 	for (int i = 0; i < count; ++i) {
 	    VALUE o = RARRAY_AT(ary, i);
-	    if (RTEST(rb_vm_dispatch(cache, comparedTo, selEqq, NULL, 0, 1, &o))) {
+	    if (RTEST(rb_vm_dispatch(cache, o, selEqq, NULL, 0, 1, comparedTo))) {
 		return Qtrue;
 	    }
 	}
