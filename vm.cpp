@@ -384,9 +384,6 @@ RoxorCore::compile(Function *func)
 	return iter->second;
     }
 
-    if (verifyModule(*RoxorCompiler::module, PrintMessageAction)) {
-    }
-
 #if ROXOR_COMPILER_DEBUG
     if (verifyModule(*RoxorCompiler::module, PrintMessageAction)) {
 	printf("Error during module verification\n");
@@ -4313,7 +4310,7 @@ rb_iseq_new(NODE *node, VALUE filename)
 static inline void
 __vm_raise(void)
 {
-#if 1
+#if __LP64__
     id exc = rb_objc_create_exception(GET_VM()->current_exception());
     objc_exception_throw(exc);
 #else
