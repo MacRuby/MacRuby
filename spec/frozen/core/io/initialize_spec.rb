@@ -29,11 +29,9 @@ describe "IO#initialize" do
     lambda { @io.send :initialize, IOSpecs.closed_file.fileno }.should raise_error(IOError)
   end
 
-  # MacRuby TODO: for some reason only compiling this method leads to abort
-  # when running in spec:ci eventhough the example is tagged as critical.
-  # it "raises an Errno::EBADF when given an invalid file descriptor" do
-  #   lambda { @io.send :initialize, -1, 'w' }.should raise_error(Errno::EBADF)
-  # end
+  it "raises an Errno::EBADF when given an invalid file descriptor" do
+    lambda { @io.send :initialize, -1, 'w' }.should raise_error(Errno::EBADF)
+  end
   
   ruby_version_is '1.9' do
     it "uses the external encoding specified in the mode argument" do
