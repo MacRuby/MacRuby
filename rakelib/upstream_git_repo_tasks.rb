@@ -14,11 +14,11 @@ class Rake::UpstreamGitRepoTasks
   end
   
   def upstream_rev_file
-    File.read(File.join(@local_dir, 'upstream'))
+    File.join(@local_dir, 'upstream')
   end
   
   def upstream_rev
-    @upstream_rev ||= ENV['REV'] || upstream_rev_file
+    @upstream_rev ||= ENV['REV'] || File.read(upstream_rev_file)
   end
   
   def define
