@@ -1,2 +1,3 @@
 fails:IO#reopen reassociates self with a new stream opened on path, after some writes
 fails:IO#reopen reassociates self with a new stream after some reads
+fails:IO#reopen calls #to_path on non-String arguments

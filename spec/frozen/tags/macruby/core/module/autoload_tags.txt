@@ -20,3 +20,4 @@ fails:Module#autoload raises a NameError when the autoload file did not define t
 fails:Module#autoload raises a TypeError if opening a class with a different superclass than the class defined in the autoload file
 fails:Module#autoload does not call Kernel#require or Kernel#load dynamically
 fails:Module#autoload calls #to_path on non-String filename arguments
+fails:Module#autoload calls #to_path on non-string filenames
