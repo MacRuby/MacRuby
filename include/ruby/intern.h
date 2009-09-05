@@ -390,7 +390,7 @@ VALUE rb_io_write(VALUE, SEL, VALUE);
 VALUE rb_io_gets(VALUE, SEL);
 VALUE rb_io_getbyte(VALUE, SEL);
 VALUE rb_io_ungetc(VALUE, SEL, VALUE);
-VALUE rb_io_close(VALUE, SEL);
+VALUE rb_io_close(VALUE);
 VALUE rb_io_flush(VALUE, SEL);
 VALUE rb_io_eof(VALUE, SEL);
 VALUE rb_io_binmode(VALUE, SEL);

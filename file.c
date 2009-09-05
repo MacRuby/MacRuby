@@ -777,8 +777,10 @@ rb_file_s_stat(VALUE klass, SEL sel, VALUE fname)
 static VALUE
 rb_io_stat(VALUE obj, SEL sel)
 {
-    struct stat st;
     struct rb_io_t *io = ExtractIOStruct(obj);
+    rb_io_check_closed(io);
+    
+    struct stat st;
     if (fstat(io->fd, &st) == -1) {
 	rb_sys_fail(RSTRING_PTR(io->path));
     }

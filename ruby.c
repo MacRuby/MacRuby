@@ -1164,7 +1164,7 @@ load_file(VALUE parser, const char *fname, int script,
 	rb_define_global_const("DATA", f);
     }
     else if (f != rb_stdin) {
-	rb_io_close(f, 0);
+	rb_io_close(f);
     }
     return tree;
 }

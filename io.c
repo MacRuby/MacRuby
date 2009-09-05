@@ -325,8 +325,10 @@ prepare_io_from_fd(rb_io_t *io_struct, int fd, int mode)
 }
 
 static void
-io_struct_close(rb_io_t *io_struct, bool close_read, bool close_write)
+io_close(rb_io_t *io_struct, bool close_read, bool close_write)
 {
+    // TODO we must check the return value of close(2) and appropriately call
+    // rb_sys_fail().
     if (close_read) {
 	if (io_struct->read_fd != io_struct->write_fd) {
 	    close(io_struct->read_fd);
@@ -1112,6 +1114,9 @@ io_read(VALUE io, SEL sel, int argc, VALUE *argv)
     }
 
     const long size = FIX2LONG(len);
+    if (size < 0) {
+	rb_raise(rb_eArgError, "negative length %ld given", size);
+    }
     if (size == 0) {
 	return rb_str_new2("");
     }
@@ -1449,6 +1454,7 @@ rb_io_each_line(VALUE io, SEL sel, int argc, VALUE *argv)
     VALUE line = rb_io_gets_m(io, sel, argc, argv);
     while (!NIL_P(line)) {
 	rb_vm_yield(1, &line);
+	RETURN_IF_BROKEN();
 	line = rb_io_gets_m(io, sel, argc, argv);
     }
     return io;
@@ -1476,6 +1482,7 @@ rb_io_each_byte(VALUE io, SEL sel)
     VALUE b = rb_io_getbyte(io, 0);
     while (!NIL_P(b)) {
 	rb_vm_yield(1, &b);
+	RETURN_IF_BROKEN();
 	b = rb_io_getbyte(io, 0);
     }
     return io;
@@ -1503,6 +1510,7 @@ rb_io_each_char(VALUE io, SEL sel)
     VALUE c = rb_io_getc(io, 0);
     while (!NIL_P(c)) {
 	rb_vm_yield(1, &c);
+	RETURN_IF_BROKEN();
 	c = rb_io_getc(io, 0);
     }
     return io;
@@ -1800,17 +1808,12 @@ rb_io_set_close_on_exec(VALUE io, SEL sel, VALUE arg)
     return arg;
 }
 
-static inline void
-io_close(VALUE io, bool close_read, bool close_write)
-{
-    rb_io_t *io_struct = ExtractIOStruct(io);
-    io_struct_close(io_struct, close_read, close_write);
-}
-
 static VALUE
 rb_io_close_m(VALUE io, SEL sel)
 {
-    io_close(io, true, true);
+    rb_io_t *io_s = ExtractIOStruct(io);
+    rb_io_check_closed(io_s);
+    io_close(io_s, true, true);
     return Qnil;
 }
 
@@ -1862,7 +1865,12 @@ rb_io_closed(VALUE io, SEL sel)
 static VALUE
 rb_io_close_read(VALUE io, SEL sel)
 {
-    io_close(io, true, false);
+    rb_io_t *io_s = ExtractIOStruct(io);
+    rb_io_check_initialized(io_s);
+    if (io_s->read_fd == -1) {
+        rb_raise(rb_eIOError, "closed read stream");
+    }
+    io_close(io_s, true, false);
     return Qnil;
 }
 
@@ -1888,14 +1896,20 @@ rb_io_close_read(VALUE io, SEL sel)
 static VALUE
 rb_io_close_write(VALUE io, SEL sel)
 {
-    io_close(io, false, true);
+    rb_io_t *io_s = ExtractIOStruct(io);
+    rb_io_check_initialized(io_s);
+    if (io_s->write_fd == -1) {
+        rb_raise(rb_eIOError, "closed write stream");
+    }
+    io_close(io_s, false, true);
     return Qnil;
 }
 
 VALUE
-rb_io_close(VALUE io, SEL sel)
+rb_io_close(VALUE io)
 {
-    io_close(io, true, true);
+    rb_io_t *io_struct = ExtractIOStruct(io);
+    io_close(io_struct, true, true);
     return Qnil;
 }
 
@@ -2081,7 +2095,7 @@ rb_io_s_popen(VALUE klass, SEL sel, int argc, VALUE *argv)
     VALUE io = io_from_spawning_new_process(process_name, mode);
     if (rb_block_given_p()) {
 	VALUE ret = rb_vm_yield(1, &io);
-	rb_io_close_m(io, 0);
+	rb_io_close(io);
 	return ret;
     }
     return io;
@@ -2108,7 +2122,7 @@ rb_io_s_open(VALUE klass, SEL sel, int argc, VALUE *argv)
     VALUE io = rb_io_s_new(klass, sel, argc, argv);
     if (rb_block_given_p()) {
         VALUE ret = rb_vm_yield(1, &io);
-        rb_io_close_m(io, 0);
+        rb_io_close(io);
         return ret;
     }
     return io;
@@ -2266,7 +2280,7 @@ f_open_body(VALUE io)
 static VALUE
 f_open_ensure(VALUE io)
 {
-    rb_io_close_m(io, 0);
+    rb_io_close(io);
     return Qnil;
 }
 
@@ -2376,7 +2390,7 @@ rb_io_reopen(VALUE io, SEL sel, int argc, VALUE *argv)
 	}
 
 	int fd = io_s->fd;
-	io_struct_close(io_s, true, true);
+	io_close(io_s, true, true);
 	fd = dup2(other->fd, fd);
 	if (fd < 0) {
 	    rb_sys_fail("dup2() failed");
@@ -2819,7 +2833,7 @@ static IMP rb_objc_io_finalize_super = NULL;
 static void
 rb_objc_io_finalize(void *rcv, SEL sel)
 {
-    rb_io_close((VALUE)rcv, 0);
+    rb_io_close((VALUE)rcv);
     if (rb_objc_io_finalize_super != NULL) {
 	((void(*)(void *, SEL))rb_objc_io_finalize_super)(rcv, sel);
     }
@@ -3019,7 +3033,7 @@ retry:
 		    VALUE str;
 		    int fw;
 		    if (TYPE(rb_stdout) == T_FILE && rb_stdout != orig_stdout) {
-			rb_io_close(rb_stdout, 0);
+			rb_io_close(rb_stdout);
 		    }
 		    fstat(fr, &st);
 		    if (*ARGF.inplace) {
@@ -3276,7 +3290,7 @@ rb_f_backquote(VALUE obj, SEL sel, VALUE str)
 
     VALUE bstr = rb_bytestring_new();
     rb_io_read_all(ExtractIOStruct(io), bstr);
-    rb_io_close(io, 0);
+    rb_io_close(io);
 
     return bstr;
 }
@@ -3634,11 +3648,13 @@ rb_io_s_pipe(VALUE recv, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_io_s_foreach(VALUE recv, SEL sel, int argc, VALUE *argv)
 {
+    RETURN_ENUMERATOR(recv, argc, argv);
     VALUE arr = rb_io_s_readlines(recv, sel, argc, argv);
     long i, count;
     for (i = 0, count = RARRAY_LEN(arr); i < count; i++) {
 	VALUE at = RARRAY_AT(arr, i);
 	rb_vm_yield(1, &at);
+	RETURN_IF_BROKEN();
     }
     return Qnil;
 }
@@ -3689,7 +3705,7 @@ rb_io_s_read(VALUE recv, SEL sel, int argc, VALUE *argv)
 	rb_io_seek(io, offset, 0);
     }
     VALUE result = io_read(io, 0, 1, &length);
-    rb_io_close_m(io, 0);
+    rb_io_close(io);
     return result;
 }
 
@@ -4138,7 +4154,7 @@ argf_binmode_m(VALUE argf, SEL sel)
 static VALUE
 argf_skip(VALUE argf, SEL sel)
 {
-    if (ARGF.next_p != -1) {
+    if (ARGF.init_p && ARGF.next_p == 0) {
 	argf_close(ARGF.current_file, 0);
 	ARGF.next_p = 1;
     }

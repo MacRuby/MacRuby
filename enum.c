@@ -625,9 +625,11 @@ first_i(VALUE i, VALUE *ary, int argc, VALUE *argv)
 	if (n <= 0) {
 	    rb_iter_break();
 	}
-	rb_ary_push(ary[1], i);
-	n--;
-	ary[0] = INT2NUM(n);
+	else {
+	    rb_ary_push(ary[1], i);
+	    n--;
+	    ary[0] = INT2NUM(n);
+	}
     }
     return Qnil;
 }
