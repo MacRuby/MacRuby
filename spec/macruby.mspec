@@ -16,8 +16,7 @@ class MSpecScript
     # Currently not working on MacRuby
     '^core/encoding',
     '^core/marshal',
-    '^core/numeric/to_c_spec.rb',
-    '^core/precision'
+    '^core/numeric/to_c_spec.rb'
   ]
 
   # Library specs
