@@ -113,4 +113,12 @@ describe "IO#reopen" do
     @file1.gets
     @file1.reopen(@file2).gets.should == "Line 1: One\n"
   end
+
+  ruby_version_is "1.9" do
+    it "calls #to_path on non-String arguments" do
+      p = mock('path')
+      p.should_receive(:to_path).and_return(@file2.to_path)
+      @file1.reopen(p)
+    end
+  end
 end

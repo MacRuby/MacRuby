@@ -1,4 +1,4 @@
-ruby_version_is "1.8.7" do
+ruby_version_is "1.9" do
   describe "Symbol#intern" do
     it "returns self" do
       :foo.intern.should == :foo

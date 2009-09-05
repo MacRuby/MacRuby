@@ -17,9 +17,12 @@ describe :enum_next, :shared => true do
     lambda { @enum.next }.should raise_error(StopIteration)
   end
 
-  it "rewinds the enumerator after raising StopIteration" do
+  it "cannot be called again until the enumerator is rewound" do
     3.times { @enum.next }
     lambda { @enum.next }.should raise_error(StopIteration)
+    lambda { @enum.next }.should raise_error(StopIteration)
+    lambda { @enum.next }.should raise_error(StopIteration)
+    @enum.rewind
     @enum.next.should == 1
   end
 end

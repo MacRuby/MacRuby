@@ -211,6 +211,14 @@ describe "Kernel#load" do
     lambda { load([]) }.should raise_error TypeError
   end
 
+  ruby_version_is "1.9" do
+    it "calls #to_path on non-String arguments" do
+      p = mock('path')
+      p.should_receive(:to_path).and_return 'load_spec_1.rb'
+      load(p)
+    end
+  end
+
   runner_is_not :rspec do
     it "allows wrapping the code in the file in an anonymous module" do
       !!defined?(LoadSpecWrap).should == false

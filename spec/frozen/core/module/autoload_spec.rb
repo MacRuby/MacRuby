@@ -234,6 +234,14 @@ describe "Module#autoload" do
     end
   end
 
+  ruby_version_is "1.9" do
+    it "calls #to_path on non-string filenames" do
+      p = mock('path')
+      p.should_receive(:to_path).and_return @non_existent
+      ModuleSpecs.autoload :A, p
+    end
+  end
+
   it "raises an ArgumentError when an empty filename is given" do
     lambda { ModuleSpecs.autoload :A, "" }.should raise_error(ArgumentError)
   end

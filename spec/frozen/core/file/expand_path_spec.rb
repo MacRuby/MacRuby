@@ -96,6 +96,12 @@ describe "File.expand_path" do
     lambda { File.expand_path '../', 'tmp', 'foo' }.should raise_error(ArgumentError)
   end
 
+  ruby_version_is "1.9" do
+    it "accepts objects that have a #to_path method" do
+      File.expand_path(mock_to_path("a"), mock_to_path("#{@tmpdir}"))
+    end
+  end
+
   it "raises a TypeError if not passed a String type" do
     lambda { File.expand_path(1)    }.should raise_error(TypeError)
     lambda { File.expand_path(nil)  }.should raise_error(TypeError)

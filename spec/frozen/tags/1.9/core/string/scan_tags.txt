@@ -1,1 +1,0 @@
-fails:String#scan with pattern and block restores $~ after leaving the block

@@ -4,7 +4,7 @@ require File.dirname(__FILE__) + '/fixtures/classes'
 describe "Class.inherited" do
 
   before :each do
-    ::CoreClassSpecs::Record.called(nil)
+    CoreClassSpecs::Record.called nil
   end
   
   it "is invoked with the child Class when self is subclassed" do

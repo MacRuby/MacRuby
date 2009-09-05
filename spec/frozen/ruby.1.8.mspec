@@ -36,6 +36,9 @@ class MSpecScript
   # An ordered list of the directories containing specs to run
   set :files, get(:language) + get(:core) + get(:library)
 
+  # This set of files is run by mspec ci
+  set :ci_files, get(:files)
+
   # Optional library specs
   set :ffi, 'optional/ffi'
 

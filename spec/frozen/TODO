@@ -11,10 +11,6 @@
 * File ticket: $ ruby86 -e 'p ARGF.skip'
   -e:1:in `skip': undefined method `close' for false:FalseClass (NoMethodError)
   from -e:1 (Reported as bug #1653; update spec based on outcome).
-* The failing ARGF#lineno tests are due to a race-ish condition whereby if the
-  test is executed in the same run as other ARGF tests the #lineno value isn't
-  reset. This can be fixed by explicitly reseting #lineno in the test, but
-  that could mask another bug... Figure out who's to blame here.
 * Use the variable matchers which take into consideration the difference of the
   returned type of variable name. Which is String on 1.8 and Symbol on 1.9.
   Examples include: have_constant, have_instance_variable, etc.
@@ -37,27 +33,18 @@
 
 # 1.9
 =========
-* Methods expecting filenames or paths should call #to_path on non-String
-  arguments. Tests need adding, and tickets may need filing for non-conforming
-  methods.
 * Methods that could modify a frozen receiver should raise RuntimeError, even
   if the method's arguments are such that no modification would occur.
 * The inclusion of 'rational' by default has resulted in ZeroDivisionErrors
   being raised where they previously weren't. What is the rule of thumb in
   determining whether this outcome is intentional?
-* Discover why core/kernel/caller_spec.rb has failures on 1.9. What's the
-  cause of this behaviour?
 * Unify treatment of bugs after conversation with brixen. Bugs that occur only
   in 1.9 shouldn't be guarded; we just tag them with the bug number, e.g. " mspec
   tag --add 'fails(#555)' -e 'the failing stuff' path/to/spec".
-* Ask Ruby core about what Array#pack should do to encoding; citing failing
-  tests as example questions.
 * Spec Ripper.
 * 1.9 defines methods such as instance_eval on BasicObject; not Kernel as in
   1.8. Do we need to share these specs so that the methods are specified in
   the correct place?
-* #public_send and #send could share some common functionality, but shared
-  specs use #send internally. Ask brixen what to do.
 * Determine how we're going to specify the vast Gem module...
 * Specify require_relative
 * Share Enumerable#join with Hash#join once Enumerable#join is more stable.

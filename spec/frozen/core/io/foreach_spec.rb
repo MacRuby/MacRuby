@@ -122,6 +122,12 @@ describe "IO::foreach" do
       end
       lines.should == @content_with_r
     end
+
+    it "calls #to_path on non-String arguments" do
+      p = mock('path')
+      p.should_receive(:to_path).and_return(@file)
+      IO.foreach(p).to_a
+    end
   end
 
   ruby_version_is "1.8.7" do

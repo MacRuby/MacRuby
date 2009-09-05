@@ -131,6 +131,12 @@ describe "File.chmod" do
     end
   end
 
+  ruby_version_is "1.9" do
+    it "accepts an object that has a #to_path method" do
+      File.chmod(0, mock_to_path(@file))
+    end
+  end
+
   it "throws a TypeError if the given path is not coercable into a string" do
     lambda { File.chmod(0, []) }.should raise_error(TypeError)
   end
@@ -156,7 +162,7 @@ describe "File.chmod" do
       File.writable?(@file).should == false
       File.executable?(@file).should == true
     end
-    
+
     it "with '0644' makes file readable and writable and also executable" do
       File.chmod(0644, @file)
       File.readable?(@file).should == true

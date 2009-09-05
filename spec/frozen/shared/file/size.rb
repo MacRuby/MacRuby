@@ -20,6 +20,12 @@ describe :file_size, :shared => true do
   it "returns the size of the file if it exists and is not empty" do
     @object.send(@method, @exists).should == 8
   end
+
+  ruby_version_is "1.9" do
+    it "accepts an object that has a #to_path method" do
+      @object.send(@method, mock_to_path(@exists)).should == 8
+    end
+  end
 end
 
 describe :file_size_missing, :shared => true do

@@ -34,6 +34,16 @@ describe "Dir.mkdir" do
     end
   end
 
+  ruby_version_is "1.9" do
+    it "calls #to_path on non-String arguments" do
+      DirSpecs.clear_dirs
+      p = mock('path')
+      p.should_receive(:to_path).and_return('nonexisting')
+      Dir.mkdir(p)
+      DirSpecs.clear_dirs
+    end
+  end
+
   it "raises a SystemCallError when lacking adequate permissions in the parent dir" do
     # In case something happened it it didn't get cleaned up.
       FileUtils.rm_rf 'noperms' if File.directory? 'noperms'

@@ -1,12 +1,12 @@
 require File.dirname(__FILE__) + '/../../spec_helper'
 
 describe :file_world_readable, :shared => true do
-  
+
   before(:each) do
     @file = tmp('world-readable')
     File.open(@file,'w') {|f| f.puts }
   end
-  
+
   after(:each) do
     File.unlink(@file) if File.exists?(@file)
   end
@@ -43,8 +43,6 @@ describe :file_world_readable, :shared => true do
   end
 
   it "coerces the argument with #to_path" do
-    obj = mock('path')
-    obj.should_receive(:to_path).and_return(@file)
-    @object.world_readable?(obj)
+    @object.world_readable?(mock_to_path(@file))
   end
 end

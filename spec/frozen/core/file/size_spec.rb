@@ -12,18 +12,24 @@ describe "File.size" do
   end
 
   it "returns the size of the file" do
-    File.size?(@file).should == 8
+    File.size(@file).should == 8
   end
 
   it "accepts a String-like (to_str) parameter" do
     o = [@file]
     def o.to_str; self[0]; end
 
-    File.size?(o).should == 8
+    File.size(o).should == 8
   end
 
   it "accepts a File argument" do
-    File.size?(File.open(@file)).should == 8
+    File.size(File.open(@file)).should == 8
+  end
+
+  ruby_version_is "1.9" do
+    it "accepts an object that has a #to_path method" do
+      File.size(mock_to_path(@file)).should == 8
+    end
   end
 end
 
@@ -34,7 +40,7 @@ end
 
 ruby_version_is "1.9" do
   describe "File#size" do
-    
+
     before :each do
       @file = tmp('i_exist')
       File.open(@file,'w'){|f| f.write 'rubinius'}
@@ -66,13 +72,13 @@ ruby_version_is "1.9" do
       File.open(@file,'a') {|f| f.write '!'}
       @file.size.should == 9
     end
-  
+
     it "returns 0 for an empty file" do
       @file = File.open(@file.path, 'w')
       @file.truncate(0)
       @file.size.should == 0
     end
-    
+
     platform_is_not :windows do
       it "follows symlinks if necessary" do
         ln_file = tmp('i_exist_ln')
@@ -82,4 +88,4 @@ ruby_version_is "1.9" do
       end
     end
   end
-end  
+end

@@ -1,2 +1,0 @@
-fails:Class.new creates a class without a name
-fails:Class.new creates a class that can be given a name by assigning it to a constant

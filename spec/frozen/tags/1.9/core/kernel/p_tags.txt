@@ -1,1 +1,0 @@
-fails:Kernel#p prints obj.inspect followed by system record separator for each argument given

@@ -17,6 +17,14 @@ describe "IO.read" do
     IO.read(@fname).should == @contents
   end
 
+  ruby_version_is "1.9" do
+    it "calls #to_path on non-String arguments" do
+      p = mock('path')
+      p.should_receive(:to_path).and_return(@fname)
+      IO.read(p)
+    end
+  end
+
   it "treats second nil argument as no length limit" do
     IO.read(@fname, nil).should == @contents
     IO.read(@fname, nil, 5).should == IO.read(@fname, @contents.length, 5)
@@ -244,7 +252,7 @@ describe "IO#read" do
         path = tmp('%s-bom.txt' % name)
         content = text.encode(name)
         File.open(path,'w') { |f| f.print content }
-        result = File.read(path, :mode => 'rb:utf-7-bom')
+        result = File.read(path, :mode => "rb:BOM|#{name}")
         content[1].force_encoding("ascii-8bit").should == result.force_encoding("ascii-8bit")
         File.unlink(path)
       end

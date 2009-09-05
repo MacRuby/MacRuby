@@ -2282,18 +2282,17 @@ describe "Array#pack with format 'X'" do
   end
 
   ruby_version_is '1.9' do
-    it "doesn't change encoding of the result string" do
-      [0x41, 0x42, 0x43].pack('U3X').encoding.should == Encoding::UTF_8
+    it "returns an ASCII 8-bit String" do
+      [0x41, 0x42, 0x43].pack('U3X').encoding.should == Encoding::ASCII_8BIT
       [1, 2, 3].pack('w3X').encoding.should == Encoding::ASCII_8BIT
-      ["\x01\x02"].pack("mX").encoding.should == Encoding::US_ASCII
+      ["\x01\x02"].pack("mX").encoding.should == Encoding::ASCII_8BIT
     end
 
-    it "doesn't care even if breaks a character" do
+    it "doesn't care if it breaks a character" do
       str = nil
       lambda { str = [0x3042].pack("UX") }.should_not raise_error
-      str.encoding.should == Encoding::UTF_8
+      str.encoding.should == Encoding::ASCII_8BIT
       str.bytesize.should == 2
-      str.valid_encoding?.should be_false
     end
   end
 end
@@ -2317,18 +2316,17 @@ describe "Array#pack with '@'" do
   end
 
   ruby_version_is '1.9' do
-    it "doesn't change encoding of the result string" do
-      [0x41, 0x42, 0x43].pack('U3@6').encoding.should == Encoding::UTF_8
+    it "returns a String in ASCII 8-bit" do
+      [0x41, 0x42, 0x43].pack('U3@6').encoding.should == Encoding::ASCII_8BIT
       [1, 2, 3].pack('w3@3').encoding.should == Encoding::ASCII_8BIT
-      ["\x01\x02"].pack("m@4").encoding.should == Encoding::US_ASCII
+      ["\x01\x02"].pack("m@4").encoding.should == Encoding::ASCII_8BIT
     end
 
     it "doesn't care even if breaks a character" do
       str = nil
       lambda { str = [0x3042].pack("U@2") }.should_not raise_error
-      str.encoding.should == Encoding::UTF_8
+      str.encoding.should == Encoding::ASCII_8BIT
       str.bytesize.should == 2
-      str.valid_encoding?.should be_false
     end
   end
 end

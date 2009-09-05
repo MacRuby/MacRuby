@@ -34,6 +34,14 @@ platform_is_not :windows do
           File.exists?(@ref_dir).should be_true
           File.exists?("/#{File.basename(__FILE__)}").should be_false
         end
+
+        ruby_version_is "1.9" do
+          it "calls #to_path on non-String argument" do
+            p = mock('path')
+            p.should_receive(:to_path).and_return(@real_root)
+            Dir.chroot(p)
+          end
+        end
       end
     end
 
@@ -43,8 +51,16 @@ platform_is_not :windows do
           lambda { Dir.chroot('.') }.should raise_error(Errno::EPERM)
         end
 
-        it "raises an Errno::ENOENT exception if the directory doesn't exist" do
-          lambda { Dir.chroot('xgwhwhsjai2222jg') }.should raise_error(Errno::ENOENT)
+        it "raises a SystemCallError if the directory doesn't exist" do
+          lambda { Dir.chroot('xgwhwhsjai2222jg') }.should raise_error(SystemCallError)
+        end
+
+        ruby_version_is "1.9" do
+          it "calls #to_path on non-String argument" do
+            p = mock('path')
+            p.should_receive(:to_path).and_return('.')
+            lambda { Dir.chroot(p) }.should raise_error
+          end
         end
       end
     end

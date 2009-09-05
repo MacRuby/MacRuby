@@ -25,9 +25,7 @@ ruby_version_is "1.9" do
     end
 
     it "calls #to_path on its argument" do
-      obj = mock('path')
-      obj.should_receive(:to_path).and_return(@abs)
-      File.absolute_path(obj).should == @abs
+      File.absolute_path(mock_to_path(@abs)).should == @abs
     end
   end
 end
