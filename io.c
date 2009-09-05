@@ -1713,16 +1713,18 @@ rb_io_ungetc(VALUE io, SEL sel, VALUE c)
     }
 
     rb_io_create_buf(io_struct);
-    UInt8 *data = CFDataGetMutableBytePtr(io_struct->buf);
 
     if (len <= io_struct->buf_offset) {
 	io_struct->buf_offset -= len;
+	UInt8 *data = CFDataGetMutableBytePtr(io_struct->buf);
 	memcpy(data + io_struct->buf_offset, bytes, len);
     }
     else {
 	const long n = len - io_struct->buf_offset;
 	CFDataIncreaseLength(io_struct->buf, n);
-	memmove(data + n, data, CFDataGetLength(io_struct->buf));
+	// CFDataGetMutableBytePtr must be called after CFDataIncreaseLength
+	UInt8 *data = CFDataGetMutableBytePtr(io_struct->buf);
+	memmove(data + n, data, CFDataGetLength(io_struct->buf) - n);
 	memcpy(data, bytes, len);
     }
 
