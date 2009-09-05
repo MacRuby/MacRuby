@@ -1,9 +1,11 @@
-*.o
+*.[oa]
+*.dylib
 .ext
 dtrace.h
 lex.c
 miniprelude.c
 miniruby
+macruby
 node_name.inc
 parse.c
 prelude.c
@@ -18,4 +20,13 @@ spec/frozen/optional/ffi/fixtures/build
 *.bundle
 mkmf.log
 Makefile
+rbconfig.rb
+ext/ripper/eventids1.c
+ext/ripper/eventids2table.c
+ext/ripper/ripper.c
+ext/ripper/ripper.y
+ext/ripper/y.output
+ext/socket/constants.h
+.installed.list
+framework/Info.plist
 >>>>>>> Further work in making even a semi-usable YAML parser out of this code.:.gitignore
