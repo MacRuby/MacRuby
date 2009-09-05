@@ -298,6 +298,21 @@ assert '42', %{
   p X.new.foo
 }
 
+assert "42\n42\n42\n42", %{
+  module M
+    def foo(*args); 42; end
+    module_function :foo
+
+    module_function
+    def bar(*args); 42; end
+  end
+
+  p M.foo
+  p M.foo('blah')
+  p M.bar
+  p M.bar('blah')
+}
+
 assert '42', %{
   def foo(x,y,z=42)
     return z if z == 42
