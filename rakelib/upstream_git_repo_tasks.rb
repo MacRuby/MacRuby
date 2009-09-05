@@ -13,8 +13,12 @@ class Rake::UpstreamGitRepoTasks
     define
   end
   
+  def upstream_rev_file
+    File.read(File.join(@local_dir, 'upstream'))
+  end
+  
   def upstream_rev
-    @upstream_rev ||= ENV['REV'] || File.read(File.join(@local_dir, 'upstream'))
+    @upstream_rev ||= ENV['REV'] || upstream_rev_file
   end
   
   def define
@@ -104,13 +108,19 @@ class Rake::UpstreamGitRepoTasks
           desc "Creates patch since upstream revision `#{upstream_rev}' and applies it"
           task :patch do
             patch = File.join(@local_dir, 'upstream_patch.diff')
+            new_rev = nil
+
             Dir.chdir(@upstream_dir) do
               git_checkout('master')
+              new_rev = `git log -i -1 --pretty=format:%H`.strip
               sh "git diff #{upstream_rev} > #{patch}"
             end
             Dir.chdir(@local_dir) do
-              sh "/usr/bin/patch -p1 < #{patch}"
+              sh "/usr/bin/patch -p1 < #{patch}" rescue nil
             end
+
+            rm patch
+            File.open(upstream_rev_file, 'w') { |f| f << new_rev }
           end
 
           desc "Remove the `#{@upstream_options[:branch]}' branch and switch to the `master' branch (cleans all untracked files!)"
