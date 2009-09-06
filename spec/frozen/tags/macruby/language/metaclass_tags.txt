@@ -1,3 +1,2 @@
-critical:A constant on a metaclass cannot be accessed via object::CONST
 fails:A constant on a metaclass is not defined on the object's class
 fails:A constant on a metaclass does not appear in the object's class constant list
