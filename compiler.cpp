@@ -1211,7 +1211,7 @@ RoxorCompiler::compile_constant_declaration(NODE *node, Value *val)
     }
 
     std::vector<Value *> params;
-    bool outer = false;
+    bool outer = true;
 
     if (node->nd_vid > 0) {
 	params.push_back(compile_current_class());
