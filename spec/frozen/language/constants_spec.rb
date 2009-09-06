@@ -1,7 +1,5 @@
 require File.dirname(__FILE__) + '/../spec_helper'
-
-# MacRuby TODO: This file does not compile yet, causing most examples to fail.
-#require File.dirname(__FILE__) + '/../fixtures/constants'
+require File.dirname(__FILE__) + '/../fixtures/constants'
 
 # Read the documentation in fixtures/constants.rb for the guidelines and
 # rationale for the structure and organization of these specs.
@@ -110,7 +108,7 @@ describe "Literal (A::X) constant resolution" do
         ConstantSpecs::ContainerB::ChildB::CS_CONST108
       end.should raise_error(NameError)
 
-      module ConstantSpecs
+      module ::ConstantSpecs
         class << self
           CS_CONST108 = :const108_2
         end
