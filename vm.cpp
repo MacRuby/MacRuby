@@ -836,6 +836,12 @@ rb_vm_set_const(VALUE outer, ID id, VALUE obj, unsigned char dynamic_class)
 	    outer = (VALUE)k;
 	}
     }
+#if ROXOR_VM_DEBUG
+    printf("define const %s::%s to %p\n", 
+	    class_getName((Class)outer), 
+	    rb_id2name(id),
+	    (void *)obj);
+#endif
     rb_const_set(outer, id, obj);
     GET_CORE()->const_defined(id);
 }
@@ -889,6 +895,20 @@ rb_vm_const_lookup(VALUE outer, ID path, bool lexical, bool defined)
     return defined ? rb_const_defined(outer, path) : rb_const_get(outer, path);
 }
 
+static inline void
+check_if_module(VALUE mod)
+{
+    switch (TYPE(mod)) {
+	case T_CLASS:
+	case T_MODULE:
+	    break;
+
+	default:
+	    rb_raise(rb_eTypeError, "%s is not a class/module",
+		    RSTRING_PTR(rb_inspect(mod)));
+    }
+}
+
 extern "C"
 VALUE
 rb_vm_get_const(VALUE outer, unsigned char lexical_lookup,
@@ -908,6 +928,7 @@ rb_vm_get_const(VALUE outer, unsigned char lexical_lookup,
 	val = cache->val;
     }
     else {
+	check_if_module(outer);
 	val = rb_vm_const_lookup(outer, path, lexical_lookup, false);
 	cache->outer = outer;
 	cache->val = val;
@@ -938,20 +959,6 @@ rb_vm_get_outer(VALUE klass)
     return o == NULL ? Qundef : (VALUE)o->klass;
 }
 
-static inline void
-check_if_module(VALUE mod)
-{
-    switch (TYPE(mod)) {
-	case T_CLASS:
-	case T_MODULE:
-	    break;
-
-	default:
-	    rb_raise(rb_eTypeError, "%s is not a class/module",
-		    RSTRING_PTR(rb_inspect(mod)));
-    }
-}
-
 extern "C"
 VALUE
 rb_vm_define_class(ID path, VALUE outer, VALUE super, int flags,
@@ -970,8 +977,8 @@ rb_vm_define_class(ID path, VALUE outer, VALUE super, int flags,
     VALUE klass;
     if (rb_const_defined_at(outer, path)) {
 	klass = rb_const_get_at(outer, path);
+	check_if_module(klass);
 	if (!(flags & DEFINE_MODULE) && super != 0) {
-	    check_if_module(klass);
 	    if (RCLASS_SUPER(klass) != super) {
 		rb_raise(rb_eTypeError, "superclass mismatch for class %s",
 			rb_class2name(klass));
