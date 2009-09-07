@@ -1218,14 +1218,14 @@ expr		: command_call
 			$$ = dispatch3(binary, $1, ripper_intern("or"), $3);
 		    %*/
 		    }
-		| keyword_not expr
-		    {
-		    /*%%%*/
-			$$ = call_uni_op(cond($2), '!');
-		    /*%
-			$$ = dispatch2(unary, ripper_intern("not"), $2);
-		    %*/
-		    }
+                | keyword_not opt_nl expr
+                    {
+                    /*%%%*/
+                        $$ = call_uni_op(cond($3), '!');
+                    /*%
+                        $$ = dispatch2(unary, ripper_intern("not"), $3);
+                    %*/
+                    }
 		| '!' command_call
 		    {
 		    /*%%%*/
@@ -2774,6 +2774,22 @@ primary		: literal
 			$$ = dispatch1(defined, $5);
 		    %*/
 		    }
+                | keyword_not tLPAREN expr rparen
+                    {
+                    /*%%%*/
+                        $$ = call_uni_op(cond($3), '!');
+                    /*%
+                        $$ = dispatch2(unary, ripper_intern("not"), $3);
+                    %*/
+                    }
+                | keyword_not tLPAREN rparen
+                    {
+                    /*%%%*/
+                        $$ = call_uni_op(cond(NEW_NIL()), '!');
+                    /*%
+                        $$ = dispatch2(unary, ripper_intern("not"), Qnil);
+                    %*/
+                    }
 		| operation brace_block
 		    {
 		    /*%%%*/
