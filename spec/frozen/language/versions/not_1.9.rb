@@ -19,4 +19,8 @@ describe "not()" do
   it "returns true if the argument is nil" do
     not(false).inspect.should == "true"
   end
+
+  it "returns true if no argument is provided" do
+    not().inspect.should == "true"
+  end
 end
