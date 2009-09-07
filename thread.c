@@ -502,10 +502,9 @@ rb_thread_s_abort_exc_set(VALUE self, SEL sel, VALUE val)
  */
 
 static VALUE
-rb_thread_abort_exc(VALUE thread)
+rb_thread_abort_exc(VALUE thread, SEL sel)
 {
-    // TODO
-    return Qnil;
+    return GetThreadPtr(thread)->abort_on_exception ? Qtrue : Qfalse;
 }
 
 /*
@@ -518,10 +517,10 @@ rb_thread_abort_exc(VALUE thread)
  */
 
 static VALUE
-rb_thread_abort_exc_set(VALUE thread, VALUE val)
+rb_thread_abort_exc_set(VALUE thread, SEL sel, VALUE val)
 {
-    // TODO
-    return Qnil;
+    GetThreadPtr(thread)->abort_on_exception = RTEST(val);
+    return val;
 }
 
 /*
@@ -643,10 +642,9 @@ rb_thread_stop_p(VALUE thread)
  */
 
 static VALUE
-rb_thread_safe_level(VALUE thread)
+rb_thread_safe_level(VALUE thread, SEL sel)
 {
-    // TODO
-    return Qnil;
+    return INT2FIX(rb_vm_thread_safe_level(GetThreadPtr(thread)));
 }
 
 /*
@@ -780,10 +778,13 @@ rb_thread_keys(VALUE self, SEL sel)
  */
 
 static VALUE
-rb_thread_priority(VALUE thread)
+rb_thread_priority(VALUE thread, SEL sel)
 {
-    // TODO
-    return Qnil;
+    // FIXME this doesn't really minic what 1.9 does, but do we care?
+    struct sched_param param;
+    pthread_assert(pthread_getschedparam(GetThreadPtr(thread)->thread,
+		NULL, &param));
+    return INT2FIX(param.sched_priority);
 }
 
 /*
@@ -809,9 +810,29 @@ rb_thread_priority(VALUE thread)
  */
 
 static VALUE
-rb_thread_priority_set(VALUE thread, VALUE prio)
+rb_thread_priority_set(VALUE thread, SEL sel, VALUE prio)
 {
-    // TODO
+    // FIXME this doesn't really minic what 1.9 does, but do we care?
+    int policy;
+    struct sched_param param;
+    pthread_assert(pthread_getschedparam(GetThreadPtr(thread)->thread,
+		&policy, &param));
+ 
+    const int max = sched_get_priority_max(policy);
+    const int min = sched_get_priority_min(policy);
+
+    int priority = FIX2INT(prio);
+    if (min > priority) {
+	priority = min;
+    }
+    else if (max > priority) {
+	priority = max;
+    }
+
+    param.sched_priority = priority;
+    pthread_assert(pthread_setschedparam(GetThreadPtr(thread)->thread,
+		policy, &param));
+
     return Qnil;
 }
 
@@ -1469,14 +1490,14 @@ Init_Thread(void)
     rb_objc_define_method(rb_cThread, "[]=", rb_thread_aset, 2);
     rb_objc_define_method(rb_cThread, "key?", rb_thread_key_p, 1);
     rb_objc_define_method(rb_cThread, "keys", rb_thread_keys, 0);
-    rb_define_method(rb_cThread, "priority", rb_thread_priority, 0);
-    rb_define_method(rb_cThread, "priority=", rb_thread_priority_set, 1);
+    rb_objc_define_method(rb_cThread, "priority", rb_thread_priority, 0);
+    rb_objc_define_method(rb_cThread, "priority=", rb_thread_priority_set, 1);
     rb_objc_define_method(rb_cThread, "status", rb_thread_status, 0);
     rb_objc_define_method(rb_cThread, "alive?", rb_thread_alive_p, 0);
     rb_objc_define_method(rb_cThread, "stop?", rb_thread_stop_p, 0);
-    rb_define_method(rb_cThread, "abort_on_exception", rb_thread_abort_exc, 0);
-    rb_define_method(rb_cThread, "abort_on_exception=", rb_thread_abort_exc_set, 1);
-    rb_define_method(rb_cThread, "safe_level", rb_thread_safe_level, 0);
+    rb_objc_define_method(rb_cThread, "abort_on_exception", rb_thread_abort_exc, 0);
+    rb_objc_define_method(rb_cThread, "abort_on_exception=", rb_thread_abort_exc_set, 1);
+    rb_objc_define_method(rb_cThread, "safe_level", rb_thread_safe_level, 0);
     rb_objc_define_method(rb_cThread, "group", rb_thread_group, 0);
 
     rb_objc_define_method(rb_cThread, "inspect", rb_thread_inspect, 0);

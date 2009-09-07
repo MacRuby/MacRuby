@@ -4769,6 +4769,13 @@ rb_vm_safe_level(void)
 }
 
 extern "C"
+int
+rb_vm_thread_safe_level(rb_vm_thread_t *thread)
+{
+    return ((RoxorVM *)thread->vm)->get_safe_level();
+}
+
+extern "C"
 void 
 rb_vm_set_safe_level(int level)
 {
@@ -5056,14 +5063,14 @@ rb_vm_thread_run(VALUE thread)
     // Release the thread now.
     rb_objc_release((void *)thread);
 
-    pthread_cleanup_push(rb_vm_thread_destructor, (void *)thread);
-
     rb_vm_thread_t *t = GetThreadPtr(thread);
 
     // Normally the pthread ID is set into the VM structure in the other
     // thread right after pthread_create(), but we might run before the
     // assignment!
     t->thread = pthread_self();
+
+    pthread_cleanup_push(rb_vm_thread_destructor, (void *)thread);
 
     try {
 	VALUE val = rb_vm_block_eval(t->body, t->argc, t->argv);
@@ -5089,6 +5096,15 @@ rb_vm_thread_run(VALUE thread)
 
     GET_CORE()->unregister_thread(thread);
     rb_objc_gc_unregister_thread();
+
+#if 0
+    if (t->exception != Qnil) {
+	if (t->abort_on_exception || GET_CORE()->get_abort_on_exception()) {
+ 	    // TODO: move the exception to the main thread
+	    //rb_exc_raise(t->exception);
+	}
+    }
+#endif
 
     return NULL;
 }
@@ -5167,6 +5183,7 @@ rb_vm_thread_pre_init(rb_vm_thread_t *t, rb_vm_block_t *body, int argc,
     t->exception = Qnil;
     t->status = THREAD_ALIVE;
     t->in_cond_wait = false;
+    t->abort_on_exception = false;
     t->group = Qnil; // will be set right after
     t->mutexes = Qnil;
 

@@ -142,6 +142,7 @@ typedef struct rb_vm_thread {
     pthread_cond_t sleep_cond;
     rb_vm_thread_status_t status;
     bool in_cond_wait;
+    bool abort_on_exception;	// per-local state, global one is in RoxorCore
     VALUE locals;	// a Hash object or Qnil
     VALUE exception;	// killed-by exception or Qnil 
     VALUE group;	// always a ThreadGroup object
@@ -262,6 +263,7 @@ VALUE rb_vm_load_path(void);
 VALUE rb_vm_loaded_features(void);
 int rb_vm_safe_level(void);
 void rb_vm_set_safe_level(int level);
+int rb_vm_thread_safe_level(rb_vm_thread_t *thread);
 VALUE rb_vm_top_self(void);
 void rb_vm_const_is_defined(ID path);
 VALUE rb_vm_resolve_const_value(VALUE val, VALUE klass, ID name);
