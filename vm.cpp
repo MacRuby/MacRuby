@@ -4394,6 +4394,13 @@ rb_vm_break(VALUE val)
 
 extern "C"
 VALUE
+rb_vm_get_broken_value(void)
+{
+    return GET_VM()->get_broken_with();
+}
+
+extern "C"
+VALUE
 rb_vm_pop_broken_value(void)
 {
     return GET_VM()->pop_broken_with();

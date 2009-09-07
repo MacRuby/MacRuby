@@ -163,6 +163,7 @@ class RoxorCompiler {
 	Function *newString2Func;
 	Function *newString3Func;
 	Function *yieldFunc;
+	Function *getBrokenFunc;
 	Function *blockEvalFunc;
 	Function *gvarSetFunc;
 	Function *gvarGetFunc;
@@ -176,7 +177,6 @@ class RoxorCompiler {
 	Function *checkReturnFromBlockFunc;
 	Function *longjmpFunc;
 	Function *setjmpFunc;
-	Function *popBrokenValue;
 	Function *setScopeFunc;
 	Function *setCurrentClassFunc;
 

@@ -110,6 +110,7 @@ RoxorCompiler::RoxorCompiler(void)
     newString2Func = NULL;
     newString3Func = NULL;
     yieldFunc = NULL;
+    getBrokenFunc = NULL;
     blockEvalFunc = NULL;
     gvarSetFunc = NULL;
     gvarGetFunc = NULL;
@@ -123,7 +124,6 @@ RoxorCompiler::RoxorCompiler(void)
     checkReturnFromBlockFunc = NULL;
     longjmpFunc = NULL;
     setjmpFunc = NULL;
-    popBrokenValue = NULL;
     setScopeFunc = NULL;
     setCurrentClassFunc = NULL;
 
@@ -4847,7 +4847,30 @@ rescan_args:
 		params.insert(params.begin(),
 			ConstantInt::get(Type::Int32Ty, argc));
 
-		return compile_protected_call(yieldFunc, params);
+		Value *val = compile_protected_call(yieldFunc, params);
+
+		if (getBrokenFunc == NULL) {
+		    // VALUE rb_vm_pop_broken_value(void)
+		    getBrokenFunc = cast<Function>(module->getOrInsertFunction(
+				"rb_vm_get_broken_value",
+				RubyObjTy, NULL));
+		}
+
+		Value *broken = CallInst::Create(getBrokenFunc, "", bb);
+		Value *is_broken = new ICmpInst(ICmpInst::ICMP_NE, broken,
+			undefVal, "", bb);
+
+		Function *f = bb->getParent();
+		BasicBlock *broken_bb = BasicBlock::Create("broken", f);
+		BasicBlock *next_bb = BasicBlock::Create("", f);
+
+		BranchInst::Create(broken_bb, next_bb, is_broken, bb);
+
+		bb = broken_bb;
+		ReturnInst::Create(broken, bb);
+		
+		bb = next_bb;
+		return val;
 	    }
 	    break;
 
