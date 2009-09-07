@@ -2,6 +2,7 @@ For 0.5 RC1:
 
 [ ] fix irb Binding bugs
 [/] sockets
+[ ] backtracing / symbolication
 [ ] rubygems should work (modulo C extensions)
 
 For 0.5 (must do):
@@ -10,7 +11,6 @@ For 0.5 (must do):
 [/] 32-bit should be back
 [X] Array subclass for immediates
 [ ] Hash subclass for immediates
-[ ] backtracing / symbolication
 [ ] try/catch should use a C++ exception
 [ ] rewrite load.c
 [ ] fully implement FFI API
@@ -19,7 +19,7 @@ For 0.5 (must do):
 [/] support for zlib
 [ ] merge stdlib from 1.9.2 trunk
 [/] most language/core/library specs should run (modulo a very few exceptions)
-[/] port all rb_define_method() calls to rb_objc_define_method()
+[X] port all rb_define_method() calls to rb_objc_define_method()
 [/] port all rb_funcall() calls to rb_vm_call()
 [/] port all rb_num_coerce_bin() calls to rb_objc_num_coerce_bin()
 [/] port all rb_obj_respond_to() calls to rb_vm_respond_to()
