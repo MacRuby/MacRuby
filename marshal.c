@@ -971,7 +971,7 @@ marshal_dump(VALUE self, SEL sel, int argc, VALUE *argv)
 type_error:
 	    rb_raise(rb_eTypeError, "instance of IO needed");
 	}
-	GC_WB(&arg->str, rb_str_buf_new(0));
+	GC_WB(&arg->str, rb_bytestring_new());
 	GC_WB(&arg->dest, port);
 	if (rb_obj_respond_to(port, s_binmode, Qtrue)) {
 	    rb_funcall2(port, s_binmode, 0, 0);
@@ -981,9 +981,6 @@ type_error:
 	port = rb_bytestring_new();
 	GC_WB(&arg->str, port);
     }
-
-    // TODO should create ByteString
-    //RSTRING_BYTEPTR(arg->str); /* force bytestring creation */
 
     GC_WB(&arg->symbols, st_init_numtable());
     GC_WB(&arg->data, st_init_numtable());
@@ -1043,9 +1040,12 @@ r_byte(struct load_arg *arg)
 	VALUE src = arg->src;
 	VALUE v = rb_funcall2(src, s_getbyte, 0, 0);
 	check_load_arg(arg);
-	if (NIL_P(v)) rb_eof_error();
+	if (NIL_P(v)) {
+	    rb_eof_error();
+	}
 	c = (unsigned char)NUM2CHR(v);
     }
+
     return c;
 }
 
@@ -1115,6 +1115,7 @@ r_bytes0(long len, struct load_arg *arg)
 	    UInt8 *data = rb_bytestring_byte_pointer(str);
 	    memcpy(data, (UInt8 *)RSTRING_PTR(arg->src) + arg->offset, len);
 	    data[len] = '\0';
+	    arg->offset += len;
 	}
 	else {
 too_short:
@@ -1424,6 +1425,7 @@ format_error:
 	    RBIGNUM_SET_SIGN(big, (r_byte(arg) == '+'));
 	    len = r_long(arg);
 	    data = r_bytes0(len * 2, arg);
+	    // TODO: this doesn't work at all
 #if SIZEOF_BDIGITS == SIZEOF_SHORT
             rb_big_resize((VALUE)big, len);
 #else
@@ -1431,7 +1433,7 @@ format_error:
 #endif
             digits = RBIGNUM_DIGITS(big);
 	    MEMCPY(digits, RSTRING_PTR(data), char, len * 2);
-#if SIZEOF_BDIGITS > SIZEOF_SHORT
+#if 0//SIZEOF_BDIGITS > SIZEOF_SHORT
 	    MEMZERO((char *)digits + len * 2, char,
 		    RBIGNUM_LEN(big) * sizeof(BDIGIT) - len * 2);
 #endif
@@ -1467,8 +1469,9 @@ format_error:
       case TYPE_REGEXP:
 	{
 	    volatile VALUE str = r_bytes(arg);
-	    int options = r_byte(arg);
-	    v = r_entry(rb_reg_new_str(str, options), arg);
+	    const char *cstr = RSTRING_PTR(str);
+	    const int options = r_byte(arg);
+	    v = r_entry(rb_reg_new(cstr, strlen(cstr), options), arg);
             v = r_leave(v, arg);
 	}
 	break;
@@ -1555,7 +1558,7 @@ format_error:
 		rb_raise(rb_eTypeError, "class %s needs to have method `_load'",
 			 rb_class2name(klass));
 	    }
-	    data = r_string(arg);
+	    data = r_bytes(arg);
 	    if (ivp) {
 		r_ivar(data, arg);
 		*ivp = Qfalse;
