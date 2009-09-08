@@ -1,9 +1,10 @@
-/*
- * zlib.c - An interface for zlib.
+/* 
+ * MacRuby Zlib API.
  *
- *   Copyright (C) UENO Katsuhiro 2000-2003
- *
- * $Id: zlib.c 16304 2008-05-06 15:56:21Z matz $
+ * This file is covered by the Ruby license. See COPYING for more details.
+ * 
+ * Copyright (C) 2007-2008, Apple Inc. All rights reserved.
+ * Copyright (C) UENO Katsuhiro 2000-2003
  */
 
 #include "ruby/ruby.h"
@@ -445,17 +446,17 @@ static void
 zstream_append_buffer(struct zstream *z, const Bytef *src, int len)
 {
     if (NIL_P(z->buf)) {
-	    GC_WB(&z->buf, rb_bytestring_new_with_data((UInt8*)src, len));
-	    z->buf_filled = len;
-	    z->stream.next_out = BSTRING_PTR_BYTEF(z->buf);
-	    z->stream.avail_out = 0;
-	    return;
+	GC_WB(&z->buf, rb_bytestring_new_with_data((UInt8*)src, len));
+	z->buf_filled = len;
+	z->stream.next_out = BSTRING_PTR_BYTEF(z->buf);
+	z->stream.avail_out = 0;
+	return;
     }
     
     CFMutableDataRef data = rb_bytestring_wrapped_data(z->buf);
     if (CFDataGetLength(data) < (z->buf_filled + len)) {
-        CFDataSetLength(data, z->buf_filled + len);
-        z->stream.avail_out = 0;
+	CFDataSetLength(data, z->buf_filled + len);
+	z->stream.avail_out = 0;
     } else if (z->stream.avail_out >= len) {
         z->stream.avail_out -= len;
     } else {
@@ -535,9 +536,9 @@ zstream_append_input(struct zstream *z, const Bytef *src, unsigned int len)
     if (len <= 0) return;
 
     if (NIL_P(z->input)) {
-        GC_WB(&z->input, rb_bytestring_new_with_data((UInt8*)src, len));
+	GC_WB(&z->input, rb_bytestring_new_with_data((UInt8*)src, len));
     } else {
-	    rb_bytestring_append_bytes(z->input, (const UInt8*)src, len);
+	rb_bytestring_append_bytes(z->input, (const UInt8*)src, len);
     }
 }
 
@@ -1702,12 +1703,14 @@ gzfile_read_raw_partial(VALUE arg)
     return str;
 }
 
+VALUE rb_vm_current_exception(void);
+
 static VALUE
 gzfile_read_raw_rescue(VALUE arg)
 {
     struct gzfile *gz = (struct gzfile*)arg;
     VALUE str = Qnil;
-    if (rb_obj_is_kind_of(rb_errinfo(), rb_eNoMethodError)) {
+    if (rb_obj_is_kind_of(rb_vm_current_exception(), rb_eNoMethodError)) {
         str = rb_funcall(gz->io, id_read, 1, INT2FIX(GZFILE_READ_SIZE));
         if (!NIL_P(str)) {
             Check_Type(str, T_STRING);
