@@ -2244,7 +2244,7 @@ time_mload(VALUE time, VALUE str)
     assert(*(VALUE *)str == rb_cByteString);
 
     buf = (unsigned char *)rb_bytestring_byte_pointer(str);
-    if (rb_bytestring_length(str) != 8) {
+    if (rb_bytestring_length(str) != 8 + 1) {
 	rb_raise(rb_eTypeError, "marshaled time format differ");
     }
 
