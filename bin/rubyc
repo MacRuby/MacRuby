@@ -120,7 +120,7 @@ class Compiler
       die "can't guess the init function of Ruby object file `#{obj}'"
     end
 
-    init_func = "Init_" + base
+    init_func = "Init_" + base.gsub(/-/, '_')
     main_txt = <<EOS
 extern "C" {
   void *#{real_init_func}(void *, void *);

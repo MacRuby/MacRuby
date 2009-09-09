@@ -37,8 +37,14 @@ init_funcname_len(char **buf, const char *file)
     *buf = xmalloc(len);
     snprintf(*buf, len, FUNCNAME_PATTERN, slash + 1);
     for (p = *buf; *p; p++) {         /* Delete suffix if it exists */
+	if (*p == '-') {
+	    *p = '_';
+	}
+    }
+    for (p = *buf; *p; p++) {         /* Delete suffix if it exists */
 	if (*p == '.') {
-	    *p = '\0'; break;
+	    *p = '\0';
+	    break;
 	}
     }
     return p - *buf;
