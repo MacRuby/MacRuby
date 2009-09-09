@@ -32,23 +32,34 @@ class MacRubyFormatter < DottedFormatter
     @stats.categories.inject(0){|sum, cat_info| sum += cat_info.last[:skipped].to_i}
   end
 
+  def gen_rate(passed, skipped)
+    "%0.2f" % [passed* (100 / (passed + skipped).to_f)]
+  end
+
   def finish
     switch
-     
-    print "\n"
+
     @stats.categories.each do |key, details|
-      print "#{key}:\n" 
-      print "  -> #{details[:failures]} failures, #{details[:errors]} errors (#{details[:expectations]} expectations, #{details[:examples]} examples, #{details[:skipped]} examples skipped, #{details[:files]} files) \n"
+      puts ""
+      puts "#{key.capitalize}:"
+      puts "  files: #{details[:files]}"
+      puts "  examples: #{details[:examples]}"
+      puts "  skipped examples: #{details[:skipped]}"
+      puts "  expectations: #{details[:expectations]}"
+      puts "  failures: #{details[:failures]}"
+      puts "  errors: #{details[:errors]}"
+      puts "  pass rate: #{gen_rate(details[:examples], details[:skipped])}%"
     end 
-    
-    print "\nSummary:\n"
-    print "files: ",        @tally.counter.files,        "\n"
-    print "examples: ",     @tally.counter.examples,     "\n"
-    print "skipped examples: ", sum_skipped, "\n"
-    print "expectations: ", @tally.counter.expectations, "\n"
-    print "failures: ",     @tally.counter.failures,     "\n"
-    print "errors: ",       @tally.counter.errors,       "\n" 
-    
+
+    puts "\nSummary:"
+    puts "  files: #{@tally.counter.files}"
+    puts "  examples: #{@tally.counter.examples}"
+    puts "  skipped examples: #{sum_skipped}"
+    puts "  expectations: #{@tally.counter.expectations}"
+    puts "  failures: #{@tally.counter.failures}"
+    puts "  errors: #{@tally.counter.errors}"
+    puts "  pass rate: #{gen_rate(@tally.counter.examples, sum_skipped)}%"
+
     print "\nExceptions:\n" unless @exceptions.empty?
     count = 0
     @exceptions.each do |exc|
