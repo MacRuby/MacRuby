@@ -204,7 +204,9 @@ class Pathname
     path = path.__send__(TO_PATH) if path.respond_to? TO_PATH
     @path = path.dup
 
-    if /\0/ =~ @path
+    # XXX work around a multibyte oniguruma problem in MacRuby
+    #if /\0/ =~ @path
+    if @path.include?("\0")
       raise ArgumentError, "pathname contains \\0: #{@path.inspect}"
     end
 
