@@ -4745,7 +4745,8 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
     return val;
 }
 
-#include <libgen.h>
+// in st.c
+extern "C" int rb_hash_string(const char *str);
 
 extern "C"
 void
@@ -4756,22 +4757,14 @@ rb_vm_aot_compile(NODE *node)
     const char *output = RSTRING_PTR(ruby_aot_compile);
 
     // Generate the name of the init function.
-    // TODO make it unique (checkum/hash?)
-    char buf[PATH_MAX];
-    strlcpy(buf, output, sizeof buf);
-    std::string base(basename(buf));
-    std::string init_function_name("MREP_");
-    const size_t pos = base.rfind('.');
-    if (pos != std::string::npos) {
-	init_function_name.append(base, 0, pos);
-    }
-    else {
-	init_function_name.append(base);
-    }
+    char init_function_name[PATH_MAX];
+    const int hash = rb_hash_string(output);
+    snprintf(init_function_name, sizeof init_function_name,
+	    "MREP_%d", hash >= 0 ? hash : -hash);
 
     // Compile the program as IR.
     Function *f = RoxorCompiler::shared->compile_main_function(node);
-    f->setName(init_function_name.c_str());
+    f->setName(init_function_name);
     GET_CORE()->optimize(f);
 
     // Dump the bitcode.

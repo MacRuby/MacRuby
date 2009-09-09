@@ -864,6 +864,12 @@ strhash(register const char *string)
 }
 
 int
+rb_hash_string(const char *str)
+{
+    return strhash(str);
+}
+
+int
 st_strcasecmp(const char *s1, const char *s2)
 {
     unsigned int c1, c2;
