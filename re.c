@@ -3110,97 +3110,71 @@ rb_reg_initialize_m(VALUE self, SEL sel, int argc, VALUE *argv)
 VALUE
 rb_reg_quote(VALUE str)
 {
-#if !WITH_OBJC
-    rb_encoding *enc = rb_enc_get(str);
-#endif
-    const char *s, *send;
-    char *t;
-    int c, clen;
-#if WITH_OBJC
-    int ascii_only = 0;
-#else
-    int ascii_only = rb_enc_str_asciionly_p(str);
-#endif
-
-    s = RSTRING_PTR(str);
-    if (s == NULL)
+    const char *cstr = RSTRING_PTR(str);;
+    if (cstr == NULL) {
 	return str;
-    send = s + RSTRING_LEN(str);
+    }
+    const char *s = cstr;
+    const char *send = s + RSTRING_LEN(str);
     while (s < send) {
-#if WITH_OBJC
-	c = *s;
-	clen = 1;
-#else
-	c = rb_enc_ascget(s, send, &clen, enc);
-	if (c == -1) {
-            s += mbclen(s, send, enc);
-	    continue;
+	switch (*s) {
+	    case '[': case ']': case '{': case '}':
+	    case '(': case ')': case '|': case '-':
+	    case '*': case '.': case '\\':
+	    case '?': case '+': case '^': case '$':
+	    case ' ': case '#':
+	    case '\t': case '\f': case '\v': case '\n': case '\r':
+		goto meta_found;
 	}
-#endif
-	switch (c) {
-	  case '[': case ']': case '{': case '}':
-	  case '(': case ')': case '|': case '-':
-	  case '*': case '.': case '\\':
-	  case '?': case '+': case '^': case '$':
-	  case ' ': case '#':
-	  case '\t': case '\f': case '\v': case '\n': case '\r':
-	    goto meta_found;
-	}
-        s += clen;
+        s++;
     }
-    if (ascii_only) {
-        str = rb_str_new3(str);
-#if !WITH_OBJC
-        rb_enc_associate(str, rb_usascii_encoding());
-#endif
-    }
-    return str;
+    return rb_str_new3(str);
 
     char *t_beg;
 
   meta_found:
-    t_beg = (char *)alloca(RSTRING_LEN(str) * 2 + 1);
-    t = t_beg;
+    t_beg = (char *)alloca((RSTRING_LEN(str) * 2) + 1);
+
+    char *t = t_beg;
     /* copy upto metacharacter */
-    memcpy(t, RSTRING_PTR(str), s - RSTRING_PTR(str));
-    t += s - RSTRING_PTR(str);
+    memcpy(t, cstr, s - cstr);
+    t += s - cstr;
 
     while (s < send) {
-	c = *s;
-	clen = 1;
-        s += clen;
+	const char c = *s;
+        s++;
 	switch (c) {
-	  case '[': case ']': case '{': case '}':
-	  case '(': case ')': case '|': case '-':
-	  case '*': case '.': case '\\':
-	  case '?': case '+': case '^': case '$':
-	  case '#':
-	    *t++ = '\\';
-	    break;
-	  case ' ':
-	    *t++ = '\\';
-	    *t++ = ' ';
-	    continue;
-	  case '\t':
-	    *t++ = '\\';
-	    *t++ = 't';
-	    continue;
-	  case '\n':
-	    *t++ = '\\';
-	    *t++ = 'n';
-	    continue;
-	  case '\r':
-	    *t++ = '\\';
-	    *t++ = 'r';
-	    continue;
-	  case '\f':
-	    *t++ = '\\';
-	    *t++ = 'f';
-	    continue;
-	  case '\v':
-	    *t++ = '\\';
-	    *t++ = 'v';
-	    continue;
+	    case '[': case ']': case '{': case '}':
+	    case '(': case ')': case '|': case '-':
+	    case '*': case '.': case '\\':
+	    case '?': case '+': case '^': case '$':
+	    case '#':
+		*t++ = '\\';
+		break;
+	    case ' ':
+		*t++ = '\\';
+		*t++ = ' ';
+		continue;
+	    case '\t':
+		*t++ = '\\';
+		*t++ = 't';
+		continue;
+	    case '\n':
+		*t++ = '\\';
+		*t++ = 'n';
+		continue;
+	    case '\r':
+		*t++ = '\\';
+		*t++ = 'r';
+		continue;
+	    case '\f':
+		*t++ = '\\';
+		*t++ = 'f';
+		continue;
+	    case '\v':
+		*t++ = '\\';
+		*t++ = 'v';
+		continue;
 	}
 	*t++ = c;
     }
