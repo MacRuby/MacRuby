@@ -6,6 +6,7 @@ assert "[1, 2, 3]", "a=[1,2,3]; p a"
 assert 'nil', "a=[]; p a[42]"
 
 assert "{}", "h={}; p h"
+assert "{:in=>42}", "h={in: 42}; p h"
 assert "3", "h={:un=>1,:deux=>2}; p h[:un]+h[:deux]"
 
 assert '"foo246bar"', "p \"foo#{1+1}#{2+2}#{3+3}bar\""

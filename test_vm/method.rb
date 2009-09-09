@@ -59,3 +59,8 @@ assert '42', %{
   def foo; p 42; end
   foo(*[])
 }
+
+assert '42', %{
+  def f(args) p args[:in] end
+  f(in: 42)
+}
