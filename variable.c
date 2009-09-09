@@ -1201,17 +1201,12 @@ rb_ivar_defined(VALUE obj, ID id)
     return Qfalse;
 }
 
-struct obj_ivar_tag {
-    VALUE obj;
-    int (*func)(ID key, VALUE val, st_data_t arg);
-    st_data_t arg;
-};
-
-void rb_ivar_foreach(VALUE obj, int (*func)(ANYARGS), st_data_t arg)
+void
+rb_ivar_foreach(VALUE obj, int (*func)(ANYARGS), st_data_t arg)
 {
     switch (TYPE(obj)) {
       case T_OBJECT:
-	  // TODO support slots
+	  rb_vm_each_ivar_slot(obj, func, (void *)arg);
 	  if (ROBJECT(obj)->tbl != NULL) {
 	      CFDictionaryApplyFunction(ROBJECT(obj)->tbl, 
 		      (CFDictionaryApplierFunction)func, (void *)arg);
@@ -1222,8 +1217,9 @@ void rb_ivar_foreach(VALUE obj, int (*func)(ANYARGS), st_data_t arg)
       case T_MODULE:
 	  {
 	      CFMutableDictionaryRef iv_dict = rb_class_ivar_dict(obj);
-	      if (iv_dict != NULL)
+	      if (iv_dict != NULL) {
 		  ivar_dict_foreach((VALUE)iv_dict, func, arg);
+	      }
 	  }
 	  return;
 

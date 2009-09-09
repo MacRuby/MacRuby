@@ -786,6 +786,30 @@ RoxorCore::find_ivar_slot(VALUE klass, ID name, bool create)
     }
 }
 
+void
+RoxorCore::each_ivar_slot(VALUE obj, int (*func)(ANYARGS),
+	void *ctx)
+{
+    VALUE k = *(VALUE *)obj;
+
+    while (k != 0) {
+	std::map <ID, int> *slots = get_ivar_slots((Class)k, false);
+	if (slots != NULL) {
+	    for (std::map <ID, int>::iterator iter = slots->begin();
+		 iter != slots->end();
+		 ++iter) {
+		ID name = iter->first;
+		int slot = iter->second;
+		VALUE value = rb_vm_get_ivar_from_slot(obj, slot);
+		if (value != Qundef) {
+		    func(name, value, ctx);
+		}
+	    }
+	}
+	k = RCLASS_SUPER(k);
+    }
+}
+
 inline bool
 RoxorCore::class_can_have_ivar_slots(VALUE klass)
 {
@@ -1320,6 +1344,15 @@ rb_vm_find_class_ivar_slot(VALUE klass, ID name)
 	return GET_CORE()->find_ivar_slot(klass, name, false);
     }
     return -1;
+}
+
+extern "C"
+void
+rb_vm_each_ivar_slot(VALUE obj, int (*func)(ANYARGS), void *ctx)
+{
+    if (GET_CORE()->class_can_have_ivar_slots(CLASS_OF(obj))) {
+	GET_CORE()->each_ivar_slot(obj, func, ctx);	
+    } 
 }
 
 static inline void 

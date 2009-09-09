@@ -294,6 +294,7 @@ VALUE rb_vm_method_missing(VALUE obj, int argc, const VALUE *argv);
 void rb_vm_push_methods(VALUE ary, VALUE mod, bool include_objc_methods,
 	int (*filter) (VALUE, ID, VALUE));
 int rb_vm_find_class_ivar_slot(VALUE klass, ID name);
+void rb_vm_each_ivar_slot(VALUE obj, int (*func)(ANYARGS), void *ctx);
 void rb_vm_set_outer(VALUE klass, VALUE under);
 VALUE rb_vm_get_outer(VALUE klass);
 VALUE rb_vm_catch(VALUE tag);
@@ -698,17 +699,23 @@ class RoxorCore {
 	struct ccache *constant_cache_get(ID path);
 	void const_defined(ID path);
 	
-	std::map<ID, int> *get_ivar_slots(Class klass) {
+	std::map<ID, int> *get_ivar_slots(Class klass, bool create=true) {
 	    std::map<Class, std::map<ID, int> *>::iterator iter = 
 		ivar_slots.find(klass);
 	    if (iter == ivar_slots.end()) {
-		std::map<ID, int> *map = new std::map<ID, int>;
-		ivar_slots[klass] = map;
-		return map;
+		if (create) {
+		    std::map<ID, int> *map = new std::map<ID, int>;
+		    ivar_slots[klass] = map;
+		    return map;
+		}
+		else {
+		    return NULL;
+		}
 	    }
 	    return iter->second;
 	}
 	int find_ivar_slot(VALUE klass, ID name, bool create);
+	void each_ivar_slot(VALUE obj, int (*func)(ANYARGS), void *ctx);
 	bool class_can_have_ivar_slots(VALUE klass);
 
 	struct rb_vm_outer *get_outer(Class klass) {
