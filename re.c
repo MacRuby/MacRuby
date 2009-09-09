@@ -2703,6 +2703,14 @@ rb_reg_new(const char *s, long len, int options)
 }
 
 VALUE
+rb_reg_new_retained(const char *s, long len, int options)
+{
+    VALUE re = rb_reg_new(s, len, options);
+    GC_RETAIN(re);
+    return re;
+}
+
+VALUE
 rb_reg_compile(VALUE str, int options)
 {
     VALUE re = rb_reg_s_alloc(rb_cRegexp, 0);

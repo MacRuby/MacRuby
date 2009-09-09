@@ -5119,7 +5119,7 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 		    RubyObjTy, PtrTy, NULL));
 
     Function *newRegexp2Func =
-	cast<Function>(module->getOrInsertFunction("rb_reg_new",
+	cast<Function>(module->getOrInsertFunction("rb_reg_new_retained",
 		    RubyObjTy, PtrTy, Type::Int32Ty, Type::Int32Ty, NULL));
 
     Function *getClassFunc =
