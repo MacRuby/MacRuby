@@ -13,6 +13,7 @@ For 0.5 (must do):
 [ ] Hash subclass for immediates
 [ ] try/catch should use a C++ exception
 [ ] rewrite load.c
+[ ] ObjC exceptions should be catchable in Ruby
 [ ] fully implement FFI API
 [ ] support for bigdecimal
 [ ] support for json
