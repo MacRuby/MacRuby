@@ -1121,6 +1121,10 @@ io_read(VALUE io, SEL sel, int argc, VALUE *argv)
 	return rb_str_new2("");
     }
 
+    if (size > 1000000000) {
+	rb_raise(rb_eArgError, "given size `%ld' is too big", size);
+    }
+
     CFMutableDataRef data = rb_bytestring_wrapped_data(outbuf);
     CFDataIncreaseLength(data, size);
     UInt8 *buf = CFDataGetMutableBytePtr(data);
@@ -2799,7 +2803,7 @@ rb_obj_display(VALUE self, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_io_initialize(VALUE io, SEL sel, int argc, VALUE *argv)
 {
-	rb_secure(4);
+    rb_secure(4);
 	
     VALUE file_descriptor, mode;
     int mode_flags, fd;
@@ -3694,10 +3698,12 @@ rb_io_s_foreach(VALUE recv, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_io_s_read(VALUE recv, SEL sel, int argc, VALUE *argv)
 {
-    VALUE fname, length, offset, opt;
-    rb_scan_args(argc, argv, "13", &fname, &length, &offset, &opt);
+    // TODO handle optional hash
+    /*VALUE opt =*/ pop_last_hash(&argc, argv);
 
-    // TODO honor opt
+    VALUE fname, length, offset;
+    rb_scan_args(argc, argv, "13", &fname, &length, &offset, NULL);
+
     SafeStringValue(fname);
     VALUE io = rb_file_open(io_alloc(recv, 0), 1, &fname);
 
