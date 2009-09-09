@@ -132,7 +132,8 @@ class Gem::Version
   end
 
   def hash # :nodoc:
-    @version.hash
+    #@version.hash
+    @version.hash / 2 # XXX NSObject#hash won't accept Bignum
   end
 
   # Return a new version object where the next to the last revision
