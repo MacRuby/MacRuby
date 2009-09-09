@@ -3,14 +3,14 @@
 require 'libyaml'
 
 class Class
-  def to_yaml(out)
+  def to_yaml(out=nil)
     raise TypeError, "can't dump anonymous class %s" % self.class
   end
 end
 
 class Object
+
   def yaml_as(tag)
-    attr_writer :taguri
     klass = (self.is_a? Class) ? self : (class << self; self; end)
     klass.instance_eval do
       define_method(:taguri) do
@@ -19,8 +19,8 @@ class Object
     end
     YAML::LibYAML::DEFAULT_RESOLVER.add_type(tag, self)
   end
-  
-  yaml_as "tag:ruby.yaml.org,2002:object"
+
+  #yaml_as "tag:ruby.yaml.org,2002:object"
   
   def to_yaml_style
     nil
@@ -30,7 +30,7 @@ class Object
     self.instance_variables.sort
   end
   
-  def to_yaml(output)
+  def to_yaml(output = nil)
     YAML::quick_emit(output) do |out|
       out.map(taguri, to_yaml_style) do |map|
         to_yaml_properties.each do |m|
@@ -40,6 +40,22 @@ class Object
       end
     end
   end
+
+  def self.yaml_new(val)
+    obj = self.new
+    if obj.respond_to?(:yaml_initialize)
+      obj.yaml_initialize(taguri, val)
+    else
+      val.each do |k, v|
+        obj.instance_variable_set("@#{k}", v)
+      end
+    end
+    obj
+  end
+
+  private
+
+  def taguri; "!ruby/object:#{self.class}"; end
 end
 
 class String
@@ -50,10 +66,13 @@ class String
       out.scalar(taguri, self, self =~ /^:/ ? :quote2 : nil)
     end
   end
+
+  def self.yaml_new(val); val; end
 end
 
 class Exception
   yaml_as "tag:ruby.yaml.org,2002:exception"
+
   def to_yaml(output = nil)
     YAML::quick_emit(output) do |out|
       out.map(taguri, to_yaml_style) do |map|
@@ -96,9 +115,9 @@ class Integer
   
   def to_yaml(output = nil)
     YAML::quick_emit(output) do |out|
-      out.scalar( "tag:yaml.org,2002:int", self.to_s, :plain )
+      out.scalar("tag:yaml.org,2002:int", self.to_s, :plain)
     end
-	end
+  end
 end
 
 class Float
@@ -155,32 +174,33 @@ end
 
 class Regexp
   yaml_as "tag:ruby.yaml.org,2002:regexp"
+
   def to_yaml(output = nil)
     YAML::quick_emit(output) do |out|
       out.scalar(taguri, self.inspect, :plain)
     end
-	end
+  end
 end
 
 class Rational
-	yaml_as "tag:ruby.yaml.org,2002:object:Rational"
-	
-	def Rational.yaml_new(attrs)
-		if attrs.is_a? String
-			Rational(attrs)
-		else
-			Rational(attrs['numerator'], attrs['denominator'])
-		end
-	end
-	
-	def to_yaml(output = nil) 
-		YAML::quick_emit(output) do |out|
-			out.map(taguri, to_yaml_style) do |map| 
-				map.add('denominator', denominator)
-				map.add('numerator', numerator)
-			end
-		end
-	end
+  yaml_as "tag:ruby.yaml.org,2002:object:Rational"
+  
+  def Rational.yaml_new(attrs)
+    if attrs.is_a? String
+      Rational(attrs)
+    else
+      Rational(attrs['numerator'], attrs['denominator'])
+    end
+  end
+  
+  def to_yaml(output = nil) 
+    YAML::quick_emit(output) do |out|
+      out.map(taguri, to_yaml_style) do |map| 
+        map.add('denominator', denominator)
+        map.add('numerator', numerator)
+      end
+    end
+  end
 end
 
 class Complex
