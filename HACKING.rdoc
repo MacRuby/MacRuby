@@ -111,7 +111,12 @@ The following environment variables might help you debug easy bugs.
 
 ==== GDB tricks
 
-* Break on rb_exc_raise to intercept pure Ruby exceptions.
+* Break on rb_exc_raise to intercept pure Ruby exceptions. You can use a
+  conditional break point in case you only want to break if a specific
+  exception class is being raised:
+  (gdb) b rb_exc_raise
+  Breakpoint 1 at 0x20c49ba5453254: file eval.c, line 312.
+  (gdb) cond 1 *(void **)mesg == rb_eArgError
 
 * To dump the LLVM IR:
   (gdb) p RoxorCompiler::shared->module->dump()
