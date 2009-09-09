@@ -2221,18 +2221,15 @@ static VALUE
 time_mload(VALUE time, VALUE str)
 {
     struct time_object *tobj;
-    unsigned long p, s;
     time_t sec;
     long usec;
-    unsigned char *buf;
     struct tm tm;
-    int i, gmt;
+    int gmt;
     long nsec;
-    VALUE submicro;
 
     time_modify(time);
 
-    submicro = rb_attr_get(str, id_submicro);
+    VALUE submicro = rb_attr_get(str, id_submicro);
 #if 0 // TODO
     if (submicro != Qnil) {
         st_delete(rb_generic_ivar_table(str), (st_data_t*)&id_submicro, 0);
@@ -2243,17 +2240,19 @@ time_mload(VALUE time, VALUE str)
     StringValue(str);
     assert(*(VALUE *)str == rb_cByteString);
 
-    buf = (unsigned char *)rb_bytestring_byte_pointer(str);
-    if (rb_bytestring_length(str) != 8 + 1) {
+    unsigned char *buf = (unsigned char *)rb_bytestring_byte_pointer(str);
+    const size_t buflen = rb_bytestring_length(str); 
+    if (buflen != 8 && buflen != 9) {
 	rb_raise(rb_eTypeError, "marshaled time format differ");
     }
 
-    p = s = 0;
-    for (i=0; i<4; i++) {
-	p |= buf[i]<<(8*i);
+    unsigned long p = 0;
+    unsigned long s = 0;
+    for (int i = 0; i < 4; i++) {
+	p |= buf[i] << (8 * i);
     }
-    for (i=4; i<8; i++) {
-	s |= buf[i]<<(8*(i-4));
+    for (int i = 4; i < 8; i++) {
+	s |= buf[i] << (8 * (i - 4));
     }
 
     if ((p & (1UL<<31)) == 0) {
