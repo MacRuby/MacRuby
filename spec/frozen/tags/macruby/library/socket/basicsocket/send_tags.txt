@@ -1,0 +1,3 @@
+critical:BasicSocket#send sends a message to another socket and returns the number of bytes sent
+critical:BasicSocket#send accepts flags to specify unusual sending behaviour
+critical:BasicSocket#send accepts a sockaddr as recipient address

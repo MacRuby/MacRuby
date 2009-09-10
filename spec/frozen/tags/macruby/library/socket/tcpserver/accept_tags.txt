@@ -1,0 +1,3 @@
+critical:TCPServer#accept accepts a connection and returns a TCPSocket
+critical:TCPServer#accept can be interrupted by Thread#kill
+critical:TCPServer#accept can be interrupted by Thread#raise

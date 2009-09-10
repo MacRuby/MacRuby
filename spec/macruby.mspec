@@ -33,6 +33,7 @@ class MSpecScript
     'library/pathname',
     'library/readline',
     'library/scanf',
+    'library/socket',
     'library/stringscanner',
     'library/stringio',
     'library/time',
