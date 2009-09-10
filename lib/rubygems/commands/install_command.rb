@@ -14,8 +14,8 @@ class Gem::Commands::InstallCommand < Gem::Command
 
   def initialize
     defaults = Gem::DependencyInstaller::DEFAULT_OPTIONS.merge({
-      :generate_rdoc => true,
-      :generate_ri   => true,
+      :generate_rdoc => false,
+      :generate_ri   => false,
       :format_executable => false,
       :test => false,
       :version => Gem::Requirement.default,
