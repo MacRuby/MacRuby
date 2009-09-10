@@ -6,7 +6,9 @@ For 0.5 RC1:
 [/] rubygems should work (modulo C extensions)
   [ ] fix version numbers
   [ ] fix YAML deserialization of booleans
-  [ ] source --add http://gems.github.com crashes (outside gdb)
+  [ ] fix ~/.gemrc
+  [ ] `source --add http://gems.github.com' crashes (outside gdb)
+  [ ] `install rest-client' prints a lot of debug code
 
 For 0.5 (must do):
 
