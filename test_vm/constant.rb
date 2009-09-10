@@ -117,3 +117,13 @@ assert ':ok', %{
     end
   end
 }
+
+assert '42', %{
+  class Foo
+    FOO=42
+    def hey
+      Object.new.instance_eval { p FOO }
+    end
+  end
+  Foo.new.hey
+}
