@@ -548,7 +548,7 @@ static VALUE
 rb_yaml_emitter_set_output(VALUE self, SEL sel, VALUE output)
 {
     rb_yaml_emitter_t *remitter = RYAMLEmitter(self);
-    remitter->output = output;
+    GC_WB(&remitter->output, output);
     yaml_emitter_t *emitter = &remitter->emitter;
     if (!NIL_P(output)) {
 	if (CLASS_OF(output) == rb_cByteString) {
