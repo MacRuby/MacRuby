@@ -4,11 +4,12 @@ For 0.5 RC1:
 [/] sockets
 [ ] backtracing / symbolication
 [/] rubygems should work (modulo C extensions)
-  [ ] fix version numbers
+  [X] fix version numbers
   [X] fix YAML deserialization of booleans
   [ ] fix ~/.gemrc
   [X] `source --add http://gems.github.com' crashes (outside gdb)
-  [ ] `install rest-client' prints a lot of debug code
+  [ ] `install rest-client' prints parsing errors (encoding problem in thor.gemspec)
+  [ ] `gem uninstall bacon' doesn't work (Unknown gem bacon >= 0)
 
 For 0.5 (must do):
 
