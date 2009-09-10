@@ -235,7 +235,7 @@ class NilClass
 end
 
 class TrueClass
-  yaml_as "tag:yaml.org,2002:bool"
+  yaml_as "tag:yaml.org,2002:true"
   
   def self.yaml_new(val); true; end
   
@@ -247,7 +247,7 @@ class TrueClass
 end
 
 class FalseClass
-  yaml_as "tag:yaml.org,2002:bool"
+  yaml_as "tag:yaml.org,2002:false"
   
   def self.yaml_new(val); false; end
   

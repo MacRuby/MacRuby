@@ -358,6 +358,12 @@ handle_scalar(rb_yaml_parser_t *parser)
 	    // TODO use rb_str_to_inum
 	    tag = "tag:yaml.org,2002:int";
 	}
+	else if (strcmp(val, "true") == 0) {
+	    tag = "tag:yaml.org,2002:true";
+	}
+	else if (strcmp(val, "false") == 0) {
+	    tag = "tag:yaml.org,2002:false";
+	}
 	else {
 	    tag = "tag:yaml.org,2002:str";
 	}
@@ -381,7 +387,7 @@ handle_sequence(rb_yaml_parser_t *parser)
     VALUE arr = rb_ary_new();
 
     VALUE node;
-    while (node = get_node(parser)) {
+    while ((node = get_node(parser)) != Qundef) {
 	rb_ary_push(arr, node);
     }
     return interpret_value(parser, arr, handler, false);
@@ -395,8 +401,11 @@ handle_mapping(rb_yaml_parser_t *parser)
     VALUE hash = rb_hash_new();
 
     VALUE key_node;
-    while (key_node = get_node(parser)) {
+    while ((key_node = get_node(parser)) != Qundef) {
 	VALUE value_node = get_node(parser);
+	if (value_node == Qundef) {
+	    value_node = Qnil;
+	}
 	rb_hash_aset(hash, key_node, value_node);
     }
     return interpret_value(parser, hash, handler, false);
@@ -413,7 +422,7 @@ get_node(rb_yaml_parser_t *parser)
 	case YAML_MAPPING_END_EVENT:
 	case YAML_SEQUENCE_END_EVENT:
 	case YAML_STREAM_END_EVENT:
-	    return 0ull;
+	    return Qundef;
 
 	case YAML_MAPPING_START_EVENT:
 	    node = handle_mapping(parser);
@@ -429,7 +438,7 @@ get_node(rb_yaml_parser_t *parser)
 
 	case YAML_ALIAS_EVENT:
 	    rb_warn("ignoring alias");
-	    node = Qnil;
+	    node = Qundef;
 	    break;
 
 	default:
@@ -457,7 +466,7 @@ rb_yaml_parser_load(VALUE self, SEL sel)
     }
 
     root = get_node(parser);
-    if (root == 0) {
+    if (root == Qundef) {
 	root = Qnil;
     }
 
@@ -507,7 +516,8 @@ rb_yaml_tag_or_null(VALUE tagstr, int *can_omit_tag)
     if ((strcmp(tag, "tag:yaml.org,2002:int") == 0) ||
 	    (strcmp(tag, "tag:yaml.org,2002:float") == 0) ||
 	    (strcmp(tag, "tag:ruby.yaml.org,2002:symbol") == 0) ||
-	    (strcmp(tag, "tag:yaml.org,2002:bool") == 0) ||
+	    (strcmp(tag, "tag:yaml.org,2002:true") == 0) ||
+	    (strcmp(tag, "tag:yaml.org,2002:false") == 0) ||
 	    (strcmp(tag, "tag:yaml.org,2002:null") == 0) ||
 	    (strcmp(tag, "tag:yaml.org,2002:str") == 0) ||
 	    (strcmp(tag, YAML_DEFAULT_SEQUENCE_TAG) == 0) ||
