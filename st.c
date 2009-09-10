@@ -346,14 +346,16 @@ do {\
     entry->hash = hash_val;\
     entry->key = key;\
     GC_WB(&entry->record, value); \
-    entry->next = table->bins[bin_pos];\
+    GC_WB(&entry->next, table->bins[bin_pos]);\
     if ((head = table->head) != 0) {\
-	entry->fore = head;\
+	GC_WB(&entry->fore, head);\
 	(entry->back = head->back)->fore = entry;\
-	head->back = entry;\
+	GC_WB(&head->back, entry);\
     }\
     else {\
-	table->head = entry->fore = entry->back = entry;\
+	GC_WB(&table->head, entry);\
+	GC_WB(&entry->fore, entry);\
+	GC_WB(&entry->back, entry);\
     }\
     GC_WB(&table->bins[bin_pos], entry); \
     table->num_entries++;\
@@ -391,7 +393,7 @@ st_insert(register st_table *table, register st_data_t key, st_data_t value)
         }
         if ((table->num_entries+1) * 2 <= table->num_bins && table->num_entries+1 <= MAX_PACKED_NUMHASH) {
             i = table->num_entries++;
-            table->bins[i*2] = (struct st_table_entry*)key;
+            GC_WB(&table->bins[i*2], (struct st_table_entry*)key);
 	    GC_WB(&table->bins[i*2+1], (struct st_table_entry*)value);
             return 0;
         }
@@ -500,12 +502,13 @@ st_copy(st_table *old_table)
 	    entry->next = new_table->bins[hash_val];
 	    GC_WB(&new_table->bins[hash_val], entry);
 	    entry->back = prev;
-	    *tail = prev = entry;
+	    prev = entry;
+	    GC_WB(tail, entry);
 	    tail = &entry->fore;
 	} while ((ptr = ptr->fore) != old_table->head);
 	entry = new_table->head;
 	entry->back = prev;
-	*tail = entry;
+	GC_WB(tail, entry);
     }
 
     return new_table;
