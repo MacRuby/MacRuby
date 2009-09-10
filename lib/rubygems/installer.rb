@@ -454,6 +454,7 @@ TEXT
 
   def build_extensions
     return if @spec.extensions.empty?
+    raise "MacRuby does not support native extensions yet. Be patient :-)"
     say "Building native extensions.  This could take a while..."
     start_dir = Dir.pwd
     dest_path = File.join @gem_dir, @spec.require_paths.first
