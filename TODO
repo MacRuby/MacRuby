@@ -7,7 +7,7 @@ For 0.5 RC1:
   [ ] fix version numbers
   [ ] fix YAML deserialization of booleans
   [ ] fix ~/.gemrc
-  [ ] `source --add http://gems.github.com' crashes (outside gdb)
+  [X] `source --add http://gems.github.com' crashes (outside gdb)
   [ ] `install rest-client' prints a lot of debug code
 
 For 0.5 (must do):
