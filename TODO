@@ -4,6 +4,9 @@ For 0.5 RC1:
 [/] sockets
 [ ] backtracing / symbolication
 [/] rubygems should work (modulo C extensions)
+  [ ] fix version numbers
+  [ ] fix YAML deserialization of booleans
+  [ ] source --add http://gems.github.com crashes (outside gdb)
 
 For 0.5 (must do):
 
