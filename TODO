@@ -3,7 +3,7 @@ For 0.5 RC1:
 [ ] fix irb Binding bugs
 [/] sockets
 [ ] backtracing / symbolication
-[ ] rubygems should work (modulo C extensions)
+[/] rubygems should work (modulo C extensions)
 
 For 0.5 (must do):
 
