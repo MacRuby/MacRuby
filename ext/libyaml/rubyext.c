@@ -341,11 +341,34 @@ interpret_value(rb_yaml_parser_t *parser, VALUE result, VALUE handler,
     return collect ? (VALUE)CFMakeCollectable((CFTypeRef)result) : result;
 }
 
+static inline bool
+is_numeric(const char *str, bool *has_point)
+{
+    char c;
+    bool point = false;
+    while ((c = *str++) != '\0') {
+	if (!isdigit(c)) {
+	    if (c == '.') {
+		if (point) {
+		    return false;
+		}
+		point = true;
+	    }
+	    else {
+		return false;
+	    }
+	}
+    }
+    *has_point = point;
+    return true;
+}
+
 static VALUE 
 handle_scalar(rb_yaml_parser_t *parser)
 {
     char *val = (char*)parser->event.data.scalar.value;
     char *tag = (char*)parser->event.data.scalar.tag;
+    bool has_point = false;
     if (parser->event.data.scalar.style == YAML_PLAIN_SCALAR_STYLE
 	&& tag == NULL) {
 	if (parser->event.data.scalar.length == 0) {
@@ -354,9 +377,10 @@ handle_scalar(rb_yaml_parser_t *parser)
 	else if (*val == ':') {
 	    tag = "tag:ruby.yaml.org,2002:symbol";
 	}
-	else if (strtol(val, NULL, 10) != 0) {
-	    // TODO use rb_str_to_inum
-	    tag = "tag:yaml.org,2002:int";
+	else if (is_numeric(val, &has_point)) {
+	    tag = has_point
+		? "tag:yaml.org,2002:float"
+		: "tag:yaml.org,2002:int";
 	}
 	else if (strcmp(val, "true") == 0) {
 	    tag = "tag:yaml.org,2002:true";
