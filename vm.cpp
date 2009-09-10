@@ -816,7 +816,8 @@ RoxorCore::class_can_have_ivar_slots(VALUE klass)
     const long klass_version = RCLASS_VERSION(klass);
     if ((klass_version & RCLASS_IS_RUBY_CLASS) != RCLASS_IS_RUBY_CLASS
 	|| (klass_version & RCLASS_IS_OBJECT_SUBCLASS)
-	    != RCLASS_IS_OBJECT_SUBCLASS) {
+	    != RCLASS_IS_OBJECT_SUBCLASS
+	|| klass == rb_cClass || klass == rb_cModule) {
 	return false;
     }
     return true;
@@ -1070,8 +1071,9 @@ VALUE
 rb_vm_ivar_get(VALUE obj, ID name, int *slot_cache)
 {
 #if ROXOR_VM_DEBUG
-    printf("get ivar %p.%s slot %d\n", (void *)obj, rb_id2name(name), 
-	    slot_cache == NULL ? -1 : *slot_cache);
+    printf("get ivar <%s %p>.%s slot %d\n",
+	    class_getName((Class)CLASS_OF(obj)), (void *)obj,
+	    rb_id2name(name), slot_cache == NULL ? -1 : *slot_cache);
 #endif
     if (slot_cache == NULL || *slot_cache == -1) {
 	return rb_ivar_get(obj, name);
@@ -1867,11 +1869,11 @@ RoxorCore::copy_methods(Class from_class, Class to_class)
 		continue;
 	    }
 
-#if ROXOR_DEBUG_VM
+#if ROXOR_VM_DEBUG
 	    printf("lazy copy %c[%s %s] to %s\n",
 		    class_isMetaClass(from_class) ? '+' : '-',
 		    class_getName(from_class),
-		    sel_getName(method_getName(method)),
+		    sel_getName(sel),
 		    class_getName(to_class));
 #endif
 
@@ -2215,8 +2217,9 @@ __rb_vm_fix_args(const VALUE *argv, VALUE *new_argv,
 }
 
 static force_inline VALUE
-__rb_vm_bcall(VALUE self, VALUE dvars, rb_vm_block_t *b,
-	      IMP pimp, const rb_vm_arity_t &arity, int argc, const VALUE *argv)
+__rb_vm_bcall(VALUE self, SEL sel, VALUE dvars, rb_vm_block_t *b,
+	      IMP pimp, const rb_vm_arity_t &arity, int argc,
+	      const VALUE *argv)
 {
     if ((arity.real != argc) || (arity.max == -1)) {
 	VALUE *new_argv = (VALUE *)alloca(sizeof(VALUE) * arity.real);
@@ -2231,25 +2234,25 @@ __rb_vm_bcall(VALUE self, VALUE dvars, rb_vm_block_t *b,
 
     switch (argc) {
 	case 0:
-	    return (*imp)(self, 0, dvars, b);
+	    return (*imp)(self, sel, dvars, b);
 	case 1:
-	    return (*imp)(self, 0, dvars, b, argv[0]);
+	    return (*imp)(self, sel, dvars, b, argv[0]);
 	case 2:
-	    return (*imp)(self, 0, dvars, b, argv[0], argv[1]);
+	    return (*imp)(self, sel, dvars, b, argv[0], argv[1]);
 	case 3:
-	    return (*imp)(self, 0, dvars, b, argv[0], argv[1], argv[2]);
+	    return (*imp)(self, sel, dvars, b, argv[0], argv[1], argv[2]);
 	case 4:
-	    return (*imp)(self, 0, dvars, b, argv[0], argv[1], argv[2], argv[3]);
+	    return (*imp)(self, sel, dvars, b, argv[0], argv[1], argv[2], argv[3]);
 	case 5:
-	    return (*imp)(self, 0, dvars, b, argv[0], argv[1], argv[2], argv[3], argv[4]);
+	    return (*imp)(self, sel, dvars, b, argv[0], argv[1], argv[2], argv[3], argv[4]);
 	case 6:
-	    return (*imp)(self, 0, dvars, b, argv[0], argv[1], argv[2], argv[3], argv[4], argv[5]);
+	    return (*imp)(self, sel, dvars, b, argv[0], argv[1], argv[2], argv[3], argv[4], argv[5]);
 	case 7:
-	    return (*imp)(self, 0, dvars, b, argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6]);
+	    return (*imp)(self, sel, dvars, b, argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6]);
 	case 8:
-	    return (*imp)(self, 0, dvars, b, argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6], argv[7]);
+	    return (*imp)(self, sel, dvars, b, argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6], argv[7]);
 	case 9:
-	    return (*imp)(self, 0, dvars, b, argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6], argv[7], argv[8]);
+	    return (*imp)(self, sel, dvars, b, argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6], argv[7], argv[8]);
     }	
     printf("invalid argc %d\n", argc);
     abort();
@@ -3018,7 +3021,7 @@ call_method_missing:
     return method_missing((VALUE)self, sel, block, argc, argv, status);
 }
 
-#define MAX_DISPATCH_ARGS 200
+#define MAX_DISPATCH_ARGS 500
 
 static force_inline int
 __rb_vm_resolve_args(VALUE *argv, int argc, va_list ar)
@@ -3807,6 +3810,13 @@ rb_vm_get_call_cache(SEL sel)
     return GET_CORE()->method_cache_get(sel, false);
 }
 
+extern "C"
+void *
+rb_vm_get_call_cache2(SEL sel, unsigned char super)
+{
+    return GET_CORE()->method_cache_get(sel, super);
+}
+
 // Should be used inside a method implementation.
 extern "C"
 int
@@ -4002,7 +4012,8 @@ rb_vm_make_curry_proc(VALUE proc, VALUE passed, VALUE arity)
 }
 
 static inline VALUE
-rb_vm_block_eval0(rb_vm_block_t *b, VALUE self, int argc, const VALUE *argv)
+rb_vm_block_eval0(rb_vm_block_t *b, SEL sel, VALUE self, int argc,
+	const VALUE *argv)
 {
     if ((b->flags & VM_BLOCK_IFUNC) == VM_BLOCK_IFUNC) {
 	// Special case for blocks passed with rb_objc_block_call(), to
@@ -4092,7 +4103,7 @@ block_call:
 	return rb_vm_call_with_cache2(m->cache, NULL, m->recv, m->oclass,
 		m->sel, argc, argv);
     }
-    return __rb_vm_bcall(self, (VALUE)b->dvars, b, b->imp, b->arity,
+    return __rb_vm_bcall(self, sel, (VALUE)b->dvars, b, b->imp, b->arity,
 	    argc, argv);
 }
 
@@ -4100,15 +4111,16 @@ extern "C"
 VALUE
 rb_vm_block_eval(rb_vm_block_t *b, int argc, const VALUE *argv)
 {
-    return rb_vm_block_eval0(b, b->self, argc, argv);
+    return rb_vm_block_eval0(b, NULL, b->self, argc, argv);
 }
 
 extern "C"
 VALUE
-rb_vm_block_eval2(rb_vm_block_t *b, VALUE self, int argc, const VALUE *argv)
+rb_vm_block_eval2(rb_vm_block_t *b, VALUE self, SEL sel, int argc,
+	const VALUE *argv)
 {
     // TODO check given arity and raise exception
-    return rb_vm_block_eval0(b, self, argc, argv);
+    return rb_vm_block_eval0(b, sel, self, argc, argv);
 }
 
 static inline VALUE
@@ -4134,7 +4146,7 @@ rb_vm_yield0(int argc, const VALUE *argv)
 	}
     } finalizer(vm, b);
 
-    return rb_vm_block_eval0(b, b->self, argc, argv);
+    return rb_vm_block_eval0(b, NULL, b->self, argc, argv);
 }
 
 extern "C"
@@ -4176,7 +4188,7 @@ rb_vm_yield_under(VALUE klass, VALUE self, int argc, const VALUE *argv)
 	}
     } finalizer(vm, b, old_class, old_self);
 
-    return rb_vm_block_eval0(b, b->self, argc, argv);
+    return rb_vm_block_eval0(b, NULL, b->self, argc, argv);
 }
 
 extern "C"

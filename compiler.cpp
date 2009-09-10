@@ -126,6 +126,7 @@ RoxorCompiler::RoxorCompiler(void)
     setjmpFunc = NULL;
     setScopeFunc = NULL;
     setCurrentClassFunc = NULL;
+    getCacheFunc = NULL;
 
 #if __LP64__
     RubyObjTy = IntTy = Type::Int64Ty;
@@ -529,6 +530,24 @@ RoxorCompiler::compile_const_global_string(const char *str,
     }
 
     return gvar;
+}
+
+Value *
+RoxorCompiler::compile_get_mcache(Value *sel, bool super)
+{
+    if (getCacheFunc == NULL) {
+	// void *rb_vm_get_call_cache2(SEL sel, unsigned char super);
+	getCacheFunc = 
+	    cast<Function>(module->getOrInsertFunction(
+			"rb_vm_get_call_cache2", PtrTy, PtrTy, Type::Int8Ty,
+			NULL));
+    }
+
+    std::vector<Value *> params;
+    params.push_back(sel);
+    params.push_back(ConstantInt::get(Type::Int8Ty, super ? 1 : 0));
+
+    return CallInst::Create(getCacheFunc, params.begin(), params.end(), "", bb);
 }
 
 Value *
@@ -3843,7 +3862,9 @@ RoxorCompiler::compile_node(NODE *node)
 		if (super_call) {
 		    mid = current_mid;
 		}
-		assert(mid > 0);
+		else {
+		    assert(mid > 0);
+		}
 
 		Function::ArgumentListType &fargs =
 		    bb->getParent()->getArgumentList();
@@ -3922,16 +3943,33 @@ rescan_args:
 		// Prepare the dispatcher parameters.
 		std::vector<Value *> params;
 
-		// Method cache.
-		const SEL sel = mid_to_sel(mid, positive_arity ? 1 : 0);
-		params.push_back(compile_mcache(sel, super_call));
+		// Method cache (and prepare the selector).
+		Value *sel_val;
+		SEL sel;
+		if (mid != 0) {
+		    sel = mid_to_sel(mid, positive_arity ? 1 : 0);
+		    params.push_back(compile_mcache(sel, super_call));
+		    sel_val = compile_sel(sel);
+		}
+		else {
+		    assert(super_call);
+		    sel = 0;
+		    // A super call outside a method definition (probably
+		    // in a block). Retrieve the SEL as the second parameter
+		    // of the current function.
+		    Function *f = bb->getParent();
+		    Function::arg_iterator arg = f->arg_begin();
+		    arg++; // skip self
+		    sel_val = arg;
+		    params.push_back(compile_get_mcache(sel_val, true));
+		}
 
 		// Self.
 		params.push_back(recv == NULL ? current_self
 			: compile_node(recv));
 
 		// Selector.
-		params.push_back(compile_sel(sel));
+		params.push_back(sel_val);
 
 		// RubySpec requires that we compile the block *after* the
 		// arguments, so we do pass NULL as the block for the moment.
@@ -3954,11 +3992,17 @@ rescan_args:
 		// Arguments.
 		int argc = 0;
 		if (nd_type(node) == NODE_ZSUPER) {
-		    params.push_back(ConstantInt::get(Type::Int32Ty,
-				fargs_arity));
+		    const int arity = mid == 0
+			? fargs_arity - 2 // skip dvars and current_block
+			: fargs_arity;
+		    params.push_back(ConstantInt::get(Type::Int32Ty, arity));
 		    Function::ArgumentListType::iterator iter = fargs.begin();
 		    iter++; // skip self
 		    iter++; // skip sel
+		    if (mid == 0) {
+			iter++; // skip dvars
+			iter++; // skip current_block
+		    }
 		    const int rest_pos = current_arity.max == -1
 			? (current_arity.left_req
 				+ (current_arity.real - current_arity.min - 1))
@@ -6608,28 +6652,31 @@ RoxorCompiler::compile_block_caller(rb_vm_block_t *block)
 {
     // VALUE foo(VALUE rcv, SEL sel, int argc, VALUE *argv)
     // {
-    //     return rb_vm_block_eval2(block, rcv, argc, argv);
+    //     return rb_vm_block_eval2(block, rcv, sel, argc, argv);
     // }
     Function *f = cast<Function>(module->getOrInsertFunction("",
 		RubyObjTy, RubyObjTy, PtrTy, Type::Int32Ty, RubyObjPtrTy,
 		NULL));
     Function::arg_iterator arg = f->arg_begin();
     Value *rcv = arg++;
-    arg++; // sel
+    Value *sel = arg++;
     Value *argc = arg++;
     Value *argv = arg++;
 
     bb = BasicBlock::Create("EntryBlock", f);
 
     if (blockEvalFunc == NULL) {
+	// VALUE rb_vm_block_eval2(rb_vm_block_t *b, VALUE self, SEL sel,
+	//	int argc, const VALUE *argv)
 	blockEvalFunc = cast<Function>(module->getOrInsertFunction(
 		    "rb_vm_block_eval2",
-		    RubyObjTy, PtrTy, RubyObjTy, Type::Int32Ty, RubyObjPtrTy,
-		    NULL));
+		    RubyObjTy, PtrTy, RubyObjTy, PtrTy, Type::Int32Ty,
+		    RubyObjPtrTy, NULL));
     }
     std::vector<Value *> params;
     params.push_back(compile_const_pointer(block));
     params.push_back(rcv);
+    params.push_back(sel);
     params.push_back(argc);
     params.push_back(argv);
 
