@@ -406,3 +406,13 @@ assert "42", %{
   class Y < X; def foo(x); 1.times { |; x| x = 1; super; } end; end
   Y.new.foo(42)
 }
+
+assert "42", %{
+  module M
+    def foo; p 42; end
+  end
+  class Module
+    include M
+  end
+  class Range; foo; end
+}
