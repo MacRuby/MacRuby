@@ -344,6 +344,9 @@ interpret_value(rb_yaml_parser_t *parser, VALUE result, VALUE handler,
 static inline bool
 is_numeric(const char *str, bool *has_point)
 {
+    if (*str == '-') {
+	str++;
+    }
     char c;
     bool point = false;
     while ((c = *str++) != '\0') {
