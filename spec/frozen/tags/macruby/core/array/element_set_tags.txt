@@ -1,1 +1,0 @@
-fails:Array#[]= calls to_int on its start and length arguments
