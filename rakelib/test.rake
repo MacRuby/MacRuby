@@ -23,6 +23,10 @@ namespace :test do
         "http://test-unit.rubyforge.org/svn/trunk",
         "-I lib test/run-test.rb"
       ],
+      'rake' => [
+        "git://github.com/jimweirich/rake.git",
+        "-I lib ./bin/rake --trace"
+      ],
       'bacon' => [
         "git://github.com/chneukirchen/bacon.git",
         "./bin/bacon -I lib --quiet ./test/*"
