@@ -1,0 +1,13 @@
+.autotest
+History.txt
+Manifest.txt
+README.txt
+Rakefile
+design_rationale.rb
+lib/minitest/autorun.rb
+lib/minitest/mock.rb
+lib/minitest/spec.rb
+lib/minitest/unit.rb
+test/test_mini_mock.rb
+test/test_mini_spec.rb
+test/test_mini_test.rb

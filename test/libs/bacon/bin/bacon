@@ -1,0 +1,117 @@
+#!/usr/bin/env ruby
+# -*- ruby -*-
+
+require 'optparse'
+$LOAD_PATH.unshift File.join(File.dirname(__FILE__), '../lib/')
+module Bacon; end
+
+automatic = false
+output = 'SpecDoxOutput'
+
+opts = OptionParser.new("", 24, '  ') { |opts|
+  opts.banner = "Usage: bacon [options] [files | -a] [-- untouched arguments]"
+
+  opts.separator ""
+  opts.separator "Ruby options:"
+
+  lineno = 1
+  opts.on("-e", "--eval LINE", "evaluate a LINE of code") { |line|
+    eval line, TOPLEVEL_BINDING, "-e", lineno
+    lineno += 1
+  }
+
+  opts.on("-d", "--debug", "set debugging flags (set $DEBUG to true)") {
+    $DEBUG = true
+  }
+  opts.on("-w", "--warn", "turn warnings on for your script") {
+    $-w = true
+  }
+
+  opts.on("-I", "--include PATH",
+          "specify $LOAD_PATH (may be used more than once)") { |path|
+    $LOAD_PATH.unshift(*path.split(":"))
+  }
+
+  opts.on("-r", "--require LIBRARY",
+          "require the library, before executing your script") { |library|
+    require library
+  }
+
+  opts.separator ""
+  opts.separator "bacon options:"
+
+  opts.on("-s", "--specdox", "do AgileDox-like output (default)") {
+    output = 'SpecDoxOutput'
+  }
+  opts.on("-q", "--quiet",   "do Test::Unit-like non-verbose output") {
+    output = 'TestUnitOutput'
+  }
+  opts.on("-p", "--tap",     "do TAP (Test Anything Protocol) output") {
+    output = 'TapOutput'
+  }
+  opts.on("-k", "--knock",   "do Knock output") {
+    output = 'KnockOutput'
+  }
+
+  opts.on("-o", "--output FORMAT",
+          "do FORMAT (SpecDox/TestUnit/Tap) output") { |format|
+    output = format + "Output" 
+  }
+  opts.on("-Q", "--no-backtrace", "don't print backtraces") {
+    Bacon.const_set :Backtraces, false
+  }
+
+  opts.on("-a", "--automatic", "gather tests from ./test/, include ./lib/") {
+    $LOAD_PATH.unshift "lib"  if File.directory? "lib"
+    automatic = true
+  }
+
+  opts.on('-n', '--name NAME', String,
+          "runs tests matching regexp NAME") { |n|
+    Bacon.const_set :RestrictName, Regexp.new(n)
+  }
+  
+  opts.on('-t', '--testcase TESTCASE', String,
+          "runs tests in TestCases matching regexp TESTCASE") { |t|
+    Bacon.const_set :RestrictContext, Regexp.new(t)
+  }
+
+  opts.separator ""
+  opts.separator "Common options:"
+
+  opts.on_tail("-h", "--help", "Show this message") do
+    puts opts
+    exit
+  end
+
+  opts.on_tail("--version", "Show version") do
+    require 'bacon'
+    puts "bacon #{Bacon::VERSION}"
+    exit
+  end
+
+  opts.parse! ARGV
+}
+
+files = ARGV
+
+if automatic
+  files.concat Dir["test/**/test_*.rb"]
+  files.concat Dir["test/**/spec_*.rb"]
+  files.concat Dir["spec/**/spec_*.rb"]
+end
+
+if files.empty?
+  puts opts.banner
+  exit 1
+end
+
+require 'bacon'
+
+Bacon.extend Bacon.const_get(output) rescue abort "No such formatter: #{output}"
+Bacon.summary_on_exit
+
+files.each { |file|
+  load file
+}
+
