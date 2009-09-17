@@ -22,8 +22,28 @@
 // otherwise there are crashes when one tries to add an instance
 // variable to a queue. (Not that that is a good idea.)
 
-// TODO: Add a top-level rdoc for the module explaining what GCD
-// is good for (and pointing them to the dispatch(3) manpage).
+/*
+ *
+ *  Grand Central Dispatch (GCD) is a novel approach to multicore computing
+ *  that is built into Mac OS X version 10.6 Snow Leopard. In particular, GCD
+ *  shifts responsibility for managing threads and their execution from
+ *  applications to the operating system. This allows programmers to easily
+ *  refactor their programs into small chunks of independent work, which GCD
+ *  then schedules onto per-process thread pools.  Because GCD knows the load
+ *  across the entire system, it ensures the resulting programs perform
+ *  optimally on a wide range of hardware.
+ * 
+ *  GCD is built on a highly-efficient multicore engine accessed via a C API
+ *  providing four primary abstractions, which are wrapped in this MacRuby
+ *  implementation:
+ *    ▪ block objects
+ *    ▪ dispatch queues
+ *    ▪ synchronization services
+ *    ▪ event sources
+ * 
+ *  For more information, see the dispatch(3) man page.  
+ *
+*/
 
 typedef struct {
     struct RBasic basic;
