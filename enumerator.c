@@ -469,6 +469,4 @@ Init_Enumerator(void)
     rb_eStopIteration   = rb_define_class("StopIteration", rb_eIndexError);
 
     sym_each	 	= ID2SYM(rb_intern("each"));
-
-    rb_provide("enumerator.so");	/* for backward compatibility */
 }

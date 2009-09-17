@@ -882,6 +882,7 @@ end
 
 require 'rubygems/config_file'
 
+# MacRuby requires this hack.
 #if RUBY_VERSION < '1.9' then
   require 'rubygems/custom_require'
 #end
