@@ -29,6 +29,7 @@ For 0.5 (must do):
 [/] support for zlib
 [ ] merge stdlib from 1.9.2 trunk
 [/] most language/core/library specs should run (modulo a very few exceptions)
+[ ] add the DTrace custom probes
 [X] port all rb_define_method() calls to rb_objc_define_method()
 [/] port all rb_funcall() calls to rb_vm_call()
 [/] port all rb_num_coerce_bin() calls to rb_objc_num_coerce_bin()
