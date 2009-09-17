@@ -3,6 +3,7 @@ assert "nil", "alias $bar $foo; p $bar"
 
 assert "42", "def foo; 42; end; alias :bar :foo; p bar"
 
+# Mocha TODO
 assert "true", %{
   class X
     def foo; end

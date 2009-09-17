@@ -73,6 +73,7 @@ assert "42", %{
   p Y.new.foo
 }
 
+# Mocha TODO
 assert "true", %q{
   class X
     class << self
@@ -82,6 +83,7 @@ assert "true", %q{
   end
 }
 
+# Mocha TODO
 assert "false", %q{
   class X
     class << self
