@@ -27,6 +27,23 @@
 #define DEFINED_SUPER	6
 #define DEFINED_METHOD	7
 
+class RoxorFunctionAnnotation : public Annotation {
+    public:
+	static AnnotationID id;
+	std::string path;
+	std::vector<unsigned int> dispatch_lines;
+
+	RoxorFunctionAnnotation(Function *function, const char *_path)
+	    : Annotation(RoxorFunctionAnnotation::id), path(_path) {
+		function->addAnnotation(this);
+	    }
+
+	static RoxorFunctionAnnotation *from_function(Function *function) {
+	    return (RoxorFunctionAnnotation *)
+		function->getAnnotation(RoxorFunctionAnnotation::id);
+	}
+};
+
 class RoxorCompiler {
     public:
 	static llvm::Module *module;
@@ -81,6 +98,7 @@ class RoxorCompiler {
 # define DEBUG_LEVEL_DEC()
 #endif
 
+	unsigned int current_line;
 	BasicBlock *bb;
 	BasicBlock *entry_bb;
 	ID current_mid;
@@ -108,6 +126,7 @@ class RoxorCompiler {
 	int return_from_block;
 	int return_from_block_ids;
 	PHINode *ensure_pn;
+	RoxorFunctionAnnotation *func_annotation;
 
 	Function *dispatcherFunc;
 	Function *fastPlusFunc;

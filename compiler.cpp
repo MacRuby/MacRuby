@@ -20,8 +20,12 @@
 
 extern "C" const char *ruby_node_name(int node);
 
+// Will be set later, in vm.cpp.
 llvm::Module *RoxorCompiler::module = NULL;
 RoxorCompiler *RoxorCompiler::shared = NULL;
+
+AnnotationID RoxorFunctionAnnotation::id =
+	AnnotationManager::getID("RoxorFunction");
 
 RoxorCompiler::RoxorCompiler(void)
 {
@@ -127,6 +131,8 @@ RoxorCompiler::RoxorCompiler(void)
     setScopeFunc = NULL;
     setCurrentClassFunc = NULL;
     getCacheFunc = NULL;
+
+    func_annotation = NULL;
 
 #if __LP64__
     RubyObjTy = IntTy = Type::Int64Ty;
@@ -729,6 +735,9 @@ RoxorCompiler::compile_dispatch_call(std::vector<Value *> &params)
 	dispatcherFunc = cast<Function>
 	    (module->getOrInsertFunction("rb_vm_dispatch", ft));
     }
+
+    assert(func_annotation != NULL);
+    func_annotation->dispatch_lines.push_back(current_line);
 
     return compile_protected_call(dispatcherFunc, params);
 }
@@ -2944,6 +2953,7 @@ RoxorCompiler::compile_node(NODE *node)
     }
     printf("... %s\n", ruby_node_name(nd_type(node)));
 #endif
+    current_line = nd_line(node);
 
     switch (nd_type(node)) {
 	case NODE_SCOPE:
@@ -2984,6 +2994,9 @@ RoxorCompiler::compile_node(NODE *node)
 		FunctionType *ft = FunctionType::get(RubyObjTy, types, false);
 		Function *f = Function::Create(ft, GlobalValue::PrivateLinkage,
 			"", module);
+
+		RoxorFunctionAnnotation *old_func_annotation = func_annotation;
+		func_annotation = new RoxorFunctionAnnotation(f, fname);
 
 		BasicBlock *old_rescue_bb = rescue_bb;
 		BasicBlock *old_entry_bb = entry_bb;
@@ -3205,6 +3218,7 @@ RoxorCompiler::compile_node(NODE *node)
 		    rescue_bb->eraseFromParent();
 		}
 
+		func_annotation = old_func_annotation;
 		bb = old_bb;
 		entry_bb = old_entry_bb;
 		lvars = old_lvars;

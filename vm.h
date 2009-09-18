@@ -670,7 +670,8 @@ class RoxorCore {
 	}
 
 	bool symbolize_call_address(void *addr, void **startp,
-		unsigned long *ln, char *name, size_t name_len);
+		char *path, size_t path_len, unsigned long *ln,
+		char *name, size_t name_len);
 
 	struct mcache *method_cache_get(SEL sel, bool super);
 	rb_vm_method_node_t *method_node_get(IMP imp);

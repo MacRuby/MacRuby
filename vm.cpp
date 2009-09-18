@@ -406,8 +406,8 @@ RoxorCore::interpret(Function *func)
 }
 
 bool
-RoxorCore::symbolize_call_address(void *addr, void **startp, unsigned long *ln,
-	char *name, size_t name_len)
+RoxorCore::symbolize_call_address(void *addr, void **startp, char *path,
+	size_t path_len, unsigned long *ln, char *name, size_t name_len)
 {
     void *start = NULL;
 
@@ -429,7 +429,7 @@ RoxorCore::symbolize_call_address(void *addr, void **startp, unsigned long *ln,
 	*startp = start;
     }
 
-    if (name != NULL || ln != NULL) {
+    if (name != NULL || path != NULL || ln != NULL) {
 	std::map<IMP, rb_vm_method_node_t *>::iterator iter = 
 	    ruby_imps.find((IMP)start);
 	if (iter == ruby_imps.end()) {
@@ -438,11 +438,56 @@ RoxorCore::symbolize_call_address(void *addr, void **startp, unsigned long *ln,
 	}
 
 	rb_vm_method_node_t *node = iter->second;
-#if 0 // TODO
+
+	RoxorFunctionAnnotation *annotation = f == NULL
+	    ? NULL
+	    : RoxorFunctionAnnotation::from_function(f->f);
 	if (ln != NULL) {
-	    *ln = nd_line(node->node);
-	}
+	    if (annotation != NULL) {
+#if __LP64__
+		// So, we need to determine here which call to the dispatcher
+		// we are exactly, so that we can retrieve the appropriate
+		// line number from the annotation.
+		// Unfortunately, the only way to achieve that seems to scan
+		// the current function's machine code.
+		// This code has only been tested on x86_64 but could be
+		// easily ported to i386.
+		const uint32_t sym = *(uint32_t *)((unsigned char *)addr - 8);
+		const int sentinel = sym & 0xff;
+
+		unsigned char *p = f->start;
+		unsigned int i = 0;
+		while ((p = (unsigned char *)memchr(p, sentinel,
+				(unsigned char *)addr - p)) != NULL) {
+		    if (*(uint32_t *)p == sym) {
+			i++;
+		    }
+		    p++;
+		}
+
+		if (i > 0 && i - 1 < annotation->dispatch_lines.size()) {
+		    *ln = annotation->dispatch_lines[i - 1];
+		}
+		else {
+		    *ln = 0;
+		}
+#else
+		// TODO 32-bit hack...
+		*ln = 0;
 #endif
+	    }
+	    else {
+		*ln = 0;
+	    }
+	}
+	if (path != NULL) {
+	    if (annotation != NULL) {
+		strncpy(path, annotation->path.c_str(), path_len);
+	    }
+	    else {
+		strncpy(path, "core", path_len);
+	    }
+	}
 	if (name != NULL) {
 	    strncpy(name, sel_getName(node->sel), name_len);
 	}
@@ -2329,7 +2374,7 @@ rb_vm_super_lookup(VALUE klass, SEL sel)
     for (int i = callstack_n - 1; i >= 0; i--) {
 	void *start = NULL;
 	if (GET_CORE()->symbolize_call_address(callstack[i],
-		    &start, NULL, NULL, 0)) {
+		    &start, NULL, 0, NULL, NULL, 0)) {
 	    start = (void *)objc_imp((IMP)start);
 	    if (start == (void *)self) {
 		skip = false;
@@ -4507,13 +4552,14 @@ rb_vm_backtrace(int level)
     VALUE ary = rb_ary_new();
 
     for (int i = 0; i < callstack_n; i++) {
+	char path[PATH_MAX];
 	char name[100];
 	unsigned long ln = 0;
 
-	if (GET_CORE()->symbolize_call_address(callstack[i], NULL, &ln, name,
-		    sizeof name)) {
-	    char entry[100];
-	    snprintf(entry, sizeof entry, "%ld:in `%s'", ln, name);
+	if (GET_CORE()->symbolize_call_address(callstack[i], NULL,
+		    path, sizeof path, &ln, name, sizeof name)) {
+	    char entry[PATH_MAX];
+	    snprintf(entry, sizeof entry, "%s:%ld:in `%s'", path, ln, name);
 	    rb_ary_push(ary, rb_str_new2(entry));
 	}
     }
