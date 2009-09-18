@@ -777,8 +777,8 @@ Init_eval(void)
     rb_objc_define_module_function(rb_mKernel, "iterator?", rb_f_block_given_p, 0);
     rb_objc_define_module_function(rb_mKernel, "block_given?", rb_f_block_given_p, 0);
 
-    rb_objc_define_module_function(rb_mKernel, "raise", rb_f_raise, -1);
     rb_objc_define_module_function(rb_mKernel, "fail", rb_f_raise, -1);
+    rb_objc_define_module_function(rb_mKernel, "raise", rb_f_raise, -1);
 
     rb_objc_define_module_function(rb_mKernel, "global_variables", rb_f_global_variables, 0);	/* in variable.c */
     rb_objc_define_module_function(rb_mKernel, "local_variables", rb_f_local_variables, 0);

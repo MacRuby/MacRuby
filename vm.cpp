@@ -544,10 +544,23 @@ rb_vm_get_method_cache(SEL sel)
 }
 
 inline rb_vm_method_node_t *
-RoxorCore::method_node_get(IMP imp)
+RoxorCore::method_node_get(IMP imp, bool create)
 {
+    rb_vm_method_node_t *n;
     std::map<IMP, rb_vm_method_node_t *>::iterator iter = ruby_imps.find(imp);
-    return iter == ruby_imps.end() ? NULL : iter->second;
+    if (iter == ruby_imps.end()) {
+	if (create) {
+	    n = (rb_vm_method_node_t *)malloc(sizeof(rb_vm_method_node_t));
+	    ruby_imps[imp] = n;
+	}
+	else {
+	    n = NULL;
+	}
+    }
+    else {
+	n = iter->second;
+    }
+    return n;
 }
 
 inline rb_vm_method_node_t *
@@ -4559,7 +4572,14 @@ rb_vm_backtrace(int level)
 	if (GET_CORE()->symbolize_call_address(callstack[i], NULL,
 		    path, sizeof path, &ln, name, sizeof name)) {
 	    char entry[PATH_MAX];
-	    snprintf(entry, sizeof entry, "%s:%ld:in `%s'", path, ln, name);
+	    if (ln == 0) {
+		snprintf(entry, sizeof entry, "%s:in `%s'",
+			path, name);
+	    }
+	    else {
+		snprintf(entry, sizeof entry, "%s:%ld:in `%s'",
+			path, ln, name);
+	    }
 	    rb_ary_push(ary, rb_str_new2(entry));
 	}
     }
@@ -4649,14 +4669,21 @@ rb_vm_print_current_exception(void)
 	std::terminate();
     }
 
-    static SEL sel_message = 0;
-    if (sel_message == 0) {
-	sel_message = sel_registerName("message");
+    VALUE message = rb_vm_call(exc, sel_registerName("message"), 0, NULL,
+	    false);
+    VALUE bt = rb_vm_call(exc, sel_registerName("backtrace"), 0, NULL,
+	    false);
+
+    for (long i = 0, count = RARRAY_LEN(bt); i < count; i++) {
+	const char *bte = RSTRING_PTR(RARRAY_AT(bt, i));
+	if (i == 0) {
+	    printf("%s: %s (%s)\n", bte, RSTRING_PTR(message),
+		    rb_class2name(*(VALUE *)exc));
+	}
+	else {
+	    printf("\t%s\n", bte);
+	}
     }
-
-    VALUE message = rb_vm_call(exc, sel_message, 0, NULL, false);
-
-    printf("%s (%s)\n", RSTRING_PTR(message), rb_class2name(*(VALUE *)exc));
 }
 
 extern "C"
@@ -4768,6 +4795,14 @@ rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding,
     }
 #else
     IMP imp = GET_CORE()->compile(function);
+
+    // For symbolication.
+    rb_vm_method_node_t *mnode = GET_CORE()->method_node_get(imp, true);
+    mnode->arity = rb_vm_arity(2);
+    mnode->sel = sel_registerName("<main>");
+    mnode->objc_imp = mnode->ruby_imp = imp;
+    mnode->flags = 0;
+    
     return ((VALUE(*)(VALUE, SEL))imp)(vm->get_current_top_object(), 0);
 #endif
 }
