@@ -757,7 +757,7 @@ rb_source_on_cancellation(VALUE self, SEL sel)
     rb_source_t *src = RSource(self);
     rb_vm_block_t *the_block = rb_vm_current_block();
     if (the_block == NULL) {
-        rb_raise(rb_eArgError, "on_event() requires a block argument");
+        rb_raise(rb_eArgError, "on_cancellation() requires a block argument");
     }
     GC_WB(&src->cancel_handler, the_block);
     dispatch_set_context(src->source, (void*)self); // retain this?
