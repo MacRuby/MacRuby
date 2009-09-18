@@ -35,6 +35,7 @@ For 0.5 (must do):
 [/] port all rb_funcall() calls to rb_vm_call()
 [/] port all rb_num_coerce_bin() calls to rb_objc_num_coerce_bin()
 [/] port all rb_obj_respond_to() calls to rb_vm_respond_to()
+[ ] refresh copyright headers for 2009
 
 For 0.5 (tentative):
 
