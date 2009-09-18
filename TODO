@@ -2,7 +2,7 @@ For 0.5 RC1:
 
 [ ] fix irb Binding bugs
 [/] sockets
-[ ] backtracing / symbolication
+[/] backtracing / symbolication
 [/] rubygems should work (modulo C extensions)
   [X] fix version numbers
   [X] fix YAML deserialization of booleans
