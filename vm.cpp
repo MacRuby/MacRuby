@@ -4411,7 +4411,9 @@ extern "C"
 void
 rb_vm_raise_current_exception(void)
 {
-    assert(GET_VM()->current_exception() != Qnil);
+    VALUE exception = GET_VM()->current_exception();
+    assert(exception != Qnil);
+    rb_iv_set(exception, "bt", rb_vm_backtrace(100));
     __vm_raise(); 
 }
 
