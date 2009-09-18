@@ -20,8 +20,11 @@ For 0.5 (must do):
 [X] Array subclass for immediates
 [ ] Hash subclass for immediates
 [ ] try/catch should use a C++ exception
-[ ] ObjC exceptions should be catchable in Ruby
 [ ] fully implement FFI API
+[ ] remaining Cocoa bugs
+  [ ] ObjC exceptions should be catchable in Ruby
+  [ ] honor BridgeSupport sel_of_type attribute
+  [ ] add support for variadic functions / methods
 [ ] support for bigdecimal
 [ ] support for json
 [/] support for yaml
