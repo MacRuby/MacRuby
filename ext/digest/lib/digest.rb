@@ -4,7 +4,7 @@ module Digest
   def self.const_missing(name)
     case name
     when :SHA256, :SHA384, :SHA512
-      lib = 'digest/sha2.so'
+      lib = 'digest/sha2.bundle'
     else
       lib = File.join('digest', name.to_s.downcase)
     end
