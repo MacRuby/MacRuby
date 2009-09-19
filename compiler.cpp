@@ -5022,7 +5022,8 @@ rescan_args:
 		params.push_back(compile_nsobject());
 		params.push_back(compile_sel(sel));
 		params.push_back(compile_block_create(NULL));
-		params.push_back(ConstantInt::get(Type::Int8Ty, 0));
+		params.push_back(ConstantInt::get(Type::Int8Ty,
+			    DISPATCH_FCALL));
 		params.push_back(ConstantInt::get(Type::Int32Ty, 0));
 
 		current_block_func = old_current_block_func;
