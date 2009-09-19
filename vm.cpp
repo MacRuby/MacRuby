@@ -4683,7 +4683,7 @@ rb_vm_print_current_exception(void)
 		    rb_class2name(*(VALUE *)exc));
 	}
 	else {
-	    printf("\t%s\n", bte);
+	    printf("\tfrom %s\n", bte);
 	}
     }
 }
