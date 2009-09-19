@@ -2837,9 +2837,13 @@ static IMP rb_objc_io_finalize_super = NULL;
 static void
 rb_objc_io_finalize(void *rcv, SEL sel)
 {
-    rb_io_close((VALUE)rcv);
-    if (rb_objc_io_finalize_super != NULL) {
-	((void(*)(void *, SEL))rb_objc_io_finalize_super)(rcv, sel);
+    rb_io_t *io_struct = ExtractIOStruct((VALUE)rcv);
+    // do not close automatically stdin, stdout and stderr
+    if ((io_struct->fd < 0) || (io_struct->fd > 2)) {
+	rb_io_close((VALUE)rcv);
+	if (rb_objc_io_finalize_super != NULL) {
+	    ((void(*)(void *, SEL))rb_objc_io_finalize_super)(rcv, sel);
+	}
     }
 }
 
