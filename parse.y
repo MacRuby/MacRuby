@@ -8086,7 +8086,7 @@ assignable_gen(struct parser_params *parser, ID id, NODE *val)
 		return NEW_LASGN(id, val);
 	    }
 	    else {
-		if (!rb_local_define(id)) {
+		if (in_def > 0 || in_single > 0 || !rb_local_define(id)) {
 		    dyna_var(id);
 		}
 		return NEW_DASGN_CURR(id, val);
@@ -8094,9 +8094,7 @@ assignable_gen(struct parser_params *parser, ID id, NODE *val)
 	}
 	else {
 	    if (!local_id(id)) {
-		//if (!rb_local_define(id)) {
-		    local_var(id);
-		//}
+		local_var(id);
 	    }
 	    return NEW_LASGN(id, val);
 	}
