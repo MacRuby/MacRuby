@@ -23,3 +23,12 @@ assert '"hello world"', %{
   A.extend(C)
   p A.greetings
 }
+
+assert '42', %{
+  module Foo
+    define_method('bar') do
+      42
+    end
+  end
+  Foo.new.bar
+}
