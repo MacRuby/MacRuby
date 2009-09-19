@@ -3,7 +3,7 @@
  *
  * This file is covered by the Ruby license. See COPYING for more details.
  * 
- * Copyright (C) 2007-2008, Apple Inc. All rights reserved.
+ * Copyright (C) 2007-2009, Apple Inc. All rights reserved.
  * Copyright (C) UENO Katsuhiro 2000-2003
  */
 
