@@ -14,6 +14,7 @@
 #include "id.h"
 #include "vm.h"
 #include "yaml.h"
+#include <unistd.h>
 
 // Ideas to speed this up:
 // none as of yet. need to figure out how to get Shark to link against this .bundle
@@ -316,29 +317,20 @@ handler_for_tag(rb_yaml_parser_t *parser, yaml_char_t *tag)
 }
 
 static VALUE
-interpret_value(rb_yaml_parser_t *parser, VALUE result, VALUE handler,
-	bool collect)
+interpret_value(rb_yaml_parser_t *parser, VALUE result, VALUE handler)
 {
     if (NIL_P(handler)) {
-	return collect ? (VALUE)CFMakeCollectable((CFTypeRef)result) : result;
+	return result;
     }
     if (rb_vm_respond_to(handler, sel_call, 0)) {
-	VALUE r = rb_vm_call_with_cache(call_cache, handler, sel_call, 1,
+	return rb_vm_call_with_cache(call_cache, handler, sel_call, 1,
 		&result);
-	if (collect) {
-	    CFRelease((CFTypeRef)result);
-	}
-	return r;
     }
     else if (rb_vm_respond_to(handler, sel_yaml_new, 0)) {
-	VALUE r = rb_vm_call_with_cache(yaml_new_cache, handler, sel_yaml_new,
+	return rb_vm_call_with_cache(yaml_new_cache, handler, sel_yaml_new,
 		1, &result);
-	if (collect) {
-	    CFRelease((CFTypeRef)result);
-	}
-	return r;
     }
-    return collect ? (VALUE)CFMakeCollectable((CFTypeRef)result) : result;
+    return result;
 }
 
 static inline bool
@@ -403,7 +395,7 @@ handle_scalar(rb_yaml_parser_t *parser)
 	    parser->event.data.scalar.length,
 	    kCFStringEncodingUTF8, true);
     CFMakeCollectable((CFTypeRef)scalarval);
-    return interpret_value(parser, scalarval, handler, true);
+    return interpret_value(parser, scalarval, handler);
 }
 
 static VALUE
@@ -417,7 +409,7 @@ handle_sequence(rb_yaml_parser_t *parser)
     while ((node = get_node(parser)) != Qundef) {
 	rb_ary_push(arr, node);
     }
-    return interpret_value(parser, arr, handler, false);
+    return interpret_value(parser, arr, handler);
 }
 
 static VALUE
@@ -435,7 +427,7 @@ handle_mapping(rb_yaml_parser_t *parser)
 	}
 	rb_hash_aset(hash, key_node, value_node);
     }
-    return interpret_value(parser, hash, handler, false);
+    return interpret_value(parser, hash, handler);
 }
 
 static inline VALUE
