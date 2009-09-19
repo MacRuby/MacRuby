@@ -30,5 +30,18 @@ assert '42', %{
       42
     end
   end
-  Foo.new.bar
+  class A
+    include Foo
+  end
+  p A.new.bar
+}
+
+assert ':ok', %{
+  module M; end
+  begin
+    M.new
+    p :ko
+  rescue NoMethodError
+    p :ok
+  end
 }

@@ -492,7 +492,7 @@ rb_define_module_id(ID id)
 
     mdl = rb_objc_alloc_class(id == 0 ? NULL : rb_id2name(id), rb_cObject, T_MODULE, rb_cModule);
 
-    if (rb_mKernel != 0) {
+    if ((rb_mKernel != 0) && (id == 0)) {
 	/* because Module#initialize can accept a block */
 	rb_objc_define_method(*(VALUE *)mdl, "initialize", rb_mod_initialize, 0);
     }
