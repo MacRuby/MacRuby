@@ -29,7 +29,7 @@ AnnotationID RoxorFunctionAnnotation::id =
 
 RoxorCompiler::RoxorCompiler(void)
 {
-    fname = NULL;
+    fname = "";
     inside_eval = false;
 
     bb = NULL;
