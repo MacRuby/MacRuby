@@ -14,6 +14,7 @@ class Compiler
   def initialize(argv)
     @mode = :normal
     @frameworks = []
+    @internal = argv.delete('--internal')
 
     # Parse arguments.
     OptionParser.new do |opts|
@@ -39,14 +40,14 @@ class Compiler
     end
 
     # Locate necessary programs.
-    @macruby = locate('macruby')
+    @macruby = locate(@internal ? './miniruby' : 'macruby')
     @llc = locate('llc')    
     @gcc = locate('gcc')
     @gcxx = locate('g++')
     @nm = locate('nm')
 
     # Misc.
-    @tmpdir = (ENV['TMPDIR'] or raise 'no TMPDIR?')
+    @tmpdir = (ENV['TMPDIR'] or '/tmp')
     @tmpfiles = []
   end
 
