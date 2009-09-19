@@ -8094,9 +8094,9 @@ assignable_gen(struct parser_params *parser, ID id, NODE *val)
 	}
 	else {
 	    if (!local_id(id)) {
-		if (!rb_local_define(id)) {
+		//if (!rb_local_define(id)) {
 		    local_var(id);
-		}
+		//}
 	    }
 	    return NEW_LASGN(id, val);
 	}
@@ -10085,6 +10085,7 @@ rb_parser_set_yydebug(VALUE self, VALUE flag)
 }
 
 #ifdef YYMALLOC
+// FIXME the following functions are definitely missing write barriers
 #define HEAPCNT(n, size) ((n) * (size) / sizeof(YYSTYPE))
 #define NEWHEAP() rb_node_newnode(NODE_ALLOCA, 0, (VALUE)parser->heap, 0)
 #define ADD2HEAP(n, c, p) ((parser->heap = (n))->u1.node = (p), \
