@@ -1429,36 +1429,37 @@ RoxorCompiler::compile_defined_expression(NODE *node)
 
     // Prepare arguments for the runtime.
     Value *self = current_self;
-    VALUE what1 = 0;
+    Value *what1 = NULL;
     Value *what2 = NULL;
     int type = 0;
 
     switch (nd_type(node)) {
 	case NODE_IVAR:
 	    type = DEFINED_IVAR;
-	    what1 = (VALUE)node->nd_vid;
+	    what1 = compile_id(node->nd_vid);
 	    break;
 
 	case NODE_GVAR:
 	    type = DEFINED_GVAR;
-	    what1 = (VALUE)node->nd_entry;
+	    // TODO AOT compiler
+	    what1 = ConstantInt::get(RubyObjTy, (VALUE)node->nd_entry);
 	    break;
 
 	case NODE_CVAR:
 	    type = DEFINED_CVAR;
-	    what1 = (VALUE)node->nd_vid;
+	    what1 = compile_id(node->nd_vid);
 	    break;
 
 	case NODE_CONST:
 	    type = DEFINED_LCONST;
-	    what1 = (VALUE)node->nd_vid;
+	    what1 = compile_id(node->nd_vid);
 	    what2 = compile_current_class();
 	    break;
 
 	case NODE_SUPER:
 	case NODE_ZSUPER:
 	    type = DEFINED_SUPER;
-	    what1 = (VALUE)current_mid;
+	    what1 = compile_id(current_mid);
 	    break;
 
 	case NODE_COLON2:
@@ -1468,11 +1469,11 @@ RoxorCompiler::compile_defined_expression(NODE *node)
 		: compile_nsobject();
 	    if (rb_is_const_id(node->nd_mid)) {
 		type = DEFINED_CONST;
-		what1 = (VALUE)node->nd_mid;
+		what1 = compile_id(node->nd_mid);
 	    }
 	    else {
 		type = DEFINED_METHOD;
-		what1 = (VALUE)node->nd_mid;
+		what1 = compile_id(node->nd_mid);
 	    }
 	    break;
 
@@ -1486,7 +1487,7 @@ RoxorCompiler::compile_defined_expression(NODE *node)
 		self = compile_node(node->nd_recv);
 	    }
 	    type = DEFINED_METHOD;
-	    what1 = (VALUE)node->nd_mid;
+	    what1 = compile_id(node->nd_mid);
 	    break;
     }
 
@@ -1506,7 +1507,7 @@ RoxorCompiler::compile_defined_expression(NODE *node)
 
     params.push_back(self);
     params.push_back(ConstantInt::get(Type::Int32Ty, type));
-    params.push_back(ConstantInt::get(RubyObjTy, what1));
+    params.push_back(what1 == NULL ? nilVal : what1);
     params.push_back(what2 == NULL ? nilVal : what2);
 
     // Call the runtime.
