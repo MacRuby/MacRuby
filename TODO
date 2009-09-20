@@ -1,6 +1,6 @@
 For 0.5 RC1:
 
-[ ] fix irb Binding bugs
+[X] fix irb Binding bugs
 [/] sockets
 [/] backtracing / symbolication
 [/] rubygems should work (modulo C extensions)
