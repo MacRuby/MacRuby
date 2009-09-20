@@ -4134,6 +4134,8 @@ imp_rb_array_addObject(void *rcv, SEL sel, void *obj)
 }
 
 #if MAC_OS_X_VERSION_MAX_ALLOWED < 1060
+// This is to work around a bug where CF will try to call an non-existing
+// method.
 static CFIndex
 imp_rb_array_cfindexOfObjectInRange(void *rcv, SEL sel, void *obj, 
     CFRange range)
@@ -4222,6 +4224,24 @@ imp_rary_addObject(void *rcv, SEL sel, void *obj)
 {
     rary_append(RARY(rcv), OC2RB(obj));
 }
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1060
+// This is to work around a bug where CF will try to call an non-existing
+// method.
+static CFIndex
+imp_rary_cfindexOfObjectInRange(void *rcv, SEL sel, void *obj, CFRange range)
+{
+    assert(range.location + range.length <= RARY(rcv)->len);
+    VALUE item = OC2RB(obj);
+    for (size_t i = range.location; i < range.location + range.length; i++) {
+	VALUE item2 = rary_elt(RARY(rcv), i);
+	if (rb_equal_fast(item, item2) == Qtrue) {
+	    return i;
+	}
+    }
+    return -1;
+}
+#endif
 
 /* Arrays are ordered, integer-indexed collections of any object. 
  * Array indexing starts at 0, as in C or Java.  A negative index is 
@@ -4363,4 +4383,14 @@ Init_Array(void)
 	    (IMP)imp_rary_replaceObjectAtIndexWithObject);
     rb_objc_install_method2((Class)rb_cRubyArray, "addObject:",
 	    (IMP)imp_rary_addObject);
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1060
+    rb_objc_install_method2((Class)rb_cRubyArray, "_cfindexOfObject:range:",
+	    (IMP)imp_rary_cfindexOfObjectInRange);
+    Method m = class_getInstanceMethod((Class)rb_cRubyArray,
+	    sel_registerName("_cfindexOfObject:range:"));
+    class_addMethod((Class)rb_cRubyArray,
+	    sel_registerName("_cfindexOfObject:inRange:"),
+	    method_getImplementation(m), method_getTypeEncoding(m));
+#endif
 }
