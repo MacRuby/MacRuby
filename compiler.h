@@ -111,7 +111,10 @@ class RoxorCompiler {
 	Value *current_var_uses;
 	Value *running_block;
 	BasicBlock *begin_bb;
-	BasicBlock *rescue_bb;
+	// block used in an invoke when an exception occurs
+	BasicBlock *rescue_invoke_bb;
+	// block to return to in a rescue if an exception is not handled
+	BasicBlock *rescue_rethrow_bb;
 	BasicBlock *ensure_bb;
 	bool current_rescue;
 	NODE *current_block_node;

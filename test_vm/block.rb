@@ -663,3 +663,29 @@ assert '42', %{
   x = Bar.new
   p x.something(42)
 }
+
+assert "1\n42", %{
+  def f
+    1.times {
+      begin
+        return 42
+      ensure
+        p 1
+      end
+    }
+  end
+  p f
+}
+
+assert ':ok', %{
+  def f
+    begin
+      1.times {
+        return 42
+      }
+    ensure
+      p :ok
+    end
+  end
+  f
+}

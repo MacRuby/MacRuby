@@ -35,7 +35,8 @@ RoxorCompiler::RoxorCompiler(void)
     bb = NULL;
     entry_bb = NULL;
     begin_bb = NULL;
-    rescue_bb = NULL;
+    rescue_invoke_bb = NULL;
+    rescue_rethrow_bb = NULL;
     ensure_bb = NULL;
     current_mid = 0;
     current_arity = rb_vm_arity(-1);
@@ -209,7 +210,7 @@ Instruction *
 RoxorCompiler::compile_protected_call(Function *func,
 	std::vector<Value *> &params)
 {
-    if (rescue_bb == NULL) {
+    if (rescue_invoke_bb == NULL) {
 	CallInst *dispatch = CallInst::Create(func, 
 		params.begin(), 
 		params.end(), 
@@ -222,7 +223,7 @@ RoxorCompiler::compile_protected_call(Function *func,
 
 	InvokeInst *dispatch = InvokeInst::Create(func,
 		normal_bb, 
-		rescue_bb, 
+		rescue_invoke_bb,
 		params.begin(), 
 		params.end(), 
 		"", 
@@ -1422,10 +1423,10 @@ RoxorCompiler::compile_defined_expression(NODE *node)
     // because we might need to evalute things that will result in an
     // exception.
     Function *f = bb->getParent(); 
-    BasicBlock *old_rescue_bb = rescue_bb;
-    BasicBlock *new_rescue_bb = BasicBlock::Create("rescue", f);
+    BasicBlock *old_rescue_invoke_bb = rescue_invoke_bb;
+    BasicBlock *new_rescue_invoke_bb = BasicBlock::Create("rescue", f);
     BasicBlock *merge_bb = BasicBlock::Create("merge", f);
-    rescue_bb = new_rescue_bb;
+    rescue_invoke_bb = new_rescue_invoke_bb;
 
     // Prepare arguments for the runtime.
     Value *self = current_self;
@@ -1516,7 +1517,7 @@ RoxorCompiler::compile_defined_expression(NODE *node)
     BranchInst::Create(merge_bb, bb);
 
     // The rescue block - here we simply do nothing.
-    bb = new_rescue_bb;
+    bb = new_rescue_invoke_bb;
     compile_landing_pad_header();
     compile_landing_pad_footer();
     BranchInst::Create(merge_bb, bb);
@@ -1525,9 +1526,9 @@ RoxorCompiler::compile_defined_expression(NODE *node)
     bb = merge_bb;
     PHINode *pn = PHINode::Create(RubyObjTy, "", bb);
     pn->addIncoming(val, normal_bb);
-    pn->addIncoming(nilVal, new_rescue_bb);
+    pn->addIncoming(nilVal, new_rescue_invoke_bb);
 
-    rescue_bb = old_rescue_bb;
+    rescue_invoke_bb = old_rescue_invoke_bb;
 
     return pn;
 }
@@ -1618,7 +1619,7 @@ RoxorCompiler::compile_return_from_block(Value *val, int id)
     std::vector<Value *> params;
     params.push_back(val);
     params.push_back(ConstantInt::get(Type::Int32Ty, id));
-    CallInst::Create(returnFromBlockFunc, params.begin(), params.end(), "", bb);
+    compile_protected_call(returnFromBlockFunc, params);
 }
 
 void
@@ -1901,15 +1902,20 @@ RoxorCompiler::compile_landing_pad_footer(bool pop_exception)
 void
 RoxorCompiler::compile_rethrow_exception(void)
 {
-    Function *rethrowFunc = NULL;
-    if (rethrowFunc == NULL) {
-	// void __cxa_rethrow(void);
-	rethrowFunc = cast<Function>(
-		module->getOrInsertFunction("__cxa_rethrow",
-		    Type::VoidTy, NULL));
+    if (rescue_rethrow_bb == NULL) {
+	Function *rethrowFunc = NULL;
+	if (rethrowFunc == NULL) {
+	    // void __cxa_rethrow(void);
+	    rethrowFunc = cast<Function>(
+		    module->getOrInsertFunction("__cxa_rethrow",
+			Type::VoidTy, NULL));
+	}
+	CallInst::Create(rethrowFunc, "", bb);
+	new UnreachableInst(bb);
     }
-    CallInst::Create(rethrowFunc, "", bb);
-    new UnreachableInst(bb);
+    else {
+	BranchInst::Create(rescue_rethrow_bb, bb);
+    }
 }
 
 typedef struct rb_vm_immediate_val {
@@ -2999,11 +3005,14 @@ RoxorCompiler::compile_node(NODE *node)
 		RoxorFunctionAnnotation *old_func_annotation = func_annotation;
 		func_annotation = new RoxorFunctionAnnotation(f, fname);
 
-		BasicBlock *old_rescue_bb = rescue_bb;
+		BasicBlock *old_rescue_invoke_bb = rescue_invoke_bb;
+		BasicBlock *old_rescue_rethrow_bb = rescue_rethrow_bb;
 		BasicBlock *old_entry_bb = entry_bb;
 		BasicBlock *old_bb = bb;
-		BasicBlock *new_rescue_bb = NULL;
-		rescue_bb = NULL;
+		BasicBlock *new_rescue_invoke_bb = NULL;
+		BasicBlock *new_rescue_rethrow_bb = NULL;
+		rescue_invoke_bb = NULL;
+		rescue_rethrow_bb = NULL;
 		bb = BasicBlock::Create("MainBlock", f);
 
 		std::map<ID, Value *> old_lvars = lvars;
@@ -3077,8 +3086,10 @@ RoxorCompiler::compile_node(NODE *node)
 			current_var_uses = new AllocaInst(PtrTy, "", bb);
 			new StoreInst(compile_const_pointer(NULL), current_var_uses, bb);
 
-			new_rescue_bb = BasicBlock::Create("rescue_save_vars", f);
-			rescue_bb = new_rescue_bb;
+			new_rescue_invoke_bb = BasicBlock::Create("rescue_save_vars", f);
+			new_rescue_rethrow_bb = BasicBlock::Create("rescue_save_vars.rethrow", f);
+			rescue_invoke_bb = new_rescue_invoke_bb;
+			rescue_rethrow_bb = new_rescue_rethrow_bb;
 		    }
 
 		    NODE *args_node = node->nd_args;
@@ -3143,6 +3154,10 @@ RoxorCompiler::compile_node(NODE *node)
 
 		ReturnInst::Create(val, bb);
 
+		// the rethrows after the save of variables must be real rethrows
+		rescue_rethrow_bb = NULL;
+		rescue_invoke_bb = NULL;
+
 		// current_lvar_uses has 2 uses or more if it is really used
 		// (there is always a StoreInst in which we assign it NULL)
 		if (current_var_uses != NULL && current_var_uses->hasNUsesOrMore(2)) {
@@ -3177,24 +3192,32 @@ RoxorCompiler::compile_node(NODE *node)
 			compile_keep_vars(startBB, mergeBB);
 		    }
 
-		    if (new_rescue_bb->use_empty()) {
-			rescue_bb->eraseFromParent();
+		    if (new_rescue_invoke_bb->use_empty() && new_rescue_rethrow_bb->use_empty()) {
+			new_rescue_invoke_bb->eraseFromParent();
+			new_rescue_rethrow_bb->eraseFromParent();
 		    }
 		    else {
-			bb = new_rescue_bb;
-			compile_landing_pad_header();
+			if (new_rescue_invoke_bb->use_empty()) {
+			    new_rescue_invoke_bb->eraseFromParent();
+			}
+			else {
+			    bb = new_rescue_invoke_bb;
+			    compile_landing_pad_header();
+			    BranchInst::Create(new_rescue_rethrow_bb, bb);
+			}
 
+			bb = new_rescue_rethrow_bb;
 			BasicBlock *mergeBB = BasicBlock::Create("merge", f);
-			compile_keep_vars(new_rescue_bb, mergeBB);
+			compile_keep_vars(bb, mergeBB);
 
 			bb = mergeBB;
 			compile_rethrow_exception();
 		    }
 		}
 		else if (current_var_uses != NULL) {
-		    for (BasicBlock::use_iterator rescue_use_it = new_rescue_bb->use_begin();
-			 rescue_use_it != new_rescue_bb->use_end();
-			 rescue_use_it = new_rescue_bb->use_begin()) {
+		    for (BasicBlock::use_iterator rescue_use_it = new_rescue_invoke_bb->use_begin();
+			 rescue_use_it != new_rescue_invoke_bb->use_end();
+			 rescue_use_it = new_rescue_invoke_bb->use_begin()) {
 			InvokeInst* invoke = dyn_cast<InvokeInst>(rescue_use_it);
 			assert(invoke != NULL);
 
@@ -3216,15 +3239,25 @@ RoxorCompiler::compile_node(NODE *node)
 			BranchInst::Create(normal_bb, invoke);
 			invoke->eraseFromParent();
 		    }
-		    rescue_bb->eraseFromParent();
+		    new_rescue_invoke_bb->eraseFromParent();
+
+		    if (new_rescue_rethrow_bb->use_empty()) {
+			new_rescue_rethrow_bb->eraseFromParent();
+		    }
+		    else {
+			bb = new_rescue_rethrow_bb;
+			compile_rethrow_exception();
+		    }
 		}
+
+		rescue_rethrow_bb = old_rescue_rethrow_bb;
+		rescue_invoke_bb = old_rescue_invoke_bb;
 
 		func_annotation = old_func_annotation;
 		bb = old_bb;
 		entry_bb = old_entry_bb;
 		lvars = old_lvars;
 		current_self = old_self;
-		rescue_bb = old_rescue_bb;
 		current_var_uses = old_current_var_uses;
 		running_block = old_running_block;
 
@@ -4507,16 +4540,20 @@ rescan_args:
 		BasicBlock *old_begin_bb = begin_bb;
 		begin_bb = BasicBlock::Create("begin", f);
 
-		BasicBlock *old_rescue_bb = rescue_bb;
-		BasicBlock *new_rescue_bb = BasicBlock::Create("rescue", f);
+		BasicBlock *old_rescue_invoke_bb = rescue_invoke_bb;
+		BasicBlock *old_rescue_rethrow_bb = rescue_rethrow_bb;
+		BasicBlock *new_rescue_invoke_bb = BasicBlock::Create("rescue", f);
+		BasicBlock *new_rescue_rethrow_bb = BasicBlock::Create("rescue.rethrow", f);
 		BasicBlock *merge_bb = BasicBlock::Create("merge", f);
 
 		// Begin code.
 		BranchInst::Create(begin_bb, bb);
 		bb = begin_bb;
-		rescue_bb = new_rescue_bb;
+		rescue_invoke_bb = new_rescue_invoke_bb;
+		rescue_rethrow_bb = new_rescue_rethrow_bb;
 		Value *not_rescued_val = compile_node(node->nd_head);
-		rescue_bb = old_rescue_bb;
+		rescue_rethrow_bb = old_rescue_rethrow_bb;
+		rescue_invoke_bb = old_rescue_invoke_bb;
 
 		if (node->nd_else != NULL) {
 		    BasicBlock *else_bb = BasicBlock::Create("else", f);
@@ -4528,28 +4565,41 @@ rescan_args:
 		BasicBlock *not_rescued_bb = bb;
 		BranchInst::Create(merge_bb, not_rescued_bb);
 
-		// Landing pad header.
-		bb = new_rescue_bb;
-		compile_landing_pad_header();
-
-		// Landing pad code.
-		bool old_current_rescue = current_rescue;
-		current_rescue = true;
-		Value *rescue_val = compile_node(node->nd_resq);
-		current_rescue = old_current_rescue;
-		new_rescue_bb = bb;
-
-		// Landing pad footer.
-		compile_landing_pad_footer();
-
-		BranchInst::Create(merge_bb, bb);
-
-		PHINode *pn = PHINode::Create(RubyObjTy, "rescue_result",
-			merge_bb);
+		PHINode *pn = PHINode::Create(RubyObjTy, "rescue_result", merge_bb);
 		pn->addIncoming(not_rescued_val, not_rescued_bb);
-		pn->addIncoming(rescue_val, new_rescue_bb);
-		bb = merge_bb;
 
+		if (new_rescue_invoke_bb->use_empty() && new_rescue_rethrow_bb->use_empty()) {
+		    new_rescue_invoke_bb->eraseFromParent();
+		    new_rescue_rethrow_bb->eraseFromParent();
+		}
+		else {
+		    if (new_rescue_invoke_bb->use_empty()) {
+			new_rescue_invoke_bb->eraseFromParent();
+		    }
+		    else {
+			// Landing pad header.
+			bb = new_rescue_invoke_bb;
+			compile_landing_pad_header();
+			BranchInst::Create(new_rescue_rethrow_bb, bb);
+		    }
+
+		    bb = new_rescue_rethrow_bb;
+
+		    // Landing pad code.
+		    bool old_current_rescue = current_rescue;
+		    current_rescue = true;
+		    Value *rescue_val = compile_node(node->nd_resq);
+		    current_rescue = old_current_rescue;
+		    new_rescue_invoke_bb = bb;
+
+		    // Landing pad footer.
+		    compile_landing_pad_footer();
+
+		    BranchInst::Create(merge_bb, bb);
+		    pn->addIncoming(rescue_val, new_rescue_invoke_bb);
+		}
+
+		bb = merge_bb;
 		begin_bb = old_begin_bb;
 
 		return pn;
@@ -4689,29 +4739,36 @@ rescan_args:
 
 		ensure_bb = ensure_return_bb;
 
-		if (nd_type(node->nd_head) != NODE_RESCUE) {
-		    // An ensure without a rescue (Ex. begin; ...; ensure; end)
-		    // we must call the head within an exception handler, then
-		    // branch on the ensure block, then re-raise the potential
-		    // exception.
-		    BasicBlock *new_rescue_bb = BasicBlock::Create("rescue", f);
-		    BasicBlock *old_rescue_bb = rescue_bb;
+		BasicBlock *new_rescue_invoke_bb = BasicBlock::Create("rescue", f);
+		BasicBlock *new_rescue_rethrow_bb = BasicBlock::Create("rescue.rethrow", f);
+		BasicBlock *old_rescue_invoke_bb = rescue_invoke_bb;
+		BasicBlock *old_rescue_rethrow_bb = rescue_rethrow_bb;
 
-		    rescue_bb = new_rescue_bb;
-		    DEBUG_LEVEL_INC();
-		    val = compile_node(node->nd_head);
-		    DEBUG_LEVEL_DEC();
-		    rescue_bb = old_rescue_bb;
-		    BranchInst::Create(ensure_normal_bb, bb);
+		rescue_invoke_bb = new_rescue_invoke_bb;
+		rescue_rethrow_bb = new_rescue_rethrow_bb;
+		DEBUG_LEVEL_INC();
+		val = compile_node(node->nd_head);
+		DEBUG_LEVEL_DEC();
+		rescue_rethrow_bb = old_rescue_rethrow_bb;
+		rescue_invoke_bb = old_rescue_invoke_bb;
+		BranchInst::Create(ensure_normal_bb, bb);
 
-		    bb = new_rescue_bb;
-		    compile_landing_pad_header();
-		    compile_node(node->nd_ensr);
-		    compile_rethrow_exception();
+		if (new_rescue_invoke_bb->use_empty() && new_rescue_rethrow_bb->use_empty()) {
+		    new_rescue_invoke_bb->eraseFromParent();
+		    new_rescue_rethrow_bb->eraseFromParent();
 		}
 		else {
-		    val = compile_node(node->nd_head);
-		    BranchInst::Create(ensure_normal_bb, bb);
+		    if (new_rescue_invoke_bb->use_empty()) {
+			new_rescue_invoke_bb->eraseFromParent();
+		    }
+		    else {
+			bb = new_rescue_invoke_bb;
+			compile_landing_pad_header();
+			BranchInst::Create(new_rescue_rethrow_bb, bb);
+		    }
+		    bb = new_rescue_rethrow_bb;
+		    compile_node(node->nd_ensr);
+		    compile_rethrow_exception();
 		}
 
 		ensure_bb = old_ensure_bb;
@@ -4814,7 +4871,8 @@ rescan_args:
 		bool old_current_block = current_block;
 		bool old_current_block_chain = current_block_chain;
 		int old_return_from_block = return_from_block;
-		BasicBlock *old_rescue_bb = rescue_bb;
+		BasicBlock *old_rescue_invoke_bb = rescue_invoke_bb;
+		BasicBlock *old_rescue_rethrow_bb = rescue_rethrow_bb;
 		bool old_dynamic_class = dynamic_class;
 
 		current_mid = 0;
@@ -4835,7 +4893,7 @@ rescan_args:
 		    // call inside an exception handler, since return-from
 		    // -block is implemented using a C++ exception.
 		    Function *f = bb->getParent();
-		    rescue_bb = return_from_block_bb = BasicBlock::Create(
+		    rescue_invoke_bb = return_from_block_bb = BasicBlock::Create(
 			    "return-from-block", f);
 		}
 
@@ -4873,7 +4931,8 @@ rescan_args:
 		    BasicBlock *old_bb = bb;
 		    bb = return_from_block_bb;
 		    compile_return_from_block_handler(return_from_block);	
-		    rescue_bb = old_rescue_bb;
+		    rescue_rethrow_bb = old_rescue_rethrow_bb;
+		    rescue_invoke_bb = old_rescue_invoke_bb;
 		    bb = old_bb;
 		    return_from_block = old_return_from_block;
 		}

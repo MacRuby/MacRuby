@@ -75,7 +75,7 @@ assert ":ok", %q{
   rescue LoadError => e
     p :ok if e.is_a?(LoadError)
   end
-}, :known_bug => true
+}
 
 assert ":ok", %q{
   begin
