@@ -1,1 +1,1 @@
-<pkg-contents spec="1.12"><f n="macruby_select" o="root" g="staff" p="41471" pt="/tmp/macruby-nightly/usr/local/bin/macruby_select" m="false" t="file"/></pkg-contents>
+<pkg-contents spec="1.12"><f n="macruby_select" o="root" g="wheel" p="41469" pt="/tmp/macruby-nightly/usr/local/bin/macruby_select" m="true" t="file"><mod>mode</mod></f></pkg-contents>

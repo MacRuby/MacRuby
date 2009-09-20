@@ -1,1 +1,1 @@
-<pkg-contents spec="1.12"><f n="macrubyc" o="root" g="staff" p="41471" pt="/tmp/macruby-nightly/usr/local/bin/macrubyc" m="false" t="file"/></pkg-contents>
+<pkg-contents spec="1.12"><f n="macrubyc" o="root" g="wheel" p="41469" pt="/tmp/macruby-nightly/usr/local/bin/macrubyc" m="true" t="file"><mod>mode</mod></f></pkg-contents>
