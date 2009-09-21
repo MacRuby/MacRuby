@@ -1,0 +1,1 @@
+fails:An Array object can have a singleton class with an attr_accessor

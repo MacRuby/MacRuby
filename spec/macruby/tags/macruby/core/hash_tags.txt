@@ -1,2 +1,3 @@
 critical:The NSDictionary class can be subclassed and later instantiated
 critical:An NSDictionary object can have a singleton class
+fails:An Hash object can have a singleton class with an attr_accessor

@@ -1,2 +1,3 @@
 critical:The NSString class can be subclassed and later instantiated
 critical:An NSString object can have a singleton class
+fails:An String object can have a singleton class with an attr_accessor
