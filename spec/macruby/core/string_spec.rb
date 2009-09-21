@@ -45,6 +45,15 @@ describe "An String object" do
     a << 'foo'
     a.should == 'foo'
   end
+
+  it "can have a singleton class with an attr_accessor" do
+    a = ''
+    class << a
+      attr_accessor :foo
+    end
+    a.foo = 42
+    a.foo.should == 42
+  end
 end
 
 describe "An NSString object" do

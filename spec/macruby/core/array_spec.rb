@@ -45,6 +45,15 @@ describe "An Array object" do
     a << 42
     a[0].should == 42
   end
+
+  it "can have a singleton class with an attr_accessor" do
+    a = []
+    class << a
+      attr_accessor :foo
+    end
+    a.foo = 42
+    a.foo.should == 42
+  end
 end
 
 describe "An NSArray object" do
