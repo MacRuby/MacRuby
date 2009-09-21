@@ -14,7 +14,7 @@
   $Id: openssl.rb 11708 2007-02-12 23:01:19Z shyouhei $
 =end
 
-require 'openssl.so'
+require 'openssl.bundle'
 
 require 'openssl/bn'
 require 'openssl/cipher'

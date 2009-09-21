@@ -69,7 +69,7 @@ def charset_alias(config_charset, mapfile, target = OS)
   st.keys.each {|sys| st[sys] = nil}
   st.default = nil
   writer = proc do |f|
-    f.puts("require 'iconv.so'")
+    f.puts("require 'iconv.bundle'")
     f.puts
     f.puts(comments)
     f.puts("class Iconv")

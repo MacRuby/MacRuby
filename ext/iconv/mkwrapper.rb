@@ -6,7 +6,7 @@ require 'optparse'
 # Fri, 30 May 2003 00:09:00 GMT'
 
 HEADER = <<SRC
-require 'iconv.so'
+require 'iconv.bundle'
 
 class Iconv
   case RUBY_PLATFORM
