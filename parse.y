@@ -5070,7 +5070,7 @@ yycompile(struct parser_params *parser, const char *f, int line)
 static VALUE
 lex_get_bstr(struct parser_params *parser, VALUE s)
 {
-    long beg = 0, len; 
+    long beg = 0; 
     const long n = rb_bytestring_length(s);
     if (lex_gets_ptr > 0) {
 	if (n == lex_gets_ptr) {
@@ -5079,15 +5079,13 @@ lex_get_bstr(struct parser_params *parser, VALUE s)
 	beg += lex_gets_ptr;
     }
 
-    UInt8 *data = rb_bytestring_byte_pointer(s);
+    const UInt8 *data = rb_bytestring_byte_pointer(s);
     UInt8 *pos = memchr(data + beg, '\n', n - beg);
     if (pos != NULL) {
 	lex_gets_ptr = pos - data + 1;
-	len = pos - data - beg;	
     }
     else {
 	lex_gets_ptr = n;
-	len = lex_gets_ptr - beg;	
     }
 
     return rb_bytestring_new_with_data(data + beg, lex_gets_ptr - beg);
