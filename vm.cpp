@@ -1306,7 +1306,7 @@ rb_vm_alias(VALUE outer, ID name, ID def)
 
 extern "C"
 void
-rb_vm_undef(VALUE klass, VALUE name, unsigned char dynamic_class)
+rb_vm_undef(VALUE klass, ID name, unsigned char dynamic_class)
 {
     if (dynamic_class) {
 	Class k = GET_VM()->get_current_class();
@@ -1314,7 +1314,7 @@ rb_vm_undef(VALUE klass, VALUE name, unsigned char dynamic_class)
 	    klass = (VALUE)k;
 	}
     }
-    rb_vm_undef_method((Class)klass, rb_to_id(name), true);
+    rb_vm_undef_method((Class)klass, name, true);
 }
 
 extern "C"

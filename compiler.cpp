@@ -4482,11 +4482,13 @@ rescan_args:
 		}
 
 		assert(node->u2.node != NULL);
-		ID name = node->u2.node->u1.id;
+		VALUE name = node->u2.node->nd_lit;
+		assert(TYPE(name) == T_SYMBOL);
+		ID name_id = SYM2ID(name);
 
 		std::vector<Value *> params;
 		params.push_back(compile_current_class());
-		params.push_back(compile_id(name));
+		params.push_back(compile_id(name_id));
 		params.push_back(ConstantInt::get(Type::Int8Ty,
 			    dynamic_class ? 1 : 0));
 
