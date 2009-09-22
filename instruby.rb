@@ -247,6 +247,7 @@ install?(:local, :arch, :bin, :'bin-arch') do
   install lib, libdir, :mode => $prog_mode unless lib == arc
   install arc, libdir, :mode => $data_mode #if enable_static
   install "rbconfig.rb", archlibdir, :mode => $data_mode
+  install "rbconfig.rbo", archlibdir, :mode => $data_mode
   if CONFIG["ARCHFILE"]
     for file in CONFIG["ARCHFILE"].split
       install file, archlibdir, :mode => $data_mode
