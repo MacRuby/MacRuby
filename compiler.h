@@ -212,7 +212,6 @@ class RoxorCompiler {
 	Constant *falseVal;
 	Constant *undefVal;
 	Constant *splatArgFollowsVal;
-	Constant *cObject;
 	Constant *defaultScope;
 	Constant *publicScope;
 	const Type *RubyObjTy; 
@@ -276,6 +275,7 @@ class RoxorCompiler {
 	void compile_multiple_assignment_element(NODE *node, Value *val);
 	Value *compile_current_class(void);
 	virtual Value *compile_nsobject(void);
+	virtual Value *compile_standarderror(void);
 	Value *compile_class_path(NODE *node, bool *outer);
 	Value *compile_const(ID id, Value *outer);
 	Value *compile_singleton_class(Value *obj);
@@ -366,6 +366,8 @@ class RoxorAOTCompiler : public RoxorCompiler {
 	std::map<VALUE, GlobalVariable *> literals;
 
 	GlobalVariable *cObject_gvar;
+	GlobalVariable *cStandardError_gvar;
+	std::vector<GlobalVariable *> class_gvars;
 
 	Value *compile_mcache(SEL sel, bool super);
 	Value *compile_ccache(ID id);
@@ -375,6 +377,7 @@ class RoxorAOTCompiler : public RoxorCompiler {
 		NODE *body);
 	Value *compile_prepare_block_args(Function *func, int *flags);
 	Value *compile_nsobject(void);
+	Value *compile_standarderror(void);
 	Value *compile_id(ID id);
 	Value *compile_immutable_literal(VALUE val);
 	Value *compile_global_entry(NODE *node);

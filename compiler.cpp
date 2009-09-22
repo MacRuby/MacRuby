@@ -156,7 +156,6 @@ RoxorCompiler::RoxorCompiler(void)
     falseVal = ConstantInt::get(RubyObjTy, Qfalse);
     undefVal = ConstantInt::get(RubyObjTy, Qundef);
     splatArgFollowsVal = ConstantInt::get(RubyObjTy, SPLAT_ARG_FOLLOWS);
-    cObject = ConstantInt::get(RubyObjTy, rb_cObject);
     PtrTy = PointerType::getUnqual(Type::Int8Ty);
     PtrPtrTy = PointerType::getUnqual(PtrTy);
     Int32PtrTy = PointerType::getUnqual(Type::Int32Ty);
@@ -170,6 +169,7 @@ RoxorAOTCompiler::RoxorAOTCompiler(void)
 : RoxorCompiler()
 {
     cObject_gvar = NULL;
+    cStandardError_gvar = NULL;
 }
 
 inline SEL
@@ -1273,7 +1273,7 @@ RoxorCompiler::compile_current_class(void)
 inline Value *
 RoxorCompiler::compile_nsobject(void)
 {
-    return cObject;
+    return ConstantInt::get(RubyObjTy, rb_cObject);
 }
 
 inline Value *
@@ -1287,8 +1287,31 @@ RoxorAOTCompiler::compile_nsobject(void)
 		zeroVal,
 		"NSObject",
 		RoxorCompiler::module);
+	class_gvars.push_back(cObject_gvar);
     }
     return new LoadInst(cObject_gvar, "", bb);
+}
+
+inline Value *
+RoxorCompiler::compile_standarderror(void)
+{
+    return ConstantInt::get(RubyObjTy, rb_eStandardError);
+}
+
+inline Value *
+RoxorAOTCompiler::compile_standarderror(void)
+{
+    if (cStandardError_gvar == NULL) {
+	cStandardError_gvar = new GlobalVariable(
+		RubyObjTy,
+		false,
+		GlobalValue::InternalLinkage,
+		zeroVal,
+		"StandardError",
+		RoxorCompiler::module);
+	class_gvars.push_back(cStandardError_gvar);
+    }
+    return new LoadInst(cStandardError_gvar, "", bb);
 }
 
 inline Value *
@@ -4623,9 +4646,7 @@ rescan_args:
 
 		    if (n->nd_args == NULL) {
 			// catch StandardError exceptions by default
-			exceptions_to_catch.push_back(
-				ConstantInt::get(RubyObjTy, 
-				    (long)rb_eStandardError));
+			exceptions_to_catch.push_back(compile_standarderror());
 		    }
 		    else {
 			NODE *n2 = n->nd_args;
@@ -5439,19 +5460,25 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 	list.insert(list.begin(), load);
     }
 
-    // Compile NSObject reference.
+    // Compile constant class references.
 
     Function *objcGetClassFunc = cast<Function>(module->getOrInsertFunction(
 		"objc_getClass",
 		RubyObjTy, PtrTy, NULL));
 
-    if (cObject_gvar != NULL) {
-	GlobalVariable *nsobject = compile_const_global_string("NSObject");
+    for (std::vector<GlobalVariable *>::iterator i = class_gvars.begin();
+	 i != class_gvars.end();
+	 ++i) {
+
+	GlobalVariable *gvar = *i;
+
+	GlobalVariable *str = compile_const_global_string(
+		gvar->getName().c_str());
 
 	std::vector<Value *> idxs;
 	idxs.push_back(ConstantInt::get(Type::Int32Ty, 0));
 	idxs.push_back(ConstantInt::get(Type::Int32Ty, 0));
-	Instruction *load = GetElementPtrInst::Create(nsobject,
+	Instruction *load = GetElementPtrInst::Create(str,
 		idxs.begin(), idxs.end(), "");
 
 	std::vector<Value *> params;
@@ -5460,7 +5487,7 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 	Instruction *call = CallInst::Create(objcGetClassFunc, params.begin(),
 		params.end(), "");
 
-	Instruction *assign = new StoreInst(call, cObject_gvar, "");
+	Instruction *assign = new StoreInst(call, gvar, "");
 
 	list.insert(list.begin(), assign);
 	list.insert(list.begin(), call);
