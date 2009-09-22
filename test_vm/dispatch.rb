@@ -416,3 +416,18 @@ assert "42", %{
   end
   class Range; foo; end
 }
+
+assert ':ok', %{
+  class B; end
+  class A < B
+    def initialize
+      super(nil)
+    end
+  end
+
+  begin
+    A.new
+  rescue ArgumentError
+    p :ok
+  end
+}
