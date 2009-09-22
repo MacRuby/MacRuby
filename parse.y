@@ -5066,21 +5066,47 @@ yycompile(struct parser_params *parser, const char *f, int line)
 }
 #endif /* !RIPPER */
 
+#ifndef RIPPER
 static VALUE
-lex_get_str(struct parser_params *parser, VALUE s)
+lex_get_bstr(struct parser_params *parser, VALUE s)
 {
-    long beg, len, n;
-    CFRange search_range;  
-    VALUE v;
- 
-    beg = 0; 
-    n = CFStringGetLength((CFStringRef)s);
+    long beg = 0, len; 
+    const long n = rb_bytestring_length(s);
     if (lex_gets_ptr > 0) {
 	if (n == lex_gets_ptr) {
 	    return Qnil;
 	}
 	beg += lex_gets_ptr;
     }
+
+    UInt8 *data = rb_bytestring_byte_pointer(s);
+    UInt8 *pos = memchr(data + beg, '\n', n - beg);
+    if (pos != NULL) {
+	lex_gets_ptr = pos - data + 1;
+	len = pos - data - beg;	
+    }
+    else {
+	lex_gets_ptr = n;
+	len = lex_gets_ptr - beg;	
+    }
+
+    return rb_bytestring_new_with_data(data + beg, lex_gets_ptr - beg);
+}
+#endif
+
+static VALUE
+lex_get_str(struct parser_params *parser, VALUE s)
+{
+    long beg = 0, len; 
+    const long n = CFStringGetLength((CFStringRef)s);
+    if (lex_gets_ptr > 0) {
+	if (n == lex_gets_ptr) {
+	    return Qnil;
+	}
+	beg += lex_gets_ptr;
+    }
+
+    CFRange search_range;  
     if (CFStringFindCharacterFromSet((CFStringRef)s, 
 		CFCharacterSetGetPredefined(kCFCharacterSetNewline),
 		CFRangeMake(beg, n - beg),
@@ -5093,10 +5119,11 @@ lex_get_str(struct parser_params *parser, VALUE s)
 	lex_gets_ptr = n;
 	len = lex_gets_ptr - beg;	
     }
-    v = (VALUE)CFStringCreateWithSubstring(NULL, (CFStringRef)s, 
-	CFRangeMake(beg, lex_gets_ptr - beg));
-    CFMakeCollectable((CFTypeRef)v);
-    return v;
+
+    CFStringRef subs = CFStringCreateWithSubstring(NULL, (CFStringRef)s, 
+	    CFRangeMake(beg, lex_gets_ptr - beg));
+    CFMakeCollectable(subs);
+    return (VALUE)subs;
 }
 
 static VALUE
@@ -5128,7 +5155,7 @@ rb_parser_compile_string(volatile VALUE vparser, const char *f, VALUE s, int lin
     volatile VALUE tmp;
 
     Data_Get_Struct(vparser, struct parser_params, parser);
-    lex_gets = lex_get_str;
+    lex_gets = CLASS_OF(s) == rb_cByteString ? lex_get_bstr : lex_get_str;
     lex_gets_ptr = 0;
     GC_WB(&lex_input, s);
     lex_pbeg = lex_p = lex_pend = 0;

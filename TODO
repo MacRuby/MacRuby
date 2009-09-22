@@ -8,7 +8,7 @@ For 0.5 RC1:
   [X] fix YAML deserialization of booleans
   [ ] fix ~/.gemrc
   [X] `source --add http://gems.github.com' crashes (outside gdb)
-  [ ] `install rest-client' prints parsing errors (encoding problem in thor.gemspec)
+  [X] `install rest-client' prints parsing errors (encoding problem in thor.gemspec)
   [ ] `gem uninstall bacon' doesn't work (Unknown gem bacon >= 0)
   [ ] `macgem install rails --version 2.3.2' crashes (MAX_DISPATCH_ARGS assertion)
 [X] rewrite load.c (needed for RubyGems' #require hack)
