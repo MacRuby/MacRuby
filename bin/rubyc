@@ -135,7 +135,8 @@ EOS
 
     main = gen_tmpfile('main', 'c')
     File.open(main, 'w') { |io| io.write(main_txt) }
-    execute("#{@gcxx} #{main} -dynamic -bundle -undefined suppress -flat_namespace -arch x86_64 -framework MacRuby #{obj} -o #{output}")
+    link = @internal ? "-L. -lmacruby" : "-framework MacRuby"
+    execute("#{@gcxx} #{main} -dynamic -bundle -undefined suppress -flat_namespace -arch x86_64 #{link} #{obj} -o #{output}")
   end
 
   def compile_executable(objs, output)

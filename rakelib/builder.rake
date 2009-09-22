@@ -348,7 +348,7 @@ end
 
 AOT_STDLIB = ['rbconfig.rb', 'lib/irb.rb', 'lib/irb/**/*.rb', 'lib/fileutils.rb']
 desc "AOT compile parts of the stdlib"
-task :aot_compile_stdlib => [:miniruby] do
+task :aot_compile_stdlib => [:miniruby, 'macruby:dylib'] do
   AOT_STDLIB.each do |pat|
     Dir.glob(pat).each do |path|
       out = File.join(File.dirname(path), File.basename(path, '.rb') + '.rbo')
