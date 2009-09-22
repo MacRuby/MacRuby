@@ -421,6 +421,14 @@ namespace :clean do
     list.each { |x| rm_f(x) }
   end
 
+  desc "Clean .rbo build files"
+  task :rbo do
+    list = []
+    list.concat(Dir['*.rbo'])
+    list.concat(Dir['lib/**/*.rbo'])
+    list.each { |x| rm_f(x) }
+  end
+
   desc "Clean extension build files"
   task :ext do
 =begin

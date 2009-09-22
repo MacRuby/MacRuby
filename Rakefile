@@ -43,7 +43,7 @@ task :test => [:sample_test, :unit_tests]
 =end
 
 desc "Clean local and extension build files"
-task :clean => ['clean:local', 'clean:ext']
+task :clean => ['clean:local', 'clean:rbo', 'clean:ext']
 
 desc "Build MacRuby and extensions"
 task :all => [:macruby, :aot_compile_stdlib, :extensions]
