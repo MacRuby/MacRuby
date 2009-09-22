@@ -12,6 +12,9 @@
 #include "vm.h"
 #include "dln.h"
 
+extern bool ruby_is_miniruby;
+static bool rbo_enabled = true;
+
 VALUE
 rb_get_load_path(void)
 {
@@ -173,7 +176,7 @@ check_path(const char *path, VALUE *out, int *type)
 	if (strcmp(p + 1, "rb") == 0) {
 	    t = TYPE_RB;
 	}
-	else if (strcmp(p + 1, "rbo") == 0) {
+	else if (rbo_enabled && strcmp(p + 1, "rbo") == 0) {
 	    t = TYPE_RBO;
 	}
 	else if (strcmp(p + 1, "bundle") == 0) {
@@ -188,10 +191,12 @@ check_path(const char *path, VALUE *out, int *type)
     // No valid extension, let's append the valid ones and try to validate
     // the path.
     char buf[PATH_MAX];
-    snprintf(buf, sizeof buf, "%s.rbo", path);
-    if (path_ok(buf, out)) {
-	*type = TYPE_RBO;
-	return true;
+    if (rbo_enabled) {
+	snprintf(buf, sizeof buf, "%s.rbo", path);
+	if (path_ok(buf, out)) {
+	    *type = TYPE_RBO;
+	    return true;
+	}
     }
     snprintf(buf, sizeof buf, "%s.rb", path);
     if (path_ok(buf, out)) {
@@ -376,6 +381,8 @@ Init_load()
 {
     const char *var_load_path = "$:";
     ID id_load_path = rb_intern(var_load_path);
+
+    rbo_enabled = !ruby_is_miniruby && getenv("VM_DISABLE_RBO") == NULL;
 
     rb_define_virtual_variable("$:", rb_vm_load_path, 0);
     rb_alias_variable((rb_intern)("$-I"), id_load_path);

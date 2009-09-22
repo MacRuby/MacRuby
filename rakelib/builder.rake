@@ -346,6 +346,19 @@ task :extensions => [:miniruby, "macruby:static"] do
   perform_extensions_target(:all)
 end
 
+AOT_STDLIB = ['rbconfig.rb', 'lib/irb.rb', 'lib/irb/**/*.rb', 'lib/fileutils.rb']
+desc "AOT compile parts of the stdlib"
+task :aot_compile_stdlib => [:miniruby] do
+  AOT_STDLIB.each do |pat|
+    Dir.glob(pat).each do |path|
+      out = File.join(File.dirname(path), File.basename(path, '.rb') + '.rbo')
+      if !File.exist?(out) or File.mtime(path) > File.mtime(out) or File.mtime('./miniruby') > File.mtime(out)
+        sh "./miniruby -I. -I./lib bin/rubyc --internal -C \"#{path}\" -o \"#{out}\""
+      end
+    end
+  end 
+end
+
 desc "Same as extensions"
 task :ext => 'extensions'
 

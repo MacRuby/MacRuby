@@ -361,7 +361,7 @@ install?(:local, :comm, :lib) do
   Dir.chdir srcdir
   makedirs [rubylibdir]
 
-  for f in Dir["lib/**/*{.rb,help-message}"]
+  for f in Dir["lib/**/*{.rb,.rbo,help-message}"]
     dir = File.dirname(f).sub!(/\Alib/, rubylibdir) || rubylibdir
     makedirs dir
     install f, dir, :mode => $data_mode
@@ -516,14 +516,6 @@ ib_dest = '/Developer/usr/bin'
 mkdir_p ib_dest
 ln_sfh File.join("../../..", CONFIG['bindir'], 'rb_nibtool'), ib_dest
 install('tool/rb_nibtool.old', ib_dest, :mode => $prog_mode)
-
-puts "compiling (parts of) the standard library"
-files = ['universal-darwin*/rbconfig.rb', 'irb.rb', 'irb/**/*.rb']
-files.map { |file| Dir.glob(File.join(with_destdir(rubylibdir), file)) }.flatten.each do |path|
-  line = "./miniruby -I. -I./lib bin/rubyc --internal -C \"#{path}\""
-  $stderr.puts line
-  raise 'AOT compilation failed' unless system(line)
-end
 
 end # unless $installing_rdoc
 

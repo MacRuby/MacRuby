@@ -102,6 +102,8 @@ The following environment variables might help you debug easy bugs.
 
 * GC_DEBUG: set it to any value to enable GC debugging on $stderr.
 
+* VM_DISABLE_RBO: set it to any value to disable the load of .rbo files.
+
 * VM_DUMP_IR: set it to any value to dump the LLVM IR on $stderr before the
   interpreter quits.
 
