@@ -4941,7 +4941,15 @@ rescan_args:
 		    std::vector<Value *> params;
 
 		    params.push_back(compile_mcache(selEach, false));
+
+		    // the block must not be passed to the code
+		    // that generates the values we loop on
+		    current_block_func = NULL;
+		    current_block_node = NULL;
 		    params.push_back(compile_node(node->nd_iter));
+		    current_block_func = cast<Function>(block);
+		    current_block_node = node->nd_body;
+
 		    params.push_back(compile_sel(selEach));
 		    params.push_back(compile_block_create(NULL));
 		    params.push_back(ConstantInt::get(Type::Int8Ty, 0));

@@ -60,3 +60,11 @@ assert "42", %q{
     p x
   end
 }
+
+assert ':ok', %{
+  a = nil
+  for b in [:a, :b].sort {|x, y| x <=> y}
+    c = nil
+  end
+  p :ok
+}
