@@ -93,3 +93,14 @@ assert "false", %q{
     p respond_to?(:foo)
   end
 }
+
+assert ':ok', %{
+  class Foo < Mutex
+    def initialize
+      @foo = :ok
+      super
+      p @foo
+    end
+  end
+  Foo.new
+}
