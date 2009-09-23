@@ -125,7 +125,7 @@ class RoxorCompiler {
 	BasicBlock *current_loop_begin_bb;
 	BasicBlock *current_loop_body_bb;
 	BasicBlock *current_loop_end_bb;
-	Value *current_loop_exit_val;
+	PHINode *current_loop_exit_val;
 	int return_from_block;
 	int return_from_block_ids;
 	PHINode *ensure_pn;

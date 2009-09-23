@@ -1710,8 +1710,8 @@ RoxorCompiler::compile_jump(NODE *node)
 
 	case NODE_BREAK:
 	    if (within_loop) {
-		current_loop_exit_val = val;
 		BranchInst::Create(current_loop_end_bb, bb);
+		current_loop_exit_val->addIncoming(val, bb);
 	    }
 	    else if (within_block) {
 		compile_break_val(val);
@@ -4831,6 +4831,7 @@ rescan_args:
 
 		BasicBlock *loopBB = BasicBlock::Create("loop", f);
 		BasicBlock *bodyBB = BasicBlock::Create("body", f);
+		BasicBlock *exitBB = BasicBlock::Create("loop_exit", f);
 		BasicBlock *afterBB = BasicBlock::Create("after", f);
 
 		const bool first_pass_free = node->nd_state == 0;
@@ -4841,21 +4842,23 @@ rescan_args:
 		Value *condVal = compile_node(node->nd_cond);
 
 		if (nd_type(node) == NODE_WHILE) {
-		    compile_boolean_test(condVal, bodyBB, afterBB);
+		    compile_boolean_test(condVal, bodyBB, exitBB);
 		}
 		else {
-		    compile_boolean_test(condVal, afterBB, bodyBB);
+		    compile_boolean_test(condVal, exitBB, bodyBB);
 		}
+		BranchInst::Create(afterBB, exitBB);
 
 		BasicBlock *old_current_loop_begin_bb = current_loop_begin_bb;
 		BasicBlock *old_current_loop_body_bb = current_loop_body_bb;
 		BasicBlock *old_current_loop_end_bb = current_loop_end_bb;
-		Value *old_current_loop_exit_val = current_loop_exit_val;
+		PHINode *old_current_loop_exit_val = current_loop_exit_val;
 
 		current_loop_begin_bb = loopBB;
 		current_loop_body_bb = bodyBB;
 		current_loop_end_bb = afterBB;
-		current_loop_exit_val = NULL;
+		current_loop_exit_val = PHINode::Create(RubyObjTy, "loop_exit", afterBB);
+		current_loop_exit_val->addIncoming(nilVal, exitBB);
 
 		bb = bodyBB;
 		compile_node(node->nd_body);	
@@ -4866,9 +4869,6 @@ rescan_args:
 		bb = afterBB;
 
 		Value *retval = current_loop_exit_val;
-		if (retval == NULL) {
-		    retval = nilVal;
-		}
 
 		current_loop_begin_bb = old_current_loop_begin_bb;
 		current_loop_body_bb = old_current_loop_body_bb;
