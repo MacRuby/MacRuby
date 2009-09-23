@@ -68,3 +68,10 @@ assert ':ok', %{
   end
   p :ok
 }
+
+assert ':ok', %{
+  p (while true do
+    break :ok
+    break :ko
+  end)
+}
