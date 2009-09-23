@@ -9613,10 +9613,17 @@ rb_intern3(const char *name, long len, rb_encoding *enc)
 	    name_hash = (SEL)0x2000;
 	}
 	else if (strcmp(name, "retainCount") == 0) {
+	    name_hash = (SEL)0x3000;
+	}
+	else if (strcmp(name, "autorelease") == 0) {
 	    name_hash = (SEL)0x4000;
 	}
+	else if (strcmp(name, "dealloc") == 0) {
+	    name_hash = (SEL)0x5000;
+	}
 	else {
-	    assert(1==0);
+	    printf("unrecognized ignored sel %s\n", name);
+	    abort();
 	}
     }
     id = (ID)CFDictionaryGetValue((CFDictionaryRef)global_symbols.sym_id, 
