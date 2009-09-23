@@ -21,6 +21,16 @@ namespace :spec do
     mspec :ci, ":macruby"
   end
 
+  desc "Run all Language-only specs"
+  task :language do
+    mspec :ci, ":language"
+  end
+
+  desc "Run all Core-only specs"
+  task :core do
+    mspec :ci, ":core"
+  end
+
   desc "Run all Library-only specs"
   task :library do
     mspec :ci, ":library"
