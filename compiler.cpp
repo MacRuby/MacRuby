@@ -6698,7 +6698,7 @@ RoxorCompiler::compile_objc_stub(Function *ruby_func, IMP ruby_imp,
     if (f_sret_type != NULL) {
 	sret = arg++;
 	sret_i = 1;
-	f->addAttribute(0, Attribute::StructRet);
+	f->addAttribute(1, Attribute::StructRet);
     }
     for (std::vector<unsigned int>::iterator iter = byval_args.begin();
 	 iter != byval_args.end(); ++iter) {
