@@ -34,18 +34,13 @@ fails:Array#pack with format 'L!' with star parameter processes all remaining ar
 fails:Array#pack with format 'L_' processes count number of array elements if count given
 fails:Array#pack with format 'L_' with star parameter processes all remaining array items
 fails:Array#pack with format 'f' consumes as many Floats as specified
-fails:Array#pack with format 'f' tries to convert the pack argument to a Float using #to_f
 fails:Array#pack with format 'd' consumes as many Floats as specified
-fails:Array#pack with format 'd' tries to convert the pack argument to a Float using #to_f
 fails:Array#pack with format 'e' consumes as many Floats as specified
-fails:Array#pack with format 'e' tries to convert the pack argument to a Float using #to_f
 fails:Array#pack with format 'E' consumes as many Floats as specified
-fails:Array#pack with format 'E' tries to convert the pack argument to a Float using #to_f
 fails:Array#pack with format 'g' consumes as many Floats as specified
-fails:Array#pack with format 'g' tries to convert the pack argument to a Float using #to_f
 fails:Array#pack with format 'G' consumes as many Floats as specified
-fails:Array#pack with format 'G' tries to convert the pack argument to a Float using #to_f
 fails:Array#pack with format 'M' ignores star parameter
+critical:Array#pack with format 'M' does not check whether the pack argument responds to #to_s before call #to_s
 fails:Array#pack with format 'm' does not append newline if line length parameter is 0
 fails:Array#pack with format 'm' ignores star parameter
 fails:Array#pack with format 'U' regards a integer as a Unicode codepoint and encodes into UTF-8 byte sequence
@@ -54,42 +49,6 @@ fails:Array#pack with format 'X' doesn't change encoding of the result string
 fails:Array#pack with format 'X' doesn't care even if breaks a character
 fails:Array#pack with '@' doesn't change encoding of the result string
 fails:Array#pack with '@' doesn't care even if breaks a character
-fails:Array#pack with format 'A' tries to convert the pack argument to a String using #to_str
-fails:Array#pack with format 'a' tries to convert the pack argument to a String using #to_str
-fails:Array#pack with format 'Z' tries to convert the pack argument to a String using #to_str
-fails:Array#pack with format 'H' tries to convert the pack argument to a String using #to_str
-fails:Array#pack with format 'h' tries to convert the pack argument to a String using #to_str
-fails:Array#pack with format 'C' tries to convert the pack argument to an Integer using #to_int
-fails:Array#pack with format 'c' tries to convert the pack argument to an Integer using #to_int
-fails:Array#pack with format 'n' tries to convert the pack argument to an Integer using #to_int
-fails:Array#pack with format 'v' tries to convert the pack argument to an Integer using #to_int
-fails:Array#pack with format 'N' tries to convert the pack argument to an Integer using #to_int
-fails:Array#pack with format 'V' tries to convert the pack argument to an Integer using #to_int
-fails:Array#pack with format 's' tries to convert the pack argument to an Integer using #to_int
-fails:Array#pack with format 'S' tries to convert the pack argument to an Integer using #to_int
-fails:Array#pack with format 'l' tries to convert the pack argument to an Integer using #to_int
-fails:Array#pack with format 'L' tries to convert the pack argument to an Integer using #to_int
-fails:Array#pack with format 'q' tries to convert the pack argument to an Integer using #to_int
-fails:Array#pack with format 'Q' tries to convert the pack argument to an Integer using #to_int
-fails:Array#pack with format 's!' tries to convert the pack argument to an Integer using #to_int
-fails:Array#pack with format 's_' tries to convert the pack argument to an Integer using #to_int
-fails:Array#pack with format 'S!' tries to convert the pack argument to an Integer using #to_int
-fails:Array#pack with format 'S_' tries to convert the pack argument to an Integer using #to_int
-fails:Array#pack with format 'i' tries to convert the pack argument to an Integer using #to_int
-fails:Array#pack with format 'i!' tries to convert the pack argument to an Integer using #to_int
-fails:Array#pack with format 'i_' tries to convert the pack argument to an Integer using #to_int
-fails:Array#pack with format 'I' tries to convert the pack argument to an Integer using #to_int
-fails:Array#pack with format 'I!' tries to convert the pack argument to an Integer using #to_int
-fails:Array#pack with format 'I_' tries to convert the pack argument to an Integer using #to_int
-fails:Array#pack with format 'l!' tries to convert the pack argument to an Integer using #to_int
-fails:Array#pack with format 'l_' tries to convert the pack argument to an Integer using #to_int
-fails:Array#pack with format 'L!' tries to convert the pack argument to an Integer using #to_int
-fails:Array#pack with format 'L_' tries to convert the pack argument to an Integer using #to_int
-fails:Array#pack with format 'M' calls #to_s on object to convert to string
-critical:Array#pack with format 'M' does not check whether the pack argument responds to #to_s before call #to_s
-fails:Array#pack with format 'm' tries to convert the pack argument to a String using #to_str
-fails:Array#pack with format 'u' tries to convert the pack argument to a String using #to_str
-fails:Array#pack with format 'w' calls to_int on non-integer values before packing
 fails:Array#pack just ignores unknown format
 fails:Array#pack with format 'v' returns a string containing 2 bytes for an integer
 fails:Array#pack with format 's' returns a string containing 2 bytes for an integer

@@ -1,3 +1,1 @@
-fails:Fixnum#^ tries to convert the given argument to an Integer using to_int
-fails:Fixnum#^ raises a TypeError when the given argument can't be converted to Integer
 fails:Fixnum#^ coerces arguments correctly even if it is a Bignum
