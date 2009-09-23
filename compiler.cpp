@@ -6804,7 +6804,7 @@ RoxorCompiler::compile_to_rval_convertor(const char *type)
 {
     // VALUE foo(void *ocval);
     Function *f = cast<Function>(module->getOrInsertFunction("",
-		Type::VoidTy, PtrTy, NULL));
+		RubyObjTy, PtrTy, NULL));
     Function::arg_iterator arg = f->arg_begin();
     Value *ocval = arg++;
 
