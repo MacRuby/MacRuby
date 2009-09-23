@@ -2160,6 +2160,7 @@ str_gsub(SEL sel, int argc, VALUE *argv, VALUE str, bool bang)
 static VALUE
 rb_str_gsub_bang(VALUE str, SEL sel, int argc, VALUE *argv)
 {
+    rb_str_modify(str);
     return str_gsub(sel, argc, argv, str, true);
 }
 
@@ -3860,6 +3861,8 @@ rb_str_each_line(VALUE str, SEL sel, int argc, VALUE *argv)
     search_range = CFRangeMake(0, n);
     sub_range = CFRangeMake(0, 0);
 
+    const bool tainted = OBJ_TAINTED(str);
+
 #define YIELD_SUBSTR(range) \
     do { \
 	VALUE mcopy; \
@@ -3868,8 +3871,10 @@ rb_str_each_line(VALUE str, SEL sel, int argc, VALUE *argv)
 	mcopy = (VALUE)CFStringCreateMutableCopy(NULL, 0, \
 	    (CFStringRef)substr); \
 	CFMakeCollectable((CFTypeRef)mcopy); \
+	if (tainted) { \
+	    OBJ_TAINT(mcopy); \
+	} \
 	rb_yield(mcopy); \
-	CFRelease(substr); \
 	RETURN_IF_BROKEN(); \
     } \
     while (0)
@@ -4071,7 +4076,6 @@ rb_str_chop(VALUE str, SEL sel)
     return str2;
 }
 
-
 /*
  *  call-seq:
  *     str.chomp!(separator=$/)   => str or nil
@@ -4087,14 +4091,18 @@ rb_str_chomp_bang(VALUE str, SEL sel, int argc, VALUE *argv)
     long len, rslen;
     CFRange range_result;
 
-    if (rb_scan_args(argc, argv, "01", &rs) == 0)
+    if (rb_scan_args(argc, argv, "01", &rs) == 0) {
 	rs = rb_rs;
+    }
     rb_str_modify(str);
-    if (rs == Qnil)
+    if (rs == Qnil) {
 	return Qnil;
+    }
     len = CFStringGetLength((CFStringRef)str);
-    if (len == 0)
+    if (len == 0) {
 	return Qnil;
+    }
+    StringValue(rs);
     rslen = CFStringGetLength((CFStringRef)rs);
     range_result = CFRangeMake(len, 0);
     if (rs == rb_default_rs
@@ -4119,11 +4127,12 @@ rb_str_chomp_bang(VALUE str, SEL sel, int argc, VALUE *argv)
     else {
 	StringValue(rs);
 	CFStringFindWithOptions((CFStringRef)str, (CFStringRef)rs,
-	    CFRangeMake(len - rslen, rslen), 0, &range_result);
+		CFRangeMake(len - rslen, rslen), 0, &range_result);
     }
     if (range_result.length == 0 
-	|| range_result.location + range_result.length > len)
+	|| range_result.location + range_result.length > len) {
 	return Qnil;
+    }
     CFStringDelete((CFMutableStringRef)str, range_result);
     return str;
 }
@@ -4509,7 +4518,11 @@ rb_str_crypt(VALUE str, SEL sel, VALUE salt)
     char *s = alloca(str_len + 1);
     strncpy(s, RSTRING_PTR(str), str_len + 1);
 
-    return rb_str_new2(crypt(s, RSTRING_PTR(salt)));
+    VALUE crypted = rb_str_new2(crypt(s, RSTRING_PTR(salt)));
+    if (OBJ_TAINTED(str) || OBJ_TAINTED(salt)) {
+	OBJ_TAINT(crypted);
+    }
+    return crypted;
 }
 
 
