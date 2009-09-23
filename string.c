@@ -371,7 +371,9 @@ rb_str_init(VALUE str, SEL sel, int argc, VALUE *argv)
     str = (VALUE)objc_msgSend((id)str, selInit);
 
     if (argc > 0 && rb_scan_args(argc, argv, "01", &orig) == 1) {
-	rb_str_replace(str, orig);
+	if (str != orig) {
+	    rb_str_replace(str, orig);
+	}
     }
     return str;
 }
@@ -451,6 +453,7 @@ rb_str_empty(VALUE str, SEL sel)
 static VALUE
 rb_str_plus(VALUE str1, SEL sel, VALUE str2)
 {
+    StringValue(str2);
     VALUE str3 = rb_str_new(0, 0);
     rb_str_buf_append(str3, str1);
     rb_str_buf_append(str3, str2);
@@ -473,11 +476,8 @@ rb_str_plus(VALUE str1, SEL sel, VALUE str2)
 static VALUE
 rb_str_times(VALUE str, SEL sel, VALUE times)
 {
-    VALUE str2;
-    long n, len;
-
-    n = RSTRING_LEN(str);
-    len = NUM2LONG(times);
+    const long n = RSTRING_LEN(str);
+    const long len = NUM2LONG(times);
     if (len < 0) {
 	rb_raise(rb_eArgError, "negative argument");
     }
@@ -485,9 +485,12 @@ rb_str_times(VALUE str, SEL sel, VALUE times)
 	rb_raise(rb_eArgError, "argument too big");
     }
 
-    str2 = rb_str_new(NULL, 0);
+    VALUE str2 = rb_str_new3(str);
     CFStringPad((CFMutableStringRef)str2, (CFStringRef)str,
-	len * n, 0);
+	    len * n, 0);
+    if (OBJ_TAINTED(str)) {
+	OBJ_TAINT(str2);
+    }
 
     return str2;
 }
@@ -1247,16 +1250,8 @@ rb_str_rindex_m(VALUE str, SEL sel, int argc, VALUE *argv)
 	if (pos >= 0) return LONG2NUM(pos);
 	break;
 
-      default: {
-	VALUE tmp;
-
-	tmp = rb_check_string_type(sub);
-	if (NIL_P(tmp)) {
-	    rb_raise(rb_eTypeError, "type mismatch: %s given",
-		     rb_obj_classname(sub));
-	}
-	sub = tmp;
-      }
+      default:
+	StringValue(sub);
 	/* fall through */
       case T_STRING:
 	pos = rb_str_rindex(str, sub, pos);
@@ -2219,10 +2214,11 @@ rb_str_gsub(VALUE str, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_str_replace_imp(VALUE str, SEL sel, VALUE str2)
 {
+    rb_str_modify(str);
     if (str == str2) {
 	return str;
     }
-    rb_str_modify(str);
+    StringValue(str2);
     CFStringReplaceAll((CFMutableStringRef)str, (CFStringRef)str2);
     if (OBJ_TAINTED(str2)) {
 	OBJ_TAINT(str);
@@ -4793,13 +4789,7 @@ rb_str_partition(VALUE str, SEL sel, VALUE sep)
 	regex = Qtrue;
     }
     else {
-	VALUE tmp;
-
-	tmp = rb_check_string_type(sep);
-	if (NIL_P(tmp)) {
-	    rb_raise(rb_eTypeError, "type mismatch: %s given",
-		     rb_obj_classname(sep));
-	}
+	StringValue(sep);
 	pos = rb_str_index(str, sep, 0);
 	seplen = CFStringGetLength((CFStringRef)sep);
     }
