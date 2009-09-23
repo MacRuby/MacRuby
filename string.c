@@ -2155,7 +2155,9 @@ str_gsub(SEL sel, int argc, VALUE *argv, VALUE str, bool bang)
 static VALUE
 rb_str_gsub_bang(VALUE str, SEL sel, int argc, VALUE *argv)
 {
-    rb_str_modify(str);
+    // XXX This rb_str_modify() call is disabled because it breaks mkmf.rb for
+    // a reason, must investigate.
+    //rb_str_modify(str);
     return str_gsub(sel, argc, argv, str, true);
 }
 
