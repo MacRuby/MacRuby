@@ -10,7 +10,7 @@ For 0.5 RC1:
   [X] `source --add http://gems.github.com' crashes (outside gdb)
   [X] `install rest-client' prints parsing errors (encoding problem in thor.gemspec)
   [X] `gem uninstall bacon' doesn't work (Unknown gem bacon >= 0)
-  [ ] `macgem install rails --version 2.3.2' crashes (MAX_DISPATCH_ARGS assertion)
+  [X] `macgem install rails --version 2.3.2' crashes (MAX_DISPATCH_ARGS assertion)
 [X] rewrite load.c (needed for RubyGems' #require hack)
 
 For 0.5 (must do):

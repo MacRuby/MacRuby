@@ -2903,13 +2903,14 @@ dispatch:
 	}
 
 #if ROXOR_VM_DEBUG
-	printf("ruby dispatch %c[<%s %p> %s] (imp=%p, block=%p, cached=%s)\n",
+	printf("ruby dispatch %c[<%s %p> %s] (imp=%p, block=%p, argc=%d, cached=%s)\n",
 		class_isMetaClass(klass) ? '+' : '-',
 		class_getName(klass),
 		(void *)self,
 		sel_getName(sel),
 		rcache.node->ruby_imp,
 		block,
+		argc,
 		cached ? "true" : "false");
 #endif
 
@@ -3012,12 +3013,13 @@ dispatch:
 	}
 
 #if ROXOR_VM_DEBUG
-	printf("objc dispatch %c[<%s %p> %s] imp=%p (cached=%s)\n",
+	printf("objc dispatch %c[<%s %p> %s] imp=%p argc=%d (cached=%s)\n",
 		class_isMetaClass(klass) ? '+' : '-',
 		class_getName(klass),
 		(void *)self,
 		sel_getName(sel),
 		ocache.imp,
+		argc,
 		cached ? "true" : "false");
 #endif
 
@@ -3025,9 +3027,10 @@ dispatch:
     }
     else if (cache->flag == MCACHE_FCALL) {
 #if ROXOR_VM_DEBUG
-	printf("C dispatch %s() imp=%p (cached=%s)\n",
+	printf("C dispatch %s() imp=%p argc=%d (cached=%s)\n",
 		fcache.bs_function->name,
 		fcache.imp,
+		argc,
 		cached ? "true" : "false");
 #endif
 	return (*fcache.stub)(fcache.imp, argc, argv);
@@ -3079,17 +3082,18 @@ call_method_missing:
     return method_missing((VALUE)self, sel, block, argc, argv, status);
 }
 
-#define MAX_DISPATCH_ARGS 500
+#define MAX_DISPATCH_ARGS 100
 
-static force_inline int
-__rb_vm_resolve_args(VALUE *argv, int argc, va_list ar)
+static force_inline void
+__rb_vm_resolve_args(VALUE **pargv, size_t argv_size, int *pargc, va_list ar)
 {
     // TODO we should only determine the real argc here (by taking into
     // account the length splat arguments) and do the real unpacking of
     // splat arguments in __rb_vm_rcall(). This way we can optimize more
     // things (for ex. no need to unpack splats that are passed as a splat
     // argument in the method being called!).
-    int i, real_argc = 0;
+    unsigned int i, argc = *pargc, real_argc = 0;
+    VALUE *argv = *pargv;
     bool splat_arg_follows = false;
     for (i = 0; i < argc; i++) {
 	VALUE arg = va_arg(ar, VALUE);
@@ -3104,21 +3108,36 @@ __rb_vm_resolve_args(VALUE *argv, int argc, va_list ar)
 		if (NIL_P(ary)) {
 		    ary = rb_ary_new3(1, arg);
 		}
-		int j, count = RARRAY_LEN(ary);
-		assert(real_argc + count < MAX_DISPATCH_ARGS);
-		for (j = 0; j < count; j++) {
+		int count = RARRAY_LEN(ary);
+		if (real_argc + count >= argv_size) {
+		    const size_t new_argv_size = real_argc + count + 100;
+		    VALUE *new_argv = (VALUE *)xmalloc(sizeof(VALUE)
+			    * new_argv_size);
+		    memcpy(new_argv, argv, sizeof(VALUE) * argv_size);
+		    argv = new_argv;
+		    argv_size = new_argv_size;
+		}
+		for (int j = 0; j < count; j++) {
 		    argv[real_argc++] = RARRAY_AT(ary, j);
 		}
 		splat_arg_follows = false;
 	    }
 	    else {
-		assert(real_argc < MAX_DISPATCH_ARGS);
+		if (real_argc >= argv_size) {
+		    const size_t new_argv_size = real_argc + 100;
+		    VALUE *new_argv = (VALUE *)xmalloc(sizeof(VALUE)
+			    * new_argv_size);
+		    memcpy(new_argv, argv, sizeof(VALUE) * argv_size);
+		    argv = new_argv;
+		    argv_size = new_argv_size;
+		}
 		argv[real_argc++] = arg;
 	    }
 	}
     }
 
-    return real_argc;
+    *pargv = argv;
+    *pargc = real_argc;
 }
 
 extern "C"
@@ -3126,13 +3145,15 @@ VALUE
 rb_vm_dispatch(struct mcache *cache, VALUE self, SEL sel, rb_vm_block_t *block, 
 	       unsigned char opt, int argc, ...)
 {
-    VALUE argv[MAX_DISPATCH_ARGS];
+    VALUE base_argv[MAX_DISPATCH_ARGS];
+    VALUE *argv = base_argv;
     if (argc > 0) {
 	va_list ar;
 	va_start(ar, argc);
-	const int new_argc = __rb_vm_resolve_args(argv, argc, ar);
+	__rb_vm_resolve_args(&argv, MAX_DISPATCH_ARGS, &argc, ar);
 	va_end(ar);
-	if (argc > 0 && new_argc == 0) {
+
+	if (argc == 0) {
 	    const char *selname = sel_getName(sel);
 	    const size_t selnamelen = strlen(selname);
 	    if (selname[selnamelen - 1] == ':') {
@@ -3145,7 +3166,6 @@ rb_vm_dispatch(struct mcache *cache, VALUE self, SEL sel, rb_vm_block_t *block,
 		sel = sel_registerName(buf);
 	    }
 	}
-  	argc = new_argc;
     }
 
     RoxorVM *vm = GET_VM();
@@ -4253,11 +4273,12 @@ extern "C"
 VALUE 
 rb_vm_yield_args(int argc, ...)
 {
-    VALUE argv[MAX_DISPATCH_ARGS];
+    VALUE base_argv[MAX_DISPATCH_ARGS];
+    VALUE *argv = &base_argv[0];
     if (argc > 0) {
 	va_list ar;
 	va_start(ar, argc);
-	argc = __rb_vm_resolve_args(argv, argc, ar);
+	__rb_vm_resolve_args(&argv, MAX_DISPATCH_ARGS, &argc, ar);
 	va_end(ar);
     }
     return rb_vm_yield0(argc, argv);
