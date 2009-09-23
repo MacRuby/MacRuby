@@ -1,1 +1,0 @@
-critical:String#size calls to_int on index

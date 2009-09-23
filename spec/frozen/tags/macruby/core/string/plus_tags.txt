@@ -1,3 +1,0 @@
-fails:String#+ converts any non-String argument with #to_str
-fails:String#+ doesn't return subclass instances
-fails:String#+ taints the result when self or other is tainted

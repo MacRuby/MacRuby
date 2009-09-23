@@ -1,1 +1,0 @@
-critical:String#partition with String converts its argument using :to_str
