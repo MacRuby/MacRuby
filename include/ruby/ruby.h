@@ -592,7 +592,13 @@ struct RFloat {
     struct RBasic basic;
     double float_value;
 };
-#define RFLOAT_VALUE(v) (FIXFLOAT_P(v) ? FIXFLOAT2DBL(v) : RFLOAT(v)->float_value)
+
+static inline double
+__rb_float_value(VALUE v)
+{
+    return FIXFLOAT_P(v) ? FIXFLOAT2DBL(v) : ((struct RFloat *)v)->float_value;
+}
+#define RFLOAT_VALUE(v) (__rb_float_value((VALUE)v))
 #define DOUBLE2NUM(dbl)  rb_float_new(dbl)
 
 #if WITH_OBJC
