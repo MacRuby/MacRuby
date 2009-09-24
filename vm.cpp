@@ -208,14 +208,12 @@ RoxorCore::RoxorCore(void)
 
     bs_parser = NULL;
 
-    llvm_start_multithreaded();
+    //llvm_start_multithreaded();
 
     emp = new ExistingModuleProvider(RoxorCompiler::module);
     jmm = new RoxorJITManager;
 
     InitializeNativeTarget();
-    //LLVMInitializeX86TargetInfo();
-    //LLVMInitializeX86Target();
 
     std::string err;
     ee = ExecutionEngine::createJIT(emp, &err, jmm, CodeGenOpt::None, false);
@@ -4751,7 +4749,7 @@ rb_vm_aot_compile(NODE *node)
 
     // Dump the bitcode.
     std::string err;
-    raw_fd_ostream out(output, err, raw_fd_ostream::F_Binary);
+    raw_fd_ostream out(output, true, true, err);
     if (!err.empty()) {
 	fprintf(stderr, "error when opening the output bitcode file: %s\n",
 		err.c_str());
