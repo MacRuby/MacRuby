@@ -2508,7 +2508,10 @@ rb_str_to_s(VALUE str, SEL sel)
 {
     if (!rb_objc_str_is_pure(str) && *(VALUE *)str != rb_cByteString) {
 	VALUE dup = str_alloc(rb_cString);
-	rb_str_replace(dup, str);
+	CFStringReplaceAll((CFMutableStringRef)dup, (CFStringRef)str);
+	if (OBJ_TAINTED(str)) {
+	    OBJ_TAINT(dup);
+	}
 	return dup;
     }
     return str;
