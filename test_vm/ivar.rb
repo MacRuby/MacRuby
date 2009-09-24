@@ -94,3 +94,31 @@ assert 'nil', %{
   end
   Foo.new.foo
 }
+
+assert '42', %{
+  class Foo
+    def initialize
+      @foo=42
+    end
+    def foo
+      o = Object.new
+      self.addObserver(o, forKeyPath:'foo', options:0, context:nil)
+      p @foo
+    end
+  end
+  Foo.new.foo
+}
+
+assert '42', %{
+  class Foo
+    def initialize
+      @foo=42
+    end
+    def foo
+      o = Object.new
+      self.addObserver(o, forKeyPath:'foo', options:0, context:nil)
+      1.times { p @foo }
+    end
+  end
+  Foo.new.foo
+}
