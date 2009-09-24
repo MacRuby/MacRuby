@@ -1261,7 +1261,7 @@ RoxorCompiler::compile_constant_declaration(NODE *node, Value *val)
     return val;
 }
 
-inline Value *
+Value *
 RoxorCompiler::compile_current_class(void)
 {
     if (current_opened_class == NULL) {
@@ -6381,7 +6381,7 @@ RoxorCompiler::compile_conversion_to_ruby(const char *type,
     return CallInst::Create(func, params.begin(), params.end(), "", bb);
 }
 
-inline const Type *
+const Type *
 RoxorCompiler::convert_type(const char *type)
 {
     type = SkipTypeModifiers(type);

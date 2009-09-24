@@ -2554,7 +2554,7 @@ method_missing(VALUE obj, SEL sel, rb_vm_block_t *block, int argc, const VALUE *
     	argc + 1, new_argv);
 }
 
-inline void *
+void *
 RoxorCore::gen_stub(std::string types, int argc, bool is_objc)
 {
     lock();
@@ -3508,7 +3508,7 @@ rb_vm_dup_active_block(rb_vm_block_t *src_b)
     return new_b;
 }
 
-rb_vm_block_t *
+inline rb_vm_block_t *
 RoxorVM::uncache_or_create_block(void *key, bool *cached, int dvars_size)
 {
     std::map<void *, rb_vm_block_t *>::iterator iter = blocks.find(key);
@@ -3943,9 +3943,9 @@ extern "C"
 rb_vm_method_t *
 rb_vm_get_method(VALUE klass, VALUE obj, ID mid, int scope)
 {
-    SEL sel;
-    IMP imp;
-    rb_vm_method_node_t *node;
+    SEL sel = 0;
+    IMP imp = NULL;
+    rb_vm_method_node_t *node = NULL;
 
     // TODO honor scope
 
@@ -4089,7 +4089,7 @@ rb_vm_make_curry_proc(VALUE proc, VALUE passed, VALUE arity)
     return rb_proc_alloc_with_block(rb_cProc, b);
 }
 
-static inline VALUE
+static force_inline VALUE
 rb_vm_block_eval0(rb_vm_block_t *b, SEL sel, VALUE self, int argc,
 	const VALUE *argv)
 {
