@@ -604,9 +604,15 @@ rb_obj_imp_isaForAutonotifying(void *rcv, SEL sel)
 	    Class ret_orig;
 	    name += 15;
 	    ret_orig = objc_getClass(name);
-	    if (ret_orig != NULL && RCLASS_VERSION(ret_orig) & RCLASS_IS_OBJECT_SUBCLASS) {
-		DLOG("XXX", "marking KVO generated klass %p (%s) as RObject", ret, class_getName(ret));
-		ret_version |= RCLASS_IS_OBJECT_SUBCLASS;
+	    if (ret_orig != NULL) {
+		const long orig_v = RCLASS_VERSION(ret_orig);
+		if ((orig_v & RCLASS_IS_OBJECT_SUBCLASS) == RCLASS_IS_OBJECT_SUBCLASS) {
+		    ret_version |= RCLASS_IS_OBJECT_SUBCLASS;
+		}
+		if ((orig_v & RCLASS_IS_RUBY_CLASS) == RCLASS_IS_RUBY_CLASS) {
+		    ret_version |= RCLASS_IS_RUBY_CLASS;
+		}
+		// XXX merge more flags?
 	    }
 	}
 	ret_version |= KVO_CHECK_DONE;
