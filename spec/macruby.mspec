@@ -8,7 +8,7 @@ class MSpecScript
   # Core library specs
   set :core, [
     'core',
-    
+
     # obsolete in 1.9
     '^core/continuation',
     '^core/kernel/callcc_spec.rb',
@@ -36,6 +36,7 @@ class MSpecScript
     'library/stringscanner',
     'library/stringio',
     'library/time',
+    'library/tempfile',
     'library/tmpdir',
     'library/yaml/dump_spec.rb',
     'library/yaml/load_documents_spec.rb',

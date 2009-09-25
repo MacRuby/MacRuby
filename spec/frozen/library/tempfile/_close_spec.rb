@@ -5,9 +5,17 @@ describe "Tempfile#_close" do
   before(:each) do
     @tempfile = Tempfile.new("specs")
   end
-  
-  it "is protected" do
-    @tempfile.protected_methods.should include("_close")
+
+  ruby_version_is "" ... "1.9" do  
+    it "is protected" do
+      @tempfile.protected_methods.should include("_close")
+    end
+  end
+
+  ruby_version_is "1.9" do  
+    it "is protected" do
+      @tempfile.protected_methods.should include(:_close)
+    end
   end
   
   it "closes self" do
