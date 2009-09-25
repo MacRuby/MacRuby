@@ -242,7 +242,8 @@ RoxorCompiler::compile_protected_call(Function *func,
 }
 
 void
-RoxorCompiler::compile_single_when_argument(NODE *arg, Value *comparedToVal, BasicBlock *thenBB)
+RoxorCompiler::compile_single_when_argument(NODE *arg, Value *comparedToVal,
+	BasicBlock *thenBB)
 {
     Value *subnodeVal = compile_node(arg);
     Value *condVal;
@@ -289,12 +290,14 @@ RoxorCompiler::compile_boolean_test(Value *condVal, BasicBlock *ifTrueBB,
 }
 
 void
-RoxorCompiler::compile_when_arguments(NODE *args, Value *comparedToVal, BasicBlock *thenBB)
+RoxorCompiler::compile_when_arguments(NODE *args, Value *comparedToVal,
+	BasicBlock *thenBB)
 {
     switch (nd_type(args)) {
 	case NODE_ARRAY:
 	    while (args != NULL) {
-		compile_single_when_argument(args->nd_head, comparedToVal, thenBB);
+		compile_single_when_argument(args->nd_head, comparedToVal,
+			thenBB);
 		args = args->nd_next;
 	    }
 	    break;
@@ -2666,19 +2669,22 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 
 Instruction *
 RoxorCompiler::compile_range(Value *beg, Value *end, bool exclude_end,
-	bool add_to_bb)
+	bool retain, bool add_to_bb)
 {
     if (newRangeFunc == NULL) {
-	// VALUE rb_range_new(VALUE beg, VALUE end, int exclude_end);
+	// VALUE rb_range_new2(VALUE beg, VALUE end, int exclude_end,
+	//	int retain);
 	newRangeFunc = cast<Function>(module->getOrInsertFunction(
-		    "rb_range_new",
-		    RubyObjTy, RubyObjTy, RubyObjTy, RubyObjTy, NULL));
+		    "rb_range_new2",
+		    RubyObjTy, RubyObjTy, RubyObjTy, Int32Ty, Int32Ty,
+		    NULL));
     }
 
     std::vector<Value *> params;
     params.push_back(beg);
     params.push_back(end);
-    params.push_back(exclude_end ? trueVal : falseVal);
+    params.push_back(ConstantInt::get(Int32Ty, exclude_end ? 1 : 0));
+    params.push_back(ConstantInt::get(Int32Ty, retain ? 1 : 0));
 
     if (add_to_bb) {
 	return compile_protected_call(newRangeFunc, params);
@@ -5045,7 +5051,8 @@ rescan_args:
 	case NODE_CASE:
 	    {
 		Function *f = bb->getParent();
-		BasicBlock *caseMergeBB = BasicBlock::Create(context, "case_merge", f);
+		BasicBlock *caseMergeBB = BasicBlock::Create(context,
+			"case_merge", f);
 
 		PHINode *pn = PHINode::Create(RubyObjTy, "case_tmp",
 			caseMergeBB);
@@ -5382,8 +5389,7 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 		    Instruction *call = compile_range(
 			    ConstantInt::get(RubyObjTy, beg),
 			    ConstantInt::get(RubyObjTy, end),
-			    exclude_end,
-			    false);	
+			    exclude_end, true, false);	
 
 		    Instruction *assign = new StoreInst(call, gvar, "");
 

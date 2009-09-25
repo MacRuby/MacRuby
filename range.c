@@ -69,6 +69,16 @@ rb_range_new(VALUE beg, VALUE end, int exclude_end)
     return range;
 }
 
+VALUE
+rb_range_new2(VALUE beg, VALUE end, int exclude_end, int retain)
+{
+    VALUE range = rb_range_new(beg, end, exclude_end);
+    if (retain) {
+	GC_RETAIN(range);
+    }
+    return range;
+}
+
 /*
  *  call-seq:
  *     Range.new(start, end, exclusive=false)    => range

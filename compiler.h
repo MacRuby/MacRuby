@@ -314,7 +314,7 @@ class RoxorCompiler {
 
 	Value *compile_arity(rb_vm_arity_t &arity);
 	Instruction *compile_range(Value *beg, Value *end, bool exclude_end,
-		bool add_to_bb=true);
+		bool retain=false, bool add_to_bb=true);
 	Value *compile_literal(VALUE val);
 	virtual Value *compile_immutable_literal(VALUE val);
 	virtual Value *compile_global_entry(NODE *node);
