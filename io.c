@@ -175,6 +175,10 @@ convert_fmode_to_oflags(int fmode)
 static int
 convert_mode_string_to_oflags(VALUE s) 
 {
+    if (TYPE(s) == T_FIXNUM) {
+	return NUM2INT(s);
+    }
+    StringValue(s);
     return convert_fmode_to_oflags(convert_mode_string_to_fmode(s));
 }
 
@@ -2270,7 +2274,7 @@ rb_file_open(VALUE io, int argc, VALUE *argv)
        }
     }
     rb_io_t *io_struct = ExtractIOStruct(io);
-    prepare_io_from_fd(io_struct, fd, convert_mode_string_to_fmode(modes));
+    prepare_io_from_fd(io_struct, fd, convert_oflags_to_fmode(flags));
     GC_WB(&io_struct->path, path); 
     return io;
 }
@@ -2298,7 +2302,6 @@ rb_f_open(VALUE klass, SEL sel, int argc, VALUE *argv)
     }
     return io;
 }
-
 
 /*
  *  call-seq:
