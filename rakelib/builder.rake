@@ -346,7 +346,7 @@ task :extensions => [:miniruby, "macruby:static"] do
   perform_extensions_target(:all)
 end
 
-AOT_STDLIB = ['rbconfig.rb', 'lib/irb.rb', 'lib/irb/**/*.rb', 'lib/fileutils.rb']
+AOT_STDLIB = ['rbconfig.rb', 'lib/date.rb', 'lib/date/**/*.rb', 'lib/irb.rb', 'lib/irb/**/*.rb', 'lib/fileutils.rb']
 desc "AOT compile parts of the stdlib"
 task :aot_compile_stdlib => [:miniruby, 'macruby:dylib'] do
   AOT_STDLIB.each do |pat|
