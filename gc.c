@@ -156,11 +156,26 @@ ruby_xrealloc(void *ptr, size_t size)
 	size = 1;
     }
     
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1060
+    {
+	size_t old_size = malloc_size(ptr);
+	if (old_size >= size) {
+	    return ptr;
+	}
+	mem = ruby_xmalloc(size);
+	if (mem == NULL) {
+	    rb_memerror();
+	}
+	auto_zone_write_barrier_memmove(__auto_zone, mem, ptr, old_size);
+	xfree(ptr);
+    }
+#else
     mem = malloc_zone_realloc(__auto_zone, ptr, size);
 
     if (mem == NULL) {
 	rb_memerror();
     }
+#endif
 
     return mem;
 }

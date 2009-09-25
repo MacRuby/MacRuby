@@ -10115,11 +10115,18 @@ rb_parser_set_yydebug(VALUE self, VALUE flag)
 }
 
 #ifdef YYMALLOC
-// FIXME the following functions are definitely missing write barriers
 #define HEAPCNT(n, size) ((n) * (size) / sizeof(YYSTYPE))
 #define NEWHEAP() rb_node_newnode(NODE_ALLOCA, 0, (VALUE)parser->heap, 0)
-#define ADD2HEAP(n, c, p) ((parser->heap = (n))->u1.node = (p), \
-			   (n)->u3.cnt = (c), (p))
+
+static inline void *
+__add2heap(struct parser_params *parser, NODE *n, size_t c, void *p)
+{
+    GC_WB(&parser->heap, n);
+    GC_WB(&n->u1.node, p);
+    n->u3.cnt = c;
+    return p;
+}
+#define ADD2HEAP(n, c, p) (__add2heap(parser, (NODE *)n, (size_t)c, (void *)p))
 
 void *
 rb_parser_malloc(struct parser_params *parser, size_t size)
@@ -10150,7 +10157,8 @@ rb_parser_realloc(struct parser_params *parser, void *ptr, size_t size)
     if (ptr && (n = parser->heap) != NULL) {
 	do {
 	    if (n->u1.node == ptr) {
-		n->u1.node = ptr = xrealloc(ptr, size);
+		ptr = xrealloc(ptr, size);
+		GC_WB(&n->u1.node, ptr);
 		if (n->u3.cnt) n->u3.cnt = cnt;
 		return ptr;
 	    }
@@ -10168,7 +10176,7 @@ rb_parser_free(struct parser_params *parser, void *ptr)
 
     while ((n = *prev) != NULL) {
 	if (n->u1.node == ptr) {
-	    *prev = n->u2.node;
+	    GC_WB(prev, n->u2.node);
 	    rb_gc_force_recycle((VALUE)n);
 	    break;
 	}
