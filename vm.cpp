@@ -7,8 +7,7 @@
  */
 
 #define ROXOR_VM_DEBUG		0
-#define ROXOR_INTERPRET_EVAL	0
-#define ROXOR_COMPILER_DEBUG 	0
+#define ROXOR_COMPILER_DEBUG 	0	
 
 #include <llvm/Module.h>
 #include <llvm/DerivedTypes.h>
@@ -25,6 +24,7 @@
 #include <llvm/Target/TargetData.h>
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Target/TargetOptions.h>
+#include <llvm/Target/TargetSelect.h>
 #include <llvm/Transforms/Scalar.h>
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Intrinsics.h>
@@ -59,12 +59,15 @@ VALUE rb_cTopLevel = 0;
 
 struct RoxorFunction {
     Function *f;
+    RoxorScope *scope;
     unsigned char *start;
     unsigned char *end;
     void *imp;
 
-    RoxorFunction (Function *_f, unsigned char *_start, unsigned char *_end) {
+    RoxorFunction(Function *_f, RoxorScope *_scope, unsigned char *_start,
+	    unsigned char *_end) {
 	f = _f;
+	scope = _scope;
 	start = _start;
 	end = _end;
 	imp = NULL; 	// lazy
@@ -81,7 +84,7 @@ class RoxorJITManager : public JITMemoryManager {
 	    mm = CreateDefaultMemManager(); 
 	}
 
-	struct RoxorFunction *find_function(unsigned char *addr) {
+	struct RoxorFunction *find_function(uint8_t *addr) {
 	     if (functions.empty()) {
 		return NULL;
 	     }
@@ -111,15 +114,19 @@ class RoxorJITManager : public JITMemoryManager {
 	    mm->setMemoryExecutable(); 
 	}
 
-	unsigned char *allocateSpace(intptr_t Size, unsigned Alignment) { 
+	uint8_t *allocateSpace(intptr_t Size, unsigned Alignment) { 
 	    return mm->allocateSpace(Size, Alignment); 
+	}
+
+	uint8_t *allocateGlobal(uintptr_t Size, unsigned Alignment) {
+	    return mm->allocateGlobal(Size, Alignment);
 	}
 
 	void AllocateGOT(void) {
 	    mm->AllocateGOT();
 	}
 
-	unsigned char *getGOTBase() const {
+	uint8_t *getGOTBase() const {
 	    return mm->getGOTBase();
 	}
 
@@ -131,36 +138,42 @@ class RoxorJITManager : public JITMemoryManager {
 	    return mm->getDlsymTable();
 	}
 
-	unsigned char *startFunctionBody(const Function *F, 
+	uint8_t *startFunctionBody(const Function *F, 
 		uintptr_t &ActualSize) {
 	    return mm->startFunctionBody(F, ActualSize);
 	}
 
-	unsigned char *allocateStub(const GlobalValue* F, 
+	uint8_t *allocateStub(const GlobalValue* F, 
 		unsigned StubSize, 
 		unsigned Alignment) {
 	    return mm->allocateStub(F, StubSize, Alignment);
 	}
 
-	void endFunctionBody(const Function *F, unsigned char *FunctionStart, 
-		unsigned char *FunctionEnd) {
+	void endFunctionBody(const Function *F, uint8_t *FunctionStart, 
+		uint8_t *FunctionEnd) {
 	    mm->endFunctionBody(F, FunctionStart, FunctionEnd);
-	    functions.push_back(new RoxorFunction(const_cast<Function *>(F), 
-			FunctionStart, FunctionEnd));
+	    Function *f = const_cast<Function *>(F);
+	    RoxorScope *s = RoxorCompiler::shared->scope_for_function(f);
+	    functions.push_back(new RoxorFunction(f, s, FunctionStart,
+			FunctionEnd));
 	}
 
 	void deallocateMemForFunction(const Function *F) {
 	    mm->deallocateMemForFunction(F);
 	}
 
-	unsigned char* startExceptionTable(const Function* F, 
+	uint8_t* startExceptionTable(const Function* F, 
 		uintptr_t &ActualSize) {
 	    return mm->startExceptionTable(F, ActualSize);
 	}
 
-	void endExceptionTable(const Function *F, unsigned char *TableStart, 
-		unsigned char *TableEnd, unsigned char* FrameRegister) {
+	void endExceptionTable(const Function *F, uint8_t *TableStart, 
+		uint8_t *TableEnd, uint8_t* FrameRegister) {
 	    mm->endExceptionTable(F, TableStart, TableEnd, FrameRegister);
+	}
+
+	void setPoisonMemory(bool poison) {
+	    mm->setPoisonMemory(poison);
 	}
 };
 
@@ -200,18 +213,27 @@ RoxorCore::RoxorCore(void)
 
     bs_parser = NULL;
 
+    //llvm_start_multithreaded();
+
     emp = new ExistingModuleProvider(RoxorCompiler::module);
     jmm = new RoxorJITManager;
-    ee = ExecutionEngine::createJIT(emp, 0, jmm, CodeGenOpt::None);
-    assert(ee != NULL);
+
+    InitializeNativeTarget();
+
+    std::string err;
+    ee = ExecutionEngine::createJIT(emp, &err, jmm, CodeGenOpt::None, false);
+    if (ee == NULL) {
+	fprintf(stderr, "error while creating JIT: %s\n", err.c_str());
+	abort();
+    }
 
     fpm = new FunctionPassManager(emp);
     fpm->add(new TargetData(*ee->getTargetData()));
 
-    // Eliminate unnecessary alloca.
-    fpm->add(createPromoteMemoryToRegisterPass());
     // Do simple "peephole" optimizations and bit-twiddling optzns.
     fpm->add(createInstructionCombiningPass());
+    // Eliminate unnecessary alloca.
+    fpm->add(createPromoteMemoryToRegisterPass());
     // Reassociate expressions.
     fpm->add(createReassociatePass());
     // Eliminate Common SubExpressions.
@@ -221,8 +243,13 @@ RoxorCore::RoxorCore(void)
     // Eliminate tail calls.
     fpm->add(createTailCallEliminationPass());
 
-    iee = ExecutionEngine::create(emp, true);
-    assert(iee != NULL);
+#if USE_LLVM_INTERPRETER
+    iee = ExecutionEngine::create(emp, true, &err);
+    if (iee == NULL) {
+	fprintf(stderr, "error while creating Interpreter: %s\n", err.c_str());
+	abort();
+    }
+#endif
 
 #if ROXOR_VM_DEBUG
     functions_compiled = 0;
@@ -396,6 +423,7 @@ RoxorCore::compile(Function *func)
     return imp;
 }
 
+#if USE_LLVM_INTERPRETER
 VALUE
 RoxorCore::interpret(Function *func)
 {
@@ -404,6 +432,7 @@ RoxorCore::interpret(Function *func)
     args.push_back(PTOGV(NULL));
     return (VALUE)iee->runFunction(func, args).IntVal.getZExtValue();
 }
+#endif
 
 bool
 RoxorCore::symbolize_call_address(void *addr, void **startp, char *path,
@@ -439,11 +468,9 @@ RoxorCore::symbolize_call_address(void *addr, void **startp, char *path,
 
 	rb_vm_method_node_t *node = iter->second;
 
-	RoxorFunctionAnnotation *annotation = f == NULL
-	    ? NULL
-	    : RoxorFunctionAnnotation::from_function(f->f);
+	RoxorScope *scope = f == NULL ? NULL : f->scope;
 	if (ln != NULL) {
-	    if (annotation != NULL) {
+	    if (scope != NULL) {
 #if __LP64__
 		// So, we need to determine here which call to the dispatcher
 		// we are exactly, so that we can retrieve the appropriate
@@ -465,8 +492,8 @@ RoxorCore::symbolize_call_address(void *addr, void **startp, char *path,
 		    p++;
 		}
 
-		if (i > 0 && i - 1 < annotation->dispatch_lines.size()) {
-		    *ln = annotation->dispatch_lines[i - 1];
+		if (i > 0 && i - 1 < scope->dispatch_lines.size()) {
+		    *ln = scope->dispatch_lines[i - 1];
 		}
 		else {
 		    *ln = 0;
@@ -481,8 +508,8 @@ RoxorCore::symbolize_call_address(void *addr, void **startp, char *path,
 	    }
 	}
 	if (path != NULL) {
-	    if (annotation != NULL) {
-		strncpy(path, annotation->path.c_str(), path_len);
+	    if (scope != NULL) {
+		strncpy(path, scope->path.c_str(), path_len);
 	    }
 	    else {
 		strncpy(path, "core", path_len);
@@ -618,13 +645,11 @@ RoxorCore::redefined_op_gvar(SEL sel, bool create)
     GlobalVariable *gvar = NULL;
     if (iter == redefined_ops_gvars.end()) {
 	if (create) {
-	    gvar = new GlobalVariable(
-		    Type::Int1Ty,
+	    gvar = new GlobalVariable(*RoxorCompiler::module,
+		    Type::getInt1Ty(context),
 		    ruby_aot_compile ? true : false,
 		    GlobalValue::InternalLinkage,
-		    ConstantInt::getFalse(),
-		    "redefined",
-		    RoxorCompiler::module);
+		    ConstantInt::getFalse(context), "");
 	    assert(gvar != NULL);
 	    redefined_ops_gvars[sel] = gvar;
 	}
@@ -4808,7 +4833,7 @@ rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding,
 	vm->pop_current_binding(false);
     }
 
-#if ROXOR_INTERPRET_EVAL
+#if USE_LLVM_INTERPRETER
     if (inside_eval) {
 	return GET_CORE()->interpret(function);
     }
@@ -4883,8 +4908,20 @@ rb_vm_aot_compile(NODE *node)
     f->setName(init_function_name);
     GET_CORE()->optimize(f);
 
+    // Force a module verification.
+    if (verifyModule(*RoxorCompiler::module, PrintMessageAction)) {
+	printf("Error during module verification\n");
+	exit(1);
+    }
+
     // Dump the bitcode.
-    std::ofstream out(output);
+    std::string err;
+    raw_fd_ostream out(output, err, raw_fd_ostream::F_Binary);
+    if (!err.empty()) {
+	fprintf(stderr, "error when opening the output bitcode file: %s\n",
+		err.c_str());
+	abort();
+    }
     WriteBitcodeToFile(RoxorCompiler::module, out);
     out.close();
 }
@@ -5562,13 +5599,21 @@ resolveInstanceMethod_imp(void *self, SEL sel, SEL name)
     return NO; // TODO call old IMP
 }
 
+// We can't trust LLVM to pick the right target at runtime.
+#if __LP64__
+# define TARGET_TRIPLE "x86_64-apple-darwin"
+#else
+# define TARGET_TRIPLE "i386-apple-darwin"
+#endif
+
 extern "C"
 void 
 Init_PreVM(void)
 {
-    llvm::ExceptionHandling = true; // required!
+    llvm::DwarfExceptionHandling = true; // required!
 
-    RoxorCompiler::module = new llvm::Module("Roxor");
+    RoxorCompiler::module = new llvm::Module("Roxor", getGlobalContext());
+    RoxorCompiler::module->setTargetTriple(TARGET_TRIPLE);
     RoxorCore::shared = new RoxorCore();
     RoxorVM::main = new RoxorVM();
 

@@ -27,21 +27,12 @@
 #define DEFINED_SUPER	6
 #define DEFINED_METHOD	7
 
-class RoxorFunctionAnnotation : public Annotation {
+class RoxorScope {
     public:
-	static AnnotationID id;
 	std::string path;
 	std::vector<unsigned int> dispatch_lines;
 
-	RoxorFunctionAnnotation(Function *function, const char *_path)
-	    : Annotation(RoxorFunctionAnnotation::id), path(_path) {
-		function->addAnnotation(this);
-	    }
-
-	static RoxorFunctionAnnotation *from_function(Function *function) {
-	    return (RoxorFunctionAnnotation *)
-		function->getAnnotation(RoxorFunctionAnnotation::id);
-	}
+	RoxorScope(const char *fname) : path(fname) {}
 };
 
 class RoxorCompiler {
@@ -79,6 +70,15 @@ class RoxorCompiler {
 	bool is_dynamic_class(void) { return dynamic_class; }
 	void set_dynamic_class(bool flag) { dynamic_class = flag; }
 
+	RoxorScope *scope_for_function(Function *f) {
+	    std::map<Function *, RoxorScope *>::iterator i = scopes.find(f);
+	    return i == scopes.end() ? NULL : i->second;
+	}
+
+	void clear_scopes(void) {
+	    scopes.clear();
+	}
+
     protected:
 	const char *fname;
 	bool inside_eval;
@@ -88,6 +88,7 @@ class RoxorCompiler {
 	std::map<ID, Instruction *> ivar_slots_cache;
 	std::map<std::string, GlobalVariable *> static_strings;
 	std::map<CFHashCode, GlobalVariable *> static_ustrings;
+	std::map<Function *, RoxorScope *> scopes;
 
 #if ROXOR_COMPILER_DEBUG
 	int level;
@@ -129,7 +130,7 @@ class RoxorCompiler {
 	int return_from_block;
 	int return_from_block_ids;
 	PHINode *ensure_pn;
-	RoxorFunctionAnnotation *func_annotation;
+	RoxorScope *current_scope;
 
 	Function *dispatcherFunc;
 	Function *fastPlusFunc;
@@ -214,6 +215,15 @@ class RoxorCompiler {
 	Constant *splatArgFollowsVal;
 	Constant *defaultScope;
 	Constant *publicScope;
+
+	const Type *VoidTy;
+	const Type *Int1Ty;
+	const Type *Int8Ty;
+	const Type *Int16Ty;
+	const Type *Int32Ty;
+	const Type *Int64Ty;
+	const Type *FloatTy;
+	const Type *DoubleTy;
 	const Type *RubyObjTy; 
 	const Type *RubyObjPtrTy;
 	const Type *RubyObjPtrPtrTy;
@@ -349,6 +359,8 @@ class RoxorCompiler {
 
 	SEL mid_to_sel(ID mid, int arity);
 };
+
+#define context (RoxorCompiler::module->getContext())
 
 class RoxorAOTCompiler : public RoxorCompiler {
     public:

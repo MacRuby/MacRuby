@@ -101,7 +101,7 @@ class Compiler
 
     # Compile the bitcode as assembly.
     asm = gen_tmpfile(base, 's')
-    execute("#{@llc} -f #{bc} -o=#{asm}")
+    execute("#{@llc} -f #{bc} -o=#{asm} -march=x86-64 -enable-eh")
 
     # Finally compile the assembly.
     execute("#{@gcc} -c -arch x86_64 #{asm} -o #{output}")

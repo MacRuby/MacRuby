@@ -1,8 +1,3 @@
-#define PACKAGE_NAME ""
-#define PACKAGE_TARNAME ""
-#define PACKAGE_VERSION ""
-#define PACKAGE_STRING ""
-#define PACKAGE_BUGREPORT ""
 #define NEXT_FAT_BINARY 1
 #define USE_BUILTIN_FRAME_ADDRESS 1
 #define _GNU_SOURCE 1
@@ -60,6 +55,9 @@
 #define TOKEN_PASTE(x,y) x##y
 #define STRINGIZE(expr) STRINGIZE0(expr)
 #define HAVE_STDARG_PROTOTYPES 1
+#if defined(NORETURN)
+#undef NORETURN
+#endif
 #define NORETURN(x) __attribute__ ((noreturn)) x
 #define DEPRECATED(x) __attribute__ ((deprecated)) x
 #define NOINLINE(x) __attribute__ ((noinline)) x
