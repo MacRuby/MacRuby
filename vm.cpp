@@ -2374,7 +2374,7 @@ rb_vm_super_lookup(VALUE klass, SEL sel)
     printf("\n");
 #endif
 
-    assert(!callstack_funcs.empty());
+    //assert(!callstack_funcs.empty());
 
     for (int i = 0; i < count; i++) {
         if (!klass_located && RARRAY_AT(ary, i) == klass) {
