@@ -48,7 +48,7 @@ For 0.5 (tentative):
 [ ] fast regexp =~
 [ ] rakefile-ize instruby.rb
 [/] finish AOT compiler (only normal mode)
-[/] sync with LLVM 2.6 (DONE in llvm26 branch, blocked by LLVM regressions)
+[X] sync with LLVM 2.6/ToT
 [ ] multithreaded JIT
 [ ] debugger interface
 
