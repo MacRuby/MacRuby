@@ -2994,7 +2994,7 @@ RoxorCompiler::compile_node(NODE *node)
 		    types.push_back(RubyObjTy);
 		}
 		FunctionType *ft = FunctionType::get(RubyObjTy, types, false);
-		Function *f = Function::Create(ft, GlobalValue::PrivateLinkage,
+		Function *f = Function::Create(ft, GlobalValue::ExternalLinkage,
 			"__ruby_scope", module);
 
 		RoxorScope *old_current_scope = current_scope;
