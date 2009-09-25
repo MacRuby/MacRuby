@@ -177,20 +177,6 @@ class RoxorJITManager : public JITMemoryManager {
 	}
 };
 
-#define FROM_GV(gv,t) ((t)(gv.IntVal.getZExtValue()))
-static GenericValue
-value2gv(VALUE v)
-{
-    GenericValue GV;
-#if __LP64__
-    GV.IntVal = APInt(64, v);
-#else
-    GV.IntVal = APInt(32, v);
-#endif
-    return GV;
-}
-#define VALUE_TO_GV(v) (value2gv((VALUE)v))
-
 extern "C" void *__cxa_allocate_exception(size_t);
 extern "C" void __cxa_throw(void *, void *, void (*)(void *));
 
@@ -213,7 +199,7 @@ RoxorCore::RoxorCore(void)
 
     bs_parser = NULL;
 
-    //llvm_start_multithreaded();
+    llvm_start_multithreaded();
 
     emp = new ExistingModuleProvider(RoxorCompiler::module);
     jmm = new RoxorJITManager;
@@ -242,14 +228,6 @@ RoxorCore::RoxorCore(void)
     fpm->add(createCFGSimplificationPass());
     // Eliminate tail calls.
     fpm->add(createTailCallEliminationPass());
-
-#if USE_LLVM_INTERPRETER
-    iee = ExecutionEngine::create(emp, true, &err);
-    if (iee == NULL) {
-	fprintf(stderr, "error while creating Interpreter: %s\n", err.c_str());
-	abort();
-    }
-#endif
 
 #if ROXOR_VM_DEBUG
     functions_compiled = 0;
@@ -422,17 +400,6 @@ RoxorCore::compile(Function *func)
 
     return imp;
 }
-
-#if USE_LLVM_INTERPRETER
-VALUE
-RoxorCore::interpret(Function *func)
-{
-    std::vector<GenericValue> args;
-    args.push_back(PTOGV((void *)GET_VM()->get_current_top_object()));
-    args.push_back(PTOGV(NULL));
-    return (VALUE)iee->runFunction(func, args).IntVal.getZExtValue();
-}
-#endif
 
 bool
 RoxorCore::symbolize_call_address(void *addr, void **startp, char *path,
@@ -1131,22 +1098,6 @@ rb_vm_define_class(ID path, VALUE outer, VALUE super, int flags,
 #endif
 
     return klass;
-}
-
-extern "C"
-GenericValue
-lle_X_rb_vm_define_class(const FunctionType *FT,
-			 const std::vector<GenericValue> &Args)
-{
-    assert(Args.size() == 4);
-
-    return VALUE_TO_GV(
-	    rb_vm_define_class(
-		FROM_GV(Args[0], ID),
-		FROM_GV(Args[1], VALUE),
-		FROM_GV(Args[2], VALUE),
-		FROM_GV(Args[3], int),
-		FROM_GV(Args[3], unsigned char)));
 }
 
 extern "C"
@@ -1853,26 +1804,6 @@ rb_vm_push_methods(VALUE ary, VALUE mod, bool include_objc_methods,
 {
     GET_CORE()->get_methods(ary, (Class)mod, include_objc_methods, filter);
 }
-
-#if 0
-extern "C"
-GenericValue
-lle_X_rb_vm_prepare_method(const FunctionType *FT,
-			   const std::vector<GenericValue> &Args)
-{
-    assert(Args.size() == 4);
-
-    rb_vm_prepare_method(
-	    FROM_GV(Args[0], Class),
-	    (SEL)GVTOP(Args[1]),
-	    (Function *)GVTOP(Args[2]),
-	    (NODE *)GVTOP(Args[3]));
-
-    GenericValue GV;
-    GV.IntVal = 0;
-    return GV;
-}
-#endif
 
 extern "C"
 void
@@ -4833,15 +4764,6 @@ rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding,
 	vm->pop_current_binding(false);
     }
 
-#if USE_LLVM_INTERPRETER
-    if (inside_eval) {
-	return GET_CORE()->interpret(function);
-    }
-    else {
-	IMP imp = GET_CORE()->compile(function);
-	return ((VALUE(*)(VALUE, SEL))imp)(vm->get_current_top_object(), 0);
-    }
-#else
     IMP imp = GET_CORE()->compile(function);
 
     // For symbolication.
@@ -4852,7 +4774,6 @@ rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding,
     mnode->flags = 0;
     
     return ((VALUE(*)(VALUE, SEL))imp)(vm->get_current_top_object(), 0);
-#endif
 }
 
 extern "C"

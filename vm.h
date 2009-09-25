@@ -522,10 +522,6 @@ class RoxorJITManager;
     READER(name, type) \
     WRITER(name, type)
 
-// Flip this switch to enable LLVM Interpreter. Note that this is still under
-// development.
-#define USE_LLVM_INTERPRETER 0
-
 // The Core class is a singleton, it's only created once and it's used by the
 // VMs. All calls to the Core are thread-safe, they acquire a shared lock.
 class RoxorCore {
@@ -537,9 +533,6 @@ class RoxorCore {
 	ExistingModuleProvider *emp;
 	RoxorJITManager *jmm;
 	ExecutionEngine *ee;
-#if USE_LLVM_INTERPRETER
-	ExecutionEngine *iee;
-#endif
 	FunctionPassManager *fpm;
 
 	// Running threads.
@@ -628,9 +621,6 @@ class RoxorCore {
 
 	void optimize(Function *func);
 	IMP compile(Function *func);
-#if USE_LLVM_INTERPRETER
-	VALUE interpret(Function *func);
-#endif
 
 	void load_bridge_support(const char *path, const char *framework_path,
 		int options);
