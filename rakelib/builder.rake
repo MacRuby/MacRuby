@@ -360,6 +360,7 @@ AOT_STDLIB = [
   'lib/thread.rb',
   'lib/time.rb',
   'lib/timeout.rb',
+  'lib/uri.rb',
   'lib/uri/**/*.rb',
   'lib/yaml.rb',
   'lib/yaml/rubytypes.rb',
