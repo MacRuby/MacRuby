@@ -272,8 +272,11 @@ rb_require_safe(VALUE fname, int safe)
 		    break;
 
 		case TYPE_RBO:
+		    dln_load(RSTRING_PTR(path), false);
+		    break;
+
 		case TYPE_BUNDLE:
-		    dln_load(RSTRING_PTR(path));
+		    dln_load(RSTRING_PTR(path), true);
 		    break;
 
 		default:

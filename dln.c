@@ -74,7 +74,7 @@ dln_strerror(void)
 bool ruby_is_miniruby = false;
 
 void*
-dln_load(const char *file)
+dln_load(const char *file, bool call_init)
 {
     if (ruby_is_miniruby) {
 	rb_raise(rb_eLoadError,
@@ -90,7 +90,6 @@ dln_load(const char *file)
 
     {
 	void *handle;
-	void (*init_fct)();
 
 	/* Load file */
 	if ((handle = (void*)dlopen(file, RTLD_LAZY|RTLD_GLOBAL)) == NULL) {
@@ -98,14 +97,17 @@ dln_load(const char *file)
 	    goto failed;
 	}
 
-	init_fct = (void(*)())dlsym(handle, buf);
-	if (init_fct == NULL) {
-	    error = DLN_ERROR();
-	    dlclose(handle);
-	    goto failed;
+	if (call_init) {
+	    void (*init_fct)();
+	    init_fct = (void(*)())dlsym(handle, buf);
+	    if (init_fct == NULL) {
+		error = DLN_ERROR();
+		dlclose(handle);
+		goto failed;
+	    }
+	    /* Call the init code */
+	    (*init_fct)();
 	}
-	/* Call the init code */
-	(*init_fct)();
 
 	return handle;
     }

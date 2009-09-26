@@ -37,5 +37,5 @@ char *dln_find_file_r(const char*,const char*,char*,int);
 extern char *dln_argv0;
 #endif
 
-void *dln_load(const char*);
+void *dln_load(const char*, bool);
 #endif

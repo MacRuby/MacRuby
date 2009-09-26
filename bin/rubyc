@@ -121,13 +121,11 @@ class Compiler
       die "can't guess the init function of Ruby object file `#{obj}'"
     end
 
-    init_func = "Init_" + base.gsub(/-/, '_')
     main_txt = <<EOS
 extern "C" {
   void *#{real_init_func}(void *, void *);
   void *rb_vm_top_self(void);
-  void
-  #{init_func}(void) {
+  __attribute__((constructor)) static void __init__(void) {
     #{real_init_func}(rb_vm_top_self(), 0);
   }
 }
