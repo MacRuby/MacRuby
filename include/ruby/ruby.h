@@ -1004,7 +1004,8 @@ VALUE rb_iv_set(VALUE, const char*, VALUE);
 
 VALUE rb_equal(VALUE,VALUE);
 
-RUBY_EXTERN VALUE ruby_verbose, ruby_debug, ruby_aot_compile;
+RUBY_EXTERN VALUE ruby_verbose, ruby_debug;
+RUBY_EXTERN VALUE ruby_aot_compile, ruby_aot_init_func;
 
 PRINTF_ARGS(NORETURN(void rb_raise(VALUE, const char*, ...)), 2, 3);
 PRINTF_ARGS(NORETURN(void rb_fatal(const char*, ...)), 1, 2);

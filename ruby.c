@@ -45,6 +45,7 @@ char *getenv();
 VALUE ruby_debug = Qfalse;
 VALUE ruby_verbose = Qfalse;
 VALUE ruby_aot_compile = Qfalse;
+VALUE ruby_aot_init_func = Qfalse;
 VALUE rb_parser_get_yydebug(VALUE);
 VALUE rb_parser_set_yydebug(VALUE, VALUE);
 
@@ -757,12 +758,15 @@ proc_options(int argc, char **argv, struct cmdline_options *opt)
 		// This option is not documented and only used by macrubyc.
 		// Users should use macrubyc and never call this option
 		// directly.
-		if (argc < 2) {
+		if (argc < 3) {
 		    rb_raise(rb_eRuntimeError,
-			    "expected argument (output file) for --emit-llvm");
+			    "expected 2 arguments (output file and init function) for --emit-llvm");
 		}
 		ruby_aot_compile = rb_str_new2(argv[1]);
-		rb_objc_retain((void *)ruby_aot_compile);
+		ruby_aot_init_func = rb_str_new2(argv[2]);
+		GC_RETAIN(ruby_aot_compile);
+		GC_RETAIN(ruby_aot_init_func);
+		argc--; argv++;
 		argc--; argv++;
 	    }
 	    else {

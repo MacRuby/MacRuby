@@ -95,9 +95,12 @@ class Compiler
     base = File.basename(path, '.rb') 
     output ||= File.join(File.dirname(path), base + '.o')
 
+    # Generate init function (must be unique).
+    init_func = "MREP_#{File.read(path).hash}"
+
     # Compile the file into LLVM bitcode.
     bc = gen_tmpfile(base, 'bc')
-    execute("#{@macruby} --emit-llvm \"#{bc}\" \"#{path}\"")
+    execute("#{@macruby} --emit-llvm \"#{bc}\" #{init_func} \"#{path}\"")
 
     # Compile the bitcode as assembly.
     asm = gen_tmpfile(base, 's')
@@ -106,27 +109,22 @@ class Compiler
     # Finally compile the assembly.
     execute("#{@gcc} -c -arch x86_64 #{asm} -o #{output}")
 
-    output
+    [output, init_func]
   end
 
   def compile_bundle(file, output)
     base = File.basename(file, '.rb')
     obj = gen_tmpfile(base, 'o')
-    compile_object(file, obj)
+    obj, init_func = compile_object(file, obj)
 
     output ||= File.join(File.dirname(file), base + '.rbo')
 
-    real_init_func = guess_init_function_name(obj)
-    unless real_init_func
-      die "can't guess the init function of Ruby object file `#{obj}'"
-    end
-
     main_txt = <<EOS
 extern "C" {
-  void *#{real_init_func}(void *, void *);
+  void *#{init_func}(void *, void *);
   void *rb_vm_top_self(void);
   __attribute__((constructor)) static void __init__(void) {
-    #{real_init_func}(rb_vm_top_self(), 0);
+    #{init_func}(rb_vm_top_self(), 0);
   }
 }
 EOS
@@ -137,15 +135,11 @@ EOS
     execute("#{@gcxx} #{main} -dynamic -bundle -undefined suppress -flat_namespace -arch x86_64 #{link} #{obj} -o #{output}")
   end
 
-  def compile_executable(objs, output)
+  def compile_executable(objs_data, output)
     output ||= 'a.out'
-
-    # Guess which objects were originally MacRuby source files and memorize their init function.
+    objs = []
     init_funcs = []
-    objs.each do |file|
-      n = guess_init_function_name(file)
-      init_funcs << n if n
-    end
+    objs_data.each { |obj, init_func| objs << obj; init_funcs << init_func }
 
     # Generate main file.
     main_txt = <<EOS
@@ -199,11 +193,6 @@ EOS
     line << execute("llvm-config --ldflags --libs core jit nativecodegen interpreter bitwriter").gsub(/\n/, '')
     objs.each { |o| line << " #{o}" }
     execute(line)
-  end
-
-  def guess_init_function_name(file)
-    ary = execute("#{@nm} -g #{file}").scan(/^\d+\sT\s(_MREP_.*)$/)
-    ary.empty? ? nil : ary[0][0][1..-1] # drop _ prefix
   end
 
   def execute(line)

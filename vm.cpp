@@ -4809,26 +4809,16 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
     return val;
 }
 
-// in st.c
-extern "C" int rb_hash_string(const char *str);
-
 extern "C"
 void
 rb_vm_aot_compile(NODE *node)
 {
     assert(ruby_aot_compile);
-
-    const char *output = RSTRING_PTR(ruby_aot_compile);
-
-    // Generate the name of the init function.
-    char init_function_name[PATH_MAX];
-    const int hash = rb_hash_string(output);
-    snprintf(init_function_name, sizeof init_function_name,
-	    "MREP_%d", hash >= 0 ? hash : -hash);
+    assert(ruby_aot_init_func);
 
     // Compile the program as IR.
     Function *f = RoxorCompiler::shared->compile_main_function(node);
-    f->setName(init_function_name);
+    f->setName(RSTRING_PTR(ruby_aot_init_func));
     GET_CORE()->optimize(f);
 
     // Force a module verification.
@@ -4839,6 +4829,7 @@ rb_vm_aot_compile(NODE *node)
 
     // Dump the bitcode.
     std::string err;
+    const char *output = RSTRING_PTR(ruby_aot_compile);
     raw_fd_ostream out(output, err, raw_fd_ostream::F_Binary);
     if (!err.empty()) {
 	fprintf(stderr, "error when opening the output bitcode file: %s\n",
