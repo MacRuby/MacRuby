@@ -353,8 +353,7 @@ AOT_STDLIB = [
   'lib/fileutils.rb',
   'lib/irb.rb',
   'lib/irb/**/*.rb',
-  'lib/net/http.rb',
-  'lib/net/protocol.rb',
+  'lib/net/**/*.rb',
   'lib/optparse.rb',
   #'lib/stringio.rb', #spec fails
   'lib/thread.rb',
