@@ -1,1 +1,0 @@
-fails:Bignum#<< raises a RangeError when the given argument is a Bignum
