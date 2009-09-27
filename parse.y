@@ -6427,7 +6427,7 @@ parser_yylex(struct parser_params *parser)
 	else {
 	    token = parse_string(lex_strterm);
 	    if (token == tSTRING_END || token == tREGEXP_END) {
-		//rb_gc_force_recycle((VALUE)lex_strterm);
+		rb_gc_force_recycle((VALUE)lex_strterm);
 		lex_strterm = 0;
 		lex_state = EXPR_ENDARG;
 	    }
@@ -7710,7 +7710,7 @@ yylex(void *p)
     int t;
 
 #if YYPURE
-    parser->parser_yylval = (union tmpyystype*)lval;
+    GC_WB(&parser->parser_yylval, (union tmpyystype*)lval);
     parser->parser_yylval->val = Qundef;
 #endif
     t = parser_yylex(parser);
