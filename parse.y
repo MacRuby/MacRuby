@@ -4085,7 +4085,7 @@ string_content	: tSTRING_CONTENT
 		  string_dvar
 		    {
 		    /*%%%*/
-			lex_strterm = $<node>2;
+			GC_WB(&lex_strterm, $<node>2);
 			$$ = NEW_EVSTR($3);
 		    /*%
 			lex_strterm = $<node>2;
@@ -4102,7 +4102,7 @@ string_content	: tSTRING_CONTENT
 		    }
 		  compstmt '}'
 		    {
-			lex_strterm = $<node>2;
+			GC_WB(&lex_strterm, $<node>2);
 			COND_LEXPOP();
 			CMDARG_LEXPOP();
 		    /*%%%*/
@@ -5969,10 +5969,10 @@ parser_heredoc_identifier(struct parser_params *parser)
 #endif
     len = lex_p - lex_pbeg;
     lex_goto_eol(parser);
-    lex_strterm = rb_node_newnode(NODE_HEREDOC,
-				  STR_NEW(tok(), toklen()),	/* nd_lit */
-				  len,				/* nd_nth */
-				  lex_lastline);		/* nd_orig */
+    GC_WB(&lex_strterm, rb_node_newnode(NODE_HEREDOC,
+		STR_NEW(tok(), toklen()),	/* nd_lit */
+		len,				/* nd_nth */
+		lex_lastline));		/* nd_orig */
     nd_set_line(lex_strterm, ruby_sourceline);
 #ifdef RIPPER
     ripper_flush(parser);
@@ -6105,7 +6105,7 @@ parser_here_document(struct parser_params *parser, NODE *here)
 	str = STR_NEW3(tok(), toklen(), enc, func);
     }
     heredoc_restore(lex_strterm);
-    lex_strterm = NEW_STRTERM(-1, 0, 0);
+    GC_WB(&lex_strterm, NEW_STRTERM(-1, 0, 0));
     set_yylval_str(str);
     return tSTRING_CONTENT;
 }
@@ -6427,7 +6427,7 @@ parser_yylex(struct parser_params *parser)
 	else {
 	    token = parse_string(lex_strterm);
 	    if (token == tSTRING_END || token == tREGEXP_END) {
-		rb_gc_force_recycle((VALUE)lex_strterm);
+		//rb_gc_force_recycle((VALUE)lex_strterm);
 		lex_strterm = 0;
 		lex_state = EXPR_ENDARG;
 	    }
@@ -6701,7 +6701,7 @@ parser_yylex(struct parser_params *parser)
 	return '>';
 
       case '"':
-	lex_strterm = NEW_STRTERM(str_dquote, '"', 0);
+	GC_WB(&lex_strterm, NEW_STRTERM(str_dquote, '"', 0));
 	return tSTRING_BEG;
 
       case '`':
@@ -6716,11 +6716,11 @@ parser_yylex(struct parser_params *parser)
 		lex_state = EXPR_ARG;
 	    return c;
 	}
-	lex_strterm = NEW_STRTERM(str_xquote, '`', 0);
+	GC_WB(&lex_strterm, NEW_STRTERM(str_xquote, '`', 0));
 	return tXSTRING_BEG;
 
       case '\'':
-	lex_strterm = NEW_STRTERM(str_squote, '\'', 0);
+	GC_WB(&lex_strterm, NEW_STRTERM(str_squote, '\'', 0));
 	return tSTRING_BEG;
 
       case '?':
@@ -7187,10 +7187,10 @@ parser_yylex(struct parser_params *parser)
 	}
 	switch (c) {
 	  case '\'':
-	    lex_strterm = NEW_STRTERM(str_ssym, c, 0);
+	    GC_WB(&lex_strterm, NEW_STRTERM(str_ssym, c, 0));
 	    break;
 	  case '"':
-	    lex_strterm = NEW_STRTERM(str_dsym, c, 0);
+	    GC_WB(&lex_strterm, NEW_STRTERM(str_dsym, c, 0));
 	    break;
 	  default:
 	    pushback(c);
@@ -7201,7 +7201,7 @@ parser_yylex(struct parser_params *parser)
 
       case '/':
 	if (IS_BEG()) {
-	    lex_strterm = NEW_STRTERM(str_regexp, '/', 0);
+	    GC_WB(&lex_strterm, NEW_STRTERM(str_regexp, '/', 0));
 	    return tREGEXP_BEG;
 	}
 	if ((c = nextc()) == '=') {
@@ -7213,7 +7213,7 @@ parser_yylex(struct parser_params *parser)
 	if (IS_ARG() && space_seen) {
 	    if (!ISSPACE(c)) {
 		arg_ambiguous();
-		lex_strterm = NEW_STRTERM(str_regexp, '/', 0);
+		GC_WB(&lex_strterm, NEW_STRTERM(str_regexp, '/', 0));
 		return tREGEXP_BEG;
 	    }
 	}
@@ -7367,35 +7367,35 @@ parser_yylex(struct parser_params *parser)
 
 	    switch (c) {
 	      case 'Q':
-		lex_strterm = NEW_STRTERM(str_dquote, term, paren);
+		GC_WB(&lex_strterm, NEW_STRTERM(str_dquote, term, paren));
 		return tSTRING_BEG;
 
 	      case 'q':
-		lex_strterm = NEW_STRTERM(str_squote, term, paren);
+		GC_WB(&lex_strterm, NEW_STRTERM(str_squote, term, paren));
 		return tSTRING_BEG;
 
 	      case 'W':
-		lex_strterm = NEW_STRTERM(str_dword, term, paren);
+		GC_WB(&lex_strterm, NEW_STRTERM(str_dword, term, paren));
 		do {c = nextc();} while (ISSPACE(c));
 		pushback(c);
 		return tWORDS_BEG;
 
 	      case 'w':
-		lex_strterm = NEW_STRTERM(str_sword, term, paren);
+		GC_WB(&lex_strterm, NEW_STRTERM(str_sword, term, paren));
 		do {c = nextc();} while (ISSPACE(c));
 		pushback(c);
 		return tQWORDS_BEG;
 
 	      case 'x':
-		lex_strterm = NEW_STRTERM(str_xquote, term, paren);
+		GC_WB(&lex_strterm, NEW_STRTERM(str_xquote, term, paren));
 		return tXSTRING_BEG;
 
 	      case 'r':
-		lex_strterm = NEW_STRTERM(str_regexp, term, paren);
+		GC_WB(&lex_strterm, NEW_STRTERM(str_regexp, term, paren));
 		return tREGEXP_BEG;
 
 	      case 's':
-		lex_strterm = NEW_STRTERM(str_ssym, term, paren);
+		GC_WB(&lex_strterm, NEW_STRTERM(str_ssym, term, paren));
 		lex_state = EXPR_FNAME;
 		return tSYMBEG;
 
