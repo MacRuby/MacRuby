@@ -350,6 +350,7 @@ AOT_STDLIB = [
   'rbconfig.rb',
   'lib/date.rb',
   'lib/date/**/*.rb',
+  'lib/erb.rb',
   'lib/fileutils.rb',
   'lib/irb.rb',
   'lib/irb/**/*.rb',
