@@ -1,2 +1,1 @@
 critical:Array#* with a string raises an ArgumentError when the Array is recursive
-fails:Array#* with a string returns a string formed by concatenating each element.to_s separated by separator without trailing separator
