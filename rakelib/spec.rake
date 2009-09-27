@@ -6,9 +6,16 @@ namespace :spec do
     sh "./mspec/bin/mspec #{type} #{DEFAULT_OPTIONS} #{ENV['opts']} #{options}"
   end
   
-  desc "Run continuous integration language examples (all known good examples)"
+  desc "Run all continuous integration examples (all known good examples)"
   task :ci do
     mspec :ci, ":full"
+  end
+  
+  namespace :ci do
+     desc "Run all continuous integration examples and report the stats (all known good examples)"
+     task :stats do
+       mspec :ci, ":full -f macruby"
+     end
   end
   
   desc "Run continuous integration language examples (all known good examples) (32 bit mode)"
