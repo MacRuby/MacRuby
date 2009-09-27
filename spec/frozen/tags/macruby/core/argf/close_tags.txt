@@ -1,3 +1,1 @@
 fails:ARGF.close closes the current open stream
-fails:ARGF.close raises an IOError if called on a closed stream
-critical:ARGF.close can close STDIN
