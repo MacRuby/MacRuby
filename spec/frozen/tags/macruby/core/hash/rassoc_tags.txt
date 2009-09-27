@@ -1,2 +1,1 @@
-# This spec fails because our Hash isn't ordered. Sometimes it works according to the stars alignment, so do not remove this tag.
 fails:Hash#rassoc only returns the first matching key-value pair
