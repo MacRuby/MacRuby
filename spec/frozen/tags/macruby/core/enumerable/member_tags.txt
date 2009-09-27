@@ -1,1 +1,0 @@
-fails:Enumerable#member? returns true if any member of enum equals obj when == compare different classes (legacy rubycon)

@@ -1,1 +1,0 @@
-critical:Enumerable#each_with_index passes extra parameters to each

@@ -1,2 +1,1 @@
-fails:Dir.chroot as regular user raises an Errno::ENOENT exception if the directory doesn't exist
 fails:Dir.chroot as regular user calls #to_path on non-String argument
