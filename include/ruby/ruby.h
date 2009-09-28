@@ -345,12 +345,6 @@ enum ruby_value_type {
     RUBY_T_FIXNUM = 0x15,
     RUBY_T_NATIVE = 0x16,
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
-    RUBY_T_GCD_QUEUE 	= 0x17,
-    RUBY_T_GCD_GROUP 	= 0x18,
-    RUBY_T_GCD_SOURCE 	= 0x19,
-#endif
-
     RUBY_T_UNDEF  = 0x1b,
     RUBY_T_NODE   = 0x1c,
     RUBY_T_ICLASS = 0x1d,

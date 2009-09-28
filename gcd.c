@@ -62,7 +62,6 @@ typedef struct {
 
 #define RQueue(val) ((rb_queue_t*)val)
 
-
 typedef struct {
     struct RBasic basic;
     int suspension_count;
@@ -82,6 +81,13 @@ typedef struct {
 
 #define RSource(val) ((rb_source_t*)val)
 
+typedef struct {
+    struct RBasic basic;
+    dispatch_semaphore_t sem;
+} rb_semaphore_t;
+
+#define RSemaphore(val) ((rb_semaphore_t*)val)
+
 static VALUE mDispatch;
 
 // queue stuff
@@ -94,11 +100,9 @@ static ID high_priority_id;
 static ID low_priority_id;
 static ID default_priority_id;
 
-// group stuff
 static VALUE cGroup;
-
-// source stuff
 static VALUE cSource;
+static VALUE cSemaphore;
 
 #define PRE_VM_GCD \
     const bool __mt = rb_vm_is_multithreaded(); \
@@ -121,7 +125,7 @@ static VALUE
 rb_queue_alloc(VALUE klass, SEL sel)
 {
     NEWOBJ(queue, rb_queue_t);
-    OBJSETUP(queue, klass, RUBY_T_GCD_QUEUE);
+    OBJSETUP(queue, klass, RUBY_T_NATIVE);
     queue->suspension_count = 0;
     queue->should_release_queue = 0;
     return (VALUE)queue;
@@ -506,7 +510,7 @@ static VALUE
 rb_group_alloc(VALUE klass, SEL sel)
 {
     NEWOBJ(group, rb_group_t);
-    OBJSETUP(group, klass, RUBY_T_GCD_GROUP);
+    OBJSETUP(group, klass, RUBY_T_NATIVE);
     group->suspension_count = 0;
     return (VALUE)group;
 }
@@ -636,7 +640,7 @@ static VALUE
 rb_source_alloc(VALUE klass, SEL sel)
 {
     NEWOBJ(source, rb_source_t);
-    OBJSETUP(source, klass, RUBY_T_GCD_SOURCE);
+    OBJSETUP(source, klass, RUBY_T_NATIVE);
     source->suspension_count = 1;
     return (VALUE)source;
 }
@@ -775,7 +779,52 @@ rb_source_cancel(VALUE self, SEL sel)
 static VALUE
 rb_source_cancelled_p(VALUE self, SEL sel)
 {
-    return (dispatch_source_testcancel(RSource(self)->source) ? Qtrue : Qfalse);
+    return dispatch_source_testcancel(RSource(self)->source) ? Qtrue : Qfalse;
+}
+
+static VALUE
+rb_semaphore_alloc(VALUE klass, SEL sel)
+{
+    NEWOBJ(s, rb_semaphore_t);
+    OBJSETUP(s, klass, RUBY_T_NATIVE);
+    s->sem = NULL;
+    return (VALUE)s;
+}
+
+static VALUE
+rb_semaphore_init(VALUE self, SEL sel, VALUE value)
+{
+    dispatch_semaphore_t s = dispatch_semaphore_create(NUM2LONG(value));
+    if (s == NULL) {
+	rb_raise(rb_eArgError, "Can't create semaphore based on value `%ld'",
+		NUM2LONG(value));
+    }
+    RSemaphore(self)->sem = s;
+    return self;
+}
+
+static VALUE
+rb_semaphore_wait(VALUE self, SEL sel, VALUE time)
+{
+    return LONG2NUM(dispatch_semaphore_wait(RSemaphore(self)->sem,
+		NUM2LL(time))); 
+}
+
+static VALUE
+rb_semaphore_signal(VALUE self, SEL sel)
+{
+    return LONG2NUM(dispatch_semaphore_signal(RSemaphore(self)->sem));
+}
+
+static IMP rb_semaphore_finalize_super;
+
+static void
+rb_semaphore_finalize(void *rcv, SEL sel)
+{
+    dispatch_release(RSemaphore(rcv)->sem);
+    if (rb_semaphore_finalize_super != NULL) {
+        ((void(*)(void *, SEL))rb_semaphore_finalize_super)(rcv, sel);
+    }
 }
 
 void
@@ -785,8 +834,8 @@ Init_Dispatch(void)
     low_priority_id = rb_intern("low");
     default_priority_id = rb_intern("default");
     mDispatch = rb_define_module("Dispatch");
-    cQueue = rb_define_class_under(mDispatch, "Queue", rb_cObject);
-    
+
+    cQueue = rb_define_class_under(mDispatch, "Queue", rb_cObject);    
     rb_objc_define_method(*(VALUE *)cQueue, "alloc", rb_queue_alloc, 0);
     rb_objc_define_method(*(VALUE *)cQueue, "concurrent",
 	    rb_queue_get_concurrent, -1);
@@ -814,9 +863,6 @@ Init_Dispatch(void)
     qMain = rb_queue_from_dispatch(dispatch_get_main_queue(), true);
     rb_objc_define_method(rb_singleton_class(qMain), "run", rb_main_queue_run,
 	    0);
-    
-    rb_queue_finalize_super = rb_objc_install_method2((Class)cQueue,
-	    "finalize", (IMP)rb_queue_finalize);
     
     cGroup = rb_define_class_under(mDispatch, "Group", rb_cObject);
     rb_objc_define_method(*(VALUE *)cGroup, "alloc", rb_group_alloc, 0);
@@ -846,6 +892,18 @@ Init_Dispatch(void)
     rb_objc_define_method(cSource, "resume!", rb_dispatch_resume, 0);
     rb_objc_define_method(cSource, "suspend!", rb_dispatch_suspend, 0);
     rb_objc_define_method(cSource, "suspended?", rb_dispatch_suspended_p, 0);
+
+    cSemaphore = rb_define_class_under(mDispatch, "Semaphore", rb_cObject);
+    rb_objc_define_method(*(VALUE *)cSemaphore, "alloc", rb_semaphore_alloc, 0);
+    rb_objc_define_method(cSemaphore, "initialize", rb_semaphore_init, 1);
+    rb_objc_define_method(cSemaphore, "wait", rb_semaphore_wait, 1);
+    rb_objc_define_method(cSemaphore, "signal", rb_semaphore_signal, 0);
+
+    rb_queue_finalize_super = rb_objc_install_method2((Class)cSemaphore,
+	    "finalize", (IMP)rb_semaphore_finalize);
+
+    rb_define_const(mDispatch, "TIME_NOW", ULL2NUM(DISPATCH_TIME_NOW));
+    rb_define_const(mDispatch, "TIME_FOREVER", ULL2NUM(DISPATCH_TIME_FOREVER));
 }
 
 #else
