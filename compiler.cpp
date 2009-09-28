@@ -622,7 +622,7 @@ RoxorAOTCompiler::compile_ccache(ID name)
     return new LoadInst(gvar, "", bb);
 }
 
-Instruction *
+Value *
 RoxorAOTCompiler::compile_sel(SEL sel, bool add_to_bb)
 {
     std::map<SEL, GlobalVariable *>::iterator iter = sels.find(sel);
@@ -1068,15 +1068,15 @@ RoxorCompiler::compile_binding(void)
 	    "", bb);
 }
 
-Instruction *
+Value *
 RoxorCompiler::gen_slot_cache(ID id)
 {
     int *slot = (int *)malloc(sizeof(int));
     *slot = -1;
-    return compile_const_pointer(slot, Int32PtrTy, false);
+    return compile_const_pointer(slot, Int32PtrTy);
 }
 
-Instruction *
+Value *
 RoxorAOTCompiler::gen_slot_cache(ID id)
 {
     GlobalVariable *gvar = new GlobalVariable(*RoxorCompiler::module,
@@ -1086,7 +1086,7 @@ RoxorAOTCompiler::gen_slot_cache(ID id)
     return new LoadInst(gvar, "");
 }
 
-Instruction *
+Value *
 RoxorCompiler::compile_slot_cache(ID id)
 {
     if (inside_eval || current_block || !current_instance_method
@@ -1094,8 +1094,8 @@ RoxorCompiler::compile_slot_cache(ID id)
 	return compile_const_pointer(NULL, Int32PtrTy);
     }
 
-    std::map<ID, Instruction *>::iterator iter = ivar_slots_cache.find(id);
-    Instruction *slot;
+    std::map<ID, Value *>::iterator iter = ivar_slots_cache.find(id);
+    Value *slot;
     if (iter == ivar_slots_cache.end()) {
 #if ROXOR_COMPILER_DEBUG
 	printf("allocating a new slot for ivar %s\n", rb_id2name(id));
@@ -1107,10 +1107,16 @@ RoxorCompiler::compile_slot_cache(ID id)
 	slot = iter->second;
     }
 
-    Instruction *insn = slot->clone(context);
-    BasicBlock::InstListType &list = bb->getInstList();
-    list.insert(list.end(), insn);
-    return insn;
+    Instruction *slot_insn = dyn_cast<Instruction>(slot);
+    if (slot_insn != NULL) {
+	Instruction *insn = slot_insn->clone(context);
+	BasicBlock::InstListType &list = bb->getInstList();
+	list.insert(list.end(), insn);
+	return insn;
+    }
+    else {
+	return slot;
+    }
 }
 
 Value *
@@ -2857,13 +2863,13 @@ RoxorCompiler::compile_ivar_slots(Value *klass,
 			"rb_vm_prepare_class_ivar_slot", 
 			VoidTy, RubyObjTy, IntTy, Int32PtrTy, NULL));
 	}
-	for (std::map<ID, Instruction *>::iterator iter
+	for (std::map<ID, Value *>::iterator iter
 		= ivar_slots_cache.begin();
 	     iter != ivar_slots_cache.end();
 	     ++iter) {
 
 	    ID ivar_name = iter->first;
-	    Instruction *ivar_slot = iter->second;
+	    Value *ivar_slot = iter->second;
 	    std::vector<Value *> params;
 
 	    params.push_back(klass);
@@ -2876,9 +2882,15 @@ RoxorCompiler::compile_ivar_slots(Value *klass,
 	    }
 	    params.push_back(id_val);
 
-	    Instruction *insn = ivar_slot->clone(context);
-	    list.insert(list_iter, insn);
-	    params.push_back(insn);
+	    Instruction *slot_insn = dyn_cast<Instruction>(ivar_slot);
+	    if (slot_insn != NULL) {
+		Instruction *insn = slot_insn->clone(context);
+		list.insert(list_iter, insn);
+		params.push_back(insn);
+	    }
+	    else {
+		params.push_back(ivar_slot);
+	    }
 
 	    CallInst *call = CallInst::Create(prepareIvarSlotFunc, 
 		    params.begin(), params.end(), "");
@@ -3866,7 +3878,7 @@ RoxorCompiler::compile_node(NODE *node)
 
 			bool old_current_module = current_module;
 
-			std::map<ID, Instruction *> old_ivar_slots_cache
+			std::map<ID, Value *> old_ivar_slots_cache
 			    = ivar_slots_cache;
 			ivar_slots_cache.clear();
 
@@ -5184,7 +5196,7 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 	GlobalVariable *gvar = i->second;
 
 	std::vector<Value *> params;
-	Instruction *load = compile_sel(sel, false);
+	Value *load = compile_sel(sel, false);
 	params.push_back(load);
 
 	Instruction *call = CallInst::Create(getMethodCacheFunc,
@@ -5194,7 +5206,10 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 
 	list.insert(list.begin(), assign);
 	list.insert(list.begin(), call);
-	list.insert(list.begin(), load);
+	Instruction *load_insn = dyn_cast<Instruction>(load);
+	if (load_insn != NULL) {
+	    list.insert(list.begin(), load_insn);
+	}
     }
 
     // Compile constant caches.
@@ -5320,9 +5335,9 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 		{
 		    struct RRegexp *re = (struct RRegexp *)val;
 
-		    Instruction *re_str;
+		    Value *re_str;
 		    if (re->len == 0) {
-			re_str = compile_const_pointer(NULL, NULL, false);	
+			re_str = compile_const_pointer(NULL, NULL);
 		    }
 		    else {
 			GlobalVariable *rename_gvar =
@@ -5348,7 +5363,10 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 
 		    list.insert(list.begin(), assign);
 		    list.insert(list.begin(), call);
-		    list.insert(list.begin(), re_str);
+		    Instruction *re_str_insn = dyn_cast<Instruction>(re_str);
+		    if (re_str_insn != NULL) {
+			list.insert(list.begin(), re_str_insn);
+		    }
 		}
 		break;
 
