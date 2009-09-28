@@ -1,5 +1,4 @@
 critical:Integer#chr raises a RangeError if self is out of the ASCII character range
-fails:Integer#chr without argument returns a String
 fails:Integer#chr without argument returns a US-ASCII String if self is between 0 and 127 (inclusive)
 fails:Integer#chr without argument interprets self as a codepoint in the corresponding character set
 fails:Integer#chr without argument raises a RangeError is self is greater than 255 and the internal encoding is nil

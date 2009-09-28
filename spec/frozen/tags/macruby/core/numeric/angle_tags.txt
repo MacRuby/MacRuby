@@ -1,3 +1,0 @@
-fails:Numeric#angle returns 0 if positive
-fails:Numeric#angle returns Pi if negative
-fails:Numeric#angle raises an ArgumentError if given any arguments

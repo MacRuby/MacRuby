@@ -1,2 +1,1 @@
 fails:Module#alias_method retains method visibility
-fails:Module#alias_method converts a non string/symbol/fixnum name to string using to_str

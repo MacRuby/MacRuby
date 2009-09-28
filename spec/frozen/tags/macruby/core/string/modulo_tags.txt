@@ -1,12 +1,10 @@
 critical:String#% supports binary formats using %B with same behaviour as %b except for using 0B instead of 0b for #
 critical:String#% supports negative bignums by prefixing the value with dots
 critical:String#% behaves as if calling Kernel#Integer for %b argument, if it does not respond to #to_ary
-fails:String#% formats multiple expressions
 fails:String#% formats single % characters before a newline or NULL as literal %s
 fails:String#% raises an error if single % appears anywhere else
 fails:String#% raises an error if NULL or 
 fails: appear anywhere else in the format string
-fails:String#% ignores unused arguments when $DEBUG is false
 fails:String#% raises an ArgumentError for unused arguments when $DEBUG is true
 fails:String#% always allows unused arguments when positional argument style is used
 fails:String#% replaces trailing absolute argument specifier without type with percent sign

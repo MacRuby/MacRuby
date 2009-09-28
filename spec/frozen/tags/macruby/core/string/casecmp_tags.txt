@@ -1,2 +1,1 @@
 fails:String#casecmp doesn't do case mapping for non-ascii characters
-fails:String#casecmp ignores subclass differences

@@ -1,1 +1,0 @@
-fails:Range.escape escapes any characters with special meaning in a regular expression

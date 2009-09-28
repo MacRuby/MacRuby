@@ -1,4 +1,3 @@
-fails:Regexp.new works by default for subclasses with overridden #initialize
 fails:Regexp.new given a String does not enable multibyte support by default
 fails:Regexp.new given a String enables EUC encoding if third argument is 'e' or 'euc' (case-insensitive)
 fails:Regexp.new given a String enables SJIS encoding if third argument is 's' or 'sjis' (case-insensitive)
