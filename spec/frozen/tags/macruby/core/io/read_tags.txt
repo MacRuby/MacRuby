@@ -1,4 +1,4 @@
-critical:IO#read strips the BOM when given 'rb:utf-7-bom' as the mode
+fails:IO.read calls #to_path on non-String arguments
 fails:IO#read can read lots of data
 fails:IO#read can read lots of data with length
 fails:IO#read places the specified number of bytes in the buffer
@@ -7,4 +7,4 @@ fails:IO#read overwrites the buffer
 fails:IO#read truncates the buffer when too big
 fails:IO#read returns the given buffer
 fails:IO#read coerces the second argument to string and uses it as a buffer
-fails:IO.read calls #to_path on non-String arguments
+fails:IO#read strips the BOM when given 'rb:utf-7-bom' as the mode
