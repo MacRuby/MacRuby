@@ -1814,8 +1814,7 @@ RoxorCompiler::compile_landing_pad_header(const std::type_info &eh_type)
 		module->getOrInsertFunction("__gxx_personality_v0",
 		    PtrTy, NULL));
     }
-    params.push_back(new BitCastInst(__gxx_personality_v0_func,
-		PtrTy, "", bb));
+    params.push_back(ConstantExpr::getBitCast(__gxx_personality_v0_func, PtrTy));
 
     if (eh_type == typeid(void)) {
 	// catch (...)
