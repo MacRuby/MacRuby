@@ -104,13 +104,6 @@ static VALUE cGroup;
 static VALUE cSource;
 static VALUE cSemaphore;
 
-#define PRE_VM_GCD \
-    const bool __mt = rb_vm_is_multithreaded(); \
-    rb_vm_set_multithreaded(__mt);
-
-#define POST_VM_GCD \
-    rb_vm_set_multithreaded(__mt);
-
 static inline uint64_t
 number_to_nanoseconds(VALUE num)
 {
@@ -332,7 +325,8 @@ rb_queue_dispatch(VALUE self, SEL sel, int argc, VALUE* argv)
     VALUE synchronous;
     rb_scan_args(argc, argv, "01", &synchronous);
 
-    PRE_VM_GCD
+    rb_vm_set_multithreaded(true);
+
     if (RTEST(synchronous)){
         dispatch_sync_f(RQueue(self)->queue, (void *)the_block,
 		rb_queue_dispatcher);
@@ -341,7 +335,6 @@ rb_queue_dispatch(VALUE self, SEL sel, int argc, VALUE* argv)
         dispatch_async_f(RQueue(self)->queue, (void *)the_block,
 		rb_queue_dispatcher);
     }
-    POST_VM_GCD
 
     return Qnil;
 }
@@ -368,10 +361,10 @@ rb_queue_dispatch_after(VALUE self, SEL sel, VALUE sec)
         rb_raise(rb_eArgError, "dispatch_after() requires a block argument");
     }
 
-    PRE_VM_GCD
+    rb_vm_set_multithreaded(true);
+
     dispatch_after_f(offset, RQueue(self)->queue, (void *)the_block,
 	    rb_queue_dispatcher);
-    POST_VM_GCD
 
     return Qnil;
 }
@@ -406,10 +399,10 @@ rb_queue_apply(VALUE self, SEL sel, VALUE n)
         rb_raise(rb_eArgError, "apply() requires a block argument");
     }
 
-    PRE_VM_GCD
+    rb_vm_set_multithreaded(true);
+
     dispatch_apply_f(NUM2SIZET(n), RQueue(self)->queue, (void*)the_block,
 	    rb_queue_applier);
-    POST_VM_GCD
 
     return Qnil;
 }
@@ -562,10 +555,10 @@ rb_group_dispatch(VALUE self, SEL sel, VALUE target)
         rb_raise(rb_eArgError, "dispatch() requires a block argument");
     }
 
-    PRE_VM_GCD
+    rb_vm_set_multithreaded(true);
+
     dispatch_group_async_f(RGroup(self)->group, RQueue(target)->queue,
 	    (void *)the_block, rb_queue_dispatcher);
-    POST_VM_GCD
 
     return Qnil;
 }
@@ -593,10 +586,10 @@ rb_group_notify(VALUE self, SEL sel, VALUE target)
         rb_raise(rb_eArgError, "notify() requires a block argument");
     }
 
-    PRE_VM_GCD
+    rb_vm_set_multithreaded(true);
+
     dispatch_group_notify_f(RGroup(self)->group, RQueue(target)->queue,
 	    (void *)the_block, rb_queue_dispatcher);
-    POST_VM_GCD
 
     return Qnil;
 }
