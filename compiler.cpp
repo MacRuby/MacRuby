@@ -6178,6 +6178,20 @@ rb_vm_sel_to_rval(SEL sel)
 
 extern "C"
 VALUE
+rb_vm_float_to_rval(float f)
+{
+    return DOUBLE2NUM(f);
+}
+
+extern "C"
+VALUE
+rb_vm_double_to_rval(double d)
+{
+    return DOUBLE2NUM(d);
+}
+
+extern "C"
+VALUE
 rb_vm_charptr_to_rval(const char *ptr)
 {
     return ptr == NULL ? Qnil : rb_str_new2(ptr);
@@ -6307,6 +6321,9 @@ RoxorCompiler::compile_conversion_to_ruby(const char *type,
 	case _C_CHR:
 	case _C_SHT:
 	case _C_INT:
+#if !__LP64__
+	    if (*type != _C_INT)
+#endif
 	    val = new SExtInst(val, RubyObjTy, "", bb);
 	    val = BinaryOperator::CreateShl(val, twoVal, "", bb);
 	    val = BinaryOperator::CreateOr(val, oneVal, "", bb);
@@ -6315,6 +6332,9 @@ RoxorCompiler::compile_conversion_to_ruby(const char *type,
 	case _C_UCHR:
 	case _C_USHT:
 	case _C_UINT:
+#if !__LP64__
+	    if (*type != _C_UINT)
+#endif
 	    val = new ZExtInst(val, RubyObjTy, "", bb);
 	    val = BinaryOperator::CreateShl(val, twoVal, "", bb);
 	    val = BinaryOperator::CreateOr(val, oneVal, "", bb);
@@ -6336,6 +6356,7 @@ RoxorCompiler::compile_conversion_to_ruby(const char *type,
 	    func_name = "rb_vm_ulong_long_to_rval";
 	    break;
 
+#if __LP64__
 	case _C_FLT:
 	    val = new FPExtInst(val, DoubleTy, "", bb);
 	    // fall through	
@@ -6343,7 +6364,16 @@ RoxorCompiler::compile_conversion_to_ruby(const char *type,
 	    val = new BitCastInst(val, RubyObjTy, "", bb);
 	    val = BinaryOperator::CreateOr(val, threeVal, "", bb);
 	    return val;
+#else
+	// TODO inline the right code for the 32-bit fixfloat optimization
+	case _C_FLT:
+	    func_name = "rb_vm_float_to_rval";
 	    break;
+
+	case _C_DBL:
+	    func_name = "rb_vm_double_to_rval";
+	    break;
+#endif
 
 	case _C_SEL:
 	    func_name = "rb_vm_sel_to_rval";
