@@ -1,1 +1,2 @@
+# DO NOT remove me, this spec may pass on some systems but fail on others.
 fails:Regexp#named_captures sets the keys of the Hash to the names of the capture groups

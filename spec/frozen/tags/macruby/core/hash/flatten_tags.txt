@@ -1,3 +1,4 @@
+# DO NOT remove me, this spec may pass on some systems but fail on others.
 fails:Hash#flatten sets each even index of the Array to a key of the Hash
 fails:Hash#flatten sets each odd index of the Array to the value corresponding to the previous element
 fails:Hash#flatten does not recursively flatten Array values when called without arguments
