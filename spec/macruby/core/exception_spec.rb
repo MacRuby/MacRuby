@@ -10,6 +10,8 @@ describe "An Objective-C exception" do
 end
 =end
 
+# TODO: this is not implemented for i386
+if RUBY_ARCH == 'x86_64'
 describe "A Ruby exception" do
   it "can be catched from Objective-C" do
     o = Object.new
@@ -18,4 +20,5 @@ describe "A Ruby exception" do
     end
     TestException.catchRubyException(o).should == 1
   end
+end
 end
