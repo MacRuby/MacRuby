@@ -54,6 +54,10 @@ For 0.5 (tentative):
 [ ] debugger interface
 [ ] fully implement FFI API
 
+For 0.6:
+[ ] fully implement FFI API
+[ ] add support for encodings in strings
+
 Porting from rb_define_method() to rb_objc_define_method():
 
   Replace calls to rb_define_method() with a call to
