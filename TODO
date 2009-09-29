@@ -39,7 +39,7 @@ For 0.5 (must do):
 [/] port all rb_obj_respond_to() calls to rb_vm_respond_to()
 [X] refresh copyright headers for 2009
 [ ] rdoc should work
-[ ] MacRuby should not ignore SIGINT
+[X] MacRuby should not ignore SIGINT and other signals
 
 For 0.5 (tentative):
 

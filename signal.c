@@ -11,6 +11,8 @@
 
 **********************************************************************/
 
+// TODO: rewrite me!
+
 #include "ruby/ruby.h"
 #include "ruby/signal.h"
 #include "ruby/node.h"
@@ -429,7 +431,6 @@ rb_gc_mark_trap_list(void)
 
 typedef RETSIGTYPE (*sighandler_t)(int);
 
-#ifdef POSIX_SIGNAL
 static sighandler_t
 ruby_signal(int signum, sighandler_t handler)
 {
@@ -462,21 +463,6 @@ posix_signal(int signum, sighandler_t handler)
     return ruby_signal(signum, handler);
 }
 
-#else /* !POSIX_SIGNAL */
-#define ruby_signal(sig,handler) (/* rb_trap_accept_nativethreads[sig] = 0,*/ signal((sig),(handler)))
-#if 0 /* def HAVE_NATIVETHREAD */
-static sighandler_t
-ruby_nativethread_signal(int signum, sighandler_t handler)
-{
-    sighandler_t old;
-
-    old = signal(signum, handler);
-    rb_trap_accept_nativethreads[signum] = 1;
-    return old;
-}
-#endif
-#endif
-
 static RETSIGTYPE
 sighandler(int sig)
 {
@@ -486,9 +472,12 @@ sighandler(int sig)
     ATOMIC_INC(vm->buffered_signal_size);
 #endif
 
-#if !defined(BSD_SIGNAL) && !defined(POSIX_SIGNAL)
+printf("sighandler %d\n", sig);
+
+//#if !defined(BSD_SIGNAL) && !defined(POSIX_SIGNAL)
+printf("ruby signal\n");
     ruby_signal(sig, sighandler);
-#endif
+//#endif
 }
 
 #if USE_TRAP_MASK
@@ -973,6 +962,7 @@ sig_list(VALUE rcv, SEL sel)
     return h;
 }
 
+#if 0
 static void
 install_sighandler(int signum, sighandler_t handler)
 {
@@ -983,6 +973,7 @@ install_sighandler(int signum, sighandler_t handler)
 	ruby_signal(signum, old);
     }
 }
+#endif
 
 #if defined(SIGCLD) || defined(SIGCHLD)
 static void
@@ -1095,6 +1086,7 @@ Init_signal(void)
     rb_alias(rb_eSignal, rb_intern("signm"), rb_intern("message"));
     rb_objc_define_method(rb_eInterrupt, "initialize", interrupt_init, -1);
 
+#if 0
     install_sighandler(SIGINT, sighandler);
 #ifdef SIGHUP
     install_sighandler(SIGHUP, sighandler);
@@ -1128,6 +1120,7 @@ Init_signal(void)
     }
 #ifdef SIGPIPE
     install_sighandler(SIGPIPE, sigpipe);
+#endif
 #endif
 
 #if defined(SIGCLD)
