@@ -385,7 +385,11 @@ Init_load()
     const char *var_load_path = "$:";
     ID id_load_path = rb_intern(var_load_path);
 
+#if __LP64__
     rbo_enabled = !ruby_is_miniruby && getenv("VM_DISABLE_RBO") == NULL;
+#else
+    rbo_enabled = false; // rbo are only 64-bit for now.
+#endif
 
     rb_define_virtual_variable("$:", rb_vm_load_path, 0);
     rb_alias_variable((rb_intern)("$-I"), id_load_path);
