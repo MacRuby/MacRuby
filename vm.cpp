@@ -5632,22 +5632,31 @@ Init_VM(void)
     rb_vm_set_current_scope(rb_cNSObject, SCOPE_PRIVATE);
 }
 
+void
+RoxorVM::setup_from_current_thread(void)
+{
+    pthread_setspecific(RoxorVM::vm_thread_key, (void *)this);
+
+    rb_vm_thread_t *t = (rb_vm_thread_t *)xmalloc(sizeof(rb_vm_thread_t));
+    rb_vm_thread_pre_init(t, NULL, 0, NULL, (void *)this);
+    t->thread = pthread_self();
+
+    VALUE main = Data_Wrap_Struct(rb_cThread, NULL, NULL, t);
+    GET_CORE()->register_thread(main);
+    this->set_thread(main);
+}
+
 extern "C"
 void
 Init_PostVM(void)
 {
     // Create and register the main thread.
     RoxorVM *main_vm = GET_VM();
-    rb_vm_thread_t *t = (rb_vm_thread_t *)xmalloc(sizeof(rb_vm_thread_t));
-    rb_vm_thread_pre_init(t, NULL, 0, NULL, (void *)main_vm);
-    t->thread = pthread_self();
-    VALUE main = Data_Wrap_Struct(rb_cThread, NULL, NULL, t);
-    GET_CORE()->register_thread(main);
-    main_vm->set_thread(main);
+    main_vm->setup_from_current_thread();
 
     // Create main thread group.
     VALUE group = rb_obj_alloc(rb_cThGroup);
-    rb_thgroup_add(group, main);
+    rb_thgroup_add(group, main_vm->get_thread());
     rb_define_const(rb_cThGroup, "Default", group);
 }
 

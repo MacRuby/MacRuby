@@ -779,6 +779,7 @@ class RoxorVM {
 		    // XXX the VM object is never detroyed.
 		    RoxorVM *new_vm = new RoxorVM();
 		    pthread_setspecific(vm_thread_key, (void *)new_vm);
+		    new_vm->setup_from_current_thread();
 		    return new_vm;
 		}
 		return (RoxorVM *)vm;
@@ -917,6 +918,8 @@ class RoxorVM {
 
 	VALUE ruby_catch(VALUE tag);
 	VALUE ruby_throw(VALUE tag, VALUE value);
+
+	void setup_from_current_thread(void);
 };
 
 #define GET_VM() (RoxorVM::current())
