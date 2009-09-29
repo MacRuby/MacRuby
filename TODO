@@ -20,7 +20,6 @@ For 0.5 (must do):
 [X] Array subclass for immediates
 [ ] Hash subclass for immediates
 [ ] try/catch should use a C++ exception
-[ ] fully implement FFI API
 [ ] remaining Cocoa bugs
   [ ] ObjC exceptions should be catchable in Ruby
   [ ] honor BridgeSupport sel_of_type attribute
@@ -39,6 +38,7 @@ For 0.5 (must do):
 [/] port all rb_num_coerce_bin() calls to rb_objc_num_coerce_bin()
 [/] port all rb_obj_respond_to() calls to rb_vm_respond_to()
 [X] refresh copyright headers for 2009
+[ ] rdoc should work
 
 For 0.5 (tentative):
 
@@ -51,6 +51,7 @@ For 0.5 (tentative):
 [X] sync with LLVM 2.6/ToT
 [ ] multithreaded JIT
 [ ] debugger interface
+[ ] fully implement FFI API
 
 Porting from rb_define_method() to rb_objc_define_method():
 
