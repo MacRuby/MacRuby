@@ -1987,22 +1987,23 @@ int_pred(VALUE num, SEL sel)
 static VALUE
 int_chr(VALUE num, SEL sel, int argc, VALUE *argv)
 {
-    char c;
+    char c[2];
     long i = NUM2LONG(num);
     rb_encoding *enc;
     VALUE str;
 
+    c[1] = '\0';
     switch (argc) {
       case 0:
 	if (i < 0 || 0xff < i) {
 	    rb_raise(rb_eRangeError, "%"PRIdVALUE " out of char range", i);
 	}
-	c = i;
+	c[0] = i;
 	if (i < 0x80) {
-	    return rb_usascii_str_new(&c, 1);
+	    return rb_usascii_str_new(c, 1);
 	}
 	else {
-	    return rb_str_new(&c, 1);
+	    return rb_str_new(c, 1);
 	}
       case 1:
 	break;
@@ -2011,7 +2012,7 @@ int_chr(VALUE num, SEL sel, int argc, VALUE *argv)
 	break;
     }
     enc = rb_to_encoding(argv[0]);
-    str = rb_enc_str_new(&c, 1, enc);
+    str = rb_enc_str_new(c, 1, enc);
     return str;
 }
 
