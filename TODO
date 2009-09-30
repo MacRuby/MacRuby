@@ -40,6 +40,7 @@ For 0.5 (must do):
 [X] refresh copyright headers for 2009
 [ ] rdoc should work
 [X] MacRuby should not ignore SIGINT and other signals
+[ ] implement autoload
 
 For 0.5 (tentative):
 
@@ -55,7 +56,7 @@ For 0.5 (tentative):
 [ ] fully implement FFI API
 
 For 0.6:
-[ ] fully implement FFI API
+
 [ ] add support for encodings in strings
 
 Porting from rb_define_method() to rb_objc_define_method():
