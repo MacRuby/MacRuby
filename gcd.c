@@ -638,6 +638,27 @@ rb_source_alloc(VALUE klass, SEL sel)
     return (VALUE)source;
 }
 
+/* 
+ *  call-seq:
+ *    Dispatch::Source.for_reading(queue, io, &block)    =>  Dispatch::Source
+ *
+ *  Returns a Source that monitors the passed IO object for pending data. 
+ *	When provided with a valid on_event handler, the source will call the 
+ *	handler on the provided queue whenever it sees that data becomes available from the source's
+ *	underlying file descriptor. If the on_event handler takes a parameter,
+ *	that parameter will be an integer corresponding to an estimated number of
+ *	bytes available to be read. See the dispatch_source_create(3) manpage for details.
+ *  All Sources start out suspended; in order to activate them, call <code>resume!</code>.
+ *	If for_reading is given a block, the block shall be registered as the 
+ *  source's event handler.
+ *
+ *  
+ *     file = File.new('testfile')
+ *	   queue = Queue.new('org.macruby.documentation')
+ *	   reader = Source.for_reading(queue, file) do { |x| puts "#{x} bytes available"}
+ *
+ */
+
 static VALUE
 rb_source_new_for_reading(VALUE klass, SEL sel, VALUE queue, VALUE io)
 {
