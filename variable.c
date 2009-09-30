@@ -534,7 +534,7 @@ rb_define_hooked_variable(const char *name, VALUE *var,
     gvar->marker = var_marker;
 
     if (var != NULL) {
-	GC_RETAIN(*var);
+	GC_ROOT(var);
     }
 }
 
