@@ -422,7 +422,7 @@ undef_setter(VALUE val, ID id, void *data, struct global_variable *var)
     var->setter = val_setter;
     var->marker = val_marker;
 
-    GC_WB(&var->data, (void*)val);
+    GC_WB(&var->data, val);
 }
 
 static void
@@ -439,7 +439,7 @@ val_getter(ID id, VALUE val)
 static void
 val_setter(VALUE val, ID id, void *data, struct global_variable *var)
 {
-    GC_WB(&var->data, (void*)val);
+    GC_WB(&var->data, val);
 }
 
 static void
@@ -453,20 +453,26 @@ val_marker(VALUE data)
 static VALUE
 var_getter(ID id, VALUE *var)
 {
-    if (!var) return Qnil;
+    if (var == NULL) {
+	return Qnil;
+    }
     return *var;
 }
 
 static void
 var_setter(VALUE val, ID id, VALUE *var)
 {
-    GC_WB(var, val);
+    if (*var != val) {
+	GC_RELEASE(*var);
+	*var = val;
+	GC_RETAIN(*var);
+    }
 }
 
 static void
 var_marker(VALUE *var)
 {
-    if (var) {
+    if (var != NULL) {
 	rb_gc_mark_maybe(*var);
     }
 }
@@ -517,27 +523,19 @@ global_id(const char *name)
 }
 
 void
-rb_define_hooked_variable(
-    const char *name,
-    VALUE *var,
-    VALUE (*getter)(ANYARGS),
-    void  (*setter)(ANYARGS))
+rb_define_hooked_variable(const char *name, VALUE *var,
+	VALUE (*getter)(ANYARGS), void  (*setter)(ANYARGS))
 {
-    struct global_variable *gvar;
-    ID id;
-    VALUE tmp;
-    
-    if (var)
-        tmp = *var;
-
-    id = global_id(name);
-    gvar = rb_global_entry(id)->var;
-    gvar->data = (void*)var;
-    gvar->getter = getter?getter:var_getter;
-    gvar->setter = setter?setter:var_setter;
+    ID id = global_id(name);
+    struct global_variable *gvar = rb_global_entry(id)->var;
+    gvar->data = (void *)var;
+    gvar->getter = getter != NULL ? getter : var_getter;
+    gvar->setter = setter != NULL ? setter : var_setter;
     gvar->marker = var_marker;
 
-    GC_ROOT(var);
+    if (var != NULL) {
+	GC_RETAIN(*var);
+    }
 }
 
 void
