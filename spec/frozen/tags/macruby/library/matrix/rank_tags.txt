@@ -1,1 +1,1 @@
-fails:Matrix#rank doesn't loop forever
+critical:Matrix#rank doesn't loop forever

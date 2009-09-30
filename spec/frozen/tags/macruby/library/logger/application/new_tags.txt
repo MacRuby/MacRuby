@@ -1,0 +1,1 @@
+fails:Logger::Application.new defaults application name to ''

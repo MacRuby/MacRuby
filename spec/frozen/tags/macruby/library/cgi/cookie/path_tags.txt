@@ -1,0 +1,2 @@
+fails:CGI::Cookie#path returns self's path
+fails:CGI::Cookie#path= sets self's path

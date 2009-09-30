@@ -1,0 +1,2 @@
+fails:CGI::Cookie#domain returns self's domain
+fails:CGI::Cookie#domain= sets self's domain

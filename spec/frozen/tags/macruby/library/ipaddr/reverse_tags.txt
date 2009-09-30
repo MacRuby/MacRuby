@@ -1,0 +1,3 @@
+fails:IPAddr#reverse should be able to generate the reverse DNS lookup entry
+fails:IPAddr#ip6_arpa should be able to convert an IPv6 address into the reverse DNS lookup representation according to RFC3172
+fails:IPAddr#ip6_int should be able to convert an IPv6 address into the reverse DNS lookup representation according to RFC1886

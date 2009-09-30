@@ -1,0 +1,2 @@
+fails:CGI::Cookie#name returns self's name
+fails:CGI::Cookie#name= sets self's expiration date

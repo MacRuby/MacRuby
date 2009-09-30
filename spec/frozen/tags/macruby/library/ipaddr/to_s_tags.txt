@@ -1,0 +1,2 @@
+fails:IPAddr#to_s displays IPAddr using short notation
+fails:IPAddr#to_string displays an IPAddr using full notation

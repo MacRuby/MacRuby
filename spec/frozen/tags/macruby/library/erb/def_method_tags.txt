@@ -1,0 +1,1 @@
+fails:ERB#def_method define module's instance method to render eRuby file

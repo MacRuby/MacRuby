@@ -5,8 +5,8 @@
 dtrace.h
 lex.c
 miniprelude.c
-miniruby
-macruby
+/miniruby
+/macruby
 node_name.inc
 parse.c
 prelude.c

@@ -1,0 +1,1 @@
+fails:Logger#info logs a INFO message

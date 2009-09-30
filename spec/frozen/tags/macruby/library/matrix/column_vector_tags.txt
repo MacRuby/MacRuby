@@ -1,0 +1,1 @@
+fails:Matrix.column_vector returns a single column Matrix when called with an Array

@@ -1,0 +1,1 @@
+fails:Prime.new returns a new Prime number

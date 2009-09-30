@@ -1,0 +1,1 @@
+fails:Logger#fatal logs a FATAL message

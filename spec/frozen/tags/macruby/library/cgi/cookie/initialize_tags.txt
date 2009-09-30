@@ -1,0 +1,11 @@
+fails:CGI::Cookie#initialize when passed String sets the self's name to the passed String
+fails:CGI::Cookie#initialize when passed String sets the self's value to an empty Array
+fails:CGI::Cookie#initialize when passed String sets self to a non-secure cookie
+fails:CGI::Cookie#initialize when passed String does set self's path to an empty String when ENV["SCRIPT_NAME"] is not set
+fails:CGI::Cookie#initialize when passed String does set self's path based on ENV["SCRIPT_NAME"] when ENV["SCRIPT_NAME"] is set
+fails:CGI::Cookie#initialize when passed Hash sets self's contents based on the passed Hash
+fails:CGI::Cookie#initialize when passed Hash does set self's path based on ENV["SCRIPT_NAME"] when the Hash has no 'path' entry
+fails:CGI::Cookie#initialize when passed Hash tries to convert the Hash's 'value' to an Array using #Array
+fails:CGI::Cookie#initialize when passed String, values ... sets the self's name to the passed String
+fails:CGI::Cookie#initialize when passed String, values ... sets the self's value to an Array containing all passed values
+fails:CGI::Cookie#initialize when passed String, values ... sets self to a non-secure cookie

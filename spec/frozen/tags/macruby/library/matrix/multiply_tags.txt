@@ -1,0 +1,2 @@
+fails:Matrix#* returns the result of multiplying the corresponding elements of self and a Matrix
+fails:Matrix#* returns the result of multiplying the corresponding elements of self and a Vector

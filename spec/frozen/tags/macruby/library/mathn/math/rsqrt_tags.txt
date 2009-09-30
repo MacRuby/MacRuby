@@ -1,0 +1,5 @@
+fails:Math#rsqrt returns the square root for Rational numbers
+fails:Math.rsqrt returns the square root for Rational numbers
+fails:Math#rsqrt returns the square root for positive numbers
+fails:Math#rsqrt raises an Errno::EDOM if the argument is a negative number
+fails:Math#rsqrt should be private

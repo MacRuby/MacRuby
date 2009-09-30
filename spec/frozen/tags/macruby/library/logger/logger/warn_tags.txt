@@ -1,0 +1,1 @@
+fails:Logger#warn logs a WARN message

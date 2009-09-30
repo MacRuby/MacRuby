@@ -1,0 +1,3 @@
+fails:Logger#add writes a new message to the logger
+fails:Logger#add receives a severity
+fails:Logger#add receives a message

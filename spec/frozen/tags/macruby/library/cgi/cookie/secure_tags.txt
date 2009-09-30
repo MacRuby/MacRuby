@@ -1,0 +1,6 @@
+fails:CGI::Cookie#secure returns whether self is a secure cookie or not
+fails:CGI::Cookie#secure= when passed true returns true
+fails:CGI::Cookie#secure= when passed true sets self to a secure cookie
+fails:CGI::Cookie#secure= when passed false returns false
+fails:CGI::Cookie#secure= when passed false sets self to a non-secure cookie
+fails:CGI::Cookie#secure= when passed Object does not change self's secure value
