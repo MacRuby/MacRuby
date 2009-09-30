@@ -714,7 +714,7 @@ describe "Array#pack with integer format (16bit, little endian)", :shared => tru
       it "does not raise a RangeError even when a pack argument is >= 2**64" do
         [2**64-1].pack(format).should == binary("\xFF\xFF")
         [2**64  ].pack(format).should == binary("\x00\x00")
-        [2**64+1].pack(format).should == binary("\x00\x01")
+        [2**64+1].pack(format).should == binary("\x01\x00")
       end
 
       it "does not raise a RangeError even when a pack argument is <= -2**64" do
