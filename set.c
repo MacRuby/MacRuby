@@ -291,7 +291,7 @@ rb_set_include(VALUE set, SEL sel, VALUE obj)
 static void
 rb_set_to_a_callback(const void *value, void *context)
 {
-    rb_ary_push((VALUE)context, (VALUE)value);
+    rb_ary_push((VALUE)context, (VALUE)OC2RB(value));
 }
 
 static VALUE
