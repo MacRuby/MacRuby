@@ -1027,6 +1027,10 @@ bs_parser_parse(bs_parser_t *parser, const char *path,
             method->args_count = 0;
             method->args = NULL;
             method->retval = NULL;
+
+            if (xmlTextReaderIsEmptyElement(reader)) {
+              goto index_method;
+            }
           }
           else {
             BAIL("method defined outside a class or informal protocol");
@@ -1108,6 +1112,7 @@ bs_parser_parse(bs_parser_t *parser, const char *path,
             memcpy(method->args, args, len);
           }
 
+index_method:
           methods = method->class_method 
             ? klass->class_methods : klass->instance_methods;
 
