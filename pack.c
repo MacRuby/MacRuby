@@ -364,7 +364,7 @@ num2i32(VALUE x)
 #endif
 static const char toofew[] = "too few arguments";
 
-static void encodes(CFMutableDataRef,const char*,long,int);
+static void encodes(CFMutableDataRef,const char*,long,int,int);
 static void qpencode(CFMutableDataRef,VALUE,long);
 
 static unsigned long utf8_to_uv(const char*,long*);
@@ -910,6 +910,11 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 	    ptr = RSTRING_PTR(from);
 	    plen = RSTRING_LEN(from);
 
+	    if (len == 0 && type == 'm') {
+		encodes(data, ptr, plen, type, 0);
+		ptr += plen;
+		break;
+	    }
 	    if (len <= 2) {
 		len = 45;
 	    }
@@ -925,7 +930,7 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 		else {
 		    todo = plen;
 		}
-		encodes(data, ptr, todo, type);
+		encodes(data, ptr, todo, type, 1);
 		plen -= todo;
 		ptr += todo;
 	    }
@@ -1037,7 +1042,7 @@ static const char b64_table[] =
 "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 static void
-encodes(CFMutableDataRef data, const char *s, long len, int type)
+encodes(CFMutableDataRef data, const char *s, long len, int type, int tail_lf)
 {
     char *buff = ALLOCA_N(char, len * 4 / 3 + 6);
     long i = 0;
@@ -1052,12 +1057,18 @@ encodes(CFMutableDataRef data, const char *s, long len, int type)
 	padding = '=';
     }
     while (len >= 3) {
-	buff[i++] = trans[077 & (*s >> 2)];
-	buff[i++] = trans[077 & (((*s << 4) & 060) | ((s[1] >> 4) & 017))];
-	buff[i++] = trans[077 & (((s[1] << 2) & 074) | ((s[2] >> 6) & 03))];
-	buff[i++] = trans[077 & s[2]];
-	s += 3;
-	len -= 3;
+	while (len >= 3 && sizeof(buff) - i >= 4) {
+	    buff[i++] = trans[077 & (*s >> 2)];
+	    buff[i++] = trans[077 & (((*s << 4) & 060) | ((s[1] >> 4) & 017))];
+	    buff[i++] = trans[077 & (((s[1] << 2) & 074) | ((s[2] >> 6) & 03))];
+	    buff[i++] = trans[077 & s[2]];
+	    s += 3;
+	    len -= 3;
+	}
+	if (sizeof(buff) - i < 4) {
+	    CFDataAppendBytes(data, (const UInt8 *)buff, i);
+	    i = 0;
+	}
     }
     if (len == 2) {
 	buff[i++] = trans[077 & (*s >> 2)];
@@ -1071,10 +1082,11 @@ encodes(CFMutableDataRef data, const char *s, long len, int type)
 	buff[i++] = padding;
 	buff[i++] = padding;
     }
-    buff[i++] = '\n';
+    if (tail_lf) {
+	buff[i++] = '\n';
+    }
     CFDataAppendBytes(data, (const UInt8 *)buff, i);
 }
-
 static const char hex_table[] = "0123456789ABCDEF";
 
 static void

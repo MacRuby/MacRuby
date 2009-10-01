@@ -8,7 +8,6 @@ fails:Array#pack with format 'Z' cuts byte sequence even if it breaks a multibyt
 fails:Array#pack with format 'H' fills low-nibble of the last byte with 0 when count is odd even if pack argument has insufficient length
 fails:Array#pack with format 'M' ignores star parameter
 critical:Array#pack with format 'M' does not check whether the pack argument responds to #to_s before call #to_s
-fails:Array#pack with format 'm' does not append newline if line length parameter is 0
 fails:Array#pack with format 'U' returns a UTF-8 string
 fails:Array#pack with format 'm' ignores star parameter
 fails:Array#pack just ignores unknown format
