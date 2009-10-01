@@ -34,6 +34,11 @@ VALUE rb_cNSMutableString;
 VALUE rb_cSymbol;
 VALUE rb_cByteString;
 
+typedef struct {
+    struct RBasic basic;
+    CFMutableDataRef data;
+} rb_bstr_t;
+
 VALUE
 rb_str_freeze(VALUE str)
 {
@@ -785,13 +790,17 @@ rb_objc_str_cat(VALUE str, const char *ptr, long len, int cfstring_encoding)
 	}
 	else {
 	    // Promoting as bytestring!
-	    CFDataRef data = CFStringCreateExternalRepresentation(NULL, (CFStringRef)str,
-		    kCFStringEncodingUTF8, 0);
+	    CFDataRef data = CFStringCreateExternalRepresentation(NULL,
+		    (CFStringRef)str, kCFStringEncodingUTF8, 0);
 	    assert(data != NULL);
 	    CFMutableDataRef mdata = CFDataCreateMutableCopy(NULL, 0, data);
 	    CFRelease(data);
-	    *(VALUE *)str = rb_cByteString;
-	    *(void **)((char *)str + sizeof(void *)) = (void *)mdata;
+
+	    rb_bstr_t *bstr = (rb_bstr_t *)str;
+	    bstr->basic.klass = rb_cByteString;
+	    bstr->basic.flags = 0;
+	    GC_WB(&bstr->data, mdata);
+
 	    CFMakeCollectable(mdata);
 	}
     }
@@ -5378,11 +5387,6 @@ install_symbol_primitives(void)
 }
 
 #undef INSTALL_METHOD
-
-typedef struct {
-    struct RBasic basic;
-    CFMutableDataRef data;
-} rb_bstr_t;
 
 CFMutableDataRef 
 rb_bytestring_wrapped_data(VALUE bstr)
