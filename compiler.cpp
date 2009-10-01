@@ -6505,7 +6505,8 @@ RoxorCompiler::convert_type(const char *type)
 }
 
 Function *
-RoxorCompiler::compile_stub(const char *types, int argc, bool is_objc)
+RoxorCompiler::compile_stub(const char *types, bool variadic, int min_argc,
+	bool is_objc)
 {
     Function *f;
 
@@ -6575,10 +6576,10 @@ RoxorCompiler::compile_stub(const char *types, int argc, bool is_objc)
     // Arguments.
     std::vector<unsigned int> byval_args;
     int given_argc = 0;
-    bool variadic = false;
+    bool stop_arg_type = false;
     while ((p = GetFirstType(p, buf, sizeof buf)) != NULL && buf[0] != '\0') {
-	if (given_argc == argc) {
-	    variadic = true;
+	if (variadic && given_argc == min_argc) {
+	    stop_arg_type = true;
 	}
 
 	const Type *llvm_type = convert_type(buf);
@@ -6592,7 +6593,7 @@ RoxorCompiler::compile_stub(const char *types, int argc, bool is_objc)
 	    byval_args.push_back(f_types.size() + 1 /* retval */);
 	}
 
-	if (!variadic) {
+	if (!stop_arg_type) {
 	    // In order to conform to the ABI, we must stop providing types
 	    // once we start dealing with variable arguments and instead mark
 	    // the function as variadic.

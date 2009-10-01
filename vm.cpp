@@ -2513,16 +2513,22 @@ method_missing(VALUE obj, SEL sel, rb_vm_block_t *block, int argc, const VALUE *
 }
 
 void *
-RoxorCore::gen_stub(std::string types, int argc, bool is_objc)
+RoxorCore::gen_stub(std::string types, bool variadic, int min_argc,
+	bool is_objc)
 {
     lock();
+
+#if ROXOR_VM_DEBUG
+    printf("gen Ruby -> %s stub with types %s\n", is_objc ? "ObjC" : "C",
+	    types.c_str());
+#endif
 
     std::map<std::string, void *> &stubs = is_objc ? objc_stubs : c_stubs;
     std::map<std::string, void *>::iterator iter = stubs.find(types);
     void *stub;
     if (iter == stubs.end()) {
-	Function *f = RoxorCompiler::shared->compile_stub(types.c_str(), argc,
-		is_objc);
+	Function *f = RoxorCompiler::shared->compile_stub(types.c_str(),
+		variadic, min_argc, is_objc);
 	stub = (void *)compile(f);
 	stubs.insert(std::make_pair(types, stub));
     }
@@ -2570,11 +2576,24 @@ RoxorCore::gen_to_ocval_convertor(std::string type)
 }
 
 static inline void
-vm_gen_bs_func_types(bs_element_function_t *bs_func, std::string &types)
+vm_gen_bs_func_types(int argc, const VALUE *argv,
+	bs_element_function_t *bs_func, std::string &types)
 {
     types.append(bs_func->retval == NULL ? "v" : bs_func->retval->type);
-    for (unsigned i = 0; i < bs_func->args_count; i++) {
+    int printf_arg = -1;
+    for (int i = 0; i < (int)bs_func->args_count; i++) {
 	types.append(bs_func->args[i].type);
+	if (bs_func->args[i].printf_format) {
+	    printf_arg = i;
+	}
+    }
+    if (bs_func->variadic) {
+	// TODO honor printf_format
+//	if (printf_arg != -1) {	    
+//	}
+	for (int i = bs_func->args_count; i < argc; i++) {
+	    types.append("@");
+	}
     }
 }
 
@@ -2692,8 +2711,10 @@ fill_ocache(struct mcache *cache, VALUE self, Class klass, IMP imp, SEL sel,
 		sel_getName(sel));
 	abort();
     }
+    bool variadic = false;
     if (ocache.bs_method != NULL && ocache.bs_method->variadic
 	&& method != NULL) {
+	// TODO honor printf_format
 	const int real_argc = method_getNumberOfArguments(method) - 2;
 	if (real_argc < argc) {
 	    const size_t s = strlen(types);
@@ -2703,8 +2724,9 @@ fill_ocache(struct mcache *cache, VALUE self, Class klass, IMP imp, SEL sel,
 	    }
 	    argc = real_argc;
 	}
+	variadic = true;
     }
-    ocache.stub = (rb_vm_objc_stub_t *)GET_CORE()->gen_stub(types, 
+    ocache.stub = (rb_vm_objc_stub_t *)GET_CORE()->gen_stub(types, variadic,
 	    argc, true);
 }
 
@@ -2835,14 +2857,14 @@ recache2:
 	    bs_element_function_t *bs_func = GET_CORE()->find_bs_function(name);
 	    if (bs_func != NULL) {
 		std::string types;
-		vm_gen_bs_func_types(bs_func, types);
+		vm_gen_bs_func_types(argc, argv, bs_func, types);
 
 		cache->flag = MCACHE_FCALL;
 		fcache.bs_function = bs_func;
 		fcache.imp = (IMP)dlsym(RTLD_DEFAULT, bs_func->name);
 		assert(fcache.imp != NULL);
 		fcache.stub = (rb_vm_c_stub_t *)GET_CORE()->gen_stub(types,
-			argc, false);
+			bs_func->variadic, bs_func->args_count, false);
 	    }
 	    else {
 		// Still nothing, then let's call #method_missing.

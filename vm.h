@@ -638,7 +638,8 @@ class RoxorCore {
 	// This callback is public for the only reason it's called by C.
 	void bs_parse_cb(bs_element_type_t type, void *value, void *ctx);
 
-	void *gen_stub(std::string types, int argc, bool is_objc);
+	void *gen_stub(std::string types, bool variadic, int min_argc,
+		bool is_objc);
 	void *gen_to_rval_convertor(std::string type);
 	void *gen_to_ocval_convertor(std::string type);
 

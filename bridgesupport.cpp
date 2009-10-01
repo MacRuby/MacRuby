@@ -1300,8 +1300,8 @@ rb_ffi_attach_function(VALUE rcv, SEL sel, VALUE name, VALUE args, VALUE ret)
 	types.append(convert_ffi_type(RARRAY_AT(args, i), true));
     } 
 
-    rb_vm_c_stub_t *stub = (rb_vm_c_stub_t *)GET_CORE()->gen_stub(types, argc,
-	    false);
+    rb_vm_c_stub_t *stub = (rb_vm_c_stub_t *)GET_CORE()->gen_stub(types,
+	    false, argc, false);
     Function *f = RoxorCompiler::shared->compile_ffi_function((void *)stub,
 	    sym, argc);
     IMP imp = GET_CORE()->compile(f);
