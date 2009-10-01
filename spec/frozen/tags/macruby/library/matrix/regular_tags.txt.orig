@@ -1,0 +1,8 @@
+<<<<<<< HEAD
+fails:Matrix#regular? returns false unless rank(A) != n
+fails:Matrix#regular? returns false if the determinant is 0
+fails:Matrix#regular? returns true if the Matrix is regular
+=======
+critical:Matrix#regular? returns false unless rank(A) != n
+fails:Matrix#regular? returns false if the determinant is 0
+>>>>>>> fixed .gitignore and added all the tags that were missing yesterday.

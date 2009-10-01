@@ -1,0 +1,3 @@
+fails:REXML::Element#delete_element deletes a child via XPath
+fails:REXML::Element#delete_element deletes Element and returns it
+fails:REXML::Element#delete_element deletes an element and returns it

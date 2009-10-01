@@ -1,0 +1,2 @@
+fails:REXML::Attributes#<< adds an attribute
+fails:REXML::Attributes#<< replaces an existing attribute

@@ -1,0 +1,6 @@
+critical:SortedSet#add adds the passed Object to self
+critical:SortedSet#add returns self
+critical:SortedSet#add takes only values which responds <=>
+critical:SortedSet#add? adds the passed Object to self
+critical:SortedSet#add? returns self when the Object has not yet been added to self
+critical:SortedSet#add? returns nil when the Object has already been added to self

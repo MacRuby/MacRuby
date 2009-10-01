@@ -1,0 +1,2 @@
+fails:REXML::Attributes#initialize is auto initialized by Element
+fails:REXML::Attributes#initialize receives a parent node

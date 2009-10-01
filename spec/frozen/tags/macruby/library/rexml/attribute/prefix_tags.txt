@@ -1,0 +1,2 @@
+fails:REXML::Attribute#prefix returns the namespace of the Attribute
+fails:REXML::Attribute#prefix returns an empty string for Attributes with no prefixes

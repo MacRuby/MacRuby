@@ -1,1 +1,3 @@
 fails:Set#flatten_merge is protected
+critical:Set#flatten_merge flattens the passed Set and merges it into self
+critical:Set#flatten_merge raises an ArgumentError when trying to flatten a recursive Set

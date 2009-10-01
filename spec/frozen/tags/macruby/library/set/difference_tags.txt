@@ -1,1 +1,2 @@
 fails:Set#difference raises an ArgumentError when passed a non-Enumerable
+fails:Set#difference returns a new Set containting self's elements excluding the elements in the passed Enumerable

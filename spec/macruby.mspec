@@ -35,51 +35,54 @@ class MSpecScript
     'library/getoptlong',
     'library/ipaddr',
     'library/logger',
+    'library/logger/application',
+    'library/logger/device',
+    'library/logger/logger',
     'library/mathn',
     'library/matrix',
     'library/mutex',
+    'library/net',
+    'library/net/telnet',
     'library/observer',
+    'library/openstruct',
+    'library/parsedate',
     'library/pathname',
+    'library/ping',
+    'library/rational',
     'library/queue',
     'library/readline',
+    'library/resolv',
+    'library/rexml',
     'library/scanf',
+    'library/securerandom',
+    'library/shellwords',
+    'library/singleton',
     'library/socket',
     'library/stringio',
     'library/stringscanner',
     'library/tempfile',
     'library/time',
+    'library/timeout',
     'library/tmpdir',
+    'library/uri',
     'library/yaml/dump_spec.rb',
     'library/yaml/load_documents_spec.rb',
     'library/yaml/load_file.spec',
     'library/yaml/load_spec.rb',
     'library/yaml/tag_class_spec.rb',
     
-    # To test
-    '^library/net',
-    '^library/openstruct',
-    '^library/parsedate',
-    '^library/ping',
-    '^library/prime',
-    '^library/rational',
-    '^library/resolv',
-    '^library/rexml',
-    '^library/securerandom',
-    '^library/set',
-    '^library/shellwords',
-    '^library/singleton',
-    '^library/iconv',
-    '^library/syslog',
-    '^library/timeout',
-    '^library/uri',
-     
-    
      # Currently not working on MacRuby
      '^library/erb',
      '^library/iconv',
      '^library/generator',
      '^library/openssl',
-    
+     '^library/net/http', # due to '/fixtures/http_server' loaded in net/http/http/active_spec.rb  (webrick)
+     '^library/net/ftp', # exists the specs when running using rake spec:library and reaching net/ftp/chdir_spec.rb
+     
+     '^library/prime',  # hangs probably because of timeout
+     '^library/set', # sortedset is segfaulting
+     '^library/syslog',
+     
     
 =begin
     # disabled the zlib specs for now because of a random GC crash

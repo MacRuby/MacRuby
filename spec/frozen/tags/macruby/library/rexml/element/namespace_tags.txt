@@ -1,0 +1,4 @@
+fails:REXML::Element#namespace returns the default namespace
+fails:REXML::Element#namespace accepts a namespace prefix
+fails:REXML::Element#namespace returns an empty String if default namespace is not defined
+fails:REXML::Element#namespace returns nil if namespace is not defined

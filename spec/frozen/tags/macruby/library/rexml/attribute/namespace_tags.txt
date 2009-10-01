@@ -1,0 +1,3 @@
+fails:REXML::Attribute#namespace returns the namespace url
+fails:REXML::Attribute#namespace returns nil if namespace is not defined
+fails:REXML::Attribute#namespace defaults arg to nil

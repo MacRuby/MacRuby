@@ -1,0 +1,2 @@
+fails:REXML::Element#new creates element from tag name
+fails:REXML::Element#new creates element with default attributes

@@ -1,0 +1,3 @@
+fails:REXML::Element#add_namespace adds a namespace to element
+fails:REXML::Element#add_namespace accepts a prefix string as prefix
+fails:REXML::Element#add_namespace uses prefix as URI if uri is nil

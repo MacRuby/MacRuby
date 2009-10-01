@@ -1,0 +1,6 @@
+fails:REXML::Element#add_attribute adds a new attribute
+fails:REXML::Element#add_attribute overwrites an existing attribute
+fails:REXML::Element#add_attribute accepts a pair of strings
+fails:REXML::Element#add_attribute accepts an Attribute for key
+fails:REXML::Element#add_attribute ignores value if key is an Attribute
+fails:REXML::Element#add_attribute returns the attribute added

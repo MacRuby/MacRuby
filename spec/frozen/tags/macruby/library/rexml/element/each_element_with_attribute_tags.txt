@@ -1,0 +1,4 @@
+fails:REXML::Element#each_element_with_attributes returns childs with attribute
+fails:REXML::Element#each_element_with_attributes takes attribute value as second argument
+fails:REXML::Element#each_element_with_attributes takes max number of childs as third argument
+fails:REXML::Element#each_element_with_attributes takes XPath filter as fourth argument

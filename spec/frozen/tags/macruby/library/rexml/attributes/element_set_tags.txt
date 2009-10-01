@@ -1,0 +1,3 @@
+fails:REXML::Attributes#[]= sets an attribute
+fails:REXML::Attributes#[]= overwrites an existing attribute
+fails:REXML::Attributes#[]= deletes an attribute is value is nil

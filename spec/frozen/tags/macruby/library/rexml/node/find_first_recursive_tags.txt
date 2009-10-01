@@ -1,0 +1,2 @@
+fails:REXML::Node#find_first_recursive finds the first element that matches block
+fails:REXML::Node#find_first_recursive visits the nodes in preorder

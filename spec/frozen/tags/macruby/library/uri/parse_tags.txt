@@ -1,0 +1,7 @@
+fails:URI.parse populates the components of a parsed URI::HTTP, setting the port to 80 by default
+fails:URI.parse parses out the port number of a URI, when given
+fails:URI.parse sets the port of a parsed https URI to 443 by default
+fails:URI.parse populates the components of a parsed URI::LDAP object
+fails:URI.parse returns a URI::MailTo object when passed a mailto URI
+fails:URI.parse populates the components of a parsed URI::MailTo object
+fails:URI.parse does its best to extract components from URI::Generic objects

@@ -1,0 +1,2 @@
+fails:URI#normalize adds a / onto the end of the URI if the path is blank
+fails:URI#normalize downcases the host of the URI

@@ -1,0 +1,2 @@
+fails:REXML::Document#add_element sets arg2 as arg1's attributes
+fails:REXML::Document#add_element accepts a node name as arg1 and adds it as root

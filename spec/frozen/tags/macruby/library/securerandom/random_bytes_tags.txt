@@ -1,0 +1,4 @@
+fails:SecureRandom.random_bytes generates a random binary string of length 16 if no argument is provided
+fails:SecureRandom.random_bytes generates a random binary string of length 16 if argument is nil
+fails:SecureRandom.random_bytes generates a random binary string of specified length
+fails:SecureRandom.random_bytes tries to convert the passed argument to an Integer using #to_int

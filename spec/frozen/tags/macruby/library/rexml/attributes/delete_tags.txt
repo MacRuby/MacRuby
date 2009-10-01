@@ -1,0 +1,3 @@
+fails:REXML::Attributes#delete takes an attribute name and deletes the attribute
+fails:REXML::Attributes#delete takes an Attribute and deletes it
+fails:REXML::Attributes#delete returns the element with the attribute removed

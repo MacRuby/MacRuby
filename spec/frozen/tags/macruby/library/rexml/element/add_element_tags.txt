@@ -1,0 +1,4 @@
+fails:REXML::Element#add_element adds a child without attributes
+fails:REXML::Element#add_element adds a child with attributes
+fails:REXML::Element#add_element adds a child with name
+fails:REXML::Element#add_element returns the added child

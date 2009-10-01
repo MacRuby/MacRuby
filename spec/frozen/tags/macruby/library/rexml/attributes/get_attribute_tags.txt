@@ -1,0 +1,4 @@
+fails:REXML::Attributes#get_attribute fetches an attributes
+fails:REXML::Attributes#get_attribute fetches an namespaced attribute
+fails:REXML::Attributes#get_attribute returns an Attribute
+fails:REXML::Attributes#get_attribute returns nil if it attribute does not exist

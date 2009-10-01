@@ -1,0 +1,2 @@
+fails:OpenStruct#to_s returns a String representation of self
+fails:OpenStruct#to_s correctly handles OpenStruct subclasses

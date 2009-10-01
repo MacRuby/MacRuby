@@ -1,0 +1,4 @@
+fails:SecureRandom.hex generates a random hex string of length twice the specified argement
+fails:SecureRandom.hex generates a random hex string of length 32 if no argument is provided
+fails:SecureRandom.hex treats nil agrument as default one and generates a random hex string of length 32
+fails:SecureRandom.hex tries to convert the passed argument to an Integer using #to_int

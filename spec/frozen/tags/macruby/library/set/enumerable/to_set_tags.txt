@@ -1,0 +1,2 @@
+critical:Enumerable#to_set returns a new Set created from self
+critical:Enumerable#to_set allows passing an alternate class for Set

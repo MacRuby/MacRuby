@@ -1,0 +1,1 @@
+fails:the URI method does not add a URI method to Object instances

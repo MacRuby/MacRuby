@@ -1,0 +1,1 @@
+fails:REXML::Attribute#hash returns a hashcode made of the name and value of self

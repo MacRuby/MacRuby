@@ -1,0 +1,3 @@
+critical:Set#flatten returns a copy of self with each included Set flattened
+critical:Set#flatten! flattens self
+critical:Set#flatten! returns self when self was modified

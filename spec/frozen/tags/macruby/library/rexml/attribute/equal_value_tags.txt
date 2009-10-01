@@ -1,0 +1,1 @@
+fails:REXML::Attribute#== returns true if other has equal name and value

@@ -1,0 +1,2 @@
+fails:REXML::Attributes#[] returns the value of an attribute
+fails:REXML::Attributes#[] returns nil if the attribute does not exist

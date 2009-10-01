@@ -1,0 +1,5 @@
+<<<<<<< HEAD
+fails:Matrix#rank doesn't loop forever
+=======
+critical:Matrix#rank doesn't loop forever
+>>>>>>> fixed .gitignore and added all the tags that were missing yesterday.

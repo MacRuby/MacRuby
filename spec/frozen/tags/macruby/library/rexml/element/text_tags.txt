@@ -1,0 +1,3 @@
+fails:REXML::Element#text= sets the text node
+fails:REXML::Element#text= replaces existing text
+fails:REXML::Element#text= receives nil as an argument

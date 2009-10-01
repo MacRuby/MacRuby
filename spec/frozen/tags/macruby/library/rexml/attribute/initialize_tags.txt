@@ -1,0 +1,3 @@
+fails:REXML::Attribute#initialize receives two strings for name and value
+fails:REXML::Attribute#initialize receives an Attribute and clones it
+fails:REXML::Attribute#initialize recives a parent node
