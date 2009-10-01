@@ -6,11 +6,12 @@ For 0.5 RC1:
 [/] rubygems should work (modulo C extensions)
   [X] fix version numbers
   [X] fix YAML deserialization of booleans
-  [ ] fix ~/.gemrc
+  [X] fix ~/.gemrc
   [X] `source --add http://gems.github.com' crashes (outside gdb)
   [X] `install rest-client' prints parsing errors (encoding problem in thor.gemspec)
   [X] `gem uninstall bacon' doesn't work (Unknown gem bacon >= 0)
   [X] `macgem install rails --version 2.3.2' crashes (MAX_DISPATCH_ARGS assertion)
+  [ ] `macgem help commands' crashes
 [X] rewrite load.c (needed for RubyGems' #require hack)
 
 For 0.5 (must do):
