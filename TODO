@@ -23,7 +23,8 @@ For 0.5 (must do):
 [ ] remaining Cocoa bugs
   [ ] ObjC exceptions should be catchable in Ruby
   [ ] honor BridgeSupport sel_of_type attribute
-  [ ] add support for variadic functions / methods
+  [ ] honor BridgeSupport printf_format attribute
+  [X] add support for variadic functions / methods
 [ ] support for bigdecimal
 [ ] support for json
 [/] support for yaml
