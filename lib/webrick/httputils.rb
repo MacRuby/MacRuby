@@ -344,7 +344,8 @@ module WEBrick
     space    = " "
     delims   = '<>#%"'
     unwise   = '{}|\\^[]`'
-    nonascii = (0x80..0xff).collect{|c| c.chr }.join
+    #nonascii = (0x80..0xff).collect{|c| c.chr }.join
+    nonascii = 'z' # FIXME MacRuby problem with non-ascii regexps
 
     module_function
 
