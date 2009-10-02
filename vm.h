@@ -277,6 +277,9 @@ rb_vm_method_node_t *rb_vm_define_method(Class klass, SEL sel, IMP imp,
 rb_vm_method_node_t *rb_vm_define_method2(Class klass, SEL sel,
 	rb_vm_method_node_t *node, bool direct);
 void rb_vm_define_method3(Class klass, SEL sel, rb_vm_block_t *node);
+bool rb_vm_resolve_method(Class klass, SEL sel);
+void *rb_vm_undefined_imp(void *rcv, SEL sel);
+#define UNDEFINED_IMP(imp) (imp == NULL || imp == (IMP)rb_vm_undefined_imp)
 void rb_vm_define_attr(Class klass, const char *name, bool read, bool write);
 void rb_vm_undef_method(Class klass, ID name, bool must_exist);
 void rb_vm_alias(VALUE klass, ID name, ID def);
@@ -769,7 +772,7 @@ class RoxorVM {
 	// The pthread specific key to retrieve the current VM thread.
 	static pthread_key_t vm_thread_key;
 
-	static RoxorVM *current(void) {
+	static force_inline RoxorVM *current(void) {
 	    if (GET_CORE()->get_multithreaded()) {
 		void *vm = pthread_getspecific(vm_thread_key);
 		if (vm == NULL) {

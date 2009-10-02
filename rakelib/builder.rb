@@ -108,7 +108,13 @@ OBJS = %w{
   onig/enc/utf16_be onig/enc/utf16_le onig/enc/utf32_be onig/enc/utf32_le
   ruby set signal sprintf st string struct time transcode util variable version
   thread id objc bs encoding main dln dmyext marshal gcd
-  vm_eval prelude miniprelude gc-stub bridgesupport compiler vm MacRuby
+  vm_eval prelude miniprelude gc-stub bridgesupport compiler dispatcher vm
+  MacRuby
+}
+
+OBJS_CFLAGS = {
+  # Make sure everything gets inlined properly.
+  'dispatcher' => '-Winline --param inline-unit-growth=10000 --param large-function-growth=10000'
 }
 
 class Builder
@@ -122,6 +128,7 @@ class Builder
     @objc_cflags = OBJC_CFLAGS
     @ldflags = LDFLAGS
     @dldflags = DLDFLAGS
+    @objs_cflags = OBJS_CFLAGS
     @obj_sources = {}
     @header_paths = {}
   end
@@ -138,6 +145,9 @@ class Builder
             when '.m' then [CC, @objc_cflags]
             when '.mm' then [CXX, @cxxflags + ' ' + @objc_cflags]
           end
+        if f = @objs_cflags[obj]
+          flags += " #{f}"
+        end
         sh("#{cc} #{flags} -c #{s} -o #{obj}.o")
       end
     end
