@@ -11,7 +11,7 @@ For 0.5 RC1:
   [X] `install rest-client' prints parsing errors (encoding problem in thor.gemspec)
   [X] `gem uninstall bacon' doesn't work (Unknown gem bacon >= 0)
   [X] `macgem install rails --version 2.3.2' crashes (MAX_DISPATCH_ARGS assertion)
-  [ ] `macgem help commands' crashes
+  [X] `macgem help commands' crashes
 [X] rewrite load.c (needed for RubyGems' #require hack)
 
 For 0.5 (must do):
