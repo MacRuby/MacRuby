@@ -44,6 +44,7 @@ For 0.5 (must do):
 [X] MacRuby should not ignore SIGINT and other signals
 [ ] implement autoload
 [ ] rdoc should work
+[ ] Xcode target for AOT compilation
 
 For 0.5 (tentative):
 
