@@ -3430,8 +3430,22 @@ rb_io_ctl(VALUE io, VALUE arg, VALUE req, int is_io)
 {
     rb_secure(2);
 	
+    unsigned long cmd;
+    if (arg == Qnil || arg == Qfalse) {
+	cmd = 0;
+    }
+    else if (FIXNUM_P(arg)) {
+	cmd = FIX2LONG(arg);
+    }
+    else if (arg == Qtrue) {
+	cmd = 1;
+    }
+    else {
+	// TODO arg may be a string
+	cmd = NUM2LONG(arg);
+    }
+
     unsigned long request;
-    unsigned long cmd = NUM2ULONG(arg);
     rb_io_t *io_s = ExtractIOStruct(io);
     if (TYPE(req) == T_STRING) {
 	request = (unsigned long)(intptr_t)RSTRING_PTR(req);
@@ -3457,8 +3471,11 @@ rb_io_ctl(VALUE io, VALUE arg, VALUE req, int is_io)
  */
 
 static VALUE
-rb_io_ioctl(VALUE recv, SEL sel, VALUE integer_cmd, VALUE arg)
+rb_io_ioctl(VALUE recv, SEL sel, int argc, VALUE *argv)
 {
+    VALUE integer_cmd, arg;
+    rb_scan_args(argc, argv, "11", &integer_cmd, &arg);
+
     rb_io_assert_open(ExtractIOStruct(recv));
     return rb_io_ctl(recv, integer_cmd, arg, 1);
 }
@@ -3477,8 +3494,11 @@ rb_io_ioctl(VALUE recv, SEL sel, VALUE integer_cmd, VALUE arg)
  */
 
 static VALUE
-rb_io_fcntl(VALUE recv, SEL sel, VALUE integer_cmd, VALUE arg)
+rb_io_fcntl(VALUE recv, SEL sel, int argc, VALUE *argv)
 {
+    VALUE integer_cmd, arg;
+    rb_scan_args(argc, argv, "11", &integer_cmd, &arg);
+
     rb_io_assert_open(ExtractIOStruct(recv));
     return rb_io_ctl(recv, integer_cmd, arg, 0);
 }
