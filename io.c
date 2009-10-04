@@ -2246,7 +2246,6 @@ rb_io_s_open(VALUE klass, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_file_open(VALUE io, int argc, VALUE *argv)
 {
-    // TODO: Take into account the provided file permissions.
     VALUE path, modes, permissions;
     rb_scan_args(argc, argv, "12", &path, &modes, &permissions);
     if (NIL_P(modes)) {
@@ -2255,9 +2254,10 @@ rb_file_open(VALUE io, int argc, VALUE *argv)
     StringValue(path);
     const char *filepath = RSTRING_PTR(path);
     const int flags = convert_mode_string_to_oflags(modes);
+    const mode_t perm = NIL_P(permissions) ? 0666 : NUM2UINT(permissions);
     int fd, retry = 0;
     while (true) {
-       fd = open(filepath, flags, 0644);
+       fd = open(filepath, flags, perm);
        if (fd == -1) {
 	   if (retry < 5 && errno == EMFILE) {
 		// Too many open files. Let's schedule a GC collection.
