@@ -24,7 +24,16 @@ module MethodSpecs
     def foo
       true
     end
+
     alias bar foo
+
+    def same_as_foo
+      true
+    end
+
+    def respond_to_missing? method
+      [:handled_via_method_missing, :also_handled].include? method
+    end
 
     attr_accessor :attr
 

@@ -9,9 +9,10 @@ describe "Proc.new with an associated block" do
 
   # This raises a ThreadError on 1.8 HEAD. Reported as bug #1707
   it "raises a LocalJumpError when context of the block no longer exists" do
-    def some_method(&b) b end
-    a_proc = Proc.new { return } 
-    res = some_method(&a_proc)
+    def some_method
+      Proc.new { return }
+    end
+    res = some_method()
     
     # Using raise_error here causes 1.9 to hang, so we roll our own
     # begin/rescue block to verify that the exception is raised.

@@ -37,7 +37,7 @@ describe "Regexps with encoding modifiers" do
       match.to_a.should == ["\303\251".force_encoding(Encoding::EUC_JP)]
     end
     
-    it 'supports /n (Normal encoding)' do
+    it 'supports /n (No encoding)' do
       /./n.match("\303\251").to_a.should == ["\303"]
     end
     
@@ -50,6 +50,7 @@ describe "Regexps with encoding modifiers" do
       /./u.match("\303\251".force_encoding('utf-8')).to_a.should == ["\u{e9}"]
     end
     
+    # Fails on 1.9; reported as bug #2052
     it 'selects last of multiple encoding specifiers' do
       /foo/ensuensuens.should == /foo/s
     end

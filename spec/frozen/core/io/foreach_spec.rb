@@ -92,6 +92,12 @@ describe "IO::foreach" do
     }.should raise_error(TypeError)
   end
 
+  it "raises Errno::ENOENT on invalid_file_name" do
+    lambda { 
+      IO::foreach("_1_2_3_4_nonexistent_hmm") {}
+    }.should raise_error(Errno::ENOENT)
+  end
+
   it "converts first parameter to string and uses as file name" do
     (obj = mock('readlines.txt')).should_receive(:to_str).and_return(@file)
     lines = []

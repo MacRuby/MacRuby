@@ -212,6 +212,7 @@ module KernelSpecs
     include ParentMixin
     def parent_method; end
     def another_parent_method; end
+    def self.parent_class_method; :foo; end
   end
 
   class Child < Parent

@@ -181,12 +181,12 @@ describe "The defined? keyword" do
       # I (Evan) am not certain we'll support defined?(super) ever.
       # for now, i'm marking these as compliant.
       it "returns 'super' when Subclass#no_args uses defined?" do
-        ret = (LanguageDefinedSpecs::LanguageDefinedSubclass.new.no_args)
+        ret = (LanguageDefinedSubclass.new.no_args)
         ret.should == "super"
       end
   
       it "returns 'super' when Subclass#args uses defined?" do
-        ret = (LanguageDefinedSpecs::LanguageDefinedSubclass.new.args)
+        ret = (LanguageDefinedSubclass.new.args)
         ret.should == "super"
       end
 

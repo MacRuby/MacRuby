@@ -8,7 +8,8 @@ ruby_version_is "1.9" do
         Encoding.default_internal = Encoding::EUC_JP
         str = "問か".force_encoding('utf-8')
         str.encoding.should_not == Encoding.default_internal
-        str.encode.encoding.should == Encoding.default_internal
+        str.encode!
+        str.encoding.should == Encoding.default_internal
       ensure
         Encoding.default_internal = old_default_internal
       end
@@ -131,6 +132,30 @@ ruby_version_is "1.9" do
         "foo".freeze.encode!("foo".encoding) 
       end.should raise_error(RuntimeError)
     end
+    
+    it "replaces invalid characters" do
+      str = "\222\xA1x"
+      str.encode!("iso-2022-jp", "stateless-iso-2022-jp", :invalid => :replace)
+      str.should == "?x".force_encoding("iso-2022-jp")
+    end
+
+    it "replaces undefined characters" do
+      str = "abc\u{fffd}def"
+      str.encode!("EUC-JP", "UTF-8", {:undef => :replace, :replace => ""})
+      str.should == "abcdef"
+    end
+
+    it "replaces xml characters" do
+      str = '<xml>bed & breakfast</xml>'
+      str.encode!('UTF-8', {:xml => :text})
+      str.should == "&lt;xml&gt;bed &amp; breakfast&lt;/xml&gt;"
+    end
+
+    it "replaces xml characters and quotes the result" do
+      str = '<xml>bed & breakfast</xml>'
+      str.encode!('UTF-8', {:xml => :attr})
+      str.should == "\"&lt;xml&gt;bed &amp; breakfast&lt;/xml&gt;\""
+    end
   end
 
   describe "String#encode" do
@@ -141,8 +166,7 @@ ruby_version_is "1.9" do
         Encoding.default_internal = Encoding::EUC_JP
         str = "問か".force_encoding('utf-8')
         str.encoding.should_not == Encoding.default_internal
-        str.encode!
-        str.encoding.should == Encoding.default_internal
+        str.encode.encoding.should == Encoding.default_internal
       ensure
         Encoding.default_internal = old_default_internal
       end
@@ -256,6 +280,21 @@ ruby_version_is "1.9" do
         "\u{9878}".encode('xyz')
       end.should raise_error(Encoding::ConverterNotFoundError)
     end
+    
+    it "replaces invalid characters" do
+      "\222\xA1x".encode("iso-2022-jp", "stateless-iso-2022-jp", :invalid => :replace).should == "?x".force_encoding("iso-2022-jp")
+    end
+    
+    it "replaces undefined characters" do
+      "abc\u{fffd}def".encode("EUC-JP", "UTF-8", {:undef => :replace, :replace => ""}).should == "abcdef"
+    end
 
+    it "replaces xml characters" do
+      '<xml>bed & breakfast</xml>'.encode('UTF-8', {:xml => :text}).should == "&lt;xml&gt;bed &amp; breakfast&lt;/xml&gt;"
+    end
+    
+    it "replaces xml characters and quotes the result" do
+      '<xml>bed & breakfast</xml>'.encode('UTF-8', {:xml => :attr}).should == "\"&lt;xml&gt;bed &amp; breakfast&lt;/xml&gt;\""
+    end
   end
 end

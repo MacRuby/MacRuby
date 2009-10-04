@@ -5,11 +5,11 @@ describe "Dir.chdir" do
   before(:each) do
     @original = Dir.pwd
   end
-  
+
   after(:each) do
     Dir.chdir(@original)
   end
-  
+
   it "defaults to $HOME with no arguments" do
     if ENV['HOME']
     Dir.chdir(ENV['HOME'])
@@ -19,16 +19,16 @@ describe "Dir.chdir" do
     DirSpecs.pwd.should == home
     end
   end
-  
+
   it "changes to the specified directory" do
     Dir.chdir DirSpecs.mock_dir
     DirSpecs.pwd.should == DirSpecs.mock_dir
   end
-  
+
   it "returns 0 when successfully changing directory" do
     Dir.chdir(@original).should == 0
   end
-  
+
   it "calls #to_str on the argument if it's not a String" do
     obj = mock('path')
     obj.should_receive(:to_str).and_return(Dir.pwd)
@@ -55,9 +55,15 @@ describe "Dir.chdir" do
   it "returns the value of the block when a block is given" do
     Dir.chdir(@original) { :block_value }.should == :block_value
   end
-  
+
   it "defaults to the home directory when given a block but no argument" do
-    Dir.chdir { Dir.pwd.should == ENV['HOME'] }
+    # Windows will return a path with forward slashes for ENV["HOME"] so we have
+    # to compare the route representations returned by Dir.chdir.
+    current_dir = ""
+    Dir.chdir { current_dir = Dir.pwd }
+
+    Dir.chdir(ENV['HOME'])
+    current_dir.should == Dir.pwd
   end
 
   it "changes to the specified directory for the duration of the block" do
@@ -66,7 +72,7 @@ describe "Dir.chdir" do
 
     DirSpecs.pwd.should == @original
   end
-  
+
   it "raises a SystemCallError if the directory does not exist" do
     lambda { Dir.chdir DirSpecs.nonexistent }.should raise_error(SystemCallError)
     lambda { Dir.chdir(DirSpecs.nonexistent) { } }.should raise_error(SystemCallError)

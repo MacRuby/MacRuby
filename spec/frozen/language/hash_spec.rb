@@ -28,4 +28,14 @@ describe "Hash literal" do
     h.values.should == [nil]
     h[:key].should == nil
   end
+
+  it "freezes string keys on initialization" do
+    key = "foo"
+    h = {key => "bar"}
+    key.reverse!
+    h["foo"].should == "bar"
+    h.keys.first.should == "foo"
+    h.keys.first.frozen?.should == true
+    key.should == "oof"
+  end
 end

@@ -1,41 +1,18 @@
 require File.dirname(__FILE__) + '/../../spec_helper'
 require File.dirname(__FILE__) + '/../../shared/file/size'
 
-describe "File.size" do
-  before :each do
-    @file = tmp('i_exist')
-    File.open(@file,'w'){|f| f.write 'rubinius'}
-  end
-
-  after :each do
-    File.delete(@file) if File.exist?(@file)
-  end
-
-  it "returns the size of the file" do
-    File.size(@file).should == 8
-  end
-
-  it "accepts a String-like (to_str) parameter" do
-    o = [@file]
-    def o.to_str; self[0]; end
-
-    File.size(o).should == 8
-  end
-
-  it "accepts a File argument" do
-    File.size(File.open(@file)).should == 8
-  end
-
-  ruby_version_is "1.9" do
-    it "accepts an object that has a #to_path method" do
-      File.size(mock_to_path(@file)).should == 8
-    end
-  end
+describe "File.size?" do
+  it_behaves_like :file_size,                     :size?, File
+  it_behaves_like :file_size_nil_when_missing,    :size?, File
+  it_behaves_like :file_size_nil_when_empty,      :size?, File
+  it_behaves_like :file_size_with_file_argument,  :size?, File
 end
 
-describe "File.size?" do
-  it_behaves_like :file_size, :size?, File
-  it_behaves_like :file_size_missing, :size?, File
+describe "File.size" do
+  it_behaves_like :file_size,                     :size,  File
+  it_behaves_like :file_size_raise_when_missing,  :size,  File
+  it_behaves_like :file_size_0_when_empty,        :size,  File
+  it_behaves_like :file_size_with_file_argument,  :size,  File
 end
 
 ruby_version_is "1.9" do

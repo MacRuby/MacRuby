@@ -111,7 +111,7 @@ describe "Kernel#load" do
     $LOADED_FEATURES.grep(/load_spec_3.rb/).should == []
   end
 
-  ruby_version_is ""..."1.8.7" do
+  ruby_version_is ""..."1.9" do
     it "returns __FILE__ as a relative path" do
       Dir.chdir($load_fixture_dir) do |dir|
         load('load_spec_4.rb') 
@@ -120,7 +120,7 @@ describe "Kernel#load" do
     end
   end
 
-  ruby_version_is "1.8.7" do
+  ruby_version_is "1.9" do
     it "returns __FILE__ as an absolute path" do
       Dir.chdir($load_fixture_dir) do |dir|
         load('load_spec_4.rb') 

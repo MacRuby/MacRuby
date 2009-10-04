@@ -60,6 +60,10 @@ describe :io_new, :shared => true do
     lambda { IO.send(@method, Object.new, 'r') }.should raise_error(TypeError)
   end
 
+  it "raises ArgumentError if not given any arguments" do
+    lambda { IO.send(@method, IO.new) }.should raise_error(ArgumentError)
+  end
+
   it "raises EBADF if the file descriptor given is not a valid and open one" do
     lambda { IO.send(@method, -2, 'r') }.should raise_error(Errno::EBADF)
 

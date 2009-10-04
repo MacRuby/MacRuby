@@ -46,9 +46,11 @@ describe "Thread#join" do
   end
 
   ruby_version_is "" ... "1.9" do
-    it "returns the dead thread even if an uncaught exception is thrown from ensure block" do
-      t = ThreadSpecs.dying_thread_ensures { raise "In dying thread" }
-      t.join.should equal(t)
+    not_compliant_on :rubinius do
+      it "returns the dead thread even if an uncaught exception is thrown from ensure block" do
+        t = ThreadSpecs.dying_thread_ensures { raise "In dying thread" }
+        t.join.should equal(t)
+      end
     end
   end
 

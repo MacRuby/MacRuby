@@ -1,5 +1,9 @@
 # coding: utf-8
 
+# The examples below are based on the definitions in
+# http://unicode.org/reports/tr18/ , which was deemed authoritative in
+# http://redmine.ruby-lang.org/issues/show/1889 .
+
 it "matches ASCII characters with [[:ascii:]]" do
   "\x00".match(/[[:ascii:]]/).to_a.should == ["\x00"]
   "\x7F".match(/[[:ascii:]]/).to_a.should == ["\x7F"]
@@ -99,17 +103,13 @@ it "matches Unicode control characters with [[:cntrl:]]" do
   "\u{16}".match(/[[:cntrl:]]/).to_a.should == ["\u{16}"]
 end
 
-it "matches Unicode format characters with [[:cntrl:]]" do
-  "\u{2060}".match(/[[:cntrl:]]/).to_a.should == ["\u{2060}"]
+it "doesn't match Unicode format characters with [[:cntrl:]]" do
+  "\u{2060}".match(/[[:cntrl:]]/).should be_nil
 end
 
-it "matches Unicode private-use characters with [[:cntrl:]]" do
-  "\u{E001}".match(/[[:cntrl:]]/).to_a.should == ["\u{E001}"]
+it "doesn't match Unicode private-use characters with [[:cntrl:]]" do
+  "\u{E001}".match(/[[:cntrl:]]/).should be_nil
 end
-
-# Oniguruma claims the below behaviour, but also regards the surrogate
-# characters as "invalid"
-it "matches Unicode surrogate characters with [[:cntrl:]]"
 
 it "doesn't match Unicode letter characters with [[:digit:]]" do
   "à".match(/[[:digit:]]/).should be_nil
@@ -161,14 +161,13 @@ it "doesn't match Unicode control characters with [[:graph:]]" do
   "\u{16}".match(/[[:graph:]]/).should be_nil
 end
 
-it "matches Unicode format characters with [[:graph:]]" do
-  "\u{2060}".match(/[[:graph:]]/).to_a.should == ["\u{2060}"]
+it "doesn't match Unicode format characters with [[:graph:]]" do
+  "\u{2060}".match(/[[:graph:]]/).should be_nil
 end
 
-it "matches Unicode private-use characters with [[:graph:]]" do
-  "\u{E001}".match(/[[:graph:]]/).to_a.should == ["\u{E001}"]
+it "doesn't match Unicode private-use characters with [[:graph:]]" do
+  "\u{E001}".match(/[[:graph:]]/).should be_nil
 end
-
 
 it "matches Unicode lowercase letter characters with [[:lower:]]" do
   "\u{FF41}".match(/[[:lower:]]/).to_a.should == ["\u{FF41}"]
@@ -248,12 +247,12 @@ it "doesn't match Unicode control characters with [[:print:]]" do
   "\u{16}".match(/[[:print:]]/).should be_nil
 end
 
-it "matches Unicode format characters with [[:print:]]" do
-  "\u{2060}".match(/[[:print:]]/).to_a.should == ["\u{2060}"]
+it "doesn't match Unicode format characters with [[:print:]]" do
+  "\u{2060}".match(/[[:print:]]/).should be_nil
 end
 
-it "matches Unicode private-use characters with [[:print:]]" do
-  "\u{E001}".match(/[[:print:]]/).to_a.should == ["\u{E001}"]
+it "doesn't match Unicode private-use characters with [[:print:]]" do
+  "\u{E001}".match(/[[:print:]]/).should be_nil
 end
 
 
@@ -473,18 +472,17 @@ it "matches Unicode decimal digits with [[:word:]]" do
   "\u{096C}".match(/[[:word:]]/).to_a.should == ["\u{096C}"]
 end
 
-it "matches Unicode Nl characters with [[:word:]]" do
-  "\u{16EE}".match(/[[:word:]]/).to_a.should == ["\u{16EE}"]
-end
-
-it "matches Unicode No characters with [[:word:]]" do
-  "\u{17F0}".match(/[[:word:]]/).to_a.should == ["\u{17F0}"]
-end
-
 it "matches Unicode marks with [[:word:]]" do
   "\u{36F}".match(/[[:word:]]/).to_a.should == ["\u{36F}"]
 end
 
+it "doesn't match Unicode Nl characters with [[:word:]]" do
+  "\u{16EE}".match(/[[:word:]]/).should be_nil
+end
+
+it "doesn't match Unicode No characters with [[:word:]]" do
+  "\u{17F0}".match(/[[:word:]]/).should be_nil
+end
 it "doesn't match Unicode punctuation characters with [[:word:]]" do
   "\u{3F}".match(/[[:word:]]/).should be_nil
 end
