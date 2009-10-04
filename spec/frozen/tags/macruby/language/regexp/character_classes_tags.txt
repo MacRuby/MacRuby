@@ -26,3 +26,8 @@ fails:Regexp with character classes matches Unicode lowercase characters with [[
 fails:Regexp with character classes matches Unicode uppercase characters with [[:word:]]
 fails:Regexp with character classes matches Unicode title-case characters with [[:word:]]
 fails:Regexp with character classes matches Unicode decimal digits with [[:word:]]
+fails:Regexp with character classes doesn't match Unicode private-use characters with [[:cntrl:]]
+fails:Regexp with character classes doesn't match Unicode format characters with [[:graph:]]
+fails:Regexp with character classes doesn't match Unicode format characters with [[:print:]]
+fails:Regexp with character classes doesn't match Unicode Nl characters with [[:word:]]
+fails:Regexp with character classes doesn't match Unicode No characters with [[:word:]]

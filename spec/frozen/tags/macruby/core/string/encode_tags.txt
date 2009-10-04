@@ -18,3 +18,11 @@ fails:String#encode can convert between encodings where a multi-stage conversion
 fails:String#encode raises an Encoding::InvalidByteSequenceError for invalid byte sequences
 fails:String#encode raises UndefinedConversionError if the String contains characters invalid for the target     encoding
 fails:String#encode raises Encoding::ConverterNotFoundError for invalid target encodings
+fails:String#encode! replaces invalid characters
+fails:String#encode! replaces undefined characters
+fails:String#encode! replaces xml characters
+fails:String#encode! replaces xml characters and quotes the result
+fails:String#encode replaces invalid characters
+fails:String#encode replaces undefined characters
+fails:String#encode replaces xml characters
+fails:String#encode replaces xml characters and quotes the result

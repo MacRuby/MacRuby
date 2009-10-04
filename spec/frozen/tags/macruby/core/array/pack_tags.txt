@@ -11,3 +11,6 @@ critical:Array#pack with format 'M' does not check whether the pack argument res
 fails:Array#pack with format 'U' returns a UTF-8 string
 fails:Array#pack with format 'm' ignores star parameter
 fails:Array#pack just ignores unknown format
+fails:Array#pack with format 'n' does not raise a RangeError even when a pack argument is >= 2**64
+fails:Array#pack just ignores unknown format
+fails:Array#pack with format 'n' does not raise a RangeError even when a pack argument is >= 2**64

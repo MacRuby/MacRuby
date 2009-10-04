@@ -1,2 +1,5 @@
 critical:Method#eql? returns true if the two core methods are aliases
 critical:Method#eql? returns true if the two methods are alises of each other in C
+fails:Method#eql? returns true if a method was defined using the other one
+fails:Method#eql? returns true for methods defined using the same block/proc
+fails:Method#eql? returns true for the same method missing

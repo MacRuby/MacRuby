@@ -1,0 +1,1 @@
+fails:Matrix#det returns the determinant of a Matrices containing 0 as first entry
