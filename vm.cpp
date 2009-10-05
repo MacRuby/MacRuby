@@ -534,7 +534,8 @@ extern "C"
 void *
 rb_vm_get_method_cache(SEL sel)
 {
-    return GET_CORE()->method_cache_get(sel, false); 
+    const bool super = strncmp(sel_getName(sel), "__super__:", 10) == 0;
+    return GET_CORE()->method_cache_get(sel, super); 
 }
 
 rb_vm_method_node_t *
@@ -673,14 +674,15 @@ RoxorCore::add_method(Class klass, SEL sel, IMP imp, IMP ruby_imp,
     }
 
 #if ROXOR_VM_DEBUG
-    printf("defining %c[%s %s] with imp %p/%p types %s flags %d\n",
+    printf("defining %c[%s %s] with imp %p/%p types %s flags %d arity %d\n",
 	    class_isMetaClass(klass) ? '+' : '-',
 	    class_getName(klass),
 	    sel_getName(sel),
 	    imp,
 	    ruby_imp,
 	    types,
-	    flags);
+	    flags,
+	    arity.real);
 #endif
 
     // Register the implementation into the runtime.
