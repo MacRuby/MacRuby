@@ -5580,7 +5580,14 @@ RoxorCompiler::compile_read_attr(ID name)
 
     bb = BasicBlock::Create(context, "EntryBlock", f);
 
+    // This disables ivar slot generation.
+    // TODO: make it work
+    const bool old_current_instance_method = current_instance_method;
+    current_instance_method = false;
+
     Value *val = compile_ivar_read(name);
+
+    current_instance_method = old_current_instance_method;
 
     ReturnInst::Create(context, val, bb);
 
@@ -5600,7 +5607,14 @@ RoxorCompiler::compile_write_attr(ID name)
 
     bb = BasicBlock::Create(context, "EntryBlock", f);
 
+    // This disables ivar slot generation.
+    // TODO: make it work
+    const bool old_current_instance_method = current_instance_method;
+    current_instance_method = false;
+
     Value *val = compile_ivar_assignment(name, new_val);
+
+    current_instance_method = old_current_instance_method;
 
     ReturnInst::Create(context, val, bb);
 
