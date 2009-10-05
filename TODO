@@ -44,7 +44,6 @@ For 0.5 (must do):
 [ ] rdoc should work
 [X] MacRuby should not ignore SIGINT and other signals
 [ ] implement autoload
-[ ] rdoc should work
 [ ] Xcode target for AOT compilation
 [/] finish AOT compiler (only normal mode)
 [X] sync with LLVM 2.6/ToT
