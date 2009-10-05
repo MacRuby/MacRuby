@@ -46,6 +46,11 @@ For 0.5 (must do):
 [ ] implement autoload
 [ ] rdoc should work
 [ ] Xcode target for AOT compilation
+[/] finish AOT compiler (only normal mode)
+[X] sync with LLVM 2.6/ToT
+[ ] leaks
+  [ ] implement ~RoxorVM
+  [ ] fix exception leak
 
 For 0.5 (tentative):
 
@@ -54,8 +59,6 @@ For 0.5 (tentative):
 [ ] block inlining
 [ ] fast regexp =~
 [ ] rakefile-ize instruby.rb
-[/] finish AOT compiler (only normal mode)
-[X] sync with LLVM 2.6/ToT
 [ ] multithreaded JIT
 [ ] debugger interface
 [ ] fully implement FFI API
