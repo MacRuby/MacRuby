@@ -1,7 +1,7 @@
 # Description:  This is the implementation file for the Controller class, which implements the #changeTransparency
 #               action, called when the slider on the window is moved.
 
-class Controller < NSObject
+class Controller
   # Kinda the same as IBOutlet NSWindow *itsWindow; on Objective-C
   attr_writer :itsWindow
 
