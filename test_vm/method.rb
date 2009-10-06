@@ -64,3 +64,16 @@ assert '42', %{
   def f(args) p args[:in] end
   f(in: 42)
 }
+
+assert ':ok', %{
+  class HasNoInit; end
+  class C < HasNoInit; end
+  class D < C
+    def init
+      super
+      self
+    end
+  end
+  D.new
+  p :ok
+}
