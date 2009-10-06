@@ -398,6 +398,16 @@ describe "A pure Objective-C method" do
 
     lambda { @o.methodAcceptingNSRectPtr2(Pointer.new(NSPoint.type)) }.should raise_error(TypeError)
   end
+
+  it "accepting a 'SEL' tagged with the 'sel_of_type' attribute will re-type the target method at runtime" do
+    o = Object.new
+    def o.foo(i, arg1: b, arg2: f)
+      i.should == 42
+      b.should == true
+      f.should == 42.0
+    end
+    @o.methodAcceptingSEL('foo:arg1:arg2:', target:o)
+  end
 end
 
 describe "A pure MacRuby method" do

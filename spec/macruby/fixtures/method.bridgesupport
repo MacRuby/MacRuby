@@ -20,6 +20,9 @@
     <method selector='methodAcceptingFalseBOOL:'>
       <arg index='0' type='B'/>
     </method>
+    <method selector='methodAcceptingSEL:target:'>
+      <arg index='0' sel_of_type='v@:iBf'/>
+    </method>
   </class>
   <informal_protocol name='Foo'>
     <method type="i@:i" selector="informalProtocolMethod1:"/>

@@ -694,6 +694,14 @@
     return ptr == NULL;
 }
 
+extern id objc_msgSend(id self, SEL op, ...);
+
+- (void)methodAcceptingSEL:(SEL)sel target:(id)target
+{
+    void (*func)(id, SEL, int, BOOL, float) = (void (*)(id, SEL, int, BOOL, float))objc_msgSend;
+    (*func)(target, sel, 42, true, 42.0);
+}
+
 + (BOOL)testInformalProtocolMethod1:(id)o
 {
     return [o informalProtocolMethod1:41] == 42;
