@@ -1093,13 +1093,12 @@ RoxorCore::load_bridge_support(const char *path, const char *framework_path,
 	}
     }
 #endif
-#if 0
-    static bool R6401816_fixed = false;
-    /* XXX work around for <rdar://problem/6401816> -[NSObject performSelector:withObject:] has wrong sel_of_type attributes*/
-    if (!R6401816_fixed) {
-	bs_element_method_t *bs_method = 
-	    rb_bs_find_method((Class)rb_cNSObject, 
-			      @selector(performSelector:withObject:));
+    static bool R7281806fixed = false;
+    // XXX work around for
+    // <rdar://problem/7281806> -[NSObject performSelector:] has wrong sel_of_type attributes
+    if (!R7281806fixed) {
+	bs_element_method_t *bs_method = GET_CORE()->find_bs_method((Class)rb_cNSObject,
+		sel_registerName("performSelector:"));
 	if (bs_method != NULL) {
 	    bs_element_arg_t *arg = bs_method->args;
 	    while (arg != NULL) {
@@ -1107,14 +1106,13 @@ RoxorCore::load_bridge_support(const char *path, const char *framework_path,
 		    && arg->sel_of_type != NULL
 		    && arg->sel_of_type[0] != '@') {
 		    arg->sel_of_type[0] = '@';
-		    R6401816_fixed = true;
+		    R7281806fixed = true;
 		    break;
 		}
 		arg++;
 	    }
 	}	
     }
-#endif
 }
 
 extern "C"

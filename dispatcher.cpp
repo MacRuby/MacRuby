@@ -452,6 +452,25 @@ fill_ocache(struct mcache *cache, VALUE self, Class klass, IMP imp, SEL sel,
 	    argc, true);
 }
 
+static bool
+reinstall_method_maybe(Class klass, SEL sel, const char *types)
+{
+    Method m = class_getInstanceMethod(klass, sel);
+    if (m == NULL) {
+	return false;
+    }
+
+    rb_vm_method_node_t *node = GET_CORE()->method_node_get(m);
+    if (node == NULL) {
+	// We only do that for pure Ruby methods.
+	return false;
+    }
+
+    GET_CORE()->retype_method(klass, node, types);
+
+    return true;
+}
+
 static force_inline VALUE
 __rb_vm_dispatch(RoxorVM *vm, struct mcache *cache, VALUE self, Class klass,
 	SEL sel, rb_vm_block_t *block, unsigned char opt, int argc,
@@ -725,7 +744,46 @@ dispatch:
 		cached ? "true" : "false");
 #endif
 
-	return (*ocache.stub)(ocache.imp, RB2OC(self), sel, argc, argv);
+	id ocrcv = RB2OC(self);
+
+ 	if (ocache.bs_method != NULL) {
+	    for (int i = 0; i < (int)ocache.bs_method->args_count; i++) {
+		bs_element_arg_t *arg = &ocache.bs_method->args[i];
+		if (arg->sel_of_type != NULL) {
+		    // BridgeSupport tells us that this argument contains a
+		    // selector of the given type, but we don't have any
+		    // information regarding the target. RubyCocoa and the
+		    // other ObjC bridges do not really require it since they
+		    // use the NSObject message forwarding mechanism, but
+		    // MacRuby registers all methods in the runtime.
+		    //
+		    // Therefore, we apply here a naive heuristic by assuming
+		    // that either the receiver or one of the arguments of this
+		    // call is the future target.
+		    ID arg_selid = rb_to_id(argv[i]);
+		    SEL arg_sel = sel_registerName(rb_id2name(arg_selid));
+
+		    if (reinstall_method_maybe(*(Class *)ocrcv, arg_sel,
+			    arg->sel_of_type)) {
+			goto sel_target_found;
+		    }
+		    for (int j = 0; j < argc; j++) {
+			if (j != i && !SPECIAL_CONST_P(argv[j])) {
+			    if (reinstall_method_maybe(*(Class *)argv[j], arg_sel,
+					arg->sel_of_type)) {
+				goto sel_target_found;
+			    }
+			}
+		    }
+
+sel_target_found:
+		    // There can only be one sel_of_type argument.
+		    break; 
+		}
+	    }
+	}
+
+	return (*ocache.stub)(ocache.imp, ocrcv, sel, argc, argv);
     }
     else if (cache->flag == MCACHE_FCALL) {
 #if ROXOR_VM_DEBUG

@@ -689,6 +689,8 @@ class RoxorCore {
 	rb_vm_method_node_t *resolve_method(Class klass, SEL sel,
 		Function *func, const rb_vm_arity_t &arity, int flags,
 		IMP imp, Method m);
+	rb_vm_method_node_t *retype_method(Class klass,
+		rb_vm_method_node_t *node, const char *types);
 	void undef_method(Class klass, SEL sel);
 	bool resolve_methods(std::map<Class, rb_vm_method_source_t *> *map,
 		Class klass, SEL sel);

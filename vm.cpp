@@ -1430,6 +1430,24 @@ resolve_method_type(char *buf, const size_t buflen, Class klass, Method m,
 }
 
 rb_vm_method_node_t *
+RoxorCore::retype_method(Class klass, rb_vm_method_node_t *node,
+	const char *types)
+{
+    // TODO: 1) don't reinstall method in case the types didn't change
+    // 2) free LLVM machine code from old objc IMP
+
+    // Re-generate ObjC stub. 
+    Function *objc_func = RoxorCompiler::shared->compile_objc_stub(NULL,
+	    node->ruby_imp, node->arity, types);
+    node->objc_imp = compile(objc_func);
+    objc_to_ruby_stubs[node->ruby_imp] = node->objc_imp;
+
+    // Re-add the method.
+    return add_method(klass, node->sel, node->objc_imp, node->ruby_imp,
+	    node->arity, node->flags, types);
+}
+
+rb_vm_method_node_t *
 RoxorCore::resolve_method(Class klass, SEL sel, Function *func,
 	const rb_vm_arity_t &arity, int flags, IMP imp, Method m)
 {
