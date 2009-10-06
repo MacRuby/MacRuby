@@ -23,7 +23,7 @@ For 0.5 (must do):
 [ ] try/catch should use a C++ exception
 [ ] remaining Cocoa bugs
   [ ] ObjC exceptions should be catchable in Ruby
-  [ ] honor BridgeSupport sel_of_type attribute
+  [X] honor BridgeSupport sel_of_type attribute
   [ ] honor BridgeSupport printf_format attribute
   [X] add support for variadic functions / methods
 [ ] support for bigdecimal
