@@ -50,6 +50,12 @@ For 0.5 (must do):
 [ ] leaks
   [ ] implement ~RoxorVM
   [ ] fix exception leak
+[ ] thread issues
+  [ ] method cache is not thread safe
+  [ ] block dvars are corrupted in case the receiver leaves
+      ex: 10.times { |i| Thread.new { p i } }; sleep 1
+  [ ] lazy threads (GCD, etc.) are never finalized
+  [ ] random.c is not thread-safe and should be rewritten using random(3)
 
 For 0.5 (tentative):
 
