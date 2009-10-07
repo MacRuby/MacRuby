@@ -113,8 +113,8 @@ OBJS = %w{
 }
 
 OBJS_CFLAGS = {
-  # Make sure everything gets inlined properly.
-  'dispatcher' => '-Winline --param inline-unit-growth=10000 --param large-function-growth=10000'
+  # Make sure everything gets inlined properly + compile as Objective-C++.
+  'dispatcher' => '-Winline --param inline-unit-growth=10000 --param large-function-growth=10000 -x objective-c++'
 }
 
 class Builder

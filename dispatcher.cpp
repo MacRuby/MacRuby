@@ -391,6 +391,33 @@ __rb_vm_ruby_dispatch(VALUE self, SEL sel, rb_vm_method_node_t *node,
     return __rb_vm_rcall(self, sel, node->ruby_imp, arity, argc, argv);
 }
 
+static
+#if __LP64__
+// This method can't be inlined in 32-bit because @try compiles as a call
+// to setjmp().
+force_inline
+#endif
+VALUE
+__rb_vm_objc_dispatch(rb_vm_objc_stub_t *stub, IMP imp, id rcv, SEL sel,
+	int argc, const VALUE *argv)
+{
+    @try {
+	return (*stub)(imp, rcv, sel, argc, argv);
+    }
+    @catch (id exc) {
+	VALUE rbexc = rb_oc2rb_exception(exc);
+#if __LP64__
+	if (rb_vm_current_exception() == Qnil) {
+	    rb_vm_set_current_exception(rbexc);	
+	}
+	throw;
+#else
+	rb_exc_raise(rbexc);
+#endif
+    }
+    abort(); // never reached
+}
+
 static void
 fill_rcache(struct mcache *cache, Class klass, SEL sel,
 	rb_vm_method_node_t *node)
@@ -783,7 +810,8 @@ sel_target_found:
 	    }
 	}
 
-	return (*ocache.stub)(ocache.imp, ocrcv, sel, argc, argv);
+	return __rb_vm_objc_dispatch(ocache.stub, ocache.imp, ocrcv, sel,
+		argc, argv);
     }
     else if (cache->flag == MCACHE_FCALL) {
 #if ROXOR_VM_DEBUG

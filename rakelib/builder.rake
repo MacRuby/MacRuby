@@ -35,8 +35,15 @@ module Rake
   end
 end
 
+desc "Build the markgc tool"
+task :mark_gc do
+  if !File.exist?('markgc')
+    sh "/usr/bin/gcc -std=c99 markgc.c -o markgc -Wno-format"
+  end
+end
+
 desc "Build known objects"
-task :objects => [:config_h, :dtrace_h, :revision_h] do
+task :objects => [:config_h, :dtrace_h, :revision_h, :mark_gc] do
   sh "/usr/bin/ruby tool/compile_prelude.rb prelude.rb miniprelude.c.new"
   if !File.exist?('miniprelude.c') or File.read('miniprelude.c') != File.read('miniprelude.c.new')
     mv('miniprelude.c.new', 'miniprelude.c')
@@ -62,7 +69,14 @@ task :objects => [:config_h, :dtrace_h, :revision_h] do
   if !File.exist?('node_name.inc') or File.mtime('include/ruby/node.h') > File.mtime('node_name.inc')
     sh("/usr/bin/ruby -n tool/node_name.rb include/ruby/node.h > node_name.inc")
   end
+  t = File.exist?('dispatcher.o') ? File.mtime('dispatcher.o') : nil
   $builder.build
+  if t == nil or File.mtime('dispatcher.o') > t
+    # dispatcher.o must be marked as GC compliant to avoid a linker problem.
+    # We do not build it using -fobjc-gc because gcc generates unnecessary (and slow) write
+    # barriers.
+    sh "./markgc ./dispatcher.o"
+  end
 end
 
 desc "Create miniruby"

@@ -2784,7 +2784,7 @@ __vm_raise(void)
 {
 #if __LP64__
     // In 64-bit, an Objective-C exception is a C++ exception.
-    id exc = rb_objc_create_exception(GET_VM()->current_exception());
+    id exc = rb_rb2oc_exception(GET_VM()->current_exception());
     objc_exception_throw(exc);
 #else
     void *exc = __cxa_allocate_exception(0);
@@ -2799,7 +2799,7 @@ rb2oc_exc_handler(void)
 {
     VALUE exc = GET_VM()->current_exception();
     if (exc != Qnil) {
-	id ocexc = rb_objc_create_exception(exc);
+	id ocexc = rb_rb2oc_exception(exc);
 	objc_exception_throw(ocexc);
     }
     else {

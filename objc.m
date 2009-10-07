@@ -622,7 +622,7 @@ rb_obj_imp_isaForAutonotifying(void *rcv, SEL sel)
 }
 
 id
-rb_objc_create_exception(VALUE exc)
+rb_rb2oc_exception(VALUE exc)
 {
     NSString *name = [NSString stringWithUTF8String:rb_obj_classname(exc)];
     NSString *reason = [(id)exc performSelector:@selector(message)];
@@ -635,6 +635,15 @@ rb_objc_create_exception(VALUE exc)
     NSDictionary *dict = nil;
 #endif
     return [NSException exceptionWithName:name reason:reason userInfo:dict];
+}
+
+VALUE
+rb_oc2rb_exception(id exc)
+{
+    char buf[1000];
+    snprintf(buf, sizeof buf, "%s: %s", [[exc name] UTF8String],
+	    [[exc reason] UTF8String]);
+    return rb_exc_new2(rb_eRuntimeError, buf);
 }
 
 void *placeholder_String = NULL;
