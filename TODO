@@ -1,22 +1,9 @@
-For 0.5 RC1:
+For 0.5 (must do):
 
-[X] fix irb Binding bugs
 [/] sockets
 [/] backtracing / symbolication
 [/] rubygems should work (modulo C extensions)
-  [X] fix version numbers
-  [X] fix YAML deserialization of booleans
-  [X] fix ~/.gemrc
-  [X] `source --add http://gems.github.com' crashes (outside gdb)
-  [X] `install rest-client' prints parsing errors (encoding problem in thor.gemspec)
-  [X] `gem uninstall bacon' doesn't work (Unknown gem bacon >= 0)
-  [X] `macgem install rails --version 2.3.2' crashes (MAX_DISPATCH_ARGS assertion)
-  [X] `macgem help commands' crashes
-  [X] gem installed executables are not executables
-[X] rewrite load.c (needed for RubyGems' #require hack)
-
-For 0.5 (must do):
-
+  [ ] `macgem build' doesn't seem to work
 [/] 32-bit should be back
 [X] Array subclass for immediates
 [ ] Hash subclass for immediates
