@@ -254,7 +254,7 @@ class RoxorCompiler {
 	    return compile_const_pointer(ptr, PtrPtrTy);
 	}
 
-	Instruction *compile_protected_call(Function *func,
+	Instruction *compile_protected_call(Value *imp,
 		std::vector<Value *> &params);
 	void compile_dispatch_arguments(NODE *args,
 		std::vector<Value *> &arguments, int *pargc);
@@ -328,6 +328,7 @@ class RoxorCompiler {
 	Value *compile_landing_pad_header(void);
 	Value *compile_landing_pad_header(const std::type_info &eh_type);
 	void compile_landing_pad_footer(bool pop_exception=true);
+	Value *compile_current_exception(void);
 	void compile_rethrow_exception(void);
 	void compile_pop_exception(void);
 	Value *compile_lvar_slot(ID name);

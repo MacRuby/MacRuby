@@ -179,6 +179,7 @@ class RoxorJITManager : public JITMemoryManager {
 
 extern "C" void *__cxa_allocate_exception(size_t);
 extern "C" void __cxa_throw(void *, void *, void (*)(void *));
+extern "C" void __cxa_rethrow(void);
 
 RoxorCore::RoxorCore(void)
 {
@@ -2791,6 +2792,22 @@ __vm_raise(void)
 #endif
 }
 
+#if !__LP64__
+extern "C"
+void
+rb2oc_exc_handler(void)
+{
+    VALUE exc = GET_VM()->current_exception();
+    if (exc != Qnil) {
+	id ocexc = rb_objc_create_exception(exc);
+	objc_exception_throw(ocexc);
+    }
+    else {
+	__cxa_rethrow();	
+    }
+}
+#endif
+
 extern "C"
 void
 rb_vm_raise_current_exception(void)
@@ -2844,6 +2861,7 @@ rb_rescue2(VALUE (*b_proc) (ANYARGS), VALUE data1,
 	}
 	throw;
     }
+    return Qnil; // never reached
 }
 
 extern "C"

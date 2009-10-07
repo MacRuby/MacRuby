@@ -212,11 +212,10 @@ RoxorCompiler::is_value_a_fixnum(Value *val)
 }
 
 Instruction *
-RoxorCompiler::compile_protected_call(Function *func,
-	std::vector<Value *> &params)
+RoxorCompiler::compile_protected_call(Value *imp, std::vector<Value *> &params)
 {
     if (rescue_invoke_bb == NULL) {
-	CallInst *dispatch = CallInst::Create(func, 
+	CallInst *dispatch = CallInst::Create(imp, 
 		params.begin(), 
 		params.end(), 
 		"", 
@@ -227,7 +226,7 @@ RoxorCompiler::compile_protected_call(Function *func,
 	BasicBlock *normal_bb = BasicBlock::Create(context, "normal",
 		bb->getParent());
 
-	InvokeInst *dispatch = InvokeInst::Create(func,
+	InvokeInst *dispatch = InvokeInst::Create(imp,
 		normal_bb, 
 		rescue_invoke_bb,
 		params.begin(), 
@@ -1921,6 +1920,19 @@ RoxorCompiler::compile_rethrow_exception(void)
     else {
 	BranchInst::Create(rescue_rethrow_bb, bb);
     }
+}
+
+Value *
+RoxorCompiler::compile_current_exception(void)
+{
+    if (currentExceptionFunc == NULL) {
+	// VALUE rb_vm_current_exception(void);
+	currentExceptionFunc = cast<Function>(
+		module->getOrInsertFunction(
+		    "rb_vm_current_exception", 
+		    RubyObjTy, NULL));
+    }
+    return CallInst::Create(currentExceptionFunc, "", bb);
 }
 
 typedef struct rb_vm_immediate_val {
@@ -4738,17 +4750,7 @@ rescan_args:
 	    break;
 
 	case NODE_ERRINFO:
-	    {
-		if (currentExceptionFunc == NULL) {
-		    // VALUE rb_vm_current_exception(void);
-		    currentExceptionFunc = cast<Function>(
-			    module->getOrInsertFunction(
-				"rb_vm_current_exception", 
-				RubyObjTy, NULL));
-		}
-		return CallInst::Create(currentExceptionFunc, "", bb);
-	    }
-	    break;
+	    return compile_current_exception();
 
 	case NODE_ENSURE:
 	    {
@@ -6758,6 +6760,10 @@ RoxorCompiler::compile_objc_stub(Function *ruby_func, IMP ruby_imp,
     Function::arg_iterator arg = f->arg_begin();
 
     bb = BasicBlock::Create(context, "EntryBlock", f);
+#if !__LP64__
+    // Prepare exception handler (see below).
+    rescue_invoke_bb = BasicBlock::Create(context, "rescue", f);
+#endif
 
     Value *sret = NULL;
     int sret_i = 0;
@@ -6805,8 +6811,7 @@ RoxorCompiler::compile_objc_stub(Function *ruby_func, IMP ruby_imp,
     }
 
     // Call the Ruby implementation.
-    Value *ret_val = CallInst::Create(imp, params.begin(), params.end(),
-	    "", bb);
+    Value *ret_val = compile_protected_call(imp, params);
 
     // Convert the return value into Objective-C type (if any).
     if (f_ret_type != VoidTy) {
@@ -6821,6 +6826,24 @@ RoxorCompiler::compile_objc_stub(Function *ruby_func, IMP ruby_imp,
     else {
 	ReturnInst::Create(context, bb);
     }
+
+#if !__LP64__
+    // The 32-bit Objective-C runtime doesn't use C++ exceptions, therefore
+    // we must convert Ruby exceptions to Objective-C ones.
+    bb = rescue_invoke_bb;
+    compile_landing_pad_header();
+
+    Function *ruby2ocExcHandlerFunc = NULL;
+    if (ruby2ocExcHandlerFunc == NULL) {
+	// void rb2oc_exc_handler(void);
+	ruby2ocExcHandlerFunc = cast<Function>(
+		module->getOrInsertFunction("rb2oc_exc_handler", VoidTy, NULL));
+    }
+    CallInst::Create(ruby2ocExcHandlerFunc, "", bb);
+
+    compile_landing_pad_footer();
+    new UnreachableInst(context, bb);
+#endif
 
     return f;
 }
