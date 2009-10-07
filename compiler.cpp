@@ -6762,6 +6762,7 @@ RoxorCompiler::compile_objc_stub(Function *ruby_func, IMP ruby_imp,
     bb = BasicBlock::Create(context, "EntryBlock", f);
 #if !__LP64__
     // Prepare exception handler (see below).
+    BasicBlock *old_rescue_invoke_bb = rescue_invoke_bb;
     rescue_invoke_bb = BasicBlock::Create(context, "rescue", f);
 #endif
 
@@ -6843,6 +6844,8 @@ RoxorCompiler::compile_objc_stub(Function *ruby_func, IMP ruby_imp,
 
     compile_landing_pad_footer();
     new UnreachableInst(context, bb);
+
+    rescue_invoke_bb = old_rescue_invoke_bb;
 #endif
 
     return f;
