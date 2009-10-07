@@ -450,6 +450,12 @@ rb_proc_call(VALUE self, VALUE args)
     return proc_call(self, 0, RARRAY_LEN(args), RARRAY_PTR(args));
 }
 
+VALUE
+rb_proc_call2(VALUE self, int argc, VALUE *argv)
+{
+    return proc_call(self, 0, argc, argv);
+}
+
 /*
  *  call-seq:
  *     prc.arity -> fixnum
