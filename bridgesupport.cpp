@@ -1093,6 +1093,28 @@ RoxorCore::load_bridge_support(const char *path, const char *framework_path,
 	}
     }
 #endif
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1060
+    static bool R6401816_fixed = false;
+    // XXX work around for
+    // <rdar://problem/6401816> -[NSObject performSelector:withObject:] has wrong sel_of_type attributes
+    if (!R6401816_fixed) {
+	bs_element_method_t *bs_method = GET_CORE()->find_bs_method((Class)rb_cNSObject,
+		sel_registerName("performSelector:withObject:"));
+	if (bs_method != NULL) {
+	    bs_element_arg_t *arg = bs_method->args;
+	    while (arg != NULL) {
+		if (arg->index == 0
+		    && arg->sel_of_type != NULL
+		    && arg->sel_of_type[0] != '@') {
+		    arg->sel_of_type[0] = '@';
+		    R6401816_fixed = true;
+		    break;
+		}
+		arg++;
+	    }
+	}
+    }
+#endif
     static bool R7281806fixed = false;
     // XXX work around for
     // <rdar://problem/7281806> -[NSObject performSelector:] has wrong sel_of_type attributes
