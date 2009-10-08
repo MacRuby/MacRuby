@@ -7,7 +7,7 @@
  */
 
 #define ROXOR_VM_DEBUG		0
-#define ROXOR_COMPILER_DEBUG 	0	
+#define ROXOR_COMPILER_DEBUG 	0
 
 #include <llvm/Module.h>
 #include <llvm/DerivedTypes.h>
@@ -367,9 +367,13 @@ RoxorCore::compile(Function *func)
     }
 
 #if ROXOR_COMPILER_DEBUG
-    if (verifyModule(*RoxorCompiler::module, PrintMessageAction)) {
-	printf("Error during module verification\n");
-	exit(1);
+    // in AOT mode, the verifier is already called
+    // (and calling it here would check functions not fully compiled yet)
+    if (!ruby_aot_compile) {
+	if (verifyModule(*RoxorCompiler::module, PrintMessageAction)) {
+	    printf("Error during module verification\n");
+	    exit(1);
+	}
     }
 
     uint64_t start = mach_absolute_time();

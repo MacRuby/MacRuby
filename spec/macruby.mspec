@@ -122,7 +122,7 @@ class MSpecScript
   source_root = File.expand_path('../../', __FILE__)
   ENV['DYLD_LIBRARY_PATH'] = source_root
   # Setup the proper load paths for lib and extensions
-  load_paths = %w{ -I./lib -I./ext }
+  load_paths = %w{ -I. -I./lib -I./ext }
   load_paths.concat Dir.glob('./ext/**/*.bundle').map { |filename| "-I#{File.dirname(filename)}" }.uniq
   load_paths.concat(get(:flags)) if get(:flags)
   set :flags, load_paths
