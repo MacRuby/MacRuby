@@ -1,6 +1,6 @@
-<pkmkdoc spec="1.12"><properties><title>MacRuby</title><build>/Volumes/Data/MacRubyRelease/MacRuby 0.2.pkg</build><organization>com.apple</organization><userSees ui="easy"/><min-target os="3"/><domain system="true"/></properties><distribution><versions min-spec="1.000000"/><scripts></scripts></distribution><description>MacRuby is a version of Ruby 1.9, ported to run directly on top of Mac OS X core technologies such as the Objective-C common runtime and garbage collector, and the CoreFoundation framework. 
+<pkmkdoc spec="1.12"><properties><title>MacRuby</title><build>/Users/lrz/Documents/MacRuby 0.5 beta 1.pkg</build><organization>com.apple.macruby</organization><userSees ui="easy"/><min-target os="3"/><domain system="true"/></properties><distribution><versions min-spec="1.000000"/><scripts></scripts></distribution><description>MacRuby is a version of Ruby 1.9, ported to run directly on top of Mac OS X core technologies such as the Objective-C common runtime and garbage collector, and the CoreFoundation framework. 
 
-While still a work in progress, it is the goal of MacRuby to enable the creation of full-fledged Mac OS X applications which do not sacrifice performance in order to enjoy the benefits of using Ruby. </description><contents><choice title="MacRuby" id="choice8" starts_selected="true" starts_enabled="true" starts_hidden="false"><pkgref id="com.apple.macruby.macruby.pkg"/></choice></contents><resources bg-scale="none" bg-align="topleft"><locale lang="en"><resource mime-type="text/rtf" kind="embedded" type="license"><![CDATA[{\rtf1\ansi\ansicpg1252\cocoartf949
+While still a work in progress, it is the goal of MacRuby to enable the creation of full-fledged Mac OS X applications which do not sacrifice performance in order to enjoy the benefits of using Ruby. </description><contents><choice title="MacRuby" id="choice11" starts_selected="true" starts_enabled="true" starts_hidden="false"><pkgref id="com.apple.macruby.macruby.MacRuby.pkg"/></choice></contents><resources bg-scale="none" bg-align="topleft"><locale lang="en"><resource mime-type="text/rtf" kind="embedded" type="license"><![CDATA[{\rtf1\ansi\ansicpg1252\cocoartf1038
 {\fonttbl\f0\fnil\fcharset0 LucidaGrande;}
 {\colortbl;\red255\green255\blue255;}
 \pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\ql\qnatural\pardirnatural
@@ -37,7 +37,7 @@ You can redistribute it and/or modify it under either the terms of the GPL versi
 \
   5. The scripts and library files supplied as input to or produced as output from the software do not automatically fall under the copyright of the software, but belong to whomever generated them, and may be sold commercially, and may be aggregated with this software.\
 \
-  6. THIS SOFTWARE IS PROVIDED "AS IS" AND WITHOUT ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.}]]></resource><resource mime-type="text/rtf" kind="embedded" type="welcome"><![CDATA[{\rtf1\ansi\ansicpg1252\cocoartf949
+  6. THIS SOFTWARE IS PROVIDED "AS IS" AND WITHOUT ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.}]]></resource><resource mime-type="text/rtf" kind="embedded" type="welcome"><![CDATA[{\rtf1\ansi\ansicpg1252\cocoartf1038
 {\fonttbl\f0\fnil\fcharset0 LucidaGrande;}
 {\colortbl;\red255\green255\blue255;}
 \pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\ql\qnatural\pardirnatural
@@ -46,4 +46,4 @@ You can redistribute it and/or modify it under either the terms of the GPL versi
 \
 While still a work in progress, it is the goal of MacRuby to enable the creation of full-fledged Mac OS X applications which do not sacrifice performance in order to enjoy the benefits of using Ruby. \
 \
-You will be guided through the steps necessary to install it.}]]></resource></locale></resources><flags/><item type="file">01macruby.xml</item><mod>properties.title</mod><mod>description</mod><mod>properties.anywhereDomain</mod><mod>properties.systemDomain</mod></pkmkdoc>
+You will be guided through the steps necessary to install it.}]]></resource></locale></resources><requirements><requirement id="tosv" operator="ge" value="'10.6.0'"><message>This version of MacRuby requires 10.6 or higher.</message></requirement></requirements><flags/><item type="file">01macruby.xml</item><mod>properties.title</mod><mod>description</mod><mod>properties.anywhereDomain</mod><mod>properties.systemDomain</mod></pkmkdoc>
