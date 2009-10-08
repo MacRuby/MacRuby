@@ -132,6 +132,7 @@ class RoxorCompiler {
 	int return_from_block_ids;
 	PHINode *ensure_pn;
 	RoxorScope *current_scope;
+	bool class_declaration;
 
 	Function *dispatcherFunc;
 	Function *fastPlusFunc;
