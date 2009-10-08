@@ -17,7 +17,8 @@
 #include <execinfo.h>
 #include <dlfcn.h>
 
-#define MAX_DISPATCH_ARGS 100
+#define ROXOR_VM_DEBUG		0
+#define MAX_DISPATCH_ARGS 	100
 
 static force_inline void
 __rb_vm_fix_args(const VALUE *argv, VALUE *new_argv,
@@ -787,7 +788,9 @@ dispatch:
 		    // Therefore, we apply here a naive heuristic by assuming
 		    // that either the receiver or one of the arguments of this
 		    // call is the future target.
-		    ID arg_selid = rb_to_id(argv[i]);
+		    const int arg_i = arg->index;
+		    assert(arg_i >= 0);
+		    ID arg_selid = rb_to_id(argv[arg_i]);
 		    SEL arg_sel = sel_registerName(rb_id2name(arg_selid));
 
 		    if (reinstall_method_maybe(*(Class *)ocrcv, arg_sel,
@@ -795,9 +798,9 @@ dispatch:
 			goto sel_target_found;
 		    }
 		    for (int j = 0; j < argc; j++) {
-			if (j != i && !SPECIAL_CONST_P(argv[j])) {
-			    if (reinstall_method_maybe(*(Class *)argv[j], arg_sel,
-					arg->sel_of_type)) {
+			if (j != arg_i && !SPECIAL_CONST_P(argv[j])) {
+			    if (reinstall_method_maybe(*(Class *)argv[j],
+					arg_sel, arg->sel_of_type)) {
 				goto sel_target_found;
 			    }
 			}
