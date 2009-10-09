@@ -13,6 +13,7 @@
 #include "vm.h"
 #include "compiler.h"
 #include "objc.h"
+#include "dtrace.h"
 
 #include <execinfo.h>
 #include <dlfcn.h>
@@ -499,6 +500,20 @@ reinstall_method_maybe(Class klass, SEL sel, const char *types)
     return true;
 }
 
+static force_inline void
+symbolize(int delta, char *path, size_t pathlen, unsigned long *line)
+{
+    void *callstack[10];
+    const  int callstack_n = backtrace(callstack, 10);
+
+    if (callstack_n < delta
+	|| !GET_CORE()->symbolize_call_address(callstack[delta], NULL,
+	    path, pathlen, line, NULL, 0)) {
+	strncpy(path, "core", pathlen);
+	*line = 0;
+    }
+}
+
 static force_inline VALUE
 __rb_vm_dispatch(RoxorVM *vm, struct mcache *cache, VALUE self, Class klass,
 	SEL sel, rb_vm_block_t *block, unsigned char opt, int argc,
@@ -689,7 +704,30 @@ dispatch:
 	    }
 	} finalizer(block_already_current, current_klass, vm);
 
-	return __rb_vm_ruby_dispatch(self, sel, rcache.node, opt, argc, argv);
+	// DTrace probe: method__entry
+	if (MACRUBY_METHOD_ENTRY_ENABLED()) {
+	    char *class_name = (char *)rb_class2name((VALUE)klass);
+	    char *method_name = (char *)sel_getName(sel);
+	    char file[PATH_MAX];
+	    unsigned long line = 0;
+	    symbolize(1, file, sizeof file, &line);
+	    MACRUBY_METHOD_ENTRY(class_name, method_name, file, line);
+	}
+
+	VALUE v = __rb_vm_ruby_dispatch(self, sel, rcache.node, opt,
+		argc, argv);
+
+	// DTrace probe: method__return
+	if (MACRUBY_METHOD_RETURN_ENABLED()) {
+	    char *class_name = (char *)rb_class2name((VALUE)klass);
+	    char *method_name = (char *)sel_getName(sel);
+	    char file[PATH_MAX];
+	    unsigned long line = 0;
+	    symbolize(1, file, sizeof file, &line);
+	    MACRUBY_METHOD_RETURN(class_name, method_name, file, line);
+	}
+
+	return v;
     }
     else if (cache->flag == MCACHE_OCALL) {
 	if (ocache.klass != klass) {
