@@ -9,8 +9,9 @@ BEGIN
 
 macruby$target:::method-entry
 {
-    printf("%30s:%-5d %s#%s\n", copyinstr(arg2), arg3, 
+/*    printf("%30s:%-5d %s#%s\n", copyinstr(arg2), arg3, 
 	    copyinstr(arg0), copyinstr(arg1));
+*/
     @methods_count[copyinstr(arg0), copyinstr(arg1)] = count();
 }
 
