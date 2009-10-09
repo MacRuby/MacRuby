@@ -1868,13 +1868,11 @@ rb_obj_alloc_imp(VALUE klass, SEL sel)
 static inline VALUE
 rb_class_new_instance0(int argc, VALUE *argv, VALUE klass)
 {
-    VALUE obj, init_obj, p;
-
     if (klass == rb_cNSMutableArray) {
 	klass = rb_cRubyArray;
     }
 
-    obj = rb_obj_alloc0(klass);
+    VALUE obj = rb_obj_alloc0(klass);
 
     /* Because we cannot override +[NSObject initialize] */
     if (klass == rb_cClass) {
@@ -1885,22 +1883,12 @@ rb_class_new_instance0(int argc, VALUE *argv, VALUE klass)
 
     rb_vm_block_t *block = rb_vm_current_block();
     if (argc == 0) {
-	init_obj = rb_vm_call_with_cache2(initializeCache, block, obj,
-		CLASS_OF(obj), selInitialize, argc, argv);
+	rb_vm_call_with_cache2(initializeCache, block, obj, CLASS_OF(obj),
+		selInitialize, argc, argv);
     }
     else {
-	init_obj = rb_vm_call_with_cache2(initialize2Cache, block, obj,
-		CLASS_OF(obj), selInitialize2, argc, argv);
-    }
-
-    if (init_obj != Qnil) {
-	p = CLASS_OF(init_obj);
-	while (p != 0) {
-	    if (p == klass) {
-		return init_obj;
-	    }
-	    p = RCLASS_SUPER(p);
-	}
+	rb_vm_call_with_cache2(initialize2Cache, block, obj, CLASS_OF(obj),
+		selInitialize2, argc, argv);
     }
 
     return obj;
