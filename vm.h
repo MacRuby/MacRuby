@@ -675,6 +675,10 @@ class RoxorCore {
 		char *path, size_t path_len, unsigned long *ln,
 		char *name, size_t name_len);
 
+	void symbolize_backtrace_entry(int index, void **startp,
+		char *path, size_t path_len, unsigned long *ln,
+		char *name, size_t name_len);
+
 	struct mcache *method_cache_get(SEL sel, bool super);
 	rb_vm_method_node_t *method_node_get(IMP imp, bool create=false);
 	rb_vm_method_node_t *method_node_get(Method m, bool create=false);

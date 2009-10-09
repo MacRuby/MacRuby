@@ -500,20 +500,6 @@ reinstall_method_maybe(Class klass, SEL sel, const char *types)
     return true;
 }
 
-static force_inline void
-symbolize(int delta, char *path, size_t pathlen, unsigned long *line)
-{
-    void *callstack[10];
-    const  int callstack_n = backtrace(callstack, 10);
-
-    if (callstack_n < delta
-	|| !GET_CORE()->symbolize_call_address(callstack[delta], NULL,
-	    path, pathlen, line, NULL, 0)) {
-	strncpy(path, "core", pathlen);
-	*line = 0;
-    }
-}
-
 static force_inline VALUE
 __rb_vm_dispatch(RoxorVM *vm, struct mcache *cache, VALUE self, Class klass,
 	SEL sel, rb_vm_block_t *block, unsigned char opt, int argc,
@@ -710,7 +696,8 @@ dispatch:
 	    char *method_name = (char *)sel_getName(sel);
 	    char file[PATH_MAX];
 	    unsigned long line = 0;
-	    symbolize(1, file, sizeof file, &line);
+	    GET_CORE()->symbolize_backtrace_entry(1, NULL, file, sizeof file,
+		    &line, NULL, 0);
 	    MACRUBY_METHOD_ENTRY(class_name, method_name, file, line);
 	}
 
@@ -723,7 +710,8 @@ dispatch:
 	    char *method_name = (char *)sel_getName(sel);
 	    char file[PATH_MAX];
 	    unsigned long line = 0;
-	    symbolize(1, file, sizeof file, &line);
+	    GET_CORE()->symbolize_backtrace_entry(1, NULL, file, sizeof file,
+		    &line, NULL, 0);
 	    MACRUBY_METHOD_RETURN(class_name, method_name, file, line);
 	}
 

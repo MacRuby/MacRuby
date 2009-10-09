@@ -37,6 +37,7 @@ using namespace llvm;
 #include "vm.h"
 #include "compiler.h"
 #include "objc.h"
+#include "dtrace.h"
 
 #include <objc/objc-exception.h>
 
@@ -493,6 +494,27 @@ RoxorCore::symbolize_call_address(void *addr, void **startp, char *path,
     }
 
     return true;
+}
+
+void
+RoxorCore::symbolize_backtrace_entry(int index, void **startp, char *path,
+	size_t path_len, unsigned long *ln, char *name, size_t name_len)
+{
+    void *callstack[10];
+    const int callstack_n = backtrace(callstack, 10);
+
+    index++; // count us!
+
+    if (callstack_n < index
+	|| !GET_CORE()->symbolize_call_address(callstack[index], startp,
+		path, path_len, ln, name, name_len)) {
+	if (path != NULL) {
+	    strncpy(path, "core", path_len);
+	}
+	if (ln != NULL) {
+	    *ln = 0;
+	}
+    }
 }
 
 struct ccache *
@@ -2786,9 +2808,19 @@ rb_iseq_new(NODE *node, VALUE filename)
 static inline void
 __vm_raise(void)
 {
+    VALUE rb_exc = GET_VM()->current_exception();
+    // DTrace probe: raise
+    if (MACRUBY_RAISE_ENABLED()) {
+	char *classname = (char *)rb_class2name(CLASS_OF(rb_exc));
+	char file[PATH_MAX];
+	unsigned long line = 0;
+	GET_CORE()->symbolize_backtrace_entry(2, NULL, file, sizeof file,
+		&line, NULL, 0);
+	MACRUBY_RAISE(classname, file, line);
+    } 
 #if __LP64__
     // In 64-bit, an Objective-C exception is a C++ exception.
-    id exc = rb_rb2oc_exception(GET_VM()->current_exception());
+    id exc = rb_rb2oc_exception(rb_exc);
     objc_exception_throw(exc);
 #else
     void *exc = __cxa_allocate_exception(0);
