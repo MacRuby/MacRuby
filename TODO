@@ -8,6 +8,7 @@ For 0.5 (must do):
 [X] Array subclass for immediates
 [ ] Hash subclass for immediates
 [ ] try/catch should use a C++ exception
+[ ] implement 'protected' visibility
 [ ] remaining Cocoa bugs
   [X] ObjC exceptions should be catchable in Ruby
   [X] honor BridgeSupport sel_of_type attribute
