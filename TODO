@@ -15,6 +15,7 @@ For 0.5 (must do):
   [X] add support for variadic functions / methods
 [ ] support for bigdecimal
 [ ] support for json
+    wrap http://github.com/lloyd/yajl ?
 [/] support for yaml
 [ ] support for openssl
 [/] support for zlib
