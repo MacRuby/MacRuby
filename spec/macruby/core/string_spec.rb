@@ -25,7 +25,7 @@ describe "The NSString class" do
   end
 end
 
-describe "An String object" do
+describe "A String object" do
   it "is an instance of the String/NSMutableString class" do
     ''.class.should == String
     ''.kind_of?(String).should == true
@@ -53,6 +53,11 @@ describe "An String object" do
     end
     a.foo = 42
     a.foo.should == 42
+  end
+
+  it "can match() a Regex" do
+    a = 'aaba'
+    a.should match(/a+b./)
   end
 end
 
