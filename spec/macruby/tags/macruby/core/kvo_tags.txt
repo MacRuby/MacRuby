@@ -1,5 +1,0 @@
-fails:An Object being observed through NSKeyValueObservation keeps reporting its instance variables through instance_variables
-fails:An Object being observed through NSKeyValueObservation can be inspected
-fails:A nontrivially derived Object being observed through NSKeyValueObservation retains the values for its instance variables
-fails:A nontrivially derived Object being observed through NSKeyValueObservation keeps reporting its instance variables through instance_variables
-fails:A nontrivially derived Object being observed through NSKeyValueObservation can be inspected
