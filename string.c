@@ -5547,9 +5547,6 @@ imp_rb_bytestring_isEqual(void *rcv, SEL sel, void *other)
 	    // Can't resolve a character string based on that data.
 	    return false;
 	}
-	if (CFStringGetLength(rcv_str) != CFStringGetLength(other)) {
-	    return false;
-	}
 	return CFEqual(rcv_str, (CFTypeRef)other);
     }
 }
