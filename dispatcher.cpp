@@ -816,18 +816,20 @@ dispatch:
 		    // call is the future target.
 		    const int arg_i = arg->index;
 		    assert(arg_i >= 0);
-		    ID arg_selid = rb_to_id(argv[arg_i]);
-		    SEL arg_sel = sel_registerName(rb_id2name(arg_selid));
+		    if (argv[arg_i] != Qnil) {
+			ID arg_selid = rb_to_id(argv[arg_i]);
+			SEL arg_sel = sel_registerName(rb_id2name(arg_selid));
 
-		    if (reinstall_method_maybe(*(Class *)ocrcv, arg_sel,
-			    arg->sel_of_type)) {
-			goto sel_target_found;
-		    }
-		    for (int j = 0; j < argc; j++) {
-			if (j != arg_i && !SPECIAL_CONST_P(argv[j])) {
-			    if (reinstall_method_maybe(*(Class *)argv[j],
-					arg_sel, arg->sel_of_type)) {
-				goto sel_target_found;
+			if (reinstall_method_maybe(*(Class *)ocrcv, arg_sel,
+				    arg->sel_of_type)) {
+			    goto sel_target_found;
+			}
+			for (int j = 0; j < argc; j++) {
+			    if (j != arg_i && !SPECIAL_CONST_P(argv[j])) {
+				if (reinstall_method_maybe(*(Class *)argv[j],
+					    arg_sel, arg->sel_of_type)) {
+				    goto sel_target_found;
+				}
 			    }
 			}
 		    }
