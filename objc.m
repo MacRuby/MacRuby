@@ -592,13 +592,11 @@ static IMP old_imp_isaForAutonotifying;
 static Class
 rb_obj_imp_isaForAutonotifying(void *rcv, SEL sel)
 {
-    Class ret;
     long ret_version;
 
-#define KVO_CHECK_DONE 0x100000
+    Class ret = ((Class (*)(void *, SEL))old_imp_isaForAutonotifying)(rcv, sel);
 
-    ret = ((Class (*)(void *, SEL)) old_imp_isaForAutonotifying)(rcv, sel);
-    if (ret != NULL && ((ret_version = RCLASS_VERSION(ret)) & KVO_CHECK_DONE) == 0) {
+    if (ret != NULL && ((ret_version = RCLASS_VERSION(ret)) & RCLASS_KVO_CHECK_DONE) == 0) {
 	const char *name = class_getName(ret);
 	if (strncmp(name, "NSKVONotifying_", 15) == 0) {
 	    Class ret_orig;
@@ -612,10 +610,9 @@ rb_obj_imp_isaForAutonotifying(void *rcv, SEL sel)
 		if ((orig_v & RCLASS_IS_RUBY_CLASS) == RCLASS_IS_RUBY_CLASS) {
 		    ret_version |= RCLASS_IS_RUBY_CLASS;
 		}
-		// XXX merge more flags?
 	    }
 	}
-	ret_version |= KVO_CHECK_DONE;
+	ret_version |= RCLASS_KVO_CHECK_DONE;
 	RCLASS_SET_VERSION(ret, ret_version);
     }
     return ret;

@@ -961,6 +961,14 @@ rb_copy_generic_ivar(VALUE clone, VALUE obj)
     CFMakeCollectable(clone_dict);
 }
 
+static inline bool
+rb_class_has_ivar_dict(VALUE mod)
+{
+    const long v = RCLASS_VERSION(mod);
+    return (v & RCLASS_IS_RUBY_CLASS) == RCLASS_IS_RUBY_CLASS
+	&& (v & RCLASS_KVO_CHECK_DONE) != RCLASS_KVO_CHECK_DONE;
+}
+
 #define RCLASS_RUBY_IVAR_DICT(mod) \
     (*(CFMutableDictionaryRef *) \
      	((void *)mod + class_getInstanceSize(*(Class *)RCLASS_SUPER(mod))))
@@ -970,7 +978,7 @@ rb_class_ivar_dict(VALUE mod)
 {
     CFMutableDictionaryRef dict;
 
-    if (RCLASS_RUBY(mod)) {
+    if (rb_class_has_ivar_dict(mod)) {
 	dict = RCLASS_RUBY_IVAR_DICT(mod);
     }
     else {
@@ -986,7 +994,7 @@ rb_class_ivar_dict(VALUE mod)
 void
 rb_class_ivar_set_dict(VALUE mod, CFMutableDictionaryRef dict)
 {
-    if (RCLASS_RUBY(mod)) {
+    if (rb_class_has_ivar_dict(mod)) {
 	CFMutableDictionaryRef old_dict = RCLASS_RUBY_IVAR_DICT(mod);
 	if (old_dict != dict) {
 	    if (old_dict != NULL) {
