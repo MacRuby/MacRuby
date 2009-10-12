@@ -35,6 +35,7 @@ For 0.5 (must do):
 [ ] Xcode target for AOT compilation
 [/] finish AOT compiler (only normal mode)
 [X] sync with LLVM 2.6/ToT
+[ ] non-ASCII regexp
 [ ] leaks
   [ ] implement ~RoxorVM
   [ ] fix exception leak
