@@ -688,6 +688,14 @@ rb_str2inum(VALUE str, int base)
     return rb_str_to_inum(str, base, base==0);
 }
 
+VALUE
+rb_bignum_new_retained(const char *str)
+{
+    VALUE v = rb_cstr2inum(str, 10);
+    GC_RETAIN(v);
+    return v;
+}
+
 const char ruby_digitmap[] = "0123456789abcdefghijklmnopqrstuvwxyz";
 
 static VALUE bigsqr(VALUE x);

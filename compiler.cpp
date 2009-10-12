@@ -5294,6 +5294,10 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 	cast<Function>(module->getOrInsertFunction("rb_reg_new_retained",
 		    RubyObjTy, PtrTy, Int32Ty, Int32Ty, NULL));
 
+    Function *newBignumFunc =
+	cast<Function>(module->getOrInsertFunction("rb_bignum_new_retained",
+		    RubyObjTy, PtrTy, NULL));
+
     Function *getClassFunc =
 	cast<Function>(module->getOrInsertFunction("objc_getClass",
 		    RubyObjTy, PtrTy, NULL));
@@ -5389,6 +5393,33 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 		    params.push_back(load);
 
 		    Instruction *call = CallInst::Create(name2symFunc,
+			    params.begin(), params.end(), "");
+
+		    Instruction *assign = new StoreInst(call, gvar, "");
+
+		    list.insert(list.begin(), assign);
+		    list.insert(list.begin(), call);
+		    list.insert(list.begin(), load);
+		}
+		break;
+
+	    case T_BIGNUM:
+		{
+		    const char *bigstr = RSTRING_PTR(rb_big2str(val, 10));
+
+		    GlobalVariable *bigstr_gvar =
+			compile_const_global_string(bigstr);
+
+		    std::vector<Value *> idxs;
+		    idxs.push_back(ConstantInt::get(Int32Ty, 0));
+		    idxs.push_back(ConstantInt::get(Int32Ty, 0));
+		    Instruction *load = GetElementPtrInst::Create(bigstr_gvar,
+			    idxs.begin(), idxs.end(), "");
+
+		    std::vector<Value *> params;
+		    params.push_back(load);
+
+		    Instruction *call = CallInst::Create(newBignumFunc,
 			    params.begin(), params.end(), "");
 
 		    Instruction *assign = new StoreInst(call, gvar, "");
