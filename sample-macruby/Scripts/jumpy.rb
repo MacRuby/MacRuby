@@ -5,6 +5,25 @@ framework 'Cocoa'
 framework 'QuartzCore'
 framework 'ApplicationServices'
 
+# these are not properly mapped in BridgeSupport in Snow Leopard (from GCGeometry.h)
+CGRectInfinite = CGRect.new([-8.98847e+307, -8.98847e+307], [1.79769e+308, 1.79769e+308]) unless defined?(CGRectInfinite)
+CGSizeZero = CGSizeMake(0, 0) unless defined?(CGSizeZero)
+CGRectZero = CGRectMake(0, 0, 0, 0) unless defined?(CGRectZero)
+CGPointZero = CGPointMake(0, 0) unless defined?(CGPointZero)
+# we need CGRectNull!
+
+# these are not properly mapped in BridgeSupport in Snow Leopard (from CATransaction.h)
+KCATransactionAnimationDuration = 'animationDuration' unless defined?(KCATransactionAnimationDuration)
+KCATransactionDisableActions = 'disableActions' unless defined?(KCATransactionDisableActions)
+KCATransactionAnimationTimingFunction = 'animationTimingFunction' unless defined?(KCATransactionAnimationTimingFunction)
+KCATransactionCompletionBlock = 'completionBlock' unless defined?(KCATransactionCompletionBlock)
+
+# these are not properly mapped in BridgeSupport in Snow Leopard (from CAMediaTimingFunction.h)
+KCAMediaTimingFunctionEaseIn = 'easeIn' unless defined?(KCAMediaTimingFunctionEaseIn)
+KCAMediaTimingFunctionEaseOut = 'easeOut' unless defined?(KCAMediaTimingFunctionEaseOut)
+KCAMediaTimingFunctionLinear = 'linear' unless defined?(KCAMediaTimingFunctionLinear)
+KCAMediaTimingFunctionEaseInOut = 'easeInOut' unless defined?(KCAMediaTimingFunctionEaseInOut)
+
 class JumpyController
 
   ANIMATION_DURATION = 4.0
