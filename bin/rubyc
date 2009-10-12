@@ -96,7 +96,7 @@ class Compiler
     output ||= File.join(File.dirname(path), base + '.o')
 
     # Generate init function (must be unique).
-    init_func = "MREP_#{File.read(path).hash}"
+    init_func = "MREP_#{File.read(path).hash.abs}"
 
     # Compile the file into LLVM bitcode.
     bc = gen_tmpfile(base, 'bc')
