@@ -730,7 +730,7 @@ rb_yaml_emitter_scalar(VALUE self, SEL sel, VALUE taguri, VALUE val,
     int can_omit_tag = 0;
     yaml_char_t *tag = rb_yaml_tag_or_null(taguri, &can_omit_tag);
     yaml_scalar_event_initialize(&ev, NULL, tag, output, RSTRING_LEN(val),
-	    can_omit_tag, 0, rb_symbol_to_scalar_style(style));
+	    can_omit_tag, can_omit_tag, rb_symbol_to_scalar_style(style));
     yaml_emitter_emit(emitter, &ev);
 
     return self;
