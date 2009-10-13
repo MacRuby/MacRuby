@@ -104,6 +104,7 @@ static VALUE rb_cResolver;
 
 static ID id_plain;
 static ID id_quote2;
+static ID id_inline;
 
 static SEL sel_to_yaml;
 static SEL sel_call;
@@ -527,6 +528,32 @@ rb_symbol_to_scalar_style(VALUE sym)
     return style;
 }
 
+static yaml_scalar_style_t
+rb_symbol_to_sequence_style(VALUE sym)
+{
+    yaml_sequence_style_t style = YAML_ANY_SEQUENCE_STYLE;
+    if (NIL_P(sym)) {
+	return style;
+    }
+    else if (rb_to_id(sym) == id_inline) {
+	style = YAML_FLOW_SEQUENCE_STYLE;
+    }
+    return style;
+}
+
+static yaml_scalar_style_t
+rb_symbol_to_mapping_style(VALUE sym)
+{
+    yaml_mapping_style_t style = YAML_ANY_MAPPING_STYLE;
+    if (NIL_P(sym)) {
+	return style;
+    }
+    else if (rb_to_id(sym) == id_inline) {
+	style = YAML_FLOW_MAPPING_STYLE;
+    }
+    return style;
+}
+
 static yaml_char_t*
 rb_yaml_tag_or_null(VALUE tagstr, int *can_omit_tag)
 {
@@ -663,7 +690,7 @@ rb_yaml_emitter_sequence(VALUE self, SEL sel, VALUE taguri, VALUE style)
     int can_omit_tag = 0;
     yaml_char_t *tag = rb_yaml_tag_or_null(taguri, &can_omit_tag);
     yaml_sequence_start_event_initialize(&ev, NULL, tag, can_omit_tag,
-	    YAML_ANY_SEQUENCE_STYLE);
+	    rb_symbol_to_sequence_style(style));
     yaml_emitter_emit(emitter, &ev);
 
     rb_yield(self);
@@ -682,7 +709,7 @@ rb_yaml_emitter_mapping(VALUE self, SEL sel, VALUE taguri, VALUE style)
     int can_omit_tag = 0;
     yaml_char_t *tag = rb_yaml_tag_or_null(taguri, &can_omit_tag);
     yaml_mapping_start_event_initialize(&ev, NULL, tag, can_omit_tag,
-	    YAML_ANY_MAPPING_STYLE);
+	    rb_symbol_to_mapping_style(style));
     yaml_emitter_emit(emitter, &ev);
 
     rb_yield(self);
@@ -775,6 +802,7 @@ Init_libyaml()
 {
     id_plain = rb_intern("plain");
     id_quote2 = rb_intern("quote2");
+    id_inline = rb_intern("inline");
 
     sel_to_yaml = sel_registerName("to_yaml:");
     sel_call = sel_registerName("call:");
