@@ -93,6 +93,7 @@ rb_vm_node_flags(NODE *node)
 
 typedef struct rb_vm_method_node {
     rb_vm_arity_t arity;
+    Class klass;
     SEL sel;
     IMP objc_imp;
     IMP ruby_imp;

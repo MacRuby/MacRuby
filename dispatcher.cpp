@@ -351,8 +351,9 @@ rb_vm_undefined_imp(void *rcv, SEL sel)
 }
 
 static force_inline VALUE
-__rb_vm_ruby_dispatch(VALUE self, SEL sel, rb_vm_method_node_t *node,
-		      unsigned char opt, int argc, const VALUE *argv)
+__rb_vm_ruby_dispatch(VALUE top, VALUE self, SEL sel,
+	rb_vm_method_node_t *node, unsigned char opt,
+	int argc, const VALUE *argv)
 {
     const rb_vm_arity_t &arity = node->arity;
     if ((argc < arity.min) || ((arity.max != -1) && (argc > arity.max))) {
@@ -364,7 +365,19 @@ __rb_vm_ruby_dispatch(VALUE self, SEL sel, rb_vm_method_node_t *node,
 	// Calling a private method with no explicit receiver OR an attribute
 	// assignment to non-self, triggering #method_missing.
 	rb_vm_block_t *b = GET_VM()->current_block();
-	return method_missing(self, sel, b, argc, argv, METHOD_MISSING_PRIVATE);
+	return method_missing(self, sel, b, argc, argv,
+		METHOD_MISSING_PRIVATE);
+    }
+
+    if ((node->flags & VM_METHOD_PROTECTED)
+	    && top != 0 && node->klass != NULL
+	    && !rb_obj_is_kind_of(top, (VALUE)node->klass)) {
+	// Calling a protected method inside a method where 'self' is not
+	// an instance of the class where the method was originally defined,
+	// triggering #method_missing.
+	rb_vm_block_t *b = GET_VM()->current_block();
+	return method_missing(self, sel, b, argc, argv,
+		METHOD_MISSING_PROTECTED);
     }
 
     if ((node->flags & VM_METHOD_EMPTY) && arity.max == arity.min) {
@@ -501,9 +514,9 @@ reinstall_method_maybe(Class klass, SEL sel, const char *types)
 }
 
 static force_inline VALUE
-__rb_vm_dispatch(RoxorVM *vm, struct mcache *cache, VALUE self, Class klass,
-	SEL sel, rb_vm_block_t *block, unsigned char opt, int argc,
-	const VALUE *argv)
+__rb_vm_dispatch(RoxorVM *vm, struct mcache *cache, VALUE top, VALUE self,
+	Class klass, SEL sel, rb_vm_block_t *block, unsigned char opt,
+	int argc, const VALUE *argv)
 {
     assert(cache != NULL);
 
@@ -653,7 +666,7 @@ dispatch:
 	}
 
 #if ROXOR_VM_DEBUG
-	printf("ruby dispatch %c[<%s %p> %s] (imp=%p, block=%p, argc=%d, cached=%s)\n",
+	printf("ruby dispatch %c[<%s %p> %s] (imp %p block %p argc %d opt %d cached %s)\n",
 		class_isMetaClass(klass) ? '+' : '-',
 		class_getName(klass),
 		(void *)self,
@@ -661,6 +674,7 @@ dispatch:
 		rcache.node->ruby_imp,
 		block,
 		argc,
+		opt,
 		cached ? "true" : "false");
 #endif
 
@@ -701,7 +715,7 @@ dispatch:
 	    MACRUBY_METHOD_ENTRY(class_name, method_name, file, line);
 	}
 
-	VALUE v = __rb_vm_ruby_dispatch(self, sel, rcache.node, opt,
+	VALUE v = __rb_vm_ruby_dispatch(top, self, sel, rcache.node, opt,
 		argc, argv);
 
 	// DTrace probe: method__return
@@ -959,8 +973,8 @@ __rb_vm_resolve_args(VALUE **pargv, size_t argv_size, int *pargc, va_list ar)
 
 extern "C"
 VALUE
-rb_vm_dispatch(struct mcache *cache, VALUE self, SEL sel, rb_vm_block_t *block, 
-	       unsigned char opt, int argc, ...)
+rb_vm_dispatch(struct mcache *cache, VALUE top, VALUE self, SEL sel,
+	rb_vm_block_t *block, unsigned char opt, int argc, ...)
 {
     VALUE base_argv[MAX_DISPATCH_ARGS];
     VALUE *argv = base_argv;
@@ -987,8 +1001,8 @@ rb_vm_dispatch(struct mcache *cache, VALUE self, SEL sel, rb_vm_block_t *block,
 
     RoxorVM *vm = GET_VM();
 
-    VALUE retval = __rb_vm_dispatch(vm, cache, self, NULL, sel, block, opt,
-	    argc, argv);
+    VALUE retval = __rb_vm_dispatch(vm, cache, top, self, NULL, sel, block,
+	    opt, argc, argv);
 
     vm->pop_current_binding();
 
@@ -1010,8 +1024,8 @@ rb_vm_call(VALUE self, SEL sel, int argc, const VALUE *argv, bool super)
 	cache = GET_CORE()->method_cache_get(sel, false);
     }
 
-    return __rb_vm_dispatch(GET_VM(), cache, self, NULL, sel, NULL, opt, argc,
-	    argv);
+    return __rb_vm_dispatch(GET_VM(), cache, 0, self, NULL, sel, NULL, opt,
+	    argc, argv);
 }
 
 extern "C"
@@ -1019,8 +1033,8 @@ VALUE
 rb_vm_call_with_cache(void *cache, VALUE self, SEL sel, int argc, 
 	const VALUE *argv)
 {
-    return __rb_vm_dispatch(GET_VM(), (struct mcache *)cache, self, NULL, sel,
-	    NULL, DISPATCH_FCALL, argc, argv);
+    return __rb_vm_dispatch(GET_VM(), (struct mcache *)cache, 0, self, NULL,
+	    sel, NULL, DISPATCH_FCALL, argc, argv);
 }
 
 extern "C"
@@ -1028,7 +1042,7 @@ VALUE
 rb_vm_call_with_cache2(void *cache, rb_vm_block_t *block, VALUE self,
 	VALUE klass, SEL sel, int argc, const VALUE *argv)
 {
-    return __rb_vm_dispatch(GET_VM(), (struct mcache *)cache, self,
+    return __rb_vm_dispatch(GET_VM(), (struct mcache *)cache, 0, self,
 	    (Class)klass, sel, block, DISPATCH_FCALL, argc, argv);
 }
 
@@ -1066,7 +1080,7 @@ rb_vm_fast_plus(struct mcache *cache, VALUE self, VALUE other)
 	case T_COMPLEX:
 	    return rb_nu_plus(self, other);
     }
-    return rb_vm_dispatch(cache, self, selPLUS, NULL, 0, 1, other);
+    return rb_vm_dispatch(cache, 0, self, selPLUS, NULL, 0, 1, other);
 }
 
 extern "C"
@@ -1084,7 +1098,7 @@ rb_vm_fast_minus(struct mcache *cache, VALUE self, VALUE other)
 	case T_COMPLEX:
 	    return rb_nu_minus(self, other);
     }
-    return rb_vm_dispatch(cache, self, selMINUS, NULL, 0, 1, other);
+    return rb_vm_dispatch(cache, 0, self, selMINUS, NULL, 0, 1, other);
 }
 
 extern "C"
@@ -1101,7 +1115,7 @@ rb_vm_fast_div(struct mcache *cache, VALUE self, VALUE other)
 	case T_COMPLEX:
 	    return rb_nu_div(self, other);
     }
-    return rb_vm_dispatch(cache, self, selDIV, NULL, 0, 1, other);
+    return rb_vm_dispatch(cache, 0, self, selDIV, NULL, 0, 1, other);
 }
 
 extern "C"
@@ -1119,7 +1133,7 @@ rb_vm_fast_mult(struct mcache *cache, VALUE self, VALUE other)
 	case T_COMPLEX:
 	    return rb_nu_mul(self, other);
     }
-    return rb_vm_dispatch(cache, self, selMULT, NULL, 0, 1, other);
+    return rb_vm_dispatch(cache, 0, self, selMULT, NULL, 0, 1, other);
 }
 
 extern "C"
@@ -1130,7 +1144,7 @@ rb_vm_fast_lt(struct mcache *cache, VALUE self, VALUE other)
 	case T_BIGNUM:
 	    return FIX2INT(rb_big_cmp(self, other)) < 0 ? Qtrue : Qfalse;
     }
-    return rb_vm_dispatch(cache, self, selLT, NULL, 0, 1, other);
+    return rb_vm_dispatch(cache, 0, self, selLT, NULL, 0, 1, other);
 }
 
 extern "C"
@@ -1141,7 +1155,7 @@ rb_vm_fast_le(struct mcache *cache, VALUE self, VALUE other)
 	case T_BIGNUM:
 	    return FIX2INT(rb_big_cmp(self, other)) <= 0 ? Qtrue : Qfalse;
     }
-    return rb_vm_dispatch(cache, self, selLE, NULL, 0, 1, other);
+    return rb_vm_dispatch(cache, 0, self, selLE, NULL, 0, 1, other);
 }
 
 extern "C"
@@ -1152,7 +1166,7 @@ rb_vm_fast_gt(struct mcache *cache, VALUE self, VALUE other)
 	case T_BIGNUM:
 	    return FIX2INT(rb_big_cmp(self, other)) > 0 ? Qtrue : Qfalse;
     }
-    return rb_vm_dispatch(cache, self, selGT, NULL, 0, 1, other);
+    return rb_vm_dispatch(cache, 0, self, selGT, NULL, 0, 1, other);
 }
 
 extern "C"
@@ -1163,7 +1177,7 @@ rb_vm_fast_ge(struct mcache *cache, VALUE self, VALUE other)
 	case T_BIGNUM:
 	    return FIX2INT(rb_big_cmp(self, other)) >= 0 ? Qtrue : Qfalse;
     }
-    return rb_vm_dispatch(cache, self, selGE, NULL, 0, 1, other);
+    return rb_vm_dispatch(cache, 0, self, selGE, NULL, 0, 1, other);
 }
 
 extern "C"
@@ -1193,7 +1207,7 @@ rb_vm_fast_eq(struct mcache *cache, VALUE self, VALUE other)
 	case T_BIGNUM:
 	    return rb_big_eq(self, other);
     }
-    return rb_vm_dispatch(cache, self, selEq, NULL, 0, 1, other);
+    return rb_vm_dispatch(cache, 0, self, selEq, NULL, 0, 1, other);
 }
 
 extern "C"
@@ -1201,7 +1215,7 @@ VALUE
 rb_vm_fast_neq(struct mcache *cache, VALUE self, VALUE other)
 {
     // TODO
-    return rb_vm_dispatch(cache, self, selNeq, NULL, 0, 1, other);
+    return rb_vm_dispatch(cache, 0, self, selNeq, NULL, 0, 1, other);
 }
 
 extern "C"
@@ -1227,7 +1241,7 @@ rb_vm_fast_eqq(struct mcache *cache, VALUE self, VALUE other)
 	    return rb_obj_is_kind_of(other, self);
 
 	default:
-	    return rb_vm_dispatch(cache, self, selEqq, NULL, 0, 1, other);
+	    return rb_vm_dispatch(cache, 0, self, selEqq, NULL, 0, 1, other);
     }
 }
 
@@ -1252,7 +1266,8 @@ rb_vm_when_splat(struct mcache *cache, unsigned char overriden,
     else {
 	for (int i = 0; i < count; ++i) {
 	    VALUE o = RARRAY_AT(ary, i);
-	    if (RTEST(rb_vm_dispatch(cache, o, selEqq, NULL, 0, 1, comparedTo))) {
+	    if (RTEST(rb_vm_dispatch(cache, 0, o, selEqq, NULL, 0, 1,
+			    comparedTo))) {
 		return Qtrue;
 	    }
 	}
@@ -1276,7 +1291,7 @@ rb_vm_fast_shift(VALUE obj, VALUE other, struct mcache *cache,
 		return obj;
 	}
     }
-    return __rb_vm_dispatch(GET_VM(), cache, obj, NULL, selLTLT, NULL, 0, 1,
+    return __rb_vm_dispatch(GET_VM(), cache, 0, obj, NULL, selLTLT, NULL, 0, 1,
 	    &other);
 }
 
@@ -1292,7 +1307,7 @@ rb_vm_fast_aref(VALUE obj, VALUE other, struct mcache *cache,
 	}
 	return rb_ary_aref(obj, 0, 1, &other);
     }
-    return __rb_vm_dispatch(GET_VM(), cache, obj, NULL, selAREF, NULL, 0, 1,
+    return __rb_vm_dispatch(GET_VM(), cache, 0, obj, NULL, selAREF, NULL, 0, 1,
 	    &other);
 }
 
@@ -1309,7 +1324,7 @@ rb_vm_fast_aset(VALUE obj, VALUE other1, VALUE other2, struct mcache *cache,
 	}
     }
     VALUE args[2] = { other1, other2 };
-    return __rb_vm_dispatch(GET_VM(), cache, obj, NULL, selASET, NULL, 0, 2,
+    return __rb_vm_dispatch(GET_VM(), cache, 0, obj, NULL, selASET, NULL, 0, 2,
 	    args);
 }
 

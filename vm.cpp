@@ -720,6 +720,7 @@ RoxorCore::add_method(Class klass, SEL sel, IMP imp, IMP ruby_imp,
     assert(m != NULL);
     assert(method_getImplementation(m) == imp);
     rb_vm_method_node_t *real_node = method_node_get(m, true);
+    real_node->klass = klass;
     real_node->objc_imp = imp;
     real_node->ruby_imp = ruby_imp;
     real_node->arity = arity;
@@ -738,6 +739,7 @@ RoxorCore::add_method(Class klass, SEL sel, IMP imp, IMP ruby_imp,
 	node = iter2->second;
 	assert(node->objc_imp == imp);
     }
+    node->klass = klass;
     node->arity = arity;
     node->flags = flags;
     node->sel = sel;
@@ -810,6 +812,7 @@ RoxorCore::add_method(Class klass, SEL sel, IMP imp, IMP ruby_imp,
 		assert(m != NULL);
 		assert(method_getImplementation(m) == imp);
 		node = method_node_get(m, true);
+		node->klass = (Class)mod;
 		node->objc_imp = imp;
 		node->ruby_imp = ruby_imp;
 		node->arity = arity;
@@ -3236,6 +3239,7 @@ rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding,
 
     // For symbolication.
     rb_vm_method_node_t *mnode = GET_CORE()->method_node_get(imp, true);
+    mnode->klass = 0;
     mnode->arity = rb_vm_arity(2);
     mnode->sel = sel_registerName("<main>");
     mnode->objc_imp = mnode->ruby_imp = imp;

@@ -249,6 +249,7 @@ RoxorCompiler::compile_single_when_argument(NODE *arg, Value *comparedToVal,
     if (comparedToVal != NULL) {
 	std::vector<Value *> params;
 	params.push_back(compile_mcache(selEqq, false));
+	params.push_back(current_self);
 	params.push_back(subnodeVal);
 	params.push_back(compile_sel(selEqq));
 	params.push_back(compile_const_pointer(NULL));
@@ -718,10 +719,11 @@ Value *
 RoxorCompiler::compile_dispatch_call(std::vector<Value *> &params)
 {
     if (dispatcherFunc == NULL) {
-	// VALUE rb_vm_dispatch(struct mcache *cache, VALUE self, SEL sel,
-	//		        void *block, unsigned char opt, int argc, ...);
+	// VALUE rb_vm_dispatch(struct mcache *cache, VALUE top, VALUE self,
+	// 	SEL sel, void *block, unsigned char opt, int argc, ...);
 	std::vector<const Type *> types;
 	types.push_back(PtrTy);
+	types.push_back(RubyObjTy);
 	types.push_back(RubyObjTy);
 	types.push_back(PtrTy);
 	types.push_back(PtrTy);
@@ -767,6 +769,7 @@ RoxorCompiler::compile_attribute_assign(NODE *node, Value *extra_val)
     std::vector<Value *> params;
     const SEL sel = mid_to_sel(mid, argc);
     params.push_back(compile_mcache(sel, false));
+    params.push_back(current_self);
     params.push_back(recv);
     params.push_back(compile_sel(sel));
     params.push_back(compile_const_pointer(NULL));
@@ -2123,7 +2126,7 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 	    return NULL;
 	}
 	
-	Value *val = params[1]; // self
+	Value *val = params[2]; // self
 
 	Function *f = bb->getParent();
 
@@ -2156,7 +2159,7 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 
 	GlobalVariable *is_redefined = GET_CORE()->redefined_op_gvar(sel, true);
 	
-	Value *leftVal = params[1]; // self
+	Value *leftVal = params[2]; // self
 	Value *rightVal = params.back();
 
 	VALUE leftRVal = Qundef, rightRVal = Qundef;
@@ -2546,12 +2549,13 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 	std::vector<Value *> new_params;
 	new_params.push_back(compile_mcache(new_sel, false));
 	new_params.push_back(params[1]);
+	new_params.push_back(params[2]);
 	new_params.push_back(compile_sel(new_sel));
-	new_params.push_back(params[3]);
+	new_params.push_back(params[4]);
 	new_params.push_back(ConstantInt::get(Int8Ty, DISPATCH_FCALL));
 	new_params.push_back(ConstantInt::get(Int32Ty, argc - 1));
 	for (int i = 0; i < argc - 1; i++) {
-	    new_params.push_back(params[7 + i]);
+	    new_params.push_back(params[8 + i]);
 	}
 	Value *thenVal = compile_dispatch_call(new_params);
 	thenBB = bb;
@@ -3474,6 +3478,7 @@ RoxorCompiler::compile_node(NODE *node)
 		    sel = mid_to_sel(node->nd_next->nd_vid, 0);
 		}
 		params.push_back(compile_mcache(sel, false));
+		params.push_back(current_self);
 		params.push_back(recv);
 		params.push_back(compile_sel(sel));
 		params.push_back(compile_const_pointer(NULL));
@@ -3533,6 +3538,7 @@ RoxorCompiler::compile_node(NODE *node)
 		    sel = mid_to_sel(mid, 1);
 		    params.clear();
 		    params.push_back(compile_mcache(sel, false));
+		    params.push_back(current_self);
 		    params.push_back(tmp);
 		    params.push_back(compile_sel(sel));
 		    params.push_back(compile_const_pointer(NULL));
@@ -3557,6 +3563,7 @@ RoxorCompiler::compile_node(NODE *node)
 		}
 		params.clear();
 		params.push_back(compile_mcache(sel, false));
+		params.push_back(current_self);
 		params.push_back(recv);
 		params.push_back(compile_sel(sel));
 		params.push_back(compile_const_pointer(NULL));
@@ -3608,6 +3615,7 @@ RoxorCompiler::compile_node(NODE *node)
 
 		std::vector<Value *> params;
 		params.push_back(compile_mcache(selBackquote, false));
+		params.push_back(current_self);
 		params.push_back(current_self);
 		params.push_back(compile_sel(selBackquote));
 		params.push_back(compile_const_pointer(NULL));
@@ -4055,6 +4063,9 @@ rescan_args:
 		    params.push_back(compile_get_mcache(sel_val, true));
 		}
 
+		// Top.
+		params.push_back(current_self);
+
 		// Self.
 		params.push_back(recv == NULL ? current_self
 			: compile_node(recv));
@@ -4137,7 +4148,7 @@ rescan_args:
 			? compile_block_create(NULL)
 			: compile_const_pointer(NULL);
 		}
-		params[3] = blockVal;
+		params[4] = blockVal;
 
 		// If we are calling a method that needs a top-level binding
 		// object, let's create it.
@@ -4397,6 +4408,7 @@ rescan_args:
 
 		std::vector<Value *> params;
 		params.push_back(compile_mcache(selEqTilde, false));
+		params.push_back(current_self);
 		params.push_back(reTarget);
 		params.push_back(compile_sel(selEqTilde));
 		params.push_back(compile_const_pointer(NULL));
@@ -4959,6 +4971,7 @@ rescan_args:
 		    std::vector<Value *> params;
 
 		    params.push_back(compile_mcache(selEach, false));
+		    params.push_back(current_self);
 
 		    // the block must not be passed to the code
 		    // that generates the values we loop on
@@ -5130,6 +5143,7 @@ rescan_args:
 		std::vector<Value *> params;
 		SEL sel = sel_registerName("at_exit");
 		params.push_back(compile_mcache(sel, false));
+		params.push_back(current_self);
 		params.push_back(compile_nsobject());
 		params.push_back(compile_sel(sel));
 		params.push_back(compile_block_create(NULL));
