@@ -34,6 +34,10 @@ For 0.5 (must do):
 [ ] implement autoload
 [ ] Xcode target for AOT compilation
 [/] finish AOT compiler (only normal mode)
+  [ ] macrubyc should handle -arch
+  [ ] support #require calls when assembling a binary
+  [ ] add a flag to link against libmacruby.dylib (and not .a) when
+      assembling a binary
 [X] sync with LLVM 2.6/ToT
 [ ] non-ASCII regexp
 [ ] leaks
