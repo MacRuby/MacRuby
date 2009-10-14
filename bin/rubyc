@@ -45,7 +45,7 @@ class Compiler
 
     # Locate necessary programs.
     @macruby = locate(@internal ? './miniruby' : 'macruby')
-    @llc = locate('llc')
+    @llc = locate('llc', !@internal)
     @gcc = locate('gcc')
     @gcxx = locate('g++')
     @nm = locate('nm')
@@ -217,9 +217,15 @@ EOS
     ret
   end
 
-  def locate(progname)
-    path = `which #{progname}`.strip
-    die "Can't locate program `#{progname}'" if path.empty?
+  def locate(progname, must_be_in_bindir=false)
+    path = File.join(Config::CONFIG['bindir'], progname)
+    unless File.exist?(path)
+      if must_be_in_bindir
+        die "Can't locate program `#{progname}' in #{Config::CONFIG['bindir']}"
+      end
+      path = `which #{progname}`.strip
+      die "Can't locate program `#{progname}'" if path.empty?
+    end
     path
   end
 
