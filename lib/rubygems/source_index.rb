@@ -7,11 +7,9 @@
 require 'rubygems'
 require 'rubygems/user_interaction'
 require 'rubygems/specification'
-# MacRuby doesn't support autoload yet.
-#module Gem
-#  autoload(:SpecFetcher, 'rubygems/spec_fetcher')
-#end
-require 'rubygems/spec_fetcher'
+module Gem
+  autoload(:SpecFetcher, 'rubygems/spec_fetcher')
+end
 
 ##
 # The SourceIndex object indexes all the gems available from a
