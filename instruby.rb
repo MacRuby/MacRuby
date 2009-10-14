@@ -518,6 +518,9 @@ mkdir_p ib_dest
 ln_sfh File.join("../../..", CONFIG['bindir'], 'rb_nibtool'), ib_dest
 install('tool/rb_nibtool.old', ib_dest, :mode => $prog_mode)
 
+puts "installing LLVM tools"
+install('/usr/local/bin/llc', CONFIG['bindir'], :mode => $prog_mode)
+
 end # unless $installing_rdoc
 
 # vi:set sw=2:
