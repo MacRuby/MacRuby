@@ -35,7 +35,14 @@ get_loaded_features(void)
 int
 rb_provided(const char *feature)
 {
-    // TODO
+    VALUE ary = get_loaded_features();
+    for (int i = 0, count = RARRAY_LEN(ary); i < count; i++) {
+	VALUE path = RARRAY_AT(ary, i);
+	// TODO: this is very naive
+	if (strstr(RSTRING_PTR(path), feature) != NULL) {
+	    return true;
+	}
+    }
     return false;
 }
 
