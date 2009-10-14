@@ -34,7 +34,7 @@ For 0.5 (must do):
 [X] fix autoload bugs
 [ ] Xcode target for AOT compilation
 [/] finish AOT compiler (only normal mode)
-  [ ] should locate `llc' inside MacRuby.framework
+  [X] should locate `llc' inside MacRuby.framework
   [/] macrubyc should handle -arch
       (still a problem when building i386 dylibs)
   [ ] support #require calls when assembling a binary
