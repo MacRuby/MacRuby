@@ -382,6 +382,7 @@ bool rb_vm_abort_on_exception(void);
 void rb_vm_set_abort_on_exception(bool flag);
 
 Class rb_vm_set_current_class(Class klass);
+Class rb_vm_get_current_class(void);
 
 bool rb_vm_is_multithreaded(void);
 void rb_vm_set_multithreaded(bool flag);

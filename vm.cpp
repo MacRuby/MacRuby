@@ -3890,6 +3890,13 @@ rb_vm_set_current_class(Class klass)
 }
 
 extern "C"
+Class
+rb_vm_get_current_class(void)
+{
+    return GET_VM()->get_current_class();
+}
+
+extern "C"
 void
 rb_vm_set_current_scope(VALUE mod, rb_vm_scope_t scope)
 {

@@ -330,7 +330,7 @@ rb_mod_autoload(VALUE mod, SEL sel, VALUE sym, VALUE file)
  */
 
 static VALUE
-rb_mod_autoload_p(VALUE mod, VALUE sym)
+rb_mod_autoload_p(VALUE mod, SEL sel, VALUE sym)
 {
     return rb_autoload_p(mod, rb_to_id(sym));
 }
@@ -349,15 +349,11 @@ rb_mod_autoload_p(VALUE mod, VALUE sym)
 static VALUE
 rb_f_autoload(VALUE obj, SEL sel, VALUE sym, VALUE file)
 {
-#if 0
-    VALUE klass = rb_vm_cbase();
-    if (NIL_P(klass)) {
-	rb_raise(rb_eTypeError, "Can not set autoload on singleton class");
+    VALUE klass = (VALUE)rb_vm_get_current_class();
+    if (klass == 0) {
+	klass = rb_cObject;
     }
-    return rb_mod_autoload(klass, sym, file);
-#endif
-    // TODO
-    return Qnil;
+    return rb_mod_autoload(klass, 0, sym, file);
 }
 
 /*
@@ -367,16 +363,11 @@ rb_f_autoload(VALUE obj, SEL sel, VALUE sym, VALUE file)
 static VALUE
 rb_f_autoload_p(VALUE obj, SEL sel, VALUE sym)
 {
-#if 0
-    /* use rb_vm_cbase() as same as rb_f_autoload. */
-    VALUE klass = rb_vm_cbase();
-    if (NIL_P(klass)) {
-	return Qnil;
+    VALUE klass = (VALUE)rb_vm_get_current_class();
+    if (klass == 0) {
+	klass = rb_cObject;
     }
-    return rb_mod_autoload_p(klass, sym);
-#endif
-    // TODO
-    return Qnil;
+    return rb_mod_autoload_p(klass, 0, sym);
 }
 
 void

@@ -1453,11 +1453,7 @@ rb_autoload(VALUE mod, ID id, const char *file)
 	GC_WB(&DATA_PTR(av), tbl);
     }
     fn = rb_str_new2(file);
-#if __LP64__
-    RCLASS_RC_FLAGS(fn) &= ~FL_TAINT;
-#else
-    FL_UNSET(fn, FL_TAINT);
-#endif
+    rb_obj_untaint(fn);
     OBJ_FREEZE(fn);
     st_insert(tbl, id, (st_data_t)rb_node_newnode(NODE_MEMO, fn, rb_safe_level(), 0));
 }
