@@ -31,7 +31,7 @@ For 0.5 (must do):
 [X] refresh copyright headers for 2009
 [ ] rdoc should work
 [X] MacRuby should not ignore SIGINT and other signals
-[ ] implement autoload
+[X] fix autoload bugs
 [ ] Xcode target for AOT compilation
 [/] finish AOT compiler (only normal mode)
   [ ] macrubyc should handle -arch
