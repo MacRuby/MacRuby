@@ -13,6 +13,7 @@ class Compiler
 
   def initialize(argv)
     @mode = :normal
+    @archs = []
     @frameworks = []
     @internal = argv.delete('--internal')
 
@@ -24,6 +25,7 @@ class Compiler
       opts.on('--mode [MODE]', "Select compilation mode (normal or full)") { |mode| @mode = mode.intern }
       #opts.on('--framework <framework>', 'Link against <framework>') { |path| @frameworks << path }
       opts.on('-C', 'Compile, assemble and link a loadable object file') { @bundle = true }
+      opts.on('-a', '--arch <ARCH>', 'Compile for specified CPU architecture') { |arch| @archs << arch }
       opts.on('-v', '--version', 'Display the version') { puts RUBY_DESCRIPTION; exit 1 }
       opts.on('-V', '--verbose', 'Print every command line executed') { @verbose = true }
       opts.on('-h', '--help', 'Display this information') { die opts }
@@ -37,14 +39,17 @@ class Compiler
       if @mode != :normal and @mode != :full
         die "invalid mode `#{@mode}' (possible choices are: normal, full)"
       end
+      @archs.uniq!
+      @archs << RUBY_ARCH if @archs.empty?
     end
 
     # Locate necessary programs.
     @macruby = locate(@internal ? './miniruby' : 'macruby')
-    @llc = locate('llc')    
+    @llc = locate('llc')
     @gcc = locate('gcc')
     @gcxx = locate('g++')
     @nm = locate('nm')
+    @lipo = locate('lipo')
 
     # Misc.
     @tmpdir = (ENV['TMPDIR'] or '/tmp')
@@ -98,16 +103,24 @@ class Compiler
     # Generate init function (must be unique).
     init_func = "MREP_#{File.read(path).hash.abs}"
 
-    # Compile the file into LLVM bitcode.
-    bc = gen_tmpfile(base, 'bc')
-    execute("#{@macruby} --emit-llvm \"#{bc}\" #{init_func} \"#{path}\"")
+    tmp_objs = []
+    @archs.each do |arch|
+      # Compile the file into LLVM bitcode.
+      bc = gen_tmpfile(base + arch, 'bc')
+      execute("arch -#{arch} #{@macruby} --emit-llvm \"#{bc}\" #{init_func} \"#{path}\"")
 
-    # Compile the bitcode as assembly.
-    asm = gen_tmpfile(base, 's')
-    execute("#{@llc} -f #{bc} -o=#{asm} -march=x86-64 -enable-eh")
+      # Compile the bitcode as assembly.
+      asm = gen_tmpfile(base + arch, 's')
+      execute("#{@llc} -f #{bc} -o=#{asm} -march=#{llc_arch(arch)} -enable-eh")
 
-    # Finally compile the assembly.
-    execute("#{@gcc} -c -arch x86_64 #{asm} -o #{output}")
+      # Compile the assembly.
+      tmp_obj = gen_tmpfile(base + arch, 'o')
+      execute("#{@gcc} -c -arch #{arch} #{asm} -o #{tmp_obj}")
+      tmp_objs << tmp_obj
+    end
+
+    # Link the architecture objects.
+    execute("#{@lipo} -create #{tmp_objs.join(' ')} -output #{output}")
 
     [output, init_func]
   end
@@ -131,8 +144,9 @@ EOS
 
     main = gen_tmpfile('main', 'c')
     File.open(main, 'w') { |io| io.write(main_txt) }
-    link = @internal ? "-L. -lmacruby" : "-framework MacRuby"
-    execute("#{@gcxx} #{main} -dynamic -bundle -undefined suppress -flat_namespace -arch x86_64 #{link} #{obj} -o #{output}")
+    linkf = @internal ? "-L. -lmacruby" : "-framework MacRuby"
+    archf = @archs.map { |x| "-arch #{x}" }.join(' ')
+    execute("#{@gcxx} #{main} -dynamic -bundle -undefined suppress -flat_namespace #{archf} #{linkf} #{obj} -o #{output}")
   end
 
   def compile_executable(objs_data, output)
@@ -184,11 +198,12 @@ EOS
     main = gen_tmpfile('main', 'cpp')
     File.open(main, 'w') { |io| io.write(main_txt) }
     main_o = gen_tmpfile('main', 'o')
-    execute("#{@gcxx} #{main} -c -arch x86_64 -o #{main_o}")
+    archf = @archs.map { |x| "-arch #{x}" }.join(' ')
+    execute("#{@gcxx} #{main} -c #{archf} -o #{main_o}")
     objs.unshift(main_o)
 
     # Link all objects into executable.
-    line = "#{@gcxx} -o #{output} -L#{RbConfig::CONFIG['libdir']} -lmacruby-static -arch x86_64 -framework Foundation -lobjc -lauto -I/usr/include/libxml2 -lxml2 "
+    line = "#{@gcxx} -o #{output} -L#{RbConfig::CONFIG['libdir']} -lmacruby-static #{archf} -framework Foundation -lobjc -lauto -I/usr/include/libxml2 -lxml2 "
     @frameworks.each { |f| line << "-framework #{f} " }
     line << execute("llvm-config --ldflags --libs core jit nativecodegen interpreter bitwriter").gsub(/\n/, '')
     objs.each { |o| line << " #{o}" }
@@ -206,6 +221,15 @@ EOS
     path = `which #{progname}`.strip
     die "Can't locate program `#{progname}'" if path.empty?
     path
+  end
+
+  def llc_arch(arch)
+    # LLVM uses a different convention for architecture names.
+    case arch
+      when 'i386'; 'x86'
+      when 'x86_64'; 'x86-64'
+      else; arch
+    end
   end
 
   def gen_tmpfile(base, ext)
