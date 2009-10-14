@@ -959,9 +959,13 @@ rb_const_get_direct(VALUE klass, ID id)
     // Search the given class.
     CFDictionaryRef iv_dict = rb_class_ivar_dict(klass);
     if (iv_dict != NULL) {
+retry:
 	VALUE value;
 	if (CFDictionaryGetValueIfPresent(iv_dict, (const void *)id,
 		    (const void **)&value)) {
+	    if (value == Qundef && RTEST(rb_autoload_load(klass, id))) {
+		goto retry;
+	    }
 	    return value;
 	}
     }
@@ -970,7 +974,8 @@ rb_const_get_direct(VALUE klass, ID id)
     if (mods != Qnil) {
 	int i, count = RARRAY_LEN(mods);
 	for (i = 0; i < count; i++) {
-	    VALUE val = rb_const_get_direct(RARRAY_AT(mods, i), id);
+	    VALUE mod = RARRAY_AT(mods, i);
+	    VALUE val = rb_const_get_direct(mod, id);
 	    if (val != Qundef) {
 		return val;
 	    }
