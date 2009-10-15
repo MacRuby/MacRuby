@@ -3549,6 +3549,35 @@ rb_vm_throw(VALUE tag, VALUE value)
 }
 
 extern "C"
+VALUE
+rb_exec_recursive(VALUE (*func) (VALUE, VALUE, int), VALUE obj, VALUE arg)
+{
+    return GET_VM()->exec_recursive(func, obj, arg);
+}
+
+VALUE
+RoxorVM::exec_recursive(VALUE (*func) (VALUE, VALUE, int), VALUE obj,
+	VALUE arg)
+{
+    std::vector<VALUE>::iterator iter =
+	std::find(recursive_objects.begin(), recursive_objects.end(), obj);
+    if (iter != recursive_objects.end()) {
+	// Object is already being iterated!
+	return (*func) (obj, arg, Qtrue);
+    }
+
+    recursive_objects.push_back(obj);
+    // XXX the function is not supposed to raise an exception.
+    VALUE ret = (*func) (obj, arg, Qfalse);
+
+    iter = std::find(recursive_objects.begin(), recursive_objects.end(), obj);
+    assert(iter != recursive_objects.end());
+    recursive_objects.erase(iter);
+
+    return ret;
+}
+
+extern "C"
 void *
 rb_vm_create_vm(void)
 {

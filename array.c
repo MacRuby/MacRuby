@@ -1658,13 +1658,6 @@ recursive_join(VALUE ary, VALUE argp, int recur)
 }
 
 VALUE
-rb_exec_recursive(VALUE (*func) (VALUE, VALUE, int), VALUE obj, VALUE arg)
-{
-    // TODO check!
-    return (*func) (obj, arg, Qfalse);
-}
-
-VALUE
 rb_ary_join(VALUE ary, VALUE sep)
 {
     long i, count;

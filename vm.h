@@ -808,6 +808,7 @@ class RoxorVM {
 	std::vector<VALUE> current_exceptions;
 	std::vector<rb_vm_binding_t *> bindings;
 	std::map<VALUE, rb_vm_catch_t *> catch_jmp_bufs;
+	std::vector<VALUE> recursive_objects;
 
 	VALUE thread;
 	Class current_class;
@@ -932,6 +933,9 @@ class RoxorVM {
 	VALUE ruby_throw(VALUE tag, VALUE value);
 
 	void setup_from_current_thread(void);
+
+	VALUE exec_recursive(VALUE (*func) (VALUE, VALUE, int), VALUE obj,
+		VALUE arg);
 };
 
 #define GET_VM() (RoxorVM::current())
