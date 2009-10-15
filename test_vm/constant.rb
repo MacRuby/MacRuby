@@ -127,3 +127,13 @@ assert '42', %{
   end
   Foo.new.hey
 }
+
+assert '42', %{
+  module Foo; end
+  module Foo::Bar
+    FOO=42
+    class X
+      p FOO
+    end
+  end
+}
