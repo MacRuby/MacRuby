@@ -174,7 +174,6 @@ describe "IO#gets" do
     f.fileno.should == g.fileno
     lambda { g.gets }.should raise_error(IOError)
     g.close
-    lambda { f.close }.should raise_error(Errno::EBADF)
     File.unlink(tmp("gets_specs"))
   end
 

@@ -1,7 +1,14 @@
 require File.dirname(__FILE__) + '/../../spec_helper'
 require File.dirname(__FILE__) + '/fixtures/classes'
 
-EvalSpecs::A.new.c
+class A
+  eval "class B; end"
+  def c
+    eval "class C; end"
+  end
+end
+
+A.new.c
 
 describe "Kernel#eval" do
   it "is a private method" do
@@ -17,51 +24,11 @@ describe "Kernel#eval" do
   end
 
   it "evaluates within the scope of the eval" do
-    EvalSpecs::A::B.name.should == "EvalSpecs::A::B"
+    A::B.name.should == "A::B"
   end
 
   it "evaluates such that consts are scoped to the class of the eval" do
-    EvalSpecs::A::C.name.should == "EvalSpecs::A::C"
-  end
-
-  it "finds a local in an enclosing scope" do
-    a = 1
-    eval("a").should == 1
-  end
-
-  it "updates a local in an enclosing scope" do
-    a = 1
-    eval("a = 2").should == 2
-    a.should == 2
-  end
-
-  it "creates an eval-scope local" do
-    eval("eval_only_local = 1; eval_only_local").should == 1
-    lambda { eval_only_local }.should raise_error(NameError)
-  end
-
-  it "updates a local in a surrounding block scope" do
-    EvalSpecs.new.f do
-      a = 1
-      eval("a = 2").should == 2
-      a.should == 2
-    end
-  end
-
-  it "updates a local in a scope above a surrounding block scope" do
-    a = 1
-    EvalSpecs.new.f do
-      eval("a = 2").should == 2
-      a.should == 2
-    end
-    a.should == 2
-  end
-
-  it "updates a local in a scope above when modified in a nested block scope" do
-    a = 1
-    es = EvalSpecs.new
-    eval("es.f { es.f { a = 2 } }").should == 2
-    a.should == 2
+    A::C.name.should == "A::C"
   end
 
   ruby_version_is ""..."1.9" do
