@@ -484,8 +484,8 @@ if RUBY_FRAMEWORK
   mkdir_p dest_bin, :mode => 0755
   Dir.entries(with_destdir(CONFIG['bindir'])).each do |bin|
     next if bin[0] == '.'
-    # Except rb_nibtool!
-    next if bin == 'rb_nibtool'
+    # Except rb_nibtool & llc!
+    next if bin == 'rb_nibtool' or bin == 'llc'
     link = File.join("../../../", CONFIG['bindir'], bin)
     link.sub!(/#{MACRUBY_VERSION}/, 'Current')
     ln_sfh link, File.join(dest_bin, File.basename(bin))
@@ -519,7 +519,8 @@ ln_sfh File.join("../../..", CONFIG['bindir'], 'rb_nibtool'), ib_dest
 install('tool/rb_nibtool.old', ib_dest, :mode => $prog_mode)
 
 puts "installing LLVM tools"
-install('/usr/local/bin/llc', CONFIG['bindir'], :mode => $prog_mode)
+llc_dest = File.join(CONFIG['bindir'], 'llc')
+install('/usr/local/bin/llc', llc_dest, :mode => $prog_mode)
 
 end # unless $installing_rdoc
 
