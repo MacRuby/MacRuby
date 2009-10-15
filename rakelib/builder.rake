@@ -387,7 +387,8 @@ task :aot_compile_stdlib => [:miniruby, 'macruby:dylib'] do
     Dir.glob(pat).each do |path|
       out = File.join(File.dirname(path), File.basename(path, '.rb') + '.rbo')
       if !File.exist?(out) or File.mtime(path) > File.mtime(out) or File.mtime('./miniruby') > File.mtime(out)
-        sh "./miniruby -I. -I./lib bin/rubyc --internal -C \"#{path}\" -o \"#{out}\""
+        archf = ARCHS.map { |x| "--arch #{x}" }.join(' ')
+        sh "./miniruby -I. -I./lib bin/rubyc --internal #{archf} -C \"#{path}\" -o \"#{out}\""
       end
     end
   end 
