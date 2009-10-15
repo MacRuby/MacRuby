@@ -2562,7 +2562,10 @@ rb_vm_push_binding(VALUE self, rb_vm_block_t *current_block,
 
     rb_vm_add_binding_lvar_use(binding, current_block, parent_var_uses);
 
-    GET_VM()->push_current_binding(binding);
+    RoxorVM *vm = GET_VM();
+    GC_WB(&binding->block, vm->current_block());
+
+    vm->push_current_binding(binding);
 }
 
 extern "C"
@@ -3274,6 +3277,8 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
 	RoxorCompiler::shared->set_dynamic_class(true);
     }
 
+    vm->add_current_block(binding != NULL ? binding->block : NULL);
+
     struct Finally {
 	RoxorVM *vm;
 	bool old_dynamic_class;
@@ -3289,6 +3294,7 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
 	    RoxorCompiler::shared->set_dynamic_class(old_dynamic_class);
 	    vm->set_current_top_object(old_top_object);
 	    vm->set_current_class(old_class);
+	    vm->pop_current_block();
 	}
     } finalizer(vm, old_dynamic_class, old_class, old_top_object);
 

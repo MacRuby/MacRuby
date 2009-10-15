@@ -53,6 +53,7 @@ typedef struct rb_vm_block {
 
 typedef struct {
     VALUE self;
+    rb_vm_block_t *block;
     rb_vm_local_t *locals;
 } rb_vm_binding_t;
 

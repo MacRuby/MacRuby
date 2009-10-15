@@ -1391,6 +1391,7 @@ proc_binding(VALUE self, SEL sel)
     rb_vm_binding_t *binding = (rb_vm_binding_t *)xmalloc(
 	    sizeof(rb_vm_binding_t));
 
+    binding->block = NULL;
     GC_WB(&binding->self, block->self);
     GC_WB(&binding->locals, block->locals);
 
