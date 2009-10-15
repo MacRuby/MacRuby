@@ -119,3 +119,24 @@ assert 'true', %{
   end
   p e.backtrace.kind_of? Array
 }
+
+assert 'true', %{
+  class Foo
+    def get_binding
+      binding
+    end
+  end
+  b = Foo.new.get_binding { 42 }
+  p eval "block_given?", b
+}
+
+assert '42', %{
+  class Foo
+    def get_binding
+      binding
+    end
+  end
+  b = Foo.new.get_binding { 42 }
+  p eval "yield", b
+}
+
