@@ -2615,19 +2615,19 @@ rb_f_putc(VALUE recv, SEL sel, VALUE ch)
 VALUE rb_io_puts(VALUE out, SEL sel, int argc, VALUE *argv);
  
 static VALUE
-io_puts_ary(VALUE ary, SEL sel, VALUE out, int recur)
+io_puts_ary(VALUE ary, VALUE out, int recur)
 {
     VALUE tmp;
     long i, count;
 
     if (recur) {
 	tmp = rb_str_new2("[...]");
-	rb_io_puts(out, sel, 1, &tmp);
+	rb_io_puts(out, 0, 1, &tmp);
 	return Qnil;
     }
     for (i = 0, count = RARRAY_LEN(ary); i < count; i++) {
 	tmp = RARRAY_AT(ary, i);
-	rb_io_puts(out, sel, 1, &tmp);
+	rb_io_puts(out, 0, 1, &tmp);
     }
     return Qnil;
 }
@@ -2644,7 +2644,7 @@ rb_io_puts(VALUE out, SEL sel, int argc, VALUE *argv)
     for (i = 0; i < argc; i++) {
         line = rb_check_array_type(argv[i]);
         if (!NIL_P(line)) {
-            io_puts_ary(line, sel, out, 0);
+            rb_exec_recursive(io_puts_ary, line, out);
             continue;
         }
         line = rb_obj_as_string(argv[i]);
