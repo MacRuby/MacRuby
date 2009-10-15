@@ -22,8 +22,9 @@ class Compiler
       opts.banner = "Usage: #{NAME} [options] file..."
       opts.on('-c', 'Compile and assemble, but do not link') { @dont_link = true }
       opts.on('-o <file>', 'Place the output into <file>') { |output| @output = output }
-      opts.on('--mode [MODE]', "Select compilation mode (normal or full)") { |mode| @mode = mode.intern }
+      #opts.on('--mode [MODE]', "Select compilation mode (normal or full)") { |mode| @mode = mode.intern }
       #opts.on('--framework <framework>', 'Link against <framework>') { |path| @frameworks << path }
+      opts.on('--static', "Create a standalone static executable") { @static = true } 
       opts.on('-C', 'Compile, assemble and link a loadable object file') { @bundle = true }
       opts.on('-a', '--arch <ARCH>', 'Compile for specified CPU architecture') { |arch| @archs << arch }
       opts.on('-v', '--version', 'Display the version') { puts RUBY_DESCRIPTION; exit 1 }
@@ -61,6 +62,7 @@ class Compiler
       die "full compilation mode is not implemented yet!"
     end
     if @dont_link or @bundle
+      die "cannot specify --static when not building an executable" if @static
       die "cannot specify -c and -C at the same time" if @bundle and @dont_link
       if @files.size > 1 and @output
         die "cannot specify -o with -c or -C and multiple input files"
@@ -195,17 +197,22 @@ EOS
 EOS
 
     # Compile main file.
-    main = gen_tmpfile('main', 'cpp')
+    main = gen_tmpfile('main', 'mm')
     File.open(main, 'w') { |io| io.write(main_txt) }
     main_o = gen_tmpfile('main', 'o')
     archf = @archs.map { |x| "-arch #{x}" }.join(' ')
-    execute("#{@gcxx} #{main} -c #{archf} -o #{main_o}")
+    execute("#{@gcxx} #{main} -c #{archf} -o #{main_o} -fobjc-gc")
     objs.unshift(main_o)
 
     # Link all objects into executable.
-    line = "#{@gcxx} -o #{output} -L#{RbConfig::CONFIG['libdir']} -lmacruby-static #{archf} -framework Foundation -lobjc -lauto -I/usr/include/libxml2 -lxml2 "
+    linkf = @static ? 
+      "-L#{RbConfig::CONFIG['libdir']} -lmacruby-static -framework Foundation -lobjc -lauto -lxml2" :
+      "-framework MacRuby -lobjc"
+    line = "#{@gcxx} -o #{output} #{archf} #{linkf} "
     @frameworks.each { |f| line << "-framework #{f} " }
-    line << execute("llvm-config --ldflags --libs core jit nativecodegen interpreter bitwriter").gsub(/\n/, '')
+    if @static
+      line << execute("llvm-config --ldflags --libs core jit nativecodegen interpreter bitwriter").gsub(/\n/, '')
+    end
     objs.each { |o| line << " #{o}" }
     execute(line)
   end
