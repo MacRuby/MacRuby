@@ -50,8 +50,8 @@ describe "Thread#raise on a sleeping thread" do
     lambda {t.value}.should raise_error(RuntimeError)
   end
 
-  ruby_version_is "" ... "1.9" do
-    it "re-raises active exception" do
+  ruby_version_is "1.9" do
+    it "raises a RuntimeError when called with no arguments" do
       t = Thread.new do
         begin
           1/0
@@ -59,10 +59,13 @@ describe "Thread#raise on a sleeping thread" do
           sleep 3
         end
       end
-  
-      Thread.pass while t.status and t.status != "sleep"
-      t.raise
-      lambda {t.value}.should raise_error(ZeroDivisionError)
+      begin
+        raise RangeError
+      rescue
+        Thread.pass while t.status and t.status != "sleep"
+        t.raise
+      end
+      lambda {t.value}.should raise_error(RuntimeError)
       t.kill
     end
   end
@@ -107,23 +110,25 @@ describe "Thread#raise on a running thread" do
     lambda {t.value}.should raise_error(RuntimeError)
   end
 
-  ruby_version_is "" ... "1.9" do
-    it "re-raises active exception" do
-      raised = false
-      t = Thread.new do
-        begin
-          1/0
-        rescue ZeroDivisionError
-          raised = true
-          loop { }
-        end
+  it "raise the given argument even when there is an active exception" do
+    raised = false
+    t = Thread.new do
+      begin
+        1/0
+      rescue ZeroDivisionError
+        raised = true
+        loop { }
       end
-  
+    end
+    begin
+      raise "Create an active exception for the current thread too"
+    rescue
       Thread.pass until raised || !t.alive?
-      t.raise
-      lambda {t.value}.should raise_error(ZeroDivisionError)
+      t.raise RangeError
+      lambda {t.value}.should raise_error(RangeError)
     end
   end
+
 end
 
 describe "Thread#raise on same thread" do

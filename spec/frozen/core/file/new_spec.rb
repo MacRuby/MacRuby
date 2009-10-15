@@ -1,4 +1,5 @@
 require File.dirname(__FILE__) + '/../../spec_helper'
+require File.dirname(__FILE__) + '/shared/open'
 
 describe "File.new" do
   before :each do
@@ -154,4 +155,6 @@ describe "File.new" do
       lambda { File.new(@fh.fileno, @flags) }.should raise_error(Errno::EINVAL)
     end
   end
+  
+  it_behaves_like :open_directory, :new
 end

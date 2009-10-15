@@ -493,6 +493,10 @@ describe "Integer() given a String and base", :shared => true do
         lambda { Integer("0#{d}1", base) }.should raise_error(ArgumentError)
       end
     end
+
+    it "raises an ArgumentError if a base is given for a non-String value" do
+      lambda { Integer(98, 15) }.should raise_error(ArgumentError)
+    end
   end
 end
 

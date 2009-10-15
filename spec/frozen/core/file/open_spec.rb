@@ -1,4 +1,5 @@
 require File.dirname(__FILE__) + '/../../spec_helper'
+require File.dirname(__FILE__) + '/shared/open'
 
 describe "File.open" do
   before :all do
@@ -542,4 +543,6 @@ describe "File.open" do
   it "raises an ArgumentError if passed an invalid string for mode" do
     lambda { File.open(@file, 'fake') }.should raise_error(ArgumentError)
   end
+  
+  it_behaves_like :open_directory, :open
 end

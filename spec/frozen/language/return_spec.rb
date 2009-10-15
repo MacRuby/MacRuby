@@ -201,6 +201,17 @@ describe "The return keyword" do
       f().should == :outer_ensure
       ScratchPad.recorded.should == [:inner_begin, :inner_ensure, :outer_ensure]
     end
+
+    it "executes the ensure clause when begin/ensure are inside a lambda" do
+      lambda do
+        begin
+          return
+        ensure
+          ScratchPad.recorded << :ensure
+        end
+      end.call
+      ScratchPad.recorded.should == [:ensure]
+    end
   end
 
   describe "within a block" do
@@ -241,6 +252,7 @@ describe "The return keyword" do
       ReturnSpecs::NestedBlocks.new.enclosing_method.should == :return_value
       ScratchPad.recorded.should == :before_return
     end
+
   end
 
   describe "within two blocks" do

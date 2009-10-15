@@ -38,4 +38,10 @@ describe "Hash literal" do
     h.keys.first.frozen?.should == true
     key.should == "oof"
   end
+
+  it "checks duplicated keys on initialization" do
+    h = {:foo => :bar, :foo => :foo}
+    h.keys.size.should == 1
+    h.should == {:foo => :foo}
+  end
 end
