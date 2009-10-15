@@ -3259,7 +3259,6 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
 		rb_vm_binding_t *binding, bool inside_eval)
 {
     RoxorVM *vm = GET_VM();
-    RoxorCompiler *compiler = RoxorCompiler::shared;
 
     VALUE old_top_object = vm->get_current_top_object();
     if (binding != NULL) {
@@ -3269,19 +3268,31 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
 	vm->set_current_top_object(self);
     }
     Class old_class = GET_VM()->get_current_class();
-    bool old_dynamic_class = compiler->is_dynamic_class();
+    bool old_dynamic_class = RoxorCompiler::shared->is_dynamic_class();
     if (klass != 0) {
 	vm->set_current_class((Class)klass);
-	compiler->set_dynamic_class(true);
+	RoxorCompiler::shared->set_dynamic_class(true);
     }
 
-    VALUE val = rb_vm_run(fname, node, binding, inside_eval);
+    struct Finally {
+	RoxorVM *vm;
+	bool old_dynamic_class;
+	Class old_class;
+	VALUE old_top_object;
+	Finally(RoxorVM *_vm, bool _dynamic_class, Class _class, VALUE _obj) {
+	    vm = _vm;
+	    old_dynamic_class = _dynamic_class;
+	    old_class = _class;
+	    old_top_object = _obj;
+	}
+	~Finally() { 
+	    RoxorCompiler::shared->set_dynamic_class(old_dynamic_class);
+	    vm->set_current_top_object(old_top_object);
+	    vm->set_current_class(old_class);
+	}
+    } finalizer(vm, old_dynamic_class, old_class, old_top_object);
 
-    compiler->set_dynamic_class(old_dynamic_class);
-    vm->set_current_top_object(old_top_object);
-    vm->set_current_class(old_class);
-
-    return val;
+    return rb_vm_run(fname, node, binding, inside_eval);
 }
 
 extern "C"
