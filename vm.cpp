@@ -1761,7 +1761,7 @@ prepare_method:
 	added_modfunc = true;
 	redefined = false;
 	klass = *(Class *)klass;
-	flags = 0;
+	sel = orig_sel;
 	goto prepare_method;
     }
 }
