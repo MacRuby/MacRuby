@@ -5290,7 +5290,7 @@ imp_rb_str_isEqual(void *rcv, SEL sel, void *other)
 {
     bool flag;
     PREPARE_RCV(rcv);
-    flag = other && CFEqual((CFTypeRef)rcv, (CFTypeRef)other);    
+    flag = (other != NULL) && CFEqual((CFTypeRef)rcv, (CFTypeRef)other);    
     RESTORE_RCV(rcv);
     return flag;
 }
