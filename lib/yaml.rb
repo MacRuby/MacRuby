@@ -47,6 +47,10 @@ module YAML
     end
   end
   
+  def YAML.each_document(io, &block)
+    YAML.load_documents(io, &block)
+  end
+
   def YAML.load_all(io)
     elements = []
     YAML.load_documents(io) { |e| elements << e}
