@@ -2767,51 +2767,47 @@ extern unsigned long __attribute__((stdcall)) GetLastError(void);
  *     File.new("testfile").flock(File::LOCK_UN)   #=> 0
  *     
  */
-#if 0
 static VALUE
 rb_file_flock(VALUE obj, SEL sel, VALUE operation)
 {
 #ifndef __CHECKER__
-    rb_io_t *fptr;
     int op[2], op1;
 
     rb_secure(2);
     op[1] = op1 = NUM2INT(operation);
-    GetOpenFile(obj, fptr);
-    op[0] = fptr->fd;
+    rb_io_t *io = ExtractIOStruct(obj);
+    op[0] = io->fd;
 
-    if (fptr->mode & FMODE_WRITABLE) {
-	rb_io_flush(obj);
-    }
+//    if (io->mode & FMODE_WRITABLE) {
+//	rb_io_flush(obj);
+//    }
 
     while (flock(op[0], op[1]) < 0) {
-//    while ((int)rb_thread_blocking_region(rb_thread_flock, op, RB_UBF_DFL, 0) < 0) {
 	switch (errno) {
-	  case EAGAIN:
-	  case EACCES:
+	    case EAGAIN:
+	    case EACCES:
 #if defined(EWOULDBLOCK) && EWOULDBLOCK != EAGAIN
-	  case EWOULDBLOCK:
+	    case EWOULDBLOCK:
 #endif
-	    if (op1 & LOCK_NB) return Qfalse;
-	    rb_thread_polling();
-	    rb_io_check_closed(fptr);
-	    continue;
+		if (op1 & LOCK_NB) return Qfalse;
+		rb_thread_polling();
+		rb_io_check_closed(io);
+		continue;
 
-	  case EINTR:
+	    case EINTR:
 #if defined(ERESTART)
-	  case ERESTART:
+	    case ERESTART:
 #endif
-	    break;
+		break;
 
-	  default:
-	    rb_sys_fail(fptr->path);
+	    default:
+		rb_sys_fail(RSTRING_PTR(io->path));
 	}
     }
 #endif
     return INT2FIX(0);
 }
 #undef flock
-#endif
 
 static void
 test_check(int n, int argc, VALUE *argv)
@@ -4029,7 +4025,7 @@ Init_File(void)
     rb_objc_define_method(rb_cFile, "chown", rb_file_chown, 2);
     rb_objc_define_method(rb_cFile, "truncate", rb_file_truncate, 1);
 
-    //rb_objc_define_method(rb_cFile, "flock", rb_file_flock, 1);
+    rb_objc_define_method(rb_cFile, "flock", rb_file_flock, 1);
 
     rb_mFConst = rb_define_module_under(rb_cFile, "Constants");
     rb_include_module(rb_cIO, rb_mFConst);
