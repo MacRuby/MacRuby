@@ -2,7 +2,7 @@ require File.dirname(__FILE__) + '/../../spec_helper'
 require File.dirname(__FILE__) + '/fixtures/classes'
 
 describe "Array#to_s" do
-  ruby_version_is "" .. "1.9" do
+  ruby_version_is "" ... "1.9" do
     it "is equivalent to #join without a separator string" do
       old = $,
       begin
