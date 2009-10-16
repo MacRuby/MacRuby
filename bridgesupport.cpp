@@ -1035,7 +1035,16 @@ RoxorCore::bs_parse_cb(bs_element_type_t type, void *value, void *ctx)
 	    std::map<std::string, bs_element_cftype_t *>::iterator
 		iter = bs_cftypes.find(bs_cftype->type);
 	    if (iter == bs_cftypes.end()) {
-		bs_cftypes[bs_cftype->type] = bs_cftype;
+		std::string s(bs_cftype->type);
+		bs_cftypes[s] = bs_cftype;
+		if (s.compare(s.size() - 2, 2, "=}") == 0) {
+		    // For ^{__CFError=}, also registering ^{__CFError}.
+		    // This is because functions or methods returning CF types
+		    // by reference strangely omit the '=' character as part
+		    // of their BridgeSupport signature.
+		    s.replace(s.size() - 2, 2, "}");
+		    bs_cftypes[s] = bs_cftype;
+		}
 		do_not_free = true;
 	    }
 	    else {
