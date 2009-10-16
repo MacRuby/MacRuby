@@ -53,6 +53,14 @@ describe "Object#to_yaml" do
     "I love Ruby".to_yaml.should == "--- I love Ruby\n"
   end
 
+  it "returns correct escape characters for non-ASCII Unicode characters" do
+    #
+    # Not sure if this belongs here? MN
+    #
+    str = YAML.load('--- "\U000000A9\U00002117\U0001D122"')
+    str.to_yaml.chomp.should == '--- "\xA9\u2117\U0001D122"'
+  end
+
   it "returns the YAML representation of a Struct object" do
     Person = Struct.new(:name, :gender)
     Person.new("Jane", "female").to_yaml.should match_yaml("--- !ruby/struct:Person\nname: Jane\ngender: female\n")

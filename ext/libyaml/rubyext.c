@@ -162,10 +162,10 @@ rb_yaml_parser_set_input(VALUE self, SEL sel, VALUE input)
 		    rb_bytestring_length(input));
 	}
 	else if (TYPE(input) == T_STRING) {
-	    // TODO: Make sure that this is Unicode-aware.
+	    const char * instring = RSTRING_PTR(input);
 	    yaml_parser_set_input_string(parser,
-		    (const unsigned char *)(RSTRING_PTR(input)),
-		    RSTRING_LEN(input));			
+		    (const unsigned char *)(instring),
+		    strlen(instring));			
 	}
 	else if (TYPE(input) == T_FILE) {
 	    yaml_parser_set_input(parser, rb_yaml_io_read_handler,
@@ -729,7 +729,7 @@ rb_yaml_emitter_scalar(VALUE self, SEL sel, VALUE taguri, VALUE val,
 
     int can_omit_tag = 0;
     yaml_char_t *tag = rb_yaml_tag_or_null(taguri, &can_omit_tag);
-    yaml_scalar_event_initialize(&ev, NULL, tag, output, RSTRING_LEN(val),
+    yaml_scalar_event_initialize(&ev, NULL, tag, output, strlen(output),
 	    can_omit_tag, can_omit_tag, rb_symbol_to_scalar_style(style));
     yaml_emitter_emit(emitter, &ev);
 
