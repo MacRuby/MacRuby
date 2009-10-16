@@ -839,6 +839,7 @@ rb_alias_variable(ID name1, ID name2)
     entry1->var = entry2->var;
 }
 
+// TODO: should use an associative reference instead.
 static CFMutableDictionaryRef generic_iv_dict = NULL;
 
 static VALUE
@@ -1076,10 +1077,7 @@ ivar_get(VALUE obj, ID id, int warn)
 	    return generic_ivar_get(obj, id, warn);
 
 	default:
-	    if (FL_TEST(obj, FL_EXIVAR) || rb_special_const_p(obj)) {
-		return generic_ivar_get(obj, id, warn);
-	    }
-	    break;
+	    return generic_ivar_get(obj, id, warn);
     }
     if (warn) {
 	rb_warning("instance variable %s not initialized", rb_id2name(id));
@@ -1142,13 +1140,11 @@ rb_ivar_set(VALUE obj, ID id, VALUE val)
 	    break;
 
 	case T_NATIVE:
-	    rb_objc_flag_set((const void *)obj, FL_EXIVAR, true);
 	    generic_ivar_set(obj, id, val);
 	    break;
 
 	default:
 	    generic_ivar_set(obj, id, val);
-	    FL_SET(obj, FL_EXIVAR);
 	    break;
     }
     return val;
@@ -1199,10 +1195,7 @@ rb_ivar_defined(VALUE obj, ID id)
 	    return generic_ivar_defined(obj, id);
 
 	default:
-	    if (FL_TEST(obj, FL_EXIVAR) || rb_special_const_p(obj)) {
-		return generic_ivar_defined(obj, id);
-	    }
-	    break;
+	    return generic_ivar_defined(obj, id);
     }
     return Qfalse;
 }
@@ -1231,9 +1224,6 @@ rb_ivar_foreach(VALUE obj, int (*func)(ANYARGS), st_data_t arg)
 
       case T_NATIVE:
 	  goto generic;
-    }
-    if (!FL_TEST(obj, FL_EXIVAR) && !rb_special_const_p(obj)) {
-	return;
     }
 generic:
     if (generic_iv_dict != NULL) {
