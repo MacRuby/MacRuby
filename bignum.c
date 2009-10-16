@@ -1377,14 +1377,20 @@ rb_big_eql(VALUE x, SEL sel, VALUE y)
  * Unary minus (returns a new Bignum whose value is 0-big)
  */
 
-static VALUE
-rb_big_uminus(VALUE x, SEL sel)
+VALUE
+rb_big_uminus(VALUE x)
 {
     VALUE z = rb_big_clone(x);
 
     RBIGNUM_SET_SIGN(z, !RBIGNUM_SIGN(x));
 
     return bignorm(z);
+}
+
+static VALUE
+rb_big_uminus_imp(VALUE x, SEL sel)
+{
+    return rb_big_uminus(x);
 }
 
 /*
@@ -2833,7 +2839,7 @@ Init_Bignum(void)
 
     rb_objc_define_method(rb_cBignum, "to_s", rb_big_to_s, -1);
     rb_objc_define_method(rb_cBignum, "coerce", rb_big_coerce, 1);
-    rb_objc_define_method(rb_cBignum, "-@", rb_big_uminus, 0);
+    rb_objc_define_method(rb_cBignum, "-@", rb_big_uminus_imp, 0);
     rb_objc_define_method(rb_cBignum, "+", rb_big_plus_imp, 1);
     rb_objc_define_method(rb_cBignum, "-", rb_big_minus_imp, 1);
     rb_objc_define_method(rb_cBignum, "*", rb_big_mul_imp, 1);

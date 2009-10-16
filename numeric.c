@@ -2131,10 +2131,17 @@ rb_flo_induced_from(VALUE klass, SEL sel, VALUE x)
  * Negates <code>fix</code> (which might return a Bignum).
  */
 
+VALUE
+rb_fix_uminus(VALUE num)
+{
+    return LONG2NUM(-FIX2LONG(num));
+}
+
+
 static VALUE
 fix_uminus(VALUE num, SEL sel)
 {
-    return LONG2NUM(-FIX2LONG(num));
+    return rb_fix_uminus(num);
 }
 
 VALUE

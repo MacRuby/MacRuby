@@ -190,6 +190,9 @@ RoxorCore::RoxorCore(void)
 
     pthread_assert(pthread_mutex_init(&gl, 0));
 
+    // Fixnum is an immediate type, no need to retain
+    rand_seed = INT2FIX(0);
+
     load_path = rb_ary_new();
     rb_objc_retain((void *)load_path);
 
@@ -917,6 +920,35 @@ void
 rb_vm_set_running(bool flag)
 {
     GET_CORE()->set_running(flag); 
+}
+
+extern "C"
+VALUE
+rb_vm_rand_seed(void)
+{
+    VALUE     rand_seed;
+    RoxorCore *core = GET_CORE();
+
+    core->lock();
+    rand_seed = core->get_rand_seed();
+    core->unlock();
+
+    return rand_seed;
+}
+
+extern "C"
+void
+rb_vm_set_rand_seed(VALUE rand_seed)
+{
+    RoxorCore *core = GET_CORE();
+
+    core->lock();
+    if (core->get_rand_seed() != rand_seed) {
+	GC_RELEASE(core->get_rand_seed());
+	GC_RETAIN(rand_seed);
+	core->set_rand_seed(rand_seed);
+    }
+    core->unlock();
 }
 
 extern "C"

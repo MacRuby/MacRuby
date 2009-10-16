@@ -259,6 +259,8 @@ void rb_vm_aot_compile(NODE *node);
 void rb_vm_init_compiler(void);
 bool rb_vm_running(void);
 void rb_vm_set_running(bool flag);
+VALUE rb_vm_rand_seed(void);
+void rb_vm_set_rand_seed(VALUE rand_seed);
 bool rb_vm_parse_in_eval(void);
 void rb_vm_set_parse_in_eval(bool flag);
 VALUE rb_vm_load_path(void);
@@ -551,6 +553,7 @@ class RoxorCore {
 	pthread_mutex_t gl;
 	VALUE loaded_features;
 	VALUE load_path;
+	VALUE rand_seed;
 
 	// Cache to avoid compiling the same Function twice.
 	std::map<Function *, IMP> JITcache;
@@ -603,6 +606,7 @@ class RoxorCore {
 	ACCESSOR(running, bool);
 	ACCESSOR(multithreaded, bool);
 	ACCESSOR(abort_on_exception, bool);
+	ACCESSOR(rand_seed, VALUE);
 	READER(loaded_features, VALUE);
 	READER(load_path, VALUE);
 	READER(threads, VALUE);

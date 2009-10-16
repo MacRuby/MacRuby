@@ -124,6 +124,7 @@ VALUE rb_big_or(VALUE, VALUE);
 VALUE rb_big_xor(VALUE, VALUE);
 VALUE rb_big_lshift(VALUE, VALUE);
 VALUE rb_big_rshift(VALUE, VALUE);
+VALUE rb_big_uminus(VALUE x);
 /* rational.c */
 VALUE rb_rational_raw(VALUE, VALUE);
 #define rb_rational_raw1(x) rb_rational_raw(x, INT2FIX(1))
@@ -415,6 +416,8 @@ VALUE rb_num_coerce_relop(VALUE, VALUE, SEL);
 VALUE rb_float_new(double);
 VALUE rb_num2fix(VALUE);
 VALUE rb_fix2str(VALUE, int);
+VALUE rb_fix_minus(VALUE x, VALUE y);
+VALUE rb_fix_uminus(VALUE num);
 VALUE rb_dbl_cmp(double, double);
 /* object.c */
 VALUE rb_send_dup(VALUE);
