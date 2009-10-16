@@ -651,8 +651,8 @@ rb_pointer_get_data(VALUE rcv, const char *type)
     if (strcmp(RSTRING_PTR(ptr->type), type + 1) != 0) {
 	rb_raise(rb_eTypeError,
 		"expected instance of Pointer of type `%s', got `%s'",
-		RSTRING_PTR(ptr->type),
-		type + 1);
+		type + 1,
+		RSTRING_PTR(ptr->type));
     }
 
     return ptr->val;
