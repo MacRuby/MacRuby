@@ -111,4 +111,11 @@ describe "Pointer, through #[] and #[]=" do
       lambda { pointer[0] = Object.new }.should raise_error(TypeError)
     end
   end
+
+  it "can assign an retrieve CF type objects" do
+    ptr = Pointer.new('^{__CFError}')
+    ptr[0].should == nil
+    CFURLResourceIsReachable(NSURL.URLWithString('http://doesnotexistomgwtf.be'), ptr).should == false
+    ptr[0].class.should == NSCFError
+  end
 end
