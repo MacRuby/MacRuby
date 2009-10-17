@@ -14,7 +14,8 @@ For 0.5 (must do):
   [X] honor BridgeSupport sel_of_type attribute
   [ ] honor BridgeSupport printf_format attribute
   [X] add support for variadic functions / methods
-[ ] support for bigdecimal
+[/] support for bigdecimal
+    (implemented but some specs are failing, need to sync with upstream)
 [ ] support for json
     wrap http://github.com/lloyd/yajl ?
 [/] support for yaml
