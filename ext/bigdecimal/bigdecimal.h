@@ -103,7 +103,7 @@ typedef struct {
  */
 
 VP_EXPORT  Real *
-VpNewRbClass(U_LONG mx,char *str,VALUE klass);
+VpNewRbClass(U_LONG mx,const char *str,VALUE klass);
 
 VP_EXPORT  Real *VpCreateRbObject(U_LONG mx,const char *str);
 
@@ -127,7 +127,7 @@ VP_EXPORT unsigned long VpGetRoundMode(void);
 VP_EXPORT unsigned long VpSetRoundMode(unsigned long n);
 
 VP_EXPORT int VpException(unsigned short f,const char *str,int always);
-VP_EXPORT int VpIsNegDoubleZero(double v);
+/*VP_EXPORT int VpIsNegDoubleZero(double v);*/
 VP_EXPORT U_LONG VpNumOfChars(Real *vp,const char *pszFmt);
 VP_EXPORT U_LONG VpInit(U_LONG BaseVal);
 VP_EXPORT void *VpMemAlloc(U_LONG mb);
@@ -146,7 +146,7 @@ VP_EXPORT void VpToFString(Real *a,char *psz,int fFmt,int fPlus);
 VP_EXPORT int VpCtoV(Real *a,const char *int_chr,U_LONG ni,const char *frac,U_LONG nf,const char *exp_chr,U_LONG ne);
 VP_EXPORT int VpVtoD(double *d,S_LONG *e,Real *m);
 VP_EXPORT void VpDtoV(Real *m,double d);
-VP_EXPORT void VpItoV(Real *m,S_INT ival);
+/*VP_EXPORT void VpItoV(Real *m,S_INT ival);*/
 VP_EXPORT int VpSqrt(Real *y,Real *x);
 VP_EXPORT int VpActiveRound(Real *y,Real *x,int f,int il);
 VP_EXPORT int VpMidRound(Real *y, int f, int nf);

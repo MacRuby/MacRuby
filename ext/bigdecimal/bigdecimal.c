@@ -159,7 +159,7 @@ Init_BigDecimal()
  * Ruby 1.8.1 thru 1.8.3 return 1.0.1.
  */
 static VALUE
-BigDecimal_version(VALUE self)
+BigDecimal_version(VALUE self, SEL sel)
 {
     /*
      * 1.0.0: Ruby 1.8.0
@@ -254,7 +254,7 @@ SomeOneMayDoIt:
  * in use.
  */
 static VALUE
-BigDecimal_double_fig(VALUE self)
+BigDecimal_double_fig(VALUE self, SEL sel)
 {
     return INT2FIX(VpDblFig());
 }
@@ -269,7 +269,7 @@ BigDecimal_double_fig(VALUE self)
  * for the BigDecimal.
  */
 static VALUE
-BigDecimal_prec(VALUE self)
+BigDecimal_prec(VALUE self, SEL sel)
 {
     ENTER(1);
     Real *p;
@@ -282,7 +282,7 @@ BigDecimal_prec(VALUE self)
 }
 
 static VALUE
-BigDecimal_hash(VALUE self)
+BigDecimal_hash(VALUE self, SEL sel)
 {
     ENTER(1);
     Real *p;
@@ -302,7 +302,7 @@ BigDecimal_hash(VALUE self)
 }
 
 static VALUE
-BigDecimal_dump(int argc, VALUE *argv, VALUE self)
+BigDecimal_dump(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     ENTER(5);
     char sz[50];
@@ -322,7 +322,7 @@ BigDecimal_dump(int argc, VALUE *argv, VALUE self)
  * Internal method used to provide marshalling support. See the Marshal module.
  */
 static VALUE
-BigDecimal_load(VALUE self, VALUE str)
+BigDecimal_load(VALUE self, SEL sel, VALUE str)
 {
     ENTER(2);
     Real *pv;
@@ -385,7 +385,7 @@ BigDecimal_load(VALUE self, VALUE str)
   *
   */
 static VALUE
-BigDecimal_mode(int argc, VALUE *argv, VALUE self)
+BigDecimal_mode(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     VALUE which;
     VALUE val;
@@ -465,7 +465,7 @@ GetPositiveInt(VALUE v)
 }
 
 VP_EXPORT Real *
-VpNewRbClass(U_LONG mx, char *str, VALUE klass)
+VpNewRbClass(U_LONG mx, const char *str, VALUE klass)
 {
     Real *pv = VpAlloc(mx,str);
     pv->obj = (VALUE)Data_Wrap_Struct(klass, 0, BigDecimal_delete, pv);
@@ -482,7 +482,7 @@ VpCreateRbObject(U_LONG mx, const char *str)
 
 /* Returns True if the value is Not a Number */
 static VALUE
-BigDecimal_IsNaN(VALUE self)
+BigDecimal_IsNaN(VALUE self, SEL sel)
 {
     Real *p = GetVpValue(self,1);
     if(VpIsNaN(p))  return Qtrue;
@@ -491,7 +491,7 @@ BigDecimal_IsNaN(VALUE self)
 
 /* Returns True if the value is infinite */
 static VALUE
-BigDecimal_IsInfinite(VALUE self)
+BigDecimal_IsInfinite(VALUE self, SEL sel)
 {
     Real *p = GetVpValue(self,1);
     if(VpIsPosInf(p)) return INT2FIX(1);
@@ -501,7 +501,7 @@ BigDecimal_IsInfinite(VALUE self)
 
 /* Returns True if the value is finite (not NaN or infinite) */
 static VALUE
-BigDecimal_IsFinite(VALUE self)
+BigDecimal_IsFinite(VALUE self, SEL sel)
 {
     Real *p = GetVpValue(self,1);
     if(VpIsNaN(p)) return Qfalse;
@@ -514,7 +514,7 @@ BigDecimal_IsFinite(VALUE self)
  * If the BigNumber is infinity or NaN, returns nil.
  */
 static VALUE
-BigDecimal_to_i(VALUE self)
+BigDecimal_to_i(VALUE self, SEL sel)
 {
     ENTER(5);
     int e,n,i,nf;
@@ -570,7 +570,7 @@ BigDecimal_to_i(VALUE self)
 }
 
 static VALUE
-BigDecimal_induced_from(VALUE self, VALUE x)
+BigDecimal_induced_from(VALUE self, SEL sel, VALUE x)
 {
     Real *p = GetVpValue(x,1);
     return p->obj;
@@ -581,7 +581,7 @@ BigDecimal_induced_from(VALUE self, VALUE x)
  * Float arithmetic apply.
  */
 static VALUE
-BigDecimal_to_f(VALUE self)
+BigDecimal_to_f(VALUE self, SEL sel)
 {
     ENTER(1);
     Real *p;
@@ -618,13 +618,13 @@ BigDecimal_to_f(VALUE self)
  * it requires a special compile-time option when building Ruby.
  */
 static VALUE
-BigDecimal_coerce(VALUE self, VALUE other)
+BigDecimal_coerce(VALUE self, SEL sel, VALUE other)
 {
     ENTER(2);
     VALUE obj;
     Real *b;
     if(TYPE(other) == T_FLOAT) {
-       obj = rb_assoc_new(other, BigDecimal_to_f(self));
+       obj = rb_assoc_new(other, BigDecimal_to_f(self, 0));
     } else {
        GUARD_OBJ(b,GetVpValue(other,1));
        obj = rb_assoc_new(b->obj, self);
@@ -633,7 +633,7 @@ BigDecimal_coerce(VALUE self, VALUE other)
 }
 
 static VALUE
-BigDecimal_uplus(VALUE self)
+BigDecimal_uplus(VALUE self, SEL sel)
 {
     return self;
 }
@@ -650,7 +650,7 @@ BigDecimal_uplus(VALUE self)
   * digits:: If specified and less than the number of significant digits of the result, the result is rounded to that number of digits, according to BigDecimal.mode.
   */
 static VALUE
-BigDecimal_add(VALUE self, VALUE r)
+BigDecimal_add(VALUE self, SEL sel, VALUE r)
 {
     ENTER(5);
     Real *c, *a, *b;
@@ -688,7 +688,7 @@ BigDecimal_add(VALUE self, VALUE r)
   * digits:: If specified and less than the number of significant digits of the result, the result is rounded to that number of digits, according to BigDecimal.mode.
   */
 static VALUE
-BigDecimal_sub(VALUE self, VALUE r)
+BigDecimal_sub(VALUE self, SEL sel, VALUE r)
 {
     ENTER(5);
     Real *c, *a, *b;
@@ -721,12 +721,12 @@ static VALUE
 BigDecimalCmp(VALUE self, VALUE r,char op)
 {
     ENTER(5);
-    S_INT e;
+    S_INT e = 0;
     Real *a, *b;
     GUARD_OBJ(a,GetVpValue(self,1));
     b = GetVpValue(r,0);
     if(!b) {
-	ID f;
+	ID f = 0;
 
 	switch(op)
 	{
@@ -757,7 +757,7 @@ BigDecimalCmp(VALUE self, VALUE r,char op)
 
 /* Returns True if the value is zero. */
 static VALUE
-BigDecimal_zero(VALUE self)
+BigDecimal_zero(VALUE self, SEL sel)
 {
     Real *a = GetVpValue(self,1);
     return VpIsZero(a) ? Qtrue : Qfalse;
@@ -765,7 +765,7 @@ BigDecimal_zero(VALUE self)
 
 /* Returns True if the value is non-zero. */
 static VALUE
-BigDecimal_nonzero(VALUE self)
+BigDecimal_nonzero(VALUE self, SEL sel)
 {
     Real *a = GetVpValue(self,1);
     return VpIsZero(a) ? Qnil : self;
@@ -775,7 +775,7 @@ BigDecimal_nonzero(VALUE self)
  * a <=> b is 0 if a == b, 1 if a > b, -1 if a < b.
  */
 static VALUE
-BigDecimal_comp(VALUE self, VALUE r)
+BigDecimal_comp(VALUE self, SEL sel, VALUE r)
 {
     return BigDecimalCmp(self, r, '*');
 }
@@ -791,7 +791,7 @@ BigDecimal_comp(VALUE self, VALUE r)
  * BigDecimal.new('1.0') == 1.0  -> true
  */
 static VALUE
-BigDecimal_eq(VALUE self, VALUE r)
+BigDecimal_eq(VALUE self, SEL sel, VALUE r)
 {
     return BigDecimalCmp(self, r, '=');
 }
@@ -803,7 +803,7 @@ BigDecimal_eq(VALUE self, VALUE r)
  * comparison (see ==, coerce).
  */
 static VALUE
-BigDecimal_lt(VALUE self, VALUE r)
+BigDecimal_lt(VALUE self, SEL sel, VALUE r)
 {
     return BigDecimalCmp(self, r, '<');
 }
@@ -815,7 +815,7 @@ BigDecimal_lt(VALUE self, VALUE r)
  * perform the comparison (see ==, coerce).
  */
 static VALUE
-BigDecimal_le(VALUE self, VALUE r)
+BigDecimal_le(VALUE self, SEL sel, VALUE r)
 {
     return BigDecimalCmp(self, r, 'L');
 }
@@ -827,7 +827,7 @@ BigDecimal_le(VALUE self, VALUE r)
  * perform the comparison (see ==, coerce).
  */
 static VALUE
-BigDecimal_gt(VALUE self, VALUE r)
+BigDecimal_gt(VALUE self, SEL sel, VALUE r)
 {
     return BigDecimalCmp(self, r, '>');
 }
@@ -839,13 +839,13 @@ BigDecimal_gt(VALUE self, VALUE r)
  * perform the comparison (see ==, coerce)
  */
 static VALUE
-BigDecimal_ge(VALUE self, VALUE r)
+BigDecimal_ge(VALUE self, SEL sel, VALUE r)
 {
     return BigDecimalCmp(self, r, 'G');
 }
 
 static VALUE
-BigDecimal_neg(VALUE self)
+BigDecimal_neg(VALUE self, SEL sel)
 {
     ENTER(5);
     Real *c, *a;
@@ -867,7 +867,7 @@ BigDecimal_neg(VALUE self)
   * digits:: If specified and less than the number of significant digits of the result, the result is rounded to that number of digits, according to BigDecimal.mode.
   */
 static VALUE
-BigDecimal_mult(VALUE self, VALUE r)
+BigDecimal_mult(VALUE self, SEL sel, VALUE r)
 {
     ENTER(5);
     Real *c, *a, *b;
@@ -922,7 +922,7 @@ BigDecimal_divide(Real **c, Real **res, Real **div, VALUE self, VALUE r)
   * the quotient; see divmod.
   */
 static VALUE
-BigDecimal_div(VALUE self, VALUE r)
+BigDecimal_div(VALUE self, SEL sel, VALUE r)
 /* For c = self/r: with round operation */
 {
     ENTER(5);
@@ -1006,7 +1006,7 @@ NaN:
  * Returns the modulus from dividing by b. See divmod.
  */
 static VALUE
-BigDecimal_mod(VALUE self, VALUE r) /* %: a%b = a - (a.to_f/b).floor * b */
+BigDecimal_mod(VALUE self, SEL sel, VALUE r) /* %: a%b = a - (a.to_f/b).floor * b */
 {
     ENTER(3);
     VALUE obj;
@@ -1063,7 +1063,7 @@ BigDecimal_divremain(VALUE self, VALUE r, Real **dv, Real **rv)
  * Otherwise, the remainder is the modulus minus the value divided by.
  */
 static VALUE
-BigDecimal_remainder(VALUE self, VALUE r) /* remainder */
+BigDecimal_remainder(VALUE self, SEL sel, VALUE r) /* remainder */
 {
     VALUE  f;
     Real  *d,*rv=0;
@@ -1092,7 +1092,7 @@ BigDecimal_remainder(VALUE self, VALUE r) /* remainder */
  * added to q * b to get a.
  */
 static VALUE
-BigDecimal_divmod(VALUE self, VALUE r)
+BigDecimal_divmod(VALUE self, SEL sel, VALUE r)
 {
     ENTER(5);
     VALUE obj;
@@ -1106,7 +1106,7 @@ BigDecimal_divmod(VALUE self, VALUE r)
 }
 
 static VALUE
-BigDecimal_div2(int argc, VALUE *argv, VALUE self)
+BigDecimal_div2(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     ENTER(5);
     VALUE b,n;
@@ -1120,7 +1120,7 @@ BigDecimal_div2(int argc, VALUE *argv, VALUE self)
        return ToValue(div);
     } else {    /* div in BigDecimal sense */
        U_LONG ix = (U_LONG)GetPositiveInt(n);
-       if(ix==0) return BigDecimal_div(self,b);
+       if(ix==0) return BigDecimal_div(self, 0, b);
        else {
           Real *res=NULL;
           Real *av=NULL, *bv=NULL, *cv=NULL;
@@ -1142,15 +1142,15 @@ BigDecimal_div2(int argc, VALUE *argv, VALUE self)
 }
 
 static VALUE
-BigDecimal_add2(VALUE self, VALUE b, VALUE n)
+BigDecimal_add2(VALUE self, SEL sel, VALUE b, VALUE n)
 {
     ENTER(2);
     Real   *cv;
     U_LONG mx = (U_LONG)GetPositiveInt(n);
-    if(mx==0) return BigDecimal_add(self,b);
+    if(mx==0) return BigDecimal_add(self, 0, b);
     else {
        U_LONG pl = VpSetPrecLimit(0);
-       VALUE   c = BigDecimal_add(self,b);
+       VALUE   c = BigDecimal_add(self, 0, b);
        VpSetPrecLimit(pl);
        GUARD_OBJ(cv,GetVpValue(c,1));
        VpLeftRound(cv,VpGetRoundMode(),mx);
@@ -1159,15 +1159,15 @@ BigDecimal_add2(VALUE self, VALUE b, VALUE n)
 }
 
 static VALUE
-BigDecimal_sub2(VALUE self, VALUE b, VALUE n)
+BigDecimal_sub2(VALUE self, SEL sel, VALUE b, VALUE n)
 {
     ENTER(2);
     Real *cv;
     U_LONG mx = (U_LONG)GetPositiveInt(n);
-    if(mx==0) return BigDecimal_sub(self,b);
+    if(mx==0) return BigDecimal_sub(self, 0, b);
     else {
        U_LONG pl = VpSetPrecLimit(0);
-       VALUE   c = BigDecimal_sub(self,b);
+       VALUE   c = BigDecimal_sub(self, 0, b);
        VpSetPrecLimit(pl);
        GUARD_OBJ(cv,GetVpValue(c,1));
        VpLeftRound(cv,VpGetRoundMode(),mx);
@@ -1176,15 +1176,15 @@ BigDecimal_sub2(VALUE self, VALUE b, VALUE n)
 }
 
 static VALUE
-BigDecimal_mult2(VALUE self, VALUE b, VALUE n)
+BigDecimal_mult2(VALUE self, SEL sel, VALUE b, VALUE n)
 {
     ENTER(2);
     Real *cv;
     U_LONG mx = (U_LONG)GetPositiveInt(n);
-    if(mx==0) return BigDecimal_mult(self,b);
+    if(mx==0) return BigDecimal_mult(self, 0, b);
     else {
        U_LONG pl = VpSetPrecLimit(0);
-       VALUE   c = BigDecimal_mult(self,b);
+       VALUE   c = BigDecimal_mult(self, 0, b);
        VpSetPrecLimit(pl);
        GUARD_OBJ(cv,GetVpValue(c,1));
        VpLeftRound(cv,VpGetRoundMode(),mx);
@@ -1199,7 +1199,7 @@ BigDecimal_mult2(VALUE self, VALUE b, VALUE n)
  * BigDecimal('-3').abs -> 3
  */
 static VALUE
-BigDecimal_abs(VALUE self)
+BigDecimal_abs(VALUE self, SEL sel)
 {
     ENTER(5);
     Real *c, *a;
@@ -1221,7 +1221,7 @@ BigDecimal_abs(VALUE self)
  * If n is specified, returns at least that many significant digits.
  */
 static VALUE
-BigDecimal_sqrt(VALUE self, VALUE nFig)
+BigDecimal_sqrt(VALUE self, SEL sel, VALUE nFig)
 {
     ENTER(5);
     Real *c, *a;
@@ -1240,7 +1240,7 @@ BigDecimal_sqrt(VALUE self, VALUE nFig)
 /* Return the integer part of the number.
  */
 static VALUE
-BigDecimal_fix(VALUE self)
+BigDecimal_fix(VALUE self, SEL sel)
 {
     ENTER(5);
     Real *c, *a;
@@ -1276,7 +1276,7 @@ BigDecimal_fix(VALUE self)
  * rounding is performed; see BigDecimal.mode.
  */
 static VALUE
-BigDecimal_round(int argc, VALUE *argv, VALUE self)
+BigDecimal_round(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     ENTER(5);
     Real   *c, *a;
@@ -1338,7 +1338,7 @@ BigDecimal_round(int argc, VALUE *argv, VALUE self)
  * BigDecimal('13345.234').truncate(-2) -> 13300.0
  */
 static VALUE
-BigDecimal_truncate(int argc, VALUE *argv, VALUE self)
+BigDecimal_truncate(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     ENTER(5);
     Real *c, *a;
@@ -1365,7 +1365,7 @@ BigDecimal_truncate(int argc, VALUE *argv, VALUE self)
 /* Return the fractional part of the number.
  */
 static VALUE
-BigDecimal_frac(VALUE self)
+BigDecimal_frac(VALUE self, SEL sel)
 {
     ENTER(5);
     Real *c, *a;
@@ -1398,7 +1398,7 @@ BigDecimal_frac(VALUE self)
  * BigDecimal('13345.234').floor(-2) -> 13300.0
  */
 static VALUE
-BigDecimal_floor(int argc, VALUE *argv, VALUE self)
+BigDecimal_floor(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     ENTER(5);
     Real *c, *a;
@@ -1442,7 +1442,7 @@ BigDecimal_floor(int argc, VALUE *argv, VALUE self)
  * BigDecimal('13345.234').ceil(-2) -> 13400.0
  */
 static VALUE
-BigDecimal_ceil(int argc, VALUE *argv, VALUE self)
+BigDecimal_ceil(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     ENTER(5);
     Real *c, *a;
@@ -1497,13 +1497,13 @@ BigDecimal_ceil(int argc, VALUE *argv, VALUE self)
  * BigDecimal.new('123.45678901234567890').to_s(' F') -> ' 123.4567890123456789'
  */
 static VALUE
-BigDecimal_to_s(int argc, VALUE *argv, VALUE self)
+BigDecimal_to_s(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     ENTER(5);
     int   fmt=0;   /* 0:E format */
     int   fPlus=0; /* =0:default,=1: set ' ' before digits ,set '+' before digits. */
     Real  *vp;
-    char  *psz;
+    const char  *psz;
     char   ch;
     U_LONG nc;
     S_INT  mc = 0;
@@ -1539,14 +1539,14 @@ BigDecimal_to_s(int argc, VALUE *argv, VALUE self)
     }
     if(mc>0) nc += (nc + mc - 1) / mc + 1;
 
-    psz = ALLOCA_N(char,(unsigned int)nc);
+    char *buf = ALLOCA_N(char,(unsigned int)nc);
 
     if(fmt) {
-        VpToFString(vp, psz, mc, fPlus);
+        VpToFString(vp, buf, mc, fPlus);
     } else {
-        VpToString (vp, psz, mc, fPlus);
+        VpToString (vp, buf, mc, fPlus);
     }
-    return rb_str_new2(psz);
+    return rb_str_new2(buf);
 }
 
 /* Splits a BigDecimal number into four parts, returned as an array of values.
@@ -1574,7 +1574,7 @@ BigDecimal_to_s(int argc, VALUE *argv, VALUE self)
  * a BigDecimal to a Float.)
  */
 static VALUE
-BigDecimal_split(VALUE self)
+BigDecimal_split(VALUE self, SEL sel)
 {
     ENTER(5);
     Real *vp;
@@ -1607,7 +1607,7 @@ BigDecimal_split(VALUE self)
  * of digits with no leading zeros, then n is the exponent.
  */
 static VALUE
-BigDecimal_exponent(VALUE self)
+BigDecimal_exponent(VALUE self, SEL sel)
 {
     S_LONG e = VpExponent10(GetVpValue(self,1));
     return INT2NUM(e);
@@ -1624,7 +1624,7 @@ BigDecimal_exponent(VALUE self)
  * maximum number of significant digits, respectively.
  */
 static VALUE
-BigDecimal_inspect(VALUE self)
+BigDecimal_inspect(VALUE self, SEL sel)
 {
     ENTER(5);
     Real *vp;
@@ -1653,7 +1653,7 @@ BigDecimal_inspect(VALUE self)
  * Also available as the operator **
  */
 static VALUE
-BigDecimal_power(VALUE self, VALUE p)
+BigDecimal_power(VALUE self, SEL sel, VALUE p)
 {
     ENTER(5);
     Real *x, *y;
@@ -1677,7 +1677,7 @@ BigDecimal_power(VALUE self, VALUE p)
 }
 
 static VALUE
-BigDecimal_global_new(int argc, VALUE *argv, VALUE self)
+BigDecimal_global_new(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     ENTER(5);
     Real *pv;
@@ -1708,7 +1708,7 @@ BigDecimal_global_new(int argc, VALUE *argv, VALUE self)
   * larger than the specified number.
   */
 static VALUE
-BigDecimal_new(int argc, VALUE *argv, VALUE self)
+BigDecimal_new(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     ENTER(5);
     Real *pv;
@@ -1739,7 +1739,7 @@ BigDecimal_new(int argc, VALUE *argv, VALUE self)
   * specified to instance methods such as ceil, floor, truncate, or round.
   */
 static VALUE
-BigDecimal_limit(int argc, VALUE *argv, VALUE self)
+BigDecimal_limit(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     VALUE  nFig;
     VALUE  nCur = INT2NUM(VpGetPrecLimit());
@@ -1774,7 +1774,7 @@ BigDecimal_limit(int argc, VALUE *argv, VALUE self)
  * BigDecimal::SIGN_NEGATIVE_FINITE:: value is negative
  */
 static VALUE
-BigDecimal_sign(VALUE self)
+BigDecimal_sign(VALUE self, SEL sel)
 { /* sign */
     int s = GetVpValue(self,1)->sign;
     return INT2FIX(s);
@@ -1790,16 +1790,16 @@ Init_bigdecimal(void)
     rb_cBigDecimal = rb_define_class("BigDecimal",rb_cNumeric);
 
     /* Global function */
-    rb_define_global_function("BigDecimal", BigDecimal_global_new, -1);
+    rb_objc_define_module_function(rb_mKernel, "BigDecimal", BigDecimal_global_new, -1);
 
     /* Class methods */
-    rb_define_singleton_method(rb_cBigDecimal, "new", BigDecimal_new, -1);
-    rb_define_singleton_method(rb_cBigDecimal, "mode", BigDecimal_mode, -1);
-    rb_define_singleton_method(rb_cBigDecimal, "limit", BigDecimal_limit, -1);
-    rb_define_singleton_method(rb_cBigDecimal, "double_fig", BigDecimal_double_fig, 0);
-    rb_define_singleton_method(rb_cBigDecimal, "induced_from",BigDecimal_induced_from, 1);
-    rb_define_singleton_method(rb_cBigDecimal, "_load", BigDecimal_load, 1);
-    rb_define_singleton_method(rb_cBigDecimal, "ver", BigDecimal_version, 0);
+    rb_objc_define_method(*(VALUE *)rb_cBigDecimal, "new", BigDecimal_new, -1);
+    rb_objc_define_method(*(VALUE *)rb_cBigDecimal, "mode", BigDecimal_mode, -1);
+    rb_objc_define_method(*(VALUE *)rb_cBigDecimal, "limit", BigDecimal_limit, -1);
+    rb_objc_define_method(*(VALUE *)rb_cBigDecimal, "double_fig", BigDecimal_double_fig, 0);
+    rb_objc_define_method(*(VALUE *)rb_cBigDecimal, "induced_from",BigDecimal_induced_from, 1);
+    rb_objc_define_method(*(VALUE *)rb_cBigDecimal, "_load", BigDecimal_load, 1);
+    rb_objc_define_method(*(VALUE *)rb_cBigDecimal, "ver", BigDecimal_version, 0);
 
     /* Constants definition */
 
@@ -1908,56 +1908,56 @@ Init_bigdecimal(void)
     /* instance methods */
     rb_define_method(rb_cBigDecimal, "precs", BigDecimal_prec, 0);
 
-    rb_define_method(rb_cBigDecimal, "add", BigDecimal_add2, 2);
-    rb_define_method(rb_cBigDecimal, "sub", BigDecimal_sub2, 2);
-    rb_define_method(rb_cBigDecimal, "mult", BigDecimal_mult2, 2);
-    rb_define_method(rb_cBigDecimal, "div",BigDecimal_div2, -1);
-    rb_define_method(rb_cBigDecimal, "hash", BigDecimal_hash, 0);
-    rb_define_method(rb_cBigDecimal, "to_s", BigDecimal_to_s, -1);
-    rb_define_method(rb_cBigDecimal, "to_i", BigDecimal_to_i, 0);
-    rb_define_method(rb_cBigDecimal, "to_int", BigDecimal_to_i, 0);
-    rb_define_method(rb_cBigDecimal, "split", BigDecimal_split, 0);
-    rb_define_method(rb_cBigDecimal, "+", BigDecimal_add, 1);
-    rb_define_method(rb_cBigDecimal, "-", BigDecimal_sub, 1);
-    rb_define_method(rb_cBigDecimal, "+@", BigDecimal_uplus, 0);
-    rb_define_method(rb_cBigDecimal, "-@", BigDecimal_neg, 0);
-    rb_define_method(rb_cBigDecimal, "*", BigDecimal_mult, 1);
-    rb_define_method(rb_cBigDecimal, "/", BigDecimal_div, 1);
-    rb_define_method(rb_cBigDecimal, "quo", BigDecimal_div, 1);
-    rb_define_method(rb_cBigDecimal, "%", BigDecimal_mod, 1);
-    rb_define_method(rb_cBigDecimal, "modulo", BigDecimal_mod, 1);
-    rb_define_method(rb_cBigDecimal, "remainder", BigDecimal_remainder, 1);
-    rb_define_method(rb_cBigDecimal, "divmod", BigDecimal_divmod, 1);
+    rb_objc_define_method(rb_cBigDecimal, "add", BigDecimal_add2, 2);
+    rb_objc_define_method(rb_cBigDecimal, "sub", BigDecimal_sub2, 2);
+    rb_objc_define_method(rb_cBigDecimal, "mult", BigDecimal_mult2, 2);
+    rb_objc_define_method(rb_cBigDecimal, "div", BigDecimal_div2, -1);
+    rb_objc_define_method(rb_cBigDecimal, "hash", BigDecimal_hash, 0);
+    rb_objc_define_method(rb_cBigDecimal, "to_s", BigDecimal_to_s, -1);
+    rb_objc_define_method(rb_cBigDecimal, "to_i", BigDecimal_to_i, 0);
+    rb_objc_define_method(rb_cBigDecimal, "to_int", BigDecimal_to_i, 0);
+    rb_objc_define_method(rb_cBigDecimal, "split", BigDecimal_split, 0);
+    rb_objc_define_method(rb_cBigDecimal, "+", BigDecimal_add, 1);
+    rb_objc_define_method(rb_cBigDecimal, "-", BigDecimal_sub, 1);
+    rb_objc_define_method(rb_cBigDecimal, "+@", BigDecimal_uplus, 0);
+    rb_objc_define_method(rb_cBigDecimal, "-@", BigDecimal_neg, 0);
+    rb_objc_define_method(rb_cBigDecimal, "*", BigDecimal_mult, 1);
+    rb_objc_define_method(rb_cBigDecimal, "/", BigDecimal_div, 1);
+    rb_objc_define_method(rb_cBigDecimal, "quo", BigDecimal_div, 1);
+    rb_objc_define_method(rb_cBigDecimal, "%", BigDecimal_mod, 1);
+    rb_objc_define_method(rb_cBigDecimal, "modulo", BigDecimal_mod, 1);
+    rb_objc_define_method(rb_cBigDecimal, "remainder", BigDecimal_remainder, 1);
+    rb_objc_define_method(rb_cBigDecimal, "divmod", BigDecimal_divmod, 1);
     /* rb_define_method(rb_cBigDecimal, "dup", BigDecimal_dup, 0); */
-    rb_define_method(rb_cBigDecimal, "to_f", BigDecimal_to_f, 0);
-    rb_define_method(rb_cBigDecimal, "abs", BigDecimal_abs, 0);
-    rb_define_method(rb_cBigDecimal, "sqrt", BigDecimal_sqrt, 1);
-    rb_define_method(rb_cBigDecimal, "fix", BigDecimal_fix, 0);
-    rb_define_method(rb_cBigDecimal, "round", BigDecimal_round, -1);
-    rb_define_method(rb_cBigDecimal, "frac", BigDecimal_frac, 0);
-    rb_define_method(rb_cBigDecimal, "floor", BigDecimal_floor, -1);
-    rb_define_method(rb_cBigDecimal, "ceil", BigDecimal_ceil, -1);
-    rb_define_method(rb_cBigDecimal, "power", BigDecimal_power, 1);
-    rb_define_method(rb_cBigDecimal, "**", BigDecimal_power, 1);
-    rb_define_method(rb_cBigDecimal, "<=>", BigDecimal_comp, 1);
-    rb_define_method(rb_cBigDecimal, "==", BigDecimal_eq, 1);
-    rb_define_method(rb_cBigDecimal, "===", BigDecimal_eq, 1);
-    rb_define_method(rb_cBigDecimal, "eql?", BigDecimal_eq, 1);
-    rb_define_method(rb_cBigDecimal, "<", BigDecimal_lt, 1);
-    rb_define_method(rb_cBigDecimal, "<=", BigDecimal_le, 1);
-    rb_define_method(rb_cBigDecimal, ">", BigDecimal_gt, 1);
-    rb_define_method(rb_cBigDecimal, ">=", BigDecimal_ge, 1);
-    rb_define_method(rb_cBigDecimal, "zero?", BigDecimal_zero, 0);
-    rb_define_method(rb_cBigDecimal, "nonzero?", BigDecimal_nonzero, 0);
-    rb_define_method(rb_cBigDecimal, "coerce", BigDecimal_coerce, 1);
-    rb_define_method(rb_cBigDecimal, "inspect", BigDecimal_inspect, 0);
-    rb_define_method(rb_cBigDecimal, "exponent", BigDecimal_exponent, 0);
-    rb_define_method(rb_cBigDecimal, "sign", BigDecimal_sign, 0);
-    rb_define_method(rb_cBigDecimal, "nan?",      BigDecimal_IsNaN, 0);
-    rb_define_method(rb_cBigDecimal, "infinite?", BigDecimal_IsInfinite, 0);
-    rb_define_method(rb_cBigDecimal, "finite?",   BigDecimal_IsFinite, 0);
-    rb_define_method(rb_cBigDecimal, "truncate",  BigDecimal_truncate, -1);
-    rb_define_method(rb_cBigDecimal, "_dump", BigDecimal_dump, -1);
+    rb_objc_define_method(rb_cBigDecimal, "to_f", BigDecimal_to_f, 0);
+    rb_objc_define_method(rb_cBigDecimal, "abs", BigDecimal_abs, 0);
+    rb_objc_define_method(rb_cBigDecimal, "sqrt", BigDecimal_sqrt, 1);
+    rb_objc_define_method(rb_cBigDecimal, "fix", BigDecimal_fix, 0);
+    rb_objc_define_method(rb_cBigDecimal, "round", BigDecimal_round, -1);
+    rb_objc_define_method(rb_cBigDecimal, "frac", BigDecimal_frac, 0);
+    rb_objc_define_method(rb_cBigDecimal, "floor", BigDecimal_floor, -1);
+    rb_objc_define_method(rb_cBigDecimal, "ceil", BigDecimal_ceil, -1);
+    rb_objc_define_method(rb_cBigDecimal, "power", BigDecimal_power, 1);
+    rb_objc_define_method(rb_cBigDecimal, "**", BigDecimal_power, 1);
+    rb_objc_define_method(rb_cBigDecimal, "<=>", BigDecimal_comp, 1);
+    rb_objc_define_method(rb_cBigDecimal, "==", BigDecimal_eq, 1);
+    rb_objc_define_method(rb_cBigDecimal, "===", BigDecimal_eq, 1);
+    rb_objc_define_method(rb_cBigDecimal, "eql?", BigDecimal_eq, 1);
+    rb_objc_define_method(rb_cBigDecimal, "<", BigDecimal_lt, 1);
+    rb_objc_define_method(rb_cBigDecimal, "<=", BigDecimal_le, 1);
+    rb_objc_define_method(rb_cBigDecimal, ">", BigDecimal_gt, 1);
+    rb_objc_define_method(rb_cBigDecimal, ">=", BigDecimal_ge, 1);
+    rb_objc_define_method(rb_cBigDecimal, "zero?", BigDecimal_zero, 0);
+    rb_objc_define_method(rb_cBigDecimal, "nonzero?", BigDecimal_nonzero, 0);
+    rb_objc_define_method(rb_cBigDecimal, "coerce", BigDecimal_coerce, 1);
+    rb_objc_define_method(rb_cBigDecimal, "inspect", BigDecimal_inspect, 0);
+    rb_objc_define_method(rb_cBigDecimal, "exponent", BigDecimal_exponent, 0);
+    rb_objc_define_method(rb_cBigDecimal, "sign", BigDecimal_sign, 0);
+    rb_objc_define_method(rb_cBigDecimal, "nan?",      BigDecimal_IsNaN, 0);
+    rb_objc_define_method(rb_cBigDecimal, "infinite?", BigDecimal_IsInfinite, 0);
+    rb_objc_define_method(rb_cBigDecimal, "finite?",   BigDecimal_IsFinite, 0);
+    rb_objc_define_method(rb_cBigDecimal, "truncate",  BigDecimal_truncate, -1);
+    rb_objc_define_method(rb_cBigDecimal, "_dump", BigDecimal_dump, -1);
 }
 
 /*
@@ -2192,12 +2192,14 @@ VpGetDoubleNegZero(void) /* Returns the value of -0 */
     return nzero;
 }
 
+#if 0
 VP_EXPORT int
 VpIsNegDoubleZero(double v)
 {
     double z = VpGetDoubleNegZero();
     return MemCmp(&v,&z,sizeof(v))==0;
 }
+#endif
 
 VP_EXPORT int
 VpException(unsigned short f, const char *str,int always)
@@ -4169,6 +4171,7 @@ Exit:
 /*
  *  m <- ival
  */
+#if 0
 VP_EXPORT void
 VpItoV(Real *m, S_INT ival)
 {
@@ -4226,6 +4229,7 @@ Exit:
 #endif /* _DEBUG */
     return;
 }
+#endif
 
 /*
  * y = SQRT(x),  y*y - x =>0
