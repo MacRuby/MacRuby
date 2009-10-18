@@ -22,7 +22,6 @@ class MSpecScript
     'library',
     
      # Currently not working on MacRuby
-     '^library/bigdecimal',
      '^library/erb',
      '^library/iconv',
      '^library/generator',
