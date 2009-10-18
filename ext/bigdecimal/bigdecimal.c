@@ -721,7 +721,7 @@ static VALUE
 BigDecimalCmp(VALUE self, VALUE r,char op)
 {
     ENTER(5);
-    S_INT e = 0;
+    S_INT e;
     Real *a, *b;
     GUARD_OBJ(a,GetVpValue(self,1));
     b = GetVpValue(r,0);
@@ -730,7 +730,7 @@ BigDecimalCmp(VALUE self, VALUE r,char op)
 
 	switch(op)
 	{
-	  case '*': return   INT2FIX(e); /* any op */
+	  case '*': f = rb_intern("<=>");break;
 	  case '=': f = rb_intern("=="); break;
 	  case '!': f = rb_intern("!="); break;
 	  case 'G': f = rb_intern(">="); break;
@@ -1906,7 +1906,7 @@ Init_bigdecimal(void)
     rb_define_const(rb_cBigDecimal, "SIGN_NEGATIVE_INFINITE",INT2FIX(VP_SIGN_NEGATIVE_INFINITE));
 
     /* instance methods */
-    rb_define_method(rb_cBigDecimal, "precs", BigDecimal_prec, 0);
+    rb_objc_define_method(rb_cBigDecimal, "precs", BigDecimal_prec, 0);
 
     rb_objc_define_method(rb_cBigDecimal, "add", BigDecimal_add2, 2);
     rb_objc_define_method(rb_cBigDecimal, "sub", BigDecimal_sub2, 2);
@@ -2523,7 +2523,9 @@ VpAlloc(U_LONG mx, const char *szVal)
 
     /* Skip all '_' after digit: 2006-6-30 */
     ni = 0;
-    psz = ALLOCA_N(char,strlen(szVal)+1);
+    VALUE bstr = rb_bytestring_new();
+    rb_bytestring_resize(bstr, strlen(szVal)+1);
+    psz = (char *)rb_bytestring_byte_pointer(bstr);
     i   = 0;
     ipn = 0;
     while((psz[i]=szVal[ipn])!=0) {
