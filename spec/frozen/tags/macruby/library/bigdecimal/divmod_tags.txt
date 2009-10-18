@@ -1,0 +1,2 @@
+fails:BigDecimal#divmod array contains quotient and modulus as BigDecimal
+fails:BigDecimal#divmod Can be reversed with * and +
