@@ -1,3 +1,9 @@
+# MacRuby implementation of stringio.
+#
+# This file is covered by the Ruby license. See COPYING for more details.
+# 
+# Copyright (C) 2009, Apple Inc. All rights reserved.
+
 class StringIO
 
   attr_reader :string, :pos

@@ -1,3 +1,9 @@
+# MacRuby implementation of strscan.
+#
+# This file is covered by the Ruby license. See COPYING for more details.
+# 
+# Copyright (C) 2009, Apple Inc. All rights reserved.
+
 class ScanError < StandardError; end
 
 # StringScanner provides for lexical scanning operations on a String.  Here is
