@@ -3024,14 +3024,13 @@ RoxorCompiler::compile_node(NODE *node)
 		}
 		FunctionType *ft = FunctionType::get(RubyObjTy, types, false);
 
-		char *function_name;
+		std::string function_name;
 		if (ruby_aot_compile) {
-		    const int function_name_size = 200;
-		    function_name = (char *)alloca(function_name_size);
-		    snprintf(function_name, function_name_size, "__%s_ruby_scope", RSTRING_PTR(ruby_aot_init_func));
+		    function_name.append(RSTRING_PTR(ruby_aot_init_func));
+		    function_name.append("_ruby_scope");
 		}
 		else {
-		    function_name = "__ruby_scope";
+		    function_name.append("__ruby_scope");
 		}
 		Function *f = Function::Create(ft, GlobalValue::ExternalLinkage,
 			function_name, module);
