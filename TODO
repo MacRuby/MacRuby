@@ -9,6 +9,7 @@ For 0.5 (must do):
 [ ] Hash subclass for immediates
 [ ] try/catch should use a C++ exception
 [X] implement 'protected' visibility
+[ ] implement NODE_LAMBDA (1.9 proc syntax)
 [ ] remaining Cocoa bugs
   [X] ObjC exceptions should be catchable in Ruby
   [X] honor BridgeSupport sel_of_type attribute
