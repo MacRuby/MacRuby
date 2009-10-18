@@ -58,6 +58,7 @@ RoxorCompiler::RoxorCompiler(void)
     return_from_block_ids = 0;
     ensure_pn = NULL;
     current_scope = NULL;
+    class_declaration = false;
 
     dispatcherFunc = NULL;
     fastPlusFunc = NULL;
@@ -2989,7 +2990,8 @@ RoxorCompiler::compile_node(NODE *node)
 	    {
 		rb_vm_arity_t arity = rb_vm_node_arity(node);
 		const int nargs = bb == NULL ? 0 : arity.real;
-		const bool has_dvars = current_block && current_mid == 0;
+		const bool has_dvars = current_block && current_mid == 0 && !class_declaration;
+		class_declaration = false;
 
 		// Get dynamic vars.
 		if (has_dvars && node->nd_tbl != NULL) {
@@ -3021,8 +3023,18 @@ RoxorCompiler::compile_node(NODE *node)
 		    types.push_back(RubyObjTy);
 		}
 		FunctionType *ft = FunctionType::get(RubyObjTy, types, false);
+
+		char *function_name;
+		if (ruby_aot_compile) {
+		    const int function_name_size = 200;
+		    function_name = (char *)alloca(function_name_size);
+		    snprintf(function_name, function_name_size, "__%s_ruby_scope", RSTRING_PTR(ruby_aot_init_func));
+		}
+		else {
+		    function_name = "__ruby_scope";
+		}
 		Function *f = Function::Create(ft, GlobalValue::ExternalLinkage,
-			"__ruby_scope", module);
+			function_name, module);
 
 		RoxorScope *old_current_scope = current_scope;
 		current_scope = new RoxorScope(fname);
@@ -3882,11 +3894,6 @@ RoxorCompiler::compile_node(NODE *node)
 		NODE *body = node->nd_body;
 		if (body != NULL) {
 		    assert(nd_type(body) == NODE_SCOPE);
-		    ID *tbl = body->nd_tbl;
-		    if (tbl != NULL) {
-			const int args_count = (int)tbl[0];
-			compile_lvars(&tbl[args_count + 1]);
-		    }
 		    if (body->nd_body != NULL) {	
 			Value *old_self = current_self;
 			current_self = classVal;
@@ -3897,6 +3904,11 @@ RoxorCompiler::compile_node(NODE *node)
 				GlobalValue::InternalLinkage, nilVal, "");
 
 			bool old_current_module = current_module;
+			bool old_current_block_chain = current_block_chain;
+			bool old_dynamic_class = dynamic_class;
+
+			current_block_chain = false;
+			dynamic_class = false;
 
 			std::map<ID, Value *> old_ivar_slots_cache
 			    = ivar_slots_cache;
@@ -3907,10 +3919,17 @@ RoxorCompiler::compile_node(NODE *node)
 			current_module = nd_type(node) == NODE_MODULE;
 
 			compile_set_current_scope(classVal, publicScope);
-			bool old_dynamic_class = dynamic_class;
-			dynamic_class = false;
 
-			Value *val = compile_node(body->nd_body);
+			DEBUG_LEVEL_INC();
+			class_declaration = true;
+			Value *val = compile_node(body);
+			Function *f = cast<Function>(val);
+			DEBUG_LEVEL_DEC();
+
+			std::vector<Value *> params;
+			params.push_back(classVal);
+			params.push_back(compile_const_pointer(NULL));
+			val = compile_protected_call(f, params);
 
 			dynamic_class = old_dynamic_class;
 			compile_set_current_scope(classVal, defaultScope);
@@ -3921,6 +3940,7 @@ RoxorCompiler::compile_node(NODE *node)
 			current_self = old_self;
 			current_opened_class = old_class;
 			current_module = old_current_module;
+			current_block_chain = old_current_block_chain;
 
 			ivar_slots_cache = old_ivar_slots_cache;
 
