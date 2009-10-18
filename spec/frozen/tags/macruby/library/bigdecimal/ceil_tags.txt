@@ -1,2 +1,0 @@
-fails:BigDecimal#ceil returns a BigDecimal
-fails:BigDecimal#ceil returns the smallest integer greater or equal to self, if n is unspecified
