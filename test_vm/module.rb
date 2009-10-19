@@ -45,3 +45,13 @@ assert ':ok', %{
     p :ok
   end
 }
+
+assert ':ok', %{
+  M = Module.new
+  begin
+    M.new
+    p :ko
+  rescue NoMethodError
+    p :ok
+  end
+}
