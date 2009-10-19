@@ -643,6 +643,21 @@ rb_oc2rb_exception(id exc)
     return rb_exc_new2(rb_eRuntimeError, buf);
 }
 
+size_t
+rb_objc_type_size(const char *type)
+{
+    @try {
+	NSUInteger size, align;
+	NSGetSizeAndAlignment(type, &size, &align);
+	return size;
+    }
+    @catch (id ex) {
+	rb_raise(rb_eRuntimeError, "can't get the size of type `%s': %s",
+		type, [[ex description] UTF8String]);
+    }
+    return 0; // never reached
+}
+
 void *placeholder_String = NULL;
 void *placeholder_Dictionary = NULL;
 void *placeholder_Array = NULL;

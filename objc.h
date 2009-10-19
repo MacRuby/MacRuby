@@ -80,6 +80,8 @@ bool rb_objc_symbolize_address(void *addr, void **start, char *name,
 id rb_rb2oc_exception(VALUE exc);
 VALUE rb_oc2rb_exception(id exc);
 
+size_t rb_objc_type_size(const char *type);
+
 static inline int
 SubtypeUntil(const char *type, char end)
 {
