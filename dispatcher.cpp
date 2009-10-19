@@ -277,8 +277,9 @@ rb_vm_super_lookup(VALUE klass, SEL sel)
 		Method method = class_getInstanceMethod((Class)k, sel);
 		VALUE super = RCLASS_SUPER(k);
 
-		if (method == NULL || (super != 0
-		    && class_getInstanceMethod((Class)super, sel) == method)) {
+		if (method == NULL || REMOVED_IMP(method_getImplementation(method))
+		    || (super != 0
+		        && class_getInstanceMethod((Class)super, sel) == method)) {
 		    continue;
 		}
 
