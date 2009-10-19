@@ -350,6 +350,14 @@ rb_vm_undefined_imp(void *rcv, SEL sel)
     return NULL; // never reached
 }
 
+extern "C"
+void *
+rb_vm_removed_imp(void *rcv, SEL sel)
+{
+    method_missing((VALUE)rcv, sel, NULL, NULL, NULL, METHOD_MISSING_DEFAULT);
+    return NULL; // never reached
+}
+
 static force_inline VALUE
 __rb_vm_ruby_dispatch(VALUE top, VALUE self, SEL sel,
 	rb_vm_method_node_t *node, unsigned char opt,
@@ -550,6 +558,14 @@ recache2:
 	    if (UNDEFINED_IMP(imp)) {
 		// Method was undefined.
 		goto call_method_missing;
+	    }
+	    else if (REMOVED_IMP(imp)) {
+	        // Method was removed, let's see if any of the ancestors does
+	        // implement the method.
+	        method = rb_vm_super_lookup((VALUE)klass, sel);
+	        if (method == NULL) {
+	            goto call_method_missing;
+	        }
 	    }
 
 	    rb_vm_method_node_t *node = GET_CORE()->method_node_get(method);

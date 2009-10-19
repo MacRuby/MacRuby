@@ -284,6 +284,8 @@ void rb_vm_define_method3(Class klass, SEL sel, rb_vm_block_t *node);
 bool rb_vm_resolve_method(Class klass, SEL sel);
 void *rb_vm_undefined_imp(void *rcv, SEL sel);
 #define UNDEFINED_IMP(imp) (imp == NULL || imp == (IMP)rb_vm_undefined_imp)
+void *rb_vm_removed_imp(void *rcv, SEL sel);
+#define REMOVED_IMP(imp) (imp == (IMP)rb_vm_removed_imp)
 void rb_vm_define_attr(Class klass, const char *name, bool read, bool write);
 void rb_vm_undef_method(Class klass, ID name, bool must_exist);
 void rb_vm_alias(VALUE klass, ID name, ID def);

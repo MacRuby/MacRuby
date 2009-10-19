@@ -147,7 +147,7 @@ remove_method(VALUE klass, ID mid)
 	rb_warn("removing pure Objective-C method `%s' may cause serious " \
 		"problem", rb_id2name(mid));
     }
-    method_setImplementation(m, NULL);
+    method_setImplementation(m, (IMP)rb_vm_removed_imp);
 
     if (RCLASS_SINGLETON(klass)) {
 	rb_funcall(rb_iv_get(klass, "__attached__"), singleton_removed, 1,
