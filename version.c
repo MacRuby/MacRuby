@@ -39,7 +39,7 @@ Init_version(void)
     rb_define_global_const("RUBY_ENGINE", MKSTR(engine));
 #if WITH_OBJC
     rb_define_global_const("RUBY_ARCH", rb_str_new2(RUBY_ARCH));
-    rb_define_global_const("MACRUBY_VERSION", rb_float_new(MACRUBY_VERSION));
+    rb_define_global_const("MACRUBY_VERSION", rb_str_new2(MACRUBY_VERSION));
     rb_define_global_const("MACRUBY_REVISION", rb_str_new2(MACRUBY_REVISION));
 #endif
 }
