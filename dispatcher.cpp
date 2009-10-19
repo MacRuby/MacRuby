@@ -555,17 +555,11 @@ recache:
 recache2:
 	    IMP imp = method_getImplementation(method);
 
-	    if (UNDEFINED_IMP(imp)) {
+	    if (UNDEFINED_IMP(imp)
+			|| (REMOVED_IMP(imp)
+				&& rb_vm_super_lookup((VALUE)klass, sel) == NULL)) {
 		// Method was undefined.
 		goto call_method_missing;
-	    }
-	    else if (REMOVED_IMP(imp)) {
-	        // Method was removed, let's see if any of the ancestors does
-	        // implement the method.
-	        method = rb_vm_super_lookup((VALUE)klass, sel);
-	        if (method == NULL) {
-	            goto call_method_missing;
-	        }
 	    }
 
 	    rb_vm_method_node_t *node = GET_CORE()->method_node_get(method);
@@ -1777,7 +1771,10 @@ rb_vm_respond_to(VALUE obj, SEL sel, bool priv)
 	    }
 	}
 
-	if (m == NULL || UNDEFINED_IMP(method_getImplementation(m))) {
+	IMP imp = method_getImplementation(m);
+	if (UNDEFINED_IMP(imp)
+	    || (REMOVED_IMP(imp)
+	        && rb_vm_super_lookup((VALUE)klass, sel) == NULL)) {
 	    return false;
 	}
 
