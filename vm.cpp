@@ -1088,10 +1088,39 @@ rb_vm_const_is_defined(ID path)
     GET_CORE()->const_defined(path);
 }
 
+struct rb_vm_outer *
+RoxorCore::get_outer(Class klass)
+{
+    std::map<Class, struct rb_vm_outer *>::iterator iter =
+	outers.find(klass);
+    return iter == outers.end() ? NULL : iter->second;
+}
+
+void
+RoxorCore::set_outer(Class klass, Class mod) 
+{
+    struct rb_vm_outer *mod_outer = get_outer(mod);
+    struct rb_vm_outer *class_outer = get_outer(klass);
+    if (class_outer == NULL || class_outer->outer != mod_outer) {
+	if (class_outer != NULL) {
+	    free(class_outer);
+	}
+	class_outer = (struct rb_vm_outer *)
+	    malloc(sizeof(struct rb_vm_outer));
+	class_outer->klass = klass;
+	class_outer->outer = mod_outer;
+	outers[klass] = class_outer;
+    }
+}
+
 extern "C"
 void
 rb_vm_set_outer(VALUE klass, VALUE under)
 {
+#if ROXOR_VM_DEBUG
+    printf("set outer of %s to %s\n", class_getName((Class)klass),
+	    class_getName((Class)under));
+#endif
     GET_CORE()->set_outer((Class)klass, (Class)under);
 }
 

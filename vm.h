@@ -736,26 +736,8 @@ class RoxorCore {
 	void each_ivar_slot(VALUE obj, int (*func)(ANYARGS), void *ctx);
 	bool class_can_have_ivar_slots(VALUE klass);
 
-	struct rb_vm_outer *get_outer(Class klass) {
-	    std::map<Class, struct rb_vm_outer *>::iterator iter =
-		outers.find(klass);
-	    return iter == outers.end() ? NULL : iter->second;
-	}
-
-	void set_outer(Class klass, Class mod) {
-	    struct rb_vm_outer *mod_outer = get_outer(mod);
-	    struct rb_vm_outer *class_outer = get_outer(klass);
-	    if (class_outer == NULL || class_outer->outer != mod_outer) {
-		if (class_outer != NULL) {
-		    free(class_outer);
-		}
-		class_outer = (struct rb_vm_outer *)
-		    malloc(sizeof(struct rb_vm_outer));
-		class_outer->klass = klass;
-		class_outer->outer = mod_outer;
-		outers[klass] = class_outer;
-	    }
-	}
+	struct rb_vm_outer *get_outer(Class klass);
+	void set_outer(Class klass, Class mod);
 
 	size_t get_sizeof(const Type *type);
 	size_t get_sizeof(const char *type);
