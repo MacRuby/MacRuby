@@ -989,8 +989,7 @@ RoxorCore::bs_parse_cb(bs_element_type_t type, void *value, void *ctx)
 
 	    char *type;
 #if __LP64__
-	    // XXX workaround a BridgeSupport bug: 64-bit annotations for
-	    // informal_protocol elements are missing!
+	    // XXX workaround <rdar://problem/7318177> 64-bit informal protocol annotations are missing
 	    // Manually converting some 32-bit types to 64-bit...
 	    const size_t typelen = strlen(bs_inf_prot_method->type) + 1;
 	    type = (char *)alloca(typelen);
