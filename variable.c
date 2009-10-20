@@ -274,9 +274,7 @@ rb_set_class_path2(VALUE klass, VALUE under, const char *name, bool set_outer)
     OBJ_FREEZE(str);
     rb_ivar_set(klass, classpath, str);
 
-    if (set_outer) {
-	rb_vm_set_outer(klass, under);
-    }	
+    rb_vm_set_outer(klass, set_outer ? under : rb_cObject);
 }
 
 void
