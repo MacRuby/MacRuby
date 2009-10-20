@@ -1012,6 +1012,9 @@ RoxorCore::bs_parse_cb(bs_element_type_t type, void *value, void *ctx)
 		else if (strncmp(p, "{_NSRect=", 9) == 0) {
 		    strlcat(type, "{CGRect={CGPoint=dd}{CGSize=dd}}", typelen);
 		}
+		else if (strncmp(p, "{_NSRange=", 10) == 0) {
+		    strlcat(type, "{_NSRange=QQ}", typelen);
+		} 
 		else {
 		    char buf[100];
 		    strncpy(buf, p, len);
