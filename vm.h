@@ -314,11 +314,11 @@ rb_vm_regrow_robject_slots(struct RObject *obj, unsigned int new_num_slot)
 {
     unsigned int i;
     VALUE *new_slots = (VALUE *)xmalloc(sizeof(VALUE) * (new_num_slot + 1));
-    for (i = 0; i <= obj->num_slots; i++) {
+    for (i = 0; i < obj->num_slots; i++) {
 	GC_WB(&new_slots[i], obj->slots[i]);
     }
     GC_WB(&obj->slots, new_slots);
-    for (i = obj->num_slots + 1; i < new_num_slot; i++) {
+    for (i = obj->num_slots; i <= new_num_slot; i++) {
 	obj->slots[i] = Qundef;
     }
     obj->num_slots = new_num_slot + 1;

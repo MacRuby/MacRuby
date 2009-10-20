@@ -222,13 +222,16 @@ init_copy(VALUE dest, VALUE obj)
 	    else {
 		ROBJECT(dest)->tbl = NULL;
 	    }
-	    ROBJECT(dest)->num_slots = ROBJECT(obj)->num_slots;
-	    if (ROBJECT(dest)->num_slots > 0) {
-		int i;
-		for (i = 0; i < ROBJECT(obj)->num_slots; i++) {
-		    ROBJECT(dest)->slots[i] = ROBJECT(obj)->slots[i];
+	    if (ROBJECT(obj)->num_slots > 0) {
+		if (ROBJECT(dest)->num_slots < ROBJECT(obj)->num_slots) {
+		    rb_vm_regrow_robject_slots(ROBJECT(dest),
+			    ROBJECT(obj)->num_slots);
+		}
+		for (int i = 0; i < ROBJECT(obj)->num_slots; i++) {
+		    GC_WB(&ROBJECT(dest)->slots[i], ROBJECT(obj)->slots[i]);
 		}
 	    }
+	    ROBJECT(dest)->num_slots = ROBJECT(obj)->num_slots;
 	    break;
       case T_CLASS:
       case T_MODULE:
