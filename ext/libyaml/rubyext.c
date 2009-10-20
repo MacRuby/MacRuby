@@ -359,6 +359,121 @@ is_numeric(const char *str, bool *has_point)
     return true;
 }
 
+static inline bool
+is_timestamp(const char *str, size_t length)
+{
+  // TODO: This probably should be coded as a regex and/or in ruby
+  bool canonical = true;
+  if (length < 10) {
+    return false;
+  }
+  /* 4 digit year - */
+  if (!isdigit(str[0]) ||
+      !isdigit(str[1]) ||
+      !isdigit(str[2]) ||
+      !isdigit(str[3]) ||
+      str[4] != '-') {
+    return false;
+  }
+  str += 5;
+  /* 1/2 digit month - */
+  if (!isdigit(*str++)) {
+    return false;
+  }
+  if (isdigit(*str)) {
+    ++str;
+  }
+  else {
+    canonical = false;
+  } 
+  if (*str++ != '-') {
+    return false;
+  }
+  /* 1/2 digit day */
+  if (!isdigit(*str++)) {
+    return false;
+  }
+  if (isdigit(*str)) {
+    ++str;
+  }
+  else {
+    canonical = false;
+  } 
+  /* Date alone must be YYYY-MM-DD */
+  if (*str == '\0') {
+    return canonical;
+  }
+  else if (*str == 't' || *str == 'T') {
+    ++str;
+  }
+  else if (*str == ' ' || *str == '\t') {
+    do {
+      ++str;
+    } while (*str == ' ' || *str == '\t');
+  } 
+  else {
+    return false;
+  }
+  /* 1/2 digit hour : */
+  if (!isdigit(*str++)) {
+    return false;
+  }
+  if (isdigit(*str)) {
+    ++str;
+  }
+  if (*str++ != ':') {
+    return false;
+  }
+  /* 2 digit minute:second */
+  if (!isdigit(str[0]) ||
+      !isdigit(str[1]) ||
+      (str[2] != ':')  ||
+      !isdigit(str[3]) ||
+      !isdigit(str[4])) {
+    return false;
+  }
+  str += 5;
+  /* Optional fraction */
+  if (*str == '.') {
+    do {
+      ++str;
+    } while (isdigit(*str));
+  }
+  if (*str == '\0') {
+    return true; /* Assumed UTC */
+  }
+  while (*str == ' ' || *str == '\t') {
+    ++str;
+  }
+  if (str[0] == 'Z' && str[1] == '\0') {
+    return true; /* UTC */
+  }
+  else if (str[0] != '+' && str[0] != '-') {
+    return false;
+  }
+  ++str;
+  /* 1/2 digit time zone hour */
+  if (!isdigit(*str++)) {
+    return false;
+  }
+  if (isdigit(*str)) {
+    ++str;
+  }
+  if (*str == '\0') {
+    return true;
+  }
+  /* Optional minute */
+  if ((str[0] != ':')  ||
+      !isdigit(str[1]) ||
+      !isdigit(str[2]) ||
+      (str[3] != '\0')) {
+    return false;
+  }
+  else {
+    return true; 
+  }
+}
+
 static char *
 detect_scalar_type(const char * val, size_t length)
 {
@@ -379,6 +494,9 @@ detect_scalar_type(const char * val, size_t length)
   }
   else if (strcmp(val, "false") == 0) {
     return "tag:yaml.org,2002:false";
+  }
+  else if (is_timestamp(val, length)) {
+    return "tag:yaml.org,2002:timestamp";
   }
   else {
     return NULL;
@@ -576,6 +694,7 @@ rb_yaml_tag_or_null(VALUE tagstr, int *can_omit_tag, int * string_tag)
 	    (strcmp(tag, "tag:yaml.org,2002:true") == 0) ||
 	    (strcmp(tag, "tag:yaml.org,2002:false") == 0) ||
 	    (strcmp(tag, "tag:yaml.org,2002:null") == 0) ||
+	    (strcmp(tag, "tag:yaml.org,2002:timestamp") == 0) ||
 	    (strcmp(tag, YAML_DEFAULT_SEQUENCE_TAG) == 0) ||
 	    (strcmp(tag, YAML_DEFAULT_MAPPING_TAG) == 0)) {
 	*can_omit_tag = 1;

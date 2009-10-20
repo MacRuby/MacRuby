@@ -1,5 +1,5 @@
 # -*- mode: ruby; ruby-indent-level: 4; tab-width: 4 -*- vim: sw=4 ts=4
-# require 'date'
+require 'date'
 require 'libyaml'
 
 class Class
@@ -258,6 +258,68 @@ class FalseClass
   end
 end
 
+class DateTime
+    yaml_as "tag:yaml.org,2002:timestamp"
+    def self.yaml_new(val)
+        if val.length <= 10
+            Date.strptime(val)
+        else
+            format = "%F %T"
+            if val =~ /([tT])/
+                format = "%F#{$1}%T"
+            end
+            if val =~ /\./
+                format += ".%N%z"
+            else
+                format += "%z"
+            end
+            val = val.tr(" \t", "")
+            if val !~ /(Z|[-+]\d\d?(?::\d\d)?)$/
+                val = val + "Z"
+            end
+            strptime(val, format).to_time
+        end
+    end
+    def to_yaml(output = nil)
+        to_time.to_yaml(output)
+    end
+end
+
+class Time
+	def to_yaml(output = nil)
+        # Not exactly canonical YAML format, but legal, and consistent with syck
+		YAML::quick_emit(output) do |out|
+            tz = "Z"
+            # from the tidy Tobias Peters <t-peters@gmx.de> Thanks!
+            unless self.utc?
+                utc_same_instant = self.dup.utc
+                utc_same_writing = Time.utc(year,month,day,hour,min,sec,usec)
+                difference_to_utc = utc_same_writing - utc_same_instant
+                if (difference_to_utc < 0) 
+                    difference_sign = '-'
+                    absolute_difference = -difference_to_utc
+                else
+                    difference_sign = '+'
+                    absolute_difference = difference_to_utc
+                end
+                difference_minutes = (absolute_difference/60).round
+                tz = "%s%02d:%02d" % [ difference_sign, difference_minutes / 60, difference_minutes % 60]
+            end
+            standard = self.strftime( "%Y-%m-%d %H:%M:%S" )
+            standard += ".%06d" % [usec] if usec.nonzero?
+            standard += " %s" % [tz]
+            out.scalar("tag:yaml.org,2002:timestamp", standard, :plain)
+        end
+	end
+end
+
+class Date
+	def to_yaml(output = nil)
+		YAML::quick_emit(output) do |out|
+            out.scalar("tag:yaml.org,2002:timestamp", self.to_s, :plain)
+        end
+	end
+end
 
 =begin
 
