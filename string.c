@@ -2619,7 +2619,11 @@ rb_str_inspect(VALUE str, SEL sel)
     }
     __append(out, '"');
 
-    return (VALUE)CFMakeCollectable(out);
+    VALUE res = (VALUE)CFMakeCollectable(out);
+    if (OBJ_TAINTED(str)) {
+	OBJ_TAINT(res);
+    }
+    return res;
 }
 
 #define IS_EVSTR(p,e) ((p) < (e) && (*(p) == '$' || *(p) == '@' || *(p) == '{'))
@@ -2635,116 +2639,12 @@ rb_str_inspect(VALUE str, SEL sel)
 static VALUE
 rb_str_dump(VALUE str, SEL sel)
 {
-    rb_encoding *enc0 = rb_enc_get(str);
-    long len;
-    const char *p, *pend;
-    char *q, *qend;
-
-    len = 2;			/* "" */
-    p = RSTRING_PTR(str); 
-    pend = p + RSTRING_LEN(str);
-    while (p < pend) {
-	unsigned char c = *p++;
-	switch (c) {
-	  case '"':  case '\\':
-	  case '\n': case '\r':
-	  case '\t': case '\f':
-	  case '\013': case '\010': case '\007': case '\033':
-	    len += 2;
-	    break;
-
-	  case '#':
-	    len += IS_EVSTR(p, pend) ? 2 : 1;
-	    break;
-
-	  default:
-	    if (ISPRINT(c)) {
-		len++;
-	    }
-	    else {
-		len += 4;		/* \xNN */
-	    }
-	    break;
-	}
-    }
-    if (!rb_enc_asciicompat(enc0)) {
-	len += 19;		/* ".force_encoding('')" */
-	len += strlen(rb_enc_name(enc0));
-    }
-
-    p = RSTRING_PTR(str);
-    pend = p + RSTRING_LEN(str);
-
-    char *q_beg = q = (char *)alloca(len);
-    qend = q + len;
-
-    *q++ = '"';
-    while (p < pend) {
-	unsigned char c = *p++;
-
-	if (c == '"' || c == '\\') {
-	    *q++ = '\\';
-	    *q++ = c;
-	}
-	else if (c == '#') {
-	    if (IS_EVSTR(p, pend)) *q++ = '\\';
-	    *q++ = '#';
-	}
-	else if (c == '\n') {
-	    *q++ = '\\';
-	    *q++ = 'n';
-	}
-	else if (c == '\r') {
-	    *q++ = '\\';
-	    *q++ = 'r';
-	}
-	else if (c == '\t') {
-	    *q++ = '\\';
-	    *q++ = 't';
-	}
-	else if (c == '\f') {
-	    *q++ = '\\';
-	    *q++ = 'f';
-	}
-	else if (c == '\013') {
-	    *q++ = '\\';
-	    *q++ = 'v';
-	}
-	else if (c == '\010') {
-	    *q++ = '\\';
-	    *q++ = 'b';
-	}
-	else if (c == '\007') {
-	    *q++ = '\\';
-	    *q++ = 'a';
-	}
-	else if (c == '\033') {
-	    *q++ = '\\';
-	    *q++ = 'e';
-	}
-	else if (ISPRINT(c)) {
-	    *q++ = c;
-	}
-	else {
-	    *q++ = '\\';
-	    sprintf(q, "x%02X", c);
-	    q += 3;
-	}
-    }
-    *q++ = '"';
-    if (!rb_enc_asciicompat(enc0)) {
-	sprintf(q, ".force_encoding(\"%s\")", rb_enc_name(enc0));
-    }
-
-    /* result from dump is ASCII */
-
-    VALUE res = rb_str_new5(str, q_beg, strlen(q_beg));
-    if (OBJ_TAINTED(str)) {
-	OBJ_TAINT(res);
-    }
+    // XXX #dump and #inspect have some slight differences, let's fix that
+    // later.
+    VALUE res = rb_str_inspect(str, 0);
+    *(VALUE *)res = *(VALUE *)str;
     return res;
 }
-
 
 /*
  *  call-seq:
