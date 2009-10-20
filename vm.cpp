@@ -1505,8 +1505,11 @@ resolve_method_type(char *buf, const size_t buflen, Class klass, Method m,
 	    strncpy(buf, informal_type->c_str(), buflen);
 	}
 	else {
+	    // Generate an automatic signature, using 'id' (@) for all
+	    // arguments. If the method name starts by 'set', we use 'void'
+	    // (v) for the return value, otherwise we use 'id' (@).
 	    assert(oc_arity < buflen);
-	    buf[0] = '@';
+	    buf[0] = strncmp(sel_getName(sel), "set", 3) == 0 ? 'v' : '@';
 	    buf[1] = '@';
 	    buf[2] = ':';
 	    for (unsigned int i = 3; i < oc_arity; i++) {
