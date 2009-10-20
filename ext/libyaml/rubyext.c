@@ -359,34 +359,40 @@ is_numeric(const char *str, bool *has_point)
     return true;
 }
 
+static char *
+detect_scalar_type(const char * val, size_t length)
+{
+  bool has_point = false;
+  if (length == 0) {
+    return "tag:yaml.org,2002:null";
+  }
+  else if (*val == ':') {
+    return "tag:ruby.yaml.org,2002:symbol";
+  }
+  else if (is_numeric(val, &has_point)) {
+    return has_point
+      ? "tag:yaml.org,2002:float"
+      : "tag:yaml.org,2002:int";
+  }
+  else if (strcmp(val, "true") == 0) {
+    return "tag:yaml.org,2002:true";
+  }
+  else if (strcmp(val, "false") == 0) {
+    return "tag:yaml.org,2002:false";
+  }
+  else {
+    return NULL;
+  }
+}
+
 static VALUE 
 handle_scalar(rb_yaml_parser_t *parser)
 {
     char *val = (char*)parser->event.data.scalar.value;
     char *tag = (char*)parser->event.data.scalar.tag;
-    bool has_point = false;
     if (parser->event.data.scalar.style == YAML_PLAIN_SCALAR_STYLE
 	&& tag == NULL) {
-	if (parser->event.data.scalar.length == 0) {
-	    tag = "tag:yaml.org,2002:null";
-	}
-	else if (*val == ':') {
-	    tag = "tag:ruby.yaml.org,2002:symbol";
-	}
-	else if (is_numeric(val, &has_point)) {
-	    tag = has_point
-		? "tag:yaml.org,2002:float"
-		: "tag:yaml.org,2002:int";
-	}
-	else if (strcmp(val, "true") == 0) {
-	    tag = "tag:yaml.org,2002:true";
-	}
-	else if (strcmp(val, "false") == 0) {
-	    tag = "tag:yaml.org,2002:false";
-	}
-	else {
-	    tag = "tag:yaml.org,2002:str";
-	}
+      tag = detect_scalar_type(val, parser->event.data.scalar.length);
     }
     if (tag == NULL) {
 	tag = "tag:yaml.org,2002:str";
@@ -555,17 +561,21 @@ rb_symbol_to_mapping_style(VALUE sym)
 }
 
 static yaml_char_t*
-rb_yaml_tag_or_null(VALUE tagstr, int *can_omit_tag)
+rb_yaml_tag_or_null(VALUE tagstr, int *can_omit_tag, int * string_tag)
 {
     // TODO make this part of the resolver chain; this is the wrong place for it
     const char *tag = RSTRING_PTR(tagstr);
-    if ((strcmp(tag, "tag:yaml.org,2002:int") == 0) ||
+    if (strcmp(tag, "tag:yaml.org,2002:str") == 0) {
+	*can_omit_tag = 1;
+	*string_tag   = 1;
+	return NULL;	
+    }
+    else if ((strcmp(tag, "tag:yaml.org,2002:int") == 0) ||
 	    (strcmp(tag, "tag:yaml.org,2002:float") == 0) ||
 	    (strcmp(tag, "tag:ruby.yaml.org,2002:symbol") == 0) ||
 	    (strcmp(tag, "tag:yaml.org,2002:true") == 0) ||
 	    (strcmp(tag, "tag:yaml.org,2002:false") == 0) ||
 	    (strcmp(tag, "tag:yaml.org,2002:null") == 0) ||
-	    (strcmp(tag, "tag:yaml.org,2002:str") == 0) ||
 	    (strcmp(tag, YAML_DEFAULT_SEQUENCE_TAG) == 0) ||
 	    (strcmp(tag, YAML_DEFAULT_MAPPING_TAG) == 0)) {
 	*can_omit_tag = 1;
@@ -688,7 +698,8 @@ rb_yaml_emitter_sequence(VALUE self, SEL sel, VALUE taguri, VALUE style)
     yaml_emitter_t *emitter = &RYAMLEmitter(self)->emitter;
 
     int can_omit_tag = 0;
-    yaml_char_t *tag = rb_yaml_tag_or_null(taguri, &can_omit_tag);
+    int string_tag   = 0;
+    yaml_char_t *tag = rb_yaml_tag_or_null(taguri, &can_omit_tag, &string_tag);
     yaml_sequence_start_event_initialize(&ev, NULL, tag, can_omit_tag,
 	    rb_symbol_to_sequence_style(style));
     yaml_emitter_emit(emitter, &ev);
@@ -707,7 +718,8 @@ rb_yaml_emitter_mapping(VALUE self, SEL sel, VALUE taguri, VALUE style)
     yaml_emitter_t *emitter = &RYAMLEmitter(self)->emitter;
 
     int can_omit_tag = 0;
-    yaml_char_t *tag = rb_yaml_tag_or_null(taguri, &can_omit_tag);
+    int string_tag   = 0;
+    yaml_char_t *tag = rb_yaml_tag_or_null(taguri, &can_omit_tag, &string_tag);
     yaml_mapping_start_event_initialize(&ev, NULL, tag, can_omit_tag,
 	    rb_symbol_to_mapping_style(style));
     yaml_emitter_emit(emitter, &ev);
@@ -726,11 +738,21 @@ rb_yaml_emitter_scalar(VALUE self, SEL sel, VALUE taguri, VALUE val,
     yaml_event_t ev;
     yaml_emitter_t *emitter = &RYAMLEmitter(self)->emitter;
     yaml_char_t *output = (yaml_char_t *)RSTRING_PTR(val);
+    size_t length = strlen((const char *)output);
 
     int can_omit_tag = 0;
-    yaml_char_t *tag = rb_yaml_tag_or_null(taguri, &can_omit_tag);
-    yaml_scalar_event_initialize(&ev, NULL, tag, output, strlen((const char *)output),
-	    can_omit_tag, can_omit_tag, rb_symbol_to_scalar_style(style));
+    int string_tag   = 0;
+    yaml_char_t *tag = rb_yaml_tag_or_null(taguri, &can_omit_tag, &string_tag);
+    yaml_scalar_style_t sstyl = rb_symbol_to_scalar_style(style);
+    if (string_tag && 
+	(sstyl==YAML_ANY_SCALAR_STYLE || sstyl==YAML_PLAIN_SCALAR_STYLE) &&
+	(detect_scalar_type((const char *)output, length) != NULL)
+    ) {
+      /* Quote so this is read back as a string, no matter what type it looks like */
+      sstyl = YAML_DOUBLE_QUOTED_SCALAR_STYLE;
+    }
+    yaml_scalar_event_initialize(&ev, NULL, tag, output, length,
+	    can_omit_tag, can_omit_tag, sstyl);
     yaml_emitter_emit(emitter, &ev);
 
     return self;

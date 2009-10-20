@@ -63,7 +63,7 @@ class String
   
   def to_yaml(output = nil)
     YAML::quick_emit(output) do |out|
-      out.scalar(taguri, self, self =~ /^:/ ? :quote2 : nil)
+      out.scalar(taguri, self, to_yaml_style)
     end
   end
 
