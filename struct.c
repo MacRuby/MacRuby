@@ -171,7 +171,8 @@ rb_struct_set(VALUE obj, SEL sel, VALUE val)
     for (i=0; i<RARRAY_LEN(members); i++) {
 	slot = RARRAY_AT(members, i);
 	if (SYM2ID(slot) == field) {
-	    return RSTRUCT_PTR(obj)[i] = val;
+	    GC_WB(&RSTRUCT_PTR(obj)[i], val);
+	    return val;
 	}
     }
     rb_name_error(rb_frame_this_func(), "`%s' is not a struct member",
@@ -375,10 +376,13 @@ rb_struct_initialize(VALUE self, SEL sel, VALUE values)
     if (n < RARRAY_LEN(values)) {
 	rb_raise(rb_eArgError, "struct size differs");
     }
-    MEMCPY(RSTRUCT_PTR(self), RARRAY_PTR(values), VALUE, RARRAY_LEN(values));
+    for (int i = 0; i < RARRAY_LEN(values); i++) {
+	GC_WB(&RSTRUCT_PTR(self)[i], RARRAY_AT(values, i));
+    }
     if (n > RARRAY_LEN(values)) {
-	rb_mem_clear(RSTRUCT_PTR(self)+RARRAY_LEN(values),
-		     n-RARRAY_LEN(values));
+	for (int i = RARRAY_LEN(values); i < n; i++) {
+	    RSTRUCT_PTR(self)[i] = Qnil;
+	}
     }
     return Qnil;
 }
@@ -583,7 +587,9 @@ rb_struct_init_copy(VALUE copy, SEL sel, VALUE s)
     if (RSTRUCT_LEN(copy) != RSTRUCT_LEN(s)) {
 	rb_raise(rb_eTypeError, "struct size mismatch");
     }
-    MEMCPY(RSTRUCT_PTR(copy), RSTRUCT_PTR(s), VALUE, RSTRUCT_LEN(copy));
+    for (int i = 0; i < RSTRUCT_LEN(copy); i++) {
+	GC_WB(&RSTRUCT_PTR(copy)[i], RSTRUCT_PTR(s)[i]);
+    }
 
     return copy;
 }
@@ -665,7 +671,7 @@ rb_struct_aset_id(VALUE s, ID id, VALUE val)
     }
     for (i=0; i<len; i++) {
 	if (SYM2ID(RARRAY_AT(members, i)) == id) {
-	    RSTRUCT_PTR(s)[i] = val;
+	    GC_WB(&RSTRUCT_PTR(s)[i], val);
 	    return val;
 	}
     }
@@ -713,7 +719,8 @@ rb_struct_aset_imp(VALUE s, SEL sel, VALUE idx, VALUE val)
 		 i, RSTRUCT_LEN(s));
     }
     rb_struct_modify(s);
-    return RSTRUCT_PTR(s)[i] = val;
+    GC_WB(&RSTRUCT_PTR(s)[i], val);
+    return val;
 }
 
 VALUE
