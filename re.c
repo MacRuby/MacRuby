@@ -845,6 +845,17 @@ match_alloc(VALUE klass, SEL sel)
     return (VALUE)match;
 }
 
+static IMP rb_objc_match_finalize_super = NULL; 
+
+static void
+rb_objc_match_finalize(void *rcv, SEL sel)
+{
+    onig_region_free(RMATCH_REGS(rcv), 0);
+    if (rb_objc_match_finalize_super != NULL) {
+	((void(*)(void *, SEL))rb_objc_match_finalize_super)(rcv, sel);
+    }
+}
+
 typedef struct {
     int byte_pos;
     int char_pos;
@@ -3744,6 +3755,9 @@ Init_Regexp(void)
     rb_cMatch  = rb_define_class("MatchData", rb_cObject);
     rb_objc_define_method(*(VALUE *)rb_cMatch, "alloc", match_alloc, 0);
     rb_undef_method(CLASS_OF(rb_cMatch), "new");
+
+    rb_objc_match_finalize_super = rb_objc_install_method2((Class)rb_cMatch,
+	    "finalize", (IMP)rb_objc_match_finalize);
 
     rb_objc_define_method(rb_cMatch, "initialize_copy", match_init_copy, 1);
     rb_objc_define_method(rb_cMatch, "regexp", match_regexp, 0);
