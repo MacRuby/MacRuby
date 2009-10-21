@@ -5140,29 +5140,22 @@ lex_getline(struct parser_params *parser)
 NODE*
 rb_compile_string(const char *f, VALUE s, int line)
 {
-    VALUE volatile vparser = rb_parser_new();
-
-    return rb_parser_compile_string(vparser, f, s, line);
+    return rb_parser_compile_string(rb_parser_new(), f, s, line);
 }
 
 NODE*
-rb_parser_compile_string(volatile VALUE vparser, const char *f, VALUE s, int line)
+rb_parser_compile_string(VALUE vparser, const char *f, VALUE s, int line)
 {
     struct parser_params *parser;
-    NODE *node;
-    volatile VALUE tmp;
-
     Data_Get_Struct(vparser, struct parser_params, parser);
+
     lex_gets = CLASS_OF(s) == rb_cByteString ? lex_get_bstr : lex_get_str;
     lex_gets_ptr = 0;
     GC_WB(&lex_input, s);
     lex_pbeg = lex_p = lex_pend = 0;
     compile_for_eval = rb_parse_in_eval();
 
-    node = yycompile(parser, f, line);
-    tmp = vparser; /* prohibit tail call optimization */
-
-    return node;
+    return yycompile(parser, f, line);
 }
 
 NODE*
