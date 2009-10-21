@@ -435,6 +435,7 @@ RoxorCore::delenda(Function *func)
 {
     assert(func->use_empty());
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
     // Remove from cache.
     std::map<Function *, IMP>::iterator iter = JITcache.find(func);
     if (iter != JITcache.end()) {
@@ -461,6 +462,7 @@ RoxorCore::delenda(Function *func)
 
     // Delete IR.
     func->eraseFromParent();
+#endif
 }
 
 bool
