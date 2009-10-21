@@ -10901,7 +10901,7 @@ static int init_case_fold_table(void)
 
   THREAD_ATOMIC_START;
 
-  FoldTable = st_init_numtable_with_size(1200);
+  FoldTable = onig_st_init_numtable_with_size(1200);
   if (ONIG_IS_NULL(FoldTable)) return ONIGERR_MEMORY;
   for (i = 0; i < (int )(sizeof(CaseFold)/sizeof(CaseFold_11_Type)); i++) {
     p = &CaseFold[i];
@@ -10913,7 +10913,7 @@ static int init_case_fold_table(void)
     st_add_direct(FoldTable, (st_data_t )p->from, (st_data_t )&(p->to));
   }
 
-  Unfold1Table = st_init_numtable_with_size(1000);
+  Unfold1Table = onig_st_init_numtable_with_size(1000);
   if (ONIG_IS_NULL(Unfold1Table)) return ONIGERR_MEMORY;
 
   for (i = 0; i < (int )(sizeof(CaseUnfold_11)/sizeof(CaseUnfold_11_Type));
@@ -10928,7 +10928,7 @@ static int init_case_fold_table(void)
     st_add_direct(Unfold1Table, (st_data_t )p1->from, (st_data_t )&(p1->to));
   }
 
-  Unfold2Table = st_init_table_with_size(&type_code2_hash, 200);
+  Unfold2Table = onig_st_init_table_with_size(&type_code2_hash, 200);
   if (ONIG_IS_NULL(Unfold2Table)) return ONIGERR_MEMORY;
 
   for (i = 0; i < (int )(sizeof(CaseUnfold_12)/sizeof(CaseUnfold_12_Type));
@@ -10943,7 +10943,7 @@ static int init_case_fold_table(void)
     st_add_direct(Unfold2Table, (st_data_t )p2->from, (st_data_t )(&p2->to));
   }
 
-  Unfold3Table = st_init_table_with_size(&type_code3_hash, 30);
+  Unfold3Table = onig_st_init_table_with_size(&type_code3_hash, 30);
   if (ONIG_IS_NULL(Unfold3Table)) return ONIGERR_MEMORY;
 
   for (i = 0; i < (int )(sizeof(CaseUnfold_13)/sizeof(CaseUnfold_13_Type));
