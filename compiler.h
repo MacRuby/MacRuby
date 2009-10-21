@@ -76,6 +76,16 @@ class RoxorCompiler {
 	    return i == scopes.end() ? NULL : i->second;
 	}
 
+	bool delete_scope(Function *f) {
+	    std::map<Function *, RoxorScope *>::iterator i = scopes.find(f);
+	    if (i != scopes.end()) {
+		scopes.erase(i);
+		delete i->second;
+		return true;
+	    } 
+	    return false;
+	}
+
 	void clear_scopes(void) {
 	    scopes.clear();
 	}

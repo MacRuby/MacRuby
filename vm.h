@@ -633,6 +633,7 @@ class RoxorCore {
 
 	void optimize(Function *func);
 	IMP compile(Function *func);
+	void delenda(Function *func);
 
 	void load_bridge_support(const char *path, const char *framework_path,
 		int options);

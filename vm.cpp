@@ -64,6 +64,7 @@ struct RoxorFunction {
     unsigned char *start;
     unsigned char *end;
     void *imp;
+    std::vector<unsigned char *> ehs;
 
     RoxorFunction(Function *_f, RoxorScope *_scope, unsigned char *_start,
 	    unsigned char *_end) {
@@ -105,6 +106,20 @@ class RoxorJITManager : public JITMemoryManager {
 		++iter;
 	     }
 	     return NULL;
+	}
+
+	RoxorFunction *delete_function(Function *func) {
+	    std::vector<struct RoxorFunction *>::iterator iter = 
+		functions.begin();
+	    while (iter != functions.end()) {
+		RoxorFunction *f = *iter;
+		if (f->f == func) {
+		    functions.erase(iter);
+		    return f;
+		}
+		++iter;
+	    }
+	    return NULL;
 	}
 
 	void setMemoryWritable(void) { 
@@ -170,6 +185,8 @@ class RoxorJITManager : public JITMemoryManager {
 
 	void endExceptionTable(const Function *F, uint8_t *TableStart, 
 		uint8_t *TableEnd, uint8_t* FrameRegister) {
+	    assert(!functions.empty());
+	    functions.back()->ehs.push_back(FrameRegister);
 	    mm->endExceptionTable(F, TableStart, TableEnd, FrameRegister);
 	}
 
@@ -408,6 +425,42 @@ RoxorCore::compile(Function *func)
 #endif
 
     return imp;
+}
+
+// in libgcc
+extern "C" void __deregister_frame(const void *);
+
+void
+RoxorCore::delenda(Function *func)
+{
+    assert(func->use_empty());
+
+    // Remove from cache.
+    std::map<Function *, IMP>::iterator iter = JITcache.find(func);
+    if (iter != JITcache.end()) {
+	JITcache.erase(iter);
+    }
+
+    // Delete for JIT memory manager list.
+    RoxorFunction *f = jmm->delete_function(func);
+    assert(f != NULL);
+
+    // Unregister each dwarf exception handler.
+    // XXX this should really be done by LLVM...
+    for (std::vector<unsigned char *>::iterator i = f->ehs.begin();
+	    i != f->ehs.end(); ++i) {
+	__deregister_frame((const void *)*i);
+    }
+
+    // Remove the compiler scope.
+    RoxorCompiler::shared->delete_scope(func);
+    delete f;
+
+    // Delete machine code.
+    ee->freeMachineCodeForFunction(func);
+
+    // Delete IR.
+    func->eraseFromParent();
 }
 
 bool
@@ -3289,35 +3342,43 @@ rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding,
 	  bool inside_eval)
 {
     RoxorVM *vm = GET_VM();
+    RoxorCompiler *compiler = RoxorCompiler::shared;
 
+    // Compile IR.
     if (binding != NULL) {
 	vm->push_current_binding(binding, false);
     }
-
-    RoxorCompiler *compiler = RoxorCompiler::shared;
-
     bool old_inside_eval = compiler->is_inside_eval();
     compiler->set_inside_eval(inside_eval);
     compiler->set_fname(fname);
     Function *function = compiler->compile_main_function(node);
     compiler->set_fname(NULL);
     compiler->set_inside_eval(old_inside_eval);
-
     if (binding != NULL) {
 	vm->pop_current_binding(false);
     }
 
+    // JIT compile the function.
     IMP imp = GET_CORE()->compile(function);
 
-    // For symbolication.
+    // Register it for symbolication.
     rb_vm_method_node_t *mnode = GET_CORE()->method_node_get(imp, true);
     mnode->klass = 0;
     mnode->arity = rb_vm_arity(2);
     mnode->sel = sel_registerName("<main>");
     mnode->objc_imp = mnode->ruby_imp = imp;
     mnode->flags = 0;
-    
-    return ((VALUE(*)(VALUE, SEL))imp)(vm->get_current_top_object(), 0);
+
+    // Execute the function.
+    VALUE ret = ((VALUE(*)(VALUE, SEL))imp)(vm->get_current_top_object(), 0);
+
+    if (inside_eval) {
+	// XXX We only delete functions created by #eval. In theory it should
+	// also work for other functions, but it makes spec:ci crash.
+	GET_CORE()->delenda(function);
+    }
+
+    return ret;
 }
 
 extern "C"

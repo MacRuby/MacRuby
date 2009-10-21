@@ -673,7 +673,6 @@ RoxorCompiler::compile_prepare_method(Value *classVal, Value *sel,
     params.push_back(sel);
 
     params.push_back(compile_const_pointer(new_function));
-    rb_objc_retain((void *)body);
     params.push_back(compile_arity(arity));
     params.push_back(ConstantInt::get(Int32Ty, rb_vm_node_flags(body)));
 
@@ -4969,7 +4968,6 @@ rescan_args:
 
 		current_block_func = cast<Function>(block);
 		current_block_node = node->nd_body;
-		rb_objc_retain((void *)current_block_node);
 
 		Value *caller;
 		assert(node->nd_iter != NULL);
@@ -5177,8 +5175,6 @@ rescan_args:
 Function *
 RoxorCompiler::compile_main_function(NODE *node)
 {
-    rb_objc_retain((void *)node);
-
     current_instance_method = true;
 
     Value *val = compile_node(node);
