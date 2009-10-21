@@ -15,6 +15,7 @@
 #include "ruby/encoding.h"
 #include "ruby/util.h"
 #include "regint.h"
+#include "objc.h"
 #include <ctype.h>
 
 VALUE rb_eRegexpError;
@@ -2657,6 +2658,18 @@ rb_reg_s_alloc(VALUE klass, SEL sel)
     return (VALUE)re;
 }
 
+static IMP rb_objc_reg_finalize_super = NULL; 
+
+static void
+rb_objc_reg_finalize(void *rcv, SEL sel)
+{
+    struct RRegexp *re = RREGEXP(rcv);
+    onig_free(re->ptr);
+    if (rb_objc_reg_finalize_super != NULL) {
+	((void(*)(void *, SEL))rb_objc_reg_finalize_super)(rcv, sel);
+    }
+}
+
 VALUE
 rb_reg_new_str(VALUE s, int options)
 {
@@ -3699,6 +3712,9 @@ Init_Regexp(void)
     rb_objc_define_method(*(VALUE *)rb_cRegexp, "union", rb_reg_s_union_m, -2);
     rb_objc_define_method(*(VALUE *)rb_cRegexp, "last_match", rb_reg_s_last_match, -1);
     rb_objc_define_method(*(VALUE *)rb_cRegexp, "try_convert", rb_reg_s_try_convert, 1);
+
+    rb_objc_reg_finalize_super = rb_objc_install_method2((Class)rb_cRegexp,
+	    "finalize", (IMP)rb_objc_reg_finalize);
 
     rb_objc_define_method(rb_cRegexp, "initialize", rb_reg_initialize_m, -1);
     rb_objc_define_method(rb_cRegexp, "initialize_copy", rb_reg_init_copy, 1);
