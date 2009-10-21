@@ -2296,7 +2296,6 @@ VALUE
 rb_f_open(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
     VALUE io = rb_class_new_instance(argc, argv, rb_cFile);
-    io = rb_file_open(io, argc, argv);
     if (rb_block_given_p()) {
 	return rb_ensure(f_open_body, io, f_open_ensure, io);
     }
