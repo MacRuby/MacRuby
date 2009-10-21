@@ -381,17 +381,25 @@ AOT_STDLIB = [
   'lib/yaml.rb',
   'lib/yaml/rubytypes.rb',
 ]
-desc "AOT compile parts of the stdlib"
-task :aot_compile_stdlib => [:miniruby, 'macruby:dylib'] do
-  AOT_STDLIB.each do |pat|
-    Dir.glob(pat).each do |path|
-      out = File.join(File.dirname(path), File.basename(path, '.rb') + '.rbo')
-      if !File.exist?(out) or File.mtime(path) > File.mtime(out) or File.mtime('./miniruby') > File.mtime(out)
-        archf = ARCHS.map { |x| "--arch #{x}" }.join(' ')
-        sh "./miniruby -I. -I./lib bin/rubyc --internal #{archf} -C \"#{path}\" -o \"#{out}\""
+namespace :stdlib do
+  desc "AOT compile the stdlib"
+  task :build => [:miniruby, 'macruby:dylib'] do
+    AOT_STDLIB.each do |pat|
+      Dir.glob(pat).each do |path|
+        out = File.join(File.dirname(path), File.basename(path, '.rb') + '.rbo')
+        if !File.exist?(out) or File.mtime(path) > File.mtime(out) or File.mtime('./miniruby') > File.mtime(out)
+          archf = ARCHS.map { |x| "--arch #{x}" }.join(' ')
+          sh "./miniruby -I. -I./lib bin/rubyc --internal #{archf} -C \"#{path}\" -o \"#{out}\""
+        end
       end
     end
-  end 
+  end
+
+  desc "Touch .rbo files to ignore their build"
+  task :touch do
+    files = ["*.rbo", "lib/**/*.rbo"]
+    files.each { |pat| Dir.glob(pat) }.flatten.each { |p| sh "/usr/bin/touch #{p}" }
+  end
 end
 
 desc "Same as extensions"
