@@ -139,7 +139,8 @@ remove_method(VALUE klass, ID mid)
 	    m = class_getInstanceMethod((Class)klass, sel);
 	}
     }
-    if (m == NULL) {
+    if (m == NULL
+        || class_getInstanceMethod((Class)RCLASS_SUPER(klass), sel) == m) {
 	rb_name_error(mid, "method `%s' not defined in %s",
 		      rb_id2name(mid), rb_class2name(klass));
     }
