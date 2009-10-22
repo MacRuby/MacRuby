@@ -2036,7 +2036,7 @@ arg		: lhs '=' arg
 			value_expr($3);
 			if (nd_type($1) == NODE_LIT && FIXNUM_P($1->nd_lit) &&
 			    nd_type($3) == NODE_LIT && FIXNUM_P($3->nd_lit)) {
-			    GC_WB(&$1->nd_lit, rb_range_new($1->nd_lit, $3->nd_lit, Qfalse));
+			    GC_WB(&$1->nd_lit, GC_RETAIN(rb_range_new($1->nd_lit, $3->nd_lit, Qfalse)));
 			    $$ = $1;
 			}
 			else {
@@ -2053,7 +2053,7 @@ arg		: lhs '=' arg
 			value_expr($3);
 			if (nd_type($1) == NODE_LIT && FIXNUM_P($1->nd_lit) &&
 			    nd_type($3) == NODE_LIT && FIXNUM_P($3->nd_lit)) {
-			    GC_WB(&$1->nd_lit, rb_range_new($1->nd_lit, $3->nd_lit, Qtrue));
+			    GC_WB(&$1->nd_lit, GC_RETAIN(rb_range_new($1->nd_lit, $3->nd_lit, Qtrue)));
 			    $$ = $1;
 			}
 			else {
@@ -3929,7 +3929,7 @@ regexp		: tREGEXP_BEG xstring_contents tREGEXP_END
 			    {
 				VALUE src = node->nd_lit;
 				nd_set_type(node, NODE_LIT);
-				GC_WB(&node->nd_lit, reg_compile(src, options));
+				GC_WB(&node->nd_lit, GC_RETAIN(reg_compile(src, options)));
 			    }
 			    break;
 			  default:
@@ -5179,29 +5179,21 @@ lex_io_gets(struct parser_params *parser, VALUE io)
 NODE*
 rb_compile_file(const char *f, VALUE file, int start)
 {
-    VALUE volatile vparser = rb_parser_new();
-
-    return rb_parser_compile_file(vparser, f, file, start);
+    return rb_parser_compile_file(rb_parser_new(), f, file, start);
 }
 
 NODE *
-rb_parser_compile_file(volatile VALUE vparser, const char *f, VALUE file,
+rb_parser_compile_file(VALUE vparser, const char *f, VALUE file,
 	int start)
 {
     struct parser_params *parser;
-    volatile VALUE tmp;
-    NODE *node;
-
     Data_Get_Struct(vparser, struct parser_params, parser);
 
     lex_gets = lex_io_gets;
     GC_WB(&lex_input, file);
     lex_pbeg = lex_p = lex_pend = 0;
 
-    node = yycompile(parser, f, start);
-    tmp = vparser; /* prohibit tail call optimization */
-
-    return node;
+    return yycompile(parser, f, start);
 }
 #endif  /* !RIPPER */
 
@@ -7703,7 +7695,7 @@ yylex(void *p)
     int t;
 
 #if YYPURE
-    GC_WB(&parser->parser_yylval, (union tmpyystype*)lval);
+    parser->parser_yylval = (union tmpyystype*)lval;
     parser->parser_yylval->val = Qundef;
 #endif
     t = parser_yylex(parser);
@@ -9188,7 +9180,6 @@ reg_compile_gen(struct parser_params* parser, VALUE str, int options)
     reg_fragment_setenc(str, options);
     err = rb_errinfo();
     re = rb_reg_compile(str, options & RE_OPTION_MASK);
-    rb_objc_retain((void *)re);
     if (NIL_P(re)) {
 	ID mesg = rb_intern("mesg");
 	VALUE m = rb_attr_get(rb_errinfo(), mesg);
@@ -10079,8 +10070,16 @@ VALUE
 rb_parser_new(void)
 {
     struct parser_params *p = parser_new();
+#if 1
+    VALUE c = rb_cData;
+#else
+    static VALUE c = 0;
+    if (c == 0) {
+	c = rb_define_class("__Parser", rb_cObject);
+    }
+#endif
 
-    return Data_Wrap_Struct(rb_cData, parser_mark, parser_free, p);
+    return Data_Wrap_Struct(c, parser_mark, parser_free, p);
 }
 
 VALUE

@@ -345,9 +345,6 @@ rb_node_newnode(enum node_type type, VALUE a0, VALUE a1, VALUE a2)
     GC_WB(&n->u2.value, a1);
     GC_WB(&n->u3.value, a2);
 
-    // FIXME this retain is added because the parser is NOT GC-safe at this point
-    GC_RETAIN(n);
-
     return n;
 }
 
@@ -989,6 +986,8 @@ rb_call_os_finalizer(void *obj)
 static void
 rb_obj_imp_finalize(void *obj, SEL sel)
 {
+//printf("FINALIZE %p %s\n", obj, class_getName(*(Class *)obj));
+
 #if 0
 //    const bool need_protection = 
 //	GET_THREAD()->thread_id != pthread_self();

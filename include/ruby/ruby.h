@@ -1433,7 +1433,7 @@ rb_objc_release(const void *addr)
     }
     return addr;
 }
-#define GC_RELEASE(obj) (rb_objc_retain((const void *)obj))
+#define GC_RELEASE(obj) (rb_objc_release((const void *)obj))
 
 #if RUBY_INCLUDED_AS_FRAMEWORK
 #include <MacRuby/ruby/missing.h>
