@@ -31,7 +31,8 @@ For 0.5 (must do):
 [/] port all rb_num_coerce_bin() calls to rb_objc_num_coerce_bin()
 [/] port all rb_obj_respond_to() calls to rb_vm_respond_to()
 [X] refresh copyright headers for 2009
-[ ] rdoc should work
+[X] rdoc should work
+[ ] ri should work
 [X] MacRuby should not ignore SIGINT and other signals
 [X] fix autoload bugs
 [ ] Xcode target for AOT compilation
@@ -46,6 +47,8 @@ For 0.5 (must do):
 [ ] leaks
   [ ] implement ~RoxorVM
   [ ] fix exception leak
+  [X] delete unused functions after execution
+  [ ] delete unused NODE* after execution
 [/] thread issues
   [ ] method cache is not thread safe
   [ ] block dvars are corrupted in case the receiver leaves
