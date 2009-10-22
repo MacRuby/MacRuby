@@ -152,6 +152,7 @@ module RDoc
         stat = File.stat(rel_file_name)
         case type = stat.ftype
         when "file"
+          next if rel_file_name[-4..-1] == '.rbo'
           next if @last_created and stat.mtime < @last_created
 
           if force_doc or ::RDoc::Parser.can_parse(rel_file_name) then
