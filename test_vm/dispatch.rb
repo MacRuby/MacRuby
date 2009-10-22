@@ -89,6 +89,18 @@ assert ":ok", %{
   end
 }
 
+assert ':ok', %{
+  class X
+    def method_missing(x, *args, &block)
+      p :ok if x == :foo and block.call == 42
+    end
+    
+    protected
+    def foo; end
+  end
+  X.new.send(:foo) { 42 }
+}
+
 assert "42", "def foo; return 42; end; p foo"
 assert "42", "def foo(x); if x; return 42; end; end; p foo(true)"
 assert "42", "def foo(x); if x; x += 2; return x; end; end; p foo(40)"
