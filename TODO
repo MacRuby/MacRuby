@@ -48,7 +48,7 @@ For 0.5 (must do):
   [ ] implement ~RoxorVM
   [ ] fix exception leak
   [X] delete unused functions after execution
-  [ ] delete unused NODE* after execution
+  [X] delete unused NODE* after execution
 [/] thread issues
   [ ] method cache is not thread safe
   [ ] block dvars are corrupted in case the receiver leaves
