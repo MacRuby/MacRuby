@@ -65,6 +65,9 @@ class RDoc::RI::Driver
     def method_missing method, *args
       self[method.to_s]
     end
+
+    # XXX because it conflits with -[NSObject superclass].
+    def superclass; self['superclass']; end
   end
 
   class Error < RDoc::RI::Error; end
