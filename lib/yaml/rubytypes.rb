@@ -58,6 +58,30 @@ class Object
   def taguri; "!ruby/object:#{self.class}"; end
 end
 
+class Struct
+  yaml_as "tag:ruby.yaml.org,2002:struct"
+
+  def to_yaml(output = nil)
+    YAML::quick_emit(output) do |out|
+      out.map(taguri, to_yaml_style) do |map|
+        members.each do |m|
+          out.add(m, self[m])
+        end
+      end
+    end
+  end
+
+  def self.yaml_new(val)
+    obj = self.new
+    val.each { |k, v| obj[k] = v }
+    obj
+  end
+
+  private
+
+  def taguri; "!ruby/struct:#{self.class.to_s.sub(/^Struct::/, '')}"; end
+end
+
 class String
   yaml_as "tag:yaml.org,2002:str"
   

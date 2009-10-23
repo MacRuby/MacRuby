@@ -289,9 +289,15 @@ handler_for_tag(rb_yaml_parser_t *parser, yaml_char_t *tag)
     }
 
     // Dynamic handler, only for pure objects.
+    VALUE outer = Qnil;
     if (strncmp((const char *)tag, "!ruby/object:", 13) == 0) {
+	outer = rb_cObject;
+    }
+    else if (strncmp((const char *)tag, "!ruby/struct:", 13) == 0) {
+	outer = rb_cStruct;
+    }
+    if (outer != Qnil) {
 	char *path = (char *)tag + 13;
-	VALUE outer = rb_cObject;
 	assert(strlen(path) < 100);
 
 	char *p;
