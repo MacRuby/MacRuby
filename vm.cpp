@@ -3338,6 +3338,8 @@ rb_vm_init_compiler(void)
 	: new RoxorCompiler();
 }
 
+extern "C" void rb_node_release(NODE *node);
+
 extern "C"
 VALUE
 rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding,
@@ -3379,6 +3381,8 @@ rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding,
 	// also work for other functions, but it makes spec:ci crash.
 	GET_CORE()->delenda(function);
     }
+
+    rb_node_release(node);
 
     return ret;
 }

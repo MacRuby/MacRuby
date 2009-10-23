@@ -10108,7 +10108,7 @@ rb_parser_set_yydebug(VALUE self, VALUE flag)
 
 #ifdef YYMALLOC
 #define HEAPCNT(n, size) ((n) * (size) / sizeof(YYSTYPE))
-#define NEWHEAP() rb_node_newnode(NODE_ALLOCA, 0, (VALUE)parser->heap, 0)
+#define NEWHEAP() (NODE *)GC_RELEASE(rb_node_newnode(NODE_ALLOCA, 0, (VALUE)parser->heap, 0))
 
 static inline void *
 __add2heap(struct parser_params *parser, NODE *n, size_t c, void *p)

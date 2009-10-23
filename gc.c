@@ -351,6 +351,111 @@ rb_node_newnode(enum node_type type, VALUE a0, VALUE a1, VALUE a2)
     return n;
 }
 
+const char *ruby_node_name(int node);
+
+void
+rb_node_release(NODE *node)
+{
+    if (node == NULL || node == (NODE *)-1) {
+	return;
+    }
+
+//    static int c = 0;
+//    printf("%d RELEASE %s %p\n", ++c, ruby_node_name(nd_type(node)), node);
+
+    switch (nd_type(node)) {
+	case NODE_IF:		/* 1,2,3 */
+	case NODE_FOR:
+	case NODE_ITER:
+	case NODE_WHEN:
+	case NODE_MASGN:
+	case NODE_RESCUE:
+	case NODE_RESBODY:
+	case NODE_CLASS:
+	case NODE_BLOCK_PASS:
+	    rb_node_release(node->u2.node);
+	    /* fall through */
+	case NODE_BLOCK:	/* 1,3 */
+	case NODE_OPTBLOCK:
+	case NODE_ARRAY:
+	case NODE_ENSURE:
+	case NODE_CALL:
+	case NODE_DEFS:
+	case NODE_OP_ASGN1:
+	case NODE_ARGS:
+	    rb_node_release(node->u1.node);
+	    /* fall through */
+	case NODE_SUPER:	/* 3 */
+	case NODE_FCALL:
+	case NODE_DEFN:
+	case NODE_ARGS_AUX:
+	    rb_node_release(node->u3.node);
+	    break;
+
+	case NODE_METHOD:	/* 1,2 */
+	case NODE_WHILE:
+	case NODE_UNTIL:
+	case NODE_AND:
+	case NODE_OR:
+	case NODE_CASE:
+	case NODE_SCLASS:
+	case NODE_DOT2:
+	case NODE_DOT3:
+	case NODE_FLIP2:
+	case NODE_FLIP3:
+	case NODE_MATCH2:
+	case NODE_MATCH3:
+	case NODE_OP_ASGN_OR:
+	case NODE_OP_ASGN_AND:
+	case NODE_MODULE:
+	case NODE_ARGSCAT:
+	    rb_node_release(node->u1.node);
+	    /* fall through */
+	case NODE_FBODY:	/* 2 */
+	case NODE_GASGN:
+	case NODE_LASGN:
+	case NODE_DASGN:
+	case NODE_DASGN_CURR:
+	case NODE_IASGN:
+	case NODE_IASGN2:
+	case NODE_CVASGN:
+	case NODE_OPT_N:
+	case NODE_EVSTR:
+	case NODE_UNDEF:
+	case NODE_POSTEXE:
+	    rb_node_release(node->u2.node);
+	    break;
+
+	case NODE_HASH:	/* 1 */
+	case NODE_DEFINED:
+	case NODE_RETURN:
+	case NODE_BREAK:
+	case NODE_NEXT:
+	case NODE_YIELD:
+	case NODE_COLON2:
+	case NODE_SPLAT:
+	case NODE_TO_ARY:
+	    rb_node_release(node->u1.node);
+	    break;
+
+	case NODE_SCOPE:	/* 2,3 */
+	case NODE_CDECL:
+	case NODE_OPT_ARG:
+	    rb_node_release(node->u3.node);
+	    rb_node_release(node->u2.node);
+	    break;
+    }
+
+//    c--;
+
+    // Some NODE structures are apparently reused somewhere in parserland.
+    const int count = auto_zone_retain_count(__auto_zone, node);
+    if (count > 0) {
+	node->u1.node = node->u2.node = node->u3.node = NULL;
+	GC_RELEASE(node);
+    }
+}
+
 VALUE
 rb_data_object_alloc(VALUE klass, void *datap, RUBY_DATA_FUNC dmark, RUBY_DATA_FUNC dfree)
 {
