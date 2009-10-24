@@ -863,16 +863,16 @@ rb_yaml_emitter_scalar(VALUE self, SEL sel, VALUE taguri, VALUE val,
     yaml_event_t ev;
     yaml_emitter_t *emitter = &RYAMLEmitter(self)->emitter;
     yaml_char_t *output = (yaml_char_t *)RSTRING_PTR(val);
-    size_t length = strlen((const char *)output);
+    const size_t length = *(VALUE *)val == rb_cByteString
+	? RSTRING_LEN(val) : strlen((const char *)output);
 
     int can_omit_tag = 0;
     int string_tag   = 0;
     yaml_char_t *tag = rb_yaml_tag_or_null(taguri, &can_omit_tag, &string_tag);
     yaml_scalar_style_t sstyl = rb_symbol_to_scalar_style(style);
-    if (string_tag && 
-	(sstyl==YAML_ANY_SCALAR_STYLE || sstyl==YAML_PLAIN_SCALAR_STYLE) &&
-	(detect_scalar_type((const char *)output, length) != NULL)
-    ) {
+    if (string_tag
+	    && (sstyl==YAML_ANY_SCALAR_STYLE || sstyl==YAML_PLAIN_SCALAR_STYLE)
+	    && (detect_scalar_type((const char *)output, length) != NULL)) {
       /* Quote so this is read back as a string, no matter what type it looks like */
       sstyl = YAML_DOUBLE_QUOTED_SCALAR_STYLE;
     }
