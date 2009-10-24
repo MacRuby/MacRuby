@@ -1,0 +1,3 @@
+critical:SortedSet#reject! yields each Object in self in sorted order
+critical:SortedSet#reject! raises a LocalJumpError when passed no block
+critical:SortedSet#reject! returns an Enumerator when passed no block

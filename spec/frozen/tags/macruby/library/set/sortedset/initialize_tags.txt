@@ -1,0 +1,1 @@
+fails:SortedSet#initialize preprocesses all elements by a passed block before adding to self

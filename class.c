@@ -28,7 +28,7 @@ void rb_objc_install_set_primitives(Class);
 bool
 rb_objc_install_primitives(Class ocklass, Class ocsuper)
 {
-    if (rb_cArray != 0 && rb_cHash != 0 && rb_cString != 0 && rb_cSet != 0) {
+    if (rb_cArray != 0 && rb_cHash != 0 && rb_cString != 0) {
 	do {
 	    if (ocsuper == (Class)rb_cRubyArray) {
 		RCLASS_SET_VERSION_FLAG(ocklass, RCLASS_IS_ARRAY_SUBCLASS);

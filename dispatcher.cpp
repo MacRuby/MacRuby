@@ -806,10 +806,6 @@ dispatch:
 		return RHASH_IMMUTABLE(self)
 		    ? rb_cNSHash : rb_cNSMutableHash;
 	    }
-	    if (klass == (Class)rb_cCFSet) {
-		return RSET_IMMUTABLE(self)
-		    ? rb_cNSSet : rb_cNSMutableSet;
-	    }
 	}
 
 #if ROXOR_VM_DEBUG

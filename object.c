@@ -168,9 +168,6 @@ rb_class_real(VALUE cl)
     if (cl == rb_cCFHash) {
 	return rb_cNSMutableHash;
     }
-    if (cl == rb_cCFSet) {
-	return rb_cNSMutableSet;
-    }
     return cl;
 }
 

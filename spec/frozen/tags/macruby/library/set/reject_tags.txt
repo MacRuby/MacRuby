@@ -1,0 +1,2 @@
+critical:Set#reject! raises a LocalJumpError when passed no block
+critical:Set#reject! returns an Enumerator when passed no block
