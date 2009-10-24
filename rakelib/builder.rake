@@ -324,7 +324,7 @@ EXTOUT = (ENV['EXTOUT'] or ".ext")
 INSTALLED_LIST = '.installed.list'
 SCRIPT_ARGS = "--make=\"/usr/bin/make\" --dest-dir=\"#{DESTDIR}\" --extout=\"#{EXTOUT}\" --mflags=\"\" --make-flags=\"\""
 EXTMK_ARGS = "#{SCRIPT_ARGS} --extension --extstatic"
-INSTRUBY_ARGS = "#{SCRIPT_ARGS} --data-mode=0644 --prog-mode=0755 --installed-list #{INSTALLED_LIST} --mantype=\"doc\" --sym-dest-dir=\"#{SYM_INSTDIR}\""
+INSTRUBY_ARGS = "#{SCRIPT_ARGS} --data-mode=0644 --prog-mode=0755 --installed-list #{INSTALLED_LIST} --mantype=\"doc\" --sym-dest-dir=\"#{SYM_INSTDIR}\" --rdoc-output=\"doc\""
 
 EXTENSIONS = ['ripper', 'digest', 'etc', 'readline', 'libyaml', 'fcntl', 'socket', 'zlib', 'bigdecimal'].sort
 def perform_extensions_target(target)
@@ -358,6 +358,14 @@ task :extensions => [:miniruby, "macruby:static"] do
   sh "./miniruby -I./lib -I.ext/common -I./- -r./ext/purelib.rb ext/extmk.rb #{EXTMK_ARGS}"
 =end
   perform_extensions_target(:all)
+end
+
+desc "Generate RDoc files"
+task :doc => [:macruby, :extensions] do
+  doc_op = './doc'
+  unless File.exist?(doc_op)
+    sh "DYLD_LIBRARY_PATH=. ./macruby -I. -I./lib -I./ext/libyaml -I./ext/etc bin/rdoc --ri --op \"#{doc_op}\""
+  end
 end
 
 AOT_STDLIB = [
@@ -480,5 +488,10 @@ namespace :clean do
     end
 =end
     perform_extensions_target(:clean)
+  end
+
+  desc "Clean the RDoc files"
+  task :doc do
+    rm_rf('doc')
   end
 end

@@ -281,20 +281,6 @@ if $extout
   end
 end
 
-$installing_rdoc = false
-
-install?(:rdoc) do
-  if $rdocdir
-    puts "installing rdoc"
-
-    $installing_rdoc = true
-    ridatadir = File.join(CONFIG['datadir'], 'ri/$(MAJOR).$(MINOR).$(TEENY)/system')
-    Config.expand(ridatadir)
-    makedirs [ridatadir]
-    install_recursive($rdocdir, ridatadir, :mode => $data_mode)
-  end
-end
-
 install?(:local, :comm, :bin, :'bin-comm') do
   puts "installing command scripts"
 
@@ -412,6 +398,17 @@ install?(:local, :comm, :man) do
   end
 end
 
+#install?(:rdoc) do
+  if $rdocdir
+    puts "installing rdoc"
+
+    ridatadir = File.join(CONFIG['datadir'], 'ri/$(MAJOR).$(MINOR).$(TEENY)/system')
+    Config.expand(ridatadir)
+    makedirs [ridatadir]
+    install_recursive($rdocdir, ridatadir, :mode => $data_mode)
+  end
+#end
+
 install?(:local, :data) do
   puts "installing data files"
   destination_dir = datadir.clone
@@ -449,8 +446,6 @@ def install_stuff(what, from, to, mode)
   install_recursive from, to, :mode => mode
   Dir.glob(File.join(to, '**', '.svn')).each { |x| rm_rf(x) }
 end
-
-unless $installing_rdoc
 
 install_stuff('Xcode 3.x templates', 'misc/xcode-templates', 
   '/Library/Application Support/Developer/3.0/Xcode', 0755)
@@ -521,7 +516,5 @@ install('tool/rb_nibtool.old', ib_dest, :mode => $prog_mode)
 puts "installing LLVM tools"
 llc_dest = File.join(CONFIG['bindir'], 'llc')
 install('/usr/local/bin/llc', llc_dest, :mode => $prog_mode)
-
-end # unless $installing_rdoc
 
 # vi:set sw=2:

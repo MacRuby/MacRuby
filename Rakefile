@@ -8,15 +8,6 @@ task :default => :all
 desc "Same as framework:install"
 task :install => 'framework:install'
 
-desc "Generate and install RDoc/RI"
-task :install_doc do
-  doc_op = '.ext/rdoc'
-  unless File.exist?(doc_op)
-    sh "./miniruby -I./lib bin/rdoc --all --ri --op \"#{doc_op}\""
-  end
-  sh "./miniruby instruby.rb #{INSTRUBY_ARGS} --install=rdoc --rdoc-output=\"#{doc_op}\""
-end
-
 desc "Same as macruby:build"
 task :macruby => 'macruby:build'
 
@@ -43,10 +34,10 @@ task :test => [:sample_test, :unit_tests]
 =end
 
 desc "Clean local and extension build files"
-task :clean => ['clean:local', 'clean:rbo', 'clean:ext']
+task :clean => ['clean:local', 'clean:rbo', 'clean:ext', 'clean:doc']
 
-desc "Build MacRuby and extensions"
-task :all => [:macruby, 'stdlib:build', :extensions]
+desc "Build everything"
+task :all => [:macruby, 'stdlib:build', :extensions, :doc]
 
 desc "Create an archive (GIT only)"
 task :git_archive do
