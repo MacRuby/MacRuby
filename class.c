@@ -49,11 +49,6 @@ rb_objc_install_primitives(Class ocklass, Class ocsuper)
 		RCLASS_SET_VERSION_FLAG(ocklass, RCLASS_IS_STRING_SUBCLASS);
 		return true;
 	    }
-	    if (ocsuper == (Class)rb_cSet) {
-		rb_objc_install_set_primitives(ocklass);
-		RCLASS_SET_VERSION_FLAG(ocklass, RCLASS_IS_SET_SUBCLASS);
-		return true;
-	    }
 	    ocsuper = class_getSuperclass(ocsuper);
 	}
 	while (ocsuper != NULL);
