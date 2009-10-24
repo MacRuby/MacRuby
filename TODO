@@ -32,7 +32,10 @@ For 0.5 (must do):
 [/] port all rb_obj_respond_to() calls to rb_vm_respond_to()
 [X] refresh copyright headers for 2009
 [X] rdoc should work
-[ ] ri should work
+[/] ri should work
+  [ ] pager problem (apparent bug of IO.popen)
+  [ ] some annotations are not available (`macri -T Array' misses a lot), maybe
+      a YAML merging bug
 [X] MacRuby should not ignore SIGINT and other signals
 [X] fix autoload bugs
 [ ] Xcode target for AOT compilation
