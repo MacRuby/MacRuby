@@ -2075,19 +2075,19 @@ io_from_spawning_new_process(VALUE prog, VALUE mode)
     io_struct->pid = pid;
     io_struct->mode = mode;
 
-    // Confusingly enough, FMODE_WRITABLE means 'write-only'
-    // and FMODE_READABLE means 'read-only'.
     const int fmode = convert_mode_string_to_fmode(mode);
-    if (fmode != FMODE_WRITABLE) {
+    if (fmode & FMODE_READABLE) {
 	io_struct->read_fd = fd[0];
     }
-    if (fmode != FMODE_READABLE) {
+    else {
+	close(fd[0]);
+    }
+    if (fmode & FMODE_WRITABLE) {
 	io_struct->write_fd = fd[1];
     }
     else {
-	close(fd[1]);	
+	close(fd[1]);
     }
-
     return io;
 }
 
