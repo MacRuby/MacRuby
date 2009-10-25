@@ -1438,6 +1438,7 @@ RoxorCompiler::compile_defined_expression(NODE *node)
     Value *what1 = NULL;
     Value *what2 = NULL;
     int type = 0;
+    bool expression = false;
 
     switch (nd_type(node)) {
 	case NODE_IVAR:
@@ -1495,10 +1496,13 @@ RoxorCompiler::compile_defined_expression(NODE *node)
 	    type = DEFINED_METHOD;
 	    what1 = compile_id(node->nd_mid);
 	    break;
-    }
 
-    if (type == 0) {
-	compile_node_error("unrecognized defined? arg", node);
+	default:
+	    // Unhandled node type, probably an expression. Let's compile
+	    // it and it case everything goes okay we just return 'expression'.
+	    compile_node(node);
+	    expression = true;
+	    break;
     }
 
     if (definedFunc == NULL) {
@@ -1509,15 +1513,21 @@ RoxorCompiler::compile_defined_expression(NODE *node)
 		    NULL));
     }
 
-    std::vector<Value *> params;
+    Value *val = NULL;
+    if (!expression) {
+	std::vector<Value *> params;
 
-    params.push_back(self);
-    params.push_back(ConstantInt::get(Int32Ty, type));
-    params.push_back(what1 == NULL ? nilVal : what1);
-    params.push_back(what2 == NULL ? nilVal : what2);
+	params.push_back(self);
+	params.push_back(ConstantInt::get(Int32Ty, type));
+	params.push_back(what1 == NULL ? nilVal : what1);
+	params.push_back(what2 == NULL ? nilVal : what2);
 
-    // Call the runtime.
-    Value *val = compile_protected_call(definedFunc, params);
+	// Call the runtime.
+	val = compile_protected_call(definedFunc, params);
+    }
+    else {
+	val = ConstantInt::get(RubyObjTy, (long)CFSTR("expression"));
+    }
     BasicBlock *normal_bb = bb;
     BranchInst::Create(merge_bb, bb);
 
@@ -4481,12 +4491,8 @@ rescan_args:
 	    break;
 
 	case NODE_DEFINED:
-	    {
-		assert(node->nd_head != NULL);
-
-		return compile_defined_expression(node->nd_head);
-	    }
-	    break;
+	    assert(node->nd_head != NULL);
+	    return compile_defined_expression(node->nd_head);
 
 	case NODE_DEFN:
 	case NODE_DEFS:

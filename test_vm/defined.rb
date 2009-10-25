@@ -30,4 +30,5 @@ assert '"constant"', "A = 123; p defined? A"
 
 assert 'nil', "p defined?(yield)"
 
-assert '"expression"', "p (defined? FOO && 42)"
+assert '"expression"', "FOO=42; p (defined? FOO && 42)"
+assert 'nil', "p (defined? FOO && 42)"
