@@ -406,7 +406,7 @@ namespace :stdlib do
   desc "Touch .rbo files to ignore their build"
   task :touch do
     files = ["*.rbo", "lib/**/*.rbo"]
-    files.each { |pat| Dir.glob(pat) }.flatten.each { |p| sh "/usr/bin/touch #{p}" }
+    files.map { |pat| Dir.glob(pat) }.flatten.each { |p| sh "/usr/bin/touch #{p}" }
   end
 end
 
