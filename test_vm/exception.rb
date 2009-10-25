@@ -381,3 +381,19 @@ assert '42', %{
   end
   $p.call  
 }
+
+assert "b0\na1", %{
+  def foo
+    2.times do |i|
+      begin
+        raise StandardError if i == 0
+        puts "a\#{i}"
+        return
+      rescue StandardError
+        puts "b\#{i}"
+        next
+      end
+    end
+  end
+  foo
+}
