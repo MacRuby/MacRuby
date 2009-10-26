@@ -413,9 +413,6 @@ get_types_for_format_str(std::string &octypes, const unsigned int len,
 		    break;
 
 		case 'p':
-		    type = _C_PTR;
-		    break;
-
 		case '@':
 		    type = _C_ID;
 		    break;
