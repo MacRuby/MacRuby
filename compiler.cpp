@@ -1703,6 +1703,9 @@ RoxorCompiler::compile_jump(NODE *node)
 	    break;
 
 	case NODE_BREAK:
+	    if (current_rescue) {
+		compile_landing_pad_footer();
+	    }
 	    if (within_loop) {
 		BranchInst::Create(current_loop_end_bb, bb);
 		current_loop_exit_val->addIncoming(val, bb);
@@ -1717,6 +1720,9 @@ RoxorCompiler::compile_jump(NODE *node)
 	    break;
 
 	case NODE_NEXT:
+	    if (current_rescue) {
+		compile_landing_pad_footer();
+	    }
 	    if (within_loop) {
 		BranchInst::Create(current_loop_begin_bb, bb);
 	    }
@@ -1729,6 +1735,9 @@ RoxorCompiler::compile_jump(NODE *node)
 	    break;
 
 	case NODE_REDO:
+	    if (current_rescue) {
+		compile_landing_pad_footer();
+	    }
 	    if (within_loop) {
 		BranchInst::Create(current_loop_body_bb, bb);
 	    }
