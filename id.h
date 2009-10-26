@@ -73,6 +73,7 @@ extern SEL selSucc;
 extern SEL selNot;
 extern SEL selAlloc;
 extern SEL selAllocWithZone;
+extern SEL selCopyWithZone;
 extern SEL selInit;
 extern SEL selInitialize;
 extern SEL selInitialize2;

@@ -59,7 +59,19 @@ rb_objc_install_primitives(Class ocklass, Class ocsuper)
 static void *
 rb_obj_imp_allocWithZone(void *rcv, SEL sel, void *zone)
 {
+    // XXX honor zone?
     return (void *)rb_robject_allocate_instance((VALUE)rcv);
+}
+
+VALUE rb_obj_init_copy(VALUE, SEL, VALUE);
+
+static void *
+rb_obj_imp_copyWithZone(void *rcv, SEL sel, void *zone)
+{
+    // XXX honor zone?
+    VALUE copy = rb_robject_allocate_instance(CLASS_OF(rcv));
+    rb_obj_init_copy(copy, 0, (VALUE)rcv);
+    return (void *)copy;
 }
 
 static BOOL
@@ -101,8 +113,6 @@ rb_objc_init(VALUE rcv, SEL sel)
     return rcv;
 }
 
-VALUE rb_obj_init_copy(VALUE, SEL, VALUE);
-
 VALUE rb_class_new_instance_imp(VALUE klass, SEL sel, int argc, VALUE *argv);
 
 void
@@ -123,7 +133,16 @@ rb_define_object_special_methods(VALUE klass)
 	    (IMP)rb_obj_imp_allocWithZone);
     rb_objc_install_method((Class)klass, selIsEqual, (IMP)rb_obj_imp_isEqual);
     rb_objc_install_method((Class)klass, selInit, (IMP)rb_obj_imp_init);
-    rb_objc_install_method((Class)klass, selDescription, (IMP)rb_obj_imp_description);
+    rb_objc_install_method((Class)klass, selDescription,
+	    (IMP)rb_obj_imp_description);
+
+    // Create -copyWithZone:, since the method doesn't exist yet we need to
+    // find the type encoding somewhere, here we check Symbol since it's
+    // created very early. 
+    Method m = class_getInstanceMethod((Class)rb_cSymbol, selCopyWithZone);
+    assert(m != NULL);
+    class_replaceMethod((Class)klass, selCopyWithZone, 
+	    (IMP)rb_obj_imp_copyWithZone, method_getTypeEncoding(m));
 }
 
 static VALUE
