@@ -1,0 +1,101 @@
+#!/usr/bin/ruby
+# MacRuby Deployer.
+#
+# This file is covered by the Ruby license.
+#
+# Copyright (C) 2009, Apple Inc
+
+require 'optparse'
+require 'rbconfig'
+require 'fileutils'
+
+class Deployer
+  include FileUtils
+
+  NAME = File.basename(__FILE__)
+
+  def initialize(argv)
+    OptionParser.new do |opts|
+      opts.banner = "Usage: #{NAME} [options] application-bundle"
+      opts.on('--no-stdlib', "Do not include the standard library") do
+        @no_stdlib = true
+      end
+      opts.on('-v', '--version', 'Display the version') do
+        puts RUBY_DESCRIPTION
+        exit 1
+      end
+      begin
+        opts.parse!(argv)
+      rescue OptionParser::InvalidOption => e
+        die e, opts
+      end
+      die opts if argv.size != 1
+      @app_bundle = argv[0]
+    end
+
+    if !File.exist?(@app_bundle)
+      die "Given path `#{@app_bundle}' doesn't exist"
+    end
+    if !File.directory?(@app_bundle) or !File.exist?(File.join(@app_bundle, 'Contents'))
+      die "Given path `#{@app_bundle}' doesn't seem to be a valid application bundle"
+    end
+
+    # Locate necessary programs.
+    @install_name_tool = locate('install_name_tool')
+
+    # Locate the MacRuby framework.
+    @macruby_framework_path = Config::CONFIG['libdir'].scan(/^.+MacRuby\.framework/)[0]
+    if !File.exist?(@macruby_framework_path)
+      die "Cannot locate MacRuby.framework from rbconfig.rb"
+    end
+  end
+
+  def run
+    # Copy MacRuby.framework inside MyApp.app/Contents/Frameworks.
+    app_frameworks = File.join(@app_bundle, 'Contents/Frameworks')
+    mkdir_p(app_frameworks)
+    app_macruby = File.join(app_frameworks, 'MacRuby.framework')
+    rm_rf(app_macruby)
+    cp_r(@macruby_framework_path, app_frameworks)
+
+    # Delete unnecessary things in the MacRuby.framework copy.
+    app_macruby_usr = File.join(app_macruby, 'Versions', MACRUBY_VERSION, 'usr')
+    macruby_usr = File.join(@macruby_framework_path, 'Versions', MACRUBY_VERSION, 'usr')
+    die "oops" if !File.exist?(app_macruby_usr) or !File.exist?(macruby_usr)
+    dirs = ['bin', 'include', 'lib/libmacruby-static.a', 'share']
+    if @no_stdlib
+      dirs << 'lib/ruby'
+    end
+    dirs << 'lib/ruby/Gems' # TODO add gems support
+    dirs.each { |x| rm_rf(File.join(app_macruby_usr, x)) }
+
+    # Hack the application binaries to link against the MacRuby.framework copy.
+    patterns = [File.join(@app_bundle, 'Contents/MacOS/*'), File.join(app_macruby_usr, 'lib/ruby/**/*.{bundle,rbo}')]
+    patterns.each do |pat|
+      Dir.glob(pat).each do |bin|
+        execute("#{@install_name_tool} -change #{macruby_usr}/lib/libmacruby.dylib @executable_path/../Frameworks/MacRuby.framework/Versions/#{MACRUBY_VERSION}/usr/lib/libmacruby.dylib '#{bin}'")
+      end
+    end
+  end
+
+  private
+
+  def execute(line)
+    ret = `#{line}`
+    die "Error when executing `#{line}'" unless $?.success?
+    ret
+  end
+
+  def locate(progname)
+    path = `which #{progname}`.strip
+    die "Can't locate program `#{progname}'" if path.empty?
+    path
+  end
+
+  def die(*args)
+    $stderr.puts args
+    exit 1
+  end
+end
+
+Deployer.new(ARGV).run
