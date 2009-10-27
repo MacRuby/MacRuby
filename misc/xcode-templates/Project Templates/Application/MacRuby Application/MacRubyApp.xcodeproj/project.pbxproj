@@ -255,7 +255,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# The macruby_deploy command-line tool will make sure your app will embed the MacRuby framework. Default options will be used. Pass the -h option to get more details.\nPATH=\"$PATH:/usr/local/bin\" macruby_deploy $TARGET_BUILD_DIR/$PROJECT_NAME.app";
+			shellScript = "# The macruby_deploy command-line tool will make sure your app will embed the MacRuby framework. Default options will be used. Pass the -h option to get more details.\nPATH=\"$PATH:/usr/local/bin\" macruby_deploy \"$TARGET_BUILD_DIR/$PROJECT_NAME.app\"";
 		};
 /* End PBXShellScriptBuildPhase section */
 
