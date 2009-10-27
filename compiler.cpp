@@ -6771,6 +6771,42 @@ RoxorCompiler::compile_lvar_slot(ID name)
     return slot;
 }
 
+#if __LP64__
+# define MAX_GPR_REGS 6
+# define MAX_SSE_REGS 8
+// The x86-64 ABI requires us to pass by reference arguments when there isn't
+// enough registers anymore. We need to count both GPR and SEE registers usage.
+// For more info: http://www.x86-64.org/documentation/abi.pdf
+static void
+examine(const Type *t, int *ngpr, int *nsse)
+{
+    switch (t->getTypeID()) {
+	case Type::IntegerTyID:
+	case Type::PointerTyID:
+	    (*ngpr)++;
+	    break;
+
+	case Type::FloatTyID:
+	case Type::DoubleTyID:
+	    (*nsse)++;
+	    break;
+
+	case Type::StructTyID:
+	    {
+		const StructType *st = cast<StructType>(t);
+		for (unsigned i = 0; i < st->getNumElements(); i++) {
+		    examine(st->getElementType(i), ngpr, nsse);
+		}
+	    }
+	    break;
+
+	default:
+	    // oops
+	    break;
+    }
+}
+#endif
+
 Function *
 RoxorCompiler::compile_objc_stub(Function *ruby_func, IMP ruby_imp,
 	const rb_vm_arity_t &arity, const char *types)
@@ -6780,6 +6816,10 @@ RoxorCompiler::compile_objc_stub(Function *ruby_func, IMP ruby_imp,
     char buf[100];
     const char *p = types;
     std::vector<const Type *> f_types;
+
+#if __LP64__
+    int gprcount = 0, ssecount = 0;
+#endif
 
     // Return value.
     p = GetFirstType(p, buf, sizeof buf);
@@ -6793,6 +6833,9 @@ RoxorCompiler::compile_objc_stub(Function *ruby_func, IMP ruby_imp,
 	f_types.push_back(PointerType::getUnqual(f_ret_type));
 	f_sret_type = f_ret_type;
 	f_ret_type = VoidTy;
+#if __LP64__
+	gprcount++;
+#endif
     }
 
     // self
@@ -6803,13 +6846,29 @@ RoxorCompiler::compile_objc_stub(Function *ruby_func, IMP ruby_imp,
     f_types.push_back(PtrTy);
     p = SkipFirstType(p);
     p = SkipStackSize(p);
+#if __LP64__
+    gprcount += 2;
+#endif
     // Arguments.
     std::vector<std::string> arg_types;
     std::vector<unsigned int> byval_args;
     for (int i = 0; i < arity.real; i++) {
 	p = GetFirstType(p, buf, sizeof buf);
 	const Type *t = convert_type(buf);
-	if (GET_CORE()->is_large_struct_type(t)) {
+	bool enough_registers = true;
+#if __LP64__
+	int ngpr = 0, nsse = 0;
+	examine(t, &ngpr, &nsse);
+	if (gprcount + ngpr > MAX_GPR_REGS || ssecount + nsse > MAX_SSE_REGS) {
+	    enough_registers = false;
+	}
+	else {
+	    gprcount += ngpr;
+	    ssecount += nsse;
+	}
+	//printf("arg[%d] is using %d gpr %d sse\n", i, ngpr, nsse);
+#endif
+	if (!enough_registers || GET_CORE()->is_large_struct_type(t)) {
 	    // We are passing a large struct, we need to mark this argument
 	    // with the byval attribute and configure the internal stub
 	    // call to pass a pointer to the structure, to conform to the ABI.
@@ -6851,12 +6910,14 @@ RoxorCompiler::compile_objc_stub(Function *ruby_func, IMP ruby_imp,
     // Convert every incoming argument into Ruby type.
     for (int i = 0; i < arity.real; i++) {
 	Value *a = arg++;
+	const Type *t = f_types[i + 2 + sret_i];
 	if (std::find(byval_args.begin(), byval_args.end(),
 		    (unsigned int)i + 3 + sret_i) != byval_args.end()) {
 	    a = new LoadInst(a, "", bb);
+	    t = cast<PointerType>(t)->getElementType();
 	}
 	Value *ruby_arg = compile_conversion_to_ruby(arg_types[i].c_str(),
-		f_types[i + 2 + sret_i], a);
+		t, a);
 	params.push_back(ruby_arg);
     }
 
