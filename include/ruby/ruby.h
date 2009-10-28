@@ -194,6 +194,8 @@ VALUE rb_uint2inum(VALUE);
 #define ULONG2NUM(v) UINT2NUM(v)
 #define rb_uint_new(v) rb_uint2inum(v)
 
+#define TIMET2NUM(t) LONG2NUM(t)
+
 #ifdef HAVE_LONG_LONG
 VALUE rb_ll2inum(LONG_LONG);
 #define LL2NUM(v) rb_ll2inum(v)

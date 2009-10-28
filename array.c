@@ -1495,8 +1495,8 @@ rb_ary_insert_m(VALUE ary, SEL sel, int argc, VALUE *argv)
  *     a -- b -- c --
  */
 
-VALUE
-rb_ary_each(VALUE ary, SEL sel)
+static VALUE
+rb_ary_each_imp(VALUE ary, SEL sel)
 {
     long i;
 
@@ -1506,6 +1506,12 @@ rb_ary_each(VALUE ary, SEL sel)
 	RETURN_IF_BROKEN();
     }
     return ary;
+}
+
+VALUE
+rb_ary_each(VALUE ary)
+{
+    return rb_ary_each_imp(ary, 0);
 }
 
 /*
@@ -4285,7 +4291,7 @@ Init_Array(void)
     rb_objc_define_method(rb_cArray, "shift", rb_ary_shift_m, -1);
     rb_objc_define_method(rb_cArray, "unshift", rb_ary_unshift_m, -1);
     rb_objc_define_method(rb_cArray, "insert", rb_ary_insert_m, -1);
-    rb_objc_define_method(rb_cArray, "each", rb_ary_each, 0);
+    rb_objc_define_method(rb_cArray, "each", rb_ary_each_imp, 0);
     rb_objc_define_method(rb_cArray, "each_index", rb_ary_each_index, 0);
     rb_objc_define_method(rb_cArray, "reverse_each", rb_ary_reverse_each, 0);
     rb_objc_define_method(rb_cArray, "length", rb_ary_length, 0);

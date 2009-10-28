@@ -58,6 +58,7 @@ VALUE rb_ary_push(VALUE, VALUE);
 VALUE rb_ary_pop(VALUE);
 VALUE rb_ary_shift(VALUE);
 VALUE rb_ary_unshift(VALUE, VALUE);
+VALUE rb_ary_each(VALUE);
 VALUE rb_ary_entry(VALUE, long);
 VALUE rb_ary_join(VALUE, VALUE);
 VALUE rb_ary_print_on(VALUE, VALUE);
@@ -197,6 +198,7 @@ VALUE rb_enumeratorize(VALUE, SEL, int, VALUE *);
 	    return rb_enumeratorize(obj, sel, argc, argv);		\
     } while (0)
 /* error.c */
+VALUE rb_f_notimplement(VALUE rcv, SEL sel);
 VALUE rb_exc_new(VALUE, const char*, long);
 VALUE rb_exc_new2(VALUE, const char*);
 VALUE rb_exc_new3(VALUE, VALUE);
@@ -371,6 +373,7 @@ VALUE rb_hash_delete(VALUE,VALUE);
 VALUE rb_hash_delete_key(VALUE,VALUE);
 VALUE rb_hash_has_key(VALUE hash, VALUE key);
 VALUE rb_hash_keys(VALUE hash);
+VALUE rb_hash_set_ifnone(VALUE hash, VALUE ifnone);
 struct st_table *rb_hash_tbl(VALUE);
 int rb_path_check(const char*);
 int rb_env_path_tainted(void);

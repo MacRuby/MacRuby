@@ -112,6 +112,12 @@ rb_io_assert_readable(rb_io_t *io_struct)
     }
 }
 
+// For MRI 1.9 compat.
+#define HAVE_RB_IO_T 1
+#define rb_io_check_writable rb_io_assert_writable
+#define rb_io_check_readable rb_io_assert_readable
+#define GetOpenFile(obj,fp) (fp = ExtractIOStruct(obj))
+
 #if defined(__cplusplus)
 #if 0
 { /* satisfy cc-mode */

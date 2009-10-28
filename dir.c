@@ -1642,8 +1642,6 @@ dir_s_aref(VALUE obj, SEL sel, int argc, VALUE *argv)
  *     Dir.glob(librbfiles)                #=> ["lib/song.rb"]
  */
 
-VALUE rb_ary_each(VALUE recv, SEL sel);
-
 static VALUE
 dir_s_glob(VALUE obj, SEL sel, int argc, VALUE *argv)
 {
@@ -1671,7 +1669,7 @@ dir_s_glob(VALUE obj, SEL sel, int argc, VALUE *argv)
     }
 
     if (rb_block_given_p()) {
-	rb_ary_each(ary, 0);
+	rb_ary_each(ary);
 	return Qnil;
     }
     return ary;

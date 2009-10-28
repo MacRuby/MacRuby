@@ -1140,6 +1140,15 @@ rb_notimplement(void)
 	     "TODO");//rb_id2name(rb_frame_this_func()));
 }
 
+VALUE
+rb_f_notimplement(VALUE rcv, SEL sel)
+{
+    rb_raise(rb_eNotImpError,
+	    "%s() function is unimplemented on this machine",
+	    sel_getName(sel));
+    return Qnil; // never reached
+}
+
 void
 rb_fatal(const char *fmt, ...)
 {

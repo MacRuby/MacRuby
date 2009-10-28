@@ -620,6 +620,12 @@ rb_hash_set_default(VALUE hash, SEL sel, VALUE ifnone)
     return ifnone;
 }
 
+VALUE
+rb_hash_set_ifnone(VALUE hash, VALUE ifnone)
+{
+    return rb_hash_set_default(hash, 0, ifnone);
+}
+
 /*
  *  call-seq:
  *     hsh.default_proc -> anObject
