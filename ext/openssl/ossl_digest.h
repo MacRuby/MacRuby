@@ -1,5 +1,5 @@
 /*
- * $Id: ossl_digest.h 12148 2007-04-05 05:59:22Z technorama $
+ * $Id: ossl_digest.h 25189 2009-10-02 12:04:37Z akr $
  * 'OpenSSL for Ruby' project
  * Copyright (C) 2001-2002  Michal Rokos <m.rokos@sh.cvut.cz>
  * All rights reserved.

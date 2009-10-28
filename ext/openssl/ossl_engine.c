@@ -1,5 +1,5 @@
 /*
- * $Id: ossl_engine.c 11708 2007-02-12 23:01:19Z shyouhei $
+ * $Id: ossl_engine.c 25189 2009-10-02 12:04:37Z akr $
  * 'OpenSSL for Ruby' project
  * Copyright (C) 2003  GOTOU Yuuzou <gotoyuzo@notwork.org>
  * All rights reserved.
@@ -119,7 +119,7 @@ ossl_engine_s_by_id(VALUE klass, VALUE id)
     if(!ENGINE_init(e))
 	ossl_raise(eEngineError, NULL);
     ENGINE_ctrl(e, ENGINE_CTRL_SET_PASSWORD_CALLBACK,
-		0, NULL, (void(*)())ossl_pem_passwd_cb);
+		0, NULL, (void(*)(void))ossl_pem_passwd_cb);
     ERR_clear_error();
 
     return obj;
@@ -166,10 +166,10 @@ ossl_engine_finish(VALUE self)
     return Qnil;
 }
 
+#if defined(HAVE_ENGINE_GET_CIPHER)
 static VALUE
 ossl_engine_get_cipher(VALUE self, VALUE name)
 {
-#if defined(HAVE_ENGINE_GET_CIPHER)
     ENGINE *e;
     const EVP_CIPHER *ciph, *tmp;
     char *s;
@@ -184,15 +184,15 @@ ossl_engine_get_cipher(VALUE self, VALUE name)
     if(!ciph) ossl_raise(eEngineError, NULL);
 
     return ossl_cipher_new(ciph);
-#else
-    rb_notimplement();
-#endif
 }
+#else
+#define ossl_engine_get_cipher rb_f_notimplement
+#endif
 
+#if defined(HAVE_ENGINE_GET_DIGEST)
 static VALUE
 ossl_engine_get_digest(VALUE self, VALUE name)
 {
-#if defined(HAVE_ENGINE_GET_DIGEST)
     ENGINE *e;
     const EVP_MD *md, *tmp;
     char *s;
@@ -207,10 +207,10 @@ ossl_engine_get_digest(VALUE self, VALUE name)
     if(!md) ossl_raise(eEngineError, NULL);
 
     return ossl_digest_new(md);
-#else
-    rb_notimplement();
-#endif
 }
+#else
+#define ossl_engine_get_digest rb_f_notimplement
+#endif
 
 static VALUE
 ossl_engine_load_privkey(int argc, VALUE *argv, VALUE self)
@@ -326,7 +326,7 @@ static VALUE
 ossl_engine_inspect(VALUE self)
 {
     VALUE str;
-    char *cname = rb_class2name(rb_obj_class(self));
+    const char *cname = rb_class2name(rb_obj_class(self));
     
     str = rb_str_new2("#<");
     rb_str_cat2(str, cname);

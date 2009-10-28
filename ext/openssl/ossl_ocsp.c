@@ -1,5 +1,5 @@
 /*
- * $Id: ossl_ocsp.c 11708 2007-02-12 23:01:19Z shyouhei $
+ * $Id: ossl_ocsp.c 25189 2009-10-02 12:04:37Z akr $
  * 'OpenSSL for Ruby' project
  * Copyright (C) 2003  Michal Rokos <m.rokos@sh.cvut.cz>
  * Copyright (C) 2003  GOTOU Yuuzou <gotoyuzo@notwork.org>
@@ -103,15 +103,17 @@ static VALUE
 ossl_ocspreq_initialize(int argc, VALUE *argv, VALUE self)
 {
     VALUE arg;
-    unsigned char *p;
+    const unsigned char *p;
 
     rb_scan_args(argc, argv, "01", &arg);
     if(!NIL_P(arg)){
+	OCSP_REQUEST *req = DATA_PTR(self), *x;
 	arg = ossl_to_der_if_possible(arg);
 	StringValue(arg);
 	p = (unsigned char*)RSTRING_PTR(arg);
-	if(!d2i_OCSP_REQUEST((OCSP_REQUEST**)&DATA_PTR(self), &p,
-			     RSTRING_LEN(arg))){
+	x = d2i_OCSP_REQUEST(&req, &p, RSTRING_LEN(arg));
+	DATA_PTR(self) = req;
+	if(!x){
 	    ossl_raise(eOCSPError, "cannot load DER encoded request");
 	}
     }
@@ -134,7 +136,7 @@ ossl_ocspreq_add_nonce(int argc, VALUE *argv, VALUE self)
     else{
 	StringValue(val);
 	GetOCSPReq(self, req);
-	ret = OCSP_request_add1_nonce(req, RSTRING_PTR(val), RSTRING_LEN(val));
+	ret = OCSP_request_add1_nonce(req, (unsigned char *)RSTRING_PTR(val), RSTRING_LEN(val));
     }
     if(!ret) ossl_raise(eOCSPError, NULL);
 
@@ -265,7 +267,7 @@ ossl_ocspreq_to_der(VALUE self)
     if((len = i2d_OCSP_REQUEST(req, NULL)) <= 0)
 	ossl_raise(eOCSPError, NULL);
     str = rb_str_new(0, len);
-    p = RSTRING_PTR(str);
+    p = (unsigned char *)RSTRING_PTR(str);
     if(i2d_OCSP_REQUEST(req, &p) <= 0)
 	ossl_raise(eOCSPError, NULL);
     ossl_str_adjust(str, p);
@@ -310,15 +312,17 @@ static VALUE
 ossl_ocspres_initialize(int argc, VALUE *argv, VALUE self)
 {
     VALUE arg;
-    unsigned char *p;
+    const unsigned char *p;
 
     rb_scan_args(argc, argv, "01", &arg);
     if(!NIL_P(arg)){
+	OCSP_RESPONSE *res = DATA_PTR(self), *x;
 	arg = ossl_to_der_if_possible(arg);
 	StringValue(arg);
-	p = RSTRING_PTR(arg);
-	if(!d2i_OCSP_RESPONSE((OCSP_RESPONSE**)&DATA_PTR(self), &p,
-			      RSTRING_LEN(arg))){
+	p = (unsigned char *)RSTRING_PTR(arg);
+	x = d2i_OCSP_RESPONSE(&res, &p, RSTRING_LEN(arg));
+	DATA_PTR(self) = res;
+	if(!x){
 	    ossl_raise(eOCSPError, "cannot load DER encoded response");
 	}
     }
@@ -377,8 +381,8 @@ ossl_ocspres_to_der(VALUE self)
     if((len = i2d_OCSP_RESPONSE(res, NULL)) <= 0)
 	ossl_raise(eOCSPError, NULL);
     str = rb_str_new(0, len);
-    p = RSTRING_PTR(str);
-    if(i2d_OCSP_RESPONSE(res, NULL) <= 0)
+    p = (unsigned char *)RSTRING_PTR(str);
+    if(i2d_OCSP_RESPONSE(res, &p) <= 0)
 	ossl_raise(eOCSPError, NULL);
     ossl_str_adjust(str, p);
 
@@ -436,7 +440,7 @@ ossl_ocspbres_add_nonce(int argc, VALUE *argv, VALUE self)
     else{
 	StringValue(val);
 	GetOCSPBasicRes(self, bs);
-	ret = OCSP_basic_add1_nonce(bs, RSTRING_PTR(val), RSTRING_LEN(val));
+	ret = OCSP_basic_add1_nonce(bs, (unsigned char *)RSTRING_PTR(val), RSTRING_LEN(val));
     }
     if(!ret) ossl_raise(eOCSPError, NULL);
 
@@ -462,7 +466,7 @@ ossl_ocspbres_add_status(VALUE self, VALUE cid, VALUE status,
 	/* All ary's members should be X509Extension */
 	Check_Type(ext, T_ARRAY);
 	for (i = 0; i < RARRAY_LEN(ext); i++)
-	    OSSL_Check_Kind(RARRAY_AT(ext, i), cX509Ext);
+	    OSSL_Check_Kind(RARRAY_PTR(ext)[i], cX509Ext);
     }
 
     error = 0;
@@ -491,7 +495,7 @@ ossl_ocspbres_add_status(VALUE self, VALUE cid, VALUE status,
 	sk_X509_EXTENSION_pop_free(single->singleExtensions, X509_EXTENSION_free);
 	single->singleExtensions = NULL;
 	for(i = 0; i < RARRAY_LEN(ext); i++){
-	    x509ext = DupX509ExtPtr(RARRAY_AT(ext, i));
+	    x509ext = DupX509ExtPtr(RARRAY_PTR(ext)[i]);
 	    if(!OCSP_SINGLERESP_add_ext(single, x509ext, -1)){
 		X509_EXTENSION_free(x509ext);
 		error = 1;
@@ -589,22 +593,22 @@ ossl_ocspbres_sign(int argc, VALUE *argv, VALUE self)
 static VALUE
 ossl_ocspbres_verify(int argc, VALUE *argv, VALUE self)
 {
-    VALUE certs, store, flags;
+    VALUE certs, store, flags, result;
     OCSP_BASICRESP *bs;
     STACK_OF(X509) *x509s;
     X509_STORE *x509st;
-    int flg, result;
+    int flg;
 
     rb_scan_args(argc, argv, "21", &certs, &store, &flags);
     x509st = GetX509StorePtr(store);
     flg = NIL_P(flags) ? 0 : INT2NUM(flags);
     x509s = ossl_x509_ary2sk(certs);
     GetOCSPBasicRes(self, bs);
-    result = OCSP_basic_verify(bs, x509s, x509st, flg);
+    result = OCSP_basic_verify(bs, x509s, x509st, flg) > 0 ? Qtrue : Qfalse;
     sk_X509_pop_free(x509s, X509_free);
     if(!result) rb_warn("%s", ERR_error_string(ERR_peek_error(), NULL));
 
-    return result ? Qtrue : Qfalse;
+    return result;
 }
 
 /*

@@ -1,5 +1,5 @@
 /*
- * $Id: ossl_digest.c 15602 2008-02-25 08:51:18Z technorama $
+ * $Id: ossl_digest.c 25189 2009-10-02 12:04:37Z akr $
  * 'OpenSSL for Ruby' project
  * Copyright (C) 2001-2002  Michal Rokos <m.rokos@sh.cvut.cz>
  * All rights reserved.
@@ -38,7 +38,7 @@ GetDigestPtr(VALUE obj)
     const EVP_MD *md;
 
     if (TYPE(obj) == T_STRING) {
-    	const char *name = STR2CSTR(obj);
+    	const char *name = StringValueCStr(obj);
 
         md = EVP_get_digestbyname(name);
         if (!md)
@@ -96,7 +96,6 @@ ossl_digest_initialize(int argc, VALUE *argv, VALUE self)
 {
     EVP_MD_CTX *ctx;
     const EVP_MD *md;
-    char *name;
     VALUE type, data;
 
     rb_scan_args(argc, argv, "11", &type, &data);
@@ -182,7 +181,7 @@ ossl_digest_finish(int argc, VALUE *argv, VALUE self)
         rb_str_resize(str, EVP_MD_CTX_size(ctx));
     }
 
-    EVP_DigestFinal_ex(ctx, RSTRING_PTR(str), NULL);
+    EVP_DigestFinal_ex(ctx, (unsigned char *)RSTRING_PTR(str), NULL);
 
     return str;
 }
@@ -234,7 +233,6 @@ ossl_digest_block_length(VALUE self)
 void
 Init_ossl_digest()
 {
-    rb_require("openssl");
     rb_require("digest");
 
 #if 0 /* let rdoc know about mOSSL */

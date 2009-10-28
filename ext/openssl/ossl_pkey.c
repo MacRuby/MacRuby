@@ -1,5 +1,5 @@
 /*
- * $Id: ossl_pkey.c 12139 2007-04-03 07:02:44Z technorama $
+ * $Id: ossl_pkey.c 25189 2009-10-02 12:04:37Z akr $
  * 'OpenSSL for Ruby' project
  * Copyright (C) 2001-2002  Michal Rokos <m.rokos@sh.cvut.cz>
  * All rights reserved.
@@ -164,7 +164,7 @@ ossl_pkey_sign(VALUE self, VALUE digest, VALUE data)
 {
     EVP_PKEY *pkey;
     EVP_MD_CTX ctx;
-    int buf_len;
+    unsigned int buf_len;
     VALUE str;
 
     if (rb_funcall(self, id_private_q, 0, NULL) != Qtrue) {
@@ -175,9 +175,9 @@ ossl_pkey_sign(VALUE self, VALUE digest, VALUE data)
     StringValue(data);
     EVP_SignUpdate(&ctx, RSTRING_PTR(data), RSTRING_LEN(data));
     str = rb_str_new(0, EVP_PKEY_size(pkey)+16);
-    if (!EVP_SignFinal(&ctx, RSTRING_PTR(str), &buf_len, pkey))
+    if (!EVP_SignFinal(&ctx, (unsigned char *)RSTRING_PTR(str), &buf_len, pkey))
 	ossl_raise(ePKeyError, NULL);
-    assert(buf_len <= RSTRING_LEN(str));
+    assert((long)buf_len <= RSTRING_LEN(str));
     rb_str_set_len(str, buf_len);
 
     return str;
@@ -194,7 +194,7 @@ ossl_pkey_verify(VALUE self, VALUE digest, VALUE sig, VALUE data)
     StringValue(sig);
     StringValue(data);
     EVP_VerifyUpdate(&ctx, RSTRING_PTR(data), RSTRING_LEN(data));
-    switch (EVP_VerifyFinal(&ctx, RSTRING_PTR(sig), RSTRING_LEN(sig), pkey)) {
+    switch (EVP_VerifyFinal(&ctx, (unsigned char *)RSTRING_PTR(sig), RSTRING_LEN(sig), pkey)) {
     case 0:
 	return Qfalse;
     case 1:

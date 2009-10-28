@@ -1,5 +1,5 @@
 /*
- * $Id: ossl_rand.c 16692 2008-05-29 18:15:50Z knu $
+ * $Id: ossl_rand.c 25189 2009-10-02 12:04:37Z akr $
  * 'OpenSSL for Ruby' project
  * Copyright (C) 2001-2002  Michal Rokos <m.rokos@sh.cvut.cz>
  * All rights reserved.
@@ -97,9 +97,9 @@ ossl_rand_bytes(VALUE self, VALUE len)
 {
     VALUE str;
     int n = NUM2INT(len);
-	
+
     str = rb_str_new(0, n);
-    if (!RAND_bytes(RSTRING_PTR(str), n)) {
+    if (!RAND_bytes((unsigned char *)RSTRING_PTR(str), n)) {
 	ossl_raise(eRandomError, NULL);
     }
 
@@ -118,7 +118,7 @@ ossl_rand_pseudo_bytes(VALUE self, VALUE len)
     int n = NUM2INT(len);
 
     str = rb_str_new(0, n);
-    if (!RAND_pseudo_bytes(RSTRING_PTR(str), n)) {
+    if (!RAND_pseudo_bytes((unsigned char *)RSTRING_PTR(str), n)) {
 	ossl_raise(eRandomError, NULL);
     }
 

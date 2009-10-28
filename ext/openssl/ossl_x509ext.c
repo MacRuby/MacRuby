@@ -1,5 +1,5 @@
 /*
- * $Id: ossl_x509ext.c 16111 2008-04-20 22:32:06Z technorama $
+ * $Id: ossl_x509ext.c 25189 2009-10-02 12:04:37Z akr $
  * 'OpenSSL for Ruby' project
  * Copyright (C) 2001-2002  Michal Rokos <m.rokos@sh.cvut.cz>
  * All rights reserved.
@@ -163,10 +163,10 @@ ossl_x509extfactory_set_crl(VALUE self, VALUE crl)
     return crl;
 }
 
+#ifdef HAVE_X509V3_SET_NCONF
 static VALUE
 ossl_x509extfactory_set_config(VALUE self, VALUE config)
 {
-#ifdef HAVE_X509V3_SET_NCONF
     X509V3_CTX *ctx;
     CONF *conf;
 
@@ -176,10 +176,10 @@ ossl_x509extfactory_set_config(VALUE self, VALUE config)
     X509V3_set_nconf(ctx, conf);
 
     return config;
-#else
-    rb_notimplement();
-#endif
 }
+#else
+#define rb_f_fork rb_f_notimplement
+#endif
 
 static VALUE 
 ossl_x509extfactory_initialize(int argc, VALUE *argv, VALUE self)
@@ -274,16 +274,17 @@ static VALUE
 ossl_x509ext_initialize(int argc, VALUE *argv, VALUE self)
 {
     VALUE oid, value, critical;
-    unsigned char *p;
-    X509_EXTENSION *ext;
+    const unsigned char *p;
+    X509_EXTENSION *ext, *x;
 
     GetX509Ext(self, ext);
     if(rb_scan_args(argc, argv, "12", &oid, &value, &critical) == 1){
 	oid = ossl_to_der_if_possible(oid);
 	StringValue(oid);
-	p  = RSTRING_PTR(oid);
-	if(!d2i_X509_EXTENSION((X509_EXTENSION**)&DATA_PTR(self),
-			       &p, RSTRING_LEN(oid)))
+	p = (unsigned char *)RSTRING_PTR(oid);
+	x = d2i_X509_EXTENSION(&ext, &p, RSTRING_LEN(oid));
+	DATA_PTR(self) = ext;
+	if(!x)
 	    ossl_raise(eX509ExtError, NULL);
 	return self;
     }
@@ -324,14 +325,15 @@ ossl_x509ext_set_value(VALUE self, VALUE data)
 	ossl_raise(eX509ExtError, "malloc error");
     memcpy(s, RSTRING_PTR(data), RSTRING_LEN(data));
     if(!(asn1s = ASN1_OCTET_STRING_new())){
-	free(s);
+	OPENSSL_free(s);
 	ossl_raise(eX509ExtError, NULL);
     }
     if(!M_ASN1_OCTET_STRING_set(asn1s, s, RSTRING_LEN(data))){
-	free(s);
+	OPENSSL_free(s);
 	ASN1_OCTET_STRING_free(asn1s);
 	ossl_raise(eX509ExtError, NULL);
     }
+    OPENSSL_free(s);
     GetX509Ext(self, ext);
     X509_EXTENSION_set_data(ext, asn1s);
 
@@ -410,7 +412,7 @@ ossl_x509ext_to_der(VALUE obj)
     if((len = i2d_X509_EXTENSION(ext, NULL)) <= 0)
 	ossl_raise(eX509ExtError, NULL);
     str = rb_str_new(0, len);
-    p = RSTRING_PTR(str);
+    p = (unsigned char *)RSTRING_PTR(str);
     if(i2d_X509_EXTENSION(ext, &p) < 0)
 	ossl_raise(eX509ExtError, NULL);
     ossl_str_adjust(str, p);

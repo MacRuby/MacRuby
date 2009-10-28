@@ -1,5 +1,5 @@
 /*
- * $Id: ossl_x509cert.c 12153 2007-04-05 19:03:28Z technorama $
+ * $Id: ossl_x509cert.c 25189 2009-10-02 12:04:37Z akr $
  * 'OpenSSL for Ruby' project
  * Copyright (C) 2001-2002  Michal Rokos <m.rokos@sh.cvut.cz>
  * All rights reserved.
@@ -134,7 +134,7 @@ static VALUE
 ossl_x509_initialize(int argc, VALUE *argv, VALUE self)
 {
     BIO *in;
-    X509 *x509;
+    X509 *x509, *x = DATA_PTR(self);
     VALUE arg;
 
     if (rb_scan_args(argc, argv, "01", &arg) == 0) {
@@ -143,10 +143,12 @@ ossl_x509_initialize(int argc, VALUE *argv, VALUE self)
     }
     arg = ossl_to_der_if_possible(arg);
     in = ossl_obj2bio(arg);
-    x509 = PEM_read_bio_X509(in, (X509 **)&DATA_PTR(self), NULL, NULL);
+    x509 = PEM_read_bio_X509(in, &x, NULL, NULL);
+    DATA_PTR(self) = x;
     if (!x509) {
-	BIO_reset(in);
-	x509 = d2i_X509_bio(in, (X509 **)&DATA_PTR(self));
+	(void)BIO_reset(in);
+	x509 = d2i_X509_bio(in, &x);
+	DATA_PTR(self) = x;
     }
     BIO_free(in);
     if (!x509) ossl_raise(eX509CertError, NULL);
@@ -190,7 +192,7 @@ ossl_x509_to_der(VALUE self)
     if ((len = i2d_X509(x509, NULL)) <= 0)
 	ossl_raise(eX509CertError, NULL);
     str = rb_str_new(0, len);
-    p = RSTRING_PTR(str);
+    p = (unsigned char *)RSTRING_PTR(str);
     if (i2d_X509(x509, &p) <= 0)
 	ossl_raise(eX509CertError, NULL);
     ossl_str_adjust(str, p);
@@ -647,13 +649,13 @@ ossl_x509_set_extensions(VALUE self, VALUE ary)
     Check_Type(ary, T_ARRAY);
     /* All ary's members should be X509Extension */
     for (i=0; i<RARRAY_LEN(ary); i++) {
-	OSSL_Check_Kind(RARRAY_AT(ary, i), cX509Ext);
+	OSSL_Check_Kind(RARRAY_PTR(ary)[i], cX509Ext);
     }
     GetX509(self, x509);
     sk_X509_EXTENSION_pop_free(x509->cert_info->extensions, X509_EXTENSION_free);
     x509->cert_info->extensions = NULL;
     for (i=0; i<RARRAY_LEN(ary); i++) {
-	ext = DupX509ExtPtr(RARRAY_AT(ary, i));
+	ext = DupX509ExtPtr(RARRAY_PTR(ary)[i]);
 	
 	if (!X509_add_ext(x509, ext, -1)) { /* DUPs ext - FREE it */
 	    X509_EXTENSION_free(ext);
@@ -690,7 +692,7 @@ static VALUE
 ossl_x509_inspect(VALUE self)
 {
     VALUE str;
-    char *cname = rb_class2name(rb_obj_class(self));
+    const char *cname = rb_class2name(rb_obj_class(self));
 
     str = rb_str_new2("#<");
     rb_str_cat2(str, cname);

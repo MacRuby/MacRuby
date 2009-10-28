@@ -1,5 +1,5 @@
 /*
- * $Id: ossl_x509attr.c 12153 2007-04-05 19:03:28Z technorama $
+ * $Id: ossl_x509attr.c 25189 2009-10-02 12:04:37Z akr $
  * 'OpenSSL for Ruby' project
  * Copyright (C) 2001 Michal Rokos <m.rokos@sh.cvut.cz>
  * All rights reserved.
@@ -92,16 +92,17 @@ static VALUE
 ossl_x509attr_initialize(int argc, VALUE *argv, VALUE self)
 {
     VALUE oid, value;
-    X509_ATTRIBUTE *attr;
-    unsigned char *p;
+    X509_ATTRIBUTE *attr, *x;
+    const unsigned char *p;
 
     GetX509Attr(self, attr);
     if(rb_scan_args(argc, argv, "11", &oid, &value) == 1){
 	oid = ossl_to_der_if_possible(oid);
 	StringValue(oid);
-	p = RSTRING_PTR(oid);
-	if(!d2i_X509_ATTRIBUTE((X509_ATTRIBUTE**)&DATA_PTR(self),
-			       &p, RSTRING_LEN(oid))){
+	p = (unsigned char *)RSTRING_PTR(oid);
+	x = d2i_X509_ATTRIBUTE(&attr, &p, RSTRING_LEN(oid));
+	DATA_PTR(self) = attr;
+	if(!x){
 	    ossl_raise(eX509AttrError, NULL);
 	}
 	return self;
@@ -212,7 +213,7 @@ ossl_x509attr_get_value(VALUE self)
     if(OSSL_X509ATTR_IS_SINGLE(attr)){
 	length = i2d_ASN1_TYPE(attr->value.single, NULL);
 	str = rb_str_new(0, length);
-	p = RSTRING_PTR(str);
+	p = (unsigned char *)RSTRING_PTR(str);
 	i2d_ASN1_TYPE(attr->value.single, &p);
 	ossl_str_adjust(str, p);
     }
@@ -220,7 +221,7 @@ ossl_x509attr_get_value(VALUE self)
 	length = i2d_ASN1_SET_OF_ASN1_TYPE(attr->value.set, NULL,
 			i2d_ASN1_TYPE, V_ASN1_SET, V_ASN1_UNIVERSAL, 0);
 	str = rb_str_new(0, length);
-	p = RSTRING_PTR(str);
+	p = (unsigned char *)RSTRING_PTR(str);
 	i2d_ASN1_SET_OF_ASN1_TYPE(attr->value.set, &p,
 			i2d_ASN1_TYPE, V_ASN1_SET, V_ASN1_UNIVERSAL, 0);
 	ossl_str_adjust(str, p);
@@ -246,7 +247,7 @@ ossl_x509attr_to_der(VALUE self)
     if((len = i2d_X509_ATTRIBUTE(attr, NULL)) <= 0)
 	ossl_raise(eX509AttrError, NULL);
     str = rb_str_new(0, len);
-    p = RSTRING_PTR(str);
+    p = (unsigned char *)RSTRING_PTR(str);
     if(i2d_X509_ATTRIBUTE(attr, &p) <= 0)
 	ossl_raise(eX509AttrError, NULL);
     rb_str_set_len(str, p - (unsigned char*)RSTRING_PTR(str)); 

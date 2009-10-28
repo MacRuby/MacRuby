@@ -1,5 +1,5 @@
 /*
- * $Id: ossl_pkey_rsa.c 15610 2008-02-26 07:07:26Z technorama $
+ * $Id: ossl_pkey_rsa.c 25189 2009-10-02 12:04:37Z akr $
  * 'OpenSSL for Ruby' project
  * Copyright (C) 2001-2002  Michal Rokos <m.rokos@sh.cvut.cz>
  * All rights reserved.
@@ -151,23 +151,23 @@ ossl_rsa_initialize(int argc, VALUE *argv, VALUE self)
 	in = ossl_obj2bio(arg);
 	rsa = PEM_read_bio_RSAPrivateKey(in, NULL, ossl_pem_passwd_cb, passwd);
 	if (!rsa) {
-	    BIO_reset(in);
+	    (void)BIO_reset(in);
 	    rsa = PEM_read_bio_RSAPublicKey(in, NULL, NULL, NULL);
 	}
 	if (!rsa) {
-	    BIO_reset(in);
+	    (void)BIO_reset(in);
 	    rsa = PEM_read_bio_RSA_PUBKEY(in, NULL, NULL, NULL);
 	}
 	if (!rsa) {
-	    BIO_reset(in);
+	    (void)BIO_reset(in);
 	    rsa = d2i_RSAPrivateKey_bio(in, NULL);
 	}
 	if (!rsa) {
-	    BIO_reset(in);
+	    (void)BIO_reset(in);
 	    rsa = d2i_RSAPublicKey_bio(in, NULL);
 	}
 	if (!rsa) {
-	    BIO_reset(in);
+	    (void)BIO_reset(in);
 	    rsa = d2i_RSA_PUBKEY_bio(in, NULL);
 	}
 	BIO_free(in);
@@ -288,7 +288,7 @@ ossl_rsa_to_der(VALUE self)
     if((len = i2d_func(pkey->pkey.rsa, NULL)) <= 0)
 	ossl_raise(eRSAError, NULL);
     str = rb_str_new(0, len);
-    p = RSTRING_PTR(str);
+    p = (unsigned char *)RSTRING_PTR(str);
     if(i2d_func(pkey->pkey.rsa, &p) < 0)
 	ossl_raise(eRSAError, NULL);
     ossl_str_adjust(str, p);
@@ -315,8 +315,8 @@ ossl_rsa_public_encrypt(int argc, VALUE *argv, VALUE self)
     pad = (argc == 1) ? RSA_PKCS1_PADDING : NUM2INT(padding);
     StringValue(buffer);
     str = rb_str_new(0, ossl_rsa_buf_size(pkey));
-    buf_len = RSA_public_encrypt(RSTRING_LEN(buffer), RSTRING_PTR(buffer),
-				 RSTRING_PTR(str), pkey->pkey.rsa,
+    buf_len = RSA_public_encrypt(RSTRING_LEN(buffer), (unsigned char *)RSTRING_PTR(buffer),
+				 (unsigned char *)RSTRING_PTR(str), pkey->pkey.rsa,
 				 pad);
     if (buf_len < 0) ossl_raise(eRSAError, NULL);
     rb_str_set_len(str, buf_len);
@@ -341,8 +341,8 @@ ossl_rsa_public_decrypt(int argc, VALUE *argv, VALUE self)
     pad = (argc == 1) ? RSA_PKCS1_PADDING : NUM2INT(padding);
     StringValue(buffer);
     str = rb_str_new(0, ossl_rsa_buf_size(pkey));
-    buf_len = RSA_public_decrypt(RSTRING_LEN(buffer), RSTRING_PTR(buffer),
-				 RSTRING_PTR(str), pkey->pkey.rsa,
+    buf_len = RSA_public_decrypt(RSTRING_LEN(buffer), (unsigned char *)RSTRING_PTR(buffer),
+				 (unsigned char *)RSTRING_PTR(str), pkey->pkey.rsa,
 				 pad);
     if (buf_len < 0) ossl_raise(eRSAError, NULL);
     rb_str_set_len(str, buf_len);
@@ -370,8 +370,8 @@ ossl_rsa_private_encrypt(int argc, VALUE *argv, VALUE self)
     pad = (argc == 1) ? RSA_PKCS1_PADDING : NUM2INT(padding);
     StringValue(buffer);
     str = rb_str_new(0, ossl_rsa_buf_size(pkey));
-    buf_len = RSA_private_encrypt(RSTRING_LEN(buffer), RSTRING_PTR(buffer),
-				  RSTRING_PTR(str), pkey->pkey.rsa,
+    buf_len = RSA_private_encrypt(RSTRING_LEN(buffer), (unsigned char *)RSTRING_PTR(buffer),
+				  (unsigned char *)RSTRING_PTR(str), pkey->pkey.rsa,
 				  pad);
     if (buf_len < 0) ossl_raise(eRSAError, NULL);
     rb_str_set_len(str, buf_len);
@@ -400,8 +400,8 @@ ossl_rsa_private_decrypt(int argc, VALUE *argv, VALUE self)
     pad = (argc == 1) ? RSA_PKCS1_PADDING : NUM2INT(padding);
     StringValue(buffer);
     str = rb_str_new(0, ossl_rsa_buf_size(pkey));
-    buf_len = RSA_private_decrypt(RSTRING_LEN(buffer), RSTRING_PTR(buffer),
-				  RSTRING_PTR(str), pkey->pkey.rsa,
+    buf_len = RSA_private_decrypt(RSTRING_LEN(buffer), (unsigned char *)RSTRING_PTR(buffer),
+				  (unsigned char *)RSTRING_PTR(str), pkey->pkey.rsa,
 				  pad);
     if (buf_len < 0) ossl_raise(eRSAError, NULL);
     rb_str_set_len(str, buf_len);
@@ -519,14 +519,14 @@ ossl_rsa_blinding_off(VALUE self)
 }
  */
 
-OSSL_PKEY_BN(rsa, n);
-OSSL_PKEY_BN(rsa, e);
-OSSL_PKEY_BN(rsa, d);
-OSSL_PKEY_BN(rsa, p);
-OSSL_PKEY_BN(rsa, q);
-OSSL_PKEY_BN(rsa, dmp1);
-OSSL_PKEY_BN(rsa, dmq1);
-OSSL_PKEY_BN(rsa, iqmp);
+OSSL_PKEY_BN(rsa, n)
+OSSL_PKEY_BN(rsa, e)
+OSSL_PKEY_BN(rsa, d)
+OSSL_PKEY_BN(rsa, p)
+OSSL_PKEY_BN(rsa, q)
+OSSL_PKEY_BN(rsa, dmp1)
+OSSL_PKEY_BN(rsa, dmq1)
+OSSL_PKEY_BN(rsa, iqmp)
 
 /*
  * INIT

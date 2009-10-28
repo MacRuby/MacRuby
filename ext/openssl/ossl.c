@@ -1,5 +1,5 @@
 /*
- * $Id: ossl.c 12148 2007-04-05 05:59:22Z technorama $
+ * $Id: ossl.c 25189 2009-10-02 12:04:37Z akr $
  * 'OpenSSL for Ruby' project
  * Copyright (C) 2001-2002  Michal Rokos <m.rokos@sh.cvut.cz>
  * All rights reserved.
@@ -15,7 +15,7 @@
  * String to HEXString conversion
  */
 int
-string2hex(char *buf, int buf_len, char **hexbuf, int *hexbuf_len)
+string2hex(const unsigned char *buf, int buf_len, char **hexbuf, int *hexbuf_len)
 {
     static const char hex[]="0123456789abcdef";
     int i, len = 2 * buf_len;
@@ -272,10 +272,9 @@ ossl_to_der_if_possible(VALUE obj)
 /*
  * Errors
  */
-void
-ossl_raise(VALUE exc, const char *fmt, ...)
+static VALUE
+ossl_make_error(VALUE exc, const char *fmt, va_list args)
 {
-    va_list args;
     char buf[BUFSIZ];
     const char *msg;
     long e;
@@ -287,17 +286,14 @@ ossl_raise(VALUE exc, const char *fmt, ...)
     e = ERR_peek_error();
 #endif
     if (fmt) {
-	va_start(args, fmt);
 	len = vsnprintf(buf, BUFSIZ, fmt, args);
-	va_end(args);
     }
     if (len < BUFSIZ && e) {
 	if (dOSSL == Qtrue) /* FULL INFO */
 	    msg = ERR_error_string(e, NULL);
 	else
 	    msg = ERR_reason_error_string(e);
-	fmt = len ? ": %s" : "%s";
-	len += snprintf(buf+len, BUFSIZ-len, fmt, msg);
+	len += snprintf(buf+len, BUFSIZ-len, "%s%s", (len ? ": " : ""), msg);
     }
     if (dOSSL == Qtrue){ /* show all errors on the stack */
 	while ((e = ERR_get_error()) != 0){
@@ -307,7 +303,29 @@ ossl_raise(VALUE exc, const char *fmt, ...)
     ERR_clear_error();
 
     if(len > BUFSIZ) len = strlen(buf);
-    rb_exc_raise(rb_exc_new(exc, buf, len));
+    return rb_exc_new(exc, buf, len);
+}
+
+void
+ossl_raise(VALUE exc, const char *fmt, ...)
+{
+    va_list args;
+    VALUE err;
+    va_start(args, fmt);
+    err = ossl_make_error(exc, fmt, args);
+    va_end(args);
+    rb_exc_raise(err);
+}
+
+VALUE
+ossl_exc_new(VALUE exc, const char *fmt, ...)
+{
+    va_list args;
+    VALUE err;
+    va_start(args, fmt);
+    err = ossl_make_error(exc, fmt, args);
+    va_end(args);
+    return err;
 }
 
 /*
@@ -446,7 +464,7 @@ Init_openssl()
     /*
      * Verify callback Proc index for ext-data
      */
-    if ((ossl_verify_cb_idx = X509_STORE_CTX_get_ex_new_index(0, "ossl_verify_cb_idx", 0, 0, 0)) < 0)
+    if ((ossl_verify_cb_idx = X509_STORE_CTX_get_ex_new_index(0, (void *)"ossl_verify_cb_idx", 0, 0, 0)) < 0)
         ossl_raise(eOSSLError, "X509_STORE_CTX_get_ex_new_index");
 
     /*
@@ -488,7 +506,7 @@ Init_openssl()
  * Check if all symbols are OK with 'make LDSHARED=gcc all'
  */
 int
-main(int argc, char *argv[], char *env[])
+main(int argc, char *argv[])
 {
     return 0;
 }

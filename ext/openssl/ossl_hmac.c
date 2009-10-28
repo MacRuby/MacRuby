@@ -1,5 +1,5 @@
 /*
- * $Id: ossl_hmac.c 16422 2008-05-15 09:44:38Z matz $
+ * $Id: ossl_hmac.c 25189 2009-10-02 12:04:37Z akr $
  * 'OpenSSL for Ruby' project
  * Copyright (C) 2001-2002  Michal Rokos <m.rokos@sh.cvut.cz>
  * All rights reserved.
@@ -42,7 +42,7 @@ static void
 ossl_hmac_free(HMAC_CTX *ctx)
 {
     HMAC_CTX_cleanup(ctx);
-    free(ctx);
+    ruby_xfree(ctx);
 }
 
 static VALUE
@@ -103,13 +103,13 @@ ossl_hmac_update(VALUE self, VALUE data)
 
     StringValue(data);
     GetHMAC(self, ctx);
-    HMAC_Update(ctx, RSTRING_PTR(data), RSTRING_LEN(data));
+    HMAC_Update(ctx, (unsigned char *)RSTRING_PTR(data), RSTRING_LEN(data));
 
     return self;
 }
 
 static void
-hmac_final(HMAC_CTX *ctx, char **buf, int *buf_len)
+hmac_final(HMAC_CTX *ctx, unsigned char **buf, unsigned int *buf_len)
 {
     HMAC_CTX final;
 
@@ -132,13 +132,13 @@ static VALUE
 ossl_hmac_digest(VALUE self)
 {
     HMAC_CTX *ctx;
-    char *buf;
-    int buf_len;
+    unsigned char *buf;
+    unsigned int buf_len;
     VALUE digest;
 	
     GetHMAC(self, ctx);
     hmac_final(ctx, &buf, &buf_len);
-    digest = ossl_buf2str(buf, buf_len);
+    digest = ossl_buf2str((char *)buf, buf_len);
     
     return digest;
 }
@@ -152,8 +152,9 @@ static VALUE
 ossl_hmac_hexdigest(VALUE self)
 {
     HMAC_CTX *ctx;
-    char *buf, *hexbuf;
-    int buf_len;
+    unsigned char *buf;
+    char *hexbuf;
+    unsigned int buf_len;
     VALUE hexdigest;
 	
     GetHMAC(self, ctx);
@@ -192,15 +193,15 @@ ossl_hmac_reset(VALUE self)
 static VALUE
 ossl_hmac_s_digest(VALUE klass, VALUE digest, VALUE key, VALUE data)
 {
-    char *buf;
-    int buf_len;
+    unsigned char *buf;
+    unsigned int buf_len;
 	
     StringValue(key);
     StringValue(data);
     buf = HMAC(GetDigestPtr(digest), RSTRING_PTR(key), RSTRING_LEN(key),
-	       RSTRING_PTR(data), RSTRING_LEN(data), NULL, &buf_len);
+	       (unsigned char *)RSTRING_PTR(data), RSTRING_LEN(data), NULL, &buf_len);
 
-    return rb_str_new(buf, buf_len);
+    return rb_str_new((const char *)buf, buf_len);
 }
 
 /*
@@ -211,15 +212,16 @@ ossl_hmac_s_digest(VALUE klass, VALUE digest, VALUE key, VALUE data)
 static VALUE
 ossl_hmac_s_hexdigest(VALUE klass, VALUE digest, VALUE key, VALUE data)
 {
-    char *buf, *hexbuf;
-    int buf_len;
+    unsigned char *buf;
+    char *hexbuf;
+    unsigned int buf_len;
     VALUE hexdigest;
 
     StringValue(key);
     StringValue(data);
 	
     buf = HMAC(GetDigestPtr(digest), RSTRING_PTR(key), RSTRING_LEN(key),
-	       RSTRING_PTR(data), RSTRING_LEN(data), NULL, &buf_len);
+	       (unsigned char *)RSTRING_PTR(data), RSTRING_LEN(data), NULL, &buf_len);
     if (string2hex(buf, buf_len, &hexbuf, NULL) != 2 * buf_len) {
 	ossl_raise(eHMACError, "Cannot convert buf to hexbuf");
     }

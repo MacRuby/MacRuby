@@ -11,15 +11,13 @@
   (See the file 'LICENCE'.)
 
 = Version
-  $Id: extconf.rb 12571 2007-06-18 08:56:21Z technorama $
+  $Id: extconf.rb 25189 2009-10-02 12:04:37Z akr $
 =end
 
 require "mkmf"
 
 dir_config("openssl")
 dir_config("kerberos")
-
-$defs << "-DRUBY_VERSION_CODE=#{RUBY_VERSION.gsub(/\D/, '')}"
 
 message "=== OpenSSL for Ruby configurator ===\n"
 
@@ -30,7 +28,7 @@ message "=== OpenSSL for Ruby configurator ===\n"
 if with_config("debug") or enable_config("debug")
   $defs.push("-DOSSL_DEBUG") unless $defs.include? "-DOSSL_DEBUG"
 
-  if /gcc/ =~ CONFIG["CC"]
+  if CONFIG['GCC'] == 'yes'
     $CPPFLAGS += " -Wall" unless $CPPFLAGS.split.include? "-Wall"
   end
 end
@@ -98,7 +96,10 @@ have_func("X509_STORE_set_ex_data")
 have_func("OBJ_NAME_do_all_sorted")
 have_func("SSL_SESSION_get_id")
 have_func("OPENSSL_cleanse")
-if try_compile("#define FOO(a, ...) foo(a, ##__VA_ARGS__)\n int x(){FOO(1);FOO(1,2);FOO(1,2,3);}\n")
+unless have_func("SSL_set_tlsext_host_name", ['openssl/ssl.h'])
+	have_macro("SSL_set_tlsext_host_name", ['openssl/ssl.h']) && $defs.push("-DHAVE_SSL_SET_TLSEXT_HOST_NAME")
+end
+if try_compile("#define FOO(...) foo(__VA_ARGS__)\n int x(){FOO(1);FOO(1,2);FOO(1,2,3);}\n")
   $defs.push("-DHAVE_VA_ARGS_MACRO")
 end
 if have_header("openssl/engine.h")

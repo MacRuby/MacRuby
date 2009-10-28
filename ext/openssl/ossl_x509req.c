@@ -1,5 +1,5 @@
 /*
- * $Id: ossl_x509req.c 11708 2007-02-12 23:01:19Z shyouhei $
+ * $Id: ossl_x509req.c 25189 2009-10-02 12:04:37Z akr $
  * 'OpenSSL for Ruby' project
  * Copyright (C) 2001-2002  Michal Rokos <m.rokos@sh.cvut.cz>
  * All rights reserved.
@@ -99,7 +99,7 @@ static VALUE
 ossl_x509req_initialize(int argc, VALUE *argv, VALUE self)
 {
     BIO *in;
-    X509_REQ *req;
+    X509_REQ *req, *x = DATA_PTR(self);
     VALUE arg;
 
     if (rb_scan_args(argc, argv, "01", &arg) == 0) {
@@ -107,10 +107,12 @@ ossl_x509req_initialize(int argc, VALUE *argv, VALUE self)
     }
     arg = ossl_to_der_if_possible(arg);
     in = ossl_obj2bio(arg);
-    req = PEM_read_bio_X509_REQ(in, (X509_REQ **)&DATA_PTR(self), NULL, NULL);
+    req = PEM_read_bio_X509_REQ(in, &x, NULL, NULL);
+    DATA_PTR(self) = x;
     if (!req) {
-	BIO_reset(in);
-	req = d2i_X509_REQ_bio(in, (X509_REQ **)&DATA_PTR(self));
+	(void)BIO_reset(in);
+	req = d2i_X509_REQ_bio(in, &x);
+	DATA_PTR(self) = x;
     }
     BIO_free(in);
     if (!req) ossl_raise(eX509ReqError, NULL);
@@ -171,7 +173,7 @@ ossl_x509req_to_der(VALUE self)
     if ((len = i2d_X509_REQ(req, NULL)) <= 0)
 	ossl_raise(eX509CertError, NULL);
     str = rb_str_new(0, len);
-    p = RSTRING_PTR(str);
+    p = (unsigned char *)RSTRING_PTR(str);
     if (i2d_X509_REQ(req, &p) <= 0)
 	ossl_raise(eX509ReqError, NULL);
     ossl_str_adjust(str, p);
@@ -404,13 +406,13 @@ ossl_x509req_set_attributes(VALUE self, VALUE ary)
 
     Check_Type(ary, T_ARRAY);
     for (i=0;i<RARRAY_LEN(ary); i++) {
-	OSSL_Check_Kind(RARRAY_AT(ary, i), cX509Attr);
+	OSSL_Check_Kind(RARRAY_PTR(ary)[i], cX509Attr);
     }
     GetX509Req(self, req);
     sk_X509_ATTRIBUTE_pop_free(req->req_info->attributes, X509_ATTRIBUTE_free);
     req->req_info->attributes = NULL;
     for (i=0;i<RARRAY_LEN(ary); i++) {
-	item = RARRAY_AT(ary, i);
+	item = RARRAY_PTR(ary)[i];
 	attr = DupX509AttrPtr(item);
 	if (!X509_REQ_add1_attr(req, attr)) {
 	    ossl_raise(eX509ReqError, NULL);

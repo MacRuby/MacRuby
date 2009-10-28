@@ -11,7 +11,7 @@
   (See the file 'LICENCE'.)
 
 = Version
-  $Id: digest.rb 15602 2008-02-25 08:51:18Z technorama $
+  $Id: digest.rb 25189 2009-10-02 12:04:37Z akr $
 =end
 
 ##
@@ -40,7 +40,7 @@ module OpenSSL
           super(name, data.first)
         }
       }
-      singleton = (class <<klass; self; end)
+      singleton = (class << klass; self; end)
       singleton.class_eval{
         define_method(:digest){|data| Digest.digest(name, data) }
         define_method(:hexdigest){|data| Digest.hexdigest(name, data) }

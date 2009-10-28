@@ -1,5 +1,5 @@
 /*
- * $Id: ossl_cipher.c 12148 2007-04-05 05:59:22Z technorama $
+ * $Id: ossl_cipher.c 25189 2009-10-02 12:04:37Z akr $
  * 'OpenSSL for Ruby' project
  * Copyright (C) 2001-2002  Michal Rokos <m.rokos@sh.cvut.cz>
  * All rights reserved.
@@ -67,7 +67,7 @@ ossl_cipher_free(EVP_CIPHER_CTX *ctx)
 {
     if (ctx) {
 	EVP_CIPHER_CTX_cleanup(ctx);
-	free(ctx);
+	ruby_xfree(ctx);
     }
 }
 
@@ -124,13 +124,16 @@ ossl_cipher_copy(VALUE self, VALUE other)
     return self;
 }
 
+#ifdef HAVE_OBJ_NAME_DO_ALL_SORTED
 static void*
 add_cipher_name_to_ary(const OBJ_NAME *name, VALUE ary)
 {
     rb_ary_push(ary, rb_str_new2(name->name));
     return NULL;
 }
+#endif
 
+#ifdef HAVE_OBJ_NAME_DO_ALL_SORTED
 /*
  *  call-seq:
  *     Cipher.ciphers -> array[string...]
@@ -140,7 +143,6 @@ add_cipher_name_to_ary(const OBJ_NAME *name, VALUE ary)
 static VALUE
 ossl_s_ciphers(VALUE self)
 {
-#ifdef HAVE_OBJ_NAME_DO_ALL_SORTED
     VALUE ary;
 
     ary = rb_ary_new();
@@ -149,10 +151,10 @@ ossl_s_ciphers(VALUE self)
                     (void*)ary);
 
     return ary;
-#else
-    rb_notimplement();
-#endif
 }
+#else
+#define ossl_s_ciphers rb_f_notimplement
+#endif
 
 /*
  *  call-seq:
@@ -186,7 +188,7 @@ ossl_cipher_init(int argc, VALUE *argv, VALUE self, int mode)
 	 * We deprecated the arguments for this method, but we decided
 	 * keeping this behaviour for backward compatibility.
 	 */
-	char *cname  = rb_class2name(rb_obj_class(self));
+	const char *cname  = rb_class2name(rb_obj_class(self));
 	rb_warn("argumtents for %s#encrypt and %s#decrypt were deprecated; "
                 "use %s#pkcs5_keyivgen to derive key and IV",
                 cname, cname, cname);
@@ -202,7 +204,7 @@ ossl_cipher_init(int argc, VALUE *argv, VALUE self, int mode)
 	    else memcpy(iv, RSTRING_PTR(init_v), sizeof(iv));
 	}
 	EVP_BytesToKey(EVP_CIPHER_CTX_cipher(ctx), EVP_md5(), iv,
-		       RSTRING_PTR(pass), RSTRING_LEN(pass), 1, key, NULL);
+		       (unsigned char *)RSTRING_PTR(pass), RSTRING_LEN(pass), 1, key, NULL);
 	p_key = key;
 	p_iv = iv;
     }
@@ -279,39 +281,19 @@ ossl_cipher_pkcs5_keyivgen(int argc, VALUE *argv, VALUE self)
 	StringValue(vsalt);
 	if(RSTRING_LEN(vsalt) != PKCS5_SALT_LEN)
 	    rb_raise(eCipherError, "salt must be an 8-octet string");
-	salt = RSTRING_PTR(vsalt);
+	salt = (unsigned char *)RSTRING_PTR(vsalt);
     }
     iter = NIL_P(viter) ? 2048 : NUM2INT(viter);
     digest = NIL_P(vdigest) ? EVP_md5() : GetDigestPtr(vdigest);
     GetCipher(self, ctx);
     EVP_BytesToKey(EVP_CIPHER_CTX_cipher(ctx), digest, salt,
-		   RSTRING_PTR(vpass), RSTRING_LEN(vpass), iter, key, iv); 
+		   (unsigned char *)RSTRING_PTR(vpass), RSTRING_LEN(vpass), iter, key, iv); 
     if (EVP_CipherInit_ex(ctx, NULL, NULL, key, iv, -1) != 1)
 	ossl_raise(eCipherError, NULL);
     OPENSSL_cleanse(key, sizeof key);
     OPENSSL_cleanse(iv, sizeof iv);
 
     return Qnil;
-}
-
-
-/*
- *  call-seq:
- *     cipher << data -> string
- *
- *  === Parameters
- *  +data+ is a nonempty string.
- *
- * This method is deprecated and not available in 1.9.x or later.
- */
-static VALUE
-ossl_cipher_update_deprecated(VALUE self, VALUE data)
-{
-    char *cname;
-
-    cname = rb_class2name(rb_obj_class(self));
-    rb_warning("%s#<< is deprecated; use %s#update instead", cname, cname);
-    return rb_funcall(self, rb_intern("update"), 1, data);
 }
 
 
@@ -327,14 +309,14 @@ static VALUE
 ossl_cipher_update(int argc, VALUE *argv, VALUE self)
 {
     EVP_CIPHER_CTX *ctx;
-    char *in;
+    unsigned char *in;
     int in_len, out_len;
     VALUE data, str;
 
     rb_scan_args(argc, argv, "11", &data, &str);
 
     StringValue(data);
-    in = RSTRING_PTR(data);
+    in = (unsigned char *)RSTRING_PTR(data);
     if ((in_len = RSTRING_LEN(data)) == 0)
         rb_raise(rb_eArgError, "data must not be empty");
     GetCipher(self, ctx);
@@ -347,7 +329,7 @@ ossl_cipher_update(int argc, VALUE *argv, VALUE self)
         rb_str_resize(str, out_len);
     }
 
-    if (!EVP_CipherUpdate(ctx, RSTRING_PTR(str), &out_len, in, in_len))
+    if (!EVP_CipherUpdate(ctx, (unsigned char *)RSTRING_PTR(str), &out_len, in, in_len))
 	ossl_raise(eCipherError, NULL);
     assert(out_len < RSTRING_LEN(str));
     rb_str_set_len(str, out_len);
@@ -372,7 +354,7 @@ ossl_cipher_final(VALUE self)
 
     GetCipher(self, ctx);
     str = rb_str_new(0, EVP_CIPHER_CTX_block_size(ctx));
-    if (!EVP_CipherFinal_ex(ctx, RSTRING_PTR(str), &out_len))
+    if (!EVP_CipherFinal_ex(ctx, (unsigned char *)RSTRING_PTR(str), &out_len))
 	ossl_raise(eCipherError, NULL);
     assert(out_len <= RSTRING_LEN(str));
     rb_str_set_len(str, out_len);
@@ -415,7 +397,7 @@ ossl_cipher_set_key(VALUE self, VALUE key)
     if (RSTRING_LEN(key) < EVP_CIPHER_CTX_key_length(ctx))
         ossl_raise(eCipherError, "key length too short");
 
-    if (EVP_CipherInit_ex(ctx, NULL, NULL, RSTRING_PTR(key), NULL, -1) != 1)
+    if (EVP_CipherInit_ex(ctx, NULL, NULL, (unsigned char *)RSTRING_PTR(key), NULL, -1) != 1)
         ossl_raise(eCipherError, NULL);
 
     return key;
@@ -440,7 +422,7 @@ ossl_cipher_set_iv(VALUE self, VALUE iv)
     if (RSTRING_LEN(iv) < EVP_CIPHER_CTX_iv_length(ctx))
         ossl_raise(eCipherError, "iv length too short");
 
-    if (EVP_CipherInit_ex(ctx, NULL, NULL, NULL, RSTRING_PTR(iv), -1) != 1)
+    if (EVP_CipherInit_ex(ctx, NULL, NULL, NULL, (unsigned char *)RSTRING_PTR(iv), -1) != 1)
 	ossl_raise(eCipherError, NULL);
 
     return iv;
@@ -471,6 +453,7 @@ ossl_cipher_set_key_length(VALUE self, VALUE key_length)
     return key_length;
 }
 
+#if defined(HAVE_EVP_CIPHER_CTX_SET_PADDING)
 /*
  *  call-seq:
  *     cipher.padding = integer -> integer
@@ -484,18 +467,17 @@ ossl_cipher_set_key_length(VALUE self, VALUE key_length)
 static VALUE
 ossl_cipher_set_padding(VALUE self, VALUE padding)
 {
-#if defined(HAVE_EVP_CIPHER_CTX_SET_PADDING)
     EVP_CIPHER_CTX *ctx;
     int pad = NUM2INT(padding);
 
     GetCipher(self, ctx);
     if (EVP_CIPHER_CTX_set_padding(ctx, pad) != 1)
 	ossl_raise(eCipherError, NULL);
-#else
-    rb_notimplement();
-#endif
     return padding;
 }
+#else
+#define ossl_cipher_set_padding rb_f_notimplement
+#endif
 
 #define CIPHER_0ARG_INT(func)					\
     static VALUE						\
@@ -551,9 +533,6 @@ Init_ossl_cipher(void)
     rb_define_method(cCipher, "decrypt", ossl_cipher_decrypt, -1);
     rb_define_method(cCipher, "pkcs5_keyivgen", ossl_cipher_pkcs5_keyivgen, -1);
     rb_define_method(cCipher, "update", ossl_cipher_update, -1);
-#if RUBY_VERSION_CODE < 190
-    rb_define_method(cCipher, "<<", ossl_cipher_update_deprecated, 1);
-#endif
     rb_define_method(cCipher, "final", ossl_cipher_final, 0);
     rb_define_method(cCipher, "name", ossl_cipher_name, 0);
     rb_define_method(cCipher, "key=", ossl_cipher_set_key, 1);

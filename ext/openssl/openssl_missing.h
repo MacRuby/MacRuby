@@ -1,5 +1,5 @@
 /*
- * $Id: openssl_missing.h 16422 2008-05-15 09:44:38Z matz $
+ * $Id: openssl_missing.h 25189 2009-10-02 12:04:37Z akr $
  * 'OpenSSL for Ruby' project
  * Copyright (C) 2001-2002  Michal Rokos <m.rokos@sh.cvut.cz>
  * All rights reserved.
@@ -15,45 +15,52 @@
 extern "C" {
 #endif
 
+#ifndef TYPEDEF_D2I_OF
+typedef char *d2i_of_void();
+#endif
+#ifndef TYPEDEF_I2D_OF
+typedef int i2d_of_void();
+#endif
+
 /*
  * These functions are not included in headers of OPENSSL <= 0.9.6b
  */
 
 #if !defined(PEM_read_bio_DSAPublicKey)
 # define PEM_read_bio_DSAPublicKey(bp,x,cb,u) (DSA *)PEM_ASN1_read_bio( \
-        (char *(*)())d2i_DSAPublicKey,PEM_STRING_DSA_PUBLIC,bp,(char **)x,cb,u)
+        (d2i_of_void *)d2i_DSAPublicKey,PEM_STRING_DSA_PUBLIC,bp,(void **)x,cb,u)
 #endif
 
 #if !defined(PEM_write_bio_DSAPublicKey)
 # define PEM_write_bio_DSAPublicKey(bp,x) \
-	PEM_ASN1_write_bio((int (*)())i2d_DSAPublicKey,\
+	PEM_ASN1_write_bio((i2d_of_void *)i2d_DSAPublicKey,\
 		PEM_STRING_DSA_PUBLIC,\
 		bp,(char *)x, NULL, NULL, 0, NULL, NULL)
 #endif
 
 #if !defined(DSAPrivateKey_dup)
-# define DSAPrivateKey_dup(dsa) (DSA *)ASN1_dup((int (*)())i2d_DSAPrivateKey, \
-	(char *(*)())d2i_DSAPrivateKey,(char *)dsa)
+# define DSAPrivateKey_dup(dsa) (DSA *)ASN1_dup((i2d_of_void *)i2d_DSAPrivateKey, \
+	(d2i_of_void *)d2i_DSAPrivateKey,(char *)dsa)
 #endif
 
 #if !defined(DSAPublicKey_dup)
-# define DSAPublicKey_dup(dsa) (DSA *)ASN1_dup((int (*)())i2d_DSAPublicKey, \
-	(char *(*)())d2i_DSAPublicKey,(char *)dsa)
+# define DSAPublicKey_dup(dsa) (DSA *)ASN1_dup((i2d_of_void *)i2d_DSAPublicKey, \
+	(d2i_of_void *)d2i_DSAPublicKey,(char *)dsa)
 #endif
 
 #if !defined(X509_REVOKED_dup)
-# define X509_REVOKED_dup(rev) (X509_REVOKED *)ASN1_dup((int (*)())i2d_X509_REVOKED, \
-	(char *(*)())d2i_X509_REVOKED, (char *)rev)
+# define X509_REVOKED_dup(rev) (X509_REVOKED *)ASN1_dup((i2d_of_void *)i2d_X509_REVOKED, \
+	(d2i_of_void *)d2i_X509_REVOKED, (char *)rev)
 #endif
 
 #if !defined(PKCS7_SIGNER_INFO_dup)
-#  define PKCS7_SIGNER_INFO_dup(si) (PKCS7_SIGNER_INFO *)ASN1_dup((int (*)())i2d_PKCS7_SIGNER_INFO, \
-	(char *(*)())d2i_PKCS7_SIGNER_INFO, (char *)si)
+#  define PKCS7_SIGNER_INFO_dup(si) (PKCS7_SIGNER_INFO *)ASN1_dup((i2d_of_void *)i2d_PKCS7_SIGNER_INFO, \
+	(d2i_of_void *)d2i_PKCS7_SIGNER_INFO, (char *)si)
 #endif
 
 #if !defined(PKCS7_RECIP_INFO_dup)
-#  define PKCS7_RECIP_INFO_dup(ri) (PKCS7_RECIP_INFO *)ASN1_dup((int (*)())i2d_PKCS7_RECIP_INFO, \
-	(char *(*)())d2i_PKCS7_RECIP_INFO, (char *)ri)
+#  define PKCS7_RECIP_INFO_dup(ri) (PKCS7_RECIP_INFO *)ASN1_dup((i2d_of_void *)i2d_PKCS7_RECIP_INFO, \
+	(d2i_of_void *)d2i_PKCS7_RECIP_INFO, (char *)ri)
 #endif
 
 #if !defined(HAVE_EVP_MD_CTX_INIT)

@@ -1,5 +1,5 @@
 /*
- * $Id: ossl_x509store.c 16689 2008-05-29 17:41:56Z knu $
+ * $Id: ossl_x509store.c 25189 2009-10-02 12:04:37Z akr $
  * 'OpenSSL for Ruby' project
  * Copyright (C) 2001-2002  Michal Rokos <m.rokos@sh.cvut.cz>
  * All rights reserved.
@@ -9,7 +9,6 @@
  * (See the file 'LICENCE'.)
  */
 #include "ossl.h"
-#include <rubysig.h>
 
 #define WrapX509Store(klass, obj, st) do { \
     if (!st) { \
@@ -212,7 +211,7 @@ ossl_x509store_add_file(VALUE self, VALUE file)
     char *path = NULL;
 
     if(file != Qnil){
-        Check_SafeStr(file);
+        SafeStringValue(file);
 	path = RSTRING_PTR(file);
     }
     GetX509Store(self, store);
@@ -233,7 +232,7 @@ ossl_x509store_add_path(VALUE self, VALUE dir)
     char *path = NULL;
 
     if(dir != Qnil){
-        Check_SafeStr(dir);
+        SafeStringValue(dir);
 	path = RSTRING_PTR(dir);
     }
     GetX509Store(self, store);

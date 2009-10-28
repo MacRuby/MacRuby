@@ -1,5 +1,5 @@
 /*
- * $Id: ossl_pkey_dh.c 16689 2008-05-29 17:41:56Z knu $
+ * $Id: ossl_pkey_dh.c 25189 2009-10-02 12:04:37Z akr $
  * 'OpenSSL for Ruby' project
  * Copyright (C) 2001-2002  Michal Rokos <m.rokos@sh.cvut.cz>
  * All rights reserved.
@@ -169,7 +169,7 @@ ossl_dh_initialize(int argc, VALUE *argv, VALUE self)
 	in = ossl_obj2bio(arg);
 	dh = PEM_read_bio_DHparams(in, NULL, NULL, NULL);
 	if (!dh){
-	    BIO_reset(in);
+	    (void)BIO_reset(in);
 	    dh = d2i_DHparams_bio(in, NULL);
 	}
 	BIO_free(in);
@@ -254,7 +254,7 @@ ossl_dh_to_der(VALUE self)
     if((len = i2d_DHparams(pkey->pkey.dh, NULL)) <= 0)
 	ossl_raise(eDHError, NULL);
     str = rb_str_new(0, len);
-    p = RSTRING_PTR(str);
+    p = (unsigned char *)RSTRING_PTR(str);
     if(i2d_DHparams(pkey->pkey.dh, &p) < 0)
 	ossl_raise(eDHError, NULL);
     ossl_str_adjust(str, p);
@@ -407,7 +407,7 @@ ossl_dh_compute_key(VALUE self, VALUE pub)
     pub_key = GetBNPtr(pub);
     len = DH_size(dh);
     str = rb_str_new(0, len);
-    if ((len = DH_compute_key(RSTRING_PTR(str), pub_key, dh)) < 0) {
+    if ((len = DH_compute_key((unsigned char *)RSTRING_PTR(str), pub_key, dh)) < 0) {
 	ossl_raise(eDHError, NULL);
     }
     rb_str_set_len(str, len);
@@ -415,10 +415,10 @@ ossl_dh_compute_key(VALUE self, VALUE pub)
     return str;
 }
 
-OSSL_PKEY_BN(dh, p);
-OSSL_PKEY_BN(dh, g);
-OSSL_PKEY_BN(dh, pub_key);
-OSSL_PKEY_BN(dh, priv_key);
+OSSL_PKEY_BN(dh, p)
+OSSL_PKEY_BN(dh, g)
+OSSL_PKEY_BN(dh, pub_key)
+OSSL_PKEY_BN(dh, priv_key)
 
 /*
  * -----BEGIN DH PARAMETERS-----
