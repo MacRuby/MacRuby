@@ -82,6 +82,7 @@ Init_id(void)
     selToAry = sel_registerName("to_ary");
     selSend = sel_registerName("send:");
     sel__send__ = sel_registerName("__send__:");
+    selCall = sel_registerName("call:");
     selEqTilde = sel_registerName("=~:");
     selClass = sel_registerName("class");
     selEval = sel_registerName("eval:");

@@ -18,6 +18,7 @@
 #include "ruby/util.h"
 #include "objc.h"
 #include "vm.h"
+#include "id.h"
 #include <stdio.h>
 #include <setjmp.h>
 #include <sys/types.h>
@@ -725,19 +726,45 @@ os_each_obj(VALUE os, SEL sel, int argc, VALUE *argv)
  *
  */
 
-static CFMutableDictionaryRef __os_finalizers = NULL;
+typedef struct {
+    VALUE klass;
+    VALUE finalizers;
+} rb_vm_finalizer_t;
+
+static VALUE rb_cFinalizer;
+
+static void *finalizer_key = NULL; // only used for its address
+
+static IMP rb_objc_finalizer_finalize_super = NULL;
+
+static VALUE rb_obj_id(VALUE obj, SEL sel);
+
+static void
+rb_objc_finalizer_finalize(void *rcv, SEL sel)
+{
+    rb_vm_set_multithreaded(true);
+    rb_vm_finalizer_t *f = (rb_vm_finalizer_t *)rcv;
+    for (int i = 0, count = RARRAY_LEN(f->finalizers); i < count; i++) {
+	VALUE b = RARRAY_AT(f->finalizers, i);
+	VALUE objid = rb_obj_id((VALUE)rcv, 0);
+	rb_vm_call(b, selCall, 1, &objid, false);	
+    }
+    if (rb_objc_finalizer_finalize_super != NULL) {
+	((void(*)(void *, SEL))rb_objc_finalizer_finalize_super)(rcv, sel);
+    }
+}
 
 static VALUE
 undefine_final(VALUE os, SEL sel, VALUE obj)
 {
-    if (__os_finalizers != NULL)
-	CFDictionaryRemoveValue(__os_finalizers, (const void *)obj);
-    
-    if (NATIVE(obj)) {
-	rb_objc_flag_set((void *)obj, FL_FINALIZE, false);
+    if (SPECIAL_CONST_P(obj)) {
+	rb_raise(rb_eArgError, "immediate types are not finalizable");
     }
-    else {
-	FL_UNSET(obj, FL_FINALIZE);
+    rb_vm_finalizer_t *finalizer = rb_objc_get_associative_ref((void *)obj,
+	    &finalizer_key);
+    if (finalizer != NULL) {
+	rb_ary_clear(finalizer->finalizers);
+	rb_objc_set_associative_ref((void *)obj, &finalizer_key, NULL);
     }
     return obj;
 }
@@ -754,11 +781,7 @@ undefine_final(VALUE os, SEL sel, VALUE obj)
 static VALUE
 define_final(VALUE os, SEL sel, int argc, VALUE *argv)
 {
-    VALUE obj, block, table;
-
-    if (__os_finalizers == NULL)
-	__os_finalizers = CFDictionaryCreateMutable(NULL, 0, NULL,
-	    &kCFTypeDictionaryValueCallBacks);
+    VALUE obj, block;
 
     rb_scan_args(argc, argv, "11", &obj, &block);
     if (argc == 1) {
@@ -766,79 +789,39 @@ define_final(VALUE os, SEL sel, int argc, VALUE *argv)
     }
     else if (!rb_respond_to(block, rb_intern("call"))) {
 	rb_raise(rb_eArgError, "wrong type argument %s (should be callable)",
-		 rb_obj_classname(block));
+		rb_obj_classname(block));
     }
 
-    table = (VALUE)CFDictionaryGetValue((CFDictionaryRef)__os_finalizers, 
-	(const void *)obj);
-
-    if (table == 0) {
-	table = rb_ary_new();
-	CFDictionarySetValue(__os_finalizers, (const void *)obj, 
-	    (const void *)table);
+    if (SPECIAL_CONST_P(obj)) {
+	rb_raise(rb_eArgError, "immediate types are not finalizable");
     }
 
-    rb_ary_push(table, block);
+    rb_vm_finalizer_t *finalizer = rb_objc_get_associative_ref((void *)obj,
+	    &finalizer_key);
+    if (finalizer == NULL) {
+	finalizer = (rb_vm_finalizer_t *)
+	    rb_objc_newobj(sizeof(rb_vm_finalizer_t *));
+	finalizer->klass = rb_cFinalizer;
+	GC_WB(&finalizer->finalizers, rb_ary_new());
+	rb_objc_set_associative_ref((void *)obj, &finalizer_key, finalizer);
+    }
+
+    rb_ary_push(finalizer->finalizers, block);
     
-    if (NATIVE(obj)) {
-	rb_objc_flag_set((void *)obj, FL_FINALIZE, true);
-    }
-    else {
-	FL_SET(obj, FL_FINALIZE);
-    }
-
-    VALUE ret = rb_ary_new3(2, INT2FIX(rb_safe_level()), block);
-    OBJ_FREEZE(ret);
-    return ret;
+    // For RubySpec conformance.
+    return rb_ary_new3(2, INT2FIX(rb_safe_level()), block);
 }
 
 void
 rb_gc_copy_finalizer(VALUE dest, VALUE obj)
 {
-    VALUE table;
-
-    if (__os_finalizers == NULL)
-	return;
-
-    if (NATIVE(obj)) {
-	if (!rb_objc_flag_check((void *)obj, FL_FINALIZE))
-	    return;
-    }
-    else {
-	if (!FL_TEST(obj, FL_FINALIZE))
-	    return;
-    }
-
-    table = (VALUE)CFDictionaryGetValue((CFDictionaryRef)__os_finalizers,
-	(const void *)obj);
-
-    if (table == 0) {
-	CFDictionaryRemoveValue(__os_finalizers, (const void *)dest);
-    }
-    else {
-	CFDictionarySetValue(__os_finalizers, (const void *)dest, 
-	    (const void *)table);	
-    }
-}
-
-static void rb_call_os_finalizer2(VALUE, VALUE);
-
-static void
-os_finalize_cb(const void *key, const void *val, void *context)
-{
-    rb_call_os_finalizer2((VALUE)key, (VALUE)val);
+    // TODO
 }
 
 void
 rb_gc_call_finalizer_at_exit(void)
 {
-    if (__os_finalizers != NULL) {
-	CFDictionaryApplyFunction((CFDictionaryRef)__os_finalizers,
-    	    os_finalize_cb, NULL);
-	CFDictionaryRemoveAllValues(__os_finalizers);
-	CFRelease(__os_finalizers);
-    }
-
+    // This should magically trigger -[__Finalizer finalize].
     auto_collect(__auto_zone, AUTO_COLLECT_FULL_COLLECTION, NULL);
 }
 
@@ -915,7 +898,7 @@ id2ref(VALUE obj, SEL sel, VALUE objid)
  *  <code>Fixnum</code> will be truncated before being used.
  */
 
-VALUE
+static VALUE
 rb_obj_id(VALUE obj, SEL sel)
 {
     return (VALUE)LONG2NUM((SIGNED_VALUE)obj);
@@ -1046,91 +1029,6 @@ gc_count(VALUE self)
  *  are also available via the <code>ObjectSpace</code> module.
  */
 
-static VALUE
-run_single_final(VALUE arg)
-{
-    VALUE *args = (VALUE *)arg;
-    rb_eval_cmd(args[0], args[1], (int)args[2]);
-    return Qnil;
-}
-
-static void
-rb_call_os_finalizer2(VALUE obj, VALUE table)
-{
-    long i, count;
-    VALUE args[3];
-    int status, critical_save;
-
-    critical_save = rb_thread_critical;
-    rb_thread_critical = Qtrue;
-
-    args[1] = rb_ary_new3(1, rb_obj_id(obj, 0));
-    args[2] = (VALUE)rb_safe_level();
-
-    for (i = 0, count = RARRAY_LEN(table); i < count; i++) {
-	args[0] = RARRAY_AT(table, i);
-	rb_protect(run_single_final, (VALUE)args, &status);
-    }
-
-    rb_thread_critical = critical_save;
-}
-
-void
-rb_call_os_finalizer(void *obj)
-{
-    if (__os_finalizers != NULL) {
-	VALUE table;
-
-	table = (VALUE)CFDictionaryGetValue((CFDictionaryRef)__os_finalizers,
-	    (const void *)obj);
-
-	if (table != 0) {
-	    rb_call_os_finalizer2((VALUE)obj, table);
-	    CFDictionaryRemoveValue(__os_finalizers, (const void *)obj);
-	}
-    }
-}
-
-static void
-rb_obj_imp_finalize(void *obj, SEL sel)
-{
-//printf("FINALIZE %p %s\n", obj, class_getName(*(Class *)obj));
-
-#if 0
-//    const bool need_protection = 
-//	GET_THREAD()->thread_id != pthread_self();
-    bool call_finalize, free_ivar;
-
-    if (NATIVE((VALUE)obj)) {
-	long flag;
-
-	flag = rb_objc_remove_flags(obj);
-
-	call_finalize = (flag & FL_FINALIZE) == FL_FINALIZE;
-	free_ivar = (flag & FL_EXIVAR) == FL_EXIVAR;
-    }
-    else {
-	call_finalize = FL_TEST(obj, FL_FINALIZE);
-	free_ivar = FL_TEST(obj, FL_EXIVAR);
-    }
-
-    if (call_finalize || free_ivar) {
-//	if (need_protection) {
-//	    native_mutex_lock(&GET_THREAD()->vm->global_interpreter_lock);
-//	}
-	if (call_finalize) {
-	    rb_call_os_finalizer(obj);
-	}
-	if (free_ivar) {
-	    rb_free_generic_ivar((VALUE)obj);
-	}
-//	if (need_protection) {
-//	    native_mutex_unlock(&GET_THREAD()->vm->global_interpreter_lock);
-//	}
-    }
-#endif
-}
-
 static bool gc_disabled = false;
 
 void
@@ -1153,10 +1051,6 @@ Init_PreGC(void)
     if (getenv("GC_DISABLE")) {
 	gc_disabled = true;
     }
-
-    Method m = class_getInstanceMethod((Class)objc_getClass("NSObject"), sel_registerName("finalize"));
-    assert(m != NULL);
-    method_setImplementation(m, (IMP)rb_obj_imp_finalize);
 
     auto_collector_disable(__auto_zone);
 }
@@ -1201,4 +1095,9 @@ Init_GC(void)
     rb_objc_define_method(rb_mKernel, "object_id", rb_obj_id, 0);
 
     rb_objc_define_method(*(VALUE *)rb_mObSpace, "count_objects", count_objects, -1);
+
+    rb_cFinalizer = rb_define_class("__Finalizer", rb_cObject);
+    rb_objc_finalizer_finalize_super =
+	rb_objc_install_method2((Class)rb_cFinalizer,
+		"finalize", (IMP)rb_objc_finalizer_finalize);
 }

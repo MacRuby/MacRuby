@@ -91,6 +91,7 @@ extern SEL sel_ignored;
 extern SEL sel_zone;
 extern SEL selSend;
 extern SEL sel__send__;
+extern SEL selCall;
 extern SEL selEqTilde;
 extern SEL selClass;
 extern SEL selEval;
