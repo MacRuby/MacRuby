@@ -25,30 +25,32 @@ dir_config('termcap')
 dir_config("readline")
 enable_libedit = true
 have_library("user32", nil) if /cygwin/ === RUBY_PLATFORM
-have_library("ncurses") ||
-  have_library("termcap") ||
-  have_library("curses")
+have_library("ncurses", "tgetnum") ||
+  have_library("termcap", "tgetnum") ||
+  have_library("curses", "tgetnum")
 
 if enable_libedit
   unless (have_readline_header("editline/readline.h") ||
           have_readline_header("readline/readline.h")) &&
-          have_library("edit")
+          have_library("edit", "readline")
     exit
   end
 else
   unless ((have_readline_header("readline/readline.h") &&
            have_readline_header("readline/history.h")) &&
-           (have_library("readline") ||
-            have_library("edit"))) ||
-            (have_readline_header("editline/readline.h") &&
-             have_library("edit"))
+          (have_library("readline", "readline") ||
+           have_library("edit", "readline"))) ||
+      (have_readline_header("editline/readline.h") &&
+       have_library("edit", "readline"))
     exit
   end
 end
 
+have_readline_func("rl_getc_function")
 have_readline_func("rl_filename_completion_function")
-have_readline_func("username_completion_function")
+have_readline_func("rl_username_completion_function")
 have_readline_func("rl_completion_matches")
+have_readline_func("rl_refresh_line")
 have_readline_var("rl_deprep_term_function")
 have_readline_var("rl_completion_append_character")
 have_readline_var("rl_basic_word_break_characters")
@@ -58,12 +60,20 @@ have_readline_var("rl_completer_quote_characters")
 have_readline_var("rl_filename_quote_characters")
 have_readline_var("rl_attempted_completion_over")
 have_readline_var("rl_library_version")
+have_readline_var("rl_editing_mode")
+have_readline_var("rl_line_buffer")
+have_readline_var("rl_point")
 # workaround for native windows.
-#/mswin|bccwin|mingw/ !~ RUBY_PLATFORM && have_readline_var("rl_event_hook")
+/mswin|bccwin|mingw/ !~ RUBY_PLATFORM && have_readline_var("rl_event_hook")
+/mswin|bccwin|mingw/ !~ RUBY_PLATFORM && have_readline_var("rl_catch_sigwinch")
+/mswin|bccwin|mingw/ !~ RUBY_PLATFORM && have_readline_var("rl_catch_signals")
 have_readline_func("rl_cleanup_after_signal")
 have_readline_func("rl_clear_signals")
+have_readline_func("rl_set_screen_size")
+have_readline_func("rl_get_screen_size")
 have_readline_func("rl_vi_editing_mode")
 have_readline_func("rl_emacs_editing_mode")
 have_readline_func("replace_history_entry")
 have_readline_func("remove_history")
+have_readline_func("clear_history")
 create_makefile("readline")
