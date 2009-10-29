@@ -8,6 +8,12 @@ describe "Struct.new" do
     struct.name.should == "Struct::Animal"
   end
 
+  it "creates a constant in Struct namespace by assigning to constant" do
+    Animal = Struct.new(:name, :legs, :eyeballs)
+    Animal.should == Animal
+    Animal.name.should == "Animal"
+  end
+
   it "overwrites previously defined constants with string as first argument" do
     first = Struct.new('Person', :height, :weight)
     first.should == Struct::Person

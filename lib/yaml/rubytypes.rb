@@ -65,7 +65,7 @@ class Struct
     YAML::quick_emit(output) do |out|
       out.map(taguri, to_yaml_style) do |map|
         members.each do |m|
-          out.add(m, self[m])
+          out.add(m.to_s, self[m])
         end
       end
     end
@@ -104,6 +104,8 @@ class Exception
       end
     end
   end
+
+  def taguri; "!ruby/exception:#{self.class}"; end
 end
 
 class Array

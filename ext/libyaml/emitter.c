@@ -556,7 +556,9 @@ yaml_emitter_emit_document_start(yaml_emitter_t *emitter,
         yaml_tag_directive_t default_tag_directives[] = {
             {(yaml_char_t *)"!", (yaml_char_t *)"!"},
             {(yaml_char_t *)"!!", (yaml_char_t *)"tag:yaml.org,2002:"},
-            {NULL, NULL}
+			/* MN To match ruby specs. Not 100% sure if such an implicit directive is legal YAML. */
+			{(yaml_char_t *)"!ruby/", (yaml_char_t *)"tag:ruby.yaml.org,2002:"},
+           {NULL, NULL}
         };
         yaml_tag_directive_t *tag_directive;
         int implicit;
