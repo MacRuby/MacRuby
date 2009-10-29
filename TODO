@@ -20,7 +20,11 @@ For 0.5 (must do):
 [ ] support for json
     wrap http://github.com/lloyd/yajl ?
 [/] support for yaml
-[ ] support for openssl
+  [ ] pass remaining specs
+[/] support for openssl
+  [ ] finish porting to the new runtime APIs
+  [ ] check every RSTRING_PTR call to see if they are not f*cking up the data
+  [ ] pass specs (do we have some?)
 [/] support for zlib
 [/] support for Mocha (grep -R 'Mocha TODO' test_vm)
 [ ] merge stdlib from 1.9.2 trunk
