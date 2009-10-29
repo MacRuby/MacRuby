@@ -170,18 +170,24 @@ ossl_digest_finish(VALUE self, SEL sel, int argc, VALUE *argv)
     EVP_MD_CTX *ctx;
     VALUE str;
 
+printf("ossl_digest_finish %p\n", (void *)self);
+
     rb_scan_args(argc, argv, "01", &str);
 
     GetDigest(self, ctx);
 
     if (NIL_P(str)) {
-        str = rb_str_new(NULL, EVP_MD_CTX_size(ctx));
-    } else {
-        StringValue(str);
-        rb_str_resize(str, EVP_MD_CTX_size(ctx));
+        str = rb_bytestring_new();
     }
+    else {
+        StringValue(str);
+	if (CLASS_OF(str) != rb_cByteString) {
+	    rb_raise(rb_eArgError, "expected ByteString object");
+	}
+    }
+    rb_bytestring_resize(str, EVP_MD_CTX_size(ctx));
 
-    EVP_DigestFinal_ex(ctx, (unsigned char *)RSTRING_PTR(str), NULL);
+    EVP_DigestFinal_ex(ctx, rb_bytestring_byte_pointer(str), NULL);
 
     return str;
 }

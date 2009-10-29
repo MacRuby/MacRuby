@@ -131,7 +131,7 @@ ossl_x509_alloc(VALUE klass)
  *    Certificate.new(string) => cert
  */
 static VALUE 
-ossl_x509_initialize(int argc, VALUE *argv, VALUE self)
+ossl_x509_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     BIO *in;
     X509 *x509, *x = DATA_PTR(self);
@@ -290,7 +290,7 @@ ossl_x509_get_version(VALUE self)
  *    cert.version = integer => integer
  */
 static VALUE 
-ossl_x509_set_version(VALUE self, VALUE version)
+ossl_x509_set_version(VALUE self, SEL sel, VALUE version)
 {
     X509 *x509;
     long ver;
@@ -325,7 +325,7 @@ ossl_x509_get_serial(VALUE self)
  *    cert.serial = integer => integer
  */
 static VALUE 
-ossl_x509_set_serial(VALUE self, VALUE num)
+ossl_x509_set_serial(VALUE self, SEL sel, VALUE num)
 {
     X509 *x509;
 
@@ -384,7 +384,7 @@ ossl_x509_get_subject(VALUE self)
  *    cert.subject = name => name
  */
 static VALUE 
-ossl_x509_set_subject(VALUE self, VALUE subject)
+ossl_x509_set_subject(VALUE self, SEL sel, VALUE subject)
 {
     X509 *x509;
 	
@@ -419,7 +419,7 @@ ossl_x509_get_issuer(VALUE self)
  *    cert.issuer = name => name
  */
 static VALUE 
-ossl_x509_set_issuer(VALUE self, VALUE issuer)
+ossl_x509_set_issuer(VALUE self, SEL sel, VALUE issuer)
 {
     X509 *x509;
 
@@ -454,7 +454,7 @@ ossl_x509_get_not_before(VALUE self)
  *    cert.not_before = time => time
  */
 static VALUE 
-ossl_x509_set_not_before(VALUE self, VALUE time)
+ossl_x509_set_not_before(VALUE self, SEL sel, VALUE time)
 {
     X509 *x509;
     time_t sec;
@@ -491,7 +491,7 @@ ossl_x509_get_not_after(VALUE self)
  *    cert.not_before = time => time
  */
 static VALUE 
-ossl_x509_set_not_after(VALUE self, VALUE time)
+ossl_x509_set_not_after(VALUE self, SEL sel, VALUE time)
 {
     X509 *x509;
     time_t sec;
@@ -528,7 +528,7 @@ ossl_x509_get_public_key(VALUE self)
  *    cert.public_key = key => key
  */
 static VALUE 
-ossl_x509_set_public_key(VALUE self, VALUE key)
+ossl_x509_set_public_key(VALUE self, SEL sel, VALUE key)
 {
     X509 *x509;
 
@@ -545,7 +545,7 @@ ossl_x509_set_public_key(VALUE self, VALUE key)
  *    cert.sign(key, digest) => self
  */
 static VALUE 
-ossl_x509_sign(VALUE self, VALUE key, VALUE digest)
+ossl_x509_sign(VALUE self, SEL sel, VALUE key, VALUE digest)
 {
     X509 *x509;
     EVP_PKEY *pkey;
@@ -568,7 +568,7 @@ ossl_x509_sign(VALUE self, VALUE key, VALUE digest)
  * Checks that cert signature is made with PRIVversion of this PUBLIC 'key'
  */
 static VALUE 
-ossl_x509_verify(VALUE self, VALUE key)
+ossl_x509_verify(VALUE self, SEL sel, VALUE key)
 {
     X509 *x509;
     EVP_PKEY *pkey;
@@ -593,7 +593,7 @@ ossl_x509_verify(VALUE self, VALUE key)
  * Checks if 'key' is PRIV key for this cert
  */
 static VALUE 
-ossl_x509_check_private_key(VALUE self, VALUE key)
+ossl_x509_check_private_key(VALUE self, SEL sel, VALUE key)
 {
     X509 *x509;
     EVP_PKEY *pkey;
@@ -640,7 +640,7 @@ ossl_x509_get_extensions(VALUE self)
  *    cert.extensions = [ext...] => [ext...]
  */
 static VALUE 
-ossl_x509_set_extensions(VALUE self, VALUE ary)
+ossl_x509_set_extensions(VALUE self, SEL sel, VALUE ary)
 {
     X509 *x509;
     X509_EXTENSION *ext;
@@ -672,7 +672,7 @@ ossl_x509_set_extensions(VALUE self, VALUE ary)
  *    cert.add_extension(extension) => extension
  */
 static VALUE 
-ossl_x509_add_extension(VALUE self, VALUE extension)
+ossl_x509_add_extension(VALUE self, SEL sel, VALUE extension)
 {
     X509 *x509;
     X509_EXTENSION *ext;
@@ -732,35 +732,35 @@ Init_ossl_x509cert()
 	
     cX509Cert = rb_define_class_under(mX509, "Certificate", rb_cObject);
 	
-    rb_define_alloc_func(cX509Cert, ossl_x509_alloc);
-    rb_define_method(cX509Cert, "initialize", ossl_x509_initialize, -1);
+    rb_objc_define_method(*(VALUE *)cX509Cert, "alloc", ossl_x509_alloc, 0);
+    rb_objc_define_method(cX509Cert, "initialize", ossl_x509_initialize, -1);
     rb_define_copy_func(cX509Cert, ossl_x509_copy);
     
-    rb_define_method(cX509Cert, "to_der", ossl_x509_to_der, 0);
-    rb_define_method(cX509Cert, "to_pem", ossl_x509_to_pem, 0);
+    rb_objc_define_method(cX509Cert, "to_der", ossl_x509_to_der, 0);
+    rb_objc_define_method(cX509Cert, "to_pem", ossl_x509_to_pem, 0);
     rb_define_alias(cX509Cert, "to_s", "to_pem");
-    rb_define_method(cX509Cert, "to_text", ossl_x509_to_text, 0);
-    rb_define_method(cX509Cert, "version", ossl_x509_get_version, 0);
-    rb_define_method(cX509Cert, "version=", ossl_x509_set_version, 1);
-    rb_define_method(cX509Cert, "signature_algorithm", ossl_x509_get_signature_algorithm, 0);
-    rb_define_method(cX509Cert, "serial", ossl_x509_get_serial, 0);
-    rb_define_method(cX509Cert, "serial=", ossl_x509_set_serial, 1);
-    rb_define_method(cX509Cert, "subject", ossl_x509_get_subject, 0);
-    rb_define_method(cX509Cert, "subject=", ossl_x509_set_subject, 1);
-    rb_define_method(cX509Cert, "issuer", ossl_x509_get_issuer, 0);
-    rb_define_method(cX509Cert, "issuer=", ossl_x509_set_issuer, 1);
-    rb_define_method(cX509Cert, "not_before", ossl_x509_get_not_before, 0);
-    rb_define_method(cX509Cert, "not_before=", ossl_x509_set_not_before, 1);
-    rb_define_method(cX509Cert, "not_after", ossl_x509_get_not_after, 0);
-    rb_define_method(cX509Cert, "not_after=", ossl_x509_set_not_after, 1);
-    rb_define_method(cX509Cert, "public_key", ossl_x509_get_public_key, 0);
-    rb_define_method(cX509Cert, "public_key=", ossl_x509_set_public_key, 1);
-    rb_define_method(cX509Cert, "sign", ossl_x509_sign, 2);
-    rb_define_method(cX509Cert, "verify", ossl_x509_verify, 1);
-    rb_define_method(cX509Cert, "check_private_key", ossl_x509_check_private_key, 1);
-    rb_define_method(cX509Cert, "extensions", ossl_x509_get_extensions, 0);
-    rb_define_method(cX509Cert, "extensions=", ossl_x509_set_extensions, 1);
-    rb_define_method(cX509Cert, "add_extension", ossl_x509_add_extension, 1);
-    rb_define_method(cX509Cert, "inspect", ossl_x509_inspect, 0);
+    rb_objc_define_method(cX509Cert, "to_text", ossl_x509_to_text, 0);
+    rb_objc_define_method(cX509Cert, "version", ossl_x509_get_version, 0);
+    rb_objc_define_method(cX509Cert, "version=", ossl_x509_set_version, 1);
+    rb_objc_define_method(cX509Cert, "signature_algorithm", ossl_x509_get_signature_algorithm, 0);
+    rb_objc_define_method(cX509Cert, "serial", ossl_x509_get_serial, 0);
+    rb_objc_define_method(cX509Cert, "serial=", ossl_x509_set_serial, 1);
+    rb_objc_define_method(cX509Cert, "subject", ossl_x509_get_subject, 0);
+    rb_objc_define_method(cX509Cert, "subject=", ossl_x509_set_subject, 1);
+    rb_objc_define_method(cX509Cert, "issuer", ossl_x509_get_issuer, 0);
+    rb_objc_define_method(cX509Cert, "issuer=", ossl_x509_set_issuer, 1);
+    rb_objc_define_method(cX509Cert, "not_before", ossl_x509_get_not_before, 0);
+    rb_objc_define_method(cX509Cert, "not_before=", ossl_x509_set_not_before, 1);
+    rb_objc_define_method(cX509Cert, "not_after", ossl_x509_get_not_after, 0);
+    rb_objc_define_method(cX509Cert, "not_after=", ossl_x509_set_not_after, 1);
+    rb_objc_define_method(cX509Cert, "public_key", ossl_x509_get_public_key, 0);
+    rb_objc_define_method(cX509Cert, "public_key=", ossl_x509_set_public_key, 1);
+    rb_objc_define_method(cX509Cert, "sign", ossl_x509_sign, 2);
+    rb_objc_define_method(cX509Cert, "verify", ossl_x509_verify, 1);
+    rb_objc_define_method(cX509Cert, "check_private_key", ossl_x509_check_private_key, 1);
+    rb_objc_define_method(cX509Cert, "extensions", ossl_x509_get_extensions, 0);
+    rb_objc_define_method(cX509Cert, "extensions=", ossl_x509_set_extensions, 1);
+    rb_objc_define_method(cX509Cert, "add_extension", ossl_x509_add_extension, 1);
+    rb_objc_define_method(cX509Cert, "inspect", ossl_x509_inspect, 0);
 }
 

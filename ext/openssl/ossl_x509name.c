@@ -88,7 +88,7 @@ ossl_x509name_alloc(VALUE klass)
 }
 
 static int id_aref;
-static VALUE ossl_x509name_add_entry(int, VALUE*, VALUE);
+static VALUE ossl_x509name_add_entry(VALUE, SEL, int, VALUE*);
 #define rb_aref(obj, key) rb_funcall(obj, id_aref, 1, key)
 
 static VALUE
@@ -104,7 +104,7 @@ ossl_x509name_init_i(VALUE i, VALUE args)
     entry[2] = rb_ary_entry(i, 2);
     if(NIL_P(entry[2])) entry[2] = rb_aref(template, entry[0]);
     if(NIL_P(entry[2])) entry[2] = DEFAULT_OBJECT_TYPE;
-    ossl_x509name_add_entry(3, entry, self);
+    ossl_x509name_add_entry(self, 0, 3, entry);
 
     return Qnil;
 }
@@ -117,7 +117,7 @@ ossl_x509name_init_i(VALUE i, VALUE args)
  *    X509::Name.new(dn, template) => name
  */
 static VALUE
-ossl_x509name_initialize(int argc, VALUE *argv, VALUE self)
+ossl_x509name_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     X509_NAME *name;
     VALUE arg, template;
@@ -156,7 +156,7 @@ ossl_x509name_initialize(int argc, VALUE *argv, VALUE self)
  *    name.add_entry(oid, value [, type]) => self
  */
 static
-VALUE ossl_x509name_add_entry(int argc, VALUE *argv, VALUE self)
+VALUE ossl_x509name_add_entry(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     X509_NAME *name;
     VALUE oid, value, type;
@@ -195,7 +195,7 @@ ossl_x509name_to_s_old(VALUE self)
  *    name.to_s(integer) => string
  */
 static VALUE
-ossl_x509name_to_s(int argc, VALUE *argv, VALUE self)
+ossl_x509name_to_s(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     X509_NAME *name;
     VALUE flag, str;
@@ -267,7 +267,7 @@ ossl_x509name_cmp0(VALUE self, VALUE other)
 }
 
 static VALUE
-ossl_x509name_cmp(VALUE self, VALUE other)
+ossl_x509name_cmp(VALUE self, SEL sel, VALUE other)
 {
     int result;
 
@@ -279,7 +279,7 @@ ossl_x509name_cmp(VALUE self, VALUE other)
 }
 
 static VALUE
-ossl_x509name_eql(VALUE self, VALUE other)
+ossl_x509name_eql(VALUE self, SEL sel, VALUE other)
 {
     int result;
 
@@ -342,16 +342,16 @@ Init_ossl_x509name()
     eX509NameError = rb_define_class_under(mX509, "NameError", eOSSLError);
     cX509Name = rb_define_class_under(mX509, "Name", rb_cObject);
 
-    rb_define_alloc_func(cX509Name, ossl_x509name_alloc);
-    rb_define_method(cX509Name, "initialize", ossl_x509name_initialize, -1);
-    rb_define_method(cX509Name, "add_entry", ossl_x509name_add_entry, -1);
-    rb_define_method(cX509Name, "to_s", ossl_x509name_to_s, -1);
-    rb_define_method(cX509Name, "to_a", ossl_x509name_to_a, 0);
-    rb_define_method(cX509Name, "cmp", ossl_x509name_cmp, 1);
+    rb_objc_define_method(*(VALUE *)cX509Name, "alloc", ossl_x509name_alloc, 0);
+    rb_objc_define_method(cX509Name, "initialize", ossl_x509name_initialize, -1);
+    rb_objc_define_method(cX509Name, "add_entry", ossl_x509name_add_entry, -1);
+    rb_objc_define_method(cX509Name, "to_s", ossl_x509name_to_s, -1);
+    rb_objc_define_method(cX509Name, "to_a", ossl_x509name_to_a, 0);
+    rb_objc_define_method(cX509Name, "cmp", ossl_x509name_cmp, 1);
     rb_define_alias(cX509Name, "<=>", "cmp");
-    rb_define_method(cX509Name, "eql?", ossl_x509name_eql, 1);
-    rb_define_method(cX509Name, "hash", ossl_x509name_hash, 0);
-    rb_define_method(cX509Name, "to_der", ossl_x509name_to_der, 0);
+    rb_objc_define_method(cX509Name, "eql?", ossl_x509name_eql, 1);
+    rb_objc_define_method(cX509Name, "hash", ossl_x509name_hash, 0);
+    rb_objc_define_method(cX509Name, "to_der", ossl_x509name_to_der, 0);
 
     utf8str = INT2NUM(V_ASN1_UTF8STRING);
     ptrstr = INT2NUM(V_ASN1_PRINTABLESTRING);

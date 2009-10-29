@@ -96,7 +96,7 @@ ossl_x509req_alloc(VALUE klass)
 }
 
 static VALUE 
-ossl_x509req_initialize(int argc, VALUE *argv, VALUE self)
+ossl_x509req_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     BIO *in;
     X509_REQ *req, *x = DATA_PTR(self);
@@ -237,7 +237,7 @@ ossl_x509req_get_version(VALUE self)
 }
 
 static VALUE 
-ossl_x509req_set_version(VALUE self, VALUE version)
+ossl_x509req_set_version(VALUE self, SEL sel, VALUE version)
 {
     X509_REQ *req;
     long ver;
@@ -268,7 +268,7 @@ ossl_x509req_get_subject(VALUE self)
 }
 
 static VALUE 
-ossl_x509req_set_subject(VALUE self, VALUE subject)
+ossl_x509req_set_subject(VALUE self, SEL sel, VALUE subject)
 {
     X509_REQ *req;
 	
@@ -319,7 +319,7 @@ ossl_x509req_get_public_key(VALUE self)
 }
 
 static VALUE 
-ossl_x509req_set_public_key(VALUE self, VALUE key)
+ossl_x509req_set_public_key(VALUE self, SEL sel, VALUE key)
 {
     X509_REQ *req;
     EVP_PKEY *pkey;
@@ -334,7 +334,7 @@ ossl_x509req_set_public_key(VALUE self, VALUE key)
 }
 
 static VALUE 
-ossl_x509req_sign(VALUE self, VALUE key, VALUE digest)
+ossl_x509req_sign(VALUE self, SEL sel, VALUE key, VALUE digest)
 {
     X509_REQ *req;
     EVP_PKEY *pkey;
@@ -354,7 +354,7 @@ ossl_x509req_sign(VALUE self, VALUE key, VALUE digest)
  * Checks that cert signature is made with PRIVversion of this PUBLIC 'key'
  */
 static VALUE 
-ossl_x509req_verify(VALUE self, VALUE key)
+ossl_x509req_verify(VALUE self, SEL sel, VALUE key)
 {
     X509_REQ *req;
     EVP_PKEY *pkey;
@@ -397,7 +397,7 @@ ossl_x509req_get_attributes(VALUE self)
 }
 
 static VALUE 
-ossl_x509req_set_attributes(VALUE self, VALUE ary)
+ossl_x509req_set_attributes(VALUE self, SEL sel, VALUE ary)
 {
     X509_REQ *req;
     X509_ATTRIBUTE *attr;
@@ -422,7 +422,7 @@ ossl_x509req_set_attributes(VALUE self, VALUE ary)
 }
 
 static VALUE 
-ossl_x509req_add_attribute(VALUE self, VALUE attr)
+ossl_x509req_add_attribute(VALUE self, SEL sel, VALUE attr)
 {
     X509_REQ *req;
 
@@ -444,25 +444,25 @@ Init_ossl_x509req()
 	
     cX509Req = rb_define_class_under(mX509, "Request", rb_cObject);
 	
-    rb_define_alloc_func(cX509Req, ossl_x509req_alloc);
-    rb_define_method(cX509Req, "initialize", ossl_x509req_initialize, -1);
+    rb_objc_define_method(*(VALUE *)cX509Req, "alloc", ossl_x509req_alloc, 0);
+    rb_objc_define_method(cX509Req, "initialize", ossl_x509req_initialize, -1);
     rb_define_copy_func(cX509Req, ossl_x509req_copy);
 	
-    rb_define_method(cX509Req, "to_pem", ossl_x509req_to_pem, 0);
-    rb_define_method(cX509Req, "to_der", ossl_x509req_to_der, 0);
+    rb_objc_define_method(cX509Req, "to_pem", ossl_x509req_to_pem, 0);
+    rb_objc_define_method(cX509Req, "to_der", ossl_x509req_to_der, 0);
     rb_define_alias(cX509Req, "to_s", "to_pem");
-    rb_define_method(cX509Req, "to_text", ossl_x509req_to_text, 0);
-    rb_define_method(cX509Req, "version", ossl_x509req_get_version, 0);
-    rb_define_method(cX509Req, "version=", ossl_x509req_set_version, 1);
-    rb_define_method(cX509Req, "subject", ossl_x509req_get_subject, 0);
-    rb_define_method(cX509Req, "subject=", ossl_x509req_set_subject, 1);
-    rb_define_method(cX509Req, "signature_algorithm", ossl_x509req_get_signature_algorithm, 0);
-    rb_define_method(cX509Req, "public_key", ossl_x509req_get_public_key, 0);
-    rb_define_method(cX509Req, "public_key=", ossl_x509req_set_public_key, 1);
-    rb_define_method(cX509Req, "sign", ossl_x509req_sign, 2);
-    rb_define_method(cX509Req, "verify", ossl_x509req_verify, 1);
-    rb_define_method(cX509Req, "attributes", ossl_x509req_get_attributes, 0);
-    rb_define_method(cX509Req, "attributes=", ossl_x509req_set_attributes, 1);
-    rb_define_method(cX509Req, "add_attribute", ossl_x509req_add_attribute, 1);
+    rb_objc_define_method(cX509Req, "to_text", ossl_x509req_to_text, 0);
+    rb_objc_define_method(cX509Req, "version", ossl_x509req_get_version, 0);
+    rb_objc_define_method(cX509Req, "version=", ossl_x509req_set_version, 1);
+    rb_objc_define_method(cX509Req, "subject", ossl_x509req_get_subject, 0);
+    rb_objc_define_method(cX509Req, "subject=", ossl_x509req_set_subject, 1);
+    rb_objc_define_method(cX509Req, "signature_algorithm", ossl_x509req_get_signature_algorithm, 0);
+    rb_objc_define_method(cX509Req, "public_key", ossl_x509req_get_public_key, 0);
+    rb_objc_define_method(cX509Req, "public_key=", ossl_x509req_set_public_key, 1);
+    rb_objc_define_method(cX509Req, "sign", ossl_x509req_sign, 2);
+    rb_objc_define_method(cX509Req, "verify", ossl_x509req_verify, 1);
+    rb_objc_define_method(cX509Req, "attributes", ossl_x509req_get_attributes, 0);
+    rb_objc_define_method(cX509Req, "attributes=", ossl_x509req_set_attributes, 1);
+    rb_objc_define_method(cX509Req, "add_attribute", ossl_x509req_add_attribute, 1);
 }
 

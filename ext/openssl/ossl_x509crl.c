@@ -88,7 +88,7 @@ ossl_x509crl_alloc(VALUE klass)
 }
 
 static VALUE 
-ossl_x509crl_initialize(int argc, VALUE *argv, VALUE self)
+ossl_x509crl_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     BIO *in;
     X509_CRL *crl, *x = DATA_PTR(self);
@@ -143,7 +143,7 @@ ossl_x509crl_get_version(VALUE self)
 }
 
 static VALUE 
-ossl_x509crl_set_version(VALUE self, VALUE version)
+ossl_x509crl_set_version(VALUE self, SEL sel, VALUE version)
 {
     X509_CRL *crl;
     long ver;
@@ -192,7 +192,7 @@ ossl_x509crl_get_issuer(VALUE self)
 }
 
 static VALUE 
-ossl_x509crl_set_issuer(VALUE self, VALUE issuer)
+ossl_x509crl_set_issuer(VALUE self, SEL sel, VALUE issuer)
 {
     X509_CRL *crl;
 
@@ -215,7 +215,7 @@ ossl_x509crl_get_last_update(VALUE self)
 }
 
 static VALUE 
-ossl_x509crl_set_last_update(VALUE self, VALUE time)
+ossl_x509crl_set_last_update(VALUE self, SEL sel, VALUE time)
 {
     X509_CRL *crl;
     time_t sec;
@@ -240,7 +240,7 @@ ossl_x509crl_get_next_update(VALUE self)
 }
 
 static VALUE 
-ossl_x509crl_set_next_update(VALUE self, VALUE time)
+ossl_x509crl_set_next_update(VALUE self, SEL sel, VALUE time)
 {
     X509_CRL *crl;
     time_t sec;
@@ -281,7 +281,7 @@ ossl_x509crl_get_revoked(VALUE self)
 }
 
 static VALUE 
-ossl_x509crl_set_revoked(VALUE self, VALUE ary)
+ossl_x509crl_set_revoked(VALUE self, SEL sel, VALUE ary)
 {
     X509_CRL *crl;
     X509_REVOKED *rev;
@@ -307,7 +307,7 @@ ossl_x509crl_set_revoked(VALUE self, VALUE ary)
 }
 
 static VALUE 
-ossl_x509crl_add_revoked(VALUE self, VALUE revoked)
+ossl_x509crl_add_revoked(VALUE self, SEL sel, VALUE revoked)
 {
     X509_CRL *crl;
     X509_REVOKED *rev;
@@ -323,7 +323,7 @@ ossl_x509crl_add_revoked(VALUE self, VALUE revoked)
 }
 
 static VALUE 
-ossl_x509crl_sign(VALUE self, VALUE key, VALUE digest)
+ossl_x509crl_sign(VALUE self, SEL sel, VALUE key, VALUE digest)
 {
     X509_CRL *crl;
     EVP_PKEY *pkey;
@@ -340,7 +340,7 @@ ossl_x509crl_sign(VALUE self, VALUE key, VALUE digest)
 }
 
 static VALUE 
-ossl_x509crl_verify(VALUE self, VALUE key)
+ossl_x509crl_verify(VALUE self, SEL sel, VALUE key)
 {
     X509_CRL *crl;
     int ret;
@@ -455,7 +455,7 @@ ossl_x509crl_get_extensions(VALUE self)
  * Sets X509_EXTENSIONs
  */
 static VALUE 
-ossl_x509crl_set_extensions(VALUE self, VALUE ary)
+ossl_x509crl_set_extensions(VALUE self, SEL sel, VALUE ary)
 {
     X509_CRL *crl;
     X509_EXTENSION *ext;
@@ -482,7 +482,7 @@ ossl_x509crl_set_extensions(VALUE self, VALUE ary)
 }
 
 static VALUE 
-ossl_x509crl_add_extension(VALUE self, VALUE extension)
+ossl_x509crl_add_extension(VALUE self, SEL sel, VALUE extension)
 {
     X509_CRL *crl;
     X509_EXTENSION *ext;
@@ -508,30 +508,30 @@ Init_ossl_x509crl()
 
     cX509CRL = rb_define_class_under(mX509, "CRL", rb_cObject);
 	
-    rb_define_alloc_func(cX509CRL, ossl_x509crl_alloc);
-    rb_define_method(cX509CRL, "initialize", ossl_x509crl_initialize, -1);
+    rb_objc_define_method(*(VALUE *)cX509CRL, "alloc", ossl_x509crl_alloc, 0);
+    rb_objc_define_method(cX509CRL, "initialize", ossl_x509crl_initialize, -1);
     rb_define_copy_func(cX509CRL, ossl_x509crl_copy);
     
-    rb_define_method(cX509CRL, "version", ossl_x509crl_get_version, 0);
-    rb_define_method(cX509CRL, "version=", ossl_x509crl_set_version, 1);
-    rb_define_method(cX509CRL, "signature_algorithm", ossl_x509crl_get_signature_algorithm, 0);
-    rb_define_method(cX509CRL, "issuer", ossl_x509crl_get_issuer, 0);
-    rb_define_method(cX509CRL, "issuer=", ossl_x509crl_set_issuer, 1);
-    rb_define_method(cX509CRL, "last_update", ossl_x509crl_get_last_update, 0);
-    rb_define_method(cX509CRL, "last_update=", ossl_x509crl_set_last_update, 1);
-    rb_define_method(cX509CRL, "next_update", ossl_x509crl_get_next_update, 0);
-    rb_define_method(cX509CRL, "next_update=", ossl_x509crl_set_next_update, 1);
-    rb_define_method(cX509CRL, "revoked", ossl_x509crl_get_revoked, 0);
-    rb_define_method(cX509CRL, "revoked=", ossl_x509crl_set_revoked, 1);
-    rb_define_method(cX509CRL, "add_revoked", ossl_x509crl_add_revoked, 1);
-    rb_define_method(cX509CRL, "sign", ossl_x509crl_sign, 2);
-    rb_define_method(cX509CRL, "verify", ossl_x509crl_verify, 1);
-    rb_define_method(cX509CRL, "to_der", ossl_x509crl_to_der, 0);
-    rb_define_method(cX509CRL, "to_pem", ossl_x509crl_to_pem, 0);
+    rb_objc_define_method(cX509CRL, "version", ossl_x509crl_get_version, 0);
+    rb_objc_define_method(cX509CRL, "version=", ossl_x509crl_set_version, 1);
+    rb_objc_define_method(cX509CRL, "signature_algorithm", ossl_x509crl_get_signature_algorithm, 0);
+    rb_objc_define_method(cX509CRL, "issuer", ossl_x509crl_get_issuer, 0);
+    rb_objc_define_method(cX509CRL, "issuer=", ossl_x509crl_set_issuer, 1);
+    rb_objc_define_method(cX509CRL, "last_update", ossl_x509crl_get_last_update, 0);
+    rb_objc_define_method(cX509CRL, "last_update=", ossl_x509crl_set_last_update, 1);
+    rb_objc_define_method(cX509CRL, "next_update", ossl_x509crl_get_next_update, 0);
+    rb_objc_define_method(cX509CRL, "next_update=", ossl_x509crl_set_next_update, 1);
+    rb_objc_define_method(cX509CRL, "revoked", ossl_x509crl_get_revoked, 0);
+    rb_objc_define_method(cX509CRL, "revoked=", ossl_x509crl_set_revoked, 1);
+    rb_objc_define_method(cX509CRL, "add_revoked", ossl_x509crl_add_revoked, 1);
+    rb_objc_define_method(cX509CRL, "sign", ossl_x509crl_sign, 2);
+    rb_objc_define_method(cX509CRL, "verify", ossl_x509crl_verify, 1);
+    rb_objc_define_method(cX509CRL, "to_der", ossl_x509crl_to_der, 0);
+    rb_objc_define_method(cX509CRL, "to_pem", ossl_x509crl_to_pem, 0);
     rb_define_alias(cX509CRL, "to_s", "to_pem");
-    rb_define_method(cX509CRL, "to_text", ossl_x509crl_to_text, 0);
-    rb_define_method(cX509CRL, "extensions", ossl_x509crl_get_extensions, 0);
-    rb_define_method(cX509CRL, "extensions=", ossl_x509crl_set_extensions, 1);
-    rb_define_method(cX509CRL, "add_extension", ossl_x509crl_add_extension, 1);
+    rb_objc_define_method(cX509CRL, "to_text", ossl_x509crl_to_text, 0);
+    rb_objc_define_method(cX509CRL, "extensions", ossl_x509crl_get_extensions, 0);
+    rb_objc_define_method(cX509CRL, "extensions=", ossl_x509crl_set_extensions, 1);
+    rb_objc_define_method(cX509CRL, "add_extension", ossl_x509crl_add_extension, 1);
 }
 

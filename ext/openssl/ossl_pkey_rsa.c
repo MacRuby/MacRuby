@@ -94,7 +94,7 @@ rsa_generate(int size, int exp)
  *
  */
 static VALUE
-ossl_rsa_s_generate(int argc, VALUE *argv, VALUE klass)
+ossl_rsa_s_generate(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
 /* why does this method exist?  why can't initialize take an optional exponent? */
     RSA *rsa;
@@ -129,7 +129,7 @@ ossl_rsa_s_generate(int argc, VALUE *argv, VALUE klass)
  *  * RSA.new(File.read("rsa.pem"), "mypassword") -> rsa
  */
 static VALUE
-ossl_rsa_initialize(int argc, VALUE *argv, VALUE self)
+ossl_rsa_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     EVP_PKEY *pkey;
     RSA *rsa;
@@ -228,7 +228,7 @@ ossl_rsa_is_private(VALUE self)
  *  * rsa.to_pem(cipher, pass) -> aString
  */
 static VALUE
-ossl_rsa_export(int argc, VALUE *argv, VALUE self)
+ossl_rsa_export(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     EVP_PKEY *pkey;
     BIO *out;
@@ -304,7 +304,7 @@ ossl_rsa_to_der(VALUE self)
  *
  */
 static VALUE
-ossl_rsa_public_encrypt(int argc, VALUE *argv, VALUE self)
+ossl_rsa_public_encrypt(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     EVP_PKEY *pkey;
     int buf_len, pad;
@@ -330,7 +330,7 @@ ossl_rsa_public_encrypt(int argc, VALUE *argv, VALUE self)
  *
  */
 static VALUE
-ossl_rsa_public_decrypt(int argc, VALUE *argv, VALUE self)
+ossl_rsa_public_decrypt(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     EVP_PKEY *pkey;
     int buf_len, pad;
@@ -356,7 +356,7 @@ ossl_rsa_public_decrypt(int argc, VALUE *argv, VALUE self)
  *
  */
 static VALUE
-ossl_rsa_private_encrypt(int argc, VALUE *argv, VALUE self)
+ossl_rsa_private_encrypt(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     EVP_PKEY *pkey;
     int buf_len, pad;
@@ -386,7 +386,7 @@ ossl_rsa_private_encrypt(int argc, VALUE *argv, VALUE self)
  *
  */
 static VALUE
-ossl_rsa_private_decrypt(int argc, VALUE *argv, VALUE self)
+ossl_rsa_private_decrypt(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     EVP_PKEY *pkey;
     int buf_len, pad;
@@ -545,21 +545,21 @@ Init_ossl_rsa()
 
     cRSA = rb_define_class_under(mPKey, "RSA", cPKey);
 
-    rb_define_singleton_method(cRSA, "generate", ossl_rsa_s_generate, -1);
-    rb_define_method(cRSA, "initialize", ossl_rsa_initialize, -1);
+    rb_objc_define_method(*(VALUE *)cRSA, "generate", ossl_rsa_s_generate, -1);
+    rb_objc_define_method(cRSA, "initialize", ossl_rsa_initialize, -1);
 	
-    rb_define_method(cRSA, "public?", ossl_rsa_is_public, 0);
-    rb_define_method(cRSA, "private?", ossl_rsa_is_private, 0);
-    rb_define_method(cRSA, "to_text", ossl_rsa_to_text, 0);
-    rb_define_method(cRSA, "export", ossl_rsa_export, -1);
+    rb_objc_define_method(cRSA, "public?", ossl_rsa_is_public, 0);
+    rb_objc_define_method(cRSA, "private?", ossl_rsa_is_private, 0);
+    rb_objc_define_method(cRSA, "to_text", ossl_rsa_to_text, 0);
+    rb_objc_define_method(cRSA, "export", ossl_rsa_export, -1);
     rb_define_alias(cRSA, "to_pem", "export");
     rb_define_alias(cRSA, "to_s", "export");
-    rb_define_method(cRSA, "to_der", ossl_rsa_to_der, 0);
-    rb_define_method(cRSA, "public_key", ossl_rsa_to_public_key, 0);
-    rb_define_method(cRSA, "public_encrypt", ossl_rsa_public_encrypt, -1);
-    rb_define_method(cRSA, "public_decrypt", ossl_rsa_public_decrypt, -1);
-    rb_define_method(cRSA, "private_encrypt", ossl_rsa_private_encrypt, -1);
-    rb_define_method(cRSA, "private_decrypt", ossl_rsa_private_decrypt, -1);
+    rb_objc_define_method(cRSA, "to_der", ossl_rsa_to_der, 0);
+    rb_objc_define_method(cRSA, "public_key", ossl_rsa_to_public_key, 0);
+    rb_objc_define_method(cRSA, "public_encrypt", ossl_rsa_public_encrypt, -1);
+    rb_objc_define_method(cRSA, "public_decrypt", ossl_rsa_public_decrypt, -1);
+    rb_objc_define_method(cRSA, "private_encrypt", ossl_rsa_private_encrypt, -1);
+    rb_objc_define_method(cRSA, "private_decrypt", ossl_rsa_private_decrypt, -1);
 
     DEF_OSSL_PKEY_BN(cRSA, rsa, n);
     DEF_OSSL_PKEY_BN(cRSA, rsa, e);
@@ -570,7 +570,7 @@ Init_ossl_rsa()
     DEF_OSSL_PKEY_BN(cRSA, rsa, dmq1);
     DEF_OSSL_PKEY_BN(cRSA, rsa, iqmp);
 
-    rb_define_method(cRSA, "params", ossl_rsa_get_params, 0);
+    rb_objc_define_method(cRSA, "params", ossl_rsa_get_params, 0);
 
     DefRSAConst(PKCS1_PADDING);
     DefRSAConst(SSLV23_PADDING);
