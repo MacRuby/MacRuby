@@ -332,7 +332,7 @@ ossl_pkcs7_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 }
 
 static VALUE
-ossl_pkcs7_copy(VALUE self, VALUE other)
+ossl_pkcs7_copy(VALUE self, SEL sel, VALUE other)
 {
     PKCS7 *a, *b, *pkcs7;
 

@@ -12,7 +12,7 @@
 #define _OSSL_RUBY_MISSING_H_
 
 #define rb_define_copy_func(klass, func) \
-	rb_define_method(klass, "initialize_copy", func, 1)
+	rb_objc_define_method(klass, "initialize_copy", func, 1)
 
 
 #ifndef GetReadFile

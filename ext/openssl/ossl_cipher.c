@@ -109,7 +109,7 @@ ossl_cipher_initialize(VALUE self, SEL sel, VALUE str)
     return self;
 }
 static VALUE
-ossl_cipher_copy(VALUE self, VALUE other)
+ossl_cipher_copy(VALUE self, SEL sel, VALUE other)
 {
     EVP_CIPHER_CTX *ctx1, *ctx2;
 	

@@ -110,7 +110,7 @@ ossl_digest_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 }
 
 static VALUE
-ossl_digest_copy(VALUE self, VALUE other)
+ossl_digest_copy(VALUE self, SEL sel, VALUE other)
 {
     EVP_MD_CTX *ctx1, *ctx2;
     
@@ -169,8 +169,6 @@ ossl_digest_finish(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     EVP_MD_CTX *ctx;
     VALUE str;
-
-printf("ossl_digest_finish %p\n", (void *)self);
 
     rb_scan_args(argc, argv, "01", &str);
 

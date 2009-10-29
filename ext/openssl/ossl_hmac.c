@@ -77,7 +77,7 @@ ossl_hmac_initialize(VALUE self, SEL sel, VALUE key, VALUE digest)
 }
 
 static VALUE
-ossl_hmac_copy(VALUE self, VALUE other)
+ossl_hmac_copy(VALUE self, SEL sel, VALUE other)
 {
     HMAC_CTX *ctx1, *ctx2;
     

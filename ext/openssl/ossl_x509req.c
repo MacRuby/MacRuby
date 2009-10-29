@@ -121,7 +121,7 @@ ossl_x509req_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 }
 
 static VALUE
-ossl_x509req_copy(VALUE self, VALUE other)
+ossl_x509req_copy(VALUE self, SEL sel, VALUE other)
 {
     X509_REQ *a, *b, *req;
 	

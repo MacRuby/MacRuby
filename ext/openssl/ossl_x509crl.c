@@ -113,7 +113,7 @@ ossl_x509crl_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 }
 
 static VALUE
-ossl_x509crl_copy(VALUE self, VALUE other)
+ossl_x509crl_copy(VALUE self, SEL sel, VALUE other)
 {
     X509_CRL *a, *b, *crl;
 	

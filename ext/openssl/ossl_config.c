@@ -114,7 +114,7 @@ ossl_config_s_alloc(VALUE klass, SEL sel)
 }
 
 static VALUE
-ossl_config_copy(VALUE self, VALUE other)
+ossl_config_copy(VALUE self, SEL sel, VALUE other)
 {
     VALUE str;
     CONF *conf;
