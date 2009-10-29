@@ -530,6 +530,7 @@ rb_define_module(const char *name)
     module = rb_define_module_id(id);
     st_add_direct(rb_class_tbl, id, module);
     rb_const_set(rb_cObject, id, module);
+    rb_vm_set_outer(module, rb_cObject);
 
     return module;
 }
