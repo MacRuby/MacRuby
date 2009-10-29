@@ -447,6 +447,16 @@ typedef enum {
 
 void rb_vm_set_current_scope(VALUE mod, rb_vm_scope_t scope);
 
+typedef struct {
+    VALUE klass;
+    VALUE objid;
+    VALUE finalizers;
+} rb_vm_finalizer_t;
+
+void rb_vm_register_finalizer(rb_vm_finalizer_t *finalizer);
+void rb_vm_unregister_finalizer(rb_vm_finalizer_t *finalizer);
+void rb_vm_call_finalizer(rb_vm_finalizer_t *finalizer);
+
 VALUE rb_iseq_compile(VALUE src, VALUE file, VALUE line);
 VALUE rb_iseq_eval(VALUE iseq);
 VALUE rb_iseq_new(NODE *node, VALUE filename);
@@ -548,6 +558,11 @@ class RoxorCore {
 	// Running threads.
 	VALUE threads;
 
+	// Finalizers. They are automatically called during garbage collection
+	// but we still need to keep a list of them, because the list may not
+	// be empty when we exit and we need to call the remaining finalizers.
+	std::vector<rb_vm_finalizer_t *> finalizers;
+
 	// State.
 	bool running;
 	bool multithreaded;
@@ -604,6 +619,7 @@ class RoxorCore {
 
     public:
 	RoxorCore(void);
+	~RoxorCore(void);
 
 	ACCESSOR(running, bool);
 	ACCESSOR(multithreaded, bool);
@@ -743,6 +759,10 @@ class RoxorCore {
 	size_t get_sizeof(const Type *type);
 	size_t get_sizeof(const char *type);
 	bool is_large_struct_type(const Type *type);
+
+	void register_finalizer(rb_vm_finalizer_t *finalizer);
+	void unregister_finalizer(rb_vm_finalizer_t *finalizer);
+	void call_all_finalizers(void);
 
     private:
 	bool register_bs_boxed(bs_element_type_t type, void *value);

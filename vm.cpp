@@ -256,6 +256,12 @@ RoxorCore::RoxorCore(void)
 #endif
 }
 
+RoxorCore::~RoxorCore(void)
+{
+    call_all_finalizers();
+    // TODO
+}
+
 RoxorVM::RoxorVM(void)
 {
     current_top_object = Qnil;
@@ -3715,6 +3721,73 @@ RoxorVM::exec_recursive(VALUE (*func) (VALUE, VALUE, int), VALUE obj,
 }
 
 extern "C"
+void
+rb_vm_register_finalizer(rb_vm_finalizer_t *finalizer)
+{
+    GET_CORE()->register_finalizer(finalizer);
+}
+
+extern "C"
+void
+rb_vm_unregister_finalizer(rb_vm_finalizer_t *finalizer)
+{
+    GET_CORE()->unregister_finalizer(finalizer);
+}
+
+void
+RoxorCore::register_finalizer(rb_vm_finalizer_t *finalizer)
+{
+    lock();
+    finalizers.push_back(finalizer);
+    unlock();
+}
+
+void
+RoxorCore::unregister_finalizer(rb_vm_finalizer_t *finalizer)
+{
+    lock();
+    std::vector<rb_vm_finalizer_t *>::iterator i = std::find(finalizers.begin(),
+	    finalizers.end(), finalizer);
+    if (i != finalizers.end()) {
+	finalizers.erase(i);
+    }
+    unlock();
+}
+
+static void
+call_finalizer(rb_vm_finalizer_t *finalizer)
+{
+    for (int i = 0, count = RARRAY_LEN(finalizer->finalizers); i < count; i++) {
+	VALUE b = RARRAY_AT(finalizer->finalizers, i);
+	try {
+	    rb_vm_call(b, selCall, 1, &finalizer->objid, false);
+	}
+	catch (...) {
+	    // Do nothing.
+	}
+    }
+    rb_ary_clear(finalizer->finalizers);
+}
+
+extern "C"
+void
+rb_vm_call_finalizer(rb_vm_finalizer_t *finalizer)
+{
+    call_finalizer(finalizer);
+}
+
+void
+RoxorCore::call_all_finalizers(void)
+{
+    for (std::vector<rb_vm_finalizer_t *>::iterator i = finalizers.begin();
+	    i != finalizers.end();
+	    ++i) {
+	call_finalizer(*i);
+    }
+    finalizers.clear();
+}
+
+extern "C"
 void *
 rb_vm_create_vm(void)
 {
@@ -4332,4 +4405,7 @@ rb_vm_finalize(void)
     printf("functions all=%ld compiled=%ld\n", RoxorCompiler::module->size(),
 	    GET_CORE()->get_functions_compiled());
 #endif
+    
+    delete RoxorCore::shared;
+    RoxorCore::shared = NULL;
 }

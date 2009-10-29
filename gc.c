@@ -726,11 +726,6 @@ os_each_obj(VALUE os, SEL sel, int argc, VALUE *argv)
  *
  */
 
-typedef struct {
-    VALUE klass;
-    VALUE finalizers;
-} rb_vm_finalizer_t;
-
 static VALUE rb_cFinalizer;
 
 static void *finalizer_key = NULL; // only used for its address
@@ -742,13 +737,10 @@ static VALUE rb_obj_id(VALUE obj, SEL sel);
 static void
 rb_objc_finalizer_finalize(void *rcv, SEL sel)
 {
-    rb_vm_set_multithreaded(true);
     rb_vm_finalizer_t *f = (rb_vm_finalizer_t *)rcv;
-    for (int i = 0, count = RARRAY_LEN(f->finalizers); i < count; i++) {
-	VALUE b = RARRAY_AT(f->finalizers, i);
-	VALUE objid = rb_obj_id((VALUE)rcv, 0);
-	rb_vm_call(b, selCall, 1, &objid, false);	
-    }
+    rb_vm_set_multithreaded(true);
+    rb_vm_call_finalizer(f);
+    rb_vm_unregister_finalizer(f); 
     if (rb_objc_finalizer_finalize_super != NULL) {
 	((void(*)(void *, SEL))rb_objc_finalizer_finalize_super)(rcv, sel);
     }
@@ -764,6 +756,7 @@ undefine_final(VALUE os, SEL sel, VALUE obj)
 	    &finalizer_key);
     if (finalizer != NULL) {
 	rb_ary_clear(finalizer->finalizers);
+	rb_vm_unregister_finalizer(finalizer); 
 	rb_objc_set_associative_ref((void *)obj, &finalizer_key, NULL);
     }
     return obj;
@@ -802,8 +795,10 @@ define_final(VALUE os, SEL sel, int argc, VALUE *argv)
 	finalizer = (rb_vm_finalizer_t *)
 	    rb_objc_newobj(sizeof(rb_vm_finalizer_t *));
 	finalizer->klass = rb_cFinalizer;
+	finalizer->objid = rb_obj_id(obj, 0);
 	GC_WB(&finalizer->finalizers, rb_ary_new());
 	rb_objc_set_associative_ref((void *)obj, &finalizer_key, finalizer);
+	rb_vm_register_finalizer(finalizer); 
     }
 
     rb_ary_push(finalizer->finalizers, block);
@@ -816,13 +811,6 @@ void
 rb_gc_copy_finalizer(VALUE dest, VALUE obj)
 {
     // TODO
-}
-
-void
-rb_gc_call_finalizer_at_exit(void)
-{
-    // This should magically trigger -[__Finalizer finalize].
-    auto_collect(__auto_zone, AUTO_COLLECT_FULL_COLLECTION, NULL);
 }
 
 /*

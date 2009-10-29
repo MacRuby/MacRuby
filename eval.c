@@ -97,7 +97,6 @@ ruby_finalize_1(void)
     rb_vm_finalize();
     ruby_sig_finalize();
     //GET_THREAD()->errinfo = Qnil;
-    rb_gc_call_finalizer_at_exit();
 }
 
 void
