@@ -112,10 +112,22 @@ describe "Pointer, through #[] and #[]=" do
     end
   end
 
-  it "can assign an retrieve CF type objects" do
+  it "can assign and retrieve CF type objects" do
     ptr = Pointer.new('^{__CFError}')
     ptr[0].should == nil
     CFURLResourceIsReachable(NSURL.URLWithString('http://doesnotexistomgwtf.be'), ptr).should == false
     ptr[0].class.should == NSCFError
+  end
+
+  it "handle 'void *' C pointers as 'unsigned char *'" do
+    ptr = 'hey'.dataUsingEncoding(NSMacOSRomanStringEncoding).bytes
+    ptr.class.should == Pointer
+    ptr.type.should == 'C'
+    ptr[0].class.should == Fixnum
+    ptr[0].chr.should == 'h'
+    ptr[1].class.should == Fixnum
+    ptr[1].chr.should == 'e'
+    ptr[2].class.should == Fixnum
+    ptr[2].chr.should == 'y'
   end
 end
