@@ -47,7 +47,7 @@ do{\
 }while(0)
 
 static VALUE
-ossl_engine_s_load(int argc, VALUE *argv, VALUE klass)
+ossl_engine_s_load(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
 #if !defined(HAVE_ENGINE_LOAD_BUILTIN_ENGINES)
     return Qnil;
@@ -81,7 +81,7 @@ ossl_engine_s_load(int argc, VALUE *argv, VALUE klass)
 }
 
 static VALUE
-ossl_engine_s_cleanup(VALUE self)
+ossl_engine_s_cleanup(VALUE self, SEL sel)
 {
 #if defined(HAVE_ENGINE_CLEANUP)
     ENGINE_cleanup();
@@ -90,7 +90,7 @@ ossl_engine_s_cleanup(VALUE self)
 }
 
 static VALUE
-ossl_engine_s_engines(VALUE klass)
+ossl_engine_s_engines(VALUE klass, SEL sel)
 {
     ENGINE *e;
     VALUE ary, obj;
@@ -105,13 +105,13 @@ ossl_engine_s_engines(VALUE klass)
 }
 
 static VALUE
-ossl_engine_s_by_id(VALUE klass, VALUE id)
+ossl_engine_s_by_id(VALUE klass, SEL sel, VALUE id)
 {
     ENGINE *e;
     VALUE obj;
 
     StringValue(id);
-    ossl_engine_s_load(1, &id, klass);
+    ossl_engine_s_load(klass, 0, 1, &id);
     if(!(e = ENGINE_by_id(RSTRING_PTR(id))))
 	ossl_raise(eEngineError, NULL);
     WrapEngine(klass, obj, e);
@@ -126,7 +126,7 @@ ossl_engine_s_by_id(VALUE klass, VALUE id)
 }
 
 static VALUE
-ossl_engine_s_alloc(VALUE klass)
+ossl_engine_s_alloc(VALUE klass, SEL sel)
 {
     ENGINE *e;
     VALUE obj;
@@ -140,7 +140,7 @@ ossl_engine_s_alloc(VALUE klass)
 }
 
 static VALUE
-ossl_engine_get_id(VALUE self)
+ossl_engine_get_id(VALUE self, SEL sel)
 {
     ENGINE *e;
     GetEngine(self, e);
@@ -148,7 +148,7 @@ ossl_engine_get_id(VALUE self)
 }
 
 static VALUE
-ossl_engine_get_name(VALUE self)
+ossl_engine_get_name(VALUE self, SEL sel)
 {
     ENGINE *e;
     GetEngine(self, e);
@@ -156,7 +156,7 @@ ossl_engine_get_name(VALUE self)
 }
 
 static VALUE
-ossl_engine_finish(VALUE self)
+ossl_engine_finish(VALUE self, SEL sel)
 {
     ENGINE *e;
 
@@ -168,7 +168,7 @@ ossl_engine_finish(VALUE self)
 
 #if defined(HAVE_ENGINE_GET_CIPHER)
 static VALUE
-ossl_engine_get_cipher(VALUE self, VALUE name)
+ossl_engine_get_cipher(VALUE self, SEL sel, VALUE name)
 {
     ENGINE *e;
     const EVP_CIPHER *ciph, *tmp;
@@ -191,7 +191,7 @@ ossl_engine_get_cipher(VALUE self, VALUE name)
 
 #if defined(HAVE_ENGINE_GET_DIGEST)
 static VALUE
-ossl_engine_get_digest(VALUE self, VALUE name)
+ossl_engine_get_digest(VALUE self, SEL sel, VALUE name)
 {
     ENGINE *e;
     const EVP_MD *md, *tmp;
@@ -213,7 +213,7 @@ ossl_engine_get_digest(VALUE self, VALUE name)
 #endif
 
 static VALUE
-ossl_engine_load_privkey(int argc, VALUE *argv, VALUE self)
+ossl_engine_load_privkey(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     ENGINE *e;
     EVP_PKEY *pkey;
@@ -237,7 +237,7 @@ ossl_engine_load_privkey(int argc, VALUE *argv, VALUE self)
 }
 
 static VALUE
-ossl_engine_load_pubkey(int argc, VALUE *argv, VALUE self)
+ossl_engine_load_pubkey(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     ENGINE *e;
     EVP_PKEY *pkey;
@@ -259,7 +259,7 @@ ossl_engine_load_pubkey(int argc, VALUE *argv, VALUE self)
 }
 
 static VALUE
-ossl_engine_set_default(VALUE self, VALUE flag)
+ossl_engine_set_default(VALUE self, SEL sel, VALUE flag)
 {
     ENGINE *e;
     int f = NUM2INT(flag);
@@ -271,7 +271,7 @@ ossl_engine_set_default(VALUE self, VALUE flag)
 }
 
 static VALUE
-ossl_engine_ctrl_cmd(int argc, VALUE *argv, VALUE self)
+ossl_engine_ctrl_cmd(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     ENGINE *e;
     VALUE cmd, val;
@@ -301,7 +301,7 @@ ossl_engine_cmd_flag_to_name(int flag)
 }
 
 static VALUE
-ossl_engine_get_cmds(VALUE self)
+ossl_engine_get_cmds(VALUE self, SEL sel)
 {
     ENGINE *e;
     const ENGINE_CMD_DEFN *defn, *p;
@@ -323,7 +323,7 @@ ossl_engine_get_cmds(VALUE self)
 }
 
 static VALUE
-ossl_engine_inspect(VALUE self)
+ossl_engine_inspect(VALUE self, SEL sel)
 {
     VALUE str;
     const char *cname = rb_class2name(rb_obj_class(self));
@@ -331,9 +331,9 @@ ossl_engine_inspect(VALUE self)
     str = rb_str_new2("#<");
     rb_str_cat2(str, cname);
     rb_str_cat2(str, " id=\"");
-    rb_str_append(str, ossl_engine_get_id(self));
+    rb_str_append(str, ossl_engine_get_id(self, 0));
     rb_str_cat2(str, "\" name=\"");
-    rb_str_append(str, ossl_engine_get_name(self));
+    rb_str_append(str, ossl_engine_get_name(self, 0));
     rb_str_cat2(str, "\">");
 
     return str;
@@ -347,24 +347,24 @@ Init_ossl_engine()
     cEngine = rb_define_class_under(mOSSL, "Engine", rb_cObject);
     eEngineError = rb_define_class_under(cEngine, "EngineError", eOSSLError);
 
-    rb_define_alloc_func(cEngine, ossl_engine_s_alloc);
-    rb_define_singleton_method(cEngine, "load", ossl_engine_s_load, -1);
-    rb_define_singleton_method(cEngine, "cleanup", ossl_engine_s_cleanup, 0);
-    rb_define_singleton_method(cEngine, "engines", ossl_engine_s_engines, 0);
-    rb_define_singleton_method(cEngine, "by_id", ossl_engine_s_by_id, 1);
+    rb_objc_define_method(*(VALUE *)cEngine, "alloc", ossl_engine_s_alloc, 0);
+    rb_objc_define_method(*(VALUE *)cEngine, "load", ossl_engine_s_load, -1);
+    rb_objc_define_method(*(VALUE *)cEngine, "cleanup", ossl_engine_s_cleanup, 0);
+    rb_objc_define_method(*(VALUE *)cEngine, "engines", ossl_engine_s_engines, 0);
+    rb_objc_define_method(*(VALUE *)cEngine, "by_id", ossl_engine_s_by_id, 1);
     rb_undef_method(CLASS_OF(cEngine), "new");
 
-    rb_define_method(cEngine, "id", ossl_engine_get_id, 0);
-    rb_define_method(cEngine, "name", ossl_engine_get_name, 0);
-    rb_define_method(cEngine, "finish", ossl_engine_finish, 0);
-    rb_define_method(cEngine, "cipher", ossl_engine_get_cipher, 1);
-    rb_define_method(cEngine, "digest",  ossl_engine_get_digest, 1);
-    rb_define_method(cEngine, "load_private_key", ossl_engine_load_privkey, -1);
-    rb_define_method(cEngine, "load_public_key", ossl_engine_load_pubkey, -1);
-    rb_define_method(cEngine, "set_default", ossl_engine_set_default, 1);
-    rb_define_method(cEngine, "ctrl_cmd", ossl_engine_ctrl_cmd, -1);
-    rb_define_method(cEngine, "cmds", ossl_engine_get_cmds, 0);
-    rb_define_method(cEngine, "inspect", ossl_engine_inspect, 0);
+    rb_objc_define_method(cEngine, "id", ossl_engine_get_id, 0);
+    rb_objc_define_method(cEngine, "name", ossl_engine_get_name, 0);
+    rb_objc_define_method(cEngine, "finish", ossl_engine_finish, 0);
+    rb_objc_define_method(cEngine, "cipher", ossl_engine_get_cipher, 1);
+    rb_objc_define_method(cEngine, "digest",  ossl_engine_get_digest, 1);
+    rb_objc_define_method(cEngine, "load_private_key", ossl_engine_load_privkey, -1);
+    rb_objc_define_method(cEngine, "load_public_key", ossl_engine_load_pubkey, -1);
+    rb_objc_define_method(cEngine, "set_default", ossl_engine_set_default, 1);
+    rb_objc_define_method(cEngine, "ctrl_cmd", ossl_engine_ctrl_cmd, -1);
+    rb_objc_define_method(cEngine, "cmds", ossl_engine_get_cmds, 0);
+    rb_objc_define_method(cEngine, "inspect", ossl_engine_inspect, 0);
 
     DefEngineConst(METHOD_RSA);
     DefEngineConst(METHOD_DSA);

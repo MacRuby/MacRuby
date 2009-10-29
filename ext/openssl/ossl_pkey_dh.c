@@ -109,7 +109,7 @@ dh_generate(int size, int gen)
  *
  */
 static VALUE
-ossl_dh_s_generate(int argc, VALUE *argv, VALUE klass)
+ossl_dh_s_generate(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
     DH *dh ;
     int g = 2;
@@ -144,7 +144,7 @@ ossl_dh_s_generate(int argc, VALUE *argv, VALUE klass)
  *  * DH.new(File.read('key.pem')) -> dh
  */
 static VALUE
-ossl_dh_initialize(int argc, VALUE *argv, VALUE self)
+ossl_dh_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     EVP_PKEY *pkey;
     DH *dh;
@@ -394,7 +394,7 @@ ossl_dh_generate_key(VALUE self)
  *
  */
 static VALUE
-ossl_dh_compute_key(VALUE self, VALUE pub)
+ossl_dh_compute_key(VALUE self, SEL sel, VALUE pub)
 {
     DH *dh;
     EVP_PKEY *pkey;
@@ -496,24 +496,24 @@ Init_ossl_dh()
 
     eDHError = rb_define_class_under(mPKey, "DHError", ePKeyError);
     cDH = rb_define_class_under(mPKey, "DH", cPKey);
-    rb_define_singleton_method(cDH, "generate", ossl_dh_s_generate, -1);
-    rb_define_method(cDH, "initialize", ossl_dh_initialize, -1);
-    rb_define_method(cDH, "public?", ossl_dh_is_public, 0);
-    rb_define_method(cDH, "private?", ossl_dh_is_private, 0);
-    rb_define_method(cDH, "to_text", ossl_dh_to_text, 0);
-    rb_define_method(cDH, "export", ossl_dh_export, 0);
+    rb_objc_define_method(*(VALUE *)cDH, "generate", ossl_dh_s_generate, -1);
+    rb_objc_define_method(cDH, "initialize", ossl_dh_initialize, -1);
+    rb_objc_define_method(cDH, "public?", ossl_dh_is_public, 0);
+    rb_objc_define_method(cDH, "private?", ossl_dh_is_private, 0);
+    rb_objc_define_method(cDH, "to_text", ossl_dh_to_text, 0);
+    rb_objc_define_method(cDH, "export", ossl_dh_export, 0);
     rb_define_alias(cDH, "to_pem", "export");
     rb_define_alias(cDH, "to_s", "export");
-    rb_define_method(cDH, "to_der", ossl_dh_to_der, 0);
-    rb_define_method(cDH, "public_key", ossl_dh_to_public_key, 0);
-    rb_define_method(cDH, "params_ok?", ossl_dh_check_params, 0);
-    rb_define_method(cDH, "generate_key!", ossl_dh_generate_key, 0);
-    rb_define_method(cDH, "compute_key", ossl_dh_compute_key, 1);
+    rb_objc_define_method(cDH, "to_der", ossl_dh_to_der, 0);
+    rb_objc_define_method(cDH, "public_key", ossl_dh_to_public_key, 0);
+    rb_objc_define_method(cDH, "params_ok?", ossl_dh_check_params, 0);
+    rb_objc_define_method(cDH, "generate_key!", ossl_dh_generate_key, 0);
+    rb_objc_define_method(cDH, "compute_key", ossl_dh_compute_key, 1);
     DEF_OSSL_PKEY_BN(cDH, dh, p);
     DEF_OSSL_PKEY_BN(cDH, dh, g);
     DEF_OSSL_PKEY_BN(cDH, dh, pub_key);
     DEF_OSSL_PKEY_BN(cDH, dh, priv_key);
-    rb_define_method(cDH, "params", ossl_dh_get_params, 0);
+    rb_objc_define_method(cDH, "params", ossl_dh_get_params, 0);
 
     OSSL_DEFAULT_DH_512 = ossl_create_dh(
 	DEFAULT_DH_512_PRIM, sizeof(DEFAULT_DH_512_PRIM),

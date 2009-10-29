@@ -118,24 +118,10 @@ ossl_##name##_sk2ary(STACK *sk)			\
 OSSL_IMPL_SK2ARY(x509, X509)
 OSSL_IMPL_SK2ARY(x509crl, X509_CRL)
 
-static VALUE
-ossl_str_new(int size)
-{
-    return rb_str_new(0, size);
-}
-
 VALUE
 ossl_buf2str(char *buf, int len)
 {
-    VALUE str;
-    int status = 0;
-
-    str = rb_protect((VALUE(*)_((VALUE)))ossl_str_new, len, &status);
-    if(!NIL_P(str)) memcpy(RSTRING_PTR(str), buf, len);
-    OPENSSL_free(buf);
-    if(status) rb_jump_tag(status);
-
-    return str;
+    return rb_bytestring_new_with_data((UInt8 *)buf, len);
 }
 
 /*

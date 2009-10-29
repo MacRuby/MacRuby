@@ -87,7 +87,7 @@ GetBNPtr(VALUE obj)
 BN_CTX *ossl_bn_ctx;
 
 static VALUE
-ossl_bn_alloc(VALUE klass)
+ossl_bn_alloc(VALUE klass, SEL sel)
 {
     BIGNUM *bn;
     VALUE obj;
@@ -108,7 +108,7 @@ ossl_bn_alloc(VALUE klass)
  *    BN.new(string, 0 | 2 | 10 | 16) => aBN
  */
 static VALUE
-ossl_bn_initialize(int argc, VALUE *argv, VALUE self)
+ossl_bn_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     BIGNUM *bn;
     VALUE str, bs;
@@ -263,7 +263,7 @@ ossl_bn_coerce(VALUE self, VALUE other)
      *							\
      */							\
     static VALUE					\
-    ossl_bn_##func(VALUE self)				\
+    ossl_bn_##func(VALUE self, SEL sel)			\
     {							\
 	BIGNUM *bn;					\
 	GetBN(self, bn);				\
@@ -283,7 +283,7 @@ BIGNUM_BOOL1(is_odd)
      *							\
      */							\
     static VALUE					\
-    ossl_bn_##func(VALUE self)				\
+    ossl_bn_##func(VALUE self, SEL sel)			\
     {							\
 	BIGNUM *bn, *result;				\
 	VALUE obj;					\
@@ -307,7 +307,7 @@ BIGNUM_1c(sqr)
      *							\
      */							\
     static VALUE					\
-    ossl_bn_##func(VALUE self, VALUE other)		\
+    ossl_bn_##func(VALUE self, SEL sel, VALUE other)	\
     {							\
 	BIGNUM *bn1, *bn2 = GetBNPtr(other), *result;	\
 	VALUE obj;					\
@@ -332,7 +332,7 @@ BIGNUM_2(sub)
      *								\
      */								\
     static VALUE						\
-    ossl_bn_##func(VALUE self, VALUE other)			\
+    ossl_bn_##func(VALUE self, SEL sel, VALUE other)		\
     {								\
 	BIGNUM *bn1, *bn2 = GetBNPtr(other), *result;		\
 	VALUE obj;						\
@@ -359,7 +359,7 @@ BIGNUM_2c(mod_inverse)
  *    bn1 / bn2 => [result, remainder]
  */
 static VALUE
-ossl_bn_div(VALUE self, VALUE other)
+ossl_bn_div(VALUE self, SEL sel, VALUE other)
 {
     BIGNUM *bn1, *bn2 = GetBNPtr(other), *r1, *r2;
     VALUE obj1, obj2;
@@ -391,7 +391,7 @@ ossl_bn_div(VALUE self, VALUE other)
      *								\
      */								\
     static VALUE						\
-    ossl_bn_##func(VALUE self, VALUE other1, VALUE other2)	\
+    ossl_bn_##func(VALUE self, SEL sel, VALUE other1, VALUE other2)	\
     {								\
 	BIGNUM *bn1, *bn2 = GetBNPtr(other1);			\
 	BIGNUM *bn3 = GetBNPtr(other2), *result;		\
@@ -419,7 +419,7 @@ BIGNUM_3c(mod_exp)
      *							\
      */							\
     static VALUE					\
-    ossl_bn_##func(VALUE self, VALUE bit)		\
+    ossl_bn_##func(VALUE self, SEL sel, VALUE bit)	\
     {							\
 	BIGNUM *bn;					\
 	GetBN(self, bn);				\
@@ -437,7 +437,7 @@ BIGNUM_BIT(mask_bits)
  *    bn.bit_set?(bit) => true | false
  */
 static VALUE
-ossl_bn_is_bit_set(VALUE self, VALUE bit)
+ossl_bn_is_bit_set(VALUE self, SEL sel, VALUE bit)
 {
     int b;
     BIGNUM *bn;
@@ -457,7 +457,7 @@ ossl_bn_is_bit_set(VALUE self, VALUE bit)
      *							\
      */							\
     static VALUE					\
-    ossl_bn_##func(VALUE self, VALUE bits)		\
+    ossl_bn_##func(VALUE self, SEL sel, VALUE bits)	\
     {							\
 	BIGNUM *bn, *result;				\
 	int b;						\
@@ -484,7 +484,7 @@ BIGNUM_SHIFT(rshift)
      *							\
      */							\
     static VALUE					\
-    ossl_bn_self_##func(VALUE self, VALUE bits)		\
+    ossl_bn_self_##func(VALUE self, SEL sel, VALUE bits) \
     {							\
 	BIGNUM *bn;					\
 	int b;						\
@@ -504,7 +504,7 @@ BIGNUM_SELF_SHIFT(rshift)
      *								\
      */								\
     static VALUE						\
-    ossl_bn_s_##func(int argc, VALUE *argv, VALUE klass)	\
+    ossl_bn_s_##func(VALUE klass, SEL sel, int argc, VALUE *argv)	\
     {								\
 	BIGNUM *result;						\
 	int bottom = 0, top = 0, b;				\
@@ -538,7 +538,7 @@ BIGNUM_RAND(pseudo_rand)
      *								\
      */								\
     static VALUE						\
-    ossl_bn_s_##func##_range(VALUE klass, VALUE range)		\
+    ossl_bn_s_##func##_range(VALUE klass, SEL sel, VALUE range)	\
     {								\
 	BIGNUM *bn = GetBNPtr(range), *result;			\
 	VALUE obj;						\
@@ -566,7 +566,7 @@ BIGNUM_RAND_RANGE(pseudo_rand)
  * * +rem+ - BN
  */
 static VALUE
-ossl_bn_s_generate_prime(int argc, VALUE *argv, VALUE klass)
+ossl_bn_s_generate_prime(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
     BIGNUM *add = NULL, *rem = NULL, *result;
     int safe = 1, num;
@@ -602,7 +602,7 @@ ossl_bn_s_generate_prime(int argc, VALUE *argv, VALUE klass)
      *							\
      */							\
     static VALUE 				\
-    ossl_bn_##func(VALUE self)			\
+    ossl_bn_##func(VALUE self, SEL sel)		\
     {						\
 	BIGNUM *bn;				\
 	GetBN(self, bn);			\
@@ -612,7 +612,7 @@ BIGNUM_NUM(num_bytes)
 BIGNUM_NUM(num_bits)
 
 static VALUE
-ossl_bn_copy(VALUE self, VALUE other)
+ossl_bn_copy(VALUE self, SEL sel, VALUE other)
 {
     BIGNUM *bn1, *bn2;
     
@@ -636,7 +636,7 @@ ossl_bn_copy(VALUE self, VALUE other)
      *							\
      */							\
     static VALUE					\
-    ossl_bn_##func(VALUE self, VALUE other)		\
+    ossl_bn_##func(VALUE self, SEL sel, VALUE other)	\
     {							\
 	BIGNUM *bn1, *bn2 = GetBNPtr(other);		\
 	GetBN(self, bn1);				\
@@ -646,9 +646,9 @@ BIGNUM_CMP(cmp)
 BIGNUM_CMP(ucmp)
 
 static VALUE
-ossl_bn_eql(VALUE self, VALUE other)
+ossl_bn_eql(VALUE self, SEL sel, VALUE other)
 {
-    if (ossl_bn_cmp(self, other) == INT2FIX(0)) {
+    if (ossl_bn_cmp(self, 0, other) == INT2FIX(0)) {
 	return Qtrue;
     }
     return Qfalse;
@@ -663,7 +663,7 @@ ossl_bn_eql(VALUE self, VALUE other)
  * * +checks+ - integer
  */
 static VALUE
-ossl_bn_is_prime(int argc, VALUE *argv, VALUE self)
+ossl_bn_is_prime(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     BIGNUM *bn;
     VALUE vchecks;
@@ -696,7 +696,7 @@ ossl_bn_is_prime(int argc, VALUE *argv, VALUE self)
  * * +trial_div+ - boolean
  */
 static VALUE
-ossl_bn_is_prime_fasttest(int argc, VALUE *argv, VALUE self)
+ossl_bn_is_prime_fasttest(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     BIGNUM *bn;
     VALUE vchecks, vtrivdiv;
@@ -743,33 +743,33 @@ Init_ossl_bn()
 
     cBN = rb_define_class_under(mOSSL, "BN", rb_cObject);
 
-    rb_define_alloc_func(cBN, ossl_bn_alloc);
-    rb_define_method(cBN, "initialize", ossl_bn_initialize, -1);
+    rb_objc_define_method(*(VALUE *)cBN, "alloc", ossl_bn_alloc, 0);
+    rb_objc_define_method(cBN, "initialize", ossl_bn_initialize, -1);
 	
     rb_define_copy_func(cBN, ossl_bn_copy);
-    rb_define_method(cBN, "copy", ossl_bn_copy, 1);
+    rb_objc_define_method(cBN, "copy", ossl_bn_copy, 1);
 
     /* swap (=coerce?) */
 
-    rb_define_method(cBN, "num_bytes", ossl_bn_num_bytes, 0);
-    rb_define_method(cBN, "num_bits", ossl_bn_num_bits, 0);
+    rb_objc_define_method(cBN, "num_bytes", ossl_bn_num_bytes, 0);
+    rb_objc_define_method(cBN, "num_bits", ossl_bn_num_bits, 0);
     /* num_bits_word */
 
-    rb_define_method(cBN, "+", ossl_bn_add, 1);
-    rb_define_method(cBN, "-", ossl_bn_sub, 1);
-    rb_define_method(cBN, "*", ossl_bn_mul, 1);
-    rb_define_method(cBN, "sqr", ossl_bn_sqr, 0);
-    rb_define_method(cBN, "/", ossl_bn_div, 1);
-    rb_define_method(cBN, "%", ossl_bn_mod, 1);
+    rb_objc_define_method(cBN, "+", ossl_bn_add, 1);
+    rb_objc_define_method(cBN, "-", ossl_bn_sub, 1);
+    rb_objc_define_method(cBN, "*", ossl_bn_mul, 1);
+    rb_objc_define_method(cBN, "sqr", ossl_bn_sqr, 0);
+    rb_objc_define_method(cBN, "/", ossl_bn_div, 1);
+    rb_objc_define_method(cBN, "%", ossl_bn_mod, 1);
     /* nnmod */
 
-    rb_define_method(cBN, "mod_add", ossl_bn_mod_add, 2);
-    rb_define_method(cBN, "mod_sub", ossl_bn_mod_sub, 2);
-    rb_define_method(cBN, "mod_mul", ossl_bn_mod_mul, 2);
-    rb_define_method(cBN, "mod_sqr", ossl_bn_mod_sqr, 1);
-    rb_define_method(cBN, "**", ossl_bn_exp, 1);
-    rb_define_method(cBN, "mod_exp", ossl_bn_mod_exp, 2);
-    rb_define_method(cBN, "gcd", ossl_bn_gcd, 1);
+    rb_objc_define_method(cBN, "mod_add", ossl_bn_mod_add, 2);
+    rb_objc_define_method(cBN, "mod_sub", ossl_bn_mod_sub, 2);
+    rb_objc_define_method(cBN, "mod_mul", ossl_bn_mod_mul, 2);
+    rb_objc_define_method(cBN, "mod_sqr", ossl_bn_mod_sqr, 1);
+    rb_objc_define_method(cBN, "**", ossl_bn_exp, 1);
+    rb_objc_define_method(cBN, "mod_exp", ossl_bn_mod_exp, 2);
+    rb_objc_define_method(cBN, "gcd", ossl_bn_gcd, 1);
 
     /* add_word
      * sub_word
@@ -777,16 +777,16 @@ Init_ossl_bn()
      * div_word
      * mod_word */
 
-    rb_define_method(cBN, "cmp", ossl_bn_cmp, 1);
+    rb_objc_define_method(cBN, "cmp", ossl_bn_cmp, 1);
     rb_define_alias(cBN, "<=>", "cmp");
-    rb_define_method(cBN, "ucmp", ossl_bn_ucmp, 1);
-    rb_define_method(cBN, "eql?", ossl_bn_eql, 1);
+    rb_objc_define_method(cBN, "ucmp", ossl_bn_ucmp, 1);
+    rb_objc_define_method(cBN, "eql?", ossl_bn_eql, 1);
     rb_define_alias(cBN, "==", "eql?");
     rb_define_alias(cBN, "===", "eql?");
-    rb_define_method(cBN, "zero?", ossl_bn_is_zero, 0);
-    rb_define_method(cBN, "one?", ossl_bn_is_one, 0);
+    rb_objc_define_method(cBN, "zero?", ossl_bn_is_zero, 0);
+    rb_objc_define_method(cBN, "one?", ossl_bn_is_one, 0);
     /* is_word */
-    rb_define_method(cBN, "odd?", ossl_bn_is_odd, 0);
+    rb_objc_define_method(cBN, "odd?", ossl_bn_is_odd, 0);
 
     /* zero
      * one
@@ -794,22 +794,22 @@ Init_ossl_bn()
      * set_word
      * get_word */
     
-    rb_define_singleton_method(cBN, "rand", ossl_bn_s_rand, -1);
-    rb_define_singleton_method(cBN, "pseudo_rand", ossl_bn_s_pseudo_rand, -1);
-    rb_define_singleton_method(cBN, "rand_range", ossl_bn_s_rand_range, 1);
-    rb_define_singleton_method(cBN, "pseudo_rand_range", ossl_bn_s_pseudo_rand_range, 1);
+    rb_objc_define_method(*(VALUE *)cBN, "rand", ossl_bn_s_rand, -1);
+    rb_objc_define_method(*(VALUE *)cBN, "pseudo_rand", ossl_bn_s_pseudo_rand, -1);
+    rb_objc_define_method(*(VALUE *)cBN, "rand_range", ossl_bn_s_rand_range, 1);
+    rb_objc_define_method(*(VALUE *)cBN, "pseudo_rand_range", ossl_bn_s_pseudo_rand_range, 1);
 
-    rb_define_singleton_method(cBN, "generate_prime", ossl_bn_s_generate_prime, -1);
-    rb_define_method(cBN, "prime?", ossl_bn_is_prime, -1);
+    rb_objc_define_method(*(VALUE *)cBN, "generate_prime", ossl_bn_s_generate_prime, -1);
+    rb_objc_define_method(cBN, "prime?", ossl_bn_is_prime, -1);
 
-    rb_define_method(cBN, "set_bit!", ossl_bn_set_bit, 1);
-    rb_define_method(cBN, "clear_bit!", ossl_bn_clear_bit, 1);
-    rb_define_method(cBN, "bit_set?", ossl_bn_is_bit_set, 1);
-    rb_define_method(cBN, "mask_bits!", ossl_bn_mask_bits, 1);
-    rb_define_method(cBN, "<<", ossl_bn_lshift, 1);
-    rb_define_method(cBN, ">>", ossl_bn_rshift, 1);
-    rb_define_method(cBN, "lshift!", ossl_bn_self_lshift, 1);
-    rb_define_method(cBN, "rshift!", ossl_bn_self_rshift, 1);
+    rb_objc_define_method(cBN, "set_bit!", ossl_bn_set_bit, 1);
+    rb_objc_define_method(cBN, "clear_bit!", ossl_bn_clear_bit, 1);
+    rb_objc_define_method(cBN, "bit_set?", ossl_bn_is_bit_set, 1);
+    rb_objc_define_method(cBN, "mask_bits!", ossl_bn_mask_bits, 1);
+    rb_objc_define_method(cBN, "<<", ossl_bn_lshift, 1);
+    rb_objc_define_method(cBN, ">>", ossl_bn_rshift, 1);
+    rb_objc_define_method(cBN, "lshift!", ossl_bn_self_lshift, 1);
+    rb_objc_define_method(cBN, "rshift!", ossl_bn_self_rshift, 1);
     /* lshift1 - DON'T IMPL. */
     /* rshift1 - DON'T IMPL. */
 
@@ -825,11 +825,11 @@ Init_ossl_bn()
      * bn2mpi
      * mpi2bn
      */
-    rb_define_method(cBN, "to_s", ossl_bn_to_s, -1);
-    rb_define_method(cBN, "to_i", ossl_bn_to_i, 0);
+    rb_objc_define_method(cBN, "to_s", ossl_bn_to_s, -1);
+    rb_objc_define_method(cBN, "to_i", ossl_bn_to_i, 0);
     rb_define_alias(cBN, "to_int", "to_i");
-    rb_define_method(cBN, "to_bn", ossl_bn_to_bn, 0);
-    rb_define_method(cBN, "coerce", ossl_bn_coerce, 1);
+    rb_objc_define_method(cBN, "to_bn", ossl_bn_to_bn, 0);
+    rb_objc_define_method(cBN, "coerce", ossl_bn_coerce, 1);
 	
     /*
      * TODO:
@@ -838,7 +838,7 @@ Init_ossl_bn()
      * to_mpi
      */
 
-    rb_define_method(cBN, "mod_inverse", ossl_bn_mod_inverse, 1);
+    rb_objc_define_method(cBN, "mod_inverse", ossl_bn_mod_inverse, 1);
 
     /* RECiProcal
      * MONTgomery */
@@ -847,6 +847,6 @@ Init_ossl_bn()
      * TODO:
      * Where to belong these?
      */
-    rb_define_method(cBN, "prime_fasttest?", ossl_bn_is_prime_fasttest, -1);
+    rb_objc_define_method(cBN, "prime_fasttest?", ossl_bn_is_prime_fasttest, -1);
 }
 

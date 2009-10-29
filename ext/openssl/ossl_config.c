@@ -89,7 +89,7 @@ parse_config(VALUE str, CONF *dst)
 }
 
 static VALUE
-ossl_config_s_parse(VALUE klass, VALUE str)
+ossl_config_s_parse(VALUE klass, SEL sel, VALUE str)
 {
     CONF *conf;
     VALUE obj;
@@ -101,7 +101,7 @@ ossl_config_s_parse(VALUE klass, VALUE str)
 }
 
 static VALUE
-ossl_config_s_alloc(VALUE klass)
+ossl_config_s_alloc(VALUE klass, SEL sel)
 {
     CONF *conf;
     VALUE obj;
@@ -127,7 +127,7 @@ ossl_config_copy(VALUE self, VALUE other)
 }
 
 static VALUE
-ossl_config_initialize(int argc, VALUE *argv, VALUE self)
+ossl_config_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     CONF *conf;
     long eline = -1;
@@ -202,7 +202,7 @@ rb_ossl_config_modify_check(VALUE config)
 
 #if !defined(OSSL_NO_CONF_API)
 static VALUE
-ossl_config_add_value_m(VALUE self, VALUE section, VALUE name, VALUE value)
+ossl_config_add_value_m(VALUE self, SEL sel, VALUE section, VALUE name, VALUE value)
 {
     rb_ossl_config_modify_check(self);
     return ossl_config_add_value(self, section, name, value);
@@ -212,7 +212,7 @@ ossl_config_add_value_m(VALUE self, VALUE section, VALUE name, VALUE value)
 #endif
 
 static VALUE
-ossl_config_get_value(VALUE self, VALUE section, VALUE name)
+ossl_config_get_value(VALUE self, SEL sel, VALUE section, VALUE name)
 {
     CONF *conf;
     char *str;
@@ -230,7 +230,7 @@ ossl_config_get_value(VALUE self, VALUE section, VALUE name)
 }
 
 static VALUE
-ossl_config_get_value_old(int argc, VALUE *argv, VALUE self)
+ossl_config_get_value_old(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     VALUE section, name;
     
@@ -245,7 +245,7 @@ ossl_config_get_value_old(int argc, VALUE *argv, VALUE self)
     }
     /* NOTE: Don't care about conf.get_value(nil, nil) */
     rb_warn("Config#value is deprecated; use Config#get_value");
-    return ossl_config_get_value(self, section, name);
+    return ossl_config_get_value(self, 0, section, name);
 }
 
 static VALUE
@@ -262,7 +262,7 @@ set_conf_section_i(VALUE i, VALUE *arg)
 }
 
 static VALUE
-ossl_config_set_section(VALUE self, VALUE section, VALUE hash)
+ossl_config_set_section(VALUE self, SEL sel, VALUE section, VALUE hash)
 {
     VALUE arg[2];
 
@@ -278,7 +278,7 @@ ossl_config_set_section(VALUE self, VALUE section, VALUE hash)
  * long number = CONF_get_number(confp->config, sect, StringValuePtr(item));
  */
 static VALUE
-ossl_config_get_section(VALUE self, VALUE section)
+ossl_config_get_section(VALUE self, SEL sel, VALUE section)
 {
     CONF *conf;
     STACK_OF(CONF_VALUE) *sk;
@@ -306,10 +306,10 @@ ossl_config_get_section(VALUE self, VALUE section)
 }
 
 static VALUE
-ossl_config_get_section_old(VALUE self, VALUE section)
+ossl_config_get_section_old(VALUE self, SEL sel, VALUE section)
 {
     rb_warn("Config#section is deprecated; use Config#[]");
-    return ossl_config_get_section(self, section);
+    return ossl_config_get_section(self, 0, section);
 }
 
 #ifdef IMPLEMENT_LHASH_DOALL_ARG_FN
@@ -323,7 +323,7 @@ get_conf_section(CONF_VALUE *cv, VALUE ary)
 static IMPLEMENT_LHASH_DOALL_ARG_FN(get_conf_section, CONF_VALUE*, VALUE)
 
 static VALUE
-ossl_config_get_sections(VALUE self)
+ossl_config_get_sections(VALUE self, SEL sel)
 {
     CONF *conf;
     VALUE ary;
@@ -372,7 +372,7 @@ dump_conf(CONF *conf)
 }
 
 static VALUE
-ossl_config_to_s(VALUE self)
+ossl_config_to_s(VALUE self, SEL sel)
 {
     CONF *conf;
 
@@ -405,7 +405,7 @@ each_conf_value(CONF_VALUE *cv, void* dummy)
 static IMPLEMENT_LHASH_DOALL_ARG_FN(each_conf_value, CONF_VALUE*, void*)
 
 static VALUE
-ossl_config_each(VALUE self)
+ossl_config_each(VALUE self, SEL sel)
 {
     CONF *conf;
 
@@ -418,21 +418,21 @@ ossl_config_each(VALUE self)
 }
 #else
 static VALUE
-ossl_config_get_sections(VALUE self)
+ossl_config_get_sections(VALUE self, SEL sel)
 {
     rb_warn("#sections don't work with %s", OPENSSL_VERSION_TEXT);
     return rb_ary_new();
 }
 
 static VALUE
-ossl_config_to_s(VALUE self)
+ossl_config_to_s(VALUE self, SEL sel)
 {
     rb_warn("#to_s don't work with %s", OPENSSL_VERSION_TEXT);
     return rb_str_new(0, 0);
 }
 
 static VALUE
-ossl_config_each(VALUE self)
+ossl_config_each(VALUE self, SEL sel)
 {
     rb_warn("#each don't work with %s", OPENSSL_VERSION_TEXT);
     return self;
@@ -440,9 +440,9 @@ ossl_config_each(VALUE self)
 #endif
 
 static VALUE
-ossl_config_inspect(VALUE self)
+ossl_config_inspect(VALUE self, SEL sel)
 {
-    VALUE str, ary = ossl_config_get_sections(self);
+    VALUE str, ary = ossl_config_get_sections(self, 0);
     const char *cname = rb_class2name(rb_obj_class(self));
 
     str = rb_str_new2("#<");
@@ -469,19 +469,19 @@ Init_ossl_config()
 		    rb_str_new2(default_config_file));
     OPENSSL_free(default_config_file);
     rb_include_module(cConfig, rb_mEnumerable);
-    rb_define_singleton_method(cConfig, "parse", ossl_config_s_parse, 1);
+    rb_objc_define_method(*(VALUE *)cConfig, "parse", ossl_config_s_parse, 1);
     rb_define_alias(CLASS_OF(cConfig), "load", "new");
-    rb_define_alloc_func(cConfig, ossl_config_s_alloc);
+    rb_objc_define_method(*(VALUE *)cConfig, "alloc", ossl_config_s_alloc, 0);
     rb_define_copy_func(cConfig, ossl_config_copy);
-    rb_define_method(cConfig, "initialize", ossl_config_initialize, -1);
-    rb_define_method(cConfig, "get_value", ossl_config_get_value, 2);
-    rb_define_method(cConfig, "value", ossl_config_get_value_old, -1);
-    rb_define_method(cConfig, "add_value", ossl_config_add_value_m, 3);
-    rb_define_method(cConfig, "[]", ossl_config_get_section, 1);
-    rb_define_method(cConfig, "section", ossl_config_get_section_old, 1);
-    rb_define_method(cConfig, "[]=", ossl_config_set_section, 2);
-    rb_define_method(cConfig, "sections", ossl_config_get_sections, 0);
-    rb_define_method(cConfig, "to_s", ossl_config_to_s, 0);
-    rb_define_method(cConfig, "each", ossl_config_each, 0);
-    rb_define_method(cConfig, "inspect", ossl_config_inspect, 0);
+    rb_objc_define_method(cConfig, "initialize", ossl_config_initialize, -1);
+    rb_objc_define_method(cConfig, "get_value", ossl_config_get_value, 2);
+    rb_objc_define_method(cConfig, "value", ossl_config_get_value_old, -1);
+    rb_objc_define_method(cConfig, "add_value", ossl_config_add_value_m, 3);
+    rb_objc_define_method(cConfig, "[]", ossl_config_get_section, 1);
+    rb_objc_define_method(cConfig, "section", ossl_config_get_section_old, 1);
+    rb_objc_define_method(cConfig, "[]=", ossl_config_set_section, 2);
+    rb_objc_define_method(cConfig, "sections", ossl_config_get_sections, 0);
+    rb_objc_define_method(cConfig, "to_s", ossl_config_to_s, 0);
+    rb_objc_define_method(cConfig, "each", ossl_config_each, 0);
+    rb_objc_define_method(cConfig, "inspect", ossl_config_inspect, 0);
 }

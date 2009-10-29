@@ -29,7 +29,7 @@
 VALUE cCipher;
 VALUE eCipherError;
 
-static VALUE ossl_cipher_alloc(VALUE klass);
+static VALUE ossl_cipher_alloc(VALUE klass, SEL sel);
 
 /*
  * PUBLIC
@@ -50,7 +50,7 @@ ossl_cipher_new(const EVP_CIPHER *cipher)
     VALUE ret;
     EVP_CIPHER_CTX *ctx;
 
-    ret = ossl_cipher_alloc(cCipher);
+    ret = ossl_cipher_alloc(cCipher, 0);
     GetCipher(ret, ctx);
     EVP_CIPHER_CTX_init(ctx);
     if (EVP_CipherInit_ex(ctx, cipher, NULL, NULL, NULL, -1) != 1)
@@ -72,7 +72,7 @@ ossl_cipher_free(EVP_CIPHER_CTX *ctx)
 }
 
 static VALUE
-ossl_cipher_alloc(VALUE klass)
+ossl_cipher_alloc(VALUE klass, SEL sel)
 {
     EVP_CIPHER_CTX *ctx;
     VALUE obj;
@@ -92,7 +92,7 @@ ossl_cipher_alloc(VALUE klass)
  *  A list of cipher names is available by calling OpenSSL::Cipher.ciphers.
  */
 static VALUE
-ossl_cipher_initialize(VALUE self, VALUE str)
+ossl_cipher_initialize(VALUE self, SEL sel, VALUE str)
 {
     EVP_CIPHER_CTX *ctx;
     const EVP_CIPHER *cipher;
@@ -141,7 +141,7 @@ add_cipher_name_to_ary(const OBJ_NAME *name, VALUE ary)
  *  Returns the names of all available ciphers in an array.
  */
 static VALUE
-ossl_s_ciphers(VALUE self)
+ossl_s_ciphers(VALUE self, SEL sel)
 {
     VALUE ary;
 
@@ -163,7 +163,7 @@ ossl_s_ciphers(VALUE self)
  *  Internally calls EVP_CipherInit_ex(ctx, NULL, NULL, NULL, NULL, -1).
  */
 static VALUE
-ossl_cipher_reset(VALUE self)
+ossl_cipher_reset(VALUE self, SEL sel)
 {
     EVP_CIPHER_CTX *ctx;
 
@@ -228,7 +228,7 @@ ossl_cipher_init(int argc, VALUE *argv, VALUE self, int mode)
  *  Internally calls EVP_CipherInit_ex(ctx, NULL, NULL, NULL, NULL, 1).
  */
 static VALUE
-ossl_cipher_encrypt(int argc, VALUE *argv, VALUE self)
+ossl_cipher_encrypt(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     return ossl_cipher_init(argc, argv, self, 1);
 }
@@ -243,7 +243,7 @@ ossl_cipher_encrypt(int argc, VALUE *argv, VALUE self)
  *  Internally calls EVP_CipherInit_ex(ctx, NULL, NULL, NULL, NULL, 0).
  */
 static VALUE
-ossl_cipher_decrypt(int argc, VALUE *argv, VALUE self)
+ossl_cipher_decrypt(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     return ossl_cipher_init(argc, argv, self, 0);
 }
@@ -267,7 +267,7 @@ ossl_cipher_decrypt(int argc, VALUE *argv, VALUE self)
  *
  */
 static VALUE
-ossl_cipher_pkcs5_keyivgen(int argc, VALUE *argv, VALUE self)
+ossl_cipher_pkcs5_keyivgen(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     EVP_CIPHER_CTX *ctx;
     const EVP_MD *digest;
@@ -306,7 +306,7 @@ ossl_cipher_pkcs5_keyivgen(int argc, VALUE *argv, VALUE self)
  *  +buffer+ is an optional string to store the result.
  */
 static VALUE 
-ossl_cipher_update(int argc, VALUE *argv, VALUE self)
+ossl_cipher_update(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     EVP_CIPHER_CTX *ctx;
     unsigned char *in;
@@ -346,7 +346,7 @@ ossl_cipher_update(int argc, VALUE *argv, VALUE self)
  *  See EVP_CipherFinal_ex for further information.
  */
 static VALUE 
-ossl_cipher_final(VALUE self)
+ossl_cipher_final(VALUE self, SEL sel)
 {
     EVP_CIPHER_CTX *ctx;
     int out_len;
@@ -369,7 +369,7 @@ ossl_cipher_final(VALUE self)
  *  Returns the name of the cipher which may differ slightly from the original name provided.
  */
 static VALUE
-ossl_cipher_name(VALUE self)
+ossl_cipher_name(VALUE self, SEL sel)
 {
     EVP_CIPHER_CTX *ctx;
 
@@ -387,7 +387,7 @@ ossl_cipher_name(VALUE self)
  *  Only call this method after calling cipher.encrypt or cipher.decrypt.
  */
 static VALUE
-ossl_cipher_set_key(VALUE self, VALUE key)
+ossl_cipher_set_key(VALUE self, SEL sel, VALUE key)
 {
     EVP_CIPHER_CTX *ctx;
 
@@ -412,7 +412,7 @@ ossl_cipher_set_key(VALUE self, VALUE key)
  *  Only call this method after calling cipher.encrypt or cipher.decrypt.
  */
 static VALUE
-ossl_cipher_set_iv(VALUE self, VALUE iv)
+ossl_cipher_set_iv(VALUE self, SEL sel, VALUE iv)
 {
     EVP_CIPHER_CTX *ctx;
 
@@ -441,7 +441,7 @@ ossl_cipher_set_iv(VALUE self, VALUE iv)
  *  See EVP_CIPHER_CTX_set_key_length for further information.
  */
 static VALUE
-ossl_cipher_set_key_length(VALUE self, VALUE key_length)
+ossl_cipher_set_key_length(VALUE self, SEL sel, VALUE key_length)
 {
     int len = NUM2INT(key_length);
     EVP_CIPHER_CTX *ctx;
@@ -465,7 +465,7 @@ ossl_cipher_set_key_length(VALUE self, VALUE key_length)
  *  See EVP_CIPHER_CTX_set_padding for further information.
  */
 static VALUE
-ossl_cipher_set_padding(VALUE self, VALUE padding)
+ossl_cipher_set_padding(VALUE self, SEL sel, VALUE padding)
 {
     EVP_CIPHER_CTX *ctx;
     int pad = NUM2INT(padding);
@@ -481,7 +481,7 @@ ossl_cipher_set_padding(VALUE self, VALUE padding)
 
 #define CIPHER_0ARG_INT(func)					\
     static VALUE						\
-    ossl_cipher_##func(VALUE self)				\
+    ossl_cipher_##func(VALUE self, SEL sel)				\
     {								\
 	EVP_CIPHER_CTX *ctx;					\
 	GetCipher(self, ctx);					\
@@ -524,23 +524,23 @@ Init_ossl_cipher(void)
     cCipher = rb_define_class_under(mOSSL, "Cipher", rb_cObject);
     eCipherError = rb_define_class_under(cCipher, "CipherError", eOSSLError);
 
-    rb_define_alloc_func(cCipher, ossl_cipher_alloc);
+    rb_objc_define_method(*(VALUE *)cCipher, "alloc", ossl_cipher_alloc, 0);
     rb_define_copy_func(cCipher, ossl_cipher_copy);
-    rb_define_module_function(cCipher, "ciphers", ossl_s_ciphers, 0);
-    rb_define_method(cCipher, "initialize", ossl_cipher_initialize, 1);
-    rb_define_method(cCipher, "reset", ossl_cipher_reset, 0);
-    rb_define_method(cCipher, "encrypt", ossl_cipher_encrypt, -1);
-    rb_define_method(cCipher, "decrypt", ossl_cipher_decrypt, -1);
-    rb_define_method(cCipher, "pkcs5_keyivgen", ossl_cipher_pkcs5_keyivgen, -1);
-    rb_define_method(cCipher, "update", ossl_cipher_update, -1);
-    rb_define_method(cCipher, "final", ossl_cipher_final, 0);
-    rb_define_method(cCipher, "name", ossl_cipher_name, 0);
-    rb_define_method(cCipher, "key=", ossl_cipher_set_key, 1);
-    rb_define_method(cCipher, "key_len=", ossl_cipher_set_key_length, 1);
-    rb_define_method(cCipher, "key_len", ossl_cipher_key_length, 0);
-    rb_define_method(cCipher, "iv=", ossl_cipher_set_iv, 1);
-    rb_define_method(cCipher, "iv_len", ossl_cipher_iv_length, 0);
-    rb_define_method(cCipher, "block_size", ossl_cipher_block_size, 0);
-    rb_define_method(cCipher, "padding=", ossl_cipher_set_padding, 1);
+    rb_objc_define_method(*(VALUE *)cCipher, "ciphers", ossl_s_ciphers, 0);
+    rb_objc_define_method(cCipher, "initialize", ossl_cipher_initialize, 1);
+    rb_objc_define_method(cCipher, "reset", ossl_cipher_reset, 0);
+    rb_objc_define_method(cCipher, "encrypt", ossl_cipher_encrypt, -1);
+    rb_objc_define_method(cCipher, "decrypt", ossl_cipher_decrypt, -1);
+    rb_objc_define_method(cCipher, "pkcs5_keyivgen", ossl_cipher_pkcs5_keyivgen, -1);
+    rb_objc_define_method(cCipher, "update", ossl_cipher_update, -1);
+    rb_objc_define_method(cCipher, "final", ossl_cipher_final, 0);
+    rb_objc_define_method(cCipher, "name", ossl_cipher_name, 0);
+    rb_objc_define_method(cCipher, "key=", ossl_cipher_set_key, 1);
+    rb_objc_define_method(cCipher, "key_len=", ossl_cipher_set_key_length, 1);
+    rb_objc_define_method(cCipher, "key_len", ossl_cipher_key_length, 0);
+    rb_objc_define_method(cCipher, "iv=", ossl_cipher_set_iv, 1);
+    rb_objc_define_method(cCipher, "iv_len", ossl_cipher_iv_length, 0);
+    rb_objc_define_method(cCipher, "block_size", ossl_cipher_block_size, 0);
+    rb_objc_define_method(cCipher, "padding=", ossl_cipher_set_padding, 1);
 }
 

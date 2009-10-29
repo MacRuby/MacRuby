@@ -39,7 +39,11 @@ ossl_obj2bio(VALUE obj)
     }
     else {
 	StringValue(obj);
-	bio = BIO_new_mem_buf(RSTRING_PTR(obj), RSTRING_LEN(obj));
+	if (CLASS_OF(obj) != rb_cByteString) {
+	    rb_raise(rb_eArgError, "expected ByteString object");
+	}
+	bio = BIO_new_mem_buf(rb_bytestring_byte_pointer(obj),
+		rb_bytestring_length(obj));
 	if (!bio) ossl_raise(eOSSLError, NULL);
     }
 

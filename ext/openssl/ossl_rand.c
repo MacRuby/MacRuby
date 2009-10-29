@@ -34,7 +34,7 @@ VALUE eRandomError;
  *
  */
 static VALUE
-ossl_rand_seed(VALUE self, VALUE str)
+ossl_rand_seed(VALUE self, SEL sel, VALUE str)
 {
     StringValue(str);
     RAND_seed(RSTRING_PTR(str), RSTRING_LEN(str));
@@ -48,7 +48,7 @@ ossl_rand_seed(VALUE self, VALUE str)
  *
  */
 static VALUE
-ossl_rand_add(VALUE self, VALUE str, VALUE entropy)
+ossl_rand_add(VALUE self, SEL sel, VALUE str, VALUE entropy)
 {
     StringValue(str);
     RAND_add(RSTRING_PTR(str), RSTRING_LEN(str), NUM2DBL(entropy));
@@ -62,7 +62,7 @@ ossl_rand_add(VALUE self, VALUE str, VALUE entropy)
  *
  */
 static VALUE
-ossl_rand_load_file(VALUE self, VALUE filename)
+ossl_rand_load_file(VALUE self, SEL sel, VALUE filename)
 {
     SafeStringValue(filename);
 	
@@ -78,7 +78,7 @@ ossl_rand_load_file(VALUE self, VALUE filename)
  *
  */
 static VALUE
-ossl_rand_write_file(VALUE self, VALUE filename)
+ossl_rand_write_file(VALUE self, SEL sel, VALUE filename)
 {
     SafeStringValue(filename);
     if (RAND_write_file(RSTRING_PTR(filename)) == -1) {
@@ -93,7 +93,7 @@ ossl_rand_write_file(VALUE self, VALUE filename)
  *
  */
 static VALUE
-ossl_rand_bytes(VALUE self, VALUE len)
+ossl_rand_bytes(VALUE self, SEL sel, VALUE len)
 {
     VALUE str;
     int n = NUM2INT(len);
@@ -112,7 +112,7 @@ ossl_rand_bytes(VALUE self, VALUE len)
  *
  */
 static VALUE
-ossl_rand_pseudo_bytes(VALUE self, VALUE len)
+ossl_rand_pseudo_bytes(VALUE self, SEL sel, VALUE len)
 {
     VALUE str;
     int n = NUM2INT(len);
@@ -131,7 +131,7 @@ ossl_rand_pseudo_bytes(VALUE self, VALUE len)
  *
  */
 static VALUE
-ossl_rand_egd(VALUE self, VALUE filename)
+ossl_rand_egd(VALUE self, SEL sel, VALUE filename)
 {
     SafeStringValue(filename);
 	
@@ -147,7 +147,7 @@ ossl_rand_egd(VALUE self, VALUE filename)
  *
  */
 static VALUE
-ossl_rand_egd_bytes(VALUE self, VALUE filename, VALUE len)
+ossl_rand_egd_bytes(VALUE self, SEL sel, VALUE filename, VALUE len)
 {
     long n = NUM2INT(len);
 
@@ -166,14 +166,14 @@ ossl_rand_egd_bytes(VALUE self, VALUE filename, VALUE len)
  * Return true if the PRNG has been seeded with enough data, false otherwise.
  */
 static VALUE
-ossl_rand_status(VALUE self)
+ossl_rand_status(VALUE self, SEL sel)
 {
     return RAND_status() ? Qtrue : Qfalse;
 }
 
 #define DEFMETH(class, name, func, argc) \
-	rb_define_method(class, name, func, argc); \
-	rb_define_singleton_method(class, name, func, argc);
+	rb_objc_define_method(class, name, func, argc); \
+	rb_objc_define_method(*(VALUE *)class, name, func, argc);
 
 /*
  * INIT

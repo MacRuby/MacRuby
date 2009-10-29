@@ -46,7 +46,7 @@ ossl_hmac_free(HMAC_CTX *ctx)
 }
 
 static VALUE
-ossl_hmac_alloc(VALUE klass)
+ossl_hmac_alloc(VALUE klass, SEL sel)
 {
     HMAC_CTX *ctx;
     VALUE obj;
@@ -64,7 +64,7 @@ ossl_hmac_alloc(VALUE klass)
  *
  */
 static VALUE
-ossl_hmac_initialize(VALUE self, VALUE key, VALUE digest)
+ossl_hmac_initialize(VALUE self, SEL sel, VALUE key, VALUE digest)
 {
     HMAC_CTX *ctx;
 
@@ -97,7 +97,7 @@ ossl_hmac_copy(VALUE self, VALUE other)
  *
  */
 static VALUE
-ossl_hmac_update(VALUE self, VALUE data)
+ossl_hmac_update(VALUE self, SEL sel, VALUE data)
 {
     HMAC_CTX *ctx;
 
@@ -129,7 +129,7 @@ hmac_final(HMAC_CTX *ctx, unsigned char **buf, unsigned int *buf_len)
  *
  */
 static VALUE
-ossl_hmac_digest(VALUE self)
+ossl_hmac_digest(VALUE self, SEL sel)
 {
     HMAC_CTX *ctx;
     unsigned char *buf;
@@ -149,7 +149,7 @@ ossl_hmac_digest(VALUE self)
  *
  */
 static VALUE
-ossl_hmac_hexdigest(VALUE self)
+ossl_hmac_hexdigest(VALUE self, SEL sel)
 {
     HMAC_CTX *ctx;
     unsigned char *buf;
@@ -175,7 +175,7 @@ ossl_hmac_hexdigest(VALUE self)
  *
  */
 static VALUE
-ossl_hmac_reset(VALUE self)
+ossl_hmac_reset(VALUE self, SEL sel)
 {
     HMAC_CTX *ctx;
 
@@ -191,7 +191,7 @@ ossl_hmac_reset(VALUE self)
  *
  */
 static VALUE
-ossl_hmac_s_digest(VALUE klass, VALUE digest, VALUE key, VALUE data)
+ossl_hmac_s_digest(VALUE klass, SEL sel, VALUE digest, VALUE key, VALUE data)
 {
     unsigned char *buf;
     unsigned int buf_len;
@@ -210,7 +210,7 @@ ossl_hmac_s_digest(VALUE klass, VALUE digest, VALUE key, VALUE data)
  *
  */
 static VALUE
-ossl_hmac_s_hexdigest(VALUE klass, VALUE digest, VALUE key, VALUE data)
+ossl_hmac_s_hexdigest(VALUE klass, SEL sel, VALUE digest, VALUE key, VALUE data)
 {
     unsigned char *buf;
     char *hexbuf;
@@ -244,18 +244,18 @@ Init_ossl_hmac()
 	
     cHMAC = rb_define_class_under(mOSSL, "HMAC", rb_cObject);
 
-    rb_define_alloc_func(cHMAC, ossl_hmac_alloc);
-    rb_define_singleton_method(cHMAC, "digest", ossl_hmac_s_digest, 3);
-    rb_define_singleton_method(cHMAC, "hexdigest", ossl_hmac_s_hexdigest, 3);
+    rb_objc_define_method(*(VALUE *)cHMAC, "alloc", ossl_hmac_alloc, 0);
+    rb_objc_define_method(*(VALUE *)cHMAC, "digest", ossl_hmac_s_digest, 3);
+    rb_objc_define_method(*(VALUE *)cHMAC, "hexdigest", ossl_hmac_s_hexdigest, 3);
     
-    rb_define_method(cHMAC, "initialize", ossl_hmac_initialize, 2);
+    rb_objc_define_method(cHMAC, "initialize", ossl_hmac_initialize, 2);
     rb_define_copy_func(cHMAC, ossl_hmac_copy);
 
-    rb_define_method(cHMAC, "reset", ossl_hmac_reset, 0);
-    rb_define_method(cHMAC, "update", ossl_hmac_update, 1);
+    rb_objc_define_method(cHMAC, "reset", ossl_hmac_reset, 0);
+    rb_objc_define_method(cHMAC, "update", ossl_hmac_update, 1);
     rb_define_alias(cHMAC, "<<", "update");
-    rb_define_method(cHMAC, "digest", ossl_hmac_digest, 0);
-    rb_define_method(cHMAC, "hexdigest", ossl_hmac_hexdigest, 0);
+    rb_objc_define_method(cHMAC, "digest", ossl_hmac_digest, 0);
+    rb_objc_define_method(cHMAC, "hexdigest", ossl_hmac_hexdigest, 0);
     rb_define_alias(cHMAC, "inspect", "hexdigest");
     rb_define_alias(cHMAC, "to_s", "hexdigest");
 }

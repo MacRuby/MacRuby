@@ -647,7 +647,7 @@ ossl_asn1_class2sym(int tc)
 }
 
 static VALUE
-ossl_asn1data_initialize(VALUE self, VALUE value, VALUE tag, VALUE tag_class)
+ossl_asn1data_initialize(VALUE self, SEL sel, VALUE value, VALUE tag, VALUE tag_class)
 {
     if(!SYMBOL_P(tag_class))
 	ossl_raise(eASN1Error, "invalid tag class");
@@ -678,7 +678,7 @@ join_der(VALUE enumerable)
 }
 
 static VALUE
-ossl_asn1data_to_der(VALUE self)
+ossl_asn1data_to_der(VALUE self, SEL sel)
 {
     VALUE value, der;
     int tag, tag_class, is_cons = 0;
@@ -814,7 +814,7 @@ ossl_asn1_decode0(unsigned char **pp, long length, long *offset, long depth,
 }
 
 static VALUE
-ossl_asn1_traverse(VALUE self, VALUE obj)
+ossl_asn1_traverse(VALUE self, SEL sel, VALUE obj)
 {
     unsigned char *p;
     long offset = 0;
@@ -829,7 +829,7 @@ ossl_asn1_traverse(VALUE self, VALUE obj)
 }
 
 static VALUE
-ossl_asn1_decode(VALUE self, VALUE obj)
+ossl_asn1_decode(VALUE self, SEL sel, VALUE obj)
 {
     VALUE ret, ary;
     unsigned char *p;
@@ -846,7 +846,7 @@ ossl_asn1_decode(VALUE self, VALUE obj)
 }
 
 static VALUE
-ossl_asn1_decode_all(VALUE self, VALUE obj)
+ossl_asn1_decode_all(VALUE self, SEL sel, VALUE obj)
 {
     VALUE ret;
     unsigned char *p;
@@ -862,7 +862,7 @@ ossl_asn1_decode_all(VALUE self, VALUE obj)
 }
 
 static VALUE
-ossl_asn1_initialize(int argc, VALUE *argv, VALUE self)
+ossl_asn1_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     VALUE value, tag, tagging, tag_class;
 
@@ -919,7 +919,7 @@ ossl_ASN1_TYPE_free(ASN1_TYPE *a)
 }
 
 static VALUE
-ossl_asn1prim_to_der(VALUE self)
+ossl_asn1prim_to_der(VALUE self, SEL sel)
 {
     ASN1_TYPE *asn1;
     int tn, tc, explicit;
@@ -956,7 +956,7 @@ ossl_asn1prim_to_der(VALUE self)
 }
 
 static VALUE
-ossl_asn1cons_to_der(VALUE self)
+ossl_asn1cons_to_der(VALUE self, SEL sel)
 {
     int tag, tn, tc, explicit;
     long seq_len, length;
@@ -990,14 +990,14 @@ ossl_asn1cons_to_der(VALUE self)
 }
 
 static VALUE
-ossl_asn1cons_each(VALUE self)
+ossl_asn1cons_each(VALUE self, SEL sel)
 {
     rb_ary_each(ossl_asn1_get_value(self));
     return self;
 }
 
 static VALUE
-ossl_asn1obj_s_register(VALUE self, VALUE oid, VALUE sn, VALUE ln)
+ossl_asn1obj_s_register(VALUE self, SEL sel, VALUE oid, VALUE sn, VALUE ln)
 {
     StringValue(oid);
     StringValue(sn);
@@ -1010,7 +1010,7 @@ ossl_asn1obj_s_register(VALUE self, VALUE oid, VALUE sn, VALUE ln)
 }
 
 static VALUE
-ossl_asn1obj_get_sn(VALUE self)
+ossl_asn1obj_get_sn(VALUE self, SEL sel)
 {
     VALUE val, ret = Qnil;
     int nid;
@@ -1023,7 +1023,7 @@ ossl_asn1obj_get_sn(VALUE self)
 }
 
 static VALUE
-ossl_asn1obj_get_ln(VALUE self)
+ossl_asn1obj_get_ln(VALUE self, SEL sel)
 {
     VALUE val, ret = Qnil;
     int nid;
@@ -1036,7 +1036,7 @@ ossl_asn1obj_get_ln(VALUE self)
 }
 
 static VALUE
-ossl_asn1obj_get_oid(VALUE self)
+ossl_asn1obj_get_oid(VALUE self, SEL sel)
 {
     VALUE val;
     ASN1_OBJECT *a1obj;
@@ -1051,7 +1051,7 @@ ossl_asn1obj_get_oid(VALUE self)
 }
 
 #define OSSL_ASN1_IMPL_FACTORY_METHOD(klass) \
-static VALUE ossl_asn1_##klass(int argc, VALUE *argv, VALUE self)\
+static VALUE ossl_asn1_##klass(VALUE self, SEL sel, int argc, VALUE *argv)\
 { return rb_funcall3(cASN1##klass, rb_intern("new"), argc, argv); }
 
 OSSL_ASN1_IMPL_FACTORY_METHOD(Boolean)
@@ -1096,9 +1096,9 @@ Init_ossl_asn1()
 
     mASN1 = rb_define_module_under(mOSSL, "ASN1");
     eASN1Error = rb_define_class_under(mASN1, "ASN1Error", eOSSLError);
-    rb_define_module_function(mASN1, "traverse", ossl_asn1_traverse, 1);
-    rb_define_module_function(mASN1, "decode", ossl_asn1_decode, 1);
-    rb_define_module_function(mASN1, "decode_all", ossl_asn1_decode_all, 1);
+    rb_objc_define_method(*(VALUE *)mASN1, "traverse", ossl_asn1_traverse, 1);
+    rb_objc_define_method(*(VALUE *)mASN1, "decode", ossl_asn1_decode, 1);
+    rb_objc_define_method(*(VALUE *)mASN1, "decode_all", ossl_asn1_decode_all, 1);
     ary = rb_ary_new();
     rb_define_const(mASN1, "UNIVERSAL_TAG_NAME", ary);
     for(i = 0; i < ossl_asn1_info_size; i++){
@@ -1111,25 +1111,25 @@ Init_ossl_asn1()
     rb_attr(cASN1Data, rb_intern("value"), 1, 1, 0);
     rb_attr(cASN1Data, rb_intern("tag"), 1, 1, 0);
     rb_attr(cASN1Data, rb_intern("tag_class"), 1, 1, 0);
-    rb_define_method(cASN1Data, "initialize", ossl_asn1data_initialize, 3);
-    rb_define_method(cASN1Data, "to_der", ossl_asn1data_to_der, 0);
+    rb_objc_define_method(cASN1Data, "initialize", ossl_asn1data_initialize, 3);
+    rb_objc_define_method(cASN1Data, "to_der", ossl_asn1data_to_der, 0);
 
     cASN1Primitive = rb_define_class_under(mASN1, "Primitive", cASN1Data);
     rb_attr(cASN1Primitive, rb_intern("tagging"), 1, 1, Qtrue);
-    rb_define_method(cASN1Primitive, "initialize", ossl_asn1_initialize, -1);
-    rb_define_method(cASN1Primitive, "to_der", ossl_asn1prim_to_der, 0);
+    rb_objc_define_method(cASN1Primitive, "initialize", ossl_asn1_initialize, -1);
+    rb_objc_define_method(cASN1Primitive, "to_der", ossl_asn1prim_to_der, 0);
 
     cASN1Constructive = rb_define_class_under(mASN1,"Constructive", cASN1Data);
     rb_include_module(cASN1Constructive, rb_mEnumerable);
     rb_attr(cASN1Constructive, rb_intern("tagging"), 1, 1, Qtrue);
-    rb_define_method(cASN1Constructive, "initialize", ossl_asn1_initialize, -1);
-    rb_define_method(cASN1Constructive, "to_der", ossl_asn1cons_to_der, 0);
-    rb_define_method(cASN1Constructive, "each", ossl_asn1cons_each, 0);
+    rb_objc_define_method(cASN1Constructive, "initialize", ossl_asn1_initialize, -1);
+    rb_objc_define_method(cASN1Constructive, "to_der", ossl_asn1cons_to_der, 0);
+    rb_objc_define_method(cASN1Constructive, "each", ossl_asn1cons_each, 0);
 
 #define OSSL_ASN1_DEFINE_CLASS(name, super) \
 do{\
     cASN1##name = rb_define_class_under(mASN1, #name, cASN1##super);\
-    rb_define_module_function(mASN1, #name, ossl_asn1_##name, -1);\
+    rb_objc_define_method(*(VALUE *)mASN1, #name, ossl_asn1_##name, -1);\
 }while(0)
 
     OSSL_ASN1_DEFINE_CLASS(Boolean, Primitive);
@@ -1156,10 +1156,10 @@ do{\
     OSSL_ASN1_DEFINE_CLASS(Sequence, Constructive);
     OSSL_ASN1_DEFINE_CLASS(Set, Constructive);
 
-    rb_define_singleton_method(cASN1ObjectId, "register", ossl_asn1obj_s_register, 3);
-    rb_define_method(cASN1ObjectId, "sn", ossl_asn1obj_get_sn, 0);
-    rb_define_method(cASN1ObjectId, "ln", ossl_asn1obj_get_ln, 0);
-    rb_define_method(cASN1ObjectId, "oid", ossl_asn1obj_get_oid, 0);
+    rb_objc_define_method(*(VALUE *)cASN1ObjectId, "register", ossl_asn1obj_s_register, 3);
+    rb_objc_define_method(cASN1ObjectId, "sn", ossl_asn1obj_get_sn, 0);
+    rb_objc_define_method(cASN1ObjectId, "ln", ossl_asn1obj_get_ln, 0);
+    rb_objc_define_method(cASN1ObjectId, "oid", ossl_asn1obj_get_oid, 0);
     rb_define_alias(cASN1ObjectId, "short_name", "sn");
     rb_define_alias(cASN1ObjectId, "long_name", "ln");
     rb_attr(cASN1BitString, rb_intern("unused_bits"), 1, 1, 0);

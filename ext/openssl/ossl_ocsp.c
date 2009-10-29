@@ -87,7 +87,7 @@ ossl_ocspcertid_new(OCSP_CERTID *cid)
  * OCSP::Resquest
  */
 static VALUE
-ossl_ocspreq_alloc(VALUE klass)
+ossl_ocspreq_alloc(VALUE klass, SEL sel)
 {
     OCSP_REQUEST *req;
     VALUE obj;
@@ -100,7 +100,7 @@ ossl_ocspreq_alloc(VALUE klass)
 }
 
 static VALUE
-ossl_ocspreq_initialize(int argc, VALUE *argv, VALUE self)
+ossl_ocspreq_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     VALUE arg;
     const unsigned char *p;
@@ -122,7 +122,7 @@ ossl_ocspreq_initialize(int argc, VALUE *argv, VALUE self)
 }
 
 static VALUE
-ossl_ocspreq_add_nonce(int argc, VALUE *argv, VALUE self)
+ossl_ocspreq_add_nonce(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     OCSP_REQUEST *req;
     VALUE val;
@@ -156,7 +156,7 @@ ossl_ocspreq_add_nonce(int argc, VALUE *argv, VALUE self)
  *  necessary. return == 0 is always an error.
  */
 static VALUE
-ossl_ocspreq_check_nonce(VALUE self, VALUE basic_resp)
+ossl_ocspreq_check_nonce(VALUE self, SEL sel, VALUE basic_resp)
 {
     OCSP_REQUEST *req;
     OCSP_BASICRESP *bs;
@@ -170,7 +170,7 @@ ossl_ocspreq_check_nonce(VALUE self, VALUE basic_resp)
 }
 
 static VALUE
-ossl_ocspreq_add_certid(VALUE self, VALUE certid)
+ossl_ocspreq_add_certid(VALUE self, SEL sel, VALUE certid)
 {
     OCSP_REQUEST *req;
     OCSP_CERTID *id;
@@ -184,7 +184,7 @@ ossl_ocspreq_add_certid(VALUE self, VALUE certid)
 }
 
 static VALUE
-ossl_ocspreq_get_certid(VALUE self)
+ossl_ocspreq_get_certid(VALUE self, SEL sel)
 {
     OCSP_REQUEST *req;
     OCSP_ONEREQ *one;
@@ -207,7 +207,7 @@ ossl_ocspreq_get_certid(VALUE self)
 }
 
 static VALUE
-ossl_ocspreq_sign(int argc, VALUE *argv, VALUE self)
+ossl_ocspreq_sign(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     VALUE signer_cert, signer_key, certs, flags;
     OCSP_REQUEST *req;
@@ -235,7 +235,7 @@ ossl_ocspreq_sign(int argc, VALUE *argv, VALUE self)
 }
 
 static VALUE
-ossl_ocspreq_verify(int argc, VALUE *argv, VALUE self)
+ossl_ocspreq_verify(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     VALUE certs, store, flags;
     OCSP_REQUEST *req;
@@ -256,7 +256,7 @@ ossl_ocspreq_verify(int argc, VALUE *argv, VALUE self)
 }
 
 static VALUE
-ossl_ocspreq_to_der(VALUE self)
+ossl_ocspreq_to_der(VALUE self, SEL sel)
 {
     OCSP_REQUEST *req;
     VALUE str;
@@ -279,7 +279,7 @@ ossl_ocspreq_to_der(VALUE self)
  * OCSP::Response
  */
 static VALUE
-ossl_ocspres_s_create(VALUE klass, VALUE status, VALUE basic_resp)
+ossl_ocspres_s_create(VALUE klass, SEL sel, VALUE status, VALUE basic_resp)
 {
     OCSP_BASICRESP *bs;
     OCSP_RESPONSE *res;
@@ -296,7 +296,7 @@ ossl_ocspres_s_create(VALUE klass, VALUE status, VALUE basic_resp)
 }
 
 static VALUE
-ossl_ocspres_alloc(VALUE klass)
+ossl_ocspres_alloc(VALUE klass, SEL sel)
 {
     OCSP_RESPONSE *res;
     VALUE obj;
@@ -309,7 +309,7 @@ ossl_ocspres_alloc(VALUE klass)
 }
 
 static VALUE
-ossl_ocspres_initialize(int argc, VALUE *argv, VALUE self)
+ossl_ocspres_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     VALUE arg;
     const unsigned char *p;
@@ -331,7 +331,7 @@ ossl_ocspres_initialize(int argc, VALUE *argv, VALUE self)
 }
 
 static VALUE
-ossl_ocspres_status(VALUE self)
+ossl_ocspres_status(VALUE self, SEL sel)
 {
     OCSP_RESPONSE *res;
     int st;
@@ -343,7 +343,7 @@ ossl_ocspres_status(VALUE self)
 }
 
 static VALUE
-ossl_ocspres_status_string(VALUE self)
+ossl_ocspres_status_string(VALUE self, SEL sel)
 {
     OCSP_RESPONSE *res;
     int st;
@@ -355,7 +355,7 @@ ossl_ocspres_status_string(VALUE self)
 }
 
 static VALUE
-ossl_ocspres_get_basic(VALUE self)
+ossl_ocspres_get_basic(VALUE self, SEL sel)
 {
     OCSP_RESPONSE *res;
     OCSP_BASICRESP *bs;
@@ -370,7 +370,7 @@ ossl_ocspres_get_basic(VALUE self)
 }
 
 static VALUE
-ossl_ocspres_to_der(VALUE self)
+ossl_ocspres_to_der(VALUE self, SEL sel)
 {
     OCSP_RESPONSE *res;
     VALUE str;
@@ -393,7 +393,7 @@ ossl_ocspres_to_der(VALUE self)
  * OCSP::BasicResponse
  */
 static VALUE
-ossl_ocspbres_alloc(VALUE klass)
+ossl_ocspbres_alloc(VALUE klass, SEL sel)
 {
     OCSP_BASICRESP *bs;
     VALUE obj;
@@ -406,13 +406,13 @@ ossl_ocspbres_alloc(VALUE klass)
 }
 
 static VALUE
-ossl_ocspbres_initialize(int argc, VALUE *argv, VALUE self)
+ossl_ocspbres_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     return self;
 }
 
 static VALUE
-ossl_ocspbres_copy_nonce(VALUE self, VALUE request)
+ossl_ocspbres_copy_nonce(VALUE self, SEL sel, VALUE request)
 {
     OCSP_BASICRESP *bs;
     OCSP_REQUEST *req;
@@ -426,7 +426,7 @@ ossl_ocspbres_copy_nonce(VALUE self, VALUE request)
 }
 
 static VALUE
-ossl_ocspbres_add_nonce(int argc, VALUE *argv, VALUE self)
+ossl_ocspbres_add_nonce(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     OCSP_BASICRESP *bs;
     VALUE val;
@@ -448,7 +448,7 @@ ossl_ocspbres_add_nonce(int argc, VALUE *argv, VALUE self)
 }
 
 static VALUE
-ossl_ocspbres_add_status(VALUE self, VALUE cid, VALUE status,
+ossl_ocspbres_add_status(VALUE self, SEL sel, VALUE cid, VALUE status,
 			 VALUE reason, VALUE revtime,
 			 VALUE thisupd, VALUE nextupd, VALUE ext)
 {
@@ -516,7 +516,7 @@ ossl_ocspbres_add_status(VALUE self, VALUE cid, VALUE status,
 }
 
 static VALUE
-ossl_ocspbres_get_status(VALUE self)
+ossl_ocspbres_get_status(VALUE self, SEL sel)
 {
     OCSP_BASICRESP *bs;
     OCSP_SINGLERESP *single;
@@ -561,7 +561,7 @@ ossl_ocspbres_get_status(VALUE self)
 } 
 
 static VALUE
-ossl_ocspbres_sign(int argc, VALUE *argv, VALUE self)
+ossl_ocspbres_sign(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     VALUE signer_cert, signer_key, certs, flags;
     OCSP_BASICRESP *bs;
@@ -591,7 +591,7 @@ ossl_ocspbres_sign(int argc, VALUE *argv, VALUE self)
 }
 
 static VALUE
-ossl_ocspbres_verify(int argc, VALUE *argv, VALUE self)
+ossl_ocspbres_verify(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     VALUE certs, store, flags, result;
     OCSP_BASICRESP *bs;
@@ -615,7 +615,7 @@ ossl_ocspbres_verify(int argc, VALUE *argv, VALUE self)
  * OCSP::CertificateId
  */
 static VALUE
-ossl_ocspcid_alloc(VALUE klass)
+ossl_ocspcid_alloc(VALUE klass, SEL sel)
 {
     OCSP_CERTID *id;
     VALUE obj;
@@ -628,7 +628,7 @@ ossl_ocspcid_alloc(VALUE klass)
 }
 
 static VALUE
-ossl_ocspcid_initialize(VALUE self, VALUE subject, VALUE issuer)
+ossl_ocspcid_initialize(VALUE self, SEL sel, VALUE subject, VALUE issuer)
 {
     OCSP_CERTID *id, *newid;
     X509 *x509s, *x509i;
@@ -645,7 +645,7 @@ ossl_ocspcid_initialize(VALUE self, VALUE subject, VALUE issuer)
 }
 
 static VALUE
-ossl_ocspcid_cmp(VALUE self, VALUE other)
+ossl_ocspcid_cmp(VALUE self, SEL sel, VALUE other)
 {
     OCSP_CERTID *id, *id2;
     int result;
@@ -658,7 +658,7 @@ ossl_ocspcid_cmp(VALUE self, VALUE other)
 }
 
 static VALUE
-ossl_ocspcid_cmp_issuer(VALUE self, VALUE other)
+ossl_ocspcid_cmp_issuer(VALUE self, SEL sel, VALUE other)
 {
     OCSP_CERTID *id, *id2;
     int result;
@@ -671,7 +671,7 @@ ossl_ocspcid_cmp_issuer(VALUE self, VALUE other)
 }
 
 static VALUE
-ossl_ocspcid_get_serial(VALUE self)
+ossl_ocspcid_get_serial(VALUE self, SEL sel)
 {
     OCSP_CERTID *id;
 
@@ -688,41 +688,41 @@ Init_ossl_ocsp()
     eOCSPError = rb_define_class_under(mOCSP, "OCSPError", eOSSLError);
 
     cOCSPReq = rb_define_class_under(mOCSP, "Request", rb_cObject);
-    rb_define_alloc_func(cOCSPReq, ossl_ocspreq_alloc);
-    rb_define_method(cOCSPReq, "initialize", ossl_ocspreq_initialize, -1);
-    rb_define_method(cOCSPReq, "add_nonce", ossl_ocspreq_add_nonce, -1);
-    rb_define_method(cOCSPReq, "check_nonce", ossl_ocspreq_check_nonce, 1);
-    rb_define_method(cOCSPReq, "add_certid", ossl_ocspreq_add_certid, 1);
-    rb_define_method(cOCSPReq, "certid", ossl_ocspreq_get_certid, 0);
-    rb_define_method(cOCSPReq, "sign", ossl_ocspreq_sign, -1);
-    rb_define_method(cOCSPReq, "verify", ossl_ocspreq_verify, -1);
-    rb_define_method(cOCSPReq, "to_der", ossl_ocspreq_to_der, 0);
+    rb_objc_define_method(*(VALUE *)cOCSPReq, "alloc", ossl_ocspreq_alloc, 0);
+    rb_objc_define_method(cOCSPReq, "initialize", ossl_ocspreq_initialize, -1);
+    rb_objc_define_method(cOCSPReq, "add_nonce", ossl_ocspreq_add_nonce, -1);
+    rb_objc_define_method(cOCSPReq, "check_nonce", ossl_ocspreq_check_nonce, 1);
+    rb_objc_define_method(cOCSPReq, "add_certid", ossl_ocspreq_add_certid, 1);
+    rb_objc_define_method(cOCSPReq, "certid", ossl_ocspreq_get_certid, 0);
+    rb_objc_define_method(cOCSPReq, "sign", ossl_ocspreq_sign, -1);
+    rb_objc_define_method(cOCSPReq, "verify", ossl_ocspreq_verify, -1);
+    rb_objc_define_method(cOCSPReq, "to_der", ossl_ocspreq_to_der, 0);
 
     cOCSPRes = rb_define_class_under(mOCSP, "Response", rb_cObject);
-    rb_define_singleton_method(cOCSPRes, "create", ossl_ocspres_s_create, 2);
-    rb_define_alloc_func(cOCSPRes, ossl_ocspres_alloc);
-    rb_define_method(cOCSPRes, "initialize", ossl_ocspres_initialize, -1);
-    rb_define_method(cOCSPRes, "status", ossl_ocspres_status, 0);
-    rb_define_method(cOCSPRes, "status_string", ossl_ocspres_status_string, 0);
-    rb_define_method(cOCSPRes, "basic", ossl_ocspres_get_basic, 0);
-    rb_define_method(cOCSPRes, "to_der", ossl_ocspres_to_der, 0);
+    rb_objc_define_method(*(VALUE *)cOCSPRes, "create", ossl_ocspres_s_create, 2);
+    rb_objc_define_method(*(VALUE *)cOCSPRes, "alloc", ossl_ocspres_alloc, 0);
+    rb_objc_define_method(cOCSPRes, "initialize", ossl_ocspres_initialize, -1);
+    rb_objc_define_method(cOCSPRes, "status", ossl_ocspres_status, 0);
+    rb_objc_define_method(cOCSPRes, "status_string", ossl_ocspres_status_string, 0);
+    rb_objc_define_method(cOCSPRes, "basic", ossl_ocspres_get_basic, 0);
+    rb_objc_define_method(cOCSPRes, "to_der", ossl_ocspres_to_der, 0);
 
     cOCSPBasicRes = rb_define_class_under(mOCSP, "BasicResponse", rb_cObject);
-    rb_define_alloc_func(cOCSPBasicRes, ossl_ocspbres_alloc);
-    rb_define_method(cOCSPBasicRes, "initialize", ossl_ocspbres_initialize, -1);
-    rb_define_method(cOCSPBasicRes, "copy_nonce", ossl_ocspbres_copy_nonce, 1);
-    rb_define_method(cOCSPBasicRes, "add_nonce", ossl_ocspbres_add_nonce, -1);
-    rb_define_method(cOCSPBasicRes, "add_status", ossl_ocspbres_add_status, 7);
-    rb_define_method(cOCSPBasicRes, "status", ossl_ocspbres_get_status, 0);
-    rb_define_method(cOCSPBasicRes, "sign", ossl_ocspbres_sign, -1);
-    rb_define_method(cOCSPBasicRes, "verify", ossl_ocspbres_verify, -1);
+    rb_objc_define_method(*(VALUE *)cOCSPBasicRes, "alloc", ossl_ocspbres_alloc, 0);
+    rb_objc_define_method(cOCSPBasicRes, "initialize", ossl_ocspbres_initialize, -1);
+    rb_objc_define_method(cOCSPBasicRes, "copy_nonce", ossl_ocspbres_copy_nonce, 1);
+    rb_objc_define_method(cOCSPBasicRes, "add_nonce", ossl_ocspbres_add_nonce, -1);
+    rb_objc_define_method(cOCSPBasicRes, "add_status", ossl_ocspbres_add_status, 7);
+    rb_objc_define_method(cOCSPBasicRes, "status", ossl_ocspbres_get_status, 0);
+    rb_objc_define_method(cOCSPBasicRes, "sign", ossl_ocspbres_sign, -1);
+    rb_objc_define_method(cOCSPBasicRes, "verify", ossl_ocspbres_verify, -1);
 
     cOCSPCertId = rb_define_class_under(mOCSP, "CertificateId", rb_cObject);
-    rb_define_alloc_func(cOCSPCertId, ossl_ocspcid_alloc);
-    rb_define_method(cOCSPCertId, "initialize", ossl_ocspcid_initialize, 2);
-    rb_define_method(cOCSPCertId, "cmp", ossl_ocspcid_cmp, 1);
-    rb_define_method(cOCSPCertId, "cmp_issuer", ossl_ocspcid_cmp_issuer, 1);
-    rb_define_method(cOCSPCertId, "serial", ossl_ocspcid_get_serial, 0);
+    rb_objc_define_method(*(VALUE *)cOCSPCertId, "alloc", ossl_ocspcid_alloc, 0);
+    rb_objc_define_method(cOCSPCertId, "initialize", ossl_ocspcid_initialize, 2);
+    rb_objc_define_method(cOCSPCertId, "cmp", ossl_ocspcid_cmp, 1);
+    rb_objc_define_method(cOCSPCertId, "cmp_issuer", ossl_ocspcid_cmp_issuer, 1);
+    rb_objc_define_method(cOCSPCertId, "serial", ossl_ocspcid_get_serial, 0);
 
 #define DefOCSPConst(x) rb_define_const(mOCSP, #x, INT2NUM(OCSP_##x))
 

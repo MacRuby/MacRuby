@@ -137,7 +137,7 @@ DupPrivPKeyPtr(VALUE obj)
  * Private
  */
 static VALUE
-ossl_pkey_alloc(VALUE klass)
+ossl_pkey_alloc(VALUE klass, SEL sel)
 {
     EVP_PKEY *pkey;
     VALUE obj;
@@ -151,7 +151,7 @@ ossl_pkey_alloc(VALUE klass)
 }
 
 static VALUE
-ossl_pkey_initialize(VALUE self)
+ossl_pkey_initialize(VALUE self, SEL sel)
 {
     if (rb_obj_is_instance_of(self, cPKey)) {
 	ossl_raise(rb_eNotImpError, "OpenSSL::PKey::PKey is an abstract class.");
@@ -160,7 +160,7 @@ ossl_pkey_initialize(VALUE self)
 }
 
 static VALUE
-ossl_pkey_sign(VALUE self, VALUE digest, VALUE data)
+ossl_pkey_sign(VALUE self, SEL sel, VALUE digest, VALUE data)
 {
     EVP_PKEY *pkey;
     EVP_MD_CTX ctx;
@@ -184,7 +184,7 @@ ossl_pkey_sign(VALUE self, VALUE digest, VALUE data)
 }
 
 static VALUE
-ossl_pkey_verify(VALUE self, VALUE digest, VALUE sig, VALUE data)
+ossl_pkey_verify(VALUE self, SEL sel, VALUE digest, VALUE sig, VALUE data)
 {
     EVP_PKEY *pkey;
     EVP_MD_CTX ctx;
@@ -221,11 +221,11 @@ Init_ossl_pkey()
 
     cPKey = rb_define_class_under(mPKey, "PKey", rb_cObject);
 	
-    rb_define_alloc_func(cPKey, ossl_pkey_alloc);
-    rb_define_method(cPKey, "initialize", ossl_pkey_initialize, 0);
+    rb_objc_define_method(*(VALUE *)cPKey, "alloc", ossl_pkey_alloc, 0);
+    rb_objc_define_method(cPKey, "initialize", ossl_pkey_initialize, 0);
 
-    rb_define_method(cPKey, "sign", ossl_pkey_sign, 2);
-    rb_define_method(cPKey, "verify", ossl_pkey_verify, 3);
+    rb_objc_define_method(cPKey, "sign", ossl_pkey_sign, 2);
+    rb_objc_define_method(cPKey, "verify", ossl_pkey_verify, 3);
 	
     id_private_q = rb_intern("private?");
 	

@@ -108,7 +108,7 @@ dsa_generate(int size)
  *
  */
 static VALUE
-ossl_dsa_s_generate(VALUE klass, VALUE size)
+ossl_dsa_s_generate(VALUE klass, SEL sel, VALUE size)
 {
     DSA *dsa = dsa_generate(NUM2INT(size)); /* err handled by dsa_instance */
     VALUE obj = dsa_instance(klass, dsa);
@@ -138,7 +138,7 @@ ossl_dsa_s_generate(VALUE klass, VALUE size)
  *
  */
 static VALUE
-ossl_dsa_initialize(int argc, VALUE *argv, VALUE self)
+ossl_dsa_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     EVP_PKEY *pkey;
     DSA *dsa;
@@ -231,7 +231,7 @@ ossl_dsa_is_private(VALUE self)
  *
  */
 static VALUE
-ossl_dsa_export(int argc, VALUE *argv, VALUE self)
+ossl_dsa_export(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     EVP_PKEY *pkey;
     BIO *out;
@@ -384,7 +384,7 @@ ossl_dsa_to_public_key(VALUE self)
  *
  */
 static VALUE
-ossl_dsa_sign(VALUE self, VALUE data)
+ossl_dsa_sign(VALUE self, SEL sel, VALUE data)
 {
     EVP_PKEY *pkey;
     unsigned int buf_len;
@@ -412,7 +412,7 @@ ossl_dsa_sign(VALUE self, VALUE data)
  *
  */
 static VALUE
-ossl_dsa_verify(VALUE self, VALUE digest, VALUE sig)
+ossl_dsa_verify(VALUE self, SEL sel, VALUE digest, VALUE sig)
 {
     EVP_PKEY *pkey;
     int ret;
@@ -454,19 +454,19 @@ Init_ossl_dsa()
 
     cDSA = rb_define_class_under(mPKey, "DSA", cPKey);
 	
-    rb_define_singleton_method(cDSA, "generate", ossl_dsa_s_generate, 1);
-    rb_define_method(cDSA, "initialize", ossl_dsa_initialize, -1);
+    rb_objc_define_method(*(VALUE *)cDSA, "generate", ossl_dsa_s_generate, 1);
+    rb_objc_define_method(cDSA, "initialize", ossl_dsa_initialize, -1);
 
-    rb_define_method(cDSA, "public?", ossl_dsa_is_public, 0);
-    rb_define_method(cDSA, "private?", ossl_dsa_is_private, 0);
-    rb_define_method(cDSA, "to_text", ossl_dsa_to_text, 0);
-    rb_define_method(cDSA, "export", ossl_dsa_export, -1);
+    rb_objc_define_method(cDSA, "public?", ossl_dsa_is_public, 0);
+    rb_objc_define_method(cDSA, "private?", ossl_dsa_is_private, 0);
+    rb_objc_define_method(cDSA, "to_text", ossl_dsa_to_text, 0);
+    rb_objc_define_method(cDSA, "export", ossl_dsa_export, -1);
     rb_define_alias(cDSA, "to_pem", "export");
     rb_define_alias(cDSA, "to_s", "export");
-    rb_define_method(cDSA, "to_der", ossl_dsa_to_der, 0);
-    rb_define_method(cDSA, "public_key", ossl_dsa_to_public_key, 0);
-    rb_define_method(cDSA, "syssign", ossl_dsa_sign, 1);
-    rb_define_method(cDSA, "sysverify", ossl_dsa_verify, 2);
+    rb_objc_define_method(cDSA, "to_der", ossl_dsa_to_der, 0);
+    rb_objc_define_method(cDSA, "public_key", ossl_dsa_to_public_key, 0);
+    rb_objc_define_method(cDSA, "syssign", ossl_dsa_sign, 1);
+    rb_objc_define_method(cDSA, "sysverify", ossl_dsa_verify, 2);
 
     DEF_OSSL_PKEY_BN(cDSA, dsa, p);
     DEF_OSSL_PKEY_BN(cDSA, dsa, q);
@@ -474,7 +474,7 @@ Init_ossl_dsa()
     DEF_OSSL_PKEY_BN(cDSA, dsa, pub_key);
     DEF_OSSL_PKEY_BN(cDSA, dsa, priv_key);
 
-    rb_define_method(cDSA, "params", ossl_dsa_get_params, 0);
+    rb_objc_define_method(cDSA, "params", ossl_dsa_get_params, 0);
 }
 
 #else /* defined NO_DSA */

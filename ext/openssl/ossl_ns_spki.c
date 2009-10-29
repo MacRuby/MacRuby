@@ -38,7 +38,7 @@ VALUE eSPKIError;
  * Private functions
  */
 static VALUE
-ossl_spki_alloc(VALUE klass)
+ossl_spki_alloc(VALUE klass, SEL sel)
 {
     NETSCAPE_SPKI *spki;
     VALUE obj;
@@ -52,7 +52,7 @@ ossl_spki_alloc(VALUE klass)
 }
 
 static VALUE
-ossl_spki_initialize(int argc, VALUE *argv, VALUE self)
+ossl_spki_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     NETSCAPE_SPKI *spki;
     VALUE buffer;
@@ -76,7 +76,7 @@ ossl_spki_initialize(int argc, VALUE *argv, VALUE self)
 }
 
 static VALUE
-ossl_spki_to_der(VALUE self)
+ossl_spki_to_der(VALUE self, SEL sel)
 {
     NETSCAPE_SPKI *spki;
     VALUE str;
@@ -96,7 +96,7 @@ ossl_spki_to_der(VALUE self)
 }
 
 static VALUE
-ossl_spki_to_pem(VALUE self)
+ossl_spki_to_pem(VALUE self, SEL sel)
 {
     NETSCAPE_SPKI *spki;
     char *data;
@@ -112,7 +112,7 @@ ossl_spki_to_pem(VALUE self)
 }
 
 static VALUE
-ossl_spki_print(VALUE self)
+ossl_spki_print(VALUE self, SEL sel)
 {
     NETSCAPE_SPKI *spki;
     BIO *out;
@@ -135,7 +135,7 @@ ossl_spki_print(VALUE self)
 }
 
 static VALUE
-ossl_spki_get_public_key(VALUE self)
+ossl_spki_get_public_key(VALUE self, SEL sel)
 {
     NETSCAPE_SPKI *spki;
     EVP_PKEY *pkey;
@@ -149,7 +149,7 @@ ossl_spki_get_public_key(VALUE self)
 }
 
 static VALUE
-ossl_spki_set_public_key(VALUE self, VALUE key)
+ossl_spki_set_public_key(VALUE self, SEL sel, VALUE key)
 {
     NETSCAPE_SPKI *spki;
 
@@ -162,7 +162,7 @@ ossl_spki_set_public_key(VALUE self, VALUE key)
 }
 
 static VALUE
-ossl_spki_get_challenge(VALUE self)
+ossl_spki_get_challenge(VALUE self, SEL sel)
 {
     NETSCAPE_SPKI *spki;
 
@@ -177,7 +177,7 @@ ossl_spki_get_challenge(VALUE self)
 }
 
 static VALUE
-ossl_spki_set_challenge(VALUE self, VALUE str)
+ossl_spki_set_challenge(VALUE self, SEL sel, VALUE str)
 {
     NETSCAPE_SPKI *spki;
 
@@ -192,7 +192,7 @@ ossl_spki_set_challenge(VALUE self, VALUE str)
 }
 
 static VALUE
-ossl_spki_sign(VALUE self, VALUE key, VALUE digest)
+ossl_spki_sign(VALUE self, SEL sel, VALUE key, VALUE digest)
 {
     NETSCAPE_SPKI *spki;
     EVP_PKEY *pkey;
@@ -212,7 +212,7 @@ ossl_spki_sign(VALUE self, VALUE key, VALUE digest)
  * Checks that cert signature is made with PRIVversion of this PUBLIC 'key'
  */
 static VALUE
-ossl_spki_verify(VALUE self, VALUE key)
+ossl_spki_verify(VALUE self, SEL sel, VALUE key)
 {
     NETSCAPE_SPKI *spki;
 
@@ -240,18 +240,18 @@ Init_ossl_ns_spki()
 	
     cSPKI = rb_define_class_under(mNetscape, "SPKI", rb_cObject);
 	
-    rb_define_alloc_func(cSPKI, ossl_spki_alloc);
-    rb_define_method(cSPKI, "initialize", ossl_spki_initialize, -1);
+    rb_objc_define_method(*(VALUE *)cSPKI, "alloc", ossl_spki_alloc, 0);
+    rb_objc_define_method(cSPKI, "initialize", ossl_spki_initialize, -1);
 	
-    rb_define_method(cSPKI, "to_der", ossl_spki_to_der, 0);
-    rb_define_method(cSPKI, "to_pem", ossl_spki_to_pem, 0);
+    rb_objc_define_method(cSPKI, "to_der", ossl_spki_to_der, 0);
+    rb_objc_define_method(cSPKI, "to_pem", ossl_spki_to_pem, 0);
     rb_define_alias(cSPKI, "to_s", "to_pem");
-    rb_define_method(cSPKI, "to_text", ossl_spki_print, 0);
-    rb_define_method(cSPKI, "public_key", ossl_spki_get_public_key, 0);
-    rb_define_method(cSPKI, "public_key=", ossl_spki_set_public_key, 1);
-    rb_define_method(cSPKI, "sign", ossl_spki_sign, 2);
-    rb_define_method(cSPKI, "verify", ossl_spki_verify, 1);
-    rb_define_method(cSPKI, "challenge", ossl_spki_get_challenge, 0);
-    rb_define_method(cSPKI, "challenge=", ossl_spki_set_challenge, 1);
+    rb_objc_define_method(cSPKI, "to_text", ossl_spki_print, 0);
+    rb_objc_define_method(cSPKI, "public_key", ossl_spki_get_public_key, 0);
+    rb_objc_define_method(cSPKI, "public_key=", ossl_spki_set_public_key, 1);
+    rb_objc_define_method(cSPKI, "sign", ossl_spki_sign, 2);
+    rb_objc_define_method(cSPKI, "verify", ossl_spki_verify, 1);
+    rb_objc_define_method(cSPKI, "challenge", ossl_spki_get_challenge, 0);
+    rb_objc_define_method(cSPKI, "challenge=", ossl_spki_set_challenge, 1);
 }
 

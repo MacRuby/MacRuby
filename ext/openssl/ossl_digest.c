@@ -27,7 +27,7 @@
 VALUE cDigest;
 VALUE eDigestError;
 
-static VALUE ossl_digest_alloc(VALUE klass);
+static VALUE ossl_digest_alloc(VALUE klass, SEL sel);
 
 /*
  * Public
@@ -60,7 +60,7 @@ ossl_digest_new(const EVP_MD *md)
     VALUE ret;
     EVP_MD_CTX *ctx;
 
-    ret = ossl_digest_alloc(cDigest);
+    ret = ossl_digest_alloc(cDigest, 0);
     GetDigest(ret, ctx);
     EVP_DigestInit_ex(ctx, md, NULL);
    
@@ -71,7 +71,7 @@ ossl_digest_new(const EVP_MD *md)
  * Private
  */
 static VALUE
-ossl_digest_alloc(VALUE klass)
+ossl_digest_alloc(VALUE klass, SEL sel)
 {
     EVP_MD_CTX *ctx;
     VALUE obj;
@@ -84,7 +84,7 @@ ossl_digest_alloc(VALUE klass)
     return obj;
 }
 
-VALUE ossl_digest_update(VALUE, VALUE);
+VALUE ossl_digest_update(VALUE, SEL, VALUE);
 
 /*
  *  call-seq:
@@ -92,7 +92,7 @@ VALUE ossl_digest_update(VALUE, VALUE);
  *
  */
 static VALUE
-ossl_digest_initialize(int argc, VALUE *argv, VALUE self)
+ossl_digest_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     EVP_MD_CTX *ctx;
     const EVP_MD *md;
@@ -105,7 +105,7 @@ ossl_digest_initialize(int argc, VALUE *argv, VALUE self)
     GetDigest(self, ctx);
     EVP_DigestInit_ex(ctx, md, NULL);
     
-    if (!NIL_P(data)) return ossl_digest_update(self, data);
+    if (!NIL_P(data)) return ossl_digest_update(self, 0, data);
     return self;
 }
 
@@ -132,7 +132,7 @@ ossl_digest_copy(VALUE self, VALUE other)
  *
  */
 static VALUE
-ossl_digest_reset(VALUE self)
+ossl_digest_reset(VALUE self, SEL sel)
 {
     EVP_MD_CTX *ctx;
 
@@ -148,7 +148,7 @@ ossl_digest_reset(VALUE self)
  *
  */
 VALUE
-ossl_digest_update(VALUE self, VALUE data)
+ossl_digest_update(VALUE self, SEL sel, VALUE data)
 {
     EVP_MD_CTX *ctx;
 
@@ -165,7 +165,7 @@ ossl_digest_update(VALUE self, VALUE data)
  *
  */
 static VALUE
-ossl_digest_finish(int argc, VALUE *argv, VALUE self)
+ossl_digest_finish(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     EVP_MD_CTX *ctx;
     VALUE str;
@@ -192,7 +192,7 @@ ossl_digest_finish(int argc, VALUE *argv, VALUE self)
  *
  */
 static VALUE
-ossl_digest_name(VALUE self)
+ossl_digest_name(VALUE self, SEL sel)
 {
     EVP_MD_CTX *ctx;
 
@@ -208,7 +208,7 @@ ossl_digest_name(VALUE self)
  *  Returns the output size of the digest.
  */
 static VALUE
-ossl_digest_size(VALUE self)
+ossl_digest_size(VALUE self, SEL sel)
 {
     EVP_MD_CTX *ctx;
 
@@ -218,7 +218,7 @@ ossl_digest_size(VALUE self)
 }
 
 static VALUE
-ossl_digest_block_length(VALUE self)
+ossl_digest_block_length(VALUE self, SEL sel)
 {
     EVP_MD_CTX *ctx;
 
@@ -242,16 +242,16 @@ Init_ossl_digest()
     cDigest = rb_define_class_under(mOSSL, "Digest", rb_path2class("Digest::Class"));
     eDigestError = rb_define_class_under(cDigest, "DigestError", eOSSLError);
 	
-    rb_define_alloc_func(cDigest, ossl_digest_alloc);
+    rb_objc_define_method(*(VALUE *)cDigest, "alloc", ossl_digest_alloc, 0);
 
-    rb_define_method(cDigest, "initialize", ossl_digest_initialize, -1);
+    rb_objc_define_method(cDigest, "initialize", ossl_digest_initialize, -1);
     rb_define_copy_func(cDigest, ossl_digest_copy);
-    rb_define_method(cDigest, "reset", ossl_digest_reset, 0);
-    rb_define_method(cDigest, "update", ossl_digest_update, 1);
+    rb_objc_define_method(cDigest, "reset", ossl_digest_reset, 0);
+    rb_objc_define_method(cDigest, "update", ossl_digest_update, 1);
     rb_define_alias(cDigest, "<<", "update");
-    rb_define_private_method(cDigest, "finish", ossl_digest_finish, -1);
-    rb_define_method(cDigest, "digest_length", ossl_digest_size, 0);
-    rb_define_method(cDigest, "block_length", ossl_digest_block_length, 0);
+    rb_objc_define_private_method(cDigest, "finish", ossl_digest_finish, -1);
+    rb_objc_define_method(cDigest, "digest_length", ossl_digest_size, 0);
+    rb_objc_define_method(cDigest, "block_length", ossl_digest_block_length, 0);
 
-    rb_define_method(cDigest, "name", ossl_digest_name, 0);
+    rb_objc_define_method(cDigest, "name", ossl_digest_name, 0);
 }

@@ -37,7 +37,7 @@ VALUE ePKCS12Error;
  * Private
  */
 static VALUE
-ossl_pkcs12_s_allocate(VALUE klass)
+ossl_pkcs12_s_allocate(VALUE klass, SEL sel)
 {
     PKCS12 *p12;
     VALUE obj;
@@ -71,7 +71,7 @@ ossl_pkcs12_s_allocate(VALUE klass)
  * See the OpenSSL documentation for PKCS12_create().
  */
 static VALUE
-ossl_pkcs12_s_create(int argc, VALUE *argv, VALUE self)
+ossl_pkcs12_s_create(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     VALUE pass, name, pkey, cert, ca, key_nid, cert_nid, key_iter, mac_iter, keytype;
     VALUE obj;
@@ -128,7 +128,7 @@ ossl_pkcs12_s_create(int argc, VALUE *argv, VALUE self)
  * * +pass+ - string
  */
 static VALUE
-ossl_pkcs12_initialize(int argc, VALUE *argv, VALUE self)
+ossl_pkcs12_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     BIO *in;
     VALUE arg, pass, pkey, cert, ca;
@@ -172,7 +172,7 @@ ossl_pkcs12_initialize(int argc, VALUE *argv, VALUE self)
 }
 
 static VALUE
-ossl_pkcs12_to_der(VALUE self)
+ossl_pkcs12_to_der(VALUE self, SEL sel)
 {
     PKCS12 *p12;
     VALUE str;
@@ -201,12 +201,12 @@ Init_ossl_pkcs12()
      */
     cPKCS12 = rb_define_class_under(mOSSL, "PKCS12", rb_cObject);
     ePKCS12Error = rb_define_class_under(cPKCS12, "PKCS12Error", eOSSLError);
-    rb_define_singleton_method(cPKCS12, "create", ossl_pkcs12_s_create, -1);
+    rb_objc_define_method(*(VALUE *)cPKCS12, "create", ossl_pkcs12_s_create, -1);
 
-    rb_define_alloc_func(cPKCS12, ossl_pkcs12_s_allocate);
+    rb_objc_define_method(*(VALUE *)cPKCS12, "alloc", ossl_pkcs12_s_allocate, 0);
     rb_attr(cPKCS12, rb_intern("key"), 1, 0, Qfalse);
     rb_attr(cPKCS12, rb_intern("certificate"), 1, 0, Qfalse);
     rb_attr(cPKCS12, rb_intern("ca_certs"), 1, 0, Qfalse);
-    rb_define_method(cPKCS12, "initialize", ossl_pkcs12_initialize, -1);
-    rb_define_method(cPKCS12, "to_der", ossl_pkcs12_to_der, 0);
+    rb_objc_define_method(cPKCS12, "initialize", ossl_pkcs12_initialize, -1);
+    rb_objc_define_method(cPKCS12, "to_der", ossl_pkcs12_to_der, 0);
 }

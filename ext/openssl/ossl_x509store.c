@@ -208,7 +208,7 @@ ossl_x509store_add_file(VALUE self, VALUE file)
 {
     X509_STORE *store;
     X509_LOOKUP *lookup;
-    char *path = NULL;
+    const char *path = NULL;
 
     if(file != Qnil){
         SafeStringValue(file);
@@ -229,7 +229,7 @@ ossl_x509store_add_path(VALUE self, VALUE dir)
 {
     X509_STORE *store;
     X509_LOOKUP *lookup;
-    char *path = NULL;
+    const char *path = NULL;
 
     if(dir != Qnil){
         SafeStringValue(dir);

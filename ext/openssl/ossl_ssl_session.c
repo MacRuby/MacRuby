@@ -33,7 +33,7 @@ static VALUE ossl_ssl_session_alloc(VALUE klass)
  * +SSLSocket+ is an OpenSSL::SSL::SSLSocket
  * +string+ must be a DER or PEM encoded Session.
 */
-static VALUE ossl_ssl_session_initialize(VALUE self, VALUE arg1)
+static VALUE ossl_ssl_session_initialize(VALUE self, SEL sel, VALUE arg1)
 {
 	SSL_SESSION *ctx = NULL;
 
@@ -77,7 +77,7 @@ static VALUE ossl_ssl_session_initialize(VALUE self, VALUE arg1)
  *    session1 == session2 -> boolean
  *
 */
-static VALUE ossl_ssl_session_eq(VALUE val1, VALUE val2)
+static VALUE ossl_ssl_session_eq(VALUE val1, SEL sel, VALUE val2)
 {
 	SSL_SESSION *ctx1, *ctx2;
 
@@ -130,7 +130,7 @@ static VALUE ossl_ssl_session_get_timeout(VALUE self)
 }
 
 #define SSLSESSION_SET_TIME(func)						\
-	static VALUE ossl_ssl_session_set_##func(VALUE self, VALUE time_v)	\
+	static VALUE ossl_ssl_session_set_##func(VALUE self, SEL sel, VALUE time_v)	\
 	{									\
 		SSL_SESSION *ctx;						\
 		unsigned long t;						\
@@ -275,22 +275,22 @@ void Init_ossl_ssl_session(void)
 	cSSLSession = rb_define_class_under(mSSL, "Session", rb_cObject);
 	eSSLSession = rb_define_class_under(cSSLSession, "SessionError", eOSSLError);
 
-	rb_define_alloc_func(cSSLSession, ossl_ssl_session_alloc);
-	rb_define_method(cSSLSession, "initialize", ossl_ssl_session_initialize, 1);
+	rb_objc_define_method(*(VALUE *)cSSLSession, "alloc", ossl_ssl_session_alloc, 0);
+	rb_objc_define_method(cSSLSession, "initialize", ossl_ssl_session_initialize, 1);
 
-	rb_define_method(cSSLSession, "==", ossl_ssl_session_eq, 1);
+	rb_objc_define_method(cSSLSession, "==", ossl_ssl_session_eq, 1);
 
-	rb_define_method(cSSLSession, "time", ossl_ssl_session_get_time, 0);
-	rb_define_method(cSSLSession, "time=", ossl_ssl_session_set_time, 1);
-	rb_define_method(cSSLSession, "timeout", ossl_ssl_session_get_timeout, 0);
-	rb_define_method(cSSLSession, "timeout=", ossl_ssl_session_set_timeout, 1);
+	rb_objc_define_method(cSSLSession, "time", ossl_ssl_session_get_time, 0);
+	rb_objc_define_method(cSSLSession, "time=", ossl_ssl_session_set_time, 1);
+	rb_objc_define_method(cSSLSession, "timeout", ossl_ssl_session_get_timeout, 0);
+	rb_objc_define_method(cSSLSession, "timeout=", ossl_ssl_session_set_timeout, 1);
 
 #ifdef HAVE_SSL_SESSION_GET_ID
-	rb_define_method(cSSLSession, "id", ossl_ssl_session_get_id, 0);
+	rb_objc_define_method(cSSLSession, "id", ossl_ssl_session_get_id, 0);
 #else
 	rb_undef_method(cSSLSession, "id");
 #endif
-	rb_define_method(cSSLSession, "to_der", ossl_ssl_session_to_der, 0);
-	rb_define_method(cSSLSession, "to_pem", ossl_ssl_session_to_pem, 0);
-	rb_define_method(cSSLSession, "to_text", ossl_ssl_session_to_text, 0);
+	rb_objc_define_method(cSSLSession, "to_der", ossl_ssl_session_to_der, 0);
+	rb_objc_define_method(cSSLSession, "to_pem", ossl_ssl_session_to_pem, 0);
+	rb_objc_define_method(cSSLSession, "to_text", ossl_ssl_session_to_text, 0);
 }
