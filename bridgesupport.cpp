@@ -572,6 +572,12 @@ static const char *convert_ffi_type(VALUE type,
 VALUE
 rb_pointer_new(const char *type_str, void *val)
 {
+    // LLVM doesn't allow to get a pointer to Type::VoidTy, and for convenience
+    // reasons we map a pointer to void as a pointer to unsigned char.
+    if (*type_str == 'v') {
+	type_str = "C";
+    }
+
     rb_vm_pointer_t *ptr = (rb_vm_pointer_t *)xmalloc(sizeof(rb_vm_pointer_t));
     GC_WB(&ptr->type, rb_str_new2(type_str));
 
