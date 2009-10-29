@@ -9,4 +9,5 @@ fcntl/fcntl.c
 #nkf/lib/kconv.rb
 #nkf/nkf.c
 socket/socket.c
+readline/readline.c
 zlib/zlib.c
