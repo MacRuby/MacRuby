@@ -69,6 +69,14 @@ class Deployer
     dirs << 'lib/ruby/Gems' # TODO add gems support
     dirs.each { |x| rm_rf(File.join(app_macruby_usr, x)) }
 
+    # Only keep the Current version of the MacRuby.framework copy.
+    Dir.glob(File.join(app_macruby, 'Versions/*')).select { |x|
+      base = File.basename(x)
+      base != MACRUBY_VERSION and base != 'Current'
+    }.each { |x|
+      rm_rf(x)
+    }
+
     # Hack the application binaries to link against the MacRuby.framework copy.
     patterns = [File.join(@app_bundle, 'Contents/MacOS/*'), File.join(app_macruby_usr, 'lib/ruby/**/*.{bundle,rbo}')]
     patterns.each do |pat|
