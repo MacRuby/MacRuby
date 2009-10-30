@@ -394,6 +394,9 @@ void rb_vm_thread_wakeup(rb_vm_thread_t *t);
 void rb_vm_thread_cancel(rb_vm_thread_t *t);
 void rb_vm_thread_raise(rb_vm_thread_t *t, VALUE exc);
 
+void rb_vm_register_current_alien_thread(void);
+void rb_vm_unregister_current_alien_thread(void);
+
 bool rb_vm_abort_on_exception(void);
 void rb_vm_set_abort_on_exception(bool flag);
 
@@ -811,7 +814,6 @@ class RoxorVM {
 		    // create a new VM object just for this thread.
 		    // XXX the VM object is never detroyed.
 		    RoxorVM *new_vm = new RoxorVM();
-		    pthread_setspecific(vm_thread_key, (void *)new_vm);
 		    new_vm->setup_from_current_thread();
 		    return new_vm;
 		}

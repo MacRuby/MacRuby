@@ -846,6 +846,40 @@ rb_semaphore_finalize(void *rcv, SEL sel)
     }
 }
 
+// GCD callbacks that will let us know when a POSIX thread is started / ended.
+// We can appropriately create/delete a RoxorVM object based on that.
+static void (*old_dispatch_begin_thread_4GC)(void) = NULL;
+static void (*old_dispatch_end_thread_4GC)(void) = NULL;
+extern void (*dispatch_begin_thread_4GC)(void);
+extern void (*dispatch_end_thread_4GC)(void);
+
+static void
+rb_dispatch_begin_thread(void)
+{
+    if (old_dispatch_begin_thread_4GC != NULL) {
+	(*old_dispatch_begin_thread_4GC)();
+    }
+    rb_vm_register_current_alien_thread();
+}
+
+static void
+rb_dispatch_end_thread(void)
+{
+    if (old_dispatch_end_thread_4GC != NULL) {
+	(*old_dispatch_end_thread_4GC)();
+    }
+    rb_vm_unregister_current_alien_thread();
+}
+
+void
+Init_PreGCD(void)
+{
+    old_dispatch_begin_thread_4GC = dispatch_begin_thread_4GC;
+    old_dispatch_end_thread_4GC = dispatch_end_thread_4GC;
+    dispatch_begin_thread_4GC = rb_dispatch_begin_thread;
+    dispatch_end_thread_4GC = rb_dispatch_end_thread;
+}
+
 void
 Init_Dispatch(void)
 {
@@ -926,6 +960,12 @@ Init_Dispatch(void)
 }
 
 #else
+
+void
+Init_PreGCD(void)
+{
+    // Do nothing...
+}
 
 void
 Init_Dispatch(void)

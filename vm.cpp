@@ -4374,9 +4374,50 @@ RoxorVM::setup_from_current_thread(void)
     rb_vm_thread_pre_init(t, NULL, 0, NULL, (void *)this);
     t->thread = pthread_self();
 
-    VALUE main = Data_Wrap_Struct(rb_cThread, NULL, NULL, t);
-    GET_CORE()->register_thread(main);
-    this->set_thread(main);
+    VALUE thread = Data_Wrap_Struct(rb_cThread, NULL, NULL, t);
+    GET_CORE()->register_thread(thread);
+    this->set_thread(thread);
+}
+
+extern "C"
+void
+rb_vm_register_current_alien_thread(void)
+{
+    // This callback is not used, we prefer to create RoxorVM objects
+    // lazily (in RoxorVM::current()), for performance reasons, because the
+    // callback is called *a lot* and most of the time from various parts of
+    // the system which will never ask us to execute Ruby code.
+#if 0
+    if (GET_CORE()->get_running()) {
+	printf("registered alien thread %p\n", pthread_self());
+	RoxorVM *vm = new RoxorVM();
+	vm->setup_from_current_thread();
+    }
+#endif
+}
+
+extern "C"
+void
+rb_vm_unregister_current_alien_thread(void)
+{
+    // Check if the current pthread has been registered.
+    GET_CORE()->lock();
+    pthread_t self = pthread_self();
+    VALUE ary = GET_CORE()->get_threads();
+    bool need_to_unregister = false;
+    for (int i = 0; i < RARRAY_LEN(ary); i++) {
+	VALUE t = RARRAY_AT(ary, i);
+	if (GetThreadPtr(t)->thread == self) {
+	    need_to_unregister = true;
+	}
+    }
+    GET_CORE()->unlock();
+
+    // If yes, appropriately unregister it.
+    if (need_to_unregister) {
+	//printf("unregistered alien thread %p\n", pthread_self());
+	GET_CORE()->unregister_thread(GET_VM()->get_thread());
+    }
 }
 
 extern "C"

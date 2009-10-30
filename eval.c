@@ -38,6 +38,7 @@ void rb_call_inits(void);
 void Init_ext(void);
 void Init_PreGC(void);
 void Init_PreVM(void);
+void Init_PreGCD(void);
 
 bool ruby_dlog_enabled = false;
 FILE *ruby_dlog_file = NULL;
@@ -73,6 +74,7 @@ ruby_init(void)
 
     Init_PreGC();
     Init_PreVM();
+    Init_PreGCD();
 
     rb_call_inits();
     ruby_prog_init();
