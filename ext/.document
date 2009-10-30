@@ -8,6 +8,7 @@ fcntl/fcntl.c
 #io/wait/wait.c
 #nkf/lib/kconv.rb
 #nkf/nkf.c
+openssl/*.c
 socket/socket.c
 readline/readline.c
 zlib/zlib.c
