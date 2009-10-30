@@ -11,12 +11,17 @@ module HotCocoa
     
     attr_reader :callback, :name, :sender, :suspension_behavior
     
+    def self.registered_listeners
+      @registered_listeners ||= []
+    end
+    
     def initialize(options={}, &block)
       @callback = block
       @distributed = (options[:distributed] == true)
       @suspension_behavior = DistributedBehaviors[options[:when_suspended] || :coalesce]
       @name = options[:named]
       @sender = options[:sent_by]
+      NotificationListener.registered_listeners << self
       observe
     end
     
