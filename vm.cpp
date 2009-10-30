@@ -2543,7 +2543,8 @@ rb_vm_add_block_lvar_use(rb_vm_block_t *block)
 	 block_for_uses != NULL;
 	 block_for_uses = block_for_uses->parent_block) {
 
-	rb_vm_add_lvar_use(block_for_uses->parent_var_uses, block, VM_LVAR_USE_TYPE_BLOCK);
+	rb_vm_add_lvar_use(block_for_uses->parent_var_uses, block,
+		VM_LVAR_USE_TYPE_BLOCK);
     }
 }
 
@@ -2555,7 +2556,8 @@ rb_vm_add_binding_lvar_use(rb_vm_binding_t *binding, rb_vm_block_t *block,
 	 block_for_uses != NULL;
 	 block_for_uses = block_for_uses->parent_block) {
 
-	rb_vm_add_lvar_use(block_for_uses->parent_var_uses, binding, VM_LVAR_USE_TYPE_BINDING);
+	rb_vm_add_lvar_use(block_for_uses->parent_var_uses, binding,
+		VM_LVAR_USE_TYPE_BINDING);
     }
     rb_vm_add_lvar_use(parent_var_uses, binding, VM_LVAR_USE_TYPE_BINDING);
 }
@@ -3983,7 +3985,7 @@ rb_vm_thread_pre_init(rb_vm_thread_t *t, rb_vm_block_t *body, int argc,
 
     if (body != NULL) {
 	GC_WB(&t->body, body);
-	rb_vm_add_block_lvar_use(body);
+	rb_vm_block_make_detachable_proc(body);
     }
     else {
 	t->body = NULL;
@@ -3992,8 +3994,7 @@ rb_vm_thread_pre_init(rb_vm_thread_t *t, rb_vm_block_t *body, int argc,
     if (argc > 0) {
 	t->argc = argc;
 	GC_WB(&t->argv, xmalloc(sizeof(VALUE) * argc));
-	int i;
-	for (i = 0; i < argc; i++) {
+	for (int i = 0; i < argc; i++) {
 	    GC_WB(&t->argv[i], argv[i]);
 	}
     }

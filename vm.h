@@ -367,6 +367,17 @@ rb_vm_block_t *rb_vm_first_block(void);
 bool rb_vm_block_saved(void);
 VALUE rb_vm_block_eval(rb_vm_block_t *block, int argc, const VALUE *argv);
 
+static inline void
+rb_vm_block_make_detachable_proc(rb_vm_block_t *b)
+{
+    if (!(b->flags & VM_BLOCK_PROC)) {
+	b->flags |= VM_BLOCK_PROC;
+	if (!(b->flags & VM_BLOCK_METHOD)) {
+	    rb_vm_add_block_lvar_use(b);
+	}
+    }
+}
+
 rb_vm_binding_t *rb_vm_current_binding(void);
 void rb_vm_add_binding(rb_vm_binding_t *binding);
 void rb_vm_pop_binding();

@@ -317,22 +317,23 @@ rb_queue_dispatcher(void* block)
 static VALUE
 rb_queue_dispatch(VALUE self, SEL sel, int argc, VALUE* argv)
 {
-    rb_vm_block_t *the_block = rb_vm_current_block();
-    if (the_block == NULL) {
+    rb_vm_block_t *block = rb_vm_current_block();
+    if (block == NULL) {
         rb_raise(rb_eArgError, "dispatch() requires a block argument");
     }
     
     VALUE synchronous;
     rb_scan_args(argc, argv, "01", &synchronous);
 
+    rb_vm_block_make_detachable_proc(block);
     rb_vm_set_multithreaded(true);
 
     if (RTEST(synchronous)){
-        dispatch_sync_f(RQueue(self)->queue, (void *)the_block,
+        dispatch_sync_f(RQueue(self)->queue, (void *)block,
 		rb_queue_dispatcher);
     } 
     else {
-        dispatch_async_f(RQueue(self)->queue, (void *)the_block,
+        dispatch_async_f(RQueue(self)->queue, (void *)block,
 		rb_queue_dispatcher);
     }
 
@@ -356,14 +357,15 @@ rb_queue_dispatch_after(VALUE self, SEL sel, VALUE sec)
     sec = rb_Float(sec);
     dispatch_time_t offset = dispatch_walltime(NULL,
 	    (int64_t)(RFLOAT_VALUE(sec) * NSEC_PER_SEC));
-    rb_vm_block_t *the_block = rb_vm_current_block();
-    if (the_block == NULL) {
+    rb_vm_block_t *block = rb_vm_current_block();
+    if (block == NULL) {
         rb_raise(rb_eArgError, "dispatch_after() requires a block argument");
     }
 
+    rb_vm_block_make_detachable_proc(block);
     rb_vm_set_multithreaded(true);
 
-    dispatch_after_f(offset, RQueue(self)->queue, (void *)the_block,
+    dispatch_after_f(offset, RQueue(self)->queue, (void *)block,
 	    rb_queue_dispatcher);
 
     return Qnil;
@@ -394,14 +396,15 @@ rb_queue_applier(void* block, size_t ii)
 static VALUE
 rb_queue_apply(VALUE self, SEL sel, VALUE n)
 {
-    rb_vm_block_t *the_block = rb_vm_current_block();
-    if (the_block == NULL) {
+    rb_vm_block_t *block = rb_vm_current_block();
+    if (block == NULL) {
         rb_raise(rb_eArgError, "apply() requires a block argument");
     }
 
+    rb_vm_block_make_detachable_proc(block);
     rb_vm_set_multithreaded(true);
 
-    dispatch_apply_f(NUM2SIZET(n), RQueue(self)->queue, (void*)the_block,
+    dispatch_apply_f(NUM2SIZET(n), RQueue(self)->queue, (void *)block,
 	    rb_queue_applier);
 
     return Qnil;
@@ -550,15 +553,16 @@ rb_group_initialize(VALUE self, SEL sel)
 static VALUE
 rb_group_dispatch(VALUE self, SEL sel, VALUE target)
 {
-    rb_vm_block_t *the_block = rb_vm_current_block();
-    if (the_block == NULL) {
+    rb_vm_block_t *block = rb_vm_current_block();
+    if (block == NULL) {
         rb_raise(rb_eArgError, "dispatch() requires a block argument");
     }
 
+    rb_vm_block_make_detachable_proc(block);
     rb_vm_set_multithreaded(true);
 
     dispatch_group_async_f(RGroup(self)->group, RQueue(target)->queue,
-	    (void *)the_block, rb_queue_dispatcher);
+	    (void *)block, rb_queue_dispatcher);
 
     return Qnil;
 }
@@ -581,15 +585,16 @@ rb_group_dispatch(VALUE self, SEL sel, VALUE target)
 static VALUE
 rb_group_notify(VALUE self, SEL sel, VALUE target)
 {
-    rb_vm_block_t *the_block = rb_vm_current_block();
-    if (the_block == NULL) {
+    rb_vm_block_t *block = rb_vm_current_block();
+    if (block == NULL) {
         rb_raise(rb_eArgError, "notify() requires a block argument");
     }
 
+    rb_vm_block_make_detachable_proc(block);
     rb_vm_set_multithreaded(true);
 
     dispatch_group_notify_f(RGroup(self)->group, RQueue(target)->queue,
-	    (void *)the_block, rb_queue_dispatcher);
+	    (void *)block, rb_queue_dispatcher);
 
     return Qnil;
 }
