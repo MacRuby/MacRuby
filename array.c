@@ -2224,8 +2224,8 @@ rb_ary_select(VALUE ary, SEL sel)
  *     a.delete("z") { "not found" }   #=> "not found"
  */
 
-static VALUE
-rb_ary_delete_imp(VALUE ary, SEL sel, VALUE item)
+static inline bool
+rb_ary_delete0(VALUE ary, VALUE item)
 {
     rb_ary_modify(ary);
 
@@ -2252,6 +2252,14 @@ rb_ary_delete_imp(VALUE ary, SEL sel, VALUE item)
 	    changed = true;
 	}
     }
+
+    return changed;
+}
+
+static VALUE
+rb_ary_delete_imp(VALUE ary, SEL sel, VALUE item)
+{
+    const bool changed = rb_ary_delete0(ary, item);
     if (!changed) {
 	if (rb_block_given_p()) {
 	    return rb_yield(item);
@@ -2264,7 +2272,7 @@ rb_ary_delete_imp(VALUE ary, SEL sel, VALUE item)
 VALUE
 rb_ary_delete(VALUE ary, VALUE item)
 {
-    return rb_ary_delete_imp(ary, 0, item);
+    return rb_ary_delete0(ary, item) ? item : Qnil;
 }
 
 VALUE
