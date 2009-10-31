@@ -11,14 +11,24 @@
 #include "ruby/node.h"
 #include "vm.h"
 
+VALUE rb_cThread;
+VALUE rb_cThGroup;
+VALUE rb_cMutex;
+
 typedef struct rb_vm_mutex {
     pthread_mutex_t mutex;
     rb_vm_thread_t *thread;
 } rb_vm_mutex_t;
 
-VALUE rb_cThread;
-VALUE rb_cThGroup;
-VALUE rb_cMutex;
+#define GetMutexPtr(obj) ((rb_vm_mutex_t *)DATA_PTR(obj))
+
+typedef struct {
+    bool enclosed;
+    VALUE threads;
+    VALUE mutex;
+} rb_thread_group_t;
+
+#define GetThreadGroupPtr(obj) ((rb_thread_group_t *)DATA_PTR(obj))
 
 #if 0
 static VALUE
@@ -53,12 +63,21 @@ thread_initialize(VALUE thread, SEL sel, int argc, const VALUE *argv)
 
     // Retain the Thread object to avoid a potential GC, the corresponding
     // release is done in rb_vm_thread_run().
-    rb_objc_retain((void *)thread);
+    GC_RETAIN(thread);
 
-    if (pthread_create(&t->thread, NULL, (void *(*)(void *))rb_vm_thread_run,
+    // Prepare attributes for the thread.
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setinheritsched(&attr, PTHREAD_INHERIT_SCHED);
+    pthread_attr_setscope(&attr, PTHREAD_SCOPE_SYSTEM);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+
+    // Launch it.
+    if (pthread_create(&t->thread, &attr, (void *(*)(void *))rb_vm_thread_run,
 		(void *)thread) != 0) {
 	rb_sys_fail("pthread_create() failed");
     }
+    pthread_attr_destroy(&attr);
 
     return thread;
 }
@@ -138,7 +157,14 @@ thread_join_m(VALUE self, SEL sel, int argc, VALUE *argv)
     if (t->status != THREAD_DEAD) {
 	if (timeout == Qnil) {
 	    // No timeout given: block until the thread finishes.
-	    pthread_assert(pthread_join(t->thread, NULL));
+	    //pthread_assert(pthread_join(t->thread, NULL));
+	    struct timespec ts;
+	    ts.tv_sec = 0;
+	    ts.tv_nsec = 10000000;
+	    while (t->status != THREAD_DEAD) {
+		nanosleep(&ts, NULL);
+		pthread_yield_np();
+	    }
 	}
 	else {
 	    // Timeout given: sleep then check if the thread is dead.
@@ -1083,12 +1109,8 @@ rb_thread_select(int max, fd_set * read, fd_set * write, fd_set * except,
  *  were created.
  */
 
-typedef struct {
-    bool enclosed;
-    VALUE threads;
-} rb_thread_group_t;
-
-#define GetThreadGroupPtr(obj) ((rb_thread_group_t *)DATA_PTR(obj))
+static VALUE mutex_s_alloc(VALUE self, SEL sel);
+static VALUE mutex_initialize(VALUE self, SEL sel);
 
 static VALUE
 thgroup_s_alloc(VALUE self, SEL sel)
@@ -1097,6 +1119,11 @@ thgroup_s_alloc(VALUE self, SEL sel)
 	    sizeof(rb_thread_group_t));
     t->enclosed = false;
     GC_WB(&t->threads, rb_ary_new());
+
+    VALUE mutex = mutex_s_alloc(rb_cMutex, 0);
+    mutex_initialize(mutex, 0);
+    GC_WB(&t->mutex, mutex);
+
     return Data_Wrap_Struct(rb_cThGroup, NULL, NULL, t);
 }
 
@@ -1181,6 +1208,18 @@ thgroup_enclosed_p(VALUE group)
  *     tg group now #<Thread:0x401b3c90>
  */
 
+static inline void
+thgroup_lock(rb_thread_group_t *tg)
+{
+    pthread_assert(pthread_mutex_lock(&GetMutexPtr(tg->mutex)->mutex));
+}
+
+static inline void
+thgroup_unlock(rb_thread_group_t *tg)
+{
+    pthread_assert(pthread_mutex_unlock(&GetMutexPtr(tg->mutex)->mutex));
+}
+
 static VALUE
 thgroup_add(VALUE group, SEL sel, VALUE thread)
 {
@@ -1197,10 +1236,14 @@ thgroup_add(VALUE group, SEL sel, VALUE thread)
 	    rb_raise(rb_eThreadError,
 		    "can't move from the enclosed thread group");
 	}
+ 	thgroup_lock(old_tg);
 	rb_ary_delete(old_tg->threads, thread); 
+ 	thgroup_unlock(old_tg);
     }
 
+    thgroup_lock(new_tg);
     rb_ary_push(new_tg->threads, thread);
+    thgroup_unlock(new_tg);
     GC_WB(&t->group, group);
 
     return group;
@@ -1210,6 +1253,21 @@ VALUE
 rb_thgroup_add(VALUE group, VALUE thread)
 {
     return thgroup_add(group, 0, thread);
+}
+
+void
+rb_thread_remove_from_group(VALUE thread)
+{
+    rb_vm_thread_t *t = GetThreadPtr(thread);
+    rb_thread_group_t *tg = GetThreadGroupPtr(t->group);
+    thgroup_lock(tg);
+    if (rb_ary_delete(tg->threads, thread) != thread) {
+	printf("trying to remove a thread (%p) from a group that doesn't "\
+		"contain it\n", (void *)thread);
+	abort();
+    }
+    thgroup_unlock(tg);
+    t->group = Qnil;
 }
 
 /*
@@ -1250,8 +1308,6 @@ mutex_s_alloc(VALUE self, SEL sel)
     rb_vm_mutex_t *t = (rb_vm_mutex_t *)xmalloc(sizeof(rb_vm_mutex_t));
     return Data_Wrap_Struct(rb_cMutex, NULL, NULL, t);
 }
-
-#define GetMutexPtr(obj) ((rb_vm_mutex_t *)DATA_PTR(obj))
 
 static VALUE
 mutex_initialize(VALUE self, SEL sel)

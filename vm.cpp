@@ -258,7 +258,6 @@ RoxorCore::RoxorCore(void)
 
 RoxorCore::~RoxorCore(void)
 {
-    call_all_finalizers();
     // TODO
 }
 
@@ -332,7 +331,17 @@ RoxorVM::RoxorVM(const RoxorVM &vm)
 
 RoxorVM::~RoxorVM(void)
 {
-    // TODO
+    for (std::map<void *, rb_vm_block_t *>::iterator i = blocks.begin();
+	i != blocks.end();
+	++i) {
+	GC_RELEASE(i->second);
+    }
+    blocks.clear();
+
+    GC_RELEASE(backref);
+    GC_RELEASE(broken_with);
+    GC_RELEASE(last_status);
+    GC_RELEASE(errinfo);
 }
 
 static void
@@ -3630,7 +3639,7 @@ RoxorVM::ruby_catch(VALUE tag)
 	s->throw_value = Qnil;
 	s->nested = 1;
 	catch_jmp_bufs[tag] = s;
-	rb_objc_retain((void *)tag);
+	GC_RETAIN(tag);
     }
     else {
 	s = iter->second;
@@ -3654,7 +3663,7 @@ RoxorVM::ruby_catch(VALUE tag)
 	s = iter->second;
 	free(s);
 	catch_jmp_bufs.erase(iter);
-	rb_objc_release((void *)tag);
+	GC_RELEASE(tag);
     }
 
     return retval;
@@ -3888,7 +3897,7 @@ rb_vm_thread_run(VALUE thread)
     GET_CORE()->register_thread(thread);
 
     // Release the thread now.
-    rb_objc_release((void *)thread);
+    GC_RELEASE(thread);
 
     rb_vm_thread_t *t = GetThreadPtr(thread);
 
@@ -3921,6 +3930,7 @@ rb_vm_thread_run(VALUE thread)
 
     pthread_cleanup_pop(0);
 
+    rb_thread_remove_from_group(thread); 
     GET_CORE()->unregister_thread(thread);
     rb_objc_gc_unregister_thread();
 
@@ -4447,7 +4457,11 @@ rb_vm_finalize(void)
     printf("functions all=%ld compiled=%ld\n", RoxorCompiler::module->size(),
 	    GET_CORE()->get_functions_compiled());
 #endif
-    
-    delete RoxorCore::shared;
-    RoxorCore::shared = NULL;
+
+
+    // XXX: deleting the core is not safe at this point because there might be
+    // threads still running and trying to unregister.
+//    delete RoxorCore::shared;
+//    RoxorCore::shared = NULL;
+    GET_CORE()->call_all_finalizers();
 }
