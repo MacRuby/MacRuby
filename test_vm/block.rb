@@ -689,3 +689,24 @@ assert ':ok', %{
   end
   f
 }
+
+assert ':ok', %{
+  def f
+    b = Proc.new { return :ok }
+    b.call
+    42
+  end
+  p f
+}
+
+assert ':ok', %{
+  def f2(b)
+    b.call
+  end
+  def f
+    b = Proc.new { return :ok }
+    f2(b)
+    42
+  end
+  p f
+}
