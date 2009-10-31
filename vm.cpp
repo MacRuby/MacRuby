@@ -3098,14 +3098,17 @@ rb_vm_pop_broken_value(void)
 
 extern "C"
 void
-rb_vm_return_from_block(VALUE val, int id)
+rb_vm_return_from_block(VALUE val, int id, rb_vm_block_t *running_block)
 {
-    RoxorReturnFromBlockException *exc = new RoxorReturnFromBlockException();
-
-    exc->val = val;
-    exc->id = id;
-
-    throw exc;
+    // Do not trigger a return from the calling scope if the running block
+    // is a lambda, to conform to the ruby 1.9 specifications.
+    if (!(running_block->flags & VM_BLOCK_LAMBDA)) {
+	RoxorReturnFromBlockException *exc =
+	    new RoxorReturnFromBlockException();
+	exc->val = val;
+	exc->id = id;
+	throw exc;
+    }
 }
 
 extern "C" std::type_info *__cxa_current_exception_type(void);

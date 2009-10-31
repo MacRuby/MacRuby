@@ -1628,14 +1628,17 @@ void
 RoxorCompiler::compile_return_from_block(Value *val, int id)
 {
     if (returnFromBlockFunc == NULL) {
-	// void rb_vm_return_from_block(VALUE val, int id);
+	// void rb_vm_return_from_block(VALUE val, int id,
+	//	rb_vm_block_t *current_block);
 	returnFromBlockFunc = cast<Function>(
 		module->getOrInsertFunction("rb_vm_return_from_block", 
-		    VoidTy, RubyObjTy, Int32Ty, NULL));
+		    VoidTy, RubyObjTy, Int32Ty, PtrTy, NULL));
     }
     std::vector<Value *> params;
     params.push_back(val);
     params.push_back(ConstantInt::get(Int32Ty, id));
+    params.push_back(running_block);
+
     compile_protected_call(returnFromBlockFunc, params);
 }
 
@@ -4948,8 +4951,6 @@ rescan_args:
 		bool old_current_block = current_block;
 		bool old_current_block_chain = current_block_chain;
 		int old_return_from_block = return_from_block;
-		BasicBlock *old_rescue_invoke_bb = rescue_invoke_bb;
-		BasicBlock *old_rescue_rethrow_bb = rescue_rethrow_bb;
 		bool old_dynamic_class = dynamic_class;
 
 		current_mid = 0;
@@ -5015,9 +5016,7 @@ rescan_args:
 		if (return_from_block_bb != NULL) {
 		    BasicBlock *old_bb = bb;
 		    bb = return_from_block_bb;
-		    compile_return_from_block_handler(return_from_block);	
-		    rescue_rethrow_bb = old_rescue_rethrow_bb;
-		    rescue_invoke_bb = old_rescue_invoke_bb;
+		    compile_return_from_block_handler(return_from_block);
 		    bb = old_bb;
 		    return_from_block = old_return_from_block;
 		}
