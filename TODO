@@ -60,6 +60,8 @@ For 0.5 (must do):
   [ ] method cache is not thread safe
   [X] block dvars are corrupted in case the receiver leaves
       ex: 10.times { |i| Thread.new { p i } }; sleep 1
+  [ ] blocks are not reentrant
+      ex: b=Proc.new{}; 100.times{Thread.new{100.times{b.call}}}; sleep 1
   [X] lazy GCD VMs are never finalized
   [X] random.c is not thread-safe and should be rewritten using random(3)
 
