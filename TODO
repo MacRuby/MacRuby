@@ -52,7 +52,7 @@ For 0.5 (must do):
 [X] sync with LLVM 2.6/ToT
 [ ] non-ASCII regexp
 [ ] leaks
-  [ ] implement ~RoxorVM
+  [X] implement ~RoxorVM
   [ ] fix exception leak
   [X] delete unused functions after execution
   [X] delete unused NODE* after execution
