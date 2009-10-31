@@ -87,7 +87,7 @@ describe :thread_exit, :shared => true do
   
   it "killing dying running does nothing" do
     in_ensure_clause = false
-    exit_loop = true
+    exit_loop = false
     t = ThreadSpecs.dying_thread_ensures do
       in_ensure_clause = true
       loop { if exit_loop then break end }
