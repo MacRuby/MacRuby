@@ -3641,7 +3641,7 @@ RoxorCompiler::compile_node(NODE *node)
 		}
 		else {
 		    assert(node->nd_lit != 0);
-		    str = ConstantInt::get(RubyObjTy, node->nd_lit);
+		    str = compile_literal(node->nd_lit);
 		}
 
 		std::vector<Value *> params;
