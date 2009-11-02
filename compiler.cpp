@@ -4145,7 +4145,13 @@ rescan_args:
 			if (i == rest_pos) {
 			    params.push_back(splatArgFollowsVal); 
 			}
-			params.push_back(iter);
+
+			// We can't simply push the direct argument address
+			// because if may have a default value.
+			ID argid = rb_intern(iter->getName().data());
+			Value *argslot = compile_lvar_slot(argid);
+			params.push_back(new LoadInst(argslot, "", bb));
+
 			++i;
 			++iter;
 		    }
