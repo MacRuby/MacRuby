@@ -443,3 +443,13 @@ assert ':ok', %{
     p :ok
   end
 }
+
+assert '42', %{
+  class C1
+    def foo(x); p x; end
+  end
+  class C2 < C1
+    def foo(x=42); super; end
+  end
+  C2.new.foo
+}
