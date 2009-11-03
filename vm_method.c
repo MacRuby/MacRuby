@@ -224,29 +224,32 @@ rb_export_method(VALUE klass, ID name, ID noex)
 		sel_getName(sel));
     }
 
+    long flags = 0;
+    switch (noex) {
+	case NOEX_PRIVATE:
+	    flags |= VM_METHOD_PRIVATE;
+	    break;
+
+	case NOEX_PROTECTED:
+	    flags |= VM_METHOD_PROTECTED;
+	    break;
+
+	default:
+	    break;
+    }
+
     VALUE sklass = RCLASS_SUPER(klass);
     if (sklass != 0) {
 	Method m = class_getInstanceMethod((Class)sklass, sel);
 	if (m != NULL && method_getImplementation(m) == node->objc_imp) {
 	    // The method actually exists on a superclass, we need to duplicate
-	    // it to the current class then change its visibility.
-	    node = rb_vm_define_method2((Class)klass, sel, node, false);
+	    // it to the current class.
+	    rb_vm_define_method2((Class)klass, sel, node, flags, false);
+	    return;
 	}
     }
 
-    switch (noex) {
-	case NOEX_PUBLIC:
-	    node->flags |= 0;
-	    break;
-
-	case NOEX_PRIVATE:
-	    node->flags |= VM_METHOD_PRIVATE;
-	    break;
-
-	case NOEX_PROTECTED:
-	    node->flags |= VM_METHOD_PROTECTED;
-	    break;
-    }
+    node->flags |= flags;
 }
 
 int
@@ -749,7 +752,7 @@ rb_mod_modfunc(VALUE module, SEL sel, int argc, VALUE *argv)
 	    rb_bug("undefined method `%s'; can't happen", rb_id2name(id));
 	}
 
-	rb_vm_define_method2(*(Class *)module, sel, node, false);
+	rb_vm_define_method2(*(Class *)module, sel, node, -1, false);
     }
 
     return module;

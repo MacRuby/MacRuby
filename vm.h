@@ -279,7 +279,7 @@ bool rb_vm_is_ruby_method(Method m);
 rb_vm_method_node_t *rb_vm_define_method(Class klass, SEL sel, IMP imp,
 	NODE *node, bool direct);
 rb_vm_method_node_t *rb_vm_define_method2(Class klass, SEL sel,
-	rb_vm_method_node_t *node, bool direct);
+	rb_vm_method_node_t *node, long flags, bool direct);
 void rb_vm_define_method3(Class klass, SEL sel, rb_vm_block_t *node);
 bool rb_vm_resolve_method(Class klass, SEL sel);
 void *rb_vm_undefined_imp(void *rcv, SEL sel);

@@ -2188,7 +2188,7 @@ rb_vm_define_attr(Class klass, const char *name, bool read, bool write)
 
 static rb_vm_method_node_t *
 __rb_vm_define_method(Class klass, SEL sel, IMP objc_imp, IMP ruby_imp,
-		      const rb_vm_arity_t &arity, int flags, bool direct)
+	const rb_vm_arity_t &arity, int flags, bool direct)
 {
     assert(klass != NULL);
 
@@ -2251,13 +2251,16 @@ rb_vm_define_method(Class klass, SEL sel, IMP imp, NODE *node, bool direct)
 extern "C"
 rb_vm_method_node_t * 
 rb_vm_define_method2(Class klass, SEL sel, rb_vm_method_node_t *node,
-	bool direct)
+	long flags, bool direct)
 {
     assert(node != NULL);
 
-    long flags = node->flags;
-    flags &= ~VM_METHOD_PRIVATE;
-    flags &= ~VM_METHOD_PROTECTED;
+    
+    if (flags == -1) {
+	flags = node->flags;
+	flags &= ~VM_METHOD_PRIVATE;
+	flags &= ~VM_METHOD_PROTECTED;
+    }
 
     return __rb_vm_define_method(klass, sel, node->objc_imp, node->ruby_imp,
 	    node->arity, flags, direct);
