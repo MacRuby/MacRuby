@@ -1379,6 +1379,9 @@ static void
 rb_vm_alias_method(Class klass, Method method, ID name, bool noargs)
 {
     IMP imp = method_getImplementation(method);
+    if (UNAVAILABLE_IMP(imp)) {
+	return;
+    }
     const char *types = method_getTypeEncoding(method);
 
     rb_vm_method_node_t *node = GET_CORE()->method_node_get(method);
@@ -1806,7 +1809,9 @@ prepare_method:
 
     m = class_getInstanceMethod(klass, sel);
     if (precompiled) {
-	imp = (IMP)data;
+	if (imp == NULL) {
+	    imp = (IMP)data;
+	}
 	GET_CORE()->resolve_method(klass, sel, NULL, arity, flags, imp, m);
     }
     else {
@@ -1825,22 +1830,33 @@ prepare_method:
     }
 
     if (!redefined) {
-	if (!genuine_selector && arity.max != arity.min) {
-	    char buf[100];
+	char buf[100];
+	SEL new_sel = 0;
+	if (!genuine_selector) {
 	    snprintf(buf, sizeof buf, "%s:", sel_name);
-	    sel = sel_registerName(buf);
-	    redefined = true;
-
-	    goto prepare_method;
+	    new_sel = sel_registerName(buf);
+	    if (arity.max != arity.min) {
+		sel = new_sel;
+		redefined = true;
+		goto prepare_method;
+	    }
 	}
-	else if (genuine_selector && arity.min == 0) {
-	    char buf[100];
+	else {
 	    strlcpy(buf, sel_name, sizeof buf);
 	    buf[strlen(buf) - 1] = 0; // remove the ending ':'
-	    sel = sel_registerName(buf);
-	    redefined = true;
-
-	    goto prepare_method;
+	    new_sel = sel_registerName(buf);
+	    if (arity.min == 0) {
+		sel = new_sel;
+		redefined = true;
+		goto prepare_method;
+	    }
+	}
+	Method tmp_m = class_getInstanceMethod(klass, new_sel);
+	if (tmp_m != NULL) {
+	    // If we add -[foo:] and the class responds to -[foo], we need
+	    // to disable it (and vice-versa).
+	    class_replaceMethod(klass, new_sel,
+		    (IMP)rb_vm_undefined_imp, method_getTypeEncoding(tmp_m));	
 	}
     }
 
@@ -2131,6 +2147,9 @@ rb_vm_lookup_method(Class klass, SEL sel, IMP *pimp,
 	return false;
     }
     IMP imp = method_getImplementation(m);
+    if (UNAVAILABLE_IMP(imp)) {
+	return false;
+    }
     if (pimp != NULL) {
 	*pimp = imp;
     }
@@ -2258,8 +2277,6 @@ rb_vm_define_method3(Class klass, SEL sel, rb_vm_block_t *block)
 
     rb_vm_define_method(klass, sel, imp, body, false);
 }
-
-#define UNDEFINED_IMP(imp) (imp == NULL || imp == (IMP)rb_vm_undefined_imp)
 
 void
 RoxorCore::undef_method(Class klass, SEL sel)

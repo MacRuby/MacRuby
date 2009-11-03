@@ -221,9 +221,20 @@ static Method
 rb_vm_super_lookup(VALUE klass, SEL sel)
 {
     // Locate the current method implementation.
-    Method m = class_getInstanceMethod((Class)klass, sel);
-    assert(m != NULL);
-    IMP self = objc_imp(method_getImplementation(m));
+    Class k = (Class)klass;
+    IMP self;
+    while (true) {
+	Method m = class_getInstanceMethod(k, sel);
+	assert(m != NULL);
+	self = method_getImplementation(m);
+	if (UNAVAILABLE_IMP(self)) {
+	    k = class_getSuperclass(k);
+	    assert(k != NULL);
+	}
+	else {
+	    break;
+	}
+    }
 
     // Compute the stack call implementations right after our current method.
     void *callstack[128];
@@ -248,7 +259,6 @@ rb_vm_super_lookup(VALUE klass, SEL sel)
     // the stack.
     VALUE ary = rb_mod_ancestors_nocopy(klass);
     const int count = RARRAY_LEN(ary);
-    VALUE k = klass;
     bool klass_located = false;
 
 #if ROXOR_VM_DEBUG
@@ -272,18 +282,21 @@ rb_vm_super_lookup(VALUE klass, SEL sel)
         }
         if (klass_located) {
             if (i < count - 1) {
-                k = RARRAY_AT(ary, i + 1);
+                VALUE k = RARRAY_AT(ary, i + 1);
 
 		Method method = class_getInstanceMethod((Class)k, sel);
 		VALUE super = RCLASS_SUPER(k);
 
-		if (method == NULL || REMOVED_IMP(method_getImplementation(method))
-		    || (super != 0
-		        && class_getInstanceMethod((Class)super, sel) == method)) {
+		if (method == NULL) {
 		    continue;
 		}
 
 		IMP imp = method_getImplementation(method);
+		if (UNAVAILABLE_IMP(imp)
+		    || (super != 0 && class_getInstanceMethod((Class)super,
+			    sel) == method)) {
+		    continue;
+		}
 
 		if (std::find(callstack_funcs.begin(), callstack_funcs.end(), 
 			    (void *)imp) == callstack_funcs.end()) {
@@ -556,9 +569,7 @@ recache:
 recache2:
 	    IMP imp = method_getImplementation(method);
 
-	    if (UNDEFINED_IMP(imp)
-			|| (REMOVED_IMP(imp)
-				&& rb_vm_super_lookup((VALUE)klass, sel) == NULL)) {
+	    if (UNAVAILABLE_IMP(imp)) {
 		// Method was undefined.
 		goto call_method_missing;
 	    }
@@ -1769,9 +1780,7 @@ rb_vm_respond_to(VALUE obj, SEL sel, bool priv)
 	}
 
 	IMP imp = method_getImplementation(m);
-	if (UNDEFINED_IMP(imp)
-	    || (REMOVED_IMP(imp)
-	        && rb_vm_super_lookup((VALUE)klass, sel) == NULL)) {
+	if (UNAVAILABLE_IMP(imp)) {
 	    return false;
 	}
 
