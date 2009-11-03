@@ -82,7 +82,9 @@ class RDoc::RI::Driver
 
   def self.default_options
     options = {}
-    options[:use_stdout] = !$stdout.tty?
+    # XXX Because of a bug in IO.popen, MacRuby is unable to use the pager facility.
+    #options[:use_stdout] = !$stdout.tty?
+    options[:use_stdout] = true
     options[:width] = 72
     options[:formatter] = RDoc::RI::Formatter.for 'plain'
     options[:interactive] = false
