@@ -769,24 +769,30 @@ rb_mod_modfunc(VALUE module, SEL sel, int argc, VALUE *argv)
 
 //static NODE *basic_respond_to = 0;
 
-bool
-rb_obj_respond_to(VALUE obj, ID id, bool priv)
+static bool
+rb_obj_respond_to2(VALUE obj, ID id, bool priv, bool check_override)
 {
     const char *id_name = rb_id2name(id);
     SEL sel = sel_registerName(id_name);
-    if (!rb_vm_respond_to(obj, sel, priv)) {
+    if (!rb_vm_respond_to2(obj, sel, priv, check_override)) {
 	char buf[100];
 	snprintf(buf, sizeof buf, "%s:", id_name);
 	sel = sel_registerName(buf);
-	return rb_vm_respond_to(obj, sel, priv);
+	return rb_vm_respond_to2(obj, sel, priv, check_override);
     }
     return true;
 }
 
 bool
+rb_obj_respond_to(VALUE obj, ID id, bool priv)
+{
+    return rb_obj_respond_to2(obj, id, priv, true);
+}
+
+bool
 rb_respond_to(VALUE obj, ID id)
 {
-    return rb_obj_respond_to(obj, id, Qfalse);
+    return rb_obj_respond_to(obj, id, false);
 }
 
 /*
@@ -806,7 +812,7 @@ obj_respond_to(VALUE obj, SEL sel, int argc, VALUE *argv)
 
     rb_scan_args(argc, argv, "11", &mid, &priv);
     id = rb_to_id(mid);
-    return rb_obj_respond_to(obj, id, RTEST(priv)) ? Qtrue : Qfalse;
+    return rb_obj_respond_to2(obj, id, RTEST(priv), false) ? Qtrue : Qfalse;
 }
 
 IMP basic_respond_to_imp = NULL;

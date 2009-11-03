@@ -1757,16 +1757,17 @@ rb_vm_get_method(VALUE klass, VALUE obj, ID mid, int scope)
 
 extern IMP basic_respond_to_imp; // vm_method.c
 
-extern "C"
-bool
-rb_vm_respond_to(VALUE obj, SEL sel, bool priv)
+static bool
+respond_to(VALUE obj, SEL sel, bool priv, bool check_override)
 {
     VALUE klass = CLASS_OF(obj);
 
-    IMP respond_to_imp = class_getMethodImplementation((Class)klass,
-	    selRespondTo);
+    const bool overriden = check_override
+	? (class_getMethodImplementation((Class)klass, selRespondTo)
+		!= basic_respond_to_imp)
+	: false;
 
-    if (respond_to_imp == basic_respond_to_imp) {
+    if (!overriden) {
 	// FIXME: too slow!
 	bool reject_pure_ruby_methods = false;
 	Method m = class_getInstanceMethod((Class)klass, sel);
@@ -1802,3 +1803,17 @@ rb_vm_respond_to(VALUE obj, SEL sel, bool priv)
 	return rb_vm_call(obj, selRespondTo, n, args, false) == Qtrue;
     }
 }
+
+extern "C"
+bool
+rb_vm_respond_to(VALUE obj, SEL sel, bool priv)
+{
+    return respond_to(obj, sel, priv, true);
+}
+
+extern "C"
+bool
+rb_vm_respond_to2(VALUE obj, SEL sel, bool priv, bool check_override)
+{
+    return respond_to(obj, sel, priv, check_override);
+} 
