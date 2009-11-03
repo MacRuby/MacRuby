@@ -84,6 +84,8 @@ shellwords.rb
 # TODO: YARV cause error. why ...?
 # singleton.rb
 soap
+strscan.rb
+stringio.rb
 sync.rb
 tempfile.rb
 test
