@@ -38,8 +38,8 @@ describe "A pure Objective-C method" do
     nil.self.should == nil
   end
 
-  it "returning void returns nil in Ruby" do
-    @o.methodReturningVoid.should == nil
+  it "returning void returns the receiver in Ruby" do
+    @o.methodReturningVoid.should == @o
   end
 
   it "returning nil returns nil in Ruby" do

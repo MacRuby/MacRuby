@@ -6641,12 +6641,13 @@ RoxorCompiler::compile_stub(const char *types, bool variadic, int min_argc,
 	ret_type = VoidTy;
     }
 
+    Value *self_arg = NULL;
     if (is_objc) {
 	// self
 	p = SkipFirstType(p);
 	p = SkipStackSize(p);
 	f_types.push_back(RubyObjTy);
-	Value *self_arg = arg++;
+	self_arg = arg++;
 	params.push_back(self_arg);
 
 	// sel
@@ -6719,8 +6720,17 @@ RoxorCompiler::compile_stub(const char *types, bool variadic, int min_argc,
     else {
 	retval = imp_call;
     }
+
     GetFirstType(types, buf, sizeof buf);
-    retval = compile_conversion_to_ruby(buf, convert_type(buf), retval);
+    ret_type = convert_type(buf);
+    if (self_arg != NULL && ret_type == VoidTy) {
+	// If we are calling an Objective-C method that returns void, let's
+	// return the receiver instead of nil, for convenience purposes.
+	retval = self_arg;
+    }
+    else {
+	retval = compile_conversion_to_ruby(buf, ret_type, retval);
+    }
     ReturnInst::Create(context, retval, bb);
 
     return f;
