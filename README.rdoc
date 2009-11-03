@@ -28,7 +28,7 @@ http://macruby.org
 
     $ svn co -r 82747 https://llvm.org/svn/llvm-project/llvm/trunk llvm-trunk
     $ cd llvm-trunk
-    $ ./configure
+    $ ./configure --enable-bindings=none
     $ UNIVERSAL=1 UNIVERSAL_ARCH="i386 x86_64" ENABLE_OPTIMIZED=1 make
     $ sudo env UNIVERSAL=1 UNIVERSAL_ARCH="i386 x86_64" ENABLE_OPTIMIZED=1 make install
 
