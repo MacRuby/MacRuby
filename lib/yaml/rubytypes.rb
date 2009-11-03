@@ -42,7 +42,7 @@ class Object
   end
 
   def self.yaml_new(val)
-    obj = self.new
+    obj = self.alloc
     if obj.respond_to?(:yaml_initialize)
       obj.yaml_initialize(taguri, val)
     else
