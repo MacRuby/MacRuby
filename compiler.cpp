@@ -1222,8 +1222,7 @@ RoxorCompiler::compile_gvar_assignment(NODE *node, Value *val)
     params.push_back(compile_global_entry(node));
     params.push_back(val);
 
-    return CallInst::Create(gvarSetFunc, params.begin(),
-	    params.end(), "", bb);
+    return compile_protected_call(gvarSetFunc, params);
 }
 
 Value *
