@@ -1419,15 +1419,13 @@ extern auto_zone_t *__auto_zone;
 #define GC_WB(dst, newval) \
     do { \
 	void *nv = (void *)newval; \
-	if (*(void **)dst != nv) { \
-	    if (!SPECIAL_CONST_P(nv)) { \
-		if (!auto_zone_set_write_barrier(__auto_zone, \
-			    (const void *)dst, (const void *)nv)) { \
-		    rb_bug("destination %p isn't in the auto zone", dst); \
-		} \
+	if (!SPECIAL_CONST_P(nv)) { \
+	    if (!auto_zone_set_write_barrier(__auto_zone, \
+			(const void *)dst, (const void *)nv)) { \
+		rb_bug("destination %p isn't in the auto zone", dst); \
 	    } \
-	    *(void **)dst = nv; \
 	} \
+	*(void **)dst = nv; \
     } \
     while (0)
 
