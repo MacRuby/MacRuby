@@ -2514,7 +2514,7 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 	    return NULL;
 	}
 
-	if (params.size() - argc > 6) {
+	if (params.size() - argc > 7) {
 	    // Looks like there is a splat argument there, we can't handle this
 	    // in the primitives.
 	    return NULL;
@@ -2540,7 +2540,7 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 	}
 
 	std::vector<Value *> new_params;
-	new_params.push_back(params[1]);		// self
+	new_params.push_back(params[2]);		// self
 	if (argc == 1) {
 	    new_params.push_back(params.back());	// other
 	}
