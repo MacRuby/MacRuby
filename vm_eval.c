@@ -188,28 +188,11 @@ rb_f_public_send(VALUE recv, SEL sel, int argc, VALUE *argv)
 
 /* yield */
 
-static inline VALUE
-rb_yield_0(int argc, const VALUE * argv)
-{
-    return rb_vm_yield(argc, argv);
-}
-
-VALUE
-rb_yield(VALUE val)
-{
-    if (val == Qundef) {
-	return rb_yield_0(0, 0);
-    }
-    else {
-	return rb_yield_0(1, &val);
-    }
-}
-
 VALUE
 rb_yield_values(int n, ...)
 {
     if (n == 0) {
-	return rb_yield_0(0, 0);
+	return rb_vm_yield(0, 0);
     }
     else {
 	int i;
@@ -223,26 +206,18 @@ rb_yield_values(int n, ...)
 	}
 	va_end(args);
 
-	return rb_yield_0(n, argv);
+	return rb_vm_yield(n, argv);
     }
-}
-
-VALUE
-rb_yield_values2(int argc, const VALUE *argv)
-{
-    return rb_yield_0(argc, argv);
 }
 
 VALUE
 rb_yield_splat(VALUE values)
 {
     VALUE tmp = rb_check_array_type(values);
-    volatile VALUE v;
     if (NIL_P(tmp)) {
         rb_raise(rb_eArgError, "not an array");
     }
-    v = rb_yield_0(RARRAY_LEN(tmp), RARRAY_PTR(tmp));
-    return v;
+    return rb_vm_yield(RARRAY_LEN(tmp), RARRAY_PTR(tmp));
 }
 
 static VALUE

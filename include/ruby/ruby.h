@@ -1023,10 +1023,30 @@ PRINTF_ARGS(void rb_compile_warn(const char *, int, const char*, ...), 3, 4);
 typedef VALUE rb_block_call_func(VALUE, VALUE, int, VALUE*);
 
 VALUE rb_each(VALUE);
-VALUE rb_yield(VALUE);
+
+VALUE rb_vm_yield(int argc, const VALUE *argv);
+
+static inline VALUE
+rb_yield(VALUE val)
+{
+    if (val == Qundef) {
+	return rb_vm_yield(0, 0);
+    }
+    else {
+	return rb_vm_yield(1, &val);
+    }
+}
+
+static inline VALUE
+rb_yield_values2(int argc, const VALUE *argv)
+{
+    return rb_vm_yield(argc, argv);
+}
+
 VALUE rb_yield_values(int n, ...);
 VALUE rb_yield_values2(int n, const VALUE *argv);
 VALUE rb_yield_splat(VALUE);
+
 int rb_block_given_p(void);
 void rb_need_block(void);
 VALUE rb_iterate(VALUE(*)(VALUE),VALUE,VALUE(*)(ANYARGS),VALUE);
@@ -1399,12 +1419,15 @@ extern auto_zone_t *__auto_zone;
 #define GC_WB(dst, newval) \
     do { \
 	void *nv = (void *)newval; \
-	if (!SPECIAL_CONST_P(nv)) { \
-	    if (!auto_zone_set_write_barrier(__auto_zone, (const void *)dst, (const void *)nv)) { \
-		rb_bug("destination %p isn't in the auto zone", dst); \
+	if (*(void **)dst != nv) { \
+	    if (!SPECIAL_CONST_P(nv)) { \
+		if (!auto_zone_set_write_barrier(__auto_zone, \
+			    (const void *)dst, (const void *)nv)) { \
+		    rb_bug("destination %p isn't in the auto zone", dst); \
+		} \
 	    } \
+	    *(void **)dst = nv; \
 	} \
-	*(void **)dst = nv; \
     } \
     while (0)
 
