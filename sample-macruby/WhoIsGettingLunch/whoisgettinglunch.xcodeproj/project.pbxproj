@@ -95,6 +95,7 @@
 		080E96DDFE201D6D7F000001 /* Classes */ = {
 			isa = PBXGroup;
 			children = (
+				24AAF7C710A193CE00481787 /* AppController.rb */,
 			);
 			name = Classes;
 			sourceTree = "<group>";
@@ -142,7 +143,6 @@
 				29B97317FDCFA39411CA2CEA /* Resources */,
 				29B97323FDCFA39411CA2CEA /* Frameworks */,
 				19C28FACFE9D520D11CA2CBB /* Products */,
-				24AAF7C710A193CE00481787 /* AppController.rb */,
 			);
 			name = whoisgettinglunch;
 			sourceTree = "<group>";

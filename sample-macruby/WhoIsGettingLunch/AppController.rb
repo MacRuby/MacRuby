@@ -4,8 +4,8 @@ class AppController
 
   def getWinner(sender)
     contestants = @contestants.stringValue.split(",")
-	winner = contestants[rand(contestants.length)]
+	  winner = contestants[rand(contestants.length)]
 
-	@winner.stringValue = winner.strip
+	  @winner.stringValue = winner.strip
   end
 end
