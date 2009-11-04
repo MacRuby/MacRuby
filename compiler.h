@@ -209,7 +209,9 @@ class RoxorCompiler {
 	Function *getSpecialFunc;
 	Function *breakFunc;
 	Function *returnFromBlockFunc;
+	Function *returnedFromBlockFunc;
 	Function *checkReturnFromBlockFunc;
+	Function *setHasEnsureFunc;
 	Function *longjmpFunc;
 	Function *setjmpFunc;
 	Function *setScopeFunc;
@@ -308,6 +310,7 @@ class RoxorCompiler {
 	Value *compile_dvar_slot(ID name);
 	void compile_break_val(Value *val);
 	void compile_simple_return(Value *val);
+	Value *compile_set_has_ensure(Value *val);
 	void compile_return_from_block(Value *val, int id);
 	void compile_return_from_block_handler(int id);
 	Value *compile_jump(NODE *node);

@@ -271,6 +271,8 @@ RoxorVM::RoxorVM(void)
     last_status = Qnil;
     errinfo = Qnil;
     parse_in_eval = false;
+    has_ensure = false;
+    return_from_block = -1;
 }
 
 static inline void *
@@ -327,6 +329,8 @@ RoxorVM::RoxorVM(const RoxorVM &vm)
     last_status = Qnil;
     errinfo = Qnil;
     parse_in_eval = false;
+    has_ensure = false;
+    return_from_block = -1;
 }
 
 RoxorVM::~RoxorVM(void)
@@ -3099,7 +3103,12 @@ rb_vm_break(VALUE val)
 	rb_raise(rb_eLocalJumpError, "break from proc-closure");
     }
 #endif
-    GET_VM()->set_broken_with(val);
+    RoxorVM *vm = GET_VM();
+    if (vm->get_broken_with() != val) {
+	GC_RELEASE(vm->get_broken_with());
+	vm->set_broken_with(val);
+	GC_RETAIN(val);
+    }
 }
 
 extern "C"
@@ -3117,18 +3126,55 @@ rb_vm_pop_broken_value(void)
 }
 
 extern "C"
+unsigned char
+rb_vm_set_has_ensure(unsigned char state)
+{
+    RoxorVM *vm = GET_VM();
+    const bool old_state = vm->get_has_ensure();
+    vm->set_has_ensure(state);
+    return old_state ? 1 : 0;
+}
+
+extern "C"
 void
 rb_vm_return_from_block(VALUE val, int id, rb_vm_block_t *running_block)
 {
+    RoxorVM *vm = GET_VM();
+
     // Do not trigger a return from the calling scope if the running block
     // is a lambda, to conform to the ruby 1.9 specifications.
-    if (!(running_block->flags & VM_BLOCK_LAMBDA)) {
+    if (running_block->flags & VM_BLOCK_LAMBDA) {
+	return;
+    }
+
+    // If we are inside an ensure block or if the running block is a Proc,
+    // let's implement return-from-block using a C++ exception (slow).
+    if (vm->get_has_ensure() || (running_block->flags & VM_BLOCK_PROC)) {
 	RoxorReturnFromBlockException *exc =
 	    new RoxorReturnFromBlockException();
 	exc->val = val;
 	exc->id = id;
 	throw exc;
     }
+
+    // Otherwise, let's mark the VM (fast).
+    vm->set_return_from_block(id);
+    if (vm->get_broken_with() != val) {
+	GC_RELEASE(vm->get_broken_with());
+	vm->set_broken_with(val);
+	GC_RETAIN(val);
+    }
+}
+
+extern "C"
+VALUE
+rb_vm_returned_from_block(int id)
+{
+    RoxorVM *vm = GET_VM();
+    if (id != -1 && vm->get_return_from_block() == id) {
+	vm->set_return_from_block(-1);
+    }
+    return vm->pop_broken_with();
 }
 
 extern "C" std::type_info *__cxa_current_exception_type(void);
@@ -3558,7 +3604,7 @@ rb_last_status_set(int status, rb_pid_t pid)
 {
     VALUE last_status = GET_VM()->get_last_status();
     if (last_status != Qnil) {
-	rb_objc_release((void *)last_status);
+	GC_RELEASE(last_status);
     }
 
     if (pid == -1) {
@@ -3568,7 +3614,7 @@ rb_last_status_set(int status, rb_pid_t pid)
 	last_status = rb_obj_alloc(rb_cProcessStatus);
 	rb_iv_set(last_status, "status", INT2FIX(status));
 	rb_iv_set(last_status, "pid", PIDT2NUM(pid));
-	rb_objc_retain((void *)last_status);
+	GC_RETAIN(last_status);
     }
     GET_VM()->set_last_status(last_status);
 }
@@ -3588,10 +3634,10 @@ rb_set_errinfo(VALUE err)
     }
     VALUE errinfo = GET_VM()->get_errinfo();
     if (errinfo != Qnil) {
-	rb_objc_release((void *)errinfo);
+	GC_RELEASE(errinfo);
     }
     GET_VM()->set_errinfo(err);
-    rb_objc_retain((void *)err);
+    GC_RETAIN(err);
 }
 
 extern "C"
@@ -3645,9 +3691,9 @@ rb_backref_set(VALUE val)
 {
     VALUE old = GET_VM()->get_backref();
     if (old != val) {
-	rb_objc_release((void *)old);
+	GC_RELEASE(old);
 	GET_VM()->set_backref(val);
-	rb_objc_retain((void *)val);
+	GC_RETAIN(val);
     }
 }
 

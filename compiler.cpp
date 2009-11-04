@@ -124,7 +124,9 @@ RoxorCompiler::RoxorCompiler(void)
     getSpecialFunc = NULL;
     breakFunc = NULL;
     returnFromBlockFunc = NULL;
+    returnedFromBlockFunc = NULL;
     checkReturnFromBlockFunc = NULL;
+    setHasEnsureFunc = NULL;
     longjmpFunc = NULL;
     setjmpFunc = NULL;
     setScopeFunc = NULL;
@@ -357,7 +359,8 @@ RoxorCompiler::compile_optional_arguments(
 }
 
 void
-RoxorCompiler::compile_dispatch_arguments(NODE *args, std::vector<Value *> &arguments, int *pargc)
+RoxorCompiler::compile_dispatch_arguments(NODE *args,
+	std::vector<Value *> &arguments, int *pargc)
 {
     int argc = 0;
 
@@ -1788,6 +1791,21 @@ RoxorCompiler::compile_simple_return(Value *val)
     else {
 	ReturnInst::Create(context, val, bb);
     }
+}
+
+Value *
+RoxorCompiler::compile_set_has_ensure(Value *val)
+{
+    if (setHasEnsureFunc == NULL) {
+	setHasEnsureFunc = cast<Function>(
+		module->getOrInsertFunction(
+		    "rb_vm_set_has_ensure", Int8Ty, Int8Ty, NULL));
+    }
+
+    std::vector<Value *> params;
+    params.push_back(val);
+    return CallInst::Create(setHasEnsureFunc, params.begin(), params.end(),
+	    "", bb);
 }
 
 Value *
@@ -4817,7 +4835,6 @@ rescan_args:
 		PHINode *new_ensure_pn = PHINode::Create(RubyObjTy,
 			"ensure.phi", ensure_return_bb);
 		ensure_pn = new_ensure_pn;
-		Value *val;
 
 		ensure_bb = ensure_return_bb;
 
@@ -4828,10 +4845,13 @@ rescan_args:
 		BasicBlock *old_rescue_invoke_bb = rescue_invoke_bb;
 		BasicBlock *old_rescue_rethrow_bb = rescue_rethrow_bb;
 
+		Value *old_has_ensure =
+		    compile_set_has_ensure(ConstantInt::get(Int8Ty, 1));
+
 		rescue_invoke_bb = new_rescue_invoke_bb;
 		rescue_rethrow_bb = new_rescue_rethrow_bb;
 		DEBUG_LEVEL_INC();
-		val = compile_node(node->nd_head);
+		Value *val = compile_node(node->nd_head);
 		DEBUG_LEVEL_DEC();
 		rescue_rethrow_bb = old_rescue_rethrow_bb;
 		rescue_invoke_bb = old_rescue_invoke_bb;
@@ -4852,6 +4872,7 @@ rescan_args:
 			BranchInst::Create(new_rescue_rethrow_bb, bb);
 		    }
 		    bb = new_rescue_rethrow_bb;
+		    compile_set_has_ensure(old_has_ensure);
 		    compile_node(node->nd_ensr);
 		    compile_rethrow_exception();
 		}
@@ -4869,6 +4890,7 @@ rescan_args:
 		    // some value was returned in the block so we have to
 		    // make a version of the ensure that returns this value
 		    bb = ensure_return_bb;
+		    compile_set_has_ensure(old_has_ensure);
 		    compile_node(node->nd_ensr);
 		    // the return value is the PHINode from all the return
 		    compile_simple_return(new_ensure_pn);
@@ -4877,6 +4899,7 @@ rescan_args:
 		// we also have to compile the ensure
 		// for when the block was left without return
 		bb = ensure_normal_bb;
+		compile_set_has_ensure(old_has_ensure);
 		compile_node(node->nd_ensr);
 
 		return val;
@@ -4973,9 +4996,9 @@ rescan_args:
 		BasicBlock *return_from_block_bb = NULL;
 		if (!old_current_block_chain && return_from_block != -1) {
 		    // The block we just compiled contains one or more
-		    // return expressions! We need to enclose the dispatcher
-		    // call inside an exception handler, since return-from
-		    // -block is implemented using a C++ exception.
+		    // return expressions! We need to enclose further
+		    // dispatcher calls inside an exception handler, since
+		    // return-from-block may use a C++ exception.
 		    Function *f = bb->getParent();
 		    rescue_invoke_bb = return_from_block_bb =
 			BasicBlock::Create(context, "return-from-block", f);
@@ -5018,6 +5041,37 @@ rescan_args:
 
 		    caller = compile_dispatch_call(params);
 		}
+
+		if (returnedFromBlockFunc == NULL) {
+		    // VALUE rb_vm_returned_from_block(int id);
+		    returnedFromBlockFunc = cast<Function>(
+			    module->getOrInsertFunction(
+				"rb_vm_returned_from_block",
+				RubyObjTy, Int32Ty, NULL));
+		}
+
+		std::vector<Value *> params2;
+		params2.push_back(ConstantInt::get(Int32Ty,
+			    return_from_block_bb != NULL
+			    ? return_from_block : -1));
+
+		Value *retval_block = CallInst::Create(returnedFromBlockFunc,
+			params2.begin(), params2.end(), "", bb);
+
+		Value *is_returned = new ICmpInst(*bb, ICmpInst::ICMP_NE,
+			retval_block, undefVal);
+
+		Function *f = bb->getParent();
+		BasicBlock *return_bb = BasicBlock::Create(context,
+			"return-from-block-fast", f);
+		BasicBlock *next_bb = BasicBlock::Create(context, "next", f);
+
+		BranchInst::Create(return_bb, next_bb, is_returned, bb);
+
+		bb = return_bb;
+		ReturnInst::Create(context, retval_block, bb);
+
+		bb = next_bb;
 
 		if (return_from_block_bb != NULL) {
 		    BasicBlock *old_bb = bb;

@@ -845,6 +845,8 @@ class RoxorVM {
 	int safe_level;
 	rb_vm_method_missing_reason_t method_missing_reason;
 	bool parse_in_eval;
+	bool has_ensure;
+	int return_from_block;
 
     public:
 	RoxorVM(void);
@@ -861,6 +863,8 @@ class RoxorVM {
 	ACCESSOR(safe_level, int);
 	ACCESSOR(method_missing_reason, rb_vm_method_missing_reason_t);
 	ACCESSOR(parse_in_eval, bool);
+	ACCESSOR(has_ensure, bool);
+	ACCESSOR(return_from_block, int);
 
 	std::string debug_blocks(void);
 
@@ -948,14 +952,17 @@ class RoxorVM {
 
 	VALUE *get_binding_lvar(ID name, bool create);
 
-	VALUE pop_broken_with(void) {
-	    VALUE v = broken_with;
-	    broken_with = Qundef;
-	    return v;
-	}
-
 	VALUE ruby_catch(VALUE tag);
 	VALUE ruby_throw(VALUE tag, VALUE value);
+
+	VALUE pop_broken_with(void) {
+	    VALUE val = broken_with;
+	    if (return_from_block == -1) {
+		GC_RELEASE(val);
+		broken_with = Qundef;
+	    }
+	    return val;
+	}
 
 	void setup_from_current_thread(void);
 
