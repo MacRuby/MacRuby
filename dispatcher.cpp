@@ -1757,8 +1757,8 @@ rb_vm_get_method(VALUE klass, VALUE obj, ID mid, int scope)
 
 extern IMP basic_respond_to_imp; // vm_method.c
 
-static bool
-respond_to(VALUE obj, SEL sel, bool priv, bool check_override)
+bool
+RoxorCore::respond_to(VALUE obj, SEL sel, bool priv, bool check_override)
 {
     VALUE klass = CLASS_OF(obj);
 
@@ -1768,30 +1768,43 @@ respond_to(VALUE obj, SEL sel, bool priv, bool check_override)
 	: false;
 
     if (!overriden) {
-	// FIXME: too slow!
-	bool reject_pure_ruby_methods = false;
-	Method m = class_getInstanceMethod((Class)klass, sel);
-	if (m == NULL) {
-	    const char *selname = sel_getName(sel);
-	    sel = helper_sel(selname, strlen(selname));
-	    if (sel != NULL) {
-		m = class_getInstanceMethod((Class)klass, sel);
-		reject_pure_ruby_methods = true;
+	lock();
+	const long key = respond_to_key((Class)klass, sel);
+	std::map<long, int>::iterator iter = respond_to_cache.find(key);
+	unlock();
+	int status;
+	if (iter != respond_to_cache.end()) {
+	    status = iter->second;
+	}
+	else {
+	    Method m = class_getInstanceMethod((Class)klass, sel);
+	    if (m == NULL) {
+		const char *selname = sel_getName(sel);
+		sel = helper_sel(selname, strlen(selname));
+		if (sel != NULL) {
+		    m = class_getInstanceMethod((Class)klass, sel);
+		}
 	    }
-	}
 
-	IMP imp = method_getImplementation(m);
-	if (UNAVAILABLE_IMP(imp)) {
-	    return false;
+	    IMP imp = method_getImplementation(m);
+	    if (UNAVAILABLE_IMP(imp)) {
+		status = RESPOND_TO_NOT_EXIST;
+	    }
+	    else {
+		rb_vm_method_node_t *node = method_node_get(m);
+		if (node != NULL && (node->flags & VM_METHOD_PRIVATE)) {
+		    status = RESPOND_TO_PRIVATE;
+		}
+		else {
+		    status = RESPOND_TO_PUBLIC;
+		}
+	    }
+	    lock();
+	    respond_to_cache[key] = status;
+	    unlock();
 	}
-
-	rb_vm_method_node_t *node = GET_CORE()->method_node_get(m);
-	if (node != NULL
-	    && (reject_pure_ruby_methods
-		|| (!priv && (node->flags & VM_METHOD_PRIVATE)))) {
-	    return false;
-	}
-        return true;
+	return status == RESPOND_TO_PUBLIC
+	    || (priv && status == RESPOND_TO_PRIVATE);
     }
     else {
 	VALUE args[2];
@@ -1802,6 +1815,12 @@ respond_to(VALUE obj, SEL sel, bool priv, bool check_override)
 	}
 	return rb_vm_call(obj, selRespondTo, n, args, false) == Qtrue;
     }
+}
+
+static bool
+respond_to(VALUE obj, SEL sel, bool priv, bool check_override)
+{
+    return GET_CORE()->respond_to(obj, sel, priv, check_override);
 }
 
 extern "C"

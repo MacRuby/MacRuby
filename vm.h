@@ -629,6 +629,12 @@ class RoxorCore {
 	std::map<SEL, std::string *> bs_informal_protocol_imethods,
 	    bs_informal_protocol_cmethods;
 
+	// respond_to? cache.
+#define RESPOND_TO_NOT_EXIST	0
+#define RESPOND_TO_PUBLIC 	1
+#define RESPOND_TO_PRIVATE 	2
+	std::map<long, int> respond_to_cache;
+
 #if ROXOR_VM_DEBUG
 	long functions_compiled;
 #endif
@@ -779,6 +785,14 @@ class RoxorCore {
 	void register_finalizer(rb_vm_finalizer_t *finalizer);
 	void unregister_finalizer(rb_vm_finalizer_t *finalizer);
 	void call_all_finalizers(void);
+
+	long respond_to_key(Class klass, SEL sel) {
+	    return (long)klass + (long)sel;
+	}
+	void invalidate_respond_to_cache(void) {
+	    respond_to_cache.clear();
+	}
+	bool respond_to(VALUE obj, SEL sel, bool priv, bool check_override);
 
     private:
 	bool register_bs_boxed(bs_element_type_t type, void *value);

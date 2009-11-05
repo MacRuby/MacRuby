@@ -825,6 +825,9 @@ RoxorCore::add_method(Class klass, SEL sel, IMP imp, IMP ruby_imp,
 	ruby_imps[ruby_imp] = node;
     }
 
+    // Invalidate respond_to cache.
+    invalidate_respond_to_cache();
+
     // Invalidate dispatch cache.
     std::map<SEL, struct mcache *>::iterator iter3 = mcache.find(sel);
     if (iter3 != mcache.end()) {
@@ -1771,6 +1774,8 @@ RoxorCore::prepare_method(Class klass, SEL sel, Function *func,
     m->func = func;
     m->arity = arity;
     m->flags = flags;
+
+    invalidate_respond_to_cache();
 }
 
 static void
@@ -2296,6 +2301,7 @@ RoxorCore::undef_method(Class klass, SEL sel)
 #endif
 
     class_replaceMethod((Class)klass, sel, (IMP)rb_vm_undefined_imp, "@@:");
+    invalidate_respond_to_cache();
 
 #if 0
     std::map<Method, rb_vm_method_node_t *>::iterator iter
