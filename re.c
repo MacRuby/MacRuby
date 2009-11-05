@@ -3026,7 +3026,7 @@ rb_reg_match2(VALUE re, SEL sel)
  *  The return value is a value from block execution in this case.
  */
 
-static VALUE
+VALUE
 rb_reg_match_m(VALUE re, SEL sel, int argc, VALUE *argv)
 {
     VALUE result, str, initpos;

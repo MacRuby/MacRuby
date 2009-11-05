@@ -611,8 +611,7 @@ rb_str_cstr(VALUE ptr)
 	return cptr;
     }
 
-    // XXX this is quite inefficient, but we don't really have the
-    // choice.
+    // XXX this is quite inefficient, but we don't really have a choice.
 
     const long max = CFStringGetMaximumSizeForEncoding(
 	    CFStringGetLength((CFStringRef)ptr),
@@ -621,7 +620,7 @@ rb_str_cstr(VALUE ptr)
     cptr = (char *)xmalloc(max + 1);
     if (!CFStringGetCString((CFStringRef)ptr, cptr,
 		max + 1, kCFStringEncodingUTF8)) {
-	// Probably a UTF16 string...
+	// Probably an UTF16 string...
 	xfree(cptr);
 	return NULL;
     }
@@ -1330,16 +1329,17 @@ static VALUE get_pat(VALUE, int);
  *  The return value is a value from block execution in this case.
  */
 
+VALUE rb_reg_match_m(VALUE re, SEL sel, int argc, VALUE *argv);
+
 static VALUE
 rb_str_match_m(VALUE str, SEL sel, int argc, VALUE *argv)
 {
-    VALUE re, result;
     if (argc < 1) {
 	rb_raise(rb_eArgError, "wrong number of arguments (%d for 1)", argc);
     }
-    re = argv[0];
+    VALUE re = argv[0];
     argv[0] = str;
-    result = rb_funcall2(get_pat(re, 0), rb_intern("match"), argc, argv);
+    VALUE result = rb_reg_match_m(get_pat(re, 0), 0, argc, argv);
     if (!NIL_P(result) && rb_block_given_p()) {
 	return rb_yield(result);
     }
@@ -4458,7 +4458,22 @@ rb_str_crypt(VALUE str, SEL sel, VALUE salt)
 VALUE
 rb_str_intern_fast(VALUE s)
 {
-    return ID2SYM(rb_intern_str(s));
+    char *cptr = (char *)CFStringGetCStringPtr((CFStringRef)s, 0);
+    if (cptr != NULL) {
+	return ID2SYM(rb_intern(cptr));
+    }
+
+    char buf[200];
+    if (CFStringGetLength((CFStringRef)s) > sizeof(buf)) {
+	return ID2SYM(rb_intern(RSTRING_PTR(s)));
+    }
+
+    if (!CFStringGetCString((CFStringRef)s, buf, sizeof buf,
+		kCFStringEncodingUTF8)) {
+	// Probably an UTF16 string...
+	rb_raise(rb_eRuntimeError, "can't intern string `%p'", (void *)s);
+    }
+    return ID2SYM(rb_intern(buf));
 }
 
 static VALUE
