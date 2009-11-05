@@ -289,6 +289,7 @@ void *rb_vm_removed_imp(void *rcv, SEL sel);
      || imp == (IMP)rb_vm_removed_imp)
 void rb_vm_define_attr(Class klass, const char *name, bool read, bool write);
 void rb_vm_undef_method(Class klass, ID name, bool must_exist);
+void rb_vm_remove_method(Class klass, ID name);
 void rb_vm_alias(VALUE klass, ID name, ID def);
 void rb_vm_copy_methods(Class from_class, Class to_class);
 VALUE rb_vm_call(VALUE self, SEL sel, int argc, const VALUE *args, bool super);
@@ -744,6 +745,7 @@ class RoxorCore {
 	rb_vm_method_node_t *retype_method(Class klass,
 		rb_vm_method_node_t *node, const char *types);
 	void undef_method(Class klass, SEL sel);
+	void remove_method(Class klass, SEL sel);
 	bool resolve_methods(std::map<Class, rb_vm_method_source_t *> *map,
 		Class klass, SEL sel);
 	void copy_methods(Class from_class, Class to_class);

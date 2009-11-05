@@ -120,43 +120,14 @@ remove_method(VALUE klass, ID mid)
     if (rb_safe_level() >= 4 && !OBJ_TAINTED(klass)) {
 	rb_raise(rb_eSecurityError, "Insecure: can't remove method");
     }
-    if (OBJ_FROZEN(klass))
+    if (OBJ_FROZEN(klass)) {
 	rb_error_frozen("class/module");
+    }
     if (mid == object_id || mid == __send__ || mid == idInitialize) {
 	rb_warn("removing `%s' may cause serious problem", rb_id2name(mid));
     }
-    SEL sel;
-    Method m;
 
-    sel = sel_registerName(rb_id2name(mid));
-    m = class_getInstanceMethod((Class)klass, sel);
-    if (m == NULL) {
-	char buf[100];
-	size_t len = strlen((char *)sel);
-	if (((char *)sel)[len - 1] != ':') {
-	    snprintf(buf, sizeof buf, "%s:", (char *)sel);
-	    sel = sel_registerName(buf);
-	    m = class_getInstanceMethod((Class)klass, sel);
-	}
-    }
-    if (m == NULL
-        || class_getInstanceMethod((Class)RCLASS_SUPER(klass), sel) == m) {
-	rb_name_error(mid, "method `%s' not defined in %s",
-		      rb_id2name(mid), rb_class2name(klass));
-    }
-    if (!rb_vm_is_ruby_method(m)) {
-	rb_warn("removing pure Objective-C method `%s' may cause serious " \
-		"problem", rb_id2name(mid));
-    }
-    method_setImplementation(m, (IMP)rb_vm_removed_imp);
-
-    if (RCLASS_SINGLETON(klass)) {
-	rb_funcall(rb_iv_get(klass, "__attached__"), singleton_removed, 1,
-		   ID2SYM(mid));
-    }
-    else {
-	rb_funcall(klass, removed, 1, ID2SYM(mid));
-    }
+    rb_vm_remove_method((Class)klass, mid);
 }
 
 void
@@ -176,9 +147,7 @@ rb_remove_method(VALUE klass, const char *name)
 static VALUE
 rb_mod_remove_method(VALUE mod, SEL sel, int argc, VALUE *argv)
 {
-    int i;
-
-    for (i = 0; i < argc; i++) {
+    for (int i = 0; i < argc; i++) {
 	remove_method(mod, rb_to_id(argv[i]));
     }
     return mod;

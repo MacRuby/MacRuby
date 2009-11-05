@@ -97,6 +97,10 @@ Init_id(void)
     selBackquote = sel_registerName("`:");
     selMethodAdded = sel_registerName("method_added:");
     selSingletonMethodAdded = sel_registerName("singleton_method_added:");
+    selMethodRemoved = sel_registerName("method_removed:");
+    selSingletonMethodRemoved = sel_registerName("singleton_method_removed:");
+    selMethodUndefined = sel_registerName("method_undefined:");
+    selSingletonMethodUndefined = sel_registerName("singleton_method_undefined:");
     selIsEqual = sel_registerName("isEqual:");
     selWrite = sel_registerName("write:");
     selInherited = sel_registerName("inherited:");

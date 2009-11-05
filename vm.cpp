@@ -2311,16 +2311,14 @@ RoxorCore::undef_method(Class klass, SEL sel)
     ruby_methods.erase(iter);
 #endif
 
-#if 0
-    // TODO call undefined
+    VALUE sym = ID2SYM(rb_intern(sel_getName(sel)));
     if (RCLASS_SINGLETON(klass)) {
-	rb_funcall(rb_iv_get(klass, "__attached__"),
-		   singleton_undefined, 1, ID2SYM(id));
+	VALUE sk = rb_iv_get((VALUE)klass, "__attached__");
+	rb_vm_call(sk, selSingletonMethodUndefined, 1, &sym, false);
     }
     else {
-	rb_funcall(klass, undefined, 1, ID2SYM(id));
+	rb_vm_call((VALUE)klass, selMethodUndefined, 1, &sym, false);
     }
-#endif
 }
 
 extern "C"
@@ -2350,6 +2348,56 @@ rb_vm_undef_method(Class klass, ID name, bool must_exist)
     else {
 	GET_CORE()->undef_method(klass, node->sel);
     }
+}
+
+void
+RoxorCore::remove_method(Class klass, SEL sel)
+{
+#if ROXOR_VM_DEBUG
+    printf("remove %c[%s %s]\n",
+	    class_isMetaClass(klass) ? '+' : '-',
+	    class_getName(klass),
+	    sel_getName(sel));
+#endif
+
+    Method m = class_getInstanceMethod(klass, sel);
+    assert(m != NULL);
+    method_setImplementation(m, (IMP)rb_vm_removed_imp);
+    invalidate_respond_to_cache();
+
+    VALUE sym = ID2SYM(rb_intern(sel_getName(sel)));
+    if (RCLASS_SINGLETON(klass)) {
+	VALUE sk = rb_iv_get((VALUE)klass, "__attached__");
+	rb_vm_call(sk, selSingletonMethodRemoved, 1, &sym, false);
+    }
+    else {
+	rb_vm_call((VALUE)klass, selMethodRemoved, 1, &sym, false);
+    }
+}
+
+extern "C"
+void
+rb_vm_remove_method(Class klass, ID name)
+{
+    rb_vm_method_node_t *node = NULL;
+
+    if (!rb_vm_lookup_method2((Class)klass, name, NULL, NULL, &node)) {
+	rb_raise(rb_eNameError, "undefined method `%s' for %s `%s'",
+		rb_id2name(name),
+		TYPE(klass) == T_MODULE ? "module" : "class",
+		rb_class2name((VALUE)klass));
+    }
+    if (node == NULL) {
+	rb_raise(rb_eRuntimeError,
+		"cannot remove method `%s' because it is a native method",
+		rb_id2name(name));
+    }
+    if (node->klass != klass) {
+	rb_raise(rb_eNameError, "method `%s' not defined in %s",
+		rb_id2name(name), rb_class2name((VALUE)klass));
+    }
+
+    GET_CORE()->remove_method(klass, node->sel);
 }
 
 extern "C"
