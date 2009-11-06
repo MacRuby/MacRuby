@@ -1318,12 +1318,16 @@ VALUE
 rb_vm_fast_aref(VALUE obj, VALUE other, struct mcache *cache,
 		unsigned char overriden)
 {
-    // TODO what about T_HASH?
-    if (overriden == 0 && TYPE(obj) == T_ARRAY) {
-	if (TYPE(other) == T_FIXNUM) {
-	    return rb_ary_entry(obj, FIX2LONG(other));
-	}
-	return rb_ary_aref(obj, 0, 1, &other);
+    if (overriden == 0)
+	switch (TYPE(obj)) {
+	    case T_ARRAY:
+		if (TYPE(other) == T_FIXNUM) {
+		    return rb_ary_entry(obj, FIX2LONG(other));
+		}
+		return rb_ary_aref(obj, 0, 1, &other);
+
+	    case T_HASH:
+		return rb_hash_aref(obj, other);
     }
     return __rb_vm_dispatch(GET_VM(), cache, 0, obj, NULL, selAREF, NULL, 0, 1,
 	    &other);
@@ -1334,11 +1338,17 @@ VALUE
 rb_vm_fast_aset(VALUE obj, VALUE other1, VALUE other2, struct mcache *cache,
 		unsigned char overriden)
 {
-    // TODO what about T_HASH?
-    if (overriden == 0 && TYPE(obj) == T_ARRAY) {
-	if (TYPE(other1) == T_FIXNUM) {
-	    rb_ary_store(obj, FIX2LONG(other1), other2);
-	    return other2;
+    if (overriden == 0) {
+	switch (TYPE(obj)) {
+	    case T_ARRAY:
+		if (TYPE(other1) == T_FIXNUM) {
+		    rb_ary_store(obj, FIX2LONG(other1), other2);
+		    return other2;
+		}
+		break;
+
+	    case T_HASH:
+		return rb_hash_aset(obj, other1, other2);
 	}
     }
     VALUE args[2] = { other1, other2 };
