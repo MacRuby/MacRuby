@@ -91,23 +91,44 @@ st_foreach_safe(st_table *table, int (*func)(ANYARGS), st_data_t a)
 void
 rb_hash_foreach(VALUE hash, int (*func)(ANYARGS), VALUE farg)
 {
-    CFIndex i, count;
-    const void **keys;
-    const void **values;
-
-    count = CFDictionaryGetCount((CFDictionaryRef)hash);
+    CFIndex count = CFDictionaryGetCount((CFDictionaryRef)hash);
     if (count == 0)
 	return;
 
-    keys = (const void **)alloca(sizeof(void *) * count);
-    values = (const void **)alloca(sizeof(void *) * count);
+    const void **keys = (const void **)alloca(sizeof(void *) * count);
+    const void **values = (const void **)alloca(sizeof(void *) * count);
 
     CFDictionaryGetKeysAndValues((CFDictionaryRef)hash, keys, values);
 
-    for (i = 0; i < count; i++) {
-	if ((*func)(OC2RB(keys[i]), OC2RB(values[i]), farg) != ST_CONTINUE)
+    for (CFIndex i = 0; i < count; i++) {
+	if ((*func)(OC2RB(keys[i]), OC2RB(values[i]), farg) != ST_CONTINUE) {
 	    break;
+	}
     }
+}
+
+struct rb_hash_iterate_context {
+    int (*func)(ANYARGS);
+    VALUE farg;
+};
+
+static void
+rb_hash_iterate_i(const void *key, const void *value, void *context)
+{
+    struct rb_hash_iterate_context *ctx =
+	(struct rb_hash_iterate_context *)context;
+
+    (*ctx->func)(OC2RB(key), OC2RB(value), ctx->farg); 
+}
+
+void
+rb_hash_iterate(VALUE hash, int (*func)(ANYARGS), VALUE farg)
+{
+    struct rb_hash_iterate_context ctx;
+    ctx.func = func;
+    ctx.farg = farg;
+    CFDictionaryApplyFunction((CFDictionaryRef)hash, rb_hash_iterate_i,
+	    &ctx); 
 }
 
 # define HASH_KEY_CALLBACKS(h) \
@@ -685,7 +706,7 @@ rb_hash_key(VALUE hash, SEL sel, VALUE value)
     args[0] = value;
     args[1] = Qnil;
 
-    rb_hash_foreach(hash, key_i, (st_data_t)args);
+    rb_hash_iterate(hash, key_i, (st_data_t)args);
 
     return args[1];
 }
@@ -907,7 +928,7 @@ rb_hash_select(VALUE hash, SEL sel)
 
     RETURN_ENUMERATOR(hash, 0, 0);
     result = rb_hash_new();
-    rb_hash_foreach(hash, select_i, result);
+    rb_hash_iterate(hash, select_i, result);
     return result;
 }
 
@@ -1043,7 +1064,9 @@ rb_hash_empty_p(VALUE hash, SEL sel)
 static int
 each_value_i(VALUE key, VALUE value)
 {
-    if (key == Qundef) return ST_CONTINUE;
+    if (key == Qundef) {
+	return ST_CONTINUE;
+    }
     rb_yield(value);
     return ST_CONTINUE;
 }
@@ -1068,7 +1091,7 @@ static VALUE
 rb_hash_each_value(VALUE hash, SEL sel)
 {
     RETURN_ENUMERATOR(hash, 0, 0);
-    rb_hash_foreach(hash, each_value_i, 0);
+    rb_hash_iterate(hash, each_value_i, 0);
     return hash;
 }
 
@@ -1099,7 +1122,7 @@ static VALUE
 rb_hash_each_key(VALUE hash, SEL sel)
 {
     RETURN_ENUMERATOR(hash, 0, 0);
-    rb_hash_foreach(hash, each_key_i, 0);
+    rb_hash_iterate(hash, each_key_i, 0);
     return hash;
 }
 
@@ -1133,7 +1156,7 @@ static VALUE
 rb_hash_each_pair(VALUE hash, SEL sel)
 {
     RETURN_ENUMERATOR(hash, 0, 0);
-    rb_hash_foreach(hash, each_pair_i, 0);
+    rb_hash_iterate(hash, each_pair_i, 0);
     return hash;
 }
 
@@ -1159,11 +1182,11 @@ to_a_i(VALUE key, VALUE value, VALUE ary)
 static VALUE
 rb_hash_to_a(VALUE hash, SEL sel)
 {
-    VALUE ary;
-
-    ary = rb_ary_new();
-    rb_hash_foreach(hash, to_a_i, ary);
-    if (OBJ_TAINTED(hash)) OBJ_TAINT(ary);
+    VALUE ary = rb_ary_new();
+    rb_hash_iterate(hash, to_a_i, ary);
+    if (OBJ_TAINTED(hash)) {
+	OBJ_TAINT(ary);
+    }
 
     return ary;
 }
@@ -1171,15 +1194,13 @@ rb_hash_to_a(VALUE hash, SEL sel)
 static int
 inspect_i(VALUE key, VALUE value, VALUE str)
 {
-    VALUE str2;
-
     if (key == Qundef) {
 	return ST_CONTINUE;
     }
     if (RSTRING_LEN(str) > 1) {
 	rb_str_cat2(str, ", ");
     }
-    str2 = rb_inspect(key);
+    VALUE str2 = rb_inspect(key);
     rb_str_buf_append(str, str2);
     rb_str_buf_cat2(str, "=>");
     str2 = rb_inspect(value);
@@ -1191,13 +1212,11 @@ inspect_i(VALUE key, VALUE value, VALUE str)
 static VALUE
 inspect_hash(VALUE hash, VALUE dummy, int recur)
 {
-    VALUE str;
-
     if (recur) {
 	return rb_usascii_str_new2("{...}");
     }
-    str = rb_str_buf_new2("{");
-    rb_hash_foreach(hash, inspect_i, str);
+    VALUE str = rb_str_buf_new2("{");
+    rb_hash_iterate(hash, inspect_i, str);
     rb_str_buf_cat2(str, "}");
     OBJ_INFECT(str, hash);
 
@@ -1239,7 +1258,9 @@ rb_hash_to_hash(VALUE hash, SEL sel)
 static int
 keys_i(VALUE key, VALUE value, VALUE ary)
 {
-    if (key == Qundef) return ST_CONTINUE;
+    if (key == Qundef) {
+	return ST_CONTINUE;
+    }
     rb_ary_push(ary, key);
     return ST_CONTINUE;
 }
@@ -1259,11 +1280,8 @@ keys_i(VALUE key, VALUE value, VALUE ary)
 static VALUE
 rb_hash_keys_imp(VALUE hash, SEL sel)
 {
-    VALUE ary;
-
-    ary = rb_ary_new();
-    rb_hash_foreach(hash, keys_i, ary);
-
+    VALUE ary = rb_ary_new();
+    rb_hash_iterate(hash, keys_i, ary);
     return ary;
 }
 
@@ -1276,7 +1294,9 @@ rb_hash_keys(VALUE hash)
 static int
 values_i(VALUE key, VALUE value, VALUE ary)
 {
-    if (key == Qundef) return ST_CONTINUE;
+    if (key == Qundef) {
+	return ST_CONTINUE;
+    }
     rb_ary_push(ary, value);
     return ST_CONTINUE;
 }
@@ -1296,11 +1316,8 @@ values_i(VALUE key, VALUE value, VALUE ary)
 static VALUE
 rb_hash_values(VALUE hash, SEL sel)
 {
-    VALUE ary;
-
-    ary = rb_ary_new();
-    rb_hash_foreach(hash, values_i, ary);
-
+    VALUE ary = rb_ary_new();
+    rb_hash_iterate(hash, values_i, ary);
     return ary;
 }
 
@@ -1413,7 +1430,9 @@ rb_hash_eql(VALUE hash1, SEL sel, VALUE hash2)
 static int
 rb_hash_invert_i(VALUE key, VALUE value, VALUE hash)
 {
-    if (key == Qundef) return ST_CONTINUE;
+    if (key == Qundef) {
+	return ST_CONTINUE;
+    }
     rb_hash_aset(hash, value, key);
     return ST_CONTINUE;
 }
@@ -1434,7 +1453,6 @@ static VALUE
 rb_hash_invert(VALUE hash, SEL sel)
 {
     VALUE h = rb_hash_new();
-
     rb_hash_foreach(hash, rb_hash_invert_i, h);
     return h;
 }
@@ -1442,7 +1460,9 @@ rb_hash_invert(VALUE hash, SEL sel)
 static int
 rb_hash_update_i(VALUE key, VALUE value, VALUE hash)
 {
-    if (key == Qundef) return ST_CONTINUE;
+    if (key == Qundef) {
+	return ST_CONTINUE;
+    }
     rb_hash_aset(hash, key, value);
     return ST_CONTINUE;
 }
@@ -1450,7 +1470,9 @@ rb_hash_update_i(VALUE key, VALUE value, VALUE hash)
 static int
 rb_hash_update_block_i(VALUE key, VALUE value, VALUE hash)
 {
-    if (key == Qundef) return ST_CONTINUE;
+    if (key == Qundef) {
+	return ST_CONTINUE;
+    }
     if (rb_hash_has_key_imp(hash, 0, key)) {
 	value = rb_yield_values(3, key, rb_hash_aref(hash, key), value);
     }
@@ -1519,7 +1541,9 @@ rb_hash_merge(VALUE hash1, SEL sel, VALUE hash2)
 static int
 assoc_i(VALUE key, VALUE val, VALUE *args)
 {
-    if (key == Qundef) return ST_CONTINUE;
+    if (key == Qundef) {
+	return ST_CONTINUE;
+    }
     if (RTEST(rb_equal(args[0], key))) {
 	args[1] = rb_assoc_new(key, val);
 	return ST_STOP;
@@ -1555,7 +1579,9 @@ rb_hash_assoc(VALUE hash, SEL sel, VALUE obj)
 static int
 rassoc_i(VALUE key, VALUE val, VALUE *args)
 {
-    if (key == Qundef) return ST_CONTINUE;
+    if (key == Qundef) {
+	return ST_CONTINUE;
+    }
     if (RTEST(rb_equal(args[0], val))) {
 	args[1] = rb_assoc_new(key, val);
 	return ST_STOP;
