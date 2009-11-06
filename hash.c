@@ -474,8 +474,13 @@ rb_hash_aref(VALUE hash, VALUE key)
     VALUE val;
 
     if (!CFDictionaryGetValueIfPresent((CFDictionaryRef)hash,
-		(const void *)RB2OC(key),
-	(const void **)&val)) {
+		(const void *)RB2OC(key), (const void **)&val)) {
+	if (*(VALUE *)hash == rb_cCFHash) {
+	    struct rb_objc_hash_struct *s = rb_objc_hash_get_struct(hash);
+	    if (s == NULL || s->ifnone == Qnil) {
+		return Qnil;
+	    }
+	}
 	return rb_vm_call_with_cache(defaultCache, hash, selDefault, 1, &key);
     }
     val = OC2RB(val);
