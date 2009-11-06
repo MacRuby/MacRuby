@@ -935,6 +935,19 @@ rb_io_create_buf(rb_io_t *io_struct)
     }
 }
 
+static inline void
+rb_io_read_update(rb_io_t *io_struct, long len)
+{
+    io_struct->buf_offset += len;
+
+    lseek(io_struct->read_fd, io_struct->buf_offset, SEEK_SET);
+
+    if (io_struct->buf_offset == CFDataGetLength(io_struct->buf)) {
+	CFDataSetLength(io_struct->buf, 0);
+	io_struct->buf_offset = 0;
+    }
+}
+
 static inline long
 rb_io_read_internal(rb_io_t *io_struct, UInt8 *buffer, long len)
 {
@@ -945,7 +958,8 @@ rb_io_read_internal(rb_io_t *io_struct, UInt8 *buffer, long len)
 	if (fstat(io_struct->read_fd, &buf) == -1 || buf.st_size == 0
 		|| lseek(io_struct->read_fd, 0, SEEK_CUR) > 0) {
 	    // Either a pipe, stdio, or a regular file that was seeked.
-	    return read_internal(io_struct->read_fd, buffer, len);
+	    return len == 0
+		? 0 : read_internal(io_struct->read_fd, buffer, len);
 	}
 
 	// TODO don't pre-read more than a certain threshold...
@@ -966,13 +980,8 @@ rb_io_read_internal(rb_io_t *io_struct, UInt8 *buffer, long len)
     const long n = len > s - io_struct->buf_offset
 	? s - io_struct->buf_offset : len;
     memcpy(buffer, CFDataGetBytePtr(io_struct->buf) + io_struct->buf_offset, n);
-    io_struct->buf_offset += n;
 
-    lseek(io_struct->read_fd, io_struct->buf_offset, SEEK_SET);
-    if (io_struct->buf_offset == s) {
-	CFDataSetLength(io_struct->buf, 0);
-	io_struct->buf_offset = 0;
-    }
+    rb_io_read_update(io_struct, n);
 
     return n;
 }
@@ -1285,37 +1294,69 @@ rb_io_gets_m(VALUE io, SEL sel, int argc, VALUE *argv)
 	}
     }
     else {
-	long s = 512;
-	CFDataSetLength(data, s);
-
 	const char *sepstr = RSTRING_PTR(sep);
-	const int seplen = RSTRING_LEN(sep);
+	const long seplen = RSTRING_LEN(sep);
 	assert(seplen > 0);
-	UInt8 *buf = CFDataGetMutableBytePtr(data);
-	UInt8 *tmp_buf = alloca(seplen);
-	long data_read = 0;
 
-	while (true) {
-	    if (rb_io_read_internal(io_struct, tmp_buf, seplen) != seplen) {
-		break;
+	// Pre-cache if possible.
+	rb_io_read_internal(io_struct, NULL, 0);
+	if (io_struct->buf != NULL && CFDataGetLength(io_struct->buf) > 0) {
+	    // Read from cache (fast).
+	    const UInt8 *cache = CFDataGetMutableBytePtr(io_struct->buf)
+		+ io_struct->buf_offset;
+	    const long cache_len = CFDataGetLength(io_struct->buf)
+		- io_struct->buf_offset;
+	    const UInt8 *pos = cache;
+	    long data_read = 0;
+	    while (true) {
+		const UInt8 *tmp = memchr(pos, sepstr[0], cache_len);
+		if (tmp == NULL) {
+		    data_read = cache_len;
+		    break;
+		}
+		if (seplen == 1
+			|| memcmp(tmp + 1, &sepstr[1], seplen - 1) == 0) {
+		    data_read = tmp - cache + seplen;
+		    break;
+		}
+		pos = tmp + seplen;
 	    }
-	    if (data_read >= s) {
-		s += s;
-		CFDataSetLength(data, s);
-		buf = CFDataGetMutableBytePtr(data);
+	    if (data_read == 0) {
+		return Qnil;
 	    }
-	    memcpy(&buf[data_read], tmp_buf, seplen);
-	    data_read += seplen;
-
-	    if (memcmp(tmp_buf, sepstr, seplen) == 0) {
-		break;
-	    }
+	    CFDataAppendBytes(data, cache, data_read);
+	    rb_io_read_update(io_struct, data_read);
 	}
+	else {
+	    // Read from IO (slow).
+	    long s = 512;
+	    long data_read = 0;
+	    CFDataSetLength(data, s);
 
-	if (data_read == 0) {
-	    return Qnil;
+	    UInt8 *buf = CFDataGetMutableBytePtr(data);
+	    UInt8 *tmp_buf = alloca(seplen);
+
+	    while (true) {
+		if (rb_io_read_internal(io_struct, tmp_buf, seplen) != seplen) {
+		    break;
+		}
+		if (data_read >= s) {
+		    s += s;
+		    CFDataSetLength(data, s);
+		    buf = CFDataGetMutableBytePtr(data);
+		}
+		memcpy(&buf[data_read], tmp_buf, seplen);
+		data_read += seplen;
+
+		if (memcmp(tmp_buf, sepstr, seplen) == 0) {
+		    break;
+		}
+	    }
+	    if (data_read == 0) {
+		return Qnil;
+	    }
+	    CFDataSetLength(data, data_read);
 	}
-	CFDataSetLength(data, data_read);
     }
     OBJ_TAINT(bstr);
     io_struct->lineno += 1;
