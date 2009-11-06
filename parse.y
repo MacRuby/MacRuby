@@ -6227,9 +6227,6 @@ parser_magic_comment(struct parser_params *parser, const char *str, int len)
 {
     VALUE name = 0, val = 0;
     const char *beg, *end, *vbeg, *vend;
-#define str_copy(_s, _p, _n) ((_s) \
-	? CFStringPad((CFMutableStringRef)_s, CFMakeCollectable(CFStringCreateWithCString(NULL, _p, kCFStringEncodingUTF8)), _n, 0) \
-	: ((_s) = STR_NEW((_p), (_n)))) 
 
     if (len <= 7) return Qfalse;
     if (!(beg = magic_comment_marker(str, len))) return Qfalse;
@@ -6287,7 +6284,7 @@ parser_magic_comment(struct parser_params *parser, const char *str, int len)
 	while (len > 0 && (*str == ';' || ISSPACE(*str))) --len, str++;
 
 	n = end - beg;
-	str_copy(name, beg, n);
+	name = STR_NEW(beg, n);
 #ifndef RIPPER
 	do {
 	    if (STRNCASECMP(p->name, RSTRING_PTR(name), n) == 0) {
@@ -6295,7 +6292,7 @@ parser_magic_comment(struct parser_params *parser, const char *str, int len)
 		if (p->length) {
 		    n = (*p->length)(parser, vbeg, n);
 		}
-		str_copy(val, vbeg, n);
+		val = STR_NEW(vbeg, n); 
 		(*p->func)(parser, RSTRING_PTR(name), RSTRING_PTR(val));
 		break;
 	    }
