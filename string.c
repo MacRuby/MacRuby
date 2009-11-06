@@ -5255,13 +5255,11 @@ static void
 imp_rb_symbol_getCharactersRange(void *rcv, SEL sel, UniChar *buffer, 
 	CFRange range)
 {
-    int i;
-
     if (range.location + range.length > RSYMBOL(rcv)->len) {
 	rb_bug("[Symbol getCharacters:range:] out of bounds");
     }
 
-    for (i = range.location; i < range.location + range.length; i++) {
+    for (int i = range.location; i < range.location + range.length; i++) {
 	*buffer = RSYMBOL(rcv)->str[i];
 	buffer++;
     }
@@ -5276,7 +5274,10 @@ imp_rb_symbol_isEqual(void *rcv, SEL sel, void *other)
     if (other == NULL || *(VALUE *)other != rb_cSymbol) {
 	return false;
     }
-    return CFStringCompare((CFStringRef)rcv, (CFStringRef)other, 0) == 0;
+    if (RSYMBOL(rcv)->len != RSYMBOL(other)->len) {
+	return false;
+    }
+    return strcmp(RSYMBOL(rcv)->str, RSYMBOL(other)->str) == 0;
 }
 
 static void *
