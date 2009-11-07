@@ -751,6 +751,7 @@ class RoxorCore {
 	void copy_methods(Class from_class, Class to_class);
 	void get_methods(VALUE ary, Class klass, bool include_objc_methods,
 		int (*filter) (VALUE, ID, VALUE));
+	void method_added(Class klass, SEL sel);
 
 	GlobalVariable *redefined_op_gvar(SEL sel, bool create);
 	bool should_invalidate_inline_op(SEL sel, Class klass);
