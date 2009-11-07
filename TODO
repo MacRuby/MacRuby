@@ -42,7 +42,7 @@ For 0.5 (must do):
       a YAML merging bug
 [X] MacRuby should not ignore SIGINT and other signals
 [X] fix autoload bugs
-[ ] Xcode target for AOT compilation
+[X] Xcode target for AOT compilation
 [/] finish AOT compiler (only normal mode)
   [X] should locate `llc' inside MacRuby.framework
   [X] macrubyc should handle -arch
