@@ -17,9 +17,9 @@ class Deployer
   def initialize(argv)
     OptionParser.new do |opts|
       opts.banner = "Usage: #{NAME} [options] application-bundle"
-      opts.on('--no-stdlib', "Do not include the standard library") do
-        @no_stdlib = true
-      end
+      opts.on('--compile', 'Compile the bundle source code') { @compile = true }
+      opts.on('--embed', 'Embed MacRuby inside the bundle') { @embed = true }
+      opts.on('--no-stdlib', "Do not embed the standard library") { @no_stdlib = true }
       opts.on('-v', '--version', 'Display the version') do
         puts RUBY_DESCRIPTION
         exit 1
@@ -51,6 +51,27 @@ class Deployer
   end
 
   def run
+    die "Nothing to do, please specify --compile or --embed" if !@compile and !@embed
+    die "--no-stdlib can only be used with --embed" if @no_stdlib and !@embed
+    compile if @compile
+    embed if @embed
+  end
+
+  private
+
+  def compile
+    Dir.glob(File.join(@app_bundle, 'Contents/Resources/*.rb')).each do |source|
+      base = File.basename(source, '.rb')
+      next if base == 'rb_main'
+      obj = File.join(File.dirname(source), base + '.rbo')
+      if !File.exist?(obj) or File.mtime(source) > File.mtime(obj)
+        die "Can't compile \"#{source}\"" unless system("macrubyc -C \"#{source}\" -o \"#{obj}\"")
+        FileUtils.rm_f(source)
+      end
+    end
+  end
+
+  def embed
     # Copy MacRuby.framework inside MyApp.app/Contents/Frameworks.
     app_frameworks = File.join(@app_bundle, 'Contents/Frameworks')
     mkdir_p(app_frameworks)
@@ -85,8 +106,6 @@ class Deployer
       end
     end
   end
-
-  private
 
   def execute(line)
     ret = `#{line}`
