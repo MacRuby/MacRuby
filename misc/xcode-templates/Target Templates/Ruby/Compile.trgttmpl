@@ -1,0 +1,13 @@
+{
+    Class = Aggregate;
+    Description = "Target that compiles your MacRuby application into machine code. This is useful to accelerate the application startup time as well as hiding the original source code.";
+    CustomBuildSettings = {
+    };
+	BuildPhases = (
+        {
+			Class = ShellScript;
+			ShellPath = "/bin/sh";
+			ShellScript = "# The macruby_deploy command-line tool with the --compile argument will compile every Ruby source file of your .app into machine code. Default options will be used. Pass the -h option to get more information.\nPATH=\"$PATH:/usr/local/bin\" macruby_deploy --compile \"$TARGET_BUILD_DIR/$PROJECT_NAME.app\"";
+        },
+    );
+}
