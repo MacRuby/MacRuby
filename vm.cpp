@@ -2105,21 +2105,33 @@ RoxorCore::copy_methods(Class from_class, Class to_class)
 		continue;
 	    }
 
+	    rb_vm_method_source_t *m_src = iter2->second;
+
+	    Method m = class_getInstanceMethod(to_class, sel);
+	    if (m != NULL) {
+		// The method already exists - we need to JIT it.
+		IMP imp = GET_CORE()->compile(m_src->func);
+		resolve_method(to_class, sel, m_src->func, m_src->arity,
+			m_src->flags, imp, m);
+	    }
+	    else {
 #if ROXOR_VM_DEBUG
-	    printf("lazy copy %c[%s %s] to %s\n",
-		    class_isMetaClass(from_class) ? '+' : '-',
-		    class_getName(from_class),
-		    sel_getName(sel),
-		    class_getName(to_class));
+		printf("lazy copy %c[%s %s] to %c%s\n",
+			class_isMetaClass(from_class) ? '+' : '-',
+			class_getName(from_class),
+			sel_getName(sel),
+			class_isMetaClass(to_class) ? '+' : '-',
+			class_getName(to_class));
 #endif
 
-	    rb_vm_method_source_t *m = (rb_vm_method_source_t *)
-		malloc(sizeof(rb_vm_method_source_t));
-	    m->func = iter2->second->func;
-	    m->arity = iter2->second->arity;
-	    m->flags = iter2->second->flags;
-	    dict->insert(std::make_pair(to_class, m));
-	    sels_to_add.push_back(sel);
+		rb_vm_method_source_t *m = (rb_vm_method_source_t *)
+		    malloc(sizeof(rb_vm_method_source_t));
+		m->func = m_src->func;
+		m->arity = m_src->arity;
+		m->flags = m_src->flags;
+		dict->insert(std::make_pair(to_class, m));
+		sels_to_add.push_back(sel);
+	    }
 	}
 
 	for (std::vector<SEL>::iterator i = sels_to_add.begin();
