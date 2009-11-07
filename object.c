@@ -1574,28 +1574,46 @@ rb_mod_eqq(VALUE mod, SEL sel, VALUE arg)
  *
  */
 
+static inline bool
+rb_class_mixin_inherited(VALUE mod, VALUE arg)
+{
+    VALUE ary = rb_attr_get(mod, idIncludedModules);
+    if (ary != Qnil) {
+	for (int i = 0; i < RARRAY_LEN(ary); i++) {
+	    if (RARRAY_AT(ary, i) == arg) {
+		return true;
+	    }
+	} 
+    }
+    return false;
+}
+
 VALUE
 rb_class_inherited_p(VALUE mod, VALUE arg)
 {
     VALUE start = mod;
 
-    if (mod == arg) return Qtrue;
+    if (mod == arg) {
+	return Qtrue;
+    }
     switch (TYPE(arg)) {
-      case T_MODULE:
-      case T_CLASS:
-	break;
-      default:
-	rb_raise(rb_eTypeError, "compared with non class/module");
+	case T_MODULE:
+	case T_CLASS:
+	    break;
+	default:
+	    rb_raise(rb_eTypeError, "compared with non class/module");
     }
     while (mod) {
-	if (mod == arg)
+	if (mod == arg || rb_class_mixin_inherited(mod, arg)) {
 	    return Qtrue;
+	}
 	mod = RCLASS_SUPER(mod);
     }
     /* not mod < arg; check if mod > arg */
     while (arg) {
-	if (arg == start)
+	if (arg == start || rb_class_mixin_inherited(arg, start)) {
 	    return Qfalse;
+	}
 	arg = RCLASS_SUPER(arg);
     }
     return Qnil;
