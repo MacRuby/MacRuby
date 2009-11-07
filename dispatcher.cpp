@@ -1301,12 +1301,18 @@ rb_vm_fast_shift(VALUE obj, VALUE other, struct mcache *cache,
     if (overriden == 0) {
 	switch (TYPE(obj)) {
 	    case T_ARRAY:
-		rb_ary_push(obj, other);
-		return obj;
+		if (*(VALUE *)obj == rb_cRubyArray) {
+		    rb_ary_push(obj, other);
+		    return obj;
+		}
+		break;
 
 	    case T_STRING:
-		rb_str_concat(obj, other);
-		return obj;
+		if (*(VALUE *)obj == rb_cCFString) {
+		    rb_str_concat(obj, other);
+		    return obj;
+		}
+		break;
 	}
     }
     return __rb_vm_dispatch(GET_VM(), cache, 0, obj, NULL, selLTLT, NULL, 0, 1,
@@ -1321,13 +1327,19 @@ rb_vm_fast_aref(VALUE obj, VALUE other, struct mcache *cache,
     if (overriden == 0)
 	switch (TYPE(obj)) {
 	    case T_ARRAY:
-		if (TYPE(other) == T_FIXNUM) {
-		    return rb_ary_entry(obj, FIX2LONG(other));
+		if (*(VALUE *)obj == rb_cRubyArray) {
+		    if (TYPE(other) == T_FIXNUM) {
+			return rb_ary_entry(obj, FIX2LONG(other));
+		    }
+		    return rb_ary_aref(obj, 0, 1, &other);
 		}
-		return rb_ary_aref(obj, 0, 1, &other);
+		break;
 
 	    case T_HASH:
-		return rb_hash_aref(obj, other);
+		if (*(VALUE *)obj == rb_cCFHash) {
+		    return rb_hash_aref(obj, other);
+		}
+		break;
     }
     return __rb_vm_dispatch(GET_VM(), cache, 0, obj, NULL, selAREF, NULL, 0, 1,
 	    &other);
@@ -1341,14 +1353,19 @@ rb_vm_fast_aset(VALUE obj, VALUE other1, VALUE other2, struct mcache *cache,
     if (overriden == 0) {
 	switch (TYPE(obj)) {
 	    case T_ARRAY:
-		if (TYPE(other1) == T_FIXNUM) {
-		    rb_ary_store(obj, FIX2LONG(other1), other2);
-		    return other2;
+		if (*(VALUE *)obj == rb_cRubyArray) {
+		    if (TYPE(other1) == T_FIXNUM) {
+			rb_ary_store(obj, FIX2LONG(other1), other2);
+			return other2;
+		    }
 		}
 		break;
 
 	    case T_HASH:
-		return rb_hash_aset(obj, other1, other2);
+		if (*(VALUE *)obj == rb_cCFHash) {
+		    return rb_hash_aset(obj, other1, other2);
+		}
+		break;
 	}
     }
     VALUE args[2] = { other1, other2 };
