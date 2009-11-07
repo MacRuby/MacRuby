@@ -767,19 +767,39 @@ RoxorCore::should_invalidate_inline_op(SEL sel, Class klass)
     abort();
 }
 
+static ID
+sanitize_mid(SEL sel)
+{
+    const char *selname = sel_getName(sel);
+    const size_t sellen = strlen(selname);
+    if (selname[sellen - 1] == ':') {
+	if (memchr(selname, ':', sellen - 1) != NULL) {
+	    return 0;
+	}
+	char buf[100];
+	strncpy(buf, selname, sellen);
+	buf[sellen - 1] = '\0';
+	return rb_intern(buf);
+    }
+    return rb_intern(selname);
+}
+
 void
 RoxorCore::method_added(Class klass, SEL sel)
 {
     if (get_running()) {
 	// Call method_added: or singleton_method_added:.
-	VALUE sym = ID2SYM(rb_intern(sel_getName(sel)));
-        if (RCLASS_SINGLETON(klass)) {
-	    VALUE sk = rb_iv_get((VALUE)klass, "__attached__");
-	    rb_vm_call(sk, selSingletonMethodAdded, 1, &sym, false);
-        }
-        else {
-	    rb_vm_call((VALUE)klass, selMethodAdded, 1, &sym, false);
-        }
+	ID mid = sanitize_mid(sel);
+	if (mid != 0) {
+	    VALUE sym = ID2SYM(mid);
+	    if (RCLASS_SINGLETON(klass)) {
+		VALUE sk = rb_iv_get((VALUE)klass, "__attached__");
+		rb_vm_call(sk, selSingletonMethodAdded, 1, &sym, false);
+	    }
+	    else {
+		rb_vm_call((VALUE)klass, selMethodAdded, 1, &sym, false);
+	    }
+	}
     }
 
 }
@@ -2330,13 +2350,16 @@ RoxorCore::undef_method(Class klass, SEL sel)
     ruby_methods.erase(iter);
 #endif
 
-    VALUE sym = ID2SYM(rb_intern(sel_getName(sel)));
-    if (RCLASS_SINGLETON(klass)) {
-	VALUE sk = rb_iv_get((VALUE)klass, "__attached__");
-	rb_vm_call(sk, selSingletonMethodUndefined, 1, &sym, false);
-    }
-    else {
-	rb_vm_call((VALUE)klass, selMethodUndefined, 1, &sym, false);
+    ID mid = sanitize_mid(sel);
+    if (mid != 0) {
+	VALUE sym = ID2SYM(mid);
+	if (RCLASS_SINGLETON(klass)) {
+	    VALUE sk = rb_iv_get((VALUE)klass, "__attached__");
+	    rb_vm_call(sk, selSingletonMethodUndefined, 1, &sym, false);
+	}
+	else {
+	    rb_vm_call((VALUE)klass, selMethodUndefined, 1, &sym, false);
+	}
     }
 }
 
@@ -2384,13 +2407,16 @@ RoxorCore::remove_method(Class klass, SEL sel)
     method_setImplementation(m, (IMP)rb_vm_removed_imp);
     invalidate_respond_to_cache();
 
-    VALUE sym = ID2SYM(rb_intern(sel_getName(sel)));
-    if (RCLASS_SINGLETON(klass)) {
-	VALUE sk = rb_iv_get((VALUE)klass, "__attached__");
-	rb_vm_call(sk, selSingletonMethodRemoved, 1, &sym, false);
-    }
-    else {
-	rb_vm_call((VALUE)klass, selMethodRemoved, 1, &sym, false);
+    ID mid = sanitize_mid(sel);
+    if (mid != 0) {
+	VALUE sym = ID2SYM(mid);
+	if (RCLASS_SINGLETON(klass)) {
+	    VALUE sk = rb_iv_get((VALUE)klass, "__attached__");
+	    rb_vm_call(sk, selSingletonMethodRemoved, 1, &sym, false);
+	}
+	else {
+	    rb_vm_call((VALUE)klass, selMethodRemoved, 1, &sym, false);
+	}
     }
 }
 
