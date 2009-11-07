@@ -767,6 +767,23 @@ RoxorCore::should_invalidate_inline_op(SEL sel, Class klass)
     abort();
 }
 
+void
+RoxorCore::method_added(Class klass, SEL sel)
+{
+    if (get_running()) {
+	// Call method_added: or singleton_method_added:.
+	VALUE sym = ID2SYM(rb_intern(sel_getName(sel)));
+        if (RCLASS_SINGLETON(klass)) {
+	    VALUE sk = rb_iv_get((VALUE)klass, "__attached__");
+	    rb_vm_call(sk, selSingletonMethodAdded, 1, &sym, false);
+        }
+        else {
+	    rb_vm_call((VALUE)klass, selMethodAdded, 1, &sym, false);
+        }
+    }
+
+}
+
 rb_vm_method_node_t *
 RoxorCore::add_method(Class klass, SEL sel, IMP imp, IMP ruby_imp,
 	const rb_vm_arity_t &arity, int flags, const char *types)
@@ -855,18 +872,6 @@ RoxorCore::add_method(Class klass, SEL sel, IMP imp, IMP ruby_imp,
 	== RCLASS_HAS_ROBJECT_ALLOC) {
 	RCLASS_SET_VERSION(klass, (RCLASS_VERSION(klass) ^ 
 		    RCLASS_HAS_ROBJECT_ALLOC));
-    }
-
-    if (get_running()) {
-	// Call method_added: or singleton_method_added:.
-	VALUE sym = ID2SYM(rb_intern(sel_getName(sel)));
-        if (RCLASS_SINGLETON(klass)) {
-	    VALUE sk = rb_iv_get((VALUE)klass, "__attached__");
-	    rb_vm_call(sk, selSingletonMethodAdded, 1, &sym, false);
-        }
-        else {
-	    rb_vm_call((VALUE)klass, selMethodAdded, 1, &sym, false);
-        }
     }
 
     // Forward method definition to the included classes.
@@ -1883,6 +1888,8 @@ prepare_method:
 	    }
 	}
     }
+
+    GET_CORE()->method_added(klass, sel);
 
     if (!added_modfunc && (v & RCLASS_SCOPE_MOD_FUNC)) {
 	added_modfunc = true;
