@@ -55,3 +55,35 @@ assert ':ok', %{
     p :ok
   end
 }
+
+assert ':ok', %{
+  module Bar
+    module Baz
+      def baz
+        p :nok
+      end
+    end
+  end
+  class Foo
+    def self.baz
+      p :ok
+    end
+  end
+  Foo.extend(Bar::Baz)
+  Foo.baz
+}
+
+assert ':ok', %{
+  module Bar
+    def baz
+      p :nok
+    end
+  end
+  class Foo
+    def self.baz
+      p :ok
+    end
+  end
+  Foo.extend(Bar)
+  Foo.baz
+}
