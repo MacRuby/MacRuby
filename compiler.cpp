@@ -5018,7 +5018,7 @@ rescan_args:
 		const bool is_lambda = (node_type == NODE_LAMBDA);
 		Value *caller;
 
-		if (is_lambda == 0) {
+		if (!is_lambda) {
 		    assert(node->nd_iter != NULL);
 		}
 
@@ -5032,7 +5032,7 @@ rescan_args:
 		    params.push_back(compile_mcache((is_lambda ? selLambda : selEach), false));
 		    params.push_back(current_self);
 
-		    if (is_lambda == 0) {
+		    if (!is_lambda) {
 			// the block must not be passed to the code
 			// that generates the values we loop on
 			current_block_func = NULL;
