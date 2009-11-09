@@ -577,6 +577,24 @@ proc_hash(VALUE self, SEL sel)
  * an indication of where the proc was defined.
  */
 
+static VALUE
+proc_to_s(VALUE self, SEL sel)
+{
+    const char		*cname = rb_obj_classname(self);
+    rb_vm_block_t	*proc;
+
+    GetProcPtr(self, proc);
+
+    const char *is_lambda = (proc->flags & VM_BLOCK_LAMBDA) ? " (lambda)" : "";
+    VALUE str = rb_sprintf("#<%s:%p%s>", cname, (void *)self, is_lambda);
+
+    if (OBJ_TAINTED(self)) {
+	OBJ_TAINT(str);
+    }
+
+    return str;
+}
+
 #if 0 // TODO
 static VALUE
 proc_to_s(VALUE self, SEL sel)
@@ -1498,7 +1516,7 @@ Init_Proc(void)
     rb_objc_define_method(rb_cProc, "==", proc_eq, 1);
     rb_objc_define_method(rb_cProc, "eql?", proc_eq, 1);
     rb_objc_define_method(rb_cProc, "hash", proc_hash, 0);
-    //rb_objc_define_method(rb_cProc, "to_s", proc_to_s, 0);
+    rb_objc_define_method(rb_cProc, "to_s", proc_to_s, 0);
     rb_objc_define_method(rb_cProc, "lambda?", proc_lambda_p, 0);
     rb_objc_define_method(rb_cProc, "binding", proc_binding, 0);
     rb_objc_define_method(rb_cProc, "curry", proc_curry, -1);

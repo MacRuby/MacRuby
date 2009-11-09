@@ -113,6 +113,7 @@ extern SEL selSingletonMethodUndefined;
 extern SEL selIsEqual;
 extern SEL selWrite;
 extern SEL selInherited;
+extern SEL selLambda;
 extern ID idIncludedModules;
 extern ID idIncludedInClasses;
 extern ID idAncestors;

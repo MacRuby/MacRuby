@@ -104,6 +104,7 @@ Init_id(void)
     selIsEqual = sel_registerName("isEqual:");
     selWrite = sel_registerName("write:");
     selInherited = sel_registerName("inherited:");
+    selLambda = sel_registerName("lambda");
 
     cacheEach = rb_vm_get_call_cache(selEach);
 #endif

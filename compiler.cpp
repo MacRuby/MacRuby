@@ -4966,6 +4966,7 @@ rescan_args:
 
 	case NODE_FOR:
 	case NODE_ITER:
+	case NODE_LAMBDA:
 	    {
 		std::vector<ID> old_dvars = dvars;
 
@@ -5013,29 +5014,40 @@ rescan_args:
 		current_block_func = cast<Function>(block);
 		current_block_node = node->nd_body;
 
+		const int node_type = nd_type(node);
+		const bool is_lambda = (node_type == NODE_LAMBDA);
 		Value *caller;
-		assert(node->nd_iter != NULL);
-		if (nd_type(node) == NODE_ITER) {
+
+		if (is_lambda == 0) {
+		    assert(node->nd_iter != NULL);
+		}
+
+		if (node_type == NODE_ITER) {
 		    caller = compile_node(node->nd_iter);
 		}
 		else {
 		    // dispatch #each on the receiver
 		    std::vector<Value *> params;
 
-		    params.push_back(compile_mcache(selEach, false));
+		    params.push_back(compile_mcache((is_lambda ? selLambda : selEach), false));
 		    params.push_back(current_self);
 
-		    // the block must not be passed to the code
-		    // that generates the values we loop on
-		    current_block_func = NULL;
-		    current_block_node = NULL;
-		    params.push_back(compile_node(node->nd_iter));
-		    current_block_func = cast<Function>(block);
-		    current_block_node = node->nd_body;
+		    if (is_lambda == 0) {
+			// the block must not be passed to the code
+			// that generates the values we loop on
+			current_block_func = NULL;
+			current_block_node = NULL;
+			params.push_back(compile_node(node->nd_iter));
+			current_block_func = cast<Function>(block);
+			current_block_node = node->nd_body;
+		    }
+		    else {
+			params.push_back(current_self);
+		    }
 
-		    params.push_back(compile_sel(selEach));
+		    params.push_back(compile_sel((is_lambda ? selLambda : selEach)));
 		    params.push_back(compile_block_create(NULL));
-		    params.push_back(ConstantInt::get(Int8Ty, 0));
+		    params.push_back(ConstantInt::get(Int8Ty, (is_lambda ? DISPATCH_FCALL : 0)));
 		    params.push_back(ConstantInt::get(Int32Ty, 0));
 
 		    caller = compile_dispatch_call(params);
