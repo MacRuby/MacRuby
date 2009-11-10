@@ -2568,8 +2568,8 @@ __append_escape(CFMutableStringRef out, UniChar c)
     __append(out, c);
 }
 
-VALUE
-rb_str_inspect(VALUE str, SEL sel)
+static VALUE
+__rb_str_inspect(VALUE str, bool dump)
 {
     const long len = CFStringGetLength((CFStringRef)str);
     CFStringInlineBuffer buf; 
@@ -2578,12 +2578,20 @@ rb_str_inspect(VALUE str, SEL sel)
     CFMutableStringRef out = CFStringCreateMutable(NULL, 0);
     __append(out, '"');
 
-    long i;
-    for (i = 0; i < len; i++) {
+    for (long i = 0; i < len; i++) {
 	UniChar c = CFStringGetCharacterFromInlineBuffer(&buf, i);
 	if (iswprint(c)) {
 	    if (c == '"'|| c == '\\') {
 		__append_escape(out, c);
+	    }
+	    else if (dump && c == '#' && i + 1 < len) {
+		UniChar c2 = CFStringGetCharacterFromInlineBuffer(&buf, i + 1);
+		if (c2 == '$' || c2 == '@' || c2 == '{') {
+		    __append_escape(out, c);
+		}
+		else {
+		    __append(out, c);
+		}
 	    }
 	    else {
 		__append(out, c);
@@ -2626,7 +2634,11 @@ rb_str_inspect(VALUE str, SEL sel)
     return res;
 }
 
-#define IS_EVSTR(p,e) ((p) < (e) && (*(p) == '$' || *(p) == '@' || *(p) == '{'))
+VALUE
+rb_str_inspect(VALUE str, SEL sel)
+{
+    return __rb_str_inspect(str, false);
+}
 
 /*
  *  call-seq:
@@ -2639,9 +2651,7 @@ rb_str_inspect(VALUE str, SEL sel)
 static VALUE
 rb_str_dump(VALUE str, SEL sel)
 {
-    // XXX #dump and #inspect have some slight differences, let's fix that
-    // later.
-    VALUE res = rb_str_inspect(str, 0);
+    VALUE res = __rb_str_inspect(str, true);
     *(VALUE *)res = *(VALUE *)str;
     return res;
 }
