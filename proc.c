@@ -1270,31 +1270,11 @@ method_inspect(VALUE method, SEL sel)
     rb_str_buf_cat2(str, s);
     rb_str_buf_cat2(str, ": ");
 
-    if (RCLASS_SINGLETON(data->oclass)) {
-	VALUE v = rb_iv_get(data->oclass, "__attached__");
-
-	if (data->recv == Qundef) {
-	    rb_str_buf_append(str, rb_inspect(data->oclass));
-	}
-	else if (data->recv == v) {
-	    rb_str_buf_append(str, rb_inspect(v));
-	    sharp = ".";
-	}
-	else {
-	    rb_str_buf_append(str, rb_inspect(data->recv));
-	    rb_str_buf_cat2(str, "(");
-	    rb_str_buf_append(str, rb_inspect(v));
-	    rb_str_buf_cat2(str, ")");
-	    sharp = ".";
-	}
-    }
-    else {
-	rb_str_buf_cat2(str, rb_class2name(data->rclass));
-	if (data->rclass != data->oclass) {
-	    rb_str_buf_cat2(str, "(");
-	    rb_str_buf_cat2(str, rb_class2name(data->oclass));
-	    rb_str_buf_cat2(str, ")");
-	}
+    rb_str_buf_cat2(str, rb_class2name(data->rclass));
+    if (data->rclass != data->oclass) {
+	rb_str_buf_cat2(str, "(");
+	rb_str_buf_cat2(str, rb_class2name(data->oclass));
+	rb_str_buf_cat2(str, ")");
     }
     rb_str_buf_cat2(str, sharp);
     rb_str_buf_cat2(str, sel_getName(data->sel));

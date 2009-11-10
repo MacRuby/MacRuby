@@ -1780,6 +1780,15 @@ rb_const_defined_0(VALUE klass, ID id, int exclude, int recurse)
 	if (!recurse && klass != rb_cObject) {
 	    break;
 	}
+	VALUE inc_mods = rb_attr_get(tmp, idIncludedModules);
+	if (inc_mods != Qnil) {
+	    int i, count = RARRAY_LEN(inc_mods);
+	    for (i = 0; i < count; i++) {
+		iv_dict = rb_class_ivar_dict(RARRAY_AT(inc_mods, i));
+		if (CFDictionaryGetValueIfPresent(iv_dict, (const void *)id, (const void **)&value))
+		    return Qtrue;
+	    }
+	}
 	tmp = RCLASS_SUPER(tmp);
     }
     if (!exclude && !mod_retry && BUILTIN_TYPE(klass) == T_MODULE) {

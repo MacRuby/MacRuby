@@ -359,15 +359,23 @@ rb_nsobj_dup(VALUE obj, VALUE sel)
     return (VALUE)objc_msgSend((id)obj, selCopy); 
 }
 
+static VALUE
+rb_obj_type(VALUE obj)
+{
+    return LONG2FIX(TYPE(obj));
+}
+
 /* :nodoc: */
 VALUE
 rb_obj_init_copy(VALUE obj, SEL sel, VALUE orig)
 {
-    if (obj == orig) return obj;
+    if (obj == orig) {
+	return obj;
+    }
     rb_check_frozen(obj);
-    if (TYPE(obj) != TYPE(orig)) {
-	/* FIXME rb_obj_class(obj) != rb_obj_class(orig) */
-	rb_raise(rb_eTypeError, "initialize_copy should take same class object");
+    if (rb_obj_class(obj) != rb_obj_class(orig)) {
+	rb_raise(rb_eTypeError,
+		"initialize_copy should take same class object");
     }
     return obj;
 }
@@ -1530,6 +1538,12 @@ static VALUE
 rb_mod_ancestors_imp(VALUE self, SEL sel)
 {
     return rb_mod_ancestors(self);
+}
+
+static VALUE
+rb_mod_ancestors_all_imp(VALUE self, SEL sel)
+{
+    return rb_mod_ancestors_nocopy(self);
 }
 
 /*
@@ -2927,6 +2941,7 @@ Init_Object(void)
 
     rb_objc_define_method(rb_cNSObject, "clone", rb_obj_clone_imp, 0);
     rb_objc_define_method(rb_cNSObject, "dup", rb_nsobj_dup, 0);
+    rb_objc_define_method(rb_cNSObject, "__type__", rb_obj_type, 0);
 
     rb_objc_define_method(rb_mKernel, "initialize_copy", rb_obj_init_copy, 1);
     rb_objc_define_method(rb_mKernel, "taint", rb_obj_taint_m, 0);
@@ -3004,6 +3019,7 @@ Init_Object(void)
     VALUE rb_mod_name(VALUE, SEL);
     rb_objc_define_method(rb_cModule, "name", rb_mod_name, 0);  /* in variable.c */
     rb_objc_define_method(rb_cModule, "ancestors", rb_mod_ancestors_imp, 0);
+    rb_objc_define_method(rb_cModule, "__ancestors__", rb_mod_ancestors_all_imp, 0);
     VALUE rb_mod_objc_ib_outlet(VALUE, SEL, int, VALUE *);
     rb_objc_define_private_method(rb_cModule, "ib_outlet", rb_mod_objc_ib_outlet, -1); /* in objc.m */
     rb_objc_define_method(rb_cClass, "__meta__?", rb_class_is_meta, 0);

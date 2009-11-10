@@ -1254,7 +1254,7 @@ rb_vm_define_class(ID path, VALUE outer, VALUE super, int flags,
 	klass = rb_const_get_at(outer, path);
 	check_if_module(klass);
 	if (!(flags & DEFINE_MODULE) && super != 0) {
-	    if (RCLASS_SUPER(klass) != super) {
+	    if (rb_class_real(RCLASS_SUPER(klass)) != super) {
 		rb_raise(rb_eTypeError, "superclass mismatch for class %s",
 			rb_class2name(klass));
 	    }
@@ -2102,64 +2102,84 @@ RoxorCore::copy_methods(Class from_class, Class to_class)
     }
 
     // Copy methods that have not been JIT'ed yet.
+
+    // First, make a list of selectors.
+    std::vector<SEL> sels_to_copy;
     std::multimap<Class, SEL>::iterator iter =
 	method_source_sels.find(from_class);
 
     if (iter != method_source_sels.end()) {
 	std::multimap<Class, SEL>::iterator last =
 	    method_source_sels.upper_bound(from_class);
-	std::vector<SEL> sels_to_add;
 
 	for (; iter != last; ++iter) {
-	    SEL sel = iter->second;
+	    sels_to_copy.push_back(iter->second);
+	}
+    }
 
-	    std::map<Class, rb_vm_method_source_t *> *dict =
-		method_sources_for_sel(sel, false);
-	    if (dict == NULL) {
-		continue;
-	    }
+    // Force a resolving of these selectors on the target class. This must be
+    // done outside the next loop since the resolver messes up the Core
+    // structures.
+    for (std::vector<SEL>::iterator iter = sels_to_copy.begin();
+	    iter != sels_to_copy.end();
+	    ++iter) {
+	class_getInstanceMethod(to_class, *iter);
+    }
 
-	    std::map<Class, rb_vm_method_source_t *>::iterator
-		iter2 = dict->find(from_class);
-	    if (iter2 == dict->end()) {
-		continue;
-	    }
+    // Now, let's really copy the lazy methods.
+    std::vector<SEL> sels_to_add;
+    for (std::vector<SEL>::iterator iter = sels_to_copy.begin();
+	    iter != sels_to_copy.end();
+	    ++iter) {
+	SEL sel = *iter;
 
-	    rb_vm_method_source_t *m_src = iter2->second;
+	std::map<Class, rb_vm_method_source_t *> *dict =
+	    method_sources_for_sel(sel, false);
+	if (dict == NULL) {
+	    continue;
+	}
 
-	    Method m = class_getInstanceMethod(to_class, sel);
-	    if (m != NULL) {
-		// The method already exists - we need to JIT it.
-		IMP imp = GET_CORE()->compile(m_src->func);
-		resolve_method(to_class, sel, m_src->func, m_src->arity,
-			m_src->flags, imp, m);
-	    }
-	    else {
+	std::map<Class, rb_vm_method_source_t *>::iterator
+	    iter2 = dict->find(from_class);
+	if (iter2 == dict->end()) {
+	    continue;
+	}
+
+	rb_vm_method_source_t *m_src = iter2->second;
+
+	Method m = class_getInstanceMethod(to_class, sel);
+	if (m != NULL) {
+	    // The method already exists on the target class, we need to
+	    // JIT it.
+	    IMP imp = GET_CORE()->compile(m_src->func);
+	    resolve_method(to_class, sel, m_src->func, m_src->arity,
+		    m_src->flags, imp, m);
+	}
+	else {
 #if ROXOR_VM_DEBUG
-		printf("lazy copy %c[%s %s] to %c%s\n",
-			class_isMetaClass(from_class) ? '+' : '-',
-			class_getName(from_class),
-			sel_getName(sel),
-			class_isMetaClass(to_class) ? '+' : '-',
-			class_getName(to_class));
+	    printf("lazy copy %c[%s %s] to %c%s\n",
+		    class_isMetaClass(from_class) ? '+' : '-',
+		    class_getName(from_class),
+		    sel_getName(sel),
+		    class_isMetaClass(to_class) ? '+' : '-',
+		    class_getName(to_class));
 #endif
 
-		rb_vm_method_source_t *m = (rb_vm_method_source_t *)
-		    malloc(sizeof(rb_vm_method_source_t));
-		m->func = m_src->func;
-		m->arity = m_src->arity;
-		m->flags = m_src->flags;
-		dict->insert(std::make_pair(to_class, m));
-		sels_to_add.push_back(sel);
-	    }
+	    rb_vm_method_source_t *m = (rb_vm_method_source_t *)
+		malloc(sizeof(rb_vm_method_source_t));
+	    m->func = m_src->func;
+	    m->arity = m_src->arity;
+	    m->flags = m_src->flags;
+	    dict->insert(std::make_pair(to_class, m));
+	    sels_to_add.push_back(sel);
 	}
+    }
 
-	for (std::vector<SEL>::iterator i = sels_to_add.begin();
-	     i != sels_to_add.end();
-	     ++i) {
-	    method_source_sels.insert(std::make_pair(to_class, *i));
-	}
-    } 
+    for (std::vector<SEL>::iterator i = sels_to_add.begin();
+	    i != sels_to_add.end();
+	    ++i) {
+	method_source_sels.insert(std::make_pair(to_class, *i));
+    }
 }
 
 extern "C"

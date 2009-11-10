@@ -871,8 +871,8 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
 	    break;
 
 	  default:
-	    rb_raise(rb_eTypeError, "can't dump %s",
-		    rb_obj_classname(obj));
+	    rb_raise(rb_eTypeError, "can't dump %s (type %d)",
+		    rb_obj_classname(obj), TYPE(obj));
 	    break;
 	}
     }

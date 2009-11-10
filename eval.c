@@ -506,18 +506,38 @@ rb_frame_callee(void)
  *  _mod_ or one of its ancestors. See also <code>Module#include</code>.
  */
 
+VALUE rb_make_singleton_class(VALUE super);
+
 static VALUE
 rb_mod_append_features(VALUE module, SEL sel, VALUE include)
 {
     switch (TYPE(include)) {
-      case T_CLASS:
-      case T_MODULE:
-	break;
-      default:
-	Check_Type(include, T_CLASS);
-	break;
+	case T_CLASS:
+	case T_MODULE:
+	    break;
+	default:
+	    Check_Type(include, T_CLASS);
+	    break;
     }
+    if (RCLASS_RUBY(include)) {
+	VALUE sinclude = rb_make_singleton_class(RCLASS_SUPER(include));
+	RCLASS_SET_SUPER(include, sinclude);
+	include = sinclude;
+    }	
     rb_include_module(include, module);
+
+    VALUE m = module;
+    do {
+	VALUE ary = rb_attr_get(m, idIncludedModules);
+	if (ary != Qnil) {
+	    for (int i = 0, count = RARRAY_LEN(ary); i < count; i++) {
+		VALUE mod = RARRAY_AT(ary, i);
+		rb_mod_append_features(mod, sel, include);
+	    }
+	}
+	m = RCLASS_SUPER(m);
+    }
+    while (m == 0 || RCLASS_SINGLETON(m));
 
     return module;
 }
@@ -553,7 +573,16 @@ rb_obj_call_init(VALUE obj, int argc, VALUE *argv)
 void
 rb_extend_object(VALUE obj, VALUE module)
 {
-    rb_include_module(rb_singleton_class(obj), module);
+    VALUE klass;
+    if (TYPE(obj) == T_CLASS && RCLASS_RUBY(obj)) {
+	VALUE sklass = rb_make_singleton_class(RCLASS_SUPER(obj));
+	RCLASS_SET_SUPER(obj, sklass);
+	klass = *(VALUE *)sklass;
+    }
+    else {
+	klass = rb_singleton_class(obj);
+    }	
+    rb_include_module(klass, module);
 }
 
 /*

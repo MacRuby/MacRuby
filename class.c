@@ -387,6 +387,20 @@ rb_singleton_class_attached(VALUE klass, VALUE obj)
 }
 
 VALUE
+rb_make_singleton_class(VALUE super)
+{
+    VALUE klass = rb_class_boot(super);
+    long v = RCLASS_VERSION(klass);
+    if (super == rb_cNSObject) {
+	v ^= RCLASS_IS_OBJECT_SUBCLASS;
+    }
+    v |= RCLASS_IS_RUBY_CLASS;
+    v |= RCLASS_IS_SINGLETON;
+    RCLASS_SET_VERSION(klass, v);
+    return klass;
+}
+
+    VALUE
 rb_make_metaclass(VALUE obj, VALUE super)
 {
     if (TYPE(obj) == T_CLASS && RCLASS_SINGLETON(obj)) {
@@ -394,17 +408,9 @@ rb_make_metaclass(VALUE obj, VALUE super)
 	return rb_cClass;
     }
     else {
-	VALUE klass;
-
-	klass = rb_class_boot(super);
-	RBASIC(obj)->klass = klass;
-	if (super == rb_cNSObject) {
-	    long v = RCLASS_VERSION(klass) ^ RCLASS_IS_OBJECT_SUBCLASS;
-	    RCLASS_SET_VERSION(klass, v);
-	}
-	RCLASS_SET_VERSION_FLAG(klass, RCLASS_IS_SINGLETON);
+	VALUE klass = rb_make_singleton_class(super);
 	rb_vm_set_outer(klass, rb_vm_get_outer(super));
-
+	RBASIC(obj)->klass = klass;
 	rb_singleton_class_attached(klass, obj);
 
 	return klass;
@@ -559,29 +565,27 @@ rb_define_module_under(VALUE outer, const char *name)
 void
 rb_include_module2(VALUE klass, VALUE module, int check, int add_methods)
 {
-    VALUE ary;
-
     if (check) {
 	rb_frozen_class_p(klass);
-
-	if (!OBJ_TAINTED(klass))
+	if (!OBJ_TAINTED(klass)) {
 	    rb_secure(4);
-
+	}
 	Check_Type(module, T_MODULE);
     }
 
-    ary = rb_attr_get(klass, idIncludedModules);
+    VALUE ary = rb_attr_get(klass, idIncludedModules);
     if (ary == Qnil) {
 	ary = rb_ary_new();
 	rb_ivar_set(klass, idIncludedModules, ary);
     }
     else {
-	if (rb_ary_includes(ary, module))
+	if (rb_ary_includes(ary, module)) {
 	    return;
+	}
     }
     rb_ary_insert(ary, 0, module);
 
-    long v = RCLASS_VERSION(module) | RCLASS_IS_INCLUDED;
+    const long v = RCLASS_VERSION(module) | RCLASS_IS_INCLUDED;
     RCLASS_SET_VERSION(module, v);
 
     ary = rb_attr_get(module, idIncludedInClasses);
@@ -591,14 +595,10 @@ rb_include_module2(VALUE klass, VALUE module, int check, int add_methods)
     }
     rb_ary_push(ary, klass);
 
-    CFMutableDictionaryRef iv_dict;
-   
-    iv_dict = rb_class_ivar_dict(klass);
+    CFMutableDictionaryRef iv_dict = rb_class_ivar_dict(klass);
     if (iv_dict != NULL) {
 	CFDictionaryRemoveValue(iv_dict, (const void *)idAncestors);
     }
-
-    DLOG("INCM", "%s <- %s", class_getName((Class)klass), class_getName((Class)module));
 
     if (add_methods) {
 	rb_vm_copy_methods((Class)module, (Class)klass);
@@ -646,12 +646,21 @@ rb_mod_included_modules_nosuper(VALUE mod, VALUE ary)
 VALUE
 rb_mod_included_modules(VALUE mod)
 {
-    VALUE p, ary = rb_ary_new();
+    VALUE ary = rb_ary_new();
+    bool mod_detected = false;
 
-    for (p = mod; p; p = RCLASS_SUPER(p)) {
+    for (VALUE p = mod; p != 0; p = RCLASS_SUPER(p)) {
+	if (!mod_detected) {
+	    if (RCLASS_MODULE(p)) {
+		mod_detected = true;
+	    }
+	}
+	else {
+	    if (!RCLASS_SINGLETON(p)) {
+		break;
+	    }
+	}
 	rb_mod_included_modules_nosuper(p, ary);
-	if (RCLASS_MODULE(p))
-	    break;
     }
     return ary;
 }
@@ -702,31 +711,31 @@ static void rb_mod_included_modules_nosuper(VALUE, VALUE);
 VALUE
 rb_mod_ancestors_nocopy(VALUE mod)
 {
-    VALUE ary;
-
-    ary = rb_attr_get(mod, idAncestors);
+    VALUE ary = rb_attr_get(mod, idAncestors);
     if (NIL_P(ary)) {
-	VALUE p;
-
 	ary = rb_ary_new();
-
-	for (p = mod; p; p = RCLASS_SUPER(p)) {
+	for (VALUE p = mod; p != 0; p = RCLASS_SUPER(p)) {
 	    rb_ary_push(ary, p);
 	    rb_mod_included_modules_nosuper(p, ary);
-	    if (RCLASS_MODULE(p))
-		break;
 	}
-
 	rb_ivar_set(mod, idAncestors, ary);	
     }
-
     return ary;
 }
 
 VALUE
 rb_mod_ancestors(VALUE mod)
 {
-    return rb_ary_dup(rb_mod_ancestors_nocopy(mod));
+    // This method should return a new array without singleton classes.
+    VALUE ary = rb_mod_ancestors_nocopy(mod);
+    VALUE filtered = rb_ary_new();
+    for (int i = 0, count = RARRAY_LEN(ary); i < count; i++) {
+	VALUE p = RARRAY_AT(ary, i);
+	if (!RCLASS_SINGLETON(p)) {
+	    rb_ary_push(filtered, p);
+	}
+    }
+    return filtered;
 }
 
 static int
