@@ -375,6 +375,13 @@ get_default_external(VALUE klass, SEL sel)
     return rb_enc_default_external();
 }
 
+static VALUE
+set_default_external(VALUE klass, SEL sel, VALUE enc)
+{
+    // TODO
+    return enc;
+}
+
 void
 rb_enc_set_default_external(VALUE encoding)
 {
@@ -553,7 +560,9 @@ Init_Encoding(void)
     rb_objc_define_method(*(VALUE *)rb_cEncoding, "_load", enc_load, 1);
 
     rb_objc_define_method(*(VALUE *)rb_cEncoding, "default_external", get_default_external, 0);
+    rb_objc_define_method(*(VALUE *)rb_cEncoding, "default_external=", set_default_external, 1);
     rb_objc_define_method(*(VALUE *)rb_cEncoding, "default_internal", get_default_external, 0); // TODO
+    rb_objc_define_method(*(VALUE *)rb_cEncoding, "default_internal=", set_default_external, 1); // TODO
     rb_objc_define_method(*(VALUE *)rb_cEncoding, "locale_charmap", rb_locale_charmap, 0);
 
     enc_init_db();
