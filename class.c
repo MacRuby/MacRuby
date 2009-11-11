@@ -127,11 +127,13 @@ rb_define_object_special_methods(VALUE klass)
 	    rb_class_new_instance_imp, -1);
     rb_objc_define_method(klass, "dup", rb_obj_dup, 0);
     rb_objc_define_private_method(klass, "initialize", rb_objc_init, 0);
-    rb_objc_define_private_method(klass, "initialize_copy", rb_obj_init_copy, 1);
+    rb_objc_define_private_method(klass, "initialize_copy",
+	    rb_obj_init_copy, 1);
 
     rb_objc_install_method(*(Class *)klass, selAllocWithZone,
 	    (IMP)rb_obj_imp_allocWithZone);
-    rb_objc_install_method((Class)klass, selIsEqual, (IMP)rb_obj_imp_isEqual);
+    rb_objc_install_method((Class)klass, selIsEqual,
+	    (IMP)rb_obj_imp_isEqual);
     rb_objc_install_method((Class)klass, selInit, (IMP)rb_obj_imp_init);
     rb_objc_install_method((Class)klass, selDescription,
 	    (IMP)rb_obj_imp_description);
@@ -186,8 +188,6 @@ rb_objc_alloc_class(const char *name, VALUE super, VALUE flags, VALUE klass)
 
     RCLASS_SET_VERSION(ocklass, version_flag);
 
-    DLOG("DEFC", "%s < %s (version=%d)", ocname, class_getName(class_getSuperclass((Class)ocklass)), version_flag);
-
     objc_registerClassPair(ocklass);
 
     if (klass != 0) {
@@ -214,10 +214,7 @@ rb_objc_create_class(const char *name, VALUE super)
 
     klass = rb_objc_alloc_class(name, super, T_CLASS, rb_cClass);
    
-    if (super == rb_cNSObject) {
-	rb_define_object_special_methods(klass);
-    }
-    else if (super != 0
+    if (super != rb_cNSObject && super != 0
 	    && ((RCLASS_VERSION(*(VALUE *)super) & RCLASS_HAS_ROBJECT_ALLOC)
 		== RCLASS_HAS_ROBJECT_ALLOC)) {
 	RCLASS_SET_VERSION(*(VALUE *)klass,
@@ -231,10 +228,20 @@ rb_objc_create_class(const char *name, VALUE super)
     return klass;
 }
 
+static VALUE
+rb_class_boot2(VALUE super, const char *name)
+{
+    VALUE klass = rb_objc_create_class(name, super);
+    if (super == rb_cNSObject) {
+	rb_define_object_special_methods(klass);
+    }
+    return klass;
+}
+
 VALUE
 rb_class_boot(VALUE super)
 {
-    return rb_objc_create_class(NULL, super);
+    return rb_class_boot2(super, NULL);
 }
 
 void
@@ -389,7 +396,7 @@ rb_singleton_class_attached(VALUE klass, VALUE obj)
 VALUE
 rb_make_singleton_class(VALUE super)
 {
-    VALUE klass = rb_class_boot(super);
+    VALUE klass = rb_objc_create_class(NULL, super);
     long v = RCLASS_VERSION(klass);
     if (super == rb_cNSObject) {
 	v ^= RCLASS_IS_OBJECT_SUBCLASS;
@@ -423,7 +430,7 @@ rb_define_class_id(ID id, VALUE super)
     if (super == 0) {
 	super = rb_cObject;
     }
-    return rb_objc_create_class(rb_id2name(id), super);
+    return rb_class_boot2(super, rb_id2name(id));
 }
 
 VALUE
@@ -508,9 +515,8 @@ VALUE rb_mod_initialize(VALUE, SEL);
 VALUE
 rb_define_module_id(ID id)
 {
-    VALUE mdl;
-
-    mdl = rb_objc_alloc_class(id == 0 ? NULL : rb_id2name(id), rb_cObject, T_MODULE, rb_cModule);
+    VALUE mdl = rb_objc_alloc_class(id == 0 ? NULL : rb_id2name(id),
+	    rb_cObject, T_MODULE, rb_cModule);
 
     if ((rb_mKernel != 0) && (id == 0)) {
 	/* because Module#initialize can accept a block */

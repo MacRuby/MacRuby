@@ -354,12 +354,6 @@ rb_obj_dup(VALUE obj)
 }
 
 static VALUE
-rb_nsobj_dup(VALUE obj, VALUE sel)
-{
-    return (VALUE)objc_msgSend((id)obj, selCopy); 
-}
-
-static VALUE
 rb_obj_type(VALUE obj)
 {
     return LONG2FIX(TYPE(obj));
@@ -378,6 +372,19 @@ rb_obj_init_copy(VALUE obj, SEL sel, VALUE orig)
 		"initialize_copy should take same class object");
     }
     return obj;
+}
+
+static VALUE
+rb_nsobj_dup(VALUE obj, VALUE sel)
+{
+    VALUE klass = rb_class_real(CLASS_OF(obj));
+    if (class_respondsToSelector((Class)klass, selCopyWithZone)) {
+	return (VALUE)objc_msgSend((id)obj, selCopy); 
+    }
+
+    VALUE copy = rb_robject_allocate_instance(klass);
+    rb_obj_init_copy(copy, 0, (VALUE)obj);
+    return copy;
 }
 
 /*
@@ -2882,6 +2889,7 @@ Init_Object(void)
     rb_cBasicObject = (VALUE)objc_duplicateClass((Class)rb_cObject, "BasicObject", 0);
     rb_const_set(rb_cObject, rb_intern("BasicObject"), rb_cBasicObject);
     rb_cModule = boot_defclass("Module", rb_cNSObject);
+    rb_define_object_special_methods(rb_cModule);
     rb_cClass =  boot_defclass("Class",  rb_cModule);
 
     allocCache = rb_vm_get_call_cache(selAlloc);
