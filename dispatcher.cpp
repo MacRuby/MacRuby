@@ -612,27 +612,26 @@ recache2:
 		    char *tmp = (char *)alloca(selname_len);
 		    strncpy(tmp, selname, p - selname + 1);
 		    tmp[p - selname + 1] = '\0';
-		    SEL new_sel = sel_registerName(tmp);
-		    Method m = class_getInstanceMethod(klass, new_sel);
-		    if (m != NULL) {
-			VALUE h = rb_hash_new();
-			bool ok = true;
-			p += 1;
-			for (int i = 1; i < argc; i++) {
-			    const char *p2 = strchr(p, ':');
-			    if (p2 == NULL) {
-				ok = false;
-				break;
-			    }
-			    strlcpy(tmp, p, selname_len);
-			    tmp[p2 - p] = '\0';
-			    p = p2 + 1; 
-			    rb_hash_aset(h, ID2SYM(rb_intern(tmp)), argv[i]);
+		    sel = sel_registerName(tmp);
+		    VALUE h = rb_hash_new();
+		    bool ok = true;
+		    p += 1;
+		    for (int i = 1; i < argc; i++) {
+			const char *p2 = strchr(p, ':');
+			if (p2 == NULL) {
+			    ok = false;
+			    break;
 			}
-			if (ok) {
-			    argc = 2;
-			    ((VALUE *)argv)[1] = h; // bad, I know...
-			    sel = new_sel;
+			strlcpy(tmp, p, selname_len);
+			tmp[p2 - p] = '\0';
+			p = p2 + 1; 
+			rb_hash_aset(h, ID2SYM(rb_intern(tmp)), argv[i]);
+		    }
+		    if (ok) {
+			argc = 2;
+			((VALUE *)argv)[1] = h; // bad, I know...
+			Method m = class_getInstanceMethod(klass, sel);
+			if (m != NULL) {	
 			    method = m;
 			    do_rcache = false;
 			    goto recache2;
