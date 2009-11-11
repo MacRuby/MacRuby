@@ -423,27 +423,23 @@ rb_inspect(VALUE obj)
 static int
 inspect_i(ID id, VALUE value, VALUE str)
 {
-    VALUE str2;
-    const char *ivname;
-    const char *cstr;
+    if (!rb_is_instance_id(id)) {
+	return ST_CONTINUE;
+    }
 
-    cstr = RSTRING_PTR(str);
-
-    /* need not to show internal data */
-    if (CLASS_OF(value) == 0) return ST_CONTINUE;
-    if (!rb_is_instance_id(id)) return ST_CONTINUE;
-
+    const char *cstr = RSTRING_PTR(str);
     if (cstr[0] == '-') { /* first element */
 	rb_str_update(str, 0, 0, rb_str_new2("#"));
 	rb_str_cat2(str, " ");
     }
     else {
-	rb_str_cat2(str, ", ");
+	rb_str_cat2(str, " ");
     }
-    ivname = rb_id2name(id);
+
+    const char *ivname = rb_id2name(id);
     rb_str_cat2(str, ivname);
     rb_str_cat2(str, "=");
-    str2 = rb_inspect(value);
+    VALUE str2 = rb_inspect(value);
     rb_str_append(str, str2);
     OBJ_INFECT(str, str2);
 
@@ -460,7 +456,6 @@ inspect_obj(VALUE obj, VALUE str, int recur)
 	rb_ivar_foreach(obj, inspect_i, str);
     }
     rb_str_cat2(str, ">");
-    rb_str_update(str, 0, 0, rb_str_new2("#"));
     OBJ_INFECT(str, obj);
 
     return str;
@@ -485,12 +480,12 @@ rb_obj_inspect(VALUE obj, SEL sel)
     if (TYPE(obj) == T_OBJECT) {
         bool has_ivar = false;
 
-	if (ROBJECT(obj)->tbl != NULL && CFDictionaryGetCount(ROBJECT(obj)->tbl) > 0) {
+	if (ROBJECT(obj)->tbl != NULL
+		&& CFDictionaryGetCount(ROBJECT(obj)->tbl) > 0) {
 	    has_ivar = true;
 	}
 	else {
-	    int i;
-	    for (i = 0; i < ROBJECT(obj)->num_slots; i++) {
+	    for (int i = 0; i < ROBJECT(obj)->num_slots; i++) {
 		if (ROBJECT(obj)->slots[i] != Qundef) {
 		    has_ivar = true;
 		    break;
@@ -499,10 +494,8 @@ rb_obj_inspect(VALUE obj, SEL sel)
 	}
 
         if (has_ivar) {
-            VALUE str;
             const char *c = rb_obj_classname(obj);
-
-            str = rb_sprintf("-<%s:%p", c, (void*)obj);
+            VALUE str = rb_sprintf("<%s:%p", c, (void*)obj);
             return rb_exec_recursive(inspect_obj, obj, str);
         }
     }
