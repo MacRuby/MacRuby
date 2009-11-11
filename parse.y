@@ -6148,7 +6148,11 @@ parser_set_encode(struct parser_params *parser, const char *name)
 #if WITH_OBJC
     enc = rb_enc_find(name);
     if (enc == NULL) {
-	rb_raise(rb_eArgError, "unknown encoding name: %s", name);
+	// XXX we currently don't support this functionality, so let's not
+	// raise any exception for now.
+	// (this seems to be triggered if the encoding is 'binary').
+	//rb_raise(rb_eArgError, "unknown encoding name: %s", name);
+	enc = rb_locale_encoding();
     }
     /* TODO should raise if the encoding is not ASCII compatible */
 #else
