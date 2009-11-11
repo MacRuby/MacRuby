@@ -130,6 +130,9 @@ rb_define_object_special_methods(VALUE klass)
     rb_objc_define_private_method(klass, "initialize_copy",
 	    rb_obj_init_copy, 1);
 
+    // To make sure singleton classes will be filtered.
+    rb_objc_define_method(klass, "class", rb_obj_class, 0);
+
     rb_objc_install_method(*(Class *)klass, selAllocWithZone,
 	    (IMP)rb_obj_imp_allocWithZone);
     rb_objc_install_method((Class)klass, selIsEqual,
