@@ -675,10 +675,11 @@ rb_str_sublen(VALUE str, long pos)
 VALUE
 rb_str_subseq(VALUE str, long beg, long len)
 {
-    CFMutableStringRef substr;
-    long n;
+    if (len < 0) {
+	return Qnil;
+    }
 
-    n = CFStringGetLength((CFStringRef)str);
+    const long n = CFStringGetLength((CFStringRef)str);
 
     if (beg < 0) {
 	beg += n;
@@ -695,7 +696,7 @@ rb_str_subseq(VALUE str, long beg, long len)
 	return rb_bytestring_new_with_data(str_data + beg, len);
     }
 
-    substr = CFStringCreateMutable(NULL, 0);
+    CFMutableStringRef substr = CFStringCreateMutable(NULL, 0);
 
     if (len == 1) {
 	UniChar c = CFStringGetCharacterAtIndex((CFStringRef)str, beg);
