@@ -1176,6 +1176,7 @@ rb_vm_get_const(VALUE outer, unsigned char lexical_lookup,
     else {
 	check_if_module(outer);
 	val = rb_vm_const_lookup(outer, path, lexical_lookup, false);
+	assert(val != Qundef);
 	cache->outer = outer;
 	cache->val = val;
     }
@@ -1812,7 +1813,7 @@ prepare_method(Class klass, bool dynamic_class, SEL sel, void *data,
 	if (k != NULL) {
 	    const bool meta = class_isMetaClass(klass);
 	    klass = k;
-	    if (meta) {
+	    if (meta && !class_isMetaClass(klass)) {
 		klass = *(Class *)klass;
 	    }
 	}
@@ -3595,7 +3596,7 @@ rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding,
 extern "C"
 VALUE
 rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
-		rb_vm_binding_t *binding, bool inside_eval)
+	rb_vm_binding_t *binding, bool inside_eval)
 {
     RoxorVM *vm = GET_VM();
 
@@ -3608,10 +3609,8 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
     }
     Class old_class = GET_VM()->get_current_class();
     bool old_dynamic_class = RoxorCompiler::shared->is_dynamic_class();
-    if (klass != 0) {
-	vm->set_current_class((Class)klass);
-	RoxorCompiler::shared->set_dynamic_class(true);
-    }
+    vm->set_current_class((Class)klass);
+    RoxorCompiler::shared->set_dynamic_class(true);
 
     vm->add_current_block(binding != NULL ? binding->block : NULL);
 
