@@ -1263,7 +1263,9 @@ Value *
 RoxorCompiler::compile_current_class(void)
 {
     if (current_opened_class == NULL) {
-	return compile_nsobject();
+	VALUE current_class = (VALUE)GET_VM()->get_current_class();
+	return current_class == 0
+	    ? compile_nsobject() : compile_literal(current_class);
     }
     return new LoadInst(current_opened_class, "", bb);
 }
