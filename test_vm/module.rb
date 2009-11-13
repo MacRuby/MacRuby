@@ -87,3 +87,11 @@ assert ':ok', %{
   Foo.extend(Bar)
   Foo.baz
 }
+
+assert ':ok', %{
+  module M
+    def initialize; p :ok; end
+  end
+  class X; include M; end
+  X.new
+}
