@@ -137,3 +137,13 @@ assert '42', %{
     end
   end
 }
+
+assert '42', %{
+  module M
+    FOO=42
+    class C; end
+    class C::C2
+      p FOO
+    end
+  end
+}
