@@ -841,25 +841,26 @@ rb_alias_variable(ID name1, ID name2)
 static CFMutableDictionaryRef generic_iv_dict = NULL;
 
 static VALUE
-generic_ivar_get(VALUE obj, ID id, int warn)
+generic_ivar_get(VALUE obj, ID id, bool warn, bool undef)
 {
     if (generic_iv_dict != NULL) {
 	CFDictionaryRef obj_dict;
 
 	if (CFDictionaryGetValueIfPresent(generic_iv_dict, 
-	    (const void *)obj, (const void **)&obj_dict) 
-	    && obj_dict != NULL) {
-	    VALUE val;
+		    (const void *)obj, (const void **)&obj_dict) 
+		&& obj_dict != NULL) {
 
+	    VALUE val;
 	    if (CFDictionaryGetValueIfPresent(obj_dict, (const void *)id, 
-		(const void **)&val))
+			(const void **)&val)) {
 		return val;
+	    }
 	}
     }
     if (warn) {
 	rb_warning("instance variable %s not initialized", rb_id2name(id));
     }
-    return Qnil;
+    return undef ? Qundef : Qnil;
 }
 
 static void
@@ -872,18 +873,20 @@ generic_ivar_set(VALUE obj, ID id, VALUE val)
 	    rb_error_frozen("object");
     }
     if (generic_iv_dict == NULL) {
-	generic_iv_dict = CFDictionaryCreateMutable(NULL, 0, NULL, &rb_cfdictionary_value_cb);
+	generic_iv_dict = CFDictionaryCreateMutable(NULL, 0, NULL,
+		&rb_cfdictionary_value_cb);
 	rb_objc_retain(generic_iv_dict);
 	obj_dict = NULL;
     }
     else {
 	obj_dict = (CFMutableDictionaryRef)CFDictionaryGetValue(
-	    (CFDictionaryRef)generic_iv_dict, (const void *)obj);
+		(CFDictionaryRef)generic_iv_dict, (const void *)obj);
     }
     if (obj_dict == NULL) {
-	obj_dict = CFDictionaryCreateMutable(NULL, 0, NULL, &rb_cfdictionary_value_cb);
+	obj_dict = CFDictionaryCreateMutable(NULL, 0, NULL,
+		&rb_cfdictionary_value_cb);
 	CFDictionarySetValue(generic_iv_dict, (const void *)obj, 
-	    (const void *)obj_dict);
+		(const void *)obj_dict);
 	CFMakeCollectable(obj_dict);
     }
     CFDictionarySetValue(obj_dict, (const void *)id, (const void *)val);
@@ -895,10 +898,12 @@ generic_ivar_defined(VALUE obj, ID id)
     CFMutableDictionaryRef obj_dict;
 
     if (generic_iv_dict != NULL
-	&& CFDictionaryGetValueIfPresent((CFDictionaryRef)generic_iv_dict, 
-	   (const void *)obj, (const void **)&obj_dict) && obj_dict != NULL) {
-    	if (CFDictionaryGetValueIfPresent(obj_dict, (const void *)id, NULL))
+	    && CFDictionaryGetValueIfPresent((CFDictionaryRef)generic_iv_dict, 
+		(const void *)obj, (const void **)&obj_dict)
+	    && obj_dict != NULL) {
+    	if (CFDictionaryGetValueIfPresent(obj_dict, (const void *)id, NULL)) {
 	    return Qtrue;
+	}
     }
     return Qfalse;    
 }
@@ -1027,7 +1032,7 @@ rb_class_ivar_dict_or_create(VALUE mod)
 }
 
 static VALUE
-ivar_get(VALUE obj, ID id, int warn)
+ivar_get(VALUE obj, ID id, bool warn, bool undef)
 {
     VALUE val;
 
@@ -1072,27 +1077,25 @@ ivar_get(VALUE obj, ID id, int warn)
 	    break;
 
 	case T_NATIVE:
-	    return generic_ivar_get(obj, id, warn);
-
 	default:
-	    return generic_ivar_get(obj, id, warn);
+	    return generic_ivar_get(obj, id, warn, undef);
     }
     if (warn) {
 	rb_warning("instance variable %s not initialized", rb_id2name(id));
     }
-    return Qnil;
+    return undef ? Qundef : Qnil;
 }
 
 VALUE
 rb_ivar_get(VALUE obj, ID id)
 {
-    return ivar_get(obj, id, Qtrue);
+    return ivar_get(obj, id, true, false);
 }
 
 VALUE
 rb_attr_get(VALUE obj, ID id)
 {
-    return ivar_get(obj, id, Qfalse);
+    return ivar_get(obj, id, false, false);
 }
 
 VALUE
@@ -1138,9 +1141,6 @@ rb_ivar_set(VALUE obj, ID id, VALUE val)
 	    break;
 
 	case T_NATIVE:
-	    generic_ivar_set(obj, id, val);
-	    break;
-
 	default:
 	    generic_ivar_set(obj, id, val);
 	    break;
@@ -1443,7 +1443,9 @@ rb_autoload(VALUE mod, ID id, const char *file)
     fn = rb_str_new2(file);
     rb_obj_untaint(fn);
     OBJ_FREEZE(fn);
-    st_insert(tbl, id, (st_data_t)rb_node_newnode(NODE_MEMO, fn, rb_safe_level(), 0));
+    NODE *n = rb_node_newnode(NODE_MEMO, fn, rb_safe_level(), 0);
+    GC_RELEASE(n);
+    st_insert(tbl, id, (st_data_t)n);
 }
 
 static NODE*
@@ -1557,13 +1559,16 @@ rb_const_get_0(VALUE klass, ID id, int exclude, int recurse)
     int mod_retry = 0;
 
     tmp = klass;
-  retry:
+retry:
     while (RTEST(tmp)) {
 	CFDictionaryRef iv_dict;
 	while ((iv_dict = rb_class_ivar_dict(tmp)) != NULL
-	       && CFDictionaryGetValueIfPresent(iv_dict, (const void *)id, (const void **)&value)) {
+		&& CFDictionaryGetValueIfPresent(iv_dict, (const void *)id,
+		    (const void **)&value)) {
 	    if (value == Qundef) {
-		if (!RTEST(rb_autoload_load(tmp, id))) break;
+		if (!RTEST(rb_autoload_load(tmp, id))) {
+		    break;
+		}
 		continue;
 	    }
 	    if (exclude && tmp == rb_cObject && klass != rb_cObject) {
@@ -1573,14 +1578,25 @@ rb_const_get_0(VALUE klass, ID id, int exclude, int recurse)
 	    value = rb_vm_resolve_const_value(value, klass, id);
 	    return value;
 	}
-	if (!recurse && klass != rb_cObject) break;
+	if (!recurse && klass != rb_cObject) {
+	    break;
+	}
 	VALUE inc_mods = rb_attr_get(tmp, idIncludedModules);
 	if (inc_mods != Qnil) {
 	    int i, count = RARRAY_LEN(inc_mods);
 	    for (i = 0; i < count; i++) {
-		iv_dict = rb_class_ivar_dict(RARRAY_AT(inc_mods, i));
-		if (CFDictionaryGetValueIfPresent(iv_dict, (const void *)id, (const void **)&value))
+		VALUE mod = RARRAY_AT(inc_mods, i);
+		iv_dict = rb_class_ivar_dict(mod);
+		if (CFDictionaryGetValueIfPresent(iv_dict, (const void *)id,
+			    (const void **)&value)) {
+ 		    if (value == Qundef) {
+			if (!RTEST(rb_autoload_load(mod, id))) {
+			    break;
+			}
+			continue;
+		    }
 		    return rb_vm_resolve_const_value(value, klass, id);
+		}
 	    }
 	}
 	tmp = RCLASS_SUPER(tmp);
@@ -1886,104 +1902,37 @@ rb_define_global_const(const char *name, VALUE val)
     rb_define_const(rb_cObject, name, val);
 }
 
-static VALUE
-original_module(VALUE c)
+static inline VALUE
+unmeta_class(VALUE klass)
 {
-    if (TYPE(c) == T_ICLASS)
-	return RBASIC(c)->klass;
-    return c;
+    if (RCLASS_META(klass)) {
+	klass = (VALUE)objc_getClass(class_getName((Class)klass));
+    }
+    return klass;
 }
-
-#define IV_LOOKUP(k,i,v) ((iv_dict = rb_class_ivar_dict(k)) != NULL && CFDictionaryGetValueIfPresent((CFDictionaryRef)iv_dict, (const void *)i, (const void **)(v)))
-
-#define CVAR_LOOKUP(v,r) do {\
-    if (IV_LOOKUP(klass, id, v)) {\
-	r;\
-    }\
-    if (RCLASS_SINGLETON(klass)) {\
-	VALUE obj = rb_iv_get(klass, "__attached__");\
-	switch (TYPE(obj)) {\
-	  case T_MODULE:\
-	  case T_CLASS:\
-	    klass = obj;\
-	    break;\
-	  default:\
-	    klass = RCLASS_SUPER(klass);\
-	    break;\
-	}\
-    }\
-    else {\
-	klass = RCLASS_SUPER(klass);\
-    }\
-    while (klass) {\
-	if (IV_LOOKUP(klass, id, v)) {\
-	    r;\
-	}\
-	klass = RCLASS_SUPER(klass);\
-    }\
-} while(0)
 
 void
 rb_cvar_set(VALUE klass, ID id, VALUE val)
 {
-    VALUE tmp, front = 0, target = 0;
-    CFMutableDictionaryRef iv_dict;
-
-    tmp = klass;
-    if (!RCLASS_META(klass)) { 
-	tmp = klass = *(VALUE *)klass;
+    if (RCLASS_META(klass)) { 
+	klass = (VALUE)objc_getClass(class_getName((Class)klass));
     }
-    CVAR_LOOKUP(0, {if (!front) front = klass; target = klass;});
-    if (target) {
-	if (front && target != front) {
-	    ID did = id;
-
-	    if (RTEST(ruby_verbose)) {
-		rb_warning("class variable %s of %s is overtaken by %s",
-			   rb_id2name(id), rb_class2name(original_module(front)),
-			   rb_class2name(original_module(target)));
-	    }
-	    if (TYPE(front) == T_CLASS) {
-		CFDictionaryRemoveValue(rb_class_ivar_dict(front), (const void *)did);
-	    }
-	}
-    }
-    else {
-	target = tmp;
-    }
-    mod_av_set(target, id, val, Qfalse);
+    rb_ivar_set(klass, id, val);
 }
 
 VALUE
 rb_cvar_get2(VALUE klass, ID id, bool check)
 {
-    VALUE value, tmp, front = 0, target = 0;
-    CFMutableDictionaryRef iv_dict;
-
-    tmp = klass;
-    if (!RCLASS_META(klass)) {
-	tmp = klass = *(VALUE *)klass;
-    }
-    CVAR_LOOKUP(&value, {if (!front) front = klass; target = klass;});
-    if (!target) {
+    VALUE orig = klass;
+    klass = unmeta_class(klass);
+    VALUE value = ivar_get(klass, id, false, true);
+    if (value == Qundef) {
 	if (check) {
 	    rb_name_error(id,"uninitialized class variable %s in %s",
-		    rb_id2name(id), rb_class2name(tmp));
+		    rb_id2name(id), rb_class2name(orig));
 	}
 	else {
 	    return Qnil;
-	}
-    }
-    if (front && target != front) {
-	ID did = id;
-
-	if (RTEST(ruby_verbose)) {
-	    rb_warning("class variable %s of %s is overtaken by %s",
-		       rb_id2name(id), rb_class2name(original_module(front)),
-		       rb_class2name(original_module(target)));
-	}
-	if (BUILTIN_TYPE(front) == T_CLASS) {
-	    CFDictionaryRemoveValue(rb_class_ivar_dict(front), (const void *)did);
 	}
     }
     return value;
@@ -1998,15 +1947,8 @@ rb_cvar_get(VALUE klass, ID id)
 VALUE
 rb_cvar_defined(VALUE klass, ID id)
 {
-    CFMutableDictionaryRef iv_dict;
-    if (!klass) {
-	return Qfalse;
-    }
-    if (!RCLASS_META(klass)) {
-	klass = *(VALUE *)klass;
-    }
-    CVAR_LOOKUP(0,return Qtrue);
-    return Qfalse;
+    klass = unmeta_class(klass);
+    return ivar_get(klass, id, false, true) == Qundef ? Qfalse : Qtrue;
 }
 
 void
@@ -2069,13 +2011,11 @@ cv_i(ID key, VALUE value, VALUE ary)
  */
 
 VALUE
-rb_mod_class_variables(VALUE obj, SEL sel)
+rb_mod_class_variables(VALUE klass, SEL sel)
 {
-    if (!RCLASS_META(obj)) {
-	obj = *(VALUE *)obj;
-    }
+    klass = unmeta_class(klass);
     VALUE ary = rb_ary_new();
-    CFMutableDictionaryRef iv_dict = rb_class_ivar_dict(obj);
+    CFMutableDictionaryRef iv_dict = rb_class_ivar_dict(klass);
     if (iv_dict != NULL) {
 	ivar_dict_foreach((VALUE)iv_dict, cv_i, (VALUE)ary);
     }
