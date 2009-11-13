@@ -140,3 +140,10 @@ assert '42', %{
   p eval "yield", b
 }
 
+assert '42', %{
+  class Foo
+    FOO=42
+    class_eval("def foo; FOO; end")
+  end
+  p Foo.new.foo
+}
