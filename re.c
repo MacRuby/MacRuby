@@ -2652,6 +2652,11 @@ rb_reg_initialize_str(VALUE obj, VALUE str, int options, onig_errmsg_buffer err)
         }
 #endif
     }
+    const char *ptr = RSTRING_PTR(str);
+    if (strlen(ptr) != RSTRING_LEN(str)) {
+	// TODO
+	str = rb_str_new2("");
+    }
     return rb_reg_initialize(obj, RSTRING_PTR(str), RSTRING_LEN(str), enc,
 	    options, err);
 }
