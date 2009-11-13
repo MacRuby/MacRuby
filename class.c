@@ -410,7 +410,7 @@ rb_make_singleton_class(VALUE super)
     return klass;
 }
 
-    VALUE
+VALUE
 rb_make_metaclass(VALUE obj, VALUE super)
 {
     if (TYPE(obj) == T_CLASS && RCLASS_SINGLETON(obj)) {
@@ -419,7 +419,10 @@ rb_make_metaclass(VALUE obj, VALUE super)
     }
     else {
 	VALUE klass = rb_make_singleton_class(super);
-	rb_vm_set_outer(klass, rb_vm_get_outer(super));
+	VALUE outer = rb_vm_get_outer(super);
+	if (outer != Qundef) {
+	    rb_vm_set_outer(klass, outer);
+	}
 	RBASIC(obj)->klass = klass;
 	rb_singleton_class_attached(klass, obj);
 
