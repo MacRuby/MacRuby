@@ -710,3 +710,13 @@ assert ':ok', %{
   end
   p f
 }
+
+assert ':ok', %{
+  class X
+    def foo(&b); b.call; end
+  end
+  class Y < X
+    def foo(&b); super; end
+  end
+  Y.new.foo { p :ok }
+}
