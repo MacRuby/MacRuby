@@ -42,6 +42,7 @@ RoxorCompiler::RoxorCompiler(void)
     current_self = NULL;
     current_var_uses = NULL;
     running_block = NULL;
+    current_block_arg = NULL;
     current_block = false;
     current_block_chain = false;
     current_block_node = NULL;
@@ -956,21 +957,23 @@ RoxorAOTCompiler::compile_prepare_block_args(Function *func, int *flags)
 }
 
 Value *
-RoxorCompiler::compile_block_create(NODE *node)
+RoxorCompiler::compile_block_get(Value *block_object)
 {
-    if (node != NULL) {
-	if (getBlockFunc == NULL) {
-	    // void *rb_vm_get_block(VALUE obj);
-	    getBlockFunc = cast<Function>
-		(module->getOrInsertFunction("rb_vm_get_block",
-					     PtrTy, RubyObjTy, NULL));
-	}
-
-	std::vector<Value *> params;
-	params.push_back(compile_node(node->nd_body));
-	return compile_protected_call(getBlockFunc, params);
+    if (getBlockFunc == NULL) {
+	// void *rb_vm_get_block(VALUE obj);
+	getBlockFunc = cast<Function>
+	    (module->getOrInsertFunction("rb_vm_get_block",
+					 PtrTy, RubyObjTy, NULL));
     }
 
+    std::vector<Value *> params;
+    params.push_back(block_object);
+    return compile_protected_call(getBlockFunc, params);
+}
+
+Value *
+RoxorCompiler::compile_block_create(void)
+{
     assert(current_block_func != NULL && current_block_node != NULL);
 
     if (prepareBlockFunc == NULL) {
@@ -3116,6 +3119,7 @@ RoxorCompiler::compile_node(NODE *node)
 		    running_block = NULL;
 		}
 
+		current_block_arg = NULL;
 		if (node->nd_tbl != NULL) {
 		    bool has_vars_to_save = false;
 		    int i, args_count = (int)node->nd_tbl[0];
@@ -3142,6 +3146,7 @@ RoxorCompiler::compile_node(NODE *node)
 					    RubyObjTy, NULL));
 			    }
 			    val = CallInst::Create(currentBlockObjectFunc, "", bb);
+			    current_block_arg = val;
 			}
 			Value *slot = new AllocaInst(RubyObjTy, "", bb);
 			new StoreInst(val, slot, bb);
@@ -4197,12 +4202,19 @@ rescan_args:
 		Value *blockVal;
 		if (args != NULL && nd_type(args) == NODE_BLOCK_PASS) {
 		    assert(!block_given);
-		    blockVal = compile_block_create(args);
+		    assert(args->nd_body != NULL);
+		    blockVal = compile_block_get(compile_node(args->nd_body));
 		}
 		else {
-		    blockVal = block_given
-			? compile_block_create(NULL)
-			: compile_const_pointer(NULL);
+		    if (block_given) {
+			blockVal = compile_block_create();
+		    }
+		    else if (nd_type(node) == NODE_ZSUPER && current_block_arg != NULL) {
+			blockVal = compile_block_get(current_block_arg);	
+		    }
+		    else {
+			blockVal = compile_const_pointer(NULL);
+		    }
 		}
 		params[4] = blockVal;
 
@@ -5048,7 +5060,7 @@ rescan_args:
 		    }
 
 		    params.push_back(compile_sel((is_lambda ? selLambda : selEach)));
-		    params.push_back(compile_block_create(NULL));
+		    params.push_back(compile_block_create());
 		    params.push_back(ConstantInt::get(Int8Ty, (is_lambda ? DISPATCH_FCALL : 0)));
 		    params.push_back(ConstantInt::get(Int32Ty, 0));
 
@@ -5241,7 +5253,7 @@ rescan_args:
 		params.push_back(current_self);
 		params.push_back(compile_nsobject());
 		params.push_back(compile_sel(sel));
-		params.push_back(compile_block_create(NULL));
+		params.push_back(compile_block_create());
 		params.push_back(ConstantInt::get(Int8Ty, DISPATCH_FCALL));
 		params.push_back(ConstantInt::get(Int32Ty, 0));
 

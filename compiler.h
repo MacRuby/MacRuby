@@ -122,6 +122,7 @@ class RoxorCompiler {
 	bool current_block_chain;
 	Value *current_var_uses;
 	Value *running_block;
+	Value *current_block_arg;
 	BasicBlock *begin_bb;
 	// block used in an invoke when an exception occurs
 	BasicBlock *rescue_invoke_bb;
@@ -287,7 +288,8 @@ class RoxorCompiler {
 	Value *compile_fast_op_call(SEL sel, Value *selfVal, Value *comparedToVal);
 	Value *compile_attribute_assign(NODE *node, Value *extra_val);
 	virtual Value *compile_prepare_block_args(Function *func, int *flags);
-	Value *compile_block_create(NODE *node);
+	Value *compile_block_create(void);
+	Value *compile_block_get(Value *block_object);
 	Value *compile_binding(void);
 	Value *compile_optimized_dispatch_call(SEL sel, int argc,
 		std::vector<Value *> &params);
