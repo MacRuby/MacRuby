@@ -920,6 +920,8 @@ VALUE rb_define_class_under(VALUE, const char*, VALUE);
 VALUE rb_define_module_under(VALUE, const char*);
 
 void rb_include_module(VALUE,VALUE);
+void rb_include_module2(VALUE klass, VALUE orig_klass, VALUE module, bool check,
+	bool add_methods);
 void rb_extend_object(VALUE,VALUE);
 
 void rb_define_variable(const char*,VALUE*);

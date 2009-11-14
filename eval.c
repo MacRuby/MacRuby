@@ -511,6 +511,7 @@ VALUE rb_make_singleton_class(VALUE super);
 static VALUE
 rb_mod_append_features(VALUE module, SEL sel, VALUE include)
 {
+    VALUE orig = include;
     switch (TYPE(include)) {
 	case T_CLASS:
 	case T_MODULE:
@@ -524,7 +525,7 @@ rb_mod_append_features(VALUE module, SEL sel, VALUE include)
 	RCLASS_SET_SUPER(include, sinclude);
 	include = sinclude;
     }	
-    rb_include_module(include, module);
+    rb_include_module2(include, orig, module, true, true);
 
     VALUE m = module;
     do {

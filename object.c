@@ -2895,12 +2895,10 @@ Init_Object(void)
     rb_objc_define_method(*(VALUE *)rb_cClass, "alloc", rb_class_s_alloc, 0);
     rb_objc_define_method(rb_cClass, "new", rb_class_new_instance_imp, -1);
 
-    void rb_include_module2(VALUE klass, VALUE module, int check, int add_methods);
-
     // At this point, methods defined on Class or Module will be automatically
     // added to NSObject's metaclass.
-    rb_include_module2(*(VALUE *)rb_cNSObject, rb_cClass, 0, 0);
-    rb_include_module2(*(VALUE *)rb_cNSObject, rb_cModule, 0, 0);
+    rb_include_module2(*(VALUE *)rb_cNSObject, 0, rb_cClass, false, false);
+    rb_include_module2(*(VALUE *)rb_cNSObject, 0, rb_cModule, false, false);
 
     rb_objc_define_direct_method(*(VALUE *)rb_cNSObject, "new:", rb_class_new_instance_imp, -1);
 

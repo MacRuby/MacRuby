@@ -291,6 +291,7 @@ void rb_vm_define_attr(Class klass, const char *name, bool read, bool write);
 void rb_vm_undef_method(Class klass, ID name, bool must_exist);
 void rb_vm_remove_method(Class klass, ID name);
 void rb_vm_alias(VALUE klass, ID name, ID def);
+bool rb_vm_copy_method(Class klass, Method method);
 void rb_vm_copy_methods(Class from_class, Class to_class);
 VALUE rb_vm_call(VALUE self, SEL sel, int argc, const VALUE *args, bool super);
 VALUE rb_vm_call_with_cache(void *cache, VALUE self, SEL sel, int argc,
@@ -729,6 +730,7 @@ class RoxorCore {
 		char *name, size_t name_len);
 
 	struct mcache *method_cache_get(SEL sel, bool super);
+	void invalidate_method_cache(SEL sel);
 	rb_vm_method_node_t *method_node_get(IMP imp, bool create=false);
 	rb_vm_method_node_t *method_node_get(Method m, bool create=false);
 
@@ -748,6 +750,7 @@ class RoxorCore {
 	void remove_method(Class klass, SEL sel);
 	bool resolve_methods(std::map<Class, rb_vm_method_source_t *> *map,
 		Class klass, SEL sel);
+	bool copy_method(Class klass, Method m);
 	void copy_methods(Class from_class, Class to_class);
 	void get_methods(VALUE ary, Class klass, bool include_objc_methods,
 		int (*filter) (VALUE, ID, VALUE));

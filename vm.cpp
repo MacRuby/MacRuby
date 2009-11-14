@@ -804,6 +804,15 @@ RoxorCore::method_added(Class klass, SEL sel)
 
 }
 
+void
+RoxorCore::invalidate_method_cache(SEL sel)
+{
+    std::map<SEL, struct mcache *>::iterator iter = mcache.find(sel);
+    if (iter != mcache.end()) {
+	iter->second->flag = 0;
+    }
+}
+
 rb_vm_method_node_t *
 RoxorCore::add_method(Class klass, SEL sel, IMP imp, IMP ruby_imp,
 	const rb_vm_arity_t &arity, int flags, const char *types)
@@ -866,10 +875,7 @@ RoxorCore::add_method(Class klass, SEL sel, IMP imp, IMP ruby_imp,
     invalidate_respond_to_cache();
 
     // Invalidate dispatch cache.
-    std::map<SEL, struct mcache *>::iterator iter3 = mcache.find(sel);
-    if (iter3 != mcache.end()) {
-	iter3->second->flag = 0;
-    }
+    invalidate_method_cache(sel);
 
     // Invalidate inline operations.
     if (running) {
@@ -2055,6 +2061,44 @@ rb_vm_copy_methods(Class from_class, Class to_class)
     GET_CORE()->copy_methods(from_class, to_class);
 }
 
+extern "C"
+bool
+rb_vm_copy_method(Class klass, Method m)
+{
+    return GET_CORE()->copy_method(klass, m);
+}
+
+bool
+RoxorCore::copy_method(Class klass, Method m)
+{
+    rb_vm_method_node_t *node = method_node_get(m);
+    if (node == NULL) {
+	// Only copy pure-Ruby methods.
+	return false;
+    }
+    SEL sel = method_getName(m);
+
+#if ROXOR_VM_DEBUG
+    printf("copy %c[%s %s] from method %p imp %p\n",
+	    class_isMetaClass(klass) ? '+' : '-',
+	    class_getName(klass),
+	    sel_getName(sel),
+	    m,
+	    method_getImplementation(m));
+#endif
+
+    class_replaceMethod(klass, sel, method_getImplementation(m),
+	    method_getTypeEncoding(m));
+
+    Method m2 = class_getInstanceMethod(klass, sel);
+    assert(m2 != NULL);
+    assert(method_getImplementation(m2) == method_getImplementation(m));
+    rb_vm_method_node_t *node2 = method_node_get(m2, true);
+    memcpy(node2, node, sizeof(rb_vm_method_node_t));
+
+    return true;
+}
+
 void
 RoxorCore::copy_methods(Class from_class, Class to_class)
 {
@@ -2066,32 +2110,11 @@ RoxorCore::copy_methods(Class from_class, Class to_class)
     if (methods != NULL) {
 	for (i = 0; i < methods_count; i++) {
 	    Method m = methods[i];
-	    rb_vm_method_node_t *node = method_node_get(m);
-	    if (node == NULL) {
-		// Only copy pure-Ruby methods.
+	    if (!copy_method(to_class, m)) {
 		continue;
 	    }
+
 	    SEL sel = method_getName(m);
-
-#if ROXOR_VM_DEBUG
-	    printf("copy %c[%s %s] to %s\n",
-		    class_isMetaClass(from_class) ? '+' : '-',
-		    class_getName(from_class),
-		    sel_getName(sel),
-		    class_getName(to_class));
-#endif
-
-	    class_replaceMethod(to_class,
-		    sel,
-		    method_getImplementation(m),
-		    method_getTypeEncoding(m));
-
-	    Method m2 = class_getInstanceMethod(to_class, sel);
-	    assert(m2 != NULL);
-	    assert(method_getImplementation(m2) == method_getImplementation(m));
-	    rb_vm_method_node_t *node2 = method_node_get(m2, true);
-	    memcpy(node2, node, sizeof(rb_vm_method_node_t));
-
 	    std::map<Class, rb_vm_method_source_t *> *map =
 		method_sources_for_sel(sel, false);
 	    if (map != NULL) {
