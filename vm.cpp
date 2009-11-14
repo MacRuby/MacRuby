@@ -234,6 +234,7 @@ RoxorCore::RoxorCore(void)
 	fprintf(stderr, "error while creating JIT: %s\n", err.c_str());
 	abort();
     }
+    ee->DisableLazyCompilation();
 
     fpm = new FunctionPassManager(emp);
     fpm->add(new TargetData(*ee->getTargetData()));
@@ -390,12 +391,6 @@ RoxorVM::debug_exceptions(void)
 	}
     }
     return s;
-}
-
-inline void
-RoxorCore::optimize(Function *func)
-{
-    fpm->run(*func);
 }
 
 IMP

@@ -671,7 +671,9 @@ class RoxorCore {
 	void register_thread(VALUE thread);
 	void unregister_thread(VALUE thread);
 
-	void optimize(Function *func);
+	void optimize(Function *func) {
+	    fpm->run(*func);
+	}
 	IMP compile(Function *func);
 	void delenda(Function *func);
 
