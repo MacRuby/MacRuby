@@ -31,6 +31,11 @@
 #include <llvm/Bitcode/ReaderWriter.h>
 using namespace llvm;
 
+#if ROXOR_COMPILER_DEBUG
+# include <mach/mach.h>
+# include <mach/mach_time.h>
+#endif
+
 #include "ruby/ruby.h"
 #include "ruby/node.h"
 #include "id.h"
@@ -40,11 +45,6 @@ using namespace llvm;
 #include "dtrace.h"
 
 #include <objc/objc-exception.h>
-
-#if ROXOR_COMPILER_DEBUG
-# include <mach/mach.h>
-# include <mach/mach_time.h>
-#endif
 
 #include <execinfo.h>
 #include <dlfcn.h>
