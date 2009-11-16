@@ -227,6 +227,38 @@ module KernelSpecs
   class Grandchild < Child
     undef_method :parent_mixin_method
   end
+
+  class RespondViaMissing
+    def respond_to_missing?(method, priv=false)
+      case method
+        when :handled_publicly
+          true
+        when :handled_privately
+          priv
+        when :not_handled
+          false
+        else
+          raise "Typo in method name"
+      end
+    end
+
+    def method_missing(method, *args)
+      "Done #{method}(#{args})"
+    end
+  end
+end
+
+class EvalSpecs
+  class A
+    eval "class B; end"
+    def c
+      eval "class C; end"
+    end
+  end
+
+  def f
+    yield
+  end
 end
 
 # for Kernel#sleep to have Channel in it's specs

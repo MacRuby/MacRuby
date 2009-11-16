@@ -18,6 +18,12 @@ describe :proc_call, :shared => true do
     proc { |*args| args }.send(@method, 1, 2, 3, 4).should == [1, 2, 3, 4]
     proc { |_, *args| args }.send(@method, 1, 2, 3).should == [2, 3]
   end
+
+  it "is being able to receive block arguments" do
+    Proc.new {|&b| b.send(@method)}.send(@method) {1 + 1}.should == 2
+    lambda {|&b| b.send(@method)}.send(@method) {1 + 1}.should == 2
+    proc {|&b| b.send(@method)}.send(@method) {1 + 1}.should == 2
+  end
   
   ruby_version_is ""..."1.9" do
     it "sets self's single parameter to an Array of all given values" do

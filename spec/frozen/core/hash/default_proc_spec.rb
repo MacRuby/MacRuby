@@ -41,5 +41,22 @@ describe "Hash#default_proc=" do
       lambda{new_hash.default_proc = nil}.should raise_error(TypeError)
       lambda{new_hash.default_proc = 42}.should raise_error(TypeError)
     end
+
+    it "raises a TypeError if passed a lambda with an arity other than 2" do
+      h = new_hash
+      lambda do
+        h.default_proc = lambda {|a| }
+      end.should raise_error(TypeError)
+      lambda do
+        h.default_proc = lambda {|a,b,c| }
+      end.should raise_error(TypeError)
+    end
+
+    it "accepts a lambda with an arity of 2" do
+      h = new_hash
+      lambda do
+        h.default_proc = lambda {|a,b| }
+      end.should_not raise_error(TypeError)
+    end
   end
 end

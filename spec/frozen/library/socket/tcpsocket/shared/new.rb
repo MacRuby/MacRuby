@@ -16,7 +16,9 @@ describe :tcpsocket_new, :shared => true do
   it "connects to a listening server" do
     thread = Thread.new do
       server = TCPServer.new(SocketSpecs.port)
-      server.accept
+      conn = server.accept
+      conn.recv(50)
+      conn.close
       server.close
     end
     Thread.pass while thread.status and thread.status != 'sleep'
@@ -31,7 +33,9 @@ describe :tcpsocket_new, :shared => true do
   it "has an address once it has connected to a listening server" do
     thread = Thread.new do
       server = TCPServer.new('127.0.0.1', SocketSpecs.port)
-      server.accept
+      conn = server.accept
+      conn.recv(50)
+      conn.close
       server.close
     end
     Thread.pass while thread.status and thread.status != 'sleep'

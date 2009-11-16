@@ -23,13 +23,16 @@ describe "Socket#for_fd given a file descriptor" do
       host.read(3).should == "bar"
     ensure
       if (server && !server.closed?)
-        server.close unless server.closed?
+        server.close
       end
       if (client && !client.closed?)
-        client.close unless server.closed?
+        client.close
       end
       if (new_sock && !new_sock.closed?)
-        new_sock.close
+        begin
+          new_sock.close
+        rescue Errno::EBADF
+        end
       end
     end
   end

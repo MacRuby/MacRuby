@@ -9,8 +9,7 @@ describe "Binding#eval" do
       bind2 = obj.dup.get_binding
       { "@secret += square(3)" => 10,
         "a" => true,
-        "class Inside ; end" => nil,
-        "Inside.name" => "BindingSpecs::Demo::Inside"
+        "class Inside ; end ; Inside.name" => "BindingSpecs::Demo::Inside"
       }.each do |test, result|
         r1 = bind1.eval(test)
         r2 = Kernel.eval(test, bind2)

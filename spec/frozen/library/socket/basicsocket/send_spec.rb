@@ -26,6 +26,7 @@ describe "BasicSocket#send" do
      t.status.should_not be_nil
 
      @socket.send('hello', 0).should == 5
+     @socket.shutdown # indicate, that we are done sending
 
      t.join
      data.should == 'hello'
@@ -44,6 +45,7 @@ describe "BasicSocket#send" do
      t.status.should_not be_nil
 
      @socket.send('helloU', Socket::MSG_PEEK | Socket::MSG_OOB).should == 6
+     @socket.shutdown # indicate, that we are done sending
 
      t.join
      peek_data.should == "hello"
@@ -62,6 +64,7 @@ describe "BasicSocket#send" do
 
      sockaddr = Socket.pack_sockaddr_in(SocketSpecs.port, "127.0.0.1")
      @socket.send('hello', 0, sockaddr).should == 5
+     @socket.shutdown # indicate, that we are done sending
 
      t.join
      data.should == 'hello'
