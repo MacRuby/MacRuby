@@ -1,1 +1,2 @@
 fails:Matrix#determinant returns the determinant of a Matrices containing 0 as first entry
+fails:Matrix#determinant returns 1 for an empty Matrix

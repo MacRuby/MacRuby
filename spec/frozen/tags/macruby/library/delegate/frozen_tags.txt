@@ -1,0 +1,2 @@
+fails:SimpleDelegator when frozen is not writeable
+fails:SimpleDelegator when frozen causes mutative calls to raise RuntimeError

@@ -69,3 +69,4 @@ fails:String#% tries to convert the passed argument to an Array using #to_ary
 fails:String#% tries to convert the passed argument to an Array using #to_ary
 fails:String#% tries to convert the passed argument to an Array using #to_ary
 fails:String#% tries to convert the passed argument to an Array using #to_ary
+fails:String#% pads with spaces for %E with Inf, -Inf, and NaN
