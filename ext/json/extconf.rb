@@ -1,3 +1,8 @@
+# encoding: UTF-8
 require 'mkmf'
-create_makefile('json')
+require 'rbconfig'
 
+$INCFLAGS << ' -I../..'
+$CFLAGS << ' -Wall -std=c99'
+
+create_makefile("json")
