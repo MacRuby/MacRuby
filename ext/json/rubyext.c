@@ -3,7 +3,9 @@
  *
  * This file is covered by the Ruby license. See COPYING for more details.
  * 
- * Copyright (C) 2009, Satoshi Nakagawa. All rights reserved.
+ * Copyright (C) 2009, Satoshi Nakagawa.
+ * Based on yajl-ruby, Copyright (C) 2008-2009 Brian Lopez.
+ *
  */
 
 #include "ruby/ruby.h"
