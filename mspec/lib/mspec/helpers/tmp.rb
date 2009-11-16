@@ -20,7 +20,7 @@ class Object
       if RUBY_NAME =~ /^macruby/
         @spec_temp_directory = "/private/tmp"
       else
-        [ "/private/tmp", "/tmp", "/var/tmp", ENV["TMPDIR"], ENV["TMP"],
+        [ ENV["TMPDIR"], "/private/tmp", "/tmp", "/var/tmp", ENV["TMP"],
           ENV["TEMP"], ENV["USERPROFILE"] ].each do |dir|
           if dir and File.directory?(dir) and File.writable?(dir)
             temp = File.expand_path dir
