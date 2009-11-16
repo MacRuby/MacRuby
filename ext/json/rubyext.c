@@ -120,7 +120,7 @@ rb_json_parser_initialize(VALUE self, SEL sel, int argc, VALUE* argv)
     parser->nestedHashLevel = 0;
     parser->objectsFound = 0;
     parser->symbolizeKeys = symbolizeKeys;
-    parser->builderStack = rb_ary_new();
+    GC_WB(&parser->builderStack, rb_ary_new());
     return self;
 }
 
