@@ -196,16 +196,16 @@ rb_json_encoder_encode(VALUE self, SEL sel, VALUE obj)
 {
     const unsigned char* buffer;
     unsigned int len;
-    VALUE outBuff;
     rb_json_generator_t* gen = RJSONGenerator(self);
     
     json_encode_part(gen, obj);
-
     yajl_gen_get_buf(gen->generator, &buffer, &len);
-    outBuff = rb_str_new((const char*)buffer, len);
+    
+    VALUE resultBuf = (VALUE)CFStringCreateWithBytes(NULL, (const UInt8*)buffer, len, kCFStringEncodingUTF8, false);
+    CFMakeCollectable((CFTypeRef)resultBuf);
     yajl_gen_clear(gen->generator);
     
-    return outBuff;
+    return resultBuf;
 }
 
 static void
@@ -305,7 +305,9 @@ yajl_handle_number(void* ctx, const char* value, unsigned int len)
 static int
 yajl_handle_string(void* ctx, const unsigned char* value, unsigned int len)
 {
-    yajl_set_static_value(ctx, rb_str_new((const char*)value, len));
+    VALUE str = (VALUE)CFStringCreateWithBytes(NULL, (const UInt8*)value, len, kCFStringEncodingUTF8, false);
+    CFMakeCollectable((CFTypeRef)str);
+    yajl_set_static_value(ctx, str);
     return 1;
 }
 
@@ -313,7 +315,9 @@ static int
 yajl_handle_hash_key(void* ctx, const unsigned char* value, unsigned int len)
 {
     rb_json_parser_t* parser = RJSONParser(ctx);
-    VALUE keyStr = rb_str_new((const char*)value, len);
+    
+    VALUE keyStr = (VALUE)CFStringCreateWithBytes(NULL, (const UInt8*)value, len, kCFStringEncodingUTF8, false);
+    CFMakeCollectable((CFTypeRef)keyStr);
     
     if (parser->symbolizeKeys) {
         ID key = rb_intern(RSTRING_PTR(keyStr));
@@ -501,9 +505,11 @@ rb_object_to_json(VALUE self, SEL sel, int argc, VALUE* argv)
     
     str = rb_funcall(self, id_to_s, 0);
     
-    buf = rb_str_new2("\"");
-    buf = rb_str_append(buf, str);
-    buf = rb_str_buf_cat2(buf, "\"");
+    buf = (VALUE)CFStringCreateMutable(NULL, 0);
+    CFMakeCollectable((CFTypeRef)buf);
+    CFStringAppendCString((CFMutableStringRef)buf, "\"", kCFStringEncodingUTF8);
+    CFStringAppend((CFMutableStringRef)buf, (CFStringRef)str);
+    CFStringAppendCString((CFMutableStringRef)buf, "\"", kCFStringEncodingUTF8);
     return buf;
 }
 
