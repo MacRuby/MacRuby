@@ -82,6 +82,18 @@ static ID id_pretty;
 static ID id_indent;
 static ID id_symbolize_keys;
 
+static SEL sel_parse;
+static SEL sel_encode;
+static SEL sel_keys;
+static SEL sel_to_s;
+static SEL sel_to_json;
+
+static struct mcache* parse_cache = NULL;
+static struct mcache* encode_cache = NULL;
+static struct mcache* keys_cache = NULL;
+static struct mcache* to_s_cache = NULL;
+static struct mcache* to_json_cache = NULL;
+
 
 static VALUE
 rb_json_parser_alloc(VALUE klass, SEL sel)
@@ -132,7 +144,7 @@ rb_json_parser_parse(VALUE self, SEL sel, VALUE input)
     
     if (TYPE(input) == T_STRING) {
         const unsigned char* cptr = (const unsigned char*)RSTRING_PTR(input);
-        json_parse_chunk(cptr, (unsigned int)strlen(cptr), parser->parser);
+        json_parse_chunk(cptr, (unsigned int)strlen((char*)cptr), parser->parser);
     }
     else {
         rb_raise(rb_cParseError, "input must be a string");
@@ -375,7 +387,7 @@ json_encode_part(void* ctx, VALUE obj)
 {
     VALUE str, keys, entry, keyStr;
     yajl_gen_status status;
-    const unsigned char* cptr;
+    const char* cptr;
     int i, len;
     int quote_strings = 1;
     rb_json_generator_t* gen = RJSONGenerator(ctx);
@@ -383,10 +395,10 @@ json_encode_part(void* ctx, VALUE obj)
     switch (TYPE(obj)) {
         case T_HASH:
             status = yajl_gen_map_open(gen->generator);
-            keys = rb_funcall(obj, id_keys, 0);
+            keys = rb_vm_call_with_cache(keys_cache, obj, sel_keys, 0, 0);
             for(i = 0, len = RARRAY_LEN(keys); i < len; i++) {
                 entry = rb_ary_entry(keys, i);
-                keyStr = rb_funcall(entry, id_to_s, 0);
+                keyStr = rb_vm_call_with_cache(to_s_cache, entry, sel_to_s, 0, 0);
                 json_encode_part(gen, keyStr);
                 json_encode_part(gen, rb_hash_aref(obj, entry));
             }
@@ -412,27 +424,27 @@ json_encode_part(void* ctx, VALUE obj)
         case T_FIXNUM:
         case T_FLOAT:
         case T_BIGNUM:
-            str = rb_funcall(obj, id_to_s, 0);
-            cptr = (const unsigned char*)RSTRING_PTR(str);
+            str = rb_vm_call_with_cache(to_s_cache, obj, sel_to_s, 0, 0);
+            cptr = RSTRING_PTR(str);
             if (!strcmp(cptr, "NaN") || !strcmp(cptr, "Infinity") || !strcmp(cptr, "-Infinity")) {
                 rb_raise(rb_cEncodeError, "'%s' is an invalid number", cptr);
             }
             status = yajl_gen_number(gen->generator, cptr, (unsigned int)strlen(cptr));
             break;
         case T_STRING:
-            cptr = (const unsigned char*)RSTRING_PTR(obj);
-            status = yajl_gen_string(gen->generator, cptr, (unsigned int)strlen(cptr), 1);
+            cptr = RSTRING_PTR(obj);
+            status = yajl_gen_string(gen->generator, (const unsigned char*)cptr, (unsigned int)strlen(cptr), 1);
             break;
         default:
             if (rb_respond_to(obj, id_to_json)) {
-                str = rb_funcall(obj, id_to_json, 0);
+                str = rb_vm_call_with_cache(to_json_cache, obj, sel_to_json, 0, 0);
                 quote_strings = 0;
             }
             else {
-                str = rb_funcall(obj, id_to_s, 0);
+                str = rb_vm_call_with_cache(to_s_cache, obj, sel_to_s, 0, 0);
             }
-            cptr = (const unsigned char*)RSTRING_PTR(str);
-            status = yajl_gen_string(gen->generator, cptr, (unsigned int)strlen(cptr), quote_strings);
+            cptr = RSTRING_PTR(str);
+            status = yajl_gen_string(gen->generator, (const unsigned char*)cptr, (unsigned int)strlen(cptr), quote_strings);
             break;
     }
 }
@@ -453,7 +465,7 @@ rb_json_parse(VALUE self, SEL sel, int argc, VALUE* argv)
         rb_obj_call_init(parser, 1, &opts);
     }
     
-    return rb_funcall(parser, id_parse, 1, str);
+    return rb_vm_call_with_cache(parse_cache, parser, sel_parse, 1, &str);
 }
 
 static VALUE
@@ -471,7 +483,7 @@ rb_json_generate(VALUE self, SEL sel, int argc, VALUE* argv)
         rb_obj_call_init(generator, 1, &opts);
     }
     
-    return rb_funcall(generator, id_encode, 1, obj);
+    return rb_vm_call_with_cache(encode_cache, generator, sel_encode, 1, &obj);
 }
 
 static VALUE
@@ -500,7 +512,8 @@ rb_to_json(VALUE self, SEL sel, int argc, VALUE* argv)
         generator = rb_json_encoder_alloc(rb_cEncoder, nil);
         rb_obj_call_init(generator, 0, 0);
     }
-    return rb_funcall(generator, id_encode, 1, self);
+    
+    return rb_vm_call_with_cache(encode_cache, generator, sel_encode, 1, &self);
 }
 
 static VALUE
@@ -508,7 +521,7 @@ rb_object_to_json(VALUE self, SEL sel, int argc, VALUE* argv)
 {
     VALUE buf, str;
     
-    str = rb_funcall(self, id_to_s, 0);
+    str = rb_vm_call_with_cache(to_s_cache, self, sel_to_s, 0, 0);
     
     buf = (VALUE)CFStringCreateMutable(NULL, 0);
     CFMakeCollectable((CFTypeRef)buf);
@@ -531,6 +544,18 @@ void Init_json()
     id_pretty = rb_intern("pretty");
     id_indent = rb_intern("indent");
     id_symbolize_keys = rb_intern("symbolize_keys");
+
+    sel_parse = sel_registerName("parse:");
+    sel_encode = sel_registerName("encode:");
+    sel_keys = sel_registerName("keys");
+    sel_to_s = sel_registerName("to_s");
+    sel_to_json = sel_registerName("to_json");
+
+    parse_cache = rb_vm_get_call_cache(sel_parse);
+    encode_cache = rb_vm_get_call_cache(sel_encode);
+    keys_cache = rb_vm_get_call_cache(sel_keys);
+    to_s_cache = rb_vm_get_call_cache(sel_to_s);
+    to_json_cache = rb_vm_get_call_cache(sel_to_json);
     
     rb_mJSON = rb_define_module("JSON");
     
