@@ -131,7 +131,8 @@ rb_json_parser_parse(VALUE self, SEL sel, VALUE input)
     rb_json_parser_t* parser = RJSONParser(self);
     
     if (TYPE(input) == T_STRING) {
-        json_parse_chunk((const unsigned char*)RSTRING_PTR(input), RSTRING_LEN(input), parser->parser);
+        const unsigned char* cptr = (const unsigned char*)RSTRING_PTR(input);
+        json_parse_chunk(cptr, (unsigned int)strlen(cptr), parser->parser);
     }
     else {
         rb_raise(rb_cParseError, "input must be a string");
@@ -374,6 +375,7 @@ json_encode_part(void* ctx, VALUE obj)
 {
     VALUE str, keys, entry, keyStr;
     yajl_gen_status status;
+    const unsigned char* cptr;
     int i, len;
     int quote_strings = 1;
     rb_json_generator_t* gen = RJSONGenerator(ctx);
@@ -411,13 +413,15 @@ json_encode_part(void* ctx, VALUE obj)
         case T_FLOAT:
         case T_BIGNUM:
             str = rb_funcall(obj, id_to_s, 0);
-            if (!strcmp(RSTRING_PTR(str), "NaN") || !strcmp(RSTRING_PTR(str), "Infinity") || !strcmp(RSTRING_PTR(str), "-Infinity")) {
-                rb_raise(rb_cEncodeError, "'%s' is an invalid number", RSTRING_PTR(str));
+            cptr = (const unsigned char*)RSTRING_PTR(str);
+            if (!strcmp(cptr, "NaN") || !strcmp(cptr, "Infinity") || !strcmp(cptr, "-Infinity")) {
+                rb_raise(rb_cEncodeError, "'%s' is an invalid number", cptr);
             }
-            status = yajl_gen_number(gen->generator, RSTRING_PTR(str), (unsigned int)RSTRING_LEN(str));
+            status = yajl_gen_number(gen->generator, cptr, (unsigned int)strlen(cptr));
             break;
         case T_STRING:
-            status = yajl_gen_string(gen->generator, (const unsigned char*)RSTRING_PTR(obj), (unsigned int)RSTRING_LEN(obj), 1);
+            cptr = (const unsigned char*)RSTRING_PTR(obj);
+            status = yajl_gen_string(gen->generator, cptr, (unsigned int)strlen(cptr), 1);
             break;
         default:
             if (rb_respond_to(obj, id_to_json)) {
@@ -427,7 +431,8 @@ json_encode_part(void* ctx, VALUE obj)
             else {
                 str = rb_funcall(obj, id_to_s, 0);
             }
-            status = yajl_gen_string(gen->generator, (const unsigned char*)RSTRING_PTR(str), (unsigned int)RSTRING_LEN(str), quote_strings);
+            cptr = (const unsigned char*)RSTRING_PTR(str);
+            status = yajl_gen_string(gen->generator, cptr, (unsigned int)strlen(cptr), quote_strings);
             break;
     }
 }
