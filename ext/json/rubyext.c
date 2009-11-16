@@ -221,7 +221,8 @@ rb_json_encoder_finalize(void* rcv, SEL sel)
 }
 
 
-void json_parse_chunk(const unsigned char* chunk, unsigned int len, yajl_handle parser)
+static void
+json_parse_chunk(const unsigned char* chunk, unsigned int len, yajl_handle parser)
 {
     yajl_status status = yajl_parse(parser, chunk, len);
     
@@ -232,7 +233,8 @@ void json_parse_chunk(const unsigned char* chunk, unsigned int len, yajl_handle 
     }
 }
 
-inline void yajl_set_static_value(void* ctx, VALUE val)
+static inline void
+yajl_set_static_value(void* ctx, VALUE val)
 {
     VALUE lastEntry, hash;
     int len;
@@ -270,19 +272,22 @@ inline void yajl_set_static_value(void* ctx, VALUE val)
     }
 }
 
-static int yajl_handle_null(void* ctx)
+static int
+yajl_handle_null(void* ctx)
 {
     yajl_set_static_value(ctx, Qnil);
     return 1;
 }
 
-static int yajl_handle_boolean(void* ctx, int value)
+static int
+yajl_handle_boolean(void* ctx, int value)
 {
     yajl_set_static_value(ctx, value ? Qtrue : Qfalse);
     return 1;
 }
 
-static int yajl_handle_number(void* ctx, const char* value, unsigned int len)
+static int
+yajl_handle_number(void* ctx, const char* value, unsigned int len)
 {
     char buf[len+1];
     memcpy(buf, value, len);
@@ -297,13 +302,15 @@ static int yajl_handle_number(void* ctx, const char* value, unsigned int len)
     return 1;
 }
 
-static int yajl_handle_string(void* ctx, const unsigned char* value, unsigned int len)
+static int
+yajl_handle_string(void* ctx, const unsigned char* value, unsigned int len)
 {
     yajl_set_static_value(ctx, rb_str_new((const char*)value, len));
     return 1;
 }
 
-static int yajl_handle_hash_key(void* ctx, const unsigned char* value, unsigned int len)
+static int
+yajl_handle_hash_key(void* ctx, const unsigned char* value, unsigned int len)
 {
     rb_json_parser_t* parser = RJSONParser(ctx);
     VALUE keyStr = rb_str_new((const char*)value, len);
@@ -318,7 +325,8 @@ static int yajl_handle_hash_key(void* ctx, const unsigned char* value, unsigned 
     return 1;
 }
 
-static int yajl_handle_start_hash(void* ctx)
+static int
+yajl_handle_start_hash(void* ctx)
 {
     rb_json_parser_t* parser = RJSONParser(ctx);
     parser->nestedHashLevel++;
@@ -326,7 +334,8 @@ static int yajl_handle_start_hash(void* ctx)
     return 1;
 }
 
-static int yajl_handle_end_hash(void* ctx)
+static int
+yajl_handle_end_hash(void* ctx)
 {
     rb_json_parser_t* parser = RJSONParser(ctx);
     parser->nestedHashLevel--;
@@ -336,7 +345,8 @@ static int yajl_handle_end_hash(void* ctx)
     return 1;
 }
 
-static int yajl_handle_start_array(void* ctx)
+static int
+yajl_handle_start_array(void* ctx)
 {
     rb_json_parser_t* parser = RJSONParser(ctx);
     parser->nestedArrayLevel++;
@@ -344,7 +354,8 @@ static int yajl_handle_start_array(void* ctx)
     return 1;
 }
 
-static int yajl_handle_end_array(void* ctx)
+static int
+yajl_handle_end_array(void* ctx)
 {
     rb_json_parser_t* parser = RJSONParser(ctx);
     parser->nestedArrayLevel--;
@@ -354,7 +365,8 @@ static int yajl_handle_end_array(void* ctx)
     return 1;
 }
 
-void json_encode_part(void* ctx, VALUE obj)
+static void
+json_encode_part(void* ctx, VALUE obj)
 {
     VALUE str, keys, entry, keyStr;
     yajl_gen_status status;
