@@ -33,36 +33,18 @@ init_random(void)
     srandomdev();
 }
 
-/*
- * #rand(0) needs to generate a float x, such as 0.0 <= x <= 1.0. However,
- * srandom() returns a long. We want to convert that long by dividing it until
- * it is <= 1.0 using its 10th power.
- * For performance reasons, long_to_float_divider() returns the 10th power of
- * the number, without calculating the number length and using pow().
- */
-static inline unsigned long
-long_to_float_divider(long val)
-{
-    unsigned long divider = 1;
-
-    while (divider <= val) {
-        divider *= 10;
-    }
-    return divider;
-}
-
 static VALUE
 random_number_with_limit(long limit)
 {
     long	val;
 
     if (limit == 0) {
-#if __LP64__
+	/*
+	 * #rand(0) needs to generate a float x, such as 0.0 <= x <= 1.0. However,
+	 * srandom() returns a long. We want to convert that long by divide by RAND_MAX
+	 */
 	val = random();
-#else
-	val = random() % (ULONG_MAX / 10);
-#endif /* !__LP64__ */
-	return DOUBLE2NUM((double)val / long_to_float_divider(val));
+	return DOUBLE2NUM((double)val / ((unsigned long)RAND_MAX+1));
     }
     else {
 	if (limit < 0) {
