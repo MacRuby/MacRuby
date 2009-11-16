@@ -257,7 +257,7 @@ yajl_set_static_value(void* ctx, VALUE val)
     
     len = RARRAY_LEN(parser->builderStack);
     if (len > 0) {
-        lastEntry = rb_ary_entry(parser->builderStack, len-1);
+        lastEntry = rb_ary_entry(parser->builderStack, len - 1);
         switch (TYPE(lastEntry)) {
             case T_ARRAY:
                 rb_ary_push(lastEntry, val);
@@ -271,7 +271,7 @@ yajl_set_static_value(void* ctx, VALUE val)
                 break;
             case T_STRING:
             case T_SYMBOL:
-                hash = rb_ary_entry(parser->builderStack, len-2);
+                hash = rb_ary_entry(parser->builderStack, len - 2);
                 if (TYPE(hash) == T_HASH) {
                     rb_hash_aset(hash, lastEntry, val);
                     rb_ary_pop(parser->builderStack);
