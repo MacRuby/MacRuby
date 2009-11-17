@@ -1,1 +1,0 @@
-fails:IO#lineno= sets the current line number to the given value

@@ -1,1 +1,0 @@
-fails:NoMethodError#message for an protected method match /protected method/

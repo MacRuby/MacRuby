@@ -1,3 +1,2 @@
 fails:String#chop! raises a TypeError when self is frozen
 fails:String#chop! raises a RuntimeError when self is frozen
-fails:String#chop returns a new string with the last character removed

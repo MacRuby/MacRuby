@@ -1,3 +1,0 @@
-fails:Kernel#test returns true when passed ?f if the argument is a regular file
-fails:Kernel#test returns true when passed ?e if the argument is a file
-fails:Kernel#test returns true when passed ?d if the argument is a directory

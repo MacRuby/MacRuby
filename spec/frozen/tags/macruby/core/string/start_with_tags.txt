@@ -1,2 +1,0 @@
-fails:String#start_with? works for multibyte strings
-fails:String#start_with? converts its argument using :to_str

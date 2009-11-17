@@ -1,4 +1,3 @@
-fails:File.new return a new File with modus num and permissions
 fails:File.new return a new File with modus fd 
 fails:File.new raises an Errno::EINVAL error with File::APPEND
 fails:File.new raises an Errno::EINVAL error with File::RDONLY|File::APPEND

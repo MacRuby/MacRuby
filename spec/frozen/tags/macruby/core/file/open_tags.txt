@@ -5,7 +5,6 @@ fails:File.open opens a file with mode string and block
 fails:File.open opens a file with mode num and block
 fails:File.open opens the file when passed mode, num and permissions
 fails:File.open opens the file when passed mode, num, permissions and block
-fails:File.open creates a new write-only file when invoked with 'w' and '0222'
 fails:File.open opens the file when call with fd
 fails:File.open opens a file with a file descriptor d and a block
 fails:File.open raises a SystemCallError if passed an invalid Integer type

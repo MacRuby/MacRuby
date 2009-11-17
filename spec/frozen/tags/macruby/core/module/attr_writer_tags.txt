@@ -1,2 +1,1 @@
 fails:Module#attr_writer creates a setter for an attribute name given as a Fixnum
-fails:Module#attr_writer applies current visibility to methods created

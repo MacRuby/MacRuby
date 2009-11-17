@@ -1,5 +1,4 @@
 fails:String#unpack with 'DdEeFfGg' directives returns an array by decoding self in little-endian order according to the format string
-fails:String#unpack with 'm' directive returns an array by decoding self according to the format string
 fails:String#unpack with 'w' directive produces a BER-compressed integer
 fails:String#unpack with 'U' directive returns an array by decoding self according to the format string
 fails:String#unpack with 'H' and 'h' directives returns an array by decoding self according to the format string

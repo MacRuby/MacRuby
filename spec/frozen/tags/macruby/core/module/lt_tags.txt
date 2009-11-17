@@ -1,1 +1,0 @@
-fails:Module#< returns true if self is a subclass of or includes the given module

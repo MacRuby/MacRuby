@@ -1,1 +1,0 @@
-fails:Module#attr_reader applies current visibility to methods created

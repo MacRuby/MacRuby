@@ -14,7 +14,6 @@ fails:Regexp with character classes matches Unicode private-use characters with 
 fails:Regexp with character classes doesn't match Unicode digits with [[:punct:]]
 fails:Regexp with character classes matches Unicode Pd characters with [[:punct:]]
 fails:Regexp with character classes matches Unicode Pe characters with [[:punct:]]
-fails:Regexp with character classes matches Unicode Pf characters with [[:punct:]]
 fails:Regexp with character classes doesn't match Unicode format characters with [[:punct:]]
 fails:Regexp with character classes matches Unicode Zs characters with [[:space:]]
 fails:Regexp with character classes matches Unicode Zl characters with [[:space:]]
