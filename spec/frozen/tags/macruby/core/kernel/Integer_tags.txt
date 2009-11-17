@@ -62,3 +62,15 @@ fails:Kernel#Integer is a negative decimal number if there's a leading -0D and a
 fails:Kernel#Integer parses the value as a decimal number if there's a leading 0d and a base of 10
 fails:Kernel#Integer is a positive decimal number if there's a leading +0d and a base of 10
 fails:Kernel#Integer is a negative decimal number if there's a leading -0d and a base of 10
+fails:Kernel.Integer raises an ArgumentError if the String ends with a null byte
+fails:Kernel.Integer ignores leading whitespace
+fails:Kernel.Integer ignores trailing whitespace
+fails:Kernel.Integer ignores an embedded _
+fails:Kernel.Integer ignores a single leading +
+fails:Kernel.Integer makes the number negative if there's a leading -
+fails:Kernel#Integer raises an ArgumentError if the String ends with a null byte
+fails:Kernel#Integer ignores leading whitespace
+fails:Kernel#Integer ignores trailing whitespace
+fails:Kernel#Integer ignores an embedded _
+fails:Kernel#Integer ignores a single leading +
+fails:Kernel#Integer makes the number negative if there's a leading -

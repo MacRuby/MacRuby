@@ -1,1 +1,2 @@
 # This spec is marked as failing because it messes the top level object, probably a bug in #eval
+fails:A Class Definitions extending an object raises a TypeError when trying to extend numbers
