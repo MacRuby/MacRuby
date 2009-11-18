@@ -10,6 +10,7 @@ require 'rbconfig'
 
 class Compiler
   NAME = File.basename(__FILE__)
+  VALID_ARCHS = ['i386', 'x86_64']
 
   def initialize(argv)
     @mode = :normal
@@ -38,10 +39,15 @@ class Compiler
       die opts if argv.empty?
       @files = argv
       if @mode != :normal and @mode != :full
-        die "invalid mode `#{@mode}' (possible choices are: normal, full)"
+        die "Invalid mode `#{@mode}'. Possible choices are: normal, full"
       end
       @archs.uniq!
       @archs << RUBY_ARCH if @archs.empty?
+      @archs.each do |arch|
+        if not VALID_ARCHS.include?(arch)
+          die "Invalid CPU architecture `#{arch}'. Possible values are: " + VALID_ARCHS.join(", ")
+        end
+      end
     end
 
     # Locate necessary programs.
@@ -59,17 +65,17 @@ class Compiler
 
   def run
     if @mode == :full
-      die "full compilation mode is not implemented yet!"
+      die "Full compilation mode is not implemented yet!"
     end
     if @dont_link or @bundle
-      die "cannot specify --static when not building an executable" if @static
-      die "cannot specify -c and -C at the same time" if @bundle and @dont_link
+      die "Cannot specify --static when not building an executable" if @static
+      die "Cannot specify -c and -C at the same time" if @bundle and @dont_link
       if @files.size > 1 and @output
-        die "cannot specify -o with -c or -C and multiple input files"
+        die "Cannot specify -o with -c or -C and multiple input files"
       end
       file = @files[0]
       if File.extname(file) != '.rb'
-        die "given input file `#{file}' must be a Ruby source file (.rb)"
+        die "Given input file `#{file}' must be a Ruby source file (.rb)"
       end
       if @bundle
         compile_bundle(file, @output)
@@ -82,10 +88,10 @@ class Compiler
           when '.rb'
             compile_object(file, nil)
           when '.o'
-            die "given input file `#{file} must exist" unless File.exist?(file)
+            die "Given input file `#{file} must exist" unless File.exist?(file)
             file
           else
-            die "given input file `#{file}' must be either a Ruby source file (.rb) or a Mach-O object file (.o)"
+            die "Given input file `#{file}' must be either a Ruby source file (.rb) or a Mach-O object file (.o)"
         end
       end
       compile_executable(objs, @output)
@@ -221,7 +227,11 @@ EOS
   def execute(line)
     $stderr.puts line if @verbose
     ret = `#{line}`
-    die "Error when executing `#{line}'" unless $?.success?
+    unless $?.success?
+      die_str = "Error when executing `#{line}'"
+      die_str += "\n#{ret}" unless ret.empty?
+      die die_str
+    end
     ret
   end
 
