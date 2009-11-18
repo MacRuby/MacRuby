@@ -120,16 +120,19 @@ class Compiler
 
       # Compile the bitcode as assembly.
       asm = gen_tmpfile(base + arch, 's')
-      execute("#{@llc} -f #{bc} -o=#{asm} -march=#{llc_arch(arch)} -relocation-model=pic -enable-eh")
+      execute("#{@llc} -f \"#{bc}\" -o=\"#{asm}\" -march=#{llc_arch(arch)} -relocation-model=pic -enable-eh")
 
       # Compile the assembly.
       tmp_obj = gen_tmpfile(base + arch, 'o')
-      execute("#{@gcc} -c -arch #{arch} #{asm} -o #{tmp_obj}")
+      execute("#{@gcc} -c -arch #{arch} \"#{asm}\" -o \"#{tmp_obj}\"")
       tmp_objs << tmp_obj
     end
 
     # Link the architecture objects.
-    execute("#{@lipo} -create #{tmp_objs.join(' ')} -output #{output}")
+    cli_tmp_objs = tmp_objs.map do |obj|
+      '"' + obj + '"'
+    end
+    execute("#{@lipo} -create #{cli_tmp_objs.join(' ')} -output \"#{output}\"")
 
     [output, init_func]
   end
@@ -155,7 +158,7 @@ EOS
     File.open(main, 'w') { |io| io.write(main_txt) }
     linkf = @internal ? "-L. -lmacruby" : "-framework MacRuby"
     archf = @archs.map { |x| "-arch #{x}" }.join(' ')
-    execute("#{@gcxx} #{main} -dynamic -bundle -undefined suppress -flat_namespace #{archf} #{linkf} #{obj} -o #{output}")
+    execute("#{@gcxx} \"#{main}\" -dynamic -bundle -undefined suppress -flat_namespace #{archf} #{linkf} \"#{obj}\" -o \"#{output}\"")
   end
 
   def compile_executable(objs_data, output)
@@ -208,19 +211,19 @@ EOS
     File.open(main, 'w') { |io| io.write(main_txt) }
     main_o = gen_tmpfile('main', 'o')
     archf = @archs.map { |x| "-arch #{x}" }.join(' ')
-    execute("#{@gcxx} #{main} -c #{archf} -o #{main_o} -fobjc-gc")
+    execute("#{@gcxx} \"#{main}\" -c #{archf} -o \"#{main_o}\" -fobjc-gc")
     objs.unshift(main_o)
 
     # Link all objects into executable.
     linkf = @static ? 
       "-L#{RbConfig::CONFIG['libdir']} -lmacruby-static -framework Foundation -lobjc -lauto -lxml2" :
       "-framework MacRuby -lobjc"
-    line = "#{@gcxx} -o #{output} #{archf} #{linkf} "
+    line = "#{@gcxx} -o \"#{output}\" #{archf} #{linkf} "
     @frameworks.each { |f| line << "-framework #{f} " }
     if @static
       line << execute("llvm-config --ldflags --libs core jit nativecodegen interpreter bitwriter").gsub(/\n/, '')
     end
-    objs.each { |o| line << " #{o}" }
+    objs.each { |o| line << " \"#{o}\"" }
     execute(line)
   end
 
