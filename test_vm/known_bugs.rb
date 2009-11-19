@@ -35,3 +35,9 @@ assert "true", %{
 }
 
 assert "nil", "p(ENV['FOO'] = nil)"
+
+assert '', %{
+  $SAFE=4
+  s="omg"
+  s.freeze
+}
