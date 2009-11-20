@@ -879,6 +879,9 @@ class RoxorVM {
 
 	RoxorCatchThrowException *throw_exc;
 
+	void increase_nesting_for_tag(VALUE tag);
+	void decrease_nesting_for_tag(VALUE tag);
+
     public:
 	RoxorVM(void);
 	RoxorVM(const RoxorVM &vm);

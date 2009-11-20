@@ -45,8 +45,6 @@ using namespace llvm;
 #include "dtrace.h"
 
 #include <objc/objc-exception.h>
-#include <cxxabi.h>
-using namespace __cxxabiv1;
 
 #include <execinfo.h>
 #include <dlfcn.h>
@@ -3836,12 +3834,12 @@ rb_backref_set(VALUE val)
     }
 }
 
-VALUE
-RoxorVM::ruby_catch(VALUE tag)
+void
+RoxorVM::increase_nesting_for_tag(VALUE tag)
 {
-    std::map<VALUE, int*>::iterator iter = catch_nesting.find(tag);
-
+    std::map<VALUE, int*>::iterator iter = this->catch_nesting.find(tag);
     int *nested_ptr = NULL;
+
     if (iter == catch_nesting.end()) {
 	nested_ptr = (int *)malloc(sizeof(int));
 	*nested_ptr = 1;
@@ -3852,8 +3850,33 @@ RoxorVM::ruby_catch(VALUE tag)
 	nested_ptr = iter->second;
 	(*nested_ptr)++;
     }
+}
 
+void
+RoxorVM::decrease_nesting_for_tag(VALUE tag)
+{
+    std::map<VALUE, int*>::iterator iter = this->catch_nesting.find(tag);
+    int *nested_ptr = NULL;
+ 
+    iter = catch_nesting.find(tag);
+    assert(iter != catch_nesting.end());
+    nested_ptr = iter->second;
+
+    (*nested_ptr)--;
+    if (*nested_ptr == 0) {
+	nested_ptr = iter->second;
+	free(nested_ptr);
+	catch_nesting.erase(iter);
+	GC_RELEASE(tag);
+    }
+}
+
+VALUE
+RoxorVM::ruby_catch(VALUE tag)
+{
     VALUE retval = Qundef;
+
+    this->increase_nesting_for_tag(tag);
     try {
 	retval = rb_vm_yield(1, &tag);
     }
@@ -3866,25 +3889,19 @@ RoxorVM::ruby_catch(VALUE tag)
 	    RoxorCatchThrowException *exc = GET_VM()->get_throw_exc();
 	    if (exc != NULL && exc->throw_symbol == tag) {
 		retval = exc->throw_value;
-		rb_objc_release((void *)retval);
+		GC_RELEASE(retval);
 		delete exc;
 		GET_VM()->set_throw_exc(NULL);
+	    }
+	    else {
+		this->decrease_nesting_for_tag(tag);
 	    }
 	}
 	if (retval == Qundef) {
 	    throw;
 	}
     }
-
-    iter = catch_nesting.find(tag);
-    assert(iter != catch_nesting.end());
-    (*nested_ptr)--;
-    if (*nested_ptr == 0) {
-	nested_ptr = iter->second;
-	free(nested_ptr);
-	catch_nesting.erase(iter);
-	GC_RELEASE(tag);
-    }
+    this->decrease_nesting_for_tag(tag); 
 
     return retval;
 }
@@ -3906,7 +3923,7 @@ RoxorVM::ruby_throw(VALUE tag, VALUE value)
         rb_raise(rb_eArgError, "uncaught throw %s", RSTRING_PTR(desc));
     }
 
-    rb_objc_retain((void *)value);
+    GC_RETAIN(value);
 
     RoxorCatchThrowException *exc = new RoxorCatchThrowException;
     exc->throw_symbol = tag;
