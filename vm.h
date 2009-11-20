@@ -817,6 +817,13 @@ typedef enum {
     METHOD_MISSING_SUPER
 } rb_vm_method_missing_reason_t;
 
+// Custome C++ exception for catch/throw blocks
+class RoxorCatchThrowException {
+ public:
+    VALUE throw_symbol;
+    VALUE throw_value;
+};
+
 // The VM class is instantiated per thread. There is always at least one
 // instance. The VM class is purely thread-safe and concurrent, it does not
 // acquire any lock, except when it calls the Core.
@@ -854,7 +861,7 @@ class RoxorVM {
 	std::vector<rb_vm_block_t *> current_blocks;
 	std::vector<VALUE> current_exceptions;
 	std::vector<rb_vm_binding_t *> bindings;
-	std::map<VALUE, rb_vm_catch_t *> catch_jmp_bufs;
+	std::map<VALUE, int *> catch_nesting;
 	std::vector<VALUE> recursive_objects;
 
 	VALUE thread;
@@ -869,6 +876,8 @@ class RoxorVM {
 	bool parse_in_eval;
 	bool has_ensure;
 	int return_from_block;
+
+	RoxorCatchThrowException *throw_exc;
 
     public:
 	RoxorVM(void);
@@ -887,6 +896,7 @@ class RoxorVM {
 	ACCESSOR(parse_in_eval, bool);
 	ACCESSOR(has_ensure, bool);
 	ACCESSOR(return_from_block, int);
+	ACCESSOR(throw_exc, RoxorCatchThrowException *);
 
 	std::string debug_blocks(void);
 

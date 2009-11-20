@@ -45,6 +45,8 @@ using namespace llvm;
 #include "dtrace.h"
 
 #include <objc/objc-exception.h>
+#include <cxxabi.h>
+using namespace __cxxabiv1;
 
 #include <execinfo.h>
 #include <dlfcn.h>
@@ -332,6 +334,7 @@ RoxorVM::RoxorVM(const RoxorVM &vm)
     parse_in_eval = false;
     has_ensure = false;
     return_from_block = -1;
+    throw_exc = NULL;
 }
 
 RoxorVM::~RoxorVM(void)
@@ -3148,7 +3151,7 @@ rb2oc_exc_handler(void)
 	objc_exception_throw(ocexc);
     }
     else {
-	__cxa_rethrow();	
+	__cxa_rethrow();
     }
 }
 #endif
@@ -3836,38 +3839,50 @@ rb_backref_set(VALUE val)
 VALUE
 RoxorVM::ruby_catch(VALUE tag)
 {
-    std::map<VALUE, rb_vm_catch_t *>::iterator iter =
-	catch_jmp_bufs.find(tag);
-    rb_vm_catch_t *s = NULL;
-    if (iter == catch_jmp_bufs.end()) {
-	s = (rb_vm_catch_t *)malloc(sizeof(rb_vm_catch_t));
-	s->throw_value = Qnil;
-	s->nested = 1;
-	catch_jmp_bufs[tag] = s;
+    std::map<VALUE, int*>::iterator iter = catch_nesting.find(tag);
+
+    int *nested_ptr = NULL;
+    if (iter == catch_nesting.end()) {
+	nested_ptr = (int *)malloc(sizeof(int));
+	*nested_ptr = 1;
+	catch_nesting[tag] = nested_ptr;
 	GC_RETAIN(tag);
     }
     else {
-	s = iter->second;
-	s->nested++;
+	nested_ptr = iter->second;
+	(*nested_ptr)++;
     }
 
-    VALUE retval;
-    if (setjmp(s->buf) == 0) {
+    VALUE retval = Qundef;
+    try {
 	retval = rb_vm_yield(1, &tag);
     }
-    else {
-	retval = s->throw_value;
-	rb_objc_release((void *)retval);
-	s->throw_value = Qnil;
+    catch (...) {
+	// Cannot catch "RoxorCatchThrowException *exc", otherwise the program
+	// will crash when trying to interpret ruby exceptions.
+	// So we catch ... instead, and retrieve the exception from the VM.
+	std::type_info *t = __cxa_current_exception_type();
+	if (t != NULL && *t == typeid(RoxorCatchThrowException *)) {
+	    RoxorCatchThrowException *exc = GET_VM()->get_throw_exc();
+	    if (exc != NULL && exc->throw_symbol == tag) {
+		retval = exc->throw_value;
+		rb_objc_release((void *)retval);
+		delete exc;
+		GET_VM()->set_throw_exc(NULL);
+	    }
+	}
+	if (retval == Qundef) {
+	    throw;
+	}
     }
 
-    iter = catch_jmp_bufs.find(tag);
-    assert(iter != catch_jmp_bufs.end());
-    s->nested--;
-    if (s->nested == 0) {
-	s = iter->second;
-	free(s);
-	catch_jmp_bufs.erase(iter);
+    iter = catch_nesting.find(tag);
+    assert(iter != catch_nesting.end());
+    (*nested_ptr)--;
+    if (*nested_ptr == 0) {
+	nested_ptr = iter->second;
+	free(nested_ptr);
+	catch_nesting.erase(iter);
 	GC_RELEASE(tag);
     }
 
@@ -3884,20 +3899,24 @@ rb_vm_catch(VALUE tag)
 VALUE
 RoxorVM::ruby_throw(VALUE tag, VALUE value)
 {
-    std::map<VALUE, rb_vm_catch_t *>::iterator iter =
-	catch_jmp_bufs.find(tag);
-    if (iter == catch_jmp_bufs.end()) {
+    std::map<VALUE, int*>::iterator iter = catch_nesting.find(tag);
+
+    if (iter == catch_nesting.end()) {
         VALUE desc = rb_inspect(tag);
         rb_raise(rb_eArgError, "uncaught throw %s", RSTRING_PTR(desc));
     }
-    rb_vm_catch_t *s = iter->second;
 
     rb_objc_retain((void *)value);
-    s->throw_value = value;
 
-    longjmp(s->buf, 1);
+    RoxorCatchThrowException *exc = new RoxorCatchThrowException;
+    exc->throw_symbol = tag;
+    exc->throw_value = value;
+    // There is no way - yet - to retrieve the exception from the ABI
+    // So instead, we store the exception in the VM
+    GET_VM()->set_throw_exc(exc);
+    throw exc;
 
-    return Qnil; // never reached
+    return Qnil; // Never reached;
 }
 
 extern "C"
