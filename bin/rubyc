@@ -216,13 +216,10 @@ EOS
 
     # Link all objects into executable.
     linkf = @static ? 
-      "-L#{RbConfig::CONFIG['libdir']} -lmacruby-static -framework Foundation -lobjc -lauto -lxml2" :
+      "-L#{RbConfig::CONFIG['libdir']} #{RbConfig::CONFIG['LIBRUBYARG_STATIC_REALLY']}" :
       "-framework MacRuby -lobjc"
     line = "#{@gcxx} -o \"#{output}\" #{archf} #{linkf} "
     @frameworks.each { |f| line << "-framework #{f} " }
-    if @static
-      line << execute("llvm-config --ldflags --libs core jit nativecodegen interpreter bitwriter").gsub(/\n/, '')
-    end
     objs.each { |o| line << " \"#{o}\"" }
     execute(line)
   end
