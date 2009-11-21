@@ -7,7 +7,7 @@ For 0.5 (must do):
 [/] 32-bit should be back
 [X] Array subclass for immediates
 [ ] Hash subclass for immediates
-[ ] try/catch should use a C++ exception
+[X] try/catch should use a C++ exception
 [X] implement 'protected' visibility
 [X] implement NODE_LAMBDA (1.9 proc syntax)
 [ ] remaining Cocoa bugs
@@ -62,6 +62,9 @@ For 0.5 (must do):
       ex: 10.times { |i| Thread.new { p i } }; sleep 1
   [ ] blocks are not reentrant
       ex: b=Proc.new{}; 100.times{Thread.new{100.times{b.call}}}; sleep 1
+  [ ] exceptions not properly handled by the default EH in GCD blocks called
+      from a different thread
+      ex: g=Dispatch::Group.new; g.dispatch(Dispatch::Queue.concurrent) { raise('hey') }; g.wait
   [X] lazy GCD VMs are never finalized
   [X] random.c is not thread-safe and should be rewritten using random(3)
 
