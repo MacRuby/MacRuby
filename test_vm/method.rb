@@ -77,3 +77,15 @@ assert ':ok', %{
   D.new
   p :ok
 }
+
+assert '0', %{
+  class X; def self.foo(x); x * 2; end; end
+  X.method(:foo).call(21)
+  p $SAFE
+}
+
+assert '0', %{
+  class X; def foo(x); x * 2; end; end
+  X.new.method(:foo).call(21)
+  p $SAFE
+}
