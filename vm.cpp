@@ -3893,11 +3893,9 @@ RoxorVM::ruby_catch(VALUE tag)
 		delete exc;
 		GET_VM()->set_throw_exc(NULL);
 	    }
-	    else {
-		this->decrease_nesting_for_tag(tag);
-	    }
 	}
 	if (retval == Qundef) {
+	    this->decrease_nesting_for_tag(tag);
 	    throw;
 	}
     }
