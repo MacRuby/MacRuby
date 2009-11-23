@@ -347,11 +347,25 @@ rb_mod_undef_method(VALUE mod, SEL sel, int argc, VALUE *argv)
  *     C.method_defined? "method4"   #=> false
  */
 
+static bool
+rb_obj_respond_to2(VALUE obj, VALUE klass, ID id, bool priv, bool check_override)
+{
+    const char *id_name = rb_id2name(id);
+    SEL sel = sel_registerName(id_name);
+    if (!rb_vm_respond_to2(obj, klass, sel, priv, check_override)) {
+	char buf[100];
+	snprintf(buf, sizeof buf, "%s:", id_name);
+	sel = sel_registerName(buf);
+	return rb_vm_respond_to2(obj, klass, sel, priv, check_override);
+    }
+    return true;
+}
+
 static VALUE
 rb_mod_method_defined(VALUE mod, SEL sel, VALUE mid)
 {
     ID id = rb_to_id(mid);
-    return rb_obj_respond_to(mod, id, true) ? Qtrue : Qfalse;
+    return rb_obj_respond_to2(Qnil, mod, id, true, false) ? Qtrue : Qfalse;
 }
 
 #define VISI_CHECK(x,f) (((x)&NOEX_MASK) == (f))
@@ -736,26 +750,10 @@ rb_mod_modfunc(VALUE module, SEL sel, int argc, VALUE *argv)
  *  optional second parameter evaluates to +true+.
  */
 
-//static NODE *basic_respond_to = 0;
-
-static bool
-rb_obj_respond_to2(VALUE obj, ID id, bool priv, bool check_override)
-{
-    const char *id_name = rb_id2name(id);
-    SEL sel = sel_registerName(id_name);
-    if (!rb_vm_respond_to2(obj, sel, priv, check_override)) {
-	char buf[100];
-	snprintf(buf, sizeof buf, "%s:", id_name);
-	sel = sel_registerName(buf);
-	return rb_vm_respond_to2(obj, sel, priv, check_override);
-    }
-    return true;
-}
-
 bool
 rb_obj_respond_to(VALUE obj, ID id, bool priv)
 {
-    return rb_obj_respond_to2(obj, id, priv, true);
+    return rb_obj_respond_to2(obj, Qnil, id, priv, true);
 }
 
 bool
@@ -781,7 +779,7 @@ obj_respond_to(VALUE obj, SEL sel, int argc, VALUE *argv)
 
     rb_scan_args(argc, argv, "11", &mid, &priv);
     id = rb_to_id(mid);
-    return rb_obj_respond_to2(obj, id, RTEST(priv), false) ? Qtrue : Qfalse;
+    return rb_obj_respond_to2(obj, Qnil, id, RTEST(priv), false) ? Qtrue : Qfalse;
 }
 
 IMP basic_respond_to_imp = NULL;

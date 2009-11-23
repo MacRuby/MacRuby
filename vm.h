@@ -302,7 +302,7 @@ void *rb_vm_get_call_cache(SEL sel);
 VALUE rb_vm_yield(int argc, const VALUE *argv);
 VALUE rb_vm_yield_under(VALUE klass, VALUE self, int argc, const VALUE *argv);
 bool rb_vm_respond_to(VALUE obj, SEL sel, bool priv);
-bool rb_vm_respond_to2(VALUE obj, SEL sel, bool priv, bool check_override);
+bool rb_vm_respond_to2(VALUE obj, VALUE klass, SEL sel, bool priv, bool check_override);
 VALUE rb_vm_method_missing(VALUE obj, int argc, const VALUE *argv);
 void rb_vm_push_methods(VALUE ary, VALUE mod, bool include_objc_methods,
 	int (*filter) (VALUE, ID, VALUE));
@@ -800,7 +800,7 @@ class RoxorCore {
 	void invalidate_respond_to_cache(void) {
 	    respond_to_cache.clear();
 	}
-	bool respond_to(VALUE obj, SEL sel, bool priv, bool check_override);
+	bool respond_to(VALUE obj, VALUE klass, SEL sel, bool priv, bool check_override);
 
     private:
 	bool register_bs_boxed(bs_element_type_t type, void *value);

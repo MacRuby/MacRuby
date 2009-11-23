@@ -1784,9 +1784,15 @@ rb_vm_get_method(VALUE klass, VALUE obj, ID mid, int scope)
 extern IMP basic_respond_to_imp; // vm_method.c
 
 bool
-RoxorCore::respond_to(VALUE obj, SEL sel, bool priv, bool check_override)
+RoxorCore::respond_to(VALUE obj, VALUE klass, SEL sel, bool priv,
+	bool check_override)
 {
-    VALUE klass = CLASS_OF(obj);
+    if (klass == Qnil) {
+	klass = CLASS_OF(obj);
+    }
+    else {
+	assert(!check_override);
+    }
 
     const bool overriden = check_override
 	? (class_getMethodImplementation((Class)klass, selRespondTo)
@@ -1844,21 +1850,22 @@ RoxorCore::respond_to(VALUE obj, SEL sel, bool priv, bool check_override)
 }
 
 static bool
-respond_to(VALUE obj, SEL sel, bool priv, bool check_override)
+respond_to(VALUE obj, VALUE klass, SEL sel, bool priv, bool check_override)
 {
-    return GET_CORE()->respond_to(obj, sel, priv, check_override);
+    return GET_CORE()->respond_to(obj, klass, sel, priv, check_override);
 }
 
 extern "C"
 bool
 rb_vm_respond_to(VALUE obj, SEL sel, bool priv)
 {
-    return respond_to(obj, sel, priv, true);
+    return respond_to(obj, Qnil, sel, priv, true);
 }
 
 extern "C"
 bool
-rb_vm_respond_to2(VALUE obj, SEL sel, bool priv, bool check_override)
+rb_vm_respond_to2(VALUE obj, VALUE klass, SEL sel, bool priv,
+	bool check_override)
 {
-    return respond_to(obj, sel, priv, check_override);
+    return respond_to(obj, klass, sel, priv, check_override);
 } 
