@@ -78,6 +78,13 @@ assert ':ok', %{
   p :ok
 }
 
+assert 'true', %{
+  class X
+    def foo; end
+    p method_defined?(:foo)
+  end
+}
+
 assert '0', %{
   class X; def self.foo(x); x * 2; end; end
   X.method(:foo).call(21)
