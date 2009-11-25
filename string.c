@@ -5320,7 +5320,7 @@ rb_bytestring_wrapped_data(VALUE bstr)
     return ((rb_bstr_t *)bstr)->data;
 }
 
-inline void
+void
 rb_bytestring_set_wrapped_data(VALUE bstr, CFMutableDataRef data)
 {
     GC_WB(&((rb_bstr_t *)bstr)->data, data);
