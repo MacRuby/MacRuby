@@ -995,6 +995,7 @@ VALUE rb_funcall2(VALUE, ID, int, const VALUE*);
 VALUE rb_funcall3(VALUE, ID, int, const VALUE*);
 int rb_scan_args(int, const VALUE*, const char*, ...);
 VALUE rb_call_super(int, const VALUE*);
+VALUE rb_vm_call(VALUE self, SEL sel, int argc, const VALUE *args, bool super);
 
 VALUE rb_gv_set(const char*, VALUE);
 VALUE rb_gv_get(const char*);
