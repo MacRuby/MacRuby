@@ -283,12 +283,19 @@ rb_queue_finalize(void *rcv, SEL sel)
     }
 }
 
-static void
+ VALUE
+rb_queue_dispatch_body(VALUE val)
+{
+    rb_vm_block_t *the_block = (rb_vm_block_t *)val;
+    return rb_vm_block_eval(the_block, 0, NULL);
+}
+
+ void
 rb_queue_dispatcher(void* block)
 {
     assert(block != NULL);
-    rb_vm_block_t *the_block = (rb_vm_block_t*)block;
-    rb_vm_block_eval(the_block, 0, NULL);
+    rb_rescue2(rb_queue_dispatch_body, (VALUE)block, NULL, 0,
+	    rb_eStandardError);
 }
 
 /* 
