@@ -22,3 +22,17 @@ assert ':ok', %{
   catch(:x) do foo(); throw :x; end
   p :ok
 }
+
+assert '', %{
+  catch(:x) do
+    begin
+      begin
+        raise ''
+      rescue Exception => e
+        throw :x
+      end
+    rescue Exception => e
+      p :ko
+    end
+  end
+}
