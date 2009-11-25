@@ -1622,7 +1622,7 @@ Init_ossl_ssl()
      *
      */
     cSSLSocket = rb_define_class_under(mSSL, "SSLSocket", rb_cObject);
-    rb_define_alloc_func(cSSLSocket, ossl_ssl_s_alloc);
+    rb_objc_define_method(*(VALUE *)cSSLSocket, "alloc", ossl_ssl_s_alloc, 0);
     for(i = 0; i < numberof(ossl_ssl_attr_readers); i++)
         rb_attr(cSSLSocket, rb_intern(ossl_ssl_attr_readers[i]), 1, 0, Qfalse);
     for(i = 0; i < numberof(ossl_ssl_attrs); i++)
