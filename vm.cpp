@@ -3915,7 +3915,6 @@ VALUE
 RoxorVM::ruby_throw(VALUE tag, VALUE value)
 {
     std::map<VALUE, int*>::iterator iter = catch_nesting.find(tag);
-
     if (iter == catch_nesting.end()) {
         VALUE desc = rb_inspect(tag);
         rb_raise(rb_eArgError, "uncaught throw %s", RSTRING_PTR(desc));
@@ -3923,12 +3922,18 @@ RoxorVM::ruby_throw(VALUE tag, VALUE value)
 
     GC_RETAIN(value);
 
+    // We must pop the current VM exception in case we are in a rescue handler,
+    // since we are going to unwind the stack.
+    if (current_exception() != Qnil) {
+	pop_current_exception();
+    }
+
     RoxorCatchThrowException *exc = new RoxorCatchThrowException;
     exc->throw_symbol = tag;
     exc->throw_value = value;
     // There is no way - yet - to retrieve the exception from the ABI
     // So instead, we store the exception in the VM
-    GET_VM()->set_throw_exc(exc);
+    set_throw_exc(exc);
     throw exc;
 
     return Qnil; // Never reached;
