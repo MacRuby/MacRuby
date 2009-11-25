@@ -283,14 +283,14 @@ rb_queue_finalize(void *rcv, SEL sel)
     }
 }
 
- VALUE
+static VALUE
 rb_queue_dispatch_body(VALUE val)
 {
     rb_vm_block_t *the_block = (rb_vm_block_t *)val;
     return rb_vm_block_eval(the_block, 0, NULL);
 }
 
- void
+static void
 rb_queue_dispatcher(void* block)
 {
     assert(block != NULL);
