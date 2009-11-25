@@ -1604,19 +1604,23 @@ RoxorVM::uncache_or_create_block(void *key, bool *cached, int dvars_size)
     std::map<void *, rb_vm_block_t *>::iterator iter = blocks.find(key);
 
     rb_vm_block_t *b;
+    const int create_block_mask =
+	VM_BLOCK_ACTIVE | VM_BLOCK_PROC | VM_BLOCK_IFUNC;
 
-    if ((iter == blocks.end())
-	|| (iter->second->flags & (VM_BLOCK_ACTIVE | VM_BLOCK_PROC))) {
+    if ((iter == blocks.end()) || (iter->second->flags & create_block_mask)) {
+	const bool is_ifunc = (iter != blocks.end())
+	    && ((iter->second->flags & VM_BLOCK_IFUNC) == VM_BLOCK_IFUNC);
 
-	if (iter != blocks.end()) {
+	if (!is_ifunc && iter != blocks.end()) {
 	    rb_objc_release(iter->second);
 	}
-
 	b = (rb_vm_block_t *)xmalloc(sizeof(rb_vm_block_t)
 		+ (sizeof(VALUE *) * dvars_size));
-	rb_objc_retain(b);
+	if (!is_ifunc) {
+	    rb_objc_retain(b);
+	    blocks[key] = b;
+	}
 
-	blocks[key] = b;
 	*cached = false;
     }
     else {
