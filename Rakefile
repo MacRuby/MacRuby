@@ -2,6 +2,8 @@
 
 # See ./rakelib/*.rake for all tasks.
 
+ENV['RUBYOPT'] = '' # no RUBYOPT for spawned MacRuby processes
+
 desc "Same as all"
 task :default => :all
 
