@@ -62,3 +62,21 @@ assert ':ok', %{
   g.wait
   p :ok
 }
+
+# Stress tests
+
+assert ':ok', %{
+  Dispatch::Queue.concurrent.apply(10000000) {}
+  p :ok
+}
+
+assert ':ok', %{
+  i = 0
+  g = Dispatch::Group.new
+  while i < 10000000
+    g.dispatch(Dispatch::Queue.concurrent) { 1+2*3/4-5 }
+    i += 1
+  end
+  g.wait
+  p :ok
+}
