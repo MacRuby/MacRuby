@@ -36,3 +36,23 @@ assert '', %{
     end
   end
 }
+
+assert '', %{
+  def foo
+    begin
+      raise ''
+    rescue
+      raise
+    end
+  end
+
+  4.times {|fn| foo rescue nil }
+
+  catch(:enddoc) do
+    begin
+      throw :enddoc
+    rescue Exception => e
+      p :ko
+    end
+  end
+}
