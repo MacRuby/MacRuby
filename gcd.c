@@ -720,7 +720,7 @@ rb_source_new_timer(VALUE klass, SEL sel, int argc, VALUE* argv)
 {
     dispatch_time_t start_time;
     VALUE queue = Qnil, interval = Qnil, delay = Qnil, leeway = Qnil;
-    rb_scan_args(argc, argv, "21", &queue, &interval, &leeway);
+    rb_scan_args(argc, argv, "31", &queue, &delay, &interval, &leeway);
     if (NIL_P(leeway)) {
         leeway = INT2FIX(0);
     }
