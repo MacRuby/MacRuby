@@ -1058,22 +1058,22 @@ Init_GC(void)
     VALUE rb_mObSpace;
 
     rb_mGC = rb_define_module("GC");
-    rb_objc_define_method(*(VALUE *)rb_mGC, "start", rb_gc_start, 0);
-    rb_objc_define_method(*(VALUE *)rb_mGC, "enable", rb_gc_enable, 0);
-    rb_objc_define_method(*(VALUE *)rb_mGC, "disable", rb_gc_disable, 0);
-    rb_objc_define_method(*(VALUE *)rb_mGC, "stress", gc_stress_get, 0);
-    rb_objc_define_method(*(VALUE *)rb_mGC, "stress=", gc_stress_set, 1);
-    rb_objc_define_method(*(VALUE *)rb_mGC, "count", gc_count, 0);
-    rb_objc_define_method(rb_mGC, "garbage_collect", rb_gc_start, 0);
+    rb_objc_define_module_function(rb_mGC, "start", rb_gc_start, 0);
+    rb_objc_define_module_function(rb_mGC, "enable", rb_gc_enable, 0);
+    rb_objc_define_module_function(rb_mGC, "disable", rb_gc_disable, 0);
+    rb_objc_define_module_function(rb_mGC, "stress", gc_stress_get, 0);
+    rb_objc_define_module_function(rb_mGC, "stress=", gc_stress_set, 1);
+    rb_objc_define_module_function(rb_mGC, "count", gc_count, 0);
+    rb_objc_define_module_function(rb_mGC, "garbage_collect", rb_gc_start, 0);
 
     rb_mObSpace = rb_define_module("ObjectSpace");
-    rb_objc_define_method(*(VALUE *)rb_mObSpace, "each_object", os_each_obj, -1);
-    rb_objc_define_method(*(VALUE *)rb_mObSpace, "garbage_collect", rb_gc_start, 0);
+    rb_objc_define_module_function(rb_mObSpace, "each_object", os_each_obj, -1);
+    rb_objc_define_module_function(rb_mObSpace, "garbage_collect", rb_gc_start, 0);
 
-    rb_objc_define_method(*(VALUE *)rb_mObSpace, "define_finalizer", define_final, -1);
-    rb_objc_define_method(*(VALUE *)rb_mObSpace, "undefine_finalizer", undefine_final, 1);
+    rb_objc_define_module_function(rb_mObSpace, "define_finalizer", define_final, -1);
+    rb_objc_define_module_function(rb_mObSpace, "undefine_finalizer", undefine_final, 1);
 
-    rb_objc_define_method(*(VALUE *)rb_mObSpace, "_id2ref", id2ref, 1);
+    rb_objc_define_module_function(rb_mObSpace, "_id2ref", id2ref, 1);
 
     rb_global_variable(&nomem_error);
     nomem_error = rb_exc_new2(rb_eNoMemError, "failed to allocate memory");
@@ -1082,7 +1082,7 @@ Init_GC(void)
     rb_objc_define_method(rb_mKernel, "__id__", rb_obj_id, 0);
     rb_objc_define_method(rb_mKernel, "object_id", rb_obj_id, 0);
 
-    rb_objc_define_method(*(VALUE *)rb_mObSpace, "count_objects", count_objects, -1);
+    rb_objc_define_module_function(rb_mObSpace, "count_objects", count_objects, -1);
 
     rb_cFinalizer = rb_define_class("__Finalizer", rb_cObject);
     rb_objc_finalizer_finalize_super =
