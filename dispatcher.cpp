@@ -71,8 +71,7 @@ __rb_vm_fix_args(const VALUE *argv, VALUE *new_argv,
 
 static force_inline VALUE
 __rb_vm_bcall(VALUE self, SEL sel, VALUE dvars, rb_vm_block_t *b,
-	      IMP pimp, const rb_vm_arity_t &arity, int argc,
-	      const VALUE *argv)
+	IMP pimp, const rb_vm_arity_t &arity, int argc, const VALUE *argv)
 {
     if ((arity.real != argc) || (arity.max == -1)) {
 	VALUE *new_argv = (VALUE *)alloca(sizeof(VALUE) * arity.real);
@@ -113,7 +112,7 @@ __rb_vm_bcall(VALUE self, SEL sel, VALUE dvars, rb_vm_block_t *b,
 
 static force_inline VALUE
 __rb_vm_rcall(VALUE self, SEL sel, IMP pimp, const rb_vm_arity_t &arity,
-              int argc, const VALUE *argv)
+	int argc, const VALUE *argv)
 {
     if ((arity.real != argc) || (arity.max == -1)) {
 	VALUE *new_argv = (VALUE *)alloca(sizeof(VALUE) * arity.real);
@@ -1373,10 +1372,8 @@ rb_vm_fast_aset(VALUE obj, VALUE other1, VALUE other2, struct mcache *cache,
 }
 
 static rb_vm_block_t *
-rb_vm_dup_active_block(rb_vm_block_t *src_b)
+dup_block(rb_vm_block_t *src_b)
 {
-    assert(src_b->flags & VM_BLOCK_ACTIVE);
-
     const size_t block_size = sizeof(rb_vm_block_t)
 	    + (sizeof(VALUE *) * src_b->dvars_size);
 
@@ -1401,6 +1398,36 @@ rb_vm_dup_active_block(rb_vm_block_t *src_b)
     *new_l = NULL;
 
     return new_b;
+}
+
+extern "C"
+rb_vm_block_t *
+rb_vm_uncache_or_dup_block(rb_vm_block_t *b)
+{
+    return GET_VM()->uncache_or_dup_block(b);
+}
+
+extern "C"
+rb_vm_block_t *
+rb_vm_dup_block(rb_vm_block_t *b)
+{
+    return dup_block(b);
+}
+
+rb_vm_block_t *
+RoxorVM::uncache_or_dup_block(rb_vm_block_t *b)
+{
+    void *key = (void *)b->imp;
+    std::map<void *, rb_vm_block_t *>::iterator iter = blocks.find(key);
+    if (iter == blocks.end()) {
+	b = dup_block(b);
+	GC_RETAIN(b);
+	blocks[key] = b;
+    }
+    else {
+	b = iter->second;
+    }
+    return b;
 }
 
 static force_inline VALUE
@@ -1467,7 +1494,7 @@ rb_vm_block_eval0(rb_vm_block_t *b, SEL sel, VALUE self, int argc,
 block_call:
 
     if (b->flags & VM_BLOCK_ACTIVE) {
-	b = rb_vm_dup_active_block(b);
+	b = dup_block(b);
     }
     b->flags |= VM_BLOCK_ACTIVE;
 
@@ -1611,16 +1638,15 @@ RoxorVM::uncache_or_create_block(void *key, bool *cached, int dvars_size)
 	const bool is_ifunc = (iter != blocks.end())
 	    && ((iter->second->flags & VM_BLOCK_IFUNC) == VM_BLOCK_IFUNC);
 
-	if (!is_ifunc && iter != blocks.end()) {
-	    rb_objc_release(iter->second);
-	}
 	b = (rb_vm_block_t *)xmalloc(sizeof(rb_vm_block_t)
 		+ (sizeof(VALUE *) * dvars_size));
 	if (!is_ifunc) {
-	    rb_objc_retain(b);
+	    if (iter != blocks.end()) {
+		GC_RELEASE(iter->second);
+	    }
+	    GC_RETAIN(b);
 	    blocks[key] = b;
 	}
-
 	*cached = false;
     }
     else {

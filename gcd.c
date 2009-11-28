@@ -129,7 +129,7 @@ rb_queue_from_dispatch(dispatch_queue_t dq, bool should_retain)
 {
     VALUE q = rb_queue_alloc(cQueue, 0);
     if (should_retain) { 
-        rb_objc_retain((void*)q);
+        GC_RETAIN(q);
     }
     RQueue(q)->queue = dq;
     return q;
@@ -284,18 +284,29 @@ rb_queue_finalize(void *rcv, SEL sel)
 }
 
 static VALUE
-rb_queue_dispatch_body(VALUE val)
+rb_queue_dispatch_body(VALUE data)
 {
-    rb_vm_block_t *the_block = (rb_vm_block_t *)val;
-    return rb_vm_block_eval(the_block, 0, NULL);
+    GC_RELEASE(data);
+    //rb_vm_block_t *b = rb_vm_uncache_or_dup_block((rb_vm_block_t *)data);
+    rb_vm_block_t *b = (rb_vm_block_t *)data;
+    return rb_vm_block_eval(b, 0, NULL);
 }
 
 static void
-rb_queue_dispatcher(void* block)
+rb_queue_dispatcher(void *data)
 {
-    assert(block != NULL);
-    rb_rescue2(rb_queue_dispatch_body, (VALUE)block, NULL, 0,
+    assert(data != NULL);
+    rb_rescue2(rb_queue_dispatch_body, (VALUE)data, NULL, 0,
 	    rb_eStandardError);
+}
+
+static rb_vm_block_t *
+rb_queue_dispatcher_prepare_block(rb_vm_block_t *block)
+{
+    rb_vm_set_multithreaded(true);
+    rb_vm_block_make_detachable_proc(block);
+    GC_RETAIN(block);
+    return block;
 }
 
 /* 
@@ -332,8 +343,7 @@ rb_queue_dispatch(VALUE self, SEL sel, int argc, VALUE* argv)
     VALUE synchronous;
     rb_scan_args(argc, argv, "01", &synchronous);
 
-    rb_vm_block_make_detachable_proc(block);
-    rb_vm_set_multithreaded(true);
+    block = rb_queue_dispatcher_prepare_block(block);
 
     if (RTEST(synchronous)){
         dispatch_sync_f(RQueue(self)->queue, (void *)block,
@@ -369,22 +379,12 @@ rb_queue_dispatch_after(VALUE self, SEL sel, VALUE sec)
         rb_raise(rb_eArgError, "dispatch_after() requires a block argument");
     }
 
-    rb_vm_block_make_detachable_proc(block);
-    rb_vm_set_multithreaded(true);
+    block = rb_queue_dispatcher_prepare_block(block);
 
     dispatch_after_f(offset, RQueue(self)->queue, (void *)block,
 	    rb_queue_dispatcher);
 
     return Qnil;
-}
-
-static void
-rb_queue_applier(void* block, size_t ii)
-{
-    assert(block != NULL);
-    rb_vm_block_t *the_block = (rb_vm_block_t*)block;
-    VALUE num = SIZET2NUM(ii);
-    rb_vm_block_eval(the_block, 1, &num);
 }
 
 /* 
@@ -400,6 +400,16 @@ rb_queue_applier(void* block, size_t ii)
  *
  */
  
+static void
+rb_queue_applier(void *data, size_t ii)
+{
+    assert(data != NULL);
+    rb_vm_block_t *block = rb_vm_uncache_or_dup_block((rb_vm_block_t *)data);
+    rb_vm_block_make_detachable_proc(block);
+    VALUE num = SIZET2NUM(ii);
+    rb_vm_block_eval(block, 1, &num);
+}
+
 static VALUE
 rb_queue_apply(VALUE self, SEL sel, VALUE n)
 {
@@ -408,7 +418,6 @@ rb_queue_apply(VALUE self, SEL sel, VALUE n)
         rb_raise(rb_eArgError, "apply() requires a block argument");
     }
 
-    rb_vm_block_make_detachable_proc(block);
     rb_vm_set_multithreaded(true);
 
     dispatch_apply_f(NUM2SIZET(n), RQueue(self)->queue, (void *)block,
@@ -565,8 +574,12 @@ rb_group_dispatch(VALUE self, SEL sel, VALUE target)
         rb_raise(rb_eArgError, "dispatch() requires a block argument");
     }
 
-    rb_vm_block_make_detachable_proc(block);
-    rb_vm_set_multithreaded(true);
+    if (CLASS_OF(target) != cQueue) {
+	rb_raise(rb_eArgError, "expected Queue object, but got %s",
+		rb_class2name(CLASS_OF(target)));
+    }
+
+    block = rb_queue_dispatcher_prepare_block(block);
 
     dispatch_group_async_f(RGroup(self)->group, RQueue(target)->queue,
 	    (void *)block, rb_queue_dispatcher);
@@ -597,8 +610,7 @@ rb_group_notify(VALUE self, SEL sel, VALUE target)
         rb_raise(rb_eArgError, "notify() requires a block argument");
     }
 
-    rb_vm_block_make_detachable_proc(block);
-    rb_vm_set_multithreaded(true);
+    block = rb_queue_dispatcher_prepare_block(block);
 
     dispatch_group_notify_f(RGroup(self)->group, RQueue(target)->queue,
 	    (void *)block, rb_queue_dispatcher);

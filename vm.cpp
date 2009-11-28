@@ -2686,7 +2686,8 @@ struct rb_vm_var_uses {
 };
 
 static void
-rb_vm_add_lvar_use(rb_vm_var_uses **var_uses, void *use, unsigned char use_type)
+rb_vm_add_lvar_use(rb_vm_var_uses **var_uses, void *use,
+	unsigned char use_type)
 {
     if (var_uses == NULL) {
 	return;
@@ -2701,7 +2702,8 @@ rb_vm_add_lvar_use(rb_vm_var_uses **var_uses, void *use, unsigned char use_type)
 	new_uses->uses_count = 0;
 	*var_uses = new_uses;
     }
-    int current_index = (*var_uses)->uses_count;
+
+    const int current_index = (*var_uses)->uses_count;
     rb_gc_assign_weak_ref(use, &(*var_uses)->uses[current_index]);
     (*var_uses)->use_types[current_index] = use_type;
     ++(*var_uses)->uses_count;

@@ -371,6 +371,9 @@ rb_vm_block_t *rb_vm_first_block(void);
 bool rb_vm_block_saved(void);
 VALUE rb_vm_block_eval(rb_vm_block_t *block, int argc, const VALUE *argv);
 
+rb_vm_block_t *rb_vm_uncache_or_dup_block(rb_vm_block_t *b);
+rb_vm_block_t *rb_vm_dup_block(rb_vm_block_t *b);
+
 static inline void
 rb_vm_block_make_detachable_proc(rb_vm_block_t *b)
 {
@@ -942,6 +945,7 @@ class RoxorVM {
 
 	rb_vm_block_t *uncache_or_create_block(void *key, bool *cached,
 		int dvars_size);
+	rb_vm_block_t *uncache_or_dup_block(rb_vm_block_t *b);
 
 	rb_vm_binding_t *current_binding(void) {
 	    return bindings.empty()
