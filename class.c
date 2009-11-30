@@ -153,9 +153,7 @@ rb_define_object_special_methods(VALUE klass)
 static VALUE
 rb_objc_alloc_class(const char *name, VALUE super, VALUE flags, VALUE klass)
 {
-    Class ocklass;
     char ocname[128];
-    int version_flag;
 
     if (name == NULL) {
 	static long anon_count = 1;
@@ -165,29 +163,35 @@ rb_objc_alloc_class(const char *name, VALUE super, VALUE flags, VALUE klass)
 	if (objc_getClass(name) != NULL) {
 	    long count = 1;
 	    snprintf(ocname, sizeof ocname, "RB%s", name);
-	    while (objc_getClass(ocname) != NULL)
+	    while (objc_getClass(ocname) != NULL) {
 		snprintf(ocname, sizeof ocname, "RB%s%ld", name, ++count);
-//	    rb_warning("can't create `%s' as an Objective-C class, because " 
-//		       "it already exists, instead using `%s'", name, ocname);
+	    }
 	}
 	else {
 	    strncpy(ocname, name, sizeof ocname);
 	}
     }
 
-    if (super == 0)
+    if (super == 0) {
 	super = rb_cObject;
+    }
 
-    ocklass = objc_allocateClassPair((Class)super, ocname, sizeof(id));
+    Class ocklass = objc_allocateClassPair((Class)super, ocname, sizeof(id));
     assert(ocklass != NULL);
 
-    version_flag = RCLASS_IS_RUBY_CLASS;
+    long version_flag = RCLASS_IS_RUBY_CLASS;
     if (flags == T_MODULE) {
 	version_flag |= RCLASS_IS_MODULE;
     }
-    if (super == rb_cObject || (RCLASS_VERSION(super) & RCLASS_IS_OBJECT_SUBCLASS) == RCLASS_IS_OBJECT_SUBCLASS) {
+    const long super_version = RCLASS_VERSION(super);
+    if (super == rb_cObject
+	|| (super_version & RCLASS_IS_OBJECT_SUBCLASS)
+	    == RCLASS_IS_OBJECT_SUBCLASS) {
 	version_flag |= RCLASS_IS_OBJECT_SUBCLASS;
     }
+    if ((super_version & RCLASS_NO_IV_SLOTS) == RCLASS_NO_IV_SLOTS) {
+	version_flag |= RCLASS_NO_IV_SLOTS;
+    }	
 
     RCLASS_SET_VERSION(ocklass, version_flag);
 

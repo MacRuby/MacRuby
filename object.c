@@ -1546,6 +1546,21 @@ rb_mod_ancestors_all_imp(VALUE self, SEL sel)
     return rb_mod_ancestors_nocopy(self);
 }
 
+static VALUE
+rb_mod_properties_imp(VALUE self, SEL sel)
+{
+    VALUE ary = rb_ary_new();
+    unsigned int count = 0;
+    objc_property_t *list = class_copyPropertyList((Class)self, &count);
+    if (list != NULL) {
+	for (unsigned int i = 0; i < count; i++) {
+	    rb_ary_push(ary, ID2SYM(rb_intern(property_getName(list[i]))));
+	}
+	free(list);
+    }
+    return ary;
+}
+
 /*
  *  call-seq:
  *     mod.freeze
@@ -2882,8 +2897,10 @@ Init_Object(void)
     rb_cBasicObject = (VALUE)objc_duplicateClass((Class)rb_cObject, "BasicObject", 0);
     rb_const_set(rb_cObject, rb_intern("BasicObject"), rb_cBasicObject);
     rb_cModule = boot_defclass("Module", rb_cNSObject);
+    RCLASS_SET_VERSION_FLAG(rb_cModule, RCLASS_NO_IV_SLOTS);
     rb_define_object_special_methods(rb_cModule);
     rb_cClass =  boot_defclass("Class",  rb_cModule);
+    RCLASS_SET_VERSION_FLAG(rb_cClass, RCLASS_NO_IV_SLOTS);
 
     allocCache = rb_vm_get_call_cache(selAlloc);
     initializeCache = rb_vm_get_call_cache(selInitialize);
@@ -3019,6 +3036,7 @@ Init_Object(void)
     rb_objc_define_method(rb_cModule, "name", rb_mod_name, 0);  /* in variable.c */
     rb_objc_define_method(rb_cModule, "ancestors", rb_mod_ancestors_imp, 0);
     rb_objc_define_method(rb_cModule, "__ancestors__", rb_mod_ancestors_all_imp, 0);
+    rb_objc_define_method(rb_cModule, "__properties__", rb_mod_properties_imp, 0);
     VALUE rb_mod_objc_ib_outlet(VALUE, SEL, int, VALUE *);
     rb_objc_define_private_method(rb_cModule, "ib_outlet", rb_mod_objc_ib_outlet, -1); /* in objc.m */
     rb_objc_define_method(rb_cClass, "__meta__?", rb_class_is_meta, 0);

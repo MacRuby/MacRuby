@@ -1006,7 +1006,7 @@ RoxorCore::class_can_have_ivar_slots(VALUE klass)
     if ((klass_version & RCLASS_IS_RUBY_CLASS) != RCLASS_IS_RUBY_CLASS
 	|| (klass_version & RCLASS_IS_OBJECT_SUBCLASS)
 	    != RCLASS_IS_OBJECT_SUBCLASS
-	|| klass == rb_cClass || klass == rb_cModule) {
+	|| (klass_version & RCLASS_NO_IV_SLOTS) == RCLASS_NO_IV_SLOTS) {
 	return false;
     }
     return true;

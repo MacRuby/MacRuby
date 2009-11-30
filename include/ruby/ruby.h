@@ -558,6 +558,7 @@ struct RClass {
 # define RCLASS_SCOPE_PROTECTED	      (1<<25)  /* class opened for protected methods */
 # define RCLASS_SCOPE_MOD_FUNC	      (1<<26)  /* class opened for module_function methods */
 # define RCLASS_KVO_CHECK_DONE	      (1<<27)  /* class created by KVO and flags merged */
+# define RCLASS_NO_IV_SLOTS	      (1<<28)  /* class cannot hold ivar slots (T_DATA & friends) */
 # if defined(__LP64__)
 #  define _PTR_TYPE uint64_t
 #  define RCLASS_VERSION(m) (class_getVersion((Class)m))
