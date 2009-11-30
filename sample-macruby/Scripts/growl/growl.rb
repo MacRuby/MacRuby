@@ -1,3 +1,5 @@
+# Original code: http://github.com/psychs/growlnotifier
+
 framework 'Cocoa'
 
 module Growl
