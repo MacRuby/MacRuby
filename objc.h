@@ -168,6 +168,17 @@ SkipFirstType(const char *type)
     }
 }
 
+static inline unsigned int
+TypeArity(const char *type)
+{
+    unsigned int arity = 0;
+    while (*type != '\0') {
+	type = SkipFirstType(type);
+	arity++;
+    }
+    return arity;
+}
+
 #if defined(__cplusplus)
 }
 #endif

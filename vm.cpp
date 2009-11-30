@@ -1610,7 +1610,16 @@ resolve_method_type(char *buf, const size_t buflen, Class klass, Method m,
 	    GET_CORE()->find_bs_informal_protocol_method(sel,
 		    class_isMetaClass(klass));
 	if (informal_type != NULL) {
-	    strncpy(buf, informal_type->c_str(), buflen);
+	    // Get the signature from the BridgeSupport database as an
+	    // informal protocol method.
+	    const char *informal_type_str = informal_type->c_str();
+	    strncpy(buf, informal_type_str, buflen);
+            const unsigned int type_arity = TypeArity(informal_type_str);
+            if (oc_arity > type_arity) {
+		for (unsigned int i = type_arity; i < oc_arity; i++) {
+		    strlcat(buf, "@", buflen);
+		}
+	    } 
 	}
 	else {
 	    // Generate an automatic signature, using 'id' (@) for all
