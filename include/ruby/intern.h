@@ -324,6 +324,7 @@ VALUE rb_find_file(VALUE);
 char *rb_path_end(const char *);
 VALUE rb_file_directory_p(VALUE,SEL,VALUE);
 /* gc.c */
+VALUE rb_obj_id(VALUE obj, SEL sel);
 void ruby_set_stack_size(size_t);
 NORETURN(void rb_memerror(void));
 int ruby_stack_check(void);

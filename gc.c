@@ -732,8 +732,6 @@ static void *finalizer_key = NULL; // only used for its address
 
 static IMP rb_objc_finalizer_finalize_super = NULL;
 
-static VALUE rb_obj_id(VALUE obj, SEL sel);
-
 static void
 rb_objc_finalizer_finalize(void *rcv, SEL sel)
 {
@@ -886,7 +884,7 @@ id2ref(VALUE obj, SEL sel, VALUE objid)
  *  <code>Fixnum</code> will be truncated before being used.
  */
 
-static VALUE
+VALUE
 rb_obj_id(VALUE obj, SEL sel)
 {
     return (VALUE)LONG2NUM((SIGNED_VALUE)obj);
@@ -1078,7 +1076,6 @@ Init_GC(void)
     rb_global_variable(&nomem_error);
     nomem_error = rb_exc_new2(rb_eNoMemError, "failed to allocate memory");
 
-    rb_objc_define_method(rb_mKernel, "hash", rb_obj_id, 0);
     rb_objc_define_method(rb_mKernel, "__id__", rb_obj_id, 0);
     rb_objc_define_method(rb_mKernel, "object_id", rb_obj_id, 0);
 
