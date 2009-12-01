@@ -249,6 +249,7 @@ module RbConfig
   CONFIG["sitearchdir"] = "$(sitelibdir)/$(sitearch)"
   CONFIG["vendorlibdir"] = "$(vendordir)/$(ruby_version)"
   CONFIG["vendorarchdir"] = "$(vendorlibdir)/$(sitearch)"
+  CONFIG["LLVM_PATH"] = "#{LLVM_PATH}"
   CONFIG["topdir"] = File.dirname(__FILE__)
   MAKEFILE_CONFIG = {}
   CONFIG.each{|k,v| MAKEFILE_CONFIG[k] = v.dup}

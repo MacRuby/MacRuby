@@ -52,7 +52,12 @@ class Compiler
 
     # Locate necessary programs.
     @macruby = locate(@internal ? './miniruby' : 'macruby')
-    @llc = locate('llc', !@internal)
+    if @internal
+      @llc = File.join(RbConfig::CONFIG['LLVM_PATH'], 'bin/llc')
+      die "llc not found as #{@llc}" unless File.exist?(@llc)
+    else
+      @llc = locate('llc', true)
+    end
     @gcc = locate('gcc')
     @gcxx = locate('g++')
     @nm = locate('nm')
