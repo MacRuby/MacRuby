@@ -515,6 +515,6 @@ install('tool/rb_nibtool.old', ib_dest, :mode => $prog_mode)
 
 puts "installing LLVM tools"
 llc_dest = File.join(CONFIG['bindir'], 'llc')
-install('/usr/local/bin/llc', llc_dest, :mode => $prog_mode)
+install(File.join(CONFIG['LLVM_PATH'], 'bin/llc'), llc_dest, :mode => $prog_mode)
 
 # vi:set sw=2:
