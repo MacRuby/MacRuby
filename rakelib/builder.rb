@@ -92,7 +92,7 @@ CXX = '/usr/bin/g++'
 CFLAGS = "-I. -I./include -I./onig -I/usr/include/libxml2 #{ARCHFLAGS} -fno-common -pipe -O3 -g -Wall -fexceptions"
 CFLAGS << " -Wno-parentheses -Wno-deprecated-declarations -Werror" if NO_WARN_BUILD
 OBJC_CFLAGS = CFLAGS + " -fobjc-gc-only"
-CXXFLAGS = `#{LLVM_CONFIG} --cxxflags #{LLVM_MODULES}`.strip
+CXXFLAGS = `#{LLVM_CONFIG} --cxxflags #{LLVM_MODULES}`.sub(/-DNDEBUG/, '').strip
 CXXFLAGS << " -I. -I./include -g -Wall #{ARCHFLAGS}"
 CXXFLAGS << " -Wno-parentheses -Wno-deprecated-declarations -Werror" if NO_WARN_BUILD
 LDFLAGS = `#{LLVM_CONFIG} --ldflags --libs #{LLVM_MODULES}`.strip.gsub(/\n/, '')
@@ -116,7 +116,7 @@ OBJS = %w{
 
 OBJS_CFLAGS = {
   # Make sure everything gets inlined properly + compile as Objective-C++.
-  'dispatcher' => '-Winline --param inline-unit-growth=10000 --param large-function-growth=10000 -x objective-c++'
+  'dispatcher' => '--param inline-unit-growth=10000 --param large-function-growth=10000 -x objective-c++'
 }
 
 class Builder

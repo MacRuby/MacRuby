@@ -29,6 +29,9 @@
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Intrinsics.h>
 #include <llvm/Bitcode/ReaderWriter.h>
+#if LLVM_TOT
+# include <llvm/LLVMContext.h>
+#endif
 using namespace llvm;
 
 #if ROXOR_COMPILER_DEBUG
@@ -174,9 +177,19 @@ class RoxorJITManager : public JITMemoryManager {
 			FunctionEnd));
 	}
 
+#if LLVM_TOT
+	void deallocateFunctionBody(void *data) {
+	    mm->deallocateFunctionBody(data);
+	}
+
+	void deallocateExceptionTable(void *data) {
+	    mm->deallocateExceptionTable(data);
+	}
+#else
 	void deallocateMemForFunction(const Function *F) {
 	    mm->deallocateMemForFunction(F);
 	}
+#endif
 
 	uint8_t* startExceptionTable(const Function* F, 
 		uintptr_t &ActualSize) {
@@ -1301,6 +1314,13 @@ rb_vm_define_class(ID path, VALUE outer, VALUE super, int flags,
 #endif
 
     return klass;
+}
+
+extern "C"
+int *
+rb_vm_ivar_slot_allocate(void)
+{
+    return (int *)malloc(sizeof(int));
 }
 
 extern "C"

@@ -1116,7 +1116,11 @@ RoxorCompiler::compile_slot_cache(ID id)
 
     Instruction *slot_insn = dyn_cast<Instruction>(slot);
     if (slot_insn != NULL) {
+#if LLVM_TOT
+	Instruction *insn = slot_insn->clone();
+#else
 	Instruction *insn = slot_insn->clone(context);
+#endif
 	BasicBlock::InstListType &list = bb->getInstList();
 	list.insert(list.end(), insn);
 	return insn;
@@ -1849,12 +1853,17 @@ RoxorCompiler::compile_landing_pad_header(const std::type_info &eh_type)
 	    Intrinsic::eh_exception);
     Value *eh_ptr = CallInst::Create(eh_exception_f, "", bb);
 
-#if __LP64__
+#if LLVM_TOT
     Function *eh_selector_f = Intrinsic::getDeclaration(module,
-	    Intrinsic::eh_selector_i64);
+	    Intrinsic::eh_selector);
 #else
+# if __LP64__
+     Function *eh_selector_f = Intrinsic::getDeclaration(module,
+	    Intrinsic::eh_selector_i64);
+# else
     Function *eh_selector_f = Intrinsic::getDeclaration(module,
 	    Intrinsic::eh_selector_i32);
+# endif
 #endif
 
     std::vector<Value *> params;
@@ -1882,12 +1891,17 @@ RoxorCompiler::compile_landing_pad_header(const std::type_info &eh_type)
 
     if (eh_type != typeid(void)) {
 	// TODO: this doesn't work yet, the type id must be a GlobalVariable...
-#if __LP64__
+#if LLVM_TOT
+	Function *eh_typeid_for_f = Intrinsic::getDeclaration(module,
+		Intrinsic::eh_typeid_for);
+#else
+# if __LP64__
 	Function *eh_typeid_for_f = Intrinsic::getDeclaration(module,
 		Intrinsic::eh_typeid_for_i64);
-#else
+# else
 	Function *eh_typeid_for_f = Intrinsic::getDeclaration(module,
 		Intrinsic::eh_typeid_for_i32);
+# endif
 #endif
 	std::vector<Value *> params;
 	params.push_back(compile_const_pointer((void *)&eh_type));
@@ -2943,7 +2957,11 @@ RoxorCompiler::compile_ivar_slots(Value *klass,
 
 	    Instruction *slot_insn = dyn_cast<Instruction>(ivar_slot);
 	    if (slot_insn != NULL) {
+#if LLVM_TOT
+		Instruction *insn = slot_insn->clone();
+#else
 		Instruction *insn = slot_insn->clone(context);
+#endif
 		list.insert(list_iter, insn);
 		params.push_back(insn);
 	    }
@@ -5711,13 +5729,17 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 	list.insert(list.begin(), load);
     }
 
+    Function *ivarSlotAlloc = cast<Function>(module->getOrInsertFunction(
+		"rb_vm_ivar_slot_allocate",
+		Int32PtrTy, NULL));
+
     for (std::vector<GlobalVariable *>::iterator i = ivar_slots.begin();
 	 i != ivar_slots.end();
 	 ++i) {
 
 	GlobalVariable *gvar = *i;
 
-	Instruction *call = new MallocInst(Int32Ty, "");
+	Instruction *call = CallInst::Create(ivarSlotAlloc, "");
 	Instruction *assign1 =
 	    new StoreInst(ConstantInt::getSigned(Int32Ty, -1), call, "");
 	Instruction *assign2 = new StoreInst(call, gvar, "");
