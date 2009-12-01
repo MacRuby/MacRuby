@@ -1003,7 +1003,12 @@ RoxorCore::bs_parse_cb(bs_element_type_t type, void *value, void *ctx)
 	    const char *p = bs_inf_prot_method->type;
 	    do {
 		const char *p2 = (char *)SkipFirstType(p);
-		const size_t len = p2 - p;
+		size_t len = p2 - p;
+		if (*p == _C_PTR && len > 1) {
+		    strlcat(type, "^", typelen);
+		    p++;
+		    len--;
+		}
 		if (len == 1 && *p == _C_FLT) {
 		    // float -> double
 		    strlcat(type, "d", typelen);
