@@ -28,6 +28,7 @@ ARCHS =
   else
     do_option('archs', `arch`.include?('ppc') ? 'ppc' : %w{i386 x86_64}) { |x| x.split(',') }
   end
+LLVM_CONFIG = do_option('llvm_config', '/usr/local/bin/llvm-config')
 FRAMEWORK_NAME = do_option('framework_name', 'MacRuby')
 FRAMEWORK_INSTDIR = do_option('framework_instdir', '/Library/Frameworks')
 SYM_INSTDIR = do_option('sym_instdir', '/usr/local')
@@ -53,9 +54,8 @@ if `arch`.include?('ppc')
   $stderr.puts "You appear to be using a PowerPC machine. MacRuby's primary architectures are Intel 32-bit and 64-bit (i386 and x86_64). Consequently, PowerPC support may be lacking some features."
 end
 
-LLVM_CONFIG = `which llvm-config`.strip
-if LLVM_CONFIG.empty?
-  $stderr.puts "The `llvm-config' executable was not located in your PATH. Please make sure LLVM is correctly installed on your machine or that your PATH is correctly set."
+unless File.exist?(LLVM_CONFIG)
+  $stderr.puts "The llvm-config executable was not located as #{LLVM_CONFIG}. Please make sure LLVM is correctly installed on your machine and pass the llvm_config option to rake if necessary."
   exit 1
 end
 
