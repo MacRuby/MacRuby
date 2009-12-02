@@ -1617,6 +1617,49 @@ rb_vm_each_ivar_slot(VALUE obj, int (*func)(ANYARGS), void *ctx)
     } 
 }
 
+static bool
+kvo_sel(Class klass, const char *selname, const size_t selsize,
+	const char *begin, const char *end)
+{
+    // ^#{begin}(.+)#{end}$ -> token
+    const size_t begin_len = strlen(begin);
+    const size_t end_len = strlen(end);
+    unsigned int token_beg = 0, token_end = 0;
+    if (begin_len > 0) {
+	if (strncmp(selname, begin, begin_len) != 0 || selsize <= begin_len) {
+	    return false;
+	}
+	token_beg = begin_len;
+    }
+    if (end_len > 0) {
+	const char *p = strstr(selname, end);
+	if (p == NULL || p + end_len != selname + selsize) {
+	    return false;
+	}
+	token_end = p - selname;
+    }
+    const size_t token_len = token_end - token_beg;
+    char token[100];
+    if (token_len > sizeof(token)) {
+	return false;
+    }
+    memcpy(token, &selname[token_beg], token_len);
+    token[token_len] = '\0';
+
+    // token must start with a capital character.
+    if (!isupper(token[0])) {
+	return false;
+    }
+
+    // Decapitalize the token and look if it's a valid KVO attribute.
+    token[0] = tolower(token[0]);
+    if (strchr(token, ':') != NULL) {
+	return false;
+    }
+    SEL sel = sel_registerName(token);
+    return class_getInstanceMethod(klass, sel) != NULL;
+}
+
 static inline void 
 resolve_method_type(char *buf, const size_t buflen, Class klass, Method m,
 	SEL sel, const unsigned int oc_arity)
@@ -1642,17 +1685,47 @@ resolve_method_type(char *buf, const size_t buflen, Class klass, Method m,
 	    } 
 	}
 	else {
-	    // Generate an automatic signature, using 'id' (@) for all
-	    // arguments. If the method name starts by 'set', we use 'void'
-	    // (v) for the return value, otherwise we use 'id' (@).
-	    assert(oc_arity < buflen);
-	    buf[0] = strncmp(sel_getName(sel), "set", 3) == 0 ? 'v' : '@';
-	    buf[1] = '@';
-	    buf[2] = ':';
-	    for (unsigned int i = 3; i < oc_arity; i++) {
-		buf[i] = '@';
+	    // Generate an automatic signature. We do check for KVO selectors
+	    // which require a customized signature, otherwise we do generate
+	    // one that assumes that the return value and all arguments are
+	    // objects ('@').
+	    const char *selname = sel_getName(sel);
+	    const size_t selsize = strlen(selname);
+
+	    if (kvo_sel(klass, selname, selsize, "countOf", "")) {
+		strncpy(buf, "i@:", buflen);
 	    }
-	    buf[oc_arity] = '\0';
+	    else if (kvo_sel(klass, selname, selsize, "objectIn", "AtIndex:")) {
+		strncpy(buf, "@@:i", buflen);
+	    }
+	    else if (kvo_sel(klass, selname, selsize, "insertObject:in",
+			"AtIndex:")) {
+		strncpy(buf, "v@:@i", buflen);
+	    }
+	    else if (kvo_sel(klass, selname, selsize, "removeObjectFrom",
+			"AtIndex:")) {
+		strncpy(buf, "v@:i", buflen);
+	    }
+	    else if (kvo_sel(klass, selname, selsize, "replaceObjectIn",
+			"AtIndex:withObject:")) {
+		strncpy(buf, "v@:i@", buflen);
+
+	    }
+#if 0 // TODO
+	    else if (kvo_sel(klass, selname, selsize, "get", ":range:")) {
+	    }
+#endif
+	    else {
+		assert(oc_arity < buflen);
+
+		buf[0] = strncmp(selname, "set", 3) == 0 ? 'v' : '@';
+		buf[1] = '@';
+		buf[2] = ':';
+		for (unsigned int i = 3; i < oc_arity; i++) {
+		    buf[i] = '@';
+		}
+		buf[oc_arity] = '\0';
+	    }
 	}
     }
     else {
