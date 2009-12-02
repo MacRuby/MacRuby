@@ -3578,16 +3578,39 @@ rb_str_split_m(VALUE str, SEL sel, int argc, VALUE *argv)
     if (awk_split || spat_string) {
 	CFRange search_range;
 	CFCharacterSetRef charset = NULL;
+	long spat_len = 0;
 	if (spat == Qnil) {
 	    charset = CFCharacterSetGetPredefined(
 		    kCFCharacterSetWhitespaceAndNewline);
+	}
+	else {
+            spat_len = RSTRING_LEN(spat);
 	}
 	search_range = CFRangeMake(0, clen);
 	do {
 	    CFRange result_range;
 	    CFRange substr_range;
 	    if (spat != Qnil) {
-		if (!CFStringFindWithOptions((CFStringRef)str, 
+	        if (spat_len == 0) {
+                    if (search_range.location + 1 < clen && search_range.length > 0) {
+                        result_range.location = search_range.location + 1;
+                        result_range.length = 0;
+                        UniChar c = CFStringGetCharacterAtIndex((CFStringRef)str,
+                                        search_range.location);
+                        if (CFStringIsSurrogateHighCharacter(c)) {
+                            if (result_range.location + 1 < clen) {
+                                ++result_range.location;
+                            }
+                            else {
+                                break;
+                            }
+                        }
+                    }
+                    else {
+                        break;
+                    }
+	        }
+	        else if (!CFStringFindWithOptions((CFStringRef)str, 
 			    (CFStringRef)spat,
 			    search_range,
 			    0,
