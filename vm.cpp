@@ -3573,7 +3573,7 @@ rb_vm_print_current_exception(void)
     VALUE bt = rb_vm_call(exc, sel_registerName("backtrace"), 0, NULL,
 	    false);
 
-    const long count = RARRAY_LEN(bt);
+    const long count = (bt != Qnil ? RARRAY_LEN(bt) : 0);
     if (count > 0) {
 	for (long i = 0; i < count; i++) {
 	    const char *bte = RSTRING_PTR(RARRAY_AT(bt, i));
