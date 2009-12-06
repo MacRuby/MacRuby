@@ -13,84 +13,63 @@ end
 class ArrayWrapper
   def initialize
     @wrapped = NSMutableArray.alloc.init
-    @callLog = Hash.new(0)
-  end
-
-  def logCall(symbol)
-    @callLog[symbol] += 1
-  end
-
-  def callLog
-    @callLog
   end
 end
 
 class WholeArrayWrapper < ArrayWrapper
   def kvcOrderedCollection
-    logCall(:kvcOrderedCollection)
     @wrapped
   end
 
   def setKvcOrderedCollection(newValue)
-    logCall(:setKvcOrderedCollection)
     @wrapped = newValue.mutableCopy
   end
 end
 
 class IndexedArrayWrapper < ArrayWrapper
   def countOfKvcOrderedCollection
-    logCall(:countOfKvcOrderedCollection)
     @wrapped.size
   end
 
   def objectInKvcOrderedCollectionAtIndex(idx)
-    logCall(:objectInKvcOrderedCollectionAtIndex)
     @wrapped[idx]
   end
 
   def insertObject(o, inKvcOrderedCollectionAtIndex:idx)
-    logCall(:insertObjectinKvcOrderedCollectionAtIndex)
     @wrapped.insertObject(o, atIndex:idx)
   end
 
   def removeObjectFromKvcOrderedCollectionAtIndex(idx)
-    logCall(:removeObjectFromKvcOrderedCollectionAtIndex)
     @wrapped.removeObjectAtIndex(idx)
   end
 end
 
 class RIndexedArrayWrapper < IndexedArrayWrapper
   def replaceObjectInKvcOrderedCollectionAtIndex(idx, withObject:o)
-    logCall(:replaceObjectInKvcOrderedCollectionAtIndexWithObject)
     @wrapped[idx] = o
   end
 end
 
 class IndexSetArrayWrapper < ArrayWrapper
   def countOfKvcOrderedCollection
-    logCall(:countOfKvcOrderedCollection)
-    @wrapped.size
+    @wrapped.count
   end
 
   def kvcOrderedCollectionAtIndexes(idx)
-    logCall(:kvcOrderedCollectionAtIndexes)
     @wrapped.objectsAtIndexes(idx)
   end
 
   def insertKvcOrderedCollection(o, atIndexes:idx)
-    logCall(:insertKvcOrderedCollectionAtIndexes)
     @wrapped.insertObjects(o, atIndexes:idx)
   end
 
   def removeKvcOrderedCollectionAtIndexes(idx)
-    logCall(:removeKvcOrderedCollectionAtIndexes)
     @wrapped.removeObjectsAtIndexes(idx)
   end
 end
 
 class RIndexSetArrayWrapper < IndexSetArrayWrapper
   def replaceKvcOrderedCollectionAtIndexes(idx, withKvcOrderedCollection:o)
-    logCall(:replaceKvcOrderedCollectionAtIndexesWithKvcOrderedCollection)
     @wrapped.replaceObjectsAtIndexes(idx, withObjects:o)
   end
 end
@@ -122,6 +101,85 @@ def manipulateOrderedCollection(w)
   w.valueForKey("kvcOrderedCollection").should == []
 end
 
+class SetWrapper
+  def initialize
+    @wrapped = NSMutableSet.alloc.init
+  end
+end
+
+def manipulateUnorderedCollection(w)
+  3.upto(4) {|n| w.mutableSetValueForKey("kvcUnorderedCollection").addObject(n)}
+  w.mutableSetValueForKey("kvcUnorderedCollection").addObjectsFromArray([1,2])
+  w.mutableSetValueForKey("kvcUnorderedCollection").unionSet(NSSet.setWithArray([5,6]))
+  w.valueForKey("kvcUnorderedCollection").isEqualToSet(NSSet.setWithArray((1..6).to_a)).should == true
+
+  w.mutableSetValueForKey("kvcUnorderedCollection").removeObject(1)
+  w.mutableSetValueForKey("kvcUnorderedCollection").intersectSet(NSSet.setWithArray([1,3,4,5,7]))
+  w.mutableSetValueForKey("kvcUnorderedCollection").minusSet(NSSet.setWithArray([5,7]))
+  w.valueForKey("kvcUnorderedCollection").isEqualToSet(NSSet.setWithArray([3,4])).should == true
+
+  w.mutableSetValueForKey("kvcUnorderedCollection").removeAllObjects
+  w.valueForKey("kvcUnorderedCollection").isEqualToSet(NSSet.set).should == true
+end
+
+class WholeSetWrapper < SetWrapper
+  def kvcUnorderedCollection
+    @wrapped
+  end
+
+  def setKvcUnorderedCollection(newValue)
+    @wrapped = newValue.mutableCopy
+  end
+end
+
+class ObjectSetWrapper < SetWrapper
+  def countOfKvcUnorderedCollection
+    @wrapped.count
+  end
+
+  def enumeratorOfKvcUnorderedCollection
+    @wrapped.objectEnumerator
+  end
+
+  def memberOfKvcUnorderedCollection(o)
+    @wrapped.member(o)
+  end
+
+  def addKvcUnorderedCollectionObject(o)
+    @wrapped.addObject(o)
+  end
+
+  def removeKvcUnorderedCollectionObject(o)
+    @wrapped.removeObject(o)
+  end    
+end
+
+class SetSetWrapper < SetWrapper
+  def countOfKvcUnorderedCollection
+    @wrapped.count
+  end
+
+  def enumeratorOfKvcUnorderedCollection
+    @wrapped.objectEnumerator
+  end
+
+  def memberOfKvcUnorderedCollection(o)
+    @wrapped.member(o)
+  end
+
+  def addKvcUnorderedCollection(c)
+    @wrapped.unionSet(c)
+  end
+
+  def removeKvcUnorderedCollection(c)
+    @wrapped.minusSet(c)
+  end    
+
+  def intersectKvcUnorderedCollection(c)
+    @wrapped.intersectSet(c)
+  end    
+end
+
 describe "A scalar being accessed through NSKeyValueCoding" do
   it "can be manipulated" do
     w = ScalarWrapper.new
@@ -134,45 +192,42 @@ describe "An ordered collection being accessed through NSKeyValueCoding" do
   it "can be manipulated through whole-array accessors" do
     w = WholeArrayWrapper.new
     manipulateOrderedCollection(w)
-    w.callLog[:kvcOrderedCollection].should >= 16
-    w.callLog[:setKvcOrderedCollection].should >= 12
   end
 
   it "can be manipulated through index accessors" do
     w = IndexedArrayWrapper.new
     manipulateOrderedCollection(w)
-    w.callLog[:countOfKvcOrderedCollection].should > 0
-    w.callLog[:objectInKvcOrderedCollectionAtIndex].should > 0
-    w.callLog[:insertObjectinKvcOrderedCollectionAtIndex].should > 0
-    w.callLog[:removeObjectFromKvcOrderedCollectionAtIndex].should > 0
   end
 
   it "can be manipulated through index accessors (w/ replace)" do
     w = RIndexedArrayWrapper.new
     manipulateOrderedCollection(w)
-    w.callLog[:countOfKvcOrderedCollection].should > 0
-    w.callLog[:objectInKvcOrderedCollectionAtIndex].should > 0
-    w.callLog[:insertObjectinKvcOrderedCollectionAtIndex].should > 0
-    w.callLog[:removeObjectFromKvcOrderedCollectionAtIndex].should > 0
-    w.callLog[:replaceObjectInKvcOrderedCollectionAtIndexWithObject].should > 0
   end
 
   it "can be manipulated through index set accessors" do
     w = IndexSetArrayWrapper.new
     manipulateOrderedCollection(w)
-    w.callLog[:countOfKvcOrderedCollection].should > 0
-    w.callLog[:kvcOrderedCollectionAtIndexes].should > 0
-    w.callLog[:insertKvcOrderedCollectionAtIndexes].should > 0
-    w.callLog[:removeKvcOrderedCollectionAtIndexes].should > 0
   end
 
   it "can be manipulated through index set accessors (w/ replace)" do
     w = RIndexSetArrayWrapper.new
     manipulateOrderedCollection(w)
-    w.callLog[:countOfKvcOrderedCollection].should > 0
-    w.callLog[:kvcOrderedCollectionAtIndexes].should > 0
-    w.callLog[:insertKvcOrderedCollectionAtIndexes].should > 0
-    w.callLog[:removeKvcOrderedCollectionAtIndexes].should > 0
-    w.callLog[:replaceKvcOrderedCollectionAtIndexesWithKvcOrderedCollection].should > 0
+  end
+end
+
+describe "An unordered collection being accessed through NSKeyValueCoding" do
+  it "can be manipulated through whole-array accessors" do
+    w = WholeSetWrapper.new
+    manipulateUnorderedCollection(w)
+  end
+
+  it "can be manipulated through object accessors" do
+    w = ObjectSetWrapper.new
+    manipulateUnorderedCollection(w)
+  end
+
+  it "can be manipulated through set accessors" do
+    w = SetSetWrapper.new
+    manipulateUnorderedCollection(w)
   end
 end
