@@ -107,6 +107,54 @@ class SetWrapper
   end
 end
 
+class WholeSetWrapper < SetWrapper
+  def kvcUnorderedCollection
+    @wrapped
+  end
+
+  def setKvcUnorderedCollection(newValue)
+    @wrapped = newValue.mutableCopy
+  end
+end
+
+class AccessSetWrapper < SetWrapper
+  def countOfKvcUnorderedCollection
+    @wrapped.count
+  end
+
+  def enumeratorOfKvcUnorderedCollection
+    @wrapped.objectEnumerator
+  end
+
+  def memberOfKvcUnorderedCollection(o)
+    @wrapped.member(o)
+  end
+end
+
+class ObjectSetWrapper < AccessSetWrapper
+  def addKvcUnorderedCollectionObject(o)
+    @wrapped.addObject(o)
+  end
+
+  def removeKvcUnorderedCollectionObject(o)
+    @wrapped.removeObject(o)
+  end    
+end
+
+class SetSetWrapper < AccessSetWrapper
+  def addKvcUnorderedCollection(c)
+    @wrapped.unionSet(c)
+  end
+
+  def removeKvcUnorderedCollection(c)
+    @wrapped.minusSet(c)
+  end    
+
+  def intersectKvcUnorderedCollection(c)
+    @wrapped.intersectSet(c)
+  end    
+end
+
 def manipulateUnorderedCollection(w)
   3.upto(4) {|n| w.mutableSetValueForKey("kvcUnorderedCollection").addObject(n)}
   w.mutableSetValueForKey("kvcUnorderedCollection").addObjectsFromArray([1,2])
@@ -120,64 +168,6 @@ def manipulateUnorderedCollection(w)
 
   w.mutableSetValueForKey("kvcUnorderedCollection").removeAllObjects
   w.valueForKey("kvcUnorderedCollection").isEqualToSet(NSSet.set).should == true
-end
-
-class WholeSetWrapper < SetWrapper
-  def kvcUnorderedCollection
-    @wrapped
-  end
-
-  def setKvcUnorderedCollection(newValue)
-    @wrapped = newValue.mutableCopy
-  end
-end
-
-class ObjectSetWrapper < SetWrapper
-  def countOfKvcUnorderedCollection
-    @wrapped.count
-  end
-
-  def enumeratorOfKvcUnorderedCollection
-    @wrapped.objectEnumerator
-  end
-
-  def memberOfKvcUnorderedCollection(o)
-    @wrapped.member(o)
-  end
-
-  def addKvcUnorderedCollectionObject(o)
-    @wrapped.addObject(o)
-  end
-
-  def removeKvcUnorderedCollectionObject(o)
-    @wrapped.removeObject(o)
-  end    
-end
-
-class SetSetWrapper < SetWrapper
-  def countOfKvcUnorderedCollection
-    @wrapped.count
-  end
-
-  def enumeratorOfKvcUnorderedCollection
-    @wrapped.objectEnumerator
-  end
-
-  def memberOfKvcUnorderedCollection(o)
-    @wrapped.member(o)
-  end
-
-  def addKvcUnorderedCollection(c)
-    @wrapped.unionSet(c)
-  end
-
-  def removeKvcUnorderedCollection(c)
-    @wrapped.minusSet(c)
-  end    
-
-  def intersectKvcUnorderedCollection(c)
-    @wrapped.intersectSet(c)
-  end    
 end
 
 describe "A scalar being accessed through NSKeyValueCoding" do
