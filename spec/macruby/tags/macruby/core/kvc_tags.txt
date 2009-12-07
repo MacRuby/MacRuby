@@ -1,6 +1,0 @@
-fails:An ordered collection being accessed through NSKeyValueCoding can be manipulated through index accessors
-fails:An ordered collection being accessed through NSKeyValueCoding can be manipulated through index accessors (w/ replace)
-fails:An ordered collection being accessed through NSKeyValueCoding can be manipulated through index set accessors
-fails:An ordered collection being accessed through NSKeyValueCoding can be manipulated through index set accessors (w/ replace)
-fails:An unordered collection being accessed through NSKeyValueCoding can be manipulated through object accessors
-fails:An unordered collection being accessed through NSKeyValueCoding can be manipulated through set accessors
