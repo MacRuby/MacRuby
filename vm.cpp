@@ -1646,6 +1646,10 @@ kvo_sel(Class klass, const char *selname, const size_t selsize,
     memcpy(token, &selname[token_beg], token_len);
     token[token_len] = '\0';
 
+    if (strchr(token, ':') != NULL) {
+	return false;
+    }
+
 #if 1
     // token must start with a capital character.
     return isupper(token[0]);
@@ -1654,11 +1658,9 @@ kvo_sel(Class klass, const char *selname, const size_t selsize,
     if (!isupper(token[0])) {
 	return false;
     }
+
     // Decapitalize the token and look if it's a valid KVO attribute.
     token[0] = tolower(token[0]);
-    if (strchr(token, ':') != NULL) {
-	return false;
-    }
     SEL sel = sel_registerName(token);
     return class_getInstanceMethod(klass, sel) != NULL;
 #endif
