@@ -3522,6 +3522,14 @@ rb_str_count(VALUE str, SEL sel, int argc, VALUE *argv)
  *     "1,2,,3,4,,".split(',', -4)     #=> ["1", "2", "", "3", "4", "", ""]
  */
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1060
+static inline bool
+CFStringIsSurrogateHighCharacter(UniChar character)
+{
+    return ((character >= 0xD800UL) && (character <= 0xDBFFUL) ? true : false);
+}
+#endif
+
 static VALUE
 rb_str_split_m(VALUE str, SEL sel, int argc, VALUE *argv)
 {
