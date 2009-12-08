@@ -99,7 +99,7 @@ CXXFLAGS << " -Wno-parentheses -Wno-deprecated-declarations -Werror" if NO_WARN_
 CXXFLAGS << " -DLLVM_TOT" if ENV['LLVM_TOT']
 LDFLAGS = `#{LLVM_CONFIG} --ldflags --libs #{LLVM_MODULES}`.strip.gsub(/\n/, '')
 LDFLAGS << " -lpthread -ldl -lxml2 -lobjc -lauto -framework Foundation"
-DLDFLAGS = "-dynamiclib -undefined suppress -flat_namespace -install_name #{INSTALL_NAME} -current_version #{MACRUBY_VERSION} -compatibility_version #{MACRUBY_VERSION}"
+DLDFLAGS = "-dynamiclib -undefined suppress -flat_namespace -install_name #{INSTALL_NAME} -current_version #{MACRUBY_VERSION} -compatibility_version #{MACRUBY_VERSION} -unexported_symbols_list unexported_symbols.list"
 CFLAGS << " -std=c99" # we add this one later to not conflict with ObjC/C++ flags
 
 OBJS = %w{ 
