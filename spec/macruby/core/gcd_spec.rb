@@ -48,12 +48,12 @@ if MACOSX_VERSION >= 10.6
     
     it "should return the parent queue when inside an executing block" do
       q = Dispatch::Queue.new('org.macruby.rubyspecs.gcd.test')
-      q2 = nil
-      q.dispatch do
-        q2 = Dispatch::Queue.current
+      @q2 = nil
+      q.async do
+        @q2 = Dispatch::Queue.current
       end
-      q.dispatch(:true) {}
-      q.label.should == q2.label
+      q.sync {}
+      q.label.should == @q2.label
     end
   end
 
@@ -74,38 +74,55 @@ if MACOSX_VERSION >= 10.6
     end
   end
 
-  describe "Dispatch::Queue#dispatch" do
+  describe "Dispatch::Queue#async" do
     it "accepts a block and yields it asynchronously" do
       o = Dispatch::Queue.new('foo')
-      i = 0
-      o.dispatch { i = 42 }
-      while i == 0 do; end
-      i.should == 42
+      @i = 0
+      o.async { @i = 42 }
+      while @i == 0 do; end
+      @i.should == 42
     end
 
-    it "accepts a block and yields it synchronously if the given argument is true" do
+    it "accepts a block and yields it asynchronously through a group if given" do
       o = Dispatch::Queue.new('foo')
-      i = 0
-      o.dispatch(true) { i = 42 }
-      i.should == 42
+      g = Dispatch::Group.new
+      @i = 0
+      o.async(g) { @i = 42 }
+      g.wait
+      @i.should == 42
+
+      lambda { o.async(42) }.should raise_error(ArgumentError)
     end
 
     it "raises an ArgumentError if no block is given" do
       o = Dispatch::Queue.new('foo')
-      lambda { o.dispatch }.should raise_error(ArgumentError) 
-      lambda { o.dispatch(true) }.should raise_error(ArgumentError) 
+      lambda { o.async }.should raise_error(ArgumentError) 
+    end
+  end
+
+  describe "Dispatch::Queue#sync" do
+    it "accepts a block and yields it synchronously" do
+      o = Dispatch::Queue.new('foo')
+      @i = 0
+      o.sync { @i = 42 }
+      @i.should == 42
+    end
+
+    it "raises an ArgumentError if no block is given" do
+      o = Dispatch::Queue.new('foo')
+      lambda { o.sync }.should raise_error(ArgumentError) 
     end
   end
 
   describe "Dispatch::Queue#apply" do
     it "accepts an input size and a block and yields it as many times" do
       o = Dispatch::Queue.new('foo')
-      i = 0
-      o.apply(10) { i += 1 }
-      i.should == 10
-      i = 42
-      o.apply(0) { i += 1 }
-      i.should == 42
+      @i = 0
+      o.apply(10) { @i += 1 }
+      @i.should == 10
+      @i = 42
+      o.apply(0) { @i += 1 }
+      @i.should == 42
 
       lambda { o.apply(nil) {} }.should raise_error(TypeError) 
     end
@@ -119,14 +136,14 @@ if MACOSX_VERSION >= 10.6
   describe "Dispatch::Queue#after" do
     it "accepts a given time (in seconds) and a block and yields it after" do
       o = Dispatch::Queue.new('foo')
-      i = 0
+      @i = 0
       t = Time.now
-      o.after(0.2) { i = 42 }
-      while i == 0 do; end
+      o.after(0.2) { @i = 42 }
+      while @i == 0 do; end
       t2 = Time.now - t
       t2.should >= 0.2
       t2.should < 0.5
-      i.should == 42
+      @i.should == 42
 
       lambda { o.after(nil) {} }.should raise_error(TypeError) 
     end
@@ -150,7 +167,7 @@ if MACOSX_VERSION >= 10.6
   describe "Dispatch::Queue#suspend!" do
     it "suspends the queue which can be resumed by calling #resume!" do
       o = Dispatch::Queue.new('foo')
-      o.dispatch { sleep 1 }
+      o.async { sleep 1 }
       o.suspended?.should == false
       o.suspend! 
       o.suspended?.should == true
@@ -165,38 +182,10 @@ if MACOSX_VERSION >= 10.6
       @group.should be_kind_of(Dispatch::Group)
     end
     
-    describe "#dispatch" do
-      it "raises an ArgumentError if no block is given" do
-        lambda { @group.dispatch }.should raise_error(ArgumentError) 
-      end
-      
-      # it "accepts a block and yields it asynchronously" do
-      #   i = 0 
-      #   @group.dispatch { i = 42 }
-      #   while i == 0 do; end
-      #   i.should == 42
-      # end  
-      
-    end
-    
     describe "#notify" do
-      it "raises an ArgumentError if no block is given" do
-        lambda { @group.dispatch }.should raise_error(ArgumentError) 
-      end
-      
-      # it "accepts a block and yields it when the group is ready" do
-      #   i = 0 
-      #   @group.notify{ i = 42}
-      #   @group.dispatch { i = 40 }
-      #   while i == 0 do; end
-      #   i.should == 42
-      # end  
-      
     end
     
     describe "#wait" do
-      
     end
-    
   end
 end
