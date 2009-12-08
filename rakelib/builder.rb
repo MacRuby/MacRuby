@@ -35,6 +35,7 @@ SYM_INSTDIR = do_option('sym_instdir', '/usr/local')
 NO_WARN_BUILD = !do_option('allow_build_warnings', false)
 ENABLE_STATIC_LIBRARY = do_option('enable_static_library', 'no') { 'yes' }
 ENABLE_DEBUG_LOGGING = do_option('enable_debug_logging', true) { |x| x == 'true' }
+UNEXPORTED_SYMBOLS_LIST = do_option('unexported_symbols_list', nil)
 
 # Everything below this comment should *not* be modified.
 
@@ -99,7 +100,8 @@ CXXFLAGS << " -Wno-parentheses -Wno-deprecated-declarations -Werror" if NO_WARN_
 CXXFLAGS << " -DLLVM_TOT" if ENV['LLVM_TOT']
 LDFLAGS = `#{LLVM_CONFIG} --ldflags --libs #{LLVM_MODULES}`.strip.gsub(/\n/, '')
 LDFLAGS << " -lpthread -ldl -lxml2 -lobjc -lauto -framework Foundation"
-DLDFLAGS = "-dynamiclib -undefined suppress -flat_namespace -install_name #{INSTALL_NAME} -current_version #{MACRUBY_VERSION} -compatibility_version #{MACRUBY_VERSION} -unexported_symbols_list unexported_symbols.list"
+DLDFLAGS = "-dynamiclib -undefined suppress -flat_namespace -install_name #{INSTALL_NAME} -current_version #{MACRUBY_VERSION} -compatibility_version #{MACRUBY_VERSION}"
+DLDFLAGS << " -unexported_symbols_list #{UNEXPORTED_SYMBOLS_LIST}" if UNEXPORTED_SYMBOLS_LIST
 CFLAGS << " -std=c99" # we add this one later to not conflict with ObjC/C++ flags
 
 OBJS = %w{ 
