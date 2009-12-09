@@ -1,10 +1,18 @@
+For 0.5 beta 3:
+
+[ ] HotCocoa should be extracted as a gem
+[ ] HotCocoa samples should all work
+[ ] backtracing information (line numbers) should be accurate
+[/] frozen, stable and documented GCD API
+[ ] non-ASCII regexp
+[/] 32-bit should be back
+
 For 0.5 (must do):
 
 [/] sockets
 [/] backtracing / symbolication
 [/] rubygems should work (modulo C extensions)
   [ ] `macgem build' doesn't seem to work
-[/] 32-bit should be back
 [X] Array subclass for immediates
 [ ] Hash subclass for immediates
 [X] try/catch should use a C++ exception
@@ -50,7 +58,6 @@ For 0.5 (must do):
   [X] add a flag to link against libmacruby.dylib (and not .a) when
       assembling a binary
 [X] sync with LLVM 2.6/ToT
-[ ] non-ASCII regexp
 [ ] leaks
   [X] implement ~RoxorVM
   [ ] fix exception leak
