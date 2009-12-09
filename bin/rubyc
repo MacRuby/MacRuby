@@ -177,6 +177,7 @@ EOS
 extern "C" {
     void ruby_sysinit(int *, char ***);
     void ruby_init(void);
+    void ruby_init_loadpath(void);
     void ruby_set_argv(int, char **);
     void rb_vm_init_compiler(void);
     void *rb_vm_top_self(void);
@@ -195,6 +196,7 @@ int main(int argc, char **argv)
         argv++;
     }
     ruby_init();
+    ruby_init_loadpath();
     ruby_set_argv(argc, argv);
     rb_vm_init_compiler();
     try {
