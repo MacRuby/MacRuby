@@ -178,6 +178,7 @@ extern "C" {
     void ruby_sysinit(int *, char ***);
     void ruby_init(void);
     void ruby_init_loadpath(void);
+    void ruby_script(const char *);
     void ruby_set_argv(int, char **);
     void rb_vm_init_compiler(void);
     void *rb_vm_top_self(void);
@@ -190,6 +191,7 @@ EOS
 
 int main(int argc, char **argv)
 {
+    const char *progname = argv[0];
     ruby_sysinit(&argc, &argv);
     if (argc > 0) {
 	argc--;
@@ -199,6 +201,7 @@ int main(int argc, char **argv)
     ruby_init_loadpath();
     ruby_set_argv(argc, argv);
     rb_vm_init_compiler();
+    ruby_script(progname);
     try {
         void *self = rb_vm_top_self();
 EOS
