@@ -1,5 +1,7 @@
 require File.dirname(__FILE__) + "/../../spec_helper"
 
+#TODO: Dispatch::Queue.main.run (without killing spec runner!)
+
 if MACOSX_VERSION >= 10.6
   describe "Dispatch::Queue.concurrent" do
     it "returns an instance of Queue" do
@@ -16,8 +18,6 @@ if MACOSX_VERSION >= 10.6
 
       o = Dispatch::Queue.concurrent(:high)
       o.should be_kind_of(Dispatch::Queue)
-
-      lambda { Dispatch::Queue.concurrent(42) }.should raise_error(TypeError)
     end
 
     it "raises an ArgumentError if the given argument is not a valid priority symbol" do
@@ -42,7 +42,7 @@ if MACOSX_VERSION >= 10.6
     end
     
     it "should return the parent queue when inside an executing block" do
-      q = Dispatch::Queue.new('org.macruby.rubyspecs.gcd.test')
+      q = Dispatch::Queue.new('org.macruby.gcd_spec.queue')
       @q2 = nil
       q.async do
         @q2 = Dispatch::Queue.current
@@ -67,6 +67,10 @@ if MACOSX_VERSION >= 10.6
       lambda { Dispatch::Queue.new('foo', 42) }.should raise_error(ArgumentError)
       lambda { Dispatch::Queue.new(42) }.should raise_error(TypeError)
     end
+    
+    it "raises an ArgumentError if not passed a string" do
+      lambda { Dispatch::Queue.new() }.should raise_error(ArgumentError)
+    end
   end
 
   describe "Dispatch::Queue#async" do
@@ -78,16 +82,6 @@ if MACOSX_VERSION >= 10.6
       @i.should == 42
     end
 
-    it "accepts a block and yields it asynchronously through a group if given" do
-      o = Dispatch::Queue.new('foo')
-      g = Dispatch::Group.new
-      @i = 0
-      o.async(g) { @i = 42 }
-      g.wait
-      @i.should == 42
-
-      lambda { o.async(42) }.should raise_error(ArgumentError)
-    end
 
     it "raises an ArgumentError if no block is given" do
       o = Dispatch::Queue.new('foo')
@@ -157,6 +151,19 @@ if MACOSX_VERSION >= 10.6
       o = Dispatch::Queue.main
       o.label.should == 'com.apple.main-thread'
     end
+
+    it "is also returned by to_s" do
+      o = Dispatch::Queue.new('foo')
+      o.to_s.should == o.label
+
+      o = Dispatch::Queue.main
+      o.to_s.should == 'com.apple.main-thread'
+    end
+
+    it "is included as part of inspect" do
+      o = Dispatch::Queue.new('foo')
+      o.inspect.index('foo').should.be_kind_of(Fixnum)
+    end
   end
 
   describe "Dispatch::Queue#suspend!" do
@@ -171,16 +178,4 @@ if MACOSX_VERSION >= 10.6
     end
   end
   
-  describe "Dispatch::Group" do
-    it "returns an instance of Group" do
-      @group = Dispatch::Group.new
-      @group.should be_kind_of(Dispatch::Group)
-    end
-    
-    describe "#notify" do
-    end
-    
-    describe "#wait" do
-    end
-  end
 end
