@@ -921,6 +921,7 @@ Init_Dispatch(void)
     rb_objc_define_method(cQueue, "sync", rb_queue_dispatch_sync, 0);
     rb_objc_define_method(cQueue, "after", rb_queue_dispatch_after, 1);
     rb_objc_define_method(cQueue, "label", rb_queue_label, 0);
+    rb_objc_define_method(cQueue, "to_s", rb_queue_label, 0);
     rb_objc_define_method(cQueue, "resume!", rb_dispatch_resume, 0);
     rb_objc_define_method(cQueue, "suspend!", rb_dispatch_suspend, 0);
     rb_objc_define_method(cQueue, "suspended?", rb_dispatch_suspended_p, 0);
