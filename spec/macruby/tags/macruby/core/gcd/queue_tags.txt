@@ -1,0 +1,2 @@
+fails:Dispatch::Queue.new raises an ArgumentError if not passed a string
+
