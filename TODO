@@ -6,23 +6,13 @@ For 0.5 beta 3:
 [/] frozen, stable and documented GCD API
 [ ] non-ASCII regexp
 [/] 32-bit should be back
+[ ] macruby should support #require calls when assembling a binary
 
 For 0.5 (must do):
 
-[/] sockets
-[/] backtracing / symbolication
-[/] rubygems should work (modulo C extensions)
-  [ ] `macgem build' doesn't seem to work
-[X] Array subclass for immediates
+[ ] `macgem build' doesn't seem to work
 [ ] Hash subclass for immediates
-[X] try/catch should use a C++ exception
-[X] implement 'protected' visibility
-[X] implement NODE_LAMBDA (1.9 proc syntax)
-[ ] remaining Cocoa bugs
-  [X] ObjC exceptions should be catchable in Ruby
-  [X] honor BridgeSupport sel_of_type attribute
-  [ ] honor BridgeSupport printf_format attribute
-  [X] add support for variadic functions / methods
+[ ] honor BridgeSupport printf_format attribute
 [/] support for bigdecimal
     (implemented but some specs are failing, need to sync with upstream)
 [/] support for json
@@ -37,43 +27,22 @@ For 0.5 (must do):
 [/] support for Mocha (grep -R 'Mocha TODO' test_vm)
 [ ] merge stdlib from 1.9.2 trunk
 [/] most language/core/library specs should run (modulo a very few exceptions)
-[X] add the DTrace custom probes
-[X] port all rb_define_method() calls to rb_objc_define_method()
 [/] port all rb_funcall() calls to rb_vm_call()
 [/] port all rb_num_coerce_bin() calls to rb_objc_num_coerce_bin()
 [/] port all rb_obj_respond_to() calls to rb_vm_respond_to()
-[X] refresh copyright headers for 2009
-[X] rdoc should work
 [/] ri should work
   [ ] pager problem (apparent bug of IO.popen)
   [ ] some annotations are not available (`macri -T Array' misses a lot), maybe
       a YAML merging bug
-[X] MacRuby should not ignore SIGINT and other signals
-[X] fix autoload bugs
-[X] Xcode target for AOT compilation
-[/] finish AOT compiler (only normal mode)
-  [X] should locate `llc' inside MacRuby.framework
-  [X] macrubyc should handle -arch
-  [ ] support #require calls when assembling a binary
-  [X] add a flag to link against libmacruby.dylib (and not .a) when
-      assembling a binary
-[X] sync with LLVM 2.6/ToT
 [ ] leaks
-  [X] implement ~RoxorVM
   [ ] fix exception leak
-  [X] delete unused functions after execution
-  [X] delete unused NODE* after execution
 [/] thread issues
   [ ] method cache is not thread safe
-  [X] block dvars are corrupted in case the receiver leaves
-      ex: 10.times { |i| Thread.new { p i } }; sleep 1
   [ ] blocks are not reentrant
       ex: b=Proc.new{}; 100.times{Thread.new{100.times{b.call}}}; sleep 1
   [ ] exceptions not properly handled by the default EH in GCD blocks called
       from a different thread
       ex: g=Dispatch::Group.new; g.dispatch(Dispatch::Queue.concurrent) { raise('hey') }; g.wait
-  [X] lazy GCD VMs are never finalized
-  [X] random.c is not thread-safe and should be rewritten using random(3)
 
 For 0.6:
 
