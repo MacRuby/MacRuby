@@ -38,13 +38,13 @@ if MACOSX_VERSION >= 10.6
         @i.should == 42
       end
 
-      it "will return non-zero if it times out" do
+      it "will return false if it times out" do
         @q.async(@g) {sleep 1}
-        @g.wait(0.2).should_not == 0
+        @g.wait(0.2).should == false
       end
 
-      it "will return zero if succeeds" do
-        @g.wait(Dispatch::TIME_FOREVER).should == 0
+      it "will return true if it succeeds" do
+        @g.wait(Dispatch::TIME_FOREVER).should == true
       end
 
     end 
