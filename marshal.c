@@ -759,6 +759,11 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
 	    }
 	    break;
 
+	  case T_FLOAT:
+	    w_byte(TYPE_FLOAT, arg);
+	    w_float(RFLOAT_VALUE(obj), arg);
+	    break;
+
 	  case T_STRING:
 #if WITH_OBJC
 	    w_uclass(obj, rb_objc_str_is_pure(obj), arg);

@@ -1386,6 +1386,12 @@ rb_type(VALUE obj)
 	if (k == (Class)rb_cFixnum) {
 	    return T_FIXNUM;
 	}
+	if (k == (Class)rb_cBignum) {
+	    return T_BIGNUM;
+	}
+	if (k == (Class)rb_cFloat) {
+	    return T_FLOAT;
+	}
 	const long v = RCLASS_VERSION(k);
 	if ((v & RCLASS_IS_STRING_SUBCLASS) == RCLASS_IS_STRING_SUBCLASS) {
 	    return T_STRING;

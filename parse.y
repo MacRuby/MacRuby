@@ -8751,7 +8751,7 @@ negate_lit(NODE *node)
       case T_FLOAT:
 	{
 	    double v = -RFLOAT_VALUE(node->nd_lit);
-	    node->nd_lit = DBL2FIXFLOAT(v);
+	    node->nd_lit = DOUBLE2NUM(v);
 	}
 	break;
       default:

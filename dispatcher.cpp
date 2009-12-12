@@ -1812,6 +1812,7 @@ rb_vm_get_method(VALUE klass, VALUE obj, ID mid, int scope)
 }
 
 extern IMP basic_respond_to_imp; // vm_method.c
+extern IMP basicobject_respond_to_imp; // vm_method.c
 
 bool
 RoxorCore::respond_to(VALUE obj, VALUE klass, SEL sel, bool priv,
@@ -1824,9 +1825,11 @@ RoxorCore::respond_to(VALUE obj, VALUE klass, SEL sel, bool priv,
 	assert(!check_override);
     }
 
+    IMP respond_to_imp = class_getMethodImplementation((Class)klass,
+	    selRespondTo);
     const bool overriden = check_override
-	? (class_getMethodImplementation((Class)klass, selRespondTo)
-		!= basic_respond_to_imp)
+	? (respond_to_imp != basic_respond_to_imp
+	    && respond_to_imp != basicobject_respond_to_imp)
 	: false;
 
     if (!overriden) {

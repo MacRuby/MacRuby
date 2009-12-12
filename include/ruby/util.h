@@ -68,9 +68,11 @@ char *ruby_strdup(const char *);
 VALUE ruby_getcwd(void);
 #define my_getcwd() ruby_getcwd()
 
+#ifndef __APPLE__
 double ruby_strtod(const char *, char **);
 #undef strtod
 #define strtod(s,e) ruby_strtod(s,e)
+#endif
 
 void ruby_each_words(const char *, void (*)(const char*, int, void*), void *);
 

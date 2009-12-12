@@ -783,12 +783,14 @@ obj_respond_to(VALUE obj, SEL sel, int argc, VALUE *argv)
 }
 
 IMP basic_respond_to_imp = NULL;
+IMP basicobject_respond_to_imp = NULL;
 
 void
 Init_eval_method(void)
 {
     rb_objc_define_method(rb_mKernel, "respond_to?", obj_respond_to, -1);
     basic_respond_to_imp = class_getMethodImplementation((Class)rb_mKernel, selRespondTo);
+    basicobject_respond_to_imp = class_getMethodImplementation((Class)rb_cBasicObject, selRespondTo);
     //basic_respond_to = rb_method_node(rb_cObject, idRespond_to);
     //rb_register_mark_object((VALUE)basic_respond_to);
 

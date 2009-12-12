@@ -418,6 +418,7 @@ VALUE rb_num_coerce_cmp(VALUE, VALUE, ID);
 VALUE rb_objc_num_coerce_cmp(VALUE, VALUE, SEL sel);
 VALUE rb_num_coerce_relop(VALUE, VALUE, SEL);
 VALUE rb_float_new(double);
+VALUE rb_float_to_astr(VALUE);
 VALUE rb_num2fix(VALUE);
 VALUE rb_fix2str(VALUE, int);
 VALUE rb_fix_minus(VALUE x, VALUE y);

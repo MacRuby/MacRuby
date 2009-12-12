@@ -586,7 +586,18 @@ num_to_int(VALUE num, SEL sel)
 VALUE
 rb_float_new(double d)
 {
-    return DBL2FIXFLOAT(d);
+#ifdef __LP64__
+    union {
+	VALUE v;
+	double d;
+    } x = {.d = d};
+    if (IMMEDIATE_P(x.v) == 0) return DBL2FIXFLOAT(d);
+#endif
+    NEWOBJ(flt, struct RFloat);
+    OBJSETUP(flt, rb_cFloat, T_FLOAT);
+
+    flt->float_value = d;
+    return (VALUE)flt;
 }
 
 /*
@@ -1449,6 +1460,31 @@ flo_truncate(VALUE num, SEL sel)
     }
     val = f;
     return LONG2FIX(val);
+}
+
+// used to serialize/deserialize literal floats
+
+VALUE
+rb_float_to_astr(VALUE num)
+{
+    char buf[32]; // should be big enough for any %a string
+    if (TYPE(num) != T_FLOAT) {
+	rb_raise(rb_eArgError,
+		"rb_float_to_astr called with argument that is not a float");
+    }
+    double d = RFLOAT_VALUE(num);
+    snprintf(buf, sizeof(buf), "%a", d);
+    return rb_str_new2(buf);
+}
+
+VALUE
+rb_float_from_astr_retained(const char *s)
+{
+    double d = 0.0;
+    sscanf(s, "%la", &d);
+    VALUE v = DOUBLE2NUM(d);
+    GC_RETAIN(v);
+    return v;
 }
 
 /*

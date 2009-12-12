@@ -2017,9 +2017,9 @@ unbox_immediate_val(VALUE rval, rb_vm_immediate_val_t *val)
 	    val->v.l = FIX2LONG(rval);
 	    return true;
 	}
-	else if (FIXFLOAT_P(rval)) {
+	else if (TYPE(rval) == T_FLOAT) {
 	    val->type = T_FLOAT;
-	    val->v.d = FIXFLOAT2DBL(rval);
+	    val->v.d = RFLOAT_VALUE(rval);
 	    return true;
 	}
     }
@@ -2307,7 +2307,7 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 		    }
 		    else {
 			res_val = ConstantInt::get(RubyObjTy,
-				DBL2FIXFLOAT(res));
+				DOUBLE2NUM(res));
 		    }
 		}
 	    }
@@ -5446,6 +5446,10 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 	cast<Function>(module->getOrInsertFunction("rb_bignum_new_retained",
 		    RubyObjTy, PtrTy, NULL));
 
+    Function *newFloatFunc =
+	cast<Function>(module->getOrInsertFunction("rb_float_from_astr_retained",
+		    RubyObjTy, PtrTy, NULL));
+
     Function *getClassFunc =
 	cast<Function>(module->getOrInsertFunction("objc_getClass",
 		    RubyObjTy, PtrTy, NULL));
@@ -5568,6 +5572,33 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 		    params.push_back(load);
 
 		    Instruction *call = CallInst::Create(newBignumFunc,
+			    params.begin(), params.end(), "");
+
+		    Instruction *assign = new StoreInst(call, gvar, "");
+
+		    list.insert(list.begin(), assign);
+		    list.insert(list.begin(), call);
+		    list.insert(list.begin(), load);
+		}
+		break;
+
+	    case T_FLOAT:
+		{
+		    const char *astr = RSTRING_PTR(rb_float_to_astr(val));
+
+		    GlobalVariable *floatstr_gvar =
+			compile_const_global_string(astr);
+
+		    std::vector<Value *> idxs;
+		    idxs.push_back(ConstantInt::get(Int32Ty, 0));
+		    idxs.push_back(ConstantInt::get(Int32Ty, 0));
+		    Instruction *load = GetElementPtrInst::Create(floatstr_gvar,
+			    idxs.begin(), idxs.end(), "");
+
+		    std::vector<Value *> params;
+		    params.push_back(load);
+
+		    Instruction *call = CallInst::Create(newFloatFunc,
 			    params.begin(), params.end(), "");
 
 		    Instruction *assign = new StoreInst(call, gvar, "");
@@ -5863,7 +5894,7 @@ rval_to_c_str(VALUE rval)
 	    case T_SYMBOL:
 		return rb_sym2name(rval);
 	}
-	return StringValueCStr(rval);
+	return rb_str_cstr(rb_obj_as_string(rval));
     }
 }
 
@@ -6555,15 +6586,6 @@ RoxorCompiler::compile_conversion_to_ruby(const char *type,
 	    func_name = "rb_vm_ulong_long_to_rval";
 	    break;
 
-#if __LP64__
-	case _C_FLT:
-	    val = new FPExtInst(val, DoubleTy, "", bb);
-	    // fall through	
-	case _C_DBL:
-	    val = new BitCastInst(val, RubyObjTy, "", bb);
-	    val = BinaryOperator::CreateOr(val, threeVal, "", bb);
-	    return val;
-#else
 	// TODO inline the right code for the 32-bit fixfloat optimization
 	case _C_FLT:
 	    func_name = "rb_vm_float_to_rval";
@@ -6572,7 +6594,6 @@ RoxorCompiler::compile_conversion_to_ruby(const char *type,
 	case _C_DBL:
 	    func_name = "rb_vm_double_to_rval";
 	    break;
-#endif
 
 	case _C_SEL:
 	    func_name = "rb_vm_sel_to_rval";

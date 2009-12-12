@@ -759,6 +759,7 @@ ruby_getcwd(void)
     return (VALUE)str;
 }
 
+#ifndef __APPLE__
 /****************************************************************
  *
  * The author of this software is David M. Gay.
@@ -3925,6 +3926,7 @@ ret1:
         *rve = s;
     return s0;
 }
+#endif /* !__APPLE__ */
 
 void
 ruby_each_words(const char *str, void (*func)(const char*, int, void*), void *arg)
