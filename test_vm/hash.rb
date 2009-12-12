@@ -1,0 +1,1 @@
+assert "lettuce\nbacon", '{:main_ingredient => "lettuce", :total => "bacon"}.each { |_,v| puts v }'
