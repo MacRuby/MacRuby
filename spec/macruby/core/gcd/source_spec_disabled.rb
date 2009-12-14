@@ -164,7 +164,7 @@ if MACOSX_VERSION >= 10.6
 
     describe "on_timer" do
       before :each do
-        @src = @q.on_timer(Time.now, 0.1, 0.01) { |count| count.should >= 2 }
+        @src = @q.on_timer(0, 0.1, 0.01) { |count| count.should >= 2 }
       end
 
       after :each do
@@ -180,12 +180,12 @@ if MACOSX_VERSION >= 10.6
       end
 
       it "takes an event handler block" do
-        lambda { @q.on_timer(Time.now, 0.1, 0.01) }.should raise_error(ArgumentError)
+        lambda { @q.on_timer(0, 0.1, 0.01) }.should raise_error(ArgumentError)
       end
 
-      it "takes start time, interval in seconds, and optional leeway" do
-        lambda { @q.on_timer(Time.now, 0.1, 0.01) {} }.should_not raise_error(ArgumentError)
-        lambda { @q.on_timer(Time.now, 0.1) {} }.should_not raise_error(ArgumentError)
+      it "takes delay, interval in seconds, and optional leeway" do
+        lambda { @q.on_timer(0, 0.1, 0.01) {} }.should_not raise_error(ArgumentError)
+        lambda { @q.on_timer(0, 0.1) {} }.should_not raise_error(ArgumentError)
         lambda { @q.on_timer(0.1, Time.now) {} }.should raise_error(TypeError)
       end
 

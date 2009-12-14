@@ -125,15 +125,21 @@ if MACOSX_VERSION >= 10.6
   describe "Dispatch::Queue#after" do
     it "accepts a given time (in seconds) and a block and yields it after" do
       o = Dispatch::Queue.new('foo')
-      @i = 0
+      [1.0, 2, 0.9, 1.5].each do |test_time|
+      
       t = Time.now
-      o.after(0.2) { @i = 42 }
+      o.after(test_time) { @i = 42 }
+      @i = 0
       while @i == 0 do; end
-      t2 = Time.now - t
-      t2.should >= 0.2
-      t2.should < 0.5
       @i.should == 42
+      t2 = Time.now - t
+      t2.should > test_time
+      t2.should < test_time*2
+      end
+    end
 
+    it "raises an ArgumentError if no time is given" do
+      o = Dispatch::Queue.new('foo')
       lambda { o.after(nil) {} }.should raise_error(TypeError) 
     end
 
