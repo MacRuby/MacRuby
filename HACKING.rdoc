@@ -17,7 +17,7 @@ accepted:
   code, so we are preserving it.
 
 * Insert a new line between the type and the name of a function during its
-  definition and start the opening parenthesis on a new line too.
+  definition and start the opening brace on a new line too.
 
     static void
     do_something(void)
@@ -26,7 +26,7 @@ accepted:
     }
 
 * A space must be inserted between keywords and their operand and branches must
-  be written so that an ending parenthesis is always at the end of a line.
+  be written so that an ending brace is always at the end of a line.
 
     if (some_boolean) {
         ...
@@ -35,7 +35,7 @@ accepted:
         ...
     }
 
-* Branches with only one expression must still be covered by parenthesis, even
+* Branches with only one expression must still be covered by braces, even
   if it's not mandatory in the C language. Also, do not write one-liner
   branches.
 
@@ -55,7 +55,7 @@ accepted:
         ...
     }
 
-* Do not insert a space between a function call and its first parenthesis.
+* Do not insert a space between a function call and its first brace.
 
     do_something();
 
