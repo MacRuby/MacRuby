@@ -1,11 +1,7 @@
-<<<<<<< .mine
 critical:Dispatch::Semaphore raises an ArgumentError if the count isn't specified
-
-=======
 fails:Dispatch::Semaphore raises an ArgumentError if the width isn't specified
 fails:Dispatch::Semaphore raises an TypeError if a non-integer width is provided
 fails:Dispatch::Semaphore returns nil object if the specified width is less than zero
 fails:Dispatch::Semaphore returns non-zero from 'signal' if it does wake a thread
 fails:Dispatch::Semaphore returns zero from wait if explicit timeout does NOT expire
 fails:Dispatch::Semaphore always returns zero from wait with default timeout FOREVER
->>>>>>> .r3106
