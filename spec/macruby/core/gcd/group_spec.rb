@@ -73,7 +73,7 @@ if MACOSX_VERSION >= 10.6
       end
     end
     
-    describe "Dispatch::Group#on_completion" do
+    describe :on_completion do
       it_should_behave_like "notify"
     end
   end
