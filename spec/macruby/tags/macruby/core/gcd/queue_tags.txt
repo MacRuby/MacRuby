@@ -1,2 +1,2 @@
-critical:Dispatch::Queue.new raises an ArgumentError if not passed a string
+critical:Dispatch::Queue new raises an ArgumentError if not passed a string
 
