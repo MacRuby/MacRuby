@@ -2137,7 +2137,7 @@ time_mdump(VALUE time)
     struct time_object *tobj;
     struct tm *tm;
     unsigned long p, s;
-    char buf[8];
+    UInt8 buf[8];
     time_t t;
     int nsec;
     int i;
@@ -2171,7 +2171,7 @@ time_mdump(VALUE time)
 	s = RSHIFT(s, 8);
     }
 
-    str = rb_str_new(buf, 8);
+    str = rb_bytestring_new_with_data(buf, 8);
     rb_copy_generic_ivar(str, time);
     if (nsec) {
         /*
@@ -2181,7 +2181,7 @@ time_mdump(VALUE time)
          * However it can be longer.
          * Extra digits are ignored for loading.
          */
-        unsigned char buf[2];
+        UInt8 buf[2];
         int len = sizeof(buf);
         buf[1] = (nsec % 10) << 4;
         nsec /= 10;
@@ -2190,7 +2190,7 @@ time_mdump(VALUE time)
         buf[0] |= (nsec % 10) << 4;
         if (buf[1] == 0)
             len = 1;
-        rb_ivar_set(str, id_submicro, rb_str_new((char *)buf, len));
+        rb_ivar_set(str, id_submicro, rb_bytestring_new_with_data(buf, len));
     }
     return str;
 }
