@@ -57,7 +57,7 @@ class Application
         puts "Request timed out... moving on!"
         break 
       else
-        NSRunLoop.currentRunLoop.runUntilDate NSDate.date
+        NSRunLoop.currentRunLoop.runUntilDate(NSDate.distantFuture)
       end
     end
    end
