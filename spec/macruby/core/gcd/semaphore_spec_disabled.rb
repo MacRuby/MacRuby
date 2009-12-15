@@ -1,3 +1,5 @@
+# XXX disabled because of <rdar://problem/7472121> dispatch_release() crashes on a semaphore after a successful wait
+
 require File.dirname(__FILE__) + "/../../spec_helper"
 
 if MACOSX_VERSION >= 10.6
