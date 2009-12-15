@@ -874,7 +874,9 @@ static IMP rb_semaphore_finalize_super;
 static void
 rb_semaphore_finalize(void *rcv, SEL sel)
 {
-    dispatch_release(RSemaphore(rcv)->sem);
+    if (RSemaphore(rcv)->sem != NULL) {
+	dispatch_release(RSemaphore(rcv)->sem);
+    }
     if (rb_semaphore_finalize_super != NULL) {
         ((void(*)(void *, SEL))rb_semaphore_finalize_super)(rcv, sel);
     }
