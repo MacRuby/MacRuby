@@ -134,14 +134,31 @@ Check_Group(VALUE object)
     }
 }
 
+#define SEC2NSEC_UINT64(sec) (uint64_t)((sec) * NSEC_PER_SEC)
+#define SEC2NSEC_INT64(sec) (int64_t)((sec) * NSEC_PER_SEC)
+#define TIMEOUT_MAX (1.0 * INT64_MAX / NSEC_PER_SEC)
+
 static inline uint64_t
-number_to_nanoseconds(VALUE num)
+rb_num2nsec(VALUE num)
 {
     const double sec = rb_num2dbl(num);
     if (sec < 0.0) {
         rb_raise(rb_eArgError, "negative delay specified");
     }
-    return (uint64_t)(((uint64_t)sec) * NSEC_PER_SEC);
+    return SEC2NSEC_UINT64(sec);
+}
+
+static inline dispatch_time_t
+rb_num2timeout(VALUE num)
+{
+    dispatch_time_t dispatch_timeout = DISPATCH_TIME_FOREVER;
+    if (!NIL_P(num)) {
+        const double sec = rb_num2dbl(num);
+        if (sec < TIMEOUT_MAX) {
+            dispatch_timeout = dispatch_walltime(NULL, SEC2NSEC_INT64(sec));
+        }
+    }
+    return dispatch_timeout;
 }
 
 static VALUE 
@@ -641,17 +658,10 @@ rb_group_notify(VALUE self, SEL sel, VALUE target)
 static VALUE
 rb_group_wait(VALUE self, SEL sel, int argc, VALUE *argv)
 {
-    dispatch_time_t timeout = DISPATCH_TIME_FOREVER;
-    VALUE float_timeout;
-    rb_scan_args(argc, argv, "01", &float_timeout);
-    if (!NIL_P(float_timeout)) {
-        // TODO: watch out for overflow here, too
-        double d = NUM2DBL(float_timeout);
-        int64_t to = (int64_t)(d * NSEC_PER_SEC);
-        timeout = dispatch_walltime(NULL, to);
-    }
-    return dispatch_group_wait(RGroup(self)->group, timeout) == 0
-	? Qtrue : Qfalse;
+    VALUE num;
+    rb_scan_args(argc, argv, "01", &num);
+    return dispatch_group_wait(RGroup(self)->group, rb_num2timeout(num))
+     == 0	? Qtrue : Qfalse;
 }
 
 static VALUE rb_source_on_event(VALUE self, SEL sel);
@@ -735,10 +745,10 @@ rb_source_new_timer(VALUE klass, SEL sel, int argc, VALUE* argv)
         start_time = DISPATCH_TIME_NOW;
     }
     else {
-        start_time = dispatch_walltime(NULL, number_to_nanoseconds(delay));
+        start_time = rb_num2timeout(delay);
     }
-    const uint64_t dispatch_interval = number_to_nanoseconds(interval);
-    const uint64_t dispatch_leeway = number_to_nanoseconds(leeway);
+    const uint64_t dispatch_interval = rb_num2nsec(interval);
+    const uint64_t dispatch_leeway = rb_num2nsec(leeway);
 
     VALUE src = rb_source_alloc(klass, sel);
     RSource(src)->source = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER,
@@ -844,16 +854,19 @@ rb_semaphore_init(VALUE self, SEL sel, VALUE value)
 }
 
 static VALUE
-rb_semaphore_wait(VALUE self, SEL sel, VALUE time)
+rb_semaphore_wait(VALUE self, SEL sel, int argc, VALUE *argv)
 {
-    return LONG2NUM(dispatch_semaphore_wait(RSemaphore(self)->sem,
-		NUM2LL(time))); 
+    VALUE num;
+    rb_scan_args(argc, argv, "01", &num);
+    return dispatch_semaphore_wait(RSemaphore(self)->sem, rb_num2timeout(num))
+     == 0	? Qtrue : Qfalse;
 }
 
 static VALUE
 rb_semaphore_signal(VALUE self, SEL sel)
 {
-    return LONG2NUM(dispatch_semaphore_signal(RSemaphore(self)->sem));
+    return dispatch_semaphore_signal(RSemaphore(self)->sem)
+     == 0	? Qtrue : Qfalse;
 }
 
 static IMP rb_semaphore_finalize_super;
@@ -971,7 +984,7 @@ Init_Dispatch(void)
     cSemaphore = rb_define_class_under(mDispatch, "Semaphore", rb_cObject);
     rb_objc_define_method(*(VALUE *)cSemaphore, "alloc", rb_semaphore_alloc, 0);
     rb_objc_define_method(cSemaphore, "initialize", rb_semaphore_init, 1);
-    rb_objc_define_method(cSemaphore, "wait", rb_semaphore_wait, 1);
+    rb_objc_define_method(cSemaphore, "wait", rb_semaphore_wait, -1);
     rb_objc_define_method(cSemaphore, "signal", rb_semaphore_signal, 0);
 
     rb_queue_finalize_super = rb_objc_install_method2((Class)cSemaphore,
