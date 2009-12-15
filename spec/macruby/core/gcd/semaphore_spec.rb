@@ -44,27 +44,25 @@ if MACOSX_VERSION >= 10.6
         q.async { @sema0.signal }
         @sema0.wait(Dispatch::TIME_FOREVER).should == true
       end
-
+    end
 
     describe :signal do
       it "returns true if it does NOT wake a thread" do
         @sema0.signal.should == true
         @sema1.signal.should == true
       end
-      
+
       it "returns false if it DOES wake a thread" do
         @q.async do
           sleep 0.1
           @sema0.signal.should == false
+          @sema1.signal.should == true
           @sema1.signal.should == false
         end
         @sema0.wait(Dispatch::TIME_FOREVER)
         @sema1.wait(Dispatch::TIME_FOREVER)
       end
-
     end
 
-
-    end
   end
 end
