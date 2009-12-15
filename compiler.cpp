@@ -8,6 +8,10 @@
 
 #define ROXOR_COMPILER_DEBUG 	0
 
+#if !defined(DW_LANG_Ruby)
+# define DW_LANG_Ruby 0x15 // TODO: Python is 0x14, request a real number
+#endif
+
 #include "llvm.h"
 #include "ruby/ruby.h"
 #include "ruby/encoding.h"
@@ -17,6 +21,7 @@
 #include "vm.h"
 #include "compiler.h"
 #include "objc.h"
+#include "version.h"
 
 extern "C" const char *ruby_node_name(int node);
 
@@ -26,6 +31,9 @@ RoxorCompiler *RoxorCompiler::shared = NULL;
 
 RoxorCompiler::RoxorCompiler(void)
 {
+    assert(RoxorCompiler::module != NULL);
+    debug_info = new DIFactory(*RoxorCompiler::module);
+
     fname = "";
     inside_eval = false;
 
@@ -58,7 +66,6 @@ RoxorCompiler::RoxorCompiler(void)
     return_from_block = -1;
     return_from_block_ids = 0;
     ensure_pn = NULL;
-    current_scope = NULL;
 
     dispatcherFunc = NULL;
     fastPlusFunc = NULL;
@@ -737,10 +744,11 @@ RoxorCompiler::compile_dispatch_call(std::vector<Value *> &params)
 	    (module->getOrInsertFunction("rb_vm_dispatch", ft));
     }
 
-    assert(current_scope != NULL);
-    current_scope->dispatch_lines.push_back(current_line);
-
-    return compile_protected_call(dispatcherFunc, params);
+    Instruction *insn = compile_protected_call(dispatcherFunc, params);
+    if (fname != NULL) {
+	debug_info->InsertStopPoint(debug_compile_unit, current_line, 0, bb);
+    }
+    return insn;
 }
 
 Value *
@@ -3096,10 +3104,6 @@ RoxorCompiler::compile_node(NODE *node)
 		Function *f = Function::Create(ft, GlobalValue::ExternalLinkage,
 			function_name, module);
 
-		RoxorScope *old_current_scope = current_scope;
-		current_scope = new RoxorScope(fname);
-		scopes[f] = current_scope;
-
 		BasicBlock *old_rescue_invoke_bb = rescue_invoke_bb;
 		BasicBlock *old_rescue_rethrow_bb = rescue_rethrow_bb;
 		BasicBlock *old_entry_bb = entry_bb;
@@ -3109,6 +3113,13 @@ RoxorCompiler::compile_node(NODE *node)
 		rescue_invoke_bb = NULL;
 		rescue_rethrow_bb = NULL;
 		bb = BasicBlock::Create(context, "MainBlock", f);
+
+		DISubprogram old_debug_subprogram = debug_subprogram;
+		debug_subprogram = debug_info->CreateSubprogram(
+			debug_compile_unit, f->getName(), f->getName(),
+			f->getName(), debug_compile_unit, nd_line(node),
+			DIType(), f->hasInternalLinkage(), true);
+		debug_info->InsertSubprogramStart(debug_subprogram, bb);
 
 		std::map<ID, Value *> old_lvars = lvars;
 		lvars.clear();
@@ -3360,7 +3371,7 @@ RoxorCompiler::compile_node(NODE *node)
 		current_self = old_self;
 		current_var_uses = old_current_var_uses;
 		running_block = old_running_block;
-		current_scope = old_current_scope;
+		debug_subprogram = old_debug_subprogram;
 
 		return cast<Value>(f);
 	    }
@@ -5298,6 +5309,19 @@ rescan_args:
     }
 
     return NULL;
+}
+
+void
+RoxorCompiler::set_fname(const char *_fname)
+{
+    if (fname != _fname) {
+	fname = _fname;
+
+	if (fname != NULL) {
+	    debug_compile_unit = debug_info->CreateCompileUnit(DW_LANG_Ruby,
+		    fname, "", RUBY_DESCRIPTION, false, false, "");
+	}
+    }
 }
 
 Function *

@@ -11,6 +11,7 @@
 #include <llvm/Instructions.h>
 #include <llvm/ModuleProvider.h>
 #include <llvm/Intrinsics.h>
+#include <llvm/Analysis/DebugInfo.h>
 #include <llvm/ExecutionEngine/JIT.h>
 #include <llvm/PassManager.h>
 #include <llvm/Target/TargetData.h>

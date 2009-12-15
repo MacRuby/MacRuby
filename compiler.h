@@ -27,14 +27,6 @@
 #define DEFINED_SUPER	6
 #define DEFINED_METHOD	7
 
-class RoxorScope {
-    public:
-	std::string path;
-	std::vector<unsigned int> dispatch_lines;
-
-	RoxorScope(const char *fname) : path(fname) {}
-};
-
 class RoxorCompiler {
     public:
 	static llvm::Module *module;
@@ -43,9 +35,7 @@ class RoxorCompiler {
 	RoxorCompiler(void);
 	virtual ~RoxorCompiler(void) { }
 
-	void set_fname(const char *_fname) {
-	    fname = _fname;
-	}
+	void set_fname(const char *_fname);
 
 	Value *compile_node(NODE *node);
 
@@ -71,26 +61,11 @@ class RoxorCompiler {
 	bool is_dynamic_class(void) { return dynamic_class; }
 	void set_dynamic_class(bool flag) { dynamic_class = flag; }
 
-	RoxorScope *scope_for_function(Function *f) {
-	    std::map<Function *, RoxorScope *>::iterator i = scopes.find(f);
-	    return i == scopes.end() ? NULL : i->second;
-	}
-
-	bool delete_scope(Function *f) {
-	    std::map<Function *, RoxorScope *>::iterator i = scopes.find(f);
-	    if (i != scopes.end()) {
-		scopes.erase(i);
-		delete i->second;
-		return true;
-	    } 
-	    return false;
-	}
-
-	void clear_scopes(void) {
-	    scopes.clear();
-	}
-
     protected:
+	DIFactory *debug_info;
+	DICompileUnit debug_compile_unit;
+	DISubprogram debug_subprogram;
+
 	const char *fname;
 	bool inside_eval;
 
@@ -99,7 +74,6 @@ class RoxorCompiler {
 	std::map<ID, Value *> ivar_slots_cache;
 	std::map<std::string, GlobalVariable *> static_strings;
 	std::map<CFHashCode, GlobalVariable *> static_ustrings;
-	std::map<Function *, RoxorScope *> scopes;
 
 #if ROXOR_COMPILER_DEBUG
 	int level;
@@ -142,7 +116,6 @@ class RoxorCompiler {
 	int return_from_block;
 	int return_from_block_ids;
 	PHINode *ensure_pn;
-	RoxorScope *current_scope;
 	bool class_declaration;
 
 	Function *dispatcherFunc;

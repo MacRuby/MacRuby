@@ -16,10 +16,13 @@
 #include <llvm/Instructions.h>
 #include <llvm/ModuleProvider.h>
 #include <llvm/PassManager.h>
+#include <llvm/Analysis/DebugInfo.h>
 #include <llvm/Analysis/Verifier.h>
 #include <llvm/Target/TargetData.h>
+#include <llvm/CodeGen/MachineFunction.h>
 #include <llvm/ExecutionEngine/JIT.h>
 #include <llvm/ExecutionEngine/JITMemoryManager.h>
+#include <llvm/ExecutionEngine/JITEventListener.h>
 #include <llvm/ExecutionEngine/GenericValue.h>
 #include <llvm/Target/TargetData.h>
 #include <llvm/Target/TargetMachine.h>
@@ -61,35 +64,55 @@ pthread_key_t RoxorVM::vm_thread_key;
 
 VALUE rb_cTopLevel = 0;
 
-struct RoxorFunction {
-    Function *f;
-    RoxorScope *scope;
-    unsigned char *start;
-    unsigned char *end;
-    void *imp;
-    std::vector<unsigned char *> ehs;
+class RoxorFunction {
+    public: 
+	// Information retrieved from JITManager.
+	Function *f;
+	unsigned char *start;
+	unsigned char *end;
+	std::vector<unsigned char *> ehs;
 
-    RoxorFunction(Function *_f, RoxorScope *_scope, unsigned char *_start,
-	    unsigned char *_end) {
-	f = _f;
-	scope = _scope;
-	start = _start;
-	end = _end;
-	imp = NULL; 	// lazy
-    }
+	// Information retrieved from JITListener.
+	std::string file;
+	class Line {
+	    public:
+		uintptr_t address;
+		unsigned line;
+		Line(uintptr_t _address, unsigned _line) {
+		    address = _address;
+		    line = _line;
+		}
+	};
+	std::vector<Line> lines;
+
+	// Information retrieved later (lazily).
+	void *imp;
+
+	RoxorFunction(Function *_f, unsigned char *_start,
+		unsigned char *_end) {
+	    f = _f;
+	    start = _start;
+	    end = _end;
+	    imp = NULL;
+	}
 };
 
-class RoxorJITManager : public JITMemoryManager {
+class RoxorJITManager : public JITMemoryManager, public JITEventListener {
     private:
         JITMemoryManager *mm;
 	std::vector<struct RoxorFunction *> functions;
+
+	RoxorFunction *current_function(void) {
+	    assert(!functions.empty());
+	    return functions.back();
+	}
 
     public:
 	RoxorJITManager() : JITMemoryManager() { 
 	    mm = CreateDefaultMemManager(); 
 	}
 
-	struct RoxorFunction *find_function(uint8_t *addr) {
+	RoxorFunction *find_function(uint8_t *addr) {
 	     if (functions.empty()) {
 		return NULL;
 	     }
@@ -124,6 +147,8 @@ class RoxorJITManager : public JITMemoryManager {
 	    }
 	    return NULL;
 	}
+
+	// JITMemoryManager callbacks.
 
 	void setMemoryWritable(void) { 
 	    mm->setMemoryWritable(); 
@@ -172,8 +197,7 @@ class RoxorJITManager : public JITMemoryManager {
 		uint8_t *FunctionEnd) {
 	    mm->endFunctionBody(F, FunctionStart, FunctionEnd);
 	    Function *f = const_cast<Function *>(F);
-	    RoxorScope *s = RoxorCompiler::shared->scope_for_function(f);
-	    functions.push_back(new RoxorFunction(f, s, FunctionStart,
+	    functions.push_back(new RoxorFunction(f, FunctionStart,
 			FunctionEnd));
 	}
 
@@ -198,13 +222,36 @@ class RoxorJITManager : public JITMemoryManager {
 
 	void endExceptionTable(const Function *F, uint8_t *TableStart, 
 		uint8_t *TableEnd, uint8_t* FrameRegister) {
-	    assert(!functions.empty());
-	    functions.back()->ehs.push_back(FrameRegister);
+	    current_function()->ehs.push_back(FrameRegister);
 	    mm->endExceptionTable(F, TableStart, TableEnd, FrameRegister);
 	}
 
 	void setPoisonMemory(bool poison) {
 	    mm->setPoisonMemory(poison);
+	}
+
+	// JITEventListener callbacks.
+
+	void NotifyFunctionEmitted(const Function &F,
+		void *Code, size_t Size,
+		const EmittedFunctionDetails &Details)
+	{
+	    RoxorFunction *function = current_function();
+
+	    std::string file;
+	    for (std::vector<EmittedFunctionDetails::LineStart>::const_iterator iter = Details.LineStarts.begin(); iter != Details.LineStarts.end(); ++iter) {
+		DebugLocTuple dlt = Details.MF->getDebugLocTuple(iter->Loc);
+		if (file.size() == 0) {
+		    DICompileUnit unit(dlt.CompileUnit);
+		    unit.getFilename(file);
+		    assert(file.size() != 0);
+		}
+
+		RoxorFunction::Line line(iter->Address, dlt.Line);
+		function->lines.push_back(line);
+	    }
+
+	    function->file = file;
 	}
 };
 
@@ -248,6 +295,7 @@ RoxorCore::RoxorCore(void)
 	abort();
     }
     ee->DisableLazyCompilation();
+    ee->RegisterJITEventListener(jmm);
 
     fpm = new FunctionPassManager(emp);
     fpm->add(new TargetData(*ee->getTargetData()));
@@ -482,7 +530,6 @@ RoxorCore::delenda(Function *func)
     }
 
     // Remove the compiler scope.
-    RoxorCompiler::shared->delete_scope(func);
     delete f;
 
     // Delete machine code.
@@ -526,49 +573,21 @@ RoxorCore::symbolize_call_address(void *addr, void **startp, char *path,
 	}
 
 	rb_vm_method_node_t *node = iter->second;
-
-	RoxorScope *scope = f == NULL ? NULL : f->scope;
 	if (ln != NULL) {
-	    if (scope != NULL) {
-#if __LP64__
-		// So, we need to determine here which call to the dispatcher
-		// we are exactly, so that we can retrieve the appropriate
-		// line number from the annotation.
-		// Unfortunately, the only way to achieve that seems to scan
-		// the current function's machine code.
-		// This code has only been tested on x86_64 but could be
-		// easily ported to i386.
-		const uint32_t sym = *(uint32_t *)((unsigned char *)addr - 8);
-		const int sentinel = sym & 0xff;
-
-		unsigned char *p = f->start;
-		unsigned int i = 0;
-		while ((p = (unsigned char *)memchr(p, sentinel,
-				(unsigned char *)addr - p)) != NULL) {
-		    if (*(uint32_t *)p == sym) {
-			i++;
+	    *ln = 0;
+	    if (f != NULL) {
+		for (std::vector<RoxorFunction::Line>::iterator iter =
+			f->lines.begin(); iter != f->lines.end(); ++iter) {
+		    if ((*iter).address == (uintptr_t)addr) {
+			*ln = (*iter).line;
+			break;
 		    }
-		    p++;
 		}
-
-		if (i > 0 && i - 1 < scope->dispatch_lines.size()) {
-		    *ln = scope->dispatch_lines[i - 1];
-		}
-		else {
-		    *ln = 0;
-		}
-#else
-		// TODO 32-bit hack...
-		*ln = 0;
-#endif
-	    }
-	    else {
-		*ln = 0;
 	    }
 	}
 	if (path != NULL) {
-	    if (scope != NULL) {
-		strncpy(path, scope->path.c_str(), path_len);
+	    if (f != NULL && f->file.size() > 0) {
+		strncpy(path, f->file.c_str(), path_len);
 	    }
 	    else {
 		strncpy(path, "core", path_len);
@@ -3765,6 +3784,8 @@ rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
     return rb_vm_run(fname, node, binding, inside_eval);
 }
 
+extern VALUE rb_progname;
+
 extern "C"
 void
 rb_vm_aot_compile(NODE *node)
@@ -3773,6 +3794,7 @@ rb_vm_aot_compile(NODE *node)
     assert(ruby_aot_init_func);
 
     // Compile the program as IR.
+    RoxorCompiler::shared->set_fname(RSTRING_PTR(rb_progname));
     Function *f = RoxorCompiler::shared->compile_main_function(node);
     f->setName(RSTRING_PTR(ruby_aot_init_func));
     GET_CORE()->optimize(f);
@@ -4622,6 +4644,7 @@ void
 Init_PreVM(void)
 {
     llvm::DwarfExceptionHandling = true; // required!
+    llvm::JITEmitDebugInfo = true;
 
     RoxorCompiler::module = new llvm::Module("Roxor", getGlobalContext());
     RoxorCompiler::module->setTargetTriple(TARGET_TRIPLE);
