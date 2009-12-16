@@ -15,7 +15,6 @@ class Compiler
   def initialize(argv)
     @mode = :normal
     @archs = []
-    @frameworks = []
     @internal = argv.delete('--internal')
 
     # Parse arguments.
@@ -24,8 +23,8 @@ class Compiler
       opts.on('-c', 'Compile and assemble, but do not link') { @dont_link = true }
       opts.on('-o <file>', 'Place the output into <file>') { |output| @output = output }
       #opts.on('--mode [MODE]', "Select compilation mode (normal or full)") { |mode| @mode = mode.intern }
-      #opts.on('--framework <framework>', 'Link against <framework>') { |path| @frameworks << path }
-      opts.on('--static', "Create a standalone static executable") { @static = true } 
+      opts.on('--static', "Create a standalone static executable") { @static = true }
+      opts.on('--dylib', "Create a dynamic library") { @dylib = true }
       opts.on('-C', 'Compile, assemble and link a loadable object file') { @bundle = true }
       opts.on('-a', '--arch <ARCH>', 'Compile for specified CPU architecture') { |arch| @archs << arch }
       opts.on('-v', '--version', 'Display the version') { puts RUBY_DESCRIPTION; exit 1 }
@@ -74,6 +73,7 @@ class Compiler
     end
     if @dont_link or @bundle
       die "Cannot specify --static when not building an executable" if @static
+      die "Cannot specify -c or -C when building a dynamic library" if @dylib
       die "Cannot specify -c and -C at the same time" if @bundle and @dont_link
       if @files.size > 1 and @output
         die "Cannot specify -o with -c or -C and multiple input files"
@@ -88,18 +88,26 @@ class Compiler
         compile_object(file, @output)
       end
     else
+      die "Cannot specify --static and --dylib at the same time" if @dylib and @static
       objs = @files.map do |file|
+        die "Given input file `#{file} must exist" unless File.exist?(file)
         case File.extname(file)
           when '.rb'
             compile_object(file, nil)
           when '.o'
-            die "Given input file `#{file} must exist" unless File.exist?(file)
-            file
+            [file, find_init_func(file)]
+          when '.dylib'
+            [file, nil]
           else
-            die "Given input file `#{file}' must be either a Ruby source file (.rb) or a Mach-O object file (.o)"
+            die "Given input file `#{file}' must be either a Ruby source file (.rb) or a Mach-O object file (.o) or dynamic library (.dylib)"
         end
       end
-      compile_executable(objs, @output)
+      if @dylib
+	die "-o must be specified when building a dynamic library" unless @output
+        compile_dylib(objs, @output)
+      else
+        compile_executable(objs, @output)
+      end
     end
   end
 
@@ -149,6 +157,7 @@ class Compiler
 
     output ||= File.join(File.dirname(file), base + '.rbo')
 
+    # Generate main file.
     main_txt = <<EOS
 extern "C" {
   void *#{init_func}(void *, void *);
@@ -159,18 +168,43 @@ extern "C" {
 }
 EOS
 
+    # Build.
     main = gen_tmpfile('main', 'c')
     File.open(main, 'w') { |io| io.write(main_txt) }
     linkf = @internal ? "-L. -lmacruby" : "-framework MacRuby"
-    archf = @archs.map { |x| "-arch #{x}" }.join(' ')
-    execute("#{@gcxx} \"#{main}\" -dynamic -bundle -undefined suppress -flat_namespace #{archf} #{linkf} \"#{obj}\" -o \"#{output}\"")
+    execute("#{@gcxx} \"#{main}\" -dynamic -bundle -undefined suppress -flat_namespace #{arch_flags} #{linkf} \"#{obj}\" -o \"#{output}\"")
+  end
+
+  def compile_dylib(objs_data, output)
+    # Generate main file.
+    main_txt = <<EOS
+extern "C" {
+  void rb_vm_aot_feature_provide(const char *, void *);
+EOS
+    objs_data.each do |obj, init_func|
+      next if init_func == nil
+      main_txt << "void *#{init_func}(void *, void *);\n"
+    end
+    main_txt << <<EOS
+__attribute__((constructor)) static void __init__(void) {
+EOS
+    objs_data.each do |obj, init_func|
+      main_txt << "rb_vm_aot_feature_provide(\"#{feature_name(obj)}\", (void *)#{init_func});\n"
+    end
+    main_txt << "}}"
+
+    # Build.
+    main = gen_tmpfile('main', 'c')
+    File.open(main, 'w') { |io| io.write(main_txt) }
+    linkf = @internal ? "-L. -lmacruby" : "-framework MacRuby"
+    objs = objs_data.map { |obj, f| "\"#{obj}\"" }.join(' ') 
+    execute("#{@gcxx} \"#{main}\" -dynamiclib -dynamic -undefined suppress -flat_namespace #{arch_flags} #{linkf} #{objs} -o \"#{output}\"")
   end
 
   def compile_executable(objs_data, output)
     output ||= 'a.out'
-    objs = []
-    init_funcs = []
-    objs_data.each { |obj, init_func| objs << obj; init_funcs << init_func }
+    raise if objs_data.empty?
+    die "first object file must be a Ruby source file or object" if objs_data[0][1] == nil
 
     # Generate main file.
     main_txt = <<EOS
@@ -181,11 +215,15 @@ extern "C" {
     void ruby_script(const char *);
     void ruby_set_argv(int, char **);
     void rb_vm_init_compiler(void);
+    void rb_vm_aot_feature_provide(const char *, void *);
     void *rb_vm_top_self(void);
     void rb_vm_print_current_exception(void);
     void rb_exit(int);
 EOS
-    init_funcs.each { |x| main_txt << "void *#{x}(void *, void *);\n" }
+    objs_data.each do |obj, init_func|
+      next if init_func == nil
+      main_txt << "void *#{init_func}(void *, void *);\n"
+    end
     main_txt << <<EOS
 }
 
@@ -203,10 +241,14 @@ int main(int argc, char **argv)
     rb_vm_init_compiler();
     ruby_script(progname);
     try {
-        void *self = rb_vm_top_self();
 EOS
-    init_funcs.each { |x| main_txt << "#{x}(self, 0);\n" }
+    objs_data[1..-1].each do |obj, init_func|
+      next if init_func == nil
+      main_txt << "rb_vm_aot_feature_provide(\"#{feature_name(obj)}\", (void *)#{init_func});\n"
+    end
     main_txt << <<EOS
+        void *self = rb_vm_top_self();
+        #{objs_data[0][1]}(self, 0);
     }
     catch (...) {
 	rb_vm_print_current_exception();
@@ -216,20 +258,22 @@ EOS
 }
 EOS
 
+    # Prepare objects.
+    objs = []
+    objs_data.each { |o, _| objs << o }
+
     # Compile main file.
     main = gen_tmpfile('main', 'mm')
     File.open(main, 'w') { |io| io.write(main_txt) }
     main_o = gen_tmpfile('main', 'o')
-    archf = @archs.map { |x| "-arch #{x}" }.join(' ')
-    execute("#{@gcxx} \"#{main}\" -c #{archf} -o \"#{main_o}\" -fobjc-gc")
+    execute("#{@gcxx} \"#{main}\" -c #{arch_flags} -o \"#{main_o}\" -fobjc-gc")
     objs.unshift(main_o)
 
     # Link all objects into executable.
     linkf = @static ? 
       "-L#{RbConfig::CONFIG['libdir']} #{RbConfig::CONFIG['LIBRUBYARG_STATIC_REALLY']}" :
       "-framework MacRuby -lobjc"
-    line = "#{@gcxx} -o \"#{output}\" #{archf} #{linkf} "
-    @frameworks.each { |f| line << "-framework #{f} " }
+    line = "#{@gcxx} -o \"#{output}\" #{arch_flags} #{linkf} "
     objs.each { |o| line << " \"#{o}\"" }
     execute(line)
   end
@@ -264,6 +308,25 @@ EOS
       when 'x86_64'; 'x86-64'
       else; arch
     end
+  end
+
+  def arch_flags
+    @archs.map { |x| "-arch #{x}" }.join(' ')
+  end
+
+  def find_init_func(obj)
+    output = `#{@nm} -j "#{obj}"`
+    output.scan(/^_MREP_.*$/).reject { |func|
+      # Ignore non-main functions.
+      func.include?('ruby_scope')
+    }.map { |func|
+      # Ignore the very first character (_).
+      func[1..-1]
+    }[0]
+  end
+
+  def feature_name(obj)
+    obj.sub(/#{File.extname(obj)}$/, '')
   end
 
   def gen_tmpfile(base, ext)

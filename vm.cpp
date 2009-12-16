@@ -4807,6 +4807,42 @@ rb_vm_unregister_current_alien_thread(void)
     }
 }
 
+// AOT features. These are registered at runtime once an AOT object file
+// is loaded, either directly from an executable's main() function or from
+// a gcc constructor (in case of a dylib).
+//
+// XXX this shared map is not part of RoxorCore because gcc constructors can
+// potentially be called *before* RoxorCore has been initialized. This is
+// definitely not thread-safe, but it shouldn't be a big deal at this point.
+static std::map<std::string, void *> aot_features;
+
+extern "C"
+bool
+rb_vm_aot_feature_load(const char *name)
+{
+    std::string key(name);
+    std::map<std::string, void *>::iterator iter = aot_features.find(name);
+    if (iter == aot_features.end()) {
+	return false;
+    }
+    void *init_func = iter->second;
+    ((void *(*)(void *, void *))init_func)((void *)rb_vm_top_self(), NULL);
+    aot_features.erase(iter);
+    return true;
+}
+
+extern "C"
+void
+rb_vm_aot_feature_provide(const char *name, void *init_func)
+{
+    std::string key(name);
+    std::map<std::string, void *>::iterator iter = aot_features.find(key);
+    if (iter != aot_features.end()) {
+	printf("WARNING: AOT feature '%s' already registered, new one will be ignored. This could happen if you link your executable against dylibs that contain the same Ruby file.\n", name);
+    }
+    aot_features[key] = init_func;
+}
+
 extern "C"
 void
 Init_PostVM(void)

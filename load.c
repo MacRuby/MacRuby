@@ -265,6 +265,12 @@ rb_require_safe(VALUE fname, int safe)
     VALUE path;
     int type = 0;
 
+    // Immediately, check out if we have an AOT feature for this.
+    if (rb_vm_aot_feature_load(RSTRING_PTR(fname))) {
+	rb_provide_feature(fname);
+	return Qtrue;
+    }
+
     FilePathValue(fname);
     if (search_required(fname, &path, &type)) {
 	if (path == 0) {

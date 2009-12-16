@@ -413,6 +413,8 @@ Class rb_vm_get_current_class(void);
 bool rb_vm_is_multithreaded(void);
 void rb_vm_set_multithreaded(bool flag);
 
+bool rb_vm_aot_feature_load(const char *name);
+
 static inline VALUE
 rb_robject_allocate_instance(VALUE klass)
 {
@@ -584,11 +586,13 @@ class RoxorCore {
 	// be empty when we exit and we need to call the remaining finalizers.
 	std::vector<rb_vm_finalizer_t *> finalizers;
 
+	// The global lock.
+	pthread_mutex_t gl;
+
 	// State.
 	bool running;
 	bool multithreaded;
 	bool abort_on_exception;
-	pthread_mutex_t gl;
 	VALUE loaded_features;
 	VALUE load_path;
 	VALUE rand_seed;
@@ -803,7 +807,8 @@ class RoxorCore {
 	void invalidate_respond_to_cache(void) {
 	    respond_to_cache.clear();
 	}
-	bool respond_to(VALUE obj, VALUE klass, SEL sel, bool priv, bool check_override);
+	bool respond_to(VALUE obj, VALUE klass, SEL sel, bool priv,
+		bool check_override);
 
     private:
 	bool register_bs_boxed(bs_element_type_t type, void *value);
