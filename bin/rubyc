@@ -78,14 +78,15 @@ class Compiler
       if @files.size > 1 and @output
         die "Cannot specify -o with -c or -C and multiple input files"
       end
-      file = @files[0]
-      if File.extname(file) != '.rb'
-        die "Given input file `#{file}' must be a Ruby source file (.rb)"
-      end
-      if @bundle
-        compile_bundle(file, @output)
-      else
-        compile_object(file, @output)
+      @files.each do |file|
+        if File.extname(file) != '.rb'
+          die "Given input file `#{file}' must be a Ruby source file (.rb)"
+        end
+        if @bundle
+          compile_bundle(file, @output)
+        else
+          compile_object(file, @output)
+        end
       end
     else
       die "Cannot specify --static and --dylib at the same time" if @dylib and @static
@@ -326,7 +327,17 @@ EOS
   end
 
   def feature_name(obj)
-    obj.sub(/#{File.extname(obj)}$/, '')
+    # Remove trailing ./ if exists.
+    if obj[0..1] == './'
+      obj[0..1] = ''
+    end
+
+    if obj[0] == '/'
+      $stderr.puts "warning: object file path `#{obj}' is absolute and not relative, this might cause a problem later at runtime"
+    end
+
+    # Strip the extension.
+    obj = obj.sub(/#{File.extname(obj)}$/, '')
   end
 
   def gen_tmpfile(base, ext)
