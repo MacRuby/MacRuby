@@ -3115,11 +3115,16 @@ RoxorCompiler::compile_node(NODE *node)
 		bb = BasicBlock::Create(context, "MainBlock", f);
 
 		DISubprogram old_debug_subprogram = debug_subprogram;
+#if 0
+		// This is not the right way to emit subprogram DWARF entries,
+		// llc emits some assembly that doesn't compile because some
+		// symbols are duplicated.
 		debug_subprogram = debug_info->CreateSubprogram(
 			debug_compile_unit, f->getName(), f->getName(),
 			f->getName(), debug_compile_unit, nd_line(node),
 			DIType(), f->hasInternalLinkage(), true);
 		debug_info->InsertSubprogramStart(debug_subprogram, bb);
+#endif
 
 		std::map<ID, Value *> old_lvars = lvars;
 		lvars.clear();
@@ -5311,6 +5316,8 @@ rescan_args:
     return NULL;
 }
 
+#include <libgen.h>
+
 void
 RoxorCompiler::set_fname(const char *_fname)
 {
@@ -5318,8 +5325,29 @@ RoxorCompiler::set_fname(const char *_fname)
 	fname = _fname;
 
 	if (fname != NULL) {
+	    // Compute complete path.
+	    char path[PATH_MAX];
+	    if (*_fname == '/') {
+		strncpy(path, _fname, sizeof path);
+	    }
+	    else {
+		char cwd[PATH_MAX];
+		getcwd(cwd, sizeof cwd);
+		snprintf(path, sizeof path, "%s/%s", cwd, _fname);
+	    }
+
+	    // Split the path into 2 parts: the directory and the base.
+	    char *dir = dirname(path);
+	    char *base = basename(path);
+
+	    // LLVM (llc) really doesn't like when you pass empty strings for
+	    // these values and might later throw a cryptic C++ exception that
+	    // will take hours to investigate. How fun.
+	    assert(strlen(dir) > 0);
+	    assert(strlen(base) > 0);
+
 	    debug_compile_unit = debug_info->CreateCompileUnit(DW_LANG_Ruby,
-		    fname, "", RUBY_DESCRIPTION, false, false, "");
+		    base, dir, RUBY_DESCRIPTION, false, false, "");
 	}
     }
 }

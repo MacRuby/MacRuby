@@ -242,8 +242,13 @@ class RoxorJITManager : public JITMemoryManager, public JITEventListener {
 	    for (std::vector<EmittedFunctionDetails::LineStart>::const_iterator iter = Details.LineStarts.begin(); iter != Details.LineStarts.end(); ++iter) {
 		DebugLocTuple dlt = Details.MF->getDebugLocTuple(iter->Loc);
 		if (file.size() == 0) {
+#if LLVM_TOT
+		    DICompileUnit unit(dlt.Scope);
+		    file.append(unit.getFilename());
+#else
 		    DICompileUnit unit(dlt.CompileUnit);
 		    unit.getFilename(file);
+#endif
 		    assert(file.size() != 0);
 		}
 
@@ -3797,13 +3802,15 @@ rb_vm_aot_compile(NODE *node)
     RoxorCompiler::shared->set_fname(RSTRING_PTR(rb_progname));
     Function *f = RoxorCompiler::shared->compile_main_function(node);
     f->setName(RSTRING_PTR(ruby_aot_init_func));
-    GET_CORE()->optimize(f);
 
     // Force a module verification.
     if (verifyModule(*RoxorCompiler::module, PrintMessageAction)) {
 	printf("Error during module verification\n");
 	exit(1);
     }
+
+    // Optimize the IR.
+    GET_CORE()->optimize(f);
 
     // Dump the bitcode.
     std::string err;
