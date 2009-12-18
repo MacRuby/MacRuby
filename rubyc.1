@@ -74,7 +74,7 @@ Display a short description of the command line options.
 The easiest way to compile an existing project is probably to generate loadable object bundles for every Ruby source file, using the
 .Fl C
 option. These bundles are using the .rbo file extension and can simply be installed in the same directory as the original .rb source files. The MacRuby runtime will always pick .rbo files in priority upon #require calls. The source files can later be removed.
-.Dl $ find src/lib -name "*.rb" -exec rubyc -C {} \;
+.Dl $ find src/lib -name """*.rb""" -exec rubyc -C {} \e;
 .Pp
 .Nm rubyc
 without any option will create a binary executable, like the C compiler.
