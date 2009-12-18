@@ -10,21 +10,21 @@
 .Ar files...
 .Sh DESCRIPTION
 .Nm rubyc
-is a command-line interface to the MacRuby Ahead-of-Time (AOT) compiler. It allows static compilation of Ruby source code into machine code objects, dynamic libraries or executables.
+is a command-line interface to the MacRuby Ahead-of-Time (AOT) compiler. It statically compiles Ruby source code into native machine code (object files), and can then link it (dynamically or statically) into executables or dynamic libraries.
 .Pp
-The Ahead-of-Time compilation process has two major advantages; the Ruby code does not need to be parsed and compiled at runtime, which improves the startup time of the program, and the original Ruby source code is no longer available as is since it has been compiled down to machine code.
+The Ahead-of-Time compilation process has two major advantages. The Ruby code does not need to be parsed and compiled at runtime, which improves the startup time of the program, and the original Ruby source code is no longer available, as it has been compiled down to machine code.
 .Sh OPTIONS
 The
 .Nm rubyc
 tool accepts the following command-line options:
 .Bl -tag -width "123" -compact
 .Pp
-.It Fl o Ar file
-Place the output into
-.Ar file .
-If this option is not given, 
+.It Fl a Ar arch, Fl -arch Ar arch
+Compile for specified CPU architecture. By default,
 .Nm rubyc
-will try to determine a default output file name based on the object file type that is being generated. For executables, the default is a.out. For objects, the default is the original source file name with the object type extension. For dynamic libraries, this option is mandatory.
+will compile for the current architecture. This option will compile for a different architecture. When this option is provided more than once,
+.Nm rubyc
+will create a universal binary. At the time of this writing, only the i386 and x86_64 architectures are supported.
 .Pp
 .It Fl c
 Compile and assemble, but do not link. This option produces a Mach-O object file (.o) for every Ruby source file passed to
@@ -34,14 +34,9 @@ using a default file name which consists of the source file name with the .o fil
 to create a dynamic library or executable.
 .Pp
 .It Fl C
-Compile, assemble and link a loadable object file. This option produces a Mach-O MacRuby loadable object bundle (.rbo) for every Ruby source file passed to
-.Mm rubyc ,
-using a default file name which consists of the source file name with the .rbo file extension. A MacRuby loadable object is a Mach-O bundle compiled with a global constructor that will evaluate the Ruby machine code once it's loaded by the dynamic linker, at runtime, generally upon a Ruby #require statement.
-.Pp
-.It Fl -static
-Create a standalone, static executable. By default, executables created by
-.Nm rubyc
-are dynamically linking against the MacRuby runtime. This option will generate executables that are statically linking against the MacRuby runtime, significantly increasing the binary size but allowing its distribution on environments where MacRuby is not installed. This option can only be used when creating executables.
+Compile, assemble, and link a loadable object file. This option produces a Mach-O MacRuby loadable object bundle (.rbo) for every Ruby source file passed to
+.Nm rubyc ,
+using a default file name which consists of the source file name with the .rbo file extension. A MacRuby loadable object is a Mach-O bundle, compiled with a global constructor that will evaluate the Ruby machine code once it's loaded by the dynamic linker, at runtime, generally upon a Ruby #require statement.
 .Pp
 .It Fl -dylib
 Create a dynamic library instead of an executable. This option compiles every Ruby source file passed to 
@@ -52,12 +47,20 @@ The
 .Fl o
 option must be provided when building dynamic libraries.
 .Pp
-.It Fl a Ar arch, Fl -arch Ar arch
-Compile for specified CPU architecture. By default,
+.It Fl h, Fl -help
+Display a short description of the command line options.
+.Pp
+.It Fl o Ar file
+Place the output into
+.Ar file .
+If this option is not given, 
 .Nm rubyc
-will compile for the current CPU architecture. This option will compile for a different architecture. When this option is provided more than once,
+will try to determine a default output file name based on the object file type that is being generated. For executables, the default is a.out. For objects, the default is the original source file name with the object type extension. For dynamic libraries, this option is mandatory.
+.Pp
+.It Fl -static
+Create a standalone, static executable. By default, executables created by
 .Nm rubyc
-will create a universal binary. At the time of this writing, only the i386 and x86_64 architectures are supported.
+are dynamically linked against the MacRuby runtime. This option will generate executables that are statically linked against the MacRuby runtime, significantly increasing the binary size but allowing its distribution on environments where MacRuby is not installed. This option can only be used when creating executables.
 .Pp
 .It Fl v, Fl -version
 Display the version.
@@ -66,25 +69,26 @@ Display the version.
 Print every command line executed by
 .Nm rubyc .
 This option is generally used for internal debugging.
-.Pp
-.It Fl h, Fl -help
-Display a short description of the command line options.
 .El
-.Sh EXAMPLES
+.Sh USAGE
 The easiest way to compile an existing project is probably to generate loadable object bundles for every Ruby source file, using the
 .Fl C
-option. These bundles are using the .rbo file extension and can simply be installed in the same directory as the original .rb source files. The MacRuby runtime will always pick .rbo files in priority upon #require calls. The source files can later be removed.
+option. These bundles have the .rbo file extension and can be installed in the same directory as the original .rb source files. The MacRuby runtime will always pick .rbo files over .rb files upon #require calls. The source files can be removed later.
+.Pp
 .Dl $ find src/lib -name """*.rb""" -exec rubyc -C {} \e;
 .Pp
+When used without options,
 .Nm rubyc
-without any option will create a binary executable, like the C compiler.
+will create a binary executable, like the C compiler.
+.Pp
 .Dl $ echo """p 42""" > test.rb
 .Dl $ rubyc test.rb
 .Dl $ ./a.out
 .Pp
 When building an executable, the very first file passed to
 .Nm rubyc
-will be considered as the main file and its machine code will be ran once the executable starts. Other machine code files will be linked into the executable but only ran upon #require calls.
+will be considered as the main file. Its machine code will be run once the executable starts. Other machine code files will be linked into the executable, but only run upon #require calls.
+.Pp
 .Dl $ echo """def t1; 21; end""" > t1.rb
 .Dl $ echo """def t2; 21; end""" > t2.rb
 .Dl $ echo """require 't1'; require 't2'; p t1+t2""" > test.rb
@@ -94,14 +98,15 @@ will be considered as the main file and its machine code will be ran once the ex
 .Nm rubyc
 is also able to generate a dynamic library (.dylib) out of Ruby source files, using the
 .Fl -dylib
-option. Such a library can later be linked against an executable that uses the MacRuby runtime. Like executables, the Ruby machine code files will ran upon #require calls. Libraries can also be passed to
+option. Such a library can later be linked against an executable that uses the MacRuby runtime. Like executables, the Ruby machine code files will run upon #require calls. Libraries can also be passed to
 .Nm rubyc
 when forming an executable, allowing the compilation of multiple executables sharing common code.
+.Pp
 .Dl $ rubyc t1.rb t2.rb -o code.dylib --dylib
 .Dl $ rubyc test.rb code.dylib -o test
 .Dl $ ./test
 .Pp 
 .Sh SEE ALSO
-.Xr ruby 1
-.Xr irb 1
+.Xr ruby 1 ,
+.Xr irb 1 ,
 .Xr ruby_deploy 1
