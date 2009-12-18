@@ -122,3 +122,22 @@ assert '42', %{
   end
   Foo.new.foo
 }
+
+assert "2\n2", %{
+  class X; end
+  class Y < X
+    def set_foo; @foo = 1; end
+  end
+  class X
+    def set_bar; @bar = 2; end
+    def bar; @bar; end
+  end
+  class Z < Y
+    def set_foo; @foo = 3; end
+  end
+  o = Z.new
+  o.set_bar
+  p o.bar
+  o.set_foo
+  p o.bar
+}
