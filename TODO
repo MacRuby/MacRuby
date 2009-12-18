@@ -6,7 +6,7 @@ For 0.5 beta 3:
 [/] frozen, stable and documented GCD API
 [ ] non-ASCII regexp
 [/] 32-bit should be back
-[ ] macruby should support #require calls when assembling a binary
+[X] macruby should support #require calls when assembling a binary
 
 For 0.5 (must do):
 
