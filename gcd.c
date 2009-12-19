@@ -86,6 +86,7 @@ typedef struct {
 typedef struct {
     struct RBasic basic;
     dispatch_semaphore_t sem;
+    long count;
 } rb_semaphore_t;
 
 #define RSemaphore(val) ((rb_semaphore_t*)val)
@@ -838,6 +839,7 @@ rb_semaphore_alloc(VALUE klass, SEL sel)
     NEWOBJ(s, rb_semaphore_t);
     OBJSETUP(s, klass, RUBY_T_NATIVE);
     s->sem = NULL;
+    s->count = 0;
     return (VALUE)s;
 }
 
@@ -850,6 +852,7 @@ rb_semaphore_init(VALUE self, SEL sel, VALUE value)
 		NUM2LONG(value));
     }
     RSemaphore(self)->sem = s;
+    RSemaphore(self)->count = NUM2LONG(value);
     return self;
 }
 
@@ -875,6 +878,12 @@ static void
 rb_semaphore_finalize(void *rcv, SEL sel)
 {
     if (RSemaphore(rcv)->sem != NULL) {
+	// We must re-equilibrate the semaphore count before releasing it,
+	// otherwise GCD will violently crash the program by an assertion.
+	while (dispatch_semaphore_signal(RSemaphore(rcv)->sem) != 0) { }
+	while (--RSemaphore(rcv)->count >= 0) {
+	    dispatch_semaphore_signal(RSemaphore(rcv)->sem);
+	}
 	dispatch_release(RSemaphore(rcv)->sem);
     }
     if (rb_semaphore_finalize_super != NULL) {
