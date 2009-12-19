@@ -135,8 +135,8 @@ Check_Group(VALUE object)
     }
 }
 
-#define SEC2NSEC_UINT64(sec) (uint64_t)((sec) * NSEC_PER_SEC)
-#define SEC2NSEC_INT64(sec) (int64_t)((sec) * NSEC_PER_SEC)
+#define SEC2NSEC_UINT64(sec) (uint64_t)(sec * NSEC_PER_SEC)
+#define SEC2NSEC_INT64(sec) (int64_t)(sec * NSEC_PER_SEC)
 #define TIMEOUT_MAX (1.0 * INT64_MAX / NSEC_PER_SEC)
 
 static inline uint64_t
@@ -432,15 +432,10 @@ rb_queue_dispatch_sync(VALUE self, SEL sel)
  *     gcdq.after(0.5) { puts 'wait is over :)' }
  *
  */
-// TODO: there is a max value that can be passed (int64_max / NSEC_PER_SEC);
-// adjust for this.
 static VALUE
 rb_queue_dispatch_after(VALUE self, SEL sel, VALUE sec)
 {
-    sec = rb_Float(sec);
-    dispatch_time_t offset = dispatch_walltime(NULL,
-	    (int64_t)(RFLOAT_VALUE(sec) * NSEC_PER_SEC));
-
+    dispatch_time_t offset = rb_num2timeout(sec);
     rb_vm_block_t *block = given_block();
     block = rb_dispatch_prepare_block(block);
 
