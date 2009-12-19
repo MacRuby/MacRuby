@@ -10,7 +10,9 @@
 .Ar files...
 .Sh DESCRIPTION
 .Nm rubyc
-is a command-line interface to the MacRuby Ahead-of-Time (AOT) compiler. It statically compiles Ruby source code into native machine code (object files), and can then link it (dynamically or statically) into executables or dynamic libraries.
+is a command-line interface to the MacRuby Ahead-of-Time (AOT) compiler. It statically compiles Ruby source code into native machine code (object files), and can then link it (dynamically or statically) into executables or dynamic libraries.  It is typically invoked from
+.Nm ruby_deploy
+rather than being called directly.
 .Pp
 The Ahead-of-Time compilation process has two major advantages. The Ruby code does not need to be parsed and compiled at runtime, which improves the startup time of the program, and the original Ruby source code is no longer available, as it has been compiled down to machine code.
 .Sh OPTIONS
@@ -70,13 +72,7 @@ Print every command line executed by
 .Nm rubyc .
 This option is generally used for internal debugging.
 .El
-.Sh USAGE
-The easiest way to compile an existing project is probably to generate loadable object bundles for every Ruby source file, using the
-.Fl C
-option. These bundles have the .rbo file extension and can be installed in the same directory as the original .rb source files. The MacRuby runtime will always pick .rbo files over .rb files upon #require calls. The source files can be removed later.
-.Pp
-.Dl $ find src/lib -name """*.rb""" -exec rubyc -C {} \e;
-.Pp
+.Sh EXAMPLES
 When used without options,
 .Nm rubyc
 will create a binary executable, like the C compiler.
@@ -106,6 +102,25 @@ when forming an executable, allowing the compilation of multiple executables sha
 .Dl $ rubyc test.rb code.dylib -o test
 .Dl $ ./test
 .Pp 
+.Sh USAGE
+Generally, you should use
+.Nm ruby
+and
+.Nm irb
+during development, and
+.Nm ruby_deploy
+(via the Xcode target) when deploying Cocoa applications.  However, calling
+.Nm rubyc
+provides greater control, and allows you to create MacRuby gems, libraries, and standalone executables. 
+.Pp
+The easiest way to compile an existing project is to generate loadable object bundles for every Ruby source file, e.g., using the
+.Fl C
+option and the find command:
+.Pp
+.Dl $ find ./lib -name """*.rb""" -exec rubyc -C {} \e;
+.Pp
+This creates bundles with the .rbo file extension in the same directory as the original .rb source files. The MacRuby runtime will always pick .rbo files over .rb files upon #require calls. The source files can then be removed. 
+.Pp
 .Sh SEE ALSO
 .Xr ruby 1 ,
 .Xr irb 1 ,
