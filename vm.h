@@ -757,7 +757,6 @@ class RoxorCore {
 		rb_vm_method_node_t *node, const char *types);
 	void undef_method(Class klass, SEL sel);
 	void remove_method(Class klass, SEL sel);
-  void nuke_method(Method m);
 	bool resolve_methods(std::map<Class, rb_vm_method_source_t *> *map,
 		Class klass, SEL sel);
 	bool copy_method(Class klass, Method m);
