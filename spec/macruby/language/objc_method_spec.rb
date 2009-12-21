@@ -408,6 +408,49 @@ describe "A pure Objective-C method" do
     end
     @o.methodAcceptingSEL('foo:arg1:arg2:', target:o)
   end
+
+  it "can have another method aliased to it" do
+    class << @o
+      alias :test_method :methodReturningSelf
+    end
+
+    @o.should.respond_to(:test_method)
+    @o.test_method.should == @o
+    @o.test_method.object_id.should == @o.object_id
+  end
+
+  it "can be aliased to a pure Ruby method" do
+    class << @o
+      def foo
+        return 42
+      end
+      alias :methodReturningSelf :foo
+    end
+
+    @o.should.respond_to(:methodReturningSelf)
+    @o.methodReturningSelf.should == 42
+  end
+
+  it "should be commutative when aliased" do
+    class << @o
+      def foo
+        return 42
+      end
+      def do_alias
+        alias :old_methodReturningSelf :methodReturningSelf
+        alias :methodReturningSelf :foo
+      end
+      def undo_alias
+        alias :methodReturningSelf :old_methodReturningSelf
+      end
+    end
+
+    @o.methodReturningSelf.should == @o
+    @o.do_alias
+    @o.methodReturningSelf.should == 42
+    @o.undo_alias
+    @o.methodReturningSelf.should == @o
+  end
 end
 
 describe "A pure MacRuby method" do

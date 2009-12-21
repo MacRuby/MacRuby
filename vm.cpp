@@ -1464,11 +1464,6 @@ rb_vm_alias_method(Class klass, Method method, ID name, bool noargs)
     const char *types = method_getTypeEncoding(method);
 
     rb_vm_method_node_t *node = GET_CORE()->method_node_get(method);
-    if (node == NULL) {
-	rb_raise(rb_eArgError,
-		"only pure Ruby methods can be aliased (`%s' is not)",
-		sel_getName(method_getName(method)));
-    }
 
     const char *name_str = rb_id2name(name);
     SEL sel;
@@ -1481,8 +1476,27 @@ rb_vm_alias_method(Class klass, Method method, ID name, bool noargs)
 	sel = sel_registerName(tmp);
     }
 
-    GET_CORE()->add_method(klass, sel, imp, node->ruby_imp,
-	    node->arity, node->flags, types);
+    if (node == NULL) {
+      Method method_to_replace = class_getInstanceMethod(klass, sel);
+      rb_vm_method_node_t *node_to_replace = GET_CORE()->method_node_get(method_to_replace);
+      if ((klass == (Class)rb_cCFString || klass == (Class)rb_cCFHash)
+          && node_to_replace != NULL) {
+        //Doesn't work:
+        //GET_CORE()->remove_method(klass, sel);
+        //
+        //This, apparently, doesn't work either...
+        //GET_CORE()->add_method(klass, sel, imp, imp,
+        //   arity, 0, types);
+        //
+        //This...sorta...works...
+        GET_CORE()->nuke_method(method_to_replace);
+      }
+      class_replaceMethod(klass, sel, imp, types);
+    }
+    else {
+      GET_CORE()->add_method(klass, sel, imp, node->ruby_imp,
+          node->arity, node->flags, types);
+    }
 }
 
 extern "C"
@@ -1503,6 +1517,15 @@ rb_vm_alias2(VALUE outer, ID name, ID def, unsigned char dynamic_class)
 
     const char *def_str = rb_id2name(def);
     SEL sel = sel_registerName(def_str);
+
+    // String and Hash aliases should be defined on the Core Foundation classes
+    if (klass == (Class)rb_cNSMutableString) {
+      klass = (Class)rb_cCFString;
+    }
+    if (klass == (Class)rb_cNSMutableHash) {
+      klass = (Class)rb_cCFHash;
+    }
+
     Method def_method1 = class_getInstanceMethod(klass, sel);
     Method def_method2 = NULL;
     if (def_str[strlen(def_str) - 1] != ':') {
@@ -2533,6 +2556,16 @@ RoxorCore::undef_method(Class klass, SEL sel)
 	    rb_vm_call((VALUE)klass, selMethodUndefined, 1, &sym, false);
 	}
     }
+}
+
+void
+RoxorCore::nuke_method(Method m)
+{
+  invalidate_method_cache(method_getName(m));
+  std::map<Method, rb_vm_method_node_t *>::iterator iter = ruby_methods.find(m);
+  assert(iter != ruby_methods.end());
+  free(iter->second);
+  ruby_methods.erase(iter);
 }
 
 extern "C"
