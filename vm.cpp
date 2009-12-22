@@ -735,11 +735,17 @@ RoxorCore::get_sizeof(const char *type)
     return get_sizeof(RoxorCompiler::shared->convert_type(type));
 }
 
+#ifdef __LP64__
+# define LARGE_STRUCT_SIZE 128
+#else
+# define LARGE_STRUCT_SIZE 64
+#endif /* !__LP64__ */
+
 bool
 RoxorCore::is_large_struct_type(const Type *type)
 {
     return type->getTypeID() == Type::StructTyID
-	&& ee->getTargetData()->getTypeSizeInBits(type) > 128;
+	&& ee->getTargetData()->getTypeSizeInBits(type) > LARGE_STRUCT_SIZE;
 }
 
 inline GlobalVariable *
