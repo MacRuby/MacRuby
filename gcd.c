@@ -729,107 +729,6 @@ rb_source_init(VALUE self, SEL sel,
     return self;
 }
 
-
-/* 
- *  call-seq:
- *    Dispatch::Source.for_reading(queue, io, &block)    =>  Dispatch::Source
- *
- *  Returns a Source that monitors the passed IO object for pending data. 
- *	When provided with a valid on_event handler, the source will call the 
- *	handler on the provided queue whenever it sees that data becomes available from the source's
- *	underlying file descriptor. If the on_event handler takes a parameter,
- *	that parameter will be an integer corresponding to an estimated number of
- *	bytes available to be read. See the dispatch_source_create(3) manpage for details.
- *  All Sources start out suspended; in order to activate them, call <code>resume!</code>.
- *	If for_reading is given a block, the block shall be registered as the 
- *  source's event handler.
- *
- *  
- *     file = File.new('testfile')
- *	   queue = Queue.new('org.macruby.documentation')
- *	   reader = Source.for_reading(queue, file) do { |x| puts "#{x} bytes available"}
- *
- */
-
-#if 0 // TODO: Decide if we want to include these
-
-static VALUE
-rb_source_new_for_reading(VALUE klass, SEL sel, VALUE queue, VALUE io)
-{
-    VALUE src = rb_source_alloc(klass, sel);
-    io = rb_check_convert_type(io, T_FILE, "IO", "to_io");
-    Check_Queue(queue);
-    RSource(src)->source = dispatch_source_create(DISPATCH_SOURCE_TYPE_READ, 
-	    ExtractIOStruct(io)->fd, 0, RQueue(queue)->queue);
-    RSource(src)->type = DISPATCH_SOURCE_TYPE_READ;
-
-    if (rb_block_given_p()) {
-	rb_source_on_event(src, 0);
-    }
-
-    return src;
-}
-
-static VALUE
-rb_source_new_for_writing(VALUE klass, SEL sel, VALUE queue, VALUE io)
-{
-    VALUE src = rb_source_alloc(klass, sel);
-    io = rb_check_convert_type(io, T_FILE, "IO", "to_io");
-    Check_Queue(queue);
-    RSource(src)->source = dispatch_source_create(DISPATCH_SOURCE_TYPE_WRITE, 
-	    ExtractIOStruct(io)->fd, 0, RQueue(queue)->queue);
-    RSource(src)->type = DISPATCH_SOURCE_TYPE_WRITE;
-    
-    if (rb_block_given_p()) {
-        rb_source_on_event(src, 0);
-    }
-    
-    return src;
-}
-
-static VALUE
-rb_source_new_timer(VALUE klass, SEL sel, int argc, VALUE* argv)
-{
-    dispatch_time_t start_time;
-    VALUE queue = Qnil, interval = Qnil, delay = Qnil, leeway = Qnil;
-    rb_scan_args(argc, argv, "31", &queue, &delay, &interval, &leeway);
-    Check_Queue(queue);
-    if (NIL_P(leeway)) {
-        leeway = INT2FIX(0);
-    }
-    if (NIL_P(delay)) {
-        start_time = DISPATCH_TIME_NOW;
-    }
-    else {
-        start_time = rb_num2timeout(delay);
-    }
-    const uint64_t dispatch_interval = rb_num2nsec(interval);
-    const uint64_t dispatch_leeway = rb_num2nsec(leeway);
-
-    VALUE src = rb_source_alloc(klass, sel);
-    RSource(src)->source = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER,
-	    0, 0, RQueue(queue)->queue);
-    RSource(src)->type = DISPATCH_SOURCE_TYPE_TIMER;
-    dispatch_source_set_timer(RSource(src)->source, start_time,
-	    dispatch_interval, dispatch_leeway);
-    
-    if (rb_block_given_p()) {
-	rb_source_on_event(src, 0);
-    }
-    
-    return src;
-}
-
-static inline bool 
-source_type_takes_parameters(dispatch_source_type_t t)
-{
-    return ((t == DISPATCH_SOURCE_TYPE_READ)    || 
-            (t == DISPATCH_SOURCE_TYPE_SIGNAL)  || 
-            (t == DISPATCH_SOURCE_TYPE_TIMER)   || 
-            (t == DISPATCH_SOURCE_TYPE_PROC));
-}
-#endif
-
 static void
 rb_source_event_handler(void* sourceptr)
 {
@@ -1032,17 +931,6 @@ Init_Dispatch(void)
     rb_define_const(cSource, "WRITE", INT2NUM(SOURCE_TYPE_WRITE));
     rb_objc_define_method(*(VALUE *)cSource, "alloc", rb_source_alloc, 0);
     rb_objc_define_method(cSource, "initialize", rb_source_init, 4);
-    #if 0 // TODO: Decide if we want to include these
-    //    rb_undef_method(*(VALUE *)cSource, "new");
-    rb_objc_define_method(*(VALUE *)cSource, "for_reading", rb_source_new_for_reading, 2);
-    rb_objc_define_method(*(VALUE *)cSource, "for_writing", rb_source_new_for_writing, 2);
-    //rb_objc_define_method(*(VALUE *)cSource, "for_process", rb_source_new_for_process, 2);
-    //rb_objc_define_method(*(VALUE *)cSource, "for_vnode", rb_source_new_for_vnode, 2)
-    //rb_objc_define_method(*(VALUE *)cSource, "custom", rb_source_new_custom, 2);
-    //rb_objc_define_method(*(VALUE *)cSource, "for_mach", rb_source_new_for_mach, 3);
-    //rb_objc_define_method(*(VALUE *)cSource, "for_signal", rb_source_new_for_signal, 2),
-    rb_objc_define_method(*(VALUE *)cSource, "timer", rb_source_new_timer, -1);
-    #endif
     rb_objc_define_method(cSource, "on_event", rb_source_on_event, 0);
     rb_objc_define_method(cSource, "on_cancel", rb_source_on_cancellation, 0);
     rb_objc_define_method(cSource, "cancelled?", rb_source_cancelled_p, 0);

@@ -30,12 +30,22 @@ if MACOSX_VERSION >= 10.6
         Dispatch::Source.const_defined?(:MACH_RECV).should == false
       end
     end
-    
-    describe "event handler" do
+
+    describe "new" do
       before :each do
         @q = Dispatch::Queue.concurrent
-        @src = Dispatch::Source.new() #@type, @handle, mask, @q
       end
+
+      it "creates a custom Source" do
+        Dispatch::Source.new(Dispatch::Source::DATA_ADD, 0,  0, @q).should
+          be_kind_of(Dispatch::Source)
+        Dispatch::Source.new(Dispatch::Source::DATA_OR, 0,  0, @q).should
+          be_kind_of(Dispatch::Source)
+      end    
+      
+    end
+      
+    describe "event handler" do
 
       it "can be set" do
         true.should == false
