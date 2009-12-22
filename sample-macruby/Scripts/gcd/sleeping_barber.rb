@@ -12,7 +12,7 @@ while true
     puts "Customer turned away #{index}"
     next
   end
-  waiting_chairs.dispatch do
+  waiting_chairs.async do
     semaphore.signal
     puts "Shave and a haircut #{index}"
   end
