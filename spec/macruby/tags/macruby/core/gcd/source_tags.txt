@@ -1,0 +1,13 @@
+fails:Dispatch::Source constants for custom sources
+fails:Dispatch::Source constants for process sources
+fails:Dispatch::Source constants for file sources
+fails:Dispatch::Source constants for timer source
+fails:Dispatch::Source event handler can be set
+fails:Dispatch::Source event handler will be invoked
+fails:Dispatch::Source event handler receives the source
+fails:Dispatch::Source event handler can get data
+fails:Dispatch::Source event handler will get merged data
+fails:Dispatch::Source event handler can get handle
+fails:Dispatch::Source event handler can get mask
+fails:Dispatch::Source cancel handler can be set
+fails:Dispatch::Source cancel handler will be invoked
