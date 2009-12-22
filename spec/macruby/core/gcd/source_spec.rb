@@ -22,7 +22,7 @@ if MACOSX_VERSION >= 10.6
       end
 
       it "for timer source" do
-        Dispatch::Source.const_defined?(:TIME).should == true
+        Dispatch::Source.const_defined?(:TIMER).should == true
       end
 
       it "NOT for mach sources" do

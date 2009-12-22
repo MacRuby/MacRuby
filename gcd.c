@@ -660,6 +660,44 @@ rb_group_wait(VALUE self, SEL sel, int argc, VALUE *argv)
      == 0	? Qtrue : Qfalse;
 }
 
+
+enum SOURCE_TYPE_ENUM
+{
+    SOURCE_TYPE_DATA_ADD,
+    SOURCE_TYPE_DATA_OR,
+    SOURCE_TYPE_MACH_SEND,
+    SOURCE_TYPE_MACH_RECV,
+    SOURCE_TYPE_PROC,
+    SOURCE_TYPE_READ,
+    SOURCE_TYPE_SIGNAL,
+    SOURCE_TYPE_TIMER,
+    SOURCE_TYPE_VNODE,
+    SOURCE_TYPE_WRITE
+};
+
+static inline dispatch_source_type_t
+rb_num2source_type(VALUE num)
+{
+    enum SOURCE_TYPE_ENUM value = NUM2LONG(num);
+    switch (value)
+    {
+        case SOURCE_TYPE_DATA_ADD: return DISPATCH_SOURCE_TYPE_DATA_ADD;
+        case SOURCE_TYPE_DATA_OR: return DISPATCH_SOURCE_TYPE_DATA_OR;
+        case SOURCE_TYPE_MACH_SEND: return DISPATCH_SOURCE_TYPE_MACH_SEND;
+        case SOURCE_TYPE_MACH_RECV: return DISPATCH_SOURCE_TYPE_MACH_RECV;
+        case SOURCE_TYPE_PROC: return DISPATCH_SOURCE_TYPE_PROC;
+        case SOURCE_TYPE_READ: return DISPATCH_SOURCE_TYPE_READ;
+        case SOURCE_TYPE_SIGNAL: return DISPATCH_SOURCE_TYPE_SIGNAL;
+        case SOURCE_TYPE_TIMER: return DISPATCH_SOURCE_TYPE_TIMER;
+        case SOURCE_TYPE_VNODE: return DISPATCH_SOURCE_TYPE_VNODE;
+        case SOURCE_TYPE_WRITE: return DISPATCH_SOURCE_TYPE_WRITE;
+        default: rb_raise(rb_eArgError, 
+                          "Unknown dispatch source type [%d]", value);
+    }
+    return NULL;
+}
+
+
 static VALUE rb_source_on_event(VALUE self, SEL sel);
 static void rb_source_event_handler(void* sourceptr);
 
@@ -671,6 +709,26 @@ rb_source_alloc(VALUE klass, SEL sel)
     source->suspension_count = 1;
     return (VALUE)source;
 }
+
+
+static VALUE
+rb_source_init(VALUE self, SEL sel,
+    VALUE type, VALUE handle, VALUE mask, VALUE queue)
+{
+    rb_source_t *src = RSource(self);
+    Check_Queue(queue);
+    
+    src->type = rb_num2source_type(type);
+    src->source = dispatch_source_create(src->type,
+        NUM2UINT(handle), NUM2LONG(mask), RQueue(queue)->queue);
+
+    if (rb_block_given_p()) {
+        rb_source_on_event(self, 0);
+    }
+
+    return self;
+}
+
 
 /* 
  *  call-seq:
@@ -692,6 +750,8 @@ rb_source_alloc(VALUE klass, SEL sel)
  *	   reader = Source.for_reading(queue, file) do { |x| puts "#{x} bytes available"}
  *
  */
+
+#if 0 // TODO: Decide if we want to include these
 
 static VALUE
 rb_source_new_for_reading(VALUE klass, SEL sel, VALUE queue, VALUE io)
@@ -768,21 +828,16 @@ source_type_takes_parameters(dispatch_source_type_t t)
             (t == DISPATCH_SOURCE_TYPE_TIMER)   || 
             (t == DISPATCH_SOURCE_TYPE_PROC));
 }
+#endif
 
 static void
 rb_source_event_handler(void* sourceptr)
 {
     assert(sourceptr != NULL);
     rb_source_t *source = RSource(sourceptr);
+    VALUE param = (VALUE) source;
     rb_vm_block_t *the_block = source->event_handler;
-    if (source_type_takes_parameters(source->type)
-	    && the_block->arity.min == 1) {
-        VALUE data = UINT2NUM(dispatch_source_get_data(source->source));
-        rb_vm_block_eval(the_block, 1, &data);
-    }
-    else {
-        rb_vm_block_eval(the_block, 0, NULL);
-    }
+    rb_vm_block_eval(the_block, 1, &param);
 }
 
 static VALUE
@@ -965,20 +1020,29 @@ Init_Dispatch(void)
     rb_objc_define_method(cGroup, "notify", rb_group_notify, 1);
     rb_objc_define_method(cGroup, "on_completion", rb_group_notify, 1);
     rb_objc_define_method(cGroup, "wait", rb_group_wait, -1);
-    
+        
     cSource = rb_define_class_under(mDispatch, "Source", rb_cObject);
+    rb_define_const(cSource, "DATA_ADD", INT2NUM(SOURCE_TYPE_DATA_ADD));
+    rb_define_const(cSource, "DATA_OR", INT2NUM(SOURCE_TYPE_DATA_OR));
+    rb_define_const(cSource, "PROC", INT2NUM(SOURCE_TYPE_PROC));
+    rb_define_const(cSource, "READ", INT2NUM(SOURCE_TYPE_READ));
+    rb_define_const(cSource, "SIGNAL", INT2NUM(SOURCE_TYPE_SIGNAL));
+    rb_define_const(cSource, "TIMER", INT2NUM(SOURCE_TYPE_TIMER));
+    rb_define_const(cSource, "VNODE", INT2NUM(SOURCE_TYPE_VNODE));
+    rb_define_const(cSource, "WRITE", INT2NUM(SOURCE_TYPE_WRITE));
     rb_objc_define_method(*(VALUE *)cSource, "alloc", rb_source_alloc, 0);
-    rb_undef_method(*(VALUE *)cSource, "new");
+    rb_objc_define_method(cSource, "initialize", rb_source_init, 4);
+    #if 0 // TODO: Decide if we want to include these
+    //    rb_undef_method(*(VALUE *)cSource, "new");
     rb_objc_define_method(*(VALUE *)cSource, "for_reading", rb_source_new_for_reading, 2);
     rb_objc_define_method(*(VALUE *)cSource, "for_writing", rb_source_new_for_writing, 2);
-    #if 0 // TODO: Decide if we want to include these
     //rb_objc_define_method(*(VALUE *)cSource, "for_process", rb_source_new_for_process, 2);
     //rb_objc_define_method(*(VALUE *)cSource, "for_vnode", rb_source_new_for_vnode, 2)
     //rb_objc_define_method(*(VALUE *)cSource, "custom", rb_source_new_custom, 2);
     //rb_objc_define_method(*(VALUE *)cSource, "for_mach", rb_source_new_for_mach, 3);
     //rb_objc_define_method(*(VALUE *)cSource, "for_signal", rb_source_new_for_signal, 2),
-    #endif
     rb_objc_define_method(*(VALUE *)cSource, "timer", rb_source_new_timer, -1);
+    #endif
     rb_objc_define_method(cSource, "on_event", rb_source_on_event, 0);
     rb_objc_define_method(cSource, "on_cancel", rb_source_on_cancellation, 0);
     rb_objc_define_method(cSource, "cancelled?", rb_source_cancelled_p, 0);
