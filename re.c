@@ -395,7 +395,7 @@ rb_reg_expr_str(VALUE str, const char *s, long len)
 	    else if (!rb_enc_isspace(c, enc)) {
 		char b[8];
 
-		sprintf(b, "\\x%02X", c);
+		sprintf(b, "\\x%02X", (unsigned char)c);
 		rb_str_buf_cat(str, b, 4);
 	    }
 	    else {
@@ -2590,6 +2590,9 @@ rb_reg_initialize(VALUE obj, const char *s, int len, rb_encoding *enc,
     re->ptr = NULL;
     re->str = NULL;
 
+    if ((enc != NULL) && (*enc == kCFStringEncodingUnicode)) {
+	len = strlen(s);
+    }
     unescaped = rb_reg_preprocess(s, s+len, enc, &fixed_enc, err);
     if (unescaped == Qnil)
         return -1;
@@ -2639,24 +2642,6 @@ static int
 rb_reg_initialize_str(VALUE obj, VALUE str, int options, onig_errmsg_buffer err)
 {
     rb_encoding *enc = rb_enc_get(str);
-    if (options & ARG_ENCODING_NONE) {
-#if !WITH_OBJC
-	/* TODO */
-        rb_encoding *ascii8bit = rb_ascii8bit_encoding();
-        if (enc != ascii8bit) {
-            if (rb_enc_str_coderange(str) != ENC_CODERANGE_7BIT) {
-                strcpy(err, "/.../n has a non escaped non ASCII character in non ASCII-8BIT script");
-                return -1;
-            }
-            enc = ascii8bit;
-        }
-#endif
-    }
-    const char *ptr = RSTRING_PTR(str);
-    if (strlen(ptr) != RSTRING_LEN(str)) {
-	// TODO
-	str = rb_str_new2("");
-    }
     return rb_reg_initialize(obj, RSTRING_PTR(str), RSTRING_LEN(str), enc,
 	    options, err);
 }
