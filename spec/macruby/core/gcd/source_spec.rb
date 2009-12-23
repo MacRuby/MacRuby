@@ -21,8 +21,8 @@ if MACOSX_VERSION >= 10.6
         Dispatch::Source.const_defined?(:WRITE).should == true
       end
 
-      it "for timer source" do
-        Dispatch::Source.const_defined?(:TIMER).should == true
+      it "NOT for timer source" do
+        Dispatch::Source.const_defined?(:TIMER).should == false
       end
 
       it "NOT for mach sources" do
@@ -36,10 +36,26 @@ if MACOSX_VERSION >= 10.6
         @q = Dispatch::Queue.concurrent
       end
 
-      it "creates a custom Source" do
-        Dispatch::Source.new(Dispatch::Source::DATA_ADD, 0,  0, @q).should
+      it "can create a custom Source" do
+        Dispatch::Source.new(Dispatch::Source::DATA_ADD, 0,  0, @q) {}.should
           be_kind_of(Dispatch::Source)
-        Dispatch::Source.new(Dispatch::Source::DATA_OR, 0,  0, @q).should
+        Dispatch::Source.new(Dispatch::Source::DATA_OR, 0,  0, @q) {}.should
+          be_kind_of(Dispatch::Source)
+      end    
+
+      it "can create a process Source" do
+        Dispatch::Source.new(Dispatch::Source::PROC, 0,  0, @q) {}.should
+          be_kind_of(Dispatch::Source)
+        Dispatch::Source.new(Dispatch::Source::SIGNAL, 0,  0, @q) {}.should
+          be_kind_of(Dispatch::Source)
+      end    
+
+      it "can create a file Source" do
+        Dispatch::Source.new(Dispatch::Source::READ, 0,  0, @q) {}.should
+          be_kind_of(Dispatch::Source)
+        Dispatch::Source.new(Dispatch::Source::VNODE, 0,  0, @q) {}.should
+          be_kind_of(Dispatch::Source)
+        Dispatch::Source.new(Dispatch::Source::WRITE, 0,  0, @q) {}.should
           be_kind_of(Dispatch::Source)
       end    
       
