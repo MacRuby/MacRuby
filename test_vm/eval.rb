@@ -59,24 +59,32 @@ assert "42", "b = binding; eval('x = 42', b); eval('p x', b)"
 assert ":ok", "module M; module_eval 'p :ok'; end"
 assert ":ok", "module M; module_eval 'def self.foo; :ok; end'; end; p M.foo"
 
-assert '42', %{
+assert ':ok', %{
   $b = proc do p X end
   module A
-   X = 42
-   module_eval &$b
+    X = :ko
+    begin
+      module_eval &$b
+    rescue NameError
+      p :ok
+    end
   end
 }
 
-assert '42', %{
+assert ':ok', %{
   module A
-    X = 42
+    X = :ko
     class B
       def foo(&b)
         (class << self; self; end).module_eval &b
       end
     end
   end
-  A::B.new.foo do p X end
+  begin
+    A::B.new.foo do p X end
+  rescue NameError
+    p :ok
+  end
 }
 
 assert '42', %{
