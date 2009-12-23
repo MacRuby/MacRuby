@@ -310,7 +310,7 @@ rb_queue_initialize(VALUE self, SEL sel, VALUE name)
     queue->suspension_count = 0;
     queue->should_release_queue = 1;
     queue->queue = dispatch_queue_create(RSTRING_PTR(name), NULL);
-    assert(queue->queue != NULL)
+    assert(queue->queue != NULL);
     dispatch_retain(queue->queue);
     return self;
 }
