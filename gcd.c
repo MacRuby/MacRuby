@@ -753,7 +753,6 @@ rb_source_init(VALUE self, SEL sel,
         NUM2UINT(handle), NUM2LONG(mask), RQueue(queue)->queue);
 
     if (rb_block_given_p()) {
-        fprintf(stderr, "Setting event handler for %p\n", (void*) src);
         rb_source_on_event(self, 0);
     } else {
         rb_raise(rb_eArgError, "No event handler for Dispatch::Source.");
@@ -806,10 +805,8 @@ rb_source_on_event(VALUE self, SEL sel)
     rb_source_t *src = RSource(self);
     rb_vm_block_t *block = given_block();
     GC_WB(&src->event_handler, block);
-    fprintf(stderr, "Setting context for %p to %p\n", (void*) src->source, (void*) self);
     GC_RETAIN(self);
     dispatch_set_context(src->source, (void *)self); // retain this?
-    fprintf(stderr, "Set context for %p\n", src);
     dispatch_source_set_event_handler_f(src->source, rb_source_event_handler);
     return Qnil;
 }

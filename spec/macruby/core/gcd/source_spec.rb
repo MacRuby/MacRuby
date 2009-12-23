@@ -36,6 +36,18 @@ if MACOSX_VERSION >= 10.6
         @q = Dispatch::Queue.new('org.macruby.gcd_spec.sources')
       end
 
+      describe :DATA_ADD do
+        before :each do
+          @type = Dispatch::Source::DATA_ADD
+        end
+
+        it "returns an instance of Dispatch::Source" do
+          p @type
+          src = Dispatch::Source.new(@type, 1, 2, @q) { true.should == true }
+          p src
+          src.should be_kind_of(Dispatch::Source)
+        end
+      end
     end
     
   end
