@@ -1,8 +1,5 @@
 require File.dirname(__FILE__) + "/../../spec_helper"
 
-# Disabled because this makes spec:ci crash.
-=begin
-
 if MACOSX_VERSION >= 10.6
 
   describe "Dispatch::Source" do
@@ -34,75 +31,5 @@ if MACOSX_VERSION >= 10.6
       end
     end
 
-    describe "new" do
-      before :each do
-        @q = Dispatch::Queue.concurrent
-      end
-
-      it "can create a custom Source" do
-        Dispatch::Source.new(Dispatch::Source::DATA_ADD, 0,  0, @q) {}.should
-          be_kind_of(Dispatch::Source)
-        Dispatch::Source.new(Dispatch::Source::DATA_OR, 0,  0, @q) {}.should
-          be_kind_of(Dispatch::Source)
-      end    
-
-      it "can create a process Source" do
-        Dispatch::Source.new(Dispatch::Source::PROC, 0,  0, @q) {}.should
-          be_kind_of(Dispatch::Source)
-        Dispatch::Source.new(Dispatch::Source::SIGNAL, 0,  0, @q) {}.should
-          be_kind_of(Dispatch::Source)
-      end    
-
-      it "can create a file Source" do
-        Dispatch::Source.new(Dispatch::Source::READ, 0,  0, @q) {}.should
-          be_kind_of(Dispatch::Source)
-        Dispatch::Source.new(Dispatch::Source::VNODE, 0,  0, @q) {}.should
-          be_kind_of(Dispatch::Source)
-        Dispatch::Source.new(Dispatch::Source::WRITE, 0,  0, @q) {}.should
-          be_kind_of(Dispatch::Source)
-      end    
-
-      it "can create a Timer " do
-        Dispatch::Timer.new(@q, nil, 0) {}.should
-          be_kind_of(Dispatch::Source)
-      end    
-      
-      it "raises an ArgumentError if no block is given" do
-        lambda { Dispatch::Source.new(Dispatch::Source::DATA_ADD, 0,  0, @q)
-                }.should raise_error(ArgumentError) 
-      end
-      
-    end
-      
-    describe "event handler" do
-
-      it "will be invoked" do
-        true.should == false
-      end
-
-      it "receives the source" do
-        true.should == false
-      end
-
-      it "can get data" do
-        true.should == false
-      end
-
-      it "will get merged data" do
-        true.should == false
-      end
-
-      it "can get handle" do
-        true.should == false
-      end
-
-      it "can get mask" do
-        true.should == false
-      end
-
-    end
-
   end
-
 end
-=end

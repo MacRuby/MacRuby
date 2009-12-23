@@ -63,6 +63,7 @@ if MACOSX_VERSION >= 10.6
         end
         @sema0.wait(Dispatch::TIME_FOREVER)
         @sema1.wait(Dispatch::TIME_FOREVER)
+        @q.sync {}
       end
     end
 
