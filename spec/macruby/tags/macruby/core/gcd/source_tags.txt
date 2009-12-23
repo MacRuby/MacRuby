@@ -1,6 +1,0 @@
-fails:Dispatch::Source event handler will be invoked
-fails:Dispatch::Source event handler receives the source
-fails:Dispatch::Source event handler can get data
-fails:Dispatch::Source event handler will get merged data
-fails:Dispatch::Source event handler can get handle
-fails:Dispatch::Source event handler can get mask

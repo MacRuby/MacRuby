@@ -31,5 +31,12 @@ if MACOSX_VERSION >= 10.6
       end
     end
 
+    describe "of type" do
+      before :each do
+        @q = Dispatch::Queue.new('org.macruby.gcd_spec.sources')
+      end
+
+    end
+    
   end
 end

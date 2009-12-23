@@ -77,9 +77,9 @@ typedef struct {
     struct RBasic basic;
     int suspension_count;
     dispatch_source_t source;
-    dispatch_source_type_t type;
+    dispatch_source_type_t type; // remove?
     rb_vm_block_t *event_handler;
-    rb_vm_block_t *cancel_handler;
+    rb_vm_block_t *cancel_handler;// remove?
 } rb_source_t;
 
 #define RSource(val) ((rb_source_t*)val)
@@ -662,6 +662,20 @@ rb_group_wait(VALUE self, SEL sel, int argc, VALUE *argv)
      == 0	? Qtrue : Qfalse;
 }
 
+static IMP rb_group_finalize_super;
+
+static void
+rb_group_finalize(void *rcv, SEL sel)
+{
+    rb_group_t *grp = RGroup(rcv);
+    if (grp->group != NULL) {
+        dispatch_release(grp->group);
+    }
+    if (rb_group_finalize_super != NULL) {
+        ((void(*)(void *, SEL))rb_group_finalize_super)(rcv, sel);
+    }
+}
+
 
 enum SOURCE_TYPE_ENUM
 {
@@ -716,22 +730,6 @@ rb_is_timer_source_type(VALUE num)
     return (NUM2LONG(num) == SOURCE_TYPE_TIMER) ? YES : NO;
 }
 
-
-static VALUE rb_source_on_event(VALUE self, SEL sel);
-//static void rb_source_event_handler(void* sourceptr);
-
-static void
-rb_source_close_file(void *source)
-{
-    assert(source != NULL);
-    uintptr_t handle = dispatch_source_get_handle(RSource(source)->source);
-    int filedes = (int)handle;
-    if (close(filedes) != 0) {
-    	rb_raise(rb_eIOError, "Closing descriptor `%d' fails with error: %d",
-    	    filedes, errno);
-	}
-}
-
 static VALUE
 rb_source_alloc(VALUE klass, SEL sel)
 {
@@ -741,6 +739,8 @@ rb_source_alloc(VALUE klass, SEL sel)
     return (VALUE)source;
 }
 
+static VALUE rb_source_on_event(VALUE self, SEL sel);
+static void rb_source_event_handler(void* sourceptr);
 
 static VALUE
 rb_source_init(VALUE self, SEL sel,
@@ -753,14 +753,10 @@ rb_source_init(VALUE self, SEL sel,
         NUM2UINT(handle), NUM2LONG(mask), RQueue(queue)->queue);
 
     if (rb_block_given_p()) {
+        fprintf(stderr, "Setting event handler for %p\n", (void*) src);
         rb_source_on_event(self, 0);
     } else {
         rb_raise(rb_eArgError, "No event handler for Dispatch::Source.");
-    }
-
-    if (rb_is_file_source_type(type)) {
-        dispatch_set_context(src->source, (void*)self); // retain this?
-        dispatch_source_set_cancel_handler_f(src->source, rb_source_close_file);
     }
 
     rb_dispatch_resume(self, 0); // Does this work okay for timers?
@@ -810,8 +806,18 @@ rb_source_on_event(VALUE self, SEL sel)
     rb_source_t *src = RSource(self);
     rb_vm_block_t *block = given_block();
     GC_WB(&src->event_handler, block);
+    fprintf(stderr, "Setting context for %p to %p\n", (void*) src->source, (void*) self);
+    GC_RETAIN(self);
     dispatch_set_context(src->source, (void *)self); // retain this?
+    fprintf(stderr, "Set context for %p\n", src);
     dispatch_source_set_event_handler_f(src->source, rb_source_event_handler);
+    return Qnil;
+}
+
+static VALUE
+rb_source_merge(VALUE self, SEL sel, VALUE data)
+{
+    dispatch_source_merge_data(RSource(self)->source, NUM2INT(data));
     return Qnil;
 }
 
@@ -826,6 +832,25 @@ static VALUE
 rb_source_cancelled_p(VALUE self, SEL sel)
 {
     return dispatch_source_testcancel(RSource(self)->source) ? Qtrue : Qfalse;
+}
+
+static IMP rb_source_finalize_super;
+
+static void
+rb_source_finalize(void *rcv, SEL sel)
+{
+    rb_source_t *src = RSource(rcv);
+    if (src->source != NULL) {
+        while (src->suspension_count < 0) {
+            dispatch_resume(src->source);
+            src->suspension_count--;
+        }
+        dispatch_release(src->source);
+    }
+    if (rb_source_finalize_super != NULL) {
+        ((void(*)(void *, SEL))rb_source_finalize_super)(rcv, sel);
+    }
+
 }
 
 static VALUE
@@ -965,6 +990,10 @@ Init_Dispatch(void)
     rb_objc_define_method(cGroup, "notify", rb_group_notify, 1);
     rb_objc_define_method(cGroup, "on_completion", rb_group_notify, 1);
     rb_objc_define_method(cGroup, "wait", rb_group_wait, -1);
+    
+    rb_group_finalize_super = rb_objc_install_method2((Class)cGroup,
+	    "finalize", (IMP)rb_group_finalize);
+    
         
     cSource = rb_define_class_under(mDispatch, "Source", rb_cObject);
     rb_define_const(cSource, "DATA_ADD", INT2NUM(SOURCE_TYPE_DATA_ADD));
@@ -981,9 +1010,13 @@ Init_Dispatch(void)
     rb_objc_define_method(cSource, "resume!", rb_dispatch_resume, 0);
     rb_objc_define_method(cSource, "suspend!", rb_dispatch_suspend, 0);
     rb_objc_define_method(cSource, "suspended?", rb_dispatch_suspended_p, 0);
+    rb_objc_define_method(cSource, "merge", rb_source_merge, 1);
 
     cTimer = rb_define_class_under(mDispatch, "Timer", cSource);
     rb_objc_define_method(cTimer, "initialize", rb_timer_init, -1);
+
+    rb_source_finalize_super = rb_objc_install_method2((Class)cSource,
+	    "finalize", (IMP)rb_source_finalize);
 
     cSemaphore = rb_define_class_under(mDispatch, "Semaphore", rb_cObject);
     rb_objc_define_method(*(VALUE *)cSemaphore, "alloc", rb_semaphore_alloc, 0);
@@ -991,7 +1024,7 @@ Init_Dispatch(void)
     rb_objc_define_method(cSemaphore, "wait", rb_semaphore_wait, -1);
     rb_objc_define_method(cSemaphore, "signal", rb_semaphore_signal, 0);
 
-    rb_queue_finalize_super = rb_objc_install_method2((Class)cSemaphore,
+    rb_semaphore_finalize_super = rb_objc_install_method2((Class)cSemaphore,
 	    "finalize", (IMP)rb_semaphore_finalize);
 
     rb_define_const(mDispatch, "TIME_NOW", ULL2NUM(DISPATCH_TIME_NOW));

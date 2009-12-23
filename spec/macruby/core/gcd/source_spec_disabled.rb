@@ -313,3 +313,63 @@ if MACOSX_VERSION >= 10.6
   end
 
 end
+
+describe :DATA_ADD do
+  before :each do
+    @type = Dispatch::Source::DATA_ADD
+  end
+
+  it "returns an instance of Dispatch::Source" do
+    p @type
+    src = Dispatch::Source.new(@type, 1, 2, @q) { true.should == true }
+    p src
+    src.should be_kind_of(Dispatch::Source)
+  end
+
+  it "should not be suspended" do
+    src = Dispatch::Source.new(@type, 1, 2, @q) { true.should == true }
+    src.suspended?.should == false
+  end
+
+  it "requires an event handler block" do
+    lambda { Dispatch::Source.new(@type, 1, 2, @q) }.should
+    raise_error(ArgumentError)
+  end
+
+  it "fires event handler on merge" do
+    src = Dispatch::Source.new(@type, 1, 2, @q) do
+      true.should == true
+    end
+    lambda { src.merge 1 }.should_not raise_error(Exception)
+    @q.sync {}
+  end
+
+  it "fires event handler on merge" do
+    src = Dispatch::Source.new(@type, 1, 2, @q) do
+      true.should == true
+    end
+    #src.merge 1
+    @q.sync {}
+  end
+
+  it "passes source to event handler" do
+    src = Dispatch::Source.new(@type, 1, 2, @q) do |source|
+      source.should be_kind_of(Dispatch::Source)
+    end
+    #src.merge 1
+    @q.sync {}
+  end
+
+  it "should execute event handler when Fixnum merged with <<" do
+    @src.suspend
+    @src.merge 20
+    @src.merge 22
+    @src.resume
+    @q.sync {}
+  end
+
+  it "will only merge Fixnum arguments" do
+    lambda { @src.merge :foo}.should raise_error(ArgumentError)
+  end
+end
+    
