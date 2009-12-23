@@ -43,7 +43,7 @@ def assert(expectation, code, options={})
   archs.each do |arch, commands|
     commands.each do |command|
       output = nil
-      IO.popen(command, 'r+') do |io|
+      IO.popen("#{command} -I.", 'r+') do |io|
         io.puts(code)
         io.close_write
         output = io.read

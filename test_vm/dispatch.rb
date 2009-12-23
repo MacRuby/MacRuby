@@ -92,11 +92,13 @@ assert ":ok", %{
 assert ':ok', %{
   class X
     def method_missing(x, *args, &block)
-      p :ok if x == :foo and block.call == 42
+      p :ko
     end
     
     protected
-    def foo; end
+    def foo
+      p :ok if yield == 42
+    end
   end
   X.new.send(:foo) { 42 }
 }
