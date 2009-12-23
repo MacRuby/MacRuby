@@ -310,6 +310,7 @@ rb_queue_initialize(VALUE self, SEL sel, VALUE name)
     queue->suspension_count = 0;
     queue->should_release_queue = 1;
     queue->queue = dispatch_queue_create(RSTRING_PTR(name), NULL);
+    assert(queue->queue != NULL)
     dispatch_retain(queue->queue);
     return self;
 }
@@ -606,6 +607,8 @@ static VALUE
 rb_group_initialize(VALUE self, SEL sel)
 {
     RGroup(self)->group = dispatch_group_create();
+    assert(RGroup(self)->group != NULL);
+    
     return self;
 }
 
@@ -751,6 +754,7 @@ rb_source_init(VALUE self, SEL sel,
     src->type = rb_num2source_type(type);
     src->source = dispatch_source_create(src->type,
         NUM2UINT(handle), NUM2LONG(mask), RQueue(queue)->queue);
+    assert(src->source != NULL);
 
     if (rb_block_given_p()) {
         rb_source_on_event(self, 0);
