@@ -317,42 +317,50 @@ static VALUE
 method_missing(VALUE obj, SEL sel, rb_vm_block_t *block, int argc,
 	const VALUE *argv, rb_vm_method_missing_reason_t call_status)
 {
-    GET_VM()->set_method_missing_reason(call_status);
-
-    if (sel == selMethodMissing) {
-	rb_vm_method_missing(obj, argc, argv);
-    }
-    else if (sel == selAlloc) {
+    if (sel == selAlloc) {
         rb_raise(rb_eTypeError, "allocator undefined for %s",
                  rb_class2name(obj));
     }
+
+    GET_VM()->set_method_missing_reason(call_status);
 
     VALUE *new_argv = (VALUE *)alloca(sizeof(VALUE) * (argc + 1));
 
     char buf[100];
     int n = snprintf(buf, sizeof buf, "%s", sel_getName(sel));
     if (buf[n - 1] == ':') {
-      // Let's see if there are more colons making this a real selector.
-      bool multiple_colons = false;
-      for (int i = 0; i < (n - 1); i++) {
-        if (buf[i] == ':') {
-          multiple_colons = true;
-          break;
-        }
-      }
-      if (!multiple_colons) {
-        // Not a typical multiple argument selector. So as this is probably a
-        // typical ruby method name, chop off the colon.
-        buf[n - 1] = '\0';
-      }
+	// Let's see if there are more colons making this a real selector.
+	bool multiple_colons = false;
+	for (int i = 0; i < (n - 1); i++) {
+	    if (buf[i] == ':') {
+		multiple_colons = true;
+		break;
+	    }
+	}
+	if (!multiple_colons) {
+	    // Not a typical multiple argument selector. So as this is
+	    // probably a typical ruby method name, chop off the colon.
+	    buf[n - 1] = '\0';
+	}
     }
     new_argv[0] = ID2SYM(rb_intern(buf));
     MEMCPY(&new_argv[1], argv, VALUE, argc);
 
-    struct mcache *cache;
-    cache = GET_CORE()->method_cache_get(selMethodMissing, false);
-    return rb_vm_call_with_cache2(cache, block, obj, NULL, selMethodMissing,
-    	argc + 1, new_argv);
+    // In case the missing selector _is_ method_missing: OR the object does
+    // not respond to method_missing: (this can happen for NSProxy-based
+    // objects), directly trigger the exception.
+    Class k = (Class)CLASS_OF(obj);
+    if (sel == selMethodMissing
+	    || class_getInstanceMethod(k, selMethodMissing) == NULL) {
+	rb_vm_method_missing(obj, argc + 1, new_argv);
+	return Qnil; // never reached
+    }
+    else {
+	struct mcache *cache = GET_CORE()->method_cache_get(selMethodMissing,
+		false);
+	return rb_vm_call_with_cache2(cache, block, obj, NULL, selMethodMissing,
+		argc + 1, new_argv);
+    }
 }
 
 extern "C"
@@ -1824,8 +1832,9 @@ RoxorCore::respond_to(VALUE obj, VALUE klass, SEL sel, bool priv,
 	assert(!check_override);
     }
 
+    IMP imp = NULL;
     const bool overriden = check_override
-	? (class_getMethodImplementation((Class)klass, selRespondTo)
+	? ((imp = class_getMethodImplementation((Class)klass, selRespondTo))
 		!= basic_respond_to_imp)
 	: false;
 
@@ -1869,6 +1878,11 @@ RoxorCore::respond_to(VALUE obj, VALUE klass, SEL sel, bool priv,
 	    || (priv && status == RESPOND_TO_PRIVATE);
     }
     else {
+	if (imp == NULL || imp == _objc_msgForward) {
+	    // The class does not respond to respond_to?:, it's probably
+	    // NSProxy-based.
+	    return false;
+	}
 	VALUE args[2];
 	int n = 0;
 	args[n++] = ID2SYM(rb_intern(sel_getName(sel)));
