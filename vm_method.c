@@ -209,10 +209,20 @@ rb_export_method(VALUE klass, ID name, ID noex)
 
     VALUE sklass = RCLASS_SUPER(klass);
     if (sklass != 0) {
-	Method m = class_getInstanceMethod((Class)sklass, sel);
-	if (m != NULL && method_getImplementation(m) == node->objc_imp) {
+	IMP imp;
+	rb_vm_method_node_t *snode;
+	if (rb_vm_lookup_method((Class)sklass, sel, &imp, &snode)
+		&& imp == node->objc_imp) {
 	    // The method actually exists on a superclass, we need to duplicate
-	    // it to the current class.
+	    // it to the current class, keeping the same flags.
+	    if (snode != NULL) {
+		if (snode->flags & VM_METHOD_EMPTY) {
+		    flags |= VM_METHOD_EMPTY;
+		}
+		if (snode->flags & VM_METHOD_FBODY) {
+		    flags |= VM_METHOD_FBODY;
+		}
+	    }
 	    rb_vm_define_method2((Class)klass, sel, node, flags, false);
 	    return;
 	}
