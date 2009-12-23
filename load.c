@@ -261,6 +261,8 @@ load_rescue(VALUE path)
 VALUE
 rb_require_safe(VALUE fname, int safe)
 {
+    StringValue(fname);
+
     VALUE result = Qnil;
     VALUE path;
     int type = 0;
