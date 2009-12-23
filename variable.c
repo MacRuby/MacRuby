@@ -1914,28 +1914,50 @@ unmeta_class(VALUE klass)
 void
 rb_cvar_set(VALUE klass, ID id, VALUE val)
 {
-    if (RCLASS_META(klass)) { 
-	klass = (VALUE)objc_getClass(class_getName((Class)klass));
+    klass = unmeta_class(klass);
+
+    // Locate the class where the cvar should be set by looking through the
+    // current class ancestry.
+    VALUE k = klass;
+    while (k != 0) {
+	if (ivar_get(k, id, false, true) != Qundef) {
+	    klass = k;
+	    break;
+	}
+	k = RCLASS_SUPER(k);
     }
+
     rb_ivar_set(klass, id, val);
+}
+
+static VALUE
+rb_cvar_get3(VALUE klass, ID id, bool check, bool defined)
+{
+    VALUE orig = klass;
+    klass = unmeta_class(klass);
+
+    // Locate the cvar by looking through the class ancestry.
+    while (klass != 0) {
+	VALUE value = ivar_get(klass, id, false, true);
+	if (value != Qundef) {
+	    return defined ? Qtrue : value;
+	}
+	klass = RCLASS_SUPER(klass);
+    }
+
+    if (check) {
+	rb_name_error(id,"uninitialized class variable %s in %s",
+		rb_id2name(id), rb_class2name(orig));
+    }
+    else {
+	return defined ? Qfalse : Qnil;
+    }
 }
 
 VALUE
 rb_cvar_get2(VALUE klass, ID id, bool check)
 {
-    VALUE orig = klass;
-    klass = unmeta_class(klass);
-    VALUE value = ivar_get(klass, id, false, true);
-    if (value == Qundef) {
-	if (check) {
-	    rb_name_error(id,"uninitialized class variable %s in %s",
-		    rb_id2name(id), rb_class2name(orig));
-	}
-	else {
-	    return Qnil;
-	}
-    }
-    return value;
+    return rb_cvar_get3(klass, id, check, false);
 }
 
 VALUE
@@ -1947,8 +1969,7 @@ rb_cvar_get(VALUE klass, ID id)
 VALUE
 rb_cvar_defined(VALUE klass, ID id)
 {
-    klass = unmeta_class(klass);
-    return ivar_get(klass, id, false, true) == Qundef ? Qfalse : Qtrue;
+    return rb_cvar_get3(klass, id, false, true);
 }
 
 void
