@@ -591,13 +591,17 @@ rb_float_new(double d)
 	VALUE v;
 	double d;
     } x = {.d = d};
-    if (IMMEDIATE_P(x.v) == 0) return DBL2FIXFLOAT(d);
+    if (IMMEDIATE_P(x.v) == 0) return (x.v | FIXFLOAT_FLAG);
 #endif
-    NEWOBJ(flt, struct RFloat);
-    OBJSETUP(flt, rb_cFloat, T_FLOAT);
+    return rb_box_fixfloat0(d);
+}
 
-    flt->float_value = d;
-    return (VALUE)flt;
+VALUE
+rb_float_new_retained(double d)
+{
+    VALUE val = rb_float_new(d);
+    GC_RETAIN(val);
+    return val;
 }
 
 /*
@@ -1213,7 +1217,7 @@ flo_le(VALUE x, SEL sel, VALUE y)
 static VALUE
 flo_eql(VALUE x, SEL sel, VALUE y)
 {
-    if (TYPE(y) == T_FLOAT) {
+    if (FLOAT_P(y)) {
 	double a = RFLOAT_VALUE(x);
 	double b = RFLOAT_VALUE(y);
 
@@ -1462,31 +1466,6 @@ flo_truncate(VALUE num, SEL sel)
     return LONG2FIX(val);
 }
 
-// used to serialize/deserialize literal floats
-
-VALUE
-rb_float_to_astr(VALUE num)
-{
-    char buf[32]; // should be big enough for any %a string
-    if (TYPE(num) != T_FLOAT) {
-	rb_raise(rb_eArgError,
-		"rb_float_to_astr called with argument that is not a float");
-    }
-    double d = RFLOAT_VALUE(num);
-    snprintf(buf, sizeof(buf), "%a", d);
-    return rb_str_new2(buf);
-}
-
-VALUE
-rb_float_from_astr_retained(const char *s)
-{
-    double d = 0.0;
-    sscanf(s, "%la", &d);
-    VALUE v = DOUBLE2NUM(d);
-    GC_RETAIN(v);
-    return v;
-}
-
 /*
  *  call-seq:
  *     num.floor    => integer
@@ -1631,7 +1610,7 @@ num_step(VALUE from, SEL sel, int argc, VALUE *argv)
 	    }
 	}
     }
-    else if (TYPE(from) == T_FLOAT || TYPE(to) == T_FLOAT || TYPE(step) == T_FLOAT) {
+    else if (FLOAT_P(from) || FLOAT_P(to) || FLOAT_P(step)) {
 	const double epsilon = DBL_EPSILON;
 	double beg = NUM2DBL(from);
 	double end = NUM2DBL(to);
@@ -2874,8 +2853,9 @@ fix_rev(VALUE num, SEL sel)
 static VALUE
 bit_coerce(VALUE x)
 {
-    while (!FIXNUM_P(x) && TYPE(x) != T_BIGNUM) {
-	if (TYPE(x) == T_FLOAT) {
+    int t;
+    while (!FIXNUM_P(x) && (t = TYPE(x)) != T_BIGNUM) {
+	if (t == T_FLOAT) {
 	    rb_raise(rb_eTypeError, "can't convert Float into Integer");
 	}
 	x = rb_to_int(x);

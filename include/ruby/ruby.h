@@ -254,12 +254,14 @@ VALUE rb_ull2inum(unsigned LONG_LONG);
 #else
 // voodoo_float must be a function
 // because the parameter must be converted to float
-static inline VALUE voodoo_float(float f)
+static inline VALUE
+voodoo_float(float f)
 {
     return *(VALUE *)(&f);
 }
 #define DBL2FIXFLOAT(d) (voodoo_float(d) | FIXFLOAT_FLAG)
 #endif
+#define FLOAT_P(v) (rb_effective_immediate_bits((VALUE)(v)) == FIXFLOAT_FLAG)
 #define FIXFLOAT_P(v)  (((VALUE)v & IMMEDIATE_MASK) == FIXFLOAT_FLAG)
 #define FIXFLOAT2DBL(v) coerce_ptr_to_double((VALUE)v)
 
@@ -291,7 +293,8 @@ enum ruby_special_consts {
 
 // We can't directly cast a void* to a double, so we cast it to a union
 // and then extract its double member. Hacky, but effective.
-static inline double coerce_ptr_to_double(VALUE v)
+static inline double
+coerce_ptr_to_double(VALUE v)
 {
     union {
 	VALUE val;
@@ -1408,6 +1411,23 @@ rb_type(VALUE obj)
     }
 #endif
     return BUILTIN_TYPE(obj);
+}
+
+/*
+ * Besides returning the actual immediate bits, if the object is a
+ * struct RFloat, we return FIXFLOAT_FLAG (even though it isn't fixed),
+ * so we know the object is a float value.  This is less work than calling
+ * TYPE() to see if it equals T_FLOAT.  This is also used in the compiler;
+ * code is generated to call rb_effective_immediate_bits instead of simply
+ * ORing the last two bits.
+ */
+static inline int
+rb_effective_immediate_bits(VALUE obj)
+{
+    VALUE bits = (obj & IMMEDIATE_MASK);
+    if (bits || !RTEST(obj)) return bits;
+    if (*(VALUE *)obj == rb_cFloat) return FIXFLOAT_FLAG;
+    return 0;
 }
 
 static inline void

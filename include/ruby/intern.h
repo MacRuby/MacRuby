@@ -418,7 +418,6 @@ VALUE rb_num_coerce_cmp(VALUE, VALUE, ID);
 VALUE rb_objc_num_coerce_cmp(VALUE, VALUE, SEL sel);
 VALUE rb_num_coerce_relop(VALUE, VALUE, SEL);
 VALUE rb_float_new(double);
-VALUE rb_float_to_astr(VALUE);
 VALUE rb_num2fix(VALUE);
 VALUE rb_fix2str(VALUE, int);
 VALUE rb_fix_minus(VALUE x, VALUE y);
@@ -457,6 +456,7 @@ VALUE rb_String(VALUE);
 VALUE rb_Array(VALUE);
 double rb_cstr_to_dbl(const char*, int);
 double rb_str_to_dbl(VALUE, int);
+bool rb_strict(void);
 /* parse.y */
 RUBY_EXTERN int   ruby_sourceline;
 RUBY_EXTERN char *ruby_sourcefile;

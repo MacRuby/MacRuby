@@ -950,6 +950,10 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 
 	  case 'a':
 	  case 'A':
+	    if (rb_strict()) {
+		rb_raise(rb_eArgError, "malformed format string - %%%c", *p);
+	    }
+	    /* drop through */
 	  case 'f':
 	  case 'g':
 	  case 'G':

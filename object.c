@@ -19,6 +19,8 @@
 #include <ctype.h>
 #include <math.h>
 #include <float.h>
+#include "onig/onigposix.h" // oniguruma version of regcomp/regexec
+#include <libkern/OSAtomic.h>
 #include "objc.h"
 #include "vm.h"
 
@@ -2571,6 +2573,37 @@ rb_cstr_to_dbl(const char *p, int badcheck)
     if (!p) return 0.0;
     q = p;
     while (ISSPACE(*p)) p++;
+    if (rb_strict()) {
+	/*
+	 * In strict mode, before we call strtod, we need to check if the
+	 * string begins with "0x" (a possible floating hex string) or
+	 * "inf[inity]" or "nan" (ignoring case, and with optional preceding
+	 * sign), and return an appropriate zero or error.
+	 */
+	static regex_t re_hex;
+	static regex_t re_str;
+	static bool inited = false;
+	static OSSpinLock lock = OS_SPINLOCK_INIT;
+
+	if (!inited) {
+	    OSSpinLockLock(&lock);
+	    if (!inited) {
+		assert(regcomp(&re_hex, "^[-+]?0x",
+			REG_EXTENDED | REG_ICASE) == 0);
+		assert(regcomp(&re_str, "^[-+]?(inf|nan)",
+			REG_EXTENDED | REG_ICASE) == 0);
+		inited = true;
+	    }
+	    OSSpinLockUnlock(&lock);
+	}
+	if (regexec(&re_hex, p, 0, NULL, 0) == 0) {
+	    return *p == '-' ? -0.0 : 0.0;
+	}
+	if (regexec(&re_str, p, 0, NULL, 0) == 0) {
+	    if (badcheck) goto bad;
+	    return 0.0;
+	}
+    }
     d = strtod(p, &end);
     if (errno == ERANGE) {
 	OutOfRange();

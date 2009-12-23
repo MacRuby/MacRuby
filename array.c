@@ -1923,7 +1923,7 @@ sort_2(void *dummy, const void *ap, const void *bp)
 	}
 	return 0;
     }
-    else if (TYPE(a) == T_FLOAT && TYPE(b) == T_FLOAT) {
+    else if (FLOAT_P(a) && FLOAT_P(b)) {
 	const double fa = RFLOAT_VALUE(a);
 	const double fb = RFLOAT_VALUE(b);
 	if (fa > fb) {
@@ -2935,8 +2935,8 @@ rb_ary_equal(VALUE ary1, VALUE ary2)
 	    VALUE item1 = rary_elt(RARY(ary1), i);
 	    VALUE item2 = rary_elt(RARY(ary2), i);
 
-	    if ((TYPE(item1) == T_FLOAT && isnan(RFLOAT_VALUE(item1)))
-		|| TYPE(item2) == T_FLOAT && isnan(RFLOAT_VALUE(item2))) {
+	    if ((FLOAT_P(item1) && isnan(RFLOAT_VALUE(item1)))
+		|| FLOAT_P(item2) && isnan(RFLOAT_VALUE(item2))) {
 		return Qfalse;
 	    }
 

@@ -133,6 +133,10 @@ RoxorCompiler::RoxorCompiler(void)
     setScopeFunc = NULL;
     setCurrentClassFunc = NULL;
     getCacheFunc = NULL;
+    floatValueFunc = NULL;
+    newFloatFunc = NULL;
+    effectiveImmediateBitsFunc = NULL;
+    zeroDivFunc = NULL;
 
     VoidTy = Type::getVoidTy(context);
     Int1Ty = Type::getInt1Ty(context);
@@ -199,11 +203,62 @@ RoxorCompiler::mid_to_sel(ID mid, int arity)
 inline bool
 RoxorCompiler::unbox_ruby_constant(Value *val, VALUE *rval)
 {
-    if (ConstantInt::classof(val)) {
-	long tmp = cast<ConstantInt>(val)->getZExtValue();
-	*rval = tmp;
-	return true;
+    {
+	/* Unbox a direct ConstantInt value */
+	ConstantInt *const_int = dyn_cast<ConstantInt>(val);
+	if (const_int != NULL) {
+	    long tmp = const_int->getZExtValue();
+	    *rval = tmp;
+	    return true;
+	}
     }
+
+    if (newFloatFunc == NULL) {
+	// VALUE rb_float_new_retained(double)
+	newFloatFunc = cast<Function>
+	    (module->getOrInsertFunction("rb_float_new_retained",
+					 RubyObjTy, DoubleTy, NULL));
+    }
+
+    {
+	/*
+	 * Unbox a CallInst to newFloatFunc (a literal floating point value)
+	 * by getting the ConstantFP argument to the call.
+	 */
+	CallInst *callinst = dyn_cast<CallInst>(val);
+	ConstantFP *const_fp;
+	if (callinst != NULL
+		&& callinst->getCalledFunction() == newFloatFunc
+		&& (const_fp = dyn_cast<ConstantFP>(callinst->getOperand(1)))
+		!= NULL)
+	{
+	    *rval = rb_float_new(const_fp->getValueAPF().convertToDouble());
+	    return true;
+	}
+    }
+
+    {
+	/*
+	 * Unbox a LoadInst of a GlobalVariable.  We have previously stored
+	 * the value of the GlobalVariable in the std::map named global_values
+	 * (since the AOT compiler doesn't initialize the GlobalVariable with
+	 * the true value until later).
+	 */
+	GlobalVariable *gvar;
+	LoadInst *load_inst = dyn_cast<LoadInst>(val);
+	if (load_inst != NULL
+		&& (gvar = dyn_cast<GlobalVariable>(load_inst->getOperand(0)))
+		!= NULL)
+	{
+	    std::map<GlobalVariable *, VALUE>::iterator iter
+		    = global_values.find(gvar);
+	    if (iter != global_values.end()) {
+		*rval = iter->second;
+		return true;
+	    }
+	}
+    }
+
     return false;
 }
 
@@ -215,13 +270,22 @@ RoxorCompiler::is_value_a_fixnum(Value *val)
 }
 
 Instruction *
+#ifdef DEBUG_IR
+RoxorCompiler::compile_protected_call(Value *imp, std::vector<Value *> &params,
+	std::string *name)
+#else /* !DEBUG_IR */
 RoxorCompiler::compile_protected_call(Value *imp, std::vector<Value *> &params)
+#endif /* DEBUG_IR */
 {
     if (rescue_invoke_bb == NULL) {
 	CallInst *dispatch = CallInst::Create(imp, 
 		params.begin(), 
 		params.end(), 
+#ifdef DEBUG_IR
+		name ? *name : "", 
+#else /* !DEBUG_IR */
 		"", 
+#endif /* DEBUG_IR */
 		bb);
 	return dispatch;
     }
@@ -234,7 +298,11 @@ RoxorCompiler::compile_protected_call(Value *imp, std::vector<Value *> &params)
 		rescue_invoke_bb,
 		params.begin(), 
 		params.end(), 
+#ifdef DEBUG_IR
+		name ? *name : "", 
+#else /* !DEBUG_IR */
 		"", 
+#endif /* DEBUG_IR */
 		bb);
 
 	bb = normal_bb;
@@ -480,7 +548,11 @@ RoxorCompiler::compile_when_splat(Value *comparedToVal, Value *splatVal)
     std::vector<Value *> params;
     params.push_back(compile_mcache(selEqq, false));
     GlobalVariable *is_redefined = GET_CORE()->redefined_op_gvar(selEqq, true);
+#ifdef DEBUG_IR
+    params.push_back(new LoadInst(is_redefined, "[is_redefined:===:]", bb));
+#else /* !DEBUG_IR */
     params.push_back(new LoadInst(is_redefined, "", bb));
+#endif /* DEBUG_IR */
     params.push_back(comparedToVal);
     params.push_back(splatVal);
 
@@ -566,7 +638,8 @@ RoxorCompiler::compile_get_mcache(Value *sel, bool super)
     params.push_back(sel);
     params.push_back(ConstantInt::get(Int8Ty, super ? 1 : 0));
 
-    return CallInst::Create(getCacheFunc, params.begin(), params.end(), "", bb);
+    return CallInst::Create(getCacheFunc, params.begin(), params.end(),
+	    "", bb);
 }
 
 Value *
@@ -626,6 +699,35 @@ RoxorAOTCompiler::compile_ccache(ID name)
     return new LoadInst(gvar, "", bb);
 }
 
+#ifdef DEBUG_IR
+Value *
+RoxorCompiler::compile_sel(SEL sel, bool add_to_bb)
+{
+    std::string name("[sel:");
+    name.append(sel_getName(sel));
+    name.push_back(']');
+
+    std::map<std::string, GlobalVariable *>::iterator iter = globals.find(name);
+
+    GlobalVariable *gvar;
+    if (iter == globals.end()) {
+	gvar = new GlobalVariable(*RoxorCompiler::module, PtrTy, false,
+		GlobalValue::InternalLinkage,
+		compile_const_pointer((void *)sel), "");
+	assert(gvar != NULL);
+
+	globals[name] = gvar;
+    }
+    else {
+	gvar = iter->second;
+    }
+
+    return add_to_bb
+	? new LoadInst(gvar, name, bb)
+	: new LoadInst(gvar, name);
+}
+#endif /* DEBUG_IR */
+
 Value *
 RoxorAOTCompiler::compile_sel(SEL sel, bool add_to_bb)
 {
@@ -641,9 +743,18 @@ RoxorAOTCompiler::compile_sel(SEL sel, bool add_to_bb)
     else {
 	gvar = iter->second;
     }
+#ifdef DEBUG_IR
+    std::string name("[sel:");
+    name.append(sel_getName(sel));
+    name.push_back(']');
+    return add_to_bb
+	? new LoadInst(gvar, name, bb)
+	: new LoadInst(gvar, name);
+#else /* !DEBUG_IR */
     return add_to_bb
 	? new LoadInst(gvar, "", bb)
 	: new LoadInst(gvar, "");
+#endif /* DEBUG_IR */
 }
 
 inline Value *
@@ -1145,7 +1256,15 @@ RoxorCompiler::compile_ivar_read(ID vid)
     params.push_back(compile_id(vid));
     params.push_back(compile_slot_cache(vid));
 
+#ifdef DEBUG_IR
+    std::string name("[ivar:");
+    name.append(rb_id2name(vid));
+    name.push_back(']');
+
+    return CallInst::Create(getIvarFunc, params.begin(), params.end(), name, bb);
+#else /* !DEBUG_IR */
     return CallInst::Create(getIvarFunc, params.begin(), params.end(), "", bb);
+#endif /* DEBUG_IR */
 }
 
 Value *
@@ -1189,7 +1308,15 @@ RoxorCompiler::compile_cvar_get(ID id, bool check)
     params.push_back(ConstantInt::get(Int8Ty, check ? 1 : 0));
     params.push_back(ConstantInt::get(Int8Ty, dynamic_class ? 1 : 0));
 
+#ifdef DEBUG_IR
+    std::string name("[cvar:");
+    name.append(rb_id2name(id));
+    name.push_back(']');
+
+    return compile_protected_call(cvarGetFunc, params, &name);
+#else /* !DEBUG_IR */
     return compile_protected_call(cvarGetFunc, params);
+#endif /* DEBUG_IR */
 }
 
 Value *
@@ -1210,8 +1337,17 @@ RoxorCompiler::compile_cvar_assignment(ID name, Value *val)
     params.push_back(val);
     params.push_back(ConstantInt::get(Int8Ty, dynamic_class ? 1 : 0));
 
+#ifdef DEBUG_IR
+    std::string vname("[cvar:");
+    vname.append(rb_id2name(name));
+    vname.push_back(']');
+
+    return CallInst::Create(cvarSetFunc, params.begin(),
+	    params.end(), vname, bb);
+#else /* !DEBUG_IR */
     return CallInst::Create(cvarSetFunc, params.begin(),
 	    params.end(), "", bb);
+#endif /* DEBUG_IR */
 }
 
 Value *
@@ -1229,7 +1365,15 @@ RoxorCompiler::compile_gvar_assignment(NODE *node, Value *val)
     params.push_back(compile_global_entry(node));
     params.push_back(val);
 
+#ifdef DEBUG_IR
+    std::string name("[gvar:");
+    name.append(rb_id2name(node->nd_vid));
+    name.push_back(']');
+
+    return compile_protected_call(gvarSetFunc, params, &name);
+#else /* !DEBUG_IR */
     return compile_protected_call(gvarSetFunc, params);
+#endif /* DEBUG_IR */
 }
 
 Value *
@@ -1315,7 +1459,30 @@ RoxorAOTCompiler::compile_standarderror(void)
 inline Value *
 RoxorCompiler::compile_id(ID id)
 {
+#ifdef DEBUG_IR
+    std::string name("[id:");
+    name.append(rb_id2name(id));
+    name.push_back(']');
+
+    std::map<std::string, GlobalVariable *>::iterator iter = globals.find(name);
+
+    GlobalVariable *gvar;
+    if (iter == globals.end()) {
+	gvar = new GlobalVariable(*RoxorCompiler::module,
+	    IntTy, false, GlobalValue::InternalLinkage,
+	    ConstantInt::get(IntTy, (long)id), "");
+
+	globals[name] = gvar;
+    }
+    else {
+	gvar = iter->second;
+    }
+    return bb
+	? new LoadInst(gvar, name, bb)
+	: new LoadInst(gvar, name);
+#else /* !DEBUG_IR */
     return ConstantInt::get(IntTy, (long)id);
+#endif /* DEBUG_IR */
 }
 
 Value *
@@ -1333,7 +1500,14 @@ RoxorAOTCompiler::compile_id(ID id)
 	gvar = iter->second;
     }
 
+#ifdef DEBUG_IR
+    std::string name("[id:");
+    name.append(rb_id2name(id));
+    name.push_back(']');
+    return new LoadInst(gvar, name, bb);
+#else /* !DEBUG_IR */
     return new LoadInst(gvar, "", bb);
+#endif /* DEBUG_IR */
 }
 
 Value *
@@ -1362,7 +1536,15 @@ RoxorCompiler::compile_const(ID id, Value *outer)
     params.push_back(compile_id(id));
     params.push_back(ConstantInt::get(Int8Ty, dynamic_class ? 1 : 0));
 
+#ifdef DEBUG_IR
+    std::string name("[const:");
+    name.append(rb_id2name(id));
+    name.push_back(']');
+
+    return compile_protected_call(getConstFunc, params, &name);
+#else /* !DEBUG_IR */
     return compile_protected_call(getConstFunc, params);
+#endif /* DEBUG_IR */
 }
 
 Value *
@@ -1618,7 +1800,15 @@ RoxorCompiler::compile_dvar_slot(ID name)
     Value *index = ConstantInt::get(Int32Ty, idx);
     Value *slot = GetElementPtrInst::Create(dvars_ary, index, rb_id2name(name),
 	    bb);
+#ifdef DEBUG_IR
+    std::string vname("[dvar:");
+    vname.append(rb_id2name(name));
+    vname.push_back(']');
+
+    return new LoadInst(slot, vname, bb);
+#else /* !DEBUG_IR */
     return new LoadInst(slot, "", bb);
+#endif /* DEBUG_IR */
 }
 
 void
@@ -2017,7 +2207,7 @@ unbox_immediate_val(VALUE rval, rb_vm_immediate_val_t *val)
 	    val->v.l = FIX2LONG(rval);
 	    return true;
 	}
-	else if (TYPE(rval) == T_FLOAT) {
+	else if (FLOAT_P(rval)) {
 	    val->type = T_FLOAT;
 	    val->v.d = RFLOAT_VALUE(rval);
 	    return true;
@@ -2136,6 +2326,13 @@ Value *
 RoxorCompiler::compile_double_coercion(Value *val, Value *mask,
 	BasicBlock *fallback_bb, Function *f)
 {
+    if (floatValueFunc == NULL) {
+	// double rb_vm_float_value(VALUE)
+	floatValueFunc = cast<Function>
+	    (module->getOrInsertFunction("rb_vm_float_value",
+					 DoubleTy, RubyObjTy, NULL));
+    }
+
     Value *is_float = new ICmpInst(*bb, ICmpInst::ICMP_EQ, mask, threeVal);
 
     BasicBlock *is_float_bb = BasicBlock::Create(context, "is_float", f);
@@ -2145,13 +2342,10 @@ RoxorCompiler::compile_double_coercion(Value *val, Value *mask,
     BranchInst::Create(is_float_bb, isnt_float_bb, is_float, bb);
 
     bb = is_float_bb;
-    Value *is_float_val = BinaryOperator::CreateXor(val, threeVal, "", bb);
-#if __LP64__
-    is_float_val = new BitCastInst(is_float_val, DoubleTy, "", bb);
-#else
-    is_float_val = new BitCastInst(is_float_val, FloatTy, "", bb);
-    is_float_val = new FPExtInst(is_float_val, DoubleTy, "", bb);
-#endif
+    std::vector<Value *> params;
+    params.push_back(val);
+    Value *is_float_val = CallInst::Create(floatValueFunc, params.begin(),
+	    params.end(), "", bb);
     BranchInst::Create(merge_bb, bb);
 
     bb = isnt_float_bb;
@@ -2215,6 +2409,11 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 	}
 
 	GlobalVariable *is_redefined = GET_CORE()->redefined_op_gvar(sel, true);
+#ifdef DEBUG_IR
+	std::string name("[is_redefined:");
+	name.append(sel_getName(sel));
+	name.push_back(']');
+#endif /* DEBUG_IR */
 	
 	Value *leftVal = params[2]; // self
 	Value *rightVal = params.back();
@@ -2227,7 +2426,11 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 	    && TYPE(leftRVal) == T_SYMBOL && TYPE(rightRVal) == T_SYMBOL) {
 	    // Both operands are symbol constants.
 	    if (sel == selEq || sel == selEqq || sel == selNeq) {
+#ifdef DEBUG_IR
+		Value *is_redefined_val = new LoadInst(is_redefined, name, bb);
+#else /* !DEBUG_IR */
 		Value *is_redefined_val = new LoadInst(is_redefined, "", bb);
+#endif /* DEBUG_IR */
 		Value *isOpRedefined = new ICmpInst(*bb, ICmpInst::ICMP_EQ,
 			is_redefined_val, ConstantInt::getFalse(context));
 
@@ -2267,6 +2470,13 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 	    }
 	}
 
+	if (newFloatFunc == NULL) {
+	    // VALUE rb_float_new_retained(double)
+	    newFloatFunc = cast<Function>
+		(module->getOrInsertFunction("rb_float_new_retained",
+					     RubyObjTy, DoubleTy, NULL));
+	}
+
 	rb_vm_immediate_val_t leftImm, rightImm;
 	const bool leftIsImmediateConst = unbox_immediate_val(leftRVal,
 		&leftImm);
@@ -2289,7 +2499,7 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 			res_val = res == 1 ? trueVal : falseVal;
 		    }
 		    else if (FIXABLE(res)) {
-			res_val = ConstantInt::get(RubyObjTy, LONG2FIX(res));
+			res_val = compile_immutable_literal(LONG2FIX(res));
 		    }
 		}
 	    }
@@ -2306,14 +2516,17 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 			res_val = res == 1 ? trueVal : falseVal;
 		    }
 		    else {
-			res_val = ConstantInt::get(RubyObjTy,
-				DOUBLE2NUM(res));
+			res_val = compile_immutable_literal(DOUBLE2NUM(res));
 		    }
 		}
 	    }
 
 	    if (res_val != NULL) {
+#ifdef DEBUG_IR
+		Value *is_redefined_val = new LoadInst(is_redefined, name, bb);
+#else /* !DEBUG_IR */
 		Value *is_redefined_val = new LoadInst(is_redefined, "", bb);
+#endif /* DEBUG_IR */
 		Value *isOpRedefined = new ICmpInst(*bb, ICmpInst::ICMP_EQ,
 			is_redefined_val, ConstantInt::getFalse(context));
 
@@ -2343,11 +2556,21 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 	    return NULL;
 	}
 	else {
+	    if (effectiveImmediateBitsFunc == NULL) {
+		// int rb_vm_effective_immediate_bits(VALUE)
+		effectiveImmediateBitsFunc = cast<Function>
+		    (module->getOrInsertFunction("rb_vm_effective_immediate_bits",
+						 IntTy, RubyObjTy, NULL));
+	    }
+
 	    // Either one or both is not a constant immediate.
+#ifdef DEBUG_IR
+	    Value *is_redefined_val = new LoadInst(is_redefined, name, bb);
+#else /* !DEBUG_IR */
 	    Value *is_redefined_val = new LoadInst(is_redefined, "", bb);
+#endif /* DEBUG_IR */
 	    Value *isOpRedefined = new ICmpInst(*bb, ICmpInst::ICMP_EQ,
 		    is_redefined_val, ConstantInt::getFalse(context));
-
 	    Function *f = bb->getParent();
 
 	    BasicBlock *not_redefined_bb =
@@ -2363,18 +2586,57 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 	    BranchInst::Create(not_redefined_bb, dispatch_bb, isOpRedefined,
 		    bb);
 
+	    BasicBlock *div_by_zero_bb;
+	    BasicBlock *optimize_fixnum_cont_bb;
+	    BasicBlock *optimize_fixnum_ret_bb;
+	    /*
+	     * In the case of integer division, we need to test for the
+	     * divisor being zero, and throw an exception if so.  Because
+	     * the BasicBlock from which the final fixnum varies depending
+	     * on whether we are dealing with division, whether the result
+	     * is a predicate or other cases, we use the optimize_fixnum_ret_bb
+	     * variable to record that final BasicBlock, which we use to setup
+	     * the PHINode (this make the code easier to decipher).
+	     */
+	    bool doDIV = (sel == selDIV);
+	    if (doDIV) {
+		div_by_zero_bb =
+		    BasicBlock::Create(context, "div_by_zero", f);
+		optimize_fixnum_ret_bb = optimize_fixnum_cont_bb =
+		    BasicBlock::Create(context, "op_optimize_fixnum_cont", f);
+
+		if (zeroDivFunc == NULL) {
+		    // void rb_num_zerodiv(void)
+		    zeroDivFunc = cast<Function>
+			(module->getOrInsertFunction("rb_num_zerodiv",
+						     VoidTy, NULL));
+		    zeroDivFunc->setDoesNotReturn(true);
+		}
+
+		bb = div_by_zero_bb;
+		CallInst::Create(zeroDivFunc, "", bb);
+		new UnreachableInst(context, bb);
+	    }
+	    else {
+		optimize_fixnum_ret_bb = optimize_fixnum_bb;
+	    }
+
  	    bb = not_redefined_bb;
 
 	    Value *leftAndOp = NULL;
 	    if (!leftIsImmediateConst) {
-		leftAndOp = BinaryOperator::CreateAnd(leftVal, threeVal, "", 
-			bb);
+		std::vector<Value *> params;
+		params.push_back(leftVal);
+		leftAndOp = CallInst::Create(effectiveImmediateBitsFunc,
+			params.begin(), params.end(), "", bb);
 	    }
 
 	    Value *rightAndOp = NULL;
 	    if (!rightIsImmediateConst) {
-		rightAndOp = BinaryOperator::CreateAnd(rightVal, threeVal, "", 
-			bb);
+		std::vector<Value *> params;
+		params.push_back(rightVal);
+		rightAndOp = CallInst::Create(effectiveImmediateBitsFunc,
+			params.begin(), params.end(), "", bb);
 	    }
 
 	    if (leftAndOp != NULL && rightAndOp != NULL) {
@@ -2416,21 +2678,29 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 
 	    bb = optimize_fixnum_bb;
 
-	    Value *unboxedLeft;
-	    if (leftIsImmediateConst) {
-		unboxedLeft = ConstantInt::get(IntTy, leftImm.long_val());
-	    }
-	    else {
-		unboxedLeft = BinaryOperator::CreateAShr(leftVal, twoVal, "",
-			bb);
-	    }
-
 	    Value *unboxedRight;
 	    if (rightIsImmediateConst) {
 		unboxedRight = ConstantInt::get(IntTy, rightImm.long_val());
 	    }
 	    else {
 		unboxedRight = BinaryOperator::CreateAShr(rightVal, twoVal, "",
+			bb);
+	    }
+
+	    if (doDIV) {
+		Value *rightFixnumIsZero = new ICmpInst(*bb, ICmpInst::ICMP_EQ,
+			unboxedRight, zeroVal);
+		BranchInst::Create(div_by_zero_bb, optimize_fixnum_cont_bb,
+			rightFixnumIsZero, bb);
+		bb = optimize_fixnum_cont_bb;
+	    }
+
+	    Value *unboxedLeft;
+	    if (leftIsImmediateConst) {
+		unboxedLeft = ConstantInt::get(IntTy, leftImm.long_val());
+	    }
+	    else {
+		unboxedLeft = BinaryOperator::CreateAShr(leftVal, twoVal, "",
 			bb);
 	    }
 
@@ -2463,7 +2733,7 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 
 		BranchInst::Create(merge_bb, dispatch_bb, isFixnumMinOk, bb);
 		fix_op_res = boxed_op_res;
-		optimize_fixnum_bb = fixable_max_bb;
+		optimize_fixnum_ret_bb = fixable_max_bb;
 	    }
 	    else {
 		BranchInst::Create(merge_bb, bb);
@@ -2493,12 +2763,10 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 
 	    if (!result_is_predicate) {
 		// Box the float. 
-#if !__LP64__
-		flp_op_res = new FPTruncInst(flp_op_res, FloatTy, "", bb);
-#endif
-		flp_op_res = new BitCastInst(flp_op_res, RubyObjTy, "", bb);
-		flp_op_res = BinaryOperator::CreateOr(flp_op_res, threeVal,
-			"", bb);
+		std::vector<Value *> params;
+		params.push_back(flp_op_res);
+		flp_op_res = CallInst::Create(newFloatFunc, params.begin(),
+			params.end(), "", bb);
 	    }
 	    optimize_float_bb = bb;
 	    BranchInst::Create(merge_bb, bb);
@@ -2513,7 +2781,7 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 
 	    bb = merge_bb;
 	    PHINode *pn = PHINode::Create(RubyObjTy, "op_tmp", bb);
-	    pn->addIncoming(fix_op_res, optimize_fixnum_bb);
+	    pn->addIncoming(fix_op_res, optimize_fixnum_ret_bb);
 	    pn->addIncoming(flp_op_res, optimize_float_bb);
 	    pn->addIncoming(dispatch_val, dispatch_bb);
 
@@ -2568,7 +2836,14 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 	new_params.push_back(params[0]);		// cache
 
 	GlobalVariable *is_redefined = GET_CORE()->redefined_op_gvar(sel, true);
+#ifdef DEBUG_IR
+	std::string name("[is_redefined:");
+	name.append(sel_getName(sel));
+	name.push_back(']');
+	new_params.push_back(new LoadInst(is_redefined, name, bb));
+#else /* !DEBUG_IR */
 	new_params.push_back(new LoadInst(is_redefined, "", bb));
+#endif /* DEBUG_IR */
 
 	return compile_protected_call(opt_func, new_params);
     }
@@ -2590,7 +2865,14 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 
 	GlobalVariable *is_redefined = GET_CORE()->redefined_op_gvar(sel, true);
 
+#ifdef DEBUG_IR
+	std::string name("[is_redefined:");
+	name.append(sel_getName(sel));
+	name.push_back(']');
+	Value *is_redefined_val = new LoadInst(is_redefined, name, bb);
+#else /* !DEBUG_IR */
 	Value *is_redefined_val = new LoadInst(is_redefined, "", bb);
+#endif /* DEBUG_IR */
 	Value *isOpRedefined = new ICmpInst(*bb, ICmpInst::ICMP_EQ,
 		is_redefined_val, ConstantInt::getFalse(context));
 
@@ -2787,7 +3069,11 @@ RoxorCompiler::compile_literal(VALUE val)
 			module->getOrInsertFunction(
 			    "rb_str_new_empty", RubyObjTy, NULL));
 	    }
+#ifdef DEBUG_IR
+	    return CallInst::Create(newString3Func, "[str:]", bb);
+#else /* !DEBUG_IR */
 	    return CallInst::Create(newString3Func, "", bb);
+#endif /* DEBUG_IR */
 	}
 	else {
 	    UniChar *buf = (UniChar *)CFStringGetCharactersPtr(
@@ -2820,8 +3106,16 @@ RoxorCompiler::compile_literal(VALUE val)
 	    params.push_back(load);
 	    params.push_back(ConstantInt::get(Int32Ty, str_len));
 
+#ifdef DEBUG_IR
+	    std::string name("[str:");
+	    name.append(RSTRING_PTR(val));
+	    name.push_back(']');
+	    return CallInst::Create(newString2Func, params.begin(),
+		    params.end(), name, bb);
+#else /* DEBUG_IR */
 	    return CallInst::Create(newString2Func, params.begin(),
 		    params.end(), "", bb);
+#endif /* DEBUG_IR */
 	}
     }
 
@@ -2831,7 +3125,162 @@ RoxorCompiler::compile_literal(VALUE val)
 Value *
 RoxorCompiler::compile_immutable_literal(VALUE val)
 {
+#ifdef DEBUG_IR
+    char buf[32]; // big enough for a double converted with %a and a FIXNUM
+
+    std::string name("[");
+
+    const int type = TYPE(val);
+    switch (type) {
+	case T_FALSE:
+	    name.append("false");
+	    break;
+
+	case T_NIL:
+	    name.append("nil");
+	    break;
+
+	case T_TRUE:
+	    name.append("true");
+	    break;
+
+	case T_UNDEF:
+	    name.append("undef");
+	    break;
+
+	case T_CLASS:
+	    // This strange literal seems to be only emitted for 
+	    // `for' loops.
+	    name.append("class:");
+	    name.append(class_getName((Class)val));
+	    break;
+
+	case T_MODULE:
+	    name.append("module:");
+	    name.append(class_getName((Class)val));
+	    break;
+
+	case T_REGEXP:
+	    name.append("re:");
+	    name.append(RSTRING_PTR(rb_inspect(val)));
+	    break;
+
+	case T_SYMBOL:
+	    name.append("symbol:");
+	    name.append(rb_id2name(SYM2ID(val)));
+	    break;
+
+	case T_FIXNUM:
+	    name.append("fixnum:");
+	    snprintf(buf, sizeof(buf), "%ld", FIX2LONG(val));
+	    name.append(buf);
+	    break;
+
+	case T_BIGNUM:
+	    name.append("bignum:");
+	    name.append(RSTRING_PTR(rb_big2str(val, 10)));
+	    break;
+
+	case T_FLOAT:
+	    name.append("float:");
+	    snprintf(buf, sizeof(buf), "%a", RFLOAT_VALUE(val));
+	    name.append(buf);
+	    break;
+
+	default:
+	    if (rb_obj_is_kind_of(val, rb_cRange)) {
+		VALUE beg = 0, end = 0;
+		bool exclude_end = false;
+		rb_range_extract(val, &beg, &end, &exclude_end);
+
+		// For literal ranges, beg and end are FIXNUMs
+		assert(FIXNUM_P(beg) && FIXNUM_P(end));
+		name.append("range:");
+		snprintf(buf, sizeof(buf), "%ld", FIX2LONG(beg));
+		name.append(buf);
+		name.append(exclude_end ? "..." : "..");
+		snprintf(buf, sizeof(buf), "%ld", FIX2LONG(end));
+		name.append(buf);
+	    }
+	    else if (rb_obj_is_kind_of(val, rb_cEncoding)) {
+		name.append("enc:");
+		name.append(RSTRING_PTR(rb_enc_name2(
+			(CFStringEncoding *)DATA_PTR(val))));
+	    }
+	    else {
+		printf("unrecognized literal `%s' (class `%s' type %d)\n",
+			RSTRING_PTR(rb_inspect(val)),
+			rb_obj_classname(val),
+			TYPE(val));
+		abort();
+	    }
+	    break;
+    }
+    name.push_back(']');
+
+    std::map<std::string, GlobalVariable *>::iterator iter = globals.find(name);
+
+    GlobalVariable *gvar;
+    if (iter == globals.end()) {
+	GC_RETAIN(val); // make sure this doesn't get garbage collected
+	gvar = new GlobalVariable(*RoxorCompiler::module,
+	    RubyObjTy, false, GlobalValue::InternalLinkage,
+	    ConstantInt::get(RubyObjTy, (long)val), "");
+
+	globals[name] = gvar;
+	switch (type) {
+	    case T_FIXNUM:
+	    case T_FLOAT:
+		global_values[gvar] = val;
+		break;
+	}
+    }
+    else {
+	gvar = iter->second;
+    }
+    return new LoadInst(gvar, name, bb);
+#else /* !DEBUG_IR */
+#ifdef NOT_DEFINED_DUE_TO_LLVM_BUG_5026
+    /*
+     * The following code causes an abort with llvm-82747:
+     *
+     * Don't know how to fold this instruction!
+     * UNREACHABLE executed at .../lib/Target/X86/X86InstrInfo.cpp:2313!
+     * Stack dump:
+     * 0.	Running pass 'Linear Scan Register Allocator' on function '@__ruby_scope1179'
+     *
+     * when running the core/float spec tests:
+     *
+     * ./mspec/bin/mspec ci -B ./spec/macruby.mspec ./spec/frozen/core/float
+     *
+     * This is bug #5026, and is fixed in llvm-83656.  Using TOT llvm does
+     * not have this problem, but that has other problems.
+     */
+    if (FLOAT_P(val) && !FIXFLOAT_P(val)) {
+	if (newFloatFunc == NULL) {
+	    // VALUE rb_float_new_retained(double)
+	    newFloatFunc = cast<Function>
+		(module->getOrInsertFunction("rb_float_new_retained",
+					     RubyObjTy, DoubleTy, NULL));
+	}
+
+	Value *d = ConstantFP::get(DoubleTy, RFLOAT_VALUE(val));
+
+	std::vector<Value *> params;
+	params.push_back(d);
+
+	return CallInst::Create(newFloatFunc,
+		params.begin(), params.end(), "", bb);
+    }
+#else /* !NOT_DEFINED_DUE_TO_LLVM_BUG_5026 */
+    /*
+     * So to avoid crashes due to GC releasing a float literal, we now
+     * retain the float before converting to a ConstantInt.
+     */
+    if (FLOAT_P(val)) GC_RETAIN(val);
+#endif /* NOT_DEFINED_DUE_TO_LLVM_BUG_5026 */
     return ConstantInt::get(RubyObjTy, (long)val); 
+#endif /* DEBUG_IR */
 }
 
 Value *
@@ -2846,19 +3295,104 @@ RoxorAOTCompiler::compile_immutable_literal(VALUE val)
 	return nilVal;
     }
 
-    std::map<VALUE, GlobalVariable *>::iterator iter = literals.find(val);
+    /*
+     * We convert val to a string representation, so we can unique them, and
+     * avoid multiple GlobalVariable's of the same value.  The string value
+     * is prefixed with a type, so that each type has its own effective
+     * namespace.  When DEBUG_IR is defined, we also enclose the string in
+     * square brackets, and use it to name LLVM IR variables.
+     */
+    char buf[32]; // big enough for a double converted with %a and a FIXNUM
+#ifdef DEBUG_IR
+    std::string key("[");
+#else /* !DEBUG_IR */
+    std::string key;
+#endif /* DEBUG_IR */
+
+    const int type = TYPE(val);
+    switch (type) {
+	case T_CLASS:
+	    // This strange literal seems to be only emitted for 
+	    // `for' loops.
+	    key.append("class:");
+	    key.append(class_getName((Class)val));
+	    break;
+
+	case T_REGEXP:
+	    {
+		struct RRegexp *re = (struct RRegexp *)val;
+
+		key.append("re:");
+		if (re->len > 0) key.append(RSTRING_PTR(rb_inspect(val)));
+	    }
+	    break;
+
+	case T_SYMBOL:
+	    key.append("symbol:");
+	    key.append(rb_id2name(SYM2ID(val)));
+	    break;
+
+	case T_BIGNUM:
+	    key.append("bignum:");
+	    key.append(RSTRING_PTR(rb_big2str(val, 10)));
+	    break;
+
+	case T_FLOAT:
+	    key.append("float:");
+	    snprintf(buf, sizeof(buf), "%a", RFLOAT_VALUE(val));
+	    key.append(buf);
+	    break;
+
+	default:
+	    if (rb_obj_is_kind_of(val, rb_cRange)) {
+		VALUE beg = 0, end = 0;
+		bool exclude_end = false;
+		rb_range_extract(val, &beg, &end, &exclude_end);
+
+		// For literal ranges, beg and end are FIXNUMs
+		assert(FIXNUM_P(beg) && FIXNUM_P(end));
+		key.append("range:");
+		snprintf(buf, sizeof(buf), "%ld", FIX2LONG(beg));
+		key.append(buf);
+		key.append(exclude_end ? "..." : "..");
+		snprintf(buf, sizeof(buf), "%ld", FIX2LONG(end));
+		key.append(buf);
+	    }
+	    else {
+		printf("unrecognized literal `%s' (class `%s' type %d)\n",
+			RSTRING_PTR(rb_inspect(val)),
+			rb_obj_classname(val),
+			TYPE(val));
+		abort();
+	    }
+	    break;
+    }
+#ifdef DEBUG_IR
+    key.push_back(']');
+#endif /* DEBUG_IR */
+
+    std::map<std::string, std::pair<VALUE, GlobalVariable *> >::iterator iter
+	    = literals.find(key);
     GlobalVariable *gvar = NULL;
 
     if (iter == literals.end()) {
 	gvar = new GlobalVariable(*RoxorCompiler::module, RubyObjTy, false,
 		GlobalValue::InternalLinkage, nilVal, "");
-	literals[val] = gvar;
+	literals[key] = std::make_pair(val, gvar);
+
+	if (type == T_FLOAT) {
+	    global_values[gvar] = val;
+	}
     }
     else {
-	gvar = iter->second;
+	gvar = iter->second.second;
     }
 
+#ifdef DEBUG_IR
+    return new LoadInst(gvar, key, bb);
+#else /* !DEBUG_IR */
     return new LoadInst(gvar, "", bb);
+#endif /* DEBUG_IR */
 }
 
 Value *
@@ -2950,7 +3484,7 @@ RoxorCompiler::compile_ivar_slots(Value *klass,
 	    Value *id_val = compile_id(ivar_name);
 	    if (Instruction::classof(id_val)) {
 		Instruction *insn = cast<Instruction>(id_val);
-		insn->removeFromParent();
+		if (bb) insn->removeFromParent();
 		list.insert(list_iter, insn);
 	    }
 	    params.push_back(id_val);
@@ -3167,7 +3701,14 @@ RoxorCompiler::compile_node(NODE *node)
 			    val = CallInst::Create(currentBlockObjectFunc, "", bb);
 			    current_block_arg = val;
 			}
+#ifdef DEBUG_IR
+			std::string name("[arg:");
+			name.append(rb_id2name(id));
+			name.push_back(']');
+			Value *slot = new AllocaInst(RubyObjTy, name, bb);
+#else /* !DEBUG_IR */
 			Value *slot = new AllocaInst(RubyObjTy, "", bb);
+#endif /* DEBUG_IR */
 			new StoreInst(val, slot, bb);
 			lvars[id] = slot;
 			has_vars_to_save = true;
@@ -3371,7 +3912,15 @@ RoxorCompiler::compile_node(NODE *node)
 	    {
 		assert(node->nd_vid > 0);
 
+#ifdef DEBUG_IR
+		std::string name("[lval:");
+		name.append(rb_id2name(node->nd_vid));
+		name.push_back(']');
+
+		return new LoadInst(compile_lvar_slot(node->nd_vid), name, bb);
+#else /* !DEBUG_IR */
 		return new LoadInst(compile_lvar_slot(node->nd_vid), "", bb);
+#endif /* DEBUG_IR */
 	    }
 	    break;
 
@@ -3389,7 +3938,15 @@ RoxorCompiler::compile_node(NODE *node)
 
 		params.push_back(compile_global_entry(node));
 
+#ifdef DEBUG_IR
+		std::string name("[gval:");
+		name.append(rb_id2name(node->nd_vid));
+		name.push_back(']');
+
+		return CallInst::Create(gvarGetFunc, params.begin(), params.end(), name, bb);
+#else /* !DEBUG_IR */
 		return CallInst::Create(gvarGetFunc, params.begin(), params.end(), "", bb);
+#endif /* DEBUG_IR */
 	    }
 	    break;
 
@@ -3950,7 +4507,14 @@ RoxorCompiler::compile_node(NODE *node)
 		    params.push_back(ConstantInt::get(Int8Ty,
 				outer && dynamic_class ? 1 : 0));
 
+#ifdef DEBUG_IR
+		    std::string name("[class:");
+		    name.append(rb_id2name(path));
+		    name.push_back(']');
+		    classVal = compile_protected_call(defineClassFunc, params, &name);
+#else /* !DEBUG_IR */
 		    classVal = compile_protected_call(defineClassFunc, params);
+#endif /* DEBUG_IR */
 		}
 
 		NODE *body = node->nd_body;
@@ -4203,7 +4767,14 @@ rescan_args:
 			// because if may have a default value.
 			ID argid = rb_intern(iter->getName().data());
 			Value *argslot = compile_lvar_slot(argid);
+#ifdef DEBUG_IR
+			std::string name("[lvar:");
+			name.append(iter->getName().data());
+			name.push_back(']');
+			params.push_back(new LoadInst(argslot, name, bb));
+#else /* !DEBUG_IR */
 			params.push_back(new LoadInst(argslot, "", bb));
+#endif /* DEBUG_IR */
 
 			++i;
 			++iter;
@@ -5446,20 +6017,24 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 	cast<Function>(module->getOrInsertFunction("rb_bignum_new_retained",
 		    RubyObjTy, PtrTy, NULL));
 
-    Function *newFloatFunc =
-	cast<Function>(module->getOrInsertFunction("rb_float_from_astr_retained",
-		    RubyObjTy, PtrTy, NULL));
+    if (newFloatFunc == NULL) {
+	// VALUE rb_float_new_retained(double)
+	newFloatFunc = cast<Function>
+	    (module->getOrInsertFunction("rb_float_new_retained",
+					 RubyObjTy, DoubleTy, NULL));
+    }
 
     Function *getClassFunc =
 	cast<Function>(module->getOrInsertFunction("objc_getClass",
 		    RubyObjTy, PtrTy, NULL));
 
-    for (std::map<VALUE, GlobalVariable *>::iterator i = literals.begin();
+    for (std::map<std::string, std::pair<VALUE, GlobalVariable *> >::iterator i
+	 = literals.begin();
 	 i != literals.end();
 	 ++i) {
 
-	VALUE val = i->first;
-	GlobalVariable *gvar = i->second;
+	VALUE val = i->second.first;
+	GlobalVariable *gvar = i->second.second;
 
 	switch (TYPE(val)) {
 	    case T_CLASS:
@@ -5584,19 +6159,10 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 
 	    case T_FLOAT:
 		{
-		    const char *astr = RSTRING_PTR(rb_float_to_astr(val));
-
-		    GlobalVariable *floatstr_gvar =
-			compile_const_global_string(astr);
-
-		    std::vector<Value *> idxs;
-		    idxs.push_back(ConstantInt::get(Int32Ty, 0));
-		    idxs.push_back(ConstantInt::get(Int32Ty, 0));
-		    Instruction *load = GetElementPtrInst::Create(floatstr_gvar,
-			    idxs.begin(), idxs.end(), "");
+		    Value *v = ConstantFP::get(DoubleTy, RFLOAT_VALUE(val));
 
 		    std::vector<Value *> params;
-		    params.push_back(load);
+		    params.push_back(v);
 
 		    Instruction *call = CallInst::Create(newFloatFunc,
 			    params.begin(), params.end(), "");
@@ -5605,7 +6171,6 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 
 		    list.insert(list.begin(), assign);
 		    list.insert(list.begin(), call);
-		    list.insert(list.begin(), load);
 		}
 		break;
 
@@ -6054,6 +6619,25 @@ rb_vm_rval_to_cptr(VALUE rval, const char *type, void **cptr)
 	*cptr = rb_pointer_get_data(rval, type);
     }
     return *cptr;
+}
+
+extern "C"
+double
+rb_vm_float_value(VALUE obj)
+{
+    return RFLOAT_VALUE(obj);
+}
+
+/*
+ * Besides returning the actual immediate bits, if the object is a
+ * struct RFloat, we return FIXFLOAT_FLAG (even though it isn't fixed),
+ * so we know the object is a float value.
+ */
+extern "C"
+int
+rb_vm_effective_immediate_bits(VALUE obj)
+{
+    return rb_effective_immediate_bits(obj);
 }
 
 static inline long
@@ -6883,7 +7467,14 @@ RoxorCompiler::compile_lvars(ID *tbl)
 #if ROXOR_COMPILER_DEBUG
 	    printf("lvar %s\n", rb_id2name(id));
 #endif
+#ifdef DEBUG_IR
+	    std::string name("[lvar:");
+	    name.append(rb_id2name(id));
+	    name.push_back(']');
+	    Value *store = new AllocaInst(RubyObjTy, name, bb);
+#else /* !DEBUG_IR */
 	    Value *store = new AllocaInst(RubyObjTy, "", bb);
+#endif /* DEBUG_IR */
 	    new StoreInst(nilVal, store, bb);
 	    lvars[id] = store;
 	    has_real_lvars = true;

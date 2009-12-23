@@ -100,6 +100,10 @@ class RoxorCompiler {
 	std::map<std::string, GlobalVariable *> static_strings;
 	std::map<CFHashCode, GlobalVariable *> static_ustrings;
 	std::map<Function *, RoxorScope *> scopes;
+	std::map<GlobalVariable *, VALUE> global_values;
+#ifdef DEBUG_IR
+	std::map<std::string, GlobalVariable *> globals;
+#endif /* DEBUG_IR */
 
 #if ROXOR_COMPILER_DEBUG
 	int level;
@@ -218,6 +222,10 @@ class RoxorCompiler {
 	Function *setScopeFunc;
 	Function *setCurrentClassFunc;
 	Function *getCacheFunc;
+	Function *floatValueFunc;
+	Function *newFloatFunc;
+	Function *effectiveImmediateBitsFunc;
+	Function *zeroDivFunc;
 
 	Constant *zeroVal;
 	Constant *oneVal;
@@ -268,8 +276,13 @@ class RoxorCompiler {
 	    return compile_const_pointer(ptr, PtrPtrTy);
 	}
 
+#ifdef DEBUG_IR
+	Instruction *compile_protected_call(Value *imp,
+		std::vector<Value *> &params, std::string *name=NULL);
+#else /* !DEBUG_IR */
 	Instruction *compile_protected_call(Value *imp,
 		std::vector<Value *> &params);
+#endif /* DEBUG_IR */
 	void compile_dispatch_arguments(NODE *args,
 		std::vector<Value *> &arguments, int *pargc);
 	Function::ArgumentListType::iterator compile_optional_arguments(
@@ -319,9 +332,13 @@ class RoxorCompiler {
 	virtual Value *compile_mcache(SEL sel, bool super);
 	Value *compile_get_mcache(Value *sel, bool super);
 	virtual Value *compile_ccache(ID id);
+#ifdef DEBUG_IR
+	virtual Value *compile_sel(SEL sel, bool add_to_bb=true);
+#else /* !DEBUG_IR */
 	virtual Value *compile_sel(SEL sel, bool add_to_bb=true) {
 	    return compile_const_pointer(sel, PtrTy);
 	}
+#endif /* DEBUG_IR */
 	virtual Value *compile_id(ID id);
 	GlobalVariable *compile_const_global_string(const char *str,
 		const size_t str_len);
@@ -395,7 +412,7 @@ class RoxorAOTCompiler : public RoxorCompiler {
 	std::map<ID, GlobalVariable *> ids;
 	std::map<ID, GlobalVariable *> global_entries;
 	std::vector<GlobalVariable *> ivar_slots;
-	std::map<VALUE, GlobalVariable *> literals;
+	std::map<std::string, std::pair<VALUE, GlobalVariable *> > literals;
 
 	GlobalVariable *cObject_gvar;
 	GlobalVariable *cStandardError_gvar;

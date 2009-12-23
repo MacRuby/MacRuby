@@ -456,6 +456,36 @@ dump_option(const char *str, int len, void *arg)
     rb_warn("don't know how to dump `%.*s', (insns)", len, str);
 }
 
+/*
+ * MacRuby strict mode.  This is to disable macruby extensions, such as
+ * %a in sprintf or interpretation of floating point hex, "inf[inity]" and
+ * "nan" by to_f.
+ */
+static bool macruby_strict = false;
+static bool macruby_strict_inited = false;
+
+static inline void
+rb_set_strict(void)
+{
+    macruby_strict = true;
+    macruby_strict_inited = true;
+}
+
+bool
+rb_strict(void)
+{
+    if (!macruby_strict_inited) {
+	char *val = getenv("MACRUBY_STRICT");
+	if (val && strcasecmp(val, "no") != 0
+		&& strcasecmp(val, "false") != 0
+		&& strcmp(val, "0") != 0) {
+	    macruby_strict = true;
+	}
+	macruby_strict_inited = true;
+    }
+    return macruby_strict;
+}
+
 static int
 proc_options(int argc, char **argv, struct cmdline_options *opt)
 {
@@ -735,6 +765,9 @@ proc_options(int argc, char **argv, struct cmdline_options *opt)
 		}
 	      encoding:
 		opt->ext.enc.name = rb_str_new2(s);
+	    }
+	    else if (strcmp("strict", s) == 0) {
+		rb_set_strict();
 	    }
 	    else if (strcmp("version", s) == 0) {
 		opt->version = 1;

@@ -149,6 +149,7 @@ class RoxorJITManager : public JITMemoryManager {
 	    return mm->getGOTBase();
 	}
 
+#if !LLVM_TOT
 	void SetDlsymTable(void *ptr) {
 	    mm->SetDlsymTable(ptr);
 	}
@@ -156,6 +157,7 @@ class RoxorJITManager : public JITMemoryManager {
 	void *getDlsymTable() const {
 	    return mm->getDlsymTable();
 	}
+#endif
 
 	uint8_t *startFunctionBody(const Function *F, 
 		uintptr_t &ActualSize) {
@@ -242,7 +244,12 @@ RoxorCore::RoxorCore(void)
     InitializeNativeTarget();
 
     std::string err;
+#if LLVM_TOT
+    ee = ExecutionEngine::createJIT(emp, &err, jmm, CodeGenOpt::None, false,
+	    CodeModel::Default);
+#else
     ee = ExecutionEngine::createJIT(emp, &err, jmm, CodeGenOpt::None, false);
+#endif
     if (ee == NULL) {
 	fprintf(stderr, "error while creating JIT: %s\n", err.c_str());
 	abort();

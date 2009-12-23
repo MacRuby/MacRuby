@@ -2235,8 +2235,9 @@ rb_big_pow_imp(VALUE x, SEL sel, VALUE y)
 static VALUE
 bit_coerce(VALUE x)
 {
-    while (!FIXNUM_P(x) && TYPE(x) != T_BIGNUM) {
-	if (TYPE(x) == T_FLOAT) {
+    int t;
+    while (!FIXNUM_P(x) && (t = TYPE(x)) != T_BIGNUM) {
+	if (t == T_FLOAT) {
 	    rb_raise(rb_eTypeError, "can't convert Float into Integer");
 	}
 	x = rb_to_int(x);
