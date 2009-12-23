@@ -58,14 +58,20 @@ if MACOSX_VERSION >= 10.6
         Dispatch::Source.new(Dispatch::Source::WRITE, 0,  0, @q) {}.should
           be_kind_of(Dispatch::Source)
       end    
+
+      it "can create a Timer " do
+        Dispatch::Timer.new(@q, nil, 0) {}.should
+          be_kind_of(Dispatch::Source)
+      end    
+      
+      it "raises an ArgumentError if no block is given" do
+        lambda { Dispatch::Source.new(Dispatch::Source::DATA_ADD, 0,  0, @q)
+                }.should raise_error(ArgumentError) 
+      end
       
     end
       
     describe "event handler" do
-
-      it "can be set" do
-        true.should == false
-      end
 
       it "will be invoked" do
         true.should == false
@@ -92,22 +98,6 @@ if MACOSX_VERSION >= 10.6
       end
 
     end
-
-    describe "cancel handler" do
-      before :each do
-        @q = Dispatch::Queue.concurrent
-        @src = Dispatch::Source.new() #@type, @handle, mask, @q
-      end
-
-      it "can be set" do
-        true.should == false
-      end
-
-      it "will be invoked" do
-        true.should == false
-      end
-    end
-
 
   end
 
