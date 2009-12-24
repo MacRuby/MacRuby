@@ -46,6 +46,15 @@ describe "A Pointer object, when initializing" do
   it "accepts the type returned by NSRect" do
     Pointer.new(NSRect.type).type.should == NSRect.type
   end
+
+  it "accepts a non mandatory second argument that specifies the number of elements that should be allocated" do
+    lambda { Pointer.new('i', 1) }.should_not raise_error
+  end
+
+  it "raises an ArgumentError if the second argument (size) is not greater than 0" do
+    lambda { Pointer.new('i', -1) }.should raise_error(ArgumentError)
+    lambda { Pointer.new('i', 0) }.should raise_error(ArgumentError)
+  end
 end
 
 describe "Pointer, through #[] and #[]=" do
@@ -129,5 +138,35 @@ describe "Pointer, through #[] and #[]=" do
     ptr[1].chr.should == 'e'
     ptr[2].class.should == Fixnum
     ptr[2].chr.should == 'y'
+  end
+
+  it "will raise a TypeError exception in case the given index cannot be converted to a numeric type" do
+    pointer = Pointer.new('i')
+    lambda { pointer[nil] }.should raise_error(TypeError)
+    lambda { pointer[nil] = 42 }.should raise_error(TypeError)
+    lambda { pointer['omg'] }.should raise_error(TypeError)
+    lambda { pointer['omg'] = 42 }.should raise_error(TypeError)
+  end
+
+  it "will raise an ArgumentError exception in case the given index is negative" do
+    pointer = Pointer.new('i')
+    lambda { pointer[-1] }.should raise_error(ArgumentError)
+    lambda { pointer[-1] = 42 }.should raise_error(ArgumentError)
+  end
+
+  it "will raise an ArgumentError exception in case the given index is out of bounds" do
+    pointer = Pointer.new('i')
+    lambda { pointer[0] }.should_not raise_error
+    lambda { pointer[0] = 42 }.should_not raise_error
+    lambda { pointer[1] }.should raise_error(ArgumentError)
+    lambda { pointer[1] = 42 }.should raise_error(ArgumentError)
+
+    pointer = Pointer.new('i', 3)
+    3.times do |i|
+      lambda { pointer[i] }.should_not raise_error
+      lambda { pointer[i] = 42 }.should_not raise_error
+    end
+    lambda { pointer[3] }.should raise_error(ArgumentError)
+    lambda { pointer[3] = 42 }.should raise_error(ArgumentError)
   end
 end
