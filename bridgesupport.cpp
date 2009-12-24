@@ -565,13 +565,14 @@ typedef struct {
     VALUE (*convert_to_rval)(void *);
     void (*convert_to_ocval)(VALUE rval, void *);
     void *val;
+    size_t len; // if 0, we don't know...
 } rb_vm_pointer_t;
 
 static const char *convert_ffi_type(VALUE type,
 	bool raise_exception_if_unknown);
 
 VALUE
-rb_pointer_new(const char *type_str, void *val)
+rb_pointer_new(const char *type_str, void *val, size_t len)
 {
     // LLVM doesn't allow to get a pointer to Type::VoidTy, and for convenience
     // reasons we map a pointer to void as a pointer to unsigned char.
@@ -591,6 +592,7 @@ rb_pointer_new(const char *type_str, void *val)
 
     ptr->type_size = core->get_sizeof(type_str);
     assert(ptr->type_size > 0);
+    ptr->len = len;
 
     GC_WB(&ptr->val, val);
 
@@ -605,22 +607,21 @@ rb_pointer_new2(const char *type_str, VALUE rval)
     VALUE p;
 
     if (TYPE(rval) == T_ARRAY) {
-	const int len = RARRAY_LEN(rval);
+	const long len = RARRAY_LEN(rval);
 	if (len == 0) {
 	    rb_raise(rb_eArgError,
 		    "can't convert an empty array to a `%s' pointer",
 		    type_str);
 	}
 	p = rb_pointer_new(type_str,
-		xmalloc(GET_CORE()->get_sizeof(type_str) * len));
-	int i;
-	for (i = 0; i < len; i++) {
+		xmalloc(GET_CORE()->get_sizeof(type_str) * len), len);
+	for (int i = 0; i < len; i++) {
 	    rb_pointer_aset(p, 0, INT2FIX(i), RARRAY_AT(rval, i));
 	}
     }
     else {
 	p = rb_pointer_new(type_str,
-		xmalloc(GET_CORE()->get_sizeof(type_str)));
+		xmalloc(GET_CORE()->get_sizeof(type_str)), 1);
 	rb_pointer_aset(p, 0, INT2FIX(0), rval);
     }
 
@@ -634,11 +635,19 @@ rb_pointer_s_new(VALUE rcv, SEL sel, int argc, VALUE *argv)
 
     rb_scan_args(argc, argv, "11", &type, &len);
 
-    const size_t rlen = NIL_P(len) ? 1 : FIX2LONG(len);
+    size_t rlen = 1;
+    if (!NIL_P(len)) {
+	const long n = FIX2LONG(len);
+	if (n <= 0) {
+	    rb_raise(rb_eArgError, "given len must be greater than 0");
+	}
+	rlen = (size_t)n;
+    }
+
     const char *type_str = convert_ffi_type(type, false);
 
     return rb_pointer_new(type_str,
-	    xmalloc(GET_CORE()->get_sizeof(type_str) * rlen));
+	    xmalloc(GET_CORE()->get_sizeof(type_str) * rlen), rlen);
 }
 
 void *
@@ -665,29 +674,35 @@ rb_pointer_get_data(VALUE rcv, const char *type)
     return ptr->val;
 }
 
-#define POINTER_VAL(ptr, idx) \
-    (void *)((char *)ptr->val + (FIX2INT(idx) * ptr->type_size))
+static inline void *
+pointer_val(rb_vm_pointer_t *ptr, VALUE idx)
+{
+    const long i = NUM2LONG(idx);
+    if (i < 0) {
+	rb_raise(rb_eArgError, "index must not be negative");
+    }
+    if (ptr->len > 0 && (size_t)i >= ptr->len) {
+	rb_raise(rb_eArgError, "index %ld out of bounds (%ld)", i, ptr->len);
+    }
+    return (void *)((char *)ptr->val + (i * ptr->type_size));
+}
 
 static VALUE
 rb_pointer_aref(VALUE rcv, SEL sel, VALUE idx)
 {
-    Check_Type(idx, T_FIXNUM);
-
     rb_vm_pointer_t *ptr;
     Data_Get_Struct(rcv, rb_vm_pointer_t, ptr);
 
-    return ptr->convert_to_rval(POINTER_VAL(ptr, idx));
+    return ptr->convert_to_rval(pointer_val(ptr, idx));
 }
 
 static VALUE
 rb_pointer_aset(VALUE rcv, SEL sel, VALUE idx, VALUE val)
 {
-    Check_Type(idx, T_FIXNUM);
-
     rb_vm_pointer_t *ptr;
     Data_Get_Struct(rcv, rb_vm_pointer_t, ptr);
 
-    ptr->convert_to_ocval(val, POINTER_VAL(ptr, idx));
+    ptr->convert_to_ocval(val, pointer_val(ptr, idx));
 
     return val;
 }

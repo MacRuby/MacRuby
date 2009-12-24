@@ -6477,7 +6477,7 @@ extern "C"
 VALUE
 rb_vm_new_pointer(const char *type, void *val)
 {
-    return val == NULL ? Qnil : rb_pointer_new(type, val);
+    return val == NULL ? Qnil : rb_pointer_new(type, val, 0);
 }
 
 Value *
