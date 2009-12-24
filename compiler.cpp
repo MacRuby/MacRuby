@@ -2470,13 +2470,6 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 	    }
 	}
 
-	if (newFloatFunc == NULL) {
-	    // VALUE rb_float_new_retained(double)
-	    newFloatFunc = cast<Function>
-		(module->getOrInsertFunction("rb_float_new_retained",
-					     RubyObjTy, DoubleTy, NULL));
-	}
-
 	rb_vm_immediate_val_t leftImm, rightImm;
 	const bool leftIsImmediateConst = unbox_immediate_val(leftRVal,
 		&leftImm);
@@ -2586,8 +2579,8 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 	    BranchInst::Create(not_redefined_bb, dispatch_bb, isOpRedefined,
 		    bb);
 
-	    BasicBlock *div_by_zero_bb;
-	    BasicBlock *optimize_fixnum_cont_bb;
+	    BasicBlock *div_by_zero_bb = NULL;
+	    BasicBlock *optimize_fixnum_cont_bb = NULL;
 	    BasicBlock *optimize_fixnum_ret_bb;
 	    /*
 	     * In the case of integer division, we need to test for the
@@ -2763,6 +2756,13 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 
 	    if (!result_is_predicate) {
 		// Box the float. 
+		if (newFloatFunc == NULL) {
+		    // VALUE rb_float_new_retained(double)
+		    newFloatFunc = cast<Function>
+			(module->getOrInsertFunction("rb_float_new_retained",
+						     RubyObjTy, DoubleTy,
+						     NULL));
+		}
 		std::vector<Value *> params;
 		params.push_back(flp_op_res);
 		flp_op_res = CallInst::Create(newFloatFunc, params.begin(),
