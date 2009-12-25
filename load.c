@@ -261,11 +261,7 @@ load_rescue(VALUE path)
 VALUE
 rb_require_safe(VALUE fname, int safe)
 {
-    StringValue(fname);
-
-    VALUE result = Qnil;
-    VALUE path;
-    int type = 0;
+    FilePathValue(fname);
 
     // Immediately, check out if we have an AOT feature for this.
     if (rb_vm_aot_feature_load(RSTRING_PTR(fname))) {
@@ -273,7 +269,10 @@ rb_require_safe(VALUE fname, int safe)
 	return Qtrue;
     }
 
-    FilePathValue(fname);
+    VALUE result = Qnil;
+    VALUE path;
+    int type = 0;
+
     if (search_required(fname, &path, &type)) {
 	if (path == 0) {
 	    result = Qfalse;
