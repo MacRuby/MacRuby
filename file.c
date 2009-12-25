@@ -15,8 +15,10 @@
 #include "ruby/io.h"
 #include "ruby/signal.h"
 #include "ruby/util.h"
+#include "ruby/node.h"
 #include "dln.h"
 #include "objc.h"
+#include "vm.h"
 
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
@@ -91,25 +93,21 @@ VALUE rb_cFile;
 VALUE rb_mFileTest;
 VALUE rb_cStat;
 
+static SEL selToPath = 0;
+
 static VALUE
 rb_get_path_check(VALUE obj, int check)
 {
-    VALUE tmp;
-    static ID to_path;
-
     if (check) {
 	rb_check_safe_obj(obj);
     }
-    tmp = rb_check_string_type(obj);
+    VALUE tmp = rb_check_string_type(obj);
     if (!NIL_P(tmp)) {
 	goto exit;
     }
 
-    if (!to_path) {
-	to_path = rb_intern("to_path");
-    }
-    if (rb_respond_to(obj, to_path)) {
-	tmp = rb_funcall(obj, to_path, 0, 0);
+    if (rb_vm_respond_to(obj, selToPath, true)) {
+	tmp = rb_vm_call(obj, selToPath, 0, NULL, false);
     }
     else {
 	tmp = obj;
@@ -3943,6 +3941,8 @@ Init_File(void)
 {
     rb_mFileTest = rb_define_module("FileTest");
     rb_cFile = rb_define_class("File", rb_cIO);
+
+    selToPath = sel_registerName("to_path");
 
     define_filetest_function("directory?", rb_file_directory_p, 1);
     define_filetest_function("exist?", rb_file_exist_p, 1);
