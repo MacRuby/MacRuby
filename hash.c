@@ -2534,6 +2534,12 @@ rb_objc_install_hash_primitives(Class klass)
  *
  */
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED <= 1060
+# define NSCFDICTIONARY_CNAME "NSCFDictionary"
+#else
+# define NSCFDICTIONARY_CNAME "__NSCFDictionary"
+#endif
+
 void
 Init_Hash(void)
 {
@@ -2543,7 +2549,8 @@ Init_Hash(void)
     id_hash = rb_intern("hash");
     id_yield = rb_intern("yield");
 
-    rb_cCFHash = (VALUE)objc_getClass("NSCFDictionary");
+    rb_cCFHash = (VALUE)objc_getClass(NSCFDICTIONARY_CNAME);
+    assert(rb_cCFHash != 0);
 #if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
     rb_cNSHash0 = (VALUE)objc_getClass("__NSDictionary0");
 #endif

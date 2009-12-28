@@ -3381,6 +3381,12 @@ rb_install_nsnumber_primitives(void)
 	    (IMP)imp_nsnumber_to_int, "@@:");
 }
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED <= 1060
+# define NSCFNUMBER_CNAME "NSCFNumber"
+#else
+# define NSCFNUMBER_CNAME "__NSCFNumber"
+#endif
+
 void
 Init_Numeric(void)
 {
@@ -3395,7 +3401,8 @@ Init_Numeric(void)
     rb_eZeroDivError = rb_define_class("ZeroDivisionError", rb_eStandardError);
     rb_eFloatDomainError = rb_define_class("FloatDomainError", rb_eRangeError);
     rb_cNSNumber = (VALUE)objc_getClass("NSNumber");
-    rb_cCFNumber = (VALUE)objc_getClass("NSCFNumber");
+    rb_cCFNumber = (VALUE)objc_getClass(NSCFNUMBER_CNAME);
+    assert(rb_cCFNumber != 0);
     rb_cNumeric = rb_define_class("Numeric", rb_cNSNumber);
     RCLASS_SET_VERSION_FLAG(rb_cNumeric, RCLASS_IS_OBJECT_SUBCLASS);
     rb_define_object_special_methods(rb_cNumeric);

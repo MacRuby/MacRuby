@@ -5613,10 +5613,17 @@ imp_rb_bytestring_setString(void *rcv, SEL sel, void *new_str)
  *     
  */
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED <= 1060
+# define NSCFSTRING_CNAME "NSCFString"
+#else
+# define NSCFSTRING_CNAME "__NSCFString"
+#endif
+
 void
 Init_String(void)
 {
-    rb_cCFString = (VALUE)objc_getClass("NSCFString");
+    rb_cCFString = (VALUE)objc_getClass(NSCFSTRING_CNAME);
+    assert(rb_cCFString != 0);
     rb_const_set(rb_cObject, rb_intern("NSCFString"), rb_cCFString);
     rb_cString = rb_cNSString = (VALUE)objc_getClass("NSString");
     rb_cNSMutableString = (VALUE)objc_getClass("NSMutableString");
