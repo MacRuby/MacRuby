@@ -3381,7 +3381,7 @@ rb_install_nsnumber_primitives(void)
 	    (IMP)imp_nsnumber_to_int, "@@:");
 }
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED <= 1060
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
 # define NSCFNUMBER_CNAME "NSCFNumber"
 #else
 # define NSCFNUMBER_CNAME "__NSCFNumber"

@@ -2534,7 +2534,7 @@ rb_objc_install_hash_primitives(Class klass)
  *
  */
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED <= 1060
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
 # define NSCFDICTIONARY_CNAME "NSCFDictionary"
 #else
 # define NSCFDICTIONARY_CNAME "__NSCFDictionary"

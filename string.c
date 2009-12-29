@@ -5613,7 +5613,7 @@ imp_rb_bytestring_setString(void *rcv, SEL sel, void *new_str)
  *     
  */
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED <= 1060
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
 # define NSCFSTRING_CNAME "NSCFString"
 #else
 # define NSCFSTRING_CNAME "__NSCFString"

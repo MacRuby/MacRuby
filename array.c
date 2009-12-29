@@ -4257,7 +4257,7 @@ imp_rary_cfindexOfObjectInRange(void *rcv, SEL sel, void *obj, CFRange range)
  * element in the array, and so on. 
  */
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED <= 1060
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
 # define NSCFARRAY_CNAME "NSCFArray"
 #else
 # define NSCFARRAY_CNAME "__NSCFArray"
