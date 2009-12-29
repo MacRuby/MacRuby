@@ -3283,7 +3283,7 @@ fix_popcnt(VALUE num, SEL sel)
 static VALUE
 fix_odd_p(VALUE num, SEL sel)
 {
-    if (num & 2) {
+    if (FIX2LONG(num) & 1) {
 	return Qtrue;
     }
     return Qfalse;
@@ -3299,7 +3299,7 @@ fix_odd_p(VALUE num, SEL sel)
 static VALUE
 fix_even_p(VALUE num, SEL sel)
 {
-    if (num & 2) {
+    if (FIX2LONG(num) & 1) {
 	return Qfalse;
     }
     return Qtrue;
