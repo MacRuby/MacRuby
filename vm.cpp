@@ -1778,6 +1778,8 @@ rb_vm_method_node_t *
 RoxorCore::retype_method(Class klass, rb_vm_method_node_t *node,
 	const char *types)
 {
+    lock();
+
     // TODO: 1) don't reinstall method in case the types didn't change
     // 2) free LLVM machine code from old objc IMP
 
@@ -1788,8 +1790,12 @@ RoxorCore::retype_method(Class klass, rb_vm_method_node_t *node,
     objc_to_ruby_stubs[node->ruby_imp] = node->objc_imp;
 
     // Re-add the method.
-    return add_method(klass, node->sel, node->objc_imp, node->ruby_imp,
+    node = add_method(klass, node->sel, node->objc_imp, node->ruby_imp,
 	    node->arity, node->flags, types);
+
+    unlock();
+
+    return node;
 }
 
 rb_vm_method_node_t *
