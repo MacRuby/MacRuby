@@ -18,7 +18,7 @@ class Gem::DependencyInstaller
     :env_shebang => false,
     :domain => :both, # HACK dup
     :force => false,
-    :format_executable => false, # HACK dup
+    :format_executable => true, # MacRuby addition
     :ignore_dependencies => false,
     :security_policy => nil, # HACK NoSecurity requires OpenSSL.  AlmostNo? Low?
     :wrappers => true
