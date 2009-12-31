@@ -154,7 +154,7 @@ module RbConfig
   CONFIG["target_vendor"] = "apple"
   CONFIG["target_os"] = "darwin9.0"
   CONFIG["CC"] = "/usr/bin/gcc"
-  CONFIG["CFLAGS"] = "-fno-common -pipe $(cflags)"
+  CONFIG["CFLAGS"] = "-fexceptions -fno-common -pipe $(cflags)"
   CONFIG["LDFLAGS"] = ""
   CONFIG["CPPFLAGS"] = "$(cppflags)"
   CONFIG["OBJEXT"] = "o"
