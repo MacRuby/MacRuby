@@ -582,8 +582,22 @@ rb_extend_object(VALUE obj, VALUE module)
     }
     else {
 	klass = rb_singleton_class(obj);
-    }	
+    }
+
     rb_include_module(klass, module);
+
+    VALUE m = module;
+    do {
+	VALUE ary = rb_attr_get(m, idIncludedModules);
+	if (ary != Qnil) {
+	    for (int i = 0, count = RARRAY_LEN(ary); i < count; i++) {
+		VALUE mod = RARRAY_AT(ary, i);
+		rb_extend_object(obj, mod);
+	    }
+	}
+	m = RCLASS_SUPER(m);
+    }
+    while (m == 0 || RCLASS_SINGLETON(m));
 }
 
 /*
