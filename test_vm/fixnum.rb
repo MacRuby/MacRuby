@@ -69,13 +69,13 @@ assert 'false', "x = 0; y = 0; p x  > y"
 
 assert 'true', "p          42.class == Fixnum"
 assert 'true', "p  536870911.class == Fixnum", :archs => ['i386']
-assert 'true', "p -536870913.class == Fixnum", :archs => ['i386']
+assert 'true', "p -536870912.class == Fixnum", :archs => ['i386']
 assert 'true', "x =  536870911; x += 1; p x.class == Bignum", :archs => ['i386']
-assert 'true', "x = -536870913; x -= 1; p x.class == Bignum", :archs => ['i386']
-assert 'true', "p  4611686018427387903.class == Fixnum", :archs => ['x86_64']
-assert 'true', "p -4611686018427387904.class == Fixnum", :archs => ['x86_64']
-assert 'true', "x =  4611686018427387903; x += 1; p x.class == Bignum", :archs => ['x86_64']
-assert 'true', "x = -4611686018427387904; x -= 1; p x.class == Bignum", :archs => ['x86_64']
+assert 'true', "x = -536870912; x -= 1; p x.class == Bignum", :archs => ['i386']
+assert 'true', "p  2305843009213693951.class == Fixnum", :archs => ['x86_64']
+assert 'true', "p -2305843009213693952.class == Fixnum", :archs => ['x86_64']
+assert 'true', "x =  2305843009213693951; x += 1; p x.class == Bignum", :archs => ['x86_64']
+assert 'true', "x = -2305843009213693952; x -= 1; p x.class == Bignum", :archs => ['x86_64']
 
 assert "6765\n75025\n832040", %q{
   def fib(n)
