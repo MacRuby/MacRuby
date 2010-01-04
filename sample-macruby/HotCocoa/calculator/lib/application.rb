@@ -73,7 +73,7 @@ class Calculator
     def evaluate
       accumulator << float_value
       result = eval(accumulator.join(" "))
-      value.text = (result.to_i == result ? result.to_i : result.to_s)
+      value.text = (result.to_i == result ? result.to_i.to_s : result.to_s)
       accumulator.clear
     end
   
