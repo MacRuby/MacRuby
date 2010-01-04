@@ -1821,6 +1821,11 @@ rb_vm_get_method(VALUE klass, VALUE obj, ID mid, int scope)
 
 extern IMP basic_respond_to_imp; // vm_method.c
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1060
+// The function is available on Leopard but it's not declared.
+extern "C" id _objc_msgForward(id receiver, SEL sel, ...);
+#endif
+
 bool
 RoxorCore::respond_to(VALUE obj, VALUE klass, SEL sel, bool priv,
 	bool check_override)
