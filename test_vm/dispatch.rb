@@ -13,6 +13,7 @@ assert "42", "def foo(x, y, z=2); x+y+z; end; p foo(20, 20)"
 assert "42", "def foo(x, y, z=123); x+y+z; end; p foo(20, 20, 2)"
 assert "42", "def foo(x, y=20, z=2); x+y+z; end; p foo(20)"
 assert "42", "def foo(x, y=123, z=2); x+y+z; end; p foo(30, 10)"
+assert "42", "def foo; 42; end; p self.foo"
 
 assert "126", "def foo(a=b=c=42); a+b+c; end; p foo"
 assert "[42, nil]", "def f(a=X::x=b=1) p [a, b] end; f(42)"

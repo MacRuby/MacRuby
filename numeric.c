@@ -2050,7 +2050,7 @@ int_ord(VALUE num, SEL sel)
  * Document-class: Fixnum
  *
  *  A <code>Fixnum</code> holds <code>Integer</code> values that can be
- *  represented in a native machine word (minus 1 bit). If any operation
+ *  represented in a native machine word (minus 2 bits). If any operation
  *  on a <code>Fixnum</code> exceeds this range, the value is
  *  automatically converted to a <code>Bignum</code>.
  *

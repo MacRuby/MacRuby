@@ -11,7 +11,7 @@ assert '42', "a = [30, 10,  2]; x,y,z = a; p x+y+z"
 assert '42', "a = [30, 10, *2]; x,y,z = a; p x+y+z"
 
 assert '42', "def foo=(x); @x=x; end; x,self.foo = 1,41; p @x+x"
-assert '42', "def []=(x,y); @x=x+y; end; x,self[40] = 1,1; p @x+x"
+assert '42', "def self.[]=(x,y); @x=x+y; end; x,self[40] = 1,1; p @x+x"
 
 assert '[1, 2, 3]', "a=[1,2,3]; x=*a; p x"
 assert '[1, 2, 3]', "a=[2,3]; x=1,*a; p x"
