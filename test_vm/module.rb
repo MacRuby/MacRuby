@@ -89,6 +89,20 @@ assert ':ok', %{
 }
 
 assert ':ok', %{
+  module Y
+    def foo
+      p :ok
+    end
+  end
+  module X
+    include Y
+  end
+  o = Object.new
+  o.extend X
+  o.foo
+}
+
+assert ':ok', %{
   module M
     def initialize; p :ok; end
   end
