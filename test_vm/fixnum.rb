@@ -68,10 +68,10 @@ assert 'true',  "x = 0; y = 0; p x <= y"
 assert 'false', "x = 0; y = 0; p x  > y"
 
 assert 'true', "p          42.class == Fixnum"
-assert 'true', "p  1073741823.class == Fixnum", :archs => ['i386']
-assert 'true', "p -1073741824.class == Fixnum", :archs => ['i386']
-assert 'true', "x =  1073741823; x += 1; p x.class == Bignum", :archs => ['i386']
-assert 'true', "x = -1073741824; x -= 1; p x.class == Bignum", :archs => ['i386']
+assert 'true', "p  536870911.class == Fixnum", :archs => ['i386']
+assert 'true', "p -536870913.class == Fixnum", :archs => ['i386']
+assert 'true', "x =  536870911; x += 1; p x.class == Bignum", :archs => ['i386']
+assert 'true', "x = -536870913; x -= 1; p x.class == Bignum", :archs => ['i386']
 assert 'true', "p  4611686018427387903.class == Fixnum", :archs => ['x86_64']
 assert 'true', "p -4611686018427387904.class == Fixnum", :archs => ['x86_64']
 assert 'true', "x =  4611686018427387903; x += 1; p x.class == Bignum", :archs => ['x86_64']
