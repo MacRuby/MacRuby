@@ -4,7 +4,7 @@ For 0.5 beta 3:
 [X] HotCocoa samples should all work
 [X] backtracing information (line numbers) should be accurate
 [/] frozen, stable and documented GCD API
-[ ] non-ASCII regexp
+[X] non-ASCII regexp
 [/] 32-bit should be back
 [X] macruby should support #require calls when assembling a binary
 
