@@ -395,7 +395,7 @@ rb_reg_expr_str(VALUE str, const char *s, long len)
 	    else if (!rb_enc_isspace(c, enc)) {
 		char b[8];
 
-		sprintf(b, "\\x%02X", c);
+		sprintf(b, "\\x%02X", (unsigned char)c);
 		rb_str_buf_cat(str, b, 4);
 	    }
 	    else {
@@ -793,7 +793,7 @@ make_regexp(const char *s, long len, rb_encoding *enc, int flags,
     */
 
 #if WITH_OBJC
-    oenc = ONIG_ENCODING_ASCII;
+    oenc = enc == 0 ? ONIG_ENCODING_ASCII : (OnigEncoding)enc;
 #else
     oenc = enc;
 #endif
@@ -1309,7 +1309,7 @@ rb_reg_prepare_enc(VALUE re, VALUE str, char **pcstr, size_t *pcharsize,
 	*should_free = false;
 	return (rb_encoding *)ONIG_ENCODING_ASCII;
     }
-    CFStringEncoding enc = CFStringGetFastestEncoding((CFStringRef)str);
+    CFStringEncoding enc = CFStringGetSmallestEncoding((CFStringRef)str);
     switch (enc) {
 	default:
 	    // The user probably has the __CF_USER_TEXT_ENCODING environment
@@ -2568,9 +2568,7 @@ rb_reg_initialize(VALUE obj, const char *s, int len, rb_encoding *enc,
     struct RRegexp *re = RREGEXP(obj);
     VALUE unescaped;
     rb_encoding *fixed_enc = 0;
-#if WITH_OBJC
-    rb_encoding *a_enc = enc;
-#else
+#if !WITH_OBJC
     rb_encoding *a_enc = rb_ascii8bit_encoding();
 #endif
 
@@ -2594,6 +2592,7 @@ rb_reg_initialize(VALUE obj, const char *s, int len, rb_encoding *enc,
     if (unescaped == Qnil)
         return -1;
 
+#if !WITH_OBJC
     if (fixed_enc) {
 	if ((fixed_enc != enc && (options & ARG_ENCODING_FIXED)) ||
             (fixed_enc != a_enc && (options & ARG_ENCODING_NONE))) {
@@ -2605,6 +2604,7 @@ rb_reg_initialize(VALUE obj, const char *s, int len, rb_encoding *enc,
 	    enc = fixed_enc;
 	}
     }
+#endif
 #if !WITH_OBJC
     else if (!(options & ARG_ENCODING_FIXED)) {
        enc = rb_usascii_encoding();
@@ -2652,13 +2652,24 @@ rb_reg_initialize_str(VALUE obj, VALUE str, int options, onig_errmsg_buffer err)
         }
 #endif
     }
-    const char *ptr = RSTRING_PTR(str);
-    if (strlen(ptr) != RSTRING_LEN(str)) {
-	// TODO
-	str = rb_str_new2("");
+
+    char *cstr = NULL;
+    size_t charsize = 0;
+    bool should_free = false;
+
+    enc = rb_reg_prepare_enc(0, str, &cstr, &charsize, &should_free);
+
+    const size_t clen = charsize * RSTRING_LEN(str);
+
+    VALUE code = rb_reg_initialize(obj, cstr, clen, enc, options, err);
+
+//printf("init re %p cstr %p orig str %p charsize %ld enc %p\n", (void *)obj, cstr, (void *)str, charsize, enc);
+
+    if (should_free && cstr != NULL) {
+	free(cstr);
     }
-    return rb_reg_initialize(obj, RSTRING_PTR(str), RSTRING_LEN(str), enc,
-	    options, err);
+
+    return code;
 }
 
 static VALUE
