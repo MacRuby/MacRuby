@@ -456,3 +456,13 @@ assert '42', %{
   end
   C2.new.foo
 }
+
+assert ':ok', %{
+  class C1
+    def foo; p :ok; end
+  end
+  class C2 < C1
+    def foo; 1.times { return super }; end
+  end
+  C2.new.foo
+}
