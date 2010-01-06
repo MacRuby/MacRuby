@@ -6,7 +6,8 @@ task :config_h do
     File.exist?(File.join(p, 'BridgeSupport.framework'))
   end 
   new_config_h << "#define HAVE_BRIDGESUPPORT_FRAMEWORK #{flag ? 1 : 0}\n"
-  flag = File.exist?('/usr/include/auto_zone.h')
+
+  flag = `sw_vers -productVersion`.strip.to_f <= 10.6 ? false : File.exist?('/usr/local/include/auto_zone.h')
   new_config_h << "#define HAVE_AUTO_ZONE_H #{flag ? 1 : 0}\n"
   new_config_h << "#define ENABLE_DEBUG_LOGGING 1\n" if ENABLE_DEBUG_LOGGING
   new_config_h << "#define RUBY_PLATFORM \"#{NEW_RUBY_PLATFORM}\"\n"

@@ -84,11 +84,6 @@ extern "C" {
 #include <assert.h>
 #include <CoreFoundation/CoreFoundation.h>
 
-#if HAVE_AUTO_ZONE_H
-# include <auto_zone.h>
-#else
-# include "auto_zone.h"
-#endif
 #if defined(HAVE_ALLOCA_H)
 #include <alloca.h>
 #else
@@ -1418,6 +1413,14 @@ rb_special_const_p(VALUE obj)
     return Qfalse;
 }
 
+#if !defined(__AUTO_ZONE__)
+# include <malloc/malloc.h>
+typedef void *auto_zone_t;
+boolean_t auto_zone_set_write_barrier(auto_zone_t *zone, const void *dest, const void *new_value);
+void auto_zone_add_root(auto_zone_t *zone, void *address_of_root_ptr, void *value);
+void auto_zone_retain(auto_zone_t *zone, void *ptr);
+unsigned int auto_zone_release(auto_zone_t *zone, void *ptr);
+#endif
 extern auto_zone_t *__auto_zone;
 
 #define GC_WB(dst, newval) \
