@@ -466,3 +466,19 @@ assert ':ok', %{
   end
   C2.new.foo
 }
+
+assert ':ok', %{
+  begin
+    super
+  rescue NoMethodError
+    p :ok
+  end
+}
+
+assert ':ok', %{
+  begin
+    1.times { super }
+  rescue NoMethodError
+    p :ok
+  end
+}
