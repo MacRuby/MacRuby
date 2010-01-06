@@ -1342,7 +1342,14 @@ RoxorCompiler::compile_ffi_function(void *stub, void *imp, int argc)
 static VALUE
 rb_ffi_attach_function(VALUE rcv, SEL sel, VALUE name, VALUE args, VALUE ret)
 {
-    const char *symname = StringValueCStr(name);
+    const char *symname;
+    if (TYPE(name) == T_SYMBOL) {
+	symname = rb_id2name(SYM2ID(name));
+    }
+    else {
+	StringValue(name);
+	symname = RSTRING_PTR(name);
+    }
     void *sym = dlsym(RTLD_DEFAULT, symname);
     if (sym == NULL) {
 	rb_raise(rb_eArgError, "given function `%s' could not be located",
