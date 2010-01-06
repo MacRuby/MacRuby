@@ -28,7 +28,8 @@
 /*
  *
  *  Grand Central Dispatch (GCD) is a novel approach to multicore computing
- *  that is built into Mac OS X version 10.6 Snow Leopard. In particular, GCD
+ *  that is built into Mac OS X version 10.6 Snow Leopard, and available as
+ *  open source via the libdispatch project. In particular, GCD
  *  shifts responsibility for managing threads and their execution from
  *  applications to the operating system. This allows programmers to easily
  *  refactor their programs into small chunks of independent work, which GCD
@@ -191,7 +192,7 @@ rb_queue_from_dispatch(dispatch_queue_t dq, bool should_retain)
  *
  *  Returns one of the global concurrent priority queues.
  * 
- *  A dispatch queue is a FIFO queue to which you can submit tasks in the form of a block. 
+ *  A dispatch queue is a FIFO queue that accepts tasks in the form of a block. 
  *  Blocks submitted to dispatch queues are executed on a pool of threads fully 
  *  managed by the system. Dispatched tasks execute one at a time in FIFO order.
  *  GCD takes take of using multiple cores effectively and better accommodate 
@@ -205,15 +206,15 @@ rb_queue_from_dispatch(dispatch_queue_t dq, bool should_retain)
  *  The three priority levels are: <code>:low</code>, <code>:default</code>, 
  *  <code>:high</code>, corresponding to the DISPATCH_QUEUE_PRIORITY_HIGH, 
  *  DISPATCH_QUEUE_PRIORITY_DEFAULT, and DISPATCH_QUEUE_PRIORITY_LOW (detailed
- *  in the dispatch_queue_create(3) man page). The Grand Central thread dispatcher
+ *  in the dispatch_queue_create(3) man page). The GCD thread dispatcher
  *  will perform actions submitted to the high priority queue before any actions 
  *  submitted to the default or low queues, and will only perform actions on the 
  *  low queues if there are no actions queued on the high or default queues.
  *
  *     gcdq = Dispatch::Queue.concurrent(:high)
- *     5.times { gcdq.dispatch { print 'foo' } }
+ *     5.times { gcdq.async { print 'doc' } }
  *     gcdq_2 = Dispatch::Queue.concurrent(:low)
- *     gcdq.dispatch(:low) { print 'bar' }  # will always print 'foofoofoofoofoobar'.
+ *     gcdq_2.sync { print 'bar' }  # will always print 'foofoofoofoofoobar'.
  *
  */
 static VALUE
@@ -278,26 +279,26 @@ rb_queue_get_main(VALUE klass, SEL sel)
  *
  *  Returns a new serial dispatch queue.
  * 
- *  A dispatch is a FIFO queue to which you can submit tasks in the form of a block. 
+ *  A dispatch is a FIFO queue to which you can submit tasks via a block. 
  *  Blocks submitted to dispatch queues are executed on a pool of threads fully 
  *  managed by the system. Dispatched tasks execute one at a time in FIFO order.
- *  GCD takes take of using multiple cores effectively and better accommodate 
+ *  GCD takes take of using multiple cores effectively to better accommodate 
  *  the needs of all running applications, matching them to the 
  *  available system resources in a balanced fashion.
  *
- *  Use this kind of GCD queue to ensure that tasks execute in a predictable order.
+ *  Use serial GCD queues to ensure that tasks execute in a predictable order.
  *  It’s a good practice to identify a specific purpose for each serial queue, 
  *  such as protecting a resource or synchronizing key processes.
- *  Create as many of them as necessary - serial queues are extremely lightweight 
+ *  Create as many as you need - serial queues are extremely lightweight 
  *  (with a total memory footprint of less than 300 bytes); however, remember to 
  *  use concurrent queues if you need to perform idempotent tasks in parallel.
  *  Dispatch queues need to be labeled and thereofore you need to pass a name 
  *  to create your queue. By convention, labels are in reverse-DNS style.
  *
  *     gcdq = Dispatch::Queue.new('org.macruby.gcd.example')
- *     gcdq.dispatch { p 'foo' }
- *     gcdq.dispatch { p 'bar' }
- *     gcdq.dispatch(true) {} 
+ *     gcdq.async { p 'doc' }
+ *     gcdq.async { p 'bar' }
+ *     gcdq.sync {} 
  *
  */
  
@@ -371,24 +372,25 @@ rb_dispatch_prepare_block(rb_vm_block_t *block)
 
 /* 
  *  call-seq:
- *    gcdq.dispatch(synchronicity) { i = 42 }
+ *    gcdq.async(group=nil) { @i = 42 }
  *
- *  Yields the passed block synchronously or asynchronously.
- *  By default the block is yielded asynchronously:
+ *  Yields the passed block asynchronously via dispatch_async(3):
  *  
  *     gcdq = Dispatch::Queue.new('doc')
- *     i = 42
- *     gcdq.dispatch { i = 42 }
- *     while i == 0 do; end
- *     i #=> 42
+ *     @i = 42
+ *     gcdq.async { @i = 42 }
+ *     while @i == 0 do; end
+ *     p @i #=> 42
  *
- *   If you want to yield the block synchronously pass <code>true</code> as the
- *   argument.
+ *   If a group is specified, the dispatch will be associated with that group
+ *   via dispatch_group_async(3)
  *
  *     gcdq = Dispatch::Queue.new('doc')
- *     i = 42
- *     gcdq.dispatch(true) { i = 42 }
- *     i #=> 42
+ *     gcdg = Dispatch::Group.new
+ *     @i = 42
+ *     gcdq.async(g) { @i = 42 }
+ *     g.wait
+ *     p @i #=> 42
  *
  */
 
@@ -413,6 +415,20 @@ rb_queue_dispatch_async(VALUE self, SEL sel, int argc, VALUE *argv)
 
     return Qnil;
 }
+
+/* 
+ *  call-seq:
+ *    gcdq.sync { @i = 42 }
+ *
+ *  Yields the passed block synchronously via dispatch_sync(3):
+ *  
+ *     gcdq = Dispatch::Queue.new('doc')
+ *     @i = 42
+ *     gcdq.sync { @i = 42 }
+ *     p @i #=> 42
+ *
+ */
+
 
 static VALUE
 rb_queue_dispatch_sync(VALUE self, SEL sel)
@@ -450,14 +466,15 @@ rb_queue_dispatch_after(VALUE self, SEL sel, VALUE sec)
 
 /* 
  *  call-seq:
- *    gcdq.apply(amount_size) { block }
+ *    gcdq.apply(count) { |index| block }
  *
- *  Runs a block and yields it as many times as asked
+ *  Runs a block count number of times in parallel via dispatch_apply(3),
+ *  passing in an index and waiting until all of them are done
  *  
- *     gcdq = Dispatch::Queue.new('foo')
- *     i = 0
- *     gcdq.apply(10) { i += 1 }
- *     i #=> 10
+ *     gcdq = Dispatch::Queue.new('doc')
+ *     @result = []
+ *     gcdq.apply(5) {|i| @result[i] = i*i }
+ *     p @result  #=> [0, 1, 4, 9, 16, 25]
  *
  */
  
@@ -491,7 +508,7 @@ rb_queue_apply(VALUE self, SEL sel, VALUE n)
  *  call-seq:
  *    gcdq.label -> str
  *
- *  Returns the label of the dispatch queue.
+ *  Returns the label of the dispatch queue (aliased to 'to_s')
  *  
  *     gcdq = Dispatch::Queue.new('doc')
  *     gcdq.label #=> 'doc'
@@ -513,37 +530,15 @@ rb_main_queue_run(VALUE self, SEL sel)
     return Qnil; // never reached
 }
 
-/* 
- *  call-seq:
- *    obj.resume!
- *
- *  Resumes a suspended dispatch object (group, source or queue).
- *  
- *     obj.suspend!
- *     obj.suspended?  #=> true
- *     obj.resume!
- *
- */
- 
-static VALUE
-rb_dispatch_resume(VALUE self, SEL sel)
-{
-    rb_dispatch_obj_t *dobj = RDispatch(self);
-    if (dobj->suspension_count > 0) {
-        dobj->suspension_count--;
-        dispatch_resume(dobj->obj);
-    }
-    return Qnil;
-}
 
 /* 
  *  call-seq:
  *    obj.suspend!
  *
- *  Suspends the operation of a dispatch object (group, source or queue).
+ *  Suspends the operation of a dispatch object (queue or source).
  *  To resume operation, call <code>resume!</code>.
  *  
- *     gcdq = Dispatch::Queue.new('foo')
+ *     gcdq = Dispatch::Queue.new('doc')
  *     gcdq.dispatch { sleep 1 }
  *     gcdq.suspend!
  *     gcdq.suspended?  #=> true
@@ -562,10 +557,38 @@ rb_dispatch_suspend(VALUE self, SEL sel)
 
 /* 
  *  call-seq:
+ *    obj.resume!
+ *
+ *  Resumes the operation of a dispatch object (queue or source).
+ *  To suspend operation, call <code>suspend!</code>.
+ *  
+ *     gcdq = Dispatch::Queue.new('doc')
+ *     gcdq.dispatch { sleep 1 }
+ *     gcdq.suspend!
+ *     gcdq.suspended?  #=> true
+ *     gcdq.resume!
+ *
+ */
+ 
+static VALUE
+rb_dispatch_resume(VALUE self, SEL sel)
+{
+    rb_dispatch_obj_t *dobj = RDispatch(self);
+    if (dobj->suspension_count > 0) {
+        dobj->suspension_count--;
+        dispatch_resume(dobj->obj);
+    }
+    return Qnil;
+}
+
+/* 
+ *  call-seq:
  *    obj.suspended?   => true or false
  *
  *  Returns <code>true</code> if <i>obj</i> is suspended.
  *  
+ *     gcdq = Dispatch::Queue.new('doc')
+ *     gcdq.dispatch { sleep 1 }
  *     gcdq.suspend!
  *     gcdq.suspended?  #=> true
  *     gcdq.resume!
@@ -597,7 +620,6 @@ rb_group_alloc(VALUE klass, SEL sel)
  *  even though they might run on different queues. 
  *  This behavior can be helpful when progress can’t be made until all 
  *  of the specified tasks are complete.
- *
  *  
  *     gcdg = Dispatch::Group.new
  *
@@ -614,16 +636,15 @@ rb_group_initialize(VALUE self, SEL sel)
 
 /* 
  *  call-seq:
- *    gcdg.notify { block }
+ *    grp.notify { block }
  *
- *  Schedules a block to be called when a group of previously submitted dispatches
- *  have completed.
+ *  Asynchronously schedules a block to be called when the previously
+ *  submitted dispatches for that group have completed.
  *
- *
- *     gcdg = Dispatch::Group.new
- *     gcdg.notify { print 'bar' }
- *     gcdg.dispatch(Dispatch::Queue.concurrent) { print 'foo' }
- *     # prints 'foobar'
+ *     gcdq = Dispatch::Queue.new('doc')
+ *     grp = Dispatch::Group.new
+ *     gcdq.async(grp) { print 'doc' }
+ *     grp.notify { print 'bar' } #=> foobar
  */
 
 static VALUE
@@ -651,11 +672,12 @@ rb_group_notify(VALUE self, SEL sel, VALUE target)
  *  If the supplied timeout is nil, the function will wait indefinitely until 
  *  the specified group becomes empty, always returning true.
  *
- *     q = Dispatch::Queue.new('org.macruby.documentation')
+ *     gcdq = Dispatch::Queue.new('doc')
  *     grp = Dispatch::Group.new
- *     grp.dispatch(q) { sleep 4 }
- *     grp.wait(5) # true
+ *     gcdq.async(grp) { sleep 4 }
+ *     grp.wait(5) #=> true
  */
+ 
 static VALUE
 rb_group_wait(VALUE self, SEL sel, int argc, VALUE *argv)
 {
