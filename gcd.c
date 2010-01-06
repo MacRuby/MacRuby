@@ -615,7 +615,7 @@ rb_group_alloc(VALUE klass, SEL sel)
  *  call-seq:
  *    Dispatch::Group.new    =>  Dispatch::Group
  *
- *  Returns a Queue group allowing for for aggregate synchronization.
+ *  Returns a Group allowing for aggregate synchronization.
  *  You can dispatch multiple blocks and track when they all complete, 
  *  even though they might run on different queues. 
  *  This behavior can be helpful when progress can’t be made until all 
@@ -701,7 +701,6 @@ rb_group_finalize(void *rcv, SEL sel)
     }
 }
 
-
 enum SOURCE_TYPE_ENUM
 {
     SOURCE_TYPE_DATA_ADD,
@@ -767,6 +766,21 @@ rb_source_alloc(VALUE klass, SEL sel)
 static VALUE rb_source_on_event(VALUE self, SEL sel);
 static void rb_source_event_handler(void* sourceptr);
 
+/* 
+ *  call-seq:
+ *    Dispatch::Source.new(type, handle, mask, queue) =>  Dispatch::Source
+ *
+ *  Returns a Source used to monitor a variety of system objects and events
+ *  including file descriptors, processes, virtual filesystem nodes, signal
+ *  delivery and timers.
+ *  When a state change occurs, the dispatch source will submit its event
+ *  handler block to its target queue.
+ *  
+ *     gcdq = Dispatch::Queue.new('doc')
+ *     src = Dispatch::Source.new(Dispatch::Source::DATA_ADD, 1, 2, gcdq)
+ *
+ */
+
 static VALUE
 rb_source_init(VALUE self, SEL sel,
     VALUE type, VALUE handle, VALUE mask, VALUE queue)
@@ -785,33 +799,6 @@ rb_source_init(VALUE self, SEL sel,
     }
 
     rb_dispatch_resume(self, 0); // Does this work okay for timers?
-    return self;
-}
-
-static VALUE
-rb_timer_init(VALUE self, SEL sel, int argc, VALUE* argv)
-{
-    dispatch_time_t start_time;
-    rb_source_t *src = RSource(self);
-    VALUE queue = Qnil, interval = Qnil, delay = Qnil, leeway = Qnil;
-    rb_scan_args(argc, argv, "31", &queue, &delay, &interval, &leeway);
-    Check_Queue(queue);
-    
-    rb_source_init(self, sel, INT2FIX(SOURCE_TYPE_TIMER),
-	    INT2FIX(0), INT2FIX(0), queue);
-
-    if (NIL_P(leeway)) {
-        leeway = INT2FIX(0);
-    }
-    if (NIL_P(delay)) {
-        start_time = DISPATCH_TIME_NOW;
-    }
-    else {
-        start_time = rb_num2timeout(delay);
-    }
-
-    dispatch_source_set_timer(src->source, start_time,
-	    rb_num2nsec(interval), rb_num2nsec(leeway));
     return self;
 }
 
@@ -876,6 +863,50 @@ rb_source_finalize(void *rcv, SEL sel)
 
 }
 
+
+/* 
+ *  call-seq:
+ *    Dispatch::Timer.new(delay, interval, leeway) =>  Dispatch::Timer
+ *
+ *  Returns a Source that will submit the event handler block to
+ *  the target queue after delay, repeated at interval, within leeway, via
+ *  a call to dispatch_source_set_timer(3).
+ *  A best effort attempt is made to submit the event handler block to the
+ *  target queue at the specified time; however, actual invocation may occur at
+ *  a later time even if the leeway is zero.
+ *  
+ *     gcdq = Dispatch::Queue.new('doc')
+ *     timer = Dispatch::Timer.new(Time.now, 5, 0.1)
+ *
+ */
+
+static VALUE
+rb_timer_init(VALUE self, SEL sel, int argc, VALUE* argv)
+{
+    dispatch_time_t start_time;
+    rb_source_t *src = RSource(self);
+    VALUE queue = Qnil, interval = Qnil, delay = Qnil, leeway = Qnil;
+    rb_scan_args(argc, argv, "31", &queue, &delay, &interval, &leeway);
+    Check_Queue(queue);
+    
+    rb_source_init(self, sel, INT2FIX(SOURCE_TYPE_TIMER),
+	    INT2FIX(0), INT2FIX(0), queue);
+
+    if (NIL_P(leeway)) {
+        leeway = INT2FIX(0);
+    }
+    if (NIL_P(delay)) {
+        start_time = DISPATCH_TIME_NOW;
+    }
+    else {
+        start_time = rb_num2timeout(delay);
+    }
+
+    dispatch_source_set_timer(src->source, start_time,
+	    rb_num2nsec(interval), rb_num2nsec(leeway));
+    return self;
+}
+
 static VALUE
 rb_semaphore_alloc(VALUE klass, SEL sel)
 {
@@ -885,6 +916,29 @@ rb_semaphore_alloc(VALUE klass, SEL sel)
     s->count = 0;
     return (VALUE)s;
 }
+
+
+/* 
+ *  call-seq:
+ *    Dispatch::Semaphore.new(count) =>  Dispatch::Semaphore
+ *
+ *  Returns a Semaphore used to synchronize threads through a combination of
+ *  waiting and signalling
+ *
+ *  If the count parameter is equal to zero, the semaphore is useful for
+ *  synchronizing completion of work:
+ *
+ *     gcdq = Dispatch::Queue.new('doc')
+ *     sema = Dispatch::Semaphore.new(0)
+ *     gcdq.async { puts "Begin."; sema.signal }
+ *     puts "Waiting..."
+ *     sema.wait
+ *     puts "End!"
+ *
+ *  If the count parameter is greater than zero, then the semaphore is useful
+ *  for managing a finite pool of resources.
+ *
+ */
 
 static VALUE
 rb_semaphore_init(VALUE self, SEL sel, VALUE value)
@@ -899,6 +953,43 @@ rb_semaphore_init(VALUE self, SEL sel, VALUE value)
     return self;
 }
 
+/* 
+ *  call-seq:
+ *    sema.signal => true or false
+ *
+ *  Signals the semaphore to wake up any waiting threads
+ *
+ *  Returns true if no thread is waiting, false otherwise
+ *
+ *     gcdq = Dispatch::Queue.new('doc')
+ *     sema = Dispatch::Semaphore.new(0)
+ *     gcdq.async { sleep 0.1; sema.signal } #=> false
+ *     sema.wait
+ *
+ */
+static VALUE
+rb_semaphore_signal(VALUE self, SEL sel)
+{
+    return dispatch_semaphore_signal(RSemaphore(self)->sem)
+     == 0	? Qtrue : Qfalse;
+}
+
+/* 
+ *  call-seq:
+ *    sema.wait(timeout) => true or false
+ *
+ *  Waits (blocks the thread) until a signal arrives or the timeout expires.
+ *  Timeout defaults to DISPATCH_TIME_FOREVER.
+ *
+ *  Returns true if signalled, false if timed out.
+ *
+ *     gcdq = Dispatch::Queue.new('doc')
+ *     sema = Dispatch::Semaphore.new(0)
+ *     gcdq.async { sleep 0.1; sema.signal }
+ *     sema.wait #=> true
+ *
+ */
+
 static VALUE
 rb_semaphore_wait(VALUE self, SEL sel, int argc, VALUE *argv)
 {
@@ -908,12 +999,6 @@ rb_semaphore_wait(VALUE self, SEL sel, int argc, VALUE *argv)
      == 0	? Qtrue : Qfalse;
 }
 
-static VALUE
-rb_semaphore_signal(VALUE self, SEL sel)
-{
-    return dispatch_semaphore_signal(RSemaphore(self)->sem)
-     == 0	? Qtrue : Qfalse;
-}
 
 static IMP rb_semaphore_finalize_super;
 
