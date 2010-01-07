@@ -1469,13 +1469,6 @@ rb_vm_alias_method(Class klass, Method method, ID name, bool noargs)
     }
     const char *types = method_getTypeEncoding(method);
 
-    rb_vm_method_node_t *node = GET_CORE()->method_node_get(method);
-    if (node == NULL) {
-	rb_raise(rb_eArgError,
-		"only pure Ruby methods can be aliased (`%s' is not)",
-		sel_getName(method_getName(method)));
-    }
-
     const char *name_str = rb_id2name(name);
     SEL sel;
     if (noargs) {
@@ -1487,8 +1480,14 @@ rb_vm_alias_method(Class klass, Method method, ID name, bool noargs)
 	sel = sel_registerName(tmp);
     }
 
-    GET_CORE()->add_method(klass, sel, imp, node->ruby_imp,
-	    node->arity, node->flags, types);
+    rb_vm_method_node_t *node = GET_CORE()->method_node_get(method);
+    if (node != NULL) {
+	GET_CORE()->add_method(klass, sel, imp, node->ruby_imp,
+		node->arity, node->flags, types);
+    }
+    else {
+	class_replaceMethod(klass, sel, imp, types);
+    }
 }
 
 extern "C"
@@ -1505,7 +1504,29 @@ rb_vm_alias2(VALUE outer, ID name, ID def, unsigned char dynamic_class)
     if (outer == rb_cObject) {
         rb_secure(4);
     }
+
+    VALUE dest = outer;
+    // XXX this isn't quite working yet.
+#if 0
+    // When aliasing a method on String, Array or Hash, we must be careful to
+    // pick the implementation from the NSCF class and register it into the
+    // non-mutable NS class, to make sure the machinery works.
+    if (outer == rb_cNSMutableString || outer == rb_cNSString) {
+	outer = rb_cCFString;
+	dest = rb_cString;
+    }
+    else if (outer == rb_cNSMutableArray || outer == rb_cNSArray) {
+	outer = rb_cCFArray;
+	dest = rb_cArray;
+    }
+    else if (outer == rb_cNSMutableHash || outer == rb_cNSHash) {
+	outer = rb_cCFHash;
+	dest = rb_cHash;
+    }
+#endif
+
     Class klass = (Class)outer;
+    Class dest_klass = (Class)dest;
 
     const char *def_str = rb_id2name(def);
     SEL sel = sel_registerName(def_str);
@@ -1522,10 +1543,10 @@ rb_vm_alias2(VALUE outer, ID name, ID def, unsigned char dynamic_class)
 	rb_print_undef((VALUE)klass, def, 0);
     }
     if (def_method1 != NULL) {
-	rb_vm_alias_method(klass, def_method1, name, true);
+	rb_vm_alias_method(dest_klass, def_method1, name, true);
     }
     if (def_method2 != NULL) {
-	rb_vm_alias_method(klass, def_method2, name, false);
+	rb_vm_alias_method(dest_klass, def_method2, name, false);
     }
 }
 
