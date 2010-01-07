@@ -3248,8 +3248,8 @@ rb_vm_get_special(char code)
 	    break;
 	default:
 	    {
-		int index = (int)code;
-		assert(index > 0 && index < 10);
+		const int index = (int)code;
+		// Boundaries check is done in rb_reg_nth_match().
 		val = rb_reg_nth_match(index, backref);
 	    }
 	    break;
