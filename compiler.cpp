@@ -66,6 +66,7 @@ RoxorCompiler::RoxorCompiler(void)
     return_from_block = -1;
     return_from_block_ids = 0;
     ensure_pn = NULL;
+    block_declaration = false;
 
     dispatcherFunc = NULL;
     fastPlusFunc = NULL;
@@ -664,7 +665,8 @@ RoxorCompiler::compile_arity(rb_vm_arity_t &arity)
 
 void
 RoxorCompiler::compile_prepare_method(Value *classVal, Value *sel,
-	bool singleton, Function *new_function, rb_vm_arity_t &arity, NODE *body)
+	bool singleton, Function *new_function, rb_vm_arity_t &arity,
+	NODE *body)
 {
     if (prepareMethodFunc == NULL) {
 	// void rb_vm_prepare_method(Class klass, unsigned char dynamic_class,
@@ -693,7 +695,8 @@ RoxorCompiler::compile_prepare_method(Value *classVal, Value *sel,
 
 void
 RoxorAOTCompiler::compile_prepare_method(Value *classVal, Value *sel,
-	bool singleton, Function *new_function, rb_vm_arity_t &arity, NODE *body)
+	bool singleton, Function *new_function, rb_vm_arity_t &arity,
+	NODE *body)
 {
     if (prepareMethodFunc == NULL) {
 	// void rb_vm_prepare_method2(Class klass, unsigned char dynamic_class,
@@ -1704,7 +1707,7 @@ RoxorCompiler::compile_jump(NODE *node)
 	&& current_loop_body_bb != NULL
 	&& current_loop_end_bb != NULL;
 
-    const bool within_block = current_block && current_mid == 0;
+    const bool within_block = block_declaration;
 
     Value *val = nd_type(node) == NODE_RETRY
 	? nilVal
@@ -3058,8 +3061,7 @@ RoxorCompiler::compile_node(NODE *node)
 	    {
 		rb_vm_arity_t arity = rb_vm_node_arity(node);
 		const int nargs = bb == NULL ? 0 : arity.real;
-		const bool has_dvars = current_block && current_mid == 0 && !class_declaration;
-		class_declaration = false;
+		const bool has_dvars = block_declaration;
 
 		// Get dynamic vars.
 		if (has_dvars && node->nd_tbl != NULL) {
@@ -3998,13 +4000,17 @@ RoxorCompiler::compile_node(NODE *node)
 
 			compile_set_current_scope(classVal, publicScope);
 
+			bool old_block_declaration = block_declaration;
+			block_declaration = false;
+
 			DEBUG_LEVEL_INC();
-			class_declaration = true;
 			Value *val = compile_node(body);
 			assert(Function::classof(val));
 			Function *f = cast<Function>(val);
 			GET_CORE()->optimize(f);
 			DEBUG_LEVEL_DEC();
+
+			block_declaration = old_block_declaration;
 
 			std::vector<Value *> params;
 			params.push_back(classVal);
@@ -4065,15 +4071,16 @@ RoxorCompiler::compile_node(NODE *node)
 		    assert(mid > 0);
 		}
 
-		Function::ArgumentListType &fargs =
-		    bb->getParent()->getArgumentList();
-		const int fargs_arity = fargs.size() - 2;
-
 		bool splat_args = false;
 		bool positive_arity = false;
 		if (nd_type(node) == NODE_ZSUPER) {
 		    assert(args == NULL);
-		    positive_arity = fargs_arity > 0;
+		    int arity = bb->getParent()->getArgumentList().size();
+		    arity -= 2; // skip self and sel
+		    if (block_declaration) {
+			arity -= 2; // skip dvar and current_block
+		    }
+		    positive_arity = arity > 0;
 		}
 		else {
 		    NODE *n = args;
@@ -4105,9 +4112,10 @@ rescan_args:
 		    }
 		}
 
-		// Recursive method call optimization.
+		// Recursive method call optimization. Not for everyone.
 		if (!block_given && !super_call && !splat_args
-		    && positive_arity && mid == current_mid && recv == NULL) {
+		    && !block_declaration && positive_arity
+		    && mid == current_mid && recv == NULL) {
 
 		    Function *f = bb->getParent();
 		    const unsigned long argc =
@@ -4127,6 +4135,7 @@ rescan_args:
 
 			CallInst *inst = CallInst::Create(f, params.begin(),
 				params.end(), "", bb);
+			// Promote for tail call elimitation.
 			inst->setTailCall(true);
 			return cast<Value>(inst);
 		    }
@@ -4147,20 +4156,40 @@ rescan_args:
 		SEL sel;
 		if (mid != 0) {
 		    sel = mid_to_sel(mid, positive_arity ? 1 : 0);
-		    params.push_back(compile_mcache(sel, super_call));
 		    sel_val = compile_sel(sel);
+		    if (block_declaration && super_call) {
+			// A super call inside a block. The selector cannot
+			// be determined at compilation time, but at runtime:
+			//
+			//  VALUE my_block(VALUE rcv, SEL sel, ...)
+			//  {
+			//	// ...
+			//	SEL super_sel = sel;
+			//  	if (super_sel == 0) {
+			//		super_sel = <hardcoded-mid>;
+			//	}
+			//	rb_vm_dispatch(..., super_sel, ...);
+			Function *f = bb->getParent();
+			Function::arg_iterator arg = f->arg_begin();
+			arg++; // skip self
+			Value *dyn_sel = arg;
+			Value *is_null = new ICmpInst(*bb, ICmpInst::ICMP_EQ,
+				dyn_sel, compile_const_pointer(NULL));
+			sel_val = SelectInst::Create(is_null, sel_val, dyn_sel,
+				"", bb);
+			params.push_back(compile_get_mcache(sel_val, true));
+		    }
+		    else {
+			params.push_back(compile_mcache(sel, super_call));
+		    }
 		}
 		else {
 		    assert(super_call);
+		    // A super call outside a method definition. Compile a
+		    // null selector, the runtime will raise an exception.
 		    sel = 0;
-		    // A super call outside a method definition (probably
-		    // in a block). Retrieve the SEL as the second parameter
-		    // of the current function.
-		    Function *f = bb->getParent();
-		    Function::arg_iterator arg = f->arg_begin();
-		    arg++; // skip self
-		    sel_val = arg;
-		    params.push_back(compile_get_mcache(sel_val, true));
+		    params.push_back(compile_const_pointer(NULL));
+		    sel_val = compile_const_pointer(NULL);
 		}
 
 		// Top.
@@ -4194,14 +4223,17 @@ rescan_args:
 		// Arguments.
 		int argc = 0;
 		if (nd_type(node) == NODE_ZSUPER) {
-		    const int arity = mid == 0
+		    Function::ArgumentListType &fargs =
+			bb->getParent()->getArgumentList();
+		    const int fargs_arity = fargs.size() - 2;
+		    const int arity = block_declaration
 			? fargs_arity - 2 // skip dvars and current_block
 			: fargs_arity;
 		    params.push_back(ConstantInt::get(Int32Ty, arity));
 		    Function::ArgumentListType::iterator iter = fargs.begin();
 		    iter++; // skip self
 		    iter++; // skip sel
-		    if (mid == 0) {
+		    if (block_declaration) {
 			iter++; // skip dvars
 			iter++; // skip current_block
 		    }
@@ -4254,7 +4286,8 @@ rescan_args:
 		    if (block_given) {
 			blockVal = compile_block_create();
 		    }
-		    else if (nd_type(node) == NODE_ZSUPER && current_block_arg != NULL) {
+		    else if (nd_type(node) == NODE_ZSUPER
+			    && current_block_arg != NULL) {
 			blockVal = compile_block_get(current_block_arg);	
 		    }
 		    else {
@@ -4267,12 +4300,13 @@ rescan_args:
 		// object, let's create it.
 		// (Note: this won't work if the method is aliased, but we can
 		//  live with that for now)
-		if (sel == selEval
-		    || sel == selInstanceEval
-		    || sel == selClassEval
-		    || sel == selModuleEval
-		    || sel == selLocalVariables
-		    || sel == selBinding) {
+		if (!super_call
+			&& (sel == selEval
+			    || sel == selInstanceEval
+			    || sel == selClassEval
+			    || sel == selModuleEval
+			    || sel == selLocalVariables
+			    || sel == selBinding)) {
 		    compile_binding();
 		}
 
@@ -4599,10 +4633,13 @@ rescan_args:
 
 		const bool singleton_method = nd_type(node) == NODE_DEFS;
 
+		const ID old_current_mid = current_mid;
 		current_mid = mid;
 		current_instance_method = !singleton_method;
 		const bool old_current_block_chain = current_block_chain;
 		current_block_chain = false;
+		const bool old_block_declaration = block_declaration;
+		block_declaration = false;
 
 		DEBUG_LEVEL_INC();
 		Value *val = compile_node(body);
@@ -4610,8 +4647,9 @@ rescan_args:
 		Function *new_function = cast<Function>(val);
 		DEBUG_LEVEL_DEC();
 
+		block_declaration = old_block_declaration;
 		current_block_chain = old_current_block_chain;
-		current_mid = 0;
+		current_mid = old_current_mid;
 		current_instance_method = false;
 
 		Value *classVal;
@@ -5035,21 +5073,22 @@ rescan_args:
 		current_loop_begin_bb = current_loop_end_bb = NULL;
 		Function *old_current_block_func = current_block_func;
 		NODE *old_current_block_node = current_block_node;
-		ID old_current_mid = current_mid;
 		bool old_current_block = current_block;
 		bool old_current_block_chain = current_block_chain;
 		int old_return_from_block = return_from_block;
 		bool old_dynamic_class = dynamic_class;
+		bool old_block_declaration = block_declaration;
 
-		current_mid = 0;
 		current_block = true;
 		current_block_chain = true;
 		dynamic_class = true;
+		block_declaration = true;
 
 		assert(node->nd_body != NULL);
 		Value *block = compile_node(node->nd_body);	
 		assert(Function::classof(block));
 
+		block_declaration = old_block_declaration;
 		dynamic_class = old_dynamic_class;
 
 		BasicBlock *return_from_block_bb = NULL;
@@ -5066,7 +5105,6 @@ rescan_args:
 		current_loop_begin_bb = old_current_loop_begin_bb;
 		current_loop_body_bb = old_current_loop_body_bb;
 		current_loop_end_bb = old_current_loop_end_bb;
-		current_mid = old_current_mid;
 		current_block = old_current_block;
 		current_block_chain = old_current_block_chain;
 

@@ -224,6 +224,11 @@ rb_vm_super_lookup(VALUE klass, SEL sel)
     IMP self;
     while (true) {
 	Method m = class_getInstanceMethod(k, sel);
+	if (m == NULL) {
+	    // The given selector does not exist, let's go through
+	    // #method_missing...
+	    return NULL; 
+	}
 	assert(m != NULL);
 	self = method_getImplementation(m);
 	if (UNAVAILABLE_IMP(self)) {
@@ -547,7 +552,12 @@ __rb_vm_dispatch(RoxorVM *vm, struct mcache *cache, VALUE top, VALUE self,
 	Class klass, SEL sel, rb_vm_block_t *block, unsigned char opt,
 	int argc, const VALUE *argv)
 {
-    assert(cache != NULL);
+    if (cache == NULL) {
+	if (sel == 0 && opt == DISPATCH_SUPER) {
+	    rb_raise(rb_eNoMethodError, "super called outside of method");
+	}
+	abort(); 
+    }
 
     if (klass == NULL) {
 	klass = (Class)CLASS_OF(self);
