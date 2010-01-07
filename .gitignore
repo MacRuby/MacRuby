@@ -7,6 +7,7 @@ lex.c
 miniprelude.c
 /miniruby
 /macruby
+/markgc
 node_name.inc
 parse.c
 prelude.c
@@ -28,6 +29,8 @@ ext/ripper/ripper.c
 ext/ripper/ripper.y
 ext/ripper/y.output
 ext/socket/constants.h
+ext/openssl/extconf.h
 .installed.list
+.DS_Store
 framework/Info.plist
->>>>>>> Further work in making even a semi-usable YAML parser out of this code.:.gitignore
+doc/
