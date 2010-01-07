@@ -195,7 +195,7 @@ class RDoc::Parser::C < RDoc::Parser
   end
 
   def do_methods
-    @content.scan(%r{rb_define_
+    @content.scan(%r{rb_(objc_)?define_
                    (
                       singleton_method |
                       method           |
@@ -208,7 +208,7 @@ class RDoc::Parser::C < RDoc::Parser
                      \s*(-?\w+)\s*\)
                    (?:;\s*/[*/]\s+in\s+(\w+?\.[cy]))?
                  }xm) do
-      |type, var_name, meth_name, meth_body, param_count, source_file|
+      |objc, type, var_name, meth_name, meth_body, param_count, source_file|
 
       # Ignore top-object and weird struct.c dynamic stuff
       next if var_name == "ruby_top_self"
