@@ -768,17 +768,27 @@ static void rb_source_event_handler(void* sourceptr);
 
 /* 
  *  call-seq:
- *    Dispatch::Source.new(type, handle, mask, queue) =>  Dispatch::Source
+ *    Dispatch::Source.new(type, handle, mask, queue) {|src| block}
+ *     => Dispatch::Source
  *
  *  Returns a Source used to monitor a variety of system objects and events
  *  including file descriptors, processes, virtual filesystem nodes, signal
  *  delivery and timers.
  *  When a state change occurs, the dispatch source will submit its event
- *  handler block to its target queue.
+ *  handler block to its target queue, with the source as a parameter.
  *  
  *     gcdq = Dispatch::Queue.new('doc')
- *     src = Dispatch::Source.new(Dispatch::Source::DATA_ADD, 1, 2, gcdq)
+ *     src = Dispatch::Source.new(Dispatch::Source::DATA_ADD, 0, 0, gcdq) do |s|
+ *       puts "Fired!"
+ *     end
  *
+ *   Unlike with the C API, Dispatch::Source objects start off resumed
+ *   (since the event handler has already been set).
+ *   
+ *     src.suspended? #=? false
+ *     src.merge(0)
+ *     gcdq.sync { } #=> Fired!
+ *  
  */
 
 static VALUE
@@ -824,10 +834,128 @@ rb_source_on_event(VALUE self, SEL sel)
     return Qnil;
 }
 
+/* 
+ *  call-seq:
+ *    src.handle => Number
+ *
+ *  Returns the underlying handle to the dispatch source (i.e. file descriptor,
+ *  process identifer, etc.). For Ruby, this must be representable as a Number.
+ *  
+ *     gcdq = Dispatch::Queue.new('doc')
+ *     src = Dispatch::Source.new(Dispatch::Source::DATA_ADD, 0, 0, gcdq) { }
+ *     puts src.handle #=> 0
+ */
+
+static VALUE
+rb_source_get_handle(VALUE self, SEL sel)
+{
+    return LONG2NUM(dispatch_source_get_handle(RSource(self)->source));
+}
+
+/* 
+ *  call-seq:
+ *    src.mask => Number
+ *
+ *  Returns a Number representing the mask argument, corresponding to the flags
+ *  set when the source was created.
+ *  
+ *     gcdq = Dispatch::Queue.new('doc')
+ *     src = Dispatch::Source.new(Dispatch::Source::DATA_ADD, 0, 0, gcdq) { }
+ *     puts src.mask #=> 0
+ */
+
+static VALUE
+rb_source_get_mask(VALUE self, SEL sel)
+{
+    return INT2NUM(dispatch_source_get_mask(RSource(self)->source));
+}
+
+/* 
+ *  call-seq:
+ *    src.data => Number
+ *
+ *  Returns a Number containing currently pending data for the dispatch source.
+ *  This function should only be called from within the source's event handler.
+ *  The result of calling this function from any other context is undefined.
+ *  
+ *     gcdq = Dispatch::Queue.new('doc')
+ *     src = Dispatch::Source.new(Dispatch::Source::DATA_ADD, 0, 0, gcdq) do |s|
+ *       puts s.data
+ *     end
+ *     src.merge(1)
+ *     gcdq.sync { } #=> 1
+ */
+
+static VALUE
+rb_source_get_data(VALUE self, SEL sel)
+{
+    return LONG2NUM(dispatch_source_get_mask(RSource(self)->source));
+}
+
+/* 
+ *  call-seq:
+ *    src.merge(number)
+ *
+ *  Intended only for use with the Dispatch::Source::DATA_ADD and
+ *  Dispatch::Source::DATA_OR source types, calling this function will
+ *  atomically ADD or logical OR the count into the source's data, and 
+ * trigger delivery of the source's event handler.
+ *  
+ *     gcdq = Dispatch::Queue.new('doc')
+ *     @sum = 0
+ *     src = Dispatch::Source.new(Dispatch::Source::DATA_ADD, 0, 0, gcdq) do |s|
+ *       @sum += s.data # safe since always serialized
+ *     end
+ *     src.merge(1)
+ *     src.merge(3)
+ *     gcdq.sync { }
+ *     puts @sum #=> 4
+ */
+
 static VALUE
 rb_source_merge(VALUE self, SEL sel, VALUE data)
 {
     dispatch_source_merge_data(RSource(self)->source, NUM2INT(data));
+    return Qnil;
+}
+
+static void
+rb_source_cancel_handler(void *source)
+{
+    assert(source != NULL);
+    rb_vm_block_t *the_block = RSource(source)->cancel_handler;
+    rb_vm_block_eval(the_block, 0, NULL);
+}
+
+/* 
+ *  call-seq:
+ *    src.on_cancel { |src| block }
+ *
+ *  This specifies an optional cancellation handler to be submitted exactly once
+ *  to the target queue, and only when the source has been cancelled.
+ *
+ *  This is most commonly used to close File descriptors associated with
+ *  Dispatch::Source::WRITE, Dispatch::Source::READ and Dispatch::Source::VNODE
+ *
+ *     gcdq = Dispatch::Queue.new('doc')
+ *     file = File.open("/etc/passwd")
+ *     src = Dispatch::Source.new(Dispatch::Source::READ, file, 0, gcdq) { }
+ *     src.on_cancel { file.close }
+ *     src.cancel!
+ *
+ */
+ 
+static VALUE
+rb_source_on_cancellation(VALUE self, SEL sel)
+{
+    rb_source_t *src = RSource(self);
+    rb_vm_block_t *the_block = rb_vm_current_block();
+    if (the_block == NULL) {
+        rb_raise(rb_eArgError, "on_cancellation() requires a block argument");
+    }
+    GC_WB(&src->cancel_handler, the_block);
+    dispatch_set_context(src->source, (void*)self); // retain this?
+    dispatch_source_set_cancel_handler_f(src->source, rb_source_cancel_handler);
     return Qnil;
 }
 
@@ -916,7 +1044,6 @@ rb_semaphore_alloc(VALUE klass, SEL sel)
     s->count = 0;
     return (VALUE)s;
 }
-
 
 /* 
  *  call-seq:
@@ -1113,11 +1240,15 @@ Init_Dispatch(void)
     rb_define_const(cSource, "WRITE", INT2NUM(SOURCE_TYPE_WRITE));
     rb_objc_define_method(*(VALUE *)cSource, "alloc", rb_source_alloc, 0);
     rb_objc_define_method(cSource, "initialize", rb_source_init, 4);
+    rb_objc_define_method(cSource, "on_cancel", rb_source_on_cancellation, 0);
     rb_objc_define_method(cSource, "cancelled?", rb_source_cancelled_p, 0);
     rb_objc_define_method(cSource, "cancel!", rb_source_cancel, 0);
     rb_objc_define_method(cSource, "resume!", rb_dispatch_resume, 0);
     rb_objc_define_method(cSource, "suspend!", rb_dispatch_suspend, 0);
     rb_objc_define_method(cSource, "suspended?", rb_dispatch_suspended_p, 0);
+    rb_objc_define_method(cSource, "handle", rb_source_get_handle, 0);
+    rb_objc_define_method(cSource, "mask", rb_source_get_mask, 0);
+    rb_objc_define_method(cSource, "data", rb_source_get_data, 0);
     rb_objc_define_method(cSource, "merge", rb_source_merge, 1);
 
     cTimer = rb_define_class_under(mDispatch, "Timer", cSource);
