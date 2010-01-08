@@ -195,7 +195,7 @@ class RDoc::Parser::C < RDoc::Parser
   end
 
   def do_methods
-    @content.scan(%r{rb_define_
+    @content.scan(%r{rb_(objc_)?define_
                    (
                       singleton_method |
                       method           |
@@ -206,9 +206,9 @@ class RDoc::Parser::C < RDoc::Parser
                      \s*"([^"]+)",
                      \s*(?:RUBY_METHOD_FUNC\(|VALUEFUNC\()?(\w+)\)?,
                      \s*(-?\w+)\s*\)
-                   (?:;\s*/[*/]\s+in\s+(\w+?\.[cy]))?
+                   (?:;\s*/[*/]\s+in\s+(\w+?\.[cy]p?p?))?
                  }xm) do
-      |type, var_name, meth_name, meth_body, param_count, source_file|
+      |objc, type, var_name, meth_name, meth_body, param_count, source_file|
 
       # Ignore top-object and weird struct.c dynamic stuff
       next if var_name == "ruby_top_self"
@@ -520,7 +520,7 @@ class RDoc::Parser::C < RDoc::Parser
     class_obj  = find_class(var_name, class_name)
 
     unless class_obj
-      warn("Enclosing class/module '#{const_name}' for not known")
+      warn("Enclosing class/module for '#{const_name}' not known")
       return
     end
 
@@ -590,7 +590,12 @@ class RDoc::Parser::C < RDoc::Parser
 
       if source_file then
         file_name = File.join(@file_dir, source_file)
-        body = (@@known_bodies[source_file] ||= File.read(file_name))
+        begin
+          body = (@@known_bodies[source_file] ||= File.read(file_name)) 
+        rescue
+          warn "Couldn't find file #{file_name}"
+          body = @content
+        end
       else
         body = @content
       end
