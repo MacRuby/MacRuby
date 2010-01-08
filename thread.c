@@ -325,10 +325,9 @@ rb_thread_kill(VALUE thread, SEL sel)
  */
 
 static VALUE
-rb_thread_s_kill(VALUE obj, VALUE th)
+rb_thread_s_kill(VALUE obj, SEL sel, VALUE th)
 {
-    // TODO
-    return Qnil;
+    return rb_thread_kill(th, 0);
 }
 
 /*
@@ -344,8 +343,7 @@ rb_thread_s_kill(VALUE obj, VALUE th)
 static VALUE
 rb_thread_exit(void)
 {
-    // TODO
-    return Qnil;
+    return rb_thread_kill(rb_vm_current_thread(), 0);
 }
 
 /*
@@ -1526,8 +1524,8 @@ Init_Thread(void)
     rb_objc_define_method(*(VALUE *)rb_cThread, "main", rb_thread_s_main, 0);
     rb_objc_define_method(*(VALUE *)rb_cThread, "current", thread_s_current, 0);
     rb_objc_define_method(*(VALUE *)rb_cThread, "stop", rb_thread_stop, 0);
-    rb_define_singleton_method(rb_cThread, "kill", rb_thread_s_kill, 1);
-    rb_define_singleton_method(rb_cThread, "exit", rb_thread_exit, 0);
+    rb_objc_define_method(*(VALUE *)rb_cThread, "kill", rb_thread_s_kill, 1);
+    rb_objc_define_method(*(VALUE *)rb_cThread, "exit", rb_thread_exit, 0);
     rb_objc_define_method(*(VALUE *)rb_cThread, "pass", thread_s_pass, 0);
     rb_objc_define_method(*(VALUE *)rb_cThread, "list", rb_thread_list, 0);
     rb_objc_define_method(*(VALUE *)rb_cThread, "abort_on_exception", rb_thread_s_abort_exc, 0);
