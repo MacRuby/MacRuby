@@ -2653,7 +2653,9 @@ static VALUE
 rb_str_dump(VALUE str, SEL sel)
 {
     VALUE res = __rb_str_inspect(str, true);
-    *(VALUE *)res = *(VALUE *)str;
+    if (*(VALUE *)str != rb_cByteString) {
+	*(VALUE *)res = *(VALUE *)str;
+    }
     return res;
 }
 
