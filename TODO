@@ -7,6 +7,7 @@ For 0.5 beta 3:
 [X] non-ASCII regexp
 [/] 32-bit should be back
 [X] macruby should support #require calls when assembling a binary
+[ ] change copyright headers for 2010
 
 For 0.5 (must do):
 
