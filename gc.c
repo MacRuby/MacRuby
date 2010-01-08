@@ -9,12 +9,13 @@
  * Copyright (C) 2000 Information-technology Promotion Agency, Japan
  */
 
+#include "ruby/config.h"
+
 #if HAVE_AUTO_ZONE_H
 # include <auto_zone.h>
 #else
 # include "auto_zone_1060.h"
 #endif
-#define AUTO_ZONE_INCLUDED 1
 
 #include "ruby/ruby.h"
 #include "ruby/signal.h"
