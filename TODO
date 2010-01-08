@@ -1,7 +1,9 @@
 For 0.5 beta 3:
 
-[ ] HotCocoa should be extracted as a gem
-[X] HotCocoa samples should all work
+[ ] HotCocoa
+  [X] samples should work
+  [X] should be removed from the repository
+  [ ] should be gemified on github and pre-bundled with the installers
 [X] backtracing information (line numbers) should be accurate
 [/] frozen, stable and documented GCD API
 [X] non-ASCII regexp
