@@ -1,21 +1,7 @@
 /*
- * Copyright (c) 2002-2009, Apple Inc. All rights reserved.
- *
- * @APPLE_APACHE_LICENSE_HEADER_START@
- * 
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- * 
- *     http://www.apache.org/licenses/LICENSE-2.0
- * 
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- * 
- * @APPLE_APACHE_LICENSE_HEADER_END@
+    auto_zone.h
+    Automatic Garbage Collection.
+    Copyright (c) 2002-2009 Apple Inc. All rights reserved.
  */
 
 #ifndef __AUTO_ZONE__
@@ -40,6 +26,8 @@ extern struct malloc_introspection_t auto_zone_introspection();
     // access the zone introspection functions independent of any particular auto zone instance.
     // this is used by tools to be able to introspect a zone in another process.
     // the introspection functions returned are required to do version checking on the zone.
+
+#define AUTO_RETAINED_BLOCK_TYPE 0x100  /* zone enumerator returns only blocks with nonzero retain count */
 
 /*********  External (Global) Use counting  ************/
 
@@ -66,6 +54,10 @@ extern boolean_t auto_zone_set_write_barrier(auto_zone_t *zone, const void *dest
 boolean_t auto_zone_atomicCompareAndSwap(auto_zone_t *zone, void *existingValue, void *newValue, void *volatile *location, boolean_t isGlobal, boolean_t issueBarrier);
     // Atomically update a location with a new GC value.  These use OSAtomicCompareAndSwapPtr{Barrier} with appropriate write-barrier interlocking logic.
 
+boolean_t auto_zone_atomicCompareAndSwapPtr(auto_zone_t *zone, void *existingValue, void *newValue, void *volatile *location, boolean_t issueBarrier);
+    // Atomically update a location with a new GC value.  These use OSAtomicCompareAndSwapPtr{Barrier} with appropriate write-barrier interlocking logic.
+    // This version checks location, and if it points into global storage, registers a root.
+
 extern void *auto_zone_write_barrier_memmove(auto_zone_t *zone, void *dst, const void *src, size_t size);
     // copy content from an arbitrary source area to an arbitrary destination area
     // marking write barrier if necessary
@@ -86,7 +78,8 @@ typedef struct {
     /* Memory usage */
     malloc_statistics_t malloc_statistics;
     /* GC stats */
-    uint32_t            version;            // reserved - 0 for now
+    // version 0
+    uint32_t            version;            // set to 1 before calling
     /* When there is an array, 0 stands for full collection, 1 for generational */
     size_t              num_collections[2];
     boolean_t           last_collection_was_generational;
@@ -97,6 +90,10 @@ typedef struct {
     auto_collection_durations_t total[2];   // running total of each field
     auto_collection_durations_t last[2];    // most recent result
     auto_collection_durations_t maximum[2]; // on a per item basis, the max.  Thus, total != scan + finalize ...
+    // version 1 additions
+    size_t              thread_collections_total;
+    size_t              thread_blocks_recovered_total;
+    size_t              thread_bytes_recovered_total;
 } auto_statistics_t;
 
 extern void auto_zone_statistics(auto_zone_t *zone, auto_statistics_t *stats);  // set version to 0
@@ -220,11 +217,19 @@ extern auto_memory_type_t auto_zone_get_layout_type(auto_zone_t *zone, void *ptr
 
 extern void* auto_zone_allocate_object(auto_zone_t *zone, size_t size, auto_memory_type_t type, boolean_t initial_refcount_to_one, boolean_t clear);
 
+// Create copy of AUTO_MEMORY object preserving "scanned" attribute
+// If not auto memory then create unscanned memory copy
+void *auto_zone_create_copy(auto_zone_t *zone, void *ptr);
+
+
 extern void auto_zone_register_thread(auto_zone_t *zone);
-    // threads that are using the auto collector are marked suspendable by storing a non-nil value
-    // in their thread local storage, using an internal pthread_key_t.
 
 extern void auto_zone_unregister_thread(auto_zone_t *zone);
+
+extern void auto_zone_assert_thread_registered(auto_zone_t *zone);
+
+extern void auto_zone_register_datasegment(auto_zone_t *zone, void *address, size_t size);
+extern void auto_zone_unregister_datasegment(auto_zone_t *zone, void *address, size_t size);
 
 
 // Weak references
@@ -260,6 +265,7 @@ extern void auto_assign_weak_reference(auto_zone_t *zone, const void *value, voi
 extern void* auto_read_weak_reference(auto_zone_t *zone, void **referrer);
 
 extern void auto_zone_add_root(auto_zone_t *zone, void *address_of_root_ptr, void *value);
+extern void auto_zone_remove_root(auto_zone_t *zone, void *address_of_root_ptr);
 
 extern void auto_zone_root_write_barrier(auto_zone_t *zone, void *address_of_possible_root_ptr, void *value);
 
@@ -272,6 +278,7 @@ extern void auto_zone_root_write_barrier(auto_zone_t *zone, void *address_of_pos
 
 extern void auto_zone_set_associative_ref(auto_zone_t *zone, void *object, void *key, void *value);
 extern void *auto_zone_get_associative_ref(auto_zone_t *zone, void *object,  void *key);
+extern void auto_zone_erase_associative_refs(auto_zone_t *zone, void *object);
 
 /***** SPI ******/
     
@@ -279,14 +286,22 @@ extern void *auto_zone_get_associative_ref(auto_zone_t *zone, void *object,  voi
 
 extern void auto_zone_start_monitor(boolean_t force);
 extern void auto_zone_set_class_list(int (*get_class_list)(void **buffer, int count));
-extern unsigned int auto_zone_retain_count_no_lock(auto_zone_t *zone, const void *ptr);
-extern size_t auto_zone_size_no_lock(auto_zone_t *zone, const void *ptr);
 extern boolean_t auto_zone_is_finalized(auto_zone_t *zone, const void *ptr);
-extern void auto_zone_set_layout_type(auto_zone_t *zone, void *ptr, auto_memory_type_t type);
-extern auto_memory_type_t auto_zone_get_layout_type_no_lock(auto_zone_t *zone, void *ptr);
 extern void auto_zone_stats(void); // write stats to stdout
 extern void auto_zone_write_stats(FILE *f); // write stats to the given stream
 extern char *auto_zone_stats_string(); // return a char * containing the stats string, which should be free()'d
+extern void auto_zone_set_nofinalize(auto_zone_t *zone, void *ptr);
+extern void auto_zone_set_unscanned(auto_zone_t *zone, void *ptr);
+extern void auto_zone_clear_stack(auto_zone_t *zone, unsigned long options);
+
+// Reference count logging support for ObjectAlloc et. al.
+
+enum {
+    AUTO_RETAIN_EVENT = 14,
+    AUTO_RELEASE_EVENT = 15
+};
+extern void (*__auto_reference_logger)(uint32_t eventtype, void *ptr, uintptr_t data);
+
 
 // Reference tracing
 
@@ -305,24 +320,57 @@ extern void auto_enumerate_references(auto_zone_t *zone, void *referent,
                                       auto_reference_recorder_t callback, 
                                       void *stack_bottom, void *ctx);
 
-extern void auto_enumerate_references_no_lock(auto_zone_t *zone, void *referent, auto_reference_recorder_t callback, void *stack_bottom, void *ctx);
 
 void **auto_weak_find_first_referrer(auto_zone_t *zone, void **location, unsigned long count);
 
 
 /************ DEPRECATED ***********/
     
-extern void auto_zone_write_barrier_range(auto_zone_t *zone, void *address, size_t size);
-    // Insufficient.  Will mark values about to be stored into GC memory, but has race if GC starts in the middle.
-extern void auto_zone_write_barrier(auto_zone_t *zone, void *recipient, const unsigned long offset_in_bytes, const void *new_value);
 extern auto_zone_t *auto_zone(void);
     // returns a pointer to the first garbage collected zone created.
-extern const auto_statistics_t *auto_collection_statistics(auto_zone_t *zone);
 extern unsigned auto_zone_touched_size(auto_zone_t *zone);
     // conservative (upper bound) on memory touched by the allocator itself.
 
 extern double auto_zone_utilization(auto_zone_t *zone);
     // conservative measure of utilization of allocator touched memory.
+    
+
+/************* EXPERIMENTAL *********/
+#ifdef __BLOCKS__
+
+typedef void (^auto_zone_stack_dump)(const void *base, unsigned long byte_size);
+typedef void (^auto_zone_register_dump)(const void *base, unsigned long byte_size);
+typedef void (^auto_zone_node_dump)(const void *address, unsigned long size, unsigned int layout, unsigned long refcount);
+typedef void (^auto_zone_root_dump)(const void **address);
+typedef void (^auto_zone_weak_dump)(const void **address, const void *item);
+
+// Instruments.app utility; causes significant disruption.
+// This is SPI for Apple's use only.  Can and likely will change without regard to 3rd party use.
+void auto_zone_dump(auto_zone_t *zone,
+            auto_zone_stack_dump stack_dump,
+            auto_zone_register_dump register_dump,
+            auto_zone_node_dump thread_local_node_dump, // unsupported
+            auto_zone_root_dump root_dump,
+            auto_zone_node_dump global_node_dump,
+            auto_zone_weak_dump weak_dump
+);
+
+#endif
+
+enum {
+    auto_is_not_auto  =    0,
+    auto_is_auto      =    (1 << 1),   // always on for a start of a node
+    auto_is_local     =    (1 << 2),   // is/was node local
+};
+
+typedef int auto_probe_results_t;
+
+// Instruments.app utility; causes significant disruption.
+// This is SPI for Apple's use only.  Can and likely will change without regard to 3rd party use.
+auto_probe_results_t auto_zone_probe_unlocked(auto_zone_t *zone, void *address);
+#ifdef __BLOCKS__
+void auto_zone_scan_exact(auto_zone_t *zone, void *address, void (^callback)(void *base, unsigned long byte_offset, void *candidate));
+#endif
 
 __END_DECLS
 
