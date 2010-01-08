@@ -10,7 +10,9 @@ module RSS
     end
     
     def get_file_and_line_from_caller(i=0)
-      file, line, = caller[i].split(':')
+      bt = caller
+      i = bt.size - 1 if i >= bt.size
+      file, line, = bt[i].split(':')
       line = line.to_i
       line += 1 if i.zero?
       [file, line]
