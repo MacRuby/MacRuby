@@ -1,8 +1,0 @@
-name: Demo
-load: lib/application.rb
-version: "1.0"
-icon: resources/HotCocoa.icns
-sources: 
-  - lib/**/*.rb
-resources: 
-  - resources/**/*.*

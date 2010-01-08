@@ -1,7 +1,0 @@
-name: Calculator
-load: lib/application.rb
-secure: true
-version: "1.0"
-icon: /Applications/Calculator.app/Contents/Resources/Calculator.icns
-sources: 
-  - lib/**/*.rb
