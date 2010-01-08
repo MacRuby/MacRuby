@@ -2616,7 +2616,8 @@ RoxorCompiler::compile_optimized_dispatch_call(SEL sel, int argc,
 	bb = thenBB;
 	std::vector<Value *> new_params;
 	new_params.push_back(compile_mcache(new_sel, false));
-	new_params.push_back(params[1]);
+	// Compile a null top reference, to ignore protected visibility.
+	new_params.push_back(ConstantInt::get(RubyObjTy, 0));
 	new_params.push_back(params[2]);
 	new_params.push_back(compile_sel(new_sel));
 	new_params.push_back(params[4]);
