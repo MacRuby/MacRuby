@@ -1361,7 +1361,11 @@ rb_type(VALUE obj)
 	if (k == (Class)rb_cCFString) {
 	    return T_STRING;
 	}
-	if (k == (Class)rb_cCFArray || k == (Class)rb_cRubyArray) {
+	if (k == (Class)rb_cCFArray || k == (Class)rb_cRubyArray
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
+	    || k == (Class)rb_cNSArray0
+#endif
+	   ) {
 	    return T_ARRAY;
 	}
 	if (k == (Class)rb_cCFHash) {
