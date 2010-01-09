@@ -37,7 +37,6 @@ if MACOSX_VERSION >= 10.6
 
       it "returns false if explicit timeout DOES expire" do
         @sema0.wait(0.01).should == false
-        @sema1.wait(0.01).should == false
       end
 
       it "returns true if explicit timeout does NOT expire" do

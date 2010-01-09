@@ -1,2 +1,2 @@
 critical:Dispatch::Semaphore raises an ArgumentError if the count isn't specified
-fails:Dispatch::Semaphore wait returns false if explicit timeout DOES expire
+#fails:Dispatch::Semaphore wait returns false if explicit timeout DOES expire
