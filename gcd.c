@@ -892,7 +892,7 @@ rb_source_get_mask(VALUE self, SEL sel)
 static VALUE
 rb_source_get_data(VALUE self, SEL sel)
 {
-    return LONG2NUM(dispatch_source_get_mask(RSource(self)->source));
+    return LONG2NUM(dispatch_source_get_data(RSource(self)->source));
 }
 
 /* 
@@ -1252,7 +1252,7 @@ Init_Dispatch(void)
     rb_objc_define_method(cSource, "handle", rb_source_get_handle, 0);
     rb_objc_define_method(cSource, "mask", rb_source_get_mask, 0);
     rb_objc_define_method(cSource, "data", rb_source_get_data, 0);
-    rb_objc_define_method(cSource, "merge", rb_source_merge, 1);
+    rb_objc_define_method(cSource, "<<", rb_source_merge, 1);
 
     cTimer = rb_define_class_under(mDispatch, "Timer", cSource);
     rb_objc_define_method(cTimer, "initialize", rb_timer_init, -1);

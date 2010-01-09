@@ -42,10 +42,57 @@ if MACOSX_VERSION >= 10.6
         end
 
         it "returns an instance of Dispatch::Source" do
-          src = Dispatch::Source.new(@type, 0, 0, @q) { true.should == true }
+          src = Dispatch::Source.new(@type, 0, 0, @q) { }
           src.should be_kind_of(Dispatch::Source)
         end
+        
+        it "should not be suspended" do
+          src = Dispatch::Source.new(@type, 0, 0, @q) { }
+          src.suspended?.should == false
+        end
+    
+        it "fires event handler on merge" do
+          @i = 0
+          src = Dispatch::Source.new(@type, 0, 0, @q) {|s|  @i = 42}
+          src << 42
+          @q.sync { }
+          @i.should == 42
+        end        
+
+        it "passes source to event handler" do
+          src = Dispatch::Source.new(@type, 0, 0, @q) do |source|
+            source.should be_kind_of(Dispatch::Source)
+          end
+          src << 42
+          @q.sync { }
+        end        
+
+        it "passes data to source in event handler" do
+          @i = 0
+          src = Dispatch::Source.new(@type, 0, 0, @q) do |source|
+            @i = source.data
+          end
+          src << 42
+          @q.sync { }
+          @i.should == 42
+        end        
+
+
+        it "coalesces data for source in event handler" do
+          @i = 0
+          src = Dispatch::Source.new(@type, 0, 0, @q) do |source|
+            @i = source.data
+          end
+          src.suspend!
+          src << 17
+          src << 25
+          src.resume!
+          @q.sync { }
+          @i.should == 42
+        end        
+
       end
+      
 
       describe :DATA_OR do
         before :each do
@@ -53,11 +100,45 @@ if MACOSX_VERSION >= 10.6
         end
 
         it "returns an instance of Dispatch::Source" do
-          src = Dispatch::Source.new(@type, 0, 0, @q) { true.should == true }
+          src = Dispatch::Source.new(@type, 0, 0, @q) { }
           src.should be_kind_of(Dispatch::Source)
         end
-      end
+        
+        it "should not be suspended" do
+          src = Dispatch::Source.new(@type, 0, 0, @q) { }
+          src.suspended?.should == false
+        end
+        
 
+        it "fires event handler on merge" do
+          @i = 0
+          src = Dispatch::Source.new(@type, 0, 0, @q) {|s|  @i = 42}
+          src << 42
+          @q.sync { }
+          @i.should == 42
+        end        
+
+        it "passes source to event handler" do
+          src = Dispatch::Source.new(@type, 0, 0, @q) do |source|
+            source.should be_kind_of(Dispatch::Source)
+          end
+          src << 42
+          @q.sync { }
+        end
+        
+        it "coalesces data for source in event handler" do
+          @i = 0
+          src = Dispatch::Source.new(@type, 0, 0, @q) do |source|
+            @i = source.data
+          end
+          src.suspend!
+          src << 0b000_010
+          src << 0b101_000
+          src.resume!
+          @q.sync { }
+          @i.should == 42 #0b101_010
+        end        
+      end
     end
     
   end
