@@ -1,2 +1,1 @@
-fails:Dispatch::Source of type DATA_ADD returns an instance of Dispatch::Source
 

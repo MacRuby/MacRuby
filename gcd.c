@@ -798,8 +798,11 @@ rb_source_init(VALUE self, SEL sel,
     Check_Queue(queue);
     rb_source_t *src = RSource(self);    
     src->type = rb_num2source_type(type);
-    src->source = dispatch_source_create(src->type,
-        NUM2UINT(handle), NUM2LONG(mask), RQueue(queue)->queue);
+    assert(src->type != NULL);
+    uintptr_t c_handle = NUM2UINT(handle);
+    unsigned long c_mask = NUM2LONG(mask);
+    dispatch_queue_t c_queue = RQueue(queue)->queue;
+    src->source = dispatch_source_create(src->type, c_handle, c_mask, c_queue);
     assert(src->source != NULL);
 
     if (rb_block_given_p()) {

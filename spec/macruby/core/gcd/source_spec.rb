@@ -42,12 +42,22 @@ if MACOSX_VERSION >= 10.6
         end
 
         it "returns an instance of Dispatch::Source" do
-          p @type
-          src = Dispatch::Source.new(@type, 1, 2, @q) { true.should == true }
-          p src
+          src = Dispatch::Source.new(@type, 0, 0, @q) { true.should == true }
           src.should be_kind_of(Dispatch::Source)
         end
       end
+
+      describe :DATA_OR do
+        before :each do
+          @type = Dispatch::Source::DATA_OR
+        end
+
+        it "returns an instance of Dispatch::Source" do
+          src = Dispatch::Source.new(@type, 0, 0, @q) { true.should == true }
+          src.should be_kind_of(Dispatch::Source)
+        end
+      end
+
     end
     
   end
