@@ -325,16 +325,20 @@ static VALUE
 rb_str_dup_imp(VALUE str, SEL sel)
 {
     VALUE dup;
+    VALUE klass = *(VALUE *)str;
 
-    if (*(VALUE *)str == rb_cByteString) {
+    if (klass == rb_cByteString) {
 	dup = rb_bytestring_copy(str);
     }
-    else {
+    else if (klass == rb_cCFString) {
 	dup = (VALUE)CFStringCreateMutableCopy(NULL, 0, (CFStringRef)str);
 	CFMakeCollectable((CFTypeRef)dup);
 	if (*(VALUE *)str != rb_cSymbol) {
 	    *(VALUE *)dup = *(VALUE *)str;
 	}
+    }
+    else {
+	dup = (VALUE)objc_msgSend((void *)str, selMutableCopy);
     }
 
     if (OBJ_TAINTED(str)) {
