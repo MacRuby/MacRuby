@@ -2291,21 +2291,20 @@ rb_str_chr(VALUE str, SEL sel)
 static VALUE
 rb_str_getbyte(VALUE str, SEL sel, VALUE index)
 {
-    // TODO
-#if 0
+    if (*(VALUE *)str != rb_cByteString) {
+	rb_raise(rb_eArgError,
+		"#getbyte is only implemented for ByteString objects");
+    }
+
     long pos = NUM2LONG(index);
-    long n = RSTRING_BYTELEN(str);
-
+    const long n = rb_bytestring_length(str);
     if (pos < 0) {
-        pos += n;
+	pos += n;
     }
-    if (pos < 0 || n <= pos) {
-        return Qnil;
+    if (pos < 0 || pos >= n) {
+	return Qnil;
     }
-
-    return INT2FIX((unsigned char)RSTRING_BYTEPTR(str)[pos]);
-#endif
-    abort();
+    return INT2FIX(rb_bytestring_byte_pointer(str)[pos]);
 }
 
 /*
@@ -2317,25 +2316,27 @@ rb_str_getbyte(VALUE str, SEL sel, VALUE index)
 static VALUE
 rb_str_setbyte(VALUE str, SEL sel, VALUE index, VALUE value)
 {
-    // TODO promote to ByteString
-#if 0
+    if (*(VALUE *)str != rb_cByteString) {
+	rb_raise(rb_eArgError,
+		"#setbyte is only implemented for ByteString objects");
+    }
+
     long pos = NUM2LONG(index);
-    int byte = NUM2INT(value);
-    long n = RSTRING_BYTELEN(str);
+    const int byte = NUM2INT(value);
+    const long n = rb_bytestring_length(str);
 
     rb_str_modify(str);
 
-    if (pos < -n || n <= pos)
+    if (pos < -n || n <= pos) {
         rb_raise(rb_eIndexError, "index %ld out of string", pos);
-    if (pos < 0)
+    }
+    if (pos < 0) {
         pos += n;
+    }
 
-    RSTRING_BYTEPTR(str)[pos] = byte;
-    RSTRING_SYNC(str);
+    rb_bytestring_byte_pointer(str)[pos] = byte;
 
     return value;
-#endif
-    abort();
 }
 
 
