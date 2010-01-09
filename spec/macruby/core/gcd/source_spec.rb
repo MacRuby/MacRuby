@@ -151,10 +151,11 @@ if MACOSX_VERSION >= 10.6
       describe :SIGNAL do
         before :each do
           @type = Dispatch::Source::SIGNAL
+          @signal = Signal.list["USR2"]
         end
 
         it "returns an instance of Dispatch::Source" do
-          src = Dispatch::Source.new(@type, $$, 0, @q) { }
+          src = Dispatch::Source.new(@type, @signal, 0, @q) { }
           src.should be_kind_of(Dispatch::Source)
         end
       end    
