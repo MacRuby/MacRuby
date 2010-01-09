@@ -77,7 +77,6 @@ if MACOSX_VERSION >= 10.6
           @i.should == 42
         end        
 
-
         it "coalesces data for source in event handler" do
           @i = 0
           src = Dispatch::Source.new(@type, 0, 0, @q) do |source|
@@ -92,7 +91,6 @@ if MACOSX_VERSION >= 10.6
         end        
 
       end
-      
 
       describe :DATA_OR do
         before :each do
@@ -108,7 +106,6 @@ if MACOSX_VERSION >= 10.6
           src = Dispatch::Source.new(@type, 0, 0, @q) { }
           src.suspended?.should == false
         end
-        
 
         it "fires event handler on merge" do
           @i = 0
@@ -139,7 +136,64 @@ if MACOSX_VERSION >= 10.6
           @i.should == 42 #0b101_010
         end        
       end
+  
+      describe :PROC do
+        before :each do
+          @type = Dispatch::Source::PROC
+        end
+
+        it "returns an instance of Dispatch::Source" do
+          src = Dispatch::Source.new(@type, $$, 0, @q) { }
+          src.should be_kind_of(Dispatch::Source)
+        end
+      end    
+
+      describe :SIGNAL do
+        before :each do
+          @type = Dispatch::Source::SIGNAL
+        end
+
+        it "returns an instance of Dispatch::Source" do
+          src = Dispatch::Source.new(@type, $$, 0, @q) { }
+          src.should be_kind_of(Dispatch::Source)
+        end
+      end    
+
+      describe :READ do
+        before :each do
+          @type = Dispatch::Source::READ
+        end
+
+        it "returns an instance of Dispatch::Source" do
+          src = Dispatch::Source.new(@type, 0, 0, @q) { }
+          src.should be_kind_of(Dispatch::Source)
+        end
+      end    
+
+
+      describe :WRITE do
+        before :each do
+          @type = Dispatch::Source::WRITE
+        end
+
+        it "returns an instance of Dispatch::Source" do
+          src = Dispatch::Source.new(@type, 0, 0, @q) { }
+          src.should be_kind_of(Dispatch::Source)
+        end
+      end    
+
+      describe :VNODE do
+        before :each do
+          @type = Dispatch::Source::VNODE
+        end
+
+        it "returns an instance of Dispatch::Source" do
+          src = Dispatch::Source.new(@type, 0, 0, @q) { }
+          src.should be_kind_of(Dispatch::Source)
+        end
+      end    
+
     end
-    
+
   end
 end

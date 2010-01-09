@@ -1,1 +1,1 @@
-
+fails:Dispatch::Source of type SIGNAL returns an instance of Dispatch::Source
