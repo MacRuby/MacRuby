@@ -26,3 +26,4 @@ fails:String#encode replaces invalid characters
 fails:String#encode replaces undefined characters
 fails:String#encode replaces xml characters
 fails:String#encode replaces xml characters and quotes the result
+fails:String#encode with no arguments returns a copy of self transcoded to Encoding.default_internal

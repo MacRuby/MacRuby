@@ -11,3 +11,5 @@ fails:String#unpack with 'V' and 'v' directives returns an array by decoding sel
 fails:String#unpack with 'N' and 'n' directives returns an array by decoding self according to the format string
 fails:String#unpack returns an array by decoding self in little-endian (native format) order according to the format string
 fails:String#unpack with 'm' directive returns an array by decoding self according to the format string
+fails:String#unpack with 'IiLlSs' directives uses sizeof(int) as an integer
+fails:String#unpack with 'lL' uses 4 bytes for an integer

@@ -1,1 +1,2 @@
 fails:IO#syswrite on a file warns if called immediately after a buffered IO#write
+fails:IO#syswrite writes all of the string's bytes without buffering if mode is sync

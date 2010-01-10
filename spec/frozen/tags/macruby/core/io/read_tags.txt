@@ -8,3 +8,4 @@ fails:IO#read truncates the buffer when too big
 fails:IO#read returns the given buffer
 fails:IO#read coerces the second argument to string and uses it as a buffer
 fails:IO#read strips the BOM when given 'rb:utf-7-bom' as the mode
+fails:IO#read with 1.9 encodings strips the BOM when given 'rb:utf-7-bom' as the mode

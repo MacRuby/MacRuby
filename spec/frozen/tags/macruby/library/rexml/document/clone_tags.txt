@@ -1,1 +1,2 @@
 fails:REXML::Document#clone clones document attributes
+fails:REXML::Document#clone clones document context

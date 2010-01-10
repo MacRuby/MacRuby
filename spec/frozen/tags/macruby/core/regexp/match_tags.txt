@@ -1,1 +1,2 @@
 fails:Regexp#~ matches against the contents of $_
+fails:Regexp#match should coerce Exceptions into strings

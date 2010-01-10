@@ -1,0 +1,1 @@
+fails:Math.gamma returns NaN given NaN

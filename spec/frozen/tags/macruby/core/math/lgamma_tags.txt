@@ -1,0 +1,4 @@
+fails:Math.lgamma returns an array of 2 elements
+fails:Math.lgamma returns known values
+fails:Math.lgamma returns correct values given +/- infinity
+fails:Math.lgamma returns correct value given NaN

@@ -1,0 +1,2 @@
+fails:Math.atanh raises an Errno::EDOM if x = 1.0
+fails:Math.atanh raises an Errno::EDOM if x = -1.0

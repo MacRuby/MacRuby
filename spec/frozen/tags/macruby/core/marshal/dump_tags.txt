@@ -18,3 +18,5 @@ fails:Marshal.dump dumps a marshal_dump object
 fails:Marshal.dump dumps a _dump object extended
 fails:Marshal.dump dumps a Regexp
 fails:Marshal.dump dumps a String small
+fails:Marshal.dump returns an untrusted string if object is untrusted
+fails:Marshal.dump returns an untrusted string if object is untrusted deep in nested structure

@@ -1,0 +1,2 @@
+fails:File.readlink return the name of the file referenced by the given link
+fails:File.readlink raises an Errno::ENOENT if called with an invalid argument

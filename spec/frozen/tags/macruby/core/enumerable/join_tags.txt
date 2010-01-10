@@ -7,3 +7,4 @@ fails:Enumerable#join does not consider taint of either the array or the separat
 fails:Enumerable#join returns a string which would be infected with taint of the array, its elements or the separator when the array is not empty
 fails:Enumerable#join does not consider untrustworthiness of either the array or the separator when the array is empty
 fails:Enumerable#join returns a string which would be infected with untrustworthiness of the array, its elements or the separator when the array is not empty
+fails:Enumerable#join returns a string formed by concatenating each element.to_str separated by separator without trailing separator

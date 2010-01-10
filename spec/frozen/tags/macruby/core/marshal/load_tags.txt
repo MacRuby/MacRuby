@@ -7,3 +7,4 @@ fails:Marshal::load loads a Bignum 2**64
 fails:Marshal::load loads a Bignum 2**90
 fails:Marshal::load loads a Bignum -2**64
 fails:Marshal::load loads a 'a'..'b'
+fails:Marshal::load returns an untrusted object if source is untrusted
