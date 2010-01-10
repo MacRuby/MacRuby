@@ -50,3 +50,5 @@ assert 'nil', "def foo; nil; end; def bar; p :nok; end; x = (foo && bar); p x"
 assert 'false', "def foo; false; end; def bar; p :nok; end; x = (foo && bar); p x"
 assert ":ok\nnil", "def foo; p :ok; end; def bar; nil; end; x = (foo && bar); p x"
 assert ":ok\nfalse", "def foo; p :ok; end; def bar; false; end; x = (foo && bar); p x"
+
+assert "[4, 5, 6, 7, 8]", "p (1..10).select { |i| true if (i == 4)..(i == 8) }"
