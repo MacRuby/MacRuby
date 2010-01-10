@@ -14,6 +14,8 @@ describe :net_ftp_gettextfile, :shared => :true do
     @ftp.quit rescue nil
     @ftp.close
     @server.stop
+
+    rm_r @tmp_file
   end
   
   it "sends the RETR command to the server" do

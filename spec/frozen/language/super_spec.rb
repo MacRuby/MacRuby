@@ -76,6 +76,14 @@ describe "The super keyword" do
     end
   end
 
+  it "calls the superclass method when in a block" do
+    Super::S6.new.here.should == :good
+  end
+
+  it "calls the superclass method when initial method is defined_method'd" do
+    Super::S7.new.here.should == :good
+  end
+
   # MacRuby TODO: compile error
   # it "supers up appropriate name even if used for multiple method names" do
   #   sup = Class.new do

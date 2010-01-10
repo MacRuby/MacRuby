@@ -3,11 +3,11 @@ require File.dirname(__FILE__) + '/../../spec_helper'
 describe "File.atime" do
   before :each do
     @file = tmp('test.txt')
-    File.open(@file, "w") {} # touch
+    touch @file
   end
 
   after :each do
-    File.delete(@file) if File.exist?(@file)
+    rm_r @file
   end
 
   it "returns the last access time for the named file as a Time object" do

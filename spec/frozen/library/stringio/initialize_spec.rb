@@ -9,19 +9,19 @@ describe "StringIO#initialize when passed [Object, mode]" do
   it "uses the passed Object as the StringIO backend" do
     @io.send(:initialize, str = "example", "r")
     @io.string.should equal(str)
-  end   
+  end
 
   it "sets the mode based on the passed mode" do
     io = StringIO.allocate
     io.send(:initialize, "example", "r")
     io.closed_read?.should be_false
     io.closed_write?.should be_true
-      
+
     io = StringIO.allocate
     io.send(:initialize, "example", "rb")
     io.closed_read?.should be_false
     io.closed_write?.should be_true
-    
+
     io = StringIO.allocate
     io.send(:initialize, "example", "r+")
     io.closed_read?.should be_false
@@ -31,46 +31,46 @@ describe "StringIO#initialize when passed [Object, mode]" do
     io.send(:initialize, "example", "rb+")
     io.closed_read?.should be_false
     io.closed_write?.should be_false
-    
+
     io = StringIO.allocate
     io.send(:initialize, "example", "w")
     io.closed_read?.should be_true
     io.closed_write?.should be_false
-    
+
     io = StringIO.allocate
     io.send(:initialize, "example", "wb")
     io.closed_read?.should be_true
     io.closed_write?.should be_false
-    
+
     io = StringIO.allocate
     io.send(:initialize, "example", "w+")
     io.closed_read?.should be_false
     io.closed_write?.should be_false
-    
+
     io = StringIO.allocate
     io.send(:initialize, "example", "wb+")
     io.closed_read?.should be_false
     io.closed_write?.should be_false
-    
+
     io = StringIO.allocate
     io.send(:initialize, "example", "a")
     io.closed_read?.should be_true
     io.closed_write?.should be_false
-    
+
     io = StringIO.allocate
     io.send(:initialize, "example", "ab")
     io.closed_read?.should be_true
     io.closed_write?.should be_false
-    
+
     io = StringIO.allocate
     io.send(:initialize, "example", "a+")
     io.closed_read?.should be_false
     io.closed_write?.should be_false
-    
+
     io = StringIO.allocate
     io.send(:initialize, "example", "ab+")
     io.closed_read?.should be_false
-    io.closed_write?.should be_false        
+    io.closed_write?.should be_false
   end
 
   it "allows passing the mode as an Integer" do
@@ -108,8 +108,8 @@ describe "StringIO#initialize when passed [Object, mode]" do
     io.send(:initialize, "example", IO::RDWR | IO::APPEND)
     io.closed_read?.should be_false
     io.closed_write?.should be_false
-  end    
-  
+  end
+
   ruby_version_is "" ... "1.9" do
      it "raises a TypeError when passed a frozen String in truncate mode as StringIO backend" do
       io = StringIO.allocate
@@ -122,7 +122,7 @@ describe "StringIO#initialize when passed [Object, mode]" do
       io = StringIO.allocate
       lambda { io.send(:initialize, "example".freeze, IO::TRUNC) }.should raise_error(RuntimeError)
     end
-  end  
+  end
 
   it "tries to convert the passed mode to a String using #to_str" do
     obj = mock('to_str')
@@ -137,10 +137,10 @@ describe "StringIO#initialize when passed [Object, mode]" do
     (str = "example").freeze
     lambda { @io.send(:initialize, str, "r+") }.should raise_error(Errno::EACCES)
     lambda { @io.send(:initialize, str, "w") }.should raise_error(Errno::EACCES)
-    lambda { @io.send(:initialize, str, "a") }.should raise_error(Errno::EACCES)  
-  end   
+    lambda { @io.send(:initialize, str, "a") }.should raise_error(Errno::EACCES)
+  end
 end
-     
+
 describe "StringIO#initialize when passed [Object]" do
   before(:each) do
     @io = StringIO.allocate
@@ -171,22 +171,14 @@ describe "StringIO#initialize when passed [Object]" do
     @io.closed_write?.should be_true
   end
 end
-      
+
 describe "StringIO#initialize when passed no arguments" do
   before(:each) do
     @io = StringIO.allocate
   end
 
-  ruby_version_is "" ... "1.9" do
-    it "is private" do
-      @io.private_methods.should include('initialize')
-    end
-  end 
-  
-  ruby_version_is "1.9" do
-    it "is private" do
-      @io.private_methods.should include(:initialize)
-    end
+  it "is private" do
+    StringIO.should have_private_instance_method(:initialize)
   end
 
   it "sets the mode to read-write" do
@@ -199,4 +191,4 @@ describe "StringIO#initialize when passed no arguments" do
     @io.send(:initialize)
     @io.string.should == ""
   end
-end                
+end

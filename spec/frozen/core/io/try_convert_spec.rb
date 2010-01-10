@@ -2,7 +2,7 @@ require File.dirname(__FILE__) + '/../../spec_helper'
 require File.dirname(__FILE__) + '/fixtures/classes'
 
 describe "IO.try_convert" do
-  ruby_version_is "1.9" do
+  ruby_version_is "1.8.8" do
     it "returns self for IO objects" do
       fd_1 = IO.new(1)
       IO.try_convert(fd_1).should equal(fd_1)

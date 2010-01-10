@@ -25,6 +25,11 @@ describe "The break statement" do
 end
 
 describe "Executing break from within a block" do
+
+  before :each do
+    ScratchPad.clear
+  end
+
   it "returns from the invoking singleton method" do
     obj = Object.new
     def obj.meth_with_block
@@ -93,6 +98,43 @@ describe "Executing break from within a block" do
     res.should == :return_value
 
   end
+
+  class BreakTest2
+    def one
+      two { yield }
+    end
+
+    def two
+      yield
+    ensure
+      ScratchPad << :two_ensure
+    end
+
+    def three
+      begin
+        one { break }
+        ScratchPad << :three_post
+      ensure
+        ScratchPad << :three_ensure
+      end
+    end
+  end
+
+  it "runs ensures when continuing upward" do
+    ScratchPad.record []
+
+    bt2 = BreakTest2.new
+    bt2.one { break }
+    ScratchPad.recorded.should == [:two_ensure]
+  end
+
+  it "doesn't run ensures in the destination method" do
+    ScratchPad.record []
+
+    bt2 = BreakTest2.new
+    bt2.three
+    ScratchPad.recorded.should == [:two_ensure, :three_post, :three_ensure]
+  end
 end
 
 describe "Breaking out of a loop with a value" do
@@ -110,19 +152,27 @@ describe "Breaking out of a loop with a value" do
     a = loop do break [*[1,2]]; end; a.should == [1,2]
   end
 
+  it "assigns splatted objects" do
+    a = loop do break *[1,2]; end;    a.should == [1,2]
+    a = loop do break *[*[1,2]]; end; a.should == [1,2]
+  end
+
   ruby_version_is "" ... "1.9" do
-    it "assigns splatted objects" do
+    it "assigns nil objects when the splatted object is nil, an empty array or contains a nil object" do
       a = loop do break *nil; end;      a.should == nil
       a = loop do break *[]; end;       a.should == nil
+      a = loop do break *[nil]; end;    a.should == nil
+      a = loop do break *[*[]]; end;    a.should == nil
+    end
+
+    it "assigns an empty array when the splatted array contains an empty array" do
+      a = loop do break *[[]]; end;     a.should == []
+    end
+
+    it "assigns the splatted object if it doesn't respont to to_ary" do
       a = loop do break *1; end;        a.should == 1
       a = loop do break *[1]; end;      a.should == 1
-      a = loop do break *[nil]; end;    a.should == nil
-      a = loop do break *[[]]; end;     a.should == []
-      a = loop do break *[*[]]; end;    a.should == nil
-      a = loop do break *[1]; end;      a.should == 1
       a = loop do break *[*[1]]; end;   a.should == 1
-      a = loop do break *[1,2]; end;    a.should == [1,2]
-      a = loop do break *[*[1,2]]; end; a.should == [1,2]
     end
   end
 
@@ -130,23 +180,32 @@ describe "Breaking out of a loop with a value" do
     it "assigns splatted objects" do
       a = loop do break *nil; end;      a.should == []
       a = loop do break *[]; end;       a.should == []
+      a = loop do break *[*[]]; end;    a.should == []
+    end
+
+    it "assigns an array containing an empty array when the splatted array contains an empty array" do
+      a = loop do break *[[]]; end;     a.should == [[]]
+    end
+
+    it "assigns an array with a nil object when the splatted object contains a nil object" do
+      a = loop do break *[nil]; end;    a.should == [nil]
+    end
+
+    it "assigns an array that contains the splatted object if the splatted objects doesn't respond to to_a" do
       a = loop do break *1; end;        a.should == [1]
       a = loop do break *[1]; end;      a.should == [1]
-      a = loop do break *[nil]; end;    a.should == [nil]
-      a = loop do break *[[]]; end;     a.should == [[]]
-      a = loop do break *[*[]]; end;    a.should == []
-      a = loop do break *[1]; end;      a.should == [1]
       a = loop do break *[*[1]]; end;   a.should == [1]
-      a = loop do break *[1,2]; end;    a.should == [1,2]
-      a = loop do break *[*[1,2]]; end; a.should == [1,2]
     end
   end
 
+  it "assigns to a splatted reference" do
+    *a = loop do break; end;          a.should == [nil]
+    *a = loop do break nil; end;      a.should == [nil]
+    *a = loop do break 1; end;        a.should == [1]
+  end
+
   ruby_version_is "" ... "1.9" do
-    it "assigns to a splatted reference" do
-      *a = loop do break; end;          a.should == [nil]
-      *a = loop do break nil; end;      a.should == [nil]
-      *a = loop do break 1; end;        a.should == [1]
+    it "assigns arrays into another array to a splatted reference" do
       *a = loop do break []; end;       a.should == [[]]
       *a = loop do break [1]; end;      a.should == [[1]]
       *a = loop do break [nil]; end;    a.should == [[nil]]
@@ -159,10 +218,7 @@ describe "Breaking out of a loop with a value" do
   end
 
   ruby_version_is "1.9" do
-    it "assigns to a splatted reference" do
-      *a = loop do break; end;          a.should == [nil]
-      *a = loop do break nil; end;      a.should == [nil]
-      *a = loop do break 1; end;        a.should == [1]
+    it "assigns arrays to a splatted reference" do
       *a = loop do break []; end;       a.should == []
       *a = loop do break [1]; end;      a.should == [1]
       *a = loop do break [nil]; end;    a.should == [nil]
@@ -174,63 +230,70 @@ describe "Breaking out of a loop with a value" do
     end
   end
 
+  it "assings splatted objects to a splatted reference" do
+    *a = loop do break *1; end;        a.should == [1]
+    *a = loop do break *[1]; end;      a.should == [1]
+    *a = loop do break *[nil]; end;    a.should == [nil]
+    *a = loop do break *[[]]; end;     a.should == [[]]
+    *a = loop do break *[*[1]]; end;   a.should == [1]
+  end
+
   ruby_version_is "" ... "1.9" do
-    it "assigns splatted objects to a splatted reference" do
+    it "assigns arrays with nil objects to a splatted reference" do
       *a = loop do break *nil; end;      a.should == [nil]
       *a = loop do break *[]; end;       a.should == [nil]
-      *a = loop do break *[1,2]; end;    a.should == [[1,2]]
       *a = loop do break *[*[]]; end;    a.should == [nil]
+    end
+
+    it "assigns an array containing an array to splatted reference when the object is an splatted array" do
+      *a = loop do break *[1,2]; end;    a.should == [[1,2]]
       *a = loop do break *[*[1,2]]; end; a.should == [[1,2]]
-      *a = loop do break *1; end;        a.should == [1]
-      *a = loop do break *[1]; end;      a.should == [1]
-      *a = loop do break *[nil]; end;    a.should == [nil]
-      *a = loop do break *[[]]; end;     a.should == [[]]
-      *a = loop do break *[*[1]]; end;   a.should == [1]
     end
   end
 
   ruby_version_is "1.9" do
-    it "assigns splatted objects to a splatted reference" do
+    it "assigns empty arrays to a splatted reference" do
       *a = loop do break *nil; end;      a.should == []
       *a = loop do break *[]; end;       a.should == []
-      *a = loop do break *[1,2]; end;    a.should == [1,2]
       *a = loop do break *[*[]]; end;    a.should == []
-      *a = loop do break *[*[1,2]]; end; a.should == [1,2]
-      *a = loop do break *1; end;        a.should == [1]
-      *a = loop do break *[1]; end;      a.should == [1]
-      *a = loop do break *[nil]; end;    a.should == [nil]
-      *a = loop do break *[[]]; end;     a.should == [[]]
-      *a = loop do break *[*[1]]; end;   a.should == [1]
     end
+
+    it "assigns an array to splatted reference when the object is an splatted array" do
+      *a = loop do break *[1,2]; end;    a.should == [1,2]
+      *a = loop do break *[*[1,2]]; end; a.should == [1,2]
+    end
+  end
+
+  it "assigns splatted objects to a splatted reference from a splatted loop" do
+    *a = *loop do break *1; end;        a.should == [1]
+    *a = *loop do break *[1]; end;      a.should == [1]
+    *a = *loop do break *[nil]; end;    a.should == [nil]
+    *a = *loop do break *[1,2]; end;    a.should == [1,2]
+    *a = *loop do break *[*[1]]; end;   a.should == [1]
+    *a = *loop do break *[*[1,2]]; end; a.should == [1,2]
   end
 
   ruby_version_is "" ... "1.9" do
-    it "assigns splatted objects to a splatted reference from a splatted loop" do
+    it "assigns arrays with a nil object to a splatted reference from a splatted loop" do
       *a = *loop do break *nil; end;      a.should == [nil]
       *a = *loop do break *[]; end;       a.should == [nil]
-      *a = *loop do break *[[]]; end;     a.should == []
       *a = *loop do break *[*[]]; end;    a.should == [nil]
-      *a = *loop do break *1; end;        a.should == [1]
-      *a = *loop do break *[1]; end;      a.should == [1]
-      *a = *loop do break *[nil]; end;    a.should == [nil]
-      *a = *loop do break *[1,2]; end;    a.should == [1,2]
-      *a = *loop do break *[*[1]]; end;   a.should == [1]
-      *a = *loop do break *[*[1,2]]; end; a.should == [1,2]
+    end
+
+    it "assigns an empty array to a splatted reference when the splatted array from a splatted loop contains an empty array" do
+      *a = *loop do break *[[]]; end;     a.should == []
     end
   end
 
   ruby_version_is "1.9" do
-    it "assigns splatted objects to a splatted reference from a splatted loop" do
+    it "assigns empty arrays to a splatted reference from a splatted loop" do
       *a = *loop do break *nil; end;      a.should == []
       *a = *loop do break *[]; end;       a.should == []
-      *a = *loop do break *[[]]; end;     a.should == [[]]
       *a = *loop do break *[*[]]; end;    a.should == []
-      *a = *loop do break *1; end;        a.should == [1]
-      *a = *loop do break *[1]; end;      a.should == [1]
-      *a = *loop do break *[nil]; end;    a.should == [nil]
-      *a = *loop do break *[1,2]; end;    a.should == [1,2]
-      *a = *loop do break *[*[1]]; end;   a.should == [1]
-      *a = *loop do break *[*[1,2]]; end; a.should == [1,2]
+    end
+
+    it "assigns an array containing an empty array to a splatter reference when the splatter array from a splatted loop contains an empty array" do
+      *a = *loop do break *[[]]; end;     a.should == [[]]
     end
   end
 
@@ -248,33 +311,27 @@ describe "Breaking out of a loop with a value" do
     a,b,*c = loop do break [*[1,2]]; end; [a,b,c].should == [1,2,[]]
   end
 
+  it "assigns splatted objects to multiple block variables" do
+    a,b,*c = loop do break *nil; end;      [a,b,c].should == [nil,nil,[]]
+    a,b,*c = loop do break *1; end;        [a,b,c].should == [1,nil,[]]
+    a,b,*c = loop do break *[]; end;       [a,b,c].should == [nil,nil,[]]
+    a,b,*c = loop do break *[1]; end;      [a,b,c].should == [1,nil,[]]
+    a,b,*c = loop do break *[nil]; end;    [a,b,c].should == [nil,nil,[]]
+    a,b,*c = loop do break *[1,2]; end;    [a,b,c].should == [1,2,[]]
+    a,b,*c = loop do break *[*[]]; end;    [a,b,c].should == [nil,nil,[]]
+    a,b,*c = loop do break *[*[1]]; end;   [a,b,c].should == [1,nil,[]]
+    a,b,*c = loop do break *[*[1,2]]; end; [a,b,c].should == [1,2,[]]
+  end
+
   ruby_version_is "" ... "1.9" do
-    it "assigns splatted objects to multiple block variables" do
-      a,b,*c = loop do break *nil; end;      [a,b,c].should == [nil,nil,[]]
-      a,b,*c = loop do break *1; end;        [a,b,c].should == [1,nil,[]]
-      a,b,*c = loop do break *[]; end;       [a,b,c].should == [nil,nil,[]]
-      a,b,*c = loop do break *[1]; end;      [a,b,c].should == [1,nil,[]]
-      a,b,*c = loop do break *[nil]; end;    [a,b,c].should == [nil,nil,[]]
+    it "assigns nil to variables when the splatted value is an empty array" do
       a,b,*c = loop do break *[[]]; end;     [a,b,c].should == [nil,nil,[]]
-      a,b,*c = loop do break *[1,2]; end;    [a,b,c].should == [1,2,[]]
-      a,b,*c = loop do break *[*[]]; end;    [a,b,c].should == [nil,nil,[]]
-      a,b,*c = loop do break *[*[1]]; end;   [a,b,c].should == [1,nil,[]]
-      a,b,*c = loop do break *[*[1,2]]; end; [a,b,c].should == [1,2,[]]
     end
   end
 
   ruby_version_is "1.9" do
-    it "assigns splatted objects to multiple block variables" do
-      a,b,*c = loop do break *nil; end;      [a,b,c].should == [nil,nil,[]]
-      a,b,*c = loop do break *1; end;        [a,b,c].should == [1,nil,[]]
-      a,b,*c = loop do break *[]; end;       [a,b,c].should == [nil,nil,[]]
-      a,b,*c = loop do break *[1]; end;      [a,b,c].should == [1,nil,[]]
-      a,b,*c = loop do break *[nil]; end;    [a,b,c].should == [nil,nil,[]]
+    it "assigns an empty array to variables when the splatted value is an empty array" do
       a,b,*c = loop do break *[[]]; end;     [a,b,c].should == [[],nil,[]]
-      a,b,*c = loop do break *[1,2]; end;    [a,b,c].should == [1,2,[]]
-      a,b,*c = loop do break *[*[]]; end;    [a,b,c].should == [nil,nil,[]]
-      a,b,*c = loop do break *[*[1]]; end;   [a,b,c].should == [1,nil,[]]
-      a,b,*c = loop do break *[*[1,2]]; end; [a,b,c].should == [1,2,[]]
     end
   end
 

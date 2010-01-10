@@ -31,13 +31,13 @@ describe "Thread#raise on a sleeping thread" do
   it "raises the given exception" do
     @thr.raise Exception
     Thread.pass while @thr.status
-    ScratchPad.recorded.class.should == Exception
+    ScratchPad.recorded.should be_kind_of(Exception)
   end
 
   it "raises the given exception with the given message" do
     @thr.raise Exception, "get to work"
     Thread.pass while @thr.status
-    ScratchPad.recorded.class.should == Exception
+    ScratchPad.recorded.should be_kind_of(Exception)
     ScratchPad.recorded.message.should == "get to work"
   end
 
@@ -50,8 +50,8 @@ describe "Thread#raise on a sleeping thread" do
     lambda {t.value}.should raise_error(RuntimeError)
   end
 
-  ruby_version_is "" ... "1.9" do
-    it "re-raises active exception" do
+  ruby_version_is "1.9" do
+    it "raises a RuntimeError when called with no arguments" do
       t = Thread.new do
         begin
           1/0
@@ -59,10 +59,13 @@ describe "Thread#raise on a sleeping thread" do
           sleep 3
         end
       end
-  
-      Thread.pass while t.status and t.status != "sleep"
-      t.raise
-      lambda {t.value}.should raise_error(ZeroDivisionError)
+      begin
+        raise RangeError
+      rescue
+        Thread.pass while t.status and t.status != "sleep"
+        t.raise
+      end
+      lambda {t.value}.should raise_error(RuntimeError)
       t.kill
     end
   end
@@ -88,13 +91,13 @@ describe "Thread#raise on a running thread" do
   it "raises the given exception" do
     @thr.raise Exception
     Thread.pass while @thr.status
-    ScratchPad.recorded.class.should == Exception
+    ScratchPad.recorded.should be_kind_of(Exception)
   end
 
   it "raises the given exception with the given message" do
     @thr.raise Exception, "get to work"
     Thread.pass while @thr.status
-    ScratchPad.recorded.class.should == Exception
+    ScratchPad.recorded.should be_kind_of(Exception)
     ScratchPad.recorded.message.should == "get to work"
   end
 
@@ -108,7 +111,7 @@ describe "Thread#raise on a running thread" do
   end
 
   ruby_version_is "" ... "1.9" do
-    it "re-raises active exception" do
+    it "raise the given argument even when there is an active exception" do
       raised = false
       t = Thread.new do
         begin
@@ -118,11 +121,15 @@ describe "Thread#raise on a running thread" do
           loop { }
         end
       end
-  
-      Thread.pass until raised || !t.alive?
-      t.raise
-      lambda {t.value}.should raise_error(ZeroDivisionError)
+      begin
+        raise "Create an active exception for the current thread too"
+      rescue
+        Thread.pass until raised || !t.alive?
+        t.raise RangeError
+        lambda {t.value}.should raise_error(RangeError)
+      end
     end
+
   end
 end
 

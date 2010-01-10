@@ -2,11 +2,19 @@ require File.dirname(__FILE__) + '/../../spec_helper'
 require File.dirname(__FILE__) + '/fixtures/common'
 
 describe "Dir.chdir" do
-  before(:each) do
+  before :all do
+    DirSpecs.create_mock_dirs
+  end
+
+  after :all do
+    DirSpecs.delete_mock_dirs
+  end
+
+  before :each do
     @original = Dir.pwd
   end
 
-  after(:each) do
+  after :each do
     Dir.chdir(@original)
   end
 
@@ -33,6 +41,12 @@ describe "Dir.chdir" do
     obj = mock('path')
     obj.should_receive(:to_str).and_return(Dir.pwd)
     Dir.chdir(obj)
+  end
+
+  it "calls #to_str on the argument if it's not a String and a block is given" do
+    obj = mock('path')
+    obj.should_receive(:to_str).and_return(Dir.pwd)
+    Dir.chdir(obj) { }
   end
 
   ruby_version_is "1.9" do

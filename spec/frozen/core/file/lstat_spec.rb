@@ -10,13 +10,12 @@ describe "File.lstat" do
   before :each do
     @file = tmp('i_exist')
     @link = tmp('i_am_a_symlink')
-    File.open(@file,'w'){|f| f.write 'rubinius'}
+    touch(@file) { |f| f.write 'rubinius' }
     File.symlink(@file, @link)
   end
 
   after :each do
-    File.delete(@link) if File.exist?(@link)
-    File.delete(@file) if File.exist?(@file)
+    rm_r @link, @file
   end
   
   it "returns a File::Stat object with symlink properties for a symlink" do

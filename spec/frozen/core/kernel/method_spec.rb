@@ -21,6 +21,11 @@ describe "Kernel#method" do
     @obj.method(:protected_method).should be_an_instance_of(Method)
   end
 
+  it "can call methods created with define_method" do
+    m = @obj.method(:defined_method)
+    m.call.should == :defined
+  end
+
   ruby_version_is "1.9.2" do
     it "can be called even if we only repond_to_missing? method, true" do
       m = KernelSpecs::RespondViaMissing.new.method(:handled_privately)

@@ -6,19 +6,11 @@ describe "StringIO#initialize_copy" do
     @io      = StringIO.new("StringIO example")
     @orig_io = StringIO.new("Original StringIO")
   end
-  
-  ruby_version_is "" ... "1.9" do
-    it "is private" do
-      @io.private_methods.should include('initialize_copy')
-    end
-  end  
-    
-  ruby_version_is "1.9" do
-    it "is private" do
-      @io.private_methods.should include(:initialize_copy)
-    end
+
+  it "is private" do
+    StringIO.should have_private_instance_method(:initialize_copy)
   end
-  
+
   it "returns self" do
     @io.send(:initialize_copy, @orig_io).should equal(@io)
   end
@@ -85,5 +77,20 @@ describe "StringIO#initialize_copy" do
     
     @io.send(:initialize_copy, orig_io)
     @io.string.should == "not truncated"
+  end
+
+  it "makes both StringIO objects to share position, eof status" do
+    @io.send(:initialize_copy, @orig_io)
+    @orig_io.pos.should == 0
+    @io.getc
+    @io.pos.should == 1
+    @orig_io.pos.should == 1
+    @orig_io.read(1).should == "r"
+    @io.read(1).should == "i"
+    @orig_io.pos.should == 3
+    @orig_io.pos.should == 3
+    @io.gets(nil)
+    @io.eof?.should == true
+    @orig_io.eof?.should == true
   end
 end

@@ -1,7 +1,5 @@
 require File.dirname(__FILE__) + '/../../spec_helper'
 
-require 'fileutils'
-
 $load_fixture_dir = (File.dirname(__FILE__) + '/../../fixtures/load')
 $LOAD_PATH << $load_fixture_dir
 
@@ -31,13 +29,6 @@ require 'rbconfig'
 describe "Kernel#load" do
   it "is a private method" do
     Kernel.should have_private_instance_method(:load)
-  end
-
-  # Avoid storing .rbc in repo
-  before :all do
-    Dir.chdir($load_fixture_dir) do |dir|
-      FileUtils.rm_f(Dir["*.rbc"])
-    end
   end
 
   it "loads a .rb from an absolute path and returns true" do
@@ -221,8 +212,8 @@ describe "Kernel#load" do
 
   runner_is_not :rspec do
     it "allows wrapping the code in the file in an anonymous module" do
-      !!defined?(LoadSpecWrap).should == false
-      !!defined?(LoadSpecWrapTwo).should == false
+      defined?(LoadSpecWrap).should == nil
+      defined?(LoadSpecWrapTwo).should == nil
 
       load('load_spec_wrap.rb').should == true
       $load_spec_wrap.nil?.should == false
@@ -230,7 +221,7 @@ describe "Kernel#load" do
 
       load('load_spec_wrap2.rb', true).should == true
       $load_spec_wrap2.nil?.should == false
-      !!defined?(LoadSpecWrapTwo).should == false
+      defined?(LoadSpecWrapTwo).should == nil
     end
   end
 end

@@ -66,19 +66,15 @@ describe :argf_gets_inplace_edit, :shared => true do
     @tmp1_name_bak = @tmp1_name + ".bak"
     @tmp2_name_bak = @tmp2_name + ".bak"
 
-    FileUtils.cp @file1_name, @tmp1_name
-    FileUtils.cp @file2_name, @tmp2_name
+    cp @file1_name, @tmp1_name
+    cp @file2_name, @tmp2_name
 
     method = "ARGF.send(#{@method.inspect})"
     @code = "begin while line = #{method} do puts 'x' end rescue EOFError; end"
   end
 
   after :each do
-    File.delete @tmp1_name if File.exists? @tmp1_name
-    File.delete @tmp2_name if File.exists? @tmp2_name
-
-    File.delete @tmp1_name_bak if File.exists? @tmp1_name_bak
-    File.delete @tmp2_name_bak if File.exists? @tmp2_name_bak
+    rm_r @tmp1_name, @tmp2_name, @tmp1_name_bak, @tmp2_name_bak
   end
 
   it "modifies the files when in place edit mode is on" do

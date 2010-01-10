@@ -4,12 +4,12 @@ describe "File::Stat#initialize" do
 
   before :each do
     @file = tmp('i_exist')
-    File.open(@file,'w'){|f| f.write 'rubinius'}
+    touch(@file) { |f| f.write "rubinius" }
     File.chmod(0755, @file)
   end
 
   after :each do
-    File.delete(@file) if File.exist?(@file)
+    rm_r @file
   end
 
   it "raises an exception if the file doesn't exist" do
@@ -18,7 +18,7 @@ describe "File::Stat#initialize" do
 
   it "creates a File::Stat object for the given file" do
     st = File::Stat.new(@file)
-    st.class.should == File::Stat
+    st.should be_kind_of(File::Stat)
     st.ftype.should == 'file'
   end
 

@@ -21,14 +21,28 @@ describe "IO#reopen" do
     @file2.close unless @file2.closed?
     @file1_w.close unless @file1_w.closed?
     @file2_w.close unless @file2_w.closed?
-    File.delete(@name1_w)
-    File.delete(@name2_w)
+    rm_r @name1_w, @name2_w
   end
 
   it "raises IOError on closed stream" do
     File.open(File.dirname(__FILE__) + '/fixtures/gets.txt', 'r') { |f|
       lambda { f.reopen(IOSpecs.closed_file) }.should raise_error(IOError)
     }
+  end
+
+  it "raises IOError when called on closed stream" do
+    @file1.close
+    lambda { @file1.reopen(@file2) }.should raise_error(IOError)
+  end
+
+  it "should not raise IOError when called on closed stream with path" do
+    @file1.close
+    lambda do
+      @file1.reopen(@name2, "r")
+    end.should_not raise_error(IOError)
+
+    @file1.closed?.should be_false
+    @file1.gets.should == "Line 1: One\n"
   end
 
   it "reassociates self to another file/descriptor but returns self" do

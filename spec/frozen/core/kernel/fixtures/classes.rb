@@ -52,6 +52,9 @@ module KernelSpecs
 
     private
     def private_method; :private_method; end
+
+    public
+    define_method(:defined_method) { :defined }
   end
 
   class Binding
@@ -172,6 +175,18 @@ module KernelSpecs
     include InstEval
   end
 
+  class InstEvalConst
+    INST_EVAL_CONST_X = 2
+  end
+
+  module InstEvalOuter
+    module Inner
+      obj = InstEvalConst.new
+      X_BY_STR = obj.instance_eval("INST_EVAL_CONST_X") rescue nil
+      X_BY_BLOCK = obj.instance_eval { INST_EVAL_CONST_X } rescue nil
+    end
+  end
+
   class EvalTest
     def self.eval_yield_with_binding
       eval("yield", binding)
@@ -228,6 +243,26 @@ module KernelSpecs
     undef_method :parent_mixin_method
   end
 
+  # for testing lambda
+  class Lambda
+    def outer(meth)
+      inner(meth)
+    end
+
+    def mp(&b); b; end
+
+    def inner(meth)
+      b = mp { return :good }
+
+      pr = send(meth) { |x| x.call }
+
+      pr.call(b)
+
+      # We shouldn't be here, b should have unwinded through
+      return :bad
+    end
+  end
+
   class RespondViaMissing
     def respond_to_missing?(method, priv=false)
       case method
@@ -258,6 +293,12 @@ class EvalSpecs
 
   def f
     yield
+  end
+
+  def self.call_eval
+    f = __FILE__
+    eval "true", binding, "(eval)", 1
+    return f
   end
 end
 

@@ -18,7 +18,7 @@ describe "Process.wait" do
     it "sets $? to a Process::Status" do
       pid = Process.fork { Process.exit! }
       Process.wait
-      $?.class.should == Process::Status
+      $?.should be_kind_of(Process::Status)
       $?.pid.should == pid
     end
 
@@ -67,8 +67,16 @@ describe "Process.wait" do
 
     # This spec is probably system-dependent.
     it "doesn't block if no child is available when WNOHANG is used" do
-      pid = Process.fork { 10.times { sleep(1) }; Process.exit! }
+      pid = Process.fork do
+        Signal.trap("TERM") { Process.exit! }
+        10.times { sleep(1) }
+        Process.exit!
+      end
       Process.wait(pid, Process::WNOHANG).should == nil
+
+      # sleep slightly to allow the child to at least start up and
+      # setup it's TERM handler
+      sleep 0.25
       Process.kill("TERM", pid)
       Process.wait.should == pid
     end

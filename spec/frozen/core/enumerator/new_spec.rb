@@ -6,7 +6,7 @@ ruby_version_is "1.8.7" do
   describe "Enumerator.new" do
     it_behaves_like(:enum_new, :new)
 
-    ruby_version_is "1.9" do
+    ruby_version_is "1.8.8" do
       it "accepts a block" do
         enum = enumerator_class.new do |yielder|
           yielder.yield 3

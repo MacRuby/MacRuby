@@ -80,6 +80,28 @@ module Super
     end
   end
 
+  class S5
+    def here
+      :good
+    end
+  end
+
+  class S6 < S5
+    def under
+      yield
+    end
+
+    def here
+      under {
+        super
+      }
+    end
+  end
+
+  class S7 < S5
+    define_method(:here) { super() }
+  end
+
   module MS1
     module ModA
       def foo(a)

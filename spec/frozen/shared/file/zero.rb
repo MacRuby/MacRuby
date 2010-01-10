@@ -1,22 +1,16 @@
 describe :file_zero, :shared => true do
   before :each do
-    @zero_file    = 'test.txt'
-    @nonzero_file = 'test2.txt'
-    @dir = File.dirname(__FILE__)
+    @zero_file    = tmp("test.txt")
+    @nonzero_file = tmp("test2.txt")
 
-    File.open(@zero_file, "w") {|f| @zero_fh = f} # Touch
-    File.open(@nonzero_file, "w") { |f| f.puts "hello"; @nonzero_fh = f }
+    @dir = tmp("")
+
+    touch @zero_file
+    touch(@nonzero_file) { |f| f.puts "hello" }
   end
 
   after :each do
-    @zero_fh.close unless @zero_fh.closed?
-    @nonzero_fh.close unless @nonzero_fh.closed?
-    File.delete(@zero_file) if File.exists?(@zero_file)
-    File.delete(@nonzero_file) if File.exists?(@nonzero_file)
-    @zero_file    = nil
-    @zero_fh    = nil
-    @nonzero_file = nil
-    @nonzero_fh = nil
+    rm_r @zero_file, @nonzero_file
   end
 
   it "returns true if the file is empty" do
@@ -69,10 +63,9 @@ describe :file_zero, :shared => true do
   end
 
   platform_is :windows do
-    ruby_bug("redmine #449", "1.8.6") do
-      it "returns false for a directory" do
-        @object.send(@method, @dir).should == false
-      end
+    # see http://redmine.ruby-lang.org/issues/show/449 for background
+    it "returns true for a directory" do
+      @object.send(@method, @dir).should == true
     end
   end
 end

@@ -151,15 +151,15 @@ describe "String#unpack with 'Q' and 'q' directives" do
     it "returns Bignums for big numeric values on big-endian platforms" do
       "\xF3\x02\x00\x42\x32\x23\xB3\xF0".unpack('Q')[0].class.should ==
         17344245288696546035.class
-      "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFE".unpack('q')[0].class.should == Fixnum
+      "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFE".unpack('q')[0].should be_kind_of(Fixnum)
     end
   end
 
   it "returns Fixnums for small numeric values" do
     "\x00\x00\x00\x00\x00\x00\x00\x00".unpack('Q').should == [0]
     "\x00\x00\x00\x00\x00\x00\x00\x00".unpack('q').should == [0]
-    "\x00\x00\x00\x00\x00\x00\x00\x00".unpack('Q')[0].class.should == Fixnum
-    "\x00\x00\x00\x00\x00\x00\x00\x00".unpack('q')[0].class.should == Fixnum
+    "\x00\x00\x00\x00\x00\x00\x00\x00".unpack('Q')[0].should be_kind_of(Fixnum)
+    "\x00\x00\x00\x00\x00\x00\x00\x00".unpack('q')[0].should be_kind_of(Fixnum)
   end
 end
 
@@ -335,6 +335,47 @@ describe "String#unpack with 'IiLlSs' directives" do
           [167903234, 847770368, -83951614, 847770606]
         "\x7F\x77\x77\x77\x77\x77\x77\x77".unpack('i0I*').should == [2138535799, 2004318071]
       end
+    end
+  end
+
+  it "uses sizeof(int) as an integer" do
+    little_endian do
+      "\000\000\001\000".unpack("i").should == [65536]
+      "\000\000\001\000\000\000\001\000".unpack("i2").should == [65536, 65536]
+      "\000\000\001\000\000\000\001\000hello".unpack("i2a5").should == [65536, 65536, "hello"]
+      "\377\377\377\377".unpack("i").should == [-1]
+      "\377\377\377\377".unpack("I").should == [4294967295]
+      "\000\000\000\000\000\000\000\000".unpack("I*").should == [0,0]
+    end
+  end
+
+  it "ignores the result if there aren't 4 bytes" do
+    little_endian do
+      "\000".unpack("I").should == [nil]
+      "\000".unpack("I2").should == [nil, nil]
+      "\000".unpack("I*").should == []
+      "\000\000\000\000\000\000\000\000\000".unpack("I*").should == [0,0]
+    end
+  end
+end
+
+describe "String#unpack with 'lL'" do
+  it "uses 4 bytes for an integer" do
+    little_endian do
+      "\000\000\001\000".unpack("l").should == [65536]
+      "\000\000\001\000\000\000\001\000".unpack("l2").should == [65536, 65536]
+      "\000\000\001\000\000\000\001\000hello".unpack("l2a5").should == [65536, 65536, "hello"]
+      "\377\377\377\377".unpack("l").should == [-1]
+      "\377\377\377\377".unpack("L").should == [4294967295]
+    end
+  end
+
+  it "ignores the result if there aren't 4 bytes" do
+    little_endian do
+      "\000".unpack("L").should == [nil]
+      "\000".unpack("L2").should == [nil, nil]
+      "\000".unpack("L*").should == []
+      "\000\000\000\000\000\000\000\000\000".unpack("I*").should == [0,0]
     end
   end
 end

@@ -7,22 +7,22 @@ describe "Kernel#open" do
   end
   
   before :each do
-    @file = "test.txt"
-    File.open(@file, "w"){ |f| f.puts "This is a test" }
+    @name = tmp("kernel_open.txt")
+    touch(@name) { |f| f.write "This is a test" }
   end
   
   after :each do
-    File.delete(@file) rescue nil
+    rm_r @name
   end
   
   it "opens a file when given a valid filename" do
-    @file = open("test.txt")
-    @file.class.should == File
+    @file = open(@name)
+    @file.should be_kind_of(File)
   end
   
   it "opens a file when called with a block" do
-    @output = open("test.txt", "r") { |f| f.gets }
-    @output.should == "This is a test\n"
+    @output = open(@name, "r") { |f| f.gets }
+    @output.should == "This is a test"
   end
   
 
@@ -64,7 +64,7 @@ describe "Kernel#open" do
       obj = mock('fileish')
       obj.should_receive(:to_open).and_return(File.open(@file))
       @file = open(obj)
-      @file.class.should == File
+      @file.should be_kind_of(File)
     end
     
     it "raises a TypeError if passed a non-String that does not respond to #to_open" do

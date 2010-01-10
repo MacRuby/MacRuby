@@ -20,9 +20,9 @@ describe "BigDecimal#to_f" do
   end
 
   it "returns number of type float" do
-    BigDecimal("3.14159").to_f.class.should == Float
-    @vals.each { |val| val.to_f.class.should == Float }
-    @spec_vals.each { |val| val.to_f.class.should == Float }
+    BigDecimal("3.14159").to_f.should be_kind_of(Float)
+    @vals.each { |val| val.to_f.should be_kind_of(Float) }
+    @spec_vals.each { |val| val.to_f.should be_kind_of(Float) }
   end
 
   it "Floating point rounding occurs" do
@@ -32,8 +32,11 @@ describe "BigDecimal#to_f" do
     @two.to_f.should == 2.0
     @three.to_f.should be_close(3.0, TOLERANCE)
     @one_minus.to_f.should == -1.0
+
+    # regression test for [ruby-talk:338957]
+    BigDecimal("10.03").to_f.should == 10.03
   end
-  
+
   it "properly handles special values" do
     @zero.to_f.should == 0
     @zero.to_f.to_s.should == "0.0"

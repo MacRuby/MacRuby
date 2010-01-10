@@ -75,26 +75,26 @@ describe "Array#sort" do
     a = Array.new(25)
     (0...25).each {|i| a[i] = ArraySpecs::UFOSceptic.new }
 
-    a.sort { -1 }.class.should == Array
+    a.sort { -1 }.should be_kind_of(Array)
   end
 
   it "does not call #<=> on elements when invoked with a block even if Array is large (Rubinius #412)" do
     a = Array.new(1500)
     (0...1500).each {|i| a[i] = ArraySpecs::UFOSceptic.new }
 
-    a.sort { -1 }.class.should == Array
+    a.sort { -1 }.should be_kind_of(Array)
   end
 
   it "completes when supplied a block that always returns the same result" do
     a = [2, 3, 5, 1, 4]
-    a.sort {  1 }.class.should == Array
-    a.sort {  0 }.class.should == Array
-    a.sort { -1 }.class.should == Array
+    a.sort {  1 }.should be_kind_of(Array)
+    a.sort {  0 }.should be_kind_of(Array)
+    a.sort { -1 }.should be_kind_of(Array)
   end
 
   it "returns subclass instance on Array subclasses" do
     ary = ArraySpecs::MyArray[1, 2, 3]
-    ary.sort.class.should == ArraySpecs::MyArray
+    ary.sort.should be_kind_of(ArraySpecs::MyArray)
   end
 
   it "does not freezes self during being sorted" do
@@ -169,21 +169,21 @@ describe "Array#sort!" do
     a = Array.new(25)
     (0...25).each {|i| a[i] = ArraySpecs::UFOSceptic.new }
 
-    a.sort! { -1 }.class.should == Array
+    a.sort! { -1 }.should be_kind_of(Array)
   end
 
   it "does not call #<=> on elements when invoked with a block even if Array is large (Rubinius #412)" do
     a = Array.new(1500)
     (0...1500).each {|i| a[i] = ArraySpecs::UFOSceptic.new }
 
-    a.sort! { -1 }.class.should == Array
+    a.sort! { -1 }.should be_kind_of(Array)
   end
 
   it "completes when supplied a block that always returns the same result" do
     a = [2, 3, 5, 1, 4]
-    a.sort!{  1 }.class.should == Array
-    a.sort!{  0 }.class.should == Array
-    a.sort!{ -1 }.class.should == Array
+    a.sort!{  1 }.should be_kind_of(Array)
+    a.sort!{  0 }.should be_kind_of(Array)
+    a.sort!{ -1 }.should be_kind_of(Array)
   end
 
   ruby_version_is '' ... '1.9' do
@@ -191,10 +191,12 @@ describe "Array#sort!" do
       lambda { ArraySpecs.frozen_array.sort! }.should raise_error(TypeError)
     end
 
-    it "temporarily freezes self and recovers after sorted" do
-      a = [1, 2, 3]
-      a.sort! { |x,y| a.frozen?.should == true; x <=> y }
-      a.frozen?.should == false
+    not_compliant_on :rubinius do
+      it "temporarily freezes self and recovers after sorted" do
+        a = [1, 2, 3]
+        a.sort! { |x,y| a.frozen?.should == true; x <=> y }
+        a.frozen?.should == false
+      end
     end
   end
 

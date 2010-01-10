@@ -10,13 +10,29 @@ describe "File.stat" do
   before :each do
     @file = tmp('i_exist')
     @link = tmp('i_am_a_symlink')
-    File.open(@file,'w'){|f| f.write 'rubinius'}
+    touch(@file) { |f| f.write "rubinius" }
     File.symlink(@file, @link)
   end
 
   after :each do
-    File.delete(@link) if File.exist?(@link)
-    File.delete(@file) if File.exist?(@file)
+    rm_r @link, @file
+  end
+
+  it "returns information for a file that has been deleted but is still open" do
+    File.open(@file) do |f|
+      rm_r @link, @file
+
+      st = f.stat
+
+      st.file?.should == true
+      st.zero?.should == false
+      st.size.should == 8
+      st.size?.should == 8
+      st.blksize.should > 0
+      st.atime.should be_kind_of(Time)
+      st.ctime.should be_kind_of(Time)
+      st.mtime.should be_kind_of(Time)
+    end
   end
 
   platform_is_not :windows do

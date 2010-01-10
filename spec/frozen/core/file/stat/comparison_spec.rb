@@ -11,19 +11,22 @@ describe "File::Stat#<=>" do
   after :each do
     @file1.close unless @file1.closed?
     @file2.close unless @file2.closed?
-    File.delete @name1 if File.exists? @name1
-    File.delete @name2 if File.exists? @name2
+    rm_r @name1, @name2
   end
 
   it "is able to compare files by the same modification times" do
+    now = Time.now
+    File.utime(now, now, @name1)
+    File.utime(now, now, @name2)
     (@file1.stat <=> @file2.stat).should == 0
   end
 
   it "is able to compare files by different modification times" do
-    File.utime(Time.now, Time.now + 100, @name2)
+    now = Time.now
+    File.utime(now, now + 100, @name2)
     (@file1.stat <=> @file2.stat).should == -1
 
-    File.utime(Time.now, Time.now - 100, @name2)
+    File.utime(now, now - 100, @name2)
     (@file1.stat <=> @file2.stat).should == 1
   end
 
@@ -32,7 +35,8 @@ describe "File::Stat#<=>" do
     (@file1.stat == @file1.stat).should == true
     (@file2.stat == @file2.stat).should == true
 
-    File.utime(Time.now, Time.now + 100, @name2)
+    now = Time.now
+    File.utime(now, now + 100, @name2)
 
     (@file1.stat == @file2.stat).should == false
     (@file1.stat == @file1.stat).should == true

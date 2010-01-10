@@ -1,5 +1,6 @@
 class BeCloseToMatrixMatcher
   def initialize(expected, tolerance = TOLERANCE)
+    SpecExpectation.matcher! rescue "Used with the balance_should_and_match branch of mspec"
     @expected = Matrix[*expected]
     @tolerance = tolerance
   end

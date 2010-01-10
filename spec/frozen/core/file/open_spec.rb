@@ -11,13 +11,13 @@ describe "File.open" do
   before :each do
     @fh = @fd = nil
     @flags = File::CREAT | File::TRUNC | File::WRONLY
-    File.open(@file, "w") {} # touch
+    touch @file
   end
 
   after :each do
+    @fh.close if @fh and not @fh.closed?
     File.delete(@file) if File.exist?(@file)
     File.delete("fake") if File.exist?("fake")
-    @fh.close if @fh and not @fh.closed?
   end
 
   it "with block does not raise error when file is closed inside the block" do
@@ -59,6 +59,7 @@ describe "File.open" do
       class << f
         alias_method(:close_orig, :close)
         def close
+          close_orig
           raise IOError
         end
       end
@@ -432,10 +433,14 @@ describe "File.open" do
   end
 
   it "opens a file when use File::WRONLY|File::TRUNC mode" do
-    File.open(@file, "w")
-    @fh = File.open(@file, File::WRONLY|File::TRUNC)
-    @fh.should be_kind_of(File)
-    File.exist?(@file).should == true
+    fh1 = File.open(@file, "w")
+    begin
+      @fh = File.open(@file, File::WRONLY|File::TRUNC)
+      @fh.should be_kind_of(File)
+      File.exist?(@file).should == true
+    ensure
+      fh1.close
+    end
   end
 
   platform_is_not :openbsd do
@@ -477,7 +482,7 @@ describe "File.open" do
   it "raises an Errno::EACCES when opening non-permitted file" do
     @fh = File.open(@file, "w")
     @fh.chmod(000)
-    lambda { File.open(@file) }.should raise_error(Errno::EACCES)
+    lambda { fh1 = File.open(@file); fh1.close }.should raise_error(Errno::EACCES)
   end
 
   it "raises an Errno::EACCES when opening read-only file" do

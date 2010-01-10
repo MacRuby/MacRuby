@@ -6,11 +6,11 @@ describe :tcpsocket_new, :shared => true do
     @hostname = Socket.getaddrinfo("127.0.0.1", nil)[0][2]
   end
   it "requires a hostname and a port as arguments" do
-    lambda { TCPSocket.new }.should raise_error(ArgumentError)
+    lambda { TCPSocket.send(@method) }.should raise_error(ArgumentError)
   end
 
   it "refuses the connection when there is no server to connect to" do
-    lambda { TCPSocket.new('127.0.0.1', SocketSpecs.port) }.should raise_error(Errno::ECONNREFUSED)
+    lambda { TCPSocket.send(@method, '127.0.0.1', SocketSpecs.port) }.should raise_error(Errno::ECONNREFUSED)
   end
 
   it "connects to a listening server" do
@@ -24,7 +24,7 @@ describe :tcpsocket_new, :shared => true do
     Thread.pass while thread.status and thread.status != 'sleep'
     thread.status.should_not be_nil
     lambda {
-      sock = TCPSocket.new(@hostname, SocketSpecs.port)
+      sock = TCPSocket.send(@method, @hostname, SocketSpecs.port)
       sock.close
     }.should_not raise_error(Errno::ECONNREFUSED)
     thread.join
@@ -40,7 +40,7 @@ describe :tcpsocket_new, :shared => true do
     end
     Thread.pass while thread.status and thread.status != 'sleep'
     thread.status.should_not be_nil
-    sock = TCPSocket.new('127.0.0.1', SocketSpecs.port)
+    sock = TCPSocket.send(@method, '127.0.0.1', SocketSpecs.port)
     sock.addr[0].should == "AF_INET"
     sock.addr[1].should be_kind_of(Fixnum)
     # on some platforms (Mac), MRI
