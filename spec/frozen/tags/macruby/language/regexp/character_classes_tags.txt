@@ -32,3 +32,8 @@ fails:Regexp with character classes doesn't match Unicode Nl characters with [[:
 fails:Regexp with character classes doesn't match Unicode No characters with [[:word:]]
 fails:Regexp with character classes doesn't match non-ASCII characters with [[:ascii:]]
 fails:Regexp with character classes matches Unicode Pf characters with [[:punct:]]
+fails:Regexp with character classes matches Unicode letter characters with [[:alnum:]]
+fails:Regexp with character classes matches Unicode letter characters with [[:alpha:]]
+fails:Regexp with character classes matches Unicode letter characters with [[:graph:]]
+fails:Regexp with character classes matches Unicode Pi characters with [[:punct:]]
+fails:Regexp with character classes matches Unicode Po characters with [[:punct:]]

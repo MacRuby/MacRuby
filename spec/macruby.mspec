@@ -52,8 +52,8 @@ class MSpecScript
   end
   
   set :macruby, ['spec/macruby']
-  
-  set :full, get(:macruby) + get(:language) + get(:core) + get(:library)
+  set :rubyspec, get(:language) + get(:core) + get(:library)
+  set :full, get(:macruby) + get(:rubyspec)
   
   # Optional library specs
   set :ffi, File.join(FROZEN_PREFIX, 'optional/ffi')
