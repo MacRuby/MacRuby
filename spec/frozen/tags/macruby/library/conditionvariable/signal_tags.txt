@@ -1,2 +1,3 @@
+critical:ConditionVariable#signal releases the first thread waiting in line for this resource
 fails:ConditionVariable#signal should return self if nothing to signal
 fails:ConditionVariable#signal should return self if something is waiting for a signal

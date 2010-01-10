@@ -1,0 +1,4 @@
+critical:The defined? keyword returns 'super' when Subclass#no_args and created with define_method
+critical:The defined? keyword returns 'super' when Subclass#args and created with define_method
+critical:The defined? keyword returns 'super' when Subclass#no_args uses a block in define_method
+critical:The defined? keyword returns 'super' when Subclass#args uses a block in define_method
