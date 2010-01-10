@@ -32,7 +32,7 @@ if MACOSX_VERSION >= 10.6
       it "should return the same queue object across invocations" do
         qa = Dispatch::Queue.concurrent(:low)
         qb = Dispatch::Queue.concurrent(:low)
-        qa.should eql?(qb)
+        qa.should eql(qb)
       end
 
       it "raises a TypeError if the provided priority is not a symbol" do
