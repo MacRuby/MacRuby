@@ -28,11 +28,11 @@
 		2B36B4181062115D008347E0 /* falling_ruby.rb in Resources */ = {isa = PBXBuildFile; fileRef = 2B36B4171062115D008347E0 /* falling_ruby.rb */; };
 		2B47099710B7452A0074E6F0 /* heart.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 2B47099610B7452A0074E6F0 /* heart.pdf */; };
 		2B4709B410B746ED0074E6F0 /* asteroid.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 2B4709B310B746ED0074E6F0 /* asteroid.pdf */; };
-		2B470A2310B8723B0074E6F0 /* background_level_5.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 2B470A2010B8723B0074E6F0 /* background_level_5.pdf */; };
-		2B470A2410B8723B0074E6F0 /* disco_ball.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 2B470A2110B8723B0074E6F0 /* disco_ball.pdf */; };
-		2B470A2510B8723B0074E6F0 /* frog_level_5.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 2B470A2210B8723B0074E6F0 /* frog_level_5.pdf */; };
-		2B470A2710B872430074E6F0 /* splash_5.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 2B470A2610B872430074E6F0 /* splash_5.pdf */; };
-		2B470A2910B8724A0074E6F0 /* level_5.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 2B470A2810B8724A0074E6F0 /* level_5.mp3 */; };
+		2B520B7E10FBC1D700B90B9E /* level_5.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 2B520B7D10FBC1D700B90B9E /* level_5.mp3 */; };
+		2B520B8610FBC25A00B90B9E /* background_level_5.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 2B520B8210FBC25A00B90B9E /* background_level_5.pdf */; };
+		2B520B8710FBC25A00B90B9E /* disco_ball.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 2B520B8310FBC25A00B90B9E /* disco_ball.pdf */; };
+		2B520B8810FBC25A00B90B9E /* frog_level_5.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 2B520B8410FBC25A00B90B9E /* frog_level_5.pdf */; };
+		2B520B8910FBC25A00B90B9E /* splash_5.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 2B520B8510FBC25A00B90B9E /* splash_5.pdf */; };
 		2B5F663B10AD21D9007A6C17 /* ns_button.rb in Resources */ = {isa = PBXBuildFile; fileRef = 2B5F663A10AD21D9007A6C17 /* ns_button.rb */; };
 		2B6C306410B1DB7E00325E82 /* background_level_1.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 2B6C304710B1DB7E00325E82 /* background_level_1.pdf */; };
 		2B6C306510B1DB7E00325E82 /* background_level_2.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 2B6C304810B1DB7E00325E82 /* background_level_2.pdf */; };
@@ -99,11 +99,11 @@
 		2B36B4171062115D008347E0 /* falling_ruby.rb */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.ruby; path = falling_ruby.rb; sourceTree = "<group>"; };
 		2B47099610B7452A0074E6F0 /* heart.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = heart.pdf; sourceTree = "<group>"; };
 		2B4709B310B746ED0074E6F0 /* asteroid.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = asteroid.pdf; sourceTree = "<group>"; };
-		2B470A2010B8723B0074E6F0 /* background_level_5.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; name = background_level_5.pdf; path = disco_level/background_level_5.pdf; sourceTree = SOURCE_ROOT; };
-		2B470A2110B8723B0074E6F0 /* disco_ball.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; name = disco_ball.pdf; path = disco_level/disco_ball.pdf; sourceTree = SOURCE_ROOT; };
-		2B470A2210B8723B0074E6F0 /* frog_level_5.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; name = frog_level_5.pdf; path = disco_level/frog_level_5.pdf; sourceTree = SOURCE_ROOT; };
-		2B470A2610B872430074E6F0 /* splash_5.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; name = splash_5.pdf; path = disco_level/splash_5.pdf; sourceTree = SOURCE_ROOT; };
-		2B470A2810B8724A0074E6F0 /* level_5.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = level_5.mp3; path = disco_level/level_5.mp3; sourceTree = SOURCE_ROOT; };
+		2B520B7D10FBC1D700B90B9E /* level_5.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = level_5.mp3; sourceTree = "<group>"; };
+		2B520B8210FBC25A00B90B9E /* background_level_5.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = background_level_5.pdf; sourceTree = "<group>"; };
+		2B520B8310FBC25A00B90B9E /* disco_ball.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = disco_ball.pdf; sourceTree = "<group>"; };
+		2B520B8410FBC25A00B90B9E /* frog_level_5.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = frog_level_5.pdf; sourceTree = "<group>"; };
+		2B520B8510FBC25A00B90B9E /* splash_5.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = splash_5.pdf; sourceTree = "<group>"; };
 		2B5F663A10AD21D9007A6C17 /* ns_button.rb */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.ruby; path = ns_button.rb; sourceTree = "<group>"; };
 		2B6C304710B1DB7E00325E82 /* background_level_1.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = background_level_1.pdf; sourceTree = "<group>"; };
 		2B6C304810B1DB7E00325E82 /* background_level_2.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = background_level_2.pdf; sourceTree = "<group>"; };
@@ -266,10 +266,10 @@
 		2B6C304610B1DB7E00325E82 /* graphics */ = {
 			isa = PBXGroup;
 			children = (
-				2B470A2010B8723B0074E6F0 /* background_level_5.pdf */,
-				2B470A2610B872430074E6F0 /* splash_5.pdf */,
-				2B470A2110B8723B0074E6F0 /* disco_ball.pdf */,
-				2B470A2210B8723B0074E6F0 /* frog_level_5.pdf */,
+				2B520B8210FBC25A00B90B9E /* background_level_5.pdf */,
+				2B520B8310FBC25A00B90B9E /* disco_ball.pdf */,
+				2B520B8410FBC25A00B90B9E /* frog_level_5.pdf */,
+				2B520B8510FBC25A00B90B9E /* splash_5.pdf */,
 				2B4709B310B746ED0074E6F0 /* asteroid.pdf */,
 				2B47099610B7452A0074E6F0 /* heart.pdf */,
 				2B6C309410B1DCC300325E82 /* fullscreen.pdf */,
@@ -316,7 +316,7 @@
 		2B6C308D10B1DC8800325E82 /* sounds */ = {
 			isa = PBXGroup;
 			children = (
-				2B470A2810B8724A0074E6F0 /* level_5.mp3 */,
+				2B520B7D10FBC1D700B90B9E /* level_5.mp3 */,
 				2B6C314810B52C5000325E82 /* level_4.mp3 */,
 				2B6C308E10B1DC8800325E82 /* level_1.mp3 */,
 				2B6C308F10B1DC8800325E82 /* level_2.mp3 */,
@@ -434,11 +434,11 @@
 				2B6C314910B52C5000325E82 /* level_4.mp3 in Resources */,
 				2B47099710B7452A0074E6F0 /* heart.pdf in Resources */,
 				2B4709B410B746ED0074E6F0 /* asteroid.pdf in Resources */,
-				2B470A2310B8723B0074E6F0 /* background_level_5.pdf in Resources */,
-				2B470A2410B8723B0074E6F0 /* disco_ball.pdf in Resources */,
-				2B470A2510B8723B0074E6F0 /* frog_level_5.pdf in Resources */,
-				2B470A2710B872430074E6F0 /* splash_5.pdf in Resources */,
-				2B470A2910B8724A0074E6F0 /* level_5.mp3 in Resources */,
+				2B520B7E10FBC1D700B90B9E /* level_5.mp3 in Resources */,
+				2B520B8610FBC25A00B90B9E /* background_level_5.pdf in Resources */,
+				2B520B8710FBC25A00B90B9E /* disco_ball.pdf in Resources */,
+				2B520B8810FBC25A00B90B9E /* frog_level_5.pdf in Resources */,
+				2B520B8910FBC25A00B90B9E /* splash_5.pdf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
