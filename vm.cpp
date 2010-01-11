@@ -4257,7 +4257,19 @@ void
 RoxorCore::unregister_thread(VALUE thread)
 {
     lock();
-    if (rb_ary_delete(threads, thread) != thread) {
+    // We do not call #delete because it might trigger #== in case it has been
+    // overriden on the thread object, and therefore cause a deadlock if the
+    // new method tries to acquire the RoxorCore GIL.
+    bool deleted = false;
+    for (long i = 0, n = RARRAY_LEN(threads); i < n; i++) {
+	VALUE ti = RARRAY_AT(threads, i);
+	if (ti == thread) {
+	    rb_ary_delete_at(threads, i);
+	    deleted = true;
+	    break;
+	}
+    }
+    if (!deleted) {
 	printf("trying to unregister a thread (%p) that was never registered!",
 		(void *)thread);
 	abort();
