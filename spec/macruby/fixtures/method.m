@@ -10,10 +10,26 @@
 @interface TestMethod : NSObject
 {
     id _foo;
+    NSMutableDictionary *dic;
 }
 @end
 
 @implementation TestMethod
+
+- (id)init
+{
+    if (self = [super init])
+    {
+        dic = [[NSMutableDictionary alloc] init];
+    }
+    return self;
+}
+
+- (void)dealloc
+{
+    [dic release];
+    [super dealloc];
+}
 
 - (BOOL)isFoo
 {
@@ -33,6 +49,16 @@
 - (id)foo
 {
     return _foo;
+}
+
+- (void)setObject:(id)obj forKey:(NSString *)key
+{
+    [dic setObject:obj forKey:key];
+}
+
+- (id)objectForKey:(NSString *)key
+{
+    return [dic objectForKey:key];
 }
 
 - (void)methodReturningVoid

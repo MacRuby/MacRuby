@@ -202,6 +202,12 @@ helper_sel(const char *p, size_t len)
 	buf[len + 1] = '\0';
 	new_sel = sel_registerName(buf);
     }
+    else if (strcmp(p, "[]:") == 0) {
+	new_sel = selObjectForKey;
+    }
+    else if (strcmp(p, "[]=:") == 0) {
+	new_sel = selSetObjectForKey;
+    }
 
     return new_sel;
 }
@@ -566,7 +572,7 @@ __rb_vm_dispatch(RoxorVM *vm, struct mcache *cache, VALUE top, VALUE self,
 #if ROXOR_VM_DEBUG
     bool cached = true;
 #endif
-    bool do_rcache = true;
+    bool cache_method = true;
 
     if (cache->flag == 0) {
 recache:
@@ -650,7 +656,7 @@ recache2:
 			Method m = class_getInstanceMethod(klass, sel);
 			if (m != NULL) {	
 			    method = m;
-			    do_rcache = false;
+			    cache_method = false;
 			    goto recache2;
 			}
 		    }
@@ -665,6 +671,15 @@ recache2:
 		    if (GET_CORE()->method_node_get(m) == NULL) {
 			sel = new_sel;
 			method = m;
+			// We need to invert arguments because
+			// #[]= and setObject:forKey: take arguments
+			// in a reverse order
+			if (new_sel == selSetObjectForKey && argc == 2) {
+			    VALUE swap = argv[0];
+			    ((VALUE *)argv)[0] = argv[1];
+			    ((VALUE *)argv)[1] = swap;
+			    cache_method = false;
+			}
 			goto recache2;
 		    }
 		}
@@ -699,7 +714,7 @@ dispatch:
 	if (rcache.klass != klass) {
 	    goto recache;
 	}
-	if (!do_rcache) {
+	if (!cache_method) {
 	    cache->flag = 0;
 	}
 
@@ -772,6 +787,9 @@ dispatch:
     else if (cache->flag == MCACHE_OCALL) {
 	if (ocache.klass != klass) {
 	    goto recache;
+	}
+	if (!cache_method) {
+	    cache->flag = 0;
 	}
 
 	if (block != NULL) {

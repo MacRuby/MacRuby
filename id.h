@@ -114,6 +114,8 @@ extern SEL selIsEqual;
 extern SEL selWrite;
 extern SEL selInherited;
 extern SEL selLambda;
+extern SEL selObjectForKey;
+extern SEL selSetObjectForKey;
 extern ID idIncludedModules;
 extern ID idIncludedInClasses;
 extern ID idAncestors;
