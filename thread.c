@@ -443,7 +443,7 @@ rb_thread_stop(VALUE rcv, SEL sel)
 VALUE
 rb_thread_list(VALUE rcv, SEL sel)
 {
-    return rb_vm_threads();
+    return rb_ary_dup(rb_vm_threads());
 }
 
 /*
