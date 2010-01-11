@@ -318,6 +318,14 @@ namespace :macruby do
   task :build => :dylib do
     $builder.link_executable(RUBY_INSTALL_NAME, ['main', 'gc-stub'], "-L. -l#{RUBY_SO_NAME} -lobjc")
   end
+
+  # Generates a list of weak symbols in libmacruby.dylib. You must not pass a unexported symbols list to
+  # rake when calling this command.
+  task :weak_symbols => :dylib do
+    sh("nm -m -P -arch i386 libmacruby.1.9.0.dylib | grep 'weak external' | grep -v 'undefined' | egrep -v '__ZT[IS]' | awk '{print$5}' > /tmp/syms-i386")
+    sh("nm -m -P -arch x86_64 libmacruby.1.9.0.dylib | grep 'weak external' | grep -v 'undefined' | egrep -v '__ZT[IS]' | awk '{print$5}' > /tmp/syms-x86_64")
+    sh("cat /tmp/syms-i386 /tmp/syms-x86_64 | uniq > unexported_symbols.list")
+  end
 end
 
 DESTDIR = (ENV['DESTDIR'] or "")
