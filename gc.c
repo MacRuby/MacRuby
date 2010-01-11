@@ -9,7 +9,7 @@
  * Copyright (C) 2000 Information-technology Promotion Agency, Japan
  */
 
-#include "ruby/config.h"
+//#include "ruby/config.h"
 
 #if HAVE_AUTO_ZONE_H
 # include <auto_zone.h>
