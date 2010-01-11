@@ -1,2 +1,0 @@
-fails:REXML::Element#next_element returns next existing element
-fails:REXML::Element#next_element returns nil on last element

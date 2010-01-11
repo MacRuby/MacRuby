@@ -1,1 +1,0 @@
-fails:REXML::Attribute#remove deletes this Attribute from parent

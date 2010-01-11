@@ -1,3 +1,0 @@
-fails:REXML::Element#raw returns true if raw mode is set to expanded_name
-fails:REXML::Element#raw returns false if raw mode is not set
-fails:REXML::Element#raw returns false if raw is not :all or expanded_name

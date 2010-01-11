@@ -1,2 +1,1 @@
-fails:Resolv#getaddress resolves localhost
 fails:Resolv#getaddress raises ResolvError given a bogus address

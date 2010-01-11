@@ -1,3 +1,0 @@
-fails:REXML::Element#add_namespace adds text to an element
-fails:REXML::Element#add_namespace accepts a Text
-fails:REXML::Element#add_namespace joins the new text with the old one

@@ -1,1 +1,0 @@
-fails:Matrix#- returns the result of subtracting the corresponding elements of other from self

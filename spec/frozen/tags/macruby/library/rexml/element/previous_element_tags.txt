@@ -1,2 +1,0 @@
-fails:REXML::Element#previous_element returns previous element
-fails:REXML::Element#previous_element returns nil on first element

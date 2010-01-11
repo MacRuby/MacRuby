@@ -1,2 +1,0 @@
-fails:REXML::Element#whitespace returns true if whitespace is respected in the element
-fails:REXML::Element#whitespace returns false if whitespace is ignored inside element

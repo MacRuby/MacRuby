@@ -1,2 +1,0 @@
-fails:OpenStruct#inspect returns a String representation of self
-fails:OpenStruct#inspect correctly handles OpenStruct subclasses

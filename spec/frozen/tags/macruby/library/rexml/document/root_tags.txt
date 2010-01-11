@@ -1,1 +1,0 @@
-fails:REXML::Document#root returns document root tag name

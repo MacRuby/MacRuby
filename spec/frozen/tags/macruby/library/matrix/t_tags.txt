@@ -1,2 +1,1 @@
-fails:Matrix#transpose returns a transposed matrix
 fails:Matrix#transpose can transpose empty matrices

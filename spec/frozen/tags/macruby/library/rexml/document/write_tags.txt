@@ -1,4 +1,1 @@
-fails:REXML::Document#write returns document source as string
-fails:REXML::Document#write returns document indented
 fails:REXML::Document#write returns document with transitive support
-fails:REXML::Document#write returns document with support for IE

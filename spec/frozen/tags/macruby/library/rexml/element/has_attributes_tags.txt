@@ -1,1 +1,0 @@
-fails:REXML::Element#has_attributes? returns true when element has any attributes

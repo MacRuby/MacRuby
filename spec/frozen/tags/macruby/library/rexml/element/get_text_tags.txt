@@ -1,1 +1,0 @@
-fails:REXML::Element#get_text returns text from an element matching path

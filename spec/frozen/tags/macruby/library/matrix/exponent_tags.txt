@@ -1,3 +1,1 @@
 fails:Matrix#** multiples the Matrix by itself _n_ times
-fails:Matrix#** given an integer _n_ multiples the Matrix by itself _n_ times
-fails:Matrix#** given an integer _n_ that is <= 0 returns the inverse of **(-n)

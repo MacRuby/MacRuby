@@ -1,2 +1,1 @@
 critical:REXML::Attribute#xpath raises an error if attribute has no parent
-fails:REXML::Attribute#xpath returns the path for Attribute

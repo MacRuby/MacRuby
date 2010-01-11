@@ -2,4 +2,3 @@ fails:Math#rsqrt returns the square root for Rational numbers
 fails:Math#rsqrt returns the square root for negative numbers
 fails:Math.rsqrt returns the square root for Rational numbers
 fails:Math.rsqrt returns the square root for negative numbers
-fails:Math#rsqrt should be private

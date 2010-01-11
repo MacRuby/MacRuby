@@ -1,2 +1,0 @@
-fails:REXML::Element#add_attribute adds multiple attributes from a hash
-fails:REXML::Element#add_attribute adds multiple attributes from an array
