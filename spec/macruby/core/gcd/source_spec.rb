@@ -5,30 +5,48 @@ if MACOSX_VERSION >= 10.6
   describe "Dispatch::Source" do
 
     describe "constants" do
-      it "for custom sources" do
+      it "for custom source types" do
         Dispatch::Source.const_defined?(:DATA_ADD).should == true
         Dispatch::Source.const_defined?(:DATA_OR).should == true
       end
 
-      it "for process sources" do
+      it "for process source types" do
         Dispatch::Source.const_defined?(:PROC).should == true
         Dispatch::Source.const_defined?(:SIGNAL).should == true
       end
 
-      it "for file sources" do
+      it "for file source types" do
         Dispatch::Source.const_defined?(:READ).should == true
         Dispatch::Source.const_defined?(:VNODE).should == true
         Dispatch::Source.const_defined?(:WRITE).should == true
       end
 
-      it "NOT for timer source" do
+      it "NOT for timer source type" do
         Dispatch::Source.const_defined?(:TIMER).should == false
       end
 
-      it "NOT for mach sources" do
+      it "NOT for mach source types" do
         Dispatch::Source.const_defined?(:MACH_SEND).should == false
         Dispatch::Source.const_defined?(:MACH_RECV).should == false
       end
+      
+      it "for process events" do
+        Dispatch::Source.const_defined?(:PROC_EXIT).should == true
+        Dispatch::Source.const_defined?(:PROC_FORK).should == true
+        Dispatch::Source.const_defined?(:PROC_EXEC).should == true
+        Dispatch::Source.const_defined?(:PROC_SIGNAL).should == true
+      end
+
+      it "for vnode events" do
+        Dispatch::Source.const_defined?(:VNODE_DELETE).should == true
+        Dispatch::Source.const_defined?(:VNODE_WRITE).should == true
+        Dispatch::Source.const_defined?(:VNODE_EXTEND).should == true
+        Dispatch::Source.const_defined?(:VNODE_ATTRIB).should == true
+        Dispatch::Source.const_defined?(:VNODE_LINK).should == true
+        Dispatch::Source.const_defined?(:VNODE_RENAME).should == true
+        Dispatch::Source.const_defined?(:VNODE_REVOKE).should == true
+      end
+      
     end
 
     describe "of type" do
@@ -152,6 +170,7 @@ if MACOSX_VERSION >= 10.6
         before :each do
           @type = Dispatch::Source::SIGNAL
           @signal = Signal.list["USR2"]
+          
         end
 
         it "returns an instance of Dispatch::Source" do

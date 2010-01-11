@@ -1241,6 +1241,20 @@ Init_Dispatch(void)
     rb_define_const(cSource, "SIGNAL", INT2NUM(SOURCE_TYPE_SIGNAL));
     rb_define_const(cSource, "VNODE", INT2NUM(SOURCE_TYPE_VNODE));
     rb_define_const(cSource, "WRITE", INT2NUM(SOURCE_TYPE_WRITE));
+    
+    rb_define_const(cSource, "PROC_EXIT", INT2NUM(DISPATCH_PROC_EXIT));
+    rb_define_const(cSource, "PROC_FORK", INT2NUM(DISPATCH_PROC_FORK));
+    rb_define_const(cSource, "PROC_EXEC", INT2NUM(DISPATCH_PROC_EXEC));
+    rb_define_const(cSource, "PROC_SIGNAL", INT2NUM(DISPATCH_PROC_SIGNAL));
+
+    rb_define_const(cSource, "VNODE_DELETE", INT2NUM(DISPATCH_VNODE_DELETE));
+    rb_define_const(cSource, "VNODE_WRITE", INT2NUM(DISPATCH_VNODE_WRITE));
+    rb_define_const(cSource, "VNODE_EXTEND", INT2NUM(DISPATCH_VNODE_EXTEND));
+    rb_define_const(cSource, "VNODE_ATTRIB", INT2NUM(DISPATCH_VNODE_ATTRIB));
+    rb_define_const(cSource, "VNODE_LINK", INT2NUM(DISPATCH_VNODE_LINK));
+    rb_define_const(cSource, "VNODE_RENAME", INT2NUM(DISPATCH_VNODE_RENAME));
+    rb_define_const(cSource, "VNODE_REVOKE", INT2NUM(DISPATCH_VNODE_REVOKE));
+    
     rb_objc_define_method(*(VALUE *)cSource, "alloc", rb_source_alloc, 0);
     rb_objc_define_method(cSource, "initialize", rb_source_init, 4);
     rb_objc_define_method(cSource, "on_cancel", rb_source_on_cancellation, 0);
