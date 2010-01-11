@@ -34,3 +34,4 @@ ext/openssl/extconf.h
 .DS_Store
 framework/Info.plist
 doc/
+rubyspec_temp

@@ -3,6 +3,7 @@ namespace :spec do
   DEFAULT_OPTIONS = "-B #{MACRUBY_MSPEC}"
   
   def mspec(type, options)
+    rm_rf 'rubyspec_temp'
     sh "./mspec/bin/mspec #{type} #{DEFAULT_OPTIONS} #{ENV['opts']} #{options}"
   end
   
