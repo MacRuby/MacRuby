@@ -85,7 +85,6 @@ if MACOSX_VERSION >= 10.6
           src << 42
           @q.sync { }
           @flag.should == true
-          
         end        
 
         it "passes data to source in event handler" do
@@ -111,6 +110,14 @@ if MACOSX_VERSION >= 10.6
           @i.should == 42
         end        
 
+        it "runs cancel handler when cancelled" do
+          @i = 0
+          src = Dispatch::Source.new(@type, 0, 0, @q) {|s|  @i = 21}
+          src.on_cancel { @i = 42 }
+          src.cancel!
+          @q.sync { }
+          @i.should == 42
+        end
       end
 
       describe :DATA_OR do
@@ -159,7 +166,7 @@ if MACOSX_VERSION >= 10.6
           src.suspended?.should == false
         end
 
-        it "fires with event mask on process event" do
+        it "fires on process event with event mask data" do
           @i = 0
           src = Dispatch::Source.new(@type, $$, @mask, @q) { |s|  @i = s.data }
           Signal.trap(@signal, "IGNORE")
@@ -182,7 +189,7 @@ if MACOSX_VERSION >= 10.6
           src.should be_kind_of(Dispatch::Source)
         end
 
-        it "fires with signal count on signal" do
+        it "fires on signal with signal count data" do
           @i = 0
           src = Dispatch::Source.new(@type, @signal, 0, @q) { |s|  @i = s.data }
           Signal.trap(@signal, "IGNORE")
@@ -192,43 +199,75 @@ if MACOSX_VERSION >= 10.6
           @i.should == 1
           src.cancel!
         end
-      end    
-
-      describe :READ do
+      end
+      
+      describe "file:" do
         before :each do
-          @type = Dispatch::Source::READ
+          @filename = "/var/tmp/gcd_spec_source-#{$$}"
+          @msg = "#{$$}: #{Time.now}"
         end
+      
+        describe :READ do
+          before :each do
+            @type = Dispatch::Source::READ
+          end
 
-        it "returns an instance of Dispatch::Source" do
-          src = Dispatch::Source.new(@type, 0, 0, @q) { }
-          src.should be_kind_of(Dispatch::Source)
+          it "returns an instance of Dispatch::Source" do
+            src = Dispatch::Source.new(@type, $stdin.to_i, 0, @q) { }
+            src.should be_kind_of(Dispatch::Source)
+          end
+          
+          it "fires with data on estimate of readable bytes" do
+            @result = ""
+            File.delete(@filename) if File.exist?(@filename)
+            File.open(@filename, "w") {|f| f.puts @msg}
+            file = File.open(@filename, "r")
+            src = Dispatch::Source.new(@type, file.to_i, 0, @q) do |s|
+              begin
+                puts "Reading #{s.data} bytes"
+                @result << file.read_nonblock(s.data-1)
+                puts "#{@result}: #{s.data}"
+              rescue Exception => error
+                puts "OOPS!: #{error}"
+                src.cancel!            
+              end
+            end
+            src.on_cancel { file.close } #is this a race condition?
+            while (@result.size < @msg.size) do; end
+            @q.sync { }
+            @result.should == @msg
+          end
+        end    
+
+        describe :WRITE do
+          before :each do
+            @type = Dispatch::Source::WRITE
+          end
+
+          it "returns an instance of Dispatch::Source" do
+            src = Dispatch::Source.new(@type, $stdout.to_i, 0, @q) { }
+            src.should be_kind_of(Dispatch::Source)
+          end
+        end    
+
+        describe :VNODE do
+          before :each do
+            @type = Dispatch::Source::VNODE
+            @mask = Dispatch::Source::VNODE_WRITE
+          end
+
+          it "returns an instance of Dispatch::Source" do
+            src = Dispatch::Source.new(@type, $stdout.to_i, @mask, @q) { }
+            src.should be_kind_of(Dispatch::Source)
+          end
         end
-      end    
-
-
-      describe :WRITE do
-        before :each do
-          @type = Dispatch::Source::WRITE
-        end
-
-        it "returns an instance of Dispatch::Source" do
-          src = Dispatch::Source.new(@type, 0, 0, @q) { }
-          src.should be_kind_of(Dispatch::Source)
-        end
-      end    
-
-      describe :VNODE do
-        before :each do
-          @type = Dispatch::Source::VNODE
-        end
-
-        it "returns an instance of Dispatch::Source" do
-          src = Dispatch::Source.new(@type, 0, 0, @q) { }
-          src.should be_kind_of(Dispatch::Source)
-        end
-      end    
-
+  
+      end
     end
-
+      
   end
+  
+  describe "Dispatch::Timer" do
+  end
+
 end
