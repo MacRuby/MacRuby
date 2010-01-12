@@ -24,12 +24,6 @@ extern int ruby_initialized;
     return runtime;
 }
 
-+ (MacRuby *)runtimeAttachedToProcessIdentifier:(pid_t)pid
-{
-    [NSException raise:NSGenericException format:@"not implemented yet"];
-    return nil;
-}
-
 - (id)evaluateString:(NSString *)expression
 {
     return RB2OC(rb_eval_string([(NSString *)expression UTF8String]));

@@ -7,11 +7,6 @@
  */
 + (MacRuby *)sharedRuntime;
 
-/* Connect and attach a MacRuby runtime to the given process and return a 
- * reference to it. This is done using mach_inject.
- */
-+ (MacRuby *)runtimeAttachedToProcessIdentifier:(pid_t)pid;
-
 /* Evaluate a Ruby expression in the given file and return a reference to the 
  * result. 
  */
