@@ -63,12 +63,12 @@ if MACOSX_VERSION >= 10.6
           src = Dispatch::Source.new(@type, 0, 0, @q) { }
           src.should be_kind_of(Dispatch::Source)
         end
-        
+
         it "should not be suspended" do
           src = Dispatch::Source.new(@type, 0, 0, @q) { }
           src.suspended?.should == false
         end
-    
+
         it "fires event handler on merge" do
           @i = 0
           src = Dispatch::Source.new(@type, 0, 0, @q) {|s|  @i = 42}
@@ -78,11 +78,14 @@ if MACOSX_VERSION >= 10.6
         end        
 
         it "passes source to event handler" do
+          @flag = false
           src = Dispatch::Source.new(@type, 0, 0, @q) do |source|
-            source.should be_kind_of(Dispatch::Source)
+            @flag = (source.is_a? Dispatch::Source)
           end
           src << 42
           @q.sync { }
+          @flag.should == true
+          
         end        
 
         it "passes data to source in event handler" do
@@ -115,13 +118,9 @@ if MACOSX_VERSION >= 10.6
           @type = Dispatch::Source::DATA_OR
         end
 
-        it "returns an instance of Dispatch::Source" do
+        it "returns an active instance of Dispatch::Source" do
           src = Dispatch::Source.new(@type, 0, 0, @q) { }
           src.should be_kind_of(Dispatch::Source)
-        end
-        
-        it "should not be suspended" do
-          src = Dispatch::Source.new(@type, 0, 0, @q) { }
           src.suspended?.should == false
         end
 
@@ -132,14 +131,6 @@ if MACOSX_VERSION >= 10.6
           @q.sync { }
           @i.should == 42
         end        
-
-        it "passes source to event handler" do
-          src = Dispatch::Source.new(@type, 0, 0, @q) do |source|
-            source.should be_kind_of(Dispatch::Source)
-          end
-          src << 42
-          @q.sync { }
-        end
         
         it "coalesces data for source in event handler" do
           @i = 0
@@ -158,25 +149,38 @@ if MACOSX_VERSION >= 10.6
       describe :PROC do
         before :each do
           @type = Dispatch::Source::PROC
-        end
-
-        it "returns an instance of Dispatch::Source" do
-          src = Dispatch::Source.new(@type, $$, 0, @q) { }
-          src.should be_kind_of(Dispatch::Source)
-        end
-      end    
-
-      describe :SIGNAL do
-        before :each do
-          @type = Dispatch::Source::SIGNAL
+          @mask = Dispatch::Source::PROC_SIGNAL
           @signal = Signal.list["USR2"]
-          
+          Signal.trap(@signal, "IGNORE")
         end
 
-        it "returns an instance of Dispatch::Source" do
-          src = Dispatch::Source.new(@type, @signal, 0, @q) { }
+        it "returns an active instance of Dispatch::Source" do
+          src = Dispatch::Source.new(@type, $$, @mask, @q) { }
           src.should be_kind_of(Dispatch::Source)
+          src.suspended?.should == false
         end
+
+        it "fires event handler on process event" do
+          @i = 0
+          src = Dispatch::Source.new(@type, $$, @mask, @q) { |s|  @i += 42 }
+          Process.kill(@signal, $$)                # send myself a SIGUSR2
+          @q.sync { }
+          @i.should == 42
+        end
+           
+        #The second spec always fails; can't send the same signal twice?!?     
+        it "passes event mask as data" do
+          @i = 0
+          src = Dispatch::Source.new(@type, $$, @mask, @q) { |s|  @i = s.data }
+          Process.kill(@signal, $$)                # send myself a SIGUSR2
+          @q.sync { }
+          @i.should == @mask
+        end
+        
+        after :each do
+          #Signal.trap(@signal, "DEFAULT")
+        end
+        
       end    
 
       describe :READ do
