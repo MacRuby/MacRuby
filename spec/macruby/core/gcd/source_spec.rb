@@ -145,13 +145,12 @@ if MACOSX_VERSION >= 10.6
           @i.should == 42 #0b101_010
         end        
       end
-  
+
       describe :PROC do
         before :each do
           @type = Dispatch::Source::PROC
           @mask = Dispatch::Source::PROC_SIGNAL
-          @signal = Signal.list["USR2"]
-          Signal.trap(@signal, "IGNORE")
+          @signal = Signal.list["USR1"]
         end
 
         it "returns an active instance of Dispatch::Source" do
@@ -160,27 +159,39 @@ if MACOSX_VERSION >= 10.6
           src.suspended?.should == false
         end
 
-        it "fires event handler on process event" do
-          @i = 0
-          src = Dispatch::Source.new(@type, $$, @mask, @q) { |s|  @i += 42 }
-          Process.kill(@signal, $$)                # send myself a SIGUSR2
-          @q.sync { }
-          @i.should == 42
-        end
-           
-        #The second spec always fails; can't send the same signal twice?!?     
-        it "passes event mask as data" do
+        it "fires with event mask on process event" do
           @i = 0
           src = Dispatch::Source.new(@type, $$, @mask, @q) { |s|  @i = s.data }
-          Process.kill(@signal, $$)                # send myself a SIGUSR2
+          Signal.trap(@signal, "IGNORE")
+          Process.kill(@signal, $$)
+          Signal.trap(@signal, "DEFAULT")
           @q.sync { }
           @i.should == @mask
+          src.cancel!
         end
-        
-        after :each do
-          #Signal.trap(@signal, "DEFAULT")
+      end    
+
+      describe :SIGNAL do
+        before :each do
+          @type = Dispatch::Source::SIGNAL
+          @signal = Signal.list["USR2"]          
         end
-        
+
+        it "returns an instance of Dispatch::Source" do
+          src = Dispatch::Source.new(@type, @signal, 0, @q) { }
+          src.should be_kind_of(Dispatch::Source)
+        end
+
+        it "fires with signal count on signal" do
+          @i = 0
+          src = Dispatch::Source.new(@type, @signal, 0, @q) { |s|  @i = s.data }
+          Signal.trap(@signal, "IGNORE")
+          Process.kill(@signal, $$)
+          Signal.trap(@signal, "DEFAULT")
+          @q.sync { }
+          @i.should == 1
+          src.cancel!
+        end
       end    
 
       describe :READ do

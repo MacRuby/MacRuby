@@ -1,1 +1,0 @@
-fails:Dispatch::Source of type PROC passes event mask as data
