@@ -1,3 +1,2 @@
 critical:Dispatch::Queue new raises an ArgumentError if not passed a string
-critical:Dispatch::Queue after raises an ArgumentError if no time is given
 
