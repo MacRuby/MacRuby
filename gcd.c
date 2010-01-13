@@ -956,7 +956,8 @@ static void
 rb_source_close_handler(void* longptr)
 {
     long filedes = (long)longptr;
-    close((int)filedes);
+    int rc = close((int)filedes);
+    assert(rc == 0);
 }
 
 /* 
