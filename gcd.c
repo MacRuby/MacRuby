@@ -958,22 +958,25 @@ rb_source_close_handler(void* io_ptr)
 {
     VALUE io = (VALUE)io_ptr;
     rb_vm_call(io, selClose, 0, NULL, NO);
+    //GC_RELEASE(io);
 }
 
 /* 
  *  call-seq:
- *    Dispatch::FileSource.new(type, handle, mask, queue) 
+ *    Dispatch::FileSource.new(type, io, mask, queue) 
  *     {|src| block} => Dispatch::Source
  *
- *  Like Dispatch::Source.new, except that it automatically creates
- *  a cancel handler that will close(2) that file descriptor
+ *  Like Dispatch::Source.new, except:
+ *     a) it takes an IO (File) object instead of an integer handle
+ *     b) it automatically creates a cancel handler that closes that object
  *  
  *     gcdq = Dispatch::Queue.new('doc')
  *     file = File.open("/etc/passwd", r)
  *     src = Dispatch::FileSource.new(Dispatch::Source::READ,
- *           file, 0, gcdq) { |s| s.cancel! }
- *
- *   Note that in this case you pass the File object instead of a descriptor
+ *           file, 0, gcdq) { }
+ *     src.cancel!
+ *      @q.sync { }
+ *     @file.closed? # => true
  *
  *   The type must be one of:
  *      - Dispatch::Source::READ
@@ -1000,6 +1003,7 @@ rb_source_file_init(VALUE self, SEL sel,
     rb_source_setup(self, sel, type, handle, mask, queue);
     rb_source_t *src = RSource(self);            
     dispatch_set_context(src->source, (void*)io); // should this be retained?
+    //GC_RETAIN(io);
     dispatch_source_set_cancel_handler_f(src->source, rb_source_close_handler);
     rb_dispatch_resume(self, 0);
     return self;
