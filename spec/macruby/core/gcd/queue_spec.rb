@@ -119,22 +119,29 @@ if MACOSX_VERSION >= 10.6
     end
 
     describe :after do
-      it "accepts a given time (in seconds) and a block and yields it after" do
-        [0.02].each do |test_time|
+      it "accepts a given delay (in seconds) and a block and yields it after" do
+        [0.02].each do |delay|
 
           t = Time.now
-          @q.after(test_time) { @i = 42 }
+          @q.after(delay) { @i = 42 }
           @i = 0
           while @i == 0 do; end
           @i.should == 42
           t2 = Time.now - t
-          t2.should > test_time
-          t2.should < test_time*2
+          t2.should > delay
+          t2.should < delay*2
         end
       end
 
-      it "raises TypeError if no time is given" do
-        lambda { @q.after(nil) {} }.should raise_error(TypeError) 
+      it "runs immediately if nil delay is given" do
+        @i = 0
+        @q.after(nil) { @i = 42 }
+        @q.sync {}
+        @i.should == 42        
+      end
+
+      it "raises TypeError if no number is given" do
+        lambda { @q.after("string") {} }.should raise_error(TypeError) 
       end
 
       it "raises an ArgumentError if no block is given" do

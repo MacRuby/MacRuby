@@ -445,17 +445,17 @@ rb_queue_dispatch_sync(VALUE self, SEL sel)
 
 /* 
  *  call-seq:
- *    gcdq.after(time) { block }
+ *    gcdq.after(delay) { block }
  *
- *  Runs the passed block after the given time (in seconds).
+ *  Runs the passed block after the given delay (in seconds).
  *  
  *     gcdq.after(0.5) { puts 'wait is over :)' }
  *
  */
 static VALUE
-rb_queue_dispatch_after(VALUE self, SEL sel, VALUE sec)
+rb_queue_dispatch_after(VALUE self, SEL sel, VALUE delay)
 {
-    dispatch_time_t offset = rb_num2timeout(sec);
+    dispatch_time_t offset = NIL_P(delay) ? DISPATCH_TIME_NOW : rb_num2timeout(delay);
     rb_vm_block_t *block = given_block();
     block = rb_dispatch_prepare_block(block);
 
@@ -786,12 +786,12 @@ rb_source_setup(VALUE self, SEL sel,
 {
     Check_Queue(queue);
     rb_source_t *src = RSource(self);
-    dispatch_source_type_t type = rb_num2source_type(type);
-    assert(type != NULL);
+    dispatch_source_type_t c_type = rb_num2source_type(type);
+    assert(c_type != NULL);
     uintptr_t c_handle = NUM2UINT(handle);
     unsigned long c_mask = NUM2LONG(mask);
     dispatch_queue_t c_queue = RQueue(queue)->queue;
-    src->source = dispatch_source_create(type, c_handle, c_mask, c_queue);
+    src->source = dispatch_source_create(c_type, c_handle, c_mask, c_queue);
     assert(src->source != NULL);
 
     if (rb_block_given_p()) {
