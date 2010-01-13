@@ -80,7 +80,6 @@ typedef struct {
     dispatch_source_t source;
     dispatch_source_type_t type; // remove?
     rb_vm_block_t *event_handler;
-    rb_vm_block_t *cancel_handler;// remove?
 } rb_source_t;
 
 #define RSource(val) ((rb_source_t*)val)
@@ -107,6 +106,7 @@ static ID default_priority_id;
 
 static VALUE cGroup;
 static VALUE cSource;
+static VALUE cFileSource;
 static VALUE cTimer;
 static VALUE cSemaphore;
 
@@ -748,12 +748,6 @@ rb_is_file_source_type(VALUE num)
     return NO;
 }
 
-static inline BOOL
-rb_is_timer_source_type(VALUE num)
-{
-    return (NUM2LONG(num) == SOURCE_TYPE_TIMER) ? YES : NO;
-}
-
 static VALUE
 rb_source_alloc(VALUE klass, SEL sel)
 {
@@ -761,58 +755,6 @@ rb_source_alloc(VALUE klass, SEL sel)
     OBJSETUP(source, klass, RUBY_T_NATIVE);
     source->suspension_count = 1;
     return (VALUE)source;
-}
-
-static VALUE rb_source_on_event(VALUE self, SEL sel);
-static void rb_source_event_handler(void* sourceptr);
-
-/* 
- *  call-seq:
- *    Dispatch::Source.new(type, handle, mask, queue) {|src| block}
- *     => Dispatch::Source
- *
- *  Returns a Source used to monitor a variety of system objects and events
- *  including file descriptors, processes, virtual filesystem nodes, signal
- *  delivery and timers.
- *  When a state change occurs, the dispatch source will submit its event
- *  handler block to its target queue, with the source as a parameter.
- *  
- *     gcdq = Dispatch::Queue.new('doc')
- *     src = Dispatch::Source.new(Dispatch::Source::DATA_ADD, 0, 0, gcdq) do |s|
- *       puts "Fired!"
- *     end
- *
- *   Unlike with the C API, Dispatch::Source objects start off resumed
- *   (since the event handler has already been set).
- *   
- *     src.suspended? #=? false
- *     src.merge(0)
- *     gcdq.sync { } #=> Fired!
- *  
- */
-
-static VALUE
-rb_source_init(VALUE self, SEL sel,
-    VALUE type, VALUE handle, VALUE mask, VALUE queue)
-{
-    Check_Queue(queue);
-    rb_source_t *src = RSource(self);    
-    src->type = rb_num2source_type(type);
-    assert(src->type != NULL);
-    uintptr_t c_handle = NUM2UINT(handle);
-    unsigned long c_mask = NUM2LONG(mask);
-    dispatch_queue_t c_queue = RQueue(queue)->queue;
-    src->source = dispatch_source_create(src->type, c_handle, c_mask, c_queue);
-    assert(src->source != NULL);
-
-    if (rb_block_given_p()) {
-        rb_source_on_event(self, 0);
-    } else {
-        rb_raise(rb_eArgError, "No event handler for Dispatch::Source.");
-    }
-
-    rb_dispatch_resume(self, 0); // Does this work okay for timers?
-    return self;
 }
 
 static void
@@ -835,6 +777,62 @@ rb_source_on_event(VALUE self, SEL sel)
     dispatch_set_context(src->source, (void *)self); // retain this?
     dispatch_source_set_event_handler_f(src->source, rb_source_event_handler);
     return Qnil;
+}
+
+static VALUE
+rb_source_setup(VALUE self, SEL sel,
+    VALUE type, VALUE handle, VALUE mask, VALUE queue)
+{
+    Check_Queue(queue);
+    rb_source_t *src = RSource(self);    
+    src->type = rb_num2source_type(type);
+    assert(src->type != NULL);
+    uintptr_t c_handle = NUM2UINT(handle);
+    unsigned long c_mask = NUM2LONG(mask);
+    dispatch_queue_t c_queue = RQueue(queue)->queue;
+    src->source = dispatch_source_create(src->type, c_handle, c_mask, c_queue);
+    assert(src->source != NULL);
+
+    if (rb_block_given_p()) {
+        rb_source_on_event(self, 0);
+    } else {
+        rb_raise(rb_eArgError, "No event handler for Dispatch::Source.");
+    }
+    return self;
+}
+
+/* 
+ *  call-seq:
+ *    Dispatch::Source.new(type, handle, mask, queue) {|src| block}
+ *     => Dispatch::Source
+ *
+ *  Returns a Source used to monitor a variety of system objects and events
+ *  including file descriptors, processes, virtual filesystem nodes, signal
+ *  delivery and timers.
+ *  When a state change occurs, the dispatch source will submit its event
+ *  handler block to its target queue, with the source as a parameter.
+ *  
+ *     gcdq = Dispatch::Queue.new('doc')
+ *     src = Dispatch::Source.new(Dispatch::Source::DATA_ADD, 0, 0, gcdq) do |s|
+ *       puts "Fired with #{s.data}"
+ *     end
+ *
+ *   Unlike with the C API, Dispatch::Source objects start off resumed
+ *   (since the event handler has already been set).
+ *   
+ *     src.suspended? #=? false
+ *     src.merge(0)
+ *     gcdq.sync { } #=> Fired!
+ *  
+ */
+
+static VALUE
+rb_source_init(VALUE self, SEL sel,
+    VALUE type, VALUE handle, VALUE mask, VALUE queue)
+{
+    rb_source_setup(self, sel, type, handle, mask, queue);
+    rb_dispatch_resume(self, 0);
+    return self;
 }
 
 /* 
@@ -922,46 +920,6 @@ rb_source_merge(VALUE self, SEL sel, VALUE data)
     return Qnil;
 }
 
-static void
-rb_source_cancel_handler(void *source)
-{
-    assert(source != NULL);
-    rb_vm_block_t *the_block = RSource(source)->cancel_handler;
-    rb_vm_block_eval(the_block, 0, NULL);
-}
-
-/* 
- *  call-seq:
- *    src.on_cancel { |src| block }
- *
- *  This specifies an optional cancellation handler to be submitted exactly once
- *  to the target queue, and only when the source has been cancelled.
- *
- *  This is most commonly used to close File descriptors associated with
- *  Dispatch::Source::WRITE, Dispatch::Source::READ and Dispatch::Source::VNODE
- *
- *     gcdq = Dispatch::Queue.new('doc')
- *     file = File.open("/etc/passwd")
- *     src = Dispatch::Source.new(Dispatch::Source::READ, file, 0, gcdq) { }
- *     src.on_cancel { file.close }
- *     src.cancel!
- *
- */
- 
-static VALUE
-rb_source_on_cancellation(VALUE self, SEL sel)
-{
-    rb_source_t *src = RSource(self);
-    rb_vm_block_t *the_block = rb_vm_current_block();
-    if (the_block == NULL) {
-        rb_raise(rb_eArgError, "on_cancellation() requires a block argument");
-    }
-    GC_WB(&src->cancel_handler, the_block);
-    dispatch_set_context(src->source, (void*)self); // retain this?
-    dispatch_source_set_cancel_handler_f(src->source, rb_source_cancel_handler);
-    return Qnil;
-}
-
 static VALUE
 rb_source_cancel(VALUE self, SEL sel)
 {
@@ -991,13 +949,61 @@ rb_source_finalize(void *rcv, SEL sel)
     if (rb_source_finalize_super != NULL) {
         ((void(*)(void *, SEL))rb_source_finalize_super)(rcv, sel);
     }
-
 }
 
 
+static void
+rb_source_close_handler(void* longptr)
+{
+    long filedes = (long)longptr;
+    close((int)filedes);
+}
+
 /* 
  *  call-seq:
- *    Dispatch::Timer.new(delay, interval, leeway) =>  Dispatch::Timer
+ *    Dispatch::FileSource.new(type, handle, mask, queue) 
+ *     {|src| block} => Dispatch::Source
+ *
+ *  Like Dispatch::Source.new, except that it automatically creates
+ *  a cancel handler that will close(2) that file descriptor
+ *  
+ *     gcdq = Dispatch::Queue.new('doc')
+ *     file = File.open("/etc/passwd", r)
+ *     src = Dispatch::Source.new_close_file(Dispatch::Source::READ,
+ *           file.to_i, 0, gcdq) { |s| s.cancel! }
+ *
+ *   The type must be one of:
+ *      - Dispatch::Source::READ
+ *      - Dispatch::Source::WRITE
+ *      - Dispatch::Source::VNODE
+ *
+ *   This is the only way to set the cancel_handler, since in MacRuby
+ *   sources start off resumed. This is preferred to closing the file
+ *   yourself, as the cancel handler is guaranteed to only run once.
+ *
+ *   NOTE: If you do NOT want the file descriptor closed, use Dispatch::Source.
+ *  
+ */
+
+static VALUE
+rb_source_file_init(VALUE self, SEL sel,
+    VALUE type, VALUE handle, VALUE mask, VALUE queue)
+{
+    if (rb_is_file_source_type(type) == NO) {
+        rb_raise(rb_eArgError, "%ld not a file source type", NUM2LONG(type));
+    }
+    rb_source_setup(self, sel, type, handle, mask, queue);
+    rb_source_t *src = RSource(self);            
+    long fildes = NUM2INT(type);
+    dispatch_set_context(src->source, (void*)fildes);
+    dispatch_source_set_cancel_handler_f(src->source, rb_source_close_handler);
+    rb_dispatch_resume(self, 0);
+    return self;
+}
+
+/* 
+ *  call-seq:
+ *    Dispatch::Timer.new(delay, interval, leeway, queue) =>  Dispatch::Timer
  *
  *  Returns a Source that will submit the event handler block to
  *  the target queue after delay, repeated at interval, within leeway, via
@@ -1007,20 +1013,19 @@ rb_source_finalize(void *rcv, SEL sel)
  *  a later time even if the leeway is zero.
  *  
  *     gcdq = Dispatch::Queue.new('doc')
- *     timer = Dispatch::Timer.new(Time.now, 5, 0.1)
+ *     timer = Dispatch::Timer.new(Time.now, 5, 0.1, gcdq)
  *
  */
 
 static VALUE
-rb_timer_init(VALUE self, SEL sel, int argc, VALUE* argv)
+rb_source_timer_init(VALUE self, SEL sel,
+ VALUE delay, VALUE interval, VALUE leeway, VALUE queue)
 {
     dispatch_time_t start_time;
     rb_source_t *src = RSource(self);
-    VALUE queue = Qnil, interval = Qnil, delay = Qnil, leeway = Qnil;
-    rb_scan_args(argc, argv, "31", &queue, &delay, &interval, &leeway);
     Check_Queue(queue);
     
-    rb_source_init(self, sel, INT2FIX(SOURCE_TYPE_TIMER),
+    rb_source_setup(self, sel, INT2FIX(SOURCE_TYPE_TIMER),
 	    INT2FIX(0), INT2FIX(0), queue);
 
     if (NIL_P(leeway)) {
@@ -1035,6 +1040,7 @@ rb_timer_init(VALUE self, SEL sel, int argc, VALUE* argv)
 
     dispatch_source_set_timer(src->source, start_time,
 	    rb_num2nsec(interval), rb_num2nsec(leeway));
+    rb_dispatch_resume(self, 0);
     return self;
 }
 
@@ -1257,7 +1263,6 @@ Init_Dispatch(void)
     
     rb_objc_define_method(*(VALUE *)cSource, "alloc", rb_source_alloc, 0);
     rb_objc_define_method(cSource, "initialize", rb_source_init, 4);
-    rb_objc_define_method(cSource, "on_cancel", rb_source_on_cancellation, 0);
     rb_objc_define_method(cSource, "cancelled?", rb_source_cancelled_p, 0);
     rb_objc_define_method(cSource, "cancel!", rb_source_cancel, 0);
     rb_objc_define_method(cSource, "resume!", rb_dispatch_resume, 0);
@@ -1266,13 +1271,15 @@ Init_Dispatch(void)
     rb_objc_define_method(cSource, "handle", rb_source_get_handle, 0);
     rb_objc_define_method(cSource, "mask", rb_source_get_mask, 0);
     rb_objc_define_method(cSource, "data", rb_source_get_data, 0);
-    rb_objc_define_method(cSource, "<<", rb_source_merge, 1);
-
-    cTimer = rb_define_class_under(mDispatch, "Timer", cSource);
-    rb_objc_define_method(cTimer, "initialize", rb_timer_init, -1);
-
+    rb_objc_define_method(cSource, "<<", rb_source_merge, 1);    
     rb_source_finalize_super = rb_objc_install_method2((Class)cSource,
 	    "finalize", (IMP)rb_source_finalize);
+
+    cFileSource = rb_define_class_under(mDispatch, "FileSource", cSource);
+    rb_objc_define_method(cFileSource, "initialize", rb_source_file_init, 4);
+    
+    cTimer = rb_define_class_under(mDispatch, "Timer", cSource);
+    rb_objc_define_method(cTimer, "initialize", rb_source_timer_init, 4);
 
     cSemaphore = rb_define_class_under(mDispatch, "Semaphore", rb_cObject);
     rb_objc_define_method(*(VALUE *)cSemaphore, "alloc", rb_semaphore_alloc, 0);

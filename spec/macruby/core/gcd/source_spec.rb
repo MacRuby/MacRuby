@@ -109,15 +109,6 @@ if MACOSX_VERSION >= 10.6
           @q.sync { }
           @i.should == 42
         end        
-
-        it "runs cancel handler when cancelled" do
-          @i = 0
-          src = Dispatch::Source.new(@type, 0, 0, @q) {|s|  @i = 21}
-          src.on_cancel { @i = 42 }
-          src.cancel!
-          @q.sync { }
-          @i.should == 42
-        end
       end
 
       describe :DATA_OR do
@@ -268,6 +259,13 @@ if MACOSX_VERSION >= 10.6
   end
   
   describe "Dispatch::Timer" do
+    before :each do
+      @q = Dispatch::Queue.new('org.macruby.gcd_spec.sources')
+    end
+    it "returns an instance of Dispatch::Source" do
+      src = Dispatch::Timer.new(nil, 0.1, nil, @q) { }
+      src.should be_kind_of(Dispatch::Source)
+    end
   end
 
 end
