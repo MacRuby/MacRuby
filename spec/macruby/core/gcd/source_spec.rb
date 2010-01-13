@@ -54,6 +54,10 @@ if MACOSX_VERSION >= 10.6
         @q = Dispatch::Queue.new('org.macruby.gcd_spec.sources')
       end
 
+      after :each do
+        @q.sync { }
+      end
+
       describe :DATA_ADD do
         before :each do
           @type = Dispatch::Source::DATA_ADD
@@ -161,12 +165,17 @@ if MACOSX_VERSION >= 10.6
 
         it "fires on process event with event mask data" do
           @i = 0
-          src = Dispatch::Source.new(@type, $$, @mask, @q) { |s|  @i = s.data }
+          @fired = false
+          src = Dispatch::Source.new(@type, $$, @mask, @q) do |s|
+            @i = s.data
+            @fired = true
+          end
           Signal.trap(@signal, "IGNORE")
           Process.kill(@signal, $$)
-          sleep 0.05
           Signal.trap(@signal, "DEFAULT")
           @q.sync { }
+          #while (@fired == false) do; end
+          @fired.should == true
           @i.should == @mask
           src.cancel!
         end
@@ -186,11 +195,17 @@ if MACOSX_VERSION >= 10.6
 
         it "fires on signal with signal count data" do
           @i = 0
-          src = Dispatch::Source.new(@type, @signal, 0, @q) { |s|  @i = s.data }
+          @fired = false
+          src = Dispatch::Source.new(@type, @signal, 0, @q) do |s|
+            @i = s.data
+            @fired = true
+          end
           Signal.trap(@signal, "IGNORE")
           Process.kill(@signal, $$)
           Signal.trap(@signal, "DEFAULT")
           @q.sync { }
+          #while (@fired == false) do; end
+          @fired.should == true
           @i.should == 1
           src.cancel!
         end
@@ -199,14 +214,16 @@ if MACOSX_VERSION >= 10.6
       describe "file:" do
         before :each do
           @msg = "#{$$}: #{Time.now}"
-          @filename = "/var/tmp/gcd_spec_source-#{$$}"
-          File.delete(@filename) if File.exist?(@filename)
+          @filename = "/var/tmp/gcd_spec_source-#{$$}-#{Time.now}"
           @file = nil
+          @src = nil
         end
 
         after :each do
+          @src.cancel! if not @src.nil? and not @src.cancelled?
           @q.sync { }
           @file.close
+          File.delete(@filename)
         end
       
         describe :READ do
@@ -217,14 +234,13 @@ if MACOSX_VERSION >= 10.6
           end
           
           it "returns an instance of Dispatch::Source" do
-            src = Dispatch::Source.new(@type, @file.to_i, 0, @q) { }
-            src.should be_kind_of(Dispatch::Source)
-            src.cancel!            
+            @src = Dispatch::Source.new(@type, @file.to_i, 0, @q) { }
+            @src.should be_kind_of(Dispatch::Source)
           end
           
           it "fires with data on estimated # of readable bytes" do
             @result = ""
-            src = Dispatch::Source.new(@type, @file.to_i, 0, @q) do |s|
+            @src = Dispatch::Source.new(@type, @file.to_i, 0, @q) do |s|
               begin
                 @result << @file.read(s.data) # ideally should read_nonblock
               rescue Exception => error
@@ -234,15 +250,19 @@ if MACOSX_VERSION >= 10.6
             while (@result.size < @msg.size) do; end
             @q.sync { }
             @result.should == @msg
-            src.cancel!            
           end
           
           it "does not close file when cancelled" do
-            src = Dispatch::Source.new(@type, @file.to_i, 0, @q) { }
-            src.cancel!
+            @src = Dispatch::Source.new(@type, @file.to_i, 0, @q) { }
+            @src.cancel!
             @q.sync { }
             @file.closed?.should == false
           end
+          
+          it "raises TypeError if non-Number passed as handle" do
+            lambda { Dispatch::Source.new(@type, @file, 0, @q) { } }.should raise_error(TypeError) 
+          end
+                    
         end    
 
         describe :WRITE do
@@ -252,30 +272,25 @@ if MACOSX_VERSION >= 10.6
           end
 
           it "returns an instance of Dispatch::Source" do
-            src = Dispatch::Source.new(@type, @file.to_i, 0, @q) { }
-            src.should be_kind_of(Dispatch::Source)
-            src.cancel!            
+            @src = Dispatch::Source.new(@type, @file.to_i, 0, @q) { }
+            @src.should be_kind_of(Dispatch::Source)
           end
           
           it "fires with data on estimated # of writeable bytes" do
             @pos = 0
-            @message = @msg
-            src = Dispatch::Source.new(@type, @file.to_i, 0, @q) do |s|
+            @src = Dispatch::Source.new(@type, @file.to_i, 0, @q) do |s|
               begin
-                pos = s.data
-                if not @message.nil? then
-                  next_msg = @message[0..pos-1]
-                  @file.write(next_msg) # ideally should write_nonblock
-                  @message = @message[pos..-1]
-                end
+                npos = @pos + s.data - 1
+                @file.write(@msg[@pos..npos]) # ideally should write_nonblock
+                @pos = npos + 1
               rescue Exception => error
                 puts error
               end
             end
-            while (@message.size > 0) do; end
+            while (@pos < @msg.size) do; end
             @q.sync { }
             File.read(@filename).should == @msg
-            src.cancel!            
+            @src.cancel!            
           end
         end    
 
@@ -287,26 +302,61 @@ if MACOSX_VERSION >= 10.6
           end
 
           it "returns an instance of Dispatch::Source" do
-            src = Dispatch::Source.new(@type, @file.to_i, @mask, @q) { }
-            src.should be_kind_of(Dispatch::Source)
-            src.cancel!            
+            @src = Dispatch::Source.new(@type, @file.to_i, @mask, @q) { }
+            @src.should be_kind_of(Dispatch::Source)
           end
           
           it "fires with data showing mask of vnode events" do
             @flag = 0
-            src = Dispatch::Source.new(@type, @file.to_i, @mask, @q) do |s|
+            @fired = false
+            @src = Dispatch::Source.new(@type, @file.to_i, @mask, @q) do |s|
                 @flag = s.data
+                @fired = true
             end
             @file.write(@msg)
             @file.flush
             @q.sync { }
+            #while (@fired == false) do; end
+            @fired.should == true
             @flag.should == @mask
-            src.cancel!            
           end    
         end
       end
     end
-      
+  end
+
+  describe "Dispatch::FileSource" do
+    before :each do
+      @q = Dispatch::Queue.new("org.macruby.gcd_spec.filesource-#{Time.now}")
+      @filename = "/dev/null"
+      @type = Dispatch::Source::READ
+    end
+    
+    it "returns an instance of Dispatch::Source" do
+      @file = File.open(@filename, "r")
+      src = Dispatch::FileSource.new(@type, @file, 0, @q) { }
+      src.should be_kind_of(Dispatch::Source)
+      src.should be_kind_of(Dispatch::FileSource)
+      src.cancel!
+    end
+    
+    it "raises NoMethodError if non-IO passed as handle" do
+      @file = File.open(@filename, "r")
+      lambda { Dispatch::FileSource.new(@type, @file.to_i, 0, @q) { } }.should raise_error(NoMethodError) 
+    end
+        
+    it "closes file when cancelled" do
+      @file = File.open(@filename, "r")
+      src = Dispatch::FileSource.new(@type, @file, 0, @q) { } 
+      @file.closed?.should == false
+      src.cancel!
+      @q.sync { }
+      @file.closed?.should == true
+    end
+
+    after :each do
+      @q.sync { }
+    end
   end
   
   describe "Dispatch::Timer" do
@@ -346,7 +396,6 @@ if MACOSX_VERSION >= 10.6
       repeats = 3
       @count = -1 # ignore zeroeth event to simplify interval counting
       t0 = Time.now
-      #
       @src = Dispatch::Timer.new(0, @interval, 0, @q) { |s| @count +=  s.data }
       sleep repeats*@interval
       @q.sync { }
