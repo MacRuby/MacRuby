@@ -81,6 +81,7 @@ typedef struct {
     int suspension_count;
     dispatch_source_t source;
     rb_vm_block_t *event_handler;
+    VALUE rb_context;
 } rb_source_t;
 
 #define RSource(val) ((rb_source_t*)val)
@@ -754,18 +755,6 @@ rb_source_event_handler(void* sourceptr)
 }
 
 static VALUE
-rb_source_on_event(VALUE self, SEL sel)
-{
-    rb_source_t *src = RSource(self);
-    rb_vm_block_t *block = get_prepared_block();
-    GC_WB(&src->event_handler, block);
-    GC_RETAIN(self);
-    dispatch_set_context(src->source, (void *)self); // retain this?
-    dispatch_source_set_event_handler_f(src->source, rb_source_event_handler);
-    return Qnil;
-}
-
-static VALUE
 rb_source_setup(VALUE self, SEL sel,
     VALUE type, VALUE handle, VALUE mask, VALUE queue)
 {
@@ -779,11 +768,11 @@ rb_source_setup(VALUE self, SEL sel,
     src->source = dispatch_source_create(c_type, c_handle, c_mask, c_queue);
     assert(src->source != NULL);
 
-    if (rb_block_given_p()) {
-        rb_source_on_event(self, 0);
-    } else {
-        rb_raise(rb_eArgError, "No event handler for Dispatch::Source.");
-    }
+    rb_vm_block_t *block = get_prepared_block();
+    GC_WB(&src->event_handler, block);
+    GC_RETAIN(self);
+    dispatch_set_context(src->source, (void *)self);
+    dispatch_source_set_event_handler_f(src->source, rb_source_event_handler);
     return self;
 }
 
@@ -937,15 +926,15 @@ rb_source_finalize(void *rcv, SEL sel)
     }
 }
 
-#ifndef CANCEL
 static void
-rb_source_close_handler(void* io_ptr)
+rb_source_close_handler(void* sourceptr)
 {
-    VALUE io = (VALUE)io_ptr;
+    assert(sourceptr != NULL);
+    rb_source_t *src = RSource(sourceptr);
+    VALUE io = src->rb_context;
     rb_vm_call(io, selClose, 0, NULL, false);
-    //GC_RELEASE(io);
+    GC_RELEASE(io);
 }
-#endif
 
 /* 
  *  call-seq:
@@ -987,12 +976,10 @@ rb_source_file_init(VALUE self, SEL sel,
 
     VALUE handle = rb_vm_call(io, selFileNo, 0, NULL, false);
     rb_source_setup(self, sel, type, handle, mask, queue);
-#ifndef CANCEL
-    rb_source_t *src = RSource(self);            
-    dispatch_set_context(src->source, (void*)io); // should this be retained?
-    //GC_RETAIN(io);
+    rb_source_t *src = RSource(self);
+    GC_RETAIN(io);
+    src->rb_context = io;
     dispatch_source_set_cancel_handler_f(src->source, rb_source_close_handler);
-#endif
     rb_dispatch_resume(self, 0);
     return self;
 }
