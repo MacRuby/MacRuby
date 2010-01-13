@@ -80,7 +80,6 @@ typedef struct {
     struct RBasic basic;
     int suspension_count;
     dispatch_source_t source;
-    dispatch_source_type_t type; // remove?
     rb_vm_block_t *event_handler;
 } rb_source_t;
 
@@ -786,13 +785,13 @@ rb_source_setup(VALUE self, SEL sel,
     VALUE type, VALUE handle, VALUE mask, VALUE queue)
 {
     Check_Queue(queue);
-    rb_source_t *src = RSource(self);    
-    src->type = rb_num2source_type(type);
-    assert(src->type != NULL);
+    rb_source_t *src = RSource(self);
+    dispatch_source_type_t type = rb_num2source_type(type);
+    assert(type != NULL);
     uintptr_t c_handle = NUM2UINT(handle);
     unsigned long c_mask = NUM2LONG(mask);
     dispatch_queue_t c_queue = RQueue(queue)->queue;
-    src->source = dispatch_source_create(src->type, c_handle, c_mask, c_queue);
+    src->source = dispatch_source_create(type, c_handle, c_mask, c_queue);
     assert(src->source != NULL);
 
     if (rb_block_given_p()) {
