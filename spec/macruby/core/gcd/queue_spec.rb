@@ -120,7 +120,7 @@ if MACOSX_VERSION >= 10.6
 
     describe :after do
       it "accepts a given time (in seconds) and a block and yields it after" do
-        [0.1].each do |test_time|
+        [0.02].each do |test_time|
 
           t = Time.now
           @q.after(test_time) { @i = 42 }
