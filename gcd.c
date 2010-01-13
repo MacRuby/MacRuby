@@ -111,16 +111,6 @@ static VALUE cFileSource;
 static VALUE cTimer;
 static VALUE cSemaphore;
 
-static inline rb_vm_block_t *
-given_block(void)
-{
-    rb_vm_block_t *block = rb_vm_current_block();
-    if (block == NULL) {
-        rb_raise(rb_eArgError, "block not given");
-    }
-    return block;
-}
-
 static inline void
 Check_Queue(VALUE object)
 {
@@ -352,9 +342,14 @@ rb_queue_dispatcher(void *data)
 	    rb_eStandardError);
 }
 
+
 static rb_vm_block_t *
-rb_dispatch_prepare_block(rb_vm_block_t *block)
+get_prepared_block()
 {
+    rb_vm_block_t *block = rb_vm_current_block();
+    if (block == NULL) {
+        rb_raise(rb_eArgError, "block not given");
+    }
     rb_vm_set_multithreaded(true);
 #if GCD_BLOCKS_COPY_DVARS
     block = rb_vm_dup_block(block);
@@ -398,9 +393,7 @@ rb_dispatch_prepare_block(rb_vm_block_t *block)
 static VALUE
 rb_queue_dispatch_async(VALUE self, SEL sel, int argc, VALUE *argv)
 {
-    rb_vm_block_t *block = given_block();
-    block = rb_dispatch_prepare_block(block);
-
+    rb_vm_block_t *block = get_prepared_block();
     VALUE group;
     rb_scan_args(argc, argv, "01", &group);
 
@@ -434,9 +427,7 @@ rb_queue_dispatch_async(VALUE self, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_queue_dispatch_sync(VALUE self, SEL sel)
 {
-    rb_vm_block_t *block = given_block();
-    block = rb_dispatch_prepare_block(block);
-
+    rb_vm_block_t *block = get_prepared_block();
     dispatch_sync_f(RQueue(self)->queue, (void *)block,
 	    rb_queue_dispatcher);
 
@@ -456,9 +447,7 @@ static VALUE
 rb_queue_dispatch_after(VALUE self, SEL sel, VALUE delay)
 {
     dispatch_time_t offset = NIL_P(delay) ? DISPATCH_TIME_NOW : rb_num2timeout(delay);
-    rb_vm_block_t *block = given_block();
-    block = rb_dispatch_prepare_block(block);
-
+    rb_vm_block_t *block = get_prepared_block();
     dispatch_after_f(offset, RQueue(self)->queue, (void *)block,
 	    rb_queue_dispatcher);
 
@@ -494,9 +483,7 @@ rb_queue_applier(void *data, size_t ii)
 static VALUE
 rb_queue_apply(VALUE self, SEL sel, VALUE n)
 {
-    rb_vm_block_t *block = given_block();
-    block = rb_dispatch_prepare_block(block);
-
+    rb_vm_block_t *block = get_prepared_block();
     dispatch_apply_f(NUM2SIZET(n), RQueue(self)->queue, (void *)block,
 	    rb_queue_applier);
 
@@ -651,9 +638,7 @@ rb_group_initialize(VALUE self, SEL sel)
 static VALUE
 rb_group_notify(VALUE self, SEL sel, VALUE target)
 {
-    rb_vm_block_t *block = given_block();
-    block = rb_dispatch_prepare_block(block);
-
+    rb_vm_block_t *block = get_prepared_block();
     Check_Queue(target);
 
     dispatch_group_notify_f(RGroup(self)->group, RQueue(target)->queue,
@@ -744,9 +729,9 @@ rb_is_file_source_type(VALUE num)
     enum SOURCE_TYPE_ENUM value = NUM2LONG(num);
     if (value == SOURCE_TYPE_READ || value == SOURCE_TYPE_VNODE 
         || value == SOURCE_TYPE_WRITE) {
-        return YES;
+        return true;
     }
-    return NO;
+    return false;
 }
 
 static VALUE
@@ -772,7 +757,7 @@ static VALUE
 rb_source_on_event(VALUE self, SEL sel)
 {
     rb_source_t *src = RSource(self);
-    rb_vm_block_t *block = given_block();
+    rb_vm_block_t *block = get_prepared_block();
     GC_WB(&src->event_handler, block);
     GC_RETAIN(self);
     dispatch_set_context(src->source, (void *)self); // retain this?
@@ -952,14 +937,15 @@ rb_source_finalize(void *rcv, SEL sel)
     }
 }
 
-
+#ifndef CANCEL
 static void
 rb_source_close_handler(void* io_ptr)
 {
     VALUE io = (VALUE)io_ptr;
-    rb_vm_call(io, selClose, 0, NULL, NO);
+    rb_vm_call(io, selClose, 0, NULL, false);
     //GC_RELEASE(io);
 }
+#endif
 
 /* 
  *  call-seq:
@@ -995,16 +981,18 @@ static VALUE
 rb_source_file_init(VALUE self, SEL sel,
     VALUE type, VALUE io, VALUE mask, VALUE queue)
 {
-    if (rb_is_file_source_type(type) == NO) {
+    if (rb_is_file_source_type(type) == false) {
         rb_raise(rb_eArgError, "%ld not a file source type", NUM2LONG(type));
     }
 
-    VALUE handle = rb_vm_call(io, selFileNo, 0, NULL, NO);
+    VALUE handle = rb_vm_call(io, selFileNo, 0, NULL, false);
     rb_source_setup(self, sel, type, handle, mask, queue);
+#ifndef CANCEL
     rb_source_t *src = RSource(self);            
     dispatch_set_context(src->source, (void*)io); // should this be retained?
     //GC_RETAIN(io);
     dispatch_source_set_cancel_handler_f(src->source, rb_source_close_handler);
+#endif
     rb_dispatch_resume(self, 0);
     return self;
 }
