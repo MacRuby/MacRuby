@@ -164,6 +164,7 @@ if MACOSX_VERSION >= 10.6
           src = Dispatch::Source.new(@type, $$, @mask, @q) { |s|  @i = s.data }
           Signal.trap(@signal, "IGNORE")
           Process.kill(@signal, $$)
+          sleep 0.01
           Signal.trap(@signal, "DEFAULT")
           @q.sync { }
           @i.should == @mask
@@ -197,22 +198,24 @@ if MACOSX_VERSION >= 10.6
       
       describe "file:" do
         before :each do
-          @filename = "/var/tmp/gcd_spec_source-#{$$}"
           @msg = "#{$$}: #{Time.now}"
+          @filename = "/var/tmp/gcd_spec_source-#{$$}"
+          File.delete(@filename) if File.exist?(@filename)
+          @file = nil
+        end
+
+        after :each do
+          @q.sync { }
+          @file.close
         end
       
         describe :READ do
           before :each do
             @type = Dispatch::Source::READ
-            File.delete(@filename) if File.exist?(@filename)
             File.open(@filename, "w") {|f| f.print @msg}
             @file = File.open(@filename, "r")
           end
           
-          after :each do
-            @file.close if not @file.closed?
-          end
-
           it "returns an instance of Dispatch::Source" do
             src = Dispatch::Source.new(@type, @file.to_i, 0, @q) { }
             src.should be_kind_of(Dispatch::Source)
@@ -229,9 +232,9 @@ if MACOSX_VERSION >= 10.6
               end
             end
             while (@result.size < @msg.size) do; end
-            src.cancel!            
             @q.sync { }
             @result.should == @msg
+            src.cancel!            
           end
           
           it "does not close file when cancelled" do
@@ -240,17 +243,39 @@ if MACOSX_VERSION >= 10.6
             @q.sync { }
             @file.closed?.should == false
           end
-          
         end    
 
         describe :WRITE do
           before :each do
             @type = Dispatch::Source::WRITE
+            @file = File.open(@filename, "w")
           end
 
           it "returns an instance of Dispatch::Source" do
-            src = Dispatch::Source.new(@type, $stdout.to_i, 0, @q) { }
+            src = Dispatch::Source.new(@type, @file.to_i, 0, @q) { }
             src.should be_kind_of(Dispatch::Source)
+            src.cancel!            
+          end
+          
+          it "fires with data on estimated # of writeable bytes" do
+            @pos = 0
+            @message = @msg
+            src = Dispatch::Source.new(@type, @file.to_i, 0, @q) do |s|
+              begin
+                pos = s.data
+                if not @message.nil? then
+                  next_msg = @message[0..pos-1]
+                  @file.write(next_msg) # ideally should write_nonblock
+                  @message = @message[pos..-1]
+                end
+              rescue Exception => error
+                puts error
+              end
+            end
+            while (@message.size > 0) do; end
+            @q.sync { }
+            File.read(@filename).should == @msg
+            src.cancel!            
           end
         end    
 
@@ -258,27 +283,40 @@ if MACOSX_VERSION >= 10.6
           before :each do
             @type = Dispatch::Source::VNODE
             @mask = Dispatch::Source::VNODE_WRITE
+            @file = File.open(@filename, "w")
           end
 
           it "returns an instance of Dispatch::Source" do
-            src = Dispatch::Source.new(@type, $stdout.to_i, @mask, @q) { }
+            src = Dispatch::Source.new(@type, @file.to_i, @mask, @q) { }
             src.should be_kind_of(Dispatch::Source)
+            src.cancel!            
           end
+          
+          it "fires with data showing mask of vnode events" do
+            @flag = 0
+            src = Dispatch::Source.new(@type, @file.to_i, @mask, @q) do |s|
+                @flag = s.data
+            end
+            @file.write(@msg)
+            @q.sync { }
+            @flag.should == @mask
+            src.cancel!            
+          end    
         end
-  
       end
     end
       
   end
   
-  
   describe "Dispatch::Timer" do
     before :each do
       @q = Dispatch::Queue.new('org.macruby.gcd_spec.sources')
     end
+    
     it "returns an instance of Dispatch::Source" do
-      src = Dispatch::Timer.new(nil, 0.1, nil, @q) { }
+      src = Dispatch::Timer.new(Time.now, 0.1, 0, @q) { }
       src.should be_kind_of(Dispatch::Source)
+      src.should be_kind_of(Dispatch::Timer)
     end
   end
 
