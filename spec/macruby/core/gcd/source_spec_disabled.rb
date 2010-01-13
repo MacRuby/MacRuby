@@ -2,390 +2,145 @@ require File.dirname(__FILE__) + "/../../spec_helper"
 
 if MACOSX_VERSION >= 10.6
 
-  describe "Dispatch::Source" do
+  describe "Dispatch::Queue source methods" do
     before :each do
       @q = Dispatch::Queue.new('org.macruby.gcd_spec.sources')
+      @src = nil
     end
 
-    describe "custom events" do
-      describe "on_add" do
-        before :each do
-          @src = @q.on_add {|count| count.should == 42}
-        end
-
-        it "returns a Source for a queue " do
-          @src.should be_kind_of(Dispatch::Source)
-        end
-
-        it "should not be suspended" do
-          @src.suspended?.should == false
-        end
-
-        it "takes an event handler block" do
-          lambda { @q.on_add }.should raise_error(ArgumentError)
-        end
-
-        it "takes no arguments" do
-          lambda { @q.on_add(1) { }}.should raise_error(ArgumentError)
-        end
-
-        it "should execute event handler when Fixnum merged with <<" do
-          @src.suspend
-          @src << 20
-          @src << 22
-          @src.resume
-          @q.sync {}
-        end
-
-        it "will only merge Fixnum arguments" do
-          lambda { @src << :foo}.should raise_error(ArgumentError)
-        end
-      end    
-
-      describe "on_or" do
-        before :each do
-          @src = @q.on_or {|count| count.should == 0b1011}
-        end
-
-        it "returns a Source for a queue " do
-          @src.should be_kind_of(Dispatch::Source)
-        end
-
-        it "should not be suspended" do
-          @src.suspended?.should == false
-        end
-
-        it "takes an event handler block" do
-          lambda { @q.on_or }.should raise_error(ArgumentError)
-        end
-
-        it "takes no arguments" do
-          lambda { @q.on_or(1) { }}.should raise_error(ArgumentError)
-        end
-
-        it "fires the event handler when merging data using <<" do
-          @src.suspend
-          @src << 0b0011
-          @src << 0b1010
-          @src.resume
-          @q.sync {}
-        end
-
-        it "will only merge Fixnum arguments" do
-          lambda { @src << :foo}.should raise_error(ArgumentError)
-        end
-      end    
+    after :each do
+      @src.cancel! if not @src.nil? and not @src.cancelled?
+      @q.sync { }
     end
 
-    describe "process events" do
-      before :each do
-        @test_signal = "USR1"
+    describe "on_add" do
+      it "fires with data on summed inputs" do
+        @count = 0
+        @src = @q.on_add {|s| @count += s.data}
+        @src.suspend
+        @src << 20
+        @src << 22
+        @src.resume
+        @q.sync {}
+        @count.should == 42
       end
-
-      describe "on_process_event" do
-        before :each do
-          @src = @q.on_process_event($$, :exit, :fork, :exec, :reap, :signal) { |mask| mask[0].should == :signal }
-        end
-
-        after :each do
-          @src.cancel
-        end
-
-        it "returns a Source for a queue " do
-          @src.should be_kind_of(Dispatch::Source)
-        end
-
-        it "should not be suspended" do
-          @src.suspended?.should == false
-        end
-
-        it "takes an event handler block" do
-          lambda { @q.on_process_event($$, :exit, :fork, :exec, :reap, :signal) }.should raise_error(ArgumentError)
-        end
-
-        it "takes a process_id plus one or more symbols" do
-          lambda { @q.on_process_event(:exit, :fork, :exec, :reap, :signal) {} }.should raise_error(ArgumentError)
-          lambda { @q.on_process_event($$) {} }.should raise_error(ArgumentError)
-        end
-
-        it "should automatically mask any handled signals (?)" do
-          @q.on_signal(:KILL) {}
-          #@Process.kill(:KILL, $$) Don't try this very often until it works :-)
-          @q.sync {}
-
-        end
-
-        it "fires the event handler with a mask indicating the process event" do
-          Process.kill(@test_signal, $$)                # send myself a SIGUSR1
-          @q.sync {}
-        end
-      end
-
-      describe "on_signal" do
-        before :each do
-          @src = @q.on_signal(@test_signal) { |count| count == 2 }
-        end
-
-        after :each do
-          @src.cancel
-        end
-
-        it "returns a Source for a queue " do
-          @src.should be_kind_of(Dispatch::Source)
-        end
-
-        it "should not be suspended" do
-          @src.suspended?.should == false
-        end
-
-        it "takes an event handler block" do
-          lambda { @q.on_signal(@test_signal) }.should raise_error(ArgumentError)
-        end
-
-        it "takes the same signal identifiers as Process#kill" do
-          lambda { @q.on_signal(9) {} }.should_not raise_error(ArgumentError)
-          lambda { @q.on_signal("KILL") {} }.should_not raise_error(ArgumentError)
-          lambda { @q.on_signal("SIG_KILL") {} }.should_not raise_error(ArgumentError)
-          lambda { @q.on_signal(:KILL) {} }.should_not raise_error(ArgumentError)
-          lambda { @q.on_signal(9.5) {} }.should raise_error(ArgumentError)
-        end
-
-        it "fires the event handler with count of how often the current process is signaled" do
-          @src.suspend
-          Process.kill(@test_signal, $$)                # send myself a SIGUSR1
-          Process.kill(@test_signal, $$)                # send myself a SIGUSR1
-          @src.resume
-          @q.sync {}
-        end
-
-      end    
-
     end    
 
-    describe "on_timer" do
+    describe "on_or" do
+      it "fires with data on ORed inputs" do
+        @count = 0
+        @src = @q.on_or {|s| @count += s.data}
+        @src.suspend
+        @src << 0xb101_000
+        @src << 0xb000_010
+        @src.resume
+        @q.sync {}
+        @count.should == 42
+      end
+    end    
+
+    describe "on_process_event" do
+      it "fires with data indicating which process event(s)" do
+        @signal = Signal.list["USR1"]
+        @event = nil
+        @src = @q.on_process_event($$, :exit,:fork,:exec,:reap,:signal) do 
+           |s| @event = s.data
+        end
+        Process.kill(@signal, $$)
+        @q.sync {}
+        @event.should == Dispatch::Source::PROC_SIGNAL
+      end
+    end
+
+    describe "on_signal" do
+      it "fires with data on how often the process was signaled" do
+        @signal = Signal.list["USR1"]
+        @count = 0
+        @src = @q.on_signal(@signal) {|s| @count += s.data}
+        Signal.trap(@signal, "IGNORE")
+        Process.kill(@signal, $$)
+        Process.kill(@signal, $$)
+        Signal.trap(@signal, "DEFAULT")
+        @q.sync {}
+        @count.should == 2
+        @src.cancel!
+      end
+    end    
+
+    describe "on_interval" do
+      it "fires with data on how often the timer has fired" do
+        @count = -1
+        repeats = 2
+        @interval = 0.02
+        @src = @q.on_interval(@interval) {|s| @count += s.data}
+        sleep repeats*@interval
+        @q.sync { }
+        @count.should == repeats
+      end
+    end
+    
+    describe "file:" do
       before :each do
-        @src = @q.on_timer(0, 0.1, 0.01) { |count| count.should >= 2 }
+        @msg = "#{$$}: #{Time.now}"
+        @filename = "/var/tmp/gcd_spec_source-#{$$}-#{Time.now}"
+        @file = nil
+        @src = nil
       end
 
       after :each do
-        @src.cancel
+        @src.cancel! if not @src.nil? and not @src.cancelled?
+        @q.sync { }
+        @file.close if not @file.closed?
+        File.delete(@filename)
       end
 
-      it "returns a Source for a queue " do
-        @src.should be_kind_of(Dispatch::Source)
-      end
-
-      it "should not be suspended" do
-        @src.suspended?.should == false
-      end
-
-      it "takes an event handler block" do
-        lambda { @q.on_timer(0, 0.1, 0.01) }.should raise_error(ArgumentError)
-      end
-
-      it "takes delay, interval in seconds, and optional leeway" do
-        lambda { @q.on_timer(0, 0.1, 0.01) {} }.should_not raise_error(ArgumentError)
-        lambda { @q.on_timer(0, 0.1) {} }.should_not raise_error(ArgumentError)
-        lambda { @q.on_timer(0.1, Time.now) {} }.should raise_error(TypeError)
-      end
-
-      it "fires the event handler with count of how often the timer has fired" do
-        sleep 0.3
-        @q.sync {}
-      end
-
-    end    
-
-    describe "file events" do
-      before :each do
-        @filename = tmp("gcd_spec_source-#{$$}")
-          @msg = "#{Time.now}: on_file_event"
-      end
-
-      describe "on_file_event" do
-        before :each do
-          @file = File.open(@filename, "w")
-          @src = @q.on_file_event(@file, :delete, :write, :extend, :attrib, :link, :rename, :revoke) {|mask| mask[0].should == :write}
-        end
-
-        after :each do
-          @src.cancel
-          @file.close
-        end
-
-        it "returns a Source for a queue " do
-          @src.should be_kind_of(Dispatch::Source)
-        end
-
-        it "should not be suspended" do
-          @src.suspended?.should == false
-        end
-
-        it "takes an event handler block" do
-          lambda { @q.on_file_event(file, :delete) }.should raise_error(ArgumentError)
-        end
-
-        it "takes an IO object plus one or more symbols" do
-          lambda { @q.on_file_event(file, :delete) {}}.should_not raise_error(ArgumentError)
-          lambda { @q.on_file_event(file) {} }.should raise_error(ArgumentError)
-          lambda { @q.on_file_event(:delete) {} }.should raise_error(ArgumentError)
-        end
-
-        it "fires the event handler with a mask indicating the file event" do
-          @file.puts @msg
-          @q.sync {}
+      describe "on_read" do
+        it "fires with data on how many bytes can be read" do
+          File.open(@filename, "w") {|f| f.print @msg}
+          @file = File.open(@filename, "r")
+          @result = ""
+          @src = @q.on_read(@file, close:true) {|s| @result<<@file.read(s.data)}
+          while (@result.size < @msg.size) do; end
+          @q.sync { }
+          @result.should == @msg
         end
       end    
 
       describe "on_write" do
-        before :each do
+        it "fires with data on how many bytes can be written" do
           @file = File.open(@filename, "w")
-          @src = @q.on_write(@file) { |count| @file.puts @msg if @msg.size < count}
+          @pos = 0
+          @message = @msg
+          @src = @q.on_read(@file, close:true) do |s|
+            pos = s.data
+            if not @message.nil? then
+              next_msg = @message[0..pos-1]
+              @file.write(next_msg)
+              @message = @message[pos..-1]
+            end
+          end
+          while (@result.size < @msg.size) do; end
+          @q.sync { }
+          @result.should == @msg
         end
-
-        after :each do
-          @file.close
+      end
+      
+      describe "on_file_event" do
+        it "fires with data on how many bytes can be written" do
+          @file = File.open(@filename, "w")
+          @fired = false
+          @src = @q.on_file_event(@file, :delete, :write, :extend, :attrib, :link, :rename, :revoke) do |s|
+              @flag = s.data
+              @fired = true
+          end
+          @file.write(@msg)
+          @file.flush
+          @q.sync { }
+          #while (@fired == false) do; end
+          @fired.should == true
+          @flag.should == Dispatch::Source::VNODE_WRITE
         end
-
-        it "returns a Source for a queue " do
-          @src.should be_kind_of(Dispatch::Source)
-        end
-
-        it "should not be suspended" do
-          @src.suspended?.should == false
-        end
-
-        it "takes an event handler block" do
-          lambda { @q.on_write(@file) }.should raise_error(ArgumentError)
-        end
-
-        it "takes an IO object" do
-          lambda { @q.on_write(@file) {}}.should_not raise_error(ArgumentError)
-          lambda { @q.on_write(@filename) {}}.should raise_error(ArgumentError)
-        end
-
-        it "fires the event handler with the number of bytes that can be written" do
-          @q.sync {}
-        end
-
-        it "should ensure the file is closed when the source is cancelled (?)" do
-        end
-      end    
-
- 
-      describe "on_read" do
-        before :each do
-          @file = File.open(@filename, "r")
-          @src = @q.on_read(@file) { |count| d = file.gets if count > @msg.size }
-        end
-
-        after :each do
-          @file.close
-        end
-
-        it "returns a Source for a queue " do
-          @src.should be_kind_of(Dispatch::Source)
-        end
-
-        it "should not be suspended" do
-          @src.suspended?.should == false
-        end
-
-        it "takes an event handler block" do
-          lambda { @q.on_read(@file) }.should raise_error(ArgumentError)
-        end
-
-        it "takes an IO object" do
-          lambda { @q.on_read(@file) {}}.should_not raise_error(ArgumentError)
-          lambda { @q.on_read(@filename) {}}.should raise_error(ArgumentError)
-        end
-
-        it "fires the event handler with the number of bytes that can be read" do
-          @q.sync {}
-        end
-
-        it "should ensure the file is closed when the source is cancelled (?)" do
-        end
-
-      end    
-   end
-
-  end
-
-end
-
-describe :DATA_ADD do
-  before :each do
-    @type = Dispatch::Source::DATA_ADD
-  end
-
-  it "returns an instance of Dispatch::Source" do
-    p @type
-    src = Dispatch::Source.new(@type, 1, 2, @q) { true.should == true }
-    p src
-    src.should be_kind_of(Dispatch::Source)
-  end
-
-  it "should not be suspended" do
-    src = Dispatch::Source.new(@type, 1, 2, @q) { true.should == true }
-    src.suspended?.should == false
-  end
-
-  it "requires an event handler block" do
-    lambda { Dispatch::Source.new(@type, 1, 2, @q) }.should
-    raise_error(ArgumentError)
-  end
-
-  it "fires event handler on merge" do
-    src = Dispatch::Source.new(@type, 1, 2, @q) do
-      true.should == true
+      end          
     end
-    lambda { src.merge 1 }.should_not raise_error(Exception)
-    @q.sync {}
-  end
-
-  it "fires event handler on merge" do
-    src = Dispatch::Source.new(@type, 1, 2, @q) do
-      true.should == true
-    end
-    #src.merge 1
-    @q.sync {}
-  end
-
-  it "passes source to event handler" do
-    src = Dispatch::Source.new(@type, 1, 2, @q) do |source|
-      source.should be_kind_of(Dispatch::Source)
-    end
-    #src.merge 1
-    @q.sync {}
-  end
-
-  it "should execute event handler when Fixnum merged with <<" do
-    @src.suspend
-    @src.merge 20
-    @src.merge 22
-    @src.resume
-    @q.sync {}
-  end
-
-  it "will only merge Fixnum arguments" do
-    lambda { @src.merge :foo}.should raise_error(ArgumentError)
   end
 end
-    
-describe "via Dispatch::FileSource" do
-  it "returns an instance of Dispatch::Source" do
-    src = Dispatch::FileSource.new(@type, @file.to_i, 0, @q) { }
-    src.should be_kind_of(Dispatch::Source)
-    src.should be_kind_of(Dispatch::FileSource)
-    src.cancel!
-  end
-
-  it "does close file when cancelled" do
-    src = Dispatch::Source.new(@type, @file.to_i, 0, @q) { }
-    src.cancel!
-    @q.sync { }
-    file.closed?.should == true
-  end
-end
-
