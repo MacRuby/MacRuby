@@ -164,7 +164,7 @@ if MACOSX_VERSION >= 10.6
           src = Dispatch::Source.new(@type, $$, @mask, @q) { |s|  @i = s.data }
           Signal.trap(@signal, "IGNORE")
           Process.kill(@signal, $$)
-          sleep 0.01
+          sleep 0.05
           Signal.trap(@signal, "DEFAULT")
           @q.sync { }
           @i.should == @mask
@@ -298,6 +298,7 @@ if MACOSX_VERSION >= 10.6
                 @flag = s.data
             end
             @file.write(@msg)
+            @file.flush
             @q.sync { }
             @flag.should == @mask
             src.cancel!            
@@ -311,12 +312,47 @@ if MACOSX_VERSION >= 10.6
   describe "Dispatch::Timer" do
     before :each do
       @q = Dispatch::Queue.new('org.macruby.gcd_spec.sources')
+      @interval = 0.02
+      @src = nil
+    end
+
+    after :each do
+      @src.cancel!
+      @q.sync { }
     end
     
     it "returns an instance of Dispatch::Source" do
-      src = Dispatch::Timer.new(Time.now, 0.1, 0, @q) { }
-      src.should be_kind_of(Dispatch::Source)
-      src.should be_kind_of(Dispatch::Timer)
+      @src = Dispatch::Timer.new(0, @interval, 0, @q) { }
+      @src.should be_kind_of(Dispatch::Source)
+      @src.should be_kind_of(Dispatch::Timer)
+    end
+    
+    it "should not be suspended" do
+      @src = Dispatch::Timer.new(0, @interval, 0, @q) { }
+      @src.suspended?.should == false
+    end
+
+    it "fires after the delay" do
+      delay = 2*@interval
+      @latest = start = Time.now      
+      @src = Dispatch::Timer.new(delay, @interval, 0, @q) { @latest = Time.now }
+      @latest.should == start
+      sleep delay
+      @q.sync { }
+      @latest.should > start
+    end
+
+    it "fires every interval thereafter" do
+      repeats = 3
+      @count = -1 # ignore zeroeth event to simplify interval counting
+      t0 = Time.now
+      #
+      @src = Dispatch::Timer.new(0, @interval, 0, @q) { |s| @count +=  s.data }
+      sleep repeats*@interval
+      @q.sync { }
+      t1 = Time.now
+      @count.should == repeats
+      @count.should == ((t1-t0).to_f / @interval).to_i
     end
   end
 
