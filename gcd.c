@@ -49,6 +49,8 @@
  *
 */
 
+static SEL selClose, selFileNo;
+
 typedef struct {
     struct RBasic basic;
     int suspension_count;
@@ -953,11 +955,10 @@ rb_source_finalize(void *rcv, SEL sel)
 
 
 static void
-rb_source_close_handler(void* longptr)
+rb_source_close_handler(void* io_ptr)
 {
-    long filedes = (long)longptr;
-    int rc = close((int)filedes);
-    assert(rc == 0);
+    VALUE io = (VALUE)io_ptr;
+    rb_vm_call(io, selClose, 0, NULL, NO);
 }
 
 /* 
@@ -970,8 +971,10 @@ rb_source_close_handler(void* longptr)
  *  
  *     gcdq = Dispatch::Queue.new('doc')
  *     file = File.open("/etc/passwd", r)
- *     src = Dispatch::Source.new_close_file(Dispatch::Source::READ,
- *           file.to_i, 0, gcdq) { |s| s.cancel! }
+ *     src = Dispatch::FileSource.new(Dispatch::Source::READ,
+ *           file, 0, gcdq) { |s| s.cancel! }
+ *
+ *   Note that in this case you pass the File object instead of a descriptor
  *
  *   The type must be one of:
  *      - Dispatch::Source::READ
@@ -982,21 +985,22 @@ rb_source_close_handler(void* longptr)
  *   sources start off resumed. This is preferred to closing the file
  *   yourself, as the cancel handler is guaranteed to only run once.
  *
- *   NOTE: If you do NOT want the file descriptor closed, use Dispatch::Source.
+ *   NOTE: If you do NOT want the file closed on cancel, use Dispatch::Source.
  *  
  */
 
 static VALUE
 rb_source_file_init(VALUE self, SEL sel,
-    VALUE type, VALUE handle, VALUE mask, VALUE queue)
+    VALUE type, VALUE io, VALUE mask, VALUE queue)
 {
     if (rb_is_file_source_type(type) == NO) {
         rb_raise(rb_eArgError, "%ld not a file source type", NUM2LONG(type));
     }
+
+    VALUE handle = rb_vm_call(io, selFileNo, 0, NULL, NO);
     rb_source_setup(self, sel, type, handle, mask, queue);
     rb_source_t *src = RSource(self);            
-    long fildes = NUM2INT(type);
-    dispatch_set_context(src->source, (void*)fildes);
+    dispatch_set_context(src->source, (void*)io); // should this be retained?
     dispatch_source_set_cancel_handler_f(src->source, rb_source_close_handler);
     rb_dispatch_resume(self, 0);
     return self;
@@ -1293,6 +1297,9 @@ Init_Dispatch(void)
 
     rb_define_const(mDispatch, "TIME_NOW", ULL2NUM(DISPATCH_TIME_NOW));
     rb_define_const(mDispatch, "TIME_FOREVER", ULL2NUM(DISPATCH_TIME_FOREVER));
+    
+    selClose = sel_registerName("close");
+    selFileNo = sel_registerName("fileno");
 }
 
 #else
