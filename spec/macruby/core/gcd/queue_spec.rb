@@ -133,7 +133,7 @@ if MACOSX_VERSION >= 10.6
         end
       end
 
-      it "raises an ArgumentError if no time is given" do
+      it "raises TypeError if no time is given" do
         lambda { @q.after(nil) {} }.should raise_error(TypeError) 
       end
 
