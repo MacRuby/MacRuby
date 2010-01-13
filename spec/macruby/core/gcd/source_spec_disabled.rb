@@ -373,3 +373,19 @@ describe :DATA_ADD do
   end
 end
     
+describe "via Dispatch::FileSource" do
+  it "returns an instance of Dispatch::Source" do
+    src = Dispatch::FileSource.new(@type, @file.to_i, 0, @q) { }
+    src.should be_kind_of(Dispatch::Source)
+    src.should be_kind_of(Dispatch::FileSource)
+    src.cancel!
+  end
+
+  it "does close file when cancelled" do
+    src = Dispatch::Source.new(@type, @file.to_i, 0, @q) { }
+    src.cancel!
+    @q.sync { }
+    file.closed?.should == true
+  end
+end
+

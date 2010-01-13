@@ -141,6 +141,7 @@ if MACOSX_VERSION >= 10.6
           src.resume!
           @q.sync { }
           @i.should == 42 #0b101_010
+          src.cancel!
         end        
       end
 
@@ -155,6 +156,7 @@ if MACOSX_VERSION >= 10.6
           src = Dispatch::Source.new(@type, $$, @mask, @q) { }
           src.should be_kind_of(Dispatch::Source)
           src.suspended?.should == false
+          src.cancel!
         end
 
         it "fires on process event with event mask data" do
@@ -178,6 +180,7 @@ if MACOSX_VERSION >= 10.6
         it "returns an instance of Dispatch::Source" do
           src = Dispatch::Source.new(@type, @signal, 0, @q) { }
           src.should be_kind_of(Dispatch::Source)
+          #src.cancel! - why does this make the subsequent test fail?
         end
 
         it "fires on signal with signal count data" do
@@ -201,33 +204,43 @@ if MACOSX_VERSION >= 10.6
         describe :READ do
           before :each do
             @type = Dispatch::Source::READ
+            File.delete(@filename) if File.exist?(@filename)
+            File.open(@filename, "w") {|f| f.print @msg}
+            @file = File.open(@filename, "r")
+          end
+          
+          after :each do
+            @file.close if not @file.closed?
           end
 
           it "returns an instance of Dispatch::Source" do
-            src = Dispatch::Source.new(@type, $stdin.to_i, 0, @q) { }
+            src = Dispatch::Source.new(@type, @file.to_i, 0, @q) { }
             src.should be_kind_of(Dispatch::Source)
+            src.cancel!            
           end
           
-          it "fires with data on estimate of readable bytes" do
+          it "fires with data on estimated # of readable bytes" do
             @result = ""
-            File.delete(@filename) if File.exist?(@filename)
-            File.open(@filename, "w") {|f| f.puts @msg}
-            file = File.open(@filename, "r")
-            src = Dispatch::Source.new(@type, file.to_i, 0, @q) do |s|
+            src = Dispatch::Source.new(@type, @file.to_i, 0, @q) do |s|
               begin
-                puts "Reading #{s.data} bytes"
-                @result << file.read_nonblock(s.data-1)
-                puts "#{@result}: #{s.data}"
+                @result << @file.read(s.data) # ideally should read_nonblock
               rescue Exception => error
-                puts "OOPS!: #{error}"
-                src.cancel!            
+                puts error
               end
             end
-            src.on_cancel { file.close } #is this a race condition?
             while (@result.size < @msg.size) do; end
+            src.cancel!            
             @q.sync { }
             @result.should == @msg
           end
+          
+          it "does not close file when cancelled" do
+            src = Dispatch::Source.new(@type, @file.to_i, 0, @q) { }
+            src.cancel!
+            @q.sync { }
+            @file.closed?.should == false
+          end
+          
         end    
 
         describe :WRITE do
@@ -257,6 +270,7 @@ if MACOSX_VERSION >= 10.6
     end
       
   end
+  
   
   describe "Dispatch::Timer" do
     before :each do
