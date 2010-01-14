@@ -267,7 +267,7 @@ if MACOSX_VERSION >= 10.6
           it "does close file when cancelled given IO" do
             @src = Dispatch::Source.new(@type, @file, 0, @q) { }
             @file.closed?.should == false
-            src.cancel!
+            @src.cancel!
             @q.sync { }
             @file.closed?.should == true
           end
@@ -309,7 +309,7 @@ if MACOSX_VERSION >= 10.6
           it "does close file when cancelled given IO" do
             @src = Dispatch::Source.new(@type, @file, 0, @q) { }
             @file.closed?.should == false
-            src.cancel!
+            @src.cancel!
             @q.sync { }
             @file.closed?.should == true
           end
@@ -342,15 +342,15 @@ if MACOSX_VERSION >= 10.6
             @fired.should == true
             @flag.should == @mask
           end    
-        end
-        
-        it "does close file when cancelled given IO" do
-          @src = Dispatch::Source.new(@type, @file, 0, @q) { }
-          @file.closed?.should == false
-          src.cancel!
-          @q.sync { }
-          @file.closed?.should == true
-        end   
+
+          it "does close file when cancelled given IO" do
+            @src = Dispatch::Source.new(@type, @file, 0, @q) { }
+            @file.closed?.should == false
+            @src.cancel!
+            @q.sync { }
+            @file.closed?.should == true
+          end   
+        end      
       end
     end # file
     
@@ -369,7 +369,6 @@ if MACOSX_VERSION >= 10.6
       it "returns an instance of Dispatch::Source" do
         @src = Dispatch::Source.timer(0, @interval, 0, @q) { }
         @src.should be_kind_of(Dispatch::Source)
-        @src.should be_kind_of(Dispatch::Timer)
       end
 
       it "should not be suspended" do

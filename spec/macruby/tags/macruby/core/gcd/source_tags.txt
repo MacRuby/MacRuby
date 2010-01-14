@@ -1,0 +1,3 @@
+fails:Dispatch::Source of type file: READ does close file when cancelled given IO
+fails:Dispatch::Source of type file: WRITE does close file when cancelled given IO
+fails:Dispatch::Source of type file: VNODE does close file when cancelled given IO

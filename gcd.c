@@ -759,21 +759,9 @@ rb_source_close_handler(void* sourceptr)
     assert(sourceptr != NULL);
     rb_source_t *src = RSource(sourceptr);
     VALUE io = src->rb_context;
-    printf("Closing IO object %s\n", object_getClassName((id)io));
-    switch(src->source_enum)
-    {
-        case SOURCE_TYPE_READ:
-            rb_vm_call(io, selCloseRead, 0, NULL, false);
-            break;
-        case SOURCE_TYPE_WRITE:
-            rb_vm_call(io, selCloseWrite, 0, NULL, false);
-            break;
-        case SOURCE_TYPE_VNODE:
-            rb_vm_call(io, selClose, 0, NULL, false);
-            break;
-        default: rb_raise(rb_eArgError, "Unknown source type enum `%d'",
-            src->source_enum);
-    }
+    printf("\nClosing IO object of type %s\n", object_getClassName((id)io));
+//    rb_io_close(io);
+//    rb_vm_call(io, selClose, 0, NULL, false);
 }
 
 
@@ -809,7 +797,6 @@ rb_source_init(VALUE self, SEL sel,
     BOOL handle_is_file = rb_source_is_file(src) &&
         rb_obj_is_kind_of(handle, cIO);
     if (handle_is_file) {
-        printf("Extracting handler from IO object\n");
         GC_WB(&src->rb_context, handle);
         handle = rb_vm_call(handle, selFileNo, 0, NULL, false);
     }
@@ -828,7 +815,6 @@ rb_source_init(VALUE self, SEL sel,
     dispatch_source_set_event_handler_f(src->source, rb_source_event_handler);
 
     if (handle_is_file) {
-        printf("Initializing cancel handler\n");
         dispatch_source_set_cancel_handler_f(src->source, rb_source_close_handler);
     }
     rb_dispatch_resume(self, 0);
@@ -855,16 +841,15 @@ rb_source_init(VALUE self, SEL sel,
  */
 
 static VALUE
-rb_source_timer(VALUE self, SEL sel,
- VALUE delay, VALUE interval, VALUE leeway, VALUE queue)
+rb_source_timer(VALUE klass, VALUE sel, VALUE delay, VALUE interval, VALUE leeway, VALUE queue)
 {
+    Check_Queue(queue);
     dispatch_time_t start_time;
-    rb_source_t *src = RSource(self);
     VALUE argv[4] = {INT2FIX(SOURCE_TYPE_TIMER),
         INT2FIX(0), INT2FIX(0), queue};
-    Check_Queue(queue);
     
-    rb_class_new_instance(4, argv, cSource);
+    VALUE self = rb_class_new_instance(4, argv, cSource);
+    rb_source_t *src = RSource(self);
 
     if (NIL_P(leeway)) {
         leeway = INT2FIX(0);
@@ -876,6 +861,7 @@ rb_source_timer(VALUE self, SEL sel,
         start_time = rb_num2timeout(delay);
     }
 
+    rb_dispatch_suspend(self, 0);
     dispatch_source_set_timer(src->source, start_time,
 	    rb_num2nsec(interval), rb_num2nsec(leeway));
     rb_dispatch_resume(self, 0);
