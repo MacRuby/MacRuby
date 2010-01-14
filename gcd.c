@@ -455,6 +455,18 @@ rb_queue_dispatch_after(VALUE self, SEL sel, VALUE delay)
     return Qnil;
 }
 
+ static void
+ rb_queue_applier(void *data, size_t ii)
+ {
+     assert(data != NULL);
+     rb_vm_block_t *block = rb_vm_uncache_or_dup_block((rb_vm_block_t *)data);
+ #if !GCD_BLOCKS_COPY_DVARS
+     rb_vm_block_make_detachable_proc(block);
+ #endif
+     VALUE num = SIZET2NUM(ii);
+     rb_vm_block_eval(block, 1, &num);
+ }
+
 /* 
  *  call-seq:
  *    gcdq.apply(count) { |index| block }
@@ -468,18 +480,6 @@ rb_queue_dispatch_after(VALUE self, SEL sel, VALUE delay)
  *     p @result  #=> [0, 1, 4, 9, 16, 25]
  *
  */
- 
-static void
-rb_queue_applier(void *data, size_t ii)
-{
-    assert(data != NULL);
-    rb_vm_block_t *block = rb_vm_uncache_or_dup_block((rb_vm_block_t *)data);
-#if !GCD_BLOCKS_COPY_DVARS
-    rb_vm_block_make_detachable_proc(block);
-#endif
-    VALUE num = SIZET2NUM(ii);
-    rb_vm_block_eval(block, 1, &num);
-}
 
 static VALUE
 rb_queue_apply(VALUE self, SEL sel, VALUE n)
@@ -895,12 +895,33 @@ rb_source_merge(VALUE self, SEL sel, VALUE data)
     return Qnil;
 }
 
+/* 
+ *  call-seq:
+ *    src.cancel!
+ *
+ *  Asynchronously cancels the dispatch source, preventing any further
+ *  invocation of its event handler block. Cancellation does not interrupt a
+ *  currently executing handler block (non-preemptive).
+ *
+ * When a dispatch source is canceled its cancellation handler will be submitted
+ * to its target queue. In MacRuby, this is only done for Dispatch::FileSource,
+ * which automatically sets a cancellation handler to close the File object.
+ */
+
 static VALUE
 rb_source_cancel(VALUE self, SEL sel)
 {
     dispatch_source_cancel(RSource(self)->source);
     return Qnil;
 }
+
+/* 
+ *  call-seq:
+ *    src.cancelled?
+ *
+ *  Used to determine whether the specified source has been cancelled.
+ *  True will be returned if the source is cancelled.
+ */
 
 static VALUE
 rb_source_cancelled_p(VALUE self, SEL sel)
