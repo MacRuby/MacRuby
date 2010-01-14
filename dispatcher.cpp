@@ -1455,7 +1455,10 @@ RoxorVM::uncache_or_dup_block(rb_vm_block_t *b)
 {
     void *key = (void *)b->imp;
     std::map<void *, rb_vm_block_t *>::iterator iter = blocks.find(key);
-    if (iter == blocks.end()) {
+    if (iter == blocks.end() || iter->second->self != b->self) {
+	if (iter != blocks.end()) {
+	    GC_RELEASE(iter->second);
+	}
 	b = dup_block(b);
 	GC_RETAIN(b);
 	blocks[key] = b;
