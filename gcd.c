@@ -45,7 +45,7 @@
  *    ▪ synchronization services
  *    ▪ event sources
  * 
- *  For more information, see the dispatch(3) man page.  
+ *  For more information, see the dispatch(3)[http://developer.apple.com/mac/library/DOCUMENTATION/Darwin/Reference/ManPages/man3/dispatch.3.html] man page.  
  *
 */
 
@@ -195,10 +195,10 @@ rb_queue_from_dispatch(dispatch_queue_t dq, bool should_retain)
  *  GCD automatically creates three concurrent dispatch queues that are global 
  *  to your application and are differentiated only by their priority level. 
  *  
- *  The three priority levels are: <code>:low</code>, <code>:default</code>, 
- *  <code>:high</code>, corresponding to the DISPATCH_QUEUE_PRIORITY_HIGH, 
+ *  The three priority levels are: +:low+, +:default+, 
+ *  +:high+, corresponding to the DISPATCH_QUEUE_PRIORITY_HIGH, 
  *  DISPATCH_QUEUE_PRIORITY_DEFAULT, and DISPATCH_QUEUE_PRIORITY_LOW (detailed
- *  in the dispatch_queue_create(3) man page). The GCD thread dispatcher
+ *  in the dispatch_queue_create(3)[http://developer.apple.com/mac/library/DOCUMENTATION/Darwin/Reference/ManPages/man3/dispatch_queue_create.3.html] man page). The GCD thread dispatcher
  *  will perform actions submitted to the high priority queue before any actions 
  *  submitted to the default or low queues, and will only perform actions on the 
  *  low queues if there are no actions queued on the high or default queues.
@@ -371,7 +371,7 @@ get_prepared_block()
  *  call-seq:
  *    gcdq.async(group=nil) { @i = 42 }
  *
- *  Yields the passed block asynchronously via dispatch_async(3):
+ *  Yields the passed block asynchronously via dispatch_async(3)[http://developer.apple.com/mac/library/DOCUMENTATION/Darwin/Reference/ManPages/man3/dispatch_async.3.html]:
  *  
  *     gcdq = Dispatch::Queue.new('doc')
  *     @i = 42
@@ -379,8 +379,8 @@ get_prepared_block()
  *     while @i == 0 do; end
  *     p @i #=> 42
  *
- *   If a group is specified, the dispatch will be associated with that group
- *   via dispatch_group_async(3)
+ *  If a group is specified, the dispatch will be associated with that group via
+ *  dispatch_group_async(3)[http://developer.apple.com/mac/library/DOCUMENTATION/Darwin/Reference/ManPages/man3/dispatch_group_async.3.html]
  *
  *     gcdq = Dispatch::Queue.new('doc')
  *     gcdg = Dispatch::Group.new
@@ -415,7 +415,7 @@ rb_queue_dispatch_async(VALUE self, SEL sel, int argc, VALUE *argv)
  *  call-seq:
  *    gcdq.sync { @i = 42 }
  *
- *  Yields the passed block synchronously via dispatch_sync(3):
+ *  Yields the passed block synchronously via dispatch_sync(3)[http://developer.apple.com/mac/library/DOCUMENTATION/Darwin/Reference/ManPages/man3/dispatch_sync.3.html]:
  *  
  *     gcdq = Dispatch::Queue.new('doc')
  *     @i = 42
@@ -471,7 +471,7 @@ rb_queue_dispatch_after(VALUE self, SEL sel, VALUE delay)
  *  call-seq:
  *    gcdq.apply(count) { |index| block }
  *
- *  Runs a block count number of times in parallel via dispatch_apply(3),
+ *  Runs a block count number of times in parallel via dispatch_apply(3)[http://developer.apple.com/mac/library/DOCUMENTATION/Darwin/Reference/ManPages/man3/dispatch_apply.3.html],
  *  passing in an index and waiting until all of them are done
  *  
  *     gcdq = Dispatch::Queue.new('doc')
@@ -525,7 +525,7 @@ rb_main_queue_run(VALUE self, SEL sel)
  *    obj.suspend!
  *
  *  Suspends the operation of a dispatch object (queue or source).
- *  To resume operation, call <code>resume!</code>.
+ *  To resume operation, call +resume!+.
  *  
  *     gcdq = Dispatch::Queue.new('doc')
  *     gcdq.dispatch { sleep 1 }
@@ -549,7 +549,7 @@ rb_dispatch_suspend(VALUE self, SEL sel)
  *    obj.resume!
  *
  *  Resumes the operation of a dispatch object (queue or source).
- *  To suspend operation, call <code>suspend!</code>.
+ *  To suspend operation, call +suspend!+.
  *  
  *     gcdq = Dispatch::Queue.new('doc')
  *     gcdq.dispatch { sleep 1 }
@@ -574,7 +574,7 @@ rb_dispatch_resume(VALUE self, SEL sel)
  *  call-seq:
  *    obj.suspended?   => true or false
  *
- *  Returns <code>true</code> if <i>obj</i> is suspended.
+ *  Returns +true+ if <i>obj</i> is suspended.
  *  
  *     gcdq = Dispatch::Queue.new('doc')
  *     gcdq.dispatch { sleep 1 }
@@ -607,7 +607,7 @@ rb_group_alloc(VALUE klass, SEL sel)
  *  Returns a Group allowing for aggregate synchronization.
  *  You can dispatch multiple blocks and track when they all complete, 
  *  even though they might run on different queues. 
- *  This behavior can be helpful when progress can’t be made until all 
+ *  This behavior can be helpful when progress can not be made until all 
  *  of the specified tasks are complete.
  *  
  *     gcdg = Dispatch::Group.new
@@ -652,10 +652,10 @@ rb_group_notify(VALUE self, SEL sel, VALUE target)
  *  call-seq:
  *    grp.wait(timeout=nil)     => true or false
  *
- *  Waits until all the blocks associated with the <code>grp</code> have 
- *  finished executing or until the specified <code>timeout</code> has elapsed.
- *  The function will return <code>true</code> if the group became empty within 
- *  the specified amount of time and will return <code>false</code> otherwise.
+ *  Waits until all the blocks associated with the +grp+ have 
+ *  finished executing or until the specified +timeout+ has elapsed.
+ *  The function will return +true+ if the group became empty within 
+ *  the specified amount of time and will return +false+ otherwise.
  *  If the supplied timeout is nil, the function will wait indefinitely until 
  *  the specified group becomes empty, always returning true.
  *
@@ -792,8 +792,8 @@ rb_source_setup(VALUE self, SEL sel,
  *       puts "Fired with #{s.data}"
  *     end
  *
- *   Unlike with the C API, Dispatch::Source objects start off resumed
- *   (since the event handler has already been set).
+ *  Unlike with the C API, Dispatch::Source objects start off resumed
+ *  (since the event handler has already been set).
  *   
  *     src.suspended? #=? false
  *     src.merge(0)
@@ -875,7 +875,7 @@ rb_source_get_data(VALUE self, SEL sel)
  *  Intended only for use with the Dispatch::Source::DATA_ADD and
  *  Dispatch::Source::DATA_OR source types, calling this function will
  *  atomically ADD or logical OR the count into the source's data, and 
- * trigger delivery of the source's event handler.
+ *  trigger delivery of the source's event handler.
  *  
  *     gcdq = Dispatch::Queue.new('doc')
  *     @sum = 0
@@ -903,9 +903,9 @@ rb_source_merge(VALUE self, SEL sel, VALUE data)
  *  invocation of its event handler block. Cancellation does not interrupt a
  *  currently executing handler block (non-preemptive).
  *
- * When a dispatch source is canceled its cancellation handler will be submitted
- * to its target queue. In MacRuby, this is only done for Dispatch::FileSource,
- * which automatically sets a cancellation handler to close the File object.
+ *  When a dispatch source is canceled its cancellation handler will be submitted
+ *  to its target queue. In MacRuby, this is only done for Dispatch::FileSource,
+ *  which automatically sets a cancellation handler to close the File object.
  */
 
 static VALUE
@@ -963,8 +963,8 @@ rb_source_close_handler(void* sourceptr)
  *     {|src| block} => Dispatch::Source
  *
  *  Like Dispatch::Source.new, except:
- *     a) it takes an IO (File) object instead of an integer handle
- *     b) it automatically creates a cancel handler that closes that object
+ *   - it takes an IO (File) object instead of an integer handle
+ *   - it automatically creates a cancel handler that closes that object
  *  
  *     gcdq = Dispatch::Queue.new('doc')
  *     file = File.open("/etc/passwd", r)
@@ -974,16 +974,16 @@ rb_source_close_handler(void* sourceptr)
  *      @q.sync { }
  *     @file.closed? # => true
  *
- *   The type must be one of:
+ *  The type must be one of:
  *      - Dispatch::Source::READ
  *      - Dispatch::Source::WRITE
  *      - Dispatch::Source::VNODE
  *
- *   This is the only way to set the cancel_handler, since in MacRuby
- *   sources start off resumed. This is preferred to closing the file
- *   yourself, as the cancel handler is guaranteed to only run once.
+ *  This is the only way to set the cancel_handler, since in MacRuby
+ *  sources start off resumed. This is preferred to closing the file
+ *  yourself, as the cancel handler is guaranteed to only run once.
  *
- *   NOTE: If you do NOT want the file closed on cancel, use Dispatch::Source.
+ *  NOTE: If you do NOT want the file closed on cancel, use Dispatch::Source.
  *  
  */
 
@@ -1011,7 +1011,7 @@ rb_source_file_init(VALUE self, SEL sel,
  *
  *  Returns a Source that will submit the event handler block to
  *  the target queue after delay, repeated at interval, within leeway, via
- *  a call to dispatch_source_set_timer(3).
+ *  a call to dispatch_source_set_timer(3)[http://developer.apple.com/mac/library/DOCUMENTATION/Darwin/Reference/ManPages/man3/dispatch_source_set_timer.3.html].
  *  A best effort attempt is made to submit the event handler block to the
  *  target queue at the specified time; however, actual invocation may occur at
  *  a later time even if the leeway is zero.
@@ -1129,7 +1129,6 @@ rb_semaphore_signal(VALUE self, SEL sel)
  *     sema.wait #=> true
  *
  */
-
 static VALUE
 rb_semaphore_wait(VALUE self, SEL sel, int argc, VALUE *argv)
 {
@@ -1193,14 +1192,47 @@ Init_PreGCD(void)
     dispatch_end_thread_4GC = rb_dispatch_end_thread;
 }
 
+
 void
 Init_Dispatch(void)
 {
     high_priority_id = rb_intern("high");
     low_priority_id = rb_intern("low");
     default_priority_id = rb_intern("default");
+
+/*
+ * The Dispatch module allows blocks to be scheduled for asynchronous and
+ * concurrent execution via the use of queues, which are dynamically mapped
+ * onto threads by the operating system. Blocks can be explicitly scheduled by
+ * the developer, or by the system in response to various kinds of events.
+ *
+ * Dispatch::Queue is the basic units of organization of blocks.
+ * Several queues are created by default, and applications may create
+ * additional queues for their own use.
+ *
+ * Dispatch::Group allows applications to track the progress of blocks
+ * submitted to queues and take action when the blocks complete.
+ * 
+ * Dispatch::Source provides functions to monitor underlying system events to
+ * automatically coalesce them and submit handler blocks to dispatch queues.
+ *
+ * Dispatch::Semaphore synchronizes threads via waiting and signalling.
+ */
     mDispatch = rb_define_module("Dispatch");
 
+/*
+ * A Dispatch::Queue is the fundamental mechanism for scheduling blocks for
+ * execution, either synchronously or asychronously.
+ *
+ * All blocks submitted to dispatch queues are dequeued in FIFO order. 
+ * By default, manually-created queues wait for the previously dequeued block
+ * to complete before dequeuing the next block. This FIFO completion behavior
+ * is sometimes simply described as a "serial queue."
+ *
+ * Queues are not bound to any specific thread of execution and blocks
+ * submitted to independent queues may execute concurrently.
+ */ 
+ 
     cQueue = rb_define_class_under(mDispatch, "Queue", rb_cObject);    
     rb_objc_define_method(*(VALUE *)cQueue, "alloc", rb_queue_alloc, 0);
     rb_objc_define_method(*(VALUE *)cQueue, "concurrent",
@@ -1232,6 +1264,11 @@ Init_Dispatch(void)
     rb_objc_define_method(rb_singleton_class(qMain), "run", rb_main_queue_run,
 	    0);
     
+/*
+ * Dispatch::Group is an association of one or more blocks submitted to dispatch
+ * queues for asynchronous invocation.  Applications may use dispatch groups to
+ * wait for the completion of blocks associated with the group.
+ */ 
     cGroup = rb_define_class_under(mDispatch, "Group", rb_cObject);
     rb_objc_define_method(*(VALUE *)cGroup, "alloc", rb_group_alloc, 0);
     rb_objc_define_method(cGroup, "initialize", rb_group_initialize, 0);
@@ -1241,8 +1278,13 @@ Init_Dispatch(void)
     
     rb_group_finalize_super = rb_objc_install_method2((Class)cGroup,
 	    "finalize", (IMP)rb_group_finalize);
-    
-        
+
+/*
+ * Dispatch::Source monitors a variety of system objects and events including
+ * file descriptors, processes, virtual filesystem nodes, signals and timers.
+ * When a state change occurs, the dispatch source will submit its event handler
+ * block to its target queue.
+ */
     cSource = rb_define_class_under(mDispatch, "Source", rb_cObject);
     rb_define_const(cSource, "DATA_ADD", INT2NUM(SOURCE_TYPE_DATA_ADD));
     rb_define_const(cSource, "DATA_OR", INT2NUM(SOURCE_TYPE_DATA_OR));
@@ -1264,7 +1306,7 @@ Init_Dispatch(void)
     rb_define_const(cSource, "VNODE_LINK", INT2NUM(DISPATCH_VNODE_LINK));
     rb_define_const(cSource, "VNODE_RENAME", INT2NUM(DISPATCH_VNODE_RENAME));
     rb_define_const(cSource, "VNODE_REVOKE", INT2NUM(DISPATCH_VNODE_REVOKE));
-    
+
     rb_objc_define_method(*(VALUE *)cSource, "alloc", rb_source_alloc, 0);
     rb_objc_define_method(cSource, "initialize", rb_source_init, 4);
     rb_objc_define_method(cSource, "cancelled?", rb_source_cancelled_p, 0);
@@ -1284,13 +1326,17 @@ Init_Dispatch(void)
     
     cTimer = rb_define_class_under(mDispatch, "Timer", cSource);
     rb_objc_define_method(cTimer, "initialize", rb_source_timer_init, 4);
-
     cSemaphore = rb_define_class_under(mDispatch, "Semaphore", rb_cObject);
     rb_objc_define_method(*(VALUE *)cSemaphore, "alloc", rb_semaphore_alloc, 0);
     rb_objc_define_method(cSemaphore, "initialize", rb_semaphore_init, 1);
     rb_objc_define_method(cSemaphore, "wait", rb_semaphore_wait, -1);
     rb_objc_define_method(cSemaphore, "signal", rb_semaphore_signal, 0);
 
+/*
+ * Dispatch::Semaphore provides an efficient mechanism to synchronizes threads
+ * via a combination of waiting and signalling.
+ * This is especially useful for controlling access to resources.
+ */
     rb_semaphore_finalize_super = rb_objc_install_method2((Class)cSemaphore,
 	    "finalize", (IMP)rb_semaphore_finalize);
 
