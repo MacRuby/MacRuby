@@ -233,8 +233,13 @@ if MACOSX_VERSION >= 10.6
             @file = File.open(@filename, "r")
           end
           
-          it "returns an instance of Dispatch::Source" do
+          it "returns an instance of Dispatch::Source given descriptor" do
             @src = Dispatch::Source.new(@type, @file.to_i, 0, @q) { }
+            @src.should be_kind_of(Dispatch::Source)
+          end
+
+          it "returns an instance of Dispatch::Source given IO" do
+            @src = Dispatch::Source.new(@type, @file, 0, @q) { }
             @src.should be_kind_of(Dispatch::Source)
           end
           
@@ -252,15 +257,23 @@ if MACOSX_VERSION >= 10.6
             @result.should == @msg
           end
           
-          it "does not close file when cancelled" do
+          it "does not close file when cancelled given descriptor" do
             @src = Dispatch::Source.new(@type, @file.to_i, 0, @q) { }
             @src.cancel!
             @q.sync { }
             @file.closed?.should == false
           end
+
+          it "does close file when cancelled given IO" do
+            @src = Dispatch::Source.new(@type, @file, 0, @q) { }
+            @file.closed?.should == false
+            src.cancel!
+            @q.sync { }
+            @file.closed?.should == true
+          end
           
-          it "raises TypeError if non-Number passed as handle" do
-            lambda { Dispatch::Source.new(@type, @file, 0, @q) { } }.should raise_error(TypeError) 
+          it "raises TypeError if neither number or IO passed as handle" do
+            lambda { Dispatch::Source.new(@type, "", 0, @q) { } }.should raise_error(TypeError) 
           end
                     
         end    
@@ -292,6 +305,15 @@ if MACOSX_VERSION >= 10.6
             File.read(@filename).should == @msg
             @src.cancel!            
           end
+          
+          it "does close file when cancelled given IO" do
+            @src = Dispatch::Source.new(@type, @file, 0, @q) { }
+            @file.closed?.should == false
+            src.cancel!
+            @q.sync { }
+            @file.closed?.should == true
+          end
+          
         end    
 
         describe :VNODE do
@@ -321,87 +343,65 @@ if MACOSX_VERSION >= 10.6
             @flag.should == @mask
           end    
         end
-      end
-    end
-  end
-
-  describe "Dispatch::FileSource" do
-    before :each do
-      @q = Dispatch::Queue.new("org.macruby.gcd_spec.filesource-#{Time.now}")
-      @filename = "/dev/null"
-      @type = Dispatch::Source::READ
-    end
-    
-    it "returns an instance of Dispatch::Source" do
-      @file = File.open(@filename, "r")
-      src = Dispatch::FileSource.new(@type, @file, 0, @q) { }
-      src.should be_kind_of(Dispatch::Source)
-      src.should be_kind_of(Dispatch::FileSource)
-      src.cancel!
-    end
-    
-    it "raises NoMethodError if non-IO passed as handle" do
-      @file = File.open(@filename, "r")
-      lambda { Dispatch::FileSource.new(@type, @file.to_i, 0, @q) { } }.should raise_error(NoMethodError) 
-    end
         
-    it "closes file when cancelled" do
-      @file = File.open(@filename, "r")
-      src = Dispatch::FileSource.new(@type, @file, 0, @q) { } 
-      @file.closed?.should == false
-      src.cancel!
-      @q.sync { }
-      @file.closed?.should == true
-    end
-
-    after :each do
-      @q.sync { }
-    end
-  end
-  
-  describe "Dispatch::Timer" do
-    before :each do
-      @q = Dispatch::Queue.new('org.macruby.gcd_spec.sources')
-      @interval = 0.02
-      @src = nil
-    end
-
-    after :each do
-      @src.cancel!
-      @q.sync { }
-    end
+        it "does close file when cancelled given IO" do
+          @src = Dispatch::Source.new(@type, @file, 0, @q) { }
+          @file.closed?.should == false
+          src.cancel!
+          @q.sync { }
+          @file.closed?.should == true
+        end   
+      end
+    end # file
     
-    it "returns an instance of Dispatch::Source" do
-      @src = Dispatch::Timer.new(0, @interval, 0, @q) { }
-      @src.should be_kind_of(Dispatch::Source)
-      @src.should be_kind_of(Dispatch::Timer)
-    end
     
-    it "should not be suspended" do
-      @src = Dispatch::Timer.new(0, @interval, 0, @q) { }
-      @src.suspended?.should == false
-    end
+    describe :Timer do
+      before :each do
+        @interval = 0.02
+        @src = nil
+      end
 
-    it "fires after the delay" do
-      delay = 2*@interval
-      @latest = start = Time.now      
-      @src = Dispatch::Timer.new(delay, @interval, 0, @q) { @latest = Time.now }
-      @latest.should == start
-      sleep delay
-      @q.sync { }
-      @latest.should > start
-    end
+      after :each do
+        @src.cancel!
+        @q.sync { }
+      end
 
-    it "fires every interval thereafter" do
-      repeats = 3
-      @count = -1 # ignore zeroeth event to simplify interval counting
-      t0 = Time.now
-      @src = Dispatch::Timer.new(0, @interval, 0, @q) { |s| @count +=  s.data }
-      sleep repeats*@interval
-      @q.sync { }
-      t1 = Time.now
-      @count.should == repeats
-      @count.should == ((t1-t0).to_f / @interval).to_i
+      it "returns an instance of Dispatch::Source" do
+        @src = Dispatch::Source.timer(0, @interval, 0, @q) { }
+        @src.should be_kind_of(Dispatch::Source)
+        @src.should be_kind_of(Dispatch::Timer)
+      end
+
+      it "should not be suspended" do
+        @src = Dispatch::Source.timer(0, @interval, 0, @q) { }
+        @src.suspended?.should == false
+      end
+
+      it "fires after the delay" do
+        delay = 2*@interval
+        @latest = start = Time.now      
+        @src = Dispatch::Source.timer(delay, @interval, 0, @q) do
+          @latest = Time.now
+        end
+        @latest.should == start
+        sleep delay
+        @q.sync { }
+        @latest.should > start
+      end
+
+      it "fires every interval thereafter" do
+        repeats = 3
+        @count = -1 # ignore zeroeth event to simplify interval counting
+        t0 = Time.now
+        @src = Dispatch::Source.timer(0, @interval, 0, @q) do |s|
+          @count +=  s.data
+        end
+        sleep repeats*@interval
+        @q.sync { }
+        t1 = Time.now
+        @count.should == repeats
+        @count.should == ((t1-t0).to_f / @interval).to_i
+      end
     end
   end
 
