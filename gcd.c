@@ -759,11 +759,10 @@ rb_source_close_handler(void* sourceptr)
     assert(sourceptr != NULL);
     rb_source_t *src = RSource(sourceptr);
     VALUE io = src->rb_context;
-    printf("\nClosing IO object of type %s\n", object_getClassName((id)io));
-//    rb_io_close(io);
+    rb_io_close(io);
+//    Call rb_io_close directly since rb_vm_call aborts
 //    rb_vm_call(io, selClose, 0, NULL, false);
 }
-
 
 /* 
  *  call-seq:

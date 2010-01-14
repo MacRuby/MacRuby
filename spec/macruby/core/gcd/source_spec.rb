@@ -222,7 +222,7 @@ if MACOSX_VERSION >= 10.6
         after :each do
           @src.cancel! if not @src.nil? and not @src.cancelled?
           @q.sync { }
-          @file.close
+          @file.close if not @file.closed?
           File.delete(@filename)
         end
       
