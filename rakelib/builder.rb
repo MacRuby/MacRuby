@@ -26,15 +26,7 @@ ARCHS =
     $stderr.puts "getting archs from RC_ARCHS!"
     s.strip.split(/\s+/)
   else
-    arch = `arch`.chomp
-    case arch
-    when /ppc/
-      do_option('archs', 'ppc') { |x| x.split(',') }
-    when /i386/
-      do_option('archs', 'i386') { |x| x.split(',') }
-    when /x86_64/
-      do_option('archs', ['i386', 'x86_64']) { |x| x.split(',') }
-    end
+    do_option('archs', `arch`.include?('ppc') ? 'ppc' : %w{i386 x86_64}) { |x| x.split(',') }
   end
 LLVM_PATH = do_option('llvm_path', '/usr/local')
 FRAMEWORK_NAME = do_option('framework_name', 'MacRuby')
