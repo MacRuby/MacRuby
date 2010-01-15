@@ -49,7 +49,7 @@
  *
 */
 
-static SEL selClose, selCloseRead, selCloseWrite, selFileNo;
+static SEL selClose, selFileNo;
 
 typedef struct {
     struct RBasic basic;
@@ -124,7 +124,6 @@ static ID default_priority_id;
 static VALUE cGroup;
 static VALUE cSource;
 static VALUE cSemaphore;
-static VALUE cIO;
 
 static inline void
 Check_Queue(VALUE object)
@@ -794,7 +793,7 @@ rb_source_init(VALUE self, SEL sel,
     rb_source_t *src = RSource(self);
     src->source_enum = (source_enum_t) NUM2LONG(type);
     BOOL handle_is_file = rb_source_is_file(src) &&
-        rb_obj_is_kind_of(handle, cIO);
+        rb_obj_is_kind_of(handle, rb_cIO);
     if (handle_is_file) {
         GC_WB(&src->rb_context, handle);
         handle = rb_vm_call(handle, selFileNo, 0, NULL, false);
@@ -1170,8 +1169,8 @@ Init_Dispatch(void)
  * Dispatch::Group allows applications to track the progress of blocks
  * submitted to queues and take action when the blocks complete.
  * 
- * Dispatch::Source provides functions to monitor underlying system events to
- * automatically coalesce them and submit handler blocks to dispatch queues.
+ * Dispatch::Source monitors and coalesces low-level system events in order to
+ * handle them asychronously.
  *
  * Dispatch::Semaphore synchronizes threads via waiting and signalling.
  */
@@ -1181,10 +1180,12 @@ Init_Dispatch(void)
  * A Dispatch::Queue is the fundamental mechanism for scheduling blocks for
  * execution, either synchronously or asychronously.
  *
- * All blocks submitted to dispatch queues are dequeued in FIFO order. 
- * By default, manually-created queues wait for the previously dequeued block
- * to complete before dequeuing the next block. This FIFO completion behavior
- * is sometimes simply described as a "serial queue."
+ * All blocks submitted to dispatch queues begin executing in the order
+ * they were received. The system-defined concurrent queues can execute
+ * multiple blocks in parallel, depending on the number of idle threads
+ * in the thread pool. Serial queues (the main and user-created queues)
+ * wait for the prior block to complete before dequeuing and executing
+ * the next block.
  *
  * Queues are not bound to any specific thread of execution and blocks
  * submitted to independent queues may execute concurrently.
@@ -1222,9 +1223,10 @@ Init_Dispatch(void)
 	    0);
     
 /*
- * Dispatch::Group is an association of one or more blocks submitted to dispatch
- * queues for asynchronous invocation.  Applications may use dispatch groups to
- * wait for the completion of blocks associated with the group.
+ * Dispatch::Group is used to aggregate multiple blocks 
+ * that have been submitted asynchronously to different queues.
+ * This lets you ensure they have all completed before beginning
+ * or submitting additional work.
  */ 
     cGroup = rb_define_class_under(mDispatch, "Group", rb_cObject);
     rb_objc_define_method(*(VALUE *)cGroup, "alloc", rb_group_alloc, 0);
@@ -1237,8 +1239,8 @@ Init_Dispatch(void)
 	    "finalize", (IMP)rb_group_finalize);
 
 /*
- * Dispatch::Source monitors a variety of system objects and events including
- * file descriptors, processes, virtual filesystem nodes, signals and timers.
+ *  Dispatch::Source monitors a variety of system objects and events including
+ *  file descriptors, processes, virtual filesystem nodes, signals and timers.
  *
  *  When a state change occurs, the dispatch source will submit its event
  *  handler block to its target queue, with the source as a parameter.
@@ -1248,8 +1250,8 @@ Init_Dispatch(void)
  *       puts "Fired with #{s.data}"
  *     end
  *
- *  Unlike with the C API, Dispatch::Source objects start off resumed
- *  (since the event handler has already been set).
+ *  Unlike GCD's C API, Dispatch::Source objects start off resumed
+ *  (since the event handler -et al- have already been set).
  *   
  *     src.suspended? #=? false
  *     src.merge(0)
@@ -1292,17 +1294,16 @@ Init_Dispatch(void)
     rb_source_finalize_super = rb_objc_install_method2((Class)cSource,
 	    "finalize", (IMP)rb_source_finalize);
 
+/*
+ * Dispatch::Semaphore provides an efficient mechanism to synchronizes threads
+ * via a combination of waiting and signalling.
+ * This is especially useful for controlling access to limited resources.
+ */
     cSemaphore = rb_define_class_under(mDispatch, "Semaphore", rb_cObject);
     rb_objc_define_method(*(VALUE *)cSemaphore, "alloc", rb_semaphore_alloc, 0);
     rb_objc_define_method(cSemaphore, "initialize", rb_semaphore_init, 1);
     rb_objc_define_method(cSemaphore, "wait", rb_semaphore_wait, -1);
     rb_objc_define_method(cSemaphore, "signal", rb_semaphore_signal, 0);
-
-/*
- * Dispatch::Semaphore provides an efficient mechanism to synchronizes threads
- * via a combination of waiting and signalling.
- * This is especially useful for controlling access to resources.
- */
     rb_semaphore_finalize_super = rb_objc_install_method2((Class)cSemaphore,
 	    "finalize", (IMP)rb_semaphore_finalize);
 
@@ -1310,14 +1311,8 @@ Init_Dispatch(void)
     rb_define_const(mDispatch, "TIME_FOREVER", ULL2NUM(DISPATCH_TIME_FOREVER));
     
 /* Constants for future reference */
-    cIO = (VALUE) objc_lookUpClass("IO");
-    assert(cIO != 0);
     selClose = sel_registerName("close");
     assert(selClose != NULL);
-    selCloseRead = sel_registerName("close_read");
-    assert(selCloseRead != NULL);
-    selCloseWrite = sel_registerName("close_write");
-    assert(selCloseWrite != NULL);
     selFileNo = sel_registerName("fileno");
     assert(selFileNo != NULL);
 }
