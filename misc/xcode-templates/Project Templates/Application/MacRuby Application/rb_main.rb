@@ -10,13 +10,12 @@
 # do that here too.
 framework 'Cocoa'
 
-main = File.basename(__FILE__, File.extname(__FILE__))
-resources = NSBundle.mainBundle.resourcePath.fileSystemRepresentation
-
 # Loading all the Ruby project files.
-Dir.glob(File.join(resources, '*.{rb,rbo}')).each do |file|
-  file = File.basename(file, File.extname(file))
-  require file unless file == main
+dir_path = NSBundle.mainBundle.resourcePath.fileSystemRepresentation
+Dir.glob(dir_path + '/*.{rb,rbo}').map { |x| File.basename(x, File.extname(x)) }.uniq.each do |path|
+  if path != File.basename(__FILE__)
+    require(path)
+  end
 end
 
 # Starting the Cocoa main loop.
