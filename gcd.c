@@ -25,30 +25,6 @@
 // otherwise there are crashes when one tries to add an instance
 // variable to a queue. (Not that that is a good idea.)
 
-/*
- *
- *  Grand Central Dispatch (GCD) is a novel approach to multicore computing
- *  that is built into Mac OS X version 10.6 Snow Leopard, and available as
- *  open source via the libdispatch project. In particular, GCD
- *  shifts responsibility for managing threads and their execution from
- *  applications to the operating system. This allows programmers to easily
- *  refactor their programs into small chunks of independent work, which GCD
- *  then schedules onto per-process thread pools.  Because GCD knows the load
- *  across the entire system, it ensures the resulting programs perform
- *  optimally on a wide range of hardware.
- * 
- *  GCD is built on a highly-efficient multicore engine accessed via a C API
- *  providing four primary abstractions, which are wrapped in this MacRuby
- *  implementation:
- *    ▪ block objects
- *    ▪ dispatch queues
- *    ▪ synchronization services
- *    ▪ event sources
- * 
- *  For more information, see the dispatch(3)[http://developer.apple.com/mac/library/DOCUMENTATION/Darwin/Reference/ManPages/man3/dispatch.3.html] man page.  
- *
-*/
-
 static SEL selClose, selFileNo;
 
 typedef struct {
@@ -1157,22 +1133,35 @@ Init_Dispatch(void)
     default_priority_id = rb_intern("default");
 
 /*
- * The Dispatch module allows blocks to be scheduled for asynchronous and
- * concurrent execution via the use of queues, which are dynamically mapped
- * onto threads by the operating system. Blocks can be explicitly scheduled by
- * the developer, or by the system in response to various kinds of events.
+ *  Grand Central Dispatch (GCD) is a novel approach to multicore computing
+ *  first release in Mac OS X version 10.6 Snow Leopard, and available as
+ *  open source via the libdispatch project. GCD shifts the
+ *  responsibility for managing threads and their execution from
+ *  applications onto the operating system. This allows programmers to easily
+ *  refactor their programs into small chunks of independent work, which GCD
+ *  then schedules onto per-process thread pools.  Because GCD knows the load
+ *  across the entire system, it ensures the resulting programs perform
+ *  optimally on a wide range of hardware.
  *
- * Dispatch::Queue is the basic units of organization of blocks.
- * Several queues are created by default, and applications may create
- * additional queues for their own use.
+ *  The Dispatch module allows Ruby blocks to be scheduled for asynchronous and
+ *  concurrent execution, either explicitly or in response to
+ *  various kinds of events. It provides a convenient high-level interface
+ *  to the underlying C API via objects for the four primary abstractions.
  *
- * Dispatch::Group allows applications to track the progress of blocks
- * submitted to queues and take action when the blocks complete.
+ *  Dispatch::Queue is the basic units of organization of blocks.
+ *  Several queues are created by default, and applications may create
+ *  additional queues for their own use.
+ *
+ *  Dispatch::Group allows applications to track the progress of blocks
+ *  submitted to queues and take action when the blocks complete.
  * 
- * Dispatch::Source monitors and coalesces low-level system events in order to
- * handle them asychronously.
+ *  Dispatch::Source monitors and coalesces low-level system events so that they
+ *  can be responded to asychronously via simple event handlers.
  *
- * Dispatch::Semaphore synchronizes threads via waiting and signalling.
+ *  Dispatch::Semaphore synchronizes threads via a combination of
+ *  waiting and signalling.
+ *
+ *  For more information, see the dispatch(3)[http://developer.apple.com/mac/library/DOCUMENTATION/Darwin/Reference/ManPages/man3/dispatch.3.html] man page.  
  */
     mDispatch = rb_define_module("Dispatch");
 

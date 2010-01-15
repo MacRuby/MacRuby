@@ -305,6 +305,13 @@ if MACOSX_VERSION >= 10.6
             File.read(@filename).should == @msg
             @src.cancel!            
           end
+
+          it "does not close file when cancelled given descriptor" do
+            @src = Dispatch::Source.new(@type, @file.to_i, 0, @q) { }
+            @src.cancel!
+            @q.sync { }
+            @file.closed?.should == false
+          end
           
           it "does close file when cancelled given IO" do
             @src = Dispatch::Source.new(@type, @file, 0, @q) { }
@@ -342,6 +349,13 @@ if MACOSX_VERSION >= 10.6
             @fired.should == true
             @flag.should == @mask
           end    
+
+          it "does not close file when cancelled given descriptor" do
+            @src = Dispatch::Source.new(@type, @file.to_i, 0, @q) { }
+            @src.cancel!
+            @q.sync { }
+            @file.closed?.should == false
+          end
 
           it "does close file when cancelled given IO" do
             @src = Dispatch::Source.new(@type, @file, 0, @q) { }
