@@ -2194,14 +2194,15 @@ unescape_escaped_nonascii(const char **pp, const char *end, rb_encoding *enc,
 {
     const char *p = *pp;
     int chmaxlen = rb_enc_mbmaxlen(enc);
-    char *chbuf = ALLOCA_N(char, chmaxlen);
+    char chbuf[5];
     int chlen = 0;
     int byte;
 #if !WITH_OBJC
     int l;
 #endif
 
-    memset(chbuf, 0, chmaxlen);
+    assert(chmaxlen < sizeof(chbuf));
+    memset(chbuf, 0, sizeof(chbuf));
 
     byte = read_escaped_byte(&p, end, err);
     if (byte == -1) {
@@ -2663,7 +2664,7 @@ rb_reg_initialize_str(VALUE obj, VALUE str, int options, onig_errmsg_buffer err)
 
     VALUE code = rb_reg_initialize(obj, cstr, clen, enc, options, err);
 
-//printf("init re %p cstr %p orig str %p charsize %ld enc %p\n", (void *)obj, cstr, (void *)str, charsize, enc);
+//printf("init re %p cstr %p orig str %p charsize %ld enc %p should_free %d\n", (void *)obj, cstr, (void *)str, charsize, enc, should_free);
 
     if (should_free && cstr != NULL) {
 	free(cstr);
