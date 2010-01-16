@@ -28,36 +28,21 @@
 		2B36B4181062115D008347E0 /* falling_ruby.rb in Resources */ = {isa = PBXBuildFile; fileRef = 2B36B4171062115D008347E0 /* falling_ruby.rb */; };
 		2B47099710B7452A0074E6F0 /* heart.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 2B47099610B7452A0074E6F0 /* heart.pdf */; };
 		2B4709B410B746ED0074E6F0 /* asteroid.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 2B4709B310B746ED0074E6F0 /* asteroid.pdf */; };
-		2B520B7E10FBC1D700B90B9E /* level_5.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 2B520B7D10FBC1D700B90B9E /* level_5.mp3 */; };
-		2B520B8610FBC25A00B90B9E /* background_level_5.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 2B520B8210FBC25A00B90B9E /* background_level_5.pdf */; };
-		2B520B8710FBC25A00B90B9E /* disco_ball.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 2B520B8310FBC25A00B90B9E /* disco_ball.pdf */; };
-		2B520B8810FBC25A00B90B9E /* frog_level_5.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 2B520B8410FBC25A00B90B9E /* frog_level_5.pdf */; };
-		2B520B8910FBC25A00B90B9E /* splash_5.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 2B520B8510FBC25A00B90B9E /* splash_5.pdf */; };
 		2B5F663B10AD21D9007A6C17 /* ns_button.rb in Resources */ = {isa = PBXBuildFile; fileRef = 2B5F663A10AD21D9007A6C17 /* ns_button.rb */; };
 		2B6C306410B1DB7E00325E82 /* background_level_1.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 2B6C304710B1DB7E00325E82 /* background_level_1.pdf */; };
 		2B6C306510B1DB7E00325E82 /* background_level_2.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 2B6C304810B1DB7E00325E82 /* background_level_2.pdf */; };
-		2B6C306610B1DB7E00325E82 /* background_level_3.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 2B6C304910B1DB7E00325E82 /* background_level_3.pdf */; };
-		2B6C306710B1DB7E00325E82 /* background_level_4.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 2B6C304A10B1DB7E00325E82 /* background_level_4.pdf */; };
 		2B6C306910B1DB7E00325E82 /* bomb.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 2B6C304C10B1DB7E00325E82 /* bomb.pdf */; };
-		2B6C306A10B1DB7E00325E82 /* carpet.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 2B6C304D10B1DB7E00325E82 /* carpet.pdf */; };
-		2B6C306B10B1DB7E00325E82 /* coke.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 2B6C304E10B1DB7E00325E82 /* coke.pdf */; };
 		2B6C306D10B1DB7E00325E82 /* frog_level_1.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 2B6C305010B1DB7E00325E82 /* frog_level_1.pdf */; };
 		2B6C306E10B1DB7E00325E82 /* frog_level_2.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 2B6C305110B1DB7E00325E82 /* frog_level_2.pdf */; };
-		2B6C306F10B1DB7E00325E82 /* frog_level_3.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 2B6C305210B1DB7E00325E82 /* frog_level_3.pdf */; };
-		2B6C307010B1DB7E00325E82 /* frog_level_4.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 2B6C305310B1DB7E00325E82 /* frog_level_4.pdf */; };
 		2B6C307210B1DB7E00325E82 /* game_over.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 2B6C305510B1DB7E00325E82 /* game_over.pdf */; };
 		2B6C307310B1DB7E00325E82 /* intro_bg.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 2B6C305610B1DB7E00325E82 /* intro_bg.pdf */; };
 		2B6C307410B1DB7E00325E82 /* intro_screen.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 2B6C305710B1DB7E00325E82 /* intro_screen.pdf */; };
 		2B6C307510B1DB7E00325E82 /* nenuphar.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 2B6C305810B1DB7E00325E82 /* nenuphar.pdf */; };
 		2B6C307610B1DB7E00325E82 /* ruby-black.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 2B6C305910B1DB7E00325E82 /* ruby-black.pdf */; };
 		2B6C307710B1DB7E00325E82 /* ruby.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 2B6C305A10B1DB7E00325E82 /* ruby.pdf */; };
-		2B6C307810B1DB7E00325E82 /* skate.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 2B6C305B10B1DB7E00325E82 /* skate.pdf */; };
 		2B6C307910B1DB7E00325E82 /* splash_1.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 2B6C305C10B1DB7E00325E82 /* splash_1.pdf */; };
 		2B6C307A10B1DB7E00325E82 /* splash_2.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 2B6C305D10B1DB7E00325E82 /* splash_2.pdf */; };
-		2B6C307B10B1DB7E00325E82 /* splash_3.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 2B6C305E10B1DB7E00325E82 /* splash_3.pdf */; };
-		2B6C307C10B1DB7E00325E82 /* splash_4.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 2B6C305F10B1DB7E00325E82 /* splash_4.pdf */; };
 		2B6C307E10B1DB7E00325E82 /* star.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 2B6C306110B1DB7E00325E82 /* star.pdf */; };
-		2B6C307F10B1DB7E00325E82 /* tornado.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 2B6C306210B1DB7E00325E82 /* tornado.pdf */; };
 		2B6C308010B1DB7E00325E82 /* x.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 2B6C306310B1DB7E00325E82 /* x.pdf */; };
 		2B6C308710B1DBA600325E82 /* game_config.rb in Resources */ = {isa = PBXBuildFile; fileRef = 2B6C308310B1DBA600325E82 /* game_config.rb */; };
 		2B6C308810B1DBA600325E82 /* player_position.rb in Resources */ = {isa = PBXBuildFile; fileRef = 2B6C308410B1DBA600325E82 /* player_position.rb */; };
@@ -65,9 +50,7 @@
 		2B6C308A10B1DBA600325E82 /* visual_effects.rb in Resources */ = {isa = PBXBuildFile; fileRef = 2B6C308610B1DBA600325E82 /* visual_effects.rb */; };
 		2B6C309110B1DC8800325E82 /* level_1.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 2B6C308E10B1DC8800325E82 /* level_1.mp3 */; };
 		2B6C309210B1DC8800325E82 /* level_2.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 2B6C308F10B1DC8800325E82 /* level_2.mp3 */; };
-		2B6C309310B1DC8800325E82 /* level_3.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 2B6C309010B1DC8800325E82 /* level_3.mp3 */; };
 		2B6C309510B1DCC300325E82 /* fullscreen.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 2B6C309410B1DCC300325E82 /* fullscreen.pdf */; };
-		2B6C314910B52C5000325E82 /* level_4.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 2B6C314810B52C5000325E82 /* level_4.mp3 */; };
 		2B75C4241067663A009E255F /* game_controller.rb in Resources */ = {isa = PBXBuildFile; fileRef = 2B75C41F1067663A009E255F /* game_controller.rb */; };
 		2B75C4251067663A009E255F /* game_data.rb in Resources */ = {isa = PBXBuildFile; fileRef = 2B75C4201067663A009E255F /* game_data.rb */; };
 		2B75C4261067663A009E255F /* game_item.rb in Resources */ = {isa = PBXBuildFile; fileRef = 2B75C4211067663A009E255F /* game_item.rb */; };
@@ -99,36 +82,21 @@
 		2B36B4171062115D008347E0 /* falling_ruby.rb */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.ruby; path = falling_ruby.rb; sourceTree = "<group>"; };
 		2B47099610B7452A0074E6F0 /* heart.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = heart.pdf; sourceTree = "<group>"; };
 		2B4709B310B746ED0074E6F0 /* asteroid.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = asteroid.pdf; sourceTree = "<group>"; };
-		2B520B7D10FBC1D700B90B9E /* level_5.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = level_5.mp3; sourceTree = "<group>"; };
-		2B520B8210FBC25A00B90B9E /* background_level_5.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = background_level_5.pdf; sourceTree = "<group>"; };
-		2B520B8310FBC25A00B90B9E /* disco_ball.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = disco_ball.pdf; sourceTree = "<group>"; };
-		2B520B8410FBC25A00B90B9E /* frog_level_5.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = frog_level_5.pdf; sourceTree = "<group>"; };
-		2B520B8510FBC25A00B90B9E /* splash_5.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = splash_5.pdf; sourceTree = "<group>"; };
 		2B5F663A10AD21D9007A6C17 /* ns_button.rb */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.ruby; path = ns_button.rb; sourceTree = "<group>"; };
 		2B6C304710B1DB7E00325E82 /* background_level_1.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = background_level_1.pdf; sourceTree = "<group>"; };
 		2B6C304810B1DB7E00325E82 /* background_level_2.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = background_level_2.pdf; sourceTree = "<group>"; };
-		2B6C304910B1DB7E00325E82 /* background_level_3.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = background_level_3.pdf; sourceTree = "<group>"; };
-		2B6C304A10B1DB7E00325E82 /* background_level_4.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = background_level_4.pdf; sourceTree = "<group>"; };
 		2B6C304C10B1DB7E00325E82 /* bomb.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = bomb.pdf; sourceTree = "<group>"; };
-		2B6C304D10B1DB7E00325E82 /* carpet.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = carpet.pdf; sourceTree = "<group>"; };
-		2B6C304E10B1DB7E00325E82 /* coke.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = coke.pdf; sourceTree = "<group>"; };
 		2B6C305010B1DB7E00325E82 /* frog_level_1.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = frog_level_1.pdf; sourceTree = "<group>"; };
 		2B6C305110B1DB7E00325E82 /* frog_level_2.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = frog_level_2.pdf; sourceTree = "<group>"; };
-		2B6C305210B1DB7E00325E82 /* frog_level_3.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = frog_level_3.pdf; sourceTree = "<group>"; };
-		2B6C305310B1DB7E00325E82 /* frog_level_4.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = frog_level_4.pdf; sourceTree = "<group>"; };
 		2B6C305510B1DB7E00325E82 /* game_over.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = game_over.pdf; sourceTree = "<group>"; };
 		2B6C305610B1DB7E00325E82 /* intro_bg.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = intro_bg.pdf; sourceTree = "<group>"; };
 		2B6C305710B1DB7E00325E82 /* intro_screen.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = intro_screen.pdf; sourceTree = "<group>"; };
 		2B6C305810B1DB7E00325E82 /* nenuphar.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = nenuphar.pdf; sourceTree = "<group>"; };
 		2B6C305910B1DB7E00325E82 /* ruby-black.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = "ruby-black.pdf"; sourceTree = "<group>"; };
 		2B6C305A10B1DB7E00325E82 /* ruby.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = ruby.pdf; sourceTree = "<group>"; };
-		2B6C305B10B1DB7E00325E82 /* skate.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = skate.pdf; sourceTree = "<group>"; };
 		2B6C305C10B1DB7E00325E82 /* splash_1.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = splash_1.pdf; sourceTree = "<group>"; };
 		2B6C305D10B1DB7E00325E82 /* splash_2.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = splash_2.pdf; sourceTree = "<group>"; };
-		2B6C305E10B1DB7E00325E82 /* splash_3.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = splash_3.pdf; sourceTree = "<group>"; };
-		2B6C305F10B1DB7E00325E82 /* splash_4.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = splash_4.pdf; sourceTree = "<group>"; };
 		2B6C306110B1DB7E00325E82 /* star.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = star.pdf; sourceTree = "<group>"; };
-		2B6C306210B1DB7E00325E82 /* tornado.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = tornado.pdf; sourceTree = "<group>"; };
 		2B6C306310B1DB7E00325E82 /* x.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = x.pdf; sourceTree = "<group>"; };
 		2B6C308310B1DBA600325E82 /* game_config.rb */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.ruby; path = game_config.rb; sourceTree = "<group>"; };
 		2B6C308410B1DBA600325E82 /* player_position.rb */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.ruby; path = player_position.rb; sourceTree = "<group>"; };
@@ -136,9 +104,7 @@
 		2B6C308610B1DBA600325E82 /* visual_effects.rb */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.ruby; path = visual_effects.rb; sourceTree = "<group>"; };
 		2B6C308E10B1DC8800325E82 /* level_1.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = level_1.mp3; sourceTree = "<group>"; };
 		2B6C308F10B1DC8800325E82 /* level_2.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = level_2.mp3; sourceTree = "<group>"; };
-		2B6C309010B1DC8800325E82 /* level_3.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = level_3.mp3; sourceTree = "<group>"; };
 		2B6C309410B1DCC300325E82 /* fullscreen.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; path = fullscreen.pdf; sourceTree = "<group>"; };
-		2B6C314810B52C5000325E82 /* level_4.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = level_4.mp3; sourceTree = "<group>"; };
 		2B75C41F1067663A009E255F /* game_controller.rb */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.ruby; path = game_controller.rb; sourceTree = "<group>"; };
 		2B75C4201067663A009E255F /* game_data.rb */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.ruby; path = game_data.rb; sourceTree = "<group>"; };
 		2B75C4211067663A009E255F /* game_item.rb */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.ruby; path = game_item.rb; sourceTree = "<group>"; };
@@ -266,37 +232,23 @@
 		2B6C304610B1DB7E00325E82 /* graphics */ = {
 			isa = PBXGroup;
 			children = (
-				2B520B8210FBC25A00B90B9E /* background_level_5.pdf */,
-				2B520B8310FBC25A00B90B9E /* disco_ball.pdf */,
-				2B520B8410FBC25A00B90B9E /* frog_level_5.pdf */,
-				2B520B8510FBC25A00B90B9E /* splash_5.pdf */,
 				2B4709B310B746ED0074E6F0 /* asteroid.pdf */,
 				2B47099610B7452A0074E6F0 /* heart.pdf */,
 				2B6C309410B1DCC300325E82 /* fullscreen.pdf */,
 				2B6C304710B1DB7E00325E82 /* background_level_1.pdf */,
 				2B6C304810B1DB7E00325E82 /* background_level_2.pdf */,
-				2B6C304910B1DB7E00325E82 /* background_level_3.pdf */,
-				2B6C304A10B1DB7E00325E82 /* background_level_4.pdf */,
 				2B6C304C10B1DB7E00325E82 /* bomb.pdf */,
-				2B6C304D10B1DB7E00325E82 /* carpet.pdf */,
-				2B6C304E10B1DB7E00325E82 /* coke.pdf */,
 				2B6C305010B1DB7E00325E82 /* frog_level_1.pdf */,
 				2B6C305110B1DB7E00325E82 /* frog_level_2.pdf */,
-				2B6C305210B1DB7E00325E82 /* frog_level_3.pdf */,
-				2B6C305310B1DB7E00325E82 /* frog_level_4.pdf */,
 				2B6C305510B1DB7E00325E82 /* game_over.pdf */,
 				2B6C305610B1DB7E00325E82 /* intro_bg.pdf */,
 				2B6C305710B1DB7E00325E82 /* intro_screen.pdf */,
 				2B6C305810B1DB7E00325E82 /* nenuphar.pdf */,
 				2B6C305910B1DB7E00325E82 /* ruby-black.pdf */,
 				2B6C305A10B1DB7E00325E82 /* ruby.pdf */,
-				2B6C305B10B1DB7E00325E82 /* skate.pdf */,
 				2B6C305C10B1DB7E00325E82 /* splash_1.pdf */,
 				2B6C305D10B1DB7E00325E82 /* splash_2.pdf */,
-				2B6C305E10B1DB7E00325E82 /* splash_3.pdf */,
-				2B6C305F10B1DB7E00325E82 /* splash_4.pdf */,
 				2B6C306110B1DB7E00325E82 /* star.pdf */,
-				2B6C306210B1DB7E00325E82 /* tornado.pdf */,
 				2B6C306310B1DB7E00325E82 /* x.pdf */,
 			);
 			path = graphics;
@@ -316,11 +268,8 @@
 		2B6C308D10B1DC8800325E82 /* sounds */ = {
 			isa = PBXGroup;
 			children = (
-				2B520B7D10FBC1D700B90B9E /* level_5.mp3 */,
-				2B6C314810B52C5000325E82 /* level_4.mp3 */,
 				2B6C308E10B1DC8800325E82 /* level_1.mp3 */,
 				2B6C308F10B1DC8800325E82 /* level_2.mp3 */,
-				2B6C309010B1DC8800325E82 /* level_3.mp3 */,
 			);
 			path = sounds;
 			sourceTree = "<group>";
@@ -400,28 +349,18 @@
 				2B5F663B10AD21D9007A6C17 /* ns_button.rb in Resources */,
 				2B6C306410B1DB7E00325E82 /* background_level_1.pdf in Resources */,
 				2B6C306510B1DB7E00325E82 /* background_level_2.pdf in Resources */,
-				2B6C306610B1DB7E00325E82 /* background_level_3.pdf in Resources */,
-				2B6C306710B1DB7E00325E82 /* background_level_4.pdf in Resources */,
 				2B6C306910B1DB7E00325E82 /* bomb.pdf in Resources */,
-				2B6C306A10B1DB7E00325E82 /* carpet.pdf in Resources */,
-				2B6C306B10B1DB7E00325E82 /* coke.pdf in Resources */,
 				2B6C306D10B1DB7E00325E82 /* frog_level_1.pdf in Resources */,
 				2B6C306E10B1DB7E00325E82 /* frog_level_2.pdf in Resources */,
-				2B6C306F10B1DB7E00325E82 /* frog_level_3.pdf in Resources */,
-				2B6C307010B1DB7E00325E82 /* frog_level_4.pdf in Resources */,
 				2B6C307210B1DB7E00325E82 /* game_over.pdf in Resources */,
 				2B6C307310B1DB7E00325E82 /* intro_bg.pdf in Resources */,
 				2B6C307410B1DB7E00325E82 /* intro_screen.pdf in Resources */,
 				2B6C307510B1DB7E00325E82 /* nenuphar.pdf in Resources */,
 				2B6C307610B1DB7E00325E82 /* ruby-black.pdf in Resources */,
 				2B6C307710B1DB7E00325E82 /* ruby.pdf in Resources */,
-				2B6C307810B1DB7E00325E82 /* skate.pdf in Resources */,
 				2B6C307910B1DB7E00325E82 /* splash_1.pdf in Resources */,
 				2B6C307A10B1DB7E00325E82 /* splash_2.pdf in Resources */,
-				2B6C307B10B1DB7E00325E82 /* splash_3.pdf in Resources */,
-				2B6C307C10B1DB7E00325E82 /* splash_4.pdf in Resources */,
 				2B6C307E10B1DB7E00325E82 /* star.pdf in Resources */,
-				2B6C307F10B1DB7E00325E82 /* tornado.pdf in Resources */,
 				2B6C308010B1DB7E00325E82 /* x.pdf in Resources */,
 				2B6C308710B1DBA600325E82 /* game_config.rb in Resources */,
 				2B6C308810B1DBA600325E82 /* player_position.rb in Resources */,
@@ -429,16 +368,9 @@
 				2B6C308A10B1DBA600325E82 /* visual_effects.rb in Resources */,
 				2B6C309110B1DC8800325E82 /* level_1.mp3 in Resources */,
 				2B6C309210B1DC8800325E82 /* level_2.mp3 in Resources */,
-				2B6C309310B1DC8800325E82 /* level_3.mp3 in Resources */,
 				2B6C309510B1DCC300325E82 /* fullscreen.pdf in Resources */,
-				2B6C314910B52C5000325E82 /* level_4.mp3 in Resources */,
 				2B47099710B7452A0074E6F0 /* heart.pdf in Resources */,
 				2B4709B410B746ED0074E6F0 /* asteroid.pdf in Resources */,
-				2B520B7E10FBC1D700B90B9E /* level_5.mp3 in Resources */,
-				2B520B8610FBC25A00B90B9E /* background_level_5.pdf in Resources */,
-				2B520B8710FBC25A00B90B9E /* disco_ball.pdf in Resources */,
-				2B520B8810FBC25A00B90B9E /* frog_level_5.pdf in Resources */,
-				2B520B8910FBC25A00B90B9E /* splash_5.pdf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
