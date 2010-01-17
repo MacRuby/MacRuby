@@ -728,7 +728,9 @@ rb_f_caller(VALUE klass, SEL sel, int argc, VALUE *argv)
 	rb_raise(rb_eArgError, "negative level (%d)", lev);
     }
 
-    return rb_vm_backtrace(lev);
+    VALUE ary = rb_vm_backtrace(lev);
+    rb_ary_shift(ary); // remove #caller
+    return ary;
 }
 
 void
