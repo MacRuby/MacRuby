@@ -32,7 +32,7 @@ class RoxorCompiler {
 	static llvm::Module *module;
 	static RoxorCompiler *shared;
 
-	RoxorCompiler(void);
+	RoxorCompiler(bool debug_mode);
 	virtual ~RoxorCompiler(void) { }
 
 	void set_fname(const char *_fname);
@@ -66,6 +66,7 @@ class RoxorCompiler {
 	DICompileUnit debug_compile_unit;
 	DISubprogram debug_subprogram;
 
+	bool debug_mode;
 	const char *fname;
 	bool inside_eval;
 
@@ -191,6 +192,7 @@ class RoxorCompiler {
 	Function *setScopeFunc;
 	Function *setCurrentClassFunc;
 	Function *getCacheFunc;
+	Function *debugTrapFunc;
 
 	Constant *zeroVal;
 	Constant *oneVal;
@@ -337,6 +339,7 @@ class RoxorCompiler {
 				       Value *slot);
 	Value *compile_conversion_to_ruby(const char *type,
 					  const Type *llvm_type, Value *val);
+	void compile_debug_trap(void);
 
 	Value *compile_slot_cache(ID id);
 	virtual Value *gen_slot_cache(ID id);

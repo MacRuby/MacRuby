@@ -1000,8 +1000,14 @@ VALUE rb_iv_set(VALUE, const char*, VALUE);
 
 VALUE rb_equal(VALUE,VALUE);
 
+// Flags.
 RUBY_EXTERN VALUE ruby_verbose, ruby_debug;
+
+// AOT compiler.
 RUBY_EXTERN VALUE ruby_aot_compile, ruby_aot_init_func;
+
+// Debugger.
+RUBY_EXTERN VALUE ruby_debug_socket_path;
 
 PRINTF_ARGS(NORETURN(void rb_raise(VALUE, const char*, ...)), 2, 3);
 PRINTF_ARGS(NORETURN(void rb_fatal(const char*, ...)), 1, 2);

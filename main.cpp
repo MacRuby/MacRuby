@@ -5,6 +5,8 @@
  * Copyright (C) 1993-2007 Yukihiro Matsumoto
  */
 
+#include "llvm.h"
+
 #undef RUBY_EXPORT
 #include "ruby.h"
 #include "ruby/node.h"
@@ -12,11 +14,7 @@
 #include <locale.h>
 #endif
 
-extern "C" {
-    void rb_vm_print_current_exception(void);
-    void rb_vm_aot_compile(NODE *);
-    void rb_vm_init_compiler(void);
-}
+#include "vm.h"
 
 extern bool ruby_is_miniruby;
 

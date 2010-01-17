@@ -29,13 +29,15 @@ extern "C" const char *ruby_node_name(int node);
 llvm::Module *RoxorCompiler::module = NULL;
 RoxorCompiler *RoxorCompiler::shared = NULL;
 
-RoxorCompiler::RoxorCompiler(void)
+RoxorCompiler::RoxorCompiler(bool _debug_mode)
 {
     assert(RoxorCompiler::module != NULL);
     debug_info = new DIFactory(*RoxorCompiler::module);
 
+    debug_mode = _debug_mode;
     fname = "";
     inside_eval = false;
+    current_line = 0;
 
     bb = NULL;
     entry_bb = NULL;
@@ -141,6 +143,7 @@ RoxorCompiler::RoxorCompiler(void)
     setScopeFunc = NULL;
     setCurrentClassFunc = NULL;
     getCacheFunc = NULL;
+    debugTrapFunc = NULL;
 
     VoidTy = Type::getVoidTy(context);
     Int1Ty = Type::getInt1Ty(context);
@@ -182,7 +185,7 @@ RoxorCompiler::RoxorCompiler(void)
 }
 
 RoxorAOTCompiler::RoxorAOTCompiler(void)
-: RoxorCompiler()
+: RoxorCompiler(false)
 {
     cObject_gvar = NULL;
     cStandardError_gvar = NULL;
@@ -3055,7 +3058,12 @@ RoxorCompiler::compile_node(NODE *node)
     }
     printf("... %s\n", ruby_node_name(nd_type(node)));
 #endif
-    current_line = nd_line(node);
+    if (current_line != nd_line(node)) {
+	current_line = nd_line(node);
+	if (debug_mode) {
+	    compile_debug_trap();
+	}
+    }
 
     switch (nd_type(node)) {
 	case NODE_SCOPE:
@@ -4301,13 +4309,14 @@ rescan_args:
 		// object, let's create it.
 		// (Note: this won't work if the method is aliased, but we can
 		//  live with that for now)
-		if (!super_call
+		if (debug_mode
+		    || (!super_call
 			&& (sel == selEval
 			    || sel == selInstanceEval
 			    || sel == selClassEval
 			    || sel == selModuleEval
 			    || sel == selLocalVariables
-			    || sel == selBinding)) {
+			    || sel == selBinding))) {
 		    compile_binding();
 		}
 

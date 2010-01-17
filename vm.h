@@ -250,10 +250,12 @@ rb_vm_cfunc_node_from_imp(Class klass, int arity, IMP imp, int noex)
     return NEW_FBODY(NEW_METHOD(node, klass, noex), 0);
 }
 
+VALUE rb_vm_eval_string(VALUE self, VALUE klass, VALUE src,
+	rb_vm_binding_t *binding, const char *file, const int line);
 VALUE rb_vm_run(const char *fname, NODE *node, rb_vm_binding_t *binding,
-		bool inside_eval);
+	bool inside_eval);
 VALUE rb_vm_run_under(VALUE klass, VALUE self, const char *fname, NODE *node,
-		      rb_vm_binding_t *binding, bool inside_eval);
+	rb_vm_binding_t *binding, bool inside_eval);
 void rb_vm_aot_compile(NODE *node);
 
 void rb_vm_init_compiler(void);
@@ -385,6 +387,8 @@ rb_vm_block_make_detachable_proc(rb_vm_block_t *b)
     }
 }
 
+rb_vm_binding_t *rb_vm_create_binding(VALUE self, rb_vm_block_t *current_block,
+	int lvars_size, va_list lvars, bool vm_push);
 rb_vm_binding_t *rb_vm_current_binding(void);
 void rb_vm_add_binding(rb_vm_binding_t *binding);
 void rb_vm_pop_binding();
@@ -442,6 +446,7 @@ void rb_vm_raise_current_exception(void);
 VALUE rb_vm_current_exception(void);
 void rb_vm_set_current_exception(VALUE exception);
 VALUE rb_vm_backtrace(int level);
+void rb_vm_print_current_exception(void);
 
 #define TEST_THREAD_CANCEL() (pthread_testcancel())
 
@@ -955,6 +960,15 @@ class RoxorVM {
 	rb_vm_binding_t *current_binding(void) {
 	    return bindings.empty()
 		? NULL : bindings.back();
+	}
+
+	rb_vm_binding_t *get_binding(unsigned int index) {
+	    if (!bindings.empty()) {
+		if (index < bindings.size()) {
+		    return bindings[index];
+		}
+	    }
+	    return NULL;
 	}
 
 	void push_current_binding(rb_vm_binding_t *binding, bool retain=true) {

@@ -1498,10 +1498,8 @@ rb_ary_insert_m(VALUE ary, SEL sel, int argc, VALUE *argv)
 static VALUE
 rb_ary_each_imp(VALUE ary, SEL sel)
 {
-    long i;
-
     RETURN_ENUMERATOR(ary, 0, 0);
-    for (i = 0; i < RARRAY_LEN(ary); i++) {
+    for (long i = 0; i < RARRAY_LEN(ary); i++) {
 	rb_yield(RARRAY_AT(ary, i));
 	RETURN_IF_BROKEN();
     }
@@ -1532,10 +1530,9 @@ rb_ary_each(VALUE ary)
 static VALUE
 rb_ary_each_index(VALUE ary, SEL sel)
 {
-    long i, n;
     RETURN_ENUMERATOR(ary, 0, 0);
 
-    for (i = 0, n = RARRAY_LEN(ary); i < n; i++) {
+    for (long i = 0, n = RARRAY_LEN(ary); i < n; i++) {
 	rb_yield(LONG2NUM(i));
 	RETURN_IF_BROKEN();
     }
@@ -1560,14 +1557,13 @@ rb_ary_each_index(VALUE ary, SEL sel)
 static VALUE
 rb_ary_reverse_each(VALUE ary, SEL sel)
 {
-    long n, len;
-
     RETURN_ENUMERATOR(ary, 0, 0);
-    len = RARRAY_LEN(ary);
+
+    long len = RARRAY_LEN(ary);
     while (len--) {
 	rb_yield(RARRAY_AT(ary, len));
 	RETURN_IF_BROKEN();
-	n = RARRAY_LEN(ary);
+	const long n = RARRAY_LEN(ary);
 	if (n < len) {
 	    len = n;
 	}
@@ -1707,7 +1703,7 @@ rb_ary_join(VALUE ary, VALUE sep)
 	    taint = Qtrue;
 	}
 	if (OBJ_UNTRUSTED(tmp)) {
-        untrust = Qtrue;
+	    untrust = Qtrue;
 	}
     }
 

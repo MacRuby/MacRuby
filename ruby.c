@@ -44,6 +44,7 @@ char *getenv();
 /* TODO: move to VM */
 VALUE ruby_debug = Qfalse;
 VALUE ruby_verbose = Qfalse;
+VALUE ruby_debug_socket_path = Qfalse;
 VALUE ruby_aot_compile = Qfalse;
 VALUE ruby_aot_init_func = Qfalse;
 VALUE rb_parser_get_yydebug(VALUE);
@@ -767,6 +768,18 @@ proc_options(int argc, char **argv, struct cmdline_options *opt)
 		GC_RETAIN(ruby_aot_compile);
 		GC_RETAIN(ruby_aot_init_func);
 		argc--; argv++;
+		argc--; argv++;
+	    }
+	    else if (strcmp("debug-mode", s) == 0) {
+		// This option is not documented and only used by macrubyd.
+		// Users should use macrubyd and never call this option
+		// directly.
+		if (argc < 2) {
+		    rb_raise(rb_eRuntimeError,
+			    "expected 1 argument (unix socket path) for --debug-mode");
+		}
+		ruby_debug_socket_path = rb_str_new2(argv[1]);
+		GC_RETAIN(ruby_debug_socket_path);
 		argc--; argv++;
 	    }
 	    else {

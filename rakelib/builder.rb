@@ -115,7 +115,7 @@ OBJS = %w{
   ruby signal sprintf st string struct time transcode util variable version
   thread id objc bs encoding main dln dmyext marshal gcd
   vm_eval prelude miniprelude gc-stub bridgesupport compiler dispatcher vm
-  MacRuby
+  debugger MacRuby MacRubyDebuggerConnector
 }
 
 OBJS_CFLAGS = {

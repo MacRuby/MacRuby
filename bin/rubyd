@@ -1,0 +1,214 @@
+#!/usr/bin/ruby
+# MacRuby Debugger.
+#
+# This file is covered by the Ruby license.
+#
+# Copyright (C) 2010, Apple Inc
+
+require 'readline'
+
+class Debugger
+  def initialize(args)
+    @terran_mode = args.delete('--terran')
+    raise "need at least one argument" if args.empty?
+    @connector = ::MacRubyDebuggerConnector.alloc.initWithArguments(args)
+  end
+
+  def run
+    $stdout.puts "Starting program."
+    @connector.startExecution
+    running = true
+
+    while true do
+      if @connector.location == nil and running
+        # Looks like the program terminated.
+        $stdout.puts "Program exited."
+        running = false
+      end
+
+      # Grab a command from the prompt.
+      command = prompt
+      break unless command
+      command.strip!
+      next if command.empty?
+
+      case command
+        when 'c', 'continue'
+          if running
+            @connector.continueExecution
+          else
+            $stdout.puts "Program not running."
+          end
+        when 'n', 'next'
+          if running
+            @connector.stepExecution
+          else
+            $stdout.puts "Program not running."
+          end
+        when 'r', 'run'
+          if running
+            $stdout.print <<EOS.chomp
+The program being debugged has been started already.
+Start it from the beginning? (y or n) 
+EOS
+            if $stdin.gets.chomp == 'y'
+              @connector.stopExecution
+              @connector.startExecution
+              running = true 
+            else
+              $stdout.puts "Program not restarted."
+            end
+          else
+            $stdout.puts "Starting program."
+            @connector.startExecution
+            running = true 
+          end
+        when 'stop'
+          if running
+            @connector.stopExecution        
+          else
+            $stdout.puts "Program not running."
+          end
+        when /^b(?:reak)?\s+(.+):(\d+)(?:\s+if\s+(.+))?/
+          if running
+            file = $1.strip
+            line = $2.to_i
+            cond = $3
+            bp = @connector.addBreakPointAtPath(file, line: line,
+              condition: nil)
+            if cond
+              cond.strip!
+              unless cond.empty?
+                @connector.setCondition(cond, forBreakPoint: bp)
+              end
+            end
+            $stdout.puts "Added breakpoint #{bp}."
+          else
+            $stdout.puts "Program not running."
+          end
+        when /^enabled\s+(\d+)/
+          if running
+            bp = $1.to_i
+            @connector.enableBreakPoint(bp)
+            $stdout.puts "Enabled breakpoint #{bp}."
+          else
+            $stdout.puts "Program not running."
+          end
+        when /^disable\s+(\d+)/
+          if running
+            bp = $1.to_i
+            @connector.disableBreakPoint(bp)
+            $stdout.puts "Disabled breakpoint #{bp}."
+          else
+            $stdout.puts "Program not running."
+          end
+        when /^delete\s+(\d+)/
+          if running
+            bp = $1.to_i
+            @connector.deleteBreakPoint(bp)
+            $stdout.puts "Deleted breakpoint #{bp}."
+          else
+            $stdout.puts "Program not running."
+          end
+        when /^condition\s+(\d+)\s+(.+)/
+          if running
+            bp = $1.to_i
+            cond = $2.strip
+            @connector.setCondition(cond, forBreakPoint: bp)
+          else
+            $stdout.puts "Program not running."
+          end
+        when 'bt', 'backtrace'
+          if running
+            @connector.backtrace.each_with_index do |frame, n|
+              $stdout.puts "#%d\t%s" % [n, frame]
+            end
+          else
+            $stdout.puts "Program not running."
+          end
+        when /^fr(?:ame)?\s+(\d+)/
+          frid = $1.to_i
+          @connector.setFrame(frid)
+        when /^info\s+breakpoints/
+          if running
+            $stdout.puts "Program not running." and next unless running
+            bps = @connector.allBreakPoints
+            if bps.empty?
+              $stdout.puts "No breakpoint."
+            else
+              $stdout.puts "ID\t\tSTATE\t\tLOCATION"
+              bps.each do |bp|
+                $stdout.puts "%s\t\t%s\t\t%s" % [bp['id'],
+                  bp['enabled'] == '1' ? "enabled" : "disabled",
+                  bp['location']]
+              end
+  	    end
+          else
+            $stdout.puts "Program not running."
+          end
+        when /^info\s+threads/, /^thread\s+(\d+)/
+          $stdout.puts "Not yet implemented."
+        when /^p\s+(.+)/
+          if running
+            expr = $1.strip
+            $stdout.puts "=> #{@connector.evaluateExpression(expr)}"
+          else
+            $stdout.puts "Program not running."
+          end
+        when 'help'
+          help
+        when 'quit', 'exit'
+          @connector.stopExecution
+          exit
+        else
+          $stdout.puts "Unknown command `#{command}', type `help' for help."
+      end
+    end
+  end
+
+  private
+
+  def help
+    $stdout.puts <<EOS
+break <file:line>          Set up and enable a breakpoint at given file/line.
+break <...> if <expr>      Same as above but also set up a given condition.
+delete <bp-id>             Delete the given breakpoint.
+disable <bp-id>            Disable the given breakpoint.
+enable <bp-id>             Enable the given breakpoint.
+condition <bp-id> <expr>   Set up a condition for the given breakpoint.
+info breakpoints           List all breakpoints.
+info threads               List all threads.
+next                       Go to the next expression.
+continue                   Continue the program's execution.
+run                        Start the program's execution.
+stop                       Stop the program's execution.
+backtrace                  Show current backtrace.
+backtrace full             Show a full backtrace (for every thread).
+thread <thread-id>         Switch to the given thread.
+frame <frame-id>           Switch to the given frame.
+p <expression>             Evaluate the given expression and print the result.
+help                       Print this message.
+quit                       Terminate the debugged program and exit.
+EOS
+  end
+
+  PROMPTS = [
+    "Explorer reporting.",
+    "Ah, greetings command!",
+    "Transmit orders.",
+    "Receiving headquarters!",
+    "We have you on visual.",
+    "Let's roll!",
+    "Excellent!",
+    "Commencing!",
+    "Affirmative, sir."
+  ]
+  def prompt
+    if @terran_mode
+      $stdout.puts PROMPTS.sample
+    end
+    Readline.readline("#{@connector.location}> ", true)
+  end
+end
+
+Debugger.new(ARGV).run

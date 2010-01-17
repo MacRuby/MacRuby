@@ -47,6 +47,7 @@ using namespace llvm;
 #include "id.h"
 #include "vm.h"
 #include "compiler.h"
+#include "debugger.h"
 #include "objc.h"
 #include "dtrace.h"
 
@@ -3000,10 +3001,9 @@ push_local(rb_vm_local_t **l, ID name, VALUE *value)
 }
 
 extern "C"
-void
-rb_vm_push_binding(VALUE self, rb_vm_block_t *current_block,
-		   rb_vm_var_uses **parent_var_uses,
-		   int lvars_size, ...)
+rb_vm_binding_t *
+rb_vm_create_binding(VALUE self, rb_vm_block_t *current_block, int lvars_size,
+	va_list lvars, bool vm_push)
 {
     rb_vm_binding_t *binding =
 	(rb_vm_binding_t *)xmalloc(sizeof(rb_vm_binding_t));
@@ -3017,21 +3017,33 @@ rb_vm_push_binding(VALUE self, rb_vm_block_t *current_block,
 	}
     }
 
-    va_list ar;
-    va_start(ar, lvars_size);
     for (int i = 0; i < lvars_size; ++i) {
-	ID name = va_arg(ar, ID);
-	VALUE *value = va_arg(ar, VALUE *);
+	ID name = va_arg(lvars, ID);
+	VALUE *value = va_arg(lvars, VALUE *);
 	l = push_local(l, name, value);
     }
-    va_end(ar);
-
-    rb_vm_add_binding_lvar_use(binding, current_block, parent_var_uses);
 
     RoxorVM *vm = GET_VM();
     GC_WB(&binding->block, vm->current_block());
+    if (vm_push) {
+	vm->push_current_binding(binding);
+    }
 
-    vm->push_current_binding(binding);
+    return binding;
+}
+
+extern "C"
+void
+rb_vm_push_binding(VALUE self, rb_vm_block_t *current_block,
+	rb_vm_var_uses **parent_var_uses, int lvars_size, ...)
+{
+    va_list lvars;
+    va_start(lvars, lvars_size);
+    rb_vm_binding_t *binding = rb_vm_create_binding(self, current_block,
+	    lvars_size, lvars, true);
+    va_end(lvars);
+
+    rb_vm_add_binding_lvar_use(binding, current_block, parent_var_uses);
 }
 
 extern "C"
@@ -3725,9 +3737,13 @@ extern "C"
 void
 rb_vm_init_compiler(void)
 {
+    if (ruby_aot_compile && ruby_debug_socket_path) {
+	fprintf(stderr, "cannot run in both AOT and debug mode\n");
+	exit(1);
+    }
     RoxorCompiler::shared = ruby_aot_compile
 	? new RoxorAOTCompiler()
-	: new RoxorCompiler();
+	: new RoxorCompiler(ruby_debug_socket_path);
 }
 
 extern "C" void rb_node_release(NODE *node);
@@ -4798,7 +4814,7 @@ Init_VM(void)
     GET_VM()->set_current_class(NULL);
 
     VALUE top_self = rb_obj_alloc(rb_cTopLevel);
-    rb_objc_retain((void *)top_self);
+    GC_RETAIN(top_self);
     GET_VM()->set_current_top_object(top_self);
 
     rb_vm_set_current_scope(rb_cNSObject, SCOPE_PRIVATE);

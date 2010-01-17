@@ -1053,10 +1053,14 @@ rb_vm_dispatch(struct mcache *cache, VALUE top, VALUE self, SEL sel,
 
     RoxorVM *vm = GET_VM();
 
+    struct Finally {
+	RoxorVM *vm;
+	Finally(RoxorVM *_vm) { vm = _vm; }
+	~Finally() { vm->pop_current_binding(); }
+    } finalizer(vm);
+
     VALUE retval = __rb_vm_dispatch(vm, cache, top, self, NULL, sel, block,
 	    opt, argc, argv);
-
-    vm->pop_current_binding();
 
     return retval;
 }
