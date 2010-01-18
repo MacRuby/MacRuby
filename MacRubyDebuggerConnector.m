@@ -55,10 +55,11 @@
     self = [super init];
     if (self != nil) {
 	// Generate the socket path.
-	const char *tmpdir = getenv("TMPDIR");
-	assert(tmpdir != NULL);
+	NSString *tmpdir = NSTemporaryDirectory();
+	assert(tmpdir != nil);
 	char path[PATH_MAX];
-	snprintf(path, sizeof path, "%s/macrubyd-XXXXXX", tmpdir);
+	snprintf(path, sizeof path, "%s/macrubyd-XXXXXX",
+		[tmpdir fileSystemRepresentation]);
 	assert(mktemp(path) != NULL);
 	_socketPath = [[NSFileManager defaultManager]
 	    stringWithFileSystemRepresentation:path length:strlen(path)];
