@@ -5,7 +5,7 @@ For 0.5 beta 3:
   [X] should be removed from the repository
   [ ] should be gemified on github and pre-bundled with the installers
 [X] backtracing information (line numbers) should be accurate
-[/] frozen, stable and documented GCD API
+[X] frozen, stable and documented GCD API
 [X] non-ASCII regexp
 [/] 32-bit should be back
 [X] macruby should support #require calls when assembling a binary
