@@ -40,6 +40,19 @@ rb_f_at_exit(VALUE self, SEL sel)
     return proc;
 }
 
+static VALUE
+rb_end_proc_call_try(VALUE proc)
+{
+    return rb_proc_call2(proc, 0, NULL);
+}
+
+static VALUE
+rb_end_proc_call_catch(VALUE data)
+{
+    rb_vm_print_current_exception();
+    return Qnil;
+}
+
 void
 rb_exec_end_proc(void)
 {
@@ -48,7 +61,7 @@ rb_exec_end_proc(void)
 	if (count > 0) {
 	    VALUE proc = RARRAY_AT(at_exit_procs, count - 1);
 	    rb_ary_delete_at(at_exit_procs, count - 1);	
-	    rb_proc_call2(proc, 0, NULL);
+	    rb_rescue(rb_end_proc_call_try, proc, rb_end_proc_call_catch, 0);
 	    continue;
 	}
 	break;
