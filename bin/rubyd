@@ -6,12 +6,16 @@
 # Copyright (C) 2010, Apple Inc
 
 require 'readline'
+require 'rbconfig'
 
 class Debugger
   def initialize(args)
     @terran_mode = args.delete('--terran')
+    internal = args.delete('--internal')
     raise "need at least one argument" if args.empty?
-    @connector = ::MacRubyDebuggerConnector.alloc.initWithArguments(args)
+    path = internal ? './miniruby' : File.join(RbConfig::CONFIG['bindir'],
+      RbConfig::CONFIG['RUBY_INSTALL_NAME'])
+    @connector = ::MacRubyDebuggerConnector.alloc.initWithInterpreterPath(path,       arguments: args)
   end
 
   def run

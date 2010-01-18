@@ -50,7 +50,7 @@
     }
 }
 
-- (id)initWithArguments:(NSArray *)arguments
+- (id)initWithInterpreterPath:(NSString *)ipath arguments:(NSArray *)arguments
 {
     self = [super init];
     if (self != nil) {
@@ -70,6 +70,7 @@
 	[_arguments addObject:_socketPath];
 	[_arguments addObjectsFromArray:arguments];
 
+	_interpreterPath = ipath;
 	_task = nil;
 	_socket = nil;
 	_location = nil;
@@ -88,7 +89,7 @@
     if (_task == nil || ![_task isRunning]) {
 	// Create task.
 	_task = [NSTask new];
-	[_task setLaunchPath:@"./miniruby"]; // XXX
+	[_task setLaunchPath:_interpreterPath];
 	[_task setArguments:_arguments];
 
 	// Launch the remote process.

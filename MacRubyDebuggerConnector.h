@@ -17,14 +17,15 @@ typedef unsigned int breakpoint_t;
 
 @interface MacRubyDebuggerConnector : NSObject
 {
-    NSString *_socketPath;
+    NSString *_interpreterPath;
     NSMutableArray *_arguments;
+    NSString *_socketPath;
     NSTask *_task;
     NSFileHandle *_socket;
     NSString *_location;
 }
 
-- (id)initWithArguments:(NSArray *)arguments;
+- (id)initWithInterpreterPath:(NSString *)path arguments:(NSArray *)arguments;
 
 // Execution control.
 
