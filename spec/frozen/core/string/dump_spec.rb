@@ -18,7 +18,7 @@ describe "String#dump" do
     end
     # This test is based on my observations; the precise workings of this
     # feature are unknown to me
-    it "includes .force_encoding(name) if the encoding isn't ASCII compatiable" do
+    it "includes .force_encoding(name) if the encoding isn't ASCII compatible" do
       "\u{876}".encode('utf-16be').dump.should == 
           "\"\\bv\".force_encoding(\"UTF-16BE\")"
       "\u{876}".encode('utf-16le').dump.should == 
