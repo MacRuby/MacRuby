@@ -120,3 +120,14 @@ assert ':ok', %{
   class X; end
   X.foo
 }
+
+assert ':ok', %{
+  module M
+    def foo
+      p :ok
+    end
+  end
+  class Module; include M; end
+  module X; end
+  X.foo
+}
