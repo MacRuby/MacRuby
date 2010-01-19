@@ -289,7 +289,7 @@ namespace :macruby do
   desc "Build dynamic libraries for MacRuby"
   task :dylib => [:rbconfig, :miniruby] do
 =begin
-    sh("./miniruby -I. -I./lib -rrbconfig tool/compile_prelude.rb prelude.rb gem_prelude.rb prelude.c.new")
+    sh("./miniruby -I. -I./lib -rrbconfig tool/compile_prelude.rb prelude.rb gem_prelude.rb gcd_prelude prelude.c.new")
     if !File.exist?('prelude.c') or File.read('prelude.c') != File.read('prelude.c.new')
       mv('prelude.c.new', 'prelude.c')
       $builder.build(['prelude'])
