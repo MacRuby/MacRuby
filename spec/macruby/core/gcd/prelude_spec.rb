@@ -5,7 +5,7 @@ if MACOSX_VERSION >= 10.6
 
   describe "Dispatch::Queue convenience method:" do
     before :each do
-      @q = Dispatch::Queue.new('org.macruby.gcd_spec.sources')
+      @q = Dispatch::Queue.new('org.macruby.gcd_spec.prelude')
       @src = nil
     end
 
@@ -18,10 +18,8 @@ if MACOSX_VERSION >= 10.6
       it "fires with data on summed inputs" do
         @count = 0
         @src = @q.on_add {|s| @count += s.data}
-        @src.suspend!
         @src << 20
         @src << 22
-        @src.resume!
         @q.sync {}
         @count.should == 42
       end
@@ -30,11 +28,9 @@ if MACOSX_VERSION >= 10.6
     describe "on_or" do
       it "fires with data on ORed inputs" do
         @count = 0
-        @src = @q.on_or {|s| @count += s.data}
-        @src.suspend!
-        @src << 0xb101_000
-        @src << 0xb000_010
-        @src.resume!
+        @src = @q.on_or {|s| p @count += s.data}
+        @src << 0b101_000
+        @src << 0b000_010
         @q.sync {}
         @count.should == 42
       end
@@ -44,10 +40,12 @@ if MACOSX_VERSION >= 10.6
       it "fires with data indicating which process event(s)" do
         @signal = Signal.list["USR1"]
         @event = nil
-        @src = @q.on_process_event($$, :exit,:fork,:exec,:reap,:signal) do 
+        @src = @q.on_process_event($$, :exit, :fork, :exec, :signal) do 
            |s| @event = s.data
         end
+        Signal.trap(@signal, "IGNORE")
         Process.kill(@signal, $$)
+        Signal.trap(@signal, "DEFAULT")
         @q.sync {}
         @event.should == Dispatch::Source::PROC_SIGNAL
       end
@@ -88,7 +86,7 @@ if MACOSX_VERSION >= 10.6
           File.open(@filename, "w") {|f| f.print @msg}
           @file = File.open(@filename, "r")
           @result = ""
-          @src = @q.on_read(@file, close:true) {|s| @result<<@file.read(s.data)}
+          @src = @q.on_read(@file) {|s| @result<<@file.read(s.data)}
           while (@result.size < @msg.size) do; end
           @q.sync { }
           @result.should == @msg
@@ -100,7 +98,7 @@ if MACOSX_VERSION >= 10.6
           @file = File.open(@filename, "w")
           @pos = 0
           @message = @msg
-          @src = @q.on_read(@file, close:true) do |s|
+          @src = @q.on_read(@file) do |s|
             pos = s.data
             if not @message.nil? then
               next_msg = @message[0..pos-1]
@@ -131,16 +129,16 @@ if MACOSX_VERSION >= 10.6
         end
       end          
 
-      describe "on_interval" do
-        it "fires with data on how often the timer has fired" do
-          @count = -1
-          repeats = 2
-          @interval = 0.02
-          @src = @q.on_interval(@interval) {|s| @count += s.data}
-          sleep repeats*@interval
-          @q.sync { }
-          @count.should == repeats
-        end
+    end
+    describe "on_interval" do
+      it "fires with data on how often the timer has fired" do
+        @count = -1
+        repeats = 2
+        @interval = 0.02
+        @src = @q.on_interval(@interval) {|s| @count += s.data}
+        sleep repeats*@interval
+        @q.sync { }
+        @count.should == repeats
       end
     end
   end
