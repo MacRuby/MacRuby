@@ -131,3 +131,41 @@ assert ':ok', %{
   module X; end
   X.foo
 }
+
+assert ':ok', %{
+  module Mok
+    def foo
+      p :ok
+    end
+  end
+  class Module; include Mok; end
+  
+  module Mko
+    def foo
+      p :ko
+    end
+  end
+  class Class; include Mko; end
+  
+  module X; end
+  X.foo
+}
+
+assert ':ok', %{
+  module Mok
+    def foo
+      p :ok
+    end
+  end
+  class Class; include Mok; end
+  
+  module Mko
+    def foo
+      p :ko
+    end
+  end
+  class Module; include Mko; end
+  
+  class X; end
+  X.foo
+}
