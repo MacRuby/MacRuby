@@ -1,8 +1,9 @@
 require File.dirname(__FILE__) + "/../../spec_helper"
+require File.dirname(__FILE__) + "/../../../../gcd_prelude"
 
 if MACOSX_VERSION >= 10.6
 
-  describe "Dispatch::Queue source methods" do
+  describe "Dispatch::Queue convenience method:" do
     before :each do
       @q = Dispatch::Queue.new('org.macruby.gcd_spec.sources')
       @src = nil
@@ -17,10 +18,10 @@ if MACOSX_VERSION >= 10.6
       it "fires with data on summed inputs" do
         @count = 0
         @src = @q.on_add {|s| @count += s.data}
-        @src.suspend
+        @src.suspend!
         @src << 20
         @src << 22
-        @src.resume
+        @src.resume!
         @q.sync {}
         @count.should == 42
       end
@@ -30,10 +31,10 @@ if MACOSX_VERSION >= 10.6
       it "fires with data on ORed inputs" do
         @count = 0
         @src = @q.on_or {|s| @count += s.data}
-        @src.suspend
+        @src.suspend!
         @src << 0xb101_000
         @src << 0xb000_010
-        @src.resume
+        @src.resume!
         @q.sync {}
         @count.should == 42
       end
@@ -67,18 +68,6 @@ if MACOSX_VERSION >= 10.6
       end
     end    
 
-    describe "on_interval" do
-      it "fires with data on how often the timer has fired" do
-        @count = -1
-        repeats = 2
-        @interval = 0.02
-        @src = @q.on_interval(@interval) {|s| @count += s.data}
-        sleep repeats*@interval
-        @q.sync { }
-        @count.should == repeats
-      end
-    end
-    
     describe "file:" do
       before :each do
         @msg = "#{$$}: #{Time.now}"
@@ -141,6 +130,19 @@ if MACOSX_VERSION >= 10.6
           @flag.should == Dispatch::Source::VNODE_WRITE
         end
       end          
+
+      describe "on_interval" do
+        it "fires with data on how often the timer has fired" do
+          @count = -1
+          repeats = 2
+          @interval = 0.02
+          @src = @q.on_interval(@interval) {|s| @count += s.data}
+          sleep repeats*@interval
+          @q.sync { }
+          @count.should == repeats
+        end
+      end
     end
   end
+  
 end

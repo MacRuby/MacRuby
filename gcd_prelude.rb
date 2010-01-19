@@ -32,7 +32,7 @@ module Dispatch
     end
 
     def on_process_event(pid, *events, &block)
-      mask = events.collect {|e| Dispatch::Source::proc_event(x)}.reduce(:|)
+      mask = events.collect {|e| Dispatch::Source::proc_event(e)}.reduce(:|)
       Dispatch::Source.new(Dispatch::Source::DATA_PROC, pid, mask, self, &block)
     end
 
@@ -50,7 +50,7 @@ module Dispatch
     end
 
     def on_file_event(file, *events, &block)
-      mask = events.collect {|e| Dispatch::Source::vnode_event(x)}.reduce(:|)
+      mask = events.collect {|e| Dispatch::Source::vnode_event(e)}.reduce(:|)
       Dispatch::Source.new(Dispatch::Source::DATA_VNODE, file,mask, self,&block)
     end
 
