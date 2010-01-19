@@ -3,7 +3,7 @@ require File.dirname(__FILE__) + "/../../../../gcd_prelude"
 
 if MACOSX_VERSION >= 10.6
 
-  describe "Dispatch::Queue convenience method:" do
+  describe "Dispatch::Queue source from" do
     before :each do
       @q = Dispatch::Queue.new('org.macruby.gcd_spec.prelude')
       @src = nil
@@ -28,7 +28,7 @@ if MACOSX_VERSION >= 10.6
     describe "on_or" do
       it "fires with data on ORed inputs" do
         @count = 0
-        @src = @q.on_or {|s| p @count += s.data}
+        @src = @q.on_or {|s| @count += s.data}
         @src << 0b101_000
         @src << 0b000_010
         @q.sync {}
@@ -47,7 +47,7 @@ if MACOSX_VERSION >= 10.6
         Process.kill(@signal, $$)
         Signal.trap(@signal, "DEFAULT")
         @q.sync {}
-        @event.should == Dispatch::Source::PROC_SIGNAL
+        @event.should == Dispatch::Source.proc_event(:signal)
       end
     end
 
@@ -66,10 +66,10 @@ if MACOSX_VERSION >= 10.6
       end
     end    
 
-    describe "file:" do
+    describe "file" do
       before :each do
-        @msg = "#{$$}: #{Time.now}"
-        @filename = "/var/tmp/gcd_spec_source-#{$$}-#{Time.now}"
+        @msg = "#{$$}-#{Time.now}"
+        @filename = "/var/tmp/gcd_spec_source-#{@msg}"
         @file = nil
         @src = nil
       end
@@ -125,11 +125,11 @@ if MACOSX_VERSION >= 10.6
           @q.sync { }
           #while (@fired == false) do; end
           @fired.should == true
-          @flag.should == Dispatch::Source::VNODE_WRITE
+          @flag.should == Dispatch::Source.vnode_event(:write)
         end
       end          
-
     end
+
     describe "on_interval" do
       it "fires with data on how often the timer has fired" do
         @count = -1
