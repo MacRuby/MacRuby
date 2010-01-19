@@ -101,6 +101,7 @@ static VALUE rb_mLibYAML;
 static VALUE rb_cParser;
 static VALUE rb_cEmitter;
 static VALUE rb_cResolver;
+static VALUE rb_cYamlNode;
 
 static ID id_plain;
 static ID id_quote2;
@@ -273,6 +274,7 @@ yaml_next_event(rb_yaml_parser_t *parser)
 
 #define NEXT_EVENT() yaml_next_event(parser)
 static inline VALUE get_node(rb_yaml_parser_t *parser);
+static inline VALUE parse_node(rb_yaml_parser_t *parser);
 
 static inline VALUE
 handler_for_tag(rb_yaml_parser_t *parser, yaml_char_t *tag)
@@ -616,6 +618,132 @@ rb_yaml_parser_load(VALUE self, SEL sel)
     }
 
     root = get_node(parser);
+    if (root == Qundef) {
+	root = Qnil;
+    }
+
+    NEXT_EVENT();
+    if (parser->event.type != YAML_DOCUMENT_END_EVENT) {
+	rb_raise(rb_eArgError, "expected DOCUMENT_END event");
+    }
+
+    return root;
+}
+
+static VALUE 
+make_yaml_node(char * tag, VALUE value)
+{
+    VALUE argv[2];
+
+    argv[0] = (VALUE)CFStringCreateWithBytes(NULL, (const UInt8 *)tag,
+					     strlen(tag),
+					     kCFStringEncodingUTF8, true);
+    argv[1] = value;
+
+    return rb_class_new_instance(2, argv, rb_cYamlNode);
+}
+
+static VALUE 
+parse_scalar(rb_yaml_parser_t *parser)
+{
+    char *val = (char*)parser->event.data.scalar.value;
+    char *tag = (char*)parser->event.data.scalar.tag;
+    if (parser->event.data.scalar.style == YAML_PLAIN_SCALAR_STYLE
+	&& tag == NULL) {
+      tag = detect_scalar_type(val, parser->event.data.scalar.length);
+    }
+    if (tag == NULL) {
+	tag = "str";
+    }
+    VALUE scalarval = (VALUE)CFStringCreateWithBytes(NULL, (const UInt8 *)val,
+	    parser->event.data.scalar.length,
+	    kCFStringEncodingUTF8, true);
+    return make_yaml_node(tag, scalarval);
+}
+
+static VALUE
+parse_sequence(rb_yaml_parser_t *parser)
+{
+    VALUE arr = rb_ary_new();
+
+    VALUE node;
+    while ((node = parse_node(parser)) != Qundef) {
+	rb_ary_push(arr, node);
+    }
+    return make_yaml_node("seq", arr);
+}
+
+static VALUE
+parse_mapping(rb_yaml_parser_t *parser)
+{
+    VALUE hash = rb_hash_new();
+
+    VALUE key_node;
+    while ((key_node = parse_node(parser)) != Qundef) {
+	VALUE value_node = parse_node(parser);
+	if (value_node == Qundef) {
+	    value_node = Qnil;
+	}	
+	rb_hash_aset(hash, key_node, value_node);
+    }
+    return make_yaml_node("map", hash);
+}
+
+static inline VALUE
+parse_node(rb_yaml_parser_t *parser)
+{
+    VALUE node;
+    NEXT_EVENT();
+
+    switch (parser->event.type) {
+	case YAML_DOCUMENT_END_EVENT:
+	case YAML_MAPPING_END_EVENT:
+	case YAML_SEQUENCE_END_EVENT:
+	case YAML_STREAM_END_EVENT:
+	    return Qundef;
+
+	case YAML_MAPPING_START_EVENT:
+	    node = parse_mapping(parser);
+	    break;
+
+	case YAML_SEQUENCE_START_EVENT:
+	    node = parse_sequence(parser);
+	    break;
+
+	case YAML_SCALAR_EVENT:
+	    node = parse_scalar(parser);
+	    break;
+
+	case YAML_ALIAS_EVENT:
+	    rb_warn("ignoring alias");
+	    node = Qundef;
+	    break;
+
+	default:
+	    rb_raise(rb_eArgError, "Invalid event %d at top level",
+		    (int)parser->event.type);
+    }
+    return node;
+}
+
+static VALUE
+rb_yaml_parser_parse(VALUE self, SEL sel)
+{
+    rb_yaml_parser_t *parser = RYAMLParser(self);
+    VALUE root = Qnil;
+
+    NEXT_EVENT();
+    if (parser->event.type == YAML_STREAM_END_EVENT) {
+	return Qnil;
+    }
+    if (parser->event.type == YAML_STREAM_START_EVENT) {
+	NEXT_EVENT();
+    }
+    if (parser->event.type != YAML_DOCUMENT_START_EVENT) {
+	rb_raise(rb_eArgError, "expected DOCUMENT_START event");
+    }
+
+    root = parse_node(parser);
     if (root == Qundef) {
 	root = Qnil;
     }
@@ -977,6 +1105,7 @@ Init_libyaml()
     //rb_objc_define_method(rb_cParser, "encoding=", rb_yaml_parser_set_encoding, 1);
     rb_objc_define_method(rb_cParser, "error", rb_yaml_parser_error, 0);
     rb_objc_define_method(rb_cParser, "load", rb_yaml_parser_load, 0);
+    rb_objc_define_method(rb_cParser, "parse", rb_yaml_parser_parse, 0);
     rb_yaml_parser_finalize_super = rb_objc_install_method2((Class)rb_cParser,
 	    "finalize", (IMP)rb_yaml_parser_finalize);
 
@@ -1014,4 +1143,6 @@ Init_libyaml()
     //rb_objc_define_method(rb_cEmitter, "indentation", rb_yaml_emitter_indent, 0);
     // TODO: fill in the rest of the accessors
     rb_yaml_emitter_finalize_super = rb_objc_install_method2((Class)rb_cEmitter, "finalize", (IMP)rb_yaml_emitter_finalize);
+
+    rb_cYamlNode = rb_define_class_under(rb_mYAML, "YamlNode", rb_cObject);
 }

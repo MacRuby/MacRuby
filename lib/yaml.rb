@@ -8,6 +8,7 @@
 
 require 'libyaml'
 require 'yaml/rubytypes'
+require 'yaml/yamlnode'
 
 module YAML
   
@@ -58,7 +59,8 @@ module YAML
   end
   
   def YAML.parse(io)
-    LibYAML::Parser.new(io).load
+    return false if io==''
+    LibYAML::Parser.new(io).parse
   end
   
   def YAML.parse_file(path)
