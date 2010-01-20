@@ -151,6 +151,7 @@ VALUE rb_Complex(VALUE, VALUE);
 VALUE rb_objc_create_class(const char *name, VALUE super);
 bool rb_objc_install_primitives(Class ocklass, Class ocsuper);
 void rb_define_object_special_methods(VALUE klass);
+VALUE rb_class_new_instance_imp(VALUE, SEL, int, VALUE *);
 #endif
 VALUE rb_class_boot(VALUE);
 VALUE rb_class_new(VALUE);
@@ -375,6 +376,8 @@ VALUE rb_hash_delete_key(VALUE,VALUE);
 VALUE rb_hash_has_key(VALUE hash, VALUE key);
 VALUE rb_hash_keys(VALUE hash);
 VALUE rb_hash_set_ifnone(VALUE hash, VALUE ifnone);
+long rb_hash_size(VALUE hash);
+VALUE rb_hash_equal(VALUE hash1, VALUE hash2);
 struct st_table *rb_hash_tbl(VALUE);
 int rb_path_check(const char*);
 int rb_env_path_tainted(void);

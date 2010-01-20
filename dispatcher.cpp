@@ -812,6 +812,9 @@ dispatch:
 	    if (self == rb_cNSMutableArray) {
 		self = rb_cRubyArray;
 	    }
+	    if (self == rb_cNSMutableHash) {
+		self = rb_cRubyHash;
+	    }
 	}
 	else if (sel == selClass) {
 	    // Because +[NSObject class] returns self.
@@ -840,7 +843,7 @@ dispatch:
 		return RARRAY_IMMUTABLE(self)
 		    ? rb_cNSArray : rb_cNSMutableArray;
 	    }
-	    else if (klass == (Class)rb_cRubyArray) {
+	    if (klass == (Class)rb_cRubyArray) {
 		return rb_cNSMutableArray;
 	    }
 #if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
@@ -851,6 +854,9 @@ dispatch:
 		return RHASH_IMMUTABLE(self)
 		    ? rb_cNSHash : rb_cNSMutableHash;
 	    }
+	    if (klass == (Class)rb_cRubyHash) {
+		return rb_cNSMutableHash;
+	    } 
 	}
 
 #if ROXOR_VM_DEBUG
@@ -1256,6 +1262,9 @@ rb_vm_fast_eq(struct mcache *cache, VALUE self, VALUE other)
 	    }
 	    if (self_type == T_ARRAY) {
 		return rb_ary_equal(self, other);
+	    }
+	    if (self_type == T_HASH) {
+		return rb_hash_equal(self, other);
 	    }
 	    return CFEqual((CFTypeRef)self, (CFTypeRef)other)
 		? Qtrue : Qfalse;

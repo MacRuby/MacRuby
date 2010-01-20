@@ -2846,6 +2846,7 @@ RoxorCompiler::compile_literal(VALUE val)
 Value *
 RoxorCompiler::compile_immutable_literal(VALUE val)
 {
+    GC_RETAIN(val);
     return ConstantInt::get(RubyObjTy, (long)val); 
 }
 
@@ -5230,7 +5231,7 @@ rescan_args:
 		Value *val = compile_protected_call(yieldFunc, params);
 
 		if (getBrokenFunc == NULL) {
-		    // VALUE rb_vm_pop_broken_value(void)
+		    // VALUE rb_vm_get_broken_value(void)
 		    getBrokenFunc = cast<Function>(module->getOrInsertFunction(
 				"rb_vm_get_broken_value",
 				RubyObjTy, NULL));

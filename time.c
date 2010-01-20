@@ -2351,7 +2351,6 @@ Init_Time(void)
     rb_include_module(rb_cTime, rb_mComparable);
 
     rb_objc_define_method(*(VALUE *)rb_cTime, "alloc", time_s_alloc, 0);
-    VALUE rb_class_new_instance_imp(VALUE, SEL, int, VALUE *);
     rb_objc_define_method(*(VALUE *)rb_cTime, "now", rb_class_new_instance_imp, -1);
     rb_objc_define_method(*(VALUE *)rb_cTime, "at", time_s_at, -1);
     rb_objc_define_method(*(VALUE *)rb_cTime, "utc", time_s_mkutc, -1);

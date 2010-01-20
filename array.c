@@ -234,8 +234,31 @@ rary_index_of_item(rb_ary_t *ary, size_t origin, VALUE item)
     return NOT_FOUND;
 }
 
-#define IS_RARY(x) (*(VALUE *)x == rb_cRubyArray)
+//#define IS_RARY(x) (*(VALUE *)x == rb_cRubyArray)
+// XXX temporary
+#define IS_RARY(x) __is_rary(*(VALUE *)x)
 #define RARY(x) ((rb_ary_t *)x)
+
+static force_inline bool
+__is_rary(VALUE k)
+{
+    while (k != 0) {
+	if (k == rb_cRubyArray) {
+	    return true;
+	}
+	if (k == rb_cCFArray) {
+	    return false;
+	}
+	k = RCLASS_SUPER(k);
+    }
+    return false;
+}
+
+bool
+rb_klass_is_rary(VALUE klass)
+{
+    return __is_rary(klass);
+}
 
 void
 rb_mem_clear(register VALUE *mem, register long size)
@@ -253,11 +276,7 @@ __rb_ary_modify(VALUE ary)
 	mask = RBASIC(ary)->flags;
     }
     else {
-#ifdef __LP64__
-	mask = RCLASS_RC_FLAGS(ary);
-#else
 	mask = rb_objc_flag_get_mask((void *)ary);
-#endif
 	if (RARRAY_IMMUTABLE(ary)) {
 	    mask |= FL_FREEZE;
 	}

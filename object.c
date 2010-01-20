@@ -165,7 +165,7 @@ rb_class_real(VALUE cl)
     if (cl == rb_cCFArray || cl == rb_cRubyArray) {
 	return rb_cNSMutableArray;
     }
-    if (cl == rb_cCFHash) {
+    if (cl == rb_cCFHash || cl == rb_cRubyHash) {
 	return rb_cNSMutableHash;
     }
     return cl;
@@ -302,9 +302,6 @@ rb_obj_clone_imp(VALUE obj, SEL sel)
 	    clone = rb_obj_alloc(rb_obj_class(obj));
 	    RBASIC(clone)->klass = rb_singleton_class_clone(obj);
 	    RBASIC(clone)->flags = (RBASIC(obj)->flags | FL_TEST(clone, FL_TAINT)) & ~(FL_FREEZE|FL_FINALIZE);
-//#ifdef __LP64__
-//	    RCLASS_RC_FLAGS(clone) = RCLASS_RC_FLAGS(obj);
-//#endif
 	    break;
     }
 
@@ -782,13 +779,19 @@ rb_obj_dummy2(VALUE self, SEL sel, VALUE other)
  *  Returns <code>true</code> if the object is tainted.
  */
 
+bool rb_klass_is_rary(VALUE klass);
+bool rb_klass_is_rhash(VALUE klass);
+
 static VALUE
 rb_obj_tainted_p(VALUE obj, SEL sel)
 {
     if (!SPECIAL_CONST_P(obj) && NATIVE(obj)) {
 	switch (TYPE(obj)) {
+	    case T_SYMBOL:
+		return Qfalse;
+
 	    case T_ARRAY:
-		if (*(VALUE *)obj != rb_cCFArray) {
+		if (rb_klass_is_rary(*(VALUE *)obj)) {
 		    return RBASIC(obj)->flags & FL_TAINT ? Qtrue : Qfalse;
 		}
 		// fall through
@@ -798,9 +801,9 @@ rb_obj_tainted_p(VALUE obj, SEL sel)
 		}
 		// fall through
 	    case T_HASH:
-#ifdef __LP64__
-		return (RCLASS_RC_FLAGS(obj) & FL_TAINT) == FL_TAINT ? Qtrue : Qfalse;
-#endif
+		if (rb_klass_is_rhash(*(VALUE *)obj)) {
+		    return RBASIC(obj)->flags & FL_TAINT ? Qtrue : Qfalse;
+		}
 	    default:
 		return rb_objc_flag_check((const void *)obj, FL_TAINT) ? Qtrue : Qfalse;
 	}
@@ -832,8 +835,11 @@ rb_obj_taint_m(VALUE obj, SEL sel)
     rb_secure(4);
     if (!SPECIAL_CONST_P(obj) && NATIVE(obj)) {
 	switch (TYPE(obj)) {
+	    case T_SYMBOL:
+		break;
+
 	    case T_ARRAY:
-		if (*(VALUE *)obj != rb_cCFArray) {
+		if (rb_klass_is_rary(*(VALUE *)obj)) {
 		    RBASIC(obj)->flags |= FL_TAINT;
 		    break;
 		}
@@ -845,10 +851,10 @@ rb_obj_taint_m(VALUE obj, SEL sel)
 		}
 		// fall through
 	    case T_HASH:
-#ifdef __LP64__
-		RCLASS_RC_FLAGS(obj) |= FL_TAINT;
-		break;
-#endif
+		if (rb_klass_is_rhash(*(VALUE *)obj)) {
+		    RBASIC(obj)->flags |= FL_TAINT;
+		    break;
+		}
 	    default:
 		rb_objc_flag_set((const void *)obj, FL_TAINT, true);
 	}
@@ -883,8 +889,11 @@ rb_obj_untaint_m(VALUE obj, SEL sel)
     rb_secure(3);
     if (!SPECIAL_CONST_P(obj) && NATIVE(obj)) {
 	switch (TYPE(obj)) {
+	    case T_SYMBOL:
+		break;
+
 	    case T_ARRAY:
-		if (*(VALUE *)obj != rb_cCFArray) {
+		if (rb_klass_is_rary(*(VALUE *)obj)) {
 		    RBASIC(obj)->flags &= ~FL_TAINT;
 		    break;
 		}	
@@ -896,10 +905,10 @@ rb_obj_untaint_m(VALUE obj, SEL sel)
 		}
 		// fall through
 	    case T_HASH:
-#ifdef __LP64__
-		RCLASS_RC_FLAGS(obj) &= ~FL_TAINT;
-		break;
-#endif
+		if (rb_klass_is_rhash(*(VALUE *)obj)) {
+		    RBASIC(obj)->flags &= ~FL_TAINT;
+		    break;
+		}
 	    default:
 		rb_objc_flag_set((const void *)obj, FL_TAINT, false);
 	}
@@ -925,8 +934,11 @@ rb_obj_untrusted_imp(VALUE obj, SEL sel)
 {
     if (!SPECIAL_CONST_P(obj) && NATIVE(obj)) {
 	switch (TYPE(obj)) {
+	    case T_SYMBOL:
+		return Qfalse;
+
 	    case T_ARRAY:
-		if (*(VALUE *)obj != rb_cCFArray) {
+		if (rb_klass_is_rary(*(VALUE *)obj)) {
 		    return RBASIC(obj)->flags & FL_UNTRUSTED ? Qtrue : Qfalse;
 		}
 		// fall through
@@ -936,9 +948,9 @@ rb_obj_untrusted_imp(VALUE obj, SEL sel)
 		}
 		// fall through
 	    case T_HASH:
-#ifdef __LP64__
-		return (RCLASS_RC_FLAGS(obj) & FL_UNTRUSTED) == FL_UNTRUSTED ? Qtrue : Qfalse;
-#endif
+		if (rb_klass_is_rhash(*(VALUE *)obj)) {
+		    return RBASIC(obj)->flags & FL_UNTRUSTED ? Qtrue : Qfalse;
+		}
 	    default:
 		return rb_objc_flag_check((const void *)obj, FL_UNTRUSTED) ? Qtrue : Qfalse;
 	}
@@ -961,8 +973,11 @@ rb_obj_trust_imp(VALUE obj, SEL sel)
     rb_secure(4);
     if (!SPECIAL_CONST_P(obj) && NATIVE(obj)) {
 	switch (TYPE(obj)) {
+	    case T_SYMBOL:
+		break;
+
 	    case T_ARRAY:
-		if (*(VALUE *)obj != rb_cCFArray) {
+		if (rb_klass_is_rary(*(VALUE *)obj)) {
 		    RBASIC(obj)->flags &= ~FL_UNTRUSTED;
 		    break;
 		}
@@ -974,10 +989,10 @@ rb_obj_trust_imp(VALUE obj, SEL sel)
 		}
 		// fall through
 	    case T_HASH:
-#ifdef __LP64__
-		RCLASS_RC_FLAGS(obj) &= ~FL_UNTRUSTED;
-		break;
-#endif
+		if (rb_klass_is_rhash(*(VALUE *)obj)) {
+		    RBASIC(obj)->flags &= ~FL_UNTRUSTED;
+		    break;
+		}
 	    default:
 		rb_objc_flag_set((const void *)obj, FL_UNTRUSTED, false);
 	}
@@ -1004,8 +1019,11 @@ rb_obj_untrust_imp(VALUE obj, SEL sel)
     rb_secure(4);
     if (!SPECIAL_CONST_P(obj) && NATIVE(obj)) {
 	switch (TYPE(obj)) {
+	    case T_SYMBOL:
+		break;
+
 	    case T_ARRAY:
-		if (*(VALUE *)obj != rb_cCFArray) {
+		if (rb_klass_is_rary(*(VALUE *)obj)) {
 		    RBASIC(obj)->flags |= FL_UNTRUSTED;
 		    break;
 		}
@@ -1017,10 +1035,10 @@ rb_obj_untrust_imp(VALUE obj, SEL sel)
 		}
 		// fall through
 	    case T_HASH:
-#ifdef __LP64__
-		RCLASS_RC_FLAGS(obj) |= FL_UNTRUSTED;
-		break;
-#endif
+		if (rb_klass_is_rhash(*(VALUE *)obj)) {
+		    RBASIC(obj)->flags |= FL_UNTRUSTED;
+		    break;
+		}
 	    default:
 		rb_objc_flag_set((const void *)obj, FL_UNTRUSTED, true);
 	}
@@ -1084,12 +1102,15 @@ rb_obj_freeze_m(VALUE obj, SEL sel)
 	    st_insert(immediate_frozen_tbl, obj, (st_data_t)Qtrue);
 	}
 	else if (NATIVE(obj)) {
-	    switch(TYPE(obj)) {
+	    switch (TYPE(obj)) {
+		case T_SYMBOL:
+		    break;
+
 		case T_ARRAY:
-		    if (*(VALUE *)obj != rb_cCFArray) {
+		    if (rb_klass_is_rary(*(VALUE *)obj)) {
 			RBASIC(obj)->flags |= FL_FREEZE;
 			break;
-		    }	
+		    }
 		    // fall through
 		case T_STRING:
 		    if (*(VALUE *)obj == rb_cByteString) {
@@ -1098,10 +1119,10 @@ rb_obj_freeze_m(VALUE obj, SEL sel)
 		    }
 		    // fall through
 		case T_HASH:
-#ifdef __LP64__
-		    RCLASS_RC_FLAGS(obj) |= FL_FREEZE;
-		    break;
-#endif
+		    if (rb_klass_is_rhash(*(VALUE *)obj)) {
+			RBASIC(obj)->flags |= FL_FREEZE;
+			break;
+		    }
 		default:
 		    rb_objc_flag_set((const void *)obj, FL_FREEZE, true);
 	    }
@@ -1146,8 +1167,11 @@ rb_obj_frozen(VALUE obj, SEL sel)
 	return Qfalse;
     }
     switch (TYPE(obj)) {
+	case T_SYMBOL:
+	    return Qfalse;
+
 	case T_ARRAY:
-	    if (*(VALUE *)obj != rb_cCFArray) {
+	    if (rb_klass_is_rary(*(VALUE *)obj)) {
 		return RBASIC(obj)->flags & FL_FREEZE ? Qtrue : Qfalse;
 	    }
 	    // fall through
@@ -1157,12 +1181,11 @@ rb_obj_frozen(VALUE obj, SEL sel)
 	    }
 	    // fall through
 	case T_HASH:
-#ifdef __LP64__
-	    return (RCLASS_RC_FLAGS(obj) & FL_FREEZE) == FL_FREEZE ? Qtrue : Qfalse;
-#endif
+	    if (rb_klass_is_rhash(*(VALUE *)obj)) {
+		return RBASIC(obj)->flags & FL_FREEZE ? Qtrue : Qfalse;
+	    }
 	case T_NATIVE:
-	    return rb_objc_is_immutable(obj) 
-		|| rb_objc_flag_check((const void *)obj, FL_FREEZE)
+	    return rb_objc_flag_check((const void *)obj, FL_FREEZE)
 		? Qtrue : Qfalse;
 	case T_CLASS:
 	case T_ICLASS:
@@ -1176,7 +1199,7 @@ rb_obj_frozen(VALUE obj, SEL sel)
 VALUE
 rb_obj_frozen_p(VALUE obj)
 {
-	return rb_obj_frozen(obj, 0);
+    return rb_obj_frozen(obj, 0);
 }
 
 
@@ -1917,6 +1940,9 @@ rb_class_new_instance0(int argc, VALUE *argv, VALUE klass)
 {
     if (klass == rb_cNSMutableArray) {
 	klass = rb_cRubyArray;
+    }
+    else if (klass == rb_cNSMutableHash) {
+	klass = rb_cRubyHash;
     }
 
     VALUE obj = rb_obj_alloc0(klass);

@@ -64,7 +64,10 @@ static void rehash(st_table *);
 #ifdef RUBY
 #define malloc xmalloc
 #define calloc xcalloc
-#define free xfree
+//#define free xfree
+#define free(x) ((void)0)
+void *rb_gc_memmove(void *dst, const void *src, size_t len);
+#define xmemmove rb_gc_memmove
 #endif
 
 #define alloc(type) (type*)malloc((size_t)sizeof(type))
@@ -344,18 +347,18 @@ do {\
     entry = alloc(st_table_entry);\
     \
     entry->hash = hash_val;\
-    entry->key = key;\
+    GC_WB(&entry->key, key);\
     GC_WB(&entry->record, value); \
     GC_WB(&entry->next, table->bins[bin_pos]);\
     if ((head = table->head) != 0) {\
-	GC_WB(&entry->fore, head);\
+	entry->fore = head;\
 	(entry->back = head->back)->fore = entry;\
-	GC_WB(&head->back, entry);\
+	head->back = entry;\
     }\
     else {\
-	GC_WB(&table->head, entry);\
-	GC_WB(&entry->fore, entry);\
-	GC_WB(&entry->back, entry);\
+	table->head = entry;\
+	entry->fore = entry;\
+	entry->back = entry;\
     }\
     GC_WB(&table->bins[bin_pos], entry); \
     table->num_entries++;\
@@ -470,21 +473,16 @@ st_copy(st_table *old_table)
     unsigned int hash_val;
 
     new_table = alloc(st_table);
-    if (new_table == 0) {
-	return 0;
-    }
+    assert(new_table != NULL);
 
     *new_table = *old_table;
     GC_WB(&new_table->bins, (st_table_entry**)
 	Calloc((unsigned)num_bins, sizeof(st_table_entry*)));
 
-    if (new_table->bins == 0) {
-	free(new_table);
-	return 0;
-    }
+    assert(new_table->bins != NULL);
 
     if (old_table->entries_packed) {
-        memcpy(new_table->bins, old_table->bins, sizeof(struct st_table_entry *) * old_table->num_bins);
+        xmemmove(new_table->bins, old_table->bins, sizeof(struct st_table_entry *) * old_table->num_bins);
         return new_table;
     }
 
@@ -493,22 +491,19 @@ st_copy(st_table *old_table)
 	tail = &new_table->head;
 	do {
 	    entry = alloc(st_table_entry);
-	    if (entry == 0) {
-		st_free_table(new_table);
-		return 0;
-	    }
+	    assert(entry != NULL);
 	    *entry = *ptr;
 	    hash_val = entry->hash % num_bins;
-	    entry->next = new_table->bins[hash_val];
+	    GC_WB(&entry->next, new_table->bins[hash_val]);
 	    GC_WB(&new_table->bins[hash_val], entry);
 	    entry->back = prev;
 	    prev = entry;
-	    GC_WB(tail, entry);
+	    *tail = entry;
 	    tail = &entry->fore;
 	} while ((ptr = ptr->fore) != old_table->head);
 	entry = new_table->head;
 	entry->back = prev;
-	GC_WB(tail, entry);
+	*tail = entry;
     }
 
     return new_table;
@@ -541,7 +536,7 @@ st_delete(register st_table *table, register st_data_t *key, st_data_t *value)
             if ((st_data_t)table->bins[i*2] == *key) {
                 if (value != 0) *value = (st_data_t)table->bins[i*2+1];
                 table->num_entries--;
-                memmove(&table->bins[i*2], &table->bins[(i+1)*2],
+                xmemmove(&table->bins[i*2], &table->bins[(i+1)*2],
                         sizeof(struct st_table_entry*) * 2*(table->num_entries-i));
                 return 1;
             }
@@ -570,20 +565,33 @@ st_delete(register st_table *table, register st_data_t *key, st_data_t *value)
 int
 st_delete_safe(register st_table *table, register st_data_t *key, st_data_t *value, st_data_t never)
 {
-    unsigned int hash_val;
+    st_index_t hash_val;
     register st_table_entry *ptr;
+
+    if (table->entries_packed) {
+        st_index_t i;
+        for (i = 0; i < table->num_entries; i++) {
+            if ((st_data_t)table->bins[i*2] == *key) {
+                if (value != 0) *value = (st_data_t)table->bins[i*2+1];
+                table->bins[i*2] = (void *)never;
+                return 1;
+            }
+        }
+        if (value != 0) *value = 0;
+        return 0;
+    }
 
     hash_val = do_hash_bin(*key, table);
     ptr = table->bins[hash_val];
 
     for (; ptr != 0; ptr = ptr->next) {
-	if ((ptr->key != never) && EQUAL(table, ptr->key, *key)) {
-	    REMOVE_ENTRY(table, ptr);
-	    *key = ptr->key;
-	    if (value != 0) *value = ptr->record;
-	    ptr->key = ptr->record = never;
-	    return 1;
-	}
+        if ((ptr->key != never) && EQUAL(table, ptr->key, *key)) {
+            REMOVE_ENTRY(table, ptr);
+            *key = ptr->key;
+            if (value != 0) *value = ptr->record;
+            ptr->key = ptr->record = never;
+            return 1;
+        }
     }
 
     if (value != 0) *value = 0;
@@ -643,7 +651,7 @@ st_foreach(st_table *table, int (*func)(ANYARGS), st_data_t arg)
 		return 0;
 	      case ST_DELETE:
                 table->num_entries--;
-                memmove(&table->bins[i*2], &table->bins[(i+1)*2],
+                xmemmove(&table->bins[i*2], &table->bins[(i+1)*2],
                         sizeof(struct st_table_entry*) * 2*(table->num_entries-i));
                 i--;
                 break;
@@ -723,7 +731,7 @@ st_reverse_foreach(st_table *table, int (*func)(ANYARGS), st_data_t arg)
 		return 0;
 	      case ST_DELETE:
                 table->num_entries--;
-                memmove(&table->bins[i*2], &table->bins[(i+1)*2],
+                xmemmove(&table->bins[i*2], &table->bins[(i+1)*2],
                         sizeof(struct st_table_entry*) * 2*(table->num_entries-i));
                 break;
             }

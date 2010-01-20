@@ -1040,8 +1040,6 @@ errno_missing(VALUE self, SEL sel, VALUE id)
  *  <code>Exception</code> to add additional information.
  */
 
-VALUE rb_class_new_instance_imp(VALUE, SEL, int, VALUE *);
-
 void
 Init_Exception(void)
 {

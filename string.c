@@ -531,12 +531,7 @@ rb_str_format_m(VALUE str, SEL sel, VALUE arg)
 static inline void
 str_modifiable(VALUE str)
 {
-    long mask;
-#ifdef __LP64__
-    mask = RCLASS_RC_FLAGS(str);
-#else
-    mask = rb_objc_flag_get_mask((void *)str);
-#endif
+    long mask = rb_objc_flag_get_mask((void *)str);
     if (RSTRING_IMMUTABLE(str)) {
 	mask |= FL_FREEZE;
     }

@@ -4000,7 +4000,9 @@ extern "C"
 void
 rb_iter_break(void)
 {
-    GET_VM()->set_broken_with(Qnil);
+    RoxorVM *vm = GET_VM();
+    GC_RELEASE(vm->get_broken_with());
+    vm->set_broken_with(Qnil);
 }
 
 extern "C"

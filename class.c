@@ -28,7 +28,7 @@ void rb_objc_install_set_primitives(Class);
 bool
 rb_objc_install_primitives(Class ocklass, Class ocsuper)
 {
-    if (rb_cArray != 0 && rb_cHash != 0 && rb_cString != 0) {
+    if (rb_cRubyArray != 0 && rb_cRubyHash != 0 && rb_cString != 0) {
 	do {
 	    if (ocsuper == (Class)rb_cRubyArray) {
 		RCLASS_SET_VERSION_FLAG(ocklass, RCLASS_IS_ARRAY_SUBCLASS);
@@ -38,6 +38,10 @@ rb_objc_install_primitives(Class ocklass, Class ocsuper)
 		rb_objc_install_array_primitives(ocklass);
 		RCLASS_SET_VERSION_FLAG(ocklass, RCLASS_IS_ARRAY_SUBCLASS);
 		return true;
+	    }
+	    if (ocsuper == (Class)rb_cRubyHash) {
+		RCLASS_SET_VERSION_FLAG(ocklass, RCLASS_IS_HASH_SUBCLASS);
+		return false;
 	    }
 	    if (ocsuper == (Class)rb_cHash) {
 		rb_objc_install_hash_primitives(ocklass);
@@ -112,8 +116,6 @@ rb_objc_init(VALUE rcv, SEL sel)
     }
     return rcv;
 }
-
-VALUE rb_class_new_instance_imp(VALUE klass, SEL sel, int argc, VALUE *argv);
 
 void
 rb_define_object_special_methods(VALUE klass)

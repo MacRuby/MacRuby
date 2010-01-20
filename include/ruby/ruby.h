@@ -554,25 +554,12 @@ struct RClass {
 # define RCLASS_SCOPE_MOD_FUNC	      (1<<26)  /* class opened for module_function methods */
 # define RCLASS_KVO_CHECK_DONE	      (1<<27)  /* class created by KVO and flags merged */
 # define RCLASS_NO_IV_SLOTS	      (1<<28)  /* class cannot hold ivar slots (T_DATA & friends) */
-# if defined(__LP64__)
-#  define _PTR_TYPE uint64_t
-#  define RCLASS_VERSION(m) (class_getVersion((Class)m))
-#  define RCLASS_SET_VERSION(m,f) (class_setVersion((Class)m, f))
-#  define RCLASS_SET_VERSION_FLAG(m,f) (class_setVersion((Class)m, (RCLASS_VERSION(m) | f)))
-#  define RCLASS_SUPER(m) (*(VALUE *)((_PTR_TYPE)m + (sizeof(void *) * 1)))
-#  define RCLASS_SET_SUPER(m, s) (class_setSuperclass((Class)m, (Class)s))
-#  define RCLASS_META(m) (class_isMetaClass((Class)m))
-#  define RCLASS_RC_FLAGS(m) (*(uint32_t *) ((_PTR_TYPE)(m) + sizeof(uintptr_t) + (sizeof(uint8_t) * 4)))
-# else
-#  define _PTR_TYPE uint32_t
-#  define RCLASS_VERSION(m) (class_getVersion((Class)m))
-#  define RCLASS_SET_VERSION(m,f) (class_setVersion((Class)m, f))
-#  define RCLASS_SET_VERSION_FLAG(m,f) (class_setVersion((Class)m, (RCLASS_VERSION(m) | f)))
-#  define RCLASS_SUPER(m) (*(VALUE *)((_PTR_TYPE)m + (sizeof(void *) * 1)))
-#  define RCLASS_SET_SUPER(m, s) (class_setSuperclass((Class)m, (Class)s))
-#  define RCLASS_META(m) (class_isMetaClass((Class)m))
-#  define RCLASS_RC_FLAGS(m) (*(uint32_t *) ((_PTR_TYPE)(m) + sizeof(uintptr_t) + (sizeof(uint8_t) * 4)))
-# endif
+# define RCLASS_VERSION(m) (class_getVersion((Class)m))
+# define RCLASS_SET_VERSION(m,f) (class_setVersion((Class)m, f))
+# define RCLASS_SET_VERSION_FLAG(m,f) (class_setVersion((Class)m, (RCLASS_VERSION(m) | f)))
+# define RCLASS_SUPER(m) ((VALUE)class_getSuperclass((Class)m))
+# define RCLASS_SET_SUPER(m, s) (class_setSuperclass((Class)m, (Class)s))
+# define RCLASS_META(m) (class_isMetaClass((Class)m))
 # define RCLASS_RUBY(m) ((RCLASS_VERSION(m) & RCLASS_IS_RUBY_CLASS) == RCLASS_IS_RUBY_CLASS)
 # define RCLASS_MODULE(m) ((RCLASS_VERSION(m) & RCLASS_IS_MODULE) == RCLASS_IS_MODULE)
 # define RCLASS_SINGLETON(m) ((RCLASS_VERSION(m) & RCLASS_IS_SINGLETON) == RCLASS_IS_SINGLETON)
@@ -690,7 +677,7 @@ struct RHash {
 # define RHASH_IFNONE(h) (RHASH(h)->ifnone)
 # define RHASH_SIZE(h) (RHASH(h)->ntbl ? RHASH(h)->ntbl->num_entries : 0)
 #else
-# define RHASH_SIZE(h) (CFDictionaryGetCount((CFDictionaryRef)h))
+# define RHASH_SIZE(h) rb_hash_size(h)
 #endif
 #define RHASH_EMPTY_P(h) (RHASH_SIZE(h) == 0)
 
@@ -1159,6 +1146,7 @@ RUBY_EXTERN VALUE rb_cNSHash0;
 #endif
 RUBY_EXTERN VALUE rb_cNSHash;
 RUBY_EXTERN VALUE rb_cNSMutableHash;
+RUBY_EXTERN VALUE rb_cRubyHash;
 RUBY_EXTERN VALUE rb_cCFSet;
 RUBY_EXTERN VALUE rb_cNSSet;
 RUBY_EXTERN VALUE rb_cNSMutableSet;
@@ -1374,7 +1362,7 @@ rb_type(VALUE obj)
 	   ) {
 	    return T_ARRAY;
 	}
-	if (k == (Class)rb_cCFHash) {
+	if (k == (Class)rb_cCFHash || k == (Class)rb_cRubyHash) {
 	    return T_HASH;
 	}
 	if (RCLASS_META(k)) {

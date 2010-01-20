@@ -3710,8 +3710,6 @@ re_warn(const char *s)
  *
  */
 
-VALUE rb_class_new_instance_imp(VALUE, SEL, int, VALUE *);
-
 void
 Init_Regexp(void)
 {

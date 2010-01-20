@@ -15,7 +15,8 @@ class Debugger
     raise "need at least one argument" if args.empty?
     path = internal ? './miniruby' : File.join(RbConfig::CONFIG['bindir'],
       RbConfig::CONFIG['RUBY_INSTALL_NAME'])
-    @connector = ::MacRubyDebuggerConnector.alloc.initWithInterpreterPath(path,       arguments: args)
+    @connector = ::MacRubyDebuggerConnector.alloc.initWithInterpreterPath(path,
+      arguments: args)
   end
 
   def run

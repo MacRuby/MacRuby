@@ -493,39 +493,27 @@ rb_mod_objc_ib_outlet(VALUE recv, SEL sel, int argc, VALUE *argv)
     return recv;
 }
 
-#define FLAGS_AS_ASSOCIATIVE_REF 1
-
-static CFMutableDictionaryRef __obj_flags;
+static void *__obj_flags; // used as a static key
 
 long
 rb_objc_flag_get_mask(const void *obj)
 {
-#if FLAGS_AS_ASSOCIATIVE_REF
     return (long)rb_objc_get_associative_ref((void *)obj, &__obj_flags);
-#else
-    if (__obj_flags == NULL)
-	return 0;
-
-    return (long)CFDictionaryGetValue(__obj_flags, obj);
-#endif
 }
 
 bool
 rb_objc_flag_check(const void *obj, int flag)
 {
-    long v;
-
-    v = rb_objc_flag_get_mask(obj);
-    if (v == 0)
-	return false;
-
+    const long v = rb_objc_flag_get_mask(obj);
+    if (v == 0) {
+	return false; 
+    }
     return (v & flag) == flag;
 }
 
 void
 rb_objc_flag_set(const void *obj, int flag, bool val)
 {
-#if FLAGS_AS_ASSOCIATIVE_REF
     long v = (long)rb_objc_get_associative_ref((void *)obj, &__obj_flags);
     if (val) {
 	v |= flag;
@@ -534,57 +522,6 @@ rb_objc_flag_set(const void *obj, int flag, bool val)
 	v ^= flag;
     }
     rb_objc_set_associative_ref((void *)obj, &__obj_flags, (void *)v);
-#else
-    long v;
-
-    if (__obj_flags == NULL) {
-	__obj_flags = CFDictionaryCreateMutable(NULL, 0, NULL, NULL);
-    }
-    v = (long)CFDictionaryGetValue(__obj_flags, obj);
-    if (val) {
-	v |= flag;
-    }
-    else {
-	v ^= flag;
-    }
-    CFDictionarySetValue(__obj_flags, obj, (void *)v);
-#endif
-}
-
-long
-rb_objc_remove_flags(const void *obj)
-{
-#if FLAGS_AS_ASSOCIATIVE_REF
-    long flag = (long)rb_objc_get_associative_ref((void *)obj, &__obj_flags);
-    //rb_objc_set_associative_ref((void *)obj, &__obj_flags, (void *)0);
-    return flag;
-#else
-    long flag;
-    if (CFDictionaryGetValueIfPresent(__obj_flags, obj, 
-	(const void **)&flag)) {
-	CFDictionaryRemoveValue(__obj_flags, obj);
-	return flag;
-    }
-    return 0;
-#endif
-}
-
-extern bool __CFStringIsMutable(void *);
-extern bool _CFArrayIsMutable(void *);
-extern bool _CFDictionaryIsMutable(void *);
-
-bool
-rb_objc_is_immutable(VALUE v)
-{
-    switch(TYPE(v)) {
-	case T_STRING:
-	    return !__CFStringIsMutable((void *)v);
-	case T_ARRAY:
-	    return !_CFArrayIsMutable((void *)v);
-	case T_HASH:
-	    return !_CFDictionaryIsMutable((void *)v);	    
-    }
-    return false;
 }
 
 static IMP old_imp_isaForAutonotifying;

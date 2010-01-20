@@ -180,8 +180,6 @@ rb_struct_set(VALUE obj, SEL sel, VALUE val)
     return Qnil;		/* not reached */
 }
 
-VALUE rb_class_new_instance_imp(VALUE klass, SEL sel, int argc, VALUE *argv);
-
 static VALUE
 make_struct(VALUE name, VALUE members, VALUE klass)
 {
