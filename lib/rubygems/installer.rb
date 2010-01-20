@@ -90,13 +90,12 @@ class Gem::Installer
     @gem = gem
 
     options = {
-      :bin_dir           => nil,
-      :env_shebang       => false,
-      :exec_format       => false,
-      :force             => false,
-      :format_executable => true, # MacRuby addition
-      :install_dir       => Gem.dir,
-      :source_index      => Gem.source_index,
+      :bin_dir      => nil,
+      :env_shebang  => false,
+      :exec_format  => false,
+      :force        => false,
+      :install_dir  => Gem.dir,
+      :source_index => Gem.source_index,
     }.merge options
 
     @env_shebang = options[:env_shebang]
