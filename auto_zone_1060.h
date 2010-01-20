@@ -1,7 +1,7 @@
 /*
     auto_zone.h
     Automatic Garbage Collection.
-    Copyright (c) 2002-2009 Apple Inc. All rights reserved.
+    Copyright (c) 2002-2010 Apple Inc. All rights reserved.
  */
 
 #ifndef __AUTO_ZONE__
