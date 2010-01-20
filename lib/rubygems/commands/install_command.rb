@@ -16,7 +16,7 @@ class Gem::Commands::InstallCommand < Gem::Command
     defaults = Gem::DependencyInstaller::DEFAULT_OPTIONS.merge({
       :generate_rdoc => false,
       :generate_ri   => false,
-      :format_executable => true, # MacRuby addition
+      :format_executable => false,
       :test => false,
       :version => Gem::Requirement.default,
     })
