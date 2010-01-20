@@ -472,7 +472,7 @@ rb_eval_cmd(VALUE cmd, VALUE arg, int level)
 	return val;
     }
 
-    val = eval_string(0, rb_vm_top_self(), cmd, Qnil, 0, 0);
+    val = eval_string(0, rb_vm_top_self(), cmd, Qnil, "(eval)", 1);
     rb_set_safe_level_force(safe);
     return val;
 }
