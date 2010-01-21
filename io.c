@@ -2292,7 +2292,7 @@ rb_file_open(VALUE io, int argc, VALUE *argv)
     if (NIL_P(modes)) {
 	modes = (VALUE)CFSTR("r");
     }
-    StringValue(path);
+    FilePathValue(path);
     const char *filepath = RSTRING_PTR(path);
     const int flags = convert_mode_string_to_oflags(modes);
     const mode_t perm = NIL_P(permissions) ? 0666 : NUM2UINT(permissions);
