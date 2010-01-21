@@ -165,9 +165,6 @@ rb_class_real(VALUE cl)
     if (cl == rb_cCFArray || cl == rb_cRubyArray) {
 	return rb_cNSMutableArray;
     }
-    if (cl == rb_cCFHash || cl == rb_cRubyHash) {
-	return rb_cNSMutableHash;
-    }
     return cl;
 }
 

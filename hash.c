@@ -226,11 +226,10 @@ static const struct st_hash_type objhash = {
 static VALUE
 hash_alloc(VALUE klass)
 {
-    if ((klass == 0 || klass == rb_cRubyHash || klass == rb_cNSMutableHash)
-	    && rb_cRubyHash != 0) {
+    if (rb_cRubyHash != 0 && (klass == 0 || __is_rhash(klass))) {
 	NEWOBJ(hash, rb_hash_t);
 	hash->basic.flags = 0;
-	hash->basic.klass = rb_cRubyHash;
+	hash->basic.klass = klass == 0 ? rb_cRubyHash : klass;
 	GC_WB(&hash->tbl, st_init_table(&objhash));
 	hash->ifnone = Qnil;
 	hash->has_proc_default = false;
@@ -2615,8 +2614,6 @@ env_update(VALUE env, SEL sel, VALUE hash)
 bool
 rb_objc_hash_is_pure(VALUE hash)
 {
-    return *(VALUE *)hash == rb_cCFHash || *(VALUE *)hash == rb_cRubyHash;
-#if 0
     VALUE k = *(VALUE *)hash;
     while (RCLASS_SINGLETON(k)) {
         k = RCLASS_SUPER(k);
@@ -2631,7 +2628,6 @@ rb_objc_hash_is_pure(VALUE hash)
 	k = RCLASS_SUPER(k);
     }
     return true;
-#endif
 }
 
 static CFIndex
@@ -2861,7 +2857,6 @@ Init_Hash(void)
     rb_cHash = rb_cNSHash = (VALUE)objc_getClass("NSDictionary");
     rb_cNSMutableHash = (VALUE)objc_getClass("NSMutableDictionary");
     rb_set_class_path(rb_cNSMutableHash, rb_cObject, "NSMutableDictionary");
-    rb_const_set(rb_cObject, rb_intern("Hash"), rb_cNSMutableHash);
 
     rb_include_module(rb_cHash, rb_mEnumerable);
 
@@ -2934,7 +2929,9 @@ Init_Hash(void)
     rb_objc_define_method(rb_cHash, "compare_by_identity", rb_hash_compare_by_id, 0);
     rb_objc_define_method(rb_cHash, "compare_by_identity?", rb_hash_compare_by_id_p, 0);
 
-    rb_cRubyHash = rb_define_class("RubyHash", rb_cNSMutableHash);
+    rb_cRubyHash = rb_define_class("Hash", rb_cNSMutableHash);
+    rb_objc_define_method(*(VALUE *)rb_cRubyHash, "new",
+	    rb_class_new_instance_imp, -1);
     rb_objc_define_method(*(VALUE *)rb_cRubyHash, "alloc", hash_alloc, 0);
     rb_objc_install_method2((Class)rb_cRubyHash, "count",
 	    (IMP)imp_rhash_count);

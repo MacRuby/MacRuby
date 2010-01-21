@@ -793,27 +793,12 @@ dispatch:
 	}
 
 	if (block != NULL) {
-	    if (self == rb_cNSMutableHash && sel == selNew) {
-		// Because Hash.new can accept a block.
-		vm->add_current_block(block);
-
-		struct Finally {
-		    RoxorVM *vm;
-		    Finally(RoxorVM *_vm) { vm = _vm; }
-		    ~Finally() { vm->pop_current_block(); }
-		} finalizer(vm);
-
-		return rb_hash_new2(argc, argv);
-	    }
 	    rb_warn("passing a block to an Objective-C method - " \
 		    "will be ignored");
 	}
 	else if (sel == selNew) {
 	    if (self == rb_cNSMutableArray) {
 		self = rb_cRubyArray;
-	    }
-	    if (self == rb_cNSMutableHash) {
-		self = rb_cRubyHash;
 	    }
 	}
 	else if (sel == selClass) {
@@ -846,17 +831,6 @@ dispatch:
 	    if (klass == (Class)rb_cRubyArray) {
 		return rb_cNSMutableArray;
 	    }
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
-	    if (klass == (Class)rb_cCFHash || klass == (Class)rb_cNSHash0) {
-#else
-	    if (klass == (Class)rb_cCFHash) {
-#endif
-		return RHASH_IMMUTABLE(self)
-		    ? rb_cNSHash : rb_cNSMutableHash;
-	    }
-	    if (klass == (Class)rb_cRubyHash) {
-		return rb_cNSMutableHash;
-	    } 
 	}
 
 #if ROXOR_VM_DEBUG

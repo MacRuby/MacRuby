@@ -1,8 +1,9 @@
 require File.dirname(__FILE__) + "/../spec_helper"
 
 describe "The Hash class" do
-  it "is an alias to NSMutableDictionary" do
-    Hash.should == NSMutableDictionary
+  it "is a direct subclass of NSMutableDictionary" do
+    Hash.class.should == Class
+    Hash.superclass.should == NSMutableDictionary
   end
 
   it "can be subclassed and later instantiated" do
@@ -59,9 +60,9 @@ end
 describe "An NSDictionary object" do
   it "is an instance of the NSDictionary class" do
     a = NSDictionary.dictionary
-    a.class.should == NSDictionary
+    a.is_a?(NSDictionary).should == true
     a = NSDictionary.dictionaryWithObject(42, forKey:42)
-    a.class.should == NSDictionary
+    a.is_a?(NSDictionary).should == true
   end
 
   it "is immutable" do
