@@ -25,7 +25,7 @@
 // otherwise there are crashes when one tries to add an instance
 // variable to a queue. (Not that that is a good idea.)
 
-static SEL selClose, selToI;
+static SEL selClose;
 
 typedef struct {
     struct RBasic basic;
@@ -769,7 +769,7 @@ rb_source_init(VALUE self, SEL sel,
     src->source_enum = (source_enum_t) NUM2LONG(type);
     dispatch_source_type_t c_type = rb_source_enum2type(src->source_enum);
     assert(c_type != NULL);
-    uintptr_t c_handle = NUM2UINT(rb_vm_call(handle, selToI, 0, NULL, false));
+    uintptr_t c_handle = NUM2UINT(rb_Integer(handle));
     unsigned long c_mask = NUM2LONG(mask);
     dispatch_queue_t c_queue = RQueue(queue)->queue;
     src->source = dispatch_source_create(c_type, c_handle, c_mask, c_queue);
@@ -1297,8 +1297,6 @@ Init_Dispatch(void)
 /* Constants for future reference */
     selClose = sel_registerName("close");
     assert(selClose != NULL);
-    selToI = sel_registerName("to_i");
-    assert(selToI != NULL);
 }
 
 
