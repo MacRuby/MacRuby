@@ -1298,6 +1298,7 @@ rb_vm_define_class(ID path, VALUE outer, VALUE super, int flags,
 
     VALUE klass;
     if (rb_const_defined_at(outer, path)) {
+	// Constant is already defined.
 	klass = rb_const_get_at(outer, path);
 	check_if_module(klass);
 	if (!(flags & DEFINE_MODULE) && super != 0) {
@@ -1308,11 +1309,30 @@ rb_vm_define_class(ID path, VALUE outer, VALUE super, int flags,
 	}
     }
     else {
+	// Prepare the constant outer.
+	VALUE const_outer;
+	if (flags & DEFINE_OUTER) {
+	    const_outer = outer;
+	}
+	else if (flags & DEFINE_SUB_OUTER) {
+	    // The Foo::Bar case, the outer here is the outer of the outer.
+	    rb_vm_outer_t *o = GET_CORE()->get_outer((Class)outer);
+	    if (o != NULL && o->outer != NULL) {
+		const_outer = (VALUE)o->outer->klass;
+	    }
+	    else {
+		const_outer = rb_cObject;
+	    }
+	}
+	else {
+	    const_outer = rb_cObject;
+	}
+
+	// Define the constant.
 	if (flags & DEFINE_MODULE) {
 	    assert(super == 0);
 	    klass = rb_define_module_id(path);
-	    rb_set_class_path2(klass, outer, rb_id2name(path),
-		    flags & DEFINE_OUTER);
+	    rb_set_class_path2(klass, outer, rb_id2name(path), const_outer);
 	    rb_const_set(outer, path, klass);
 	}
 	else {
@@ -1323,8 +1343,7 @@ rb_vm_define_class(ID path, VALUE outer, VALUE super, int flags,
 		check_if_module(super);
 	    }
 	    klass = rb_define_class_id(path, super);
-	    rb_set_class_path2(klass, outer, rb_id2name(path),
-		    flags & DEFINE_OUTER);
+	    rb_set_class_path2(klass, outer, rb_id2name(path), const_outer);
 	    rb_const_set(outer, path, klass);
 	    rb_class_inherited(super, klass);
 	}

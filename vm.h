@@ -554,8 +554,9 @@ struct ccache {
 };
 
 // For rb_vm_define_class()
-#define DEFINE_MODULE	0x1
-#define DEFINE_OUTER 	0x2
+#define DEFINE_MODULE		0x1
+#define DEFINE_OUTER 		0x2
+#define DEFINE_SUB_OUTER	0x4
 
 class RoxorCompiler;
 class RoxorJITManager;

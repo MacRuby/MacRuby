@@ -1259,7 +1259,7 @@ RoxorCompiler::compile_constant_declaration(NODE *node, Value *val)
     }
 
     std::vector<Value *> params;
-    bool outer = true;
+    int flags = 0;
 
     if (node->nd_vid > 0) {
 	params.push_back(compile_current_class());
@@ -1267,13 +1267,13 @@ RoxorCompiler::compile_constant_declaration(NODE *node, Value *val)
     }
     else {
 	assert(node->nd_else != NULL);
-	params.push_back(compile_class_path(node->nd_else, &outer));
+	params.push_back(compile_class_path(node->nd_else, &flags));
 	assert(node->nd_else->nd_mid > 0);
 	params.push_back(compile_id(node->nd_else->nd_mid));
     }
     params.push_back(val);
     params.push_back(ConstantInt::get(Int8Ty,
-		dynamic_class && outer ? 1 : 0));
+		dynamic_class && (flags & DEFINE_OUTER) ? 1 : 0));
 
     CallInst::Create(setConstFunc, params.begin(), params.end(), "", bb);
 
@@ -1831,27 +1831,28 @@ RoxorCompiler::compile_set_has_ensure(Value *val)
 }
 
 Value *
-RoxorCompiler::compile_class_path(NODE *node, bool *outer)
+RoxorCompiler::compile_class_path(NODE *node, int *flags)
 {
     if (nd_type(node) == NODE_COLON3) {
 	// ::Foo
-	if (outer != NULL) {
-	    *outer = false;
+	if (flags != NULL) {
+	    *flags = 0;
 	}
 	return compile_nsobject();
     }
     else if (node->nd_head != NULL) {
 	// Bar::Foo
-	if (outer != NULL) {
-	    *outer = false;
+	if (flags != NULL) {
+	    *flags = DEFINE_SUB_OUTER;
 	}
 	return compile_node(node->nd_head);
     }
-
-    if (outer != NULL) {
-	*outer = true;
+    else {
+	if (flags != NULL) {
+	    *flags = DEFINE_OUTER;
+	}
+	return compile_current_class();
     }
-    return compile_current_class();
 }
 
 Value *
@@ -3961,22 +3962,21 @@ RoxorCompiler::compile_node(NODE *node)
 		    }
 
 		    std::vector<Value *> params;
-		    bool outer = false;
+		    int flags = 0;
 
 		    params.push_back(compile_id(path));
-		    params.push_back(compile_class_path(node->nd_cpath, &outer));
-		    params.push_back(super == NULL ? zeroVal : compile_node(super));
+		    params.push_back(compile_class_path(node->nd_cpath,
+				&flags));
+		    params.push_back(super == NULL
+			    ? zeroVal : compile_node(super));
 		    
-		    int flags = 0;
 		    if (nd_type(node) == NODE_MODULE) {
 			flags |= DEFINE_MODULE;
 		    }
-		    if (outer) {
-			flags |= DEFINE_OUTER;
-		    }
 		    params.push_back(ConstantInt::get(Int32Ty, flags));
 		    params.push_back(ConstantInt::get(Int8Ty,
-				outer && dynamic_class ? 1 : 0));
+				(flags & DEFINE_OUTER) && dynamic_class
+				? 1 : 0));
 
 		    classVal = compile_protected_call(defineClassFunc, params);
 		}
