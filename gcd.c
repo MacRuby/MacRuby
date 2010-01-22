@@ -25,7 +25,7 @@
 // otherwise there are crashes when one tries to add an instance
 // variable to a queue. (Not that that is a good idea.)
 
-static SEL selClose, selFileNo;
+static SEL selClose, selToI;
 
 typedef struct {
     struct RBasic basic;
@@ -72,7 +72,7 @@ typedef struct {
     source_enum_t source_enum;
     dispatch_source_t source;
     rb_vm_block_t *event_handler;
-    VALUE rb_context;
+    VALUE handle;
 } rb_source_t;
 
 #define RSource(val) ((rb_source_t*)val)
@@ -733,9 +733,8 @@ rb_source_close_handler(void* sourceptr)
 {
     assert(sourceptr != NULL);
     rb_source_t *src = RSource(sourceptr);
-    VALUE io = src->rb_context;
-    rb_io_close(io);
-//    Call rb_io_close directly since rb_vm_call aborts
+    rb_io_close(src->handle);
+//    Call rb_io_close directly else rb_vm_call aborts inside block
 //    rb_vm_call(io, selClose, 0, NULL, false);
 }
 
@@ -768,15 +767,9 @@ rb_source_init(VALUE self, SEL sel,
     Check_Queue(queue);
     rb_source_t *src = RSource(self);
     src->source_enum = (source_enum_t) NUM2LONG(type);
-    BOOL handle_is_file = rb_source_is_file(src) &&
-        rb_obj_is_kind_of(handle, rb_cIO);
-    if (handle_is_file) {
-        GC_WB(&src->rb_context, handle);
-        handle = rb_vm_call(handle, selFileNo, 0, NULL, false);
-    }
     dispatch_source_type_t c_type = rb_source_enum2type(src->source_enum);
     assert(c_type != NULL);
-    uintptr_t c_handle = NUM2UINT(handle);
+    uintptr_t c_handle = NUM2UINT(rb_vm_call(handle, selToI, 0, NULL, false));
     unsigned long c_mask = NUM2LONG(mask);
     dispatch_queue_t c_queue = RQueue(queue)->queue;
     src->source = dispatch_source_create(c_type, c_handle, c_mask, c_queue);
@@ -788,8 +781,10 @@ rb_source_init(VALUE self, SEL sel,
     dispatch_set_context(src->source, (void *)self);
     dispatch_source_set_event_handler_f(src->source, rb_source_event_handler);
 
-    if (handle_is_file) {
-        dispatch_source_set_cancel_handler_f(src->source, rb_source_close_handler);
+    GC_WB(&src->handle, handle);
+    if (rb_source_is_file(src) && rb_obj_is_kind_of(handle, rb_cIO)) {
+        dispatch_source_set_cancel_handler_f(src->source,
+          rb_source_close_handler);
     }
     rb_dispatch_resume(self, 0);
     return self;
@@ -857,7 +852,7 @@ rb_source_timer(VALUE klass, VALUE sel, VALUE delay, VALUE interval, VALUE leewa
 static VALUE
 rb_source_get_handle(VALUE self, SEL sel)
 {
-    return LONG2NUM(dispatch_source_get_handle(RSource(self)->source));
+    return RSource(self)->handle;
 }
 
 /* 
@@ -1302,8 +1297,8 @@ Init_Dispatch(void)
 /* Constants for future reference */
     selClose = sel_registerName("close");
     assert(selClose != NULL);
-    selFileNo = sel_registerName("fileno");
-    assert(selFileNo != NULL);
+    selToI = sel_registerName("to_i");
+    assert(selToI != NULL);
 }
 
 

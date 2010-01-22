@@ -270,12 +270,7 @@ if MACOSX_VERSION >= 10.6
             @src.cancel!
             @q.sync { }
             @file.closed?.should == true
-          end
-          
-          it "raises TypeError if neither number or IO passed as handle" do
-            lambda { Dispatch::Source.new(@type, "", 0, @q) { } }.should raise_error(TypeError) 
-          end
-                    
+          end                    
         end    
 
         describe :WRITE do
