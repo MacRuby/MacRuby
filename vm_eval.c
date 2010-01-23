@@ -501,7 +501,7 @@ rb_eval_cmd(VALUE cmd, VALUE arg, int level)
  */
 
 static VALUE
-rb_obj_instance_eval(VALUE self, SEL sel, int argc, VALUE *argv)
+rb_obj_instance_eval(VALUE self, SEL sel, VALUE top, int argc, VALUE *argv)
 {
     VALUE klass;
 
@@ -509,7 +509,30 @@ rb_obj_instance_eval(VALUE self, SEL sel, int argc, VALUE *argv)
 	klass = 0;
     }
     else {
-	klass = rb_singleton_class(self);
+	switch (TYPE(self)) {
+#if 0
+	    case T_CLASS:
+	    case T_MODULE:
+		if (RCLASS_RUBY(self)) {
+		    VALUE sself = rb_make_singleton_class(RCLASS_SUPER(self));
+		    RCLASS_SET_SUPER(self, sself);
+		    self = sself;
+		}
+		else {
+		    klass = rb_singleton_class(self);
+		    break;
+		}
+		// fall through
+#endif
+	    default:
+		klass = rb_singleton_class(self);
+		switch (TYPE(top)) {
+		    case T_CLASS:
+		    case T_MODULE:
+			rb_vm_set_outer(klass, top);
+			break;
+		}
+	}
     }
     return specific_eval(argc, argv, klass, self);
 }
@@ -759,12 +782,12 @@ Init_vm_eval(void)
 
     rb_objc_define_module_function(rb_mKernel, "loop", rb_f_loop, 0);
 
-    rb_objc_define_method(rb_cNSObject, "instance_eval", rb_obj_instance_eval, -1);
+    rb_objc_define_method(rb_cNSObject, "instance_eval", rb_obj_instance_eval, -3);
     rb_objc_define_method(rb_cNSObject, "instance_exec", rb_obj_instance_exec, -1);
     rb_objc_define_private_method(rb_cNSObject, "method_missing", rb_method_missing, -1);
     rb_objc_define_method(rb_cNSObject, "__send__", rb_f_send, -1);
 
-    rb_objc_define_method(rb_cBasicObject, "instance_eval", rb_obj_instance_eval, -1);
+    rb_objc_define_method(rb_cBasicObject, "instance_eval", rb_obj_instance_eval, -3);
     rb_objc_define_method(rb_cBasicObject, "instance_exec", rb_obj_instance_exec, -1);
     rb_objc_define_private_method(rb_cBasicObject, "method_missing", rb_method_missing, -1);
     rb_objc_define_method(rb_cBasicObject, "__send__", rb_f_send, -1);

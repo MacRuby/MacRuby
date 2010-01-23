@@ -231,6 +231,9 @@ rb_vm_node_arity(NODE *node)
 	    else if (argc == -2) {
 		arity.real = 1;
 	    }
+	    else if (argc == -3) {
+		arity.real = 3;
+	    }
 	    else {
 		printf("invalid FBODY arity: %d\n", argc);
 		abort();

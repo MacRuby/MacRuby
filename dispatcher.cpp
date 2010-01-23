@@ -436,6 +436,11 @@ __rb_vm_ruby_dispatch(VALUE top, VALUE self, SEL sel,
 	    return ((VALUE (*)(VALUE, SEL, ...))node->ruby_imp)
 		(self, sel, rb_ary_new4(argc, argv));
 	}
+	else if (arity.real == 3) {
+	    return ((VALUE (*)(VALUE, SEL, VALUE, int,
+			    const VALUE *))node->ruby_imp)
+		(self, sel, top, argc, argv);
+	}
 	else {
 	    printf("invalid negative arity for C function %d\n",
 		    arity.real);

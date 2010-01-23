@@ -506,8 +506,6 @@ rb_frame_callee(void)
  *  _mod_ or one of its ancestors. See also <code>Module#include</code>.
  */
 
-VALUE rb_make_singleton_class(VALUE super);
-
 static VALUE
 rb_mod_append_features(VALUE module, SEL sel, VALUE include)
 {

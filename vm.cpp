@@ -1143,8 +1143,15 @@ retry:
 	VALUE value;
 	if (CFDictionaryGetValueIfPresent(iv_dict, (const void *)id,
 		    (const void **)&value)) {
-	    if (value == Qundef && RTEST(rb_autoload_load(klass, id))) {
-		goto retry;
+	    if (value == Qundef) {
+		// Constant is a candidate for autoload. We must release the
+		// GIL before requiring the file and acquire it again.
+		GET_CORE()->unlock();
+		const bool autoloaded = RTEST(rb_autoload_load(klass, id));
+		GET_CORE()->lock();
+		if (autoloaded) {
+		    goto retry;
+		}
 	    }
 	    return value;
 	}
@@ -1281,6 +1288,22 @@ rb_vm_get_outer(VALUE klass)
     return o == NULL ? Qundef : (VALUE)o->klass;
 }
 
+static VALUE
+get_klass_const(VALUE outer, ID path, bool lexical)
+{
+    if (lexical) {
+	if (rb_vm_const_lookup(outer, path, true, true) == Qtrue) {
+	    return rb_vm_const_lookup(outer, path, true, false);
+	}
+    }
+    else {
+	if (rb_const_defined_at(outer, path)) {
+	    return rb_const_get_at(outer, path);
+	}
+    }
+    return Qundef;
+}
+
 extern "C"
 VALUE
 rb_vm_define_class(ID path, VALUE outer, VALUE super, int flags,
@@ -1296,10 +1319,9 @@ rb_vm_define_class(ID path, VALUE outer, VALUE super, int flags,
 	}
     }
 
-    VALUE klass;
-    if (rb_const_defined_at(outer, path)) {
+    VALUE klass = get_klass_const(outer, path, dynamic_class);
+    if (klass != Qundef) {
 	// Constant is already defined.
-	klass = rb_const_get_at(outer, path);
 	check_if_module(klass);
 	if (!(flags & DEFINE_MODULE) && super != 0) {
 	    if (rb_class_real(RCLASS_SUPER(klass)) != super) {
@@ -4461,6 +4483,13 @@ rb_vm_thread_pre_init(rb_vm_thread_t *t, rb_vm_block_t *body, int argc,
     if (body != NULL) {
 	GC_WB(&t->body, body);
 	rb_vm_block_make_detachable_proc(body);
+
+	// Remove the thread-local bit of all dynamic variables.
+	for (int i = 0; i < body->dvars_size; i++) {
+	    VALUE *dvar = body->dvars[i];
+	    GC_RETAIN(*dvar);
+	    GC_RELEASE(*dvar);
+	}
     }
     else {
 	t->body = NULL;
