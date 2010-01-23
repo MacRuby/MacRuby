@@ -1362,7 +1362,7 @@ rb_vm_fast_aref(VALUE obj, VALUE other, struct mcache *cache,
 		break;
 
 	    case T_HASH:
-		if (*(VALUE *)obj == rb_cCFHash) {
+		if (*(VALUE *)obj == rb_cRubyHash) {
 		    return rb_hash_aref(obj, other);
 		}
 		break;
@@ -1388,7 +1388,7 @@ rb_vm_fast_aset(VALUE obj, VALUE other1, VALUE other2, struct mcache *cache,
 		break;
 
 	    case T_HASH:
-		if (*(VALUE *)obj == rb_cCFHash) {
+		if (*(VALUE *)obj == rb_cRubyHash) {
 		    return rb_hash_aset(obj, other1, other2);
 		}
 		break;
