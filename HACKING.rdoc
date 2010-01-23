@@ -111,6 +111,8 @@ The following environment variables might help you debug easy bugs.
   variable to "." before starting gdb, and you won't have to re-install MacRuby
   every time you re-compile it.
 
+* AUTO_USE_TLC: set this variable to 0 to disable the thread local collector.
+
 ==== GDB tricks
 
 * Break on rb_exc_raise to intercept pure Ruby exceptions. You can use a
@@ -128,3 +130,6 @@ The following environment variables might help you debug easy bugs.
 
 * To print the list of current active exceptions:
   (gdb) p (char *)RoxorVM::current->debug_exceptions()
+
+* To determine if a given object is thread-local:
+  (gdb) p (int)gdb_is_local(<address>);
