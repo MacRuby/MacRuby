@@ -102,12 +102,12 @@ if MACOSX_VERSION >= 10.6
     end
 
     describe :apply do
-      it "accepts an input size and a block and yields it as many times" do
+      it "accepts a count and a block and yields it that many times, with an index" do
         @i = 0
-        @q.apply(10) { @i += 1 }
-        @i.should == 10
+        @q.apply(10) { |j| @i += j }
+        @i.should == 45
         @i = 42
-        @q.apply(0) { @i += 1 }
+        @q.apply(0) { |j| @i += 1 }
         @i.should == 42
 
         lambda { @q.apply(nil) {} }.should raise_error(TypeError) 
