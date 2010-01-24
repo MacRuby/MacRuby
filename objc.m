@@ -261,6 +261,25 @@ reload_class_constants(void)
     for (i = 0; i < count; i++) {
 	Class k = buf[i];
 	if (!RCLASS_RUBY(k)) {
+	    long v = RCLASS_VERSION(k);
+	    if (!(v & RCLASS_IS_HASH_SUBCLASS)
+		    && !(v & RCLASS_IS_ARRAY_SUBCLASS)) {
+		Class k2 = k;
+		while (k2 != NULL) {
+		    if (k2 == (Class)rb_cNSHash) {
+			v |= RCLASS_IS_HASH_SUBCLASS;
+			RCLASS_SET_VERSION(k, v);
+			break;
+		    }
+		    else if (k2 == (Class)rb_cNSArray) {
+			v |= RCLASS_IS_ARRAY_SUBCLASS;
+			RCLASS_SET_VERSION(k, v);
+			break;
+		    }
+		    k2 = class_getSuperclass(k2);
+		}
+	    }
+
 	    const char *name = class_getName(k);
 	    if (name[0] != '_') {
 		ID name_id = rb_intern(name);
@@ -613,6 +632,8 @@ Init_ObjC(void)
     placeholder_String = objc_getClass("NSPlaceholderMutableString");
     placeholder_Dictionary = objc_getClass("__NSPlaceholderDictionary");
     placeholder_Array = objc_getClass("__NSPlaceholderArray");
+
+    reload_class_constants();
 }
 
 @interface Protocol

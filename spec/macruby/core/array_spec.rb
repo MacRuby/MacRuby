@@ -1,8 +1,9 @@
 require File.dirname(__FILE__) + "/../spec_helper"
 
 describe "The Array class" do
-  it "is an alias to NSMutableArray" do
-    Array.should == NSMutableArray
+  it "is a direct subclass of NSMutableArray" do
+    Array.class.should == Class
+    Array.superclass.should == NSMutableArray
   end
 
   it "can be subclassed and later instantiated" do
@@ -57,11 +58,13 @@ describe "An Array object" do
 end
 
 describe "An NSArray object" do
-  it "is an instance of the NSArray class" do
+  it "is an instance of the Array class" do
     a = NSArray.array
-    a.class.should == NSArray
+    a.class.should == Array
+    a.is_a?(Array).should == true
     a = NSArray.arrayWithObject(42)
-    a.class.should == NSArray
+    a.class.should == Array
+    a.is_a?(Array).should == true
   end
 
   it "is immutable" do

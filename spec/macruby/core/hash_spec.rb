@@ -27,7 +27,7 @@ describe "The NSDictionary class" do
 end
 
 describe "An Hash object" do
-  it "is an instance of the Hash/NSMutableDictionary class" do
+  it "is an instance of the Hash class" do
     {}.class.should == Hash
     {}.kind_of?(Hash).should == true
     {}.instance_of?(Hash).should == true
@@ -58,11 +58,13 @@ describe "An Hash object" do
 end
 
 describe "An NSDictionary object" do
-  it "is an instance of the NSDictionary class" do
+  it "is an instance of the Hash class" do
     a = NSDictionary.dictionary
-    a.is_a?(NSDictionary).should == true
+    a.is_a?(Hash).should == true
+    a.class.should == Hash
     a = NSDictionary.dictionaryWithObject(42, forKey:42)
-    a.is_a?(NSDictionary).should == true
+    a.is_a?(Hash).should == true
+    a.class.should == Hash
   end
 
   it "is immutable" do

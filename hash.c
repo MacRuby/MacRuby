@@ -30,9 +30,6 @@ rb_hash_freeze(VALUE hash)
 
 VALUE rb_cHash;
 VALUE rb_cCFHash;
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
-VALUE rb_cNSHash0;
-#endif
 VALUE rb_cNSHash;
 VALUE rb_cNSMutableHash;
 VALUE rb_cRubyHash;
@@ -311,6 +308,8 @@ rb_hash_new_fast(int argc, ...)
     return hash;
 }
 
+bool _CFDictionaryIsMutable(void *);
+
 static inline void
 rb_hash_modify_check(VALUE hash)
 {
@@ -320,7 +319,7 @@ rb_hash_modify_check(VALUE hash)
     }
     else {
 	mask = rb_objc_flag_get_mask((const void *)hash);
-	if (RHASH_IMMUTABLE(hash)) {
+	if (!_CFDictionaryIsMutable((void *)hash)) {
 	    mask |= FL_FREEZE;
 	}
     }
@@ -2850,13 +2849,8 @@ Init_Hash(void)
 
     rb_cCFHash = (VALUE)objc_getClass(NSCFDICTIONARY_CNAME);
     assert(rb_cCFHash != 0);
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
-    rb_cNSHash0 = (VALUE)objc_getClass("__NSDictionary0");
-#endif
-    rb_const_set(rb_cObject, rb_intern("NSCFDictionary"), rb_cCFHash);
     rb_cHash = rb_cNSHash = (VALUE)objc_getClass("NSDictionary");
     rb_cNSMutableHash = (VALUE)objc_getClass("NSMutableDictionary");
-    rb_set_class_path(rb_cNSMutableHash, rb_cObject, "NSMutableDictionary");
 
     rb_include_module(rb_cHash, rb_mEnumerable);
 

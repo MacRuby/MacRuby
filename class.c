@@ -215,11 +215,16 @@ rb_objc_create_class(const char *name, VALUE super)
     if (super == rb_cCFString) {
 	super = rb_cNSMutableString;
     }
-    else if (super == rb_cCFArray) {
-	super = rb_cNSMutableArray;
-    }
-    else if (super == rb_cCFHash) {
-	super = rb_cNSMutableHash;
+    else {
+	if (!RCLASS_RUBY(super)) {
+	    const long v = RCLASS_VERSION(super);
+	    if (v & RCLASS_IS_HASH_SUBCLASS) {
+		super = rb_cNSMutableHash;
+	    }
+	    else if (v & RCLASS_IS_ARRAY_SUBCLASS) {
+		super = rb_cNSMutableArray;
+	    }
+	}
     }
 
     klass = rb_objc_alloc_class(name, super, T_CLASS, rb_cClass);
@@ -286,9 +291,7 @@ rb_mod_init_copy(VALUE clone, SEL sel, VALUE orig)
 	VALUE super;
 	int version_flag;
 
-	if (orig == rb_cNSMutableString
-	    || orig == rb_cNSMutableArray
-	    || orig == rb_cNSMutableHash) {
+	if (!RCLASS_RUBY(orig)) {
 	    super = orig;
 	    rb_warn("cloning class `%s' is not supported, creating a " \
 		    "subclass instead", rb_class2name(orig));

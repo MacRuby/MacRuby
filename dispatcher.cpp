@@ -825,17 +825,7 @@ dispatch:
 		return RSTRING_IMMUTABLE(self)
 		    ? rb_cNSString : rb_cNSMutableString;
 	    }
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
-	    if (klass == (Class)rb_cCFArray || klass == (Class)rb_cNSArray0) {
-#else
-	    if (klass == (Class)rb_cCFArray) {
-#endif
-		return RARRAY_IMMUTABLE(self)
-		    ? rb_cNSArray : rb_cNSMutableArray;
-	    }
-	    if (klass == (Class)rb_cRubyArray) {
-		return rb_cNSMutableArray;
-	    }
+	    return rb_class_real((VALUE)klass);
 	}
 
 #if ROXOR_VM_DEBUG

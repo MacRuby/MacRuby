@@ -1134,54 +1134,21 @@ RUBY_EXTERN VALUE rb_cCFString;
 RUBY_EXTERN VALUE rb_cNSString;
 RUBY_EXTERN VALUE rb_cNSMutableString;
 RUBY_EXTERN VALUE rb_cCFArray;
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
-RUBY_EXTERN VALUE rb_cNSArray0; 
-#endif
 RUBY_EXTERN VALUE rb_cNSArray;
 RUBY_EXTERN VALUE rb_cNSMutableArray;
 RUBY_EXTERN VALUE rb_cRubyArray;
 RUBY_EXTERN VALUE rb_cCFHash;
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
-RUBY_EXTERN VALUE rb_cNSHash0; 
-#endif
 RUBY_EXTERN VALUE rb_cNSHash;
 RUBY_EXTERN VALUE rb_cNSMutableHash;
 RUBY_EXTERN VALUE rb_cRubyHash;
-RUBY_EXTERN VALUE rb_cCFSet;
-RUBY_EXTERN VALUE rb_cNSSet;
-RUBY_EXTERN VALUE rb_cNSMutableSet;
 RUBY_EXTERN VALUE rb_cCFNumber;
 RUBY_EXTERN VALUE rb_cBoxed;
 RUBY_EXTERN VALUE rb_cPointer;
 RUBY_EXTERN VALUE rb_cTopLevel;
 
-bool _CFArrayIsMutable(void *);
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
-# define RARRAY_IMMUTABLE(o) \
-    (*(VALUE *)o == rb_cCFArray \
-	? !_CFArrayIsMutable((void *)o) : *(VALUE *)o == rb_cNSArray0)
-#else
-# define RARRAY_IMMUTABLE(o) \
-    (*(VALUE *)o == rb_cCFArray ? !_CFArrayIsMutable((void *)o) : false)
-#endif
-
-bool _CFDictionaryIsMutable(void *);
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
-# define RHASH_IMMUTABLE(o) \
-    (*(VALUE *)o == rb_cCFHash \
-	? !_CFDictionaryIsMutable((void *)o) : *(VALUE *)o == rb_cNSHash0)
-#else
-# define RHASH_IMMUTABLE(o) \
-    (*(VALUE *)o == rb_cCFHash ? !_CFDictionaryIsMutable((void *)o) : false)
-#endif
-
 bool __CFStringIsMutable(void *);
 #define RSTRING_IMMUTABLE(o) \
     (*(VALUE *)o == rb_cCFString ? !__CFStringIsMutable((void *)o) : false)
-
-bool _CFSetIsMutable(void *);
-#define RSET_IMMUTABLE(o) \
-    (*(VALUE *)o == rb_cCFSet ? !_CFSetIsMutable((void *)o) : false)
 
 #endif
 
@@ -1355,14 +1322,10 @@ rb_type(VALUE obj)
 	if (k == (Class)rb_cCFString) {
 	    return T_STRING;
 	}
-	if (k == (Class)rb_cCFArray || k == (Class)rb_cRubyArray
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
-	    || k == (Class)rb_cNSArray0
-#endif
-	   ) {
+	if (k == (Class)rb_cRubyArray) {
 	    return T_ARRAY;
 	}
-	if (k == (Class)rb_cCFHash || k == (Class)rb_cRubyHash) {
+	if (k == (Class)rb_cRubyHash) {
 	    return T_HASH;
 	}
 	if (RCLASS_META(k)) {

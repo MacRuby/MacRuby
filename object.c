@@ -154,7 +154,8 @@ rb_class_real(VALUE cl)
         return 0;
     }
     if (RCLASS_META(cl)) {
-	return rb_cClass;
+//	return rb_cClass;
+	return RCLASS_MODULE(cl) ? rb_cModule : rb_cClass;
     }
     while (RCLASS_SINGLETON(cl)) {
 	cl = RCLASS_SUPER(cl);
@@ -162,8 +163,14 @@ rb_class_real(VALUE cl)
     if (cl == rb_cCFString) {
 	return rb_cNSMutableString;
     }
-    if (cl == rb_cCFArray || cl == rb_cRubyArray) {
-	return rb_cNSMutableArray;
+    if (!RCLASS_RUBY(cl)) {
+	const long v = RCLASS_VERSION(cl);
+	if (v & RCLASS_IS_HASH_SUBCLASS) {
+	    return rb_cRubyHash;
+	}
+	if (v & RCLASS_IS_ARRAY_SUBCLASS) {
+	    return rb_cRubyArray;
+	}
     }
     return cl;
 }
@@ -516,7 +523,9 @@ rb_obj_is_instance_of(VALUE obj, VALUE c)
 	rb_raise(rb_eTypeError, "class or module required");
     }
 
-    if (rb_obj_class(obj) == c) return Qtrue;
+    if (rb_obj_class(obj) == c) {
+	return Qtrue;
+    }
     return Qfalse;
 }
 
@@ -570,11 +579,19 @@ rb_obj_is_kind_of(VALUE obj, VALUE c)
 	  rb_raise(rb_eTypeError, "class or module required");
     }
 
+    const long v = RCLASS_VERSION(cl);
+    if (c == rb_cRubyArray && (v & RCLASS_IS_ARRAY_SUBCLASS)) {
+	return Qtrue;
+    }
+    if (c == rb_cRubyHash && (v & RCLASS_IS_HASH_SUBCLASS)) {
+	return Qtrue;
+    }
+
     if (RCLASS_META(cl)) {
 	is_module = true;
     }
 
-    while (cl) {
+    while (cl != 0) {
 	if (cl == c) {
 	    return Qtrue;
 	}
@@ -1935,13 +1952,6 @@ rb_obj_alloc_imp(VALUE klass, SEL sel)
 static inline VALUE
 rb_class_new_instance0(int argc, VALUE *argv, VALUE klass)
 {
-    if (klass == rb_cNSMutableArray) {
-	klass = rb_cRubyArray;
-    }
-    else if (klass == rb_cNSMutableHash) {
-	klass = rb_cRubyHash;
-    }
-
     VALUE obj = rb_obj_alloc0(klass);
 
     /* Because we cannot override +[NSObject initialize] */

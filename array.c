@@ -19,9 +19,6 @@
 
 VALUE rb_cArray;
 VALUE rb_cCFArray;
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
-VALUE rb_cNSArray0;
-#endif
 VALUE rb_cNSArray;
 VALUE rb_cNSMutableArray;
 VALUE rb_cRubyArray;
@@ -268,6 +265,8 @@ rb_mem_clear(register VALUE *mem, register long size)
     }
 }
 
+bool _CFArrayIsMutable(void *);
+
 static inline void
 __rb_ary_modify(VALUE ary)
 {
@@ -277,7 +276,7 @@ __rb_ary_modify(VALUE ary)
     }
     else {
 	mask = rb_objc_flag_get_mask((void *)ary);
-	if (RARRAY_IMMUTABLE(ary)) {
+	if (!_CFArrayIsMutable((void *)ary)) {
 	    mask |= FL_FREEZE;
 	}
     }
@@ -343,11 +342,10 @@ void rb_ary_insert(VALUE ary, long idx, VALUE val);
 static inline VALUE
 ary_alloc(VALUE klass)
 {
-    if ((klass == 0 || klass == rb_cRubyArray || klass == rb_cNSMutableArray)
-	    && rb_cRubyArray != 0) {
+    if (rb_cRubyArray != 0 && (klass == 0 || __is_rary(klass))) {
 	NEWOBJ(ary, rb_ary_t);
 	ary->basic.flags = 0;
-	ary->basic.klass = rb_cRubyArray;
+	ary->basic.klass = klass == 0 ? rb_cRubyArray : klass;
         ary->beg = ary->len = ary->cap = 0;
 	ary->elements = NULL;
 	return (VALUE)ary;
@@ -632,7 +630,7 @@ rb_ary_s_try_convert(VALUE dummy, SEL sel, VALUE ary)
 static VALUE
 rb_ary_initialize(VALUE ary, SEL sel, int argc, VALUE *argv)
 {
-    ary = (VALUE)objc_msgSend((id)ary, selInit);
+    //ary = (VALUE)objc_msgSend((id)ary, selInit);
 
     if (argc ==  0) {
 	if (rb_block_given_p()) {
@@ -1625,16 +1623,15 @@ rb_ary_dup(VALUE ary)
 {
     VALUE dup;
 
-    if (rb_obj_is_kind_of(ary, rb_cRubyArray)) {
+    if (IS_RARY(ary)) {
 	dup = rb_ary_new();
 	rary_concat(RARY(dup), RARY(ary), 0, RARY(ary)->len);
+	*(VALUE *)dup = *(VALUE *)ary;
     }
     else {
 	dup = (VALUE)CFArrayCreateMutableCopy(NULL, 0, (CFArrayRef)ary);
 	CFMakeCollectable((CFMutableArrayRef)dup);
     }
-
-    *(VALUE *)dup = *(VALUE *)ary;
 
     if (OBJ_TAINTED(ary)) {
 	OBJ_TAINT(dup);
@@ -4283,14 +4280,9 @@ Init_Array(void)
 {
     rb_cCFArray = (VALUE)objc_getClass(NSCFARRAY_CNAME);
     assert(rb_cCFArray != 0);
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
-    rb_cNSArray0 = (VALUE)objc_getClass("__NSArray0");
-#endif
     rb_const_set(rb_cObject, rb_intern("NSCFArray"), rb_cCFArray);
     rb_cArray = rb_cNSArray = (VALUE)objc_getClass("NSArray");
     rb_cNSMutableArray = (VALUE)objc_getClass("NSMutableArray");
-    rb_set_class_path(rb_cNSMutableArray, rb_cObject, "NSMutableArray");
-    rb_const_set(rb_cObject, rb_intern("Array"), rb_cNSMutableArray);
 
     rb_include_module(rb_cArray, rb_mEnumerable);
 
@@ -4397,7 +4389,9 @@ Init_Array(void)
     rb_objc_define_method(rb_cArray, "dup", rb_ary_dup_imp, 0);
     rb_objc_define_method(rb_cArray, "clone", rb_ary_clone, 0);
 
-    rb_cRubyArray = rb_define_class("RubyArray", rb_cNSMutableArray);
+    rb_cRubyArray = rb_define_class("Array", rb_cNSMutableArray);
+    rb_objc_define_method(*(VALUE *)rb_cRubyArray, "new",
+	    rb_class_new_instance_imp, -1);
     rb_objc_define_method(*(VALUE *)rb_cRubyArray, "alloc", ary_alloc, 0);
     rb_objc_install_method2((Class)rb_cRubyArray, "count", (IMP)imp_rary_count);
     rb_objc_install_method2((Class)rb_cRubyArray, "objectAtIndex:",

@@ -181,12 +181,6 @@ class2path(VALUE klass)
     else if (klass == rb_cNSMutableString) {
 	path = rb_str_new2("String");
     }
-    else if (klass == rb_cNSMutableArray) {
-	path = rb_str_new2("Array");
-    }
-    else if (klass == rb_cNSMutableHash) {
-	path = rb_str_new2("Hash");
-    }
     else {
 	path = rb_class_path(klass);
     }
