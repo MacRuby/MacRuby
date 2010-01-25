@@ -21,6 +21,8 @@
 #include "id.h"
 #include "vm.h"
 #include <libkern/OSAtomic.h>
+ #include <syslog.h>
+ #include <stdarg.h>
 
 // TODO: These structures need to be wrapped in a Data struct,
 // otherwise there are crashes when one tries to add an instance
@@ -305,16 +307,20 @@ static void
 rb_queue_finalize(void *rcv, SEL sel)
 {
     rb_queue_t *queue = RQueue(rcv);
-    OSSpinLockLock(&_suspensionLock);
-    while (queue->suspension_count > 0) {
-        queue->suspension_count--;
-        dispatch_resume(queue->queue);
+    if (queue->queue != NULL) 
+    {
+        OSSpinLockLock(&_suspensionLock);
+        while (queue->suspension_count > 0) {
+            syslog(LOG_WARNING, "Finalizing a suspended queue.");
+            queue->suspension_count--;
+            dispatch_resume(queue->queue);
+        }
+        if (queue->should_release_queue) {
+            dispatch_release(queue->queue);
+            queue->should_release_queue = 0;
+        }        
+        OSSpinLockUnlock(&_suspensionLock);
     }
-    if (queue->should_release_queue) {
-        dispatch_release(queue->queue);
-        queue->should_release_queue = 0;
-    }
-    OSSpinLockUnlock(&_suspensionLock);
     if (rb_queue_finalize_super != NULL) {
         ((void(*)(void *, SEL))rb_queue_finalize_super)(rcv, sel);
     }
@@ -971,14 +977,16 @@ static void
 rb_source_finalize(void *rcv, SEL sel)
 {
     rb_source_t *src = RSource(rcv);
-    assert(src->source != NULL);
-    OSSpinLockLock(&_suspensionLock);    
-    while (src->suspension_count > 0) {
-        src->suspension_count--;
-        dispatch_resume(src->source);
+    if (src->source != NULL) {
+        OSSpinLockLock(&_suspensionLock);    
+        while (src->suspension_count > 0) {
+            syslog(LOG_WARNING, "Finalizing a suspended source.");
+            src->suspension_count--;
+            dispatch_resume(src->source);
+        }
+        dispatch_release(src->source);
+        OSSpinLockUnlock(&_suspensionLock);            
     }
-    dispatch_release(src->source);
-    OSSpinLockUnlock(&_suspensionLock);    
     if (rb_source_finalize_super != NULL) {
         ((void(*)(void *, SEL))rb_source_finalize_super)(rcv, sel);
     }
@@ -1080,14 +1088,18 @@ static IMP rb_semaphore_finalize_super;
 static void
 rb_semaphore_finalize(void *rcv, SEL sel)
 {
+    BOOL is_unbalanced = false;
     if (RSemaphore(rcv)->sem != NULL) {
-	// We must re-equilibrate the semaphore count before releasing it,
-	// otherwise GCD will violently crash the program by an assertion.
-	while (dispatch_semaphore_signal(RSemaphore(rcv)->sem) != 0) { }
-	while (--RSemaphore(rcv)->count >= 0) {
-	    dispatch_semaphore_signal(RSemaphore(rcv)->sem);
-	}
-	dispatch_release(RSemaphore(rcv)->sem);
+    	while (dispatch_semaphore_signal(RSemaphore(rcv)->sem) != 0) {
+            is_unbalanced = true;
+    	}
+    	while (--RSemaphore(rcv)->count >= 0) {
+    	    dispatch_semaphore_signal(RSemaphore(rcv)->sem);
+    	}
+    	if (is_unbalanced == true) {
+            syslog(LOG_WARNING, "Finalizing a waiting Dispatch::Semaphore.");
+        }
+	    dispatch_release(RSemaphore(rcv)->sem);
     }
     if (rb_semaphore_finalize_super != NULL) {
         ((void(*)(void *, SEL))rb_semaphore_finalize_super)(rcv, sel);
@@ -1306,6 +1318,8 @@ Init_Dispatch(void)
 /* Constants for future reference */
     selClose = sel_registerName("close");
     assert(selClose != NULL);
+    
+    openlog("macruby.gcd", LOG_PERROR, 0); // 0, 0);
 }
 
 
