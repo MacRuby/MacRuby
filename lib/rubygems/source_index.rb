@@ -4,12 +4,14 @@
 # See LICENSE.txt for permissions.
 #++
 
-require 'rubygems'
 require 'rubygems/user_interaction'
 require 'rubygems/specification'
+
+# :stopdoc:
 module Gem
-  autoload(:SpecFetcher, 'rubygems/spec_fetcher')
+  autoload :SpecFetcher, 'rubygems/spec_fetcher'
 end
+# :startdoc:
 
 ##
 # The SourceIndex object indexes all the gems available from a
@@ -81,13 +83,15 @@ class Gem::SourceIndex
     # loaded spec.
 
     def load_specification(file_name)
-      begin
-        spec_code = if RUBY_VERSION < '1.9' then
-                      File.read file_name
-                    else
-                      File.read file_name, :encoding => 'UTF-8'
-                    end.untaint
+      return nil unless file_name and File.exist? file_name
 
+      spec_code = if RUBY_VERSION < '1.9' then
+                    File.read file_name
+                  else
+                    File.read file_name, :encoding => 'UTF-8'
+                  end.untaint
+
+      begin
         gemspec = eval spec_code, binding, file_name
 
         if gemspec.is_a?(Gem::Specification)
@@ -104,21 +108,36 @@ class Gem::SourceIndex
         alert_warning "#{e.inspect}\n#{spec_code}"
         alert_warning "Invalid .gemspec format in '#{file_name}'"
       end
+
       return nil
     end
 
   end
 
   ##
-  # Constructs a source index instance from the provided
-  # specifications
-  #
-  # specifications::
-  #   [Hash] hash of [Gem name, Gem::Specification] pairs
+  # Constructs a source index instance from the provided specifications, which
+  # is a Hash of gem full names and Gem::Specifications.
+  #--
+  # TODO merge @gems and @prerelease_gems and provide a separate method
+  # #prerelease_gems
 
   def initialize(specifications={})
-    @gems = specifications
+    @gems = {}
+    specifications.each{ |full_name, spec| add_spec spec }
     @spec_dirs = nil
+  end
+
+  # TODO: remove method
+  def all_gems
+    @gems
+  end
+
+  def prerelease_gems
+    @gems.reject{ |name, gem| !gem.version.prerelease? }
+  end
+
+  def released_gems
+    @gems.reject{ |name, gem| gem.version.prerelease? }
   end
 
   ##
@@ -140,8 +159,8 @@ class Gem::SourceIndex
   end
 
   ##
-  # Returns an Array specifications for the latest versions of each gem in
-  # this index.
+  # Returns an Array specifications for the latest released versions
+  # of each gem in this index.
 
   def latest_specs
     result = Hash.new { |h,k| h[k] = [] }
@@ -152,6 +171,7 @@ class Gem::SourceIndex
       curr_ver = spec.version
       prev_ver = latest.key?(name) ? latest[name].version : nil
 
+      next if curr_ver.prerelease?
       next unless prev_ver.nil? or curr_ver >= prev_ver or
                   latest[name].platform != Gem::Platform::RUBY
 
@@ -170,14 +190,32 @@ class Gem::SourceIndex
       result[name] << spec
     end
 
+    # TODO: why is this a hash while @gems is an array? Seems like
+    # structural similarity would be good.
     result.values.flatten
+  end
+
+  ##
+  # An array including only the prerelease gemspecs
+
+  def prerelease_specs
+    prerelease_gems.values
+  end
+
+  ##
+  # An array including only the released gemspecs
+
+  def released_specs
+    released_gems.values
   end
 
   ##
   # Add a gem specification to the source index.
 
-  def add_spec(gem_spec)
-    @gems[gem_spec.full_name] = gem_spec
+  def add_spec(gem_spec, name = gem_spec.full_name)
+    # No idea why, but the Indexer wants to insert them using original_name
+    # instead of full_name. So we make it an optional arg.
+    @gems[name] = gem_spec
   end
 
   ##
@@ -193,7 +231,7 @@ class Gem::SourceIndex
   # Remove a gem specification named +full_name+.
 
   def remove_spec(full_name)
-    @gems.delete(full_name)
+    @gems.delete full_name
   end
 
   ##
@@ -238,7 +276,7 @@ class Gem::SourceIndex
   # Find a gem by an exact match on the short name.
 
   def find_name(gem_name, version_requirement = Gem::Requirement.default)
-    dep = Gem::Dependency.new(/^#{gem_name}$/, version_requirement)
+    dep = Gem::Dependency.new gem_name, version_requirement
     search dep
   end
 
@@ -257,7 +295,7 @@ class Gem::SourceIndex
 
     # TODO - Remove support and warning for legacy arguments after 2008/11
     unless Gem::Dependency === gem_pattern
-      warn "#{Gem.location_of_caller.join ':'}:Warning: Gem::SourceIndex#search support for #{gem_pattern.class} patterns is deprecated"
+      warn "#{Gem.location_of_caller.join ':'}:Warning: Gem::SourceIndex#search support for #{gem_pattern.class} patterns is deprecated, use #find_name"
     end
 
     case gem_pattern
@@ -282,7 +320,7 @@ class Gem::SourceIndex
       version_requirement = Gem::Requirement.create version_requirement
     end
 
-    specs = @gems.values.select do |spec|
+    specs = all_gems.values.select do |spec|
       spec.name =~ gem_pattern and
         version_requirement.satisfied_by? spec.version
     end
@@ -545,15 +583,15 @@ class Gem::SourceIndex
 
 end
 
+# :stopdoc:
 module Gem
 
-  # :stopdoc:
-
+  ##
   # Cache is an alias for SourceIndex to allow older YAMLized source index
   # objects to load properly.
+
   Cache = SourceIndex
 
-  # :startdoc:
-
 end
+# :startdoc:
 
