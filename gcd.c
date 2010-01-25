@@ -85,6 +85,8 @@ typedef struct {
 
 #define RSemaphore(val) ((rb_semaphore_t*)val)
 
+static dispatch_queue_t q_suspender;
+
 static VALUE mDispatch;
 
 // queue stuff
@@ -289,7 +291,6 @@ rb_queue_initialize(VALUE self, SEL sel, VALUE name)
     StringValue(name);
 
     rb_queue_t *queue = RQueue(self);
-    queue->suspension_count = 0;
     queue->should_release_queue = 1;
     queue->queue = dispatch_queue_create(RSTRING_PTR(name), NULL);
     assert(queue->queue != NULL);
@@ -303,14 +304,16 @@ static void
 rb_queue_finalize(void *rcv, SEL sel)
 {
     rb_queue_t *queue = RQueue(rcv);
-    while (queue->suspension_count < 0) {
-        dispatch_resume(queue->queue);
-        queue->suspension_count--;
-    }
-    if (queue->should_release_queue) {
-        dispatch_release(queue->queue);
-        queue->should_release_queue = 0;
-    }
+    dispatch_sync(q_suspender, ^{
+        while (queue->suspension_count > 0) {
+            queue->suspension_count--;
+            dispatch_resume(queue->queue);
+        }
+        if (queue->should_release_queue) {
+            dispatch_release(queue->queue);
+            queue->should_release_queue = 0;
+        }
+    });
     if (rb_queue_finalize_super != NULL) {
         ((void(*)(void *, SEL))rb_queue_finalize_super)(rcv, sel);
     }
@@ -528,7 +531,7 @@ static VALUE
 rb_dispatch_suspend(VALUE self, SEL sel)
 {
     rb_dispatch_obj_t *dobj = RDispatch(self);
-    dobj->suspension_count++;
+    dispatch_sync(q_suspender, ^{ dobj->suspension_count++; });
     dispatch_suspend(dobj->obj);
     return Qnil;
 }
@@ -552,10 +555,12 @@ static VALUE
 rb_dispatch_resume(VALUE self, SEL sel)
 {
     rb_dispatch_obj_t *dobj = RDispatch(self);
-    if (dobj->suspension_count > 0) {
-        dobj->suspension_count--;
-        dispatch_resume(dobj->obj);
-    }
+    dispatch_sync(q_suspender, ^{    
+        if (dobj->suspension_count > 0) {
+            dobj->suspension_count--;
+            dispatch_resume(dobj->obj);
+        }
+    };
     return Qnil;
 }
 
@@ -963,13 +968,14 @@ static void
 rb_source_finalize(void *rcv, SEL sel)
 {
     rb_source_t *src = RSource(rcv);
-    if (src->source != NULL) {
-        while (src->suspension_count < 0) {
-            dispatch_resume(src->source);
+    assert(src->source != NULL);
+    dispatch_sync(q_suspender, ^{
+        while (src->suspension_count > 0) {
             src->suspension_count--;
+            dispatch_resume(src->source);
         }
         dispatch_release(src->source);
-    }
+    });
     if (rb_source_finalize_super != NULL) {
         ((void(*)(void *, SEL))rb_source_finalize_super)(rcv, sel);
     }
@@ -1297,6 +1303,9 @@ Init_Dispatch(void)
 /* Constants for future reference */
     selClose = sel_registerName("close");
     assert(selClose != NULL);
+    
+    q_suspender = dispatch_queue_create("macruby.gcd.suspension_count", NULL);
+    assert(q_suspender != NULL);
 }
 
 
