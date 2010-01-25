@@ -20,6 +20,7 @@
 #include "objc.h"
 #include "id.h"
 #include "vm.h"
+#include <libkern/OSAtomic.h>
 
 // TODO: These structures need to be wrapped in a Data struct,
 // otherwise there are crashes when one tries to add an instance
@@ -85,7 +86,7 @@ typedef struct {
 
 #define RSemaphore(val) ((rb_semaphore_t*)val)
 
-static dispatch_queue_t q_suspender;
+static OSSpinLock _suspensionLock = 0;
 
 static VALUE mDispatch;
 
@@ -304,16 +305,16 @@ static void
 rb_queue_finalize(void *rcv, SEL sel)
 {
     rb_queue_t *queue = RQueue(rcv);
-    dispatch_sync(q_suspender, ^{
-        while (queue->suspension_count > 0) {
-            queue->suspension_count--;
-            dispatch_resume(queue->queue);
-        }
-        if (queue->should_release_queue) {
-            dispatch_release(queue->queue);
-            queue->should_release_queue = 0;
-        }
-    });
+    OSSpinLockLock(&_suspensionLock);
+    while (queue->suspension_count > 0) {
+        queue->suspension_count--;
+        dispatch_resume(queue->queue);
+    }
+    if (queue->should_release_queue) {
+        dispatch_release(queue->queue);
+        queue->should_release_queue = 0;
+    }
+    OSSpinLockUnlock(&_suspensionLock);
     if (rb_queue_finalize_super != NULL) {
         ((void(*)(void *, SEL))rb_queue_finalize_super)(rcv, sel);
     }
@@ -531,7 +532,9 @@ static VALUE
 rb_dispatch_suspend(VALUE self, SEL sel)
 {
     rb_dispatch_obj_t *dobj = RDispatch(self);
-    dispatch_sync(q_suspender, ^{ dobj->suspension_count++; });
+    OSSpinLockLock(&_suspensionLock);
+    dobj->suspension_count++;
+    OSSpinLockUnlock(&_suspensionLock);    
     dispatch_suspend(dobj->obj);
     return Qnil;
 }
@@ -555,12 +558,12 @@ static VALUE
 rb_dispatch_resume(VALUE self, SEL sel)
 {
     rb_dispatch_obj_t *dobj = RDispatch(self);
-    dispatch_sync(q_suspender, ^{    
-        if (dobj->suspension_count > 0) {
-            dobj->suspension_count--;
-            dispatch_resume(dobj->obj);
-        }
-    };
+    OSSpinLockLock(&_suspensionLock);
+    if (dobj->suspension_count > 0) {
+        dobj->suspension_count--;
+        dispatch_resume(dobj->obj);
+    }
+    OSSpinLockUnlock(&_suspensionLock);    
     return Qnil;
 }
 
@@ -969,13 +972,13 @@ rb_source_finalize(void *rcv, SEL sel)
 {
     rb_source_t *src = RSource(rcv);
     assert(src->source != NULL);
-    dispatch_sync(q_suspender, ^{
-        while (src->suspension_count > 0) {
-            src->suspension_count--;
-            dispatch_resume(src->source);
-        }
-        dispatch_release(src->source);
-    });
+    OSSpinLockLock(&_suspensionLock);    
+    while (src->suspension_count > 0) {
+        src->suspension_count--;
+        dispatch_resume(src->source);
+    }
+    dispatch_release(src->source);
+    OSSpinLockUnlock(&_suspensionLock);    
     if (rb_source_finalize_super != NULL) {
         ((void(*)(void *, SEL))rb_source_finalize_super)(rcv, sel);
     }
@@ -1303,9 +1306,6 @@ Init_Dispatch(void)
 /* Constants for future reference */
     selClose = sel_registerName("close");
     assert(selClose != NULL);
-    
-    q_suspender = dispatch_queue_create("macruby.gcd.suspension_count", NULL);
-    assert(q_suspender != NULL);
 }
 
 
