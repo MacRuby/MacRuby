@@ -253,6 +253,20 @@ class Gem::RemoteFetcher
   # read from the filesystem instead.
 
   def open_uri_or_path(uri, last_modified = nil, head = false, depth = 0)
+    if RUBY_ENGINE == 'macruby'
+      # XXX we are taking a _much faster_ code path here, this change should be
+      # removed once we re-implement the IO subsystem (and therefore Net::HTTP)
+      # on top of CF.
+      framework 'Foundation'
+      url = NSURL.URLWithString(uri.to_s)
+      data = NSMutableData.dataWithContentsOfURL(url)
+      if data.nil?
+        raise Gem::RemoteFetcher::FetchError, "error when fetching data from #{uri}"
+      end
+      string = String.__new_bytestring__(data)
+      #block.call(string) if block
+      return string
+    end
     raise "block is dead" if block_given?
 
     uri = URI.parse uri unless URI::Generic === uri

@@ -1123,9 +1123,10 @@ end
 
 require 'rubygems/config_file'
 
-if RUBY_VERSION < '1.9' then
+# MacRuby requires this hack as we can't load the gem_prelude.rb file yet.
+# if RUBY_VERSION < '1.9' then
   require 'rubygems/custom_require'
-end
+# end
 
 Gem.clear_paths
 
