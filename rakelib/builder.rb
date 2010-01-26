@@ -36,6 +36,7 @@ NO_WARN_BUILD = !do_option('allow_build_warnings', false)
 ENABLE_STATIC_LIBRARY = do_option('enable_static_library', 'no') { 'yes' }
 ENABLE_DEBUG_LOGGING = do_option('enable_debug_logging', true) { |x| x == 'true' }
 UNEXPORTED_SYMBOLS_LIST = do_option('unexported_symbols_list', nil)
+SIMULTANEOUS_JOBS = do_option('jobs', 1) { |x| x.to_i }
 
 # Everything below this comment should *not* be modified.
 
@@ -126,15 +127,15 @@ OBJS_CFLAGS = {
 
 class Builder
   # Runs the given array of +commands+ in parallel. The amount of spawned
-  # simultaneous jobs is determined by the `j' env variable and defaults to 1.
+  # simultaneous jobs is determined by the `jobs' env variable. The default
+  # value is 1.
   #
   # When the members of the +commands+ array are in turn arrays of strings,
   # then those commands will be executed in consecutive order.
   def self.parallel_execute(commands)
-    @jobs ||= ENV['j'] ? ENV['j'].to_i : 1
     commands = commands.dup
 
-    Array.new(@jobs) do |i|
+    Array.new(SIMULTANEOUS_JOBS) do |i|
       Thread.new do
         while c = commands.shift
           Array(c).each { |command| sh(command) }
