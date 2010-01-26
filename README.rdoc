@@ -47,6 +47,10 @@ You can build MacRuby by doing the following command:
 
   $ rake
 
+Or, as with LLVM, you can specify the amount of jobs to run simultaneously:
+
+  $ rake jobs=2
+
 Once done, you can run the RubySpec-based regression tests as well as the
 performance suite:
 
