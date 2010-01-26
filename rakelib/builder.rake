@@ -399,17 +399,33 @@ AOT_STDLIB = [
   'lib/yaml/rubytypes.rb',
 ]
 namespace :stdlib do
-  desc "AOT compile the stdlib"
-  task :build => [:miniruby, 'macruby:dylib'] do
-    AOT_STDLIB.each do |pat|
-      Dir.glob(pat).each do |path|
-        out = File.join(File.dirname(path), File.basename(path, '.rb') + '.rbo')
-        if !File.exist?(out) or File.mtime(path) > File.mtime(out) or File.mtime('./miniruby') > File.mtime(out)
-          archf = ARCHS.map { |x| "--arch #{x}" }.join(' ')
-          sh "./miniruby -I. -I./lib bin/rubyc --internal #{archf} -C \"#{path}\" -o \"#{out}\""
+  # Runs the given array of +commands+ in parallel. The amount of spawned
+  # simultaneous jobs is determined by the `j' env variable and defaults to 1.
+  def parallel_execute(commands)
+    @jobs ||= ENV['j'] ? ENV['j'].to_i : 1
+    commands = commands.dup
+    
+    Array.new(@jobs) do
+      Thread.new do
+        while command = commands.shift
+          sh command
         end
       end
-    end
+    end.each { |t| t.join }
+  end
+  
+  desc "AOT compile the stdlib"
+  task :build => [:miniruby, 'macruby:dylib'] do
+    archf = ARCHS.map { |x| "--arch #{x}" }.join(' ')
+    commands = AOT_STDLIB.map do |pattern|
+      Dir.glob(pattern).map do |path|
+        out = File.join(File.dirname(path), File.basename(path, '.rb') + '.rbo')
+        if !File.exist?(out) or File.mtime(path) > File.mtime(out) or File.mtime('./miniruby') > File.mtime(out)
+          "./miniruby -I. -I./lib bin/rubyc --internal #{archf} -C \"#{path}\" -o \"#{out}\""
+        end
+      end
+    end.flatten.compact
+    parallel_execute(commands)
   end
 
   desc "Touch .rbo files to ignore their build"
