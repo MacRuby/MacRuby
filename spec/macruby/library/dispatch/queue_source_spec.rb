@@ -1,5 +1,5 @@
 require File.dirname(__FILE__) + "/../../spec_helper"
-require File.dirname(__FILE__) + "/../../../../gcd_prelude"
+require 'dispatch'
 
 if MACOSX_VERSION >= 10.6
 
