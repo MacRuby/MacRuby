@@ -399,21 +399,6 @@ AOT_STDLIB = [
   'lib/yaml/rubytypes.rb',
 ]
 namespace :stdlib do
-  # Runs the given array of +commands+ in parallel. The amount of spawned
-  # simultaneous jobs is determined by the `j' env variable and defaults to 1.
-  def parallel_execute(commands)
-    @jobs ||= ENV['j'] ? ENV['j'].to_i : 1
-    commands = commands.dup
-    
-    Array.new(@jobs) do
-      Thread.new do
-        while command = commands.shift
-          sh command
-        end
-      end
-    end.each { |t| t.join }
-  end
-  
   desc "AOT compile the stdlib"
   task :build => [:miniruby, 'macruby:dylib'] do
     archf = ARCHS.map { |x| "--arch #{x}" }.join(' ')
@@ -425,7 +410,7 @@ namespace :stdlib do
         end
       end
     end.flatten.compact
-    parallel_execute(commands)
+    Builder.parallel_execute(commands)
   end
 
   desc "Touch .rbo files to ignore their build"

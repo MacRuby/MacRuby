@@ -124,6 +124,24 @@ OBJS_CFLAGS = {
 }
 
 class Builder
+  # Runs the given array of +commands+ in parallel. The amount of spawned
+  # simultaneous jobs is determined by the `j' env variable and defaults to 1.
+  #
+  # When the members of the +commands+ array are in turn arrays of strings,
+  # then those commands will be executed in consecutive order.
+  def self.parallel_execute(commands)
+    @jobs ||= ENV['j'] ? ENV['j'].to_i : 1
+    commands = commands.dup
+
+    Array.new(@jobs) do |i|
+      Thread.new do
+        while c = commands.shift
+          Array(c).each { |command| sh(command) }
+        end
+      end
+    end.each { |t| t.join }
+  end
+
   attr_reader :objs, :cflags, :cxxflags
   attr_accessor :objc_cflags, :ldflags, :dldflags
 
