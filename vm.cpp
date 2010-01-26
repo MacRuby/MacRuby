@@ -30,6 +30,7 @@
 #include <llvm/Target/TargetSelect.h>
 #include <llvm/Transforms/Scalar.h>
 #include <llvm/Support/raw_ostream.h>
+#include <llvm/Support/PrettyStackTrace.h> // Including PST to disable it
 #include <llvm/Intrinsics.h>
 #include <llvm/Bitcode/ReaderWriter.h>
 #if LLVM_TOT
@@ -1097,6 +1098,67 @@ rb_vm_set_rand_seed(VALUE rand_seed)
 	core->set_rand_seed(rand_seed);
     }
     core->unlock();
+}
+
+VALUE
+RoxorCore::trap_cmd_for_signal(int signal)
+{
+    VALUE     trap;
+
+    this->lock();
+    trap = this->trap_cmd[signal];
+    this->unlock();
+
+    return trap;
+}
+
+extern "C"
+VALUE
+rb_vm_trap_cmd_for_signal(int signal)
+{
+    return GET_CORE()->trap_cmd_for_signal(signal);
+}
+
+int
+RoxorCore::trap_level_for_signal(int signal)
+{
+    VALUE     trap;
+
+    this->lock();
+    trap = this->trap_level[signal];
+    this->unlock();
+
+    return trap;
+}
+
+extern "C"
+int
+rb_vm_trap_level_for_signal(int signal)
+{
+    return GET_CORE()->trap_level_for_signal(signal);
+}
+
+void
+RoxorCore::set_trap_for_signal(VALUE trap, int level, int signal)
+{
+    VALUE     oldtrap;
+
+    this->lock();
+    oldtrap = this->trap_cmd[signal];
+    if (oldtrap != trap) {
+	GC_RELEASE(oldtrap);
+	GC_RETAIN(trap);
+	this->trap_cmd[signal] = trap;
+	this->trap_level[signal] = level;
+    }
+    this->unlock();
+}
+
+extern "C"
+void
+rb_vm_set_trap_for_signal(VALUE trap, int level, int signal)
+{
+    GET_CORE()->set_trap_for_signal(trap, level, signal);
 }
 
 extern "C"
@@ -4763,6 +4825,8 @@ Init_PreVM(void)
 {
     llvm::DwarfExceptionHandling = true; // required!
     llvm::JITEmitDebugInfo = true;
+    // because pretty stack trace uses signal handling and thus breaks ours
+    llvm::DisablePrettyStackTrace = true;
 
     RoxorCompiler::module = new llvm::Module("Roxor", getGlobalContext());
     RoxorCompiler::module->setTargetTriple(TARGET_TRIPLE);

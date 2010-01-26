@@ -20,163 +20,68 @@
 #include "vm.h"
 #include <signal.h>
 #include <stdio.h>
+#include <dispatch/dispatch.h>
+#include <dispatch/queue.h>
 
-#ifdef __BEOS__
-#undef SIGBUS
-#endif
+#define USE_DEFAULT_HANDLER (void (*)(int))-1
 
-#if defined HAVE_SIGPROCMASK || defined HAVE_SIGSETMASK
-#define USE_TRAP_MASK 1
-#else
-#define USE_TRAP_MASK 0
-#endif
-
-#ifndef NSIG
-# ifdef DJGPP
-#  define NSIG SIGMAX
-# else
-#  define NSIG (_SIGMAX + 1)      /* For QNX */
-# endif
-#endif
+static RETSIGTYPE sighandler(int sig);
 
 static const struct signals {
     const char *signm;
     int  signo;
 } siglist [] = {
-    {"EXIT", 0},
-#ifdef SIGHUP
-    {"HUP", SIGHUP},
-#endif
-    {"INT", SIGINT},
-#ifdef SIGQUIT
-    {"QUIT", SIGQUIT},
-#endif
-#ifdef SIGILL
-    {"ILL", SIGILL},
-#endif
-#ifdef SIGTRAP
-    {"TRAP", SIGTRAP},
-#endif
-#ifdef SIGIOT
-    {"IOT", SIGIOT},
-#endif
-#ifdef SIGABRT
-    {"ABRT", SIGABRT},
-#endif
-#ifdef SIGEMT
-    {"EMT", SIGEMT},
-#endif
-#ifdef SIGFPE
-    {"FPE", SIGFPE},
-#endif
-#ifdef SIGKILL
-    {"KILL", SIGKILL},
-#endif
-#ifdef SIGBUS
-    {"BUS", SIGBUS},
-#endif
-#ifdef SIGSEGV
-    {"SEGV", SIGSEGV},
-#endif
-#ifdef SIGSYS
-    {"SYS", SIGSYS},
-#endif
-#ifdef SIGPIPE
-    {"PIPE", SIGPIPE},
-#endif
-#ifdef SIGALRM
-    {"ALRM", SIGALRM},
-#endif
-#ifdef SIGTERM
-    {"TERM", SIGTERM},
-#endif
-#ifdef SIGURG
-    {"URG", SIGURG},
-#endif
-#ifdef SIGSTOP
-    {"STOP", SIGSTOP},
-#endif
-#ifdef SIGTSTP
-    {"TSTP", SIGTSTP},
-#endif
-#ifdef SIGCONT
-    {"CONT", SIGCONT},
-#endif
-#ifdef SIGCHLD
-    {"CHLD", SIGCHLD},
-#endif
-#ifdef SIGCLD
-    {"CLD", SIGCLD},
-#else
-# ifdef SIGCHLD
-    {"CLD", SIGCHLD},
-# endif
-#endif
-#ifdef SIGTTIN
-    {"TTIN", SIGTTIN},
-#endif
-#ifdef SIGTTOU
-    {"TTOU", SIGTTOU},
-#endif
-#ifdef SIGIO
-    {"IO", SIGIO},
-#endif
-#ifdef SIGXCPU
-    {"XCPU", SIGXCPU},
-#endif
-#ifdef SIGXFSZ
-    {"XFSZ", SIGXFSZ},
-#endif
-#ifdef SIGVTALRM
+    {"EXIT",   0},
+    {"HUP",    SIGHUP},
+    {"INT",    SIGINT},
+    {"QUIT",   SIGQUIT},
+    {"ILL",    SIGILL},
+    {"TRAP",   SIGTRAP},
+    {"IOT",    SIGIOT},
+    {"ABRT",   SIGABRT},
+    {"EMT",    SIGEMT},
+    {"FPE",    SIGFPE},
+    {"KILL",   SIGKILL},
+    {"BUS",    SIGBUS},
+    {"SEGV",   SIGSEGV},
+    {"SYS",    SIGSYS},
+    {"PIPE",   SIGPIPE},
+    {"ALRM",   SIGALRM},
+    {"TERM",   SIGTERM},
+    {"URG",    SIGURG},
+    {"STOP",   SIGSTOP},
+    {"TSTP",   SIGTSTP},
+    {"CONT",   SIGCONT},
+    {"CHLD",   SIGCHLD},
+    {"CLD",    SIGCHLD},
+    {"TTIN",   SIGTTIN},
+    {"TTOU",   SIGTTOU},
+    {"IO",     SIGIO},
+    {"XCPU",   SIGXCPU},
+    {"XFSZ",   SIGXFSZ},
     {"VTALRM", SIGVTALRM},
-#endif
-#ifdef SIGPROF
-    {"PROF", SIGPROF},
-#endif
-#ifdef SIGWINCH
-    {"WINCH", SIGWINCH},
-#endif
-#ifdef SIGUSR1
-    {"USR1", SIGUSR1},
-#endif
-#ifdef SIGUSR2
-    {"USR2", SIGUSR2},
-#endif
-#ifdef SIGLOST
-    {"LOST", SIGLOST},
-#endif
-#ifdef SIGMSG
-    {"MSG", SIGMSG},
-#endif
-#ifdef SIGPWR
-    {"PWR", SIGPWR},
-#endif
-#ifdef SIGPOLL
-    {"POLL", SIGPOLL},
-#endif
-#ifdef SIGDANGER
-    {"DANGER", SIGDANGER},
-#endif
-#ifdef SIGMIGRATE
-    {"MIGRATE", SIGMIGRATE},
-#endif
-#ifdef SIGPRE
-    {"PRE", SIGPRE},
-#endif
-#ifdef SIGGRANT
-    {"GRANT", SIGGRANT},
-#endif
-#ifdef SIGRETRACT
-    {"RETRACT", SIGRETRACT},
-#endif
-#ifdef SIGSOUND
-    {"SOUND", SIGSOUND},
-#endif
-#ifdef SIGINFO
-    {"INFO", SIGINFO},
-#endif
+    {"PROF",   SIGPROF},
+    {"WINCH",  SIGWINCH},
+    {"INFO",   SIGINFO},
+    {"USR1",   SIGUSR1},
+    {"USR2",   SIGUSR2},
     {NULL, 0}
 };
+
+static const struct trap_handlers {
+    const char   *command;
+    VALUE        new_cmd_value;
+    sighandler_t handler;
+} gl_trap_handlers[] = {
+    {"SYSTEM_DEFAULT", 0,      SIG_DFL},
+    {"SIG_IGN",        0,      SIG_IGN},
+    {"IGNORE",         0,      SIG_IGN},
+    {"",               0,      SIG_IGN},
+    {"SIG_DFL",        0,      USE_DEFAULT_HANDLER},
+    {"DEFAULT",        0,      USE_DEFAULT_HANDLER},
+    {"EXIT",           Qundef, sighandler},
+    {NULL, 0}
+ };
 
 static int
 signm2signo(const char *nm)
@@ -285,7 +190,6 @@ interrupt_init(VALUE self, SEL sel, int argc, VALUE *argv)
 
     args[0] = INT2FIX(SIGINT);
     rb_scan_args(argc, argv, "01", &args[1]);
-    //return rb_call_super(2, args);
     return rb_vm_call(self, selInitialize2, 2, args, true);
 }
 
@@ -325,82 +229,68 @@ ruby_default_signal(int sig)
 VALUE
 rb_f_kill(VALUE self, SEL sel, int argc, VALUE *argv)
 {
-#ifndef HAS_KILLPG
-#define killpg(pg, sig) kill(-(pg), sig)
-#endif
     int negative = 0;
     int sig;
     int i;
-    const char *s;
+    int type;
+    const char *s = NULL;
 
     rb_secure(2);
     if (argc < 2)
 	rb_raise(rb_eArgError, "wrong number of arguments -- kill(sig, pid...)");
-    switch (TYPE(argv[0])) {
-      case T_FIXNUM:
+
+    type = TYPE(argv[0]);
+    if (type == T_FIXNUM) {
 	sig = FIX2INT(argv[0]);
-	break;
-
-      case T_SYMBOL:
-	s = rb_sym2name(argv[0]);
-	if (!s) rb_raise(rb_eArgError, "bad signal");
-	goto str_signal;
-
-      case T_STRING:
-	s = RSTRING_PTR(argv[0]);
-	if (s[0] == '-') {
-	    negative++;
-	    s++;
+    }
+    else {
+	if (type == T_SYMBOL) {
+	    s = rb_sym2name(argv[0]);
+	    if (!s)
+		rb_raise(rb_eArgError, "bad signal");
 	}
-      str_signal:
-	if (strncmp("SIG", s, 3) == 0)
-	    s += 3;
-	if((sig = signm2signo(s)) == 0)
-	    rb_raise(rb_eArgError, "unsupported name `SIG%s'", s);
-
-	if (negative)
-	    sig = -sig;
-	break;
-
-      default:
-        {
+	else if (type == T_STRING) {
+	    s = RSTRING_PTR(argv[0]);
+	    if (s[0] == '-') {
+		negative++;
+		s++;
+	    }
+	}
+	else {
 	    VALUE str;
-
 	    str = rb_check_string_type(argv[0]);
 	    if (!NIL_P(str)) {
 		s = RSTRING_PTR(str);
-		goto str_signal;
 	    }
-	    rb_raise(rb_eArgError, "bad signal type %s",
-		     rb_obj_classname(argv[0]));
 	}
-	break;
+	if (s == NULL)
+	    rb_raise(rb_eArgError, "bad signal type %s", rb_obj_classname(argv[0]));
+
+	if (strncmp("SIG", s, 3) == 0)
+	    s += 3;
+	if ((sig = signm2signo(s)) == 0)
+	    rb_raise(rb_eArgError, "unsupported name `SIG%s'", s);
+	if (negative)
+	    sig = -sig;
     }
 
     if (sig < 0) {
 	sig = -sig;
-	for (i=1; i<argc; i++) {
+	for (i = 1; i < argc; i++) {
 	    if (killpg(NUM2PIDT(argv[i]), sig) < 0)
 		rb_sys_fail(0);
 	}
     }
     else {
-	for (i=1; i<argc; i++) {
+	for (i = 1; i < argc; i++) {
 	    if (kill(NUM2PIDT(argv[i]), sig) < 0)
 		rb_sys_fail(0);
 	}
     }
     rb_thread_polling();
-    return INT2FIX(i-1);
+    return INT2FIX(i - 1);
 }
 
-static struct {
-    VALUE cmd;
-} trap_list[NSIG];
-static rb_atomic_t trap_pending_list[NSIG];
-#if 0
-static char rb_trap_accept_nativethreads[NSIG];
-#endif
 rb_atomic_t rb_trap_pending;
 rb_atomic_t rb_trap_immediate;
 int rb_prohibit_interrupt = 1;
@@ -408,7 +298,7 @@ int rb_prohibit_interrupt = 1;
 VALUE
 rb_get_trap_cmd(int sig)
 {
-    return trap_list[sig].cmd;
+    return rb_vm_trap_cmd_for_signal(sig);
 }
 
 void
@@ -417,43 +307,33 @@ rb_gc_mark_trap_list(void)
 #ifndef MACOS_UNUSE_SIGNAL
     int i;
 
-    for (i=0; i<NSIG; i++) {
-	if (trap_list[i].cmd) {
-	    rb_gc_mark(trap_list[i].cmd);
+    for (i = 0; i < NSIG; i++) {
+	if (rb_vm_trap_cmd_for_signal(i)) {
+	    rb_gc_mark(rb_vm_trap_cmd_for_signal(i));
 	}
     }
 #endif /* MACOS_UNUSE_SIGNAL */
 }
 
-#ifdef __dietlibc__
-#define sighandler_t sh_t
-#endif
-
-typedef RETSIGTYPE (*sighandler_t)(int);
-
-static sighandler_t
+sighandler_t
 ruby_signal(int signum, sighandler_t handler)
 {
-    struct sigaction sigact, old;
-
-#if 0
-    rb_trap_accept_nativethreads[signum] = 0;
-#endif
+    struct sigaction sigact;
+    struct sigaction old;
 
     sigemptyset(&sigact.sa_mask);
-#ifdef SA_SIGINFO
-    sigact.sa_sigaction = (void (*)(int, siginfo_t*, void*))handler;
-    sigact.sa_flags = SA_SIGINFO;
-#else
     sigact.sa_handler = handler;
     sigact.sa_flags = 0;
-#endif
 
-#ifdef SA_NOCLDWAIT
     if (signum == SIGCHLD && handler == SIG_IGN)
 	sigact.sa_flags |= SA_NOCLDWAIT;
-#endif
-    sigaction(signum, &sigact, &old);
+    if (signum == SIGSEGV)
+	sigact.sa_flags |= SA_ONSTACK;
+    if (sigaction(signum, &sigact, &old) < 0) {
+	if (errno != 0 && errno != EINVAL) {
+	    rb_bug("sigaction error.\n");
+	}
+    }
     return old.sa_handler;
 }
 
@@ -463,131 +343,83 @@ posix_signal(int signum, sighandler_t handler)
     return ruby_signal(signum, handler);
 }
 
+static void signal_exec(VALUE cmd, int level, int sig);
+static void rb_signal_exec(int sig);
+
 static RETSIGTYPE
 sighandler(int sig)
 {
-#if 0
-    rb_vm_t *vm = GET_VM(); /* fix me for Multi-VM */
-    ATOMIC_INC(vm->signal_buff[sig]);
-    ATOMIC_INC(vm->buffered_signal_size);
-#endif
-
-printf("sighandler %d\n", sig);
-
-//#if !defined(BSD_SIGNAL) && !defined(POSIX_SIGNAL)
-printf("ruby signal\n");
+    int olderrno = errno;
+    rb_signal_exec(sig);
     ruby_signal(sig, sighandler);
-//#endif
+    errno = olderrno;
 }
 
-#if USE_TRAP_MASK
-# ifdef HAVE_SIGPROCMASK
-static sigset_t trap_last_mask;
-# else
-static int trap_last_mask;
-# endif
-#endif
-
-#if HAVE_PTHREAD_H
 #include <pthread.h>
-#endif
 
 void
 rb_disable_interrupt(void)
 {
-#ifndef _WIN32
     sigset_t mask;
     sigfillset(&mask);
     sigdelset(&mask, SIGVTALRM);
     sigdelset(&mask, SIGSEGV);
     pthread_sigmask(SIG_SETMASK, &mask, NULL);
-#endif
 }
 
 void
 rb_enable_interrupt(void)
 {
-#ifndef _WIN32
     sigset_t mask;
     sigemptyset(&mask);
     pthread_sigmask(SIG_SETMASK, &mask, NULL);
-#endif
 }
 
-#if 0 // XXX unused function
-int
-rb_get_next_signal(rb_vm_t *vm)
-{
-    int i, sig = 0;
-
-    for (i=1; i<RUBY_NSIG; i++) {
-	if (vm->signal_buff[i] > 0) {
-	    rb_disable_interrupt();
-	    {
-		ATOMIC_DEC(vm->signal_buff[i]);
-		ATOMIC_DEC(vm->buffered_signal_size);
-	    }
-	    rb_enable_interrupt();
-	    sig = i;
-	    break;
-	}
-    }
-    return sig;
-}
-#endif
-
-#ifdef SIGBUS
 static RETSIGTYPE
 sigbus(int sig)
 {
     rb_bug("Bus Error");
 }
-#endif
 
-#ifdef SIGSEGV
 static int segv_received = 0;
 static RETSIGTYPE
 sigsegv(int sig)
 {
     if (segv_received) {
 	fprintf(stderr, "SEGV recieved in SEGV handler\n");
-	exit(1);
+	exit(EXIT_FAILURE);
     }
     else {
 	segv_received = 1;
 	rb_bug("Segmentation fault");
     }
 }
-#endif
 
-#ifdef SIGPIPE
 static RETSIGTYPE
 sigpipe(int sig)
 {
     /* do nothing */
 }
-#endif
 
 static void
-signal_exec(VALUE cmd, int sig)
+signal_exec(VALUE cmd, int level, int sig)
 {
-#if 0 // TODO
-    rb_proc_t *proc;
-    VALUE signum = INT2FIX(sig);
-    GetProcPtr(cmd, proc);
-    vm_invoke_proc(GET_THREAD(), proc, proc->block.self, 1, &signum, 0);
-#endif
+    VALUE signum = INT2NUM(sig);
+    rb_eval_cmd(cmd, rb_ary_new3(1, signum), level);
 }
 
 void
 rb_trap_exit(void)
 {
 #ifndef MACOS_UNUSE_SIGNAL
-    if (trap_list[0].cmd) {
-	VALUE trap_exit = trap_list[0].cmd;
+    VALUE trap_exit;
+    int safe;
 
-	trap_list[0].cmd = 0;
-	signal_exec(trap_exit, 0);
+    trap_exit = rb_vm_trap_cmd_for_signal(0);
+    if (trap_exit != (VALUE)NULL) {
+	safe = rb_vm_trap_level_for_signal(0);
+	rb_vm_set_trap_for_signal((VALUE)0, safe, 0);
+	signal_exec(trap_exit, safe, 0);
     }
 #endif
 }
@@ -595,6 +427,8 @@ rb_trap_exit(void)
 static void
 rb_signal_exec(int sig)
 {
+/*     rb_vm_thread_t *t; */
+/*     VALUE exc; */
     VALUE cmd = rb_get_trap_cmd(sig);
 
     if (cmd == 0) {
@@ -602,60 +436,28 @@ rb_signal_exec(int sig)
 	  case SIGINT:
 	    rb_interrupt();
 	    break;
-#ifdef SIGHUP
 	  case SIGHUP:
-#endif
-#ifdef SIGQUIT
 	  case SIGQUIT:
-#endif
-#ifdef SIGTERM
 	  case SIGTERM:
-#endif
-#ifdef SIGALRM
 	  case SIGALRM:
-#endif
-#ifdef SIGUSR1
 	  case SIGUSR1:
-#endif
-#ifdef SIGUSR2
 	  case SIGUSR2:
-#endif
-	    //rb_thread_signal_raise(th, sig);
+/* 	    t = GetThreadPtr(rb_vm_main_thread()); */
+/* 	    exc = rb_exc_new2(rb_eSignal, ruby_signal_name(sig)); */
+/* 	    rb_vm_thread_raise(t, exc); */
+/* 	    rb_raise(rb_eSignal, "%s", signo2signm(sig)); */
 	    break;
 	}
     }
     else if (cmd == Qundef) {
-//	rb_thread_signal_exit(th);
+	//rb_thread_signal_exit(th);
     }
     else {
-	signal_exec(cmd, sig);
+	signal_exec(cmd, rb_vm_trap_level_for_signal(sig), sig);
     }
-}
-
-void
-rb_trap_exec(void)
-{
-#ifndef MACOS_UNUSE_SIGNAL
-    int i;
-
-    for (i=0; i<NSIG; i++) {
-	if (trap_pending_list[i]) {
-	    trap_pending_list[i] = 0;
-	    rb_signal_exec(i);
-	}
-    }
-#endif /* MACOS_UNUSE_SIGNAL */
-    rb_trap_pending = 0;
 }
 
 struct trap_arg {
-#if USE_TRAP_MASK
-# ifdef HAVE_SIGPROCMASK
-    sigset_t mask;
-# else
-    int mask;
-# endif
-#endif
     int sig;
     sighandler_t func;
     VALUE cmd;
@@ -667,41 +469,23 @@ default_handler(int sig)
     sighandler_t func;
     switch (sig) {
       case SIGINT:
-#ifdef SIGHUP
       case SIGHUP:
-#endif
-#ifdef SIGQUIT
       case SIGQUIT:
-#endif
-#ifdef SIGTERM
       case SIGTERM:
-#endif
-#ifdef SIGALRM
       case SIGALRM:
-#endif
-#ifdef SIGUSR1
       case SIGUSR1:
-#endif
-#ifdef SIGUSR2
       case SIGUSR2:
-#endif
         func = sighandler;
         break;
-#ifdef SIGBUS
       case SIGBUS:
         func = sigbus;
         break;
-#endif
-#ifdef SIGSEGV
       case SIGSEGV:
-        func = sigsegv;
+        func = (sighandler_t)sigsegv;
         break;
-#endif
-#ifdef SIGPIPE
       case SIGPIPE:
         func = sigpipe;
         break;
-#endif
       default:
         func = SIG_DFL;
         break;
@@ -710,15 +494,10 @@ default_handler(int sig)
     return func;
 }
 
-static RETSIGTYPE
-wrong_trap(int sig)
-{
-}
-
 static sighandler_t
 trap_handler(VALUE *cmd, int sig)
 {
-    sighandler_t func = wrong_trap;
+    sighandler_t func = sighandler;
     VALUE command;
 
     if (NIL_P(*cmd)) {
@@ -726,55 +505,26 @@ trap_handler(VALUE *cmd, int sig)
     }
     else {
 	command = rb_check_string_type(*cmd);
+	if (NIL_P(command) && SYMBOL_P(*cmd)) {
+	    command = rb_id2str(SYM2ID(*cmd));
+	    if (!command) rb_raise(rb_eArgError, "bad handler");
+	}
 	if (!NIL_P(command)) {
 	    SafeStringValue(command);	/* taint check */
-	    switch (RSTRING_LEN(command)) {
-	      case 0:
-                goto sig_ign;
-		break;
-              case 14:
-		if (strncmp(RSTRING_PTR(command), "SYSTEM_DEFAULT", 14) == 0) {
-                    func = SIG_DFL;
-                    *cmd = 0;
+	    *cmd = command;
+	    for (int i = 0; gl_trap_handlers[i].command != NULL; i++) {
+		if (strcmp(gl_trap_handlers[i].command, RSTRING_PTR(command)) == 0) {
+		    func = gl_trap_handlers[i].handler;
+		    if (func == USE_DEFAULT_HANDLER) {
+			func = default_handler(sig);
+		    }
+		    *cmd = gl_trap_handlers[i].new_cmd_value;
+		    break;
 		}
-                break;
-	      case 7:
-		if (strncmp(RSTRING_PTR(command), "SIG_IGN", 7) == 0) {
-sig_ign:
-                    func = SIG_IGN;
-                    *cmd = 0;
-		}
-		else if (strncmp(RSTRING_PTR(command), "SIG_DFL", 7) == 0) {
-sig_dfl:
-                    func = default_handler(sig);
-                    *cmd = 0;
-		}
-		else if (strncmp(RSTRING_PTR(command), "DEFAULT", 7) == 0) {
-                    goto sig_dfl;
-		}
-		break;
-	      case 6:
-		if (strncmp(RSTRING_PTR(command), "IGNORE", 6) == 0) {
-                    goto sig_ign;
-		}
-		break;
-	      case 4:
-		if (strncmp(RSTRING_PTR(command), "EXIT", 4) == 0) {
-		    func = sighandler;
-		    *cmd = Qundef;
-		}
-		break;
-	    }
-	    if (func == wrong_trap) {
-		rb_raise(rb_eArgError, "wrong trap - %s", RSTRING_PTR(command));
 	    }
 	}
 	else {
-#if 0 // TODO
-	    rb_proc_t *proc;
-	    GetProcPtr(*cmd, proc);
-#endif
-	    func = sighandler;
+/* 	    func = sighandler; */
 	}
     }
 
@@ -787,23 +537,21 @@ trap_signm(VALUE vsig)
     int sig = -1;
     const char *s;
 
-    switch (TYPE(vsig)) {
-      case T_FIXNUM:
+    if (TYPE(vsig) == T_FIXNUM) {
 	sig = FIX2INT(vsig);
 	if (sig < 0 || sig >= NSIG) {
 	    rb_raise(rb_eArgError, "invalid signal number (%d)", sig);
 	}
-	break;
+    }
+    else {
+	if (TYPE(vsig) == T_SYMBOL) {
+	    s = rb_sym2name(vsig);
+	    if (s == NULL)
+		rb_raise(rb_eArgError, "bad signal");
+	}
+	else
+	    s = StringValuePtr(vsig);
 
-      case T_SYMBOL:
-	s = rb_sym2name(vsig);
-	if (!s) rb_raise(rb_eArgError, "bad signal");
-	goto str_signal;
-
-      default:
-	s = StringValuePtr(vsig);
-
-      str_signal:
 	if (strncmp("SIG", s, 3) == 0)
 	    s += 3;
 	sig = signm2signo(s);
@@ -816,60 +564,34 @@ trap_signm(VALUE vsig)
 static VALUE
 trap(struct trap_arg *arg)
 {
-    sighandler_t oldfunc, func = arg->func;
-    VALUE oldcmd, command = arg->cmd;
+    sighandler_t oldfunc;
+    sighandler_t func = arg->func;
+    VALUE oldcmd;
+    VALUE command = arg->cmd;
     int sig = arg->sig;
 
     oldfunc = ruby_signal(sig, func);
-    oldcmd = trap_list[sig].cmd;
-    switch (oldcmd) {
-      case 0:
-	if (oldfunc == SIG_IGN) oldcmd = rb_str_new2("IGNORE");
-	else if (oldfunc == sighandler) oldcmd = rb_str_new2("DEFAULT");
-	else oldcmd = Qnil;
-	break;
-      case Qundef:
-	oldcmd = rb_str_new2("EXIT");
-	break;
+    oldcmd = rb_vm_trap_cmd_for_signal(sig);
+    if (oldcmd == 0) {
+	if (oldfunc == SIG_IGN)
+	    oldcmd = rb_str_new2("IGNORE");
+	else if (oldfunc == sighandler)
+	    oldcmd = rb_str_new2("DEFAULT");
+	else
+	    oldcmd = Qnil;
     }
+    else if (oldcmd == Qundef)
+	oldcmd = rb_str_new2("EXIT");
 
-    trap_list[sig].cmd = command;
-    /* enable at least specified signal. */
-#if USE_TRAP_MASK
-#ifdef HAVE_SIGPROCMASK
-    sigdelset(&arg->mask, sig);
-#else
-    arg->mask &= ~sigmask(sig);
-#endif
-#endif
+    // Assign trap to signal
+    rb_vm_set_trap_for_signal(command, rb_safe_level(), sig);
+
     return oldcmd;
 }
-
-#if USE_TRAP_MASK
-static VALUE
-trap_ensure(struct trap_arg *arg)
-{
-    /* enable interrupt */
-#ifdef HAVE_SIGPROCMASK
-    sigprocmask(SIG_SETMASK, &arg->mask, NULL);
-#else
-    sigsetmask(arg->mask);
-#endif
-    trap_last_mask = arg->mask;
-    return 0;
-}
-#endif
 
 void
 rb_trap_restore_mask(void)
 {
-#if USE_TRAP_MASK
-# ifdef HAVE_SIGPROCMASK
-    sigprocmask(SIG_SETMASK, &trap_last_mask, NULL);
-# else
-    sigsetmask(trap_last_mask);
-# endif
-#endif
 }
 
 /*
@@ -903,6 +625,7 @@ rb_trap_restore_mask(void)
  *     Child died
  *     Terminating: 27460
  */
+
 static VALUE
 sig_trap(VALUE rcv, SEL sel, int argc, VALUE *argv)
 {
@@ -918,7 +641,7 @@ sig_trap(VALUE rcv, SEL sel, int argc, VALUE *argv)
 	arg.cmd = rb_block_proc();
 	arg.func = sighandler;
     }
-    else if (argc == 2) {
+    else {
 	arg.cmd = argv[1];
 	arg.func = trap_handler(&arg.cmd, arg.sig);
     }
@@ -926,19 +649,8 @@ sig_trap(VALUE rcv, SEL sel, int argc, VALUE *argv)
     if (OBJ_TAINTED(arg.cmd)) {
 	rb_raise(rb_eSecurityError, "Insecure: tainted signal trap");
     }
-#if USE_TRAP_MASK
-    /* disable interrupt */
-# ifdef HAVE_SIGPROCMASK
-    sigfillset(&arg.mask);
-    sigprocmask(SIG_BLOCK, &arg.mask, &arg.mask);
-# else
-    arg.mask = sigblock(~0);
-# endif
 
-    return rb_ensure(trap, (VALUE)&arg, trap_ensure, (VALUE)&arg);
-#else
     return trap(&arg);
-#endif
 }
 
 /*
@@ -962,7 +674,6 @@ sig_list(VALUE rcv, SEL sel)
     return h;
 }
 
-#if 0
 static void
 install_sighandler(int signum, sighandler_t handler)
 {
@@ -973,48 +684,19 @@ install_sighandler(int signum, sighandler_t handler)
 	ruby_signal(signum, old);
     }
 }
-#endif
 
 #if defined(SIGCLD) || defined(SIGCHLD)
 static void
 init_sigchld(int sig)
 {
     sighandler_t oldfunc;
-#if USE_TRAP_MASK
-# ifdef HAVE_SIGPROCMASK
-    sigset_t mask;
-# else
-    int mask;
-# endif
-#endif
-
-#if USE_TRAP_MASK
-    /* disable interrupt */
-# ifdef HAVE_SIGPROCMASK
-    sigfillset(&mask);
-    sigprocmask(SIG_BLOCK, &mask, &mask);
-# else
-    mask = sigblock(~0);
-# endif
-#endif
 
     oldfunc = ruby_signal(sig, SIG_DFL);
     if (oldfunc != SIG_DFL && oldfunc != SIG_IGN) {
 	ruby_signal(sig, oldfunc);
     } else {
-	trap_list[sig].cmd = 0;
+	rb_vm_set_trap_for_signal((VALUE)0, rb_safe_level(), sig);
     }
-
-#if USE_TRAP_MASK
-#ifdef HAVE_SIGPROCMASK
-    sigdelset(&mask, sig);
-    sigprocmask(SIG_SETMASK, &mask, NULL);
-#else
-    mask &= ~sigmask(sig);
-    sigsetmask(mask);
-#endif
-    trap_last_mask = mask;
-#endif
 }
 #endif
 
@@ -1028,7 +710,6 @@ ruby_sig_finalize()
 	ruby_signal(SIGINT, SIG_DFL);
     }
 }
-
 
 #ifdef RUBY_DEBUG_ENV
 int ruby_enable_coredump = 0;
@@ -1086,48 +767,23 @@ Init_signal(void)
     rb_alias(rb_eSignal, rb_intern("signm"), rb_intern("message"));
     rb_objc_define_method(rb_eInterrupt, "initialize", interrupt_init, -1);
 
-#if 0
-    install_sighandler(SIGINT, sighandler);
-#ifdef SIGHUP
-    install_sighandler(SIGHUP, sighandler);
-#endif
-#ifdef SIGQUIT
-    install_sighandler(SIGQUIT, sighandler);
-#endif
-#ifdef SIGTERM
-    install_sighandler(SIGTERM, sighandler);
-#endif
-#ifdef SIGALRM
-    install_sighandler(SIGALRM, sighandler);
-#endif
-#ifdef SIGUSR1
-    install_sighandler(SIGUSR1, sighandler);
-#endif
-#ifdef SIGUSR2
-    install_sighandler(SIGUSR2, sighandler);
-#endif
+/*     install_sighandler(SIGINT, sighandler); */
+/*     install_sighandler(SIGHUP, sighandler); */
+/*     install_sighandler(SIGQUIT, sighandler); */
+/*     install_sighandler(SIGTERM, sighandler); */
+/*     install_sighandler(SIGALRM, sighandler); */
+/*     install_sighandler(SIGUSR1, sighandler); */
+/*     install_sighandler(SIGUSR2, sighandler); */
 
 #ifdef RUBY_DEBUG_ENV
     if (!ruby_enable_coredump)
 #endif
     {
-#ifdef SIGBUS
-    install_sighandler(SIGBUS, sigbus);
-#endif
-#ifdef SIGSEGV
-    install_sighandler(SIGSEGV, sigsegv);
-#endif
+	install_sighandler(SIGBUS, sigbus);
+	install_sighandler(SIGSEGV, sigsegv);
     }
-#ifdef SIGPIPE
     install_sighandler(SIGPIPE, sigpipe);
-#endif
-#endif
 
-#if defined(SIGCLD)
-    init_sigchld(SIGCLD);
-#elif defined(SIGCHLD)
     init_sigchld(SIGCHLD);
-#endif
-
-#endif /* MACOS_UNUSE_SIGNAL */
+#endif /* !MACOS_UNUSE_SIGNAL */
 }

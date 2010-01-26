@@ -270,6 +270,9 @@ bool rb_vm_parse_in_eval(void);
 void rb_vm_set_parse_in_eval(bool flag);
 VALUE rb_vm_load_path(void);
 VALUE rb_vm_loaded_features(void);
+VALUE rb_vm_trap_cmd_for_signal(int signal);
+int rb_vm_trap_level_for_signal(int signal);
+void rb_vm_set_trap_for_signal(VALUE trap, int level, int signal);
 int rb_vm_safe_level(void);
 void rb_vm_set_safe_level(int level);
 int rb_vm_thread_safe_level(rb_vm_thread_t *thread);
@@ -606,6 +609,11 @@ class RoxorCore {
 	VALUE load_path;
 	VALUE rand_seed;
 
+	// Signals
+	std::map<int, VALUE> trap_cmd;
+	// Safety level at the time trap is set
+	std::map<int, int>   trap_level;
+
 	// Cache to avoid compiling the same Function twice.
 	std::map<Function *, IMP> JITcache;
 
@@ -672,6 +680,11 @@ class RoxorCore {
 #if ROXOR_VM_DEBUG
 	READER(functions_compiled, long);
 #endif
+
+	// signals
+	void set_trap_for_signal(VALUE trap, int level, int signal);
+	VALUE trap_cmd_for_signal(int signal);
+	int trap_level_for_signal(int signal);
 
 	void lock(void) { 
 	    if (multithreaded) {

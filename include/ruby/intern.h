@@ -535,7 +535,6 @@ void ruby_init_loadpath(void);
 void ruby_incpush(const char*);
 /* signal.c */
 VALUE rb_f_kill(VALUE, SEL, int, VALUE*);
-void rb_gc_mark_trap_list(void);
 #ifdef POSIX_SIGNAL
 #define posix_signal ruby_posix_signal
 RETSIGTYPE (*posix_signal(int, RETSIGTYPE (*)(int)))(int);

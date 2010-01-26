@@ -21,28 +21,8 @@ extern "C" {
 
 #include <errno.h>
 
-#ifdef _WIN32
-typedef LONG rb_atomic_t;
+typedef RETSIGTYPE (*sighandler_t)(int);
 
-# define ATOMIC_TEST(var) InterlockedExchange(&(var), 0)
-# define ATOMIC_SET(var, val) InterlockedExchange(&(var), (val))
-# define ATOMIC_INC(var) InterlockedIncrement(&(var))
-# define ATOMIC_DEC(var) InterlockedDecrement(&(var))
-
-/* Windows doesn't allow interrupt while system calls */
-# define TRAP_BEG do {\
-    rb_atomic_t trap_immediate = ATOMIC_SET(rb_trap_immediate, 1)
-
-# define TRAP_END\
-    ATOMIC_SET(rb_trap_immediate, trap_immediate);\
-} while (0)
-
-# define RUBY_CRITICAL(statements) do {\
-    rb_atomic_t trap_immediate = ATOMIC_SET(rb_trap_immediate, 0);\
-    statements;\
-    ATOMIC_SET(rb_trap_immediate, trap_immediate);\
-} while (0)
-#else
 typedef int rb_atomic_t;
 
 # define ATOMIC_TEST(var) ((var) ? ((var) = 0, 1) : 0)
@@ -64,7 +44,6 @@ typedef int rb_atomic_t;
     statements;\
     rb_trap_immediate = trap_immediate;\
 } while (0)
-#endif
 RUBY_EXTERN rb_atomic_t rb_trap_immediate;
 
 RUBY_EXTERN int rb_prohibit_interrupt;
