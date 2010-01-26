@@ -302,7 +302,7 @@ namespace :macruby do
     $builder.link_dylib(dylib, $builder.objs - ['main', 'gc-stub', 'miniprelude'])
     major, minor, teeny = NEW_RUBY_VERSION.scan(/\d+/)
     ["lib#{RUBY_SO_NAME}.#{major}.#{minor}.dylib", "lib#{RUBY_SO_NAME}.dylib"].each do |dylib_alias|
-      if !File.exist?(dylib_alias) or File.readlink(dylib_alias) != dylib  
+      if !File.exist?(dylib_alias) or File.readlink(dylib_alias) != dylib
         rm_f(dylib_alias)
         ln_s(dylib, dylib_alias)
       end
@@ -332,44 +332,11 @@ DESTDIR = (ENV['DESTDIR'] or "")
 EXTOUT = (ENV['EXTOUT'] or ".ext")
 INSTALLED_LIST = '.installed.list'
 SCRIPT_ARGS = "--make=\"/usr/bin/make\" --dest-dir=\"#{DESTDIR}\" --extout=\"#{EXTOUT}\" --mflags=\"\" --make-flags=\"\""
-EXTMK_ARGS = "#{SCRIPT_ARGS} --extension --extstatic"
 INSTRUBY_ARGS = "#{SCRIPT_ARGS} --data-mode=0644 --prog-mode=0755 --installed-list #{INSTALLED_LIST} --mantype=\"doc\" --sym-dest-dir=\"#{SYM_INSTDIR}\" --rdoc-output=\"doc\""
-
-EXTENSIONS = ['ripper', 'digest', 'etc', 'readline', 'libyaml', 'fcntl', 'socket', 'zlib', 'bigdecimal', 'openssl', 'json'].sort
-def perform_extensions_target(target)
-  commands = []
-  EXTENSIONS.map { |x| File.join('ext', x) }.each do |ext_dir|
-    Dir.glob(File.join(ext_dir, '**/extconf.rb')) do |p|
-      cmd = []
-      dir = File.dirname(p)
-      Dir.chdir(dir) do
-        srcdir = File.join(*dir.split(File::SEPARATOR).map { |x| '..' })
-        next if target == :clean and !File.exist?('Makefile')
-        if !File.exist?('Makefile') or File.mtime('extconf.rb') > File.mtime('Makefile')
-          cmd <<  "cd #{dir} && #{srcdir}/miniruby -I#{srcdir} -I#{srcdir}/lib -r rbconfig -e \"RbConfig::CONFIG['libdir'] = '#{srcdir}'; require './extconf.rb'\""
-        end
-        line = "cd #{dir} && /usr/bin/make top_srcdir=#{srcdir} ruby=\"#{srcdir}/miniruby -I#{srcdir} -I#{srcdir}/lib\" extout=#{srcdir}/.ext hdrdir=#{srcdir}/include arch_hdrdir=#{srcdir}/include"
-        case target
-          when :all
-            line << " libdir=#{srcdir}"
-          else
-            line << " #{target}"
-        end
-        cmd << line
-        cmd << 'rm -f Makefile' if target == :clean
-        commands << cmd
-      end
-    end
-  end
-  Builder.parallel_execute(commands)
-end
 
 desc "Build extensions"
 task :extensions => [:miniruby, "macruby:static"] do
-=begin
-  sh "./miniruby -I./lib -I.ext/common -I./- -r./ext/purelib.rb ext/extmk.rb #{EXTMK_ARGS}"
-=end
-  perform_extensions_target(:all)
+  Builder::Ext.build
 end
 
 desc "Generate RDoc files"
@@ -466,7 +433,7 @@ EOS
 
   desc "Install the extensions"
   task :install_ext do
-    perform_extensions_target(:install) 
+    Builder::Ext.install
   end
 
   desc "Install the framework"
@@ -495,12 +462,7 @@ namespace :clean do
 
   desc "Clean extension build files"
   task :ext do
-=begin
-    if File.exist?('./miniruby') 
-      sh "./miniruby -I./lib -I.ext/common -I./- -r./ext/purelib.rb ext/extmk.rb #{EXTMK_ARGS} -- clean"
-    end
-=end
-    perform_extensions_target(:clean)
+    Builder::Ext.clean
   end
 
   desc "Clean the RDoc files"

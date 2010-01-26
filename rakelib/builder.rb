@@ -277,6 +277,82 @@ class Builder
     end
     @obj_dependencies
   end
+  
+  class Ext
+    EXTENSIONS = ['ripper', 'digest', 'etc', 'readline', 'libyaml', 'fcntl', 'socket', 'zlib', 'bigdecimal', 'openssl', 'json'].sort
+    
+    def self.extension_dirs
+      EXTENSIONS.map do |name|
+        Dir.glob(File.join('ext', name, '**/extconf.rb'))
+      end.flatten.map { |f| File.dirname(f) }
+    end
+    
+    def self.build
+      commands = extension_dirs.map { |dir| new(dir).build_commands }
+      Builder.parallel_execute(commands)
+    end
+    
+    def self.install
+      extension_dirs.each do |dir|
+        sh new(dir).install_command
+      end
+    end
+    
+    def self.clean
+      extension_dirs.each do |dir|
+        new(dir).clean_commands.each { |cmd| sh(cmd) }
+      end
+    end
+    
+    attr_reader :dir
+    
+    def initialize(dir)
+      @dir = dir
+    end
+    
+    def srcdir
+      @srcdir ||= File.join(dir.split(File::SEPARATOR).map { |x| '..' })
+    end
+    
+    def makefile
+      @makefile ||= File.join(@dir, 'Makefile')
+    end
+    
+    def extconf
+      File.join(@dir, 'extconf.rb')
+    end
+    
+    def create_makefile_command
+      if !File.exist?(makefile) or File.mtime(extconf) > File.mtime(makefile)
+        "cd #{dir} && #{srcdir}/miniruby -I#{srcdir} -I#{srcdir}/lib -r rbconfig -e \"RbConfig::CONFIG['libdir'] = '#{srcdir}'; require './extconf.rb'\""
+      end
+    end
+    
+    def build_commands
+      [create_makefile_command, make_command(:all)].compact
+    end
+    
+    def clean_commands
+      return [] unless File.exist?(makefile)
+      [create_makefile_command, make_command(:clean), "rm -f #{makefile}"].compact
+    end
+    
+    def install_command
+      make_command(:install)
+    end
+    
+    private
+    
+    # Possible targets are:
+    # * all
+    # * install
+    # * clean
+    def make_command(target)
+      cmd = "cd #{dir} && /usr/bin/make top_srcdir=#{srcdir} ruby=\"#{srcdir}/miniruby -I#{srcdir} -I#{srcdir}/lib\" extout=#{srcdir}/.ext hdrdir=#{srcdir}/include arch_hdrdir=#{srcdir}/include"
+      cmd << (target == :all ? " libdir=#{srcdir}" : " #{target}")
+      cmd
+    end
+  end
 end
 
 $builder = Builder.new(OBJS)
