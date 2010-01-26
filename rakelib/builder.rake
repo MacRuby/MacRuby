@@ -337,28 +337,31 @@ INSTRUBY_ARGS = "#{SCRIPT_ARGS} --data-mode=0644 --prog-mode=0755 --installed-li
 
 EXTENSIONS = ['ripper', 'digest', 'etc', 'readline', 'libyaml', 'fcntl', 'socket', 'zlib', 'bigdecimal', 'openssl', 'json'].sort
 def perform_extensions_target(target)
+  commands = []
   EXTENSIONS.map { |x| File.join('ext', x) }.each do |ext_dir|
     Dir.glob(File.join(ext_dir, '**/extconf.rb')) do |p|
+      cmd = []
       dir = File.dirname(p)
       Dir.chdir(dir) do
-        $stderr.puts "cd #{dir}"
         srcdir = File.join(*dir.split(File::SEPARATOR).map { |x| '..' })
         next if target == :clean and !File.exist?('Makefile')
         if !File.exist?('Makefile') or File.mtime('extconf.rb') > File.mtime('Makefile')
-          sh "#{srcdir}/miniruby -I#{srcdir} -I#{srcdir}/lib -r rbconfig -e \"RbConfig::CONFIG['libdir'] = '#{srcdir}'; require './extconf.rb'\""
+          cmd <<  "cd #{dir} && #{srcdir}/miniruby -I#{srcdir} -I#{srcdir}/lib -r rbconfig -e \"RbConfig::CONFIG['libdir'] = '#{srcdir}'; require './extconf.rb'\""
         end
-        line = "/usr/bin/make top_srcdir=#{srcdir} ruby=\"#{srcdir}/miniruby -I#{srcdir} -I#{srcdir}/lib\" extout=#{srcdir}/.ext hdrdir=#{srcdir}/include arch_hdrdir=#{srcdir}/include"
+        line = "cd #{dir} && /usr/bin/make top_srcdir=#{srcdir} ruby=\"#{srcdir}/miniruby -I#{srcdir} -I#{srcdir}/lib\" extout=#{srcdir}/.ext hdrdir=#{srcdir}/include arch_hdrdir=#{srcdir}/include"
         case target
           when :all
             line << " libdir=#{srcdir}"
           else
             line << " #{target}"
         end
-        sh line
-        rm_f 'Makefile' if target == :clean
+        cmd << line
+        cmd << 'rm -f Makefile' if target == :clean
+        commands << cmd
       end
     end
   end
+  Builder.parallel_execute(commands)
 end
 
 desc "Build extensions"
