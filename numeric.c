@@ -94,8 +94,7 @@ VALUE rb_cFixnum;
 VALUE rb_eZeroDivError;
 VALUE rb_eFloatDomainError;
 
-static CFMutableDictionaryRef fixnum_dict = NULL;
-static struct RFixnum *fixnum_cache = NULL;
+static CFMutableDictionaryRef fixnum_cache = NULL;
 
 static inline VALUE
 rb_box_fixfloat0(double v)
@@ -112,38 +111,31 @@ rb_box_fixfloat(VALUE fixfloat)
     return rb_box_fixfloat0(NUM2DBL(fixfloat));
 }
 
-VALUE
-rb_box_fixnum(VALUE fixnum)
+static inline VALUE
+rb_box_fixnum0(long value)
 {
-    struct RFixnum *val;
-    long value;
-
-    if (fixnum_dict == NULL)
-	fixnum_dict = CFDictionaryCreateMutable(kCFAllocatorMalloc, 0, NULL, NULL); 
-
-    value = FIX2LONG(fixnum);
-
-    if (value >= 0 && value <= 1000000) {
-	if (fixnum_cache == NULL) {
-	   fixnum_cache = (struct RFixnum *)calloc(1, sizeof(struct RFixnum) * 1000000);
-	}
-	val = &fixnum_cache[value];
-	if (val->klass == 0) {
-	    val->klass = rb_cFixnum;
-	    val->value = value;
-	}
-	return (VALUE)val;
+    if (fixnum_cache == NULL) {
+	fixnum_cache = CFDictionaryCreateMutable(NULL, 0, NULL,
+		&kCFTypeDictionaryValueCallBacks);
     }
 
-    val = (struct RFixnum *)CFDictionaryGetValue(fixnum_dict, (const void *)fixnum);
+    struct RFixnum *val = (struct RFixnum *)CFDictionaryGetValue(fixnum_cache,
+	    (const void *)value);
     if (val == NULL) {
-	val = (struct RFixnum *)malloc(sizeof(struct RFixnum));
-	val->klass = rb_cFixnum;
-	val->value = FIX2LONG(fixnum);
-	CFDictionarySetValue(fixnum_dict, (const void *)fixnum, (const void *)val);
+	NEWOBJ(fixval, struct RFixnum);
+	fixval->klass = rb_cFixnum;
+	fixval->value = value;
+	val = fixval;
+	CFDictionarySetValue(fixnum_cache, (const void *)value, val);
     }
 
     return (VALUE)val;
+}
+
+VALUE
+rb_box_fixnum(VALUE fixnum)
+{
+    return rb_box_fixnum0(FIX2LONG(fixnum));
 }
 
 void
@@ -3305,7 +3297,19 @@ fix_even_p(VALUE num, SEL sel)
     return Qtrue;
 }
 
+static VALUE
+imp_rb_float_copyWithZone(void *rcv, SEL sel, void *zone)
+{
+    // XXX honor zone?
+    return rb_box_fixfloat0(RFLOAT_VALUE(rcv));
+}
 
+static VALUE
+imp_rb_fixnum_copyWithZone(void *rcv, SEL sel, void *zone)
+{
+    // XXX honor zone?
+    return rb_box_fixnum0(RFIXNUM(rcv)->value);
+}
 
 static const char *
 imp_rb_float_objCType(void *rcv, SEL sel)
@@ -3366,12 +3370,16 @@ rb_install_nsnumber_primitives(void)
     Class klass;
   
     klass = (Class)rb_cFloat;
+    rb_objc_install_method2(klass, "copyWithZone:",
+	    (IMP)imp_rb_float_copyWithZone);
     rb_objc_install_method2(klass, "objCType", (IMP)imp_rb_float_objCType);
     rb_objc_install_method2(klass, "getValue:", (IMP)imp_rb_float_getValue);
     rb_objc_install_method2(klass, "doubleValue", 
 	    (IMP)imp_rb_float_doubleValue);
 
     klass = (Class)rb_cFixnum;
+    rb_objc_install_method2(klass, "copyWithZone:",
+	    (IMP)imp_rb_fixnum_copyWithZone);
     rb_objc_install_method2(klass, "objCType", (IMP)imp_rb_fixnum_objCType);
     rb_objc_install_method2(klass, "getValue:", (IMP)imp_rb_fixnum_getValue);
     rb_objc_install_method2(klass, "longValue", (IMP)imp_rb_fixnum_longValue);
@@ -3513,7 +3521,7 @@ Init_Numeric(void)
     rb_objc_define_method(rb_cFixnum, "odd?", fix_odd_p, 0);
     rb_objc_define_method(rb_cFixnum, "even?", fix_even_p, 0);
     rb_objc_define_method(rb_cFixnum, "succ", fix_succ, 0);
-	rb_objc_define_method(rb_cFixnum, "popcnt", fix_popcnt, 0);
+    rb_objc_define_method(rb_cFixnum, "popcnt", fix_popcnt, 0);
 
     rb_cFloat  = rb_define_class("Float", rb_cNumeric);
 
