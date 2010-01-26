@@ -102,7 +102,8 @@ LDFLAGS = `#{LLVM_CONFIG} --ldflags --libs #{LLVM_MODULES}`.strip.gsub(/\n/, '')
 LDFLAGS << " -lpthread -ldl -lxml2 -lobjc -lauto -framework Foundation"
 DLDFLAGS = "-dynamiclib -undefined suppress -flat_namespace -install_name #{INSTALL_NAME} -current_version #{MACRUBY_VERSION} -compatibility_version #{MACRUBY_VERSION}"
 DLDFLAGS << " -unexported_symbols_list #{UNEXPORTED_SYMBOLS_LIST}" if UNEXPORTED_SYMBOLS_LIST
-CFLAGS << " -std=c99" # we add this one later to not conflict with ObjC/C++ flags
+CFLAGS << " -std=c99" # we add this one later to not conflict with C++ flags
+OBJC_CFLAGS << " -std=c99"
 
 OBJS = %w{ 
   array bignum class compar complex enum enumerator error eval file load proc 
@@ -115,7 +116,7 @@ OBJS = %w{
   ruby signal sprintf st string struct time transcode util variable version
   thread id objc bs encoding main dln dmyext marshal gcd
   vm_eval prelude miniprelude gc-stub bridgesupport compiler dispatcher vm
-  debugger MacRuby MacRubyDebuggerConnector
+  debugger MacRuby MacRubyDebuggerConnector NSDictionary
 }
 
 OBJS_CFLAGS = {

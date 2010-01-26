@@ -20,7 +20,7 @@
 
 #include <crt_externs.h>
 
-static VALUE rb_hash_s_try_convert(VALUE, SEL, VALUE);
+static VALUE rhash_try_convert(VALUE, SEL, VALUE);
 
 VALUE
 rb_hash_freeze(VALUE hash)
@@ -28,10 +28,6 @@ rb_hash_freeze(VALUE hash)
     return rb_obj_freeze(hash);
 }
 
-VALUE rb_cHash;
-VALUE rb_cCFHash;
-VALUE rb_cNSHash;
-VALUE rb_cNSMutableHash;
 VALUE rb_cRubyHash;
 
 typedef struct {
@@ -41,19 +37,17 @@ typedef struct {
     bool has_proc_default; 
 } rb_hash_t;
 
-//#define IS_RHASH(x) (*(VALUE *)x == rb_cRubyHash)
-// XXX temporary
-#define IS_RHASH(x) __is_rhash(*(VALUE *)x)
+#define IS_RHASH(x) __klass_is_rhash(*(VALUE *)x)
 #define RHASH(x) ((rb_hash_t *)x)
 
-static force_inline bool
-__is_rhash(VALUE k)
+static inline bool
+__klass_is_rhash(VALUE k)
 {
     while (k != 0) {
 	if (k == rb_cRubyHash) {
 	    return true;
 	}
-	if (k == rb_cCFHash) {
+	if (k == rb_cNSHash) {
 	    return false;
 	}
 	k = RCLASS_SUPER(k);
@@ -64,7 +58,7 @@ __is_rhash(VALUE k)
 bool
 rb_klass_is_rhash(VALUE klass)
 {
-    return __is_rhash(klass);
+    return __klass_is_rhash(klass);
 }
 
 static VALUE envtbl;
@@ -72,8 +66,15 @@ static ID id_yield;
 
 static void *defaultCache = NULL;
 static void *hashCache = NULL;
+static SEL selFlattenBang = 0;
 static SEL selDefault = 0;
 static SEL selHash = 0;
+
+static inline long
+rhash_len(VALUE hash)
+{
+    return RHASH(hash)->tbl->num_entries;
+}
 
 VALUE
 rb_hash(VALUE obj)
@@ -123,11 +124,19 @@ st_foreach_safe(st_table *table, int (*func)(ANYARGS), st_data_t a)
     st_foreach(table, foreach_safe_i, (st_data_t)&arg);
 }
 
+static void
+rhash_iterate(VALUE hash, int (*func)(ANYARGS), VALUE farg)
+{
+    st_foreach_safe(RHASH(hash)->tbl, func, (st_data_t)farg);
+}
+
+#define rhash_foreach rhash_iterate
+
 void
 rb_hash_foreach(VALUE hash, int (*func)(ANYARGS), VALUE farg)
 {
     if (IS_RHASH(hash)) {
-	st_foreach_safe(RHASH(hash)->tbl, func, (st_data_t)farg);
+	rhash_foreach(hash, func, farg);
     }
     else {
 	CFIndex count = CFDictionaryGetCount((CFDictionaryRef)hash);
@@ -163,7 +172,7 @@ void
 rb_hash_iterate(VALUE hash, int (*func)(ANYARGS), VALUE farg)
 {
     if (IS_RHASH(hash)) {
-	st_foreach_safe(RHASH(hash)->tbl, func, (st_data_t)farg);
+	rhash_iterate(hash, func, farg);
     }
     else {
 	struct rb_cfhash_iterate_context ctx = {func, farg};
@@ -210,8 +219,6 @@ rb_any_hash(VALUE a)
 	    return CFHash((CFTypeRef)a);
     }
 
-    // XXX optimize for string
-
     return (int)FIX2LONG(rb_hash(a));
 }
 
@@ -221,62 +228,36 @@ static const struct st_hash_type objhash = {
 };
 
 static VALUE
-hash_alloc(VALUE klass)
+rhash_alloc(VALUE klass, SEL sel)
 {
-    if (rb_cRubyHash != 0 && (klass == 0 || __is_rhash(klass))) {
-	NEWOBJ(hash, rb_hash_t);
-	hash->basic.flags = 0;
-	hash->basic.klass = klass == 0 ? rb_cRubyHash : klass;
-	GC_WB(&hash->tbl, st_init_table(&objhash));
-	hash->ifnone = Qnil;
-	hash->has_proc_default = false;
-	return (VALUE)hash;
-    }
-    else {
-	CFMutableDictionaryRef hash = CFDictionaryCreateMutable(NULL, 0,
-		&kCFTypeDictionaryKeyCallBacks,
-		&kCFTypeDictionaryValueCallBacks);
-	if (klass != 0 && klass != rb_cNSHash && klass != rb_cNSMutableHash) {
-	    *(Class *)hash = (Class)klass;
-	}
-	CFMakeCollectable(hash);
-	return (VALUE)hash;
-    }
-}
-
-VALUE
-rb_hash_dup(VALUE rcv)
-{
-    if (IS_RHASH(rcv)) {
-	NEWOBJ(dup, rb_hash_t);
-	dup->basic.flags = 0;
-	dup->basic.klass = rb_cRubyHash;
-	GC_WB(&dup->tbl, st_copy(RHASH(rcv)->tbl));
-	GC_WB(&dup->ifnone, RHASH(rcv)->ifnone);
-	dup->has_proc_default = RHASH(rcv)->has_proc_default;
-	return (VALUE)dup;
-    }
-    else {
-	VALUE dup = (VALUE)CFDictionaryCreateMutableCopy(NULL, 0,
-		(CFDictionaryRef)rcv);
-	CFMakeCollectable((CFTypeRef)dup);
-	if (OBJ_TAINTED(rcv)) {
-	    OBJ_TAINT(dup);
-	}
-	return dup;
-    }
+    NEWOBJ(hash, rb_hash_t);
+    hash->basic.flags = 0;
+    hash->basic.klass = klass;
+    GC_WB(&hash->tbl, st_init_table(&objhash));
+    hash->ifnone = Qnil;
+    hash->has_proc_default = false;
+    return (VALUE)hash;
 }
 
 static VALUE
-rb_hash_dup_imp(VALUE rcv, SEL sel)
+rhash_dup(VALUE rcv, SEL sel)
 {
-    return rb_hash_dup(rcv);
+    NEWOBJ(dup, rb_hash_t);
+    dup->basic.flags = 0;
+    dup->basic.klass = rb_cRubyHash;
+    GC_WB(&dup->tbl, st_copy(RHASH(rcv)->tbl));
+    GC_WB(&dup->ifnone, RHASH(rcv)->ifnone);
+    dup->has_proc_default = RHASH(rcv)->has_proc_default;
+    if (OBJ_TAINTED(rcv)) {
+	OBJ_TAINT(dup);
+    }
+    return (VALUE)dup;
 }
 
 static VALUE
-rb_hash_clone(VALUE rcv, SEL sel)
+rhash_clone(VALUE rcv, SEL sel)
 {
-    VALUE clone = rb_hash_dup(rcv);
+    VALUE clone = rhash_dup(rcv, 0);
     if (OBJ_FROZEN(rcv)) {
 	OBJ_FREEZE(clone);
     }
@@ -284,45 +265,50 @@ rb_hash_clone(VALUE rcv, SEL sel)
 }
 
 VALUE
+rb_hash_dup(VALUE rcv)
+{
+    if (IS_RHASH(rcv)) {
+	return rhash_dup(rcv, 0);
+    }
+    else {
+	VALUE dup = (VALUE)CFDictionaryCreateMutableCopy(NULL, 0,
+		(CFDictionaryRef)rcv);
+	CFMakeCollectable((CFTypeRef)dup);
+	return dup;
+    }
+}
+
+VALUE
 rb_hash_new(void)
 {
-    return hash_alloc(0);
+    return rhash_alloc(rb_cRubyHash, 0);
 }
+
+static VALUE rhash_aset(VALUE hash, SEL sel, VALUE key, VALUE val);
 
 VALUE
 rb_hash_new_fast(int argc, ...)
 {
     assert(argc % 2 == 0);
 
-    VALUE hash = hash_alloc(0);
+    VALUE hash = rhash_alloc(rb_cRubyHash, 0);
 
     va_list ar;
     va_start(ar, argc);
     for (int i = 0; i < argc; i += 2) {
 	VALUE key = va_arg(ar, VALUE);
 	VALUE val = va_arg(ar, VALUE);
-	rb_hash_aset(hash, key, val);
+	rhash_aset(hash, 0, key, val);
     }
     va_end(ar);
 
     return hash;
 }
 
-bool _CFDictionaryIsMutable(void *);
-
 static inline void
-rb_hash_modify_check(VALUE hash)
+rhash_modify(VALUE hash)
 {
-    long mask;
-    if (IS_RHASH(hash)) {
-	mask = RBASIC(hash)->flags;
-    }
-    else {
-	mask = rb_objc_flag_get_mask((const void *)hash);
-	if (!_CFDictionaryIsMutable((void *)hash)) {
-	    mask |= FL_FREEZE;
-	}
-    }
+    const long mask = RBASIC(hash)->flags;
     if ((mask & FL_FREEZE) == FL_FREEZE) {
 	rb_raise(rb_eRuntimeError, "can't modify frozen/immutable hash");
     }
@@ -330,8 +316,6 @@ rb_hash_modify_check(VALUE hash)
 	rb_raise(rb_eSecurityError, "Insecure: can't modify hash");
     }
 }
-
-#define rb_hash_modify rb_hash_modify_check
 
 /*
  *  call-seq:
@@ -369,38 +353,50 @@ rb_hash_modify_check(VALUE hash)
  */
 
 static VALUE
-rb_hash_initialize(VALUE hash, SEL sel, int argc, const VALUE *argv)
+rhash_initialize(VALUE hash, SEL sel, int argc, const VALUE *argv)
 {
-    rb_hash_modify(hash);
-
-    //hash = (VALUE)objc_msgSend((id)hash, selInit);
-
-    if (IS_RHASH(hash)) {
-	if (rb_block_given_p()) {
-	    if (argc > 0) {
-		rb_raise(rb_eArgError, "wrong number of arguments");
-	    }
-	    GC_WB(&RHASH(hash)->ifnone, rb_block_proc());
-	    RHASH(hash)->has_proc_default = true;
+    rhash_modify(hash);
+    if (rb_block_given_p()) {
+	if (argc > 0) {
+	    rb_raise(rb_eArgError, "wrong number of arguments");
 	}
-	else {
-	    VALUE ifnone;
-	    rb_scan_args(argc, argv, "01", &ifnone);
-	    if (ifnone != Qnil) {
-		GC_WB(&RHASH(hash)->ifnone, ifnone);
-	    }
+	GC_WB(&RHASH(hash)->ifnone, rb_block_proc());
+	RHASH(hash)->has_proc_default = true;
+    }
+    else {
+	VALUE ifnone;
+	rb_scan_args(argc, argv, "01", &ifnone);
+	if (ifnone != Qnil) {
+	    GC_WB(&RHASH(hash)->ifnone, ifnone);
 	}
     }
-
     return hash;
 }
 
 VALUE
 rb_hash_new2(int argc, const VALUE *argv)
 {
-    VALUE h = hash_alloc(0);
-    rb_hash_initialize(h, 0, argc, argv);
+    VALUE h = rhash_alloc(rb_cRubyHash, 0);
+    rhash_initialize(h, 0, argc, argv);
     return h;
+}
+
+/*
+ *  call-seq:
+ *     Hash.try_convert(obj) -> hash or nil
+ *
+ *  Try to convert <i>obj</i> into a hash, using to_hash method.
+ *  Returns converted hash or nil if <i>obj</i> cannot be converted
+ *  for any reason.
+ *
+ *     Hash.try_convert({1=>2})   # => {1=>2}
+ *     Hash.try_convert("1=>2")   # => nil
+ */
+
+static VALUE
+rhash_try_convert(VALUE dummy, SEL sel, VALUE hash)
+{
+    return rb_check_convert_type(hash, T_HASH, "Hash", "to_hash");
 }
 
 /*
@@ -417,12 +413,12 @@ rb_hash_new2(int argc, const VALUE *argv)
  */
 
 static VALUE
-rb_hash_s_create(VALUE klass, SEL sel, int argc, VALUE *argv)
+rhash_create(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
     if (argc == 1) {
-	VALUE tmp = rb_hash_s_try_convert(Qnil, 0, argv[0]);
+	VALUE tmp = rhash_try_convert(Qnil, 0, argv[0]);
 	if (!NIL_P(tmp)) {
-	    VALUE hash = hash_alloc(klass);
+	    VALUE hash = rhash_alloc(klass, 0);
 	    if (IS_RHASH(hash) && IS_RHASH(tmp)) {
 		GC_WB(&RHASH(hash)->tbl, st_copy(RHASH(tmp)->tbl));
 	    }
@@ -451,13 +447,14 @@ rb_hash_s_create(VALUE klass, SEL sel, int argc, VALUE *argv)
 
 	tmp = rb_check_array_type(argv[0]);
 	if (!NIL_P(tmp)) {
-	    VALUE hash = hash_alloc(klass);
+	    VALUE hash = rhash_alloc(klass, 0);
 	    for (int i = 0; i < RARRAY_LEN(tmp); ++i) {
 		VALUE v = rb_check_array_type(RARRAY_AT(tmp, i));
 		if (NIL_P(v)) {
 		    continue;
 		}
-		if (RARRAY_LEN(v) < 1 || 2 < RARRAY_LEN(v)) {
+		const long len = RARRAY_LEN(v);
+		if (len < 1 || 2 < len) {
 		    continue;
 		}
 		rb_hash_aset(hash, RARRAY_AT(v, 0), RARRAY_AT(v, 1));
@@ -469,7 +466,7 @@ rb_hash_s_create(VALUE klass, SEL sel, int argc, VALUE *argv)
 	rb_raise(rb_eArgError, "odd number of arguments for Hash");
     }
 
-    VALUE hash = hash_alloc(klass);
+    VALUE hash = rhash_alloc(klass, 0);
     for (int i = 0; i < argc; i += 2) {
         rb_hash_aset(hash, argv[i], argv[i + 1]);
     }
@@ -481,23 +478,6 @@ static VALUE
 to_hash(VALUE hash)
 {
     return rb_convert_type(hash, T_HASH, "Hash", "to_hash");
-}
-
-/*
- *  call-seq:
- *     Hash.try_convert(obj) -> hash or nil
- *
- *  Try to convert <i>obj</i> into a hash, using to_hash method.
- *  Returns converted hash or nil if <i>obj</i> cannot be converted
- *  for any reason.
- *
- *     Hash.try_convert({1=>2})   # => {1=>2}
- *     Hash.try_convert("1=>2")   # => nil
- */
-static VALUE
-rb_hash_s_try_convert(VALUE dummy, SEL sel, VALUE hash)
-{
-    return rb_check_convert_type(hash, T_HASH, "Hash", "to_hash");
 }
 
 /*
@@ -521,7 +501,7 @@ rb_hash_s_try_convert(VALUE dummy, SEL sel, VALUE hash)
  */
 
 static int
-rb_hash_rehash_i(VALUE key, VALUE value, VALUE arg)
+rhash_rehash_i(VALUE key, VALUE value, VALUE arg)
 {
     st_table *tbl = (st_table *)arg;
     if (key != Qundef) {
@@ -531,33 +511,14 @@ rb_hash_rehash_i(VALUE key, VALUE value, VALUE arg)
 }
 
 static VALUE
-rb_hash_rehash(VALUE hash, SEL sel)
+rhash_rehash(VALUE hash, SEL sel)
 {
-    rb_hash_modify_check(hash);
-    if (IS_RHASH(hash)) {
-	st_table *tbl = st_init_table_with_size(RHASH(hash)->tbl->type,
-		RHASH(hash)->tbl->num_entries);
-	rb_hash_foreach(hash, rb_hash_rehash_i, (VALUE)tbl);
-	//st_free_table(RHASH(hash)->tbl);
-	GC_WB(&RHASH(hash)->tbl, tbl);
-    }
-    else {
-	CFIndex count = CFDictionaryGetCount((CFDictionaryRef)hash);
-	if (count == 0) {
-	    return hash;
-	}
-
-	const void **keys = (const void **)alloca(sizeof(void *) * count);
-	const void **values = (const void **)alloca(sizeof(void *) * count);
-
-	CFDictionaryGetKeysAndValues((CFDictionaryRef)hash, keys, values);
-	CFDictionaryRemoveAllValues((CFMutableDictionaryRef)hash);
-
-	for (CFIndex i = 0; i < count; i++) {
-	    CFDictionarySetValue((CFMutableDictionaryRef)hash,
-		    (const void *)keys[i], (const void *)values[i]);
-	}
-    }
+    rhash_modify(hash);
+    st_table *tbl = st_init_table_with_size(RHASH(hash)->tbl->type,
+	    RHASH(hash)->tbl->num_entries);
+    rb_hash_foreach(hash, rhash_rehash_i, (VALUE)tbl);
+    //st_free_table(RHASH(hash)->tbl);
+    GC_WB(&RHASH(hash)->tbl, tbl);
     return hash;
 }
 
@@ -575,20 +536,52 @@ rb_hash_rehash(VALUE hash, SEL sel)
  *
  */
 
+static inline VALUE
+rhash_lookup(VALUE hash, VALUE key)
+{
+    VALUE val;
+    if (st_lookup(RHASH(hash)->tbl, key, &val)) {
+	return val;
+    }
+    return Qundef;
+}
+
+VALUE
+rb_hash_lookup(VALUE hash, VALUE key)
+{
+    VALUE val;
+    if (IS_RHASH(hash)) {
+	val = rhash_lookup(hash, key);
+    }
+    else {
+	if (!CFDictionaryGetValueIfPresent((CFDictionaryRef)hash,
+		    (const void *)RB2OC(key), (const void **)&val)) {
+	    val = Qundef;
+	}
+    }
+    return val == Qundef ? Qnil : val;
+}
+
+static VALUE
+rhash_aref(VALUE hash, SEL sel, VALUE key)
+{
+    VALUE val = rhash_lookup(hash, key);
+    if (val == Qundef) {
+	if (*(VALUE *)hash == rb_cRubyHash
+		&& RHASH(hash)->ifnone == Qnil) {
+	    return Qnil;
+	}
+	return rb_vm_call_with_cache(defaultCache, hash, selDefault,
+		1, &key);
+    }
+    return val;
+}
+
 VALUE
 rb_hash_aref(VALUE hash, VALUE key)
 {
     if (IS_RHASH(hash)) {
-	VALUE val;
-	if (!st_lookup(RHASH(hash)->tbl, key, &val)) {
-	    if (*(VALUE *)hash == rb_cRubyHash
-		    && RHASH(hash)->ifnone == Qnil) {
-		return Qnil;
-	    }
-	    return rb_vm_call_with_cache(defaultCache, hash, selDefault,
-		    1, &key);
-	}
-	return val;
+	return rhash_aref(hash, 0, key);
     }
     else {
 	VALUE val;
@@ -598,38 +591,6 @@ rb_hash_aref(VALUE hash, VALUE key)
 	}
 	return OC2RB(val);
     }
-}
-
-static VALUE
-rb_hash_aref_imp(VALUE hash, SEL sel, VALUE key)
-{
-    return rb_hash_aref(hash, key);
-}
-
-static VALUE
-rb_hash_lookup0(VALUE hash, VALUE key)
-{
-    if (IS_RHASH(hash)) {
-	VALUE val;
-	if (st_lookup(RHASH(hash)->tbl, key, &val)) {
-	    return val;
-	}
-    }
-    else {
-	VALUE val;
-	if (CFDictionaryGetValueIfPresent((CFDictionaryRef)hash,
-		    (const void *)RB2OC(key), (const void **)&val)) {
-	    return OC2RB(val);
-	}
-    }
-    return Qundef;
-}
-
-VALUE
-rb_hash_lookup(VALUE hash, VALUE key)
-{
-    VALUE v = rb_hash_lookup0(hash, key);
-    return v == Qundef ? Qnil : v;
 }
 
 /*
@@ -662,7 +623,7 @@ rb_hash_lookup(VALUE hash, VALUE key)
  */
 
 static VALUE
-rb_hash_fetch(VALUE hash, SEL sel, int argc, VALUE *argv)
+rhash_fetch(VALUE hash, SEL sel, int argc, VALUE *argv)
 {
     VALUE key, if_none;
     rb_scan_args(argc, argv, "11", &key, &if_none);
@@ -672,7 +633,7 @@ rb_hash_fetch(VALUE hash, SEL sel, int argc, VALUE *argv)
 	rb_warn("block supersedes default value argument");
     }
 
-    VALUE v = rb_hash_lookup0(hash, key);
+    VALUE v = rhash_lookup(hash, key);
     if (v != Qundef) {
 	return v;
     }
@@ -707,21 +668,18 @@ rb_hash_fetch(VALUE hash, SEL sel, int argc, VALUE *argv)
  */
 
 static VALUE
-rb_hash_default(VALUE hash, SEL sel, int argc, VALUE *argv)
+rhash_default(VALUE hash, SEL sel, int argc, VALUE *argv)
 {
     VALUE key;
     rb_scan_args(argc, argv, "01", &key);
 
-    if (IS_RHASH(hash)) {
-	if (RHASH(hash)->has_proc_default) {
-	    if (argc == 0) {
-		return Qnil;
-	    }
-	    return rb_funcall(RHASH(hash)->ifnone, id_yield, 2, hash, key);
+    if (RHASH(hash)->has_proc_default) {
+	if (argc == 0) {
+	    return Qnil;
 	}
-	return RHASH(hash)->ifnone;
+	return rb_funcall(RHASH(hash)->ifnone, id_yield, 2, hash, key);
     }
-    return Qnil;
+    return RHASH(hash)->ifnone;
 }
 
 /*
@@ -745,20 +703,21 @@ rb_hash_default(VALUE hash, SEL sel, int argc, VALUE *argv)
  */
 
 static VALUE
-rb_hash_set_default(VALUE hash, SEL sel, VALUE ifnone)
+rhash_set_default(VALUE hash, SEL sel, VALUE ifnone)
 {
-    rb_hash_modify(hash);
-    if (IS_RHASH(hash)) {
-	GC_WB(&RHASH(hash)->ifnone, ifnone);
-	RHASH(hash)->has_proc_default = false;
-    }
+    rhash_modify(hash);
+    GC_WB(&RHASH(hash)->ifnone, ifnone);
+    RHASH(hash)->has_proc_default = false;
     return ifnone;
 }
 
 VALUE
 rb_hash_set_ifnone(VALUE hash, VALUE ifnone)
 {
-    return rb_hash_set_default(hash, 0, ifnone);
+    if (IS_RHASH(hash)) {
+	rhash_set_default(hash, 0, ifnone);
+    }
+    return ifnone;
 }
 
 /*
@@ -775,24 +734,10 @@ rb_hash_set_ifnone(VALUE hash, VALUE ifnone)
  *     a                                  #=> [nil, nil, 4]
  */
 
-
 static VALUE
-rb_hash_default_proc(VALUE hash, SEL sel)
+rhash_default_proc(VALUE hash, SEL sel)
 {
-    if (IS_RHASH(hash)) {
-	return RHASH(hash)->has_proc_default ? RHASH(hash)->ifnone : Qnil;
-    }
-    return Qnil;
-}
-
-static int
-key_i(VALUE key, VALUE value, VALUE *args)
-{
-    if (rb_equal(value, args[0])) {
-	args[1] = key;
-	return ST_STOP;
-    }
-    return ST_CONTINUE;
+    return RHASH(hash)->has_proc_default ? RHASH(hash)->ifnone : Qnil;
 }
 
 /*
@@ -807,42 +752,30 @@ key_i(VALUE key, VALUE value, VALUE *args)
  *
  */
 
+static int
+key_i(VALUE key, VALUE value, VALUE *args)
+{
+    if (rb_equal(value, args[0])) {
+	args[1] = key;
+	return ST_STOP;
+    }
+    return ST_CONTINUE;
+}
+
 static VALUE
-rb_hash_key(VALUE hash, SEL sel, VALUE value)
+rhash_key(VALUE hash, SEL sel, VALUE value)
 {
     VALUE args[2] = {value, Qnil};
-    rb_hash_iterate(hash, key_i, (st_data_t)args);
+    rhash_iterate(hash, key_i, (st_data_t)args);
     return args[1];
 }
 
 /* :nodoc: */
 static VALUE
-rb_hash_index(VALUE hash, SEL sel, VALUE value)
+rhash_index(VALUE hash, SEL sel, VALUE value)
 {
     rb_warn("Hash#index is deprecated; use Hash#key");
-    return rb_hash_key(hash, 0, value);
-}
-
-VALUE
-rb_hash_delete_key(VALUE hash, VALUE key)
-{
-    if (IS_RHASH(hash)) {
-	VALUE val;
-	if (st_delete(RHASH(hash)->tbl, &key, &val)) {
-	    return val;
-	}
-    }
-    else {
-	VALUE val;
-	id ockey = RB2OC(key);
-	if (CFDictionaryGetValueIfPresent((CFDictionaryRef)hash,
-		    (const void *)ockey, (const void **)&val)) {
-	    CFDictionaryRemoveValue((CFMutableDictionaryRef)hash, 
-		    (const void *)ockey);
-	    return OC2RB(val);
-	}
-    }
-    return Qundef;
+    return rhash_key(hash, 0, value);
 }
 
 /*
@@ -850,9 +783,9 @@ rb_hash_delete_key(VALUE hash, VALUE key)
  *     hsh.delete(key)                   => value
  *     hsh.delete(key) {| key | block }  => value
  *
- *  Deletes and returns a key-value pair from <i>hsh</i> whose key is
- *  equal to <i>key</i>. If the key is not found, returns the
- *  <em>default value</em>. If the optional code block is given and the
+ *  Deletes and returns the value from <i>hsh</i> whose key is
+ *  equal to <i>key</i>. If the key is not found, returns nil.
+ *  If the optional code block is given and the
  *  key is not found, pass in the key and return the result of
  *  <i>block</i>.
  *
@@ -863,11 +796,51 @@ rb_hash_delete_key(VALUE hash, VALUE key)
  *
  */
 
+static inline VALUE
+rhash_delete_key(VALUE hash, VALUE key)
+{
+    VALUE val;
+    if (st_delete(RHASH(hash)->tbl, &key, &val)) {
+	return val;
+    }
+    return Qundef;
+}
+
+VALUE
+rb_hash_delete_key(VALUE hash, VALUE key)
+{
+    if (IS_RHASH(hash)) {
+	rhash_modify(hash);
+	return rhash_delete_key(hash, key);
+    }
+    else {
+	VALUE val;
+	id ockey = RB2OC(key);
+	if (CFDictionaryGetValueIfPresent((CFDictionaryRef)hash,
+		    (const void *)ockey, (const void **)&val)) {
+	    CFDictionaryRemoveValue((CFMutableDictionaryRef)hash, 
+		    (const void *)ockey);
+	    return OC2RB(val);
+	}
+	return Qundef;
+    }
+}
+
 VALUE
 rb_hash_delete(VALUE hash, VALUE key)
 {
-    rb_hash_modify(hash);
     VALUE val = rb_hash_delete_key(hash, key);
+    if (val != Qundef) {
+	return val;
+    }
+    return Qnil;
+}
+
+static VALUE
+rhash_delete(VALUE hash, SEL sel, VALUE key)
+{
+    rhash_modify(hash);
+    VALUE val = rhash_delete_key(hash, key);
     if (val != Qundef) {
 	return val;
     }
@@ -875,12 +848,6 @@ rb_hash_delete(VALUE hash, VALUE key)
 	return rb_yield(key);
     }
     return Qnil;
-}
-
-static VALUE
-rb_hash_delete_imp(VALUE hash, SEL sel, VALUE key)
-{
-    return rb_hash_delete(hash, key);
 }
 
 /*
@@ -896,42 +863,37 @@ rb_hash_delete_imp(VALUE hash, SEL sel, VALUE key)
  *     h         #=> {2=>"b", 3=>"c"}
  */
 
-static VALUE rb_hash_keys_imp(VALUE, SEL);
-
-static VALUE
-rb_hash_shift(VALUE hash, SEL sel)
-{
-    VALUE keys = rb_hash_keys_imp(hash, 0);
-    if (RARRAY_LEN(keys) == 0) {
-	if (IS_RHASH(hash)) {
-	    if (RHASH(hash)->ifnone != Qnil) {
-		if (RHASH(hash)->has_proc_default) {
-		    return rb_funcall(RHASH(hash)->ifnone, id_yield, 2, hash,
-			    Qnil);
-		}
-		return RHASH(hash)->ifnone;
-	    }
-	}
-	return Qnil;
-    }
-
-    VALUE key = RARRAY_AT(keys, 0);
-    VALUE val = rb_hash_aref(hash, key);
-    rb_hash_delete(hash, key);
-
-    return rb_assoc_new(key, val);
-}
-
 static int
-delete_if_i(VALUE key, VALUE value, VALUE ary)
+shift_i(VALUE key, VALUE value, VALUE arg)
 {
-    if (key == Qundef) {
-	return ST_CONTINUE;
-    }
-    if (RTEST(rb_yield_values(2, key, value))) {
-	rb_ary_push(ary, key);
+    VALUE *ret = (VALUE *)arg;
+    if (key != Qundef) {
+	ret[0] = key;
+	ret[1] = value;
+	return ST_STOP;
     }
     return ST_CONTINUE;
+}
+
+static VALUE
+rhash_shift(VALUE hash, SEL sel)
+{
+    VALUE args[2] = {0, 0};
+    rhash_iterate(hash, shift_i, (st_data_t)args);
+    if (args[0] != 0 && args[1] != 0) {
+	rhash_modify(hash);
+	rhash_delete_key(hash, args[0]);
+	return rb_assoc_new(args[0], args[1]);
+    }
+
+    if (RHASH(hash)->ifnone != Qnil) {
+	if (RHASH(hash)->has_proc_default) {
+	    return rb_funcall(RHASH(hash)->ifnone, id_yield, 2, hash,
+		    Qnil);
+	}
+	return RHASH(hash)->ifnone;
+    }
+    return Qnil;
 }
 
 /*
@@ -946,16 +908,27 @@ delete_if_i(VALUE key, VALUE value, VALUE ary)
  *
  */
 
+static int
+delete_if_i(VALUE key, VALUE value, VALUE ary)
+{
+    if (key != Qundef) {
+	if (RTEST(rb_yield_values(2, key, value))) {
+	    rb_ary_push(ary, key);
+	}
+    }
+    return ST_CONTINUE;
+}
+
 static VALUE
-rb_hash_delete_if(VALUE hash, SEL sel)
+rhash_delete_if(VALUE hash, SEL sel)
 {
     RETURN_ENUMERATOR(hash, 0, 0);
-    rb_hash_modify(hash);
+    rhash_modify(hash);
     VALUE ary = rb_ary_new();
-    rb_hash_foreach(hash, delete_if_i, ary);
+    rhash_foreach(hash, delete_if_i, ary);
     for (int i = 0, count = RARRAY_LEN(ary); i < count; i++) {
 	VALUE key = RARRAY_AT(ary, i);
-	rb_hash_delete_key(hash, key);	
+	rhash_delete_key(hash, key);	
     }
     return hash;
 }
@@ -969,12 +942,12 @@ rb_hash_delete_if(VALUE hash, SEL sel)
  */
 
 static VALUE
-rb_hash_reject_bang(VALUE hash, SEL sel)
+rhash_reject_bang(VALUE hash, SEL sel)
 {
     RETURN_ENUMERATOR(hash, 0, 0);
-    const long n = RHASH_SIZE(hash);
-    rb_hash_delete_if(hash, 0);
-    return n == RHASH_SIZE(hash) ? Qnil : hash;
+    const long n = rhash_len(hash);
+    rhash_delete_if(hash, 0);
+    return n == rhash_len(hash) ? Qnil : hash;
 }
 
 /*
@@ -988,9 +961,9 @@ rb_hash_reject_bang(VALUE hash, SEL sel)
  */
 
 static VALUE
-rb_hash_reject(VALUE hash, SEL sel)
+rhash_reject(VALUE hash, SEL sel)
 {
-    return rb_hash_delete_if(rb_hash_dup(hash), 0);
+    return rhash_delete_if(rhash_dup(hash, 0), 0);
 }
 
 /*
@@ -1005,25 +978,13 @@ rb_hash_reject(VALUE hash, SEL sel)
  */
 
 static VALUE
-rb_hash_values_at(VALUE hash, SEL sel, int argc, VALUE *argv)
+rhash_values_at(VALUE hash, SEL sel, int argc, VALUE *argv)
 {
     VALUE result = rb_ary_new2(argc);
     for (int i = 0; i < argc; i++) {
-	rb_ary_push(result, rb_hash_aref(hash, argv[i]));
+	rb_ary_push(result, rhash_aref(hash, 0, argv[i]));
     }
     return result;
-}
-
-static int
-select_i(VALUE key, VALUE value, VALUE result)
-{
-    if (key == Qundef) {
-	return ST_CONTINUE;
-    }
-    if (RTEST(rb_yield_values(2, key, value))) {
-	rb_hash_aset(result, key, value);
-    }
-    return ST_CONTINUE;
 }
 
 /*
@@ -1037,12 +998,23 @@ select_i(VALUE key, VALUE value, VALUE result)
  *     h.select {|k,v| v < 200}  #=> {"a" => 100}
  */
 
+static int
+select_i(VALUE key, VALUE value, VALUE result)
+{
+    if (key != Qundef) {
+	if (RTEST(rb_yield_values(2, key, value))) {
+	    rb_hash_aset(result, key, value);
+	}
+    }
+    return ST_CONTINUE;
+}
+
 static VALUE
-rb_hash_select(VALUE hash, SEL sel)
+rhash_select(VALUE hash, SEL sel)
 {
     RETURN_ENUMERATOR(hash, 0, 0);
     VALUE result = rb_hash_new();
-    rb_hash_iterate(hash, select_i, result);
+    rhash_iterate(hash, select_i, result);
     return result;
 }
 
@@ -1058,15 +1030,10 @@ rb_hash_select(VALUE hash, SEL sel)
  */
 
 static VALUE
-rb_hash_clear(VALUE hash, SEL sel)
+rhash_clear(VALUE hash, SEL sel)
 {
-    rb_hash_modify_check(hash);
-    if (IS_RHASH(hash)) {
-	st_clear(RHASH(hash)->tbl);
-    }
-    else {
-	CFDictionaryRemoveAllValues((CFMutableDictionaryRef)hash);
-    }
+    rhash_modify(hash);
+    st_clear(RHASH(hash)->tbl);
     return hash;
 }
 
@@ -1088,12 +1055,19 @@ rb_hash_clear(VALUE hash, SEL sel)
  *
  */
 
+static VALUE
+rhash_aset(VALUE hash, SEL sel, VALUE key, VALUE val)
+{
+    rhash_modify(hash);
+    st_insert(RHASH(hash)->tbl, key, val);
+    return val;
+}
+
 VALUE
 rb_hash_aset(VALUE hash, VALUE key, VALUE val)
 {
-    rb_hash_modify(hash);
     if (IS_RHASH(hash)) {
-	st_insert(RHASH(hash)->tbl, key, val);
+	rhash_aset(hash, 0, key, val);
     }
     else {
 	CFDictionarySetValue((CFMutableDictionaryRef)hash,
@@ -1101,12 +1075,6 @@ rb_hash_aset(VALUE hash, VALUE key, VALUE val)
 		(const void *)RB2OC(val));
     }
     return val;
-}
-
-static VALUE
-rb_hash_aset_imp(VALUE hash, SEL sel, VALUE key, VALUE val)
-{
-    return rb_hash_aset(hash, key, val);
 }
 
 static int
@@ -1131,17 +1099,18 @@ replace_i(VALUE key, VALUE val, VALUE hash)
  */
 
 static VALUE
-rb_hash_replace(VALUE hash, SEL sel, VALUE hash2)
+rhash_replace(VALUE hash, SEL sel, VALUE hash2)
 {
-    rb_hash_modify(hash);
+    rhash_modify(hash);
     hash2 = to_hash(hash2);
     if (hash == hash2) {
 	return hash;
     }
-    rb_hash_clear(hash, 0);
+
+    rhash_clear(hash, 0);
     rb_hash_foreach(hash2, replace_i, hash);
 
-    if (IS_RHASH(hash) && IS_RHASH(hash2)) {
+    if (IS_RHASH(hash2)) {
 	GC_WB(&RHASH(hash)->ifnone, RHASH(hash2)->ifnone);
 	RHASH(hash)->has_proc_default = RHASH(hash2)->has_proc_default;
     }
@@ -1161,19 +1130,19 @@ rb_hash_replace(VALUE hash, SEL sel, VALUE hash2)
  *     h.length        #=> 3
  */
 
+static VALUE
+rhash_size(VALUE hash, SEL sel)
+{
+    return LONG2NUM(rhash_len(hash));
+}
+
 long
 rb_hash_size(VALUE hash)
 {
     if (IS_RHASH(hash)) {
-	return RHASH(hash)->tbl->num_entries;
+	return rhash_len(hash);
     }
     return CFDictionaryGetCount((CFDictionaryRef)hash);
-}
-
-static VALUE
-rb_hash_size_imp(VALUE hash, SEL sel)
-{
-    return LONG2NUM(rb_hash_size(hash));
 }
 
 /*
@@ -1187,19 +1156,9 @@ rb_hash_size_imp(VALUE hash, SEL sel)
  */
 
 static VALUE
-rb_hash_empty_p(VALUE hash, SEL sel)
+rhash_empty(VALUE hash, SEL sel)
 {
-    return RHASH_EMPTY_P(hash) ? Qtrue : Qfalse;
-}
-
-static int
-each_value_i(VALUE key, VALUE value)
-{
-    if (key == Qundef) {
-	return ST_CONTINUE;
-    }
-    rb_yield(value);
-    return ST_CONTINUE;
+    return rhash_len(hash) == 0 ? Qtrue : Qfalse;
 }
 
 /*
@@ -1218,22 +1177,21 @@ each_value_i(VALUE key, VALUE value)
  *     200
  */
 
-static VALUE
-rb_hash_each_value(VALUE hash, SEL sel)
+static int
+each_value_i(VALUE key, VALUE value)
 {
-    RETURN_ENUMERATOR(hash, 0, 0);
-    rb_hash_iterate(hash, each_value_i, 0);
-    return hash;
+    if (key != Qundef) {
+	rb_yield(value);
+    }
+    return ST_CONTINUE;
 }
 
-static int
-each_key_i(VALUE key, VALUE value)
+static VALUE
+rhash_each_value(VALUE hash, SEL sel)
 {
-    if (key == Qundef) {
-	return ST_CONTINUE;
-    }
-    rb_yield(key);
-    return ST_CONTINUE;
+    RETURN_ENUMERATOR(hash, 0, 0);
+    rhash_iterate(hash, each_value_i, 0);
+    return hash;
 }
 
 /*
@@ -1251,22 +1209,22 @@ each_key_i(VALUE key, VALUE value)
  *     a
  *     b
  */
-static VALUE
-rb_hash_each_key(VALUE hash, SEL sel)
-{
-    RETURN_ENUMERATOR(hash, 0, 0);
-    rb_hash_iterate(hash, each_key_i, 0);
-    return hash;
-}
 
 static int
-each_pair_i(VALUE key, VALUE value)
+each_key_i(VALUE key, VALUE value)
 {
-    if (key == Qundef) {
-	return ST_CONTINUE;
+    if (key != Qundef) {
+	rb_yield(key);
     }
-    rb_yield(rb_assoc_new(key, value));
     return ST_CONTINUE;
+}
+
+static VALUE
+rhash_each_key(VALUE hash, SEL sel)
+{
+    RETURN_ENUMERATOR(hash, 0, 0);
+    rhash_iterate(hash, each_key_i, 0);
+    return hash;
 }
 
 /*
@@ -1287,22 +1245,21 @@ each_pair_i(VALUE key, VALUE value)
  *
  */
 
-static VALUE
-rb_hash_each_pair(VALUE hash, SEL sel)
+static int
+each_pair_i(VALUE key, VALUE value)
 {
-    RETURN_ENUMERATOR(hash, 0, 0);
-    rb_hash_iterate(hash, each_pair_i, 0);
-    return hash;
+    if (key != Qundef) {
+	rb_yield(rb_assoc_new(key, value));
+    }
+    return ST_CONTINUE;
 }
 
-static int
-to_a_i(VALUE key, VALUE value, VALUE ary)
+static VALUE
+rhash_each_pair(VALUE hash, SEL sel)
 {
-    if (key == Qundef) {
-	return ST_CONTINUE;
-    }
-    rb_ary_push(ary, rb_assoc_new(key, value));
-    return ST_CONTINUE;
+    RETURN_ENUMERATOR(hash, 0, 0);
+    rhash_iterate(hash, each_pair_i, 0);
+    return hash;
 }
 
 /*
@@ -1316,45 +1273,24 @@ to_a_i(VALUE key, VALUE value, VALUE ary)
  *     h.to_a   #=> [["c", 300], ["a", 100], ["d", 400]]
  */
 
-static VALUE
-rb_hash_to_a(VALUE hash, SEL sel)
-{
-    VALUE ary = rb_ary_new();
-    rb_hash_iterate(hash, to_a_i, ary);
-    if (OBJ_TAINTED(hash)) {
-	OBJ_TAINT(ary);
-    }
-    return ary;
-}
-
 static int
-inspect_i(VALUE key, VALUE value, VALUE str)
+to_a_i(VALUE key, VALUE value, VALUE ary)
 {
-    if (key == Qundef) {
-	return ST_CONTINUE;
+    if (key != Qundef) {
+	rb_ary_push(ary, rb_assoc_new(key, value));
     }
-    if (RSTRING_LEN(str) > 1) {
-	rb_str_cat2(str, ", ");
-    }
-    VALUE str2 = rb_inspect(key);
-    rb_str_buf_append(str, str2);
-    rb_str_buf_cat2(str, "=>");
-    str2 = rb_inspect(value);
-    rb_str_buf_append(str, str2);
     return ST_CONTINUE;
 }
 
 static VALUE
-inspect_hash(VALUE hash, VALUE dummy, int recur)
+rhash_to_a(VALUE hash, SEL sel)
 {
-    if (recur) {
-	return rb_usascii_str_new2("{...}");
+    VALUE ary = rb_ary_new();
+    rhash_iterate(hash, to_a_i, ary);
+    if (OBJ_TAINTED(hash)) {
+	OBJ_TAINT(ary);
     }
-    VALUE str = rb_str_buf_new2("{");
-    rb_hash_iterate(hash, inspect_i, str);
-    rb_str_buf_cat2(str, "}");
-    OBJ_INFECT(str, hash);
-    return str;
+    return ary;
 }
 
 /*
@@ -1368,8 +1304,37 @@ inspect_hash(VALUE hash, VALUE dummy, int recur)
  *     h.to_s   #=> "{\"c\"=>300, \"a\"=>100, \"d\"=>400}"
  */
 
+static int
+inspect_i(VALUE key, VALUE value, VALUE str)
+{
+    if (key != Qundef) {
+	if (RSTRING_LEN(str) > 1) {
+	    rb_str_cat2(str, ", ");
+	}
+	VALUE str2 = rb_inspect(key);
+	rb_str_buf_append(str, str2);
+	rb_str_buf_cat2(str, "=>");
+	str2 = rb_inspect(value);
+	rb_str_buf_append(str, str2);
+    }
+    return ST_CONTINUE;
+}
+
 static VALUE
-rb_hash_inspect(VALUE hash, SEL sel)
+inspect_hash(VALUE hash, VALUE dummy, int recur)
+{
+    if (recur) {
+	return rb_usascii_str_new2("{...}");
+    }
+    VALUE str = rb_str_buf_new2("{");
+    rhash_iterate(hash, inspect_i, str);
+    rb_str_buf_cat2(str, "}");
+    OBJ_INFECT(str, hash);
+    return str;
+}
+
+static VALUE
+rhash_inspect(VALUE hash, SEL sel)
 {
     if (RHASH_EMPTY_P(hash)) {
 	return rb_usascii_str_new2("{}");
@@ -1385,19 +1350,9 @@ rb_hash_inspect(VALUE hash, SEL sel)
  */
 
 static VALUE
-rb_hash_to_hash(VALUE hash, SEL sel)
+rhash_to_hash(VALUE hash, SEL sel)
 {
     return hash;
-}
-
-static int
-keys_i(VALUE key, VALUE value, VALUE ary)
-{
-    if (key == Qundef) {
-	return ST_CONTINUE;
-    }
-    rb_ary_push(ary, key);
-    return ST_CONTINUE;
 }
 
 /*
@@ -1412,28 +1367,29 @@ keys_i(VALUE key, VALUE value, VALUE ary)
  *
  */
 
+static int
+keys_i(VALUE key, VALUE value, VALUE ary)
+{
+    if (key != Qundef) {
+	rb_ary_push(ary, key);
+    }
+    return ST_CONTINUE;
+}
+
 static VALUE
-rb_hash_keys_imp(VALUE hash, SEL sel)
+rhash_keys(VALUE hash, SEL sel)
 {
     VALUE ary = rb_ary_new();
-    rb_hash_iterate(hash, keys_i, ary);
+    rhash_iterate(hash, keys_i, ary);
     return ary;
 }
 
 VALUE
 rb_hash_keys(VALUE hash)
 {
-    return rb_hash_keys_imp(hash, 0);
-}
-
-static int
-values_i(VALUE key, VALUE value, VALUE ary)
-{
-    if (key == Qundef) {
-	return ST_CONTINUE;
-    }
-    rb_ary_push(ary, value);
-    return ST_CONTINUE;
+    VALUE ary = rb_ary_new();
+    rb_hash_iterate(hash, keys_i, ary);
+    return ary;
 }
 
 /*
@@ -1448,11 +1404,20 @@ values_i(VALUE key, VALUE value, VALUE ary)
  *
  */
 
+static int
+values_i(VALUE key, VALUE value, VALUE ary)
+{
+    if (key != Qundef) {
+	rb_ary_push(ary, value);
+    }
+    return ST_CONTINUE;
+}
+
 static VALUE
-rb_hash_values(VALUE hash, SEL sel)
+rhash_values(VALUE hash, SEL sel)
 {
     VALUE ary = rb_ary_new();
-    rb_hash_iterate(hash, values_i, ary);
+    rhash_iterate(hash, values_i, ary);
     return ary;
 }
 
@@ -1472,21 +1437,21 @@ rb_hash_values(VALUE hash, SEL sel)
  */
 
 static VALUE
-rb_hash_has_key_imp(VALUE hash, SEL sel, VALUE key)
+rhash_has_key(VALUE hash, SEL sel, VALUE key)
 {
-    if (IS_RHASH(hash)) {
-	return st_lookup(RHASH(hash)->tbl, key, 0) ? Qtrue : Qfalse;
-    }
-    else {
-	return CFDictionaryContainsKey((CFDictionaryRef)hash,
-		(const void *)RB2OC(key)) ? Qtrue : Qfalse;
-    }
+    return st_lookup(RHASH(hash)->tbl, key, 0) ? Qtrue : Qfalse;
 }
 
 VALUE
 rb_hash_has_key(VALUE hash, VALUE key)
 {
-    return rb_hash_has_key_imp(hash, 0, key);
+    if (IS_RHASH(hash)) {
+	return rhash_has_key(hash, 0, key);
+    }
+    else {
+	return CFDictionaryContainsKey((CFDictionaryRef)hash,
+		(const void *)RB2OC(key)) ? Qtrue : Qfalse;
+    }
 }
 
 /*
@@ -1503,32 +1468,44 @@ rb_hash_has_key(VALUE hash, VALUE key)
  */
 
 static int
-rb_hash_search_value(VALUE key, VALUE value, VALUE arg)
+search_value(VALUE key, VALUE value, VALUE arg)
 {
     VALUE *data = (VALUE *)arg;
-    if (key == Qundef) {
-	return ST_CONTINUE;
-    }
-    if (rb_equal(value, data[1])) {
-        data[0] = Qtrue;
-        return ST_STOP;
+    if (key != Qundef) {
+	if (rb_equal(value, data[1])) {
+	    data[0] = Qtrue;
+	    return ST_STOP;
+	}
     }
     return ST_CONTINUE;
 }
 
 static VALUE
-rb_hash_has_value(VALUE hash, SEL sel, VALUE val)
+rhash_has_value(VALUE hash, SEL sel, VALUE val)
 {
-    if (IS_RHASH(hash)) {
-	VALUE data[2] = {Qfalse, val};
-	rb_hash_foreach(hash, rb_hash_search_value, (VALUE)data);
-	return data[0];
-    }
-    else {
-	return CFDictionaryContainsValue((CFDictionaryRef)hash,
-		(const void *)RB2OC(val)) ? Qtrue : Qfalse;
-    }
+    VALUE data[2] = {Qfalse, val};
+    rhash_foreach(hash, search_value, (VALUE)data);
+    return data[0];
 }
+
+/*
+ *  call-seq:
+ *     hsh == other_hash    => true or false
+ *
+ *  Equality---Two hashes are equal if they each contain the same number
+ *  of keys and if each key-value pair is equal to (according to
+ *  <code>Object#==</code>) the corresponding elements in the other
+ *  hash.
+ *
+ *     h1 = { "a" => 1, "c" => 2 }
+ *     h2 = { 7 => 35, "c" => 2, "a" => 1 }
+ *     h3 = { "a" => 1, "c" => 2, 7 => 35 }
+ *     h4 = { "a" => 1, "d" => 2, "f" => 35 }
+ *     h1 == h2   #=> false
+ *     h2 == h3   #=> true
+ *     h3 == h4   #=> false
+ *
+ */
 
 struct equal_data {
     VALUE result;
@@ -1595,7 +1572,7 @@ hash_equal(VALUE hash1, VALUE hash2, bool eql)
     if (RHASH_SIZE(hash1) != RHASH_SIZE(hash2)) {
 	return Qfalse;
     }
-    if (IS_RHASH(hash1) && IS_RHASH(hash2)) {
+    if (IS_RHASH(hash2)) {
 	struct equal_data data;
 	data.tbl = RHASH(hash2)->tbl;
 	data.eql = eql;
@@ -1606,27 +1583,8 @@ hash_equal(VALUE hash1, VALUE hash2, bool eql)
     }
 }
 
-/*
- *  call-seq:
- *     hsh == other_hash    => true or false
- *
- *  Equality---Two hashes are equal if they each contain the same number
- *  of keys and if each key-value pair is equal to (according to
- *  <code>Object#==</code>) the corresponding elements in the other
- *  hash.
- *
- *     h1 = { "a" => 1, "c" => 2 }
- *     h2 = { 7 => 35, "c" => 2, "a" => 1 }
- *     h3 = { "a" => 1, "c" => 2, 7 => 35 }
- *     h4 = { "a" => 1, "d" => 2, "f" => 35 }
- *     h1 == h2   #=> false
- *     h2 == h3   #=> true
- *     h3 == h4   #=> false
- *
- */
-
 static VALUE
-rb_hash_equal_imp(VALUE hash1, SEL sel, VALUE hash2)
+rhash_equal(VALUE hash1, SEL sel, VALUE hash2)
 {
     return hash_equal(hash1, hash2, false);
 }
@@ -1646,19 +1604,9 @@ rb_hash_equal(VALUE hash1, VALUE hash2)
  */
 
 static VALUE
-rb_hash_eql(VALUE hash1, SEL sel, VALUE hash2)
+rhash_eql(VALUE hash1, SEL sel, VALUE hash2)
 {
     return hash_equal(hash1, hash2, true);
-}
-
-static int
-rb_hash_invert_i(VALUE key, VALUE value, VALUE hash)
-{
-    if (key == Qundef) {
-	return ST_CONTINUE;
-    }
-    rb_hash_aset(hash, value, key);
-    return ST_CONTINUE;
 }
 
 /*
@@ -1673,35 +1621,21 @@ rb_hash_invert_i(VALUE key, VALUE value, VALUE hash)
  *
  */
 
+static int
+invert_i(VALUE key, VALUE value, VALUE hash)
+{
+    if (key != Qundef) {
+	rhash_aset(hash, 0, value, key);
+    }
+    return ST_CONTINUE;
+}
+
 static VALUE
-rb_hash_invert(VALUE hash, SEL sel)
+rhash_invert(VALUE hash, SEL sel)
 {
     VALUE h = rb_hash_new();
-    rb_hash_foreach(hash, rb_hash_invert_i, h);
+    rhash_foreach(hash, invert_i, h);
     return h;
-}
-
-static int
-rb_hash_update_i(VALUE key, VALUE value, VALUE hash)
-{
-    if (key == Qundef) {
-	return ST_CONTINUE;
-    }
-    rb_hash_aset(hash, key, value);
-    return ST_CONTINUE;
-}
-
-static int
-rb_hash_update_block_i(VALUE key, VALUE value, VALUE hash)
-{
-    if (key == Qundef) {
-	return ST_CONTINUE;
-    }
-    if (rb_hash_has_key_imp(hash, 0, key)) {
-	value = rb_yield_values(3, key, rb_hash_aref(hash, key), value);
-    }
-    rb_hash_aset(hash, key, value);
-    return ST_CONTINUE;
 }
 
 /*
@@ -1727,15 +1661,36 @@ rb_hash_update_block_i(VALUE key, VALUE value, VALUE hash)
  *                     #=> {"a"=>100, "b"=>200, "c"=>300}
  */
 
+static int
+update_i(VALUE key, VALUE value, VALUE hash)
+{
+    if (key != Qundef) {
+	rhash_aset(hash, 0, key, value);
+    }
+    return ST_CONTINUE;
+}
+
+static int
+update_block_i(VALUE key, VALUE value, VALUE hash)
+{
+    if (key != Qundef) {
+	if (rhash_has_key(hash, 0, key)) {
+	    value = rb_yield_values(3, key, rhash_aref(hash, 0, key), value);
+	}
+	rhash_aset(hash, 0, key, value);
+    }
+    return ST_CONTINUE;
+}
+
 static VALUE
-rb_hash_update(VALUE hash1, SEL sel, VALUE hash2)
+rhash_update(VALUE hash1, SEL sel, VALUE hash2)
 {
     hash2 = to_hash(hash2);
     if (rb_block_given_p()) {
-	rb_hash_foreach(hash2, rb_hash_update_block_i, hash1);
+	rb_hash_foreach(hash2, update_block_i, hash1);
     }
     else {
-	rb_hash_foreach(hash2, rb_hash_update_i, hash1);
+	rb_hash_foreach(hash2, update_i, hash1);
     }
     return hash1;
 }
@@ -1757,22 +1712,9 @@ rb_hash_update(VALUE hash1, SEL sel, VALUE hash2)
  */
 
 static VALUE
-rb_hash_merge(VALUE hash1, SEL sel, VALUE hash2)
+rhash_merge(VALUE hash1, SEL sel, VALUE hash2)
 {
-    return rb_hash_update(rb_hash_dup(hash1), 0, hash2);
-}
-
-static int
-assoc_i(VALUE key, VALUE val, VALUE *args)
-{
-    if (key == Qundef) {
-	return ST_CONTINUE;
-    }
-    if (RTEST(rb_equal(args[0], key))) {
-	args[1] = rb_assoc_new(key, val);
-	return ST_STOP;
-    }
-    return ST_CONTINUE;
+    return rhash_update(rhash_dup(hash1, 0), 0, hash2);
 }
 
 /*
@@ -1789,25 +1731,24 @@ assoc_i(VALUE key, VALUE val, VALUE *args)
  *     h.assoc("foo")      #=> nil
  */
 
-VALUE
-rb_hash_assoc(VALUE hash, SEL sel, VALUE obj)
-{
-    VALUE args[2] = {obj, Qnil};
-    rb_hash_foreach(hash, assoc_i, (st_data_t)args);
-    return args[1];
-}
-
 static int
-rassoc_i(VALUE key, VALUE val, VALUE *args)
+assoc_i(VALUE key, VALUE val, VALUE *args)
 {
-    if (key == Qundef) {
-	return ST_CONTINUE;
-    }
-    if (RTEST(rb_equal(args[0], val))) {
-	args[1] = rb_assoc_new(key, val);
-	return ST_STOP;
+    if (key != Qundef) {
+	if (RTEST(rb_equal(args[0], key))) {
+	    args[1] = rb_assoc_new(key, val);
+	    return ST_STOP;
+	}
     }
     return ST_CONTINUE;
+}
+
+static VALUE
+rhash_assoc(VALUE hash, SEL sel, VALUE obj)
+{
+    VALUE args[2] = {obj, Qnil};
+    rhash_foreach(hash, assoc_i, (st_data_t)args);
+    return args[1];
 }
 
 /*
@@ -1823,11 +1764,23 @@ rassoc_i(VALUE key, VALUE val, VALUE *args)
  *     a.rassoc("four")   #=> nil
  */
 
+static int
+rassoc_i(VALUE key, VALUE val, VALUE *args)
+{
+    if (key != Qundef) {
+	if (RTEST(rb_equal(args[0], val))) {
+	    args[1] = rb_assoc_new(key, val);
+	    return ST_STOP;
+	}
+    }
+    return ST_CONTINUE;
+}
+
 VALUE
-rb_hash_rassoc(VALUE hash, SEL sel, VALUE obj)
+rhash_rassoc(VALUE hash, SEL sel, VALUE obj)
 {
     VALUE args[2] = {obj, Qnil};
-    rb_hash_foreach(hash, rassoc_i, (st_data_t)args);
+    rhash_foreach(hash, rassoc_i, (st_data_t)args);
     return args[1];
 }
 
@@ -1848,15 +1801,15 @@ rb_hash_rassoc(VALUE hash, SEL sel, VALUE obj)
  */
 
 static VALUE
-rb_hash_flatten(VALUE hash, SEL sel, int argc, VALUE *argv)
+rhash_flatten(VALUE hash, SEL sel, int argc, VALUE *argv)
 {
-    VALUE tmp, ary = rb_hash_to_a(hash, 0);
+    VALUE tmp, ary = rhash_to_a(hash, 0);
     if (argc == 0) {
 	argc = 1;
 	tmp = INT2FIX(1);
 	argv = &tmp;
     }
-    rb_funcall2(ary, rb_intern("flatten!"), argc, argv);
+    rb_vm_call(ary, selFlattenBang, argc, argv, false);
     return ary;
 }
 
@@ -1877,9 +1830,9 @@ rb_hash_flatten(VALUE hash, SEL sel, int argc, VALUE *argv)
  */
 
 static VALUE
-rb_hash_compare_by_id(VALUE hash, SEL sel)
+rhash_compare_by_id(VALUE hash, SEL sel)
 {
-    rb_hash_modify(hash);
+    rhash_modify(hash);
     // TODO
     return hash;
 }
@@ -1894,7 +1847,7 @@ rb_hash_compare_by_id(VALUE hash, SEL sel)
  */
 
 static VALUE
-rb_hash_compare_by_id_p(VALUE hash, SEL sel)
+rhash_compare_by_id_p(VALUE hash, SEL sel)
 {
     // TODO
     return Qfalse;
@@ -2522,7 +2475,7 @@ env_to_hash(VALUE rcv, SEL sel)
 static VALUE
 env_reject(VALUE rcv, SEL sel)
 {
-    return rb_hash_delete_if(env_to_hash(Qnil, 0), 0);
+    return rhash_delete_if(env_to_hash(Qnil, 0), 0);
 }
 
 static VALUE
@@ -2548,7 +2501,7 @@ env_shift(VALUE rcv, SEL sel)
 static VALUE
 env_invert(VALUE rcv, SEL sel)
 {
-    return rb_hash_invert(env_to_hash(Qnil, 0), 0);
+    return rhash_invert(env_to_hash(Qnil, 0), 0);
 }
 
 static int
@@ -2603,13 +2556,6 @@ env_update(VALUE env, SEL sel, VALUE hash)
     return env;
 }
 
-#define PREPARE_RCV(x) \
-    Class old = *(Class *)x; \
-    *(Class *)x = (Class)rb_cCFHash;
-
-#define RESTORE_RCV(x) \
-    *(Class *)x = old;
-
 bool
 rb_objc_hash_is_pure(VALUE hash)
 {
@@ -2627,125 +2573,6 @@ rb_objc_hash_is_pure(VALUE hash)
 	k = RCLASS_SUPER(k);
     }
     return true;
-}
-
-static CFIndex
-imp_rb_hash_count(void *rcv, SEL sel) 
-{
-    CFIndex count;
-    PREPARE_RCV(rcv);
-    count = CFDictionaryGetCount((CFDictionaryRef)rcv);
-    RESTORE_RCV(rcv);
-    return count; 
-}
-
-static void *
-imp_rb_hash_keyEnumerator(void *rcv, SEL sel)
-{
-    static SEL objectEnumerator = 0;
-    PREPARE_RCV(rcv);
-    void *keys = (void *)rb_hash_keys_imp((VALUE)rcv, 0);
-    RESTORE_RCV(rcv);
-    if (objectEnumerator == 0) {
-	objectEnumerator = sel_registerName("objectEnumerator");
-    }
-    return objc_msgSend(keys, objectEnumerator);
-}
-
-static void *
-imp_rb_hash_objectForKey(void *rcv, SEL sel, void *key)
-{
-    void *obj;
-    PREPARE_RCV(rcv);
-    if (!CFDictionaryGetValueIfPresent((CFDictionaryRef)rcv, (const void *)key,
-	(const void **)&obj)) {
-	obj = NULL;
-    }
-    RESTORE_RCV(rcv);
-    return obj;
-}
-
-static void 
-imp_rb_hash_setObjectForKey(void *rcv, SEL sel, void *obj, void *key) 
-{
-    PREPARE_RCV(rcv);
-    CFDictionarySetValue((CFMutableDictionaryRef)rcv, (const void *)key,
-	(const void *)obj);
-    RESTORE_RCV(rcv);
-} 
-
-static void
-imp_rb_hash_getObjectsAndKeys(void *rcv, SEL sel, void **objs, void **keys)
-{
-    PREPARE_RCV(rcv);
-    CFDictionaryGetKeysAndValues((CFDictionaryRef)rcv, (const void **)keys,
-	(const void **)objs);
-    RESTORE_RCV(rcv);
-}
-
-static void
-imp_rb_hash_removeObjectForKey(void *rcv, SEL sel, void *key)
-{
-    PREPARE_RCV(rcv);
-    CFDictionaryRemoveValue((CFMutableDictionaryRef)rcv, (const void *)key);
-    RESTORE_RCV(rcv);
-}
-
-static void
-imp_rb_hash_removeAllObjects(void *rcv, SEL sel)
-{
-    PREPARE_RCV(rcv);
-    CFDictionaryRemoveAllValues((CFMutableDictionaryRef)rcv);
-    RESTORE_RCV(rcv);
-}
-
-static bool
-imp_rb_hash_isEqual(void *rcv, SEL sel, void *other)
-{
-    bool res;
-    PREPARE_RCV(rcv);
-    res = CFEqual((CFTypeRef)rcv, (CFTypeRef)other);
-    RESTORE_RCV(rcv);
-    return res;
-}
-
-static bool
-imp_rb_hash_containsObject(void *rcv, SEL sel, void *obj)
-{
-    bool res;
-    PREPARE_RCV(rcv);
-    res = CFDictionaryContainsValue((CFTypeRef)rcv, (const void *)obj);
-    RESTORE_RCV(rcv);
-    return res;
-}
-
-void
-rb_objc_install_hash_primitives(Class klass)
-{
-    rb_objc_install_method2(klass, "count", (IMP)imp_rb_hash_count);
-    rb_objc_install_method2(klass, "keyEnumerator",
-	    (IMP)imp_rb_hash_keyEnumerator);
-    rb_objc_install_method2(klass, "objectForKey:",
-	    (IMP)imp_rb_hash_objectForKey);
-    rb_objc_install_method2(klass, "getObjects:andKeys:",
-	    (IMP)imp_rb_hash_getObjectsAndKeys);
-    rb_objc_install_method2(klass, "isEqual:", (IMP)imp_rb_hash_isEqual);
-    rb_objc_install_method2(klass, "containsObject:",
-	    (IMP)imp_rb_hash_containsObject);
-
-    const bool mutable = class_getSuperclass(klass)
-	== (Class)rb_cNSMutableHash; 
-
-    if (mutable) {
-	rb_objc_install_method2(klass, "setObject:forKey:",
-		(IMP)imp_rb_hash_setObjectForKey);
-	rb_objc_install_method2(klass, "removeObjectForKey:",
-		(IMP)imp_rb_hash_removeObjectForKey);
-	rb_objc_install_method2(klass, "removeAllObjects",
-		(IMP)imp_rb_hash_removeAllObjects);
-    }
-
-    rb_objc_define_method(*(VALUE *)klass, "alloc", hash_alloc, 0);
 }
 
 static VALUE rb_cRubyHashKeyEnumerator;
@@ -2831,15 +2658,14 @@ imp_rhash_removeObjectForKey(void *rcv, SEL sel, void *key)
  *
  */
 
-#if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
-# define NSCFDICTIONARY_CNAME "NSCFDictionary"
-#else
-# define NSCFDICTIONARY_CNAME "__NSCFDictionary"
-#endif
+void Init_NSDictionary(void);
 
 void
 Init_Hash(void)
 {
+    Init_NSDictionary();
+
+    selFlattenBang = sel_registerName("flatten!:");
     selDefault = sel_registerName("default:");
     selHash = sel_registerName("hash");
     defaultCache = rb_vm_get_call_cache(selDefault);
@@ -2847,86 +2673,70 @@ Init_Hash(void)
 
     id_yield = rb_intern("yield");
 
-    rb_cCFHash = (VALUE)objc_getClass(NSCFDICTIONARY_CNAME);
-    assert(rb_cCFHash != 0);
-    rb_cHash = rb_cNSHash = (VALUE)objc_getClass("NSDictionary");
-    rb_cNSMutableHash = (VALUE)objc_getClass("NSMutableDictionary");
-
-    rb_include_module(rb_cHash, rb_mEnumerable);
-
-    /* to return mutable copies */
-    rb_objc_define_method(rb_cHash, "dup", rb_hash_dup_imp, 0);
-    rb_objc_define_method(rb_cHash, "clone", rb_hash_clone, 0);
-
-    rb_objc_define_method(*(VALUE *)rb_cHash, "[]", rb_hash_s_create, -1);
-    rb_objc_define_method(*(VALUE *)rb_cHash, "try_convert", rb_hash_s_try_convert, 1);
-    rb_objc_define_method(rb_cHash, "initialize", rb_hash_initialize, -1);
-    rb_objc_define_method(rb_cHash, "initialize_copy", rb_hash_replace, 1);
-    rb_objc_define_method(rb_cHash, "rehash", rb_hash_rehash, 0);
-
-    rb_objc_define_method(rb_cHash, "to_hash", rb_hash_to_hash, 0);
-    rb_objc_define_method(rb_cHash, "to_a", rb_hash_to_a, 0);
-    rb_objc_define_method(rb_cHash, "to_s", rb_hash_inspect, 0);
-    rb_objc_define_method(rb_cHash, "inspect", rb_hash_inspect, 0);
-
-    rb_objc_define_method(rb_cHash, "==", rb_hash_equal_imp, 1);
-    rb_objc_define_method(rb_cHash, "[]", rb_hash_aref_imp, 1);
-    rb_objc_define_method(rb_cHash, "eql?", rb_hash_eql, 1);
-    rb_objc_define_method(rb_cHash, "fetch", rb_hash_fetch, -1);
-    rb_objc_define_method(rb_cHash, "[]=", rb_hash_aset_imp, 2);
-    rb_objc_define_method(rb_cHash, "store", rb_hash_aset_imp, 2);
-    rb_objc_define_method(rb_cHash, "default", rb_hash_default, -1);
-    rb_objc_define_method(rb_cHash, "default=", rb_hash_set_default, 1);
-    rb_objc_define_method(rb_cHash, "default_proc", rb_hash_default_proc, 0);
-    rb_objc_define_method(rb_cHash, "key", rb_hash_key, 1);
-    rb_objc_define_method(rb_cHash, "index", rb_hash_index, 1);
-    rb_objc_define_method(rb_cHash, "size", rb_hash_size_imp, 0);
-    rb_objc_define_method(rb_cHash, "length", rb_hash_size_imp, 0);
-    rb_objc_define_method(rb_cHash, "empty?", rb_hash_empty_p, 0);
-
-    rb_objc_define_method(rb_cHash, "each_value", rb_hash_each_value, 0);
-    rb_objc_define_method(rb_cHash, "each_key", rb_hash_each_key, 0);
-    rb_objc_define_method(rb_cHash, "each_pair", rb_hash_each_pair, 0);
-    rb_objc_define_method(rb_cHash, "each", rb_hash_each_pair, 0);
-
-    rb_objc_define_method(rb_cHash, "keys", rb_hash_keys_imp, 0);
-    rb_objc_define_method(rb_cHash, "values", rb_hash_values, 0);
-    rb_objc_define_method(rb_cHash, "values_at", rb_hash_values_at, -1);
-
-    rb_objc_define_method(rb_cHash, "shift", rb_hash_shift, 0);
-    rb_objc_define_method(rb_cHash, "delete", rb_hash_delete_imp, 1);
-    rb_objc_define_method(rb_cHash, "delete_if", rb_hash_delete_if, 0);
-    rb_objc_define_method(rb_cHash, "select", rb_hash_select, 0);
-    rb_objc_define_method(rb_cHash, "reject", rb_hash_reject, 0);
-    rb_objc_define_method(rb_cHash, "reject!", rb_hash_reject_bang, 0);
-    rb_objc_define_method(rb_cHash, "clear", rb_hash_clear, 0);
-    rb_objc_define_method(rb_cHash, "invert", rb_hash_invert, 0);
-
-    /* to override the private -[NSMutableDictionary invert] method */
-    rb_objc_define_method(rb_cNSMutableHash, "invert", rb_hash_invert, 0);
-
-    rb_objc_define_method(rb_cHash, "update", rb_hash_update, 1);
-    rb_objc_define_method(rb_cHash, "replace", rb_hash_replace, 1);
-    rb_objc_define_method(rb_cHash, "merge!", rb_hash_update, 1);
-    rb_objc_define_method(rb_cHash, "merge", rb_hash_merge, 1);
-    rb_objc_define_method(rb_cHash, "assoc", rb_hash_assoc, 1);
-    rb_objc_define_method(rb_cHash, "rassoc", rb_hash_rassoc, 1);
-    rb_objc_define_method(rb_cHash, "flatten", rb_hash_flatten, -1);
-
-    rb_objc_define_method(rb_cHash, "include?", rb_hash_has_key_imp, 1);
-    rb_objc_define_method(rb_cHash, "member?", rb_hash_has_key_imp, 1);
-    rb_objc_define_method(rb_cHash, "has_key?", rb_hash_has_key_imp, 1);
-    rb_objc_define_method(rb_cHash, "has_value?", rb_hash_has_value, 1);
-    rb_objc_define_method(rb_cHash, "key?", rb_hash_has_key_imp, 1);
-    rb_objc_define_method(rb_cHash, "value?", rb_hash_has_value, 1);
-
-    rb_objc_define_method(rb_cHash, "compare_by_identity", rb_hash_compare_by_id, 0);
-    rb_objc_define_method(rb_cHash, "compare_by_identity?", rb_hash_compare_by_id_p, 0);
-
     rb_cRubyHash = rb_define_class("Hash", rb_cNSMutableHash);
     rb_objc_define_method(*(VALUE *)rb_cRubyHash, "new",
 	    rb_class_new_instance_imp, -1);
-    rb_objc_define_method(*(VALUE *)rb_cRubyHash, "alloc", hash_alloc, 0);
+    rb_objc_define_method(*(VALUE *)rb_cRubyHash, "alloc", rhash_alloc, 0);
+    rb_objc_define_method(*(VALUE *)rb_cRubyHash, "[]", rhash_create, -1);
+    rb_objc_define_method(*(VALUE *)rb_cRubyHash, "try_convert",
+	    rhash_try_convert, 1);
+    rb_objc_define_method(rb_cRubyHash, "initialize", rhash_initialize, -1);
+    rb_objc_define_method(rb_cRubyHash, "initialize_copy", rhash_replace, 1);
+    rb_objc_define_method(rb_cRubyHash, "dup", rhash_dup, 0);
+    rb_objc_define_method(rb_cRubyHash, "clone", rhash_clone, 0);
+    rb_objc_define_method(rb_cRubyHash, "rehash", rhash_rehash, 0);
+    rb_objc_define_method(rb_cRubyHash, "to_hash", rhash_to_hash, 0);
+    rb_objc_define_method(rb_cRubyHash, "to_a", rhash_to_a, 0);
+    rb_objc_define_method(rb_cRubyHash, "to_s", rhash_inspect, 0);
+    rb_objc_define_method(rb_cRubyHash, "inspect", rhash_inspect, 0);
+    rb_objc_define_method(rb_cRubyHash, "==", rhash_equal, 1);
+    rb_objc_define_method(rb_cRubyHash, "[]", rhash_aref, 1);
+    rb_objc_define_method(rb_cRubyHash, "eql?", rhash_eql, 1);
+    rb_objc_define_method(rb_cRubyHash, "fetch", rhash_fetch, -1);
+    rb_objc_define_method(rb_cRubyHash, "[]=", rhash_aset, 2);
+    rb_objc_define_method(rb_cRubyHash, "store", rhash_aset, 2);
+    rb_objc_define_method(rb_cRubyHash, "default", rhash_default, -1);
+    rb_objc_define_method(rb_cRubyHash, "default=", rhash_set_default, 1);
+    rb_objc_define_method(rb_cRubyHash, "default_proc",
+	    rhash_default_proc, 0);
+    rb_objc_define_method(rb_cRubyHash, "key", rhash_key, 1);
+    rb_objc_define_method(rb_cRubyHash, "index", rhash_index, 1);
+    rb_objc_define_method(rb_cRubyHash, "size", rhash_size, 0);
+    rb_objc_define_method(rb_cRubyHash, "length", rhash_size, 0);
+    rb_objc_define_method(rb_cRubyHash, "empty?", rhash_empty, 0);
+    rb_objc_define_method(rb_cRubyHash, "each_value", rhash_each_value, 0);
+    rb_objc_define_method(rb_cRubyHash, "each_key", rhash_each_key, 0);
+    rb_objc_define_method(rb_cRubyHash, "each_pair", rhash_each_pair, 0);
+    rb_objc_define_method(rb_cRubyHash, "each", rhash_each_pair, 0);
+    rb_objc_define_method(rb_cRubyHash, "keys", rhash_keys, 0);
+    rb_objc_define_method(rb_cRubyHash, "values", rhash_values, 0);
+    rb_objc_define_method(rb_cRubyHash, "values_at", rhash_values_at, -1);
+    rb_objc_define_method(rb_cRubyHash, "shift", rhash_shift, 0);
+    rb_objc_define_method(rb_cRubyHash, "delete", rhash_delete, 1);
+    rb_objc_define_method(rb_cRubyHash, "delete_if", rhash_delete_if, 0);
+    rb_objc_define_method(rb_cRubyHash, "select", rhash_select, 0);
+    rb_objc_define_method(rb_cRubyHash, "reject", rhash_reject, 0);
+    rb_objc_define_method(rb_cRubyHash, "reject!", rhash_reject_bang, 0);
+    rb_objc_define_method(rb_cRubyHash, "clear", rhash_clear, 0);
+    rb_objc_define_method(rb_cRubyHash, "invert", rhash_invert, 0);
+    rb_objc_define_method(rb_cRubyHash, "update", rhash_update, 1);
+    rb_objc_define_method(rb_cRubyHash, "replace", rhash_replace, 1);
+    rb_objc_define_method(rb_cRubyHash, "merge!", rhash_update, 1);
+    rb_objc_define_method(rb_cRubyHash, "merge", rhash_merge, 1);
+    rb_objc_define_method(rb_cRubyHash, "assoc", rhash_assoc, 1);
+    rb_objc_define_method(rb_cRubyHash, "rassoc", rhash_rassoc, 1);
+    rb_objc_define_method(rb_cRubyHash, "flatten", rhash_flatten, -1);
+    rb_objc_define_method(rb_cRubyHash, "include?", rhash_has_key, 1);
+    rb_objc_define_method(rb_cRubyHash, "member?", rhash_has_key, 1);
+    rb_objc_define_method(rb_cRubyHash, "has_key?", rhash_has_key, 1);
+    rb_objc_define_method(rb_cRubyHash, "has_value?", rhash_has_value, 1);
+    rb_objc_define_method(rb_cRubyHash, "key?", rhash_has_key, 1);
+    rb_objc_define_method(rb_cRubyHash, "value?", rhash_has_value, 1);
+    rb_objc_define_method(rb_cRubyHash, "compare_by_identity",
+	    rhash_compare_by_id, 0);
+    rb_objc_define_method(rb_cRubyHash, "compare_by_identity?",
+	    rhash_compare_by_id_p, 0);
+
     rb_objc_install_method2((Class)rb_cRubyHash, "count",
 	    (IMP)imp_rhash_count);
     rb_objc_install_method2((Class)rb_cRubyHash, "objectForKey:",

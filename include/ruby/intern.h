@@ -197,7 +197,7 @@ VALUE rb_fiber_alive_p(VALUE);
 VALUE rb_enumeratorize(VALUE, SEL, int, VALUE *);
 #define RETURN_ENUMERATOR(obj, argc, argv) do {				\
 	if (!rb_block_given_p())					\
-	    return rb_enumeratorize(obj, sel, argc, argv);		\
+	    return rb_enumeratorize((VALUE)obj, sel, argc, argv);	\
     } while (0)
 /* error.c */
 VALUE rb_f_notimplement(VALUE rcv, SEL sel);
