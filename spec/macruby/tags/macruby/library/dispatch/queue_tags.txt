@@ -1,1 +1,0 @@
-fails:Dispatch::Queue stride accepts a count, stride and block and yields it that many times, with an index
