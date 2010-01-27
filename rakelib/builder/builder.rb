@@ -54,6 +54,7 @@ class Builder
 
   def build(objs=nil)
     objs ||= @objs
+    commands = []
     objs.each do |obj| 
       if should_build?(obj) 
         s = obj_source(obj)
@@ -67,9 +68,10 @@ class Builder
         if f = @objs_cflags[obj]
           flags += " #{f}"
         end
-        sh("#{cc} #{flags} -c #{s} -o #{obj}.o")
+        commands << "#{cc} #{flags} -c #{s} -o #{obj}.o"
       end
     end
+    self.class.parallel_execute(commands)
   end
  
   def link_executable(name, objs=nil, ldflags=nil)
