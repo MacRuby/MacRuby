@@ -1,112 +1,6 @@
-# User customizable variables.
-# These variables can be set from the command line. Example:
-#    $ rake framework_instdir=~/Library/Frameworks sym_instdir=~/bin
+require File.expand_path('../options', __FILE__)
 
-$builder_options = {}
-
-def do_option(name, default)
-  $builder_options[name] = default
-  
-  val = ENV[name]
-  if val
-    if block_given?
-      yield val
-    else
-      val
-    end
-  else
-    default
-  end
-end
-
-RUBY_INSTALL_NAME = do_option('ruby_install_name', 'macruby')
-RUBY_SO_NAME = do_option('ruby_so_name', RUBY_INSTALL_NAME)
-ARCHS = 
-  if s = ENV['RC_ARCHS']
-    $stderr.puts "getting archs from RC_ARCHS!"
-    s.strip.split(/\s+/)
-  else
-    do_option('archs', `arch`.include?('ppc') ? 'ppc' : %w{i386 x86_64}) { |x| x.split(',') }
-  end
-LLVM_PATH = do_option('llvm_path', '/usr/local')
-FRAMEWORK_NAME = do_option('framework_name', 'MacRuby')
-FRAMEWORK_INSTDIR = do_option('framework_instdir', '/Library/Frameworks')
-SYM_INSTDIR = do_option('sym_instdir', '/usr/local')
-NO_WARN_BUILD = !do_option('allow_build_warnings', false)
-ENABLE_STATIC_LIBRARY = do_option('enable_static_library', 'no') { 'yes' }
-ENABLE_DEBUG_LOGGING = do_option('enable_debug_logging', true) { |x| x == 'true' }
-UNEXPORTED_SYMBOLS_LIST = do_option('unexported_symbols_list', nil)
-SIMULTANEOUS_JOBS = do_option('jobs', 1) { |x| x.to_i }
-
-# Everything below this comment should *not* be modified.
-
-if ENV['build_as_embeddable']
-  $stderr.puts "The 'build_as_embeddable' build configuration has been removed because it is no longer necessary. To package a full version of MacRuby inside your application, please use `macrake deploy` for HotCocoa apps and the `Embed MacRuby` target for Xcode apps."
-  exit 1
-end
-
-verbose(true)
-
-if `sw_vers -productVersion`.strip < '10.5.6'
-  $stderr.puts "Sorry, your environment is not supported. MacRuby requires Mac OS X 10.5.6 or higher." 
-  exit 1
-end
-
-if `arch`.include?('ppc')
-  $stderr.puts "You appear to be using a PowerPC machine. MacRuby's primary architectures are Intel 32-bit and 64-bit (i386 and x86_64). Consequently, PowerPC support may be lacking some features."
-end
-
-LLVM_CONFIG = File.join(LLVM_PATH, 'bin/llvm-config')
-unless File.exist?(LLVM_CONFIG)
-  $stderr.puts "The llvm-config executable was not located as #{LLVM_CONFIG}. Please make sure LLVM is correctly installed on your machine and pass the llvm_config option to rake if necessary."
-  exit 1
-end
-
-version_h = File.read('version.h')
-NEW_RUBY_VERSION = version_h.scan(/#\s*define\s+RUBY_VERSION\s+\"([^"]+)\"/)[0][0]
-unless defined?(MACRUBY_VERSION)
-  MACRUBY_VERSION = version_h.scan(/#\s*define\s+MACRUBY_VERSION\s+\"(.*)\"/)[0][0]
-end
-
-uname_release_number = (ENV['UNAME_RELEASE'] or `uname -r`.scan(/^(\d+)\.\d+\.(\d+)/)[0].join('.'))
-NEW_RUBY_PLATFORM = 'universal-darwin' + uname_release_number
-
-FRAMEWORK_PATH = File.join(FRAMEWORK_INSTDIR, FRAMEWORK_NAME + '.framework')
-FRAMEWORK_VERSION = File.join(FRAMEWORK_PATH, 'Versions', MACRUBY_VERSION)
-FRAMEWORK_USR = File.join(FRAMEWORK_VERSION, 'usr')
-FRAMEWORK_USR_LIB = File.join(FRAMEWORK_USR, 'lib')
-FRAMEWORK_USR_LIB_RUBY = File.join(FRAMEWORK_USR_LIB, 'ruby')
-
-RUBY_LIB = File.join(FRAMEWORK_USR_LIB_RUBY, NEW_RUBY_VERSION)
-RUBY_ARCHLIB = File.join(RUBY_LIB, NEW_RUBY_PLATFORM)
-RUBY_SITE_LIB = File.join(FRAMEWORK_USR_LIB_RUBY, 'site_ruby')
-RUBY_SITE_LIB2 = File.join(RUBY_SITE_LIB, NEW_RUBY_VERSION)
-RUBY_SITE_ARCHLIB = File.join(RUBY_SITE_LIB2, NEW_RUBY_PLATFORM)
-RUBY_VENDOR_LIB = File.join(FRAMEWORK_USR_LIB_RUBY, 'vendor_ruby')
-RUBY_VENDOR_LIB2 = File.join(RUBY_VENDOR_LIB, NEW_RUBY_VERSION)
-RUBY_VENDOR_ARCHLIB = File.join(RUBY_VENDOR_LIB2, NEW_RUBY_PLATFORM)
-
-INSTALL_NAME = File.join(FRAMEWORK_USR_LIB, 'lib' + RUBY_SO_NAME + '.dylib')
-ARCHFLAGS = ARCHS.map { |a| '-arch ' + a }.join(' ')
-LLVM_MODULES = "core jit nativecodegen bitwriter"
-
-CC = '/usr/bin/gcc'
-CXX = '/usr/bin/g++'
-CFLAGS = "-I. -I./include -I./onig -I/usr/include/libxml2 #{ARCHFLAGS} -fno-common -pipe -O3 -g -Wall -fexceptions"
-CFLAGS << " -Wno-parentheses -Wno-deprecated-declarations -Werror" if NO_WARN_BUILD
-OBJC_CFLAGS = CFLAGS + " -fobjc-gc-only"
-CXXFLAGS = `#{LLVM_CONFIG} --cxxflags #{LLVM_MODULES}`.sub(/-DNDEBUG/, '').strip
-CXXFLAGS << " -I. -I./include -g -Wall #{ARCHFLAGS}"
-CXXFLAGS << " -Wno-parentheses -Wno-deprecated-declarations -Werror" if NO_WARN_BUILD
-CXXFLAGS << " -DLLVM_TOT" if ENV['LLVM_TOT']
-LDFLAGS = `#{LLVM_CONFIG} --ldflags --libs #{LLVM_MODULES}`.strip.gsub(/\n/, '')
-LDFLAGS << " -lpthread -ldl -lxml2 -lobjc -lauto -framework Foundation"
-DLDFLAGS = "-dynamiclib -undefined suppress -flat_namespace -install_name #{INSTALL_NAME} -current_version #{MACRUBY_VERSION} -compatibility_version #{MACRUBY_VERSION}"
-DLDFLAGS << " -unexported_symbols_list #{UNEXPORTED_SYMBOLS_LIST}" if UNEXPORTED_SYMBOLS_LIST
-CFLAGS << " -std=c99" # we add this one later to not conflict with C++ flags
-OBJC_CFLAGS << " -std=c99"
-
-OBJS = %w{ 
+OBJS = %w{
   array bignum class compar complex enum enumerator error eval file load proc 
   gc hash inits io math numeric object pack parse prec dir process
   random range rational re onig/regcomp onig/regext onig/regposix onig/regenc
@@ -120,10 +14,9 @@ OBJS = %w{
   debugger MacRuby MacRubyDebuggerConnector NSDictionary
 }
 
-OBJS_CFLAGS = {
-  # Make sure everything gets inlined properly + compile as Objective-C++.
-  'dispatcher' => '--param inline-unit-growth=10000 --param large-function-growth=10000 -x objective-c++'
-}
+EXTENSIONS = %w{
+  ripper digest etc readline libyaml fcntl socket zlib bigdecimal openssl json
+}.sort
 
 class Builder
   # Runs the given array of +commands+ in parallel. The amount of spawned
@@ -138,7 +31,7 @@ class Builder
     Array.new(SIMULTANEOUS_JOBS) do |i|
       Thread.new do
         while c = commands.shift
-          Array(c).each { |command| sh(command) }
+          Array(c).each { |command| puts "[#{i}]"; sh(command) }
         end
       end
     end.each { |t| t.join }
@@ -279,8 +172,6 @@ class Builder
   end
   
   class Ext
-    EXTENSIONS = ['ripper', 'digest', 'etc', 'readline', 'libyaml', 'fcntl', 'socket', 'zlib', 'bigdecimal', 'openssl', 'json'].sort
-    
     def self.extension_dirs
       EXTENSIONS.map do |name|
         Dir.glob(File.join('ext', name, '**/extconf.rb'))

@@ -1,39 +1,4 @@
 require File.expand_path('../builder/builder', __FILE__)
-require 'rake'
-
-# We monkey-patch the method that Rake uses to display the tasks so we can add
-# the build options.
-module Rake
-  class Application
-    def formatted_macruby_options
-      $builder_options.sort_by { |name, _| name }.map do |name, default|
-        default = default.join(',') if default.is_a?(Array)
-        "        #{name.ljust(30)} \"#{default}\""
-      end.join("\n")
-    end
-    
-    alias_method :display_tasks_and_comments_without_macruby_options, :display_tasks_and_comments
-    
-    def display_tasks_and_comments
-      display_tasks_and_comments_without_macruby_options
-      puts %{
-  To change any of the default build options, use the rake build task
-  of choice with any of these following option-value pairs:
-
-    Usage: $ rake [task] [option=value, ...]
-
-      #{'Option:'.ljust(30)} Default value:
-
-#{formatted_macruby_options}
-
-    Example:
-
-      $ rake all archs="i386,ppc" framework_instdir="~/Library/Frameworks"
-
-}
-    end
-  end
-end
 
 desc "Build the markgc tool"
 task :mark_gc do
