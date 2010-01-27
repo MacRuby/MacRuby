@@ -5,22 +5,44 @@ if MACOSX_VERSION >= 10.6
   describe "Dispatch::Queue" do
     before :each do
       @q = Dispatch::Queue.new('org.macruby.gcd_spec.prelude')
+      @count = 4
+      @sum = 0
     end
     
     describe "stride" do
-      it "accepts a count, stride and block and yields it that many times, with an index" do
-        @i = 0
-        @q.stride(10) { |j| @i += j; p "outer #{j}" }
-        @i.should == 45
-        @i = 0
-        @q.stride(10, 3) { |j| @i += j }
-        @i.should == 45
-        @i = 0
-        @q.stride(12, 3) { |j| @i += j }
-        @i.should == 66
-        @i = 42
-        @q.stride(0, 1) { |j| @i += 1 }
-        @i.should == 42
+      it "expects a count, stride and block " do
+        lambda { @q.stride(@count) { |j| @sum += 1 } }.should raise_error(ArgumentError)
+        lambda { @q.stride(@count, 1) }.should raise_error(NoMethodError)
+      end
+
+      it "runs the block +count+ number of times" do
+        @q.stride(@count, 1) { |j| @sum += 1 }
+        @sum.should == @count
+      end
+
+      it "runs the block passing the current index" do
+        @q.stride(@count, 1) { |j| @sum += j }
+        @sum.should == (@count*(@count-1)/2)
+      end
+
+      it "does not run the block if the count is zero" do
+        @q.stride(0, 1) { |j| @sum += 1 }
+        @sum.should == 0
+      end
+      
+      it "properly combines blocks with even stride > 1" do
+        @q.stride(@count, 2) { |j| @sum += j }
+        @sum.should == (@count*(@count-1)/2)
+      end
+
+      it "properly combines blocks with uneven stride > 1" do
+        @q.stride(5, 2) { |j| @sum += j }
+        @sum.should == (5*(5-1)/2)
+      end
+
+      it "properly rounds stride fractions > 0.5" do
+        @q.stride(7, 4) { |j| @sum += j }
+        @sum.should == (7*(7-1)/2)
       end
     end
   end

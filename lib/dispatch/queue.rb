@@ -1,16 +1,12 @@
 module Dispatch
   class Queue
     # Combines +&block+ up to +stride+ times before passing to Queue::Apply
-    def stride(count, stride=1, &block)
-      sub_count = (count / stride).to_int
-      puts "\nsub_count: #{sub_count} (#{count} / #{stride})"
-      apply(sub_count) do |i|
-        i0 = i*stride
-        (i0..i0+stride).each { |j| "inner #{j}"; block.call(j) } #nested dispatch blocks fails
+    def stride(count, stride, &block)
+      n_strides = (count / stride).to_int
+      apply(n_strides) do |i|
+        (i*stride...(i+1)*stride).each { |j| block.call(j) }
       end
-      done = sub_count*stride;
-      puts "\ndone: #{done} (#{sub_count}*#{stride})"
-      (done..count).each { |j| p "inner #{j}"; block.call(j) }
+      (n_strides*stride...count).each { |j| block.call(j) }
     end
   end
 end
