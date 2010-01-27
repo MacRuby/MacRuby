@@ -328,7 +328,7 @@ rb_queue_finalize(void *rcv, SEL sel)
 }
 
 static VALUE
-rb_queue_dispatch_body(VALUE data)
+rb_block_release_eval(VALUE data)
 {
     GC_RELEASE(data);
     rb_vm_block_t *b = (rb_vm_block_t *)data;
@@ -336,13 +336,11 @@ rb_queue_dispatch_body(VALUE data)
 }
 
 static void
-rb_queue_dispatcher(void *data)
+rb_block_dispatcher(void *data)
 {
     assert(data != NULL);
-    rb_rescue2(rb_queue_dispatch_body, (VALUE)data, NULL, 0,
-	    rb_eStandardError);
+    rb_rescue(rb_block_release_eval, (VALUE)data, NULL, 0);
 }
-
 
 static rb_vm_block_t *
 get_prepared_block()
@@ -401,11 +399,11 @@ rb_queue_dispatch_async(VALUE self, SEL sel, int argc, VALUE *argv)
     if (group != Qnil) {
 	Check_Group(group);
 	dispatch_group_async_f(RGroup(group)->group, RQueue(self)->queue,
-		(void *)block, rb_queue_dispatcher);
+		(void *)block, rb_block_dispatcher);
     }
     else {
 	dispatch_async_f(RQueue(self)->queue, (void *)block,
-		rb_queue_dispatcher);
+		rb_block_dispatcher);
     }
 
     return Qnil;
@@ -430,7 +428,7 @@ rb_queue_dispatch_sync(VALUE self, SEL sel)
 {
     rb_vm_block_t *block = get_prepared_block();
     dispatch_sync_f(RQueue(self)->queue, (void *)block,
-	    rb_queue_dispatcher);
+	    rb_block_dispatcher);
 
     return Qnil;
 }
@@ -451,22 +449,35 @@ rb_queue_dispatch_after(VALUE self, SEL sel, VALUE delay)
     dispatch_time_t offset = NIL_P(delay) ? DISPATCH_TIME_NOW : rb_num2timeout(delay);
     rb_vm_block_t *block = get_prepared_block();
     dispatch_after_f(offset, RQueue(self)->queue, (void *)block,
-	    rb_queue_dispatcher);
+	    rb_block_dispatcher);
 
     return Qnil;
 }
 
- static void
- rb_queue_applier(void *data, size_t ii)
- {
-     assert(data != NULL);
-     rb_vm_block_t *block = rb_vm_uncache_or_dup_block((rb_vm_block_t *)data);
- #if !GCD_BLOCKS_COPY_DVARS
-     rb_vm_block_make_detachable_proc(block);
- #endif
-     VALUE num = SIZET2NUM(ii);
-     rb_vm_block_eval(block, 1, &num);
- }
+static VALUE
+rb_block_arg_eval(VALUE *args)
+{
+    rb_vm_block_t *b = (rb_vm_block_t *)args[0];
+    return rb_vm_block_eval(b, 1, &args[1]);
+}
+
+static void
+rb_block_arg_dispatcher(rb_vm_block_t *block, VALUE param)
+{
+    assert(block != NULL);
+    VALUE args[2];
+    args[0] = (VALUE)block;
+    args[1] = param;
+    rb_rescue(rb_block_arg_eval, (VALUE) args, NULL, 0);
+}
+
+static void
+rb_block_applier(void *data, size_t ii)
+{
+    assert(data != NULL);
+    rb_vm_block_t *block = rb_vm_uncache_or_dup_block((rb_vm_block_t *)data);
+    rb_block_arg_dispatcher(block, SIZET2NUM(ii));
+}
 
 /* 
  *  call-seq:
@@ -488,7 +499,7 @@ rb_queue_apply(VALUE self, SEL sel, VALUE n)
 {
     rb_vm_block_t *block = get_prepared_block();
     dispatch_apply_f(NUM2SIZET(n), RQueue(self)->queue, (void *)block,
-	    rb_queue_applier);
+	    rb_block_applier);
 
     GC_RELEASE(block);
 
@@ -653,7 +664,7 @@ rb_group_notify(VALUE self, SEL sel, VALUE target)
     Check_Queue(target);
 
     dispatch_group_notify_f(RGroup(self)->group, RQueue(target)->queue,
-	    (void *)block, rb_queue_dispatcher);
+	    (void *)block, rb_block_dispatcher);
 
     return Qnil;
 }
@@ -744,9 +755,7 @@ rb_source_event_handler(void* sourceptr)
 {
     assert(sourceptr != NULL);
     rb_source_t *source = RSource(sourceptr);
-    VALUE param = (VALUE) source;
-    rb_vm_block_t *the_block = source->event_handler;
-    rb_vm_block_eval(the_block, 1, &param);
+    rb_block_arg_dispatcher(source->event_handler, (VALUE) source);
 }
 
 static void
@@ -755,7 +764,7 @@ rb_source_close_handler(void* sourceptr)
     assert(sourceptr != NULL);
     rb_source_t *src = RSource(sourceptr);
     rb_io_close(src->handle);
-//    Call rb_io_close directly else rb_vm_call aborts inside block
+//    Call rb_io_close directly since rb_vm_call aborts inside block
 //    rb_vm_call(io, selClose, 0, NULL, false);
 }
 
