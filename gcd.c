@@ -21,8 +21,8 @@
 #include "id.h"
 #include "vm.h"
 #include <libkern/OSAtomic.h>
- #include <syslog.h>
- #include <stdarg.h>
+#include <syslog.h>
+#include <stdarg.h>
 
 // TODO: These structures need to be wrapped in a Data struct,
 // otherwise there are crashes when one tries to add an instance
@@ -191,14 +191,15 @@ rb_queue_from_dispatch(dispatch_queue_t dq, bool should_retain)
  *  
  *  The three priority levels are: +:low+, +:default+, 
  *  +:high+, corresponding to the DISPATCH_QUEUE_PRIORITY_HIGH, 
- *  DISPATCH_QUEUE_PRIORITY_DEFAULT, and DISPATCH_QUEUE_PRIORITY_LOW (detailed
- *  in the dispatch_queue_create(3)[http://developer.apple.com/mac/library/DOCUMENTATION/Darwin/Reference/ManPages/man3/dispatch_queue_create.3.html] man page). The GCD thread dispatcher
+ *  DISPATCH_QUEUE_PRIORITY_DEFAULT, and DISPATCH_QUEUE_PRIORITY_LOW 
+ *  (detailed in the dispatch_queue_create(3)[http://developer.apple.com/mac/library/DOCUMENTATION/Darwin/Reference/ManPages/man3/dispatch_queue_create.3.html]
+ *  man page). The GCD thread dispatcher
  *  will perform actions submitted to the high priority queue before any actions 
  *  submitted to the default or low queues, and will only perform actions on the 
  *  low queues if there are no actions queued on the high or default queues.
  *
  *     gcdq = Dispatch::Queue.concurrent(:high)
- *     5.times { gcdq.async { print 'doc' } }
+ *     5.times { gcdq.async { print 'foo' } }
  *     gcdq_2 = Dispatch::Queue.concurrent(:low)
  *     gcdq_2.sync { print 'bar' }  # will always print 'foofoofoofoofoobar'.
  *
@@ -289,7 +290,7 @@ rb_queue_get_main(VALUE klass, SEL sel)
  */
  
 static VALUE 
-rb_queue_initialize(VALUE self, SEL sel, VALUE name)
+rb_queue_init(VALUE self, SEL sel, VALUE name)
 {
     StringValue(name);
 
@@ -438,7 +439,8 @@ rb_queue_dispatch_sync(VALUE self, SEL sel)
  *  call-seq:
  *    gcdq.after(delay) { block }
  *
- *  Runs the passed block after the given delay (in seconds).
+ *  Runs the passed block after the given delay (in seconds) using
+ *  dispatch_after(3)[http://developer.apple.com/mac/library/DOCUMENTATION/Darwin/Reference/ManPages/man3/dispatch_after.3.html],
  *  
  *     gcdq.after(0.5) { puts 'wait is over :)' }
  *
@@ -470,7 +472,8 @@ rb_queue_dispatch_after(VALUE self, SEL sel, VALUE delay)
  *  call-seq:
  *    gcdq.apply(count) { |index| block }
  *
- *  Runs a block count number of times in parallel via dispatch_apply(3)[http://developer.apple.com/mac/library/DOCUMENTATION/Darwin/Reference/ManPages/man3/dispatch_apply.3.html],
+ *  Runs a block count number of times in parallel via 
+ *  dispatch_apply(3)[http://developer.apple.com/mac/library/DOCUMENTATION/Darwin/Reference/ManPages/man3/dispatch_apply.3.html],
  *  passing in an index and waiting until all of them are done
  *  
  *     gcdq = Dispatch::Queue.new('doc')
@@ -523,8 +526,9 @@ rb_main_queue_run(VALUE self, SEL sel)
  *  call-seq:
  *    obj.suspend!
  *
- *  Suspends the operation of a dispatch object (queue or source).
- *  To resume operation, call +resume!+.
+ *  Suspends the operation of a
+ *  dispatch_object(3)[http://developer.apple.com/mac/library/DOCUMENTATION/Darwin/Reference/ManPages/man3/dispatch_object.3.html#//apple_ref/doc/man/3/dispatch_object]
+ *  (queue or source). To resume operation, call +resume!+.
  *  
  *     gcdq = Dispatch::Queue.new('doc')
  *     gcdq.dispatch { sleep 1 }
@@ -549,8 +553,9 @@ rb_dispatch_suspend(VALUE self, SEL sel)
  *  call-seq:
  *    obj.resume!
  *
- *  Resumes the operation of a dispatch object (queue or source).
- *  To suspend operation, call +suspend!+.
+ *  Resumes the operation of a
+ *  dispatch_object(3)[http://developer.apple.com/mac/library/DOCUMENTATION/Darwin/Reference/ManPages/man3/dispatch_object.3.html#//apple_ref/doc/man/3/dispatch_object]
+ *  (queue or source). To suspend operation, call +suspend!+.
  *  
  *     gcdq = Dispatch::Queue.new('doc')
  *     gcdq.dispatch { sleep 1 }
@@ -607,7 +612,9 @@ rb_group_alloc(VALUE klass, SEL sel)
  *  call-seq:
  *    Dispatch::Group.new    =>  Dispatch::Group
  *
- *  Returns a Group allowing for aggregate synchronization.
+ *  Returns a Group allowing for aggregate synchronization, as defined in:
+ *  dispatch_group_create(3)[http://developer.apple.com/mac/library/DOCUMENTATION/Darwin/Reference/ManPages/man3/dispatch_group_create.3.html]
+ 
  *  You can dispatch multiple blocks and track when they all complete, 
  *  even though they might run on different queues. 
  *  This behavior can be helpful when progress can not be made until all 
@@ -618,7 +625,7 @@ rb_group_alloc(VALUE klass, SEL sel)
  */
 
 static VALUE
-rb_group_initialize(VALUE self, SEL sel)
+rb_group_init(VALUE self, SEL sel)
 {
     RGroup(self)->group = dispatch_group_create();
     assert(RGroup(self)->group != NULL);
@@ -674,7 +681,7 @@ rb_group_wait(VALUE self, SEL sel, int argc, VALUE *argv)
     VALUE num;
     rb_scan_args(argc, argv, "01", &num);
     return dispatch_group_wait(RGroup(self)->group, rb_num2timeout(num))
-     == 0	? Qtrue : Qfalse;
+        == 0 ? Qtrue : Qfalse;
 }
 
 static IMP rb_group_finalize_super;
@@ -855,12 +862,14 @@ rb_source_timer(VALUE klass, VALUE sel, VALUE delay, VALUE interval, VALUE leewa
  *  call-seq:
  *    src.handle => Number
  *
- *  Returns the underlying handle to the dispatch source (i.e. file descriptor,
- *  process identifer, etc.). For Ruby, this must be representable as a Number.
+ *  Returns the underlying Ruby handle for the dispatch source (i.e. file,
+ *  file descriptor, process identifer, etc.).
  *  
  *     gcdq = Dispatch::Queue.new('doc')
- *     src = Dispatch::Source.new(Dispatch::Source::DATA_ADD, 0, 0, gcdq) { }
- *     puts src.handle #=> 0
+ *     name = "/var/tmp/gcd_spec_source-#{$$}-#{Time.now}"
+ *     file = File.open(name, "w")
+ *     src = Dispatch::Source.new(Dispatch::Source::WRITE, file, 0, gcdq) { }
+ *     puts src.handle #=> file
  */
 
 static VALUE
@@ -1007,7 +1016,9 @@ rb_semaphore_alloc(VALUE klass, SEL sel)
  *    Dispatch::Semaphore.new(count) =>  Dispatch::Semaphore
  *
  *  Returns a Semaphore used to synchronize threads through a combination of
- *  waiting and signalling
+ *  waiting and signalling, as detailed in the
+ *  dispatch_semaphore_create(3)[http://developer.apple.com/mac/library/DOCUMENTATION/Darwin/Reference/ManPages/man3/dispatch_semaphore_create.3.html]
+ *  man page.
  *
  *  If the count parameter is equal to zero, the semaphore is useful for
  *  synchronizing completion of work:
@@ -1029,8 +1040,8 @@ rb_semaphore_init(VALUE self, SEL sel, VALUE value)
 {
     dispatch_semaphore_t s = dispatch_semaphore_create(NUM2LONG(value));
     if (s == NULL) {
-	rb_raise(rb_eArgError, "Can't create semaphore based on value `%ld'",
-		NUM2LONG(value));
+    	rb_raise(rb_eArgError, "Can't create semaphore based on value `%ld'",
+    		NUM2LONG(value));
     }
     RSemaphore(self)->sem = s;
     RSemaphore(self)->count = NUM2LONG(value);
@@ -1054,8 +1065,8 @@ rb_semaphore_init(VALUE self, SEL sel, VALUE value)
 static VALUE
 rb_semaphore_signal(VALUE self, SEL sel)
 {
-    return dispatch_semaphore_signal(RSemaphore(self)->sem)
-     == 0	? Qtrue : Qfalse;
+    return dispatch_semaphore_signal(RSemaphore(self)->sem) == 0 
+        ? Qtrue : Qfalse;
 }
 
 /* 
@@ -1079,7 +1090,7 @@ rb_semaphore_wait(VALUE self, SEL sel, int argc, VALUE *argv)
     VALUE num;
     rb_scan_args(argc, argv, "01", &num);
     return dispatch_semaphore_wait(RSemaphore(self)->sem, rb_num2timeout(num))
-     == 0	? Qtrue : Qfalse;
+        == 0 ? Qtrue : Qfalse;
 }
 
 
@@ -1117,7 +1128,7 @@ static void
 rb_dispatch_begin_thread(void)
 {
     if (old_dispatch_begin_thread_4GC != NULL) {
-	(*old_dispatch_begin_thread_4GC)();
+	    (*old_dispatch_begin_thread_4GC)();
     }
     rb_vm_register_current_alien_thread();
 }
@@ -1126,7 +1137,7 @@ static void
 rb_dispatch_end_thread(void)
 {
     if (old_dispatch_end_thread_4GC != NULL) {
-	(*old_dispatch_end_thread_4GC)();
+	    (*old_dispatch_end_thread_4GC)();
     }
     rb_vm_unregister_current_alien_thread();
 }
@@ -1202,7 +1213,7 @@ Init_Dispatch(void)
 	    rb_queue_get_concurrent, -1);
     rb_objc_define_method(*(VALUE *)cQueue, "current", rb_queue_get_current, 0);
     rb_objc_define_method(*(VALUE *)cQueue, "main", rb_queue_get_main, 0);
-    rb_objc_define_method(cQueue, "initialize", rb_queue_initialize, 1);
+    rb_objc_define_method(cQueue, "initialize", rb_queue_init, 1);
     rb_objc_define_method(cQueue, "apply", rb_queue_apply, 1);
     rb_objc_define_method(cQueue, "async", rb_queue_dispatch_async, -1);
     rb_objc_define_method(cQueue, "sync", rb_queue_dispatch_sync, 0);
@@ -1235,7 +1246,7 @@ Init_Dispatch(void)
  */ 
     cGroup = rb_define_class_under(mDispatch, "Group", rb_cObject);
     rb_objc_define_method(*(VALUE *)cGroup, "alloc", rb_group_alloc, 0);
-    rb_objc_define_method(cGroup, "initialize", rb_group_initialize, 0);
+    rb_objc_define_method(cGroup, "initialize", rb_group_init, 0);
     rb_objc_define_method(cGroup, "notify", rb_group_notify, 1);
     rb_objc_define_method(cGroup, "on_completion", rb_group_notify, 1);
     rb_objc_define_method(cGroup, "wait", rb_group_wait, -1);
@@ -1311,6 +1322,11 @@ Init_Dispatch(void)
     rb_objc_define_method(cSemaphore, "signal", rb_semaphore_signal, 0);
     rb_semaphore_finalize_super = rb_objc_install_method2((Class)cSemaphore,
 	    "finalize", (IMP)rb_semaphore_finalize);
+
+/*
+ * Constants for use with
+ * dispatch_time(3)[http://developer.apple.com/Mac/library/documentation/Darwin/Reference/ManPages/man3/dispatch_time.3.html]
+ */
 
     rb_define_const(mDispatch, "TIME_NOW", ULL2NUM(DISPATCH_TIME_NOW));
     rb_define_const(mDispatch, "TIME_FOREVER", ULL2NUM(DISPATCH_TIME_FOREVER));
