@@ -28,10 +28,10 @@ class Builder
   def self.parallel_execute(commands)
     commands = commands.dup
 
-    Array.new(SIMULTANEOUS_JOBS) do |i|
+    Array.new(SIMULTANEOUS_JOBS) do
       Thread.new do
         while c = commands.shift
-          Array(c).each { |command| puts "[#{i}]"; sh(command) }
+          Array(c).each { |command| sh(command) }
         end
       end
     end.each { |t| t.join }
