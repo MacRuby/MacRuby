@@ -75,7 +75,7 @@ class RoxorFunction {
 	std::vector<unsigned char *> ehs;
 
 	// Information retrieved from JITListener.
-	std::string file;
+	std::string path;
 	class Line {
 	    public:
 		uintptr_t address;
@@ -240,25 +240,31 @@ class RoxorJITManager : public JITMemoryManager, public JITEventListener {
 	{
 	    RoxorFunction *function = current_function();
 
-	    std::string file;
+	    std::string path;
 	    for (std::vector<EmittedFunctionDetails::LineStart>::const_iterator iter = Details.LineStarts.begin(); iter != Details.LineStarts.end(); ++iter) {
 		DebugLocTuple dlt = Details.MF->getDebugLocTuple(iter->Loc);
-		if (file.size() == 0) {
+		if (path.size() == 0) {
 #if LLVM_TOT
 		    DICompileUnit unit(dlt.Scope);
-		    file.append(unit.getFilename());
+		    path.append(unit.getDirectory());
+		    path.append("/");
+		    path.append(unit.getFilename());
 #else
 		    DICompileUnit unit(dlt.CompileUnit);
+		    std::string dir, file;
+		    unit.getDirectory(dir);
 		    unit.getFilename(file);
+		    path.append(dir);
+		    path.append("/");
+		    path.append(file);
 #endif
-		    assert(file.size() != 0);
 		}
 
 		RoxorFunction::Line line(iter->Address, dlt.Line);
 		function->lines.push_back(line);
 	    }
 
-	    function->file = file;
+	    function->path = path;
 	}
 };
 
@@ -585,16 +591,16 @@ RoxorCore::symbolize_call_address(void *addr, void **startp, char *path,
 	    if (f != NULL) {
 		for (std::vector<RoxorFunction::Line>::iterator iter =
 			f->lines.begin(); iter != f->lines.end(); ++iter) {
-		    if ((*iter).address == (uintptr_t)addr) {
-			*ln = (*iter).line;
+		    *ln = (*iter).line;
+		    if ((*iter).address <= (uintptr_t)addr) {
 			break;
 		    }
 		}
 	    }
 	}
 	if (path != NULL) {
-	    if (f != NULL && f->file.size() > 0) {
-		strncpy(path, f->file.c_str(), path_len);
+	    if (f != NULL && f->path.size() > 0) {
+		strncpy(path, f->path.c_str(), path_len);
 	    }
 	    else {
 		strncpy(path, "core", path_len);
