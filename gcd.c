@@ -21,14 +21,15 @@
 #include "id.h"
 #include "vm.h"
 #include <libkern/OSAtomic.h>
-#include <syslog.h>
-#include <stdarg.h>
+#include <asl.h>
 
 // TODO: These structures need to be wrapped in a Data struct,
 // otherwise there are crashes when one tries to add an instance
 // variable to a queue. (Not that that is a good idea.)
 
 static SEL selClose;
+static aslmsg gcd_msg = NULL;
+#define GCD_DEBUG(text) asl_log(NULL, gcd_msg, ASL_LEVEL_DEBUG, "%s", text)
 
 typedef struct {
     struct RBasic basic;
@@ -312,7 +313,7 @@ rb_queue_finalize(void *rcv, SEL sel)
     {
         OSSpinLockLock(&_suspensionLock);
         while (queue->suspension_count > 0) {
-            syslog(LOG_WARNING, "Finalizing a suspended queue.");
+            GCD_DEBUG("Finalizing a suspended queue.");
             queue->suspension_count--;
             dispatch_resume(queue->queue);
         }
@@ -328,6 +329,14 @@ rb_queue_finalize(void *rcv, SEL sel)
 }
 
 static VALUE
+rb_block_rescue(VALUE data)
+{
+    char *text = (char *)data;
+    GCD_DEBUG(text);
+    return Qnil;
+}
+
+static VALUE
 rb_block_release_eval(VALUE data)
 {
     GC_RELEASE(data);
@@ -339,7 +348,7 @@ static void
 rb_block_dispatcher(void *data)
 {
     assert(data != NULL);
-    rb_rescue(rb_block_release_eval, (VALUE)data, NULL, 0);
+    rb_rescue(rb_block_release_eval, (VALUE)data, rb_block_rescue, (VALUE)"gcd.c: Exception in rb_block_dispatcher");
 }
 
 static rb_vm_block_t *
@@ -353,10 +362,10 @@ get_prepared_block()
 #if GCD_BLOCKS_COPY_DVARS
     block = rb_vm_dup_block(block);
     for (int i = 0; i < block->dvars_size; i++) {
-	VALUE *slot = block->dvars[i];
-	VALUE *new_slot = xmalloc(sizeof(VALUE));
-	GC_WB(new_slot, *slot);
-	GC_WB(&block->dvars[i], new_slot);
+    	VALUE *slot = block->dvars[i];
+    	VALUE *new_slot = xmalloc(sizeof(VALUE));
+    	GC_WB(new_slot, *slot);
+    	GC_WB(&block->dvars[i], new_slot);
     }
 #else
     rb_vm_block_make_detachable_proc(block);
@@ -468,7 +477,7 @@ rb_block_arg_dispatcher(rb_vm_block_t *block, VALUE param)
     VALUE args[2];
     args[0] = (VALUE)block;
     args[1] = param;
-    rb_rescue(rb_block_arg_eval, (VALUE) args, NULL, 0);
+    rb_rescue(rb_block_arg_eval, (VALUE) args, rb_block_rescue, (VALUE)"gcd.c: Exception in rb_block_arg_dispatcher");
 }
 
 static void
@@ -998,7 +1007,7 @@ rb_source_finalize(void *rcv, SEL sel)
     if (src->source != NULL) {
         OSSpinLockLock(&_suspensionLock);    
         while (src->suspension_count > 0) {
-            syslog(LOG_WARNING, "Finalizing a suspended source.");
+            GCD_DEBUG("Finalizing a suspended source.");
             src->suspension_count--;
             dispatch_resume(src->source);
         }
@@ -1117,7 +1126,7 @@ rb_semaphore_finalize(void *rcv, SEL sel)
     	    dispatch_semaphore_signal(RSemaphore(rcv)->sem);
     	}
     	if (is_unbalanced == true) {
-            syslog(LOG_WARNING, "Finalizing a waiting Dispatch::Semaphore.");
+            GCD_DEBUG("Finalizing a waiting Dispatch::Semaphore.");
         }
 	    dispatch_release(RSemaphore(rcv)->sem);
     }
@@ -1343,8 +1352,8 @@ Init_Dispatch(void)
 /* Constants for future reference */
     selClose = sel_registerName("close");
     assert(selClose != NULL);
-    
-    openlog("macruby.gcd", LOG_PERROR, 0); // 0, 0);
+    gcd_msg = asl_new(ASL_TYPE_MSG);
+    asl_set(gcd_msg, ASL_KEY_FACILITY, "org.macruby.gcd");
 }
 
 
