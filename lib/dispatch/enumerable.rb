@@ -20,11 +20,14 @@ module Dispatch
       grp.wait
     end
 
-    # Parallel +inject+ (only works if commutative)
-    def p_inject(initial=0, &block)
+    # Parallel +inject+
+    # Requires initial value since 'first' no longer special.
+    # Only works if result doesn't depend on the order elements are processed.
+    def p_inject(initial, &block)
       @result = Dispatch.wrap(initial)
       self.p_each { |obj| block.call(@result, obj) }
-      @result
+      @result._done
+      return @result
     end
 
     # Parallel +collect+
@@ -36,19 +39,25 @@ module Dispatch
       result
     end
 
-    # Parallel +detect+
+    # Parallel +select+; will return array of objects for which
+    # +&block+ returns true.
+    # Useful if the test block is very expensive to run
+    def p_find_all(&block)
+      @found_all = Dispatch.wrap(Array)
+      self.p_each { |obj| @found_all << obj if block.call(obj) }
+      @found_all._done # will this leak?
+    end
+
+    # Parallel +detect+; will return -one- match for +&block+
+    # but it may not be the 'first'
+    # Useful if the test block is very expensive to run
     def p_find(&block)
-      @done = false
-      @result = nil
-      self.p_each_with_index do |obj, i|
-        if not @done
-          if true == block.call(obj)
-            @done = true
-            @result = obj
-          end
-        end
+      @found = Dispatch.wrap(nil)
+      self.p_each do |obj|
+        found? = @found.nil? ? block.call(obj) : nil
+        @found = obj if found? and @found.nil? 
       end
-      @result
+      @found._done # will this leak?
     end
   end
 end

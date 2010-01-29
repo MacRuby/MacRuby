@@ -2,6 +2,13 @@
 # directly from the top-level Dispatch module
 
 module Dispatch
+  # Returns a new serial queue with a unique label based on
+  # the ancestor chain and ID of +obj+
+  def queue_for(obj)
+    label = obj.class.ancestors.reverse.join(".").downcase
+    Dispatch::Queue.new("#{label}.%x" % obj.object_id)
+  end
+
   # Run the +&block+ asynchronously on a concurrent queue
   # of the given (optional) +priority+ 
   def async(priority=nil, &block)
