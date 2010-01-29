@@ -4,21 +4,18 @@ module Dispatch
     # Create a future that asynchronously dispatches the block 
     # to a concurrent queue of the specified (optional) +priority+
     def initialize(priority=nil, &block)
-      @group = Group.new
       @value = nil
-      Dispatch.group(@group, priority) { @value = block.call }
+      @group = Dispatch.fork(priority) { @value = block.call }
     end
 
     # Waits for the computation to finish, then returns the value
     # Duck-typed to lambda.call(void)
-    def call()
-      @group.wait
-      @value
-    end
-
-    # Passes the value to the +callback+ block when it is available
-    # Duck-typed to group.notify(&block)
-    def notify(&callback)
+    # If a block is passed, invoke that asynchronously with the final value
+    def call(&callback)
+      if not block_given?
+        @group.wait
+        return @value
+      end
       @group.notify { callback.call(@value) }
     end
   end
