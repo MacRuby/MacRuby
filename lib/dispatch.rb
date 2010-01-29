@@ -14,6 +14,9 @@
 
 raise "Dispatch will only work on Mac OS X 10.6 or later" if MACOSX_VERSION < 10.6
 
+require 'dispatch/actor'
+require 'dispatch/dispatch'
 require 'dispatch/queue'
 require 'dispatch/queue_source'
 require 'dispatch/enumerable'
+require 'dispatch/futures'

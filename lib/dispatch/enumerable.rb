@@ -1,18 +1,54 @@
+# Additional parallel operations for any object supporting +each+
+
 module Dispatch
   module Enumerable
+    # Parallel +each+
+    def p_each(&block)
+      grp = Group.new
+      self.each do |obj|
+        Dispatch.group(grp) { block.call(obj) }        
+      end
+      grp.wait
+    end
+
+    # Parallel +each_with_index+
+    def p_each_with_index(&block)
+      grp = Group.new
+      self.each_with_index do |obj, i|
+        Dispatch.group(grp) { block.call(obj, i) }
+      end
+      grp.wait
+    end
+
+    # Parallel +inject+ (only works if commutative)
+    def p_inject(initial=0, &block)
+      @result = Dispatch.wrap(initial)
+      self.p_each { |obj| block.call(@result, obj) }
+      @result
+    end
+
+    # Parallel +collect+
     def p_map(&block)
-      result = []
-      # We will access the `result` array from within this serial queue,
-      # as without a GIL we cannot assume array access to be thread-safe.
-      result_queue = Dispatch::Queue.new('access-queue.#{result.object_id}')
-      # Uses Dispatch::Queue#apply to submit many blocks at once
-      Dispatch::Queue.concurrent.apply(size) do |idx|
-        # run the block in the concurrent queue to maximize parallelism
-        temp = block(self[idx])
-        # do only the assignment on the serial queue
-        result_queue.async { result[idx] = temp }
+      result = Dispatch.wrap(Array)
+      self.p_each_with_index do |obj, i|
+        result[i] = block.call(obj)
       end
       result
+    end
+
+    # Parallel +detect+
+    def p_find(&block)
+      @done = false
+      @result = nil
+      self.p_each_with_index do |obj, i|
+        if not @done
+          if true == block.call(obj)
+            @done = true
+            @result = obj
+          end
+        end
+      end
+      @result
     end
   end
 end
