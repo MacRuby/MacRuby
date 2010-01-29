@@ -113,7 +113,7 @@ if MACOSX_VERSION >= 10.6
       end
       
       describe "on_file_event" do
-        it "fires with data on how many bytes can be written" do
+        it "fires with data indicating which file event(s)" do
           @file = File.open(@filename, "w")
           @fired = false
           @src = @q.on_file_event(@file, :delete, :write, :extend, :attrib, :link, :rename, :revoke) do |s|
