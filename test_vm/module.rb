@@ -169,3 +169,29 @@ assert ':ok', %{
   class X; end
   X.foo
 }
+
+assert ':ok', %{
+  module M
+    def include(*mod)
+      @mods ||= []
+      @mods.push(*mod)
+    end
+    def new(*args,&b)
+      obj = allocate
+      if @mods
+        @mods.each { |m| obj.extend(m) }
+      end
+      obj.send(:initialize,*args,&b)
+      obj
+    end
+  end
+  module M2
+    def foo; p :ok; end
+  end
+  class X
+    extend M
+    include M2
+    def foo; raise; end
+  end
+  X.new.foo
+}
