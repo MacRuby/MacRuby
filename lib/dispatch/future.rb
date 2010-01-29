@@ -1,3 +1,5 @@
+# Calculate the value of an object in the background
+
 module Dispatch
   # Wrapper around Dispatch::Group used to implement lazy Futures 
   class Future
