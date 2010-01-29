@@ -1,3 +1,5 @@
+# Adds convenience methods to Queues for creating Sources
+
 module Dispatch
   class Source
     @@proc_events = {

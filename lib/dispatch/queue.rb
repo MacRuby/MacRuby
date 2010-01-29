@@ -1,3 +1,5 @@
+# Adds convenience methods to Queues
+
 module Dispatch
   class Queue
     # Combines +&block+ up to +stride+ times before passing to Queue::Apply
