@@ -54,8 +54,8 @@ module Dispatch
     def p_find(&block)
       @found = Dispatch.wrap(nil)
       self.p_each do |obj|
-        found? = @found.nil? ? block.call(obj) : nil
-        @found = obj if found? and @found.nil? 
+        found = @found.nil? ? block.call(obj) : nil
+        @found = obj if found and @found.nil? 
       end
       @found._done # will this leak?
     end

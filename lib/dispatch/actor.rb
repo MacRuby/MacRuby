@@ -5,8 +5,9 @@ module Dispatch
   # Note that this will NOT work for methods that themselves expect a block
   class Actor
     
-    instance_methods.each |method|
-      undef_method(method) unless method =~ /__(.+)__|method_missing/
+    CRITICAL = /__(.+)__|method_missing|object_id/
+    instance_methods.each do |method|
+      undef_method(method) unless method =~ CRITICAL
     end
   
     # Create an Actor to wrap the given +actee+,
@@ -41,7 +42,7 @@ module Dispatch
     end
     
     def method_missing(symbol, *args, &block)
-      if block_given? || not group.nil?
+      if block_given? or not @group.nil?
         callback = @callback
         @q.async(@group) do
           retval = @actee.__send__(symbol, *args)
@@ -54,5 +55,6 @@ module Dispatch
         return @retval
       end
     end
+    
   end
 end

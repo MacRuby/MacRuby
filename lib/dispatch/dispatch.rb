@@ -49,7 +49,7 @@ module Dispatch
     # providing an API similar to that used by +Threads+
     # if a block is given, instead uses +notify+ to call it asynchronously
     def join(&block)
-      block_given? ? notify &block : wait
+      block_given? ? notify(&block) : wait
     end
   end
 
