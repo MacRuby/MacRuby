@@ -87,6 +87,7 @@ rb_load(VALUE fname, int wrap)
 
     // Load it.
     const char *fname_str = RSTRING_PTR(fname);
+//printf("load %s\n", fname_str);
     NODE *node = (NODE *)rb_load_file(fname_str);
     if (node == NULL) {
 	rb_raise(rb_eSyntaxError, "compile error");
@@ -251,10 +252,10 @@ load_try(VALUE path)
 }
 
 static VALUE
-load_rescue(VALUE path)
+load_rescue(VALUE path, VALUE exc)
 {
     rb_remove_feature(path);
-    rb_exc_raise(rb_vm_current_exception());
+    rb_exc_raise(exc);
     return Qnil;
 }
 
@@ -282,7 +283,8 @@ rb_require_safe(VALUE fname, int safe)
 	    rb_provide_feature(path);
 	    switch (type) {
 		case TYPE_RB:
-		    rb_rescue(load_try, path, load_rescue, path);
+		    rb_rescue2(load_try, path, load_rescue, path,
+			    rb_eException, 0);
 		    break;
 
 		case TYPE_RBO:
