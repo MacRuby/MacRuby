@@ -831,25 +831,26 @@ rb_file_s_lstat(VALUE klass, SEL sel, VALUE fname)
  *     f.stat.size                             #=> 66
  */
 
+#if HAVE_LSTAT
 static VALUE
 rb_file_lstat(VALUE obj, SEL sel)
 {
-// #ifdef HAVE_LSTAT
-//     rb_io_t *fptr;
-//     struct stat st;
-// 
-//     rb_secure(2);
-//     GetOpenFile(obj, fptr);
-//     if (!fptr->path) return Qnil;
-//     if (lstat(fptr->path, &st) == -1) {
-//  rb_sys_fail(fptr->path);
-//     }
-//     return stat_new(&st);
-// #else
-//     return rb_io_stat(obj, 0);
-// #endif
-    rb_notimplement();
+    rb_io_t *fptr;
+    struct stat st;
+
+    rb_secure(2);
+    GetOpenFile(obj, fptr);
+    if (fptr->path == NULL) {
+	return Qnil;
+    }
+    if (lstat(RSTRING_PTR(fptr->path), &st) == -1) {
+	rb_sys_fail(RSTRING_PTR(fptr->path));
+    }
+    return stat_new(&st);
 }
+#else
+# define rb_file_lstat rb_f_notimplement
+#endif
 
 #ifndef HAVE_GROUP_MEMBER
 static int
@@ -1843,12 +1844,7 @@ rb_file_s_lchmod(VALUE rcv, SEL sel, int argc, VALUE *argv)
     return LONG2FIX(n);
 }
 #else
-static VALUE
-rb_file_s_lchmod(int argc, VALUE *argv)
-{
-    rb_notimplement();
-    return Qnil;		/* not reached */
-}
+# define rb_file_s_lchmod rb_f_notimplement
 #endif
 
 struct chown_args {
@@ -1983,11 +1979,7 @@ rb_file_s_lchown(VALUE rcv, SEL sel, int argc, VALUE *argv)
     return LONG2FIX(n);
 }
 #else
-static VALUE
-rb_file_s_lchown(int argc, VALUE *argv)
-{
-    rb_notimplement();
-}
+# define rb_file_s_lchown rb_f_notimplement
 #endif
 
 struct timespec rb_time_timespec(VALUE time);
@@ -2128,10 +2120,10 @@ sys_fail2(VALUE s1, VALUE s2)
  *     IO.readlines(".testfile")[0]         #=> "This is line one\n"
  */
 
+#ifdef HAVE_LINK
 static VALUE
 rb_file_s_link(VALUE klass, SEL sel, VALUE from, VALUE to)
 {
-#ifdef HAVE_LINK
     rb_secure(2);
     FilePathValue(from);
     FilePathValue(to);
@@ -2140,11 +2132,10 @@ rb_file_s_link(VALUE klass, SEL sel, VALUE from, VALUE to)
 	sys_fail2(from, to);
     }
     return INT2FIX(0);
-#else
-    rb_notimplement();
-    return Qnil;		/* not reached */
-#endif
 }
+#else
+# define rb_file_s_link rb_f_notimplement
+#endif
 
 /*
  *  call-seq:
@@ -2158,10 +2149,10 @@ rb_file_s_link(VALUE klass, SEL sel, VALUE from, VALUE to)
  *     
  */
 
+#ifdef HAVE_SYMLINK
 static VALUE
 rb_file_s_symlink(VALUE klass, SEL sel, VALUE from, VALUE to)
 {
-#ifdef HAVE_SYMLINK
     rb_secure(2);
     FilePathValue(from);
     FilePathValue(to);
@@ -2170,11 +2161,10 @@ rb_file_s_symlink(VALUE klass, SEL sel, VALUE from, VALUE to)
 	sys_fail2(from, to);
     }
     return INT2FIX(0);
-#else
-    rb_notimplement();
-    return Qnil;		/* not reached */
-#endif
 }
+#else
+# define rb_file_s_symlink rb_f_notimplement
+#endif
 
 /*
  *  call-seq:
@@ -2187,10 +2177,10 @@ rb_file_s_symlink(VALUE klass, SEL sel, VALUE from, VALUE to)
  *     File.readlink("link2test")              #=> "testfile"
  */
 
+#ifdef HAVE_READLINK
 static VALUE
 rb_file_s_readlink(VALUE klass, SEL sel, VALUE path)
 {
-#ifdef HAVE_READLINK
     char *buf;
     int size = 100;
     int rv;
@@ -2215,11 +2205,10 @@ rb_file_s_readlink(VALUE klass, SEL sel, VALUE path)
     xfree(buf);
 
     return v;
-#else
-    rb_notimplement();
-    return Qnil;		/* not reached */
-#endif
 }
+#else
+# define rb_file_s_readlink rb_f_notimplement 
+#endif
 
 static void
 unlink_internal(const char *path, void *arg)

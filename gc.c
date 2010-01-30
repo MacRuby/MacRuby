@@ -66,12 +66,15 @@ rb_memerror(void)
  *  returns current status of GC stress mode.
  */
 
+#if 0
 static VALUE
 gc_stress_get(VALUE self, SEL sel)
 {
-    rb_notimplement();
     return Qnil;
 }
+#else
+# define gc_stress_get rb_f_notimplement
+#endif
 
 /*
  *  call-seq:
@@ -85,12 +88,15 @@ gc_stress_get(VALUE self, SEL sel)
  *  Since it makes Ruby very slow, it is only for debugging.
  */
 
+#if 0
 static VALUE
 gc_stress_set(VALUE self, SEL sel, VALUE flag)
 {
-    rb_notimplement();
     return Qnil;
 }
+#else
+# define gc_stress_set rb_f_notimplement
+#endif
 
 static int garbage_collect(void);
 

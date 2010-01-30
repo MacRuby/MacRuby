@@ -2378,14 +2378,13 @@ rb_fork(int *status, int (*chfunc)(void*), void *charg, VALUE fds)
  *  fork doesn't copy other threads.
  */
 
+#if 0
 static VALUE
 rb_f_fork(VALUE obj, SEL sel)
 {
     rb_pid_t pid;
 
     rb_secure(2);
-
-    rb_raise(rb_eRuntimeError, "fork is not supported yet");
 
     switch (pid = rb_fork(0, 0, 0, Qnil)) {
       case 0:
@@ -2406,6 +2405,9 @@ rb_f_fork(VALUE obj, SEL sel)
 	return PIDT2NUM(pid);
     }
 }
+#else
+# define rb_f_fork rb_f_notimplement
+#endif
 
 
 /*

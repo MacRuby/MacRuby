@@ -528,20 +528,20 @@ dir_each(VALUE dir, SEL sel)
  *     d.read   #=> "."
  *     d.tell   #=> 12
  */
+#ifdef HAVE_TELLDIR
 static VALUE
 dir_tell(VALUE dir, SEL sel)
 {
-#ifdef HAVE_TELLDIR
     struct dir_data *dirp;
     long pos;
 
     GetDIR(dir, dirp);
     pos = telldir(dirp->dir);
     return rb_int2inum(pos);
-#else
-    rb_notimplement();
-#endif
 }
+#else
+# define dir_tell rb_f_notimplement
+#endif
 
 /*
  *  call-seq:
@@ -557,6 +557,7 @@ dir_tell(VALUE dir, SEL sel)
  *     d.seek(i)                #=> #<Dir:0x401b3c40>
  *     d.read                   #=> ".."
  */
+#ifdef HAVE_SEEKDIR
 static VALUE
 dir_seek(VALUE dir, SEL sel, VALUE pos)
 {
@@ -564,13 +565,12 @@ dir_seek(VALUE dir, SEL sel, VALUE pos)
     off_t p = NUM2OFFT(pos);
 
     GetDIR(dir, dirp);
-#ifdef HAVE_SEEKDIR
     seekdir(dirp->dir, p);
     return dir;
-#else
-    rb_notimplement();
-#endif
 }
+#else
+# define dir_seek rb_f_notimplement
+#endif
 
 /*
  *  call-seq:
@@ -797,10 +797,10 @@ check_dirname(volatile VALUE *dir)
  *  platforms. On Unix systems, see <code>chroot(2)</code> for more
  *  information.
  */
+#if defined(HAVE_CHROOT) && !defined(__CHECKER__)
 static VALUE
 dir_s_chroot(VALUE dir, SEL sel, VALUE path)
 {
-#if defined(HAVE_CHROOT) && !defined(__CHECKER__)
     const char *path_cstr = RSTRING_PTR(path);
 
     check_dirname(&path);
@@ -809,11 +809,10 @@ dir_s_chroot(VALUE dir, SEL sel, VALUE path)
 	rb_sys_fail(path_cstr);
 
     return INT2FIX(0);
-#else
-    rb_notimplement();
-    return Qnil;		/* not reached */
-#endif
 }
+#else
+# define dir_s_chroot rb_f_notimplement
+#endif
 
 /*
  *  call-seq:

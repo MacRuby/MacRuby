@@ -1037,11 +1037,15 @@ rb_io_primitive_read(rb_io_t *io_struct, UInt8 *buffer, long len)
  *
  */
 
+#if 0
 static VALUE
 io_read_nonblock(VALUE io, SEL sel, int argc, VALUE *argv)
 {
-    rb_notimplement();
+    return Qnil;
 }
+#else
+# define io_read_nonblock rb_f_notimplement
+#endif
 
 /*
  *  call-seq:
@@ -1060,11 +1064,15 @@ io_read_nonblock(VALUE io, SEL sel, int argc, VALUE *argv)
  *
  */
 
+#if 0
 static VALUE
 rb_io_write_nonblock(VALUE io, SEL sel, VALUE str)
 {
-    rb_notimplement();
+    return Qnil;
 }
+#else
+# define rb_io_write_nonblock rb_f_notimplement
+#endif
 
 /*
  *  call-seq:
@@ -1983,7 +1991,7 @@ rb_io_getline(int argc, VALUE *argv, VALUE io)
     prepare_getline_args(argc, argv, &rs, &limit, io);
     return rb_io_getline_1(rs, limit, io);
 #endif
-	rb_notimplement();
+    rb_notimplement();
 }
 
 VALUE
