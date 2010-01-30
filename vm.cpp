@@ -3719,7 +3719,7 @@ rb_vm_backtrace(int level)
 
 	if (GET_CORE()->symbolize_call_address(callstack[i], NULL,
 		    path, sizeof path, &ln, name, sizeof name)
-		&& name[0] != '\0') {
+		&& name[0] != '\0' && path[0] != '\0') {
 	    char entry[PATH_MAX];
 	    if (ln == 0) {
 		snprintf(entry, sizeof entry, "%s:in `%s'",
