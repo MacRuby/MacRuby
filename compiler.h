@@ -321,7 +321,7 @@ class RoxorCompiler {
 	void compile_landing_pad_footer(bool pop_exception=true);
 	Value *compile_current_exception(void);
 	void compile_rethrow_exception(void);
-	void compile_pop_exception(void);
+	void compile_pop_exception(int pos=0);
 	Value *compile_lvar_slot(ID name);
 	bool compile_lvars(ID *tbl);
 	Value *compile_new_struct(Value *klass, std::vector<Value *> &fields);

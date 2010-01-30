@@ -1951,15 +1951,17 @@ RoxorCompiler::compile_landing_pad_header(const std::type_info &eh_type)
 }
 
 void
-RoxorCompiler::compile_pop_exception(void)
+RoxorCompiler::compile_pop_exception(int pos)
 {
     if (popExceptionFunc == NULL) {
-	// void rb_vm_pop_exception(void);
+	// void rb_vm_pop_exception(int pos);
 	popExceptionFunc = cast<Function>(
 		module->getOrInsertFunction("rb_vm_pop_exception", 
-		    VoidTy, NULL));
+		    VoidTy, Int32Ty, NULL));
     }
-    CallInst::Create(popExceptionFunc, "", bb);
+    std::vector<Value *> params;
+    params.push_back(ConstantInt::get(Int32Ty, pos));
+    CallInst::Create(popExceptionFunc, params.begin(), params.end(), "", bb);
 }
 
 void
@@ -4886,12 +4888,27 @@ rescan_args:
 
 		    bb = handler_bb;
 		    assert(n->nd_body != NULL);
+
+		    // Compile the rescue handler within another exception
+		    // handler.
+		    BasicBlock *old_rescue_invoke_bb = rescue_invoke_bb;
+		    BasicBlock *new_rescue_invoke_bb =
+			BasicBlock::Create(context, "rescue", f);
+		    rescue_invoke_bb = new_rescue_invoke_bb;
+
 		    Value *header_val = compile_node(n->nd_body);
 		    handler_bb = bb;
 		    BranchInst::Create(merge_bb, bb);
-
 		    handlers.push_back(std::pair<Value *, BasicBlock *>
 			    (header_val, handler_bb));
+
+		    // If the handler raised an exception, pop the previous
+		    // one from the VM stack and rethrow.
+		    bb = new_rescue_invoke_bb;
+		    compile_landing_pad_header();
+		    compile_pop_exception(1);
+		    compile_rethrow_exception();
+		    rescue_invoke_bb = old_rescue_invoke_bb;
 
 		    bb = handler_bb = next_handler_bb;
 
@@ -5050,7 +5067,8 @@ rescan_args:
 		current_loop_begin_bb = loopBB;
 		current_loop_body_bb = bodyBB;
 		current_loop_end_bb = afterBB;
-		current_loop_exit_val = PHINode::Create(RubyObjTy, "loop_exit", afterBB);
+		current_loop_exit_val = PHINode::Create(RubyObjTy,
+			"loop_exit", afterBB);
 		current_loop_exit_val->addIncoming(nilVal, exitBB);
 
 		bb = bodyBB;

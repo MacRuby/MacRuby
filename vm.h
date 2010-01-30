@@ -847,11 +847,18 @@ typedef enum {
     METHOD_MISSING_SUPER
 } rb_vm_method_missing_reason_t;
 
-// Custome C++ exception for catch/throw blocks
+// Custom C++ exception class for catch/throw blocks.
 class RoxorCatchThrowException {
- public:
-    VALUE throw_symbol;
-    VALUE throw_value;
+    public:
+	VALUE throw_symbol;
+	VALUE throw_value;
+};
+
+// Custom C++ exception class used to implement "return-from-block".
+class RoxorReturnFromBlockException {
+    public:
+	VALUE val;
+	int id;
 };
 
 // The VM class is instantiated per thread. There is always at least one
@@ -1011,19 +1018,8 @@ class RoxorVM {
 		? Qnil : current_exceptions.back();
 	}
 
-	void push_current_exception(VALUE exc) {
-	    assert(!NIL_P(exc));
-	    rb_objc_retain((void *)exc);
-	    current_exceptions.push_back(exc);
-	}
-
-	VALUE pop_current_exception(void) {
-	    assert(!current_exceptions.empty());
-	    VALUE exc = current_exceptions.back();
-	    rb_objc_release((void *)exc);
-	    current_exceptions.pop_back();
-	    return exc;
-	}
+	void push_current_exception(VALUE exc);
+	void pop_current_exception(int pos=0);
 
 	VALUE *get_binding_lvar(ID name, bool create);
 
@@ -1047,13 +1043,6 @@ class RoxorVM {
 
 #define GET_VM() (RoxorVM::current())
 #define GET_THREAD() (GetThreadPtr(GET_VM()->get_thread()))
-
-// Custom C++ exception class used to implement "return-from-block".
-class RoxorReturnFromBlockException {
-    public:
-	VALUE val;
-	int id;
-};
 
 #endif /* __cplusplus */
 

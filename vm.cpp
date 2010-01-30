@@ -271,6 +271,7 @@ class RoxorJITManager : public JITMemoryManager, public JITEventListener {
 extern "C" void *__cxa_allocate_exception(size_t);
 extern "C" void __cxa_throw(void *, void *, void (*)(void *));
 extern "C" void __cxa_rethrow(void);
+extern "C" std::type_info *__cxa_current_exception_type(void);
 
 RoxorCore::RoxorCore(void)
 {
@@ -553,6 +554,25 @@ RoxorCore::delenda(Function *func)
 #endif
 }
 
+// Dummy function to be used for debugging (in gdb).
+extern "C"
+void
+rb_symbolicate(void *addr)
+{
+    void *start = NULL;
+    char path[1000];
+    char name[100];
+    unsigned long ln = 0;
+    if (GET_CORE()->symbolize_call_address(addr, &start, path, sizeof path,
+		&ln, name, sizeof name)) {
+	printf("addr %p start %p selector %s location %s:%ld\n",
+		addr, start, name, path, ln);
+    }
+    else {
+	printf("addr %p unknown\n", addr);
+    }
+}
+
 bool
 RoxorCore::symbolize_call_address(void *addr, void **startp, char *path,
 	size_t path_len, unsigned long *ln, char *name, size_t name_len)
@@ -577,37 +597,40 @@ RoxorCore::symbolize_call_address(void *addr, void **startp, char *path,
 	*startp = start;
     }
 
-    if (name != NULL || path != NULL || ln != NULL) {
-	std::map<IMP, rb_vm_method_node_t *>::iterator iter = 
-	    ruby_imps.find((IMP)start);
-	if (iter == ruby_imps.end()) {
-	    // TODO symbolize objc selectors
-	    return false;
-	}
-
-	rb_vm_method_node_t *node = iter->second;
+    if (f != NULL) {
 	if (ln != NULL) {
 	    *ln = 0;
-	    if (f != NULL) {
-		for (std::vector<RoxorFunction::Line>::iterator iter =
-			f->lines.begin(); iter != f->lines.end(); ++iter) {
-		    *ln = (*iter).line;
-		    if ((*iter).address <= (uintptr_t)addr) {
-			break;
-		    }
+	    for (std::vector<RoxorFunction::Line>::iterator iter =
+		    f->lines.begin(); iter != f->lines.end(); ++iter) {
+		*ln = (*iter).line;
+		if ((*iter).address <= (uintptr_t)addr) {
+		    break;
 		}
 	    }
 	}
 	if (path != NULL) {
-	    if (f != NULL && f->path.size() > 0) {
-		strncpy(path, f->path.c_str(), path_len);
-	    }
-	    else {
-		strncpy(path, "core", path_len);
-	    }
+	    strncpy(path, f->path.c_str(), path_len);
 	}
 	if (name != NULL) {
-	    strncpy(name, sel_getName(node->sel), name_len);
+	    std::map<IMP, rb_vm_method_node_t *>::iterator iter = 
+		ruby_imps.find((IMP)start);
+	    if (iter == ruby_imps.end()) {
+		strncpy(name, "block", name_len);
+	    }
+	    else {
+		strncpy(name, sel_getName(iter->second->sel), name_len);
+	    }
+	}
+    }
+    else {
+	if (ln != NULL) {
+	    *ln = 0;
+	}
+	if (path != NULL) {
+	    strncpy(path, "core", path_len);
+	}
+	if (name != NULL) {
+	    name[0] = '\0';
 	}
     }
 
@@ -3426,6 +3449,61 @@ __vm_raise(void)
 #endif
 }
 
+void
+RoxorVM::push_current_exception(VALUE exc)
+{
+    assert(!NIL_P(exc));
+    rb_objc_retain((void *)exc);
+    current_exceptions.push_back(exc);
+//printf("PUSH %p %s\n", (void *)exc, RSTRING_PTR(rb_inspect(exc)));
+}
+
+class RoxorThreadRaiseException {
+};
+
+static inline bool
+current_exception_is_return_from_block(void)
+{
+    const std::type_info *exc_type = __cxa_current_exception_type();
+    return exc_type != NULL
+	&& *exc_type == typeid(RoxorReturnFromBlockException *);
+}
+
+static inline bool
+current_exception_is_catch_throw(void)
+{
+    const std::type_info *exc_type = __cxa_current_exception_type();
+    return exc_type != NULL
+	&& *exc_type == typeid(RoxorCatchThrowException *);
+}
+
+static inline bool
+current_exception_is_thread_raise(void)
+{
+    const std::type_info *exc_type = __cxa_current_exception_type();
+    return exc_type != NULL
+	&& *exc_type == typeid(RoxorThreadRaiseException *);
+}
+
+void
+RoxorVM::pop_current_exception(int pos)
+{
+    if (current_exception_is_return_from_block()
+	|| current_exception_is_catch_throw()
+	|| current_exception_is_thread_raise()) {
+	return;
+    }
+
+    assert((size_t)pos < current_exceptions.size());
+
+    std::vector<VALUE>::iterator iter = current_exceptions.end() - (pos + 1);
+    VALUE exc = *iter;
+    current_exceptions.erase(iter);
+
+    rb_objc_release((void *)exc);
+//printf("POP (%d) %p %s\n", pos, (void *)exc, RSTRING_PTR(rb_inspect(exc)));
+}
+
 #if !__LP64__
 extern "C"
 void
@@ -3465,13 +3543,14 @@ rb_vm_raise(VALUE exception)
 extern "C"
 VALUE
 rb_rescue2(VALUE (*b_proc) (ANYARGS), VALUE data1,
-           VALUE (*r_proc) (ANYARGS), VALUE data2, ...)
+	VALUE (*r_proc) (ANYARGS), VALUE data2, ...)
 {
     try {
 	return (*b_proc)(data1);
     }
     catch (...) {
-	VALUE exc = rb_vm_current_exception();
+	RoxorVM *vm = GET_VM();
+	VALUE exc = vm->current_exception();
 	if (exc != Qnil) {
 	    va_list ar;
 	    VALUE eclass;
@@ -3487,8 +3566,9 @@ rb_rescue2(VALUE (*b_proc) (ANYARGS), VALUE data1,
 	    va_end(ar);
 
 	    if (handled) {
+		vm->pop_current_exception();
 		if (r_proc != NULL) {
-		    return (*r_proc)(data2);
+		    return (*r_proc)(data2, exc);
 		}
 		return Qnil;
 	    }
@@ -3604,16 +3684,6 @@ rb_vm_returned_from_block(int id)
     return vm->pop_broken_with();
 }
 
-extern "C" std::type_info *__cxa_current_exception_type(void);
-
-static inline bool
-current_exception_is_return_from_block(void)
-{
-    const std::type_info *exc_type = __cxa_current_exception_type();
-    return exc_type != NULL
-	&& *exc_type == typeid(RoxorReturnFromBlockException *);
-}
-
 extern "C"
 VALUE
 rb_vm_check_return_from_block_exc(RoxorReturnFromBlockException **pexc, int id)
@@ -3652,8 +3722,11 @@ rb_vm_backtrace(int level)
 	char name[100];
 	unsigned long ln = 0;
 
+	path[0] = name[0] = '\0';
+
 	if (GET_CORE()->symbolize_call_address(callstack[i], NULL,
-		    path, sizeof path, &ln, name, sizeof name)) {
+		    path, sizeof path, &ln, name, sizeof name)
+		&& name[0] != '\0') {
 	    char entry[PATH_MAX];
 	    if (ln == 0) {
 		snprintf(entry, sizeof entry, "%s:in `%s'",
@@ -3709,7 +3782,7 @@ rb_vm_is_eh_active(int argc, ...)
 
 extern "C"
 void
-rb_vm_pop_exception(void)
+rb_vm_pop_exception(int pos)
 {
     GET_VM()->pop_current_exception();
 }
@@ -4435,7 +4508,7 @@ rb_vm_thread_throw_kill(void)
     // Killing a thread is implemented using a non-catchable (from Ruby)
     // exception, which allows us to call the ensure blocks before dying,
     // which is unfortunately covered in the Ruby specifications.
-    rb_vm_rethrow();
+    throw new RoxorThreadRaiseException();
 }
 
 static void
