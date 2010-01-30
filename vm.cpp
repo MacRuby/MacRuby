@@ -3699,13 +3699,6 @@ rb_vm_check_return_from_block_exc(RoxorReturnFromBlockException **pexc, int id)
     return Qundef;
 }
 
-static inline void
-rb_vm_rethrow(void)
-{
-    void *exc = __cxa_allocate_exception(0);
-    __cxa_throw(exc, NULL, NULL);
-}
-
 extern "C"
 VALUE
 rb_vm_backtrace(int level)
