@@ -56,6 +56,8 @@ static CFDictionaryValueCallBacks rb_cfdictionary_value_cb = {
     0, retain_cb, release_cb, NULL, NULL
 };
 
+static SEL selRequire = 0;
+
 void
 Init_var_tables(void)
 {
@@ -66,6 +68,7 @@ Init_var_tables(void)
     autoload = rb_intern("__autoload__");
     classpath = rb_intern("__classpath__");
     tmp_classpath = rb_intern("__tmp_classpath__");
+    selRequire = sel_registerName("require:");
 }
 
 struct fc_result {
@@ -1483,6 +1486,11 @@ rb_autoload_load(VALUE klass, ID id)
     if (!load || !(file = load->nd_lit)) {
 	return Qfalse;
     }
+    if (false) {
+	// XXX Apparently RubySpec does not want us to do that...
+	return rb_vm_call(*(VALUE *)rb_mKernel, selRequire, 1, &file,
+		false);
+    }
     return rb_require_safe(file, load->nd_nth);
 }
 
@@ -1569,7 +1577,7 @@ retry:
 		if (!RTEST(rb_autoload_load(tmp, id))) {
 		    break;
 		}
-		continue;
+		goto retry;
 	    }
 	    if (exclude && tmp == rb_cObject && klass != rb_cObject) {
 		rb_warn("toplevel constant %s referenced by %s::%s",
@@ -1593,7 +1601,7 @@ retry:
 			if (!RTEST(rb_autoload_load(mod, id))) {
 			    break;
 			}
-			continue;
+			goto retry;
 		    }
 		    return rb_vm_resolve_const_value(value, klass, id);
 		}
