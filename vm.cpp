@@ -569,37 +569,40 @@ RoxorCore::symbolize_call_address(void *addr, void **startp, char *path,
 	*startp = start;
     }
 
-    if (name != NULL || path != NULL || ln != NULL) {
-	std::map<IMP, rb_vm_method_node_t *>::iterator iter = 
-	    ruby_imps.find((IMP)start);
-	if (iter == ruby_imps.end()) {
-	    // TODO symbolize objc selectors
-	    return false;
-	}
-
-	rb_vm_method_node_t *node = iter->second;
+    if (f != NULL) {
 	if (ln != NULL) {
 	    *ln = 0;
-	    if (f != NULL) {
-		for (std::vector<RoxorFunction::Line>::iterator iter =
-			f->lines.begin(); iter != f->lines.end(); ++iter) {
-		    if ((*iter).address == (uintptr_t)addr) {
-			*ln = (*iter).line;
-			break;
-		    }
+	    for (std::vector<RoxorFunction::Line>::iterator iter =
+		    f->lines.begin(); iter != f->lines.end(); ++iter) {
+		*ln = (*iter).line;
+		if ((*iter).address <= (uintptr_t)addr) {
+		    break;
 		}
 	    }
 	}
 	if (path != NULL) {
-	    if (f != NULL && f->file.size() > 0) {
-		strncpy(path, f->file.c_str(), path_len);
-	    }
-	    else {
-		strncpy(path, "core", path_len);
-	    }
+	    strncpy(path, f->file.c_str(), path_len);
 	}
 	if (name != NULL) {
-	    strncpy(name, sel_getName(node->sel), name_len);
+	    std::map<IMP, rb_vm_method_node_t *>::iterator iter = 
+		ruby_imps.find((IMP)start);
+	    if (iter == ruby_imps.end()) {
+		strncpy(name, "block", name_len);
+	    }
+	    else {
+		strncpy(name, sel_getName(iter->second->sel), name_len);
+	    }
+	}
+    }
+    else {
+	if (ln != NULL) {
+	    *ln = 0;
+	}
+	if (path != NULL) {
+	    strncpy(path, "core", path_len);
+	}
+	if (name != NULL) {
+	    name[0] = '\0';
 	}
     }
 
@@ -3531,8 +3534,11 @@ rb_vm_backtrace(int level)
 	char name[100];
 	unsigned long ln = 0;
 
+	path[0] = name[0] = '\0';
+
 	if (GET_CORE()->symbolize_call_address(callstack[i], NULL,
-		    path, sizeof path, &ln, name, sizeof name)) {
+		    path, sizeof path, &ln, name, sizeof name)
+		&& path[0] != '\0' && name[0] != '\0') {
 	    char entry[PATH_MAX];
 	    if (ln == 0) {
 		snprintf(entry, sizeof entry, "%s:in `%s'",
