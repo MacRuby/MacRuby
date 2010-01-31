@@ -840,24 +840,65 @@ rb_alias_variable(ID name1, ID name2)
     entry1->var = entry2->var;
 }
 
-// TODO: should use an associative reference instead.
 static CFMutableDictionaryRef generic_iv_dict = NULL;
+
+static CFMutableDictionaryRef
+generic_ivar_dict(VALUE obj, bool create)
+{
+    CFMutableDictionaryRef obj_dict = NULL;
+    if (SPECIAL_CONST_P(obj)) {
+	if (generic_iv_dict == NULL) {	
+	    generic_iv_dict = CFDictionaryCreateMutable(NULL, 0, NULL,
+		    &kCFTypeDictionaryValueCallBacks);
+	}
+	if (!CFDictionaryGetValueIfPresent(generic_iv_dict, 
+		    (const void *)obj, (const void **)&obj_dict) && create) {
+	    obj_dict = CFDictionaryCreateMutable(NULL, 0, NULL,
+		    &rb_cfdictionary_value_cb);
+	    CFMakeCollectable(obj_dict);
+	    CFDictionarySetValue(generic_iv_dict, (const void *)obj,
+		    (const void *)obj_dict);	
+	}
+    }
+    else {
+	obj_dict = rb_objc_get_associative_ref((void *)obj, &generic_iv_dict);
+	if (obj_dict == NULL && create) {
+	    obj_dict = CFDictionaryCreateMutable(NULL, 0, NULL,
+		    &rb_cfdictionary_value_cb);
+	    CFMakeCollectable(obj_dict);
+	    rb_objc_set_associative_ref((void *)obj, &generic_iv_dict,
+		    (void *)obj_dict);
+	}
+    }
+    return obj_dict;
+}
+
+static void
+generic_ivar_dict_set(VALUE obj, CFMutableDictionaryRef obj_dict)
+{
+    if (SPECIAL_CONST_P(obj)) {
+	if (generic_iv_dict == NULL) {	
+	    generic_iv_dict = CFDictionaryCreateMutable(NULL, 0, NULL,
+		    &kCFTypeDictionaryValueCallBacks);
+	}
+	CFDictionarySetValue(generic_iv_dict, (const void *)obj,
+		(const void *)obj_dict);	
+    }
+    else {
+	rb_objc_set_associative_ref((void *)obj, &generic_iv_dict,
+		(void *)obj_dict);
+    }
+}
 
 static VALUE
 generic_ivar_get(VALUE obj, ID id, bool warn, bool undef)
 {
-    if (generic_iv_dict != NULL) {
-	CFDictionaryRef obj_dict;
-
-	if (CFDictionaryGetValueIfPresent(generic_iv_dict, 
-		    (const void *)obj, (const void **)&obj_dict) 
-		&& obj_dict != NULL) {
-
-	    VALUE val;
-	    if (CFDictionaryGetValueIfPresent(obj_dict, (const void *)id, 
-			(const void **)&val)) {
-		return val;
-	    }
+    CFDictionaryRef obj_dict = generic_ivar_dict(obj, false);
+    if (obj_dict != NULL) {
+	VALUE val;
+	if (CFDictionaryGetValueIfPresent(obj_dict, (const void *)id, 
+		    (const void **)&val)) {
+	    return val;
 	}
     }
     if (warn) {
@@ -869,103 +910,51 @@ generic_ivar_get(VALUE obj, ID id, bool warn, bool undef)
 static void
 generic_ivar_set(VALUE obj, ID id, VALUE val)
 {
-    CFMutableDictionaryRef obj_dict;
-
     if (rb_special_const_p(obj)) {
-	if (rb_obj_frozen_p(obj)) 
+	if (rb_obj_frozen_p(obj)) {
 	    rb_error_frozen("object");
+	}
     }
-    if (generic_iv_dict == NULL) {
-	generic_iv_dict = CFDictionaryCreateMutable(NULL, 0, NULL,
-		&rb_cfdictionary_value_cb);
-	rb_objc_retain(generic_iv_dict);
-	obj_dict = NULL;
-    }
-    else {
-	obj_dict = (CFMutableDictionaryRef)CFDictionaryGetValue(
-		(CFDictionaryRef)generic_iv_dict, (const void *)obj);
-    }
-    if (obj_dict == NULL) {
-	obj_dict = CFDictionaryCreateMutable(NULL, 0, NULL,
-		&rb_cfdictionary_value_cb);
-	CFDictionarySetValue(generic_iv_dict, (const void *)obj, 
-		(const void *)obj_dict);
-	CFMakeCollectable(obj_dict);
-    }
+    CFMutableDictionaryRef obj_dict = generic_ivar_dict(obj, true);
+//printf("generic_ivar_set %p %ld %p dict %p\n", (void*)obj,id,(void*)val,obj_dict);
     CFDictionarySetValue(obj_dict, (const void *)id, (const void *)val);
 }
 
 static VALUE
 generic_ivar_defined(VALUE obj, ID id)
 {
-    CFMutableDictionaryRef obj_dict;
-
-    if (generic_iv_dict != NULL
-	    && CFDictionaryGetValueIfPresent((CFDictionaryRef)generic_iv_dict, 
-		(const void *)obj, (const void **)&obj_dict)
-	    && obj_dict != NULL) {
-    	if (CFDictionaryGetValueIfPresent(obj_dict, (const void *)id, NULL)) {
+    CFDictionaryRef obj_dict = generic_ivar_dict(obj, false);
+    if (obj_dict != NULL) {
+	if (CFDictionaryGetValueIfPresent(obj_dict, (const void *)id, NULL)) {
 	    return Qtrue;
 	}
     }
     return Qfalse;    
 }
 
-static int
+static bool
 generic_ivar_remove(VALUE obj, ID id, VALUE *valp)
 {
-    CFMutableDictionaryRef obj_dict;
-    VALUE val;
-
-    if (generic_iv_dict == NULL)
-	return 0;
-
-    obj_dict = (CFMutableDictionaryRef)CFDictionaryGetValue(
-	(CFDictionaryRef)generic_iv_dict, (const void *)obj);
-    if (obj_dict == NULL)
-	return 0;
-
-    if (CFDictionaryGetValueIfPresent(obj_dict, (const void *)id, 
-	(const void **)&val)) {
-	*valp = val;
-	CFDictionaryRemoveValue(obj_dict, (const void *)id);
-	return 1;
+    CFMutableDictionaryRef obj_dict = generic_ivar_dict(obj, false);
+    if (obj_dict != NULL) {
+	VALUE val;
+	if (CFDictionaryGetValueIfPresent(obj_dict, (const void *)id, 
+		    (const void **)&val)) {
+	    *valp = val;
+	    CFDictionaryRemoveValue(obj_dict, (const void *)id);
+	    return true;
+	}
     }
-
-    return 0;
-}
-
-void
-rb_free_generic_ivar(VALUE obj)
-{
-    if (generic_iv_dict != NULL) {
-	CFDictionaryRemoveValue(generic_iv_dict, (const void *)obj);
-    }
+    return false;
 }
 
 void
 rb_copy_generic_ivar(VALUE clone, VALUE obj)
 {
-    CFMutableDictionaryRef obj_dict;
-    CFMutableDictionaryRef clone_dict;
-
-    if (generic_iv_dict == NULL)
-	return;
-
-    obj_dict = (CFMutableDictionaryRef)CFDictionaryGetValue(
-	(CFDictionaryRef)generic_iv_dict, (const void *)obj);
-    if (obj_dict == NULL)
-	return;
-
-    if (CFDictionaryGetValueIfPresent((CFDictionaryRef)generic_iv_dict, 
-	(const void *)clone, (const void **)&clone_dict) 
-	&& clone_dict != NULL)
-	CFDictionaryRemoveValue(generic_iv_dict, (const void *)clone);
-
-    clone_dict = CFDictionaryCreateMutableCopy(NULL, 0, obj_dict);
-    CFDictionarySetValue(generic_iv_dict, (const void *)clone, 
-	(const void *)clone_dict);
-    CFMakeCollectable(clone_dict);
+    CFMutableDictionaryRef obj_dict = generic_ivar_dict(obj, false);
+    if (obj_dict != NULL) {
+	generic_ivar_dict_set(clone, obj_dict);
+    }
 }
 
 static inline bool
@@ -983,19 +972,10 @@ rb_class_has_ivar_dict(VALUE mod)
 CFMutableDictionaryRef 
 rb_class_ivar_dict(VALUE mod)
 {
-    CFMutableDictionaryRef dict;
-
     if (rb_class_has_ivar_dict(mod)) {
-	dict = RCLASS_RUBY_IVAR_DICT(mod);
+	return RCLASS_RUBY_IVAR_DICT(mod);
     }
-    else {
-	dict = NULL;
-	if (generic_iv_dict != NULL) {
-	    CFDictionaryGetValueIfPresent(generic_iv_dict, 
-		(const void *)mod, (const void **)&dict);
-	} 
-    }
-    return dict;
+    return generic_ivar_dict(mod, false);
 }
 
 void
@@ -1005,18 +985,14 @@ rb_class_ivar_set_dict(VALUE mod, CFMutableDictionaryRef dict)
 	CFMutableDictionaryRef old_dict = RCLASS_RUBY_IVAR_DICT(mod);
 	if (old_dict != dict) {
 	    if (old_dict != NULL) {
-		CFRelease(old_dict);
+		GC_RELEASE(old_dict);
 	    }
-	    CFRetain(dict);
+	    GC_RETAIN(dict);
 	    RCLASS_RUBY_IVAR_DICT(mod) = dict;
 	}
     }
     else {
-	if (generic_iv_dict == NULL) {
-	    generic_iv_dict = CFDictionaryCreateMutable(NULL, 0, NULL, &rb_cfdictionary_value_cb);
-	    rb_objc_retain(generic_iv_dict);
-	}
-	CFDictionarySetValue(generic_iv_dict, (const void *)mod, (const void *)dict);
+	generic_ivar_dict_set(mod, dict);
     }
 }
 
@@ -1193,8 +1169,6 @@ rb_ivar_defined(VALUE obj, ID id)
 	    }
 
 	case T_NATIVE:
-	    return generic_ivar_defined(obj, id);
-
 	default:
 	    return generic_ivar_defined(obj, id);
     }
@@ -1224,18 +1198,14 @@ rb_ivar_foreach(VALUE obj, int (*func)(ANYARGS), st_data_t arg)
 	  return;
 
       case T_NATIVE:
-	  goto generic;
-    }
-generic:
-    if (generic_iv_dict != NULL) {
-	CFDictionaryRef obj_dict;
-
-	obj_dict = (CFDictionaryRef)CFDictionaryGetValue(
-		(CFDictionaryRef)generic_iv_dict, (const void *)obj);
-	if (obj_dict != NULL) {
-	    CFDictionaryApplyFunction(obj_dict, 
-		    (CFDictionaryApplierFunction)func, (void *)arg);
-	}
+      default:
+	  {
+	      CFDictionaryRef obj_dict = generic_ivar_dict(obj, false);
+	      if (obj_dict != NULL) {
+		  CFDictionaryApplyFunction(obj_dict, (CFDictionaryApplierFunction)func,
+			  (void *)arg);
+	      }
+	  }
     }
 }
 
