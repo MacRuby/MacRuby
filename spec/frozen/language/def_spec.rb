@@ -24,7 +24,7 @@ end
 describe "Defining an 'initialize_copy' method" do
   it "should make it private" do
     class DefInitializeCopySpec
-      def initialize_copy
+      def initialize_copy(obj)
       end
     end
     DefInitializeCopySpec.should have_private_instance_method(:initialize_copy, false)
