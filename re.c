@@ -2188,6 +2188,7 @@ again:
     return code;
 }
 
+__attribute__((noinline))
 static int
 unescape_escaped_nonascii(const char **pp, const char *end, rb_encoding *enc,
         VALUE buf, rb_encoding **encp, onig_errmsg_buffer err)
