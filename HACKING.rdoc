@@ -132,4 +132,7 @@ The following environment variables might help you debug easy bugs.
   (gdb) p (char *)RoxorVM::current->debug_exceptions()
 
 * To determine if a given object is thread-local:
-  (gdb) p (int)gdb_is_local(<address>);
+  (gdb) p (int)gdb_is_local(<address>)
+
+* To symbolize a Ruby address (named as ??) in the backtrace:
+  (gdb) p (void)rb_symbolicate(<address>)
