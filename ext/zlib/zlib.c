@@ -111,7 +111,7 @@ static void gzfile_reset _((struct gzfile*));
 static void gzfile_close _((struct gzfile*, int));
 static void gzfile_write_raw _((struct gzfile*));
 static VALUE gzfile_read_raw_partial _((VALUE));
-static VALUE gzfile_read_raw_rescue _((VALUE));
+static VALUE gzfile_read_raw_rescue _((VALUE, VALUE));
 static VALUE gzfile_read_raw _((struct gzfile*));
 static int gzfile_read_raw_ensure _((struct gzfile*, int));
 static char *gzfile_read_raw_until_zero _((struct gzfile*, long));
@@ -1703,14 +1703,12 @@ gzfile_read_raw_partial(VALUE arg)
     return str;
 }
 
-VALUE rb_vm_current_exception(void);
-
 static VALUE
-gzfile_read_raw_rescue(VALUE arg)
+gzfile_read_raw_rescue(VALUE arg, VALUE exc)
 {
     struct gzfile *gz = (struct gzfile*)arg;
     VALUE str = Qnil;
-    if (rb_obj_is_kind_of(rb_vm_current_exception(), rb_eNoMethodError)) {
+    if (rb_obj_is_kind_of(exc, rb_eNoMethodError)) {
         str = rb_funcall(gz->io, id_read, 1, INT2FIX(GZFILE_READ_SIZE));
         if (!NIL_P(str)) {
             Check_Type(str, T_STRING);
