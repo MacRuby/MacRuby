@@ -26,6 +26,7 @@ VALUE rb_cBasicObject;
 VALUE rb_mKernel;
 VALUE rb_cNSObject;
 VALUE rb_cObject;
+VALUE rb_cRubyObject;
 VALUE rb_cModule;
 VALUE rb_cClass;
 VALUE rb_cData;
@@ -1874,15 +1875,16 @@ rb_class_initialize(int argc, VALUE *argv, VALUE klass)
 	rb_scan_args(argc, argv, "01", &super);
 	rb_check_inheritable(super);
     }
+    if (super == rb_cObject) {
+	super = rb_cRubyObject;
+    }
     RCLASS_SET_SUPER(klass, super);
-    if ((RCLASS_VERSION(super) & RCLASS_IS_OBJECT_SUBCLASS) != RCLASS_IS_OBJECT_SUBCLASS) {
+    if ((RCLASS_VERSION(super) & RCLASS_IS_OBJECT_SUBCLASS)
+	    != RCLASS_IS_OBJECT_SUBCLASS) {
 	long v = RCLASS_VERSION(klass) ^ RCLASS_IS_OBJECT_SUBCLASS;
 	RCLASS_SET_VERSION(klass, v);
     }
     rb_objc_install_primitives((Class)klass, (Class)super);
-    if (super == rb_cObject) {
-	rb_define_object_special_methods(klass);
-    }
 
     rb_class_inherited(super, klass);
     rb_mod_initialize(klass, 0);
@@ -2927,13 +2929,18 @@ Init_Object(void)
     rb_cObject = rb_cNSObject = (VALUE)objc_getClass("NSObject");
     rb_const_set(rb_cObject, rb_intern("Object"), rb_cNSObject);
     rb_set_class_path(rb_cObject, rb_cObject, "NSObject");
-    rb_cBasicObject = (VALUE)objc_duplicateClass((Class)rb_cObject, "BasicObject", 0);
+    rb_cBasicObject = (VALUE)objc_duplicateClass((Class)rb_cObject,
+	    "BasicObject", 0);
     rb_const_set(rb_cObject, rb_intern("BasicObject"), rb_cBasicObject);
     rb_cModule = boot_defclass("Module", rb_cNSObject);
     RCLASS_SET_VERSION_FLAG(rb_cModule, RCLASS_NO_IV_SLOTS);
     rb_define_object_special_methods(rb_cModule);
     rb_cClass =  boot_defclass("Class",  rb_cModule);
     RCLASS_SET_VERSION_FLAG(rb_cClass, RCLASS_NO_IV_SLOTS);
+    rb_cRubyObject = boot_defclass("RubyObject", rb_cObject);
+    RCLASS_SET_VERSION_FLAG(rb_cRubyObject, RCLASS_IS_SINGLETON);
+    RCLASS_SET_VERSION_FLAG(rb_cRubyObject, RCLASS_IS_OBJECT_SUBCLASS);
+    rb_define_object_special_methods(rb_cRubyObject);
 
     allocCache = rb_vm_get_call_cache(selAlloc);
     initializeCache = rb_vm_get_call_cache(selInitialize);

@@ -117,6 +117,16 @@ rb_objc_init(VALUE rcv, SEL sel)
     return rcv;
 }
 
+static VALUE
+rb_obj_superclass(VALUE klass, SEL sel)
+{
+    VALUE cl = RCLASS_SUPER(klass);
+    while (RCLASS_SINGLETON(cl)) {
+	cl = RCLASS_SUPER(cl);
+    }
+    return rb_class_real(cl);
+}
+
 void
 rb_define_object_special_methods(VALUE klass)
 {
@@ -125,8 +135,6 @@ rb_define_object_special_methods(VALUE klass)
 
     rb_objc_define_method(*(VALUE *)klass, "new",
 	    rb_class_new_instance_imp, -1);
-    rb_objc_define_method(*(VALUE *)klass, "__new__",
-	    rb_class_new_instance_imp, -1);
     rb_objc_define_method(klass, "dup", rb_obj_dup, 0);
     rb_objc_define_private_method(klass, "initialize", rb_objc_init, 0);
     rb_objc_define_private_method(klass, "initialize_copy",
@@ -134,6 +142,7 @@ rb_define_object_special_methods(VALUE klass)
     rb_objc_define_method(klass, "hash", rb_obj_id, 0);
 
     // To make sure singleton classes will be filtered.
+    rb_objc_define_method(*(VALUE *)klass, "superclass", rb_obj_superclass, 0);
     rb_objc_define_method(klass, "class", rb_obj_class, 0);
 
     rb_objc_install_method(*(Class *)klass, selAllocWithZone,
@@ -152,6 +161,8 @@ rb_define_object_special_methods(VALUE klass)
     class_replaceMethod((Class)klass, selCopyWithZone, 
 	    (IMP)rb_obj_imp_copyWithZone, method_getTypeEncoding(m));
 }
+
+extern VALUE rb_cRubyObject;
 
 static VALUE
 rb_objc_alloc_class(const char *name, VALUE super, VALUE flags, VALUE klass)
@@ -246,11 +257,10 @@ rb_objc_create_class(const char *name, VALUE super)
 static VALUE
 rb_class_boot2(VALUE super, const char *name)
 {
-    VALUE klass = rb_objc_create_class(name, super);
-    if (super == rb_cNSObject) {
-	rb_define_object_special_methods(klass);
-    }
-    return klass;
+    if (super == rb_cObject && rb_cRubyObject != 0) {
+	super = rb_cRubyObject;
+    }	
+    return rb_objc_create_class(name, super);
 }
 
 VALUE
@@ -435,7 +445,6 @@ rb_make_metaclass(VALUE obj, VALUE super)
 	}
 	RBASIC(obj)->klass = klass;
 	rb_singleton_class_attached(klass, obj);
-
 	return klass;
     }
 }
