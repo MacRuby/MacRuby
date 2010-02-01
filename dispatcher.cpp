@@ -1876,7 +1876,7 @@ RoxorCore::respond_to(VALUE obj, VALUE klass, SEL sel, bool priv,
 	    }
 
 	    IMP imp = method_getImplementation(m);
-	    if (UNAVAILABLE_IMP(imp)) {
+	    if (UNAVAILABLE_IMP(imp) || imp == (IMP)rb_f_notimplement) {
 		status = RESPOND_TO_NOT_EXIST;
 	    }
 	    else {
