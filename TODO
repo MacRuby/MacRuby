@@ -13,6 +13,7 @@ For 0.6:
   [X] project creation should work
   [/] development web server
   [ ] hello world should work
+[ ] support Mocha
 
 Historical:
 
@@ -30,7 +31,6 @@ Historical:
   [ ] check every RSTRING_PTR call to see if they are not f*cking up the data
   [ ] pass specs (do we have some?)
 [/] support for zlib
-[/] support for Mocha (grep -R 'Mocha TODO' test_vm)
 [ ] merge stdlib from 1.9.2 trunk
 [/] most language/core/library specs should run (modulo a very few exceptions)
 [/] port all rb_funcall() calls to rb_vm_call()
