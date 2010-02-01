@@ -110,7 +110,9 @@ OBJC_CFLAGS << " -std=c99"
 
 OBJS_CFLAGS = {
   # Make sure everything gets inlined properly + compile as Objective-C++.
-  'dispatcher' => '--param inline-unit-growth=10000 --param large-function-growth=10000 -x objective-c++'
+  'dispatcher' => '--param inline-unit-growth=10000 --param large-function-growth=10000 -x objective-c++',
+  # Disable optimizations to work around a silly bug.
+  're' => '-O0'
 }
 
 # We monkey-patch the method that Rake uses to display the tasks so we can add
