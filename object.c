@@ -1106,7 +1106,7 @@ rb_obj_freeze_m(VALUE obj, SEL sel)
 {
     if (!OBJ_FROZEN(obj)) {
 	int type;
-	if (rb_safe_level() >= 4 && !OBJ_TAINTED(obj)) {
+	if (rb_safe_level() >= 4 && OBJ_UNTRUSTED(obj)) {
 	    rb_raise(rb_eSecurityError, "Insecure: can't freeze object");
 	}
 	else if (SPECIAL_CONST_P(obj)) {
