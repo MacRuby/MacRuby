@@ -2,22 +2,31 @@ require File.dirname(__FILE__) + "/../../spec_helper"
 require 'dispatch'
 
 if MACOSX_VERSION >= 10.6
+  
+  class Actee
+    def initialize(s); @s = s; end
+    def current_queue; Dispatch::Queue.current; end
+    def to_s; @s; end
+  end
+  
   describe "Dispatch::Actor" do
     before :each do
-      @actee = "me"
+      @actee = Actee.new("my actee")
       @actor = Dispatch::Actor.new(@actee)
     end
     
     it "should return an Actor when called with an actee" do
-      true.should == true
+      @actor.should be_kind_of(Dispatch::Actor)
+      @actor.should be_kind_of(SimpleDelegator)
     end
 
-    it "should undef most of its inherited methods" do
-      true.should == true
+    it "should return the actee when called with __getobj__" do
+      @actee.should be_kind_of(Actee)
+      @actor.__getobj__.should be_kind_of(Actee)
     end
 
-    it "should NOT undef missing_method or object-id" do
-      true.should == true
+    it "should invoke actee for most inherited methods" do
+      @actor.to_s.should == @actee.to_s
     end
 
     it "should invoke actee methods on a private serial queue" do
