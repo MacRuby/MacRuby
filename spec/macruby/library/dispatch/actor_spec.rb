@@ -39,14 +39,20 @@ if MACOSX_VERSION >= 10.6
 
     it "should call actee Synchronously if block is NOT given" do
       $global = 0
-      t0 = Time.now
       @actor.delay_set(42)
-      t1 = Time.now
       $global.should == 42
     end
 
     it "should return value when called Synchronously" do
       @actor.increment(41).should == 42
+    end
+
+    it "should call actee Asynchronously if block IS given" do
+      $global = 0
+      @actor.delay_set(42) { }
+      $global.should == 0
+      while $global == 0 do; end
+      $global.should == 42      
     end
 
     it "should return nil when called Asynchronously" do
@@ -60,15 +66,6 @@ if MACOSX_VERSION >= 10.6
       @actor.increment(41) {|rv| @v = rv}
       while @v == 0 do; end
       @v.should == 42
-    end
-
-    it "should call actee Asynchronously if block IS given" do
-      $global = 0
-      $global.should == 0
-      @actor.delay_set(42) { }
-      $global.should == 0
-      while $global == 0 do; end
-      $global.should == 42      
     end
 
     it "should use default callback queue when called Asynchronously" do
@@ -87,16 +84,30 @@ if MACOSX_VERSION >= 10.6
       @qs.should == qn.label
     end
 
-    it "should use callback queue specified by _on" do
-      true.should == true
+    it "should use callback queue specified by _on_" do
+      qn = Dispatch::Queue.new("custom")
+      @qs = ""
+      @actor._on_(qn).increment(41) {|rv| @qs = Dispatch::Queue.current.to_s}
+      while @qs == "" do; end
+      @qs.should == qn.label
     end
 
-    it "should invoke actee async with group specified by _with" do
-      true.should == true
+    it "should invoke actee async when group specified by _with_" do
+      $global = 0
+      g = Dispatch::Group.new
+      @actor._with_(g).delay_set(42)
+      $global.should == 0
+      g.wait
+      $global.should == 42      
     end
 
-    it "should return actee when called with _done" do
-      true.should == true
+    it "should complete work and return actee when called with _done" do
+      $global = 0
+      @actor.delay_set(42) { }
+      $global.should == 0
+      actee = @actor._done_
+      $global.should == 42
+      actee.should == @actee     
     end
   end
   
