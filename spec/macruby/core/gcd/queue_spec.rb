@@ -78,7 +78,8 @@ if MACOSX_VERSION >= 10.6
     describe :async do
       it "accepts a block and yields it asynchronously" do
         @i = 0
-        @q.async { @i = 42 }
+        @q.async { sleep 0.01; @i = 42 }
+        @i.should == 0
         while @i == 0 do; end
         @i.should == 42
       end
@@ -92,7 +93,7 @@ if MACOSX_VERSION >= 10.6
     describe :sync do
       it "accepts a block and yields it synchronously" do
         @i = 0
-        @q.sync { @i = 42 }
+        @q.sync { sleep 0.01; @i = 42 }
         @i.should == 42
       end
 

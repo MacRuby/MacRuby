@@ -3,10 +3,12 @@ require 'dispatch'
 
 if MACOSX_VERSION >= 10.6
   
+  $global = 0
   class Actee
     def initialize(s); @s = s; end
     def current_queue; Dispatch::Queue.current; end
-    def wait(n); sleep n; end
+    def delay_set(n); sleep 0.01; $global = n; end
+    def increment(v); v+1; end
     def to_s; @s; end
   end
   
@@ -36,14 +38,41 @@ if MACOSX_VERSION >= 10.6
     end
 
     it "should call actee Synchronously if block is NOT given" do
-      true.should == true
+      $global = 0
+      t0 = Time.now
+      @actor.delay_set(42)
+      t1 = Time.now
+      puts "Elapsed: #{(t1-t0)}"
+      $global.should == 42
+    end
+
+    it "should return value when called Synchronously" do
+      @actor.increment(41).should == 42
+    end
+
+    it "should return nil when called Asynchronously" do
+      @v = 0
+      v = @actor.increment(41) {|rv| @v = rv}
+      v.should.nil?
+    end
+
+    it "should provide return value to block when called Asynchronously" do
+      @v = 0
+      @actor.increment(41) {|rv| @v = rv}
+      while @v == 0 do; end
+      @v.should == 42
     end
 
     it "should call actee Asynchronously if block IS given" do
-      true.should == true
+      $global = 0
+      $global.should == 0
+      @actor.delay_set(42) { }
+      $global.should == 0
+      while $global == 0 do; end
+      $global.should == 42      
     end
 
-    it "should used default callback when called Asynchronously" do
+    it "should used default callback queue when called Asynchronously" do
       true.should == true
     end
 

@@ -15,15 +15,10 @@ module Dispatch
     def initialize(delegate, callback=nil)
       super(delegate)
       @default_callback = callback || Dispatch::Queue.concurrent
-      @q = Dispatch::Queue.new("dispatch.actor.#{delegate}.#{object_id}")
-      __reset!__
-    end
-    
-    def __reset!__
       @callback = @default_callback
-      @group = nil
+      @q = Dispatch::Queue.new("dispatch.actor.#{delegate}.#{object_id}")
     end
-    
+        
     # Specify the +callback+ queue for the next async request
     def _on_(callback)
       @callback = callback
@@ -43,13 +38,17 @@ module Dispatch
     
     def method_missing(symbol, *args, &block)
       if block_given? or not @group.nil?
+        puts "\nAsync #{symbol.inspect}"
         callback = @callback
         @q.async(@group) do
           retval = __getobj__.__send__(symbol, *args)
           callback.async { block.call(retval) } if not callback.nil?
         end
-        return __reset!__
+        @callback = @default_callback if not @callback == @default_callback
+        @group = nil if not @group.nil?
+        return nil
       else
+        puts "\nSync #{symbol.inspect}" if symbol != :__
         @retval = nil
         @q.sync { @retval = __getobj__.__send__(symbol, *args) }
         return @retval
