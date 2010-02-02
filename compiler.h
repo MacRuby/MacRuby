@@ -356,6 +356,8 @@ class RoxorCompiler {
 	void compile_keep_vars(BasicBlock *startBB, BasicBlock *mergeBB);
 
 	SEL mid_to_sel(ID mid, int arity);
+
+	void attach_current_line_metadata(Instruction *insn);
 };
 
 #define context (RoxorCompiler::module->getContext())

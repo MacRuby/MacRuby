@@ -739,6 +739,16 @@ RoxorAOTCompiler::compile_prepare_method(Value *classVal, Value *sel,
 	    params.end(), "", bb);
 }
 
+void
+RoxorCompiler::attach_current_line_metadata(Instruction *insn)
+{
+    if (fname != NULL) {
+	DILocation loc = debug_info->CreateLocation(current_line, 0,
+		debug_compile_unit, DILocation(NULL));
+	context.getMetadata().addMD(dbg_mdkind, loc.getNode(), insn);
+    }
+}
+
 Value *
 RoxorCompiler::compile_dispatch_call(std::vector<Value *> &params)
 {
@@ -759,11 +769,7 @@ RoxorCompiler::compile_dispatch_call(std::vector<Value *> &params)
     }
 
     Instruction *insn = compile_protected_call(dispatcherFunc, params);
-    if (fname != NULL) {
-	DILocation loc = debug_info->CreateLocation(current_line, 0,
-		debug_compile_unit, DILocation(NULL));
-	context.getMetadata().addMD(dbg_mdkind, loc.getNode(), insn);
-    }
+    attach_current_line_metadata(insn);
     return insn;
 }
 
@@ -3962,7 +3968,10 @@ RoxorCompiler::compile_node(NODE *node)
 				(flags & DEFINE_OUTER) && dynamic_class
 				? 1 : 0));
 
-		    classVal = compile_protected_call(defineClassFunc, params);
+		    Instruction *insn
+			= compile_protected_call(defineClassFunc, params);
+		    attach_current_line_metadata(insn);
+		    classVal = insn;
 		}
 
 		NODE *body = node->nd_body;
@@ -4009,7 +4018,9 @@ RoxorCompiler::compile_node(NODE *node)
 			std::vector<Value *> params;
 			params.push_back(classVal);
 			params.push_back(compile_const_pointer(NULL));
-			val = compile_protected_call(f, params);
+			Instruction *insn = compile_protected_call(f, params);
+			attach_current_line_metadata(insn);
+			val = insn;
 
 			dynamic_class = old_dynamic_class;
 			compile_set_current_scope(classVal, defaultScope);
