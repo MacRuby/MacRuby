@@ -30,7 +30,8 @@ if MACOSX_VERSION >= 10.6
     end
 
     it "should invoke actee methods on a private serial queue" do
-      true.should == true
+      q = @actor.current_queue
+      q.label.should =~ "queue"
     end
 
     it "should call actee Synchronously if block is NOT given" do
