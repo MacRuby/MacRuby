@@ -42,7 +42,6 @@ if MACOSX_VERSION >= 10.6
       t0 = Time.now
       @actor.delay_set(42)
       t1 = Time.now
-      puts "Elapsed: #{(t1-t0)}"
       $global.should == 42
     end
 
@@ -72,8 +71,20 @@ if MACOSX_VERSION >= 10.6
       $global.should == 42      
     end
 
-    it "should used default callback queue when called Asynchronously" do
-      true.should == true
+    it "should use default callback queue when called Asynchronously" do
+      @qs = ""
+      @actor.increment(41) {|rv| @qs = Dispatch::Queue.current.to_s}
+      while @qs == "" do; end
+      @qs.should =~ /com.apple.root.default/
+    end
+
+    it "should use initial callback queue if any, when called Asynchronously" do
+      qn = Dispatch::Queue.new("custom")
+      @actor2 = Dispatch::Actor.new(@actee, qn)
+      @qs = ""
+      @actor2.increment(41) {|rv| @qs = Dispatch::Queue.current.to_s}
+      while @qs == "" do; end
+      @qs.should == qn.label
     end
 
     it "should use callback queue specified by _on, but only once" do
