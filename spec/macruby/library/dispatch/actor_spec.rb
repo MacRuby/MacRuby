@@ -78,7 +78,7 @@ if MACOSX_VERSION >= 10.6
       @qs.should =~ /com.apple.root.default/
     end
 
-    it "should use initial callback queue if any, when called Asynchronously" do
+    it "should use specified callback queue when called Asynchronously" do
       qn = Dispatch::Queue.new("custom")
       @actor2 = Dispatch::Actor.new(@actee, qn)
       @qs = ""
@@ -87,25 +87,17 @@ if MACOSX_VERSION >= 10.6
       @qs.should == qn.label
     end
 
-    it "should use callback queue specified by _on, but only once" do
+    it "should use callback queue specified by _on" do
       true.should == true
     end
 
-    it "should invoke actee once with group specified by _with" do
-      true.should == true
-    end
-
-    it "should invoke actee Asynchronously when group specified by _with" do
+    it "should invoke actee async with group specified by _with" do
       true.should == true
     end
 
     it "should return actee when called with _done" do
       true.should == true
     end
-
-    it "should return an actor for Dispatch.wrap" do
-      true.should == true
-    end
-
   end
+  
 end

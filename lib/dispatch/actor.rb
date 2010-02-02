@@ -14,19 +14,20 @@ module Dispatch
     # optionally specifying the default +callback+ queue
     def initialize(delegate, callback=nil)
       super(delegate)
-      @default_callback = callback || Dispatch::Queue.concurrent
-      @callback = @default_callback
+      @callback = callback || Dispatch::Queue.concurrent
       @q = Dispatch::Queue.new("dispatch.actor.#{delegate}.#{object_id}")
     end
         
-    # Specify the +callback+ queue for the next async request
+    # Specify the +callback+ queue for async requests
     def _on_(callback)
       @callback = callback
+      self
     end
 
-    # Specify the +group+ for the next async request
+    # Specify the +group+ for async requests
     def _with_(group)
       @group = group
+      self
     end
 
     # Wait until the internal private queue has completed execution
@@ -44,8 +45,6 @@ module Dispatch
           retval = __getobj__.__send__(symbol, *args)
           callback.async { block.call(retval) } if not callback.nil?
         end
-        @callback = @default_callback if not @callback == @default_callback
-        @group = nil if not @group.nil?
         return nil
       else
         #puts "\nSync #{symbol.inspect}" if symbol != :__
