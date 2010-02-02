@@ -276,9 +276,12 @@ __rb_ary_modify(VALUE ary)
     }
     else {
 	mask = rb_objc_flag_get_mask((void *)ary);
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1070
+	// XXX we shouldn't need to do that and follow the new hash refactoring
 	if (!_CFArrayIsMutable((void *)ary)) {
 	    mask |= FL_FREEZE;
 	}
+#endif
     }
     if ((mask & FL_FREEZE) == FL_FREEZE) {
 	rb_raise(rb_eRuntimeError, "can't modify frozen/immutable array");
