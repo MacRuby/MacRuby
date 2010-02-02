@@ -222,6 +222,10 @@ class RoxorCompiler {
 	const Type *IntTy;
 	const PointerType *Int32PtrTy;
 
+#if LLVM_TOT
+	unsigned dbg_mdkind;
+#endif
+
 	void compile_node_error(const char *msg, NODE *node);
 
 	virtual Constant *

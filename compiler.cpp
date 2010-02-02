@@ -12,6 +12,10 @@
 # define DW_LANG_Ruby 0x15 // TODO: Python is 0x14, request a real number
 #endif
 
+#if LLVM_TOT
+# include <llvm/LLVMContext.h>
+#endif
+
 #include "llvm.h"
 #include "ruby/ruby.h"
 #include "ruby/encoding.h"
@@ -181,6 +185,14 @@ RoxorCompiler::RoxorCompiler(bool _debug_mode)
 
 #if ROXOR_COMPILER_DEBUG
     level = 0;
+#endif
+
+#if LLVM_TOT
+    dbg_mdkind = context.getMetadata().getMDKind("dbg");
+    if (dbg_mdkind == 0) {
+	dbg_mdkind = context.getMetadata().registerMDKind("dbg");
+    }
+    assert(dbg_mdkind != 0);
 #endif
 }
 
@@ -752,7 +764,13 @@ RoxorCompiler::compile_dispatch_call(std::vector<Value *> &params)
 
     Instruction *insn = compile_protected_call(dispatcherFunc, params);
     if (fname != NULL) {
+#if LLVM_TOT
+	DILocation loc = debug_info->CreateLocation(current_line, 0,
+		debug_compile_unit, DILocation(NULL));
+	context.getMetadata().addMD(dbg_mdkind, loc.getNode(), insn);
+#else
 	debug_info->InsertStopPoint(debug_compile_unit, current_line, 0, bb);
+#endif
     }
     return insn;
 }

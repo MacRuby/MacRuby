@@ -176,6 +176,8 @@ class RoxorJITManager : public JITMemoryManager, public JITEventListener {
 	    return mm->getGOTBase();
 	}
 
+#if LLVM_TOT
+#else
 	void SetDlsymTable(void *ptr) {
 	    mm->SetDlsymTable(ptr);
 	}
@@ -183,6 +185,7 @@ class RoxorJITManager : public JITMemoryManager, public JITEventListener {
 	void *getDlsymTable() const {
 	    return mm->getDlsymTable();
 	}
+#endif
 
 	uint8_t *startFunctionBody(const Function *F, 
 		uintptr_t &ActualSize) {
