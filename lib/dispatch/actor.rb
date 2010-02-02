@@ -38,7 +38,7 @@ module Dispatch
     
     def method_missing(symbol, *args, &block)
       if block_given? or not @group.nil?
-        puts "\nAsync #{symbol.inspect}"
+        #puts "\nAsync #{symbol.inspect}"
         callback = @callback
         @q.async(@group) do
           retval = __getobj__.__send__(symbol, *args)
@@ -48,7 +48,7 @@ module Dispatch
         @group = nil if not @group.nil?
         return nil
       else
-        puts "\nSync #{symbol.inspect}" if symbol != :__
+        #puts "\nSync #{symbol.inspect}" if symbol != :__
         @retval = nil
         @q.sync { @retval = __getobj__.__send__(symbol, *args) }
         return @retval
