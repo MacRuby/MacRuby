@@ -6,12 +6,13 @@ if MACOSX_VERSION >= 10.6
   class Actee
     def initialize(s); @s = s; end
     def current_queue; Dispatch::Queue.current; end
+    def wait(n); sleep n; end
     def to_s; @s; end
   end
   
   describe "Dispatch::Actor" do
     before :each do
-      @actee = Actee.new("my actee")
+      @actee = Actee.new("my_actee")
       @actor = Dispatch::Actor.new(@actee)
     end
     
@@ -31,7 +32,7 @@ if MACOSX_VERSION >= 10.6
 
     it "should invoke actee methods on a private serial queue" do
       q = @actor.current_queue
-      q.label.should =~ "queue"
+      q.label.should =~ /dispatch.actor/
     end
 
     it "should call actee Synchronously if block is NOT given" do
