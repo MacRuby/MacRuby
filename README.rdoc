@@ -24,9 +24,9 @@ http://macruby.org
 * LLVM ToT, compiled for both i386 and x86_64.
 
   LLVM is a moving target and breaks periodically. We recommend to install
-  revision 82747.
+  revision 89156.
 
-    $ svn co -r 82747 https://llvm.org/svn/llvm-project/llvm/trunk llvm-trunk
+    $ svn co -r 89156 https://llvm.org/svn/llvm-project/llvm/trunk llvm-trunk
     $ cd llvm-trunk
     $ ./configure --enable-bindings=none
     $ UNIVERSAL=1 UNIVERSAL_ARCH="i386 x86_64" ENABLE_OPTIMIZED=1 make

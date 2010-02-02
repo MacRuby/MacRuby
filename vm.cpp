@@ -33,9 +33,7 @@
 #include <llvm/Support/PrettyStackTrace.h> // Including PST to disable it
 #include <llvm/Intrinsics.h>
 #include <llvm/Bitcode/ReaderWriter.h>
-#if LLVM_TOT
-# include <llvm/LLVMContext.h>
-#endif
+#include <llvm/LLVMContext.h>
 using namespace llvm;
 
 #if ROXOR_COMPILER_DEBUG
@@ -176,17 +174,6 @@ class RoxorJITManager : public JITMemoryManager, public JITEventListener {
 	    return mm->getGOTBase();
 	}
 
-#if LLVM_TOT
-#else
-	void SetDlsymTable(void *ptr) {
-	    mm->SetDlsymTable(ptr);
-	}
-
-	void *getDlsymTable() const {
-	    return mm->getDlsymTable();
-	}
-#endif
-
 	uint8_t *startFunctionBody(const Function *F, 
 		uintptr_t &ActualSize) {
 	    return mm->startFunctionBody(F, ActualSize);
@@ -206,7 +193,6 @@ class RoxorJITManager : public JITMemoryManager, public JITEventListener {
 			FunctionEnd));
 	}
 
-#if LLVM_TOT
 	void deallocateFunctionBody(void *data) {
 	    mm->deallocateFunctionBody(data);
 	}
@@ -214,11 +200,6 @@ class RoxorJITManager : public JITMemoryManager, public JITEventListener {
 	void deallocateExceptionTable(void *data) {
 	    mm->deallocateExceptionTable(data);
 	}
-#else
-	void deallocateMemForFunction(const Function *F) {
-	    mm->deallocateMemForFunction(F);
-	}
-#endif
 
 	uint8_t* startExceptionTable(const Function* F, 
 		uintptr_t &ActualSize) {
@@ -247,20 +228,10 @@ class RoxorJITManager : public JITMemoryManager, public JITEventListener {
 	    for (std::vector<EmittedFunctionDetails::LineStart>::const_iterator iter = Details.LineStarts.begin(); iter != Details.LineStarts.end(); ++iter) {
 		DebugLocTuple dlt = Details.MF->getDebugLocTuple(iter->Loc);
 		if (path.size() == 0) {
-#if LLVM_TOT
 		    DICompileUnit unit(dlt.Scope);
 		    path.append(unit.getDirectory());
 		    path.append("/");
 		    path.append(unit.getFilename());
-#else
-		    DICompileUnit unit(dlt.CompileUnit);
-		    std::string dir, file;
-		    unit.getDirectory(dir);
-		    unit.getFilename(file);
-		    path.append(dir);
-		    path.append("/");
-		    path.append(file);
-#endif
 		}
 
 		RoxorFunction::Line line(iter->Address, dlt.Line);
