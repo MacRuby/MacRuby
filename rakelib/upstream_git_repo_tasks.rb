@@ -18,7 +18,8 @@ class Rake::UpstreamGitRepoTasks
   end
   
   def upstream_rev
-    @upstream_rev ||= ENV['REV'] || File.read(upstream_rev_file)
+    # The buildit build does not contain the spec/frozen/upstream file.
+    @upstream_rev ||= ENV['REV'] || (ENV['RC_BUILDIT'] ? '0' : File.read(upstream_rev_file))
   end
   
   def define
