@@ -146,6 +146,8 @@ RoxorCompiler::RoxorCompiler(bool _debug_mode)
     setCurrentClassFunc = NULL;
     getCacheFunc = NULL;
     debugTrapFunc = NULL;
+    getFFStateFunc = NULL;
+    setFFStateFunc = NULL;
 
     VoidTy = Type::getVoidTy(context);
     Int1Ty = Type::getInt1Ty(context);
@@ -4518,6 +4520,21 @@ rescan_args:
 	    }
 	    break;
 
+	case NODE_FLIP2:
+	case NODE_FLIP3:
+	    {
+		    assert(node->nd_beg != NULL);
+		    assert(node->nd_end != NULL);
+
+		    if (nd_type(node) == NODE_FLIP2) {
+			return compile_ff2(node);
+		    }
+		    else {
+			return compile_ff3(node);
+		    }
+	    }
+	    break;
+
 	case NODE_BLOCK:
 	    {
 		NODE *n = node;
@@ -7298,4 +7315,150 @@ RoxorCompiler::compile_to_ocval_convertor(const char *type)
     ReturnInst::Create(context, bb);
 
     return f;
+}
+
+Value *
+RoxorCompiler::compile_get_ffstate(GlobalVariable *ffstate)
+{
+    return new LoadInst(ffstate, "", bb);
+}
+
+Value *
+RoxorCompiler::compile_set_ffstate(Value *val, Value *expected,
+				   GlobalVariable *ffstate, BasicBlock *mergeBB, Function *f)
+{
+    BasicBlock *valEqExpectedBB = BasicBlock::Create(context,
+	"value_equal_expected", f);
+    BasicBlock *valNotEqExpectedBB = BasicBlock::Create(context,
+	"value_not_equal_expected", f);
+
+    Value *valueEqExpectedCond = new ICmpInst(*bb, ICmpInst::ICMP_EQ, val,
+	expected);
+    BranchInst::Create(valEqExpectedBB, valNotEqExpectedBB,
+	valueEqExpectedCond, bb);
+
+    new StoreInst(trueVal,  ffstate, valEqExpectedBB);
+    new StoreInst(falseVal, ffstate, valNotEqExpectedBB);
+
+    BranchInst::Create(mergeBB, valEqExpectedBB);
+    BranchInst::Create(mergeBB, valNotEqExpectedBB);
+
+    PHINode *pn = PHINode::Create(RubyObjTy, "", mergeBB);
+    pn->addIncoming(trueVal, valEqExpectedBB);
+    pn->addIncoming(falseVal, valNotEqExpectedBB);
+
+    return pn;
+}
+
+Value *
+RoxorCompiler::compile_ff2(NODE *node)
+{
+    /*
+     * if ($state == true || nd_beg == true)
+     *   $state = (nd_end == false)
+     *   return true
+     * else
+     *   return false
+     * end
+     */
+
+    GlobalVariable *ffstate = new GlobalVariable(*RoxorCompiler::module,
+	RubyObjTy, false, GlobalValue::InternalLinkage, falseVal, "");
+
+    Function *f = bb->getParent();
+
+    BasicBlock *stateNotTrueBB = BasicBlock::Create(context,
+	"state_not_true", f);
+    BasicBlock *stateOrBegIsTrueBB = BasicBlock::Create(context,
+	"state_or_beg_is_true", f);
+    BasicBlock *returnTrueBB = BasicBlock::Create(context, "return_true", f);
+    BasicBlock *returnFalseBB = BasicBlock::Create(context, "return_false", f);
+    BasicBlock *mergeBB = BasicBlock::Create(context, "merge", f);
+
+    // `if $state == true`
+    Value *stateVal = compile_get_ffstate(ffstate);
+    Value *stateIsTrueCond = new ICmpInst(*bb, ICmpInst::ICMP_EQ, stateVal,
+	trueVal);
+    BranchInst::Create(stateOrBegIsTrueBB, stateNotTrueBB, stateIsTrueCond,
+	bb);
+
+    // `or if nd_beg == true`
+    bb = stateNotTrueBB;
+    Value *beginValue = compile_node(node->nd_beg);
+    stateNotTrueBB = bb;
+    Value *begIsTrueCond = new ICmpInst(*bb, ICmpInst::ICMP_EQ,
+	beginValue, trueVal);
+    BranchInst::Create(stateOrBegIsTrueBB, returnFalseBB, begIsTrueCond, bb);
+
+    // `$state = (nd_end == false)`
+    bb = stateOrBegIsTrueBB;
+    Value *endValue = compile_node(node->nd_end);
+    stateOrBegIsTrueBB = bb;
+    compile_set_ffstate(endValue, falseVal, ffstate, returnTrueBB, f);
+
+    BranchInst::Create(mergeBB, returnTrueBB);
+    BranchInst::Create(mergeBB, returnFalseBB);
+
+    bb = mergeBB;
+    PHINode *pn = PHINode::Create(RubyObjTy, "", mergeBB);
+    pn->addIncoming(trueVal, returnTrueBB);
+    pn->addIncoming(falseVal, returnFalseBB);
+
+    return pn;
+}
+
+Value *
+RoxorCompiler::compile_ff3(NODE *node)
+{
+    /*
+     * if ($state == true)
+     *   $state = (nd_end == false)
+     *   return true
+     * else
+     *   $state = (nd_beg == true)
+     *   return $state
+     * end
+     */
+
+    GlobalVariable *ffstate = new GlobalVariable(*RoxorCompiler::module,
+	RubyObjTy, false, GlobalValue::InternalLinkage, falseVal, "");
+
+    Function *f = bb->getParent();
+
+    BasicBlock *stateIsTrueBB = BasicBlock::Create(context, "state_is_true",
+	f);
+    BasicBlock *stateIsFalseBB = BasicBlock::Create(context, "state_is_false",
+	f);
+    BasicBlock *returnTrueBB = BasicBlock::Create(context, "return_true", f);
+    BasicBlock *returnStateBB = BasicBlock::Create(context, "return_state", f);
+    BasicBlock *mergeBB = BasicBlock::Create(context, "merge", f);
+
+    
+    // `if $state == true`
+    Value *stateVal = compile_get_ffstate(ffstate);
+    Value *stateIsTrueCond = new ICmpInst(*bb, ICmpInst::ICMP_EQ, stateVal,
+	trueVal);
+    BranchInst::Create(stateIsTrueBB, stateIsFalseBB, stateIsTrueCond, bb);
+
+    // `$state = (nd_end == false)`
+    bb = stateIsTrueBB;
+    Value *endValue = compile_node(node->nd_end);
+    stateIsTrueBB = bb;
+    compile_set_ffstate(endValue, falseVal, ffstate, returnTrueBB, f);
+
+    // `$state = (nd_beg == true)`
+    bb = stateIsFalseBB;
+    Value *beginValue = compile_node(node->nd_beg);
+    stateIsFalseBB = bb;
+    stateVal = compile_set_ffstate(beginValue, trueVal, ffstate, returnStateBB, f);
+
+    BranchInst::Create(mergeBB, returnTrueBB);
+    BranchInst::Create(mergeBB, returnStateBB);
+
+    bb = mergeBB;
+    PHINode *pn = PHINode::Create(RubyObjTy, "", mergeBB);
+    pn->addIncoming(trueVal, returnTrueBB);
+    pn->addIncoming(stateVal, returnStateBB);
+
+    return pn;
 }

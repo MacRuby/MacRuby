@@ -193,6 +193,9 @@ class RoxorCompiler {
 	Function *setCurrentClassFunc;
 	Function *getCacheFunc;
 	Function *debugTrapFunc;
+	// flip-flop
+	Function *getFFStateFunc;
+	Function *setFFStateFunc;
 
 	Constant *zeroVal;
 	Constant *oneVal;
@@ -356,6 +359,11 @@ class RoxorCompiler {
 	void compile_keep_vars(BasicBlock *startBB, BasicBlock *mergeBB);
 
 	SEL mid_to_sel(ID mid, int arity);
+
+	Value *compile_get_ffstate(GlobalVariable *ffstate);
+	Value *compile_set_ffstate(Value *val, Value *expected, GlobalVariable *ffstate, BasicBlock *mergeBB, Function *f);
+	Value *compile_ff2(NODE *current_node);
+	Value *compile_ff3(NODE *current_node);
 
 	void attach_current_line_metadata(Instruction *insn);
 };
