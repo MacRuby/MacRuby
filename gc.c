@@ -1015,13 +1015,7 @@ count_objects(VALUE os, SEL sel, int argc, VALUE *argv)
  *
  */
 
-static VALUE
-gc_count(VALUE self)
-{
-    auto_statistics_t stats;
-    auto_zone_statistics(__auto_zone, &stats);
-    return UINT2NUM(stats.num_collections[0] + stats.num_collections[1]);
-}
+#define gc_count rb_f_notimplement
 
 /*
  *  The <code>GC</code> module provides an interface to Ruby's mark and
