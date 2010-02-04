@@ -28,6 +28,7 @@ void Init_Proc(void);
 void Init_File(void);
 void Init_GC(void);
 void Init_Hash(void);
+void Init_ENV(void);
 void Init_IO(void);
 void Init_Math(void);
 void Init_marshal(void);
@@ -80,6 +81,7 @@ rb_call_inits()
     Init_syserr();
     Init_Array();
     Init_Hash();
+    Init_ENV();
     Init_Struct();
     Init_Regexp();
     Init_pack();
