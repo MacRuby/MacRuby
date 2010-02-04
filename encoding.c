@@ -87,6 +87,8 @@ enc_init_db(void)
     // Define shortcuts.
     rb_define_const(rb_cEncoding, "ASCII_8BIT",
 	    rb_const_get(rb_cEncoding, rb_intern("US_ASCII")));
+    rb_define_const(rb_cEncoding, "BINARY",
+	    rb_const_get(rb_cEncoding, rb_intern("US_ASCII")));
 }
 
 static VALUE
