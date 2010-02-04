@@ -13,12 +13,15 @@ module Dispatch
     # Waits for the computation to finish, then returns the value
     # Duck-typed to lambda.call(void)
     # If a block is passed, invoke that asynchronously with the final value
-    def call(&callback)
+    def call(q = nil, &callback)
       if not block_given?
         @group.wait
         return @value
+      else
+        q ||= Dispatch::Queue.concurrent
+        @group.notify(q) { callback.call(@value) }
       end
-      @group.notify { callback.call(@value) }
     end
+        
   end
 end

@@ -50,8 +50,13 @@ module Dispatch
     # Companion to +Dispatch.fork+, allowing you to +wait+ until +grp+ completes
     # via an API similar to that used by +Threads+
     # If a block is given, instead uses +notify+ to call it asynchronously
-    def join(&block)
-      Kernel.block_given? ? self.notify(&block) : self.wait 
+    def join(q = nil, &block)
+      if block.nil?
+        self.wait
+      else
+        q ||= Dispatch::Queue.concurrent
+        self.notify(q, &block)
+      end
     end
   end
   
