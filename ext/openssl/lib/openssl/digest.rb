@@ -30,23 +30,31 @@ module OpenSSL
         super(data, name)
     end
 
-    alg.each{|name|
-      klass = Class.new(Digest){
-        define_method(:initialize){|*data|
-          if data.length > 1
-            raise ArgumentError,
-              "wrong number of arguments (#{data.length} for 1)"
-          end
-          super(name, data.first)
-        }
-      }
-      singleton = (class << klass; self; end)
-      singleton.class_eval{
-        define_method(:digest){|data| Digest.digest(name, data) }
-        define_method(:hexdigest){|data| Digest.hexdigest(name, data) }
-      }
+    class Stub < Digest
+      class << self
+        def digest(data)
+          Digest.digest(name, data)
+        end
+
+        def hexdigest(data)
+          Digest.hexdigest(name, data)
+        end
+      end
+
+      def initialize(*data)
+        if data.length > 1
+          raise ArgumentError,
+            "wrong number of arguments (#{data.length} for 1)"
+        end
+        super(self.class.instance_variable_get(:@name), data[0])
+      end
+    end
+
+    alg.each do |name|
+      klass = Class.new(Stub)
+      klass.instance_variable_set(:@name, name)
       const_set(name, klass)
-    }
+    end
 
     # This class is only provided for backwards compatibility.  Use OpenSSL::Digest in the future.
     class Digest < Digest
