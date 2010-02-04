@@ -9,10 +9,14 @@ For 0.6:
 [/] debugger
   [/] command-line tool
   [ ] Xcode plugin
+[ ] MRI C extensions support
+  [ ] cleanup API (use nokogiri as test bed)
+  [ ] define an export file for the linker
+  [ ] GC support
 [/] rails
   [X] project creation should work
   [/] development web server
-  [ ] hello world should work
+  [/] hello world should work
 [ ] support Mocha
 
 Historical:
