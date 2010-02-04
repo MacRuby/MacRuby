@@ -6,7 +6,7 @@ module Dispatch
   # the ancestor chain and ID of +obj+
   def queue_for(obj)
     label = obj.class.ancestors.reverse.join(".").downcase
-    Dispatch::Queue.new("#{label}.%x" % obj.object_id)
+    Dispatch::Queue.new("#{label}.0x%x[#{obj}]" % obj.object_id)
   end
 
   # Run the +&block+ synchronously on a concurrent queue
@@ -24,7 +24,8 @@ module Dispatch
   # Run the +&block+ asynchronously on a concurrent queue
   # of the given (optional) +priority+ as part of the specified +grp+
   def group(grp, priority=nil, &block)
-    Dispatch::Queue.concurrent(priority).async(grp) &block
+    Dispatch::Queue.concurrent(priority).async(grp) { block.call }
+    # Can't pass block directly for some reason
   end
 
   # Wrap the passed +obj+ (or its instance) inside an Actor to serialize access

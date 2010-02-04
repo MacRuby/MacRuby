@@ -84,6 +84,14 @@ if MACOSX_VERSION >= 10.6
         @i.should == 42
       end
 
+      it "accepts a group which tracks the asynchronous execution" do
+        @i = 0
+        g = Dispatch::Group.new
+        @q.async(g) { sleep 0.01; @i = 42 }
+        @i.should == 0
+        g.wait
+        @i.should == 42
+      end
 
       it "raises an ArgumentError if no block is given" do
         lambda { @q.async }.should raise_error(ArgumentError) 
