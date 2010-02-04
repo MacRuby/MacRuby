@@ -9,18 +9,18 @@ module Dispatch
     Dispatch::Queue.new("#{label}.%x" % obj.object_id)
   end
 
-  # Run the +&block+ asynchronously on a concurrent queue
-  # of the given (optional) +priority+ 
-  def async(priority=nil, &block)
-    Dispatch::Queue.concurrent(priority).async &block
-  end
-  
   # Run the +&block+ synchronously on a concurrent queue
   # of the given (optional) +priority+ 
   def sync(priority=nil, &block)
     Dispatch::Queue.concurrent(priority).sync &block
   end
 
+  # Run the +&block+ asynchronously on a concurrent queue
+  # of the given (optional) +priority+ 
+  def async(priority=nil, &block)
+    Dispatch::Queue.concurrent(priority).async &block
+  end
+  
   # Run the +&block+ asynchronously on a concurrent queue
   # of the given (optional) +priority+ as part of the specified +grp+
   def group(grp, priority=nil, &block)
@@ -52,5 +52,7 @@ module Dispatch
       block_given? ? notify(&block) : wait
     end
   end
+  
+  module_function :queue_for, :async, :sync, :group, :wrap, :fork
 
 end
