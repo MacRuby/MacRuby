@@ -35,7 +35,10 @@ VALUE rb_cNilClass;
 VALUE rb_cTrueClass;
 VALUE rb_cFalseClass;
 
-static ID id_eq, id_eql, id_match, id_inspect, id_init_copy;
+static ID id_eq, id_match, id_inspect, id_init_copy;
+
+static SEL eqlSel = 0;
+static void *eqlCache = NULL;
 
 static void *allocCache = NULL;
 static void *initializeCache = NULL;
@@ -82,7 +85,7 @@ rb_equal_imp(VALUE obj1, SEL sel, VALUE obj2)
 int
 rb_eql(VALUE obj1, VALUE obj2)
 {
-    return RTEST(rb_funcall(obj1, id_eql, 1, obj2));
+    return RTEST(rb_vm_call_with_cache(eqlCache, obj1, eqlSel, 1, &obj2));
 }
 
 /*
@@ -2947,6 +2950,8 @@ Init_Object(void)
     initialize2Cache = rb_vm_get_call_cache(selInitialize2);
     eqCache = rb_vm_get_call_cache(selEq);
     dupCache = rb_vm_get_call_cache(selDup);
+    eqlSel = sel_registerName("eql?:");
+    eqlCache = rb_vm_get_call_cache(eqlSel);
 
     rb_objc_define_method(*(VALUE *)rb_cModule, "alloc", rb_module_s_alloc, 0);
     rb_objc_define_method(*(VALUE *)rb_cClass, "alloc", rb_class_s_alloc, 0);
@@ -3142,7 +3147,6 @@ Init_Object(void)
     rb_define_global_const("FALSE", Qfalse);
 
     id_eq = rb_intern("==");
-    id_eql = rb_intern("eql?");
     id_match = rb_intern("=~");
     id_inspect = rb_intern("inspect");
     id_init_copy = rb_intern("initialize_copy");
