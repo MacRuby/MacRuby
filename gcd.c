@@ -662,7 +662,7 @@ rb_group_init(VALUE self, SEL sel)
  *
  *     gcdq = Dispatch::Queue.new('doc')
  *     grp = Dispatch::Group.new
- *     gcdq.async(grp) { print 'doc' }
+ *     gcdq.async(grp) { print 'foo' }
  *     grp.notify { print 'bar' } #=> foobar
  */
 
