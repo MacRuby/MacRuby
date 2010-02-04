@@ -2,7 +2,7 @@ require File.expand_path('../options', __FILE__)
 
 OBJS = %w{
   array bignum class compar complex enum enumerator error eval file load proc 
-  gc hash inits io math numeric object pack parse prec dir process
+  gc hash env inits io math numeric object pack parse prec dir process
   random range rational re onig/regcomp onig/regext onig/regposix onig/regenc
   onig/reggnu onig/regsyntax onig/regerror onig/regparse onig/regtrav
   onig/regexec onig/regposerr onig/regversion onig/enc/ascii onig/enc/unicode
