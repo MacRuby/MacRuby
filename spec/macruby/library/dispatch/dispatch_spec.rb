@@ -5,7 +5,7 @@ if MACOSX_VERSION >= 10.6
   
   $global = 0
   class Actee
-    def initialize(s); @s = s; end
+    def initialize(s="default"); @s = s; end
     def current_queue; Dispatch::Queue.current; end
     def delay_set(n); sleep 0.01; $global = n; end
     def increment(v); v+1; end
@@ -55,6 +55,21 @@ if MACOSX_VERSION >= 10.6
         $global.should == 42      
       end
     end
+
+    describe :wrap do
+      it "should return an Actor wrapping an instance of a passed class" do
+        actor = Dispatch.wrap(Actee)
+        actor.should be_kind_of Dispatch::Actor
+        actor.to_s.should == "default"
+      end
+
+      it "should return an Actor wrapping any other object" do
+        actor = Dispatch.wrap(@actee)
+        actor.should be_kind_of Dispatch::Actor
+        actor.to_s.should == "my_actee"
+      end
+    end
+    
     
   end
 end
