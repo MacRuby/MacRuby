@@ -41,16 +41,17 @@ module Dispatch
   
   def fork(priority=nil, &block)
     grp = Group.new
-    Dispatch.group(grp) &block
+    Dispatch.group(grp, priority) { block.call }
+    # Can't pass block directly for some reason
     return grp
   end
 
   class Group
     # Companion to +Dispatch.fork+, allowing you to +wait+ until +grp+ completes
-    # providing an API similar to that used by +Threads+
-    # if a block is given, instead uses +notify+ to call it asynchronously
+    # via an API similar to that used by +Threads+
+    # If a block is given, instead uses +notify+ to call it asynchronously
     def join(&block)
-      block_given? ? notify(&block) : wait
+      Kernel.block_given? ? self.notify(&block) : self.wait 
     end
   end
   

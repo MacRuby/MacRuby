@@ -6,9 +6,7 @@ if MACOSX_VERSION >= 10.6
   $global = 0
   class Actee
     def initialize(s="default"); @s = s; end
-    def current_queue; Dispatch::Queue.current; end
     def delay_set(n); sleep 0.01; $global = n; end
-    def increment(v); v+1; end
     def to_s; @s; end
   end
   
@@ -70,6 +68,34 @@ if MACOSX_VERSION >= 10.6
       end
     end
     
+    describe :fork do
+      it "should return an Group for tracking execution of the passed block" do
+        $global = 0
+        g = Dispatch.fork { @actee.delay_set(42) }
+        $global.should == 0
+        g.should be_kind_of Dispatch::Group
+        g.wait
+        $global.should == 42      
+      end
+
+      it "should :join Synchronously to that group" do
+        $global = 0
+        g = Dispatch.fork { @actee.delay_set(42) }
+        $global.should == 0
+        g.join
+        $global.should == 42      
+      end
+
+      it "should :join Asynchronously if passed another block" do
+        $global = 0
+        g = Dispatch.fork { @actee.delay_set(42) }
+        $global.should == 0
+        g.join { }
+        $global.should == 0
+        while $global == 0 do; end
+        $global.should == 42      
+      end
+    end
     
   end
 end
