@@ -18,8 +18,7 @@ class Rake::UpstreamGitRepoTasks
   end
   
   def upstream_rev
-    # The XBS build does not contain the spec/frozen/upstream file.
-    @upstream_rev ||= ENV['REV'] || (ENV['RC_XBS'] ? nil : File.read(upstream_rev_file))
+    @upstream_rev ||= ENV['REV'] || File.read(upstream_rev_file)
   end
   
   def define
@@ -106,7 +105,7 @@ class Rake::UpstreamGitRepoTasks
         end
 
         namespace :upstream do
-          desc "Creates patch since upstream revision `#{upstream_rev}' and applies it"
+          desc "Creates patch since previous upstream revision and applies it"
           task :patch do
             patch = File.join(@local_dir, 'upstream_patch.diff')
             new_rev = nil
