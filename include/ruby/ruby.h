@@ -1095,6 +1095,7 @@ RUBY_EXTERN VALUE rb_cCont;
 RUBY_EXTERN VALUE rb_cDir;
 RUBY_EXTERN VALUE rb_cData;
 RUBY_EXTERN VALUE rb_cFalseClass;
+RUBY_EXTERN VALUE rb_cEncoding;
 RUBY_EXTERN VALUE rb_cEnumerator;
 RUBY_EXTERN VALUE rb_cFile;
 RUBY_EXTERN VALUE rb_cFixnum;
@@ -1177,6 +1178,8 @@ RUBY_EXTERN VALUE rb_eFloatDomainError;
 RUBY_EXTERN VALUE rb_eLocalJumpError;
 RUBY_EXTERN VALUE rb_eSysStackError;
 RUBY_EXTERN VALUE rb_eRegexpError;
+RUBY_EXTERN VALUE rb_eEncodingError;
+RUBY_EXTERN VALUE rb_eEncCompatError;
 
 RUBY_EXTERN VALUE rb_eScriptError;
 RUBY_EXTERN VALUE rb_eNameError;
