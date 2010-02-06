@@ -762,7 +762,7 @@ rb_str_resize(VALUE str, long len)
     return str;
 }
 
-static force_inline void
+static void
 rb_objc_str_cat(VALUE str, const char *ptr, long len, int cfstring_encoding)
 {
     if (*(VALUE *)str == rb_cByteString) {
