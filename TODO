@@ -4,7 +4,7 @@ For 0.6:
 [/] new String class, support for 1.9 encoding semantics
 [/] refactor the Array, Hash and String models
   [X] Hash
-  [/] Array
+  [X] Array
   [ ] String
 [/] debugger
   [/] command-line tool
