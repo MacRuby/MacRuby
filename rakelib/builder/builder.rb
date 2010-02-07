@@ -11,7 +11,7 @@ OBJS = %w{
   ruby signal sprintf st string struct time transcode util variable version
   thread id objc bs encoding main dln dmyext marshal gcd
   vm_eval prelude miniprelude gc-stub bridgesupport compiler dispatcher vm
-  debugger MacRuby MacRubyDebuggerConnector NSDictionary
+  debugger MacRuby MacRubyDebuggerConnector NSArray NSDictionary
 }
 
 EXTENSIONS = %w{

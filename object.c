@@ -21,6 +21,8 @@
 #include <float.h>
 #include "objc.h"
 #include "vm.h"
+#include "array.h"
+#include "hash.h"
 
 VALUE rb_cBasicObject;
 VALUE rb_mKernel;
@@ -796,9 +798,6 @@ rb_obj_dummy2(VALUE self, SEL sel, VALUE other)
  *  
  *  Returns <code>true</code> if the object is tainted.
  */
-
-bool rb_klass_is_rary(VALUE klass);
-bool rb_klass_is_rhash(VALUE klass);
 
 static VALUE
 rb_obj_tainted_p(VALUE obj, SEL sel)

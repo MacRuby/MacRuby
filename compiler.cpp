@@ -4440,11 +4440,12 @@ rescan_args:
 	case NODE_VALUES:
 	    {
 		if (newArrayFunc == NULL) {
-		    // VALUE rb_ary_new_fast(int argc, ...);
+		    // VALUE rb_ary_new3(int argc, ...);
 		    std::vector<const Type *> types;
 		    types.push_back(Int32Ty);
 		    FunctionType *ft = FunctionType::get(RubyObjTy, types, true);
-		    newArrayFunc = cast<Function>(module->getOrInsertFunction("rb_ary_new_fast", ft));
+		    newArrayFunc = cast<Function>(module->getOrInsertFunction(
+				"rb_ary_new3", ft));
 		}
 
 		std::vector<Value *> params;

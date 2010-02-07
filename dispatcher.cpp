@@ -1,5 +1,5 @@
 /*
- * MacRuby VM.
+ * MacRuby Dispatcher.
  *
  * This file is covered by the Ruby license. See COPYING for more details.
  * 
@@ -14,6 +14,8 @@
 #include "compiler.h"
 #include "objc.h"
 #include "dtrace.h"
+#include "array.h"
+#include "hash.h"
 
 #include <execinfo.h>
 #include <dlfcn.h>
@@ -1318,8 +1320,7 @@ rb_vm_fast_shift(VALUE obj, VALUE other, struct mcache *cache,
 	switch (TYPE(obj)) {
 	    case T_ARRAY:
 		if (*(VALUE *)obj == rb_cRubyArray) {
-		    rb_ary_push(obj, other);
-		    return obj;
+		    return rary_push_m(obj, 0, other);
 		}
 		break;
 
@@ -1344,16 +1345,13 @@ rb_vm_fast_aref(VALUE obj, VALUE other, struct mcache *cache,
 	switch (TYPE(obj)) {
 	    case T_ARRAY:
 		if (*(VALUE *)obj == rb_cRubyArray) {
-		    if (TYPE(other) == T_FIXNUM) {
-			return rb_ary_entry(obj, FIX2LONG(other));
-		    }
-		    return rb_ary_aref(obj, 0, 1, &other);
+		    return rary_aref(obj, 0, 1, &other);
 		}
 		break;
 
 	    case T_HASH:
 		if (*(VALUE *)obj == rb_cRubyHash) {
-		    return rb_hash_aref(obj, other);
+		    return rhash_aref(obj, 0, other);
 		}
 		break;
     }
@@ -1371,7 +1369,7 @@ rb_vm_fast_aset(VALUE obj, VALUE other1, VALUE other2, struct mcache *cache,
 	    case T_ARRAY:
 		if (*(VALUE *)obj == rb_cRubyArray) {
 		    if (TYPE(other1) == T_FIXNUM) {
-			rb_ary_store(obj, FIX2LONG(other1), other2);
+			rary_store(obj, FIX2LONG(other1), other2);
 			return other2;
 		    }
 		}
@@ -1379,7 +1377,7 @@ rb_vm_fast_aset(VALUE obj, VALUE other1, VALUE other2, struct mcache *cache,
 
 	    case T_HASH:
 		if (*(VALUE *)obj == rb_cRubyHash) {
-		    return rb_hash_aset(obj, other1, other2);
+		    return rhash_aset(obj, 0, other1, other2);
 		}
 		break;
 	}

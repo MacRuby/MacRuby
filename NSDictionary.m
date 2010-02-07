@@ -12,6 +12,7 @@
 #include "ruby/node.h"
 #include "objc.h"
 #include "vm.h"
+#include "hash.h"
 
 VALUE rb_cHash;
 VALUE rb_cNSHash;
@@ -98,10 +99,16 @@ nshash_equal(id rcv, SEL sel, id other)
     return [rcv isEqualToDictionary:other] ? Qtrue : Qfalse;
 }
 
+static inline VALUE
+nshash_lookup(id rcv, VALUE key)
+{
+    return OC2RB([rcv objectForKey:RB2OC(key)]);
+}
+
 static VALUE
 nshash_aref(id rcv, SEL sel, VALUE key)
 {
-    return OC2RB([rcv objectForKey:RB2OC(key)]);
+    return nshash_lookup(rcv, key);
 }
 
 static VALUE
@@ -191,6 +198,7 @@ nshash_each_value(id rcv, SEL sel)
     RETURN_ENUMERATOR(rcv, 0, 0);
     for (id key in rcv) {
 	rb_yield(OC2RB([rcv objectForKey:key]));
+	RETURN_IF_BROKEN();
     }
     return (VALUE)rcv;
 }
@@ -201,6 +209,7 @@ nshash_each_key(id rcv, SEL sel)
     RETURN_ENUMERATOR(rcv, 0, 0);
     for (id key in rcv) {
 	rb_yield(OC2RB(key));
+	RETURN_IF_BROKEN();
     }
     return (VALUE)rcv;
 }
@@ -212,6 +221,7 @@ nshash_each_pair(id rcv, SEL sel)
     for (id key in rcv) {
 	id value = [rcv objectForKey:key];
 	rb_yield(rb_assoc_new(OC2RB(key), OC2RB(value)));
+	RETURN_IF_BROKEN();
     }
     return (VALUE)rcv;
 }
@@ -277,6 +287,7 @@ nshash_delete_if(id rcv, SEL sel)
 	if (RTEST(rb_yield_values(2, OC2RB(key), OC2RB(value)))) {
 	    [ary addObject:key];
 	}
+	RETURN_IF_BROKEN();
     }
     [rcv removeObjectsForKeys:ary];
     return (VALUE)rcv;
@@ -292,6 +303,7 @@ nshash_select(id rcv, SEL sel)
 	if (RTEST(rb_yield_values(2, OC2RB(key), OC2RB(value)))) {
 	    [dict setObject:value forKey:key];
 	}
+	RETURN_IF_BROKEN();
     }
     return (VALUE)dict;
 }
@@ -607,4 +619,139 @@ rb_objc_install_hash_primitives(Class klass)
     }
 
     //rb_objc_define_method(*(VALUE *)klass, "alloc", hash_alloc, 0);
+}
+
+// MRI compatibility API.
+
+VALUE
+rb_hash_dup(VALUE rcv)
+{
+    if (IS_RHASH(rcv)) {
+	return rhash_dup(rcv, 0);
+    }
+    else {
+	return (VALUE)nshash_dup((id)rcv, 0);
+    }
+}
+
+void
+rb_hash_foreach(VALUE hash, int (*func)(ANYARGS), VALUE farg)
+{
+    if (IS_RHASH(hash)) {
+	rhash_foreach(hash, func, farg);
+    }
+    else {
+	for (id key in (id)hash) {
+	    id value = [(id)hash objectForKey:key];
+	    if ((*func)(OC2RB(key), OC2RB(value), farg) == ST_STOP) {
+		break;
+	    }
+	}
+    }
+}
+
+VALUE
+rb_hash_lookup(VALUE hash, VALUE key)
+{
+    if (IS_RHASH(hash)) {
+	VALUE val = rhash_lookup(hash, key);
+	return val == Qundef ? Qnil : val;
+    }
+    else {
+	return nshash_lookup((id)hash, key);
+    }
+}
+
+VALUE
+rb_hash_aref(VALUE hash, VALUE key)
+{
+    if (IS_RHASH(hash)) {
+	return rhash_aref(hash, 0, key);
+    }
+    else {
+	return nshash_lookup((id)hash, key);
+    }
+}
+
+VALUE
+rb_hash_delete_key(VALUE hash, VALUE key)
+{
+    if (IS_RHASH(hash)) {
+	rhash_modify(hash);
+	return rhash_delete_key(hash, key);
+    }
+    else {
+	id ockey = RB2OC(key);
+	id value = [(id)hash objectForKey:ockey];
+	if (value != nil) {
+	    [(id)hash removeObjectForKey:ockey];
+	    return OC2RB(value);
+	}
+	return Qundef;
+    }
+}
+
+VALUE
+rb_hash_delete(VALUE hash, VALUE key)
+{
+    VALUE val = rb_hash_delete_key(hash, key);
+    if (val != Qundef) {
+	return val;
+    }
+    return Qnil;
+}
+
+VALUE
+rb_hash_aset(VALUE hash, VALUE key, VALUE val)
+{
+    if (IS_RHASH(hash)) {
+	return rhash_aset(hash, 0, key, val);
+    }
+    else {
+	return nshash_aset((id)hash, 0, key, val);
+    }
+}
+
+long
+rb_hash_size(VALUE hash)
+{
+    if (IS_RHASH(hash)) {
+	return rhash_len(hash);
+    }
+    else {
+	return [(id)hash count];
+    }
+}
+
+VALUE
+rb_hash_keys(VALUE hash)
+{
+    if (IS_RHASH(hash)) {
+	return rhash_keys(hash, 0);
+    }
+    else {
+	return (VALUE)nshash_keys((id)hash, 0);
+    }
+}
+
+VALUE
+rb_hash_has_key(VALUE hash, VALUE key)
+{
+    if (IS_RHASH(hash)) {
+	return rhash_has_key(hash, 0, key);
+    }
+    else {
+	return nshash_has_key((id)hash, 0, key);
+    }
+}
+
+VALUE
+rb_hash_set_ifnone(VALUE hash, VALUE ifnone)
+{
+    if (IS_RHASH(hash)) {
+	return rhash_set_default(hash, 0, ifnone);
+    }
+    else {
+	return nshash_set_default((id)hash, 0, ifnone);
+    }
 }

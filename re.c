@@ -1908,7 +1908,6 @@ match_aref(VALUE match, SEL sel, int argc, VALUE *argv)
       }
     }
 
-    extern VALUE rb_ary_aref(VALUE recv, SEL sel, int argc, VALUE *argv);
     return rb_ary_aref(match_to_a(match, 0), 0, argc, argv);
 }
 

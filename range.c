@@ -14,6 +14,7 @@
 #include "ruby/node.h"
 #include "vm.h"
 #include "id.h"
+#include "array.h"
 
 VALUE rb_cRange;
 static SEL selUpto, selBeg, selEnd, selExcludeEnd, selInclude; 
@@ -531,10 +532,10 @@ range_first(VALUE range, SEL sel, int argc, VALUE *argv)
 static VALUE
 range_last(VALUE range, SEL sel, int argc, VALUE *argv)
 {
-    VALUE rb_ary_last(int, VALUE *, VALUE);
-
-    if (argc == 0) return RANGE_END(range);
-    return rb_ary_last(argc, argv, rb_Array(range)); 
+    if (argc == 0) {
+	return RANGE_END(range);
+    }
+    return rary_last(rb_Array(range), 0, argc, argv);
 }
 
 
