@@ -2627,6 +2627,24 @@ rary_count(VALUE ary, SEL sel, int argc, VALUE *argv)
     return LONG2NUM(n);
 }
 
+/*
+ *  call-seq:
+ *     array.flatten! -> array or nil
+ *     array.flatten!(level) -> array or nil
+ *  
+ *  Flattens _self_ in place.
+ *  Returns <code>nil</code> if no modifications were made (i.e.,
+ *  <i>array</i> contains no subarrays.)  If the optional <i>level</i>
+ *  argument determines the level of recursion to flatten.
+ *     
+ *     a = [ 1, 2, [3, [4, 5] ] ]
+ *     a.flatten!   #=> [1, 2, 3, 4, 5]
+ *     a.flatten!   #=> nil
+ *     a            #=> [1, 2, 3, 4, 5]
+ *     a = [ 1, 2, [3, [4, 5] ] ]
+ *     a.flatten!(1) #=> [1, 2, 3, [4, 5]]
+ */
+
 static VALUE
 flatten(VALUE ary, int level, int *modified)
 {
@@ -2636,7 +2654,11 @@ flatten(VALUE ary, int level, int *modified)
     st_data_t id;
 
     stack = rb_ary_new();
-    result = rary_alloc(rb_class_of(ary), 0);
+    VALUE klass = rb_class_of(ary);
+    if (!rb_klass_is_rary(klass)) {
+	klass = rb_cRubyArray;
+    }
+    result = rary_alloc(klass, 0);
     rary_reserve(result, RARRAY_LEN(ary));
     memo = st_init_numtable();
     st_insert(memo, (st_data_t)ary, (st_data_t)Qtrue);
@@ -2677,24 +2699,6 @@ flatten(VALUE ary, int level, int *modified)
 
     return result;
 }
-
-/*
- *  call-seq:
- *     array.flatten! -> array or nil
- *     array.flatten!(level) -> array or nil
- *  
- *  Flattens _self_ in place.
- *  Returns <code>nil</code> if no modifications were made (i.e.,
- *  <i>array</i> contains no subarrays.)  If the optional <i>level</i>
- *  argument determines the level of recursion to flatten.
- *     
- *     a = [ 1, 2, [3, [4, 5] ] ]
- *     a.flatten!   #=> [1, 2, 3, 4, 5]
- *     a.flatten!   #=> nil
- *     a            #=> [1, 2, 3, 4, 5]
- *     a = [ 1, 2, [3, [4, 5] ] ]
- *     a.flatten!(1) #=> [1, 2, 3, [4, 5]]
- */
 
 // Defined on NSArray.
 VALUE
