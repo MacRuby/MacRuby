@@ -73,18 +73,18 @@ if MACOSX_VERSION >= 10.6
       end
     end
 
-    describe "should return" do
-      it "value when called Synchronously" do
+    describe "return" do
+      it "should be value when called Synchronously" do
         @actor.increment(41).should == 42
       end
 
-      it "nil when called Asynchronously" do
+      it "should be nil when called Asynchronously" do
         @v = 0
         v = @actor.increment(41) {|rv| @v = rv}
         v.should.nil?
       end
 
-      it "value to block when called Asynchronously" do
+      it "should pass value to block when called Asynchronously" do
         @v = 0
         @actor.increment(41) {|rv| @v = rv}
         while @v == 0 do; end
@@ -121,6 +121,28 @@ if MACOSX_VERSION >= 10.6
         actee = @actor._done_
         $global.should == 42
         actee.should == @actee     
+      end
+    end
+    
+    describe "state" do
+      it "should persist for collection objects" do
+        actor = Dispatch::Actor.new([])
+        actor.size.should == 0
+        actor << :foo
+        actor.size.should == 1
+        actor[42] = :foo
+        actor.size.should == 43        
+      end
+      
+      it "should persist for numbers" do
+        actor = Dispatch::Actor.new(0)
+        actor.to_i.should == 0
+        actor += 1
+        actor.to_i.should == 1
+        actor += 41.0
+        actor.to_i.should == 42
+        sum = actor - 1
+        sum.should == 41
       end
     end
 
