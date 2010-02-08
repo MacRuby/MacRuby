@@ -61,3 +61,9 @@ module Dispatch
     end
   end
 end
+
+# Mixin to Enumerable, and thus everything that includes it
+module Enumerable
+  include Dispatch::Enumerable
+end
+
