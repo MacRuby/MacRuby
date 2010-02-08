@@ -34,15 +34,16 @@ module Enumerable
   def p_mapreduce(result, op=:+, &block)
     raise ArgumentError if not result.respond_to? op
     # Since exceptions from a Dispatch block act funky 
-    q = Dispatch.queue_for(result)
+    @result = result
+    q = Dispatch.queue_for(@result)
     self.p_each do |obj|
       val = block.call(obj)
       q.async do
-        result = result.send(op, val)
+        @result = @result.send(op, val)
       end
     end
     q.sync {}
-    result
+    @result
   end
 
 

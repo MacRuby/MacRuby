@@ -67,8 +67,8 @@ if MACOSX_VERSION >= 10.6
       
       it "should behave like an unordered map" do
         map1 = @ary.map {|v| v*v}
-        map2 = @ary.p_mapreduce([]) {|v| v*v}
-        map1.should == map2.sort
+        map2 = @ary.p_mapreduce([]) {|v| [v*v]}
+        map2.sort.should == map1
       end
 
       it "should accumulate any object that takes :<< " do
