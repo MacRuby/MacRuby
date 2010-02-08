@@ -76,7 +76,7 @@ __rb_vm_bcall(VALUE self, SEL sel, VALUE dvars, rb_vm_block_t *b,
 	IMP pimp, const rb_vm_arity_t &arity, int argc, const VALUE *argv)
 {
     if ((arity.real != argc) || (arity.max == -1)) {
-	VALUE *new_argv = (VALUE *)alloca(sizeof(VALUE) * arity.real);
+	VALUE *new_argv = (VALUE *)xmalloc(sizeof(VALUE) * arity.real);
 	__rb_vm_fix_args(argv, new_argv, arity, argc);
 	argv = new_argv;
 	argc = arity.real;
@@ -117,7 +117,7 @@ __rb_vm_rcall(VALUE self, SEL sel, IMP pimp, const rb_vm_arity_t &arity,
 	int argc, const VALUE *argv)
 {
     if ((arity.real != argc) || (arity.max == -1)) {
-	VALUE *new_argv = (VALUE *)alloca(sizeof(VALUE) * arity.real);
+	VALUE *new_argv = (VALUE *)xmalloc(sizeof(VALUE) * arity.real);
 	__rb_vm_fix_args(argv, new_argv, arity, argc);
 	argv = new_argv;
 	argc = arity.real;
@@ -337,7 +337,7 @@ method_missing(VALUE obj, SEL sel, rb_vm_block_t *block, int argc,
 
     GET_VM()->set_method_missing_reason(call_status);
 
-    VALUE *new_argv = (VALUE *)alloca(sizeof(VALUE) * (argc + 1));
+    VALUE *new_argv = (VALUE *)xmalloc(sizeof(VALUE) * (argc + 1));
 
     char buf[100];
     int n = snprintf(buf, sizeof buf, "%s", sel_getName(sel));
@@ -639,10 +639,11 @@ recache2:
 	    if (argc > 1) {
 		const char *p = strchr(selname, ':');
 		if (p != NULL && p + 1 != '\0') {
-		    char *tmp = (char *)alloca(selname_len);
+		    char *tmp = (char *)malloc(selname_len);
 		    strncpy(tmp, selname, p - selname + 1);
 		    tmp[p - selname + 1] = '\0';
 		    sel = sel_registerName(tmp);
+		    free(tmp);
 		    VALUE h = rb_hash_new();
 		    bool ok = true;
 		    p += 1;
@@ -1477,9 +1478,9 @@ rb_vm_block_eval0(rb_vm_block_t *b, SEL sel, VALUE self, int argc,
 	VALUE *new_argv;
 	if (argc == 1 && TYPE(argv[0]) == T_ARRAY
 	    && (arity.min > 1 || (arity.min == 1 && arity.min != arity.max))) {
-	    // Expand the array
+	    // Expand the array.
 	    long ary_len = RARRAY_LEN(argv[0]);
-	    new_argv = (VALUE *)alloca(sizeof(VALUE) * ary_len);
+	    new_argv = (VALUE *)xmalloc(sizeof(VALUE) * ary_len);
 	    for (int i = 0; i < ary_len; i++) {
 		new_argv[i] = RARRAY_AT(argv[0], i);
 	    }
@@ -1499,7 +1500,7 @@ rb_vm_block_eval0(rb_vm_block_t *b, SEL sel, VALUE self, int argc,
 	else {
 	    new_argc = argc;
 	}
-	new_argv = (VALUE *)alloca(sizeof(VALUE) * new_argc);
+	new_argv = (VALUE *)xmalloc(sizeof(VALUE) * new_argc);
 	for (int i = 0; i < new_argc; i++) {
 	    new_argv[i] = i < argc ? argv[i] : Qnil;
 	}

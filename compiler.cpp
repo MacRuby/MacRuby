@@ -239,27 +239,14 @@ Instruction *
 RoxorCompiler::compile_protected_call(Value *imp, std::vector<Value *> &params)
 {
     if (rescue_invoke_bb == NULL) {
-	CallInst *dispatch = CallInst::Create(imp, 
-		params.begin(), 
-		params.end(), 
-		"", 
-		bb);
-	return dispatch;
+	return CallInst::Create(imp, params.begin(), params.end(), "", bb);
     }
     else {
 	BasicBlock *normal_bb = BasicBlock::Create(context, "normal",
 		bb->getParent());
-
-	InvokeInst *dispatch = InvokeInst::Create(imp,
-		normal_bb, 
-		rescue_invoke_bb,
-		params.begin(), 
-		params.end(), 
-		"", 
-		bb);
-
+	InvokeInst *dispatch = InvokeInst::Create(imp, normal_bb,
+		rescue_invoke_bb, params.begin(), params.end(), "", bb);
 	bb = normal_bb;
-
 	return dispatch;
     }
 }
@@ -1374,21 +1361,28 @@ RoxorCompiler::compile_const(ID id, Value *outer)
     }
 
     if (getConstFunc == NULL) {
-	// VALUE rb_vm_get_const(VALUE mod, unsigned char lexical_lookup,
-	//	struct ccache *cache, ID id, unsigned char dynamic_class);
+	// VALUE rb_vm_get_const(VALUE mod, struct ccache *cache, ID id,
+	//	int flags);
 	getConstFunc = cast<Function>(module->getOrInsertFunction(
 		    "rb_vm_get_const", 
-		    RubyObjTy, RubyObjTy, Int8Ty, PtrTy, IntTy, Int8Ty,
+		    RubyObjTy, RubyObjTy, PtrTy, IntTy, Int32Ty,
 		    NULL));
     }
 
     std::vector<Value *> params;
 
     params.push_back(outer);
-    params.push_back(ConstantInt::get(Int8Ty, outer_given ? 0 : 1));
     params.push_back(compile_ccache(id));
     params.push_back(compile_id(id));
-    params.push_back(ConstantInt::get(Int8Ty, dynamic_class ? 1 : 0));
+
+    int flags = 0;
+    if (!outer_given) {
+	flags |= CONST_LOOKUP_LEXICAL;
+    }
+    if (dynamic_class) {
+	flags |= CONST_LOOKUP_DYNAMIC_CLASS;
+    }
+    params.push_back(ConstantInt::get(Int32Ty, flags));
 
     return compile_protected_call(getConstFunc, params);
 }
@@ -2804,15 +2798,21 @@ RoxorCompiler::compile_literal(VALUE val)
 	else {
 	    UniChar *buf = (UniChar *)CFStringGetCharactersPtr(
 		    (CFStringRef)val);
-
+	    bool free_buf = false;
 	    if (buf == NULL) {
-		buf = (UniChar *)alloca(sizeof(UniChar) * str_len);
+		buf = (UniChar *)malloc(sizeof(UniChar) * str_len);
 		CFStringGetCharacters((CFStringRef)val,
 			CFRangeMake(0, str_len), buf);
+		free_buf = true;
 	    }
 
 	    GlobalVariable *str_gvar = compile_const_global_ustring(buf,
 		    str_len, CFHash((CFTypeRef)val));
+
+	    if (free_buf) {
+		free(buf);
+		buf = NULL;
+	    }
 
 	    std::vector<Value *> idxs;
 	    idxs.push_back(ConstantInt::get(Int32Ty, 0));

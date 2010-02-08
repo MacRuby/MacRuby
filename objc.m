@@ -247,18 +247,16 @@ static void
 reload_class_constants(void)
 {
     static int class_count = 0;
-    int i, count;
-    Class *buf;
 
-    count = objc_getClassList(NULL, 0);
+    const int count = objc_getClassList(NULL, 0);
     if (count == class_count) {
 	return;
     }
 
-    buf = (Class *)alloca(sizeof(Class) * count);
+    Class *buf = (Class *)malloc(sizeof(Class) * count);
     objc_getClassList(buf, count);
 
-    for (i = 0; i < count; i++) {
+    for (int i = 0; i < count; i++) {
 	Class k = buf[i];
 	if (!RCLASS_RUBY(k)) {
 	    long v = RCLASS_VERSION(k);
@@ -291,6 +289,8 @@ reload_class_constants(void)
     }
 
     class_count = count;
+
+    free(buf);
 }
 
 static void

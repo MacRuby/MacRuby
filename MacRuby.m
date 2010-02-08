@@ -71,9 +71,8 @@ extern int ruby_initialized;
 {
     VALUE *rargv = NULL;
     if (argc > 0) {
-	rargv = (VALUE *)alloca(sizeof(VALUE) * argc);
-	int i;
-	for (i = 0; i < argc; i++) {
+	rargv = (VALUE *)xmalloc(sizeof(VALUE) * argc);
+	for (int i = 0; i < argc; i++) {
 	    rargv[i] = OC2RB(argv[i]);
 	}
     }
@@ -88,18 +87,16 @@ extern int ruby_initialized;
     id *argv;
 
     if (firstArg != nil) {
-	int i;
-
 	argc = 1;
 	va_start(args, firstArg);
 	while (va_arg(args, id) != NULL) {
 	    argc++;
 	}
 	va_end(args);
-	argv = alloca(sizeof(id) * argc);
+	argv = xmalloc(sizeof(id) * argc);
 	va_start(args, firstArg);
 	argv[0] = firstArg;
-	for (i = 1; i < argc; i++) {
+	for (int i = 1; i < argc; i++) {
 	    argv[i] = va_arg(args, id);
 	}
 	va_end(args);

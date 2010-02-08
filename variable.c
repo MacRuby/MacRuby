@@ -31,25 +31,26 @@ release_cb(CFAllocatorRef allocator, const void *v)
 }
 
 static void
-ivar_dict_foreach(VALUE hash, int (*func)(ANYARGS), VALUE farg)
+ivar_dict_foreach(CFDictionaryRef dict, int (*func)(ANYARGS), VALUE farg)
 {
-    CFIndex i, count;
-    const void **keys;
-    const void **values;
-
-    count = CFDictionaryGetCount((CFDictionaryRef)hash);
-    if (count == 0)
+    const long count = CFDictionaryGetCount(dict);
+    if (count == 0) {
 	return;
-
-    keys = (const void **)alloca(sizeof(void *) * count);
-    values = (const void **)alloca(sizeof(void *) * count);
-
-    CFDictionaryGetKeysAndValues((CFDictionaryRef)hash, keys, values);
-
-    for (i = 0; i < count; i++) {
-	if ((*func)(keys[i], values[i], farg) != ST_CONTINUE)
-	    break;
     }
+
+    const void **keys = (const void **)malloc(sizeof(void *) * count);
+    const void **values = (const void **)malloc(sizeof(void *) * count);
+
+    CFDictionaryGetKeysAndValues(dict, keys, values);
+
+    for (long i = 0; i < count; i++) {
+	if ((*func)(keys[i], values[i], farg) != ST_CONTINUE) {
+	    break;
+	}
+    }
+
+    free(keys);
+    free(values);
 }
 
 static CFDictionaryValueCallBacks rb_cfdictionary_value_cb = {
@@ -134,7 +135,7 @@ fc_i(ID key, VALUE value, struct fc_result *res)
 	    arg.klass = res->klass;
 	    arg.track = value;
 	    arg.prev = res;
-	    ivar_dict_foreach((VALUE)iv_dict, fc_i, (VALUE)&arg);
+	    ivar_dict_foreach(iv_dict, fc_i, (VALUE)&arg);
 	    if (arg.path) {
 		res->path = arg.path;
 		return ST_STOP;
@@ -162,7 +163,7 @@ find_class_path(VALUE klass)
 
     CFMutableDictionaryRef iv_dict = rb_class_ivar_dict(rb_cObject);
     if (iv_dict != NULL) {
-	ivar_dict_foreach((VALUE)iv_dict, fc_i, (VALUE)&arg);
+	ivar_dict_foreach(iv_dict, fc_i, (VALUE)&arg);
     }
     if (arg.path == 0) {
 	st_foreach_safe(rb_class_tbl, fc_i, (st_data_t)&arg);
@@ -1192,7 +1193,7 @@ rb_ivar_foreach(VALUE obj, int (*func)(ANYARGS), st_data_t arg)
 	  {
 	      CFMutableDictionaryRef iv_dict = rb_class_ivar_dict(obj);
 	      if (iv_dict != NULL) {
-		  ivar_dict_foreach((VALUE)iv_dict, func, arg);
+		  ivar_dict_foreach(iv_dict, func, arg);
 	      }
 	  }
 	  return;
@@ -1673,7 +1674,7 @@ rb_mod_const_at(VALUE mod, void *data)
     }
     CFMutableDictionaryRef iv_dict = rb_class_ivar_dict(mod);
     if (iv_dict != NULL) {
-	ivar_dict_foreach((VALUE)iv_dict, sv_i, (VALUE)tbl);
+	ivar_dict_foreach(iv_dict, sv_i, (VALUE)tbl);
     }
     return tbl;
 }
@@ -2016,7 +2017,7 @@ rb_mod_class_variables(VALUE klass, SEL sel)
     VALUE ary = rb_ary_new();
     CFMutableDictionaryRef iv_dict = rb_class_ivar_dict(klass);
     if (iv_dict != NULL) {
-	ivar_dict_foreach((VALUE)iv_dict, cv_i, (VALUE)ary);
+	ivar_dict_foreach(iv_dict, cv_i, (VALUE)ary);
     }
     return ary;
 }

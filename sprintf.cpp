@@ -479,7 +479,7 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 	fmt = rb_str_new2(new_fmt);
     }  
 
-    VALUE *stub_args = (VALUE *)alloca(sizeof(VALUE) * argc + 4);
+    VALUE *stub_args = (VALUE *)malloc(sizeof(VALUE) * (argc + 4));
     stub_args[0] = Qnil; // allocator
     stub_args[1] = Qnil; // format options
     stub_args[2] = fmt;  // format string
@@ -492,6 +492,7 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 
     VALUE str = (*stub)((IMP)&CFStringCreateWithFormat, argc + 3, stub_args);
     CFMakeCollectable((void *)str);
+    free(stub_args);
     return str;
 }
 

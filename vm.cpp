@@ -1286,9 +1286,11 @@ check_if_module(VALUE mod)
 
 extern "C"
 VALUE
-rb_vm_get_const(VALUE outer, unsigned char lexical_lookup,
-	struct ccache *cache, ID path, unsigned char dynamic_class)
+rb_vm_get_const(VALUE outer, struct ccache *cache, ID path, int flags)
 {
+    const bool lexical_lookup = (flags & CONST_LOOKUP_LEXICAL);
+    const bool dynamic_class = (flags & CONST_LOOKUP_DYNAMIC_CLASS);
+
     if (dynamic_class) {
 	Class k = GET_VM()->get_current_class();
 	if (lexical_lookup && k != NULL) {
@@ -3047,7 +3049,8 @@ rb_vm_keep_vars(rb_vm_var_uses *uses, int lvars_size, ...)
     return;
 
 use_found:
-    rb_vm_kept_local *locals = (rb_vm_kept_local *)alloca(sizeof(rb_vm_kept_local)*lvars_size);
+    rb_vm_kept_local *locals = (rb_vm_kept_local *)malloc(
+	    sizeof(rb_vm_kept_local)*lvars_size);
 
     va_list ar;
     va_start(ar, lvars_size);
@@ -3105,6 +3108,7 @@ use_found:
 	use_index = 0;
 	free(old_current);
     }
+    free(locals);
 }
 
 static inline rb_vm_local_t **
@@ -4880,10 +4884,14 @@ extern "C"
 void 
 Init_PreVM(void)
 {
-    llvm::DwarfExceptionHandling = true; // required!
-    llvm::JITEmitDebugInfo = true;
-    // because pretty stack trace uses signal handling and thus breaks ours
+    // To emit DWARF exception tables. 
+    llvm::DwarfExceptionHandling = true; 
+    // To emit DWARF debug metadata. 
+    llvm::JITEmitDebugInfo = true; 
+    // To not interfere with our signal handling mechanism.
     llvm::DisablePrettyStackTrace = true;
+    // To not corrupt stack pointer (essential for backtracing).
+    llvm::NoFramePointerElim = true;
 
     RoxorCompiler::module = new llvm::Module("Roxor", getGlobalContext());
     RoxorCompiler::module->setTargetTriple(TARGET_TRIPLE);

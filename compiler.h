@@ -18,6 +18,10 @@
 #define DISPATCH_SELF_ATTRASGN	4  // self attribute assignment
 #define SPLAT_ARG_FOLLOWS	0xdeadbeef
 
+// For const lookup.
+#define CONST_LOOKUP_LEXICAL		1
+#define CONST_LOOKUP_DYNAMIC_CLASS	2
+
 // For defined?
 #define DEFINED_IVAR 	1
 #define DEFINED_GVAR 	2
