@@ -31,22 +31,18 @@ module Enumerable
 
   # Parallel +collect+ plus +inject+
   # Accumulates from +initial+ via +op+ (default = '+')
-  def p_mapreduce(initial, op=:+, &block)
-    raise ArgumentError if not initial.respond_to? op
+  def p_mapreduce(result, op=:+, &block)
+    raise ArgumentError if not result.respond_to? op
     # Since exceptions from a Dispatch block act funky 
-    q = Dispatch.queue_for(initial)
-    ivar = "@#{Dispatch.label_for(initial)}"
-    p ivar
-    self.instance_variable_set(ivar, initial) #is creating an ivar thread-safe?
+    q = Dispatch.queue_for(result)
     self.p_each do |obj|
       val = block.call(obj)
       q.async do
-        sum = self.instance_variable_get(ivar).send(op, val)
-        self.instance_variable_set(ivar, sum)
+        result = result.send(op, val)
       end
     end
     q.sync {}
-    self.send(:remove_instance_variable, ivar)
+    result
   end
 
 
