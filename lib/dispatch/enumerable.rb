@@ -31,19 +31,21 @@ module Enumerable
 
   # Parallel +collect+ plus +inject+
   # Accumulates from +initial+ via +op+ (default = '+')
-  def p_mapreduce(result, op=:+, &block)
-    raise ArgumentError if not result.respond_to? op
+  def p_mapreduce(initial, op=:+, &block)
+    @mapreduce_q ||= Dispatch::Queue.new("enumerable.p_mapreduce.#{object_id}")
+    # Ideally should set from within a Dispatch.once to avoid race
+    raise ArgumentError if not initial.respond_to? op
     # Since exceptions from a Dispatch block act funky 
-    @result = result
-    q = Dispatch.queue_for(@result)
-    self.p_each do |obj|
-      val = block.call(obj)
-      q.async do
-        @result = @result.send(op, val)
+    @mapreduce_q.sync do 
+      @result = initial
+      q = Dispatch.queue_for(@result)
+      p_each do |obj|
+        val = block.call(obj)
+        q.async { @result = @result.send(op, val) }
       end
+      q.sync {}
+      return @result # can return from inside the block
     end
-    q.sync {}
-    @result
   end
 
 
