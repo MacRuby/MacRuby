@@ -5,9 +5,10 @@ module Dispatch
   # Returns a unique label based on the ancestor chain and ID of +obj+
   # plus the current time
   def label_for(obj)
-    label = obj.class.ancestors.uniq.reverse.join("_").downcase
+    ancestors = obj.class.ancestors.map {|a| a.to_s}
+    label = ancestors.uniq.reverse.join("_").downcase
     now = Time.now.to_f.to_s.gsub(".","_")
-    "#{label}_%x_%s" % [obj.object_id, now]
+    "#{label}__%x__%s" % [obj.object_id, now]
   end
 
   # Returns a new serial queue with a unique label based on +obj+

@@ -30,17 +30,23 @@ module Enumerable
   end
 
   # Parallel +collect+ plus +inject+
-  # Accumulates in +initial+ via +op+ (default = '<<')
-  def p_mapreduce(initial, op=:<<, &block)
-    raise ArgumentError if not initial.respond_to? :op
+  # Accumulates from +initial+ via +op+ (default = '+')
+  def p_mapreduce(initial, op=:+, &block)
+    raise ArgumentError if not initial.respond_to? op
     # Since exceptions from a Dispatch block act funky 
-    p_result = Dispatch.wrap(initial)
-    self.p_each_with_index do |obj, i|
-     val = block.call(obj)
-     p_result.send(op, val)
+    q = Dispatch.queue_for(initial)
+    ivar = "@#{Dispatch.label_for(initial)}"
+    p ivar
+    self.instance_variable_set(ivar, initial) #is creating an ivar thread-safe?
+    self.p_each do |obj|
+      val = block.call(obj)
+      q.async do
+        sum = self.instance_variable_get(ivar).send(op, val)
+        self.instance_variable_set(ivar, sum)
+      end
     end
-    p_result
-    ._done_
+    q.sync {}
+    self.send(:remove_instance_variable, ivar)
   end
 
 
