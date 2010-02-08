@@ -15,13 +15,19 @@ if MACOSX_VERSION >= 10.6
       @actee = Actee.new("my_actee")
     end
 
+    describe :label_for do
+      it "should return a unique label for any object" do
+        s1 = Dispatch.label_for(@actee)
+        s2 = Dispatch.label_for(@actee)
+        s1.should_not == s2
+      end
+    end
+
     describe :queue_for do
-      it "should return a unique label per actee" do
-        s1 = Dispatch.queue_for(@actee).to_s
-        s2 = Dispatch.queue_for(@actee).to_s
-        s3 = Dispatch.queue_for(Actee.new("your_actee")).to_s
-        s1.should == s2
-        s1.should_not == s3
+      it "should return a unique queue" do
+        q1 = Dispatch.queue_for(@actee)
+        q2 = Dispatch.queue_for(@actee)
+        q1.should_not == q2
       end
     end
 

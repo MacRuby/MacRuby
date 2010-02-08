@@ -2,11 +2,17 @@
 # directly from the top-level Dispatch module
 
 module Dispatch
-  # Returns a new serial queue with a unique label based on
-  # the ancestor chain and ID of +obj+
+  # Returns a unique label based on the ancestor chain and ID of +obj+
+  # plus the current time
+  def label_for(obj)
+    label = obj.class.ancestors.uniq.reverse.join("_").downcase
+    now = Time.now.to_f.to_s.gsub(".","_")
+    "#{label}_%x_%s" % [obj.object_id, now]
+  end
+
+  # Returns a new serial queue with a unique label based on +obj+
   def queue_for(obj)
-    label = obj.class.ancestors.reverse.join(".").downcase
-    Dispatch::Queue.new("#{label}.0x%x[#{obj}]" % obj.object_id)
+    Dispatch::Queue.new Dispatch.label_for(obj)
   end
 
   # Run the +&block+ synchronously on a concurrent queue
@@ -60,6 +66,6 @@ module Dispatch
     end
   end
   
-  module_function :queue_for, :async, :sync, :group, :wrap, :fork
+  module_function :label_for, :queue_for, :async, :sync, :group, :wrap, :fork
 
 end
