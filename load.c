@@ -227,7 +227,7 @@ search_required(VALUE name, VALUE *out, int *type)
     if (*name_cstr == '/' || *name_cstr == '.') {
 	// Given name is an absolute path.
 	name = rb_file_expand_path(name, Qnil);
-	return check_path(RSTRING_PTR(name), out, type);	
+	return check_path(name_cstr, out, type);	
     }
 
     // Given name is not an absolute path, we need to go through $:.
@@ -392,11 +392,7 @@ Init_load()
     const char *var_load_path = "$:";
     ID id_load_path = rb_intern(var_load_path);
 
-#if __LP64__
     rbo_enabled = !ruby_is_miniruby && getenv("VM_DISABLE_RBO") == NULL;
-#else
-    rbo_enabled = false; // rbo are only 64-bit for now.
-#endif
 
     rb_define_virtual_variable("$:", rb_vm_load_path, 0);
     rb_alias_variable((rb_intern)("$-I"), id_load_path);
