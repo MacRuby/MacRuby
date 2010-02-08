@@ -18,97 +18,111 @@ if MACOSX_VERSION >= 10.6
       @actor = Dispatch::Actor.new(@actee)
     end
     
-    it "should return an Actor when called with an actee" do
-      @actor.should be_kind_of(Dispatch::Actor)
-      @actor.should be_kind_of(SimpleDelegator)
+    describe :new do
+      it "should return an Actor when called with an actee" do
+        @actor.should be_kind_of(Dispatch::Actor)
+        @actor.should be_kind_of(SimpleDelegator)
+      end
+      
+      it "should set callback queue to use when called Asynchronously" do
+        qn = Dispatch::Queue.new("custom")
+        @actor2 = Dispatch::Actor.new(@actee, qn)
+        @qs = ""
+        @actor2.increment(41) {|rv| @qs = Dispatch::Queue.current.to_s}
+        while @qs == "" do; end
+        @qs.should == qn.label
+      end
+
+      it "should set default callback queue if not specified" do
+        @qs = ""
+        @actor.increment(41) {|rv| @qs = Dispatch::Queue.current.to_s}
+        while @qs == "" do; end
+        @qs.should =~ /com.apple.root.default/
+      end
     end
 
-    it "should return the actee when called with __getobj__" do
-      @actee.should be_kind_of(Actee)
-      @actor.__getobj__.should be_kind_of(Actee)
+    describe :actee do
+      it "should be returned by __getobj__" do
+        @actee.should be_kind_of(Actee)
+        @actor.__getobj__.should be_kind_of(Actee)
+      end
+
+      it "should be invoked for most inherited methods" do
+        @actor.to_s.should == @actee.to_s
+      end
     end
 
-    it "should invoke actee for most inherited methods" do
-      @actor.to_s.should == @actee.to_s
+    describe "method invocation" do
+      it "should occur on a private serial queue" do
+        q = @actor.current_queue
+        q.label.should =~ /dispatch.actor/
+      end
+
+      it "should be Synchronous if block is NOT given" do
+        $global = 0
+        @actor.delay_set(42)
+        $global.should == 42
+      end
+    
+      it "should be Asynchronous if block IS given" do
+        $global = 0
+        @actor.delay_set(42) { }
+        $global.should == 0
+        while $global == 0 do; end
+        $global.should == 42      
+      end
     end
 
-    it "should invoke actee methods on a private serial queue" do
-      q = @actor.current_queue
-      q.label.should =~ /dispatch.actor/
+    describe "should return" do
+      it "value when called Synchronously" do
+        @actor.increment(41).should == 42
+      end
+
+      it "nil when called Asynchronously" do
+        @v = 0
+        v = @actor.increment(41) {|rv| @v = rv}
+        v.should.nil?
+      end
+
+      it "value to block when called Asynchronously" do
+        @v = 0
+        @actor.increment(41) {|rv| @v = rv}
+        while @v == 0 do; end
+        @v.should == 42
+      end
     end
 
-    it "should call actee Synchronously if block is NOT given" do
-      $global = 0
-      @actor.delay_set(42)
-      $global.should == 42
+    describe :_on_ do
+      it "should specify callback queue used for actee async" do
+        qn = Dispatch::Queue.new("custom")
+        @qs = ""
+        @actor._on_(qn).increment(41) {|rv| @qs = Dispatch::Queue.current.to_s}
+        while @qs == "" do; end
+        @qs.should == qn.label
+      end
     end
 
-    it "should return value when called Synchronously" do
-      @actor.increment(41).should == 42
+    describe :_with_ do
+      it "should specify group used for actee async" do
+        $global = 0
+        g = Dispatch::Group.new
+        @actor._with_(g).delay_set(42)
+        $global.should == 0
+        g.wait
+        $global.should == 42      
+      end
     end
 
-    it "should call actee Asynchronously if block IS given" do
-      $global = 0
-      @actor.delay_set(42) { }
-      $global.should == 0
-      while $global == 0 do; end
-      $global.should == 42      
+    describe :_done_ do
+      it "should complete work and return actee" do
+        $global = 0
+        @actor.delay_set(42) { }
+        $global.should == 0
+        actee = @actor._done_
+        $global.should == 42
+        actee.should == @actee     
+      end
     end
 
-    it "should return nil when called Asynchronously" do
-      @v = 0
-      v = @actor.increment(41) {|rv| @v = rv}
-      v.should.nil?
-    end
-
-    it "should provide return value to block when called Asynchronously" do
-      @v = 0
-      @actor.increment(41) {|rv| @v = rv}
-      while @v == 0 do; end
-      @v.should == 42
-    end
-
-    it "should use default callback queue when called Asynchronously" do
-      @qs = ""
-      @actor.increment(41) {|rv| @qs = Dispatch::Queue.current.to_s}
-      while @qs == "" do; end
-      @qs.should =~ /com.apple.root.default/
-    end
-
-    it "should use specified callback queue when called Asynchronously" do
-      qn = Dispatch::Queue.new("custom")
-      @actor2 = Dispatch::Actor.new(@actee, qn)
-      @qs = ""
-      @actor2.increment(41) {|rv| @qs = Dispatch::Queue.current.to_s}
-      while @qs == "" do; end
-      @qs.should == qn.label
-    end
-
-    it "should use callback queue specified by _on_" do
-      qn = Dispatch::Queue.new("custom")
-      @qs = ""
-      @actor._on_(qn).increment(41) {|rv| @qs = Dispatch::Queue.current.to_s}
-      while @qs == "" do; end
-      @qs.should == qn.label
-    end
-
-    it "should invoke actee async when group specified by _with_" do
-      $global = 0
-      g = Dispatch::Group.new
-      @actor._with_(g).delay_set(42)
-      $global.should == 0
-      g.wait
-      $global.should == 42      
-    end
-
-    it "should complete work and return actee when called with _done" do
-      $global = 0
-      @actor.delay_set(42) { }
-      $global.should == 0
-      actee = @actor._done_
-      $global.should == 42
-      actee.should == @actee     
-    end
-  end
-  
+  end  
 end
