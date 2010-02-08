@@ -92,6 +92,20 @@ accepted:
         do_something3();
     }
 
+=== Code Design
+
+* Please declare variables as you use them. The whole project is built under the
+  C99 mode so newer constructs are also recommended (such as the definition of
+  iterator variables in 'for' loops).
+
+* Please use the 'const' qualifier for scalar variables that are not supposed to
+  change.
+
+* Use 'assert' or 'abort' for situations that should never happen. It is not a
+  problem if you abuse of this, just be clever.
+
+* Do not use 'alloca' unless you know what you are doing.
+
 === Debugging
 
 ==== Environment variables
