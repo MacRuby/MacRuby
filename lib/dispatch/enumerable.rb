@@ -30,11 +30,11 @@ module Enumerable
   end
 
   # Parallel +collect+ plus +inject+
-  # Accumulates in +result+ via +op+ (default = '<<')
-  # Only works if result doesn't depend on the order elements are processed.
-  def p_mapreduce(result=[], op=:<<, &block)
-    raise ArgumentError if not result.respond_to? :op
-    p_result = Dispatch.wrap(result)
+  # Accumulates in +initial+ via +op+ (default = '<<')
+  def p_mapreduce(initial, op=:<<, &block)
+    raise ArgumentError if not initial.respond_to? :op
+    # Since exceptions from a Dispatch block act funky 
+    p_result = Dispatch.wrap(initial)
     self.p_each_with_index do |obj, i|
      val = block.call(obj)
      p_result.send(op, val)
