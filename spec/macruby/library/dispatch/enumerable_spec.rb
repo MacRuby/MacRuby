@@ -39,24 +39,17 @@ if MACOSX_VERSION >= 10.6
         @ary.p_each_with_index {|v, i| temp = v**i; @q.sync {@sum2 += temp} }
         @sum2.should == @sum1
       end
-      
-      it "should execute concurrently" do
-        true.should == true
-      end
     end
     
     describe :p_map do
       it "exists on objects that support Enumerable" do
         @ary.respond_to?(:p_map).should == true
       end
+      
       it "should behave like map" do
         map1 = @ary.map {|v| v*v}
         map2 = @ary.p_map {|v| v*v}
         map2.should == map1
-      end
-      
-      it "should execute concurrently" do
-        true.should == true
       end
     end
 
@@ -85,11 +78,37 @@ if MACOSX_VERSION >= 10.6
         sum2 = @ary.p_mapreduce(0, :|) {|v| v**2}   
         sum2.should == sum1
       end
-      
-      it "should execute concurrently" do
-        true.should == true
+    end
+
+    describe :p_find_all do
+      it "exists on objects that support Enumerable" do
+        @ary.respond_to?(:p_find_all).should == true
+      end  
+
+      it "should behave like find_all" do
+        found1 = @ary.find_all {|v| v.odd?}
+        found2 = @ary.p_find_all {|v| v.odd?}
+        found2.sort.should == found1
       end
     end
 
+    describe :p_find do
+      it "exists on objects that support Enumerable" do
+        @ary.respond_to?(:p_find).should == true
+      end  
+
+      it "returns nil if nothing found" do
+        found2 = @ary.p_find {|v| false}
+        found2.should.nil?
+      end
+
+      it "returns one element that matches the condition" do
+        found1 = @ary.find_all {|v| v.odd?}
+        found2 = @ary.p_find {|v| v.odd?}
+        found2.should_not.nil?
+        found1.include? found2
+      end
+    end
+    
   end
 end

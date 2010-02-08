@@ -31,41 +31,50 @@ module Enumerable
 
   # Parallel +collect+ plus +inject+
   # Accumulates from +initial+ via +op+ (default = '+')
+  # Note: each object can only run one mapreduce at a time
   def p_mapreduce(initial, op=:+, &block)
-    @mapreduce_q ||= Dispatch::Queue.new("enumerable.p_mapreduce.#{object_id}")
-    # Ideally should set from within a Dispatch.once to avoid race
     raise ArgumentError if not initial.respond_to? op
-    # Since exceptions from a Dispatch block act funky 
+    # Since exceptions from a Dispatch block can act funky 
+    @mapreduce_q ||= Dispatch::Queue.new("enumerable.p_mapreduce.#{object_id}")
+    # Ideally should run from within a Dispatch.once to avoid race
     @mapreduce_q.sync do 
-      @result = initial
-      q = Dispatch.queue_for(@result)
-      p_each do |obj|
+      @mapreduce_result = initial
+      q = Dispatch.queue_for(@mapreduce_result)
+      self.p_each do |obj|
         val = block.call(obj)
-        q.async { @result = @result.send(op, val) }
+        q.async { @mapreduce_result = @mapreduce_result.send(op, val) }
       end
       q.sync {}
-      return @result # can return from inside the block
+      return @mapreduce_result
     end
   end
-
 
   # Parallel +select+; will return array of objects for which
   # +&block+ returns true.
   def p_find_all(&block)
     found_all = Dispatch.wrap(Array)
     self.p_each { |obj| found_all << obj if block.call(obj) }
-    found_all._done # will this leak?
+    found_all._done_
   end
 
   # Parallel +detect+; will return -one- match for +&block+
   # but it may not be the 'first'
   # Only useful if the test block is very expensive to run
+  # Note: each object can only run one find at a time
+
   def p_find(&block)
-    found = Dispatch.wrap(nil)
-    self.p_each do |obj|
-      found = found.nil? ? block.call(obj) : nil
-      found = obj if found and found.nil? 
+    @find_q ||= Dispatch::Queue.new("enumerable.p_find.#{object_id}")
+    @find_q.sync do 
+      @find_result = nil
+      q = Dispatch.queue_for(@find_result)
+      self.p_each do |obj|
+        if @find_result.nil?
+          found = block.call(obj)
+          q.async { @find_result = obj if found }
+        end
+      end
+      q.sync {} #if @find_result.nil?
+      return @find_result
     end
-    found._done # will this leak?
   end
 end
