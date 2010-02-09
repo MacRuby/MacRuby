@@ -21,7 +21,14 @@ module Dispatch
         q ||= Dispatch::Queue.concurrent
         @group.notify(q) { callback.call(@value) }
       end
-    end
-        
+    end   
   end
+  
+  # Create a +Future+ that runs the block in the background
+  def future(priority=nil, &block)
+    Future.new(priority, &block)
+  end
+  
+  module_function :future
+  
 end

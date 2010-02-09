@@ -11,6 +11,8 @@ if MACOSX_VERSION >= 10.6
     describe :new do
       it "should return an Future for tracking execution of the passed block" do
         @future.should be_kind_of Dispatch::Future
+        future = Dispatch.future { Math.sqrt(2**10) }
+        future.should be_kind_of Dispatch::Future
       end
     end
     
