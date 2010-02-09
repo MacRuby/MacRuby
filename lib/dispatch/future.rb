@@ -1,34 +1,33 @@
 # Calculate the value of an object in the background
 
 module Dispatch
-  # Wrapper around Dispatch::Group used to implement lazy Futures 
-  class Future
+  # Subclass of Dispatch::Group used to implement lazy Futures
+  # By returning a value and duck-typing Thread +join+ and +value+
+   
+  class Future < Group
     # Create a future that asynchronously dispatches the block 
     # to a concurrent queue of the specified (optional) +priority+
     def initialize(priority=nil, &block)
+      super
       @value = nil
-      @group = Dispatch.fork(priority) { @value = block.call }
+      Dispatch.group(self, priority) { @value = block.call }
     end
 
-    # Waits for the computation to finish, then returns the value
-    # Duck-typed to lambda.call(void)
+    # Waits for the computation to finish
+    alias :wait, :join
+
+    # Joins, then returns the value
     # If a block is passed, invoke that asynchronously with the final value
-    def call(q = nil, &callback)
+    # on the specified +queue+ (or else the default queue).
+    def value(queue = nil, &callback)
       if not block_given?
-        @group.wait
+        wait
         return @value
       else
-        q ||= Dispatch::Queue.concurrent
-        @group.notify(q) { callback.call(@value) }
+        queue ||= Dispatch::Queue.concurrent
+        notify(queue) { callback.call(@value) }
       end
     end   
   end
-  
-  # Create a +Future+ that runs the block in the background
-  def future(priority=nil, &block)
-    Future.new(priority, &block)
-  end
-  
-  module_function :future
-  
+
 end

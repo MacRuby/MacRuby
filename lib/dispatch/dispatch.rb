@@ -41,30 +41,12 @@ module Dispatch
     Dispatch::Actor.new( (obj.is_a? Class) ? obj.new : obj)
   end
 
-  # Run the +&block+ asynchronously on a concurrent queue
-  # of the given (optional) +priority+ 
-  # as part of a newly-created group, which is returned for use with
-  # +Dispatch.group+ or +wait+ / +notify+
+  # Run the +&block+ asynchronously on a concurrent queue of the given
+  # (optional) +priority+ as part of a Future, which is returned for use with
+  # +join+ or +value+
   
   def fork(priority=nil, &block)
-    grp = Group.new
-    Dispatch.group(grp, priority) { block.call }
-    # Can't pass block directly for some reason
-    return grp
-  end
-
-  class Group
-    # Companion to +Dispatch.fork+, allowing you to +wait+ until +grp+ completes
-    # via an API similar to that used by +Threads+
-    # If a block is given, instead uses +notify+ to call it asynchronously
-    def join(q = nil, &block)
-      if block.nil?
-        self.wait
-      else
-        q ||= Dispatch::Queue.concurrent
-        self.notify(q, &block)
-      end
-    end
+    Dispatch::Future.new(priority) &block
   end
   
   module_function :label_for, :queue_for, :async, :sync, :group, :wrap, :fork
