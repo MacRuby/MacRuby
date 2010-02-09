@@ -227,7 +227,7 @@ search_required(VALUE name, VALUE *out, int *type)
     if (*name_cstr == '/' || *name_cstr == '.') {
 	// Given name is an absolute path.
 	name = rb_file_expand_path(name, Qnil);
-	return check_path(name_cstr, out, type);	
+	return check_path(RSTRING_PTR(name), out, type);	
     }
 
     // Given name is not an absolute path, we need to go through $:.
