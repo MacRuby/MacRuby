@@ -2833,6 +2833,9 @@ rary_sample(VALUE ary, SEL sel, int argc, VALUE *argv)
     }
     rb_scan_args(argc, argv, "1", &nv);
     n = NUM2LONG(nv);
+    if (n < 0) {
+	rb_raise(rb_eArgError, "negative count");
+    }
     len = RARRAY_LEN(ary); 
     if (n > len) {
 	n = len;
@@ -2884,20 +2887,22 @@ rary_sample(VALUE ary, SEL sel, int argc, VALUE *argv)
 	    memmove(&sorted[j+1], &sorted[j], sizeof(sorted[0])*(i-j));
 	    sorted[j] = idx[i] = k;
 	}
-	VALUE *elems = (VALUE *)alloca(sizeof(VALUE) * n);
+	VALUE *elems = (VALUE *)malloc(sizeof(VALUE) * n);
 	for (i = 0; i < n; i++) {
 	    elems[i] = RARRAY_AT(ary, idx[i]);
 	}
 	result = rb_ary_new4(n, elems);
+	free(elems);
     }
     else {
-	VALUE *elems = (VALUE *)alloca(sizeof(VALUE) * n);
+	VALUE *elems = (VALUE *)malloc(sizeof(VALUE) * n);
 	for (i = 0; i < n; i++) {
 	    j = (long)(rb_genrand_real() * (len - i)) + i;
 	    nv = RARRAY_AT(ary, j);
 	    elems[i] = nv;
 	}
 	result = rb_ary_new4(n, elems);
+	free(elems);
     }
 
     return result;
