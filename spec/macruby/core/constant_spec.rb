@@ -3,7 +3,7 @@ FixtureCompiler.require! "constant"
 
 describe "A BridgeSupport constant" do
   it "of type 'id' is available as an Object in Ruby" do
-    ConstantObject.class.should == NSString
+    ConstantObject.is_a?(String).should == true
     ConstantObject.should == 'foo'
   end
 

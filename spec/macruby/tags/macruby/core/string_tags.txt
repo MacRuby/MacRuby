@@ -1,3 +1,5 @@
 critical:The NSString class can be subclassed and later instantiated
 critical:An NSString object can have a singleton class
+critical:An NSString object is immutable
+fails:An NSString object is an instance of the NSString class
 fails:A String object can match() a Regex
