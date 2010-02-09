@@ -59,7 +59,11 @@ thread_initialize(VALUE thread, SEL sel, int argc, const VALUE *argv)
     rb_vm_thread_pre_init(t, b, argc, argv, rb_vm_create_vm());
 
     // The thread's group is always the parent's one.
-    rb_thgroup_add(GetThreadPtr(rb_vm_current_thread())->group, thread);
+    // The parent group might be nil (ex. if created from GCD).
+    VALUE group = GetThreadPtr(rb_vm_current_thread())->group;
+    if (group != Qnil) {
+	rb_thgroup_add(group, thread);
+    }
 
     // Retain the Thread object to avoid a potential GC, the corresponding
     // release is done in rb_vm_thread_run().
@@ -1257,15 +1261,17 @@ void
 rb_thread_remove_from_group(VALUE thread)
 {
     rb_vm_thread_t *t = GetThreadPtr(thread);
-    rb_thread_group_t *tg = GetThreadGroupPtr(t->group);
-    thgroup_lock(tg);
-    if (rb_ary_delete(tg->threads, thread) != thread) {
-	printf("trying to remove a thread (%p) from a group that doesn't "\
-		"contain it\n", (void *)thread);
-	abort();
+    if (t->group != Qnil) {
+	rb_thread_group_t *tg = GetThreadGroupPtr(t->group);
+	thgroup_lock(tg);
+	if (rb_ary_delete(tg->threads, thread) != thread) {
+	    printf("trying to remove a thread (%p) from a group that doesn't "\
+		    "contain it\n", (void *)thread);
+	    abort();
+	}
+	thgroup_unlock(tg);
+	t->group = Qnil;
     }
-    thgroup_unlock(tg);
-    t->group = Qnil;
 }
 
 /*
