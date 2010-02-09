@@ -110,8 +110,10 @@ rb_obj_imp_description(void *rcv, SEL sel)
 static VALUE
 rb_objc_init(VALUE rcv, SEL sel)
 {
-    IMP imp = class_getMethodImplementation((Class)CLASS_OF(rcv), selInit);
-    if (imp != NULL && imp != (IMP)rb_obj_imp_init) {
+    IMP imp = NULL;
+    rb_vm_method_node_t *node = NULL;
+    if (rb_vm_lookup_method((Class)CLASS_OF(rcv), sel, &imp, &node)
+	    && imp != NULL && node == NULL && imp != (IMP)rb_obj_imp_init) {
 	return (VALUE)((void *(*)(void *, SEL))*imp)((void *)rcv, selInit);
     }
     return rcv;
