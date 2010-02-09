@@ -3,10 +3,10 @@ require 'dispatch'
 
 if MACOSX_VERSION >= 10.6
   
-  $global = 0
+  $dispatch_gval = 0
   class Actee
     def initialize(s="default"); @s = s; end
-    def delay_set(n); sleep 0.01; $global = n; end
+    def delay_set(n); sleep 0.01; $dispatch_gval = n; end
     def to_s; @s; end
   end
   
@@ -33,30 +33,30 @@ if MACOSX_VERSION >= 10.6
 
     describe :sync do
       it "should execute the block Synchronously" do
-        $global = 0
+        $dispatch_gval = 0
         Dispatch.sync { @actee.delay_set(42) }
-        $global.should == 42
+        $dispatch_gval.should == 42
       end
     end
 
     describe :async do
       it "should execute the block Asynchronously" do
-        $global = 0
+        $dispatch_gval = 0
         Dispatch.async(:default) { @actee.delay_set(42) }
-        $global.should == 0
-        while $global == 0 do; end
-        $global.should == 42      
+        $dispatch_gval.should == 0
+        while $dispatch_gval == 0 do; end
+        $dispatch_gval.should == 42      
       end
     end
     
     describe :group do
       it "should execute the block with the specified group" do
-        $global = 0
+        $dispatch_gval = 0
         g = Dispatch::Group.new
         Dispatch.group(g) { @actee.delay_set(42) }
-        $global.should == 0
+        $dispatch_gval.should == 0
         g.wait
-        $global.should == 42      
+        $dispatch_gval.should == 42      
       end
     end
 
@@ -75,31 +75,22 @@ if MACOSX_VERSION >= 10.6
     end
     
     describe :fork do
-      it "should return an Group for tracking execution of the passed block" do
-        $global = 0
+      it "should return a Future for tracking execution of the passed block" do
+        $dispatch_gval = 0
         g = Dispatch.fork { @actee.delay_set(42) }
-        $global.should == 0
+        $dispatch_gval.should == 0
+        g.should be_kind_of Dispatch::Future
+        #g.join
+        $dispatch_gval.should == 42      
+      end
+      
+      it "should return a Group for tracking execution of the passed block" do
+        $dispatch_gval = 0
+        g = Dispatch.fork { @actee.delay_set(42) }
+        $dispatch_gval.should == 0
         g.should be_kind_of Dispatch::Group
-        g.wait
-        $global.should == 42      
-      end
-
-      it "should :join Synchronously to that group" do
-        $global = 0
-        g = Dispatch.fork { @actee.delay_set(42) }
-        $global.should == 0
-        g.join
-        $global.should == 42      
-      end
-
-      it "should :join Asynchronously if passed another block" do
-        $global = 0
-        g = Dispatch.fork { @actee.delay_set(42) }
-        $global.should == 0
-        g.join { }
-        $global.should == 0
-        while $global == 0 do; end
-        $global.should == 42      
+        #g.wait
+        $dispatch_gval.should == 42      
       end
     end
     

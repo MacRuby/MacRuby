@@ -4,7 +4,7 @@ module Dispatch
   # Subclass of Dispatch::Group used to implement lazy Futures
   # By returning a value and duck-typing Thread +join+ and +value+
    
-  class Future < Group
+  class Future < Dispatch::Group
     # Create a future that asynchronously dispatches the block 
     # to a concurrent queue of the specified (optional) +priority+
     def initialize(priority=nil, &block)
@@ -14,7 +14,7 @@ module Dispatch
     end
 
     # Waits for the computation to finish
-    alias :wait, :join
+    alias_method :join, :wait
 
     # Joins, then returns the value
     # If a block is passed, invoke that asynchronously with the final value
@@ -29,5 +29,15 @@ module Dispatch
       end
     end   
   end
+
+  # Run the +&block+ asynchronously on a concurrent queue of the given
+  # (optional) +priority+ as part of a Future, which is returned for use with
+  # +join+ or +value+ -- or as a Group, of which it is a subclass
+  
+  def fork(priority=nil, &block)
+    Dispatch::Future.new(priority) &block
+  end
+
+  module_function :fork
 
 end
