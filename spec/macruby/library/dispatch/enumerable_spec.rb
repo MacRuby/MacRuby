@@ -22,7 +22,11 @@ if MACOSX_VERSION >= 10.6
       end
       
       it "should execute concurrently" do
-        true.should == true
+        t0 = Time.now
+        @ary.p_each {|v| sleep v/100.0}
+        t1 = Time.now
+        t_total = @ary.inject(0) {|a,b| a + b/100.0}
+        (t1-t0).to_f.should < t_total
       end
     end
     
