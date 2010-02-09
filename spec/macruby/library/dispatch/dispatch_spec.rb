@@ -83,15 +83,6 @@ if MACOSX_VERSION >= 10.6
         g.join
         $dispatch_gval.should == 42      
       end
-      
-      it "should return a Group for tracking execution of the passed block" do
-        $dispatch_gval = 0
-        g = Dispatch.fork { @actee.delay_set(42) }
-        $dispatch_gval.should == 0
-        g.should be_kind_of Dispatch::Group
-        g.wait
-        $dispatch_gval.should == 42      
-      end
     end
     
   end

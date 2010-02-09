@@ -13,9 +13,11 @@ if MACOSX_VERSION >= 10.6
       it "should return a Future for tracking execution of the passed block" do
         @future.should be_kind_of Dispatch::Future
       end
+    end
 
+    describe :group do
       it "should return an instance of Dispatch::Group" do
-        @future.should be_kind_of Dispatch::Group
+        @future.group.should be_kind_of Dispatch::Group
       end
     end
 

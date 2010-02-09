@@ -43,7 +43,7 @@ module Dispatch
 
   # Run the +&block+ asynchronously on a concurrent queue of the given
   # (optional) +priority+ as part of a Future, which is returned for use with
-  # +join+ or +value+ -- or as a Group, of which it is a subclass
+  # +join+ or +value+
   
   def fork(priority=nil, &block)
     Dispatch::Future.new(priority) &block
