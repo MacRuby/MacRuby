@@ -46,7 +46,8 @@ module Dispatch
   # +join+ or +value+
   
   def fork(priority=nil, &block)
-    Dispatch::Future.new(priority) &block
+    Dispatch::Future.new(priority) { block.call }
+    # Can't pass block directly for some reason
   end
   
   module_function :label_for, :queue_for, :async, :sync, :group, :wrap, :fork

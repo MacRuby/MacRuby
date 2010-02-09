@@ -13,6 +13,12 @@ if MACOSX_VERSION >= 10.6
       it "should return a Future for tracking execution of the passed block" do
         @future.should be_kind_of Dispatch::Future
       end
+
+      it "should take a +priority+ for which concurrent queue to use" do
+        future = Dispatch::Future.new(:high) { @result=Dispatch::Queue.current }
+        future.join
+        @result.to_s.should == Dispatch::Queue.concurrent(:high).to_s
+      end
     end
 
     describe :group do
