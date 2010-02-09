@@ -80,7 +80,7 @@ if MACOSX_VERSION >= 10.6
         g = Dispatch.fork { @actee.delay_set(42) }
         $dispatch_gval.should == 0
         g.should be_kind_of Dispatch::Future
-        #g.join
+        g.join
         $dispatch_gval.should == 42      
       end
       
@@ -89,7 +89,7 @@ if MACOSX_VERSION >= 10.6
         g = Dispatch.fork { @actee.delay_set(42) }
         $dispatch_gval.should == 0
         g.should be_kind_of Dispatch::Group
-        #g.wait
+        g.wait
         $dispatch_gval.should == 42      
       end
     end

@@ -6,11 +6,11 @@ module Dispatch
    
   class Future < Dispatch::Group
     # Create a future that asynchronously dispatches the block 
-    # to a concurrent queue of the specified (optional) +priority+
-    def initialize(priority=nil, &block)
+    # to the default queue
+    def initialize(&block)
       super
       @value = nil
-      Dispatch.group(self, priority) { @value = block.call }
+      Dispatch.group(self, nil) { @value = block.call }
     end
 
     # Waits for the computation to finish
@@ -34,8 +34,8 @@ module Dispatch
   # (optional) +priority+ as part of a Future, which is returned for use with
   # +join+ or +value+ -- or as a Group, of which it is a subclass
   
-  def fork(priority=nil, &block)
-    Dispatch::Future.new(priority) &block
+  def fork(&block)
+    Dispatch::Future.new &block
   end
 
   module_function :fork

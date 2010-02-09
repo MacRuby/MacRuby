@@ -20,7 +20,7 @@ if MACOSX_VERSION >= 10.6
     end
 
     describe :join do
-      it "should wait until execution is complete"
+      it "should wait until execution is complete" do
         @result.should == 0
         @future.join
         @result.should == 2**5
