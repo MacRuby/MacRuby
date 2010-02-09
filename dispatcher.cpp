@@ -1573,6 +1573,16 @@ rb_vm_yield0(int argc, const VALUE *argv)
 
     vm->pop_current_block();
 
+    rb_vm_block_t *top_b = vm->current_block();
+    if (top_b == NULL) {
+	if (vm != RoxorVM::main) {
+	    top_b = GetThreadPtr(vm->get_thread())->body;
+	}
+    }
+    if (top_b != NULL && (top_b->flags & VM_BLOCK_THREAD)) {
+	b->flags |= VM_BLOCK_THREAD;
+    }
+
     struct Finally {
 	RoxorVM *vm;
 	rb_vm_block_t *b;
@@ -1582,6 +1592,7 @@ rb_vm_yield0(int argc, const VALUE *argv)
 	}
 	~Finally() {
 	    vm->add_current_block(b);
+	    b->flags &= ~VM_BLOCK_THREAD;
 	}
     } finalizer(vm, b);
 
@@ -1694,6 +1705,10 @@ rb_vm_prepare_block(void *function, int flags, VALUE self, rb_vm_arity_t arity,
     if ((flags & VM_BLOCK_AOT) == VM_BLOCK_AOT) {
 	flags ^= VM_BLOCK_AOT;
 	aot_block = true;
+    }
+
+    if (parent_block != NULL && (parent_block->flags & VM_BLOCK_THREAD)) {
+	flags |= VM_BLOCK_THREAD;
     }
 
     if (!cached) {

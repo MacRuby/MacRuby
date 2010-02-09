@@ -197,9 +197,9 @@ class RoxorCompiler {
 	Function *setCurrentClassFunc;
 	Function *getCacheFunc;
 	Function *debugTrapFunc;
-	// flip-flop
 	Function *getFFStateFunc;
 	Function *setFFStateFunc;
+	Function *takeOwnershipFunc;
 
 	Constant *zeroVal;
 	Constant *oneVal;

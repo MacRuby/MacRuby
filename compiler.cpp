@@ -148,6 +148,7 @@ RoxorCompiler::RoxorCompiler(bool _debug_mode)
     debugTrapFunc = NULL;
     getFFStateFunc = NULL;
     setFFStateFunc = NULL;
+    takeOwnershipFunc = NULL;
 
     VoidTy = Type::getVoidTy(context);
     Int1Ty = Type::getInt1Ty(context);
@@ -3454,8 +3455,52 @@ RoxorCompiler::compile_node(NODE *node)
 		assert(node->nd_value != NULL);
 
 		Value *new_val = compile_node(node->nd_value);
-		new StoreInst(new_val, compile_lvar_slot(node->nd_vid), bb);
 
+		const int type = nd_type(node);
+		if ((type == NODE_DASGN || type == NODE_DASGN_CURR)
+			&& running_block != NULL) {
+		    // Dynamic variables assignments inside a block are a
+		    // little bit complicated: if we are creating new objects
+		    // we do need to defeat the thread-local collector by
+		    // taking ownership of the objects, otherwise the TLC might
+		    // prematurely collect them. This is because the assignment
+		    // is done into another thread's stack, which is not
+		    // honored by the TLC.
+		    Value *flag = new BitCastInst(running_block, Int32PtrTy,
+			    "", bb);
+		    flag = new LoadInst(flag, "", bb);
+		    Value *flagv = ConstantInt::get(Int32Ty, VM_BLOCK_THREAD);
+		    flag = BinaryOperator::CreateAnd(flag, flagv, "", bb);
+		    Value *is_thread = new ICmpInst(*bb, ICmpInst::ICMP_EQ,
+			    flag, flagv);
+
+		    Function *f = bb->getParent();
+		    BasicBlock *is_thread_bb =
+			BasicBlock::Create(context, "", f);
+		    BasicBlock *merge_bb =
+			BasicBlock::Create(context, "", f);
+
+		    BranchInst::Create(is_thread_bb, merge_bb,
+			    is_thread, bb);
+
+		    bb = is_thread_bb;
+		    if (takeOwnershipFunc == NULL) {
+			takeOwnershipFunc =
+			    cast<Function>(module->getOrInsertFunction(
+				"rb_vm_take_ownership",
+				VoidTy, RubyObjTy, NULL));
+		    }
+
+		    std::vector<Value *> params;
+		    params.push_back(new_val);
+		    CallInst::Create(takeOwnershipFunc, params.begin(),
+			    params.end(), "", bb);
+		    BranchInst::Create(merge_bb, bb);
+
+		    bb = merge_bb;
+		}
+
+		new StoreInst(new_val, compile_lvar_slot(node->nd_vid), bb);
 		return new_val;
 	    }
 	    break;

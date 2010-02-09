@@ -26,24 +26,26 @@ typedef struct rb_vm_local {
     struct rb_vm_local *next;
 } rb_vm_local_t;
 
-#define VM_BLOCK_PROC	0x0001	// block is a Proc object
-#define VM_BLOCK_LAMBDA 0x0002	// block is a lambda
-#define VM_BLOCK_ACTIVE 0x0004	// block is active (being executed)
-#define VM_BLOCK_METHOD 0x0008	// block is created from Method
-#define VM_BLOCK_IFUNC  0x0010  // block is created from rb_vm_create_block()
-#define VM_BLOCK_EMPTY  0x0012	// block has an empty body
-
-#define VM_BLOCK_AOT	0x1000  // block is created by the AOT compiler (temporary)
+#define VM_BLOCK_PROC	(1<<0)	// block is a Proc object
+#define VM_BLOCK_LAMBDA (1<<1)	// block is a lambda
+#define VM_BLOCK_ACTIVE (1<<2)	// block is active (being executed)
+#define VM_BLOCK_METHOD (1<<3)	// block is created from Method
+#define VM_BLOCK_IFUNC  (1<<4)  // block is created from rb_vm_create_block()
+#define VM_BLOCK_EMPTY  (1<<5)	// block has an empty body
+#define VM_BLOCK_THREAD (1<<6)	// block is being executed as a Thread
+#define VM_BLOCK_AOT	(1<<10) // block is created by the AOT compiler
+				// (temporary)
 
 typedef struct rb_vm_block {
-    VALUE proc; // a reference to a Proc object, or nil
+    int flags; 	// IMPORTANT: this field should always be at the beginning.
+		// Look at how rb_vm_take_ownership() is called in compiler.cpp.
+    VALUE proc; // a reference to a Proc object, or nil.
     VALUE self;
     VALUE klass;
     VALUE userdata; // if VM_BLOCK_IFUNC, contains the user data, otherwise
 		    // contains the key used in the blocks cache.
     rb_vm_arity_t arity;
     IMP imp;
-    int flags;
     rb_vm_local_t *locals;
     struct rb_vm_var_uses **parent_var_uses;
     struct rb_vm_block *parent_block;
