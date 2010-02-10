@@ -5253,6 +5253,16 @@ imp_rb_str_isEqual(void *rcv, SEL sel, void *other)
     return flag;
 }
 
+static void *
+imp_rb_str_mutableCopy(void *rcv, SEL sel)
+{
+    void *dup;
+    PREPARE_RCV(rcv);
+    dup = (void *)objc_msgSend(rcv, selMutableCopy);
+    RESTORE_RCV(rcv);
+    return dup;
+}
+
 void
 rb_objc_install_string_primitives(Class klass)
 {
@@ -5268,6 +5278,7 @@ rb_objc_install_string_primitives(Class klass)
     rb_objc_install_method2(klass, "_fastestEncodingInCFStringEncoding",
 	(IMP)imp_rb_str_fastestEncodingInCFStringEncoding);
     rb_objc_install_method2(klass, "isEqual:", (IMP)imp_rb_str_isEqual);
+    rb_objc_install_method2(klass, "mutableCopy", (IMP)imp_rb_str_mutableCopy);
 
     const bool mutable = class_getSuperclass(klass)
 	== (Class)rb_cNSMutableString;
