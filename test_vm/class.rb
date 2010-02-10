@@ -104,3 +104,66 @@ assert ':ok', %{
   end
   Foo.new
 }
+
+
+# Test cloning
+assert "B, [:CONST_M], [:ok]", %{
+  module M
+    CONST_M = 1
+    def ok; end
+  end
+  B = M.clone
+  puts B.to_s + ", " + B.constants.to_s + ", " + B.instance_methods(false).to_s
+}
+
+assert "B, [:CONST_A], [:ok]", %{
+  class A
+    CONST_A = 1
+    def ok; end
+  end
+  B = A.clone
+  puts B.to_s + ", " + B.constants.to_s + ", " + B.instance_methods(false).to_s
+}
+
+assert "B, [:CONST_C, :CONST_A], []", %{
+  class A
+    CONST_A = 1
+    def ok; end
+  end
+  class C < A
+    CONST_C = 1
+  end
+  B = C.clone
+  puts B.to_s + ", " + B.constants.to_s + ", " + B.instance_methods(false).to_s
+}
+
+# Test dup
+assert "B, [:CONST_M], [:ok]", %{
+  module M
+    CONST_M = 1
+    def ok; end
+  end
+  B = M.dup
+  puts B.to_s + ", " + B.constants.to_s + ", " + B.instance_methods(false).to_s
+}
+
+assert "B, [:CONST_A], [:ok]", %{
+  class A
+    CONST_A = 1
+    def ok; end
+  end
+  B = A.dup
+  puts B.to_s + ", " + B.constants.to_s + ", " + B.instance_methods(false).to_s
+}
+
+assert "B, [:CONST_C, :CONST_A], []", %{
+  class A
+    CONST_A = 1
+    def ok; end
+  end
+  class C < A
+    CONST_C = 1
+  end
+  B = C.dup
+  puts B.to_s + ", " + B.constants.to_s + ", " + B.instance_methods(false).to_s
+}

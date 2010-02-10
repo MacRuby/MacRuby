@@ -298,6 +298,9 @@ rb_class_new(VALUE super)
 VALUE
 rb_mod_init_copy(VALUE clone, SEL sel, VALUE orig)
 {
+    static ID classpath = 0;
+    static ID classid = 0;
+
     rb_obj_init_copy(clone, 0, orig);
     {
 	VALUE super;
@@ -319,26 +322,28 @@ rb_mod_init_copy(VALUE clone, SEL sel, VALUE orig)
 	}
 
 	RCLASS_SET_VERSION(clone, version_flag);
-    }
-#if 0 // TODO
-    if (RCLASS_IV_TBL(orig)) {
-	ID id;
 
-	GC_WB(&RCLASS_IV_TBL(clone), st_copy(RCLASS_IV_TBL(orig)));
-	id = rb_intern("__classpath__");
-	st_delete(RCLASS_IV_TBL(clone), (st_data_t*)&id, 0);
-	id = rb_intern("__classid__");
-	st_delete(RCLASS_IV_TBL(clone), (st_data_t*)&id, 0);
+	rb_vm_copy_methods((Class)orig, (Class)clone);
+	CFMutableDictionaryRef ivar_dict = rb_class_ivar_dict(orig);
+	if (ivar_dict != NULL) {
+	    CFMutableDictionaryRef cloned_ivar_dict;
+
+	    if (classpath == 0) {
+		classpath = rb_intern("__classpath__");
+	    }
+	    if (classid == 0) {
+		classid = rb_intern("__classid__");
+	    }
+	    cloned_ivar_dict = CFDictionaryCreateMutableCopy(NULL, 0,
+		(CFDictionaryRef)ivar_dict);
+	    // Remove the classpath & classid (name) so that they are not
+	    // copied over the new module / class
+	    CFDictionaryRemoveValue(cloned_ivar_dict, (const void *)classpath);
+	    CFDictionaryRemoveValue(cloned_ivar_dict, (const void *)classid);
+	    CFMakeCollectable(cloned_ivar_dict);
+	    rb_class_ivar_set_dict(clone, cloned_ivar_dict);
+	}
     }
-    if (RCLASS_M_TBL(orig)) {
-	struct clone_method_data data;
-	GC_WB(&RCLASS_M_TBL(clone), st_init_numtable());
-	data.tbl = RCLASS_M_TBL(clone);
-	data.klass = clone;
-	st_foreach(RCLASS_M_TBL(orig), clone_method,
-	  (st_data_t)&data);
-    }
-#endif
 
     return clone;
 }

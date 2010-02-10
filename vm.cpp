@@ -2302,25 +2302,20 @@ RoxorCore::get_methods(VALUE ary, Class klass, bool include_objc_methods,
     }
 
     Class k = klass;
-    do {
-	std::multimap<Class, SEL>::iterator iter =
-	    method_source_sels.find(k);
+    std::multimap<Class, SEL>::iterator iter =
+	method_source_sels.find(k);
 
-	if (iter != method_source_sels.end()) {
-	    std::multimap<Class, SEL>::iterator last =
-		method_source_sels.upper_bound(k);
+    if (iter != method_source_sels.end()) {
+	std::multimap<Class, SEL>::iterator last =
+	    method_source_sels.upper_bound(k);
 
-	    for (; iter != last; ++iter) {
-		SEL sel = iter->second;
-		rb_vm_method_source_t *src = method_source_get(k, sel);
-		assert(src != NULL);
-		push_method(ary, sel, src->flags, filter);
-	    }
+	for (; iter != last; ++iter) {
+	    SEL sel = iter->second;
+	    rb_vm_method_source_t *src = method_source_get(k, sel);
+	    assert(src != NULL);
+	    push_method(ary, sel, src->flags, filter);
 	}
-
-	k = class_getSuperclass(k);
     }
-    while (k != NULL);
 }
 
 extern "C"
