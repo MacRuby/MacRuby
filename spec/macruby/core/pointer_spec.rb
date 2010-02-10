@@ -125,7 +125,7 @@ describe "Pointer, through #[] and #[]=" do
     ptr = Pointer.new('^{__CFError}')
     ptr[0].should == nil
     CFURLResourceIsReachable(NSURL.URLWithString('http://doesnotexistomgwtf.be'), ptr).should == false
-    ptr[0].class.should == NSCFError
+    ptr[0].is_a?(NSError).should == true
   end
 
   it "handle 'void *' C pointers as 'unsigned char *'" do
