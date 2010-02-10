@@ -482,3 +482,17 @@ assert ':ok', %{
     p :ok
   end
 }
+
+assert "true", %{
+  class Foo
+    def respond_to?(*x); super; end
+  end
+  p Foo.new.respond_to?(:object_id)
+}
+
+# TODO: find a better place for this.
+assert '', %{
+  $SAFE=4
+  s="omg"
+  s.freeze
+}

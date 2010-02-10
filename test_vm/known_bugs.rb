@@ -22,15 +22,3 @@ assert '42', %{
   p Module.new.foo
 }
 
-assert "true", %{
-  class Foo
-    def respond_to?(*x); super; end
-  end
-  p Foo.new.respond_to?(:object_id)
-}
-
-assert '', %{
-  $SAFE=4
-  s="omg"
-  s.freeze
-}
