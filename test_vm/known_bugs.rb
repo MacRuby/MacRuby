@@ -29,8 +29,6 @@ assert "true", %{
   p Foo.new.respond_to?(:object_id)
 }
 
-assert "nil", "p(ENV['FOO'] = nil)"
-
 assert '', %{
   $SAFE=4
   s="omg"
