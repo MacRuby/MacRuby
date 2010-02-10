@@ -503,17 +503,8 @@ NODE *rb_compile_cstr(const char*, const char*, int, int);
 NODE *rb_compile_string(const char*, VALUE, int);
 NODE *rb_compile_file(const char*, VALUE, int);
 
-void rb_add_method(VALUE, ID, NODE *, int);
-void rb_add_method_direct(VALUE, ID, NODE *);
-#if WITH_OBJC
-void rb_objc_register_ruby_method(VALUE, ID, NODE *);
-NODE *rb_objc_method_node(VALUE, ID, IMP *, SEL *);
-NODE *rb_objc_method_node2(VALUE, SEL, IMP *);
-NODE *rb_objc_method_node3(IMP);
-#endif
 NODE *rb_node_newnode(enum node_type,VALUE,VALUE,VALUE);
 
-NODE* rb_method_node(VALUE klass, ID id);
 int rb_node_arity(NODE* node);
 
 struct global_entry *rb_global_entry(ID);

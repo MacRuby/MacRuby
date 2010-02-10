@@ -57,6 +57,7 @@ class RoxorCompiler {
 	Function *compile_objc_stub(Function *ruby_func, IMP ruby_imp,
 		const rb_vm_arity_t &arity, const char *types);
 	Function *compile_block_caller(rb_vm_block_t *block);
+	Function *compile_mri_stub(void *imp, const int arity);
 
 	const Type *convert_type(const char *type);
 

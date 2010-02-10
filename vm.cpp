@@ -2226,10 +2226,6 @@ rb_vm_prepare_method2(Class klass, unsigned char dynamic_class, SEL sel,
 	    flags, true);
 }
 
-static rb_vm_method_node_t * __rb_vm_define_method(Class klass, SEL sel,
-	IMP objc_imp, IMP ruby_imp, const rb_vm_arity_t &arity, int flags,
-	bool direct);
-
 #define VISI(x) ((x)&NOEX_MASK)
 #define VISI_CHECK(x,f) (VISI(x) == (f))
 
@@ -2652,6 +2648,18 @@ rb_vm_define_method3(Class klass, SEL sel, rb_vm_block_t *block)
     rb_objc_retain(block);
 
     rb_vm_define_method(klass, sel, imp, body, false);
+}
+
+extern "C"
+void *
+rb_vm_generate_mri_stub(void *imp, const int arity)
+{
+    Function *func = RoxorCompiler::shared->compile_mri_stub(imp, arity);
+    if (func == NULL) {
+	// Not needed!
+	return imp;
+    }
+    return (void *)GET_CORE()->compile(func); 
 }
 
 void

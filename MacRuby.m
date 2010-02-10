@@ -1,8 +1,18 @@
+/*
+ * MacRuby Objective-C API.
+ * 
+ * This file is covered by the Ruby license. See COPYING for more details.
+ *
+ * Copyright (C) 2009-2010, Apple Inc. All rights reserved.
+ */
+
 #import <Foundation/Foundation.h>
+
 #include "ruby/ruby.h"
 #include "ruby/node.h"
 #include "ruby/objc.h"
 #include "vm.h"
+#include "objc.h"
 
 @implementation MacRuby
 

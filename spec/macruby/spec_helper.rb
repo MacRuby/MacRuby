@@ -9,8 +9,8 @@ class FixtureCompiler
   end
   
   FRAMEWORKS = %w{ Foundation }
-  ARCHS      = %w{ i386 x86_64 ppc }
-  OPTIONS    = %w{ -g -dynamiclib -fobjc-gc }
+  ARCHS      = %w{ i386 x86_64 }
+  OPTIONS    = %w{ -g -dynamiclib -fobjc-gc -Wl,-undefined,dynamic_lookup }
   GCC        = "/usr/bin/gcc"
   
   attr_reader :gcc, :frameworks, :archs, :options

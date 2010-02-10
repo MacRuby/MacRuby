@@ -8,109 +8,6 @@ static ID removed, singleton_removed, undefined, singleton_undefined;
 static ID eqq, each, aref, aset, match, missing;
 static ID added, singleton_added;
 
-void
-rb_add_method(VALUE klass, ID mid, NODE * node, int noex)
-{
-    // TODO
-    return;
-}
-
-void
-rb_define_alloc_func(VALUE klass, VALUE (*func)(VALUE))
-{
-    // TODO
-#if 0
-    Check_Type(klass, T_CLASS);
-    rb_add_method(rb_singleton_class(klass), ID_ALLOCATOR, NEW_CFUNC(func, 0),
-		  NOEX_PUBLIC);
-#endif
-}
-
-void
-rb_undef_alloc_func(VALUE klass)
-{
-    // TODO
-#if 0
-    Check_Type(klass, T_CLASS);
-    rb_add_method(rb_singleton_class(klass), ID_ALLOCATOR, 0, NOEX_UNDEF);
-#endif
-}
-
-rb_alloc_func_t
-rb_get_alloc_func(VALUE klass)
-{
-    NODE *n;
-    Check_Type(klass, T_CLASS);
-    n = rb_method_node(CLASS_OF(klass), ID_ALLOCATOR);
-    if (!n) return 0;
-    if (nd_type(n) != NODE_METHOD) return 0;
-    n = n->nd_body;
-    if (nd_type(n) != NODE_CFUNC) return 0;
-    return (rb_alloc_func_t)n->nd_cfnc;
-}
-
-static NODE *
-search_method(VALUE klass, ID id, VALUE *klassp)
-{
-    NODE *node;
-    if (klass == 0) {
-	return NULL;
-    }
-    node = rb_method_node(klass, id);
-    if (node != NULL) {
-	if (klassp != NULL) { /* TODO honour klassp */
-	    *klassp = klass;
-	}
-    }
-    return node;
-}
-
-/*
- * search method body (NODE_METHOD)
- *   with    : klass and id
- *   without : method cache
- *
- * if you need method node with method cache, use
- * rb_method_node()
- */
-NODE *
-rb_get_method_body(VALUE klass, ID id, ID *idp)
-{
-    return search_method(klass, id, NULL);
-}
-
-NODE *
-rb_method_node(VALUE klass, ID id)
-{
-    return NULL;
-#if 0 // TODO
-    NODE *node = rb_objc_method_node(klass, id, NULL, NULL);
-    if (node == NULL && id != ID_ALLOCATOR) {
-	const char *id_str = rb_id2name(id);
-	size_t slen = strlen(id_str);
-
-	if (strcmp(id_str, "retain") == 0
-	    || strcmp(id_str, "release") == 0
-	    || strcmp(id_str, "zone") == 0) {
-	    char buf[100];
-	    snprintf(buf, sizeof buf, "__rb_%s__", id_str);
-	    return rb_method_node(klass, rb_intern(buf));
-	}
-	else {
-	    if (id_str[slen - 1] == ':') {
-		return NULL;
-	    }
-	    else {
-		char buf[100];
-		snprintf(buf, sizeof buf, "%s:", id_str);
-		return rb_method_node(klass, rb_intern(buf));
-	    }
-	}
-    }
-    return node;
-#endif
-}
-
 static void
 remove_method(VALUE klass, ID mid)
 {
@@ -229,20 +126,6 @@ rb_export_method(VALUE klass, ID name, ID noex)
     }
 
     node->flags |= flags;
-}
-
-int
-rb_method_boundp(VALUE klass, ID id, int ex)
-{
-    NODE *method;
-
-    if ((method = rb_method_node(klass, id)) != 0) {
-	if (ex && (method->nd_noex & NOEX_PRIVATE)) {
-	    return Qfalse;
-	}
-	return Qtrue;
-    }
-    return Qfalse;
 }
 
 void

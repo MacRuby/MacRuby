@@ -1033,10 +1033,28 @@ rb_objc_add_method(VALUE klass, const char *name, void *imp, const int arity,
     }
 
     NODE *body = rb_vm_cfunc_node_from_imp((Class)klass, arity, (IMP)imp, noex);
-    rb_objc_retain(body);
+    GC_RETAIN(body);
 
     rb_vm_define_method((Class)klass, name_to_sel(name, arity), (IMP)imp,
 	    body, direct);
+}
+
+void *rb_vm_generate_mri_stub(void *imp, const int arity);
+
+static void
+rb_add_mri_method(VALUE klass, const char *name, void *imp, const int arity,
+	const int noex)
+{
+    imp = rb_vm_generate_mri_stub(imp, arity);
+    rb_objc_add_method(klass, name, imp, arity, noex, false);
+}
+
+void
+rb_define_alloc_func(VALUE klass, VALUE (*func)(VALUE))
+{
+    Check_Type(klass, T_CLASS);
+    rb_add_mri_method(rb_singleton_class(klass), "alloc", func, 0,
+	    NOEX_PUBLIC);
 }
 
 void
@@ -1068,27 +1086,40 @@ rb_objc_define_module_function(VALUE module, const char *name, void *imp,
 }
 
 void
+rb_undef_alloc_func(VALUE klass)
+{
+    // TODO
+#if 0
+    Check_Type(klass, T_CLASS);
+    rb_add_mri_method(rb_singleton_class(klass), ID_ALLOCATOR, 0, NOEX_UNDEF);
+#endif
+}
+
+void
 rb_define_method_id(VALUE klass, ID name, VALUE (*func)(ANYARGS), int argc)
 {
-    rb_add_method(klass, name, NEW_CFUNC(func,argc), NOEX_PUBLIC);
+    rb_add_mri_method(klass, rb_id2name(name), func, argc, NOEX_PUBLIC);
 }
 
 void
-rb_define_method(VALUE klass, const char *name, VALUE (*func)(ANYARGS), int argc)
+rb_define_method(VALUE klass, const char *name, VALUE (*func)(ANYARGS),
+	int argc)
 {
-    rb_add_method(klass, rb_intern(name), NEW_CFUNC(func, argc), NOEX_PUBLIC);
+    rb_add_mri_method(klass, name, func, argc, NOEX_PUBLIC);
 }
 
 void
-rb_define_protected_method(VALUE klass, const char *name, VALUE (*func)(ANYARGS), int argc)
+rb_define_protected_method(VALUE klass, const char *name,
+	VALUE (*func)(ANYARGS), int argc)
 {
-    rb_add_method(klass, rb_intern(name), NEW_CFUNC(func, argc), NOEX_PROTECTED);
+    rb_add_mri_method(klass, name, func, argc, NOEX_PROTECTED);
 }
 
 void
-rb_define_private_method(VALUE klass, const char *name, VALUE (*func)(ANYARGS), int argc)
+rb_define_private_method(VALUE klass, const char *name,
+	VALUE (*func)(ANYARGS), int argc)
 {
-    rb_add_method(klass, rb_intern(name), NEW_CFUNC(func, argc), NOEX_PRIVATE);
+    rb_add_mri_method(klass, name, func, argc, NOEX_PRIVATE);
 }
 
 void
@@ -1162,13 +1193,15 @@ rb_singleton_class(VALUE obj)
 }
 
 void
-rb_define_singleton_method(VALUE obj, const char *name, VALUE (*func)(ANYARGS), int argc)
+rb_define_singleton_method(VALUE obj, const char *name,
+	VALUE (*func)(ANYARGS), int argc)
 {
     rb_define_method(rb_singleton_class(obj), name, func, argc);
 }
 
 void
-rb_define_module_function(VALUE module, const char *name, VALUE (*func)(ANYARGS), int argc)
+rb_define_module_function(VALUE module, const char *name,
+	VALUE (*func)(ANYARGS), int argc)
 {
     rb_define_private_method(module, name, func, argc);
     rb_define_singleton_method(module, name, func, argc);

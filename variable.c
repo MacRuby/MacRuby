@@ -20,14 +20,14 @@ static ID autoload, classpath, tmp_classpath;
 static const void *
 retain_cb(CFAllocatorRef allocator, const void *v)
 {
-    rb_objc_retain(v);
+    GC_RETAIN(v);
     return v;
 }
 
 static void
 release_cb(CFAllocatorRef allocator, const void *v)
 {
-    rb_objc_release(v);
+    GC_RELEASE(v);
 }
 
 static void

@@ -7321,6 +7321,82 @@ RoxorCompiler::compile_block_caller(rb_vm_block_t *block)
 }
 
 Function *
+RoxorCompiler::compile_mri_stub(void *imp, const int arity)
+{
+    if (arity == 0) {
+	// ABI matches if arity is 0.
+	// MacRuby:	VALUE foo(VALUE rcv, SEL sel);
+	// MRI:		VALUE foo(VALUE rcv);
+	return NULL;
+    }
+
+    // Prepare function type for the stub.
+    std::vector<const Type *> stub_types;
+    stub_types.push_back(RubyObjTy); 		// self
+    stub_types.push_back(PtrTy);		// SEL
+    if (arity == -2) {
+	stub_types.push_back(RubyObjTy); 	// ary
+    }
+    else if (arity == -1) {
+	stub_types.push_back(Int32Ty); 		// argc
+	stub_types.push_back(RubyObjPtrTy); 	// argv
+    }
+    else {
+	assert(arity > 0);
+	for (int i = 0; i < arity; i++) {
+	    stub_types.push_back(RubyObjTy); 	// arg...
+	}
+    }
+
+    // Create the stub.
+    FunctionType *ft = FunctionType::get(RubyObjTy, stub_types, false);
+    Function *f = cast<Function>(module->getOrInsertFunction("", ft));
+    bb = BasicBlock::Create(context, "EntryBlock", f);
+    Function::arg_iterator arg = f->arg_begin();
+    Value *rcv = arg++;
+    arg++; // skip SEL
+
+    // Prepare function types for the MRI implementation and arguments.
+    std::vector<const Type *> imp_types;
+    std::vector<Value *> params;
+    if (arity == -2) {
+	imp_types.push_back(RubyObjTy); 	// self
+	imp_types.push_back(RubyObjTy); 	// ary
+	params.push_back(rcv);
+	params.push_back(arg++);
+    }
+    else if (arity == -1) {
+	imp_types.push_back(Int32Ty);		// argc
+	imp_types.push_back(RubyObjPtrTy);	// argv
+	imp_types.push_back(RubyObjTy); 	// self
+	params.push_back(arg++);
+	params.push_back(arg++);
+	params.push_back(rcv);
+    }
+    else {
+	assert(arity > 0);
+	imp_types.push_back(RubyObjTy); 	// self
+	params.push_back(rcv);
+	for (int i = 0; i < arity; i++) {
+	    imp_types.push_back(RubyObjTy); 	// arg...
+	    params.push_back(arg++);
+	}
+    }
+
+    // Cast the given MRI implementation.
+    FunctionType *imp_ft = FunctionType::get(RubyObjTy, imp_types, false);
+    Value *imp_val = new BitCastInst(compile_const_pointer(imp),
+	    PointerType::getUnqual(imp_ft), "", bb);
+
+    // Call the MRI implementation and return its value.
+    CallInst *imp_call = CallInst::Create(imp_val, params.begin(),
+	    params.end(), "", bb); 
+    ReturnInst::Create(context, imp_call, bb);
+
+    return f;
+}
+
+Function *
 RoxorCompiler::compile_to_rval_convertor(const char *type)
 {
     // VALUE foo(void *ocval);

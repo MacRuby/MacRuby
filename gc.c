@@ -295,13 +295,13 @@ rb_objc_get_associative_ref(void *obj, void *key)
 const void *
 rb_objc_retain_ni(const void *addr)
 {
-    return rb_objc_retain(addr);
+    return rb_objc_retain((void *)addr);
 }
 
 const void *
 rb_objc_release_ni(const void *addr)
 {
-    return rb_objc_release(addr);
+    return rb_objc_release((void *)addr);
 }
 
 void

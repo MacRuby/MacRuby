@@ -1233,19 +1233,6 @@ method_arity_m(VALUE method, SEL sel)
     return INT2FIX(n);
 }
 
-int
-rb_mod_method_arity(VALUE mod, ID id)
-{
-    NODE *node = rb_method_node(mod, id);
-    return rb_node_arity(node);
-}
-
-int
-rb_obj_method_arity(VALUE obj, ID id)
-{
-    return rb_mod_method_arity(CLASS_OF(obj), id);
-}
-
 /*
  *  call-seq:
  *   meth.to_s      =>  string

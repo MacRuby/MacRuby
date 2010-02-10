@@ -1194,72 +1194,6 @@ rb_is_native(VALUE obj) {
     return k != NULL && (RCLASS_VERSION(k) & RCLASS_IS_OBJECT_SUBCLASS) != RCLASS_IS_OBJECT_SUBCLASS;
 }
 #define NATIVE(obj) (rb_is_native((VALUE)obj))
-
-VALUE rb_box_fixnum(VALUE);
-VALUE rb_box_fixfloat(VALUE);
-
-static inline id
-rb_rval_to_ocid(VALUE obj)
-{
-    if (SPECIAL_CONST_P(obj)) {
-        if (obj == Qtrue) {
-            return (id)kCFBooleanTrue;
-        }
-        if (obj == Qfalse) {
-            return (id)kCFBooleanFalse;
-        }
-        if (obj == Qnil) {
-            return (id)kCFNull;
-        }
-	if (FIXNUM_P(obj)) {
-	    return (id)rb_box_fixnum(obj);
-	}
-	if (FIXFLOAT_P(obj)) {
-	    return (id)rb_box_fixfloat(obj);
-	}
-    }
-    return (id)obj;
-}
-
-static inline VALUE
-rb_ocid_to_rval(id obj)
-{
-    if (obj == (id)kCFBooleanTrue) {
-	return Qtrue;
-    }
-    if (obj == (id)kCFBooleanFalse) {
-	return Qfalse;
-    }
-    if (obj == (id)kCFNull || obj == nil) {
-	return Qnil;
-    }
-    if (*(Class *)obj == (Class)rb_cFixnum) {
-	return LONG2FIX(RFIXNUM(obj)->value);
-    }
-#if 0 // XXX this does not seem to be needed
-    if (*(Class *)obj == (Class)rb_cFloat) {
-	extern VALUE rb_float_new(double);
-	return rb_float_new(RFLOAT(obj)->float_value);
-    }
-#endif
-    if (*(Class *)obj == (Class)rb_cCFNumber) {
-	/* TODO NSNumber should implement the Numeric primitive methods */
-	if (CFNumberIsFloatType((CFNumberRef)obj)) {
-	    double v;
-	    assert(CFNumberGetValue((CFNumberRef)obj, kCFNumberDoubleType, &v));
-	    extern VALUE rb_float_new(double);
-	    return rb_float_new(v);
-	}
-	else {
-	    long v;
-	    assert(CFNumberGetValue((CFNumberRef)obj, kCFNumberLongType, &v));
-	    return LONG2FIX(v);
-	}
-    }
-    return (VALUE)obj;
-}
-#define RB2OC(obj) (rb_rval_to_ocid((VALUE)obj))
-#define OC2RB(obj) (rb_ocid_to_rval((id)obj))
 #endif
 
 static force_inline VALUE
@@ -1368,22 +1302,21 @@ __ignore_stupid_gcc_warnings(void)
     CLASS_OF(INT2FIX(0));
 }
 
-static inline int
+static inline bool
 rb_special_const_p(VALUE obj)
 {
-    if (SPECIAL_CONST_P(obj)) return Qtrue;
-    return Qfalse;
+    return SPECIAL_CONST_P(obj) ? Qtrue : Qfalse;
 }
 
 #if !defined(__AUTO_ZONE__)
-# include <malloc/malloc.h>
-typedef void *auto_zone_t;
-boolean_t auto_zone_set_write_barrier(auto_zone_t *zone, const void *dest, const void *new_value);
-void auto_zone_add_root(auto_zone_t *zone, void *address_of_root_ptr, void *value);
-void auto_zone_retain(auto_zone_t *zone, void *ptr);
-unsigned int auto_zone_release(auto_zone_t *zone, void *ptr);
-#endif
+boolean_t auto_zone_set_write_barrier(void *zone, const void *dest, const void *new_value);
+void auto_zone_add_root(void *zone, void *address_of_root_ptr, void *value);
+void auto_zone_retain(void *zone, void *ptr);
+unsigned int auto_zone_release(void *zone, void *ptr);
+extern void *__auto_zone;
+#else
 extern auto_zone_t *__auto_zone;
+#endif
 
 #define GC_WB(dst, newval) \
     do { \
@@ -1407,25 +1340,25 @@ rb_objc_root(void *addr)
 }
 #define GC_ROOT(addr) (rb_objc_root((void *)addr))
 
-static inline const void *
-rb_objc_retain(const void *addr)
+static inline void *
+rb_objc_retain(void *addr)
 {
     if (addr != NULL && !SPECIAL_CONST_P(addr)) {
-        auto_zone_retain(__auto_zone, (void *)addr);
+        auto_zone_retain(__auto_zone, addr);
     }
     return addr;
 }
-#define GC_RETAIN(obj) (rb_objc_retain((const void *)obj))
+#define GC_RETAIN(obj) (rb_objc_retain((void *)obj))
 
-static inline const void *
-rb_objc_release(const void *addr)
+static inline void *
+rb_objc_release(void *addr)
 {
     if (addr != NULL && !SPECIAL_CONST_P(addr)) {
-        auto_zone_release(__auto_zone, (void *)addr);
+        auto_zone_release(__auto_zone, addr);
     }
     return addr;
 }
-#define GC_RELEASE(obj) (rb_objc_release((const void *)obj))
+#define GC_RELEASE(obj) (rb_objc_release((void *)obj))
 
 #if RUBY_INCLUDED_AS_FRAMEWORK
 #include <MacRuby/ruby/missing.h>

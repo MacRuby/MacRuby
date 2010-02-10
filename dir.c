@@ -675,7 +675,7 @@ chdir_restore(struct chdir_data *args)
 //	    chdir_thread = Qnil;
 	dir_chdir(args->old_path);
     }
-    rb_objc_release((const void *)args->old_path);
+    GC_RELEASE(args->old_path);
     return Qnil;
 }
 
@@ -747,7 +747,7 @@ dir_s_chdir(VALUE obj, SEL sel, int argc, VALUE *argv)
 	VALUE cwd = my_getcwd();
 
 	args.old_path = cwd;
-	rb_objc_retain((const void *)args.old_path);
+	GC_RETAIN(args.old_path);
 	args.new_path = path;
 	args.done = Qfalse;
 	return rb_ensure(chdir_yield, (VALUE)&args, chdir_restore, (VALUE)&args);

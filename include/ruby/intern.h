@@ -259,12 +259,10 @@ void rb_remove_method(VALUE, const char*);
 typedef VALUE (*rb_alloc_func_t)(VALUE);
 void rb_define_alloc_func(VALUE, rb_alloc_func_t);
 void rb_undef_alloc_func(VALUE);
-rb_alloc_func_t rb_get_alloc_func(VALUE);
 void rb_clear_cache(void);
 void rb_clear_cache_by_class(VALUE);
 void rb_alias(VALUE, ID, ID);
 void rb_attr(VALUE,ID,int,int,int);
-int rb_method_boundp(VALUE, ID, int);
 VALUE rb_eval_cmd(VALUE, VALUE, int);
 bool rb_obj_respond_to(VALUE, ID, bool);
 bool rb_respond_to(VALUE, ID);
@@ -286,8 +284,6 @@ VALUE rb_proc_call2(VALUE self, int argc, VALUE *argv);
 int rb_proc_arity(VALUE);
 VALUE rb_binding_new(void);
 VALUE rb_method_call(VALUE, SEL, int, VALUE*);
-int rb_mod_method_arity(VALUE, ID);
-int rb_obj_method_arity(VALUE, ID);
 VALUE rb_protect(VALUE (*)(VALUE), VALUE, int*);
 void rb_mark_end_proc(void);
 void rb_exec_end_proc(void);
@@ -335,8 +331,6 @@ void rb_objc_gc_register_thread(void);
 void rb_objc_gc_unregister_thread(void);
 void rb_objc_set_associative_ref(void *, void *, void *);
 void *rb_objc_get_associative_ref(void *, void *);
-const void *rb_objc_retain(const void *);
-const void *rb_objc_release(const void *);
 # define rb_gc_mark_locations(x,y)
 # define rb_mark_tbl(x)
 # define rb_mark_set(x)

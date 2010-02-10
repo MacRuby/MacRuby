@@ -113,6 +113,13 @@ mark_marshal_compat_t(void *tbl)
     st_foreach(tbl, mark_marshal_compat_i, 0);
 }
 
+static rb_alloc_func_t
+rb_get_alloc_func(VALUE klass)
+{
+    // TODO... or is this really needed...
+    return NULL;
+}
+
 void
 rb_marshal_define_compat(VALUE newclass, VALUE oldclass, VALUE (*dumper)(VALUE), VALUE (*loader)(VALUE, VALUE))
 {
