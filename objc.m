@@ -261,7 +261,8 @@ reload_class_constants(void)
 	if (!RCLASS_RUBY(k)) {
 	    long v = RCLASS_VERSION(k);
 	    if (!(v & RCLASS_IS_HASH_SUBCLASS)
-		    && !(v & RCLASS_IS_ARRAY_SUBCLASS)) {
+		    && !(v & RCLASS_IS_ARRAY_SUBCLASS)
+		    && !(v & RCLASS_IS_STRING_SUBCLASS)) {
 		Class k2 = k;
 		while (k2 != NULL) {
 		    if (k2 == (Class)rb_cNSHash) {
@@ -271,6 +272,11 @@ reload_class_constants(void)
 		    }
 		    else if (k2 == (Class)rb_cNSArray) {
 			v |= RCLASS_IS_ARRAY_SUBCLASS;
+			RCLASS_SET_VERSION(k, v);
+			break;
+		    }
+		    else if (k2 == (Class)rb_cNSString) {
+			v |= RCLASS_IS_STRING_SUBCLASS;
 			RCLASS_SET_VERSION(k, v);
 			break;
 		    }
