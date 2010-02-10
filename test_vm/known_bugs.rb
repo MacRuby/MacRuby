@@ -6,11 +6,6 @@ assert 'true', %{
   p X.object_id != X.dup.object_id
 }
 
-assert 'true', %{
-  o = Object.new
-  p o.object_id != o.dup.object_id
-}
-
 assert '123456789012345678901234567890', %{
   puts '%d' % 123456789012345678901234567890
 }
