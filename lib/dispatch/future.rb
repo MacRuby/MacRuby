@@ -6,7 +6,7 @@ module Dispatch
    
   class Future
     # Create a future that asynchronously dispatches the block 
-    # to the default queue
+    # to a concurrent queue of the specified (optional) +priority+
     attr_accessor :group
     
     def initialize(priority = nil, &block)
