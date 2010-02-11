@@ -459,7 +459,7 @@ rb_str_empty(VALUE str, SEL sel)
  */
 
 static VALUE
-rb_str_plus(VALUE str1, SEL sel, VALUE str2)
+rb_str_plus_imp(VALUE str1, SEL sel, VALUE str2)
 {
     StringValue(str2);
     VALUE str3 = rb_str_new(0, 0);
@@ -470,6 +470,13 @@ rb_str_plus(VALUE str1, SEL sel, VALUE str2)
     }
     return str3;
 }
+
+VALUE
+rb_str_plus(VALUE str1, VALUE str2)
+{
+    return rb_str_plus_imp(str1, 0, str2);
+}
+
 
 /*
  *  call-seq:
@@ -5652,7 +5659,7 @@ Init_String(void)
     rb_objc_define_method(rb_cString, "==", rb_str_equal_imp, 1);
     rb_objc_define_method(rb_cString, "eql?", rb_str_eql, 1);
     rb_objc_define_method(rb_cString, "casecmp", rb_str_casecmp, 1);
-    rb_objc_define_method(rb_cString, "+", rb_str_plus, 1);
+    rb_objc_define_method(rb_cString, "+", rb_str_plus_imp, 1);
     rb_objc_define_method(rb_cString, "*", rb_str_times, 1);
     rb_objc_define_method(rb_cString, "%", rb_str_format_m, 1);
     rb_objc_define_method(rb_cString, "[]", rb_str_aref_m, -1);
