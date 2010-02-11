@@ -7,6 +7,7 @@ require 'dispatch'
 
 DEBUG = false
 
+START  = DEBUG ? 0 : 1
 N_NODES = DEBUG ? 1 : 4
 M_MESSAGES = DEBUG ? 0 : 3
 
@@ -76,12 +77,12 @@ def bench(n,m)
   
 end
 
-1.upto N_NODES do |p|
+START.upto N_NODES do |p|
     n = 10**p
     ring = Ring.new n
     puts "\nRing of size #{n}:"
     puts "\t#{ring}" if DEBUG
-    1.upto(M_MESSAGES) do |q|
+    START.upto(M_MESSAGES) do |q|
       r = 10**q
       [r, 2*r, 5*r].each do |m|
           puts "#{m} message(s)" if DEBUG
