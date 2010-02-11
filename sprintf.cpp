@@ -266,7 +266,8 @@
  */
 
 #define GETNTHARG(nth) \
-     ((nth >= argc) ? (rb_raise(rb_eArgError, "too few arguments"), 0) : argv[nth])
+    ((nth >= argc) ? (rb_raise(rb_eArgError, "too few arguments"), 0) : \
+    argv[nth])
 
 extern "C" {
 
@@ -323,177 +324,474 @@ rb_sprintf(const char *format, ...)
     return result;
 }
 
-static void
-get_types_for_format_str(std::string &octypes, const unsigned int len,
-			 VALUE *args, const char *format_str, char **new_fmt)
-{
-    size_t format_str_len = strlen(format_str);
-    unsigned int i = 0, j = 0;
+#define IS_NEG(num) RBIGNUM_NEGATIVE_P(num)
+#define REL_REF	    1
+#define ABS_REF	    2
+#define NAMED_REF   3
 
-    while (i < format_str_len) {
-	bool sharp_modifier = false;
-	bool star_modifier = false;
-	if (format_str[i++] != '%') {
+#define REF_NAME(type) \
+    ((type) == REL_REF ? "relative" : (type) == ABS_REF ? "absolute" : "named")
+
+#define SET_REF_TYPE(type) \
+    if (ref_type != 0 && (type) != ref_type) { \
+	rb_raise(rb_eArgError, "can't mix %s references with %s references", \
+		REF_NAME(type), REF_NAME(ref_type)); \
+    } \
+    ref_type = (type);
+
+#define GET_ARG() \
+    if (arg == 0) { \
+	SET_REF_TYPE(REL_REF); \
+	arg = GETNTHARG(j); \
+	j++; \
+    }
+    
+#define isprenum(ch) ((ch) == '-' || (ch) == ' ' || (ch) == '+')
+
+#define isnan(x) (x != x)
+#define isinf(x) (__builtin_fabs(x) == __builtin_inf())
+
+static void
+pad_format_value(VALUE arg, long start, long width,
+	CFStringRef pad)
+{
+    long slen = (long)CFStringGetLength((CFStringRef)arg);
+    if (width <= slen) {
+	return;
+    }
+    if (start < 0) {
+	start += slen + 1;
+    }
+    width -= slen;
+    do {
+	CFStringInsert((CFMutableStringRef)arg, start, pad);
+    } while (--width > 0);
+}
+
+static long
+cstr_update(char **str, unsigned long start, unsigned long num, char *replace)
+{
+    unsigned long len = strlen(*str) + 1;
+    unsigned long replace_len = strlen(replace);
+    if (start + num > len) {
+	num = len - start;
+    }
+    if (replace_len >= num) {
+	char *new_str = (char *)xmalloc(len + replace_len - num);
+	memcpy(new_str, *str, len);
+	*str = new_str;
+    }
+    if (replace_len != num) {
+	bcopy(*str + start + num, *str + start + replace_len, len - start -
+		num);
+    }
+    if (replace_len > 0) {
+	bcopy(replace, *str + start, replace_len);
+    }
+    return replace_len - num;
+}
+
+VALUE
+get_named_arg(char *format_str, unsigned long format_len, unsigned long *i,
+	VALUE hash)
+{
+    if (TYPE(hash) != T_HASH) {
+	rb_raise(rb_eArgError,
+		 "hash required for named references");
+    }
+    char closing = format_str[(*i)++] + 2;
+    char *str_ptr = format_str + *i;
+    while (*i < format_len && format_str[*i] != closing) {
+	(*i)++;
+    }
+    if (*i == format_len) {
+	rb_raise(rb_eArgError,
+		 "malformed name - unmatched parenthesis");
+    }
+    format_str[*i] = '\0';
+    hash = rb_hash_aref(hash, rb_name2sym(str_ptr));
+    format_str[*i] = closing;
+    return (hash);
+}
+
+// XXX
+// - this method uses strtol to read numbers from the format string, so
+//   extremely large numbers get silently truncated. this should be fixed
+// - switch to a cfstring format string to allow for proper encoding support
+    
+// XXX look for arguments that are altered but not duped
+VALUE
+rb_str_format(int argc, const VALUE *argv, VALUE fmt)
+{
+    bool tainted = OBJ_TAINTED(fmt);
+    fmt = rb_str_new3(fmt);
+    char *format_str = (char *)RSTRING_PTR(fmt);
+    unsigned long format_len = strlen(format_str);
+    long num;
+    int j = 0;
+    int ref_type = 0;
+
+    for (unsigned long i = 0; i < format_len; i++) {
+	if (format_str[i] != '%') {
 	    continue;
 	}
-	if (i < format_str_len && format_str[i] == '%') {
-	    i++;
+	if (format_str[i + 1] == '%') {
+	    cstr_update(&format_str, i, 1, (char *)"");
 	    continue;
 	}
-	while (i < format_str_len) {
-	    char type = 0;
+
+	bool sharp_flag = false;
+	bool space_flag = false;
+	bool plus_flag = false;
+	bool minus_flag = false;
+	bool zero_flag = false;
+	bool precision_flag = false;
+	bool complete = false;
+	VALUE arg = 0;
+	long width = 0;
+	long precision = 0;
+	int base = 0;
+	CFStringRef negative_pad = NULL;
+	CFStringRef sharp_pad = CFSTR("");
+	char *str_ptr;
+
+	unsigned long start = i;
+	while (i++ < format_len) {
 	    switch (format_str[i]) {
 		case '#':
-		    sharp_modifier = true;
+		    sharp_flag = true;
 		    break;
 
 		case '*':
-		    star_modifier = true;
-		    type = _C_INT;
-		    break;
-
-		case 'd':
-		case 'i':
-		case 'o':
-		case 'u':
-		case 'x':
-		case 'X':
-		    type = _C_INT;
-		    break;
-
-		case 'c':
-		case 'C':
-		    type = _C_CHR;
-		    break;
-
-		case 'D':
-		case 'O':
-		case 'U':
-		    type = _C_LNG;
-		    break;
-
-		case 'f':       
-		case 'F':
-		case 'e':       
-		case 'E':
-		case 'g':       
-		case 'G':
-		case 'a':
-		case 'A':
-		    type = _C_DBL;
-		    break;
-
-		case 's':
-		case 'S':
-		    {
-			if (i - 1 > 0) {
-			    unsigned long k = i - 1;
-			    while (k > 0 && format_str[k] == '0') {
-				k--;
-			    }
-			    if (k < i && format_str[k] == '.') {
-				args[j] = (VALUE)CFSTR("");
-			    }
+		    if (format_str[++i] == '<' || format_str[i] == '{') {
+			SET_REF_TYPE(NAMED_REF);
+			width = NUM2LONG(rb_Integer(get_named_arg(format_str,
+				format_len, &i, GETNTHARG(0))));
+		    }
+		    else {
+			if (isprenum(format_str[i])) {
+			    i--;
+			    break;
 			}
-#if 1
-			// In Ruby, '%s' is supposed to convert the argument
-			// as a string, calling #to_s on it. In order to
-			// support this behavior we are changing the format
-			// to '@' which sends the -[NSObject description]
-			// message, exactly what we want.
-			if (*new_fmt == NULL) {
-			    *new_fmt = strdup(format_str);
+			num = strtol(format_str + i, &str_ptr, 10);
+			if (str_ptr == format_str + i--) {
+			    SET_REF_TYPE(REL_REF);
+			    width = NUM2LONG(rb_Integer(GETNTHARG(j)));
+			    j++;
 			}
-			(*new_fmt)[i] = '@';
-			type = _C_ID;
-#else
-			type = _C_CHARPTR;
-#endif
+			else if (*str_ptr == '$') {
+			    SET_REF_TYPE(ABS_REF);
+			    width = NUM2LONG(rb_Integer(GETNTHARG(num - 1)));
+			    i = str_ptr - format_str;
+			}
+		    }
+		    if (width < 0) {
+			minus_flag = true;
+			width = -width;
 		    }
 		    break;
 
-		case 'p':
-		case '@':
-		    type = _C_ID;
+		case ' ':
+		    if (!plus_flag) {
+			space_flag = true;
+		    }
+		    break;
+
+		case '+':
+		    plus_flag = true;
+		    space_flag = false;
+		    break;
+
+		case '-':
+		    zero_flag = false;
+		    minus_flag = true;
+		    break;
+
+		case '0':
+		    if (!precision_flag && !minus_flag) {
+			zero_flag = true;
+		    }
+		    break;
+
+		case '1':
+		case '2':
+		case '3':
+		case '4':
+		case '5':
+		case '6':
+		case '7':
+		case '8':
+		case '9':
+		    num = strtol(format_str + i, &str_ptr, 10);
+		    i = str_ptr - format_str;
+		    if (*str_ptr == '$') {
+			if (num == 0) {
+			    rb_raise(rb_eArgError, "invalid absolute argument");
+			}
+			SET_REF_TYPE(ABS_REF);
+			arg = GETNTHARG(num - 1);
+		    }
+		    else {
+			SET_REF_TYPE(REL_REF);
+			width = num;
+			i--;
+		    }
+		    break;
+
+		case '.':
+		    zero_flag = false;
+		    precision_flag = true;
+		    if (format_str[++i] == '*') {
+			if (format_str[++i] == '<' || format_str[i] == '{') {
+			    SET_REF_TYPE(NAMED_REF);
+			    precision = NUM2LONG(rb_Integer(get_named_arg(
+				    format_str, format_len, &i, GETNTHARG(0))));
+			}
+			else {
+			    if (isprenum(format_str[i])) {
+				i--;
+				break;
+			    }
+			    num = strtol(format_str + i, &str_ptr, 10);
+			    if (str_ptr == format_str + i--) {
+				SET_REF_TYPE(REL_REF);
+				precision = NUM2LONG(rb_Integer(GETNTHARG(j)));
+				j++;
+			    }
+			    else if (*str_ptr == '$') {
+				SET_REF_TYPE(ABS_REF);
+				precision = NUM2LONG(rb_Integer(GETNTHARG(
+					num - 1)));
+				i = str_ptr - format_str;
+			    }
+			}
+		    }
+		    else if (isdigit(format_str[i])) {
+			precision = strtol(format_str + i, &str_ptr, 10);
+			i = str_ptr - format_str - 1;
+		    }
+		    else {
+			rb_raise(rb_eArgError, "invalid precision");
+		    }
+
+		    if (precision < 0) {
+			precision = 0;
+		    }
+		    break;
+
+		case '<':
+		case '{':
+		    SET_REF_TYPE(NAMED_REF);
+		    arg = get_named_arg(format_str, format_len, &i,
+			    GETNTHARG(0));
+		    break;
+
+		case 'd':
+		case 'D':
+		case 'i':
+		case 'u':
+		case 'U':
+		    base = 10;
+		    complete = true;
+		    break;
+
+		case 'x':
+		case 'X':
+		    base = 16;
+		    negative_pad = CFSTR("f");
+		    sharp_pad = CFSTR("0x");
+		    complete = true;
+		    break;
+
+		case 'o':
+		case 'O':
+		    base = 8;
+		    negative_pad = CFSTR("7");
+		    sharp_pad = CFSTR("0");
+		    complete = true;
 		    break;
 
 		case 'B':
 		case 'b':
-		    {
-			VALUE arg = args[j];
-			switch (TYPE(arg)) {
-			    case T_STRING:
-				arg = rb_str_to_inum(arg, 0, Qtrue);
-				break;
-			}
-			arg = rb_big2str(arg, 2);
-			if (sharp_modifier) {
-			    VALUE prefix = format_str[i] == 'B'
-				? (VALUE)CFSTR("0B") : (VALUE)CFSTR("0b");
-			    rb_str_update(arg, 0, 0, prefix);
-			}
-			if (*new_fmt == NULL) {
-			    *new_fmt = strdup(format_str);
-			}
-			(*new_fmt)[i] = '@';
-			args[j] = arg;
-			type = _C_ID;
+		    base = 2;
+		    negative_pad = CFSTR("1");
+		    sharp_pad = CFSTR("0b");
+		    complete = true;
+		    break;
+
+		case 'c':
+		case 'C':
+		    GET_ARG();
+		    if (TYPE(arg) == T_STRING) {
+			arg = rb_str_substr(arg, 0, 1);
 		    }
+		    else {
+			// rb_num_to_chr is broken so leave out the
+			// enc or we don't get range checking
+			arg = rb_num_to_chr(arg, NULL /*rb_enc_get(fmt)*/);
+		    }
+		    complete = true;
 		    break;
+
+		case 'f':
+		case 'F':
+		case 'e':
+		case 'E':
+		case 'g':
+		case 'G':
+		case 'a':
+		case 'A':
+		{
+		    // here we construct a new format str and then use
+		    // c's sprintf. why? because floats are retarded
+		    GET_ARG();
+		    double value = RFLOAT_VALUE(rb_Float(arg));
+		    complete = true;
+		    
+		    if (isnan(value) || isinf(value)) {
+			arg = rb_str_new2((char *)(isnan(value) ? "NaN" :
+				value < 0 ? "-Inf" : "Inf"));
+			if (isnan(value) || value > 0) {
+			    if (plus_flag) {
+				rb_str_update(arg, 0, 0, (VALUE)CFSTR("+"));
+			    }
+			    else if (space_flag) {
+				rb_str_update(arg, 0, 0, (VALUE)CFSTR(" "));
+			    }
+			}
+			break;
+		    }
+
+		    arg = rb_str_new(format_str + i, 1);
+		    if (precision_flag) {
+			rb_str_update(arg, 0, 0, rb_big2str(LONG2NUM(precision),
+				10));
+			rb_str_update(arg, 0, 0, (VALUE)CFSTR("."));
+		    }
+		    rb_str_update(arg, 0, 0, rb_big2str(LONG2NUM(width), 10));
+		    if (minus_flag) {
+			rb_str_update(arg, 0, 0, (VALUE)CFSTR("-"));
+		    }
+		    else if (zero_flag) {
+			rb_str_update(arg, 0, 0, (VALUE)CFSTR("0"));
+		    }
+		    if (plus_flag) {
+			rb_str_update(arg, 0, 0, (VALUE)CFSTR("+"));
+		    }
+		    else if (space_flag) {
+			rb_str_update(arg, 0, 0, (VALUE)CFSTR(" "));
+		    }
+		    if (sharp_flag) {
+			rb_str_update(arg, 0, 0, (VALUE)CFSTR("#"));
+		    }
+		    rb_str_update(arg, 0, 0, (VALUE)CFSTR("%"));
+
+		    asprintf(&str_ptr, RSTRING_PTR(arg), value);
+		    arg = rb_str_new2(str_ptr);
+		    free(str_ptr);
+		    break;
+		}
+
+		case 's':
+		case 'S':
+		case 'p':
+		case '@':
+		    GET_ARG();
+		    arg = (tolower(format_str[i]) != 's' ? rb_inspect(arg)
+			    : TYPE(arg) == T_STRING ? rb_str_new3(arg)
+			    : rb_obj_as_string(arg));
+		    if (precision_flag && precision
+			    < CFStringGetLength((CFStringRef)arg)) {
+			CFStringPad((CFMutableStringRef)arg, NULL, precision,
+				0);
+		    }
+		    complete = true;
+		    break;
+
+		default:
+		    rb_raise(rb_eArgError, "malformed format string - %%%c",
+			    format_str[i]);
+	    }
+	    if (!complete) {
+		continue;
 	    }
 
-	    i++;
+	    GET_ARG();
 
-	    if (type != 0) {
-		if (len == 0 || j >= len) {
-		    rb_raise(rb_eArgError, 
-			    "Too much tokens in the format string `%s' "\
-			    "for the given %d argument(s)", format_str, len);
+	    if (base != 0) {
+		bool sign_pad = false;
+		unsigned long num_index = 0;
+		CFStringRef zero_pad = CFSTR("0");
+
+		VALUE num = rb_Integer(arg);
+		if (TYPE(num) == T_FIXNUM) {
+		    num = rb_int2big(FIX2LONG(num));
 		}
-		octypes.push_back(type);
-		j++;
-		if (!star_modifier) {
-		    break;
+		if (plus_flag || space_flag) {
+		    sign_pad = 1;
+		}
+		if (IS_NEG(num)) {
+		    num_index = 1;
+		    if (!sign_pad && negative_pad != NULL) {
+			zero_pad = negative_pad;
+			num = rb_big_clone(num);
+			rb_big_2comp(num);
+		    }
+		}
+
+		arg = rb_big2str(num, base);
+		if (!sign_pad && IS_NEG(num) && negative_pad != NULL) {
+		    char neg = *RSTRING_PTR(negative_pad);
+		    str_ptr = (char *)RSTRING_PTR(arg) + 1;
+		    if (base == 8) {
+			*str_ptr |= ((~0 << 3) >> ((3 * strlen(str_ptr)) %
+				(sizeof(BDIGIT) * 8))) & ~(~0 << 3);
+		    }
+		    while (*str_ptr++ == neg) {
+			num_index++;
+		    }
+		    rb_str_update(arg, 0, num_index, (VALUE)negative_pad);
+		    rb_str_update(arg, 0, 0, (VALUE)CFSTR(".."));
+		    num_index = 2;
+		}
+
+		if (precision_flag) {
+		    pad_format_value(arg, num_index, precision + (IS_NEG(num) &&
+			    (sign_pad || negative_pad == NULL) ? 1 : 0),
+			    zero_pad);
+		}
+		if (sharp_flag && rb_cmpint(num, NULL, NULL) != 0) {
+		    rb_str_update(arg, sign_pad, 0, (VALUE)sharp_pad);
+		    num_index += 2;
+		}
+		if (sign_pad && RBIGNUM_POSITIVE_P(num)) {
+		    rb_str_update(arg, 0, 0, (VALUE)(plus_flag ?
+			    CFSTR("+") : CFSTR(" ")));
+		    num_index++;
+		}
+		if (zero_flag) {
+		    pad_format_value(arg, num_index, width, zero_pad);
+		}
+		if (ISUPPER(format_str[i])) {
+		    CFStringUppercase((CFMutableStringRef)arg, NULL);
 		}
 	    }
+	    
+	    if (OBJ_TAINTED(arg)) {
+		tainted = true;
+	    }
+
+	    pad_format_value(arg, minus_flag ? -1 : 0, width, CFSTR(" "));
+	    num = cstr_update(&format_str, start, i - start + 1,
+		    (char *)RSTRING_PTR(arg));
+	    format_len += num;
+	    i += num;
+	    break;
 	}
     }
-    for (; j < len; j++) {
-	octypes.push_back(_C_ID);
-    }
-}
 
-VALUE
-rb_str_format(int argc, const VALUE *argv, VALUE fmt)
-{
-    if (argc == 0) {
-	return fmt;
-    }
-
-    char *new_fmt = NULL;
-    std::string types("@@@@");
-    get_types_for_format_str(types, (unsigned int)argc, (VALUE *)argv, 
-	    RSTRING_PTR(fmt), &new_fmt);
-
-    if (new_fmt != NULL) {
-	fmt = rb_str_new2(new_fmt);
-    }  
-
-    VALUE *stub_args = (VALUE *)malloc(sizeof(VALUE) * (argc + 4));
-    stub_args[0] = Qnil; // allocator
-    stub_args[1] = Qnil; // format options
-    stub_args[2] = fmt;  // format string
-    for (int i = 0; i < argc; i++) {
-	stub_args[3 + i] = argv[i];
-    }
-
-    rb_vm_c_stub_t *stub = (rb_vm_c_stub_t *)GET_CORE()->gen_stub(types,
-	    true, 3, false);
-
-    VALUE str = (*stub)((IMP)&CFStringCreateWithFormat, argc + 3, stub_args);
-    CFMakeCollectable((void *)str);
-    free(stub_args);
-    return str;
+    fmt = rb_str_new2(format_str);
+    return tainted ? OBJ_TAINT(fmt) : fmt;
 }
 
 } // extern "C"

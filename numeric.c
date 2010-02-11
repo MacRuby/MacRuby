@@ -1964,6 +1964,29 @@ int_pred(VALUE num, SEL sel)
     return rb_vm_call(num, selMINUS, 1, &one, false);
 }
 
+VALUE
+rb_num_to_chr(VALUE num, rb_encoding *enc)
+{
+    // XXX completely broken
+    long i = NUM2LONG(num);
+    char c[2] = {i, '\0'};
+    
+    if (enc) {
+	return rb_enc_str_new(c, 1, enc);
+    } 
+    else {
+	if (i < 0 || 0xff < i) {
+	    rb_raise(rb_eRangeError, "%"PRIdVALUE " out of char range", i);
+	}
+	if (i < 0x80) {
+	    return rb_usascii_str_new(c, 1);
+	} 
+	else {
+	    return rb_str_new(c, 1);
+	}
+    }
+}
+
 /*
  *  call-seq:
  *     int.chr([encoding])    => string
@@ -1979,31 +2002,10 @@ int_pred(VALUE num, SEL sel)
 static VALUE
 int_chr(VALUE num, SEL sel, int argc, VALUE *argv)
 {
-    long i = NUM2LONG(num);
-    char c[2] = {i, '\0'};
-    rb_encoding *enc;
-    VALUE str;
-
-    switch (argc) {
-      case 0:
-	if (i < 0 || 0xff < i) {
-	    rb_raise(rb_eRangeError, "%"PRIdVALUE " out of char range", i);
-	}
-	if (i < 0x80) {
-	    return rb_usascii_str_new(c, 1);
-	}
-	else {
-	    return rb_str_new(c, 1);
-	}
-      case 1:
-	break;
-      default:
+    if (argc > 1) {
 	rb_raise(rb_eArgError, "wrong number of arguments (%d for 0 or 1)", argc);
-	break;
     }
-    enc = rb_to_encoding(argv[0]);
-    str = rb_enc_str_new(c, 1, enc);
-    return str;
+    return rb_num_to_chr(num, (argc ? rb_to_encoding(argv[0]) : NULL));
 }
 
 static VALUE

@@ -939,6 +939,7 @@ ID rb_intern2(const char*, long);
 ID rb_intern_str(VALUE str);
 ID rb_to_id(VALUE);
 VALUE rb_id2str(ID);
+VALUE rb_name2sym(const char *);
 #if WITH_OBJC
 # define rb_sym2name(sym) (RSYMBOL(sym)->str)
 static inline
