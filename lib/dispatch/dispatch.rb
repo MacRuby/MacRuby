@@ -5,7 +5,7 @@ module Dispatch
   # Asynchronously run the +&block+  
   # on a concurrent queue of the given (optional) +priority+
   #
-  #   Dispatch.async {p "Do this later"}
+  #   Dispatch.async {p "Did this later"}
   # 
   def async(priority=nil, &block)
     Dispatch::Queue.concurrent(priority).async &block
@@ -27,8 +27,9 @@ module Dispatch
   # returned for use with +wait+ or +notify+ --
   # on a concurrent queue of the given (optional) +priority+
   #
-  #   g = Dispatch.group {p "Did this"}
-  #   g.wait # => "Did this"
+  #   g = Dispatch.group {p "Do this"}
+  #   Dispatch.group(g) {p "and that"}
+  #   g.wait # => "Do this" "and that"
   # 
   def group(grp=nil, priority=nil, &block)
     grp ||= Dispatch::Group.new
@@ -53,7 +54,7 @@ module Dispatch
   #
   #   a = Array.new
   #   q = Dispatch.queue_for(a)
-  #   q.async {a << Time.now }
+  #   q.async {a << 2 }
   #
   def queue_for(obj)
     Dispatch::Queue.new Dispatch.label_for(obj)
@@ -64,8 +65,8 @@ module Dispatch
   #
   #   a = Dispatch.wrap(Array)
   #   a << Time.now # automatically serialized
-  #   a.size # => 1 (synchronously)
-  #   a.size {|n| p "Size=#{n}"} # => "Size=1" (asynchronously)
+  #   a.size # => 1 (synchronous return)
+  #   a.size {|n| p "Size=#{n}"} # => "Size=1" (asynchronous return)
   #
   def wrap(obj)
     Dispatch::Actor.new( (obj.is_a? Class) ? obj.new : obj)
