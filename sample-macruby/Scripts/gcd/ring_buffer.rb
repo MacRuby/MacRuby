@@ -1,37 +1,49 @@
-#!/usr/bin/env ruby
+#!/usr/local/bin/macruby
+# Ruby Fiber Ring Benchmark
+# Adapted for GCD from: http://people.equars.com/2008/5/22/ruby-fiber-ring-benchmark
 
-N_NODES = ARGV[0] || 4
-M_MESSAGES = ARGV[1] || 3
+require 'benchmark'
+require 'dispatch'
+
+DEBUG = true
+
+N_NODES = DEBUG ? 1 : 3
+M_MESSAGES = DEBUG ? 0 : 3
 
 class Node
     attr_accessor :successor
-    attr :index
-    def initialize(index, successor)
+    attr_reader :index
+    def initialize(g, index, successor)
+        @queue = Dispatch.queue_for(self)
+        @group = g
         @index = index
         @successor = successor
         @current = 0
     end
             
     def call(m)
-        case m
-        when 0
-            return
-        when @current
-            call(m-1)
-        else 
-            puts "#{self}.call #{m}"
-            @current = m
-            @successor.call(m)
+        @queue.async(@group) do
+            case m
+            when 0
+                return
+            when @current
+                call(m-1)
+            else 
+                puts "\t#{self}.call(#{m})" if DEBUG
+                @current = m
+                @successor.call(m)
+            end
         end
     end
     
     def to_s
-        "#{@index}->[#{@successor.index}]@#{@current}"
+        "##{@index}->[#{@successor.index}]@#{@current}"
     end
 end
 
 class Ring
     def initialize(n)
+        @group = Dispatch::Group.new
         @nodes = []
         setup(n)
     end
@@ -39,25 +51,44 @@ class Ring
     def setup(n)
         last = nil
         n.downto(1) do |i|
-            @nodes << Node.new(i, last)
+            @nodes << Node.new(@group, i, last)
             last = @nodes[-1]
         end
         @nodes[0].successor = last
     end
     
     def call(m)
-        @nodes[0].call(m)
+        @nodes[-1].call(m)
+        @group.wait
     end
     
     def to_s
-        @nodes.join " | "
+        @nodes.reverse.join " | "
     end
 end
 
-1.upto N_NODES do |n|
-    ring = Ring.new n
-    puts "\nRing of size #{n}: #{ring}"
-    1.upto(M_MESSAGES) { |m|  puts "m=#{m}"; ring.call m }
+def bench(n,m)
+  tm  = Benchmark.measure {
+     yield
+  }.format("%8.6r\n").gsub!(/\(|\)/, "")
+
+  puts "#{n}, #{m}, #{tm}"
+  
 end
+
+0.upto N_NODES do |p|
+    n = 10**p
+    ring = Ring.new n
+    puts "\nRing of size #{n}:"
+    puts "\t#{ring}" if DEBUG
+    0.upto(M_MESSAGES) do |q|
+      r = 10**q
+      [r, 2*r, 5*r].each do |m|
+          puts "#{m} message(s)" if DEBUG
+        bench(n,m) { ring.call m }
+      end
+    end
+end
+
         
 
