@@ -5,9 +5,9 @@
 require 'benchmark'
 require 'dispatch'
 
-DEBUG = true
+DEBUG = false
 
-N_NODES = DEBUG ? 1 : 3
+N_NODES = DEBUG ? 1 : 4
 M_MESSAGES = DEBUG ? 0 : 3
 
 class Node
@@ -37,7 +37,7 @@ class Node
     end
     
     def to_s
-        "##{@index}->[#{@successor.index}]@#{@current}"
+        "##{@index}->#{@successor.index}[#{@current}]"
     end
 end
 
@@ -76,12 +76,12 @@ def bench(n,m)
   
 end
 
-0.upto N_NODES do |p|
+1.upto N_NODES do |p|
     n = 10**p
     ring = Ring.new n
     puts "\nRing of size #{n}:"
     puts "\t#{ring}" if DEBUG
-    0.upto(M_MESSAGES) do |q|
+    1.upto(M_MESSAGES) do |q|
       r = 10**q
       [r, 2*r, 5*r].each do |m|
           puts "#{m} message(s)" if DEBUG
