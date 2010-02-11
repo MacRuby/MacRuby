@@ -11,7 +11,6 @@
 
 #include <stdarg.h>
 
-#include "llvm.h"
 #include "ruby/ruby.h"
 #include "ruby/node.h"
 #include "ruby/encoding.h"
@@ -269,8 +268,6 @@
     ((nth >= argc) ? (rb_raise(rb_eArgError, "too few arguments"), 0) : \
     argv[nth])
 
-extern "C" {
-
 VALUE
 rb_f_sprintf_imp(VALUE recv, SEL sel, int argc, VALUE *argv)
 {
@@ -347,9 +344,6 @@ rb_sprintf(const char *format, ...)
     }
     
 #define isprenum(ch) ((ch) == '-' || (ch) == ' ' || (ch) == '+')
-
-#define isnan(x) (x != x)
-#define isinf(x) (__builtin_fabs(x) == __builtin_inf())
 
 static void
 pad_format_value(VALUE arg, long start, long width,
@@ -760,7 +754,7 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 			    (sign_pad || negative_pad == NULL) ? 1 : 0),
 			    zero_pad);
 		}
-		if (sharp_flag && rb_cmpint(num, NULL, NULL) != 0) {
+		if (sharp_flag && rb_cmpint(num, Qfalse, Qfalse) != 0) {
 		    rb_str_update(arg, sign_pad, 0, (VALUE)sharp_pad);
 		    num_index += 2;
 		}
@@ -793,5 +787,3 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
     fmt = rb_str_new2(format_str);
     return tainted ? OBJ_TAINT(fmt) : fmt;
 }
-
-} // extern "C"
