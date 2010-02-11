@@ -15,6 +15,38 @@ if MACOSX_VERSION >= 10.6
       @actee = Actee.new("my_actee")
     end
 
+    describe :async do
+      it "should execute the block Asynchronously" do
+        $dispatch_gval = 0
+        Dispatch.async(:default) { @actee.delay_set(42) }
+        $dispatch_gval.should == 0
+        while $dispatch_gval == 0 do; end
+        $dispatch_gval.should == 42      
+      end
+    end
+    
+    describe :fork do
+      it "should return a Future for tracking execution of the passed block" do
+        $dispatch_gval = 0
+        g = Dispatch.fork { @actee.delay_set(42) }
+        $dispatch_gval.should == 0
+        g.should be_kind_of Dispatch::Future
+        g.join
+        $dispatch_gval.should == 42      
+      end
+    end
+    
+    describe :group do
+      it "should execute the block with the specified group" do
+        $dispatch_gval = 0
+        g = Dispatch::Group.new
+        Dispatch.group(g) { @actee.delay_set(42) }
+        $dispatch_gval.should == 0
+        g.wait
+        $dispatch_gval.should == 42      
+      end
+    end
+
     describe :label_for do
       it "should return a unique label for any object" do
         s1 = Dispatch.label_for(@actee)
@@ -31,35 +63,6 @@ if MACOSX_VERSION >= 10.6
       end
     end
 
-    describe :sync do
-      it "should execute the block Synchronously" do
-        $dispatch_gval = 0
-        Dispatch.sync { @actee.delay_set(42) }
-        $dispatch_gval.should == 42
-      end
-    end
-
-    describe :async do
-      it "should execute the block Asynchronously" do
-        $dispatch_gval = 0
-        Dispatch.async(:default) { @actee.delay_set(42) }
-        $dispatch_gval.should == 0
-        while $dispatch_gval == 0 do; end
-        $dispatch_gval.should == 42      
-      end
-    end
-    
-    describe :group do
-      it "should execute the block with the specified group" do
-        $dispatch_gval = 0
-        g = Dispatch::Group.new
-        Dispatch.group(g) { @actee.delay_set(42) }
-        $dispatch_gval.should == 0
-        g.wait
-        $dispatch_gval.should == 42      
-      end
-    end
-
     describe :wrap do
       it "should return an Actor wrapping an instance of a passed class" do
         actor = Dispatch.wrap(Actee)
@@ -71,17 +74,6 @@ if MACOSX_VERSION >= 10.6
         actor = Dispatch.wrap(@actee)
         actor.should be_kind_of Dispatch::Actor
         actor.to_s.should == "my_actee"
-      end
-    end
-    
-    describe :fork do
-      it "should return a Future for tracking execution of the passed block" do
-        $dispatch_gval = 0
-        g = Dispatch.fork { @actee.delay_set(42) }
-        $dispatch_gval.should == 0
-        g.should be_kind_of Dispatch::Future
-        g.join
-        $dispatch_gval.should == 42      
       end
     end
     
