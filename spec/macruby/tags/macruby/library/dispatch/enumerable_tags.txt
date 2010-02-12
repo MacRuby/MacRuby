@@ -1,0 +1,2 @@
+fails:parallel Enumerable p_map should behave like map
+fails:parallel Enumerable p_find_all should behave like find_all
