@@ -1,1 +1,1 @@
-fails:An NSArray object is immutable
+critical:An NSArray object is immutable
