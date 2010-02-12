@@ -502,7 +502,7 @@ rb_obj_inspect(VALUE obj, SEL sel)
 
         if (has_ivar) {
             const char *c = rb_obj_classname(obj);
-            VALUE str = rb_sprintf("<%s:%p", c, (void*)obj);
+            VALUE str = rb_sprintf("#<%s:%p", c, (void*)obj);
             return rb_exec_recursive(inspect_obj, obj, str);
         }
     }
