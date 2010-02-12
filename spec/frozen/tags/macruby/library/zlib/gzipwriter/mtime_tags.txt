@@ -1,0 +1,1 @@
+fails:Zlib::GzipWriter#mtime= sets mtime using Time
