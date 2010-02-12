@@ -2545,38 +2545,63 @@ rb_to_int(VALUE val)
     return rb_to_integer(val, "to_int");
 }
 
-VALUE
-rb_Integer(VALUE val)
+static VALUE
+rb_convert_to_integer(VALUE val, int base)
 {
     VALUE tmp;
 
     switch (TYPE(val)) {
-      case T_FLOAT:
-	if (RFLOAT_VALUE(val) <= (double)FIXNUM_MAX
-	    && RFLOAT_VALUE(val) >= (double)FIXNUM_MIN) {
+	case T_FLOAT:
+	    if (base != 0) {
+		goto arg_error;
+	    }
+	    if (RFLOAT_VALUE(val) <= (double)FIXNUM_MAX
+		    && RFLOAT_VALUE(val) >= (double)FIXNUM_MIN) {
+		break;
+	    }
+	    return rb_dbl2big(RFLOAT_VALUE(val));
+
+	case T_FIXNUM:
+	case T_BIGNUM:
+	    if (base != 0) {
+		goto arg_error;
+	    }
+	    return val;
+
+	case T_STRING:
+string_conv:
+	    return rb_str_to_inum(val, base, TRUE);
+
+	case T_NIL:
+	    if (base != 0) {
+		goto arg_error;
+	    }
+	    rb_raise(rb_eTypeError, "can't convert nil into Integer");
 	    break;
-	}
-	return rb_dbl2big(RFLOAT_VALUE(val));
 
-      case T_FIXNUM:
-      case T_BIGNUM:
-	return val;
-
-      case T_STRING:
-	return rb_str_to_inum(val, 0, Qtrue);
-
-      case T_NIL:
-	rb_raise(rb_eTypeError, "can't convert nil into Integer");
-	break;
-
-      default:
-	break;
+	default:
+	    break;
     }
-    tmp = convert_type(val, "Integer", "to_int", Qfalse);
+    if (base != 0) {
+	tmp = rb_check_string_type(val);
+	if (!NIL_P(tmp)) {
+	    goto string_conv;
+	}
+arg_error:
+	rb_raise(rb_eArgError, "base specified for non string value");
+    }
+    tmp = convert_type(val, "Integer", "to_int", FALSE);
     if (NIL_P(tmp)) {
 	return rb_to_integer(val, "to_i");
     }
     return tmp;
+
+}
+
+VALUE
+rb_Integer(VALUE val)
+{
+    return rb_convert_to_integer(val, 0);
 }
 
 /*
@@ -2597,9 +2622,22 @@ rb_Integer(VALUE val)
  */
 
 static VALUE
-rb_f_integer(VALUE obj, SEL sel, VALUE arg)
+rb_f_integer(VALUE obj, SEL sel, int argc, VALUE *argv)
 {
-    return rb_Integer(arg);
+    VALUE arg = Qnil;
+    int base = 0;
+
+    switch (argc) {
+	case 2:
+	    base = NUM2INT(argv[1]);
+	case 1:
+	    arg = argv[0];
+	    break;
+	default:
+	    // Should cause ArgumentError.
+	    rb_scan_args(argc, argv, "11", NULL, NULL);
+    }
+    return rb_convert_to_integer(arg, base);
 }
 
 double
@@ -3047,7 +3085,7 @@ Init_Object(void)
     rb_objc_define_module_function(rb_mKernel, "sprintf", rb_f_sprintf_imp, -1); /* in sprintf.cpp */
     rb_objc_define_module_function(rb_mKernel, "format", rb_f_sprintf_imp, -1);  /* in sprintf.cpp */
 
-    rb_objc_define_module_function(rb_mKernel, "Integer", rb_f_integer, 1);
+    rb_objc_define_module_function(rb_mKernel, "Integer", rb_f_integer, -1);
     rb_objc_define_module_function(rb_mKernel, "Float", rb_f_float, 1);
     rb_objc_define_module_function(rb_mKernel, "String", rb_f_string, 1);
     rb_objc_define_module_function(rb_mKernel, "Array", rb_f_array, 1);
