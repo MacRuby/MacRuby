@@ -1,2 +1,0 @@
-fails:Kernel#taint returns the immediate when called on an immediate
-fails:Kernel#taint has no effect on immediate values

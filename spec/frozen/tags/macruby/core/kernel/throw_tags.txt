@@ -1,3 +1,0 @@
-critical:Kernel.throw transfers control to the innermost catch block waiting for the same sympol
-critical:Kernel.throw raises NameError if there is no catch block for the symbol
-critical:Kernel.throw raises an ArgumentError if there is no catch block for the symbol
