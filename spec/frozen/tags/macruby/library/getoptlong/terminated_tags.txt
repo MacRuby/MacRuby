@@ -1,1 +1,0 @@
-fails:GetoptLong#terminated? returns true if option processing has terminated

@@ -1,2 +1,0 @@
-fails:Logger#new receives a logging device as first argument
-fails:Logger#new receivs a maximum logfile size as third argument

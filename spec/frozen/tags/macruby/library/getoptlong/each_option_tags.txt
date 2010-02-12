@@ -1,1 +1,0 @@
-fails:GetoptLong#each_option passes each argument/value pair to the block

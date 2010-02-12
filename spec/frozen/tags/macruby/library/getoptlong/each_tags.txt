@@ -1,1 +1,0 @@
-fails:GetoptLong#each passes each argument/value pair to the block

@@ -1,1 +1,0 @@
-fails:REXML::CData#initialize receives parent as third argument

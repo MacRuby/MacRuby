@@ -1,1 +1,0 @@
-fails:File.lstat should be able to use the instance methods
