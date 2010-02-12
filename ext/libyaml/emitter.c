@@ -768,7 +768,7 @@ yaml_emitter_emit_flow_sequence_item(yaml_emitter_t *emitter,
             return 0;
     }
 
-    if (emitter->canonical || emitter->column > emitter->best_width) {
+    if (emitter->canonical) {
         if (!yaml_emitter_write_indent(emitter))
             return 0;
     }
@@ -816,7 +816,7 @@ yaml_emitter_emit_flow_mapping_key(yaml_emitter_t *emitter,
         if (!yaml_emitter_write_indicator(emitter, ",", 0, 0, 0))
             return 0;
     }
-    if (emitter->canonical || emitter->column > emitter->best_width) {
+    if (emitter->canonical) {
         if (!yaml_emitter_write_indent(emitter))
             return 0;
     }
@@ -854,7 +854,7 @@ yaml_emitter_emit_flow_mapping_value(yaml_emitter_t *emitter,
             return 0;
     }
     else {
-        if (emitter->canonical || emitter->column > emitter->best_width) {
+        if (emitter->canonical) {
             if (!yaml_emitter_write_indent(emitter))
                 return 0;
         }
