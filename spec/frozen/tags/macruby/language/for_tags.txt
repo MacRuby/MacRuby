@@ -1,1 +1,0 @@
-fails:The for expression splats multiple arguments together if there are fewer arguments than values
