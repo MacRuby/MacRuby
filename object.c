@@ -122,8 +122,7 @@ rb_eql(VALUE obj1, VALUE obj2)
 static VALUE
 rb_obj_equal(VALUE obj1, SEL sel, VALUE obj2)
 {
-    if (obj1 == obj2) return Qtrue;
-    return Qfalse;
+    return obj1 == obj2 ? Qtrue : Qfalse;
 }
 
 /*
