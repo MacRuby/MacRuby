@@ -801,7 +801,9 @@ rb_obj_dummy2(VALUE self, SEL sel, VALUE other)
 static VALUE
 rb_obj_tainted_p(VALUE obj, SEL sel)
 {
-    if (!SPECIAL_CONST_P(obj) && NATIVE(obj)) {
+    if (SPECIAL_CONST_P(obj))
+	return Qfalse;
+    else if (NATIVE(obj)) {
 	switch (TYPE(obj)) {
 	    case T_SYMBOL:
 		return Qfalse;
@@ -821,7 +823,8 @@ rb_obj_tainted_p(VALUE obj, SEL sel)
 		    return RBASIC(obj)->flags & FL_TAINT ? Qtrue : Qfalse;
 		}
 	    default:
-		return rb_objc_flag_check((const void *)obj, FL_TAINT) ? Qtrue : Qfalse;
+		return rb_objc_flag_check((const void *)obj, FL_TAINT)
+		    ? Qtrue : Qfalse;
 	}
     }
     if (FL_TEST(obj, FL_TAINT)) {
@@ -833,7 +836,7 @@ rb_obj_tainted_p(VALUE obj, SEL sel)
 VALUE
 rb_obj_tainted(VALUE obj)
 {
-	return rb_obj_tainted_p(obj, 0);
+    return rb_obj_tainted_p(obj, 0);
 }
 
 /*
@@ -849,7 +852,10 @@ static VALUE
 rb_obj_taint_m(VALUE obj, SEL sel)
 {
     rb_secure(4);
-    if (!SPECIAL_CONST_P(obj) && NATIVE(obj)) {
+    if (SPECIAL_CONST_P(obj)) {
+	return obj;
+    }
+    else if (NATIVE(obj)) {
 	switch (TYPE(obj)) {
 	    case T_SYMBOL:
 		break;
@@ -888,7 +894,7 @@ rb_obj_taint_m(VALUE obj, SEL sel)
 VALUE 
 rb_obj_taint(VALUE obj)
 {
-	return rb_obj_taint_m(obj, 0);
+    return rb_obj_taint_m(obj, 0);
 }
 
 
@@ -942,7 +948,7 @@ rb_obj_untaint_m(VALUE obj, SEL sel)
 VALUE
 rb_obj_untaint(VALUE obj)
 {
-	return rb_obj_untaint_m(obj, 0);
+    return rb_obj_untaint_m(obj, 0);
 }
 
 static VALUE
@@ -1111,6 +1117,7 @@ rb_obj_freeze_m(VALUE obj, SEL sel)
 	    rb_raise(rb_eSecurityError, "Insecure: can't freeze object");
 	}
 	else if (SPECIAL_CONST_P(obj)) {
+immediate:
 	    if (!immediate_frozen_tbl) {
 		immediate_frozen_tbl = st_init_numtable();
 		GC_ROOT(&immediate_frozen_tbl);
@@ -1120,7 +1127,7 @@ rb_obj_freeze_m(VALUE obj, SEL sel)
 	else if (NATIVE(obj)) {
 	    switch (TYPE(obj)) {
 		case T_SYMBOL:
-		    break;
+		    goto immediate;
 
 		case T_ARRAY:
 		    if (rb_klass_is_rary(*(VALUE *)obj)) {
@@ -1174,6 +1181,7 @@ static VALUE
 rb_obj_frozen(VALUE obj, SEL sel)
 {
     if (SPECIAL_CONST_P(obj)) {
+immediate:
 	if (!immediate_frozen_tbl) {
 	    return Qfalse;
 	}
@@ -1184,7 +1192,7 @@ rb_obj_frozen(VALUE obj, SEL sel)
     }
     switch (TYPE(obj)) {
 	case T_SYMBOL:
-	    return Qfalse;
+	    goto immediate;
 
 	case T_ARRAY:
 	    if (rb_klass_is_rary(*(VALUE *)obj)) {
