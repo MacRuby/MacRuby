@@ -22,20 +22,37 @@ ruby_version_is "1.9" do
       h.compare_by_identity.should == h
     end
     
-    it "uses the semantics of BasicObject#equal? to determine key identity" do
-      1.1.should_not equal(1.1)
-      @idh[1.1] = :a
-      @idh[1.1] = :b
-      [1].should_not equal([1])
-      @idh[[1]] = :c
-      @idh[[1]] = :d
-      :bar.should equal(:bar)
-      @idh[:bar] = :e
-      @idh[:bar] = :f
-      "bar".should_not equal('bar')
-      @idh["bar"] = :g
-      @idh["bar"] = :h
-      @idh.values.should == [:a, :b, :c, :d, :f, :g, :h]
+    if defined?(RUBY_ENGINE) and RUBY_ENGINE == 'macruby'
+      # MacRuby needs its own version of this example because
+      # 1.1.equal?(1.1) returns true.
+      it "uses the semantics of BasicObject#equal? to determine key identity" do
+        [1].should_not equal([1])
+        @idh[[1]] = :a
+        @idh[[1]] = :b
+        :bar.should equal(:bar)
+        @idh[:bar] = :c
+        @idh[:bar] = :d
+        "bar".should_not equal('bar')
+        @idh["bar"] = :e
+        @idh["bar"] = :f
+        @idh.values.should == [:a, :b, :d, :e, :f]
+      end
+    else
+      it "uses the semantics of BasicObject#equal? to determine key identity" do
+        1.1.should_not equal(1.1)
+        @idh[1.1] = :a
+        @idh[1.1] = :b
+        [1].should_not equal([1])
+        @idh[[1]] = :c
+        @idh[[1]] = :d
+        :bar.should equal(:bar)
+        @idh[:bar] = :e
+        @idh[:bar] = :f
+        "bar".should_not equal('bar')
+        @idh["bar"] = :g
+        @idh["bar"] = :h
+        @idh.values.should == [:a, :b, :c, :d, :f, :g, :h]
+      end
     end
 
     it "doesn't call #equal? on keys to determine their identity" do
