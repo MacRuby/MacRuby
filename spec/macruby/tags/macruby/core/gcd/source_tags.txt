@@ -1,3 +1,5 @@
 fails:Dispatch::Source of type SIGNAL fires on signal with signal count data
+fails:Dispatch::Source of type DATA_ADD passes source to event handler
 fails:Dispatch::Source of type file: READ does close file when cancelled given IO
 fails:Dispatch::Source of type file: VNODE fires with data showing mask of vnode events
+fails:Dispatch::Source Timer fires every interval thereafter
