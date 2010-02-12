@@ -1,2 +1,0 @@
-fails:Hash#merge returns subclass instance for subclasses
-fails:Hash#merge! raises a RuntimeError if called on a frozen instance

@@ -1,1 +1,0 @@
-fails:Hash#reject returns subclass instance for subclasses

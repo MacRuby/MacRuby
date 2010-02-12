@@ -1,1 +1,0 @@
-fails:Hash#invert compares new keys with eql? semantics

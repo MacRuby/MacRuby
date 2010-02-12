@@ -1,2 +1,0 @@
-fails:Hash#== compares keys with matching hash codes via eql?
-fails:Hash#== compares keys with eql? semantics

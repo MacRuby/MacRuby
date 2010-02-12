@@ -1,3 +1,1 @@
-fails:Hash#store duplicates string keys using dup semantics
 fails:Hash#store stores unequal keys that hash to the same value
-fails:Hash#store duplicates and freezes string keys
