@@ -131,6 +131,11 @@ static const struct st_hash_type objhash = {
     rb_any_hash,
 };
 
+static const struct st_hash_type identhash = {
+    st_numcmp,
+    st_numhash,
+};
+
 static VALUE
 rhash_alloc(VALUE klass, SEL sel)
 {
@@ -149,9 +154,15 @@ rhash_alloc(VALUE klass, SEL sel)
 VALUE
 rhash_dup(VALUE rcv, SEL sel)
 {
+    VALUE klass = CLASS_OF(rcv);
+    while (RCLASS_SINGLETON(klass)) {
+	klass = RCLASS_SUPER(klass);
+    }
+    assert(rb_klass_is_rhash(klass));
+
     NEWOBJ(dup, rb_hash_t);
     dup->basic.flags = 0;
-    dup->basic.klass = rb_cRubyHash;
+    dup->basic.klass = klass;
     GC_WB(&dup->tbl, st_copy(RHASH(rcv)->tbl));
     GC_WB(&dup->ifnone, RHASH(rcv)->ifnone);
     dup->has_proc_default = RHASH(rcv)->has_proc_default;
@@ -559,6 +570,46 @@ rhash_default_proc(VALUE hash, SEL sel)
 
 /*
  *  call-seq:
+ *     hsh.default_proc = proc_obj     => proc_obj
+ *
+ *  Sets the default proc to be executed on each key lookup.
+ *
+ *     h.default_proc = proc do |hash, key|
+ *       hash[key] = key + key
+ *     end
+ *     h[2]       #=> 4
+ *     h["cat"]   #=> "catcat"
+ */
+
+static void
+default_proc_arity_check(VALUE proc)
+{
+    const int arity = rb_proc_arity(proc);
+    if (arity != 0 && arity != 2) {
+	rb_raise(rb_eTypeError, "expected Proc with 2 arguments (but got %d)",
+		arity);
+    }
+}
+
+static VALUE
+rhash_set_default_proc(VALUE hash, SEL sel, VALUE proc)
+{
+    rhash_modify(hash);
+    VALUE tmp = rb_check_convert_type(proc, T_DATA, "Proc", "to_proc");
+    if (NIL_P(tmp)) {
+        rb_raise(rb_eTypeError,
+		"wrong default_proc type %s (expected Proc)",
+		rb_obj_classname(proc));
+    }
+    proc = tmp;
+    default_proc_arity_check(proc);
+    GC_WB(&RHASH(hash)->ifnone, proc);
+    RHASH(hash)->has_proc_default = true;
+    return proc;
+}
+
+/*
+ *  call-seq:
  *     hsh.key(value)    => key
  *
  *  Returns the key for a given value. If not found, returns <code>nil</code>.
@@ -656,9 +707,9 @@ static VALUE
 rhash_shift(VALUE hash, SEL sel)
 {
     VALUE args[2] = {0, 0};
+    rhash_modify(hash);
     rhash_foreach(hash, shift_i, (st_data_t)args);
     if (args[0] != 0 && args[1] != 0) {
-	rhash_modify(hash);
 	rhash_delete_key(hash, args[0]);
 	return rb_assoc_new(args[0], args[1]);
     }
@@ -836,6 +887,10 @@ VALUE
 rhash_aset(VALUE hash, SEL sel, VALUE key, VALUE val)
 {
     rhash_modify(hash);
+    if (TYPE(key) == T_STRING) {
+	key = rb_str_dup(key);
+	OBJ_FREEZE(key);
+    }
     st_insert(RHASH(hash)->tbl, key, val);
     return val;
 }
@@ -1420,6 +1475,7 @@ static VALUE
 rhash_update(VALUE hash1, SEL sel, VALUE hash2)
 {
     hash2 = to_hash(hash2);
+    rhash_modify(hash1);
     if (rb_block_given_p()) {
 	rb_hash_foreach(hash2, update_block_i, hash1);
     }
@@ -1567,7 +1623,8 @@ static VALUE
 rhash_compare_by_id(VALUE hash, SEL sel)
 {
     rhash_modify(hash);
-    // TODO
+    RHASH(hash)->tbl->type = &identhash;
+    rhash_rehash(hash, 0);
     return hash;
 }
 
@@ -1583,8 +1640,7 @@ rhash_compare_by_id(VALUE hash, SEL sel)
 static VALUE
 rhash_compare_by_id_p(VALUE hash, SEL sel)
 {
-    // TODO
-    return Qfalse;
+    return RHASH(hash)->tbl->type == &identhash ? Qtrue : Qfalse;
 }
 
 bool
@@ -1730,6 +1786,8 @@ Init_Hash(void)
     rb_objc_define_method(rb_cRubyHash, "default=", rhash_set_default, 1);
     rb_objc_define_method(rb_cRubyHash, "default_proc",
 	    rhash_default_proc, 0);
+    rb_objc_define_method(rb_cRubyHash, "default_proc=",
+	    rhash_set_default_proc, 1);
     rb_objc_define_method(rb_cRubyHash, "key", rhash_key, 1);
     rb_objc_define_method(rb_cRubyHash, "index", rhash_index, 1);
     rb_objc_define_method(rb_cRubyHash, "size", rhash_size, 0);
