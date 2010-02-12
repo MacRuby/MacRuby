@@ -1,1 +1,0 @@
-critical:Hash#inspect handles hashes with recursive values
