@@ -1,0 +1,3 @@
+fails:Dispatch::Source of type SIGNAL fires on signal with signal count data
+fails:Dispatch::Source of type file: READ does close file when cancelled given IO
+fails:Dispatch::Source of type file: VNODE fires with data showing mask of vnode events
