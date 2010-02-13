@@ -266,8 +266,8 @@ void rb_vm_aot_compile(NODE *node);
 void rb_vm_init_compiler(void);
 bool rb_vm_running(void);
 void rb_vm_set_running(bool flag);
-VALUE rb_vm_rand_seed(void);
-void rb_vm_set_rand_seed(VALUE rand_seed);
+VALUE rb_vm_default_random(void);
+void rb_vm_set_default_random(VALUE rand);
 bool rb_vm_parse_in_eval(void);
 void rb_vm_set_parse_in_eval(bool flag);
 VALUE rb_vm_load_path(void);
@@ -609,7 +609,7 @@ class RoxorCore {
 	bool abort_on_exception;
 	VALUE loaded_features;
 	VALUE load_path;
-	VALUE rand_seed;
+	VALUE default_random;
 
 	// Signals
 	std::map<int, VALUE> trap_cmd;
@@ -674,7 +674,7 @@ class RoxorCore {
 	ACCESSOR(running, bool);
 	ACCESSOR(multithreaded, bool);
 	ACCESSOR(abort_on_exception, bool);
-	ACCESSOR(rand_seed, VALUE);
+	ACCESSOR(default_random, VALUE);
 	READER(loaded_features, VALUE);
 	READER(load_path, VALUE);
 	READER(threads, VALUE);

@@ -266,8 +266,8 @@ RoxorCore::RoxorCore(void)
 
     pthread_assert(pthread_mutex_init(&gl, 0));
 
-    // Fixnum is an immediate type, no need to retain
-    rand_seed = INT2FIX(0);
+    // Will be set later.
+    default_random = Qnil;
 
     load_path = rb_ary_new();
     rb_objc_retain((void *)load_path);
@@ -1087,29 +1087,22 @@ rb_vm_set_running(bool flag)
 
 extern "C"
 VALUE
-rb_vm_rand_seed(void)
+rb_vm_default_random(void)
 {
-    VALUE     rand_seed;
-    RoxorCore *core = GET_CORE();
-
-    core->lock();
-    rand_seed = core->get_rand_seed();
-    core->unlock();
-
-    return rand_seed;
+    return GET_CORE()->get_default_random();
 }
 
 extern "C"
 void
-rb_vm_set_rand_seed(VALUE rand_seed)
+rb_vm_set_default_random(VALUE random)
 {
     RoxorCore *core = GET_CORE();
 
     core->lock();
-    if (core->get_rand_seed() != rand_seed) {
-	GC_RELEASE(core->get_rand_seed());
-	GC_RETAIN(rand_seed);
-	core->set_rand_seed(rand_seed);
+    if (core->get_default_random() != random) {
+	GC_RELEASE(core->get_default_random());
+	GC_RETAIN(random);
+	core->set_default_random(random);
     }
     core->unlock();
 }
@@ -1117,12 +1110,9 @@ rb_vm_set_rand_seed(VALUE rand_seed)
 VALUE
 RoxorCore::trap_cmd_for_signal(int signal)
 {
-    VALUE     trap;
-
-    this->lock();
-    trap = this->trap_cmd[signal];
-    this->unlock();
-
+    lock();
+    VALUE trap = trap_cmd[signal];
+    unlock();
     return trap;
 }
 
@@ -1136,12 +1126,9 @@ rb_vm_trap_cmd_for_signal(int signal)
 int
 RoxorCore::trap_level_for_signal(int signal)
 {
-    VALUE     trap;
-
-    this->lock();
-    trap = this->trap_level[signal];
-    this->unlock();
-
+    lock();
+    VALUE trap = trap_level[signal];
+    unlock();
     return trap;
 }
 
@@ -1155,17 +1142,15 @@ rb_vm_trap_level_for_signal(int signal)
 void
 RoxorCore::set_trap_for_signal(VALUE trap, int level, int signal)
 {
-    VALUE     oldtrap;
-
-    this->lock();
-    oldtrap = this->trap_cmd[signal];
+    lock();
+    VALUE oldtrap = trap_cmd[signal];
     if (oldtrap != trap) {
 	GC_RELEASE(oldtrap);
 	GC_RETAIN(trap);
-	this->trap_cmd[signal] = trap;
-	this->trap_level[signal] = level;
+	trap_cmd[signal] = trap;
+	trap_level[signal] = level;
     }
-    this->unlock();
+    unlock();
 }
 
 extern "C"

@@ -53,6 +53,12 @@ bigzero_p(VALUE x)
 }
 
 int
+rb_bigzero_p(VALUE x)
+{
+    return BIGZEROP(x);
+}
+
+int
 rb_cmpint(VALUE val, VALUE a, VALUE b)
 {
     if (NIL_P(val)) {
@@ -694,6 +700,12 @@ rb_bignum_new_retained(const char *str)
     VALUE v = rb_cstr2inum(str, 10);
     GC_RETAIN(v);
     return v;
+}
+
+VALUE
+rb_big_new(long len, int sign)
+{
+    return bignew(len, sign != 0);
 }
 
 const char ruby_digitmap[] = "0123456789abcdefghijklmnopqrstuvwxyz";

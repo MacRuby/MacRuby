@@ -580,6 +580,7 @@ __rb_float_value(VALUE v)
 }
 #define RFLOAT_VALUE(v) (__rb_float_value((VALUE)v))
 #define DOUBLE2NUM(dbl)  rb_float_new(dbl)
+#define DBL2NUM DOUBLE2NUM
 
 #if WITH_OBJC
 struct RFixnum {
@@ -1130,6 +1131,7 @@ RUBY_EXTERN VALUE rb_cUnboundMethod;
 RUBY_EXTERN VALUE rb_cISeq;
 RUBY_EXTERN VALUE rb_cVM;
 RUBY_EXTERN VALUE rb_cEnv;
+RUBY_EXTERN VALUE rb_cRandom;
 
 #if WITH_OBJC
 RUBY_EXTERN VALUE rb_cCFString;

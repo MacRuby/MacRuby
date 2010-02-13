@@ -95,6 +95,8 @@ VALUE rb_cstr2inum(const char*, int);
 VALUE rb_str2inum(VALUE, int);
 VALUE rb_big2str(VALUE, int);
 VALUE rb_big2str0(VALUE, int, int);
+VALUE rb_big_new(long len, int sign);
+int rb_bigzero_p(VALUE x);
 SIGNED_VALUE rb_big2long(VALUE);
 #define rb_big2int(x) rb_big2long(x)
 VALUE rb_big2ulong(VALUE);
@@ -453,6 +455,7 @@ VALUE rb_String(VALUE);
 VALUE rb_Array(VALUE);
 double rb_cstr_to_dbl(const char*, int);
 double rb_str_to_dbl(VALUE, int);
+VALUE rb_check_to_float(VALUE val);
 /* parse.y */
 RUBY_EXTERN int   ruby_sourceline;
 RUBY_EXTERN char *ruby_sourcefile;
@@ -497,8 +500,9 @@ VALUE rb_detach_process(rb_pid_t pid);
 void rb_range_extract(VALUE range, VALUE *begp, VALUE *endp, bool *exclude);
 VALUE rb_range_new(VALUE, VALUE, int);
 VALUE rb_range_beg_len(VALUE, long*, long*, long, int);
+int rb_range_values(VALUE range, VALUE *begp, VALUE *endp, int *exclp);
 /* random.c */
-unsigned long rb_genrand_int32(void);
+unsigned int rb_genrand_int32(void);
 double rb_genrand_real(void);
 /* re.c */
 #define rb_memcmp memcmp

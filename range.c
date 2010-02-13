@@ -624,6 +624,34 @@ rb_range_extract(VALUE range, VALUE *begp, VALUE *endp, bool *exclude)
     *exclude = EXCL(range);
 }
 
+int
+rb_range_values(VALUE range, VALUE *begp, VALUE *endp, int *exclp)
+{
+    VALUE b, e;
+    int excl;
+
+    if (rb_obj_is_kind_of(range, rb_cRange)) {
+        b = RANGE_BEG(range);
+        e = RANGE_END(range);
+        excl = EXCL(range);
+    }
+    else {
+	if (!rb_vm_respond_to(range, selBeg, false)) {
+	    return Qfalse;
+	}
+	if (!rb_vm_respond_to(range, selEnd, false)) {
+	    return Qfalse;
+	}
+	b = rb_vm_call(range, selBeg, 0, NULL, false);
+	e = rb_vm_call(range, selEnd, 0, NULL, false);
+	excl = RTEST(rb_vm_call(range, selExcludeEnd, 0, NULL, false));
+    }
+    *begp = b;
+    *endp = e;
+    *exclp = excl;
+    return 1;
+}
+
 VALUE
 rb_range_beg_len(VALUE range, long *begp, long *lenp, long len, int err)
 {
