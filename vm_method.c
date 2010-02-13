@@ -240,6 +240,8 @@ rb_mod_undef_method(VALUE mod, SEL sel, int argc, VALUE *argv)
  *     C.method_defined? "method4"   #=> false
  */
 
+static SEL selRespondToDefault = 0;
+
 static bool
 rb_obj_respond_to2(VALUE obj, VALUE klass, ID id, bool priv, bool check_override)
 {
@@ -249,7 +251,12 @@ rb_obj_respond_to2(VALUE obj, VALUE klass, ID id, bool priv, bool check_override
 	char buf[100];
 	snprintf(buf, sizeof buf, "%s:", id_name);
 	sel = sel_registerName(buf);
-	return rb_vm_respond_to2(obj, klass, sel, priv, check_override);
+	if (!rb_vm_respond_to2(obj, klass, sel, priv, check_override)) {
+	    VALUE args[2];
+	    args[0] = ID2SYM(id);
+	    args[1] = priv ? Qtrue : Qfalse;
+	    return RTEST(rb_vm_call(obj, selRespondToDefault, 2, args, false));
+	}
     }
     return true;
 }
@@ -638,9 +645,16 @@ rb_mod_modfunc(VALUE module, SEL sel, int argc, VALUE *argv)
  *  call-seq:
  *     obj.respond_to?(symbol, include_private=false) => true or false
  *
- *  Returns +true+> if _obj_ responds to the given
+ *  Returns +true+ if _obj_ responds to the given
  *  method. Private methods are included in the search only if the
  *  optional second parameter evaluates to +true+.
+ *
+ *  If the method is not implemented,
+ *  as Process.fork on Windows, File.lchmod on GNU/Linux, etc.,
+ *  false is returned.
+ *
+ *  If the method is not defined, <code>respond_to_missing?</code>
+ *  method is called and the result is returned.
  */
 
 bool
@@ -655,15 +669,6 @@ rb_respond_to(VALUE obj, ID id)
     return rb_obj_respond_to(obj, id, false);
 }
 
-/*
- *  call-seq:
- *     obj.respond_to?(symbol, include_private=false) => true or false
- *
- *  Returns +true+> if _obj_ responds to the given
- *  method. Private methods are included in the search only if the
- *  optional second parameter evaluates to +true+.
- */
-
 static VALUE
 obj_respond_to(VALUE obj, SEL sel, int argc, VALUE *argv)
 {
@@ -675,15 +680,32 @@ obj_respond_to(VALUE obj, SEL sel, int argc, VALUE *argv)
     return rb_obj_respond_to2(obj, Qnil, id, RTEST(priv), false) ? Qtrue : Qfalse;
 }
 
+/*
+ *  call-seq:
+ *     obj.respond_to_missing?(symbol, include_private) => true or false
+ *
+ *  Hook method to return whether the _obj_ can respond to _id_ method
+ *  or not.
+ *
+ *  See #respond_to?.
+ */
+
+static VALUE
+obj_respond_to_missing(VALUE obj, SEL sel, VALUE sym, VALUE priv)
+{
+    return Qfalse;
+}
+
 IMP basic_respond_to_imp = NULL;
 
 void
 Init_eval_method(void)
 {
     rb_objc_define_method(rb_mKernel, "respond_to?", obj_respond_to, -1);
-    basic_respond_to_imp = class_getMethodImplementation((Class)rb_mKernel, selRespondTo);
-    //basic_respond_to = rb_method_node(rb_cObject, idRespond_to);
-    //rb_register_mark_object((VALUE)basic_respond_to);
+    rb_objc_define_method(rb_mKernel, "respond_to_missing?", obj_respond_to_missing, 2);
+    selRespondToDefault = sel_registerName("respond_to_missing?:");
+    basic_respond_to_imp = class_getMethodImplementation((Class)rb_mKernel,
+	    selRespondTo);
 
     rb_objc_define_private_method(rb_cModule, "remove_method", rb_mod_remove_method, -1);
     rb_objc_define_private_method(rb_cModule, "undef_method", rb_mod_undef_method, -1);
@@ -694,9 +716,12 @@ Init_eval_method(void)
     rb_objc_define_private_method(rb_cModule, "module_function", rb_mod_modfunc, -1);
 
     rb_objc_define_method(rb_cModule, "method_defined?", rb_mod_method_defined, 1);
-    rb_objc_define_method(rb_cModule, "public_method_defined?", rb_mod_public_method_defined, 1);
-    rb_objc_define_method(rb_cModule, "private_method_defined?", rb_mod_private_method_defined, 1);
-    rb_objc_define_method(rb_cModule, "protected_method_defined?", rb_mod_protected_method_defined, 1);
+    rb_objc_define_method(rb_cModule, "public_method_defined?",
+	    rb_mod_public_method_defined, 1);
+    rb_objc_define_method(rb_cModule, "private_method_defined?",
+	    rb_mod_private_method_defined, 1);
+    rb_objc_define_method(rb_cModule, "protected_method_defined?",
+	    rb_mod_protected_method_defined, 1);
     rb_objc_define_method(rb_cModule, "public_class_method", rb_mod_public_method, -1);
     rb_objc_define_method(rb_cModule, "private_class_method", rb_mod_private_method, -1);
 
