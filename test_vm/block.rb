@@ -734,5 +734,5 @@ assert ':ok' ,%{
   def foo
     lambda { yield }.call
   end
-  p(foo { :ok })'
+  p(foo { :ok })
 }
