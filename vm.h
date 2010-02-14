@@ -453,7 +453,7 @@ void rb_vm_raise(VALUE exception);
 void rb_vm_raise_current_exception(void);
 VALUE rb_vm_current_exception(void);
 void rb_vm_set_current_exception(VALUE exception);
-VALUE rb_vm_backtrace(int level);
+VALUE rb_vm_backtrace(int skip);
 void rb_vm_print_current_exception(void);
 
 #define TEST_THREAD_CANCEL() (pthread_testcancel())

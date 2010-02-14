@@ -315,7 +315,7 @@ RoxorDebugger::trap(const char *file, const int line, VALUE self,
 	    continue;
 	}
 	if (strcmp(cmd, "backtrace") == 0) {
-	    VALUE bt = rb_vm_backtrace(100);
+	    VALUE bt = rb_vm_backtrace(0);
 	    VALUE str = rb_ary_join(bt, rb_str_new2("\n"));
 	    send(RSTRING_PTR(str));
 	    continue;

@@ -736,10 +736,9 @@ static VALUE
 rb_f_caller(VALUE klass, SEL sel, int argc, VALUE *argv)
 {
     VALUE level;
-    int lev;
-
     rb_scan_args(argc, argv, "01", &level);
 
+    int lev;
     if (NIL_P(level)) {
 	lev = 1;
     }
@@ -751,19 +750,14 @@ rb_f_caller(VALUE klass, SEL sel, int argc, VALUE *argv)
 	rb_raise(rb_eArgError, "negative level (%d)", lev);
     }
 
-    VALUE ary = rb_vm_backtrace(lev);
-    rb_ary_shift(ary); // remove #caller
-    return ary;
+    return rb_vm_backtrace(lev);
 }
 
 void
 rb_backtrace(void)
 {
-    long i, count;
-    VALUE ary;
-
-    ary = rb_vm_backtrace(-1);
-    for (i = 0, count = RARRAY_LEN(ary); i < count; i++) {
+    VALUE ary = rb_vm_backtrace(0);
+    for (long i = 0, count = RARRAY_LEN(ary); i < count; i++) {
 	printf("\tfrom %s\n", RSTRING_PTR(RARRAY_AT(ary, i)));
     }
 }
@@ -771,7 +765,7 @@ rb_backtrace(void)
 VALUE
 rb_make_backtrace(void)
 {
-    return rb_vm_backtrace(-1);
+    return rb_vm_backtrace(0);
 }
 
 void

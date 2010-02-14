@@ -3503,7 +3503,7 @@ rb_vm_raise_current_exception(void)
 {
     VALUE exception = GET_VM()->current_exception();
     assert(exception != Qnil);
-    rb_iv_set(exception, "bt", rb_vm_backtrace(100));
+    rb_iv_set(exception, "bt", rb_vm_backtrace(0));
     __vm_raise(); 
 }
 
@@ -3511,7 +3511,7 @@ extern "C"
 void
 rb_vm_raise(VALUE exception)
 {
-    rb_iv_set(exception, "bt", rb_vm_backtrace(100));
+    rb_iv_set(exception, "bt", rb_vm_backtrace(0));
     rb_objc_retain((void *)exception);
     GET_VM()->push_current_exception(exception);
     __vm_raise();
@@ -3678,8 +3678,10 @@ rb_vm_check_return_from_block_exc(RoxorReturnFromBlockException **pexc, int id)
 
 extern "C"
 VALUE
-rb_vm_backtrace(int level)
+rb_vm_backtrace(int skip)
 {
+    assert(skip >= 0);
+
     void *callstack[128];
     int callstack_n = backtrace(callstack, 128);
 
@@ -3708,6 +3710,10 @@ rb_vm_backtrace(int level)
 	    }
 	    rb_ary_push(ary, rb_str_new2(entry));
 	}
+    }
+
+    while (skip-- > 0) {
+	rb_ary_shift(ary);
     }
 
     return ary;
