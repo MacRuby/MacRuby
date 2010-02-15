@@ -63,15 +63,13 @@ rb_send_dup(VALUE obj)
  *  to provide meaningful semantics in <code>case</code> statements.
  */
 
-inline VALUE
+VALUE
 rb_equal(VALUE obj1, VALUE obj2)
 {
-    VALUE result;
-
     if (obj1 == obj2) {
 	return Qtrue;
     }
-    result = rb_vm_call_with_cache(eqCache, obj1, selEq, 1, &obj2);
+    VALUE result = rb_vm_call_with_cache(eqCache, obj1, selEq, 1, &obj2);
     if (RTEST(result)) {
 	return Qtrue;
     }
