@@ -1,2 +1,0 @@
-critical:Array#<=> properly handles recursive arrays
-fails:Array#<=> returns nil when the argument is not array-like

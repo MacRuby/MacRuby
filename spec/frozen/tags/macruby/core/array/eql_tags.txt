@@ -1,1 +1,1 @@
-critical:Array#eql? handles well recursive arrays
+fails:Array#eql? handles well recursive arrays

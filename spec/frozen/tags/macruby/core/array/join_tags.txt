@@ -1,6 +1,2 @@
-critical:Array#join raises an ArgumentError when the Array is recursive
-fails:Array#join tries to convert the passed separator to a String using #to_str
-fails:Array#join tries to convert the passed separator to a String using #to_str
-fails:Array#join calls #to_str to convert the separator to a String
-fails:Array#join calls #to_str to convert the separator to a String
+fails:Array#join raises an ArgumentError when the Array is recursive
 fails:Array#join returns a string formed by concatenating each element.to_str separated by separator without trailing separator
