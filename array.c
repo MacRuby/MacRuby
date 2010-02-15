@@ -156,9 +156,6 @@ rb_equal_fast(VALUE x, VALUE y)
     if (x == y) {
 	return Qtrue;
     }
-    if (SPECIAL_CONST_P(x) && SPECIAL_CONST_P(y) && TYPE(x) == TYPE(y)) {
-	return Qfalse;
-    }
     if (SYMBOL_P(x)) {
 	return x == y ? Qtrue : Qfalse;
     }
@@ -827,7 +824,7 @@ rary_index_of_item(VALUE ary, size_t origin, VALUE item)
     assert(origin < RARY(ary)->len);
     for (size_t i = origin; i < RARY(ary)->len; i++) {
 	VALUE item2 = rary_elt(ary, i);
-	if (rb_equal_fast(item, item2) == Qtrue) {
+	if (rb_equal_fast(item2, item) == Qtrue) {
 	    return i;
 	}
     }
@@ -1189,12 +1186,25 @@ rary_empty(VALUE ary, SEL sel)
     return RARY(ary)->len == 0 ? Qtrue : Qfalse;
 }
 
+static VALUE
+rary_copy(VALUE rcv, VALUE klass)
+{
+    VALUE dup = rary_alloc(klass, 0);
+    rary_concat(dup, rcv, 0, RARY(rcv)->len);
+    return dup;
+}
+
 VALUE
 rary_dup(VALUE ary, SEL sel)
 {
-    VALUE dup = rary_alloc(rb_cRubyArray, 0);
-    rary_concat(dup, ary, 0, RARY(ary)->len);
-    *(VALUE *)dup = *(VALUE *)ary;
+    VALUE klass = CLASS_OF(ary);
+    while (RCLASS_SINGLETON(klass)) {
+	klass = RCLASS_SUPER(klass);
+    }
+    assert(rb_klass_is_rary(klass));
+
+    VALUE dup = rary_copy(ary, klass);
+
     if (OBJ_TAINTED(ary)) {
 	OBJ_TAINT(dup);
     }
@@ -1207,7 +1217,14 @@ rary_dup(VALUE ary, SEL sel)
 static VALUE
 rary_clone(VALUE ary, SEL sel)
 {
-    VALUE clone = rary_dup(ary, 0);
+    VALUE clone = rary_copy(ary, CLASS_OF(ary));
+
+    if (OBJ_TAINTED(ary)) {
+	OBJ_TAINT(clone);
+    }
+    if (OBJ_UNTRUSTED(ary)) {
+	OBJ_UNTRUST(clone);
+    }
     if (OBJ_FROZEN(ary)) {
 	OBJ_FREEZE(clone);
     }
@@ -2356,7 +2373,10 @@ recursive_cmp(VALUE ary1, VALUE ary2, int recur)
 VALUE
 rary_cmp(VALUE ary1, SEL sel, VALUE ary2)
 {
-    ary2 = to_ary(ary2);
+    ary2 = rb_check_array_type(ary2);
+    if (NIL_P(ary2)) {
+	return Qnil;
+    }
     if (ary1 == ary2) {
 	return INT2FIX(0);
     }
@@ -2505,6 +2525,7 @@ rary_uniq_bang(VALUE ary, SEL sel)
     for (size_t i = 0; i < n; i++) {
 	VALUE item = rary_elt(ary, i);
 	size_t pos = i + 1;
+
 	while (pos < n && (pos = rary_index_of_item(ary, pos, item))
 		!= NOT_FOUND) {
 	    rary_erase(ary, pos, 1);

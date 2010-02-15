@@ -1225,6 +1225,10 @@ rb_ary_join(VALUE ary, VALUE sep)
 	return rb_str_new(0, 0);
     }
 
+    if (!NIL_P(sep)) {
+	StringValue(sep);
+    }
+
     bool taint = false;
     if (OBJ_TAINTED(ary) || OBJ_TAINTED(sep)) {
 	taint = true;
@@ -1237,31 +1241,29 @@ rb_ary_join(VALUE ary, VALUE sep)
     VALUE result = rb_str_new(0, 0);
 
     for (long i = 0, count = RARRAY_LEN(ary); i < count; i++) {
-	VALUE tmp = RARRAY_AT(ary, i);
-	switch (TYPE(tmp)) {
+	VALUE elem = RARRAY_AT(ary, i);
+	switch (TYPE(elem)) {
 	    case T_STRING:
 		break;
 	    case T_ARRAY:
 		{
-		    VALUE args[2];
-
-		    args[0] = tmp;
-		    args[1] = sep;
-		    tmp = rb_exec_recursive(recursive_join, ary, (VALUE)args);
+		    VALUE args[2] = {elem, sep};
+		    elem = rb_exec_recursive(recursive_join, ary, (VALUE)args);
 		}
 		break;
 	    default:
-		tmp = rb_obj_as_string(tmp);
+		elem = rb_obj_as_string(elem);
+		break;
 	}
 	if (i > 0 && !NIL_P(sep)) {
 	    rb_str_buf_append(result, sep);
 	}
-	rb_str_buf_append(result, tmp);
+	rb_str_buf_append(result, elem);
 
-	if (OBJ_TAINTED(tmp)) {
+	if (OBJ_TAINTED(elem)) {
 	    taint = true;
 	}
-	if (OBJ_UNTRUSTED(tmp)) {
+	if (OBJ_UNTRUSTED(elem)) {
 	    untrust = true;
 	}
     }
