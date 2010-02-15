@@ -151,6 +151,18 @@ rhash_alloc(VALUE klass, SEL sel)
     return (VALUE)hash;
 }
 
+static VALUE
+rhash_copy(VALUE rcv, VALUE klass)
+{
+    NEWOBJ(dup, rb_hash_t);
+    dup->basic.flags = 0;
+    dup->basic.klass = klass;
+    GC_WB(&dup->tbl, st_copy(RHASH(rcv)->tbl));
+    GC_WB(&dup->ifnone, RHASH(rcv)->ifnone);
+    dup->has_proc_default = RHASH(rcv)->has_proc_default;
+    return (VALUE)dup;
+}
+
 VALUE
 rhash_dup(VALUE rcv, SEL sel)
 {
@@ -160,22 +172,22 @@ rhash_dup(VALUE rcv, SEL sel)
     }
     assert(rb_klass_is_rhash(klass));
 
-    NEWOBJ(dup, rb_hash_t);
-    dup->basic.flags = 0;
-    dup->basic.klass = klass;
-    GC_WB(&dup->tbl, st_copy(RHASH(rcv)->tbl));
-    GC_WB(&dup->ifnone, RHASH(rcv)->ifnone);
-    dup->has_proc_default = RHASH(rcv)->has_proc_default;
+    VALUE dup = rhash_copy(rcv, klass);
+
     if (OBJ_TAINTED(rcv)) {
 	OBJ_TAINT(dup);
     }
-    return (VALUE)dup;
+    return dup;
 }
 
 static VALUE
 rhash_clone(VALUE rcv, SEL sel)
 {
-    VALUE clone = rhash_dup(rcv, 0);
+    VALUE clone = rhash_copy(rcv, CLASS_OF(rcv));
+
+    if (OBJ_TAINTED(rcv)) {
+	OBJ_TAINT(clone);
+    }
     if (OBJ_FROZEN(rcv)) {
 	OBJ_FREEZE(clone);
     }
