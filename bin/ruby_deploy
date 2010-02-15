@@ -7,19 +7,20 @@
 
 require 'optparse'
 require 'rbconfig'
-require 'fileutils'
 
 class Deployer
-  include FileUtils
-
   NAME = File.basename(__FILE__)
 
   def initialize(argv)
+    @stdlib = []
+
     OptionParser.new do |opts|
       opts.banner = "Usage: #{NAME} [options] application-bundle"
-      opts.on('--compile', 'Compile the bundle source code') { @compile = true }
-      opts.on('--embed', 'Embed MacRuby inside the bundle') { @embed = true }
-      opts.on('--no-stdlib', "Do not embed the standard library") { @no_stdlib = true }
+      opts.on('--compile',       'Compile the bundle source code') { @compile = true }
+      opts.on('--embed',         'Embed MacRuby inside the bundle') { @embed = true }
+      opts.on('--no-stdlib',     'Do not embed the standard library') { @no_stdlib = true }
+      opts.on('--stdlib [LIB]',  'Embed only LIB from the standard library') { |lib| @stdlib << lib }
+      opts.on('--verbose',       'Log actions to standard out') { @verbose = true }
       opts.on('-v', '--version', 'Display the version') do
         puts RUBY_DESCRIPTION
         exit 1
@@ -33,62 +34,94 @@ class Deployer
       @app_bundle = argv[0]
     end
 
-    if !File.exist?(@app_bundle)
-      die "Given path `#{@app_bundle}' doesn't exist"
-    end
-    if !File.directory?(@app_bundle) or !File.exist?(File.join(@app_bundle, 'Contents'))
-      die "Given path `#{@app_bundle}' doesn't seem to be a valid application bundle"
-    end
+    ensure_path @app_bundle
+    ensure_path File.join(@app_bundle, 'Contents'), "Path `%s' doesn't seem to be a valid application bundle"
 
     # Locate necessary programs.
     @install_name_tool = locate('install_name_tool')
 
     # Locate the MacRuby framework.
     @macruby_framework_path = Config::CONFIG['libdir'].scan(/^.+MacRuby\.framework/)[0]
-    if !File.exist?(@macruby_framework_path)
-      die "Cannot locate MacRuby.framework from rbconfig.rb"
-    end
+    ensure_path @macruby_framework_path, "Cannot locate MacRuby.framework from rbconfig.rb"
   end
 
   def run
     die "Nothing to do, please specify --compile or --embed" if !@compile and !@embed
     die "--no-stdlib can only be used with --embed" if @no_stdlib and !@embed
-    compile if @compile
+    die "--stdlib can only be used with --embed" if !@stdlib.empty? and !@embed
     embed if @embed
+    compile if @compile
   end
 
   private
 
+  # FileUtils::Verbose doesn't work with MacRuby yet. However, it doesn't print
+  # out failures anyways, just the command. Use the command-line tools directly
+  # to circumvent this.
+  { :cp_r => 'cp -R', :mkdir_p => 'mkdir -p', :rm_rf => 'rm -rf' }.each do |name, cmd|
+    module_eval <<-END, __FILE__, __LINE__ + 1
+      def #{name}(*args)
+        execute "#{cmd} \#{args.map { |a| "'\#{a}'" }.join(' ')}"
+      end
+    END
+  end
+
+  def app_frameworks
+    File.join(@app_bundle, 'Contents/Frameworks')
+  end
+
+  def app_macruby
+    File.join(app_frameworks, 'MacRuby.framework')
+  end
+
+  def app_macruby_usr
+    File.join(app_macruby, 'Versions', MACRUBY_VERSION, 'usr')
+  end
+
+  def macruby_usr
+    @macruby_usr ||= ensure_path(File.join(@macruby_framework_path, 'Versions', MACRUBY_VERSION, 'usr'))
+  end
+
+  def compile_files
+    Dir.glob(File.join(@app_bundle, 'Contents/Resources/*.rb')) +
+      Dir.glob(File.join(app_macruby_usr, '**/*.rb'))
+  end
+
   def compile
-    Dir.glob(File.join(@app_bundle, 'Contents/Resources/*.rb')).each do |source|
+    compile_files.each do |source|
       base = File.basename(source, '.rb')
       next if base == 'rb_main'
       obj = File.join(File.dirname(source), base + '.rbo')
       if !File.exist?(obj) or File.mtime(source) > File.mtime(obj)
-        die "Can't compile \"#{source}\"" unless system("macrubyc -C \"#{source}\" -o \"#{obj}\"")
-        FileUtils.rm_f(source)
+        execute("macrubyc -C \"#{source}\" -o \"#{obj}\"", "Can't compile \"#{source}\"")
       end
+      rm_rf(source)
     end
+    fix_install_name if File.exist?(app_macruby)
   end
+
+  STDLIB_PATTERN = "lib/ruby/{,site_ruby/}1.9.*{,/universal-darwin*}"
+  KEEP_STDLIB_PATTERN = "{%s}{,{.,/**/*.}{rb,rbo,bundle}}"
 
   def embed
     # Copy MacRuby.framework inside MyApp.app/Contents/Frameworks.
-    app_frameworks = File.join(@app_bundle, 'Contents/Frameworks')
     mkdir_p(app_frameworks)
-    app_macruby = File.join(app_frameworks, 'MacRuby.framework')
     rm_rf(app_macruby)
     cp_r(@macruby_framework_path, app_frameworks)
 
     # Delete unnecessary things in the MacRuby.framework copy.
-    app_macruby_usr = File.join(app_macruby, 'Versions', MACRUBY_VERSION, 'usr')
-    macruby_usr = File.join(@macruby_framework_path, 'Versions', MACRUBY_VERSION, 'usr')
-    die "oops" if !File.exist?(app_macruby_usr) or !File.exist?(macruby_usr)
     dirs = ['bin', 'include', 'lib/libmacruby-static.a', 'share']
-    if @no_stdlib
-      dirs << 'lib/ruby'
-    end
+    dirs << 'lib/ruby' if @no_stdlib
     dirs << 'lib/ruby/Gems' # TODO add gems support
     dirs.each { |x| rm_rf(File.join(app_macruby_usr, x)) }
+
+    # Only keep specific libs from stdlib.
+    unless @stdlib.empty?
+      lib = File.join(app_macruby_usr, STDLIB_PATTERN)
+      all, keep = ["**/*", KEEP_STDLIB_PATTERN % @stdlib.join(',')].map { |p| Dir.glob(File.join(lib, p)) }
+      keep.reject! { |f| File.extname(f) == '.rb' && keep.include?("#{f}o") } # only keep .rbo for duplicates
+      all.select { |f| keep.grep(/^#{f}/).empty? }.each { |x| rm_rf(x) }
+    end
 
     # Only keep the Current version of the MacRuby.framework copy.
     Dir.glob(File.join(app_macruby, 'Versions/*')).select { |x|
@@ -98,9 +131,14 @@ class Deployer
       rm_rf(x)
     }
 
-    # Hack the application binaries to link against the MacRuby.framework copy.
-    patterns = [File.join(@app_bundle, 'Contents/MacOS/*'), 
-                File.join(app_macruby_usr, 'lib/ruby/**/*.{bundle,rbo}'), 
+    # Wait with fixing install name until all binaries are available.
+    fix_install_name unless @compile
+  end
+
+  # Hack the application binaries to link against the MacRuby.framework copy.
+  def fix_install_name
+    patterns = [File.join(@app_bundle, 'Contents/MacOS/*'),
+                File.join(app_macruby_usr, 'lib/ruby/**/*.{bundle,rbo}'),
                 File.join(@app_bundle, 'Contents/Resources/*.rbo')]
     patterns.each do |pat|
       Dir.glob(pat).each do |bin|
@@ -109,15 +147,21 @@ class Deployer
     end
   end
 
-  def execute(line)
+  def execute(line, error_message = nil)
+    $stdout.puts(line) if @verbose
     ret = `#{line}`
-    die "Error when executing `#{line}'" unless $?.success?
+    die(error_message || "Error when executing `#{line}'") unless $?.success?
     ret
   end
 
   def locate(progname)
     path = `which #{progname}`.strip
     die "Can't locate program `#{progname}'" if path.empty?
+    path
+  end
+
+  def ensure_path(path, message = "Path does not exist `%s'")
+    die(message % path) unless File.exist?(path)
     path
   end
 
