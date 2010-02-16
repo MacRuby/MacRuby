@@ -1,0 +1,326 @@
+= Grand Central Dispatch for MacRuby
+
+== Introduction
+
+This article explains how to use Grand Central Dispatch (*GCD*) from MacRuby, and is adapted from the article[http://developer.apple.com/mac/articles/cocoa/introblocksgcd.html] "Introducing Blocks and Grand Central Dispatch" at the Apple Developer Connection.
+
+=== About GCD
+	
+GCD is a revolutionary approach to multicore computing that is woven throughout the fabric of Mac OS X version 10.6 Snow Leopard. GCD combines an easy-to-use programming model with highly-efficient system services to radically simplify the code needed to make best use of multiple processors. The technologies in GCD improve the performance, efficiency, and responsiveness of Snow Leopard out of the box, and will deliver even greater benefits as more developers adopt them.
+
+The central insight of GCD is shifting the responsibility for managing threads and their execution from applications to the operating system. As a result, programmers can write less code to deal with concurrent operations in their applications, and the system can perform more efficiently on single-processor machines, large multiprocessor servers, and everything in between. Without a pervasive approach such as GCD, even the best-written application cannot deliver the best possible performance, because it doesn’t have full insight into everything else happening in the system. 
+
+=== The MacRuby Dispatch module
+
+GCD is natively implemented as a C API and runtime engine.  MacRuby 0.5 provides a Ruby wrapper around this API as part of the Dispatch module. This allows Ruby blocks to be scheduled on queues for asynchronous and concurrent execution either explicitly or in response to various kinds of events, with GCD automatically mapping queues to threads as needed.  The Dispatch module provides four primary abstractions that mirror the C API:
+
+Dispatch::Queue: The basic unit for organizing blocks. Several queues are created by default, and applications may create additional queues for their own use.
+
+Dispatch::Group: Allows applications to track the progress of blocks submitted to queues and take action when the blocks complete.
+
+Dispatch::Source: Monitors and coalesces low-level system events so that they can be responded to asynchronously via simple event handlers.
+
+Dispatch::Semaphore: Synchronizes threads via a combination of waiting and signalling.
+
+In addition, MacRuby 0.6 provides additional, higher-level abstractions and convenience APIs via the "dispatch" library (i.e., +require 'dispatch'+).
+
+=== What You Need
+
+As the MacRuby 0.6 features help reduce the learning curve for GCD, we will assume those for the remainder of this article.  Note that MacRuby 0.6 is currently (as of Feb 2010) only available via source[http://www.macruby.org/source.html] or the nightly[http://www.icoretech.org/2009/09/macruby-nightlies/] builds.
+
+We also assume that you are already familiar with Ruby, though not necessarily MacRuby. No prior knowledge of C or GCD is assumed or required, but the dispatch(3)[http://developer.apple.com/mac/library/DOCUMENTATION/Darwin/Reference/ManPages/man3/dispatch.3.html] man pages may be helpful if you wish to better understand the underlying semantics.
+
+== Invocation
+
+=== async
+
+The most basic method is +Dispatch.async+, which allows you to perform work asynchronously in the background:
+
+	require 'dispatch'
+	Dispatch.async { p "Do this later" }
+
+This schedules the block on GCD's default concurrent queue, which means it will be run on another thread or core, if available.  You can also specify an optional priority level (+:high+, +:default+, or +:low+) to access one of the other concurrent queues:
+
+	Dispatch.async(:high) { p "Do this sooner" }
+
+These blocks are (almost) just standard ruby blocks, and thus have access to the local context:
+
+	filename = "/etc/passwd"
+	Dispatch.async { File.open(filename) {|f| puts f} }
+
+The one caveat is that since the block may run at a later time, local (dynamic) variables are always copied rather than referenced:
+
+	filename = "/etc/passwd"
+	1.times do { filename = "/etc/group" }
+	p filename # => "/etc/group"
+	Dispatch.async { filename = "/etc/shell" }
+	p filename # => "/etc/group"
+
+In practice this is not a significant limitation, since it only copies the variable -- not the object itself. Thus, operations that mutate the underlying object (vs. those that reassign the variable) behave as expected:
+
+	ary = ["/etc/passwd"]
+	Dispatch.async { ary << "/etc/shell" }
+	p ary # => ["/etc/passwd", "/etc/shell"] # assuming the async operation has completed
+
+In this case, the local variable +ary+ still points to the same object that was mutated, so it contains the new value.
+
+Note however that Ruby treats the accumulation operations ("+=", "||=", etc.) as syntactic sugar over assignment, and thus those operations only affect the copy of the variable:
+
+	ary = ["/etc/passwd"]
+	Dispatch.async { ary += ["/etc/shell"] }
+	p ary # => ["/etc/passwd"]
+
+When in doubt, simply use instance or global variables (e.g., anything with a sigil[http://en.wikipedia.org/wiki/Sigil_(computer_programming)]), as those have a well-defined existence outside the local scope, and are thus referenced directly by the dispatched block:
+
+	@ary = ["/etc/passwd"]
+	Dispatch.async { @ary += ["/etc/shell"] }
+	p @ary # => ["/etc/passwd", "/etc/shell"]
+
+=== group
+
+You may have noticed above that we couldn't tell when that asynchronous block had finished executing.
+Let's remedy that by instead using +Dispatch.group+:
+
+	g = Dispatch.group { p "Do this in a group" }
+
+This asynchronously dispatches that block in connection with a +Dispatch::Group+ object, which by default is created and returned. That group can then be passed to subsequent requests:
+
+	Dispatch.group(g) { p "Group me too" }
+
+The group tracks execution of all associated blocks.  You can simply wait until they have all finished executing by calling +join+:
+
+	g.join # => "Do this in a group" "Group me too"
+
+However, this usage halts the current thread, which is bad form in the GCD universe.  A better option is to figure out _why_ you need to know when the group has completed, encapsulate it into a block, then tell the group to invoke that when finished:
+
+	g.join { p "Hey, I'm done already" }
+
+This version returns immediately, as good Dispatch objects should, but only prints out when the group has completed.
+
+=== fork
+
+That's all well and good, but what if you want to know the return value of that block? Use +Dispatch.fork+: 
+
+	f = Dispatch.fork {  Math.sqrt(10**100) }
+	
+This creates and returns a +Dispatch::Future+ that not only runs the block asynchronously in the background, it captures the return value. Like +Dispatch.async+, you can also specify a priority:
+
+	f = Dispatch.fork(:low) {  Math.sqrt(10**100) }
+
+Like +Dispatch::Group+, you can use +join+ to track when it is finished, either synchronously or asynchronously:
+
+	f.join # waits
+	f.join { p "The future is here" } # notifies you when it is done
+	
+But more importantly, you can ask it for the block's return value, just like an instance of +Thread+:
+
+	f.value # => 1.0e+50
+	
+As you might've guessed, this will wait until the Future has executed before returning the value. While this ensures a valid result, it is bad GCD karma, so as usual you can instead get it asynchronously via a callback:
+
+f.value {|v| p "Hey, I got #{v} back!" }
+
+== Synchronization
+
+Those of you who have done multithreaded programming in other languages may have (rightly!) shuddered at the early mention of mutating an object asynchronously, as that could lead to data corruption when done from multiple threads:
+
+	ary = ["/etc/passwd"]
+	# NEVER do this
+	Dispatch.async { ary << "/etc/shell" }
+	Dispatch.async { ary << "/etc/group" }
+
+Because Ruby 1.8 had a global VM lock (or GIL[http://en.wikipedia.org/wiki/Global_Interpreter_Lock]), you never had to worry about issues like these, as everything was automatically serialized by the interpreter. True, this reduced the benefit of using multiple threads, but it also meant that Ruby developers didn't have to learn about locks[http://en.wikipedia.org/wiki/Lock_(computer_science)], mutexes[http://en.wikipedia.org/wiki/Mutual%20eclusion], deadlock[http://en.wikipedia.org/wiki/Deadlock], and priority inversion[http://en.wikipedia.org/wiki/Priority_inversion].
+
+Fortunately, even though MacRuby no longer has a global VM lock, you (mostly) still don't need to know about all those things, because GCD provides lock-free[http://en.wikipedia.org/wiki/Non-blocking_synchronization] synchronization via queues.
+
+=== queue
+
+
+
+	puts "\n Use Dispatch.queue_for to create a private serial queue"
+	puts "  - synchronizes access to shared data structures"
+	a = Array.new
+	q = Dispatch.queue_for(a)
+	puts "  - has a (mostly) unique name:"
+	p q
+	q.async { a << "change me"  }
+	puts "  - uses sync to block and flush queue"
+	q.sync { p a }
+
+
+	puts "\n Use with a group for more complex dependencies, "
+	q.async(g) { a << "more change"  }
+	Dispatch.group(g) do 
+	 tmp = "complex calculation"
+	 q.async(g) { a << tmp }
+	end
+	puts "  - uses notify to execute block when done"
+	g.notify(q) { p a }
+	q.sync {}
+
+Dispatch wrap
+
+
+	puts "\n Use Dispatch.wrap to serialize object using an Actor"
+	b = Dispatch.wrap(Array)
+	b << "safely change me"
+	p b.size # => 1 (synchronous return)
+	b.size {|n| p "Size=#{n}"} # => "Size=1" (asynchronous return)
+
+
+
+Dispatch Sources
+
+
+
+
+The second parameter is reserved for future expansion, but for now must be zero.
+You use the default queue to run a single item in the background or to run many operations at once.  For the common case of a “parallel for loop”,  GCD provides an optimized “apply” function that submits a block for each iteration:
+
+
+
+
+#define COUNT 128
+__block double result[COUNT];
+dispatch_apply(COUNT, q_default, ^(size_t i){
+ 	result[i] = complex_calculation(i);
+ });
+double sum = 0;
+for (int i=0; i < COUNT; i++) sum += result[i];
+
+
+
+
+Semaphores 
+
+
+Finally, GCD has an efficient, general-purpose signaling mechanism known as dispatch semaphores.  These are most commonly used to throttle usage of scarce resources, but can also help track completed work:  
+
+
+
+dispatch_semaphore_t sema = dispatch_semaphore_create(0);
+dispatch_async(a_queue, ^{ some_work(); dispatch_semaphore_signal(sema); });
+more_work(); 
+dispatch_semaphore_wait(sema, DISPATCH_TIME_FOREVER);
+dispatch_release(sema);
+do_this_when_all_done();
+
+
+
+Like other GCD objects, dispatch semaphores usually don’t need to call into the kernel, making them much faster than regular semaphores when there is no need to wait.
+
+
+
+
+Event Sources
+
+
+
+In addition to scheduling blocks directly, developers can set a block as the handler for event sources such as:
+
+
+
+	Timers
+	Signals
+	File descriptors and sockets
+	Process state changes
+	Mach ports
+	Custom application-specific events
+
+	
+When the source “fires,” GCD will schedule the handler on the specific queue if it is not currently running, or coalesce pending events if it is. This provides excellent responsiveness without the expense of either polling or binding a thread to the event source.  Plus, since the handler is never run more than once at a time, the block doesn’t even need to be reentrant.
+
+Timer Example
+
+
+For example, this is how you would create a timer that prints out the current time every 30 seconds -- plus 5 microseconds leeway, in case the system wants to align it with other events to minimize power consumption.
+
+
+
+dispatch_source_t timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, q_default); //run event handler on the default global queue
+dispatch_time_t now = dispatch_walltime(DISPATCH_TIME_NOW, 0);
+dispatch_source_set_timer(timer, now, 30ull*NSEC_PER_SEC, 5000ull);
+dispatch_source_set_event_handler(timer, ^{
+	printf(“%s\n”, ctime(time(NULL)));
+});
+
+
+Sources are always created in a suspended state to allow configuration, so when you are all set they must be explicitly resumed to begin processing events. 
+
+dispatch_resume(timer);
+
+You can suspend a source or dispatch queue at any time to prevent it from executing new blocks, though this will not affect blocks that are already being processed.
+
+
+
+Custom Events Example
+
+GCD provides two different types of user events, which differ in how they coalesce the data passed to dispatch_source_merge_data:
+
+
+DISPATCH_SOURCE_TYPE_DATA_ADD accumulates the sum of the event data (e.g., for numbers)
+DISPATCH_SOURCE_TYPE_DATA_OR combines events using a logical OR (e.g, for booleans or bitmasks)
+
+
+Though it is arguably overkill, we can even use events to rewrite our dispatch_apply example. Since the event handler is only ever called once at a time, we get automatic serialization over the "sum" variable without needing to worry about reentrancy or private queues:
+
+
+
+__block unsigned long sum = 0;
+dispatch_source_t adder = dispatch_source_create(DISPATCH_SOURCE_TYPE_DATA_ADD, 0, 0, q_default);
+dispatch_source_set_event_handler(adder, ^{
+	sum += dispatch_source_get_data(adder);
+});
+dispatch_resume(adder);
+
+#define COUNT 128
+dispatch_apply(COUNT, q_default, ^(size_t i){
+	unsigned long x = integer_calculation(i);
+	dispatch_source_merge_data(adder, x);
+});
+dispatch_release(adder);
+
+
+Note that for this example we changed our calculation to use integers, as dispatch_source_merge_data expects an unsigned long parameter.  
+
+
+File Descriptor Example
+
+Here is a more sophisticated example involving reading from a file. Note the use of non-blocking I/O to avoid stalling a thread:
+
+
+int fd = open(filename, O_RDONLY);
+fcntl(fd, F_SETFL, O_NONBLOCK);  // Avoid blocking the read operation
+dispatch_source_t reader = 
+  dispatch_source_create(DISPATCH_SOURCE_TYPE_READ, fd, 0, q_default); 
+
+  
+We will also specify a “cancel handler” to clean up our descriptor:
+
+dispatch_source_set_cancel_handler(reader, ^{ close(fd); } );
+
+
+The cancellation will be invoked from the event handler on, e.g., end of file:
+
+
+
+typedef struct my_work {…} my_work_t;
+dispatch_source_set_event_handler(reader, ^{ 
+	size_t estimate = dispatch_source_get_data(reader);
+	my_work_t *work = produce_work_from_input(fd, estimate);
+	if (NULL == work)
+		dispatch_source_cancel(reader);
+	else
+		dispatch_async(q_default, ^{ consume_work(work); free(work); } );
+});
+dispatch_resume(reader);
+
+
+To avoid bogging down the reads, the event handler packages up the data in a my_work_t and schedules the processing in another block.  This separation of  concerns is known as the producer/consumer pattern, and maps very naturally to Grand Central Dispatch queues.  In case of imbalance, you may need to adjust the relative priorities of the producer and consumer queues or throttle them using semaphores.
+
+
+Conclusion
+
+Grand Central Dispatch is a new approach to building software for multicore systems, one in which the operating system takes responsibility for the kinds of thread management tasks that traditionally have been the job of application developers. Because it is built into Mac OS X at the most fundamental level, GCD can not only simplify how developers build their code to take advantage of multicore, but also deliver better performance and efficiency than traditional approaches such as threads.  With GCD, Snow Leopard delivers a new foundation on which Apple and third party developers can innovate and realize the enormous power of both today’s hardware and tomorrow’s. 
+
+
