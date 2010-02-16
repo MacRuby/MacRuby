@@ -39,23 +39,21 @@ module Enumerable
 
   # Parallel +collect+
   # Results match the order of the original array
-  def p_map(&block)
+  def p_map(stride=1, priority=nil,  &block)
     result = Dispatch.wrap(Array)
-    self.p_each_with_index do |obj, i|
-      result[i] = block.call(obj)
-    end
+    self.p_each_with_index(stride, priority) { |obj, i| result[i] = block.call(obj) }
     result._done_
   end
 
   # Parallel +collect+ plus +inject+
   # Accumulates from +initial+ via +op+ (default = '+')
-  # Note: each object can only run one mapreduce at a time
+  # Note: each object will only run one p_mapreduce at a time
   def p_mapreduce(initial, op=:+, &block)
+    # Check first, since exceptions from a Dispatch block can act funky 
     raise ArgumentError if not initial.respond_to? op
-    # Since exceptions from a Dispatch block can act funky 
-    @mapreduce_q ||= Dispatch::Queue.new("enumerable.p_mapreduce.#{object_id}")
-    # Ideally should run from within a Dispatch.once to avoid race
-    @mapreduce_q.sync do 
+    # TODO: assign from within a Dispatch.once to avoid race condition
+    @mapreduce_q ||= Dispatch.queue(self)
+    @mapreduce_q.sync do # in case called more than once at a time
       @mapreduce_result = initial
       q = Dispatch.queue(@mapreduce_result)
       self.p_each do |obj|
@@ -69,23 +67,23 @@ module Enumerable
 
   # Parallel +select+; will return array of objects for which
   # +&block+ returns true.
-  def p_find_all(&block)
+  def p_find_all(stride=1, priority=nil,  &block)
     found_all = Dispatch.wrap(Array)
-    self.p_each { |obj| found_all << obj if block.call(obj) }
+    self.p_each(stride, priority) { |obj| found_all << obj if block.call(obj) }
     found_all._done_
   end
 
   # Parallel +detect+; will return -one- match for +&block+
   # but it may not be the 'first'
   # Only useful if the test block is very expensive to run
-  # Note: each object can only run one find at a time
+  # Note: each object can only run one p_find at a time
 
-  def p_find(&block)
-    @find_q ||= Dispatch::Queue.new("enumerable.p_find.#{object_id}")
+  def p_find(stride=1, priority=nil,  &block)
+    @find_q ||= Dispatch.queue(self)
     @find_q.sync do 
       @find_result = nil
       q = Dispatch.queue(@find_result)
-      self.p_each do |obj|
+      self.p_each(stride, priority) do |obj|
         if @find_result.nil?
           found = block.call(obj)
           q.async { @find_result = obj if found }
