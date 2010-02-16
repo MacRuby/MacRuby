@@ -24,22 +24,17 @@ class Integer
 end
 
 module Enumerable
+
   # Parallel +each+
-  def p_each(&block)
-    grp = Dispatch::Group.new
-    self.each do |obj|
-      Dispatch.group(grp) { block.call(obj) }        
-    end
-    grp.wait
+  def p_each(stride=1, priority=nil,  &block)
+    ary = self.to_a
+    size.p_times(stride, priority) { |i| block.call(ary[i]) }
   end
 
-  # Parallel +each_with_index+
-  def p_each_with_index(&block)
-    grp = Dispatch::Group.new
-    self.each_with_index do |obj, i|
-      Dispatch.group(grp) { block.call(obj, i) }
-    end
-    grp.wait
+  # Parallel +each+
+  def p_each_with_index(stride=1, priority=nil,  &block)
+    ary = self.to_a
+    size.p_times(stride, priority) { |i| block.call(ary[i], i) }
   end
 
   # Parallel +collect+
