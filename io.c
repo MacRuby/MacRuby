@@ -17,6 +17,8 @@
 #include "objc.h"
 #include "id.h"
 
+extern VALUE rb_cByteString; // TODO it does not exist anymore
+
 #include <errno.h>
 #include <paths.h>
 #include <fcntl.h>

@@ -2238,7 +2238,6 @@ time_mload(VALUE time, VALUE str)
     rb_copy_generic_ivar(time, str);
 
     StringValue(str);
-    assert(*(VALUE *)str == rb_cByteString);
 
     unsigned char *buf = (unsigned char *)rb_bytestring_byte_pointer(str);
     const size_t buflen = rb_bytestring_length(str); 

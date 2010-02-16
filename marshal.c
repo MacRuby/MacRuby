@@ -1733,17 +1733,6 @@ marshal_load(VALUE self, SEL sel, int argc, VALUE *argv)
     v = rb_check_string_type(port);
     if (!NIL_P(v)) {
 	arg->taint = OBJ_TAINTED(port); /* original taintedness */
-	if (*(VALUE *)v != rb_cByteString) {
-	    // Given string is not a ByteString, let's create one based on every
-	    // character. This sucks but this is how life is.
-	    const long n = RSTRING_LEN(v);
-	    UInt8 *bytes = alloca(n + 1);
-	    for (long i = 0; i < n; i++) {
-		UniChar c = CFStringGetCharacterAtIndex((CFStringRef)v, i);
-		bytes[i] = (char)c;
-	    }
-	    v = rb_bytestring_new_with_data(bytes, n);
-	}
 	port = v;
     }
     else if (rb_obj_respond_to(port, s_getbyte, Qtrue)

@@ -5066,32 +5066,6 @@ yycompile(struct parser_params *parser, const char *f, int line)
 }
 #endif /* !RIPPER */
 
-#ifndef RIPPER
-static VALUE
-lex_get_bstr(struct parser_params *parser, VALUE s)
-{
-    long beg = 0; 
-    const long n = rb_bytestring_length(s);
-    if (lex_gets_ptr > 0) {
-	if (n == lex_gets_ptr) {
-	    return Qnil;
-	}
-	beg += lex_gets_ptr;
-    }
-
-    const UInt8 *data = rb_bytestring_byte_pointer(s);
-    UInt8 *pos = memchr(data + beg, '\n', n - beg);
-    if (pos != NULL) {
-	lex_gets_ptr = pos - data + 1;
-    }
-    else {
-	lex_gets_ptr = n;
-    }
-
-    return rb_bytestring_new_with_data(data + beg, lex_gets_ptr - beg);
-}
-#endif
-
 static VALUE
 lex_get_str(struct parser_params *parser, VALUE s)
 {
@@ -5149,7 +5123,7 @@ rb_parser_compile_string(VALUE vparser, const char *f, VALUE s, int line)
     struct parser_params *parser;
     Data_Get_Struct(vparser, struct parser_params, parser);
 
-    lex_gets = CLASS_OF(s) == rb_cByteString ? lex_get_bstr : lex_get_str;
+    lex_gets = lex_get_str;
     lex_gets_ptr = 0;
     GC_WB(&lex_input, s);
     lex_pbeg = lex_p = lex_pend = 0;

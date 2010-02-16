@@ -9,13 +9,15 @@
  * Copyright (C) 2000 Information-technology Promotion Agency, Japan
  */
 
-#include "encoding.h"
-#include "objc.h"
-#include <assert.h>
 #include <stdio.h>
 #include <stdarg.h>
 
-VALUE rb_cSymbol; // XXX move me outside
+#include "encoding.h"
+#include "objc.h"
+#include "id.h"
+
+VALUE rb_cSymbol; 	// XXX move me outside
+VALUE rb_cByteString; 	// XXX remove all references about me, i'm dead
 
 VALUE rb_cString;
 VALUE rb_cNSString;
@@ -1406,6 +1408,21 @@ rb_tainted_str_new2(const char *cstr)
     return rb_tainted_str_new(cstr, strlen(cstr));
 }
 
+VALUE
+rb_usascii_str_new(const char *cstr, long len)
+{
+    VALUE str = rb_str_new(cstr, len);
+    RSTR(str)->encoding = encodings[ENCODING_ASCII];
+    return str;
+}
+
+VALUE
+rb_usascii_str_new2(const char *cstr)
+{
+    return rb_usascii_str_new(cstr, strlen(cstr));
+}
+
+
 const char *
 rb_str_cstr(VALUE str)
 {
@@ -1424,6 +1441,52 @@ rb_str_clen(VALUE str)
 	return RSTR(str)->length_in_bytes;
     }
     return 0; // TODO
+}
+
+char *
+rb_string_value_cstr(volatile VALUE *ptr)
+{
+    VALUE str = rb_string_value(ptr);
+    return (char *)rb_str_cstr(str);
+}
+
+char *
+rb_string_value_ptr(volatile VALUE *ptr)
+{
+    return rb_string_value_cstr(ptr);
+}
+
+VALUE
+rb_string_value(volatile VALUE *ptr)
+{
+    VALUE s = *ptr;
+    if (TYPE(s) != T_STRING) {
+	s = rb_str_to_str(s);
+	*ptr = s;
+    }
+    return s;
+}
+
+VALUE
+rb_check_string_type(VALUE str)
+{
+    return rb_check_convert_type(str, T_STRING, "String", "to_str");
+}
+
+VALUE
+rb_obj_as_string(VALUE obj)
+{
+    if (TYPE(obj) == T_STRING || TYPE(obj) == T_SYMBOL) {
+	return obj;
+    }
+    VALUE str = rb_vm_call(obj, selToS, 0, NULL, false);
+    if (TYPE(str) != T_STRING) {
+	return rb_any_to_s(obj);
+    }
+    if (OBJ_TAINTED(obj)) {
+	OBJ_TAINT(str);
+    }
+    return str;
 }
 
 ID

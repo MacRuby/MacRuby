@@ -1120,7 +1120,6 @@ RUBY_EXTERN VALUE rb_cRegexp;
 RUBY_EXTERN VALUE rb_cSet;
 RUBY_EXTERN VALUE rb_cStat;
 RUBY_EXTERN VALUE rb_cString;
-RUBY_EXTERN VALUE rb_cByteString;
 RUBY_EXTERN VALUE rb_cStruct;
 RUBY_EXTERN VALUE rb_cSymbol;
 RUBY_EXTERN VALUE rb_cThread;
@@ -1408,20 +1407,20 @@ int rb_remove_event_hook(rb_event_hook_func_t func);
 /* locale insensitive functions */
 
 #define rb_isascii(c) ((unsigned long)(c) < 128)
-int rb_isalnum(int c);
-int rb_isalpha(int c);
-int rb_isblank(int c);
-int rb_iscntrl(int c);
-int rb_isdigit(int c);
-int rb_isgraph(int c);
-int rb_islower(int c);
-int rb_isprint(int c);
-int rb_ispunct(int c);
-int rb_isspace(int c);
-int rb_isupper(int c);
-int rb_isxdigit(int c);
-int rb_tolower(int c);
-int rb_toupper(int c);
+#define rb_isalnum(c) (rb_isascii(c) && isalnum(c))
+#define rb_isalpha(c) (rb_isascii(c) && isalpha(c))
+#define rb_isblank(c) (rb_isascii(c) && isblank(c))
+#define rb_iscntrl(c) (rb_isascii(c) && iscntrl(c))
+#define rb_isdigit(c) (rb_isascii(c) && isdigit(c))
+#define rb_isgraph(c) (rb_isascii(c) && isgraph(c))
+#define rb_islower(c) (rb_isascii(c) && islower(c))
+#define rb_isprint(c) (rb_isascii(c) && isprint(c))
+#define rb_ispunct(c) (rb_isascii(c) && ispunct(c))
+#define rb_isspace(c) (rb_isascii(c) && isspace(c))
+#define rb_isupper(c) (rb_isascii(c) && isupper(c))
+#define rb_isxdigit(c) (rb_isascii(c) && isxdigit(c))
+#define rb_tolower(c) (rb_isascii(c) && tolower(c))
+#define rb_toupper(c) (rb_isascii(c) && toupper(c))
 
 #ifndef ISPRINT
 #define ISASCII(c) rb_isascii((unsigned char)(c))

@@ -1093,8 +1093,6 @@ load_file(VALUE parser, const char *fname, int script,
 		if (NIL_P(line)) {
 		    return 0;
 		}
-		assert(*(VALUE *)line == rb_cByteString);
-
 		if ((p = strstr(RSTRING_PTR(line), "ruby")) == 0) {
 		    /* not ruby script, kick the program */
 		    char **argv;
