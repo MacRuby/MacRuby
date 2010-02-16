@@ -1,5 +1,18 @@
 # Additional parallel operations for any object supporting +each+
 
+module Dispatch
+  class Queue
+    def fake_apply(n, &block)
+      g = Dispatch::Group.new
+      n.times do |i|
+        async(g) { block.call(i) }
+      end
+      g.wait
+    end
+  end
+end
+
+
 class Integer
   # Applies the +&block+ +Integer+ number of times in parallel
   # -- passing in stride (default 1) iterations at a time --
@@ -18,7 +31,7 @@ class Integer
     block_from = Proc.new do |j0|
       lambda { |j| block.call(j0+j) }
     end
-    q.apply(n_strides) { |i| stride.times &block_from.call(i*stride) }
+    q.fake_apply(n_strides) { |i| stride.times &block_from.call(i*stride) }
     # Runs the remainder (if any) sequentially on the current thread
     (n_times % stride).times &block_from.call(n_strides*stride)
   end
