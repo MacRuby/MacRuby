@@ -102,6 +102,7 @@ LLVM_MODULES = "core jit nativecodegen bitwriter"
 CC = '/usr/bin/gcc'
 CXX = '/usr/bin/g++'
 CFLAGS = "-I. -I./include -I./onig -I/usr/include/libxml2 #{ARCHFLAGS} -fno-common -pipe -O3 -g -Wall -fexceptions"
+CFLAGS << " -I./unicode" # TODO use /usr/local/include/unicode on FNI installs...
 CFLAGS << " -Wno-parentheses -Wno-deprecated-declarations -Werror" if NO_WARN_BUILD
 OBJC_CFLAGS = CFLAGS + " -fobjc-gc-only"
 CXXFLAGS = `#{LLVM_CONFIG} --cxxflags #{LLVM_MODULES}`.sub(/-DNDEBUG/, '').strip
@@ -109,7 +110,7 @@ CXXFLAGS << " -I. -I./include -g -Wall #{ARCHFLAGS}"
 CXXFLAGS << " -Wno-parentheses -Wno-deprecated-declarations -Werror" if NO_WARN_BUILD
 CXXFLAGS << " -DLLVM_TOT" if ENV['LLVM_TOT']
 LDFLAGS = `#{LLVM_CONFIG} --ldflags --libs #{LLVM_MODULES}`.strip.gsub(/\n/, '')
-LDFLAGS << " -lpthread -ldl -lxml2 -lobjc -lauto -framework Foundation"
+LDFLAGS << " -lpthread -ldl -lxml2 -lobjc -lauto -licucore -framework Foundation"
 DLDFLAGS = "-dynamiclib -undefined suppress -flat_namespace -install_name #{INSTALL_NAME} -current_version #{MACRUBY_VERSION} -compatibility_version #{MACRUBY_VERSION}"
 DLDFLAGS << " -unexported_symbols_list #{UNEXPORTED_SYMBOLS_LIST}" if UNEXPORTED_SYMBOLS_LIST
 CFLAGS << " -std=c99" # we add this one later to not conflict with C++ flags
