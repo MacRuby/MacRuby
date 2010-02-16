@@ -11,15 +11,16 @@ class Integer
   #
   def p_times(stride=1, priority=nil, &block)
     n_times = self.to_int
-    puts "\np_times: n_times=#{n_times}, stride=#{stride}"
     q = Dispatch::Queue.concurrent(priority)
+    return q.apply(n_times, &block) if stride == 1
+    
     n_strides = (n_times / stride).to_int
-    q.apply(n_strides) do |i|
-      j0 = i*stride
-      stride.times { |j| block.call(j0+j); puts "\n#{i}=>#{j0}:j=#{j}" }
+    block_from = Proc.new do |j0|
+      lambda { |j| block.call(j0+j) }
     end
+    q.apply(n_strides) { |i| stride.times &block_from.call(i*stride) }
     # Runs the remainder (if any) sequentially on the current thread
-    (n_strides*stride).upto(n_times - 1) { |j| block.call(j); puts "\nj'=#{j}" }
+    (n_times % stride).times &block_from.call(n_strides*stride)
   end
 end
 
@@ -77,19 +78,15 @@ module Enumerable
   # but it may not be the 'first'
   # Only useful if the test block is very expensive to run
   # Note: each object can only run one p_find at a time
-
   def p_find(stride=1, priority=nil,  &block)
     @find_q ||= Dispatch.queue(self)
     @find_q.sync do 
       @find_result = nil
       q = Dispatch.queue(@find_result)
       self.p_each(stride, priority) do |obj|
-        if @find_result.nil?
-          found = block.call(obj)
-          q.async { @find_result = obj if found }
-        end
+        q.async { @find_result = obj } if @find_result.nil? and block.call(obj)
       end
-      q.sync {} #if @find_result.nil?
+      q.sync {}
       return @find_result
     end
   end
