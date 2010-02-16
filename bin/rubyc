@@ -41,17 +41,7 @@ class Compiler
         die "Invalid mode `#{@mode}'. Possible choices are: normal, full"
       end
       @archs.uniq!
-      if @archs.empty?
-        arch = ENV['ARCHS']
-        arch = arch.strip if arch
-        if arch and arch.size > 0
-          # Copy Xcode way of doing it:
-          # Use intersection of ARCHS and VALID_ARCHS
-          @archs = arch.split & VALID_ARCHS
-        else
-          @archs << RUBY_ARCH
-        end
-      end
+      @archs << RUBY_ARCH if @archs.empty?
       @archs.each do |arch|
         if not VALID_ARCHS.include?(arch)
           die "Invalid CPU architecture `#{arch}'. Possible values are: " + VALID_ARCHS.join(", ")

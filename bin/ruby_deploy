@@ -93,7 +93,10 @@ class Deployer
       next if base == 'rb_main'
       obj = File.join(File.dirname(source), base + '.rbo')
       if !File.exist?(obj) or File.mtime(source) > File.mtime(obj)
-        execute("macrubyc -C \"#{source}\" -o \"#{obj}\"", "Can't compile \"#{source}\"")
+        compile_cmd = "macrubyc -C \"#{source}\" -o \"#{obj}\""
+        # Use Xcode ARCHS env var to determine which archs to compile for
+        compile_cmd += ENV['ARCHS'].strip.split.map { |a| " -a #{a}" }.join if ENV['ARCHS']
+        execute(compile_cmd, "Can't compile \"#{source}\"")
       end
       rm_rf(source)
     end
