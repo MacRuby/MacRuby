@@ -237,7 +237,7 @@ create_encodings(void)
     //add_encoding(ENCODING_CP932,     ENCODING_TYPE_RUBY, "Windows-31J", 1, false, true, "CP932", "csWindows31J", NULL);
 
     default_external = encodings[ENCODING_UTF8];
-    default_internal = encodings[ENCODING_UTF16_NATIVE];
+    default_internal = encodings[ENCODING_UTF8];
 }
 
 VALUE
