@@ -4,7 +4,7 @@
 // TODO:
 // - use rb_usascii_str_new_cstr instead of rb_str_new2
 
-VALUE rb_cMREncoding = 0;
+VALUE rb_cEncoding = 0;
 
 #define ENC(x) ((encoding_t *)(x))
 #define OBJC_CLASS(x) (*(VALUE *)(x))
@@ -131,7 +131,7 @@ define_encoding_constant(const char *name, encoding_t *encoding)
 	    name_copy[i] = '_';
 	}
     }
-    rb_define_const(rb_cMREncoding, name_copy, (VALUE)encoding);
+    rb_define_const(rb_cEncoding, name_copy, (VALUE)encoding);
     free(name_copy);
 }
 
@@ -173,7 +173,7 @@ add_encoding(
     // create the MacRuby object
     NEWOBJ(encoding, encoding_t);
     encoding->basic.flags = 0;
-    encoding->basic.klass = rb_cMREncoding;
+    encoding->basic.klass = rb_cEncoding;
     encodings[encoding_index] = encoding;
     rb_objc_retain(encoding); // it should never be deallocated
 
@@ -239,32 +239,32 @@ VALUE
 mr_enc_s_is_compatible(VALUE klass, SEL sel, VALUE str1, VALUE str2);
 
 void
-Init_MREncoding(void)
+Init_Encoding(void)
 {
-    rb_cMREncoding = rb_define_class("MREncoding", rb_cObject);
-    rb_undef_alloc_func(rb_cMREncoding);
+    rb_cEncoding = rb_define_class("Encoding", rb_cObject);
+    rb_undef_alloc_func(rb_cEncoding);
 
-    rb_objc_define_method(rb_cMREncoding, "to_s", mr_enc_name, 0);
-    rb_objc_define_method(rb_cMREncoding, "inspect", mr_enc_inspect, 0);
-    rb_objc_define_method(rb_cMREncoding, "name", mr_enc_name, 0);
-    rb_objc_define_method(rb_cMREncoding, "names", mr_enc_names, 0);
-    rb_objc_define_method(rb_cMREncoding, "dummy?", mr_enc_dummy_p, 0);
-    rb_objc_define_method(rb_cMREncoding, "ascii_compatible?", mr_enc_ascii_compatible_p, 0);
-    rb_objc_define_method(OBJC_CLASS(rb_cMREncoding), "list", mr_enc_s_list, 0);
-    rb_objc_define_method(OBJC_CLASS(rb_cMREncoding), "name_list", mr_enc_s_name_list, 0);
-    rb_objc_define_method(OBJC_CLASS(rb_cMREncoding), "aliases", mr_enc_s_aliases, 0);
-    //rb_define_singleton_method(rb_cMREncoding, "find", enc_find, 1);
+    rb_objc_define_method(rb_cEncoding, "to_s", mr_enc_name, 0);
+    rb_objc_define_method(rb_cEncoding, "inspect", mr_enc_inspect, 0);
+    rb_objc_define_method(rb_cEncoding, "name", mr_enc_name, 0);
+    rb_objc_define_method(rb_cEncoding, "names", mr_enc_names, 0);
+    rb_objc_define_method(rb_cEncoding, "dummy?", mr_enc_dummy_p, 0);
+    rb_objc_define_method(rb_cEncoding, "ascii_compatible?", mr_enc_ascii_compatible_p, 0);
+    rb_objc_define_method(OBJC_CLASS(rb_cEncoding), "list", mr_enc_s_list, 0);
+    rb_objc_define_method(OBJC_CLASS(rb_cEncoding), "name_list", mr_enc_s_name_list, 0);
+    rb_objc_define_method(OBJC_CLASS(rb_cEncoding), "aliases", mr_enc_s_aliases, 0);
+    //rb_define_singleton_method(rb_cEncoding, "find", enc_find, 1);
     // it's defined on Encoding, but it requires String's internals so it's defined with String
-    rb_objc_define_method(OBJC_CLASS(rb_cMREncoding), "compatible?", mr_enc_s_is_compatible, 2);
+    rb_objc_define_method(OBJC_CLASS(rb_cEncoding), "compatible?", mr_enc_s_is_compatible, 2);
 
     //rb_define_method(rb_cEncoding, "_dump", enc_dump, -1);
     //rb_define_singleton_method(rb_cEncoding, "_load", enc_load, 1);
 
-    rb_objc_define_method(OBJC_CLASS(rb_cMREncoding), "default_external", mr_enc_s_default_external, 0);
-    //rb_define_singleton_method(rb_cMREncoding, "default_external=", set_default_external, 1);
-    rb_objc_define_method(OBJC_CLASS(rb_cMREncoding), "default_internal", mr_enc_s_default_internal, 0);
-    //rb_define_singleton_method(rb_cMREncoding, "default_internal=", set_default_internal, 1);
-    //rb_define_singleton_method(rb_cMREncoding, "locale_charmap", rb_locale_charmap, 0);
+    rb_objc_define_method(OBJC_CLASS(rb_cEncoding), "default_external", mr_enc_s_default_external, 0);
+    //rb_define_singleton_method(rb_cEncoding, "default_external=", set_default_external, 1);
+    rb_objc_define_method(OBJC_CLASS(rb_cEncoding), "default_internal", mr_enc_s_default_internal, 0);
+    //rb_define_singleton_method(rb_cEncoding, "default_internal=", set_default_internal, 1);
+    //rb_define_singleton_method(rb_cEncoding, "locale_charmap", rb_locale_charmap, 0);
 
     create_encodings();
 }

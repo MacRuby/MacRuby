@@ -3,11 +3,12 @@
  *
  * This file is covered by the Ruby license. See COPYING for more details.
  * 
- * Copyright (C) 2007-2009, Apple Inc. All rights reserved.
+ * Copyright (C) 2007-2010, Apple Inc. All rights reserved.
  * Copyright (C) 1993-2007 Yukihiro Matsumoto
  * Copyright (C) 2000 Network Applied Communication Laboratory, Inc.
  * Copyright (C) 2000 Information-technology Promotion Agency, Japan
  */
+
 #include "encoding.h"
 #include "objc.h"
 #include <assert.h>
@@ -16,22 +17,9 @@
 
 #define OBJC_CLASS(x) (*(VALUE *)(x))
 
-VALUE rb_cMRString;
-
-#undef TYPE // TODO: remove this when MRString has become a child of NSString
-extern VALUE rb_cMRString;
-static inline int
-rb_type2(VALUE obj)
-{
-    if (CLASS_OF(obj) == rb_cMRString) {
-	return T_STRING;
-    }
-    else {
-	return rb_type(obj);
-    }
-}
-#define TYPE(obj) rb_type2(obj)
-
+VALUE rb_cNSString;
+VALUE rb_cNSMutableString;
+VALUE rb_cRubyString;
 
 static void
 str_update_flags_utf16(string_t *self)
@@ -199,7 +187,7 @@ str_alloc(void)
 {
     NEWOBJ(str, string_t);
     str->basic.flags = 0;
-    str->basic.klass = rb_cMRString;
+    str->basic.klass = rb_cRubyString;
     str->encoding = encodings[ENCODING_BINARY];
     str->capacity_in_bytes = 0;
     str->length_in_bytes = 0;
@@ -248,7 +236,7 @@ static void
 str_replace(string_t *self, VALUE arg)
 {
     VALUE klass = CLASS_OF(arg);
-    if (klass == rb_cMRString) {
+    if (klass == rb_cRubyString) {
 	str_replace_with_string(self, STR(arg));
     }
     else if (klass == rb_cByteString) {
@@ -943,14 +931,14 @@ str_include_string(string_t *self, string_t *searched)
 static string_t *
 str_need_string(VALUE str)
 {
-    if (CLASS_OF(str) == rb_cMRString) {
+    if (CLASS_OF(str) == rb_cRubyString) {
 	return (string_t *)str;
     }
 
     if (TYPE(str) != T_STRING) {
 	str = rb_str_to_str(str);
     }
-    if (OBJC_CLASS(str) != rb_cMRString) {
+    if (OBJC_CLASS(str) != rb_cRubyString) {
 	return str_new_from_cfstring((CFStringRef)str);
     }
     else {
@@ -967,8 +955,8 @@ mr_enc_s_is_compatible(VALUE klass, SEL sel, VALUE str1, VALUE str2)
     if (SPECIAL_CONST_P(str1) || SPECIAL_CONST_P(str2)) {
 	return Qnil;
     }
-    assert(OBJC_CLASS(str1) == rb_cMRString); // TODO
-    assert(OBJC_CLASS(str2) == rb_cMRString); // TODO
+    assert(OBJC_CLASS(str1) == rb_cRubyString); // TODO
+    assert(OBJC_CLASS(str2) == rb_cRubyString); // TODO
     encoding_t *encoding = str_compatible_encoding(STR(str1), STR(str2));
     if (encoding == NULL) {
 	return Qnil;
@@ -1057,7 +1045,7 @@ static VALUE
 mr_str_force_encoding(VALUE self, SEL sel, VALUE encoding)
 {
     encoding_t *enc;
-    if (SPECIAL_CONST_P(encoding) || (OBJC_CLASS(encoding) != rb_cMREncoding)) {
+    if (SPECIAL_CONST_P(encoding) || (OBJC_CLASS(encoding) != rb_cEncoding)) {
 	abort(); // TODO
     }
     enc = (encoding_t *)encoding;
@@ -1095,7 +1083,7 @@ mr_str_aref(VALUE self, SEL sel, int argc, VALUE *argv)
 
 	    case T_STRING:
 		{
-		    if (OBJC_CLASS(index) == rb_cMRString) {
+		    if (OBJC_CLASS(index) == rb_cRubyString) {
 			string_t *searched = STR(index);
 			if (str_include_string(STR(self), searched)) {
 			    return (VALUE)str_new_from_string(searched);
@@ -1223,7 +1211,7 @@ mr_str_equal(VALUE self, SEL sel, VALUE compared_to)
 
     if (TYPE(compared_to) == T_STRING) {
 	string_t *str;
-	if (OBJC_CLASS(compared_to) == rb_cMRString) {
+	if (OBJC_CLASS(compared_to) == rb_cRubyString) {
 	    str = STR(compared_to);
 	}
 	else {
@@ -1257,58 +1245,52 @@ mr_str_is_stored_in_uchars(VALUE self, SEL sel)
 static VALUE
 mr_str_to_s(VALUE self, SEL sel)
 {
-    if (OBJC_CLASS(self) != rb_cMRString) {
+    if (OBJC_CLASS(self) != rb_cRubyString) {
 	return (VALUE)str_dup(self);
     }
     return self;
 }
 
 void
-Init_MRString(void)
+Init_String(void)
 {
-    // encodings must be loaded before strings
-    assert(rb_cMREncoding != 0);
+    // TODO create NSString.m
+    rb_cNSString = (VALUE)objc_getClass("NSString");
+    assert(rb_cNSString != 0);
+    rb_cNSMutableString = (VALUE)objc_getClass("NSMutableString");
+    assert(rb_cNSMutableString != 0);
 
-    rb_cMRString = rb_define_class("MRString", rb_cObject);
-    rb_objc_define_method(OBJC_CLASS(rb_cMRString), "alloc", mr_str_s_alloc, 0);
+    rb_cRubyString = rb_define_class("String", rb_cNSMutableString);
+    rb_objc_define_method(OBJC_CLASS(rb_cRubyString), "alloc", mr_str_s_alloc, 0);
 
-    rb_objc_define_method(rb_cMRString, "initialize", mr_str_initialize, -1);
-    rb_objc_define_method(rb_cMRString, "initialize_copy", mr_str_replace, 1);
-    rb_objc_define_method(rb_cMRString, "replace", mr_str_replace, 1);
-    rb_objc_define_method(rb_cMRString, "clear", mr_str_clear, 0);
-    rb_objc_define_method(rb_cMRString, "encoding", mr_str_encoding, 0);
-    rb_objc_define_method(rb_cMRString, "length", mr_str_length, 0);
-    rb_objc_define_method(rb_cMRString, "size", mr_str_length, 0); // alias
-    rb_objc_define_method(rb_cMRString, "bytesize", mr_str_bytesize, 0);
-    rb_objc_define_method(rb_cMRString, "getbyte", mr_str_getbyte, 1);
-    rb_objc_define_method(rb_cMRString, "setbyte", mr_str_setbyte, 2);
-    rb_objc_define_method(rb_cMRString, "force_encoding", mr_str_force_encoding, 1);
-    rb_objc_define_method(rb_cMRString, "valid_encoding?", mr_str_is_valid_encoding, 0);
-    rb_objc_define_method(rb_cMRString, "ascii_only?", mr_str_is_ascii_only, 0);
-    rb_objc_define_method(rb_cMRString, "[]", mr_str_aref, -1);
-    rb_objc_define_method(rb_cMRString, "index", mr_str_index, -1);
-    rb_objc_define_method(rb_cMRString, "+", mr_str_plus, 1);
-    rb_objc_define_method(rb_cMRString, "<<", mr_str_concat, 1);
-    rb_objc_define_method(rb_cMRString, "concat", mr_str_concat, 1);
-    rb_objc_define_method(rb_cMRString, "==", mr_str_equal, 1);
-    rb_objc_define_method(rb_cMRString, "!=", mr_str_not_equal, 1);
-    rb_objc_define_method(rb_cMRString, "include?", mr_str_include, 1);
-    rb_objc_define_method(rb_cMRString, "to_s", mr_str_to_s, 0);
-    rb_objc_define_method(rb_cMRString, "to_str", mr_str_to_s, 0);
+    rb_objc_define_method(rb_cRubyString, "initialize", mr_str_initialize, -1);
+    rb_objc_define_method(rb_cRubyString, "initialize_copy", mr_str_replace, 1);
+    rb_objc_define_method(rb_cRubyString, "replace", mr_str_replace, 1);
+    rb_objc_define_method(rb_cRubyString, "clear", mr_str_clear, 0);
+    rb_objc_define_method(rb_cRubyString, "encoding", mr_str_encoding, 0);
+    rb_objc_define_method(rb_cRubyString, "length", mr_str_length, 0);
+    rb_objc_define_method(rb_cRubyString, "size", mr_str_length, 0); // alias
+    rb_objc_define_method(rb_cRubyString, "bytesize", mr_str_bytesize, 0);
+    rb_objc_define_method(rb_cRubyString, "getbyte", mr_str_getbyte, 1);
+    rb_objc_define_method(rb_cRubyString, "setbyte", mr_str_setbyte, 2);
+    rb_objc_define_method(rb_cRubyString, "force_encoding", mr_str_force_encoding, 1);
+    rb_objc_define_method(rb_cRubyString, "valid_encoding?", mr_str_is_valid_encoding, 0);
+    rb_objc_define_method(rb_cRubyString, "ascii_only?", mr_str_is_ascii_only, 0);
+    rb_objc_define_method(rb_cRubyString, "[]", mr_str_aref, -1);
+    rb_objc_define_method(rb_cRubyString, "index", mr_str_index, -1);
+    rb_objc_define_method(rb_cRubyString, "+", mr_str_plus, 1);
+    rb_objc_define_method(rb_cRubyString, "<<", mr_str_concat, 1);
+    rb_objc_define_method(rb_cRubyString, "concat", mr_str_concat, 1);
+    rb_objc_define_method(rb_cRubyString, "==", mr_str_equal, 1);
+    rb_objc_define_method(rb_cRubyString, "!=", mr_str_not_equal, 1);
+    rb_objc_define_method(rb_cRubyString, "include?", mr_str_include, 1);
+    rb_objc_define_method(rb_cRubyString, "to_s", mr_str_to_s, 0);
+    rb_objc_define_method(rb_cRubyString, "to_str", mr_str_to_s, 0);
 
     // added for MacRuby
-    rb_objc_define_method(rb_cMRString, "chars_count", mr_str_chars_count, 0);
-    rb_objc_define_method(rb_cMRString, "getchar", mr_str_getchar, 1);
+    rb_objc_define_method(rb_cRubyString, "chars_count", mr_str_chars_count, 0);
+    rb_objc_define_method(rb_cRubyString, "getchar", mr_str_getchar, 1);
 
     // this method does not exist in Ruby and is there only for debugging purpose
-    rb_objc_define_method(rb_cMRString, "stored_in_uchars?", mr_str_is_stored_in_uchars, 0);
-}
-
-void Init_MREncoding(void);
-
-void
-Init_new_string(void)
-{
-    Init_MREncoding();
-    Init_MRString();
+    rb_objc_define_method(rb_cRubyString, "stored_in_uchars?", mr_str_is_stored_in_uchars, 0);
 }
