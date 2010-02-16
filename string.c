@@ -15,8 +15,9 @@
 #include <stdio.h>
 #include <stdarg.h>
 
-#define OBJC_CLASS(x) (*(VALUE *)(x))
+VALUE rb_cSymbol; // XXX move me outside
 
+VALUE rb_cString;
 VALUE rb_cNSString;
 VALUE rb_cNSMutableString;
 VALUE rb_cRubyString;
@@ -24,7 +25,8 @@ VALUE rb_cRubyString;
 static void
 str_update_flags_utf16(string_t *self)
 {
-    assert(str_is_stored_in_uchars(self) || NON_NATIVE_UTF16_ENC(self->encoding));
+    assert(str_is_stored_in_uchars(self)
+	    || NON_NATIVE_UTF16_ENC(self->encoding));
 
     bool ascii_only = true;
     bool has_supplementary = false;
@@ -161,7 +163,8 @@ str_compatible_encoding(string_t *str1, string_t *str2)
     if (str1->length_in_bytes == 0) {
 	return str2->encoding;
     }
-    if (!str1->encoding->ascii_compatible || !str2->encoding->ascii_compatible) {
+    if (!str1->encoding->ascii_compatible
+	    || !str2->encoding->ascii_compatible) {
 	return NULL;
     }
     if (str_is_ruby_ascii_only(str1) && str_is_ruby_ascii_only(str2)) {
@@ -175,12 +178,12 @@ str_must_have_compatible_encoding(string_t *str1, string_t *str2)
 {
     encoding_t *new_encoding = str_compatible_encoding(str1, str2);
     if (new_encoding == NULL) {
-	rb_raise(rb_eEncCompatError, "incompatible character encodings: %s and %s",
+	rb_raise(rb_eEncCompatError,
+		"incompatible character encodings: %s and %s",
 		str1->encoding->public_name, str2->encoding->public_name);
     }
     return new_encoding;
 }
-
 
 static string_t *
 str_alloc(void)
@@ -196,12 +199,22 @@ str_alloc(void)
     return str;
 }
 
-extern VALUE rb_cString;
-extern VALUE rb_cCFString;
-extern VALUE rb_cNSString;
-extern VALUE rb_cNSMutableString;
-extern VALUE rb_cSymbol;
-extern VALUE rb_cByteString;
+static void
+str_replace_with_bytes(string_t *self, const char *bytes, long len,
+	encoding_t *enc)
+{
+    assert(len >= 0);
+    self->flags = 0;
+    self->encoding = enc;
+    self->capacity_in_bytes = self->length_in_bytes = len;
+    if (len > 0) {
+	GC_WB(&self->data.bytes, xmalloc(len));
+	memcpy(self->data.bytes, bytes, len);
+    }
+    else {
+	self->data.bytes = NULL;
+    }
+}
 
 static void
 str_replace_with_string(string_t *self, string_t *source)
@@ -209,14 +222,9 @@ str_replace_with_string(string_t *self, string_t *source)
     if (self == source) {
 	return;
     }
-    self->flags = 0;
-    self->encoding = source->encoding;
-    self->capacity_in_bytes = self->length_in_bytes = source->length_in_bytes;
+    str_replace_with_bytes(self, source->data.bytes, source->length_in_bytes,
+	source->encoding);
     self->flags = source->flags;
-    if (self->length_in_bytes != 0) {
-	GC_WB(&self->data.bytes, xmalloc(self->length_in_bytes));
-	memcpy(self->data.bytes, source->data.bytes, self->length_in_bytes);
-    }
 }
 
 static void
@@ -224,10 +232,13 @@ str_replace_with_cfstring(string_t *self, CFStringRef source)
 {
     self->flags = 0;
     self->encoding = encodings[ENCODING_UTF16_NATIVE];
-    self->capacity_in_bytes = self->length_in_bytes = UCHARS_TO_BYTES(CFStringGetLength(source));
+    self->capacity_in_bytes = self->length_in_bytes =
+	UCHARS_TO_BYTES(CFStringGetLength(source));
     if (self->length_in_bytes != 0) {
 	GC_WB(&self->data.uchars, xmalloc(self->length_in_bytes));
-	CFStringGetCharacters((CFStringRef)source, CFRangeMake(0, BYTES_TO_UCHARS(self->length_in_bytes)), self->data.uchars);
+	CFStringGetCharacters((CFStringRef)source,
+		CFRangeMake(0, BYTES_TO_UCHARS(self->length_in_bytes)),
+		self->data.uchars);
 	str_set_stored_in_uchars(self, true);
     }
 }
@@ -235,27 +246,20 @@ str_replace_with_cfstring(string_t *self, CFStringRef source)
 static void
 str_replace(string_t *self, VALUE arg)
 {
-    VALUE klass = CLASS_OF(arg);
-    if (klass == rb_cRubyString) {
-	str_replace_with_string(self, STR(arg));
-    }
-    else if (klass == rb_cByteString) {
-	self->encoding = encodings[ENCODING_BINARY];
-	self->capacity_in_bytes = self->length_in_bytes = rb_bytestring_length(arg);
-	if (self->length_in_bytes != 0) {
-	    GC_WB(&self->data.bytes, xmalloc(self->length_in_bytes));
-	    assert(self->data.bytes != NULL);
-	    memcpy(self->data.bytes, rb_bytestring_byte_pointer(arg), self->length_in_bytes);
-	}
-    }
-    else if (TYPE(arg) == T_STRING) {
-	str_replace_with_cfstring(self, (CFStringRef)arg);
-    }
-    else if (klass == rb_cSymbol) {
-	abort(); // TODO
+    if (IS_RSTR(arg)) {
+	str_replace_with_string(self, RSTR(arg));
     }
     else {
-	str_replace(self, rb_str_to_str(arg));
+	switch (TYPE(arg)) {
+	    case T_STRING:
+		str_replace_with_cfstring(self, (CFStringRef)arg);
+		break;
+	    case T_SYMBOL:
+		abort(); // TODO
+	    default:
+		str_replace(self, rb_str_to_str(arg));
+		break;
+	}
     }
 }
 
@@ -288,7 +292,6 @@ str_new_from_cfstring(CFStringRef source)
     str_replace_with_cfstring(destination, source);
     return destination;
 }
-
 
 static void
 str_make_data_binary(string_t *self)
@@ -364,7 +367,8 @@ str_length(string_t *self, bool ucs2_mode)
 	    // we must return the length in Unicode code points,
 	    // not the number of UChars, even if the probability
 	    // we have surrogates is very low
-	    length = u_countChar32(self->data.uchars, BYTES_TO_UCHARS(self->length_in_bytes));
+	    length = u_countChar32(self->data.uchars,
+		    BYTES_TO_UCHARS(self->length_in_bytes));
 	}
 	if (ODD_NUMBER(self->length_in_bytes)) {
 	    return length + 1;
@@ -487,14 +491,16 @@ str_new_similar_empty_string(string_t *self)
 }
 
 static string_t *
-str_new_copy_of_part(string_t *self, long offset_in_bytes, long length_in_bytes)
+str_new_copy_of_part(string_t *self, long offset_in_bytes,
+	long length_in_bytes)
 {
     string_t *str = str_alloc();
     str->encoding = self->encoding;
     str->capacity_in_bytes = str->length_in_bytes = length_in_bytes;
     str->flags = self->flags & STRING_REQUIRED_FLAGS;
     GC_WB(&str->data.bytes, xmalloc(length_in_bytes));
-    memcpy(str->data.bytes, &self->data.bytes[offset_in_bytes], length_in_bytes);
+    memcpy(str->data.bytes, &self->data.bytes[offset_in_bytes],
+	    length_in_bytes);
     return str;
 }
 
@@ -521,10 +527,12 @@ str_get_character_boundaries(string_t *self, long index, bool ucs2_mode)
 		}
 	    }
 	    boundaries.start_offset_in_bytes = UCHARS_TO_BYTES(index);
-	    boundaries.end_offset_in_bytes = boundaries.start_offset_in_bytes + 2;
+	    boundaries.end_offset_in_bytes = boundaries.start_offset_in_bytes
+		+ 2;
 	    if (!UTF16_ENC(self->encoding)) {
 		long length = BYTES_TO_UCHARS(self->length_in_bytes);
-		if ((index < length) && U16_IS_SURROGATE(self->data.uchars[index])) {
+		if ((index < length)
+			&& U16_IS_SURROGATE(self->data.uchars[index])) {
 		    if (U16_IS_SURROGATE_LEAD(self->data.uchars[index])) {
 			boundaries.end_offset_in_bytes = -1;
 		    }
@@ -535,8 +543,8 @@ str_get_character_boundaries(string_t *self, long index, bool ucs2_mode)
 	    }
 	}
 	else {
-	    // we don't have the length of the string, just the number of UChars
-	    // (uchars_count >= number of characters)
+	    // we don't have the length of the string, just the number of
+	    // UChars (uchars_count >= number of characters)
 	    long uchars_count = BYTES_TO_UCHARS(self->length_in_bytes);
 	    if ((index < -uchars_count) || (index >= uchars_count)) {
 		return boundaries;
@@ -550,7 +558,8 @@ str_get_character_boundaries(string_t *self, long index, bool ucs2_mode)
 		    --offset;
 		    // if the next character is a paired surrogate
 		    // we need to go to the start of the whole surrogate
-		    if (U16_IS_TRAIL(uchars[offset]) && (offset > 0) && U16_IS_LEAD(uchars[offset-1])) {
+		    if (U16_IS_TRAIL(uchars[offset]) && (offset > 0)
+			    && U16_IS_LEAD(uchars[offset-1])) {
 			--offset;
 		    }
 		    ++index;
@@ -571,15 +580,18 @@ str_get_character_boundaries(string_t *self, long index, bool ucs2_mode)
 	    }
 
 	    long length_in_bytes;
-	    if (U16_IS_LEAD(uchars[offset]) && (offset < uchars_count - 1) && (U16_IS_TRAIL(uchars[offset+1]))) {
-		// if it's a lead surrogate we must also copy the trail surrogate
+	    if (U16_IS_LEAD(uchars[offset]) && (offset < uchars_count - 1)
+		    && (U16_IS_TRAIL(uchars[offset+1]))) {
+		// if it's a lead surrogate we must also copy the trail
+		// surrogate
 		length_in_bytes = UCHARS_TO_BYTES(2);
 	    }
 	    else {
 		length_in_bytes = UCHARS_TO_BYTES(1);
 	    }
 	    boundaries.start_offset_in_bytes = UCHARS_TO_BYTES(offset);
-	    boundaries.end_offset_in_bytes = boundaries.start_offset_in_bytes + length_in_bytes;
+	    boundaries.end_offset_in_bytes = boundaries.start_offset_in_bytes
+		+ length_in_bytes;
 	}
     }
     else { // data in binary
@@ -591,9 +603,12 @@ str_get_character_boundaries(string_t *self, long index, bool ucs2_mode)
 		}
 	    }
 	    boundaries.start_offset_in_bytes = index;
-	    boundaries.end_offset_in_bytes = boundaries.start_offset_in_bytes + 1;
+	    boundaries.end_offset_in_bytes = boundaries.start_offset_in_bytes
+		+ 1;
 	}
-	else if (UTF32_ENC(self->encoding) && (!ucs2_mode || str_known_not_to_have_any_supplementary(self))) {
+	else if (UTF32_ENC(self->encoding)
+		&& (!ucs2_mode
+		    || str_known_not_to_have_any_supplementary(self))) {
 	    if (index < 0) {
 		index += div_round_up(self->length_in_bytes, 4);
 		if (index < 0) {
@@ -601,9 +616,12 @@ str_get_character_boundaries(string_t *self, long index, bool ucs2_mode)
 		}
 	    }
 	    boundaries.start_offset_in_bytes = index * 4;
-	    boundaries.end_offset_in_bytes = boundaries.start_offset_in_bytes + 4;
+	    boundaries.end_offset_in_bytes = boundaries.start_offset_in_bytes
+		+ 4;
 	}
-	else if (NON_NATIVE_UTF16_ENC(self->encoding) && (ucs2_mode || str_known_not_to_have_any_supplementary(self))) {
+	else if (NON_NATIVE_UTF16_ENC(self->encoding)
+		&& (ucs2_mode
+		    || str_known_not_to_have_any_supplementary(self))) {
 	    if (index < 0) {
 		index += div_round_up(self->length_in_bytes, 2);
 		if (index < 0) {
@@ -611,10 +629,12 @@ str_get_character_boundaries(string_t *self, long index, bool ucs2_mode)
 		}
 	    }
 	    boundaries.start_offset_in_bytes = UCHARS_TO_BYTES(index);
-	    boundaries.end_offset_in_bytes = boundaries.start_offset_in_bytes + 2;
+	    boundaries.end_offset_in_bytes = boundaries.start_offset_in_bytes
+		+ 2;
 	}
 	else {
-	    boundaries = self->encoding->methods.get_character_boundaries(self, index, ucs2_mode);
+	    boundaries = self->encoding->methods.get_character_boundaries(self,
+		    index, ucs2_mode);
 	}
     }
 
@@ -632,11 +652,14 @@ str_get_characters(string_t *self, long first, long last, bool ucs2_mode)
 	    return NULL;
 	}
     }
-    if (!self->encoding->single_byte_encoding && !str_is_stored_in_uchars(self)) {
+    if (!self->encoding->single_byte_encoding
+	    && !str_is_stored_in_uchars(self)) {
 	str_try_making_data_uchars(self);
     }
-    character_boundaries_t first_boundaries = str_get_character_boundaries(self, first, ucs2_mode);
-    character_boundaries_t last_boundaries = str_get_character_boundaries(self, last, ucs2_mode);
+    character_boundaries_t first_boundaries =
+	str_get_character_boundaries(self, first, ucs2_mode);
+    character_boundaries_t last_boundaries =
+	str_get_character_boundaries(self, last, ucs2_mode);
 
     if (first_boundaries.start_offset_in_bytes == -1) {
 	if (last_boundaries.end_offset_in_bytes == -1) {
@@ -663,7 +686,8 @@ str_get_characters(string_t *self, long first, long last, bool ucs2_mode)
     }
 
     return str_new_copy_of_part(self, first_boundaries.start_offset_in_bytes,
-	    last_boundaries.end_offset_in_bytes - first_boundaries.start_offset_in_bytes);
+	    last_boundaries.end_offset_in_bytes
+	    - first_boundaries.start_offset_in_bytes);
 }
 
 static string_t *
@@ -672,12 +696,14 @@ str_get_character_at(string_t *self, long index, bool ucs2_mode)
     if (self->length_in_bytes == 0) {
 	return NULL;
     }
-    if (!self->encoding->single_byte_encoding && !str_is_stored_in_uchars(self)) {
+    if (!self->encoding->single_byte_encoding
+	    && !str_is_stored_in_uchars(self)) {
 	// if we can't access the bytes directly,
 	// try to convert the string in UTF-16
 	str_try_making_data_uchars(self);
     }
-    character_boundaries_t boundaries = str_get_character_boundaries(self, index, ucs2_mode);
+    character_boundaries_t boundaries = str_get_character_boundaries(self,
+	    index, ucs2_mode);
     if (boundaries.start_offset_in_bytes == -1) {
 	if (boundaries.end_offset_in_bytes == -1) {
 	    return NULL;
@@ -699,7 +725,9 @@ str_get_character_at(string_t *self, long index, bool ucs2_mode)
 	boundaries.end_offset_in_bytes = self->length_in_bytes;
     }
 
-    return str_new_copy_of_part(self, boundaries.start_offset_in_bytes, boundaries.end_offset_in_bytes - boundaries.start_offset_in_bytes);
+    return str_new_copy_of_part(self, boundaries.start_offset_in_bytes,
+	    boundaries.end_offset_in_bytes
+	    - boundaries.start_offset_in_bytes);
 }
 
 static string_t *
@@ -717,12 +745,13 @@ str_plus_string(string_t *str1, string_t *str2)
 
     str_set_stored_in_uchars(new_str, str_is_stored_in_uchars(str1));
     long length_in_bytes = str1->length_in_bytes + str2->length_in_bytes;
-    new_str->data.bytes = xmalloc(length_in_bytes);
+    GC_WB(&new_str->data.bytes, xmalloc(length_in_bytes));
     if (str1->length_in_bytes > 0) {
 	memcpy(new_str->data.bytes, str1->data.bytes, str1->length_in_bytes);
     }
     if (str2->length_in_bytes > 0) {
-	memcpy(new_str->data.bytes + str1->length_in_bytes, str2->data.bytes, str2->length_in_bytes);
+	memcpy(new_str->data.bytes + str1->length_in_bytes, str2->data.bytes,
+		str2->length_in_bytes);
     }
     new_str->capacity_in_bytes = new_str->length_in_bytes = length_in_bytes;
 
@@ -754,7 +783,8 @@ str_concat_string(string_t *self, string_t *str)
 	GC_WB(&self->data.bytes, bytes);
 	self->capacity_in_bytes = new_length_in_bytes;
     }
-    memcpy(self->data.bytes + self->length_in_bytes, str->data.bytes, str->length_in_bytes);
+    memcpy(self->data.bytes + self->length_in_bytes, str->data.bytes,
+	    str->length_in_bytes);
     self->length_in_bytes = new_length_in_bytes;
 }
 
@@ -786,19 +816,23 @@ str_is_equal_to_string(string_t *self, string_t *str)
 		return false;
 	    }
 	    else {
-		return (memcmp(self->data.bytes, str->data.bytes, self->length_in_bytes) == 0);
+		return (memcmp(self->data.bytes, str->data.bytes,
+			    self->length_in_bytes) == 0);
 	    }
 	}
 	else { // one is in uchars and the other is in binary
-	    if (!str_try_making_data_uchars(self) || !str_try_making_data_uchars(str)) {
-		// one is in uchars but the other one can't be converted in uchars
+	    if (!str_try_making_data_uchars(self)
+		    || !str_try_making_data_uchars(str)) {
+		// one is in uchars but the other one can't be converted in
+		// uchars
 		return false;
 	    }
 	    if (self->length_in_bytes != str->length_in_bytes) {
 		return false;
 	    }
 	    else {
-		return (memcmp(self->data.bytes, str->data.bytes, self->length_in_bytes) == 0);
+		return (memcmp(self->data.bytes, str->data.bytes,
+			    self->length_in_bytes) == 0);
 	    }
 	}
     }
@@ -808,7 +842,8 @@ str_is_equal_to_string(string_t *self, string_t *str)
 }
 
 static long
-str_offset_in_bytes_to_index(string_t *self, long offset_in_bytes, bool ucs2_mode)
+str_offset_in_bytes_to_index(string_t *self, long offset_in_bytes,
+	bool ucs2_mode)
 {
     if ((offset_in_bytes >= self->length_in_bytes) || (offset_in_bytes < 0)) {
 	return -1;
@@ -825,7 +860,8 @@ str_offset_in_bytes_to_index(string_t *self, long offset_in_bytes, bool ucs2_mod
 	    long length = BYTES_TO_UCHARS(self->length_in_bytes);
 	    long index = 0, i = 0;
 	    for (;;) {
-		if (U16_IS_LEAD(self->data.uchars[i]) && (i+1 < length) && U16_IS_TRAIL(self->data.uchars[i+1])) {
+		if (U16_IS_LEAD(self->data.uchars[i]) && (i+1 < length)
+			&& U16_IS_TRAIL(self->data.uchars[i+1])) {
 		    i += 2;
 		}
 		else {
@@ -845,20 +881,26 @@ str_offset_in_bytes_to_index(string_t *self, long offset_in_bytes, bool ucs2_mod
 	if (self->encoding->single_byte_encoding) {
 	    return offset_in_bytes;
 	}
-	else if (UTF32_ENC(self->encoding) && (!ucs2_mode || str_known_not_to_have_any_supplementary(self))) {
+	else if (UTF32_ENC(self->encoding)
+		&& (!ucs2_mode
+		    || str_known_not_to_have_any_supplementary(self))) {
 	    return offset_in_bytes / 4;
 	}
-	else if (NON_NATIVE_UTF16_ENC(self->encoding) && (ucs2_mode || str_known_not_to_have_any_supplementary(self))) {
+	else if (NON_NATIVE_UTF16_ENC(self->encoding)
+		&& (ucs2_mode
+		    || str_known_not_to_have_any_supplementary(self))) {
 	    return BYTES_TO_UCHARS(offset_in_bytes);
 	}
 	else {
-	    return self->encoding->methods.offset_in_bytes_to_index(self, offset_in_bytes, ucs2_mode);
+	    return self->encoding->methods.offset_in_bytes_to_index(self,
+		    offset_in_bytes, ucs2_mode);
 	}
     }
 }
 
 static long
-str_offset_in_bytes_for_string(string_t *self, string_t *searched, long start_offset_in_bytes)
+str_offset_in_bytes_for_string(string_t *self, string_t *searched,
+	long start_offset_in_bytes)
 {
     if (start_offset_in_bytes >= self->length_in_bytes) {
 	return -1;
@@ -881,9 +923,13 @@ str_offset_in_bytes_for_string(string_t *self, string_t *searched, long start_of
     else {
 	increment = self->encoding->min_char_size;
     }
-    long max_offset_in_bytes = self->length_in_bytes - searched->length_in_bytes + 1;
-    for (long offset_in_bytes = start_offset_in_bytes; offset_in_bytes < max_offset_in_bytes; offset_in_bytes += increment) {
-	if (memcmp(self->data.bytes+offset_in_bytes, searched->data.bytes, searched->length_in_bytes) == 0) {
+    long max_offset_in_bytes = self->length_in_bytes
+	- searched->length_in_bytes + 1;
+    for (long offset_in_bytes = start_offset_in_bytes;
+	    offset_in_bytes < max_offset_in_bytes;
+	    offset_in_bytes += increment) {
+	if (memcmp(self->data.bytes+offset_in_bytes, searched->data.bytes,
+		    searched->length_in_bytes) == 0) {
 	    return offset_in_bytes;
 	}
     }
@@ -891,7 +937,8 @@ str_offset_in_bytes_for_string(string_t *self, string_t *searched, long start_of
 }
 
 static long
-str_index_for_string(string_t *self, string_t *searched, long start_index, bool ucs2_mode)
+str_index_for_string(string_t *self, string_t *searched, long start_index,
+	bool ucs2_mode)
 {
     str_must_have_compatible_encoding(self, searched);
     str_make_same_format(self, searched);
@@ -901,7 +948,8 @@ str_index_for_string(string_t *self, string_t *searched, long start_index, bool 
 	start_offset_in_bytes = 0;
     }
     else {
-	character_boundaries_t boundaries = str_get_character_boundaries(self, start_index, ucs2_mode);
+	character_boundaries_t boundaries = str_get_character_boundaries(self,
+		start_index, ucs2_mode);
 	if (boundaries.start_offset_in_bytes == -1) {
 	    if (boundaries.end_offset_in_bytes == -1) {
 		return -1;
@@ -914,12 +962,13 @@ str_index_for_string(string_t *self, string_t *searched, long start_index, bool 
 	start_offset_in_bytes = boundaries.start_offset_in_bytes;
     }
 
-    long offset_in_bytes = str_offset_in_bytes_for_string(STR(self), searched, start_offset_in_bytes);
+    long offset_in_bytes = str_offset_in_bytes_for_string(RSTR(self), searched,
+	    start_offset_in_bytes);
 
     if (offset_in_bytes == -1) {
 	return -1;
     }
-    return str_offset_in_bytes_to_index(STR(self), offset_in_bytes, ucs2_mode);
+    return str_offset_in_bytes_to_index(RSTR(self), offset_in_bytes, ucs2_mode);
 }
 
 static bool
@@ -931,19 +980,16 @@ str_include_string(string_t *self, string_t *searched)
 static string_t *
 str_need_string(VALUE str)
 {
-    if (CLASS_OF(str) == rb_cRubyString) {
+    if (IS_RSTR(str)) {
 	return (string_t *)str;
     }
-
     if (TYPE(str) != T_STRING) {
 	str = rb_str_to_str(str);
     }
-    if (OBJC_CLASS(str) != rb_cRubyString) {
-	return str_new_from_cfstring((CFStringRef)str);
-    }
-    else {
+    if (IS_RSTR(str)) {
 	return (string_t *)str;
     }
+    return str_new_from_cfstring((CFStringRef)str);
 }
 
 //----------------------------------------------
@@ -955,9 +1001,9 @@ mr_enc_s_is_compatible(VALUE klass, SEL sel, VALUE str1, VALUE str2)
     if (SPECIAL_CONST_P(str1) || SPECIAL_CONST_P(str2)) {
 	return Qnil;
     }
-    assert(OBJC_CLASS(str1) == rb_cRubyString); // TODO
-    assert(OBJC_CLASS(str2) == rb_cRubyString); // TODO
-    encoding_t *encoding = str_compatible_encoding(STR(str1), STR(str2));
+    assert(IS_RSTR(str1)); // TODO
+    assert(IS_RSTR(str2)); // TODO
+    encoding_t *encoding = str_compatible_encoding(RSTR(str1), RSTR(str2));
     if (encoding == NULL) {
 	return Qnil;
     }
@@ -966,20 +1012,18 @@ mr_enc_s_is_compatible(VALUE klass, SEL sel, VALUE str1, VALUE str2)
     }
 }
 
-
 static VALUE
 mr_str_s_alloc(VALUE klass)
 {
     return (VALUE)str_alloc();
 }
 
-
 static VALUE
 mr_str_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     if (argc > 0) {
 	assert(argc == 1);
-	str_replace(STR(self), argv[0]);
+	str_replace(RSTR(self), argv[0]);
     }
     return self;
 }
@@ -987,46 +1031,46 @@ mr_str_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 static VALUE
 mr_str_replace(VALUE self, SEL sel, VALUE arg)
 {
-    str_replace(STR(self), arg);
+    str_replace(RSTR(self), arg);
     return self;
 }
 
 static VALUE
 mr_str_clear(VALUE self, SEL sel)
 {
-    str_clear(STR(self));
+    str_clear(RSTR(self));
     return self;
 }
 
 static VALUE
 mr_str_chars_count(VALUE self, SEL sel)
 {
-    return INT2NUM(str_length(STR(self), false));
+    return INT2NUM(str_length(RSTR(self), false));
 }
 
 static VALUE
 mr_str_length(VALUE self, SEL sel)
 {
-    return INT2NUM(str_length(STR(self), true));
+    return INT2NUM(str_length(RSTR(self), true));
 }
 
 static VALUE
 mr_str_bytesize(VALUE self, SEL sel)
 {
-    return INT2NUM(str_bytesize(STR(self)));
+    return INT2NUM(str_bytesize(RSTR(self)));
 }
 
 static VALUE
 mr_str_encoding(VALUE self, SEL sel)
 {
-    return (VALUE)STR(self)->encoding;
+    return (VALUE)RSTR(self)->encoding;
 }
 
 static VALUE
 mr_str_getbyte(VALUE self, SEL sel, VALUE index)
 {
     unsigned char c;
-    if (str_getbyte(STR(self), NUM2LONG(index), &c)) {
+    if (str_getbyte(RSTR(self), NUM2LONG(index), &c)) {
 	return INT2NUM(c);
     }
     else {
@@ -1037,7 +1081,8 @@ mr_str_getbyte(VALUE self, SEL sel, VALUE index)
 static VALUE
 mr_str_setbyte(VALUE self, SEL sel, VALUE index, VALUE value)
 {
-    str_setbyte(STR(self), NUM2LONG(index), 0xFF & (unsigned long)NUM2LONG(value));
+    str_setbyte(RSTR(self), NUM2LONG(index),
+	    0xFF & (unsigned long)NUM2LONG(value));
     return value;
 }
 
@@ -1045,24 +1090,24 @@ static VALUE
 mr_str_force_encoding(VALUE self, SEL sel, VALUE encoding)
 {
     encoding_t *enc;
-    if (SPECIAL_CONST_P(encoding) || (OBJC_CLASS(encoding) != rb_cEncoding)) {
+    if (SPECIAL_CONST_P(encoding) || (CLASS_OF(encoding) != rb_cEncoding)) {
 	abort(); // TODO
     }
     enc = (encoding_t *)encoding;
-    str_force_encoding(STR(self), enc);
+    str_force_encoding(RSTR(self), enc);
     return self;
 }
 
 static VALUE
 mr_str_is_valid_encoding(VALUE self, SEL sel)
 {
-    return str_is_valid_encoding(STR(self)) ? Qtrue : Qfalse;
+    return str_is_valid_encoding(RSTR(self)) ? Qtrue : Qfalse;
 }
 
 static VALUE
 mr_str_is_ascii_only(VALUE self, SEL sel)
 {
-    return str_is_ruby_ascii_only(STR(self)) ? Qtrue : Qfalse;
+    return str_is_ruby_ascii_only(RSTR(self)) ? Qtrue : Qfalse;
 }
 
 static VALUE
@@ -1073,9 +1118,7 @@ mr_str_aref(VALUE self, SEL sel, int argc, VALUE *argv)
 	VALUE index = argv[0];
 	switch (TYPE(index)) {
 	    case T_FIXNUM:
-		{
-		    ret = str_get_character_at(STR(self), FIX2LONG(index), true);
-		}
+		ret = str_get_character_at(RSTR(self), FIX2LONG(index), true);
 		break;
 
 	    case T_REGEXP:
@@ -1083,16 +1126,18 @@ mr_str_aref(VALUE self, SEL sel, int argc, VALUE *argv)
 
 	    case T_STRING:
 		{
-		    if (OBJC_CLASS(index) == rb_cRubyString) {
-			string_t *searched = STR(index);
-			if (str_include_string(STR(self), searched)) {
+		    if (IS_RSTR(index)) {
+			string_t *searched = RSTR(index);
+			if (str_include_string(RSTR(self), searched)) {
 			    return (VALUE)str_new_from_string(searched);
 			}
 		    }
 		    else {
-			string_t *searched = str_new_from_cfstring((CFStringRef)index);
-			if (str_include_string(STR(self), searched)) {
-			    // no need to duplicate the string as we just created it
+			string_t *searched =
+			    str_new_from_cfstring((CFStringRef)index);
+			if (str_include_string(RSTR(self), searched)) {
+			    // no need to duplicate the string as we just
+			    // created it
 			    return (VALUE)searched;
 			}
 		    }
@@ -1103,16 +1148,18 @@ mr_str_aref(VALUE self, SEL sel, int argc, VALUE *argv)
 		{
 		    VALUE rb_start = 0, rb_end = 0;
 		    int exclude_end = false;
-		    if (rb_range_values(index, &rb_start, &rb_end, &exclude_end)) {
+		    if (rb_range_values(index, &rb_start, &rb_end,
+				&exclude_end)) {
 			long start = NUM2LONG(rb_start);
 			long end = NUM2LONG(rb_end);
 			if (exclude_end) {
 			    --end;
 			}
-			ret = str_get_characters(STR(self), start, end, true);
+			ret = str_get_characters(RSTR(self), start, end, true);
 		    }
 		    else {
-			ret = str_get_character_at(STR(self), NUM2LONG(index), true);
+			ret = str_get_character_at(RSTR(self), NUM2LONG(index),
+				true);
 		    }
 		}
 		break;
@@ -1128,7 +1175,7 @@ mr_str_aref(VALUE self, SEL sel, int argc, VALUE *argv)
 	if ((start < 0) && (end >= 0)) {
 	    end = -1;
 	}
-	ret = str_get_characters(STR(self), start, end, true);
+	ret = str_get_characters(RSTR(self), start, end, true);
     }
     else {
 	rb_raise(rb_eArgError, "wrong number of arguments (%d for 1..2)", argc);
@@ -1160,7 +1207,7 @@ mr_str_index(VALUE self, SEL sel, int argc, VALUE *argv)
     }
     string_t *searched = str_need_string(rb_searched);
 
-    long index = str_index_for_string(STR(self), searched, start_index, true);
+    long index = str_index_for_string(RSTR(self), searched, start_index, true);
     if (index == -1) {
 	return Qnil;
     }
@@ -1169,11 +1216,10 @@ mr_str_index(VALUE self, SEL sel, int argc, VALUE *argv)
     }
 }
 
-
 static VALUE
 mr_str_getchar(VALUE self, SEL sel, VALUE index)
 {
-    string_t *ret = str_get_character_at(STR(self), FIX2LONG(index), false);
+    string_t *ret = str_get_character_at(RSTR(self), FIX2LONG(index), false);
     if (ret == NULL) {
 	return Qnil;
     }
@@ -1185,7 +1231,7 @@ mr_str_getchar(VALUE self, SEL sel, VALUE index)
 static VALUE
 mr_str_plus(VALUE self, SEL sel, VALUE to_add)
 {
-    return (VALUE)str_plus_string(STR(self), str_need_string(to_add));
+    return (VALUE)str_plus_string(RSTR(self), str_need_string(to_add));
 }
 
 static VALUE
@@ -1197,7 +1243,7 @@ mr_str_concat(VALUE self, SEL sel, VALUE to_concat)
 	    abort(); // TODO
 
 	default:
-	    str_concat_string(STR(self), str_need_string(to_concat));
+	    str_concat_string(RSTR(self), str_need_string(to_concat));
     }
     return self;
 }
@@ -1211,13 +1257,13 @@ mr_str_equal(VALUE self, SEL sel, VALUE compared_to)
 
     if (TYPE(compared_to) == T_STRING) {
 	string_t *str;
-	if (OBJC_CLASS(compared_to) == rb_cRubyString) {
-	    str = STR(compared_to);
+	if (IS_RSTR(compared_to)) {
+	    str = RSTR(compared_to);
 	}
 	else {
 	    str = str_new_from_cfstring((CFStringRef)compared_to);
 	}
-	return str_is_equal_to_string(STR(self), str) ? Qtrue : Qfalse;
+	return str_is_equal_to_string(RSTR(self), str) ? Qtrue : Qfalse;
     }
     else {
 	return Qfalse;
@@ -1227,28 +1273,39 @@ mr_str_equal(VALUE self, SEL sel, VALUE compared_to)
 static VALUE
 mr_str_not_equal(VALUE self, SEL sel, VALUE compared_to)
 {
-    return mr_str_equal(self, sel, compared_to) == Qfalse ? Qtrue : Qfalse;
+    return RTEST(mr_str_equal(self, sel, compared_to)) ? Qfalse : Qtrue;
 }
 
 static VALUE
 mr_str_include(VALUE self, SEL sel, VALUE searched)
 {
-    return str_include_string(STR(self), str_need_string(searched)) ? Qtrue : Qfalse;
+    return str_include_string(RSTR(self), str_need_string(searched))
+	? Qtrue : Qfalse;
 }
 
 static VALUE
 mr_str_is_stored_in_uchars(VALUE self, SEL sel)
 {
-    return str_is_stored_in_uchars(STR(self)) ? Qtrue : Qfalse;
+    return str_is_stored_in_uchars(RSTR(self)) ? Qtrue : Qfalse;
 }
 
 static VALUE
 mr_str_to_s(VALUE self, SEL sel)
 {
-    if (OBJC_CLASS(self) != rb_cRubyString) {
+    if (CLASS_OF(self) != rb_cRubyString) {
 	return (VALUE)str_dup(self);
     }
     return self;
+}
+
+static VALUE
+mr_str_intern(VALUE self, SEL sel)
+{
+    if (OBJ_TAINTED(self) && rb_safe_level() >= 1) {
+	rb_raise(rb_eSecurityError, "Insecure: can't intern tainted string");
+    }
+    str_make_data_binary(RSTR(self));
+    return ID2SYM(rb_intern(RSTR(self)->data.bytes));
 }
 
 void
@@ -1257,11 +1314,13 @@ Init_String(void)
     // TODO create NSString.m
     rb_cNSString = (VALUE)objc_getClass("NSString");
     assert(rb_cNSString != 0);
+    rb_cString = rb_cNSString;
     rb_cNSMutableString = (VALUE)objc_getClass("NSMutableString");
     assert(rb_cNSMutableString != 0);
 
     rb_cRubyString = rb_define_class("String", rb_cNSMutableString);
-    rb_objc_define_method(OBJC_CLASS(rb_cRubyString), "alloc", mr_str_s_alloc, 0);
+    rb_objc_define_method(*(VALUE *)rb_cRubyString, "alloc",
+	mr_str_s_alloc, 0);
 
     rb_objc_define_method(rb_cRubyString, "initialize", mr_str_initialize, -1);
     rb_objc_define_method(rb_cRubyString, "initialize_copy", mr_str_replace, 1);
@@ -1273,9 +1332,12 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "bytesize", mr_str_bytesize, 0);
     rb_objc_define_method(rb_cRubyString, "getbyte", mr_str_getbyte, 1);
     rb_objc_define_method(rb_cRubyString, "setbyte", mr_str_setbyte, 2);
-    rb_objc_define_method(rb_cRubyString, "force_encoding", mr_str_force_encoding, 1);
-    rb_objc_define_method(rb_cRubyString, "valid_encoding?", mr_str_is_valid_encoding, 0);
-    rb_objc_define_method(rb_cRubyString, "ascii_only?", mr_str_is_ascii_only, 0);
+    rb_objc_define_method(rb_cRubyString, "force_encoding",
+	    mr_str_force_encoding, 1);
+    rb_objc_define_method(rb_cRubyString, "valid_encoding?",
+	    mr_str_is_valid_encoding, 0);
+    rb_objc_define_method(rb_cRubyString, "ascii_only?",
+	    mr_str_is_ascii_only, 0);
     rb_objc_define_method(rb_cRubyString, "[]", mr_str_aref, -1);
     rb_objc_define_method(rb_cRubyString, "index", mr_str_index, -1);
     rb_objc_define_method(rb_cRubyString, "+", mr_str_plus, 1);
@@ -1286,11 +1348,87 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "include?", mr_str_include, 1);
     rb_objc_define_method(rb_cRubyString, "to_s", mr_str_to_s, 0);
     rb_objc_define_method(rb_cRubyString, "to_str", mr_str_to_s, 0);
+    rb_objc_define_method(rb_cRubyString, "intern", mr_str_intern, 0);
 
     // added for MacRuby
     rb_objc_define_method(rb_cRubyString, "chars_count", mr_str_chars_count, 0);
     rb_objc_define_method(rb_cRubyString, "getchar", mr_str_getchar, 1);
 
-    // this method does not exist in Ruby and is there only for debugging purpose
-    rb_objc_define_method(rb_cRubyString, "stored_in_uchars?", mr_str_is_stored_in_uchars, 0);
+    // this method does not exist in Ruby and is there only for debugging
+    // purpose
+    rb_objc_define_method(rb_cRubyString, "stored_in_uchars?",
+	    mr_str_is_stored_in_uchars, 0);
+}
+
+// MRI C-API compatibility.
+
+VALUE
+rb_str_new(const char *cstr, long len)
+{
+    string_t *str = str_alloc();
+    str_replace_with_bytes(str, cstr, len, ENCODING_BINARY);
+    return (VALUE)str;
+}
+
+VALUE
+rb_str_new2(const char *cstr)
+{
+    return rb_str_new(cstr, strlen(cstr));
+}
+
+VALUE
+rb_str_new3(VALUE source)
+{
+    string_t *str = str_alloc();
+    str_replace(str, source);
+    return (VALUE)str;
+}
+
+VALUE
+rb_str_new4(VALUE source)
+{
+    VALUE str = rb_str_new3(source);
+    // TODO: freeze str
+    return str;
+}
+
+const char *
+rb_str_cstr(VALUE str)
+{
+    if (IS_RSTR(str)) {
+	str_make_data_binary(RSTR(str));
+	return RSTR(str)->data.bytes;
+    }
+    return ""; // TODO
+}
+
+long
+rb_str_clen(VALUE str)
+{
+    if (IS_RSTR(str)) {
+	str_make_data_binary(RSTR(str));
+	return RSTR(str)->length_in_bytes;
+    }
+    return 0; // TODO
+}
+
+ID
+rb_to_id(VALUE name)
+{
+    VALUE tmp;
+    switch (TYPE(name)) {
+	default:
+	    tmp = rb_check_string_type(name);
+	    if (NIL_P(tmp)) {
+		rb_raise(rb_eTypeError, "%s is not a symbol",
+			RSTRING_PTR(rb_inspect(name)));
+	    }
+	    name = tmp;
+	    /* fall through */
+	case T_STRING:
+	    name = mr_str_intern(name, 0);
+	    /* fall through */
+	case T_SYMBOL:
+	    return SYM2ID(name);
+    }
 }

@@ -21,12 +21,18 @@ extern "C" {
 #define ENCODING_UTF32_NON_NATIVE ENCODING_UTF32LE
 #endif
 
-#define NATIVE_UTF16_ENC(encoding) ((encoding) == encodings[ENCODING_UTF16_NATIVE])
-#define NON_NATIVE_UTF16_ENC(encoding) ((encoding) == encodings[ENCODING_UTF16_NON_NATIVE])
-#define UTF16_ENC(encoding) (NATIVE_UTF16_ENC(encoding) || NON_NATIVE_UTF16_ENC(encoding))
-#define NATIVE_UTF32_ENC(encoding) ((encoding) == encodings[ENCODING_UTF32_NATIVE])
-#define NON_NATIVE_UTF32_ENC(encoding) ((encoding) == encodings[ENCODING_UTF32_NON_NATIVE])
-#define UTF32_ENC(encoding) (NATIVE_UTF32_ENC(encoding) || NON_NATIVE_UTF32_ENC(encoding))
+#define NATIVE_UTF16_ENC(encoding) \
+    ((encoding) == encodings[ENCODING_UTF16_NATIVE])
+#define NON_NATIVE_UTF16_ENC(encoding) \
+    ((encoding) == encodings[ENCODING_UTF16_NON_NATIVE])
+#define UTF16_ENC(encoding) \
+    (NATIVE_UTF16_ENC(encoding) || NON_NATIVE_UTF16_ENC(encoding))
+#define NATIVE_UTF32_ENC(encoding) \
+    ((encoding) == encodings[ENCODING_UTF32_NATIVE])
+#define NON_NATIVE_UTF32_ENC(encoding) \
+    ((encoding) == encodings[ENCODING_UTF32_NON_NATIVE])
+#define UTF32_ENC(encoding) \
+    (NATIVE_UTF32_ENC(encoding) || NON_NATIVE_UTF32_ENC(encoding))
 #define BINARY_ENC(encoding) ((encoding) == encodings[ENCODING_BINARY])
 
 typedef uint8_t str_flag_t;
@@ -42,6 +48,26 @@ typedef struct  {
     } data;
     str_flag_t flags;
 } string_t;
+
+#define RSTR(x) ((string_t *)x)
+
+static inline bool
+rb_klass_is_rstr(VALUE klass)
+{
+    do {
+	if (klass == rb_cRubyString) {
+	    return true;
+	}
+	if (klass == rb_cNSString) {
+	    return false;
+	}
+	klass = RCLASS_SUPER(klass);
+    }
+    while (klass != 0);
+    return false;
+}
+
+#define IS_RSTR(x) (rb_klass_is_rstr(*(VALUE *)x))
 
 typedef struct {
     long start_offset_in_bytes;
@@ -103,8 +129,6 @@ extern VALUE rb_cMREncoding;
 
 #define STRING_REQUIRED_FLAGS STRING_STORED_IN_UCHARS
 
-#define STR(x) ((string_t *)(x))
-
 #define BYTES_TO_UCHARS(len) ((len) / sizeof(UChar))
 #define UCHARS_TO_BYTES(len) ((len) * sizeof(UChar))
 
@@ -116,29 +140,32 @@ div_round_up(long a, long b)
     return ((a) + (b - 1)) / b;
 }
 
-void
-str_update_flags(string_t *self);
+void str_update_flags(string_t *self);
 
 static inline void
 str_unset_facultative_flags(string_t *self)
 {
-    self->flags &= ~STRING_HAS_SUPPLEMENTARY_SET & ~STRING_ASCII_ONLY_SET & ~STRING_VALID_ENCODING_SET;
+    self->flags &= ~STRING_HAS_SUPPLEMENTARY_SET & ~STRING_ASCII_ONLY_SET
+	& ~STRING_VALID_ENCODING_SET;
 }
 
 static inline bool
 str_known_to_have_an_invalid_encoding(string_t *self)
 {
-    return (self->flags & (STRING_VALID_ENCODING_SET | STRING_VALID_ENCODING)) == STRING_VALID_ENCODING_SET;
+    return (self->flags & (STRING_VALID_ENCODING_SET
+		| STRING_VALID_ENCODING)) == STRING_VALID_ENCODING_SET;
 }
 
 static inline bool
 str_known_not_to_have_any_supplementary(string_t *self)
 {
-    return (self->flags & (STRING_HAS_SUPPLEMENTARY_SET | STRING_HAS_SUPPLEMENTARY)) == STRING_HAS_SUPPLEMENTARY_SET;
+    return (self->flags & (STRING_HAS_SUPPLEMENTARY_SET
+		| STRING_HAS_SUPPLEMENTARY)) == STRING_HAS_SUPPLEMENTARY_SET;
 }
 
 static inline bool
-str_check_flag_and_update_if_needed(string_t *self, str_flag_t flag_set, str_flag_t flag)
+str_check_flag_and_update_if_needed(string_t *self, str_flag_t flag_set,
+	str_flag_t flag)
 {
     if (!(self->flags & flag_set)) {
 	str_update_flags(self);
@@ -150,24 +177,26 @@ str_check_flag_and_update_if_needed(string_t *self, str_flag_t flag_set, str_fla
 static inline bool
 str_is_valid_encoding(string_t *self)
 {
-    return str_check_flag_and_update_if_needed(self, STRING_VALID_ENCODING_SET, STRING_VALID_ENCODING);
+    return str_check_flag_and_update_if_needed(self, STRING_VALID_ENCODING_SET,
+	    STRING_VALID_ENCODING);
 }
 
 static inline bool
 str_is_ascii_only(string_t *self)
 {
-    return str_check_flag_and_update_if_needed(self, STRING_ASCII_ONLY_SET, STRING_ASCII_ONLY);
+    return str_check_flag_and_update_if_needed(self, STRING_ASCII_ONLY_SET,
+	    STRING_ASCII_ONLY);
 }
 
 static inline bool
 str_is_ruby_ascii_only(string_t *self)
 {
     // for MRI, a string in a non-ASCII-compatible encoding (like UTF-16)
-    // containing only ASCII characters is not "ASCII only" though for us it is internally
+    // containing only ASCII characters is not "ASCII only" though for us it
+    // is internally
     if (!self->encoding->ascii_compatible) {
 	return false;
     }
-
     return str_is_ascii_only(self);
 }
 
@@ -195,7 +224,8 @@ str_set_stored_in_uchars(string_t *self, bool status)
 }
 
 static inline void
-str_set_facultative_flag(string_t *self, bool status, str_flag_t flag_set, str_flag_t flag)
+str_set_facultative_flag(string_t *self, bool status, str_flag_t flag_set,
+	str_flag_t flag)
 {
     if (status) {
 	self->flags = self->flags | flag_set | flag;
@@ -208,23 +238,26 @@ str_set_facultative_flag(string_t *self, bool status, str_flag_t flag_set, str_f
 static inline void
 str_set_has_supplementary(string_t *self, bool status)
 {
-    str_set_facultative_flag(self, status, STRING_HAS_SUPPLEMENTARY_SET, STRING_HAS_SUPPLEMENTARY);
+    str_set_facultative_flag(self, status, STRING_HAS_SUPPLEMENTARY_SET,
+	    STRING_HAS_SUPPLEMENTARY);
 }
 
 static inline void
 str_set_ascii_only(string_t *self, bool status)
 {
-    str_set_facultative_flag(self, status, STRING_ASCII_ONLY_SET, STRING_ASCII_ONLY);
+    str_set_facultative_flag(self, status, STRING_ASCII_ONLY_SET,
+	    STRING_ASCII_ONLY);
 }
 
 static inline void
 str_set_valid_encoding(string_t *self, bool status)
 {
-    str_set_facultative_flag(self, status, STRING_VALID_ENCODING_SET, STRING_VALID_ENCODING);
+    str_set_facultative_flag(self, status, STRING_VALID_ENCODING_SET,
+	    STRING_VALID_ENCODING);
 }
 
 #if defined(__cplusplus)
-}
+} // extern "C"
 #endif
 
 #endif /* __ENCODING_H_ */

@@ -1134,9 +1134,9 @@ RUBY_EXTERN VALUE rb_cEnv;
 RUBY_EXTERN VALUE rb_cRandom;
 
 #if WITH_OBJC
-RUBY_EXTERN VALUE rb_cCFString;
 RUBY_EXTERN VALUE rb_cNSString;
 RUBY_EXTERN VALUE rb_cNSMutableString;
+RUBY_EXTERN VALUE rb_cRubyString;
 RUBY_EXTERN VALUE rb_cNSArray;
 RUBY_EXTERN VALUE rb_cNSMutableArray;
 RUBY_EXTERN VALUE rb_cRubyArray;
@@ -1147,11 +1147,6 @@ RUBY_EXTERN VALUE rb_cCFNumber;
 RUBY_EXTERN VALUE rb_cBoxed;
 RUBY_EXTERN VALUE rb_cPointer;
 RUBY_EXTERN VALUE rb_cTopLevel;
-
-bool __CFStringIsMutable(void *);
-#define RSTRING_IMMUTABLE(o) \
-    (*(VALUE *)o == rb_cCFString ? !__CFStringIsMutable((void *)o) : false)
-
 #endif
 
 RUBY_EXTERN VALUE rb_eException;
@@ -1257,7 +1252,7 @@ rb_type(VALUE obj)
     }
 #if WITH_OBJC
     else if ((k = *(Class *)obj) != NULL) {
-	if (k == (Class)rb_cCFString) {
+	if (k == (Class)rb_cRubyString) {
 	    return T_STRING;
 	}
 	if (k == (Class)rb_cRubyArray) {

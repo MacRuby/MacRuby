@@ -824,10 +824,6 @@ dispatch:
 	    if (self == Qfalse) {
 		return rb_cFalseClass;
 	    }
-	    if (klass == (Class)rb_cCFString) {
-		return RSTRING_IMMUTABLE(self)
-		    ? rb_cNSString : rb_cNSMutableString;
-	    }
 	    return rb_class_real((VALUE)klass);
 	}
 
@@ -1325,12 +1321,14 @@ rb_vm_fast_shift(VALUE obj, VALUE other, struct mcache *cache,
 		}
 		break;
 
+#if 0 // TODO
 	    case T_STRING:
 		if (*(VALUE *)obj == rb_cCFString) {
 		    rb_str_concat(obj, other);
 		    return obj;
 		}
 		break;
+#endif
 	}
     }
     return __rb_vm_dispatch(GET_VM(), cache, 0, obj, NULL, selLTLT, NULL, 0, 1,

@@ -225,18 +225,16 @@ rb_objc_create_class(const char *name, VALUE super)
 {
     VALUE klass;
 
-    if (super == rb_cCFString) {
-	super = rb_cNSMutableString;
-    }
-    else {
-	if (!RCLASS_RUBY(super)) {
-	    const long v = RCLASS_VERSION(super);
-	    if (v & RCLASS_IS_HASH_SUBCLASS) {
-		super = rb_cNSMutableHash;
-	    }
-	    else if (v & RCLASS_IS_ARRAY_SUBCLASS) {
-		super = rb_cNSMutableArray;
-	    }
+    if (!RCLASS_RUBY(super)) {
+	const long v = RCLASS_VERSION(super);
+	if (v & RCLASS_IS_STRING_SUBCLASS) {
+	    super = rb_cNSMutableString;
+	}
+	else if (v & RCLASS_IS_HASH_SUBCLASS) {
+	    super = rb_cNSMutableHash;
+	}
+	else if (v & RCLASS_IS_ARRAY_SUBCLASS) {
+	    super = rb_cNSMutableArray;
 	}
     }
 

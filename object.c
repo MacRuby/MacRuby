@@ -163,11 +163,11 @@ rb_class_real(VALUE cl)
     while (RCLASS_SINGLETON(cl)) {
 	cl = RCLASS_SUPER(cl);
     }
-    if (cl == rb_cCFString) {
-	return rb_cNSMutableString;
-    }
     if (!RCLASS_RUBY(cl)) {
 	const long v = RCLASS_VERSION(cl);
+	if (v & RCLASS_IS_STRING_SUBCLASS) {
+	    return rb_cRubyString;
+	}
 	if (v & RCLASS_IS_HASH_SUBCLASS) {
 	    return rb_cRubyHash;
 	}

@@ -7,7 +7,6 @@
 VALUE rb_cEncoding = 0;
 
 #define ENC(x) ((encoding_t *)(x))
-#define OBJC_CLASS(x) (*(VALUE *)(x))
 
 encoding_t *default_internal = NULL;
 encoding_t *default_external = NULL;
@@ -82,7 +81,8 @@ mr_enc_name(VALUE self, SEL sel)
 static VALUE
 mr_enc_inspect(VALUE self, SEL sel)
 {
-    return rb_sprintf("#<%s:%s>", rb_obj_classname(self), ENC(self)->public_name);
+    return rb_sprintf("#<%s:%s>", rb_obj_classname(self),
+	    ENC(self)->public_name);
 }
 
 static VALUE
@@ -144,13 +144,16 @@ enum {
 
 static void
 add_encoding(
-	unsigned int encoding_index, // index of the encoding in the encodings array
+	unsigned int encoding_index, // index of the encoding in the encodings
+				     // array
 	unsigned int encoding_type,
 	const char *public_name, // public name for the encoding
 	unsigned char min_char_size,
-	bool single_byte_encoding, // in the encoding a character takes only one byte
+	bool single_byte_encoding, // in the encoding a character takes only
+				   // one byte
 	bool ascii_compatible, // is the encoding ASCII compatible or not
-	... // aliases for the encoding (should no include the public name) - must end with a NULL
+	... // aliases for the encoding (should no include the public name)
+	    // - must end with a NULL
 	)
 {
     assert(encoding_index < ENCODINGS_COUNT);
@@ -163,7 +166,8 @@ add_encoding(
 	++aliases_count;
     }
     va_end(va_aliases);
-    const char **aliases = (const char **) malloc(sizeof(const char *) * aliases_count);
+    const char **aliases = (const char **)
+	malloc(sizeof(const char *) * aliases_count);
     va_start(va_aliases, ascii_compatible);
     for (unsigned int i = 0; i < aliases_count; ++i) {
 	aliases[i] = va_arg(va_aliases, const char *);
@@ -189,11 +193,14 @@ add_encoding(
     // fill the default implementations with aborts
     encoding->methods.update_flags = str_undefined_update_flags;
     encoding->methods.make_data_binary = str_undefined_make_data_binary;
-    encoding->methods.try_making_data_uchars = str_undefined_try_making_data_uchars;
+    encoding->methods.try_making_data_uchars =
+	str_undefined_try_making_data_uchars;
     encoding->methods.length = str_undefined_length;
     encoding->methods.bytesize = str_undefined_bytesize;
-    encoding->methods.get_character_boundaries = str_undefined_get_character_boundaries;
-    encoding->methods.offset_in_bytes_to_index = str_undefined_offset_in_bytes_to_index;
+    encoding->methods.get_character_boundaries =
+	str_undefined_get_character_boundaries;
+    encoding->methods.offset_in_bytes_to_index =
+	str_undefined_offset_in_bytes_to_index;
 
     switch (encoding_type) {
 	case ENCODING_TYPE_SPECIAL:
@@ -210,8 +217,6 @@ add_encoding(
     for (unsigned int i = 0; i < aliases_count; ++i) {
 	define_encoding_constant(aliases[i], encoding);
     }
-
-    free(aliases);
 }
 
 static void
@@ -249,20 +254,27 @@ Init_Encoding(void)
     rb_objc_define_method(rb_cEncoding, "name", mr_enc_name, 0);
     rb_objc_define_method(rb_cEncoding, "names", mr_enc_names, 0);
     rb_objc_define_method(rb_cEncoding, "dummy?", mr_enc_dummy_p, 0);
-    rb_objc_define_method(rb_cEncoding, "ascii_compatible?", mr_enc_ascii_compatible_p, 0);
-    rb_objc_define_method(OBJC_CLASS(rb_cEncoding), "list", mr_enc_s_list, 0);
-    rb_objc_define_method(OBJC_CLASS(rb_cEncoding), "name_list", mr_enc_s_name_list, 0);
-    rb_objc_define_method(OBJC_CLASS(rb_cEncoding), "aliases", mr_enc_s_aliases, 0);
+    rb_objc_define_method(rb_cEncoding, "ascii_compatible?",
+	    mr_enc_ascii_compatible_p, 0);
+    rb_objc_define_method(CLASS_OF(rb_cEncoding), "list", mr_enc_s_list, 0);
+    rb_objc_define_method(CLASS_OF(rb_cEncoding), "name_list",
+	    mr_enc_s_name_list, 0);
+    rb_objc_define_method(CLASS_OF(rb_cEncoding), "aliases",
+	    mr_enc_s_aliases, 0);
     //rb_define_singleton_method(rb_cEncoding, "find", enc_find, 1);
-    // it's defined on Encoding, but it requires String's internals so it's defined with String
-    rb_objc_define_method(OBJC_CLASS(rb_cEncoding), "compatible?", mr_enc_s_is_compatible, 2);
+    // it's defined on Encoding, but it requires String's internals so it's
+    // defined with String
+    rb_objc_define_method(CLASS_OF(rb_cEncoding), "compatible?",
+	    mr_enc_s_is_compatible, 2);
 
     //rb_define_method(rb_cEncoding, "_dump", enc_dump, -1);
     //rb_define_singleton_method(rb_cEncoding, "_load", enc_load, 1);
 
-    rb_objc_define_method(OBJC_CLASS(rb_cEncoding), "default_external", mr_enc_s_default_external, 0);
+    rb_objc_define_method(CLASS_OF(rb_cEncoding), "default_external",
+	    mr_enc_s_default_external, 0);
     //rb_define_singleton_method(rb_cEncoding, "default_external=", set_default_external, 1);
-    rb_objc_define_method(OBJC_CLASS(rb_cEncoding), "default_internal", mr_enc_s_default_internal, 0);
+    rb_objc_define_method(CLASS_OF(rb_cEncoding), "default_internal",
+	    mr_enc_s_default_internal, 0);
     //rb_define_singleton_method(rb_cEncoding, "default_internal=", set_default_internal, 1);
     //rb_define_singleton_method(rb_cEncoding, "locale_charmap", rb_locale_charmap, 0);
 
