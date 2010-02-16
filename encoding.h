@@ -1,3 +1,14 @@
+/* 
+ * MacRuby implementation of Ruby 1.9 String.
+ *
+ * This file is covered by the Ruby license. See COPYING for more details.
+ * 
+ * Copyright (C) 2007-2010, Apple Inc. All rights reserved.
+ * Copyright (C) 1993-2007 Yukihiro Matsumoto
+ * Copyright (C) 2000 Network Applied Communication Laboratory, Inc.
+ * Copyright (C) 2000 Information-technology Promotion Agency, Japan
+ */
+
 #ifndef __ENCODING_H_
 #define __ENCODING_H_
 
@@ -22,24 +33,24 @@ extern "C" {
 #endif
 
 #define NATIVE_UTF16_ENC(encoding) \
-    ((encoding) == encodings[ENCODING_UTF16_NATIVE])
+    ((encoding) == rb_encodings[ENCODING_UTF16_NATIVE])
 #define NON_NATIVE_UTF16_ENC(encoding) \
-    ((encoding) == encodings[ENCODING_UTF16_NON_NATIVE])
+    ((encoding) == rb_encodings[ENCODING_UTF16_NON_NATIVE])
 #define UTF16_ENC(encoding) \
     (NATIVE_UTF16_ENC(encoding) || NON_NATIVE_UTF16_ENC(encoding))
 #define NATIVE_UTF32_ENC(encoding) \
-    ((encoding) == encodings[ENCODING_UTF32_NATIVE])
+    ((encoding) == rb_encodings[ENCODING_UTF32_NATIVE])
 #define NON_NATIVE_UTF32_ENC(encoding) \
-    ((encoding) == encodings[ENCODING_UTF32_NON_NATIVE])
+    ((encoding) == rb_encodings[ENCODING_UTF32_NON_NATIVE])
 #define UTF32_ENC(encoding) \
     (NATIVE_UTF32_ENC(encoding) || NON_NATIVE_UTF32_ENC(encoding))
-#define BINARY_ENC(encoding) ((encoding) == encodings[ENCODING_BINARY])
+#define BINARY_ENC(encoding) ((encoding) == rb_encodings[ENCODING_BINARY])
 
 typedef uint8_t str_flag_t;
 
-typedef struct  {
+typedef struct {
     struct RBasic basic;
-    struct encoding_s *encoding;
+    struct rb_encoding *encoding;
     long capacity_in_bytes;
     long length_in_bytes;
     union {
@@ -47,9 +58,9 @@ typedef struct  {
 	UChar *uchars;
     } data;
     str_flag_t flags;
-} string_t;
+} rb_str_t;
 
-#define RSTR(x) ((string_t *)x)
+#define RSTR(x) ((rb_str_t *)x)
 
 static inline bool
 rb_klass_is_rstr(VALUE klass)
@@ -75,16 +86,16 @@ typedef struct {
 } character_boundaries_t;
 
 typedef struct {
-    void (*update_flags)(string_t *);
-    void (*make_data_binary)(string_t *);
-    bool (*try_making_data_uchars)(string_t *);
-    long (*length)(string_t *, bool);
-    long (*bytesize)(string_t *);
-    character_boundaries_t (*get_character_boundaries)(string_t *, long, bool);
-    long (*offset_in_bytes_to_index)(string_t *, long, bool);
+    void (*update_flags)(rb_str_t *);
+    void (*make_data_binary)(rb_str_t *);
+    bool (*try_making_data_uchars)(rb_str_t *);
+    long (*length)(rb_str_t *, bool);
+    long (*bytesize)(rb_str_t *);
+    character_boundaries_t (*get_character_boundaries)(rb_str_t *, long, bool);
+    long (*offset_in_bytes_to_index)(rb_str_t *, long, bool);
 } encoding_methods_t;
 
-typedef struct encoding_s {
+typedef struct rb_encoding {
     struct RBasic basic;
     unsigned int index;
     const char *public_name;
@@ -95,7 +106,9 @@ typedef struct encoding_s {
     bool ascii_compatible : 1;
     encoding_methods_t methods;
     void *private_data;
-} encoding_t;
+} rb_encoding_t;
+
+#define RENC(x) ((rb_encoding_t *)(x))
 
 enum {
     ENCODING_BINARY = 0,
@@ -114,9 +127,7 @@ enum {
     ENCODINGS_COUNT
 };
 
-extern encoding_t *encodings[ENCODINGS_COUNT];
-
-extern VALUE rb_cMREncoding;
+extern rb_encoding_t *rb_encodings[ENCODINGS_COUNT];
 
 #define STRING_HAS_SUPPLEMENTARY     0x020
 #define STRING_HAS_SUPPLEMENTARY_SET 0x010
@@ -140,31 +151,31 @@ div_round_up(long a, long b)
     return ((a) + (b - 1)) / b;
 }
 
-void str_update_flags(string_t *self);
+void str_update_flags(rb_str_t *self);
 
 static inline void
-str_unset_facultative_flags(string_t *self)
+str_unset_facultative_flags(rb_str_t *self)
 {
     self->flags &= ~STRING_HAS_SUPPLEMENTARY_SET & ~STRING_ASCII_ONLY_SET
 	& ~STRING_VALID_ENCODING_SET;
 }
 
 static inline bool
-str_known_to_have_an_invalid_encoding(string_t *self)
+str_known_to_have_an_invalid_encoding(rb_str_t *self)
 {
     return (self->flags & (STRING_VALID_ENCODING_SET
 		| STRING_VALID_ENCODING)) == STRING_VALID_ENCODING_SET;
 }
 
 static inline bool
-str_known_not_to_have_any_supplementary(string_t *self)
+str_known_not_to_have_any_supplementary(rb_str_t *self)
 {
     return (self->flags & (STRING_HAS_SUPPLEMENTARY_SET
 		| STRING_HAS_SUPPLEMENTARY)) == STRING_HAS_SUPPLEMENTARY_SET;
 }
 
 static inline bool
-str_check_flag_and_update_if_needed(string_t *self, str_flag_t flag_set,
+str_check_flag_and_update_if_needed(rb_str_t *self, str_flag_t flag_set,
 	str_flag_t flag)
 {
     if (!(self->flags & flag_set)) {
@@ -175,21 +186,21 @@ str_check_flag_and_update_if_needed(string_t *self, str_flag_t flag_set,
 }
 
 static inline bool
-str_is_valid_encoding(string_t *self)
+str_is_valid_encoding(rb_str_t *self)
 {
     return str_check_flag_and_update_if_needed(self, STRING_VALID_ENCODING_SET,
 	    STRING_VALID_ENCODING);
 }
 
 static inline bool
-str_is_ascii_only(string_t *self)
+str_is_ascii_only(rb_str_t *self)
 {
     return str_check_flag_and_update_if_needed(self, STRING_ASCII_ONLY_SET,
 	    STRING_ASCII_ONLY);
 }
 
 static inline bool
-str_is_ruby_ascii_only(string_t *self)
+str_is_ruby_ascii_only(rb_str_t *self)
 {
     // for MRI, a string in a non-ASCII-compatible encoding (like UTF-16)
     // containing only ASCII characters is not "ASCII only" though for us it
@@ -201,19 +212,19 @@ str_is_ruby_ascii_only(string_t *self)
 }
 
 static inline bool
-str_is_stored_in_uchars(string_t *self)
+str_is_stored_in_uchars(rb_str_t *self)
 {
     return self->flags & STRING_STORED_IN_UCHARS;
 }
 
 static inline void
-str_negate_stored_in_uchars(string_t *self)
+str_negate_stored_in_uchars(rb_str_t *self)
 {
     self->flags ^= STRING_STORED_IN_UCHARS;
 }
 
 static inline void
-str_set_stored_in_uchars(string_t *self, bool status)
+str_set_stored_in_uchars(rb_str_t *self, bool status)
 {
     if (status) {
 	self->flags |= STRING_STORED_IN_UCHARS;
@@ -224,7 +235,7 @@ str_set_stored_in_uchars(string_t *self, bool status)
 }
 
 static inline void
-str_set_facultative_flag(string_t *self, bool status, str_flag_t flag_set,
+str_set_facultative_flag(rb_str_t *self, bool status, str_flag_t flag_set,
 	str_flag_t flag)
 {
     if (status) {
@@ -236,21 +247,21 @@ str_set_facultative_flag(string_t *self, bool status, str_flag_t flag_set,
 }
 
 static inline void
-str_set_has_supplementary(string_t *self, bool status)
+str_set_has_supplementary(rb_str_t *self, bool status)
 {
     str_set_facultative_flag(self, status, STRING_HAS_SUPPLEMENTARY_SET,
 	    STRING_HAS_SUPPLEMENTARY);
 }
 
 static inline void
-str_set_ascii_only(string_t *self, bool status)
+str_set_ascii_only(rb_str_t *self, bool status)
 {
     str_set_facultative_flag(self, status, STRING_ASCII_ONLY_SET,
 	    STRING_ASCII_ONLY);
 }
 
 static inline void
-str_set_valid_encoding(string_t *self, bool status)
+str_set_valid_encoding(rb_str_t *self, bool status)
 {
     str_set_facultative_flag(self, status, STRING_VALID_ENCODING_SET,
 	    STRING_VALID_ENCODING);

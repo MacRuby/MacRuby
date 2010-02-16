@@ -1,31 +1,37 @@
+/* 
+ * MacRuby implementation of Ruby 1.9 String.
+ *
+ * This file is covered by the Ruby license. See COPYING for more details.
+ * 
+ * Copyright (C) 2007-2010, Apple Inc. All rights reserved.
+ * Copyright (C) 1993-2007 Yukihiro Matsumoto
+ * Copyright (C) 2000 Network Applied Communication Laboratory, Inc.
+ * Copyright (C) 2000 Information-technology Promotion Agency, Japan
+ */
+
 #include "encoding.h"
 #include <string.h>
 
-// TODO:
-// - use rb_usascii_str_new_cstr instead of rb_str_new2
+VALUE rb_cEncoding;
 
-VALUE rb_cEncoding = 0;
+static rb_encoding_t *default_internal = NULL;
+static rb_encoding_t *default_external = NULL;
+rb_encoding_t *rb_encodings[ENCODINGS_COUNT];
 
-#define ENC(x) ((encoding_t *)(x))
-
-encoding_t *default_internal = NULL;
-encoding_t *default_external = NULL;
-encoding_t *encodings[ENCODINGS_COUNT];
-
-static void str_undefined_update_flags(string_t *self) { abort(); }
-static void str_undefined_make_data_binary(string_t *self) { abort(); }
-static bool str_undefined_try_making_data_uchars(string_t *self) { abort(); }
-static long str_undefined_length(string_t *self, bool ucs2_mode) { abort(); }
-static long str_undefined_bytesize(string_t *self) { abort(); }
-static character_boundaries_t str_undefined_get_character_boundaries(string_t *self, long index, bool ucs2_mode) { abort(); }
-static long str_undefined_offset_in_bytes_to_index(string_t *self, long offset_in_bytes, bool ucs2_mode) { abort(); }
+static void str_undefined_update_flags(rb_str_t *self) { abort(); }
+static void str_undefined_make_data_binary(rb_str_t *self) { abort(); }
+static bool str_undefined_try_making_data_uchars(rb_str_t *self) { abort(); }
+static long str_undefined_length(rb_str_t *self, bool ucs2_mode) { abort(); }
+static long str_undefined_bytesize(rb_str_t *self) { abort(); }
+static character_boundaries_t str_undefined_get_character_boundaries(rb_str_t *self, long index, bool ucs2_mode) { abort(); }
+static long str_undefined_offset_in_bytes_to_index(rb_str_t *self, long offset_in_bytes, bool ucs2_mode) { abort(); }
 
 static VALUE
 mr_enc_s_list(VALUE klass, SEL sel)
 {
     VALUE ary = rb_ary_new2(ENCODINGS_COUNT);
     for (unsigned int i = 0; i < ENCODINGS_COUNT; ++i) {
-	rb_ary_push(ary, (VALUE)encodings[i]);
+	rb_ary_push(ary, (VALUE)rb_encodings[i]);
     }
     return ary;
 }
@@ -35,11 +41,11 @@ mr_enc_s_name_list(VALUE klass, SEL sel)
 {
     VALUE ary = rb_ary_new();
     for (unsigned int i = 0; i < ENCODINGS_COUNT; ++i) {
-	encoding_t *encoding = ENC(encodings[i]);
+	rb_encoding_t *encoding = RENC(rb_encodings[i]);
 	// TODO: use US-ASCII strings
-	rb_ary_push(ary, rb_str_new2(encoding->public_name));
+	rb_ary_push(ary, rb_usascii_str_new2(encoding->public_name));
 	for (unsigned int j = 0; j < encoding->aliases_count; ++j) {
-	    rb_ary_push(ary, rb_str_new2(encoding->aliases[j]));
+	    rb_ary_push(ary, rb_usascii_str_new2(encoding->aliases[j]));
 	}
     }
     return ary;
@@ -50,11 +56,10 @@ mr_enc_s_aliases(VALUE klass, SEL sel)
 {
     VALUE hash = rb_hash_new();
     for (unsigned int i = 0; i < ENCODINGS_COUNT; ++i) {
-	encoding_t *encoding = ENC(encodings[i]);
+	rb_encoding_t *encoding = RENC(rb_encodings[i]);
 	for (unsigned int j = 0; j < encoding->aliases_count; ++j) {
-	    rb_hash_aset(hash,
-		    rb_str_new2(encoding->aliases[j]),
-		    rb_str_new2(encoding->public_name));
+	    rb_hash_aset(hash, rb_usascii_str_new2(encoding->aliases[j]),
+		    rb_usascii_str_new2(encoding->public_name));
 	}
     }
     return hash;
@@ -75,25 +80,25 @@ mr_enc_s_default_external(VALUE klass, SEL sel)
 static VALUE
 mr_enc_name(VALUE self, SEL sel)
 {
-    return rb_str_new2(ENC(self)->public_name);
+    return rb_usascii_str_new2(RENC(self)->public_name);
 }
 
 static VALUE
 mr_enc_inspect(VALUE self, SEL sel)
 {
     return rb_sprintf("#<%s:%s>", rb_obj_classname(self),
-	    ENC(self)->public_name);
+	    RENC(self)->public_name);
 }
 
 static VALUE
 mr_enc_names(VALUE self, SEL sel)
 {
-    encoding_t *encoding = ENC(self);
+    rb_encoding_t *encoding = RENC(self);
 
     VALUE ary = rb_ary_new2(encoding->aliases_count + 1);
-    rb_ary_push(ary, rb_str_new2(encoding->public_name));
+    rb_ary_push(ary, rb_usascii_str_new2(encoding->public_name));
     for (unsigned int i = 0; i < encoding->aliases_count; ++i) {
-	rb_ary_push(ary, rb_str_new2(encoding->aliases[i]));
+	rb_ary_push(ary, rb_usascii_str_new2(encoding->aliases[i]));
     }
     return ary;
 }
@@ -101,7 +106,7 @@ mr_enc_names(VALUE self, SEL sel)
 static VALUE
 mr_enc_ascii_compatible_p(VALUE self, SEL sel)
 {
-    return ENC(self)->ascii_compatible ? Qtrue : Qfalse;
+    return RENC(self)->ascii_compatible ? Qtrue : Qfalse;
 }
 
 static VALUE
@@ -111,7 +116,7 @@ mr_enc_dummy_p(VALUE self, SEL sel)
 }
 
 static void
-define_encoding_constant(const char *name, encoding_t *encoding)
+define_encoding_constant(const char *name, rb_encoding_t *encoding)
 {
     char c = name[0];
     if ((c >= '0') && (c <= '9')) {
@@ -135,7 +140,7 @@ define_encoding_constant(const char *name, encoding_t *encoding)
     free(name_copy);
 }
 
-extern void enc_init_ucnv_encoding(encoding_t *encoding);
+extern void enc_init_ucnv_encoding(rb_encoding_t *encoding);
 
 enum {
     ENCODING_TYPE_SPECIAL = 0,
@@ -146,7 +151,7 @@ static void
 add_encoding(
 	unsigned int encoding_index, // index of the encoding in the encodings
 				     // array
-	unsigned int encoding_type,
+	unsigned int rb_encoding_type,
 	const char *public_name, // public name for the encoding
 	unsigned char min_char_size,
 	bool single_byte_encoding, // in the encoding a character takes only
@@ -175,11 +180,11 @@ add_encoding(
     va_end(va_aliases);
 
     // create the MacRuby object
-    NEWOBJ(encoding, encoding_t);
+    NEWOBJ(encoding, rb_encoding_t);
     encoding->basic.flags = 0;
     encoding->basic.klass = rb_cEncoding;
-    encodings[encoding_index] = encoding;
-    rb_objc_retain(encoding); // it should never be deallocated
+    rb_encodings[encoding_index] = encoding;
+    GC_RETAIN(encoding); // it should never be deallocated
 
     // fill the fields
     encoding->index = encoding_index;
@@ -202,7 +207,7 @@ add_encoding(
     encoding->methods.offset_in_bytes_to_index =
 	str_undefined_offset_in_bytes_to_index;
 
-    switch (encoding_type) {
+    switch (rb_encoding_type) {
 	case ENCODING_TYPE_SPECIAL:
 	    break;
 	case ENCODING_TYPE_UCNV:
@@ -236,8 +241,8 @@ create_encodings(void)
     //add_encoding(ENCODING_SJIS,      ENCODING_TYPE_RUBY, "Shift_JIS",   1, false, true, "SJIS", NULL);
     //add_encoding(ENCODING_CP932,     ENCODING_TYPE_RUBY, "Windows-31J", 1, false, true, "CP932", "csWindows31J", NULL);
 
-    default_external = encodings[ENCODING_UTF8];
-    default_internal = encodings[ENCODING_UTF8];
+    default_external = rb_encodings[ENCODING_UTF8];
+    default_internal = rb_encodings[ENCODING_UTF8];
 }
 
 VALUE
@@ -280,3 +285,96 @@ Init_Encoding(void)
 
     create_encodings();
 }
+
+// MRI C-API compatibility.
+
+rb_encoding_t *
+rb_enc_find(const char *name)
+{
+    for (unsigned int i = 0; i < ENCODINGS_COUNT; i++) {
+	rb_encoding_t *enc = rb_encodings[i];
+	if (strcasecmp(enc->public_name, name) == 0) {
+	    return enc;
+	}
+	for (unsigned int j = 0; j < enc->aliases_count; j++) {
+	    const char *alias = enc->aliases[j];
+	    if (strcasecmp(alias, name) == 0) {
+		return enc;
+	    }
+	}
+    }
+    return NULL;
+}
+
+VALUE
+rb_enc_from_encoding(rb_encoding_t *enc)
+{
+    return (VALUE)enc;
+}
+
+rb_encoding_t *
+rb_enc_get(VALUE obj)
+{
+    if (IS_RSTR(obj)) {
+	return RSTR(obj)->encoding;
+    }
+    // TODO support symbols
+    return NULL;
+}
+
+rb_encoding_t *
+rb_to_encoding(VALUE obj)
+{
+    rb_encoding_t *enc;
+    if (CLASS_OF(obj) == rb_cEncoding) {
+	enc = RENC(obj);
+    }
+    else {
+	StringValue(obj);
+	enc = rb_enc_find(RSTRING_PTR(obj));
+	if (enc == NULL) {
+	    rb_raise(rb_eArgError, "unknown encoding name - %s",
+		    RSTRING_PTR(obj));
+	}
+    }
+    return enc;
+}
+
+const char *
+rb_enc_name(rb_encoding_t *enc)
+{
+    return RENC(enc)->public_name;
+}
+
+VALUE
+rb_enc_name2(rb_encoding_t *enc)
+{
+    return rb_usascii_str_new2(rb_enc_name(enc));
+}
+
+long
+rb_enc_mbminlen(rb_encoding_t *enc)
+{
+    return enc->min_char_size;    
+}
+
+long
+rb_enc_mbmaxlen(rb_encoding_t *enc)
+{
+    return enc->single_byte_encoding ? 1 : 10; // XXX 10?
+}
+
+rb_encoding_t *
+rb_locale_encoding(void)
+{
+    // XXX
+    return rb_encodings[ENCODING_UTF8];
+}
+
+void
+rb_enc_set_default_external(VALUE encoding)
+{
+    assert(CLASS_OF(encoding) == rb_cEncoding);
+    default_external = RENC(encoding); 
+}
+

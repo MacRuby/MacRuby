@@ -832,7 +832,7 @@ ruby_init_gems(int enable)
 static rb_encoding *
 opt_enc_find(VALUE enc_name)
 {
-    rb_encoding *enc = rb_enc_find2(enc_name);
+    rb_encoding *enc = rb_enc_find(RSTRING_PTR(enc_name));
     if (enc == NULL) {
 	rb_raise(rb_eRuntimeError, "unknown encoding name - %s", 
 	    RSTRING_PTR(enc_name));
