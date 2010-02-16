@@ -24,6 +24,8 @@ VALUE rb_cNSString;
 VALUE rb_cNSMutableString;
 VALUE rb_cRubyString;
 
+VALUE rb_fs;
+
 static void
 str_update_flags_utf16(string_t *self)
 {
@@ -1275,12 +1277,6 @@ mr_str_equal(VALUE self, SEL sel, VALUE compared_to)
 }
 
 static VALUE
-mr_str_not_equal(VALUE self, SEL sel, VALUE compared_to)
-{
-    return RTEST(mr_str_equal(self, sel, compared_to)) ? Qfalse : Qtrue;
-}
-
-static VALUE
 mr_str_include(VALUE self, SEL sel, VALUE searched)
 {
     return str_include_string(RSTR(self), str_need_string(searched))
@@ -1348,7 +1344,6 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "<<", mr_str_concat, 1);
     rb_objc_define_method(rb_cRubyString, "concat", mr_str_concat, 1);
     rb_objc_define_method(rb_cRubyString, "==", mr_str_equal, 1);
-    rb_objc_define_method(rb_cRubyString, "!=", mr_str_not_equal, 1);
     rb_objc_define_method(rb_cRubyString, "include?", mr_str_include, 1);
     rb_objc_define_method(rb_cRubyString, "to_s", mr_str_to_s, 0);
     rb_objc_define_method(rb_cRubyString, "to_str", mr_str_to_s, 0);
@@ -1363,6 +1358,10 @@ Init_String(void)
     // purpose
     rb_objc_define_method(rb_cRubyString, "stored_in_uchars?",
 	    mr_str_is_stored_in_uchars, 0);
+
+    rb_fs = Qnil;
+    rb_define_variable("$;", &rb_fs);
+    rb_define_variable("$-F", &rb_fs);
 }
 
 // MRI C-API compatibility.
@@ -1482,6 +1481,12 @@ rb_check_string_type(VALUE str)
 }
 
 VALUE
+rb_str_to_str(VALUE str)
+{
+    return rb_convert_type(str, T_STRING, "String", "to_str");
+}
+
+VALUE
 rb_obj_as_string(VALUE obj)
 {
     if (TYPE(obj) == T_STRING || TYPE(obj) == T_SYMBOL) {
@@ -1566,6 +1571,12 @@ rb_str_cat2(VALUE str, const char *cstr)
 }
 
 VALUE
+rb_str_buf_cat_ascii(VALUE str, const char *cstr)
+{
+    return rb_str_buf_cat2(str, cstr);
+}
+
+VALUE
 rb_str_buf_append(VALUE str, VALUE str2)
 {
     if (IS_RSTR(str)) {
@@ -1604,4 +1615,31 @@ VALUE
 rb_str_resize(VALUE str, long len)
 {
     abort(); // TODO
+}
+
+VALUE
+rb_str_equal(VALUE str, VALUE str2)
+{
+    if (IS_RSTR(str)) {
+	return mr_str_equal(str, 0, str2);
+    }
+    return CFEqual((CFStringRef)str, (CFStringRef)str2) ? Qtrue : Qfalse;
+}
+
+VALUE
+rb_str_dup(VALUE str)
+{
+    if (IS_RSTR(str)) {
+	return (VALUE)str_dup(str);
+    }
+    abort(); // TODO
+}
+
+int
+rb_memhash(const void *ptr, long len)
+{
+    CFDataRef data = CFDataCreate(NULL, (const UInt8 *)ptr, len);
+    int code = CFHash(data);
+    CFRelease((CFTypeRef)data);
+    return code;
 }
