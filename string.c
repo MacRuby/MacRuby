@@ -211,7 +211,9 @@ str_replace_with_bytes(string_t *self, const char *bytes, long len,
     self->capacity_in_bytes = self->length_in_bytes = len;
     if (len > 0) {
 	GC_WB(&self->data.bytes, xmalloc(len));
-	memcpy(self->data.bytes, bytes, len);
+	if (bytes != NULL) {
+	    memcpy(self->data.bytes, bytes, len);
+	}
     }
     else {
 	self->data.bytes = NULL;
@@ -225,7 +227,7 @@ str_replace_with_string(string_t *self, string_t *source)
 	return;
     }
     str_replace_with_bytes(self, source->data.bytes, source->length_in_bytes,
-	source->encoding);
+	    source->encoding);
     self->flags = source->flags;
 }
 
@@ -1350,6 +1352,7 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "include?", mr_str_include, 1);
     rb_objc_define_method(rb_cRubyString, "to_s", mr_str_to_s, 0);
     rb_objc_define_method(rb_cRubyString, "to_str", mr_str_to_s, 0);
+    rb_objc_define_method(rb_cRubyString, "to_sym", mr_str_intern, 0);
     rb_objc_define_method(rb_cRubyString, "intern", mr_str_intern, 0);
 
     // added for MacRuby
@@ -1370,6 +1373,12 @@ rb_str_new(const char *cstr, long len)
     string_t *str = str_alloc();
     str_replace_with_bytes(str, cstr, len, ENCODING_BINARY);
     return (VALUE)str;
+}
+
+VALUE
+rb_str_buf_new(long len)
+{
+    return rb_str_new(NULL, len);
 }
 
 VALUE
@@ -1422,7 +1431,6 @@ rb_usascii_str_new2(const char *cstr)
     return rb_usascii_str_new(cstr, strlen(cstr));
 }
 
-
 const char *
 rb_str_cstr(VALUE str)
 {
@@ -1430,7 +1438,7 @@ rb_str_cstr(VALUE str)
 	str_make_data_binary(RSTR(str));
 	return RSTR(str)->data.bytes;
     }
-    return ""; // TODO
+    abort(); // TODO
 }
 
 long
@@ -1440,7 +1448,7 @@ rb_str_clen(VALUE str)
 	str_make_data_binary(RSTR(str));
 	return RSTR(str)->length_in_bytes;
     }
-    return 0; // TODO
+    abort(); // TODO
 }
 
 char *
@@ -1508,4 +1516,92 @@ rb_to_id(VALUE name)
 	case T_SYMBOL:
 	    return SYM2ID(name);
     }
+}
+
+VALUE
+rb_str_length(VALUE str)
+{
+    if (IS_RSTR(str)) {
+	return mr_str_length(str, 0);
+    }
+    return INT2FIX(CFStringGetLength((CFStringRef)str));
+}
+
+VALUE
+rb_str_buf_new2(const char *cstr)
+{
+    return rb_str_new2(cstr);
+}
+
+VALUE
+rb_str_buf_cat(VALUE str, const char *cstr, long len)
+{
+    if (IS_RSTR(str)) {
+	// XXX this could be optimized
+	VALUE substr = rb_str_new(cstr, len);
+	str_concat_string(RSTR(str), RSTR(substr));
+    }
+    else {
+	abort(); // TODO	
+    }
+    return str;
+}
+
+VALUE
+rb_str_buf_cat2(VALUE str, const char *cstr)
+{
+    return rb_str_buf_cat(str, cstr, strlen(cstr));
+}
+
+VALUE
+rb_str_cat(VALUE str, const char *cstr, long len)
+{
+    return rb_str_buf_cat(str, cstr, len);
+}
+
+VALUE
+rb_str_cat2(VALUE str, const char *cstr)
+{
+    return rb_str_buf_cat2(str, cstr);
+}
+
+VALUE
+rb_str_buf_append(VALUE str, VALUE str2)
+{
+    if (IS_RSTR(str)) {
+	return mr_str_concat(str, 0, str2);
+    }
+    CFStringAppend((CFMutableStringRef)str, (CFStringRef)str2);
+    return str;
+}
+
+VALUE
+rb_str_append(VALUE str, VALUE str2)
+{
+    return rb_str_buf_append(str, str2);
+}
+
+VALUE
+rb_str_concat(VALUE str, VALUE str2)
+{
+    return rb_str_buf_append(str, str2);
+}
+
+void
+rb_str_associate(VALUE str, VALUE add)
+{
+    // Do nothing.
+}
+
+VALUE
+rb_str_associated(VALUE str)
+{
+    // Do nothing.
+    return Qfalse;
+}
+
+VALUE
+rb_str_resize(VALUE str, long len)
+{
+    abort(); // TODO
 }
