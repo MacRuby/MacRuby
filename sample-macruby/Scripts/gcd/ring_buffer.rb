@@ -15,7 +15,7 @@ class Node
     attr_accessor :successor
     attr_reader :index
     def initialize(g, index, successor)
-        @queue = Dispatch.queue_for(self)
+        @queue = Dispatch.queue(self)
         @group = g
         @index = index
         @successor = successor

@@ -33,31 +33,34 @@ module Dispatch
   # 
   def group(grp=nil, priority=nil, &block)
     grp ||= Dispatch::Group.new
-    Dispatch::Queue.concurrent(priority).async(grp) { block.call }
+    Dispatch::Queue.concurrent(priority).async(grp) { block.call } if not block.nil?
     grp
   end
 
   # Returns a mostly unique reverse-DNS-style label based on
   # the ancestor chain and ID of +obj+ plus the current time
   # 
-  #   Dispatch.label_for(Array.new)
+  #   Dispatch.labelize(Array.new)
   #   => Dispatch.enumerable.array.0x2000cc2c0.1265915278.97557
   #
-  def label_for(obj)
+  def labelize(obj)
     names = obj.class.ancestors[0...-2].map {|a| a.to_s.downcase}
     label = names.uniq.reverse.join(".")
     "#{self}.#{label}.%p.#{Time.now.to_f}" % obj.object_id
   end
 
   # Returns a new serial queue with a unique label based on +obj+
+  # (or self, if no object is specified)
   # used to serialize access to objects called from multiple threads
   #
   #   a = Array.new
-  #   q = Dispatch.queue_for(a)
+  #   q = Dispatch.queue(a)
   #   q.async {a << 2 }
   #
-  def queue_for(obj)
-    Dispatch::Queue.new Dispatch.label_for(obj)
+  def queue(obj=self, &block)
+    q = Dispatch::Queue.new(Dispatch.labelize(obj))
+    q.async { block.call } if not block.nil?
+    q
   end
 
   # Wrap the passed +obj+ (or its instance, if a Class) inside an Actor
@@ -72,6 +75,6 @@ module Dispatch
     Dispatch::Actor.new( (obj.is_a? Class) ? obj.new : obj)
   end
 
-  module_function :async, :fork, :group, :label_for, :queue_for, :wrap
+  module_function :async, :fork, :group, :queue, :wrap, :labelize
 
 end

@@ -47,19 +47,30 @@ if MACOSX_VERSION >= 10.6
       end
     end
 
-    describe :label_for do
+    describe :labelize do
       it "should return a unique label for any object" do
-        s1 = Dispatch.label_for(@actee)
-        s2 = Dispatch.label_for(@actee)
+        s1 = Dispatch.labelize @actee
+        s2 = Dispatch.labelize @actee
         s1.should_not == s2
       end
-    end
+  end
 
-    describe :queue_for do
-      it "should return a unique queue" do
-        q1 = Dispatch.queue_for(@actee)
-        q2 = Dispatch.queue_for(@actee)
+    describe :queue do
+      it "should return a dispatch queue" do
+        q = Dispatch.queue
+        q.should be_kind_of Dispatch::Queue
+      end
+
+      it "should return a unique queue for the same object" do
+        q1 = Dispatch.queue(@actee)
+        q2 = Dispatch.queue(@actee)
         q1.should_not == q2
+      end
+
+      it "should return a unique label for each queue" do
+        q1 = Dispatch.queue(@actee)
+        q2 = Dispatch.queue(@actee)
+        q1.to_s.should_not == q2.to_s
       end
     end
 

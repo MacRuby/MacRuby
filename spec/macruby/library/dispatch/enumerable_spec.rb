@@ -16,7 +16,7 @@ if MACOSX_VERSION >= 10.6
         @sum1 = 0
         @ary.each {|v| @sum1 += v*v}
         @sum2 = 0
-        @q = Dispatch.queue_for(@sum2)
+        @q = Dispatch.queue(@sum2)
         @ary.p_each {|v| temp = v*v; @q.sync {@sum2 += temp} }
         @sum2.should == @sum1
       end
@@ -39,7 +39,7 @@ if MACOSX_VERSION >= 10.6
         @sum1 = 0
         @ary.each_with_index {|v, i| @sum1 += v**i}
         @sum2 = 0
-        @q = Dispatch.queue_for(@sum2)
+        @q = Dispatch.queue(@sum2)
         @ary.p_each_with_index {|v, i| temp = v**i; @q.sync {@sum2 += temp} }
         @sum2.should == @sum1
       end

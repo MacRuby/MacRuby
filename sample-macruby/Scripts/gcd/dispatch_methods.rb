@@ -1,27 +1,27 @@
 #!/usr/local/bin/macruby
 require 'dispatch'
 
-puts "\n Use Dispatch.async to do stuff in the background"
-Dispatch.async { p "Did this later" }
-sleep 0.1 # => "Did this later"
+puts "\n Use Dispatch.async to do stuff on another thread or core) "
+Dispatch.async { p "Did this elsewhere" }
+sleep 0.1 # => "Did this elsewhere"
 
-puts "\n Use Dispatch.group to track when stuff completes"
+puts "\n Use Dispatch.group to track when async stuff completes"
 g = Dispatch.group { p "Do this" }
 Dispatch.group(g) { p "and that" }
 g.wait # => "Do this" "and that"
 p "Done"
 
-puts "\n Use Dispatch.fork to capture return values in a Future"
+puts "\n Use Dispatch.fork to capture return values of async stuff"
 f = Dispatch.fork {  2+2  }
 p f.value # => 4
 puts "  - pass a block to return the value asynchronously"
 f.value { |v| p "Returns #{v}" }
 sleep 0.1  # => "Returns 4"
 
-puts "\n Use Dispatch.queue_for to create a private serial queue"
+puts "\n Use Dispatch.queue to create a private serial queue"
 puts "  - synchronizes access to shared data structures"
 a = Array.new
-q = Dispatch.queue_for(a)
+q = Dispatch.queue(a)
 puts "  - has a (mostly) unique name:"
 p q # => Dispatch.enumerable.array.0x2000a6920.1266002369.9854
 q.async { a << "change me"  }

@@ -39,7 +39,7 @@ module Enumerable
     # Ideally should run from within a Dispatch.once to avoid race
     @mapreduce_q.sync do 
       @mapreduce_result = initial
-      q = Dispatch.queue_for(@mapreduce_result)
+      q = Dispatch.queue(@mapreduce_result)
       self.p_each do |obj|
         val = block.call(obj)
         q.async { @mapreduce_result = @mapreduce_result.send(op, val) }
@@ -66,7 +66,7 @@ module Enumerable
     @find_q ||= Dispatch::Queue.new("enumerable.p_find.#{object_id}")
     @find_q.sync do 
       @find_result = nil
-      q = Dispatch.queue_for(@find_result)
+      q = Dispatch.queue(@find_result)
       self.p_each do |obj|
         if @find_result.nil?
           found = block.call(obj)
