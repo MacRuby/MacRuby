@@ -10,9 +10,9 @@ module Dispatch
     # Waits for the group to complete
     # If a block is specified, call on the specified queue or priority, if any
     def join(queue = Dispatch::Queue.concurrent, &block)
-      return group.wait if block.nil?
+      return wait if block.nil?
       queue = Dispatch::Queue.concurrent(queue) if not queue.is_a? Dispatch::Queue #i.e., a priority
-      group.notify(queue) { block.call }
+      notify(queue) { block.call }
     end
   end
   
