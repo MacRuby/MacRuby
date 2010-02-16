@@ -1367,11 +1367,18 @@ Init_String(void)
 // MRI C-API compatibility.
 
 VALUE
+rb_enc_str_new(const char *cstr, long len, rb_encoding_t *enc)
+{
+    // XXX should we assert that enc is single byte?
+    rb_str_t *str = str_alloc();
+    str_replace_with_bytes(str, cstr, len, enc);
+    return (VALUE)str;
+}
+
+VALUE
 rb_str_new(const char *cstr, long len)
 {
-    rb_str_t *str = str_alloc();
-    str_replace_with_bytes(str, cstr, len, ENCODING_BINARY);
-    return (VALUE)str;
+    return rb_enc_str_new(cstr, len, ENCODING_BINARY);
 }
 
 VALUE
@@ -1548,17 +1555,23 @@ rb_str_buf_new2(const char *cstr)
 }
 
 VALUE
-rb_str_buf_cat(VALUE str, const char *cstr, long len)
+rb_enc_str_buf_cat(VALUE str, const char *cstr, long len, rb_encoding_t *enc)
 {
     if (IS_RSTR(str)) {
 	// XXX this could be optimized
-	VALUE substr = rb_str_new(cstr, len);
+	VALUE substr = rb_enc_str_new(cstr, len, enc);
 	str_concat_string(RSTR(str), RSTR(substr));
     }
     else {
 	abort(); // TODO	
     }
     return str;
+}
+
+VALUE
+rb_str_buf_cat(VALUE str, const char *cstr, long len)
+{
+    return rb_enc_str_buf_cat(str, cstr, len, ENCODING_BINARY);
 }
 
 VALUE
