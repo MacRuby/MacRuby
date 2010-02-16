@@ -42,10 +42,12 @@ class Compiler
       end
       @archs.uniq!
       if @archs.empty?
-        if not ENV['ARCHS'].empty?
+        arch = ENV['ARCHS']
+        arch = arch.strip if arch
+        if arch and arch.size > 0
           # Copy Xcode way of doing it:
           # Use intersection of ARCHS and VALID_ARCHS
-          @archs = ENV['ARCHS'].split & VALID_ARCHS
+          @archs = arch.split & VALID_ARCHS
         else
           @archs << RUBY_ARCH
         end
