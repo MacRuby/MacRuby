@@ -21,6 +21,7 @@
 #include <float.h>
 #include "objc.h"
 #include "vm.h"
+#include "encoding.h"
 #include "array.h"
 #include "hash.h"
 
@@ -812,7 +813,7 @@ rb_obj_tainted_p(VALUE obj, SEL sel)
 		}
 		// fall through
 	    case T_STRING:
-		if (*(VALUE *)obj == rb_cByteString) {
+		if (rb_klass_is_rstr(*(VALUE *)obj)) {
 		    return RBASIC(obj)->flags & FL_TAINT ? Qtrue : Qfalse;
 		}
 		// fall through
@@ -865,7 +866,7 @@ rb_obj_taint_m(VALUE obj, SEL sel)
 		}
 		// fall through
 	    case T_STRING:
-		if (*(VALUE *)obj == rb_cByteString) {
+		if (rb_klass_is_rstr(*(VALUE *)obj)) {
 		    RBASIC(obj)->flags |= FL_TAINT;
 		    break;
 		}
@@ -919,7 +920,7 @@ rb_obj_untaint_m(VALUE obj, SEL sel)
 		}	
 		// fall through
 	    case T_STRING:
-		if (*(VALUE *)obj == rb_cByteString) {
+		if (rb_klass_is_rstr(*(VALUE *)obj)) {
 		    RBASIC(obj)->flags &= ~FL_TAINT;
 		    break;
 		}
@@ -963,7 +964,7 @@ rb_obj_untrusted_imp(VALUE obj, SEL sel)
 		}
 		// fall through
 	    case T_STRING:
-		if (*(VALUE *)obj == rb_cByteString) {
+		if (rb_klass_is_rstr(*(VALUE *)obj)) {
 		    return RBASIC(obj)->flags & FL_UNTRUSTED ? Qtrue : Qfalse;
 		}
 		// fall through
@@ -1003,7 +1004,7 @@ rb_obj_trust_imp(VALUE obj, SEL sel)
 		}
 		// fall through
 	    case T_STRING:
-		if (*(VALUE *)obj == rb_cByteString) {
+		if (rb_klass_is_rstr(*(VALUE *)obj)) {
 		    RBASIC(obj)->flags &= ~FL_UNTRUSTED;
 		    break;
 		}
@@ -1049,7 +1050,7 @@ rb_obj_untrust_imp(VALUE obj, SEL sel)
 		}
 		// fall through
 	    case T_STRING:
-		if (*(VALUE *)obj == rb_cByteString) {
+		if (rb_klass_is_rstr(*(VALUE *)obj)) {
 		    RBASIC(obj)->flags |= FL_UNTRUSTED;
 		    break;
 		}
@@ -1134,7 +1135,7 @@ immediate:
 		    }
 		    // fall through
 		case T_STRING:
-		    if (*(VALUE *)obj == rb_cByteString) {
+		    if (rb_klass_is_rstr(*(VALUE *)obj)) {
 			RBASIC(obj)->flags |= FL_FREEZE;
 			break;
 		    }
@@ -1198,7 +1199,7 @@ immediate:
 	    }
 	    // fall through
 	case T_STRING:
-	    if (*(VALUE *)obj == rb_cByteString) {
+	    if (rb_klass_is_rstr(*(VALUE *)obj)) {
 		return RBASIC(obj)->flags & FL_FREEZE ? Qtrue : Qfalse;
 	    }
 	    // fall through

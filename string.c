@@ -1388,8 +1388,22 @@ VALUE
 rb_str_new4(VALUE source)
 {
     VALUE str = rb_str_new3(source);
-    // TODO: freeze str
+    OBJ_FREEZE(str);
     return str;
+}
+
+VALUE
+rb_tainted_str_new(const char *cstr, long len)
+{
+    VALUE str = rb_str_new(cstr, len);
+    OBJ_TAINT(str);
+    return str;
+}
+
+VALUE
+rb_tainted_str_new2(const char *cstr)
+{
+    return rb_tainted_str_new(cstr, strlen(cstr));
 }
 
 const char *
