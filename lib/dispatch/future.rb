@@ -3,7 +3,7 @@
 module Dispatch
   # Wrap Dispatch::Group to implement lazy Futures
   # By duck-typing Thread +join+ and +value+
-   
+  
   class Future
     # Create a future that asynchronously dispatches the block 
     # to a concurrent queue of the specified (optional) +priority+
@@ -23,15 +23,11 @@ module Dispatch
     # Joins, then returns the value
     # If a block is passed, invoke that asynchronously with the final value
     # on the specified +queue+ (or else the default queue).
-    def value(queue = nil, &callback)
-      if not block_given?
-        group.wait
-        return @value
-      else
-        queue ||= Dispatch::Queue.concurrent
-        group.notify(queue) { callback.call(@value) }
-      end
-    end   
+    def value(queue = Dispatch::Queue.concurrent, &callback)
+      return group.notify(queue) { callback.call(@value) } if not callback.nil?
+      group.wait
+      return @value
+    end
   end
 
 end
