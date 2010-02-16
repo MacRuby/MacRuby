@@ -2,6 +2,47 @@ require File.dirname(__FILE__) + "/../../spec_helper"
 require 'dispatch'
 
 if MACOSX_VERSION >= 10.6
+  
+  describe "parallel Integer#times" do
+    describe :p_times do
+      before :each do
+        @count = 4
+        @sum = 0
+      end
+
+      it "runs the block +count+ number of times" do
+        @sum = 0
+        Dispatch.upto(@count) { |j| @sum += 1 }
+        @sum.should == @count
+      end
+
+      it "runs the block passing the current index" do
+        Dispatch.upto(@count) { |j| @sum += j }
+        @sum.should == (@count*(@count-1)/2)
+      end
+
+      it "does not run the block if the count is zero" do
+        Dispatch.upto(0) { |j| @sum += 1 }
+        @sum.should == 0
+      end
+    
+      it "properly combines blocks with even stride > 1" do
+        Dispatch.upto(@count, 2) { |j| @sum += j }
+        @sum.should == (@count*(@count-1)/2)
+      end
+
+      it "properly combines blocks with uneven stride > 1" do
+        Dispatch.upto(@count, 3) { |j| @sum += j }
+        @sum.should == (@count*(@count-1)/2)
+      end
+
+      it "properly rounds stride fractions > 0.5" do
+        Dispatch.upto(7, 4) { |j| @sum += j }
+        @sum.should == (7*(7-1)/2)
+      end
+    end
+  end
+
   describe "parallel Enumerable" do
     before :each do
       @ary = (1..3).to_a

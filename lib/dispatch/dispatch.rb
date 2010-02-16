@@ -63,25 +63,6 @@ module Dispatch
     q
   end
 
-  # Applies the +&block+ +count+ number of times in parallel
-  # -- passing step (default 1) iterations at a time --
-  # on a concurrent queue of the given (optional) +priority+
-  # 
-  #   @sum = 0
-  #   Dispatch.upto(10, 3) { |j| @sum += j }
-  #   p @sum # => 55
-  #
-  def upto(count, step=1, priority=nil, &block)
-    q = Dispatch::Queue.concurrent(priority)
-    n_steps = (count / step).to_int
-    q.apply(n_steps) do |i|
-      j0 = i*step
-      j0.upto(j0+step) { |j| block.call(j); puts "j=#{j}" }
-    end
-    # Runs the remainder (if any) sequentially
-    (n_steps*step).upto(count) { |j| block.call(j); puts "j'=#{j}" }
-  end
-
   # Wrap the passed +obj+ (or its instance, if a Class) inside an Actor
   # to serialize access and allow asynchronous returns
   #
@@ -94,6 +75,6 @@ module Dispatch
     Dispatch::Actor.new( (obj.is_a? Class) ? obj.new : obj)
   end
 
-  module_function :async, :fork, :group, :queue, :wrap, :labelize
+  module_function :async, :fork, :group, :labelize, :queue,:wrap
 
 end

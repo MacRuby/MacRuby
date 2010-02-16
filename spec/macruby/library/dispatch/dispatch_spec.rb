@@ -53,7 +53,7 @@ if MACOSX_VERSION >= 10.6
         s2 = Dispatch.labelize @actee
         s1.should_not == s2
       end
-  end
+    end
 
     describe :queue do
       it "should return a dispatch queue" do
@@ -71,48 +71,6 @@ if MACOSX_VERSION >= 10.6
         q1 = Dispatch.queue(@actee)
         q2 = Dispatch.queue(@actee)
         q1.to_s.should_not == q2.to_s
-      end
-    end
-
-    describe :upto do
-      before :each do
-        @count = 4
-        @sum = 0
-      end
-
-      it "expects a count, step and block " do
-        lambda { Dispatch.upto(@count) { |j| @sum += 1 } }.should raise_error(ArgumentError)
-        #lambda { Dispatch.upto(@count) }.should raise_error(NoMethodError)
-      end
-
-      it "runs the block +count+ number of times" do
-        Dispatch.upto(@count) { |j| @sum += 1 }
-        @sum.should == @count
-      end
-
-      it "runs the block passing the current index" do
-        Dispatch.upto(@count) { |j| @sum += j }
-        @sum.should == (@count*(@count-1)/2)
-      end
-
-      it "does not run the block if the count is zero" do
-        Dispatch.upto(0) { |j| @sum += 1 }
-        @sum.should == 0
-      end
-      
-      it "properly combines blocks with even stride > 1" do
-        Dispatch.upto(@count, 2) { |j| @sum += j }
-        @sum.should == (@count*(@count-1)/2)
-      end
-
-      it "properly combines blocks with uneven stride > 1" do
-        Dispatch.upto(5, 2) { |j| @sum += j }
-        @sum.should == (5*(5-1)/2)
-      end
-
-      it "properly rounds stride fractions > 0.5" do
-        Dispatch.upto(7, 4) { |j| @sum += j }
-        @sum.should == (7*(7-1)/2)
       end
     end
 

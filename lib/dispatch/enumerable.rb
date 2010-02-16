@@ -1,5 +1,28 @@
 # Additional parallel operations for any object supporting +each+
 
+class Integer
+  # Applies the +&block+ +Integer+ number of times in parallel
+  # -- passing in stride (default 1) iterations at a time --
+  # on a concurrent queue of the given (optional) +priority+
+  # 
+  #   @sum = 0
+  #   10.p_times(3) { |j| @sum += j }
+  #   p @sum # => 55
+  #
+  def p_times(stride=1, priority=nil, &block)
+    n_times = self.to_int
+    puts "\np_times: n_times=#{n_times}, stride=#{stride}"
+    q = Dispatch::Queue.concurrent(priority)
+    n_strides = (n_times / stride).to_int
+    q.apply(n_strides) do |i|
+      j0 = i*stride
+      stride.times { |j| block.call(j0+j); puts "\n#{i}=>#{j0}:j=#{j}" }
+    end
+    # Runs the remainder (if any) sequentially on the current thread
+    (n_strides*stride).upto(n_times - 1) { |j| block.call(j); puts "\nj'=#{j}" }
+  end
+end
+
 module Enumerable
   # Parallel +each+
   def p_each(&block)
