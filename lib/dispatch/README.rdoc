@@ -133,8 +133,9 @@ Because Ruby 1.8 had a global VM lock (or GIL[http://en.wikipedia.org/wiki/Globa
 
 Fortunately, even though MacRuby no longer has a global VM lock, you (mostly) still don't need to know about all those things, because GCD provides lock-free[http://en.wikipedia.org/wiki/Non-blocking_synchronization] synchronization via queues.
 
-=== queue
+= Under Construction = 
 
+=== queue
 
 
 	puts "\n Use Dispatch.queue_for to create a private serial queue"
@@ -147,7 +148,6 @@ Fortunately, even though MacRuby no longer has a global VM lock, you (mostly) st
 	puts "  - uses sync to block and flush queue"
 	q.sync { p a }
 
-
 	puts "\n Use with a group for more complex dependencies, "
 	q.async(g) { a << "more change"  }
 	Dispatch.group(g) do 
@@ -158,8 +158,7 @@ Fortunately, even though MacRuby no longer has a global VM lock, you (mostly) st
 	g.notify(q) { p a }
 	q.sync {}
 
-Dispatch wrap
-
+=== wrap
 
 	puts "\n Use Dispatch.wrap to serialize object using an Actor"
 	b = Dispatch.wrap(Array)
@@ -168,159 +167,120 @@ Dispatch wrap
 	b.size {|n| p "Size=#{n}"} # => "Size=1" (asynchronous return)
 
 
+== Iteration
 
-Dispatch Sources
-
-
-
-
-The second parameter is reserved for future expansion, but for now must be zero.
 You use the default queue to run a single item in the background or to run many operations at once.  For the common case of a “parallel for loop”,  GCD provides an optimized “apply” function that submits a block for each iteration:
 
+	#define COUNT 128
+	__block double result[COUNT];
+	dispatch_apply(COUNT, q_default, ^(size_t i){
+	 	result[i] = complex_calculation(i);
+	 });
+	double sum = 0;
+	for (int i=0; i < COUNT; i++) sum += result[i];
 
 
-
-#define COUNT 128
-__block double result[COUNT];
-dispatch_apply(COUNT, q_default, ^(size_t i){
- 	result[i] = complex_calculation(i);
- });
-double sum = 0;
-for (int i=0; i < COUNT; i++) sum += result[i];
-
-
-
-
-Semaphores 
-
-
-Finally, GCD has an efficient, general-purpose signaling mechanism known as dispatch semaphores.  These are most commonly used to throttle usage of scarce resources, but can also help track completed work:  
-
-
-
-dispatch_semaphore_t sema = dispatch_semaphore_create(0);
-dispatch_async(a_queue, ^{ some_work(); dispatch_semaphore_signal(sema); });
-more_work(); 
-dispatch_semaphore_wait(sema, DISPATCH_TIME_FOREVER);
-dispatch_release(sema);
-do_this_when_all_done();
-
-
-
-Like other GCD objects, dispatch semaphores usually don’t need to call into the kernel, making them much faster than regular semaphores when there is no need to wait.
-
-
-
-
-Event Sources
-
-
+== Events
 
 In addition to scheduling blocks directly, developers can set a block as the handler for event sources such as:
 
-
-
-	Timers
-	Signals
-	File descriptors and sockets
-	Process state changes
-	Mach ports
-	Custom application-specific events
-
+* Timers
+* Signals
+* File descriptors and sockets
+* Process state changes
+* Mach ports
+* Custom application-specific events
 	
 When the source “fires,” GCD will schedule the handler on the specific queue if it is not currently running, or coalesce pending events if it is. This provides excellent responsiveness without the expense of either polling or binding a thread to the event source.  Plus, since the handler is never run more than once at a time, the block doesn’t even need to be reentrant.
 
-Timer Example
-
+=== Timer Example
 
 For example, this is how you would create a timer that prints out the current time every 30 seconds -- plus 5 microseconds leeway, in case the system wants to align it with other events to minimize power consumption.
 
 
-
-dispatch_source_t timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, q_default); //run event handler on the default global queue
-dispatch_time_t now = dispatch_walltime(DISPATCH_TIME_NOW, 0);
-dispatch_source_set_timer(timer, now, 30ull*NSEC_PER_SEC, 5000ull);
-dispatch_source_set_event_handler(timer, ^{
-	printf(“%s\n”, ctime(time(NULL)));
-});
-
+	dispatch_source_t timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, q_default); //run event handler on the default global queue
+	dispatch_time_t now = dispatch_walltime(DISPATCH_TIME_NOW, 0);
+	dispatch_source_set_timer(timer, now, 30ull*NSEC_PER_SEC, 5000ull);
+	dispatch_source_set_event_handler(timer, ^{
+		printf(“%s\n”, ctime(time(NULL)));
+	});
 
 Sources are always created in a suspended state to allow configuration, so when you are all set they must be explicitly resumed to begin processing events. 
 
-dispatch_resume(timer);
+	dispatch_resume(timer);
 
 You can suspend a source or dispatch queue at any time to prevent it from executing new blocks, though this will not affect blocks that are already being processed.
 
 
-
-Custom Events Example
+=== Custom Events Example
 
 GCD provides two different types of user events, which differ in how they coalesce the data passed to dispatch_source_merge_data:
 
-
-DISPATCH_SOURCE_TYPE_DATA_ADD accumulates the sum of the event data (e.g., for numbers)
-DISPATCH_SOURCE_TYPE_DATA_OR combines events using a logical OR (e.g, for booleans or bitmasks)
-
+DISPATCH_SOURCE_TYPE_DATA_ADD: accumulates the sum of the event data (e.g., for numbers)
+DISPATCH_SOURCE_TYPE_DATA_OR: combines events using a logical OR (e.g, for booleans or bitmasks)
 
 Though it is arguably overkill, we can even use events to rewrite our dispatch_apply example. Since the event handler is only ever called once at a time, we get automatic serialization over the "sum" variable without needing to worry about reentrancy or private queues:
 
+	__block unsigned long sum = 0;
+	dispatch_source_t adder = dispatch_source_create(DISPATCH_SOURCE_TYPE_DATA_ADD, 0, 0, q_default);
+	dispatch_source_set_event_handler(adder, ^{
+		sum += dispatch_source_get_data(adder);
+	});
+	dispatch_resume(adder);
 
-
-__block unsigned long sum = 0;
-dispatch_source_t adder = dispatch_source_create(DISPATCH_SOURCE_TYPE_DATA_ADD, 0, 0, q_default);
-dispatch_source_set_event_handler(adder, ^{
-	sum += dispatch_source_get_data(adder);
-});
-dispatch_resume(adder);
-
-#define COUNT 128
-dispatch_apply(COUNT, q_default, ^(size_t i){
-	unsigned long x = integer_calculation(i);
-	dispatch_source_merge_data(adder, x);
-});
-dispatch_release(adder);
-
+	#define COUNT 128
+	dispatch_apply(COUNT, q_default, ^(size_t i){
+		unsigned long x = integer_calculation(i);
+		dispatch_source_merge_data(adder, x);
+	});
+	dispatch_release(adder);
 
 Note that for this example we changed our calculation to use integers, as dispatch_source_merge_data expects an unsigned long parameter.  
 
-
-File Descriptor Example
+=== File Descriptor Example
 
 Here is a more sophisticated example involving reading from a file. Note the use of non-blocking I/O to avoid stalling a thread:
 
-
-int fd = open(filename, O_RDONLY);
-fcntl(fd, F_SETFL, O_NONBLOCK);  // Avoid blocking the read operation
-dispatch_source_t reader = 
-  dispatch_source_create(DISPATCH_SOURCE_TYPE_READ, fd, 0, q_default); 
+	int fd = open(filename, O_RDONLY);
+	fcntl(fd, F_SETFL, O_NONBLOCK);  // Avoid blocking the read operation
+	dispatch_source_t reader = 
+	  dispatch_source_create(DISPATCH_SOURCE_TYPE_READ, fd, 0, q_default); 
 
   
 We will also specify a “cancel handler” to clean up our descriptor:
 
-dispatch_source_set_cancel_handler(reader, ^{ close(fd); } );
-
+	dispatch_source_set_cancel_handler(reader, ^{ close(fd); } );
 
 The cancellation will be invoked from the event handler on, e.g., end of file:
 
-
-
-typedef struct my_work {…} my_work_t;
-dispatch_source_set_event_handler(reader, ^{ 
-	size_t estimate = dispatch_source_get_data(reader);
-	my_work_t *work = produce_work_from_input(fd, estimate);
-	if (NULL == work)
-		dispatch_source_cancel(reader);
-	else
-		dispatch_async(q_default, ^{ consume_work(work); free(work); } );
-});
-dispatch_resume(reader);
-
+	typedef struct my_work {…} my_work_t;
+	dispatch_source_set_event_handler(reader, ^{ 
+		size_t estimate = dispatch_source_get_data(reader);
+		my_work_t *work = produce_work_from_input(fd, estimate);
+		if (NULL == work)
+			dispatch_source_cancel(reader);
+		else
+			dispatch_async(q_default, ^{ consume_work(work); free(work); } );
+	});
+	dispatch_resume(reader);
 
 To avoid bogging down the reads, the event handler packages up the data in a my_work_t and schedules the processing in another block.  This separation of  concerns is known as the producer/consumer pattern, and maps very naturally to Grand Central Dispatch queues.  In case of imbalance, you may need to adjust the relative priorities of the producer and consumer queues or throttle them using semaphores.
 
+== Semaphores 
 
-Conclusion
+Finally, GCD has an efficient, general-purpose signaling mechanism known as dispatch semaphores.  These are most commonly used to throttle usage of scarce resources, but can also help track completed work:  
+
+
+	dispatch_semaphore_t sema = dispatch_semaphore_create(0);
+	dispatch_async(a_queue, ^{ some_work(); dispatch_semaphore_signal(sema); });
+	more_work(); 
+	dispatch_semaphore_wait(sema, DISPATCH_TIME_FOREVER);
+	dispatch_release(sema);
+	do_this_when_all_done();
+
+Like other GCD objects, dispatch semaphores usually don’t need to call into the kernel, making them much faster than regular semaphores when there is no need to wait.
+
+= Conclusion
 
 Grand Central Dispatch is a new approach to building software for multicore systems, one in which the operating system takes responsibility for the kinds of thread management tasks that traditionally have been the job of application developers. Because it is built into Mac OS X at the most fundamental level, GCD can not only simplify how developers build their code to take advantage of multicore, but also deliver better performance and efficiency than traditional approaches such as threads.  With GCD, Snow Leopard delivers a new foundation on which Apple and third party developers can innovate and realize the enormous power of both today’s hardware and tomorrow’s. 
-
 
