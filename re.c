@@ -2018,8 +2018,6 @@ match_inspect_name_iter(const OnigUChar *name, const OnigUChar *name_end,
  *
  */
 
-VALUE rb_str_inspect(VALUE, SEL);
-
 static VALUE
 match_inspect(VALUE match, SEL sel)
 {
@@ -2063,7 +2061,7 @@ match_inspect(VALUE match, SEL sel)
             rb_str_buf_cat2(str, "nil");
 	}
         else {
-            rb_str_buf_append(str, rb_str_inspect(v, 0));
+            rb_str_buf_append(str, rb_str_inspect(v));
 	}
     }
     rb_str_buf_cat2(str, ">");
@@ -2932,7 +2930,7 @@ rb_reg_match_imp(VALUE re, SEL sel, VALUE str)
     if (pos < 0) {
 	return Qnil;
     }
-    pos = rb_str_sublen(str, pos);
+    //pos = rb_str_sublen(str, pos);
     return LONG2FIX(pos);
 }
 
@@ -3004,7 +3002,7 @@ rb_reg_match2(VALUE re, SEL sel)
     if (start < 0) {
 	return Qnil;
     }
-    start = rb_str_sublen(line, start);
+    //start = rb_str_sublen(line, start);
     return LONG2FIX(start);
 }
 

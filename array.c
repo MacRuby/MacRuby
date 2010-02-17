@@ -1389,12 +1389,14 @@ sort_2(void *dummy, const void *ap, const void *bp)
 	return 0;
     }
 
+#if 0 // TODO
     /* FIXME optimize!!! */
     if (TYPE(a) == T_STRING) {
 	if (TYPE(b) == T_STRING) {
 	    return rb_str_cmp(a, b);
 	}
     }
+#endif
 
     VALUE retval = rb_objs_cmp(a, b);
     return rb_cmpint(retval, a, b);

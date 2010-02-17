@@ -190,11 +190,14 @@ str_must_have_compatible_encoding(rb_str_t *str1, rb_str_t *str2)
 }
 
 static rb_str_t *
-str_alloc(void)
+str_alloc(VALUE klass)
 {
+    assert(rb_klass_is_rstr(klass));
+    assert(klass != 0);
+
     NEWOBJ(str, rb_str_t);
     str->basic.flags = 0;
-    str->basic.klass = rb_cRubyString;
+    str->basic.klass = klass;
     str->encoding = rb_encodings[ENCODING_BINARY];
     str->capacity_in_bytes = 0;
     str->length_in_bytes = 0;
@@ -272,7 +275,7 @@ str_replace(rb_str_t *self, VALUE arg)
 static rb_str_t *
 str_dup(VALUE source)
 {
-    rb_str_t *destination = str_alloc();
+    rb_str_t *destination = str_alloc(rb_cRubyString);
     str_replace(destination, source);
     return destination;
 }
@@ -286,7 +289,7 @@ str_clear(rb_str_t *self)
 static rb_str_t *
 str_new_from_string(rb_str_t *source)
 {
-    rb_str_t *destination = str_alloc();
+    rb_str_t *destination = str_alloc(rb_cRubyString);
     str_replace_with_string(destination, source);
     return destination;
 }
@@ -294,7 +297,7 @@ str_new_from_string(rb_str_t *source)
 static rb_str_t *
 str_new_from_cfstring(CFStringRef source)
 {
-    rb_str_t *destination = str_alloc();
+    rb_str_t *destination = str_alloc(rb_cRubyString);
     str_replace_with_cfstring(destination, source);
     return destination;
 }
@@ -490,7 +493,7 @@ str_force_encoding(rb_str_t *self, rb_encoding_t *enc)
 static rb_str_t *
 str_new_similar_empty_string(rb_str_t *self)
 {
-    rb_str_t *str = str_alloc();
+    rb_str_t *str = str_alloc(rb_cRubyString);
     str->encoding = self->encoding;
     str->flags = self->flags & STRING_REQUIRED_FLAGS;
     return str;
@@ -500,7 +503,7 @@ static rb_str_t *
 str_new_copy_of_part(rb_str_t *self, long offset_in_bytes,
 	long length_in_bytes)
 {
-    rb_str_t *str = str_alloc();
+    rb_str_t *str = str_alloc(rb_cRubyString);
     str->encoding = self->encoding;
     str->capacity_in_bytes = str->length_in_bytes = length_in_bytes;
     str->flags = self->flags & STRING_REQUIRED_FLAGS;
@@ -741,7 +744,7 @@ str_plus_string(rb_str_t *str1, rb_str_t *str2)
 {
     rb_encoding_t *new_encoding = str_must_have_compatible_encoding(str1, str2);
 
-    rb_str_t *new_str = str_alloc();
+    rb_str_t *new_str = str_alloc(rb_cRubyString);
     new_str->encoding = new_encoding;
     if ((str1->length_in_bytes == 0) && (str2->length_in_bytes == 0)) {
 	return new_str;
@@ -1028,7 +1031,7 @@ mr_enc_s_is_compatible(VALUE klass, SEL sel, VALUE str1, VALUE str2)
 static VALUE
 mr_str_s_alloc(VALUE klass)
 {
-    return (VALUE)str_alloc();
+    return (VALUE)str_alloc(klass);
 }
 
 static VALUE
@@ -1418,7 +1421,7 @@ bstr_bytes(VALUE str)
 VALUE
 bstr_new_with_data(const uint8_t *bytes, long len)
 {
-    rb_str_t *str = str_alloc();
+    rb_str_t *str = str_alloc(rb_cRubyString);
     str_replace_with_bytes(str, (char *)bytes, len, ENCODING_BINARY);
     return (VALUE)str;
 }
@@ -1458,7 +1461,7 @@ VALUE
 rb_enc_str_new(const char *cstr, long len, rb_encoding_t *enc)
 {
     // XXX should we assert that enc is single byte?
-    rb_str_t *str = str_alloc();
+    rb_str_t *str = str_alloc(rb_cRubyString);
     str_replace_with_bytes(str, cstr, len, enc);
     return (VALUE)str;
 }
@@ -1484,7 +1487,7 @@ rb_str_new2(const char *cstr)
 VALUE
 rb_str_new3(VALUE source)
 {
-    rb_str_t *str = str_alloc();
+    rb_str_t *str = str_alloc(rb_cRubyString);
     str_replace(str, source);
     return (VALUE)str;
 }
@@ -1760,3 +1763,35 @@ rb_memhash(const void *ptr, long len)
     return code;
 }
 
+VALUE
+rb_str_inspect(VALUE rcv)
+{
+    // TODO
+    return rcv;
+}
+
+VALUE
+rb_str_subseq(VALUE str, long beg, long len)
+{
+    abort(); // TODO
+}
+
+VALUE
+rb_str_substr(VALUE str, long beg, long len)
+{
+    return rb_str_subseq(str, beg, len);
+}
+
+void
+rb_str_update(VALUE str, long beg, long len, VALUE val)
+{
+    abort(); // TODO
+}
+
+// Symbols (TODO: move me outside)
+
+VALUE
+rb_sym_to_s(VALUE sym)
+{
+    return rb_str_new2(RSYMBOL(sym)->str);
+}

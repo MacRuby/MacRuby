@@ -848,12 +848,10 @@ nometh_err_args(VALUE self, SEL sel)
     return rb_attr_get(self, rb_intern("args"));
 }
 
-VALUE rb_str_inspect(VALUE, SEL);
-
 void
 rb_invalid_str(const char *str, const char *type)
 {
-    VALUE s = rb_str_inspect(rb_str_new2(str), 0);
+    VALUE s = rb_str_inspect(rb_str_new2(str));
 
     rb_raise(rb_eArgError, "invalid value for %s: %s", type, RSTRING_PTR(s));
 }

@@ -596,6 +596,7 @@ VALUE rb_str_associated(VALUE);
 void rb_str_setter(VALUE, ID, VALUE*);
 VALUE rb_sym_to_s(VALUE);
 VALUE rb_str_length(VALUE);
+VALUE rb_str_inspect(VALUE);
 #if WITH_OBJC
 bool rb_objc_str_is_pure(VALUE);
 #endif
