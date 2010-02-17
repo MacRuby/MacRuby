@@ -2163,7 +2163,10 @@ prepare_method:
 	    // If we add -[foo:] and the class responds to -[foo], we need
 	    // to disable it (and vice-versa).
 	    class_replaceMethod(klass, new_sel,
-		    (IMP)rb_vm_undefined_imp, method_getTypeEncoding(tmp_m));	
+		    (IMP)rb_vm_undefined_imp, method_getTypeEncoding(tmp_m));
+	    // Invalidate the cache so that the previously defined
+	    // implementation is not called anymore if the call was cached
+	    GET_CORE()->invalidate_method_cache(new_sel);
 	}
     }
 
@@ -2604,7 +2607,6 @@ rb_vm_define_method2(Class klass, SEL sel, rb_vm_method_node_t *node,
 {
     assert(node != NULL);
 
-    
     if (flags == -1) {
 	flags = node->flags;
 	flags &= ~VM_METHOD_PRIVATE;
