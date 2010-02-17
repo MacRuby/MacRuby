@@ -9,17 +9,15 @@
 
 **********************************************************************/
 
-#include "ruby/ruby.h"
 #include <sys/types.h>
 #include <time.h>
 #include <errno.h>
-#include "ruby/encoding.h"
-
-#ifdef HAVE_UNISTD_H
 #include <unistd.h>
-#endif
-
 #include <math.h>
+
+#include "ruby/ruby.h"
+#include "ruby/encoding.h"
+#include "encoding.h"
 
 VALUE rb_cTime;
 static VALUE time_utc_offset _((VALUE, SEL));
@@ -2171,7 +2169,7 @@ time_mdump(VALUE time)
 	s = RSHIFT(s, 8);
     }
 
-    str = rb_bytestring_new_with_data(buf, 8);
+    str = bstr_new_with_data(buf, 8);
     rb_copy_generic_ivar(str, time);
     if (nsec) {
         /*
@@ -2190,7 +2188,7 @@ time_mdump(VALUE time)
         buf[0] |= (nsec % 10) << 4;
         if (buf[1] == 0)
             len = 1;
-        rb_ivar_set(str, id_submicro, rb_bytestring_new_with_data(buf, len));
+        rb_ivar_set(str, id_submicro, bstr_new_with_data(buf, len));
     }
     return str;
 }
@@ -2238,9 +2236,10 @@ time_mload(VALUE time, VALUE str)
     rb_copy_generic_ivar(time, str);
 
     StringValue(str);
+    str = rb_str_bstr(str);
 
-    unsigned char *buf = (unsigned char *)rb_bytestring_byte_pointer(str);
-    const size_t buflen = rb_bytestring_length(str); 
+    uint8_t *buf = bstr_bytes(str);
+    const long buflen = bstr_length(str); 
     if (buflen != 8 && buflen != 9) {
 	rb_raise(rb_eTypeError, "marshaled time format differ");
     }

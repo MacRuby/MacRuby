@@ -14,6 +14,7 @@
 #include "ruby/st.h"
 #include "ruby/util.h"
 #include "ruby/encoding.h"
+#include "encoding.h"
 #include "id.h"
 
 #include <math.h>
@@ -980,14 +981,14 @@ marshal_dump(VALUE self, SEL sel, int argc, VALUE *argv)
 type_error:
 	    rb_raise(rb_eTypeError, "instance of IO needed");
 	}
-	GC_WB(&arg->str, rb_bytestring_new());
+	GC_WB(&arg->str, bstr_new());
 	GC_WB(&arg->dest, port);
 	if (rb_obj_respond_to(port, s_binmode, Qtrue)) {
 	    rb_funcall2(port, s_binmode, 0, 0);
 	}
     }
     else {
-	port = rb_bytestring_new();
+	port = bstr_new();
 	GC_WB(&arg->str, port);
     }
 
@@ -1119,9 +1120,9 @@ r_bytes0(long len, struct load_arg *arg)
     }
     if (TYPE(arg->src) == T_STRING) {
 	if (RSTRING_LEN(arg->src) - arg->offset >= len) {
-	    str = rb_bytestring_new();
-	    rb_bytestring_resize(str, len + 1);
-	    UInt8 *data = rb_bytestring_byte_pointer(str);
+	    str = bstr_new();
+	    bstr_resize(str, len + 1);
+	    uint8_t *data = bstr_bytes(str);
 	    memcpy(data, (UInt8 *)RSTRING_PTR(arg->src) + arg->offset, len);
 	    data[len] = '\0';
 	    arg->offset += len;

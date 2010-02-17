@@ -396,18 +396,6 @@ char *rb_string_value_cstr(volatile VALUE*);
 #define StringValuePtr(v) rb_string_value_ptr(&(v))
 #define StringValueCStr(v) rb_string_value_cstr(&(v))
 
-VALUE rb_bytestring_new();
-VALUE rb_bytestring_new_with_data(const UInt8 *buf, long size);
-VALUE rb_bytestring_new_with_cfdata(CFMutableDataRef data);
-VALUE rb_bytestring_copy(VALUE str);
-CFMutableDataRef rb_bytestring_wrapped_data(VALUE);
-CFStringRef rb_bytestring_resolve_cfstring(VALUE str);
-UInt8 *rb_bytestring_byte_pointer(VALUE);
-VALUE rb_coerce_to_bytestring(VALUE);
-long rb_bytestring_length(VALUE str);
-void rb_bytestring_resize(VALUE str, long newsize);
-void rb_bytestring_append_bytes(VALUE str, const UInt8* bytes, long len);
-
 void rb_check_safe_obj(VALUE);
 void rb_check_safe_str(VALUE);
 #define SafeStringValue(v) do {\

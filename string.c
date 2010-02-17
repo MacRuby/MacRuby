@@ -765,6 +765,18 @@ str_plus_string(rb_str_t *str1, rb_str_t *str2)
 }
 
 static void
+str_resize_bytes(rb_str_t *self, long new_capacity)
+{
+    if (self->capacity_in_bytes < new_capacity) {
+	char *bytes = xrealloc(self->data.bytes, new_capacity);
+	if (bytes != self->data.bytes) {
+	    GC_WB(&self->data.bytes, bytes);
+	}
+	self->capacity_in_bytes = new_capacity;
+    }
+}
+
+static void
 str_concat_string(rb_str_t *self, rb_str_t *str)
 {
     if (str->length_in_bytes == 0) {
@@ -783,12 +795,7 @@ str_concat_string(rb_str_t *self, rb_str_t *str)
     // (if both are ASCII-only, the concatenation is ASCII-only,
     //  though I'm not sure all the tests required are worth doing)
     str_unset_facultative_flags(self);
-    if (self->capacity_in_bytes < new_length_in_bytes) {
-	uint8_t *bytes = xmalloc(new_length_in_bytes);
-	memcpy(bytes, self->data.bytes, self->length_in_bytes);
-	GC_WB(&self->data.bytes, bytes);
-	self->capacity_in_bytes = new_length_in_bytes;
-    }
+    str_resize_bytes(self, new_length_in_bytes);
     memcpy(self->data.bytes + self->length_in_bytes, str->data.bytes,
 	    str->length_in_bytes);
     self->length_in_bytes = new_length_in_bytes;
@@ -1364,6 +1371,87 @@ Init_String(void)
     rb_define_variable("$-F", &rb_fs);
 }
 
+bool
+rb_objc_str_is_pure(VALUE str)
+{
+    VALUE k = *(VALUE *)str;
+    while (RCLASS_SINGLETON(k)) {
+        k = RCLASS_SUPER(k);
+    }
+    if (k == rb_cRubyString) {
+        return true;
+    }
+    while (k != 0) {
+        if (k == rb_cRubyString) {
+            return false;
+        }
+        k = RCLASS_SUPER(k);
+    }
+    return true;
+}
+
+void
+rb_objc_install_string_primitives(Class klass)
+{
+    // TODO
+}
+
+// ByteString emulation.
+
+VALUE
+rb_str_bstr(VALUE str)
+{
+    if (IS_RSTR(str)) {
+	str_make_data_binary(RSTR(str));
+	return str;
+    }
+    abort(); // TODO
+}
+
+uint8_t *
+bstr_bytes(VALUE str)
+{
+    assert(IS_RSTR(str));
+    return (uint8_t *)RSTR(str)->data.bytes;
+}
+
+VALUE
+bstr_new_with_data(const uint8_t *bytes, long len)
+{
+    rb_str_t *str = str_alloc();
+    str_replace_with_bytes(str, (char *)bytes, len, ENCODING_BINARY);
+    return (VALUE)str;
+}
+
+VALUE
+bstr_new(void)
+{
+    return bstr_new_with_data(NULL, 0);
+}
+
+long
+bstr_length(VALUE str)
+{
+    assert(IS_RSTR(str));
+    return RSTR(str)->length_in_bytes;
+}
+
+void
+bstr_resize(VALUE str, long capa)
+{
+    assert(IS_RSTR(str));
+    str_resize_bytes(RSTR(str), capa);
+}
+
+void
+bstr_set_length(VALUE str, long len)
+{
+    assert(IS_RSTR(str));
+    assert(len < RSTR(str)->capacity_in_bytes);
+    assert(len < RSTR(str)->length_in_bytes);
+    RSTR(str)->length_in_bytes = len;
+}
+
 // MRI C-API compatibility.
 
 VALUE
@@ -1636,7 +1724,13 @@ rb_str_associated(VALUE str)
 VALUE
 rb_str_resize(VALUE str, long len)
 {
-    abort(); // TODO
+    if (IS_RSTR(str)) {
+	str_resize_bytes(RSTR(str), len);
+    }
+    else {
+	abort(); // TODO
+    }
+    return str;
 }
 
 VALUE
@@ -1665,3 +1759,4 @@ rb_memhash(const void *ptr, long len)
     CFRelease((CFTypeRef)data);
     return code;
 }
+

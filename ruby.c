@@ -11,30 +11,19 @@
 
 **********************************************************************/
 
+#include <stdio.h>
+#include <sys/types.h>
+#include <ctype.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/param.h>
+
 #include "ruby/ruby.h"
 #include "ruby/node.h"
 #include "ruby/encoding.h"
 #include "dln.h"
-#include <stdio.h>
-#include <sys/types.h>
-#include <ctype.h>
 #include "vm.h"
-
-#ifdef HAVE_UNISTD_H
-#include <unistd.h>
-#endif
-#if defined(HAVE_FCNTL_H)
-#include <fcntl.h>
-#elif defined(HAVE_SYS_FCNTL_H)
-#include <sys/fcntl.h>
-#endif
-#ifdef HAVE_SYS_PARAM_H
-# include <sys/param.h>
-#endif
-#ifndef MAXPATHLEN
-# define MAXPATHLEN 1024
-#endif
-
+#include "encoding.h"
 #include "ruby/util.h"
 
 #ifndef HAVE_STDLIB_H
@@ -1099,8 +1088,9 @@ load_file(VALUE parser, const char *fname, int script,
 		    char *path;
 		    char *pend;
 
-		    p = (char *)rb_bytestring_byte_pointer(line);
-		    pend = p + rb_bytestring_length(line);
+		    line = rb_str_bstr(line);
+		    p = (char *)bstr_bytes(line);
+		    pend = p + bstr_length(line);
 
 		    if (pend[-1] == '\n') {
 			pend--;	/* chomp line */
@@ -1134,8 +1124,8 @@ load_file(VALUE parser, const char *fname, int script,
 	      start_read:
 		p += 4;
 
-		char *linebuf = (char *)rb_bytestring_byte_pointer(line);
-		long linebuflen = rb_bytestring_length(line);
+		char *linebuf = (char *)bstr_bytes(line);
+		const long linebuflen = bstr_length(line);
 
 		linebuf[linebuflen - 1] = '\0';
 		if (linebuf[linebuflen - 2] == '\r') {

@@ -9,12 +9,14 @@
 
 **********************************************************************/
 
-#include "ruby/ruby.h"
-#include "ruby/node.h"
-#include "vm.h"
 #include <sys/types.h>
 #include <ctype.h>
 #include <errno.h>
+
+#include "ruby/ruby.h"
+#include "ruby/node.h"
+#include "vm.h"
+#include "encoding.h"
 
 #define SIZE16 2
 #define SIZE32 4
@@ -452,25 +454,11 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
     p = RSTRING_PTR(fmt);
     pend = p + RSTRING_LEN(fmt);
 
-    VALUE bres = rb_bytestring_new();
-    CFMutableDataRef data = rb_bytestring_wrapped_data(bres);
+    CFMutableDataRef data = CFDataCreateMutable(NULL, 0);
+    CFMakeCollectable(data);
 
     items = RARRAY_LEN(ary);
     idx = 0;
-
-    // Taint the ByteString accordingly.
-    if (OBJ_TAINTED(fmt)) {
-	OBJ_TAINT(bres);
-    }
-    else {
-	long i;
-	for (i = 0; i < items; i++) {
-	    if (OBJ_TAINTED(RARRAY_AT(ary, i))) {
-		OBJ_TAINT(bres);
-		break;
-	    }
-	}
-    }
 
 #define TOO_FEW (rb_raise(rb_eArgError, toofew), 0)
 #define THISFROM (items > 0 ? RARRAY_AT(ary, idx) : TOO_FEW)
@@ -1029,10 +1017,21 @@ pack_pack(VALUE ary, SEL sel, VALUE fmt)
 	}
     }
 
-    if (associates) {
-	rb_str_associate(bres, associates);
-    }
+    VALUE bres = bstr_new_with_data(CFDataGetBytePtr(data),
+	    CFDataGetLength(data));
 
+    // Taint the ByteString accordingly.
+    if (OBJ_TAINTED(fmt)) {
+	OBJ_TAINT(bres);
+    }
+    else {
+	for (long i = 0; i < items; i++) {
+	    if (OBJ_TAINTED(RARRAY_AT(ary, i))) {
+		OBJ_TAINT(bres);
+		break;
+	    }
+	}
+    }
     return bres;
 }
 
@@ -1453,10 +1452,10 @@ pack_unpack(VALUE str, SEL sel, VALUE fmt)
 		if (p[-1] == '*' || len > (send - s) * 8)
 		    len = (send - s) * 8;
 		bits = 0;
-		bitstr = rb_bytestring_new();
-		rb_bytestring_resize(bitstr, len);
+		bitstr = bstr_new();
+		bstr_resize(bitstr, len);
 		UNPACK_PUSH(bitstr);
-		t = (char *)rb_bytestring_byte_pointer(bitstr);
+		t = (char *)bstr_bytes(bitstr);
 		for (i=0; i<len; i++) {
 		    if (i & 7) {
 			bits >>= 1;
@@ -1479,10 +1478,10 @@ pack_unpack(VALUE str, SEL sel, VALUE fmt)
 		if (p[-1] == '*' || len > (send - s) * 8)
 		    len = (send - s) * 8;
 		bits = 0;
-		bitstr = rb_bytestring_new();
-		rb_bytestring_resize(bitstr, len);
+		bitstr = bstr_new();
+		bstr_resize(bitstr, len);
 		UNPACK_PUSH(bitstr);
-		t = (char *)rb_bytestring_byte_pointer(bitstr);
+		t = (char *)bstr_bytes(bitstr);
 		for (i=0; i<len; i++) {
 		    if (i & 7) {
 			bits <<= 1;
@@ -1505,10 +1504,10 @@ pack_unpack(VALUE str, SEL sel, VALUE fmt)
 		if (p[-1] == '*' || len > (send - s) * 2)
 		    len = (send - s) * 2;
 		bits = 0;
-		bitstr = rb_bytestring_new();
-		rb_bytestring_resize(bitstr, len);
+		bitstr = bstr_new();
+		bstr_resize(bitstr, len);
 		UNPACK_PUSH(bitstr);
-		t = (char *)rb_bytestring_byte_pointer(bitstr);
+		t = (char *)bstr_bytes(bitstr);
 		for (i=0; i<len; i++) {
 		    if (i & 1) {
 			bits >>= 4;
@@ -1531,10 +1530,10 @@ pack_unpack(VALUE str, SEL sel, VALUE fmt)
 		if (p[-1] == '*' || len > (send - s) * 2)
 		    len = (send - s) * 2;
 		bits = 0;
-		bitstr = rb_bytestring_new();
-		rb_bytestring_resize(bitstr, len);
+		bitstr = bstr_new();
+		bstr_resize(bitstr, len);
 		UNPACK_PUSH(bitstr);
-		t = (char *)rb_bytestring_byte_pointer(bitstr);
+		t = (char *)bstr_bytes(bitstr);
 		for (i=0; i<len; i++) {
 		    if (i & 1) {
 			bits <<= 4;
@@ -1789,11 +1788,11 @@ pack_unpack(VALUE str, SEL sel, VALUE fmt)
 
 	  case 'u':
 	    {
-		VALUE buf = rb_bytestring_new();
-		rb_bytestring_resize(buf, (send - s)*3/4);
-		char *ptr = (char *)rb_bytestring_byte_pointer(buf);
+		VALUE buf = bstr_new();
+		bstr_resize(buf, (send - s)*3/4);
+		char *ptr = (char *)bstr_bytes(buf);
 		long total = 0;
-		const long buflen = rb_bytestring_length(buf);
+		const long buflen = bstr_length(buf);
 
 		while (s < send && *s > ' ' && *s < 'a') {
 		    long a,b,c,d;
@@ -1852,16 +1851,16 @@ pack_unpack(VALUE str, SEL sel, VALUE fmt)
 		    }
 		}
 
-		rb_bytestring_resize(buf, total);
+		bstr_resize(buf, total);
 		UNPACK_PUSH(buf);
 	    }
 	    break;
 
 	  case 'm':
 	    {
-		VALUE buf = rb_bytestring_new();
-		rb_bytestring_resize(buf, (send - s)*3/4);
-		char *ptr = (char *)rb_bytestring_byte_pointer(buf);
+		VALUE buf = bstr_new();
+		bstr_resize(buf, (send - s)*3/4);
+		char *ptr = (char *)bstr_bytes(buf);
 		char *ptr_beg = ptr;
 		int a = -1,b = -1,c = 0,d;
 		static int first = 1;
@@ -1905,16 +1904,16 @@ pack_unpack(VALUE str, SEL sel, VALUE fmt)
 			*ptr++ = b << 4 | c >> 2;
 		    }
 		}
-		rb_bytestring_resize(buf, ptr - ptr_beg);
+		bstr_resize(buf, ptr - ptr_beg);
 		UNPACK_PUSH(buf);
 	    }
 	    break;
 
 	  case 'M':
 	    {
-		VALUE buf = rb_bytestring_new();
-		rb_bytestring_resize(buf, send - s);
-		char *ptr = (char *)rb_bytestring_byte_pointer(buf);
+		VALUE buf = bstr_new();
+		bstr_resize(buf, send - s);
+		char *ptr = (char *)bstr_bytes(buf);
 		char *ptr_beg = ptr;
 		int c1, c2;
 
@@ -1935,7 +1934,7 @@ pack_unpack(VALUE str, SEL sel, VALUE fmt)
 		    }
 		    s++;
 		}
-		rb_bytestring_resize(buf, ptr - ptr_beg);
+		bstr_resize(buf, ptr - ptr_beg);
 		UNPACK_PUSH(buf);
 	    }
 	    break;

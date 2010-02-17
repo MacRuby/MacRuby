@@ -267,6 +267,18 @@ str_set_valid_encoding(rb_str_t *self, bool status)
 	    STRING_VALID_ENCODING);
 }
 
+// Return a string object appropriate for bstr_ calls. This does nothing for
+// data/binary RubyStrings.
+VALUE rb_str_bstr(VALUE str);
+
+// Byte strings APIs. Use this only when dealing with raw data.
+VALUE bstr_new(void);
+VALUE bstr_new_with_data(const uint8_t *bytes, long len);
+uint8_t *bstr_bytes(VALUE str);
+long bstr_length(VALUE str);
+void bstr_set_length(VALUE str, long len);
+void bstr_resize(VALUE str, long capa);
+
 #if defined(__cplusplus)
 } // extern "C"
 #endif
