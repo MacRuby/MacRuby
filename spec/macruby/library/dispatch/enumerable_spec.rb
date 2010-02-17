@@ -21,7 +21,7 @@ if MACOSX_VERSION >= 10.6
         it "runs the block passing the current index" do
           @count.times { |j| @ary << j }
           @count.p_times { |j| @p_ary << j}
-          @p_ary.should == @ary
+          @p_ary.sort.should == @ary
         end
 
         it "does not run the block if the count is zero" do
@@ -32,25 +32,25 @@ if MACOSX_VERSION >= 10.6
         it "properly combines blocks with even stride > 1" do
           @count.times { |j| @ary << j }
           @count.p_times(2) { |j| @p_ary << j}
-          @p_ary.should == @ary
+          @p_ary.sort.should == @ary
         end
 
         it "properly combines blocks with uneven stride" do
           @count.times { |j| @ary << j }
           @count.p_times(3) { |j| @p_ary << j}
-          @p_ary.should == @ary
+          @p_ary.sort.should == @ary
         end
 
         it "properly rounds stride fraction of 0.5" do
           6.times { |j| @ary << j }
           6.p_times(4) { |j| @p_ary << j}
-          @p_ary.should == @ary
+          @p_ary.sort.should == @ary
         end
 
         it "properly rounds stride fraction > 0.5" do
           7.times { |j| @ary << j }
           7.p_times(4) { |j| @p_ary << j}
-          @p_ary.should == @ary
+          @p_ary.sort.should == @ary
         end
       end
     end
