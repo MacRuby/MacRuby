@@ -1332,15 +1332,23 @@ mr_str_intern(VALUE self, SEL sel)
 static CFIndex
 rstr_imp_length(void *rcv, SEL sel)
 {
-    return str_length(RSTR(rcv), false);
+    return str_length(RSTR(rcv), true);
 }
 
 static UniChar
 rstr_imp_characterAtIndex(void *rcv, SEL sel, CFIndex idx)
 {
-    rb_str_t *ret = str_get_character_at(RSTR(rcv), idx, true);
-    assert(ret != NULL);
-    return ret->data.bytes[0];
+    // XXX implement a function that returns a unichar at given index
+    // and use it here.
+    if (str_try_making_data_uchars(RSTR(rcv))) {
+	return RSTR(rcv)->data.uchars[idx];
+    }
+    else if (BINARY_ENC(RSTR(rcv)->encoding)) {
+	return RSTR(rcv)->data.bytes[idx];
+    }
+    else {
+	abort(); // TODO
+    }
 }
 
 void
