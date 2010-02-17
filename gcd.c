@@ -31,6 +31,10 @@ static SEL selClose;
 static aslmsg gcd_msg = NULL;
 #define GCD_DEBUG(text) asl_log(NULL, gcd_msg, ASL_LEVEL_DEBUG, "%s", text)
 
+// TODO: Make Queue and Source inherit from Dispatch::Base
+// so they can use a common definition of suspend/resume
+// and also implement target queues
+
 typedef struct {
     struct RBasic basic;
     int suspension_count;
