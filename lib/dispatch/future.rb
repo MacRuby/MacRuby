@@ -11,13 +11,12 @@ module Dispatch
     
     def initialize(priority = nil, &block)
       @value = nil
-      @group = Group.new
-      Dispatch.group(@group, priority) { @value = block.call }
+      @group = Dispatch.group(nil, priority) { @value = block.call }
     end
 
-    # Waits for the computation to finish
-    def join
-      group.wait
+    # Waits for the computation to finish, or calls block (if present) when done
+    def join(&block)
+      group.join(&block)
     end
 
     # Joins, then returns the value
