@@ -1499,7 +1499,13 @@ bstr_set_length(VALUE str, long len)
     RSTR(str)->length_in_bytes = len;
 }
 
-// Compiler primitive.
+// Compiler primitives.
+
+VALUE
+rb_str_new_empty(void)
+{
+    return (VALUE)str_alloc(rb_cRubyString);
+}
 
 VALUE
 rb_unicode_str_new(const UniChar *ptr, const size_t len)
@@ -1507,6 +1513,32 @@ rb_unicode_str_new(const UniChar *ptr, const size_t len)
     rb_str_t *str = str_alloc(rb_cRubyString);
     str_replace_with_unichars(str, ptr, len);
     return (VALUE)str;
+}
+
+VALUE
+rb_str_new_fast(int argc, ...)
+{
+    VALUE str = (VALUE)str_alloc(rb_cRubyString);
+
+    if (argc > 0) {
+	va_list ar;
+	va_start(ar, argc);
+	for (int i = 0; i < argc; ++i) {
+	    VALUE fragment = va_arg(ar, VALUE);
+	    switch (TYPE(fragment)) {
+		default:
+		    fragment = rb_obj_as_string(fragment);
+		    // fall through
+
+		case T_STRING:
+		    mr_str_concat(str, 0, fragment);
+		    break;
+	    }
+	}
+	va_end(ar);
+    }
+
+    return str;
 }
 
 // MRI C-API compatibility.
