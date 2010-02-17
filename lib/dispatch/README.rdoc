@@ -34,14 +34,24 @@ We also assume that you are already familiar with Ruby, though not necessarily M
 
 === Dispatch.async
 
-The most basic method is +async+, which allows you to perform work asynchronously in the background:
+The most basic method is +async+, which allows you to schedule work asynchronously.
 
 	require 'dispatch'
-	Dispatch.async { p "Do this later" }
+	Dispatch.async { p "Do this somewhere else" }
 
-This schedules the block on GCD's default concurrent queue, which means it will be run on another thread or core, if available.  You can also specify an optional priority level (+:high+, +:default+, or +:low+) to access one of the other concurrent queues:
+This atomically[http://en.wikipedia.org/wiki/Atomic_operation] adds the block to GCD's default concurrent queue, then returns immediately.
 
-	Dispatch.async(:high) { p "Do this sooner" }
+You can also specify an optional priority level (+:high+, +:default+, or +:low+) to specify which concurrent queue to use:
+
+	Dispatch.async(:high) { p "Do this sooner rather than later" }
+	
+==== Concurrent Queues
+
+Blocks always are dequeued and executed on a first-in/first-out (FIFO[http://en.wikipedia.org/wiki/FIFO]) basis. Concurrent queues do not wait for blocks to complete, but schedule as many as there are threads available (with higher-priority queues getting dibs[http://en.wikipedia.org/wiki/Dibs]).
+
+If there aren't enough threads, the system will automatically create more as cores become available. It will also eventually reclaim unused threads, allowing GCD to dynamically scale the number based on the overall system load.
+
+=====  Variables
 
 These blocks are (almost) just standard ruby blocks, and thus have access to the local context:
 
@@ -56,7 +66,7 @@ The one caveat is that since the block may run at a later time, local (dynamic) 
 	Dispatch.async { filename = "/etc/shell" }
 	p filename # => "/etc/group"
 
-In practice this is not a significant limitation, since it only copies the variable -- not the object itself. Thus, operations that mutate (i.e., modify in place) the underlying object (vs. those that reassign the variable) behave as expected:
+In practice this is not a significant limitation, since it only copies the _variable_ -- not the object itself. Thus, operations that mutate (i.e., modify in place) the underlying object -- unlike those that reassign the variable -- behave as expected:
 
 	ary = ["/etc/passwd"]
 	Dispatch.async { ary << "/etc/shell" }
@@ -154,20 +164,24 @@ Instead of locks, simply create a serial queue for each object you need to prote
 	# => Dispatch.comparable.nsstring.nsmutablestring.8592077600.1266360156.88218
 	q_s.class # => Dispatch::Queue
 	
-That long funny-looking string is the queue's +label+, and is a (relatively) unique combination of the passed object's class, id, and creation time.  It is useful for debugging, as it is displayed in log messages and the {Dispatch  Instrument}[http://developer.apple.com/iPhone/library/documentation/DeveloperTools/Conceptual/InstrumentsUserGuide/Built-InInstruments/Built-InInstruments.html#//apple_ref/doc/uid/TP40004652-CH6-SW41].
+That long funny-looking string is the queue's +label+, a (relatively) unique combination of the passed object's inheritance chain,  id, and the queue creation time.  It is useful for debugging, as it is displayed in log messages and the {Dispatch  Instrument}[http://developer.apple.com/iPhone/library/documentation/DeveloperTools/Conceptual/InstrumentsUserGuide/Built-InInstruments/Built-InInstruments.html#//apple_ref/doc/uid/TP40004652-CH6-SW41].
 
 ==== Queue#async
 
-To access a serial queue, call +async+ on that instead of the Dispatch module:
+To schedule a block on a serial queue, just call +async+::
 
 	q_s.async { s.gsub!("passwd", "shell") }
 	q_s.async { s.gsub!("passwd", "group") }
 	
-In fact, +Dispatch.async(priority)+ is really just a convenience function wrapping:
+This is analogous as +Dispatch.async(priority)+, which is actually a convenience function wrapping:
 	
 	Dispatch::Queue.concurrent(priority).async
 
-where +Dispatch::Queue.concurrent+ returns the global concurrent queue for a given priority.
+where +Dispatch::Queue.concurrent(priority)+ returns the global concurrent queue for a given +priority+.
+
+===== Implementation Note
+
+For the curious, here's what happens behind the scenes.  When you add a block to an empty serial queue, GCD in turn adds that queue to the default concurrent queue, just as if it were a block. 
 
 ==== Queue#sync
 
@@ -199,7 +213,7 @@ The invocations nest, so Group#join won't return until +q_sum.async(g)+ has comp
 
 === Dispatch::Actor
 
-This pattern of associating a queue with an object is so common and powerful it even has a name: the {Actor model}[http://en.wikipedia.org/wiki/Actor_model].  MacRuby provides a +Dispatch::Actor+ class that uses SimpleDelegator[http://ruby-doc.org/stdlib/libdoc/delegate/rdoc/index.html] to guard access to any object, so that all invocations automatically occur (asynchronously!) on a private serial queue.
+This pattern of associating a queue with an object is so common and powerful it even has a name: the {Actor model}[http://en.wikipedia.org/wiki/Actor_model].  MacRuby provides a +Dispatch::Actor+ class that uses SimpleDelegator[http://ruby-doc.org/stdlib/libdoc/delegate/rdoc/index.html] to guard access to any object, so that all invocations automatically occur on a private serial queue.
 	
 ==== Dispatch.wrap
 
@@ -208,19 +222,27 @@ The simplest way to turn an object into an actor is with the +wrap+ method:
 	s = "/etc/passwd"
 	a_s = Dispatch.wrap(s)
 
-That's it!  Now just use +a_s+ instead of +s+, and watch as everything gets magically serialized:
+That's it! Apart from a small number of basic methods (e.g., +class+, +object_id+), everything is passed to the delegated object for execution:
 
-	# Do this as much as you like
-	Dispatch.async { a_s.gsub!("passwd", "shell") }
-	Dispatch.async { a_s.gsub!("passwd", "group") }
+	a_s.gsub!("passwd", "shell")
+	p a_s.to_s # => "/etc/shell"
+	
+By default, wrapped methods are invoked synchronously and immediately return their value:
+	
+	a_s.gsub("shell", "group") # => "/etc/group"
 
-As a convenience, you can also pass it a class, and it will create and wrap an instance:
+But like everything else in GCD, we'd rather you pass it a block so it can execute asynchronously:
 
-	ary = Dispatch.wrap(Array)
+	a_s.gsub("group", "passwd") {|v| p v }# => "/etc/passwd"
+
+Voila, make any object thread-safe, asynchronous, and concurrent using a single line of Ruby!
+
+
+	
 	
 === Actor#__with__(group)
 	
-All invocations on an Actor occur asynchronously. To keep track of them, pass it a group using the intrinsic (non-delegated) method +__with__+:
+All invocations on the internal serial queue occur asynchronously. To keep track of them, pass it a group using the intrinsic (non-delegated) method +__with__+:
 
 	g = Dispatch::Group.new
 	ary.__with__(g)
