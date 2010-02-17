@@ -242,7 +242,7 @@ static void
 str_replace_with_unichars(rb_str_t *self, const UniChar *chars, long len)
 {
     self->flags = 0;
-    self->encoding = rb_encodings[ENCODING_UTF16_NATIVE];
+    self->encoding = rb_encodings[ENCODING_UTF8];
     self->capacity_in_bytes = self->length_in_bytes = UCHARS_TO_BYTES(len);
     if (self->length_in_bytes != 0) {
 	GC_WB(&self->data.uchars, xmalloc(self->length_in_bytes));
@@ -1496,7 +1496,6 @@ bstr_set_length(VALUE str, long len)
 {
     assert(IS_RSTR(str));
     assert(len < RSTR(str)->capacity_in_bytes);
-    assert(len < RSTR(str)->length_in_bytes);
     RSTR(str)->length_in_bytes = len;
 }
 
@@ -1516,6 +1515,10 @@ VALUE
 rb_enc_str_new(const char *cstr, long len, rb_encoding_t *enc)
 {
     // XXX should we assert that enc is single byte?
+    if (enc == NULL) {
+	// This function can be called with a NULL encoding. 
+	enc = rb_encodings[ENCODING_BINARY];
+    }
     rb_str_t *str = str_alloc(rb_cRubyString);
     str_replace_with_bytes(str, cstr, len, enc);
     return (VALUE)str;

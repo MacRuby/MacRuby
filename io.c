@@ -985,7 +985,7 @@ rb_io_read_all(rb_io_t *io_struct, VALUE outbuf)
     const long original_position = bstr_length(outbuf);
 
     while (true) {
-	bstr_resize(outbuf, BUFSIZE);
+	bstr_resize(outbuf, original_position + bytes_read + BUFSIZE);
 	uint8_t *bytes = bstr_bytes(outbuf) + original_position + bytes_read;
         const long last_read = rb_io_read_internal(io_struct, bytes, BUFSIZE);
         bytes_read += last_read;
