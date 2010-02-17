@@ -239,19 +239,28 @@ str_replace_with_string(rb_str_t *self, rb_str_t *source)
 }
 
 static void
-str_replace_with_cfstring(rb_str_t *self, CFStringRef source)
+str_replace_with_unichars(rb_str_t *self, const UniChar *chars, long len)
 {
     self->flags = 0;
     self->encoding = rb_encodings[ENCODING_UTF16_NATIVE];
-    self->capacity_in_bytes = self->length_in_bytes =
-	UCHARS_TO_BYTES(CFStringGetLength(source));
+    self->capacity_in_bytes = self->length_in_bytes = UCHARS_TO_BYTES(len);
     if (self->length_in_bytes != 0) {
 	GC_WB(&self->data.uchars, xmalloc(self->length_in_bytes));
-	CFStringGetCharacters((CFStringRef)source,
-		CFRangeMake(0, BYTES_TO_UCHARS(self->length_in_bytes)),
-		self->data.uchars);
+	memcpy(self->data.uchars, chars, self->length_in_bytes);
 	str_set_stored_in_uchars(self, true);
     }
+}
+
+static void
+str_replace_with_cfstring(rb_str_t *self, CFStringRef source)
+{
+    const long len = CFStringGetLength(source);
+    UniChar *chars = NULL;
+    if (len > 0) {
+	chars = (UniChar *)malloc(sizeof(UniChar) * len);
+	CFStringGetCharacters(source, CFRangeMake(0, len), chars);
+    }
+    str_replace_with_unichars(self, chars, len);
 }
 
 static void
@@ -1320,6 +1329,20 @@ mr_str_intern(VALUE self, SEL sel)
     return ID2SYM(rb_intern(RSTR(self)->data.bytes));
 }
 
+static CFIndex
+rstr_imp_length(void *rcv, SEL sel)
+{
+    return str_length(RSTR(rcv), false);
+}
+
+static UniChar
+rstr_imp_characterAtIndex(void *rcv, SEL sel, CFIndex idx)
+{
+    rb_str_t *ret = str_get_character_at(RSTR(rcv), idx, true);
+    assert(ret != NULL);
+    return ret->data.bytes[0];
+}
+
 void
 Init_String(void)
 {
@@ -1372,6 +1395,19 @@ Init_String(void)
     // purpose
     rb_objc_define_method(rb_cRubyString, "stored_in_uchars?",
 	    mr_str_is_stored_in_uchars, 0);
+
+    // Cocoa primitives.
+    rb_objc_install_method2((Class)rb_cRubyString, "length",
+	    (IMP)rstr_imp_length);
+    rb_objc_install_method2((Class)rb_cRubyString, "characterAtIndex:",
+	    (IMP)rstr_imp_characterAtIndex);
+#if 0
+    rb_objc_install_method2(rb_cRubyString, "getCharacters:range:",
+	    (IMP)rstr_imp_getCharactersRange);
+    rb_objc_install_method2(rb_cRubyString,
+	    "replaceCharactersInRange:withString:", 
+	    (IMP)rstr_imp_replaceCharactersInRangeWithString);
+#endif
 
     rb_fs = Qnil;
     rb_define_variable("$;", &rb_fs);
@@ -1464,6 +1500,16 @@ bstr_set_length(VALUE str, long len)
     RSTR(str)->length_in_bytes = len;
 }
 
+// Compiler primitive.
+
+VALUE
+rb_unicode_str_new(const UniChar *ptr, const size_t len)
+{
+    rb_str_t *str = str_alloc(rb_cRubyString);
+    str_replace_with_unichars(str, ptr, len);
+    return (VALUE)str;
+}
+
 // MRI C-API compatibility.
 
 VALUE
@@ -1544,7 +1590,24 @@ rb_str_cstr(VALUE str)
 	str_make_data_binary(RSTR(str));
 	return RSTR(str)->data.bytes;
     }
-    abort(); // TODO
+
+    // CFString code path, hopefully this should not happen a lot.
+    const char *cptr = (const char *)CFStringGetCStringPtr((CFStringRef)str, 0);
+    if (cptr != NULL) {
+	return cptr;
+    }
+
+    const long max = CFStringGetMaximumSizeForEncoding(
+	    CFStringGetLength((CFStringRef)str),
+	    kCFStringEncodingUTF8);
+    char *cptr2 = (char *)xmalloc(max + 1);
+    if (!CFStringGetCString((CFStringRef)str, cptr2, max + 1,
+		kCFStringEncodingUTF8)) {
+	// Probably an UTF16 string...
+	xfree(cptr2);
+	return NULL;
+    }
+    return cptr2;
 }
 
 long
@@ -1554,7 +1617,7 @@ rb_str_clen(VALUE str)
 	str_make_data_binary(RSTR(str));
 	return RSTR(str)->length_in_bytes;
     }
-    abort(); // TODO
+    return CFStringGetLength((CFStringRef)str);
 }
 
 char *
