@@ -661,6 +661,107 @@ str_get_character_boundaries(rb_str_t *self, long index, bool ucs2_mode)
     return boundaries;
 }
 
+/*
+static character_boundaries_t
+str_get_next_line_end_character_boundaries(rb_str_t *self, long start_offset_in_bytes)
+{
+    character_boundaries_t boundaries = {self->length_in_bytes, self->length_in_bytes};
+
+    if (start_offset_in_bytes >= self->length_in_bytes) {
+	return boundaries;
+    }
+
+    if (str_is_stored_in_uchars(self) || NON_NATIVE_UTF16_ENC(self->encoding)) {
+	UChar line_feed, carriage_return;
+	if (str_is_stored_in_uchars(self)) {
+	    line_feed = 0x0A;
+	    carriage_return = 0x0D;
+	}
+	else {
+	    line_feed = 0x0A00;
+	    carriage_return = 0x0D00;
+	}
+	long start_offset = BYTES_TO_UCHARS(start_offset_in_bytes);
+	long length = BYTES_TO_UCHARS(self->length_in_bytes);
+	for (long i = start_offset; i < length; ++i) {
+	    UChar c = self->data.uchars[i];
+	    if (c == line_feed) {
+		boundaries.start_offset_in_bytes = UCHARS_TO_BYTES(i);
+		boundaries.end_offset_in_bytes = UCHARS_TO_BYTES(i+1);
+		return boundaries;
+	    }
+	    else if (c == carriage_return) {
+		boundaries.start_offset_in_bytes = UCHARS_TO_BYTES(i);
+		if ((i+1 < length) && (self->data.uchars[i+1] == line_feed)) {
+		    boundaries.end_offset_in_bytes = UCHARS_TO_BYTES(i+2);
+		}
+		else {
+		    boundaries.end_offset_in_bytes = UCHARS_TO_BYTES(i+1);
+		}
+		return boundaries;
+	    }
+	}
+    }
+    else if (self->encoding->ascii_compatible) {
+	const char line_feed = 0x0A, carriage_return = 0x0D;
+	for (long i = start_offset_in_bytes; i < self->length_in_bytes; ++i) {
+	    char c = self->data.bytes[i];
+	    if (c == line_feed) {
+		boundaries.start_offset_in_bytes = i;
+		boundaries.end_offset_in_bytes = i+1;
+		return boundaries;
+	    }
+	    else if (c == carriage_return) {
+		boundaries.start_offset_in_bytes = i;
+		if ((i+1 < self->length_in_bytes) && (self->data.bytes[i+1] == line_feed)) {
+		    boundaries.end_offset_in_bytes = i+2;
+		}
+		else {
+		    boundaries.end_offset_in_bytes = i+1;
+		}
+		return boundaries;
+	    }
+	}
+    }
+    else if (UTF32_ENC(self->encoding)) {
+	int32_t line_feed, carriage_return;
+	if (NATIVE_UTF32_ENC(self->encoding)) {
+	    line_feed = 0x0A;
+	    carriage_return = 0x0D;
+	}
+	else {
+	    line_feed = 0x0A000000;
+	    carriage_return = 0x0D000000;
+	}
+	long start_offset = start_offset_in_bytes / 4;
+	long length = self->length_in_bytes / 4;
+	for (long i = start_offset; i < length; ++i) {
+	    int32_t c = ((int32_t *)self->data.bytes)[i];
+	    if (c == line_feed) {
+		boundaries.start_offset_in_bytes = i * 4;
+		boundaries.end_offset_in_bytes = (i+1) * 4;
+		return boundaries;
+	    }
+	    else if (c == carriage_return) {
+		boundaries.start_offset_in_bytes = i * 4;
+		if ((i+1 < length) && (((int32_t *)self->data.bytes)[i+1] == line_feed)) {
+		    boundaries.end_offset_in_bytes = (i+2) * 4;
+		}
+		else {
+		    boundaries.end_offset_in_bytes = (i+1) * 4;
+		}
+		return boundaries;
+	    }
+	}
+    }
+    else {
+	abort(); // we should never get there
+    }
+
+    return boundaries;
+}
+*/
+
 static rb_str_t *
 str_get_characters(rb_str_t *self, long first, long last, bool ucs2_mode)
 {
