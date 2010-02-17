@@ -39,6 +39,7 @@ void Init_ext(void);
 void Init_PreGC(void);
 void Init_PreVM(void);
 void Init_PreGCD(void);
+void Init_PreEncoding(void);
 
 bool ruby_dlog_enabled = false;
 FILE *ruby_dlog_file = NULL;
@@ -72,9 +73,10 @@ ruby_init(void)
 	}
     }
 
-    Init_PreGC();
-    Init_PreVM();
-    Init_PreGCD();
+    Init_PreGC(); 	// requires nothing
+    Init_PreVM(); 	// requires nothing
+    Init_PreGCD(); 	// requires nothing
+    Init_PreEncoding(); // requires rb_cEncoding, GC
 
     rb_call_inits();
     ruby_prog_init();

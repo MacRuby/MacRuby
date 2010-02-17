@@ -2452,7 +2452,7 @@ rb_reg_preprocess(const char *p, const char *end, rb_encoding *enc,
     buf = rb_str_buf_new(0);
 
     *fixed_enc = 0;
-    if (rb_enc_asciicompat(enc))
+    if (true) //rb_enc_asciicompat(enc))
         *fixed_enc = 0;
     else {
         *fixed_enc = enc;
@@ -3329,7 +3329,7 @@ rb_reg_s_union(VALUE self, VALUE args0)
 	    v = rb_check_regexp_type(e);
 	    if (!NIL_P(v)) {
                 rb_encoding *enc = rb_enc_get(v);
-                if (!rb_enc_asciicompat(enc)) {
+                if (false) {//!rb_enc_asciicompat(enc)) {
                     if (!has_ascii_incompat)
                         has_ascii_incompat = enc;
                     else if (has_ascii_incompat != enc)

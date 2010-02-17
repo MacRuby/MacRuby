@@ -211,6 +211,8 @@ str_replace_with_bytes(rb_str_t *self, const char *bytes, long len,
 	rb_encoding_t *enc)
 {
     assert(len >= 0);
+    assert(enc != NULL);
+
     self->flags = 0;
     self->encoding = enc;
     self->capacity_in_bytes = self->length_in_bytes = len;
@@ -1328,10 +1330,12 @@ Init_String(void)
     rb_cNSMutableString = (VALUE)objc_getClass("NSMutableString");
     assert(rb_cNSMutableString != 0);
 
-    rb_cRubyString = rb_define_class("String", rb_cNSMutableString);
+    // rb_cRubyString is defined earlier in Init_PreVM().
+    rb_set_class_path(rb_cRubyString, rb_cObject, "String");
+    rb_const_set(rb_cObject, rb_intern("String"), rb_cRubyString);
+
     rb_objc_define_method(*(VALUE *)rb_cRubyString, "alloc",
 	mr_str_s_alloc, 0);
-
     rb_objc_define_method(rb_cRubyString, "initialize", mr_str_initialize, -1);
     rb_objc_define_method(rb_cRubyString, "initialize_copy", mr_str_replace, 1);
     rb_objc_define_method(rb_cRubyString, "replace", mr_str_replace, 1);
@@ -1372,6 +1376,10 @@ Init_String(void)
     rb_fs = Qnil;
     rb_define_variable("$;", &rb_fs);
     rb_define_variable("$-F", &rb_fs);
+
+    // rb_cSymbol is defined earlier in Init_PreVM().
+    rb_set_class_path(rb_cSymbol, rb_cObject, "Symbol");
+    rb_const_set(rb_cObject, rb_intern("Symbol"), rb_cSymbol);
 }
 
 bool
@@ -1422,7 +1430,8 @@ VALUE
 bstr_new_with_data(const uint8_t *bytes, long len)
 {
     rb_str_t *str = str_alloc(rb_cRubyString);
-    str_replace_with_bytes(str, (char *)bytes, len, ENCODING_BINARY);
+    str_replace_with_bytes(str, (char *)bytes, len,
+	    rb_encodings[ENCODING_BINARY]);
     return (VALUE)str;
 }
 
@@ -1469,7 +1478,7 @@ rb_enc_str_new(const char *cstr, long len, rb_encoding_t *enc)
 VALUE
 rb_str_new(const char *cstr, long len)
 {
-    return rb_enc_str_new(cstr, len, ENCODING_BINARY);
+    return rb_enc_str_new(cstr, len, rb_encodings[ENCODING_BINARY]);
 }
 
 VALUE
@@ -1662,7 +1671,7 @@ rb_enc_str_buf_cat(VALUE str, const char *cstr, long len, rb_encoding_t *enc)
 VALUE
 rb_str_buf_cat(VALUE str, const char *cstr, long len)
 {
-    return rb_enc_str_buf_cat(str, cstr, len, ENCODING_BINARY);
+    return rb_enc_str_buf_cat(str, cstr, len, rb_encodings[ENCODING_BINARY]);
 }
 
 VALUE
@@ -1750,6 +1759,9 @@ rb_str_dup(VALUE str)
 {
     if (IS_RSTR(str)) {
 	return (VALUE)str_dup(str);
+    }
+    if (TYPE(str) == T_SYMBOL) {
+	return rb_str_new2(RSYMBOL(str)->str);
     }
     abort(); // TODO
 }

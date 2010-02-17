@@ -4922,6 +4922,14 @@ Init_PreVM(void)
     assert(m != NULL);
     old_resolveInstanceMethod_imp = method_getImplementation(m);
     method_setImplementation(m, (IMP)resolveInstanceMethod_imp);
+
+    // Early define some classes.
+    rb_cSymbol = rb_objc_create_class("Symbol",
+	    (VALUE)objc_getClass("NSString"));
+    rb_cEncoding = rb_objc_create_class("Encoding",
+	    (VALUE)objc_getClass("NSObject"));
+    rb_cRubyString = rb_objc_create_class("String",
+	    (VALUE)objc_getClass("NSMutableString"));
 }
 
 static VALUE

@@ -99,8 +99,8 @@ INSTALL_NAME = File.join(FRAMEWORK_USR_LIB, 'lib' + RUBY_SO_NAME + '.dylib')
 ARCHFLAGS = ARCHS.map { |a| '-arch ' + a }.join(' ')
 LLVM_MODULES = "core jit nativecodegen bitwriter"
 
-CC = '/usr/bin/gcc'
-CXX = '/usr/bin/g++'
+CC = '/usr/bin/gcc-4.2'
+CXX = '/usr/bin/g++-4.2'
 CFLAGS = "-I. -I./include -I./onig -I/usr/include/libxml2 #{ARCHFLAGS} -fno-common -pipe -O3 -g -Wall -fexceptions"
 CFLAGS << " -I./unicode" # TODO use /usr/local/include/unicode on FNI installs...
 CFLAGS << " -Wno-parentheses -Wno-deprecated-declarations -Werror" if NO_WARN_BUILD

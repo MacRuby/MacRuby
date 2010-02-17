@@ -216,16 +216,12 @@ add_encoding(
 	default:
 	    abort();
     }
-
-    // create constants
-    define_encoding_constant(public_name, encoding);
-    for (unsigned int i = 0; i < aliases_count; ++i) {
-	define_encoding_constant(aliases[i], encoding);
-    }
 }
 
-static void
-create_encodings(void)
+// This Init function is called very early. Do not use any runtime method
+// because things may not be initialized properly yet.
+void
+Init_PreEncoding(void)
 {
     add_encoding(ENCODING_BINARY,    ENCODING_TYPE_SPECIAL, "ASCII-8BIT",  1, true,  true,  "BINARY", NULL);
     add_encoding(ENCODING_ASCII,     ENCODING_TYPE_UCNV,    "US-ASCII",    1, true,  true,  "ASCII", "ANSI_X3.4-1968", "646", NULL);
@@ -251,7 +247,10 @@ mr_enc_s_is_compatible(VALUE klass, SEL sel, VALUE str1, VALUE str2);
 void
 Init_Encoding(void)
 {
-    rb_cEncoding = rb_define_class("Encoding", rb_cObject);
+    // rb_cEncoding is defined earlier in Init_PreVM().
+    rb_set_class_path(rb_cEncoding, rb_cObject, "Encoding");
+    rb_const_set(rb_cObject, rb_intern("Encoding"), rb_cEncoding);
+
     rb_undef_alloc_func(rb_cEncoding);
 
     rb_objc_define_method(rb_cEncoding, "to_s", mr_enc_name, 0);
@@ -283,7 +282,14 @@ Init_Encoding(void)
     //rb_define_singleton_method(rb_cEncoding, "default_internal=", set_default_internal, 1);
     //rb_define_singleton_method(rb_cEncoding, "locale_charmap", rb_locale_charmap, 0);
 
-    create_encodings();
+    // Create constants.
+    for (unsigned int i = 0; i < ENCODINGS_COUNT; i++) {
+	rb_encoding_t *enc = rb_encodings[i];
+	define_encoding_constant(enc->public_name, enc);
+	for (unsigned int j = 0; j < enc->aliases_count; j++) {
+	    define_encoding_constant(enc->aliases[j], enc);
+	}
+    }
 }
 
 // MRI C-API compatibility.

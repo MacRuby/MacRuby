@@ -9341,7 +9341,6 @@ Init_sym(void)
     global_symbols.id_str = CFDictionaryCreateMutable(NULL,
 	0, NULL, NULL);
     GC_ROOT(&global_symbols.id_str);
-    rb_cSymbol = rb_objc_create_class("Symbol", (VALUE)objc_getClass("NSString"));
 #else
     global_symbols.sym_id = st_init_table_with_size(&symhash, 1000);
     global_symbols.id_str = st_init_numtable_with_size(1000);
@@ -9518,16 +9517,16 @@ rb_enc_symname2_p(const char *name, int len, rb_encoding *enc)
 static inline VALUE
 rsymbol_new(const char *name, const int len, ID id)
 {
-    VALUE sym;
+    assert(rb_cSymbol != 0);
 
-    sym = (VALUE)orig_malloc(sizeof(struct RSymbol));
-    RSYMBOL(sym)->str = orig_malloc(len + 1);
-    RSYMBOL(sym)->klass = rb_cSymbol;
-    strcpy(RSYMBOL(sym)->str, name);
-    RSYMBOL(sym)->len = len;
-    RSYMBOL(sym)->id = id;
+    struct RSymbol *sym = (struct RSymbol *)orig_malloc(sizeof(struct RSymbol));
+    sym->klass = rb_cSymbol;
+    sym->str = orig_malloc(len + 1);
+    strcpy(sym->str, name);
+    sym->len = len;
+    sym->id = id;
     
-    return sym;
+    return (VALUE)sym;
 }
 #endif
 
