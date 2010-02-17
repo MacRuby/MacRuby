@@ -2,39 +2,39 @@
 
 == Introduction
 
-This article explains how to use Grand Central Dispatch (*GCD*) from MacRuby, and is adapted from the article[http://developer.apple.com/mac/articles/cocoa/introblocksgcd.html] "Introducing Blocks and Grand Central Dispatch" at the Apple Developer Connection.
+This article explains how to use Grand Central Dispatch (*GCD*) from MacRuby, and is adapted from {Introducing Blocks and Grand Central Dispatch}[http://developer.apple.com/mac/articles/cocoa/introblocksgcd.html] at the {Apple Developer Connection}[http://developer.apple.com/].
 
 === About GCD
 	
-GCD is a revolutionary approach to multicore computing that is woven throughout the fabric of Mac OS X version 10.6 Snow Leopard. GCD combines an easy-to-use programming model with highly-efficient system services to radically simplify the code needed to make best use of multiple processors. The technologies in GCD improve the performance, efficiency, and responsiveness of Snow Leopard out of the box, and will deliver even greater benefits as more developers adopt them.
+GCD is a revolutionary approach to multicore computing that is woven throughout the fabric of {Mac OS X}[http://www.apple.com/macosx/] version 10.6 Snow Leopard. GCD combines an easy-to-use programming model with highly-efficient system services to radically simplify the code needed to make best use of multiple processors. The technologies in GCD improve the performance, efficiency, and responsiveness of Snow Leopard out of the box, and will deliver even greater benefits as more developers adopt them.
 
-The central insight of GCD is shifting the responsibility for managing threads and their execution from applications to the operating system. As a result, programmers can write less code to deal with concurrent operations in their applications, and the system can perform more efficiently on single-processor machines, large multiprocessor servers, and everything in between. Without a pervasive approach such as GCD, even the best-written application cannot deliver the best possible performance, because it doesn’t have full insight into everything else happening in the system. 
+The central insight of GCD is shifting the responsibility for managing threads and their execution from applications to the operating system. As a result, programmers can write less code to deal with concurrent operations in their applications, and the system can perform more efficiently on single-processor machines, large multiprocessor servers, and everything in between. Without a pervasive approach such as GCD, even the best-written application cannot deliver optimal performance, because it doesn’t have full insight into everything else happening in the system. 
 
 === The MacRuby Dispatch module
 
-GCD is natively implemented as a C API and runtime engine.  MacRuby 0.5 provides a Ruby wrapper around this API as part of the Dispatch module. This allows Ruby blocks to be scheduled on queues for asynchronous and concurrent execution either explicitly or in response to various kinds of events, with GCD automatically mapping queues to threads as needed.  The Dispatch module provides four primary abstractions that mirror the C API:
+GCD is natively implemented as a C API and runtime engine.  MacRuby 0.5 introduces a new "Dispatch" module, which provides a Ruby wrapper around that API. This allows Ruby blocks to be scheduled on queues for asynchronous and concurrent execution either explicitly or in response to various kinds of events, with GCD automatically mapping queues to threads as needed.  The Dispatch module provides four primary abstractions that mirror the C API:
 
-Dispatch::Queue: The basic unit for organizing blocks. Several queues are created by default, and applications may create additional queues for their own use.
+Dispatch::Queue:: The basic unit for organizing blocks. Several queues are created by default, and applications may create additional queues for their own use.
 
-Dispatch::Group: Allows applications to track the progress of blocks submitted to queues and take action when the blocks complete.
+Dispatch::Group:: Allows applications to track the progress of blocks submitted to queues and take action when the blocks complete.
 
-Dispatch::Source: Monitors and coalesces low-level system events so that they can be responded to asynchronously via simple event handlers.
+Dispatch::Source:: Monitors and coalesces low-level system events so that they can be responded to asynchronously via simple event handlers.
 
-Dispatch::Semaphore: Synchronizes threads via a combination of waiting and signalling.
+Dispatch::Semaphore:: Synchronizes threads via a combination of waiting and signalling.
 
 In addition, MacRuby 0.6 provides additional, higher-level abstractions and convenience APIs via the "dispatch" library (i.e., +require 'dispatch'+).
 
 === What You Need
 
-As the MacRuby 0.6 features help reduce the learning curve for GCD, we will assume those for the remainder of this article.  Note that MacRuby 0.6 is currently (as of Feb 2010) only available via source[http://www.macruby.org/source.html] or the nightly[http://www.icoretech.org/2009/09/macruby-nightlies/] builds.
+As the MacRuby 0.6 features help reduce the learning curve for GCD, we will assume those for the remainder of this article.  Note that MacRuby 0.6 is currently (as of Feb 2010) only available via the source[http://www.macruby.org/source.html] or the {nightly builds}[http://www.icoretech.org/2009/09/macruby-nightlies/].
 
-We also assume that you are already familiar with Ruby, though not necessarily MacRuby. No prior knowledge of C or GCD is assumed or required, but the dispatch(3)[http://developer.apple.com/mac/library/DOCUMENTATION/Darwin/Reference/ManPages/man3/dispatch.3.html] man pages may be helpful if you wish to better understand the underlying semantics.
+We also assume that you are already familiar with Ruby, though not necessarily MacRuby. No prior knowledge of C or GCD is assumed or required, but the {dispatch(3) man page}[http://developer.apple.com/mac/library/DOCUMENTATION/Darwin/Reference/ManPages/man3/dispatch.3.html] may be helpful if you wish to better understand the underlying semantics.
 
 == Invocation
 
-=== async
+=== Dispatch.async
 
-The most basic method is +Dispatch.async+, which allows you to perform work asynchronously in the background:
+The most basic method is +async+, which allows you to perform work asynchronously in the background:
 
 	require 'dispatch'
 	Dispatch.async { p "Do this later" }
@@ -56,7 +56,7 @@ The one caveat is that since the block may run at a later time, local (dynamic) 
 	Dispatch.async { filename = "/etc/shell" }
 	p filename # => "/etc/group"
 
-In practice this is not a significant limitation, since it only copies the variable -- not the object itself. Thus, operations that mutate the underlying object (vs. those that reassign the variable) behave as expected:
+In practice this is not a significant limitation, since it only copies the variable -- not the object itself. Thus, operations that mutate (i.e., modify in place) the underlying object (vs. those that reassign the variable) behave as expected:
 
 	ary = ["/etc/passwd"]
 	Dispatch.async { ary << "/etc/shell" }
@@ -76,10 +76,10 @@ When in doubt, simply use instance or global variables (e.g., anything with a si
 	Dispatch.async { @ary += ["/etc/shell"] }
 	p @ary # => ["/etc/passwd", "/etc/shell"]
 
-=== group
+=== Dispatch.group
 
-You may have noticed above that we couldn't tell when that asynchronous block had finished executing.
-Let's remedy that by instead using +Dispatch.group+:
+You may have noticed above that we couldn't tell when the asynchronous block had finished executing.
+Let's remedy that by instead using +group+:
 
 	g = Dispatch.group { p "Do this in a group" }
 
@@ -87,7 +87,11 @@ This asynchronously dispatches that block in connection with a +Dispatch::Group+
 
 	Dispatch.group(g) { p "Group me too" }
 
-The group tracks execution of all associated blocks.  You can simply wait until they have all finished executing by calling +join+:
+The group tracks execution of all associated blocks.
+		
+==== Group#join
+
+You can simply wait until they have all finished executing by calling +join+:
 
 	g.join # => "Do this in a group" "Group me too"
 
@@ -97,26 +101,30 @@ However, this usage halts the current thread, which is bad form in the GCD unive
 
 This version returns immediately, as good Dispatch objects should, but only prints out when the group has completed.
 
-=== fork
+=== Dispatch.fork
 
-That's all well and good, but what if you want to know the return value of that block? Use +Dispatch.fork+: 
+That's all well and good, but what if you want to know the return value of that block? Use +fork+: 
 
 	f = Dispatch.fork {  Math.sqrt(10**100) }
 	
 This creates and returns a +Dispatch::Future+ that not only runs the block asynchronously in the background, it captures the return value. Like +Dispatch.async+, you can also specify a priority:
 
 	f = Dispatch.fork(:low) {  Math.sqrt(10**100) }
+	
+==== Future#join
 
 Like +Dispatch::Group+, you can use +join+ to track when it is finished, either synchronously or asynchronously:
 
 	f.join # waits
 	f.join { p "The future is here" } # notifies you when it is done
-	
-But more importantly, you can ask it for the block's return value, just like an instance of +Thread+:
+
+==== Future#value
+
+More importantly, you can ask a +Future+ for the block's return value, just like an instance of +Thread+:
 
 	f.value # => 1.0e+50
 	
-As you might've guessed, this will wait until the Future has executed before returning the value. While this ensures a valid result, it is bad GCD karma, so as usual you can instead get it asynchronously via a callback:
+As you might've guessed, this will wait until the Future has executed before returning the value. While this ensures a valid result, it is bad GCD karma, so as usual you can instead get the value asynchronously via a callback:
 
 f.value {|v| p "Hey, I got #{v} back!" }
 
@@ -124,41 +132,103 @@ f.value {|v| p "Hey, I got #{v} back!" }
 
 Those of you who have done multithreaded programming in other languages may have (rightly!) shuddered at the early mention of mutating an object asynchronously, as that could lead to data corruption when done from multiple threads:
 
-	ary = ["/etc/passwd"]
+	s = "/etc/passwd"
 	# NEVER do this
-	Dispatch.async { ary << "/etc/shell" }
-	Dispatch.async { ary << "/etc/group" }
+	Dispatch.async { s.gsub!("passwd", "shell") }
+	Dispatch.async { s.gsub!("passwd", "group") }
+	s # => who knows? "/etc/shoup"?
 
-Because Ruby 1.8 had a global VM lock (or GIL[http://en.wikipedia.org/wiki/Global_Interpreter_Lock]), you never had to worry about issues like these, as everything was automatically serialized by the interpreter. True, this reduced the benefit of using multiple threads, but it also meant that Ruby developers didn't have to learn about locks[http://en.wikipedia.org/wiki/Lock_(computer_science)], mutexes[http://en.wikipedia.org/wiki/Mutual%20eclusion], deadlock[http://en.wikipedia.org/wiki/Deadlock], and priority inversion[http://en.wikipedia.org/wiki/Priority_inversion].
-
-Fortunately, even though MacRuby no longer has a global VM lock, you (mostly) still don't need to know about all those things, because GCD provides lock-free[http://en.wikipedia.org/wiki/Non-blocking_synchronization] synchronization via queues.
-
-= Under Construction = 
-
-=== queue
+Because Ruby 1.8 had a global VM lock (or GIL[http://en.wikipedia.org/wiki/Global_Interpreter_Lock]), you never had to worry about issues like these, as everything was automatically serialized by the interpreter. True, this reduced the benefit of using multiple threads, but it also meant that Ruby developers didn't have to learn about locks[http://en.wikipedia.org/wiki/Lock_(computer_science)], mutexes[http://en.wikipedia.org/wiki/Mutual%20eclusion], deadlock[http://en.wikipedia.org/wiki/Deadlock], and {priority inversion}[http://en.wikipedia.org/wiki/Priority_inversion].
 
 
-	puts "\n Use Dispatch.queue_for to create a private serial queue"
-	puts "  - synchronizes access to shared data structures"
-	a = Array.new
-	q = Dispatch.queue_for(a)
-	puts "  - has a (mostly) unique name:"
-	p q
-	q.async { a << "change me"  }
-	puts "  - uses sync to block and flush queue"
-	q.sync { p a }
+=== Dispatch::Queue
 
-	puts "\n Use with a group for more complex dependencies, "
-	q.async(g) { a << "more change"  }
-	Dispatch.group(g) do 
-	 tmp = "complex calculation"
-	 q.async(g) { a << tmp }
+Fortunately, even though MacRuby no longer has a global VM lock, you (mostly) still don't need to know about all those things, because GCD provides {lock-free synchronization}[http://en.wikipedia.org/wiki/Non-blocking_synchronization] via serial queues. In contrast to the _concurrent_ queues GCD automatically creates for every process ("global"), the queues you create yourself ("private") are _serial_ -- that is, they only run one block at a time. 
+
+==== Dispatch.queue
+
+Instead of locks, simply create a serial queue for each object you need to protect using the +queue+ method:
+
+	s = "/etc/passwd"
+	q_s = Dispatch.queue(s)
+	# => Dispatch.comparable.nsstring.nsmutablestring.8592077600.1266360156.88218
+	q_s.class # => Dispatch::Queue
+	
+That long funny-looking string is the queue's +label+, and is a (relatively) unique combination of the passed object's class, id, and creation time.  It is useful for debugging, as it is displayed in log messages and the {Dispatch  Instrument}[http://developer.apple.com/iPhone/library/documentation/DeveloperTools/Conceptual/InstrumentsUserGuide/Built-InInstruments/Built-InInstruments.html#//apple_ref/doc/uid/TP40004652-CH6-SW41].
+
+==== Queue#async
+
+To access a serial queue, call +async+ on that instead of the Dispatch module:
+
+	q_s.async { s.gsub!("passwd", "shell") }
+	q_s.async { s.gsub!("passwd", "group") }
+	
+In fact, +Dispatch.async(priority)+ is really just a convenience function wrapping:
+	
+	Dispatch::Queue.concurrent(priority).async
+
+where +Dispatch::Queue.concurrent+ returns the global concurrent queue for a given priority.
+
+==== Queue#sync
+
+But wait, how do we know when that work has been completed? By calling +async+'s synchronous cousin, +sync+:
+
+	q.sync { p s } # => "/etc/shell", since that always runs first
+
+Because serial queues process each block in the order it was received, calling +sync+ after a series of +async+ calls ensures that everything has completed. It is important to only call +sync+ when absolutely necessary, though, as it stops the current thread and thus increases the risk of deadlock, priority inversion, and all the other scary things I said you didn't need to worry about.
+
+==== Group#new
+
+Of course, using a serial queue alone isn't very interesting, as it doesn't provide any concurrency.  The real power comes from using concurrent queues to do the computationally-intensive work, and serial queues to safely save the results to a shared data structure. The easiest way to do this is by creating and passing an explicit +Group+ object, which can be used as a parameter to +Queue#async+:
+
+	@sum = 0
+	q_sum = Dispatch.queue(@sum)
+	g = Dispatch::Group.new
+	Dispatch.async(g) do
+		v1 = Math.sqrt(10**100)
+		q_sum.async(g) { @sum += v1 }
 	end
-	puts "  - uses notify to execute block when done"
-	g.notify(q) { p a }
-	q.sync {}
+	Dispatch.async(g) do
+		v2 = Math.sqrt(10**1000)
+		q_sum.async(g) { @sum += v2 }
+	end
 
-=== wrap
+	g.join { p @sum }
+
+The invocations nest, so Group#join won't return until +q_sum.async(g)+ has completed, even if it hadn't yet been submitted.
+
+=== Dispatch::Actor
+
+This pattern of associating a queue with an object is so common and powerful it even has a name: the {Actor model}[http://en.wikipedia.org/wiki/Actor_model].  MacRuby provides a +Dispatch::Actor+ class that uses SimpleDelegator[http://ruby-doc.org/stdlib/libdoc/delegate/rdoc/index.html] to guard access to any object, so that all invocations automatically occur (asynchronously!) on a private serial queue.
+	
+==== Dispatch.wrap
+
+The simplest way to turn an object into an actor is with the +wrap+ method:
+
+	s = "/etc/passwd"
+	a_s = Dispatch.wrap(s)
+
+That's it!  Now just use +a_s+ instead of +s+, and watch as everything gets magically serialized:
+
+	# Do this as much as you like
+	Dispatch.async { a_s.gsub!("passwd", "shell") }
+	Dispatch.async { a_s.gsub!("passwd", "group") }
+
+As a convenience, you can also pass it a class, and it will create and wrap an instance:
+
+	ary = Dispatch.wrap(Array)
+	
+=== Actor#__with__(group)
+	
+All invocations on an Actor occur asynchronously. To keep track of them, pass it a group using the intrinsic (non-delegated) method +__with__+:
+
+	g = Dispatch::Group.new
+	ary.__with__(g)
+	Dispatch.async(g) { ary << Math.sqrt(10**100) }
+	Dispatch.async(g) { ary << Math.sqrt(10**1000) }
+	g.join { p ary.to_s }
+
+
 
 	puts "\n Use Dispatch.wrap to serialize object using an Actor"
 	b = Dispatch.wrap(Array)

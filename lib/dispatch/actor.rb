@@ -24,11 +24,9 @@ module Dispatch
       self
     end
 
-    # Specify the +group+ for both private async requests
-    def _with_(group)
-      @group = group
-      self
-      # => self to allow chaining
+    # Specify or return a +group+ for private async requests
+    def __group__(group=nil)
+      @group = group  || Group.new
     end
 
     # Wait until the internal private queue has completed pending executions

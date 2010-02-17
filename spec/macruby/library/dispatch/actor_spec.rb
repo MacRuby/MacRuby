@@ -102,11 +102,11 @@ if MACOSX_VERSION >= 10.6
       end
     end
 
-    describe :_with_ do
-      it "should specify group used for actee async" do
+    describe :__group__ do
+      it "should specify or create group used for actee async" do
         $global = 0
-        g = Dispatch::Group.new
-        @actor._with_(g).delay_set(42)
+        g = @actor.__group__
+        @actor.delay_set(42)
         $global.should == 0
         g.wait
         $global.should == 42      
