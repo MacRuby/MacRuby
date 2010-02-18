@@ -102,8 +102,17 @@ LLVM_MODULES = "core jit nativecodegen bitwriter"
 CC = '/usr/bin/gcc-4.2'
 CXX = '/usr/bin/g++-4.2'
 CFLAGS = "-I. -I./include -I./onig -I/usr/include/libxml2 #{ARCHFLAGS} -fno-common -pipe -O3 -g -Wall -fexceptions"
-CFLAGS << " -I./unicode" # TODO use /usr/local/include/unicode on FNI installs...
 CFLAGS << " -Wno-parentheses -Wno-deprecated-declarations -Werror" if NO_WARN_BUILD
+if `sw_vers -productVersion`.to_f <= 10.6
+  CFLAGS << " -I./icu-1060"
+else
+  if File.exist?('/usr/local/include/unicode')
+    CFLAGS << " -I/usr/local/include"
+  else
+    $stderr.puts "Cannot locate ICU headers for this version of Mac OS X."
+    exit 1
+  end
+end
 OBJC_CFLAGS = CFLAGS + " -fobjc-gc-only"
 CXXFLAGS = `#{LLVM_CONFIG} --cxxflags #{LLVM_MODULES}`.sub(/-DNDEBUG/, '').strip
 CXXFLAGS << " -I. -I./include -g -Wall #{ARCHFLAGS}"
@@ -119,8 +128,6 @@ OBJC_CFLAGS << " -std=c99"
 OBJS_CFLAGS = {
   # Make sure everything gets inlined properly + compile as Objective-C++.
   'dispatcher' => '--param inline-unit-growth=10000 --param large-function-growth=10000 -x objective-c++',
-  # Disable optimizations to work around a silly bug.
-  're' => '-O0'
 }
 
 # We monkey-patch the method that Rake uses to display the tasks so we can add

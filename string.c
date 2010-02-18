@@ -661,11 +661,12 @@ str_get_character_boundaries(rb_str_t *self, long index, bool ucs2_mode)
     return boundaries;
 }
 
-/*
-static character_boundaries_t
-str_get_next_line_end_character_boundaries(rb_str_t *self, long start_offset_in_bytes)
+character_boundaries_t
+str_get_next_line_end_character_boundaries(rb_str_t *self,
+	long start_offset_in_bytes)
 {
-    character_boundaries_t boundaries = {self->length_in_bytes, self->length_in_bytes};
+    character_boundaries_t boundaries = {self->length_in_bytes,
+	self->length_in_bytes};
 
     if (start_offset_in_bytes >= self->length_in_bytes) {
 	return boundaries;
@@ -681,10 +682,10 @@ str_get_next_line_end_character_boundaries(rb_str_t *self, long start_offset_in_
 	    line_feed = 0x0A00;
 	    carriage_return = 0x0D00;
 	}
-	long start_offset = BYTES_TO_UCHARS(start_offset_in_bytes);
-	long length = BYTES_TO_UCHARS(self->length_in_bytes);
+	const long start_offset = BYTES_TO_UCHARS(start_offset_in_bytes);
+	const long length = BYTES_TO_UCHARS(self->length_in_bytes);
 	for (long i = start_offset; i < length; ++i) {
-	    UChar c = self->data.uchars[i];
+	    const UChar c = self->data.uchars[i];
 	    if (c == line_feed) {
 		boundaries.start_offset_in_bytes = UCHARS_TO_BYTES(i);
 		boundaries.end_offset_in_bytes = UCHARS_TO_BYTES(i+1);
@@ -705,7 +706,7 @@ str_get_next_line_end_character_boundaries(rb_str_t *self, long start_offset_in_
     else if (self->encoding->ascii_compatible) {
 	const char line_feed = 0x0A, carriage_return = 0x0D;
 	for (long i = start_offset_in_bytes; i < self->length_in_bytes; ++i) {
-	    char c = self->data.bytes[i];
+	    const char c = self->data.bytes[i];
 	    if (c == line_feed) {
 		boundaries.start_offset_in_bytes = i;
 		boundaries.end_offset_in_bytes = i+1;
@@ -713,7 +714,8 @@ str_get_next_line_end_character_boundaries(rb_str_t *self, long start_offset_in_
 	    }
 	    else if (c == carriage_return) {
 		boundaries.start_offset_in_bytes = i;
-		if ((i+1 < self->length_in_bytes) && (self->data.bytes[i+1] == line_feed)) {
+		if ((i+1 < self->length_in_bytes)
+			&& (self->data.bytes[i+1] == line_feed)) {
 		    boundaries.end_offset_in_bytes = i+2;
 		}
 		else {
@@ -733,8 +735,8 @@ str_get_next_line_end_character_boundaries(rb_str_t *self, long start_offset_in_
 	    line_feed = 0x0A000000;
 	    carriage_return = 0x0D000000;
 	}
-	long start_offset = start_offset_in_bytes / 4;
-	long length = self->length_in_bytes / 4;
+	const long start_offset = start_offset_in_bytes / 4;
+	const long length = self->length_in_bytes / 4;
 	for (long i = start_offset; i < length; ++i) {
 	    int32_t c = ((int32_t *)self->data.bytes)[i];
 	    if (c == line_feed) {
@@ -744,7 +746,8 @@ str_get_next_line_end_character_boundaries(rb_str_t *self, long start_offset_in_
 	    }
 	    else if (c == carriage_return) {
 		boundaries.start_offset_in_bytes = i * 4;
-		if ((i+1 < length) && (((int32_t *)self->data.bytes)[i+1] == line_feed)) {
+		if ((i+1 < length)
+			&& (((int32_t *)self->data.bytes)[i+1] == line_feed)) {
 		    boundaries.end_offset_in_bytes = (i+2) * 4;
 		}
 		else {
@@ -760,7 +763,6 @@ str_get_next_line_end_character_boundaries(rb_str_t *self, long start_offset_in_
 
     return boundaries;
 }
-*/
 
 static rb_str_t *
 str_get_characters(rb_str_t *self, long first, long last, bool ucs2_mode)
@@ -1120,6 +1122,48 @@ str_need_string(VALUE str)
     return str_new_from_cfstring((CFStringRef)str);
 }
 
+void
+str_get_uchars(VALUE str, UChar **chars_p, long *chars_len_p,
+	bool *need_free_p)
+{
+    assert(chars_p != NULL && chars_len_p != NULL && need_free_p != NULL);
+
+    UChar *chars = NULL;
+    long chars_len = 0;
+    bool need_free = false;
+
+    if (IS_RSTR(str)) {
+	if (str_try_making_data_uchars(RSTR(str))) {
+	    chars = RSTR(str)->data.uchars;
+	    chars_len = str_length(RSTR(str), false);
+	}
+	else {
+	    assert(BINARY_ENC(RSTR(str)->encoding));
+	    chars_len = RSTR(str)->length_in_bytes;
+	    if (chars_len > 0) {
+		chars = (UChar *)malloc(sizeof(UChar) * chars_len);
+		for (long i = 0; i < chars_len; i++) {
+		    chars[i] = RSTR(str)->data.bytes[i];
+		}
+		need_free = true;
+	    }
+	}
+    }
+    else {
+	chars_len = CFStringGetLength((CFStringRef)str);
+	if (chars_len > 0) {
+	    chars = (UChar *)malloc(sizeof(UChar) * chars_len);
+	    CFStringGetCharacters((CFStringRef)str, CFRangeMake(0, chars_len),
+		    chars);
+	    need_free = true;
+	}
+    }
+
+    *chars_p = chars;
+    *chars_len_p = chars_len;
+    *need_free_p = need_free;
+}
+
 //----------------------------------------------
 // Functions called by MacRuby
 
@@ -1444,12 +1488,8 @@ rstr_imp_characterAtIndex(void *rcv, SEL sel, CFIndex idx)
     if (str_try_making_data_uchars(RSTR(rcv))) {
 	return RSTR(rcv)->data.uchars[idx];
     }
-    else if (BINARY_ENC(RSTR(rcv)->encoding)) {
-	return RSTR(rcv)->data.bytes[idx];
-    }
-    else {
-	abort(); // TODO
-    }
+    assert(BINARY_ENC(RSTR(rcv)->encoding));
+    return RSTR(rcv)->data.bytes[idx];
 }
 
 void

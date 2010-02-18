@@ -21,7 +21,6 @@
 #include "ruby/signal.h"
 #include "ruby/st.h"
 #include "ruby/node.h"
-#include "ruby/re.h"
 #include "ruby/io.h"
 #include "ruby/util.h"
 #include "objc.h"

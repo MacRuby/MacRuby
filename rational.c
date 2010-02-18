@@ -8,7 +8,6 @@
 #include "ruby.h"
 #include <math.h>
 #include <float.h>
-#include "ruby/re.h"
 
 #ifdef HAVE_IEEEFP_H
 #include <ieeefp.h>

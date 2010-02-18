@@ -21,8 +21,8 @@
 #include "ruby/node.h"
 #include "ruby/st.h"
 #include "ruby/encoding.h"
+#include "encoding.h"
 #include "id.h"
-#include "regenc.h"
 #include <stdio.h>
 #include <errno.h>
 #include <ctype.h>
@@ -6100,6 +6100,7 @@ lvar_defined_gen(struct parser_params *parser, ID id)
 static int
 parser_encode_length(struct parser_params *parser, const char *name, int len)
 {
+#if 0
     int nlen;
 
     if (len > 5 && name[nlen = len - 5] == '-') {
@@ -6112,6 +6113,7 @@ parser_encode_length(struct parser_params *parser, const char *name, int len)
 	if (rb_memcicmp(name + nlen + 1, "mac", 3) == 0)
 	    return nlen;
     }
+#endif
     return len;
 }
 
@@ -9008,9 +9010,6 @@ dvar_curr_gen(struct parser_params *parser, ID id)
 	    vtable_included(lvtbl->vars, id));
 }
 
-VALUE rb_reg_compile(VALUE str, int options);
-VALUE rb_reg_check_preprocess(VALUE);
-
 static void
 reg_fragment_setenc_gen(struct parser_params* parser, VALUE str, int options)
 {
@@ -9067,6 +9066,7 @@ reg_fragment_check_gen(struct parser_params* parser, VALUE str, int options)
     }
 }
 
+#if 0
 typedef struct {
     struct parser_params* parser;
     rb_encoding *enc;
@@ -9113,10 +9113,14 @@ reg_named_capture_assign_iter(const OnigUChar *name, const OnigUChar *name_end,
         newline_node(node_assign(assignable(var,0), NEW_LIT(Qnil))));
     return ST_CONTINUE;
 }
+#endif
 
 static NODE *
 reg_named_capture_assign_gen(struct parser_params* parser, VALUE regexp, NODE *match)
 {
+    // TODO
+    return match;
+#if 0
     reg_named_capture_assign_t arg;
 
     arg.parser = parser;
@@ -9144,6 +9148,7 @@ reg_named_capture_assign_gen(struct parser_params* parser, VALUE regexp, NODE *m
                     newline_node(arg.fail_block),
                     newline_node(
                         NEW_LIT(Qnil)))));
+#endif
 }
 
 static VALUE

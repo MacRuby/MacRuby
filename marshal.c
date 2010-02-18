@@ -782,8 +782,9 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
 	  case T_REGEXP:
 	    w_uclass(obj, rb_cRegexp, arg);
 	    w_byte(TYPE_REGEXP, arg);
-	    w_bytes(RREGEXP(obj)->str, RREGEXP(obj)->len, arg);
-	    w_byte((char)rb_reg_options(obj), arg);
+	    // TODO    
+	    //w_bytes(RREGEXP(obj)->str, RREGEXP(obj)->len, arg);
+	    //w_byte((char)rb_reg_options(obj), arg);
 	    break;
 
 	  case T_ARRAY:

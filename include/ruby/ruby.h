@@ -785,15 +785,6 @@ struct RBignum {
 # define RFIXNUM(obj) (R_CAST(RFixnum)(obj))
 # define RSYMBOL(obj) (R_CAST(RSymbol)(obj))
 #endif
-#define RSTRING(obj) (R_CAST(RString)(obj))
-#define RREGEXP(obj) (R_CAST(RRegexp)(obj))
-#if !WITH_OBJC
-# define RCLASS(obj)  (R_CAST(RClass)(obj))
-# define RMODULE(obj) RCLASS(obj)
-# define RSTRING(obj) (R_CAST(RString)(obj))
-# define RARRAY(obj)  (R_CAST(RArray)(obj))
-# define RHASH(obj)   (R_CAST(RHash)(obj))
-#endif
 #define RDATA(obj)   (R_CAST(RData)(obj))
 #define RSTRUCT(obj) (R_CAST(RStruct)(obj))
 #define RBIGNUM(obj) (R_CAST(RBignum)(obj))

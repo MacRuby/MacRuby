@@ -17,8 +17,12 @@ extern "C" {
 #endif
 
 #include "ruby.h"
-#include <stdbool.h>
-#include "unicode/ustring.h"
+
+#if defined(__cplusplus)
+# include "unicode/unistr.h"
+#else
+# include "unicode/ustring.h"
+#endif
 
 #if __LITTLE_ENDIAN__
 #define ENCODING_UTF16_NATIVE ENCODING_UTF16LE
@@ -266,6 +270,11 @@ str_set_valid_encoding(rb_str_t *self, bool status)
     str_set_facultative_flag(self, status, STRING_VALID_ENCODING_SET,
 	    STRING_VALID_ENCODING);
 }
+
+VALUE rb_unicode_str_new(const UniChar *ptr, const size_t len);
+
+void str_get_uchars(VALUE str, UChar **chars_p, long *chars_len_p,
+	bool *need_free_p);
 
 // Return a string object appropriate for bstr_ calls. This does nothing for
 // data/binary RubyStrings.

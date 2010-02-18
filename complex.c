@@ -7,7 +7,6 @@
 
 #include "ruby.h"
 #include <math.h>
-#include "ruby/re.h"
 #include "ruby/node.h"
 #include "vm.h"
 #include "id.h"

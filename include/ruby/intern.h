@@ -505,6 +505,9 @@ int rb_range_values(VALUE range, VALUE *begp, VALUE *endp, int *exclp);
 unsigned int rb_genrand_int32(void);
 double rb_genrand_real(void);
 /* re.c */
+VALUE rb_reg_compile(VALUE str, int options);
+VALUE rb_reg_check_preprocess(VALUE);
+void rb_match_busy(VALUE match);
 #define rb_memcmp memcmp
 int rb_memcicmp(const void*,const void*,long);
 VALUE rb_reg_nth_defined(int, VALUE);
