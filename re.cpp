@@ -12,7 +12,6 @@
 
 #include "ruby/ruby.h"
 #include "encoding.h"
-#include "re.h"
 
 extern "C" {
 
