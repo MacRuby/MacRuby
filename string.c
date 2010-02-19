@@ -171,7 +171,7 @@ str_compatible_encoding(rb_str_t *str1, rb_str_t *str2)
 	    || !str2->encoding->ascii_compatible) {
 	return NULL;
     }
-    if (str_is_ruby_ascii_only(str1) && str_is_ruby_ascii_only(str2)) {
+    if (str_is_ruby_ascii_only(str2)) {
 	return str1->encoding;
     }
     return NULL;
