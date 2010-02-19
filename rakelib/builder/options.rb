@@ -103,16 +103,6 @@ CC = '/usr/bin/gcc-4.2'
 CXX = '/usr/bin/g++-4.2'
 CFLAGS = "-I. -I./include -I./onig -I/usr/include/libxml2 #{ARCHFLAGS} -fno-common -pipe -O3 -g -Wall -fexceptions"
 CFLAGS << " -Wno-parentheses -Wno-deprecated-declarations -Werror" if NO_WARN_BUILD
-if `sw_vers -productVersion`.to_f <= 10.6
-  CFLAGS << " -I./icu-1060"
-else
-  if File.exist?('/usr/local/include/unicode')
-    CFLAGS << " -I/usr/local/include"
-  else
-    $stderr.puts "Cannot locate ICU headers for this version of Mac OS X."
-    exit 1
-  end
-end
 OBJC_CFLAGS = CFLAGS + " -fobjc-gc-only"
 CXXFLAGS = `#{LLVM_CONFIG} --cxxflags #{LLVM_MODULES}`.sub(/-DNDEBUG/, '').strip
 CXXFLAGS << " -I. -I./include -g -Wall #{ARCHFLAGS}"
@@ -124,6 +114,16 @@ DLDFLAGS = "-dynamiclib -undefined suppress -flat_namespace -install_name #{INST
 DLDFLAGS << " -unexported_symbols_list #{UNEXPORTED_SYMBOLS_LIST}" if UNEXPORTED_SYMBOLS_LIST
 CFLAGS << " -std=c99" # we add this one later to not conflict with C++ flags
 OBJC_CFLAGS << " -std=c99"
+
+if `sw_vers -productVersion`.to_f <= 10.6
+  CFLAGS << " -I./icu-1060"
+  CXXFLAGS << " -I./icu-1060"
+else
+  if !File.exist?('/usr/local/include/unicode')
+    $stderr.puts "Cannot locate ICU headers for this version of Mac OS X."
+    exit 1
+  end
+end
 
 OBJS_CFLAGS = {
   # Make sure everything gets inlined properly + compile as Objective-C++.
