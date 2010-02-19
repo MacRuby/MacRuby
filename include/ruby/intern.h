@@ -514,6 +514,8 @@ VALUE rb_reg_nth_defined(int, VALUE);
 VALUE rb_reg_nth_match(int, VALUE);
 VALUE rb_reg_last_match(VALUE);
 VALUE rb_reg_match_last(VALUE);
+VALUE rb_reg_match_pre(VALUE);
+VALUE rb_reg_match_post(VALUE);
 #define HAVE_RB_REG_NEW_STR 1
 VALUE rb_reg_new_str(VALUE, int);
 VALUE rb_reg_new(const char *, long, int);

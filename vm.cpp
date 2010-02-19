@@ -3341,9 +3341,6 @@ class_respond_to(Class klass, SEL sel)
 }
 #endif
 
-extern "C" VALUE rb_reg_match_pre(VALUE match, SEL sel);
-extern "C" VALUE rb_reg_match_post(VALUE match, SEL sel);
-
 extern "C"
 VALUE
 rb_vm_get_special(char code)
@@ -3359,10 +3356,10 @@ rb_vm_get_special(char code)
 	    val = rb_reg_last_match(backref);
 	    break;
 	case '`':
-	    val = rb_reg_match_pre(backref, 0);
+	    val = rb_reg_match_pre(backref);
 	    break;
 	case '\'':
-	    val = rb_reg_match_post(backref, 0);
+	    val = rb_reg_match_post(backref);
 	    break;
 	case '+':
 	    val = rb_reg_match_last(backref);

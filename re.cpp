@@ -123,6 +123,16 @@ str_to_unistr(VALUE str)
     return unistr;
 }
 
+static VALUE
+unistr_subseq(UnicodeString *unistr, int beg, int len)
+{
+    assert(unistr != NULL);
+    assert(beg + len <= unistr->length());
+
+    const UChar *chars = unistr->getBuffer();
+    return rb_unicode_str_new(&chars[beg], len);
+}
+
 static bool
 init_from_string(rb_regexp_t *regexp, VALUE str, int option, VALUE *excp)
 {
@@ -186,6 +196,14 @@ rb_char_to_icu_option(int c, int *option)
 	    return true;
 	case 'm':
 	    *option = REGEXP_OPT_MULTILINE;
+	    return true;
+
+	// Stupid MRI encoding flags, let's ignore them for now.
+	case 'n':
+	case 'e':
+	case 'u':
+	case 's':
+	    *option = 0;
 	    return true;
     }
     *option = -1;
@@ -378,6 +396,7 @@ rb_reg_search(VALUE re, VALUE str, int pos, bool reverse)
     }
 
     if (!matcher->find()) {
+	delete unistr;
 	delete matcher;
 	rb_backref_set(Qnil);
 	return -1;
@@ -705,9 +724,6 @@ Init_Regexp(void)
 	    rb_reg_s_try_convert, 1);
 #endif
 
-    regexp_finalize_imp_super = rb_objc_install_method2((Class)rb_cRegexp,
-	    "finalize", (IMP)regexp_finalize_imp);
-
     rb_objc_define_method(rb_cRegexp, "initialize",
 	    (void *)regexp_initialize, -1);
     rb_objc_define_method(rb_cRegexp, "initialize_copy",
@@ -733,6 +749,9 @@ Init_Regexp(void)
 #endif
     rb_objc_define_method(rb_cRegexp, "inspect", (void *)regexp_inspect, 0);
 
+    regexp_finalize_imp_super = rb_objc_install_method2((Class)rb_cRegexp,
+	    "finalize", (IMP)regexp_finalize_imp);
+
     rb_define_const(rb_cRegexp, "IGNORECASE", INT2FIX(REGEXP_OPT_IGNORECASE));
     rb_define_const(rb_cRegexp, "EXTENDED", INT2FIX(REGEXP_OPT_EXTENDED));
     rb_define_const(rb_cRegexp, "MULTILINE", INT2FIX(REGEXP_OPT_MULTILINE));
@@ -740,36 +759,396 @@ Init_Regexp(void)
     Init_Match();
 }
 
-VALUE
-rb_reg_nth_match(int nth, VALUE match)
+static VALUE
+match_initialize_copy(VALUE rcv, SEL sel, VALUE other)
 {
-    if (NIL_P(match)) {
-	return Qnil;
+    if (TYPE(other) != T_MATCH) {
+	rb_raise(rb_eTypeError, "wrong argument type");
     }
-    if (nth >= RMATCH(match)->results_count) {
-	return Qnil;
+
+    match_finalize(RMATCH(rcv));
+
+    RMATCH(rcv)->unistr = new UnicodeString(*RMATCH(other)->unistr);
+    GC_WB(&RMATCH(rcv)->regexp, RMATCH(other)->regexp);
+
+    const long len = sizeof(rb_match_result_t) * RMATCH(other)->results_count;
+    rb_match_result_t *res = (rb_match_result_t *)xmalloc(len);
+    memcpy(res, RMATCH(other)->results, len);
+    GC_WB(&RMATCH(rcv)->results, res);
+
+    return rcv;
+}
+
+/*
+ * call-seq:
+ *    mtch.regexp   => regexp
+ *
+ * Returns the regexp.
+ *
+ *     m = /a.*b/.match("abc")
+ *     m.regexp #=> /a.*b/
+ */
+
+static VALUE
+match_regexp(VALUE rcv, SEL sel)
+{
+    assert(RMATCH(rcv)->regexp != NULL);
+    return (VALUE)RMATCH(rcv)->regexp;
+}
+
+/*
+ * call-seq:
+ *    mtch.names   => [name1, name2, ...]
+ *
+ * Returns a list of names of captures as an array of strings.
+ * It is same as mtch.regexp.names.
+ *
+ *     /(?<foo>.)(?<bar>.)(?<baz>.)/.match("hoge").names
+ *     #=> ["foo", "bar", "baz"]
+ *
+ *     m = /(?<x>.)(?<y>.)?/.match("a") #=> #<MatchData "a" x:"a" y:nil>
+ *     m.names                          #=> ["x", "y"]
+ */
+
+static VALUE
+match_names(VALUE rcv, SEL sel)
+{
+    // TODO
+    return rb_ary_new();
+}
+
+/*
+ *  call-seq:
+ *     mtch.length   => integer
+ *     mtch.size     => integer
+ *
+ *  Returns the number of elements in the match array.
+ *
+ *     m = /(.)(.)(\d+)(\d)/.match("THX1138.")
+ *     m.length   #=> 5
+ *     m.size     #=> 5
+ */
+
+static VALUE
+match_size(VALUE rcv, SEL sel)
+{
+    return INT2FIX(RMATCH(rcv)->results_count);
+}
+
+/*
+ *  call-seq:
+ *     mtch.offset(n)   => array
+ *
+ *  Returns a two-element array containing the beginning and ending offsets of
+ *  the <em>n</em>th match.
+ *  <em>n</em> can be a string or symbol to reference a named capture.
+ *
+ *     m = /(.)(.)(\d+)(\d)/.match("THX1138.")
+ *     m.offset(0)      #=> [1, 7]
+ *     m.offset(4)      #=> [6, 7]
+ *
+ *     m = /(?<foo>.)(.)(?<bar>.)/.match("hoge")
+ *     p m.offset(:foo) #=> [0, 1]
+ *     p m.offset(:bar) #=> [2, 3]
+ *
+ */
+
+static int
+match_backref_number(VALUE match, VALUE backref, bool check)
+{
+    const char *name;
+
+    switch (TYPE(backref)) {
+	default:
+	    {
+		const int pos = NUM2INT(backref);
+		if (check) {
+		    if (pos < 0 || pos >= RMATCH(match)->results_count) {
+			rb_raise(rb_eIndexError,
+				"index %d out of matches", pos);
+		    }
+		}
+		return pos;
+	    }
+
+	case T_SYMBOL:
+	    name = rb_sym2name(backref);
+	    break;
+
+	case T_STRING:
+	    name = StringValueCStr(backref);
+	    break;
     }
-    if (nth < 0) {
-	nth += RMATCH(match)->results_count;
-	if (nth <= 0) {
-	    return Qnil;
+
+    // TODO
+    rb_raise(rb_eIndexError, "named captures are not yet supported");
+}
+ 
+static VALUE
+match_offset(VALUE rcv, SEL sel, VALUE backref)
+{
+    const int pos = match_backref_number(rcv, backref, true);
+    return rb_assoc_new(INT2FIX(RMATCH(rcv)->results[pos].beg),
+	    INT2FIX(RMATCH(rcv)->results[pos].end));
+}
+
+/*
+ *  call-seq:
+ *     mtch.begin(n)   => integer
+ *
+ *  Returns the offset of the start of the <em>n</em>th element of the match
+ *  array in the string.
+ *  <em>n</em> can be a string or symbol to reference a named capture.
+ *
+ *     m = /(.)(.)(\d+)(\d)/.match("THX1138.")
+ *     m.begin(0)       #=> 1
+ *     m.begin(2)       #=> 2
+ *
+ *     m = /(?<foo>.)(.)(?<bar>.)/.match("hoge")
+ *     p m.begin(:foo)  #=> 0
+ *     p m.begin(:bar)  #=> 2
+ */
+
+static VALUE
+match_begin(VALUE rcv, SEL sel, VALUE backref)
+{
+    const int pos = match_backref_number(rcv, backref, true);
+    return INT2FIX(RMATCH(rcv)->results[pos].beg);
+}
+
+/*
+ *  call-seq:
+ *     mtch.end(n)   => integer
+ *
+ *  Returns the offset of the character immediately following the end of the
+ *  <em>n</em>th element of the match array in the string.
+ *  <em>n</em> can be a string or symbol to reference a named capture.
+ *
+ *     m = /(.)(.)(\d+)(\d)/.match("THX1138.")
+ *     m.end(0)         #=> 7
+ *     m.end(2)         #=> 3
+ *
+ *     m = /(?<foo>.)(.)(?<bar>.)/.match("hoge")
+ *     p m.end(:foo)    #=> 1
+ *     p m.end(:bar)    #=> 3
+ */
+
+static VALUE
+match_end(VALUE rcv, SEL sel, VALUE backref)
+{
+    const int pos = match_backref_number(rcv, backref, true);
+    return INT2FIX(RMATCH(rcv)->results[pos].end);
+}
+
+/*
+ *  call-seq:
+ *     mtch.to_a   => anArray
+ *
+ *  Returns the array of matches.
+ *
+ *     m = /(.)(.)(\d+)(\d)/.match("THX1138.")
+ *     m.to_a   #=> ["HX1138", "H", "X", "113", "8"]
+ *
+ *  Because <code>to_a</code> is called when expanding
+ *  <code>*</code><em>variable</em>, there's a useful assignment
+ *  shortcut for extracting matched fields. This is slightly slower than
+ *  accessing the fields directly (as an intermediate array is
+ *  generated).
+ *
+ *     all,f1,f2,f3 = *(/(.)(.)(\d+)(\d)/.match("THX1138."))
+ *     all   #=> "HX1138"
+ *     f1    #=> "H"
+ *     f2    #=> "X"
+ *     f3    #=> "113"
+ */
+
+static VALUE
+match_array(VALUE match, int start)
+{
+    const int len = RMATCH(match)->results_count;
+    assert(start >= 0 && start < len);
+    const bool tainted = OBJ_TAINTED(match);
+
+    VALUE ary = rb_ary_new2(len);
+    for (int i = start; i < len; i++) {
+	VALUE str = rb_reg_nth_match(i, match);
+	if (tainted) {
+	    OBJ_TAINT(str);
 	}
+	rb_ary_push(ary, str);
+    }
+    return ary;
+}
+
+static VALUE
+match_to_a(VALUE rcv, SEL sel)
+{
+    return match_array(rcv, 0);
+}
+
+/*
+ *  call-seq:
+ *     mtch.captures   => array
+ *
+ *  Returns the array of captures; equivalent to <code>mtch.to_a[1..-1]</code>.
+ *
+ *     f1,f2,f3,f4 = /(.)(.)(\d+)(\d)/.match("THX1138.").captures
+ *     f1    #=> "H"
+ *     f2    #=> "X"
+ *     f3    #=> "113"
+ *     f4    #=> "8"
+ */
+
+static VALUE
+match_captures(VALUE rcv, SEL sel)
+{
+    return match_array(rcv, 1);
+}
+
+/*
+ *  call-seq:
+ *     mtch[i]               => str or nil
+ *     mtch[start, length]   => array
+ *     mtch[range]           => array
+ *     mtch[name]            => str or nil
+ *
+ *  Match Reference---<code>MatchData</code> acts as an array, and may be
+ *  accessed using the normal array indexing techniques.  <i>mtch</i>[0] is
+ *  equivalent to the special variable <code>$&</code>, and returns the entire
+ *  matched string.  <i>mtch</i>[1], <i>mtch</i>[2], and so on return the values
+ *  of the matched backreferences (portions of the pattern between parentheses).
+ *
+ *     m = /(.)(.)(\d+)(\d)/.match("THX1138.")
+ *     m          #=> #<MatchData "HX1138" 1:"H" 2:"X" 3:"113" 4:"8">
+ *     m[0]       #=> "HX1138"
+ *     m[1, 2]    #=> ["H", "X"]
+ *     m[1..3]    #=> ["H", "X", "113"]
+ *     m[-3, 2]   #=> ["X", "113"]
+ *
+ *     m = /(?<foo>a+)b/.match("ccaaab")
+ *     m          #=> #<MatchData "aaab" foo:"aaa">
+ *     m["foo"]   #=> "aaa"
+ *     m[:foo]    #=> "aaa"
+ */
+
+static VALUE
+match_aref(VALUE rcv, SEL sel, int argc, VALUE *argv)
+{
+    VALUE backref, rest;
+
+    rb_scan_args(argc, argv, "11", &backref, &rest);
+
+    if (NIL_P(rest)) {
+	const int pos = match_backref_number(rcv, backref, false);
+	return rb_reg_nth_match(pos, rcv);
     }
 
-    const int beg = RMATCH(match)->results[nth].beg;
-    const int len = RMATCH(match)->results[nth].end - beg;
+    return rb_ary_aref(match_to_a(rcv, 0), 0, argc, argv);
+}
 
-    UnicodeString *unistr = RMATCH(match)->unistr;
-    assert(unistr != NULL);
-    assert(beg + len <= unistr->length());
-    const UChar *chars = unistr->getBuffer();
-    return rb_unicode_str_new(&chars[beg], len);
+/*
+ *  call-seq:
+ *
+ *     mtch.values_at([index]*)   => array
+ *
+ *  Uses each <i>index</i> to access the matching values, returning an array of
+ *  the corresponding matches.
+ *
+ *     m = /(.)(.)(\d+)(\d)/.match("THX1138: The Movie")
+ *     m.to_a               #=> ["HX1138", "H", "X", "113", "8"]
+ *     m.values_at(0, 2, -2)   #=> ["HX1138", "X", "113"]
+ */
+
+static VALUE
+match_entry(VALUE match, long n)
+{
+    return rb_reg_nth_match(n, match);
+}
+
+static VALUE
+match_values_at(VALUE rcv, SEL sel, int argc, VALUE *argv)
+{
+    return rb_get_values_at(rcv, RMATCH(rcv)->results_count, argc, argv,
+	    match_entry);
+}
+
+/*
+ *  call-seq:
+ *     mtch.pre_match   => str
+ *
+ *  Returns the portion of the original string before the current match.
+ *  Equivalent to the special variable <code>$`</code>.
+ *
+ *     m = /(.)(.)(\d+)(\d)/.match("THX1138.")
+ *     m.pre_match   #=> "T"
+ */
+
+static VALUE
+match_pre(VALUE rcv, SEL sel)
+{
+    assert(RMATCH(rcv)->results_count > 0);
+
+    VALUE str = unistr_subseq(RMATCH(rcv)->unistr, 0,
+	    RMATCH(rcv)->results[0].beg);
+
+    if (OBJ_TAINTED(rcv)) {
+	OBJ_TAINT(str);
+    }
+    return str;
 }
 
 VALUE
-rb_reg_last_match(VALUE match)
+rb_reg_match_pre(VALUE rcv)
 {
-    return rb_reg_nth_match(0, match);
+    if (NIL_P(rcv)) {
+	return Qnil;
+    }
+    return match_pre(rcv, 0);
+}
+
+/*
+ *  call-seq:
+ *     mtch.post_match   => str
+ *
+ *  Returns the portion of the original string after the current match.
+ *  Equivalent to the special variable <code>$'</code>.
+ *
+ *     m = /(.)(.)(\d+)(\d)/.match("THX1138: The Movie")
+ *     m.post_match   #=> ": The Movie"
+ */
+
+static VALUE
+match_post(VALUE rcv, SEL sel)
+{
+    assert(RMATCH(rcv)->results_count > 0);
+
+    const int pos = RMATCH(rcv)->results[0].end;
+    VALUE str = unistr_subseq(RMATCH(rcv)->unistr, pos,
+	    RMATCH(rcv)->unistr->length() - pos);
+
+    if (OBJ_TAINTED(rcv)) {
+	OBJ_TAINT(str);
+    }
+    return str;
+}
+
+VALUE
+rb_reg_match_post(VALUE rcv)
+{
+    if (NIL_P(rcv)) {
+	return Qnil;
+    }
+    return match_post(rcv, 0);
+}
+
+VALUE
+rb_reg_match_last(VALUE rcv)
+{
+    if (NIL_P(rcv)) {
+	return Qnil;
+    }
+    assert(RMATCH(rcv)->results_count > 0);
+    return rb_reg_nth_match(RMATCH(rcv)->results_count - 1, rcv);
 }
 
 /*
@@ -791,6 +1170,34 @@ rb_reg_last_match(VALUE match)
  *     #=> #<MatchData "hog" foo:"h" bar:"o" baz:"g">
  *
  */
+
+VALUE
+rb_reg_nth_match(int nth, VALUE match)
+{
+    if (NIL_P(match)) {
+	return Qnil;
+    }
+    if (nth >= RMATCH(match)->results_count) {
+	return Qnil;
+    }
+    if (nth < 0) {
+	nth += RMATCH(match)->results_count;
+	if (nth <= 0) {
+	    return Qnil;
+	}
+    }
+
+    const int beg = RMATCH(match)->results[nth].beg;
+    const int len = RMATCH(match)->results[nth].end - beg;
+
+    return unistr_subseq(RMATCH(match)->unistr, beg, len);
+}
+
+VALUE
+rb_reg_last_match(VALUE match)
+{
+    return rb_reg_nth_match(0, match);
+}
 
 static VALUE
 match_inspect(VALUE rcv, SEL sel)
@@ -876,32 +1283,33 @@ static void
 Init_Match(void)
 {
     rb_cMatch = rb_define_class("MatchData", rb_cObject);
-    rb_objc_define_method(*(VALUE *)rb_cMatch, "alloc", (void *)match_alloc, 0);
     rb_undef_method(CLASS_OF(rb_cMatch), "new");
 
-    match_finalize_imp_super = rb_objc_install_method2((Class)rb_cMatch,
-	    "finalize", (IMP)match_finalize_imp);
-
-#if 0
-    rb_objc_define_method(rb_cMatch, "initialize_copy", match_init_copy, 1);
-    rb_objc_define_method(rb_cMatch, "regexp", match_regexp, 0);
-    rb_objc_define_method(rb_cMatch, "names", match_names, 0);
-    rb_objc_define_method(rb_cMatch, "size", match_size, 0);
-    rb_objc_define_method(rb_cMatch, "length", match_size, 0);
-    rb_objc_define_method(rb_cMatch, "offset", match_offset, 1);
-    rb_objc_define_method(rb_cMatch, "begin", match_begin, 1);
-    rb_objc_define_method(rb_cMatch, "end", match_end, 1);
-    rb_objc_define_method(rb_cMatch, "to_a", match_to_a, 0);
-    rb_objc_define_method(rb_cMatch, "[]", match_aref, -1);
-    rb_objc_define_method(rb_cMatch, "captures", match_captures, 0);
-    rb_objc_define_method(rb_cMatch, "values_at", match_values_at, -1);
-    rb_objc_define_method(rb_cMatch, "pre_match", rb_reg_match_pre, 0);
-    rb_objc_define_method(rb_cMatch, "post_match", rb_reg_match_post, 0);
-#endif
+    rb_objc_define_method(*(VALUE *)rb_cMatch, "alloc", (void *)match_alloc, 0);
+    rb_objc_define_method(rb_cMatch, "initialize_copy",
+	    (void *)match_initialize_copy, 1);
+    rb_objc_define_method(rb_cMatch, "regexp", (void *)match_regexp, 0);
+    rb_objc_define_method(rb_cMatch, "names", (void *)match_names, 0);
+    rb_objc_define_method(rb_cMatch, "size", (void *)match_size, 0);
+    rb_objc_define_method(rb_cMatch, "length", (void *)match_size, 0);
+    rb_objc_define_method(rb_cMatch, "offset", (void *)match_offset, 1);
+    rb_objc_define_method(rb_cMatch, "begin", (void *)match_begin, 1);
+    rb_objc_define_method(rb_cMatch, "end", (void *)match_end, 1);
+    rb_objc_define_method(rb_cMatch, "to_a", (void *)match_to_a, 0);
+    rb_objc_define_method(rb_cMatch, "captures", (void *)match_captures, 0);
+    rb_objc_define_method(rb_cMatch, "[]", (void *)match_aref, -1);
+    rb_objc_define_method(rb_cMatch, "values_at", (void *)match_values_at, -1);
+    rb_objc_define_method(rb_cMatch, "pre_match", (void *)match_pre, 0);
+    rb_objc_define_method(rb_cMatch, "post_match", (void *)match_post, 0);
     rb_objc_define_method(rb_cMatch, "to_s", (void *)match_to_s, 0);
     rb_objc_define_method(rb_cMatch, "string", (void *)match_string, 0);
     rb_objc_define_method(rb_cMatch, "inspect", (void *)match_inspect, 0);
+
+    match_finalize_imp_super = rb_objc_install_method2((Class)rb_cMatch,
+	    "finalize", (IMP)match_finalize_imp);
 }
+
+// MRI compatibility.
 
 VALUE
 rb_reg_check_preprocess(VALUE str)
@@ -935,24 +1343,6 @@ VALUE
 rb_reg_new(const char *cstr, long len, int options)
 {
     return rb_reg_new_str(rb_usascii_str_new(cstr, len), options);
-}
-
-VALUE
-rb_reg_match_last(VALUE match)
-{
-    return Qnil;
-}
-
-VALUE
-rb_reg_match_pre(VALUE match, SEL sel)
-{
-    return Qnil;
-}
-
-VALUE
-rb_reg_match_post(VALUE match, SEL sel)
-{
-    return Qnil;
 }
 
 void
