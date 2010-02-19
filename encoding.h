@@ -272,9 +272,9 @@ str_set_valid_encoding(rb_str_t *self, bool status)
 }
 
 VALUE rb_unicode_str_new(const UniChar *ptr, const size_t len);
-
-void str_get_uchars(VALUE str, UChar **chars_p, long *chars_len_p,
+void rb_str_get_uchars(VALUE str, UChar **chars_p, long *chars_len_p,
 	bool *need_free_p);
+long rb_str_chars_len(VALUE str);
 
 // Return a string object appropriate for bstr_ calls. This does nothing for
 // data/binary RubyStrings.

@@ -1123,7 +1123,7 @@ str_need_string(VALUE str)
 }
 
 void
-str_get_uchars(VALUE str, UChar **chars_p, long *chars_len_p,
+rb_str_get_uchars(VALUE str, UChar **chars_p, long *chars_len_p,
 	bool *need_free_p)
 {
     assert(chars_p != NULL && chars_len_p != NULL && need_free_p != NULL);
@@ -1886,13 +1886,19 @@ rb_to_id(VALUE name)
     }
 }
 
+long
+rb_str_chars_len(VALUE str)
+{
+    if (IS_RSTR(str)) {
+	return str_length(RSTR(str), true);
+    }
+    return CFStringGetLength((CFStringRef)str);
+}
+
 VALUE
 rb_str_length(VALUE str)
 {
-    if (IS_RSTR(str)) {
-	return mr_str_length(str, 0);
-    }
-    return INT2FIX(CFStringGetLength((CFStringRef)str));
+    return LONG2NUM(rb_str_chars_len(str));
 }
 
 VALUE
