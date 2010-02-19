@@ -266,7 +266,7 @@ str_replace_with_cfstring(rb_str_t *self, CFStringRef source)
 static void
 str_replace(rb_str_t *self, VALUE arg)
 {
-    if (IS_RSTR(arg)) {
+    if (!SPECIAL_CONST_P(arg) && IS_RSTR(arg)) {
 	str_replace_with_string(self, RSTR(arg));
     }
     else {
@@ -1110,7 +1110,7 @@ str_include_string(rb_str_t *self, rb_str_t *searched)
 static rb_str_t *
 str_need_string(VALUE str)
 {
-    if (IS_RSTR(str)) {
+    if (!SPECIAL_CONST_P(str) && IS_RSTR(str)) {
 	return (rb_str_t *)str;
     }
     if (TYPE(str) != T_STRING) {
