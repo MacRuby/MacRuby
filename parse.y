@@ -23,6 +23,7 @@
 #include "ruby/encoding.h"
 #include "encoding.h"
 #include "id.h"
+#include "re.h"
 #include <stdio.h>
 #include <errno.h>
 #include <ctype.h>
@@ -5626,23 +5627,19 @@ parser_tokadd_escape(struct parser_params *parser, rb_encoding **encp)
     return 0;
 }
 
-extern int rb_char_to_option_kcode(int c, int *option, int *kcode);
-
 static int
 parser_regx_options(struct parser_params *parser)
 {
-    int kcode = 0;
     int options = 0;
-    int c, opt, kc;
+    int c, opt;
 
     newtok();
     while (c = nextc(), ISALPHA(c)) {
         if (c == 'o') {
             options |= RE_OPTION_ONCE;
         }
-        else if (rb_char_to_option_kcode(c, &opt, &kc)) {
+	else if (rb_char_to_icu_option(c, &opt)) {
             options |= opt;
-	    if (kc >= 0) kcode = c;
         }
         else {
 	    tokadd(c);
@@ -5654,7 +5651,7 @@ parser_regx_options(struct parser_params *parser)
 	compile_error(PARSER_ARG "unknown regexp option%s - %s",
 		      toklen() > 1 ? "s" : "", tok());
     }
-    return options | RE_OPTION_ENCODING(kcode);
+    return options;
 }
 
 static void

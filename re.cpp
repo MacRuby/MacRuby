@@ -11,6 +11,7 @@
 #include "unicode/unistr.h"
 #include "ruby/ruby.h"
 #include "encoding.h"
+#include "objc.h"
 
 extern "C" {
 
@@ -42,20 +43,20 @@ typedef struct rb_match {
 #define RMATCH(o) ((rb_match_t *)o)
 
 static rb_regexp_t *
-regexp_alloc(void)
+regexp_alloc(VALUE klass, SEL sel)
 {
     NEWOBJ(re, struct rb_regexp);
-    OBJSETUP(re, rb_cRegexp, T_REGEXP);
+    OBJSETUP(re, klass, T_REGEXP);
     re->unistr = NULL;
     re->pattern = NULL;
     return re;
 }
 
 static rb_match_t *
-match_alloc(void)
+match_alloc(VALUE klass, SEL sel)
 {
     NEWOBJ(match, struct rb_match);
-    OBJSETUP(match, rb_cMatch, T_MATCH);
+    OBJSETUP(match, klass, T_MATCH);
     match->regexp = NULL;
     match->unistr = NULL;
     return match;
@@ -74,12 +75,34 @@ regexp_finalize(rb_regexp_t *regexp)
     }
 }
 
+static IMP regexp_finalize_imp_super = NULL; 
+
+static void
+regexp_finalize_imp(void *rcv, SEL sel)
+{
+    regexp_finalize(RREGEXP(rcv));
+    if (regexp_finalize_imp_super != NULL) {
+	((void(*)(void *, SEL))regexp_finalize_imp_super)(rcv, sel);
+    }
+}
+
 static void
 match_finalize(rb_match_t *match)
 {
     if (match->unistr != NULL) {
 	delete match->unistr;
 	match->unistr = NULL;
+    }
+}
+
+static IMP match_finalize_imp_super = NULL; 
+
+static void
+match_finalize_imp(void *rcv, SEL sel)
+{
+    match_finalize(RMATCH(rcv));
+    if (match_finalize_imp_super != NULL) {
+	((void(*)(void *, SEL))match_finalize_imp_super)(rcv, sel);
     }
 }
 
@@ -97,7 +120,6 @@ str_to_unistr(VALUE str)
     if (need_free && chars != NULL) {
 	free(chars);
     }
-
     return unistr;
 }
 
@@ -109,7 +131,7 @@ init_from_string(rb_regexp_t *regexp, VALUE str, int option, VALUE *excp)
 
     UParseError pe;
     UErrorCode status = U_ZERO_ERROR;
-    RegexPattern *pattern = RegexPattern::compile(*unistr, pe, status);
+    RegexPattern *pattern = RegexPattern::compile(*unistr, option, pe, status);
 
     if (pattern == NULL) {
 	delete unistr;
@@ -129,14 +151,71 @@ init_from_string(rb_regexp_t *regexp, VALUE str, int option, VALUE *excp)
     return true;
 }
 
-static VALUE
-rb_regexp_alloc(VALUE klass, SEL sel)
+static void
+init_from_regexp(rb_regexp_t *regexp, rb_regexp_t *from)
 {
-    return (VALUE)regexp_alloc();
+    regexp_finalize(regexp);
+    regexp->unistr = new UnicodeString(*from->unistr);
+    regexp->pattern = new RegexPattern(*from->pattern);
 }
 
 static VALUE
-rb_regexp_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
+rb_str_compile_regexp(VALUE str, int options, VALUE *excp)
+{
+    rb_regexp_t *regexp = regexp_alloc(rb_cRegexp, 0);
+    if (!init_from_string(regexp, str, options, excp)) {
+	return Qnil;
+    }
+    return (VALUE)regexp;
+}
+
+#define REGEXP_OPT_IGNORECASE 	(UREGEX_CASE_INSENSITIVE)
+#define REGEXP_OPT_EXTENDED 	(UREGEX_COMMENTS)
+#define REGEXP_OPT_MULTILINE	(UREGEX_MULTILINE | UREGEX_DOTALL)
+
+bool
+rb_char_to_icu_option(int c, int *option)
+{
+    assert(option != NULL);
+    switch (c) {
+	case 'i':
+	    *option = REGEXP_OPT_IGNORECASE;
+	    return true;
+	case 'x':
+	    *option = REGEXP_OPT_EXTENDED;
+	    return true;
+	case 'm':
+	    *option = REGEXP_OPT_MULTILINE;
+	    return true;
+    }
+    *option = -1;
+    return false;
+}
+
+/*
+ *  call-seq:
+ *     Regexp.new(string [, options])                => regexp
+ *     Regexp.new(regexp)                            => regexp
+ *     Regexp.compile(string [, options])            => regexp
+ *     Regexp.compile(regexp)                        => regexp
+ *
+ *  Constructs a new regular expression from <i>pattern</i>, which can be either
+ *  a <code>String</code> or a <code>Regexp</code> (in which case that regexp's
+ *  options are propagated, and new options may not be specified (a change as of
+ *  Ruby 1.8). If <i>options</i> is a <code>Fixnum</code>, it should be one or
+ *  more of the constants <code>Regexp::EXTENDED</code>,
+ *  <code>Regexp::IGNORECASE</code>, and <code>Regexp::MULTILINE</code>,
+ *  <em>or</em>-ed together. Otherwise, if <i>options</i> is not
+ *  <code>nil</code>, the regexp will be case insensitive.
+ *
+ *     r1 = Regexp.new('^a-z+:\\s+\w+')           #=> /^a-z+:\s+\w+/
+ *     r2 = Regexp.new('cat', true)               #=> /cat/i
+ *     r3 = Regexp.new('dog', Regexp::EXTENDED)   #=> /dog/x
+ *     r4 = Regexp.new(r2)                        #=> /cat/i
+ */
+
+static VALUE
+regexp_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 {
     if (argc == 0 || argc > 3) {
 	rb_raise(rb_eArgError, "wrong number of arguments");
@@ -147,9 +226,7 @@ rb_regexp_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 	    rb_warn("flags ignored");
 	}
 	assert(RREGEXP(re)->pattern != NULL);
-	regexp_finalize(RREGEXP(self));
-	RREGEXP(self)->unistr = new UnicodeString(*RREGEXP(re)->unistr);
-	RREGEXP(self)->pattern = new RegexPattern(*RREGEXP(re)->pattern);
+	init_from_regexp(RREGEXP(self), RREGEXP(re));
     }
     else {
 	int options = 0;
@@ -157,11 +234,9 @@ rb_regexp_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 	    if (FIXNUM_P(argv[1])) {
 		options = FIX2INT(argv[1]);
 	    }
-#if 0 // TODO
 	    else if (RTEST(argv[1])) {
-		options = ONIG_OPTION_IGNORECASE;
+		options = REGEXP_OPT_IGNORECASE;
 	    }
-#endif
 	}
 	VALUE str = argv[0];
 	StringValue(str);
@@ -175,14 +250,89 @@ rb_regexp_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
 }
 
 static VALUE
-rb_regexp_inspect(VALUE rcv, SEL sel)
+regexp_initialize_copy(VALUE rcv, SEL sel, VALUE other)
 {
-    assert(RREGEXP(rcv)->unistr != NULL);
-    const UChar *chars = RREGEXP(rcv)->unistr->getBuffer();
-    const int32_t chars_len = RREGEXP(rcv)->unistr->length();
-    assert(chars_len >= 0);
-    return rb_unicode_str_new(chars, chars_len);
+    if (TYPE(other) != T_REGEXP) {
+	rb_raise(rb_eTypeError, "wrong argument type");
+    }
+    init_from_regexp(RREGEXP(rcv), RREGEXP(other));
+    return rcv;
 }
+
+/*
+ *  call-seq:
+ *     rxp == other_rxp      => true or false
+ *     rxp.eql?(other_rxp)   => true or false
+ *
+ *  Equality---Two regexps are equal if their patterns are identical, they have
+ *  the same character set code, and their <code>casefold?</code> values are the
+ *  same.
+ *
+ *     /abc/  == /abc/x   #=> false
+ *     /abc/  == /abc/i   #=> false
+ *     /abc/  == /abc/n   #=> false
+ *     /abc/u == /abc/n   #=> false
+ */
+
+static VALUE
+regexp_equal(VALUE rcv, SEL sel, VALUE other)
+{
+    if (rcv == other) {
+	return Qtrue;
+    }
+    if (TYPE(other) != T_REGEXP) {
+	return Qfalse;
+    }
+
+    assert(RREGEXP(rcv)->unistr != NULL && RREGEXP(rcv)->pattern != NULL);
+    assert(RREGEXP(other)->unistr != NULL && RREGEXP(other)->pattern != NULL);
+
+    // Using the == operator on the RegexpPatterns does not work, for a
+    // reason... so we are comparing source strings and flags.
+    return *RREGEXP(rcv)->unistr == *RREGEXP(other)->unistr
+	&& RREGEXP(rcv)->pattern->flags() == RREGEXP(other)->pattern->flags()
+	? Qtrue : Qfalse;
+}
+
+/*
+ *  call-seq:
+ *     rxp =~ str    => integer or nil
+ *
+ *  Match---Matches <i>rxp</i> against <i>str</i>.
+ *
+ *     /at/ =~ "input data"   #=> 7
+ *     /ax/ =~ "input data"   #=> nil
+ *
+ *  If <code>=~</code> is used with a regexp literal with named captures,
+ *  captured strings (or nil) is assigned to local variables named by
+ *  the capture names.
+ *
+ *     /(?<lhs>\w+)\s*=\s*(?<rhs>\w+)/ =~ "  x = y  "
+ *     p lhs    #=> "x"
+ *     p rhs    #=> "y"
+ *
+ *  If it is not matched, nil is assigned for the variables.
+ *
+ *     /(?<lhs>\w+)\s*=\s*(?<rhs>\w+)/ =~ "  x = "   
+ *     p lhs    #=> nil
+ *     p rhs    #=> nil
+ *
+ *  This assignment is implemented in the Ruby parser.
+ *  So a regexp literal is required for the assignment. 
+ *  The assignment is not occur if the regexp is not a literal.
+ *
+ *     re = /(?<lhs>\w+)\s*=\s*(?<rhs>\w+)/
+ *     re =~ "  x = "
+ *     p lhs    # undefined local variable
+ *     p rhs    # undefined local variable
+ *
+ *  A regexp interpolation, <code>#{}</code>, also disables
+ *  the assignment.
+ *
+ *     rhs_pat = /(?<rhs>\w+)/
+ *     /(?<lhs>\w+)\s*=\s*#{rhs_pat}/ =~ "x = y"
+ *     p lhs    # undefined local variable
+ */
 
 static VALUE
 reg_operand(VALUE s, bool check)
@@ -249,7 +399,7 @@ rb_reg_search(VALUE re, VALUE str, int pos, bool reverse)
 
     VALUE match = rb_backref_get();
     if (NIL_P(match)) {
-	match = (VALUE)match_alloc();
+	match = (VALUE)match_alloc(rb_cMatch, 0);
 	rb_backref_set(match);
     }
 
@@ -262,7 +412,7 @@ rb_reg_search(VALUE re, VALUE str, int pos, bool reverse)
     return res[0].beg;
 }
 
-long
+static long
 reg_match_pos(VALUE re, VALUE *strp, long pos)
 {
     VALUE str = *strp;
@@ -286,7 +436,45 @@ reg_match_pos(VALUE re, VALUE *strp, long pos)
 }
 
 static VALUE
-rb_regexp_match(VALUE rcv, SEL sel, int argc, VALUE *argv)
+regexp_match(VALUE rcv, SEL sel, VALUE str)
+{
+    const long pos = reg_match_pos(rcv, &str, 0);
+    if (pos < 0) {
+	return Qnil;
+    }
+    return LONG2FIX(pos);
+}
+
+/*
+ *  call-seq:
+ *     rxp.match(str)       => matchdata or nil
+ *     rxp.match(str,pos)   => matchdata or nil
+ *
+ *  Returns a <code>MatchData</code> object describing the match, or
+ *  <code>nil</code> if there was no match. This is equivalent to retrieving the
+ *  value of the special variable <code>$~</code> following a normal match.
+ *  If the second parameter is present, it specifies the position in the string
+ *  to begin the search.
+ *
+ *     /(.)(.)(.)/.match("abc")[2]   #=> "b"
+ *     /(.)(.)/.match("abc", 1)[2]   #=> "c"
+ *     
+ *  If a block is given, invoke the block with MatchData if match succeed, so
+ *  that you can write
+ *     
+ *     pat.match(str) {|m| ...}
+ *     
+ *  instead of
+ *      
+ *     if m = pat.match(str)
+ *       ...
+ *     end
+ *      
+ *  The return value is a value from block execution in this case.
+ */
+
+static VALUE
+regexp_match2(VALUE rcv, SEL sel, int argc, VALUE *argv)
 {
     VALUE result, str, initpos;
     long pos;
@@ -309,6 +497,247 @@ rb_regexp_match(VALUE rcv, SEL sel, int argc, VALUE *argv)
 	return rb_yield(result);
     }
     return result;
+}
+
+/*
+ *  call-seq:
+ *     ~ rxp   => integer or nil
+ *
+ *  Match---Matches <i>rxp</i> against the contents of <code>$_</code>.
+ *  Equivalent to <code><i>rxp</i> =~ $_</code>.
+ *
+ *     $_ = "input data"
+ *     ~ /at/   #=> 7
+ */
+
+static VALUE
+regexp_match3(VALUE rcv, SEL sel)
+{
+    VALUE line = rb_lastline_get();
+    if (TYPE(line) != T_STRING) {
+	rb_backref_set(Qnil);
+	return Qnil;
+    }
+
+    const long start = rb_reg_search(rcv, line, 0, 0);
+    if (start < 0) {
+	return Qnil;
+    }
+    return LONG2FIX(start);
+}
+
+/*
+ *  call-seq:
+ *     rxp === str   => true or false
+ *
+ *  Case Equality---Synonym for <code>Regexp#=~</code> used in case statements.
+ *
+ *     a = "HELLO"
+ *     case a
+ *     when /^[a-z]*$/; print "Lower case\n"
+ *     when /^[A-Z]*$/; print "Upper case\n"
+ *     else;            print "Mixed case\n"
+ *     end
+ *
+ *  <em>produces:</em>
+ *
+ *     Upper case
+ */
+
+VALUE
+regexp_eqq(VALUE rcv, SEL sel, VALUE str)
+{
+    str = reg_operand(str, Qfalse);
+    if (NIL_P(str)) {
+	rb_backref_set(Qnil);
+	return Qfalse;
+    }
+    const long start = rb_reg_search(rcv, str, 0, 0);
+    if (start < 0) {
+	return Qfalse;
+    }
+    return Qtrue;
+}
+
+/*
+ *  call-seq:
+ *      rxp.source   => str
+ *
+ *  Returns the original string of the pattern.
+ *
+ *      /ab+c/ix.source #=> "ab+c"
+ *
+ *  Note that escape sequences are retained as is.
+ *
+ *     /\x20\+/.source  #=> "\\x20\\+"
+ *
+ */
+
+static VALUE
+regexp_source(VALUE rcv, SEL sel)
+{
+    assert(RREGEXP(rcv)->unistr != NULL);
+
+    const UChar *chars = RREGEXP(rcv)->unistr->getBuffer();
+    const int32_t chars_len = RREGEXP(rcv)->unistr->length();
+    assert(chars_len >= 0);
+
+    VALUE str = rb_unicode_str_new(chars, chars_len);
+
+    if (OBJ_TAINTED(rcv)) {
+	OBJ_TAINT(str);
+    }
+    return str;
+}
+
+/*
+ * call-seq:
+ *    rxp.inspect   => string
+ *
+ * Produce a nicely formatted string-version of _rxp_. Perhaps surprisingly,
+ * <code>#inspect</code> actually produces the more natural version of
+ * the string than <code>#to_s</code>.
+ *
+ *      /ab+c/ix.inspect        #=> "/ab+c/ix"
+ *
+ */
+
+static VALUE
+regexp_inspect(VALUE rcv, SEL sel)
+{
+    return regexp_source(rcv, 0);
+}
+
+/*
+ *  call-seq:
+ *     rxp.casefold?   => true or false
+ *
+ *  Returns the value of the case-insensitive flag.
+ *
+ *      /a/.casefold?           #=> false
+ *      /a/i.casefold?          #=> true
+ *      /(?i:a)/.casefold?      #=> false
+ */
+
+int
+rb_reg_options(VALUE re)
+{
+    assert(RREGEXP(re)->pattern != NULL);
+    return RREGEXP(re)->pattern->flags();
+}
+
+static VALUE
+regexp_casefold(VALUE rcv, SEL sel)
+{
+    return rb_reg_options(rcv) & REGEXP_OPT_IGNORECASE ? Qtrue : Qfalse;
+}
+
+/*
+ *  call-seq:
+ *     rxp.options   => fixnum
+ *
+ *  Returns the set of bits corresponding to the options used when creating this
+ *  Regexp (see <code>Regexp::new</code> for details. Note that additional bits
+ *  may be set in the returned options: these are used internally by the regular
+ *  expression code. These extra bits are ignored if the options are passed to
+ *  <code>Regexp::new</code>.
+ *
+ *     Regexp::IGNORECASE                  #=> 1
+ *     Regexp::EXTENDED                    #=> 2
+ *     Regexp::MULTILINE                   #=> 4
+ *
+ *     /cat/.options                       #=> 0
+ *     /cat/ix.options                     #=> 3
+ *     Regexp.new('cat', true).options     #=> 1
+ *     /\xa1\xa2/e.options                 #=> 16
+ *
+ *     r = /cat/ix
+ *     Regexp.new(r.source, r.options)     #=> /cat/ix
+ */
+
+static VALUE
+regexp_options(VALUE rcv, SEL sel)
+{
+    return INT2FIX(rb_reg_options(rcv));
+}
+
+/*
+ *  Document-class: Regexp
+ *
+ *  A <code>Regexp</code> holds a regular expression, used to match a pattern
+ *  against strings. Regexps are created using the <code>/.../</code> and
+ *  <code>%r{...}</code> literals, and by the <code>Regexp::new</code>
+ *  constructor.
+ *
+ */
+
+static void Init_Match(void);
+
+void
+Init_Regexp(void)
+{
+    rb_eRegexpError = rb_define_class("RegexpError", rb_eStandardError);
+
+#if 0
+    rb_define_virtual_variable("$~", match_getter, match_setter);
+    rb_define_virtual_variable("$&", last_match_getter, 0);
+    rb_define_virtual_variable("$`", prematch_getter, 0);
+    rb_define_virtual_variable("$'", postmatch_getter, 0);
+    rb_define_virtual_variable("$+", last_paren_match_getter, 0);
+
+    rb_define_virtual_variable("$=", ignorecase_getter, ignorecase_setter);
+    rb_define_virtual_variable("$KCODE", kcode_getter, kcode_setter);
+    rb_define_virtual_variable("$-K", kcode_getter, kcode_setter);
+#endif
+
+    rb_cRegexp = rb_define_class("Regexp", rb_cObject);
+    rb_objc_define_method(*(VALUE *)rb_cRegexp, "alloc",
+	    (void *)regexp_alloc, 0);
+#if 0
+    rb_objc_define_method(*(VALUE *)rb_cRegexp, "compile",
+	    rb_class_new_instance_imp, -1);
+    rb_objc_define_method(*(VALUE *)rb_cRegexp, "quote", rb_reg_s_quote, 1);
+    rb_objc_define_method(*(VALUE *)rb_cRegexp, "escape", rb_reg_s_quote, 1);
+    rb_objc_define_method(*(VALUE *)rb_cRegexp, "union", rb_reg_s_union_m, -2);
+    rb_objc_define_method(*(VALUE *)rb_cRegexp, "last_match",
+	    rb_reg_s_last_match, -1);
+    rb_objc_define_method(*(VALUE *)rb_cRegexp, "try_convert",
+	    rb_reg_s_try_convert, 1);
+#endif
+
+    regexp_finalize_imp_super = rb_objc_install_method2((Class)rb_cRegexp,
+	    "finalize", (IMP)regexp_finalize_imp);
+
+    rb_objc_define_method(rb_cRegexp, "initialize",
+	    (void *)regexp_initialize, -1);
+    rb_objc_define_method(rb_cRegexp, "initialize_copy",
+	    (void *)regexp_initialize_copy, 1);
+    //rb_objc_define_method(rb_cRegexp, "hash", rb_reg_hash, 0);
+    rb_objc_define_method(rb_cRegexp, "eql?", (void *)regexp_equal, 1);
+    rb_objc_define_method(rb_cRegexp, "==", (void *)regexp_equal, 1);
+    rb_objc_define_method(rb_cRegexp, "=~", (void *)regexp_match, 1);
+    rb_objc_define_method(rb_cRegexp, "match", (void *)regexp_match2, -1);
+    rb_objc_define_method(rb_cRegexp, "~", (void *)regexp_match3, 0);
+    rb_objc_define_method(rb_cRegexp, "===", (void *)regexp_eqq, 1);
+    //rb_objc_define_method(rb_cRegexp, "to_s", rb_reg_to_s, 0);
+    rb_objc_define_method(rb_cRegexp, "source", (void *)regexp_source, 0);
+    rb_objc_define_method(rb_cRegexp, "casefold?", (void *)regexp_casefold, 0);
+    rb_objc_define_method(rb_cRegexp, "options", (void *)regexp_options, 0);
+#if 0
+    rb_objc_define_method(rb_cRegexp, "encoding", rb_reg_encoding, 0);
+    rb_objc_define_method(rb_cRegexp, "fixed_encoding?",
+	    rb_reg_fixed_encoding_p, 0);
+    rb_objc_define_method(rb_cRegexp, "names", rb_reg_names, 0);
+    rb_objc_define_method(rb_cRegexp, "named_captures",
+	    rb_reg_named_captures, 0);
+#endif
+    rb_objc_define_method(rb_cRegexp, "inspect", (void *)regexp_inspect, 0);
+
+    rb_define_const(rb_cRegexp, "IGNORECASE", INT2FIX(REGEXP_OPT_IGNORECASE));
+    rb_define_const(rb_cRegexp, "EXTENDED", INT2FIX(REGEXP_OPT_EXTENDED));
+    rb_define_const(rb_cRegexp, "MULTILINE", INT2FIX(REGEXP_OPT_MULTILINE));
+
+    Init_Match();
 }
 
 VALUE
@@ -337,6 +766,32 @@ rb_reg_nth_match(int nth, VALUE match)
     return rb_unicode_str_new(&chars[beg], len);
 }
 
+VALUE
+rb_reg_last_match(VALUE match)
+{
+    return rb_reg_nth_match(0, match);
+}
+
+/*
+ * call-seq:
+ *    mtch.inspect   => str
+ *
+ * Returns a printable version of <i>mtch</i>.
+ *
+ *     puts /.$/.match("foo").inspect
+ *     #=> #<MatchData "o">
+ *
+ *     puts /(.)(.)(.)/.match("foo").inspect
+ *     #=> #<MatchData "foo" 1:"f" 2:"o" 3:"o">
+ *
+ *     puts /(.)(.)?(.)/.match("fo").inspect
+ *     #=> #<MatchData "fo" 1:"f" 2:nil 3:"o">
+ *
+ *     puts /(?<foo>.)(?<bar>.)(?<baz>.)/.match("hoge").inspect
+ *     #=> #<MatchData "hog" foo:"h" bar:"o" baz:"g">
+ *
+ */
+
 static VALUE
 match_inspect(VALUE rcv, SEL sel)
 {
@@ -361,74 +816,73 @@ match_inspect(VALUE rcv, SEL sel)
     return str;
 }
 
-void
-Init_Regexp(void)
+/*
+ *  call-seq:
+ *     mtch.string   => str
+ *
+ *  Returns a frozen copy of the string passed in to <code>match</code>.
+ *
+ *     m = /(.)(.)(\d+)(\d)/.match("THX1138.")
+ *     m.string   #=> "THX1138."
+ */
+
+static VALUE
+match_string(VALUE rcv, SEL sel)
 {
-    rb_eRegexpError = rb_define_class("RegexpError", rb_eStandardError);
+    UnicodeString *unistr = RMATCH(rcv)->unistr;
+    assert(unistr != NULL);
+    VALUE str = rb_unicode_str_new(unistr->getBuffer(), unistr->length());
+    OBJ_FREEZE(str);
+    return str;
+}
 
-#if 0
-    rb_define_virtual_variable("$~", match_getter, match_setter);
-    rb_define_virtual_variable("$&", last_match_getter, 0);
-    rb_define_virtual_variable("$`", prematch_getter, 0);
-    rb_define_virtual_variable("$'", postmatch_getter, 0);
-    rb_define_virtual_variable("$+", last_paren_match_getter, 0);
+/*
+ *  call-seq:
+ *     mtch.to_s   => str
+ *
+ *  Returns the entire matched string.
+ *
+ *     m = /(.)(.)(\d+)(\d)/.match("THX1138.")
+ *     m.to_s   #=> "HX1138"
+ */
 
-    rb_define_virtual_variable("$=", ignorecase_getter, ignorecase_setter);
-    rb_define_virtual_variable("$KCODE", kcode_getter, kcode_setter);
-    rb_define_virtual_variable("$-K", kcode_getter, kcode_setter);
-#endif
+static VALUE
+match_to_s(VALUE rcv, SEL sel)
+{
+    VALUE str = rb_reg_last_match(rcv);
 
-    rb_cRegexp = rb_define_class("Regexp", rb_cObject);
-    rb_objc_define_method(*(VALUE *)rb_cRegexp, "alloc",
-	    (void *)rb_regexp_alloc, 0);
-#if 0
-    rb_objc_define_method(*(VALUE *)rb_cRegexp, "compile",
-	    rb_class_new_instance_imp, -1);
-    rb_objc_define_method(*(VALUE *)rb_cRegexp, "quote", rb_reg_s_quote, 1);
-    rb_objc_define_method(*(VALUE *)rb_cRegexp, "escape", rb_reg_s_quote, 1);
-    rb_objc_define_method(*(VALUE *)rb_cRegexp, "union", rb_reg_s_union_m, -2);
-    rb_objc_define_method(*(VALUE *)rb_cRegexp, "last_match",
-	    rb_reg_s_last_match, -1);
-    rb_objc_define_method(*(VALUE *)rb_cRegexp, "try_convert",
-	    rb_reg_s_try_convert, 1);
+    if (NIL_P(str)) {
+	str = rb_str_new(0, 0);
+    }
+    if (OBJ_TAINTED(rcv)) {
+	OBJ_TAINT(str);
+    }
+    return str;
+}
 
-    rb_objc_reg_finalize_super = rb_objc_install_method2((Class)rb_cRegexp,
-	    "finalize", (IMP)rb_objc_reg_finalize);
-#endif
+/*
+ *  Document-class: MatchData
+ *
+ *  <code>MatchData</code> is the type of the special variable <code>$~</code>,
+ *  and is the type of the object returned by <code>Regexp#match</code> and
+ *  <code>Regexp.last_match</code>. It encapsulates all the results of a pattern
+ *  match, results normally accessed through the special variables
+ *  <code>$&</code>, <code>$'</code>, <code>$`</code>, <code>$1</code>,
+ *  <code>$2</code>, and so on.
+ *
+ */
 
-    rb_objc_define_method(rb_cRegexp, "initialize",
-	    (void *)rb_regexp_initialize, -1);
-
-#if 0
-    rb_objc_define_method(rb_cRegexp, "initialize_copy", rb_reg_init_copy, 1);
-    rb_objc_define_method(rb_cRegexp, "hash", rb_reg_hash, 0);
-    rb_objc_define_method(rb_cRegexp, "eql?", rb_reg_equal, 1);
-    rb_objc_define_method(rb_cRegexp, "==", rb_reg_equal, 1);
-    rb_objc_define_method(rb_cRegexp, "=~", rb_reg_match_imp, 1);
-    rb_objc_define_method(rb_cRegexp, "===", rb_reg_eqq, 1);
-    rb_objc_define_method(rb_cRegexp, "~", rb_reg_match2, 0);
-    rb_objc_define_method(rb_cRegexp, "to_s", rb_reg_to_s, 0);
-    rb_objc_define_method(rb_cRegexp, "source", rb_reg_source, 0);
-    rb_objc_define_method(rb_cRegexp, "casefold?", rb_reg_casefold_p, 0);
-    rb_objc_define_method(rb_cRegexp, "options", rb_reg_options_m, 0);
-    rb_objc_define_method(rb_cRegexp, "encoding", rb_reg_encoding, 0);
-    rb_objc_define_method(rb_cRegexp, "fixed_encoding?",
-	    rb_reg_fixed_encoding_p, 0);
-    rb_objc_define_method(rb_cRegexp, "names", rb_reg_names, 0);
-    rb_objc_define_method(rb_cRegexp, "named_captures",
-	    rb_reg_named_captures, 0);
-#endif
-    rb_objc_define_method(rb_cRegexp, "match", (void *)rb_regexp_match, -1);
-    rb_objc_define_method(rb_cRegexp, "inspect", (void *)rb_regexp_inspect, 0);
-
-    rb_cMatch  = rb_define_class("MatchData", rb_cObject);
-#if 0
-    rb_objc_define_method(*(VALUE *)rb_cMatch, "alloc", match_alloc, 0);
+static void
+Init_Match(void)
+{
+    rb_cMatch = rb_define_class("MatchData", rb_cObject);
+    rb_objc_define_method(*(VALUE *)rb_cMatch, "alloc", (void *)match_alloc, 0);
     rb_undef_method(CLASS_OF(rb_cMatch), "new");
 
-    rb_objc_match_finalize_super = rb_objc_install_method2((Class)rb_cMatch,
-	    "finalize", (IMP)rb_objc_match_finalize);
+    match_finalize_imp_super = rb_objc_install_method2((Class)rb_cMatch,
+	    "finalize", (IMP)match_finalize_imp);
 
+#if 0
     rb_objc_define_method(rb_cMatch, "initialize_copy", match_init_copy, 1);
     rb_objc_define_method(rb_cMatch, "regexp", match_regexp, 0);
     rb_objc_define_method(rb_cMatch, "names", match_names, 0);
@@ -443,10 +897,9 @@ Init_Regexp(void)
     rb_objc_define_method(rb_cMatch, "values_at", match_values_at, -1);
     rb_objc_define_method(rb_cMatch, "pre_match", rb_reg_match_pre, 0);
     rb_objc_define_method(rb_cMatch, "post_match", rb_reg_match_post, 0);
-    rb_objc_define_method(rb_cMatch, "to_s", match_to_s, 0);
-    rb_objc_define_method(rb_cMatch, "string", match_string, 0);
 #endif
-
+    rb_objc_define_method(rb_cMatch, "to_s", (void *)match_to_s, 0);
+    rb_objc_define_method(rb_cMatch, "string", (void *)match_string, 0);
     rb_objc_define_method(rb_cMatch, "inspect", (void *)match_inspect, 0);
 }
 
@@ -454,16 +907,6 @@ VALUE
 rb_reg_check_preprocess(VALUE str)
 {
     return Qnil;
-}
-
-static VALUE
-rb_str_compile_regexp(VALUE str, int options, VALUE *excp)
-{
-    rb_regexp_t *regexp = regexp_alloc();
-    if (!init_from_string(regexp, str, options, excp)) {
-	return Qnil;
-    }
-    return (VALUE)regexp;
 }
 
 VALUE
@@ -494,18 +937,6 @@ rb_reg_new(const char *cstr, long len, int options)
     return rb_reg_new_str(rb_usascii_str_new(cstr, len), options);
 }
 
-int
-rb_reg_options(VALUE re)
-{
-    return 0;
-}
-
-VALUE
-rb_reg_last_match(VALUE match)
-{
-    return rb_reg_nth_match(0, match);
-}
-
 VALUE
 rb_reg_match_last(VALUE match)
 {
@@ -528,21 +959,6 @@ void
 rb_match_busy(VALUE match)
 {
     // Do nothing.
-}
-
-int
-rb_char_to_option_kcode(int c, int *option, int *kcode)
-{
-    // TODO
-    *option = 0;
-    *kcode = -1;
-    return *option;
-}
-
-VALUE
-rb_reg_eqq(VALUE re, SEL sel, VALUE str)
-{
-    return Qfalse;
 }
 
 } // extern "C"

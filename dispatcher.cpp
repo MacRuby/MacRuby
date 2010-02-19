@@ -16,6 +16,7 @@
 #include "dtrace.h"
 #include "array.h"
 #include "hash.h"
+#include "re.h"
 
 #include <execinfo.h>
 #include <dlfcn.h>
@@ -1264,7 +1265,7 @@ rb_vm_fast_eqq(struct mcache *cache, VALUE self, VALUE other)
 	    return rb_str_equal(self, other);
 
 	case T_REGEXP:
-	    return rb_reg_eqq(self, selEqq, other);
+	    return regexp_eqq(self, selEqq, other);
 
 	case T_SYMBOL:
 	    return (self == other ? Qtrue : Qfalse);
