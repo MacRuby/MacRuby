@@ -16,6 +16,7 @@
 #include "dtrace.h"
 #include "array.h"
 #include "hash.h"
+#include "encoding.h"
 #include "re.h"
 
 #include <execinfo.h>

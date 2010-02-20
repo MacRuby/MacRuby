@@ -16,6 +16,7 @@
 #include "ruby.h"
 #include "ruby/encoding.h"
 #include "encoding.h"
+#include "re.h"
 #include "objc.h"
 #include "id.h"
 
@@ -1312,13 +1313,20 @@ rstr_is_ascii_only(VALUE self, SEL sel)
  */
 
 static VALUE
+rb_str_subpat(VALUE str, VALUE re, int nth)
+{
+    if (rb_reg_search(re, str, 0, 0) >= 0) {
+	return rb_reg_nth_match(nth, rb_backref_get());
+    }
+    return Qnil;
+}
+
+static VALUE
 rstr_aref(VALUE str, SEL sel, int argc, VALUE *argv)
 {
     if (argc == 2) {
 	if (TYPE(argv[0]) == T_REGEXP) {
-	    // TODO
-	    //return rb_str_subpat(str, argv[0], NUM2INT(argv[1]));
-	    return Qnil;
+	    return rb_str_subpat(str, argv[0], NUM2INT(argv[1]));
 	}
 	return str_substr(str, NUM2LONG(argv[0]), NUM2LONG(argv[1]));
     }
@@ -1337,7 +1345,7 @@ rstr_aref(VALUE str, SEL sel, int argc, VALUE *argv)
 	    return str;
 
 	case T_REGEXP:
-	    abort(); // TODO
+	    return rb_str_subpat(str, indx, 0);
 
 	case T_STRING:
 	    {
@@ -1427,10 +1435,8 @@ rstr_index(VALUE self, SEL sel, int argc, VALUE *argv)
 
     switch (TYPE(sub)) {
 	case T_REGEXP:
-	    // TODO
-	    //pos = rb_reg_adjust_startpos(sub, str, pos, 0);
-	    //pos = rb_reg_search(sub, str, pos, 0);
-	    //pos = rb_str_sublen(str, pos);
+	    pos = rb_reg_adjust_startpos(sub, self, pos, false);
+	    pos = rb_reg_search(sub, self, pos, false);
 	    break;
 
 	default: 
@@ -1502,13 +1508,24 @@ static VALUE
 rstr_concat(VALUE self, SEL sel, VALUE other)
 {
     rstr_modify(self);
+
+    long codepoint = 0;
     switch (TYPE(other)) {
 	case T_FIXNUM:
-	    abort(); // TODO
+	    codepoint = FIX2LONG(other);
+	    break;
 
+	case T_BIGNUM:
+	    codepoint = rb_big2ulong(other);
+	    break;
+	    
 	default:
 	    str_concat_string(RSTR(self), str_need_string(other));
+	    return self;
     }
+
+    // TODO: handle codepoint
+
     return self;
 }
 
@@ -2312,7 +2329,11 @@ rb_str_inspect(VALUE rcv)
 VALUE
 rb_str_subseq(VALUE str, long beg, long len)
 {
-    abort(); // TODO
+    if (IS_RSTR(str)) {
+	return str_substr(str, beg, len);
+    }
+    // TODO
+    return Qnil;
 }
 
 VALUE
