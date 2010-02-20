@@ -19,6 +19,8 @@
 #include "re.h"
 #include "objc.h"
 #include "id.h"
+#include "ruby/node.h"
+#include "vm.h"
 
 VALUE rb_cSymbol; 	// XXX move me outside
 VALUE rb_cByteString; 	// XXX remove all references about me, i'm dead
@@ -1857,6 +1859,82 @@ rstr_match(VALUE self, SEL sel, VALUE other)
     }
 }
 
+/*
+ *  call-seq:
+ *     str.scan(pattern)                         => array
+ *     str.scan(pattern) {|match, ...| block }   => str
+ *  
+ *  Both forms iterate through <i>str</i>, matching the pattern (which may be a
+ *  <code>Regexp</code> or a <code>String</code>). For each match, a result is
+ *  generated and either added to the result array or passed to the block. If
+ *  the pattern contains no groups, each individual result consists of the
+ *  matched string, <code>$&</code>.  If the pattern contains groups, each
+ *  individual result is itself an array containing one entry per group.
+ *     
+ *     a = "cruel world"
+ *     a.scan(/\w+/)        #=> ["cruel", "world"]
+ *     a.scan(/.../)        #=> ["cru", "el ", "wor"]
+ *     a.scan(/(...)/)      #=> [["cru"], ["el "], ["wor"]]
+ *     a.scan(/(..)(..)/)   #=> [["cr", "ue"], ["l ", "wo"]]
+ *     
+ *  And the block form:
+ *     
+ *     a.scan(/\w+/) {|w| print "<<#{w}>> " }
+ *     print "\n"
+ *     a.scan(/(.)(.)/) {|x,y| print y, x }
+ *     print "\n"
+ *     
+ *  <em>produces:</em>
+ *     
+ *     <<cruel>> <<world>>
+ *     rceu lowlr
+ */
+
+static VALUE
+rstr_scan(VALUE self, SEL sel, VALUE pat)
+{
+    const bool block_given = rb_block_given_p();
+
+    pat = get_pat(pat, true);
+    long start = 0;
+
+    VALUE ary = 0;
+    if (!block_given) {
+	ary = rb_ary_new();
+    }
+
+    while (rb_reg_search(pat, self, start, false) >= 0) {
+	VALUE match = rb_backref_get();
+
+	int count = 0;
+	rb_match_result_t *results = rb_reg_match_results(match, &count);
+	assert(count > 0);
+	start = results[0].end;
+
+	VALUE scan_result;
+	if (count == 1) {
+	    scan_result = rb_reg_nth_match(0, match);
+	}
+	else {
+	    scan_result = rb_ary_new2(count);
+	    for (int i = 1; i < count; i++) {
+		rb_ary_push(scan_result, rb_reg_nth_match(i, match));
+	    }
+	}
+
+	if (block_given) {
+	    rb_yield(scan_result);
+	    rb_backref_set(match);
+	    RETURN_IF_BROKEN();
+	}
+	else {
+	    rb_ary_push(ary, scan_result);
+	}
+    }
+
+    return block_given ? self : ary;
+}
+
 // NSString primitives.
 
 static CFIndex
@@ -1884,6 +1962,7 @@ Init_String(void)
     rb_cNSString = (VALUE)objc_getClass("NSString");
     assert(rb_cNSString != 0);
     rb_cString = rb_cNSString;
+    rb_include_module(rb_cString, rb_mComparable);
     rb_cNSMutableString = (VALUE)objc_getClass("NSMutableString");
     assert(rb_cNSMutableString != 0);
 
@@ -1925,6 +2004,7 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "dump", rstr_dump, 0);
     rb_objc_define_method(rb_cRubyString, "match", rstr_match2, -1);
     rb_objc_define_method(rb_cRubyString, "=~", rstr_match, 1);
+    rb_objc_define_method(rb_cRubyString, "scan", rstr_scan, 1);
 
     // Added for MacRuby (debugging).
     rb_objc_define_method(rb_cRubyString, "__chars_count__",

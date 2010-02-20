@@ -28,11 +28,6 @@ typedef struct rb_regexp {
 
 #define RREGEXP(o) ((rb_regexp_t *)o)
 
-typedef struct rb_match_result {
-    unsigned int beg;
-    unsigned int end;
-} rb_match_result_t;
-
 typedef struct rb_match {
     struct RBasic basic;
     rb_regexp_t *regexp;
@@ -392,7 +387,7 @@ rb_reg_search(VALUE re, VALUE str, int pos, bool reverse)
 		u_errorName(status));
     }
 
-    if (!matcher->find()) {
+    if (!matcher->find(pos, status)) {
 	delete unistr;
 	delete matcher;
 	rb_backref_set(Qnil);
@@ -1167,6 +1162,16 @@ rb_reg_match_last(VALUE rcv)
  *     #=> #<MatchData "hog" foo:"h" bar:"o" baz:"g">
  *
  */
+
+rb_match_result_t *
+rb_reg_match_results(VALUE match, int *count)
+{
+    assert(match != Qnil);
+    if (count != NULL) {
+	*count = RMATCH(match)->results_count;
+    }
+    return RMATCH(match)->results;
+}
 
 VALUE
 rb_reg_nth_match(int nth, VALUE match)

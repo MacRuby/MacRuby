@@ -23,6 +23,13 @@ VALUE rb_reg_quote(VALUE pat);
 VALUE rb_reg_regcomp(VALUE str);
 int rb_reg_search(VALUE re, VALUE str, int pos, bool reverse);
 
+typedef struct rb_match_result {
+    unsigned int beg;
+    unsigned int end;
+} rb_match_result_t;
+
+rb_match_result_t *rb_reg_match_results(VALUE match, int *count);
+
 static inline int
 rb_reg_adjust_startpos(VALUE re, VALUE str, int pos, bool reverse)
 {
