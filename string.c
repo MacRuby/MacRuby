@@ -227,9 +227,13 @@ str_replace_with_bytes(rb_str_t *self, const char *bytes, long len,
 	    memcpy(self->data.bytes, bytes, len);
 	    self->length_in_bytes = len;
 	}
+	else {
+	    self->length_in_bytes = 0;
+	}
     }
     else {
 	self->data.bytes = NULL;
+	self->length_in_bytes = 0;
     }
 }
 
@@ -278,7 +282,14 @@ str_replace_with_uchars(rb_str_t *self, const UChar *chars, long len)
 	    memcpy(self->data.uchars, chars, len);
 	    self->length_in_bytes = len;
 	}
+	else {
+	    self->length_in_bytes = 0;
+	}
 	str_set_stored_in_uchars(self, true);
+    }
+    else {
+	self->data.uchars = NULL;
+	self->length_in_bytes = 0;
     }
 }
 
