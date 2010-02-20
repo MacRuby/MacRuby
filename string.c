@@ -1853,7 +1853,7 @@ rstr_match(VALUE self, SEL sel, VALUE other)
 	    return regexp_match(other, 0, self);
 
 	default:
-	    return rb_funcall(other, rb_intern("=~"), 1, self);
+	    return rb_vm_call(other, selEqTilde, 1, &self, false);
     }
 }
 
