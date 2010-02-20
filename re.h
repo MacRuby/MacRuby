@@ -14,7 +14,13 @@ extern "C" {
 #endif
 
 bool rb_char_to_icu_option(int c, int *option);
+
 VALUE regexp_eqq(VALUE rcv, SEL sel, VALUE str);
+VALUE regexp_match(VALUE rcv, SEL sel, VALUE str);
+VALUE regexp_match2(VALUE rcv, SEL sel, int argc, VALUE *argv);
+
+VALUE rb_reg_quote(VALUE pat);
+VALUE rb_reg_regcomp(VALUE str);
 int rb_reg_search(VALUE re, VALUE str, int pos, bool reverse);
 
 static inline int

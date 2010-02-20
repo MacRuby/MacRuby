@@ -1759,6 +1759,104 @@ rstr_dump(VALUE self, SEL sel)
     return str_inspect(self, true);
 }
 
+/*
+ *  call-seq:
+ *     str.match(pattern)   => matchdata or nil
+ *  
+ *  Converts <i>pattern</i> to a <code>Regexp</code> (if it isn't already one),
+ *  then invokes its <code>match</code> method on <i>str</i>.  If the second
+ *  parameter is present, it specifies the position in the string to begin the
+ *  search.
+ *     
+ *     'hello'.match('(.)\1')      #=> #<MatchData "ll" 1:"l">
+ *     'hello'.match('(.)\1')[0]   #=> "ll"
+ *     'hello'.match(/(.)\1/)[0]   #=> "ll"
+ *     'hello'.match('xx')         #=> nil
+ *     
+ *  If a block is given, invoke the block with MatchData if match succeed, so
+ *  that you can write
+ *     
+ *     str.match(pat) {|m| ...}
+ *     
+ *  instead of
+ *      
+ *     if m = str.match(pat)
+ *       ...
+ *     end
+ *      
+ *  The return value is a value from block execution in this case.
+ */
+
+static VALUE
+get_pat(VALUE pat, bool quote)
+{
+    switch (TYPE(pat)) {
+	case T_REGEXP:
+	    return pat;
+
+	case T_STRING:
+	    break;
+
+	default:
+	    {
+		VALUE val = rb_check_string_type(pat);
+		if (NIL_P(val)) {
+		    Check_Type(pat, T_REGEXP);
+		}
+		pat = val;
+	    }
+    }
+
+    if (quote) {
+	pat = rb_reg_quote(pat);
+    }
+    return rb_reg_regcomp(pat);
+}
+
+static VALUE
+rstr_match2(VALUE self, SEL sel, int argc, VALUE *argv)
+{
+    if (argc < 1) {
+	rb_raise(rb_eArgError, "wrong number of arguments (%d for 1)", argc);
+    }
+    VALUE re = get_pat(argv[0], false);
+    argv[0] = self;
+    VALUE result = regexp_match2(re, 0, argc, argv);
+    if (!NIL_P(result) && rb_block_given_p()) {
+	return rb_yield(result);
+    }
+    return result;
+}
+
+/*
+ *  call-seq:
+ *     str =~ obj   => fixnum or nil
+ *  
+ *  Match---If <i>obj</i> is a <code>Regexp</code>, use it as a pattern to match
+ *  against <i>str</i>,and returns the position the match starts, or 
+ *  <code>nil</code> if there is no match. Otherwise, invokes
+ *  <i>obj.=~</i>, passing <i>str</i> as an argument. The default
+ *  <code>=~</code> in <code>Object</code> returns <code>false</code>.
+ *     
+ *     "cat o' 9 tails" =~ /\d/   #=> 7
+ *     "cat o' 9 tails" =~ 9      #=> nil
+ */
+
+static VALUE
+rstr_match(VALUE self, SEL sel, VALUE other)
+{
+    switch (TYPE(other)) {
+	case T_STRING:
+	    rb_raise(rb_eTypeError, "type mismatch: String given");
+
+	case T_REGEXP:
+	    return regexp_match(other, 0, self);
+
+	default:
+	    return rb_funcall(other, rb_intern("=~"), 1, self);
+    }
+}
+
 // NSString primitives.
 
 static CFIndex
@@ -1825,6 +1923,8 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "intern", rstr_intern, 0);
     rb_objc_define_method(rb_cRubyString, "inspect", rstr_inspect, 0);
     rb_objc_define_method(rb_cRubyString, "dump", rstr_dump, 0);
+    rb_objc_define_method(rb_cRubyString, "match", rstr_match2, -1);
+    rb_objc_define_method(rb_cRubyString, "=~", rstr_match, 1);
 
     // Added for MacRuby (debugging).
     rb_objc_define_method(rb_cRubyString, "__chars_count__",

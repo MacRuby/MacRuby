@@ -451,7 +451,7 @@ reg_match_pos(VALUE re, VALUE *strp, long pos)
     return rb_reg_search(re, str, pos, 0);
 }
 
-static VALUE
+VALUE
 regexp_match(VALUE rcv, SEL sel, VALUE str)
 {
     const long pos = reg_match_pos(rcv, &str, 0);
@@ -489,7 +489,7 @@ regexp_match(VALUE rcv, SEL sel, VALUE str)
  *  The return value is a value from block execution in this case.
  */
 
-static VALUE
+VALUE
 regexp_match2(VALUE rcv, SEL sel, int argc, VALUE *argv)
 {
     VALUE result, str, initpos;
@@ -1337,9 +1337,23 @@ rb_reg_new_str(VALUE str, int options)
 }
 
 VALUE
+rb_reg_regcomp(VALUE str)
+{
+    // XXX MRI caches the regexp here, maybe we should do the same...
+    return rb_reg_new_str(str, 0);
+}
+
+VALUE
 rb_reg_new(const char *cstr, long len, int options)
 {
     return rb_reg_new_str(rb_usascii_str_new(cstr, len), options);
+}
+
+VALUE
+rb_reg_quote(VALUE pat)
+{
+    // TODO
+    return pat;
 }
 
 void
