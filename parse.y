@@ -5067,36 +5067,34 @@ yycompile(struct parser_params *parser, const char *f, int line)
 }
 #endif /* !RIPPER */
 
+struct lex_get_str_context {
+    VALUE str;
+    UChar *chars;
+    long chars_len;
+};
+
 static VALUE
 lex_get_str(struct parser_params *parser, VALUE s)
 {
-    long beg = 0, len; 
-    const long n = CFStringGetLength((CFStringRef)s);
+    struct lex_get_str_context *ctx = (struct lex_get_str_context *)s;
+
+    long beg = 0;
     if (lex_gets_ptr > 0) {
-	if (n == lex_gets_ptr) {
+	if (ctx->chars_len == lex_gets_ptr) {
 	    return Qnil;
 	}
 	beg += lex_gets_ptr;
     }
 
-    CFRange search_range;  
-    if (CFStringFindCharacterFromSet((CFStringRef)s, 
-		CFCharacterSetGetPredefined(kCFCharacterSetNewline),
-		CFRangeMake(beg, n - beg),
-		0,
-		&search_range)) {
-	lex_gets_ptr = search_range.location + 1;
-	len = search_range.location - beg;
-    }
-    else {
-	lex_gets_ptr = n;
-	len = lex_gets_ptr - beg;	
+    lex_gets_ptr = ctx->chars_len;
+    for (long i = beg; i < ctx->chars_len; i++) {
+	if (ctx->chars[i] == '\n') {
+	    lex_gets_ptr = i + 1;
+	    break;
+	}
     }
 
-    CFStringRef subs = CFStringCreateWithSubstring(NULL, (CFStringRef)s, 
-	    CFRangeMake(beg, lex_gets_ptr - beg));
-    CFMakeCollectable(subs);
-    return (VALUE)subs;
+    return rb_unicode_str_new(&ctx->chars[beg], lex_gets_ptr - beg);
 }
 
 static VALUE
@@ -5118,15 +5116,27 @@ rb_compile_string(const char *f, VALUE s, int line)
     return rb_parser_compile_string(rb_parser_new(), f, s, line);
 }
 
-NODE*
+NODE *
 rb_parser_compile_string(VALUE vparser, const char *f, VALUE s, int line)
 {
     struct parser_params *parser;
     Data_Get_Struct(vparser, struct parser_params, parser);
 
+    UChar *chars = NULL;
+    long chars_len = 0;
+    bool need_free = false;
+    rb_str_get_uchars(s, &chars, &chars_len, &need_free);
+    assert(!need_free);
+
+    struct lex_get_str_context *ctx = (struct lex_get_str_context *)
+	xmalloc(sizeof(struct lex_get_str_context));
+    GC_WB(&ctx->str, s);
+    ctx->chars = chars;
+    ctx->chars_len = chars_len;
+
     lex_gets = lex_get_str;
     lex_gets_ptr = 0;
-    GC_WB(&lex_input, s);
+    GC_WB(&lex_input, ctx);
     lex_pbeg = lex_p = lex_pend = 0;
     compile_for_eval = rb_parse_in_eval();
 

@@ -553,17 +553,19 @@ proc_options(int argc, char **argv, struct cmdline_options *opt)
 
 	  case 'e':
 	    forbid_setid("-e");
-	    if (!*++s) {
+	    if (*++s == '\0') {
 		s = argv[1];
-		argc--, argv++;
+		argc--;
+		argv++;
 	    }
-	    if (!s) {
+	    if (s == NULL) {
 		rb_raise(rb_eRuntimeError, "no code specified for -e");
 	    }
-	    if (!opt->e_script) {
-		opt->e_script = rb_str_new(0, 0);
-		if (opt->script == 0)
+	    if (opt->e_script == 0) {
+		opt->e_script = rb_str_new(NULL, 0);
+		if (opt->script == NULL) {
 		    opt->script = "-e";
+		}
 	    }
 	    rb_str_cat2(opt->e_script, s);
 	    rb_str_cat2(opt->e_script, "\n");
@@ -571,12 +573,13 @@ proc_options(int argc, char **argv, struct cmdline_options *opt)
 
 	  case 'r':
 	    forbid_setid("-r");
-	    if (*++s) {
+	    if (*++s != '\0') {
 		add_modules(s);
 	    }
 	    else if (argv[1]) {
 		add_modules(argv[1]);
-		argc--, argv++;
+		argc--;
+		argv++;
 	    }
 	    break;
 

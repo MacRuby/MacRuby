@@ -9,8 +9,11 @@
  * Copyright (C) 2000 Information-technology Promotion Agency, Japan
  */
 
-#include "encoding.h"
 #include <string.h>
+
+#include "ruby.h"
+#include "ruby/encoding.h"
+#include "encoding.h"
 
 VALUE rb_cEncoding;
 
@@ -241,9 +244,6 @@ Init_PreEncoding(void)
     default_internal = rb_encodings[ENCODING_UTF8];
 }
 
-VALUE
-mr_enc_s_is_compatible(VALUE klass, SEL sel, VALUE str1, VALUE str2);
-
 void
 Init_Encoding(void)
 {
@@ -266,10 +266,8 @@ Init_Encoding(void)
     rb_objc_define_method(CLASS_OF(rb_cEncoding), "aliases",
 	    mr_enc_s_aliases, 0);
     //rb_define_singleton_method(rb_cEncoding, "find", enc_find, 1);
-    // it's defined on Encoding, but it requires String's internals so it's
-    // defined with String
     rb_objc_define_method(CLASS_OF(rb_cEncoding), "compatible?",
-	    mr_enc_s_is_compatible, 2);
+	    mr_enc_s_is_compatible, 2); // in string.c
 
     //rb_define_method(rb_cEncoding, "_dump", enc_dump, -1);
     //rb_define_singleton_method(rb_cEncoding, "_load", enc_load, 1);

@@ -16,8 +16,6 @@
 extern "C" {
 #endif
 
-#include "ruby.h"
-
 #if defined(__cplusplus)
 # include "unicode/unistr.h"
 #else
@@ -83,6 +81,18 @@ rb_klass_is_rstr(VALUE klass)
 }
 
 #define IS_RSTR(x) (rb_klass_is_rstr(*(VALUE *)x))
+
+static inline void
+rstr_modify(VALUE str)
+{
+    const long mask = RBASIC(str)->flags;
+    if ((mask & FL_FREEZE) == FL_FREEZE) {
+        rb_raise(rb_eRuntimeError, "can't modify frozen/immutable string");
+    }
+    if ((mask & FL_TAINT) == FL_TAINT && rb_safe_level() >= 4) {
+        rb_raise(rb_eSecurityError, "Insecure: can't modify string");
+    }
+}
 
 typedef struct {
     long start_offset_in_bytes;
@@ -275,6 +285,8 @@ VALUE rb_unicode_str_new(const UniChar *ptr, const size_t len);
 void rb_str_get_uchars(VALUE str, UChar **chars_p, long *chars_len_p,
 	bool *need_free_p);
 long rb_str_chars_len(VALUE str);
+
+VALUE mr_enc_s_is_compatible(VALUE klass, SEL sel, VALUE str1, VALUE str2);
 
 // Return a string object appropriate for bstr_ calls. This does nothing for
 // data/binary RubyStrings.
