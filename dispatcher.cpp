@@ -913,7 +913,6 @@ call_method_missing:
     const char *selname = sel_getName(sel);
     const size_t selname_len = strlen(selname);
     SEL new_sel = 0;
-    int argc_expected;
 
     if (argc > 0 && selname[selname_len - 1] == ':') {
 	char buf[100];
@@ -921,20 +920,20 @@ call_method_missing:
 	strlcpy(buf, selname, sizeof buf);
 	buf[selname_len - 1] = '\0';
 	new_sel = sel_registerName(buf);
-	argc_expected = 0;
     }
     else if (argc == 0) {
 	char buf[100];
 	snprintf(buf, sizeof buf, "%s:", selname);
 	new_sel = sel_registerName(buf);
-	argc_expected = 1;
     }
     if (new_sel != 0) {
 	Method m = class_getInstanceMethod(klass, new_sel);
-	if (m != NULL
-		&& GET_CORE()->method_node_get(m) != NULL) {
-	    rb_raise(rb_eArgError, "wrong number of arguments (%d for %d)",
-		    argc, argc_expected);
+	if (m != NULL) {
+	    rb_vm_method_node_t *node = GET_CORE()->method_node_get(m);
+	    if (node != NULL) {
+		rb_raise(rb_eArgError, "wrong number of arguments (%d for %d)",
+			 argc, node->arity.min);
+	    }
 	}
     }
 
