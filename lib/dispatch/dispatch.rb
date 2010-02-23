@@ -2,39 +2,11 @@
 # directly from the top-level Dispatch module
 
 module Dispatch
-  # Asynchronously run the +&block+  
-  # on a concurrent queue of the given (optional) +priority+
-  #
-  #   Dispatch.async {p "Did this later"}
-  # 
-  def async(priority=nil, &block)
-    Dispatch::Queue.concurrent(priority).async &block
-  end
 
-  # Asynchronously run the +&block+ inside a Future
-  # -- which is returned for use with +join+ or +value+ --
-  # on a concurrent queue of the given (optional) +priority+
-  #
-  #   f = Dispatch.fork { 2+2 }
-  #   f.value # => 4
-  # 
-  def fork(priority=nil, &block)
-    Dispatch::Future.new(priority) { block.call }
-  end
-
-  # Asynchronously run the +&block+ inside a Group
-  # -- which is created if not specified, and
-  # returned for use with +wait+ or +notify+ --
-  # on a concurrent queue of the given (optional) +priority+
-  #
-  #   g = Dispatch.group {p "Do this"}
-  #   Dispatch.group(g) {p "and that"}
-  #   g.wait # => "Do this" "and that"
-  # 
-  def group(grp=nil, priority=nil, &block)
-    grp ||= Dispatch::Group.new
-    Dispatch::Queue.concurrent(priority).async(grp) { block.call } if not block.nil?
-    grp
+  # Asynchronously run the +&block+ on a concurrent queue
+  # as part a +job+ -- which is returned for use with +join+ or +value+ 
+  def fork(job=nil, &block)
+    Dispatch::Queue.concurrent.fork(job) &block
   end
 
   # Returns a mostly unique reverse-DNS-style label based on
@@ -75,6 +47,6 @@ module Dispatch
     Dispatch::Actor.new( (obj.is_a? Class) ? obj.new : obj)
   end
 
-  module_function :async, :fork, :group, :labelize, :queue,:wrap
+  module_function :fork, :labelize, :queue, :wrap
 
 end

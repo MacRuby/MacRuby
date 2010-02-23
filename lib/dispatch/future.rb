@@ -1,12 +1,9 @@
-# Calculate the value of an object in the background
-
 module Dispatch
-  # Wrap Dispatch::Group to implement lazy Futures
-  # By duck-typing Thread +join+ and +value+
   
-  class Future
-    # Create a future that asynchronously dispatches the block 
-    # to a concurrent queue of the specified (optional) +priority+
+  # Track completion and return values of asynchronous requests
+  # Duck-type +join+ and +value+ from +Thread+
+  class Job  
+    # Create a Job that asynchronously dispatches the block 
     attr_accessor :group
     
     def initialize(priority = nil, &block)

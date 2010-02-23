@@ -30,113 +30,76 @@ As the MacRuby 0.6 features help reduce the learning curve for GCD, we will assu
 
 We also assume that you are already familiar with Ruby, though not necessarily MacRuby. No prior knowledge of C or GCD is assumed or required, but the {dispatch(3) man page}[http://developer.apple.com/mac/library/DOCUMENTATION/Darwin/Reference/ManPages/man3/dispatch.3.html] may be helpful if you wish to better understand the underlying semantics.
 
-== Invocation
+== Dispatch.fork
 
-=== Dispatch.async
-
-The most basic method is +async+, which allows you to schedule work asynchronously.
+The most basic method of the Dispatch module is +fork+, which allows you to schedule work asynchronously.
 
 	require 'dispatch'
-	Dispatch.async { p "Do this somewhere else" }
+	Dispatch.fork { p "Do this somewhere else" }
 
-This atomically[http://en.wikipedia.org/wiki/Atomic_operation] adds the block to GCD's default concurrent queue, then returns immediately.
+This atomically[http://en.wikipedia.org/wiki/Atomic_operation] adds each block to GCD's default concurrent queue, then returns immediately. Concurrent queues schedule as many simultaneous blocks as they can on a first-in/first-out (FIFO[http://en.wikipedia.org/wiki/FIFO]) basis, as long as there are threads available.  If there are spare CPUs, the system will automatically create more threads -- and reclaim them when idle -- allowing GCD to dynamically scale the number of threads based on the overall system load.
 
-You can also specify an optional priority level (+:high+, +:default+, or +:low+) to specify which concurrent queue to use:
+=== Dispatch::Job
 
-	Dispatch.async(:high) { p "Do this sooner rather than later" }
+Invoking +fork+ returns a +Job+ object which can be used to track completion of work:
+
+	job = Dispatch.fork { @sum = 2 + 2 }
 	
-==== Concurrent Queues
+You can pass that job to multiple forks, to track them as a group:
 
-Blocks always are dequeued and executed on a first-in/first-out (FIFO[http://en.wikipedia.org/wiki/FIFO]) basis. Concurrent queues do not wait for blocks to complete, but schedule as many as there are threads available (with higher-priority queues getting dibs[http://en.wikipedia.org/wiki/Dibs]).
+	Dispatch.fork(job) { @product = 3 * 3 }
 
-If there aren't enough threads, the system will automatically create more as cores become available. It will also eventually reclaim unused threads, allowing GCD to dynamically scale the number based on the overall system load.
+Call +join+ to wait until all the work completes:
 
-=====  Variables
+	job.join
+	puts @sum + @product # => 10
+	
+Call +value+ to retrieve the return value of block passed in when the job was created:
+	
+	puts job.value # => 4
+	
+This will first call +join+ to ensure the value has been calculated, allowing it to be used as an explicit Future[http://en.wikipedia.org/wiki/Futures_and_promises]. However, this means the current thread may stall for an indefinite amount of time.  Alternatively, both +join+ and +value+ can be called with a block, which will be invoked asynchronously when the job has completed:
 
-These blocks are (almost) just standard ruby blocks, and thus have access to the local context:
+	job.join { puts @sum + @product }
+
+	job.value { |v| puts v }
+
+
+=====  Variable Scope
+
+The asynchronous blocks used by GCD are (almost) just standard ruby blocks, and thus have access to the local context:
 
 	filename = "/etc/passwd"
-	Dispatch.async { File.open(filename) {|f| puts f} }
+	Dispatch.fork { File.open(filename) {|f| puts f} }
 
 The one caveat is that since the block may run at a later time, local (dynamic) variables are always copied rather than referenced:
 
 	filename = "/etc/passwd"
 	1.times do { filename = "/etc/group" }
 	p filename # => "/etc/group"
-	Dispatch.async { filename = "/etc/shell" }
-	p filename # => "/etc/group"
+	job = Dispatch.fork { filename = "/etc/shell" }
+	job.join { p filename } # => "/etc/group"
 
 In practice this is not a significant limitation, since it only copies the _variable_ -- not the object itself. Thus, operations that mutate (i.e., modify in place) the underlying object -- unlike those that reassign the variable -- behave as expected:
 
 	ary = ["/etc/passwd"]
-	Dispatch.async { ary << "/etc/shell" }
-	p ary # => ["/etc/passwd", "/etc/shell"] # assuming the async operation has completed
+	job = Dispatch.fork { ary << "/etc/shell" }
+	job.join { p ary } # => ["/etc/passwd", "/etc/shell"]
 
 In this case, the local variable +ary+ still points to the same object that was mutated, so it contains the new value.
 
 Note however that Ruby treats the accumulation operations ("+=", "||=", etc.) as syntactic sugar over assignment, and thus those operations only affect the copy of the variable:
 
 	ary = ["/etc/passwd"]
-	Dispatch.async { ary += ["/etc/shell"] }
-	p ary # => ["/etc/passwd"]
+	Dispatch.fork { ary += ["/etc/shell"] }
+	job.join { p ary } # => ["/etc/passwd" ]
 
 When in doubt, simply use instance or global variables (e.g., anything with a sigil[http://en.wikipedia.org/wiki/Sigil_(computer_programming)]), as those have a well-defined existence outside the local scope, and are thus referenced directly by the dispatched block:
 
 	@ary = ["/etc/passwd"]
-	Dispatch.async { @ary += ["/etc/shell"] }
-	p @ary # => ["/etc/passwd", "/etc/shell"]
+	Dispatch.fork { @ary += ["/etc/shell"] }
+	job.join { p @ary } # => ["/etc/passwd", "/etc/shell"]
 
-=== Dispatch.group
-
-You may have noticed above that we couldn't tell when the asynchronous block had finished executing.
-Let's remedy that by instead using +group+:
-
-	g = Dispatch.group { p "Do this in a group" }
-
-This asynchronously dispatches that block in connection with a +Dispatch::Group+ object, which by default is created and returned. That group can then be passed to subsequent requests:
-
-	Dispatch.group(g) { p "Group me too" }
-
-The group tracks execution of all associated blocks.
-		
-==== Group#join
-
-You can simply wait until they have all finished executing by calling +join+:
-
-	g.join # => "Do this in a group" "Group me too"
-
-However, this usage halts the current thread, which is bad form in the GCD universe.  A better option is to figure out _why_ you need to know when the group has completed, encapsulate it into a block, then tell the group to invoke that when finished:
-
-	g.join { p "Hey, I'm done already" }
-
-This version returns immediately, as good Dispatch objects should, but only prints out when the group has completed.
-
-=== Dispatch.fork
-
-That's all well and good, but what if you want to know the return value of that block? Use +fork+: 
-
-	f = Dispatch.fork {  Math.sqrt(10**100) }
-	
-This creates and returns a +Dispatch::Future+ that not only runs the block asynchronously in the background, it captures the return value. Like +Dispatch.async+, you can also specify a priority:
-
-	f = Dispatch.fork(:low) {  Math.sqrt(10**100) }
-	
-==== Future#join
-
-Like +Dispatch::Group+, you can use +join+ to track when it is finished, either synchronously or asynchronously:
-
-	f.join # waits
-	f.join { p "The future is here" } # notifies you when it is done
-
-==== Future#value
-
-More importantly, you can ask a +Future+ for the block's return value, just like an instance of +Thread+:
-
-	f.value # => 1.0e+50
-	
-As you might've guessed, this will wait until the Future has executed before returning the value. While this ensures a valid result, it is bad GCD karma, so as usual you can instead get the value asynchronously via a callback:
-
-f.value {|v| p "Hey, I got #{v} back!" }
 
 == Synchronization
 
