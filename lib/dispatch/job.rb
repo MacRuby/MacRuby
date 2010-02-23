@@ -6,9 +6,10 @@ module Dispatch
     # Create a Job that asynchronously dispatches the block 
     attr_accessor :group
     
-    def initialize(priority = nil, &block)
+    def initialize(queue = Dispatch::Queue.concurrent, &block)
       @value = nil
-      @group = Dispatch.group(nil, priority) { @value = block.call }
+      @group = Group.new
+      queue.async(@group) { @value = block.call }
     end
 
     # Waits for the computation to finish, or calls block (if present) when done

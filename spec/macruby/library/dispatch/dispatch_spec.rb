@@ -26,11 +26,11 @@ if MACOSX_VERSION >= 10.6
     end
     
     describe :fork do
-      it "should return a Future for tracking execution of the passed block" do
+      it "should return a Job for tracking execution of the passed block" do
         $dispatch_gval = 0
         g = Dispatch.fork { @actee.delay_set(42) }
         $dispatch_gval.should == 0
-        g.should be_kind_of Dispatch::Future
+        g.should be_kind_of Dispatch::Job
         g.join
         $dispatch_gval.should == 42      
       end

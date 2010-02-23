@@ -15,6 +15,6 @@
 require 'dispatch/actor'
 require 'dispatch/dispatch'
 require 'dispatch/enumerable'
-require 'dispatch/future'
-require 'dispatch/group'
+require 'dispatch/job'
+require 'dispatch/queue'
 require 'dispatch/queue_source'
