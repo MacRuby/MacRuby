@@ -12,9 +12,8 @@
 # This library provides higher-level services and convenience methods
 # to make it easier for traditional Ruby programmers to add multicore support.
 
-require 'dispatch/actor'
-require 'dispatch/dispatch'
-require 'dispatch/enumerable'
-require 'dispatch/job'
-require 'dispatch/queue'
 require 'dispatch/queue_source'
+require 'dispatch/queue'
+require 'dispatch/proxy'
+require 'dispatch/job'
+require 'dispatch/enumerable'

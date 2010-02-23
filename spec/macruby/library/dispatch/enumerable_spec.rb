@@ -9,7 +9,7 @@ if MACOSX_VERSION >= 10.6
         before :each do
           @count = 4
           @ary = Array.new
-          @p_ary = Dispatch.wrap(Array)
+          @p_ary = Dispatch::Proxy.new []
         end
 
         it "runs the block that many times" do
@@ -69,7 +69,7 @@ if MACOSX_VERSION >= 10.6
           @ary1 = 0
           @ary.each {|v| @ary1 << v*v}
           @ary2 = 0
-          @q = Dispatch.queue(@ary2)
+          @q = Dispatch::Queue.for(@ary2)
           @ary.p_each {|v| temp = v*v; @q.sync {@ary2 << temp} }
           @ary2.should == @ary1
         end
@@ -92,7 +92,7 @@ if MACOSX_VERSION >= 10.6
           @ary1 = 0
           @ary.each_with_index {|v, i| @ary1 << v**i}
           @ary2 = 0
-          @q = Dispatch.queue(@ary2)
+          @q = Dispatch::Queue.for(@ary2)
           @ary.p_each_with_index {|v, i| temp = v**i; @q.sync {@ary2 << temp} }
           @ary2.should == @ary1
         end

@@ -18,10 +18,10 @@ puts "  - pass a block to return the value asynchronously"
 f.value { |v| p "Returns #{v}" }
 sleep 0.1  # => "Returns 4"
 
-puts "\n Use Dispatch.queue to create a private serial queue"
+puts "\n Use Dispatch::Queue.for to create a private serial queue"
 puts "  - synchronizes access to shared data structures"
 a = Array.new
-q = Dispatch.queue(a)
+q = Dispatch::Queue.for(a)
 puts "  - has a (mostly) unique name:"
 p q # => Dispatch.enumerable.array.0x2000a6920.1266002369.9854
 q.async { a << "change me"  }
@@ -38,8 +38,8 @@ puts "  - uses notify to execute block when done"
 g.notify(q) { p a }
 q.sync {} # => ["change me", "more change", "complex calculation"]
 
-puts "\n Use Dispatch.wrap to serialize object using an Actor"
-b = Dispatch.wrap(Array)
+puts "\n Use DispatchDispatch::Proxy.new to serialize object using an Actor"
+b = DispatchDispatch::Proxy.new(Array)
 b << "safely change me"
 p b.size # => 1 (synchronous return)
 b.size {|n| p "Size=#{n}"}

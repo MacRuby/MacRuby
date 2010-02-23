@@ -30,196 +30,123 @@ As the MacRuby 0.6 features help reduce the learning curve for GCD, we will assu
 
 We also assume that you are already familiar with Ruby, though not necessarily MacRuby. No prior knowledge of C or GCD is assumed or required, but the {dispatch(3) man page}[http://developer.apple.com/mac/library/DOCUMENTATION/Darwin/Reference/ManPages/man3/dispatch.3.html] may be helpful if you wish to better understand the underlying semantics.
 
-== Dispatch.fork
+== Dispatch::Job: Easy Concurrency
 
-The most basic method of the Dispatch module is +fork+, which allows you to schedule work asynchronously.
+The easiest way to perform concurrent work is via a Dispatch::Job object. Say you have a complex, long-running calculation you want to happen in the background. Create a job by passing the block you want to execute:
 
 	require 'dispatch'
-	Dispatch.fork { p "Do this somewhere else" }
+	job = Dispatch::Job.new { Math.sqrt(10**100) }
 
-This atomically[http://en.wikipedia.org/wiki/Atomic_operation] adds each block to GCD's default concurrent queue, then returns immediately. Concurrent queues schedule as many simultaneous blocks as they can on a first-in/first-out (FIFO[http://en.wikipedia.org/wiki/FIFO]) basis, as long as there are threads available.  If there are spare CPUs, the system will automatically create more threads -- and reclaim them when idle -- allowing GCD to dynamically scale the number of threads based on the overall system load.
+This atomically[http://en.wikipedia.org/wiki/Atomic_operation] adds the block to GCD's default concurrent queue, then returns immediately so you don't stall the main thread.
 
-=== Dispatch::Job
+Concurrent queues schedule as many simultaneous blocks as they can on a first-in/first-out (FIFO[http://en.wikipedia.org/wiki/FIFO]) basis, as long as there are threads available.  If there are spare CPUs, the system will automatically create more threads -- and reclaim them when idle -- allowing GCD to dynamically scale the number of threads based on the overall system load.  Thus -- unlike with threads, which choke when you create too many -- you can generally create as many jobs as you want, and GCD will do the right thing. 
 
-Invoking +fork+ returns a +Job+ object which can be used to track completion of work:
+=== Job#value: Asynchronous Return Values
 
-	job = Dispatch.fork { @sum = 2 + 2 }
+The downside of asynchrony is that you don't know exactly when your job will execute.  Fortunately, +Dispatch::Job+ duck-types +Thread[http://ruby-doc.org/core/classes/Thread.html]+ as much as possible, so you can call +value[http://ruby-doc.org/core/classes/Thread.html#M000460]+ to obtain the result of executing that block:
+
+	@result = job.value
+	puts @result.to_int.to_s.size # => 51
 	
-You can pass that job to multiple forks, to track them as a group:
+This will wait until the value has been calculated, allowing it to be used as an {explicit Future}[http://en.wikipedia.org/wiki/Futures_and_promises]. However, this may stall the main thread indefinitely, which reduces the benefits of concurrency.  
 
-	Dispatch.fork(job) { @product = 3 * 3 }
+Wherever possible, you should instead attempt to figure out exactly _when_  and _why_ you need to know the results of asynchronous work. Then, call +value+ with a block to also perform _that_ work asynchronously once the value has been calculated -- all without blocking the main thread:
 
-Call +join+ to wait until all the work completes:
+job.value {|v| p v.to_int.to_s.size } # => 51 (eventually)
 
+=== Job#add: Coordinating Work
+
+More commonly, you will have multiple units of work you'd like to perform in parallel.  You can add blocks to an existing job using the +<<+ ('shovel') operator:
+
+	job.add { Math.sqrt(2**64) }
+
+If there are multiple blocks in a job, +value+ will wait until they all finish then return an array of the results:
+
+job.value {|ary| p ary.sort.inspect } # => [4294967296.0, 1.0E50]
+
+Note that the returned order is undefined, since asynchronous blocks can complete in any order.
+
+== Dispatch::Proxy: Protecting Shared Data
+
+Concurrency would be easy if everything was {embarrassingly parallel}[http://en.wikipedia.org/wiki/Embarrassingly_parallel], but 
+becomes tricky when we need to share data between threads. If two threads try to modify the same object at the same time, it could lead to inconsist (read: _corrupt_) data.  There are well-known techniques for preventing this sort of data corruption (e.g. locks[http://en.wikipedia.org/wiki/Lock_(computer_science)] andmutexes[http://en.wikipedia.org/wiki/Mutual%20eclusion]), but these have their own well-known problems (e.g., deadlock[http://en.wikipedia.org/wiki/Deadlock], and {priority inversion}[http://en.wikipedia.org/wiki/Priority_inversion]).
+
+Because Ruby traditionally had a global VM lock (or GIL[http://en.wikipedia.org/wiki/Global_Interpreter_Lock]), only one thread could modify data at a time, so developers never had to worry about these issues; then again, this also meant they didn't get much benefit from additional threads.  
+
+In MacRuby, every thread has its own Virtual Machine, which means all of them can access Ruby objects at the same time -- great for concurrency, not so great for data integrity. Fortunately, GCD provides _serial queues_ for {lock-free synchronization}[http://en.wikipedia.org/wiki/Non-blocking_synchronization], by ensuring that only one thread a time accesses a particular object -- without the complexity and inefficiency of locking. Here we will focus on +Dispatch::Proxy+, a high-level construct that implements the {Actor model}[http://en.wikipedia.org/wiki/Actor_model] by wrapping any arbitrary Ruby object with a +SimpleDelegate+ that only allows execution of one method at a time (i.e., serializes data access on to a private queue).
+
+=== Job#sync Creating Proxies
+
+The easiest way to create a Proxy is to first create an empty Job:
+
+	job = Dispatch::Job.new
+
+then ask it to wrap the object you want to modify from multiple threads:
+
+	@hash = job.sync {}
+	@hash.class # => Dispatch::Proxy
+	puts @hash.to_s  # => "{}"
+	
+=== method_missing: Using Proxies
+
+Now you can use that proxy safely inside Dispatch blocks, just as if it were the delegate object, 
+	
+	[64, 100].each do |n|
+		job << { @hash[n] = Math.sqrt(10**n) }
+	end
+	puts @hash.inspect # => {64 => 1.0E32, 100 => 1.0E50}
+
+In this case, it will perform the +sqrt+ asynchronously on the concurrent queue. 
+
+=== __async__: Asynchronous Callbacks
+	
+As with Dispatch::Job, you can make any invocation asynchronous by passing a block:
+
+	@hash.inspect { |s| p s } # => {64 => 1.0E32, 100 => 1.0E50}
+
+If you don't want the +Proxy+ to swallow the block, you can disable it by setting +__async__+ to false:
+
+	@hash.__async__ = false
+	
+As elsewhere in Ruby, the "__" namespace private methods, in this case so they don't conflict with delegate methods. 
+
+=== __value__: Returning Delegate
+
+If for any reason you need to retrieve the delegate object, simply call +__value__+:
+
+	delegate = @hash.__value__
+	puts delegate.class # => Hash
+	
+This differs from +SimpleDelegate#__getobj__+ in it will first wait until any pending asynchronous blocks have executed.
+
+====  Caveat: Local Variables
+
+Because Dispatch blocks may execute after the local context has gone away, you should always store Proxy objects in a non-local  variable: instance, class, or global -- anything with a sigil[http://en.wikipedia.org/wiki/Sigil_(computer_programming)]. 
+
+Note that we can as usual _access_ local variables from inside the block; GCD automatically copies them, which is why this works as expected:
+
+	n = 42
+	job = Dispatch::Job.new { p n }
+	job.join # => 42
+	
+but this doesn't:
+
+	n = 0
+	job = Dispatch::Job.new { n = 42 }
 	job.join
-	puts @sum + @product # => 10
-	
-Call +value+ to retrieve the return value of block passed in when the job was created:
-	
-	puts job.value # => 4
-	
-This will first call +join+ to ensure the value has been calculated, allowing it to be used as an explicit Future[http://en.wikipedia.org/wiki/Futures_and_promises]. However, this means the current thread may stall for an indefinite amount of time.  Alternatively, both +join+ and +value+ can be called with a block, which will be invoked asynchronously when the job has completed:
+	p n # => 0 
 
-	job.join { puts @sum + @product }
+The general rule is to *avoid assigning variables inside a Dispatch block*.  Assigning local variables will have no effect (outside that block), and assigning other variables may replace your Proxy object with a non-Proxy version.  Remember also that Ruby treats the accumulation operations ("+=", "||=", etc.) as syntactic sugar over assignment, and thus those operations only affect the copy of the variable:
 
-	job.value { |v| puts v }
+	n = 0
+	job = Dispatch::Job.new { n += 42 }
+	job.join
+	p n # => 0 
 
-
-=====  Variable Scope
-
-The asynchronous blocks used by GCD are (almost) just standard ruby blocks, and thus have access to the local context:
-
-	filename = "/etc/passwd"
-	Dispatch.fork { File.open(filename) {|f| puts f} }
-
-The one caveat is that since the block may run at a later time, local (dynamic) variables are always copied rather than referenced:
-
-	filename = "/etc/passwd"
-	1.times do { filename = "/etc/group" }
-	p filename # => "/etc/group"
-	job = Dispatch.fork { filename = "/etc/shell" }
-	job.join { p filename } # => "/etc/group"
-
-In practice this is not a significant limitation, since it only copies the _variable_ -- not the object itself. Thus, operations that mutate (i.e., modify in place) the underlying object -- unlike those that reassign the variable -- behave as expected:
-
-	ary = ["/etc/passwd"]
-	job = Dispatch.fork { ary << "/etc/shell" }
-	job.join { p ary } # => ["/etc/passwd", "/etc/shell"]
-
-In this case, the local variable +ary+ still points to the same object that was mutated, so it contains the new value.
-
-Note however that Ruby treats the accumulation operations ("+=", "||=", etc.) as syntactic sugar over assignment, and thus those operations only affect the copy of the variable:
-
-	ary = ["/etc/passwd"]
-	Dispatch.fork { ary += ["/etc/shell"] }
-	job.join { p ary } # => ["/etc/passwd" ]
-
-When in doubt, simply use instance or global variables (e.g., anything with a sigil[http://en.wikipedia.org/wiki/Sigil_(computer_programming)]), as those have a well-defined existence outside the local scope, and are thus referenced directly by the dispatched block:
-
-	@ary = ["/etc/passwd"]
-	Dispatch.fork { @ary += ["/etc/shell"] }
-	job.join { p @ary } # => ["/etc/passwd", "/etc/shell"]
-
-
-== Synchronization
-
-Those of you who have done multithreaded programming in other languages may have (rightly!) shuddered at the early mention of mutating an object asynchronously, as that could lead to data corruption when done from multiple threads:
-
-	s = "/etc/passwd"
-	# NEVER do this
-	Dispatch.async { s.gsub!("passwd", "shell") }
-	Dispatch.async { s.gsub!("passwd", "group") }
-	s # => who knows? "/etc/shoup"?
-
-Because Ruby 1.8 had a global VM lock (or GIL[http://en.wikipedia.org/wiki/Global_Interpreter_Lock]), you never had to worry about issues like these, as everything was automatically serialized by the interpreter. True, this reduced the benefit of using multiple threads, but it also meant that Ruby developers didn't have to learn about locks[http://en.wikipedia.org/wiki/Lock_(computer_science)], mutexes[http://en.wikipedia.org/wiki/Mutual%20eclusion], deadlock[http://en.wikipedia.org/wiki/Deadlock], and {priority inversion}[http://en.wikipedia.org/wiki/Priority_inversion].
-
-
-=== Dispatch::Queue
-
-Fortunately, even though MacRuby no longer has a global VM lock, you (mostly) still don't need to know about all those things, because GCD provides {lock-free synchronization}[http://en.wikipedia.org/wiki/Non-blocking_synchronization] via serial queues. In contrast to the _concurrent_ queues GCD automatically creates for every process ("global"), the queues you create yourself ("private") are _serial_ -- that is, they only run one block at a time. 
-
-==== Dispatch.queue
-
-Instead of locks, simply create a serial queue for each object you need to protect using the +queue+ method:
-
-	s = "/etc/passwd"
-	q_s = Dispatch.queue(s)
-	# => Dispatch.comparable.nsstring.nsmutablestring.8592077600.1266360156.88218
-	q_s.class # => Dispatch::Queue
-	
-That long funny-looking string is the queue's +label+, a (relatively) unique combination of the passed object's inheritance chain,  id, and the queue creation time.  It is useful for debugging, as it is displayed in log messages and the {Dispatch  Instrument}[http://developer.apple.com/iPhone/library/documentation/DeveloperTools/Conceptual/InstrumentsUserGuide/Built-InInstruments/Built-InInstruments.html#//apple_ref/doc/uid/TP40004652-CH6-SW41].
-
-==== Queue#async
-
-To schedule a block on a serial queue, just call +async+::
-
-	q_s.async { s.gsub!("passwd", "shell") }
-	q_s.async { s.gsub!("passwd", "group") }
-	
-This is analogous as +Dispatch.async(priority)+, which is actually a convenience function wrapping:
-	
-	Dispatch::Queue.concurrent(priority).async
-
-where +Dispatch::Queue.concurrent(priority)+ returns the global concurrent queue for a given +priority+.
-
-===== Implementation Note
-
-For the curious, here's what happens behind the scenes.  When you add a block to an empty serial queue, GCD in turn adds that queue to the default concurrent queue, just as if it were a block. 
-
-==== Queue#sync
-
-But wait, how do we know when that work has been completed? By calling +async+'s synchronous cousin, +sync+:
-
-	q.sync { p s } # => "/etc/shell", since that always runs first
-
-Because serial queues process each block in the order it was received, calling +sync+ after a series of +async+ calls ensures that everything has completed. It is important to only call +sync+ when absolutely necessary, though, as it stops the current thread and thus increases the risk of deadlock, priority inversion, and all the other scary things I said you didn't need to worry about.
-
-==== Group#new
-
-Of course, using a serial queue alone isn't very interesting, as it doesn't provide any concurrency.  The real power comes from using concurrent queues to do the computationally-intensive work, and serial queues to safely save the results to a shared data structure. The easiest way to do this is by creating and passing an explicit +Group+ object, which can be used as a parameter to +Queue#async+:
-
-	@sum = 0
-	q_sum = Dispatch.queue(@sum)
-	g = Dispatch::Group.new
-	Dispatch.async(g) do
-		v1 = Math.sqrt(10**100)
-		q_sum.async(g) { @sum += v1 }
-	end
-	Dispatch.async(g) do
-		v2 = Math.sqrt(10**1000)
-		q_sum.async(g) { @sum += v2 }
-	end
-
-	g.join { p @sum }
-
-The invocations nest, so Group#join won't return until +q_sum.async(g)+ has completed, even if it hadn't yet been submitted.
-
-=== Dispatch::Actor
-
-This pattern of associating a queue with an object is so common and powerful it even has a name: the {Actor model}[http://en.wikipedia.org/wiki/Actor_model].  MacRuby provides a +Dispatch::Actor+ class that uses SimpleDelegator[http://ruby-doc.org/stdlib/libdoc/delegate/rdoc/index.html] to guard access to any object, so that all invocations automatically occur on a private serial queue.
-	
-==== Dispatch.wrap
-
-The simplest way to turn an object into an actor is with the +wrap+ method:
-
-	s = "/etc/passwd"
-	a_s = Dispatch.wrap(s)
-
-That's it! Apart from a small number of basic methods (e.g., +class+, +object_id+), everything is passed to the delegated object for execution:
-
-	a_s.gsub!("passwd", "shell")
-	p a_s.to_s # => "/etc/shell"
-	
-By default, wrapped methods are invoked synchronously and immediately return their value:
-	
-	a_s.gsub("shell", "group") # => "/etc/group"
-
-But like everything else in GCD, we'd rather you pass it a block so it can execute asynchronously:
-
-	a_s.gsub("group", "passwd") {|v| p v }# => "/etc/passwd"
-
-Voila, make any object thread-safe, asynchronous, and concurrent using a single line of Ruby!
-
-
-	
-	
-=== Actor#__with__(group)
-	
-All invocations on the internal serial queue occur asynchronously. To keep track of them, pass it a group using the intrinsic (non-delegated) method +__with__+:
-
-	g = Dispatch::Group.new
-	ary.__with__(g)
-	Dispatch.async(g) { ary << Math.sqrt(10**100) }
-	Dispatch.async(g) { ary << Math.sqrt(10**1000) }
-	g.join { p ary.to_s }
+====  Example: TBD
 
 
 
-	puts "\n Use Dispatch.wrap to serialize object using an Actor"
-	b = Dispatch.wrap(Array)
-	b << "safely change me"
-	p b.size # => 1 (synchronous return)
-	b.size {|n| p "Size=#{n}"} # => "Size=1" (asynchronous return)
 
 
 == Iteration

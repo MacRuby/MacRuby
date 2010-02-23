@@ -4,27 +4,49 @@ module Dispatch
   # Duck-type +join+ and +value+ from +Thread+
   class Job  
     # Create a Job that asynchronously dispatches the block 
-    attr_accessor :group
+    attr_reader :group, :results
     
     def initialize(queue = Dispatch::Queue.concurrent, &block)
-      @value = nil
+      @queue = queue
       @group = Group.new
-      queue.async(@group) { @value = block.call }
+      @results = synchronize([])
+      add(&block) if not block.nil?
     end
-
-    # Waits for the computation to finish, or calls block (if present) when done
-    def join(&block)
-      group.join(&block)
+    
+    def synchronize(obj)
+      Dispatch::Proxy.new(obj, @group)
     end
-
-    # Joins, then returns the value
-    # If a block is passed, invoke that asynchronously with the final value
+    
+    # Submit block as part of the same dispatch group
+    def add(&block)
+      @queue.async(@group) { @results << block.call }      
+    end
+  
+    # Wait until execution has completed.
+    # If a +block+ is passed, invoke that asynchronously
     # on the specified +queue+ (or else the default queue).
-    def value(queue = Dispatch::Queue.concurrent, &callback)
-      return group.notify(queue) { callback.call(@value) } if not callback.nil?
-      group.wait
-      return @value
+    def join(queue = Dispatch::Queue.concurrent, &block)
+      return group.wait if block.nil?
+      group.notify(queue) { block.call } 
     end
-  end
+  
+    # Wait then return the next value; note: only ordered if a serial queue
+    # If a +block+ is passed, invoke that asynchronously with the value
+    # on the specified +queue+ (or else the default queue).
+    def value(queue = Dispatch::Queue.concurrent, &block)
+      return group.notify(queue) { block.call(result) } if not block.nil?
+      group.wait
+      return result
+    end
 
+    alias_method :sync, :synchronize
+
+    private
+    
+    # Remove and return the first value    
+    def result
+       @results.shift
+    end
+    
+  end
 end

@@ -54,9 +54,9 @@ module Enumerable
   # Parallel +collect+
   # Results match the order of the original array
   def p_map(stride=1, priority=nil,  &block)
-    result = Dispatch.wrap(Array)
+    result = Dispatch::Proxy.new([])
     self.p_each_with_index(stride, priority) { |obj, i| result[i] = block.call(obj) }
-    result._done_
+    result.__value__
   end
 
   # Parallel +collect+ plus +inject+
@@ -66,10 +66,10 @@ module Enumerable
     # Check first, since exceptions from a Dispatch block can act funky 
     raise ArgumentError if not initial.respond_to? op
     # TODO: assign from within a Dispatch.once to avoid race condition
-    @mapreduce_q ||= Dispatch.queue(self)
+    @mapreduce_q ||= Dispatch::Queue.for(self)
     @mapreduce_q.sync do # in case called more than once at a time
       @mapreduce_result = initial
-      q = Dispatch.queue(@mapreduce_result)
+      q = Dispatch::Queue.for(@mapreduce_result)
       self.p_each do |obj|
         val = block.call(obj)
         q.async { @mapreduce_result = @mapreduce_result.send(op, val) }
@@ -82,9 +82,9 @@ module Enumerable
   # Parallel +select+; will return array of objects for which
   # +&block+ returns true.
   def p_find_all(stride=1, priority=nil,  &block)
-    found_all = Dispatch.wrap(Array)
+    found_all = Dispatch::Proxy.new([])
     self.p_each(stride, priority) { |obj| found_all << obj if block.call(obj) }
-    found_all._done_
+    found_all.__value__
   end
 
   # Parallel +detect+; will return -one- match for +&block+
@@ -92,10 +92,10 @@ module Enumerable
   # Only useful if the test block is very expensive to run
   # Note: each object can only run one p_find at a time
   def p_find(stride=1, priority=nil,  &block)
-    @find_q ||= Dispatch.queue(self)
+    @find_q ||= Dispatch::Queue.for(self)
     @find_q.sync do 
       @find_result = nil
-      q = Dispatch.queue(@find_result)
+      q = Dispatch::Queue.for(@find_result)
       self.p_each(stride, priority) do |obj|
         q.async { @find_result = obj } if @find_result.nil? and block.call(obj)
       end
