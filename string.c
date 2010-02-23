@@ -445,6 +445,18 @@ str_length(rb_str_t *self, bool ucs2_mode)
     }
 }
 
+static UChar
+str_get_uchar(rb_str_t *self, long pos, bool ucs2_mode)
+{
+    assert(pos >= 0 && pos < str_length(self, ucs2_mode));
+    if (str_try_making_data_uchars(self)) {
+	// FIXME: Not ucs2 compliant.
+	return self->data.uchars[pos];
+    }
+    assert(BINARY_ENC(self->encoding));
+    return self->data.bytes[pos];
+}
+
 static long
 str_bytesize(rb_str_t *self)
 {
@@ -701,6 +713,12 @@ str_delete(rb_str_t *self, long pos, long len, bool ucs2_mode)
 	assert(pos + len < self_len);
 	abort(); // TODO
     }
+}
+
+static void
+str_splice(rb_str_t *str, long beg, long len, rb_str_t *val, bool ucs2_mode)
+{
+    // TODO: str[beg..beg+len] = val
 }
 
 static void
@@ -979,7 +997,7 @@ str_substr(VALUE str, long beg, long len)
 	return str_new();
     }	
 
-    const long n = str_length(RSTR(str), true);
+    const long n = str_length(RSTR(str), false);
     if (beg < 0) {
 	beg += n;
     }
@@ -990,7 +1008,7 @@ str_substr(VALUE str, long beg, long len)
 	len = n - beg;
     }
 
-    rb_str_t *substr = str_get_characters(RSTR(str), beg, beg + len - 1, true);
+    rb_str_t *substr = str_get_characters(RSTR(str), beg, beg + len - 1, false);
     return substr == NULL ? Qnil : (VALUE)substr;
 }
 
@@ -2268,10 +2286,10 @@ rstr_chomp_bang(VALUE str, SEL sel, int argc, VALUE *argv)
     if (rs == rb_default_rs
 	|| rslen == 0
 	|| (rslen == 1 && rb_str_get_uchar(rs, 0) == '\n')) {
-	UChar c = rb_str_get_uchar(str, len - 1);
+	UChar c = str_get_uchar(RSTR(str), len - 1, false);
 	if (c == '\n') {
 	    to_del++;
-	    c = rb_str_get_uchar(str, len - 2);
+	    c = str_get_uchar(RSTR(str), len - 2, false);
 	}
 	if (c == '\r' && (rslen > 0 || to_del != 0)) {
 	    to_del++;
@@ -2318,6 +2336,127 @@ rstr_chomp(VALUE str, SEL sel, int argc, VALUE *argv)
     return str;
 }
 
+/*
+ *  call-seq:
+ *     str.sub!(pattern, replacement)          => str or nil
+ *     str.sub!(pattern) {|match| block }      => str or nil
+ *  
+ *  Performs the substitutions of <code>String#sub</code> in place,
+ *  returning <i>str</i>, or <code>nil</code> if no substitutions were
+ *  performed.
+ */
+
+static VALUE
+rb_reg_regsub(VALUE str, VALUE src, VALUE match, VALUE regexp)
+{
+    // TODO
+    return str;
+}
+
+static VALUE
+rstr_sub_bang(VALUE str, SEL sel, int argc, VALUE *argv)
+{
+    VALUE repl, hash = Qnil;
+    bool block_given = false;
+    bool tainted = false;
+
+    if (argc == 1 && rb_block_given_p()) {
+	block_given = true;
+    }
+    else if (argc == 2) {
+	repl = argv[1];
+	hash = rb_check_convert_type(argv[1], T_HASH, "Hash", "to_hash");
+	if (NIL_P(hash)) {
+	    StringValue(repl);
+	}
+	if (OBJ_TAINTED(repl)) {
+	    tainted = true;
+	}
+    }
+    else {
+	rb_raise(rb_eArgError, "wrong number of arguments (%d for 2)", argc);
+    }
+
+    VALUE pat = get_pat(argv[0], true);
+    if (rb_reg_search(pat, str, 0, false) >= 0) {
+	VALUE match = rb_backref_get();
+
+	int count = 0;
+	rb_match_result_t *results = rb_reg_match_results(match, &count);
+	assert(count > 0);
+
+	if (block_given || !NIL_P(hash)) {
+            if (block_given) {
+                repl = rb_obj_as_string(rb_yield(rb_reg_nth_match(0, match)));
+            }
+            else {
+                repl = rb_hash_aref(hash, str_substr(str, results[0].beg,
+			    results[0].end - results[0].beg));
+                repl = rb_obj_as_string(repl);
+            }
+	    rstr_frozen_check(str);
+	    if (block_given) {
+		rb_backref_set(match);
+	    }
+	}
+	else {
+	    repl = rb_reg_regsub(repl, str, match, pat);
+	}
+
+	rstr_modify(str);
+	str_splice(RSTR(str), results[0].beg, results[0].end - results[0].beg,
+		str_need_string(repl), false);
+	if (OBJ_TAINTED(repl)) {
+	    tainted = true;
+	}
+
+	if (tainted) {
+	    OBJ_TAINT(str);
+	}
+	return str;
+    }
+    return Qnil;
+}
+
+/*
+ *  call-seq:
+ *     str.sub(pattern, replacement)         => new_str
+ *     str.sub(pattern) {|match| block }     => new_str
+ *  
+ *  Returns a copy of <i>str</i> with the <em>first</em> occurrence of
+ *  <i>pattern</i> replaced with either <i>replacement</i> or the value of the
+ *  block. The <i>pattern</i> will typically be a <code>Regexp</code>; if it is
+ *  a <code>String</code> then no regular expression metacharacters will be
+ *  interpreted (that is <code>/\d/</code> will match a digit, but
+ *  <code>'\d'</code> will match a backslash followed by a 'd').
+ *     
+ *  If the method call specifies <i>replacement</i>, special variables such as
+ *  <code>$&</code> will not be useful, as substitution into the string occurs
+ *  before the pattern match starts. However, the sequences <code>\1</code>,
+ *  <code>\2</code>, <code>\k<group_name></code>, etc., may be used.
+ *     
+ *  In the block form, the current match string is passed in as a parameter, and
+ *  variables such as <code>$1</code>, <code>$2</code>, <code>$`</code>,
+ *  <code>$&</code>, and <code>$'</code> will be set appropriately. The value
+ *  returned by the block will be substituted for the match on each call.
+ *     
+ *  The result inherits any tainting in the original string or any supplied
+ *  replacement string.
+ *     
+ *     "hello".sub(/[aeiou]/, '*')                  #=> "h*llo"
+ *     "hello".sub(/([aeiou])/, '<\1>')             #=> "h<e>llo"
+ *     "hello".sub(/./) {|s| s[0].ord.to_s + ' ' }  #=> "104 ello"
+ *     "hello".sub(/(?<foo>[aeiou])/, '*\k<foo>*')  #=> "h*e*llo"
+ */
+
+static VALUE
+rstr_sub(VALUE str, SEL sel, int argc, VALUE *argv)
+{
+    str = rb_str_new3(str);
+    rstr_sub_bang(str, 0, argc, argv);
+    return str;
+}
+
 // NSString primitives.
 
 static CFIndex
@@ -2329,7 +2468,7 @@ rstr_imp_length(void *rcv, SEL sel)
 static UniChar
 rstr_imp_characterAtIndex(void *rcv, SEL sel, CFIndex idx)
 {
-    return rb_str_get_uchar((VALUE)rcv, idx);
+    return str_get_uchar(RSTR(rcv), idx, true);
 }
 
 void
@@ -2388,6 +2527,8 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "oct", rstr_oct, 0);
     rb_objc_define_method(rb_cRubyString, "chomp", rstr_chomp, -1);
     rb_objc_define_method(rb_cRubyString, "chomp!", rstr_chomp_bang, -1);
+    rb_objc_define_method(rb_cRubyString, "sub", rstr_sub, -1);
+    rb_objc_define_method(rb_cRubyString, "sub!", rstr_sub_bang, -1);
 
     // Added for MacRuby (debugging).
     rb_objc_define_method(rb_cRubyString, "__chars_count__",
@@ -2740,15 +2881,10 @@ rb_to_id(VALUE name)
 UChar
 rb_str_get_uchar(VALUE str, long pos)
 {
-    assert(pos >= 0 && pos < rb_str_chars_len(str));
     if (RSTR(str)) {
-	if (str_try_making_data_uchars(RSTR(str))) {
-	    // FIXME: Not ucs2 compliant.
-	    return RSTR(str)->data.uchars[pos];
-	}
-	assert(BINARY_ENC(RSTR(str)->encoding));
-	return RSTR(str)->data.bytes[pos];
+	return str_get_uchar(RSTR(str), pos, false);
     }
+    assert(pos >= 0 && pos < CFStringGetLength((CFStringRef)str));
     return CFStringGetCharacterAtIndex((CFStringRef)str, pos);
 }
 
@@ -2756,7 +2892,7 @@ long
 rb_str_chars_len(VALUE str)
 {
     if (IS_RSTR(str)) {
-	return str_length(RSTR(str), true);
+	return str_length(RSTR(str), false);
     }
     return CFStringGetLength((CFStringRef)str);
 }

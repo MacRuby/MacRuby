@@ -94,6 +94,15 @@ rstr_modify(VALUE str)
     }
 }
 
+static inline void
+rstr_frozen_check(VALUE str)
+{
+    const long mask = RBASIC(str)->flags;
+    if ((mask & FL_FREEZE) == FL_FREEZE) {
+	rb_raise(rb_eRuntimeError, "string frozen");
+    }
+}
+
 typedef struct {
     long start_offset_in_bytes;
     long end_offset_in_bytes;
