@@ -700,6 +700,12 @@ recache2:
 	    std::string name(selname, selname_len);
 	    bs_element_function_t *bs_func = GET_CORE()->find_bs_function(name);
 	    if (bs_func != NULL) {
+		if ((unsigned)argc < bs_func->args_count
+			|| ((unsigned)argc > bs_func->args_count
+				&& bs_func->variadic == false)) {
+		    rb_raise(rb_eArgError, "wrong number of arguments (%d for %d)",
+			argc, bs_func->args_count);
+		}
 		std::string types;
 		vm_gen_bs_func_types(argc, argv, bs_func, types);
 
@@ -929,11 +935,17 @@ call_method_missing:
     if (new_sel != 0) {
 	Method m = class_getInstanceMethod(klass, new_sel);
 	if (m != NULL) {
+	    unsigned expected_argc;
 	    rb_vm_method_node_t *node = GET_CORE()->method_node_get(m);
 	    if (node != NULL) {
-		rb_raise(rb_eArgError, "wrong number of arguments (%d for %d)",
-			 argc, node->arity.min);
+		expected_argc = node->arity.min;
 	    }
+	    else {
+		expected_argc = method_getNumberOfArguments(m);
+		expected_argc -= 2; // removing receiver and selector
+	    }
+	    rb_raise(rb_eArgError, "wrong number of arguments (%d for %d)",
+		     argc, expected_argc);
 	}
     }
 
