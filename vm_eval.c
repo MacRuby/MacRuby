@@ -442,7 +442,12 @@ rb_f_eval(VALUE self, SEL sel, int argc, VALUE *argv)
 	    klass = self;
 	    break;
 	default:
-	    klass = 0;
+	    if (self == rb_vm_top_self()) {
+		klass = 0;
+	    }
+	    else {
+		klass = CLASS_OF(self);
+	    }
 	    break;
     }
     return eval_string(self, klass, src, scope, file, line);
