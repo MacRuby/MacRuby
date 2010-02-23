@@ -214,6 +214,12 @@ str_alloc(VALUE klass)
     return str;
 }
 
+static VALUE
+str_new(void)
+{
+    return (VALUE)str_alloc(rb_cRubyString);
+}
+
 static void
 str_replace_with_bytes(rb_str_t *self, const char *bytes, long len,
 	rb_encoding_t *enc)
@@ -677,6 +683,27 @@ str_resize_bytes(rb_str_t *self, long new_capacity)
 }
 
 static void
+str_delete(rb_str_t *self, long pos, long len, bool ucs2_mode)
+{
+    assert(pos >= 0 && len > 0);
+    const long self_len = str_length(self, ucs2_mode);
+    if (pos + len == self_len) {
+	// We are deleting stuff from the end of the string. We can simply
+	// change the string size here.
+	if (str_is_stored_in_uchars(self)) {
+	    self->length_in_bytes -= UCHARS_TO_BYTES(len);
+	}
+	else {
+	    self->length_in_bytes -= len;
+	}
+    }
+    else {
+	assert(pos + len < self_len);
+	abort(); // TODO
+    }
+}
+
+static void
 str_concat_string(rb_str_t *self, rb_str_t *str)
 {
     if (str->length_in_bytes == 0) {
@@ -948,6 +975,9 @@ str_substr(VALUE str, long beg, long len)
     if (len < 0) {
 	return Qnil;
     }
+    if (len == 0) {
+	return str_new();
+    }	
 
     const long n = str_length(RSTR(str), true);
     if (beg < 0) {
@@ -962,6 +992,13 @@ str_substr(VALUE str, long beg, long len)
 
     rb_str_t *substr = str_get_characters(RSTR(str), beg, beg + len - 1, true);
     return substr == NULL ? Qnil : (VALUE)substr;
+}
+
+static VALUE
+str_trim(VALUE str)
+{
+    // TODO
+    return str;
 }
 
 //----------------------------------------------
@@ -1935,6 +1972,352 @@ rstr_scan(VALUE self, SEL sel, VALUE pat)
     return block_given ? self : ary;
 }
 
+/*
+ *  call-seq:
+ *     str.split(pattern=$;, [limit])   => anArray
+ *  
+ *  Divides <i>str</i> into substrings based on a delimiter, returning an array
+ *  of these substrings.
+ *     
+ *  If <i>pattern</i> is a <code>String</code>, then its contents are used as
+ *  the delimiter when splitting <i>str</i>. If <i>pattern</i> is a single
+ *  space, <i>str</i> is split on whitespace, with leading whitespace and runs
+ *  of contiguous whitespace characters ignored.
+ *     
+ *  If <i>pattern</i> is a <code>Regexp</code>, <i>str</i> is divided where the
+ *  pattern matches. Whenever the pattern matches a zero-length string,
+ *  <i>str</i> is split into individual characters. If <i>pattern</i> contains
+ *  groups, the respective matches will be returned in the array as well.
+ *     
+ *  If <i>pattern</i> is omitted, the value of <code>$;</code> is used.  If
+ *  <code>$;</code> is <code>nil</code> (which is the default), <i>str</i> is
+ *  split on whitespace as if ` ' were specified.
+ *     
+ *  If the <i>limit</i> parameter is omitted, trailing null fields are
+ *  suppressed. If <i>limit</i> is a positive number, at most that number of
+ *  fields will be returned (if <i>limit</i> is <code>1</code>, the entire
+ *  string is returned as the only entry in an array). If negative, there is no
+ *  limit to the number of fields returned, and trailing null fields are not
+ *  suppressed.
+ *     
+ *     " now's  the time".split        #=> ["now's", "the", "time"]
+ *     " now's  the time".split(' ')   #=> ["now's", "the", "time"]
+ *     " now's  the time".split(/ /)   #=> ["", "now's", "", "the", "time"]
+ *     "1, 2.34,56, 7".split(%r{,\s*}) #=> ["1", "2.34", "56", "7"]
+ *     "hello".split(//)               #=> ["h", "e", "l", "l", "o"]
+ *     "hello".split(//, 3)            #=> ["h", "e", "llo"]
+ *     "hi mom".split(%r{\s*})         #=> ["h", "i", "m", "o", "m"]
+ *     
+ *     "mellow yellow".split("ello")   #=> ["m", "w y", "w"]
+ *     "1,2,,3,4,,".split(',')         #=> ["1", "2", "", "3", "4"]
+ *     "1,2,,3,4,,".split(',', 4)      #=> ["1", "2", "", "3,4,,"]
+ *     "1,2,,3,4,,".split(',', -4)     #=> ["1", "2", "", "3", "4", "", ""]
+ */
+
+static VALUE
+rstr_split(VALUE str, SEL sel, int argc, VALUE *argv)
+{
+    const long len = str_length(RSTR(str), false);
+    int lim = 0;
+
+    VALUE spat, limit;
+    if (rb_scan_args(argc, argv, "02", &spat, &limit) == 2) {
+	lim = NUM2INT(limit);
+	if (lim <= 0) {
+	    limit = Qnil;
+	}
+	else if (lim == 1) {
+	    if (len == 0) {
+		return rb_ary_new2(0);
+	    }
+	    return rb_ary_new3(1, str);
+	}
+    }
+
+    VALUE result = rb_ary_new();
+    bool awk_split = false, spat_string = false;
+    long spat_len = 0;
+    if (NIL_P(spat)) {
+	if (!NIL_P(rb_fs)) {
+	    spat = rb_fs;
+	    goto fs_set;
+	}
+	awk_split = true;
+    }
+    else {
+fs_set:
+	if (TYPE(spat) == T_STRING) {
+	    spat_string = true;
+	    spat_len = rb_str_chars_len(spat);
+	    if (spat_len == 1 && rb_str_get_uchar(spat, 0) == ' ') {
+		awk_split = true;
+	    }
+	}
+	else {
+	    spat = get_pat(spat, true);
+	}
+    }
+
+    long beg = 0;
+    if (awk_split || spat_string) {
+	if (spat != Qnil) {
+	    if (spat_len == 0) {
+		do {
+		    VALUE substr = str_substr(str, beg, 1);
+		    rb_ary_push(result, substr);
+		    beg++;
+		    if (beg >= len) {
+			break;
+		    }
+		}
+		while (limit == Qnil || --lim > 1);
+	    }
+	    else {
+		rb_str_t *spat_str = str_need_string(spat);
+		do {
+		    const long pos = str_index_for_string(RSTR(str), spat_str,
+			    beg, false);
+		    if (pos == -1) {
+			break;
+		    }
+		    VALUE substr = str_substr(str, beg, pos - beg);
+		    if (!awk_split || rb_str_chars_len(str_trim(substr)) > 0) {
+			rb_ary_push(result, substr);
+		    }
+		    beg = pos + 1;
+		}
+		while (limit == Qnil || --lim > 1);
+	    }
+	}
+	else {
+	    abort(); // TODO
+	}
+    }
+    else {
+	long start = beg;
+	bool last_null = false;
+	do {
+	    const long pos = rb_reg_search(spat, str, beg, false);
+	    if (pos < 0) {
+		break;
+	    }
+	    VALUE match = rb_backref_get();
+
+	    int count = 0;
+	    rb_match_result_t *results = rb_reg_match_results(match, &count);
+	    assert(count > 0);
+
+	    if (beg == pos && results[0].beg == results[0].end) {
+		if (last_null) {
+		    rb_ary_push(result, str_substr(str, beg, 1));
+		    beg = start;
+		}
+		else {
+		    start++;
+		    last_null = true;
+		    continue;
+		}
+	    }
+	    else {
+		rb_ary_push(result, str_substr(str, beg, pos - beg));
+		beg = results[0].end;
+	    }
+	    last_null = false;
+
+	    for (int i = 1; i < count; i++) {
+		rb_ary_push(result, rb_reg_nth_match(i, match));
+	    }
+	}
+	while (limit == Qnil || --lim > 1);
+    }
+
+    if (len > 0 && (!NIL_P(limit) || len > beg || lim < 0)) {
+	VALUE tmp;
+	if (len == beg) {
+	    tmp = rb_str_new(NULL, 0);
+	}
+	else {
+	    tmp = rb_str_subseq(str, beg, len - beg);
+	}
+	rb_ary_push(result, tmp);
+    }
+
+    if (NIL_P(limit) && lim == 0) {
+	while (true) {
+	    const long n = RARRAY_LEN(result);
+	    if (n > 0 && rb_str_chars_len(RARRAY_AT(result, n - 1)) == 0) {
+		rb_ary_pop(result);
+	    }
+	    else {
+		break;
+	    }
+	}
+    }
+
+    return result;
+}
+
+/*
+ *  call-seq:
+ *     str.to_i(base=10)   => integer
+ *  
+ *  Returns the result of interpreting leading characters in <i>str</i> as an
+ *  integer base <i>base</i> (between 2 and 36). Extraneous characters past the
+ *  end of a valid number are ignored. If there is not a valid number at the
+ *  start of <i>str</i>, <code>0</code> is returned. This method never raises an
+ *  exception.
+ *     
+ *     "12345".to_i             #=> 12345
+ *     "99 red balloons".to_i   #=> 99
+ *     "0a".to_i                #=> 0
+ *     "0a".to_i(16)            #=> 10
+ *     "hello".to_i             #=> 0
+ *     "1100101".to_i(2)        #=> 101
+ *     "1100101".to_i(8)        #=> 294977
+ *     "1100101".to_i(10)       #=> 1100101
+ *     "1100101".to_i(16)       #=> 17826049
+ */
+
+static VALUE
+rstr_to_i(VALUE str, SEL sel, int argc, VALUE *argv)
+{
+    int base = 10;
+
+    if (argc > 0) {
+	VALUE b;
+	rb_scan_args(argc, argv, "01", &b);
+
+	base = NUM2INT(b);
+	if (base < 0) {
+	    rb_raise(rb_eArgError, "invalid radix %d", base);
+	}
+    }
+
+    return rb_str_to_inum(str, base, Qfalse);
+}
+
+/*
+ *  call-seq:
+ *     str.hex   => integer
+ *  
+ *  Treats leading characters from <i>str</i> as a string of hexadecimal digits
+ *  (with an optional sign and an optional <code>0x</code>) and returns the
+ *  corresponding number. Zero is returned on error.
+ *     
+ *     "0x0a".hex     #=> 10
+ *     "-1234".hex    #=> -4660
+ *     "0".hex        #=> 0
+ *     "wombat".hex   #=> 0
+ */
+
+static VALUE
+rstr_hex(VALUE str, SEL sel)
+{
+    return rb_str_to_inum(str, 16, Qfalse);
+}
+
+/*
+ *  call-seq:
+ *     str.oct   => integer
+ *  
+ *  Treats leading characters of <i>str</i> as a string of octal digits (with an
+ *  optional sign) and returns the corresponding number.  Returns 0 if the
+ *  conversion fails.
+ *     
+ *     "123".oct       #=> 83
+ *     "-377".oct      #=> -255
+ *     "bad".oct       #=> 0
+ *     "0377bad".oct   #=> 255
+ */
+
+static VALUE
+rstr_oct(VALUE str, SEL sel)
+{
+    return rb_str_to_inum(str, -8, Qfalse);
+}
+
+/*
+ *  call-seq:
+ *     str.chomp!(separator=$/)   => str or nil
+ *  
+ *  Modifies <i>str</i> in place as described for <code>String#chomp</code>,
+ *  returning <i>str</i>, or <code>nil</code> if no modifications were made.
+ */
+
+static VALUE
+rstr_chomp_bang(VALUE str, SEL sel, int argc, VALUE *argv)
+{
+    VALUE rs;
+    if (rb_scan_args(argc, argv, "01", &rs) == 0) {
+	rs = rb_rs;
+    }
+    rstr_modify(str);
+    if (rs == Qnil) {
+	return Qnil;
+    }
+    StringValue(rs);
+
+    const long len = str_length(RSTR(str), false);
+    if (len == 0) {
+	return Qnil;
+    }
+
+    const long rslen = rb_str_chars_len(rs);
+    long to_del = 0;
+
+    if (rs == rb_default_rs
+	|| rslen == 0
+	|| (rslen == 1 && rb_str_get_uchar(rs, 0) == '\n')) {
+	UChar c = rb_str_get_uchar(str, len - 1);
+	if (c == '\n') {
+	    to_del++;
+	    c = rb_str_get_uchar(str, len - 2);
+	}
+	if (c == '\r' && (rslen > 0 || to_del != 0)) {
+	    to_del++;
+	}
+    }
+    else if (rslen <= len) {
+	if (str_index_for_string(RSTR(str), str_need_string(rs),
+		    len - rslen, false) >= 0) {
+	    to_del += rslen;
+	}
+    }
+
+    if (to_del == 0) {
+	return Qnil;
+    }
+    str_delete(RSTR(str), len - to_del, to_del, false);
+    return str;
+}
+
+/*
+ *  call-seq:
+ *     str.chomp(separator=$/)   => new_str
+ *  
+ *  Returns a new <code>String</code> with the given record separator removed
+ *  from the end of <i>str</i> (if present). If <code>$/</code> has not been
+ *  changed from the default Ruby record separator, then <code>chomp</code> also
+ *  removes carriage return characters (that is it will remove <code>\n</code>,
+ *  <code>\r</code>, and <code>\r\n</code>).
+ *     
+ *     "hello".chomp            #=> "hello"
+ *     "hello\n".chomp          #=> "hello"
+ *     "hello\r\n".chomp        #=> "hello"
+ *     "hello\n\r".chomp        #=> "hello\n"
+ *     "hello\r".chomp          #=> "hello"
+ *     "hello \n there".chomp   #=> "hello \n there"
+ *     "hello".chomp("llo")     #=> "he"
+ */
+
+static VALUE
+rstr_chomp(VALUE str, SEL sel, int argc, VALUE *argv)
+{
+    str = rb_str_new3(str);
+    rstr_chomp_bang(str, 0, argc, argv);
+    return str;
+}
+
 // NSString primitives.
 
 static CFIndex
@@ -1946,13 +2329,7 @@ rstr_imp_length(void *rcv, SEL sel)
 static UniChar
 rstr_imp_characterAtIndex(void *rcv, SEL sel, CFIndex idx)
 {
-    // XXX implement a function that returns a unichar at given index
-    // and use it here.
-    if (str_try_making_data_uchars(RSTR(rcv))) {
-	return RSTR(rcv)->data.uchars[idx];
-    }
-    assert(BINARY_ENC(RSTR(rcv)->encoding));
-    return RSTR(rcv)->data.bytes[idx];
+    return rb_str_get_uchar((VALUE)rcv, idx);
 }
 
 void
@@ -2005,6 +2382,12 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "match", rstr_match2, -1);
     rb_objc_define_method(rb_cRubyString, "=~", rstr_match, 1);
     rb_objc_define_method(rb_cRubyString, "scan", rstr_scan, 1);
+    rb_objc_define_method(rb_cRubyString, "split", rstr_split, -1);
+    rb_objc_define_method(rb_cRubyString, "to_i", rstr_to_i, -1);
+    rb_objc_define_method(rb_cRubyString, "hex", rstr_hex, 0);
+    rb_objc_define_method(rb_cRubyString, "oct", rstr_oct, 0);
+    rb_objc_define_method(rb_cRubyString, "chomp", rstr_chomp, -1);
+    rb_objc_define_method(rb_cRubyString, "chomp!", rstr_chomp_bang, -1);
 
     // Added for MacRuby (debugging).
     rb_objc_define_method(rb_cRubyString, "__chars_count__",
@@ -2354,6 +2737,21 @@ rb_to_id(VALUE name)
     }
 }
 
+UChar
+rb_str_get_uchar(VALUE str, long pos)
+{
+    assert(pos >= 0 && pos < rb_str_chars_len(str));
+    if (RSTR(str)) {
+	if (str_try_making_data_uchars(RSTR(str))) {
+	    // FIXME: Not ucs2 compliant.
+	    return RSTR(str)->data.uchars[pos];
+	}
+	assert(BINARY_ENC(RSTR(str)->encoding));
+	return RSTR(str)->data.bytes[pos];
+    }
+    return CFStringGetCharacterAtIndex((CFStringRef)str, pos);
+}
+
 long
 rb_str_chars_len(VALUE str)
 {
@@ -2512,8 +2910,7 @@ rb_str_subseq(VALUE str, long beg, long len)
     if (IS_RSTR(str)) {
 	return str_substr(str, beg, len);
     }
-    // TODO
-    return Qnil;
+    abort(); // TODO
 }
 
 VALUE

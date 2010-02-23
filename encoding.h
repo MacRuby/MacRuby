@@ -281,10 +281,14 @@ str_set_valid_encoding(rb_str_t *self, bool status)
 	    STRING_VALID_ENCODING);
 }
 
+// The following functions should always been prefered over anything else,
+// especially if this "else" is RSTRING_PTR and RSTRING_LEN.
+// They also work on CFStrings.
 VALUE rb_unicode_str_new(const UniChar *ptr, const size_t len);
 void rb_str_get_uchars(VALUE str, UChar **chars_p, long *chars_len_p,
 	bool *need_free_p);
 long rb_str_chars_len(VALUE str);
+UChar rb_str_get_uchar(VALUE str, long pos);
 
 VALUE mr_enc_s_is_compatible(VALUE klass, SEL sel, VALUE str1, VALUE str2);
 
