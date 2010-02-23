@@ -1722,7 +1722,7 @@ str_inspect(VALUE str, bool dump)
 {
     const bool uchars = str_is_stored_in_uchars(RSTR(str));
     const long len = uchars
-	? str_length(RSTR(str), false) : RSTR(str)->length_in_bytes;
+	? str_length(RSTR(str), true) : RSTR(str)->length_in_bytes;
 
     if (len == 0) {
 	return rb_str_new2("\"\"");
