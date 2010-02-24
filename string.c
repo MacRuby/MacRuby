@@ -778,6 +778,12 @@ str_delete(rb_str_t *self, long pos, long len, bool ucs2_mode)
 }
 
 static void
+str_insert(rb_str_t *self, long pos, rb_str_t *str, bool ucs2_mode)
+{
+    str_splice(self, pos, 0, str, ucs2_mode);
+}
+
+static void
 str_concat_string(rb_str_t *self, rb_str_t *str)
 {
     if (str->length_in_bytes == 0) {
@@ -1218,6 +1224,22 @@ static VALUE
 rstr_length(VALUE self, SEL sel)
 {
     return INT2NUM(str_length(RSTR(self), true));
+}
+
+/*
+ *  call-seq:
+ *     str.empty?   => true or false
+ *  
+ *  Returns <code>true</code> if <i>str</i> has a length of zero.
+ *     
+ *     "hello".empty?   #=> false
+ *     "".empty?        #=> true
+ */
+
+static VALUE
+rstr_empty(VALUE self, SEL sel)
+{
+    return RSTR(self)->length_in_bytes == 0 ? Qtrue : Qfalse;
 }
 
 /*
@@ -2760,6 +2782,125 @@ rstr_downcase(VALUE str, SEL sel)
     return str;
 }
 
+/*
+ *  call-seq:
+ *     str.ljust(integer, padstr=' ')   => new_str
+ *  
+ *  If <i>integer</i> is greater than the length of <i>str</i>, returns a new
+ *  <code>String</code> of length <i>integer</i> with <i>str</i> left justified
+ *  and padded with <i>padstr</i>; otherwise, returns <i>str</i>.
+ *     
+ *     "hello".ljust(4)            #=> "hello"
+ *     "hello".ljust(20)           #=> "hello               "
+ *     "hello".ljust(20, '1234')   #=> "hello123412341234123"
+ */
+
+static void
+rstr_justify_part(rb_str_t *str, rb_str_t *pad, long width, long padwidth,
+	long index)
+{
+    do {
+	if (padwidth > width) {
+	    pad = RSTR(str_substr((VALUE)pad, 0, width));
+	}
+	str_insert(str, index, pad, false);
+	width -= padwidth;
+	index += padwidth;
+    }
+    while (width > 0);
+}
+static VALUE
+rstr_justify(int argc, VALUE *argv, VALUE str, char mode)
+{
+    VALUE w, pad;
+    rb_scan_args(argc, argv, "11", &w, &pad);
+
+    if (NIL_P(pad)) {
+	pad = rb_str_new(" ", 1);
+    }
+    else {
+	StringValue(pad);
+    }
+
+    rb_str_t *padstr = str_need_string(pad);
+    const long padwidth = str_length(RSTR(padstr), false);
+    if (padwidth == 0) {
+	rb_raise(rb_eArgError, "zero width padding");
+    }
+
+    const long len = str_length(RSTR(str), false);
+    long width = NUM2LONG(w);
+    str = rb_str_new3(str);
+    if (width < 0 || width <= len) {
+	return str;
+    }
+    width -= len;
+
+    if (mode == 'c') {
+	rstr_justify_part(RSTR(str), padstr, ceil(width / 2.0), padwidth, len);
+	rstr_justify_part(RSTR(str), padstr, floor(width / 2.0), padwidth, 0);
+    }
+    else if (mode == 'l') {
+	rstr_justify_part(RSTR(str), padstr, width, padwidth, len);
+    }
+    else if (mode == 'r') {
+	rstr_justify_part(RSTR(str), padstr, width, padwidth, 0);
+    }
+    else {
+	rb_bug("invalid mode");
+    }
+
+    if (OBJ_TAINTED(pad)) {
+	OBJ_TAINT(str);
+    }
+
+    return str;
+}
+
+static VALUE
+rstr_ljust(VALUE str, SEL sel, int argc, VALUE *argv)
+{
+    return rstr_justify(argc, argv, str, 'l');
+}
+
+/*
+ *  call-seq:
+ *     str.rjust(integer, padstr=' ')   => new_str
+ *  
+ *  If <i>integer</i> is greater than the length of <i>str</i>, returns a new
+ *  <code>String</code> of length <i>integer</i> with <i>str</i> right justified
+ *  and padded with <i>padstr</i>; otherwise, returns <i>str</i>.
+ *     
+ *     "hello".rjust(4)            #=> "hello"
+ *     "hello".rjust(20)           #=> "               hello"
+ *     "hello".rjust(20, '1234')   #=> "123412341234123hello"
+ */
+
+static VALUE
+rstr_rjust(VALUE str, SEL sel, int argc, VALUE *argv)
+{
+    return rstr_justify(argc, argv, str, 'r');
+}
+
+/*
+ *  call-seq:
+ *     str.center(integer, padstr)   => new_str
+ *  
+ *  If <i>integer</i> is greater than the length of <i>str</i>, returns a new
+ *  <code>String</code> of length <i>integer</i> with <i>str</i> centered and
+ *  padded with <i>padstr</i>; otherwise, returns <i>str</i>.
+ *     
+ *     "hello".center(4)         #=> "hello"
+ *     "hello".center(20)        #=> "       hello        "
+ *     "hello".center(20, '123') #=> "1231231hello12312312"
+ */
+
+static VALUE
+rstr_center(VALUE str, SEL sel, int argc, VALUE *argv)
+{
+    return rstr_justify(argc, argv, str, 'c');
+}
+
 // NSString primitives.
 
 static CFIndex
@@ -2797,8 +2938,8 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "replace", rstr_replace, 1);
     rb_objc_define_method(rb_cRubyString, "clear", rstr_clear, 0);
     rb_objc_define_method(rb_cRubyString, "encoding", rstr_encoding, 0);
-    rb_objc_define_method(rb_cRubyString, "length", rstr_length, 0);
-    rb_objc_define_method(rb_cRubyString, "size", rstr_length, 0); // alias
+    rb_objc_define_method(rb_cRubyString, "size", rstr_length, 0);
+    rb_objc_define_method(rb_cRubyString, "empty?", rstr_empty, 0);
     rb_objc_define_method(rb_cRubyString, "bytesize", rstr_bytesize, 0);
     rb_objc_define_method(rb_cRubyString, "getbyte", rstr_getbyte, 1);
     rb_objc_define_method(rb_cRubyString, "setbyte", rstr_setbyte, 2);
@@ -2837,6 +2978,9 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "gsub!", rstr_gsub_bang, -1);
     rb_objc_define_method(rb_cRubyString, "downcase", rstr_downcase, 0);
     rb_objc_define_method(rb_cRubyString, "downcase!", rstr_downcase_bang, 0);
+    rb_objc_define_method(rb_cRubyString, "ljust", rstr_ljust, -1);
+    rb_objc_define_method(rb_cRubyString, "rjust", rstr_rjust, -1);
+    rb_objc_define_method(rb_cRubyString, "center", rstr_center, -1);
 
     // Added for MacRuby (debugging).
     rb_objc_define_method(rb_cRubyString, "__chars_count__",
