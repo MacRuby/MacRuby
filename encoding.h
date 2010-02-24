@@ -298,6 +298,7 @@ void rb_str_get_uchars(VALUE str, UChar **chars_p, long *chars_len_p,
 	bool *need_free_p);
 long rb_str_chars_len(VALUE str);
 UChar rb_str_get_uchar(VALUE str, long pos);
+void rb_str_append_uchar(VALUE str, UChar c);
 
 VALUE mr_enc_s_is_compatible(VALUE klass, SEL sel, VALUE str1, VALUE str2);
 

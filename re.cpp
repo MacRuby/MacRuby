@@ -206,6 +206,42 @@ rb_char_to_icu_option(int c, int *option)
     return false;
 }
 
+static VALUE
+reg_operand(VALUE s, bool check)
+{
+    if (SYMBOL_P(s)) {
+	return rb_sym_to_s(s);
+    }
+    else {
+	VALUE tmp = rb_check_string_type(s);
+	if (check && NIL_P(tmp)) {
+	    rb_raise(rb_eTypeError, "can't convert %s to String",
+		     rb_obj_classname(s));
+	}
+	return tmp;
+    }
+}
+
+/*
+ *  call-seq:
+ *     Regexp.escape(str)   => string
+ *     Regexp.quote(str)    => string
+ *
+ *  Escapes any characters that would have special meaning in a regular
+ *  expression. Returns a new escaped string, or self if no characters are
+ *  escaped.  For any string,
+ *  <code>Regexp.new(Regexp.escape(<i>str</i>))=~<i>str</i></code> will be true.
+ *
+ *     Regexp.escape('\*?{}.')   #=> \\\*\?\{\}\.
+ *
+ */
+
+static VALUE
+regexp_quote(VALUE klass, SEL sel, VALUE pat)
+{
+    return rb_reg_quote(reg_operand(pat, true));
+}
+
 /*
  *  call-seq:
  *     Regexp.new(string [, options])                => regexp
@@ -347,22 +383,6 @@ regexp_equal(VALUE rcv, SEL sel, VALUE other)
  *     /(?<lhs>\w+)\s*=\s*#{rhs_pat}/ =~ "x = y"
  *     p lhs    # undefined local variable
  */
-
-static VALUE
-reg_operand(VALUE s, bool check)
-{
-    if (SYMBOL_P(s)) {
-	return rb_sym_to_s(s);
-    }
-    else {
-	VALUE tmp = rb_check_string_type(s);
-	if (check && NIL_P(tmp)) {
-	    rb_raise(rb_eTypeError, "can't convert %s to String",
-		     rb_obj_classname(s));
-	}
-	return tmp;
-    }
-}
 
 int
 rb_reg_search(VALUE re, VALUE str, int pos, bool reverse)
@@ -704,11 +724,13 @@ Init_Regexp(void)
     rb_cRegexp = rb_define_class("Regexp", rb_cObject);
     rb_objc_define_method(*(VALUE *)rb_cRegexp, "alloc",
 	    (void *)regexp_alloc, 0);
-#if 0
     rb_objc_define_method(*(VALUE *)rb_cRegexp, "compile",
-	    rb_class_new_instance_imp, -1);
-    rb_objc_define_method(*(VALUE *)rb_cRegexp, "quote", rb_reg_s_quote, 1);
-    rb_objc_define_method(*(VALUE *)rb_cRegexp, "escape", rb_reg_s_quote, 1);
+	    (void *)rb_class_new_instance_imp, -1);
+    rb_objc_define_method(*(VALUE *)rb_cRegexp, "quote",
+	    (void *)regexp_quote, 1);
+    rb_objc_define_method(*(VALUE *)rb_cRegexp, "escape",
+	    (void *)regexp_quote, 1);
+#if 0
     rb_objc_define_method(*(VALUE *)rb_cRegexp, "union", rb_reg_s_union_m, -2);
     rb_objc_define_method(*(VALUE *)rb_cRegexp, "last_match",
 	    rb_reg_s_last_match, -1);

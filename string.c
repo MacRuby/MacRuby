@@ -220,6 +220,12 @@ str_new(void)
     return (VALUE)str_alloc(rb_cRubyString);
 }
 
+static VALUE
+str_new_like(VALUE obj)
+{
+    return (VALUE)str_alloc(rb_obj_class(obj));
+}
+
 static void
 str_replace_with_bytes(rb_str_t *self, const char *bytes, long len,
 	rb_encoding_t *enc)
@@ -695,30 +701,65 @@ str_resize_bytes(rb_str_t *self, long new_capacity)
 }
 
 static void
-str_delete(rb_str_t *self, long pos, long len, bool ucs2_mode)
+str_splice(rb_str_t *self, long pos, long len, rb_str_t *str, bool ucs2_mode)
 {
-    assert(pos >= 0 && len > 0);
-    const long self_len = str_length(self, ucs2_mode);
-    if (pos + len == self_len) {
-	// We are deleting stuff from the end of the string. We can simply
-	// change the string size here.
-	if (str_is_stored_in_uchars(self)) {
-	    self->length_in_bytes -= UCHARS_TO_BYTES(len);
+    // self[pos..pos+len] = str
+    assert(pos >= 0 && len >= 0);
+
+    character_boundaries_t beg
+	= str_get_character_boundaries(self, pos, ucs2_mode);
+
+    // TODO: probably call str_cannot_cut_surrogate()
+    assert(beg.start_offset_in_bytes != -1);
+    assert(beg.end_offset_in_bytes != -1);
+
+    character_boundaries_t end
+	= str_get_character_boundaries(self, pos + len - 1, ucs2_mode);
+
+    // TODO: probably call str_cannot_cut_surrogate()
+    assert(end.start_offset_in_bytes != -1);
+    assert(end.end_offset_in_bytes != -1);
+
+    const long bytes_to_splice = end.end_offset_in_bytes
+	- beg.start_offset_in_bytes;
+
+    long bytes_to_add = 0; 
+    if (str != NULL) {
+	str_must_have_compatible_encoding(self, str);
+	str_make_same_format(self, str);
+	if (str->length_in_bytes > bytes_to_splice) {
+	    str_resize_bytes(self, self->length_in_bytes
+		    + (str->length_in_bytes - bytes_to_splice));
 	}
-	else {
-	    self->length_in_bytes -= len;
+	bytes_to_add = str->length_in_bytes;
+    }
+
+    if (end.end_offset_in_bytes == self->length_in_bytes) {
+    	if (bytes_to_add > 0) {
+	    // We are splicing at the very end.
+	    memcpy(self->data.bytes + self->length_in_bytes, str->data.bytes,
+		    bytes_to_add);
 	}
     }
     else {
-	assert(pos + len < self_len);
-	abort(); // TODO
+	// We are splicing in the middle.
+	memmove(self->data.bytes + beg.start_offset_in_bytes + bytes_to_add,
+		self->data.bytes + end.end_offset_in_bytes,
+		self->length_in_bytes - end.end_offset_in_bytes);
+	if (bytes_to_add > 0) {
+	    memcpy(self->data.bytes + beg.start_offset_in_bytes,
+		    str->data.bytes, bytes_to_add);
+	}
     }
+
+    self->length_in_bytes = self->length_in_bytes - bytes_to_splice
+	+ bytes_to_add; 
 }
 
 static void
-str_splice(rb_str_t *str, long beg, long len, rb_str_t *val, bool ucs2_mode)
+str_delete(rb_str_t *self, long pos, long len, bool ucs2_mode)
 {
-    // TODO: str[beg..beg+len] = val
+    str_splice(self, pos, len, NULL, ucs2_mode);
 }
 
 static void
@@ -1543,6 +1584,37 @@ rstr_plus(VALUE self, SEL sel, VALUE other)
     rb_str_t *newstr = str_dup(RSTR(self));
     str_concat_string(newstr, str_need_string(other));
     return (VALUE)newstr;
+}
+
+/*
+ *  call-seq:
+ *     str * integer   => new_str
+ *  
+ *  Copy---Returns a new <code>String</code> containing <i>integer</i> copies of
+ *  the receiver.
+ *     
+ *     "Ho! " * 3   #=> "Ho! Ho! Ho! "
+ */
+
+static VALUE
+rstr_times(VALUE self, SEL sel, VALUE times)
+{
+    const long len = NUM2LONG(times);
+    if (len < 0) {
+	rb_raise(rb_eArgError, "negative argument");
+    }
+    if (len > 0 && LONG_MAX/len < str_length(RSTR(self), true)) {
+	rb_raise(rb_eArgError, "argument too big");
+    }
+
+    VALUE new = str_new_like(self);
+    for (long i = 0; i < len; i++) {
+	str_concat_string(RSTR(new), RSTR(self));
+    }
+    if (OBJ_TAINTED(self)) {
+	OBJ_TAINT(new);
+    }
+    return new;
 }
 
 /*
@@ -2380,7 +2452,6 @@ rstr_sub_bang(VALUE str, SEL sel, int argc, VALUE *argv)
     VALUE pat = get_pat(argv[0], true);
     if (rb_reg_search(pat, str, 0, false) >= 0) {
 	VALUE match = rb_backref_get();
-
 	int count = 0;
 	rb_match_result_t *results = rb_reg_match_results(match, &count);
 	assert(count > 0);
@@ -2457,6 +2528,223 @@ rstr_sub(VALUE str, SEL sel, int argc, VALUE *argv)
     return str;
 }
 
+/*
+ *  call-seq:
+ *     str.gsub!(pattern, replacement)        => str or nil
+ *     str.gsub!(pattern) {|match| block }    => str or nil
+ *  
+ *  Performs the substitutions of <code>String#gsub</code> in place, returning
+ *  <i>str</i>, or <code>nil</code> if no substitutions were performed.
+ */
+
+static VALUE
+str_gsub(SEL sel, int argc, VALUE *argv, VALUE str, bool bang)
+{
+    bool block_given = false;
+    bool tainted = false;
+    VALUE hash = Qnil, repl = Qnil;
+ 
+    switch (argc) {
+	case 1:
+	    RETURN_ENUMERATOR(str, argc, argv);
+	    block_given = true;
+	    break;
+
+	case 2:
+	    repl = argv[1];
+	    hash = rb_check_convert_type(argv[1], T_HASH, "Hash", "to_hash");
+	    if (NIL_P(hash)) {
+		StringValue(repl);
+	    }
+	    if (OBJ_TAINTED(repl)) {
+		tainted = true;
+	    }
+	    break;
+
+	default:
+	    rb_raise(rb_eArgError, "wrong number of arguments (%d for 2)",
+		    argc);
+    }
+
+    VALUE pat = get_pat(argv[0], 1);
+    VALUE dest = rb_str_new5(str, NULL, 0);
+    long offset = 0;
+    bool changed = false;
+    const long len = str_length(RSTR(str), false);
+
+    while (true) {
+        const long pos = rb_reg_search(pat, str, offset, false);
+	if (pos < 0) {
+	    if (!changed) {
+		return bang ? Qnil : rstr_dup(str, 0);
+	    }
+	    str_concat_string(RSTR(dest),
+		    RSTR(str_substr(str, offset, len - offset)));
+	    break;
+	}
+
+	VALUE match = rb_backref_get();
+	int count = 0;
+	rb_match_result_t *results = rb_reg_match_results(match, &count);
+	assert(count > 0);
+
+	VALUE val;
+	if (block_given || !NIL_P(hash)) {
+            if (block_given) {
+                val = rb_obj_as_string(rb_yield(rb_reg_nth_match(0, match)));
+            }
+            else {
+                val = rb_hash_aref(hash, str_substr(str, results[0].beg,
+			    results[0].end - results[0].beg));
+                val = rb_obj_as_string(val);
+            }
+	    rstr_frozen_check(str);
+	    if (block_given) {
+		rb_backref_set(match);
+	    }
+	}
+	else {
+	    val = rb_reg_regsub(repl, str, match, pat);
+	}
+
+	if (pos - offset > 0) {
+	    str_concat_string(RSTR(dest),
+		    RSTR(str_substr(str, offset, pos - offset)));
+	}
+	str_concat_string(RSTR(dest), str_need_string(val));
+
+	if (OBJ_TAINTED(val)) {
+	    tainted = true;
+	}
+	changed = true;
+
+	offset = results[0].end;
+	if (results[0].beg == offset) {
+	    offset++;
+	}
+    }
+
+    if (bang) {
+	rstr_modify(str);
+	str_replace(RSTR(str), dest);
+    }
+    else {
+    	if (!tainted && OBJ_TAINTED(str)) {
+	    tainted = true;
+	}
+	str = dest;
+    }
+
+    if (tainted) {
+	OBJ_TAINT(str);
+    }
+    return str;
+}
+
+static VALUE
+rstr_gsub_bang(VALUE str, SEL sel, int argc, VALUE *argv)
+{
+    return str_gsub(sel, argc, argv, str, true);
+}
+
+/*
+ *  call-seq:
+ *     str.gsub(pattern, replacement)       => new_str
+ *     str.gsub(pattern) {|match| block }   => new_str
+ *  
+ *  Returns a copy of <i>str</i> with <em>all</em> occurrences of <i>pattern</i>
+ *  replaced with either <i>replacement</i> or the value of the block. The
+ *  <i>pattern</i> will typically be a <code>Regexp</code>; if it is a
+ *  <code>String</code> then no regular expression metacharacters will be
+ *  interpreted (that is <code>/\d/</code> will match a digit, but
+ *  <code>'\d'</code> will match a backslash followed by a 'd').
+ *     
+ *  If a string is used as the replacement, special variables from the match
+ *  (such as <code>$&</code> and <code>$1</code>) cannot be substituted into it,
+ *  as substitution into the string occurs before the pattern match
+ *  starts. However, the sequences <code>\1</code>, <code>\2</code>,
+ *  <code>\k<group_name></code>, and so on may be used to interpolate
+ *  successive groups in the match.
+ *     
+ *  In the block form, the current match string is passed in as a parameter, and
+ *  variables such as <code>$1</code>, <code>$2</code>, <code>$`</code>,
+ *  <code>$&</code>, and <code>$'</code> will be set appropriately. The value
+ *  returned by the block will be substituted for the match on each call.
+ *     
+ *  The result inherits any tainting in the original string or any supplied
+ *  replacement string.
+ *     
+ *     "hello".gsub(/[aeiou]/, '*')                  #=> "h*ll*"
+ *     "hello".gsub(/([aeiou])/, '<\1>')             #=> "h<e>ll<o>"
+ *     "hello".gsub(/./) {|s| s[0].ord.to_s + ' '}   #=> "104 101 108 108 111 "
+ *     "hello".gsub(/(?<foo>[aeiou])/, '{\k<foo>}')  #=> "h{e}ll{o}"
+ */
+
+static VALUE
+rstr_gsub(VALUE str, SEL sel, int argc, VALUE *argv)
+{
+    return str_gsub(sel, argc, argv, str, false);
+}
+
+/*
+ *  call-seq:
+ *     str.downcase!   => str or nil
+ *  
+ *  Downcases the contents of <i>str</i>, returning <code>nil</code> if no
+ *  changes were made.
+ *  Note: case replacement is effective only in ASCII region.
+ */
+
+static VALUE
+rstr_downcase_bang(VALUE str, SEL sel)
+{
+    rstr_modify(str);
+
+    bool changed = false;
+
+    if (str_is_stored_in_uchars(RSTR(str))) {
+	for (long i = 0, count = BYTES_TO_UCHARS(RSTR(str)->length_in_bytes);
+		i < count; i++) {
+	    UChar c = RSTR(str)->data.uchars[i];
+	    if (c >= 'A' && c <= 'Z') {
+		RSTR(str)->data.uchars[i] = 'a' + (c - 'A');
+		changed = true;
+	    }	
+	}
+    }
+    else {
+	for (long i = 0, count = RSTR(str)->length_in_bytes; i < count; i++) {
+	    char c = RSTR(str)->data.bytes[i];
+	    if (c >= 'A' && c <= 'Z') {
+		RSTR(str)->data.bytes[i] = 'a' + (c - 'A');
+		changed = true;
+	    }	
+	}
+    }
+
+    return changed ? str : Qnil;
+}
+
+/*
+ *  call-seq:
+ *     str.downcase   => new_str
+ *  
+ *  Returns a copy of <i>str</i> with all uppercase letters replaced with their
+ *  lowercase counterparts. The operation is locale insensitive---only
+ *  characters ``A'' to ``Z'' are affected.
+ *  Note: case replacement is effective only in ASCII region.
+ *     
+ *     "hEllO".downcase   #=> "hello"
+ */
+
+static VALUE
+rstr_downcase(VALUE str, SEL sel)
+{
+    str = rb_str_new3(str);
+    rstr_downcase_bang(str, 0);
+    return str;
+}
+
 // NSString primitives.
 
 static CFIndex
@@ -2508,6 +2796,7 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "slice", rstr_aref, -1);
     rb_objc_define_method(rb_cRubyString, "index", rstr_index, -1);
     rb_objc_define_method(rb_cRubyString, "+", rstr_plus, 1);
+    rb_objc_define_method(rb_cRubyString, "*", rstr_times, 1);
     rb_objc_define_method(rb_cRubyString, "<<", rstr_concat, 1);
     rb_objc_define_method(rb_cRubyString, "concat", rstr_concat, 1);
     rb_objc_define_method(rb_cRubyString, "==", rstr_equal, 1);
@@ -2529,6 +2818,10 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "chomp!", rstr_chomp_bang, -1);
     rb_objc_define_method(rb_cRubyString, "sub", rstr_sub, -1);
     rb_objc_define_method(rb_cRubyString, "sub!", rstr_sub_bang, -1);
+    rb_objc_define_method(rb_cRubyString, "gsub", rstr_gsub, -1);
+    rb_objc_define_method(rb_cRubyString, "gsub!", rstr_gsub_bang, -1);
+    rb_objc_define_method(rb_cRubyString, "downcase", rstr_downcase, 0);
+    rb_objc_define_method(rb_cRubyString, "downcase!", rstr_downcase_bang, 0);
 
     // Added for MacRuby (debugging).
     rb_objc_define_method(rb_cRubyString, "__chars_count__",
@@ -2718,7 +3011,7 @@ rb_str_new2(const char *cstr)
 VALUE
 rb_str_new3(VALUE source)
 {
-    rb_str_t *str = str_alloc(rb_cRubyString);
+    rb_str_t *str = str_alloc(rb_obj_class(source));
     str_replace(str, source);
     return (VALUE)str;
 }
@@ -2729,6 +3022,14 @@ rb_str_new4(VALUE source)
     VALUE str = rb_str_new3(source);
     OBJ_FREEZE(str);
     return str;
+}
+
+VALUE
+rb_str_new5(VALUE source, const char *cstr, long len)
+{
+    rb_str_t *str = str_alloc(rb_obj_class(source));
+    str_replace_with_bytes(str, cstr, len, rb_encodings[ENCODING_UTF8]);
+    return (VALUE)str;
 }
 
 VALUE
@@ -2886,6 +3187,17 @@ rb_str_get_uchar(VALUE str, long pos)
     }
     assert(pos >= 0 && pos < CFStringGetLength((CFStringRef)str));
     return CFStringGetCharacterAtIndex((CFStringRef)str, pos);
+}
+
+void
+rb_str_append_uchar(VALUE str, UChar c)
+{
+    if (RSTR(str)) {
+	str_append_uchar(RSTR(str), c);	
+    }
+    else {
+	CFStringAppendCharacters((CFMutableStringRef)str, &c, 1);
+    }	
 }
 
 long
