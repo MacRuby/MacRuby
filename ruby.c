@@ -832,7 +832,7 @@ opt_enc_find(VALUE enc_name)
     return enc;
 }
 
-VALUE rb_progname;
+VALUE rb_progname = Qnil;
 VALUE rb_argv0;
 
 static rb_encoding *src_encoding;
@@ -1276,14 +1276,18 @@ set_arg0(VALUE val, ID id)
 	}
     }
 #endif
+    GC_RELEASE(rb_progname);
     rb_progname = rb_tainted_str_new(s, i);
+    GC_RETAIN(rb_progname);
 }
 
 void
 ruby_script(const char *name)
 {
-    if (name) {
+    if (name != NULL) {
+	GC_RELEASE(rb_progname);
 	rb_progname = rb_tainted_str_new2(name);
+	GC_RETAIN(rb_progname);
     }
 }
 
@@ -1350,7 +1354,6 @@ ruby_prog_init(void)
 
     rb_define_hooked_variable("$0", &rb_progname, 0, set_arg0);
     rb_define_hooked_variable("$PROGRAM_NAME", &rb_progname, 0, set_arg0);
-    GC_ROOT(&rb_progname);
 
     rb_define_global_const("ARGV", rb_argv);
     rb_global_variable(&rb_argv0);
