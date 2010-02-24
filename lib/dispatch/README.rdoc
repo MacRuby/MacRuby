@@ -179,15 +179,15 @@ The simplest iteration is defined on the +Integer+ class, supplementing +times+:
 	
 Note that even though the iterator as a whole is synchronous, each block is independent and may execute out of order.
 
-Even this add noticeable overhead compared to the non-parallel version, so if you have a large number of relatively cheap iterations you can batch them together by specifying a +stride+:
+This may add noticeable overhead compared to the non-parallel version, so if you have a large number of relatively cheap iterations you can batch them together by specifying a +stride+:
 
 	5.p_times(3) { |i| puts 10**i } # =>1000 10000 1 10 100 
 
 It doesn't change the result, but schedules fewer blocks thus amortizing the overhead over more work. Note that items _within_ a stride are executed in the original order, but no order is guaranteed _between_ strides.
 
 === Enumerable ===
-	
-The rest are all defined on +Enumerable+, so they are available from any class which mixes that in (e.g, +Array+, +Hash+, etc.). These also can take an optional stride.
+
+The +p_times+ method is used to implement several convenience methods on +Enumerable+, which are therefore available from any class which mixes that in (e.g, +Array+, +Hash+, etc.). These also can take an optional stride.
 
 ==== p_each ====
 
@@ -213,13 +213,14 @@ The last of our collection methods does not have a serial equivalent:
 
 	(0..4).p_mapreduce(0) { |i| 10**i } # => 11111
 
-This uses a parallel +inject+ (formerly known as +reduce+) to return a single value by combining the result of +map+ by repeatedly sending ":+" message to update the result.  Unlike +inject+, you must specify an explicit initial value; unlike +p_map+, it does not take a stride.
+This uses a parallel +inject+ (formerly known as +reduce+) to return a single value by combining the result of +map+. 	Unlike +inject+, you must specify an explicit initial value. The default accumulator is ":+", but you can specify a different symbol to +send+:
 
-You can also pass any method as a symbol to use with the accumulator:
-
-	(0..2).p_mapreduce(0, :*) { |i| 10**i } # => 1000
+	(0..4).p_mapreduce([], :concat) { |i| [10**i] } # => [1, 1000, 10, 100, 10000]
 	
-Note that there is no stride.
+Because of those parameters, the optional +stride+ is now the third:
+
+	(0..4).p_mapreduce([], :concat, 3) { |i| [10**i] } # => [1000, 10000, 1, 10, 100]
+
 
 ==== p_find ====
 

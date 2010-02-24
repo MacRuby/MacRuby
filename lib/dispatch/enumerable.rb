@@ -62,7 +62,7 @@ module Enumerable
   # Parallel +collect+ plus +inject+
   # Accumulates from +initial+ via +op+ (default = '+')
   # Note: each object will only run one p_mapreduce at a time
-  def p_mapreduce(initial, op=:+, &block)
+  def p_mapreduce(initial, op=:+, stride=1, priority=nil, &block)
     # Check first, since exceptions from a Dispatch block can act funky 
     raise ArgumentError if not initial.respond_to? op
     # TODO: assign from within a Dispatch.once to avoid race condition
@@ -70,7 +70,7 @@ module Enumerable
     @mapreduce_q.sync do # in case called more than once at a time
       @mapreduce_result = initial
       q = Dispatch::Queue.for(@mapreduce_result)
-      self.p_each do |obj|
+      self.p_each(stride, priority) do |obj|
         val = block.call(obj)
         q.async { @mapreduce_result = @mapreduce_result.send(op, val) }
       end
