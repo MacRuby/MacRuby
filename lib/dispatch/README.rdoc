@@ -237,8 +237,7 @@ Passes each object and collects those for which the block is true, like +findall
 	
 ==== p_find ====
 
-Passes each object and returns nil if none match. Similar to +find+, it returns the first object it finds that matches 
-_a_ object that matches, but unlike +find+ it may not be the first since blocks -- say it with me -- "may complete out of order":
+Passes each object and returns nil if none match. Similar to +find+, it returns the first object it _finds_ for which the block is true, but unlike +find+ that may not be the _actual_ first object since blocks -- say it with me -- "may complete out of order":
 
 	(0..4).p_findall { |i| i == 5 } # => nil
 
@@ -248,7 +247,7 @@ _a_ object that matches, but unlike +find+ it may not be the first since blocks 
 
 == Events
 
-In addition to scheduling blocks directly, developers can set a block as the handler for event sources such as:
+In addition to scheduling blocks directly, GCD makes it easy to run a block in response to various system events, including:
 
 * Timers
 * Signals
@@ -257,7 +256,7 @@ In addition to scheduling blocks directly, developers can set a block as the han
 * Mach ports
 * Custom application-specific events
 	
-When the source “fires,” GCD will schedule the handler on the specific queue if it is not currently running, or coalesce pending events if it is. This provides excellent responsiveness without the expense of either polling or binding a thread to the event source.  Plus, since the handler is never run more than once at a time, the block doesn’t even need to be reentrant.
+When the source “fires,” GCD will schedule the handler on the specific queue if it is not currently running, or -- more importantly -- coalesce pending events if it is. This provides excellent responsiveness without the expense of either polling or binding a thread to the event source.  Plus, since the handler is never run more than once at a time, the block doesn’t even need to be reentrant.
 
 === Timer Example
 

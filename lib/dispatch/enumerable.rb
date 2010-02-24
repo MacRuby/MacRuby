@@ -61,7 +61,7 @@ module Enumerable
 
   # Parallel +collect+ plus +inject+
   # Accumulates from +initial+ via +op+ (default = '+')
-  # Note: each object will only run one p_mapreduce at a time
+  # Note: each object can only run one p_mapreduce at a time
   def p_mapreduce(initial, op=:+, stride=1, priority=nil, &block)
     # Check first, since exceptions from a Dispatch block can act funky 
     raise ArgumentError if not initial.respond_to? op
