@@ -32,13 +32,13 @@ if MACOSX_VERSION >= 10.6
       end
     end
 
-    describe :results do
+    describe :values do
       it "should return an instance of Dispatch::Proxy" do
-        @job.results.should be_kind_of Dispatch::Proxy
+        @job.values.should be_kind_of Dispatch::Proxy
       end
 
       it "has a __value__ that is Enumerable" do
-        @job.results.__value__.should be_kind_of Enumerable
+        @job.values.__value__.should be_kind_of Enumerable
       end
     end
 

@@ -4,12 +4,12 @@ module Dispatch
   # Duck-type +join+ and +value+ from +Thread+
   class Job  
     # Create a Job that asynchronously dispatches the block 
-    attr_reader :group, :results
+    attr_reader :group, :values
     
     def initialize(queue = Dispatch::Queue.concurrent, &block)
       @queue = queue
       @group = Group.new
-      @results = synchronize([])
+      @values = synchronize([])
       add(&block) if not block.nil?
     end
     
@@ -19,7 +19,7 @@ module Dispatch
     
     # Submit block as part of the same dispatch group
     def add(&block)
-      @queue.async(@group) { @results << block.call }      
+      @queue.async(@group) { @values << block.call }      
     end
   
     # Wait until execution has completed.
@@ -45,7 +45,7 @@ module Dispatch
     
     # Remove and return the first value    
     def result
-       @results.shift
+       @values[-1]
     end
     
   end

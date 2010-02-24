@@ -50,12 +50,9 @@ The downside of asynchrony is that you don't know exactly when your job will exe
 	
 This will wait until the value has been calculated, allowing it to be used as an {explicit Future}[http://en.wikipedia.org/wiki/Futures_and_promises]. However, this may stall the main thread indefinitely, which reduces the benefits of concurrency.  
 
-Wherever possible, you should instead attempt to figure out exactly _when_  and _why_ you need to know the results of asynchronous work. Then, call +value+ with a block to also perform _that_ work asynchronously once the value has been calculated -- all without blocking the main thread:
+Wherever possible, you should instead attempt to figure out exactly _when_  and _why_ you need to know the result of asynchronous work. Then, call +value+ with a block to also perform _that_ work asynchronously once the value has been calculated -- all without blocking the main thread:
 
-	job = Dispatch::Job.new { Math.sqrt(10**100) }
 	job.value {|v| p v.to_int.to_s.size } # => 51 (eventually)
-
-Note that +value+ removes the value as it is returned, and thus cannot be called multiple times. 
 
 === Job#join: Job Completion
 
@@ -74,11 +71,20 @@ More commonly, you will have multiple units of work you'd like to perform in par
 
 	job.add { Math.sqrt(2**64) }
 
-If there are multiple blocks in a job, +value+ will wait until they all finish then return the first result returned since the previous call to +value+:
+If there are multiple blocks in a job, +value+ will wait until they all finish then return the last value received:
 
 job.value {|b| p b } # => 4294967296.0
 
-You can then repeatedly call value to retrieve any additional results. Note that the returned order is undefined, since asynchronous blocks can complete in any order.
+=== Job#values: Returning All Values
+
+Note that values may be received out of order, since they may take differing amounts of time to complete. If you need to force a particular ordering, create a new +Job+ or call +join+ before submitting the block.
+
+Additionally,  you can call +values+ to obtain all the values:
+
+	@values = job.values 
+	puts @values # => [1.0E50, 4294967296.0]
+
+Note that unlike +value+ this will not +wait+ or +join+, and thus does not have an asynchronous equivalent.
 
 == Dispatch::Proxy: Protecting Shared Data
 
@@ -97,7 +103,11 @@ The easiest way to create a Proxy is to first create an empty Job:
 then ask it to wrap the object you want to modify from multiple threads:
 
 	@hash = job.synchronize {}
-	@hash.class # => Dispatch::Proxy
+	puts @hash.class # => Dispatch::Proxy
+	
+This is actually the same type of object used to manage the list of +values+:
+
+	puts job.values.class # => Dispatch::Proxy
 	
 === method_missing: Using Proxies
 
@@ -159,17 +169,24 @@ The general rule is to "do *not* assign to external variables inside a Dispatch 
 
 Jobs are useful when you want to run a single item in the background or to run many different operations at once. But if you want to run the _same_ operation multiple times, you can take advantage of specialized GCD iterators.  The Dispatch module defines "p_" variants of common Ruby iterators, making it trivial to parellelize existing operations.  
 
-These may add significant overhead compared to the non-parallel version, though, so you should only use them when doing a lot of work.  In addition, for simplicity they all are _synchronous_, meaning they won't return until all the work has completed (if you do need asynchrony, simply wrap them or their results in a +Job+).
+In addition, for simplicity they all are _synchronous_, meaning they won't return until all the work has completed.
 
 === Integer#p_times ===
 
-The first is defined on the +Integer+ class, supplementing +times+:
+The simplest iteration is defined on the +Integer+ class, supplementing +times+:
 
-	3.p_times { |i| puts 10**i } # => 1 10 100
+	5.p_times { |i| puts 10**i } # => 1 10 100 1000 10000 10000
+
+Even this add noticeable overhead compared to the non-parallel version, so if you have a large number of relatively cheap iterations you can batch them together by specifying a +stride+:
+
+	5.p_times(3) { |i| puts 10**i } # =>1 10 100 1000 10000 10000
+
+It doesn't change the result, but schedules fewer blocks thus amortizing the overhead over more work.
+
 
 === Enumerable ===
 	
-The rest are all defined on +Enumerable+, so they are available from any class which mixes that in (e.g, +Array+, +Hash+, etc.).
+The rest are all defined on +Enumerable+, so they are available from any class which mixes that in (e.g, +Array+, +Hash+, etc.). These also can take an optional stride:
 
 ==== p_each ====
 
@@ -191,7 +208,7 @@ Note that even though the iterator as a whole is synchronous, each block is inde
 
 	(0..2).p_mapreduce { |i| 10**i } # => 111
 
-This uses a parallel +inject+ (aka +reduce+) to return a single value by combining the results of +map+ via the ":+" message.  You can also specify a different accumulator:
+This uses a parallel +inject+ (formerly known as +reduce+) to return a single value by combining the result of +map+ via the ":+" message.  You can also pass a symbol representing a different accumulator operation (method or operator):
 
 	(0..2).p_mapreduce(:*) { |i| 10**i } # => 1000
 
