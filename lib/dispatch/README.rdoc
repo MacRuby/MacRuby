@@ -94,7 +94,7 @@ Because Ruby traditionally had a global VM lock (or GIL[http://en.wikipedia.org/
 
 In MacRuby, every thread has its own Virtual Machine, which means all of them can access Ruby objects at the same time -- great for concurrency, not so great for data integrity. Fortunately, GCD provides _serial queues_ for {lock-free synchronization}[http://en.wikipedia.org/wiki/Non-blocking_synchronization], by ensuring that only one thread a time accesses a particular object -- without the complexity and inefficiency of locking. Here we will focus on +Dispatch::Proxy+, a high-level construct that implements the {Actor model}[http://en.wikipedia.org/wiki/Actor_model] by wrapping any arbitrary Ruby object with a +SimpleDelegate+ that only allows execution of one method at a time (i.e., serializes data access on to a private queue).
 
-=== Job#sync Creating Proxies
+=== Job#synchronize: Creating Proxies
 
 The easiest way to create a Proxy is to first create an empty Job:
 
@@ -129,7 +129,7 @@ As with Dispatch::Job, you can make any invocation asynchronous by passing a blo
 
 	@hash.inspect { |s| p s } # => {64 => 1.0E32, 100 => 1.0E50}
 
-=== __value__: Returning Delegate
+=== \_\_value\_\_: Returning Delegate
 
 If for any reason you need to retrieve the delegate object, simply call +__value__+:
 
@@ -244,6 +244,9 @@ Passes each object and returns nil if none match. Similar to +find+, it returns 
 	(0..4).p_findall { |i| i.odd?} # => 1
 
 	(0..4).p_findall(3) { |i| i.odd?} # => 3
+
+---
+= UNDER CONSTRUCTION = 
 
 == Events
 
