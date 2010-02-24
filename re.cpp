@@ -1212,9 +1212,12 @@ rb_reg_nth_match(int nth, VALUE match)
     }
 
     const int beg = RMATCH(match)->results[nth].beg;
-    const int len = RMATCH(match)->results[nth].end - beg;
+    const int end = RMATCH(match)->results[nth].end;
+    if (beg == -1 || end == -1) {
+	return Qnil;
+    }
 
-    return unistr_subseq(RMATCH(match)->unistr, beg, len);
+    return unistr_subseq(RMATCH(match)->unistr, beg, end - beg);
 }
 
 VALUE
