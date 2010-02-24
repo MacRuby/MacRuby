@@ -706,19 +706,34 @@ str_splice(rb_str_t *self, long pos, long len, rb_str_t *str, bool ucs2_mode)
     // self[pos..pos+len] = str
     assert(pos >= 0 && len >= 0);
 
-    character_boundaries_t beg
-	= str_get_character_boundaries(self, pos, ucs2_mode);
+    character_boundaries_t beg, end;
 
-    // TODO: probably call str_cannot_cut_surrogate()
-    assert(beg.start_offset_in_bytes != -1);
-    assert(beg.end_offset_in_bytes != -1);
+    if (pos + len == 0) {
+	// Positioning before the string.
+	const long offset = 0;
+	beg.start_offset_in_bytes = beg.end_offset_in_bytes = offset;
+	end.start_offset_in_bytes = end.end_offset_in_bytes = offset;
+    }
+    else if (len == 0 && str_length(self, ucs2_mode) == pos) {
+	// Positioning after the string.
+	const long offset = self->length_in_bytes;
+	beg.start_offset_in_bytes = beg.end_offset_in_bytes = offset;
+	end.start_offset_in_bytes = end.end_offset_in_bytes = offset;
+    }
+    else {
+	// Positioning in the string.
+	beg = str_get_character_boundaries(self, pos, ucs2_mode);
 
-    character_boundaries_t end
-	= str_get_character_boundaries(self, pos + len - 1, ucs2_mode);
+	// TODO: probably call str_cannot_cut_surrogate()
+	assert(beg.start_offset_in_bytes != -1);
+	assert(beg.end_offset_in_bytes != -1);
 
-    // TODO: probably call str_cannot_cut_surrogate()
-    assert(end.start_offset_in_bytes != -1);
-    assert(end.end_offset_in_bytes != -1);
+	end = str_get_character_boundaries(self, pos + len - 1, ucs2_mode);
+
+	// TODO: probably call str_cannot_cut_surrogate()
+	assert(end.start_offset_in_bytes != -1);
+	assert(end.end_offset_in_bytes != -1);
+    }
 
     const long bytes_to_splice = end.end_offset_in_bytes
 	- beg.start_offset_in_bytes;
