@@ -175,42 +175,51 @@ In addition, for simplicity they all are _synchronous_, meaning they won't retur
 
 The simplest iteration is defined on the +Integer+ class, supplementing +times+:
 
-	5.p_times { |i| puts 10**i } # => 1 10 100 1000 10000 10000
+	5.p_times { |i| puts 10**i } # => 1 10 1000 10000 100
+	
+Note that even though the iterator as a whole is synchronous, each block is independent and may execute out of order.
 
 Even this add noticeable overhead compared to the non-parallel version, so if you have a large number of relatively cheap iterations you can batch them together by specifying a +stride+:
 
-	5.p_times(3) { |i| puts 10**i } # =>1 10 100 1000 10000 10000
+	5.p_times(3) { |i| puts 10**i } # =>1000 10000 1 10 100 
 
-It doesn't change the result, but schedules fewer blocks thus amortizing the overhead over more work.
-
+It doesn't change the result, but schedules fewer blocks thus amortizing the overhead over more work. Note that items _within_ a stride are executed in the original order, but no order is guaranteed _between_ strides.
 
 === Enumerable ===
 	
-The rest are all defined on +Enumerable+, so they are available from any class which mixes that in (e.g, +Array+, +Hash+, etc.). These also can take an optional stride:
+The rest are all defined on +Enumerable+, so they are available from any class which mixes that in (e.g, +Array+, +Hash+, etc.). These also can take an optional stride.
 
 ==== p_each ====
 
-	%w(Mon Tue Wed Thu Fri).p_each { |day| puts day}
-	# => Mon Wed Thu Tue Fri
+	%w(Mon Tue Wed Thu Fri).p_each { |day| puts day} # => Mon Wed Thu Tue Fri
 
-Note that even though the iterator as a whole is synchronous, each block is independent and may execute out of order.
+
+	%w(Mon Tue Wed Thu Fri).p_each(3) { |day| puts day} # =>  Thu Fri Mon Tue Wed
+
 
 ==== p_each_with_index ====
 
-	%w(Mon Tue Wed Thu Fri).p_each { |day, i | puts "#{i}:#{day}"}
-	# => 0:Mon 2:Wed 3:Thu 1:Tue 4:Fri
+	%w(Mon Tue Wed Thu Fri).p_each { |day, i | puts "#{i}:#{day}"} # => 0:Mon 2:Wed 3:Thu 1:Tue 4:Fri
+
+	%w(Mon Tue Wed Thu Fri).p_each(3) { |day, i | puts "#{i}:#{day}"} # => 0:Mon 2:Wed 3:Thu 1:Tue 4:Fri
 
 ==== p_map ====
 
-	(0..2).p_map { |i| 10**i } # => [1, 10, 100]
+	(0..4).p_map { |i| 10**i } # => [1, 10, 100]
 
 ==== p_mapreduce ====
 
-	(0..2).p_mapreduce { |i| 10**i } # => 111
+The last of our collection methods does not have a serial equivalent:
 
-This uses a parallel +inject+ (formerly known as +reduce+) to return a single value by combining the result of +map+ via the ":+" message.  You can also pass a symbol representing a different accumulator operation (method or operator):
+	(0..4).p_mapreduce(0) { |i| 10**i } # => 11111
 
-	(0..2).p_mapreduce(:*) { |i| 10**i } # => 1000
+This uses a parallel +inject+ (formerly known as +reduce+) to return a single value by combining the result of +map+ by repeatedly sending ":+" message to update the result.  Unlike +inject+, you must specify an explicit initial value; unlike +p_map+, it does not take a stride.
+
+You can also pass any method as a symbol to use with the accumulator:
+
+	(0..2).p_mapreduce(0, :*) { |i| 10**i } # => 1000
+	
+Note that there is no stride.
 
 ==== p_find ====
 
