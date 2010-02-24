@@ -22,7 +22,7 @@ Dispatch::Source:: Monitors and coalesces low-level system events so that they c
 
 Dispatch::Semaphore:: Synchronizes threads via a combination of waiting and signalling.
 
-In addition, MacRuby 0.6 provides additional, higher-level abstractions and convenience APIs via the "dispatch" library (i.e., +require 'dispatch'+).
+In addition, MacRuby 0.6 provides additional, higher-level abstractions and convenience APIs such as +Job+ and +Proxy+ via the "dispatch" library (i.e., +require 'dispatch'+).
 
 === What You Need
 
@@ -32,14 +32,14 @@ We also assume that you are already familiar with Ruby, though not necessarily M
 
 == Dispatch::Job: Easy Concurrency
 
-The easiest way to perform concurrent work is via a Dispatch::Job object. Say you have a complex, long-running calculation you want to happen in the background. Create a job by passing the block you want to execute:
+The easiest way to perform concurrent work is via a +Job+ object. Say you have a complex, long-running calculation you want to happen in the background. Create a job by passing the block you want to execute:
 
 	require 'dispatch'
 	job = Dispatch::Job.new { Math.sqrt(10**100) }
 
 This atomically[http://en.wikipedia.org/wiki/Atomic_operation] adds the block to GCD's default concurrent queue, then returns immediately so you don't stall the main thread.
 
-Concurrent queues schedule as many simultaneous blocks as they can on a first-in/first-out (FIFO[http://en.wikipedia.org/wiki/FIFO]) basis, as long as there are threads available.  If there are spare CPUs, the system will automatically create more threads -- and reclaim them when idle -- allowing GCD to dynamically scale the number of threads based on the overall system load.  Thus -- unlike with threads, which choke when you create too many -- you can generally create as many jobs as you want, and GCD will do the right thing. 
+Concurrent queues schedule as many simultaneous blocks as they can on a first-in/first-out (FIFO[http://en.wikipedia.org/wiki/FIFO]) basis, as long as there are threads available.  If there are spare CPUs, the system will automatically create more threads -- and reclaim them when idle -- allowing GCD to dynamically scale the number of threads based on the overall system load.  Thus (unlike with threads, which choke when you create too many) you can generally create as many jobs as you want, and GCD will do the right thing. 
 
 === Job#value: Asynchronous Return Values
 
@@ -52,24 +52,37 @@ This will wait until the value has been calculated, allowing it to be used as an
 
 Wherever possible, you should instead attempt to figure out exactly _when_  and _why_ you need to know the results of asynchronous work. Then, call +value+ with a block to also perform _that_ work asynchronously once the value has been calculated -- all without blocking the main thread:
 
-job.value {|v| p v.to_int.to_s.size } # => 51 (eventually)
+	job = Dispatch::Job.new { Math.sqrt(10**100) }
+	job.value {|v| p v.to_int.to_s.size } # => 51 (eventually)
+
+Note that +value+ removes the value as it is returned, and thus cannot be called multiple times. 
+
+=== Job#join: Job Completion
+
+If you just want to track completion, you can call +join[http://ruby-doc.org/core/classes/Thread.html#M000462]+, which waits without returning (or removing) the result:
+
+	job.join
+	puts "All Done"
+	
+Similarly, call +join+ with a block to run asynchronously once the work has been completed
+
+	job.join { puts "All Done" }
 
 === Job#add: Coordinating Work
 
-More commonly, you will have multiple units of work you'd like to perform in parallel.  You can add blocks to an existing job using the +<<+ ('shovel') operator:
+More commonly, you will have multiple units of work you'd like to perform in parallel.  You can add blocks to an existing job using +add:
 
 	job.add { Math.sqrt(2**64) }
 
-If there are multiple blocks in a job, +value+ will wait until they all finish then return an array of the results:
+If there are multiple blocks in a job, +value+ will wait until they all finish then return the first result returned since the previous call to +value+:
 
-job.value {|ary| p ary.sort.inspect } # => [4294967296.0, 1.0E50]
+job.value {|b| p b } # => 4294967296.0
 
-Note that the returned order is undefined, since asynchronous blocks can complete in any order.
+You can then repeatedly call value to retrieve any additional results. Note that the returned order is undefined, since asynchronous blocks can complete in any order.
 
 == Dispatch::Proxy: Protecting Shared Data
 
-Concurrency would be easy if everything was {embarrassingly parallel}[http://en.wikipedia.org/wiki/Embarrassingly_parallel], but 
-becomes tricky when we need to share data between threads. If two threads try to modify the same object at the same time, it could lead to inconsist (read: _corrupt_) data.  There are well-known techniques for preventing this sort of data corruption (e.g. locks[http://en.wikipedia.org/wiki/Lock_(computer_science)] andmutexes[http://en.wikipedia.org/wiki/Mutual%20eclusion]), but these have their own well-known problems (e.g., deadlock[http://en.wikipedia.org/wiki/Deadlock], and {priority inversion}[http://en.wikipedia.org/wiki/Priority_inversion]).
+Concurrency would be easy if everything was {embarrassingly parallel}[http://en.wikipedia.org/wiki/Embarrassingly_parallel], but it becomes tricky when we need to share data between threads. If two threads try to modify the same object at the same time, it could lead to inconsistent (read: _corrupt_) data.  There are well-known techniques for preventing this sort of data corruption (e.g. locks[http://en.wikipedia.org/wiki/Lock_(computer_science)] andmutexes[http://en.wikipedia.org/wiki/Mutual%20eclusion]), but these have their own well-known problems (e.g., deadlock[http://en.wikipedia.org/wiki/Deadlock], and {priority inversion}[http://en.wikipedia.org/wiki/Priority_inversion]).
 
 Because Ruby traditionally had a global VM lock (or GIL[http://en.wikipedia.org/wiki/Global_Interpreter_Lock]), only one thread could modify data at a time, so developers never had to worry about these issues; then again, this also meant they didn't get much benefit from additional threads.  
 
@@ -83,32 +96,28 @@ The easiest way to create a Proxy is to first create an empty Job:
 
 then ask it to wrap the object you want to modify from multiple threads:
 
-	@hash = job.sync {}
+	@hash = job.synchronize {}
 	@hash.class # => Dispatch::Proxy
-	puts @hash.to_s  # => "{}"
 	
 === method_missing: Using Proxies
 
-Now you can use that proxy safely inside Dispatch blocks, just as if it were the delegate object, 
+The Proxy object can be called just as it if were the delegate object:
+
+	@hash[:foo] = :bar
+	puts @hash.to_s  # => "{:foo=>:bar}"
+	
+Except that you can use it safely inside Dispatch blocks from multiple threads: 
 	
 	[64, 100].each do |n|
 		job << { @hash[n] = Math.sqrt(10**n) }
 	end
 	puts @hash.inspect # => {64 => 1.0E32, 100 => 1.0E50}
 
-In this case, it will perform the +sqrt+ asynchronously on the concurrent queue. 
-
-=== __async__: Asynchronous Callbacks
+In this case, each block will perform the +sqrt+ asynchronously on the concurrent queue, potentially on multiple threads
 	
 As with Dispatch::Job, you can make any invocation asynchronous by passing a block:
 
 	@hash.inspect { |s| p s } # => {64 => 1.0E32, 100 => 1.0E50}
-
-If you don't want the +Proxy+ to swallow the block, you can disable it by setting +__async__+ to false:
-
-	@hash.__async__ = false
-	
-As elsewhere in Ruby, the "__" namespace private methods, in this case so they don't conflict with delegate methods. 
 
 === __value__: Returning Delegate
 
@@ -118,6 +127,8 @@ If for any reason you need to retrieve the delegate object, simply call +__value
 	puts delegate.class # => Hash
 	
 This differs from +SimpleDelegate#__getobj__+ in it will first wait until any pending asynchronous blocks have executed.
+
+As elsewhere in Ruby, the "__" namespace implies "internal" methods, in this case meaning they are called directly on the proxy rather than passed to the delegate. 
 
 ====  Caveat: Local Variables
 
@@ -136,31 +147,55 @@ but this doesn't:
 	job.join
 	p n # => 0 
 
-The general rule is to *avoid assigning variables inside a Dispatch block*.  Assigning local variables will have no effect (outside that block), and assigning other variables may replace your Proxy object with a non-Proxy version.  Remember also that Ruby treats the accumulation operations ("+=", "||=", etc.) as syntactic sugar over assignment, and thus those operations only affect the copy of the variable:
+The general rule is to "do *not* assign to external variables inside a Dispatch block."  Assigning local variables will have no effect (outside that block), and assigning other variables may replace your Proxy object with a non-Proxy version.  Remember also that Ruby treats the accumulation operations ("+=", "||=", etc.) as syntactic sugar over assignment, and thus those operations only affect the copy of the variable:
 
 	n = 0
 	job = Dispatch::Job.new { n += 42 }
 	job.join
 	p n # => 0 
 
-====  Example: TBD
 
+== Iterators
 
+Jobs are useful when you want to run a single item in the background or to run many different operations at once. But if you want to run the _same_ operation multiple times, you can take advantage of specialized GCD iterators.  The Dispatch module defines "p_" variants of common Ruby iterators, making it trivial to parellelize existing operations.  
 
+These may add significant overhead compared to the non-parallel version, though, so you should only use them when doing a lot of work.  In addition, for simplicity they all are _synchronous_, meaning they won't return until all the work has completed (if you do need asynchrony, simply wrap them or their results in a +Job+).
 
+=== Integer#p_times ===
 
-== Iteration
+The first is defined on the +Integer+ class, supplementing +times+:
 
-You use the default queue to run a single item in the background or to run many operations at once.  For the common case of a “parallel for loop”,  GCD provides an optimized “apply” function that submits a block for each iteration:
+	3.p_times { |i| puts 10**i } # => 1 10 100
 
-	#define COUNT 128
-	__block double result[COUNT];
-	dispatch_apply(COUNT, q_default, ^(size_t i){
-	 	result[i] = complex_calculation(i);
-	 });
-	double sum = 0;
-	for (int i=0; i < COUNT; i++) sum += result[i];
+=== Enumerable ===
+	
+The rest are all defined on +Enumerable+, so they are available from any class which mixes that in (e.g, +Array+, +Hash+, etc.).
 
+==== p_each ====
+
+	%w(Mon Tue Wed Thu Fri).p_each { |day| puts day}
+	# => Mon Wed Thu Tue Fri
+
+Note that even though the iterator as a whole is synchronous, each block is independent and may execute out of order.
+
+==== p_each_with_index ====
+
+	%w(Mon Tue Wed Thu Fri).p_each { |day, i | puts "#{i}:#{day}"}
+	# => 0:Mon 2:Wed 3:Thu 1:Tue 4:Fri
+
+==== p_map ====
+
+	(0..2).p_map { |i| 10**i } # => [1, 10, 100]
+
+==== p_mapreduce ====
+
+	(0..2).p_mapreduce { |i| 10**i } # => 111
+
+This uses a parallel +inject+ (aka +reduce+) to return a single value by combining the results of +map+ via the ":+" message.  You can also specify a different accumulator:
+
+	(0..2).p_mapreduce(:*) { |i| 10**i } # => 1000
+
+==== p_find ====
 
 == Events
 
