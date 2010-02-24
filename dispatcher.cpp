@@ -399,8 +399,9 @@ __rb_vm_ruby_dispatch(VALUE top, VALUE self, SEL sel,
 {
     const rb_vm_arity_t &arity = node->arity;
     if ((argc < arity.min) || ((arity.max != -1) && (argc > arity.max))) {
+	short limit = (argc < arity.min) ? arity.min : arity.max;
 	rb_raise(rb_eArgError, "wrong number of arguments (%d for %d)",
-		argc, arity.min);
+		argc, limit);
     }
 
     if ((node->flags & VM_METHOD_PRIVATE) && opt == 0) {
@@ -1483,8 +1484,9 @@ rb_vm_block_eval0(rb_vm_block_t *b, SEL sel, VALUE self, int argc,
     if (argc < arity.min || argc > arity.max) {
 	if (arity.max != -1
 		&& (b->flags & VM_BLOCK_LAMBDA) == VM_BLOCK_LAMBDA) {
+	    short limit = (argc < arity.min) ? arity.min : arity.max;
 	    rb_raise(rb_eArgError, "wrong number of arguments (%d for %d)",
-		    argc, arity.min);
+		    argc, limit);
 	}
 	VALUE *new_argv;
 	if (argc == 1 && TYPE(argv[0]) == T_ARRAY
