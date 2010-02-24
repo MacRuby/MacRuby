@@ -121,7 +121,7 @@ if MACOSX_VERSION >= 10.6
           map2.sort.should == map1
         end
 
-        it "should accumulate any object that takes :<< " do
+        it "should accumulate any object that takes :+ " do
           map1 = @ary.map {|v| "%x" % (10+v)}
           map2 = @ary.p_mapreduce("") {|v| "%x" % (10+v)}   
           map1.each do |s|

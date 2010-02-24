@@ -173,13 +173,13 @@ In addition, for simplicity they all are _synchronous_, meaning they won't retur
 
 === Integer#p_times ===
 
-The simplest iteration is defined on the +Integer+ class, supplementing +times+:
+The simplest iteration is defined on the +Integer+ class, and passes the index that many +times+:
 
-	5.p_times { |i| puts 10**i } # => 1 10 1000 10000 100
+	5.p_times { |i| puts 10**i } # => 1  100 1000 10 10000 
 	
-Note that even though the iterator as a whole is synchronous, each block is independent and may execute out of order.
+Note that even though the iterator as a whole is synchronous, and blocks are scheduled in the order received, each block runs independently and  therefore may complete out of order.
 
-This may add noticeable overhead compared to the non-parallel version, so if you have a large number of relatively cheap iterations you can batch them together by specifying a +stride+:
+This does add some overhead compared to the non-parallel version, so if you have a large number of relatively cheap iterations you can batch them together by specifying a +stride+:
 
 	5.p_times(3) { |i| puts 10**i } # =>1000 10000 1 10 100 
 
@@ -191,29 +191,35 @@ The +p_times+ method is used to implement several convenience methods on +Enumer
 
 ==== p_each ====
 
-	%w(Mon Tue Wed Thu Fri).p_each { |day| puts day} # => Mon Wed Thu Tue Fri
+Passes each object, like +each+:
 
+	%w(Mon Tue Wed Thu Fri).p_each { |day| puts day} # => Mon Wed Thu Tue Fri
 
 	%w(Mon Tue Wed Thu Fri).p_each(3) { |day| puts day} # =>  Thu Fri Mon Tue Wed
 
-
 ==== p_each_with_index ====
+
+Passes each object and its index, like +each_with_index+:
 
 	%w(Mon Tue Wed Thu Fri).p_each { |day, i | puts "#{i}:#{day}"} # => 0:Mon 2:Wed 3:Thu 1:Tue 4:Fri
 
-	%w(Mon Tue Wed Thu Fri).p_each(3) { |day, i | puts "#{i}:#{day}"} # => 0:Mon 2:Wed 3:Thu 1:Tue 4:Fri
+	%w(Mon Tue Wed Thu Fri).p_each(3) { |day, i | puts "#{i}:#{day}"} # => 3:Thu 4:Fri 0:Mon 1:Tue 2:Wed 
 
 ==== p_map ====
 
-	(0..4).p_map { |i| 10**i } # => [1, 10, 100]
+Passes each object and collects the transformed values, like +map+:
+
+	(0..4).p_map { |i| 10**i } # => [1, 1000, 10, 100, 10000]
+
+	(0..4).p_map(3) { |i| 10**i } # => [1000, 10000, 1, 10, 100]
 
 ==== p_mapreduce ====
 
-The last of our collection methods does not have a serial equivalent:
+Unlike the others, this method does not have a serial equivalent, but you may recognize it from the world of {distributed computing}[http://en.wikipedia.org/wiki/MapReduce]:
 
 	(0..4).p_mapreduce(0) { |i| 10**i } # => 11111
 
-This uses a parallel +inject+ (formerly known as +reduce+) to return a single value by combining the result of +map+. 	Unlike +inject+, you must specify an explicit initial value. The default accumulator is ":+", but you can specify a different symbol to +send+:
+This uses a parallel +inject+ (formerly known as +reduce+) to return a single value by combining the result of +map+. 	Unlike +inject+, you must specify an explicit initial value as the first parameter. The default accumulator is ":+", but you can specify a different symbol to +send+:
 
 	(0..4).p_mapreduce([], :concat) { |i| [10**i] } # => [1, 1000, 10, 100, 10000]
 	
@@ -221,8 +227,24 @@ Because of those parameters, the optional +stride+ is now the third:
 
 	(0..4).p_mapreduce([], :concat, 3) { |i| [10**i] } # => [1000, 10000, 1, 10, 100]
 
+==== p_findall ====
 
+Passes each object and collects those for which the block is true, like +findall+:
+
+	(0..4).p_findall { |i| i.odd?} # => {3, 1}
+
+	(0..4).p_findall(3) { |i| i.odd?} # => {3, 1}
+	
 ==== p_find ====
+
+Passes each object and returns nil if none match. Similar to +find+, it returns the first object it finds that matches 
+_a_ object that matches, but unlike +find+ it may not be the first since blocks -- say it with me -- "may complete out of order":
+
+	(0..4).p_findall { |i| i == 5 } # => nil
+
+	(0..4).p_findall { |i| i.odd?} # => 1
+
+	(0..4).p_findall(3) { |i| i.odd?} # => 3
 
 == Events
 
