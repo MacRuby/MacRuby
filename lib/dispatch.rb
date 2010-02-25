@@ -12,7 +12,7 @@
 # This library provides higher-level services and convenience methods
 # to make it easier for traditional Ruby programmers to add multicore support.
 
-require 'dispatch/queue_source'
+require 'dispatch/source'
 require 'dispatch/queue'
 require 'dispatch/proxy'
 require 'dispatch/job'

@@ -8,7 +8,7 @@ This article explains how to use Grand Central Dispatch (*GCD*) from MacRuby, an
 	
 GCD is a revolutionary approach to multicore computing that is woven throughout the fabric of {Mac OS X}[http://www.apple.com/macosx/] version 10.6 Snow Leopard. GCD combines an easy-to-use programming model with highly-efficient system services to radically simplify the code needed to make best use of multiple processors. The technologies in GCD improve the performance, efficiency, and responsiveness of Snow Leopard out of the box, and will deliver even greater benefits as more developers adopt them.
 
-The central insight of GCD is shifting the responsibility for managing threads and their execution from applications to the operating system. As a result, programmers can write less code to deal with concurrent operations in their applications, and the system can perform more efficiently on single-processor machines, large multiprocessor servers, and everything in between. Without a pervasive approach such as GCD, even the best-written application cannot deliver optimal performance, because it doesn’t have full insight into everything else happening in the system. 
+The central insight of GCD is shifting the responsibility for managing threads and their execution from applications to the operating system. As a result, programmers can write less code to deal with concurrent operations in their applications, and the system can perform more efficiently on single-processor machines, large multiprocessor servers, and everything in between. Without a pervasive approach such as GCD, even the best-written application cannot deliver optimal performance, because it doesn't have full insight into everything else happening in the system. 
 
 === The MacRuby Dispatch module
 
@@ -56,7 +56,7 @@ Wherever possible, you should instead attempt to figure out exactly _when_  and 
 
 === Job#join: Job Completion
 
-If you just want to track completion, you can call +join[http://ruby-doc.org/core/classes/Thread.html#M000462]+, which waits without returning (or removing) the result:
+If you just want to track completion, you can call +join[http://ruby-doc.org/core/classes/Thread.html#M000462]+, which waits without returning the result:
 
 	job.join
 	puts "All Done"
@@ -79,7 +79,7 @@ job.value {|b| p b } # => 4294967296.0
 
 Note that values may be received out of order, since they may take differing amounts of time to complete. If you need to force a particular ordering, create a new +Job+ or call +join+ before submitting the block.
 
-Additionally,  you can call +values+ to obtain all the values:
+Additionally, you can call +values+ to obtain all the values:
 
 	@values = job.values 
 	puts @values # => [1.0E50, 4294967296.0]
@@ -163,7 +163,6 @@ The general rule is to "do *not* assign to external variables inside a Dispatch 
 	job = Dispatch::Job.new { n += 42 }
 	job.join
 	p n # => 0 
-
 
 == Iterators
 

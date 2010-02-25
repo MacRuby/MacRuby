@@ -17,7 +17,7 @@ if MACOSX_VERSION >= 10.6
     describe "on_add" do
       it "fires with data on summed inputs" do
         @count = 0
-        @src = @q.on_add {|s| @count += s.data}
+        @src = Dispatch::Source.on_add(@q) {|s| @count += s.data}
         @src << 20
         @src << 22
         @q.sync {}
@@ -28,7 +28,7 @@ if MACOSX_VERSION >= 10.6
     describe "on_or" do
       it "fires with data on ORed inputs" do
         @count = 0
-        @src = @q.on_or {|s| @count += s.data}
+        @src = Dispatch::Source.on_or(@q) {|s| @count += s.data}
         @src << 0b101_000
         @src << 0b000_010
         @q.sync {}
@@ -40,14 +40,14 @@ if MACOSX_VERSION >= 10.6
       it "fires with data indicating which process event(s)" do
         @signal = Signal.list["USR1"]
         @event = nil
-        @src = @q.on_process_event($$, :exit, :fork, :exec, :signal) do 
+        @src = Dispatch::Source.on_process_event($$, %w(exit fork exec signal), @q) do 
            |s| @event = s.data
         end
         Signal.trap(@signal, "IGNORE")
         Process.kill(@signal, $$)
         Signal.trap(@signal, "DEFAULT")
         @q.sync {}
-        @event.should == Dispatch::Source.proc_event(:signal)
+        (@event & Dispatch::Source.proc_event(:signal)).should > 0
       end
     end
 
@@ -55,7 +55,7 @@ if MACOSX_VERSION >= 10.6
       it "fires with data on how often the process was signaled" do
         @signal = Signal.list["USR1"]
         @count = 0
-        @src = @q.on_signal(@signal) {|s| @count += s.data}
+        @src = Dispatch::Source.on_signal(@signal, @q) {|s| @count += s.data}
         Signal.trap(@signal, "IGNORE")
         Process.kill(@signal, $$)
         Process.kill(@signal, $$)
@@ -86,7 +86,7 @@ if MACOSX_VERSION >= 10.6
           File.open(@filename, "w") {|f| f.print @msg}
           @file = File.open(@filename, "r")
           @result = ""
-          @src = @q.on_read(@file) {|s| @result<<@file.read(s.data)}
+          @src = Dispatch::Source.on_read(@file, @q) {|s| @result<<@file.read(s.data)}
           while (@result.size < @msg.size) do; end
           @q.sync { }
           @result.should == @msg
@@ -98,7 +98,7 @@ if MACOSX_VERSION >= 10.6
           @file = File.open(@filename, "w")
           @pos = 0
           @message = @msg
-          @src = @q.on_read(@file) do |s|
+          @src = Dispatch::Source.on_read(@file, @q) do |s|
             pos = s.data
             if not @message.nil? then
               next_msg = @message[0..pos-1]
@@ -116,7 +116,8 @@ if MACOSX_VERSION >= 10.6
         it "fires with data indicating which file event(s)" do
           @file = File.open(@filename, "w")
           @fired = false
-          @src = @q.on_file_event(@file, :delete, :write, :extend, :attrib, :link, :rename, :revoke) do |s|
+          events = %w(delete write extend attrib link rename revoke)
+          @src = Dispatch::Source.on_file_event(@file, events, @q) do |s|
               @flag = s.data
               @fired = true
           end
@@ -135,7 +136,7 @@ if MACOSX_VERSION >= 10.6
         @count = -1
         repeats = 2
         @interval = 0.02
-        @src = @q.on_interval(@interval) {|s| @count += s.data}
+        @src = Dispatch::Source.on_interval(@interval, @q) {|s| @count += s.data}
         sleep repeats*@interval
         @q.sync { }
         @count.should == repeats
