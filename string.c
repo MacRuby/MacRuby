@@ -1536,24 +1536,21 @@ rstr_aref(VALUE str, SEL sel, int argc, VALUE *argv)
 
 	default:
 	    {
-		VALUE rb_start = 0, rb_end = 0;
-		int exclude_end = false;
-		if (rb_range_values(indx, &rb_start, &rb_end,
-			    &exclude_end)) {
-		    long start = NUM2LONG(rb_start);
-		    long end = NUM2LONG(rb_end);
-		    if (exclude_end) {
-			--end;
-		    }
-		    return str_substr(str, start, end - start + 1);
-		}
-		else {
-		    str = str_substr(str, NUM2LONG(indx), 1);
-		    if (!NIL_P(str) && str_length(RSTR(str), true) == 0) {
+		long beg = 0, len = 0;
+		switch (rb_range_beg_len(indx, &beg, &len, str_length(RSTR(str),
+				false), 0)) {
+		    case Qfalse:
+			break;
+		    case Qnil:
 			return Qnil;
-		    }
-		    return str;
+		    default:
+			return str_substr(str, beg, len);
 		}
+		str = str_substr(str, NUM2LONG(indx), 1);
+		if (!NIL_P(str) && str_length(RSTR(str), true) == 0) {
+		    return Qnil;
+		}
+		return str;
 	    }
     }
 }
