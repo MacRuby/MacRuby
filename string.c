@@ -920,7 +920,7 @@ str_offset_in_bytes_to_index(rb_str_t *self, long offset_in_bytes,
 
 static long
 str_offset_in_bytes_for_string(rb_str_t *self, rb_str_t *searched,
-	long start_offset_in_bytes)
+	long start_offset_in_bytes, bool backward_search)
 {
     if (start_offset_in_bytes >= self->length_in_bytes) {
 	return -1;
@@ -936,6 +936,7 @@ str_offset_in_bytes_for_string(rb_str_t *self, rb_str_t *searched,
     if (searched->length_in_bytes > self->length_in_bytes) {
 	return -1;
     }
+
     long increment;
     if (str_is_stored_in_uchars(self)) {
 	increment = 2;
@@ -943,14 +944,28 @@ str_offset_in_bytes_for_string(rb_str_t *self, rb_str_t *searched,
     else {
 	increment = self->encoding->min_char_size;
     }
-    long max_offset_in_bytes = self->length_in_bytes
-	- searched->length_in_bytes + 1;
-    for (long offset_in_bytes = start_offset_in_bytes;
-	    offset_in_bytes < max_offset_in_bytes;
-	    offset_in_bytes += increment) {
-	if (memcmp(self->data.bytes+offset_in_bytes, searched->data.bytes,
-		    searched->length_in_bytes) == 0) {
-	    return offset_in_bytes;
+
+    if (backward_search) {
+	for (long offset_in_bytes = start_offset_in_bytes;
+		offset_in_bytes >= 0;
+		offset_in_bytes -= increment) {
+	    if (memcmp(self->data.bytes+offset_in_bytes, searched->data.bytes,
+			searched->length_in_bytes) == 0) {
+		return offset_in_bytes;
+	    }
+	}
+    }
+    else {
+	const long max_offset_in_bytes = self->length_in_bytes
+	    - searched->length_in_bytes + 1;
+
+	for (long offset_in_bytes = start_offset_in_bytes;
+		offset_in_bytes < max_offset_in_bytes;
+		offset_in_bytes += increment) {
+	    if (memcmp(self->data.bytes+offset_in_bytes, searched->data.bytes,
+			searched->length_in_bytes) == 0) {
+		return offset_in_bytes;
+	    }
 	}
     }
     return -1;
@@ -958,7 +973,7 @@ str_offset_in_bytes_for_string(rb_str_t *self, rb_str_t *searched,
 
 static long
 str_index_for_string(rb_str_t *self, rb_str_t *searched, long start_index,
-	bool ucs2_mode)
+	bool backward_search, bool ucs2_mode)
 {
     str_must_have_compatible_encoding(self, searched);
     str_make_same_format(self, searched);
@@ -983,7 +998,7 @@ str_index_for_string(rb_str_t *self, rb_str_t *searched, long start_index,
     }
 
     const long offset_in_bytes = str_offset_in_bytes_for_string(RSTR(self),
-	    searched, start_offset_in_bytes);
+	    searched, start_offset_in_bytes, backward_search);
     if (offset_in_bytes == -1) {
 	return -1;
     }
@@ -993,7 +1008,7 @@ str_index_for_string(rb_str_t *self, rb_str_t *searched, long start_index,
 static bool
 str_include_string(rb_str_t *self, rb_str_t *searched)
 {
-    return (str_offset_in_bytes_for_string(self, searched, 0) != -1);
+    return (str_offset_in_bytes_for_string(self, searched, 0, false) != -1);
 }
 
 static rb_str_t *
@@ -1577,7 +1592,7 @@ rstr_index(VALUE self, SEL sel, int argc, VALUE *argv)
 	    // fall through
 	case T_STRING:
 	    pos = str_index_for_string(RSTR(self), str_need_string(sub),
-		    pos, true);
+		    pos, false, true);
 	    break;
     }
 
@@ -1607,7 +1622,44 @@ rstr_index(VALUE self, SEL sel, int argc, VALUE *argv)
 static VALUE
 rstr_rindex(VALUE self, SEL sel, int argc, VALUE *argv)
 {
-return Qnil;
+    const long len = str_length(RSTR(self), false);
+    VALUE sub, initpos;
+    long pos;
+
+    if (rb_scan_args(argc, argv, "11", &sub, &initpos) == 2) {
+	pos = NUM2LONG(initpos);
+	if (pos < 0) {
+	    pos += len;
+	    if (pos < 0) {
+		if (TYPE(sub) == T_REGEXP) {
+		    rb_backref_set(Qnil);
+		}
+		return Qnil;
+	    }
+	}
+	if (pos >= len) {
+	    pos = len - 1;
+	}
+    }
+    else {
+	pos = len - 1;
+    }
+
+    switch (TYPE(sub)) {
+	case T_REGEXP:
+	    pos = rb_reg_search(sub, self, pos, true);
+	    break;
+
+	default: 
+	    StringValue(sub);
+	    // fall through
+	case T_STRING:
+	    pos = str_index_for_string(RSTR(self), str_need_string(sub),
+		    pos, true, true);
+	    break;
+    }
+
+    return pos >= 0 ? LONG2NUM(pos) : Qnil;
 }
 
 static VALUE
@@ -2228,7 +2280,7 @@ fs_set:
 		rb_str_t *spat_str = str_need_string(spat);
 		do {
 		    const long pos = str_index_for_string(RSTR(str), spat_str,
-			    beg, false);
+			    beg, false, false);
 		    if (pos == -1) {
 			break;
 		    }
@@ -2431,7 +2483,7 @@ rstr_chomp_bang(VALUE str, SEL sel, int argc, VALUE *argv)
     }
     else if (rslen <= len) {
 	if (str_index_for_string(RSTR(str), str_need_string(rs),
-		    len - rslen, false) >= 0) {
+		    len - rslen, false, false) >= 0) {
 	    to_del += rslen;
 	}
     }
@@ -2834,6 +2886,7 @@ rstr_justify_part(rb_str_t *str, rb_str_t *pad, long width, long padwidth,
     }
     while (width > 0);
 }
+
 static VALUE
 rstr_justify(int argc, VALUE *argv, VALUE str, char mode)
 {
@@ -2926,6 +2979,160 @@ rstr_center(VALUE str, SEL sel, int argc, VALUE *argv)
     return rstr_justify(argc, argv, str, 'c');
 }
 
+/*
+ *  call-seq:
+ *     str.strip!   => str or nil
+ *  
+ *  Removes leading and trailing whitespace from <i>str</i>. Returns
+ *  <code>nil</code> if <i>str</i> was not altered.
+ */
+
+static VALUE
+str_strip(VALUE str, int direction)
+{
+    rstr_modify(str);
+
+    long len = str_length(RSTR(str), false);
+    if (len == 0) {
+	return Qnil;
+    }
+
+    bool changed = false;
+
+    if (direction <= 0) {
+	// Strip left side.
+	long pos = 0;
+	while (pos < len) {
+	    if (!iswspace(rb_str_get_uchar(str, pos))) {
+		break;
+	    }
+	    pos++;
+	}
+
+	if (pos > 0) {
+	    str_delete(RSTR(str), 0, pos, false);
+	    len -= pos;
+	    changed = true;
+	}
+    }
+
+    if (direction >= 0) {
+	// Strip right side.
+	long pos = len - 1;
+	while (pos >= 0) {
+	    if (!iswspace(rb_str_get_uchar(str, pos))) {
+		break;
+	    }
+	    pos--;
+	}
+
+	if (pos < len - 1 && pos >= 0) {
+	    str_delete(RSTR(str), pos + 1, len - pos - 1, false);
+	    changed = true;
+	}
+    }
+
+    return changed ? str : Qnil;
+}
+
+static VALUE
+rstr_strip_bang(VALUE str, SEL sel)
+{
+    return str_strip(str, 0);
+}
+
+/*
+ *  call-seq:
+ *     str.strip   => new_str
+ *  
+ *  Returns a copy of <i>str</i> with leading and trailing whitespace removed.
+ *     
+ *     "    hello    ".strip   #=> "hello"
+ *     "\tgoodbye\r\n".strip   #=> "goodbye"
+ */
+
+static VALUE
+rstr_strip(VALUE str, SEL sel)
+{
+    str = rstr_dup(str, 0);
+    rstr_strip_bang(str, 0);
+    return str;
+}
+
+/*
+ *  call-seq:
+ *     str.lstrip!   => self or nil
+ *  
+ *  Removes leading whitespace from <i>str</i>, returning <code>nil</code> if no
+ *  change was made. See also <code>String#rstrip!</code> and
+ *  <code>String#strip!</code>.
+ *     
+ *     "  hello  ".lstrip   #=> "hello  "
+ *     "hello".lstrip!      #=> nil
+ */
+
+static VALUE
+rstr_lstrip_bang(VALUE str, SEL sel)
+{
+    return str_strip(str, -1);
+}
+
+/*
+ *  call-seq:
+ *     str.lstrip   => new_str
+ *  
+ *  Returns a copy of <i>str</i> with leading whitespace removed. See also
+ *  <code>String#rstrip</code> and <code>String#strip</code>.
+ *     
+ *     "  hello  ".lstrip   #=> "hello  "
+ *     "hello".lstrip       #=> "hello"
+ */
+
+static VALUE
+rstr_lstrip(VALUE str)
+{
+    str = rstr_dup(str, 0);
+    rstr_lstrip_bang(str, 0);
+    return str;
+}
+
+/*
+ *  call-seq:
+ *     str.rstrip!   => self or nil
+ *  
+ *  Removes trailing whitespace from <i>str</i>, returning <code>nil</code> if
+ *  no change was made. See also <code>String#lstrip!</code> and
+ *  <code>String#strip!</code>.
+ *     
+ *     "  hello  ".rstrip   #=> "  hello"
+ *     "hello".rstrip!      #=> nil
+ */
+
+static VALUE
+rstr_rstrip_bang(VALUE str, SEL sel)
+{
+    return str_strip(str, 1);
+}
+
+/*
+ *  call-seq:
+ *     str.rstrip   => new_str
+ *  
+ *  Returns a copy of <i>str</i> with trailing whitespace removed. See also
+ *  <code>String#lstrip</code> and <code>String#strip</code>.
+ *     
+ *     "  hello  ".rstrip   #=> "  hello"
+ *     "hello".rstrip       #=> "hello"
+ */
+
+static VALUE
+rstr_rstrip(VALUE str)
+{
+    str = rstr_dup(str, 0);
+    rstr_rstrip_bang(str, 0);
+    return str;
+}
+
 // NSString primitives.
 
 static CFIndex
@@ -3008,6 +3215,12 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "ljust", rstr_ljust, -1);
     rb_objc_define_method(rb_cRubyString, "rjust", rstr_rjust, -1);
     rb_objc_define_method(rb_cRubyString, "center", rstr_center, -1);
+    rb_objc_define_method(rb_cRubyString, "strip", rstr_strip, 0);
+    rb_objc_define_method(rb_cRubyString, "lstrip", rstr_lstrip, 0);
+    rb_objc_define_method(rb_cRubyString, "rstrip", rstr_rstrip, 0);
+    rb_objc_define_method(rb_cRubyString, "strip!", rstr_strip_bang, 0);
+    rb_objc_define_method(rb_cRubyString, "lstrip!", rstr_lstrip_bang, 0);
+    rb_objc_define_method(rb_cRubyString, "rstrip!", rstr_rstrip_bang, 0);
 
     // Added for MacRuby (debugging).
     rb_objc_define_method(rb_cRubyString, "__chars_count__",
