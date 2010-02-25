@@ -61,6 +61,7 @@ Init_id(void)
     selLength = sel_registerName("length");
     selSucc = sel_registerName("succ");
     selNot = sel_registerName("!");
+    selNot2 = sel_registerName("!:");
     selAlloc = sel_registerName("alloc");
     selAllocWithZone = sel_registerName("allocWithZone:");
     selCopyWithZone = sel_registerName("copyWithZone:");

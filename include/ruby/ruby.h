@@ -249,7 +249,8 @@ VALUE rb_ull2inum(unsigned LONG_LONG);
 #else
 // voodoo_float must be a function
 // because the parameter must be converted to float
-static inline VALUE voodoo_float(float f)
+static inline VALUE
+voodoo_float(float f)
 {
     return *(VALUE *)(&f);
 }
@@ -258,15 +259,9 @@ static inline VALUE voodoo_float(float f)
 #define FIXFLOAT_P(v)  (((VALUE)v & IMMEDIATE_MASK) == FIXFLOAT_FLAG)
 #define FIXFLOAT2DBL(v) coerce_ptr_to_double((VALUE)v)
 
-#if WITH_OBJC
-# define SYMBOL_P(x) (TYPE(x) == T_SYMBOL)
-# define ID2SYM(x) (rb_id2str((ID)x))
-# define SYM2ID(x) (RSYMBOL(x)->id)
-#else
-# define SYMBOL_P(x) (((VALUE)(x)&~(~(VALUE)0<<RUBY_SPECIAL_SHIFT))==SYMBOL_FLAG)
-# define ID2SYM(x) (((VALUE)(x)<<RUBY_SPECIAL_SHIFT)|SYMBOL_FLAG)
-# define SYM2ID(x) RSHIFT((unsigned long)x,RUBY_SPECIAL_SHIFT)
-#endif
+#define SYMBOL_P(x) (TYPE(x) == T_SYMBOL)
+#define ID2SYM(x) (rb_id2str((ID)x))
+#define SYM2ID(x) (rb_sym2id((VALUE)x))
 
 /* special contants - i.e. non-zero and non-fixnum constants */
 enum ruby_special_consts {
@@ -783,7 +778,6 @@ struct RBignum {
 #define RFLOAT(obj)  (R_CAST(RFloat)(obj))
 #if WITH_OBJC
 # define RFIXNUM(obj) (R_CAST(RFixnum)(obj))
-# define RSYMBOL(obj) (R_CAST(RSymbol)(obj))
 #endif
 #define RDATA(obj)   (R_CAST(RData)(obj))
 #define RSTRUCT(obj) (R_CAST(RStruct)(obj))
@@ -918,33 +912,18 @@ ID rb_intern(const char*);
 ID rb_intern2(const char*, long);
 ID rb_intern_str(VALUE str);
 ID rb_to_id(VALUE);
+ID rb_sym2id(VALUE sym);
 VALUE rb_id2str(ID);
 VALUE rb_name2sym(const char *);
-#if WITH_OBJC
-# define rb_sym2name(sym) (RSYMBOL(sym)->str)
+const char *rb_sym2name(VALUE sym);
+VALUE rb_sym2str(VALUE sym);
+
 static inline
 const char *rb_id2name(ID val)
 {
     VALUE s = rb_id2str(val);
     return s == 0 ? NULL : rb_sym2name(s);
 }
-#else
-const char *rb_id2name(ID);
-#endif
-
-#ifdef __GNUC__
-/* __builtin_constant_p and statement expression is available
- * since gcc-2.7.2.3 at least. */
-#define rb_intern(str) \
-    (__builtin_constant_p(str) ? \
-        ({ \
-            static ID rb_intern_id_cache; \
-            if (!rb_intern_id_cache) \
-                rb_intern_id_cache = rb_intern(str); \
-            rb_intern_id_cache; \
-        }) : \
-        rb_intern(str))
-#endif
 
 const char *rb_class2name(VALUE);
 const char *rb_obj_classname(VALUE);

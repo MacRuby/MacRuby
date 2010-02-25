@@ -22,9 +22,6 @@
 #include "ruby/node.h"
 #include "vm.h"
 
-VALUE rb_cSymbol; 	// XXX move me outside
-VALUE rb_cByteString; 	// XXX remove all references about me, i'm dead
-
 VALUE rb_cString;
 VALUE rb_cNSString;
 VALUE rb_cNSMutableString;
@@ -706,8 +703,12 @@ str_splice(rb_str_t *self, long pos, long len, rb_str_t *str, bool ucs2_mode)
     // self[pos..pos+len] = str
     assert(pos >= 0 && len >= 0);
 
-    character_boundaries_t beg, end;
+    if (str != NULL) {
+	str_must_have_compatible_encoding(self, str);
+	str_make_same_format(self, str);
+    }
 
+    character_boundaries_t beg, end;
     if (pos + len == 0) {
 	// Positioning before the string.
 	const long offset = 0;
@@ -740,8 +741,6 @@ str_splice(rb_str_t *self, long pos, long len, rb_str_t *str, bool ucs2_mode)
 
     long bytes_to_add = 0; 
     if (str != NULL) {
-	str_must_have_compatible_encoding(self, str);
-	str_make_same_format(self, str);
 	if (str->length_in_bytes > bytes_to_splice) {
 	    str_resize_bytes(self, self->length_in_bytes
 		    + (str->length_in_bytes - bytes_to_splice));
@@ -1826,12 +1825,12 @@ inspect_append(VALUE result, UChar c, bool escape)
     str_append_uchar(RSTR(result), c);
 }
 
-static VALUE
-str_inspect(VALUE str, bool dump)
+VALUE
+str_inspect(rb_str_t *str, bool dump)
 {
-    const bool uchars = str_is_stored_in_uchars(RSTR(str));
+    const bool uchars = str_is_stored_in_uchars(str);
     const long len = uchars
-	? str_length(RSTR(str), true) : RSTR(str)->length_in_bytes;
+	? str_length(str, true) : str->length_in_bytes;
 
     if (len == 0) {
 	return rb_str_new2("\"\"");
@@ -1840,12 +1839,12 @@ str_inspect(VALUE str, bool dump)
     // Allocate an UTF-8 string with a good initial capacity.
     // Binary strings will likely have most bytes escaped.
     const long result_init_len =
-	BINARY_ENC(RSTR(str)->encoding) ? (len * 5) + 2 : len + 2;
+	BINARY_ENC(str->encoding) ? (len * 5) + 2 : len + 2;
     VALUE result = rb_unicode_str_new(NULL, result_init_len);
 
 #define GET_UCHAR(pos) \
     ((uchars \
-      ? RSTR(str)->data.uchars[pos] : (UChar)RSTR(str)->data.bytes[pos]))
+      ? str->data.uchars[pos] : (UChar)str->data.bytes[pos]))
 
     inspect_append(result, '"', false);
     for (long i = 0; i < len; i++) {
@@ -1908,7 +1907,7 @@ str_inspect(VALUE str, bool dump)
 static VALUE
 rstr_inspect(VALUE self, SEL sel)
 {
-    return str_inspect(self, false);
+    return str_inspect(RSTR(self), false);
 }
 
 /*
@@ -1922,7 +1921,7 @@ rstr_inspect(VALUE self, SEL sel)
 static VALUE
 rstr_dump(VALUE self, SEL sel)
 {
-    return str_inspect(self, true);
+    return str_inspect(RSTR(self), true);
 }
 
 /*
@@ -3005,10 +3004,6 @@ Init_String(void)
     rb_fs = Qnil;
     rb_define_variable("$;", &rb_fs);
     rb_define_variable("$-F", &rb_fs);
-
-    // rb_cSymbol is defined earlier in Init_PreVM().
-    rb_set_class_path(rb_cSymbol, rb_cObject, "Symbol");
-    rb_const_set(rb_cObject, rb_intern("Symbol"), rb_cSymbol);
 }
 
 bool
@@ -3487,16 +3482,41 @@ rb_str_dup(VALUE str)
 	return (VALUE)str_dup(RSTR(str));
     }
     if (TYPE(str) == T_SYMBOL) {
-	return rb_str_new2(RSYMBOL(str)->str);
+	return rb_sym_to_s(str);
     }
     abort(); // TODO
 }
 
-int
+// Unicode characters hashing function, copied from CoreFoundation.
+// This function might have some performance issues on large strings.
+unsigned long
+rb_str_hash_uchars(UChar *chars, long len)
+{
+#define HashNextFourUniChars(accessStart, accessEnd, pointer) \
+    {result = result * 67503105 + (accessStart 0 accessEnd) * 16974593  + (accessStart 1 accessEnd) * 66049  + (accessStart 2 accessEnd) * 257 + (accessStart 3 accessEnd); pointer += 4;}
+
+#define HashNextUniChar(accessStart, accessEnd, pointer) \
+    {result = result * 257 + (accessStart 0 accessEnd); pointer++;}
+
+    assert(len > 0);
+    unsigned long result = len;
+    const UChar *end4 = chars + (len & ~3);
+    const UChar *end = chars + len;
+    // First count in fours
+    while (chars < end4) HashNextFourUniChars(chars[, ], chars);
+    // Then for the last <4 chars, count in ones...
+    while (chars < end) HashNextUniChar(chars[, ], chars);
+    return result + (result << (len & 31));
+
+#undef HashNextFourUniChars
+#undef HashNextUniChar
+}
+
+long
 rb_memhash(const void *ptr, long len)
 {
     CFDataRef data = CFDataCreate(NULL, (const UInt8 *)ptr, len);
-    int code = CFHash(data);
+    const long code = CFHash(data);
     CFRelease((CFTypeRef)data);
     return code;
 }
@@ -3530,12 +3550,4 @@ void
 rb_str_update(VALUE str, long beg, long len, VALUE val)
 {
     abort(); // TODO
-}
-
-// Symbols (TODO: move me outside)
-
-VALUE
-rb_sym_to_s(VALUE sym)
-{
-    return rb_str_new2(RSYMBOL(sym)->str);
 }

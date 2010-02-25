@@ -6,7 +6,7 @@ OBJS = %w{
   random range rational re ruby signal sprintf st string struct time transcode
   util variable version thread id objc bs ucnv encoding main dln dmyext marshal
   gcd vm_eval prelude miniprelude gc-stub bridgesupport compiler dispatcher vm
-  debugger MacRuby MacRubyDebuggerConnector NSArray NSDictionary
+  symbol debugger MacRuby MacRubyDebuggerConnector NSArray NSDictionary
 }
 
 EXTENSIONS = %w{

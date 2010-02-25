@@ -2845,8 +2845,8 @@ rb_vm_method_missing(VALUE obj, int argc, const VALUE *argv)
 
     int n = 0;
     VALUE args[3];
-    args[n++] = rb_funcall(rb_cNameErrorMesg, '!', 3, rb_str_new2(format),
-	    obj, meth);
+    VALUE not_args[3] = {rb_str_new2(format), obj, meth};
+    args[n++] = rb_vm_call(rb_cNameErrorMesg, selNot2, 3, not_args, false);
     args[n++] = meth;
     if (exc == rb_eNoMethodError) {
 	args[n++] = rb_ary_new4(argc - 1, argv + 1);
