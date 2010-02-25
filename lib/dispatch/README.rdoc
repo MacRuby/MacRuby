@@ -253,7 +253,7 @@ In addition to scheduling blocks directly, GCD makes it easy to run a block in r
 * Mach ports
 * Custom application-specific events
 	
-When the source “fires,” GCD will schedule the handler on the specific queue if it is not currently running, or -- more importantly -- coalesce pending events if it is. This provides excellent responsiveness without the expense of either polling or binding a thread to the event source.  Plus, since the handler is never run more than once at a time, the block doesn’t even need to be reentrant.
+When the source “fires,” GCD will schedule the handler on the specific queue if it is not currently running, or -- more importantly -- coalesce pending events if it is. This provides excellent responsiveness without the expense of either polling or binding a thread to the event source.  Plus, since the handler is never run more than once at a time, the block doesn’t even need to be reentrant -- and thus you don't need to +synchronize+ any variables that are only used there.
 
 === Dispatch::Source.interval
 
