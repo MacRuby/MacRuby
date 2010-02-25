@@ -255,26 +255,40 @@ In addition to scheduling blocks directly, GCD makes it easy to run a block in r
 	
 When the source “fires,” GCD will schedule the handler on the specific queue if it is not currently running, or -- more importantly -- coalesce pending events if it is. This provides excellent responsiveness without the expense of either polling or binding a thread to the event source.  Plus, since the handler is never run more than once at a time, the block doesn’t even need to be reentrant.
 
+=== Dispatch::Source.interval
+
+For example, this is how you would create a timer that prints out the current time an +interval+ of 0.5 seconds:
+
+	source = Dispatch::Source.interval(0.5) { |s| puts Time.now }
+	sleep 2
+
+=== Dispatch::Source#suspend!
+
+This would rapidly get annoying, so you can +suspend+ the source:
+
+	source.suspend!
+
+You can suspend a source at any time to prevent it from executing new blocks, though this will not affect a block that is already being processed.
+
+=== Dispatch::Source#resume!
+
+If you change your mind, you can always +resume+ the source:
+
+	source.resume!
+	sleep 2
+
+If the +Source+ has fired one or more times, it will schedule a block containing the coalesced events. 
+
+=== Dispatch::Source#cancel!
+
+Finally,  you can stop the source entirely by calling +cancel!+:
+
+	source.cancel!
+
+This is particularly important to do in MacRuby's implementation of GCD, since there is no other way to get rid of a source.  
+
 ---
 = UNDER CONSTRUCTION = 
-=== Timer Example
-
-For example, this is how you would create a timer that prints out the current time every 30 seconds -- plus 5 microseconds leeway, in case the system wants to align it with other events to minimize power consumption.
-
-
-	dispatch_source_t timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, q_default); //run event handler on the default global queue
-	dispatch_time_t now = dispatch_walltime(DISPATCH_TIME_NOW, 0);
-	dispatch_source_set_timer(timer, now, 30ull*NSEC_PER_SEC, 5000ull);
-	dispatch_source_set_event_handler(timer, ^{
-		printf(“%s\n”, ctime(time(NULL)));
-	});
-
-Sources are always created in a suspended state to allow configuration, so when you are all set they must be explicitly resumed to begin processing events. 
-
-	dispatch_resume(timer);
-
-You can suspend a source or dispatch queue at any time to prevent it from executing new blocks, though this will not affect blocks that are already being processed.
-
 
 === Custom Events Example
 
