@@ -4673,11 +4673,18 @@ rescan_args:
 				NULL));
 		}
 
-		std::vector<Value *> params;
+		assert(nd_type(node->u1.node) == NODE_LIT);
+		assert(nd_type(node->u2.node) == NODE_LIT);
+		assert(TYPE(node->u1.node->nd_lit) == T_SYMBOL);
+		assert(TYPE(node->u2.node->nd_lit) == T_SYMBOL);
 
+		ID from = SYM2ID(node->u1.node->nd_lit);
+		ID to = SYM2ID(node->u2.node->nd_lit);
+
+		std::vector<Value *> params;
 		params.push_back(compile_current_class());
-		params.push_back(compile_id(node->u1.node->u1.node->u2.id));
-		params.push_back(compile_id(node->u2.node->u1.node->u2.id));
+		params.push_back(compile_id(from));
+		params.push_back(compile_id(to));
 		params.push_back(ConstantInt::get(Int8Ty,
 			    dynamic_class ? 1 : 0));
 
