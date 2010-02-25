@@ -877,6 +877,7 @@ str_offset_in_bytes_to_index(rb_str_t *self, long offset_in_bytes,
 	}
 	else {
 	    long length = BYTES_TO_UCHARS(self->length_in_bytes);
+	    long offset_in_uchars = BYTES_TO_UCHARS(offset_in_bytes);
 	    long index = 0, i = 0;
 	    for (;;) {
 		if (U16_IS_LEAD(self->data.uchars[i]) && (i+1 < length)
@@ -886,11 +887,11 @@ str_offset_in_bytes_to_index(rb_str_t *self, long offset_in_bytes,
 		else {
 		    ++i;
 		}
-		if (offset_in_bytes < i) {
+		if (offset_in_uchars < i) {
 		    return index;
 		}
 		++index;
-		if (offset_in_bytes == i) {
+		if (offset_in_uchars == i) {
 		    return index;
 		}
 	    }
@@ -1576,7 +1577,7 @@ rstr_index(VALUE self, SEL sel, int argc, VALUE *argv)
 	    // fall through
 	case T_STRING:
 	    pos = str_index_for_string(RSTR(self), str_need_string(sub),
-		    pos, false);
+		    pos, true);
 	    break;
     }
 
