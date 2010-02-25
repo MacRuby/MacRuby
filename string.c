@@ -689,11 +689,29 @@ static void
 str_resize_bytes(rb_str_t *self, long new_capacity)
 {
     if (self->capacity_in_bytes < new_capacity) {
-	char *bytes = xrealloc(self->data.bytes, new_capacity);
-	if (bytes != self->data.bytes) {
-	    GC_WB(&self->data.bytes, bytes);
+	if (self->data.bytes == NULL) {
+	    GC_WB(&self->data.bytes, xmalloc(new_capacity));
+	}
+	else {
+	    char *bytes = xrealloc(self->data.bytes, new_capacity);
+	    if (bytes != self->data.bytes) {
+		GC_WB(&self->data.bytes, bytes);
+	    }
 	}
 	self->capacity_in_bytes = new_capacity;
+    }
+}
+
+static void
+str_ensure_null_terminator(rb_str_t *self)
+{
+    assert(!str_is_stored_in_uchars(self));
+
+    if (self->length_in_bytes > 0
+	&& (self->capacity_in_bytes == self->length_in_bytes
+	    || self->data.bytes[self->length_in_bytes] != '\0')) {
+	str_resize_bytes(self, self->length_in_bytes + 1);
+	self->data.bytes[self->length_in_bytes] = '\0';
     }
 }
 
@@ -3459,11 +3477,15 @@ const char *
 rb_str_cstr(VALUE str)
 {
     if (IS_RSTR(str)) {
+	if (RSTR(str)->length_in_bytes == 0) {
+	    return "";
+	}
 	str_make_data_binary(RSTR(str));
+	str_ensure_null_terminator(RSTR(str));
 	return RSTR(str)->data.bytes;
     }
 
-    // CFString code path, hopefully this should not happen a lot.
+    // CFString code path, hopefully this should not happen very often.
     const char *cptr = (const char *)CFStringGetCStringPtr((CFStringRef)str, 0);
     if (cptr != NULL) {
 	return cptr;
