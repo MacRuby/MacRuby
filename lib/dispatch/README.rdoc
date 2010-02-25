@@ -242,7 +242,6 @@ Passes each object and returns nil if none match. Similar to +find+, it returns 
 
 	(0..4).p_findall(3) { |i| i.odd?} # => 3
 
-
 == Dispatch::Sources: Asynchronous Events
 
 In addition to scheduling blocks directly, GCD makes it easy to run a block in response to various system events via a Dispatch::Source, which supports:

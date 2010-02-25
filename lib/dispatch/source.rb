@@ -3,14 +3,14 @@
 module Dispatch
   class Source
     
-    @@procs = {
+    @@proc_event = {
        exit:PROC_EXIT,
        fork:PROC_FORK,
        exec:PROC_EXEC,
        signal:PROC_SIGNAL
        }
 
-    @@vnodes = {
+    @@vnode_event = {
       delete:VNODE_DELETE,
       write:VNODE_WRITE, 
       extend:VNODE_EXTEND, 
@@ -22,25 +22,19 @@ module Dispatch
       
     class << self
       
-      def proc(e)
-        convert(e, @@procs)
-      end
-
-      def vnode(e)
-        convert(e, @@vnodes)
-      end
+      def event(e)
+        convert(e, @@proc_event) || convert(e, @@vnode_event)
+      end        
     
       def events2mask(events, hash)
         mask = events.collect { |e| convert(e, hash) }.reduce(:|)
       end
       
       def convert(e, hash)
-        return e.to_i if e.is_a? Numeric
-        value = hash[e.to_sym]
+        value = e.to_int rescue hash[e.to_sym]
         raise ArgumentError, "No event type #{e.inspect}" if value.nil?
         value
       end
-    
 
       # Returns Dispatch::Source of type DATA_ADD
       def add(queue = Dispatch::Queue.concurrent, &block)

@@ -47,7 +47,7 @@ if MACOSX_VERSION >= 10.6
         Process.kill(@signal, $$)
         Signal.trap(@signal, "DEFAULT")
         @q.sync {}
-        (@event & Dispatch::Source.proc(:signal)).should > 0
+        (@event & Dispatch::Source.event(:signal)).should > 0
       end
     end
 
@@ -126,7 +126,7 @@ if MACOSX_VERSION >= 10.6
           @q.sync { }
           #while (@fired == false) do; end
           @fired.should == true
-          @flag.should == Dispatch::Source.vnode(:write)
+          @flag.should == Dispatch::Source.event(:write)
         end
       end          
     end
