@@ -1,2 +1,0 @@
-critical:parallel Enumerable p_map should behave like map
-critical:parallel Enumerable p_find_all should behave like find_all
