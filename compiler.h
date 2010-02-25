@@ -314,7 +314,7 @@ class RoxorCompiler {
 	    return compile_const_global_string(str, strlen(str));
 	}
 	GlobalVariable *compile_const_global_ustring(const UniChar *str,
-		const size_t str_len, CFHashCode hash);
+		const size_t str_len);
 
 	Value *compile_arity(rb_vm_arity_t &arity);
 	Instruction *compile_range(Value *beg, Value *end, bool exclude_end,

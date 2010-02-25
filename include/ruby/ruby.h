@@ -641,13 +641,6 @@ const VALUE *rb_ary_ptr(VALUE);
 # define RARRAY_PTR(a) (rb_ary_ptr((VALUE)a)) 
 #endif
 
-struct RRegexp {
-    struct RBasic basic;
-    struct re_pattern_buffer *ptr;
-    long len;
-    char *str;
-};
-
 #if !WITH_OBJC
 struct RHash {
     struct RBasic basic;

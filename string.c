@@ -3731,7 +3731,7 @@ rb_str_dup(VALUE str)
 // Unicode characters hashing function, copied from CoreFoundation.
 // This function might have some performance issues on large strings.
 unsigned long
-rb_str_hash_uchars(UChar *chars, long len)
+rb_str_hash_uchars(const UChar *chars, long len)
 {
 #define HashNextFourUniChars(accessStart, accessEnd, pointer) \
     {result = result * 67503105 + (accessStart 0 accessEnd) * 16974593  + (accessStart 1 accessEnd) * 66049  + (accessStart 2 accessEnd) * 257 + (accessStart 3 accessEnd); pointer += 4;}

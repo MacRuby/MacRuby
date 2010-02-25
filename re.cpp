@@ -1336,6 +1336,29 @@ Init_Match(void)
 	    "finalize", (IMP)match_finalize_imp);
 }
 
+// Compiler primitives.
+
+void
+regexp_get_uchars(VALUE re, const UChar **chars_p, long *chars_len_p)
+{
+    assert(chars_p != NULL && chars_len_p != NULL);
+
+    UnicodeString *unistr = RREGEXP(re)->unistr;
+    assert(unistr != NULL);
+
+    *chars_p = unistr->getBuffer();
+    *chars_len_p = unistr->length();
+}
+
+VALUE
+rb_unicode_regex_new_retained(UChar *chars, int chars_len, int options)
+{
+    VALUE str = rb_unicode_str_new(chars, chars_len);
+    VALUE re = rb_reg_new_str(str, options);
+    GC_RETAIN(re);
+    return re;
+}
+
 // MRI compatibility.
 
 VALUE

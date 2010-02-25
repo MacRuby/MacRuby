@@ -23,6 +23,8 @@ VALUE rb_reg_quote(VALUE pat);
 VALUE rb_reg_regcomp(VALUE str);
 int rb_reg_search(VALUE re, VALUE str, int pos, bool reverse);
 
+void regexp_get_uchars(VALUE re, const UChar **chars_p, long *chars_len_p);
+
 typedef struct rb_match_result {
     unsigned int beg;
     unsigned int end;
