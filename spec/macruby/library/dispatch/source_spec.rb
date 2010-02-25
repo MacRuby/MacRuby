@@ -3,7 +3,7 @@ require 'dispatch'
 
 if MACOSX_VERSION >= 10.6
 
-  describe "Dispatch::Queue source from" do
+  describe "Dispatch::Source" do
     before :each do
       @q = Dispatch::Queue.new('org.macruby.gcd_spec.prelude')
       @src = nil
@@ -69,7 +69,7 @@ if MACOSX_VERSION >= 10.6
     describe "vnode" do
       before :each do
         @msg = "#{$$}-#{Time.now}"
-        @filename = "/var/tmp/gcd_spec_source-#{@msg}"
+        @filename = tmp("gcd_spec_source-#{@msg}")
         @file = nil
         @src = nil
       end

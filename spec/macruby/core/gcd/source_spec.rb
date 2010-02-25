@@ -214,7 +214,7 @@ if MACOSX_VERSION >= 10.6
       describe "file:" do
         before :each do
           @msg = "#{$$}: #{Time.now}"
-          @filename = "/var/tmp/gcd_spec_source-#{$$}-#{Time.now}"
+          @filename = tmp "gcd_spec_source-#{$$}-#{Time.now}"
           @file = nil
           @src = nil
         end
