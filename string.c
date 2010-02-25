@@ -981,9 +981,8 @@ str_index_for_string(rb_str_t *self, rb_str_t *searched, long start_index,
 	start_offset_in_bytes = boundaries.start_offset_in_bytes;
     }
 
-    long offset_in_bytes = str_offset_in_bytes_for_string(RSTR(self), searched,
-	    start_offset_in_bytes);
-
+    const long offset_in_bytes = str_offset_in_bytes_for_string(RSTR(self),
+	    searched, start_offset_in_bytes);
     if (offset_in_bytes == -1) {
 	return -1;
     }
@@ -1547,54 +1546,67 @@ rstr_aref(VALUE str, SEL sel, int argc, VALUE *argv)
 static VALUE
 rstr_index(VALUE self, SEL sel, int argc, VALUE *argv)
 {
+    const long len = str_length(RSTR(self), false);
     VALUE sub, initpos;
     long pos;
 
     if (rb_scan_args(argc, argv, "11", &sub, &initpos) == 2) {
 	pos = NUM2LONG(initpos);
-    }
-    else {
-	pos = 0;
-    }
-
-    if (pos < 0) {
-	pos += str_length(RSTR(self), true);
 	if (pos < 0) {
+	    pos += len;
+	}
+	if (pos < 0 || pos >= len) {
 	    if (TYPE(sub) == T_REGEXP) {
 		rb_backref_set(Qnil);
 	    }
 	    return Qnil;
 	}
     }
+    else {
+	pos = 0;
+    }
 
     switch (TYPE(sub)) {
 	case T_REGEXP:
-	    pos = rb_reg_adjust_startpos(sub, self, pos, false);
 	    pos = rb_reg_search(sub, self, pos, false);
 	    break;
 
 	default: 
-	    {
-		VALUE tmp = rb_check_string_type(sub);
-		if (NIL_P(tmp)) {
-		    rb_raise(rb_eTypeError, "type mismatch: %s given",
-			    rb_obj_classname(sub));
-		}
-		sub = tmp;
-	    }
-	    /* fall through */
+	    StringValue(sub);
+	    // fall through
 	case T_STRING:
-	    {
-		rb_str_t *substr = str_need_string(sub);
-		pos = str_index_for_string(RSTR(self), substr, pos, true);
-	    }
+	    pos = str_index_for_string(RSTR(self), str_need_string(sub),
+		    pos, false);
 	    break;
     }
 
-    if (pos == -1) {
-	return Qnil;
-    }
-    return LONG2NUM(pos);
+    return pos >= 0 ? LONG2NUM(pos) : Qnil;
+}
+
+/*
+ *  call-seq:
+ *     str.rindex(substring [, fixnum])   => fixnum or nil
+ *     str.rindex(fixnum [, fixnum])   => fixnum or nil
+ *     str.rindex(regexp [, fixnum])   => fixnum or nil
+ *  
+ *  Returns the index of the last occurrence of the given <i>substring</i>,
+ *  character (<i>fixnum</i>), or pattern (<i>regexp</i>) in <i>str</i>. Returns
+ *  <code>nil</code> if not found. If the second parameter is present, it
+ *  specifies the position in the string to end the search---characters beyond
+ *  this point will not be considered.
+ *     
+ *     "hello".rindex('e')             #=> 1
+ *     "hello".rindex('l')             #=> 3
+ *     "hello".rindex('a')             #=> nil
+ *     "hello".rindex(?e)              #=> 1
+ *     "hello".rindex(101)             #=> 1
+ *     "hello".rindex(/[aeiou]/, -2)   #=> 1
+ */
+
+static VALUE
+rstr_rindex(VALUE self, SEL sel, int argc, VALUE *argv)
+{
+return Qnil;
 }
 
 static VALUE
@@ -1709,22 +1721,35 @@ rstr_equal(VALUE self, SEL sel, VALUE other)
     if (self == other) {
 	return Qtrue;
     }
-
     if (TYPE(other) != T_STRING) {
 	if (!rb_respond_to(other, rb_intern("to_str"))) {
 	    return Qfalse;
 	}
 	return rb_equal(other, self);
     }
+    return str_is_equal_to_string(RSTR(self), str_need_string(other))
+	? Qtrue : Qfalse;
+}
 
-    rb_str_t *str;
-    if (IS_RSTR(other)) {
-	str = RSTR(other);
+/*
+ * call-seq:
+ *   str.eql?(other)   => true or false
+ *
+ * Two strings are equal if they have the same length and content.
+ */
+
+
+static VALUE
+rstr_eql(VALUE self, SEL sel, VALUE other)
+{
+    if (self == other) {
+	return Qtrue;
     }
-    else {
-	str = str_new_from_cfstring((CFStringRef)other);
+    if (TYPE(other) != T_STRING) {
+	return Qfalse;
     }
-    return str_is_equal_to_string(RSTR(self), str) ? Qtrue : Qfalse;
+    return str_is_equal_to_string(RSTR(self), str_need_string(other))
+	? Qtrue : Qfalse;
 }
 
 /*
@@ -2950,11 +2975,13 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "[]", rstr_aref, -1);
     rb_objc_define_method(rb_cRubyString, "slice", rstr_aref, -1);
     rb_objc_define_method(rb_cRubyString, "index", rstr_index, -1);
+    rb_objc_define_method(rb_cRubyString, "rindex", rstr_rindex, -1);
     rb_objc_define_method(rb_cRubyString, "+", rstr_plus, 1);
     rb_objc_define_method(rb_cRubyString, "*", rstr_times, 1);
     rb_objc_define_method(rb_cRubyString, "<<", rstr_concat, 1);
     rb_objc_define_method(rb_cRubyString, "concat", rstr_concat, 1);
     rb_objc_define_method(rb_cRubyString, "==", rstr_equal, 1);
+    rb_objc_define_method(rb_cRubyString, "eql?", rstr_eql, 1);
     rb_objc_define_method(rb_cRubyString, "include?", rstr_includes, 1);
     rb_objc_define_method(rb_cRubyString, "to_s", rstr_to_s, 0);
     rb_objc_define_method(rb_cRubyString, "to_str", rstr_to_s, 0);
