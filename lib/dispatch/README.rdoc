@@ -164,13 +164,13 @@ The general rule is to "do *not* assign to external variables inside a Dispatch 
 	job.join
 	p n # => 0 
 
-== Iterators
+== Dispatch Enumerable: Parallel Iterations
 
 Jobs are useful when you want to run a single item in the background or to run many different operations at once. But if you want to run the _same_ operation multiple times, you can take advantage of specialized GCD iterators.  The Dispatch module defines "p_" variants of common Ruby iterators, making it trivial to parellelize existing operations.  
 
 In addition, for simplicity they all are _synchronous_, meaning they won't return until all the work has completed.
 
-=== Integer#p_times ===
+=== Integer#p_times
 
 The simplest iteration is defined on the +Integer+ class, and passes the index that many +times+:
 
@@ -184,11 +184,9 @@ This does add some overhead compared to the non-parallel version, so if you have
 
 It doesn't change the result, but schedules fewer blocks thus amortizing the overhead over more work. Note that items _within_ a stride are executed in the original order, but no order is guaranteed _between_ strides.
 
-=== Enumerable ===
-
 The +p_times+ method is used to implement several convenience methods on +Enumerable+, which are therefore available from any class which mixes that in (e.g, +Array+, +Hash+, etc.). These also can take an optional stride.
 
-==== p_each ====
+=== Enumerable#p_each
 
 Passes each object, like +each+:
 
@@ -196,7 +194,7 @@ Passes each object, like +each+:
 
 	%w(Mon Tue Wed Thu Fri).p_each(3) { |day| puts day} # =>  Thu Fri Mon Tue Wed
 
-==== p_each_with_index ====
+=== Enumerable#p_each_with_index
 
 Passes each object and its index, like +each_with_index+:
 
@@ -204,7 +202,7 @@ Passes each object and its index, like +each_with_index+:
 
 	%w(Mon Tue Wed Thu Fri).p_each(3) { |day, i | puts "#{i}:#{day}"} # => 3:Thu 4:Fri 0:Mon 1:Tue 2:Wed 
 
-==== p_map ====
+=== Enumerable#p_map
 
 Passes each object and collects the transformed values, like +map+:
 
@@ -212,7 +210,7 @@ Passes each object and collects the transformed values, like +map+:
 
 	(0..4).p_map(3) { |i| 10**i } # => [1000, 10000, 1, 10, 100]
 
-==== p_mapreduce ====
+=== Enumerable#p_mapreduce
 
 Unlike the others, this method does not have a serial equivalent, but you may recognize it from the world of {distributed computing}[http://en.wikipedia.org/wiki/MapReduce]:
 
@@ -226,7 +224,7 @@ Because of those parameters, the optional +stride+ is now the third:
 
 	(0..4).p_mapreduce([], :concat, 3) { |i| [10**i] } # => [1000, 10000, 1, 10, 100]
 
-==== p_findall ====
+=== Enumerable#p_findall
 
 Passes each object and collects those for which the block is true, like +findall+:
 
@@ -234,7 +232,7 @@ Passes each object and collects those for which the block is true, like +findall
 
 	(0..4).p_findall(3) { |i| i.odd?} # => {3, 1}
 	
-==== p_find ====
+=== Enumerable#p_find
 
 Passes each object and returns nil if none match. Similar to +find+, it returns the first object it _finds_ for which the block is true, but unlike +find+ that may not be the _actual_ first object since blocks -- say it with me -- "may complete out of order":
 
@@ -244,12 +242,10 @@ Passes each object and returns nil if none match. Similar to +find+, it returns 
 
 	(0..4).p_findall(3) { |i| i.odd?} # => 3
 
----
-= UNDER CONSTRUCTION = 
 
-== Events
+== Dispatch::Sources: Asynchronous Events
 
-In addition to scheduling blocks directly, GCD makes it easy to run a block in response to various system events, including:
+In addition to scheduling blocks directly, GCD makes it easy to run a block in response to various system events via a Dispatch::Source, which supports:
 
 * Timers
 * Signals
@@ -260,6 +256,8 @@ In addition to scheduling blocks directly, GCD makes it easy to run a block in r
 	
 When the source “fires,” GCD will schedule the handler on the specific queue if it is not currently running, or -- more importantly -- coalesce pending events if it is. This provides excellent responsiveness without the expense of either polling or binding a thread to the event source.  Plus, since the handler is never run more than once at a time, the block doesn’t even need to be reentrant.
 
+---
+= UNDER CONSTRUCTION = 
 === Timer Example
 
 For example, this is how you would create a timer that prints out the current time every 30 seconds -- plus 5 microseconds leeway, in case the system wants to align it with other events to minimize power consumption.
