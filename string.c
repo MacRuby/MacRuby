@@ -1035,8 +1035,17 @@ str_include_string(rb_str_t *self, rb_str_t *searched)
 static rb_str_t *
 str_need_string(VALUE str)
 {
-    if (TYPE(str) != T_STRING) {
-	str = rb_str_to_str(str);
+    switch (TYPE(str)) {
+	case T_SYMBOL:
+	    str = rb_sym2str(str);
+	    break;
+
+	case T_STRING:
+	    break;
+
+	default:
+	    str = rb_str_to_str(str);
+	    break;
     }
     return IS_RSTR(str)
 	? (rb_str_t *)str : str_new_from_cfstring((CFStringRef)str);
@@ -1948,8 +1957,7 @@ rstr_intern(VALUE self, SEL sel)
     if (OBJ_TAINTED(self) && rb_safe_level() >= 1) {
 	rb_raise(rb_eSecurityError, "Insecure: can't intern tainted string");
     }
-    str_make_data_binary(RSTR(self));
-    return ID2SYM(rb_intern(RSTR(self)->data.bytes));
+    return rb_str_intern_fast(self);
 }
 
 /*
@@ -3439,6 +3447,13 @@ rb_str_new_fast(int argc, ...)
     }
 
     return str;
+}
+
+VALUE
+rb_str_intern_fast(VALUE str)
+{
+    // TODO: this currently does 2 hash lookups, could be optimized.
+    return ID2SYM(rb_intern_str(str));
 }
 
 // MRI C-API compatibility.
