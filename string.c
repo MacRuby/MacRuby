@@ -3670,6 +3670,10 @@ rb_enc_str_new(const char *cstr, long len, rb_encoding_t *enc)
 	// This function can be called with a NULL encoding. 
 	enc = rb_encodings[ENCODING_UTF8];
     }
+    else {
+	// People must use the bstr_ APIs to deal with binary.
+	assert(enc != rb_encodings[ENCODING_BINARY]);
+    }
     rb_str_t *str = str_alloc(rb_cRubyString);
     str_replace_with_bytes(str, cstr, len, enc);
     return (VALUE)str;
