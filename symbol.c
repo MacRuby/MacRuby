@@ -24,7 +24,6 @@ typedef struct {
     VALUE klass;
     rb_str_t *str;
     ID id;
-    SEL sel;
 } rb_sym_t;
 
 #define RSYM(obj) ((rb_sym_t *)(obj))
@@ -38,72 +37,67 @@ sym_alloc(rb_str_t *str, ID id)
     GC_RETAIN(str); // never released
     sym->str = str;
     sym->id = id;
-    sym->sel = NULL; // lazy
     return sym;
 }
 
 ID
 rb_intern_str(VALUE str)
 {
-    UChar *chars = NULL;
-    long chars_len = 0;
-    bool need_free = false;
-    rb_str_get_uchars(str, &chars, &chars_len, &need_free);
-    assert(chars_len > 0);
-
-    const unsigned long name_hash = rb_str_hash_uchars(chars, chars_len);
+    const unsigned long name_hash = rb_str_hash(str);
     ID id = (ID)CFDictionaryGetValue(sym_id, (const void *)name_hash); 
     if (id != 0) {
-	goto return_id;
+	return id;
     } 
 
     rb_sym_t *sym = NULL;
 
-    switch (chars[0]) {
-	case '$':
-	    id = ID_GLOBAL;
-	    break;
+    const long chars_len = rb_str_chars_len(str);
+    if (chars_len > 0) {
+	UChar c = rb_str_get_uchar(str, 0);
+	switch (c) {
+	    case '$':
+		id = ID_GLOBAL;
+		break;
 
-	case '@':
-	    if (chars_len > 1 && chars[1] == '@') {
-		id = ID_CLASS;
-	    }
-	    else {
-		id = ID_INSTANCE;
-	    }
-	    break;
-
-	default:
-	    if (chars_len > 1 && chars[chars_len - 1] == '=') {
-		// Attribute assignment.
-		id = rb_intern_str(rb_str_substr(str, 0, chars_len - 1));
-		if (!is_attrset_id(id)) {
-		    id = rb_id_attrset(id);
-		    goto id_register;
+	    case '@':
+		if (chars_len > 1 && rb_str_get_uchar(str, 1) == '@') {
+		    id = ID_CLASS;
 		}
-		id = ID_ATTRSET;
-	    }
-	    else if (iswupper(chars[0])) {
-		id = ID_CONST;
-	    }
-	    else {
-		id = ID_LOCAL;
-	    }
-	    break;
+		else {
+		    id = ID_INSTANCE;
+		}
+		break;
+
+	    default:
+		if (chars_len > 1
+			&& rb_str_get_uchar(str, chars_len - 1) == '=') {
+		    // Attribute assignment.
+		    id = rb_intern_str(rb_str_substr(str, 0, chars_len - 1));
+		    if (!is_attrset_id(id)) {
+			id = rb_id_attrset(id);
+			goto id_register;
+		    }
+		    id = ID_ATTRSET;
+		}
+		else if (iswupper(c)) {
+		    id = ID_CONST;
+		}
+		else {
+		    id = ID_LOCAL;
+		}
+		break;
+	}
     }
 
     id |= ++last_id << ID_SCOPE_SHIFT;
 
 id_register:
 //printf("register %s hash %ld id %ld\n", RSTRING_PTR(str), name_hash, id);
+    assert(IS_RSTR(str));
     sym = sym_alloc(RSTR(str), id);
     CFDictionarySetValue(sym_id, (const void *)name_hash, (const void *)id);
     CFDictionarySetValue(id_str, (const void *)id, (const void *)sym);
 
-return_id:
-    if (need_free && chars != NULL) {
-	free(chars);
-    }
     return id;
 }
 
@@ -233,26 +227,15 @@ Init_PreSymbol(void)
 
     // Pre-register parser symbols.
     for (int i = 0; rb_op_tbl[i].token != 0; i++) {
-	VALUE str = rb_str_new2(rb_op_tbl[i].name);
-
-	UChar *chars = NULL;
-	long chars_len = 0;
-	bool need_free = false;
-	rb_str_get_uchars(str, &chars, &chars_len, &need_free);
-	assert(chars_len > 0);
-
 	ID id = rb_op_tbl[i].token;
+	VALUE str = rb_str_new2(rb_op_tbl[i].name);
 	rb_sym_t *sym = sym_alloc(RSTR(str), id);
-	unsigned long name_hash = rb_str_hash_uchars(chars, chars_len);
+	unsigned long name_hash = rb_str_hash(str);
 
 //printf("pre-register %s hash %ld id %ld\n", RSTRING_PTR(str), name_hash, id);
 
 	CFDictionarySetValue(sym_id, (const void *)name_hash, (const void *)id);
 	CFDictionarySetValue(id_str, (const void *)id, (const void *)sym);
-
-	if (need_free && chars != NULL) {
-	    free(chars);
-	}
     }
 }
 

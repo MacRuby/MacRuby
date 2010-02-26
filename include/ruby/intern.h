@@ -588,7 +588,7 @@ VALUE rb_str_append(VALUE, VALUE);
 VALUE rb_str_concat(VALUE, VALUE);
 VALUE rb_str_plus(VALUE str1, VALUE str2);
 long rb_memhash(const void *ptr, long len);
-int rb_str_hash(VALUE);
+unsigned long rb_str_hash(VALUE);
 int rb_str_hash_cmp(VALUE,VALUE);
 int rb_str_comparable(VALUE, VALUE);
 int rb_str_cmp(VALUE, VALUE);

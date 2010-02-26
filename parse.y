@@ -266,23 +266,10 @@ struct parser_params {
 };
 
 #if WITH_OBJC
+// TODO: we should probably mimic what 1.9 does here and use the right/given
+// encoding instead of always UTF8.
 # define UTF8_ENC() (NULL)
-static inline VALUE
-__new_tmp_str(const char *ptr, const size_t len)
-{
-    if (ptr != NULL) {
-	CFStringRef str = CFStringCreateWithBytes(NULL, (UInt8 *)ptr, len,
-		kCFStringEncodingUTF8, false);
-	if (str != NULL) {
-	    CFMutableStringRef str2 =
-		CFStringCreateMutableCopy(NULL, 0, str);
-	    assert(str2 != NULL);
-	    CFRelease(str);
-	    return (VALUE)CFMakeCollectable(str2);
-	}
-    }
-    return rb_usascii_str_new(ptr, len);
-}
+#define __new_tmp_str(p, n) (rb_str_new(p, n))
 # define STR_NEW(p,n) __new_tmp_str(p, n)
 # define STR_NEW0() __new_tmp_str(0, 0)
 # define STR_NEW2(p) __new_tmp_str(p, strlen(p))
@@ -5097,7 +5084,6 @@ rb_parser_compile_string(VALUE vparser, const char *f, VALUE s, int line)
     long chars_len = 0;
     bool need_free = false;
     rb_str_get_uchars(s, &chars, &chars_len, &need_free);
-    assert(!need_free);
 
     struct lex_get_str_context *ctx = (struct lex_get_str_context *)
 	xmalloc(sizeof(struct lex_get_str_context));
@@ -5111,7 +5097,13 @@ rb_parser_compile_string(VALUE vparser, const char *f, VALUE s, int line)
     lex_pbeg = lex_p = lex_pend = 0;
     compile_for_eval = rb_parse_in_eval();
 
-    return yycompile(parser, f, line);
+    NODE *node = yycompile(parser, f, line);
+
+    if (need_free && chars != NULL) {
+	free(chars);
+    }
+
+    return node;
 }
 
 NODE*

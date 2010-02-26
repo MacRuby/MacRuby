@@ -456,7 +456,7 @@ str_get_uchar(rb_str_t *self, long pos, bool ucs2_mode)
 	// FIXME: Not ucs2 compliant.
 	return self->data.uchars[pos];
     }
-    assert(BINARY_ENC(self->encoding));
+    //assert(BINARY_ENC(self->encoding));
     return self->data.bytes[pos];
 }
 
@@ -1067,7 +1067,7 @@ rb_str_get_uchars(VALUE str, UChar **chars_p, long *chars_len_p,
 	    chars_len = str_length(RSTR(str), false);
 	}
 	else {
-	    assert(BINARY_ENC(RSTR(str)->encoding));
+	    //assert(BINARY_ENC(RSTR(str)->encoding));
 	    chars_len = RSTR(str)->length_in_bytes;
 	    if (chars_len > 0) {
 		chars = (UChar *)malloc(sizeof(UChar) * chars_len);
@@ -4027,13 +4027,15 @@ rb_str_dup(VALUE str)
 unsigned long
 rb_str_hash_uchars(const UChar *chars, long len)
 {
+    if (len == 0 || chars == NULL) {
+	return 0;
+    }
 #define HashNextFourUniChars(accessStart, accessEnd, pointer) \
     {result = result * 67503105 + (accessStart 0 accessEnd) * 16974593  + (accessStart 1 accessEnd) * 66049  + (accessStart 2 accessEnd) * 257 + (accessStart 3 accessEnd); pointer += 4;}
 
 #define HashNextUniChar(accessStart, accessEnd, pointer) \
     {result = result * 257 + (accessStart 0 accessEnd); pointer++;}
 
-    assert(len > 0);
     unsigned long result = len;
     const UChar *end4 = chars + (len & ~3);
     const UChar *end = chars + len;
@@ -4045,6 +4047,20 @@ rb_str_hash_uchars(const UChar *chars, long len)
 
 #undef HashNextFourUniChars
 #undef HashNextUniChar
+}
+
+unsigned long
+rb_str_hash(VALUE str)
+{
+    UChar *chars = NULL;
+    long chars_len = 0;
+    bool need_free = false;
+    rb_str_get_uchars(str, &chars, &chars_len, &need_free);
+    const unsigned long hash = rb_str_hash_uchars(chars, chars_len);
+    if (need_free) {
+	free(chars);
+    }
+    return hash;
 }
 
 long
