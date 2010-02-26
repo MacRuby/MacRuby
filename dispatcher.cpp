@@ -107,9 +107,13 @@ __rb_vm_bcall(VALUE self, SEL sel, VALUE dvars, rb_vm_block_t *b,
 	    return (*imp)(self, sel, dvars, b, argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6], argv[7]);
 	case 9:
 	    return (*imp)(self, sel, dvars, b, argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6], argv[7], argv[8]);
-    }	
-    printf("invalid argc %d\n", argc);
-    abort();
+    }
+
+    rb_vm_long_arity_bstub_t *stub;
+
+    stub = (rb_vm_long_arity_bstub_t *)GET_CORE()->gen_large_arity_stub(argc,
+	true);
+    return (*stub)(pimp, (id)self, sel, dvars, b, argc, argv);
 }
 
 static force_inline VALUE
@@ -152,9 +156,12 @@ __rb_vm_rcall(VALUE self, SEL sel, IMP pimp, const rb_vm_arity_t &arity,
 	    return (*imp)(self, sel, argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6], argv[7], argv[8], argv[9]);
 	case 11:
 	    return (*imp)(self, sel, argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6], argv[7], argv[8], argv[9], argv[10]);
-    }	
-    printf("invalid argc %d\n", argc);
-    abort();
+    }
+
+    rb_vm_long_arity_stub_t *stub;
+
+    stub = (rb_vm_long_arity_stub_t *)GET_CORE()->gen_large_arity_stub(argc);
+    return (*stub)(pimp, (id)self, sel, argc, argv);
 }
 
 static void

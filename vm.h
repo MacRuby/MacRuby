@@ -526,8 +526,11 @@ typedef struct {
 
 typedef VALUE rb_vm_objc_stub_t(IMP imp, id self, SEL sel, int argc,
 				const VALUE *argv);
-
 typedef VALUE rb_vm_c_stub_t(IMP imp, int argc, const VALUE *argv);
+#define rb_vm_long_arity_stub_t rb_vm_objc_stub_t
+typedef VALUE rb_vm_long_arity_bstub_t(IMP imp, id self, SEL sel,
+				       VALUE dvars, rb_vm_block_t *b,
+				       int argc, const VALUE *argv);
 
 struct mcache {
 #define MCACHE_RCALL 0x1 // Ruby call
@@ -640,6 +643,8 @@ class RoxorCore {
 	std::map<std::string, void *> c_stubs, objc_stubs,
 	    to_rval_convertors, to_ocval_convertors;
 	std::map<IMP, IMP> objc_to_ruby_stubs;
+	std::map<int, void *> rb_large_arity_rstubs; // Large arity Ruby calls
+	std::map<int, void *> rb_large_arity_bstubs; // Large arity block calls
 
 	// Caches for the lazy JIT.
 	std::map<SEL, std::map<Class, rb_vm_method_source_t *> *>
@@ -724,6 +729,7 @@ class RoxorCore {
 	// This callback is public for the only reason it's called by C.
 	void bs_parse_cb(bs_element_type_t type, void *value, void *ctx);
 
+	void *gen_large_arity_stub(int argc, bool is_block=false);
 	void *gen_stub(std::string types, bool variadic, int min_argc,
 		bool is_objc);
 	void *gen_to_rval_convertor(std::string type);

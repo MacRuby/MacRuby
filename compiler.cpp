@@ -7023,6 +7023,100 @@ RoxorCompiler::compile_stub(const char *types, bool variadic, int min_argc,
     return f;
 }
 
+Function *
+RoxorCompiler::compile_long_arity_stub(int argc, bool is_block)
+{
+    Function *f;
+
+    if (is_block) {
+	// VALUE stubX(IMP imp, VALUE self, SEL sel,
+	//	       VALUE dvars, rb_vm_block_t *b, int argc, VALUE *argv)
+	// {
+	//	return (*imp)(self, sel, dvars, b, argv[0], ..., argv[X - 1]);
+	// }
+	f = cast<Function>(module->getOrInsertFunction("",
+		RubyObjTy,
+		PtrTy, RubyObjTy, PtrTy,
+		RubyObjTy, PtrTy, Int32Ty, RubyObjPtrTy, NULL));
+    }
+    else {
+	// VALUE stubX(IMP imp, VALUE self, SEL sel, int argc, VALUE *argv)
+	// {
+	//     return (*imp)(self, sel, argv[0], argv[1], ..., argv[X - 1]);
+	// }
+	f = cast<Function>(module->getOrInsertFunction("",
+		RubyObjTy,
+		PtrTy, RubyObjTy, PtrTy, Int32Ty, RubyObjPtrTy, NULL));
+    }
+
+    bb = BasicBlock::Create(context, "EntryBlock", f);
+
+    Function::arg_iterator arg = f->arg_begin();
+
+    Value *imp_arg = arg++;
+    Value *self_arg = arg++;
+    Value *sel_arg = arg++;
+    Value *dvars_arg;
+    Value *block_arg;
+    if (is_block) {
+	dvars_arg = arg++;
+	block_arg = arg++;
+    }
+    /*Value *argc_arg = */arg++;
+    Value *argv_arg = arg++;
+
+    std::vector<const Type *> f_types;
+    std::vector<Value *> params;
+
+    // Return type
+    const Type *ret_type = RubyObjTy;
+
+    // self
+    f_types.push_back(RubyObjTy);
+    params.push_back(self_arg);
+
+    // sel
+    f_types.push_back(PtrTy);
+    params.push_back(sel_arg);
+
+    if (is_block) {
+	// dvars
+	f_types.push_back(RubyObjTy);
+	params.push_back(dvars_arg);
+
+	// block
+	f_types.push_back(PtrTy);
+	params.push_back(block_arg);
+    }
+
+    for (int i = 0; i < argc; i++) {
+	f_types.push_back(RubyObjTy);
+
+	// Get an int
+	Value *index = ConstantInt::get(Int32Ty, i);
+	// Get the slot (aka argv[index])
+	Value *slot = GetElementPtrInst::Create(argv_arg, index, "", bb);
+	// Load the slot into memory and add it as an argument
+	Value *arg_val = new LoadInst(slot, "", bb);
+	params.push_back(arg_val);
+    }
+
+    // Get the function type, aka:    VALUE (*)(VALUE, SEL, ...)
+    FunctionType *ft = FunctionType::get(ret_type, f_types, false);
+    // Cast imp as the function type
+    Value *imp = new BitCastInst(imp_arg, PointerType::getUnqual(ft), "", bb);
+
+    // Compile call to the function
+    CallInst *imp_call = CallInst::Create(imp, params.begin(), params.end(),
+	"", bb);
+
+    // Compile return value
+    Value *retval = imp_call;
+    ReturnInst::Create(context, retval, bb);
+
+    return f;
+}
+
 bool
 RoxorCompiler::compile_lvars(ID *tbl)
 {

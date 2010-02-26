@@ -2861,6 +2861,28 @@ rb_vm_method_missing(VALUE obj, int argc, const VALUE *argv)
 }
 
 void *
+RoxorCore::gen_large_arity_stub(int argc, bool is_block)
+{
+    lock();
+    std::map<int, void *> &stubs =
+	is_block ? rb_large_arity_bstubs : rb_large_arity_rstubs;
+    std::map<int, void *>::iterator iter = stubs.find(argc);
+    void *stub;
+    if (iter == stubs.end()) {
+	Function *f = RoxorCompiler::shared->compile_long_arity_stub(argc,
+		is_block);
+	stub = (void *)compile(f);
+	stubs.insert(std::make_pair(argc, stub));
+    }
+    else {
+	stub = iter->second;
+    }
+    unlock();
+
+    return stub;
+}
+
+void *
 RoxorCore::gen_stub(std::string types, bool variadic, int min_argc,
 	bool is_objc)
 {

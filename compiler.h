@@ -48,6 +48,7 @@ class RoxorCompiler {
 	Function *compile_write_attr(ID name);
 	Function *compile_stub(const char *types, bool variadic, int min_argc,
 		bool is_objc);
+	Function *compile_long_arity_stub(int argc, bool is_block);
 	Function *compile_bs_struct_new(rb_vm_bs_boxed_t *bs_boxed);
 	Function *compile_bs_struct_writer(rb_vm_bs_boxed_t *bs_boxed,
 		int field);
