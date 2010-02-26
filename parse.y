@@ -269,7 +269,7 @@ struct parser_params {
 // TODO: we should probably mimic what 1.9 does here and use the right/given
 // encoding instead of always UTF8.
 # define UTF8_ENC() (NULL)
-#define __new_tmp_str(p, n) (rb_str_new(p, n))
+# define __new_tmp_str(p, n) (rb_str_new(p, n))
 # define STR_NEW(p,n) __new_tmp_str(p, n)
 # define STR_NEW0() __new_tmp_str(0, 0)
 # define STR_NEW2(p) __new_tmp_str(p, strlen(p))
@@ -283,7 +283,7 @@ struct parser_params {
 # define STR_NEW3(p,n,e,func) parser_str_new((p),(n),(e),(func),parser->enc)
 #endif
 #if WITH_OBJC
-# define STR_ENC(m) (parser->enc)
+# define STR_ENC(m) (NULL)
 # define ENC_SINGLE(cr) (1)
 #else
 # define STR_ENC(m) ((m)?parser->enc:rb_usascii_encoding())

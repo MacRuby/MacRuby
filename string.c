@@ -203,7 +203,7 @@ str_alloc(VALUE klass)
     NEWOBJ(str, rb_str_t);
     str->basic.flags = 0;
     str->basic.klass = klass;
-    str->encoding = rb_encodings[ENCODING_BINARY];
+    str->encoding = rb_encodings[ENCODING_UTF8];
     str->capacity_in_bytes = 0;
     str->length_in_bytes = 0;
     str->data.bytes = NULL;
@@ -1037,7 +1037,7 @@ str_need_string(VALUE str)
 {
     switch (TYPE(str)) {
 	case T_SYMBOL:
-	    str = rb_sym2str(str);
+	    str = rb_sym_to_s(str);
 	    break;
 
 	case T_STRING:

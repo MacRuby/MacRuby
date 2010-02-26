@@ -169,15 +169,9 @@ rb_name2sym(const char *name)
 }
 
 VALUE
-rb_sym2str(VALUE sym)
-{
-    return (VALUE)RSYM(sym)->str;
-}
-
-VALUE
 rb_sym_to_s(VALUE sym)
 {
-    return rb_str_dup(rb_sym2str(sym));
+    return rb_str_dup((VALUE)RSYM(sym)->str);
 }
 
 const char *

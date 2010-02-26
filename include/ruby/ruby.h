@@ -909,7 +909,6 @@ ID rb_sym2id(VALUE sym);
 VALUE rb_id2str(ID);
 VALUE rb_name2sym(const char *);
 const char *rb_sym2name(VALUE sym);
-VALUE rb_sym2str(VALUE sym);
 
 static inline
 const char *rb_id2name(ID val)
