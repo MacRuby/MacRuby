@@ -825,36 +825,36 @@ str_concat_string(rb_str_t *self, rb_str_t *str)
     self->length_in_bytes = new_length_in_bytes;
 }
 
-static bool
-str_is_equal_to_string(rb_str_t *self, rb_str_t *str)
+static int
+str_compare(rb_str_t *self, rb_str_t *str)
 {
     if (self == str) {
-	return true;
+	return 0;
     }
 
     if (self->length_in_bytes == 0) {
 	if (str->length_in_bytes == 0) {
 	    // both strings are empty
-	    return true;
+	    goto bad_length;
 	}
 	else {
 	    // only self is empty
-	    return false;
+	    goto bad_length;
 	}
     }
     else if (str->length_in_bytes == 0) {
 	// only str is empty
-	return false;
+	goto bad_length;
     }
 
     if (str_compatible_encoding(self, str) != NULL) {
 	if (str_is_stored_in_uchars(self) == str_is_stored_in_uchars(str)) {
 	    if (self->length_in_bytes != str->length_in_bytes) {
-		return false;
+		goto bad_length;
 	    }
 	    else {
-		return (memcmp(self->data.bytes, str->data.bytes,
-			    self->length_in_bytes) == 0);
+		return memcmp(self->data.bytes, str->data.bytes,
+			self->length_in_bytes);
 	    }
 	}
 	else { // one is in uchars and the other is in binary
@@ -862,20 +862,23 @@ str_is_equal_to_string(rb_str_t *self, rb_str_t *str)
 		    || !str_try_making_data_uchars(str)) {
 		// one is in uchars but the other one can't be converted in
 		// uchars
-		return false;
+		return -1;
 	    }
 	    if (self->length_in_bytes != str->length_in_bytes) {
-		return false;
+		goto bad_length;
 	    }
 	    else {
-		return (memcmp(self->data.bytes, str->data.bytes,
-			    self->length_in_bytes) == 0);
+		return memcmp(self->data.bytes, str->data.bytes,
+			self->length_in_bytes);
 	    }
 	}
     }
     else { // incompatible encodings
-	return false;
+	return -1;
     }
+
+bad_length:
+    return self->length_in_bytes > str->length_in_bytes ? 1 : -1;
 }
 
 static long
@@ -1795,8 +1798,60 @@ rstr_equal(VALUE self, SEL sel, VALUE other)
 	}
 	return rb_equal(other, self);
     }
-    return str_is_equal_to_string(RSTR(self), str_need_string(other))
+    return str_compare(RSTR(self), str_need_string(other)) == 0
 	? Qtrue : Qfalse;
+}
+
+/*
+ *  call-seq:
+ *     str <=> other_str   => -1, 0, +1
+ *  
+ *  Comparison---Returns -1 if <i>other_str</i> is less than, 0 if
+ *  <i>other_str</i> is equal to, and +1 if <i>other_str</i> is greater than
+ *  <i>str</i>. If the strings are of different lengths, and the strings are
+ *  equal when compared up to the shortest length, then the longer string is
+ *  considered greater than the shorter one. In older versions of Ruby, setting
+ *  <code>$=</code> allowed case-insensitive comparisons; this is now deprecated
+ *  in favor of using <code>String#casecmp</code>.
+ *
+ *  <code><=></code> is the basis for the methods <code><</code>,
+ *  <code><=</code>, <code>></code>, <code>>=</code>, and <code>between?</code>,
+ *  included from module <code>Comparable</code>.  The method
+ *  <code>String#==</code> does not use <code>Comparable#==</code>.
+ *     
+ *     "abcdef" <=> "abcde"     #=> 1
+ *     "abcdef" <=> "abcdef"    #=> 0
+ *     "abcdef" <=> "abcdefg"   #=> -1
+ *     "abcdef" <=> "ABCDEF"    #=> 1
+ */
+
+static VALUE
+rstr_cmp(VALUE self, SEL sel, VALUE other)
+{
+    long result;
+
+    if (TYPE(other) != T_STRING) {
+	if (!rb_respond_to(other, rb_intern("to_str"))) {
+	    return Qnil;
+	}
+	else if (!rb_vm_respond_to(other, selCmp, false)) {
+	    return Qnil;
+	}
+	else {
+	    VALUE tmp = rb_vm_call(other, selCmp, 1, &self, false);
+	    if (NIL_P(tmp)) {
+		return Qnil;
+	    }
+	    if (!FIXNUM_P(tmp)) {
+		return rb_vm_call(LONG2FIX(0), selMINUS, 1, &tmp, false);
+	    }
+	    result = -FIX2LONG(tmp);
+	}
+    }
+    else {
+	result = str_compare(RSTR(self), str_need_string(other));
+    }
+    return LONG2NUM(result);
 }
 
 /*
@@ -1816,7 +1871,7 @@ rstr_eql(VALUE self, SEL sel, VALUE other)
     if (TYPE(other) != T_STRING) {
 	return Qfalse;
     }
-    return str_is_equal_to_string(RSTR(self), str_need_string(other))
+    return str_compare(RSTR(self), str_need_string(other)) == 0
 	? Qtrue : Qfalse;
 }
 
@@ -3204,6 +3259,7 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "<<", rstr_concat, 1);
     rb_objc_define_method(rb_cRubyString, "concat", rstr_concat, 1);
     rb_objc_define_method(rb_cRubyString, "==", rstr_equal, 1);
+    rb_objc_define_method(rb_cRubyString, "<=>", rstr_cmp, 1);
     rb_objc_define_method(rb_cRubyString, "eql?", rstr_eql, 1);
     rb_objc_define_method(rb_cRubyString, "include?", rstr_includes, 1);
     rb_objc_define_method(rb_cRubyString, "to_s", rstr_to_s, 0);
