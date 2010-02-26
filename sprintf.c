@@ -12,10 +12,7 @@
 #include <stdarg.h>
 
 #include "ruby/ruby.h"
-#include "ruby/node.h"
 #include "ruby/encoding.h"
-#include "vm.h"
-#include "compiler.h"
 
 /*
  *  call-seq:

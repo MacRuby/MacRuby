@@ -608,6 +608,14 @@ rb_oc2rb_exception(id exc)
     return rb_exc_new2(rb_eRuntimeError, buf);
 }
 
+void
+rb_objc_exception_raise(const char *name, const char *message)
+{
+    assert(name != NULL && message != NULL);
+    [[NSException exceptionWithName:[NSString stringWithUTF8String:name]
+	reason:[NSString stringWithUTF8String:message] userInfo:nil] raise];
+}
+
 size_t
 rb_objc_type_size(const char *type)
 {

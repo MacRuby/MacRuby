@@ -1747,6 +1747,31 @@ rstr_times(VALUE self, SEL sel, VALUE times)
 
 /*
  *  call-seq:
+ *     str % arg   => new_str
+ *  
+ *  Format---Uses <i>str</i> as a format specification, and returns the result
+ *  of applying it to <i>arg</i>. If the format specification contains more than
+ *  one substitution, then <i>arg</i> must be an <code>Array</code> containing
+ *  the values to be substituted. See <code>Kernel::sprintf</code> for details
+ *  of the format string.
+ *     
+ *     "%05d" % 123                              #=> "00123"
+ *     "%-5s: %08x" % [ "ID", self.object_id ]   #=> "ID   : 200e14d6"
+ */
+
+static VALUE
+rstr_format(VALUE str, SEL sel, VALUE arg)
+{
+    VALUE tmp = rb_check_array_type(arg);
+
+    if (!NIL_P(tmp)) {
+	return rb_str_format(RARRAY_LEN(tmp), RARRAY_PTR(tmp), str);
+    }
+    return rb_str_format(1, &arg, str);
+}
+
+/*
+ *  call-seq:
  *     str << fixnum        => str
  *     str.concat(fixnum)   => str
  *     str << obj           => str
@@ -3316,6 +3341,27 @@ rstr_each_line(VALUE str, SEL sel, int argc, VALUE *argv)
 
 // NSString primitives.
 
+static void
+check_bounds(void *rcv, long pos, bool can_be_end)
+{
+    const long len = str_length(RSTR(rcv), true);
+    if (pos >= 0) {
+	if (can_be_end) {
+	    if (pos <= len) {
+		return;
+	    }
+	}
+	else if (pos < len) {
+	    return;
+	}
+    }
+
+    char buf[100];
+    snprintf(buf, sizeof buf, "Position (%ld) out of bounds (%ld)",
+	    pos, len);
+    rb_objc_exception_raise("NSRangeException", buf);
+}
+
 static CFIndex
 rstr_imp_length(void *rcv, SEL sel)
 {
@@ -3325,7 +3371,36 @@ rstr_imp_length(void *rcv, SEL sel)
 static UniChar
 rstr_imp_characterAtIndex(void *rcv, SEL sel, CFIndex idx)
 {
+    check_bounds(rcv, idx, false);
     return str_get_uchar(RSTR(rcv), idx, true);
+}
+
+static void
+rstr_imp_getCharactersRange(void *rcv, SEL sel, UniChar *buffer, CFRange range)
+{
+    check_bounds(rcv, range.location + range.length, true);
+    if (range.length > 0) {
+	if (str_try_making_data_uchars(RSTR(rcv))) {
+	    memcpy(buffer, &RSTR(rcv)->data.uchars[range.location],
+		    sizeof(UniChar) * range.length);
+	}
+	else {
+	    for (long i = range.location, j = 0;
+		    i < range.location + range.length;
+		    i++, j++) {
+		buffer[j] = RSTR(rcv)->data.bytes[i];
+	    }
+	}
+    }
+}
+
+static void
+rstr_imp_replaceCharactersInRangeWithString(void *rcv, SEL sel, CFRange range,
+	void *str)
+{
+    check_bounds(rcv, range.location + range.length, true);
+    rb_str_t *spat = str_need_string((VALUE)str);
+    str_splice(RSTR(rcv), range.location, range.length, spat, true);
 }
 
 void
@@ -3367,6 +3442,7 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "rindex", rstr_rindex, -1);
     rb_objc_define_method(rb_cRubyString, "+", rstr_plus, 1);
     rb_objc_define_method(rb_cRubyString, "*", rstr_times, 1);
+    rb_objc_define_method(rb_cRubyString, "%", rstr_format, 1);
     rb_objc_define_method(rb_cRubyString, "<<", rstr_concat, 1);
     rb_objc_define_method(rb_cRubyString, "concat", rstr_concat, 1);
     rb_objc_define_method(rb_cRubyString, "==", rstr_equal, 1);
@@ -3418,13 +3494,11 @@ Init_String(void)
 	    (IMP)rstr_imp_length);
     rb_objc_install_method2((Class)rb_cRubyString, "characterAtIndex:",
 	    (IMP)rstr_imp_characterAtIndex);
-#if 0
-    rb_objc_install_method2(rb_cRubyString, "getCharacters:range:",
+    rb_objc_install_method2((Class)rb_cRubyString, "getCharacters:range:",
 	    (IMP)rstr_imp_getCharactersRange);
-    rb_objc_install_method2(rb_cRubyString,
+    rb_objc_install_method2((Class)rb_cRubyString,
 	    "replaceCharactersInRange:withString:", 
 	    (IMP)rstr_imp_replaceCharactersInRangeWithString);
-#endif
 
     rb_fs = Qnil;
     rb_define_variable("$;", &rb_fs);
