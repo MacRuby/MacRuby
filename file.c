@@ -2575,13 +2575,11 @@ static VALUE separator;
 static VALUE
 rb_file_join(VALUE ary, VALUE sep)
 {
-    CFMutableStringRef res = CFStringCreateMutable(NULL, 0);
-    CFStringRef sep_cf = (CFStringRef)sep;
+    VALUE res = rb_str_new(NULL, 0);
 
     const long count = RARRAY_LEN(ary);
     if (count > 0) {
-	long i;
-	for (i = 0; i < count; i++) {
+	for (long i = 0; i < count; i++) {
 	    VALUE tmp = RARRAY_AT(ary, i);
 	    switch (TYPE(tmp)) {
 		case T_STRING:
@@ -2595,9 +2593,9 @@ rb_file_join(VALUE ary, VALUE sep)
 		    FilePathStringValue(tmp);
 	    }
 
-	    CFStringRef tmp_cf = (CFStringRef)tmp;
-
-	    if (i > 0) {
+	    if (i > 0 && !NIL_P(sep)) {
+#if 0
+// TODO: we should probably mimic what 1.9 does here instead of this
 		if (CFStringHasSuffix(res, sep_cf)) {
 		    if (CFStringHasPrefix(tmp_cf, sep_cf)) {
 			// Remove trailing slash from res if tmp starts with a
@@ -2609,14 +2607,15 @@ rb_file_join(VALUE ary, VALUE sep)
 		else if (!CFStringHasPrefix(tmp_cf, sep_cf)) {
 		    CFStringAppend(res, sep_cf);
 		}
+#endif
+		rb_str_concat(res, sep);
 	    }
 
-	    CFStringAppend(res, tmp_cf);
+	    rb_str_concat(res, tmp);
 	}
     }
 
-    CFMakeCollectable(res);
-    return (VALUE)res;
+    return res;
 }
 
 /*
