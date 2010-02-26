@@ -1094,7 +1094,7 @@ rb_str_get_uchars(VALUE str, UChar **chars_p, long *chars_len_p,
 }
 
 static VALUE
-str_substr(VALUE str, long beg, long len)
+rstr_substr(VALUE str, long beg, long len)
 {
     if (len < 0) {
 	return Qnil;
@@ -1116,6 +1116,31 @@ str_substr(VALUE str, long beg, long len)
 
     rb_str_t *substr = str_get_characters(RSTR(str), beg, beg + len - 1, false);
     return substr == NULL ? Qnil : (VALUE)substr;
+}
+
+static void
+rstr_splice(VALUE self, long beg, long len, VALUE str)
+{
+    if (len < 0) {
+	rb_raise(rb_eIndexError, "negative length %ld", len);
+    }
+
+    const long slen = str_length(RSTR(self), false);
+    if (slen < beg) {
+out_of_range:
+	rb_raise(rb_eIndexError, "index %ld out of string", beg);
+    }
+    if (beg < 0) {
+	if (-beg > slen) {
+	    goto out_of_range;
+	}
+	beg += slen;
+    }
+    if (slen < len || slen < beg + len) {
+	len = slen - beg;
+    }
+
+    str_splice(RSTR(self), beg, len, str_need_string(str), false);
 }
 
 static VALUE
@@ -1507,7 +1532,7 @@ rstr_aref(VALUE str, SEL sel, int argc, VALUE *argv)
 	if (TYPE(argv[0]) == T_REGEXP) {
 	    return rb_str_subpat(str, argv[0], NUM2INT(argv[1]));
 	}
-	return str_substr(str, NUM2LONG(argv[0]), NUM2LONG(argv[1]));
+	return rstr_substr(str, NUM2LONG(argv[0]), NUM2LONG(argv[1]));
     }
 
     if (argc != 1) {
@@ -1517,7 +1542,7 @@ rstr_aref(VALUE str, SEL sel, int argc, VALUE *argv)
     VALUE indx = argv[0];
     switch (TYPE(indx)) {
 	case T_FIXNUM:
-	    str = str_substr(str, FIX2LONG(indx), 1);
+	    str = rstr_substr(str, FIX2LONG(indx), 1);
 	    if (!NIL_P(str) && str_length(RSTR(str), true) == 0) {
 		return Qnil;
 	    }
@@ -1556,9 +1581,9 @@ rstr_aref(VALUE str, SEL sel, int argc, VALUE *argv)
 		    case Qnil:
 			return Qnil;
 		    default:
-			return str_substr(str, beg, len);
+			return rstr_substr(str, beg, len);
 		}
-		str = str_substr(str, NUM2LONG(indx), 1);
+		str = rstr_substr(str, NUM2LONG(indx), 1);
 		if (!NIL_P(str) && str_length(RSTR(str), true) == 0) {
 		    return Qnil;
 		}
@@ -1693,7 +1718,7 @@ static VALUE
 rstr_getchar(VALUE self, SEL sel, VALUE index)
 {
     const long idx = FIX2LONG(index);
-    return str_substr(self, idx, 1);
+    return rstr_substr(self, idx, 1);
 }
 
 /*
@@ -2370,7 +2395,7 @@ fs_set:
 	if (spat != Qnil) {
 	    if (spat_len == 0) {
 		do {
-		    VALUE substr = str_substr(str, beg, 1);
+		    VALUE substr = rstr_substr(str, beg, 1);
 		    rb_ary_push(result, substr);
 		    beg++;
 		    if (beg >= len) {
@@ -2387,7 +2412,7 @@ fs_set:
 		    if (pos == -1) {
 			break;
 		    }
-		    VALUE substr = str_substr(str, beg, pos - beg);
+		    VALUE substr = rstr_substr(str, beg, pos - beg);
 		    if (!awk_split || rb_str_chars_len(str_trim(substr)) > 0) {
 			rb_ary_push(result, substr);
 		    }
@@ -2416,7 +2441,7 @@ fs_set:
 
 	    if (beg == pos && results[0].beg == results[0].end) {
 		if (last_null) {
-		    rb_ary_push(result, str_substr(str, beg, 1));
+		    rb_ary_push(result, rstr_substr(str, beg, 1));
 		    beg = start;
 		}
 		else {
@@ -2426,7 +2451,7 @@ fs_set:
 		}
 	    }
 	    else {
-		rb_ary_push(result, str_substr(str, beg, pos - beg));
+		rb_ary_push(result, rstr_substr(str, beg, pos - beg));
 		beg = results[0].end;
 	    }
 	    last_null = false;
@@ -2678,7 +2703,7 @@ rstr_sub_bang(VALUE str, SEL sel, int argc, VALUE *argv)
                 repl = rb_obj_as_string(rb_yield(rb_reg_nth_match(0, match)));
             }
             else {
-                repl = rb_hash_aref(hash, str_substr(str, results[0].beg,
+                repl = rb_hash_aref(hash, rstr_substr(str, results[0].beg,
 			    results[0].end - results[0].beg));
                 repl = rb_obj_as_string(repl);
             }
@@ -2796,7 +2821,7 @@ str_gsub(SEL sel, int argc, VALUE *argv, VALUE str, bool bang)
 		return bang ? Qnil : rstr_dup(str, 0);
 	    }
 	    str_concat_string(RSTR(dest),
-		    RSTR(str_substr(str, offset, len - offset)));
+		    RSTR(rstr_substr(str, offset, len - offset)));
 	    break;
 	}
 
@@ -2811,7 +2836,7 @@ str_gsub(SEL sel, int argc, VALUE *argv, VALUE str, bool bang)
                 val = rb_obj_as_string(rb_yield(rb_reg_nth_match(0, match)));
             }
             else {
-                val = rb_hash_aref(hash, str_substr(str, results[0].beg,
+                val = rb_hash_aref(hash, rstr_substr(str, results[0].beg,
 			    results[0].end - results[0].beg));
                 val = rb_obj_as_string(val);
             }
@@ -2826,7 +2851,7 @@ str_gsub(SEL sel, int argc, VALUE *argv, VALUE str, bool bang)
 
 	if (pos - offset > 0) {
 	    str_concat_string(RSTR(dest),
-		    RSTR(str_substr(str, offset, pos - offset)));
+		    RSTR(rstr_substr(str, offset, pos - offset)));
 	}
 	str_concat_string(RSTR(dest), str_need_string(val));
 
@@ -2981,7 +3006,7 @@ rstr_justify_part(rb_str_t *str, rb_str_t *pad, long width, long padwidth,
 {
     do {
 	if (padwidth > width) {
-	    pad = RSTR(str_substr((VALUE)pad, 0, width));
+	    pad = RSTR(rstr_substr((VALUE)pad, 0, width));
 	}
 	str_insert(str, index, pad, false);
 	width -= padwidth;
@@ -3322,7 +3347,7 @@ rstr_each_line(VALUE str, SEL sel, int argc, VALUE *argv)
 	    substr_len = off - pos + 1;
 	}
 
-	VALUE substr = str_substr(str, pos, substr_len);
+	VALUE substr = rstr_substr(str, pos, substr_len);
 	if (tainted) {
 	    OBJ_TAINT(substr);
 	}
@@ -4045,7 +4070,7 @@ VALUE
 rb_str_subseq(VALUE str, long beg, long len)
 {
     if (IS_RSTR(str)) {
-	return str_substr(str, beg, len);
+	return rstr_substr(str, beg, len);
     }
     abort(); // TODO
 }
@@ -4059,5 +4084,10 @@ rb_str_substr(VALUE str, long beg, long len)
 void
 rb_str_update(VALUE str, long beg, long len, VALUE val)
 {
-    abort(); // TODO
+    if (IS_RSTR(str)) {
+	rstr_splice(str, beg, len, val);
+    }
+    else {
+	abort(); // TODO
+    }
 }
