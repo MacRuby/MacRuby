@@ -3167,7 +3167,7 @@ rstr_lstrip_bang(VALUE str, SEL sel)
  */
 
 static VALUE
-rstr_lstrip(VALUE str)
+rstr_lstrip(VALUE str, SEL sel)
 {
     str = rstr_dup(str, 0);
     rstr_lstrip_bang(str, 0);
@@ -3204,10 +3204,113 @@ rstr_rstrip_bang(VALUE str, SEL sel)
  */
 
 static VALUE
-rstr_rstrip(VALUE str)
+rstr_rstrip(VALUE str, SEL sel)
 {
     str = rstr_dup(str, 0);
     rstr_rstrip_bang(str, 0);
+    return str;
+}
+
+/*
+ *  Document-method: lines
+ *  call-seq:
+ *     str.lines(separator=$/)   => anEnumerator
+ *     str.lines(separator=$/) {|substr| block }        => str
+ *  
+ *  Returns an enumerator that gives each line in the string.  If a block is
+ *  given, it iterates over each line in the string.
+ *     
+ *     "foo\nbar\n".lines.to_a   #=> ["foo\n", "bar\n"]
+ *     "foo\nb ar".lines.sort    #=> ["b ar", "foo\n"]
+ */
+
+/*
+ *  Document-method: each_line
+ *  call-seq:
+ *     str.each_line(separator=$/) {|substr| block }   => str
+ *  
+ *  Splits <i>str</i> using the supplied parameter as the record separator
+ *  (<code>$/</code> by default), passing each substring in turn to the supplied
+ *  block. If a zero-length record separator is supplied, the string is split
+ *  into paragraphs delimited by multiple successive newlines.
+ *     
+ *     print "Example one\n"
+ *     "hello\nworld".each {|s| p s}
+ *     print "Example two\n"
+ *     "hello\nworld".each('l') {|s| p s}
+ *     print "Example three\n"
+ *     "hello\n\n\nworld".each('') {|s| p s}
+ *     
+ *  <em>produces:</em>
+ *     
+ *     Example one
+ *     "hello\n"
+ *     "world"
+ *     Example two
+ *     "hel"
+ *     "l"
+ *     "o\nworl"
+ *     "d"
+ *     Example three
+ *     "hello\n\n\n"
+ *     "world"
+ */
+
+static VALUE
+rstr_each_line(VALUE str, SEL sel, int argc, VALUE *argv)
+{
+    VALUE rs;
+    if (rb_scan_args(argc, argv, "01", &rs) == 0) {
+	rs = rb_rs;
+    }
+
+    RETURN_ENUMERATOR(str, argc, argv);
+
+    if (NIL_P(rs)) {
+	rb_yield(str);
+	return str;
+    }
+
+    StringValue(rs);
+
+    rb_str_t *rs_str = str_need_string(rs);
+    if (rs_str->length_in_bytes == 0) {
+	rs_str = str_need_string(rb_default_rs);
+    }
+
+    const long len = str_length(RSTR(str), false);
+    const bool tainted = OBJ_TAINTED(str);
+
+    long pos = 0;
+    do {
+	const long off = str_index_for_string(RSTR(str), rs_str, pos,
+		false, false);
+
+	long substr_len = 0;
+	if (off < 0) {
+	    if (pos == len) {
+		break;
+	    }
+	    substr_len = len - pos;
+	}
+	else {
+	    substr_len = off - pos + 1;
+	}
+
+	VALUE substr = str_substr(str, pos, substr_len);
+	if (tainted) {
+	    OBJ_TAINT(substr);
+	}
+	rb_yield(substr);
+	RETURN_IF_BROKEN();
+
+	if (off < 0) {
+	    break;
+	}
+	pos = off + 1;
+    }
+    while (true);
+
     return str;
 }
 
@@ -3300,6 +3403,8 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "strip!", rstr_strip_bang, 0);
     rb_objc_define_method(rb_cRubyString, "lstrip!", rstr_lstrip_bang, 0);
     rb_objc_define_method(rb_cRubyString, "rstrip!", rstr_rstrip_bang, 0);
+    rb_objc_define_method(rb_cRubyString, "lines", rstr_each_line, -1);
+    rb_objc_define_method(rb_cRubyString, "each_line", rstr_each_line, -1);
 
     // Added for MacRuby (debugging).
     rb_objc_define_method(rb_cRubyString, "__chars_count__",
