@@ -2441,7 +2441,9 @@ fs_set:
 
 	    if (beg == pos && results[0].beg == results[0].end) {
 		if (last_null) {
-		    rb_ary_push(result, rstr_substr(str, beg, 1));
+		    if (beg + 1 <= len) {
+			rb_ary_push(result, rstr_substr(str, beg, 1));
+		    }
 		    beg = start;
 		}
 		else {
@@ -2457,7 +2459,10 @@ fs_set:
 	    last_null = false;
 
 	    for (int i = 1; i < count; i++) {
-		rb_ary_push(result, rb_reg_nth_match(i, match));
+		VALUE match_str = rb_reg_nth_match(i, match);
+		if (match_str != Qnil) {
+		    rb_ary_push(result, rb_reg_nth_match(i, match));
+		}
 	    }
 	}
 	while (limit == Qnil || --lim > 1);
