@@ -3965,7 +3965,7 @@ static VALUE
 rb_io_external_encoding(VALUE io, SEL sel)
 {
     // TODO
-    return Qnil;
+    return (VALUE)rb_locale_encoding();
 }
 
 /*
@@ -3980,7 +3980,7 @@ static VALUE
 rb_io_internal_encoding(VALUE io, SEL sel)
 {
     // TODO
-    return Qnil;
+    return (VALUE)rb_locale_encoding();
 }
 
 /*
