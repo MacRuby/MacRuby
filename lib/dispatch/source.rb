@@ -3,14 +3,12 @@
 module Dispatch
   class Source
     
-    @@proc_event = {
-       exit:PROC_EXIT,
-       fork:PROC_FORK,
-       exec:PROC_EXEC,
-       signal:PROC_SIGNAL
-       }
-
-    @@vnode_event = {
+    @@events = {
+      exit:PROC_EXIT,
+      fork:PROC_FORK,
+      exec:PROC_EXEC,
+      signal:PROC_SIGNAL, 
+      
       delete:VNODE_DELETE,
       write:VNODE_WRITE, 
       extend:VNODE_EXTEND, 
@@ -18,22 +16,22 @@ module Dispatch
       link:VNODE_LINK, 
       rename:VNODE_RENAME, 
       revoke:VNODE_REVOKE
-      }
+    }
       
     class << self
-      
-      def event(e)
-        convert(e, @@proc_event) || convert(e, @@vnode_event)
-      end        
-    
-      def events2mask(events, hash)
-        mask = events.collect { |e| convert(e, hash) }.reduce(:|)
-      end
-      
-      def convert(e, hash)
-        value = e.to_int rescue hash[e.to_sym]
+          
+      def event2num(e)
+        value = e.to_int rescue  @@events[e.to_sym]
         raise ArgumentError, "No event type #{e.inspect}" if value.nil?
         value
+      end
+    
+      def events2mask(events)
+        mask = events.collect { |e| convert(e) }.reduce(:|)
+      end
+
+      def data2events(bitmask)
+        @@events.select {|k,v| v & bitmask }
       end
 
       # Returns Dispatch::Source of type DATA_ADD
