@@ -5679,7 +5679,6 @@ RoxorAOTCompiler::compile_main_function(NODE *node)
 		    if (chars_len == 0) {
 			re_str = ConstantPointerNull::get(
 				PointerType::getUnqual(Int16Ty));
-			re_str = compile_const_pointer(NULL, NULL);
 		    }
 		    else {
 			GlobalVariable *re_name_gvar =
