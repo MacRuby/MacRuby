@@ -291,7 +291,6 @@ str_set_valid_encoding(rb_str_t *self, bool status)
 }
 
 VALUE mr_enc_s_is_compatible(VALUE klass, SEL sel, VALUE str1, VALUE str2);
-VALUE str_inspect(rb_str_t *str, bool dump);
 VALUE rb_str_intern_fast(VALUE str);
 
 // The following functions should always been prefered over anything else,

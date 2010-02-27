@@ -2031,7 +2031,7 @@ inspect_append(VALUE result, UChar c, bool escape)
     str_append_uchar(RSTR(result), c);
 }
 
-VALUE
+static VALUE
 str_inspect(rb_str_t *str, bool dump)
 {
     const bool uchars = str_is_stored_in_uchars(str);

@@ -22,14 +22,14 @@ static long last_id = 0;
 
 typedef struct {
     VALUE klass;
-    rb_str_t *str;
+    VALUE str;
     ID id;
 } rb_sym_t;
 
 #define RSYM(obj) ((rb_sym_t *)(obj))
 
 static rb_sym_t *
-sym_alloc(rb_str_t *str, ID id)
+sym_alloc(VALUE str, ID id)
 {
     rb_sym_t *sym = (rb_sym_t *)malloc(sizeof(rb_sym_t));
     assert(rb_cSymbol != 0);
@@ -93,8 +93,7 @@ rb_intern_str(VALUE str)
 
 id_register:
 //printf("register %s hash %ld id %ld\n", RSTRING_PTR(str), name_hash, id);
-    assert(IS_RSTR(str));
-    sym = sym_alloc(RSTR(str), id);
+    sym = sym_alloc(str, id);
     CFDictionarySetValue(sym_id, (const void *)name_hash, (const void *)id);
     CFDictionarySetValue(id_str, (const void *)id, (const void *)sym);
 
@@ -122,7 +121,7 @@ rb_id2str(ID id)
 	    id2 = (id & ~ID_SCOPE_MASK) | ID_CONST;
 	}
 
-	VALUE str = rb_str_dup((VALUE)RSYM(sym)->str);
+	VALUE str = rb_str_dup(RSYM(sym)->str);
 	rb_str_cat(str, "=", 1);
 	rb_intern_str(str);
 
@@ -171,7 +170,7 @@ rb_name2sym(const char *name)
 VALUE
 rb_sym_to_s(VALUE sym)
 {
-    return rb_str_dup((VALUE)RSYM(sym)->str);
+    return rb_str_dup(RSYM(sym)->str);
 }
 
 const char *
@@ -223,7 +222,7 @@ Init_PreSymbol(void)
     for (int i = 0; rb_op_tbl[i].token != 0; i++) {
 	ID id = rb_op_tbl[i].token;
 	VALUE str = rb_str_new2(rb_op_tbl[i].name);
-	rb_sym_t *sym = sym_alloc(RSTR(str), id);
+	rb_sym_t *sym = sym_alloc(str, id);
 	unsigned long name_hash = rb_str_hash(str);
 
 //printf("pre-register %s hash %ld id %ld\n", RSTRING_PTR(str), name_hash, id);
@@ -257,11 +256,42 @@ rsym_equal(VALUE sym, SEL sel, VALUE other)
  *     :fred.inspect   #=> ":fred"
  */
 
+static bool
+sym_should_be_escaped(VALUE sym)
+{
+    UChar *chars = NULL;
+    long chars_len = 0;
+    bool need_free = false;
+    rb_str_get_uchars(RSYM(sym)->str, &chars, &chars_len, &need_free);
+
+    // TODO: this is really not enough, we should mimic 1.9's
+    // rb_enc_symname2_p() function.
+    bool escape = false;
+    for (long i = 0; i < chars_len; i++) {
+	if (!iswprint(chars[i])
+		|| iswspace(chars[i])) {
+	    escape = true;
+	    break;
+	}
+    }
+
+    if (need_free) {
+	free(chars);
+    }
+
+    return escape;
+}
+
 static VALUE
 rsym_inspect(VALUE sym, SEL sel)
 {
     VALUE str = rb_str_new2(":");
-    rb_str_concat(str, str_inspect(RSYM(sym)->str, true));
+    if (sym_should_be_escaped(sym)) {
+	rb_str_concat(str, rb_str_inspect(RSYM(sym)->str));
+    }
+    else {
+	rb_str_concat(str, RSYM(sym)->str);
+    }
     return str;
 }
 

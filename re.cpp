@@ -653,7 +653,41 @@ regexp_source(VALUE rcv, SEL sel)
 static VALUE
 regexp_inspect(VALUE rcv, SEL sel)
 {
-    return regexp_source(rcv, 0);
+    VALUE str = rb_str_new2("/");
+    rb_str_concat(str, regexp_source(rcv, 0));
+    rb_str_cat2(str, "/");
+    // TODO: add options there.
+    return str;
+}
+
+/*
+ *  call-seq:
+ *     rxp.to_s   => str
+ *
+ *  Returns a string containing the regular expression and its options (using the
+ *  <code>(?opts:source)</code> notation. This string can be fed back in to
+ *  <code>Regexp::new</code> to a regular expression with the same semantics as
+ *  the original. (However, <code>Regexp#==</code> may not return true when
+ *  comparing the two, as the source of the regular expression itself may
+ *  differ, as the example shows).  <code>Regexp#inspect</code> produces a
+ *  generally more readable version of <i>rxp</i>.
+ *
+ *      r1 = /ab+c/ix           #=> /ab+c/ix
+ *      s1 = r1.to_s            #=> "(?ix-m:ab+c)"
+ *      r2 = Regexp.new(s1)     #=> /(?ix-m:ab+c)/
+ *      r1 == r2                #=> false
+ *      r1.source               #=> "ab+c"
+ *      r2.source               #=> "(?ix-m:ab+c)"
+ */
+
+static VALUE
+regexp_to_s(VALUE rcv, SEL sel)
+{
+    VALUE str = rb_str_new2("(?:");
+    // TODO: add options there.
+    rb_str_concat(str, regexp_source(rcv, 0));
+    rb_str_cat2(str, ")");
+    return str;
 }
 
 /*
@@ -709,6 +743,76 @@ regexp_options(VALUE rcv, SEL sel)
     return INT2FIX(rb_reg_options(rcv));
 }
 
+static VALUE
+match_getter(void)
+{
+    VALUE match = rb_backref_get();
+    if (NIL_P(match)) {
+	return Qnil;
+    }
+    rb_match_busy(match);
+    return match;
+}
+
+static void
+match_setter(VALUE val)
+{
+    if (!NIL_P(val)) {
+	Check_Type(val, T_MATCH);
+    }
+    rb_backref_set(val);
+}
+
+static VALUE
+last_match_getter(void)
+{
+    return rb_reg_last_match(rb_backref_get());
+}
+
+static VALUE
+prematch_getter(void)
+{
+    return rb_reg_match_pre(rb_backref_get());
+}
+
+static VALUE
+postmatch_getter(void)
+{
+    return rb_reg_match_post(rb_backref_get());
+}
+
+static VALUE
+last_paren_match_getter(void)
+{
+    return rb_reg_match_last(rb_backref_get());
+}
+
+static VALUE
+kcode_getter(void)
+{
+    rb_warn("variable $KCODE is no longer effective");
+    return Qnil;
+}
+
+static void
+kcode_setter(VALUE val, ID id)
+{
+    rb_warn("variable $KCODE is no longer effective; ignored");
+}
+
+static VALUE
+ignorecase_getter(void)
+{
+    rb_warn("variable $= is no longer effective");
+    return Qfalse;
+}
+
+static void
+ignorecase_setter(VALUE val, ID id)
+{
+    rb_warn("variable $= is no longer effective; ignored");
+}
+
 /*
  *  Document-class: Regexp
  *
@@ -726,17 +830,20 @@ Init_Regexp(void)
 {
     rb_eRegexpError = rb_define_class("RegexpError", rb_eStandardError);
 
-#if 0
-    rb_define_virtual_variable("$~", match_getter, match_setter);
-    rb_define_virtual_variable("$&", last_match_getter, 0);
-    rb_define_virtual_variable("$`", prematch_getter, 0);
-    rb_define_virtual_variable("$'", postmatch_getter, 0);
-    rb_define_virtual_variable("$+", last_paren_match_getter, 0);
+#define DEFINE_GVAR(name, getter, setter) \
+    rb_define_virtual_variable(name, (VALUE (*)(...))getter, \
+	    (void (*)(...))setter)
 
-    rb_define_virtual_variable("$=", ignorecase_getter, ignorecase_setter);
-    rb_define_virtual_variable("$KCODE", kcode_getter, kcode_setter);
-    rb_define_virtual_variable("$-K", kcode_getter, kcode_setter);
-#endif
+    DEFINE_GVAR("$~", match_getter, match_setter);
+    DEFINE_GVAR("$&", last_match_getter, 0);
+    DEFINE_GVAR("$`", prematch_getter, 0);
+    DEFINE_GVAR("$'", postmatch_getter, 0);
+    DEFINE_GVAR("$+", last_paren_match_getter, 0);
+    DEFINE_GVAR("$=", ignorecase_getter, ignorecase_setter);
+    DEFINE_GVAR("$KCODE", kcode_getter, kcode_setter);
+    DEFINE_GVAR("$-K", kcode_getter, kcode_setter);
+
+#undef DEFINE_GVAR
 
     rb_cRegexp = rb_define_class("Regexp", rb_cObject);
     rb_objc_define_method(*(VALUE *)rb_cRegexp, "alloc",
@@ -766,7 +873,6 @@ Init_Regexp(void)
     rb_objc_define_method(rb_cRegexp, "match", (void *)regexp_match2, -1);
     rb_objc_define_method(rb_cRegexp, "~", (void *)regexp_match3, 0);
     rb_objc_define_method(rb_cRegexp, "===", (void *)regexp_eqq, 1);
-    //rb_objc_define_method(rb_cRegexp, "to_s", rb_reg_to_s, 0);
     rb_objc_define_method(rb_cRegexp, "source", (void *)regexp_source, 0);
     rb_objc_define_method(rb_cRegexp, "casefold?", (void *)regexp_casefold, 0);
     rb_objc_define_method(rb_cRegexp, "options", (void *)regexp_options, 0);
@@ -778,6 +884,7 @@ Init_Regexp(void)
     rb_objc_define_method(rb_cRegexp, "named_captures",
 	    rb_reg_named_captures, 0);
 #endif
+    rb_objc_define_method(rb_cRegexp, "to_s", (void *)regexp_to_s, 0);
     rb_objc_define_method(rb_cRegexp, "inspect", (void *)regexp_inspect, 0);
 
     regexp_finalize_imp_super = rb_objc_install_method2((Class)rb_cRegexp,
