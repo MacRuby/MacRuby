@@ -37,6 +37,7 @@ typedef struct rb_match {
 } rb_match_t;
 
 #define RMATCH(o) ((rb_match_t *)o)
+#define MATCH_BUSY FL_USER2
 
 static rb_regexp_t *
 regexp_alloc(VALUE klass, SEL sel)
@@ -446,7 +447,7 @@ rb_reg_search(VALUE re, VALUE str, int pos, bool reverse)
     delete matcher;
 
     VALUE match = rb_backref_get();
-    if (NIL_P(match)) {
+    if (NIL_P(match) || FL_TEST(match, MATCH_BUSY)) {
 	match = (VALUE)match_alloc(rb_cMatch, 0);
 	rb_backref_set(match);
     }
@@ -1536,7 +1537,7 @@ rb_reg_quote(VALUE pat)
 void
 rb_match_busy(VALUE match)
 {
-    // Do nothing.
+    FL_SET(match, MATCH_BUSY);
 }
 
 } // extern "C"
