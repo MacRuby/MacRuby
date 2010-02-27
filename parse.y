@@ -34,6 +34,7 @@
 #define YYCALLOC(nelem, size)	rb_parser_calloc(parser, nelem, size)
 #define YYFREE(ptr)		rb_parser_free(parser, ptr)
 static inline void *orig_malloc(size_t l) { return malloc(l); }
+static inline void orig_free(void *ptr) { free(ptr); }
 #define malloc	YYMALLOC
 #define realloc	YYREALLOC
 #define calloc	YYCALLOC
@@ -5100,7 +5101,8 @@ rb_parser_compile_string(VALUE vparser, const char *f, VALUE s, int line)
     NODE *node = yycompile(parser, f, line);
 
     if (need_free && chars != NULL) {
-	free(chars);
+	orig_free(chars);
+	chars = NULL;
     }
 
     return node;
