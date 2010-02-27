@@ -76,7 +76,7 @@ module Dispatch
         Dispatch::Source.new(Dispatch::Source::VNODE, file, mask, queue, &block)
       end
 
-      def interval(seconds, queue = Dispatch::Queue.concurrent, &block)
+      def periodic(seconds, queue = Dispatch::Queue.concurrent, &block)
         Dispatch::Source.timer(0, seconds, 0, queue, &block)
       end
     end

@@ -131,13 +131,13 @@ if MACOSX_VERSION >= 10.6
       end          
     end
 
-    describe "interval" do
+    describe "periodic" do
       it "fires with data on how often the timer has fired" do
         @count = -1
         repeats = 2
-        @interval = 0.02
-        @src = Dispatch::Source.interval(@interval, @q) {|s| @count += s.data}
-        sleep repeats*@interval
+        @periodic = 0.02
+        @src = Dispatch::Source.periodic(@periodic, @q) {|s| @count += s.data}
+        sleep repeats*@periodic
         @q.sync { }
         @count.should == repeats
       end

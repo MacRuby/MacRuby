@@ -18,9 +18,9 @@ Dispatch::Queue:: The basic unit for organizing blocks. Several queues are creat
 
 Dispatch::Group:: Allows applications to track the progress of blocks submitted to queues and take action when the blocks complete.
 
-Dispatch::Source:: Monitors and coalesces low-level system events so that they can be responded to asynchronously via simple event handlers.
+Source:: Monitors and coalesces low-level system events so that they can be responded to asynchronously via simple event handlers.
 
-Dispatch::Semaphore:: Synchronizes threads via a combination of waiting and signalling.
+Semaphore:: Synchronizes threads via a combination of waiting and signalling.
 
 In addition, MacRuby 0.6 provides additional, higher-level abstractions and convenience APIs such as +Job+ and +Proxy+ via the "dispatch" library (i.e., +require 'dispatch'+).
 
@@ -242,9 +242,9 @@ Passes each object and returns nil if none match. Similar to +find+, it returns 
 
 	(0..4).p_findall(3) { |i| i.odd?} # => 3
 
-== Dispatch::Sources: Asynchronous Events
+== Sources: Asynchronous Events
 
-In addition to scheduling blocks directly, GCD makes it easy to run a block in response to various system events via a Dispatch::Source, which supports:
+In addition to scheduling blocks directly, GCD makes it easy to run a block in response to various system events via a Source, which supports:
 
 * Timers
 * Signals
@@ -255,22 +255,26 @@ In addition to scheduling blocks directly, GCD makes it easy to run a block in r
 	
 When the source “fires,” GCD will schedule the handler on the specific queue if it is not currently running, or -- more importantly -- coalesce pending events if it is. This provides excellent responsiveness without the expense of either polling or binding a thread to the event source.  Plus, since the handler is never run more than once at a time, the block doesn’t even need to be reentrant -- and thus you don't need to +synchronize+ any variables that are only used there.
 
-=== Dispatch::Source.interval
+=== Source.periodic
 
-For example, this is how you would create a timer that prints out the current time an +interval+ of 0.5 seconds:
+For example, this creates a +periodic+ timer that runs every 1.2 seconds and prints out the number of pending events:
 
-	source = Dispatch::Source.interval(0.5) { |s| puts Time.now }
-	sleep 2
+	source = Source.periodic(1.2) { |src| puts src.data }
+	sleep 3 # => 1 1
 
-=== Dispatch::Source#suspend!
+=== Source#data
 
-This would rapidly get annoying, so you can +suspend+ the source:
+As you can see above, the +handler+ block gets called with the source itself as a parameter.  
+
+=== Source#suspend!
+
+This would rapidly get annoying; to pause, just +suspend!+ the source:
 
 	source.suspend!
 
 You can suspend a source at any time to prevent it from executing new blocks, though this will not affect a block that is already being processed.
 
-=== Dispatch::Source#resume!
+=== Source#resume!
 
 If you change your mind, you can always +resume+ the source:
 
@@ -279,13 +283,13 @@ If you change your mind, you can always +resume+ the source:
 
 If the +Source+ has fired one or more times, it will schedule a block containing the coalesced events. 
 
-=== Dispatch::Source#cancel!
+=== Source#cancel!
 
 Finally,  you can stop the source entirely by calling +cancel!+:
 
 	source.cancel!
 
-This is particularly important to do in MacRuby's implementation of GCD, since there is no other way to get rid of a source.  
+This is particularly important to do in MacRuby's implementation of GCD, since (due to garbage collection) there is no other way to get rid of a source.  
 
 ---
 = UNDER CONSTRUCTION = 
