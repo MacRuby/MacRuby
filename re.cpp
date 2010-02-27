@@ -129,11 +129,28 @@ unistr_subseq(UnicodeString *unistr, int beg, int len)
     return rb_unicode_str_new(&chars[beg], len);
 }
 
+static void
+sanitize_regexp_string(UnicodeString *unistr)
+{
+    // ICU does not support [[:word::], so we need to replace all
+    // occurences by \w.
+    UChar word_chars[10] = {'[', '[', ':', 'w', 'o', 'r', 'd', ':', ']', ']'};
+    UnicodeString word_str(word_chars, 10);
+    UChar repl_chars[2] = {'\\', 'w'};
+    UnicodeString repl_str(repl_chars, 2);
+    int32_t pos;
+    while ((pos = unistr->indexOf(word_str)) >= 0) {
+	unistr->replace(pos, 10, repl_str);
+    }
+}
+
 static bool
 init_from_string(rb_regexp_t *regexp, VALUE str, int option, VALUE *excp)
 {
     UnicodeString *unistr = str_to_unistr(str);
     assert(unistr != NULL);
+
+    sanitize_regexp_string(unistr);
 
     UParseError pe;
     UErrorCode status = U_ZERO_ERROR;
