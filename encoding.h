@@ -154,7 +154,6 @@ extern rb_encoding_t *rb_encodings[ENCODINGS_COUNT];
 
 #define STRING_HAS_SUPPLEMENTARY     0x020
 #define STRING_HAS_SUPPLEMENTARY_SET 0x010
-#define STRING_ASCII_ONLY            0x008
 #define STRING_ASCII_ONLY_SET        0x010
 #define STRING_ASCII_ONLY            0x008
 #define STRING_VALID_ENCODING_SET    0x004
