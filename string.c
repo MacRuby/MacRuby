@@ -835,7 +835,7 @@ str_compare(rb_str_t *self, rb_str_t *str)
     if (self->length_in_bytes == 0) {
 	if (str->length_in_bytes == 0) {
 	    // both strings are empty
-	    goto bad_length;
+	    return 0;
 	}
 	else {
 	    // only self is empty
