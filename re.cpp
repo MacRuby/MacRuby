@@ -28,6 +28,11 @@ typedef struct rb_regexp {
 
 #define RREGEXP(o) ((rb_regexp_t *)o)
 
+#define REGEXP_OPT_DEFAULT	(UREGEX_MULTILINE)
+#define REGEXP_OPT_IGNORECASE 	(UREGEX_CASE_INSENSITIVE)
+#define REGEXP_OPT_EXTENDED 	(UREGEX_COMMENTS)
+#define REGEXP_OPT_MULTILINE	(UREGEX_DOTALL)
+
 typedef struct rb_match {
     struct RBasic basic;
     rb_regexp_t *regexp;
@@ -148,6 +153,8 @@ sanitize_regexp_string(UnicodeString *unistr)
 static bool
 init_from_string(rb_regexp_t *regexp, VALUE str, int option, VALUE *excp)
 {
+    option |= REGEXP_OPT_DEFAULT;
+
     UnicodeString *unistr = str_to_unistr(str);
     assert(unistr != NULL);
 
@@ -192,10 +199,6 @@ rb_str_compile_regexp(VALUE str, int options, VALUE *excp)
     }
     return (VALUE)regexp;
 }
-
-#define REGEXP_OPT_IGNORECASE 	(UREGEX_CASE_INSENSITIVE)
-#define REGEXP_OPT_EXTENDED 	(UREGEX_COMMENTS)
-#define REGEXP_OPT_MULTILINE	(UREGEX_MULTILINE | UREGEX_DOTALL)
 
 bool
 rb_char_to_icu_option(int c, int *option)
