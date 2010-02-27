@@ -3369,6 +3369,57 @@ rstr_each_line(VALUE str, SEL sel, int argc, VALUE *argv)
     return str;
 }
 
+/*
+ *  Document-method: chars
+ *  call-seq:
+ *     str.chars                   => anEnumerator
+ *     str.chars {|substr| block } => str
+ *  
+ *  Returns an enumerator that gives each character in the string.
+ *  If a block is given, it iterates over each character in the string.
+ *     
+ *     "foo".chars.to_a   #=> ["f","o","o"]
+ */
+
+/*
+ *  Document-method: each_char
+ *  call-seq:
+ *     str.each_char {|cstr| block }    => str
+ *  
+ *  Passes each character in <i>str</i> to the given block.
+ *     
+ *     "hello".each_char {|c| print c, ' ' }
+ *     
+ *  <em>produces:</em>
+ *     
+ *     h e l l o 
+ */
+
+static VALUE
+rstr_each_char(VALUE str, SEL sel)
+{
+    RETURN_ENUMERATOR(str, 0, 0);
+
+    UChar *chars = NULL;
+    long chars_len = 0;
+    bool need_free = false;
+    rb_str_get_uchars(str, &chars, &chars_len, &need_free);
+
+    for (long i = 0; i < chars_len; i++) {
+	VALUE charstr = rb_unicode_str_new(&chars[i], 1);
+	rb_yield(charstr);
+	ENSURE_AND_RETURN_IF_BROKEN(
+	    if (need_free) free(chars)
+	);
+    }
+
+    if (need_free) {
+	free(chars);
+    }
+
+    return str;
+}
+
 // NSString primitives.
 
 static void
@@ -3511,6 +3562,8 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "rstrip!", rstr_rstrip_bang, 0);
     rb_objc_define_method(rb_cRubyString, "lines", rstr_each_line, -1);
     rb_objc_define_method(rb_cRubyString, "each_line", rstr_each_line, -1);
+    rb_objc_define_method(rb_cRubyString, "chars", rstr_each_char, 0);
+    rb_objc_define_method(rb_cRubyString, "each_char", rstr_each_char, 0);
 
     // Added for MacRuby (debugging).
     rb_objc_define_method(rb_cRubyString, "__chars_count__",

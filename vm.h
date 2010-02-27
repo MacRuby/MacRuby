@@ -468,6 +468,16 @@ VALUE rb_vm_pop_broken_value(void);
     } \
     while (0)
 
+#define ENSURE_AND_RETURN_IF_BROKEN(code) \
+    do { \
+        VALUE __v = rb_vm_pop_broken_value(); \
+        if (__v != Qundef) { \
+	    code; \
+            return __v; \
+        } \
+    } \
+    while (0)
+
 void rb_vm_finalize(void);
 
 void rb_vm_load_bridge_support(const char *path, const char *framework_path,
