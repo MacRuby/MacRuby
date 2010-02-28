@@ -46,6 +46,7 @@ ENABLE_STATIC_LIBRARY   = b.option('enable_static_library', 'no') { 'yes' }
 ENABLE_DEBUG_LOGGING    = b.option('enable_debug_logging', true) { |x| x == 'true' }
 UNEXPORTED_SYMBOLS_LIST = b.option('unexported_symbols_list', nil)
 SIMULTANEOUS_JOBS       = b.option('jobs', 1) { |x| x.to_i }
+COMPILE_STDLIB          = b.option('compile_stdlib', true) { |x| x == 'true' }
 
 # Everything below this comment should *not* be modified.
 

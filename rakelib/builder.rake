@@ -142,7 +142,7 @@ namespace :stdlib do
   desc "AOT compile the stdlib"
   task :build => [:miniruby, 'macruby:dylib'] do
     archf = ARCHS.map { |x| "--arch #{x}" }.join(' ')
-    commands = AOT_STDLIB.map do |pattern|
+    commands = (COMPILE_STDLIB ? AOT_STDLIB : %w{ rbconfig.rb }).map do |pattern|
       Dir.glob(pattern).map do |path|
         out = File.join(File.dirname(path), File.basename(path, '.rb') + '.rbo')
         if !File.exist?(out) or File.mtime(path) > File.mtime(out) or File.mtime('./miniruby') > File.mtime(out)
@@ -151,12 +151,6 @@ namespace :stdlib do
       end
     end.flatten.compact
     Builder.parallel_execute(commands)
-  end
-
-  desc "Touch .rbo files to ignore their build"
-  task :touch do
-    files = ["*.rbo", "lib/**/*.rbo"]
-    files.map { |pat| Dir.glob(pat) }.flatten.each { |p| sh "/usr/bin/touch #{p}" }
   end
 end
 
