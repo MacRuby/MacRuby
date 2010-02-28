@@ -219,7 +219,7 @@ static void
 w_nbyte(const char *s, int n, struct dump_arg *arg)
 {
     VALUE buf = arg->str;
-    rb_str_buf_cat(buf, s, n);
+    bstr_concat(buf, (const uint8_t *)s, n);
     if (arg->dest && RSTRING_LEN(buf) >= BUFSIZ) {
 	if (arg->taint) OBJ_TAINT(buf);
 	rb_io_write(arg->dest, 0, buf);
@@ -898,7 +898,7 @@ dump(struct dump_call_arg *arg)
     w_object(arg->obj, arg->arg, arg->limit);
     if (arg->arg->dest) {
 	rb_io_write(arg->arg->dest, 0, arg->arg->str);
-	rb_str_resize(arg->arg->str, 0);
+	bstr_resize(arg->arg->str, 0);
     }
     return 0;
 }

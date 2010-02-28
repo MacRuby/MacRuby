@@ -311,6 +311,7 @@ VALUE rb_str_bstr(VALUE str);
 VALUE bstr_new(void);
 VALUE bstr_new_with_data(const uint8_t *bytes, long len);
 uint8_t *bstr_bytes(VALUE str);
+void bstr_concat(VALUE str, const uint8_t *bytes, long len);
 long bstr_length(VALUE str);
 void bstr_set_length(VALUE str, long len);
 void bstr_resize(VALUE str, long capa);

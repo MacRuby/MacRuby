@@ -801,6 +801,18 @@ str_insert(rb_str_t *self, long pos, rb_str_t *str, bool ucs2_mode)
 }
 
 static void
+str_concat_bytes(rb_str_t *self, const char *bytes, long len)
+{
+    assert(bytes != NULL && len >= 0);
+
+    const long new_length_in_bytes = self->length_in_bytes + len;
+
+    str_resize_bytes(self, new_length_in_bytes);
+    memcpy(self->data.bytes + self->length_in_bytes, bytes, len);
+    self->length_in_bytes = new_length_in_bytes;
+}
+
+static void
 str_concat_string(rb_str_t *self, rb_str_t *str)
 {
     if (str->length_in_bytes == 0) {
@@ -814,15 +826,12 @@ str_concat_string(rb_str_t *self, rb_str_t *str)
     str_must_have_compatible_encoding(self, str);
     str_make_same_format(self, str);
 
-    long new_length_in_bytes = self->length_in_bytes + str->length_in_bytes;
     // TODO: we should maybe merge flags
     // (if both are ASCII-only, the concatenation is ASCII-only,
     //  though I'm not sure all the tests required are worth doing)
     str_unset_facultative_flags(self);
-    str_resize_bytes(self, new_length_in_bytes);
-    memcpy(self->data.bytes + self->length_in_bytes, str->data.bytes,
-	    str->length_in_bytes);
-    self->length_in_bytes = new_length_in_bytes;
+
+    str_concat_bytes(self, str->data.bytes, str->length_in_bytes);
 }
 
 static int
@@ -3623,6 +3632,8 @@ rb_objc_install_string_primitives(Class klass)
 
 // ByteString emulation.
 
+#define IS_BSTR(obj) (IS_RSTR(obj) && !str_is_stored_in_uchars(RSTR(obj)))
+
 VALUE
 rb_str_bstr(VALUE str)
 {
@@ -3636,7 +3647,7 @@ rb_str_bstr(VALUE str)
 uint8_t *
 bstr_bytes(VALUE str)
 {
-    assert(IS_RSTR(str));
+    assert(IS_BSTR(str));
     return (uint8_t *)RSTR(str)->data.bytes;
 }
 
@@ -3658,21 +3669,28 @@ bstr_new(void)
 long
 bstr_length(VALUE str)
 {
-    assert(IS_RSTR(str));
+    assert(IS_BSTR(str));
     return RSTR(str)->length_in_bytes;
+}
+
+void
+bstr_concat(VALUE str, const uint8_t *bytes, long len)
+{
+    assert(IS_BSTR(str));
+    str_concat_bytes(RSTR(str), (const char *)bytes, len);
 }
 
 void
 bstr_resize(VALUE str, long capa)
 {
-    assert(IS_RSTR(str));
+    assert(IS_BSTR(str));
     str_resize_bytes(RSTR(str), capa);
 }
 
 void
 bstr_set_length(VALUE str, long len)
 {
-    assert(IS_RSTR(str));
+    assert(IS_BSTR(str));
     assert(len <= RSTR(str)->capacity_in_bytes);
     RSTR(str)->length_in_bytes = len;
 }
