@@ -3665,7 +3665,7 @@ void
 bstr_set_length(VALUE str, long len)
 {
     assert(IS_RSTR(str));
-    assert(len < RSTR(str)->capacity_in_bytes);
+    assert(len <= RSTR(str)->capacity_in_bytes);
     RSTR(str)->length_in_bytes = len;
 }
 
