@@ -353,6 +353,8 @@ rb_obj_dup(VALUE obj)
     }
     dup = rb_obj_alloc(rb_obj_class(obj));
     init_copy(dup, obj);
+    if (OBJ_UNTRUSTED(obj))
+	OBJ_UNTRUST(dup);
 
     return dup;
 }
