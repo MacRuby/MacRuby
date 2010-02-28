@@ -2278,7 +2278,13 @@ rstr_scan(VALUE self, SEL sel, VALUE pat)
 	int count = 0;
 	rb_match_result_t *results = rb_reg_match_results(match, &count);
 	assert(count > 0);
-	start = results[0].end;
+
+	if (results[0].beg == results[0].end) {
+	    start = results[0].end + 1;
+	}
+	else {
+	    start = results[0].end;
+	}
 
 	VALUE scan_result;
 	if (count == 1) {
@@ -2825,8 +2831,10 @@ str_gsub(SEL sel, int argc, VALUE *argv, VALUE str, bool bang)
 	    if (!changed) {
 		return bang ? Qnil : rstr_dup(str, 0);
 	    }
-	    str_concat_string(RSTR(dest),
-		    RSTR(rstr_substr(str, offset, len - offset)));
+	    if (offset < len) {
+		str_concat_string(RSTR(dest),
+			RSTR(rstr_substr(str, offset, len - offset)));
+	    }
 	    break;
 	}
 
