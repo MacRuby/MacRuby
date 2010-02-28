@@ -14,6 +14,7 @@
 #include "symbol.h"
 #include "ruby/node.h"
 #include "vm.h"
+#include "objc.h"
 
 VALUE rb_cSymbol;
 
@@ -344,6 +345,18 @@ rsym_to_sym(VALUE sym, SEL sel)
     return sym;
 }
 
+static CFIndex
+rsym_imp_length(void *rcv, SEL sel)
+{
+    return CFStringGetLength((CFStringRef)RSYM(rcv)->str);
+}
+
+static UniChar
+rsym_imp_characterAtIndex(void *rcv, SEL sel, CFIndex idx)
+{
+    return CFStringGetCharacterAtIndex((CFStringRef)RSYM(rcv)->str, idx);
+}
+
 void
 Init_Symbol(void)
 {
@@ -366,4 +379,10 @@ Init_Symbol(void)
     rb_objc_define_method(rb_cSymbol, "description", rsym_to_s, 0);
     rb_objc_define_method(rb_cSymbol, "intern", rsym_to_sym, 0);
     rb_objc_define_method(rb_cSymbol, "to_sym", rsym_to_sym, 0);
+
+    // Cocoa primitives.
+    rb_objc_install_method2((Class)rb_cSymbol, "length",
+	    (IMP)rsym_imp_length);
+    rb_objc_install_method2((Class)rb_cSymbol, "characterAtIndex:",
+	    (IMP)rsym_imp_characterAtIndex);
 }
