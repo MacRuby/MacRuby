@@ -67,15 +67,13 @@ rb_obj_imp_allocWithZone(void *rcv, SEL sel, void *zone)
     return (void *)rb_robject_allocate_instance((VALUE)rcv);
 }
 
-VALUE rb_obj_init_copy(VALUE, SEL, VALUE);
-
 static void *
 rb_obj_imp_copyWithZone(void *rcv, SEL sel, void *zone)
 {
     // XXX honor zone?
-    VALUE copy = rb_robject_allocate_instance(CLASS_OF(rcv));
-    rb_obj_init_copy(copy, 0, (VALUE)rcv);
-    return (void *)copy;
+    // for now let rb_obj_dup allocate an instance, since we don't honor the
+    // zone yet anyways
+    return (void *)rb_obj_dup((VALUE)rcv);
 }
 
 static BOOL
@@ -128,6 +126,8 @@ rb_obj_superclass(VALUE klass, SEL sel)
     }
     return rb_class_real(cl);
 }
+
+VALUE rb_obj_init_copy(VALUE, SEL, VALUE);
 
 void
 rb_define_object_special_methods(VALUE klass)
