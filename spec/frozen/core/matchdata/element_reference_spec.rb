@@ -17,4 +17,5 @@ describe "MatchData#[]" do
   end
 end
 
-language_version __FILE__, "element_reference"
+# MacRuby does not support named captures yet.
+#language_version __FILE__, "element_reference"
