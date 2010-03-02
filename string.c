@@ -843,53 +843,39 @@ str_compare(rb_str_t *self, rb_str_t *str)
 	return 0;
     }
 
-    if (self->length_in_bytes == 0) {
-	if (str->length_in_bytes == 0) {
-	    // both strings are empty
-	    return 0;
-	}
-	else {
-	    // only self is empty
-	    goto bad_length;
-	}
-    }
-    else if (str->length_in_bytes == 0) {
-	// only str is empty
-	goto bad_length;
+    if (self->length_in_bytes == 0 && str->length_in_bytes == 0) {
+	// both strings are empty
+	return 0;
     }
 
-    if (str_compatible_encoding(self, str) != NULL) {
-	if (str_is_stored_in_uchars(self) == str_is_stored_in_uchars(str)) {
-	    if (self->length_in_bytes != str->length_in_bytes) {
-		goto bad_length;
-	    }
-	    else {
-		return memcmp(self->data.bytes, str->data.bytes,
-			self->length_in_bytes);
-	    }
-	}
-	else { // one is in uchars and the other is in binary
-	    if (!str_try_making_data_uchars(self)
-		    || !str_try_making_data_uchars(str)) {
-		// one is in uchars but the other one can't be converted in
-		// uchars
-		return -1;
-	    }
-	    if (self->length_in_bytes != str->length_in_bytes) {
-		goto bad_length;
-	    }
-	    else {
-		return memcmp(self->data.bytes, str->data.bytes,
-			self->length_in_bytes);
-	    }
-	}
-    }
-    else { // incompatible encodings
+    if (str_compatible_encoding(self, str) == NULL) {
+	// incompatible encodings
 	return -1;
     }
 
-bad_length:
-    return self->length_in_bytes > str->length_in_bytes ? 1 : -1;
+    if (str_is_stored_in_uchars(self) != str_is_stored_in_uchars(str)) {
+	// one is in uchars and the other is in binary
+	if (!str_try_making_data_uchars(self)
+		|| !str_try_making_data_uchars(str)) {
+	    // one is in uchars but the other one can't be converted in
+	    // uchars
+	    return -1;
+	}
+    }
+
+    const long min_len = self->length_in_bytes < str->length_in_bytes
+	? self->length_in_bytes : str->length_in_bytes;
+
+    const int res = memcmp(self->data.bytes, str->data.bytes, min_len);
+
+    if (res == 0) {
+	if (self->length_in_bytes == str->length_in_bytes) {
+	    return 0;
+	}
+	return self->length_in_bytes > str->length_in_bytes
+	    ? 1 : -1;
+    }
+    return res > 1 ? 1 : -1;
 }
 
 static long
@@ -1930,7 +1916,6 @@ rstr_cmp(VALUE self, SEL sel, VALUE other)
  *
  * Two strings are equal if they have the same length and content.
  */
-
 
 static VALUE
 rstr_eql(VALUE self, SEL sel, VALUE other)
@@ -4215,4 +4200,10 @@ rb_str_update(VALUE str, long beg, long len, VALUE val)
     else {
 	abort(); // TODO
     }
+}
+
+int
+rb_str_cmp(VALUE str1, VALUE str2)
+{
+    return str_compare(str_need_string(str1), str_need_string(str2));
 }

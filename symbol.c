@@ -234,6 +234,23 @@ Init_PreSymbol(void)
 }
 
 /*
+ * call-seq:
+ *
+ *   str <=> other       => -1, 0, +1 or nil
+ *
+ * Compares _sym_ with _other_ in string form.
+ */
+
+static VALUE
+rsym_cmp(VALUE sym, SEL sel, VALUE other)
+{
+    if (TYPE(other) != T_SYMBOL) {
+	return Qnil;
+    }
+    return INT2FIX(rb_str_cmp(RSYM(sym)->str, RSYM(other)->str));
+}
+
+/*
  *  call-seq:
  *     sym == obj   => true or false
  *  
@@ -370,6 +387,7 @@ Init_Symbol(void)
 	    rsym_all_symbols, 0);
 
     rb_objc_define_method(rb_cSymbol, "==", rsym_equal, 1);
+    rb_objc_define_method(rb_cSymbol, "<=>", rsym_cmp, 1);
     rb_objc_define_method(rb_cSymbol, "eql?", rsym_equal, 1);
     //rb_objc_define_method(rb_cSymbol, "<=>", rsym_cmp, 1);
     rb_objc_define_method(rb_cSymbol, "inspect", rsym_inspect, 0);
