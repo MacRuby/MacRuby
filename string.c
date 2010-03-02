@@ -22,6 +22,8 @@
 #include "ruby/node.h"
 #include "vm.h"
 
+#include <unicode/unum.h>
+
 VALUE rb_cString;
 VALUE rb_cNSString;
 VALUE rb_cNSMutableString;
@@ -4149,6 +4151,25 @@ rb_str_hash(VALUE str)
 	free(chars);
     }
     return hash;
+}
+
+long
+rb_uchar_strtol(UniChar *chars, long chars_len, long pos, long *end_offset)
+{
+    assert(chars != NULL && chars_len > 0 && pos >= 0);
+
+    UErrorCode status = U_ZERO_ERROR;
+    UNumberFormat *nf = unum_open(UNUM_DEFAULT, NULL, -1, NULL, NULL, &status);
+    assert(nf != NULL);
+
+    int32_t parse_pos = (int32_t)pos;
+    int64_t val = unum_parseInt64(nf, chars, chars_len, &parse_pos, &status);
+    unum_close(nf);
+
+    if (end_offset != NULL) {
+	*end_offset = (long)parse_pos;
+    }
+    return val;
 }
 
 long

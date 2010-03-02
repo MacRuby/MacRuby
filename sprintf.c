@@ -13,6 +13,7 @@
 
 #include "ruby/ruby.h"
 #include "ruby/encoding.h"
+#include "encoding.h"
 
 /*
  *  call-seq:
@@ -289,13 +290,10 @@ rb_enc_vsprintf(rb_encoding *enc, const char *fmt, va_list ap)
 VALUE
 rb_enc_sprintf(rb_encoding *enc, const char *format, ...)
 {
-    VALUE result;
     va_list ap;
-
     va_start(ap, format);
-    result = rb_enc_vsprintf(enc, format, ap);
+    VALUE result = rb_enc_vsprintf(enc, format, ap);
     va_end(ap);
-
     return result;
 }
 
@@ -308,13 +306,10 @@ rb_vsprintf(const char *fmt, va_list ap)
 VALUE
 rb_sprintf(const char *format, ...)
 {
-    VALUE result;
     va_list ap;
-
     va_start(ap, format);
-    result = rb_vsprintf(format, ap);
+    VALUE result = rb_vsprintf(format, ap);
     va_end(ap);
-
     return result;
 }
 
@@ -356,42 +351,50 @@ pad_format_value(VALUE arg, long start, long width,
     width -= slen;
     do {
 	CFStringInsert((CFMutableStringRef)arg, start, pad);
-    } while (--width > 0);
+    }
+    while (--width > 0);
 }
 
 static long
-cstr_update(char **str, unsigned long start, unsigned long num, char *replace)
+cstr_update(UChar **str, long *str_len, long start, long num, VALUE replace)
 {
-    unsigned long len = strlen(*str) + 1;
-    unsigned long replace_len = strlen(replace);
+    const long len = *str_len;
+    long replace_len = replace == 0 ? 0 : rb_str_chars_len(replace);
     if (start + num > len) {
 	num = len - start;
     }
     if (replace_len >= num) {
-	char *new_str = (char *)xmalloc(len + replace_len - num);
-	memcpy(new_str, *str, len);
-	*str = new_str;
+	*str_len = len + replace_len - num;
+	*str = (UChar *)xrealloc(*str,
+		sizeof(UChar) * (len + replace_len - num));
     }
     if (replace_len != num) {
-	bcopy(*str + start + num, *str + start + replace_len, len - start -
-		num);
+	bcopy(*str + start + num, *str + start + replace_len,
+		sizeof(UChar) * (len - start - num));
     }
     if (replace_len > 0) {
-	bcopy(replace, *str + start, replace_len);
+	UChar *replace_chars = NULL;
+	bool need_free = false;
+	rb_str_get_uchars(replace, &replace_chars, &replace_len, &need_free);
+	assert(replace_len > 0);
+	bcopy(replace_chars, *str + start, sizeof(UChar) * replace_len);
+	if (need_free) {
+	    free(replace_chars);
+	}
     }
     return replace_len - num;
 }
 
-VALUE
-get_named_arg(char *format_str, unsigned long format_len, unsigned long *i,
+static VALUE
+get_named_arg(UChar *format_str, long format_len, unsigned long *i,
 	VALUE hash)
 {
     if (TYPE(hash) != T_HASH) {
 	rb_raise(rb_eArgError,
 		 "hash required for named references");
     }
-    char closing = format_str[(*i)++] + 2;
-    char *str_ptr = format_str + *i;
+    UChar closing = format_str[(*i)++] + 2;
+    UChar *str_ptr = &format_str[*i];
     while (*i < format_len && format_str[*i] != closing) {
 	(*i)++;
     }
@@ -399,26 +402,32 @@ get_named_arg(char *format_str, unsigned long format_len, unsigned long *i,
 	rb_raise(rb_eArgError,
 		 "malformed name - unmatched parenthesis");
     }
-    format_str[*i] = '\0';
-    hash = rb_hash_aref(hash, rb_name2sym(str_ptr));
-    format_str[*i] = closing;
-    return (hash);
+    VALUE substr = rb_unicode_str_new(str_ptr, str_ptr - format_str);
+    hash = rb_hash_aref(hash, ID2SYM(rb_intern_str(substr)));
+    return hash;
 }
 
-// XXX
-// - this method uses strtol to read numbers from the format string, so
-//   extremely large numbers get silently truncated. this should be fixed
-// - switch to a cfstring format string to allow for proper encoding support
-    
 // XXX look for arguments that are altered but not duped
 VALUE
 rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 {
     bool tainted = OBJ_TAINTED(fmt);
-    fmt = rb_str_new3(fmt);
-    char *format_str = (char *)RSTRING_PTR(fmt);
-    unsigned long format_len = strlen(format_str);
-    long num;
+
+    UChar *format_str = NULL;
+    long format_len = 0;
+    bool need_free = false;
+    rb_str_get_uchars(fmt, &format_str, &format_len, &need_free);
+    if (format_len == 0) {
+	goto bail;
+    }
+    UChar *tmp = (UChar *)xmalloc(format_len * sizeof(UChar));
+    memcpy(tmp, format_str, format_len * sizeof(UChar));
+    if (need_free) {
+	free(format_str);
+    }
+    format_str = tmp;
+
+    long num, pos;
     int j = 0;
     int ref_type = 0;
 
@@ -427,7 +436,7 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 	    continue;
 	}
 	if (format_str[i + 1] == '%') {
-	    cstr_update(&format_str, i, 1, (char *)"");
+	    cstr_update(&format_str, &format_len, i, 1, 0);
 	    continue;
 	}
 
@@ -444,7 +453,6 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 	int base = 0;
 	CFStringRef negative_pad = NULL;
 	CFStringRef sharp_pad = CFSTR("");
-	char *str_ptr;
 
 	unsigned long start = i;
 	while (i++ < format_len) {
@@ -464,16 +472,17 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 			    i--;
 			    break;
 			}
-			num = strtol(format_str + i, &str_ptr, 10);
-			if (str_ptr == format_str + i--) {
+
+			num = rb_uchar_strtol(format_str, format_len, i, &pos);
+			if (pos == i--) {
 			    SET_REF_TYPE(REL_REF);
 			    width = NUM2LONG(rb_Integer(GETNTHARG(j)));
 			    j++;
 			}
-			else if (*str_ptr == '$') {
+			else if (format_str[pos] == '$') {
 			    SET_REF_TYPE(ABS_REF);
 			    width = NUM2LONG(rb_Integer(GETNTHARG(num - 1)));
-			    i = str_ptr - format_str;
+			    i = pos;
 			}
 		    }
 		    if (width < 0) {
@@ -513,9 +522,9 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 		case '7':
 		case '8':
 		case '9':
-		    num = strtol(format_str + i, &str_ptr, 10);
-		    i = str_ptr - format_str;
-		    if (*str_ptr == '$') {
+		    num = rb_uchar_strtol(format_str, format_len, i, &pos);
+		    i = pos;
+		    if (format_str[pos] == '$') {
 			if (num == 0) {
 			    rb_raise(rb_eArgError, "invalid absolute argument");
 			}
@@ -543,23 +552,26 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 				i--;
 				break;
 			    }
-			    num = strtol(format_str + i, &str_ptr, 10);
-			    if (str_ptr == format_str + i--) {
+
+			    num = rb_uchar_strtol(format_str, format_len,
+				    i, &pos);
+			    if (num == i--) {
 				SET_REF_TYPE(REL_REF);
 				precision = NUM2LONG(rb_Integer(GETNTHARG(j)));
 				j++;
 			    }
-			    else if (*str_ptr == '$') {
+			    else if (format_str[pos] == '$') {
 				SET_REF_TYPE(ABS_REF);
 				precision = NUM2LONG(rb_Integer(GETNTHARG(
 					num - 1)));
-				i = str_ptr - format_str;
+				i = pos;
 			    }
 			}
 		    }
 		    else if (isdigit(format_str[i])) {
-			precision = strtol(format_str + i, &str_ptr, 10);
-			i = str_ptr - format_str - 1;
+			precision = rb_uchar_strtol(format_str, format_len,
+				i, &pos);
+			i = pos - 1;
 		    }
 		    else {
 			rb_raise(rb_eArgError, "invalid precision");
@@ -653,7 +665,7 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 			break;
 		    }
 
-		    arg = rb_str_new(format_str + i, 1);
+		    arg = rb_unicode_str_new(&format_str[i], 1);
 		    if (precision_flag) {
 			rb_str_update(arg, 0, 0, rb_big2str(LONG2NUM(precision),
 				10));
@@ -677,9 +689,10 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 		    }
 		    rb_str_update(arg, 0, 0, (VALUE)CFSTR("%"));
 
-		    asprintf(&str_ptr, RSTRING_PTR(arg), value);
-		    arg = rb_str_new2(str_ptr);
-		    free(str_ptr);
+		    char *ptr;
+		    asprintf(&ptr, RSTRING_PTR(arg), value);
+		    arg = rb_str_new2(ptr);
+		    free(ptr);
 		    break;
 		}
 
@@ -732,8 +745,10 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 
 		arg = rb_big2str(num, base);
 		if (!sign_pad && IS_NEG(num) && negative_pad != NULL) {
-		    char neg = *RSTRING_PTR(negative_pad);
-		    str_ptr = (char *)RSTRING_PTR(arg) + 1;
+		    break; // TODO
+#if 0
+		    UChar neg = CFStringGetCharacterAtIndex(negative_pad, 0);
+		    char *str_ptr = (char *)RSTRING_PTR(arg) + 1;
 		    if (base == 8) {
 			*str_ptr |= ((~0 << 3) >> ((3 * strlen(str_ptr)) %
 				(sizeof(BDIGIT) * 8))) & ~(~0 << 3);
@@ -744,11 +759,13 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 		    rb_str_update(arg, 0, num_index, (VALUE)negative_pad);
 		    rb_str_update(arg, 0, 0, (VALUE)CFSTR(".."));
 		    num_index = 2;
+#endif
 		}
 
 		if (precision_flag) {
-		    pad_format_value(arg, num_index, precision + (IS_NEG(num) &&
-			    (sign_pad || negative_pad == NULL) ? 1 : 0),
+		    pad_format_value(arg, num_index,
+			    precision + (IS_NEG(num)
+				&& (sign_pad || negative_pad == NULL) ? 1 : 0),
 			    zero_pad);
 		}
 		if (sharp_flag && rb_cmpint(num, Qfalse, Qfalse) != 0) {
@@ -773,14 +790,17 @@ rb_str_format(int argc, const VALUE *argv, VALUE fmt)
 	    }
 
 	    pad_format_value(arg, minus_flag ? -1 : 0, width, CFSTR(" "));
-	    num = cstr_update(&format_str, start, i - start + 1,
-		    (char *)RSTRING_PTR(arg));
-	    format_len += num;
+	    num = cstr_update(&format_str, &format_len, start, i - start + 1,
+		    arg);
 	    i += num;
 	    break;
 	}
     }
 
-    fmt = rb_str_new2(format_str);
-    return tainted ? OBJ_TAINT(fmt) : fmt;
+bail:
+    fmt = rb_unicode_str_new(format_str, format_len);
+    if (tainted) {
+	OBJ_TAINT(fmt);
+    }
+    return fmt;
 }

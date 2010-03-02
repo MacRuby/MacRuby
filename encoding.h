@@ -302,6 +302,8 @@ long rb_str_chars_len(VALUE str);
 UChar rb_str_get_uchar(VALUE str, long pos);
 void rb_str_append_uchar(VALUE str, UChar c);
 unsigned long rb_str_hash_uchars(const UChar *chars, long chars_len);
+long rb_uchar_strtol(UniChar *chars, long chars_len, long pos,
+	long *end_offset);
 
 // Return a string object appropriate for bstr_ calls. This does nothing for
 // data/binary RubyStrings.
