@@ -2946,32 +2946,41 @@ rstr_gsub(VALUE str, SEL sel, int argc, VALUE *argv)
  *  Note: case replacement is effective only in ASCII region.
  */
 
+#define CHAR_ITERATE(str, code) \
+    if (str_try_making_data_uchars(RSTR(str))) { \
+	for (long i = 0, count = BYTES_TO_UCHARS(RSTR(str)->length_in_bytes); \
+		i < count; i++) { \
+	    UChar __tmp, c; \
+	    __tmp = c = RSTR(str)->data.uchars[i]; \
+	    code; \
+	    if (__tmp != c) { \
+		RSTR(str)->data.uchars[i] = c; \
+	    } \
+	} \
+    } \
+    else { \
+	for (long i = 0, count = RSTR(str)->length_in_bytes; \
+		i < count; i++) { \
+	    char __tmp, c; \
+	    __tmp = c = RSTR(str)->data.bytes[i]; \
+	    code; \
+	    if (__tmp != c) { \
+		RSTR(str)->data.bytes[i] = c; \
+	    } \
+	} \
+    }
+
 static VALUE
 rstr_downcase_bang(VALUE str, SEL sel)
 {
     rstr_modify(str);
 
     bool changed = false;
-
-    if (str_is_stored_in_uchars(RSTR(str))) {
-	for (long i = 0, count = BYTES_TO_UCHARS(RSTR(str)->length_in_bytes);
-		i < count; i++) {
-	    UChar c = RSTR(str)->data.uchars[i];
-	    if (c >= 'A' && c <= 'Z') {
-		RSTR(str)->data.uchars[i] = 'a' + (c - 'A');
-		changed = true;
-	    }	
-	}
-    }
-    else {
-	for (long i = 0, count = RSTR(str)->length_in_bytes; i < count; i++) {
-	    char c = RSTR(str)->data.bytes[i];
-	    if (c >= 'A' && c <= 'Z') {
-		RSTR(str)->data.bytes[i] = 'a' + (c - 'A');
-		changed = true;
-	    }	
-	}
-    }
+    CHAR_ITERATE(str,
+	if (c >= 'A' && c <= 'Z') {
+	    c = 'a' + (c - 'A');
+	    changed = true; 
+	});
 
     return changed ? str : Qnil;
 }
@@ -2993,6 +3002,154 @@ rstr_downcase(VALUE str, SEL sel)
 {
     str = rb_str_new3(str);
     rstr_downcase_bang(str, 0);
+    return str;
+}
+
+/*
+ *  call-seq:
+ *     str.upcase!   => str or nil
+ *  
+ *  Upcases the contents of <i>str</i>, returning <code>nil</code> if no changes
+ *  were made.
+ *  Note: case replacement is effective only in ASCII region.
+ */
+
+static VALUE
+rstr_upcase_bang(VALUE str, SEL sel)
+{
+    rstr_modify(str);
+
+    bool changed = false;
+    CHAR_ITERATE(str,
+	if (c >= 'a' && c <= 'z') {
+	    c = 'A' + (c - 'a');
+	    changed = true; 
+	});
+
+    return changed ? str : Qnil;
+}
+
+/*
+ *  call-seq:
+ *     str.upcase   => new_str
+ *  
+ *  Returns a copy of <i>str</i> with all lowercase letters replaced with their
+ *  uppercase counterparts. The operation is locale insensitive---only
+ *  characters ``a'' to ``z'' are affected.
+ *  Note: case replacement is effective only in ASCII region.
+ *     
+ *     "hEllO".upcase   #=> "HELLO"
+ */
+
+static VALUE
+rstr_upcase(VALUE str, SEL sel)
+{
+    str = rb_str_new3(str);
+    rstr_upcase_bang(str, 0);
+    return str;
+}
+
+/*
+ *  call-seq: 
+ *     str.swapcase!   => str or nil
+ *  
+ *  Equivalent to <code>String#swapcase</code>, but modifies the receiver in
+ *  place, returning <i>str</i>, or <code>nil</code> if no changes were made.
+ *  Note: case conversion is effective only in ASCII region.
+ */
+
+static VALUE
+rstr_swapcase_bang(VALUE str, SEL sel)
+{
+    rstr_modify(str);
+
+    bool changed = false;
+    CHAR_ITERATE(str,
+	if (c >= 'A' && c <= 'Z') {
+	    c = 'a' + (c - 'A');
+	    changed = true; 
+	}
+        else if (c >= 'a' && c <= 'z') {
+	    c = 'A' + (c - 'a');
+	    changed = true;
+	});
+
+    return changed ? str : Qnil;
+}
+
+/*
+ *  call-seq:
+ *     str.swapcase   => new_str
+ *  
+ *  Returns a copy of <i>str</i> with uppercase alphabetic characters converted
+ *  to lowercase and lowercase characters converted to uppercase.
+ *  Note: case conversion is effective only in ASCII region.
+ *     
+ *     "Hello".swapcase          #=> "hELLO"
+ *     "cYbEr_PuNk11".swapcase   #=> "CyBeR_pUnK11"
+ */
+
+static VALUE
+rstr_swapcase(VALUE str, SEL sel)
+{
+    str = rb_str_new3(str);
+    rstr_swapcase_bang(str, 0);
+    return str;
+}
+
+/*
+ *  call-seq:
+ *     str.capitalize!   => str or nil
+ *  
+ *  Modifies <i>str</i> by converting the first character to uppercase and the
+ *  remainder to lowercase. Returns <code>nil</code> if no changes are made.
+ *  Note: case conversion is effective only in ASCII region.
+ *     
+ *     a = "hello"
+ *     a.capitalize!   #=> "Hello"
+ *     a               #=> "Hello"
+ *     a.capitalize!   #=> nil
+ */
+
+static VALUE
+rstr_capitalize_bang(VALUE str, SEL sel)
+{
+    rstr_modify(str);
+
+    bool changed = false;
+    CHAR_ITERATE(str,
+        if (i == 0) {
+	    if (c >= 'a' && c <= 'z') {
+		c = 'A' + (c - 'a');
+		changed = true;
+	    }
+	}
+	else if (c >= 'A' && c <= 'Z') {
+	    c = 'a' + (c - 'A');
+	    changed = true; 
+	});
+
+    return changed ? str : Qnil;
+}
+
+/*
+ *  call-seq:
+ *     str.capitalize   => new_str
+ *  
+ *  Returns a copy of <i>str</i> with the first character converted to uppercase
+ *  and the remainder to lowercase.
+ *  Note: case conversion is effective only in ASCII region.
+ *     
+ *     "hello".capitalize    #=> "Hello"
+ *     "HELLO".capitalize    #=> "Hello"
+ *     "123ABC".capitalize   #=> "123abc"
+ */
+
+static VALUE
+rstr_capitalize(VALUE str, SEL sel)
+{
+    str = rb_str_new3(str);
+    rstr_capitalize_bang(str, 0);
     return str;
 }
 
@@ -3555,6 +3712,13 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "gsub!", rstr_gsub_bang, -1);
     rb_objc_define_method(rb_cRubyString, "downcase", rstr_downcase, 0);
     rb_objc_define_method(rb_cRubyString, "downcase!", rstr_downcase_bang, 0);
+    rb_objc_define_method(rb_cRubyString, "upcase", rstr_upcase, 0);
+    rb_objc_define_method(rb_cRubyString, "upcase!", rstr_upcase_bang, 0);
+    rb_objc_define_method(rb_cRubyString, "swapcase", rstr_swapcase, 0);
+    rb_objc_define_method(rb_cRubyString, "swapcase!", rstr_swapcase_bang, 0);
+    rb_objc_define_method(rb_cRubyString, "capitalize", rstr_capitalize, 0);
+    rb_objc_define_method(rb_cRubyString, "capitalize!",
+	    rstr_capitalize_bang, 0);
     rb_objc_define_method(rb_cRubyString, "ljust", rstr_ljust, -1);
     rb_objc_define_method(rb_cRubyString, "rjust", rstr_rjust, -1);
     rb_objc_define_method(rb_cRubyString, "center", rstr_center, -1);
@@ -3773,6 +3937,9 @@ rb_str_new3(VALUE source)
 {
     rb_str_t *str = str_alloc(rb_obj_class(source));
     str_replace(str, source);
+    if (OBJ_TAINTED(source)) {
+	OBJ_TAINT(str);
+    }
     return (VALUE)str;
 }
 
