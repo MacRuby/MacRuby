@@ -2577,6 +2577,24 @@ rstr_oct(VALUE str, SEL sel)
 
 /*
  *  call-seq:
+ *     str.ord   => integer
+ *  
+ *  Return the <code>Integer</code> ordinal of a one-character string.
+ *     
+ *     "a".ord         #=> 97
+ */
+
+static VALUE
+rstr_ord(VALUE str, SEL sel)
+{
+    if (RSTR(str)->length_in_bytes == 0) {
+	rb_raise(rb_eArgError, "empty string");
+    }
+    return INT2NUM(rb_str_get_uchar(str, 0));
+}
+
+/*
+ *  call-seq:
  *     str.chomp!(separator=$/)   => str or nil
  *  
  *  Modifies <i>str</i> in place as described for <code>String#chomp</code>,
@@ -3704,6 +3722,7 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "to_i", rstr_to_i, -1);
     rb_objc_define_method(rb_cRubyString, "hex", rstr_hex, 0);
     rb_objc_define_method(rb_cRubyString, "oct", rstr_oct, 0);
+    rb_objc_define_method(rb_cRubyString, "ord", rstr_ord, 0);
     rb_objc_define_method(rb_cRubyString, "chomp", rstr_chomp, -1);
     rb_objc_define_method(rb_cRubyString, "chomp!", rstr_chomp_bang, -1);
     rb_objc_define_method(rb_cRubyString, "sub", rstr_sub, -1);
