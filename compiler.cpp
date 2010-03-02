@@ -2790,8 +2790,7 @@ RoxorCompiler::compile_literal(VALUE val)
 	//
 	//	10.times { s = 'foo'; s << 'bar' }
 	//
-	const size_t str_len = RSTRING_LEN(val);
-	if (str_len == 0) {
+	if (rb_str_chars_len(val) == 0) {
 	    if (newString3Func == NULL) {	
 		newString3Func = cast<Function>(
 			module->getOrInsertFunction(
@@ -2805,6 +2804,7 @@ RoxorCompiler::compile_literal(VALUE val)
 	    bool need_free = false;
 
 	    rb_str_get_uchars(val, &chars, &chars_len, &need_free);
+	    assert(chars_len > 0);
 
 	    GlobalVariable *str_gvar = compile_const_global_ustring(chars,
 		    chars_len);
@@ -2830,7 +2830,7 @@ RoxorCompiler::compile_literal(VALUE val)
 
 	    std::vector<Value *> params;
 	    params.push_back(load);
-	    params.push_back(ConstantInt::get(Int32Ty, str_len));
+	    params.push_back(ConstantInt::get(Int32Ty, chars_len));
 
 	    return CallInst::Create(newString2Func, params.begin(),
 		    params.end(), "", bb);
