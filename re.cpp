@@ -408,7 +408,9 @@ regexp_equal(VALUE rcv, SEL sel, VALUE other)
 int
 rb_reg_search(VALUE re, VALUE str, int pos, bool reverse)
 {
-    assert(!reverse); // TODO
+    if (reverse) {
+	rb_raise(rb_eRuntimeError, "reverse searching is not implemented yet");
+    }
 
     const long len = rb_str_chars_len(str);
     if (pos > len || pos < 0) {
