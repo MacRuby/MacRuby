@@ -243,6 +243,12 @@ reg_operand(VALUE s, bool check)
     }
 }
 
+static VALUE
+rb_check_regexp_type(VALUE re)
+{
+    return rb_check_convert_type(re, T_REGEXP, "Regexp", "to_regexp");
+}
+
 /*
  *  call-seq:
  *     Regexp.escape(str)   => string
@@ -261,6 +267,80 @@ static VALUE
 regexp_quote(VALUE klass, SEL sel, VALUE pat)
 {
     return rb_reg_quote(reg_operand(pat, true));
+}
+
+
+
+/*
+ *  call-seq:
+ *     Regexp.union(pat1, pat2, ...)            => new_regexp
+ *     Regexp.union(pats_ary)                   => new_regexp
+ *
+ *  Return a <code>Regexp</code> object that is the union of the given
+ *  <em>pattern</em>s, i.e., will match any of its parts. The <em>pattern</em>s
+ *  can be Regexp objects, in which case their options will be preserved, or
+ *  Strings. If no patterns are given, returns <code>/(?!)/</code>.
+ *
+ *     Regexp.union                         #=> /(?!)/
+ *     Regexp.union("penzance")             #=> /penzance/
+ *     Regexp.union("a+b*c")                #=> /a\+b\*c/
+ *     Regexp.union("skiing", "sledding")   #=> /skiing|sledding/
+ *     Regexp.union(["skiing", "sledding"]) #=> /skiing|sledding/
+ *     Regexp.union(/dogs/, /cats/i)        #=> /(?-mix:dogs)|(?i-mx:cats)/
+ */
+
+static VALUE regexp_to_s(VALUE rcv, SEL sel);
+
+static VALUE
+regexp_union(VALUE klass, SEL sel, int argc, VALUE *argv)
+{
+    const VALUE *args;
+
+    if (argc == 0) {
+	return rb_reg_new_str(rb_str_new2("(?!)"), 0);
+    }
+    else if (argc == 1) {
+	VALUE v = rb_check_regexp_type(argv[0]);
+	if (!NIL_P(v)) {
+	    return v;
+	}
+	v = rb_check_array_type(argv[0]);
+	if (!NIL_P(v)) {
+	    argc = RARRAY_LEN(argv[0]);
+	    args = RARRAY_PTR(argv[0]);
+	}
+	else {
+	    StringValue(argv[0]);
+	    return rb_reg_new_str(rb_reg_quote(argv[0]), 0);
+	}
+    }
+    else {
+	args = argv;
+    }
+
+    VALUE source = rb_unicode_str_new(NULL, 0);
+
+    for (int i = 0; i < argc; i++) {
+	VALUE arg = args[i];
+
+	if (i > 0) {
+	    rb_str_cat2(source, "|");
+	}
+
+	VALUE substr;
+	VALUE re = rb_check_regexp_type(arg);
+	if (!NIL_P(re)) {
+	    substr = regexp_to_s(re, 0);
+	}
+	else {
+	    StringValue(arg);
+	    substr = rb_reg_quote(arg);
+	}
+
+	rb_str_append(source, substr);
+    }
+
+    return rb_reg_new_str(source, 0);
 }
 
 /*
@@ -322,12 +402,6 @@ regexp_last_match(VALUE klass, SEL sel, int argc, VALUE *argv)
  *     Regexp.try_convert(o)            #=> /foo/
  *
  */
-
-VALUE
-rb_check_regexp_type(VALUE re)
-{
-    return rb_check_convert_type(re, T_REGEXP, "Regexp", "to_regexp");
-}
 
 static VALUE
 regexp_try_convert(VALUE klass, SEL sel, VALUE obj)
@@ -932,9 +1006,8 @@ Init_Regexp(void)
 	    (void *)regexp_quote, 1);
     rb_objc_define_method(*(VALUE *)rb_cRegexp, "escape",
 	    (void *)regexp_quote, 1);
-#if 0
-    rb_objc_define_method(*(VALUE *)rb_cRegexp, "union", rb_reg_s_union_m, -2);
-#endif
+    rb_objc_define_method(*(VALUE *)rb_cRegexp, "union",
+	    (void *)regexp_union, -1);
     rb_objc_define_method(*(VALUE *)rb_cRegexp, "last_match",
 	    (void *)regexp_last_match, -1);
     rb_objc_define_method(*(VALUE *)rb_cRegexp, "try_convert",
