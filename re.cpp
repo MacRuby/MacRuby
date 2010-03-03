@@ -269,8 +269,6 @@ regexp_quote(VALUE klass, SEL sel, VALUE pat)
     return rb_reg_quote(reg_operand(pat, true));
 }
 
-
-
 /*
  *  call-seq:
  *     Regexp.union(pat1, pat2, ...)            => new_regexp
@@ -808,7 +806,22 @@ regexp_inspect(VALUE rcv, SEL sel)
     VALUE str = rb_str_new2("/");
     rb_str_concat(str, regexp_source(rcv, 0));
     rb_str_cat2(str, "/");
-    // TODO: add options there.
+
+    const uint32_t options = rb_reg_options(rcv);
+    const bool mode_m = options & REGEXP_OPT_MULTILINE;
+    const bool mode_i = options & REGEXP_OPT_IGNORECASE;
+    const bool mode_x = options & REGEXP_OPT_EXTENDED;
+
+    if (mode_m) {
+	rb_str_cat2(str, "m");
+    }
+    if (mode_i) {
+	rb_str_cat2(str, "i");
+    }
+    if (mode_x) {
+	rb_str_cat2(str, "x");
+    }
+    
     return str;
 }
 
@@ -835,10 +848,40 @@ regexp_inspect(VALUE rcv, SEL sel)
 static VALUE
 regexp_to_s(VALUE rcv, SEL sel)
 {
-    VALUE str = rb_str_new2("(?:");
-    // TODO: add options there.
+    VALUE str = rb_str_new2("(?");
+
+    const uint32_t options = rb_reg_options(rcv);
+    const bool mode_m = options & REGEXP_OPT_MULTILINE;
+    const bool mode_i = options & REGEXP_OPT_IGNORECASE;
+    const bool mode_x = options & REGEXP_OPT_EXTENDED;
+
+    if (mode_m) {
+	rb_str_cat2(str, "m");
+    }
+    if (mode_i) {
+	rb_str_cat2(str, "i");
+    }
+    if (mode_x) {
+	rb_str_cat2(str, "x");
+    }
+
+    if (!mode_m || !mode_i || !mode_x) {
+	rb_str_cat2(str, "-");
+	if (!mode_m) {
+	    rb_str_cat2(str, "m");
+	}
+	if (!mode_i) {
+	    rb_str_cat2(str, "i");
+	}
+	if (!mode_x) {
+	    rb_str_cat2(str, "x");
+	}
+    }
+
+    rb_str_cat2(str, ":");
     rb_str_concat(str, regexp_source(rcv, 0));
     rb_str_cat2(str, ")");
+
     return str;
 }
 
