@@ -938,12 +938,13 @@ str_offset_in_bytes_to_index(rb_str_t *self, long offset_in_bytes,
 
 static long
 str_offset_in_bytes_for_string(rb_str_t *self, rb_str_t *searched,
-	long start_offset_in_bytes, bool backward_search)
+	long start_offset_in_bytes, long end_offset_in_bytes,
+	bool backward_search)
 {
     if (start_offset_in_bytes >= self->length_in_bytes) {
 	return -1;
     }
-    if ((self == searched) && (start_offset_in_bytes == 0)) {
+    if (self == searched && start_offset_in_bytes == 0) {
 	return 0;
     }
     if (searched->length_in_bytes == 0) {
@@ -964,8 +965,8 @@ str_offset_in_bytes_for_string(rb_str_t *self, rb_str_t *searched,
     }
 
     if (backward_search) {
-	for (long offset_in_bytes = start_offset_in_bytes;
-		offset_in_bytes >= 0;
+	for (long offset_in_bytes = end_offset_in_bytes;
+		offset_in_bytes >= start_offset_in_bytes;
 		offset_in_bytes -= increment) {
 	    if (memcmp(self->data.bytes+offset_in_bytes, searched->data.bytes,
 			searched->length_in_bytes) == 0) {
@@ -974,7 +975,7 @@ str_offset_in_bytes_for_string(rb_str_t *self, rb_str_t *searched,
 	}
     }
     else {
-	const long max_offset_in_bytes = self->length_in_bytes
+	const long max_offset_in_bytes = end_offset_in_bytes
 	    - searched->length_in_bytes + 1;
 
 	for (long offset_in_bytes = start_offset_in_bytes;
@@ -991,7 +992,7 @@ str_offset_in_bytes_for_string(rb_str_t *self, rb_str_t *searched,
 
 static long
 str_index_for_string(rb_str_t *self, rb_str_t *searched, long start_index,
-	bool backward_search, bool ucs2_mode)
+	long end_index, bool backward_search, bool ucs2_mode)
 {
     str_must_have_compatible_encoding(self, searched);
     str_make_same_format(self, searched);
@@ -1015,8 +1016,28 @@ str_index_for_string(rb_str_t *self, rb_str_t *searched, long start_index,
 	start_offset_in_bytes = boundaries.start_offset_in_bytes;
     }
 
-    const long offset_in_bytes = str_offset_in_bytes_for_string(RSTR(self),
-	    searched, start_offset_in_bytes, backward_search);
+    long end_offset_in_bytes;
+    if (end_index < 0 || end_index == str_length(self, ucs2_mode)) {
+	end_offset_in_bytes = self->length_in_bytes;
+    }
+    else {
+	character_boundaries_t boundaries = str_get_character_boundaries(self,
+		end_index, ucs2_mode);
+	if (boundaries.start_offset_in_bytes == -1) {
+	    if (boundaries.end_offset_in_bytes == -1) {
+		return -1;
+	    }
+	    else {
+		// you cannot cut a surrogate in an encoding that is not UTF-16
+		str_cannot_cut_surrogate();
+	    }
+	}
+	end_offset_in_bytes = boundaries.end_offset_in_bytes;
+    }
+
+    const long offset_in_bytes = str_offset_in_bytes_for_string(self,
+	    searched, start_offset_in_bytes, end_offset_in_bytes,
+	    backward_search);
     if (offset_in_bytes == -1) {
 	return -1;
     }
@@ -1026,7 +1047,8 @@ str_index_for_string(rb_str_t *self, rb_str_t *searched, long start_index,
 static bool
 str_include_string(rb_str_t *self, rb_str_t *searched)
 {
-    return (str_offset_in_bytes_for_string(self, searched, 0, false) != -1);
+    return str_offset_in_bytes_for_string(self, searched, 0,
+	    self->length_in_bytes, false) != -1;
 }
 
 static rb_str_t *
@@ -1659,7 +1681,7 @@ rstr_index(VALUE self, SEL sel, int argc, VALUE *argv)
 	    // fall through
 	case T_STRING:
 	    pos = str_index_for_string(RSTR(self), str_need_string(sub),
-		    pos, false, true);
+		    pos, -1, false, true);
 	    break;
     }
 
@@ -1707,6 +1729,9 @@ rstr_rindex(VALUE self, SEL sel, int argc, VALUE *argv)
 	if (pos >= len) {
 	    pos = len - 1;
 	}
+	else if (pos == 0) {
+	    return Qnil;
+	}
     }
     else {
 	pos = len - 1;
@@ -1722,7 +1747,7 @@ rstr_rindex(VALUE self, SEL sel, int argc, VALUE *argv)
 	    // fall through
 	case T_STRING:
 	    pos = str_index_for_string(RSTR(self), str_need_string(sub),
-		    pos, true, true);
+		    0, pos - 1, true, true);
 	    break;
     }
 
@@ -1966,6 +1991,59 @@ rstr_includes(VALUE self, SEL sel, VALUE searched)
 {
     return str_include_string(RSTR(self), str_need_string(searched))
 	? Qtrue : Qfalse;
+}
+
+/*
+ *  call-seq:
+ *     str.start_with?([prefix]+)   => true or false
+ *  
+ *  Returns true if <i>str</i> starts with the prefix given.
+ */
+
+static VALUE
+rstr_start_with(VALUE str, SEL sel, int argc, VALUE *argv)
+{
+    for (int i = 0; i < argc; i++) {
+	VALUE tmp = rb_check_string_type(argv[i]);
+	if (NIL_P(tmp)) {
+	    continue;
+	}
+	const long pos = str_index_for_string(RSTR(str), str_need_string(tmp),
+		0, rb_str_chars_len(tmp), false, false);
+	if (pos == 0) {
+	    return Qtrue;
+	}
+    }
+    return Qfalse;
+}
+
+/*
+ *  call-seq:
+ *     str.end_with?([suffix]+)   => true or false
+ *  
+ *  Returns true if <i>str</i> ends with the suffix given.
+ */
+
+static VALUE
+rstr_end_with(VALUE str, SEL sel, int argc, VALUE *argv)
+{
+    const long len = rb_str_chars_len(str);
+    for (int i = 0; i < argc; i++) {
+	VALUE tmp = rb_check_string_type(argv[i]);
+	if (NIL_P(tmp)) {
+	    continue;
+	}
+	const long sublen = rb_str_chars_len(tmp);
+	if (sublen > len) {
+	    continue;
+	}
+	const long pos = str_index_for_string(RSTR(str), str_need_string(tmp),
+		len - sublen, len, false, false);
+	if (pos == len - sublen) {
+	    return Qtrue;
+	}
+    }
+    return Qfalse;
 }
 
 static VALUE
@@ -2428,7 +2506,7 @@ fs_set:
 		rb_str_t *spat_str = str_need_string(spat);
 		do {
 		    const long pos = str_index_for_string(RSTR(str), spat_str,
-			    beg, false, false);
+			    beg, -1, false, false);
 		    if (pos == -1) {
 			break;
 		    }
@@ -2674,7 +2752,7 @@ rstr_chomp_bang(VALUE str, SEL sel, int argc, VALUE *argv)
     }
     else if (rslen <= len) {
 	if (str_index_for_string(RSTR(str), str_need_string(rs),
-		    len - rslen, false, false) >= 0) {
+		    len - rslen, -1, false, false) >= 0) {
 	    to_del += rslen;
 	}
     }
@@ -3555,7 +3633,7 @@ rstr_each_line(VALUE str, SEL sel, int argc, VALUE *argv)
 
     long pos = 0;
     do {
-	const long off = str_index_for_string(RSTR(str), rs_str, pos,
+	const long off = str_index_for_string(RSTR(str), rs_str, pos, -1,
 		false, false);
 
 	long substr_len = 0;
@@ -3943,6 +4021,8 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "<=>", rstr_cmp, 1);
     rb_objc_define_method(rb_cRubyString, "eql?", rstr_eql, 1);
     rb_objc_define_method(rb_cRubyString, "include?", rstr_includes, 1);
+    rb_objc_define_method(rb_cRubyString, "start_with?", rstr_start_with, -1);
+    rb_objc_define_method(rb_cRubyString, "end_with?", rstr_end_with, -1);
     rb_objc_define_method(rb_cRubyString, "to_s", rstr_to_s, 0);
     rb_objc_define_method(rb_cRubyString, "to_str", rstr_to_s, 0);
     rb_objc_define_method(rb_cRubyString, "to_sym", rstr_intern, 0);
