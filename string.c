@@ -1141,6 +1141,8 @@ rstr_substr(VALUE str, long beg, long len)
 static void
 rstr_splice(VALUE self, long beg, long len, VALUE str)
 {
+    rb_str_t *strstr = str_need_string(str);
+
     if (len < 0) {
 	rb_raise(rb_eIndexError, "negative length %ld", len);
     }
@@ -1162,10 +1164,20 @@ out_of_range:
 
     rstr_modify(self);
 
-    str_splice(RSTR(self), beg, len, str_need_string(str), false);
+    str_splice(RSTR(self), beg, len, strstr, false);
 
-    if (OBJ_TAINTED(str)) {
+    if (OBJ_TAINTED(strstr)) {
 	OBJ_TAINT(self);
+    }
+}
+
+static void
+rstr_append(VALUE str, VALUE substr)
+{
+    str_concat_string(RSTR(str), str_need_string(substr));
+
+    if (OBJ_TAINTED(substr)) {
+	OBJ_TAINT(str);
     }
 }
 
@@ -1756,6 +1768,39 @@ num_index:
 
 /*
  *  call-seq:
+ *     str.insert(index, other_str)   => str
+ *  
+ *  Inserts <i>other_str</i> before the character at the given
+ *  <i>index</i>, modifying <i>str</i>. Negative indices count from the
+ *  end of the string, and insert <em>after</em> the given character.
+ *  The intent is insert <i>aString</i> so that it starts at the given
+ *  <i>index</i>.
+ *     
+ *     "abcd".insert(0, 'X')    #=> "Xabcd"
+ *     "abcd".insert(3, 'X')    #=> "abcXd"
+ *     "abcd".insert(4, 'X')    #=> "abcdX"
+ *     "abcd".insert(-3, 'X')   #=> "abXcd"
+ *     "abcd".insert(-1, 'X')   #=> "abcdX"
+ */
+
+static VALUE
+rstr_insert(VALUE str, SEL sel, VALUE idx, VALUE substr)
+{
+    long pos = NUM2LONG(idx);
+    if (pos == -1) {
+	rstr_append(str, substr);
+    }
+    else {
+	if (pos < 0) {
+	    pos++;
+	}
+	rstr_splice(str, pos, 0, substr);
+    }
+    return str;
+}
+
+/*
+ *  call-seq:
  *     str.index(substring [, offset])   => fixnum or nil
  *     str.index(fixnum [, offset])      => fixnum or nil
  *     str.index(regexp [, offset])      => fixnum or nil
@@ -1901,7 +1946,7 @@ rstr_plus(VALUE self, SEL sel, VALUE other)
 {
     rb_str_t *newstr = str_dup(RSTR(self));
     str_concat_string(newstr, str_need_string(other));
-    if (OBJ_TAINTED(self) || OBJ_TAINTED(other)) {
+    if (OBJ_TAINTED(self)) {
 	OBJ_TAINT(newstr);
     }
     return (VALUE)newstr;
@@ -1995,7 +2040,7 @@ rstr_concat(VALUE self, SEL sel, VALUE other)
 	    break;
 	    
 	default:
-	    str_concat_string(RSTR(self), str_need_string(other));
+	    rstr_append(self, other);
 	    return self;
     }
 
@@ -4155,6 +4200,7 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "[]", rstr_aref, -1);
     rb_objc_define_method(rb_cRubyString, "[]=", rstr_aset, -1);
     rb_objc_define_method(rb_cRubyString, "slice", rstr_aref, -1);
+    rb_objc_define_method(rb_cRubyString, "insert", rstr_insert, 2);
     rb_objc_define_method(rb_cRubyString, "index", rstr_index, -1);
     rb_objc_define_method(rb_cRubyString, "rindex", rstr_rindex, -1);
     rb_objc_define_method(rb_cRubyString, "+", rstr_plus, 1);
