@@ -265,6 +265,36 @@ regexp_quote(VALUE klass, SEL sel, VALUE pat)
 
 /*
  *  call-seq:
+ *     Regexp.try_convert(obj) -> re or nil
+ *
+ *  Try to convert <i>obj</i> into a Regexp, using to_regexp method.
+ *  Returns converted regexp or nil if <i>obj</i> cannot be converted
+ *  for any reason.
+ *
+ *     Regexp.try_convert(/re/)         #=> /re/
+ *     Regexp.try_convert("re")         #=> nil
+ *
+ *     o = Object.new
+ *     Regexp.try_convert(o)            #=> nil
+ *     def o.to_regexp() /foo/ end
+ *     Regexp.try_convert(o)            #=> /foo/
+ *
+ */
+
+VALUE
+rb_check_regexp_type(VALUE re)
+{
+    return rb_check_convert_type(re, T_REGEXP, "Regexp", "to_regexp");
+}
+
+static VALUE
+regexp_try_convert(VALUE klass, SEL sel, VALUE obj)
+{
+    return rb_check_regexp_type(obj);
+}
+
+/*
+ *  call-seq:
  *     Regexp.new(string [, options])                => regexp
  *     Regexp.new(regexp)                            => regexp
  *     Regexp.compile(string [, options])            => regexp
@@ -864,9 +894,9 @@ Init_Regexp(void)
     rb_objc_define_method(*(VALUE *)rb_cRegexp, "union", rb_reg_s_union_m, -2);
     rb_objc_define_method(*(VALUE *)rb_cRegexp, "last_match",
 	    rb_reg_s_last_match, -1);
-    rb_objc_define_method(*(VALUE *)rb_cRegexp, "try_convert",
-	    rb_reg_s_try_convert, 1);
 #endif
+    rb_objc_define_method(*(VALUE *)rb_cRegexp, "try_convert",
+	    (void *)regexp_try_convert, 1);
 
     rb_objc_define_method(rb_cRegexp, "initialize",
 	    (void *)regexp_initialize, -1);
