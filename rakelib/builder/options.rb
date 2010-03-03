@@ -105,7 +105,7 @@ CXX = '/usr/bin/g++'
 CFLAGS = "-I. -I./include -I./onig -I/usr/include/libxml2 #{ARCHFLAGS} -fno-common -pipe -O3 -g -Wall -fexceptions"
 CFLAGS << " -Wno-parentheses -Wno-deprecated-declarations -Werror" if NO_WARN_BUILD
 OBJC_CFLAGS = CFLAGS + " -fobjc-gc-only"
-CXXFLAGS = `#{LLVM_CONFIG} --cxxflags #{LLVM_MODULES}`.sub(/-DNDEBUG/, '').strip
+CXXFLAGS = `#{LLVM_CONFIG} --cxxflags #{LLVM_MODULES}`.sub(/-DNDEBUG/, '').sub(/-fno-exceptions/, '').strip
 CXXFLAGS << " -I. -I./include -g -Wall #{ARCHFLAGS}"
 CXXFLAGS << " -Wno-parentheses -Wno-deprecated-declarations -Werror" if NO_WARN_BUILD
 CXXFLAGS << " -DLLVM_TOT" if ENV['LLVM_TOT']

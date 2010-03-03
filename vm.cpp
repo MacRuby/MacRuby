@@ -184,7 +184,6 @@ class RoxorJITManager : public JITMemoryManager, public JITEventListener {
 	}
 #endif
 
-
 	uint8_t *startFunctionBody(const Function *F, 
 		uintptr_t &ActualSize) {
 	    return mm->startFunctionBody(F, ActualSize);
@@ -237,6 +236,16 @@ class RoxorJITManager : public JITMemoryManager, public JITEventListener {
 
 	    std::string path;
 	    for (std::vector<EmittedFunctionDetails::LineStart>::const_iterator iter = Details.LineStarts.begin(); iter != Details.LineStarts.end(); ++iter) {
+#if LLVM_TOT
+		DILocation dil = Details.MF->getDILocation(iter->Loc);
+		if (path.size() == 0) {
+		    DIScope scope = dil.getScope();
+		    path.append(scope.getDirectory());
+		    path.append("/");
+		    path.append(scope.getFilename());
+		}
+		RoxorFunction::Line line(iter->Address, dil.getLineNumber());
+#else
 		DebugLocTuple dlt = Details.MF->getDebugLocTuple(iter->Loc);
 		if (path.size() == 0) {
 		    DICompileUnit unit(dlt.Scope);
@@ -244,8 +253,8 @@ class RoxorJITManager : public JITMemoryManager, public JITEventListener {
 		    path.append("/");
 		    path.append(unit.getFilename());
 		}
-
 		RoxorFunction::Line line(iter->Address, dlt.Line);
+#endif
 		function->lines.push_back(line);
 	    }
 

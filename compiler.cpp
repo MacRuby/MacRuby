@@ -188,10 +188,14 @@ RoxorCompiler::RoxorCompiler(bool _debug_mode)
     level = 0;
 #endif
 
+#if LLVM_TOT
+    dbg_mdkind = context.getMDKindID("dbg");
+#else
     dbg_mdkind = context.getMetadata().getMDKind("dbg");
     if (dbg_mdkind == 0) {
 	dbg_mdkind = context.getMetadata().registerMDKind("dbg");
     }
+#endif
     assert(dbg_mdkind != 0);
 }
 
@@ -735,7 +739,11 @@ RoxorCompiler::attach_current_line_metadata(Instruction *insn)
     if (fname != NULL) {
 	DILocation loc = debug_info->CreateLocation(current_line, 0,
 		debug_compile_unit, DILocation(NULL));
+#if LLVM_TOT
+	insn->setMetadata(dbg_mdkind, loc.getNode());
+#else
 	context.getMetadata().addMD(dbg_mdkind, loc.getNode(), insn);
+#endif
     }
 }
 
