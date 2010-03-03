@@ -1215,23 +1215,6 @@ rstr_try_convert(VALUE self, SEL sel, VALUE other)
 
 /*
  *  call-seq:
- *     String.new(str="")   => new_str
- *  
- *  Returns a new string object containing a copy of <i>str</i>.
- */
-
-static VALUE
-rstr_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
-{
-    if (argc > 0) {
-	assert(argc == 1);
-	str_replace(RSTR(self), argv[0]);
-    }
-    return self;
-}
-
-/*
- *  call-seq:
  *     str.replace(other_str)   => str
  *  
  *  Replaces the contents and taintedness of <i>str</i> with the corresponding
@@ -1246,6 +1229,28 @@ rstr_replace(VALUE self, SEL sel, VALUE arg)
 {
     rstr_modify(self);
     str_replace(RSTR(self), arg);
+    if (OBJ_TAINTED(arg)) {
+	OBJ_TAINT(self);
+    }
+    return self;
+}
+
+/*
+ *  call-seq:
+ *     String.new(str="")   => new_str
+ *  
+ *  Returns a new string object containing a copy of <i>str</i>.
+ */
+
+static VALUE
+rstr_initialize(VALUE self, SEL sel, int argc, VALUE *argv)
+{
+    VALUE orig;
+    if (argc > 0 && rb_scan_args(argc, argv, "01", &orig) == 1) {
+	if (self != orig) {
+	    rstr_replace(self, 0, orig);
+	}
+    }
     return self;
 }
 
@@ -1776,6 +1781,9 @@ rstr_plus(VALUE self, SEL sel, VALUE other)
 {
     rb_str_t *newstr = str_dup(RSTR(self));
     str_concat_string(newstr, str_need_string(other));
+    if (OBJ_TAINTED(self) || OBJ_TAINTED(other)) {
+	OBJ_TAINT(newstr);
+    }
     return (VALUE)newstr;
 }
 
