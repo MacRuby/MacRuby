@@ -816,6 +816,14 @@ str_concat_bytes(rb_str_t *self, const char *bytes, long len)
 }
 
 static void
+str_concat_uchars(rb_str_t *self, const UChar *chars, long len)
+{
+    assert(str_try_making_data_uchars(self));
+
+    str_concat_bytes(self, (const char *)chars, UCHARS_TO_BYTES(len)); 
+}
+
+static void
 str_concat_string(rb_str_t *self, rb_str_t *str)
 {
     if (str->length_in_bytes == 0) {
@@ -2991,10 +2999,110 @@ rstr_chomp(VALUE str, SEL sel, int argc, VALUE *argv)
  */
 
 static VALUE
-rb_reg_regsub(VALUE str, VALUE src, VALUE match, VALUE regexp)
+rb_reg_regsub(VALUE str, VALUE src, VALUE regexp, rb_match_result_t *results,
+	int results_count)
 {
-    // TODO
-    return str;
+    VALUE val = 0;
+
+    UChar *str_chars = NULL;
+    long str_chars_len = 0;
+    bool str_chars_need_free = false;
+
+    rb_str_get_uchars(str, &str_chars, &str_chars_len,
+	    &str_chars_need_free);
+
+    UChar *src_chars = NULL;
+    long src_chars_len = 0;
+    bool src_chars_need_free = false;
+
+    rb_str_get_uchars(src, &src_chars, &src_chars_len,
+	    &src_chars_need_free);
+
+    long pos = 0;
+
+    for (long i = 0; i < str_chars_len; i++) {
+	UChar c = str_chars[i];
+	if (c != '\\') {
+	    continue;
+	}
+
+	if (val == 0) {
+	    val = rb_unicode_str_new(NULL, 0);
+	}
+	str_concat_uchars(RSTR(val), &str_chars[pos], i - pos);
+
+	i++;
+	if (i == str_chars_len) {
+	    break;
+	}
+	pos = i + 1;
+
+	int no = -1;
+	c = str_chars[i];
+	switch (c) {
+	    case '1': case '2': case '3':
+	    case '4': case '5': case '6':
+	    case '7': case '8': case '9':
+		no = c - '0';
+		break;
+
+	    case '0':
+	    case '&':
+		no = 0;
+		break;
+
+	    case '`':
+		str_concat_uchars(RSTR(val), src_chars, results[0].beg);
+		break;
+
+	    case '\'':
+		str_concat_uchars(RSTR(val), &src_chars[results[0].end],
+			src_chars_len - results[0].end);
+		break;
+
+	    case '+':
+		no = results_count - 1;
+		while (results[no].beg == -1 && no > 0) {
+		    no--;
+		}
+		if (no == 0) {
+		    no = -1;
+		}
+		break;
+
+	    case '\\':
+	    default:
+		str_append_uchar(RSTR(val), c);
+		break;
+	}
+
+	if (no >= 0) {
+	    if (no >= results_count) {
+		continue;
+	    }
+	    if (results[no].beg == -1) {
+		continue;
+	    }
+	    str_concat_uchars(RSTR(val), &src_chars[results[no].beg],
+		    results[no].end - results[no].beg);
+	}
+    }
+
+    if (str_chars_need_free) {
+	free(str_chars);
+    }
+    if (src_chars_need_free) {
+	free(src_chars);
+    }
+
+    if (val == 0) {
+	return str;
+    }
+
+    if (pos < str_chars_len) {
+	str_concat_uchars(RSTR(val), &str_chars[pos], str_chars_len - pos);
+    }
+    return val;
 }
 
 static VALUE
@@ -3043,7 +3151,7 @@ rstr_sub_bang(VALUE str, SEL sel, int argc, VALUE *argv)
 	    }
 	}
 	else {
-	    repl = rb_reg_regsub(repl, str, match, pat);
+	    repl = rb_reg_regsub(repl, str, pat, results, count);
 	}
 
 	rstr_modify(str);
@@ -3178,7 +3286,7 @@ str_gsub(SEL sel, int argc, VALUE *argv, VALUE str, bool bang)
 	    }
 	}
 	else {
-	    val = rb_reg_regsub(repl, str, match, pat);
+	    val = rb_reg_regsub(repl, str, pat, results, count);
 	}
 
 	if (pos - offset > 0) {
