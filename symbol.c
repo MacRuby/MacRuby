@@ -362,6 +362,19 @@ rsym_to_sym(VALUE sym, SEL sel)
     return sym;
 }
 
+/*
+ * call-seq:
+ *   sym.empty?   => true or false
+ *
+ * Returns that _sym_ is :"" or not.
+ */
+
+static VALUE
+rsym_empty(VALUE sym, SEL sel)
+{
+    return rb_str_chars_len(RSYM(sym)->str) == 0 ? Qtrue : Qfalse;
+}
+
 static CFIndex
 rsym_imp_length(void *rcv, SEL sel)
 {
@@ -389,7 +402,6 @@ Init_Symbol(void)
     rb_objc_define_method(rb_cSymbol, "==", rsym_equal, 1);
     rb_objc_define_method(rb_cSymbol, "<=>", rsym_cmp, 1);
     rb_objc_define_method(rb_cSymbol, "eql?", rsym_equal, 1);
-    //rb_objc_define_method(rb_cSymbol, "<=>", rsym_cmp, 1);
     rb_objc_define_method(rb_cSymbol, "inspect", rsym_inspect, 0);
     rb_objc_define_method(rb_cSymbol, "to_proc", rsym_to_proc, 0);
     rb_objc_define_method(rb_cSymbol, "to_s", rsym_to_s, 0);
@@ -397,6 +409,7 @@ Init_Symbol(void)
     rb_objc_define_method(rb_cSymbol, "description", rsym_to_s, 0);
     rb_objc_define_method(rb_cSymbol, "intern", rsym_to_sym, 0);
     rb_objc_define_method(rb_cSymbol, "to_sym", rsym_to_sym, 0);
+    rb_objc_define_method(rb_cSymbol, "empty?", rsym_empty, 0);
 
     // Cocoa primitives.
     rb_objc_install_method2((Class)rb_cSymbol, "length",
