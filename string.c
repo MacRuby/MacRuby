@@ -768,7 +768,8 @@ str_splice(rb_str_t *self, long pos, long len, rb_str_t *str, bool ucs2_mode)
 	bytes_to_add = str->length_in_bytes;
     }
 
-    if (end.end_offset_in_bytes == self->length_in_bytes) {
+    if (beg.start_offset_in_bytes == end.end_offset_in_bytes
+	    && end.end_offset_in_bytes == self->length_in_bytes) {
     	if (bytes_to_add > 0) {
 	    // We are splicing at the very end.
 	    memcpy(self->data.bytes + self->length_in_bytes, str->data.bytes,
@@ -1159,7 +1160,13 @@ out_of_range:
 	len = slen - beg;
     }
 
+    rstr_modify(self);
+
     str_splice(RSTR(self), beg, len, str_need_string(str), false);
+
+    if (OBJ_TAINTED(str)) {
+	OBJ_TAINT(self);
+    }
 }
 
 static VALUE
@@ -1631,6 +1638,119 @@ rstr_aref(VALUE str, SEL sel, int argc, VALUE *argv)
 		}
 		return str;
 	    }
+    }
+}
+
+/*
+ *  call-seq:
+ *     str[fixnum] = new_str
+ *     str[fixnum, fixnum] = new_str
+ *     str[range] = aString
+ *     str[regexp] = new_str
+ *     str[regexp, fixnum] = new_str
+ *     str[other_str] = new_str
+ *  
+ *  Element Assignment---Replaces some or all of the content of <i>str</i>. The
+ *  portion of the string affected is determined using the same criteria as
+ *  <code>String#[]</code>. If the replacement string is not the same length as
+ *  the text it is replacing, the string will be adjusted accordingly. If the
+ *  regular expression or string is used as the index doesn't match a position
+ *  in the string, <code>IndexError</code> is raised. If the regular expression
+ *  form is used, the optional second <code>Fixnum</code> allows you to specify
+ *  which portion of the match to replace (effectively using the
+ *  <code>MatchData</code> indexing rules. The forms that take a
+ *  <code>Fixnum</code> will raise an <code>IndexError</code> if the value is
+ *  out of range; the <code>Range</code> form will raise a
+ *  <code>RangeError</code>, and the <code>Regexp</code> and <code>String</code>
+ *  forms will silently ignore the assignment.
+ */
+
+static void
+rb_str_subpat_set(VALUE str, VALUE re, int nth, VALUE val)
+{
+    if (rb_reg_search(re, str, 0, false) < 0) {
+	rb_raise(rb_eIndexError, "regexp not matched");
+    }
+    VALUE match = rb_backref_get();
+
+    int count = 0;
+    rb_match_result_t *results = rb_reg_match_results(match, &count);
+    assert(count > 0);
+
+    if (nth >= count) {
+out_of_range:
+	rb_raise(rb_eIndexError, "index %d out of regexp", nth);
+    }
+    if (nth < 0) {
+	if (-nth >= count) {
+	    goto out_of_range;
+	}
+	nth += count;
+    }
+
+    const long start = results[nth].beg;
+    if (start == -1) {
+	rb_raise(rb_eIndexError, "regexp group %d not matched", nth);
+    }
+    const long end = results[nth].end;
+    const long len = end - start;
+    rstr_splice(str, start, len, val);
+}
+
+static VALUE
+rstr_aset(VALUE str, SEL sel, int argc, VALUE *argv)
+{
+    if (argc == 3) {
+	if (TYPE(argv[0]) == T_REGEXP) {
+	    rb_str_subpat_set(str, argv[0], NUM2INT(argv[1]), argv[2]);
+	}
+	else {
+	    rstr_splice(str, NUM2LONG(argv[0]), NUM2LONG(argv[1]),
+		    argv[2]);
+	}
+	return argv[2];
+    }
+
+    if (argc != 2) {
+	rb_raise(rb_eArgError, "wrong number of arguments (%d for 1)", argc);
+    }
+
+    VALUE indx = argv[0];
+    VALUE val = argv[1];
+    long pos = 0;
+
+    switch (TYPE(indx)) {
+	case T_FIXNUM:
+	    pos = FIX2LONG(indx);
+num_index:
+	    rstr_splice(str, pos, 1, val);
+	    return val;
+
+	case T_REGEXP:
+	    rb_str_subpat_set(str, indx, 0, val);
+	    return val;
+
+	case T_STRING:
+	    pos = str_index_for_string(RSTR(str), str_need_string(indx),
+		    0, -1, false, true);
+	    if (pos < 0) {
+		rb_raise(rb_eIndexError, "string not matched");
+	    }
+	    rstr_splice(str, pos, rb_str_chars_len(indx), val);
+	    return val;
+
+	default:
+	    /* check if indx is Range */
+	    {
+		long beg, len;
+		if (rb_range_beg_len(indx, &beg, &len,
+			    str_length(RSTR(str), true), 2)) {
+		    rstr_splice(str, beg, len, val);
+		    return val;
+		}
+	    }
+	    pos = NUM2LONG(indx);
+	    goto num_index;
     }
 }
 
@@ -4033,6 +4153,7 @@ Init_String(void)
 	    rstr_is_valid_encoding, 0);
     rb_objc_define_method(rb_cRubyString, "ascii_only?", rstr_is_ascii_only, 0);
     rb_objc_define_method(rb_cRubyString, "[]", rstr_aref, -1);
+    rb_objc_define_method(rb_cRubyString, "[]=", rstr_aset, -1);
     rb_objc_define_method(rb_cRubyString, "slice", rstr_aref, -1);
     rb_objc_define_method(rb_cRubyString, "index", rstr_index, -1);
     rb_objc_define_method(rb_cRubyString, "rindex", rstr_rindex, -1);
