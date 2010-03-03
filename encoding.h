@@ -301,6 +301,7 @@ void rb_str_get_uchars(VALUE str, UChar **chars_p, long *chars_len_p,
 long rb_str_chars_len(VALUE str);
 UChar rb_str_get_uchar(VALUE str, long pos);
 void rb_str_append_uchar(VALUE str, UChar c);
+void rb_str_append_uchars(VALUE str, UChar *chars, long len);
 unsigned long rb_str_hash_uchars(const UChar *chars, long chars_len);
 long rb_uchar_strtol(UniChar *chars, long chars_len, long pos,
 	long *end_offset);

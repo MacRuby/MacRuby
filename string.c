@@ -4826,6 +4826,21 @@ rb_str_append_uchar(VALUE str, UChar c)
     }	
 }
 
+void
+rb_str_append_uchars(VALUE str, UChar *chars, long len)
+{
+    assert(chars != NULL && len >= 0);
+
+    if (len > 0) {
+	if (RSTR(str)) {
+	    str_concat_uchars(RSTR(str), chars, len);
+	}
+	else {
+	    CFStringAppendCharacters((CFMutableStringRef)str, chars, len);
+	}
+    }
+}
+
 long
 rb_str_chars_len(VALUE str)
 {

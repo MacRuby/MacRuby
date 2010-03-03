@@ -1607,8 +1607,83 @@ rb_reg_new(const char *cstr, long len, int options)
 VALUE
 rb_reg_quote(VALUE pat)
 {
-    // TODO
-    return pat;
+    UChar *chars = NULL;
+    long chars_len = 0;
+    bool need_free = false;
+    VALUE result;
+
+    rb_str_get_uchars(pat, &chars, &chars_len, &need_free);
+
+    long pos = 0;
+    for (; pos < chars_len; pos++) {
+	switch (chars[pos]) {
+	    case '[': case ']': case '{': case '}':
+	    case '(': case ')': case '|': case '-':
+	    case '*': case '.': case '\\': case '?':
+	    case '+': case '^': case '$': case ' ':
+	    case '#': case '\t': case '\f': case '\v':
+	    case '\n': case '\r':
+		goto meta_found;
+	} 
+    }
+
+    result = rb_unicode_str_new(chars, chars_len);
+    goto bail;
+
+meta_found:
+    result = rb_unicode_str_new(NULL, (chars_len * 2) + 1);
+
+    // Copy up to metacharacter.
+    rb_str_append_uchars(result, &chars[0], pos);
+
+    for (; pos < chars_len; pos++) {
+	UChar c = chars[pos];
+	switch (c) {
+	    case '[': case ']': case '{': case '}':
+	    case '(': case ')': case '|': case '-':
+	    case '*': case '.': case '\\': case '?':
+	    case '+': case '^': case '$': case '#':
+		rb_str_append_uchar(result, '\\');
+		break;
+
+	    case ' ':
+		rb_str_append_uchar(result, '\\');
+		rb_str_append_uchar(result, ' ');
+		continue;
+
+	    case '\t':
+		rb_str_append_uchar(result, '\\');
+		rb_str_append_uchar(result, 't');
+		continue;
+
+	    case '\n':
+		rb_str_append_uchar(result, '\\');
+		rb_str_append_uchar(result, 'n');
+		continue;
+
+	    case '\r':
+		rb_str_append_uchar(result, '\\');
+		rb_str_append_uchar(result, 'r');
+		continue;
+
+	    case '\f':
+		rb_str_append_uchar(result, '\\');
+		rb_str_append_uchar(result, 'f');
+		continue;
+
+	    case '\v':
+		rb_str_append_uchar(result, '\\');
+		rb_str_append_uchar(result, 'v');
+		continue;
+	}
+	rb_str_append_uchar(result, c);
+    }
+
+bail:
+    if (need_free) {
+	free(chars);
+    }
+    return result;
 }
 
 void
