@@ -2691,6 +2691,22 @@ rstr_ord(VALUE str, SEL sel)
 
 /*
  *  call-seq:
+ *     string.chr    ->  string
+ *
+ *  Returns a one-character string at the beginning of the string.
+ *
+ *     a = "abcde"
+ *     a.chr    #=> "a"
+ */
+
+static VALUE
+rstr_chr(VALUE str, SEL sel)
+{
+    return rstr_substr(str, 0, 1);
+}
+
+/*
+ *  call-seq:
  *     str.to_f   => float
  *  
  *  Returns the result of interpreting leading characters in <i>str</i> as a
@@ -4037,6 +4053,7 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "hex", rstr_hex, 0);
     rb_objc_define_method(rb_cRubyString, "oct", rstr_oct, 0);
     rb_objc_define_method(rb_cRubyString, "ord", rstr_ord, 0);
+    rb_objc_define_method(rb_cRubyString, "chr", rstr_chr, 0);
     rb_objc_define_method(rb_cRubyString, "to_f", rstr_to_f, 0);
     rb_objc_define_method(rb_cRubyString, "chomp", rstr_chomp, -1);
     rb_objc_define_method(rb_cRubyString, "chomp!", rstr_chomp_bang, -1);
