@@ -875,7 +875,7 @@ str_compare(rb_str_t *self, rb_str_t *str)
 	return self->length_in_bytes > str->length_in_bytes
 	    ? 1 : -1;
     }
-    return res > 1 ? 1 : -1;
+    return res > 0 ? 1 : -1;
 }
 
 static long
@@ -3599,6 +3599,166 @@ rstr_each_char(VALUE str, SEL sel)
     return str;
 }
 
+static VALUE
+rstr_succ(VALUE str, SEL sel)
+{
+    if (rb_str_chars_len(str) == 0) {
+	return str;
+    }
+
+    if (!str_try_making_data_uchars(RSTR(str))) {
+	rb_raise(rb_eArgError,
+		"cannot make receiver data as Unicode characters");
+    }
+
+    UChar *chars_buf = (UChar *)malloc(RSTR(str)->length_in_bytes);
+    UChar *chars_ptr = &chars_buf[1];
+
+    memcpy(chars_ptr, RSTR(str)->data.uchars, RSTR(str)->length_in_bytes);
+
+    long len = BYTES_TO_UCHARS(RSTR(str)->length_in_bytes);
+    UChar carry = 0;
+    bool modified = false;
+
+    for (long i = len - 1; i >= 0; i--) {
+	UChar c = chars_ptr[i];
+	if (isdigit(c)) {
+	    modified = true;
+	    if (c != '9') {
+		chars_ptr[i]++;
+		carry = 0;
+		break;
+	    }
+	    else {
+		chars_ptr[i] = '0';
+		carry = '1';
+	    }
+	}
+	else if (isalpha(c)) {
+	    const bool lower = islower(c);
+	    UChar e = lower ? 'z' : 'Z';
+	    modified = true;
+	    if (c != e) {
+		chars_ptr[i]++;
+		carry = 0;
+		break;
+	    }
+	    else {
+		carry = chars_ptr[i] = lower ? 'a' : 'A';
+	    }
+	}
+#if 0 // TODO: this requires more love
+	else if (!isascii(c)) {
+	    modified = true;
+	    chars_ptr[i]++;
+	    carry = 0;
+	    break;
+	}
+#endif
+    }
+
+    if (!modified) {
+	chars_ptr[len - 1]++;
+    }
+    else if (carry != 0) {
+	chars_ptr = chars_buf;
+	chars_ptr[0] = carry;
+	len++;
+    }
+
+    VALUE newstr = rb_unicode_str_new(chars_ptr, len);
+    free(chars_buf);
+    return newstr;
+}
+
+static VALUE
+rstr_succ_bang(VALUE str, SEL sel)
+{
+    rstr_replace(str, 0, rstr_succ(str, 0));
+    return str;
+}
+
+/*
+ *  call-seq:
+ *     str.upto(other_str, exclusive=false) {|s| block }   => str
+ *  
+ *  Iterates through successive values, starting at <i>str</i> and
+ *  ending at <i>other_str</i> inclusive, passing each value in turn to
+ *  the block. The <code>String#succ</code> method is used to generate
+ *  each value.  If optional second argument exclusive is omitted or is <code>false</code>,
+ *  the last value will be included; otherwise it will be excluded.
+ *     
+ *     "a8".upto("b6") {|s| print s, ' ' }
+ *     for s in "a8".."b6"
+ *       print s, ' '
+ *     end
+ *     
+ *  <em>produces:</em>
+ *     
+ *     a8 a9 b0 b1 b2 b3 b4 b5 b6
+ *     a8 a9 b0 b1 b2 b3 b4 b5 b6
+ */
+
+static VALUE
+rstr_upto(VALUE str, SEL sel, int argc, VALUE *argv)
+{
+    VALUE beg = str;
+    VALUE end, exclusive;
+    rb_scan_args(argc, argv, "11", &end, &exclusive);
+
+    bool excl = RTEST(exclusive);
+    StringValue(end);
+
+    if (rb_str_chars_len(beg) == 1 && rb_str_chars_len(end) == 1) {
+	UChar begc = rb_str_get_uchar(beg, 0);
+	UChar endc = rb_str_get_uchar(end, 0);
+
+	if (begc > endc || (excl && begc == endc)) {
+	    return beg;
+	}
+	while (true) {
+	    rb_yield(rb_unicode_str_new(&begc, 1));
+	    RETURN_IF_BROKEN();
+	    if (!excl && begc == endc) {
+		break;
+	    }
+	    begc++;
+	    if (excl && begc == endc) {
+		break;
+	    }
+	}
+	return beg;
+    }
+
+    const int cmp = rb_str_cmp(beg, end);
+    if (cmp > 0 || (excl && cmp == 0)) {
+	return beg;
+    }
+
+    SEL succ_sel = sel_registerName("succ");
+
+    VALUE current = beg;
+    VALUE after_end = rb_vm_call(end, succ_sel, 0, NULL, false);
+    StringValue(after_end);
+    while (!rb_str_equal(current, after_end)) {
+	rb_yield(current);
+	RETURN_IF_BROKEN();
+	if (!excl && rb_str_equal(current, end)) {
+	    break;
+	}
+	current = rb_vm_call(current, succ_sel, 0, NULL, false);
+	StringValue(current);
+	if (excl && rb_str_equal(current, end)) {
+	    break;
+	}
+	if (rb_str_chars_len(current) > rb_str_chars_len(end)
+		|| rb_str_chars_len(current) == 0) {
+	    break;
+	}
+    }
+    return beg;
+}
+
 // NSString primitives.
 
 static void
@@ -3751,6 +3911,11 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "each_line", rstr_each_line, -1);
     rb_objc_define_method(rb_cRubyString, "chars", rstr_each_char, 0);
     rb_objc_define_method(rb_cRubyString, "each_char", rstr_each_char, 0);
+    rb_objc_define_method(rb_cRubyString, "succ", rstr_succ, 0);
+    rb_objc_define_method(rb_cRubyString, "succ!", rstr_succ_bang, 0);
+    rb_objc_define_method(rb_cRubyString, "next", rstr_succ, 0);
+    rb_objc_define_method(rb_cRubyString, "next!", rstr_succ_bang, 0);
+    rb_objc_define_method(rb_cRubyString, "upto", rstr_upto, -1);
 
     // Added for MacRuby (debugging).
     rb_objc_define_method(rb_cRubyString, "__chars_count__",
