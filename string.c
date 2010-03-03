@@ -2990,6 +2990,60 @@ rstr_chomp(VALUE str, SEL sel, int argc, VALUE *argv)
 
 /*
  *  call-seq:
+ *     str.chop!   => str or nil
+ *  
+ *  Processes <i>str</i> as for <code>String#chop</code>, returning <i>str</i>,
+ *  or <code>nil</code> if <i>str</i> is the empty string.  See also
+ *  <code>String#chomp!</code>.
+ */
+
+static VALUE
+rstr_chop_bang(VALUE str, SEL sel)
+{
+    rstr_modify(str);
+
+    const long len = str_length(RSTR(str), false);
+    if (len == 0) {
+	return Qnil;
+    }
+
+    long to_del = 1;
+    if (len >= 2 && rb_str_get_uchar(str, len - 1) == '\n'
+	    && rb_str_get_uchar(str, len - 2) == '\r') {
+	to_del++;
+    }
+
+    str_delete(RSTR(str), len - to_del, to_del, false);
+    return str;
+}
+
+/*
+ *  call-seq:
+ *     str.chop   => new_str
+ *  
+ *  Returns a new <code>String</code> with the last character removed.  If the
+ *  string ends with <code>\r\n</code>, both characters are removed. Applying
+ *  <code>chop</code> to an empty string returns an empty
+ *  string. <code>String#chomp</code> is often a safer alternative, as it leaves
+ *  the string unchanged if it doesn't end in a record separator.
+ *     
+ *     "string\r\n".chop   #=> "string"
+ *     "string\n\r".chop   #=> "string\n"
+ *     "string\n".chop     #=> "string"
+ *     "string".chop       #=> "strin"
+ *     "x".chop.chop       #=> ""
+ */
+
+static VALUE
+rstr_chop(VALUE str, SEL sel)
+{
+    str = rb_str_new3(str);
+    rstr_chop_bang(str, 0);
+    return str;
+}
+
+/*
+ *  call-seq:
  *     str.sub!(pattern, replacement)          => str or nil
  *     str.sub!(pattern) {|match| block }      => str or nil
  *  
@@ -4340,6 +4394,8 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "to_f", rstr_to_f, 0);
     rb_objc_define_method(rb_cRubyString, "chomp", rstr_chomp, -1);
     rb_objc_define_method(rb_cRubyString, "chomp!", rstr_chomp_bang, -1);
+    rb_objc_define_method(rb_cRubyString, "chop", rstr_chop, -1);
+    rb_objc_define_method(rb_cRubyString, "chop!", rstr_chop_bang, -1);
     rb_objc_define_method(rb_cRubyString, "sub", rstr_sub, -1);
     rb_objc_define_method(rb_cRubyString, "sub!", rstr_sub_bang, -1);
     rb_objc_define_method(rb_cRubyString, "gsub", rstr_gsub, -1);
