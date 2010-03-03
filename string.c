@@ -2613,6 +2613,26 @@ rstr_ord(VALUE str, SEL sel)
 
 /*
  *  call-seq:
+ *     str.to_f   => float
+ *  
+ *  Returns the result of interpreting leading characters in <i>str</i> as a
+ *  floating point number. Extraneous characters past the end of a valid number
+ *  are ignored. If there is not a valid number at the start of <i>str</i>,
+ *  <code>0.0</code> is returned. This method never raises an exception.
+ *     
+ *     "123.45e1".to_f        #=> 1234.5
+ *     "45.67 degrees".to_f   #=> 45.67
+ *     "thx1138".to_f         #=> 0.0
+ */
+
+static VALUE
+rstr_to_f(VALUE str, SEL sel)
+{
+    return DOUBLE2NUM(rb_str_to_dbl(str, Qfalse));
+}
+
+/*
+ *  call-seq:
  *     str.chomp!(separator=$/)   => str or nil
  *  
  *  Modifies <i>str</i> in place as described for <code>String#chomp</code>,
@@ -3937,6 +3957,7 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "hex", rstr_hex, 0);
     rb_objc_define_method(rb_cRubyString, "oct", rstr_oct, 0);
     rb_objc_define_method(rb_cRubyString, "ord", rstr_ord, 0);
+    rb_objc_define_method(rb_cRubyString, "to_f", rstr_to_f, 0);
     rb_objc_define_method(rb_cRubyString, "chomp", rstr_chomp, -1);
     rb_objc_define_method(rb_cRubyString, "chomp!", rstr_chomp_bang, -1);
     rb_objc_define_method(rb_cRubyString, "sub", rstr_sub, -1);
