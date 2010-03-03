@@ -3599,6 +3599,31 @@ rstr_each_char(VALUE str, SEL sel)
     return str;
 }
 
+/*
+ *  call-seq:
+ *     str.succ   => new_str
+ *     str.next   => new_str
+ *  
+ *  Returns the successor to <i>str</i>. The successor is calculated by
+ *  incrementing characters starting from the rightmost alphanumeric (or
+ *  the rightmost character if there are no alphanumerics) in the
+ *  string. Incrementing a digit always results in another digit, and
+ *  incrementing a letter results in another letter of the same case.
+ *  Incrementing nonalphanumerics uses the underlying character set's
+ *  collating sequence.
+ *     
+ *  If the increment generates a ``carry,'' the character to the left of
+ *  it is incremented. This process repeats until there is no carry,
+ *  adding an additional character if necessary.
+ *     
+ *     "abcd".succ        #=> "abce"
+ *     "THX1138".succ     #=> "THX1139"
+ *     "<<koala>>".succ   #=> "<<koalb>>"
+ *     "1999zzz".succ     #=> "2000aaa"
+ *     "ZZZ9999".succ     #=> "AAAA0000"
+ *     "***".succ         #=> "**+"
+ */
+
 static VALUE
 rstr_succ(VALUE str, SEL sel)
 {
@@ -3670,6 +3695,15 @@ rstr_succ(VALUE str, SEL sel)
     free(chars_buf);
     return newstr;
 }
+
+/*
+ *  call-seq:
+ *     str.succ!   => str
+ *     str.next!   => str
+ *  
+ *  Equivalent to <code>String#succ</code>, but modifies the receiver in
+ *  place.
+ */
 
 static VALUE
 rstr_succ_bang(VALUE str, SEL sel)
