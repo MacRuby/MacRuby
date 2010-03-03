@@ -1175,6 +1175,24 @@ rstr_alloc(VALUE klass, SEL sel)
 
 /*
  *  call-seq:
+ *     String.try_convert(obj) -> string or nil
+ *
+ *  Try to convert <i>obj</i> into a String, using to_str method.
+ *  Returns converted regexp or nil if <i>obj</i> cannot be converted
+ *  for any reason.
+ *
+ *     String.try_convert("str")     # => str
+ *     String.try_convert(/re/)      # => nil
+ */
+
+static VALUE
+rstr_try_convert(VALUE self, SEL sel, VALUE other)
+{
+    return rb_check_string_type(other);
+}
+
+/*
+ *  call-seq:
  *     String.new(str="")   => new_str
  *  
  *  Returns a new string object containing a copy of <i>str</i>.
@@ -3873,6 +3891,8 @@ Init_String(void)
     rb_const_set(rb_cObject, rb_intern("String"), rb_cRubyString);
 
     rb_objc_define_method(*(VALUE *)rb_cRubyString, "alloc", rstr_alloc, 0);
+    rb_objc_define_method(*(VALUE *)rb_cRubyString, "try_convert",
+	    rstr_try_convert, 1);
     rb_objc_define_method(rb_cRubyString, "initialize", rstr_initialize, -1);
     rb_objc_define_method(rb_cRubyString, "initialize_copy", rstr_replace, 1);
     rb_objc_define_method(rb_cRubyString, "dup", rstr_dup, 0);
