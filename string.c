@@ -23,6 +23,7 @@
 #include "vm.h"
 
 #include <unicode/unum.h>
+#include <unicode/utrans.h>
 
 VALUE rb_cString;
 VALUE rb_cNSString;
@@ -4343,6 +4344,61 @@ rstr_upto(VALUE str, SEL sel, int argc, VALUE *argv)
     return beg;
 }
 
+// :nodoc
+static VALUE
+rstr_transform(VALUE str, SEL sel, VALUE transform_pat)
+{
+    StringValue(transform_pat);
+
+    UChar *new_chars = NULL;
+    long new_chars_len = 0;
+    bool need_free = false;
+    rb_str_get_uchars(str, &new_chars, &new_chars_len, &need_free);
+
+    if (new_chars_len == 0) {
+	return Qnil;
+    }
+
+    if (!need_free) {
+	UChar *tmp = (UChar *)malloc(sizeof(UChar) * new_chars_len);
+	memcpy(tmp, new_chars, sizeof(UChar) * new_chars_len);
+	new_chars = tmp;
+    }
+
+    UChar *transform_chars = NULL;
+    long transform_chars_len = 0;
+    need_free = false;
+    rb_str_get_uchars(transform_pat, &transform_chars, &transform_chars_len,
+	    &need_free);
+
+    UErrorCode status = U_ZERO_ERROR;
+    UTransliterator *trans = utrans_openU(transform_chars, transform_chars_len,
+	    UTRANS_FORWARD, NULL, 0, NULL, &status);
+
+    if (trans == NULL) {
+	if (need_free) {
+	    free(transform_chars);
+	}
+	rb_raise(rb_eArgError, "cannot create transliterator");
+    }
+
+    int32_t capacity = (int32_t)new_chars_len;
+    int32_t limit = capacity;
+    utrans_transUChars(trans, new_chars, &capacity, capacity,
+	    0, &limit, &status);
+
+    new_chars_len = (long)capacity;
+
+    VALUE newstr = rb_unicode_str_new(new_chars, new_chars_len);
+
+    if (need_free) {
+	free(transform_chars);
+    }
+    free(new_chars);
+
+    return newstr;
+}
+
 // NSString primitives.
 
 static void
@@ -4512,7 +4568,10 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "next!", rstr_succ_bang, 0);
     rb_objc_define_method(rb_cRubyString, "upto", rstr_upto, -1);
 
-    // Added for MacRuby (debugging).
+    // MacRuby extensions.
+    rb_objc_define_method(rb_cRubyString, "transform", rstr_transform, 1);
+
+    // MacRuby extensions (debugging).
     rb_objc_define_method(rb_cRubyString, "__chars_count__",
 	    rstr_chars_count, 0);
     rb_objc_define_method(rb_cRubyString, "__getchar__", rstr_getchar, 1);
