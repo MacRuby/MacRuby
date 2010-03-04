@@ -47,8 +47,8 @@ module Dispatch
       # Takes events: :delete, :write, :extend, :attrib, :link, :rename, :revoke
       # Returns Dispatch::Source of type PROC
       def process(pid, events, queue = Dispatch::Queue.concurrent, &block)
-        mask = events2mask(events, @@procs)
-        Dispatch::Source.new(Dispatch::Source::PROC, pid, mask, queue, &block)
+        events = events2mask(events) if not events.respond_to? :to_int
+        Dispatch::Source.new(Dispatch::Source::PROC, pid, events, queue, &block)
       end
 
       # Returns Dispatch::Source of type SIGNAL
@@ -70,7 +70,7 @@ module Dispatch
       # Takes events: :exit, :fork, :exec, :signal
       # Returns Dispatch::Source of type VNODE
       def file(file, events, queue = Dispatch::Queue.concurrent, &block)
-        mask = events2mask(events, @@vnodes)
+        mask = events2mask(events)
         Dispatch::Source.new(Dispatch::Source::VNODE, file, mask, queue, &block)
       end
 

@@ -249,11 +249,10 @@ Passes each object and returns nil if none match. Similar to +find+, it returns 
 In addition to scheduling blocks directly, GCD makes it easy to run a block in response to various system events via a Source, which supports:
 
 * Timers
+* Custom events
 * Signals
 * File descriptors and sockets
 * Process state changes
-* Mach ports
-* Custom application-specific events
 	
 When the source “fires,” GCD will schedule the _handler_ block on the specific queue if it is not currently running, or -- more importantly -- coalesce pending events if it is. This provides excellent responsiveness without the expense of either polling or binding a thread to the event source.  Plus, since the handler is never run more than once at a time, the block doesn’t even need to be reentrant -- and thus you don't need to +synchronize+ any variables that are only used there.
 
@@ -262,7 +261,7 @@ When the source “fires,” GCD will schedule the _handler_ block on the specif
 We'll start with a simple example: a +periodic+ timer that runs every 0.9 seconds and prints out the number of pending events:
 
 	timer = Source.periodic(0.9) { |src| puts src.data }
-	sleep 2 # => 1 1
+	sleep 2 # => 1 1 ...
 
 === Source#data
 
@@ -282,7 +281,7 @@ You can suspend a source at any time to prevent it from running another block, t
 If you change your mind, you can always +resume!+ the source:
 
 	timer.resume!
-	sleep 2 # => 2 1
+	sleep 2 # => 2 1 ...
 
 If the +Source+ has fired one or more times, it will schedule a block containing the coalesced events. In this case, we were suspended for over 2 intervals, so the pending block will fire with +data+ being at least 2.  
 
@@ -296,7 +295,7 @@ Cancellation is particularly significant in MacRuby's implementation of GCD, sin
 
 === Custom Sources
 
-Next up are _custom_ or _application-specific_ sources, which are fired explicitly by the developer instead of in response to an external event.  These can also be considered the primitive upon which other sources are built.
+Next up are _custom_ or _application-specific_ sources, which are fired explicitly by the developer instead of in response to an external event.  These simple behaviors are the primitive upon which other sources are built.
 
 ==== Source.add
 
@@ -305,7 +304,7 @@ The +add+ source accumulates the sum of the event data (e.g., for numbers):
 	@sum = 0
 	adder = Dispatch::Source.add { |s| @sum += s.data;  }
 
-Note that we use an instance variable (since it is re-assigned), but we don't need to +synchronize+ it since the event handler does not need to be reentrant.
+Note that we use an instance variable (since it is re-assigned), but we don't have to +synchronize+ it since the event handler does not need to be reentrant.
 
 ==== Source#<<
 
@@ -313,7 +312,7 @@ To fire a custom source, we invoke what GCD calls a _merge_ using the shovel ope
 
 	adder << 1 # => "add 1 -> 1"
 
-The name makes more sense when you see the source firing multiple times:
+The name "merge" makes more sense when you see it coalesce multiple firings into a single handler:
 
 	adder.suspend!
 	adder << 3
@@ -321,7 +320,7 @@ The name makes more sense when you see the source firing multiple times:
 	adder.resume! # => "add 8 -> 9"
 	adder.cancel!
 
-Since the block isn't running, GCD automatically _merges_ the results together using addition.  This is useful for tracking cumulative results across multiple threads, e.g. for a progress viewer.  Note that is also the same event coalescing behavior used by +periodic+.
+Since the source is suspended -- mimicking what would happen if your event handler was busy at the time -- GCD automatically _merges_ the results together using addition.  This is useful for tracking cumulative results across multiple threads, e.g. for a progress viewer.  Notice that this is also the same event coalescing behavior used by +periodic+.
 
 ==== Source.or
 
@@ -336,20 +335,46 @@ Similarly, the +or+ source combines events using a logical OR (e.g, for booleans
 	puts  "%b" % @mask # => 1011
 	masker.cancel!
 
-This is primarily useful communicating what _kinds_ of events have taken place since the last time the handler fired.
-
----
-= UNDER CONSTRUCTION = 
+This is primarily useful flagging what _kinds_ of events have taken place since the last time the handler fired.
 
 === Process Sources
 
+Next up are sources with deal with UNIX processes.
+
 ==== Source.process
 
-This +or+-style event.
+This +or+-style source takes and returns a mask of different events affecting the given process:
+
+exec::Dispatch::Source.PROC_EXEC
+exit::Dispatch::Source.PROC_EXIT
+fork::Dispatch::Source.PROC_FORK
+signal::Dispatch::Source.PROC_SIGNAL
+
+The API primarily treats these as integers, e.g.:
+
+@src = Dispatch::Source.process($$, %w(exit fork exec signal),
+
+ but the wrapper allows you to optinally specify them as symbols (or strings), and convert them bitfield into an array of symbols
+
+	@signal = Signal.list["USR1"]
+	@events = []
+	@src = Dispatch::Source.process($$, %w(exit fork exec signal), @q) do 
+	   |s| @events = Dispatch::Source.data2events(s.data)
+	end
+	Signal.trap(@signal, "IGNORE")
+	Process.kill(@signal, $$)
+	Signal.trap(@signal, "DEFAULT")
+	@q.sync {}
+	@event.should.include? :signal > 0
+
+
 
 ==== Source.signal
 
 This +add+-style event.
+
+---
+= UNDER CONSTRUCTION = 
 
 === File Sources
 

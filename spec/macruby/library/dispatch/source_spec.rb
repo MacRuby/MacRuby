@@ -39,16 +39,31 @@ if MACOSX_VERSION >= 10.6
     describe "process" do
       it "fires with data indicating which process event(s)" do
         @signal = Signal.list["USR1"]
-        @event = nil
+        @events = []
         @src = Dispatch::Source.process($$, %w(exit fork exec signal), @q) do 
-           |s| @event = s.data
+           |s| @events += Dispatch::Source.data2events(s.data)
         end
+        Signal.trap(@signal, "IGNORE")
+        Process.kill(@signal, $$)
+        Signal.trap(@signal, "DEFAULT")
+        @q.sync {}
+        @event.should.include? :signal
+      end
+      
+      it "can use bitfields as well as arrays to describe events " do
+        @signal = Signal.list["USR1"]
+        mask = Dispatch::Source::PROC_EXIT | Dispatch::Source::PROC_SIGNAL 
+        @event = 0
+        @src = Dispatch::Source.process($$, mask, @q) { |s| @event = s.data }
         Signal.trap(@signal, "IGNORE")
         Process.kill(@signal, $$)
         Signal.trap(@signal, "DEFAULT")
         @q.sync {}
         (@event & Dispatch::Source.event2num(:signal)).should > 0
       end
+      
+      
+      
     end
 
     describe "signal" do
