@@ -2395,15 +2395,17 @@ str_inspect(rb_str_t *str, bool dump)
     const long len = uchars
 	? str_length(str, true) : str->length_in_bytes;
 
+    VALUE result;
     if (len == 0) {
-	return rb_str_new2("\"\"");
+	result = rb_str_new2("\"\"");
+	goto bail;
     }
 
     // Allocate an UTF-8 string with a good initial capacity.
     // Binary strings will likely have most bytes escaped.
     const long result_init_len =
 	BINARY_ENC(str->encoding) ? (len * 5) + 2 : len + 2;
-    VALUE result = rb_unicode_str_new(NULL, result_init_len);
+    result = rb_unicode_str_new(NULL, result_init_len);
 
 #define GET_UCHAR(pos) \
     ((uchars \
@@ -2464,6 +2466,10 @@ str_inspect(rb_str_t *str, bool dump)
    
 #undef GET_UCHAR
 
+bail:
+    if (OBJ_TAINTED(str)) {
+	OBJ_TAINT(result);
+    }
     return result; 
 }
 
@@ -2484,7 +2490,9 @@ rstr_inspect(VALUE self, SEL sel)
 static VALUE
 rstr_dump(VALUE self, SEL sel)
 {
-    return str_inspect(RSTR(self), true);
+    VALUE res = str_inspect(RSTR(self), true);
+    *(VALUE *)res = *(VALUE *)self;
+    return res;
 }
 
 /*
