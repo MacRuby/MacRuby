@@ -111,7 +111,7 @@ This is actually the same type of object used to manage the list of +values+:
 
 	puts job.values.class # => Dispatch::Proxy
 	
-=== method_missing: Using Proxies
+=== Proxy#method_missing: Using Proxies
 
 The Proxy object can be called just as it if were the delegate object:
 
@@ -131,7 +131,7 @@ As with Dispatch::Job, you can make any invocation asynchronous by passing a blo
 
 	@hash.inspect { |s| p s } # => {64 => 1.0E32, 100 => 1.0E50}
 
-=== \_\_value\_\_: Returning Delegate
+=== Proxy#\_\_value\_\_: Returning Delegate
 
 If for any reason you need to retrieve the delegate object, simply call +__value__+:
 
@@ -262,10 +262,12 @@ We'll start with a simple example: a +periodic+ timer that runs every 0.9 second
 
 	timer = Source.periodic(0.9) { |src| puts src.data }
 	sleep 2 # => 1 1 ...
+	
+If you're familiar with the C API for GCD, be aware that a +Dispatch::Source+ is fully configured at the time of instantiation, and does not need to be +resume+d.
 
 === Source#data
 
-As you can see above, the handler  gets called with the source itself as a parameter, which allows you query it for the source's +data+. The meaning of the data varies with the type of +Source+, though it is always an integer. Most commonly -- as in this case -- it is a count of the number of events being processed, and thus "1".
+As you can see above, the handle  gets called with the source itself as a parameter, which allows you query it for the source's +data+. The meaning of the data varies with the type of +Source+, though it is always an integer. Most commonly -- as in this case -- it is a count of the number of events being processed, and thus "1".
 
 === Source#suspend!
 
@@ -320,7 +322,7 @@ The name "merge" makes more sense when you see it coalesce multiple firings into
 	adder.resume! # => "add 8 -> 9"
 	adder.cancel!
 
-Since the source is suspended -- mimicking what would happen if your event handler was busy at the time -- GCD automatically _merges_ the results together using addition.  This is useful for tracking cumulative results across multiple threads, e.g. for a progress viewer.  Notice that this is also the same event coalescing behavior used by +periodic+.
+Since the source is suspended -- mimicking what would happen if your event handler was busy at the time -- GCD automatically _merges_ the results together using addition.  This is useful for tracking cumulative results across multiple threads, e.g. for a parallel progress viewer.  Notice that this is also the same event coalescing behavior used by +periodic+.
 
 ==== Source.or
 
@@ -350,23 +352,39 @@ exit::Dispatch::Source.PROC_EXIT
 fork::Dispatch::Source.PROC_FORK
 signal::Dispatch::Source.PROC_SIGNAL
 
-The API primarily treats these as integers, e.g.:
+[WARNING: +Thread#fork+ is currently not supported by MacRuby]
 
-@src = Dispatch::Source.process($$, %w(exit fork exec signal),
+The API primarily treats these values as integers, e.g.:
 
- but the wrapper allows you to optinally specify them as symbols (or strings), and convert them bitfield into an array of symbols
+	@event = 0
+	mask = Dispatch::Source::PROC_EXIT | Dispatch::Source::PROC_SIGNAL 
+	src = Dispatch::Source.process($$, mask) do |s|
+		@event |= s.data
+	end
+	
+In this case, we are watching the current process for +signal+ and (less helpfully) +exit+ events .  
+	
+To fire the event, we can, e.g., send a signal [WARNING: Signals are only partially implemented in the current version of MacRuby, and may give erratic results]:
 
 	@signal = Signal.list["USR1"]
-	@events = []
-	@src = Dispatch::Source.process($$, %w(exit fork exec signal), @q) do 
-	   |s| @events = Dispatch::Source.data2events(s.data)
-	end
 	Signal.trap(@signal, "IGNORE")
 	Process.kill(@signal, $$)
 	Signal.trap(@signal, "DEFAULT")
-	@q.sync {}
-	@event.should.include? :signal > 0
+	
+And you check for them by _and_ing against the flag:
 
+	puts "%b" % (@event & Dispatch::Source::PROC_SIGNAL) # => 1000000000000000000000000000
+
+
+==== Source#data2events
+	
+Alternatively, you can pass in array of names (symbols or strings) for the mask, and use +data2events+ to convert the bitfield into an array of symbols
+
+	@signal = Signal.list["USR1"]
+	@events = []
+	@src = Dispatch::Source.process($$, %w(exit fork exec signal)) do |s|
+	   |s| @events << Dispatch::Source.data2events(s.data)
+	end
 
 
 ==== Source.signal
