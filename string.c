@@ -4399,6 +4399,61 @@ rstr_transform(VALUE str, SEL sel, VALUE transform_pat)
     return newstr;
 }
 
+/*
+ *  call-seq:
+ *     str.reverse!   => str
+ *  
+ *  Reverses <i>str</i> in place.
+ */
+
+static VALUE
+rstr_reverse_bang(VALUE str, SEL sel)
+{
+    rstr_modify(str);
+
+    if (str_try_making_data_uchars(RSTR(str))) {
+	const long len = BYTES_TO_UCHARS(RSTR(str)->length_in_bytes);
+	if (len <= 1) {
+	    return str;
+	}
+	for (long i = 0; i < (len / 2); i++) {
+	    UChar c = RSTR(str)->data.uchars[i];
+	    RSTR(str)->data.uchars[i] = RSTR(str)->data.uchars[len - i - 1];
+	    RSTR(str)->data.uchars[len - i - 1] = c; 
+	}
+    }
+    else {
+	const long len = RSTR(str)->length_in_bytes;
+	if (len <= 1) {
+	    return str;
+	}
+	for (long i = 0; i < (len / 2); i++) {
+	    char c = RSTR(str)->data.bytes[i];
+	    RSTR(str)->data.bytes[i] = RSTR(str)->data.bytes[len - i - 1];
+	    RSTR(str)->data.bytes[len - i - 1] = c; 
+	}
+    }
+
+    return str;
+}
+
+/*
+ *  call-seq:
+ *     str.reverse   => new_str
+ *  
+ *  Returns a new string with the characters from <i>str</i> in reverse order.
+ *     
+ *     "stressed".reverse   #=> "desserts"
+ */
+
+static VALUE
+rstr_reverse(VALUE str, SEL sel)
+{
+    VALUE obj = rb_str_new3(str);
+    rstr_reverse_bang(obj, 0);
+    return obj;
+}
+
 // NSString primitives.
 
 static void
@@ -4567,6 +4622,8 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "next", rstr_succ, 0);
     rb_objc_define_method(rb_cRubyString, "next!", rstr_succ_bang, 0);
     rb_objc_define_method(rb_cRubyString, "upto", rstr_upto, -1);
+    rb_objc_define_method(rb_cRubyString, "reverse", rstr_reverse, 0);
+    rb_objc_define_method(rb_cRubyString, "reverse!", rstr_reverse_bang, 0);
 
     // MacRuby extensions.
     rb_objc_define_method(rb_cRubyString, "transform", rstr_transform, 1);
@@ -4575,7 +4632,7 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "__chars_count__",
 	    rstr_chars_count, 0);
     rb_objc_define_method(rb_cRubyString, "__getchar__", rstr_getchar, 1);
-    rb_objc_define_method(rb_cRubyString, "__stored_in_uchars?__",
+    rb_objc_define_method(rb_cRubyString, "__stored_in_uchars__?",
 	    rstr_is_stored_in_uchars, 0);
 
     // Cocoa primitives.
