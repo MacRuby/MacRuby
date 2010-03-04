@@ -2135,6 +2135,77 @@ rstr_cmp(VALUE self, SEL sel, VALUE other)
 }
 
 /*
+ *  call-seq:
+ *     str.casecmp(other_str)   => -1, 0, +1 or nil
+ *
+ *  Case-insensitive version of <code>String#<=></code>.
+ *
+ *     "abcdef".casecmp("abcde")     #=> 1
+ *     "aBcDeF".casecmp("abcdef")    #=> 0
+ *     "abcdef".casecmp("abcdefg")   #=> -1
+ *     "abcdef".casecmp("ABCDEF")    #=> 0
+ */
+
+static VALUE
+rstr_casecmp(VALUE str, SEL sel, VALUE other)
+{
+    StringValue(other);
+
+    rb_str_t *self_str = RSTR(str);
+    rb_str_t *other_str = str_need_string(other);
+    if (self_str == other_str
+	|| (self_str->length_in_bytes == 0
+	    && other_str->length_in_bytes == 0)) {
+	return INT2FIX(0);
+    }
+
+    if (str_compatible_encoding(self_str, other_str) == NULL) {
+	// incompatible encodings
+	return Qnil;
+    }
+
+    if (str_is_stored_in_uchars(self_str)
+	    != str_is_stored_in_uchars(other_str)) {
+	// one is in uchars and the other is in binary
+	if (!str_try_making_data_uchars(self_str)
+		|| !str_try_making_data_uchars(other_str)) {
+	    // one is in uchars but the other one can't be converted in
+	    // uchars
+	    return Qnil;
+	}
+    }
+
+    const long min_length =
+	self_str->length_in_bytes < other_str->length_in_bytes
+	? self_str->length_in_bytes : other_str->length_in_bytes;
+
+    if (str_is_stored_in_uchars(other_str)) {
+	for (long i = 0; i < BYTES_TO_UCHARS(min_length); i++) {
+	    UChar c1 = toupper(self_str->data.uchars[i]);
+	    UChar c2 = toupper(other_str->data.uchars[i]);
+	    if (c1 != c2) {
+		return INT2FIX(c1 < c2 ? -1 : 1);
+	    }
+	}
+    }
+    else {
+	for (long i = 0; i < min_length; i++) {
+	    char c1 = toupper(self_str->data.bytes[i]);
+	    char c2 = toupper(other_str->data.bytes[i]);
+	    if (c1 != c2) {
+		return INT2FIX(c1 < c2 ? -1 : 1);
+	    }
+	}
+    }
+
+    if (self_str->length_in_bytes == other_str->length_in_bytes) {
+	return INT2FIX(0);
+    }
+    return self_str->length_in_bytes > other_str->length_in_bytes
+	? INT2FIX(1) : INT2FIX(-1);
+}
+
+/*
  * call-seq:
  *   str.eql?(other)   => true or false
  *
@@ -4372,6 +4443,7 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "concat", rstr_concat, 1);
     rb_objc_define_method(rb_cRubyString, "==", rstr_equal, 1);
     rb_objc_define_method(rb_cRubyString, "<=>", rstr_cmp, 1);
+    rb_objc_define_method(rb_cRubyString, "casecmp", rstr_casecmp, 1);
     rb_objc_define_method(rb_cRubyString, "eql?", rstr_eql, 1);
     rb_objc_define_method(rb_cRubyString, "include?", rstr_includes, 1);
     rb_objc_define_method(rb_cRubyString, "start_with?", rstr_start_with, -1);
