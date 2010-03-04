@@ -144,7 +144,7 @@ As elsewhere in Ruby, the "__" namespace implies "internal" methods, in this cas
 
 ====  Caveat: Local Variables
 
-Because Dispatch blocks may execute after the local context has gone away, you should always store Proxy objects in a non-local  variable: instance, class, or global -- anything with a sigil[http://en.wikipedia.org/wiki/Sigil_(computer_programming)]. 
+Because Dispatch blocks may execute after the local context has gone away, you should always store Proxy objects in a non-local variable: instance, class, or global -- anything with a sigil[http://en.wikipedia.org/wiki/Sigil_(computer_programming)]. 
 
 Note that we can as usual _access_ local variables from inside the block; GCD automatically copies them, which is why this works as expected:
 
@@ -168,7 +168,7 @@ The general rule is to "do *not* assign to external variables inside a Dispatch 
 
 == Dispatch Enumerable: Parallel Iterations
 
-Jobs are useful when you want to run a single item in the background or to run many different operations at once. But if you want to run the _same_ operation multiple times, you can take advantage of specialized GCD iterators.  The Dispatch module defines "p_" variants of common Ruby iterators, making it trivial to parellelize existing operations.  
+Jobs are useful when you want to run a single item in the background or to run many different operations at once. But if you want to run the _same_ operation multiple times, you can take advantage of specialized GCD iterators.  The Dispatch module defines "p_" variants of common Ruby iterators, making it trivial to parallelize existing operations.  
 
 In addition, for simplicity they all are _synchronous_, meaning they won't return until all the work has completed.
 
@@ -178,13 +178,13 @@ The simplest iteration is defined on the +Integer+ class, and passes the index t
 
 	5.p_times { |i| puts 10**i } # => 1  100 1000 10 10000 
 	
-Note that even though the iterator as a whole is synchronous, and blocks are scheduled in the order received, each block runs independently and  therefore may complete out of order.
+Note that even though the iterator as a whole is synchronous, and blocks are scheduled in the order received, each block runs independently and therefore may complete out of order.
 
 This does add some overhead compared to the non-parallel version, so if you have a large number of relatively cheap iterations you can batch them together by specifying a +stride+:
 
 	5.p_times(3) { |i| puts 10**i } # =>1000 10000 1 10 100 
 
-It doesn't change the result, but schedules fewer blocks thus amortizing the overhead over more work. Note that items _within_ a stride are executed in the original order, but no order is guaranteed _between_ strides.
+It doesn't change the result, but schedules fewer blocks thus amortizing the overhead over more work. Note that items _within_ a stride are executed completely in the original order, but no order is guaranteed _between_ strides.
 
 The +p_times+ method is used to implement several convenience methods on +Enumerable+, which are therefore available from any class which mixes that in (e.g, +Array+, +Hash+, etc.). These also can take an optional stride.
 
@@ -306,7 +306,7 @@ The +add+ source accumulates the sum of the event data (e.g., for numbers):
 	@sum = 0
 	adder = Dispatch::Source.add { |s| @sum += s.data;  }
 
-Note that we use an instance variable (since it is re-assigned), but we don't have to +synchronize+ it since the event handler does not need to be reentrant.
+Note that we use an instance variable (since it is re-assigned), but we don't have to +synchronize+ it -- and can safely re-assign it -- since the event handler does not need to be reentrant.
 
 ==== Source#<<
 
@@ -341,60 +341,94 @@ This is primarily useful flagging what _kinds_ of events have taken place since 
 
 === Process Sources
 
-Next up are sources with deal with UNIX processes.
+Next up are sources which deal with UNIX processes.
 
 ==== Source.process
 
-This +or+-style source takes and returns a mask of different events affecting the given process:
+This +or+-style source takes and returns a mask of different events affecting the specified +process+:
 
 exec::Dispatch::Source.PROC_EXEC
 exit::Dispatch::Source.PROC_EXIT
 fork::Dispatch::Source.PROC_FORK
 signal::Dispatch::Source.PROC_SIGNAL
 
-[WARNING: +Thread#fork+ is currently not supported by MacRuby]
+_[WARNING: +Thread#fork+ is currently not supported by MacRuby]_
 
-The API primarily treats these values as integers, e.g.:
+The underlying API expects and returns integers, e.g.:
 
 	@event = 0
 	mask = Dispatch::Source::PROC_EXIT | Dispatch::Source::PROC_SIGNAL 
-	src = Dispatch::Source.process($$, mask) do |s|
+	proc = Dispatch::Source.process($$, mask) do |s|
 		@event |= s.data
 	end
 	
-In this case, we are watching the current process for +signal+ and (less helpfully) +exit+ events .  
-	
-To fire the event, we can, e.g., send a signal [WARNING: Signals are only partially implemented in the current version of MacRuby, and may give erratic results]:
-
-	@signal = Signal.list["USR1"]
-	Signal.trap(@signal, "IGNORE")
-	Process.kill(@signal, $$)
-	Signal.trap(@signal, "DEFAULT")
-	
-And you check for them by _and_ing against the flag:
-
-	puts "%b" % (@event & Dispatch::Source::PROC_SIGNAL) # => 1000000000000000000000000000
-
+In this case, we are watching the current process ('$$') for +:signal+ and (less usefully :-) +:exit+ events .  
 
 ==== Source#data2events
 	
-Alternatively, you can pass in array of names (symbols or strings) for the mask, and use +data2events+ to convert the bitfield into an array of symbols
+Alternatively, you can pass in array of names (symbols or strings) for the mask, and use +data2events+ to convert the returned data into an array of symbols
 
-	@signal = Signal.list["USR1"]
 	@events = []
-	@src = Dispatch::Source.process($$, %w(exit fork exec signal)) do |s|
+	mask2 = [:exit, :fork, :exec, signal]
+	proc2 = Dispatch::Source.process($$, mask2) do |s|
 	   |s| @events << Dispatch::Source.data2events(s.data)
 	end
 
+==== Source.process Example
+
+_[WARNING: Signals are only partially implemented in the current version of MacRuby, and may give erratic results]_
+
+To fire the event, we can, e.g., send a un-trapped signal :
+
+	sig_usr1 = Signal.list["USR1"]
+	Signal.trap(sig_usr1, "IGNORE")
+	Process.kill(sig_usr1, $$)
+	Signal.trap(sig_usr1, "DEFAULT")
+
+You can check which flags were set by _and_ing against the bitmask:
+
+	result = "%b" % (@event & mask) # => 1000000000000000000000000000 # Dispatch::Source::PROC_SIGNAL
+	proc.cancel!
+
+Or equivalently, against the array:
+
+	result2 = (@events & mask2) # => [:signal]
+	proc2.cancel!
+
+==== Source#event2num
+
+You can convert from symbol to int via +event2num+:
+
+	puts result == Dispatch::Source#event2num(result2[0]) # => true
+
+==== Source#event2num
+
+Similarly,  use +num2event+ to turn an int into a symbol:
+
+	put result2[0] == Dispatch::Source#num2event(result) # => true
 
 ==== Source.signal
 
-This +add+-style event.
+This +Source+ overlaps with the previous one, but uses +add+ to track the number of times that a specific +signal+ was fired against the *current* process:
 
----
-= UNDER CONSTRUCTION = 
+	@count = 0
+	sig_usr2 = Signal.list["USR2"]
+
+	signal = Dispatch::Source.signal(sig_usr2) do |s|
+		@count = s.data
+	end
+
+	signal.suspend!
+	Signal.trap(sig_usr2, "IGNORE")
+	3.times { Process.kill(sig_usr2, $$) }
+	Signal.trap(sig_usr2, "DEFAULT")
+	signal.resume!
+	puts @count # => 3
+
 
 === File Sources
+
+Next up are sources which deal with file operations -- actually, anything that modifies a vnode, including sockets and pipes.
 
 ==== Source.file
 
@@ -437,7 +471,12 @@ The cancellation will be invoked from the event handler on, e.g., end of file:
 
 To avoid bogging down the reads, the event handler packages up the data in a my_work_t and schedules the processing in another block.  This separation of  concerns is known as the producer/consumer pattern, and maps very naturally to Grand Central Dispatch queues.  In case of imbalance, you may need to adjust the relative priorities of the producer and consumer queues or throttle them using semaphores.
 
+---
+= UNDER CONSTRUCTION = 
+
 == Semaphores 
+
+
 
 Finally, GCD has an efficient, general-purpose signaling mechanism known as dispatch semaphores.  These are most commonly used to throttle usage of scarce resources, but can also help track completed work:  
 
