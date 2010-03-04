@@ -592,6 +592,7 @@ unsigned long rb_str_hash(VALUE);
 int rb_str_hash_cmp(VALUE,VALUE);
 int rb_str_comparable(VALUE, VALUE);
 int rb_str_cmp(VALUE, VALUE);
+int rb_str_casecmp(VALUE, VALUE);
 VALUE rb_str_equal(VALUE str1, VALUE str2);
 void rb_str_update(VALUE, long, long, VALUE);
 VALUE rb_str_split(VALUE, const char*);

@@ -251,6 +251,23 @@ rsym_cmp(VALUE sym, SEL sel, VALUE other)
 }
 
 /*
+ * call-seq:
+ *
+ *   sym.casecmp(other)  => -1, 0, +1 or nil
+ *
+ * Case-insensitive version of <code>Symbol#<=></code>.
+ */
+
+static VALUE
+rsym_casecmp(VALUE sym, SEL sel, VALUE other)
+{
+    if (TYPE(other) != T_SYMBOL) {
+	return Qnil;
+    }
+    return INT2FIX(rb_str_casecmp(RSYM(sym)->str, RSYM(other)->str));
+}
+
+/*
  *  call-seq:
  *     sym == obj   => true or false
  *  
@@ -401,6 +418,7 @@ Init_Symbol(void)
 
     rb_objc_define_method(rb_cSymbol, "==", rsym_equal, 1);
     rb_objc_define_method(rb_cSymbol, "<=>", rsym_cmp, 1);
+    rb_objc_define_method(rb_cSymbol, "casecmp", rsym_casecmp, 1);
     rb_objc_define_method(rb_cSymbol, "eql?", rsym_equal, 1);
     rb_objc_define_method(rb_cSymbol, "inspect", rsym_inspect, 0);
     rb_objc_define_method(rb_cSymbol, "to_proc", rsym_to_proc, 0);

@@ -887,6 +887,71 @@ str_compare(rb_str_t *self, rb_str_t *str)
     return res > 0 ? 1 : -1;
 }
 
+static int
+str_case_compare(rb_str_t *self, rb_str_t *str)
+{
+    if (self == str) {
+	return 0;
+    }
+
+    if (self->length_in_bytes == 0 && str->length_in_bytes == 0) {
+	// both strings are empty
+	return 0;
+    }
+
+    if (str_compatible_encoding(self, str) == NULL) {
+	// incompatible encodings
+	return -1;
+    }
+
+    if (str_is_stored_in_uchars(self)
+	    != str_is_stored_in_uchars(str)) {
+	// one is in uchars and the other is in binary
+	if (!str_try_making_data_uchars(self)
+		|| !str_try_making_data_uchars(str)) {
+	    // one is in uchars but the other one can't be converted in
+	    // uchars
+	    return -1;
+	}
+    }
+
+    const long min_length = self->length_in_bytes < str->length_in_bytes
+	? self->length_in_bytes : str->length_in_bytes;
+
+    if (str_is_stored_in_uchars(str)) {
+	for (long i = 0; i < BYTES_TO_UCHARS(min_length); i++) {
+	    UChar c1 = self->data.uchars[i];
+	    UChar c2 = str->data.uchars[i];
+	    if (c1 != c2) {
+		c1 = isascii(c1) ? toupper(c1) : c1;
+		c2 = isascii(c2) ? toupper(c2) : c2;
+		if (c1 != c2) {
+		    return c1 < c2 ? -1 : 1;
+		}
+	    }
+	}
+    }
+    else {
+	for (long i = 0; i < min_length; i++) {
+	    char c1 = self->data.bytes[i];
+	    char c2 = str->data.bytes[i];
+	    if (c1 != c2) {
+		c1 = isascii(c1) ? toupper(c1) : c1;
+		c2 = isascii(c2) ? toupper(c2) : c2;
+		if (c1 != c2) {
+		    return c1 < c2 ? -1 : 1;
+		}
+	    }
+	}
+    }
+
+    if (self->length_in_bytes == str->length_in_bytes) {
+	return 0;
+    }
+    return self->length_in_bytes > str->length_in_bytes ? 1 : -1;
+}
+
+
 static long
 str_offset_in_bytes_to_index(rb_str_t *self, long offset_in_bytes,
 	bool ucs2_mode)
@@ -2149,60 +2214,7 @@ rstr_cmp(VALUE self, SEL sel, VALUE other)
 static VALUE
 rstr_casecmp(VALUE str, SEL sel, VALUE other)
 {
-    StringValue(other);
-
-    rb_str_t *self_str = RSTR(str);
-    rb_str_t *other_str = str_need_string(other);
-    if (self_str == other_str
-	|| (self_str->length_in_bytes == 0
-	    && other_str->length_in_bytes == 0)) {
-	return INT2FIX(0);
-    }
-
-    if (str_compatible_encoding(self_str, other_str) == NULL) {
-	// incompatible encodings
-	return Qnil;
-    }
-
-    if (str_is_stored_in_uchars(self_str)
-	    != str_is_stored_in_uchars(other_str)) {
-	// one is in uchars and the other is in binary
-	if (!str_try_making_data_uchars(self_str)
-		|| !str_try_making_data_uchars(other_str)) {
-	    // one is in uchars but the other one can't be converted in
-	    // uchars
-	    return Qnil;
-	}
-    }
-
-    const long min_length =
-	self_str->length_in_bytes < other_str->length_in_bytes
-	? self_str->length_in_bytes : other_str->length_in_bytes;
-
-    if (str_is_stored_in_uchars(other_str)) {
-	for (long i = 0; i < BYTES_TO_UCHARS(min_length); i++) {
-	    UChar c1 = toupper(self_str->data.uchars[i]);
-	    UChar c2 = toupper(other_str->data.uchars[i]);
-	    if (c1 != c2) {
-		return INT2FIX(c1 < c2 ? -1 : 1);
-	    }
-	}
-    }
-    else {
-	for (long i = 0; i < min_length; i++) {
-	    char c1 = toupper(self_str->data.bytes[i]);
-	    char c2 = toupper(other_str->data.bytes[i]);
-	    if (c1 != c2) {
-		return INT2FIX(c1 < c2 ? -1 : 1);
-	    }
-	}
-    }
-
-    if (self_str->length_in_bytes == other_str->length_in_bytes) {
-	return INT2FIX(0);
-    }
-    return self_str->length_in_bytes > other_str->length_in_bytes
-	? INT2FIX(1) : INT2FIX(-1);
+    return INT2FIX(str_case_compare(RSTR(str), str_need_string(other)));
 }
 
 /*
@@ -5155,4 +5167,10 @@ int
 rb_str_cmp(VALUE str1, VALUE str2)
 {
     return str_compare(str_need_string(str1), str_need_string(str2));
+}
+
+int
+rb_str_casecmp(VALUE str1, VALUE str2)
+{
+    return str_case_compare(str_need_string(str1), str_need_string(str2));
 }
