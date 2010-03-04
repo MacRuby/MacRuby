@@ -1,3 +1,3 @@
-fails:Dispatch::Source process fires with data indicating which process event(s)
-fails:Dispatch::Source signal fires with data on how often the process was signaled
-fails:Dispatch::Source vnode file fires with data indicating which file event(s)
+fails:Dispatch::Source PROC process fires with data on process event(s)
+fails:Dispatch::Source PROC signal fires with data on signal count
+fails:Dispatch::Source PROC process can use bitfields as well as arrays

@@ -27,11 +27,11 @@ module Dispatch
       end
     
       def events2mask(events)
-        mask = events.collect { |e| convert(e) }.reduce(:|)
+        mask = events.collect { |e| event2num(e) }.reduce(:|)
       end
 
       def data2events(bitmask)
-        @@events.select {|k,v| v & bitmask }
+        @@events.collect { |k,v| k if (v & bitmask) > 0 }.compact
       end
 
       # Returns Dispatch::Source of type DATA_ADD
