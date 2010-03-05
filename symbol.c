@@ -52,26 +52,32 @@ rb_intern_str(VALUE str)
 
     rb_sym_t *sym = NULL;
 
-    const long chars_len = rb_str_chars_len(str);
+    UChar *chars = NULL;
+    long chars_len = 0;
+    bool need_free = false;
+    rb_str_get_uchars(str, &chars, &chars_len, &need_free);
+
+    long pos = 0;
     if (chars_len > 0) {
-	UChar c = rb_str_get_uchar(str, 0);
+	UChar c = chars[0];
 	switch (c) {
 	    case '$':
 		id = ID_GLOBAL;
-		break;
+		goto new_id;
 
 	    case '@':
-		if (chars_len > 1 && rb_str_get_uchar(str, 1) == '@') {
+		if (chars_len > 1 && chars[1] == '@') {
+		    pos++;
 		    id = ID_CLASS;
 		}
 		else {
 		    id = ID_INSTANCE;
 		}
+		pos++;
 		break;
 
 	    default:
-		if (chars_len > 1
-			&& rb_str_get_uchar(str, chars_len - 1) == '=') {
+		if (chars_len > 1 && chars[chars_len - 1] == '=') {
 		    // Attribute assignment.
 		    id = rb_intern_str(rb_str_substr(str, 0, chars_len - 1));
 		    if (!is_attrset_id(id)) {
@@ -90,6 +96,20 @@ rb_intern_str(VALUE str)
 	}
     }
 
+    if (pos < chars_len && !isdigit(chars[pos])) {
+	for (; pos < chars_len; pos++) {
+	    UChar c = chars[pos];
+	    if (isalnum(c) || c == '_' || !isascii(c)) {
+		continue;
+	    }
+	    break;
+	}
+    }
+    if (pos < chars_len) {
+	id = ID_JUNK;
+    }
+
+new_id:
     id |= ++last_id << ID_SCOPE_SHIFT;
 
 id_register:
@@ -98,6 +118,9 @@ id_register:
     CFDictionarySetValue(sym_id, (const void *)name_hash, (const void *)id);
     CFDictionarySetValue(id_str, (const void *)id, (const void *)sym);
 
+    if (need_free) {
+	free(chars);
+    }
     return id;
 }
 
