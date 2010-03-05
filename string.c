@@ -4462,6 +4462,291 @@ rstr_reverse(VALUE str, SEL sel)
     return obj;
 }
 
+/*
+ *  call-seq:
+ *     str.count([other_str]+)   => fixnum
+ *  
+ *  Each <i>other_str</i> parameter defines a set of characters to count.  The
+ *  intersection of these sets defines the characters to count in
+ *  <i>str</i>. Any <i>other_str</i> that starts with a caret (^) is
+ *  negated. The sequence c1--c2 means all characters between c1 and c2.
+ *     
+ *     a = "hello world"
+ *     a.count "lo"            #=> 5
+ *     a.count "lo", "o"       #=> 2
+ *     a.count "hello", "^l"   #=> 4
+ *     a.count "ej-m"          #=> 4
+ */
+
+static void
+intersect_tr_table(char *tbl, VALUE source)
+{
+    StringValue(source);
+
+    UChar *chars = NULL;
+    long chars_len = 0;
+    bool need_free = false;
+    rb_str_get_uchars(source, &chars, &chars_len, &need_free);
+
+    long pos = 0;
+    bool negate = false;
+    if (chars_len > 0 && chars[0] == '^') {
+	pos++;
+	negate = true;
+    }
+
+    char buf[0xff];
+    char cflag = negate ? 1 : 0;
+    for (int i = 0; i < 0xff; i++) {
+	buf[i] = cflag;
+    }
+
+    bool error = false;
+    cflag = negate ? 0 : 1;
+    while (pos < chars_len) {
+	UChar c = chars[pos];
+
+	if (pos + 2 < chars_len && chars[pos + 1] == '-') {
+	    // Range
+	    UChar e = chars[pos + 2];
+	    if (c > e) {
+		error = true;
+		break;
+	    }
+
+	    if (c < 0xff && e < 0xff) {
+		while (c <= e) {
+		    buf[c & 0xff] = cflag;
+		    c++; 
+		}
+	    }
+	    pos += 2;
+	}
+	else {
+	    if (c < 0xff) {
+		buf[c & 0xff] = cflag;
+	    }
+	    pos++;
+	}
+    }
+
+    if (need_free) {
+	free(chars);
+    }
+
+    if (error) {
+	rb_raise(rb_eArgError, "invalid string transliteration");
+    }
+
+    // Intersect both tables.
+    for (int i = 0; i < 0xff; i++) {
+	tbl[i] = tbl[i] && buf[i];
+    }
+}
+
+static void
+create_tr_table(char *tbl, int argc, VALUE *argv)
+{
+    if (argc < 1) {
+	rb_raise(rb_eArgError, "wrong number of arguments");
+    }
+
+    // Fill the table with 1s before starting the intersections.
+    for (int i = 0; i < 0xff; i++) {
+	tbl[i] = 1;
+    }
+
+    for (int i = 0; i < argc; i++) {
+	intersect_tr_table(tbl, argv[i]);	
+    }
+}
+
+#define TR_TABLE_CREATE() \
+	char __tbl__[0xff]; \
+	create_tr_table(__tbl__, argc, argv);
+
+#define TR_TABLE_INCLUDES(c) \
+	((c) < 0xff && __tbl__[(c) & 0xff] == 1)
+
+static VALUE
+rstr_count(VALUE str, SEL sel, int argc, VALUE *argv)
+{
+    TR_TABLE_CREATE();
+
+    UChar *chars = NULL;
+    long chars_len = 0;
+    bool need_free = false;
+    rb_str_get_uchars(str, &chars, &chars_len, &need_free);
+
+    long count = 0;
+    for (long i = 0; i < chars_len; i++) {
+	if (TR_TABLE_INCLUDES(chars[i])) {
+	    count++;
+	}
+    }
+
+    if (need_free) {
+	free(chars);
+    }
+
+    return LONG2NUM(count); 
+}
+
+/*
+ *  call-seq:
+ *     str.delete!([other_str]+)   => str or nil
+ *  
+ *  Performs a <code>delete</code> operation in place, returning <i>str</i>, or
+ *  <code>nil</code> if <i>str</i> was not modified.
+ */
+
+static VALUE
+rstr_delete_bang(VALUE str, SEL sel, int argc, VALUE *argv)
+{
+    rstr_modify(str);
+
+    TR_TABLE_CREATE();
+
+    UChar *chars = NULL;
+    long chars_len = 0;
+    bool need_free = false;
+    rb_str_get_uchars(str, &chars, &chars_len, &need_free);
+
+    bool modified = false;
+    for (long i = 0; i < chars_len; i++) {
+	while (i < chars_len && TR_TABLE_INCLUDES(chars[i])) {
+	    for (long j = i; j < chars_len - 1; j++) {
+		chars[j] = chars[j + 1];
+	    }
+	    chars_len--;
+	    modified = true;
+	}
+    }
+
+    if (!modified) {
+	if (need_free) {
+	    free(chars);
+	}
+	return Qnil;
+    }
+
+    if (need_free) {
+	str_replace_with_uchars(RSTR(str), chars, chars_len);
+	free(chars);
+    }
+    else {
+	RSTR(str)->length_in_bytes = UCHARS_TO_BYTES(chars_len);
+    }
+
+    return str;
+}
+
+/*
+ *  call-seq:
+ *     str.delete([other_str]+)   => new_str
+ *  
+ *  Returns a copy of <i>str</i> with all characters in the intersection of its
+ *  arguments deleted. Uses the same rules for building the set of characters as
+ *  <code>String#count</code>.
+ *     
+ *     "hello".delete "l","lo"        #=> "heo"
+ *     "hello".delete "lo"            #=> "he"
+ *     "hello".delete "aeiou", "^e"   #=> "hell"
+ *     "hello".delete "ej-m"          #=> "ho"
+ */
+
+static VALUE
+rstr_delete(VALUE str, SEL sel, int argc, VALUE *argv)
+{
+    str = rb_str_new3(str);
+    rstr_delete_bang(str, 0, argc, argv);
+    return str;
+}
+
+/*
+ *  call-seq:
+ *     str.squeeze!([other_str]*)   => str or nil
+ *  
+ *  Squeezes <i>str</i> in place, returning either <i>str</i>, or
+ *  <code>nil</code> if no changes were made.
+ */
+
+static VALUE
+rstr_squeeze_bang(VALUE str, SEL sel, int argc, VALUE *argv)
+{
+    rstr_modify(str);
+
+    // If no arguments are provided, we build a pattern string that contains
+    // the characters of the receiver itself.
+    VALUE tmp[1];
+    if (argc == 0) {
+	tmp[0] = str;
+	argv = tmp;
+	argc = 1;
+    }
+
+    TR_TABLE_CREATE();
+
+    UChar *chars = NULL;
+    long chars_len = 0;
+    bool need_free = false;
+    rb_str_get_uchars(str, &chars, &chars_len, &need_free);
+
+    bool modified = false;
+    for (long i = 0; i < chars_len; i++) {
+	UChar c = chars[i];
+	if (TR_TABLE_INCLUDES(c)) {
+	    while (i + 1 < chars_len && chars[i + 1] == c) {
+		for (long j = i + 1; j < chars_len - 1; j++) {
+		    chars[j] = chars[j + 1];
+		}
+		chars_len--;
+		modified = true;
+	    }
+	}
+    }
+
+    if (!modified) {
+	if (need_free) {
+	    free(chars);
+	}
+	return Qnil;
+    }
+
+    if (need_free) {
+	str_replace_with_uchars(RSTR(str), chars, chars_len);
+	free(chars);
+    }
+    else {
+	RSTR(str)->length_in_bytes = UCHARS_TO_BYTES(chars_len);
+    }
+
+    return str;
+}
+
+/*
+ *  call-seq:
+ *     str.squeeze([other_str]*)    => new_str
+ *  
+ *  Builds a set of characters from the <i>other_str</i> parameter(s) using the
+ *  procedure described for <code>String#count</code>. Returns a new string
+ *  where runs of the same character that occur in this set are replaced by a
+ *  single character. If no arguments are given, all runs of identical
+ *  characters are replaced by a single character.
+ *     
+ *     "yellow moon".squeeze                  #=> "yelow mon"
+ *     "  now   is  the".squeeze(" ")         #=> " now is the"
+ *     "putters shoot balls".squeeze("m-z")   #=> "puters shot balls"
+ */
+
+static VALUE
+rstr_squeeze(VALUE str, SEL sel, int argc, VALUE *argv)
+{
+    str = rb_str_new3(str);
+    rstr_squeeze_bang(str, 0, argc, argv);
+    return str;
+}
+
 // NSString primitives.
 
 static void
@@ -4632,6 +4917,11 @@ Init_String(void)
     rb_objc_define_method(rb_cRubyString, "upto", rstr_upto, -1);
     rb_objc_define_method(rb_cRubyString, "reverse", rstr_reverse, 0);
     rb_objc_define_method(rb_cRubyString, "reverse!", rstr_reverse_bang, 0);
+    rb_objc_define_method(rb_cRubyString, "count", rstr_count, -1);
+    rb_objc_define_method(rb_cRubyString, "delete", rstr_delete, -1);
+    rb_objc_define_method(rb_cRubyString, "delete!", rstr_delete_bang, -1);
+    rb_objc_define_method(rb_cRubyString, "squeeze", rstr_squeeze, -1);
+    rb_objc_define_method(rb_cRubyString, "squeeze!", rstr_squeeze_bang, -1);
 
     // MacRuby extensions.
     rb_objc_define_method(rb_cRubyString, "transform", rstr_transform, 1);
