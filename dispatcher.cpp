@@ -1222,7 +1222,23 @@ rb_vm_fast_eq(struct mcache *cache, VALUE self, VALUE other)
 	    return self == other ? Qtrue : Qfalse;
 
 	case T_STRING:
+	    if (self == other) {
+		return Qtrue;
+	    }
+	    if (TYPE(other) != self_type) {
+		return Qfalse;
+	    }
+	    return rb_str_equal(self, other);
+
 	case T_ARRAY:
+	    if (self == other) {
+		return Qtrue;
+	    }
+	    if (TYPE(other) != self_type) {
+		return Qfalse;
+	    }
+	    return rb_ary_equal(self, other);
+
 	case T_HASH:
 	    if (self == other) {
 		return Qtrue;
@@ -1230,14 +1246,7 @@ rb_vm_fast_eq(struct mcache *cache, VALUE self, VALUE other)
 	    if (TYPE(other) != self_type) {
 		return Qfalse;
 	    }
-	    if (self_type == T_ARRAY) {
-		return rb_ary_equal(self, other);
-	    }
-	    if (self_type == T_HASH) {
-		return rb_hash_equal(self, other);
-	    }
-	    return CFEqual((CFTypeRef)self, (CFTypeRef)other)
-		? Qtrue : Qfalse;
+	    return rb_hash_equal(self, other);
 
 	case T_BIGNUM:
 	    return rb_big_eq(self, other);
