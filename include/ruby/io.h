@@ -29,7 +29,7 @@ typedef struct rb_io_t {
     int read_fd;
     int write_fd;
 
-    CFStringRef path;
+    VALUE path;
     pid_t pid;
     int lineno;
     int mode;

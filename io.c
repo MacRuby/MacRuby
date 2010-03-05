@@ -849,15 +849,21 @@ static VALUE
 rb_io_inspect(VALUE io, SEL sel)
 {
     rb_io_t *io_struct = ExtractIOStruct(io);
-    if ((io_struct == NULL) || (io_struct->path == NULL)) {
+    if (io_struct == NULL || io_struct->path == 0) {
         return rb_any_to_s(io);
     }
-    const char *status = (rb_io_is_open(io_struct) ? "" : " (closed)");
 
-    CFStringRef s = CFStringCreateWithFormat(NULL, NULL, CFSTR("#<%s:%@%s>"),
-	    rb_obj_classname(io), io_struct->path, status);
-    CFMakeCollectable(s);
-    return (VALUE)s;
+    VALUE str = rb_str_new2("#<");
+    rb_str_cat2(str, rb_obj_classname(io));
+    rb_str_cat2(str, ":");
+    rb_str_concat(str, io_struct->path);
+    if (!rb_io_is_open(io_struct)) {
+	rb_str_cat2(str, " (closed)>");
+    }
+    else {
+	rb_str_cat2(str, ">");
+    }
+    return str;
 }
 
 /*

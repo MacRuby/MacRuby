@@ -168,7 +168,7 @@ static VALUE
 rb_file_path(VALUE obj, SEL sel)
 {
     rb_io_t *io = ExtractIOStruct(obj);
-    return io->path == NULL ? Qnil : (VALUE)io->path;
+    return io->path == 0 ? Qnil : io->path;
 }
 
 static VALUE
@@ -825,7 +825,7 @@ rb_file_lstat(VALUE obj, SEL sel)
 
     rb_secure(2);
     GetOpenFile(obj, fptr);
-    if (fptr->path == NULL) {
+    if (fptr->path == 0) {
 	return Qnil;
     }
     if (lstat(RSTRING_PTR(fptr->path), &st) == -1) {
